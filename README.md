@@ -26,6 +26,10 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados, con modificadores como Veloz, Brutal o Colosal) con mejor botín
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios
 - **Mercader con stock rotativo**: la mercancía cambia cada 5 minutos (con temporizador) y mejora con tu nivel
+- **Apuesta del mercader**: compra objetos sin identificar — mínimo mágico, con suerte legendario
+- **Waypoints**: cada 5 pisos hay un waypoint que desbloquea viaje rápido desde el pueblo (y entre pisos)
+- **Cofres mímico**: algunos cofres muerden... y sueltan mejor botín
+- **Crónica de partida**: monstruos, jefes, mímicos, legendarios, oro, muertes, piso máximo y tiempo jugado
 - **Inventario** de 32 casillas + 6 huecos de equipo (arma, casco, armadura, botas, anillo, amuleto), vender y tirar objetos
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
 - **Guardado automático** en localStorage (continúa donde lo dejaste)

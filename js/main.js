@@ -2,10 +2,10 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { BOSS, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
+import { BOSS, MIMIC, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
 import { buildTown, buildDungeon } from './world.js';
 import { Player, Enemy, Projectile } from './entities.js';
-import { rollDrops, makeGold, generateItem, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, gambleItem, RARITIES } from './items.js';
 import { UI } from './ui.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
@@ -300,6 +300,7 @@ class Game {
       statPoints: p.statPoints, skillPoints: p.skillPoints, skills: p.skills,
       gold: p.gold, potions: p.potions, inventory: p.inventory, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
+      waypoints: p.waypoints, records: p.records,
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -353,6 +354,10 @@ class Game {
     this.player.moveTarget = this.player.attackTarget = this.player.pickTarget = null;
     this.input.joyDir = null;
     this.portalArmed = false; // los portales se activan al alejarse de todos ellos
+    if (w.type === 'dungeon') this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
+    // no abrir el waypoint si el jugador aparece pegado a él
+    for (const it of w.interactables)
+      if (it.type === 'waypoint' && this.player.pos.distanceTo(it.pos) < it.radius + 0.5) it._in = true;
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
     if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} de la mazmorra`, 3000);
@@ -539,6 +544,16 @@ class Game {
     this.save();
   }
 
+  // viaje rápido desde un waypoint
+  travelTo(dest) {
+    this.ui.closePanel();
+    if (dest === 'town') this.loadWorld({ type: 'town' });
+    else {
+      this.player.lastFloor = dest;
+      this.loadWorld({ type: 'dungeon', floor: dest });
+    }
+  }
+
   // ---------- tienda del mercader ----------
   // El stock rota cada 5 minutos y mejora con el nivel del jugador
   ensureShopStock() {
@@ -552,7 +567,36 @@ class Game {
       it.price = Math.max(20, it.value * 4);
       items.push(it);
     }
-    this.shopStock = { items, until: Date.now() + SHOP_REFRESH_MS };
+    // ofertas de apuesta: objetos sin identificar
+    const slots = ['weapon', 'helm', 'chest', 'boots', 'ring', 'amulet'];
+    const gamble = [];
+    for (let i = 0; i < 3; i++) {
+      gamble.push({
+        uid: 'g' + (this.gambleUid = (this.gambleUid || 0) + 1),
+        slot: slots[Math.floor(Math.random() * slots.length)],
+        price: 40 + lvl * 12,
+      });
+    }
+    this.shopStock = { items, gamble, until: Date.now() + SHOP_REFRESH_MS };
+  }
+
+  buyGambleItem(uid) {
+    const p = this.player;
+    this.ensureShopStock();
+    const idx = this.shopStock.gamble.findIndex(o => o.uid === uid);
+    if (idx < 0) return;
+    const offer = this.shopStock.gamble[idx];
+    if (p.gold < offer.price) { this.ui.message('Oro insuficiente'); return; }
+    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    p.gold -= offer.price;
+    this.shopStock.gamble.splice(idx, 1);
+    const item = gambleItem(Math.max(1, Math.round(p.level * 0.8)), offer.slot);
+    p.inventory.push(item);
+    if (item.rarity === 'legendario') p.records.legendaries++;
+    this.sfx(item.rarity === 'legendario' ? 'levelup' : 'gold');
+    this.ui.renderShop();
+    this.ui.itemPopup(item, { from: 'inv', index: p.inventory.length - 1 });
+    this.save();
   }
 
   buyShopItem(uid) {
@@ -575,9 +619,14 @@ class Game {
   onEnemyKilled(enemy) {
     const p = this.player;
     p.gainXP(enemy.def.xp);
+    p.records.kills++;
+    if (enemy.def.boss) p.records.bossKills++;
+    if (enemy.def.rank) p.records.eliteKills++;
+    if (enemy.def.mimic) p.records.mimics++;
     const floor = this.world.floor || 1;
     let drops;
-    if (enemy.def.boss) drops = rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 });
+    if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.5, goldChance: 1, potionChance: 0.5 });
+    else if (enemy.def.boss) drops = rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 });
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { minItems: 1, itemChance: 0.5, goldChance: 1, potionChance: 0.4 });
     else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { itemChance: 0.7, goldChance: 0.85, potionChance: 0.3 });
     else drops = rollDrops(floor);
@@ -614,7 +663,7 @@ class Game {
   pickupGroundItem(gi) {
     const p = this.player;
     const it = gi.item;
-    if (it.kind === 'gold') { p.gold += it.amount; this.ui.spawnText(p.pos, `+${it.amount} 🪙`, 'txt-gold'); this.sfx('gold'); }
+    if (it.kind === 'gold') { p.gold += it.amount; p.records.goldEarned += it.amount; this.ui.spawnText(p.pos, `+${it.amount} 🪙`, 'txt-gold'); this.sfx('gold'); }
     else if (it.kind === 'potion') {
       if (p.potions[it.pot] >= 99) return;
       p.potions[it.pot]++;
@@ -622,6 +671,7 @@ class Game {
     } else {
       if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
       p.inventory.push(it);
+      if (it.rarity === 'legendario') p.records.legendaries++;
       this.ui.message(`Obtienes: ${it.name}`, 1800);
       this.sfx('pickup');
     }
@@ -678,6 +728,7 @@ class Game {
   // ---------- muerte ----------
   onPlayerDeath() {
     this.state = 'dead';
+    this.player.records.deaths++;
     this.sfx('death');
     this.ui.showDeath();
     this.save();
@@ -701,7 +752,7 @@ class Game {
     if (this.state === 'select') { this.renderer.render(this.scene, this.camera); return; }
 
     const p = this.player;
-    if (this.state === 'play') p.update(dt);
+    if (this.state === 'play') { p.update(dt); p.records.playTime += dt; }
 
     // enemigos
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -757,12 +808,17 @@ class Game {
     this.nearVendor = false;
     if (this.state === 'play') this.checkInteractables(dt);
 
-    // animar portales y antorchas
+    // animar portales, waypoints y antorchas
     for (const it of this.world.interactables) {
       if (it.mesh?.userData.spin) {
         it.mesh.userData.spin[0].rotation.z += dt * 1.5;
         const s = 1 + Math.sin(t * 3) * 0.05;
         it.mesh.userData.spin[1].scale.setScalar(s);
+      }
+      if (it.mesh?.userData.crystal) {
+        const c = it.mesh.userData.crystal;
+        c.rotation.y += dt * 1.2;
+        c.position.y = 0.95 + Math.sin(t * 2.5) * 0.12;
       }
     }
     this.world.group.traverse(o => {
@@ -814,7 +870,7 @@ class Game {
 
     for (const it of this.world.interactables) {
       const d = p.pos.distanceTo(it.pos);
-      if (d > it.radius) continue;
+      if (d > it.radius) { if (d > it.radius + 0.4) it._in = false; continue; }
       switch (it.type) {
         case 'portal_dungeon':
           if (this.portalArmed) this.loadWorld({ type: 'dungeon', floor: p.lastFloor || 1 });
@@ -828,6 +884,18 @@ class Game {
             this.loadWorld({ type: 'dungeon', floor: p.lastFloor });
           }
           return;
+        case 'waypoint':
+          if (!it._in) {
+            it._in = true;
+            if (it.floor && !p.waypoints.includes(it.floor)) {
+              p.waypoints.push(it.floor);
+              this.ui.message(`🗺️ ¡Waypoint del piso ${it.floor} activado!`, 3500);
+              this.sfx('portal');
+              this.save();
+            }
+            this.ui.openWaypoints();
+          }
+          break;
         case 'healer':
           if ((p.hp < p.stats.maxHP || p.mp < p.stats.maxMP) && this.healPulse <= 0) {
             this.healPulse = 0.5;
@@ -842,12 +910,28 @@ class Game {
         case 'chest':
           if (!it.opened) {
             it.opened = true;
-            it.label = '📦 Cofre vacío';
-            it.mesh.children[1].rotation.x = -1.1;
-            const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.6, goldChance: 1 });
-            for (const drop of drops) this.spawnGroundItem(drop, it.pos);
-            this.spawnGroundItem(makeGold(this.world.floor), it.pos);
-            this.sfx('chest');
+            if (it.mimic) {
+              // ¡el cofre era un monstruo!
+              it.label = '';
+              this.world.group.remove(it.mesh);
+              const def = scaleEnemy(MIMIC, this.world.floor);
+              def.rankLabel = '📦 ¡Mímico!';
+              def.labelCls = 'lbl-elite';
+              def.mimic = true;
+              const m = new Enemy(this, def, it.pos.clone());
+              this.enemies.push(m);
+              this.entityGroup.add(m.group);
+              this.ui.message('📦 ¡El cofre era un Mímico!');
+              this.sfx('eshoot');
+            } else {
+              it.label = '📦 Cofre vacío';
+              it.mesh.children[1].rotation.x = -1.1;
+              const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.6, goldChance: 1 });
+              for (const drop of drops) this.spawnGroundItem(drop, it.pos);
+              this.spawnGroundItem(makeGold(this.world.floor), it.pos);
+              p.records.chests++;
+              this.sfx('chest');
+            }
           }
           break;
       }
@@ -882,7 +966,7 @@ class Game {
     }
     for (let i = 0; i < this.world.interactables.length; i++) {
       const it = this.world.interactables[i];
-      if (it.pos.distanceToSquared(p.pos) > maxD) continue;
+      if (!it.label || it.pos.distanceToSquared(p.pos) > maxD) continue;
       entries.push({
         id: 'int' + i + it.label, pos: it.pos.clone().setY(1.8), text: it.label, cls: it.labelCls,
         onClick: () => { p.moveTarget = it.pos.clone(); p.attackTarget = null; p.pickTarget = null; },

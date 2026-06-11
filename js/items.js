@@ -67,8 +67,9 @@ export function rollRarity(bonus = 0) {
   return entries[0];
 }
 
-export function generateItem(ilvl, forceRarityId = null) {
-  const base = pick(BASES);
+export function generateItem(ilvl, forceRarityId = null, slot = null) {
+  const basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
+  const base = pick(basePool.length ? basePool : BASES);
   const rarity = forceRarityId ? RARITIES[forceRarityId] : rollRarity(Math.min(1.5, (ilvl - 1) * 0.08));
   const scale = 1 + 0.22 * (ilvl - 1);
 
@@ -117,6 +118,14 @@ export function generateItem(ilvl, forceRarityId = null) {
 
   item.value = Math.round((5 + ilvl * 4) * rarity.statMult * (1 + nAffixes * 0.5));
   return item;
+}
+
+// Apuesta del mercader: objeto sin identificar, nunca normal,
+// con pequeña posibilidad de raro o legendario (estilo gambling de D2)
+export function gambleItem(ilvl, slot) {
+  const r = Math.random();
+  const rarity = r < 0.70 ? 'magico' : r < 0.92 ? 'raro' : 'legendario';
+  return generateItem(ilvl, rarity, slot);
 }
 
 export function makePotion(pot) {

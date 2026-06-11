@@ -107,6 +107,23 @@ export function makeEnemyModel(def) {
     body.castShadow = true;
     g.add(body, head);
     bodyH = 0.9;
+  } else if (def.shape === 'mimic') {
+    // cofre con dientes
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), mat);
+    body.position.y = 0.3;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.16, 0.62),
+      std(0xc9a227, { metal: 0.4, rough: 0.5 }));
+    lid.position.set(0, 0.66, -0.2);
+    lid.rotation.x = -0.7;
+    for (const sx of [-0.25, 0, 0.25]) {
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), std(0xf0ead8));
+      tooth.position.set(sx, 0.5, 0.26);
+      tooth.rotation.x = Math.PI;
+      g.add(tooth);
+    }
+    body.castShadow = true;
+    g.add(body, lid);
+    bodyH = 0.7;
   } else {
     // humanoide
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.5, 6, 10), mat);
@@ -117,10 +134,14 @@ export function makeEnemyModel(def) {
     g.add(body, head);
   }
   // ojos brillantes
+  let eyeY = 1.34, eyeZ = 0.2;
+  if (def.shape === 'rat') { eyeY = 0.4; eyeZ = 0.45; }
+  else if (def.shape === 'golem') { eyeY = 1.58; }
+  else if (def.shape === 'mimic') { eyeY = 0.52; eyeZ = 0.33; }
   for (const sx of [-0.09, 0.09]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6),
       new THREE.MeshBasicMaterial({ color: def.boss ? 0xff2200 : 0xffcc00 }));
-    eye.position.set(sx, def.shape === 'rat' ? 0.4 : 1.34 * (def.shape === 'golem' ? 1.18 : 1), def.shape === 'rat' ? 0.45 : 0.2);
+    eye.position.set(sx, eyeY, eyeZ);
     g.add(eye);
   }
   g.scale.setScalar(s);
@@ -162,6 +183,14 @@ export class Player {
     this.lastFloor = 1;
 
     if (saved) Object.assign(this, saved, { game: this.game, cls: this.cls });
+
+    // valores por defecto compatibles con guardados antiguos
+    this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [1];
+    this.records = {
+      kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
+      maxFloor: 1, legendaries: 0, goldEarned: 0, chests: 0, playTime: 0,
+      ...(this.records || {}),
+    };
 
     this.buffs = [];
     this.cds = {};

@@ -209,6 +209,33 @@ export class UI {
     else if (this.activePanel === 'skills') this.renderSkills();
     else if (this.activePanel === 'stats') this.renderStats();
     else if (this.activePanel === 'shop') this.renderShop();
+    else if (this.activePanel === 'waypoints') this.renderWaypoints();
+  }
+
+  openWaypoints() {
+    if (this.activePanel !== 'waypoints') {
+      this.closePanel();
+      this.activePanel = 'waypoints';
+      $('panel-waypoints').classList.remove('hidden');
+    }
+    this.renderWaypoints();
+  }
+
+  renderWaypoints() {
+    const g = this.game, p = g.player;
+    const cont = $('wp-list');
+    cont.innerHTML = '';
+    const mk = (txt, disabled, fn) => {
+      const b = document.createElement('button');
+      b.className = 'shop-item';
+      b.innerHTML = `<span class="shop-name">${txt}</span>`;
+      b.disabled = disabled;
+      b.onclick = fn;
+      cont.appendChild(b);
+    };
+    mk('🏘️ Pueblo', g.world.type === 'town', () => g.travelTo('town'));
+    for (const f of [...p.waypoints].sort((a, b) => a - b))
+      mk(`🕳️ Piso ${f}`, g.world.type === 'dungeon' && g.world.floor === f, () => g.travelTo(f));
   }
 
   itemCellHTML(item) {
@@ -352,6 +379,17 @@ export class UI {
       <div>🛡️ Armadura: ${s.arm}</div>
       <div>👟 Velocidad: ${s.spd.toFixed(1)}</div>
       <div>⭐ Nivel ${p.level} · XP ${p.xp}/${xpForLevel(p.level)}</div>`;
+
+    const r = p.records;
+    const h = Math.floor(r.playTime / 3600), m = Math.floor((r.playTime % 3600) / 60);
+    $('records').innerHTML = `
+      <div>💀 Monstruos: ${r.kills} (élites/campeones: ${r.eliteKills} · jefes: ${r.bossKills} · mímicos: ${r.mimics})</div>
+      <div>🕳️ Piso más profundo: ${r.maxFloor}</div>
+      <div>🟠 Legendarios encontrados: ${r.legendaries}</div>
+      <div>📦 Cofres abiertos: ${r.chests}</div>
+      <div>🪙 Oro recogido: ${r.goldEarned}</div>
+      <div>⚰️ Muertes: ${r.deaths}</div>
+      <div>⏱️ Tiempo jugado: ${h}h ${m}m</div>`;
   }
 
   renderShop() {
@@ -378,6 +416,18 @@ export class UI {
          <small class="shop-stats">${SLOT_NAMES[it.slot]} Nv.${it.ilvl} · ${stats}</small>`,
         it.price,
         () => g.buyShopItem(it.uid)
+      );
+    }
+    // apuesta: objetos sin identificar, puede tocar legendario
+    const head = document.createElement('h4');
+    head.textContent = '🎲 Apuesta — objetos sin identificar';
+    cont.appendChild(head);
+    for (const ofr of g.shopStock.gamble) {
+      offer(
+        `❓ ${SLOT_NAMES[ofr.slot]} misterioso
+         <small class="shop-stats">Mínimo mágico... ¿quizá legendario?</small>`,
+        ofr.price,
+        () => g.buyGambleItem(ofr.uid)
       );
     }
     this.updateShopTimer();

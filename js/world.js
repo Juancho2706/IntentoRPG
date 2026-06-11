@@ -84,6 +84,19 @@ function makeNPC(color, hatColor) {
   return g;
 }
 
+function makeWaypoint() {
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.15, 0.22, 8),
+    new THREE.MeshStandardMaterial({ color: 0x55606e, roughness: 0.8 }));
+  base.position.y = 0.11;
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0),
+    new THREE.MeshStandardMaterial({ color: 0x44ddff, emissive: 0x22aacc, emissiveIntensity: 1.6 }));
+  crystal.position.y = 0.95;
+  g.add(base, crystal);
+  g.userData.crystal = crystal;
+  return g;
+}
+
 function makeTorch() {
   const g = new THREE.Group();
   const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.4, 6),
@@ -162,8 +175,8 @@ export function buildTown() {
     group.add(body, roof);
   }
 
-  // árboles decorativos (lejos de NPCs, portal y punto de aparición)
-  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6]];
+  // árboles decorativos (lejos de NPCs, portal, waypoint y punto de aparición)
+  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8]];
   for (let i = 0; i < 14; i++) {
     const x = ri(2, W - 3), z = ri(2, H - 3);
     if (!grid.cells[z][x]) continue;
@@ -221,6 +234,13 @@ export function buildTown() {
     t.position.set(portalPos.x + dx, 0, portalPos.z);
     group.add(t);
   }
+
+  // waypoint del pueblo: viaje rápido a los pisos descubiertos
+  const wpPos = grid.center(Math.floor(W / 2), 8);
+  const wp = makeWaypoint();
+  wp.position.copy(wpPos);
+  group.add(wp);
+  interactables.push({ type: 'waypoint', pos: wpPos.clone(), radius: 1.2, label: '🗺️ Waypoint', labelCls: 'lbl-portal', mesh: wp });
 
   const spawn = grid.center(Math.floor(W / 2), H - 6);
   return {
@@ -338,6 +358,20 @@ export function buildDungeon(floor) {
   group.add(townPortal);
   interactables.push({ type: 'portal_town', pos: entry.clone(), radius: 1.3, label: '🌀 Volver al Pueblo', labelCls: 'lbl-portal', mesh: townPortal });
 
+  // waypoint cada 5 pisos, cerca de la entrada (lejos del punto de aparición)
+  if (floor % 5 === 0) {
+    const r0 = rooms[0];
+    for (const [wx, wz] of [[r0.cx - 2, r0.cz], [r0.cx + 2, r0.cz], [r0.cx, r0.cz - 2]]) {
+      if (wz < 0 || wx < 0 || wz >= H || wx >= W || !grid.cells[wz][wx]) continue;
+      const pos = grid.center(wx, wz);
+      const wp = makeWaypoint();
+      wp.position.copy(pos);
+      group.add(wp);
+      interactables.push({ type: 'waypoint', floor, pos: pos.clone(), radius: 1.2, label: `🗺️ Waypoint · Piso ${floor}`, labelCls: 'lbl-portal', mesh: wp });
+      break;
+    }
+  }
+
   // portal de salida (siguiente piso) en la última sala
   const last = rooms[rooms.length - 1];
   const exit = grid.center(last.cx, last.cz);
@@ -384,7 +418,8 @@ export function buildDungeon(floor) {
       chest.add(box, lid);
       chest.position.copy(pos);
       group.add(chest);
-      interactables.push({ type: 'chest', pos: pos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false });
+      // algunos cofres son mímicos disfrazados
+      interactables.push({ type: 'chest', pos: pos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: Math.random() < 0.18 });
     }
   }
 

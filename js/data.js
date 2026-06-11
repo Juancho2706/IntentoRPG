@@ -131,6 +131,12 @@ export const BOSS = {
   rangedAttack: true, projSpeed: 9, projColor: 0xff3300, rangedChance: 0.35,
 };
 
+// Cofre falso: muerde cuando intentas abrirlo
+export const MIMIC = {
+  id: 'mimico', name: 'Mímico', color: 0x7a5a2a, shape: 'mimic',
+  hp: 50, dmg: 12, spd: 3.0, xp: 35, range: 1.5, atkTime: 1.0, scale: 1.0,
+};
+
 // Escalado de enemigos por piso de mazmorra
 export function scaleEnemy(def, floor) {
   const f = floor - 1;
