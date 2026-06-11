@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>IntentoRPG — ARPG Isométrico</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+
+<div id="game"></div>
+
+<!-- capas de superposición -->
+<div id="damage-flash"></div>
+<div id="labels"></div>
+<div id="floats"></div>
+<div id="messages"></div>
+
+<!-- zona del joystick táctil (mitad izquierda) -->
+<div id="joy-zone"></div>
+<div id="joystick" class="hidden"><div id="joy-knob"></div></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="top-left">
+    <div id="hud-info">
+      <span id="hud-level">Nv 1</span>
+      <span id="hud-gold">🪙 0</span>
+      <span id="hud-zone">🏘️ Pueblo</span>
+    </div>
+    <div id="menu-btns">
+      <button id="btn-inv" title="Inventario [I]">🎒</button>
+      <button id="btn-skills" title="Habilidades [T]">📖<span class="badge" id="badge-skills"></span></button>
+      <button id="btn-stats" title="Personaje [C]">🧍<span class="badge" id="badge-stats"></span></button>
+      <button id="btn-shop" title="Tienda" style="display:none">🛒</button>
+    </div>
+  </div>
+
+  <canvas id="minimap" width="132" height="132"></canvas>
+
+  <div id="xp-bar"><div id="xp-fill"></div></div>
+
+  <!-- orbe de vida + poción -->
+  <div id="orb-hp" class="orb">
+    <div class="orb-fill" id="orb-hp-fill"></div>
+    <span class="orb-txt" id="orb-hp-txt">0</span>
+  </div>
+  <button id="btn-pot-hp" class="pot-btn">🧪<span class="pot-count" id="pot-hp-count">0</span><span class="pot-key">Q</span></button>
+
+  <!-- orbe de maná + poción -->
+  <div id="orb-mp" class="orb">
+    <div class="orb-fill" id="orb-mp-fill"></div>
+    <span class="orb-txt" id="orb-mp-txt">0</span>
+  </div>
+  <button id="btn-pot-mp" class="pot-btn">🔷<span class="pot-count" id="pot-mp-count">0</span><span class="pot-key">E</span></button>
+
+  <!-- acciones -->
+  <div id="action-cluster">
+    <div id="skillbar"></div>
+    <button id="btn-attack" title="Atacar [Espacio]">⚔️</button>
+  </div>
+</div>
+
+<!-- paneles -->
+<div id="panel-inv" class="panel hidden">
+  <div class="panel-head"><h2>🎒 Inventario</h2><button class="panel-close">✕</button></div>
+  <h4>Equipado</h4>
+  <div id="equip-slots"></div>
+  <h4>Mochila <span id="inv-gold" class="dim"></span></h4>
+  <div id="inv-grid"></div>
+</div>
+
+<div id="panel-skills" class="panel hidden">
+  <div class="panel-head"><h2>📖 Árbol de Habilidades</h2><button class="panel-close">✕</button></div>
+  <p id="skill-points" class="points-txt"></p>
+  <div id="skill-tree"></div>
+</div>
+
+<div id="panel-stats" class="panel hidden">
+  <div class="panel-head"><h2>🧍 Personaje</h2><button class="panel-close">✕</button></div>
+  <p id="stat-points" class="points-txt"></p>
+  <div id="attr-list"></div>
+  <h4>Estadísticas</h4>
+  <div id="derived-stats"></div>
+</div>
+
+<div id="panel-shop" class="panel hidden">
+  <div class="panel-head"><h2>🛒 Mercader</h2><button class="panel-close">✕</button></div>
+  <div id="shop-items"></div>
+  <p id="shop-gold" class="dim"></p>
+</div>
+
+<div id="item-popup" class="hidden"></div>
+
+<!-- selección de clase -->
+<div id="class-select" class="fullscreen hidden">
+  <h1>⚔️ IntentoRPG</h1>
+  <p class="subtitle">Un ARPG isométrico de mazmorras y botín</p>
+  <div id="class-cards"></div>
+  <p class="hint">Escritorio: clic para moverte/atacar · 1-4 habilidades · Q/E pociones · I/T/C paneles<br>
+  Móvil: joystick a la izquierda · botones de acción a la derecha</p>
+</div>
+
+<!-- pantalla de muerte -->
+<div id="death-screen" class="fullscreen hidden">
+  <h1 class="death-title">💀 Has Muerto</h1>
+  <p>Las profundidades reclaman otra alma...</p>
+  <button id="btn-respawn">Despertar en el Pueblo</button>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
