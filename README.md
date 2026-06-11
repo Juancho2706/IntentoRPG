@@ -23,7 +23,9 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Árbol de habilidades**: 6 habilidades por clase en 3 tiers (activas, buffs y pasivas), +1 punto por nivel
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
+- **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados, con modificadores como Veloz, Brutal o Colosal) con mejor botín
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios
+- **Mercader con stock rotativo**: la mercancía cambia cada 5 minutos (con temporizador) y mejora con tu nivel
 - **Inventario** de 32 casillas + 6 huecos de equipo (arma, casco, armadura, botas, anillo, amuleto), vender y tirar objetos
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
 - **Guardado automático** en localStorage (continúa donde lo dejaste)

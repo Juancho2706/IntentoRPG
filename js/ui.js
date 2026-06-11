@@ -84,6 +84,7 @@ export class UI {
     badge('badge-stats', p.statPoints);
     badge('badge-skills', p.skillPoints);
     $('btn-shop').style.display = this.game.nearVendor ? '' : 'none';
+    if (this.activePanel === 'shop') this.updateShopTimer();
 
     // cooldowns de la barra de habilidades
     for (const btn of $('skillbar').children) {
@@ -355,19 +356,39 @@ export class UI {
 
   renderShop() {
     const g = this.game, p = g.player;
+    g.ensureShopStock();
     const cont = $('shop-items');
     cont.innerHTML = '';
-    const offer = (txt, price, fn) => {
+    const offer = (html, price, fn) => {
       const b = document.createElement('button');
       b.className = 'shop-item';
-      b.innerHTML = `${txt} <span>${price} 🪙</span>`;
+      b.innerHTML = `<span class="shop-name">${html}</span><span class="shop-price">${price} 🪙</span>`;
       b.disabled = p.gold < price;
       b.onclick = () => { fn(); this.renderShop(); this.updateHUD(); };
       cont.appendChild(b);
     };
     offer('🧪 Poción de Vida', POTION_PRICES.hp, () => { p.gold -= POTION_PRICES.hp; p.potions.hp++; g.sfx('potion'); g.save(); });
     offer('🔷 Poción de Maná', POTION_PRICES.mp, () => { p.gold -= POTION_PRICES.mp; p.potions.mp++; g.sfx('potion'); g.save(); });
+
+    for (const it of g.shopStock.items) {
+      const r = RARITIES[it.rarity];
+      const stats = itemStatLines(it).join(' · ');
+      offer(
+        `<span style="color:${r.color}">${it.icon} ${it.name}</span>
+         <small class="shop-stats">${SLOT_NAMES[it.slot]} Nv.${it.ilvl} · ${stats}</small>`,
+        it.price,
+        () => g.buyShopItem(it.uid)
+      );
+    }
+    this.updateShopTimer();
     $('shop-gold').textContent = `Tu oro: 🪙 ${p.gold} · Vende objetos desde el inventario`;
+  }
+
+  updateShopTimer() {
+    const stock = this.game.shopStock;
+    if (!stock) return;
+    const s = Math.max(0, Math.ceil((stock.until - Date.now()) / 1000));
+    $('shop-timer').textContent = `⏳ Nueva mercancía en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   showDeath() { $('death-screen').classList.remove('hidden'); }

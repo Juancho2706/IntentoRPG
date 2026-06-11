@@ -2,10 +2,10 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { BOSS, scaleEnemy, pickEnemyDef, skillVal, TIER_LEVELS } from './data.js';
+import { BOSS, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
 import { buildTown, buildDungeon } from './world.js';
 import { Player, Enemy, Projectile } from './entities.js';
-import { rollDrops, makeGold, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, RARITIES } from './items.js';
 import { UI } from './ui.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
@@ -91,19 +91,21 @@ class Input {
     });
     window.addEventListener('keyup', e => { this.keys.delete(e.code); this.updateKeyDir(); });
 
-    // joystick táctil: aparece al tocar la mitad izquierda
+    // joystick táctil: aparece al tocar la mitad izquierda.
+    // El seguimiento y el fin del gesto se escuchan en window para no
+    // perder el pointerup si el dedo termina sobre otro elemento del HUD.
     const zone = document.getElementById('joy-zone');
     zone.addEventListener('pointerdown', e => {
       if (this.joyId !== null) return;
+      e.preventDefault();
       this.joyId = e.pointerId;
       this.joyOrigin = { x: e.clientX, y: e.clientY };
       const joy = document.getElementById('joystick');
       joy.classList.remove('hidden');
       joy.style.left = e.clientX + 'px';
       joy.style.top = e.clientY + 'px';
-      zone.setPointerCapture(e.pointerId);
     });
-    zone.addEventListener('pointermove', e => {
+    window.addEventListener('pointermove', e => {
       if (e.pointerId !== this.joyId) return;
       let dx = e.clientX - this.joyOrigin.x, dy = e.clientY - this.joyOrigin.y;
       const len = Math.hypot(dx, dy);
@@ -118,14 +120,16 @@ class Input {
       } else this.joyDir = null;
     });
     const endJoy = e => {
-      if (e.pointerId !== this.joyId) return;
+      if (e && e.pointerId !== undefined && e.pointerId !== this.joyId) return;
       this.joyId = null;
       this.joyDir = null;
       document.getElementById('joystick').classList.add('hidden');
       document.getElementById('joy-knob').style.transform = '';
     };
-    zone.addEventListener('pointerup', endJoy);
-    zone.addEventListener('pointercancel', endJoy);
+    window.addEventListener('pointerup', endJoy);
+    window.addEventListener('pointercancel', endJoy);
+    window.addEventListener('blur', () => endJoy());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) endJoy(); });
   }
 
   updateKeyDir() {
@@ -202,7 +206,7 @@ class Game {
     this.groundItems = [];
     this.fx = [];
     this.nearVendor = false;
-    this.portalCd = 0;
+    this.portalArmed = true;
     this.healPulse = 0;
     this.saveTimer = 0;
     this.giUid = 1;
@@ -329,11 +333,16 @@ class Game {
     this.sun.color.setHex(w.sun.color);
     this.playerLight.intensity = w.type === 'dungeon' ? 16 : 0;
 
-    // enemigos
+    // enemigos (los normales pueden salir Campeón o Élite)
     for (const s of w.spawns) {
-      const def = s.kind === 'boss'
-        ? scaleEnemy(BOSS, w.floor)
-        : scaleEnemy(pickEnemyDef(w.floor), w.floor);
+      let def;
+      if (s.kind === 'boss') {
+        def = scaleEnemy(BOSS, w.floor);
+        def.rankLabel = `👹 ${def.name}`;
+        def.labelCls = 'lbl-elite';
+      } else {
+        def = rollEnemyRank(scaleEnemy(pickEnemyDef(w.floor), w.floor), w.floor);
+      }
       const enemy = new Enemy(this, def, s.pos);
       this.enemies.push(enemy);
       this.entityGroup.add(enemy.group);
@@ -342,7 +351,8 @@ class Game {
     // jugador
     this.player.pos.copy(w.spawn);
     this.player.moveTarget = this.player.attackTarget = this.player.pickTarget = null;
-    this.portalCd = 1.5;
+    this.input.joyDir = null;
+    this.portalArmed = false; // los portales se activan al alejarse de todos ellos
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
     if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} de la mazmorra`, 3000);
@@ -529,14 +539,48 @@ class Game {
     this.save();
   }
 
+  // ---------- tienda del mercader ----------
+  // El stock rota cada 5 minutos y mejora con el nivel del jugador
+  ensureShopStock() {
+    if (this.shopStock && Date.now() < this.shopStock.until) return;
+    const lvl = this.player?.level || 1;
+    const ilvl = Math.max(1, Math.round(lvl * 0.8));
+    const n = 4 + Math.min(3, Math.floor(lvl / 5));
+    const items = [];
+    for (let i = 0; i < n; i++) {
+      const it = generateItem(ilvl);
+      it.price = Math.max(20, it.value * 4);
+      items.push(it);
+    }
+    this.shopStock = { items, until: Date.now() + SHOP_REFRESH_MS };
+  }
+
+  buyShopItem(uid) {
+    const p = this.player;
+    this.ensureShopStock();
+    const idx = this.shopStock.items.findIndex(i => i.uid === uid);
+    if (idx < 0) return;
+    const it = this.shopStock.items[idx];
+    if (p.gold < it.price) { this.ui.message('Oro insuficiente'); return; }
+    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    p.gold -= it.price;
+    this.shopStock.items.splice(idx, 1);
+    p.inventory.push(it);
+    this.ui.message(`Compras: ${it.name}`, 1800);
+    this.sfx('gold');
+    this.save();
+  }
+
   // ---------- loot ----------
   onEnemyKilled(enemy) {
     const p = this.player;
     p.gainXP(enemy.def.xp);
     const floor = this.world.floor || 1;
-    const drops = enemy.def.boss
-      ? rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 })
-      : rollDrops(floor);
+    let drops;
+    if (enemy.def.boss) drops = rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 });
+    else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { minItems: 1, itemChance: 0.5, goldChance: 1, potionChance: 0.4 });
+    else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { itemChance: 0.7, goldChance: 0.85, potionChance: 0.3 });
+    else drops = rollDrops(floor);
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
     if (enemy.def.boss) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
     this.sfx('death');
@@ -710,7 +754,6 @@ class Game {
     }
 
     // interactuables
-    this.portalCd = Math.max(0, this.portalCd - dt);
     this.nearVendor = false;
     if (this.state === 'play') this.checkInteractables(dt);
 
@@ -742,6 +785,15 @@ class Game {
     this.syncWorldLabels();
     this.ui.drawMinimap();
 
+    // rotación de la mercancía de la tienda
+    if (this.shopStock && Date.now() >= this.shopStock.until) {
+      this.ensureShopStock();
+      if (this.ui.activePanel === 'shop') {
+        this.ui.renderShop();
+        this.ui.message('🛒 ¡El mercader tiene nueva mercancía!');
+      }
+    }
+
     this.saveTimer += dt;
     if (this.saveTimer > 8) { this.saveTimer = 0; this.save(); }
 
@@ -751,18 +803,27 @@ class Game {
   checkInteractables(dt) {
     const p = this.player;
     this.healPulse = Math.max(0, this.healPulse - dt);
+
+    // los portales no funcionan hasta que el jugador se aleje de todos
+    // (evita teletransportes en bucle al aparecer junto a un portal)
+    if (!this.portalArmed) {
+      const nearAny = this.world.interactables.some(it =>
+        it.type.startsWith('portal') && p.pos.distanceTo(it.pos) < it.radius + 0.5);
+      if (!nearAny) this.portalArmed = true;
+    }
+
     for (const it of this.world.interactables) {
       const d = p.pos.distanceTo(it.pos);
       if (d > it.radius) continue;
       switch (it.type) {
         case 'portal_dungeon':
-          if (this.portalCd <= 0) this.loadWorld({ type: 'dungeon', floor: p.lastFloor || 1 });
+          if (this.portalArmed) this.loadWorld({ type: 'dungeon', floor: p.lastFloor || 1 });
           return;
         case 'portal_town':
-          if (this.portalCd <= 0) this.loadWorld({ type: 'town' });
+          if (this.portalArmed) this.loadWorld({ type: 'town' });
           return;
         case 'portal_next':
-          if (this.portalCd <= 0) {
+          if (this.portalArmed) {
             p.lastFloor = this.world.floor + 1;
             this.loadWorld({ type: 'dungeon', floor: p.lastFloor });
           }
@@ -807,6 +868,17 @@ class Game {
           onClick: () => { p.pickTarget = gi; p.moveTarget = null; p.attackTarget = null; },
         });
       }
+    }
+    // nombres de campeones, élites y jefes
+    for (const e of this.enemies) {
+      if (!e.alive || !e.def.rankLabel) continue;
+      if (e.pos.distanceToSquared(p.pos) > maxD) continue;
+      entries.push({
+        id: 'en' + e.uid,
+        pos: e.pos.clone().setY(2.3 * (e.def.scale || 1)),
+        text: e.def.rankLabel, cls: e.def.labelCls,
+        onClick: () => { p.attackTarget = e; p.moveTarget = null; p.pickTarget = null; },
+      });
     }
     for (let i = 0; i < this.world.interactables.length; i++) {
       const it = this.world.interactables[i];

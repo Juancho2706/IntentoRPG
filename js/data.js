@@ -151,6 +151,45 @@ export function pickEnemyDef(floor, rng = Math.random) {
   return pool[pool.length - 1];
 }
 
+// Rarezas de monstruos estilo Diablo 2
+export const ENEMY_RANKS = {
+  campeon: { id: 'campeon', name: 'Campeón', icon: '⚔️', hp: 2.0, dmg: 1.35, xp: 2.5, scale: 1.12, glow: 0x182866, labelCls: 'lbl-champ' },
+  elite:   { id: 'elite',   name: 'Élite',   icon: '☠️', hp: 3.2, dmg: 1.6,  xp: 4.0, scale: 1.28, glow: 0x5a3a00, labelCls: 'lbl-elite' },
+};
+
+export const ELITE_MODS = [
+  { id: 'veloz',    name: 'Veloz',    spd: 1.45 },
+  { id: 'brutal',   name: 'Brutal',   dmg: 1.35 },
+  { id: 'colosal',  name: 'Colosal',  hp: 1.6 },
+  { id: 'ardiente', name: 'Ardiente', dmg: 1.2, spd: 1.15 },
+];
+
+// Aplica (o no) una rareza aleatoria a un enemigo ya escalado por piso
+export function rollEnemyRank(def, floor) {
+  const r = Math.random();
+  let rank = null;
+  if (r < 0.04 + Math.min(0.04, floor * 0.005)) rank = ENEMY_RANKS.elite;
+  else if (r < 0.14) rank = ENEMY_RANKS.campeon;
+  if (!rank) return def;
+
+  const out = {
+    ...def, rank: rank.id, glow: rank.glow, labelCls: rank.labelCls,
+    hp: Math.round(def.hp * rank.hp), dmg: Math.round(def.dmg * rank.dmg),
+    xp: Math.round(def.xp * rank.xp), scale: (def.scale || 1) * rank.scale,
+    rankLabel: `${rank.icon} ${def.name} ${rank.name}`,
+  };
+  if (rank.id === 'elite') {
+    const mod = ELITE_MODS[Math.floor(Math.random() * ELITE_MODS.length)];
+    if (mod.spd) out.spd = def.spd * mod.spd;
+    if (mod.dmg) out.dmg = Math.round(out.dmg * mod.dmg);
+    if (mod.hp) out.hp = Math.round(out.hp * mod.hp);
+    out.rankLabel = `${rank.icon} ${def.name} ${mod.name}`;
+  }
+  return out;
+}
+
+export const SHOP_REFRESH_MS = 5 * 60 * 1000; // la tienda rota cada 5 minutos
+
 export const POTION_PRICES = { hp: 30, mp: 30 };
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {

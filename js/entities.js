@@ -391,10 +391,13 @@ export class Player {
 // ------------------------------------------------------------
 // ENEMIGO
 // ------------------------------------------------------------
+let enemyUid = 1;
+
 export class Enemy {
   constructor(game, def, pos) {
     this.game = game;
     this.def = def;
+    this.uid = enemyUid++;
     this.hp = def.hp;
     this.maxHP = def.hp;
     this.alive = true;
@@ -402,6 +405,7 @@ export class Enemy {
     this.slowT = 0;
     this.flashT = 0;
     this.fade = 0;
+    this.baseEmissive = def.glow || 0x000000; // campeones y élites brillan
     this.group = makeEnemyModel(def);
     this.group.position.copy(pos);
     this.group.userData.enemy = this;
@@ -441,7 +445,7 @@ export class Enemy {
     if (this.flashT > 0) this.flashT -= dt;
     this.group.traverse(o => {
       if (o.isMesh && o.material && o.material.emissive)
-        o.material.emissive.setHex(this.flashT > 0 ? 0x661111 : 0x000000);
+        o.material.emissive.setHex(this.flashT > 0 ? 0x661111 : this.baseEmissive);
     });
 
     const player = g.player;

@@ -59,6 +59,8 @@ button { font-family: inherit; cursor: pointer; }
 .world-label.lbl-portal { color: #b388ff; border-color: #6a4a99; }
 .world-label.lbl-npc { color: #9fd89f; }
 .world-label.lbl-chest { color: #ddb866; }
+.world-label.lbl-champ { color: #7fa0ff; border-color: #3a4a99; }
+.world-label.lbl-elite { color: #ffb84a; border-color: #996a1a; box-shadow: 0 0 8px rgba(255, 170, 40, 0.45); }
 
 /* ---------- textos flotantes ---------- */
 .float-txt {
@@ -125,7 +127,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 #xp-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #7a4fd0, #b388ff); }
 
-/* orbes */
+/* orbes (solo informativos: dejan pasar los toques al joystick) */
+.orb, #xp-bar { pointer-events: none; }
 .orb {
   bottom: calc(14px + var(--safe-b));
   width: 92px; height: 92px; border-radius: 50%;
@@ -311,13 +314,17 @@ button { font-family: inherit; cursor: pointer; }
 
 /* tienda */
 .shop-item {
-  display: flex; justify-content: space-between; width: 100%;
-  padding: 12px; margin-bottom: 8px; font-size: 15px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 10px 12px; margin-bottom: 8px; font-size: 15px;
   background: #2a2018; color: #fff;
   border: 1px solid var(--panel-border); border-radius: 8px;
+  text-align: left;
 }
 .shop-item:disabled { opacity: 0.45; }
-.shop-item span { color: var(--gold); }
+.shop-name { flex: 1; }
+.shop-stats { display: block; font-size: 11px; color: #9fc8ff; opacity: 0.9; margin-top: 2px; }
+.shop-price { color: var(--gold); white-space: nowrap; flex-shrink: 0; }
 
 /* ---------- pantallas ---------- */
 .fullscreen {

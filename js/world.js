@@ -285,12 +285,13 @@ export function buildDungeon(floor) {
           }
         if (near) {
           const c = grid.center(x, z);
-          wallPos.push({ x: c.x, y: 1.25, z: c.z });
+          wallPos.push({ x: c.x, y: 0.6, z: c.z });
         }
       }
     }
   group.add(instancedBoxes(floorPos, [1, 0.1, 1], 0x3c3a44, { vary: 0.05 }));
-  group.add(instancedBoxes(wallPos, [1, 2.5, 1], 0x2a2733, { vary: 0.08, castShadow: false }));
+  // muros bajos para que los enemigos no queden ocultos tras ellos en la vista isométrica
+  group.add(instancedBoxes(wallPos, [1, 1.2, 1], 0x2a2733, { vary: 0.08, castShadow: false }));
 
   // decoración: pilares y huesos en salas
   for (const r of rooms) {
@@ -298,9 +299,9 @@ export function buildDungeon(floor) {
       for (const [px, pz] of [[r.x + 1, r.z + 1], [r.x + r.w - 2, r.z + r.d - 2]]) {
         grid.cells[pz][px] = 0;
         const c = grid.center(px, pz);
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.4, 8),
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.5, 8),
           new THREE.MeshStandardMaterial({ color: 0x4a4756, roughness: 0.9 }));
-        pillar.position.set(c.x, 1.2, c.z);
+        pillar.position.set(c.x, 0.75, c.z);
         pillar.castShadow = true;
         group.add(pillar);
       }
