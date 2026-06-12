@@ -179,8 +179,8 @@ export const GEMS = [
   { id: 'diamante', name: 'Diamante', icon: '💠', stat: 'arm', base: 4 },
 ];
 
-export function makeGem(ilvl) {
-  const g = GEMS[ri(0, GEMS.length - 1)];
+export function makeGem(ilvl, gemId = null) {
+  const g = (gemId && GEMS.find(x => x.id === gemId)) || GEMS[ri(0, GEMS.length - 1)];
   const v = Math.max(1, Math.round(g.base * (1 + 0.2 * (ilvl - 1))));
   return {
     uid: itemUid++, kind: 'gem', gemId: g.id, icon: g.icon,

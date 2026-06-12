@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS, generateQuest, PET_PRICE } from './data.js';
 import { buildTown, buildDungeon } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, generateItem, gambleItem, RARITIES } from './items.js';
+import { rollDrops, makeGold, makeGem, generateItem, gambleItem, RARITIES } from './items.js';
 import { UI } from './ui.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
@@ -82,7 +82,7 @@ class Input {
       if (e.code === 'KeyC') g.ui.togglePanel('stats');
       if (e.code === 'KeyQ') { g.player?.usePotion('hp'); }
       if (e.code === 'KeyE') { g.player?.usePotion('mp'); }
-      if (e.code === 'Space') { e.preventDefault(); g.attackNearest(); }
+      if (e.code === 'Space') { e.preventDefault(); g.primaryAction(); }
       if (e.code === 'Escape') g.ui.closePanel();
       if (e.code.startsWith('Digit')) {
         const n = parseInt(e.code.slice(5));
@@ -221,7 +221,7 @@ class Game {
     this.fx = [];
     this.firePools = [];
     this.nearVendor = false;
-    this.portalArmed = true;
+    this.currentInteract = null;
     this.healPulse = 0;
     this.saveTimer = 0;
     this.giUid = 1;
@@ -231,7 +231,7 @@ class Game {
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
-    this.settings = { sound: true, shake: true, haptics: true, ...opts };
+    this.settings = { sound: true, shake: true, haptics: true, brightness: 1, ...opts };
     this.loadStash();
     try { this.dailyLog = JSON.parse(localStorage.getItem('intentorpg_dailylog') || '[]'); } catch { this.dailyLog = []; }
     const rawSfx = createSfx();
@@ -244,6 +244,7 @@ class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = this.settings.brightness;
     document.getElementById('game').appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -387,15 +388,12 @@ class Game {
     this.player.pos.copy(w.spawn);
     this.player.moveTarget = this.player.attackTarget = this.player.pickTarget = null;
     this.input.joyDir = null;
-    this.portalArmed = false; // los portales se activan al alejarse de todos ellos
+    this.currentInteract = null;
     if (w.type === 'dungeon' && !w.daily) this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
     if (this.pet) {
       this.pet.pos.copy(w.spawn).add(new THREE.Vector3(0.9, 0, 0.6));
       this.pet.pos.y = 0;
     }
-    // no abrir el waypoint si el jugador aparece pegado a él
-    for (const it of w.interactables)
-      if (it.type === 'waypoint' && this.player.pos.distanceTo(it.pos) < it.radius + 0.5) it._in = true;
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
     if (w.daily) this.dailyStart = Date.now();
@@ -1032,17 +1030,38 @@ class Game {
   transmute() {
     const p = this.player;
     if (p.cube.length !== 3) { this.ui.message('El cubo necesita 3 objetos'); return; }
-    const r = p.cube[0].rarity;
-    if (!p.cube.every(it => it.rarity === r)) { this.ui.message('Los 3 objetos deben tener la misma rareza'); return; }
-    const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
-    if (!next) { this.ui.message('Los legendarios no se pueden transmutar'); return; }
     if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    const ilvl = Math.max(...p.cube.map(it => it.ilvl));
+    const c = p.cube;
+    let item = null;
+
+    if (c.every(it => it.kind === 'gem')) {
+      // recetas de gemas
+      const ilvl = Math.max(...c.map(it => it.ilvl));
+      if (c.every(it => it.gemId === c[0].gemId)) {
+        // 3 gemas iguales → la misma gema, más poderosa
+        item = makeGem(ilvl + 3, c[0].gemId);
+        this.ui.message(`💎 ¡Las gemas se funden en un ${item.name} superior!`, 3000);
+      } else {
+        // 3 gemas distintas → gema aleatoria algo mejor
+        item = makeGem(ilvl + 1);
+        this.ui.message(`💎 Las gemas se transforman en: ${item.name}`, 3000);
+      }
+    } else if (c.every(it => it.kind === 'item')) {
+      const r = c[0].rarity;
+      if (!c.every(it => it.rarity === r)) { this.ui.message('Los 3 objetos deben tener la misma rareza'); return; }
+      const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
+      if (!next) { this.ui.message('Los legendarios no se pueden transmutar'); return; }
+      const ilvl = Math.max(...c.map(it => it.ilvl));
+      item = generateItem(ilvl, next);
+      if (item.rarity === 'legendario') p.records.legendaries++;
+      this.ui.message(`🧪 ¡Transmutación! Obtienes: ${item.name}`, 3000);
+    } else {
+      this.ui.message('No se pueden mezclar gemas y objetos en el cubo');
+      return;
+    }
+
     p.cube = [];
-    const item = generateItem(ilvl, next);
     p.inventory.push(item);
-    if (item.rarity === 'legendario') p.records.legendaries++;
-    this.ui.message(`🧪 ¡Transmutación! Obtienes: ${item.name}`, 3000);
     this.sfx('levelup');
     this.ui.renderPanel();
     this.ui.itemPopup(item, { from: 'inv', index: p.inventory.length - 1 });
@@ -1239,59 +1258,17 @@ class Game {
     this.renderer.render(this.scene, this.camera);
   }
 
+  // Detecta el interactuable más cercano; la acción ya no se dispara al
+  // pisar (portales/cofres/NPCs se usan con el botón de acción o Espacio)
   checkInteractables(dt) {
     const p = this.player;
     this.healPulse = Math.max(0, this.healPulse - dt);
-
-    // los portales no funcionan hasta que el jugador se aleje de todos
-    // (evita teletransportes en bucle al aparecer junto a un portal)
-    if (!this.portalArmed) {
-      const nearAny = this.world.interactables.some(it =>
-        it.type.startsWith('portal') && p.pos.distanceTo(it.pos) < it.radius + 0.5);
-      if (!nearAny) this.portalArmed = true;
-    }
+    let best = null, bestD = Infinity;
 
     for (const it of this.world.interactables) {
       const d = p.pos.distanceTo(it.pos);
-      if (d > it.radius) { if (d > it.radius + 0.4) it._in = false; continue; }
+      if (d > it.radius) continue;
       switch (it.type) {
-        case 'portal_dungeon':
-          if (this.portalArmed) this.loadWorld({ type: 'dungeon', floor: p.lastFloor || 1 });
-          return;
-        case 'portal_town':
-          if (this.portalArmed) this.loadWorld({ type: 'town' });
-          return;
-        case 'portal_next':
-          if (this.portalArmed) {
-            p.lastFloor = this.world.floor + 1;
-            this.loadWorld({ type: 'dungeon', floor: p.lastFloor });
-          }
-          return;
-        case 'portal_daily':
-          if (this.portalArmed) {
-            const d = new Date();
-            const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-            this.loadWorld({ type: 'dungeon', floor: 3 + (seed % 8), seed, daily: true });
-          }
-          return;
-        case 'questgiver':
-          if (!it._in) { it._in = true; this.ui.openQuest(); }
-          break;
-        case 'stash':
-          if (!it._in) { it._in = true; this.ui.openStash(); }
-          break;
-        case 'waypoint':
-          if (!it._in) {
-            it._in = true;
-            if (it.floor && !p.waypoints.includes(it.floor)) {
-              p.waypoints.push(it.floor);
-              this.ui.message(`🗺️ ¡Waypoint del piso ${it.floor} activado!`, 3500);
-              this.sfx('portal');
-              this.save();
-            }
-            this.ui.openWaypoints();
-          }
-          break;
         case 'healer':
           if ((p.hp < p.stats.maxHP || p.mp < p.stats.maxMP) && this.healPulse <= 0) {
             this.healPulse = 0.5;
@@ -1300,38 +1277,97 @@ class Game {
             this.ui.spawnText(p.pos, '+❤️', 'txt-heal');
           }
           break;
+        case 'chest':
+          if (!it.opened && d < bestD) { best = it; bestD = d; }
+          break;
         case 'vendor':
           this.nearVendor = true;
+          if (d < bestD) { best = it; bestD = d; }
           break;
-        case 'chest':
-          if (!it.opened) {
-            it.opened = true;
-            if (it.mimic) {
-              // ¡el cofre era un monstruo!
-              it.label = '';
-              this.world.group.remove(it.mesh);
-              const def = scaleEnemy(MIMIC, this.world.floor);
-              def.rankLabel = '📦 ¡Mímico!';
-              def.labelCls = 'lbl-elite';
-              def.mimic = true;
-              const m = new Enemy(this, def, it.pos.clone());
-              this.enemies.push(m);
-              this.entityGroup.add(m.group);
-              this.ui.message('📦 ¡El cofre era un Mímico!');
-              this.sfx('eshoot');
-            } else {
-              it.label = '📦 Cofre vacío';
-              it.mesh.children[1].rotation.x = -1.1;
-              const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.35, goldChance: 1, setChance: 0.06 });
-              for (const drop of drops) this.spawnGroundItem(drop, it.pos);
-              this.spawnGroundItem(makeGold(this.world.floor), it.pos);
-              p.records.chests++;
-              this.questProgress('chest');
-              this.sfx('chest');
-            }
-          }
-          break;
+        default: // portales, waypoint, capitán, alijo
+          if (d < bestD) { best = it; bestD = d; }
       }
+    }
+    this.currentInteract = best;
+    if (best) this.tip('interactuar', 'Pulsa el botón de acción (o Espacio) para usar portales, abrir cofres y hablar con NPCs');
+  }
+
+  // botón de acción: interactúa si hay algo cerca; si no, ataca
+  primaryAction() {
+    if (!this.player || !this.player.alive || this.state !== 'play') return;
+    if (this.currentInteract) this.interactWith(this.currentInteract);
+    else this.attackNearest();
+  }
+
+  interactWith(it) {
+    const p = this.player;
+    switch (it.type) {
+      case 'portal_dungeon':
+        this.loadWorld({ type: 'dungeon', floor: p.lastFloor || 1 });
+        break;
+      case 'portal_town':
+        this.loadWorld({ type: 'town' });
+        break;
+      case 'portal_next':
+        p.lastFloor = this.world.floor + 1;
+        this.loadWorld({ type: 'dungeon', floor: p.lastFloor });
+        break;
+      case 'portal_daily': {
+        const d = new Date();
+        const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+        this.loadWorld({ type: 'dungeon', floor: 3 + (seed % 8), seed, daily: true });
+        break;
+      }
+      case 'waypoint':
+        if (it.floor && !p.waypoints.includes(it.floor)) {
+          p.waypoints.push(it.floor);
+          this.ui.message(`🗺️ ¡Waypoint del piso ${it.floor} activado!`, 3500);
+          this.sfx('portal');
+          this.save();
+        }
+        this.ui.openWaypoints();
+        break;
+      case 'questgiver':
+        this.ui.openQuest();
+        break;
+      case 'stash':
+        this.ui.openStash();
+        break;
+      case 'vendor':
+        this.ui.togglePanel('shop');
+        break;
+      case 'chest':
+        this.openChest(it);
+        break;
+    }
+  }
+
+  openChest(it) {
+    if (it.opened) return;
+    const p = this.player;
+    it.opened = true;
+    if (it.mimic) {
+      // ¡el cofre era un monstruo!
+      it.label = '';
+      this.world.group.remove(it.mesh);
+      const def = scaleEnemy(MIMIC, this.world.floor);
+      def.rankLabel = '📦 ¡Mímico!';
+      def.labelCls = 'lbl-elite';
+      def.mimic = true;
+      const m = new Enemy(this, def, it.pos.clone());
+      this.enemies.push(m);
+      this.entityGroup.add(m.group);
+      this.ui.message('📦 ¡El cofre era un Mímico!');
+      this.sfx('eshoot');
+    } else {
+      it.label = '📦 Cofre vacío';
+      it.mesh.children[1].rotation.x = -1.1;
+      const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.35, goldChance: 1, setChance: 0.06 });
+      for (const drop of drops) this.spawnGroundItem(drop, it.pos);
+      this.spawnGroundItem(makeGold(this.world.floor), it.pos);
+      p.records.chests++;
+      this.questProgress('chest');
+      this.sfx('chest');
     }
   }
 

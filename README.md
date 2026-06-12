@@ -26,7 +26,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Jefes con mecánicas por bioma**: el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego
-- **Cubo de transmutación** en el inventario: 3 objetos de la misma rareza → 1 de la rareza superior
+- **Cubo de transmutación** con recetas: 3 objetos de la misma rareza → 1 superior · 3 gemas iguales → gema superior · 3 gemas distintas → gema aleatoria
 - **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados, con modificadores como Veloz, Brutal o Colosal) con mejor botín
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios, con tasas equilibradas (los legendarios son un acontecimiento, no rutina)
 - **Conjuntos (sets)**: 3 sets verdes de 3 piezas (Senda del Lobo, Legado del Hechicero, Paso del Cazador) con bonus por llevar 2 y 3 piezas equipadas
@@ -52,7 +52,9 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 | Acción | Escritorio | Móvil |
 |---|---|---|
 | Mover | Clic en el suelo o WASD | Joystick (mitad izquierda; el tap no mueve) |
-| Atacar | Clic en el enemigo o `Espacio` | Botón ⚔️ |
+| Atacar / Interactuar | Clic en el enemigo o `Espacio` | Botón de acción ⚔️ |
+
+El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales ya no se activan al pisarlos). En Opciones ⚙️ hay control de brillo, sonido, vibración y sacudida de cámara.
 | Habilidades | `1` – `4` | Botones de habilidad |
 | Poción vida / maná | `Q` / `E` | Botones 🧪 / 🔷 |
 | Inventario / Habilidades / Personaje | `I` / `T` / `C` | Botones del menú |

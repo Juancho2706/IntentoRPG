@@ -21,7 +21,7 @@ export class UI {
     const g = this.game;
     $('btn-pot-hp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('hp'); this.updateHUD(); });
     $('btn-pot-mp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('mp'); this.updateHUD(); });
-    $('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); g.attackNearest(); });
+    $('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); g.primaryAction(); });
     $('btn-inv').addEventListener('click', () => this.togglePanel('inv'));
     $('btn-skills').addEventListener('click', () => this.togglePanel('skills'));
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
@@ -97,6 +97,17 @@ export class UI {
     $('pot-mp-count').textContent = p.potions.mp;
     // aviso pulsante cuando la vida es crítica
     document.body.classList.toggle('low-hp', p.alive && hpPct < 30);
+
+    // botón de acción contextual: interactuar o atacar
+    const it = this.game.currentInteract;
+    const icons = {
+      portal_dungeon: '🌀', portal_town: '🌀', portal_next: '🌀', portal_daily: '🌟',
+      waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦',
+    };
+    const atkBtn = $('btn-attack');
+    const icon = it ? (icons[it.type] || '✋') : '⚔️';
+    if (atkBtn.textContent !== icon) atkBtn.textContent = icon;
+    atkBtn.classList.toggle('interact', !!it);
 
     const badge = (id, n) => { const b = $(id); b.style.display = n > 0 ? 'flex' : 'none'; b.textContent = n; };
     badge('badge-stats', p.statPoints);
@@ -286,6 +297,18 @@ export class UI {
     toggle('sound', '🔊 Sonido');
     toggle('shake', '📳 Sacudida de cámara');
     toggle('haptics', '📱 Vibración (móvil)');
+    // brillo: útil en mazmorras oscuras o pantallas con reflejos
+    const row = document.createElement('label');
+    row.className = 'opt-row';
+    row.innerHTML = `<span>💡 Brillo</span>
+      <input type="range" min="60" max="170" step="5" value="${Math.round((g.settings.brightness || 1) * 100)}">`;
+    const slider = row.querySelector('input');
+    slider.oninput = () => {
+      g.settings.brightness = slider.value / 100;
+      g.renderer.toneMappingExposure = g.settings.brightness;
+    };
+    slider.onchange = () => g.saveSettings();
+    cont.appendChild(row);
   }
 
   openQuest() {
@@ -471,7 +494,7 @@ export class UI {
     if (ctx.from === 'inv') {
       if (item.kind !== 'gem') addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(`Vender (${item.value} 🪙)`, () => g.sellItem(ctx.index));
-      if (p.cube.length < 3 && item.kind !== 'gem' && item.rarity !== 'legendario' && item.rarity !== 'conjunto')
+      if (p.cube.length < 3 && item.rarity !== 'legendario' && item.rarity !== 'conjunto')
         addBtn('Al cubo 🧪', () => g.addToCube(ctx.index));
       addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
     } else if (ctx.from === 'equip') {
