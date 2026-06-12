@@ -47,6 +47,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Tabla del Desafío Diario**: tus últimas 14 runs con clase, piso y tiempo, en el panel de personaje
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
 - **Guardado automático** en localStorage (continúa donde lo dejaste)
+- **PWA instalable**: añádelo a la pantalla de inicio del móvil y juega incluso sin conexión
+- **Calidad adaptativa**: si los FPS bajan, reduce resolución y sombras automáticamente (desactivable en Opciones)
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos
 
 ## 🕹️ Controles

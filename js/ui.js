@@ -302,6 +302,7 @@ export class UI {
     toggle('sound', '🔊 Sonido');
     toggle('shake', '📳 Sacudida de cámara');
     toggle('haptics', '📱 Vibración (móvil)');
+    toggle('autoq', '🚀 Calidad automática (baja gráficos si van lentos)');
     // brillo: útil en mazmorras oscuras o pantallas con reflejos
     const row = document.createElement('label');
     row.className = 'opt-row';

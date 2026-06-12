@@ -234,7 +234,10 @@ class Game {
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
-    this.settings = { sound: true, shake: true, haptics: true, brightness: 1, ...opts };
+    this.settings = { sound: true, shake: true, haptics: true, brightness: 1, autoq: true, ...opts };
+    this.qualityLevel = 0;
+    this.fpsAcc = 0;
+    this.fpsFrames = 0;
     this.loadStash();
     try { this.dailyLog = JSON.parse(localStorage.getItem('intentorpg_dailylog') || '[]'); } catch { this.dailyLog = []; }
     const rawSfx = createSfx();
@@ -411,6 +414,32 @@ class Game {
   // ---------- sensaciones: sacudida, vibración, partículas, consejos ----------
   saveSettings() {
     try { localStorage.setItem('intentorpg_opts', JSON.stringify(this.settings)); } catch { /* sin almacenamiento */ }
+  }
+
+  // calidad adaptativa: si los FPS caen, baja resolución y sombras
+  applyQuality(level) {
+    this.qualityLevel = level;
+    const ratios = [Math.min(window.devicePixelRatio, 1.75), Math.min(window.devicePixelRatio, 1.25), 1];
+    this.renderer.setPixelRatio(ratios[level]);
+    this.sun.castShadow = level < 2;
+    this.resize();
+  }
+
+  monitorFPS(dt) {
+    if (!this.settings.autoq) {
+      if (this.qualityLevel !== 0) this.applyQuality(0);
+      return;
+    }
+    this.fpsAcc += dt;
+    this.fpsFrames++;
+    if (this.fpsAcc < 2) return;
+    const fps = this.fpsFrames / this.fpsAcc;
+    this.fpsAcc = 0;
+    this.fpsFrames = 0;
+    if (fps < 45 && this.qualityLevel < 2) {
+      this.applyQuality(this.qualityLevel + 1);
+      if (this.qualityLevel === 1) this.ui.message('⚙️ Calidad ajustada para mantener la fluidez', 2500);
+    }
   }
 
   addShake(amp, dur = 0.25) {
@@ -1154,6 +1183,7 @@ class Game {
   tick() {
     const dt = Math.min(0.05, this.clock.getDelta());
     if (this.state === 'select') { this.renderer.render(this.scene, this.camera); return; }
+    this.monitorFPS(dt);
 
     const p = this.player;
     if (this.state === 'play') {

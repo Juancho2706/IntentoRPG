@@ -1,0 +1,17 @@
+{
+  "name": "IntentoRPG — ARPG Isométrico",
+  "short_name": "IntentoRPG",
+  "description": "ARPG isométrico de mazmorras y botín estilo Diablo. Juega en cualquier lugar, incluso sin conexión.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060403",
+  "theme_color": "#1a1410",
+  "lang": "es",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
