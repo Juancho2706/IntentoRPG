@@ -667,10 +667,10 @@ class Game {
     if (enemy.def.mimic) p.records.mimics++;
     const floor = this.world.floor || 1;
     let drops;
-    if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.5, goldChance: 1, potionChance: 0.5 });
+    if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.5, setChance: 0.08 });
     else if (enemy.def.boss) drops = rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 });
-    else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { minItems: 1, itemChance: 0.5, goldChance: 1, potionChance: 0.4 });
-    else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { itemChance: 0.7, goldChance: 0.85, potionChance: 0.3 });
+    else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.4, setChance: 0.1 });
+    else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { itemChance: 0.45, goldChance: 0.85, potionChance: 0.3, setChance: 0.07 });
     else drops = rollDrops(floor);
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
     if (enemy.def.boss) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
@@ -714,8 +714,14 @@ class Game {
       if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
       p.inventory.push(it);
       if (it.rarity === 'legendario') p.records.legendaries++;
-      this.ui.message(`Obtienes: ${it.name}`, 1800);
-      this.sfx('pickup');
+      if (it.rarity === 'conjunto') {
+        p.records.setPieces = (p.records.setPieces || 0) + 1;
+        this.ui.message(`🟢 ¡Pieza de conjunto! ${it.name}`, 2500);
+        this.sfx('levelup');
+      } else {
+        this.ui.message(`Obtienes: ${it.name}`, 1800);
+        this.sfx('pickup');
+      }
     }
     this.lootGroup.remove(gi.mesh);
     gi.mesh.geometry.dispose(); gi.mesh.material.dispose();
@@ -1029,7 +1035,7 @@ class Game {
             } else {
               it.label = '📦 Cofre vacío';
               it.mesh.children[1].rotation.x = -1.1;
-              const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.6, goldChance: 1 });
+              const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.35, goldChance: 1, setChance: 0.06 });
               for (const drop of drops) this.spawnGroundItem(drop, it.pos);
               this.spawnGroundItem(makeGold(this.world.floor), it.pos);
               p.records.chests++;

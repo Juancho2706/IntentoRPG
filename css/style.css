@@ -56,6 +56,7 @@ button { font-family: inherit; cursor: pointer; }
 .world-label.rarity-magico { color: #6f8cff; border-color: #3a4a99; }
 .world-label.rarity-raro { color: #ffd24a; border-color: #99802a; }
 .world-label.rarity-legendario { color: #ff8c2e; border-color: #aa5511; box-shadow: 0 0 10px rgba(255, 140, 46, 0.5); }
+.world-label.rarity-conjunto { color: #4ade80; border-color: #1f7a44; box-shadow: 0 0 10px rgba(74, 222, 128, 0.4); }
 .world-label.lbl-portal { color: #b388ff; border-color: #6a4a99; }
 .world-label.lbl-npc { color: #9fd89f; }
 .world-label.lbl-chest { color: #ddb866; }
@@ -282,6 +283,15 @@ button { font-family: inherit; cursor: pointer; }
 .inv-cell.rarity-magico { border-color: #3a4a99; background: rgba(80, 100, 255, 0.08); }
 .inv-cell.rarity-raro { border-color: #99802a; background: rgba(255, 210, 74, 0.08); }
 .inv-cell.rarity-legendario { border-color: #aa5511; background: rgba(255, 140, 46, 0.1); box-shadow: inset 0 0 8px rgba(255,140,46,0.3); }
+.inv-cell.rarity-conjunto { border-color: #1f7a44; background: rgba(74, 222, 128, 0.08); box-shadow: inset 0 0 8px rgba(74,222,128,0.25); }
+
+/* info de conjunto en la ficha del objeto */
+.set-info { margin-top: 8px; padding: 8px; border: 1px solid #1f7a44; border-radius: 6px; background: rgba(74, 222, 128, 0.05); }
+.set-name { color: #4ade80; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+.set-piece { font-size: 12px; opacity: 0.55; }
+.set-piece.have { opacity: 1; color: #b8f0cc; }
+.set-bonus { font-size: 12px; opacity: 0.55; margin-top: 2px; }
+.set-bonus.active { opacity: 1; color: #4ade80; }
 
 /* popup de objeto */
 #item-popup {

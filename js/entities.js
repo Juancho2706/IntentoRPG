@@ -3,6 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { CLASSES, skillVal, xpForLevel } from './data.js';
+import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
@@ -189,7 +190,7 @@ export class Player {
     this.cube = Array.isArray(this.cube) ? this.cube : [];
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
-      maxFloor: 1, legendaries: 0, goldEarned: 0, chests: 0, playTime: 0,
+      maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
       ...(this.records || {}),
     };
 
@@ -224,10 +225,19 @@ export class Player {
       }
     };
 
+    const setCounts = {};
     for (const it of Object.values(this.equipment)) {
       if (!it) continue;
       if (it.arm) item.arm += it.arm;
       addStats(it.affixes || {});
+      if (it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
+    }
+    // bonus de conjunto por número de piezas equipadas
+    for (const [sid, n] of Object.entries(setCounts)) {
+      const set = SETS.find(s => s.id === sid);
+      if (!set) continue;
+      for (const [need, stats] of Object.entries(set.bonuses))
+        if (n >= Number(need)) addStats(stats);
     }
     for (const b of this.buffs) addStats(b.stats);
     // pasivas

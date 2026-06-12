@@ -3,7 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, skillVal, synergyBonus, xpForLevel, POTION_PRICES } from './data.js';
-import { RARITIES, SLOT_NAMES, itemStatLines } from './items.js';
+import { RARITIES, SLOT_NAMES, SETS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -307,10 +307,28 @@ export class UI {
     if (ctx.from === 'inv' && equipped && equipped !== item) {
       compare = `<div class="compare"><em>Equipado: ${equipped.name}</em>${itemStatLines(equipped).map(l => `<div class="stat-line dim">${l}</div>`).join('')}</div>`;
     }
+    // información del conjunto: piezas y bonus (activos en verde)
+    let setHTML = '';
+    if (item.setId) {
+      const set = SETS.find(s => s.id === item.setId);
+      if (set) {
+        const equippedOfSet = Object.values(p.equipment).filter(it => it?.setId === set.id).length;
+        const piecesHTML = set.pieces.map(pc => {
+          const has = p.equipment[pc.slot]?.setId === set.id;
+          return `<div class="set-piece${has ? ' have' : ''}">${has ? '✓' : '·'} ${pc.name}</div>`;
+        }).join('');
+        const bonusHTML = Object.entries(set.bonuses).map(([n, stats]) => {
+          const active = equippedOfSet >= Number(n);
+          const txt = Object.entries(stats).map(([k, v]) => statText(k, v)).join(', ');
+          return `<div class="set-bonus${active ? ' active' : ''}">(${n} piezas) ${txt}</div>`;
+        }).join('');
+        setHTML = `<div class="set-info"><div class="set-name">${set.icon} ${set.name} (${equippedOfSet}/${set.pieces.length})</div>${piecesHTML}${bonusHTML}</div>`;
+      }
+    }
     pop.innerHTML = `
       <div class="popup-name" style="color:${r.color}">${item.icon} ${item.name}</div>
       <div class="popup-sub">${r.name} · ${SLOT_NAMES[item.slot] || ''} · Nv. ${item.ilvl}</div>
-      ${lines}${compare}
+      ${lines}${setHTML}${compare}
       <div class="popup-btns"></div>`;
     const btns = pop.querySelector('.popup-btns');
     const addBtn = (txt, fn, cls = '') => {
@@ -323,7 +341,7 @@ export class UI {
     if (ctx.from === 'inv') {
       addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(`Vender (${item.value} 🪙)`, () => g.sellItem(ctx.index));
-      if (p.cube.length < 3 && item.rarity !== 'legendario')
+      if (p.cube.length < 3 && item.rarity !== 'legendario' && item.rarity !== 'conjunto')
         addBtn('Al cubo 🧪', () => g.addToCube(ctx.index));
       addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
     } else if (ctx.from === 'equip') {
@@ -425,6 +443,7 @@ export class UI {
       <div>💀 Monstruos: ${r.kills} (élites/campeones: ${r.eliteKills} · jefes: ${r.bossKills} · mímicos: ${r.mimics})</div>
       <div>🕳️ Piso más profundo: ${r.maxFloor}</div>
       <div>🟠 Legendarios encontrados: ${r.legendaries}</div>
+      <div>🟢 Piezas de conjunto: ${r.setPieces || 0}</div>
       <div>📦 Cofres abiertos: ${r.chests}</div>
       <div>🪙 Oro recogido: ${r.goldEarned}</div>
       <div>⚰️ Muertes: ${r.deaths}</div>

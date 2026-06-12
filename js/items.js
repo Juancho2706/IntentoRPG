@@ -3,10 +3,11 @@
 // ============================================================
 
 export const RARITIES = {
-  normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 55 },
-  magico:   { id: 'magico',   name: 'Mágico',    color: '#6f8cff', glow: 0x4466ff, affixes: [1, 2], statMult: 1.1,  weight: 27 },
-  raro:     { id: 'raro',     name: 'Raro',      color: '#ffd24a', glow: 0xffcc00, affixes: [3, 4], statMult: 1.25, weight: 14 },
-  legendario:{ id: 'legendario', name: 'Legendario', color: '#ff8c2e', glow: 0xff6600, affixes: [4, 5], statMult: 1.5, weight: 4 },
+  normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 80 },
+  magico:   { id: 'magico',   name: 'Mágico',    color: '#6f8cff', glow: 0x4466ff, affixes: [1, 2], statMult: 1.1,  weight: 15 },
+  raro:     { id: 'raro',     name: 'Raro',      color: '#ffd24a', glow: 0xffcc00, affixes: [3, 4], statMult: 1.25, weight: 4.2 },
+  legendario:{ id: 'legendario', name: 'Legendario', color: '#ff8c2e', glow: 0xff6600, affixes: [4, 5], statMult: 1.5, weight: 0.8 },
+  conjunto: { id: 'conjunto', name: 'Conjunto',  color: '#4ade80', glow: 0x33cc66, affixes: [0, 0], statMult: 1.3,  weight: 0 },
 };
 
 export const SLOT_NAMES = {
@@ -39,6 +40,37 @@ export const AFFIX_POOL = [
   { stat: 'aspdPct', name: '+{v}% Velocidad de ataque',      min: 4, max: 9, flat: true },
 ];
 
+// Conjuntos: piezas verdes con bonus por llevar 2 o 3 equipadas
+export const SETS = [
+  {
+    id: 'lobo', name: 'Senda del Lobo', icon: '🐺',
+    pieces: [
+      { slot: 'weapon', name: 'Colmillo del Lobo', icon: '🗡️', affixes: { fue: 3, dmgPct: 6 } },
+      { slot: 'helm', name: 'Yelmo del Lobo', icon: '🪖', affixes: { vit: 3, arm: 4 } },
+      { slot: 'chest', name: 'Pelliza del Lobo', icon: '🧥', affixes: { hp: 10, arm: 5 } },
+    ],
+    bonuses: { 2: { dmgPct: 12 }, 3: { hp: 30, aspdPct: 12 } },
+  },
+  {
+    id: 'hechicero', name: 'Legado del Hechicero', icon: '🔮',
+    pieces: [
+      { slot: 'weapon', name: 'Vara del Hechicero', icon: '🪄', affixes: { ene: 3, dmgPct: 6 } },
+      { slot: 'ring', name: 'Sello del Hechicero', icon: '💍', affixes: { mp: 8, ene: 2 } },
+      { slot: 'amulet', name: 'Ojo del Hechicero', icon: '📿', affixes: { mp: 6, crit: 3 } },
+    ],
+    bonuses: { 2: { mp: 25 }, 3: { dmgPct: 15, ene: 5 } },
+  },
+  {
+    id: 'cazador', name: 'Paso del Cazador', icon: '🏹',
+    pieces: [
+      { slot: 'weapon', name: 'Arco del Cazador', icon: '🏹', affixes: { des: 3, crit: 3 } },
+      { slot: 'boots', name: 'Pisadas del Cazador', icon: '🥾', affixes: { spdPct: 6, des: 2 } },
+      { slot: 'helm', name: 'Visera del Cazador', icon: '🪖', affixes: { crit: 3, des: 2 } },
+    ],
+    bonuses: { 2: { crit: 6 }, 3: { spdPct: 12, dmgPct: 12 } },
+  },
+];
+
 const PREFIXES = ['Feroz', 'Sombrío', 'Brillante', 'Antiguo', 'Maldito', 'Sagrado', 'Veloz', 'Cruel', 'Glacial', 'Ígneo'];
 const SUFFIXES = ['del Lobo', 'de la Víbora', 'del Águila', 'del Titán', 'de la Tormenta', 'del Abismo', 'de la Luna', 'del Rey', 'de Sangre', 'del Vacío'];
 const LEGENDARY_NAMES = ['Perdición de Reyes', 'Aliento del Dragón', 'Lágrima Estelar', 'Corazón del Abismo', 'Juramento Roto', 'Última Aurora', 'Colmillo Eterno', 'Vendaval Negro'];
@@ -49,13 +81,11 @@ function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1))
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 export function rollRarity(bonus = 0) {
-  const entries = Object.values(RARITIES);
+  // el bonus por profundidad favorece las rarezas altas sin tocar el peso del normal
+  const entries = Object.values(RARITIES).filter(r => r.weight > 0);
   let total = 0;
   const weights = entries.map(r => {
-    // bonus desplaza peso hacia rarezas altas
-    let w = r.weight;
-    if (r.id !== 'normal') w *= (1 + bonus);
-    else w = Math.max(5, w - bonus * 20);
+    const w = r.id === 'normal' ? r.weight : r.weight * (1 + bonus);
     total += w;
     return w;
   });
@@ -70,7 +100,7 @@ export function rollRarity(bonus = 0) {
 export function generateItem(ilvl, forceRarityId = null, slot = null) {
   const basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
   const base = pick(basePool.length ? basePool : BASES);
-  const rarity = forceRarityId ? RARITIES[forceRarityId] : rollRarity(Math.min(1.5, (ilvl - 1) * 0.08));
+  const rarity = forceRarityId ? RARITIES[forceRarityId] : rollRarity(Math.min(2.2, (ilvl - 1) * 0.13));
   const scale = 1 + 0.22 * (ilvl - 1);
 
   const item = {
@@ -120,6 +150,31 @@ export function generateItem(ilvl, forceRarityId = null, slot = null) {
   return item;
 }
 
+// Genera una pieza de conjunto aleatoria escalada al nivel de objeto
+export function generateSetItem(ilvl) {
+  const set = pick(SETS);
+  const piece = pick(set.pieces);
+  const scale = 1 + 0.2 * (ilvl - 1);
+  const item = {
+    uid: itemUid++, kind: 'item', slot: piece.slot, icon: piece.icon,
+    baseName: piece.name, name: piece.name, ilvl,
+    rarity: 'conjunto', setId: set.id, affixes: {},
+  };
+  for (const [stat, v] of Object.entries(piece.affixes)) {
+    const af = AFFIX_POOL.find(a => a.stat === stat);
+    item.affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * scale)) : v;
+  }
+  if (piece.slot === 'weapon') {
+    const lo = Math.max(1, Math.round((3 + 2.0 * (ilvl - 1)) * 1.35 * (0.9 + Math.random() * 0.2)));
+    item.dmg = [lo, lo + ri(2, 4 + ilvl)];
+  } else if (piece.slot === 'helm' || piece.slot === 'chest' || piece.slot === 'boots') {
+    item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * 1.35));
+    if (piece.slot === 'chest') item.arm = Math.round(item.arm * 1.5);
+  }
+  item.value = Math.round((10 + ilvl * 5) * 3);
+  return item;
+}
+
 // Apuesta del mercader: objeto sin identificar, nunca normal,
 // con pequeña posibilidad de raro o legendario (estilo gambling de D2)
 export function gambleItem(ilvl, slot) {
@@ -140,31 +195,34 @@ export function makeGold(floor) {
 // Tirada de loot al morir un enemigo / abrir un cofre
 export function rollDrops(floor, opts = {}) {
   const drops = [];
-  const luck = opts.luck || 0;
   if (Math.random() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
   if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
-  const itemChance = opts.itemChance ?? 0.26;
+  const itemChance = opts.itemChance ?? 0.18;
   const nItems = opts.minItems || 0;
   let count = nItems;
   if (Math.random() < itemChance) count++;
   for (let i = 0; i < count; i++) {
-    drops.push(generateItem(floor, opts.forceRarity || null));
+    if (!opts.forceRarity && Math.random() < (opts.setChance ?? 0.04)) drops.push(generateSetItem(floor));
+    else drops.push(generateItem(floor, opts.forceRarity || null));
   }
   if (opts.boss) {
-    drops.push(generateItem(floor, Math.random() < 0.4 ? 'legendario' : 'raro'));
+    drops.push(generateItem(floor, Math.random() < 0.25 ? 'legendario' : 'raro'));
+    if (Math.random() < 0.2) drops.push(generateSetItem(floor));
     drops.push(makeGold(floor), makeGold(floor));
   }
-  void luck;
   return drops;
+}
+
+export function statText(stat, v) {
+  const af = AFFIX_POOL.find(a => a.stat === stat);
+  return af ? af.name.replace('{v}', v) : `+${v} ${stat}`;
 }
 
 export function itemStatLines(item) {
   const lines = [];
   if (item.dmg) lines.push(`Daño: ${item.dmg[0]} - ${item.dmg[1]}`);
   if (item.arm) lines.push(`Armadura: ${item.arm}`);
-  for (const [stat, v] of Object.entries(item.affixes || {})) {
-    const af = AFFIX_POOL.find(a => a.stat === stat);
-    if (af) lines.push(af.name.replace('{v}', v));
-  }
+  for (const [stat, v] of Object.entries(item.affixes || {}))
+    lines.push(statText(stat, v));
   return lines;
 }
