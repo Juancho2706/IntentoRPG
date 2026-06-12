@@ -175,8 +175,21 @@ class Input {
         return;
       }
     }
-    // moverse al punto: solo con ratón (en táctil se camina con el joystick)
-    if (e.pointerType !== 'mouse') return;
+    if (e.pointerType !== 'mouse') {
+      // asistencia de puntería táctil: fijar al enemigo más cercano al toque
+      // (objetivo efectivo ≥48px aunque el modelo sea pequeño en pantalla)
+      let best = null, bd = 55 * 55;
+      for (const en of g.enemies) {
+        if (!en.alive) continue;
+        const s = g.ui.worldToScreen(en.pos);
+        if (s.behind) continue;
+        const dx = s.x - e.clientX, dy = s.y - e.clientY;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = en; }
+      }
+      if (best) { g.player.attackTarget = best; g.player.moveTarget = null; }
+      return; // en táctil no se camina con tap
+    }
     const p = this.groundPoint(e);
     if (p) {
       g.player.moveTarget = p;
@@ -212,7 +225,15 @@ class Game {
     this.healPulse = 0;
     this.saveTimer = 0;
     this.giUid = 1;
-    this.sfx = createSfx();
+    this.shakeT = 0;
+    this.shakeDur = 1;
+    this.shakeAmp = 0;
+    // opciones persistentes (sonido, vibración, sacudida de cámara)
+    let opts = {};
+    try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
+    this.settings = { sound: true, shake: true, haptics: true, ...opts };
+    const rawSfx = createSfx();
+    this.sfx = (name) => { if (this.settings.sound) rawSfx(name); };
 
     // renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -294,6 +315,10 @@ class Game {
     this.ui.updateHUD();
     this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.cls.name}! Entra al portal del norte para explorar la mazmorra.`, 5000);
     document.getElementById('hud').classList.remove('hidden');
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    this.tip('mover', touch
+      ? 'Mantén el pulgar en la mitad izquierda para moverte con el joystick; toca un enemigo para atacarlo'
+      : 'Haz clic en el suelo para moverte (o WASD) y clic en un enemigo para atacarlo');
   }
 
   save() {
@@ -305,7 +330,7 @@ class Game {
       gold: p.gold, potions: p.potions, inventory: p.inventory, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
-      quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone,
+      quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -322,7 +347,7 @@ class Game {
     }
     for (const e of this.enemies) this.entityGroup.remove(e.group);
     for (const pr of this.projectiles) this.fxGroup.remove(pr.mesh);
-    for (const gi of this.groundItems) this.lootGroup.remove(gi.mesh);
+    for (const gi of this.groundItems) { this.lootGroup.remove(gi.mesh); if (gi.beam) this.lootGroup.remove(gi.beam); }
     for (const f of this.fx) this.fxGroup.remove(f.mesh);
     for (const fp of this.firePools) this.fxGroup.remove(fp.mesh);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = []; this.firePools = [];
@@ -374,6 +399,47 @@ class Game {
     if (w.daily) this.ui.message(`🌟 Desafío Diario · Piso ${w.floor} — el mismo trazado para todos hoy. ¡Derrota al jefe!`, 4500);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
+    this.save();
+  }
+
+  // ---------- sensaciones: sacudida, vibración, partículas, consejos ----------
+  saveSettings() {
+    try { localStorage.setItem('intentorpg_opts', JSON.stringify(this.settings)); } catch { /* sin almacenamiento */ }
+  }
+
+  addShake(amp, dur = 0.25) {
+    if (!this.settings.shake) return;
+    this.shakeAmp = Math.max(this.shakeAmp, amp);
+    this.shakeT = Math.max(this.shakeT, dur);
+    this.shakeDur = dur;
+  }
+
+  vibrate(pattern) {
+    if (this.settings.haptics && navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  // ráfaga de partículas (muertes, cofres, nivel)
+  spawnBurst(pos, color, n = 9) {
+    const geo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const group = new THREE.Group();
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(pos.x, 0.6, pos.z);
+      group.add(m);
+      parts.push({ m, vx: (Math.random() - 0.5) * 4.5, vy: 2 + Math.random() * 3, vz: (Math.random() - 0.5) * 4.5 });
+    }
+    this.fxGroup.add(group);
+    this.fx.push({ mesh: group, t: 0, dur: 0.55, burst: parts });
+  }
+
+  // consejo contextual que solo se muestra una vez por partida
+  tip(id, text) {
+    const p = this.player;
+    if (!p || p.tips[id]) return;
+    p.tips[id] = 1;
+    this.ui.message('💡 ' + text, 5500);
     this.save();
   }
 
@@ -756,7 +822,10 @@ class Game {
     if (enemy.def.boss) {
       this.questProgress('boss');
       this.checkDailyReward(enemy);
+      this.addShake(0.45, 0.4);
+      this.vibrate([60, 40, 80]);
     }
+    this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
     const floor = this.world.floor || 1;
     let drops;
     if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.5, setChance: 0.08 });
@@ -791,7 +860,20 @@ class Game {
     if (!this.world.grid.walkable(mesh.position.x, mesh.position.z, 0.1))
       mesh.position.set(pos.x, 0.35, pos.z);
     this.lootGroup.add(mesh);
-    this.groundItems.push({ id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 });
+    const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
+    // pilar de luz por rareza: el loot bueno se ve desde lejos
+    if (item.kind === 'item') {
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: RARITIES[item.rarity].glow, transparent: true, opacity: 0.3,
+          blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+        }));
+      beam.position.set(mesh.position.x, 1.2, mesh.position.z);
+      this.lootGroup.add(beam);
+      gi.beam = beam;
+    }
+    this.groundItems.push(gi);
   }
 
   pickupGroundItem(gi) {
@@ -810,13 +892,20 @@ class Game {
         p.records.setPieces = (p.records.setPieces || 0) + 1;
         this.ui.message(`🟢 ¡Pieza de conjunto! ${it.name}`, 2500);
         this.sfx('levelup');
+        this.vibrate([40, 30, 40]);
       } else {
+        if (it.rarity === 'legendario') this.vibrate([40, 30, 40]);
         this.ui.message(`Obtienes: ${it.name}`, 1800);
         this.sfx('pickup');
       }
+      this.tip('equipar', 'Abre el inventario (I / 🎒) y toca el objeto para equiparlo o compararlo');
     }
     this.lootGroup.remove(gi.mesh);
     gi.mesh.geometry.dispose(); gi.mesh.material.dispose();
+    if (gi.beam) {
+      this.lootGroup.remove(gi.beam);
+      gi.beam.geometry.dispose(); gi.beam.material.dispose();
+    }
     this.groundItems.splice(this.groundItems.indexOf(gi), 1);
     this.save();
   }
@@ -977,12 +1066,22 @@ class Game {
       const k = f.t / f.dur;
       if (k >= 1) {
         this.fxGroup.remove(f.mesh);
-        f.mesh.geometry.dispose(); f.mesh.material.dispose();
+        if (f.mesh.geometry) { f.mesh.geometry.dispose(); f.mesh.material.dispose(); }
+        else if (f.burst) { f.burst[0].m.geometry.dispose(); f.burst[0].m.material.dispose(); }
         this.fx.splice(i, 1);
         continue;
       }
       if (f.ring) { f.mesh.scale.setScalar(0.3 + k * 0.9); f.mesh.material.opacity = 0.8 * (1 - k); }
       if (f.fall) f.mesh.position.y = 5 * (1 - k);
+      if (f.burst) {
+        for (const pt of f.burst) {
+          pt.vy -= 11 * dt;
+          pt.m.position.x += pt.vx * dt;
+          pt.m.position.y = Math.max(0.05, pt.m.position.y + pt.vy * dt);
+          pt.m.position.z += pt.vz * dt;
+          pt.m.scale.setScalar(1 - k * 0.8);
+        }
+      }
     }
 
     // charcos de fuego: dañan al jugador que se queda dentro
@@ -1010,6 +1109,7 @@ class Game {
       const gi = this.groundItems[i];
       gi.mesh.rotation.y += dt * 2;
       gi.mesh.position.y = 0.35 + Math.sin(t * 3 + gi.bob) * 0.08;
+      if (gi.beam) gi.beam.material.opacity = 0.22 + Math.sin(t * 2.5 + gi.bob) * 0.1;
       if (this.state === 'play' && (gi.item.kind === 'gold' || gi.item.kind === 'potion')) {
         if (gi.mesh.position.distanceToSquared(p.pos.clone().setY(gi.mesh.position.y)) < 1.1)
           this.pickupGroundItem(gi);
@@ -1039,10 +1139,19 @@ class Game {
       }
     });
 
-    // cámara y luces siguen al jugador
+    // cámara y luces siguen al jugador (con sacudida breve y amortiguada)
     this.camTarget.lerp(p.pos, Math.min(1, dt * 6));
     this.camera.position.copy(this.camTarget).add(this.camOffset);
     this.camera.lookAt(this.camTarget);
+    if (this.shakeT > 0) {
+      this.shakeT = Math.max(0, this.shakeT - dt);
+      const k = this.shakeT / this.shakeDur;
+      const a = this.shakeAmp * k * k;
+      this.camera.position.x += (Math.random() - 0.5) * a;
+      this.camera.position.y += (Math.random() - 0.5) * a * 0.6;
+      this.camera.position.z += (Math.random() - 0.5) * a;
+      if (this.shakeT === 0) this.shakeAmp = 0;
+    }
     this.playerLight.position.copy(p.pos).setY(2.2);
     this.sun.position.copy(p.pos).add(new THREE.Vector3(10, 18, 6));
     this.sun.target.position.copy(p.pos);

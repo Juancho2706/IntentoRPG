@@ -26,6 +26,7 @@ export class UI {
     $('btn-skills').addEventListener('click', () => this.togglePanel('skills'));
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
+    $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
     document.querySelectorAll('.panel-close').forEach(b => b.addEventListener('click', () => this.closePanel()));
     $('btn-respawn').addEventListener('click', () => g.respawn());
   }
@@ -94,6 +95,8 @@ export class UI {
     $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo' : `🕳️ Piso ${this.game.world.floor}`;
     $('pot-hp-count').textContent = p.potions.hp;
     $('pot-mp-count').textContent = p.potions.mp;
+    // aviso pulsante cuando la vida es crítica
+    document.body.classList.toggle('low-hp', p.alive && hpPct < 30);
 
     const badge = (id, n) => { const b = $(id); b.style.display = n > 0 ? 'flex' : 'none'; b.textContent = n; };
     badge('badge-stats', p.statPoints);
@@ -226,6 +229,23 @@ export class UI {
     else if (this.activePanel === 'shop') this.renderShop();
     else if (this.activePanel === 'waypoints') this.renderWaypoints();
     else if (this.activePanel === 'quest') this.renderQuest();
+    else if (this.activePanel === 'settings') this.renderSettings();
+  }
+
+  renderSettings() {
+    const g = this.game;
+    const cont = $('settings-body');
+    cont.innerHTML = '';
+    const toggle = (key, label) => {
+      const row = document.createElement('label');
+      row.className = 'opt-row';
+      row.innerHTML = `<span>${label}</span><input type="checkbox" ${g.settings[key] ? 'checked' : ''}>`;
+      row.querySelector('input').onchange = (e) => { g.settings[key] = e.target.checked; g.saveSettings(); };
+      cont.appendChild(row);
+    };
+    toggle('sound', '🔊 Sonido');
+    toggle('shake', '📳 Sacudida de cámara');
+    toggle('haptics', '📱 Vibración (móvil)');
   }
 
   openQuest() {
@@ -357,9 +377,25 @@ export class UI {
     const pop = $('item-popup');
     const lines = itemStatLines(item).map(l => `<div class="stat-line">${l}</div>`).join('');
     const equipped = item.slot ? p.equipment[item.slot] : null;
+    // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo)
     let compare = '';
     if (ctx.from === 'inv' && equipped && equipped !== item) {
-      compare = `<div class="compare"><em>Equipado: ${equipped.name}</em>${itemStatLines(equipped).map(l => `<div class="stat-line dim">${l}</div>`).join('')}</div>`;
+      const summarize = (it) => {
+        const m = {};
+        if (it.dmg) m._dmg = (it.dmg[0] + it.dmg[1]) / 2;
+        if (it.arm) m.arm = (m.arm || 0) + it.arm;
+        for (const [k, v] of Object.entries(it.affixes || {})) m[k] = (m[k] || 0) + v;
+        return m;
+      };
+      const a = summarize(item), b = summarize(equipped);
+      const diffs = [];
+      for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        const d = Math.round(((a[k] || 0) - (b[k] || 0)) * 10) / 10;
+        if (!d) continue;
+        const label = k === '_dmg' ? `${Math.abs(d)} daño medio` : statText(k, Math.abs(d)).replace('+', '');
+        diffs.push(`<div class="diff ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ -'}${label}</div>`);
+      }
+      compare = `<div class="compare"><em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
     }
     // información del conjunto: piezas y bonus (activos en verde)
     let setHTML = '';

@@ -192,6 +192,7 @@ export class Player {
     this.hardcore = !!this.hardcore;
     this.pet = this.pet || null;
     this.dailyDone = this.dailyDone || null;
+    this.tips = this.tips || {};
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
@@ -304,6 +305,9 @@ export class Player {
       this.mp = this.stats.maxMP;
       this.game.ui.message(`⭐ ¡Nivel ${this.level}! +5 atributos, +1 punto de habilidad`);
       this.game.sfx('levelup');
+      this.game.vibrate([50, 30, 70]);
+      this.game.spawnBurst(this.pos, 0xffd24a, 14);
+      this.game.tip('subir', 'Reparte tus puntos: Personaje (C / 🧍) y Habilidades (T / 📖)');
     }
   }
 
@@ -314,7 +318,10 @@ export class Player {
     this.hp -= dmg;
     this.game.ui.spawnText(this.pos, `-${dmg}`, 'txt-dmg-player');
     this.game.ui.flashDamage();
+    this.game.addShake(0.15 + Math.min(0.25, dmg / this.stats.maxHP), 0.22);
+    this.game.vibrate(35);
     this.game.sfx('hurt');
+    this.game.tip('pocion', 'Si tu vida baja, bebe una poción: tecla Q o el botón 🧪');
     if (this.hp <= 0) {
       this.hp = 0;
       this.alive = false;
