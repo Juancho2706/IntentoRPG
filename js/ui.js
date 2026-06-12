@@ -22,6 +22,7 @@ export class UI {
     $('btn-pot-hp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('hp'); this.updateHUD(); });
     $('btn-pot-mp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('mp'); this.updateHUD(); });
     $('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); g.primaryAction(); });
+    $('btn-dodge').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.dodge(); });
     $('btn-inv').addEventListener('click', () => this.togglePanel('inv'));
     $('btn-skills').addEventListener('click', () => this.togglePanel('skills'));
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
@@ -102,12 +103,16 @@ export class UI {
     const it = this.game.currentInteract;
     const icons = {
       portal_dungeon: '🌀', portal_town: '🌀', portal_next: '🌀', portal_daily: '🌟',
-      waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦',
+      waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦', shrine: '✨',
     };
     const atkBtn = $('btn-attack');
     const icon = it ? (icons[it.type] || '✋') : '⚔️';
     if (atkBtn.textContent !== icon) atkBtn.textContent = icon;
     atkBtn.classList.toggle('interact', !!it);
+
+    // cooldown de la esquiva
+    $('btn-dodge').querySelector('.cd-overlay').style.height =
+      p.dodgeCd > 0 ? (p.dodgeCd / 3 * 100) + '%' : '0%';
 
     const badge = (id, n) => { const b = $(id); b.style.display = n > 0 ? 'flex' : 'none'; b.textContent = n; };
     badge('badge-stats', p.statPoints);

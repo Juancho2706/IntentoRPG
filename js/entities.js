@@ -212,6 +212,10 @@ export class Player {
     this.cds = {};
     this.atkCd = 0;
     this.slowT = 0;
+    this.dodgeT = 0;
+    this.dodgeCd = 0;
+    this.dodgeDir = { x: 0, z: 1 };
+    this.xpBoostT = 0;
     this.moveTarget = null;
     this.attackTarget = null;
     this.pickTarget = null;
@@ -301,7 +305,22 @@ export class Player {
     this.recompute();
   }
 
+  // esquiva: impulso rápido con invulnerabilidad breve
+  dodge() {
+    if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0) return;
+    const g = this.game;
+    const dir = g.input.joyDir || g.input.keyDir;
+    if (dir) this.dodgeDir = { x: dir.x, z: dir.z };
+    else this.dodgeDir = { x: Math.sin(this.group.rotation.y), z: Math.cos(this.group.rotation.y) };
+    this.dodgeT = 0.28;
+    this.dodgeCd = 3;
+    this.moveTarget = null;
+    g.sfx('dash');
+    g.vibrate(20);
+  }
+
   gainXP(amount) {
+    if (this.xpBoostT > 0) amount = Math.round(amount * 1.5);
     this.xp += amount;
     this.game.ui.spawnText(this.pos, `+${amount} XP`, 'txt-xp');
     while (this.xp >= xpForLevel(this.level)) {
@@ -322,6 +341,11 @@ export class Player {
 
   takeDamage(amount, attackerLevel = 1) {
     if (!this.alive) return;
+    if (this.dodgeT > 0) {
+      // invulnerable durante la esquiva
+      this.game.ui.spawnText(this.pos, '¡Esquivado!', 'txt-heal');
+      return;
+    }
     const red = this.stats.arm / (this.stats.arm + 40 + 12 * attackerLevel);
     const dmg = Math.max(1, Math.round(amount * (1 - Math.min(0.75, red))));
     this.hp -= dmg;
@@ -369,6 +393,8 @@ export class Player {
 
     // cooldowns y regeneración
     this.atkCd = Math.max(0, this.atkCd - dt);
+    this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+    if (this.xpBoostT > 0) this.xpBoostT -= dt;
     for (const k in this.cds) this.cds[k] = Math.max(0, this.cds[k] - dt);
     this.mp = Math.min(this.stats.maxMP, this.mp + (1 + this.stats.ene * 0.05) * dt);
     this.hp = Math.min(this.stats.maxHP, this.hp + (0.4 + this.stats.vit * 0.02) * dt);
@@ -408,6 +434,17 @@ export class Player {
     if (this.slowT > 0) this.slowT -= dt;
     const spd = this.stats.spd * (this.slowT > 0 ? 0.55 : 1);
 
+    // esquiva en curso: impulso con voltereta, ignora el resto del movimiento
+    const body = this.group.userData.body;
+    if (this.dodgeT > 0) {
+      this.dodgeT -= dt;
+      moveWithCollision(g.world.grid, this.pos, this.dodgeDir.x * 13 * dt, this.dodgeDir.z * 13 * dt);
+      this.group.rotation.y = Math.atan2(this.dodgeDir.x, this.dodgeDir.z);
+      body.rotation.x = (1 - Math.max(0, this.dodgeT) / 0.28) * Math.PI * 2;
+      if (this.dodgeT <= 0) body.rotation.x = 0;
+      return;
+    }
+
     let moving = false;
     if (dir) {
       const len = Math.hypot(dir.x, dir.z);
@@ -426,7 +463,6 @@ export class Player {
 
     // animación procedural
     const t = performance.now() / 1000;
-    const body = this.group.userData.body;
     body.position.y = 0.75 + (moving ? Math.abs(Math.sin(t * 9)) * 0.09 : Math.sin(t * 2) * 0.02);
     this.swing = Math.max(0, this.swing - dt * 5);
     const hand = this.group.userData.hand;
@@ -448,6 +484,9 @@ export class Player {
     } else {
       const { dmg, crit } = this.rollDamage(1);
       target.takeDamage(dmg, crit);
+      // los élites espinosos devuelven parte del daño cuerpo a cuerpo
+      if (target.alive && target.def.thorns)
+        this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
       g.sfx('hit');
     }
   }
@@ -471,9 +510,20 @@ export class Enemy {
     this.flashT = 0;
     this.fade = 0;
     this.baseEmissive = def.glow || 0x000000; // campeones y élites brillan
+    this.burnTick = 0;
     this.group = makeEnemyModel(def);
     this.group.position.copy(pos);
     this.group.userData.enemy = this;
+    // aura visible bajo campeones y élites
+    if (def.aura) {
+      const aura = new THREE.Mesh(
+        new THREE.RingGeometry(0.55, 0.78, 24),
+        new THREE.MeshBasicMaterial({ color: def.aura, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+      aura.rotation.x = -Math.PI / 2;
+      aura.position.y = 0.06;
+      this.group.add(aura);
+      this.aura = aura;
+    }
   }
 
   get pos() { return this.group.position; }
@@ -494,6 +544,9 @@ export class Enemy {
 
   die() {
     this.alive = false;
+    // los explosivos detonan al morir (con aviso para esquivar)
+    if (this.def.explode)
+      this.game.spawnTelegraph(this.pos.clone(), 2.2, 0.7, Math.round(this.def.dmg * 1.5), this.def.level || 1);
     this.game.onEnemyKilled(this);
   }
 
@@ -522,6 +575,18 @@ export class Enemy {
     const d = this.pos.distanceTo(player.pos);
     const aggro = this.def.boss ? 12 : 9;
     if (d > aggro + 6) return false; // demasiado lejos, dormir
+
+    // aura pulsante; los ardientes queman de cerca
+    if (this.aura) {
+      this.aura.material.opacity = 0.35 + Math.sin(performance.now() / 200) * 0.2;
+      if (this.def.burn && d < 2.0) {
+        this.burnTick -= dt;
+        if (this.burnTick <= 0) {
+          this.burnTick = 0.5;
+          player.takeDamage(Math.max(1, Math.round(2 + (this.def.level || 1) * 1.2)), this.def.level || 1);
+        }
+      }
+    }
 
     const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1);
 
@@ -559,6 +624,9 @@ export class Enemy {
               attackerLevel: this.def.level || 1,
             });
             g.sfx('eshoot');
+          } else if (this.def.slam) {
+            // golpe pesado telegrafiado: da tiempo a apartarse o esquivar
+            g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, this.def.dmg, this.def.level || 1);
           } else {
             player.takeDamage(this.def.dmg, this.def.level || 1);
           }

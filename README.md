@@ -27,7 +27,9 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Jefes con mecánicas por bioma**: el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego
 - **Cubo de transmutación** con recetas: 3 objetos de la misma rareza → 1 superior · 3 gemas iguales → gema superior · 3 gemas distintas → gema aleatoria
-- **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados, con modificadores como Veloz, Brutal o Colosal) con mejor botín
+- **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente quema de cerca, Explosivo detona al morir, Espinoso refleja daño…)
+- **Esquiva** con invulnerabilidad breve (Shift / botón 💨) y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo
+- **Santuarios** en las mazmorras: bendiciones de XP, furia, vida y oro… y alguno maldito
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios, con tasas equilibradas (los legendarios son un acontecimiento, no rutina)
 - **Conjuntos (sets)**: 3 sets verdes de 3 piezas (Senda del Lobo, Legado del Hechicero, Paso del Cazador) con bonus por llevar 2 y 3 piezas equipadas
 - **Mercader con stock rotativo**: la mercancía cambia cada 5 minutos (con temporizador) y mejora con tu nivel

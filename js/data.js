@@ -136,10 +136,10 @@ export const ENEMIES = [
     hp: 60, dmg: 14, spd: 2.6, xp: 40, range: 1.7, atkTime: 1.2, scale: 1.25,
     minFloor: 3, weight: 14 },
   { id: 'golem', name: 'Gólem de Piedra', color: 0x8a8a95, shape: 'golem',
-    hp: 110, dmg: 18, spd: 1.5, xp: 60, range: 1.8, atkTime: 1.8, scale: 1.4,
+    hp: 110, dmg: 18, spd: 1.5, xp: 60, range: 1.8, atkTime: 1.8, scale: 1.4, slam: true,
     minFloor: 4, weight: 8 },
   { id: 'yeti', name: 'Yeti', color: 0xcfe8f0, shape: 'golem',
-    hp: 90, dmg: 15, spd: 2.2, xp: 50, range: 1.8, atkTime: 1.4, scale: 1.3,
+    hp: 90, dmg: 15, spd: 2.2, xp: 50, range: 1.8, atkTime: 1.4, scale: 1.3, slam: true,
     minFloor: 6, weight: 16 },
   { id: 'diablillo', name: 'Diablillo', color: 0xdd5522, shape: 'demon', rangedAttack: true,
     hp: 40, dmg: 14, spd: 3.0, xp: 45, range: 7, atkTime: 1.6, scale: 0.8, projSpeed: 10, projColor: 0xff6600,
@@ -150,14 +150,14 @@ export const ENEMIES = [
 export const BOSSES = [
   { id: 'senor_abismo', name: 'Señor del Abismo', color: 0x661111, shape: 'demon', boss: true,
     hp: 220, dmg: 22, spd: 2.4, xp: 180, range: 2.2, atkTime: 1.3, scale: 2.0,
-    rangedAttack: true, projSpeed: 9, projColor: 0xff3300, rangedChance: 0.35,
+    rangedAttack: true, projSpeed: 9, projColor: 0xff3300, rangedChance: 0.35, slam: true,
     minFloor: 1, mechanic: 'summon' },
   { id: 'rey_gelido', name: 'Rey Gélido', color: 0xa8d8f0, shape: 'golem', boss: true,
-    hp: 280, dmg: 20, spd: 2.0, xp: 230, range: 2.0, atkTime: 1.4, scale: 2.0,
+    hp: 280, dmg: 20, spd: 2.0, xp: 230, range: 2.0, atkTime: 1.4, scale: 2.0, slam: true,
     minFloor: 6, mechanic: 'frost_nova' },
   { id: 'avatar_infierno', name: 'Avatar del Infierno', color: 0xff5522, shape: 'demon', boss: true,
     hp: 330, dmg: 26, spd: 2.6, xp: 280, range: 2.2, atkTime: 1.2, scale: 2.2,
-    rangedAttack: true, projSpeed: 10, projColor: 0xff3300, rangedChance: 0.3,
+    rangedAttack: true, projSpeed: 10, projColor: 0xff3300, rangedChance: 0.3, slam: true,
     minFloor: 11, mechanic: 'fire_pool' },
 ];
 
@@ -200,10 +200,12 @@ export const ENEMY_RANKS = {
 };
 
 export const ELITE_MODS = [
-  { id: 'veloz',    name: 'Veloz',    spd: 1.45 },
-  { id: 'brutal',   name: 'Brutal',   dmg: 1.35 },
-  { id: 'colosal',  name: 'Colosal',  hp: 1.6 },
-  { id: 'ardiente', name: 'Ardiente', dmg: 1.2, spd: 1.15 },
+  { id: 'veloz',     name: 'Veloz',     spd: 1.45,           aura: 0x44ddff },
+  { id: 'brutal',    name: 'Brutal',    dmg: 1.35,           aura: 0xcc2222 },
+  { id: 'colosal',   name: 'Colosal',   hp: 1.6,             aura: 0x99aabb },
+  { id: 'ardiente',  name: 'Ardiente',  dmg: 1.2, spd: 1.15, aura: 0xff6622, burn: true },
+  { id: 'explosivo', name: 'Explosivo', dmg: 1.1,            aura: 0xff3300, explode: true },
+  { id: 'espinoso',  name: 'Espinoso',  hp: 1.3,             aura: 0xaa55ff, thorns: 0.2 },
 ];
 
 // Aplica (o no) una rareza aleatoria a un enemigo ya escalado por piso
@@ -225,7 +227,14 @@ export function rollEnemyRank(def, floor) {
     if (mod.spd) out.spd = def.spd * mod.spd;
     if (mod.dmg) out.dmg = Math.round(out.dmg * mod.dmg);
     if (mod.hp) out.hp = Math.round(out.hp * mod.hp);
+    out.modId = mod.id;
+    out.aura = mod.aura;
+    if (mod.burn) out.burn = true;
+    if (mod.explode) out.explode = true;
+    if (mod.thorns) out.thorns = mod.thorns;
     out.rankLabel = `${rank.icon} ${def.name} ${mod.name}`;
+  } else {
+    out.aura = 0x2244aa; // aura tenue de campeón
   }
   return out;
 }

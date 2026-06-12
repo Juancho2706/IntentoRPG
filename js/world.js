@@ -465,6 +465,16 @@ export function buildDungeon(floor, seed = null) {
     return null;
   };
 
+  // santuarios: bendiciones de un solo uso (alguno está maldito...)
+  const SHRINES = [
+    { kind: 'xp', name: 'Santuario de Experiencia', color: 0xb388ff },
+    { kind: 'dmg', name: 'Santuario de Furia', color: 0xff5544 },
+    { kind: 'pocion', name: 'Santuario de la Vida', color: 0x55dd66 },
+    { kind: 'oro', name: 'Santuario Dorado', color: 0xffd24a },
+    { kind: 'maldito', name: 'Santuario Susurrante', color: 0x8855aa },
+  ];
+  let shrineCount = 0;
+
   // enemigos: en todas las salas menos la primera
   for (let i = 1; i < rooms.length; i++) {
     const r = rooms[i];
@@ -478,6 +488,28 @@ export function buildDungeon(floor, seed = null) {
     if (isLast) {
       const bp = freeCell(last) || exit.clone();
       spawns.push({ kind: 'boss', pos: bp });
+    }
+    // santuarios (máximo 2 por piso)
+    if (shrineCount < 2 && rnd() < 0.22) {
+      const sPos = freeCell(r);
+      if (sPos) {
+        shrineCount++;
+        const def = SHRINES[ri(0, SHRINES.length - 1)];
+        const shrine = new THREE.Group();
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 1.1, 6),
+          new THREE.MeshStandardMaterial({ color: 0x4a4756, roughness: 0.9 }));
+        pillar.position.y = 0.55;
+        pillar.castShadow = true;
+        const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 0),
+          new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 1.4 }));
+        crystal.position.y = 1.35;
+        crystal.userData.baseY = 1.35;
+        shrine.add(pillar, crystal);
+        shrine.userData.crystal = crystal;
+        shrine.position.copy(sPos);
+        group.add(shrine);
+        interactables.push({ type: 'shrine', shrine: def.kind, pos: sPos.clone(), radius: 1.5, label: `✨ ${def.name}`, labelCls: 'lbl-portal', mesh: shrine, used: false });
+      }
     }
     // cofres
     if (rnd() < 0.35) {

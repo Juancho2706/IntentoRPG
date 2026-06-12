@@ -34,6 +34,7 @@ function createSfx() {
     portal:  [{ f: 300, d: 0.3, type: 'sine', v: 0.12, slide: 500 }],
     chest:   [{ f: 350, d: 0.1, type: 'triangle', v: 0.12 }, { f: 700, d: 0.15, type: 'triangle', v: 0.1, t: 0.1 }],
     skill:   [{ f: 520, d: 0.1, type: 'sawtooth', v: 0.09, slide: 250 }],
+    dash:    [{ f: 450, d: 0.16, type: 'sawtooth', v: 0.08, slide: -280 }],
   };
   return (name) => {
     const c = ensure();
@@ -83,6 +84,7 @@ class Input {
       if (e.code === 'KeyQ') { g.player?.usePotion('hp'); }
       if (e.code === 'KeyE') { g.player?.usePotion('mp'); }
       if (e.code === 'Space') { e.preventDefault(); g.primaryAction(); }
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') g.player?.dodge();
       if (e.code === 'Escape') g.ui.closePanel();
       if (e.code.startsWith('Digit')) {
         const n = parseInt(e.code.slice(5));
@@ -220,6 +222,7 @@ class Game {
     this.groundItems = [];
     this.fx = [];
     this.firePools = [];
+    this.telegraphs = [];
     this.nearVendor = false;
     this.currentInteract = null;
     this.healPulse = 0;
@@ -353,7 +356,9 @@ class Game {
     for (const gi of this.groundItems) { this.lootGroup.remove(gi.mesh); if (gi.beam) this.lootGroup.remove(gi.beam); }
     for (const f of this.fx) this.fxGroup.remove(f.mesh);
     for (const fp of this.firePools) this.fxGroup.remove(fp.mesh);
-    this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = []; this.firePools = [];
+    for (const tg of this.telegraphs) this.fxGroup.remove(tg.group);
+    this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
+    this.firePools = []; this.telegraphs = [];
 
     this.world = spec.type === 'town' ? buildTown() : buildDungeon(spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
@@ -444,6 +449,46 @@ class Game {
     this.save();
   }
 
+  // ---------- ataques telegrafiados ----------
+  // círculo rojo de aviso: al llenarse, daña a quien siga dentro
+  spawnTelegraph(pos, radius, dur, dmg, attackerLevel = 1, opts = {}) {
+    const group = new THREE.Group();
+    const outer = new THREE.Mesh(
+      new THREE.RingGeometry(radius - 0.08, radius, 28),
+      new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+    const inner = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 28),
+      new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
+    outer.rotation.x = inner.rotation.x = -Math.PI / 2;
+    inner.scale.setScalar(0.01);
+    group.add(outer, inner);
+    group.position.copy(pos).setY(0.08);
+    this.fxGroup.add(group);
+    this.telegraphs.push({ group, inner, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone });
+    this.tip('esquiva', '¡Círculo rojo = peligro! Apártate o esquiva (💨 / Shift) antes de que se llene');
+  }
+
+  updateTelegraphs(dt) {
+    const p = this.player;
+    for (let i = this.telegraphs.length - 1; i >= 0; i--) {
+      const tg = this.telegraphs[i];
+      tg.t += dt;
+      tg.inner.scale.setScalar(Math.max(0.01, Math.min(1, tg.t / tg.dur)));
+      if (tg.t < tg.dur) continue;
+      // impacto
+      if (tg.dmg && p.alive && p.pos.distanceTo(tg.group.position) <= tg.radius + 0.3) {
+        p.takeDamage(tg.dmg, tg.attackerLevel);
+        if (tg.slow && p.alive) { p.slowT = 2.5; this.ui.message('❄️ ¡Estás congelado!', 1500); }
+      }
+      this.spawnRing(tg.group.position, tg.radius, 0xff5533);
+      this.addShake(0.12, 0.15);
+      if (tg.onDone) tg.onDone(tg.group.position.clone());
+      this.fxGroup.remove(tg.group);
+      tg.group.children.forEach(c => { c.geometry.dispose(); c.material.dispose(); });
+      this.telegraphs.splice(i, 1);
+    }
+  }
+
   // ---------- mecánicas de jefe ----------
   bossSummon(boss) {
     const base = ENEMIES.find(e => e.id === 'esqueleto');
@@ -462,23 +507,23 @@ class Game {
   }
 
   bossFrostNova(boss) {
-    this.spawnRing(boss.pos, 3.6, 0x66ccff);
-    const p = this.player;
-    if (p.alive && p.pos.distanceTo(boss.pos) < 4) {
-      p.takeDamage(Math.round(boss.def.dmg * 0.8), boss.def.level || 1);
-      p.slowT = 2.5;
-      this.ui.message('❄️ ¡Estás congelado! Muévete lento unos segundos', 1800);
-    }
+    // aviso de 0.8s; al estallar daña y congela a quien siga dentro
+    this.spawnTelegraph(boss.pos.clone(), 3.8, 0.8, Math.round(boss.def.dmg * 0.8), boss.def.level || 1, { slow: true });
     this.sfx('eshoot');
   }
 
   spawnFirePool(pos) {
-    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1.5, 20),
-      new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.55 }));
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.copy(pos).setY(0.06);
-    this.fxGroup.add(mesh);
-    this.firePools.push({ mesh, t: 0, dur: 4.5, radius: 1.6, tick: 0.4 });
+    // aviso breve y después la zona queda en llamas
+    this.spawnTelegraph(pos.clone(), 1.6, 0.6, 0, 1, {
+      onDone: (at) => {
+        const mesh = new THREE.Mesh(new THREE.CircleGeometry(1.5, 20),
+          new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.55 }));
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.copy(at).setY(0.06);
+        this.fxGroup.add(mesh);
+        this.firePools.push({ mesh, t: 0, dur: 4.5, radius: 1.6, tick: 0.4 });
+      },
+    });
     this.sfx('eshoot');
   }
 
@@ -1165,6 +1210,9 @@ class Game {
       }
     }
 
+    // ataques telegrafiados
+    this.updateTelegraphs(dt);
+
     // charcos de fuego: dañan al jugador que se queda dentro
     for (let i = this.firePools.length - 1; i >= 0; i--) {
       const fp = this.firePools[i];
@@ -1211,7 +1259,7 @@ class Game {
       if (it.mesh?.userData.crystal) {
         const c = it.mesh.userData.crystal;
         c.rotation.y += dt * 1.2;
-        c.position.y = 0.95 + Math.sin(t * 2.5) * 0.12;
+        c.position.y = (c.userData.baseY ?? 0.95) + Math.sin(t * 2.5) * 0.12;
       }
     }
     this.world.group.traverse(o => {
@@ -1339,7 +1387,65 @@ class Game {
       case 'chest':
         this.openChest(it);
         break;
+      case 'shrine':
+        this.useShrine(it);
+        break;
     }
+  }
+
+  useShrine(it) {
+    if (it.used) { this.ui.message('El santuario está agotado'); return; }
+    const p = this.player;
+    it.used = true;
+    const floor = this.world.floor || 1;
+    switch (it.shrine) {
+      case 'xp':
+        p.xpBoostT = 60;
+        this.ui.message('✨ ¡Bendición de Experiencia! +50% XP durante 60s', 3500);
+        break;
+      case 'dmg':
+        p.addBuff('shrine_dmg', { dmgPct: 25 }, 45);
+        this.ui.message('⚔️ ¡Bendición de Furia! +25% daño durante 45s', 3500);
+        break;
+      case 'pocion':
+        p.potions.hp = Math.min(99, p.potions.hp + 2);
+        p.potions.mp = Math.min(99, p.potions.mp + 2);
+        p.hp = p.stats.maxHP;
+        p.mp = p.stats.maxMP;
+        this.ui.message('🧪 ¡Bendición de Vida! Curado al máximo y +2/+2 pociones', 3500);
+        break;
+      case 'oro':
+        for (let i = 0; i < 4; i++) this.spawnGroundItem(makeGold(floor + 2), it.pos);
+        this.ui.message('🪙 ¡Bendición Dorada!', 2500);
+        break;
+      case 'maldito': {
+        this.spawnGroundItem(generateItem(floor, 'raro'), it.pos);
+        for (let i = 0; i < 3; i++) {
+          const a = Math.PI * 2 * i / 3;
+          const pos = it.pos.clone().add(new THREE.Vector3(Math.sin(a) * 2, 0, Math.cos(a) * 2));
+          if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(it.pos);
+          pos.y = 0;
+          // reintenta hasta conseguir un campeón/élite para que la emboscada pique
+          let def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor), floor), floor);
+          for (let t = 0; t < 12 && !def.rank; t++)
+            def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor), floor), floor);
+          const e = new Enemy(this, def, pos);
+          this.enemies.push(e);
+          this.entityGroup.add(e.group);
+        }
+        this.ui.message('💀 ¡El santuario estaba maldito! Una emboscada... y un tesoro', 3500);
+        this.sfx('eshoot');
+        break;
+      }
+    }
+    it.label = '✨ Santuario agotado';
+    if (it.mesh?.userData.crystal) {
+      it.mesh.userData.crystal.material.emissiveIntensity = 0.1;
+      it.mesh.userData.crystal.material.color.setHex(0x555555);
+    }
+    this.spawnRing(it.pos, 1.4, 0xffe9b0);
+    this.sfx('levelup');
+    this.save();
   }
 
   openChest(it) {
