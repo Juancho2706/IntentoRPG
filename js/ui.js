@@ -32,19 +32,59 @@ export class UI {
     $('btn-respawn').addEventListener('click', () => g.respawn());
   }
 
-  // ---------- selección de clase ----------
-  showClassSelect(hasSave, onPick) {
+  // ---------- selección de héroe y clase ----------
+  // onPick(slot, 'continue') · onPick(slot, classId, { hardcore })
+  showClassSelect(onPick) {
     const el = $('class-select');
     el.classList.remove('hidden');
     const cont = $('class-cards');
     cont.innerHTML = '';
-    if (hasSave) {
-      const btn = document.createElement('button');
-      btn.className = 'btn-continue';
-      btn.textContent = '▶️ Continuar partida guardada';
-      btn.onclick = () => { el.classList.add('hidden'); onPick('continue'); };
-      cont.appendChild(btn);
+
+    // huecos de guardado (3 héroes)
+    const metas = this.game.slotMetas();
+    let selectedSlot = metas.findIndex(m => !m);
+    const slotRow = document.createElement('div');
+    slotRow.className = 'slot-row';
+    metas.forEach((m, i) => {
+      const card = document.createElement('div');
+      card.className = 'slot-card' + (!m && i === selectedSlot ? ' sel' : '');
+      if (m) {
+        const cls = CLASSES[m.classId];
+        card.innerHTML = `<div class="slot-info">${cls?.icon || '🧍'} <b>${cls?.name || '?'} Nv ${m.level}</b><small>Piso máx ${m.maxFloor}${m.hardcore ? ' ☠️' : ''}</small></div>`;
+        const play = document.createElement('button');
+        play.className = 'slot-play';
+        play.textContent = '▶️ Jugar';
+        play.onclick = () => { el.classList.add('hidden'); onPick(i, 'continue'); };
+        const del = document.createElement('button');
+        del.className = 'slot-del';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          if (confirm('¿Borrar este héroe para siempre? (El alijo compartido se conserva)')) {
+            this.game.deleteSlot(i);
+            this.showClassSelect(onPick);
+          }
+        };
+        card.append(play, del);
+      } else {
+        card.innerHTML = `<div class="slot-info">➕ <b>Hueco ${i + 1}</b><small>Nuevo héroe</small></div>`;
+        card.onclick = () => {
+          selectedSlot = i;
+          slotRow.querySelectorAll('.slot-card').forEach(c => c.classList.remove('sel'));
+          card.classList.add('sel');
+        };
+      }
+      slotRow.appendChild(card);
+    });
+    cont.appendChild(slotRow);
+
+    if (selectedSlot < 0) {
+      const full = document.createElement('p');
+      full.className = 'dim';
+      full.textContent = 'Los 3 huecos están ocupados: borra un héroe para crear otro.';
+      cont.appendChild(full);
+      return;
     }
+
     const hc = document.createElement('label');
     hc.className = 'hc-toggle';
     hc.innerHTML = `<input type="checkbox" id="hc-check"> ☠️ Modo Hardcore — la muerte es permanente`;
@@ -66,7 +106,7 @@ export class UI {
         <button>Elegir</button>`;
       card.querySelector('button').onclick = () => {
         el.classList.add('hidden');
-        onPick(cls.id, { hardcore: document.getElementById('hc-check')?.checked });
+        onPick(selectedSlot, cls.id, { hardcore: document.getElementById('hc-check')?.checked });
       };
       row.appendChild(card);
     }
@@ -316,6 +356,20 @@ export class UI {
     };
     slider.onchange = () => g.saveSettings();
     cont.appendChild(row);
+
+    // copia de seguridad de la partida (de momento local; nube más adelante)
+    const head = document.createElement('h4');
+    head.textContent = '💾 Copia de seguridad';
+    cont.appendChild(head);
+    const mkBtn = (txt, fn) => {
+      const b = document.createElement('button');
+      b.className = 'shop-item';
+      b.innerHTML = `<span class="shop-name">${txt}</span>`;
+      b.onclick = fn;
+      cont.appendChild(b);
+    };
+    mkBtn('📋 Copiar código de guardado <small class="shop-stats">Incluye tu héroe actual y el alijo</small>', () => g.exportSave());
+    mkBtn('📥 Importar código de guardado <small class="shop-stats">Sobrescribe el héroe del hueco actual</small>', () => g.importSave());
   }
 
   openQuest() {

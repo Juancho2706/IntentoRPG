@@ -362,7 +362,7 @@ export class Player {
       this.game.ui.spawnText(this.pos, '¡Esquivado!', 'txt-heal');
       return;
     }
-    const red = this.stats.arm / (this.stats.arm + 40 + 12 * attackerLevel);
+    const red = this.stats.arm / (this.stats.arm + 60 + 16 * attackerLevel);
     const dmg = Math.max(1, Math.round(amount * (1 - Math.min(0.75, red))));
     this.hp -= dmg;
     this.game.ui.spawnText(this.pos, `-${dmg}`, 'txt-dmg-player');
@@ -577,10 +577,15 @@ export class Enemy {
     }
 
     if (this.flashT > 0) this.flashT -= dt;
-    this.group.traverse(o => {
-      if (o.isMesh && o.material && o.material.emissive)
-        o.material.emissive.setHex(this.flashT > 0 ? 0x661111 : this.baseEmissive);
-    });
+    // recorrer el modelo solo cuando el flash cambia de estado
+    const flashing = this.flashT > 0;
+    if (flashing !== this._flashState) {
+      this._flashState = flashing;
+      this.group.traverse(o => {
+        if (o.isMesh && o.material && o.material.emissive)
+          o.material.emissive.setHex(flashing ? 0x661111 : this.baseEmissive);
+      });
+    }
 
     const player = g.player;
     if (!player || !player.alive) return false;
@@ -591,6 +596,14 @@ export class Enemy {
     const d = this.pos.distanceTo(player.pos);
     const aggro = this.def.boss ? 12 : 9;
     if (d > aggro + 6) return false; // demasiado lejos, dormir
+
+    // línea de visión (cada 0.2s): no te detectan a través de los muros
+    this.losT = (this.losT ?? 0) - dt;
+    if (this.losT <= 0) {
+      this.losT = 0.2;
+      this.hasLOS = g.world.grid.lineOfSight(this.pos.x, this.pos.z, player.pos.x, player.pos.z);
+    }
+    if (!this.hasLOS && !this.aggroed) return false; // no te ha visto aún
 
     // aura pulsante; los ardientes queman de cerca
     if (this.aura) {
@@ -607,6 +620,7 @@ export class Enemy {
     const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1);
 
     if (d <= aggro) {
+      if (this.hasLOS) this.aggroed = true; // te ha visto: te recordará
       // mirar al jugador
       this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
 
@@ -629,7 +643,7 @@ export class Enemy {
       const useRanged = this.def.rangedAttack && (this.def.rangedChance == null || Math.random() < 1); // brujo siempre, jefe mezcla en attack
       const range = this.def.range;
 
-      if (d <= range) {
+      if (d <= range && this.hasLOS) {
         if (this.atkCd <= 0) {
           this.atkCd = this.def.atkTime;
           if (this.def.rangedAttack && d > 2.2) {
@@ -641,8 +655,8 @@ export class Enemy {
             });
             g.sfx('eshoot');
           } else if (this.def.slam) {
-            // golpe pesado telegrafiado: da tiempo a apartarse o esquivar
-            g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, this.def.dmg, this.def.level || 1);
+            // golpe pesado telegrafiado: avisa, pero castiga fuerte si no lo esquivas
+            g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, Math.round(this.def.dmg * 1.5), this.def.level || 1);
           } else {
             player.takeDamage(this.def.dmg, this.def.level || 1);
           }
@@ -789,7 +803,8 @@ export class Pet {
         if (this.atkCd <= 0) {
           this.atkCd = 1.1;
           this.lunge = 1;
-          const dmg = Math.max(1, Math.round(4 + p.level * 1.2));
+          // el lobo escala con el daño del dueño (sigue siendo útil en el endgame)
+          const dmg = Math.max(2, Math.round(3 + (p.stats.dmgMin + p.stats.dmgMax) / 2 * 0.45));
           target.takeDamage(dmg, false);
           g.sfx('hit');
         }

@@ -49,6 +49,16 @@ class Grid {
     return this.cellAt(wx - r, wz - r) && this.cellAt(wx + r, wz - r) &&
            this.cellAt(wx - r, wz + r) && this.cellAt(wx + r, wz + r);
   }
+  // línea de visión: muestrea celdas entre dos puntos (los muros bloquean)
+  lineOfSight(x0, z0, x1, z1) {
+    const dx = x1 - x0, dz = z1 - z0;
+    const steps = Math.ceil(Math.hypot(dx, dz) / 0.4);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      if (!this.cellAt(x0 + dx * t, z0 + dz * t)) return false;
+    }
+    return true;
+  }
   center(x, z) { return new THREE.Vector3(this.ox + x + 0.5, 0, this.oz + z + 0.5); }
 }
 

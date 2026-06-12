@@ -283,8 +283,14 @@ class Game {
     this.input = new Input(this);
     this.clock = new THREE.Clock();
 
-    const hasSave = !!localStorage.getItem(SAVE_KEY);
-    this.ui.showClassSelect(hasSave, id => this.startGame(id));
+    // migración: el guardado único antiguo pasa al hueco 1
+    try {
+      const legacy = localStorage.getItem(SAVE_KEY);
+      if (legacy && !localStorage.getItem(this.slotKey(0))) localStorage.setItem(this.slotKey(0), legacy);
+      if (legacy) localStorage.removeItem(SAVE_KEY);
+    } catch { /* sin almacenamiento */ }
+    this.activeSlot = 0;
+    this.ui.showClassSelect((slot, pick, opts) => this.startGame(pick, opts, slot));
 
     this.renderer.setAnimationLoop(() => this.tick());
   }
@@ -300,11 +306,58 @@ class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  // ---------- huecos de guardado ----------
+  slotKey(i) { return `intentorpg_save_slot${i}`; }
+
+  slotMetas() {
+    return [0, 1, 2].map(i => {
+      try {
+        const d = JSON.parse(localStorage.getItem(this.slotKey(i)));
+        return d ? { classId: d.classId, level: d.level, maxFloor: d.records?.maxFloor || 1, hardcore: !!d.hardcore } : null;
+      } catch { return null; }
+    });
+  }
+
+  deleteSlot(i) {
+    try { localStorage.removeItem(this.slotKey(i)); } catch { /* sin almacenamiento */ }
+  }
+
+  // exportar/importar partida (código de texto; más adelante, guardado en la nube)
+  exportSave() {
+    this.save();
+    const data = {
+      save: localStorage.getItem(this.slotKey(this.activeSlot)),
+      stash: localStorage.getItem('intentorpg_stash'),
+    };
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    const fallback = () => prompt('Copia tu código de guardado:', code);
+    if (navigator.clipboard?.writeText)
+      navigator.clipboard.writeText(code)
+        .then(() => this.ui.message('📋 Código de guardado copiado al portapapeles', 3500))
+        .catch(fallback);
+    else fallback();
+  }
+
+  importSave() {
+    const code = prompt('Pega aquí tu código de guardado:\n(Se sobrescribirá el héroe del hueco actual)');
+    if (!code) return;
+    try {
+      const data = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+      JSON.parse(data.save); // valida que el guardado sea JSON real
+      localStorage.setItem(this.slotKey(this.activeSlot), data.save);
+      if (data.stash) localStorage.setItem('intentorpg_stash', data.stash);
+      location.reload();
+    } catch {
+      this.ui.message('❌ Código de guardado no válido');
+    }
+  }
+
   // ---------- inicio / guardado ----------
-  startGame(pick, opts = {}) {
+  startGame(pick, opts = {}, slot = 0) {
+    this.activeSlot = slot;
     let saved = null;
     if (pick === 'continue') {
-      try { saved = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { saved = null; }
+      try { saved = JSON.parse(localStorage.getItem(this.slotKey(slot))); } catch { saved = null; }
       if (!saved) pick = 'guerrero';
     }
     const classId = saved ? saved.classId : pick;
@@ -342,7 +395,7 @@ class Game {
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked,
     };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
 
   // ---------- mundo ----------
@@ -368,6 +421,10 @@ class Game {
       : spec.type === 'refuge' ? buildRefuge()
       : buildDungeon(spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
+    // la diaria comparte trazado con todos, pero su dificultad escala a tu progreso
+    this.world.scaleFloor = spec.daily
+      ? Math.max(this.world.floor, (this.player.records.maxFloor || 1) - 2)
+      : (this.world.floor || 1);
     this.scene.add(this.world.group);
 
     // ambiente
@@ -381,14 +438,15 @@ class Game {
     this.playerLight.intensity = w.type === 'dungeon' ? 16 : 0;
 
     // enemigos (los normales pueden salir Campeón o Élite)
+    const sf = w.scaleFloor;
     for (const s of w.spawns) {
       let def;
       if (s.kind === 'boss') {
-        def = scaleEnemy(bossForFloor(w.floor), w.floor);
+        def = scaleEnemy(bossForFloor(sf), sf);
         def.rankLabel = `👹 ${def.name}`;
         def.labelCls = 'lbl-elite';
       } else {
-        def = rollEnemyRank(scaleEnemy(pickEnemyDef(w.floor), w.floor), w.floor);
+        def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
       }
       const enemy = new Enemy(this, def, s.pos);
       this.enemies.push(enemy);
@@ -413,7 +471,7 @@ class Game {
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
     if (w.daily) this.dailyStart = Date.now();
-    if (w.daily) this.ui.message(`🌟 Desafío Diario · Piso ${w.floor} — el mismo trazado para todos hoy. ¡Derrota al jefe!`, 4500);
+    if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
     this.save();
@@ -534,7 +592,7 @@ class Game {
       const pos = boss.pos.clone().add(new THREE.Vector3(Math.sin(a) * 1.8, 0, Math.cos(a) * 1.8));
       if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(boss.pos);
       pos.y = 0;
-      const e = new Enemy(this, scaleEnemy(base, this.world.floor || 1), pos);
+      const e = new Enemy(this, scaleEnemy(base, this.world.scaleFloor || 1), pos);
       this.enemies.push(e);
       this.entityGroup.add(e.group);
     }
@@ -545,7 +603,7 @@ class Game {
 
   bossFrostNova(boss) {
     // aviso de 0.8s; al estallar daña y congela a quien siga dentro
-    this.spawnTelegraph(boss.pos.clone(), 3.8, 0.8, Math.round(boss.def.dmg * 0.8), boss.def.level || 1, { slow: true });
+    this.spawnTelegraph(boss.pos.clone(), 3.8, 0.8, boss.def.dmg, boss.def.level || 1, { slow: true });
     this.sfx('eshoot');
   }
 
@@ -794,8 +852,8 @@ class Game {
     if (p.dailyDone === today) return;
     p.dailyDone = today;
     p.records.dailies = (p.records.dailies || 0) + 1;
-    this.spawnGroundItem(generateItem(this.world.floor, 'legendario'), boss.pos);
-    for (let i = 0; i < 3; i++) this.spawnGroundItem(makeGold(this.world.floor + 3), boss.pos);
+    this.spawnGroundItem(generateItem(this.world.scaleFloor || this.world.floor, 'legendario'), boss.pos);
+    for (let i = 0; i < 3; i++) this.spawnGroundItem(makeGold((this.world.scaleFloor || this.world.floor) + 3), boss.pos);
     // registro en la tabla local del desafío diario
     const time = Math.round((Date.now() - (this.dailyStart || Date.now())) / 1000);
     this.dailyLog.unshift({ date: today, cls: p.classId, level: p.level, floor: this.world.floor, time, hc: p.hardcore });
@@ -916,7 +974,7 @@ class Game {
       this.vibrate([60, 40, 80]);
     }
     this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
-    const floor = this.world.floor || 1;
+    const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
     if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.5, setChance: 0.08 });
     else if (enemy.def.boss) drops = rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 });
@@ -1236,7 +1294,7 @@ class Game {
     this.sfx('death');
     if (this.player.hardcore) {
       // muerte permanente: el guardado se borra para siempre
-      try { localStorage.removeItem(SAVE_KEY); } catch { /* sin almacenamiento */ }
+      try { localStorage.removeItem(this.slotKey(this.activeSlot)); } catch { /* sin almacenamiento */ }
       this.ui.showDeath(true);
     } else {
       this.ui.showDeath(false);
@@ -1336,7 +1394,7 @@ class Game {
       if (fp.tick <= 0 && this.state === 'play' && p.alive &&
           p.pos.distanceTo(fp.mesh.position) < fp.radius + 0.3) {
         fp.tick = 0.5;
-        p.takeDamage(4 + 2 * (this.world.floor || 1), this.world.floor || 1);
+        p.takeDamage(4 + 2 * (this.world.scaleFloor || 1), this.world.scaleFloor || 1);
       }
     }
 
@@ -1394,11 +1452,16 @@ class Game {
     this.sun.position.copy(p.pos).add(new THREE.Vector3(10, 18, 6));
     this.sun.target.position.copy(p.pos);
 
-    // UI
+    // UI: textos y etiquetas siguen al mundo (cada frame), pero el HUD y el
+    // minimapa se refrescan a 10Hz — menos trabajo de DOM, mismo aspecto
     this.ui.updateFloats(dt);
-    this.ui.updateHUD();
     this.syncWorldLabels();
-    this.ui.drawMinimap();
+    this.hudTimer = (this.hudTimer || 0) + dt;
+    if (this.hudTimer >= 0.1) {
+      this.hudTimer = 0;
+      this.ui.updateHUD();
+      this.ui.drawMinimap();
+    }
 
     // rotación de la mercancía de la tienda
     if (this.shopStock && Date.now() >= this.shopStock.until) {
@@ -1514,7 +1577,7 @@ class Game {
     if (it.used) { this.ui.message('El santuario está agotado'); return; }
     const p = this.player;
     it.used = true;
-    const floor = this.world.floor || 1;
+    const floor = this.world.scaleFloor || this.world.floor || 1;
     switch (it.shrine) {
       case 'xp':
         p.xpBoostT = 60;
@@ -1573,7 +1636,7 @@ class Game {
       // ¡el cofre era un monstruo!
       it.label = '';
       this.world.group.remove(it.mesh);
-      const def = scaleEnemy(MIMIC, this.world.floor);
+      const def = scaleEnemy(MIMIC, this.world.scaleFloor || this.world.floor);
       def.rankLabel = '📦 ¡Mímico!';
       def.labelCls = 'lbl-elite';
       def.mimic = true;
@@ -1585,9 +1648,9 @@ class Game {
     } else {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
-      const drops = rollDrops(this.world.floor, { minItems: 1, itemChance: 0.35, goldChance: 1, setChance: 0.06 });
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { minItems: 1, itemChance: 0.35, goldChance: 1, setChance: 0.06 });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
-      this.spawnGroundItem(makeGold(this.world.floor), it.pos);
+      this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
       p.records.chests++;
       this.questProgress('chest');
       this.sfx('chest');
@@ -1615,7 +1678,8 @@ class Game {
       if (e.pos.distanceToSquared(p.pos) > maxD) continue;
       entries.push({
         id: 'en' + e.uid,
-        pos: e.pos.clone().setY(2.3 * (e.def.scale || 1)),
+        // por encima de la barra de vida para no taparla
+        pos: e.pos.clone().setY(3.05 * (e.def.scale || 1)),
         text: e.def.rankLabel, cls: e.def.labelCls,
         onClick: () => { p.attackTarget = e; p.moveTarget = null; p.pickTarget = null; },
       });

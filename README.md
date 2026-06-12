@@ -51,7 +51,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Alijo compartido** en el pueblo: 24 casillas comunes a todos tus personajes (sobrevive al Hardcore)
 - **Tabla del Desafío Diario**: tus últimas 14 runs con clase, piso y tiempo, en el panel de personaje
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
-- **Guardado automático** en localStorage (continúa donde lo dejaste)
+- **3 huecos de personaje** con guardado automático local, y **exportar/importar partida** por código (copia de seguridad o cambio de dispositivo)
+- Los enemigos tienen **línea de visión real**: no te detectan a través de los muros
 - **PWA instalable**: añádelo a la pantalla de inicio del móvil y juega incluso sin conexión
 - **Calidad adaptativa**: si los FPS bajan, reduce resolución y sombras automáticamente (desactivable en Opciones)
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos

@@ -189,7 +189,7 @@ export function scaleEnemy(def, floor) {
   return {
     ...def,
     hp: Math.round(def.hp * (1 + 0.45 * f)),
-    dmg: Math.round(def.dmg * (1 + 0.30 * f)),
+    dmg: Math.round(def.dmg * (1 + 0.42 * f)),
     xp: Math.round(def.xp * (1 + 0.35 * f)),
     level: floor,
   };

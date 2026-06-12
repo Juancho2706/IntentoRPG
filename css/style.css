@@ -480,6 +480,29 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .subtitle { opacity: 0.8; margin: 6px 0 18px; }
 .hint { font-size: 12px; opacity: 0.55; margin-top: 18px; line-height: 1.6; }
 
+/* huecos de guardado */
+.slot-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
+.slot-card {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; min-width: 180px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border); border-radius: 10px;
+  cursor: pointer;
+}
+.slot-card.sel { border-color: var(--gold); box-shadow: 0 0 10px rgba(201, 162, 39, 0.35); }
+.slot-info { flex: 1; text-align: left; font-size: 14px; }
+.slot-info small { display: block; font-size: 11px; opacity: 0.65; }
+.slot-play {
+  padding: 8px 12px; font-size: 13px;
+  background: linear-gradient(#3a5a20, #24380f); color: #d8ffb0;
+  border: 1px solid #5a8a30; border-radius: 8px;
+}
+.slot-del {
+  padding: 8px; font-size: 13px;
+  background: #3a1d1d; color: #fff;
+  border: 1px solid #6a3a3a; border-radius: 8px;
+}
+
 .class-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .class-card {
   display: flex; flex-direction: column; align-items: center;
