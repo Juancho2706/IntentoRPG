@@ -69,9 +69,9 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 | Habilidades | `1` – `4` | Botones de habilidad |
 | Poción vida / maná | `Q` / `E` | Botones 🧪 / 🔷 |
 | Inventario / Habilidades / Personaje | `I` / `T` / `C` | Botones del menú |
-| Ver objeto del suelo | Clic en su etiqueta | Toca su etiqueta |
+| Recoger objeto | Etiqueta o tecla `F` | Etiqueta o botón 🖐️ |
 
-El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). El oro y las pociones se recogen automáticamente al pasar por encima. En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
+El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). El oro, las pociones, las gemas y las runas se recogen automáticamente al pasar por encima — y el lobo de caza va a buscarlos por ti. En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
 
 ## 📁 Estructura
 

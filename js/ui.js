@@ -23,6 +23,7 @@ export class UI {
     $('btn-pot-mp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('mp'); this.updateHUD(); });
     $('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); g.primaryAction(); });
     $('btn-dodge').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.dodge(); });
+    $('btn-grab').addEventListener('pointerdown', e => { e.preventDefault(); g.grabNearest(); });
     $('btn-inv').addEventListener('click', () => this.togglePanel('inv'));
     $('btn-skills').addEventListener('click', () => this.togglePanel('skills'));
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
@@ -156,6 +157,10 @@ export class UI {
     // cooldown de la esquiva
     $('btn-dodge').querySelector('.cd-overlay').style.height =
       p.dodgeCd > 0 ? (p.dodgeCd / 3 * 100) + '%' : '0%';
+
+    // el botón de recoger brilla si hay botín cerca
+    const lootNear = this.game.groundItems.some(gi => gi.mesh.position.distanceToSquared(p.pos) < 81);
+    $('btn-grab').classList.toggle('has-loot', lootNear);
 
     const badge = (id, n) => { const b = $(id); b.style.display = n > 0 ? 'flex' : 'none'; b.textContent = n; };
     badge('badge-stats', p.statPoints + p.paragon.points);
@@ -512,7 +517,7 @@ export class UI {
     const equipped = item.slot ? p.equipment[item.slot] : null;
     // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo)
     let compare = '';
-    if ((ctx.from === 'inv' || ctx.from === 'ground') && equipped && equipped !== item) {
+    if (ctx.from === 'inv' && equipped && equipped !== item) {
       const summarize = (it) => {
         const m = {};
         if (it.dmg) m._dmg = (it.dmg[0] + it.dmg[1]) / 2;
@@ -561,14 +566,6 @@ export class UI {
       b.onclick = () => { fn(); pop.classList.add('hidden'); this.renderPanel(); this.updateHUD(); };
       btns.appendChild(b);
     };
-    if (ctx.from === 'ground') {
-      // ficha desde la etiqueta del suelo: comparar sin recoger
-      addBtn('Recoger', () => {
-        p.pickTarget = ctx.gi;
-        p.moveTarget = null;
-        p.attackTarget = null;
-      }, 'btn-good');
-    }
     if (ctx.from === 'inv') {
       if (item.kind !== 'gem') addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(item.fav ? '💔 Quitar ⭐' : '⭐ Favorito', () => g.toggleFav(ctx.index));

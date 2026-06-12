@@ -208,6 +208,17 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
   box-shadow: 0 2px 8px rgba(0,0,0,0.7);
 }
 #btn-dodge:active { transform: scale(0.93); }
+#btn-grab {
+  position: relative; width: 54px; height: 54px; font-size: 22px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3a4a2a, #18220e);
+  border: 2px solid #5a7a3a; color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+}
+#btn-grab:active { transform: scale(0.93); }
+#btn-grab.has-loot {
+  border-color: var(--gold);
+  animation: interactPulse 1.2s ease-in-out infinite;
+}
 #btn-attack.interact {
   background: radial-gradient(circle at 35% 30%, #4a5522, #1d2709);
   border-color: var(--gold);
@@ -388,6 +399,10 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
   border: 1px solid #3a3226; border-radius: 8px;
 }
 .opt-row input { width: 20px; height: 20px; accent-color: var(--gold); }
+.opt-row input[type="range"] {
+  flex: 1; width: auto; max-width: 55%; height: 28px;
+  margin-left: 12px; accent-color: var(--gold);
+}
 .popup-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .popup-btns button {
   flex: 1 1 40%; padding: 8px 6px; font-size: 13px;

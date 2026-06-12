@@ -801,6 +801,20 @@ export class Pet {
 
   get pos() { return this.group.position; }
 
+  // botín que se recoge solo (cerca del dueño, no del lobo, para no alejarse)
+  nearestLoot(g, p) {
+    let best = null, bd = 81;
+    for (const gi of g.groundItems || []) {
+      const k = gi.item.kind;
+      const auto = k === 'gold' || k === 'potion' ||
+        ((k === 'gem' || k === 'rune') && p.inventory.length < 32);
+      if (!auto) continue;
+      const d = gi.mesh.position.distanceToSquared(p.pos);
+      if (d < bd) { bd = d; best = gi; }
+    }
+    return best;
+  }
+
   update(dt) {
     const g = this.game, p = g.player;
     this.atkCd = Math.max(0, this.atkCd - dt);
@@ -834,8 +848,16 @@ export class Pet {
           g.sfx('hit');
         }
       } else dest = target.pos;
-    } else if (dp > 2.2) {
-      dest = p.pos;
+    } else {
+      // sin combate: el lobo va a buscar el botín recogible cercano
+      const gi = this.nearestLoot(g, p);
+      if (gi) {
+        const dgi = this.pos.distanceTo(gi.mesh.position.clone().setY(this.pos.y));
+        if (dgi < 0.7) g.pickupGroundItem(gi);
+        else dest = gi.mesh.position;
+      } else if (dp > 2.2) {
+        dest = p.pos;
+      }
     }
 
     if (dest) {

@@ -544,6 +544,25 @@ class Game {
     return best;
   }
 
+  // botón 🖐️: agarra el botín más cercano sin preguntar
+  grabNearest() {
+    if (!this.player?.alive || this.state !== 'play') return;
+    const p = this.player;
+    let best = null, bd = 9 * 9;
+    for (const gi of this.groundItems) {
+      if (gi === p.pickTarget) continue; // si repites, va a por el siguiente
+      const d = gi.mesh.position.distanceToSquared(p.pos);
+      if (d < bd) { bd = d; best = gi; }
+    }
+    if (!best) { this.ui.message('No hay botín cerca'); return; }
+    if (Math.sqrt(bd) < 1.3) this.pickupGroundItem(best);
+    else {
+      p.pickTarget = best;
+      p.moveTarget = null;
+      p.attackTarget = null;
+    }
+  }
+
   attackNearest() {
     const p = this.player;
     if (!p || !p.alive) return;
@@ -1017,8 +1036,12 @@ class Game {
       gi.mesh.rotation.y += dt * 2;
       gi.mesh.position.y = 0.35 + Math.sin(t * 3 + gi.bob) * 0.08;
       if (gi.beam) gi.beam.material.opacity = 0.22 + Math.sin(t * 2.5 + gi.bob) * 0.1;
-      if (this.state === 'play' && (gi.item.kind === 'gold' || gi.item.kind === 'potion')) {
-        if (gi.mesh.position.distanceToSquared(p.pos.clone().setY(gi.mesh.position.y)) < 1.1)
+      if (this.state === 'play') {
+        const k = gi.item.kind;
+        // oro y pociones siempre; gemas y runas si hay sitio en la mochila
+        const auto = k === 'gold' || k === 'potion' ||
+          ((k === 'gem' || k === 'rune') && p.inventory.length < 32);
+        if (auto && gi.mesh.position.distanceToSquared(p.pos.clone().setY(gi.mesh.position.y)) < 1.1)
           this.pickupGroundItem(gi);
       }
     }
@@ -1283,8 +1306,7 @@ class Game {
         entries.push({
           id: gi.id, pos: gi.mesh.position, text: `${it.icon} ${it.name}`,
           cls: 'lbl-item rarity-' + it.rarity,
-          // abre la ficha con comparación sin necesidad de recogerlo
-          onClick: () => this.ui.itemPopup(it, { from: 'ground', gi }),
+          onClick: () => { p.pickTarget = gi; p.moveTarget = null; p.attackTarget = null; },
         });
       }
     }

@@ -31,6 +31,7 @@ export class Input {
       if (e.code === 'KeyE') { g.player?.usePotion('mp'); }
       if (e.code === 'Space') { e.preventDefault(); g.primaryAction(); }
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') g.player?.dodge();
+      if (e.code === 'KeyF') g.grabNearest();
       if (e.code === 'Escape') g.ui.closePanel();
       if (e.code.startsWith('Digit')) {
         const n = parseInt(e.code.slice(5));
