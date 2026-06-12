@@ -10,16 +10,26 @@ export const RARITIES = {
   conjunto: { id: 'conjunto', name: 'Conjunto',  color: '#4ade80', glow: 0x33cc66, affixes: [0, 0], statMult: 1.3,  weight: 0 },
 };
 
+// Ranuras de equipo estilo Diablo (ring2 acepta cualquier anillo)
 export const SLOT_NAMES = {
-  weapon: 'Arma', helm: 'Casco', chest: 'Armadura', boots: 'Botas', ring: 'Anillo', amulet: 'Amuleto',
+  weapon: 'Arma', offhand: 'Escudo', helm: 'Casco', shoulders: 'Hombreras',
+  chest: 'Armadura', gloves: 'Guantes', belt: 'Cinturón', pants: 'Pantalones',
+  boots: 'Botas', amulet: 'Amuleto', ring: 'Anillo', ring2: 'Anillo 2',
 };
+
+export const ARMOR_SLOTS = ['helm', 'chest', 'boots', 'shoulders', 'gloves', 'pants', 'belt', 'offhand'];
 
 const BASES = [
   { slot: 'weapon', names: ['Espada Corta', 'Hacha de Guerra', 'Maza', 'Espada Larga', 'Daga'], icon: '🗡️' },
   { slot: 'weapon', names: ['Arco Corto', 'Arco de Caza', 'Arco Largo'], icon: '🏹' },
   { slot: 'weapon', names: ['Bastón', 'Vara Arcana', 'Cetro'], icon: '🪄' },
+  { slot: 'offhand', names: ['Escudo de Madera', 'Escudo de Hierro', 'Escudo de Torre'], icon: '🛡️' },
   { slot: 'helm', names: ['Capucha', 'Casco de Cuero', 'Yelmo', 'Casco de Hierro'], icon: '🪖' },
+  { slot: 'shoulders', names: ['Hombreras de Cuero', 'Espaldares', 'Hombreras de Placas'], icon: '🎽' },
   { slot: 'chest', names: ['Túnica', 'Armadura de Cuero', 'Cota de Malla', 'Coraza'], icon: '🧥' },
+  { slot: 'gloves', names: ['Guantes de Tela', 'Guantes de Cuero', 'Manoplas'], icon: '🧤' },
+  { slot: 'belt', names: ['Faja', 'Cinturón de Cuero', 'Cinturón Tachonado'], icon: '🔗' },
+  { slot: 'pants', names: ['Calzas', 'Pantalones de Cuero', 'Quijotes'], icon: '👖' },
   { slot: 'boots', names: ['Sandalias', 'Botas de Cuero', 'Grebas'], icon: '🥾' },
   { slot: 'ring', names: ['Anillo de Cobre', 'Anillo de Plata', 'Anillo de Oro'], icon: '💍' },
   { slot: 'amulet', names: ['Talismán', 'Amuleto', 'Colgante'], icon: '📿' },
@@ -117,9 +127,11 @@ export function generateItem(ilvl, forceRarityId = null, slot = null) {
   if (base.slot === 'weapon') {
     const lo = Math.round((3 + 2.0 * (ilvl - 1)) * rarity.statMult * (0.85 + Math.random() * 0.3));
     item.dmg = [Math.max(1, lo), Math.max(2, lo + ri(2, 4 + ilvl))];
-  } else if (base.slot === 'helm' || base.slot === 'chest' || base.slot === 'boots') {
+  } else if (ARMOR_SLOTS.includes(base.slot)) {
     item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * rarity.statMult * (0.85 + Math.random() * 0.3)));
     if (base.slot === 'chest') item.arm = Math.round(item.arm * 1.5);
+    if (base.slot === 'offhand') item.arm = Math.round(item.arm * 1.3);
+    if (base.slot === 'belt' || base.slot === 'gloves') item.arm = Math.max(1, Math.round(item.arm * 0.7));
   }
 
   // afijos
@@ -146,8 +158,35 @@ export function generateItem(ilvl, forceRarityId = null, slot = null) {
     item.name = item.baseName;
   }
 
+  // engarces para gemas (más probables cuanto mayor la rareza)
+  const sockChance = { normal: 0.08, magico: 0.2, raro: 0.35, legendario: 0.5 }[rarity.id] || 0;
+  if (Math.random() < sockChance) {
+    item.sockets = 1 + (rarity.id === 'legendario' && Math.random() < 0.4 ? 1 : 0);
+    item.gems = [];
+  }
+
   item.value = Math.round((5 + ilvl * 4) * rarity.statMult * (1 + nAffixes * 0.5));
   return item;
+}
+
+// Gemas: se engarzan en objetos con ranuras
+export const GEMS = [
+  { id: 'rubi', name: 'Rubí', icon: '❤️', stat: 'hp', base: 8 },
+  { id: 'zafiro', name: 'Zafiro', icon: '🔷', stat: 'mp', base: 6 },
+  { id: 'amatista', name: 'Amatista', icon: '🟣', stat: 'fue', base: 2 },
+  { id: 'esmeralda', name: 'Esmeralda', icon: '🟢', stat: 'des', base: 2 },
+  { id: 'topacio', name: 'Topacio', icon: '🟡', stat: 'ene', base: 2 },
+  { id: 'diamante', name: 'Diamante', icon: '💠', stat: 'arm', base: 4 },
+];
+
+export function makeGem(ilvl) {
+  const g = GEMS[ri(0, GEMS.length - 1)];
+  const v = Math.max(1, Math.round(g.base * (1 + 0.2 * (ilvl - 1))));
+  return {
+    uid: itemUid++, kind: 'gem', gemId: g.id, icon: g.icon,
+    name: g.name, ilvl, rarity: 'magico', stats: { [g.stat]: v },
+    value: 25 + 8 * ilvl,
+  };
 }
 
 // Genera una pieza de conjunto aleatoria escalada al nivel de objeto
@@ -197,6 +236,7 @@ export function rollDrops(floor, opts = {}) {
   const drops = [];
   if (Math.random() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
   if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
+  if (Math.random() < (opts.gemChance ?? 0.05)) drops.push(makeGem(floor));
   const itemChance = opts.itemChance ?? 0.18;
   const nItems = opts.minItems || 0;
   let count = nItems;
@@ -224,5 +264,13 @@ export function itemStatLines(item) {
   if (item.arm) lines.push(`Armadura: ${item.arm}`);
   for (const [stat, v] of Object.entries(item.affixes || {}))
     lines.push(statText(stat, v));
+  for (const [stat, v] of Object.entries(item.stats || {}))
+    lines.push(statText(stat, v));
+  if (item.sockets) {
+    lines.push(`Engarces: ${(item.gems || []).length}/${item.sockets}`);
+    for (const gm of item.gems || [])
+      for (const [stat, v] of Object.entries(gm.stats))
+        lines.push(`💎 ${gm.name}: ${statText(stat, v)}`);
+  }
   return lines;
 }

@@ -39,7 +39,10 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Modo Hardcore** opcional al crear personaje: la muerte es permanente y borra el guardado
 - **Lobo de caza**: mascota comprable al mercader que te sigue y ataca a tus enemigos
 - **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
-- **Inventario** de 32 casillas + 6 huecos de equipo (arma, casco, armadura, botas, anillo, amuleto), vender y tirar objetos
+- **Inventario** de 32 casillas + **12 ranuras de equipo** estilo Diablo (arma, escudo, casco, hombreras, armadura, guantes, cinturón, pantalones, botas, amuleto y 2 anillos) en silueta anatómica
+- **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura
+- **Alijo compartido** en el pueblo: 24 casillas comunes a todos tus personajes (sobrevive al Hardcore)
+- **Tabla del Desafío Diario**: tus últimas 14 runs con clase, piso y tiempo, en el panel de personaje
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
 - **Guardado automático** en localStorage (continúa donde lo dejaste)
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos

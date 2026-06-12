@@ -232,6 +232,8 @@ class Game {
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
     this.settings = { sound: true, shake: true, haptics: true, ...opts };
+    this.loadStash();
+    try { this.dailyLog = JSON.parse(localStorage.getItem('intentorpg_dailylog') || '[]'); } catch { this.dailyLog = []; }
     const rawSfx = createSfx();
     this.sfx = (name) => { if (this.settings.sound) rawSfx(name); };
 
@@ -396,6 +398,7 @@ class Game {
       if (it.type === 'waypoint' && this.player.pos.distanceTo(it.pos) < it.radius + 0.5) it._in = true;
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
+    if (w.daily) this.dailyStart = Date.now();
     if (w.daily) this.ui.message(`🌟 Desafío Diario · Piso ${w.floor} — el mismo trazado para todos hoy. ¡Derrota al jefe!`, 4500);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
@@ -713,7 +716,13 @@ class Game {
     p.records.dailies = (p.records.dailies || 0) + 1;
     this.spawnGroundItem(generateItem(this.world.floor, 'legendario'), boss.pos);
     for (let i = 0; i < 3; i++) this.spawnGroundItem(makeGold(this.world.floor + 3), boss.pos);
-    this.ui.message('🌟 ¡Desafío Diario completado! Botín extra. Vuelve mañana por otro.', 5000);
+    // registro en la tabla local del desafío diario
+    const time = Math.round((Date.now() - (this.dailyStart || Date.now())) / 1000);
+    this.dailyLog.unshift({ date: today, cls: p.classId, level: p.level, floor: this.world.floor, time, hc: p.hardcore });
+    this.dailyLog = this.dailyLog.slice(0, 14);
+    try { localStorage.setItem('intentorpg_dailylog', JSON.stringify(this.dailyLog)); } catch { /* sin almacenamiento */ }
+    const mm = Math.floor(time / 60), ss = String(time % 60).padStart(2, '0');
+    this.ui.message(`🌟 ¡Desafío Diario completado en ${mm}:${ss}! Botín extra. Vuelve mañana.`, 5000);
     this.sfx('levelup');
     this.save();
   }
@@ -862,7 +871,7 @@ class Game {
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
     // pilar de luz por rareza: el loot bueno se ve desde lejos
-    if (item.kind === 'item') {
+    if (item.kind === 'item' || item.kind === 'gem') {
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
         new THREE.MeshBasicMaterial({
@@ -914,12 +923,65 @@ class Game {
     const p = this.player;
     const item = p.inventory[index];
     if (!item || !item.slot) return;
-    const old = p.equipment[item.slot];
-    p.equipment[item.slot] = item;
+    // los anillos pueden ir en cualquiera de las dos ranuras
+    let slot = item.slot;
+    if (slot === 'ring' && p.equipment.ring && !p.equipment.ring2) slot = 'ring2';
+    const old = p.equipment[slot];
+    p.equipment[slot] = item;
     p.inventory.splice(index, 1);
     if (old) p.inventory.push(old);
     p.recompute();
     this.sfx('pickup');
+    this.save();
+  }
+
+  // ---------- gemas ----------
+  // engarza la gema del inventario (gemIndex) en un objeto con ranura libre
+  socketGem(itemUid, gemIndex) {
+    const p = this.player;
+    const gem = p.inventory[gemIndex];
+    if (!gem || gem.kind !== 'gem') return;
+    const target = p.inventory.find(i => i.uid === itemUid) ||
+      Object.values(p.equipment).find(i => i && i.uid === itemUid);
+    if (!target || !target.sockets) return;
+    target.gems = target.gems || [];
+    if (target.gems.length >= target.sockets) { this.ui.message('No quedan engarces libres'); return; }
+    p.inventory.splice(gemIndex, 1);
+    target.gems.push(gem);
+    p.recompute();
+    this.ui.message(`💎 ${gem.name} engarzado en ${target.name}`, 2500);
+    this.sfx('levelup');
+    this.save();
+  }
+
+  // ---------- alijo compartido entre personajes ----------
+  loadStash() {
+    try { this.stash = JSON.parse(localStorage.getItem('intentorpg_stash') || '[]'); } catch { this.stash = []; }
+  }
+
+  saveStash() {
+    try { localStorage.setItem('intentorpg_stash', JSON.stringify(this.stash)); } catch { /* sin almacenamiento */ }
+  }
+
+  depositToStash(invIndex) {
+    const p = this.player;
+    const item = p.inventory[invIndex];
+    if (!item) return;
+    if (this.stash.length >= 24) { this.ui.message('El alijo está lleno'); return; }
+    p.inventory.splice(invIndex, 1);
+    this.stash.push(item);
+    this.saveStash();
+    this.save();
+  }
+
+  takeFromStash(i) {
+    const p = this.player;
+    const item = this.stash[i];
+    if (!item) return;
+    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    this.stash.splice(i, 1);
+    p.inventory.push(item);
+    this.saveStash();
     this.save();
   }
 
@@ -1215,6 +1277,9 @@ class Game {
         case 'questgiver':
           if (!it._in) { it._in = true; this.ui.openQuest(); }
           break;
+        case 'stash':
+          if (!it._in) { it._in = true; this.ui.openStash(); }
+          break;
         case 'waypoint':
           if (!it._in) {
             it._in = true;
@@ -1277,7 +1342,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if (it.kind === 'item') {
+      if (it.kind === 'item' || it.kind === 'gem') {
         entries.push({
           id: gi.id, pos: gi.mesh.position, text: `${it.icon} ${it.name}`,
           cls: 'lbl-item rarity-' + it.rarity,

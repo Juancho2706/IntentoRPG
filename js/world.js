@@ -203,7 +203,7 @@ export function buildTown() {
   }
 
   // árboles decorativos (lejos de NPCs, portales, waypoint y punto de aparición)
-  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8], [13, 22], [12, 4]];
+  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8], [13, 22], [12, 4], [23, 22]];
   for (let i = 0; i < 14; i++) {
     const x = ri(2, W - 3), z = ri(2, H - 3);
     if (!grid.cells[z][x]) continue;
@@ -261,6 +261,21 @@ export function buildTown() {
     t.position.set(portalPos.x + dx, 0, portalPos.z);
     group.add(t);
   }
+
+  // alijo compartido entre personajes
+  const stashPos = grid.center(23, 22);
+  const stash = new THREE.Group();
+  const sBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.75),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a7a, roughness: 0.8 }));
+  sBox.position.y = 0.35;
+  const sLid = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.22, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 0.5, roughness: 0.5 }));
+  sLid.position.y = 0.78;
+  sBox.castShadow = sLid.castShadow = true;
+  stash.add(sBox, sLid);
+  stash.position.copy(stashPos);
+  group.add(stash);
+  interactables.push({ type: 'stash', pos: stashPos.clone(), radius: 1.8, label: '🗃️ Alijo compartido', labelCls: 'lbl-chest' });
 
   // capitán de la guardia: misiones
   const captPos = grid.center(13, 22);

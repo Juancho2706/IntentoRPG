@@ -180,12 +180,20 @@ export class Player {
     this.gold = 50;
     this.potions = { hp: 3, mp: 2 };
     this.inventory = [];        // máx 32
-    this.equipment = { weapon: null, helm: null, chest: null, boots: null, ring: null, amulet: null };
+    this.equipment = {
+      weapon: null, offhand: null, helm: null, shoulders: null, chest: null,
+      gloves: null, belt: null, pants: null, boots: null, amulet: null, ring: null, ring2: null,
+    };
     this.lastFloor = 1;
 
     if (saved) Object.assign(this, saved, { game: this.game, cls: this.cls });
 
     // valores por defecto compatibles con guardados antiguos
+    this.equipment = {
+      weapon: null, offhand: null, helm: null, shoulders: null, chest: null,
+      gloves: null, belt: null, pants: null, boots: null, amulet: null, ring: null, ring2: null,
+      ...(this.equipment || {}),
+    };
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [1];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
     this.quest = this.quest || null;
@@ -236,6 +244,7 @@ export class Player {
       if (!it) continue;
       if (it.arm) item.arm += it.arm;
       addStats(it.affixes || {});
+      for (const gm of it.gems || []) addStats(gm.stats); // gemas engarzadas
       if (it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
     }
     // bonus de conjunto por número de piezas equipadas

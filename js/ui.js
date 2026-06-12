@@ -230,6 +230,46 @@ export class UI {
     else if (this.activePanel === 'waypoints') this.renderWaypoints();
     else if (this.activePanel === 'quest') this.renderQuest();
     else if (this.activePanel === 'settings') this.renderSettings();
+    else if (this.activePanel === 'stash') this.renderStash();
+  }
+
+  openStash() {
+    if (this.activePanel !== 'stash') {
+      this.closePanel();
+      this.activePanel = 'stash';
+      $('panel-stash').classList.remove('hidden');
+    }
+    this.renderStash();
+  }
+
+  renderStash() {
+    const g = this.game, p = g.player;
+    const sg = $('stash-grid');
+    sg.innerHTML = '';
+    for (let i = 0; i < 24; i++) {
+      const item = g.stash[i];
+      const div = document.createElement('div');
+      div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
+      div.innerHTML = this.itemCellHTML(item);
+      if (item) {
+        div.title = 'Pasar a la mochila';
+        div.onclick = () => { g.takeFromStash(i); this.renderStash(); };
+      }
+      sg.appendChild(div);
+    }
+    const ig = $('stash-inv-grid');
+    ig.innerHTML = '';
+    for (let i = 0; i < 32; i++) {
+      const item = p.inventory[i];
+      const div = document.createElement('div');
+      div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
+      div.innerHTML = this.itemCellHTML(item);
+      if (item) {
+        div.title = 'Guardar en el alijo';
+        div.onclick = () => { g.depositToStash(i); this.renderStash(); };
+      }
+      ig.appendChild(div);
+    }
   }
 
   renderSettings() {
@@ -429,16 +469,50 @@ export class UI {
       btns.appendChild(b);
     };
     if (ctx.from === 'inv') {
-      addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
+      if (item.kind !== 'gem') addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(`Vender (${item.value} 🪙)`, () => g.sellItem(ctx.index));
-      if (p.cube.length < 3 && item.rarity !== 'legendario' && item.rarity !== 'conjunto')
+      if (p.cube.length < 3 && item.kind !== 'gem' && item.rarity !== 'legendario' && item.rarity !== 'conjunto')
         addBtn('Al cubo 🧪', () => g.addToCube(ctx.index));
       addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
     } else if (ctx.from === 'equip') {
       addBtn('Desequipar', () => g.unequipItem(ctx.slot));
     }
+    // engarzar gemas si el objeto tiene ranura libre y hay gemas en la mochila
+    if (item.sockets && (item.gems || []).length < item.sockets && p.inventory.some(i => i.kind === 'gem')) {
+      const b = document.createElement('button');
+      b.textContent = 'Engarzar 💎';
+      b.className = 'btn-good';
+      b.onclick = () => this.gemChooser(item);
+      btns.appendChild(b);
+    }
     addBtn('Cerrar', () => {});
     pop.classList.remove('hidden');
+  }
+
+  gemChooser(item) {
+    const g = this.game, p = g.player;
+    const pop = $('item-popup');
+    pop.innerHTML = `
+      <div class="popup-name">💎 Elige una gema para:</div>
+      <div class="popup-sub">${item.name} (${(item.gems || []).length}/${item.sockets} engarces)</div>
+      <div class="popup-btns gem-list"></div>`;
+    const btns = pop.querySelector('.popup-btns');
+    p.inventory.forEach((gm, i) => {
+      if (gm.kind !== 'gem') return;
+      const b = document.createElement('button');
+      b.innerHTML = `${gm.icon} ${gm.name} · ${itemStatLines(gm)[0] || ''}`;
+      b.onclick = () => {
+        g.socketGem(item.uid, i);
+        pop.classList.add('hidden');
+        this.renderPanel();
+        this.updateHUD();
+      };
+      btns.appendChild(b);
+    });
+    const c = document.createElement('button');
+    c.textContent = 'Cancelar';
+    c.onclick = () => pop.classList.add('hidden');
+    btns.appendChild(c);
   }
 
   renderSkills() {
@@ -540,6 +614,13 @@ export class UI {
       <div>🌟 Desafíos diarios: ${r.dailies || 0}</div>
       <div>⚰️ Muertes: ${r.deaths}</div>
       <div>⏱️ Tiempo jugado: ${h}h ${m}m</div>`;
+
+    // tabla local del desafío diario
+    const log = this.game.dailyLog || [];
+    const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    $('daily-log').innerHTML = log.length
+      ? log.map(e => `<div>${e.date} · ${CLASSES[e.cls]?.icon || ''} Nv ${e.level} · Piso ${e.floor} · ⏱️ ${fmt(e.time)}${e.hc ? ' ☠️' : ''}</div>`).join('')
+      : '<div class="dim">Aún no has completado ningún Desafío Diario</div>';
   }
 
   renderShop() {
