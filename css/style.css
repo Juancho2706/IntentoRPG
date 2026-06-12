@@ -294,6 +294,8 @@ button { font-family: inherit; cursor: pointer; }
 .sk-info em { color: var(--gold); font-style: normal; font-size: 12px; }
 .sk-info small { display: block; font-size: 11px; opacity: 0.75; }
 .sk-nums { color: #9fc8ff !important; }
+.sk-syn { color: #b8e8a0 !important; }
+.sk-syn b { color: #8fdd8f; }
 .sk-plus {
   width: 38px; height: 38px; font-size: 20px; border-radius: 8px;
   background: #1d3a1d; color: #8fdd8f;

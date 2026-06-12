@@ -21,6 +21,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **3 clases** con stats propios: Guerrero (melee), Maga (hechizos) y Arquera (a distancia)
 - **Atributos RPG**: Fuerza, Destreza, Vitalidad y Energía (+5 puntos por nivel)
 - **Árbol de habilidades**: 6 habilidades por clase en 3 tiers (activas, buffs y pasivas), +1 punto por nivel
+- **Sinergias** estilo Diablo 2: invertir puntos en una habilidad potencia a otras de su rama
+- **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados, con modificadores como Veloz, Brutal o Colosal) con mejor botín
@@ -39,7 +41,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 
 | Acción | Escritorio | Móvil |
 |---|---|---|
-| Mover | Clic en el suelo o WASD | Joystick (mitad izquierda) |
+| Mover | Clic en el suelo o WASD | Joystick (mitad izquierda; el tap no mueve) |
 | Atacar | Clic en el enemigo o `Espacio` | Botón ⚔️ |
 | Habilidades | `1` – `4` | Botones de habilidad |
 | Poción vida / maná | `Q` / `E` | Botones 🧪 / 🔷 |

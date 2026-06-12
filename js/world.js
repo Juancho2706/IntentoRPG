@@ -5,6 +5,20 @@ import * as THREE from 'three';
 
 function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
 
+// Biomas de la mazmorra según la profundidad
+const BIOMES = [
+  { name: 'Cripta', minFloor: 1, floor: 0x3c3a44, wall: 0x2a2733, fog: 0x070609,
+    ambient: 0x556677, torch: 0xff9944 },
+  { name: 'Cavernas de Hielo', minFloor: 6, floor: 0x39495e, wall: 0x263750, fog: 0x060c14,
+    ambient: 0x6688bb, torch: 0x66bbff,
+    accent: { color: 0x9fe8ff, emissive: 0x2288bb, chance: 0.045 },
+    crystal: { color: 0xbfeaff, emissive: 0x44aadd } },
+  { name: 'Infierno', minFloor: 11, floor: 0x462a26, wall: 0x2f1816, fog: 0x130404,
+    ambient: 0x885544, torch: 0xff5522,
+    accent: { color: 0xff6a22, emissive: 0xbb3300, chance: 0.05 },
+    crystal: { color: 0xff8844, emissive: 0xcc3300 } },
+];
+
 // Cuadrícula de colisión. cells[z][x] = 1 transitable, 0 muro
 class Grid {
   constructor(w, h) {
@@ -26,7 +40,10 @@ class Grid {
 
 function instancedBoxes(positions, size, color, opts = {}) {
   const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: opts.roughness ?? 0.95, metalness: 0.02 });
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: opts.roughness ?? 0.95, metalness: 0.02,
+    emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.emissiveIntensity ?? 1,
+  });
   const mesh = new THREE.InstancedMesh(geo, mat, positions.length);
   const m = new THREE.Matrix4();
   const c = new THREE.Color();
@@ -97,13 +114,13 @@ function makeWaypoint() {
   return g;
 }
 
-function makeTorch() {
+function makeTorch(flameColor = 0xffaa33) {
   const g = new THREE.Group();
   const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.4, 6),
     new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 }));
   stick.position.y = 0.7;
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.4, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffaa33 }));
+    new THREE.MeshBasicMaterial({ color: flameColor }));
   flame.position.y = 1.55;
   g.add(stick, flame);
   g.userData.flame = flame;
@@ -261,6 +278,7 @@ export function buildDungeon(floor) {
   const group = new THREE.Group();
   const interactables = [];
   const spawns = [];
+  const biome = BIOMES.filter(b => floor >= b.minFloor).pop();
 
   // generar salas
   const rooms = [];
@@ -288,13 +306,16 @@ export function buildDungeon(floor) {
     carve(x, z);
   }
 
-  // suelo y muros instanciados
-  const floorPos = [], wallPos = [];
+  // suelo y muros instanciados (algunas losas brillan según el bioma)
+  const floorPos = [], wallPos = [], accentPos = [];
   for (let z = 0; z < H; z++)
     for (let x = 0; x < W; x++) {
       if (grid.cells[z][x]) {
         const c = grid.center(x, z);
-        floorPos.push({ x: c.x, y: -0.05, z: c.z });
+        if (biome.accent && Math.random() < biome.accent.chance)
+          accentPos.push({ x: c.x, y: -0.04, z: c.z });
+        else
+          floorPos.push({ x: c.x, y: -0.05, z: c.z });
       } else {
         // muro solo si toca suelo (ahorra instancias)
         let near = false;
@@ -309,9 +330,12 @@ export function buildDungeon(floor) {
         }
       }
     }
-  group.add(instancedBoxes(floorPos, [1, 0.1, 1], 0x3c3a44, { vary: 0.05 }));
+  group.add(instancedBoxes(floorPos, [1, 0.1, 1], biome.floor, { vary: 0.05 }));
   // muros bajos para que los enemigos no queden ocultos tras ellos en la vista isométrica
-  group.add(instancedBoxes(wallPos, [1, 1.2, 1], 0x2a2733, { vary: 0.08, castShadow: false }));
+  group.add(instancedBoxes(wallPos, [1, 1.2, 1], biome.wall, { vary: 0.08, castShadow: false }));
+  if (accentPos.length)
+    group.add(instancedBoxes(accentPos, [1, 0.12, 1], biome.accent.color,
+      { emissive: biome.accent.emissive, emissiveIntensity: 0.7, vary: 0.04 }));
 
   // decoración: pilares y huesos en salas
   for (const r of rooms) {
@@ -333,6 +357,16 @@ export function buildDungeon(floor) {
       bones.position.set(c.x, 0.12, c.z);
       group.add(bones);
     }
+    // cristales de hielo / rocas de lava según el bioma
+    if (biome.crystal && Math.random() < 0.55) {
+      const c = grid.center(ri(r.x + 1, r.x + r.w - 2), ri(r.z + 1, r.z + r.d - 2));
+      const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7 + Math.random() * 0.5, 5),
+        new THREE.MeshStandardMaterial({ color: biome.crystal.color, emissive: biome.crystal.emissive, emissiveIntensity: 1.1, roughness: 0.4 }));
+      crystal.position.set(c.x, 0.35, c.z);
+      crystal.rotation.y = Math.random() * Math.PI;
+      crystal.castShadow = true;
+      group.add(crystal);
+    }
   }
 
   // antorchas (pocas luces reales por rendimiento)
@@ -340,11 +374,11 @@ export function buildDungeon(floor) {
   for (let i = 0; i < rooms.length; i++) {
     const r = rooms[i];
     const c = grid.center(r.cx, r.z + 1);
-    const t = makeTorch();
+    const t = makeTorch(biome.torch);
     t.position.set(c.x, 0, c.z - 0.2);
     group.add(t);
     if (i < 4) {
-      const light = new THREE.PointLight(0xff9944, 14, 9, 1.6);
+      const light = new THREE.PointLight(biome.torch, 14, 9, 1.6);
       light.position.set(c.x, 1.8, c.z);
       group.add(light);
       torchLights.push(light);
@@ -424,11 +458,12 @@ export function buildDungeon(floor) {
   }
 
   return {
-    type: 'dungeon', floor, group, grid, spawn: grid.center(rooms[0].cx, rooms[0].cz + 2),
+    type: 'dungeon', floor, biome: biome.name, group, grid,
+    spawn: grid.center(rooms[0].cx, rooms[0].cz + 2),
     interactables, spawns, torchLights, rooms,
-    fog: { color: 0x070609, near: 14, far: 30 },
-    ambient: 0x556677, ambientIntensity: 0.32,
+    fog: { color: biome.fog, near: 14, far: 30 },
+    ambient: biome.ambient, ambientIntensity: 0.32,
     sun: { color: 0x8899bb, intensity: 0.5 },
-    clearColor: 0x070609,
+    clearColor: biome.fog,
   };
 }

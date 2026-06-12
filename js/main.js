@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { BOSS, MIMIC, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
+import { BOSS, MIMIC, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
 import { buildTown, buildDungeon } from './world.js';
 import { Player, Enemy, Projectile } from './entities.js';
 import { rollDrops, makeGold, generateItem, gambleItem, RARITIES } from './items.js';
@@ -175,7 +175,8 @@ class Input {
         return;
       }
     }
-    // si no, moverse al punto
+    // moverse al punto: solo con ratón (en táctil se camina con el joystick)
+    if (e.pointerType !== 'mouse') return;
     const p = this.groundPoint(e);
     if (p) {
       g.player.moveTarget = p;
@@ -360,7 +361,7 @@ class Game {
       if (it.type === 'waypoint' && this.player.pos.distanceTo(it.pos) < it.radius + 0.5) it._in = true;
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
-    if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} de la mazmorra`, 3000);
+    if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
     this.save();
   }
@@ -443,7 +444,8 @@ class Game {
     delta.y = 0;
     if (delta.length() > maxRange) target = p.pos.clone().addScaledVector(delta.normalize(), maxRange);
 
-    const mult = sk.mult ? skillVal(sk.mult, lvl) : 1;
+    // sinergias: puntos en otras habilidades aumentan el daño de esta
+    const mult = sk.mult ? skillVal(sk.mult, lvl) * (1 + synergyBonus(sk, p.skills) / 100) : 1;
     let casted = true;
 
     switch (sk.type) {

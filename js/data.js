@@ -26,12 +26,15 @@ export const CLASSES = {
         desc: 'Aumenta tu daño durante unos segundos.' },
       { id: 'torbellino', name: 'Torbellino', icon: '🌀', tier: 2, max: 5, type: 'aoe_self',
         mana: [10, 1], cd: 4, mult: [1.2, 0.2], radius: 2.9,
+        synergies: [{ from: 'golpe_brutal', pct: 5 }],
         desc: 'Giras con tu arma dañando a todos los enemigos cercanos.' },
       { id: 'embestida', name: 'Embestida', icon: '💨', tier: 2, max: 5, type: 'dash',
         mana: [9, 1], cd: 6, mult: [1.3, 0.22], range: 7, radius: 1.9,
+        synergies: [{ from: 'golpe_brutal', pct: 4 }],
         desc: 'Cargas hacia el objetivo dañando lo que encuentres al llegar.' },
       { id: 'terremoto', name: 'Terremoto', icon: '💥', tier: 3, max: 5, type: 'aoe_target',
         mana: [16, 2], cd: 8, mult: [2.0, 0.35], radius: 3.5, range: 8,
+        synergies: [{ from: 'torbellino', pct: 6 }],
         desc: 'Golpeas el suelo creando una onda destructiva en la zona.' },
       { id: 'maestria_combate', name: 'Maestría de Combate', icon: '🏅', tier: 3, max: 5, type: 'passive',
         passive: { dmgPct: [10, 8], arm: [6, 6] },
@@ -52,15 +55,18 @@ export const CLASSES = {
         desc: 'Lanza una esfera ardiente que explota al impactar.' },
       { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', tier: 1, max: 5, type: 'aoe_self',
         mana: [11, 1.2], cd: 6, mult: [1.0, 0.18], radius: 3.3, slow: 3, color: 0x66ccff,
+        synergies: [{ from: 'rayo', pct: 5 }],
         desc: 'Una onda gélida daña y ralentiza a los enemigos cercanos.' },
       { id: 'rayo', name: 'Rayo', icon: '⚡', tier: 2, max: 5, type: 'proj',
         mana: [9, 1], cd: 2.2, mult: [1.9, 0.3], speed: 18, range: 13, pierce: true, color: 0xffee66,
+        synergies: [{ from: 'bola_fuego', pct: 5 }],
         desc: 'Un rayo que atraviesa a todos los enemigos en línea.' },
       { id: 'armadura_helada', name: 'Armadura Helada', icon: '🛡️', tier: 2, max: 5, type: 'buff',
         mana: [12, 1], cd: 20, dur: 20, buff: { arm: [25, 12] },
         desc: 'Te envuelves en hielo aumentando mucho tu armadura.' },
       { id: 'meteoro', name: 'Meteoro', icon: '☄️', tier: 3, max: 5, type: 'aoe_target',
         mana: [18, 2], cd: 7, mult: [2.6, 0.45], radius: 3, range: 11, color: 0xff4400,
+        synergies: [{ from: 'bola_fuego', pct: 6 }],
         desc: 'Invoca un meteoro que arrasa la zona objetivo.' },
       { id: 'maestria_arcana', name: 'Maestría Arcana', icon: '✨', tier: 3, max: 5, type: 'passive',
         passive: { dmgPct: [12, 8], mp: [15, 10] },
@@ -81,15 +87,18 @@ export const CLASSES = {
         desc: 'Una flecha precisa con alta probabilidad de crítico.' },
       { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', tier: 1, max: 5, type: 'proj',
         mana: [7, 1], cd: 2.5, mult: [0.9, 0.12], speed: 15, range: 10, count: [3, 0.5], spread: 0.5, color: 0xccddaa,
+        synergies: [{ from: 'disparo_certero', pct: 5 }],
         desc: 'Disparas un abanico de flechas a la vez.' },
       { id: 'flecha_perforante', name: 'Flecha Perforante', icon: '➶', tier: 2, max: 5, type: 'proj',
         mana: [8, 1], cd: 3, mult: [1.6, 0.28], speed: 17, range: 13, pierce: true, color: 0xffffcc,
+        synergies: [{ from: 'flecha_multiple', pct: 5 }],
         desc: 'Una flecha que atraviesa a todos los enemigos en su camino.' },
       { id: 'agilidad', name: 'Agilidad', icon: '🌪️', tier: 2, max: 5, type: 'buff',
         mana: [10, 1], cd: 18, dur: 10, buff: { spdPct: [15, 5], aspdPct: [15, 5] },
         desc: 'Aumenta tu velocidad de movimiento y de ataque.' },
       { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', tier: 3, max: 5, type: 'aoe_target',
         mana: [15, 2], cd: 7, mult: [2.2, 0.4], radius: 3, range: 11, color: 0xaaffaa,
+        synergies: [{ from: 'disparo_certero', pct: 6 }],
         desc: 'Una lluvia mortal de flechas cae sobre la zona objetivo.' },
       { id: 'punteria', name: 'Puntería', icon: '👁️', tier: 3, max: 5, type: 'passive',
         passive: { crit: [6, 4], dmgPct: [8, 6] },
@@ -102,6 +111,12 @@ export const CLASSES = {
 export function skillVal(arr, lvl) {
   if (!Array.isArray(arr)) return arr;
   return arr[0] + arr[1] * (lvl - 1);
+}
+
+// Bonus de daño (%) que recibe una habilidad por puntos en sus sinergias
+export function synergyBonus(sk, skills) {
+  if (!sk.synergies) return 0;
+  return sk.synergies.reduce((sum, sy) => sum + (skills[sy.from] || 0) * sy.pct, 0);
 }
 
 export const ENEMIES = [
@@ -123,6 +138,12 @@ export const ENEMIES = [
   { id: 'golem', name: 'Gólem de Piedra', color: 0x8a8a95, shape: 'golem',
     hp: 110, dmg: 18, spd: 1.5, xp: 60, range: 1.8, atkTime: 1.8, scale: 1.4,
     minFloor: 4, weight: 8 },
+  { id: 'yeti', name: 'Yeti', color: 0xcfe8f0, shape: 'golem',
+    hp: 90, dmg: 15, spd: 2.2, xp: 50, range: 1.8, atkTime: 1.4, scale: 1.3,
+    minFloor: 6, weight: 16 },
+  { id: 'diablillo', name: 'Diablillo', color: 0xdd5522, shape: 'demon', rangedAttack: true,
+    hp: 40, dmg: 14, spd: 3.0, xp: 45, range: 7, atkTime: 1.6, scale: 0.8, projSpeed: 10, projColor: 0xff6600,
+    minFloor: 11, weight: 18 },
 ];
 
 export const BOSS = {

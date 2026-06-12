@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, skillVal, xpForLevel, POTION_PRICES } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, skillVal, synergyBonus, xpForLevel, POTION_PRICES } from './data.js';
 import { RARITIES, SLOT_NAMES, itemStatLines } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -320,12 +320,22 @@ export class UI {
         const div = document.createElement('div');
         div.className = 'skill-node' + (lvl > 0 ? ' learned' : '');
         const details = this.skillDetails(sk, Math.max(1, lvl));
+        let synHTML = '';
+        if (sk.synergies) {
+          const txts = sk.synergies.map(sy => {
+            const src = p.cls.skills.find(s => s.id === sy.from);
+            return `+${sy.pct}% daño por punto en ${src ? src.name : sy.from}`;
+          });
+          const bonus = synergyBonus(sk, p.skills);
+          synHTML = `<small class="sk-syn">🔗 ${txts.join(' · ')}${bonus > 0 ? ` <b>(actual +${bonus}%)</b>` : ''}</small>`;
+        }
         div.innerHTML = `
           <span class="sk-big">${sk.icon}</span>
           <div class="sk-info">
             <strong>${sk.name} <em>${lvl}/${sk.max}</em></strong>
             <small>${sk.desc}</small>
             <small class="sk-nums">${details}</small>
+            ${synHTML}
           </div>`;
         if (unlocked && p.skillPoints > 0 && lvl < sk.max) {
           const b = document.createElement('button');
