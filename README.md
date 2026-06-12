@@ -65,14 +65,13 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 |---|---|---|
 | Mover | Clic en el suelo o WASD | Joystick (mitad izquierda; el tap no mueve) |
 | Atacar / Interactuar | Clic en el enemigo o `Espacio` | Botón de acción ⚔️ |
-
-El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales ya no se activan al pisarlos). En Opciones ⚙️ hay control de brillo, sonido, vibración y sacudida de cámara.
+| Esquivar | `Shift` | Botón 💨 |
 | Habilidades | `1` – `4` | Botones de habilidad |
 | Poción vida / maná | `Q` / `E` | Botones 🧪 / 🔷 |
 | Inventario / Habilidades / Personaje | `I` / `T` / `C` | Botones del menú |
-| Recoger objeto | Clic en su etiqueta | Toca su etiqueta |
+| Ver objeto del suelo | Clic en su etiqueta | Toca su etiqueta |
 
-El oro y las pociones se recogen automáticamente al pasar por encima.
+El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). El oro y las pociones se recogen automáticamente al pasar por encima. En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
 
 ## 📁 Estructura
 
