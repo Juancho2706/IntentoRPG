@@ -28,6 +28,8 @@ export class UI {
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
     $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
+    $('btn-junk').addEventListener('click', () => g.sellJunk());
+    $('btn-sort').addEventListener('click', () => g.sortInventory());
     document.querySelectorAll('.panel-close').forEach(b => b.addEventListener('click', () => this.closePanel()));
     $('btn-respawn').addEventListener('click', () => g.respawn());
   }
@@ -443,7 +445,7 @@ export class UI {
   itemCellHTML(item) {
     if (!item) return '';
     const r = RARITIES[item.rarity];
-    return `<span class="cell-icon" style="text-shadow:0 0 6px ${r.color}">${item.icon}</span>`;
+    return `<span class="cell-icon" style="text-shadow:0 0 6px ${r.color}">${item.icon}</span>${item.fav ? '<span class="fav-star">⭐</span>' : ''}`;
   }
 
   renderInventory() {
@@ -505,7 +507,7 @@ export class UI {
     const equipped = item.slot ? p.equipment[item.slot] : null;
     // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo)
     let compare = '';
-    if (ctx.from === 'inv' && equipped && equipped !== item) {
+    if ((ctx.from === 'inv' || ctx.from === 'ground') && equipped && equipped !== item) {
       const summarize = (it) => {
         const m = {};
         if (it.dmg) m._dmg = (it.dmg[0] + it.dmg[1]) / 2;
@@ -554,8 +556,17 @@ export class UI {
       b.onclick = () => { fn(); pop.classList.add('hidden'); this.renderPanel(); this.updateHUD(); };
       btns.appendChild(b);
     };
+    if (ctx.from === 'ground') {
+      // ficha desde la etiqueta del suelo: comparar sin recoger
+      addBtn('Recoger', () => {
+        p.pickTarget = ctx.gi;
+        p.moveTarget = null;
+        p.attackTarget = null;
+      }, 'btn-good');
+    }
     if (ctx.from === 'inv') {
       if (item.kind !== 'gem') addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
+      addBtn(item.fav ? '💔 Quitar ⭐' : '⭐ Favorito', () => g.toggleFav(ctx.index));
       addBtn(`Vender (${item.value} 🪙)`, () => g.sellItem(ctx.index));
       if (p.cube.length < 3 && item.rarity !== 'legendario' && item.rarity !== 'conjunto')
         addBtn('Al cubo 🧪', () => g.addToCube(ctx.index));

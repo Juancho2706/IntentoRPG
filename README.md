@@ -78,9 +78,23 @@ El oro y las pociones se recogen automáticamente al pasar por encima.
 index.html      — HUD, paneles y arranque
 css/style.css   — estilos responsive
 js/data.js      — clases, habilidades, enemigos y constantes
-js/items.js     — generación de loot, rarezas y afijos
-js/world.js     — pueblo y mazmorras procedurales
-js/entities.js  — jugador, enemigos y proyectiles
+js/items.js     — generación de loot, rarezas, afijos, gemas y runas
+js/world.js     — pueblos, refugio y mazmorras procedurales
+js/entities.js  — jugador, enemigos, mascota y proyectiles
 js/ui.js        — HUD, inventario, árbol de habilidades, minimapa
-js/main.js      — bucle del juego, entrada, combate y guardado
+js/economy.js   — tienda, cubo, encantadora, re-spec y paragon
+js/input.js     — ratón, teclado y joystick táctil
+js/sfx.js       — sintetizador de efectos (WebAudio)
+js/main.js      — bucle del juego, mundo y combate
+sw.js           — service worker (PWA offline)
+tests/          — suites de simulación + regresión de balance
 ```
+
+## 🧪 Pruebas
+
+```bash
+npm install
+npm test
+```
+
+Incluye una **regresión de balance**: simula la progresión (héroe con equipo acorde a cada piso vs enemigos escalados) y falla si el tiempo de matar, los golpes que aguantas o el ritmo de subida salen de los rangos de diseño.

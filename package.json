@@ -1,0 +1,13 @@
+{
+  "name": "intentorpg",
+  "private": true,
+  "type": "module",
+  "description": "ARPG isométrico estilo Diablo 2 con Three.js",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "start": "npx http-server -p 8080"
+  },
+  "devDependencies": {
+    "three": "^0.160.0"
+  }
+}

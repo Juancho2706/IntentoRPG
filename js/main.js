@@ -2,214 +2,17 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS, generateQuest, PET_PRICE } from './data.js';
+import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, makeGem, generateItem, gambleItem, checkRuneword, rerollAffix, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, RARITIES } from './items.js';
 import { UI } from './ui.js';
+import { createSfx } from './sfx.js';
+import { Input } from './input.js';
+import { economyMethods } from './economy.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 
-// ------------------------------------------------------------
-// Sonido: pequeño sintetizador con WebAudio
-// ------------------------------------------------------------
-function createSfx() {
-  let ctx = null;
-  const ensure = () => {
-    if (!ctx) try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* sin audio */ }
-    if (ctx && ctx.state === 'suspended') ctx.resume();
-    return ctx;
-  };
-  window.addEventListener('pointerdown', ensure, { once: true });
-  const tones = {
-    hit:     [{ f: 160, d: 0.08, type: 'square', v: 0.12 }],
-    shoot:   [{ f: 700, d: 0.07, type: 'sawtooth', v: 0.06, slide: -400 }],
-    eshoot:  [{ f: 300, d: 0.12, type: 'sawtooth', v: 0.07, slide: -150 }],
-    hurt:    [{ f: 120, d: 0.15, type: 'square', v: 0.13, slide: -60 }],
-    potion:  [{ f: 500, d: 0.1, type: 'sine', v: 0.12, slide: 300 }],
-    gold:    [{ f: 900, d: 0.06, type: 'sine', v: 0.1 }, { f: 1300, d: 0.08, type: 'sine', v: 0.08, t: 0.05 }],
-    pickup:  [{ f: 600, d: 0.08, type: 'triangle', v: 0.1, slide: 200 }],
-    levelup: [{ f: 440, d: 0.12, type: 'sine', v: 0.14 }, { f: 660, d: 0.12, type: 'sine', v: 0.14, t: 0.12 }, { f: 880, d: 0.2, type: 'sine', v: 0.14, t: 0.24 }],
-    death:   [{ f: 200, d: 0.5, type: 'sawtooth', v: 0.12, slide: -150 }],
-    portal:  [{ f: 300, d: 0.3, type: 'sine', v: 0.12, slide: 500 }],
-    chest:   [{ f: 350, d: 0.1, type: 'triangle', v: 0.12 }, { f: 700, d: 0.15, type: 'triangle', v: 0.1, t: 0.1 }],
-    skill:   [{ f: 520, d: 0.1, type: 'sawtooth', v: 0.09, slide: 250 }],
-    dash:    [{ f: 450, d: 0.16, type: 'sawtooth', v: 0.08, slide: -280 }],
-  };
-  return (name) => {
-    const c = ensure();
-    const def = tones[name];
-    if (!c || !def) return;
-    for (const n of def) {
-      const o = c.createOscillator(), gn = c.createGain();
-      o.type = n.type;
-      const t0 = c.currentTime + (n.t || 0);
-      o.frequency.setValueAtTime(n.f, t0);
-      if (n.slide) o.frequency.linearRampToValueAtTime(Math.max(40, n.f + n.slide), t0 + n.d);
-      gn.gain.setValueAtTime(n.v, t0);
-      gn.gain.exponentialRampToValueAtTime(0.001, t0 + n.d);
-      o.connect(gn).connect(c.destination);
-      o.start(t0); o.stop(t0 + n.d + 0.02);
-    }
-  };
-}
-
-// ------------------------------------------------------------
-// Entrada: ratón, teclado y joystick táctil
-// ------------------------------------------------------------
-class Input {
-  constructor(game) {
-    this.game = game;
-    this.joyDir = null;     // {x,z} desde el joystick táctil
-    this.keyDir = null;     // {x,z} desde WASD/flechas
-    this.mouseWorld = null; // último punto del mundo bajo el ratón
-    this.pointerDown = false;
-    this.keys = new Set();
-    this.joyId = null;
-
-    const canvas = game.renderer.domElement;
-    canvas.addEventListener('pointerdown', e => this.onPointerDown(e));
-    window.addEventListener('pointermove', e => this.onPointerMove(e));
-    window.addEventListener('pointerup', e => this.onPointerUp(e));
-    window.addEventListener('contextmenu', e => e.preventDefault());
-
-    window.addEventListener('keydown', e => {
-      if (e.repeat) return;
-      this.keys.add(e.code);
-      this.updateKeyDir();
-      const g = this.game;
-      if (e.code === 'KeyI') g.ui.togglePanel('inv');
-      if (e.code === 'KeyT') g.ui.togglePanel('skills');
-      if (e.code === 'KeyC') g.ui.togglePanel('stats');
-      if (e.code === 'KeyQ') { g.player?.usePotion('hp'); }
-      if (e.code === 'KeyE') { g.player?.usePotion('mp'); }
-      if (e.code === 'Space') { e.preventDefault(); g.primaryAction(); }
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') g.player?.dodge();
-      if (e.code === 'Escape') g.ui.closePanel();
-      if (e.code.startsWith('Digit')) {
-        const n = parseInt(e.code.slice(5));
-        if (n >= 1 && n <= 4) g.castSkillSlot(n - 1);
-      }
-    });
-    window.addEventListener('keyup', e => { this.keys.delete(e.code); this.updateKeyDir(); });
-
-    // joystick táctil: aparece al tocar la mitad izquierda.
-    // El seguimiento y el fin del gesto se escuchan en window para no
-    // perder el pointerup si el dedo termina sobre otro elemento del HUD.
-    const zone = document.getElementById('joy-zone');
-    zone.addEventListener('pointerdown', e => {
-      if (this.joyId !== null) return;
-      e.preventDefault();
-      this.joyId = e.pointerId;
-      this.joyOrigin = { x: e.clientX, y: e.clientY };
-      const joy = document.getElementById('joystick');
-      joy.classList.remove('hidden');
-      joy.style.left = e.clientX + 'px';
-      joy.style.top = e.clientY + 'px';
-    });
-    window.addEventListener('pointermove', e => {
-      if (e.pointerId !== this.joyId) return;
-      let dx = e.clientX - this.joyOrigin.x, dy = e.clientY - this.joyOrigin.y;
-      const len = Math.hypot(dx, dy);
-      const max = 48;
-      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-      document.getElementById('joy-knob').style.transform = `translate(${dx}px, ${dy}px)`;
-      if (len > 10) {
-        // convertir dirección de pantalla a dirección de mundo (cámara isométrica girada 45°)
-        const wx = (dx + dy) * 0.7071, wz = (dy - dx) * 0.7071;
-        const wl = Math.hypot(wx, wz) || 1;
-        this.joyDir = { x: wx / wl, z: wz / wl };
-      } else this.joyDir = null;
-    });
-    const endJoy = e => {
-      if (e && e.pointerId !== undefined && e.pointerId !== this.joyId) return;
-      this.joyId = null;
-      this.joyDir = null;
-      document.getElementById('joystick').classList.add('hidden');
-      document.getElementById('joy-knob').style.transform = '';
-    };
-    window.addEventListener('pointerup', endJoy);
-    window.addEventListener('pointercancel', endJoy);
-    window.addEventListener('blur', () => endJoy());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) endJoy(); });
-  }
-
-  updateKeyDir() {
-    let x = 0, z = 0;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) { x -= 1; z -= 1; }
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) { x += 1; z += 1; }
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) { x -= 1; z += 1; }
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) { x += 1; z -= 1; }
-    const l = Math.hypot(x, z);
-    this.keyDir = l > 0 ? { x: x / l, z: z / l } : null;
-  }
-
-  raycast(e) {
-    const g = this.game;
-    const ndc = new THREE.Vector2(
-      (e.clientX / window.innerWidth) * 2 - 1,
-      -(e.clientY / window.innerHeight) * 2 + 1
-    );
-    g.raycaster.setFromCamera(ndc, g.camera);
-    return g.raycaster;
-  }
-
-  groundPoint(e) {
-    const ray = this.raycast(e).ray;
-    const t = -ray.origin.y / ray.direction.y;
-    if (!isFinite(t) || t < 0) return null;
-    return ray.origin.clone().addScaledVector(ray.direction, t);
-  }
-
-  onPointerDown(e) {
-    const g = this.game;
-    if (!g.player || !g.player.alive || g.state !== 'play') return;
-    this.pointerDown = true;
-    // ¿tocó un enemigo?
-    const ray = this.raycast(e);
-    const hits = ray.intersectObjects(g.entityGroup.children, true);
-    for (const h of hits) {
-      let o = h.object;
-      while (o && !o.userData.enemy) o = o.parent;
-      if (o && o.userData.enemy && o.userData.enemy.alive) {
-        g.player.attackTarget = o.userData.enemy;
-        g.player.moveTarget = null;
-        return;
-      }
-    }
-    if (e.pointerType !== 'mouse') {
-      // asistencia de puntería táctil: fijar al enemigo más cercano al toque
-      // (objetivo efectivo ≥48px aunque el modelo sea pequeño en pantalla)
-      let best = null, bd = 55 * 55;
-      for (const en of g.enemies) {
-        if (!en.alive) continue;
-        const s = g.ui.worldToScreen(en.pos);
-        if (s.behind) continue;
-        const dx = s.x - e.clientX, dy = s.y - e.clientY;
-        const d = dx * dx + dy * dy;
-        if (d < bd) { bd = d; best = en; }
-      }
-      if (best) { g.player.attackTarget = best; g.player.moveTarget = null; }
-      return; // en táctil no se camina con tap
-    }
-    const p = this.groundPoint(e);
-    if (p) {
-      g.player.moveTarget = p;
-      g.player.attackTarget = null;
-      g.player.pickTarget = null;
-    }
-  }
-
-  onPointerMove(e) {
-    if (e.pointerType === 'mouse') this.mouseWorld = this.groundPoint(e);
-    if (this.pointerDown && e.pointerType === 'mouse' && this.game.player?.alive) {
-      const p = this.groundPoint(e);
-      if (p && this.game.player.moveTarget) this.game.player.moveTarget = p;
-    }
-  }
-
-  onPointerUp() { this.pointerDown = false; }
-}
 
 // ------------------------------------------------------------
 // JUEGO
@@ -874,16 +677,6 @@ class Game {
     this.entityGroup.add(this.pet.group);
   }
 
-  buyPet() {
-    const p = this.player;
-    if (p.pet || p.gold < PET_PRICE) return;
-    p.gold -= PET_PRICE;
-    p.pet = { level: 1 };
-    this.spawnPet();
-    this.ui.message('🐺 ¡El lobo de caza se une a ti!', 3000);
-    this.sfx('levelup');
-    this.save();
-  }
 
   // viaje rápido desde un waypoint
   travelTo(dest) {
@@ -896,66 +689,6 @@ class Game {
     }
   }
 
-  // ---------- tienda del mercader ----------
-  // El stock rota cada 5 minutos y mejora con el nivel del jugador
-  ensureShopStock() {
-    if (this.shopStock && Date.now() < this.shopStock.until) return;
-    const lvl = this.player?.level || 1;
-    const ilvl = Math.max(1, Math.round(lvl * 0.8));
-    const n = 4 + Math.min(3, Math.floor(lvl / 5));
-    const items = [];
-    for (let i = 0; i < n; i++) {
-      const it = generateItem(ilvl);
-      it.price = Math.max(20, it.value * 4);
-      items.push(it);
-    }
-    // ofertas de apuesta: objetos sin identificar
-    const slots = ['weapon', 'helm', 'chest', 'boots', 'ring', 'amulet'];
-    const gamble = [];
-    for (let i = 0; i < 3; i++) {
-      gamble.push({
-        uid: 'g' + (this.gambleUid = (this.gambleUid || 0) + 1),
-        slot: slots[Math.floor(Math.random() * slots.length)],
-        price: 40 + lvl * 12,
-      });
-    }
-    this.shopStock = { items, gamble, until: Date.now() + SHOP_REFRESH_MS };
-  }
-
-  buyGambleItem(uid) {
-    const p = this.player;
-    this.ensureShopStock();
-    const idx = this.shopStock.gamble.findIndex(o => o.uid === uid);
-    if (idx < 0) return;
-    const offer = this.shopStock.gamble[idx];
-    if (p.gold < offer.price) { this.ui.message('Oro insuficiente'); return; }
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    p.gold -= offer.price;
-    this.shopStock.gamble.splice(idx, 1);
-    const item = gambleItem(Math.max(1, Math.round(p.level * 0.8)), offer.slot);
-    p.inventory.push(item);
-    if (item.rarity === 'legendario') p.records.legendaries++;
-    this.sfx(item.rarity === 'legendario' ? 'levelup' : 'gold');
-    this.ui.renderShop();
-    this.ui.itemPopup(item, { from: 'inv', index: p.inventory.length - 1 });
-    this.save();
-  }
-
-  buyShopItem(uid) {
-    const p = this.player;
-    this.ensureShopStock();
-    const idx = this.shopStock.items.findIndex(i => i.uid === uid);
-    if (idx < 0) return;
-    const it = this.shopStock.items[idx];
-    if (p.gold < it.price) { this.ui.message('Oro insuficiente'); return; }
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    p.gold -= it.price;
-    this.shopStock.items.splice(idx, 1);
-    p.inventory.push(it);
-    this.ui.message(`Compras: ${it.name}`, 1800);
-    this.sfx('gold');
-    this.save();
-  }
 
   // ---------- loot ----------
   onEnemyKilled(enemy) {
@@ -1058,109 +791,6 @@ class Game {
     this.save();
   }
 
-  equipItem(index) {
-    const p = this.player;
-    const item = p.inventory[index];
-    if (!item || !item.slot) return;
-    // los anillos pueden ir en cualquiera de las dos ranuras
-    let slot = item.slot;
-    if (slot === 'ring' && p.equipment.ring && !p.equipment.ring2) slot = 'ring2';
-    const old = p.equipment[slot];
-    p.equipment[slot] = item;
-    p.inventory.splice(index, 1);
-    if (old) p.inventory.push(old);
-    p.recompute();
-    this.sfx('pickup');
-    this.save();
-  }
-
-  // ---------- gemas y runas ----------
-  // engarza la gema/runa del inventario (gemIndex) en un objeto con ranura libre
-  socketGem(itemUid, gemIndex) {
-    const p = this.player;
-    const gem = p.inventory[gemIndex];
-    if (!gem || (gem.kind !== 'gem' && gem.kind !== 'rune')) return;
-    const target = p.inventory.find(i => i.uid === itemUid) ||
-      Object.values(p.equipment).find(i => i && i.uid === itemUid);
-    if (!target || !target.sockets) return;
-    target.gems = target.gems || [];
-    if (target.gems.length >= target.sockets) { this.ui.message('No quedan engarces libres'); return; }
-    p.inventory.splice(gemIndex, 1);
-    target.gems.push(gem);
-    checkRuneword(target);
-    p.recompute();
-    if (target.runeword) {
-      this.ui.message(`🔮 ¡Palabra rúnica completada: ${target.runeword.name}!`, 4000);
-      this.sfx('levelup');
-      this.vibrate([40, 30, 60]);
-    } else {
-      this.ui.message(`${gem.icon} ${gem.name} engarzado en ${target.name}`, 2500);
-      this.sfx('levelup');
-    }
-    this.save();
-  }
-
-  // ---------- encantadora: reforjar un afijo por oro ----------
-  enchantCost(item) {
-    return Math.round(80 * item.ilvl * (1 + (item.rerolls || 0) * 0.5));
-  }
-
-  enchantItem(index) {
-    const p = this.player;
-    const item = p.inventory[index];
-    if (!item || !Object.keys(item.affixes || {}).length) return;
-    const cost = this.enchantCost(item);
-    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
-    p.gold -= cost;
-    const nuevo = rerollAffix(item);
-    p.recompute();
-    this.ui.message(`🔮 Afijo reforjado: ${nuevo}`, 3000);
-    this.sfx('levelup');
-    this.save();
-  }
-
-  // ---------- redistribución de puntos (sumidero de oro) ----------
-  respecCost() { return 200 * this.player.level; }
-
-  respecAttributes() {
-    const p = this.player;
-    const cost = this.respecCost();
-    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
-    p.gold -= cost;
-    p.attributes = { ...p.cls.base };
-    p.statPoints = 5 * (Math.min(p.level, 20) - 1);
-    p.recompute();
-    this.ui.message('🔄 Atributos redistribuidos: reparte tus puntos de nuevo', 3500);
-    this.sfx('levelup');
-    this.save();
-  }
-
-  respecSkills() {
-    const p = this.player;
-    const cost = this.respecCost();
-    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
-    p.gold -= cost;
-    p.skills = {};
-    p.skillPoints = Math.min(p.level, 20);
-    p.buffs = [];
-    p.cds = {};
-    p.recompute();
-    this.ui.refreshHotbar();
-    this.ui.message('🔄 Habilidades redistribuidas: aprende tu nueva build', 3500);
-    this.sfx('levelup');
-    this.save();
-  }
-
-  // ---------- paragon (nivel 20+) ----------
-  paragonAllocate(key) {
-    const p = this.player;
-    if (p.paragon.points <= 0 || !(key in p.paragon)) return;
-    p.paragon.points--;
-    p.paragon[key]++;
-    p.recompute();
-    this.sfx('levelup');
-    this.save();
-  }
 
   // ---------- alijo compartido entre personajes ----------
   loadStash() {
@@ -1193,99 +823,6 @@ class Game {
     this.save();
   }
 
-  unequipItem(slot) {
-    const p = this.player;
-    const item = p.equipment[slot];
-    if (!item) return;
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    p.equipment[slot] = null;
-    p.inventory.push(item);
-    p.recompute();
-    this.save();
-  }
-
-  sellItem(index) {
-    const p = this.player;
-    const item = p.inventory[index];
-    if (!item) return;
-    p.inventory.splice(index, 1);
-    p.gold += item.value;
-    this.ui.spawnText(p.pos, `+${item.value} 🪙`, 'txt-gold');
-    this.sfx('gold');
-    this.save();
-  }
-
-  // ---------- cubo de transmutación ----------
-  // 3 objetos de la misma rareza → 1 objeto de la rareza superior
-  addToCube(index) {
-    const p = this.player;
-    const item = p.inventory[index];
-    if (!item || p.cube.length >= 3) return;
-    p.inventory.splice(index, 1);
-    p.cube.push(item);
-    this.sfx('pickup');
-    this.save();
-  }
-
-  cubeReturn(i) {
-    const p = this.player;
-    const item = p.cube[i];
-    if (!item) return;
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    p.cube.splice(i, 1);
-    p.inventory.push(item);
-    this.save();
-  }
-
-  transmute() {
-    const p = this.player;
-    if (p.cube.length !== 3) { this.ui.message('El cubo necesita 3 objetos'); return; }
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    const c = p.cube;
-    let item = null;
-
-    if (c.every(it => it.kind === 'gem')) {
-      // recetas de gemas
-      const ilvl = Math.max(...c.map(it => it.ilvl));
-      if (c.every(it => it.gemId === c[0].gemId)) {
-        // 3 gemas iguales → la misma gema, más poderosa
-        item = makeGem(ilvl + 3, c[0].gemId);
-        this.ui.message(`💎 ¡Las gemas se funden en un ${item.name} superior!`, 3000);
-      } else {
-        // 3 gemas distintas → gema aleatoria algo mejor
-        item = makeGem(ilvl + 1);
-        this.ui.message(`💎 Las gemas se transforman en: ${item.name}`, 3000);
-      }
-    } else if (c.every(it => it.kind === 'item')) {
-      const r = c[0].rarity;
-      if (!c.every(it => it.rarity === r)) { this.ui.message('Los 3 objetos deben tener la misma rareza'); return; }
-      const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
-      if (!next) { this.ui.message('Los legendarios no se pueden transmutar'); return; }
-      const ilvl = Math.max(...c.map(it => it.ilvl));
-      item = generateItem(ilvl, next);
-      if (item.rarity === 'legendario') p.records.legendaries++;
-      this.ui.message(`🧪 ¡Transmutación! Obtienes: ${item.name}`, 3000);
-    } else {
-      this.ui.message('No se pueden mezclar gemas y objetos en el cubo');
-      return;
-    }
-
-    p.cube = [];
-    p.inventory.push(item);
-    this.sfx('levelup');
-    this.ui.renderPanel();
-    this.ui.itemPopup(item, { from: 'inv', index: p.inventory.length - 1 });
-    this.save();
-  }
-
-  dropItem(index) {
-    const p = this.player;
-    const item = p.inventory[index];
-    if (!item) return;
-    p.inventory.splice(index, 1);
-    this.spawnGroundItem(item, p.pos);
-    this.save();
-  }
 
   // ---------- muerte ----------
   onPlayerDeath() {
@@ -1668,7 +1205,8 @@ class Game {
         entries.push({
           id: gi.id, pos: gi.mesh.position, text: `${it.icon} ${it.name}`,
           cls: 'lbl-item rarity-' + it.rarity,
-          onClick: () => { p.pickTarget = gi; p.moveTarget = null; p.attackTarget = null; },
+          // abre la ficha con comparación sin necesidad de recogerlo
+          onClick: () => this.ui.itemPopup(it, { from: 'ground', gi }),
         });
       }
     }
@@ -1695,5 +1233,7 @@ class Game {
     this.ui.syncLabels(entries.slice(0, 24));
   }
 }
+
+Object.assign(Game.prototype, economyMethods);
 
 new Game();
