@@ -146,11 +146,26 @@ export const ENEMIES = [
     minFloor: 11, weight: 18 },
 ];
 
-export const BOSS = {
-  id: 'senor_abismo', name: 'Señor del Abismo', color: 0x661111, shape: 'demon', boss: true,
-  hp: 220, dmg: 22, spd: 2.4, xp: 180, range: 2.2, atkTime: 1.3, scale: 2.0,
-  rangedAttack: true, projSpeed: 9, projColor: 0xff3300, rangedChance: 0.35,
-};
+// Un jefe por bioma, cada uno con su mecánica especial
+export const BOSSES = [
+  { id: 'senor_abismo', name: 'Señor del Abismo', color: 0x661111, shape: 'demon', boss: true,
+    hp: 220, dmg: 22, spd: 2.4, xp: 180, range: 2.2, atkTime: 1.3, scale: 2.0,
+    rangedAttack: true, projSpeed: 9, projColor: 0xff3300, rangedChance: 0.35,
+    minFloor: 1, mechanic: 'summon' },
+  { id: 'rey_gelido', name: 'Rey Gélido', color: 0xa8d8f0, shape: 'golem', boss: true,
+    hp: 280, dmg: 20, spd: 2.0, xp: 230, range: 2.0, atkTime: 1.4, scale: 2.0,
+    minFloor: 6, mechanic: 'frost_nova' },
+  { id: 'avatar_infierno', name: 'Avatar del Infierno', color: 0xff5522, shape: 'demon', boss: true,
+    hp: 330, dmg: 26, spd: 2.6, xp: 280, range: 2.2, atkTime: 1.2, scale: 2.2,
+    rangedAttack: true, projSpeed: 10, projColor: 0xff3300, rangedChance: 0.3,
+    minFloor: 11, mechanic: 'fire_pool' },
+];
+
+export const BOSS = BOSSES[0];
+
+export function bossForFloor(floor) {
+  return BOSSES.filter(b => floor >= b.minFloor).pop();
+}
 
 // Cofre falso: muerde cuando intentas abrirlo
 export const MIMIC = {

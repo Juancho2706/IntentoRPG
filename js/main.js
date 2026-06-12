@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { BOSS, MIMIC, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
+import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
 import { buildTown, buildDungeon } from './world.js';
 import { Player, Enemy, Projectile } from './entities.js';
 import { rollDrops, makeGold, generateItem, gambleItem, RARITIES } from './items.js';
@@ -206,6 +206,7 @@ class Game {
     this.projectiles = [];
     this.groundItems = [];
     this.fx = [];
+    this.firePools = [];
     this.nearVendor = false;
     this.portalArmed = true;
     this.healPulse = 0;
@@ -301,7 +302,7 @@ class Game {
       statPoints: p.statPoints, skillPoints: p.skillPoints, skills: p.skills,
       gold: p.gold, potions: p.potions, inventory: p.inventory, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
-      waypoints: p.waypoints, records: p.records,
+      waypoints: p.waypoints, records: p.records, cube: p.cube,
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -320,7 +321,8 @@ class Game {
     for (const pr of this.projectiles) this.fxGroup.remove(pr.mesh);
     for (const gi of this.groundItems) this.lootGroup.remove(gi.mesh);
     for (const f of this.fx) this.fxGroup.remove(f.mesh);
-    this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
+    for (const fp of this.firePools) this.fxGroup.remove(fp.mesh);
+    this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = []; this.firePools = [];
 
     this.world = spec.type === 'town' ? buildTown() : buildDungeon(spec.floor);
     this.scene.add(this.world.group);
@@ -339,7 +341,7 @@ class Game {
     for (const s of w.spawns) {
       let def;
       if (s.kind === 'boss') {
-        def = scaleEnemy(BOSS, w.floor);
+        def = scaleEnemy(bossForFloor(w.floor), w.floor);
         def.rankLabel = `👹 ${def.name}`;
         def.labelCls = 'lbl-elite';
       } else {
@@ -364,6 +366,44 @@ class Game {
     if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
     this.save();
+  }
+
+  // ---------- mecánicas de jefe ----------
+  bossSummon(boss) {
+    const base = ENEMIES.find(e => e.id === 'esqueleto');
+    for (let i = 0; i < 3; i++) {
+      const a = Math.PI * 2 * i / 3;
+      const pos = boss.pos.clone().add(new THREE.Vector3(Math.sin(a) * 1.8, 0, Math.cos(a) * 1.8));
+      if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(boss.pos);
+      pos.y = 0;
+      const e = new Enemy(this, scaleEnemy(base, this.world.floor || 1), pos);
+      this.enemies.push(e);
+      this.entityGroup.add(e.group);
+    }
+    this.spawnRing(boss.pos, 2.4, 0x8844ff);
+    this.ui.message(`👹 ¡${boss.def.name} invoca a sus esbirros!`);
+    this.sfx('eshoot');
+  }
+
+  bossFrostNova(boss) {
+    this.spawnRing(boss.pos, 3.6, 0x66ccff);
+    const p = this.player;
+    if (p.alive && p.pos.distanceTo(boss.pos) < 4) {
+      p.takeDamage(Math.round(boss.def.dmg * 0.8), boss.def.level || 1);
+      p.slowT = 2.5;
+      this.ui.message('❄️ ¡Estás congelado! Muévete lento unos segundos', 1800);
+    }
+    this.sfx('eshoot');
+  }
+
+  spawnFirePool(pos) {
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1.5, 20),
+      new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.55 }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.copy(pos).setY(0.06);
+    this.fxGroup.add(mesh);
+    this.firePools.push({ mesh, t: 0, dur: 4.5, radius: 1.6, tick: 0.4 });
+    this.sfx('eshoot');
   }
 
   // ---------- combate ----------
@@ -718,6 +758,48 @@ class Game {
     this.save();
   }
 
+  // ---------- cubo de transmutación ----------
+  // 3 objetos de la misma rareza → 1 objeto de la rareza superior
+  addToCube(index) {
+    const p = this.player;
+    const item = p.inventory[index];
+    if (!item || p.cube.length >= 3) return;
+    p.inventory.splice(index, 1);
+    p.cube.push(item);
+    this.sfx('pickup');
+    this.save();
+  }
+
+  cubeReturn(i) {
+    const p = this.player;
+    const item = p.cube[i];
+    if (!item) return;
+    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    p.cube.splice(i, 1);
+    p.inventory.push(item);
+    this.save();
+  }
+
+  transmute() {
+    const p = this.player;
+    if (p.cube.length !== 3) { this.ui.message('El cubo necesita 3 objetos'); return; }
+    const r = p.cube[0].rarity;
+    if (!p.cube.every(it => it.rarity === r)) { this.ui.message('Los 3 objetos deben tener la misma rareza'); return; }
+    const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
+    if (!next) { this.ui.message('Los legendarios no se pueden transmutar'); return; }
+    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    const ilvl = Math.max(...p.cube.map(it => it.ilvl));
+    p.cube = [];
+    const item = generateItem(ilvl, next);
+    p.inventory.push(item);
+    if (item.rarity === 'legendario') p.records.legendaries++;
+    this.ui.message(`🧪 ¡Transmutación! Obtienes: ${item.name}`, 3000);
+    this.sfx('levelup');
+    this.ui.renderPanel();
+    this.ui.itemPopup(item, { from: 'inv', index: p.inventory.length - 1 });
+    this.save();
+  }
+
   dropItem(index) {
     const p = this.player;
     const item = p.inventory[index];
@@ -792,6 +874,25 @@ class Game {
       }
       if (f.ring) { f.mesh.scale.setScalar(0.3 + k * 0.9); f.mesh.material.opacity = 0.8 * (1 - k); }
       if (f.fall) f.mesh.position.y = 5 * (1 - k);
+    }
+
+    // charcos de fuego: dañan al jugador que se queda dentro
+    for (let i = this.firePools.length - 1; i >= 0; i--) {
+      const fp = this.firePools[i];
+      fp.t += dt;
+      if (fp.t >= fp.dur) {
+        this.fxGroup.remove(fp.mesh);
+        fp.mesh.geometry.dispose(); fp.mesh.material.dispose();
+        this.firePools.splice(i, 1);
+        continue;
+      }
+      fp.mesh.material.opacity = 0.2 + 0.4 * (1 - fp.t / fp.dur);
+      fp.tick -= dt;
+      if (fp.tick <= 0 && this.state === 'play' && p.alive &&
+          p.pos.distanceTo(fp.mesh.position) < fp.radius + 0.3) {
+        fp.tick = 0.5;
+        p.takeDamage(4 + 2 * (this.world.floor || 1), this.world.floor || 1);
+      }
     }
 
     // loot: animación y recogida automática de oro/pociones

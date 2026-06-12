@@ -186,6 +186,7 @@ export class Player {
 
     // valores por defecto compatibles con guardados antiguos
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [1];
+    this.cube = Array.isArray(this.cube) ? this.cube : [];
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, goldEarned: 0, chests: 0, playTime: 0,
@@ -195,6 +196,7 @@ export class Player {
     this.buffs = [];
     this.cds = {};
     this.atkCd = 0;
+    this.slowT = 0;
     this.moveTarget = null;
     this.attackTarget = null;
     this.pickTarget = null;
@@ -372,13 +374,16 @@ export class Player {
       else dir = { x: this.moveTarget.x - this.pos.x, z: this.moveTarget.z - this.pos.z };
     }
 
+    if (this.slowT > 0) this.slowT -= dt;
+    const spd = this.stats.spd * (this.slowT > 0 ? 0.55 : 1);
+
     let moving = false;
     if (dir) {
       const len = Math.hypot(dir.x, dir.z);
       if (len > 0.001) {
         const nx = dir.x / len, nz = dir.z / len;
         const before = this.pos.clone();
-        moveWithCollision(g.world.grid, this.pos, nx * this.stats.spd * dt, nz * this.stats.spd * dt);
+        moveWithCollision(g.world.grid, this.pos, nx * spd * dt, nz * spd * dt);
         if (this.pos.distanceToSquared(before) > 1e-8) {
           moving = true;
           this.group.rotation.y = Math.atan2(nx, nz);
@@ -492,6 +497,22 @@ export class Enemy {
     if (d <= aggro) {
       // mirar al jugador
       this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+
+      // mecánicas especiales de jefe
+      if (this.def.mechanic) {
+        if (this.def.mechanic === 'summon') {
+          if (!this.summoned && this.hp < this.maxHP * 0.5) {
+            this.summoned = true;
+            g.bossSummon(this);
+          }
+        } else {
+          this.mechCd = (this.mechCd ?? 4) - dt;
+          if (this.mechCd <= 0) {
+            if (this.def.mechanic === 'frost_nova' && d < 7) { this.mechCd = 6; g.bossFrostNova(this); }
+            else if (this.def.mechanic === 'fire_pool' && d < 11) { this.mechCd = 5; g.spawnFirePool(player.pos.clone()); }
+          }
+        }
+      }
 
       const useRanged = this.def.rangedAttack && (this.def.rangedChance == null || Math.random() < 1); // brujo siempre, jefe mezcla en attack
       const range = this.def.range;

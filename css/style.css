@@ -239,8 +239,38 @@ button { font-family: inherit; cursor: pointer; }
 .panel h4 { margin: 10px 0 6px; color: #bba868; font-weight: normal; }
 .points-txt { color: #8fdd8f; font-size: 14px; margin-bottom: 6px; }
 
-/* inventario */
-#equip-slots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+/* inventario: equipo en silueta anatómica (estilo Diablo 3) */
+#equip-slots {
+  display: grid;
+  grid-template-areas:
+    ".      helm   amulet"
+    "weapon chest  ring"
+    ".      boots  .";
+  grid-template-columns: repeat(3, 60px);
+  grid-auto-rows: 60px;
+  gap: 6px;
+  justify-content: center;
+  padding: 8px 0;
+  background: radial-gradient(ellipse at center, rgba(201, 162, 39, 0.06), transparent 70%);
+  border-radius: 8px;
+}
+.slot-helm   { grid-area: helm; }
+.slot-amulet { grid-area: amulet; }
+.slot-weapon { grid-area: weapon; }
+.slot-chest  { grid-area: chest; }
+.slot-ring   { grid-area: ring; }
+.slot-boots  { grid-area: boots; }
+.equip-cell { aspect-ratio: auto; }
+
+/* cubo de transmutación */
+#cube-row { display: flex; gap: 6px; align-items: stretch; }
+#cube-row .inv-cell { width: 52px; aspect-ratio: 1; flex-shrink: 0; }
+#btn-transmute {
+  flex: 1; font-size: 14px; border-radius: 8px;
+  background: linear-gradient(#3a2a55, #241a38);
+  color: #d8c0ff; border: 1px solid #6a4a99;
+}
+#btn-transmute:disabled { opacity: 0.4; }
 #inv-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
 .inv-cell {
   aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
@@ -345,6 +375,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .class-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .class-card {
+  display: flex; flex-direction: column; align-items: center;
   width: min(86vw, 230px);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--panel-border); border-radius: 12px;
@@ -354,6 +385,26 @@ button { font-family: inherit; cursor: pointer; }
 .class-card h3 { color: var(--gold); margin: 6px 0; }
 .class-card p { font-size: 12px; opacity: 0.8; min-height: 48px; }
 .class-stats { display: flex; justify-content: center; gap: 8px; font-size: 11px; opacity: 0.8; margin: 8px 0; flex-wrap: wrap; }
+
+/* selección de clase compacta en pantallas pequeñas */
+@media (max-width: 700px), (max-height: 640px) {
+  #class-select { justify-content: flex-start; padding-top: max(20px, env(safe-area-inset-top)); }
+  #class-select h1 { font-size: 26px; }
+  .subtitle { margin: 4px 0 12px; font-size: 13px; }
+  .class-row { flex-direction: column; gap: 10px; width: 100%; align-items: center; }
+  .class-card {
+    flex-direction: row; text-align: left;
+    width: min(94vw, 420px); padding: 10px 12px; gap: 12px;
+  }
+  .class-icon { font-size: 32px; flex-shrink: 0; }
+  .class-body { flex: 1; min-width: 0; }
+  .class-card h3 { margin: 0 0 2px; font-size: 16px; }
+  .class-card p { min-height: 0; font-size: 11px; margin: 0; }
+  .class-stats { justify-content: flex-start; margin: 4px 0 0; }
+  .class-card button { padding: 9px 14px; font-size: 13px; flex-shrink: 0; }
+  .btn-continue { margin-bottom: 12px; padding: 11px 22px; font-size: 15px; }
+  .hint { font-size: 10px; margin-top: 10px; }
+}
 .class-card button, .btn-continue, #btn-respawn {
   padding: 10px 26px; font-size: 15px;
   background: linear-gradient(#6a5220, #44340f);

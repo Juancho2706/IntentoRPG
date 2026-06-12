@@ -50,10 +50,12 @@ export class UI {
       card.className = 'class-card';
       card.innerHTML = `
         <div class="class-icon">${cls.icon}</div>
-        <h3>${cls.name}</h3>
-        <p>${cls.desc}</p>
-        <div class="class-stats">
-          ${Object.entries(cls.base).map(([k, v]) => `<span>${STAT_NAMES[k].slice(0, 3).toUpperCase()} ${v}</span>`).join('')}
+        <div class="class-body">
+          <h3>${cls.name}</h3>
+          <p>${cls.desc}</p>
+          <div class="class-stats">
+            ${Object.entries(cls.base).map(([k, v]) => `<span>${STAT_NAMES[k].slice(0, 3).toUpperCase()} ${v}</span>`).join('')}
+          </div>
         </div>
         <button>Elegir</button>`;
       card.querySelector('button').onclick = () => { el.classList.add('hidden'); onPick(cls.id); };
@@ -245,17 +247,42 @@ export class UI {
   }
 
   renderInventory() {
-    const p = this.game.player;
+    const g = this.game;
+    const p = g.player;
+    // equipo en disposición anatómica (estilo Diablo 3):
+    // casco arriba, armadura al centro, botas abajo, arma/anillo/amuleto a los lados
     const eq = $('equip-slots');
     eq.innerHTML = '';
     for (const [slot, label] of Object.entries(SLOT_NAMES)) {
       const item = p.equipment[slot];
       const div = document.createElement('div');
-      div.className = 'inv-cell equip-cell' + (item ? ' rarity-' + item.rarity : '');
+      div.className = `inv-cell equip-cell slot-${slot}` + (item ? ' rarity-' + item.rarity : '');
       div.innerHTML = item ? this.itemCellHTML(item) : `<span class="cell-hint">${label}</span>`;
       if (item) div.onclick = () => this.itemPopup(item, { from: 'equip', slot });
       eq.appendChild(div);
     }
+
+    // cubo de transmutación
+    const cubeRow = $('cube-row');
+    cubeRow.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const item = p.cube[i];
+      const div = document.createElement('div');
+      div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
+      div.innerHTML = item ? this.itemCellHTML(item) : '<span class="cell-hint">—</span>';
+      if (item) {
+        div.title = 'Devolver al inventario';
+        div.onclick = () => { g.cubeReturn(i); this.renderInventory(); };
+      }
+      cubeRow.appendChild(div);
+    }
+    const tb = document.createElement('button');
+    tb.id = 'btn-transmute';
+    tb.textContent = '✨ Transmutar';
+    tb.disabled = p.cube.length !== 3;
+    tb.onclick = () => g.transmute();
+    cubeRow.appendChild(tb);
+
     const invGrid = $('inv-grid');
     invGrid.innerHTML = '';
     for (let i = 0; i < 32; i++) {
@@ -296,6 +323,8 @@ export class UI {
     if (ctx.from === 'inv') {
       addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(`Vender (${item.value} 🪙)`, () => g.sellItem(ctx.index));
+      if (p.cube.length < 3 && item.rarity !== 'legendario')
+        addBtn('Al cubo 🧪', () => g.addToCube(ctx.index));
       addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
     } else if (ctx.from === 'equip') {
       addBtn('Desequipar', () => g.unequipItem(ctx.slot));
