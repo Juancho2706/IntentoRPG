@@ -2,9 +2,9 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS } from './data.js';
+import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS, generateQuest, PET_PRICE } from './data.js';
 import { buildTown, buildDungeon } from './world.js';
-import { Player, Enemy, Projectile } from './entities.js';
+import { Player, Enemy, Projectile, Pet } from './entities.js';
 import { rollDrops, makeGold, generateItem, gambleItem, RARITIES } from './items.js';
 import { UI } from './ui.js';
 
@@ -271,7 +271,7 @@ class Game {
   }
 
   // ---------- inicio / guardado ----------
-  startGame(pick) {
+  startGame(pick, opts = {}) {
     let saved = null;
     if (pick === 'continue') {
       try { saved = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { saved = null; }
@@ -284,8 +284,10 @@ class Game {
       const first = this.player.cls.skills[0];
       this.player.skills[first.id] = 1;
       this.player.skillPoints = 0;
+      this.player.hardcore = !!opts.hardcore;
     }
     this.scene.add(this.player.group);
+    if (this.player.pet) this.spawnPet();
     this.state = 'play';
     this.loadWorld({ type: 'town' });
     this.ui.refreshHotbar();
@@ -303,6 +305,7 @@ class Game {
       gold: p.gold, potions: p.potions, inventory: p.inventory, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
+      quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone,
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -324,7 +327,8 @@ class Game {
     for (const fp of this.firePools) this.fxGroup.remove(fp.mesh);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = []; this.firePools = [];
 
-    this.world = spec.type === 'town' ? buildTown() : buildDungeon(spec.floor);
+    this.world = spec.type === 'town' ? buildTown() : buildDungeon(spec.floor, spec.seed ?? null);
+    this.world.daily = !!spec.daily;
     this.scene.add(this.world.group);
 
     // ambiente
@@ -357,13 +361,18 @@ class Game {
     this.player.moveTarget = this.player.attackTarget = this.player.pickTarget = null;
     this.input.joyDir = null;
     this.portalArmed = false; // los portales se activan al alejarse de todos ellos
-    if (w.type === 'dungeon') this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
+    if (w.type === 'dungeon' && !w.daily) this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
+    if (this.pet) {
+      this.pet.pos.copy(w.spawn).add(new THREE.Vector3(0.9, 0, 0.6));
+      this.pet.pos.y = 0;
+    }
     // no abrir el waypoint si el jugador aparece pegado a él
     for (const it of w.interactables)
       if (it.type === 'waypoint' && this.player.pos.distanceTo(it.pos) < it.radius + 0.5) it._in = true;
     this.camTarget.copy(this.player.pos);
     this.ui.initMinimap(w);
-    if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
+    if (w.daily) this.ui.message(`🌟 Desafío Diario · Piso ${w.floor} — el mismo trazado para todos hoy. ¡Derrota al jefe!`, 4500);
+    else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
     this.save();
   }
@@ -586,6 +595,83 @@ class Game {
     this.save();
   }
 
+  // ---------- misiones ----------
+  ensureQuestOffer() {
+    if (!this.questOffer) this.questOffer = generateQuest(this.player.level);
+    return this.questOffer;
+  }
+
+  acceptQuest() {
+    const p = this.player;
+    if (p.quest) return;
+    p.quest = this.ensureQuestOffer();
+    this.questOffer = null;
+    this.ui.message(`🎯 Misión aceptada: ${p.quest.desc}`, 3000);
+    this.save();
+  }
+
+  questProgress(type) {
+    const q = this.player.quest;
+    if (!q || q.type !== type || q.progress >= q.goal) return;
+    q.progress++;
+    if (q.progress >= q.goal)
+      this.ui.message('🎯 ¡Misión completada! Vuelve con el Capitán de la Guardia', 4000);
+  }
+
+  claimQuest() {
+    const p = this.player;
+    const q = p.quest;
+    if (!q || q.progress < q.goal) return;
+    p.gold += q.reward.gold;
+    p.gainXP(q.reward.xp);
+    if (q.reward.item) {
+      const item = generateItem(Math.max(1, Math.round(p.level * 0.8)), q.reward.item);
+      if (p.inventory.length < 32) p.inventory.push(item);
+      else this.spawnGroundItem(item, p.pos);
+      this.ui.message(`Recompensa: ${item.name}`, 2500);
+    }
+    p.records.quests = (p.records.quests || 0) + 1;
+    p.quest = null;
+    this.sfx('levelup');
+    this.ui.renderPanel();
+    this.save();
+  }
+
+  // ---------- desafío diario ----------
+  checkDailyReward(boss) {
+    if (!this.world.daily) return;
+    const p = this.player;
+    const today = new Date().toISOString().slice(0, 10);
+    if (p.dailyDone === today) return;
+    p.dailyDone = today;
+    p.records.dailies = (p.records.dailies || 0) + 1;
+    this.spawnGroundItem(generateItem(this.world.floor, 'legendario'), boss.pos);
+    for (let i = 0; i < 3; i++) this.spawnGroundItem(makeGold(this.world.floor + 3), boss.pos);
+    this.ui.message('🌟 ¡Desafío Diario completado! Botín extra. Vuelve mañana por otro.', 5000);
+    this.sfx('levelup');
+    this.save();
+  }
+
+  // ---------- mascota ----------
+  spawnPet() {
+    if (this.pet) return;
+    this.pet = new Pet(this);
+    this.pet.pos.copy(this.player.pos).add(new THREE.Vector3(0.9, 0, 0.6));
+    this.pet.pos.y = 0;
+    this.entityGroup.add(this.pet.group);
+  }
+
+  buyPet() {
+    const p = this.player;
+    if (p.pet || p.gold < PET_PRICE) return;
+    p.gold -= PET_PRICE;
+    p.pet = { level: 1 };
+    this.spawnPet();
+    this.ui.message('🐺 ¡El lobo de caza se une a ti!', 3000);
+    this.sfx('levelup');
+    this.save();
+  }
+
   // viaje rápido desde un waypoint
   travelTo(dest) {
     this.ui.closePanel();
@@ -665,6 +751,12 @@ class Game {
     if (enemy.def.boss) p.records.bossKills++;
     if (enemy.def.rank) p.records.eliteKills++;
     if (enemy.def.mimic) p.records.mimics++;
+    this.questProgress('kill');
+    if (enemy.def.rank) this.questProgress('elite');
+    if (enemy.def.boss) {
+      this.questProgress('boss');
+      this.checkDailyReward(enemy);
+    }
     const floor = this.world.floor || 1;
     let drops;
     if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.5, setChance: 0.08 });
@@ -820,11 +912,18 @@ class Game {
     this.state = 'dead';
     this.player.records.deaths++;
     this.sfx('death');
-    this.ui.showDeath();
-    this.save();
+    if (this.player.hardcore) {
+      // muerte permanente: el guardado se borra para siempre
+      try { localStorage.removeItem(SAVE_KEY); } catch { /* sin almacenamiento */ }
+      this.ui.showDeath(true);
+    } else {
+      this.ui.showDeath(false);
+      this.save();
+    }
   }
 
   respawn() {
+    if (this.ui.deathHardcore) { location.reload(); return; }
     const p = this.player;
     p.gold = Math.floor(p.gold * 0.9);
     p.alive = true;
@@ -842,7 +941,11 @@ class Game {
     if (this.state === 'select') { this.renderer.render(this.scene, this.camera); return; }
 
     const p = this.player;
-    if (this.state === 'play') { p.update(dt); p.records.playTime += dt; }
+    if (this.state === 'play') {
+      p.update(dt);
+      p.records.playTime += dt;
+      if (this.pet) this.pet.update(dt);
+    }
 
     // enemigos
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -993,6 +1096,16 @@ class Game {
             this.loadWorld({ type: 'dungeon', floor: p.lastFloor });
           }
           return;
+        case 'portal_daily':
+          if (this.portalArmed) {
+            const d = new Date();
+            const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+            this.loadWorld({ type: 'dungeon', floor: 3 + (seed % 8), seed, daily: true });
+          }
+          return;
+        case 'questgiver':
+          if (!it._in) { it._in = true; this.ui.openQuest(); }
+          break;
         case 'waypoint':
           if (!it._in) {
             it._in = true;
@@ -1039,6 +1152,7 @@ class Game {
               for (const drop of drops) this.spawnGroundItem(drop, it.pos);
               this.spawnGroundItem(makeGold(this.world.floor), it.pos);
               p.records.chests++;
+              this.questProgress('chest');
               this.sfx('chest');
             }
           }

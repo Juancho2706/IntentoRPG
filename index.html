@@ -34,6 +34,7 @@
       <span id="hud-gold">🪙 0</span>
       <span id="hud-zone">🏘️ Pueblo</span>
     </div>
+    <div id="quest-tracker" style="display:none"></div>
     <div id="menu-btns">
       <button id="btn-inv" title="Inventario [I]">🎒</button>
       <button id="btn-skills" title="Habilidades [T]">📖<span class="badge" id="badge-skills"></span></button>
@@ -100,6 +101,11 @@
   <div id="wp-list"></div>
 </div>
 
+<div id="panel-quest" class="panel hidden">
+  <div class="panel-head"><h2>🎖️ Capitán de la Guardia</h2><button class="panel-close">✕</button></div>
+  <div id="quest-body"></div>
+</div>
+
 <div id="panel-shop" class="panel hidden">
   <div class="panel-head"><h2>🛒 Mercader</h2><button class="panel-close">✕</button></div>
   <p id="shop-timer" class="points-txt"></p>
@@ -121,7 +127,7 @@
 <!-- pantalla de muerte -->
 <div id="death-screen" class="fullscreen hidden">
   <h1 class="death-title">💀 Has Muerto</h1>
-  <p>Las profundidades reclaman otra alma...</p>
+  <p id="death-text">Las profundidades reclaman otra alma...</p>
   <button id="btn-respawn">Despertar en el Pueblo</button>
 </div>
 

@@ -34,7 +34,11 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Apuesta del mercader**: compra objetos sin identificar — mínimo mágico, con suerte legendario
 - **Waypoints**: cada 5 pisos hay un waypoint que desbloquea viaje rápido desde el pueblo (y entre pisos)
 - **Cofres mímico**: algunos cofres muerden... y sueltan mejor botín
-- **Crónica de partida**: monstruos, jefes, mímicos, legendarios, oro, muertes, piso máximo y tiempo jugado
+- **Misiones**: el Capitán de la Guardia del pueblo ofrece misiones (matar monstruos/élites/jefes, abrir cofres) con oro, XP y objetos raros de recompensa
+- **Desafío Diario**: portal dorado con una mazmorra de semilla fija — el mismo trazado para todos cada día, con botín legendario al derrotar a su jefe (una vez al día)
+- **Modo Hardcore** opcional al crear personaje: la muerte es permanente y borra el guardado
+- **Lobo de caza**: mascota comprable al mercader que te sigue y ataca a tus enemigos
+- **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
 - **Inventario** de 32 casillas + 6 huecos de equipo (arma, casco, armadura, botas, anillo, amuleto), vender y tirar objetos
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
 - **Guardado automático** en localStorage (continúa donde lo dejaste)

@@ -232,6 +232,29 @@ export function rollEnemyRank(def, floor) {
 
 export const SHOP_REFRESH_MS = 5 * 60 * 1000; // la tienda rota cada 5 minutos
 
+// Misiones del Capitán de la Guardia
+export const QUEST_TYPES = [
+  { type: 'kill', goal: l => 15 + Math.min(25, l * 2), desc: g => `Elimina ${g} monstruos en la mazmorra` },
+  { type: 'elite', goal: () => 3, desc: g => `Derrota ${g} campeones o élites` },
+  { type: 'boss', goal: () => 1, desc: () => 'Derrota al jefe de cualquier piso' },
+  { type: 'chest', goal: () => 3, desc: g => `Abre ${g} cofres (¡cuidado con los mímicos!)` },
+];
+
+export function generateQuest(level) {
+  const t = QUEST_TYPES[Math.floor(Math.random() * QUEST_TYPES.length)];
+  const goal = t.goal(level);
+  return {
+    type: t.type, goal, progress: 0, desc: t.desc(goal),
+    reward: {
+      gold: 60 + 30 * level,
+      xp: Math.round(xpForLevel(level) * 0.35),
+      item: Math.random() < 0.35 ? 'raro' : null,
+    },
+  };
+}
+
+export const PET_PRICE = 500;
+
 export const POTION_PRICES = { hp: 30, mp: 30 };
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {

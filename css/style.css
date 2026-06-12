@@ -100,6 +100,12 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(0, 0, 0, 0.6); padding: 4px 10px;
   border: 1px solid #443a22; border-radius: 4px;
 }
+#quest-tracker {
+  margin-top: 5px; padding: 3px 10px; max-width: 46vw;
+  background: rgba(0, 0, 0, 0.6); border: 1px solid #3a5a2a; border-radius: 4px;
+  font-size: 12px; color: #b8e8a0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 #menu-btns { display: flex; gap: 6px; margin-top: 6px; }
 #menu-btns button {
   position: relative; width: 42px; height: 42px; font-size: 20px;
@@ -370,6 +376,30 @@ button { font-family: inherit; cursor: pointer; }
 .shop-name { flex: 1; }
 .shop-stats { display: block; font-size: 11px; color: #9fc8ff; opacity: 0.9; margin-top: 2px; }
 .shop-price { color: var(--gold); white-space: nowrap; flex-shrink: 0; }
+
+/* misiones */
+.quest-desc { font-size: 15px; color: #ffe9b0; margin: 6px 0; }
+.quest-bar {
+  height: 12px; background: #1a1510; border: 1px solid #443a22; border-radius: 6px;
+  overflow: hidden; margin: 8px 0 4px;
+}
+.quest-bar div { height: 100%; background: linear-gradient(90deg, #3a7a2a, #6ecc4a); }
+.quest-progress { font-size: 13px; margin-bottom: 6px; }
+.quest-btn {
+  width: 100%; padding: 12px; margin-top: 10px; font-size: 15px;
+  background: linear-gradient(#3a5a20, #24380f); color: #d8ffb0;
+  border: 1px solid #5a8a30; border-radius: 8px;
+}
+.quest-btn:disabled { opacity: 0.45; }
+
+/* hardcore */
+.hc-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-bottom: 14px; padding: 8px 14px; font-size: 13px;
+  color: #ff9a8a; background: rgba(120, 20, 20, 0.15);
+  border: 1px solid #6a2a22; border-radius: 8px; cursor: pointer;
+}
+.hc-toggle input { width: 16px; height: 16px; accent-color: #c22; }
 
 /* ---------- pantallas ---------- */
 .fullscreen {

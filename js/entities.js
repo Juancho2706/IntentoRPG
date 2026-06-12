@@ -188,9 +188,14 @@ export class Player {
     // valores por defecto compatibles con guardados antiguos
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [1];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
+    this.quest = this.quest || null;
+    this.hardcore = !!this.hardcore;
+    this.pet = this.pet || null;
+    this.dailyDone = this.dailyDone || null;
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
+      quests: 0, dailies: 0,
       ...(this.records || {}),
     };
 
@@ -614,5 +619,91 @@ export class Projectile {
       }
     }
     return false;
+  }
+}
+
+// ------------------------------------------------------------
+// MASCOTA: lobo de caza que sigue al jugador y ataca a su objetivo
+// ------------------------------------------------------------
+function makeWolfModel() {
+  const g = new THREE.Group();
+  const fur = std(0x8a8d96);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.34, 0.3), fur);
+  body.position.y = 0.34;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.26), fur.clone());
+  head.position.set(0, 0.5, 0.36);
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.14), std(0x6a6d76));
+  snout.position.set(0, 0.45, 0.54);
+  for (const sx of [-0.08, 0.08]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 4), fur.clone());
+    ear.position.set(sx, 0.68, 0.34);
+    g.add(ear);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6),
+      new THREE.MeshBasicMaterial({ color: 0xffdd44 }));
+    eye.position.set(sx, 0.53, 0.5);
+    g.add(eye);
+  }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.3), fur.clone());
+  tail.position.set(0, 0.42, -0.4);
+  tail.rotation.x = -0.5;
+  body.castShadow = head.castShadow = true;
+  g.add(body, head, snout, tail);
+  // el lobo gira sobre su eje Z+ (mismo convenio que jugador/enemigos)
+  return g;
+}
+
+export class Pet {
+  constructor(game) {
+    this.game = game;
+    this.atkCd = 0;
+    this.lunge = 0;
+    this.group = makeWolfModel();
+  }
+
+  get pos() { return this.group.position; }
+
+  update(dt) {
+    const g = this.game, p = g.player;
+    this.atkCd = Math.max(0, this.atkCd - dt);
+    this.lunge = Math.max(0, this.lunge - dt * 4);
+
+    const dp = this.pos.distanceTo(p.pos);
+    if (dp > 12) { this.pos.copy(p.pos); return; } // teletransporte si se queda atrás
+
+    // objetivo: el del jugador, o el enemigo más cercano a su dueño
+    let target = p.attackTarget && p.attackTarget.alive ? p.attackTarget : null;
+    if (!target) {
+      let bd = 36;
+      for (const e of g.enemies) {
+        if (!e.alive) continue;
+        const d = e.pos.distanceToSquared(p.pos);
+        if (d < bd) { bd = d; target = e; }
+      }
+    }
+
+    let dest = null;
+    if (target) {
+      const dte = this.pos.distanceTo(target.pos);
+      if (dte <= 1.5) {
+        this.group.rotation.y = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+        if (this.atkCd <= 0) {
+          this.atkCd = 1.1;
+          this.lunge = 1;
+          const dmg = Math.max(1, Math.round(4 + p.level * 1.2));
+          target.takeDamage(dmg, false);
+          g.sfx('hit');
+        }
+      } else dest = target.pos;
+    } else if (dp > 2.2) {
+      dest = p.pos;
+    }
+
+    if (dest) {
+      const dx = dest.x - this.pos.x, dz = dest.z - this.pos.z;
+      const l = Math.hypot(dx, dz) || 1;
+      moveWithCollision(g.world.grid, this.pos, dx / l * 5 * dt, dz / l * 5 * dt, 0.25);
+      this.group.rotation.y = Math.atan2(dx, dz);
+    }
+    this.group.position.y = Math.abs(Math.sin(performance.now() / 1000 * 8)) * (dest ? 0.07 : 0.02) + this.lunge * 0.18;
   }
 }

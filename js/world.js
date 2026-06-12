@@ -5,6 +5,16 @@ import * as THREE from 'three';
 
 function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
 
+// RNG determinista para la mazmorra diaria (misma semilla = mismo trazado)
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
 // Biomas de la mazmorra según la profundidad
 const BIOMES = [
   { name: 'Cripta', minFloor: 1, floor: 0x3c3a44, wall: 0x2a2733, fog: 0x070609,
@@ -192,8 +202,8 @@ export function buildTown() {
     group.add(body, roof);
   }
 
-  // árboles decorativos (lejos de NPCs, portal, waypoint y punto de aparición)
-  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8]];
+  // árboles decorativos (lejos de NPCs, portales, waypoint y punto de aparición)
+  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8], [13, 22], [12, 4]];
   for (let i = 0; i < 14; i++) {
     const x = ri(2, W - 3), z = ri(2, H - 3);
     if (!grid.cells[z][x]) continue;
@@ -252,6 +262,20 @@ export function buildTown() {
     group.add(t);
   }
 
+  // capitán de la guardia: misiones
+  const captPos = grid.center(13, 22);
+  const captain = makeNPC(0x4a6a9a, 0x2a3a55);
+  captain.position.copy(captPos);
+  group.add(captain);
+  interactables.push({ type: 'questgiver', pos: captPos.clone(), radius: 2.0, label: '🎖️ Capitán de la Guardia', labelCls: 'lbl-npc' });
+
+  // portal del desafío diario (mismo trazado para todos cada día)
+  const dailyPos = grid.center(12, 4);
+  const dailyPortal = makePortal(0xffcc33, 'Desafío Diario');
+  dailyPortal.position.copy(dailyPos);
+  group.add(dailyPortal);
+  interactables.push({ type: 'portal_daily', pos: dailyPos.clone(), radius: 1.3, label: '🌟 Desafío Diario', labelCls: 'lbl-portal', mesh: dailyPortal });
+
   // waypoint del pueblo: viaje rápido a los pisos descubiertos
   const wpPos = grid.center(Math.floor(W / 2), 8);
   const wp = makeWaypoint();
@@ -272,13 +296,16 @@ export function buildTown() {
 // ---------------------------------------------------------
 // MAZMORRA PROCEDURAL
 // ---------------------------------------------------------
-export function buildDungeon(floor) {
+export function buildDungeon(floor, seed = null) {
   const W = 46, H = 46;
   const grid = new Grid(W, H);
   const group = new THREE.Group();
   const interactables = [];
   const spawns = [];
   const biome = BIOMES.filter(b => floor >= b.minFloor).pop();
+  // con semilla, el trazado es idéntico para todos (desafío diario)
+  const rnd = seed != null ? mulberry32(seed) : Math.random;
+  const ri = (min, max) => Math.floor(min + rnd() * (max - min + 1));
 
   // generar salas
   const rooms = [];
@@ -339,7 +366,7 @@ export function buildDungeon(floor) {
 
   // decoración: pilares y huesos en salas
   for (const r of rooms) {
-    if (Math.random() < 0.5 && r.w > 6 && r.d > 6) {
+    if (rnd() < 0.5 && r.w > 6 && r.d > 6) {
       for (const [px, pz] of [[r.x + 1, r.z + 1], [r.x + r.w - 2, r.z + r.d - 2]]) {
         grid.cells[pz][px] = 0;
         const c = grid.center(px, pz);
@@ -350,7 +377,7 @@ export function buildDungeon(floor) {
         group.add(pillar);
       }
     }
-    if (Math.random() < 0.6) {
+    if (rnd() < 0.6) {
       const c = grid.center(ri(r.x + 1, r.x + r.w - 2), ri(r.z + 1, r.z + r.d - 2));
       const bones = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0),
         new THREE.MeshStandardMaterial({ color: 0xbbb5a0, roughness: 1 }));
@@ -358,12 +385,12 @@ export function buildDungeon(floor) {
       group.add(bones);
     }
     // cristales de hielo / rocas de lava según el bioma
-    if (biome.crystal && Math.random() < 0.55) {
+    if (biome.crystal && rnd() < 0.55) {
       const c = grid.center(ri(r.x + 1, r.x + r.w - 2), ri(r.z + 1, r.z + r.d - 2));
-      const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7 + Math.random() * 0.5, 5),
+      const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7 + rnd() * 0.5, 5),
         new THREE.MeshStandardMaterial({ color: biome.crystal.color, emissive: biome.crystal.emissive, emissiveIntensity: 1.1, roughness: 0.4 }));
       crystal.position.set(c.x, 0.35, c.z);
-      crystal.rotation.y = Math.random() * Math.PI;
+      crystal.rotation.y = rnd() * Math.PI;
       crystal.castShadow = true;
       group.add(crystal);
     }
@@ -438,7 +465,7 @@ export function buildDungeon(floor) {
       spawns.push({ kind: 'boss', pos: bp });
     }
     // cofres
-    if (Math.random() < 0.35) {
+    if (rnd() < 0.35) {
       const pos = freeCell(r);
       if (!pos) continue;
       const chest = new THREE.Group();
@@ -453,7 +480,7 @@ export function buildDungeon(floor) {
       chest.position.copy(pos);
       group.add(chest);
       // algunos cofres son mímicos disfrazados
-      interactables.push({ type: 'chest', pos: pos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: Math.random() < 0.18 });
+      interactables.push({ type: 'chest', pos: pos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: rnd() < 0.18 });
     }
   }
 

@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, skillVal, synergyBonus, xpForLevel, POTION_PRICES } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +43,10 @@ export class UI {
       btn.onclick = () => { el.classList.add('hidden'); onPick('continue'); };
       cont.appendChild(btn);
     }
+    const hc = document.createElement('label');
+    hc.className = 'hc-toggle';
+    hc.innerHTML = `<input type="checkbox" id="hc-check"> ☠️ Modo Hardcore — la muerte es permanente`;
+    cont.appendChild(hc);
     const row = document.createElement('div');
     row.className = 'class-row';
     for (const cls of Object.values(CLASSES)) {
@@ -58,7 +62,10 @@ export class UI {
           </div>
         </div>
         <button>Elegir</button>`;
-      card.querySelector('button').onclick = () => { el.classList.add('hidden'); onPick(cls.id); };
+      card.querySelector('button').onclick = () => {
+        el.classList.add('hidden');
+        onPick(cls.id, { hardcore: document.getElementById('hc-check')?.checked });
+      };
       row.appendChild(card);
     }
     cont.appendChild(row);
@@ -76,7 +83,13 @@ export class UI {
     $('orb-mp-txt').textContent = `${Math.ceil(p.mp)}`;
     const need = xpForLevel(p.level);
     $('xp-fill').style.width = Math.min(100, p.xp / need * 100) + '%';
-    $('hud-level').textContent = `Nv ${p.level}`;
+    $('hud-level').textContent = `Nv ${p.level}${p.hardcore ? ' ☠️' : ''}`;
+    const tracker = $('quest-tracker');
+    if (p.quest) {
+      tracker.style.display = '';
+      const done = p.quest.progress >= p.quest.goal;
+      tracker.textContent = done ? '🎯 ¡Completada! Ve con el Capitán' : `🎯 ${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal} — ${p.quest.desc}`;
+    } else tracker.style.display = 'none';
     $('hud-gold').textContent = `🪙 ${p.gold}`;
     $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo' : `🕳️ Piso ${this.game.world.floor}`;
     $('pot-hp-count').textContent = p.potions.hp;
@@ -212,6 +225,47 @@ export class UI {
     else if (this.activePanel === 'stats') this.renderStats();
     else if (this.activePanel === 'shop') this.renderShop();
     else if (this.activePanel === 'waypoints') this.renderWaypoints();
+    else if (this.activePanel === 'quest') this.renderQuest();
+  }
+
+  openQuest() {
+    if (this.activePanel !== 'quest') {
+      this.closePanel();
+      this.activePanel = 'quest';
+      $('panel-quest').classList.remove('hidden');
+    }
+    this.renderQuest();
+  }
+
+  renderQuest() {
+    const g = this.game, p = g.player;
+    const body = $('quest-body');
+    if (p.quest) {
+      const q = p.quest;
+      const done = q.progress >= q.goal;
+      body.innerHTML = `
+        <p class="quest-desc">🎯 ${q.desc}</p>
+        <div class="quest-bar"><div style="width:${Math.min(100, q.progress / q.goal * 100)}%"></div></div>
+        <p class="quest-progress">${Math.min(q.progress, q.goal)} / ${q.goal}</p>
+        <p class="dim">Recompensa: 🪙 ${q.reward.gold} · ✨ ${q.reward.xp} XP${q.reward.item ? ' · 🟡 objeto raro' : ''}</p>`;
+      const b = document.createElement('button');
+      b.className = 'quest-btn';
+      b.textContent = done ? '🏆 Reclamar recompensa' : 'En progreso...';
+      b.disabled = !done;
+      b.onclick = () => g.claimQuest();
+      body.appendChild(b);
+    } else {
+      const q = g.ensureQuestOffer();
+      body.innerHTML = `
+        <p class="dim">«Las profundidades están cada vez peor. ¿Me ayudas?»</p>
+        <p class="quest-desc">🎯 ${q.desc}</p>
+        <p class="dim">Recompensa: 🪙 ${q.reward.gold} · ✨ ${q.reward.xp} XP${q.reward.item ? ' · 🟡 objeto raro' : ''}</p>`;
+      const b = document.createElement('button');
+      b.className = 'quest-btn';
+      b.textContent = '✔️ Aceptar misión';
+      b.onclick = () => { g.acceptQuest(); this.renderQuest(); };
+      body.appendChild(b);
+    }
   }
 
   openWaypoints() {
@@ -446,6 +500,8 @@ export class UI {
       <div>🟢 Piezas de conjunto: ${r.setPieces || 0}</div>
       <div>📦 Cofres abiertos: ${r.chests}</div>
       <div>🪙 Oro recogido: ${r.goldEarned}</div>
+      <div>🎯 Misiones completadas: ${r.quests || 0}</div>
+      <div>🌟 Desafíos diarios: ${r.dailies || 0}</div>
       <div>⚰️ Muertes: ${r.deaths}</div>
       <div>⏱️ Tiempo jugado: ${h}h ${m}m</div>`;
   }
@@ -465,6 +521,10 @@ export class UI {
     };
     offer('🧪 Poción de Vida', POTION_PRICES.hp, () => { p.gold -= POTION_PRICES.hp; p.potions.hp++; g.sfx('potion'); g.save(); });
     offer('🔷 Poción de Maná', POTION_PRICES.mp, () => { p.gold -= POTION_PRICES.mp; p.potions.mp++; g.sfx('potion'); g.save(); });
+    if (!p.pet) {
+      offer(`🐺 Lobo de caza <small class="shop-stats">Te sigue y ataca a tus enemigos. Compañero para siempre.</small>`,
+        PET_PRICE, () => g.buyPet());
+    }
 
     for (const it of g.shopStock.items) {
       const r = RARITIES[it.rarity];
@@ -499,7 +559,14 @@ export class UI {
     $('shop-timer').textContent = `⏳ Nueva mercancía en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
-  showDeath() { $('death-screen').classList.remove('hidden'); }
+  showDeath(hardcore = false) {
+    this.deathHardcore = hardcore;
+    $('death-text').textContent = hardcore
+      ? '☠️ Modo Hardcore: tu héroe ha caído para siempre y su historia termina aquí.'
+      : 'Las profundidades reclaman otra alma...';
+    $('btn-respawn').textContent = hardcore ? 'Crear un nuevo héroe' : 'Despertar en el Pueblo';
+    $('death-screen').classList.remove('hidden');
+  }
   hideDeath() { $('death-screen').classList.add('hidden'); }
 
   // ---------- minimapa ----------
