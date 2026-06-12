@@ -43,6 +43,11 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
 - **Inventario** de 32 casillas + **12 ranuras de equipo** estilo Diablo (arma, escudo, casco, hombreras, armadura, guantes, cinturón, pantalones, botas, amuleto y 2 anillos) en silueta anatómica
 - **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura
+- **Runas y palabras rúnicas**: 6 runas que, engarzadas en el orden correcto, forman palabras con bonus especiales (Filo, Bastión, Zancada, Tormenta, Coloso)
+- **Encantadora** en el pueblo: reforja un afijo de un objeto por oro (precio creciente)
+- **Re-spec**: redistribuye atributos y habilidades pagando oro
+- **Paragon**: tras el nivel 20, cada nivel da puntos para mejoras infinitas (daño, vida, armadura, vel. de ataque)
+- **Acto 2 — Abismo Estelar (pisos 16+)**: bioma del vacío con Espectros, Caballeros del Abismo, el jefe Corazón del Vacío y el **Refugio del Abismo**, un segundo pueblo que se desbloquea al llegar
 - **Alijo compartido** en el pueblo: 24 casillas comunes a todos tus personajes (sobrevive al Hardcore)
 - **Tabla del Desafío Diario**: tus últimas 14 runs con clase, piso y tiempo, en el panel de personaje
 - **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa

@@ -144,6 +144,12 @@ export const ENEMIES = [
   { id: 'diablillo', name: 'Diablillo', color: 0xdd5522, shape: 'demon', rangedAttack: true,
     hp: 40, dmg: 14, spd: 3.0, xp: 45, range: 7, atkTime: 1.6, scale: 0.8, projSpeed: 10, projColor: 0xff6600,
     minFloor: 11, weight: 18 },
+  { id: 'espectro', name: 'Espectro', color: 0xbb99ee, shape: 'humanoid',
+    hp: 70, dmg: 20, spd: 3.6, xp: 70, range: 1.5, atkTime: 0.9, scale: 1.0,
+    minFloor: 16, weight: 20 },
+  { id: 'caballero_abismo', name: 'Caballero del Abismo', color: 0x443a66, shape: 'golem',
+    hp: 160, dmg: 26, spd: 1.9, xp: 95, range: 1.9, atkTime: 1.6, scale: 1.45, slam: true,
+    minFloor: 16, weight: 14 },
 ];
 
 // Un jefe por bioma, cada uno con su mecánica especial
@@ -159,6 +165,10 @@ export const BOSSES = [
     hp: 330, dmg: 26, spd: 2.6, xp: 280, range: 2.2, atkTime: 1.2, scale: 2.2,
     rangedAttack: true, projSpeed: 10, projColor: 0xff3300, rangedChance: 0.3, slam: true,
     minFloor: 11, mechanic: 'fire_pool' },
+  { id: 'corazon_vacio', name: 'Corazón del Vacío', color: 0x7744cc, shape: 'demon', boss: true,
+    hp: 430, dmg: 30, spd: 2.6, xp: 420, range: 2.2, atkTime: 1.1, scale: 2.3, slam: true,
+    rangedAttack: true, projSpeed: 11, projColor: 0xaa66ff, rangedChance: 0.3,
+    minFloor: 16, mechanic: 'frost_nova' },
 ];
 
 export const BOSS = BOSSES[0];

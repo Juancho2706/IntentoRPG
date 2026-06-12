@@ -158,10 +158,11 @@ export function generateItem(ilvl, forceRarityId = null, slot = null) {
     item.name = item.baseName;
   }
 
-  // engarces para gemas (más probables cuanto mayor la rareza)
+  // engarces para gemas y runas (más probables y numerosos a mayor rareza)
   const sockChance = { normal: 0.08, magico: 0.2, raro: 0.35, legendario: 0.5 }[rarity.id] || 0;
   if (Math.random() < sockChance) {
-    item.sockets = 1 + (rarity.id === 'legendario' && Math.random() < 0.4 ? 1 : 0);
+    item.sockets = rarity.id === 'legendario' ? 2 + (Math.random() < 0.5 ? 1 : 0)
+      : rarity.id === 'raro' ? 1 + (Math.random() < 0.3 ? 1 : 0) : 1;
     item.gems = [];
   }
 
@@ -214,6 +215,64 @@ export function generateSetItem(ilvl) {
   return item;
 }
 
+// Runas: se engarzan como las gemas; en el orden correcto forman palabras rúnicas
+export const RUNES = [
+  { id: 'el',  name: 'Runa El',  stat: { arm: 3 }, weight: 30 },
+  { id: 'tir', name: 'Runa Tir', stat: { mp: 4 },  weight: 25 },
+  { id: 'ral', name: 'Runa Ral', stat: { fue: 2 }, weight: 20 },
+  { id: 'ort', name: 'Runa Ort', stat: { ene: 2 }, weight: 12 },
+  { id: 'tal', name: 'Runa Tal', stat: { des: 2 }, weight: 8 },
+  { id: 'eth', name: 'Runa Eth', stat: { hp: 6 },  weight: 5 },
+];
+
+export const RUNEWORDS = [
+  { id: 'filo',     name: 'Filo',     runes: ['tir', 'el'],         slots: ['weapon'],                    stats: { dmgPct: 15, crit: 5 } },
+  { id: 'bastion',  name: 'Bastión',  runes: ['ral', 'ort'],        slots: ['chest', 'offhand', 'helm'],  stats: { arm: 20, hp: 25 } },
+  { id: 'zancada',  name: 'Zancada',  runes: ['el', 'tal'],         slots: ['boots', 'pants'],            stats: { spdPct: 10, des: 4 } },
+  { id: 'tormenta', name: 'Tormenta', runes: ['tal', 'eth', 'tir'], slots: ['weapon'],                    stats: { dmgPct: 25, aspdPct: 10 } },
+  { id: 'coloso',   name: 'Coloso',   runes: ['eth', 'ort', 'ral'], slots: ['chest'],                     stats: { hp: 60, arm: 30 } },
+];
+
+export function makeRune() {
+  const total = RUNES.reduce((s, r) => s + r.weight, 0);
+  let roll = Math.random() * total;
+  let rune = RUNES[0];
+  for (const r of RUNES) { roll -= r.weight; if (roll <= 0) { rune = r; break; } }
+  return {
+    uid: itemUid++, kind: 'rune', runeId: rune.id, icon: '🪬',
+    name: rune.name, ilvl: 1, rarity: 'raro', stats: { ...rune.stat }, value: 75,
+  };
+}
+
+// comprueba si las runas engarzadas (en orden) forman una palabra rúnica
+export function checkRuneword(item) {
+  item.runeword = null;
+  if (!item.gems || !item.gems.length) return;
+  const seq = item.gems.map(g => g.runeId);
+  if (seq.some(x => !x)) return; // mezclar gemas y runas no forma palabra
+  const rw = RUNEWORDS.find(r =>
+    r.slots.includes(item.slot) &&
+    r.runes.length === seq.length &&
+    r.runes.every((id, i) => id === seq[i]));
+  if (rw) item.runeword = { id: rw.id, name: rw.name, stats: rw.stats };
+}
+
+// Encantadora: sustituye un afijo aleatorio por otro nuevo
+export function rerollAffix(item) {
+  const keys = Object.keys(item.affixes || {});
+  if (!keys.length) return null;
+  delete item.affixes[keys[Math.floor(Math.random() * keys.length)]];
+  const pool = AFFIX_POOL.filter(a => !(a.stat in item.affixes));
+  const af = pool[Math.floor(Math.random() * pool.length)];
+  const rarity = RARITIES[item.rarity] || RARITIES.normal;
+  let v = ri(af.min, af.max);
+  if (!af.flat) v = Math.round(v * (1 + 0.22 * (item.ilvl - 1)));
+  v = Math.max(1, Math.round(v * rarity.statMult));
+  item.affixes[af.stat] = v;
+  item.rerolls = (item.rerolls || 0) + 1;
+  return statText(af.stat, v);
+}
+
 // Apuesta del mercader: objeto sin identificar, nunca normal,
 // con pequeña posibilidad de raro o legendario (estilo gambling de D2)
 export function gambleItem(ilvl, slot) {
@@ -237,6 +296,7 @@ export function rollDrops(floor, opts = {}) {
   if (Math.random() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
   if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
   if (Math.random() < (opts.gemChance ?? 0.05)) drops.push(makeGem(floor));
+  if (Math.random() < (opts.runeChance ?? 0.025)) drops.push(makeRune());
   const itemChance = opts.itemChance ?? 0.18;
   const nItems = opts.minItems || 0;
   let count = nItems;
@@ -270,7 +330,12 @@ export function itemStatLines(item) {
     lines.push(`Engarces: ${(item.gems || []).length}/${item.sockets}`);
     for (const gm of item.gems || [])
       for (const [stat, v] of Object.entries(gm.stats))
-        lines.push(`💎 ${gm.name}: ${statText(stat, v)}`);
+        lines.push(`${gm.icon || '💎'} ${gm.name}: ${statText(stat, v)}`);
+  }
+  if (item.runeword) {
+    lines.push(`🔮 Palabra rúnica: ${item.runeword.name}`);
+    for (const [stat, v] of Object.entries(item.runeword.stats))
+      lines.push(`· ${statText(stat, v)}`);
   }
   return lines;
 }

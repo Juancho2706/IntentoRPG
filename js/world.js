@@ -27,6 +27,10 @@ const BIOMES = [
     ambient: 0x885544, torch: 0xff5522,
     accent: { color: 0xff6a22, emissive: 0xbb3300, chance: 0.05 },
     crystal: { color: 0xff8844, emissive: 0xcc3300 } },
+  { name: 'Abismo Estelar', minFloor: 16, floor: 0x2a2440, wall: 0x1a1530, fog: 0x070512,
+    ambient: 0x7766aa, torch: 0xbb66ff,
+    accent: { color: 0xaa88ff, emissive: 0x6633cc, chance: 0.05 },
+    crystal: { color: 0xcc99ff, emissive: 0x7744cc } },
 ];
 
 // Cuadrícula de colisión. cells[z][x] = 1 transitable, 0 muro
@@ -203,7 +207,7 @@ export function buildTown() {
   }
 
   // árboles decorativos (lejos de NPCs, portales, waypoint y punto de aparición)
-  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8], [13, 22], [12, 4], [23, 22]];
+  const reserved = [[11, 14], [22, 14], [Math.floor(W / 2), 3], [Math.floor(W / 2), H - 6], [Math.floor(W / 2), 8], [13, 22], [12, 4], [23, 22], [26, 9]];
   for (let i = 0; i < 14; i++) {
     const x = ri(2, W - 3), z = ri(2, H - 3);
     if (!grid.cells[z][x]) continue;
@@ -276,6 +280,13 @@ export function buildTown() {
   stash.position.copy(stashPos);
   group.add(stash);
   interactables.push({ type: 'stash', pos: stashPos.clone(), radius: 1.8, label: '🗃️ Alijo compartido', labelCls: 'lbl-chest' });
+
+  // encantadora: reforja afijos por oro
+  const enchPos = grid.center(26, 9);
+  const enchanter = makeNPC(0x9a4a8a, 0x55224a);
+  enchanter.position.copy(enchPos);
+  group.add(enchanter);
+  interactables.push({ type: 'enchanter', pos: enchPos.clone(), radius: 2.2, label: '🔮 Encantadora', labelCls: 'lbl-npc' });
 
   // capitán de la guardia: misiones
   const captPos = grid.center(13, 22);
@@ -539,5 +550,102 @@ export function buildDungeon(floor, seed = null) {
     ambient: biome.ambient, ambientIntensity: 0.32,
     sun: { color: 0x8899bb, intensity: 0.5 },
     clearColor: biome.fog,
+  };
+}
+
+// ---------------------------------------------------------
+// REFUGIO DEL ABISMO: segundo pueblo (se desbloquea en el piso 16)
+// ---------------------------------------------------------
+export function buildRefuge() {
+  const W = 26, H = 26;
+  const grid = new Grid(W, H);
+  const group = new THREE.Group();
+  const interactables = [];
+
+  for (let z = 1; z < H - 1; z++)
+    for (let x = 1; x < W - 1; x++)
+      grid.cells[z][x] = 1;
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, H),
+    new THREE.MeshStandardMaterial({ color: 0x2e2848, roughness: 1 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  group.add(ground);
+
+  // muralla
+  const wallPos = [];
+  for (let z = 0; z < H; z++)
+    for (let x = 0; x < W; x++)
+      if (x === 0 || z === 0 || x === W - 1 || z === H - 1) {
+        const c = grid.center(x, z);
+        wallPos.push({ x: c.x, y: 1, z: c.z });
+      }
+  group.add(instancedBoxes(wallPos, [1, 2, 1], 0x3a3055, { castShadow: true }));
+
+  // cristales del vacío decorativos
+  for (let i = 0; i < 10; i++) {
+    const x = ri(3, W - 4), z = ri(3, H - 4);
+    if (!grid.cells[z][x] || (Math.abs(x - W / 2) < 4 && Math.abs(z - H / 2) < 6)) continue;
+    grid.cells[z][x] = 0;
+    const c = grid.center(x, z);
+    const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.2 + Math.random(), 5),
+      new THREE.MeshStandardMaterial({ color: 0xcc99ff, emissive: 0x7744cc, emissiveIntensity: 0.9, roughness: 0.4 }));
+    crystal.position.set(c.x, 0.6, c.z);
+    crystal.rotation.y = Math.random() * Math.PI;
+    crystal.castShadow = true;
+    group.add(crystal);
+  }
+
+  // curandera
+  const healerPos = grid.center(7, 10);
+  const healer = makeNPC(0xd8c8f0);
+  healer.position.copy(healerPos);
+  group.add(healer);
+  interactables.push({ type: 'healer', pos: healerPos.clone(), radius: 2.2, label: '⛪ Sanadora del Vacío', labelCls: 'lbl-npc' });
+
+  // mercader
+  const vendorPos = grid.center(18, 10);
+  const vendor = makeNPC(0x6a4a8a, 0x3a2a55);
+  vendor.position.copy(vendorPos);
+  group.add(vendor);
+  interactables.push({ type: 'vendor', pos: vendorPos.clone(), radius: 2.4, label: '💰 Mercader Errante', labelCls: 'lbl-npc' });
+
+  // alijo compartido
+  const stashPos = grid.center(13, 18);
+  const stash = new THREE.Group();
+  const sBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.75),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a7a, roughness: 0.8 }));
+  sBox.position.y = 0.35;
+  const sLid = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.22, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 0.5, roughness: 0.5 }));
+  sLid.position.y = 0.78;
+  sBox.castShadow = sLid.castShadow = true;
+  stash.add(sBox, sLid);
+  stash.position.copy(stashPos);
+  group.add(stash);
+  interactables.push({ type: 'stash', pos: stashPos.clone(), radius: 1.8, label: '🗃️ Alijo compartido', labelCls: 'lbl-chest' });
+
+  // waypoint
+  const wpPos = grid.center(13, 13);
+  const wp = makeWaypoint();
+  wp.position.copy(wpPos);
+  group.add(wp);
+  interactables.push({ type: 'waypoint', pos: wpPos.clone(), radius: 1.2, label: '🗺️ Waypoint', labelCls: 'lbl-portal', mesh: wp });
+
+  // portal a las profundidades (piso 16+)
+  const portalPos = grid.center(13, 4);
+  const portal = makePortal(0xaa66ff, 'Abismo');
+  portal.position.copy(portalPos);
+  group.add(portal);
+  interactables.push({ type: 'portal_dungeon', minFloor: 16, pos: portalPos.clone(), radius: 1.3, label: '🌀 Descender al Abismo (16+)', labelCls: 'lbl-portal', mesh: portal });
+
+  return {
+    type: 'refuge', group, grid, spawn: grid.center(13, H - 5), interactables, spawns: [],
+    fog: { color: 0x0a0716, near: 22, far: 50 },
+    ambient: 0x7766aa, ambientIntensity: 0.55,
+    sun: { color: 0xbba8ff, intensity: 1.2 },
+    clearColor: 0x0a0716,
   };
 }

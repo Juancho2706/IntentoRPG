@@ -3,9 +3,9 @@
 // ============================================================
 import * as THREE from 'three';
 import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SHOP_REFRESH_MS, generateQuest, PET_PRICE } from './data.js';
-import { buildTown, buildDungeon } from './world.js';
+import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, makeGem, generateItem, gambleItem, RARITIES } from './items.js';
+import { rollDrops, makeGold, makeGem, generateItem, gambleItem, checkRuneword, rerollAffix, RARITIES } from './items.js';
 import { UI } from './ui.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
@@ -340,6 +340,7 @@ class Game {
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
+      paragon: p.paragon, refugeUnlocked: p.refugeUnlocked,
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -363,7 +364,9 @@ class Game {
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
     this.firePools = []; this.telegraphs = [];
 
-    this.world = spec.type === 'town' ? buildTown() : buildDungeon(spec.floor, spec.seed ?? null);
+    this.world = spec.type === 'town' ? buildTown()
+      : spec.type === 'refuge' ? buildRefuge()
+      : buildDungeon(spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
     this.scene.add(this.world.group);
 
@@ -398,6 +401,11 @@ class Game {
     this.input.joyDir = null;
     this.currentInteract = null;
     if (w.type === 'dungeon' && !w.daily) this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
+    if (w.type === 'dungeon' && w.floor >= 16 && !this.player.refugeUnlocked) {
+      this.player.refugeUnlocked = true;
+      this.ui.message('🏕️ ¡Has descubierto el Refugio del Abismo! Ya puedes viajar desde cualquier waypoint', 5000);
+      this.save();
+    }
     if (this.pet) {
       this.pet.pos.copy(w.spawn).add(new THREE.Vector3(0.9, 0, 0.6));
       this.pet.pos.y = 0;
@@ -823,6 +831,7 @@ class Game {
   travelTo(dest) {
     this.ui.closePanel();
     if (dest === 'town') this.loadWorld({ type: 'town' });
+    else if (dest === 'refuge') this.loadWorld({ type: 'refuge' });
     else {
       this.player.lastFloor = dest;
       this.loadWorld({ type: 'dungeon', floor: dest });
@@ -943,7 +952,7 @@ class Game {
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
     // pilar de luz por rareza: el loot bueno se ve desde lejos
-    if (item.kind === 'item' || item.kind === 'gem') {
+    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune') {
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
         new THREE.MeshBasicMaterial({
@@ -1007,12 +1016,12 @@ class Game {
     this.save();
   }
 
-  // ---------- gemas ----------
-  // engarza la gema del inventario (gemIndex) en un objeto con ranura libre
+  // ---------- gemas y runas ----------
+  // engarza la gema/runa del inventario (gemIndex) en un objeto con ranura libre
   socketGem(itemUid, gemIndex) {
     const p = this.player;
     const gem = p.inventory[gemIndex];
-    if (!gem || gem.kind !== 'gem') return;
+    if (!gem || (gem.kind !== 'gem' && gem.kind !== 'rune')) return;
     const target = p.inventory.find(i => i.uid === itemUid) ||
       Object.values(p.equipment).find(i => i && i.uid === itemUid);
     if (!target || !target.sockets) return;
@@ -1020,8 +1029,77 @@ class Game {
     if (target.gems.length >= target.sockets) { this.ui.message('No quedan engarces libres'); return; }
     p.inventory.splice(gemIndex, 1);
     target.gems.push(gem);
+    checkRuneword(target);
     p.recompute();
-    this.ui.message(`💎 ${gem.name} engarzado en ${target.name}`, 2500);
+    if (target.runeword) {
+      this.ui.message(`🔮 ¡Palabra rúnica completada: ${target.runeword.name}!`, 4000);
+      this.sfx('levelup');
+      this.vibrate([40, 30, 60]);
+    } else {
+      this.ui.message(`${gem.icon} ${gem.name} engarzado en ${target.name}`, 2500);
+      this.sfx('levelup');
+    }
+    this.save();
+  }
+
+  // ---------- encantadora: reforjar un afijo por oro ----------
+  enchantCost(item) {
+    return Math.round(80 * item.ilvl * (1 + (item.rerolls || 0) * 0.5));
+  }
+
+  enchantItem(index) {
+    const p = this.player;
+    const item = p.inventory[index];
+    if (!item || !Object.keys(item.affixes || {}).length) return;
+    const cost = this.enchantCost(item);
+    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
+    p.gold -= cost;
+    const nuevo = rerollAffix(item);
+    p.recompute();
+    this.ui.message(`🔮 Afijo reforjado: ${nuevo}`, 3000);
+    this.sfx('levelup');
+    this.save();
+  }
+
+  // ---------- redistribución de puntos (sumidero de oro) ----------
+  respecCost() { return 200 * this.player.level; }
+
+  respecAttributes() {
+    const p = this.player;
+    const cost = this.respecCost();
+    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
+    p.gold -= cost;
+    p.attributes = { ...p.cls.base };
+    p.statPoints = 5 * (Math.min(p.level, 20) - 1);
+    p.recompute();
+    this.ui.message('🔄 Atributos redistribuidos: reparte tus puntos de nuevo', 3500);
+    this.sfx('levelup');
+    this.save();
+  }
+
+  respecSkills() {
+    const p = this.player;
+    const cost = this.respecCost();
+    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
+    p.gold -= cost;
+    p.skills = {};
+    p.skillPoints = Math.min(p.level, 20);
+    p.buffs = [];
+    p.cds = {};
+    p.recompute();
+    this.ui.refreshHotbar();
+    this.ui.message('🔄 Habilidades redistribuidas: aprende tu nueva build', 3500);
+    this.sfx('levelup');
+    this.save();
+  }
+
+  // ---------- paragon (nivel 20+) ----------
+  paragonAllocate(key) {
+    const p = this.player;
+    if (p.paragon.points <= 0 || !(key in p.paragon)) return;
+    p.paragon.points--;
+    p.paragon[key]++;
+    p.recompute();
     this.sfx('levelup');
     this.save();
   }
@@ -1277,6 +1355,7 @@ class Game {
 
     // interactuables
     this.nearVendor = false;
+    this.nearEnchanter = false;
     if (this.state === 'play') this.checkInteractables(dt);
 
     // animar portales, waypoints y antorchas
@@ -1362,6 +1441,10 @@ class Game {
           this.nearVendor = true;
           if (d < bestD) { best = it; bestD = d; }
           break;
+        case 'enchanter':
+          this.nearEnchanter = true;
+          if (d < bestD) { best = it; bestD = d; }
+          break;
         default: // portales, waypoint, capitán, alijo
           if (d < bestD) { best = it; bestD = d; }
       }
@@ -1381,7 +1464,11 @@ class Game {
     const p = this.player;
     switch (it.type) {
       case 'portal_dungeon':
-        this.loadWorld({ type: 'dungeon', floor: p.lastFloor || 1 });
+        this.loadWorld({ type: 'dungeon', floor: it.minFloor ? Math.max(it.minFloor, p.lastFloor || 1) : (p.lastFloor || 1) });
+        break;
+      case 'enchanter':
+        this.ui.togglePanel('inv');
+        this.ui.message('🔮 «Toca un objeto con afijos y reforjaré uno de ellos... por un precio»', 3500);
         break;
       case 'portal_town':
         this.loadWorld({ type: 'town' });
@@ -1514,7 +1601,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if (it.kind === 'item' || it.kind === 'gem') {
+      if (it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune') {
         entries.push({
           id: gi.id, pos: gi.mesh.position, text: `${it.icon} ${it.name}`,
           cls: 'lbl-item rarity-' + it.rarity,

@@ -93,7 +93,8 @@ export class UI {
       tracker.textContent = done ? '🎯 ¡Completada! Ve con el Capitán' : `🎯 ${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal} — ${p.quest.desc}`;
     } else tracker.style.display = 'none';
     $('hud-gold').textContent = `🪙 ${p.gold}`;
-    $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo' : `🕳️ Piso ${this.game.world.floor}`;
+    $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo'
+      : this.game.world?.type === 'refuge' ? '🏕️ Refugio' : `🕳️ Piso ${this.game.world.floor}`;
     $('pot-hp-count').textContent = p.potions.hp;
     $('pot-mp-count').textContent = p.potions.mp;
     // aviso pulsante cuando la vida es crítica
@@ -103,7 +104,7 @@ export class UI {
     const it = this.game.currentInteract;
     const icons = {
       portal_dungeon: '🌀', portal_town: '🌀', portal_next: '🌀', portal_daily: '🌟',
-      waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦', shrine: '✨',
+      waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦', shrine: '✨', enchanter: '🔮',
     };
     const atkBtn = $('btn-attack');
     const icon = it ? (icons[it.type] || '✋') : '⚔️';
@@ -115,7 +116,7 @@ export class UI {
       p.dodgeCd > 0 ? (p.dodgeCd / 3 * 100) + '%' : '0%';
 
     const badge = (id, n) => { const b = $(id); b.style.display = n > 0 ? 'flex' : 'none'; b.textContent = n; };
-    badge('badge-stats', p.statPoints);
+    badge('badge-stats', p.statPoints + p.paragon.points);
     badge('badge-skills', p.skillPoints);
     $('btn-shop').style.display = this.game.nearVendor ? '' : 'none';
     if (this.activePanel === 'shop') this.updateShopTimer();
@@ -379,6 +380,8 @@ export class UI {
       cont.appendChild(b);
     };
     mk('🏘️ Pueblo', g.world.type === 'town', () => g.travelTo('town'));
+    if (p.refugeUnlocked)
+      mk('🏕️ Refugio del Abismo', g.world.type === 'refuge', () => g.travelTo('refuge'));
     for (const f of [...p.waypoints].sort((a, b) => a - b))
       mk(`🕳️ Piso ${f}`, g.world.type === 'dungeon' && g.world.floor === f, () => g.travelTo(f));
   }
@@ -506,8 +509,12 @@ export class UI {
     } else if (ctx.from === 'equip') {
       addBtn('Desequipar', () => g.unequipItem(ctx.slot));
     }
-    // engarzar gemas si el objeto tiene ranura libre y hay gemas en la mochila
-    if (item.sockets && (item.gems || []).length < item.sockets && p.inventory.some(i => i.kind === 'gem')) {
+    // reforjar un afijo si la Encantadora está cerca
+    if (g.nearEnchanter && ctx.from === 'inv' && item.kind === 'item' && Object.keys(item.affixes || {}).length) {
+      addBtn(`Reforjar afijo (${g.enchantCost(item)} 🪙)`, () => g.enchantItem(ctx.index), 'btn-good');
+    }
+    // engarzar gemas/runas si el objeto tiene ranura libre y hay en la mochila
+    if (item.sockets && (item.gems || []).length < item.sockets && p.inventory.some(i => i.kind === 'gem' || i.kind === 'rune')) {
       const b = document.createElement('button');
       b.textContent = 'Engarzar 💎';
       b.className = 'btn-good';
@@ -527,7 +534,7 @@ export class UI {
       <div class="popup-btns gem-list"></div>`;
     const btns = pop.querySelector('.popup-btns');
     p.inventory.forEach((gm, i) => {
-      if (gm.kind !== 'gem') return;
+      if (gm.kind !== 'gem' && gm.kind !== 'rune') return;
       const b = document.createElement('button');
       b.innerHTML = `${gm.icon} ${gm.name} · ${itemStatLines(gm)[0] || ''}`;
       b.onclick = () => {
@@ -588,6 +595,15 @@ export class UI {
       }
       cont.appendChild(tierDiv);
     }
+    // respec de habilidades (sumidero de oro)
+    if (Object.keys(p.skills).length) {
+      const rb = document.createElement('button');
+      rb.className = 'quest-btn';
+      rb.textContent = `🔄 Redistribuir habilidades (${this.game.respecCost()} 🪙)`;
+      rb.disabled = p.gold < this.game.respecCost();
+      rb.onclick = () => { this.game.respecSkills(); this.renderSkills(); this.updateHUD(); };
+      cont.appendChild(rb);
+    }
   }
 
   skillDetails(sk, lvl) {
@@ -620,6 +636,43 @@ export class UI {
       }
       cont.appendChild(row);
     }
+    // respec de atributos (sumidero de oro)
+    if (p.level > 1) {
+      const rb = document.createElement('button');
+      rb.className = 'quest-btn';
+      rb.textContent = `🔄 Redistribuir atributos (${this.game.respecCost()} 🪙)`;
+      rb.disabled = p.gold < this.game.respecCost();
+      rb.onclick = () => { this.game.respecAttributes(); this.renderStats(); this.updateHUD(); };
+      cont.appendChild(rb);
+    }
+
+    // paragon (nivel 20+)
+    const pg = $('paragon');
+    if (p.level >= 20 || p.paragon.points > 0 || p.paragon.dmgPct + p.paragon.hp + p.paragon.arm + p.paragon.aspdPct > 0) {
+      pg.style.display = '';
+      pg.innerHTML = `<h4>🌟 Paragon</h4>
+        <p class="points-txt">${p.paragon.points > 0 ? `Puntos disponibles: ${p.paragon.points}` : 'Sube de nivel (20+) para ganar puntos'}</p>`;
+      const rows = [
+        ['dmgPct', '⚔️ Daño', '+1% por punto'],
+        ['hp', '❤️ Vida', '+8 por punto'],
+        ['arm', '🛡️ Armadura', '+3 por punto'],
+        ['aspdPct', '⚡ Vel. de ataque', '+0.5% por punto'],
+      ];
+      for (const [key, name, desc] of rows) {
+        const row = document.createElement('div');
+        row.className = 'attr-row';
+        row.innerHTML = `<div><strong>${name}</strong>: ${p.paragon[key]}<br><small>${desc}</small></div>`;
+        if (p.paragon.points > 0) {
+          const b = document.createElement('button');
+          b.className = 'sk-plus';
+          b.textContent = '+';
+          b.onclick = () => { this.game.paragonAllocate(key); this.renderStats(); this.updateHUD(); };
+          row.appendChild(b);
+        }
+        pg.appendChild(row);
+      }
+    } else pg.style.display = 'none';
+
     const s = p.stats;
     $('derived-stats').innerHTML = `
       <div>❤️ Vida: ${Math.ceil(p.hp)} / ${s.maxHP}</div>
@@ -721,9 +774,11 @@ export class UI {
     const g = world.grid;
     base.width = g.w * 3; base.height = g.h * 3;
     const ctx = base.getContext('2d');
-    ctx.fillStyle = world.type === 'town' ? '#2e4020' : '#0a0a10';
+    const palette = { town: ['#2e4020', '#4e6a38'], refuge: ['#14102a', '#3a3055'] };
+    const [bg, walk] = palette[world.type] || ['#0a0a10', '#3c3a48'];
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, base.width, base.height);
-    ctx.fillStyle = world.type === 'town' ? '#4e6a38' : '#3c3a48';
+    ctx.fillStyle = walk;
     for (let z = 0; z < g.h; z++)
       for (let x = 0; x < g.w; x++)
         if (g.cells[z][x]) ctx.fillRect(x * 3, z * 3, 3, 3);

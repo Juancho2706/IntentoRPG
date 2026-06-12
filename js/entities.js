@@ -201,6 +201,8 @@ export class Player {
     this.pet = this.pet || null;
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
+    this.refugeUnlocked = !!this.refugeUnlocked;
+    this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, ...(this.paragon || {}) };
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
@@ -248,9 +250,17 @@ export class Player {
       if (!it) continue;
       if (it.arm) item.arm += it.arm;
       addStats(it.affixes || {});
-      for (const gm of it.gems || []) addStats(gm.stats); // gemas engarzadas
+      for (const gm of it.gems || []) addStats(gm.stats); // gemas y runas engarzadas
+      if (it.runeword) addStats(it.runeword.stats);       // bonus de palabra rúnica
       if (it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
     }
+    // paragon: mejoras infinitas tras el nivel 20
+    addStats({
+      dmgPct: this.paragon.dmgPct,
+      hp: this.paragon.hp * 8,
+      arm: this.paragon.arm * 3,
+      aspdPct: this.paragon.aspdPct * 0.5,
+    });
     // bonus de conjunto por número de piezas equipadas
     for (const [sid, n] of Object.entries(setCounts)) {
       const set = SETS.find(s => s.id === sid);
@@ -326,12 +336,18 @@ export class Player {
     while (this.xp >= xpForLevel(this.level)) {
       this.xp -= xpForLevel(this.level);
       this.level++;
-      this.statPoints += 5;
-      this.skillPoints += 1;
+      if (this.level > 20) {
+        // tras el nivel 20: puntos Paragon en lugar de atributos/habilidades
+        this.paragon.points++;
+        this.game.ui.message(`🌟 ¡Nivel ${this.level}! +1 punto Paragon (panel de Personaje)`);
+      } else {
+        this.statPoints += 5;
+        this.skillPoints += 1;
+        this.game.ui.message(`⭐ ¡Nivel ${this.level}! +5 atributos, +1 punto de habilidad`);
+      }
       this.recompute();
       this.hp = this.stats.maxHP;
       this.mp = this.stats.maxMP;
-      this.game.ui.message(`⭐ ¡Nivel ${this.level}! +5 atributos, +1 punto de habilidad`);
       this.game.sfx('levelup');
       this.game.vibrate([50, 30, 70]);
       this.game.spawnBurst(this.pos, 0xffd24a, 14);
