@@ -335,14 +335,19 @@ export class UI {
     const g = this.game;
     const cont = $('settings-body');
     cont.innerHTML = '';
-    const toggle = (key, label) => {
+    const toggle = (key, label, onChange) => {
       const row = document.createElement('label');
       row.className = 'opt-row';
       row.innerHTML = `<span>${label}</span><input type="checkbox" ${g.settings[key] ? 'checked' : ''}>`;
-      row.querySelector('input').onchange = (e) => { g.settings[key] = e.target.checked; g.saveSettings(); };
+      row.querySelector('input').onchange = (e) => {
+        g.settings[key] = e.target.checked;
+        g.saveSettings();
+        if (onChange) onChange(e.target.checked);
+      };
       cont.appendChild(row);
     };
     toggle('sound', '🔊 Sonido');
+    toggle('music', '🎵 Música ambiental', (v) => g.music.setEnabled(v));
     toggle('shake', '📳 Sacudida de cámara');
     toggle('haptics', '📱 Vibración (móvil)');
     toggle('autoq', '🚀 Calidad automática (baja gráficos si van lentos)');

@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
+import { ENEMIES, MIMIC, ENEMY_RANKS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
 import { rollDrops, makeGold, generateItem, RARITIES } from './items.js';
@@ -10,6 +10,7 @@ import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
 import { economyMethods } from './economy.js';
+import { Music } from './music.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 
@@ -37,7 +38,7 @@ class Game {
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
-    this.settings = { sound: true, shake: true, haptics: true, brightness: 1, autoq: true, ...opts };
+    this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, ...opts };
     this.qualityLevel = 0;
     this.fpsAcc = 0;
     this.fpsFrames = 0;
@@ -45,6 +46,9 @@ class Game {
     try { this.dailyLog = JSON.parse(localStorage.getItem('intentorpg_dailylog') || '[]'); } catch { this.dailyLog = []; }
     const rawSfx = createSfx();
     this.sfx = (name) => { if (this.settings.sound) rawSfx(name); };
+    this.music = new Music();
+    this.music.enabled = this.settings.music !== false;
+    window.addEventListener('pointerdown', () => this.music.resume(), { once: true });
 
     // renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -240,14 +244,19 @@ class Game {
     this.sun.color.setHex(w.sun.color);
     this.playerLight.intensity = w.type === 'dungeon' ? 16 : 0;
 
-    // enemigos (los normales pueden salir Campeón o Élite)
+    // enemigos: sueltos, manadas con líder, élites de tesoro y jefe
     const sf = w.scaleFloor;
     for (const s of w.spawns) {
+      if (s.kind === 'pack') { this.spawnPack(s.positions, sf); continue; }
       let def;
       if (s.kind === 'boss') {
         def = scaleEnemy(bossForFloor(sf), sf);
         def.rankLabel = `👹 ${def.name}`;
         def.labelCls = 'lbl-elite';
+      } else if (s.kind === 'elite') {
+        def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
+        for (let t = 0; t < 25 && def.rank !== 'elite'; t++)
+          def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
       } else {
         def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
       }
@@ -255,6 +264,7 @@ class Game {
       this.enemies.push(enemy);
       this.entityGroup.add(enemy.group);
     }
+    this.pendingWaves = [];
 
     // jugador
     this.player.pos.copy(w.spawn);
@@ -272,6 +282,7 @@ class Game {
       this.pet.pos.y = 0;
     }
     this.camTarget.copy(this.player.pos);
+    this.music.play(w.type === 'town' ? 'town' : w.type === 'refuge' ? 'refuge' : w.biome);
     this.ui.initMinimap(w);
     if (w.daily) this.dailyStart = Date.now();
     if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
@@ -384,6 +395,69 @@ class Game {
       this.fxGroup.remove(tg.group);
       tg.group.children.forEach(c => { c.geometry.dispose(); c.material.dispose(); });
       this.telegraphs.splice(i, 1);
+    }
+  }
+
+  // ---------- manadas y emboscadas ----------
+  // manada: líder campeón/élite y esbirros del mismo tipo que heredan su rasgo
+  spawnPack(positions, floor) {
+    const base = pickEnemyDef(floor);
+    let leader = rollEnemyRank(scaleEnemy(base, floor), floor);
+    for (let t = 0; t < 25 && !leader.rank; t++) leader = rollEnemyRank(scaleEnemy(base, floor), floor);
+    if (!leader.rank) {
+      const rk = ENEMY_RANKS.campeon;
+      const d = scaleEnemy(base, floor);
+      leader = {
+        ...d, rank: 'campeon', glow: rk.glow, labelCls: rk.labelCls, aura: 0x2244aa,
+        hp: Math.round(d.hp * rk.hp), dmg: Math.round(d.dmg * rk.dmg),
+        xp: Math.round(d.xp * rk.xp), scale: (d.scale || 1) * rk.scale,
+        rankLabel: `${rk.icon} ${d.name} ${rk.name}`,
+      };
+    }
+    const lead = new Enemy(this, leader, positions[0]);
+    this.enemies.push(lead);
+    this.entityGroup.add(lead.group);
+    for (const pos of positions.slice(1)) {
+      const m = scaleEnemy(base, floor);
+      const minion = {
+        ...m, aura: leader.aura, burn: leader.burn, explode: leader.explode,
+        thorns: leader.thorns, xp: Math.round(m.xp * 1.2),
+      };
+      if (leader.modId === 'veloz') minion.spd = m.spd * 1.3;
+      const e = new Enemy(this, minion, pos);
+      this.enemies.push(e);
+      this.entityGroup.add(e.group);
+    }
+  }
+
+  spawnWave(positions) {
+    const sf = this.world.scaleFloor || 1;
+    for (const pos of positions) {
+      const def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
+      const e = new Enemy(this, def, pos);
+      e.aggroed = true; // vienen directos a por ti
+      this.enemies.push(e);
+      this.entityGroup.add(e.group);
+      this.spawnBurst(pos, 0x8844ff, 6);
+    }
+    this.sfx('eshoot');
+  }
+
+  updateTriggers(dt) {
+    const p = this.player;
+    for (const tr of this.world.triggers || []) {
+      if (tr.triggered || p.pos.distanceTo(tr.pos) > tr.radius) continue;
+      tr.triggered = true;
+      this.ui.message('⚠️ ¡Es una emboscada!', 2500);
+      this.addShake(0.3, 0.3);
+      this.vibrate([50, 40, 50]);
+      this.spawnWave(tr.waves[0]);
+      if (tr.waves[1]?.length) (this.pendingWaves ||= []).push({ t: 4, positions: tr.waves[1] });
+    }
+    for (let i = (this.pendingWaves || []).length - 1; i >= 0; i--) {
+      const wv = this.pendingWaves[i];
+      wv.t -= dt;
+      if (wv.t <= 0) { this.spawnWave(wv.positions); this.pendingWaves.splice(i, 1); }
     }
   }
 
@@ -705,6 +779,7 @@ class Game {
       this.checkDailyReward(enemy);
       this.addShake(0.45, 0.4);
       this.vibrate([60, 40, 80]);
+      this.music.sting();
     }
     this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
     const floor = this.world.scaleFloor || this.world.floor || 1;
@@ -951,7 +1026,10 @@ class Game {
     // interactuables
     this.nearVendor = false;
     this.nearEnchanter = false;
-    if (this.state === 'play') this.checkInteractables(dt);
+    if (this.state === 'play') {
+      this.checkInteractables(dt);
+      this.updateTriggers(dt);
+    }
 
     // animar portales, waypoints y antorchas
     for (const it of this.world.interactables) {

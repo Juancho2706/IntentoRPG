@@ -496,16 +496,84 @@ export function buildDungeon(floor, seed = null) {
   ];
   let shrineCount = 0;
 
-  // enemigos: en todas las salas menos la primera
+  // cofre reutilizable (mimicChance 0 = cofre seguro)
+  const placeChest = (r, mimicChance = 0.18) => {
+    const pos = freeCell(r);
+    if (!pos) return;
+    const chest = new THREE.Group();
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55),
+      new THREE.MeshStandardMaterial({ color: 0x7a5a2a, roughness: 0.85 }));
+    box.position.y = 0.25;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.18, 0.6),
+      new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 0.5, roughness: 0.5 }));
+    lid.position.y = 0.56;
+    box.castShadow = lid.castShadow = true;
+    chest.add(box, lid);
+    chest.position.copy(pos);
+    group.add(chest);
+    interactables.push({ type: 'chest', pos: pos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: rnd() < mimicChance });
+  };
+
+  // enemigos por sala con curva de densidad: respiros, picos y salas con guion
+  const triggers = [];
+  let ambushPlaced = false, treasurePlaced = false;
   for (let i = 1; i < rooms.length; i++) {
     const r = rooms[i];
     const isLast = i === rooms.length - 1;
-    const n = 2 + Math.floor(floor / 2) + ri(0, 2);
-    for (let j = 0; j < n; j++) {
-      const pos = freeCell(r);
-      if (!pos || pos.distanceTo(exit) < 2.5) continue;
-      spawns.push({ kind: 'enemy', pos });
+
+    // papel de la sala
+    let role = 'normal';
+    if (!isLast) {
+      const roll = rnd();
+      if (!ambushPlaced && roll < 0.16 && r.w >= 6 && r.d >= 6) { role = 'ambush'; ambushPlaced = true; }
+      else if (!treasurePlaced && roll < 0.28) { role = 'treasure'; treasurePlaced = true; }
+      else if (roll < 0.5) role = 'calm';
+      else if (roll < 0.78) role = 'normal';
+      else role = 'pack';
     }
+
+    if (role === 'calm') {
+      // respiro: poca resistencia
+      const n = 1 + ri(0, 1);
+      for (let j = 0; j < n; j++) {
+        const pos = freeCell(r);
+        if (pos && pos.distanceTo(exit) >= 2.5) spawns.push({ kind: 'enemy', pos });
+      }
+    } else if (role === 'normal' || isLast) {
+      const n = 2 + Math.floor(floor / 3) + ri(0, 2);
+      for (let j = 0; j < n; j++) {
+        const pos = freeCell(r);
+        if (pos && pos.distanceTo(exit) >= 2.5) spawns.push({ kind: 'enemy', pos });
+      }
+    } else if (role === 'pack') {
+      // manada: líder campeón/élite con esbirros que heredan su rasgo
+      const positions = [];
+      const count = 4 + ri(0, 1);
+      for (let j = 0; j < count; j++) {
+        const pos = freeCell(r);
+        if (pos) positions.push(pos);
+      }
+      if (positions.length >= 3) spawns.push({ kind: 'pack', positions });
+      else for (const pos of positions) spawns.push({ kind: 'enemy', pos });
+    } else if (role === 'treasure') {
+      // tesoro custodiado: élite garantizado y cofres extra
+      const gp = freeCell(r);
+      if (gp) spawns.push({ kind: 'elite', pos: gp });
+      placeChest(r);
+      placeChest(r);
+    } else if (role === 'ambush') {
+      // sala-trampa: parece vacía, con un cofre jugoso al centro
+      const w1 = [], w2 = [];
+      for (let j = 0; j < 4; j++) { const pos = freeCell(r); if (pos) w1.push(pos); }
+      for (let j = 0; j < 3; j++) { const pos = freeCell(r); if (pos) w2.push(pos); }
+      triggers.push({
+        type: 'ambush', pos: grid.center(r.cx, r.cz),
+        radius: Math.max(2.5, Math.min(r.w, r.d) / 2),
+        waves: [w1, w2], triggered: false,
+      });
+      placeChest(r, 0); // la trampa es la sala, no el cofre
+    }
+
     if (isLast) {
       const bp = freeCell(last) || exit.clone();
       spawns.push({ kind: 'boss', pos: bp });
@@ -532,30 +600,14 @@ export function buildDungeon(floor, seed = null) {
         interactables.push({ type: 'shrine', shrine: def.kind, pos: sPos.clone(), radius: 1.5, label: `✨ ${def.name}`, labelCls: 'lbl-portal', mesh: shrine, used: false });
       }
     }
-    // cofres
-    if (rnd() < 0.35) {
-      const pos = freeCell(r);
-      if (!pos) continue;
-      const chest = new THREE.Group();
-      const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55),
-        new THREE.MeshStandardMaterial({ color: 0x7a5a2a, roughness: 0.85 }));
-      box.position.y = 0.25;
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.18, 0.6),
-        new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 0.5, roughness: 0.5 }));
-      lid.position.y = 0.56;
-      box.castShadow = lid.castShadow = true;
-      chest.add(box, lid);
-      chest.position.copy(pos);
-      group.add(chest);
-      // algunos cofres son mímicos disfrazados
-      interactables.push({ type: 'chest', pos: pos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: rnd() < 0.18 });
-    }
+    // cofres sueltos (las salas con guion ya colocan los suyos)
+    if (role !== 'ambush' && role !== 'treasure' && rnd() < 0.35) placeChest(r);
   }
 
   return {
     type: 'dungeon', floor, biome: biome.name, group, grid,
     spawn: grid.center(rooms[0].cx, rooms[0].cz + 2),
-    interactables, spawns, torchLights, rooms,
+    interactables, spawns, triggers, torchLights, rooms,
     fog: { color: biome.fog, near: 14, far: 30 },
     ambient: biome.ambient, ambientIntensity: 0.32,
     sun: { color: 0x8899bb, intensity: 0.5 },

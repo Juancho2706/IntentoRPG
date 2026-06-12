@@ -15,7 +15,10 @@ for (let f = 1; f <= 12; f++) {
   const bosses = d.spawns.filter(s=>s.kind==='boss').length;
   if (bosses !== 1) throw new Error('jefes='+bosses+' en piso '+f);
   // todos los spawns en celdas transitables
-  for (const s of d.spawns) if (!d.grid.walkable(s.pos.x, s.pos.z, 0.1)) throw new Error('spawn enemigo en muro, piso '+f);
+  for (const s of d.spawns) {
+    const positions = s.positions || [s.pos];
+    for (const pos of positions) if (!d.grid.walkable(pos.x, pos.z, 0.1)) throw new Error('spawn enemigo en muro, piso '+f);
+  }
   if (f<=3) console.log(`Piso ${f}: ${d.rooms.length} salas, ${d.spawns.length} spawns, ${types.filter(t=>t==='chest').length} cofres`);
 }
 

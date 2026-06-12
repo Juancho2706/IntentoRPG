@@ -25,6 +25,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
+- **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
+- **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes
 - **Jefes con mecánicas por bioma**: el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego
 - **Cubo de transmutación** con recetas: 3 objetos de la misma rareza → 1 superior · 3 gemas iguales → gema superior · 3 gemas distintas → gema aleatoria
 - **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente quema de cerca, Explosivo detona al morir, Espinoso refleja daño…)

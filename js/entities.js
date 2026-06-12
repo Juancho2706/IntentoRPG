@@ -619,6 +619,31 @@ export class Enemy {
 
     const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1);
 
+    // cobardes: con poca vida huyen de ti
+    if (this.def.coward && this.hp < this.maxHP * 0.3 && d < 6 && d > 0.01) {
+      const nx = (this.pos.x - player.pos.x) / d, nz = (this.pos.z - player.pos.z) / d;
+      moveWithCollision(g.world.grid, this.pos, nx * spd * dt, nz * spd * dt, 0.3);
+      this.group.rotation.y = Math.atan2(nx, nz);
+      return false;
+    }
+
+    // brujos: se teletransportan lejos si te acercas demasiado
+    this.blinkCd = Math.max(0, (this.blinkCd || 0) - dt);
+    if (this.def.blink && this.blinkCd <= 0 && d < 2.6 && this.hasLOS) {
+      for (let t = 0; t < 8; t++) {
+        const a = Math.random() * Math.PI * 2;
+        const nx = this.pos.x + Math.sin(a) * 5, nz = this.pos.z + Math.cos(a) * 5;
+        if (g.world.grid.walkable(nx, nz, 0.3) &&
+            Math.hypot(nx - player.pos.x, nz - player.pos.z) > d) {
+          g.spawnRing(this.pos.clone(), 0.8, 0xaa66ff);
+          this.pos.set(nx, 0, nz);
+          this.blinkCd = 5;
+          g.sfx('eshoot');
+          break;
+        }
+      }
+    }
+
     if (d <= aggro) {
       if (this.hasLOS) this.aggroed = true; // te ha visto: te recordará
       // mirar al jugador

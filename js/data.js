@@ -120,7 +120,7 @@ export function synergyBonus(sk, skills) {
 }
 
 export const ENEMIES = [
-  { id: 'rata', name: 'Rata Gigante', color: 0x7a6a55, shape: 'rat',
+  { id: 'rata', name: 'Rata Gigante', color: 0x7a6a55, shape: 'rat', coward: true,
     hp: 16, dmg: 3, spd: 3.4, xp: 8, range: 1.3, atkTime: 1.0, scale: 0.65,
     minFloor: 1, weight: 30 },
   { id: 'zombi', name: 'Zombi', color: 0x6a8f4f, shape: 'humanoid',
@@ -129,7 +129,7 @@ export const ENEMIES = [
   { id: 'esqueleto', name: 'Esqueleto', color: 0xd8d3c0, shape: 'humanoid',
     hp: 26, dmg: 8, spd: 2.8, xp: 16, range: 1.5, atkTime: 1.1, scale: 0.95,
     minFloor: 1, weight: 25 },
-  { id: 'brujo', name: 'Brujo Oscuro', color: 0x7a3da0, shape: 'humanoid', rangedAttack: true,
+  { id: 'brujo', name: 'Brujo Oscuro', color: 0x7a3da0, shape: 'humanoid', rangedAttack: true, blink: true,
     hp: 22, dmg: 9, spd: 2.2, xp: 22, range: 7.5, atkTime: 2.0, scale: 1.0, projSpeed: 8, projColor: 0xaa44ff,
     minFloor: 2, weight: 18 },
   { id: 'demonio', name: 'Demonio', color: 0xa02020, shape: 'demon',
