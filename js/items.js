@@ -82,6 +82,16 @@ export const SETS = [
   },
 ];
 
+// Poderes únicos que cambian cómo juegas (solo en legendarios y reliquias)
+export const LEGENDARY_POWERS = [
+  { id: 'festin',      name: 'del Festín',   desc: 'Recuperas 6% de tu vida máxima al matar un enemigo.' },
+  { id: 'volatil',     name: 'Volátil',      desc: 'Los enemigos explotan al morir y dañan a los cercanos.' },
+  { id: 'multidisparo', name: 'del Vendaval', desc: 'Tus ataques y habilidades de proyectil lanzan +1 proyectil.' },
+  { id: 'agil',        name: 'del Viento',   desc: 'Tu esquiva se recarga un 40% más rápido.' },
+  { id: 'furia',       name: 'de la Furia',  desc: '+25% de daño mientras tu vida esté por encima del 80%.' },
+  { id: 'avaricia',    name: 'de la Avaricia', desc: 'Los enemigos sueltan más oro y tienes +30% de hallazgo mágico.' },
+];
+
 const PREFIXES = ['Feroz', 'Sombrío', 'Brillante', 'Antiguo', 'Maldito', 'Sagrado', 'Veloz', 'Cruel', 'Glacial', 'Ígneo'];
 const SUFFIXES = ['del Lobo', 'de la Víbora', 'del Águila', 'del Titán', 'de la Tormenta', 'del Abismo', 'de la Luna', 'del Rey', 'de Sangre', 'del Vacío'];
 const LEGENDARY_NAMES = ['Perdición de Reyes', 'Aliento del Dragón', 'Lágrima Estelar', 'Corazón del Abismo', 'Juramento Roto', 'Última Aurora', 'Colmillo Eterno', 'Vendaval Negro'];
@@ -153,6 +163,11 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
   if (rarity.id === 'legendario') {
     item.name = pick(LEGENDARY_NAMES);
     item.subName = item.baseName;
+    // poder único + afijo de avaricia coherente con su poder
+    const power = pick(LEGENDARY_POWERS);
+    item.power = { id: power.id, name: power.name, desc: power.desc };
+    if (power.id === 'avaricia') item.affixes.mf = (item.affixes.mf || 0) + 30;
+    item.unidentified = true; // se revela al identificarlo (momento de emoción)
   } else if (rarity.id === 'raro') {
     item.name = `${item.baseName} ${pick(PREFIXES)} ${pick(SUFFIXES)}`;
   } else if (rarity.id === 'magico') {
@@ -215,7 +230,33 @@ export function generateSetItem(ilvl) {
     if (piece.slot === 'chest') item.arm = Math.round(item.arm * 1.5);
   }
   item.value = Math.round((10 + ilvl * 5) * 3);
+  item.unidentified = true;
   return item;
+}
+
+// Reliquia de jefe: amuleto temático con un poder único (baja probabilidad)
+const RELICS = {
+  senor_abismo:    { name: 'Corazón del Señor del Abismo', power: 'volatil', stats: { dmgPct: 12, vit: 4 } },
+  rey_gelido:      { name: 'Núcleo del Rey Gélido', power: 'festin', stats: { hp: 25, arm: 10 } },
+  avatar_infierno: { name: 'Brasa del Avatar', power: 'furia', stats: { dmgPct: 18, crit: 4 } },
+  corazon_vacio:   { name: 'Esquirla del Vacío', power: 'multidisparo', stats: { ene: 6, mf: 20 } },
+};
+
+export function makeRelic(bossId, ilvl) {
+  const r = RELICS[bossId] || RELICS.senor_abismo;
+  const pw = LEGENDARY_POWERS.find(p => p.id === r.power);
+  const scale = 1 + 0.2 * (ilvl - 1);
+  const affixes = {};
+  for (const [stat, v] of Object.entries(r.stats)) {
+    const af = AFFIX_POOL.find(a => a.stat === stat);
+    affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * scale)) : v;
+  }
+  return {
+    uid: itemUid++, kind: 'item', slot: 'amulet', icon: '🏅', relic: true,
+    baseName: 'Reliquia', name: r.name, ilvl, rarity: 'legendario', affixes,
+    power: { id: pw.id, name: pw.name, desc: pw.desc },
+    unidentified: true, value: 200 + ilvl * 10,
+  };
 }
 
 // Runas: se engarzan como las gemas; en el orden correcto forman palabras rúnicas
@@ -331,7 +372,9 @@ export function statText(stat, v) {
 }
 
 export function itemStatLines(item) {
+  if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];
+  if (item.power) lines.push(`✦ ${item.power.name}: ${item.power.desc}`);
   if (item.dmg) lines.push(`Daño: ${item.dmg[0]} - ${item.dmg[1]}`);
   if (item.arm) lines.push(`Armadura: ${item.arm}`);
   for (const [stat, v] of Object.entries(item.affixes || {}))

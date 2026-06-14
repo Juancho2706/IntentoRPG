@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { ENEMIES, MIMIC, ENEMY_RANKS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, generateItem, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, makeRelic, RARITIES } from './items.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -652,7 +652,7 @@ class Game {
       case 'proj': {
         p.faceToward(target);
         p.swing = 1;
-        const count = sk.count ? Math.floor(skillVal(sk.count, lvl)) : 1;
+        const count = (sk.count ? Math.floor(skillVal(sk.count, lvl)) : 1) + (p.powers?.has('multidisparo') ? 1 : 0);
         const baseAngle = Math.atan2(target.x - p.pos.x, target.z - p.pos.z);
         for (let i = 0; i < count; i++) {
           const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
@@ -729,6 +729,7 @@ class Game {
     p.gainXP(q.reward.xp);
     if (q.reward.item) {
       const item = generateItem(Math.max(1, Math.round(p.level * 0.8)), q.reward.item);
+      item.unidentified = false;
       if (p.inventory.length < 32) p.inventory.push(item);
       else this.spawnGroundItem(item, p.pos);
       this.ui.message(`Recompensa: ${item.name}`, 2500);
@@ -801,6 +802,22 @@ class Game {
       this.music.sting();
     }
     this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
+
+    // poderes únicos al matar
+    if (p.powers?.has('festin') && p.alive) {
+      p.hp = Math.min(p.stats.maxHP, p.hp + p.stats.maxHP * 0.06);
+      this.ui.spawnText(p.pos, '+❤️', 'txt-heal');
+    }
+    if (p.powers?.has('volatil')) {
+      // el enemigo explota dañando a los cercanos
+      const boom = Math.round((enemy.maxHP || 20) * 0.4);
+      this.spawnRing(enemy.pos.clone(), 2.2, 0xff6622);
+      this.spawnBurst(enemy.pos, 0xff6622, 10);
+      for (const e of this.enemies) {
+        if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= 2.6 * 2.6)
+          e.takeDamage(boom, false);
+      }
+    }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
     const lootOpts = { mf: (p.stats.mf || 0), qty: (this.world.pact?.qty || 0) };
@@ -809,6 +826,10 @@ class Game {
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
     else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { ...lootOpts, itemChance: 0.4, goldChance: 0.85, potionChance: 0.3, setChance: 0.02 });
     else drops = rollDrops(floor, lootOpts);
+    if (p.powers?.has('avaricia')) for (const d of drops) if (d.kind === 'gold') d.amount = Math.round(d.amount * 1.5);
+    // reliquia temática del jefe (baja probabilidad, mejora con el hallazgo mágico)
+    if (enemy.def.boss && Math.random() < 0.12 * (1 + (p.stats.mf || 0) / 100))
+      drops.push(makeRelic(enemy.def.id, floor));
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
     if (enemy.def.boss) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
     this.sfx('death');
@@ -1309,7 +1330,8 @@ class Game {
       const it = gi.item;
       if (it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune') {
         entries.push({
-          id: gi.id, pos: gi.mesh.position, text: `${it.icon} ${it.name}`,
+          id: gi.id, pos: gi.mesh.position,
+          text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${it.icon} ${it.name}`,
           cls: 'lbl-item rarity-' + it.rarity,
           onClick: () => { p.pickTarget = gi; p.moveTarget = null; p.attackTarget = null; },
         });

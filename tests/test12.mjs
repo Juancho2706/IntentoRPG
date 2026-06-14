@@ -54,6 +54,7 @@ console.log(`Paragon: nivel ${p.level}, ${p.paragon.points} pts, +5 vida → max
 // runeword aplica al recompute
 let armaReal;
 for (let i = 0; i < 9000 && !armaReal; i++) { const x = generateItem(8, 'legendario'); if (x.slot === 'weapon' && x.sockets >= 2) armaReal = x; }
+armaReal.unidentified = false;
 armaReal.gems = [{ kind: 'rune', runeId: 'tir', name: 'Tir', icon: '🪬', stats: { mp: 4 } }, { kind: 'rune', runeId: 'el', name: 'El', icon: '🪬', stats: { arm: 3 } }];
 checkRuneword(armaReal);
 p.equipment.weapon = armaReal;

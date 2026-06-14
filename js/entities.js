@@ -251,14 +251,17 @@ export class Player {
     }
 
     const setCounts = {};
+    this.powers = new Set();
     for (const it of Object.values(this.equipment)) {
-      if (!it) continue;
+      if (!it || it.unidentified) continue; // sin identificar no da nada
       if (it.arm) item.arm += it.arm;
       addStats(it.affixes || {});
       for (const gm of it.gems || []) addStats(gm.stats); // gemas y runas engarzadas
       if (it.runeword) addStats(it.runeword.stats);       // bonus de palabra rúnica
       if (it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
+      if (it.power) this.powers.add(it.power.id);          // poderes únicos de legendarios/reliquias
     }
+    if (this.powers.has('avaricia')) item.mf += 30;
     // paragon: mejoras infinitas tras el nivel 20
     addStats({
       dmgPct: this.paragon.dmgPct,
@@ -312,6 +315,8 @@ export class Player {
     let dmg = rand(this.stats.dmgMin, this.stats.dmgMax) * mult;
     const crit = Math.random() * 100 < this.stats.crit + critBonus;
     if (crit) dmg *= 1.8;
+    // poder 'furia': más daño con la vida alta
+    if (this.powers?.has('furia') && this.hp > this.stats.maxHP * 0.8) dmg *= 1.25;
     return { dmg: Math.max(1, Math.round(dmg)), crit };
   }
 
@@ -324,12 +329,13 @@ export class Player {
   // esquiva: impulso rápido con invulnerabilidad breve
   dodge() {
     if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0) return;
+    void 0;
     const g = this.game;
     const dir = g.input.joyDir || g.input.keyDir;
     if (dir) this.dodgeDir = { x: dir.x, z: dir.z };
     else this.dodgeDir = { x: Math.sin(this.group.rotation.y), z: Math.cos(this.group.rotation.y) };
     this.dodgeT = 0.28;
-    this.dodgeCd = 3;
+    this.dodgeCd = this.dodgeCdMax = this.powers?.has('agil') ? 1.8 : 3; // poder 'agil': recarga más rápida
     this.moveTarget = null;
     g.sfx('dash');
     g.vibrate(20);
@@ -496,12 +502,19 @@ export class Player {
     this.swing = 1;
     const g = this.game;
     if (this.cls.ranged) {
-      const { dmg, crit } = this.rollDamage(1);
-      g.spawnProjectile({
-        from: this.pos.clone().setY(1.0), to: target.pos.clone().setY(1.0),
-        speed: 16, range: this.cls.atkRange + 2, dmg, crit, friendly: true,
-        color: 0xe8d8a0, size: 0.09,
-      });
+      // poder 'multidisparo': una flecha extra en abanico
+      const extra = this.powers?.has('multidisparo') ? 1 : 0;
+      const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+      for (let i = 0; i <= extra; i++) {
+        const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
+        const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
+        const { dmg, crit } = this.rollDamage(1);
+        g.spawnProjectile({
+          from: this.pos.clone().setY(1.0), to: to.setY(1.0),
+          speed: 16, range: this.cls.atkRange + 2, dmg, crit, friendly: true,
+          color: 0xe8d8a0, size: 0.09,
+        });
+      }
       g.sfx('shoot');
     } else {
       const { dmg, crit } = this.rollDamage(1);

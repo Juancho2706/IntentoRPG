@@ -16,6 +16,7 @@ export const economyMethods = {
     const items = [];
     for (let i = 0; i < n; i++) {
       const it = generateItem(ilvl);
+      it.unidentified = false;
       it.price = Math.max(20, it.value * 4);
       items.push(it);
     }
@@ -59,6 +60,7 @@ export const economyMethods = {
     p.gold -= offer.price;
     this.shopStock.gamble.splice(idx, 1);
     const item = gambleItem(Math.max(1, Math.round(p.level * 0.8)), offer.slot);
+    item.unidentified = false;
     p.inventory.push(item);
     if (item.rarity === 'legendario') p.records.legendaries++;
     this.sfx(item.rarity === 'legendario' ? 'levelup' : 'gold');
@@ -82,6 +84,7 @@ export const economyMethods = {
     const p = this.player;
     const item = p.inventory[index];
     if (!item || !item.slot) return;
+    if (item.unidentified) { this.ui.message('🔎 Identifícalo antes de equiparlo'); return; }
     // los anillos pueden ir en cualquiera de las dos ranuras
     let slot = item.slot;
     if (slot === 'ring' && p.equipment.ring && !p.equipment.ring2) slot = 'ring2';
@@ -183,6 +186,7 @@ export const economyMethods = {
     }
   
     p.cube = [];
+    item.unidentified = false;
     p.inventory.push(item);
     this.sfx('levelup');
     this.ui.renderPanel();
@@ -313,6 +317,31 @@ export const economyMethods = {
     if (!it) return;
     it.fav = !it.fav;
     this.sfx('pickup');
+    this.save();
+  },
+
+  // ---------- identificación ----------
+  identifyItem(index) {
+    const it = this.player.inventory[index];
+    if (!it || !it.unidentified) return;
+    it.unidentified = false;
+    this.player.discover?.(it);            // registro de colección
+    this.sfx('levelup');
+    this.vibrate([30, 20, 50]);
+    this.ui.message(`🔎 Identificado: ${it.name}`, 2500);
+    this.ui.renderPanel();
+    this.ui.itemPopup(it, { from: 'inv', index });
+    this.save();
+  },
+
+  identifyAll() {
+    const p = this.player;
+    const n = p.inventory.filter(it => it.unidentified).length;
+    if (!n) { this.ui.message('No hay objetos sin identificar'); return; }
+    for (const it of p.inventory) if (it.unidentified) { it.unidentified = false; p.discover?.(it); }
+    this.sfx('levelup');
+    this.ui.message(`🔎 ${n} objeto(s) identificados`, 2500);
+    this.ui.renderPanel();
     this.save();
   },
 };

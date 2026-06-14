@@ -21,8 +21,8 @@ const fake = { ui: { spawnText(){}, message(){} }, sfx(){}, input: { joyDir: nul
 const p = new Player(fake, 'guerrero');
 const base = p.stats.dmgMax;
 // equipa 2 piezas del Lobo (bonus 2p: +12% daño)
-p.equipment.helm = generateSetItemOf('lobo', 'helm');
-p.equipment.chest = generateSetItemOf('lobo', 'chest');
+p.equipment.helm = generateSetItemOf('lobo', 'helm'); p.equipment.helm.unidentified = false;
+p.equipment.chest = generateSetItemOf('lobo', 'chest'); p.equipment.chest.unidentified = false;
 function generateSetItemOf(setId, slot) {
   for (let i = 0; i < 500; i++) { const it = generateSetItem(1); if (it.setId === setId && it.slot === slot) return it; }
   throw new Error('no generó la pieza');

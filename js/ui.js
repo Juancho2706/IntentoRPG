@@ -29,6 +29,7 @@ export class UI {
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
     $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
+    $('btn-identify').addEventListener('click', () => g.identifyAll());
     $('btn-junk').addEventListener('click', () => g.sellJunk());
     $('btn-sort').addEventListener('click', () => g.sortInventory());
     document.querySelectorAll('.panel-close').forEach(b => b.addEventListener('click', () => this.closePanel()));
@@ -156,7 +157,7 @@ export class UI {
 
     // cooldown de la esquiva
     $('btn-dodge').querySelector('.cd-overlay').style.height =
-      p.dodgeCd > 0 ? (p.dodgeCd / 3 * 100) + '%' : '0%';
+      p.dodgeCd > 0 ? (p.dodgeCd / (p.dodgeCdMax || 3) * 100) + '%' : '0%';
 
     // el botón de recoger brilla si hay botín cerca
     const lootNear = this.game.groundItems.some(gi => gi.mesh.position.distanceToSquared(p.pos) < 81);
@@ -553,9 +554,11 @@ export class UI {
         setHTML = `<div class="set-info"><div class="set-name">${set.icon} ${set.name} (${equippedOfSet}/${set.pieces.length})</div>${piecesHTML}${bonusHTML}</div>`;
       }
     }
+    const nameColor = item.unidentified ? '#b8a0d8' : r.color;
+    const nameTxt = item.unidentified ? `${item.icon} Objeto sin identificar` : `${item.icon} ${item.name}`;
     pop.innerHTML = `
-      <div class="popup-name" style="color:${r.color}">${item.icon} ${item.name}</div>
-      <div class="popup-sub">${r.name} · ${SLOT_NAMES[item.slot] || ''} · Nv. ${item.ilvl}</div>
+      <div class="popup-name" style="color:${nameColor}">${nameTxt}</div>
+      <div class="popup-sub">${item.unidentified ? '❓ ' + r.name : r.name} · ${SLOT_NAMES[item.slot] || ''} · Nv. ${item.ilvl}</div>
       ${lines}${setHTML}${compare}
       <div class="popup-btns"></div>`;
     const btns = pop.querySelector('.popup-btns');
@@ -566,6 +569,16 @@ export class UI {
       b.onclick = () => { fn(); pop.classList.add('hidden'); this.renderPanel(); this.updateHUD(); };
       btns.appendChild(b);
     };
+    // objeto sin identificar: solo se puede identificar (o tirar)
+    if (item.unidentified) {
+      if (ctx.from === 'inv') {
+        addBtn('🔎 Identificar', () => g.identifyItem(ctx.index), 'btn-good');
+        addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
+      }
+      addBtn('Cerrar', () => {});
+      pop.classList.remove('hidden');
+      return;
+    }
     if (ctx.from === 'inv') {
       if (item.kind !== 'gem') addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(item.fav ? '💔 Quitar ⭐' : '⭐ Favorito', () => g.toggleFav(ctx.index));
