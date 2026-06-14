@@ -239,7 +239,7 @@ export class UI {
     const it = this.game.currentInteract;
     const icons = {
       portal_dungeon: '🌀', portal_town: '🌀', portal_next: '🌀', portal_daily: '🌟',
-      portal_zone: '🌿', zone_dungeon: '🕳️',
+      portal_zone: '🌿', gate_zone: '🌿', zone_dungeon: '🕳️', world_event: '🌀',
       waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦', shrine: '✨', enchanter: '🔮',
     };
     const atkBtn = $('btn-attack');

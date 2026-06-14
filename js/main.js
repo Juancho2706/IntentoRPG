@@ -266,6 +266,20 @@ class Game {
     if (w.type === 'zone') {
       const ret = w.interactables.find(it => it.type === 'portal_town');
       if (ret) { ret.auto = true; ret.label = '🚪 Volver al Pueblo'; }
+      // obelisco de evento: una pieza interactuable que desata oleadas
+      const op = this.randomZoneCellFrom(w, w.spawn, 18);
+      if (op) {
+        const ob = new THREE.Group();
+        const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 0.5),
+          new THREE.MeshStandardMaterial({ color: 0x442a66, emissive: 0x8833cc, emissiveIntensity: 0.8, roughness: 0.5 }));
+        shaft.position.y = 1.1; shaft.castShadow = true;
+        const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0),
+          new THREE.MeshStandardMaterial({ color: 0xcc66ff, emissive: 0xaa44ff, emissiveIntensity: 1.5 }));
+        orb.position.y = 2.5; orb.userData.baseY = 2.5;
+        ob.add(shaft, orb); ob.userData.crystal = orb; ob.position.copy(op);
+        w.group.add(ob);
+        w.interactables.push({ type: 'world_event', pos: op.clone(), radius: 1.6, label: '🌀 Obelisco — Evento de oleadas', labelCls: 'lbl-elite', mesh: ob, used: false });
+      }
     }
     // aparecer junto a la puerta correspondiente al cruzar pueblo↔zona
     if (spec.entry) {
@@ -526,6 +540,108 @@ class Game {
       this.spawnBurst(pos, 0x8844ff, 6);
     }
     this.sfx('eshoot');
+  }
+
+  // celda transitable aleatoria de un mundo, lejos de un punto dado
+  randomZoneCellFrom(world, fromPos, minDist = 12) {
+    const g = world.grid;
+    for (let t = 0; t < 50; t++) {
+      const x = 2 + Math.floor(Math.random() * (g.w - 4));
+      const z = 2 + Math.floor(Math.random() * (g.h - 4));
+      if (!g.cells[z][x]) continue;
+      const c = g.center(x, z);
+      if (c.distanceTo(fromPos) >= minDist) return c;
+    }
+    return null;
+  }
+
+  // celda transitable aleatoria de la zona, lejos del jugador
+  randomZoneCell(minDistFromPlayer = 12) {
+    return this.randomZoneCellFrom(this.world, this.player.pos, minDistFromPlayer);
+  }
+
+  // vida de la zona abierta: respawn gradual, jefe de mundo y oleadas de evento
+  zoneTick(dt) {
+    const w = this.world;
+    const alive = this.enemies.reduce((n, e) => n + (e.alive ? 1 : 0), 0);
+
+    // respawn gradual: la zona nunca queda vacía (con tope)
+    w.respawnT = (w.respawnT ?? 8) - dt;
+    if (w.respawnT <= 0) {
+      w.respawnT = 7 + Math.random() * 6;
+      if (alive < 70) {
+        const pos = this.randomZoneCell(16);
+        if (pos) {
+          const positions = [pos];
+          const n = 2 + (Math.random() < 0.5 ? 1 : 0);
+          for (let i = 1; i < n; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const c = pos.clone().add(new THREE.Vector3(Math.sin(a) * 2, 0, Math.cos(a) * 2));
+            if (w.grid.walkable(c.x, c.z)) positions.push(c);
+          }
+          this.spawnPack(positions, w.scaleFloor);
+        }
+      }
+    }
+
+    // jefe de mundo: aparece tras un rato, anunciado, con gran botín al caer
+    if (!w.worldBoss && !w.bossDone) {
+      w.bossT = (w.bossT ?? 50) - dt;
+      if (w.bossT <= 0) this.spawnWorldBoss();
+    }
+
+    // evento de oleadas (obelisco): siguiente oleada cuando mueren las anteriores
+    if (w.event && w.event.active) {
+      const evAlive = this.enemies.some(e => e.alive && e.def.eventEnemy);
+      if (!evAlive) {
+        if (w.event.cur < w.event.total) {
+          w.event.cur++;
+          const around = w.event.pos;
+          const positions = [];
+          for (let i = 0; i < 3 + w.event.cur; i++) {
+            const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3;
+            const c = around.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+            if (w.grid.walkable(c.x, c.z)) positions.push(c);
+          }
+          for (const pos of positions) {
+            const def = rollEnemyRank(scaleEnemy(pickEnemyDef(w.scaleFloor), w.scaleFloor), w.scaleFloor);
+            def.eventEnemy = true;
+            const e = this.buffByPact(new Enemy(this, def, pos));
+            e.aggroed = true;
+            this.enemies.push(e);
+            this.entityGroup.add(e.group);
+          }
+          this.spawnBurst(around, 0x9933ff, 8);
+          this.ui.message(`🌀 Oleada ${w.event.cur}/${w.event.total}`, 2000);
+        } else {
+          // evento completado: recompensa
+          w.event.active = false;
+          for (const d of rollDrops(w.scaleFloor, { mf: this.player.stats.mf || 0, boss: true, cls: this.player.classId }))
+            this.spawnGroundItem(d, w.event.pos);
+          this.ui.message('🌀 ¡Evento completado! Botín liberado', 4000);
+          this.music.sting();
+        }
+      }
+    }
+  }
+
+  spawnWorldBoss() {
+    const w = this.world;
+    const pos = this.randomZoneCell(18) || this.randomZoneCell(8);
+    if (!pos) { w.bossT = 20; return; }
+    const def = scaleEnemy(bossForFloor(w.scaleFloor + 2), w.scaleFloor + 2);
+    def.hp = Math.round(def.hp * 1.6);
+    def.worldBoss = true;
+    def.rankLabel = `👑 ${def.name} (Jefe de Mundo)`;
+    def.labelCls = 'lbl-elite';
+    const e = new Enemy(this, def, pos);
+    e.aggroed = true; // patrulla/caza activamente
+    this.enemies.push(e);
+    this.entityGroup.add(e.group);
+    w.worldBoss = e;
+    this.ui.message('👑 ¡Un Jefe de Mundo ha aparecido en la zona! (mira el minimapa)', 5000);
+    this.addShake(0.4, 0.5);
+    this.music.sting();
   }
 
   updateTriggers(dt) {
@@ -958,6 +1074,16 @@ class Game {
     // grietas: el jefe de un piso profundo suelta una Llave de Grieta (entrada al endgame)
     if (enemy.def.boss && !this.world.rift && (this.world.floor || 0) >= 10 && Math.random() < 0.5)
       drops.push(makeRiftKey(1));
+    // jefe de mundo: botín mayor (legendario + grieta) y reaparece tras un rato
+    if (enemy.def.worldBoss) {
+      this.world.worldBoss = null;
+      this.world.bossDone = true;
+      this.world.bossT = 90; // volverá a aparecer
+      this.world.bossDone = false;
+      drops.push(generateItem(floor + 2, 'legendario', null, null, p.classId));
+      drops.push(makeRiftKey(1));
+      this.ui.message('👑 ¡Jefe de Mundo derrotado! Botín mayor liberado', 5000);
+    }
     // completar una grieta: registra nivel máximo, botín extra y una llave superior
     if (enemy.def.boss && this.world.rift) {
       const L = this.world.rift;
@@ -1233,6 +1359,7 @@ class Game {
     if (this.state === 'play') {
       this.checkInteractables(dt);
       this.updateTriggers(dt);
+      if (this.world.type === 'zone') this.zoneTick(dt);
     }
 
     // animar portales, waypoints y antorchas
@@ -1378,6 +1505,16 @@ class Game {
         // entrar a una mazmorra instanciada desde la zona abierta (contenido difícil)
         this.fromZone = this.world.biome;
         this.loadWorld({ type: 'dungeon', floor: it.floor || 1 });
+        break;
+      case 'world_event':
+        if (it.used) { this.ui.message('El obelisco ya se ha consumido'); break; }
+        it.used = true;
+        it.label = '🌀 Obelisco (agotado)';
+        if (it.mesh?.userData.crystal) it.mesh.userData.crystal.material.emissiveIntensity = 0.2;
+        this.world.event = { active: true, cur: 0, total: 3, pos: it.pos.clone() };
+        this.ui.message('🌀 ¡El obelisco despierta! Sobrevive a las oleadas', 3500);
+        this.addShake(0.3, 0.3);
+        this.sfx('eshoot');
         break;
       case 'enchanter':
         this.ui.togglePanel('inv');
