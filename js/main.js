@@ -216,11 +216,19 @@ class Game {
       });
     }
     for (const e of this.enemies) this.entityGroup.remove(e.group);
-    for (const pr of this.projectiles) this.fxGroup.remove(pr.mesh);
-    for (const gi of this.groundItems) { this.lootGroup.remove(gi.mesh); if (gi.beam) this.lootGroup.remove(gi.beam); }
-    for (const f of this.fx) this.fxGroup.remove(f.mesh);
-    for (const fp of this.firePools) this.fxGroup.remove(fp.mesh);
-    for (const tg of this.telegraphs) this.fxGroup.remove(tg.group);
+    // limpia por completo loot y efectos (a prueba de mallas huérfanas que
+    // quedaban como objetos estáticos al cambiar de mundo)
+    const clearGroup = (grp) => {
+      for (const child of grp.children) {
+        child.traverse?.((o) => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
+        });
+      }
+      grp.clear();
+    };
+    clearGroup(this.lootGroup);
+    clearGroup(this.fxGroup);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
     this.firePools = []; this.telegraphs = [];
 

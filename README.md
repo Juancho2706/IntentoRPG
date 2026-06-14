@@ -28,7 +28,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
 - **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes
 - **Jefes con mecánicas por bioma**: el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego
-- **Cubo de transmutación** con recetas: 3 objetos de la misma rareza → 1 superior · 3 gemas iguales → gema superior · 3 gemas distintas → gema aleatoria
+- **Cubo de transmutación** (sumidero de oro): 3 objetos de la misma rareza → 1 superior pagando oro (escala con la rareza); 3 legendarios → reforjar uno nuevo (muy caro); si los 3 comparten ranura, el resultado es de esa ranura; recetas de gemas gratis
 - **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente quema de cerca, Explosivo detona al morir, Espinoso refleja daño…)
 - **Esquiva** con invulnerabilidad breve (Shift / botón 💨) y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo
 - **Santuarios** en las mazmorras: bendiciones de XP, furia, vida y oro… y alguno maldito

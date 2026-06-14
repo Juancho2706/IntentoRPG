@@ -152,39 +152,75 @@ export const economyMethods = {
     this.save();
   },
   
+  // coste en oro del cubo: la transmutación cuesta (sumidero), y mucho más
+  // cuanto mayor la rareza resultante; reforjar legendarios es lo más caro
+  cubeCost(outRarity, ilvl, reforge = false) {
+    const base = reforge ? 1500 : ({ magico: 40, raro: 150, legendario: 800 }[outRarity] || 0);
+    return Math.round(base * (1 + ilvl * 0.04));
+  },
+
+  // describe qué hará el cubo con su contenido actual (para la UI)
+  cubePreview() {
+    const c = this.player.cube;
+    if (c.length !== 3) return { ready: false, cost: 0, text: '✨ Mete 3 objetos' };
+    if (c.every(it => it.kind === 'gem')) return { ready: true, cost: 0, text: '✨ Fundir gemas' };
+    if (c.every(it => it.kind === 'item') && c.every(it => it.rarity === c[0].rarity)) {
+      const ilvl = Math.max(...c.map(it => it.ilvl));
+      const r = c[0].rarity;
+      if (r === 'legendario') { const cost = this.cubeCost(null, ilvl, true); return { ready: true, cost, text: `🔥 Reforjar (${cost} 🪙)` }; }
+      const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
+      if (!next) return { ready: false, cost: 0, text: 'No combinable' };
+      const cost = this.cubeCost(next, ilvl);
+      return { ready: true, cost, text: `✨ Transmutar (${cost} 🪙)` };
+    }
+    return { ready: false, cost: 0, text: 'Combinación no válida' };
+  },
+
   transmute() {
     const p = this.player;
     if (p.cube.length !== 3) { this.ui.message('El cubo necesita 3 objetos'); return; }
     if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
     const c = p.cube;
     let item = null;
-  
+
     if (c.every(it => it.kind === 'gem')) {
-      // recetas de gemas
+      // recetas de gemas (sin coste)
       const ilvl = Math.max(...c.map(it => it.ilvl));
       if (c.every(it => it.gemId === c[0].gemId)) {
-        // 3 gemas iguales → la misma gema, más poderosa
         item = makeGem(ilvl + 3, c[0].gemId);
         this.ui.message(`💎 ¡Las gemas se funden en un ${item.name} superior!`, 3000);
       } else {
-        // 3 gemas distintas → gema aleatoria algo mejor
         item = makeGem(ilvl + 1);
         this.ui.message(`💎 Las gemas se transforman en: ${item.name}`, 3000);
       }
     } else if (c.every(it => it.kind === 'item')) {
       const r = c[0].rarity;
       if (!c.every(it => it.rarity === r)) { this.ui.message('Los 3 objetos deben tener la misma rareza'); return; }
-      const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
-      if (!next) { this.ui.message('Los legendarios no se pueden transmutar'); return; }
       const ilvl = Math.max(...c.map(it => it.ilvl));
-      item = generateItem(ilvl, next);
-      if (item.rarity === 'legendario') p.records.legendaries++;
-      this.ui.message(`🧪 ¡Transmutación! Obtienes: ${item.name}`, 3000);
+      // crafteo dirigido: si los 3 comparten ranura, el resultado es de esa ranura
+      const slot = c.every(it => it.slot === c[0].slot) ? c[0].slot : null;
+      if (r === 'legendario') {
+        // reforja: 3 legendarios → 1 legendario nuevo (caro)
+        const cost = this.cubeCost(null, ilvl, true);
+        if (p.gold < cost) { this.ui.message(`🔥 Reforjar cuesta ${cost} 🪙`); return; }
+        p.gold -= cost;
+        item = generateItem(ilvl, 'legendario', slot, null, p.classId);
+        p.records.legendaries++;
+        this.ui.message(`🔥 ¡Reforja! Nuevo legendario: ${item.name}`, 3000);
+      } else {
+        const next = { normal: 'magico', magico: 'raro', raro: 'legendario' }[r];
+        const cost = this.cubeCost(next, ilvl);
+        if (p.gold < cost) { this.ui.message(`Transmutar cuesta ${cost} 🪙`); return; }
+        p.gold -= cost;
+        item = generateItem(ilvl, next, slot, null, p.classId);
+        if (item.rarity === 'legendario') p.records.legendaries++;
+        this.ui.message(`🧪 ¡Transmutación! Obtienes: ${item.name}`, 3000);
+      }
     } else {
       this.ui.message('No se pueden mezclar gemas y objetos en el cubo');
       return;
     }
-  
+
     p.cube = [];
     item.unidentified = false;
     p.inventory.push(item);

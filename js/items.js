@@ -5,8 +5,8 @@
 export const RARITIES = {
   normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 82 },
   magico:   { id: 'magico',   name: 'Mágico',    color: '#6f8cff', glow: 0x4466ff, affixes: [1, 2], statMult: 1.1,  weight: 15 },
-  raro:     { id: 'raro',     name: 'Raro',      color: '#ffd24a', glow: 0xffcc00, affixes: [3, 4], statMult: 1.25, weight: 2.6 },
-  legendario:{ id: 'legendario', name: 'Legendario', color: '#ff8c2e', glow: 0xff6600, affixes: [4, 5], statMult: 1.5, weight: 0.35 },
+  raro:     { id: 'raro',     name: 'Raro',      color: '#ffd24a', glow: 0xffcc00, affixes: [3, 4], statMult: 1.25, weight: 2.2 },
+  legendario:{ id: 'legendario', name: 'Legendario', color: '#ff8c2e', glow: 0xff6600, affixes: [4, 5], statMult: 1.5, weight: 0.3 },
   conjunto: { id: 'conjunto', name: 'Conjunto',  color: '#4ade80', glow: 0x33cc66, affixes: [0, 0], statMult: 1.3,  weight: 0 },
 };
 

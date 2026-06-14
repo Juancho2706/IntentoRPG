@@ -625,8 +625,9 @@ export class UI {
     }
     const tb = document.createElement('button');
     tb.id = 'btn-transmute';
-    tb.textContent = '✨ Transmutar';
-    tb.disabled = p.cube.length !== 3;
+    const prev = g.cubePreview();
+    tb.textContent = prev.text;
+    tb.disabled = !prev.ready || (prev.cost > 0 && p.gold < prev.cost);
     tb.onclick = () => g.transmute();
     cubeRow.appendChild(tb);
 
