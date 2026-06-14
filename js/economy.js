@@ -2,7 +2,7 @@
 // Economía e inventario: tienda, cubo, gemas, encantadora,
 // re-spec y paragon. Se mezclan en Game.prototype.
 // ============================================================
-import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix } from './items.js';
+import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY } from './items.js';
 import { SHOP_REFRESH_MS, PET_PRICE } from './data.js';
 
 export const economyMethods = {
@@ -275,6 +275,29 @@ export const economyMethods = {
     this.save();
   },
   
+  // ---------- mejora de objeto (masterworking) ----------
+  // sube la calidad del objeto en rangos; cada rango da +6% a sus stats
+  masterworkCost(item) {
+    const q = item.quality || 0;
+    return Math.round((120 + 180 * q) * (1 + item.ilvl * 0.05));
+  },
+
+  masterworkItem(index) {
+    const p = this.player;
+    const item = p.inventory[index];
+    if (!item || item.kind !== 'item') return;
+    if ((item.quality || 0) >= MAX_QUALITY) { this.ui.message('Ya está al máximo de calidad'); return; }
+    const cost = this.masterworkCost(item);
+    if (p.gold < cost) { this.ui.message(`Mejorar cuesta ${cost} 🪙`); return; }
+    p.gold -= cost;
+    item.quality = (item.quality || 0) + 1;
+    p.recompute();
+    this.ui.message(`🔨 ${item.name} mejorado a calidad ${item.quality}/${MAX_QUALITY}`, 3000);
+    this.sfx('levelup');
+    this.vibrate([30, 20, 40]);
+    this.save();
+  },
+
   // ---------- redistribución de puntos (sumidero de oro) ----------
   respecCost() { return 200 * this.player.level; },
   

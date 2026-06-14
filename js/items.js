@@ -165,6 +165,11 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
     let v = ri(af.min, af.max);
     if (!af.flat) v = Math.round(v * scale);
     v = Math.round(v * rarity.statMult);
+    // afijo superior (★): ~8% de probabilidad, 1.5× más fuerte (estilo D4)
+    if (rarity.id !== 'normal' && Math.random() < 0.08) {
+      v = Math.round(v * 1.5);
+      (item.greater || (item.greater = [])).push(af.stat);
+    }
     item.affixes[af.stat] = (item.affixes[af.stat] || 0) + Math.max(1, v);
   };
   const primary = AFFIX_POOL.filter(a => !a.secondary);
@@ -408,20 +413,31 @@ export function rollDrops(floor, opts = {}) {
   return drops;
 }
 
-export function statText(stat, v) {
+export function statText(stat, v, greater = false) {
   const af = AFFIX_POOL.find(a => a.stat === stat);
-  return af ? af.name.replace('{v}', v) : `+${v} ${stat}`;
+  const base = af ? af.name.replace('{v}', v) : `+${v} ${stat}`;
+  return greater ? base + ' ★' : base;
 }
+
+// multiplicador de calidad (masterworking): cada rango +6% a los stats del objeto
+export function qualityMult(item) {
+  return 1 + (item.quality || 0) * 0.06;
+}
+
+export const MAX_QUALITY = 5;
 
 export function itemStatLines(item) {
   if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];
   if (item.kind === 'charm') lines.push('🧿 Activo mientras esté en la mochila');
+  if (item.quality) lines.push(`🔨 Calidad ${item.quality}/${MAX_QUALITY} (+${item.quality * 6}% a sus stats)`);
   if (item.power) lines.push(`✦ ${item.power.name}: ${item.power.desc}`);
-  if (item.dmg) lines.push(`Daño: ${item.dmg[0]} - ${item.dmg[1]}`);
-  if (item.arm) lines.push(`Armadura: ${item.arm}`);
+  const q = qualityMult(item);
+  const gset = new Set(item.greater || []);
+  if (item.dmg) lines.push(`Daño: ${Math.round(item.dmg[0] * q)} - ${Math.round(item.dmg[1] * q)}`);
+  if (item.arm) lines.push(`Armadura: ${Math.round(item.arm * q)}`);
   for (const [stat, v] of Object.entries(item.affixes || {}))
-    lines.push(statText(stat, v));
+    lines.push(statText(stat, Math.round(v * q), gset.has(stat)));
   for (const [stat, v] of Object.entries(item.stats || {}))
     lines.push(statText(stat, v));
   if (item.sockets) {

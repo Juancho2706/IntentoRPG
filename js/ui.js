@@ -728,6 +728,10 @@ export class UI {
     if (g.nearEnchanter && ctx.from === 'inv' && item.kind === 'item' && Object.keys(item.affixes || {}).length) {
       addBtn(`Reforjar afijo (${g.enchantCost(item)} 🪙)`, () => g.enchantItem(ctx.index), 'btn-good');
     }
+    // mejorar la calidad del objeto (masterworking), junto a la Encantadora
+    if (g.nearEnchanter && ctx.from === 'inv' && item.kind === 'item' && (item.quality || 0) < 5) {
+      addBtn(`🔨 Mejorar calidad (${g.masterworkCost(item)} 🪙)`, () => g.masterworkItem(ctx.index), 'btn-good');
+    }
     // engarzar gemas/runas si el objeto tiene ranura libre y hay en la mochila
     if (item.sockets && (item.gems || []).length < item.sockets && p.inventory.some(i => i.kind === 'gem' || i.kind === 'rune')) {
       const b = document.createElement('button');

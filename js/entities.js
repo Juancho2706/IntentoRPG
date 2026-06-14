@@ -261,8 +261,11 @@ export class Player {
     this.powers = new Set();
     for (const it of Object.values(this.equipment)) {
       if (!it || it.unidentified) continue; // sin identificar no da nada
-      if (it.arm) item.arm += it.arm;
-      addStats(it.affixes || {});
+      // calidad (masterworking): escala armadura y afijos del objeto
+      const q = 1 + (it.quality || 0) * 0.06;
+      if (it.arm) item.arm += Math.round(it.arm * q);
+      if (q !== 1) { const scaled = {}; for (const [k, v] of Object.entries(it.affixes || {})) scaled[k] = Math.round(v * q); addStats(scaled); }
+      else addStats(it.affixes || {});
       for (const gm of it.gems || []) addStats(gm.stats); // gemas y runas engarzadas
       if (it.runeword) addStats(it.runeword.stats);       // bonus de palabra rúnica
       if (it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
@@ -297,7 +300,8 @@ export class Player {
 
     const c = this.cls;
     const w = this.equipment.weapon;
-    const wDmg = w ? w.dmg : c.fists;
+    const wq = w ? 1 + (w.quality || 0) * 0.06 : 1; // calidad del arma
+    const wDmg = w ? [w.dmg[0] * wq, w.dmg[1] * wq] : c.fists;
     const main = a[c.mainStat];
 
     this.stats = {
