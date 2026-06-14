@@ -26,6 +26,11 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mundo abierto (4 regiones)**: zonas abiertas (Cripta, Cavernas de Hielo, Infierno, Abismo Estelar; 120×120, terreno orgánico) desbloqueadas por nivel y viajables desde cualquier waypoint; el pueblo conecta con la Cripta por puertas que se cruzan caminando. Cada zona tiene entradas a mazmorras instanciadas escaladas a su bioma, **respawn gradual**, **jefe de mundo** con gran botín y **obeliscos de evento**; tap en el minimapa abre el **mapa descubierto** (niebla de guerra)
+- **Mundo persistente por sesión** (estilo Diablo 2): cada región se genera una vez al empezar la partida y conserva su trazado y lo que llevas explorado hasta que recargas la página (nueva sesión)
+- **Jefe de mundo con territorio**: ronda solo su zona de aparición; si lo alejas demasiado de su guarida, deja de perseguirte y vuelve a su sitio regenerándose
+- **Minimapa orientado a la cámara**: girado para que el norte de tu cámara isométrica sea arriba en el minimapa
+- **Mapa en vivo**: el mapa completo no detiene el juego — puedes seguir moviéndote y combatir mientras lo miras, y los enemigos descubiertos se mueven en tiempo real
+- **Héroe personalizable**: ponle nombre y elige el color de su armadura al crear el personaje
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
 - **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes
@@ -88,7 +93,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 | Inventario / Habilidades / Personaje | `I` / `T` / `C` | Botones del menú |
 | Recoger objeto | Etiqueta o tecla `F` | Etiqueta o botón 🖐️ |
 
-El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). El oro, las pociones, las gemas y las runas se recogen automáticamente al pasar por encima — y el lobo de caza va a buscarlos por ti. En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
+El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). Si no hay nada que usar, ataca al enemigo más cercano — **puedes atacar mientras te mueves** con el joystick. El oro, las pociones, las gemas y las runas se recogen automáticamente al pasar por encima — y el lobo de caza va a buscarlos por ti. En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
 
 ## 📁 Estructura
 

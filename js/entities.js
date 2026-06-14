@@ -24,9 +24,9 @@ function std(color, opts = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0.05, emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1 });
 }
 
-export function makePlayerModel(cls) {
+export function makePlayerModel(cls, tint = null) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.55, 6, 12), std(cls.color));
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.55, 6, 12), std(tint ?? cls.color));
   body.position.y = 0.75;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 12), std(0xd9a878));
   head.position.y = 1.45;
@@ -170,7 +170,7 @@ export function makeEnemyModel(def) {
 // JUGADOR
 // ------------------------------------------------------------
 export class Player {
-  constructor(game, classId, saved = null) {
+  constructor(game, classId, saved = null, opts = {}) {
     this.game = game;
     this.cls = CLASSES[classId];
     this.classId = classId;
@@ -198,7 +198,7 @@ export class Player {
       gloves: null, belt: null, pants: null, boots: null, amulet: null, ring: null, ring2: null,
       ...(this.equipment || {}),
     };
-    this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [1];
+    this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
     this.quest = this.quest || null;
     this.supports = this.supports || {};               // habilidad → soporte asignado
@@ -208,6 +208,10 @@ export class Player {
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;
+    // personalización del héroe: nombre y tinte del cuerpo (opts en personajes
+    // nuevos; el guardado tiene prioridad para los ya creados)
+    this.heroName = this.heroName || opts.name || this.cls.name;
+    this.tint = this.tint ?? (opts.tint ?? null);
     // registro de colección: sets vistos, poderes legendarios, bestiario
     this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
     this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, mf: 0, ...(this.paragon || {}) };
@@ -233,7 +237,7 @@ export class Player {
     this.alive = true;
     this.healCd = 0;
 
-    this.group = makePlayerModel(this.cls);
+    this.group = makePlayerModel(this.cls, this.tint);
     this.recompute();
     this.hp = this.stats.maxHP;
     this.mp = this.stats.maxMP;
@@ -666,26 +670,61 @@ export class Enemy {
     const player = g.player;
     if (!player || !player.alive) return false;
 
-    // --- LOD: los enemigos dormidos (sin aggro) razonan a intervalos, no cada
-    // frame. Con muchos enemigos en pantalla esto evita decenas de raycasts y
-    // cálculos de distancia por frame; solo el grupo activo corre la IA completa.
-    if (!this.aggroed) {
+    // --- jefe de mundo: ronda su zona y, si lo alejas, vuelve a su spawn ---
+    if (this.home) {
+      const dh = this.pos.distanceTo(this.home);
+      // si lo alejas más allá del leash, se compromete a regresar del todo
+      // (no hace yo-yo en el borde persiguiéndote)
+      if (this.aggroed && dh > this.leash) this.returning = true;
+      if (this.returning) {
+        // regresa a su spawn y se regenera; ignora al jugador hasta llegar
+        const nx = dh > 0.01 ? (this.home.x - this.pos.x) / dh : 0, nz = dh > 0.01 ? (this.home.z - this.pos.z) / dh : 0;
+        moveWithCollision(g.world.grid, this.pos, nx * this.def.spd * 1.4 * dt, nz * this.def.spd * 1.4 * dt, 0.3);
+        this.group.rotation.y = Math.atan2(nx, nz);
+        this.hp = Math.min(this.maxHP, this.hp + this.maxHP * 0.06 * dt);
+        if (dh < this.leash * 0.5) { this.returning = false; this.aggroed = false; }
+        return false;
+      }
+      if (!this.aggroed) {
+        // patrulla lenta alrededor de su casa
+        this.wanderT = (this.wanderT ?? 0) - dt;
+        if (this.wanderT <= 0 || !this.wanderTarget) {
+          this.wanderT = 2 + Math.random() * 2;
+          const a = Math.random() * Math.PI * 2, r = Math.random() * this.leash * 0.6;
+          this.wanderTarget = this.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+        }
+        const wt = this.wanderTarget, dw = this.pos.distanceTo(wt);
+        if (dw > 0.6) {
+          const nx = (wt.x - this.pos.x) / dw, nz = (wt.z - this.pos.z) / dw;
+          moveWithCollision(g.world.grid, this.pos, nx * this.def.spd * 0.5 * dt, nz * this.def.spd * 0.5 * dt, 0.3);
+          this.group.rotation.y = Math.atan2(nx, nz);
+        }
+        // aggro si entras en su área con visión
+        if (this.pos.distanceToSquared(player.pos) <= 100) {
+          this.losT = (this.losT ?? 0) - dt;
+          if (this.losT <= 0) { this.losT = 0.2; this.hasLOS = g.world.grid.lineOfSight(this.pos.x, this.pos.z, player.pos.x, player.pos.z); }
+          if (this.hasLOS) this.aggroed = true;
+        }
+        if (!this.aggroed) return false;
+      }
+    } else if (!this.aggroed) {
+      // --- LOD: los enemigos dormidos razonan a intervalos, no cada frame ---
       this.thinkT = (this.thinkT ?? Math.random() * 0.35) - dt;
       if (this.thinkT > 0) return false;
-      this.thinkT = 0.3 + Math.random() * 0.15;        // ~0.35s, con fase repartida
+      this.thinkT = 0.3 + Math.random() * 0.15;
       const aggroR = this.def.boss ? 12 : 9;
       if (this.pos.distanceToSquared(player.pos) > aggroR * aggroR) return false;
       this.hasLOS = g.world.grid.lineOfSight(this.pos.x, this.pos.z, player.pos.x, player.pos.z);
       if (!this.hasLOS) return false;
-      this.aggroed = true;                              // te ha visto: IA completa
+      this.aggroed = true;
     }
 
     this.atkCd = Math.max(0, this.atkCd - dt);
     if (this.slowT > 0) this.slowT -= dt;
 
     const d = this.pos.distanceTo(player.pos);
-    // si te alejas mucho, vuelve a dormirse y libera CPU
-    if (d > (this.def.boss ? 18 : 14)) { this.aggroed = false; return false; }
+    // enemigos normales: si te alejas mucho, se duermen (los jefes de mundo no)
+    if (!this.home && d > (this.def.boss ? 18 : 14)) { this.aggroed = false; return false; }
 
     // línea de visión (cada 0.2s): para decidir disparos/ataques
     this.losT = (this.losT ?? 0) - dt;

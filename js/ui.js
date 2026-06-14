@@ -143,7 +143,9 @@ export class UI {
       card.className = 'slot-card' + (!m && i === selectedSlot ? ' sel' : '');
       if (m) {
         const cls = CLASSES[m.classId];
-        card.innerHTML = `<div class="slot-info">${cls?.icon || '🧍'} <b>${cls?.name || '?'} Nv ${m.level}</b><small>Piso máx ${m.maxFloor}${m.hardcore ? ' ☠️' : ''}</small></div>`;
+        const dot = m.tint != null ? `<span class="slot-tint" style="background:#${(m.tint).toString(16).padStart(6, '0')}"></span>` : '';
+        const nm = m.name && m.name !== cls?.name ? `${m.name} · ` : '';
+        card.innerHTML = `<div class="slot-info">${dot}${cls?.icon || '🧍'} <b>${nm}${cls?.name || '?'} Nv ${m.level}</b><small>Piso máx ${m.maxFloor}${m.hardcore ? ' ☠️' : ''}</small></div>`;
         const play = document.createElement('button');
         play.className = 'slot-play';
         play.textContent = '▶️ Jugar';
@@ -182,6 +184,30 @@ export class UI {
     hc.className = 'hc-toggle';
     hc.innerHTML = `<input type="checkbox" id="hc-check"> ☠️ Modo Hardcore — la muerte es permanente`;
     cont.appendChild(hc);
+
+    // personalización del héroe: nombre y color de armadura
+    const custom = document.createElement('div');
+    custom.className = 'hero-custom';
+    custom.innerHTML = `<input type="text" id="hero-name" maxlength="14" placeholder="Nombre de tu héroe (opcional)" autocomplete="off">`;
+    const tints = [0x4a90d9, 0xc23b3b, 0x3fae6a, 0xd9b13a, 0x9a52d6, 0xd9772a, 0xcfd2d6, 0x2a2f3a];
+    let selTint = tints[0];
+    const tintRow = document.createElement('div');
+    tintRow.className = 'tint-row';
+    tints.forEach((c, i) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'tint-sw' + (i === 0 ? ' sel' : '');
+      sw.style.background = '#' + c.toString(16).padStart(6, '0');
+      sw.onclick = () => {
+        selTint = c;
+        tintRow.querySelectorAll('.tint-sw').forEach(s => s.classList.remove('sel'));
+        sw.classList.add('sel');
+      };
+      tintRow.appendChild(sw);
+    });
+    custom.appendChild(tintRow);
+    cont.appendChild(custom);
+
     const row = document.createElement('div');
     row.className = 'class-row';
     for (const cls of Object.values(CLASSES)) {
@@ -199,7 +225,11 @@ export class UI {
         <button>Elegir</button>`;
       card.querySelector('button').onclick = () => {
         el.classList.add('hidden');
-        onPick(selectedSlot, cls.id, { hardcore: document.getElementById('hc-check')?.checked });
+        onPick(selectedSlot, cls.id, {
+          hardcore: document.getElementById('hc-check')?.checked,
+          name: (document.getElementById('hero-name')?.value || '').trim(),
+          tint: selTint,
+        });
       };
       row.appendChild(card);
     }
@@ -978,6 +1008,8 @@ export class UI {
 
   renderStats() {
     const p = this.game.player;
+    const head = document.querySelector('#panel-stats .panel-head h2');
+    if (head) head.textContent = `${p.cls.icon} ${p.heroName} · ${p.cls.name} Nv ${p.level}`;
     $('stat-points').textContent = p.statPoints > 0 ? `Puntos disponibles: ${p.statPoints}` : 'Sin puntos disponibles';
     const cont = $('attr-list');
     cont.innerHTML = '';
@@ -1140,13 +1172,27 @@ export class UI {
       this.activePanel = 'map';
       $('panel-map').classList.remove('hidden');
     }
+    this.renderMap();
+  }
+
+  // dibuja el mapa descubierto; se llama cada frame mientras el panel está
+  // abierto para que sea "en vivo" (jugador y enemigos se mueven en tiempo real)
+  renderMap() {
+    if (this.activePanel !== 'map') return;
     const g = this.game.world.grid;
     const ex = this.game.world.explored || new Set();
     const cv = $('map-canvas');
-    const S = 380; cv.width = S; cv.height = S;
+    const S = 380; if (cv.width !== S) { cv.width = S; cv.height = S; }
     const ctx = cv.getContext('2d');
     const cs = S / Math.max(g.w, g.h);
     ctx.fillStyle = '#05060a'; ctx.fillRect(0, 0, S, S);
+    // rotación 45° (norte de cámara = arriba) + reducción para que el cuadrado
+    // girado quepa entero dentro del lienzo
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+    ctx.rotate(Math.PI / 4);
+    ctx.scale(0.7071, 0.7071);
+    ctx.translate(-S / 2, -S / 2);
     // celdas descubiertas
     for (let z = 0; z < g.h; z++) for (let x = 0; x < g.w; x++) {
       if (!ex.has(z * g.w + x)) continue;
@@ -1166,7 +1212,14 @@ export class UI {
       const x = Math.floor(it.pos.x - g.ox), z = Math.floor(it.pos.z - g.oz);
       if (ex.has(z * g.w + x)) dot(it.pos, col, 4);
     }
+    // enemigos en vivo (solo en celdas descubiertas)
+    for (const e of this.game.enemies) {
+      if (!e.alive) continue;
+      const x = Math.floor(e.pos.x - g.ox), z = Math.floor(e.pos.z - g.oz);
+      if (ex.has(z * g.w + x)) dot(e.pos, e.def.boss ? '#ff2200' : '#cc4444', e.def.boss ? 5 : 3);
+    }
     if (this.game.player) dot(this.game.player.pos, '#ffffff', 4);
+    ctx.restore();
     const pct = Math.round(ex.size / (g.w * g.h) * 100);
     $('map-info').textContent = `${this.game.world.biome || this.game.world.type} · descubierto ${pct}%`;
   }
@@ -1206,9 +1259,14 @@ export class UI {
     ctx.clearRect(0, 0, cv.width, cv.height);
     const g = this.minimapGrid;
     const p = this.game.player;
-    // zonas grandes: minimapa centrado en el jugador con zoom; mapas pequeños: vista completa
     const big = g.w > 70 && p;
     let ox0 = 0, oz0 = 0, scale;
+    // rotación de 45° para que coincida con la cámara isométrica: norte en
+    // cámara = arriba en el minimapa
+    ctx.save();
+    ctx.translate(cv.width / 2, cv.height / 2);
+    ctx.rotate(Math.PI / 4);
+    ctx.translate(-cv.width / 2, -cv.height / 2);
     if (big) {
       const view = 46;
       ox0 = Math.max(0, Math.min(g.w - view, (p.pos.x - g.ox) - view / 2));
@@ -1221,7 +1279,6 @@ export class UI {
     }
     const dot = (pos, color, r) => {
       const cx = (pos.x - g.ox - ox0) * scale, cz = (pos.z - g.oz - oz0) * scale;
-      if (cx < -2 || cz < -2 || cx > cv.width + 2 || cz > cv.height + 2) return;
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(cx, cz, r, 0, Math.PI * 2);
@@ -1234,5 +1291,6 @@ export class UI {
     for (const e of this.game.enemies)
       if (e.alive) dot(e.pos, e.def.boss ? '#ff2200' : '#cc4444', 2);
     if (p) dot(p.pos, '#ffffff', 3);
+    ctx.restore();
   }
 }

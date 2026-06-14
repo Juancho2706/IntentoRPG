@@ -125,7 +125,7 @@ class Game {
     return [0, 1, 2].map(i => {
       try {
         const d = JSON.parse(localStorage.getItem(this.slotKey(i)));
-        return d ? { classId: d.classId, level: d.level, maxFloor: d.records?.maxFloor || 1, hardcore: !!d.hardcore } : null;
+        return d ? { classId: d.classId, level: d.level, maxFloor: d.records?.maxFloor || 1, hardcore: !!d.hardcore, name: d.heroName, tint: d.tint } : null;
       } catch { return null; }
     });
   }
@@ -167,13 +167,18 @@ class Game {
   // ---------- inicio / guardado ----------
   startGame(pick, opts = {}, slot = 0) {
     this.activeSlot = slot;
+    // mundo abierto persistente por sesión (como Diablo 2): cada bioma se genera
+    // una vez con su semilla y conserva su trazado y la niebla descubierta hasta
+    // recargar la página (nueva sesión). No se guarda en disco a propósito.
+    this.zoneSeeds = {};
+    this.zoneExplored = {};
     let saved = null;
     if (pick === 'continue') {
       try { saved = JSON.parse(localStorage.getItem(this.slotKey(slot))); } catch { saved = null; }
       if (!saved) pick = 'guerrero';
     }
     const classId = saved ? saved.classId : pick;
-    this.player = new Player(this, classId, saved);
+    this.player = new Player(this, classId, saved, opts);
     if (!saved) {
       // primera habilidad gratis
       const first = this.player.cls.skills[0];
@@ -187,7 +192,7 @@ class Game {
     this.loadWorld({ type: 'town' });
     this.ui.refreshHotbar();
     this.ui.updateHUD();
-    this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.cls.name}! Entra al portal del norte para explorar la mazmorra.`, 5000);
+    this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Entra al portal del norte para explorar la mazmorra.`, 5000);
     document.getElementById('hud').classList.remove('hidden');
     const touch = window.matchMedia('(pointer: coarse)').matches;
     this.tip('mover', touch
@@ -207,6 +212,7 @@ class Game {
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
+      heroName: p.heroName, tint: p.tint,
     };
     try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -238,6 +244,14 @@ class Game {
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
     this.firePools = []; this.telegraphs = [];
 
+    // semilla persistente por sesión: la zona se genera una sola vez y mantiene
+    // su trazado mientras dure la partida (hasta recargar la página)
+    if (spec.type === 'zone' && spec.seed == null) {
+      if (!this.zoneSeeds) this.zoneSeeds = {};
+      if (this.zoneSeeds[spec.biome] == null)
+        this.zoneSeeds[spec.biome] = (Math.random() * 1e9) | 0;
+      spec.seed = this.zoneSeeds[spec.biome];
+    }
     this.world = spec.type === 'town' ? buildTown()
       : spec.type === 'refuge' ? buildRefuge()
       : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null })
@@ -265,6 +279,10 @@ class Game {
     this.edgeArmed = false; // puertas automáticas desarmadas hasta alejarse
     // en la zona, el portal de retorno se cruza caminando (como salir por el sur)
     if (w.type === 'zone') {
+      // niebla de guerra persistente por sesión: la zona recuerda lo explorado
+      if (!this.zoneExplored) this.zoneExplored = {};
+      if (!this.zoneExplored[w.biome]) this.zoneExplored[w.biome] = new Set();
+      w.explored = this.zoneExplored[w.biome];
       const ret = w.interactables.find(it => it.type === 'portal_town');
       if (ret) { ret.auto = true; ret.label = '🚪 Volver al Pueblo'; }
       // escala las entradas de mazmorra al piso base de la zona (bf-2, bf, bf+2)
@@ -643,7 +661,8 @@ class Game {
     def.rankLabel = `👑 ${def.name} (Jefe de Mundo)`;
     def.labelCls = 'lbl-elite';
     const e = new Enemy(this, def, pos);
-    e.aggroed = true; // patrulla/caza activamente
+    e.home = pos.clone();   // ronda su zona; si lo alejas demasiado, vuelve
+    e.leash = 14;
     this.enemies.push(e);
     this.entityGroup.add(e.group);
     w.worldBoss = e;
@@ -777,7 +796,15 @@ class Game {
     const p = this.player;
     if (!p || !p.alive) return;
     const e = this.nearestEnemy(12);
-    if (e) { p.attackTarget = e; p.moveTarget = null; }
+    if (!e) return;
+    // si ya está a tiro, ataca al instante (funciona aunque te estés moviendo);
+    // si no, camina hacia él
+    if (p.pos.distanceTo(e.pos) <= p.cls.atkRange) {
+      p.faceToward(e.pos);
+      if (p.atkCd <= 0) p.basicAttack(e);
+    } else {
+      p.attackTarget = e; p.moveTarget = null;
+    }
   }
 
   castSkillSlot(slot) {
@@ -1422,6 +1449,9 @@ class Game {
       this.hudTimer = 0;
       this.ui.updateHUD();
       this.ui.drawMinimap();
+      // el mapa completo, si está abierto, se refresca "en vivo": enemigos y
+      // jugador se mueven mientras lo miras (el panel deja pasar el control)
+      if (this.ui.activePanel === 'map') this.ui.renderMap();
     }
 
     // rotación de la mercancía de la tienda
