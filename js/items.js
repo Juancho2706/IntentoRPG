@@ -383,12 +383,15 @@ export function makeSupport(supId) {
 
 // Glifos del Tablero de Paragon: se engarzan en nodos de engarce (socket).
 // Su poder = rango × per + (nodos activos adyacentes al engarce) × adj.
+// per/adj atenuados (auditoría): los glifos rango 10 eran la palanca más inflada
+// del endgame (+90% sobre el resto). Bajarlos deja al Paragon+bendiciones como
+// grueso del crecimiento y mantiene el equipo relevante.
 export const GLYPH_TYPES = [
-  { id: 'g_dmg',  stat: 'dmgPct', name: 'Glifo de Cólera',    per: 2,  adj: 1 },
-  { id: 'g_hp',   stat: 'hp',     name: 'Glifo de Vigor',     per: 10, adj: 5 },
-  { id: 'g_arm',  stat: 'arm',    name: 'Glifo de Égida',     per: 5,  adj: 3 },
-  { id: 'g_crit', stat: 'crit',   name: 'Glifo de Precisión', per: 1,  adj: 1 },
-  { id: 'g_mf',   stat: 'mf',     name: 'Glifo de Codicia',   per: 4,  adj: 2 },
+  { id: 'g_dmg',  stat: 'dmgPct', name: 'Glifo de Cólera',    per: 1.5, adj: 1 },
+  { id: 'g_hp',   stat: 'hp',     name: 'Glifo de Vigor',     per: 7,   adj: 4 },
+  { id: 'g_arm',  stat: 'arm',    name: 'Glifo de Égida',     per: 3.5, adj: 2 },
+  { id: 'g_crit', stat: 'crit',   name: 'Glifo de Precisión', per: 0.8, adj: 0.5 },
+  { id: 'g_mf',   stat: 'mf',     name: 'Glifo de Codicia',   per: 3,   adj: 2 },
 ];
 
 export function makeGlyph(rank = 1) {
@@ -455,8 +458,9 @@ export function rollDrops(floor, opts = {}) {
   const qty = 1 + (opts.qty || 0) / 100;
   // bonus de rareza por profundidad + hallazgo mágico (el MF empuja hacia lo alto)
   const rarBonus = Math.min(2.0, (floor - 1) * 0.10) + mf * 1.6;
-  // los conjuntos escalan con el piso y el MF, pero arrancan escasos
-  const setCh = (opts.setChance ?? (0.012 + floor * 0.0025)) * (1 + mf);
+  // los conjuntos escalan con el piso y el MF, pero arrancan escasos.
+  // MF atenuado (×0.3) para que el Tormento no los convierta en rutina (auditoría)
+  const setCh = (opts.setChance ?? (0.008 + floor * 0.0015)) * (1 + mf * 0.3);
 
   if (Math.random() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
   if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
@@ -472,10 +476,11 @@ export function rollDrops(floor, opts = {}) {
     else drops.push(generateItem(floor, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus, opts.cls));
   }
   if (opts.boss) {
-    // el jefe siempre da un raro; la posibilidad de legendario/set sube con el piso
-    const legCh = Math.min(0.5, 0.06 + floor * 0.015) * (1 + mf);
+    // el jefe siempre da un raro; la prob. de legendario/set sube con el piso.
+    // El clamp va FUERA del (1+mf) para que el Tormento no garantice legendario 100%
+    const legCh = Math.min(0.6, (0.06 + floor * 0.015) * (1 + mf * 0.5));
     drops.push(generateItem(floor, Math.random() < legCh ? 'legendario' : 'raro', null, null, opts.cls));
-    if (Math.random() < Math.min(0.4, 0.05 + floor * 0.01) * (1 + mf)) drops.push(generateSetItem(floor));
+    if (Math.random() < Math.min(0.4, (0.05 + floor * 0.01) * (1 + mf * 0.4))) drops.push(generateSetItem(floor));
     drops.push(makeGold(floor), makeGold(floor));
   }
   return drops;
@@ -506,7 +511,7 @@ export function itemStatLines(item) {
   const lines = [];
   if (item.kind === 'riftkey') return [`🌀 Abre una Grieta de Nivel ${item.riftLevel}`, 'Enemigos reforzados, botín y XP aumentados. Derrota al jefe para subir de nivel de grieta.'];
   if (item.kind === 'fragment') return ['✴️ Fragmento de Pináculo', 'Reúne 3 y ofréndalos en la Estatua del Mundo para invocar al jefe Pináculo y obtener botín mítico.'];
-  if (item.kind === 'glyph') return [`🔷 ${item.baseName} · rango ${item.rank}`, `Engárzalo en un nodo de engarce (◇) del Tablero de Paragon.`, `Otorga ${statText(item.stat, glyphValue(item, 0))} + bonus por cada nodo activo adyacente al engarce.`];
+  if (item.kind === 'glyph') return [`🔷 ${item.baseName} · rango ${item.rank}`, `Engárzalo en un nodo de engarce (◇) del Tablero de Paragon.`, `Otorga ${statText(item.stat, Math.round(glyphValue(item, 0)))} + bonus por cada nodo activo adyacente al engarce.`];
   if (item.kind === 'support') {
     const s = SUPPORTS.find(x => x.id === item.supportId);
     return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.types.join(', ')}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];

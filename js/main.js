@@ -282,7 +282,9 @@ class Game {
       ? 0 : Math.min(this.tormentUnlocked(), this.player.torment || 0);
     this.world.torment = T;
     if (T > 0) {
-      this.world.scaleFloor += T * 2;       // enemigos más duros y mejor ilvl de botín
+      // +1 piso efectivo por Tormento (antes +2): el jugador no escala su poder al
+      // subir Tormento, así que +2 disparaba el TTK y los one-shots (auditoría)
+      this.world.scaleFloor += T;           // enemigos más duros y mejor ilvl de botín
       this.world.tormentMF = T * 12;        // empuja la rareza hacia arriba
       this.world.tormentQty = T * 8;        // y la cantidad de botín
     }

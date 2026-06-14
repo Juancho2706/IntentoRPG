@@ -127,4 +127,4 @@ npm install
 npm test
 ```
 
-Incluye una **regresión de balance**: simula la progresión (héroe con equipo acorde a cada piso vs enemigos escalados) y falla si el tiempo de matar, los golpes que aguantas o el ritmo de subida salen de los rangos de diseño.
+Incluye una **regresión de balance**: simula la progresión (héroe con equipo acorde a cada piso vs enemigos escalados) y falla si el tiempo de matar, los golpes que aguantas o el ritmo de subida salen de los rangos de diseño. También una **regresión de equilibrio del endgame** que verifica el TTK por nivel de Tormento, que los conjuntos y el legendario de jefe no se vuelvan rutina con Hallazgo Mágico, y que el poder del Paragon+glifos no eclipse al equipo.
