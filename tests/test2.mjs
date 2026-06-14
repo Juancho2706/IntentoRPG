@@ -8,7 +8,7 @@ globalThis.performance = globalThis.performance || { now: () => Date.now() };
 const texts = [];
 const fakeGame = {
   ui: { spawnText: (p, t) => texts.push(t), message: m => texts.push(m), flashDamage(){}, },
-  sfx(){}, addShake(){}, vibrate(){}, tip(){}, spawnBurst(){},
+  sfx(){}, addShake(){}, vibrate(){}, tip(){}, spawnBurst(){}, spawnRing(){},
   input: { joyDir: null, keyDir: null },
   enemies: [],
   projectiles: [],

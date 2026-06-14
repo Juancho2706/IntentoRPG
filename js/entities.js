@@ -536,30 +536,44 @@ export class Player {
     this.atkCd = this.stats.atkTime;
     this.swing = 1;
     const g = this.game;
-    if (this.cls.ranged) {
-      // poder 'multidisparo': una flecha extra en abanico
-      const extra = this.powers?.has('multidisparo') ? 1 : 0;
-      const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
-      for (let i = 0; i <= extra; i++) {
-        const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
-        const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
-        const { dmg, crit } = this.rollDamage(1);
-        g.spawnProjectile({
-          from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-          speed: 16, range: this.cls.atkRange + 2, dmg, crit, friendly: true,
-          color: 0xe8d8a0, size: 0.09,
-        });
-      }
-      g.sfx('shoot');
-    } else {
+    const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
+
+    if (atk === 'cleave') {
+      // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
       const { dmg, crit } = this.rollDamage(1);
       target.takeDamage(dmg, crit);
       this.onDealHit();
-      // los élites espinosos devuelven parte del daño cuerpo a cuerpo
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
+      for (const e of g.enemies) {
+        if (e === target || !e.alive) continue;
+        if (e.pos.distanceToSquared(target.pos) < 2.0 * 2.0) {
+          const r = this.rollDamage(0.5);
+          e.takeDamage(r.dmg, r.crit);
+        }
+      }
+      g.spawnRing(target.pos.clone(), 1.4, 0xffbb66);
       g.sfx('hit');
+      return;
     }
+
+    // Maga (proyectil arcano) y Arquera (flecha): a distancia, con multidisparo
+    const arrow = atk === 'arrow';
+    const color = arrow ? 0xe8d8a0 : 0xcc66ff;
+    const speed = arrow ? 18 : 13;
+    const size = arrow ? 0.09 : 0.17;
+    const extra = this.powers?.has('multidisparo') ? 1 : 0;
+    const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+    for (let i = 0; i <= extra; i++) {
+      const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
+      const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
+      const { dmg, crit } = this.rollDamage(1);
+      g.spawnProjectile({
+        from: this.pos.clone().setY(1.0), to: to.setY(1.0),
+        speed, range: this.cls.atkRange + 2, dmg, crit, friendly: true, color, size,
+      });
+    }
+    g.sfx(arrow ? 'shoot' : 'skill');
   }
 }
 

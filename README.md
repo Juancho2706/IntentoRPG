@@ -18,7 +18,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 
 ## ✨ Características
 
-- **3 clases** con stats propios: Guerrero (melee), Maga (hechizos) y Arquera (a distancia)
+- **3 clases** con **ataque básico propio**: Guerrero (tajo amplio que golpea a varios), Maga (proyectil arcano a distancia) y Arquera (flecha de largo alcance)
 - **Atributos RPG**: Fuerza, Destreza, Vitalidad y Energía (+5 puntos por nivel)
 - **Árbol de habilidades**: 6 habilidades por clase en 3 tiers (activas, buffs y pasivas), +1 punto por nivel
 - **Sinergias** estilo Diablo 2: invertir puntos en una habilidad potencia a otras de su rama
@@ -43,7 +43,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Modo Hardcore** opcional al crear personaje: la muerte es permanente y borra el guardado
 - **Lobo de caza**: mascota comprable al mercader que te sigue y ataca a tus enemigos
 - **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
-- **Inventario** de 32 casillas + **12 ranuras de equipo** estilo Diablo (arma, escudo, casco, hombreras, armadura, guantes, cinturón, pantalones, botas, amuleto y 2 anillos) en silueta anatómica
+- **Inventario** de 32 casillas + **12 ranuras de equipo** estilo Diablo en silueta anatómica; **armas y off-hands acordes a tu clase** (escudo para el Guerrero, orbe/foco para la Maga, carcaj para la Arquera)
 - **Arrastrar y soltar**: mueve objetos entre mochila, equipo, cubo y alijo; arrastra una pieza a su ranura para equiparla o una gema/runa sobre un objeto con engarce para incrustarla (Pointer Events: funciona en ratón y táctil)
 - **Stats secundarios** estilo Diablo 3/4: Vida al golpear, Maná al golpear, Reducción de enfriamiento (tope 50%) y Espinas
 - **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura

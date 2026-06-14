@@ -15,7 +15,7 @@ export const CLASSES = {
     base: { fue: 18, des: 10, vit: 16, ene: 6 },
     mainStat: 'fue',
     baseHP: 45, baseMP: 12, hpPerVit: 4, mpPerEne: 1.5,
-    atkRange: 1.9, atkTime: 1.0, ranged: false,
+    atkRange: 2.1, atkTime: 1.0, ranged: false, atk: 'cleave',
     fists: [3, 6],
     skills: [
       { id: 'golpe_brutal', name: 'Golpe Brutal', icon: '🗡️', tier: 1, max: 5, type: 'melee',
@@ -47,7 +47,7 @@ export const CLASSES = {
     base: { fue: 8, des: 10, vit: 10, ene: 22 },
     mainStat: 'ene',
     baseHP: 32, baseMP: 28, hpPerVit: 3, mpPerEne: 2.2,
-    atkRange: 1.8, atkTime: 1.1, ranged: false,
+    atkRange: 7, atkTime: 1.1, ranged: true, atk: 'bolt',
     fists: [2, 5],
     skills: [
       { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', tier: 1, max: 5, type: 'proj',
@@ -79,7 +79,7 @@ export const CLASSES = {
     base: { fue: 10, des: 20, vit: 12, ene: 8 },
     mainStat: 'des',
     baseHP: 38, baseMP: 18, hpPerVit: 3.5, mpPerEne: 1.8,
-    atkRange: 8, atkTime: 0.9, ranged: true,
+    atkRange: 8.5, atkTime: 0.9, ranged: true, atk: 'arrow',
     fists: [2, 5],
     skills: [
       { id: 'disparo_certero', name: 'Disparo Certero', icon: '🎯', tier: 1, max: 5, type: 'proj',

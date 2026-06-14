@@ -20,10 +20,12 @@ export const SLOT_NAMES = {
 export const ARMOR_SLOTS = ['helm', 'chest', 'boots', 'shoulders', 'gloves', 'pants', 'belt', 'offhand'];
 
 const BASES = [
-  { slot: 'weapon', names: ['Espada Corta', 'Hacha de Guerra', 'Maza', 'Espada Larga', 'Daga'], icon: '🗡️' },
-  { slot: 'weapon', names: ['Arco Corto', 'Arco de Caza', 'Arco Largo'], icon: '🏹' },
-  { slot: 'weapon', names: ['Bastón', 'Vara Arcana', 'Cetro'], icon: '🪄' },
-  { slot: 'offhand', names: ['Escudo de Madera', 'Escudo de Hierro', 'Escudo de Torre'], icon: '🛡️' },
+  { slot: 'weapon', names: ['Espada Corta', 'Hacha de Guerra', 'Maza', 'Espada Larga', 'Daga'], icon: '🗡️', cls: 'guerrero' },
+  { slot: 'weapon', names: ['Arco Corto', 'Arco de Caza', 'Arco Largo'], icon: '🏹', cls: 'arquera' },
+  { slot: 'weapon', names: ['Bastón', 'Vara Arcana', 'Cetro'], icon: '🪄', cls: 'maga' },
+  { slot: 'offhand', names: ['Escudo de Madera', 'Escudo de Hierro', 'Escudo de Torre'], icon: '🛡️', cls: 'guerrero' },
+  { slot: 'offhand', names: ['Orbe Arcano', 'Foco Rúnico', 'Globo de Poder'], icon: '🔮', cls: 'maga' },
+  { slot: 'offhand', names: ['Carcaj de Cuero', 'Aljaba Reforzada', 'Carcaj del Cazador'], icon: '🪶', cls: 'arquera' },
   { slot: 'helm', names: ['Capucha', 'Casco de Cuero', 'Yelmo', 'Casco de Hierro'], icon: '🪖' },
   { slot: 'shoulders', names: ['Hombreras de Cuero', 'Espaldares', 'Hombreras de Placas'], icon: '🎽' },
   { slot: 'chest', names: ['Túnica', 'Armadura de Cuero', 'Cota de Malla', 'Coraza'], icon: '🧥' },
@@ -123,8 +125,13 @@ export function rollRarity(bonus = 0) {
   return entries[0];
 }
 
-export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonus = null) {
-  const basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
+export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonus = null, classHint = null) {
+  let basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
+  // armas y off-hands acordes a la clase del jugador (la armadura no tiene clase)
+  if (classHint) {
+    const clsd = basePool.filter(b => !b.cls || b.cls === classHint);
+    if (clsd.length) basePool = clsd;
+  }
   const base = pick(basePool.length ? basePool : BASES);
   // curva de profundidad más suave: el botín alto se gana bajando (y con hallazgo mágico)
   const bonus = rarityBonus != null ? rarityBonus : Math.min(2.0, (ilvl - 1) * 0.10);
@@ -333,10 +340,10 @@ export function rerollAffix(item) {
 
 // Apuesta del mercader: objeto sin identificar, nunca normal,
 // con pequeña posibilidad de raro o legendario (estilo gambling de D2)
-export function gambleItem(ilvl, slot) {
+export function gambleItem(ilvl, slot, classHint = null) {
   const r = Math.random();
   const rarity = r < 0.70 ? 'magico' : r < 0.92 ? 'raro' : 'legendario';
-  return generateItem(ilvl, rarity, slot);
+  return generateItem(ilvl, rarity, slot, null, classHint);
 }
 
 // Amuletos de mochila (charms): otorgan stats mientras estén en la bolsa,
@@ -389,12 +396,12 @@ export function rollDrops(floor, opts = {}) {
   if (Math.random() < (opts.itemChance ?? 0.18) * qty) count++;
   for (let i = 0; i < count; i++) {
     if (!opts.forceRarity && Math.random() < setCh) drops.push(generateSetItem(floor));
-    else drops.push(generateItem(floor, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus));
+    else drops.push(generateItem(floor, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus, opts.cls));
   }
   if (opts.boss) {
     // el jefe siempre da un raro; la posibilidad de legendario/set sube con el piso
     const legCh = Math.min(0.5, 0.06 + floor * 0.015) * (1 + mf);
-    drops.push(generateItem(floor, Math.random() < legCh ? 'legendario' : 'raro'));
+    drops.push(generateItem(floor, Math.random() < legCh ? 'legendario' : 'raro', null, null, opts.cls));
     if (Math.random() < Math.min(0.4, 0.05 + floor * 0.01) * (1 + mf)) drops.push(generateSetItem(floor));
     drops.push(makeGold(floor), makeGold(floor));
   }

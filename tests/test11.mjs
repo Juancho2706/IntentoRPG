@@ -10,7 +10,7 @@ const world = buildDungeon(4);
 const fake = {
   ui: { spawnText(){}, message(){}, flashDamage(){} }, sfx(){}, addShake(){}, vibrate(){}, tip(){}, spawnBurst(){},
   input: { joyDir: null, keyDir: null }, world, enemies: [],
-  spawnTelegraph() { telegraphs++; },
+  spawnTelegraph() { telegraphs++; }, spawnRing() {}, spawnProjectile() {},
   onEnemyKilled() {}, onPlayerDeath() {},
 };
 

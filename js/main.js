@@ -753,7 +753,7 @@ class Game {
     p.gold += q.reward.gold;
     p.gainXP(q.reward.xp);
     if (q.reward.item) {
-      const item = generateItem(Math.max(1, Math.round(p.level * 0.8)), q.reward.item);
+      const item = generateItem(Math.max(1, Math.round(p.level * 0.8)), q.reward.item, null, null, p.classId);
       item.unidentified = false;
       if (p.inventory.length < 32) p.inventory.push(item);
       else this.spawnGroundItem(item, p.pos);
@@ -872,7 +872,7 @@ class Game {
     }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
-    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0) };
+    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0), cls: p.classId };
     if (enemy.def.mimic) drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.5, setChance: 0.025 });
     else if (enemy.def.boss) drops = rollDrops(floor, { ...lootOpts, boss: true, goldChance: 1, potionChance: 0.8 });
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
@@ -1370,7 +1370,7 @@ class Game {
     } else {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
-      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0), minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0), cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
       this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
       p.records.chests++;

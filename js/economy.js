@@ -15,7 +15,7 @@ export const economyMethods = {
     const n = 4 + Math.min(3, Math.floor(lvl / 5));
     const items = [];
     for (let i = 0; i < n; i++) {
-      const it = generateItem(ilvl);
+      const it = generateItem(ilvl, null, null, null, this.player?.classId);
       it.unidentified = false;
       it.price = Math.max(20, it.value * 4);
       items.push(it);
@@ -59,7 +59,7 @@ export const economyMethods = {
     if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
     p.gold -= offer.price;
     this.shopStock.gamble.splice(idx, 1);
-    const item = gambleItem(Math.max(1, Math.round(p.level * 0.8)), offer.slot);
+    const item = gambleItem(Math.max(1, Math.round(p.level * 0.8)), offer.slot, p.classId);
     item.unidentified = false;
     p.inventory.push(item);
     if (item.rarity === 'legendario') p.records.legendaries++;
