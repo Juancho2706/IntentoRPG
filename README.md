@@ -65,6 +65,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - Los enemigos tienen **línea de visión real**: no te detectan a través de los muros
 - **PWA instalable**: añádelo a la pantalla de inicio del móvil y juega incluso sin conexión
 - **Calidad adaptativa**: si los FPS bajan, reduce resolución y sombras automáticamente (desactivable en Opciones)
+- **Filtro de loot**: en Opciones, oculta el botín por debajo de la rareza que elijas (limpia la pantalla en niveles altos)
+- **Mejora de objeto (masterworking)** y **afijos superiores ★**: sube la calidad de una pieza en rangos por oro (+% a sus stats) y caza afijos 1.5× más fuertes
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos
 
 ## 🕹️ Controles

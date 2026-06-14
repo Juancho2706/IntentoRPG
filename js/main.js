@@ -38,7 +38,7 @@ class Game {
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
-    this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, ...opts };
+    this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal', ...opts };
     this.qualityLevel = 0;
     this.fpsAcc = 0;
     this.fpsFrames = 0;
@@ -302,6 +302,12 @@ class Game {
   // ---------- sensaciones: sacudida, vibración, partículas, consejos ----------
   saveSettings() {
     try { localStorage.setItem('intentorpg_opts', JSON.stringify(this.settings)); } catch { /* sin almacenamiento */ }
+  }
+
+  // filtro de loot: ¿esta rareza supera el umbral elegido?
+  passesLootFilter(rarity) {
+    const rank = { normal: 0, magico: 1, raro: 2, legendario: 3, conjunto: 3 };
+    return (rank[rarity] ?? 0) >= (rank[this.settings.lootFilter] ?? 0);
   }
 
   // calidad adaptativa: si los FPS caen, baja resolución y sombras
@@ -1119,7 +1125,10 @@ class Game {
       const gi = this.groundItems[i];
       gi.mesh.rotation.y += dt * 2;
       gi.mesh.position.y = 0.35 + Math.sin(t * 3 + gi.bob) * 0.08;
-      if (gi.beam) gi.beam.material.opacity = 0.22 + Math.sin(t * 2.5 + gi.bob) * 0.1;
+      // filtro de loot: atenúa la baliza del botín por debajo del umbral (oro/pociones siempre visibles)
+      const filtered = gi.item.rarity && !this.passesLootFilter(gi.item.rarity);
+      gi.mesh.visible = !filtered;
+      if (gi.beam) { gi.beam.visible = !filtered; gi.beam.material.opacity = 0.22 + Math.sin(t * 2.5 + gi.bob) * 0.1; }
       if (this.state === 'play') {
         const k = gi.item.kind;
         // oro y pociones siempre; gemas y runas si hay sitio en la mochila
@@ -1394,7 +1403,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if (it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune') {
+      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune') && this.passesLootFilter(it.rarity)) {
         entries.push({
           id: gi.id, pos: gi.mesh.position,
           text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${it.icon} ${it.name}`,

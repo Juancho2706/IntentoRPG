@@ -444,6 +444,21 @@ export class UI {
     slider.onchange = () => g.saveSettings();
     cont.appendChild(row);
 
+    // filtro de loot: oculta el botín por debajo de la rareza elegida
+    const fr = document.createElement('label');
+    fr.className = 'opt-row';
+    fr.innerHTML = `<span>🔍 Filtro de loot (mostrar desde)</span>
+      <select>
+        <option value="normal">Todo</option>
+        <option value="magico">Mágico+</option>
+        <option value="raro">Raro+</option>
+        <option value="legendario">Legendario</option>
+      </select>`;
+    const sel = fr.querySelector('select');
+    sel.value = g.settings.lootFilter || 'normal';
+    sel.onchange = () => { g.settings.lootFilter = sel.value; g.saveSettings(); };
+    cont.appendChild(fr);
+
     // copia de seguridad de la partida (de momento local; nube más adelante)
     const head = document.createElement('h4');
     head.textContent = '💾 Copia de seguridad';
