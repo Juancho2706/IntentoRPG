@@ -201,6 +201,8 @@ export class Player {
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [1];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
     this.quest = this.quest || null;
+    this.supports = this.supports || {};               // habilidad → soporte asignado
+    this.knownSupports = Array.isArray(this.knownSupports) ? this.knownSupports : []; // soportes aprendidos
     this.hardcore = !!this.hardcore;
     this.pet = this.pet || null;
     this.dailyDone = this.dailyDone || null;

@@ -200,6 +200,7 @@ class Game {
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
+      supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
     };
     try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
@@ -643,7 +644,14 @@ class Game {
     if (delta.length() > maxRange) target = p.pos.clone().addScaledVector(delta.normalize(), maxRange);
 
     // sinergias: puntos en otras habilidades aumentan el daño de esta
-    const mult = sk.mult ? skillVal(sk.mult, lvl) * (1 + synergyBonus(sk, p.skills) / 100) : 1;
+    let mult = sk.mult ? skillVal(sk.mult, lvl) * (1 + synergyBonus(sk, p.skills) / 100) : 1;
+    // soporte asignado a esta habilidad
+    const sup = p.supports?.[sk.id];
+    if (sup === 'amplify') mult *= 1.3;
+    const supSlow = sup === 'freeze' ? 3 : sk.slow;
+    const supPierce = sup === 'pierce' ? true : sk.pierce;
+    const supExtraProj = sup === 'multi' ? 2 : 0;
+    const supRadius = sup === 'wide' ? 1.45 : 1;
     let casted = true;
 
     switch (sk.type) {
@@ -654,26 +662,29 @@ class Game {
         p.swing = 1;
         const { dmg, crit } = p.rollDamage(mult);
         e.takeDamage(dmg, crit);
+        if (supSlow && e.alive) e.slowT = supSlow;
         p.onDealHit();
         this.spawnRing(e.pos, 0.8, 0xffbb44);
         break;
       }
       case 'aoe_self': {
-        this.spawnRing(p.pos, sk.radius, sk.color || 0xffaa33);
-        this.dealArea(p.pos, skillVal(sk.radius, lvl) || sk.radius, mult, { slow: sk.slow });
+        const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
+        this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
+        this.dealArea(p.pos, rad, mult, { slow: supSlow });
         p.swing = 1;
         break;
       }
       case 'aoe_target': {
         p.faceToward(target);
-        this.spawnRing(target, sk.radius, sk.color || 0xff6633);
+        const rad = sk.radius * supRadius;
+        this.spawnRing(target, rad, sk.color || 0xff6633);
         // bola descendente decorativa
         const ball = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6),
           new THREE.MeshBasicMaterial({ color: sk.color || 0xff6633 }));
         ball.position.copy(target).setY(5);
         this.fxGroup.add(ball);
         this.fx.push({ mesh: ball, t: 0, dur: 0.25, fall: target.clone() });
-        this.dealArea(target, sk.radius, mult);
+        this.dealArea(target, rad, mult, { slow: supSlow });
         break;
       }
       case 'dash': {
@@ -691,15 +702,16 @@ class Game {
             traveled += step;
           }
         }
-        this.spawnRing(p.pos, sk.radius, 0xffcc66);
-        this.dealArea(p.pos, sk.radius, mult);
+        const rad = sk.radius * supRadius;
+        this.spawnRing(p.pos, rad, 0xffcc66);
+        this.dealArea(p.pos, rad, mult, { slow: supSlow });
         p.swing = 1;
         break;
       }
       case 'proj': {
         p.faceToward(target);
         p.swing = 1;
-        const count = (sk.count ? Math.floor(skillVal(sk.count, lvl)) : 1) + (p.powers?.has('multidisparo') ? 1 : 0);
+        const count = (sk.count ? Math.floor(skillVal(sk.count, lvl)) : 1) + (p.powers?.has('multidisparo') ? 1 : 0) + supExtraProj;
         const baseAngle = Math.atan2(target.x - p.pos.x, target.z - p.pos.z);
         for (let i = 0; i < count; i++) {
           const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
@@ -709,7 +721,7 @@ class Game {
           this.spawnProjectile({
             from: p.pos.clone().setY(1.0), to: to.setY(1.0),
             speed: sk.speed || 14, range: sk.range || 10,
-            dmg, crit, friendly: true, pierce: sk.pierce, slow: sk.slow,
+            dmg, crit, friendly: true, pierce: supPierce, slow: supSlow,
             color: sk.color || 0xffffff, size: 0.14,
           });
         }
@@ -955,7 +967,7 @@ class Game {
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
     // pilar de luz por rareza: el loot bueno se ve desde lejos
-    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey') {
+    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey' || item.kind === 'support') {
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
         new THREE.MeshBasicMaterial({
@@ -977,6 +989,13 @@ class Game {
       if (p.potions[it.pot] >= 99) return;
       p.potions[it.pot]++;
       this.sfx('potion');
+    } else if (it.kind === 'support') {
+      // se aprende al recogerlo (queda disponible para asignar en el árbol)
+      if (!p.knownSupports.includes(it.supportId)) {
+        p.knownSupports.push(it.supportId);
+        this.ui.message(`📘 ¡Soporte aprendido: ${it.name.replace('Soporte: ', '')}! Asígnalo en Habilidades`, 3500);
+        this.sfx('levelup');
+      } else { p.gold += 30; this.ui.message('Soporte ya conocido (+30 🪙)'); }
     } else {
       if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
       p.inventory.push(it);
@@ -1433,7 +1452,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey') && this.passesLootFilter(it.rarity)) {
+      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'support') && this.passesLootFilter(it.rarity)) {
         entries.push({
           id: gi.id, pos: gi.mesh.position,
           text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${it.icon} ${it.name}`,

@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -834,6 +834,22 @@ export class UI {
           b.textContent = '+';
           b.onclick = () => { this.game.learnSkill(sk.id); this.renderSkills(); this.updateHUD(); };
           div.appendChild(b);
+        }
+        // selector de soporte: para habilidades activas aprendidas con soportes compatibles conocidos
+        if (lvl > 0 && sk.type !== 'passive') {
+          const compat = SUPPORTS.filter(s => s.types.includes(sk.type) && p.knownSupports.includes(s.id));
+          if (compat.length) {
+            const sel = document.createElement('select');
+            sel.className = 'sk-support';
+            sel.innerHTML = `<option value="">Sin soporte</option>` +
+              compat.map(s => `<option value="${s.id}">${s.icon} ${s.name}</option>`).join('');
+            sel.value = p.supports[sk.id] || '';
+            sel.onchange = () => {
+              if (sel.value) p.supports[sk.id] = sel.value; else delete p.supports[sk.id];
+              this.game.save();
+            };
+            div.querySelector('.sk-info').appendChild(sel);
+          }
         }
         tierDiv.appendChild(div);
       }

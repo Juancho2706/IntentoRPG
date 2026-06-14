@@ -274,6 +274,21 @@ export function generateQuest(level) {
 
 export const PET_PRICE = 500;
 
+// Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
+// habilidad activa. Se encuentran como botín, se aprenden y se asignan.
+export const SUPPORTS = [
+  { id: 'amplify', name: 'Amplificado', icon: '🔆', desc: '+30% de daño de la habilidad',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+  { id: 'multi',   name: 'Multiproyectil', icon: '🔱', desc: '+2 proyectiles',
+    types: ['proj'] },
+  { id: 'pierce',  name: 'Perforante', icon: '➶', desc: 'Los proyectiles atraviesan a los enemigos',
+    types: ['proj'] },
+  { id: 'wide',    name: 'Expansivo', icon: '⭕', desc: '+45% de radio de área',
+    types: ['aoe_self', 'aoe_target', 'dash'] },
+  { id: 'freeze',  name: 'Gélido', icon: '❄️', desc: 'Ralentiza a los enemigos golpeados',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+];
+
 // Pactos: riesgo↔recompensa opcional por piso (estilo modificadores de mapa)
 export const PACTS = [
   { id: 'sangre',    name: 'Pacto de Sangre',     icon: '🩸', desc: 'Enemigos +45% daño · botín +40%',

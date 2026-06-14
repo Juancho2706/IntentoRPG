@@ -1,6 +1,7 @@
 // ============================================================
 // Sistema de objetos: generación de loot, rarezas y afijos
 // ============================================================
+import { SUPPORTS } from './data.js';
 
 export const RARITIES = {
   normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 82 },
@@ -371,6 +372,15 @@ export function makeCharm(ilvl) {
   };
 }
 
+// Gema de Soporte: se aprende al recogerla y se asigna a una habilidad
+export function makeSupport(supId) {
+  const s = SUPPORTS.find(x => x.id === supId) || SUPPORTS[Math.floor(Math.random() * SUPPORTS.length)];
+  return {
+    uid: itemUid++, kind: 'support', supportId: s.id, icon: s.icon,
+    name: `Soporte: ${s.name}`, rarity: 'raro', value: 60,
+  };
+}
+
 // Llave de Grieta: consumible que abre una grieta de endgame de nivel N
 export function makeRiftKey(level) {
   return {
@@ -405,6 +415,7 @@ export function rollDrops(floor, opts = {}) {
   if (Math.random() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(floor));
   if (Math.random() < (opts.runeChance ?? 0.025) * (1 + mf)) drops.push(makeRune());
   if (Math.random() < (opts.charmChance ?? 0.012) * (1 + mf)) drops.push(makeCharm(floor));
+  if (Math.random() < (opts.supportChance ?? 0.015) * (1 + mf)) drops.push(makeSupport());
 
   let count = opts.minItems || 0;
   if (Math.random() < (opts.itemChance ?? 0.18) * qty) count++;
@@ -439,6 +450,10 @@ export function itemStatLines(item) {
   if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];
   if (item.kind === 'riftkey') return [`🌀 Abre una Grieta de Nivel ${item.riftLevel}`, 'Enemigos reforzados, botín y XP aumentados. Derrota al jefe para subir de nivel de grieta.'];
+  if (item.kind === 'support') {
+    const s = SUPPORTS.find(x => x.id === item.supportId);
+    return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.types.join(', ')}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];
+  }
   if (item.kind === 'charm') lines.push('🧿 Activo mientras esté en la mochila');
   if (item.quality) lines.push(`🔨 Calidad ${item.quality}/${MAX_QUALITY} (+${item.quality * 6}% a sus stats)`);
   if (item.power) lines.push(`✦ ${item.power.name}: ${item.power.desc}`);

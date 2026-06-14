@@ -22,6 +22,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Atributos RPG**: Fuerza, Destreza, Vitalidad y Energía (+5 puntos por nivel)
 - **Árbol de habilidades**: 6 habilidades por clase en 3 tiers (activas, buffs y pasivas), +1 punto por nivel
 - **Sinergias** estilo Diablo 2: invertir puntos en una habilidad potencia a otras de su rama
+- **Soportes de habilidad** (estilo gemas de PoE): modificadores que se aprenden del botín y se asignan a una habilidad (Amplificado, Multiproyectil, Perforante, Expansivo, Gélido)
 - **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
