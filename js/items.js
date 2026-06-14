@@ -371,6 +371,15 @@ export function makeCharm(ilvl) {
   };
 }
 
+// Llave de Grieta: consumible que abre una grieta de endgame de nivel N
+export function makeRiftKey(level) {
+  return {
+    uid: itemUid++, kind: 'riftkey', icon: '🗝️', riftLevel: level,
+    name: `Llave de Grieta · Nivel ${level}`, rarity: 'raro',
+    value: 50 + level * 20,
+  };
+}
+
 export function makePotion(pot) {
   return { uid: itemUid++, kind: 'potion', pot, icon: pot === 'hp' ? '🧪' : '🔷',
     name: pot === 'hp' ? 'Poción de Vida' : 'Poción de Maná', value: 12 };
@@ -429,6 +438,7 @@ export const MAX_QUALITY = 5;
 export function itemStatLines(item) {
   if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];
+  if (item.kind === 'riftkey') return [`🌀 Abre una Grieta de Nivel ${item.riftLevel}`, 'Enemigos reforzados, botín y XP aumentados. Derrota al jefe para subir de nivel de grieta.'];
   if (item.kind === 'charm') lines.push('🧿 Activo mientras esté en la mochila');
   if (item.quality) lines.push(`🔨 Calidad ${item.quality}/${MAX_QUALITY} (+${item.quality * 6}% a sus stats)`);
   if (item.power) lines.push(`✦ ${item.power.name}: ${item.power.desc}`);

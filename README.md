@@ -67,6 +67,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Calidad adaptativa**: si los FPS bajan, reduce resolución y sombras automáticamente (desactivable en Opciones)
 - **Filtro de loot**: en Opciones, oculta el botín por debajo de la rareza que elijas (limpia la pantalla en niveles altos)
 - **Mejora de objeto (masterworking)** y **afijos superiores ★**: sube la calidad de una pieza en rangos por oro (+% a sus stats) y caza afijos 1.5× más fuertes
+- **Grietas (endgame)**: los jefes profundos sueltan Llaves de Grieta; ábrelas para mazmorras con varios modificadores y botín aumentado, y al completarlas sube tu nivel de grieta y obtienes una llave superior (empuje infinito)
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos
 
 ## 🕹️ Controles

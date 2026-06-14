@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { ENEMIES, MIMIC, ENEMY_RANKS, PACTS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, generateItem, makeRelic, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, RARITIES } from './items.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -234,12 +234,19 @@ class Game {
 
     this.world = spec.type === 'town' ? buildTown()
       : spec.type === 'refuge' ? buildRefuge()
-      : buildDungeon(spec.floor, spec.seed ?? null);
+      : buildDungeon(spec.rift ? 16 + spec.rift * 2 : spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
+    this.world.rift = spec.rift || 0;
     // la diaria comparte trazado con todos, pero su dificultad escala a tu progreso
-    this.world.scaleFloor = spec.daily
-      ? Math.max(this.world.floor, (this.player.records.maxFloor || 1) - 2)
+    this.world.scaleFloor = spec.rift ? 16 + spec.rift * 2
+      : spec.daily ? Math.max(this.world.floor, (this.player.records.maxFloor || 1) - 2)
       : (this.world.floor || 1);
+    // una grieta aplica varios modificadores a la vez (reutiliza el sistema de pactos)
+    if (spec.rift) {
+      const L = spec.rift;
+      this.world.pact = { id: 'rift', qty: 25 + L * 12, mf: 30 + L * 15, xp: 20 + L * 10 };
+      this.world.pactEnemyMods = { ehp: 0.3 + L * 0.12, edmg: 0.2 + L * 0.08, espd: Math.min(0.5, 0.05 + L * 0.04) };
+    }
     this.scene.add(this.world.group);
 
     // ambiente
@@ -293,7 +300,8 @@ class Game {
     this.music.play(w.type === 'town' ? 'town' : w.type === 'refuge' ? 'refuge' : w.biome);
     this.ui.initMinimap(w);
     if (w.daily) this.dailyStart = Date.now();
-    if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
+    if (w.rift) this.ui.message(`🌀 Grieta Nivel ${w.rift} · ${w.biome} — enemigos reforzados, botín aumentado. ¡Derrota al jefe!`, 4500);
+    else if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
     this.save();
@@ -896,10 +904,32 @@ class Game {
     // reliquia temática del jefe (baja probabilidad, mejora con el hallazgo mágico)
     if (enemy.def.boss && Math.random() < 0.12 * (1 + (p.stats.mf || 0) / 100))
       drops.push(makeRelic(enemy.def.id, floor));
+    // grietas: el jefe de un piso profundo suelta una Llave de Grieta (entrada al endgame)
+    if (enemy.def.boss && !this.world.rift && (this.world.floor || 0) >= 10 && Math.random() < 0.5)
+      drops.push(makeRiftKey(1));
+    // completar una grieta: registra nivel máximo, botín extra y una llave superior
+    if (enemy.def.boss && this.world.rift) {
+      const L = this.world.rift;
+      p.records.maxRift = Math.max(p.records.maxRift || 0, L);
+      drops.push(generateItem(floor, 'legendario', null, null, p.classId));
+      drops.push(makeRiftKey(L + 1));
+      this.ui.message(`🌀 ¡Grieta Nivel ${L} completada! Botín extra y Llave de Grieta Nv ${L + 1}`, 5000);
+      this.music.sting();
+    }
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
-    if (enemy.def.boss) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
+    if (enemy.def.boss && !this.world.rift) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
     this.sfx('death');
     this.save();
+  }
+
+  // abre una grieta de endgame consumiendo una llave del inventario
+  useRiftKey(index) {
+    const p = this.player;
+    const key = p.inventory[index];
+    if (!key || key.kind !== 'riftkey') return;
+    p.inventory.splice(index, 1);
+    this.ui.closePanel();
+    this.loadWorld({ type: 'dungeon', rift: key.riftLevel });
   }
 
   spawnGroundItem(item, pos) {
@@ -925,7 +955,7 @@ class Game {
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
     // pilar de luz por rareza: el loot bueno se ve desde lejos
-    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune') {
+    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey') {
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
         new THREE.MeshBasicMaterial({
@@ -1403,7 +1433,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune') && this.passesLootFilter(it.rarity)) {
+      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey') && this.passesLootFilter(it.rarity)) {
         entries.push({
           id: gi.id, pos: gi.mesh.position,
           text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${it.icon} ${it.name}`,

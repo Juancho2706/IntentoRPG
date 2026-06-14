@@ -212,7 +212,7 @@ export class Player {
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
-      quests: 0, dailies: 0,
+      quests: 0, dailies: 0, maxRift: 0,
       ...(this.records || {}),
     };
 

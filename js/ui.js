@@ -708,7 +708,7 @@ export class UI {
     const nameTxt = item.unidentified ? `${item.icon} Objeto sin identificar` : `${item.icon} ${item.name}`;
     pop.innerHTML = `
       <div class="popup-name" style="color:${nameColor}">${nameTxt}</div>
-      <div class="popup-sub">${item.unidentified ? '❓ ' + r.name : r.name} · ${SLOT_NAMES[item.slot] || ''} · Nv. ${item.ilvl}</div>
+      <div class="popup-sub">${item.unidentified ? '❓ ' + r.name : r.name}${SLOT_NAMES[item.slot] ? ' · ' + SLOT_NAMES[item.slot] : ''}${item.ilvl ? ' · Nv. ' + item.ilvl : ''}</div>
       ${lines}${setHTML}${compare}
       <div class="popup-btns"></div>`;
     const btns = pop.querySelector('.popup-btns');
@@ -723,6 +723,16 @@ export class UI {
     if (item.unidentified) {
       if (ctx.from === 'inv') {
         addBtn('🔎 Identificar', () => g.identifyItem(ctx.index), 'btn-good');
+        addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
+      }
+      addBtn('Cerrar', () => {});
+      pop.classList.remove('hidden');
+      return;
+    }
+    // llave de grieta: abrir la grieta (endgame)
+    if (item.kind === 'riftkey') {
+      if (ctx.from === 'inv') {
+        addBtn(`🌀 Abrir Grieta Nv ${item.riftLevel}`, () => g.useRiftKey(ctx.index), 'btn-good');
         addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
       }
       addBtn('Cerrar', () => {});
@@ -934,6 +944,7 @@ export class UI {
       <div>🪙 Oro recogido: ${r.goldEarned}</div>
       <div>🎯 Misiones completadas: ${r.quests || 0}</div>
       <div>🌟 Desafíos diarios: ${r.dailies || 0}</div>
+      <div>🌀 Grieta máxima: Nivel ${r.maxRift || 0}</div>
       <div>⚰️ Muertes: ${r.deaths}</div>
       <div>⏱️ Tiempo jugado: ${h}h ${m}m</div>`;
 
