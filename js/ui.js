@@ -513,7 +513,14 @@ export class UI {
   itemCellHTML(item) {
     if (!item) return '';
     const r = RARITIES[item.rarity];
-    return `<span class="cell-icon" style="text-shadow:0 0 6px ${r.color}">${item.icon}</span>${item.fav ? '<span class="fav-star">⭐</span>' : ''}`;
+    // engarces libres (esquina superior derecha) — oculto en objetos sin identificar
+    let sockets = '';
+    if (item.sockets && !item.unidentified) {
+      const free = item.sockets - (item.gems ? item.gems.length : 0);
+      if (free > 0) sockets = `<span class="cell-sockets" title="${free} engarce(s) libre(s)">${free}</span>`;
+    }
+    return `<span class="cell-icon" style="text-shadow:0 0 6px ${r.color}">${item.icon}</span>` +
+      `${item.fav ? '<span class="fav-star">⭐</span>' : ''}${sockets}`;
   }
 
   renderInventory() {

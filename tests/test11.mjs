@@ -38,6 +38,7 @@ console.log(`Esquiva: ${p.pos.distanceTo(before).toFixed(1)}u recorridos, i-fram
 
 // golpe telegrafiado del gólem
 const golem = new Enemy(fake, scaleEnemy(ENEMIES.find(e => e.id === 'golem'), 4), p.pos.clone().add(new THREE.Vector3(1.2, 0, 0)));
+golem.aggroed = true;
 golem.atkCd = 0;
 golem.update(1/60);
 if (telegraphs < 1) throw new Error('el gólem no telegrafió');

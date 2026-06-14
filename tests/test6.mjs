@@ -24,6 +24,7 @@ const fake = {
   spawnRing() {}, onEnemyKilled() {},
 };
 const boss = new Enemy(fake, scaleEnemy(bossForFloor(1), 1), world.spawn.clone().add(new THREE.Vector3(2, 0, 0)));
+boss.aggroed = true;
 boss.hp = boss.maxHP * 0.4; // bajo el umbral
 boss.update(1/60);
 if (summoned !== 1) throw new Error('el jefe no invocó');
@@ -35,6 +36,7 @@ console.log('Invocación del jefe: una sola vez al 50% ✓');
 let novas = 0;
 fake.bossFrostNova = () => novas++;
 const gelido = new Enemy(fake, scaleEnemy(bossForFloor(6), 6), world.spawn.clone().add(new THREE.Vector3(2, 0, 0)));
+gelido.aggroed = true;
 for (let i = 0; i < 60 * 14; i++) gelido.update(1/60); // 14 s
 if (novas < 2 || novas > 4) throw new Error('novas inesperadas: ' + novas);
 console.log(`Nova de hielo: ${novas} en 14s (cd 6s) ✓`);

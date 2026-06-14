@@ -7,6 +7,10 @@ import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
+// Esquiva: duración corta y pico de velocidad alto con ease-out (recorre ~3.4u)
+const DASH_DUR = 0.26;
+const DASH_PEAK = 26;
+
 // Mueve una posición con colisión contra la cuadrícula (por ejes)
 export function moveWithCollision(grid, pos, dx, dz, r = 0.32) {
   if (dx !== 0 && grid.walkable(pos.x + dx, pos.z, r)) pos.x += dx;
@@ -338,14 +342,17 @@ export class Player {
   // esquiva: impulso rápido con invulnerabilidad breve
   dodge() {
     if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0) return;
-    void 0;
     const g = this.game;
     const dir = g.input.joyDir || g.input.keyDir;
-    if (dir) this.dodgeDir = { x: dir.x, z: dir.z };
-    else this.dodgeDir = { x: Math.sin(this.group.rotation.y), z: Math.cos(this.group.rotation.y) };
-    this.dodgeT = 0.28;
+    let dx, dz;
+    if (dir) { const l = Math.hypot(dir.x, dir.z) || 1; dx = dir.x / l; dz = dir.z / l; }
+    else { dx = Math.sin(this.group.rotation.y); dz = Math.cos(this.group.rotation.y); }
+    this.dodgeDir = { x: dx, z: dz };
+    this.dodgeT = DASH_DUR;
     this.dodgeCd = this.dodgeCdMax = this.powers?.has('agil') ? 1.8 : 3; // poder 'agil': recarga más rápida
-    this.moveTarget = null;
+    this.dashTrail = 0;
+    this.moveTarget = this.attackTarget = this.pickTarget = null;
+    this.group.rotation.y = Math.atan2(dx, dz);
     g.sfx('dash');
     g.vibrate(20);
   }
@@ -471,13 +478,18 @@ export class Player {
     if (this.slowT > 0) this.slowT -= dt;
     const spd = this.stats.spd * (this.slowT > 0 ? 0.55 : 1);
 
-    // esquiva en curso: impulso con voltereta, ignora el resto del movimiento
+    // esquiva en curso: impulso con voltereta. Velocidad con ease-out (sale
+    // rápido y frena) — se siente mucho más ágil que a velocidad constante.
     const body = this.group.userData.body;
     if (this.dodgeT > 0) {
       this.dodgeT -= dt;
-      moveWithCollision(g.world.grid, this.pos, this.dodgeDir.x * 13 * dt, this.dodgeDir.z * 13 * dt);
-      this.group.rotation.y = Math.atan2(this.dodgeDir.x, this.dodgeDir.z);
-      body.rotation.x = (1 - Math.max(0, this.dodgeT) / 0.28) * Math.PI * 2;
+      const k = Math.max(0, this.dodgeT) / DASH_DUR;     // 1 → 0
+      const speed = DASH_PEAK * k;                        // decelera hacia el final
+      moveWithCollision(g.world.grid, this.pos, this.dodgeDir.x * speed * dt, this.dodgeDir.z * speed * dt);
+      body.rotation.x = (1 - k) * Math.PI * 2;            // voltereta completa
+      // estela de imágenes residuales (cada ~25ms)
+      this.dashTrail = (this.dashTrail || 0) + dt;
+      if (this.dashTrail >= 0.025) { this.dashTrail = 0; g.spawnDashGhost?.(this); }
       if (this.dodgeT <= 0) body.rotation.x = 0;
       return;
     }
@@ -574,6 +586,7 @@ export class Enemy {
 
   takeDamage(amount, crit = false) {
     if (!this.alive) return;
+    this.aggroed = true; // ser golpeado despierta al enemigo al instante
     this.hp -= amount;
     this.flashT = 0.12;
     const bar = this.group.userData.bar;
@@ -618,20 +631,35 @@ export class Enemy {
     const player = g.player;
     if (!player || !player.alive) return false;
 
+    // --- LOD: los enemigos dormidos (sin aggro) razonan a intervalos, no cada
+    // frame. Con muchos enemigos en pantalla esto evita decenas de raycasts y
+    // cálculos de distancia por frame; solo el grupo activo corre la IA completa.
+    if (!this.aggroed) {
+      this.thinkT = (this.thinkT ?? Math.random() * 0.35) - dt;
+      if (this.thinkT > 0) return false;
+      this.thinkT = 0.3 + Math.random() * 0.15;        // ~0.35s, con fase repartida
+      const aggroR = this.def.boss ? 12 : 9;
+      if (this.pos.distanceToSquared(player.pos) > aggroR * aggroR) return false;
+      this.hasLOS = g.world.grid.lineOfSight(this.pos.x, this.pos.z, player.pos.x, player.pos.z);
+      if (!this.hasLOS) return false;
+      this.aggroed = true;                              // te ha visto: IA completa
+    }
+
     this.atkCd = Math.max(0, this.atkCd - dt);
     if (this.slowT > 0) this.slowT -= dt;
 
     const d = this.pos.distanceTo(player.pos);
-    const aggro = this.def.boss ? 12 : 9;
-    if (d > aggro + 6) return false; // demasiado lejos, dormir
+    // si te alejas mucho, vuelve a dormirse y libera CPU
+    if (d > (this.def.boss ? 18 : 14)) { this.aggroed = false; return false; }
 
-    // línea de visión (cada 0.2s): no te detectan a través de los muros
+    // línea de visión (cada 0.2s): para decidir disparos/ataques
     this.losT = (this.losT ?? 0) - dt;
     if (this.losT <= 0) {
       this.losT = 0.2;
       this.hasLOS = g.world.grid.lineOfSight(this.pos.x, this.pos.z, player.pos.x, player.pos.z);
     }
-    if (!this.hasLOS && !this.aggroed) return false; // no te ha visto aún
+
+    const aggro = this.def.boss ? 12 : 9;
 
     // aura pulsante; los ardientes queman de cerca
     if (this.aura) {
@@ -672,9 +700,8 @@ export class Enemy {
       }
     }
 
-    if (d <= aggro) {
-      if (this.hasLOS) this.aggroed = true; // te ha visto: te recordará
-      // mirar al jugador
+    // enemigo activo: mira, usa mecánicas, ataca o persigue
+    {
       this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
 
       // mecánicas especiales de jefe
@@ -693,9 +720,7 @@ export class Enemy {
         }
       }
 
-      const useRanged = this.def.rangedAttack && (this.def.rangedChance == null || Math.random() < 1); // brujo siempre, jefe mezcla en attack
       const range = this.def.range;
-
       if (d <= range && this.hasLOS) {
         if (this.atkCd <= 0) {
           this.atkCd = this.def.atkTime;
@@ -722,7 +747,7 @@ export class Enemy {
           moveWithCollision(g.world.grid, this.pos, nx * spd * dt, nz * spd * dt, 0.3);
         }
       }
-      void useRanged;
+      void aggro;
     }
     return false;
   }

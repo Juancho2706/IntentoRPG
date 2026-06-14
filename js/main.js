@@ -333,6 +333,19 @@ class Game {
     if (this.settings.haptics && navigator.vibrate) navigator.vibrate(pattern);
   }
 
+  // estela de la esquiva: cápsula translúcida que se desvanece donde estuvo el héroe
+  spawnDashGhost(p) {
+    const cls = p.cls;
+    const mesh = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.32, 0.55, 4, 8),
+      new THREE.MeshBasicMaterial({ color: cls.color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    mesh.position.copy(p.pos).setY(0.75);
+    mesh.rotation.y = p.group.rotation.y;
+    this.fxGroup.add(mesh);
+    this.fx.push({ mesh, t: 0, dur: 0.3, ghost: true });
+  }
+
   // ráfaga de partículas (muertes, cofres, nivel)
   spawnBurst(pos, color, n = 9) {
     const geo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
@@ -1055,6 +1068,7 @@ class Game {
         continue;
       }
       if (f.ring) { f.mesh.scale.setScalar(0.3 + k * 0.9); f.mesh.material.opacity = 0.8 * (1 - k); }
+      if (f.ghost) f.mesh.material.opacity = 0.4 * (1 - k);
       if (f.fall) f.mesh.position.y = 5 * (1 - k);
       if (f.burst) {
         for (const pt of f.burst) {
