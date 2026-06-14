@@ -49,6 +49,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Stats secundarios** estilo Diablo 3/4: Vida al golpear, Maná al golpear, Reducción de enfriamiento (tope 50%) y Espinas
 - **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura
 - **Runas y palabras rúnicas**: 6 runas que, engarzadas en el orden correcto, forman palabras con bonus especiales (Filo, Bastión, Zancada, Tormenta, Coloso)
+- **Libro de recetas** (📖 junto al cubo): todas las recetas del cubo y la tabla de palabras rúnicas
+- **Abrir engarce** (receta cara): 1 objeto + 2 gemas → +1 hueco, hasta el tope de cada pieza
 - **Encantadora** en el pueblo: reforja un afijo de un objeto por oro (precio creciente)
 - **Re-spec**: redistribuye atributos y habilidades pagando oro
 - **Paragon**: tras el nivel 20, cada nivel da puntos para mejoras infinitas (daño, vida, armadura, vel. de ataque)

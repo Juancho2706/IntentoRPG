@@ -446,6 +446,13 @@ export function qualityMult(item) {
 
 export const MAX_QUALITY = 5;
 
+// máximo de engarces que admite un objeto según su ranura
+export function maxSockets(item) {
+  if (item.slot === 'weapon' || item.slot === 'chest') return 3;
+  if (item.slot === 'ring' || item.slot === 'amulet') return 1;
+  return 2;
+}
+
 export function itemStatLines(item) {
   if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];

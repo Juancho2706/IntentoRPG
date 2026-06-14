@@ -2,7 +2,7 @@
 // Economía e inventario: tienda, cubo, gemas, encantadora,
 // re-spec y paragon. Se mezclan en Game.prototype.
 // ============================================================
-import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY } from './items.js';
+import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
 import { SHOP_REFRESH_MS, PET_PRICE } from './data.js';
 
 export const economyMethods = {
@@ -159,10 +159,31 @@ export const economyMethods = {
     return Math.round(base * (1 + ilvl * 0.04));
   },
 
+  // receta de engarce: 1 objeto + 2 gemas → +1 hueco (cara). Devuelve {item, gems} o null
+  cubeSocketParts() {
+    const c = this.player.cube;
+    if (c.length !== 3) return null;
+    const items = c.filter(it => it.kind === 'item');
+    const gems = c.filter(it => it.kind === 'gem');
+    if (items.length === 1 && gems.length === 2) return { item: items[0], gems };
+    return null;
+  },
+
+  socketCost(item) {
+    return Math.round(400 * ((item.sockets || 0) + 1) * (1 + item.ilvl * 0.05));
+  },
+
   // describe qué hará el cubo con su contenido actual (para la UI)
   cubePreview() {
     const c = this.player.cube;
     if (c.length !== 3) return { ready: false, cost: 0, text: '✨ Mete 3 objetos' };
+    const sock = this.cubeSocketParts();
+    if (sock) {
+      const max = maxSockets(sock.item);
+      if ((sock.item.sockets || 0) >= max) return { ready: false, cost: 0, text: 'Sin más huecos posibles' };
+      const cost = this.socketCost(sock.item);
+      return { ready: true, cost, text: `🔩 Abrir engarce (${cost} 🪙)` };
+    }
     if (c.every(it => it.kind === 'gem')) return { ready: true, cost: 0, text: '✨ Fundir gemas' };
     if (c.every(it => it.kind === 'item') && c.every(it => it.rarity === c[0].rarity)) {
       const ilvl = Math.max(...c.map(it => it.ilvl));
@@ -182,6 +203,27 @@ export const economyMethods = {
     if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
     const c = p.cube;
     let item = null;
+
+    // receta de engarce: 1 objeto + 2 gemas → +1 hueco (cara, consume las gemas)
+    const sock = this.cubeSocketParts();
+    if (sock) {
+      const target = sock.item;
+      if ((target.sockets || 0) >= maxSockets(target)) { this.ui.message('Ese objeto no admite más engarces'); return; }
+      const cost = this.socketCost(target);
+      if (p.gold < cost) { this.ui.message(`Abrir un engarce cuesta ${cost} 🪙`); return; }
+      p.gold -= cost;
+      target.sockets = (target.sockets || 0) + 1;
+      target.gems = target.gems || [];
+      p.cube = [];
+      p.inventory.push(target); // el objeto modificado vuelve a la mochila
+      this.sfx('levelup');
+      this.vibrate([30, 20, 50]);
+      this.ui.message(`🔩 ¡Engarce abierto! ${target.name} ahora tiene ${target.sockets} hueco(s)`, 3000);
+      this.ui.renderPanel();
+      this.ui.itemPopup(target, { from: 'inv', index: p.inventory.length - 1 });
+      this.save();
+      return;
+    }
 
     if (c.every(it => it.kind === 'gem')) {
       // recetas de gemas (sin coste)

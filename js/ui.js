@@ -3,7 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
-import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, itemStatLines, statText } from './items.js';
+import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -506,6 +506,34 @@ export class UI {
     body.appendChild(cancel);
   }
 
+  // libro de recetas del cubo (incluye palabras rúnicas)
+  openRecipes() {
+    if (this.activePanel !== 'recipes') {
+      this.closePanel();
+      this.activePanel = 'recipes';
+      $('panel-recipes').classList.remove('hidden');
+    }
+    const runeName = (id) => (RUNES.find(r => r.id === id) || {}).name || id;
+    const cube = [
+      ['🧪 Transmutar', '3 objetos de la misma rareza → 1 de rareza superior (cuesta oro, escala con la rareza).'],
+      ['🎯 Crafteo dirigido', 'Si los 3 objetos comparten ranura, el resultado es de esa ranura y de tu clase.'],
+      ['🔥 Reforjar', '3 legendarios → 1 legendario nuevo con poder (muy caro).'],
+      ['💎 Fundir gemas', '3 gemas iguales → la misma gema superior · 3 gemas distintas → gema aleatoria mejor.'],
+      ['🔩 Abrir engarce', '1 objeto + 2 gemas → +1 hueco en el objeto (caro; consume las gemas). Tope según la pieza.'],
+      ['🪬 Engarzar', 'Arrastra una gema o runa sobre un objeto con hueco libre para incrustarla.'],
+    ];
+    const cubeHTML = cube.map(([t, d]) => `<div class="col-row have"><span>${t}</span><small>${d}</small></div>`).join('');
+    const rwHTML = RUNEWORDS.map(rw => {
+      const runes = rw.runes.map(runeName).join(' + ');
+      const slots = rw.slots.map(s => SLOT_NAMES[s] || s).join('/');
+      const bonus = Object.entries(rw.stats).map(([k, v]) => statText(k, v)).join(', ');
+      return `<div class="col-row"><span>🔮 ${rw.name}</span><small>${runes} · en ${slots}<br>${bonus}</small></div>`;
+    }).join('');
+    $('recipes-body').innerHTML =
+      `<h4>🧰 Cubo de Transmutación</h4>${cubeHTML}` +
+      `<h4>🔮 Palabras rúnicas <span class="dim">(engarza las runas EN ORDEN en el tipo indicado)</span></h4>${rwHTML}`;
+  }
+
   // panel de colección: sets, poderes legendarios y bestiario
   openCollection() {
     if (this.activePanel !== 'collection') {
@@ -645,6 +673,13 @@ export class UI {
     tb.disabled = !prev.ready || (prev.cost > 0 && p.gold < prev.cost);
     tb.onclick = () => g.transmute();
     cubeRow.appendChild(tb);
+    // libro de recetas
+    const rb = document.createElement('button');
+    rb.id = 'btn-recipes';
+    rb.textContent = '📖';
+    rb.title = 'Ver recetas';
+    rb.onclick = () => this.openRecipes();
+    cubeRow.appendChild(rb);
 
     const invGrid = $('inv-grid');
     invGrid.innerHTML = '';
