@@ -9,6 +9,12 @@ const $ = (id) => document.getElementById(id);
 
 // glifo de rareza: la rareza no depende solo del color (accesibilidad)
 const RARITY_GLYPH = { normal: '', magico: '✦', raro: '◆', legendario: '★', conjunto: '❖' };
+// icono guía de cada ranura vacía (ayuda a saber qué va en cada hueco)
+const SLOT_ICON = {
+  weapon: '🗡️', offhand: '🛡️', helm: '🪖', shoulders: '🎽',
+  chest: '🧥', gloves: '🧤', belt: '🔗', pants: '👖',
+  boots: '🥾', amulet: '📿', ring: '💍', ring2: '💍',
+};
 const HOVER_TOOLTIP = window.matchMedia('(pointer: fine)').matches;
 
 export class UI {
@@ -709,8 +715,13 @@ export class UI {
       const free = item.sockets - (item.gems ? item.gems.length : 0);
       if (free > 0) sockets = `<span class="cell-sockets" title="${free} engarce(s) libre(s)">${free}</span>`;
     }
+    // glifo de rareza (esquina inferior derecha): el color no es el único indicador
+    const glyph = (!item.unidentified && RARITY_GLYPH[item.rarity])
+      ? `<span class="cell-glyph" style="color:${r.color}" title="${r.name}">${RARITY_GLYPH[item.rarity]}</span>` : '';
+    // objeto sin identificar: interrogante claro
+    const unid = item.unidentified ? '<span class="cell-unid" title="Sin identificar">❓</span>' : '';
     return `<span class="cell-icon" style="text-shadow:0 0 6px ${r.color}">${item.icon}</span>` +
-      `${item.fav ? '<span class="fav-star">⭐</span>' : ''}${sockets}`;
+      `${item.fav ? '<span class="fav-star">⭐</span>' : ''}${sockets}${glyph}${unid}`;
   }
 
   renderInventory() {
@@ -723,8 +734,11 @@ export class UI {
     for (const [slot, label] of Object.entries(SLOT_NAMES)) {
       const item = p.equipment[slot];
       const div = document.createElement('div');
-      div.className = `inv-cell equip-cell slot-${slot}` + (item ? ' rarity-' + item.rarity : '');
-      div.innerHTML = item ? this.itemCellHTML(item) : `<span class="cell-hint">${label}</span>`;
+      div.className = `inv-cell equip-cell slot-${slot}` + (item ? ' rarity-' + item.rarity : ' empty-slot');
+      div.innerHTML = item
+        ? this.itemCellHTML(item)
+        : `<span class="cell-hint"><span class="slot-glyph">${SLOT_ICON[slot] || ''}</span><span class="slot-name">${label}</span></span>`;
+      div.title = item ? '' : label;
       this.bindCell(div, { zone: 'equip', key: slot, item }, item ? () => this.itemPopup(item, { from: 'equip', slot }) : null);
       eq.appendChild(div);
     }
