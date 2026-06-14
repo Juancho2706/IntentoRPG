@@ -721,3 +721,126 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
 #minimap { cursor: pointer; }
 #map-canvas { width: min(86vw, 380px); height: auto; image-rendering: pixelated; border: 1px solid var(--panel-border); border-radius: 6px; display: block; margin: 0 auto; }
 #map-info { text-align: center; margin-top: 6px; }
+
+/* =========================================================
+   ===== NPC UI rediseño (mercader, misiones, alijo,
+   pactos, recetas, colección) — solo presentación =========
+   ========================================================= */
+
+/* introducción/microcopy de cada panel */
+.npc-panel .npc-intro {
+  font-size: 12.5px; line-height: 1.45; color: #cbbd97;
+  background: rgba(201, 162, 39, 0.07);
+  border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0;
+  padding: 7px 10px; margin-bottom: 12px;
+}
+.npc-panel .npc-intro b { color: var(--gold); }
+
+/* secciones con cabecera y separador */
+.npc-section { margin-bottom: 14px; }
+.npc-section + .npc-section { border-top: 1px solid #2c2518; padding-top: 10px; }
+.npc-section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; color: var(--gold); font-weight: bold;
+  letter-spacing: 0.3px; margin-bottom: 4px;
+}
+.npc-section-head .npc-tag {
+  font-size: 12px; font-weight: normal; color: #cbbd97;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid var(--panel-border);
+  border-radius: 10px; padding: 2px 9px;
+}
+.npc-help { font-size: 11px; color: #9c9078; opacity: 0.9; margin: 0 0 8px; }
+.npc-empty {
+  font-size: 12px; color: #9c9078; text-align: center; font-style: italic;
+  padding: 10px; border: 1px dashed var(--panel-border); border-radius: 8px;
+}
+
+/* ---- Mercader / Tienda ---- */
+#shop-bar {
+  display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; flex-wrap: wrap;
+}
+.shop-timer-tag {
+  font-size: 13px; color: #8fdd8f;
+  background: rgba(60, 120, 60, 0.14); border: 1px solid #3a6a3a;
+  border-radius: 8px; padding: 6px 11px; white-space: nowrap;
+}
+.shop-gold-tag {
+  font-size: 14px; font-weight: bold; color: var(--gold);
+  background: rgba(201, 162, 39, 0.12); border: 1px solid var(--gold);
+  border-radius: 8px; padding: 6px 12px; white-space: nowrap;
+}
+/* botón de oferta: garantiza objetivo táctil de 44px+ */
+.npc-panel .shop-item { min-height: 48px; }
+.npc-panel .shop-item:not(:disabled):active { transform: scale(0.99); }
+.npc-panel .shop-item .shop-price {
+  background: rgba(201, 162, 39, 0.1); border: 1px solid rgba(201,162,39,0.4);
+  border-radius: 7px; padding: 5px 9px; font-weight: bold; font-size: 14px;
+}
+.npc-panel .shop-item.no-gold .shop-price {
+  color: #d88; background: rgba(180, 60, 60, 0.12); border-color: #7a3a3a;
+}
+
+/* ---- Misiones ---- */
+.quest-quote {
+  font-size: 13px; font-style: italic; color: #cbbd97;
+  margin-bottom: 10px; line-height: 1.4;
+}
+.quest-card {
+  border: 1px solid var(--panel-border); border-radius: 10px;
+  padding: 12px; background: rgba(0, 0, 0, 0.25);
+}
+.quest-card.quest-done { border-color: #5a8a30; background: rgba(90, 138, 48, 0.1); }
+.quest-card.quest-active, .quest-card.quest-offer { border-color: var(--panel-border); }
+.quest-status {
+  font-size: 12px; font-weight: bold; letter-spacing: 0.4px;
+  color: var(--gold); margin-bottom: 6px;
+}
+.quest-done .quest-status { color: #9ee07a; }
+.quest-reward {
+  display: flex; flex-direction: column; gap: 6px; margin-top: 10px;
+  padding-top: 8px; border-top: 1px dashed #3a3122;
+}
+.quest-reward-lbl { font-size: 11px; color: #9c9078; text-transform: uppercase; letter-spacing: 0.5px; }
+.quest-reward-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.rwd-chip {
+  font-size: 13px; color: #e8e0cc;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--panel-border);
+  border-radius: 8px; padding: 4px 10px;
+}
+.rwd-chip.rwd-item { color: #ffd24a; border-color: #99802a; background: rgba(255, 210, 74, 0.08); }
+.npc-panel .quest-btn { min-height: 48px; }
+
+/* ---- Pactos ---- */
+.pact-card {
+  display: flex; flex-direction: column; gap: 4px; width: 100%;
+  min-height: 56px; padding: 11px 13px; margin-bottom: 9px; text-align: left;
+  background: linear-gradient(rgba(90, 20, 20, 0.18), rgba(40, 14, 14, 0.18));
+  color: #fff; border: 1px solid #6a3030; border-radius: 9px; cursor: pointer;
+}
+.pact-card:active { transform: scale(0.99); }
+.pact-name { font-size: 15px; font-weight: bold; color: #ffb3a3; }
+.pact-detail { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; }
+.pact-risk { color: #ff8a7a; }
+.pact-reward { color: #9ee07a; }
+.pact-skip { background: linear-gradient(#2a2018, #1a140e); color: #cbbd97; border-color: var(--panel-border); }
+
+/* ---- Alijo ---- */
+#panel-stash .npc-section-head { margin-bottom: 6px; }
+
+/* ---- Recetas / Colección: pulir col-row existente ---- */
+.npc-panel .col-row { padding: 7px 8px; }
+.npc-panel #recipes-body .col-row,
+.npc-panel #collection-body .col-row { line-height: 1.4; }
+.npc-panel #recipes-body .col-row.have { color: #d8c0ff; }
+.npc-panel #recipes-body .col-row.have small { color: #b5a8d8; }
+#recipes-body h4, #collection-body h4 {
+  border-bottom: 1px solid #3a3226; padding-bottom: 4px;
+}
+
+/* ---- móvil: grids más grandes y botones cómodos ---- */
+@media (max-width: 700px) {
+  .npc-panel .shop-item, .npc-panel .quest-btn, .pact-card { min-height: 52px; }
+  #shop-bar { gap: 6px; }
+  .shop-timer-tag, .shop-gold-tag { flex: 1; text-align: center; }
+}
