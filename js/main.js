@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, ENEMY_RANKS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
+import { ENEMIES, MIMIC, ENEMY_RANKS, PACTS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
 import { rollDrops, makeGold, generateItem, makeRelic, RARITIES } from './items.js';
@@ -200,7 +200,7 @@ class Game {
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
-      paragon: p.paragon, refugeUnlocked: p.refugeUnlocked,
+      paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
     };
     try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -430,11 +430,21 @@ class Game {
     }
   }
 
+  // aplica los modificadores del pacto a un enemigo que aparece tras sellarlo
+  buffByPact(e) {
+    const m = this.world.pactEnemyMods;
+    if (!m) return e;
+    if (m.ehp) { const add = Math.round(e.maxHP * m.ehp); e.maxHP += add; e.hp += add; }
+    if (m.edmg) e.def = { ...e.def, dmg: Math.round(e.def.dmg * (1 + m.edmg)) };
+    if (m.espd) e.def = { ...e.def, spd: e.def.spd * (1 + m.espd) };
+    return e;
+  }
+
   spawnWave(positions) {
     const sf = this.world.scaleFloor || 1;
     for (const pos of positions) {
       const def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
-      const e = new Enemy(this, def, pos);
+      const e = this.buffByPact(new Enemy(this, def, pos));
       e.aggroed = true; // vienen directos a por ti
       this.enemies.push(e);
       this.entityGroup.add(e.group);
@@ -783,15 +793,42 @@ class Game {
     }
   }
 
+  // ---------- pactos: riesgo↔recompensa por piso ----------
+  applyPact(pactId) {
+    const pact = PACTS.find(p => p.id === pactId);
+    if (!pact || this.world.pact) return;
+    const m = pact.mods;
+    this.world.pact = { id: pact.id, qty: m.qty || 0, mf: m.mf || 0, xp: m.xp || 0 };
+    // potencia a los enemigos ya presentes
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      if (m.ehp) { const add = Math.round(e.maxHP * m.ehp); e.maxHP += add; e.hp += add; }
+      if (m.edmg) e.def = { ...e.def, dmg: Math.round(e.def.dmg * (1 + m.edmg)) };
+      if (m.espd) e.def = { ...e.def, spd: e.def.spd * (1 + m.espd) };
+    }
+    this.world.pactEnemyMods = { ehp: m.ehp || 0, edmg: m.edmg || 0, espd: m.espd || 0 };
+    const altar = this.world.interactables.find(it => it.type === 'altar');
+    if (altar) {
+      altar.label = `${pact.icon} ${pact.name} (sellado)`;
+      if (altar.mesh?.userData.crystal) altar.mesh.userData.crystal.material.emissiveIntensity = 0.2;
+    }
+    this.ui.message(`${pact.icon} ${pact.name} sellado — ${pact.desc}`, 4000);
+    this.addShake(0.3, 0.3);
+    this.sfx('eshoot');
+    this.save();
+  }
+
 
   // ---------- loot ----------
   onEnemyKilled(enemy) {
     const p = this.player;
-    p.gainXP(enemy.def.xp);
+    p.gainXP(Math.round(enemy.def.xp * (1 + (this.world.pact?.xp || 0) / 100)));
     p.records.kills++;
     if (enemy.def.boss) p.records.bossKills++;
     if (enemy.def.rank) p.records.eliteKills++;
     if (enemy.def.mimic) p.records.mimics++;
+    // bestiario: cuenta de muertes por tipo de enemigo
+    if (enemy.def.id) p.discovered.bestiary[enemy.def.id] = (p.discovered.bestiary[enemy.def.id] || 0) + 1;
     this.questProgress('kill');
     if (enemy.def.rank) this.questProgress('elite');
     if (enemy.def.boss) {
@@ -820,7 +857,7 @@ class Game {
     }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
-    const lootOpts = { mf: (p.stats.mf || 0), qty: (this.world.pact?.qty || 0) };
+    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0) };
     if (enemy.def.mimic) drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.5, setChance: 0.025 });
     else if (enemy.def.boss) drops = rollDrops(floor, { ...lootOpts, boss: true, goldChance: 1, potionChance: 0.8 });
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
@@ -884,6 +921,7 @@ class Game {
     } else {
       if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
       p.inventory.push(it);
+      if (!it.unidentified) p.discover(it); // si ya viene identificado, a la colección
       if (it.rarity === 'legendario') p.records.legendaries++;
       if (it.rarity === 'conjunto') {
         p.records.setPieces = (p.records.setPieces || 0) + 1;
@@ -1218,6 +1256,10 @@ class Game {
       case 'questgiver':
         this.ui.openQuest();
         break;
+      case 'altar':
+        if (this.world.pact) { this.ui.message('🩸 Ya has sellado un pacto en este piso'); break; }
+        this.ui.openPacts();
+        break;
       case 'stash':
         this.ui.openStash();
         break;
@@ -1304,7 +1346,7 @@ class Game {
       def.rankLabel = '📦 ¡Mímico!';
       def.labelCls = 'lbl-elite';
       def.mimic = true;
-      const m = new Enemy(this, def, it.pos.clone());
+      const m = this.buffByPact(new Enemy(this, def, it.pos.clone()));
       this.enemies.push(m);
       this.entityGroup.add(m.group);
       this.ui.message('📦 ¡El cofre era un Mímico!');
@@ -1312,7 +1354,7 @@ class Game {
     } else {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
-      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0), qty: (this.world.pact?.qty || 0), minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0), minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
       this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
       p.records.chests++;

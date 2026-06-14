@@ -49,6 +49,12 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Encantadora** en el pueblo: reforja un afijo de un objeto por oro (precio creciente)
 - **Re-spec**: redistribuye atributos y habilidades pagando oro
 - **Paragon**: tras el nivel 20, cada nivel da puntos para mejoras infinitas (daño, vida, armadura, vel. de ataque)
+- **Poderes legendarios únicos** y **reliquias de jefe**: legendarios que cambian cómo juegas (Festín, Volátil, Vendaval, Viento, Furia, Avaricia); los jefes sueltan reliquias temáticas
+- **Identificación**: legendarios, conjuntos y reliquias caen "sin identificar" — el momento de revelarlos
+- **Hallazgo mágico**: afijo, nodo Paragon y santuario que aumentan la rareza y cantidad del botín
+- **Pactos de piso**: un altar opcional ofrece más peligro a cambio de más recompensa (botín/MF/XP)
+- **Amuletos de mochila (charms)**: dan stats mientras estén en la bolsa, a coste de espacio
+- **Colección y bestiario**: registro de conjuntos, poderes legendarios y enemigos derrotados
 - **Acto 2 — Abismo Estelar (pisos 16+)**: bioma del vacío con Espectros, Caballeros del Abismo, el jefe Corazón del Vacío y el **Refugio del Abismo**, un segundo pueblo que se desbloquea al llegar
 - **Alijo compartido** en el pueblo: 24 casillas comunes a todos tus personajes (sobrevive al Hardcore)
 - **Tabla del Desafío Diario**: tus últimas 14 runs con clase, piso y tiempo, en el panel de personaje

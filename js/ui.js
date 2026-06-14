@@ -2,8 +2,8 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
-import { RARITIES, SLOT_NAMES, SETS, itemStatLines, statText } from './items.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
+import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -33,6 +33,7 @@ export class UI {
     $('btn-junk').addEventListener('click', () => g.sellJunk());
     $('btn-sort').addEventListener('click', () => g.sortInventory());
     document.querySelectorAll('.panel-close').forEach(b => b.addEventListener('click', () => this.closePanel()));
+    $('btn-collection').addEventListener('click', () => this.openCollection());
     $('btn-respawn').addEventListener('click', () => g.respawn());
   }
 
@@ -296,6 +297,7 @@ export class UI {
     else if (this.activePanel === 'quest') this.renderQuest();
     else if (this.activePanel === 'settings') this.renderSettings();
     else if (this.activePanel === 'stash') this.renderStash();
+    else if (this.activePanel === 'collection') this.renderCollection();
   }
 
   openStash() {
@@ -392,6 +394,61 @@ export class UI {
       $('panel-quest').classList.remove('hidden');
     }
     this.renderQuest();
+  }
+
+  // modal de pactos: elige un riesgo a cambio de recompensa (o cancela)
+  openPacts() {
+    const g = this.game;
+    this.closePanel();
+    this.activePanel = 'pacts';
+    const panel = $('panel-pacts');
+    panel.classList.remove('hidden');
+    const body = $('pacts-body');
+    body.innerHTML = '';
+    for (const pact of PACTS) {
+      const b = document.createElement('button');
+      b.className = 'shop-item';
+      b.innerHTML = `<span class="shop-name">${pact.icon} ${pact.name}<small class="shop-stats">${pact.desc}</small></span>`;
+      b.onclick = () => { g.applyPact(pact.id); this.closePanel(); };
+      body.appendChild(b);
+    }
+    const cancel = document.createElement('button');
+    cancel.className = 'quest-btn';
+    cancel.textContent = 'Entrar sin pacto';
+    cancel.onclick = () => this.closePanel();
+    body.appendChild(cancel);
+  }
+
+  // panel de colección: sets, poderes legendarios y bestiario
+  openCollection() {
+    if (this.activePanel !== 'collection') {
+      this.closePanel();
+      this.activePanel = 'collection';
+      $('panel-collection').classList.remove('hidden');
+    }
+    this.renderCollection();
+  }
+
+  renderCollection() {
+    const d = this.game.player.discovered;
+    const body = $('collection-body');
+    const setsHTML = SETS.map(s => {
+      const found = Object.keys(d.sets[s.id] || {}).length;
+      return `<div class="col-row"><span>${s.icon} ${s.name}</span><b>${found}/${s.pieces.length}</b></div>`;
+    }).join('');
+    const powFound = Object.keys(d.powers).length;
+    const powsHTML = LEGENDARY_POWERS.map(p =>
+      `<div class="col-row ${d.powers[p.id] ? 'have' : 'miss'}"><span>${d.powers[p.id] ? '✦ ' + p.name : '🔒 ???'}</span>` +
+      `<small>${d.powers[p.id] ? p.desc : 'Encuentra un legendario con este poder'}</small></div>`).join('');
+    const beasts = ENEMIES.filter(e => !e.coward || true);
+    const bestHTML = beasts.map(e => {
+      const n = d.bestiary[e.id] || 0;
+      return `<div class="col-row ${n ? '' : 'miss'}"><span>${n ? e.name : '🔒 ???'}</span><b>${n}</b></div>`;
+    }).join('');
+    body.innerHTML = `
+      <h4>🟢 Conjuntos</h4>${setsHTML}
+      <h4>✦ Poderes legendarios (${powFound}/${LEGENDARY_POWERS.length})</h4>${powsHTML}
+      <h4>📖 Bestiario</h4>${bestHTML}`;
   }
 
   renderQuest() {
@@ -580,7 +637,7 @@ export class UI {
       return;
     }
     if (ctx.from === 'inv') {
-      if (item.kind !== 'gem') addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
+      if (item.kind === 'item' && item.slot) addBtn('Equipar', () => g.equipItem(ctx.index), 'btn-good');
       addBtn(item.fav ? '💔 Quitar ⭐' : '⭐ Favorito', () => g.toggleFav(ctx.index));
       addBtn(`Vender (${item.value} 🪙)`, () => g.sellItem(ctx.index));
       if (p.cube.length < 3 && item.rarity !== 'legendario' && item.rarity !== 'conjunto')

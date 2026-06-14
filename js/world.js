@@ -455,6 +455,23 @@ export function buildDungeon(floor, seed = null) {
   group.add(townPortal);
   interactables.push({ type: 'portal_town', pos: entry.clone(), radius: 1.3, label: '🌀 Volver al Pueblo', labelCls: 'lbl-portal', mesh: townPortal });
 
+  // altar de pactos (opcional) junto a la entrada
+  const altarCell = grid.cells[rooms[0].cz]?.[rooms[0].cx + 2] ? [rooms[0].cx + 2, rooms[0].cz] : [rooms[0].cx, rooms[0].cz + 2];
+  const altarPos = grid.center(altarCell[0], altarCell[1]);
+  const altar = new THREE.Group();
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x3a2030, roughness: 0.8 }));
+  slab.position.y = 0.45;
+  const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 0),
+    new THREE.MeshStandardMaterial({ color: 0xcc2244, emissive: 0xaa1133, emissiveIntensity: 1.4 }));
+  orb.position.y = 1.25; orb.userData.baseY = 1.25;
+  slab.castShadow = true;
+  altar.add(slab, orb);
+  altar.userData.crystal = orb;
+  altar.position.copy(altarPos);
+  group.add(altar);
+  interactables.push({ type: 'altar', pos: altarPos.clone(), radius: 1.4, label: '🩸 Altar de Pactos', labelCls: 'lbl-elite', mesh: altar });
+
   // waypoint cada 5 pisos, cerca de la entrada (lejos del punto de aparición)
   if (floor % 5 === 0) {
     const r0 = rooms[0];

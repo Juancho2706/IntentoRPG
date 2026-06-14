@@ -202,6 +202,8 @@ export class Player {
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;
+    // registro de colección: sets vistos, poderes legendarios, bestiario
+    this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
     this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, mf: 0, ...(this.paragon || {}) };
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
@@ -309,6 +311,13 @@ export class Player {
       this.hp = Math.min(this.hp, this.stats.maxHP);
       this.mp = Math.min(this.mp, this.stats.maxMP);
     }
+  }
+
+  // registra en la colección un objeto identificado/recogido
+  discover(item) {
+    if (!item) return;
+    if (item.setId) (this.discovered.sets[item.setId] ||= {})[item.slot] = true;
+    if (item.power) this.discovered.powers[item.power.id] = true;
   }
 
   rollDamage(mult = 1, critBonus = 0) {

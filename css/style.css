@@ -601,3 +601,11 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
   #joy-zone { top: 28%; bottom: 0; width: 48%; }
   #joy-hint { display: block; }
 }
+
+/* colección / bestiario */
+#collection-body h4 { margin: 12px 0 4px; color: #bba868; font-weight: normal; }
+.col-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 4px 6px; border-bottom: 1px solid #2a2418; font-size: 13px; }
+.col-row small { opacity: 0.6; font-size: 11px; text-align: right; flex: 1; }
+.col-row.miss { opacity: 0.45; }
+.col-row.have { color: #ff9a4a; }
+.world-label.lbl-charm { color: #66ddcc; }

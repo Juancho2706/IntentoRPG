@@ -325,6 +325,26 @@ export function gambleItem(ilvl, slot) {
   return generateItem(ilvl, rarity, slot);
 }
 
+// Amuletos de mochila (charms): otorgan stats mientras estén en la bolsa,
+// usando espacio de inventario como coste (estilo charms de Diablo 2)
+const CHARM_NAMES = ['Pequeño Amuleto', 'Amuleto Grande', 'Gran Talismán'];
+export function makeCharm(ilvl) {
+  const pool = AFFIX_POOL.filter(a => ['fue', 'des', 'vit', 'ene', 'hp', 'mp', 'crit', 'mf'].includes(a.stat));
+  const n = 1 + (Math.random() < 0.4 ? 1 : 0);
+  const affixes = {};
+  const avail = [...pool];
+  for (let i = 0; i < n && avail.length; i++) {
+    const af = avail.splice(Math.floor(Math.random() * avail.length), 1)[0];
+    let v = ri(af.min, af.max);
+    if (!af.flat) v = Math.round(v * (1 + 0.15 * (ilvl - 1)));
+    affixes[af.stat] = Math.max(1, v);
+  }
+  return {
+    uid: itemUid++, kind: 'charm', icon: '🧿', rarity: 'raro',
+    name: pick(CHARM_NAMES), ilvl, affixes, value: 40 + ilvl * 6,
+  };
+}
+
 export function makePotion(pot) {
   return { uid: itemUid++, kind: 'potion', pot, icon: pot === 'hp' ? '🧪' : '🔷',
     name: pot === 'hp' ? 'Poción de Vida' : 'Poción de Maná', value: 12 };
@@ -349,6 +369,7 @@ export function rollDrops(floor, opts = {}) {
   if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
   if (Math.random() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(floor));
   if (Math.random() < (opts.runeChance ?? 0.025) * (1 + mf)) drops.push(makeRune());
+  if (Math.random() < (opts.charmChance ?? 0.012) * (1 + mf)) drops.push(makeCharm(floor));
 
   let count = opts.minItems || 0;
   if (Math.random() < (opts.itemChance ?? 0.18) * qty) count++;
@@ -374,6 +395,7 @@ export function statText(stat, v) {
 export function itemStatLines(item) {
   if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];
+  if (item.kind === 'charm') lines.push('🧿 Activo mientras esté en la mochila');
   if (item.power) lines.push(`✦ ${item.power.name}: ${item.power.desc}`);
   if (item.dmg) lines.push(`Daño: ${item.dmg[0]} - ${item.dmg[1]}`);
   if (item.arm) lines.push(`Armadura: ${item.arm}`);

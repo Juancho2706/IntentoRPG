@@ -274,6 +274,16 @@ export function generateQuest(level) {
 
 export const PET_PRICE = 500;
 
+// Pactos: riesgo↔recompensa opcional por piso (estilo modificadores de mapa)
+export const PACTS = [
+  { id: 'sangre',    name: 'Pacto de Sangre',     icon: '🩸', desc: 'Enemigos +45% daño · botín +40%',
+    mods: { edmg: 0.45, qty: 40 } },
+  { id: 'horda',     name: 'Pacto de la Horda',   icon: '💀', desc: 'Enemigos +60% vida · +40% hallazgo mágico',
+    mods: { ehp: 0.6, mf: 40 } },
+  { id: 'celeridad', name: 'Pacto de Celeridad',  icon: '⚡', desc: 'Enemigos +35% velocidad · +30% experiencia',
+    mods: { espd: 0.35, xp: 30 } },
+];
+
 export const POTION_PRICES = { hp: 30, mp: 30 };
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {
