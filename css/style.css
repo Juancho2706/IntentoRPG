@@ -830,3 +830,139 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
   .cs-attr-desc { font-size: 10.5px; }
   #panel-stats .cs-section { padding: 9px 10px; }
 }
+
+/* ============================================================
+   ===== Inventario rediseño (UI/UX) =====
+   Solo afecta al panel #panel-inv. Mantiene el tema oscuro/dorado
+   y las variables --gold / --panel-bg / --panel-border. La lógica
+   JS, los data-* de las celdas y el drag&drop quedan intactos.
+   ============================================================ */
+
+/* -- secciones: jerarquía clara EQUIPO / CUBO / MOCHILA -- */
+#panel-inv .inv-section {
+  border: 1px solid #2e2718;
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  margin: 10px 0;
+  background: rgba(255, 255, 255, 0.018);
+}
+#panel-inv .inv-sec-head {
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 8px;
+  color: var(--gold);
+  font-weight: normal;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.22);
+  padding-bottom: 5px;
+}
+#panel-inv .inv-sec-head .inv-sec-ico { font-size: 16px; filter: saturate(0.85); }
+#panel-inv #inv-gold { margin-left: auto; }
+
+/* -- equipo en silueta: ranuras más grandes con etiqueta visible -- */
+#panel-inv #equip-slots {
+  grid-template-columns: repeat(3, 64px);
+  grid-auto-rows: 64px;
+  gap: 7px;
+  padding: 12px 0;
+  background:
+    radial-gradient(ellipse 70% 80% at center, rgba(201, 162, 39, 0.08), transparent 72%);
+}
+#panel-inv .equip-cell {
+  border-radius: 8px;
+  border-width: 1px;
+}
+/* hueco vacío: icono guía grande + nombre de la ranura debajo */
+#panel-inv .equip-cell.empty-slot { background: rgba(255, 255, 255, 0.025); border-style: dashed; border-color: #463a24; }
+#panel-inv .equip-cell .cell-hint {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px; line-height: 1.05; opacity: 1;
+}
+#panel-inv .equip-cell .cell-hint .slot-glyph { font-size: 19px; opacity: 0.4; }
+#panel-inv .equip-cell .cell-hint .slot-name { font-size: 8px; opacity: 0.62; color: #cdbf96; text-align: center; }
+
+/* -- mochila: casillas con buen tamaño táctil y respiración -- */
+#panel-inv #inv-grid {
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+#panel-inv .inv-cell { border-radius: 7px; min-height: 38px; }
+/* objeto presente: leve realce para diferenciar de la casilla vacía */
+#panel-inv .inv-cell.rarity-normal,
+#panel-inv .inv-cell.rarity-magico,
+#panel-inv .inv-cell.rarity-raro,
+#panel-inv .inv-cell.rarity-legendario,
+#panel-inv .inv-cell.rarity-conjunto { background-image: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.12)); }
+
+/* -- indicadores en la celda -- */
+#panel-inv .cell-icon { font-size: 22px; }
+/* glifo de rareza: esquina inferior derecha */
+.cell-glyph {
+  position: absolute; bottom: -2px; right: 0;
+  font-size: 10px; line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 2px #000;
+  pointer-events: none;
+}
+/* sin identificar: esquina inferior izquierda, bien visible */
+.cell-unid {
+  position: absolute; bottom: -3px; left: -2px;
+  font-size: 11px; line-height: 1;
+  filter: drop-shadow(0 0 2px #000);
+  pointer-events: none;
+}
+/* engarce libre: realce verde-azulado más legible */
+#panel-inv .cell-sockets { box-shadow: 0 0 4px rgba(102, 221, 204, 0.5); }
+#panel-inv .fav-star { filter: drop-shadow(0 0 2px #000); }
+
+/* -- cubo de transmutación: tira clara -- */
+#panel-inv #cube-row {
+  gap: 7px;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, rgba(106, 74, 153, 0.12), rgba(36, 26, 56, 0.18));
+  border: 1px solid #3a2a55;
+  border-radius: 9px;
+}
+#panel-inv #cube-row .inv-cell {
+  width: 56px; aspect-ratio: 1;
+  border-style: dashed; border-color: #5a4a85;
+  background: rgba(58, 42, 85, 0.18);
+}
+#panel-inv #cube-row .inv-cell.rarity-normal,
+#panel-inv #cube-row .inv-cell.rarity-magico,
+#panel-inv #cube-row .inv-cell.rarity-raro,
+#panel-inv #cube-row .inv-cell.rarity-legendario,
+#panel-inv #cube-row .inv-cell.rarity-conjunto { border-style: solid; }
+#panel-inv #btn-transmute { font-weight: bold; letter-spacing: 0.3px; }
+#panel-inv #btn-recipes {
+  flex-shrink: 0; width: 48px; font-size: 18px; border-radius: 8px;
+  background: #2a2018; color: #fff; border: 1px solid var(--panel-border);
+}
+
+/* -- herramientas de la mochila -- */
+#panel-inv #inv-tools button { border-radius: 7px; }
+
+/* -- leyenda de indicadores -- */
+#panel-inv .inv-legend {
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  margin: 12px 2px 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(201, 162, 39, 0.18);
+  font-size: 11px;
+}
+#panel-inv .inv-legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+#panel-inv .inv-legend .lg-glyph { font-size: 12px; text-shadow: 0 0 3px #000; }
+
+/* -- ajuste móvil: que entre sin desbordes y con buen tamaño táctil -- */
+@media (max-width: 700px), (max-height: 640px) {
+  #panel-inv #equip-slots {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    max-width: 260px; margin: 0 auto;
+  }
+  #panel-inv .equip-cell { aspect-ratio: 1; }
+  #panel-inv #inv-grid { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  #panel-inv .inv-cell { min-height: 44px; }      /* objetivo táctil cómodo */
+  #panel-inv #cube-row { flex-wrap: wrap; }
+  #panel-inv #cube-row .inv-cell { width: 48px; }
+  #panel-inv #btn-transmute { flex: 1 1 120px; }
+  #panel-inv .inv-section { padding: 8px; }
+}

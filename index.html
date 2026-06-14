@@ -81,18 +81,36 @@
 <!-- paneles -->
 <div id="panel-inv" class="panel hidden">
   <div class="panel-head"><h2>🎒 Inventario</h2><button class="panel-close">✕</button></div>
-  <h4>Equipado</h4>
-  <div id="equip-slots"></div>
-  <h4>🧪 Cubo de Transmutación</h4>
-  <p class="dim cube-help">3 objetos de la misma rareza → 1 superior (cuesta oro) · 3 legendarios → reforjar uno nuevo (caro) · si comparten ranura, el resultado es de esa ranura · 3 gemas iguales → gema superior</p>
-  <div id="cube-row"></div>
-  <h4>Mochila <span id="inv-gold" class="dim"></span></h4>
-  <div id="inv-tools">
-    <button id="btn-identify">🔎 Identificar</button>
-    <button id="btn-junk">🧹 Vender morralla</button>
-    <button id="btn-sort">↕️ Ordenar</button>
+
+  <section class="inv-section">
+    <h4 class="inv-sec-head"><span class="inv-sec-ico">🛡️</span> Equipo</h4>
+    <div id="equip-slots"></div>
+  </section>
+
+  <section class="inv-section">
+    <h4 class="inv-sec-head"><span class="inv-sec-ico">🧪</span> Cubo de Transmutación</h4>
+    <p class="dim cube-help">3 objetos de la misma rareza → 1 superior (cuesta oro) · 3 legendarios → reforjar uno nuevo (caro) · si comparten ranura, el resultado es de esa ranura · 3 gemas iguales → gema superior</p>
+    <div id="cube-row"></div>
+  </section>
+
+  <section class="inv-section">
+    <h4 class="inv-sec-head"><span class="inv-sec-ico">🎒</span> Mochila <span id="inv-gold" class="dim"></span></h4>
+    <div id="inv-tools">
+      <button id="btn-identify">🔎 Identificar</button>
+      <button id="btn-junk">🧹 Vender morralla</button>
+      <button id="btn-sort">↕️ Ordenar</button>
+    </div>
+    <div id="inv-grid"></div>
+  </section>
+
+  <div class="inv-legend dim">
+    <span><span class="lg-glyph" style="color:#6f8cff">✦</span> Mágico</span>
+    <span><span class="lg-glyph" style="color:#ffd24a">◆</span> Raro</span>
+    <span><span class="lg-glyph" style="color:#ff8c2e">★</span> Legendario</span>
+    <span><span class="lg-glyph" style="color:#4ade80">❖</span> Conjunto</span>
+    <span>❓ Sin identificar</span>
+    <span>⭐ Favorito</span>
   </div>
-  <div id="inv-grid"></div>
 </div>
 
 <div id="panel-skills" class="panel hidden">
