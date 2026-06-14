@@ -721,3 +721,112 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
 #minimap { cursor: pointer; }
 #map-canvas { width: min(86vw, 380px); height: auto; image-rendering: pixelated; border: 1px solid var(--panel-border); border-radius: 6px; display: block; margin: 0 auto; }
 #map-info { text-align: center; margin-top: 6px; }
+
+/* ===== Hoja de personaje rediseño ===== */
+/* Estilos exclusivos del panel #panel-stats. Clases con prefijo .cs- para no
+   colisionar con otros paneles (skills reutiliza .attr-row / .sk-plus). */
+
+#panel-stats .cs-section {
+  margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid #3a3226;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+#panel-stats .cs-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 8px;
+}
+#panel-stats .cs-section-title {
+  color: var(--gold); font-size: 14px; font-weight: bold;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+#panel-stats .cs-points {
+  font-size: 12px; color: #9a8e6a;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid #443a22;
+  border-radius: 12px; padding: 2px 10px; white-space: nowrap;
+}
+#panel-stats .cs-points-active { color: #8fdd8f; border-color: #3a6a3a; }
+
+/* cabecera del héroe */
+.cs-hero {
+  background: linear-gradient(135deg, rgba(201, 162, 39, 0.12), rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--panel-border); border-radius: 10px;
+  padding: 12px; margin-bottom: 14px;
+}
+.cs-hero-top { display: flex; align-items: center; gap: 12px; }
+.cs-hero-icon {
+  font-size: 30px; width: 50px; height: 50px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+.cs-hero-name { color: var(--gold); font-size: 18px; font-weight: bold; line-height: 1.2; }
+.cs-hero-sub { color: #cbbd92; font-size: 13px; margin-top: 2px; }
+.cs-xp {
+  height: 8px; margin-top: 10px;
+  background: #1a1510; border: 1px solid #443a22; border-radius: 5px; overflow: hidden;
+}
+.cs-xp-fill { height: 100%; background: linear-gradient(90deg, #8a6f1e, var(--gold)); }
+.cs-xp-txt { font-size: 11px; color: #9a8e6a; text-align: right; margin-top: 3px; }
+
+/* atributos / paragon */
+.cs-attr {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; margin-bottom: 6px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid #3a3226; border-radius: 8px;
+}
+.cs-attr-icon {
+  font-size: 20px; width: 30px; flex-shrink: 0; text-align: center;
+}
+.cs-attr-body { flex: 1; min-width: 0; }
+.cs-attr-name { font-size: 14px; color: #ece3c8; }
+.cs-attr-val {
+  color: var(--gold); font-weight: bold; font-size: 15px; margin-left: 4px;
+}
+.cs-attr-desc { font-size: 11px; opacity: 0.6; margin-top: 1px; line-height: 1.35; }
+.cs-plus {
+  width: 40px; height: 40px; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cs-plus:disabled { opacity: 0.3; }
+.cs-respec { margin-top: 4px; }
+
+/* estadísticas derivadas */
+#derived-stats { font-size: 14px; }
+.cs-stat-group { margin-bottom: 10px; }
+.cs-stat-group:last-child { margin-bottom: 0; }
+.cs-stat-group-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #bba868; opacity: 0.85; margin-bottom: 4px;
+  border-bottom: 1px solid #332a18; padding-bottom: 3px;
+}
+.cs-stat {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 3px 0; font-size: 13.5px;
+}
+.cs-stat-lbl { color: #d8cfb4; }
+.cs-stat-val { color: var(--gold); font-weight: bold; white-space: nowrap; }
+
+/* crónica: rejilla de dos columnas */
+#records {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px;
+  font-size: 13px; opacity: 0.95; line-height: 1.4;
+}
+.cs-rec { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.cs-rec-lbl { color: #cdc3a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-rec-val { color: #ece3c8; font-weight: bold; white-space: nowrap; flex-shrink: 0; }
+
+/* registro de desafíos diarios */
+.cs-daily {
+  font-size: 13px; line-height: 1.7; padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.cs-daily:last-child { border-bottom: none; }
+
+@media (max-width: 420px) {
+  #records { grid-template-columns: 1fr; }
+  .cs-attr-desc { font-size: 10.5px; }
+  #panel-stats .cs-section { padding: 9px 10px; }
+}
