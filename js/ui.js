@@ -14,7 +14,83 @@ export class UI {
     this.labelMap = new Map();
     this._v = new THREE.Vector3();
     this.activePanel = null;
+    this.drag = null;
+    this._onDragMove = this.onDragMove.bind(this);
+    this._onDragUp = this.onDragUp.bind(this);
     this.bindHUD();
+  }
+
+  // ---------- arrastrar y soltar (Pointer Events: ratón + táctil) ----------
+  // Cada celda lleva data-zone / data-key. Las celdas con objeto son
+  // arrastrables; todas son destinos válidos. Un toque sin arrastre = tap.
+  bindCell(div, desc, tapFn) {
+    div.dataset.zone = desc.zone;
+    div.dataset.key = desc.key;
+    div._tapFn = tapFn;
+    if (desc.item) {
+      div.style.touchAction = 'none';
+      div.addEventListener('pointerdown', (e) => this.dragStart(e, div, desc, tapFn));
+    } else if (tapFn) {
+      div.addEventListener('click', tapFn);
+    }
+  }
+
+  dragStart(e, div, desc, tapFn) {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    this.drag = { desc, div, tapFn, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, id: e.pointerId };
+    window.addEventListener('pointermove', this._onDragMove);
+    window.addEventListener('pointerup', this._onDragUp);
+    window.addEventListener('pointercancel', this._onDragUp);
+  }
+
+  onDragMove(e) {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.id) return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!d.moved && Math.hypot(dx, dy) > 8) {
+      d.moved = true;
+      const ghost = document.createElement('div');
+      ghost.className = 'drag-ghost';
+      ghost.innerHTML = d.div.innerHTML;
+      document.body.appendChild(ghost);
+      d.ghost = ghost;
+      d.div.classList.add('dragging-src');
+    }
+    if (d.moved) {
+      d.ghost.style.left = e.clientX + 'px';
+      d.ghost.style.top = e.clientY + 'px';
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const cell = el && el.closest('[data-zone]');
+      if (cell !== this._dropCell) {
+        this._dropCell?.classList.remove('drop-hover');
+        this._dropCell = cell && cell !== d.div ? cell : null;
+        this._dropCell?.classList.add('drop-hover');
+      }
+    }
+  }
+
+  onDragUp(e) {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.id) return;
+    window.removeEventListener('pointermove', this._onDragMove);
+    window.removeEventListener('pointerup', this._onDragUp);
+    window.removeEventListener('pointercancel', this._onDragUp);
+    this.drag = null;
+    d.div.classList.remove('dragging-src');
+    this._dropCell?.classList.remove('drop-hover');
+    this._dropCell = null;
+    if (d.ghost) d.ghost.remove();
+    if (!d.moved) { if (d.tapFn) d.tapFn(); return; } // fue un toque, no un arrastre
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const cell = el && el.closest('[data-zone]');
+    if (cell) {
+      const raw = cell.dataset.key;
+      const dst = { zone: cell.dataset.zone, key: /^\d+$/.test(raw) ? +raw : raw };
+      this.game.moveItem(d.desc, dst);
+    }
+    this.renderPanel();
+    this.updateHUD();
   }
 
   bindHUD() {
@@ -318,10 +394,8 @@ export class UI {
       const div = document.createElement('div');
       div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
       div.innerHTML = this.itemCellHTML(item);
-      if (item) {
-        div.title = 'Pasar a la mochila';
-        div.onclick = () => { g.takeFromStash(i); this.renderStash(); };
-      }
+      if (item) div.title = 'Pasar a la mochila';
+      this.bindCell(div, { zone: 'stash', key: i, item }, item ? () => { g.takeFromStash(i); this.renderStash(); } : null);
       sg.appendChild(div);
     }
     const ig = $('stash-inv-grid');
@@ -331,10 +405,8 @@ export class UI {
       const div = document.createElement('div');
       div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
       div.innerHTML = this.itemCellHTML(item);
-      if (item) {
-        div.title = 'Guardar en el alijo';
-        div.onclick = () => { g.depositToStash(i); this.renderStash(); };
-      }
+      if (item) div.title = 'Guardar en el alijo';
+      this.bindCell(div, { zone: 'inv', key: i, item }, item ? () => { g.depositToStash(i); this.renderStash(); } : null);
       ig.appendChild(div);
     }
   }
@@ -535,7 +607,7 @@ export class UI {
       const div = document.createElement('div');
       div.className = `inv-cell equip-cell slot-${slot}` + (item ? ' rarity-' + item.rarity : '');
       div.innerHTML = item ? this.itemCellHTML(item) : `<span class="cell-hint">${label}</span>`;
-      if (item) div.onclick = () => this.itemPopup(item, { from: 'equip', slot });
+      this.bindCell(div, { zone: 'equip', key: slot, item }, item ? () => this.itemPopup(item, { from: 'equip', slot }) : null);
       eq.appendChild(div);
     }
 
@@ -547,10 +619,8 @@ export class UI {
       const div = document.createElement('div');
       div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
       div.innerHTML = item ? this.itemCellHTML(item) : '<span class="cell-hint">—</span>';
-      if (item) {
-        div.title = 'Devolver al inventario';
-        div.onclick = () => { g.cubeReturn(i); this.renderInventory(); };
-      }
+      if (item) div.title = 'Devolver al inventario';
+      this.bindCell(div, { zone: 'cube', key: i, item }, item ? () => { g.cubeReturn(i); this.renderInventory(); } : null);
       cubeRow.appendChild(div);
     }
     const tb = document.createElement('button');
@@ -567,10 +637,10 @@ export class UI {
       const div = document.createElement('div');
       div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
       div.innerHTML = this.itemCellHTML(item);
-      if (item) div.onclick = () => this.itemPopup(item, { from: 'inv', index: i });
+      this.bindCell(div, { zone: 'inv', key: i, item }, item ? () => this.itemPopup(item, { from: 'inv', index: i }) : null);
       invGrid.appendChild(div);
     }
-    $('inv-gold').textContent = `🪙 ${p.gold} oro`;
+    $('inv-gold').textContent = `🪙 ${p.gold} oro · arrastra para equipar, engarzar u ordenar`;
   }
 
   itemPopup(item, ctx) {

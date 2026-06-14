@@ -44,6 +44,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Lobo de caza**: mascota comprable al mercader que te sigue y ataca a tus enemigos
 - **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
 - **Inventario** de 32 casillas + **12 ranuras de equipo** estilo Diablo (arma, escudo, casco, hombreras, armadura, guantes, cinturón, pantalones, botas, amuleto y 2 anillos) en silueta anatómica
+- **Arrastrar y soltar**: mueve objetos entre mochila, equipo, cubo y alijo; arrastra una pieza a su ranura para equiparla o una gema/runa sobre un objeto con engarce para incrustarla (Pointer Events: funciona en ratón y táctil)
+- **Stats secundarios** estilo Diablo 3/4: Vida al golpear, Maná al golpear, Reducción de enfriamiento (tope 50%) y Espinas
 - **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura
 - **Runas y palabras rúnicas**: 6 runas que, engarzadas en el orden correcto, forman palabras con bonus especiales (Filo, Bastión, Zancada, Tormenta, Coloso)
 - **Encantadora** en el pueblo: reforja un afijo de un objeto por oro (precio creciente)

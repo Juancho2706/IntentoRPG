@@ -28,7 +28,7 @@ if (!g.lineOfSight(...open)) throw new Error('LOS falla en campo abierto');
 console.log('lineOfSight: muro bloquea ✓, campo abierto pasa ✓');
 
 // enemigo sin LOS no toma aggro ni ataca; con LOS sí (y recuerda)
-const fake = { ui: { spawnText(){}, message(){} }, sfx(){}, addShake(){}, vibrate(){}, tip(){}, spawnBurst(){}, spawnTelegraph(){}, spawnProjectile(){}, input: { joyDir: null, keyDir: null }, world: d, enemies: [], onEnemyKilled(){} };
+const fake = { ui: { spawnText(){}, message(){} }, sfx(){}, addShake(){}, vibrate(){}, tip(){}, spawnBurst(){}, spawnTelegraph(){}, spawnProjectile(){}, spawnRing(){}, input: { joyDir: null, keyDir: null }, world: d, enemies: [], onEnemyKilled(){} };
 let hits = 0;
 fake.player = { alive: true, pos: new THREE.Vector3(blocked[2], 0, blocked[3]), takeDamage() { hits++; }, slowT: 0 };
 const e = new Enemy(fake, scaleEnemy(pickEnemyDef(2), 2), new THREE.Vector3(blocked[0], 0, blocked[1]));

@@ -320,6 +320,57 @@ export const economyMethods = {
     this.save();
   },
 
+  // ---------- arrastrar y soltar ----------
+  // resuelve un movimiento entre zonas (inv/equip/cube/stash)
+  moveItem(src, dst) {
+    const p = this.player;
+    if (src.zone === dst.zone && src.key === dst.key) return;
+    const at = (z, k) => z === 'inv' ? p.inventory[k] : z === 'equip' ? p.equipment[k]
+      : z === 'cube' ? p.cube[k] : z === 'stash' ? this.stash[k] : null;
+    const item = at(src.zone, src.key);
+    if (!item) return;
+    const dstItem = at(dst.zone, dst.key);
+
+    // gema/runa del inventario sobre un objeto con engarce libre → engarzar
+    if (src.zone === 'inv' && (item.kind === 'gem' || item.kind === 'rune') &&
+        dstItem && dstItem.sockets && (dstItem.gems?.length || 0) < dstItem.sockets) {
+      this.socketGem(dstItem.uid, src.key); return;
+    }
+    if (dst.zone === 'equip') { if (src.zone === 'inv') this.equipToSlot(src.key, dst.key); return; }
+    if (src.zone === 'equip') { if (dst.zone === 'inv' || dst.zone === 'stash') this.unequipItem(src.key); return; }
+    if (dst.zone === 'cube') { if (src.zone === 'inv') this.addToCube(src.key); return; }
+    if (src.zone === 'cube') { if (dst.zone === 'inv') this.cubeReturn(src.key); return; }
+    if (dst.zone === 'stash') { if (src.zone === 'inv') this.depositToStash(src.key); return; }
+    if (src.zone === 'stash') { if (dst.zone === 'inv') this.takeFromStash(src.key); return; }
+    if (src.zone === 'inv' && dst.zone === 'inv') this.swapInv(src.key, dst.key);
+  },
+
+  // equipar respetando la ranura (los anillos van a ring o ring2)
+  equipToSlot(invIndex, slot) {
+    const p = this.player;
+    const item = p.inventory[invIndex];
+    if (!item || item.kind !== 'item' || !item.slot) return;
+    if (item.unidentified) { this.ui.message('🔎 Identifícalo antes de equiparlo'); return; }
+    const ok = item.slot === slot || (item.slot === 'ring' && (slot === 'ring' || slot === 'ring2'));
+    if (!ok) { this.ui.message('Esa pieza no va en esa ranura'); return; }
+    const old = p.equipment[slot];
+    p.equipment[slot] = item;
+    p.inventory.splice(invIndex, 1);
+    if (old) p.inventory.push(old);
+    p.recompute();
+    this.sfx('pickup');
+    this.save();
+  },
+
+  // reordena la mochila: intercambia o mueve al final si el destino está vacío
+  swapInv(a, b) {
+    const inv = this.player.inventory;
+    if (a >= inv.length) return;
+    if (b >= inv.length) { inv.push(inv.splice(a, 1)[0]); }
+    else { const t = inv[a]; inv[a] = inv[b]; inv[b] = t; }
+    this.save();
+  },
+
   // ---------- identificación ----------
   identifyItem(index) {
     const it = this.player.inventory[index];
