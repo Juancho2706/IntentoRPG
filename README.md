@@ -61,6 +61,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Encantadora** en el pueblo: reforja un afijo de un objeto por oro (precio creciente)
 - **Re-spec**: redistribuye atributos y habilidades pagando oro
 - **Tablero de Paragon** (estilo Diablo 4): tras el nivel 20, cada nivel da un punto que se gasta en un **tablero de nodos conectados** (9×9) — nodos menores, mágicos, raros y **legendarios (★) que otorgan poderes únicos**; solo activas nodos que conecten con otros ya activos, y puedes reespecializar por oro
+- **Glifos del tablero**: nodos de **engarce (◇)** donde colocas **glifos** (caen en grietas y del Pináculo); su poder escala con el **rango del glifo** y con los **nodos activos adyacentes** al engarce (sinergia de colocación), y suben de rango al completar grietas
 - **Poderes legendarios únicos** y **reliquias de jefe**: legendarios que cambian cómo juegas (Festín, Volátil, Vendaval, Viento, Furia, Avaricia); los jefes sueltan reliquias temáticas
 - **Tormento (dificultad seleccionable)**: en la **Estatua del Mundo** del pueblo eliges el nivel de Tormento (hasta 10), que sube la dificultad y el botín (rareza y cantidad); se desbloquea empujando grietas y descendiendo en las mazmorras
 - **Códice de Aspectos**: extrae el poder único de un legendario al Códice y **grábalo en otra pieza** por oro (estilo Diablo 4) — define tu build sin depender del azar

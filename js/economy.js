@@ -398,6 +398,34 @@ export const economyMethods = {
     this.save();
   },
 
+  // glifos: engarzar / quitar en un nodo de engarce activo del tablero
+  socketGlyph(nodeId, invIndex) {
+    const p = this.player;
+    const node = PARAGON_BOARD.find(n => n.id === nodeId);
+    if (!node || node.type !== 'socket' || !p.paragon.nodes[nodeId]) return;
+    const gl = p.inventory[invIndex];
+    if (!gl || gl.kind !== 'glyph') return;
+    if (!p.paragon.glyphs) p.paragon.glyphs = {};
+    if (p.paragon.glyphs[nodeId]) p.inventory.push(p.paragon.glyphs[nodeId]); // devuelve el anterior
+    p.inventory.splice(invIndex, 1);
+    p.paragon.glyphs[nodeId] = gl;
+    p.recompute();
+    this.sfx('levelup');
+    this.ui.message(`🔷 ${gl.baseName} engarzado`, 2500);
+    this.save();
+  },
+
+  unsocketGlyph(nodeId) {
+    const p = this.player;
+    const gl = p.paragon.glyphs?.[nodeId];
+    if (!gl) return;
+    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    delete p.paragon.glyphs[nodeId];
+    p.inventory.push(gl);
+    p.recompute();
+    this.save();
+  },
+
   respecParagonCost() { return 500 + (this.player.level || 1) * 50; },
 
   respecParagon() {

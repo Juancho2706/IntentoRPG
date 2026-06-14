@@ -381,6 +381,30 @@ export function makeSupport(supId) {
   };
 }
 
+// Glifos del Tablero de Paragon: se engarzan en nodos de engarce (socket).
+// Su poder = rango × per + (nodos activos adyacentes al engarce) × adj.
+export const GLYPH_TYPES = [
+  { id: 'g_dmg',  stat: 'dmgPct', name: 'Glifo de Cólera',    per: 2,  adj: 1 },
+  { id: 'g_hp',   stat: 'hp',     name: 'Glifo de Vigor',     per: 10, adj: 5 },
+  { id: 'g_arm',  stat: 'arm',    name: 'Glifo de Égida',     per: 5,  adj: 3 },
+  { id: 'g_crit', stat: 'crit',   name: 'Glifo de Precisión', per: 1,  adj: 1 },
+  { id: 'g_mf',   stat: 'mf',     name: 'Glifo de Codicia',   per: 4,  adj: 2 },
+];
+
+export function makeGlyph(rank = 1) {
+  const t = pick(GLYPH_TYPES);
+  rank = Math.max(1, rank | 0);
+  return {
+    uid: itemUid++, kind: 'glyph', glyphId: t.id, stat: t.stat,
+    baseName: t.name, name: `${t.name} · rango ${rank}`, icon: '🔷',
+    rarity: 'raro', rank, per: t.per, adj: t.adj, value: 40 + rank * 20,
+  };
+}
+
+export function glyphValue(glyph, adjAllocated = 0) {
+  return glyph.rank * glyph.per + adjAllocated * glyph.adj;
+}
+
 // Fragmento de Pináculo: material para invocar al jefe pináculo (uber).
 // Se reúnen varios y se ofrendan en la Estatua del Mundo.
 export function makeFragment() {
@@ -482,6 +506,7 @@ export function itemStatLines(item) {
   const lines = [];
   if (item.kind === 'riftkey') return [`🌀 Abre una Grieta de Nivel ${item.riftLevel}`, 'Enemigos reforzados, botín y XP aumentados. Derrota al jefe para subir de nivel de grieta.'];
   if (item.kind === 'fragment') return ['✴️ Fragmento de Pináculo', 'Reúne 3 y ofréndalos en la Estatua del Mundo para invocar al jefe Pináculo y obtener botín mítico.'];
+  if (item.kind === 'glyph') return [`🔷 ${item.baseName} · rango ${item.rank}`, `Engárzalo en un nodo de engarce (◇) del Tablero de Paragon.`, `Otorga ${statText(item.stat, glyphValue(item, 0))} + bonus por cada nodo activo adyacente al engarce.`];
   if (item.kind === 'support') {
     const s = SUPPORTS.find(x => x.id === item.supportId);
     return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.types.join(', ')}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];

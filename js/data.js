@@ -379,6 +379,11 @@ export const PARAGON_BOARD = (() => {
   add(8, 4, 'legendary', { aspdPct: 8 }, { name: 'Vendaval', power: 'multidisparo', desc: 'poder del Vendaval: +1 proyectil' });
   add(6, 3, 'rare', { cdr: 4 });
   add(6, 5, 'rare', { mf: 10 });
+  // nodos de ENGARCE (sockets) para glifos — uno por cuadrante, junto a un brazo
+  add(3, 3, 'socket', {});
+  add(5, 3, 'socket', {});
+  add(3, 5, 'socket', {});
+  add(5, 5, 'socket', {});
   return nodes;
 })();
 export const PARAGON_BOARD_SIZE = 9;

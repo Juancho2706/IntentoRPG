@@ -1504,7 +1504,7 @@ export class UI {
     grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
     const byPos = {};
     for (const n of PARAGON_BOARD) byPos[n.x + ',' + n.y] = n;
-    const glyph = { start: '◉', legendary: '★', rare: '◆', magic: '✦', minor: '•' };
+    const glyph = { start: '◉', legendary: '★', rare: '◆', magic: '✦', minor: '•', socket: '◇' };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const cell = document.createElement('div');
       cell.className = 'para-cell';
@@ -1512,13 +1512,23 @@ export class UI {
       if (node) {
         const on = node.type === 'start' || !!para.nodes[node.id];
         const avail = !on && para.points > 0 && g.paragonNodeReachable(node.id);
+        const gl = node.type === 'socket' ? para.glyphs?.[node.id] : null;
         cell.classList.add('para-node', 'pn-' + node.type);
         if (on) cell.classList.add('on');
         if (avail) cell.classList.add('avail');
-        cell.textContent = glyph[node.type] || '•';
-        cell.title = (node.name ? node.name + ': ' : '') + this.nodeStatsText(node);
+        if (gl) cell.classList.add('has-glyph');
+        cell.textContent = gl ? '🔷' : (glyph[node.type] || '•');
+        cell.title = node.type === 'socket'
+          ? (gl ? `${gl.name}` : 'Engarce vacío') + (on ? ' (toca para engarzar)' : '')
+          : (node.name ? node.name + ': ' : '') + this.nodeStatsText(node);
         cell.onclick = () => {
-          $('paragon-info').innerHTML = `${node.name ? `<b>${node.name}</b> — ` : ''}${this.nodeStatsText(node)}`;
+          if (node.type === 'socket') {
+            const txt = gl ? `<b>${gl.name}</b>` : 'Engarce vacío';
+            $('paragon-info').innerHTML = `🔷 ${txt}`;
+            if (on) { this.paragonGlyphChooser(node); return; }
+          } else {
+            $('paragon-info').innerHTML = `${node.name ? `<b>${node.name}</b> — ` : ''}${this.nodeStatsText(node)}`;
+          }
           if (!on && avail) { g.allocateParagonNode(node.id); this.renderParagon(); this.updateHUD(); }
         };
       }
@@ -1527,6 +1537,39 @@ export class UI {
     $('paragon-respec').textContent = `🔄 Reespecializar (${cost} 🪙)`;
     $('paragon-respec').disabled = p.gold < cost || !Object.keys(para.nodes || {}).length;
     $('paragon-respec').onclick = () => { g.respecParagon(); this.renderParagon(); this.updateHUD(); };
+  }
+
+  // engarzar/quitar un glifo en un nodo de engarce del tablero
+  paragonGlyphChooser(node) {
+    const g = this.game, p = g.player;
+    const pop = $('item-popup');
+    const glyphs = p.inventory.filter(it => it.kind === 'glyph');
+    const cur = p.paragon.glyphs?.[node.id];
+    pop.innerHTML = `
+      <div class="popup-name">🔷 Engarce de Paragon</div>
+      <div class="popup-sub">${cur ? 'Engarzado: ' + cur.name : 'Engarce vacío'}</div>
+      <div class="popup-btns codex-choose"></div>`;
+    const btns = pop.querySelector('.popup-btns');
+    if (!glyphs.length && !cur) {
+      const e = document.createElement('div'); e.className = 'dim';
+      e.textContent = 'No tienes glifos. Caen en grietas y del Pináculo.';
+      btns.appendChild(e);
+    }
+    glyphs.forEach(gl => {
+      const b = document.createElement('button'); b.className = 'btn-good';
+      b.textContent = `Engarzar ${gl.name}`;
+      b.onclick = () => { g.socketGlyph(node.id, p.inventory.indexOf(gl)); pop.classList.add('hidden'); this.renderParagon(); this.updateHUD(); };
+      btns.appendChild(b);
+    });
+    if (cur) {
+      const u = document.createElement('button'); u.textContent = '↩️ Quitar glifo';
+      u.onclick = () => { g.unsocketGlyph(node.id); pop.classList.add('hidden'); this.renderParagon(); this.updateHUD(); };
+      btns.appendChild(u);
+    }
+    const c = document.createElement('button'); c.textContent = 'Cerrar';
+    c.onclick = () => pop.classList.add('hidden');
+    btns.appendChild(c);
+    pop.classList.remove('hidden');
   }
 
   // elección de bendición permanente (recompensa de grieta/corrupción)

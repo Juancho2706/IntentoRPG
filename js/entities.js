@@ -224,8 +224,9 @@ export class Player {
     if (this.paragon && this.paragon.nodes) {
       this.paragon.points = this.paragon.points || 0;
       this.paragon.nodes = this.paragon.nodes || {};
+      this.paragon.glyphs = this.paragon.glyphs || {};
     } else {
-      this.paragon = { points: Math.max(0, (this.level || 1) - 20), nodes: {} };
+      this.paragon = { points: Math.max(0, (this.level || 1) - 20), nodes: {}, glyphs: {} };
     }
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
@@ -297,6 +298,15 @@ export class Player {
       if (node.type !== 'start' && !pnodes[node.id]) continue;
       if (node.stats) addStats(node.stats);
       if (node.power) this.powers.add(node.power);
+    }
+    // glifos engarzados: valor por rango + bonus por nodos activos adyacentes
+    const glyphs = this.paragon?.glyphs || {};
+    for (const [nodeId, gl] of Object.entries(glyphs)) {
+      if (!pnodes[nodeId]) continue; // solo si el engarce está activo
+      const node = PARAGON_BOARD.find(n => n.id === nodeId);
+      if (!node) continue;
+      const adj = PARAGON_BOARD.filter(o => Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1 && (o.type === 'start' || pnodes[o.id])).length;
+      addStats({ [gl.stat]: gl.rank * gl.per + adj * gl.adj });
     }
     // bonus de conjunto por número de piezas equipadas
     for (const [sid, n] of Object.entries(setCounts)) {

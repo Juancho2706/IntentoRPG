@@ -6,7 +6,7 @@ import { ENEMIES, MIMIC, GOBLIN, UBER_BOSS, ENEMY_RANKS, PACTS, ZONE_LIST, BLESS
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES } from './items.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -1384,6 +1384,7 @@ class Game {
       p.records.uberKills = (p.records.uberKills || 0) + 1;
       drops.push(makeMythic(floor + 4, p.classId));
       drops.push(generateItem(floor + 3, 'legendario', null, null, p.classId));
+      drops.push(makeGlyph(Math.max(2, (p.records.maxRift || 0) + 1)));
       for (let i = 0; i < 5; i++) drops.push(makeGold(floor + 6));
       drops.push(makeRiftKey(Math.max(1, (p.records.maxRift || 0))));
       this.ui.message('👁️ ¡Heraldo del Vacío derrotado! Ha caído un objeto MÍTICO', 6000);
@@ -1398,6 +1399,12 @@ class Game {
       drops.push(generateItem(floor, 'legendario', null, null, p.classId));
       drops.push(makeRiftKey(L + 1));
       if (Math.random() < 0.7) drops.push(makeFragment()); // fragmento para el Pináculo
+      if (Math.random() < 0.5) drops.push(makeGlyph(L));    // glifo para el tablero
+      // los glifos engarzados suben de rango al completar grietas (tope 10)
+      for (const gl of Object.values(p.paragon.glyphs || {})) {
+        if (gl.rank < 10) { gl.rank++; gl.name = `${gl.baseName} · rango ${gl.rank}`; }
+      }
+      p.recompute();
       this.ui.message(`🌀 ¡Grieta Nivel ${L} completada! Botín extra y Llave de Grieta Nv ${L + 1}`, 5000);
       this.music.sting();
       this._riftCompleted = L; // ofrece una bendición de corrupción al terminar
@@ -1443,7 +1450,7 @@ class Game {
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
     // pilar de luz por rareza: el loot bueno se ve desde lejos
-    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey' || item.kind === 'support' || item.kind === 'fragment') {
+    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey' || item.kind === 'support' || item.kind === 'fragment' || item.kind === 'glyph') {
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
         new THREE.MeshBasicMaterial({
@@ -1985,7 +1992,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'support' || it.kind === 'fragment') && this.passesLootFilter(it.rarity)) {
+      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'support' || it.kind === 'fragment' || it.kind === 'glyph') && this.passesLootFilter(it.rarity)) {
         entries.push({
           id: gi.id, pos: gi.mesh.position,
           text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${RGLYPH[it.rarity] || ''} ${it.icon} ${it.name}`,
