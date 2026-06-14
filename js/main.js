@@ -13,6 +13,8 @@ import { economyMethods } from './economy.js';
 import { Music } from './music.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
+// glifo de rareza para las etiquetas del suelo (rareza no solo por color)
+const RGLYPH = { normal: '', magico: '✦', raro: '◆', legendario: '★', conjunto: '❖' };
 
 
 // ------------------------------------------------------------
@@ -38,7 +40,9 @@ class Game {
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
-    this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal', ...opts };
+    this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
+      reduceMotion: false, bigText: false, colorblind: false, ...opts };
+    this.applyAccessibility();
     this.qualityLevel = 0;
     this.fpsAcc = 0;
     this.fpsFrames = 0;
@@ -313,6 +317,15 @@ class Game {
     try { localStorage.setItem('intentorpg_opts', JSON.stringify(this.settings)); } catch { /* sin almacenamiento */ }
   }
 
+  // accesibilidad: aplica clases al <body> para CSS (y persiste)
+  applyAccessibility() {
+    const b = document.body;
+    b.classList.toggle('reduce-motion', !!this.settings.reduceMotion);
+    b.classList.toggle('big-text', !!this.settings.bigText);
+    b.classList.toggle('cb', !!this.settings.colorblind);
+    this.saveSettings();
+  }
+
   // filtro de loot: ¿esta rareza supera el umbral elegido?
   passesLootFilter(rarity) {
     const rank = { normal: 0, magico: 1, raro: 2, legendario: 3, conjunto: 3 };
@@ -346,7 +359,7 @@ class Game {
   }
 
   addShake(amp, dur = 0.25) {
-    if (!this.settings.shake) return;
+    if (!this.settings.shake || this.settings.reduceMotion) return;
     this.shakeAmp = Math.max(this.shakeAmp, amp);
     this.shakeT = Math.max(this.shakeT, dur);
     this.shakeDur = dur;
@@ -358,6 +371,7 @@ class Game {
 
   // estela de la esquiva: cápsula translúcida que se desvanece donde estuvo el héroe
   spawnDashGhost(p) {
+    if (this.settings.reduceMotion) return;
     const cls = p.cls;
     const mesh = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.32, 0.55, 4, 8),
@@ -1455,7 +1469,7 @@ class Game {
       if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'support') && this.passesLootFilter(it.rarity)) {
         entries.push({
           id: gi.id, pos: gi.mesh.position,
-          text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${it.icon} ${it.name}`,
+          text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${RGLYPH[it.rarity] || ''} ${it.icon} ${it.name}`,
           cls: 'lbl-item rarity-' + it.rarity,
           onClick: () => { p.pickTarget = gi; p.moveTarget = null; p.attackTarget = null; },
         });

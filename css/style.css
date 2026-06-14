@@ -648,3 +648,44 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
   background: #2a2018; color: #fff; border: 1px solid var(--panel-border);
 }
 #recipes-body h4 { margin: 12px 0 4px; color: #bba868; font-weight: normal; }
+
+/* ---------- tooltip de objeto (escritorio, al pasar el ratón) ---------- */
+#item-tooltip {
+  position: fixed; z-index: 40; pointer-events: none;
+  width: min(78vw, 280px);
+  background: var(--panel-bg); border: 1px solid var(--gold); border-radius: 8px;
+  padding: 10px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.7);
+}
+#item-tooltip .popup-name { font-size: 15px; font-weight: bold; }
+#item-tooltip .popup-sub { font-size: 11px; opacity: 0.7; margin-bottom: 6px; }
+
+/* ---------- accesibilidad ---------- */
+/* movimiento reducido: desactiva animaciones llamativas */
+body.reduce-motion #damage-flash,
+body.reduce-motion #low-hp-vignette,
+body.reduce-motion .txt-crit,
+body.reduce-motion .panel,
+body.reduce-motion #btn-attack.interact,
+body.reduce-motion #btn-grab.has-loot,
+body.reduce-motion body.low-hp #orb-hp { animation: none !important; }
+body.reduce-motion #low-hp-vignette { opacity: 0 !important; }
+
+/* texto grande: sube el tamaño de la UI legible */
+body.big-text { --ui-scale: 1.25; }
+body.big-text #hud-info,
+body.big-text .msg,
+body.big-text .world-label,
+body.big-text .stat-line,
+body.big-text .popup-name,
+body.big-text .popup-sub,
+body.big-text #item-tooltip,
+body.big-text .panel,
+body.big-text .col-row,
+body.big-text #derived-stats { font-size: 1.18em; }
+body.big-text .orb-txt { font-size: 20px; }
+
+/* modo daltónico: paleta de rareza segura (azul/amarillo/magenta/cian) */
+body.cb .world-label.rarity-magico, body.cb .inv-cell.rarity-magico { border-color: #4aa3ff; color: #7ab8ff; }
+body.cb .world-label.rarity-raro, body.cb .inv-cell.rarity-raro { border-color: #f2c200; color: #ffe04a; }
+body.cb .world-label.rarity-legendario, body.cb .inv-cell.rarity-legendario { border-color: #ff5e9c; color: #ff7eb0; box-shadow: 0 0 8px rgba(255,94,156,0.5); }
+body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border-color: #2ee6c0; color: #5ff0d4; box-shadow: 0 0 8px rgba(46,230,192,0.45); }

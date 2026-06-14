@@ -6,7 +6,7 @@ import { buildDungeon } from '../js/world.js';
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 
 // LOS: una pared bloquea la visión
-const d = buildDungeon(2);
+const d = buildDungeon(2, 1); // semilla fija: layout determinista para la prueba
 const g = d.grid;
 // busca dos puntos transitables con muro entre medias (separados por celda 0)
 let blocked = null, open = null;

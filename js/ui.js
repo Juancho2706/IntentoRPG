@@ -7,6 +7,10 @@ import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemSta
 
 const $ = (id) => document.getElementById(id);
 
+// glifo de rareza: la rareza no depende solo del color (accesibilidad)
+const RARITY_GLYPH = { normal: '', magico: '✦', raro: '◆', legendario: '★', conjunto: '❖' };
+const HOVER_TOOLTIP = window.matchMedia('(pointer: fine)').matches;
+
 export class UI {
   constructor(game) {
     this.game = game;
@@ -30,6 +34,12 @@ export class UI {
     if (desc.item) {
       div.style.touchAction = 'none';
       div.addEventListener('pointerdown', (e) => this.dragStart(e, div, desc, tapFn));
+      // tooltip al pasar el ratón (solo escritorio; en táctil se toca para ver la ficha)
+      if (HOVER_TOOLTIP) {
+        div.addEventListener('pointerenter', (e) => { if (!this.drag) this.showItemTooltip(desc.item, e.clientX, e.clientY); });
+        div.addEventListener('pointermove', (e) => { if (!this.drag) this.moveTooltip(e.clientX, e.clientY); });
+        div.addEventListener('pointerleave', () => this.hideItemTooltip());
+      }
     } else if (tapFn) {
       div.addEventListener('click', tapFn);
     }
@@ -38,6 +48,7 @@ export class UI {
   dragStart(e, div, desc, tapFn) {
     if (e.button != null && e.button !== 0) return;
     e.preventDefault();
+    this.hideItemTooltip();
     this.drag = { desc, div, tapFn, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, id: e.pointerId };
     window.addEventListener('pointermove', this._onDragMove);
     window.addEventListener('pointerup', this._onDragUp);
@@ -431,6 +442,10 @@ export class UI {
     toggle('shake', '📳 Sacudida de cámara');
     toggle('haptics', '📱 Vibración (móvil)');
     toggle('autoq', '🚀 Calidad automática (baja gráficos si van lentos)');
+    // accesibilidad
+    toggle('reduceMotion', '🎯 Movimiento reducido (menos animaciones)', () => g.applyAccessibility());
+    toggle('bigText', '🔠 Texto grande', () => g.applyAccessibility());
+    toggle('colorblind', '🎨 Modo daltónico (colores de rareza seguros)', () => g.applyAccessibility());
     // brillo: útil en mazmorras oscuras o pantallas con reflejos
     const row = document.createElement('label');
     row.className = 'opt-row';
@@ -694,33 +709,63 @@ export class UI {
     $('inv-gold').textContent = `🪙 ${p.gold} oro · arrastra para equipar, engarzar u ordenar`;
   }
 
+  // bloque ▲▼ de comparación de un objeto del inventario contra lo equipado
+  buildCompare(item) {
+    const p = this.game.player;
+    const equipped = item.slot ? p.equipment[item.slot] : null;
+    if (!equipped || equipped === item || item.kind !== 'item') return '';
+    const summarize = (it) => {
+      const m = {};
+      if (it.dmg) m._dmg = (it.dmg[0] + it.dmg[1]) / 2;
+      if (it.arm) m.arm = (m.arm || 0) + it.arm;
+      for (const [k, v] of Object.entries(it.affixes || {})) m[k] = (m[k] || 0) + v;
+      return m;
+    };
+    const a = summarize(item), b = summarize(equipped);
+    const diffs = [];
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const d = Math.round(((a[k] || 0) - (b[k] || 0)) * 10) / 10;
+      if (!d) continue;
+      const label = k === '_dmg' ? `${Math.abs(d)} daño medio` : statText(k, Math.abs(d)).replace('+', '');
+      diffs.push(`<div class="diff ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ -'}${label}</div>`);
+    }
+    return `<div class="compare"><em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
+  }
+
+  // tooltip de escritorio: aparece al pasar el ratón sobre una celda
+  showItemTooltip(item, x, y) {
+    if (!item) return;
+    const tip = $('item-tooltip');
+    const r = RARITIES[item.rarity] || RARITIES.normal;
+    const glyph = RARITY_GLYPH[item.rarity] || '';
+    const lines = itemStatLines(item).map(l => `<div class="stat-line">${l}</div>`).join('');
+    tip.innerHTML = `<div class="popup-name" style="color:${r.color}">${glyph} ${item.icon} ${item.name}</div>` +
+      `<div class="popup-sub">${r.name}${SLOT_NAMES[item.slot] ? ' · ' + SLOT_NAMES[item.slot] : ''}${item.ilvl ? ' · Nv. ' + item.ilvl : ''}</div>` +
+      `${lines}${this.buildCompare(item)}`;
+    tip.classList.remove('hidden');
+    this.moveTooltip(x, y);
+  }
+
+  moveTooltip(x, y) {
+    const tip = $('item-tooltip');
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let nx = x + 16, ny = y + 16;
+    if (nx + w > window.innerWidth - 8) nx = x - w - 16;
+    if (ny + h > window.innerHeight - 8) ny = window.innerHeight - h - 8;
+    tip.style.left = Math.max(8, nx) + 'px';
+    tip.style.top = Math.max(8, ny) + 'px';
+  }
+
+  hideItemTooltip() { $('item-tooltip').classList.add('hidden'); }
+
   itemPopup(item, ctx) {
     const g = this.game;
     const p = g.player;
     const r = RARITIES[item.rarity];
     const pop = $('item-popup');
     const lines = itemStatLines(item).map(l => `<div class="stat-line">${l}</div>`).join('');
-    const equipped = item.slot ? p.equipment[item.slot] : null;
     // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo)
-    let compare = '';
-    if (ctx.from === 'inv' && equipped && equipped !== item) {
-      const summarize = (it) => {
-        const m = {};
-        if (it.dmg) m._dmg = (it.dmg[0] + it.dmg[1]) / 2;
-        if (it.arm) m.arm = (m.arm || 0) + it.arm;
-        for (const [k, v] of Object.entries(it.affixes || {})) m[k] = (m[k] || 0) + v;
-        return m;
-      };
-      const a = summarize(item), b = summarize(equipped);
-      const diffs = [];
-      for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
-        const d = Math.round(((a[k] || 0) - (b[k] || 0)) * 10) / 10;
-        if (!d) continue;
-        const label = k === '_dmg' ? `${Math.abs(d)} daño medio` : statText(k, Math.abs(d)).replace('+', '');
-        diffs.push(`<div class="diff ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ -'}${label}</div>`);
-      }
-      compare = `<div class="compare"><em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
-    }
+    const compare = ctx.from === 'inv' ? this.buildCompare(item) : '';
     // información del conjunto: piezas y bonus (activos en verde)
     let setHTML = '';
     if (item.setId) {
@@ -740,7 +785,8 @@ export class UI {
       }
     }
     const nameColor = item.unidentified ? '#b8a0d8' : r.color;
-    const nameTxt = item.unidentified ? `${item.icon} Objeto sin identificar` : `${item.icon} ${item.name}`;
+    const glyph = item.unidentified ? '' : (RARITY_GLYPH[item.rarity] || '');
+    const nameTxt = item.unidentified ? `${item.icon} Objeto sin identificar` : `${glyph} ${item.icon} ${item.name}`;
     pop.innerHTML = `
       <div class="popup-name" style="color:${nameColor}">${nameTxt}</div>
       <div class="popup-sub">${item.unidentified ? '❓ ' + r.name : r.name}${SLOT_NAMES[item.slot] ? ' · ' + SLOT_NAMES[item.slot] : ''}${item.ilvl ? ' · Nv. ' + item.ilvl : ''}</div>

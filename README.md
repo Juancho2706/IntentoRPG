@@ -71,6 +71,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Filtro de loot**: en Opciones, oculta el botín por debajo de la rareza que elijas (limpia la pantalla en niveles altos)
 - **Mejora de objeto (masterworking)** y **afijos superiores ★**: sube la calidad de una pieza en rangos por oro (+% a sus stats) y caza afijos 1.5× más fuertes
 - **Grietas (endgame)**: los jefes profundos sueltan Llaves de Grieta; ábrelas para mazmorras con varios modificadores y botín aumentado, y al completarlas sube tu nivel de grieta y obtienes una llave superior (empuje infinito)
+- **Tooltips al pasar el ratón** (escritorio): ver stats y comparación ▲▼ de cualquier objeto sin abrir la ficha
+- **Accesibilidad**: movimiento reducido, texto grande y modo daltónico (colores de rareza seguros); la rareza se marca también con glifo (✦◆★❖), no solo por color
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos
 
 ## 🕹️ Controles
