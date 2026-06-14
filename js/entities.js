@@ -243,7 +243,8 @@ export class Player {
   // estadísticas derivadas de atributos + equipo + buffs + pasivas
   recompute() {
     const a = { ...this.attributes };
-    const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0, mf: 0 };
+    const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0, mf: 0,
+                   lph: 0, mph: 0, cdr: 0, thorns: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -310,6 +311,8 @@ export class Player {
       spd: 4.3 * (1 + item.spdPct / 100),
       atkTime: c.atkTime / (1 + item.aspdPct / 100),
       mf: Math.round(item.mf + (this.paragon?.mf || 0) * 3),
+      lph: item.lph, mph: item.mph, thorns: item.thorns,
+      cdr: Math.min(50, item.cdr), // tope de reducción de enfriamiento
     };
     if (this.hp != null) {
       this.hp = Math.min(this.hp, this.stats.maxHP);
@@ -322,6 +325,12 @@ export class Player {
     if (!item) return;
     if (item.setId) (this.discovered.sets[item.setId] ||= {})[item.slot] = true;
     if (item.power) this.discovered.powers[item.power.id] = true;
+  }
+
+  // vida/maná al golpear (se llama cuando el jugador daña a un enemigo)
+  onDealHit() {
+    if (this.stats.lph) this.hp = Math.min(this.stats.maxHP, this.hp + this.stats.lph);
+    if (this.stats.mph) this.mp = Math.min(this.stats.maxMP, this.mp + this.stats.mph);
   }
 
   rollDamage(mult = 1, critBonus = 0) {
@@ -393,6 +402,11 @@ export class Player {
     const red = this.stats.arm / (this.stats.arm + 60 + 16 * attackerLevel);
     const dmg = Math.max(1, Math.round(amount * (1 - Math.min(0.75, red))));
     this.hp -= dmg;
+    // espinas: refleja daño al atacante cuerpo a cuerpo más cercano
+    if (this.stats.thorns) {
+      const e = this.game.nearestEnemy(2.6);
+      if (e) e.takeDamage(this.stats.thorns, false);
+    }
     this.game.ui.spawnText(this.pos, `-${dmg}`, 'txt-dmg-player');
     this.game.ui.flashDamage();
     this.game.addShake(0.15 + Math.min(0.25, dmg / this.stats.maxHP), 0.22);
@@ -540,6 +554,7 @@ export class Player {
     } else {
       const { dmg, crit } = this.rollDamage(1);
       target.takeDamage(dmg, crit);
+      this.onDealHit();
       // los élites espinosos devuelven parte del daño cuerpo a cuerpo
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
@@ -797,6 +812,7 @@ export class Projectile {
         const r = 0.55 * (e.def.scale || 1);
         if (p.distanceToSquared(e.pos.clone().setY(p.y)) < r * r) {
           e.takeDamage(this.dmg, this.crit);
+          g.player?.onDealHit();
           if (this.slow) e.slowT = this.slow;
           g.sfx('hit');
           if (!this.pierce) return true;

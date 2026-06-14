@@ -827,6 +827,10 @@ export class UI {
       <div>🛡️ Armadura: ${s.arm}</div>
       <div>👟 Velocidad: ${s.spd.toFixed(1)}</div>
       <div>🍀 Hallazgo mágico: ${s.mf || 0}%</div>
+      ${s.cdr ? `<div>⏳ Reducción de enfriamiento: ${s.cdr}%</div>` : ''}
+      ${s.lph ? `<div>🩸 Vida al golpear: ${s.lph}</div>` : ''}
+      ${s.mph ? `<div>🔹 Maná al golpear: ${s.mph}</div>` : ''}
+      ${s.thorns ? `<div>🌵 Espinas: ${s.thorns}</div>` : ''}
       <div>⭐ Nivel ${p.level} · XP ${p.xp}/${xpForLevel(p.level)}</div>`;
 
     const r = p.records;

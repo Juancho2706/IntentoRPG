@@ -553,6 +553,7 @@ class Game {
         hits++;
       }
     }
+    if (hits) this.player.onDealHit(); // vida/maná al golpear (una vez por AoE)
     return hits;
   }
 
@@ -631,6 +632,7 @@ class Game {
         p.swing = 1;
         const { dmg, crit } = p.rollDamage(mult);
         e.takeDamage(dmg, crit);
+        p.onDealHit();
         this.spawnRing(e.pos, 0.8, 0xffbb44);
         break;
       }
@@ -702,7 +704,7 @@ class Game {
 
     if (casted) {
       p.mp -= cost;
-      p.cds[sk.id] = sk.cd;
+      p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100); // reducción de enfriamiento
       this.sfx('skill');
     }
   }

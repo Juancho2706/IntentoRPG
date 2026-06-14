@@ -49,6 +49,11 @@ export const AFFIX_POOL = [
   { stat: 'spdPct',  name: '+{v}% Velocidad de movimiento',  min: 4, max: 8, flat: true },
   { stat: 'aspdPct', name: '+{v}% Velocidad de ataque',      min: 4, max: 9, flat: true },
   { stat: 'mf',      name: '+{v}% Hallazgo mágico',          min: 5, max: 12, flat: true },
+  // stats secundarios estilo Diablo 3/4
+  { stat: 'lph',     name: '+{v} Vida al golpear',           min: 1, max: 3, secondary: true },
+  { stat: 'mph',     name: '+{v} Maná al golpear',           min: 1, max: 2, secondary: true },
+  { stat: 'cdr',     name: '+{v}% Reducción de enfriamiento', min: 3, max: 7, flat: true, secondary: true },
+  { stat: 'thorns',  name: '+{v} Espinas (daño reflejado)',  min: 2, max: 5, secondary: true },
 ];
 
 // Conjuntos: piezas verdes con bonus por llevar 2 o 3 equipadas
@@ -147,16 +152,25 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
     if (base.slot === 'belt' || base.slot === 'gloves') item.arm = Math.max(1, Math.round(item.arm * 0.7));
   }
 
-  // afijos
+  // afijos: principales (estilo D4) + secundarios garantizados según rareza
   const nAffixes = ri(rarity.affixes[0], rarity.affixes[1]);
-  const pool = [...AFFIX_POOL];
-  for (let i = 0; i < nAffixes && pool.length; i++) {
-    const idx = Math.floor(Math.random() * pool.length);
-    const af = pool.splice(idx, 1)[0];
+  const rollAffix = (af) => {
     let v = ri(af.min, af.max);
     if (!af.flat) v = Math.round(v * scale);
     v = Math.round(v * rarity.statMult);
     item.affixes[af.stat] = (item.affixes[af.stat] || 0) + Math.max(1, v);
+  };
+  const primary = AFFIX_POOL.filter(a => !a.secondary);
+  const secondary = AFFIX_POOL.filter(a => a.secondary);
+  const pool = [...primary];
+  for (let i = 0; i < nAffixes && pool.length; i++) {
+    rollAffix(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  }
+  // los raros traen 1 stat secundario; los legendarios 1-2
+  const nSecondary = rarity.id === 'legendario' ? ri(1, 2) : rarity.id === 'raro' ? 1 : 0;
+  const secPool = [...secondary];
+  for (let i = 0; i < nSecondary && secPool.length; i++) {
+    rollAffix(secPool.splice(Math.floor(Math.random() * secPool.length), 1)[0]);
   }
 
   // nombre
