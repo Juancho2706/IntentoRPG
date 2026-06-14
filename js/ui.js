@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -640,6 +640,19 @@ export class UI {
     mk('🏘️ Pueblo', g.world.type === 'town', () => g.travelTo('town'));
     if (p.refugeUnlocked)
       mk('🏕️ Refugio del Abismo', g.world.type === 'refuge', () => g.travelTo('refuge'));
+    // zonas abiertas (regiones), desbloqueadas por nivel
+    const head = document.createElement('div');
+    head.className = 'tier-head'; head.textContent = '🌍 Zonas abiertas';
+    cont.appendChild(head);
+    for (const z of ZONE_LIST) {
+      const unlocked = p.level >= z.minLevel;
+      const here = g.world.type === 'zone' && g.world.biome === z.biome;
+      mk(unlocked ? `🌿 ${z.biome}` : `🔒 ${z.biome} (nivel ${z.minLevel})`,
+        here || !unlocked, () => g.travelToZone(z.biome));
+    }
+    const head2 = document.createElement('div');
+    head2.className = 'tier-head'; head2.textContent = '🕳️ Pisos de mazmorra';
+    cont.appendChild(head2);
     for (const f of [...p.waypoints].sort((a, b) => a - b))
       mk(`🕳️ Piso ${f}`, g.world.type === 'dungeon' && g.world.floor === f, () => g.travelTo(f));
   }

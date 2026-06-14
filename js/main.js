@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, ENEMY_RANKS, PACTS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
+import { ENEMIES, MIMIC, ENEMY_RANKS, PACTS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
@@ -245,11 +245,12 @@ class Game {
     this.world.daily = !!spec.daily;
     this.world.rift = spec.rift || 0;
     // dificultad de una zona abierta según su bioma
-    const ZONE_FLOOR = { 'Cripta': 3, 'Cavernas de Hielo': 8, 'Infierno': 13, 'Abismo Estelar': 18 };
+    const zoneDef = ZONE_LIST.find(z => z.biome === spec.biome);
+    const zoneFloor = zoneDef ? zoneDef.floor : 3;
     // la diaria comparte trazado con todos, pero su dificultad escala a tu progreso
     this.world.scaleFloor = spec.rift ? 16 + spec.rift * 2
       : spec.daily ? Math.max(this.world.floor, (this.player.records.maxFloor || 1) - 2)
-      : spec.type === 'zone' ? (ZONE_FLOOR[spec.biome] || 3)
+      : spec.type === 'zone' ? zoneFloor
       : (this.world.floor || 1);
     // una grieta aplica varios modificadores a la vez (reutiliza el sistema de pactos)
     if (spec.rift) {
@@ -266,6 +267,13 @@ class Game {
     if (w.type === 'zone') {
       const ret = w.interactables.find(it => it.type === 'portal_town');
       if (ret) { ret.auto = true; ret.label = '🚪 Volver al Pueblo'; }
+      // escala las entradas de mazmorra al piso base de la zona (bf-2, bf, bf+2)
+      const bf = w.scaleFloor;
+      const dgs = w.interactables.filter(it => it.type === 'zone_dungeon');
+      dgs.forEach((d, i) => {
+        d.floor = Math.max(1, bf + (i - Math.floor(dgs.length / 2)) * 2);
+        d.label = `🕳️ Mazmorra (piso ${d.floor})`;
+      });
       // obelisco de evento: una pieza interactuable que desata oleadas
       const op = this.randomZoneCellFrom(w, w.spawn, 18);
       if (op) {
@@ -995,6 +1003,13 @@ class Game {
       this.player.lastFloor = dest;
       this.loadWorld({ type: 'dungeon', floor: dest });
     }
+  }
+
+  // viaje a una zona abierta (regiones desbloqueadas por nivel)
+  travelToZone(biome) {
+    this.ui.closePanel();
+    this.fromZone = null;
+    this.loadWorld({ type: 'zone', biome });
   }
 
   // ---------- pactos: riesgo↔recompensa por piso ----------

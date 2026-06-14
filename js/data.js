@@ -289,6 +289,14 @@ export const SUPPORTS = [
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
 ];
 
+// Zonas abiertas (regiones): bioma, nivel de desbloqueo y piso base de dificultad
+export const ZONE_LIST = [
+  { biome: 'Cripta', minLevel: 1, floor: 3 },
+  { biome: 'Cavernas de Hielo', minLevel: 6, floor: 8 },
+  { biome: 'Infierno', minLevel: 11, floor: 13 },
+  { biome: 'Abismo Estelar', minLevel: 16, floor: 18 },
+];
+
 // Pactos: riesgo↔recompensa opcional por piso (estilo modificadores de mapa)
 export const PACTS = [
   { id: 'sangre',    name: 'Pacto de Sangre',     icon: '🩸', desc: 'Enemigos +45% daño · botín +40%',
