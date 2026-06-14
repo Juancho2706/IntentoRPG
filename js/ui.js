@@ -451,6 +451,9 @@ export class UI {
 
   renderStash() {
     const g = this.game, p = g.player;
+    const used = g.stash.filter(Boolean).length;
+    const tag = $('stash-count');
+    if (tag) tag.textContent = `${used}/24`;
     const sg = $('stash-grid');
     sg.innerHTML = '';
     for (let i = 0; i < 24; i++) {
@@ -562,14 +565,19 @@ export class UI {
     body.innerHTML = '';
     for (const pact of PACTS) {
       const b = document.createElement('button');
-      b.className = 'shop-item';
-      b.innerHTML = `<span class="shop-name">${pact.icon} ${pact.name}<small class="shop-stats">${pact.desc}</small></span>`;
+      b.className = 'pact-card';
+      // separa la descripción en riesgo · recompensa cuando sea posible
+      const parts = pact.desc.split('·').map(s => s.trim());
+      const detail = parts.length === 2
+        ? `<span class="pact-risk">⚠️ ${parts[0]}</span><span class="pact-reward">🎁 ${parts[1]}</span>`
+        : `<span class="pact-reward">${pact.desc}</span>`;
+      b.innerHTML = `<span class="pact-name">${pact.icon} ${pact.name}</span><span class="pact-detail">${detail}</span>`;
       b.onclick = () => { g.applyPact(pact.id); this.closePanel(); };
       body.appendChild(b);
     }
     const cancel = document.createElement('button');
-    cancel.className = 'quest-btn';
-    cancel.textContent = 'Entrar sin pacto';
+    cancel.className = 'quest-btn pact-skip';
+    cancel.textContent = '🚪 Entrar sin pacto';
     cancel.onclick = () => this.closePanel();
     body.appendChild(cancel);
   }
@@ -637,26 +645,43 @@ export class UI {
   renderQuest() {
     const g = this.game, p = g.player;
     const body = $('quest-body');
+    // ficha de recompensa reutilizable
+    const rewardHTML = (r) => `
+      <div class="quest-reward">
+        <span class="quest-reward-lbl">Recompensa</span>
+        <span class="quest-reward-list">
+          <span class="rwd-chip">🪙 ${r.gold}</span>
+          <span class="rwd-chip">✨ ${r.xp} XP</span>
+          ${r.item ? '<span class="rwd-chip rwd-item">🟡 Objeto raro</span>' : ''}
+        </span>
+      </div>`;
     if (p.quest) {
       const q = p.quest;
       const done = q.progress >= q.goal;
+      const pct = Math.min(100, q.progress / q.goal * 100);
       body.innerHTML = `
-        <p class="quest-desc">🎯 ${q.desc}</p>
-        <div class="quest-bar"><div style="width:${Math.min(100, q.progress / q.goal * 100)}%"></div></div>
-        <p class="quest-progress">${Math.min(q.progress, q.goal)} / ${q.goal}</p>
-        <p class="dim">Recompensa: 🪙 ${q.reward.gold} · ✨ ${q.reward.xp} XP${q.reward.item ? ' · 🟡 objeto raro' : ''}</p>`;
+        <div class="quest-card ${done ? 'quest-done' : 'quest-active'}">
+          <div class="quest-status">${done ? '✅ Objetivo cumplido' : '⏳ Misión activa'}</div>
+          <p class="quest-desc">🎯 ${q.desc}</p>
+          <div class="quest-bar"><div style="width:${pct}%"></div></div>
+          <p class="quest-progress">${Math.min(q.progress, q.goal)} / ${q.goal}</p>
+          ${rewardHTML(q.reward)}
+        </div>`;
       const b = document.createElement('button');
       b.className = 'quest-btn';
-      b.textContent = done ? '🏆 Reclamar recompensa' : 'En progreso...';
+      b.textContent = done ? '🏆 Reclamar recompensa' : '⏳ En progreso…';
       b.disabled = !done;
       b.onclick = () => g.claimQuest();
       body.appendChild(b);
     } else {
       const q = g.ensureQuestOffer();
       body.innerHTML = `
-        <p class="dim">«Las profundidades están cada vez peor. ¿Me ayudas?»</p>
-        <p class="quest-desc">🎯 ${q.desc}</p>
-        <p class="dim">Recompensa: 🪙 ${q.reward.gold} · ✨ ${q.reward.xp} XP${q.reward.item ? ' · 🟡 objeto raro' : ''}</p>`;
+        <p class="quest-quote">«Las profundidades están cada vez peor. ¿Me ayudas?»</p>
+        <div class="quest-card quest-offer">
+          <div class="quest-status">📜 Misión disponible</div>
+          <p class="quest-desc">🎯 ${q.desc}</p>
+          ${rewardHTML(q.reward)}
+        </div>`;
       const b = document.createElement('button');
       b.className = 'quest-btn';
       b.textContent = '✔️ Aceptar misión';
@@ -1179,52 +1204,81 @@ export class UI {
     g.ensureShopStock();
     const cont = $('shop-items');
     cont.innerHTML = '';
-    const offer = (html, price, fn) => {
+    // crea una sección con cabecera y devuelve el contenedor de sus ofertas
+    const section = (title, help) => {
+      const sec = document.createElement('div');
+      sec.className = 'npc-section';
+      let h = `<div class="npc-section-head"><span>${title}</span></div>`;
+      if (help) h += `<p class="npc-help">${help}</p>`;
+      sec.innerHTML = h;
+      cont.appendChild(sec);
+      return sec;
+    };
+    // botón de oferta con estado legible (disponible / sin oro suficiente)
+    const offer = (parent, html, price, fn) => {
       const b = document.createElement('button');
       b.className = 'shop-item';
-      b.innerHTML = `<span class="shop-name">${html}</span><span class="shop-price">${price} 🪙</span>`;
-      b.disabled = p.gold < price;
+      const poor = p.gold < price;
+      if (poor) b.classList.add('no-gold');
+      b.innerHTML = `<span class="shop-name">${html}</span><span class="shop-price">🪙 ${price}</span>`;
+      b.disabled = poor;
+      if (poor) b.title = 'Oro insuficiente';
       b.onclick = () => { fn(); this.renderShop(); this.updateHUD(); };
-      cont.appendChild(b);
+      parent.appendChild(b);
     };
-    offer('🧪 Poción de Vida', POTION_PRICES.hp, () => { p.gold -= POTION_PRICES.hp; p.potions.hp++; g.sfx('potion'); g.save(); });
-    offer('🔷 Poción de Maná', POTION_PRICES.mp, () => { p.gold -= POTION_PRICES.mp; p.potions.mp++; g.sfx('potion'); g.save(); });
+
+    // --- consumibles ---
+    const sCons = section('🧪 Consumibles', 'Reabastece tus pociones antes de bajar.');
+    offer(sCons, `🧪 Poción de Vida <small class="shop-stats">Tienes ${p.potions.hp}</small>`, POTION_PRICES.hp,
+      () => { p.gold -= POTION_PRICES.hp; p.potions.hp++; g.sfx('potion'); g.save(); });
+    offer(sCons, `🔷 Poción de Maná <small class="shop-stats">Tienes ${p.potions.mp}</small>`, POTION_PRICES.mp,
+      () => { p.gold -= POTION_PRICES.mp; p.potions.mp++; g.sfx('potion'); g.save(); });
+
+    // --- mascota (solo si aún no la tienes) ---
     if (!p.pet) {
-      offer(`🐺 Lobo de caza <small class="shop-stats">Te sigue y ataca a tus enemigos. Compañero para siempre.</small>`,
+      const sPet = section('🐺 Compañero', 'Una sola compra: te acompaña para siempre.');
+      offer(sPet, `🐺 Lobo de caza <small class="shop-stats">Te sigue y ataca a tus enemigos.</small>`,
         PET_PRICE, () => g.buyPet());
     }
 
+    // --- mercancía rotativa ---
+    const sStock = section('📦 Mercancía del día', 'Stock que rota con el temporizador.');
+    if (!g.shopStock.items.length) {
+      sStock.insertAdjacentHTML('beforeend', '<p class="npc-empty">Agotado — vuelve tras la próxima rotación.</p>');
+    }
     for (const it of g.shopStock.items) {
       const r = RARITIES[it.rarity];
       const stats = itemStatLines(it).join(' · ');
-      offer(
+      offer(sStock,
         `<span style="color:${r.color}">${it.icon} ${it.name}</span>
-         <small class="shop-stats">${SLOT_NAMES[it.slot]} Nv.${it.ilvl} · ${stats}</small>`,
+         <small class="shop-stats">${SLOT_NAMES[it.slot]} · Nv.${it.ilvl} · ${stats}</small>`,
         it.price,
         () => g.buyShopItem(it.uid)
       );
     }
-    // apuesta: objetos sin identificar, puede tocar legendario
-    const head = document.createElement('h4');
-    head.textContent = '🎲 Apuesta — objetos sin identificar';
-    cont.appendChild(head);
+
+    // --- apuesta: objetos sin identificar, puede tocar legendario ---
+    const sGamble = section('🎲 Apuesta del Mercader', 'Objetos sin identificar: rareza mínima mágica… ¿quizá legendario?');
+    if (!g.shopStock.gamble.length) {
+      sGamble.insertAdjacentHTML('beforeend', '<p class="npc-empty">Sin apuestas disponibles ahora mismo.</p>');
+    }
     for (const ofr of g.shopStock.gamble) {
-      offer(
+      offer(sGamble,
         `❓ ${SLOT_NAMES[ofr.slot]} misterioso
-         <small class="shop-stats">Mínimo mágico... ¿quizá legendario?</small>`,
+         <small class="shop-stats">Se identifica al comprarlo.</small>`,
         ofr.price,
         () => g.buyGambleItem(ofr.uid)
       );
     }
     this.updateShopTimer();
-    $('shop-gold').textContent = `Tu oro: 🪙 ${p.gold} · Vende objetos desde el inventario`;
+    $('shop-gold').textContent = `🪙 ${p.gold}`;
   }
 
   updateShopTimer() {
     const stock = this.game.shopStock;
     if (!stock) return;
     const s = Math.max(0, Math.ceil((stock.until - Date.now()) / 1000));
-    $('shop-timer').textContent = `⏳ Nueva mercancía en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    $('shop-timer').textContent = `⏳ Rota en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   showDeath(hardcore = false) {

@@ -151,29 +151,37 @@
   <button id="btn-collection" class="quest-btn">📚 Colección y Bestiario</button>
 </div>
 
-<div id="panel-collection" class="panel hidden">
+<div id="panel-collection" class="panel hidden npc-panel">
   <div class="panel-head"><h2>📚 Colección</h2><button class="panel-close">✕</button></div>
+  <p class="npc-intro">Tu progreso de conjuntos, poderes legendarios y enemigos derrotados.</p>
   <div id="collection-body"></div>
 </div>
 
-<div id="panel-recipes" class="panel hidden">
+<div id="panel-recipes" class="panel hidden npc-panel">
   <div class="panel-head"><h2>📖 Recetas</h2><button class="panel-close">✕</button></div>
+  <p class="npc-intro">Combina objetos en el Cubo de Transmutación y descubre palabras rúnicas.</p>
   <div id="recipes-body"></div>
 </div>
 
-<div id="panel-pacts" class="panel hidden">
+<div id="panel-pacts" class="panel hidden npc-panel">
   <div class="panel-head"><h2>🩸 Altar de Pactos</h2><button class="panel-close">✕</button></div>
-  <p class="dim">Sella un pacto para este piso: más peligro a cambio de más recompensa. Solo uno por piso.</p>
+  <p class="npc-intro">⚠️ Sella un pacto para este piso: más peligro a cambio de más recompensa. <b>Solo uno por piso.</b></p>
   <div id="pacts-body"></div>
 </div>
 
-<div id="panel-stash" class="panel hidden">
+<div id="panel-stash" class="panel hidden npc-panel">
   <div class="panel-head"><h2>🗃️ Alijo Compartido</h2><button class="panel-close">✕</button></div>
-  <p class="dim">Los objetos guardados aquí son compartidos entre todos tus personajes (sobreviven incluso a la muerte en Hardcore).</p>
-  <h4>Alijo</h4>
-  <div id="stash-grid"></div>
-  <h4>Tu mochila <span class="dim">— toca para guardar</span></h4>
-  <div id="stash-inv-grid"></div>
+  <p class="npc-intro">🔒 Compartido entre todos tus héroes — sobrevive incluso a la muerte en Hardcore.</p>
+  <div class="npc-section">
+    <div class="npc-section-head"><span>🗃️ Alijo</span><span id="stash-count" class="npc-tag"></span></div>
+    <p class="npc-help">Toca un objeto para devolverlo a tu mochila.</p>
+    <div id="stash-grid"></div>
+  </div>
+  <div class="npc-section">
+    <div class="npc-section-head"><span>🎒 Tu mochila</span></div>
+    <p class="npc-help">Toca un objeto para guardarlo en el alijo.</p>
+    <div id="stash-inv-grid"></div>
+  </div>
 </div>
 
 <div id="panel-waypoints" class="panel hidden">
@@ -182,7 +190,7 @@
   <div id="wp-list"></div>
 </div>
 
-<div id="panel-quest" class="panel hidden">
+<div id="panel-quest" class="panel hidden npc-panel">
   <div class="panel-head"><h2>🎖️ Capitán de la Guardia</h2><button class="panel-close">✕</button></div>
   <div id="quest-body"></div>
 </div>
@@ -192,11 +200,13 @@
   <div id="settings-body"></div>
 </div>
 
-<div id="panel-shop" class="panel hidden">
+<div id="panel-shop" class="panel hidden npc-panel">
   <div class="panel-head"><h2>🛒 Mercader</h2><button class="panel-close">✕</button></div>
-  <p id="shop-timer" class="points-txt"></p>
+  <div id="shop-bar">
+    <span id="shop-timer" class="shop-timer-tag"></span>
+    <span id="shop-gold" class="shop-gold-tag"></span>
+  </div>
   <div id="shop-items"></div>
-  <p id="shop-gold" class="dim"></p>
 </div>
 
 <div id="item-popup" class="hidden"></div>
