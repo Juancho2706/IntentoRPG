@@ -212,6 +212,9 @@ export class Player {
     // nuevos; el guardado tiene prioridad para los ya creados)
     this.heroName = this.heroName || opts.name || this.cls.name;
     this.tint = this.tint ?? (opts.tint ?? null);
+    // endgame: dificultad seleccionada (Tormento) y Códice de Aspectos
+    this.torment = this.torment || 0;
+    this.codex = this.codex || {};
     // registro de colección: sets vistos, poderes legendarios, bestiario
     this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
     this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, mf: 0, ...(this.paragon || {}) };

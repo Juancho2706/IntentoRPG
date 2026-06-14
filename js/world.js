@@ -346,6 +346,22 @@ export function buildTown() {
   group.add(wp);
   interactables.push({ type: 'waypoint', pos: wpPos.clone(), radius: 1.2, label: '🗺️ Waypoint', labelCls: 'lbl-portal', mesh: wp });
 
+  // Estatua del Mundo: ajusta la dificultad (Tormento) y abre el Códice de Aspectos
+  const statuePos = grid.center(Math.floor(W / 2) - 5, 8);
+  const statue = new THREE.Group();
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 0.5, 8),
+    new THREE.MeshStandardMaterial({ color: 0x3a3340, roughness: 0.9 }));
+  pedestal.position.y = 0.25;
+  const figure = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0),
+    new THREE.MeshStandardMaterial({ color: 0x882244, emissive: 0xcc3366, emissiveIntensity: 1.2, roughness: 0.4 }));
+  figure.position.y = 1.4; figure.userData.baseY = 1.4;
+  pedestal.castShadow = true;
+  statue.add(pedestal, figure);
+  statue.userData.crystal = figure;
+  statue.position.copy(statuePos);
+  group.add(statue);
+  interactables.push({ type: 'world_statue', pos: statuePos.clone(), radius: 2.0, label: '☠️ Estatua del Mundo', labelCls: 'lbl-elite', mesh: statue });
+
   const spawn = grid.center(Math.floor(W / 2), H - 6);
   return {
     type: 'town', group, grid, spawn, interactables, spawns: [],

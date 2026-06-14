@@ -1089,3 +1089,27 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
   #shop-bar { gap: 6px; }
   .shop-timer-tag, .shop-gold-tag { flex: 1; text-align: center; }
 }
+
+/* ============================================================
+   ===== Endgame: Estatua del Mundo (Tormento + Códice) =====
+   ============================================================ */
+#panel-progress h4 { margin: 14px 0 6px; color: var(--gold); font-weight: normal; }
+#panel-progress h4:first-child { margin-top: 2px; }
+.torment-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.torment-btn {
+  min-width: 48px; min-height: 40px; padding: 6px 10px;
+  background: rgba(40, 20, 28, 0.7); color: #f0d8d8;
+  border: 1px solid #6a3a4a; border-radius: 8px; font-size: 14px;
+}
+.torment-btn.sel {
+  background: linear-gradient(#7a1d33, #4a1020); color: #fff;
+  border-color: #c23b5a; box-shadow: 0 0 10px rgba(194, 59, 90, 0.5);
+}
+.codex-list { display: flex; flex-direction: column; gap: 8px; }
+.codex-entry {
+  padding: 8px 10px; font-size: 13px;
+  background: rgba(40, 30, 60, 0.5);
+  border: 1px solid #5a4a99; border-radius: 8px;
+}
+.codex-entry b { color: #b388ff; }
+.popup-btns.codex-choose { flex-direction: column; }

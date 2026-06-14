@@ -438,6 +438,7 @@ export class UI {
     else if (this.activePanel === 'settings') this.renderSettings();
     else if (this.activePanel === 'stash') this.renderStash();
     else if (this.activePanel === 'collection') this.renderCollection();
+    else if (this.activePanel === 'progress') this.renderProgress();
   }
 
   openStash() {
@@ -945,6 +946,18 @@ export class UI {
       b.onclick = () => this.gemChooser(item);
       btns.appendChild(b);
     }
+    // Códice de Aspectos: extraer el poder de un legendario o grabar uno conocido
+    if (ctx.from === 'inv' && item.kind === 'item') {
+      if (item.power) {
+        addBtn('🔮 Extraer aspecto', () => g.extractAspect(ctx.index), 'btn-good');
+      } else if (item.slot && !item.setId && Object.keys(p.codex || {}).length) {
+        const b = document.createElement('button');
+        b.className = 'btn-good';
+        b.textContent = '🔮 Grabar aspecto…';
+        b.onclick = () => this.codexImprintChooser(item, ctx);
+        btns.appendChild(b);
+      }
+    }
     addBtn('Cerrar', () => {});
     pop.classList.remove('hidden');
   }
@@ -1427,5 +1440,64 @@ export class UI {
       if (e.alive) dot(e.pos, this.enemyDot(e), e.def.goblin ? 3 : 2);
     if (p) dot(p.pos, '#ffffff', 3);
     ctx.restore();
+  }
+
+  // ---------- Estatua del Mundo: Tormento (dificultad) + Códice ----------
+  openProgress() {
+    if (this.activePanel !== 'progress') {
+      this.closePanel();
+      this.activePanel = 'progress';
+      $('panel-progress').classList.remove('hidden');
+    }
+    this.renderProgress();
+  }
+
+  renderProgress() {
+    const g = this.game, p = g.player;
+    const cap = g.tormentUnlocked();
+    const cur = Math.min(cap, p.torment || 0);
+    const body = $('progress-body');
+    const aspects = Object.values(p.codex || {});
+    let html = `<h4>☠️ Dificultad — Tormento</h4>`;
+    html += `<p class="dim">Más Tormento = enemigos más fuertes y mejor botín (rareza y cantidad). Se desbloquea empujando grietas y descendiendo en las mazmorras.</p>`;
+    html += `<div class="torment-row" id="torment-btns"></div>`;
+    html += `<p class="dim">Desbloqueado: <b>Tormento ${cap}</b>. ${cap < 10 ? 'Sigue progresando para subir el tope.' : '¡Tope máximo alcanzado!'}</p>`;
+    html += `<h4>🔮 Códice de Aspectos</h4>`;
+    html += `<p class="dim">Extrae el poder de un legendario (desde el inventario) para guardarlo aquí; luego puedes grabarlo en otra pieza por oro.</p>`;
+    if (!aspects.length) html += `<p class="dim">— Aún no has extraído ningún aspecto —</p>`;
+    else html += `<div class="codex-list">` + aspects.map(a => `<div class="codex-entry"><b>«${a.name}»</b><br><span class="dim">${a.desc}</span></div>`).join('') + `</div>`;
+    body.innerHTML = html;
+    const btnRow = $('torment-btns');
+    for (let t = 0; t <= cap; t++) {
+      const b = document.createElement('button');
+      b.className = 'torment-btn' + (t === cur ? ' sel' : '');
+      b.textContent = t === 0 ? 'Normal' : 'T' + t;
+      b.onclick = () => { g.setTorment(t); this.renderProgress(); this.updateHUD(); };
+      btnRow.appendChild(b);
+    }
+  }
+
+  // selector de aspecto conocido para grabar en un objeto
+  codexImprintChooser(item, ctx) {
+    const g = this.game, p = g.player;
+    const pop = $('item-popup');
+    const aspects = Object.values(p.codex || {});
+    pop.innerHTML = `
+      <div class="popup-name">🔮 Grabar aspecto en:</div>
+      <div class="popup-sub">${item.name} · coste ${g.imprintCost(item)} 🪙</div>
+      <div class="popup-btns codex-choose"></div>`;
+    const btns = pop.querySelector('.popup-btns');
+    aspects.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'btn-good';
+      b.innerHTML = `«${a.name}»`;
+      b.onclick = () => { g.imprintAspect(ctx.index, a.id); pop.classList.add('hidden'); this.renderPanel(); this.updateHUD(); };
+      btns.appendChild(b);
+    });
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancelar';
+    cancel.onclick = () => pop.classList.add('hidden');
+    btns.appendChild(cancel);
+    pop.classList.remove('hidden');
   }
 }

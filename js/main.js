@@ -214,6 +214,7 @@ class Game {
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
+      torment: p.torment, codex: p.codex,
     };
     try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -272,6 +273,17 @@ class Game {
       const L = spec.rift;
       this.world.pact = { id: 'rift', qty: 25 + L * 12, mf: 30 + L * 15, xp: 20 + L * 10 };
       this.world.pactEnemyMods = { ehp: 0.3 + L * 0.12, edmg: 0.2 + L * 0.08, espd: Math.min(0.5, 0.05 + L * 0.04) };
+    }
+    // Tormento: dificultad global seleccionable. Sube la dificultad efectiva
+    // (más vida/daño enemigo) y el botín (rareza/cantidad). No aplica a grietas
+    // ni a la diaria, que tienen su propia escalera.
+    const T = (spec.rift || spec.daily || spec.type === 'town' || spec.type === 'refuge')
+      ? 0 : Math.min(this.tormentUnlocked(), this.player.torment || 0);
+    this.world.torment = T;
+    if (T > 0) {
+      this.world.scaleFloor += T * 2;       // enemigos más duros y mejor ilvl de botín
+      this.world.tormentMF = T * 12;        // empuja la rareza hacia arriba
+      this.world.tormentQty = T * 8;        // y la cantidad de botín
     }
     this.scene.add(this.world.group);
 
@@ -359,6 +371,7 @@ class Game {
     this.input.joyDir = null;
     this.currentInteract = null;
     if (w.type === 'dungeon' && !w.daily) this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
+    this.checkTormentUnlock();
     if (w.type === 'dungeon' && w.floor >= 16 && !this.player.refugeUnlocked) {
       this.player.refugeUnlocked = true;
       this.ui.message('🏕️ ¡Has descubierto el Refugio del Abismo! Ya puedes viajar desde cualquier waypoint', 5000);
@@ -766,6 +779,74 @@ class Game {
     this.spawnRing(at.clone(), 2.2, 0xffd24a);
     this.ui.message('📜 ¡Todos los contratos de la zona cumplidos! Gran recompensa', 5000);
     this.music.sting();
+  }
+
+  // ---------- endgame: Tormento (dificultad) y Códice de Aspectos ----------
+  // Nivel de Tormento desbloqueado, derivado del progreso (sin estado extra que
+  // guardar): empuje de grietas o profundidad de mazmorra alcanzada.
+  tormentUnlocked() {
+    const r = this.player.records || {};
+    return Math.min(10, Math.max(r.maxRift || 0, Math.floor((r.maxFloor || 1) / 6)));
+  }
+
+  setTorment(t) {
+    const cap = this.tormentUnlocked();
+    this.player.torment = Math.max(0, Math.min(cap, t | 0));
+    this.ui.message(this.player.torment > 0
+      ? `☠️ Dificultad fijada en Tormento ${this.player.torment}`
+      : '☠️ Dificultad normal (sin Tormento)', 2500);
+    this.save();
+  }
+
+  // avisa cuando el progreso desbloquea un nuevo nivel de Tormento
+  checkTormentUnlock() {
+    const cap = this.tormentUnlocked();
+    if (this.player._tormentCap == null) { this.player._tormentCap = cap; return; }
+    if (cap > this.player._tormentCap) {
+      this.player._tormentCap = cap;
+      this.ui.message(`☠️ ¡Nuevo nivel de dificultad: Tormento ${cap}! Ajústalo en la Estatua del Mundo (pueblo)`, 5000);
+    }
+  }
+
+  // Códice: extrae el poder de un legendario al Códice permanente (consume el objeto)
+  extractAspect(index) {
+    const p = this.player;
+    const it = p.inventory[index];
+    if (!it || !it.power) return;
+    if (!p.codex) p.codex = {};
+    if (p.codex[it.power.id]) {
+      this.ui.message('🔮 Ese aspecto ya está en tu Códice (no se duplica)', 3000);
+    } else {
+      p.codex[it.power.id] = { id: it.power.id, name: it.power.name, desc: it.power.desc };
+      p.discovered.powers[it.power.id] = true;
+      this.ui.message(`🔮 Aspecto «${it.power.name}» extraído al Códice`, 3500);
+    }
+    p.inventory.splice(index, 1); // el objeto se consume al extraer su poder
+    this.sfx('levelup');
+    this.ui.renderPanel();
+    this.save();
+  }
+
+  imprintCost(item) {
+    return Math.round((300 + (item.ilvl || 1) * 40) * (1 + (item.quality || 0) * 0.25));
+  }
+
+  // Códice: graba un aspecto conocido en un objeto sin poder (pasa a legendario)
+  imprintAspect(index, powerId) {
+    const p = this.player;
+    const it = p.inventory[index];
+    const power = p.codex?.[powerId];
+    if (!it || !power || it.power || it.unidentified) return;
+    const cost = this.imprintCost(it);
+    if (p.gold < cost) { this.ui.message('🪙 No tienes oro suficiente'); return; }
+    p.gold -= cost;
+    it.power = { id: power.id, name: power.name, desc: power.desc };
+    it.rarity = 'legendario';
+    if (power.id === 'avaricia') it.affixes.mf = (it.affixes.mf || 0) + 30;
+    this.sfx('levelup');
+    this.ui.message(`🔮 Aspecto «${power.name}» grabado en ${it.name}`, 3000);
+    this.ui.renderPanel();
+    this.save();
   }
 
   updateTriggers(dt) {
@@ -1207,7 +1288,7 @@ class Game {
     }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
-    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0), cls: p.classId };
+    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId };
     if (enemy.def.mimic) drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.5, setChance: 0.025 });
     else if (enemy.def.boss) drops = rollDrops(floor, { ...lootOpts, boss: true, goldChance: 1, potionChance: 0.8 });
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
@@ -1242,6 +1323,7 @@ class Game {
     if (enemy.def.boss && this.world.rift) {
       const L = this.world.rift;
       p.records.maxRift = Math.max(p.records.maxRift || 0, L);
+      this.checkTormentUnlock();
       drops.push(generateItem(floor, 'legendario', null, null, p.classId));
       drops.push(makeRiftKey(L + 1));
       this.ui.message(`🌀 ¡Grieta Nivel ${L} completada! Botín extra y Llave de Grieta Nv ${L + 1}`, 5000);
@@ -1712,6 +1794,9 @@ class Game {
       case 'stash':
         this.ui.openStash();
         break;
+      case 'world_statue':
+        this.ui.openProgress();
+        break;
       case 'vendor':
         this.ui.togglePanel('shop');
         break;
@@ -1808,7 +1893,7 @@ class Game {
     } else {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
-      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0), qty: (this.world.pact?.qty || 0), cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
       this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
       p.records.chests++;

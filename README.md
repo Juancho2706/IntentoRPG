@@ -62,6 +62,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Re-spec**: redistribuye atributos y habilidades pagando oro
 - **Paragon**: tras el nivel 20, cada nivel da puntos para mejoras infinitas (daño, vida, armadura, vel. de ataque)
 - **Poderes legendarios únicos** y **reliquias de jefe**: legendarios que cambian cómo juegas (Festín, Volátil, Vendaval, Viento, Furia, Avaricia); los jefes sueltan reliquias temáticas
+- **Tormento (dificultad seleccionable)**: en la **Estatua del Mundo** del pueblo eliges el nivel de Tormento (hasta 10), que sube la dificultad y el botín (rareza y cantidad); se desbloquea empujando grietas y descendiendo en las mazmorras
+- **Códice de Aspectos**: extrae el poder único de un legendario al Códice y **grábalo en otra pieza** por oro (estilo Diablo 4) — define tu build sin depender del azar
 - **Identificación**: legendarios, conjuntos y reliquias caen "sin identificar" — el momento de revelarlos
 - **Hallazgo mágico**: afijo, nodo Paragon y santuario que aumentan la rareza y cantidad del botín
 - **Pactos de piso**: un altar opcional ofrece más peligro a cambio de más recompensa (botín/MF/XP)
@@ -80,6 +82,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Grietas (endgame)**: los jefes profundos sueltan Llaves de Grieta; ábrelas para mazmorras con varios modificadores y botín aumentado, y al completarlas sube tu nivel de grieta y obtienes una llave superior (empuje infinito)
 - **Tooltips al pasar el ratón** (escritorio): ver stats y comparación ▲▼ de cualquier objeto sin abrir la ficha
 - **Accesibilidad**: movimiento reducido, texto grande y modo daltónico (colores de rareza seguros); la rareza se marca también con glifo (✦◆★❖), no solo por color
+- **UI/UX renovada**: paneles de NPCs (mercader con secciones y temporizador, misiones con progreso, alijo con contador, pactos riesgo/recompensa), inventario (EQUIPO/CUBO/MOCHILA claros, ranuras con icono guía, indicadores táctiles) y hoja de personaje (atributos en tarjetas, stats derivadas agrupadas en ofensivas/defensivas/utilidad) rediseñados para móvil
 - Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos
 
 ## 🕹️ Controles
