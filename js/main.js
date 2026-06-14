@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, GOBLIN, ENEMY_RANKS, PACTS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
+import { ENEMIES, MIMIC, GOBLIN, ENEMY_RANKS, PACTS, ZONE_LIST, BLESSINGS, blessingValue, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
@@ -214,7 +214,7 @@ class Game {
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
-      torment: p.torment, codex: p.codex,
+      torment: p.torment, codex: p.codex, blessings: p.blessings,
     };
     try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
@@ -849,6 +849,39 @@ class Game {
     this.save();
   }
 
+  // Bendiciones: al completar una grieta (corrupción `tier`) ofrece 3 opciones;
+  // se equipa UNA por categoría (permanente). Estilo Last Epoch.
+  offerBlessing(tier) {
+    const pool = [...BLESSINGS];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const offers = pool.slice(0, 3).map(b => ({
+      id: b.id, cat: b.cat, stat: b.stat, name: b.name,
+      value: blessingValue(b, tier),
+      text: b.desc.replace('{v}', blessingValue(b, tier)),
+      tier,
+    }));
+    this.pendingBlessings = offers;
+    this.ui.openBlessing(offers);
+  }
+
+  chooseBlessing(index) {
+    const offer = (this.pendingBlessings || [])[index];
+    this.pendingBlessings = null;
+    if (!offer) return;
+    const p = this.player;
+    if (!p.blessings) p.blessings = {};
+    p.blessings[offer.cat] = { id: offer.id, cat: offer.cat, stat: offer.stat, value: offer.value, name: offer.name, text: offer.text };
+    p.recompute();
+    this.sfx('levelup');
+    this.ui.message(`🌟 Bendición de ${offer.cat}: «${offer.name}» (${offer.text})`, 4500);
+    this.ui.closePanel();
+    this.ui.updateHUD();
+    this.save();
+  }
+
   updateTriggers(dt) {
     const p = this.player;
     for (const tr of this.world.triggers || []) {
@@ -1328,11 +1361,14 @@ class Game {
       drops.push(makeRiftKey(L + 1));
       this.ui.message(`🌀 ¡Grieta Nivel ${L} completada! Botín extra y Llave de Grieta Nv ${L + 1}`, 5000);
       this.music.sting();
+      this._riftCompleted = L; // ofrece una bendición de corrupción al terminar
     }
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
     if (enemy.def.boss && !this.world.rift) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
     this.sfx('death');
     this.save();
+    // recompensa de corrupción: ofrece elegir una bendición permanente
+    if (this._riftCompleted != null) { const L = this._riftCompleted; this._riftCompleted = null; this.offerBlessing(L); }
   }
 
   // abre una grieta de endgame consumiendo una llave del inventario

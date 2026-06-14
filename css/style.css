@@ -1113,3 +1113,20 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
 }
 .codex-entry b { color: #b388ff; }
 .popup-btns.codex-choose { flex-direction: column; }
+
+/* bendiciones (elección de recompensa de grieta) */
+.bless-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.bless-card {
+  padding: 12px; cursor: pointer;
+  background: rgba(40, 34, 20, 0.6);
+  border: 1px solid #6a5a2a; border-radius: 10px;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.bless-card:hover, .bless-card:active {
+  border-color: var(--gold); transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(201, 162, 39, 0.35);
+}
+.bless-cat { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #b8a86a; }
+.bless-name { font-size: 16px; color: var(--gold); margin: 2px 0; }
+.bless-eff { font-size: 14px; color: #d8e8b0; }
+.bless-cur { font-size: 11px; margin-top: 4px; }

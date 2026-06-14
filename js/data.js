@@ -314,6 +314,25 @@ export const PACTS = [
 ];
 
 export const POTION_PRICES = { hp: 30, mp: 30 };
+
+// Bendiciones permanentes (endgame, estilo Last Epoch): se ganan completando
+// grietas y se equipa UNA por categoría. Su valor escala con el nivel de grieta
+// (corrupción) en el que se obtienen. desc usa {v}.
+export const BLESSINGS = [
+  { id: 'b_dmg',  cat: 'Ofensiva',  name: 'Furia Persistente', stat: 'dmgPct',  base: 8,  per: 2,  desc: '+{v}% daño' },
+  { id: 'b_crit', cat: 'Ofensiva',  name: 'Ojo Certero',       stat: 'crit',    base: 4,  per: 1,  desc: '+{v}% prob. de crítico' },
+  { id: 'b_hp',   cat: 'Defensiva', name: 'Vigor Eterno',      stat: 'hp',      base: 30, per: 12, desc: '+{v} vida máxima' },
+  { id: 'b_arm',  cat: 'Defensiva', name: 'Piel de Hierro',    stat: 'arm',     base: 15, per: 6,  desc: '+{v} armadura' },
+  { id: 'b_aspd', cat: 'Celeridad', name: 'Frenesí',           stat: 'aspdPct', base: 6,  per: 2,  desc: '+{v}% vel. de ataque' },
+  { id: 'b_cdr',  cat: 'Celeridad', name: 'Mente Clara',       stat: 'cdr',     base: 5,  per: 1,  desc: '+{v}% reducción de enfriamiento' },
+  { id: 'b_mf',   cat: 'Fortuna',   name: 'Codicia Bendita',   stat: 'mf',      base: 15, per: 6,  desc: '+{v}% hallazgo mágico' },
+  { id: 'b_lph',  cat: 'Fortuna',   name: 'Sed de Sangre',     stat: 'lph',     base: 2,  per: 1,  desc: '+{v} vida al golpear' },
+];
+
+// valor de una bendición obtenida en una grieta de nivel `tier` (corrupción)
+export function blessingValue(b, tier) {
+  return b.base + b.per * Math.max(0, tier | 0);
+}
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {
   fue: 'Aumenta el daño físico',

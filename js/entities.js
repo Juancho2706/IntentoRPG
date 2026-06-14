@@ -215,6 +215,8 @@ export class Player {
     // endgame: dificultad seleccionada (Tormento) y Códice de Aspectos
     this.torment = this.torment || 0;
     this.codex = this.codex || {};
+    // bendiciones permanentes (una por categoría), ganadas en grietas
+    this.blessings = this.blessings || {};
     // registro de colección: sets vistos, poderes legendarios, bestiario
     this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
     this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, mf: 0, ...(this.paragon || {}) };
@@ -296,6 +298,8 @@ export class Player {
         if (n >= Number(need)) addStats(stats);
     }
     for (const b of this.buffs) addStats(b.stats);
+    // bendiciones permanentes del endgame (una por categoría)
+    for (const bl of Object.values(this.blessings || {})) addStats({ [bl.stat]: bl.value });
     // pasivas
     for (const sk of this.cls.skills) {
       const lvl = this.skills[sk.id];

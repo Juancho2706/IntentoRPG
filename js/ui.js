@@ -1466,6 +1466,14 @@ export class UI {
     html += `<p class="dim">Extrae el poder de un legendario (desde el inventario) para guardarlo aquí; luego puedes grabarlo en otra pieza por oro.</p>`;
     if (!aspects.length) html += `<p class="dim">— Aún no has extraído ningún aspecto —</p>`;
     else html += `<div class="codex-list">` + aspects.map(a => `<div class="codex-entry"><b>«${a.name}»</b><br><span class="dim">${a.desc}</span></div>`).join('') + `</div>`;
+    // Bendiciones permanentes (una por categoría)
+    const bl = p.blessings || {};
+    html += `<h4>🌟 Bendiciones</h4>`;
+    html += `<p class="dim">Gana bendiciones completando grietas (mayor nivel = más fuertes). Una activa por categoría.</p>`;
+    html += `<div class="codex-list">` + ['Ofensiva', 'Defensiva', 'Celeridad', 'Fortuna'].map(c => {
+      const b = bl[c];
+      return `<div class="codex-entry"><b>${c}:</b> ${b ? `🌟 ${b.name} <span class="dim">(${b.text})</span>` : '<span class="dim">— vacía —</span>'}</div>`;
+    }).join('') + `</div>`;
     body.innerHTML = html;
     const btnRow = $('torment-btns');
     for (let t = 0; t <= cap; t++) {
@@ -1475,6 +1483,29 @@ export class UI {
       b.onclick = () => { g.setTorment(t); this.renderProgress(); this.updateHUD(); };
       btnRow.appendChild(b);
     }
+  }
+
+  // elección de bendición permanente (recompensa de grieta/corrupción)
+  openBlessing(offers) {
+    this.closePanel();
+    this.activePanel = 'blessing';
+    $('panel-blessing').classList.remove('hidden');
+    const p = this.game.player;
+    const body = $('blessing-body');
+    body.innerHTML = `<p class="dim">Recompensa de corrupción: elige una bendición <b>permanente</b>. Sustituye a la de su categoría.</p>`;
+    const row = document.createElement('div');
+    row.className = 'bless-cards';
+    offers.forEach((o, i) => {
+      const cur = p.blessings?.[o.cat];
+      const card = document.createElement('div');
+      card.className = 'bless-card';
+      card.innerHTML = `<div class="bless-cat">${o.cat}</div><div class="bless-name">🌟 ${o.name}</div>` +
+        `<div class="bless-eff">${o.text}</div>` +
+        (cur ? `<div class="bless-cur dim">Reemplaza: ${cur.text}</div>` : `<div class="bless-cur dim">Categoría vacía</div>`);
+      card.onclick = () => this.game.chooseBlessing(i);
+      row.appendChild(card);
+    });
+    body.appendChild(row);
   }
 
   // selector de aspecto conocido para grabar en un objeto
