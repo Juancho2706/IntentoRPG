@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import {
   Grid, instancedBoxes, makePortal, makeWaypoint, makeNPC, makeTorch, mulberry32, BIOMES,
+  makeShrineMesh, SHRINE_DEFS,
 } from './world.js';
 
 // Construye una zona abierta para el bioma indicado.
@@ -214,10 +215,10 @@ export function buildZone(biomeName, opts = {}) {
     interactables.push({ type: 'zone_dungeon', floor: dungeonFloors[i], pos: dPos.clone(), radius: 1.3, label: '🕳️ Entrada de Mazmorra', labelCls: 'lbl-portal', mesh: dPortal });
   }
 
-  // Un cofre opcional lejos del spawn
-  const chestCell = pickOpenCell(15, Infinity);
-  if (chestCell) {
-    const cPos = grid.center(chestCell[0], chestCell[1]);
+  // Cofres repartidos por la zona (uno de ellos custodiado por una élite)
+  const placeChest = (cell, mimicChance) => {
+    if (!cell) return null;
+    const cPos = grid.center(cell[0], cell[1]);
     const chest = new THREE.Group();
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55),
       new THREE.MeshStandardMaterial({ color: 0x7a5a2a, roughness: 0.85 }));
@@ -229,7 +230,36 @@ export function buildZone(biomeName, opts = {}) {
     chest.add(box, lid);
     chest.position.copy(cPos);
     group.add(chest);
-    interactables.push({ type: 'chest', pos: cPos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: rnd() < 0.15 });
+    interactables.push({ type: 'chest', pos: cPos.clone(), radius: 1.2, label: '📦 Cofre', labelCls: 'lbl-chest', mesh: chest, opened: false, mimic: rnd() < mimicChance });
+    return cPos;
+  };
+  // 2 cofres normales
+  placeChest(pickOpenCell(15, Infinity), 0.15);
+  placeChest(pickOpenCell(15, Infinity), 0.15);
+  // 1 tesoro custodiado: cofre seguro con una élite vigilándolo
+  const guardCell = pickOpenCell(20, Infinity);
+  if (guardCell) {
+    const gPos = placeChest(guardCell, 0);
+    spawns.push({ kind: 'elite', pos: gPos.clone() });
+  }
+
+  // ----------------------------------------------------------
+  // 7b) Santuarios de campo (reutilizan el sistema de mazmorra)
+  // ----------------------------------------------------------
+  // Garantiza un santuario de la Avaricia (goblin) y reparte 2 al azar.
+  const placeShrine = (def, cell) => {
+    if (!def || !cell) return;
+    const sPos = grid.center(cell[0], cell[1]);
+    const shrine = makeShrineMesh(def.color);
+    shrine.position.copy(sPos);
+    group.add(shrine);
+    interactables.push({ type: 'shrine', shrine: def.kind, pos: sPos.clone(), radius: 1.5, label: `✨ ${def.name}`, labelCls: 'lbl-portal', mesh: shrine, used: false });
+  };
+  const avaricia = SHRINE_DEFS.find(s => s.kind === 'avaricia');
+  placeShrine(avaricia, pickOpenCell(12, Infinity));
+  for (let i = 0; i < 2; i++) {
+    const def = SHRINE_DEFS[ri(0, SHRINE_DEFS.length - 1)];
+    placeShrine(def, pickOpenCell(10, Infinity));
   }
 
   // ----------------------------------------------------------

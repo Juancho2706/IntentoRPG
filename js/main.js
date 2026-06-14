@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, ENEMY_RANKS, PACTS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
+import { ENEMIES, MIMIC, GOBLIN, ENEMY_RANKS, PACTS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
@@ -172,6 +172,7 @@ class Game {
     // recargar la página (nueva sesión). No se guarda en disco a propósito.
     this.zoneSeeds = {};
     this.zoneExplored = {};
+    this.zoneBounties = {};
     let saved = null;
     if (pick === 'continue') {
       try { saved = JSON.parse(localStorage.getItem(this.slotKey(slot))); } catch { saved = null; }
@@ -283,6 +284,8 @@ class Game {
       if (!this.zoneExplored) this.zoneExplored = {};
       if (!this.zoneExplored[w.biome]) this.zoneExplored[w.biome] = new Set();
       w.explored = this.zoneExplored[w.biome];
+      // contratos de zona (persistentes por sesión)
+      w.bounties = this.ensureZoneBounties(w.biome).list;
       const ret = w.interactables.find(it => it.type === 'portal_town');
       if (ret) { ret.auto = true; ret.label = '🚪 Volver al Pueblo'; }
       // escala las entradas de mazmorra al piso base de la zona (bf-2, bf, bf+2)
@@ -616,6 +619,12 @@ class Game {
       if (w.bossT <= 0) this.spawnWorldBoss();
     }
 
+    // goblin del tesoro: aparece de vez en cuando si no hay otro rondando
+    if (!w.goblin || !w.goblin.alive) {
+      w.goblinT = (w.goblinT ?? 35) - dt;
+      if (w.goblinT <= 0) { w.goblinT = 45 + Math.random() * 40; this.spawnGoblin(); }
+    }
+
     // evento de oleadas (obelisco): siguiente oleada cuando mueren las anteriores
     if (w.event && w.event.active) {
       const evAlive = this.enemies.some(e => e.alive && e.def.eventEnemy);
@@ -668,6 +677,94 @@ class Game {
     w.worldBoss = e;
     this.ui.message('👑 ¡Un Jefe de Mundo ha aparecido en la zona! (mira el minimapa)', 5000);
     this.addShake(0.4, 0.5);
+    this.music.sting();
+  }
+
+  // goblin del tesoro: huye y suelta gran botín si lo cazas a tiempo
+  spawnGoblin(pos = null) {
+    const w = this.world;
+    const at = pos || this.randomZoneCell(14) || this.randomZoneCell(6);
+    if (!at) return null;
+    const floor = w.scaleFloor || w.floor || 1;
+    const def = scaleEnemy(GOBLIN, floor);
+    def.goblin = true;
+    def.rankLabel = '🪙 Goblin del Tesoro';
+    def.labelCls = 'lbl-elite';
+    const e = new Enemy(this, def, at);
+    e.escapeT = 26;
+    this.enemies.push(e);
+    this.entityGroup.add(e.group);
+    if (w.type === 'zone') w.goblin = e;
+    this.spawnRing(at.clone(), 1.2, 0xffd24a);
+    this.ui.message('🪙 ¡Un Goblin del Tesoro! Cázalo antes de que escape', 3500);
+    this.sfx('portal');
+    return e;
+  }
+
+  // el goblin escapa sin botín si no lo matas a tiempo
+  goblinEscape(e) {
+    this.spawnRing(e.pos.clone(), 1.6, 0xffd24a);
+    this.spawnBurst(e.pos, 0xffd24a, 14);
+    e.group.visible = false;
+    e.alive = false;
+    e.fade = 2; // se elimina en el siguiente update
+    if (this.world.goblin === e) this.world.goblin = null;
+    this.sfx('portal');
+    this.ui.message('🦹 El Goblin del Tesoro ha escapado con su botín...', 3000);
+  }
+
+  // ---------- contratos de zona (bounties, estilo susurros) ----------
+  // Persisten por sesión (como la zona) hasta recargar la página.
+  ensureZoneBounties(biome) {
+    if (!this.zoneBounties) this.zoneBounties = {};
+    if (!this.zoneBounties[biome]) {
+      const pool = [
+        { type: 'kill', goal: 30, desc: 'Da caza a 30 enemigos' },
+        { type: 'elite', goal: 4, desc: 'Elimina 4 campeones o élites' },
+        { type: 'chest', goal: 3, desc: 'Saquea 3 cofres' },
+        { type: 'boss', goal: 1, desc: 'Derrota al Jefe de Mundo' },
+        { type: 'goblin', goal: 1, desc: 'Caza al Goblin del Tesoro' },
+      ];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const list = pool.slice(0, 3).map(b => ({ ...b, progress: 0, done: false }));
+      this.zoneBounties[biome] = { list, rewardGiven: false };
+    }
+    return this.zoneBounties[biome];
+  }
+
+  bountyProgress(type, n = 1) {
+    const w = this.world;
+    if (w.type !== 'zone' || !w.bounties) return;
+    const data = this.zoneBounties?.[w.biome];
+    let changed = false;
+    for (const b of w.bounties) {
+      if (b.type !== type || b.done) continue;
+      b.progress = Math.min(b.goal, b.progress + n);
+      changed = true;
+      if (b.progress >= b.goal) {
+        b.done = true;
+        this.ui.message(`📜 Contrato cumplido: ${b.desc}`, 3500);
+        this.sfx('levelup');
+      }
+    }
+    if (changed && data && !data.rewardGiven && w.bounties.every(b => b.done)) {
+      data.rewardGiven = true;
+      this.grantBountyReward();
+    }
+  }
+
+  grantBountyReward() {
+    const p = this.player, w = this.world;
+    const floor = w.scaleFloor || 1;
+    const at = p.pos;
+    for (let i = 0; i < 8; i++) this.spawnGroundItem(makeGold(floor + 4), at);
+    this.spawnGroundItem(generateItem(floor + 2, 'legendario', null, null, p.classId), at);
+    this.spawnGroundItem(makeRiftKey(1), at);
+    this.spawnRing(at.clone(), 2.2, 0xffd24a);
+    this.ui.message('📜 ¡Todos los contratos de la zona cumplidos! Gran recompensa', 5000);
     this.music.sting();
   }
 
@@ -1077,6 +1174,13 @@ class Game {
     if (enemy.def.id) p.discovered.bestiary[enemy.def.id] = (p.discovered.bestiary[enemy.def.id] || 0) + 1;
     this.questProgress('kill');
     if (enemy.def.rank) this.questProgress('elite');
+    // contratos de zona (bounties)
+    if (this.world.type === 'zone') {
+      this.bountyProgress('kill');
+      if (enemy.def.rank) this.bountyProgress('elite');
+      if (enemy.def.worldBoss) this.bountyProgress('boss');
+      if (enemy.def.goblin) this.bountyProgress('goblin');
+    }
     if (enemy.def.boss) {
       this.questProgress('boss');
       this.checkDailyReward(enemy);
@@ -1116,6 +1220,14 @@ class Game {
     // grietas: el jefe de un piso profundo suelta una Llave de Grieta (entrada al endgame)
     if (enemy.def.boss && !this.world.rift && (this.world.floor || 0) >= 10 && Math.random() < 0.5)
       drops.push(makeRiftKey(1));
+    // goblin del tesoro: lluvia de oro y un objeto extra (mágico+)
+    if (enemy.def.goblin) {
+      if (this.world.goblin === enemy) this.world.goblin = null;
+      for (let i = 0; i < 6; i++) drops.push(makeGold(floor + 3));
+      drops.push(generateItem(floor + 1, Math.random() < 0.12 ? 'legendario' : Math.random() < 0.5 ? 'raro' : 'magico', null, null, p.classId));
+      this.ui.message('🪙 ¡Goblin del Tesoro abatido! Botín liberado', 3500);
+      this.music.sting();
+    }
     // jefe de mundo: botín mayor (legendario + grieta) y reaparece tras un rato
     if (enemy.def.worldBoss) {
       this.world.worldBoss = null;
@@ -1641,6 +1753,11 @@ class Game {
         p.addBuff('shrine_mf', { mf: 80 }, 60);
         this.ui.message('🍀 ¡Bendición de la Fortuna! +80% hallazgo mágico durante 60s', 3500);
         break;
+      case 'avaricia':
+        // invoca un Goblin del Tesoro junto al santuario
+        this.spawnGoblin(it.pos.clone());
+        this.ui.message('🪙 ¡Santuario de la Avaricia! Aparece un Goblin del Tesoro', 3500);
+        break;
       case 'maldito': {
         this.spawnGroundItem(generateItem(floor, 'raro'), it.pos);
         for (let i = 0; i < 3; i++) {
@@ -1696,6 +1813,7 @@ class Game {
       this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
       p.records.chests++;
       this.questProgress('chest');
+      if (this.world.type === 'zone') this.bountyProgress('chest');
       this.sfx('chest');
     }
   }

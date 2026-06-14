@@ -31,6 +31,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Minimapa orientado a la cámara**: girado para que el norte de tu cámara isométrica sea arriba en el minimapa
 - **Mapa en vivo**: el mapa completo no detiene el juego — puedes seguir moviéndote y combatir mientras lo miras, y los enemigos descubiertos se mueven en tiempo real
 - **Héroe personalizable**: ponle nombre y elige el color de su armadura al crear el personaje
+- **Vida en el mundo abierto**: **Goblins del Tesoro** que huyen y sueltan un gran botín si los cazas antes de que escapen; **santuarios de campo** (incluido el de la Avaricia, que invoca un goblin); **tesoros custodiados** por élites; y **Contratos de zona** (estilo susurros) con objetivos seguidos en vivo (cazar enemigos/élites, saquear cofres, abatir al jefe o al goblin) que premian con oro, un legendario y una Llave de Grieta al completarlos
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
 - **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes

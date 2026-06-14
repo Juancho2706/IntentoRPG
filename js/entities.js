@@ -670,6 +670,44 @@ export class Enemy {
     const player = g.player;
     if (!player || !player.alive) return false;
 
+    // --- goblin del tesoro: nunca ataca; huye y, si no lo cazas, escapa ---
+    if (this.def.goblin) {
+      if (this.slowT > 0) this.slowT -= dt;
+      const gspd = this.def.spd * (this.slowT > 0 ? 0.5 : 1);
+      const dg = this.pos.distanceTo(player.pos);
+      this.escapeT = (this.escapeT ?? 26) - dt;
+      if (dg < 11 && dg > 0.01) {
+        // huye del jugador; si choca con un muro, lo rodea en perpendicular
+        const nx = (this.pos.x - player.pos.x) / dg, nz = (this.pos.z - player.pos.z) / dg;
+        const before = this.pos.clone();
+        moveWithCollision(g.world.grid, this.pos, nx * gspd * 1.25 * dt, nz * gspd * 1.25 * dt, 0.3);
+        if (this.pos.distanceToSquared(before) < 1e-7) {
+          moveWithCollision(g.world.grid, this.pos, -nz * gspd * 1.25 * dt, nx * gspd * 1.25 * dt, 0.3);
+          this.group.rotation.y = Math.atan2(-nz, nx);
+        } else {
+          this.group.rotation.y = Math.atan2(nx, nz);
+        }
+      } else {
+        // deambula despacio mientras no lo ves
+        this.wanderT = (this.wanderT ?? 0) - dt;
+        if (this.wanderT <= 0 || !this.wanderTarget) {
+          this.wanderT = 1.5 + Math.random() * 2;
+          const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 4;
+          this.wanderTarget = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+        }
+        const wt = this.wanderTarget, dw = this.pos.distanceTo(wt);
+        if (dw > 0.5) {
+          const nx = (wt.x - this.pos.x) / dw, nz = (wt.z - this.pos.z) / dw;
+          moveWithCollision(g.world.grid, this.pos, nx * gspd * 0.5 * dt, nz * gspd * 0.5 * dt, 0.3);
+          this.group.rotation.y = Math.atan2(nx, nz);
+        }
+      }
+      const body = this.group.userData.body;
+      if (body) body.position.y = 0.75 + Math.abs(Math.sin(performance.now() / 90)) * 0.12;
+      if (this.escapeT <= 0) { g.goblinEscape(this); return false; }
+      return false;
+    }
+
     // --- jefe de mundo: ronda su zona y, si lo alejas, vuelve a su spawn ---
     if (this.home) {
       const dh = this.pos.distanceTo(this.home);

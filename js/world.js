@@ -106,6 +106,33 @@ export function makePortal(color, label) {
   return g;
 }
 
+// Definiciones de santuario compartidas por mazmorras y zonas
+export const SHRINE_DEFS = [
+  { kind: 'xp', name: 'Santuario de Experiencia', color: 0xb388ff },
+  { kind: 'dmg', name: 'Santuario de Furia', color: 0xff5544 },
+  { kind: 'pocion', name: 'Santuario de la Vida', color: 0x55dd66 },
+  { kind: 'oro', name: 'Santuario Dorado', color: 0xffd24a },
+  { kind: 'fortuna', name: 'Santuario de la Fortuna', color: 0x4ade80 },
+  { kind: 'avaricia', name: 'Santuario de la Avaricia', color: 0xffcc33 },
+  { kind: 'maldito', name: 'Santuario Susurrante', color: 0x8855aa },
+];
+
+// Malla de santuario (pilar + cristal). userData.crystal se apaga al usarlo.
+export function makeShrineMesh(color) {
+  const shrine = new THREE.Group();
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 1.1, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a4756, roughness: 0.9 }));
+  pillar.position.y = 0.55;
+  pillar.castShadow = true;
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 0),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4 }));
+  crystal.position.y = 1.35;
+  crystal.userData.baseY = 1.35;
+  shrine.add(pillar, crystal);
+  shrine.userData.crystal = crystal;
+  return shrine;
+}
+
 export function makeNPC(color, hatColor) {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
@@ -504,14 +531,7 @@ export function buildDungeon(floor, seed = null) {
   };
 
   // santuarios: bendiciones de un solo uso (alguno está maldito...)
-  const SHRINES = [
-    { kind: 'xp', name: 'Santuario de Experiencia', color: 0xb388ff },
-    { kind: 'dmg', name: 'Santuario de Furia', color: 0xff5544 },
-    { kind: 'pocion', name: 'Santuario de la Vida', color: 0x55dd66 },
-    { kind: 'oro', name: 'Santuario Dorado', color: 0xffd24a },
-    { kind: 'fortuna', name: 'Santuario de la Fortuna', color: 0x4ade80 },
-    { kind: 'maldito', name: 'Santuario Susurrante', color: 0x8855aa },
-  ];
+  const SHRINES = SHRINE_DEFS;
   let shrineCount = 0;
 
   // cofre reutilizable (mimicChance 0 = cofre seguro)
@@ -602,17 +622,7 @@ export function buildDungeon(floor, seed = null) {
       if (sPos) {
         shrineCount++;
         const def = SHRINES[ri(0, SHRINES.length - 1)];
-        const shrine = new THREE.Group();
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 1.1, 6),
-          new THREE.MeshStandardMaterial({ color: 0x4a4756, roughness: 0.9 }));
-        pillar.position.y = 0.55;
-        pillar.castShadow = true;
-        const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 0),
-          new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 1.4 }));
-        crystal.position.y = 1.35;
-        crystal.userData.baseY = 1.35;
-        shrine.add(pillar, crystal);
-        shrine.userData.crystal = crystal;
+        const shrine = makeShrineMesh(def.color);
         shrine.position.copy(sPos);
         group.add(shrine);
         interactables.push({ type: 'shrine', shrine: def.kind, pos: sPos.clone(), radius: 1.5, label: `✨ ${def.name}`, labelCls: 'lbl-portal', mesh: shrine, used: false });

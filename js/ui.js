@@ -255,6 +255,19 @@ export class UI {
       const done = p.quest.progress >= p.quest.goal;
       tracker.textContent = done ? '🎯 ¡Completada! Ve con el Capitán' : `🎯 ${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal} — ${p.quest.desc}`;
     } else tracker.style.display = 'none';
+    // contratos de zona
+    const ct = $('zone-contracts');
+    const w = this.game.world;
+    if (w?.type === 'zone' && w.bounties?.length) {
+      ct.style.display = '';
+      const rows = w.bounties.map(b => {
+        const cur = Math.min(b.progress, b.goal);
+        return b.done
+          ? `<div class="c-row c-done">✔️ ${b.desc}</div>`
+          : `<div class="c-row">▫️ ${b.desc} <b>${cur}/${b.goal}</b></div>`;
+      }).join('');
+      ct.innerHTML = `<div class="c-title">📜 Contratos</div>${rows}`;
+    } else ct.style.display = 'none';
     $('hud-gold').textContent = `🪙 ${p.gold}`;
     $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo'
       : this.game.world?.type === 'refuge' ? '🏕️ Refugio'
@@ -1216,7 +1229,7 @@ export class UI {
     for (const e of this.game.enemies) {
       if (!e.alive) continue;
       const x = Math.floor(e.pos.x - g.ox), z = Math.floor(e.pos.z - g.oz);
-      if (ex.has(z * g.w + x)) dot(e.pos, e.def.boss ? '#ff2200' : '#cc4444', e.def.boss ? 5 : 3);
+      if (ex.has(z * g.w + x)) dot(e.pos, this.enemyDot(e), (e.def.boss || e.def.worldBoss) ? 5 : 3);
     }
     if (this.game.player) dot(this.game.player.pos, '#ffffff', 4);
     ctx.restore();
@@ -1247,9 +1260,18 @@ export class UI {
     if (type === 'portal_zone') return '#66cc55';
     if (type === 'portal_next') return '#ff5577';
     if (type === 'waypoint') return '#44ddff';
+    if (type === 'shrine') return '#9ff0c4';
+    if (type === 'world_event') return '#cc66ff';
     if (type.startsWith('portal')) return '#55aaff';
     if (type === 'vendor' || type === 'questgiver' || type === 'stash' || type === 'enchanter' || type === 'healer') return '#ffd24a';
     return null;
+  }
+
+  // color del punto de un enemigo en mapas (goblin dorado, jefe rojo, resto)
+  enemyDot(e) {
+    if (e.def.goblin) return '#ffd24a';
+    if (e.def.boss || e.def.worldBoss) return '#ff2200';
+    return '#cc4444';
   }
 
   drawMinimap() {
@@ -1289,7 +1311,7 @@ export class UI {
       if (col) dot(it.pos, col, it.type === 'zone_dungeon' || it.type.startsWith('portal') ? 3 : 2);
     }
     for (const e of this.game.enemies)
-      if (e.alive) dot(e.pos, e.def.boss ? '#ff2200' : '#cc4444', 2);
+      if (e.alive) dot(e.pos, this.enemyDot(e), e.def.goblin ? 3 : 2);
     if (p) dot(p.pos, '#ffffff', 3);
     ctx.restore();
   }

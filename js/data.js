@@ -183,6 +183,12 @@ export const MIMIC = {
   hp: 50, dmg: 12, spd: 3.0, xp: 35, range: 1.5, atkTime: 1.0, scale: 1.0,
 };
 
+// Goblin del tesoro: no ataca, huye y suelta un gran botín si lo cazas a tiempo
+export const GOBLIN = {
+  id: 'goblin_tesoro', name: 'Goblin del Tesoro', color: 0xffcc33, shape: 'humanoid',
+  hp: 60, dmg: 0, spd: 3.7, xp: 30, range: 1.2, atkTime: 2, scale: 0.8, goblin: true,
+};
+
 // Escalado de enemigos por piso de mazmorra
 export function scaleEnemy(def, floor) {
   const f = floor - 1;
