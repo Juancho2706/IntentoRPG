@@ -15,7 +15,12 @@ function buildHero(floor) {
   const pts = 5 * (Math.min(p.level, 20) - 1);
   p.attributes.fue += Math.round(pts * 0.6);
   p.attributes.vit += Math.round(pts * 0.4);
-  if (p.level > 20) { p.paragon.dmgPct = p.level - 20; p.paragon.hp = p.level - 20; }
+  if (p.level > 20) {
+    // tablero de paragon: activa nodos contiguos (ofensiva + sustento) según puntos
+    const order = ['4_3', '4_5', '4_2', '4_6', '4_1', '4_7', '3_2', '5_2', '3_6', '5_6', '4_0', '4_8'];
+    const n = Math.min(order.length, p.level - 20);
+    for (let i = 0; i < n; i++) p.paragon.nodes[order[i]] = true;
+  }
   for (const slot of ['weapon', 'helm', 'chest', 'boots', 'gloves', 'pants', 'shoulders', 'belt', 'offhand', 'ring', 'amulet']) {
     let best = null, bv = -1;
     for (let i = 0; i < 30; i++) {

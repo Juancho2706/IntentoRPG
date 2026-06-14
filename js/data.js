@@ -333,6 +333,46 @@ export const BLESSINGS = [
 export function blessingValue(b, tier) {
   return b.base + b.per * Math.max(0, tier | 0);
 }
+
+// Tablero de Paragon (estilo Diablo 4): nodos conectados en una rejilla 9×9.
+// Se activan gastando puntos Paragon, solo si conectan (ortogonalmente) con un
+// nodo ya activo o con el Inicio. Tipos: start, minor, magic, rare, legendary.
+// Los nodos legendarios (★) otorgan poderes únicos además de stats.
+export const PARAGON_BOARD = (() => {
+  const nodes = [];
+  const add = (x, y, type, stats, extra = {}) => nodes.push({ id: `${x}_${y}`, x, y, type, stats, ...extra });
+  add(4, 4, 'start', {}, { name: 'Inicio' });
+  // brazo SUPERIOR — ofensiva
+  add(4, 3, 'minor', { dmgPct: 1 });
+  add(4, 2, 'magic', { dmgPct: 2, crit: 1 });
+  add(4, 1, 'minor', { dmgPct: 1 });
+  add(4, 0, 'legendary', { dmgPct: 8 }, { name: 'Sed de Batalla', power: 'furia', desc: 'poder de la Furia: +25% daño con vida alta' });
+  add(3, 2, 'rare', { crit: 2 });
+  add(5, 2, 'rare', { dmgPct: 3 });
+  // brazo INFERIOR — sustento
+  add(4, 5, 'minor', { hp: 6 });
+  add(4, 6, 'magic', { hp: 14 });
+  add(4, 7, 'minor', { hp: 6 });
+  add(4, 8, 'legendary', { hp: 40 }, { name: 'Corazón Voraz', power: 'festin', desc: 'poder del Festín: cura al matar' });
+  add(3, 6, 'rare', { hp: 18 });
+  add(5, 6, 'rare', { vit: 4 });
+  // brazo IZQUIERDO — defensa
+  add(3, 4, 'minor', { arm: 4 });
+  add(2, 4, 'magic', { arm: 10 });
+  add(1, 4, 'minor', { arm: 4 });
+  add(0, 4, 'legendary', { arm: 30, thorns: 12 }, { name: 'Muralla', desc: '+30 armadura y +12 espinas' });
+  add(2, 3, 'rare', { arm: 8 });
+  add(2, 5, 'rare', { hp: 14 });
+  // brazo DERECHO — velocidad / utilidad
+  add(5, 4, 'minor', { aspdPct: 1 });
+  add(6, 4, 'magic', { aspdPct: 3 });
+  add(7, 4, 'minor', { aspdPct: 1 });
+  add(8, 4, 'legendary', { aspdPct: 8 }, { name: 'Vendaval', power: 'multidisparo', desc: 'poder del Vendaval: +1 proyectil' });
+  add(6, 3, 'rare', { cdr: 4 });
+  add(6, 5, 'rare', { mf: 10 });
+  return nodes;
+})();
+export const PARAGON_BOARD_SIZE = 9;
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {
   fue: 'Aumenta el daño físico',

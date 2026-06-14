@@ -47,9 +47,10 @@ if (p.level <= 20) throw new Error('no subió de 20');
 if (p.statPoints !== sp) throw new Error('dio atributos tras el 20');
 if (p.paragon.points < 1) throw new Error('sin puntos paragon');
 const hp0 = p.stats.maxHP;
-p.paragon.hp = 5; p.recompute();
-if (p.stats.maxHP !== hp0 + 40) throw new Error('paragon vida no aplica: ' + hp0 + '→' + p.stats.maxHP);
-console.log(`Paragon: nivel ${p.level}, ${p.paragon.points} pts, +5 vida → maxHP ${hp0}→${p.stats.maxHP} ✓`);
+// tablero de paragon: activa un nodo de vida contiguo al inicio (+6 vida)
+p.paragon.nodes['4_5'] = true; p.recompute();
+if (p.stats.maxHP !== hp0 + 6) throw new Error('nodo de paragon (vida) no aplica: ' + hp0 + '→' + p.stats.maxHP);
+console.log(`Paragon (tablero): nivel ${p.level}, ${p.paragon.points} pts, nodo +6 vida → maxHP ${hp0}→${p.stats.maxHP} ✓`);
 
 // runeword aplica al recompute
 let armaReal;

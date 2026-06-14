@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -439,6 +439,7 @@ export class UI {
     else if (this.activePanel === 'stash') this.renderStash();
     else if (this.activePanel === 'collection') this.renderCollection();
     else if (this.activePanel === 'progress') this.renderProgress();
+    else if (this.activePanel === 'paragon') this.renderParagon();
   }
 
   openStash() {
@@ -1126,40 +1127,22 @@ export class UI {
       cont.appendChild(rb);
     }
 
-    // --- paragon (nivel 20+) ---
+    // --- paragon (tablero de nodos, nivel 20+) ---
     const pgSection = $('paragon-section');
     const pg = $('paragon');
-    if (p.level >= 20 || p.paragon.points > 0 || p.paragon.dmgPct + p.paragon.hp + p.paragon.arm + p.paragon.aspdPct > 0) {
+    const para = p.paragon || {};
+    const hasBoard = p.level >= 20 || para.points > 0 || Object.keys(para.nodes || {}).length > 0;
+    if (hasBoard) {
       pgSection.style.display = '';
       pg.innerHTML = `<div class="cs-section-head">
           <span class="cs-section-title">🌟 Paragon</span>
-          <span class="cs-points ${p.paragon.points > 0 ? 'cs-points-active' : ''}">${p.paragon.points > 0 ? `${p.paragon.points} pts` : 'Nv 20+'}</span>
+          <span class="cs-points ${para.points > 0 ? 'cs-points-active' : ''}">${para.points > 0 ? `${para.points} pts sin gastar` : 'Nv 20+'}</span>
         </div>`;
-      const rows = [
-        ['dmgPct', '⚔️', 'Daño', '+1% por punto'],
-        ['hp', '❤️', 'Vida', '+8 por punto'],
-        ['arm', '🛡️', 'Armadura', '+3 por punto'],
-        ['aspdPct', '⚡', 'Vel. de ataque', '+0.5% por punto'],
-        ['mf', '🍀', 'Hallazgo mágico', '+3% por punto'],
-      ];
-      for (const [key, icon, name, desc] of rows) {
-        const row = document.createElement('div');
-        row.className = 'cs-attr';
-        row.innerHTML = `
-          <span class="cs-attr-icon">${icon}</span>
-          <div class="cs-attr-body">
-            <div class="cs-attr-name">${name} <span class="cs-attr-val">${p.paragon[key]}</span></div>
-            <div class="cs-attr-desc">${desc}</div>
-          </div>`;
-        const b = document.createElement('button');
-        b.className = 'sk-plus cs-plus';
-        b.textContent = '+';
-        b.disabled = p.paragon.points <= 0;
-        b.title = 'Asignar punto Paragon';
-        b.onclick = () => { this.game.paragonAllocate(key); this.renderStats(); this.updateHUD(); };
-        row.appendChild(b);
-        pg.appendChild(row);
-      }
+      const ob = document.createElement('button');
+      ob.className = 'quest-btn';
+      ob.textContent = '🌟 Abrir Tablero de Paragon';
+      ob.onclick = () => this.openParagon();
+      pg.appendChild(ob);
     } else pgSection.style.display = 'none';
 
     // --- estadísticas derivadas, agrupadas ---
@@ -1483,6 +1466,59 @@ export class UI {
       b.onclick = () => { g.setTorment(t); this.renderProgress(); this.updateHUD(); };
       btnRow.appendChild(b);
     }
+  }
+
+  // ---------- Tablero de Paragon ----------
+  openParagon() {
+    if (this.activePanel !== 'paragon') {
+      this.closePanel();
+      this.activePanel = 'paragon';
+      $('panel-paragon').classList.remove('hidden');
+    }
+    this.renderParagon();
+  }
+
+  nodeStatsText(node) {
+    const parts = Object.entries(node.stats || {}).map(([k, v]) => statText(k, v));
+    if (node.desc) parts.push(node.desc);
+    return parts.join(' · ') || (node.type === 'start' ? 'Inicio' : '');
+  }
+
+  renderParagon() {
+    const g = this.game, p = g.player;
+    const para = p.paragon || { points: 0, nodes: {} };
+    const N = PARAGON_BOARD_SIZE;
+    const cost = g.respecParagonCost();
+    $('paragon-points').textContent = para.points > 0 ? `${para.points} puntos sin gastar` : 'Sin puntos · sube de nivel (20+)';
+    $('paragon-points').classList.toggle('cs-points-active', para.points > 0);
+    const grid = $('paragon-grid');
+    grid.innerHTML = '';
+    grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+    const byPos = {};
+    for (const n of PARAGON_BOARD) byPos[n.x + ',' + n.y] = n;
+    const glyph = { start: '◉', legendary: '★', rare: '◆', magic: '✦', minor: '•' };
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'para-cell';
+      const node = byPos[x + ',' + y];
+      if (node) {
+        const on = node.type === 'start' || !!para.nodes[node.id];
+        const avail = !on && para.points > 0 && g.paragonNodeReachable(node.id);
+        cell.classList.add('para-node', 'pn-' + node.type);
+        if (on) cell.classList.add('on');
+        if (avail) cell.classList.add('avail');
+        cell.textContent = glyph[node.type] || '•';
+        cell.title = (node.name ? node.name + ': ' : '') + this.nodeStatsText(node);
+        cell.onclick = () => {
+          $('paragon-info').innerHTML = `${node.name ? `<b>${node.name}</b> — ` : ''}${this.nodeStatsText(node)}`;
+          if (!on && avail) { g.allocateParagonNode(node.id); this.renderParagon(); this.updateHUD(); }
+        };
+      }
+      grid.appendChild(cell);
+    }
+    $('paragon-respec').textContent = `🔄 Reespecializar (${cost} 🪙)`;
+    $('paragon-respec').disabled = p.gold < cost || !Object.keys(para.nodes || {}).length;
+    $('paragon-respec').onclick = () => { g.respecParagon(); this.renderParagon(); this.updateHUD(); };
   }
 
   // elección de bendición permanente (recompensa de grieta/corrupción)

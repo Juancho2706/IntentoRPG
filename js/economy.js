@@ -3,7 +3,7 @@
 // re-spec y paragon. Se mezclan en Game.prototype.
 // ============================================================
 import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
-import { SHOP_REFRESH_MS, PET_PRICE } from './data.js';
+import { SHOP_REFRESH_MS, PET_PRICE, PARAGON_BOARD } from './data.js';
 
 export const economyMethods = {
   // ---------- tienda del mercader ----------
@@ -372,13 +372,45 @@ export const economyMethods = {
     this.save();
   },
   
-  // ---------- paragon (nivel 20+) ----------
-  paragonAllocate(key) {
+  // ---------- paragon: tablero de nodos (nivel 20+) ----------
+  // un nodo es accesible si conecta ortogonalmente con el Inicio o un nodo activo
+  paragonNodeReachable(nodeId) {
+    const node = PARAGON_BOARD.find(n => n.id === nodeId);
+    if (!node) return false;
+    const alloc = this.player.paragon.nodes || {};
+    return PARAGON_BOARD.some(o => o.id !== nodeId &&
+      (o.type === 'start' || alloc[o.id]) &&
+      Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1);
+  },
+
+  allocateParagonNode(nodeId) {
     const p = this.player;
-    if (p.paragon.points <= 0 || !(key in p.paragon)) return;
-    p.paragon.points--;
-    p.paragon[key]++;
+    const para = p.paragon;
+    if (para.points <= 0) { this.ui.message('No tienes puntos Paragon'); return; }
+    if (para.nodes[nodeId]) return;
+    const node = PARAGON_BOARD.find(n => n.id === nodeId);
+    if (!node || node.type === 'start') return;
+    if (!this.paragonNodeReachable(nodeId)) { this.ui.message('Debe conectar con un nodo ya activado'); return; }
+    para.nodes[nodeId] = true;
+    para.points--;
     p.recompute();
+    this.sfx('levelup');
+    this.save();
+  },
+
+  respecParagonCost() { return 500 + (this.player.level || 1) * 50; },
+
+  respecParagon() {
+    const p = this.player;
+    const cost = this.respecParagonCost();
+    if (p.gold < cost) { this.ui.message('🪙 No tienes oro suficiente'); return; }
+    const spent = Object.keys(p.paragon.nodes || {}).length;
+    if (!spent) { this.ui.message('El tablero ya está vacío'); return; }
+    p.gold -= cost;
+    p.paragon.points += spent;
+    p.paragon.nodes = {};
+    p.recompute();
+    this.ui.message('🌟 Tablero de Paragon reespecializado', 3000);
     this.sfx('levelup');
     this.save();
   },

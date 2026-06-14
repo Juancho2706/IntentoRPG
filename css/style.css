@@ -1130,3 +1130,32 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
 .bless-name { font-size: 16px; color: var(--gold); margin: 2px 0; }
 .bless-eff { font-size: 14px; color: #d8e8b0; }
 .bless-cur { font-size: 11px; margin-top: 4px; }
+
+/* tablero de Paragon (rejilla de nodos) */
+#paragon-grid {
+  display: grid; gap: 3px; margin: 8px auto; width: min(86vw, 360px);
+}
+.para-cell { aspect-ratio: 1; }
+.para-node {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 15px; cursor: default;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #3a3340; color: #6a6470;
+}
+.para-node.pn-start { color: var(--gold); border-color: var(--gold); }
+.para-node.pn-minor { font-size: 12px; }
+.para-node.pn-magic { color: #6f8cff; }
+.para-node.pn-rare { color: #ffd24a; }
+.para-node.pn-legendary { color: #ff8c2e; }
+.para-node.on {
+  background: rgba(201, 162, 39, 0.18);
+  border-color: var(--gold); color: #fff;
+  box-shadow: inset 0 0 6px rgba(201, 162, 39, 0.4);
+}
+.para-node.avail {
+  cursor: pointer;
+  border-color: #8fdd8f; border-style: dashed;
+  animation: paraPulse 1.3s ease-in-out infinite;
+}
+@keyframes paraPulse { 0%, 100% { box-shadow: 0 0 0 rgba(143,221,143,0); } 50% { box-shadow: 0 0 8px rgba(143,221,143,0.6); } }
+#paragon-info { min-height: 2.2em; text-align: center; }

@@ -2,7 +2,7 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, skillVal, xpForLevel } from './data.js';
+import { CLASSES, skillVal, xpForLevel, PARAGON_BOARD } from './data.js';
 import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
@@ -219,7 +219,14 @@ export class Player {
     this.blessings = this.blessings || {};
     // registro de colección: sets vistos, poderes legendarios, bestiario
     this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
-    this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, mf: 0, ...(this.paragon || {}) };
+    // Paragon: tablero de nodos. Migra saves antiguos (formato plano) reembolsando
+    // todos los puntos ganados (level-20) al tablero vacío.
+    if (this.paragon && this.paragon.nodes) {
+      this.paragon.points = this.paragon.points || 0;
+      this.paragon.nodes = this.paragon.nodes || {};
+    } else {
+      this.paragon = { points: Math.max(0, (this.level || 1) - 20), nodes: {} };
+    }
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
@@ -283,13 +290,13 @@ export class Player {
       if (it.power) this.powers.add(it.power.id);          // poderes únicos de legendarios/reliquias
     }
     if (this.powers.has('avaricia')) item.mf += 30;
-    // paragon: mejoras infinitas tras el nivel 20
-    addStats({
-      dmgPct: this.paragon.dmgPct,
-      hp: this.paragon.hp * 8,
-      arm: this.paragon.arm * 3,
-      aspdPct: this.paragon.aspdPct * 0.5,
-    });
+    // paragon: tablero de nodos (los nodos legendarios otorgan poderes)
+    const pnodes = this.paragon?.nodes || {};
+    for (const node of PARAGON_BOARD) {
+      if (node.type !== 'start' && !pnodes[node.id]) continue;
+      if (node.stats) addStats(node.stats);
+      if (node.power) this.powers.add(node.power);
+    }
     // bonus de conjunto por número de piezas equipadas
     for (const [sid, n] of Object.entries(setCounts)) {
       const set = SETS.find(s => s.id === sid);
@@ -327,7 +334,7 @@ export class Player {
       arm: Math.round(item.arm + a.des * 0.3),
       spd: 4.3 * (1 + item.spdPct / 100),
       atkTime: c.atkTime / (1 + item.aspdPct / 100),
-      mf: Math.round(item.mf + (this.paragon?.mf || 0) * 3),
+      mf: Math.round(item.mf),
       lph: item.lph, mph: item.mph, thorns: item.thorns,
       cdr: Math.min(50, item.cdr), // tope de reducción de enfriamiento
     };
