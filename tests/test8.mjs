@@ -16,7 +16,7 @@ console.log('Misiones: 200 generadas OK · tipos:', QUEST_TYPES.map(t => t.type)
 
 // pueblo: capitán y portal diario presentes
 const town = buildTown();
-for (const t of ['questgiver', 'portal_daily', 'waypoint', 'healer', 'vendor', 'portal_dungeon'])
+for (const t of ['questgiver', 'portal_daily', 'waypoint', 'healer', 'vendor', 'gate_zone'])
   if (!town.interactables.some(i => i.type === t)) throw new Error('falta ' + t);
 console.log('Pueblo: capitán, portal diario y resto de interactuables ✓');
 

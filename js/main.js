@@ -261,6 +261,25 @@ class Game {
 
     // ambiente
     const w = this.world;
+    this.edgeArmed = false; // puertas automáticas desarmadas hasta alejarse
+    // en la zona, el portal de retorno se cruza caminando (como salir por el sur)
+    if (w.type === 'zone') {
+      const ret = w.interactables.find(it => it.type === 'portal_town');
+      if (ret) { ret.auto = true; ret.label = '🚪 Volver al Pueblo'; }
+    }
+    // aparecer junto a la puerta correspondiente al cruzar pueblo↔zona
+    if (spec.entry) {
+      const gateType = spec.entry === 'fromTown' ? 'portal_town' : 'gate_zone';
+      const gate = w.interactables.find(it => it.type === gateType);
+      if (gate) {
+        const toC = gate.pos.clone().setY(0).multiplyScalar(-1);
+        if (toC.lengthSq() > 0.01) toC.normalize(); else toC.set(0, 0, 1);
+        for (let s = 2; s <= 6; s++) {
+          const cand = gate.pos.clone().addScaledVector(toC, s).setY(0);
+          if (w.grid.walkable(cand.x, cand.z)) { w.spawn = cand; break; }
+        }
+      }
+    }
     this.scene.fog = new THREE.Fog(w.fog.color, w.fog.near, w.fog.far);
     this.renderer.setClearColor(w.clearColor);
     this.ambient.intensity = w.ambientIntensity;
@@ -1283,10 +1302,28 @@ class Game {
   checkInteractables(dt) {
     const p = this.player;
     this.healPulse = Math.max(0, this.healPulse - dt);
+    // niebla de guerra: marca como descubiertas las celdas alrededor del jugador
+    const g = this.world.grid;
+    if (!this.world.explored) this.world.explored = new Set();
+    const cx = Math.floor(p.pos.x - g.ox), cz = Math.floor(p.pos.z - g.oz);
+    for (let dz = -5; dz <= 5; dz++) for (let dx = -5; dx <= 5; dx++) {
+      if (dx * dx + dz * dz > 30) continue;
+      const x = cx + dx, z = cz + dz;
+      if (x >= 0 && z >= 0 && x < g.w && z < g.h) this.world.explored.add(z * g.w + x);
+    }
     let best = null, bestD = Infinity;
-
+    // puertas automáticas (gate_zone / portal_town de zona): se cruzan caminando.
+    // Se "arman" al alejarte para no rebotar al aparecer encima.
+    let nearAuto = false;
     for (const it of this.world.interactables) {
       const d = p.pos.distanceTo(it.pos);
+      if (it.auto) {
+        if (d <= it.radius) {
+          nearAuto = true;
+          if (this.edgeArmed) { this.edgeArmed = false; this.interactWith(it); return; }
+        }
+        continue;
+      }
       if (d > it.radius) continue;
       switch (it.type) {
         case 'healer':
@@ -1312,8 +1349,10 @@ class Game {
           if (d < bestD) { best = it; bestD = d; }
       }
     }
+    if (!nearAuto) this.edgeArmed = true; // ya saliste de la puerta: lista para cruzar de vuelta
     this.currentInteract = best;
     if (best) this.tip('interactuar', 'Pulsa el botón de acción (o Espacio) para usar portales, abrir cofres y hablar con NPCs');
+    this.tip('salir', 'Camina hacia la salida 🌿 del pueblo para entrar a las Tierras de la Cripta');
   }
 
   // botón de acción: interactúa si hay algo cerca; si no, ataca
@@ -1330,8 +1369,10 @@ class Game {
         this.loadWorld({ type: 'dungeon', floor: it.minFloor ? Math.max(it.minFloor, p.lastFloor || 1) : (p.lastFloor || 1) });
         break;
       case 'portal_zone':
+      case 'gate_zone':
+        // salir del pueblo a la zona abierta (apareces junto a la entrada de la zona)
         this.fromZone = null;
-        this.loadWorld({ type: 'zone', biome: it.biome });
+        this.loadWorld({ type: 'zone', biome: it.biome, entry: 'fromTown' });
         break;
       case 'zone_dungeon':
         // entrar a una mazmorra instanciada desde la zona abierta (contenido difícil)
@@ -1343,9 +1384,10 @@ class Game {
         this.ui.message('🔮 «Toca un objeto con afijos y reforjaré uno de ellos... por un precio»', 3500);
         break;
       case 'portal_town':
-        // si entraste a la mazmorra desde una zona, el portal te devuelve a la zona
+        // desde una mazmorra entrada por la zona → vuelves a la zona; desde la
+        // zona → vuelves al pueblo (apareciendo en su puerta norte)
         if (this.fromZone) { const b = this.fromZone; this.fromZone = null; this.loadWorld({ type: 'zone', biome: b }); }
-        else this.loadWorld({ type: 'town' });
+        else this.loadWorld({ type: 'town', entry: this.world.type === 'zone' ? 'fromZone' : null });
         break;
       case 'portal_next':
         p.lastFloor = this.world.floor + 1;

@@ -689,3 +689,7 @@ body.cb .world-label.rarity-magico, body.cb .inv-cell.rarity-magico { border-col
 body.cb .world-label.rarity-raro, body.cb .inv-cell.rarity-raro { border-color: #f2c200; color: #ffe04a; }
 body.cb .world-label.rarity-legendario, body.cb .inv-cell.rarity-legendario { border-color: #ff5e9c; color: #ff7eb0; box-shadow: 0 0 8px rgba(255,94,156,0.5); }
 body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border-color: #2ee6c0; color: #5ff0d4; box-shadow: 0 0 8px rgba(46,230,192,0.45); }
+
+#minimap { cursor: pointer; }
+#map-canvas { width: min(86vw, 380px); height: auto; image-rendering: pixelated; border: 1px solid var(--panel-border); border-radius: 6px; display: block; margin: 0 auto; }
+#map-info { text-align: center; margin-top: 6px; }

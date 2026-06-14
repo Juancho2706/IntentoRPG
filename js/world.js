@@ -262,24 +262,17 @@ export function buildTown() {
   group.add(stall);
   interactables.push({ type: 'vendor', pos: vendorPos.clone(), radius: 2.4, label: '💰 Mercader', labelCls: 'lbl-npc' });
 
-  // portal a la mazmorra (al norte)
-  const portalPos = grid.center(Math.floor(W / 2), 3);
-  const portal = makePortal(0x9933ff, 'Mazmorra');
-  portal.position.copy(portalPos);
-  group.add(portal);
-  interactables.push({ type: 'portal_dungeon', pos: portalPos.clone(), radius: 1.3, label: '🌀 Entrar a la Mazmorra', labelCls: 'lbl-portal', mesh: portal });
+  // salida del pueblo a la zona abierta (al norte): se cruza caminando
+  const gatePos = grid.center(Math.floor(W / 2), 2);
+  const gate = makePortal(0x66cc55, 'Cripta');
+  gate.position.copy(gatePos);
+  group.add(gate);
+  interactables.push({ type: 'gate_zone', biome: 'Cripta', auto: true, pos: gatePos.clone(), radius: 1.6, label: '🌿 Salir a las Tierras de la Cripta', labelCls: 'lbl-portal', mesh: gate });
 
-  // portal a la zona abierta (Tierras de la Cripta) al noroeste
-  const zonePos = grid.center(Math.floor(W / 2) - 6, 3);
-  const zonePortal = makePortal(0x66cc55, 'Cripta');
-  zonePortal.position.copy(zonePos);
-  group.add(zonePortal);
-  interactables.push({ type: 'portal_zone', biome: 'Cripta', pos: zonePos.clone(), radius: 1.3, label: '🌿 Tierras de la Cripta (zona abierta)', labelCls: 'lbl-portal', mesh: zonePortal });
-
-  // antorchas junto al portal
+  // antorchas junto a la salida
   for (const dx of [-2, 2]) {
     const t = makeTorch();
-    t.position.set(portalPos.x + dx, 0, portalPos.z);
+    t.position.set(gatePos.x + dx, 0, gatePos.z);
     group.add(t);
   }
 

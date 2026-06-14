@@ -111,6 +111,7 @@ export class UI {
     $('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); g.primaryAction(); });
     $('btn-dodge').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.dodge(); });
     $('btn-grab').addEventListener('pointerdown', e => { e.preventDefault(); g.grabNearest(); });
+    $('minimap').addEventListener('click', () => this.openMap());
     $('btn-inv').addEventListener('click', () => this.togglePanel('inv'));
     $('btn-skills').addEventListener('click', () => this.togglePanel('skills'));
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
@@ -1118,6 +1119,44 @@ export class UI {
     $('death-screen').classList.remove('hidden');
   }
   hideDeath() { $('death-screen').classList.add('hidden'); }
+
+  // ---------- mapa descubierto (tap en el minimapa) ----------
+  openMap() {
+    if (this.activePanel !== 'map') {
+      this.closePanel();
+      this.activePanel = 'map';
+      $('panel-map').classList.remove('hidden');
+    }
+    const g = this.game.world.grid;
+    const ex = this.game.world.explored || new Set();
+    const cv = $('map-canvas');
+    const S = 380; cv.width = S; cv.height = S;
+    const ctx = cv.getContext('2d');
+    const cs = S / Math.max(g.w, g.h);
+    ctx.fillStyle = '#05060a'; ctx.fillRect(0, 0, S, S);
+    // celdas descubiertas
+    for (let z = 0; z < g.h; z++) for (let x = 0; x < g.w; x++) {
+      if (!ex.has(z * g.w + x)) continue;
+      ctx.fillStyle = g.cells[z][x] ? '#3a4a3a' : '#1a1a22';
+      ctx.fillRect(x * cs, z * cs, Math.ceil(cs), Math.ceil(cs));
+    }
+    const dot = (pos, color, r) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc((pos.x - g.ox) * cs, (pos.z - g.oz) * cs, r, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    // POIs (solo los ya descubiertos)
+    for (const it of this.game.world.interactables) {
+      const col = this.poiColor(it.type);
+      if (!col) continue;
+      const x = Math.floor(it.pos.x - g.ox), z = Math.floor(it.pos.z - g.oz);
+      if (ex.has(z * g.w + x)) dot(it.pos, col, 4);
+    }
+    if (this.game.player) dot(this.game.player.pos, '#ffffff', 4);
+    const pct = Math.round(ex.size / (g.w * g.h) * 100);
+    $('map-info').textContent = `${this.game.world.biome || this.game.world.type} · descubierto ${pct}%`;
+  }
 
   // ---------- minimapa ----------
   initMinimap(world) {
