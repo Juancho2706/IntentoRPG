@@ -65,6 +65,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Tormento (dificultad seleccionable)**: en la **Estatua del Mundo** del pueblo eliges el nivel de Tormento (hasta 10), que sube la dificultad y el botín (rareza y cantidad); se desbloquea empujando grietas y descendiendo en las mazmorras
 - **Códice de Aspectos**: extrae el poder único de un legendario al Códice y **grábalo en otra pieza** por oro (estilo Diablo 4) — define tu build sin depender del azar
 - **Bendiciones permanentes** (estilo Last Epoch): cada grieta completada (corrupción) te ofrece elegir 1 de 3 bendiciones; equipas una por categoría (Ofensiva, Defensiva, Celeridad, Fortuna) y su poder escala con el nivel de grieta — un objetivo de empuje infinito que mejora tu personaje para siempre
+- **Jefe Pináculo (uber)**: los jefes de mundo y las grietas sueltan **Fragmentos de Pináculo**; reúne 3 y ofréndalos en la Estatua del Mundo para invocar al **Heraldo del Vacío**, el reto final, que suelta un objeto **MÍTICO** — un legendario con **doble poder único**
 - **Identificación**: legendarios, conjuntos y reliquias caen "sin identificar" — el momento de revelarlos
 - **Hallazgo mágico**: afijo, nodo Paragon y santuario que aumentan la rareza y cantidad del botín
 - **Pactos de piso**: un altar opcional ofrece más peligro a cambio de más recompensa (botín/MF/XP)

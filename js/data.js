@@ -177,6 +177,15 @@ export function bossForFloor(floor) {
   return BOSSES.filter(b => floor >= b.minFloor).pop();
 }
 
+// Jefe Pináculo (uber): el reto final, invocado con Fragmentos de Pináculo.
+// Muy fuerte; suelta botín mítico exclusivo.
+export const UBER_BOSS = {
+  id: 'pinaculo', name: 'Heraldo del Vacío', color: 0x9b30ff, shape: 'demon', boss: true, uber: true,
+  hp: 900, dmg: 38, spd: 2.6, xp: 1500, range: 2.4, atkTime: 1.0, scale: 2.7,
+  rangedAttack: true, projSpeed: 11, projColor: 0xcc66ff, rangedChance: 0.32, slam: true,
+  mechanic: 'summon',
+};
+
 // Cofre falso: muerde cuando intentas abrirlo
 export const MIMIC = {
   id: 'mimico', name: 'Mímico', color: 0x7a5a2a, shape: 'mimic',

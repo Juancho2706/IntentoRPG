@@ -381,6 +381,30 @@ export function makeSupport(supId) {
   };
 }
 
+// Fragmento de Pináculo: material para invocar al jefe pináculo (uber).
+// Se reúnen varios y se ofrendan en la Estatua del Mundo.
+export function makeFragment() {
+  return {
+    uid: itemUid++, kind: 'fragment', icon: '✴️', rarity: 'legendario',
+    name: 'Fragmento de Pináculo', value: 0,
+  };
+}
+
+// Objeto MÍTICO: legendario con DOS poderes únicos y stats reforzados.
+// Solo lo suelta el jefe Pináculo (uber). Cae sin identificar.
+export function makeMythic(ilvl, classHint = null) {
+  const it = generateItem(ilvl, 'legendario', null, null, classHint);
+  let pw2 = pick(LEGENDARY_POWERS);
+  for (let i = 0; i < 12 && pw2.id === it.power.id; i++) pw2 = pick(LEGENDARY_POWERS);
+  it.power2 = { id: pw2.id, name: pw2.name, desc: pw2.desc };
+  it.mythic = true;
+  it.name = '✦ ' + it.name;
+  for (const k of Object.keys(it.affixes)) it.affixes[k] = Math.round(it.affixes[k] * 1.4);
+  it.value = Math.round(it.value * 2.5);
+  it.unidentified = true;
+  return it;
+}
+
 // Llave de Grieta: consumible que abre una grieta de endgame de nivel N
 export function makeRiftKey(level) {
   return {
@@ -457,13 +481,16 @@ export function itemStatLines(item) {
   if (item.unidentified) return ['❓ Objeto sin identificar', 'Identifícalo para revelar sus poderes.'];
   const lines = [];
   if (item.kind === 'riftkey') return [`🌀 Abre una Grieta de Nivel ${item.riftLevel}`, 'Enemigos reforzados, botín y XP aumentados. Derrota al jefe para subir de nivel de grieta.'];
+  if (item.kind === 'fragment') return ['✴️ Fragmento de Pináculo', 'Reúne 3 y ofréndalos en la Estatua del Mundo para invocar al jefe Pináculo y obtener botín mítico.'];
   if (item.kind === 'support') {
     const s = SUPPORTS.find(x => x.id === item.supportId);
     return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.types.join(', ')}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];
   }
   if (item.kind === 'charm') lines.push('🧿 Activo mientras esté en la mochila');
   if (item.quality) lines.push(`🔨 Calidad ${item.quality}/${MAX_QUALITY} (+${item.quality * 6}% a sus stats)`);
+  if (item.mythic) lines.push('✦✦ MÍTICO — doble poder');
   if (item.power) lines.push(`✦ ${item.power.name}: ${item.power.desc}`);
+  if (item.power2) lines.push(`✦ ${item.power2.name}: ${item.power2.desc}`);
   const q = qualityMult(item);
   const gset = new Set(item.greater || []);
   if (item.dmg) lines.push(`Daño: ${Math.round(item.dmg[0] * q)} - ${Math.round(item.dmg[1] * q)}`);

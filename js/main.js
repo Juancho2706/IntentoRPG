@@ -2,11 +2,11 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, GOBLIN, ENEMY_RANKS, PACTS, ZONE_LIST, BLESSINGS, blessingValue, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
+import { ENEMIES, MIMIC, GOBLIN, UBER_BOSS, ENEMY_RANKS, PACTS, ZONE_LIST, BLESSINGS, blessingValue, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
-import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, RARITIES } from './items.js';
+import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, RARITIES } from './items.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -259,6 +259,7 @@ class Game {
       : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null })
       : buildDungeon(spec.rift ? 16 + spec.rift * 2 : spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
+    this.world.pinnacle = !!spec.pinnacle;
     this.world.rift = spec.rift || 0;
     // dificultad de una zona abierta según su bioma
     const zoneDef = ZONE_LIST.find(z => z.biome === spec.biome);
@@ -349,8 +350,9 @@ class Game {
       if (s.kind === 'pack') { this.spawnPack(s.positions, sf); continue; }
       let def;
       if (s.kind === 'boss') {
-        def = scaleEnemy(bossForFloor(sf), sf);
-        def.rankLabel = `👹 ${def.name}`;
+        // en el Pináculo, el jefe es el uber (Heraldo del Vacío)
+        def = w.pinnacle ? scaleEnemy(UBER_BOSS, sf) : scaleEnemy(bossForFloor(sf), sf);
+        def.rankLabel = w.pinnacle ? `👁️ ${def.name} (Pináculo)` : `👹 ${def.name}`;
         def.labelCls = 'lbl-elite';
       } else if (s.kind === 'elite') {
         def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
@@ -385,7 +387,8 @@ class Game {
     this.music.play(w.type === 'town' ? 'town' : w.type === 'refuge' ? 'refuge' : w.biome);
     this.ui.initMinimap(w);
     if (w.daily) this.dailyStart = Date.now();
-    if (w.rift) this.ui.message(`🌀 Grieta Nivel ${w.rift} · ${w.biome} — enemigos reforzados, botín aumentado. ¡Derrota al jefe!`, 4500);
+    if (w.pinnacle) this.ui.message(`👁️ ¡El Pináculo! El Heraldo del Vacío te espera. Derrótalo para obtener un objeto MÍTICO.`, 5000);
+    else if (w.rift) this.ui.message(`🌀 Grieta Nivel ${w.rift} · ${w.biome} — enemigos reforzados, botín aumentado. ¡Derrota al jefe!`, 4500);
     else if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
     else if (w.type === 'zone') this.ui.message(`🌿 ${w.biome} — zona abierta. Explora y entra a las mazmorras (🕳️).`, 4000);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
@@ -882,6 +885,29 @@ class Game {
     this.save();
   }
 
+  // ---------- Jefe Pináculo (uber) ----------
+  fragmentCount() {
+    return (this.player.inventory || []).filter(it => it.kind === 'fragment').length;
+  }
+
+  pinnacleFloor() {
+    const r = this.player.records || {};
+    return 18 + Math.max(r.maxRift || 0, Math.floor((r.maxFloor || 1) / 2)) * 2;
+  }
+
+  summonPinnacle() {
+    const p = this.player;
+    const NEED = 3;
+    if (this.fragmentCount() < NEED) { this.ui.message(`✴️ Necesitas ${NEED} Fragmentos de Pináculo`, 3000); return; }
+    // consume 3 fragmentos
+    let removed = 0;
+    for (let i = p.inventory.length - 1; i >= 0 && removed < NEED; i--) {
+      if (p.inventory[i].kind === 'fragment') { p.inventory.splice(i, 1); removed++; }
+    }
+    this.ui.closePanel();
+    this.loadWorld({ type: 'dungeon', floor: this.pinnacleFloor(), pinnacle: true });
+  }
+
   updateTriggers(dt) {
     const p = this.player;
     for (const tr of this.world.triggers || []) {
@@ -1350,7 +1376,19 @@ class Game {
       this.world.bossDone = false;
       drops.push(generateItem(floor + 2, 'legendario', null, null, p.classId));
       drops.push(makeRiftKey(1));
-      this.ui.message('👑 ¡Jefe de Mundo derrotado! Botín mayor liberado', 5000);
+      drops.push(makeFragment()); // fragmento para el Pináculo
+      this.ui.message('👑 ¡Jefe de Mundo derrotado! Botín mayor + Fragmento de Pináculo', 5000);
+    }
+    // jefe Pináculo (uber): botín MÍTICO exclusivo
+    if (enemy.def.uber) {
+      p.records.uberKills = (p.records.uberKills || 0) + 1;
+      drops.push(makeMythic(floor + 4, p.classId));
+      drops.push(generateItem(floor + 3, 'legendario', null, null, p.classId));
+      for (let i = 0; i < 5; i++) drops.push(makeGold(floor + 6));
+      drops.push(makeRiftKey(Math.max(1, (p.records.maxRift || 0))));
+      this.ui.message('👁️ ¡Heraldo del Vacío derrotado! Ha caído un objeto MÍTICO', 6000);
+      this.music.sting();
+      this.addShake(0.5, 0.6);
     }
     // completar una grieta: registra nivel máximo, botín extra y una llave superior
     if (enemy.def.boss && this.world.rift) {
@@ -1359,6 +1397,7 @@ class Game {
       this.checkTormentUnlock();
       drops.push(generateItem(floor, 'legendario', null, null, p.classId));
       drops.push(makeRiftKey(L + 1));
+      if (Math.random() < 0.7) drops.push(makeFragment()); // fragmento para el Pináculo
       this.ui.message(`🌀 ¡Grieta Nivel ${L} completada! Botín extra y Llave de Grieta Nv ${L + 1}`, 5000);
       this.music.sting();
       this._riftCompleted = L; // ofrece una bendición de corrupción al terminar
@@ -1404,7 +1443,7 @@ class Game {
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
     // pilar de luz por rareza: el loot bueno se ve desde lejos
-    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey' || item.kind === 'support') {
+    if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey' || item.kind === 'support' || item.kind === 'fragment') {
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
         new THREE.MeshBasicMaterial({
@@ -1946,7 +1985,7 @@ class Game {
     for (const gi of this.groundItems) {
       if (gi.mesh.position.distanceToSquared(p.pos) > maxD) continue;
       const it = gi.item;
-      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'support') && this.passesLootFilter(it.rarity)) {
+      if ((it.kind === 'item' || it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'support' || it.kind === 'fragment') && this.passesLootFilter(it.rarity)) {
         entries.push({
           id: gi.id, pos: gi.mesh.position,
           text: it.unidentified ? `${it.icon} ❓ sin identificar` : `${RGLYPH[it.rarity] || ''} ${it.icon} ${it.name}`,

@@ -1457,6 +1457,12 @@ export class UI {
       const b = bl[c];
       return `<div class="codex-entry"><b>${c}:</b> ${b ? `🌟 ${b.name} <span class="dim">(${b.text})</span>` : '<span class="dim">— vacía —</span>'}</div>`;
     }).join('') + `</div>`;
+    // Pináculo (jefe uber)
+    const frags = g.fragmentCount();
+    html += `<h4>👁️ Pináculo</h4>`;
+    html += `<p class="dim">Reúne 3 Fragmentos de Pináculo (de jefes de mundo y grietas) y ofréndalos para invocar al Heraldo del Vacío: suelta un objeto MÍTICO de doble poder.</p>`;
+    html += `<p>Fragmentos: <b>${frags} / 3</b></p>`;
+    html += `<button id="pinnacle-btn" class="quest-btn">👁️ Invocar al Pináculo</button>`;
     body.innerHTML = html;
     const btnRow = $('torment-btns');
     for (let t = 0; t <= cap; t++) {
@@ -1466,6 +1472,8 @@ export class UI {
       b.onclick = () => { g.setTorment(t); this.renderProgress(); this.updateHUD(); };
       btnRow.appendChild(b);
     }
+    const pb = $('pinnacle-btn');
+    if (pb) { pb.disabled = frags < 3; pb.onclick = () => g.summonPinnacle(); }
   }
 
   // ---------- Tablero de Paragon ----------

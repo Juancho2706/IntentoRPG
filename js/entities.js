@@ -288,6 +288,7 @@ export class Player {
       if (it.runeword) addStats(it.runeword.stats);       // bonus de palabra rúnica
       if (it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
       if (it.power) this.powers.add(it.power.id);          // poderes únicos de legendarios/reliquias
+      if (it.power2) this.powers.add(it.power2.id);        // míticos: segundo poder
     }
     if (this.powers.has('avaricia')) item.mf += 30;
     // paragon: tablero de nodos (los nodos legendarios otorgan poderes)
@@ -349,6 +350,7 @@ export class Player {
     if (!item) return;
     if (item.setId) (this.discovered.sets[item.setId] ||= {})[item.slot] = true;
     if (item.power) this.discovered.powers[item.power.id] = true;
+    if (item.power2) this.discovered.powers[item.power2.id] = true;
   }
 
   // vida/maná al golpear (se llama cuando el jugador daña a un enemigo)
