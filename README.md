@@ -25,6 +25,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Soportes de habilidad** (estilo gemas de PoE): modificadores que se aprenden del botín y se asignan a una habilidad (Amplificado, Multiproyectil, Perforante, Expansivo, Gélido)
 - **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
+- **Mundo abierto (Fase 1)**: zona abierta de la Cripta (rejilla 120×120, terreno orgánico) con entradas a mazmorras instanciadas — modelo Diablo 4: explora la zona y entra al contenido difícil; el portal te devuelve a la zona
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
 - **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes

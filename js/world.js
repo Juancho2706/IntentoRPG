@@ -6,7 +6,7 @@ import * as THREE from 'three';
 function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
 
 // RNG determinista para la mazmorra diaria (misma semilla = mismo trazado)
-function mulberry32(a) {
+export function mulberry32(a) {
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0;
     let t = Math.imul(a ^ a >>> 15, 1 | a);
@@ -16,7 +16,7 @@ function mulberry32(a) {
 }
 
 // Biomas de la mazmorra según la profundidad
-const BIOMES = [
+export const BIOMES = [
   { name: 'Cripta', minFloor: 1, floor: 0x3c3a44, wall: 0x2a2733, fog: 0x070609,
     ambient: 0x556677, torch: 0xff9944 },
   { name: 'Cavernas de Hielo', minFloor: 6, floor: 0x39495e, wall: 0x263750, fog: 0x060c14,
@@ -34,7 +34,7 @@ const BIOMES = [
 ];
 
 // Cuadrícula de colisión. cells[z][x] = 1 transitable, 0 muro
-class Grid {
+export class Grid {
   constructor(w, h) {
     this.w = w; this.h = h;
     this.ox = -w / 2; this.oz = -h / 2;
@@ -62,7 +62,7 @@ class Grid {
   center(x, z) { return new THREE.Vector3(this.ox + x + 0.5, 0, this.oz + z + 0.5); }
 }
 
-function instancedBoxes(positions, size, color, opts = {}) {
+export function instancedBoxes(positions, size, color, opts = {}) {
   const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
   const mat = new THREE.MeshStandardMaterial({
     color, roughness: opts.roughness ?? 0.95, metalness: 0.02,
@@ -83,7 +83,7 @@ function instancedBoxes(positions, size, color, opts = {}) {
   return mesh;
 }
 
-function makePortal(color, label) {
+export function makePortal(color, label) {
   const g = new THREE.Group();
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(0.9, 0.12, 10, 28),
@@ -106,7 +106,7 @@ function makePortal(color, label) {
   return g;
 }
 
-function makeNPC(color, hatColor) {
+export function makeNPC(color, hatColor) {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
   const body = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.2, 10), mat);
@@ -125,7 +125,7 @@ function makeNPC(color, hatColor) {
   return g;
 }
 
-function makeWaypoint() {
+export function makeWaypoint() {
   const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.15, 0.22, 8),
     new THREE.MeshStandardMaterial({ color: 0x55606e, roughness: 0.8 }));
@@ -138,7 +138,7 @@ function makeWaypoint() {
   return g;
 }
 
-function makeTorch(flameColor = 0xffaa33) {
+export function makeTorch(flameColor = 0xffaa33) {
   const g = new THREE.Group();
   const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.4, 6),
     new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 }));
@@ -268,6 +268,13 @@ export function buildTown() {
   portal.position.copy(portalPos);
   group.add(portal);
   interactables.push({ type: 'portal_dungeon', pos: portalPos.clone(), radius: 1.3, label: '🌀 Entrar a la Mazmorra', labelCls: 'lbl-portal', mesh: portal });
+
+  // portal a la zona abierta (Tierras de la Cripta) al noroeste
+  const zonePos = grid.center(Math.floor(W / 2) - 6, 3);
+  const zonePortal = makePortal(0x66cc55, 'Cripta');
+  zonePortal.position.copy(zonePos);
+  group.add(zonePortal);
+  interactables.push({ type: 'portal_zone', biome: 'Cripta', pos: zonePos.clone(), radius: 1.3, label: '🌿 Tierras de la Cripta (zona abierta)', labelCls: 'lbl-portal', mesh: zonePortal });
 
   // antorchas junto al portal
   for (const dx of [-2, 2]) {

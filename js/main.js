@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { ENEMIES, MIMIC, ENEMY_RANKS, PACTS, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
+import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet } from './entities.js';
 import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, RARITIES } from './items.js';
 import { UI } from './ui.js';
@@ -239,12 +240,16 @@ class Game {
 
     this.world = spec.type === 'town' ? buildTown()
       : spec.type === 'refuge' ? buildRefuge()
+      : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null })
       : buildDungeon(spec.rift ? 16 + spec.rift * 2 : spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
     this.world.rift = spec.rift || 0;
+    // dificultad de una zona abierta según su bioma
+    const ZONE_FLOOR = { 'Cripta': 3, 'Cavernas de Hielo': 8, 'Infierno': 13, 'Abismo Estelar': 18 };
     // la diaria comparte trazado con todos, pero su dificultad escala a tu progreso
     this.world.scaleFloor = spec.rift ? 16 + spec.rift * 2
       : spec.daily ? Math.max(this.world.floor, (this.player.records.maxFloor || 1) - 2)
+      : spec.type === 'zone' ? (ZONE_FLOOR[spec.biome] || 3)
       : (this.world.floor || 1);
     // una grieta aplica varios modificadores a la vez (reutiliza el sistema de pactos)
     if (spec.rift) {
@@ -307,6 +312,7 @@ class Game {
     if (w.daily) this.dailyStart = Date.now();
     if (w.rift) this.ui.message(`🌀 Grieta Nivel ${w.rift} · ${w.biome} — enemigos reforzados, botín aumentado. ¡Derrota al jefe!`, 4500);
     else if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
+    else if (w.type === 'zone') this.ui.message(`🌿 ${w.biome} — zona abierta. Explora y entra a las mazmorras (🕳️).`, 4000);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
     this.save();
@@ -1323,12 +1329,23 @@ class Game {
       case 'portal_dungeon':
         this.loadWorld({ type: 'dungeon', floor: it.minFloor ? Math.max(it.minFloor, p.lastFloor || 1) : (p.lastFloor || 1) });
         break;
+      case 'portal_zone':
+        this.fromZone = null;
+        this.loadWorld({ type: 'zone', biome: it.biome });
+        break;
+      case 'zone_dungeon':
+        // entrar a una mazmorra instanciada desde la zona abierta (contenido difícil)
+        this.fromZone = this.world.biome;
+        this.loadWorld({ type: 'dungeon', floor: it.floor || 1 });
+        break;
       case 'enchanter':
         this.ui.togglePanel('inv');
         this.ui.message('🔮 «Toca un objeto con afijos y reforjaré uno de ellos... por un precio»', 3500);
         break;
       case 'portal_town':
-        this.loadWorld({ type: 'town' });
+        // si entraste a la mazmorra desde una zona, el portal te devuelve a la zona
+        if (this.fromZone) { const b = this.fromZone; this.fromZone = null; this.loadWorld({ type: 'zone', biome: b }); }
+        else this.loadWorld({ type: 'town' });
         break;
       case 'portal_next':
         p.lastFloor = this.world.floor + 1;

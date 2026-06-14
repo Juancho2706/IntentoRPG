@@ -226,7 +226,9 @@ export class UI {
     } else tracker.style.display = 'none';
     $('hud-gold').textContent = `🪙 ${p.gold}`;
     $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo'
-      : this.game.world?.type === 'refuge' ? '🏕️ Refugio' : `🕳️ Piso ${this.game.world.floor}`;
+      : this.game.world?.type === 'refuge' ? '🏕️ Refugio'
+      : this.game.world?.type === 'zone' ? `🌿 ${this.game.world.biome}`
+      : this.game.world?.rift ? `🌀 Grieta ${this.game.world.rift}` : `🕳️ Piso ${this.game.world.floor}`;
     $('pot-hp-count').textContent = p.potions.hp;
     $('pot-mp-count').textContent = p.potions.mp;
     // aviso pulsante cuando la vida es crítica
@@ -236,6 +238,7 @@ export class UI {
     const it = this.game.currentInteract;
     const icons = {
       portal_dungeon: '🌀', portal_town: '🌀', portal_next: '🌀', portal_daily: '🌟',
+      portal_zone: '🌿', zone_dungeon: '🕳️',
       waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦', shrine: '✨', enchanter: '🔮',
     };
     const atkBtn = $('btn-attack');
@@ -1122,7 +1125,7 @@ export class UI {
     const g = world.grid;
     base.width = g.w * 3; base.height = g.h * 3;
     const ctx = base.getContext('2d');
-    const palette = { town: ['#2e4020', '#4e6a38'], refuge: ['#14102a', '#3a3055'] };
+    const palette = { town: ['#2e4020', '#4e6a38'], refuge: ['#14102a', '#3a3055'], zone: ['#1a2415', '#3a4a2a'] };
     const [bg, walk] = palette[world.type] || ['#0a0a10', '#3c3a48'];
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, base.width, base.height);
@@ -1134,24 +1137,50 @@ export class UI {
     this.minimapGrid = g;
   }
 
+  poiColor(type) {
+    if (type === 'zone_dungeon') return '#aa66ff';
+    if (type === 'portal_zone') return '#66cc55';
+    if (type === 'portal_next') return '#ff5577';
+    if (type === 'waypoint') return '#44ddff';
+    if (type.startsWith('portal')) return '#55aaff';
+    if (type === 'vendor' || type === 'questgiver' || type === 'stash' || type === 'enchanter' || type === 'healer') return '#ffd24a';
+    return null;
+  }
+
   drawMinimap() {
     const cv = $('minimap');
     if (!this.minimapBase) return;
     const ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, cv.width, cv.height);
-    ctx.drawImage(this.minimapBase, 0, 0, cv.width, cv.height);
     const g = this.minimapGrid;
-    const sx = cv.width / g.w, sz = cv.height / g.h;
+    const p = this.game.player;
+    // zonas grandes: minimapa centrado en el jugador con zoom; mapas pequeños: vista completa
+    const big = g.w > 70 && p;
+    let ox0 = 0, oz0 = 0, scale;
+    if (big) {
+      const view = 46;
+      ox0 = Math.max(0, Math.min(g.w - view, (p.pos.x - g.ox) - view / 2));
+      oz0 = Math.max(0, Math.min(g.h - view, (p.pos.z - g.oz) - view / 2));
+      ctx.drawImage(this.minimapBase, ox0 * 3, oz0 * 3, view * 3, view * 3, 0, 0, cv.width, cv.height);
+      scale = cv.width / view;
+    } else {
+      ctx.drawImage(this.minimapBase, 0, 0, cv.width, cv.height);
+      scale = cv.width / g.w;
+    }
     const dot = (pos, color, r) => {
+      const cx = (pos.x - g.ox - ox0) * scale, cz = (pos.z - g.oz - oz0) * scale;
+      if (cx < -2 || cz < -2 || cx > cv.width + 2 || cz > cv.height + 2) return;
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc((pos.x - g.ox) * sx, (pos.z - g.oz) * sz, r, 0, Math.PI * 2);
+      ctx.arc(cx, cz, r, 0, Math.PI * 2);
       ctx.fill();
     };
-    for (const it of this.game.world.interactables)
-      if (it.type.startsWith('portal')) dot(it.pos, it.type === 'portal_next' ? '#ff5577' : '#55aaff', 3);
+    for (const it of this.game.world.interactables) {
+      const col = this.poiColor(it.type);
+      if (col) dot(it.pos, col, it.type === 'zone_dungeon' || it.type.startsWith('portal') ? 3 : 2);
+    }
     for (const e of this.game.enemies)
       if (e.alive) dot(e.pos, e.def.boss ? '#ff2200' : '#cc4444', 2);
-    if (this.game.player) dot(this.game.player.pos, '#ffffff', 3);
+    if (p) dot(p.pos, '#ffffff', 3);
   }
 }

@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v8';
+const VERSION = 'v9';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -17,6 +17,7 @@ const ASSETS = [
   './js/economy.js',
   './js/input.js',
   './js/sfx.js',
+  './js/zones.js',
   './js/music.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
