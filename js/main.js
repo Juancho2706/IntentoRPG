@@ -803,11 +803,12 @@ class Game {
     this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
-    if (enemy.def.mimic) drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.5, setChance: 0.08 });
-    else if (enemy.def.boss) drops = rollDrops(floor, { boss: true, goldChance: 1, potionChance: 0.8 });
-    else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { minItems: 1, itemChance: 0.35, goldChance: 1, potionChance: 0.4, setChance: 0.1 });
-    else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { itemChance: 0.45, goldChance: 0.85, potionChance: 0.3, setChance: 0.07 });
-    else drops = rollDrops(floor);
+    const lootOpts = { mf: (p.stats.mf || 0), qty: (this.world.pact?.qty || 0) };
+    if (enemy.def.mimic) drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.5, setChance: 0.025 });
+    else if (enemy.def.boss) drops = rollDrops(floor, { ...lootOpts, boss: true, goldChance: 1, potionChance: 0.8 });
+    else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
+    else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { ...lootOpts, itemChance: 0.4, goldChance: 0.85, potionChance: 0.3, setChance: 0.02 });
+    else drops = rollDrops(floor, lootOpts);
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
     if (enemy.def.boss) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
     this.sfx('death');
@@ -1236,6 +1237,10 @@ class Game {
         for (let i = 0; i < 4; i++) this.spawnGroundItem(makeGold(floor + 2), it.pos);
         this.ui.message('🪙 ¡Bendición Dorada!', 2500);
         break;
+      case 'fortuna':
+        p.addBuff('shrine_mf', { mf: 80 }, 60);
+        this.ui.message('🍀 ¡Bendición de la Fortuna! +80% hallazgo mágico durante 60s', 3500);
+        break;
       case 'maldito': {
         this.spawnGroundItem(generateItem(floor, 'raro'), it.pos);
         for (let i = 0; i < 3; i++) {
@@ -1286,7 +1291,7 @@ class Game {
     } else {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
-      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { minItems: 1, itemChance: 0.35, goldChance: 1, setChance: 0.06 });
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0), qty: (this.world.pact?.qty || 0), minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
       this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
       p.records.chests++;

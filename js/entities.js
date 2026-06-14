@@ -202,7 +202,7 @@ export class Player {
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;
-    this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, ...(this.paragon || {}) };
+    this.paragon = { points: 0, dmgPct: 0, hp: 0, arm: 0, aspdPct: 0, mf: 0, ...(this.paragon || {}) };
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
       maxFloor: 1, legendaries: 0, setPieces: 0, goldEarned: 0, chests: 0, playTime: 0,
@@ -237,13 +237,18 @@ export class Player {
   // estadísticas derivadas de atributos + equipo + buffs + pasivas
   recompute() {
     const a = { ...this.attributes };
-    const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0 };
+    const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0, mf: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
         if (k in a) a[k] += v; else if (k in item) item[k] += v;
       }
     };
+
+    // amuletos de mochila (charms): otorgan stats sin equiparse
+    for (const it of this.inventory || []) {
+      if (it && it.kind === 'charm') addStats(it.affixes || {});
+    }
 
     const setCounts = {};
     for (const it of Object.values(this.equipment)) {
@@ -295,6 +300,7 @@ export class Player {
       arm: Math.round(item.arm + a.des * 0.3),
       spd: 4.3 * (1 + item.spdPct / 100),
       atkTime: c.atkTime / (1 + item.aspdPct / 100),
+      mf: Math.round(item.mf + (this.paragon?.mf || 0) * 3),
     };
     if (this.hp != null) {
       this.hp = Math.min(this.hp, this.stats.maxHP);

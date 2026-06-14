@@ -3,10 +3,10 @@
 // ============================================================
 
 export const RARITIES = {
-  normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 80 },
+  normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 82 },
   magico:   { id: 'magico',   name: 'Mágico',    color: '#6f8cff', glow: 0x4466ff, affixes: [1, 2], statMult: 1.1,  weight: 15 },
-  raro:     { id: 'raro',     name: 'Raro',      color: '#ffd24a', glow: 0xffcc00, affixes: [3, 4], statMult: 1.25, weight: 4.2 },
-  legendario:{ id: 'legendario', name: 'Legendario', color: '#ff8c2e', glow: 0xff6600, affixes: [4, 5], statMult: 1.5, weight: 0.8 },
+  raro:     { id: 'raro',     name: 'Raro',      color: '#ffd24a', glow: 0xffcc00, affixes: [3, 4], statMult: 1.25, weight: 2.6 },
+  legendario:{ id: 'legendario', name: 'Legendario', color: '#ff8c2e', glow: 0xff6600, affixes: [4, 5], statMult: 1.5, weight: 0.35 },
   conjunto: { id: 'conjunto', name: 'Conjunto',  color: '#4ade80', glow: 0x33cc66, affixes: [0, 0], statMult: 1.3,  weight: 0 },
 };
 
@@ -48,6 +48,7 @@ export const AFFIX_POOL = [
   { stat: 'arm',     name: '+{v} Armadura',                  min: 3, max: 8 },
   { stat: 'spdPct',  name: '+{v}% Velocidad de movimiento',  min: 4, max: 8, flat: true },
   { stat: 'aspdPct', name: '+{v}% Velocidad de ataque',      min: 4, max: 9, flat: true },
+  { stat: 'mf',      name: '+{v}% Hallazgo mágico',          min: 5, max: 12, flat: true },
 ];
 
 // Conjuntos: piezas verdes con bonus por llevar 2 o 3 equipadas
@@ -107,10 +108,12 @@ export function rollRarity(bonus = 0) {
   return entries[0];
 }
 
-export function generateItem(ilvl, forceRarityId = null, slot = null) {
+export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonus = null) {
   const basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
   const base = pick(basePool.length ? basePool : BASES);
-  const rarity = forceRarityId ? RARITIES[forceRarityId] : rollRarity(Math.min(2.2, (ilvl - 1) * 0.13));
+  // curva de profundidad más suave: el botín alto se gana bajando (y con hallazgo mágico)
+  const bonus = rarityBonus != null ? rarityBonus : Math.min(2.0, (ilvl - 1) * 0.10);
+  const rarity = forceRarityId ? RARITIES[forceRarityId] : rollRarity(bonus);
   const scale = 1 + 0.22 * (ilvl - 1);
 
   const item = {
@@ -290,24 +293,33 @@ export function makeGold(floor) {
   return { kind: 'gold', amount: ri(4, 14) + Math.round(floor * ri(2, 6)) };
 }
 
-// Tirada de loot al morir un enemigo / abrir un cofre
+// Tirada de loot al morir un enemigo / abrir un cofre.
+// opts.mf = hallazgo mágico (%), opts.qty = cantidad extra (%) de los pactos.
 export function rollDrops(floor, opts = {}) {
   const drops = [];
+  const mf = (opts.mf || 0) / 100;
+  const qty = 1 + (opts.qty || 0) / 100;
+  // bonus de rareza por profundidad + hallazgo mágico (el MF empuja hacia lo alto)
+  const rarBonus = Math.min(2.0, (floor - 1) * 0.10) + mf * 1.6;
+  // los conjuntos escalan con el piso y el MF, pero arrancan escasos
+  const setCh = (opts.setChance ?? (0.012 + floor * 0.0025)) * (1 + mf);
+
   if (Math.random() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
   if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
-  if (Math.random() < (opts.gemChance ?? 0.05)) drops.push(makeGem(floor));
-  if (Math.random() < (opts.runeChance ?? 0.025)) drops.push(makeRune());
-  const itemChance = opts.itemChance ?? 0.18;
-  const nItems = opts.minItems || 0;
-  let count = nItems;
-  if (Math.random() < itemChance) count++;
+  if (Math.random() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(floor));
+  if (Math.random() < (opts.runeChance ?? 0.025) * (1 + mf)) drops.push(makeRune());
+
+  let count = opts.minItems || 0;
+  if (Math.random() < (opts.itemChance ?? 0.18) * qty) count++;
   for (let i = 0; i < count; i++) {
-    if (!opts.forceRarity && Math.random() < (opts.setChance ?? 0.04)) drops.push(generateSetItem(floor));
-    else drops.push(generateItem(floor, opts.forceRarity || null));
+    if (!opts.forceRarity && Math.random() < setCh) drops.push(generateSetItem(floor));
+    else drops.push(generateItem(floor, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus));
   }
   if (opts.boss) {
-    drops.push(generateItem(floor, Math.random() < 0.25 ? 'legendario' : 'raro'));
-    if (Math.random() < 0.2) drops.push(generateSetItem(floor));
+    // el jefe siempre da un raro; la posibilidad de legendario/set sube con el piso
+    const legCh = Math.min(0.5, 0.06 + floor * 0.015) * (1 + mf);
+    drops.push(generateItem(floor, Math.random() < legCh ? 'legendario' : 'raro'));
+    if (Math.random() < Math.min(0.4, 0.05 + floor * 0.01) * (1 + mf)) drops.push(generateSetItem(floor));
     drops.push(makeGold(floor), makeGold(floor));
   }
   return drops;

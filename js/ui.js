@@ -724,6 +724,7 @@ export class UI {
         ['hp', '❤️ Vida', '+8 por punto'],
         ['arm', '🛡️ Armadura', '+3 por punto'],
         ['aspdPct', '⚡ Vel. de ataque', '+0.5% por punto'],
+        ['mf', '🍀 Hallazgo mágico', '+3% por punto'],
       ];
       for (const [key, name, desc] of rows) {
         const row = document.createElement('div');
@@ -748,6 +749,7 @@ export class UI {
       <div>🎯 Crítico: ${s.crit.toFixed(1)}%</div>
       <div>🛡️ Armadura: ${s.arm}</div>
       <div>👟 Velocidad: ${s.spd.toFixed(1)}</div>
+      <div>🍀 Hallazgo mágico: ${s.mf || 0}%</div>
       <div>⭐ Nivel ${p.level} · XP ${p.xp}/${xpForLevel(p.level)}</div>`;
 
     const r = p.records;

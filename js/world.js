@@ -492,6 +492,7 @@ export function buildDungeon(floor, seed = null) {
     { kind: 'dmg', name: 'Santuario de Furia', color: 0xff5544 },
     { kind: 'pocion', name: 'Santuario de la Vida', color: 0x55dd66 },
     { kind: 'oro', name: 'Santuario Dorado', color: 0xffd24a },
+    { kind: 'fortuna', name: 'Santuario de la Fortuna', color: 0x4ade80 },
     { kind: 'maldito', name: 'Santuario Susurrante', color: 0x8855aa },
   ];
   let shrineCount = 0;
