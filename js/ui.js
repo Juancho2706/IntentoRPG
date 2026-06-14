@@ -1021,97 +1021,142 @@ export class UI {
 
   renderStats() {
     const p = this.game.player;
+    const s = p.stats;
     const head = document.querySelector('#panel-stats .panel-head h2');
     if (head) head.textContent = `${p.cls.icon} ${p.heroName} · ${p.cls.name} Nv ${p.level}`;
-    $('stat-points').textContent = p.statPoints > 0 ? `Puntos disponibles: ${p.statPoints}` : 'Sin puntos disponibles';
+
+    // --- cabecera del héroe ---
+    const xpNeed = xpForLevel(p.level);
+    const xpPct = Math.max(0, Math.min(100, (p.xp / xpNeed) * 100));
+    $('cs-hero').innerHTML = `
+      <div class="cs-hero-top">
+        <span class="cs-hero-icon">${p.cls.icon}</span>
+        <div class="cs-hero-id">
+          <div class="cs-hero-name">${p.heroName}</div>
+          <div class="cs-hero-sub">${p.cls.name} · Nivel ${p.level}</div>
+        </div>
+      </div>
+      <div class="cs-xp"><div class="cs-xp-fill" style="width:${xpPct}%"></div></div>
+      <div class="cs-xp-txt">XP ${p.xp} / ${xpNeed}</div>`;
+
+    // --- atributos ---
+    const sp = $('stat-points');
+    sp.textContent = p.statPoints > 0 ? `${p.statPoints} pts` : 'Sin puntos';
+    sp.classList.toggle('cs-points-active', p.statPoints > 0);
+    const ATTR_ICONS = { fue: '💪', des: '🏹', vit: '❤️', ene: '🔮' };
     const cont = $('attr-list');
     cont.innerHTML = '';
     for (const key of ['fue', 'des', 'vit', 'ene']) {
       const row = document.createElement('div');
-      row.className = 'attr-row';
-      row.innerHTML = `<div><strong>${STAT_NAMES[key]}</strong>: ${p.attributes[key]}<br><small>${STAT_DESC[key]}</small></div>`;
-      if (p.statPoints > 0) {
-        const b = document.createElement('button');
-        b.className = 'sk-plus';
-        b.textContent = '+';
-        b.onclick = () => { p.attributes[key]++; p.statPoints--; p.recompute(); this.renderStats(); this.updateHUD(); this.game.save(); };
-        row.appendChild(b);
-      }
+      row.className = 'cs-attr';
+      row.innerHTML = `
+        <span class="cs-attr-icon">${ATTR_ICONS[key]}</span>
+        <div class="cs-attr-body">
+          <div class="cs-attr-name">${STAT_NAMES[key]} <span class="cs-attr-val">${p.attributes[key]}</span></div>
+          <div class="cs-attr-desc">${STAT_DESC[key]}</div>
+        </div>`;
+      const b = document.createElement('button');
+      b.className = 'sk-plus cs-plus';
+      b.textContent = '+';
+      b.disabled = p.statPoints <= 0;
+      b.title = 'Asignar punto';
+      b.onclick = () => { p.attributes[key]++; p.statPoints--; p.recompute(); this.renderStats(); this.updateHUD(); this.game.save(); };
+      row.appendChild(b);
       cont.appendChild(row);
     }
     // respec de atributos (sumidero de oro)
     if (p.level > 1) {
       const rb = document.createElement('button');
-      rb.className = 'quest-btn';
+      rb.className = 'quest-btn cs-respec';
       rb.textContent = `🔄 Redistribuir atributos (${this.game.respecCost()} 🪙)`;
       rb.disabled = p.gold < this.game.respecCost();
       rb.onclick = () => { this.game.respecAttributes(); this.renderStats(); this.updateHUD(); };
       cont.appendChild(rb);
     }
 
-    // paragon (nivel 20+)
+    // --- paragon (nivel 20+) ---
+    const pgSection = $('paragon-section');
     const pg = $('paragon');
     if (p.level >= 20 || p.paragon.points > 0 || p.paragon.dmgPct + p.paragon.hp + p.paragon.arm + p.paragon.aspdPct > 0) {
-      pg.style.display = '';
-      pg.innerHTML = `<h4>🌟 Paragon</h4>
-        <p class="points-txt">${p.paragon.points > 0 ? `Puntos disponibles: ${p.paragon.points}` : 'Sube de nivel (20+) para ganar puntos'}</p>`;
+      pgSection.style.display = '';
+      pg.innerHTML = `<div class="cs-section-head">
+          <span class="cs-section-title">🌟 Paragon</span>
+          <span class="cs-points ${p.paragon.points > 0 ? 'cs-points-active' : ''}">${p.paragon.points > 0 ? `${p.paragon.points} pts` : 'Nv 20+'}</span>
+        </div>`;
       const rows = [
-        ['dmgPct', '⚔️ Daño', '+1% por punto'],
-        ['hp', '❤️ Vida', '+8 por punto'],
-        ['arm', '🛡️ Armadura', '+3 por punto'],
-        ['aspdPct', '⚡ Vel. de ataque', '+0.5% por punto'],
-        ['mf', '🍀 Hallazgo mágico', '+3% por punto'],
+        ['dmgPct', '⚔️', 'Daño', '+1% por punto'],
+        ['hp', '❤️', 'Vida', '+8 por punto'],
+        ['arm', '🛡️', 'Armadura', '+3 por punto'],
+        ['aspdPct', '⚡', 'Vel. de ataque', '+0.5% por punto'],
+        ['mf', '🍀', 'Hallazgo mágico', '+3% por punto'],
       ];
-      for (const [key, name, desc] of rows) {
+      for (const [key, icon, name, desc] of rows) {
         const row = document.createElement('div');
-        row.className = 'attr-row';
-        row.innerHTML = `<div><strong>${name}</strong>: ${p.paragon[key]}<br><small>${desc}</small></div>`;
-        if (p.paragon.points > 0) {
-          const b = document.createElement('button');
-          b.className = 'sk-plus';
-          b.textContent = '+';
-          b.onclick = () => { this.game.paragonAllocate(key); this.renderStats(); this.updateHUD(); };
-          row.appendChild(b);
-        }
+        row.className = 'cs-attr';
+        row.innerHTML = `
+          <span class="cs-attr-icon">${icon}</span>
+          <div class="cs-attr-body">
+            <div class="cs-attr-name">${name} <span class="cs-attr-val">${p.paragon[key]}</span></div>
+            <div class="cs-attr-desc">${desc}</div>
+          </div>`;
+        const b = document.createElement('button');
+        b.className = 'sk-plus cs-plus';
+        b.textContent = '+';
+        b.disabled = p.paragon.points <= 0;
+        b.title = 'Asignar punto Paragon';
+        b.onclick = () => { this.game.paragonAllocate(key); this.renderStats(); this.updateHUD(); };
+        row.appendChild(b);
         pg.appendChild(row);
       }
-    } else pg.style.display = 'none';
+    } else pgSection.style.display = 'none';
 
-    const s = p.stats;
-    $('derived-stats').innerHTML = `
-      <div>❤️ Vida: ${Math.ceil(p.hp)} / ${s.maxHP}</div>
-      <div>💧 Maná: ${Math.ceil(p.mp)} / ${s.maxMP}</div>
-      <div>⚔️ Daño: ${s.dmgMin} - ${s.dmgMax}</div>
-      <div>🎯 Crítico: ${s.crit.toFixed(1)}%</div>
-      <div>🛡️ Armadura: ${s.arm}</div>
-      <div>👟 Velocidad: ${s.spd.toFixed(1)}</div>
-      <div>🍀 Hallazgo mágico: ${s.mf || 0}%</div>
-      ${s.cdr ? `<div>⏳ Reducción de enfriamiento: ${s.cdr}%</div>` : ''}
-      ${s.lph ? `<div>🩸 Vida al golpear: ${s.lph}</div>` : ''}
-      ${s.mph ? `<div>🔹 Maná al golpear: ${s.mph}</div>` : ''}
-      ${s.thorns ? `<div>🌵 Espinas: ${s.thorns}</div>` : ''}
-      <div>⭐ Nivel ${p.level} · XP ${p.xp}/${xpForLevel(p.level)}</div>`;
+    // --- estadísticas derivadas, agrupadas ---
+    const statLine = (icon, label, val) => `<div class="cs-stat"><span class="cs-stat-lbl">${icon} ${label}</span><span class="cs-stat-val">${val}</span></div>`;
+    const group = (title, lines) => lines ? `<div class="cs-stat-group"><div class="cs-stat-group-title">${title}</div>${lines}</div>` : '';
+    const offensive =
+      statLine('⚔️', 'Daño', `${s.dmgMin} - ${s.dmgMax}`) +
+      statLine('🎯', 'Crítico', `${s.crit.toFixed(1)}%`) +
+      (s.lph ? statLine('🩸', 'Vida al golpear', s.lph) : '') +
+      (s.mph ? statLine('🔹', 'Maná al golpear', s.mph) : '') +
+      (s.thorns ? statLine('🌵', 'Espinas', s.thorns) : '');
+    const defensive =
+      statLine('❤️', 'Vida', `${Math.ceil(p.hp)} / ${s.maxHP}`) +
+      statLine('💧', 'Maná', `${Math.ceil(p.mp)} / ${s.maxMP}`) +
+      statLine('🛡️', 'Armadura', s.arm);
+    const utility =
+      statLine('👟', 'Velocidad', s.spd.toFixed(1)) +
+      statLine('🍀', 'Hallazgo mágico', `${s.mf || 0}%`) +
+      (s.cdr ? statLine('⏳', 'Reducción de enfriamiento', `${s.cdr}%`) : '');
+    $('derived-stats').innerHTML =
+      group('Ofensivas', offensive) +
+      group('Defensivas', defensive) +
+      group('Utilidad', utility);
 
+    // --- crónica ---
     const r = p.records;
     const h = Math.floor(r.playTime / 3600), m = Math.floor((r.playTime % 3600) / 60);
-    $('records').innerHTML = `
-      <div>💀 Monstruos: ${r.kills} (élites/campeones: ${r.eliteKills} · jefes: ${r.bossKills} · mímicos: ${r.mimics})</div>
-      <div>🕳️ Piso más profundo: ${r.maxFloor}</div>
-      <div>🟠 Legendarios encontrados: ${r.legendaries}</div>
-      <div>🟢 Piezas de conjunto: ${r.setPieces || 0}</div>
-      <div>📦 Cofres abiertos: ${r.chests}</div>
-      <div>🪙 Oro recogido: ${r.goldEarned}</div>
-      <div>🎯 Misiones completadas: ${r.quests || 0}</div>
-      <div>🌟 Desafíos diarios: ${r.dailies || 0}</div>
-      <div>🌀 Grieta máxima: Nivel ${r.maxRift || 0}</div>
-      <div>⚰️ Muertes: ${r.deaths}</div>
-      <div>⏱️ Tiempo jugado: ${h}h ${m}m</div>`;
+    const rec = (icon, label, val) => `<div class="cs-rec"><span class="cs-rec-lbl">${icon} ${label}</span><span class="cs-rec-val">${val}</span></div>`;
+    $('records').innerHTML =
+      rec('💀', 'Monstruos', r.kills) +
+      rec('⭐', 'Élites/campeones', r.eliteKills) +
+      rec('👹', 'Jefes', r.bossKills) +
+      rec('🎭', 'Mímicos', r.mimics) +
+      rec('🕳️', 'Piso más profundo', r.maxFloor) +
+      rec('🌀', 'Grieta máxima', `Nv ${r.maxRift || 0}`) +
+      rec('🟠', 'Legendarios', r.legendaries) +
+      rec('🟢', 'Piezas de conjunto', r.setPieces || 0) +
+      rec('📦', 'Cofres abiertos', r.chests) +
+      rec('🪙', 'Oro recogido', r.goldEarned) +
+      rec('🎯', 'Misiones', r.quests || 0) +
+      rec('🌟', 'Desafíos diarios', r.dailies || 0) +
+      rec('⚰️', 'Muertes', r.deaths) +
+      rec('⏱️', 'Tiempo jugado', `${h}h ${m}m`);
 
     // tabla local del desafío diario
     const log = this.game.dailyLog || [];
-    const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    const fmt = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
     $('daily-log').innerHTML = log.length
-      ? log.map(e => `<div>${e.date} · ${CLASSES[e.cls]?.icon || ''} Nv ${e.level} · Piso ${e.floor} · ⏱️ ${fmt(e.time)}${e.hc ? ' ☠️' : ''}</div>`).join('')
+      ? log.map(e => `<div class="cs-daily">${e.date} · ${CLASSES[e.cls]?.icon || ''} Nv ${e.level} · Piso ${e.floor} · ⏱️ ${fmt(e.time)}${e.hc ? ' ☠️' : ''}</div>`).join('')
       : '<div class="dim">Aún no has completado ningún Desafío Diario</div>';
   }
 

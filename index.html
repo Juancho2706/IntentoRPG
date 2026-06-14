@@ -101,17 +101,35 @@
   <div id="skill-tree"></div>
 </div>
 
-<div id="panel-stats" class="panel hidden">
+<div id="panel-stats" class="panel hidden cs-panel">
   <div class="panel-head"><h2>🧍 Personaje</h2><button class="panel-close">✕</button></div>
-  <p id="stat-points" class="points-txt"></p>
-  <div id="attr-list"></div>
-  <div id="paragon" style="display:none"></div>
-  <h4>Estadísticas</h4>
-  <div id="derived-stats"></div>
-  <h4>Crónica</h4>
-  <div id="records"></div>
-  <h4>🌟 Desafíos Diarios</h4>
-  <div id="daily-log"></div>
+
+  <div id="cs-hero" class="cs-hero"></div>
+
+  <section class="cs-section">
+    <div class="cs-section-head"><span class="cs-section-title">💪 Atributos</span><span id="stat-points" class="cs-points"></span></div>
+    <div id="attr-list" class="cs-attr-list"></div>
+  </section>
+
+  <section id="paragon-section" class="cs-section" style="display:none">
+    <div id="paragon"></div>
+  </section>
+
+  <section class="cs-section">
+    <div class="cs-section-head"><span class="cs-section-title">📊 Estadísticas</span></div>
+    <div id="derived-stats"></div>
+  </section>
+
+  <section class="cs-section">
+    <div class="cs-section-head"><span class="cs-section-title">📜 Crónica</span></div>
+    <div id="records"></div>
+  </section>
+
+  <section class="cs-section">
+    <div class="cs-section-head"><span class="cs-section-title">🌟 Desafíos Diarios</span></div>
+    <div id="daily-log"></div>
+  </section>
+
   <button id="btn-collection" class="quest-btn">📚 Colección y Bestiario</button>
 </div>
 
