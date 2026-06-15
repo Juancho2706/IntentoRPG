@@ -2006,3 +2006,27 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
 .wm-fav { font-size: 11px; font-weight: 700; color: #ffd86b; }
 .wm-lock { font-size: 11px; font-weight: 700; color: #c7a3a3; display: inline-flex; align-items: center; gap: 3px; }
 .wm-lock .ui-ico { width: 11px; height: 11px; }
+
+/* ====================== HUD: pulido de habilidades y orbes ====================== */
+/* Segundos restantes legibles sobre la celda mientras enfría. */
+.sk-cd-sec {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 18px; color: #fff; text-shadow: 0 1px 3px #000, 0 0 6px #000;
+  pointer-events: none; z-index: 3;
+}
+.sk-cd-sec:empty { display: none; }
+/* Pulso verde cuando la habilidad queda LISTA (feedback de "ya puedes lanzarla"). */
+.skill-btn.just-ready { animation: skReady 0.5s ease-out; }
+@keyframes skReady {
+  0% { box-shadow: 0 0 0 rgba(143,221,143,0); border-color: #8fdd8f; }
+  40% { box-shadow: 0 0 14px rgba(143,221,143,0.9); border-color: #aef0ae; }
+  100% { box-shadow: 0 0 0 rgba(143,221,143,0); border-color: #41506a; }
+}
+body.reduce-motion .skill-btn.just-ready { animation: none; }
+
+/* Orbe de vida: latido rojo cuando estás bajo de vida (lectura periférica). */
+body.low-hp #orb-hp { animation: orbLowHp 0.9s ease-in-out infinite; }
+@keyframes orbLowHp {
+  50% { box-shadow: 0 0 16px rgba(255,40,40,0.85), inset 0 0 12px rgba(255,0,0,0.4); }
+}
+body.reduce-motion.low-hp #orb-hp { animation: none; }

@@ -444,6 +444,13 @@ export class UI {
       // el ángulo barre en sentido horario y se vacía según se enfría
       ov.style.setProperty('--cd-deg', Math.round(frac * 360) + 'deg');
       ov.classList.toggle('on', frac > 0);
+      // segundos restantes legibles + pulso de "listo" al terminar el enfriamiento
+      const secEl = btn.querySelector('.sk-cd-sec');
+      if (secEl) secEl.textContent = cd > 0 ? (cd >= 1 ? Math.ceil(cd) : cd.toFixed(1)) : '';
+      if ((btn._lastFrac || 0) > 0 && frac === 0) {
+        btn.classList.remove('just-ready'); void btn.offsetWidth; btn.classList.add('just-ready');
+      }
+      btn._lastFrac = frac;
       const cost = Math.round(skillVal(sk.mana, p.skills[id] || 1));
       const costEl = btn.querySelector('.sk-cost');
       if (costEl && costEl.textContent !== String(cost)) costEl.textContent = cost;
@@ -603,7 +610,8 @@ export class UI {
       btn.innerHTML = `<span class="sk-icon">${sk.icon}</span>` +
         `<span class="sk-key">${i + 1}</span>` +
         `<span class="sk-cost">${cost}</span>` +
-        `<div class="cd-overlay cd-radial"></div>`;
+        `<div class="cd-overlay cd-radial"></div>` +
+        `<span class="sk-cd-sec"></span>`;
       btn.title = `${sk.name} · ${cost} maná`;
       btn.addEventListener('pointerdown', e => {
         e.preventDefault();

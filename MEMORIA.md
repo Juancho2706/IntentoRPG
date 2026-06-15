@@ -84,6 +84,9 @@
 - UI: panel del Domador (`UI.openPet`/`renderPet`, `#panel-pet`). Economía: `buyPet/upgradePet/setPetCollar/switchPetKind/petUpgradeCost` (economy.js), `refreshPet` (main.js).
 - Cubierto por `test44-mascota` (economía), `test15-recogida` (recolección/imán), `test8` (no daña).
 
+### HUD de combate (pulido 2026‑06‑15)
+- El HUD ya era completo (cooldown radial, coste de maná, no‑mana flash, esquiva, buffs con anillo+segundos, brújula). Pulido añadido: **segundos restantes** sobre la celda de habilidad mientras enfría (`.sk-cd-sec`), **pulso verde "listo"** al terminar el enfriamiento (`.skill-btn.just-ready`), y **latido rojo del orbe de vida** con vida baja (`body.low-hp #orb-hp`). Solo presentación.
+
 ### Anti-cheese de spawn + ajustes de FPS (2026‑06‑15)
 - ✅ **Enemigos no aparecen pegados a la ciudad**: en `zones.js` los clústeres exigen distancia `campRadius + 9` celdas del spawn; `randomZoneCellFrom` (respawn) excluye el `safeZone` **+ margen 9** → no se puede pegar‑y‑correr al pueblo. Test: `test46` (verifica el buffer).
 - ✅ **FPS**: tope de enemigos vivos según gama (`zoneTick`: 38/52/64 por `deviceTier`), `targetEnemies` 65→58, campamento con **1 sola point light** (antes 3), y `renderWorldMap` solo al abrir el mapa (no a 10Hz). El leash cura al enemigo al volver (anti‑cheese extra).
