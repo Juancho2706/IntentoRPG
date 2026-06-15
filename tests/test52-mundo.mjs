@@ -32,11 +32,23 @@ if (!p.discoveredZones.includes('Cripta')) throw new Error('la Cripta debe empez
 if (p.homeZone !== 'Cripta') throw new Error('el hogar por defecto debe ser la Cripta');
 console.log('Jugador: Cripta descubierta y como hogar por defecto ✓');
 
-// --- pueblo favorito: solo zonas-hogar descubiertas ---
-g.setHomeZone('Infierno');           // no es hogar (no tiene campamento)
-if (p.homeZone !== 'Cripta') throw new Error('no debe fijar como hogar una zona sin campamento');
+// --- pueblo favorito: solo refugios descubiertos ---
+g.setHomeZone('Infierno');           // bastión SIN reclamar → no es refugio aún
+if (p.homeZone !== 'Cripta') throw new Error('no debe fijar como hogar un bastión sin reclamar');
 g.setHomeZone('Cripta');             // hogar válido y descubierto
 if (p.homeZone !== 'Cripta') throw new Error('debe aceptar la Cripta como hogar');
-console.log('Pueblo favorito: solo zonas con campamento descubiertas ✓');
+console.log('Pueblo favorito: solo refugios descubiertos ✓');
+
+// --- bastiones: hay al menos uno y empiezan sin reclamar ---
+const strongholds = ZONE_LIST.filter(z => z.stronghold);
+if (!strongholds.length) throw new Error('debe haber al menos un bastión');
+if (p.strongholdsCleared.length) throw new Error('los bastiones empiezan sin reclamar');
+// reclamar un bastión lo vuelve refugio elegible (tras descubrirlo)
+const sb = strongholds[0].biome;
+p.discoveredZones.push(sb);
+p.strongholdsCleared.push(sb);
+g.setHomeZone(sb);
+if (p.homeZone !== sb) throw new Error('un bastión reclamado y descubierto debe poder fijarse como hogar');
+console.log(`Bastiones: ${strongholds.length} sin reclamar al inicio; reclamado → refugio elegible ✓`);
 
 console.log('\n✅ MUNDO D4-LITE OK');

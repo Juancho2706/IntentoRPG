@@ -2144,17 +2144,22 @@ export class UI {
       const here = g.world.type === 'zone' && g.world.biome === z.biome;
       const unlocked = p.level >= z.minLevel;
       const isHome = p.homeZone === z.biome;
+      const cleared = (p.strongholdsCleared || []).includes(z.biome);
+      const isRefuge = z.home || cleared;           // tiene campamento elegible
+      const unclaimed = z.stronghold && !cleared;   // bastión por reclamar
       const links = (z.links || []).join(', ');
+      const ico = isRefuge ? '🏕️ ' : unclaimed ? '🏰 ' : '🌿 ';
       let actions = '';
       if (here) actions += `<span class="wm-here">Estás aquí</span>`;
       else if (!unlocked) actions += `<span class="wm-lock">${icon('lock')} Nivel ${z.minLevel}</span>`;
       else actions += `<button class="wm-go" data-go="${z.biome}">Viajar</button>`;
-      if (z.home) actions += isHome
+      if (isRefuge) actions += isHome
         ? `<span class="wm-fav">⭐ Hogar</span>`
         : `<button class="wm-fav-set" data-home="${z.biome}">Fijar hogar</button>`;
+      const status = unclaimed ? ' · 🏰 Bastión sin reclamar' : cleared ? ' · refugio reclamado' : '';
       html += `<div class="wm-zone${here ? ' here' : ''}">
-        <div class="wm-zinfo"><span class="wm-zname">${z.home ? '🏕️ ' : '🌿 '}${z.biome}</span>
-          <span class="dim wm-zhint">Nv ${z.minLevel}+${links ? ` · caminos: ${links}` : ''}</span></div>
+        <div class="wm-zinfo"><span class="wm-zname">${ico}${z.biome}</span>
+          <span class="dim wm-zhint">Nv ${z.minLevel}+${status}${links ? ` · caminos: ${links}` : ''}</span></div>
         <div class="wm-zact">${actions}</div></div>`;
     }
     html += `</div>`;

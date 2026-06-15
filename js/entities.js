@@ -277,6 +277,7 @@ export class Player {
     // mundo (D4-lite): zonas descubiertas y pueblo favorito (reaparición)
     this.discoveredZones = Array.isArray(this.discoveredZones) && this.discoveredZones.length ? this.discoveredZones : ['Cripta'];
     this.homeZone = this.homeZone || 'Cripta';
+    this.strongholdsCleared = Array.isArray(this.strongholdsCleared) ? this.strongholdsCleared : []; // bastiones reclamados
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;

@@ -619,9 +619,11 @@ export const SUPPORTS = [
 export const ZONE_LIST = [
   // `home`: la zona tiene campamento (punto de reaparición elegible).
   // `links`: zonas adyacentes conectadas por un "camino" (mundo D4-lite).
+  // `stronghold`: zona con un Bastión; al derrotar a su guardián se RECLAMA y
+  // pasa a tener campamento (refugio) elegible como hogar (estilo D4).
   { biome: 'Cripta', minLevel: 1, floor: 3, home: true, links: ['Cavernas de Hielo'] },
-  { biome: 'Cavernas de Hielo', minLevel: 6, floor: 8, links: ['Cripta', 'Infierno'] },
-  { biome: 'Infierno', minLevel: 11, floor: 13, links: ['Cavernas de Hielo', 'Abismo Estelar'] },
+  { biome: 'Cavernas de Hielo', minLevel: 6, floor: 8, stronghold: true, links: ['Cripta', 'Infierno'] },
+  { biome: 'Infierno', minLevel: 11, floor: 13, stronghold: true, links: ['Cavernas de Hielo', 'Abismo Estelar'] },
   { biome: 'Abismo Estelar', minLevel: 16, floor: 18, links: ['Infierno'] },
 ];
 

@@ -91,11 +91,13 @@ export const worldFlowMethods = {
     this.loadWorld({ type: 'zone', biome });
   },
 
-  // fija el pueblo favorito (reaparición) — solo zonas con campamento descubiertas
+  // fija el pueblo favorito (reaparición) — solo refugios descubiertos (Cripta o
+  // bastiones reclamados)
   setHomeZone(biome) {
     const p = this.player;
     const z = ZONE_LIST.find(x => x.biome === biome);
-    if (!z || !z.home) return;
+    const isRefuge = z && (z.home || p.strongholdsCleared?.includes(biome));
+    if (!isRefuge) return;
     if (!p.discoveredZones?.includes(biome)) return;
     p.homeZone = biome;
     this.ui.message(`⭐ Hogar fijado: ${biome}. Reaparecerás aquí.`, 3000);

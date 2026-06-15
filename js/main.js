@@ -350,7 +350,7 @@ class Game {
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title,
-      discoveredZones: p.discoveredZones, homeZone: p.homeZone, dailyDone: p.dailyDone, tips: p.tips,
+      discoveredZones: p.discoveredZones, homeZone: p.homeZone, strongholdsCleared: p.strongholdsCleared, dailyDone: p.dailyDone, tips: p.tips,
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
@@ -360,6 +360,28 @@ class Game {
   }
 
   // ---------- mundo ----------
+  // ¿esta región tiene campamento (refugio)? La Cripta siempre; los bastiones,
+  // una vez reclamados. Determina si la zona se construye con town pocket.
+  isHomeZone(biome) {
+    const z = ZONE_LIST.find(x => x.biome === biome);
+    if (!z) return false;
+    return !!z.home || (this.player?.strongholdsCleared || []).includes(biome);
+  }
+
+  // reclama un Bastión al derrotar a su Guardián: pasa a ser un refugio elegible
+  claimStronghold(biome) {
+    const p = this.player;
+    if (!p || p.strongholdsCleared.includes(biome)) return;
+    p.strongholdsCleared.push(biome);
+    const floor = this.world.scaleFloor || 1;
+    for (let i = 0; i < 6; i++) this.spawnGroundItem(makeGold(floor + 5), p.pos);
+    this.spawnGroundItem(generateItem(floor + 2, 'legendario', null, null, p.classId), p.pos);
+    this.spawnRing(p.pos.clone(), 2.6, 0x66ccff);
+    this.ui.message(`🏰 ¡Bastión de ${biome} reclamado! Ahora es un refugio: vuelve para sus servicios y fíjalo como hogar en el Mapa del Mundo.`, 6000);
+    this.music.sting();
+    this.save();
+  }
+
   loadWorld(spec) {
     // limpiar mundo anterior
     if (this.world) {
@@ -397,7 +419,7 @@ class Game {
     }
     this.world = spec.type === 'town' ? buildTown()
       : spec.type === 'refuge' ? buildRefuge()
-      : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null, townPocket: spec.biome === 'Cripta' })
+      : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null, townPocket: this.isHomeZone(spec.biome) })
       : buildDungeon(spec.rift ? 16 + spec.rift * 2 : spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
     this.world.pinnacle = !!spec.pinnacle;
@@ -465,6 +487,8 @@ class Game {
         w.group.add(road);
         w.interactables.push({ type: 'zone_exit', biome: linkBiome, auto: true, pos: cell.clone(), radius: 1.5, label: `🛣️ Camino a ${linkBiome}`, labelCls: 'lbl-portal', mesh: road });
       }
+      // Bastión sin reclamar: aparece su Guardián (al caer, la zona se reclama)
+      if (zdef?.stronghold && !this.isHomeZone(w.biome)) this.spawnStrongholdGuardian(w.biome);
       // contratos de zona (persistentes por sesión)
       w.bounties = this.ensureZoneBounties(w.biome).list;
       const ret = w.interactables.find(it => it.type === 'portal_town');
@@ -1274,6 +1298,8 @@ class Game {
       return;
     }
     p.gainXP(Math.round(enemy.def.xp * (1 + (this.world.pact?.xp || 0) / 100)));
+    // Guardián de Bastión derrotado → reclama la región como refugio
+    if (enemy.def.stronghold) this.claimStronghold(enemy.def.stronghold);
     p.records.kills++;
     if (enemy.def.boss) p.records.bossKills++;
     if (enemy.def.rank) p.records.eliteKills++;

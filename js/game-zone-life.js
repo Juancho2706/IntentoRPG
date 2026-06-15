@@ -123,6 +123,25 @@ export const zoneLifeMethods = {
     this.music.sting();
   },
 
+  // Guardián de un Bastión sin reclamar: jefe reforzado; al caer, la zona se
+  // reclama y pasa a ser un refugio (lo gestiona claimStronghold en onEnemyKilled).
+  spawnStrongholdGuardian(biome) {
+    const w = this.world;
+    const pos = this.randomZoneCellFrom(w, w.spawn, 30) || this.randomZoneCellFrom(w, w.spawn, 15);
+    if (!pos) return;
+    const def = scaleEnemy(bossForFloor(w.scaleFloor + 3), w.scaleFloor + 3);
+    def.hp = Math.round(def.hp * 1.8);
+    def.stronghold = biome;
+    def.rankLabel = `🏰 Guardián del Bastión`;
+    def.labelCls = 'lbl-elite';
+    const e = new Enemy(this, def, pos);
+    e.home = pos.clone();
+    e.leash = 16;
+    this.enemies.push(e);
+    this.entityGroup.add(e.group);
+    this.ui.message(`🏰 Bastión de ${biome} sin reclamar — derrota a su Guardián para hacerlo tuyo`, 5000);
+  },
+
   // goblin del tesoro: huye y suelta gran botín si lo cazas a tiempo.
   // Tres tipos, cada uno con una ventana real para alcanzarlo (melee o rango).
   spawnGoblin(pos = null, type = null) {

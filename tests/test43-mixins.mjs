@@ -58,7 +58,7 @@ console.log(`worldFlowMethods exporta los ${WORLDFLOW_EXPECTED.length} métodos 
 
 const ZONELIFE_EXPECTED = [
   'randomZoneCellFrom', 'randomZoneCell', 'zoneTick', 'spawnWorldBoss',
-  'spawnGoblin', 'goblinEscape',
+  'spawnStrongholdGuardian', 'spawnGoblin', 'goblinEscape',
 ];
 const zlKeys = Object.keys(zoneLifeMethods);
 for (const m of ZONELIFE_EXPECTED) {
