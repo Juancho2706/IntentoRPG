@@ -914,7 +914,7 @@ export class Enemy {
     const notable = this.def.boss || this.def.uber || this.def.worldBoss || this.def.rank;
     if (!this.game.settings?.reduceMotion) {
       if (this.hp <= 0 && notable) { this.game.hitStop?.(130); this.game.addShake?.(0.35, 0.35); }
-      else if (crit && notable) this.game.hitStop?.(55);
+      else if (crit && notable) { this.game.hitStop?.(55); this.game.sfx?.('crit'); }
       else if (pct >= 0.30) this.game.hitStop?.(45);
     }
     if (this.hp <= 0) this.die();

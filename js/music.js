@@ -1,16 +1,18 @@
 // ============================================================
 // Música ambiental generativa por zona (WebAudio, sin assets):
-// un dron grave de dos osciladores desafinados + notas suaves
-// de una escala por bioma, programadas a intervalos aleatorios.
+// estilo "dungeon synth" — dron grave + pad de acorde sostenido + notas de la
+// escala a intervalos irregulares + eco (delay) para profundidad, y un pulso
+// grave de tensión en biomas hostiles. Inspirado en dark ambient / dungeon synth.
 // ============================================================
 
 const ZONES = {
-  town:               { root: 220, scale: [0, 2, 4, 7, 9],  noteEvery: [2.5, 5],  bright: 1400, drone: 0.030, note: 0.045, wave: 'triangle' },
-  refuge:             { root: 174, scale: [0, 3, 5, 7, 10], noteEvery: [3, 6],    bright: 1100, drone: 0.034, note: 0.042, wave: 'sine' },
-  'Cripta':           { root: 110, scale: [0, 2, 3, 7, 8],  noteEvery: [4, 8],    bright: 700,  drone: 0.040, note: 0.038, wave: 'sine' },
-  'Cavernas de Hielo':{ root: 146, scale: [0, 2, 3, 7, 10], noteEvery: [3, 7],    bright: 2000, drone: 0.030, note: 0.040, wave: 'sine' },
-  'Infierno':         { root: 92,  scale: [0, 1, 4, 6, 7],  noteEvery: [2.5, 5],  bright: 600,  drone: 0.046, note: 0.036, wave: 'sawtooth' },
-  'Abismo Estelar':   { root: 73,  scale: [0, 2, 3, 6, 7],  noteEvery: [4, 9],    bright: 900,  drone: 0.044, note: 0.040, wave: 'sine' },
+  // pad: intervalos (semitonos) del acorde sostenido; pulse: latido grave de tensión
+  town:               { root: 220, scale: [0, 2, 4, 7, 9],  noteEvery: [2.5, 5],  bright: 1400, drone: 0.030, note: 0.045, wave: 'triangle', pad: [0, 7, 16], pulse: false },
+  refuge:             { root: 174, scale: [0, 3, 5, 7, 10], noteEvery: [3, 6],    bright: 1100, drone: 0.034, note: 0.042, wave: 'sine',     pad: [0, 7, 15], pulse: false },
+  'Cripta':           { root: 110, scale: [0, 2, 3, 7, 8],  noteEvery: [4, 8],    bright: 700,  drone: 0.040, note: 0.038, wave: 'sine',     pad: [0, 3, 7],  pulse: true },
+  'Cavernas de Hielo':{ root: 146, scale: [0, 2, 3, 7, 10], noteEvery: [3, 7],    bright: 2000, drone: 0.030, note: 0.040, wave: 'sine',     pad: [0, 7, 14], pulse: false },
+  'Infierno':         { root: 92,  scale: [0, 1, 4, 6, 7],  noteEvery: [2.5, 5],  bright: 600,  drone: 0.046, note: 0.036, wave: 'sawtooth', pad: [0, 1, 6],  pulse: true },
+  'Abismo Estelar':   { root: 73,  scale: [0, 2, 3, 6, 7],  noteEvery: [4, 9],    bright: 900,  drone: 0.044, note: 0.040, wave: 'sine',     pad: [0, 6, 11], pulse: true },
 };
 
 export class Music {
@@ -20,6 +22,8 @@ export class Music {
     this.ctx = null;
     this.nodes = [];
     this.noteTimer = null;
+    this.pulseTimer = null;
+    this.musicVol = 0.75; // volumen de música (0..1), controlable en Opciones
   }
 
   // llamar en el primer gesto del usuario (los navegadores bloquean el audio antes)
@@ -28,14 +32,30 @@ export class Music {
       try {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.master = this.ctx.createGain();
-        this.master.gain.value = 1;
+        this.master.gain.value = this.musicVol;
         this.filter = this.ctx.createBiquadFilter();
         this.filter.type = 'lowpass';
         this.filter.connect(this.master).connect(this.ctx.destination);
+        // eco/delay con realimentación: da profundidad de "cripta" sin reverb real
+        this.delay = this.ctx.createDelay(1.0);
+        this.delay.delayTime.value = 0.42;
+        this.fb = this.ctx.createGain();
+        this.fb.gain.value = 0.34;
+        this.wet = this.ctx.createGain();
+        this.wet.gain.value = 0.5;
+        this.filter.connect(this.delay);
+        this.delay.connect(this.fb).connect(this.delay); // bucle de realimentación
+        this.delay.connect(this.wet).connect(this.master);
       } catch { return; }
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     if (this.zone && this.enabled && !this.nodes.length) this._start();
+  }
+
+  // volumen de música (0..1). Lo llama el juego desde Opciones.
+  setVolume(v) {
+    this.musicVol = Math.max(0, Math.min(1, v));
+    if (this.master) this.master.gain.value = this.musicVol;
   }
 
   play(zoneKey) {
@@ -73,6 +93,41 @@ export class Music {
       o.connect(g).connect(this.filter);
       o.start(); lfo.start();
       this.nodes.push(o, g, lfo, lfoG);
+    }
+
+    // PAD: acorde sostenido suave (cuerpo armónico) con leve respiración
+    for (const semi of (z.pad || [0, 7])) {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sine';
+      o.frequency.value = z.root * Math.pow(2, semi / 12);
+      g.gain.value = 0;
+      g.gain.linearRampToValueAtTime(z.drone * 0.5, c.currentTime + 5);
+      const lfo = c.createOscillator(), lfoG = c.createGain();
+      lfo.frequency.value = 0.03 + Math.random() * 0.04;
+      lfoG.gain.value = z.drone * 0.22;
+      lfo.connect(lfoG).connect(g.gain);
+      o.connect(g).connect(this.filter);
+      o.start(); lfo.start();
+      this.nodes.push(o, g, lfo, lfoG);
+    }
+
+    // PULSO grave de tensión en biomas hostiles (latido lento, sparse)
+    if (z.pulse) {
+      const schedulePulse = () => {
+        if (!this.enabled) return;
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sine';
+        o.frequency.value = z.root * 0.5;
+        const t = c.currentTime;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(z.drone * 1.1, t + 0.06);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+        o.connect(g).connect(this.master);   // directo (sin eco) para que pegue seco
+        o.start(t); o.stop(t + 1);
+        this.pulseTimer = setTimeout(schedulePulse, (2.2 + Math.random() * 2.2) * 1000);
+      };
+      this.pulseTimer = setTimeout(schedulePulse, 2000);
     }
 
     // notas suaves de la escala, a intervalos irregulares
@@ -118,6 +173,7 @@ export class Music {
 
   _stop() {
     clearTimeout(this.noteTimer);
+    clearTimeout(this.pulseTimer);
     for (const n of this.nodes) {
       try { if (n.stop) n.stop(); n.disconnect(); } catch { /* ya parado */ }
     }

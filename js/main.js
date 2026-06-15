@@ -68,7 +68,8 @@ class Game {
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
     this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
       reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true,
-      quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null, ...opts };
+      quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null,
+      volMaster: 1, volMusic: 0.75, volSfx: 0.9, ...opts };
     this.applyAccessibility();
     // gama del dispositivo (0 alta … 3 mínima): semilla de calidad + densidad de
     // partículas. Se calcula una vez por núcleos/memoria/puntero/DPR.
@@ -83,9 +84,11 @@ class Game {
     this.loadStash();
     try { this.dailyLog = JSON.parse(localStorage.getItem('intentorpg_dailylog') || '[]'); } catch { this.dailyLog = []; }
     const rawSfx = createSfx();
-    this.sfx = (name) => { if (this.settings.sound) rawSfx(name); };
+    // el volumen de SFX escala por volumen maestro × volumen de efectos
+    this.sfx = (name) => { if (this.settings.sound) rawSfx(name, (this.settings.volMaster ?? 1) * (this.settings.volSfx ?? 1)); };
     this.music = new Music();
     this.music.enabled = this.settings.music !== false;
+    this.music.musicVol = (this.settings.volMaster ?? 1) * (this.settings.volMusic ?? 0.75);
     window.addEventListener('pointerdown', () => this.music.resume(), { once: true });
 
     // renderer
@@ -614,6 +617,11 @@ class Game {
   // ---------- sensaciones: sacudida, vibración, partículas, consejos ----------
   saveSettings() {
     try { localStorage.setItem('intentorpg_opts', JSON.stringify(this.settings)); } catch { /* sin almacenamiento */ }
+  }
+
+  // aplica el volumen de música (maestro × música); el de SFX se lee en vivo en this.sfx
+  applyAudio() {
+    this.music?.setVolume((this.settings.volMaster ?? 1) * (this.settings.volMusic ?? 0.75));
   }
 
   // accesibilidad: aplica clases al <body> para CSS (y persiste)

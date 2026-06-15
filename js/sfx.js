@@ -26,19 +26,29 @@ export function createSfx() {
     // caída de botín por rareza: raro = doble nota corta; legendario = arpegio brillante
     droprare:  [{ f: 660, d: 0.09, type: 'triangle', v: 0.09 }, { f: 990, d: 0.1, type: 'triangle', v: 0.08, t: 0.07 }],
     droplegend:[{ f: 780, d: 0.1, type: 'sine', v: 0.12 }, { f: 1170, d: 0.1, type: 'sine', v: 0.11, t: 0.08 }, { f: 1560, d: 0.22, type: 'sine', v: 0.1, t: 0.16 }],
+    // nuevos efectos: crítico (chasquido agudo), equipar, error/sin maná, clic UI
+    crit:    [{ f: 1100, d: 0.05, type: 'square', v: 0.1, slide: 400 }, { f: 1700, d: 0.08, type: 'square', v: 0.07, t: 0.04 }],
+    equip:   [{ f: 300, d: 0.06, type: 'triangle', v: 0.1 }, { f: 520, d: 0.12, type: 'triangle', v: 0.09, t: 0.05 }],
+    error:   [{ f: 200, d: 0.12, type: 'square', v: 0.08, slide: -70 }],
+    uiclick: [{ f: 660, d: 0.04, type: 'triangle', v: 0.06 }],
+    // sabores elementales (impactos de habilidades)
+    fire:    [{ f: 240, d: 0.22, type: 'sawtooth', v: 0.08, slide: -120 }],
+    ice:     [{ f: 1300, d: 0.18, type: 'sine', v: 0.07, slide: -500 }],
+    bolt:    [{ f: 1600, d: 0.07, type: 'square', v: 0.08, slide: -900 }],
   };
-  return (name) => {
+  // `vol` (0..1) escala el volumen de salida (control de volumen del jugador)
+  return (name, vol = 1) => {
     const c = ensure();
     const def = tones[name];
-    if (!c || !def) return;
+    if (!c || !def || vol <= 0) return;
     for (const n of def) {
       const o = c.createOscillator(), gn = c.createGain();
       o.type = n.type;
       const t0 = c.currentTime + (n.t || 0);
       o.frequency.setValueAtTime(n.f, t0);
       if (n.slide) o.frequency.linearRampToValueAtTime(Math.max(40, n.f + n.slide), t0 + n.d);
-      gn.gain.setValueAtTime(n.v, t0);
-      gn.gain.exponentialRampToValueAtTime(0.001, t0 + n.d);
+      gn.gain.setValueAtTime(n.v * vol, t0);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + n.d);
       o.connect(gn).connect(c.destination);
       o.start(t0); o.stop(t0 + n.d + 0.02);
     }

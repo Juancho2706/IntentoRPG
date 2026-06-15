@@ -92,7 +92,10 @@
 ### Pausa en menús (2026‑06‑15)
 - ✅ Con un panel abierto durante la partida (`state==='play' && ui.activePanel`) se **congela la simulación** (no mueres en menús; estándar ARPG single‑player). `tick` corta el sim y solo renderiza + partículas ambientales; `castSkillSlot`/`primaryAction` no actúan con pausa (`this._paused`). Indicador `#pause-indic` (body.paused). Cerrar el panel reanuda.
 
-### HUD de combate (pulido 2026‑06‑15)
+### Audio (mejorado 2026‑06‑15)
+- ✅ **Sliders de volumen** maestro/música/efectos en Opciones → Audio (`settings.volMaster/volMusic/volSfx`). SFX escala por maestro×efectos (`createSfx(name, vol)`); música por maestro×música (`Music.setVolume`, `game.applyAudio`).
+- ✅ **Música enriquecida** (dungeon synth): además del dron y notas, ahora hay **pad de acorde** sostenido por bioma (`ZONES[].pad`), **eco/delay** con realimentación para profundidad, y **pulso grave de tensión** en biomas hostiles (`ZONES[].pulse`: Cripta/Infierno/Abismo).
+- ✅ **Nuevos SFX**: `crit` (en crítico a élite/jefe), `equip` (equipar), `error` (sin maná), `uiclick`, y sabores `fire/ice/bolt`.
 - El HUD ya era completo (cooldown radial, coste de maná, no‑mana flash, esquiva, buffs con anillo+segundos, brújula). Pulido añadido: **segundos restantes** sobre la celda de habilidad mientras enfría (`.sk-cd-sec`), **pulso verde "listo"** al terminar el enfriamiento (`.skill-btn.just-ready`), y **latido rojo del orbe de vida** con vida baja (`body.low-hp #orb-hp`). Solo presentación.
 - **Juice de daño**: números con jerarquía — golpes que arrancan ≥18% de vida salen más grandes (`.big-hit`); el crítico mantiene su rebote. **Hit-stop breve** (`Enemy.takeDamage` → `game.hitStop`) SOLO en golpes notables (crítico a élite/jefe 55ms, golpe enorme ≥30% 45ms, muerte de élite/jefe 130ms + shake) — antes `hitStop()` existía pero no se llamaba. Respeta `reduceMotion`.
 

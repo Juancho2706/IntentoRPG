@@ -167,7 +167,7 @@ export const economyMethods = {
     p.inventory.splice(index, 1);
     if (old) p.inventory.push(old);
     p.recompute();
-    this.sfx('pickup');
+    this.sfx('equip');
     this.save();
   },
   
@@ -630,7 +630,7 @@ export const economyMethods = {
     p.inventory.splice(invIndex, 1);
     if (old) p.inventory.push(old);
     p.recompute();
-    this.sfx('pickup');
+    this.sfx('equip');
     this.save();
   },
 

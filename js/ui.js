@@ -630,6 +630,7 @@ export class UI {
     btn.classList.remove('mana-flash');
     void btn.offsetWidth;   // reinicia la animación
     btn.classList.add('mana-flash');
+    this.game.sfx('error');
     setTimeout(() => btn.classList.remove('mana-flash'), 450);
   }
 
@@ -884,8 +885,17 @@ export class UI {
           set: (v) => { g.settings.brightness = v / 100; g.renderer.toneMappingExposure = g.settings.brightness; } },
       ] },
       { id: 'audio', icon: 'speaker', label: 'Audio', items: [
-        { t: 'toggle', key: 'sound', icon: 'speaker', label: 'Sonido', def: true },
+        { t: 'toggle', key: 'sound', icon: 'speaker', label: 'Sonido (efectos)', def: true },
         { t: 'toggle', key: 'music', icon: 'music', label: 'Música ambiental', def: true, onChange: (v) => g.music.setEnabled(v) },
+        { t: 'range', icon: 'speaker', label: 'Volumen maestro', min: 0, max: 100, step: 5,
+          get: () => Math.round((g.settings.volMaster ?? 1) * 100),
+          set: (v) => { g.settings.volMaster = v / 100; g.applyAudio(); }, onCommit: () => g.sfx('uiclick') },
+        { t: 'range', icon: 'music', label: 'Volumen música', min: 0, max: 100, step: 5,
+          get: () => Math.round((g.settings.volMusic ?? 0.75) * 100),
+          set: (v) => { g.settings.volMusic = v / 100; g.applyAudio(); } },
+        { t: 'range', icon: 'speaker', label: 'Volumen efectos', min: 0, max: 100, step: 5,
+          get: () => Math.round((g.settings.volSfx ?? 0.9) * 100),
+          set: (v) => { g.settings.volSfx = v / 100; }, onCommit: () => g.sfx('uiclick') },
       ] },
       { id: 'controles', icon: 'gear', label: 'Controles', items: [
         { t: 'keybinds' },
@@ -988,7 +998,7 @@ export class UI {
       row.innerHTML = `<span>${icon(it.icon)} ${it.label}</span><input type="range" min="${it.min}" max="${it.max}" step="${it.step}" value="${it.get()}">`;
       const s = row.querySelector('input');
       s.oninput = () => it.set(parseFloat(s.value));
-      s.onchange = () => g.saveSettings();
+      s.onchange = () => { g.saveSettings(); it.onCommit?.(); };
       return row;
     }
     if (it.t === 'button') {
