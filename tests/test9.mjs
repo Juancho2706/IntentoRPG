@@ -47,6 +47,10 @@ if (!('gloves' in old.equipment)) throw new Error('guardado viejo no migró las 
 // gema engarzada suma al recompute
 let armaConRanura;
 for (let i = 0; i < 5000 && !armaConRanura; i++) { const x = generateItem(5); if (x.slot === 'weapon' && x.sockets) armaConRanura = x; }
+if (!armaConRanura) throw new Error('no se generó arma con engarce en 5000 intentos');
+// recompute() ignora objetos sin identificar (no dan stats); identificamos el
+// arma para probar la matemática de la gema, no el estado de identificación
+armaConRanura.unidentified = false;
 const rubi = { ...makeGem(5), stats: { hp: 20 } };
 p.equipment.weapon = armaConRanura;
 p.recompute();
