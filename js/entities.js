@@ -848,6 +848,7 @@ export class Enemy {
     this.burnTick = 0;
     this.group = makeEnemyModel(def);
     this.group.position.copy(pos);
+    this.spawnPos = pos.clone();   // punto de aparición: al que regresa si te pierde / entras a zona segura
     this.group.userData.enemy = this;
     // hereda la política de sombras de la calidad actual (gama baja = sin sombra)
     if (game.enemyShadows === false) {
@@ -1095,6 +1096,26 @@ export class Enemy {
       if (body) body.position.y = 0.75 + Math.abs(Math.sin(performance.now() / (resting ? 220 : 90))) * (resting ? 0.05 : 0.12);
       if (this.escapeT <= 0) { g.goblinEscape(this); return false; }
       return false;
+    }
+
+    // --- zona segura (campamento/pueblo): los enemigos NO entran. Si te
+    // persiguen hasta el borde o tú entras, abandonan la caza y vuelven a su
+    // punto de aparición (no pueden tocarte estando a salvo). Aplica a todos. ---
+    const sz = g.world.safeZone;
+    if (sz) {
+      const inSafe = (x, z) => x >= sz.minX - 0.6 && x <= sz.maxX + 0.6 && z >= sz.minZ - 0.6 && z <= sz.maxZ + 0.6;
+      if (inSafe(player.pos.x, player.pos.z) || inSafe(this.pos.x, this.pos.z)) {
+        this.aggroed = false;
+        const h = this.spawnPos || this.home || this.pos;
+        const dh = this.pos.distanceTo(h);
+        if (dh > 0.8) {
+          const nx = (h.x - this.pos.x) / dh, nz = (h.z - this.pos.z) / dh;
+          moveWithCollision(g.world.grid, this.pos, nx * this.def.spd * 1.2 * dt, nz * this.def.spd * 1.2 * dt, 0.3);
+          this.group.rotation.y = Math.atan2(nx, nz);
+          this.hp = Math.min(this.maxHP, this.hp + this.maxHP * 0.04 * dt); // se cura al volver
+        }
+        return false;
+      }
     }
 
     // --- jefe de mundo: ronda su zona y, si lo alejas, vuelve a su spawn ---

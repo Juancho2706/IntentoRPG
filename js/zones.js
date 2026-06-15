@@ -200,7 +200,7 @@ export function buildZone(biomeName, opts = {}) {
   // del spawn — se sale caminando al mundo abierto, sin portal de retorno.
   let safeZone = null;
   if (opts.townPocket) {
-    const { radius } = placeTownServices(grid, group, interactables, torchLights, spawnCell, { radius: 8 });
+    const { radius } = placeTownServices(grid, group, interactables, torchLights, spawnCell, { radius: 10 });
     const half = radius + 0.5;
     safeZone = { minX: spawn.x - half, maxX: spawn.x + half, minZ: spawn.z - half, maxZ: spawn.z + half };
   } else {
