@@ -772,6 +772,12 @@ export class Enemy {
     this.group = makeEnemyModel(def);
     this.group.position.copy(pos);
     this.group.userData.enemy = this;
+    // élites/campeones/jefes/goblin muestran su barra de vida SIEMPRE (no solo al
+    // recibir daño), para que se distingan e identifiquen de un vistazo
+    if (def.rank || def.boss || def.uber || def.goblin) {
+      const bar = this.group.userData.bar;
+      if (bar) bar.visible = true;
+    }
     // aura visible bajo campeones y élites
     if (def.aura) {
       const aura = new THREE.Mesh(

@@ -1386,6 +1386,26 @@ class Game {
     this.fx.push({ mesh, t: 0, dur: 0.4, ring: true });
   }
 
+  // rayo eléctrico instantáneo de A a B (barra emisiva que se desvanece) + chispas
+  spawnBeam(from, to, color = 0xffee66) {
+    const a = (from.clone?.() ?? from); const b = (to.clone?.() ?? to);
+    a.y = 1.0; b.y = 1.0;
+    const len = Math.max(0.3, a.distanceTo(b));
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.09, 0.09, len),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    mesh.position.copy(a).lerp(b, 0.5);
+    mesh.lookAt(b);
+    this.fxGroup.add(mesh);
+    this.fx.push({ mesh, t: 0, dur: 0.16, beam: true });
+    // chispas a lo largo del trazo
+    if (this.psys) {
+      const spark = { texture: 'spark', blending: 'additive', count: 3, burst: true, lifetime: [0.12, 0.28], shape: 'point', speed: [1, 3.5], gravity: -1, drag: 2, size: { start: [0.1, 0.18], end: 0 }, color: { start: '#ffffcc', end: '#' + (((color >>> 0) & 0xffffff).toString(16).padStart(6, '0')) }, alpha: { start: 0.9, end: 0 } };
+      for (let i = 1; i <= 5; i++) this.emitFx(spark, a.clone().lerp(b, i / 6));
+    }
+  }
+
   dealArea(pos, radius, mult, opts = {}) {
     let hits = 0;
     for (const e of this.enemies) {
@@ -1675,15 +1695,16 @@ class Game {
             speed: sk.speed || 14, range: sk.range || 10,
             dmg, crit, friendly: true, pierce: supPierce, slow: supSlow,
             color: sk.color || 0xffffff, size: 0.14,
+            impactPreset: fx?.impact,   // el impacto temático lo dispara el proyectil AL CHOCAR
           });
         }
+        // rayo: además del proyectil veloz, un "zap" eléctrico instantáneo
+        if (sk.id === 'rayo' || sk.beam) this.spawnBeam(muzzle, target.clone().setY(1.0), sk.color || 0xffee66);
         // Encadenado y DoT de proyectil: se aplican sobre el objetivo apuntado
         // (el enemigo más cercano), donde tenemos confirmación de impacto.
         if (near && near.alive && p.pos.distanceTo(near.pos) <= (sk.range || 10)) {
           if (has('chain')) this.spawnChainBounce(near, Math.round(avgHit), 2, [], sk.color || 0x66ddff);
           applyDoT(near);
-          // impacto elemental sobre el objetivo apuntado (feedback claro de golpe).
-          if (fx?.impact) this.emitFx(fx.impact, near.pos.clone().setY(1.0));
         }
         break;
       }
@@ -2225,6 +2246,7 @@ class Game {
         continue;
       }
       if (f.ring) { f.mesh.scale.setScalar(0.3 + k * 0.9); f.mesh.material.opacity = 0.8 * (1 - k); }
+      if (f.beam) { f.mesh.material.opacity = 0.9 * (1 - k * k); f.mesh.scale.x = f.mesh.scale.y = 1 + k * 1.5; }
       if (f.ghost) f.mesh.material.opacity = 0.4 * (1 - k);
       if (f.fall) f.mesh.position.y = 5 * (1 - k);
       if (f.burst) {
