@@ -325,7 +325,7 @@ class Game {
     this.scene.add(this.player.group);
     if (this.player.pet) this.spawnPet();
     this.state = 'play';
-    this.loadWorld({ type: 'town' });
+    this.loadWorld({ type: 'zone', biome: 'Cripta' }); // hogar: campamento contiguo a la Cripta (seamless)
     this.ui.refreshHotbar();
     this.ui.updateHUD();
     this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Entra al portal del norte para explorar la mazmorra.`, 5000);
@@ -394,7 +394,7 @@ class Game {
     }
     this.world = spec.type === 'town' ? buildTown()
       : spec.type === 'refuge' ? buildRefuge()
-      : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null })
+      : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null, townPocket: spec.biome === 'Cripta' })
       : buildDungeon(spec.rift ? 16 + spec.rift * 2 : spec.floor, spec.seed ?? null);
     this.world.daily = !!spec.daily;
     this.world.pinnacle = !!spec.pinnacle;
@@ -1621,8 +1621,8 @@ class Game {
     p.mp = p.stats.maxMP;
     this.state = 'play';
     this.ui.hideDeath();
-    this.loadWorld({ type: 'town' });
-    this.ui.message('Has despertado en el pueblo... (-10% oro)', 3500);
+    this.loadWorld({ type: 'zone', biome: 'Cripta' });
+    this.ui.message('Has despertado en el campamento... (-10% oro)', 3500);
   }
 
   // ---------- bucle principal ----------
@@ -1876,6 +1876,13 @@ class Game {
   checkInteractables(dt) {
     const p = this.player;
     this.healPulse = Math.max(0, this.healPulse - dt);
+    // hogar: dentro del campamento seguro, restablece vida/maná con rapidez
+    const sz = this.world.safeZone;
+    this.inSafeCamp = !!(sz && p.pos.x >= sz.minX && p.pos.x <= sz.maxX && p.pos.z >= sz.minZ && p.pos.z <= sz.maxZ);
+    if (this.inSafeCamp) {
+      p.hp = Math.min(p.stats.maxHP, p.hp + p.stats.maxHP * 0.5 * dt);
+      p.mp = Math.min(p.stats.maxMP, p.mp + p.stats.maxMP * 0.5 * dt);
+    }
     // niebla de guerra: marca como descubiertas las celdas alrededor del jugador
     const g = this.world.grid;
     if (!this.world.explored) this.world.explored = new Set();
@@ -1968,10 +1975,10 @@ class Game {
         this.ui.message('🔮 «Toca un objeto con afijos y reforjaré uno de ellos... por un precio»', 3500);
         break;
       case 'portal_town':
-        // desde una mazmorra entrada por la zona → vuelves a la zona; desde la
-        // zona → vuelves al pueblo (apareciendo en su puerta norte)
+        // desde una mazmorra entrada por una zona → vuelves a esa zona; en otro
+        // caso → vuelves al hogar (campamento contiguo a la Cripta)
         if (this.fromZone) { const b = this.fromZone; this.fromZone = null; this.loadWorld({ type: 'zone', biome: b }); }
-        else this.loadWorld({ type: 'town', entry: this.world.type === 'zone' ? 'fromZone' : null });
+        else this.loadWorld({ type: 'zone', biome: 'Cripta' });
         break;
       case 'portal_next':
         p.lastFloor = this.world.floor + 1;

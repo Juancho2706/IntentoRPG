@@ -76,7 +76,7 @@ export const worldFlowMethods = {
   // viaje rápido desde un waypoint
   travelTo(dest) {
     this.ui.closePanel();
-    if (dest === 'town') this.loadWorld({ type: 'town' });
+    if (dest === 'town') this.loadWorld({ type: 'zone', biome: 'Cripta' }); // hogar seamless
     else if (dest === 'refuge') this.loadWorld({ type: 'refuge' });
     else {
       this.player.lastFloor = dest;

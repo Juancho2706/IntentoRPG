@@ -14,11 +14,14 @@ export const zoneLifeMethods = {
   // celda transitable aleatoria de un mundo, lejos de un punto dado
   randomZoneCellFrom(world, fromPos, minDist = 12) {
     const g = world.grid;
+    const sz = world.safeZone;
     for (let t = 0; t < 50; t++) {
       const x = 2 + Math.floor(Math.random() * (g.w - 4));
       const z = 2 + Math.floor(Math.random() * (g.h - 4));
       if (!g.cells[z][x]) continue;
       const c = g.center(x, z);
+      // nunca generes enemigos dentro del campamento seguro (hogar)
+      if (sz && c.x >= sz.minX && c.x <= sz.maxX && c.z >= sz.minZ && c.z <= sz.maxZ) continue;
       if (c.distanceTo(fromPos) >= minDist) return c;
     }
     return null;

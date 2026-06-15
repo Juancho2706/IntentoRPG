@@ -1120,14 +1120,17 @@ export class UI {
       b.onclick = fn;
       cont.appendChild(b);
     };
-    mk(`${icon('village')} Pueblo`, g.world.type === 'town', () => g.travelTo('town'));
+    // hogar: el campamento contiguo a la Cripta (seamless). Resaltado si ya estás.
+    mk(`${icon('village')} Campamento (Cripta)`, g.world.isHome, () => g.travelTo('town'));
     if (p.refugeUnlocked)
       mk(`${icon('camp')} Refugio del Abismo`, g.world.type === 'refuge', () => g.travelTo('refuge'));
-    // zonas abiertas (regiones), desbloqueadas por nivel
+    // zonas abiertas (regiones), desbloqueadas por nivel. La Cripta es el hogar
+    // (ya listada arriba como Campamento), así que no se repite aquí.
     const head = document.createElement('div');
     head.className = 'tier-head'; head.innerHTML = `${icon('globe')} Zonas abiertas`;
     cont.appendChild(head);
     for (const z of ZONE_LIST) {
+      if (z.biome === 'Cripta') continue; // es el hogar (Campamento)
       const unlocked = p.level >= z.minLevel;
       const here = g.world.type === 'zone' && g.world.biome === z.biome;
       mk(unlocked ? `${icon('leaf')} ${z.biome}` : `${icon('lock')} ${z.biome} (nivel ${z.minLevel})`,

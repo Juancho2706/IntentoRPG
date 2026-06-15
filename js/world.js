@@ -349,6 +349,91 @@ export function makeTorch(flameColor = 0xffaa33) {
 }
 
 // ---------------------------------------------------------
+// CAMPAMENTO/PUEBLO contiguo dentro de una zona abierta (seamless hub)
+// ---------------------------------------------------------
+// Coloca los servicios del pueblo en un "bolsillo" seguro alrededor de una
+// celda central de la zona, para que el jugador salga del campamento caminando
+// directo al mundo abierto, sin portal. Devuelve { radius } (en celdas).
+// Reutiliza makeNPC/makePortal/makeTorch/instancedBoxes. Muta grid/group/interactables.
+export function placeTownServices(grid, group, interactables, torchLights, centerCell, opts = {}) {
+  const [cx, cz] = centerCell;
+  const R = opts.radius || 7;
+  const carve = (x, z) => { if (grid.cells[z] && grid.cells[z][x] !== undefined) grid.cells[z][x] = 1; };
+  // 1) despeja el bolsillo seguro (transitable) en forma de disco
+  for (let dz = -R; dz <= R; dz++)
+    for (let dx = -R; dx <= R; dx++)
+      if (dx * dx + dz * dz <= R * R) carve(cx + dx, cz + dz);
+
+  // 2) suelo del campamento (parche de tierra) sobre la zona
+  const C = grid.center(cx, cz);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(R - 0.5, 28),
+    new THREE.MeshStandardMaterial({ color: 0x6a5740, roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(C.x, 0.02, C.z); floor.receiveShadow = true;
+  group.add(floor);
+
+  // 3) servicios alrededor del centro (cada uno en su celda, ya transitable)
+  const npc = (dx, dz, type, label, col, col2) => {
+    const x = cx + dx, z = cz + dz; carve(x, z);
+    const pos = grid.center(x, z);
+    const m = makeNPC(col, col2); m.position.copy(pos); group.add(m);
+    interactables.push({ type, pos: pos.clone(), radius: 2.2, label, labelCls: 'lbl-npc' });
+    return pos;
+  };
+  npc(-4, -3, 'healer', '⛪ Curandero', 0xf0ead8);
+  npc(4, -3, 'vendor', '💰 Mercader', 0x8a5d2e, 0x553311);
+  npc(5, 1, 'enchanter', '🔮 Encantadora', 0x9a4a8a, 0x55224a);
+  npc(-5, 1, 'questgiver', '🎖️ Capitán de la Guardia', 0x4a6a9a, 0x2a3a55);
+  npc(0, 5, 'petkeeper', '🐾 Domador de Bestias', 0x3a7d4a, 0x224a2a);
+
+  // alijo
+  { const x = cx - 3, z = cz + 4; carve(x, z); const pos = grid.center(x, z);
+    const stash = new THREE.Group();
+    const sBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.75), new THREE.MeshStandardMaterial({ color: 0x5a4a7a, roughness: 0.8 }));
+    sBox.position.y = 0.35;
+    const sLid = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.22, 0.8), new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 0.5, roughness: 0.5 }));
+    sLid.position.y = 0.78; sBox.castShadow = sLid.castShadow = true; stash.add(sBox, sLid); stash.position.copy(pos);
+    group.add(stash);
+    interactables.push({ type: 'stash', pos: pos.clone(), radius: 1.8, label: '🗃️ Alijo compartido', labelCls: 'lbl-chest' }); }
+
+  // Estatua del Mundo (Tormento / Códice)
+  { const x = cx + 3, z = cz + 4; carve(x, z); const pos = grid.center(x, z);
+    const statue = new THREE.Group();
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0x3a3340, roughness: 0.9 }));
+    pedestal.position.y = 0.25;
+    const figure = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), new THREE.MeshStandardMaterial({ color: 0x882244, emissive: 0xcc3366, emissiveIntensity: 1.2, roughness: 0.4 }));
+    figure.position.y = 1.4; figure.userData.baseY = 1.4; pedestal.castShadow = true;
+    statue.add(pedestal, figure); statue.userData.crystal = figure; statue.position.copy(pos);
+    group.add(statue);
+    interactables.push({ type: 'world_statue', pos: pos.clone(), radius: 2.0, label: '🗿 Estatua del Mundo', labelCls: 'lbl-npc', mesh: statue }); }
+
+  // portal del Desafío Diario
+  { const x = cx - 6, z = cz - 2; carve(x, z); const pos = grid.center(x, z);
+    const dp = makePortal(0xffcc33, 'Diario'); dp.position.copy(pos); group.add(dp);
+    interactables.push({ type: 'portal_daily', pos: pos.clone(), radius: 1.3, label: '🌟 Desafío Diario', labelCls: 'lbl-portal', mesh: dp }); }
+
+  // 4) empalizada perimetral con HUECOS (lee como campamento; no encierra)
+  const fence = [];
+  const ringR = R - 0.3;
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 16) {
+    // deja 4 aberturas (N/S/E/O) para salir caminando al mundo abierto
+    const near = Math.min(Math.abs(((a % (Math.PI / 2)) - 0))); // distancia al múltiplo de 90°
+    if (near < 0.28) continue;
+    fence.push({ x: C.x + Math.cos(a) * ringR, y: 0.6, z: C.z + Math.sin(a) * ringR });
+  }
+  group.add(instancedBoxes(fence, [0.5, 1.2, 0.5], 0x6b5a3e, { castShadow: true }));
+
+  // 5) fogata central + un par de antorchas (luz cálida del campamento)
+  { const fire = makeTorch(0xffaa33); fire.position.set(C.x, 0, C.z); group.add(fire);
+    const light = new THREE.PointLight(0xffcc88, 14, 12, 1.6); light.position.set(C.x, 1.8, C.z);
+    group.add(light); torchLights.push(light); }
+  for (const [dx, dz] of [[-5, -5], [5, 5]]) {
+    const t = makeTorch(0xffaa33); const p = grid.center(cx + dx, cz + dz); t.position.copy(p); group.add(t);
+    const light = new THREE.PointLight(0xffcc88, 10, 9, 1.7); light.position.set(p.x, 1.8, p.z); group.add(light); torchLights.push(light);
+  }
+  return { radius: R };
+}
+
+// ---------------------------------------------------------
 // PUEBLO
 // ---------------------------------------------------------
 export function buildTown() {

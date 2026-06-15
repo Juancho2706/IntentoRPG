@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {
   Grid, instancedBoxes, makePortal, makeWaypoint, makeNPC, makeTorch, mulberry32, BIOMES,
-  makeShrineMesh, SHRINE_DEFS, makeGroundTextures, groundMatParams, scatterDecals,
+  makeShrineMesh, SHRINE_DEFS, makeGroundTextures, groundMatParams, scatterDecals, placeTownServices,
 } from './world.js';
 
 // Construye una zona abierta para el bioma indicado.
@@ -191,20 +191,31 @@ export function buildZone(biomeName, opts = {}) {
     return null;
   };
 
+  const torchLights = []; // luces de antorcha (las llena el campamento y la sección 8)
+
   // ----------------------------------------------------------
   // 7) Interactables / POIs
   // ----------------------------------------------------------
-  // Portal de vuelta al pueblo, junto al spawn (busca celda abierta contigua)
-  let portalCell = spawnCell;
-  for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2]]) {
-    const nx = spawnCell[0] + dx, nz = spawnCell[1] + dz;
-    if (inBounds(nx, nz) && grid.cells[nz][nx] === 1) { portalCell = [nx, nz]; break; }
+  // HOME (seamless hub): el campamento/pueblo va integrado en el bolsillo seguro
+  // del spawn — se sale caminando al mundo abierto, sin portal de retorno.
+  let safeZone = null;
+  if (opts.townPocket) {
+    const { radius } = placeTownServices(grid, group, interactables, torchLights, spawnCell, { radius: 8 });
+    const half = radius + 0.5;
+    safeZone = { minX: spawn.x - half, maxX: spawn.x + half, minZ: spawn.z - half, maxZ: spawn.z + half };
+  } else {
+    // Portal de vuelta al pueblo, junto al spawn (busca celda abierta contigua)
+    let portalCell = spawnCell;
+    for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2]]) {
+      const nx = spawnCell[0] + dx, nz = spawnCell[1] + dz;
+      if (inBounds(nx, nz) && grid.cells[nz][nx] === 1) { portalCell = [nx, nz]; break; }
+    }
+    const portalPos = grid.center(portalCell[0], portalCell[1]);
+    const townPortal = makePortal(0x3399ff, 'Pueblo');
+    townPortal.position.copy(portalPos);
+    group.add(townPortal);
+    interactables.push({ type: 'portal_town', pos: portalPos.clone(), radius: 1.3, label: '🌀 Volver al Pueblo', labelCls: 'lbl-portal', mesh: townPortal });
   }
-  const portalPos = grid.center(portalCell[0], portalCell[1]);
-  const townPortal = makePortal(0x3399ff, 'Pueblo');
-  townPortal.position.copy(portalPos);
-  group.add(townPortal);
-  interactables.push({ type: 'portal_town', pos: portalPos.clone(), radius: 1.3, label: '🌀 Volver al Pueblo', labelCls: 'lbl-portal', mesh: townPortal });
 
   // Waypoint a media distancia del spawn
   const wpCell = pickOpenCell(8, 22) || pickOpenCell(0) || spawnCell;
@@ -276,7 +287,6 @@ export function buildZone(biomeName, opts = {}) {
   // ----------------------------------------------------------
   // 8) Antorchas (pocas luces reales por rendimiento móvil)
   // ----------------------------------------------------------
-  const torchLights = [];
   for (let i = 0; i < 6; i++) {
     const tCell = pickOpenCell(6, Infinity);
     if (!tCell) break;
@@ -322,7 +332,7 @@ export function buildZone(biomeName, opts = {}) {
   // ----------------------------------------------------------
   return {
     type: 'zone', zone: biomeName, biome: biomeName, group, grid, spawn,
-    interactables, spawns, triggers: [], torchLights,
+    interactables, spawns, triggers: [], torchLights, safeZone, isHome: !!opts.townPocket,
     fog: { color: biome.fog, near: 22, far: 60 },
     ambient: biome.ambient, ambientIntensity: 0.6,
     sun: { color: 0xfff2d8, intensity: 1.6 },

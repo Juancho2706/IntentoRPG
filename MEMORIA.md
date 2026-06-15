@@ -54,9 +54,9 @@
 - ✅ **Comparador de objetos YA EXISTE**: `UI.buildCompare()` con **veredicto ⬆ Mejora / ↔ Lateral / ⬇ Peor** (por "poder" `itemPower`), diffs ▲▼ por stat, y manejo de anillos (compara con el que se reemplazaría).
 
 ### Mundo
-- **Pueblo** (NPCs/servicios: Curandero, Mercader/tienda, Encantadora/reforja, Capitán/misiones, Alijo, Estatua del Mundo, **Domador de Bestias**), **mazmorras** procedurales (altares de pacto, **cofres**, **santuarios/shrines** de buff temporal, waypoints cada 5 pisos, jefe por bioma), **zonas open** (120×120, 4 biomas, respawn, jefe de mundo con leash, goblins 3 tipos, obelisco de evento/oleadas, contratos), **refugio** (2.º pueblo, piso 16).
-- **Desafío Diario** (portal en el pueblo, semilla determinista por fecha) con **registro/tabla local** (`dailyLog`, top 14). **Hardcore** (muerte permanente, flag persistente).
-- Salida pueblo→Cripta es una **puerta `gate_zone`** que dispara `loadWorld` (transición encubierta, NO seamless). → backlog #11 (pueblo contiguo).
+- ✅ **Pueblo CONTIGUO / seamless hub YA EXISTE** (HECHO 2026‑06‑15): la **Cripta es el hogar**. `buildZone('Cripta', {townPocket:true})` coloca un **campamento** (servicios) en el bolsillo seguro del spawn vía `placeTownServices` (world.js). Se **sale caminando** al mundo abierto, **sin portal** (no hay `portal_town` en el hogar). `world.safeZone` (rect) + `world.isHome`; los enemigos no aparecen dentro (`randomZoneCellFrom` lo excluye) y dentro hay **regen rápida** (`game.inSafeCamp`). `startGame`/`respawn`/`travelTo('town')`/`portal_town` cargan `{type:'zone',biome:'Cripta'}`. Servicios del campamento: curandero, mercader, encantadora, capitán, **domador**, alijo, estatua del mundo, portal diario. El waypoint/entradas de mazmorra siguen en el campo de la zona. Tests: `test46-pueblo-contiguo`.
+- **`buildTown()`** (pueblo clásico 36×36) se conserva pero ya **no se usa** en el flujo principal (fallback). **Refugio** (2.º pueblo, piso 16) y **mazmorras** procedurales (altares de pacto, **cofres**, **santuarios/shrines**, waypoints cada 5 pisos, jefe por bioma) sin cambios. Otras **zonas open** (Hielo/Infierno/Abismo, 120×120) mantienen su `portal_town` de retorno (→ ahora vuelve al hogar Cripta).
+- **Desafío Diario** (portal en el campamento, semilla determinista por fecha) con **registro/tabla local** (`dailyLog`, top 14). **Hardcore** (muerte permanente, flag persistente).
 
 ### Paneles de UI (todos en index.html, render en ui.js)
 `inv` · `skills` · `stats` · `mastery` · `paragon` · `shop` · `stash` · `quest` · `pacts` · `progress` (Estatua: Tormento/Códice/Bendiciones/Pináculo) · `pet` (Domador) · `collection` (bestiario) · `recipes` (cubo) · `waypoints` · `map` · `blessing` (modal) · `settings`. Navegación de build: `buildNavHTML` (Personaje↔Habilidades↔Maestría↔Paragon).
@@ -97,7 +97,7 @@
 | #7 | Remapeo táctil (layout, zurdo) | pendiente |
 | #10 | **Maestrías/ramas de clase** (rama + nodos + capstones) | ✅ HECHO (2026‑06‑15) |
 | #13 | Maestrías fase 3: soportes `transform`/aspectos de habilidad | pendiente (ampliación) |
-| #11 | **Pueblo contiguo a zona open** (seamless hub, sin portal) | pendiente |
+| #11 | **Pueblo contiguo a zona open** (seamless hub, sin portal) | ✅ HECHO (2026‑06‑15) |
 | #12 | Herrero (Masterworking) + más servicios de hub | pendiente |
 | #15 | HUD de objetivo del loop + "Poder del héroe" | parcial (itemPower existe) |
 | #16 | "Eras"/temporadas locales | pendiente |
