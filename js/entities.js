@@ -7,6 +7,9 @@ import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
+// Tope de la bolsa de materiales (gemas, runas, llaves, fragmentos, glifos).
+export const MAX_MATERIALS = 60;
+
 // Esquiva: duración corta y pico de velocidad alto con ease-out (recorre ~3.4u)
 const DASH_DUR = 0.26;
 const DASH_PEAK = 26;
@@ -208,7 +211,8 @@ export class Player {
     this.skills = {};           // id -> nivel
     this.gold = 50;
     this.potions = { hp: 3, mp: 2 };
-    this.inventory = [];        // máx 32
+    this.inventory = [];        // máx 32 — SOLO objetos de equipo ('item'/'charm')
+    this.materials = [];        // bolsa de materiales: gemas, runas, llaves, fragmentos, glifos
     this.equipment = {
       weapon: null, offhand: null, helm: null, shoulders: null, chest: null,
       gloves: null, belt: null, pants: null, boots: null, amulet: null, ring: null, ring2: null,
@@ -225,6 +229,18 @@ export class Player {
     };
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
+    // Bolsa de materiales: gemas, runas, llaves, fragmentos y glifos.
+    // Migración de guardados: mueve de inventory a materials cualquier material
+    // que viviera antiguamente en la mochila.
+    this.materials = Array.isArray(this.materials) ? this.materials : [];
+    const MATERIAL_KINDS = ['gem', 'rune', 'riftkey', 'fragment', 'glyph'];
+    if (Array.isArray(this.inventory)) {
+      const moved = this.inventory.filter(it => it && MATERIAL_KINDS.includes(it.kind));
+      if (moved.length) {
+        this.inventory = this.inventory.filter(it => !(it && MATERIAL_KINDS.includes(it.kind)));
+        this.materials.push(...moved);
+      }
+    }
     this.quest = this.quest || null;
     this.supports = this.supports || {};               // habilidad → soportes asignados (array, máx 2)
     // retrocompat: saves viejos guardaban 1 soporte como string; lo convertimos a [string]
@@ -1436,7 +1452,7 @@ export class Pet {
     for (const gi of g.groundItems || []) {
       const k = gi.item.kind;
       const auto = k === 'gold' || k === 'potion' ||
-        ((k === 'gem' || k === 'rune') && p.inventory.length < 32);
+        ((k === 'gem' || k === 'rune') && (p.materials?.length || 0) < MAX_MATERIALS);
       if (!auto) continue;
       const d = gi.mesh.position.distanceToSquared(p.pos);
       if (d < bd) { bd = d; best = gi; }

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { ENEMIES, MIMIC, GOBLIN, UBER_BOSS, ENEMY_RANKS, PACTS, ZONE_LIST, BLESSINGS, blessingValue, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, generateQuest } from './data.js';
 import { buildTown, buildDungeon, buildRefuge } from './world.js';
 import { buildZone } from './zones.js';
-import { Player, Enemy, Projectile, Pet } from './entities.js';
+import { Player, Enemy, Projectile, Pet, MAX_MATERIALS } from './entities.js';
 import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES } from './items.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
@@ -255,7 +255,7 @@ class Game {
     const data = {
       classId: p.classId, level: p.level, xp: p.xp, attributes: p.attributes,
       statPoints: p.statPoints, skillPoints: p.skillPoints, skills: p.skills,
-      gold: p.gold, potions: p.potions, inventory: p.inventory, equipment: p.equipment,
+      gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
@@ -989,7 +989,7 @@ class Game {
 
   // ---------- Jefe Pináculo (uber) ----------
   fragmentCount() {
-    return (this.player.inventory || []).filter(it => it.kind === 'fragment').length;
+    return (this.player.materials || []).filter(it => it.kind === 'fragment').length;
   }
 
   pinnacleFloor() {
@@ -1001,10 +1001,10 @@ class Game {
     const p = this.player;
     const NEED = 3;
     if (this.fragmentCount() < NEED) { this.ui.message(`✴️ Necesitas ${NEED} Fragmentos de Pináculo`, 3000); return; }
-    // consume 3 fragmentos
+    // consume 3 fragmentos de la bolsa de materiales
     let removed = 0;
-    for (let i = p.inventory.length - 1; i >= 0 && removed < NEED; i--) {
-      if (p.inventory[i].kind === 'fragment') { p.inventory.splice(i, 1); removed++; }
+    for (let i = p.materials.length - 1; i >= 0 && removed < NEED; i--) {
+      if (p.materials[i].kind === 'fragment') { p.materials.splice(i, 1); removed++; }
     }
     this.ui.closePanel();
     this.loadWorld({ type: 'dungeon', floor: this.pinnacleFloor(), pinnacle: true });
@@ -1860,11 +1860,12 @@ class Game {
   }
 
   // abre una grieta de endgame consumiendo una llave del inventario
+  // index = índice en la bolsa de materiales (p.materials)
   useRiftKey(index) {
     const p = this.player;
-    const key = p.inventory[index];
+    const key = p.materials[index];
     if (!key || key.kind !== 'riftkey') return;
-    p.inventory.splice(index, 1);
+    p.materials.splice(index, 1);
     this.ui.closePanel();
     this.loadWorld({ type: 'dungeon', rift: key.riftLevel });
   }
@@ -1926,6 +1927,12 @@ class Game {
         this.ui.message(`📘 ¡Soporte aprendido: ${it.name.replace('Soporte: ', '')}! Asígnalo en Habilidades`, 3500);
         this.sfx('levelup');
       } else { p.gold += 30; this.ui.message('Soporte ya conocido (+30 🪙)'); }
+    } else if (it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'fragment' || it.kind === 'glyph') {
+      // materiales: van a la bolsa de materiales (no a la mochila)
+      if (p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
+      p.materials.push(it);
+      this.ui.message(`Obtienes: ${it.name}`, 1800);
+      this.sfx('pickup');
     } else {
       if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
       p.inventory.push(it);
@@ -2126,9 +2133,11 @@ class Game {
         // el resto (objetos, gemas, runas, llaves, fragmentos, glifos) si hay
         // hueco en la mochila y supera el filtro de loot. Así, caminar hasta el
         // botín lo recoge aunque uses el joystick (que cancela el "ir a por él").
-        const needsBag = k === 'item' || k === 'gem' || k === 'rune' || k === 'riftkey' || k === 'fragment' || k === 'glyph';
+        const isMaterial = k === 'gem' || k === 'rune' || k === 'riftkey' || k === 'fragment' || k === 'glyph';
+        const hasRoom = isMaterial ? p.materials.length < MAX_MATERIALS : p.inventory.length < 32;
+        const needsBag = k === 'item' || isMaterial;
         const auto = k === 'gold' || k === 'potion' || k === 'support'
-          || (needsBag && p.inventory.length < 32 && this.passesLootFilter(gi.item.rarity));
+          || (needsBag && hasRoom && this.passesLootFilter(gi.item.rarity));
         if (auto && gi.mesh.position.distanceToSquared(p.pos.clone().setY(gi.mesh.position.y)) < 1.2)
           this.pickupGroundItem(gi);
       }

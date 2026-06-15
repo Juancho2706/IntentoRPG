@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Pet } from '../js/entities.js';
+import { Pet, MAX_MATERIALS } from '../js/entities.js';
 import { buildDungeon } from '../js/world.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -14,7 +14,7 @@ const fake = {
   input: { joyDir: null, keyDir: null }, world, enemies: [],
   groundItems: [],
   pickupGroundItem(gi) { picked.push(gi.item.kind); fake.groundItems.splice(fake.groundItems.indexOf(gi), 1); },
-  player: { alive: true, pos: center.clone(), inventory: [], attackTarget: null, level: 5, stats: { dmgMin: 4, dmgMax: 8 } },
+  player: { alive: true, pos: center.clone(), inventory: [], materials: [], attackTarget: null, level: 5, stats: { dmgMin: 4, dmgMax: 8 } },
 };
 
 // oro y gema a unos pasos del dueño: el lobo va y los recoge
@@ -28,13 +28,13 @@ for (let i = 0; i < 60 * 8 && fake.groundItems.length; i++) pet.update(1/60);
 if (picked.length !== 2) throw new Error('el lobo no recogió todo: ' + picked.join(','));
 console.log(`El lobo recolectó: ${picked.join(' y ')} ✓`);
 
-// con el inventario lleno, ignora gemas (no spamea 'inventario lleno')
+// con la bolsa de materiales llena, ignora gemas (no spamea 'bolsa llena')
 picked = [];
-fake.player.inventory = new Array(32).fill({});
+fake.player.materials = new Array(MAX_MATERIALS).fill({});
 fake.groundItems.push({ item: { kind: 'gem' }, mesh: { position: center.clone().add(new THREE.Vector3(2, 0.35, 0)) } });
 for (let i = 0; i < 120; i++) pet.update(1/60);
-if (picked.length) throw new Error('recogió gema con inventario lleno');
-console.log('Con la mochila llena ignora gemas ✓');
+if (picked.length) throw new Error('recogió gema con la bolsa de materiales llena');
+console.log('Con la bolsa de materiales llena ignora gemas ✓');
 
 // pero el oro sí lo sigue recogiendo
 fake.groundItems.length = 0;

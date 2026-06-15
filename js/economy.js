@@ -4,6 +4,7 @@
 // ============================================================
 import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
 import { SHOP_REFRESH_MS, PET_PRICE, PARAGON_BOARD } from './data.js';
+import { MAX_MATERIALS } from './entities.js';
 
 export const economyMethods = {
   // ---------- tienda del mercader ----------
@@ -146,9 +147,28 @@ export const economyMethods = {
     const p = this.player;
     const item = p.cube[i];
     if (!item) return;
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    p.cube.splice(i, 1);
-    p.inventory.push(item);
+    // las gemas/runas vuelven a la bolsa de materiales; los objetos a la mochila
+    if (item.kind === 'gem' || item.kind === 'rune') {
+      if (p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
+      p.cube.splice(i, 1);
+      p.materials.push(item);
+    } else {
+      if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+      p.cube.splice(i, 1);
+      p.inventory.push(item);
+    }
+    this.save();
+  },
+
+  // mete una gema/runa de la bolsa de materiales al cubo (para fundir/engarzar)
+  addMaterialToCube(matIndex) {
+    const p = this.player;
+    const mat = p.materials[matIndex];
+    if (!mat || p.cube.length >= 3) return;
+    if (mat.kind !== 'gem' && mat.kind !== 'rune') return;
+    p.materials.splice(matIndex, 1);
+    p.cube.push(mat);
+    this.sfx('pickup');
     this.save();
   },
   
@@ -200,7 +220,11 @@ export const economyMethods = {
   transmute() {
     const p = this.player;
     if (p.cube.length !== 3) { this.ui.message('El cubo necesita 3 objetos'); return; }
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    // los resultados-objeto van a la mochila; los resultados-gema a materiales.
+    // Solo bloqueamos por mochila llena si el resultado va a ser un objeto.
+    const allGems = p.cube.every(it => it.kind === 'gem');
+    if (!allGems && p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    if (allGems && p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
     const c = p.cube;
     let item = null;
 
@@ -265,6 +289,14 @@ export const economyMethods = {
 
     p.cube = [];
     item.unidentified = false;
+    // gema fundida → bolsa de materiales; objeto transmutado → mochila
+    if (item.kind === 'gem' || item.kind === 'rune') {
+      p.materials.push(item);
+      this.sfx('levelup');
+      this.ui.renderPanel();
+      this.save();
+      return;
+    }
     p.inventory.push(item);
     this.sfx('levelup');
     this.ui.renderPanel();
@@ -273,17 +305,17 @@ export const economyMethods = {
   },
   
   // ---------- gemas y runas ----------
-  // engarza la gema/runa del inventario (gemIndex) en un objeto con ranura libre
+  // engarza la gema/runa de la bolsa de materiales (gemIndex) en un objeto con ranura libre
   socketGem(itemUid, gemIndex) {
     const p = this.player;
-    const gem = p.inventory[gemIndex];
+    const gem = p.materials[gemIndex];
     if (!gem || (gem.kind !== 'gem' && gem.kind !== 'rune')) return;
     const target = p.inventory.find(i => i.uid === itemUid) ||
       Object.values(p.equipment).find(i => i && i.uid === itemUid);
     if (!target || !target.sockets) return;
     target.gems = target.gems || [];
     if (target.gems.length >= target.sockets) { this.ui.message('No quedan engarces libres'); return; }
-    p.inventory.splice(gemIndex, 1);
+    p.materials.splice(gemIndex, 1);
     target.gems.push(gem);
     checkRuneword(target);
     p.recompute();
@@ -399,15 +431,16 @@ export const economyMethods = {
   },
 
   // glifos: engarzar / quitar en un nodo de engarce activo del tablero
-  socketGlyph(nodeId, invIndex) {
+  // matIndex = índice en la bolsa de materiales (p.materials)
+  socketGlyph(nodeId, matIndex) {
     const p = this.player;
     const node = PARAGON_BOARD.find(n => n.id === nodeId);
     if (!node || node.type !== 'socket' || !p.paragon.nodes[nodeId]) return;
-    const gl = p.inventory[invIndex];
+    const gl = p.materials[matIndex];
     if (!gl || gl.kind !== 'glyph') return;
     if (!p.paragon.glyphs) p.paragon.glyphs = {};
-    if (p.paragon.glyphs[nodeId]) p.inventory.push(p.paragon.glyphs[nodeId]); // devuelve el anterior
-    p.inventory.splice(invIndex, 1);
+    if (p.paragon.glyphs[nodeId]) p.materials.push(p.paragon.glyphs[nodeId]); // devuelve el anterior
+    p.materials.splice(matIndex, 1);
     p.paragon.glyphs[nodeId] = gl;
     p.recompute();
     this.sfx('levelup');
@@ -419,9 +452,9 @@ export const economyMethods = {
     const p = this.player;
     const gl = p.paragon.glyphs?.[nodeId];
     if (!gl) return;
-    if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
+    if (p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
     delete p.paragon.glyphs[nodeId];
-    p.inventory.push(gl);
+    p.materials.push(gl);
     p.recompute();
     this.save();
   },
@@ -487,16 +520,20 @@ export const economyMethods = {
     const p = this.player;
     if (src.zone === dst.zone && src.key === dst.key) return;
     const at = (z, k) => z === 'inv' ? p.inventory[k] : z === 'equip' ? p.equipment[k]
-      : z === 'cube' ? p.cube[k] : z === 'stash' ? this.stash[k] : null;
+      : z === 'cube' ? p.cube[k] : z === 'stash' ? this.stash[k]
+      : z === 'mat' ? p.materials[k] : null;
     const item = at(src.zone, src.key);
     if (!item) return;
     const dstItem = at(dst.zone, dst.key);
 
-    // gema/runa del inventario sobre un objeto con engarce libre → engarzar
-    if (src.zone === 'inv' && (item.kind === 'gem' || item.kind === 'rune') &&
+    // gema/runa de la bolsa de materiales sobre un objeto con engarce libre → engarzar
+    if (src.zone === 'mat' && (item.kind === 'gem' || item.kind === 'rune') &&
         dstItem && dstItem.sockets && (dstItem.gems?.length || 0) < dstItem.sockets) {
       this.socketGem(dstItem.uid, src.key); return;
     }
+    // gema/runa de la bolsa de materiales al cubo (para fundir/engarzar)
+    if (src.zone === 'mat' && dst.zone === 'cube') { this.addMaterialToCube(src.key); return; }
+    if (src.zone === 'cube' && dst.zone === 'mat') { this.cubeReturn(src.key); return; }
     if (dst.zone === 'equip') { if (src.zone === 'inv') this.equipToSlot(src.key, dst.key); return; }
     if (src.zone === 'equip') { if (dst.zone === 'inv' || dst.zone === 'stash') this.unequipItem(src.key); return; }
     if (dst.zone === 'cube') { if (src.zone === 'inv') this.addToCube(src.key); return; }
@@ -504,6 +541,7 @@ export const economyMethods = {
     if (dst.zone === 'stash') { if (src.zone === 'inv') this.depositToStash(src.key); return; }
     if (src.zone === 'stash') { if (dst.zone === 'inv') this.takeFromStash(src.key); return; }
     if (src.zone === 'inv' && dst.zone === 'inv') this.swapInv(src.key, dst.key);
+    if (src.zone === 'mat' && dst.zone === 'mat') this.swapMaterials(src.key, dst.key);
   },
 
   // equipar respetando la ranura (los anillos van a ring o ring2)
@@ -529,6 +567,15 @@ export const economyMethods = {
     if (a >= inv.length) return;
     if (b >= inv.length) { inv.push(inv.splice(a, 1)[0]); }
     else { const t = inv[a]; inv[a] = inv[b]; inv[b] = t; }
+    this.save();
+  },
+
+  // reordena la bolsa de materiales (mismo criterio que swapInv)
+  swapMaterials(a, b) {
+    const mat = this.player.materials;
+    if (a >= mat.length) return;
+    if (b >= mat.length) { mat.push(mat.splice(a, 1)[0]); }
+    else { const t = mat[a]; mat[a] = mat[b]; mat[b] = t; }
     this.save();
   },
 

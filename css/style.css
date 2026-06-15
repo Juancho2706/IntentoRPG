@@ -1513,3 +1513,69 @@ body.reduce-motion .skill-btn.mana-flash { animation: none !important; }
   .compass-arrow .cmp-ico { font-size: 16px; }
   .fl-levelup .fl-lbl, .fl-legendary .fl-name { font-size: 17px; }
 }
+
+/* ============================================================
+   REWORK DE INVENTARIO (estilo Diablo IV) + BOLSA DE MATERIALES
+   - Escritorio (pointer fino / pantalla ancha): dos columnas
+     (muñeco de equipo | mochila) visibles SIN scroll.
+   - Móvil: se mantiene el apilado vertical.
+   - Pestañas Mochila / Materiales en la columna derecha.
+   ============================================================ */
+
+/* layout: por defecto (móvil) apilado en una columna */
+#inv-layout { display: flex; flex-direction: column; gap: 0; }
+.inv-col { display: flex; flex-direction: column; min-width: 0; }
+
+/* pestañas Mochila / Materiales */
+.inv-tabs { display: flex; gap: 6px; margin: 10px 0 4px; }
+.inv-tabs .inv-tab {
+  flex: 1; padding: 8px 6px; font-size: 13px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  color: #bba868; border: 1px solid #2e2718; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.inv-tabs .inv-tab .inv-sec-ico { font-size: 15px; }
+.inv-tabs .inv-tab.on {
+  color: var(--gold);
+  border-color: rgba(201, 162, 39, 0.55);
+  background: rgba(201, 162, 39, 0.1);
+}
+
+#panel-inv .inv-gold-line { margin: 4px 0 8px; font-size: 11px; }
+#panel-inv .mat-help { margin: 4px 0 8px; font-size: 11px; }
+
+/* rejilla de materiales: misma estética que la mochila */
+#panel-inv #mat-grid {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;
+}
+#panel-inv #mat-grid .inv-cell { border-radius: 7px; min-height: 38px; }
+#panel-inv #mat-grid .inv-cell.rarity-normal,
+#panel-inv #mat-grid .inv-cell.rarity-magico,
+#panel-inv #mat-grid .inv-cell.rarity-raro,
+#panel-inv #mat-grid .inv-cell.rarity-legendario,
+#panel-inv #mat-grid .inv-cell.rarity-conjunto {
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.12));
+}
+
+/* ESCRITORIO: pantalla ancha + puntero fino → dos columnas, todo a la vista */
+@media (pointer: fine) and (min-width: 760px) {
+  #panel-inv { width: min(94vw, 880px); }
+  #inv-layout {
+    flex-direction: row;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .inv-col-left { flex: 0 0 320px; }
+  .inv-col-right { flex: 1 1 auto; min-width: 0; }
+  /* el muñeco de equipo centrado en su columna */
+  #panel-inv #equip-slots { justify-content: center; margin-left: auto; margin-right: auto; }
+  /* materiales en la columna derecha pueden mostrar más por fila */
+  #panel-inv #inv-grid,
+  #panel-inv #mat-grid { grid-template-columns: repeat(8, 1fr); }
+}
+
+/* MÓVIL: las columnas se apilan (comportamiento por defecto) y la rejilla de
+   materiales se compacta como la mochila */
+@media (max-width: 700px) {
+  #mat-grid { grid-template-columns: repeat(6, 1fr); }
+}
