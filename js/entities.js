@@ -250,6 +250,7 @@ export class Player {
       else if (!Array.isArray(v)) this.supports[k] = [];
     }
     this.knownSupports = Array.isArray(this.knownSupports) ? this.knownSupports : []; // soportes aprendidos
+    this.skillMods = this.skillMods && typeof this.skillMods === 'object' ? this.skillMods : {}; // id skill → { modId:true } (D4-lite)
     this.hardcore = !!this.hardcore;
     // mascota: normaliza el esquema (migración de guardados antiguos {level:1})
     if (this.pet) {

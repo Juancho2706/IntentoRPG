@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
-import { SYSTEMS_GUIDE } from './data.js';
+import { SYSTEMS_GUIDE, SKILL_MODS } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1710,6 +1710,8 @@ export class UI {
         }
         // engarces de soporte (hasta 2) para habilidades activas aprendidas
         if (lvl > 0 && sk.type !== 'passive') this.renderSupportSlots(card, sk);
+        // modificadores de habilidad (Mejora + Aspectos, estilo D4)
+        if (lvl > 0 && SKILL_MODS[sk.id]) this.renderSkillMods(card, sk);
         grid.appendChild(card);
       }
       tierDiv.appendChild(grid);
@@ -1800,6 +1802,31 @@ export class UI {
     }
 
     infoEl.appendChild(wrap);
+  }
+
+  // Modificadores de habilidad (estilo D4): una Mejora + 2 Aspectos excluyentes.
+  renderSkillMods(card, sk) {
+    const g = this.game, p = g.player;
+    const list = SKILL_MODS[sk.id]; if (!list) return;
+    const owned = p.skillMods[sk.id] || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'sk-mods';
+    wrap.innerHTML = `<div class="sk-mods-head">✦ Mejora y Aspectos</div>`;
+    for (const mod of list) {
+      const has = !!owned[mod.id];
+      const groupTaken = mod.group && list.some(x => x.group === mod.group && x.id !== mod.id && owned[x.id]);
+      const needReq = mod.req && !owned[mod.req];
+      const can = !has && p.skillPoints > 0 && !groupTaken && !needReq;
+      const title = mod.kind === 'mejora' ? '⬆ Mejora' : `◆ ${mod.name}`;
+      const tag = has ? '✓ activo' : needReq ? '🔒 requiere Mejora' : groupTaken ? '—' : p.skillPoints > 0 ? '+1 pt' : 'sin puntos';
+      const b = document.createElement('button');
+      b.className = 'sk-mod' + (has ? ' owned' : '') + (can ? ' avail' : '') + ((needReq || groupTaken) && !has ? ' locked' : '');
+      b.disabled = !can;
+      b.innerHTML = `<span class="sk-mod-name">${title}</span><span class="sk-mod-desc">${mod.desc}</span><span class="sk-mod-tag">${tag}</span>`;
+      b.onclick = () => { g.allocateSkillMod(sk.id, mod.id); };
+      wrap.appendChild(b);
+    }
+    card.appendChild(wrap);
   }
 
   skillDetails(sk, lvl) {

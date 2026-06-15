@@ -2,7 +2,7 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS } from './data.js';
+import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SKILL_MODS, aggregateSkillMods } from './data.js';
 import { buildTown, buildDungeon, buildRefuge, makePortal } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet, MAX_MATERIALS } from './entities.js';
@@ -354,7 +354,7 @@ class Game {
       waypoints: p.waypoints, records: p.records, cube: p.cube,
       quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title,
       discoveredZones: p.discoveredZones, homeZone: p.homeZone, strongholdsCleared: p.strongholdsCleared, dailyDone: p.dailyDone, tips: p.tips,
-      supports: p.supports, knownSupports: p.knownSupports,
+      supports: p.supports, knownSupports: p.knownSupports, skillMods: p.skillMods,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
       torment: p.torment, codex: p.codex, blessings: p.blessings,
@@ -1103,20 +1103,34 @@ class Game {
     if (has('amplify')) mult *= 1.3;
     if (has('concentrated')) mult *= 1.35;
     if (has('overcharge')) mult *= 1.5;
-    const supSlow = has('freeze') ? 3 : sk.slow;
-    const supPierce = (has('pierce') || has('chain')) ? true : sk.pierce;
-    const supExtraProj = has('multi') ? 2 : 0;
+    let supSlow = has('freeze') ? 3 : sk.slow;
+    let supPierce = (has('pierce') || has('chain')) ? true : sk.pierce;
+    let supExtraProj = has('multi') ? 2 : 0;
     let supRadius = has('wide') ? 1.45 : 1;
     if (has('concentrated')) supRadius *= 0.7; // −30% radio (contrapartida)
     // Sangre Fría: crítico garantizado contra objetivos ya ralentizados/congelados
     const supColdblood = has('coldblood');
-    // Daño por tiempo (Sed de Sangre/Veneno): total a repartir en tics, basado en el daño medio.
+    // --- Modificadores de habilidad (Aspectos D4-lite): mismo vocabulario que
+    // los soportes, fusionados aquí en un único punto ---
+    const m = aggregateSkillMods(sk.id, p.skillMods?.[sk.id]);
+    if (m.dmg) mult *= 1 + m.dmg / 100;
+    supExtraProj += m.proj;
+    if (m.pierce) supPierce = true;
+    if (m.radius) supRadius *= 1 + m.radius / 100;
+    if (m.slow) supSlow = Math.max(supSlow || 0, m.slow);
+    const skCrit = (sk.critBonus || 0) + m.crit;   // bonus de crítico base + aspecto
+    // Daño por tiempo (Sed de Sangre/Veneno/Aspecto): total a repartir en tics.
     const avgHit = (p.stats.dmgMin + p.stats.dmgMax) / 2 * mult;
-    const supDoT = has('poison')
+    const dotKind = (has('poison') || m.dot === 'poison') ? 'poison'
+      : (has('bleed') || m.dot === 'bleed') ? 'bleed'
+        : (m.dot === 'burn') ? 'burn' : null;
+    const supDoT = dotKind === 'poison'
       ? { total: avgHit * 0.9, ticks: 5, interval: 1.0, color: 0x66ff66 }
-      : has('bleed')
-        ? { total: avgHit * 0.6, ticks: 3, interval: 1.0, color: 0xff4466 }
-        : null;
+      : dotKind === 'burn'
+        ? { total: avgHit * 0.8, ticks: 4, interval: 0.8, color: 0xff7722 }
+        : dotKind === 'bleed'
+          ? { total: avgHit * 0.6, ticks: 3, interval: 1.0, color: 0xff4466 }
+          : null;
     const applyDoT = e => { if (supDoT && e && e.alive) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval); };
     let casted = true;
 
@@ -1133,7 +1147,7 @@ class Game {
         if (!e) { this.ui.message('Ningún enemigo al alcance'); casted = false; break; }
         p.faceToward(e.pos);
         p.swing = 1;
-        const cb = (sk.critBonus || 0) + (supColdblood && e.slowT > 0 ? 100 : 0);
+        const cb = skCrit + (supColdblood && e.slowT > 0 ? 100 : 0);
         const { dmg, crit } = p.rollDamage(mult, cb);
         e.takeDamage(dmg, crit);
         if (supSlow && e.alive) e.slowT = supSlow;
@@ -1225,7 +1239,7 @@ class Game {
           const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
           const a = baseAngle + off;
           const to = p.pos.clone().add(new THREE.Vector3(Math.sin(a) * 5, 0, Math.cos(a) * 5));
-          const cb = (sk.critBonus || 0) + (supColdblood && near && near.slowT > 0 ? 100 : 0);
+          const cb = skCrit + (supColdblood && near && near.slowT > 0 ? 100 : 0);
           const { dmg, crit } = p.rollDamage(mult, cb);
           this.spawnProjectile({
             from: p.pos.clone().setY(1.0), to: to.setY(1.0),
@@ -1247,8 +1261,9 @@ class Game {
       }
       case 'buff': {
         const stats = {};
-        for (const [k, arr] of Object.entries(sk.buff)) stats[k] = Math.round(skillVal(arr, lvl));
-        p.addBuff(sk.id, stats, sk.dur, { name: sk.name, icon: sk.icon, desc: sk.desc });
+        const buffMul = 1 + (m.buff || 0) / 100;           // Mejora/Aspecto: +potencia
+        for (const [k, arr] of Object.entries(sk.buff)) stats[k] = Math.round(skillVal(arr, lvl) * buffMul);
+        p.addBuff(sk.id, stats, sk.dur * (1 + (m.dur || 0) / 100), { name: sk.name, icon: sk.icon, desc: sk.desc });
         this.spawnRing(p.pos, 1.4, 0x66ddff);
         // aura de buff sobre el jugador (Grito de Guerra, Armadura Helada, Agilidad).
         if (fx?.aura) this.emitFx(fx.aura, p.pos.clone().setY(1.0));
@@ -1278,6 +1293,27 @@ class Game {
     p.recompute();
     this.ui.refreshHotbar();
     this.sfx('levelup');
+    this.save();
+  }
+
+  // asigna un modificador de habilidad (Mejora/Aspecto D4-lite). Cuesta 1 punto
+  // de habilidad; el Aspecto requiere la Mejora y solo 1 por grupo (excluyente).
+  allocateSkillMod(skillId, modId) {
+    const p = this.player;
+    const list = SKILL_MODS[skillId]; if (!list) return;
+    const mod = list.find(x => x.id === modId); if (!mod) return;
+    if (p.skillPoints <= 0) { this.ui.message('Sin puntos de habilidad'); return; }
+    if (!(p.skills[skillId] > 0)) { this.ui.message('Aprende la habilidad primero'); return; }
+    const owned = p.skillMods[skillId] || (p.skillMods[skillId] = {});
+    if (owned[modId]) return;
+    if (mod.req && !owned[mod.req]) { this.ui.message('Requiere la Mejora de la habilidad', 2500); return; }
+    if (mod.group && list.some(x => x.group === mod.group && owned[x.id])) { this.ui.message('Ya elegiste un Aspecto (reespecializa para cambiarlo)', 3000); return; }
+    owned[modId] = true;
+    p.skillPoints--;
+    this.sfx('levelup');
+    this.ui.message(`✦ ${mod.name || 'Mejora'}: ${mod.desc}`, 2500);
+    this.ui.renderPanel?.();
+    this.ui.updateHUD?.();
     this.save();
   }
 

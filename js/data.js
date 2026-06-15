@@ -615,6 +615,115 @@ export const SUPPORTS = [
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
 ];
 
+// ------------------------------------------------------------
+// MODIFICADORES DE HABILIDAD (estilo D4: "Mejora" + 2 "Aspectos" excluyentes).
+// Cada skill activa puede potenciarse con su Mejora (kind:'mejora') y luego UNO
+// de sus dos Aspectos (kind:'aspecto', mismo `group`, requieren la Mejora `req`).
+// Cuestan 1 punto de habilidad cada uno (misma tensión de build que D4). Sus
+// efectos usan el MISMO vocabulario que los soportes y se aplican en el cast:
+//   dmg(+%)·proj(+n)·pierce(bool)·radius(+%)·slow(s)·crit(+%)·dot('bleed|poison|burn')
+//   buff(+% magnitud)·dur(+% duración)  (para habilidades de tipo buff)
+// ------------------------------------------------------------
+export const SKILL_MODS = {
+  // GUERRERO
+  golpe_brutal: [
+    { id: 'gb_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'gb_a1', kind: 'aspecto', group: 'gb', req: 'gb_m', name: 'Verdugo', crit: 30, desc: '+30% de prob. crítica' },
+    { id: 'gb_a2', kind: 'aspecto', group: 'gb', req: 'gb_m', name: 'Sangrante', dot: 'bleed', desc: 'aplica sangrado (daño por tiempo)' },
+  ],
+  grito_guerra: [
+    { id: 'gg_m', kind: 'mejora', buff: 30, desc: '+30% de potencia del grito' },
+    { id: 'gg_a1', kind: 'aspecto', group: 'gg', req: 'gg_m', name: 'Duradero', dur: 80, desc: '+80% de duración' },
+    { id: 'gg_a2', kind: 'aspecto', group: 'gg', req: 'gg_m', name: 'Vigorizante', buff: 45, desc: '+45% de potencia adicional' },
+  ],
+  torbellino: [
+    { id: 'tb_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'tb_a1', kind: 'aspecto', group: 'tb', req: 'tb_m', name: 'Amplio', radius: 35, desc: '+35% de radio' },
+    { id: 'tb_a2', kind: 'aspecto', group: 'tb', req: 'tb_m', name: 'Carnicero', dot: 'bleed', desc: 'aplica sangrado' },
+  ],
+  embestida: [
+    { id: 'em_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'em_a1', kind: 'aspecto', group: 'em', req: 'em_m', name: 'Demoledor', radius: 45, desc: '+45% de radio de impacto' },
+    { id: 'em_a2', kind: 'aspecto', group: 'em', req: 'em_m', name: 'Aturdidor', slow: 2.5, desc: 'ralentiza al impactar' },
+  ],
+  terremoto: [
+    { id: 'te_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'te_a1', kind: 'aspecto', group: 'te', req: 'te_m', name: 'Sísmico', radius: 35, desc: '+35% de radio' },
+    { id: 'te_a2', kind: 'aspecto', group: 'te', req: 'te_m', name: 'Fisura', slow: 2.5, desc: 'ralentiza la zona' },
+  ],
+  // MAGA
+  bola_fuego: [
+    { id: 'bf_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'bf_a1', kind: 'aspecto', group: 'bf', req: 'bf_m', name: 'Multilanza', proj: 1, desc: '+1 proyectil' },
+    { id: 'bf_a2', kind: 'aspecto', group: 'bf', req: 'bf_m', name: 'Ígnea', dot: 'burn', desc: 'incendia (daño por tiempo)' },
+  ],
+  nova_hielo: [
+    { id: 'nh_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'nh_a1', kind: 'aspecto', group: 'nh', req: 'nh_m', name: 'Glacial', radius: 40, desc: '+40% de radio' },
+    { id: 'nh_a2', kind: 'aspecto', group: 'nh', req: 'nh_m', name: 'Escarcha', slow: 2, desc: 'ralentiza más tiempo' },
+  ],
+  rayo: [
+    { id: 'ra_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'ra_a1', kind: 'aspecto', group: 'ra', req: 'ra_m', name: 'Bifurcado', proj: 1, desc: '+1 rayo' },
+    { id: 'ra_a2', kind: 'aspecto', group: 'ra', req: 'ra_m', name: 'Sobrecargado', crit: 25, desc: '+25% de prob. crítica' },
+  ],
+  armadura_helada: [
+    { id: 'ah_m', kind: 'mejora', buff: 30, desc: '+30% de armadura del buff' },
+    { id: 'ah_a1', kind: 'aspecto', group: 'ah', req: 'ah_m', name: 'Duradera', dur: 80, desc: '+80% de duración' },
+    { id: 'ah_a2', kind: 'aspecto', group: 'ah', req: 'ah_m', name: 'Reforzada', buff: 45, desc: '+45% de armadura adicional' },
+  ],
+  meteoro: [
+    { id: 'me_m', kind: 'mejora', dmg: 30, desc: '+30% de daño' },
+    { id: 'me_a1', kind: 'aspecto', group: 'me', req: 'me_m', name: 'Cráter', radius: 40, desc: '+40% de radio' },
+    { id: 'me_a2', kind: 'aspecto', group: 'me', req: 'me_m', name: 'Ardiente', dot: 'burn', desc: 'incendia la zona' },
+  ],
+  // ARQUERA
+  disparo_certero: [
+    { id: 'dc_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'dc_a1', kind: 'aspecto', group: 'dc', req: 'dc_m', name: 'Perforante', pierce: true, desc: 'atraviesa enemigos' },
+    { id: 'dc_a2', kind: 'aspecto', group: 'dc', req: 'dc_m', name: 'Letal', crit: 25, desc: '+25% de prob. crítica' },
+  ],
+  flecha_multiple: [
+    { id: 'fm_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'fm_a1', kind: 'aspecto', group: 'fm', req: 'fm_m', name: 'Enjambre', proj: 2, desc: '+2 flechas' },
+    { id: 'fm_a2', kind: 'aspecto', group: 'fm', req: 'fm_m', name: 'Tóxica', dot: 'poison', desc: 'envenena' },
+  ],
+  flecha_perforante: [
+    { id: 'fp_m', kind: 'mejora', dmg: 30, desc: '+30% de daño' },
+    { id: 'fp_a1', kind: 'aspecto', group: 'fp', req: 'fp_m', name: 'Penetrante', proj: 1, desc: '+1 flecha' },
+    { id: 'fp_a2', kind: 'aspecto', group: 'fp', req: 'fp_m', name: 'Venenosa', dot: 'poison', desc: 'envenena' },
+  ],
+  agilidad: [
+    { id: 'ag_m', kind: 'mejora', buff: 30, desc: '+30% de potencia del buff' },
+    { id: 'ag_a1', kind: 'aspecto', group: 'ag', req: 'ag_m', name: 'Duradera', dur: 80, desc: '+80% de duración' },
+    { id: 'ag_a2', kind: 'aspecto', group: 'ag', req: 'ag_m', name: 'Frenética', buff: 40, desc: '+40% de potencia adicional' },
+  ],
+  lluvia_flechas: [
+    { id: 'lf_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'lf_a1', kind: 'aspecto', group: 'lf', req: 'lf_m', name: 'Diluvio', radius: 35, desc: '+35% de radio' },
+    { id: 'lf_a2', kind: 'aspecto', group: 'lf', req: 'lf_m', name: 'Empapada', dot: 'poison', desc: 'envenena la zona' },
+  ],
+};
+
+// agrega los efectos de los modificadores ASIGNADOS de una skill (objeto plano)
+export function aggregateSkillMods(skId, allocated) {
+  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0 };
+  const list = SKILL_MODS[skId]; if (!list || !allocated) return out;
+  for (const m of list) {
+    if (!allocated[m.id]) continue;
+    if (m.dmg) out.dmg += m.dmg;
+    if (m.proj) out.proj += m.proj;
+    if (m.pierce) out.pierce = true;
+    if (m.radius) out.radius += m.radius;
+    if (m.slow) out.slow = Math.max(out.slow, m.slow);
+    if (m.crit) out.crit += m.crit;
+    if (m.dot && !out.dot) out.dot = m.dot;
+    if (m.buff) out.buff += m.buff;
+    if (m.dur) out.dur += m.dur;
+  }
+  return out;
+}
+
 // Zonas abiertas (regiones): bioma, nivel de desbloqueo y piso base de dificultad
 export const ZONE_LIST = [
   // `home`: la zona tiene campamento (punto de reaparición elegible).
