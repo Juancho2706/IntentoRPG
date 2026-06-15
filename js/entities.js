@@ -75,93 +75,103 @@ export function makeEnemyModel(def) {
   const g = new THREE.Group();
   const s = def.scale || 1;
   const mat = std(def.color);
+  const anim = {};                 // piezas animables (cuerpo, piernas, brazos…)
   let bodyH = 0.75;
+  // pierna/brazo con pivote en la cadera/hombro para que oscilen al rotar
+  const limb = (x, topY, len, w, col) => {
+    const piv = new THREE.Group();
+    piv.position.set(x, topY, 0);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(w, w * 0.8, len, 5), std(col));
+    m.position.y = -len / 2; m.castShadow = true;
+    piv.add(m);
+    return piv;
+  };
+  let eyeY = 1.34, eyeZ = 0.2;
+
   if (def.shape === 'rat') {
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8), mat);
-    body.scale.set(1.3, 0.7, 0.9);
-    body.position.y = 0.3;
+    body.scale.set(1.3, 0.7, 0.9); body.position.y = 0.3; body.castShadow = true;
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.3, 6), mat.clone());
+    snout.rotation.x = Math.PI / 2; snout.position.set(0, 0.26, 0.5);
+    const tailPiv = new THREE.Group(); tailPiv.position.set(0, 0.28, -0.45);
     const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.7, 5), std(0xc09a90));
-    tail.rotation.x = Math.PI / 2.3;
-    tail.position.set(0, 0.25, -0.6);
-    body.castShadow = true;
-    g.add(body, tail);
-    bodyH = 0.45;
+    tail.rotation.x = Math.PI / 2.3; tail.position.z = -0.3; tailPiv.add(tail);
+    for (const sx of [-0.16, 0.16]) {   // orejas
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5), mat.clone());
+      ear.scale.set(1, 1, 0.4); ear.position.set(sx, 0.6, 0.1); g.add(ear);
+    }
+    g.add(body, snout, tailPiv);
+    anim.body = body; anim.tail = tailPiv; bodyH = 0.45; eyeY = 0.42; eyeZ = 0.5;
   } else if (def.shape === 'golem') {
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 0.55), mat);
-    body.position.y = 0.85;
+    body.position.y = 1.0; body.castShadow = true;
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, 0.4), mat.clone());
-    head.position.y = 1.55;
-    for (const sx of [-0.55, 0.55]) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.9, 0.3), mat.clone());
-      arm.position.set(sx, 0.85, 0);
-      g.add(arm);
-    }
-    body.castShadow = head.castShadow = true;
-    g.add(body, head);
-    bodyH = 1.0;
+    head.position.y = 1.68;
+    const armL = limb(-0.55, 1.4, 0.85, 0.14, def.color), armR = limb(0.55, 1.4, 0.85, 0.14, def.color);
+    const legL = limb(-0.22, 0.55, 0.55, 0.18, def.color), legR = limb(0.22, 0.55, 0.55, 0.18, def.color);
+    g.add(body, head, armL, armR, legL, legR);
+    anim.body = body; anim.head = head; anim.arms = [armL, armR]; anim.legs = [legL, legR];
+    bodyH = 1.05; eyeY = 1.68;
   } else if (def.shape === 'demon') {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 0.6, 6, 10), mat);
-    body.position.y = 0.8;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), mat.clone());
-    head.position.y = 1.5;
-    for (const sx of [-0.16, 0.16]) {
-      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 6), std(0x222222));
-      horn.position.set(sx, 1.78, 0);
-      g.add(horn);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.55, 6, 10), mat);
+    body.position.y = 0.98; body.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), mat.clone());
+    head.position.y = 1.52;
+    for (const sx of [-0.14, 0.14]) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 6), std(0x222222));
+      horn.position.set(sx, 1.8, 0); horn.rotation.z = sx > 0 ? -0.2 : 0.2; g.add(horn);
     }
-    body.castShadow = true;
-    g.add(body, head);
-    bodyH = 0.9;
+    const armL = limb(-0.34, 1.28, 0.55, 0.09, def.color), armR = limb(0.34, 1.28, 0.55, 0.09, def.color);
+    const legL = limb(-0.15, 0.62, 0.62, 0.11, def.color), legR = limb(0.15, 0.62, 0.62, 0.11, def.color);
+    const tailPiv = new THREE.Group(); tailPiv.position.set(0, 0.8, -0.3);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.7, 6), mat.clone());
+    tail.rotation.x = 1.4; tail.position.set(0, -0.1, -0.3); tailPiv.add(tail);
+    g.add(body, head, armL, armR, legL, legR, tailPiv);
+    anim.body = body; anim.head = head; anim.arms = [armL, armR]; anim.legs = [legL, legR]; anim.tail = tailPiv;
+    bodyH = 0.95; eyeY = 1.52;
   } else if (def.shape === 'slime') {
-    // gota gelatinosa: cúpula traslúcida con núcleo brillante
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 10),
       std(def.color, { rough: 0.4, ei: 0.4, emissive: def.color }));
     body.material.transparent = true; body.material.opacity = 0.85;
-    body.scale.set(1.1, 0.8, 1.1);
-    body.position.y = 0.34;
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6),
-      new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    core.position.y = 0.32;
-    body.castShadow = true;
-    g.add(body, core);
-    bodyH = 0.55;
+    body.scale.set(1.1, 0.8, 1.1); body.position.y = 0.34; body.castShadow = true;
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    core.position.y = 0.32; body.add(core);   // el núcleo va dentro (se deforma con el cuerpo)
+    g.add(body);
+    anim.body = body; anim.slime = true; anim.sx = 1.1; anim.sy = 0.8;
+    bodyH = 0.55; eyeY = 0.42; eyeZ = 0.4;
   } else if (def.shape === 'mimic') {
-    // cofre con dientes
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), mat);
-    body.position.y = 0.3;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.16, 0.62),
-      std(0xc9a227, { metal: 0.4, rough: 0.5 }));
-    lid.position.set(0, 0.66, -0.2);
-    lid.rotation.x = -0.7;
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), mat);
+    chest.position.y = 0.3; chest.castShadow = true;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.16, 0.62), std(0xc9a227, { metal: 0.4, rough: 0.5 }));
+    lid.position.set(0, 0.66, -0.2); lid.rotation.x = -0.7;
     for (const sx of [-0.25, 0, 0.25]) {
       const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), std(0xf0ead8));
-      tooth.position.set(sx, 0.5, 0.26);
-      tooth.rotation.x = Math.PI;
-      g.add(tooth);
+      tooth.position.set(sx, 0.5, 0.26); tooth.rotation.x = Math.PI; g.add(tooth);
     }
-    body.castShadow = true;
-    g.add(body, lid);
-    bodyH = 0.7;
+    g.add(chest, lid);
+    anim.body = chest; anim.lid = lid; anim.lidBase = -0.7; bodyH = 0.7; eyeY = 0.52; eyeZ = 0.33;
   } else {
-    // humanoide
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.5, 6, 10), mat);
-    body.position.y = 0.72;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mat.clone());
-    head.position.y = 1.32;
-    body.castShadow = true;
-    g.add(body, head);
+    // humanoide: torso + cabeza + 2 brazos + 2 piernas
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.42, 6, 10), mat);
+    torso.position.y = 0.98; torso.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat.clone());
+    head.position.y = 1.48;
+    const armL = limb(-0.3, 1.22, 0.5, 0.075, def.color), armR = limb(0.3, 1.22, 0.5, 0.075, def.color);
+    const legL = limb(-0.13, 0.56, 0.56, 0.1, def.color), legR = limb(0.13, 0.56, 0.56, 0.1, def.color);
+    g.add(torso, head, armL, armR, legL, legR);
+    anim.body = torso; anim.head = head; anim.arms = [armL, armR]; anim.legs = [legL, legR];
+    bodyH = 1.0; eyeY = 1.5; eyeZ = 0.16;
   }
+  // bases de animación
+  if (anim.body) { anim.bodyY = anim.body.position.y; anim.bodyZ = anim.body.position.z; }
+
   // ojos brillantes
-  let eyeY = 1.34, eyeZ = 0.2;
-  if (def.shape === 'rat') { eyeY = 0.4; eyeZ = 0.45; }
-  else if (def.shape === 'golem') { eyeY = 1.58; }
-  else if (def.shape === 'mimic') { eyeY = 0.52; eyeZ = 0.33; }
-  else if (def.shape === 'slime') { eyeY = 0.42; eyeZ = 0.4; }
   for (const sx of [-0.09, 0.09]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6),
       new THREE.MeshBasicMaterial({ color: def.boss ? 0xff2200 : 0xffcc00 }));
     eye.position.set(sx, eyeY, eyeZ);
-    g.add(eye);
+    (anim.head || g).add(eye);   // si hay cabeza, los ojos la siguen
+    if (anim.head) eye.position.y = eyeY - anim.head.position.y; // relativo a la cabeza
   }
   g.scale.setScalar(s);
 
@@ -177,6 +187,7 @@ export function makeEnemyModel(def) {
   g.add(bar);
   g.userData.bar = bar;
   g.userData.barFg = fg;
+  g.userData.anim = anim;
   return g;
 }
 
@@ -719,6 +730,7 @@ export class Enemy {
     this.slowT = 0;
     this.flashT = 0;
     this.fade = 0;
+    this.lunge = 0;             // empuje de animación al atacar
     this.baseEmissive = def.glow || 0x000000; // campeones y élites brillan
     this.burnTick = 0;
     this.group = makeEnemyModel(def);
@@ -763,6 +775,49 @@ export class Enemy {
     this.game.onEnemyKilled(this);
   }
 
+  // animación procedural barata: caminar (según movimiento del frame previo),
+  // respiración en reposo, coletazo y "lunge" al atacar. Solo transforms.
+  animate(dt) {
+    const a = this.group.userData.anim;
+    if (!a) return;
+    const t = performance.now() / 1000;
+    if (!this._apos) { this._apos = this.pos.clone(); this._aoff = Math.random() * 6.28; }
+    const moved = this.pos.distanceTo(this._apos);
+    this._apos.copy(this.pos);
+    const moving = moved > 0.002;
+    this.walkT = (this.walkT || 0) + dt * (moving ? 11 : 0);
+    this.lunge = Math.max(0, (this.lunge || 0) - dt * 4);
+    const sw = Math.sin(this.walkT);
+    const lunge = this.lunge;
+
+    if (a.slime) {
+      // gelatina: salta aplastándose; al moverse, salto más marcado
+      const k = moving ? 0.22 : 0.07;
+      const w = Math.abs(Math.sin(t * (moving ? 9 : 2.2) + this._aoff));
+      a.body.scale.y = a.sy * (1 - w * k);
+      a.body.scale.x = a.body.scale.z = a.sx * (1 + w * k * 0.5);
+      a.body.position.y = a.bodyY + (moving ? w * 0.12 : 0) + lunge * 0.2;
+      return;
+    }
+    if (a.body) {
+      a.body.position.y = a.bodyY + (moving ? Math.abs(sw) * 0.06 : Math.sin(t * 2 + this._aoff) * 0.02);
+      a.body.position.z = a.bodyZ + lunge * 0.28;
+      a.body.rotation.x = -lunge * 0.5 + (moving ? Math.sin(this.walkT * 2) * 0.04 : 0);
+    }
+    if (a.head) a.head.rotation.x = lunge * 0.6 + (moving ? -Math.sin(this.walkT * 2) * 0.05 : 0);
+    if (a.legs) {
+      a.legs[0].rotation.x = moving ? sw * 0.7 : 0;
+      a.legs[1].rotation.x = moving ? -sw * 0.7 : 0;
+    }
+    if (a.arms) {
+      const idle = Math.sin(t * 1.5 + this._aoff) * 0.05;
+      a.arms[0].rotation.x = -lunge * 1.2 + (moving ? -sw * 0.45 : idle);
+      a.arms[1].rotation.x = -lunge * 1.2 + (moving ? sw * 0.45 : -idle);
+    }
+    if (a.tail) a.tail.rotation.y = Math.sin(this.walkT * 1.5 + t * (moving ? 0 : 1.5)) * (moving ? 0.5 : 0.18);
+    if (a.lid) a.lid.rotation.x = a.lidBase - (moving ? Math.abs(sw) * 0.3 : 0) - lunge * 0.5;
+  }
+
   update(dt) {
     const g = this.game;
     // afijo Escudado: si un golpe lo "mató" durante la ventana de inmunidad,
@@ -795,6 +850,8 @@ export class Enemy {
           o.material.emissive.setHex(flashing ? 0xffffff : this.baseEmissive);
       });
     }
+
+    this.animate(dt);   // caminar / idle / lunge procedural
 
     const player = g.player;
     if (!player || !player.alive) return false;
@@ -1162,6 +1219,7 @@ export class Enemy {
       if (d <= range && this.hasLOS) {
         if (this.atkCd <= 0) {
           this.atkCd = this.def.atkTime * (this.rallyT > 0 ? 0.8 : 1);
+          this.lunge = 1;   // arremetida visual al atacar
           if (this.def.rangedAttack && d > 2.2) {
             g.spawnProjectile({
               from: this.pos.clone().setY(1.1), to: player.pos.clone().setY(1.0),

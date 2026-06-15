@@ -44,6 +44,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente, Explosivo, Espinoso, **Encarcelador**, **Vórtice**, **Escudado**, **Cadenas**…)
 - **Arquetipos de enemigos** con telegrafía y contrajuego: **Nigromante** (invoca esbirros), **Acólito Sanador**, **Portaestandarte** (escudo a aliados), **Sembrador de Esporas** (se divide al morir), **Embestidor** (carga en línea con aviso) y **Francotirador del Vacío** (disparo cargado de largo alcance)
 - **Game-feel / efectos de impacto**: *hit-stop* escalado con la fuerza del golpe, destello blanco en los enemigos golpeados, sacudida de cámara basada en "trauma" y estallidos al impactar los proyectiles
+- **Modelos de enemigos con animación**: siluetas con cabeza, brazos, piernas y cola; animación procedural de caminar (oscilación de piernas/brazos), respiración en reposo y arremetida al atacar; los limos saltan y aplastan, los cofres mímicos castañean
 - **Esquiva** con invulnerabilidad breve (Shift / botón 💨) y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo
 - **Santuarios** en las mazmorras: bendiciones de XP, furia, vida y oro… y alguno maldito
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios, con tasas equilibradas (los legendarios son un acontecimiento, no rutina)
