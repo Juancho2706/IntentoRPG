@@ -10,11 +10,21 @@ for (const c of Object.values(CLASSES)) {
       if (!c.skills.some(s => s.id === sy.from)) throw new Error('sinergia rota: ' + sk.id + ' ← ' + sy.from);
   console.log(`${c.name}: ${withSyn.map(s => s.id).join(', ')} con sinergia`);
 }
-// cálculo: meteoro con 5 puntos en bola_fuego = +30%
+// cálculo: meteoro con 5 puntos en bola_fuego = +25% (5% por punto)
 const meteoro = CLASSES.maga.skills.find(s => s.id === 'meteoro');
 const b = synergyBonus(meteoro, { bola_fuego: 5 });
-if (b !== 30) throw new Error('synergyBonus esperaba 30, dio ' + b);
-console.log('Meteoro con 5 pts en Bola de Fuego: +' + b + '%');
+if (b !== 25) throw new Error('synergyBonus esperaba 25, dio ' + b);
+// sinergias 2.0: varias fuentes se SUMAN (familia de habilidades)
+const b2 = synergyBonus(meteoro, { bola_fuego: 5, rayo: 5 });
+if (b2 !== 40) throw new Error('synergyBonus multi-fuente esperaba 40 (25+15), dio ' + b2);
+console.log(`Meteoro: +${b}% con Bola de Fuego, +${b2}% sumando Rayo (sinergias 2.0)`);
+// cada skill de daño tiene al menos una sinergia (variedad de builds de familia)
+for (const c of Object.values(CLASSES)) {
+  for (const sk of c.skills) {
+    if (sk.mult && !sk.synergies) throw new Error(`${sk.id} (daño) debería tener sinergias`);
+  }
+}
+console.log('Todas las habilidades de daño tienen sinergias de familia ✓');
 
 // biomas por profundidad
 const expect = { 1: 'Cripta', 5: 'Cripta', 6: 'Cavernas de Hielo', 10: 'Cavernas de Hielo', 11: 'Infierno', 15: 'Infierno', 16: 'Abismo Estelar', 20: 'Abismo Estelar' };
