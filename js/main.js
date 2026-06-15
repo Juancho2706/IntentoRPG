@@ -13,7 +13,7 @@ import { Input } from './input.js';
 import { economyMethods } from './economy.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
-import { PostFX, AmbientParticles } from './postfx.js';
+import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
 import { ParticleSystem, PRESETS } from './particles.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, bossDeathBurst, bossDeathStars } from './fx-enemies.js';
@@ -61,7 +61,7 @@ class Game {
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
     this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
-      reduceMotion: false, bigText: false, colorblind: false, postfx: true, ...opts };
+      reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true, ...opts };
     this.applyAccessibility();
     this.qualityLevel = 0;
     this.fpsAcc = 0;
@@ -120,6 +120,14 @@ class Game {
     this.postfx.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
     this.particles = new AmbientParticles(this.scene);
     this.particles.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    // sombras de contacto/blob bajo héroe y enemigos: les dan "peso" sin coste
+    // de sombras reales. Tolerante a fallos (sin canvas en tests = no-op).
+    try { this.blobShadows = new BlobShadows(this.scene); }
+    catch { this.blobShadows = null; }
+    // IBL gratis: RoomEnvironment + PMREMGenerator → scene.environment para
+    // realzar el PBR de los materiales sin assets. Carga dinámica y tolerante a
+    // fallos: si el addon no está, los materiales siguen iluminados por las luces.
+    this._initEnvironment();
     // motor de partículas de GAMEPLAY (impactos, habilidades, enemigos) — pooled.
     // Va en la escena (no en fxGroup, que se limpia al cambiar de mundo); psys
     // tiene su propio clear(). try/catch para degradar si WebGL falla.
@@ -160,15 +168,41 @@ class Game {
     this.postfx?.setSize(window.innerWidth, window.innerHeight, this.renderer.getPixelRatio());
   }
 
+  // IBL: genera un entorno PMREM una sola vez (RoomEnvironment, sin assets) y
+  // lo asigna a scene.environment para realzar el PBR. Carga dinámica y
+  // tolerante: si falla, los materiales siguen iluminados solo por las luces.
+  async _initEnvironment() {
+    try {
+      const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const room = new RoomEnvironment();
+      const envRT = pmrem.fromScene(room, 0.04);
+      this.scene.environment = envRT.texture;
+      this._envMap = envRT.texture;
+      // limpiar la escena temporal del entorno
+      room.traverse?.(o => { o.geometry?.dispose?.(); o.material?.dispose?.(); });
+      pmrem.dispose();
+    } catch (e) {
+      console.warn('[ibl] RoomEnvironment no disponible:', e?.message || e);
+    }
+  }
+
   // Aplica el estado de calidad/accesibilidad al post-procesado:
-  // - bloom OFF en calidad baja o reduceMotion (caro en móvil),
+  // - bloom/AO/outline OFF en calidad baja o reduceMotion (caro en móvil),
   // - composer y partículas obedecen el toggle `postfx` + reduceMotion,
   // - tamaño/pixelRatio igualados al renderer.
   syncPostFX() {
     const on = this.settings.postfx !== false && !this.settings.reduceMotion;
+    const lowEnd = this.qualityLevel >= 2;
     this.postfx?.setEnabled(on);
-    this.postfx?.setBloom(on && this.qualityLevel < 2);
+    this.postfx?.setBloom(on && !lowEnd);
+    // AO/outline: respetan su flag de usuario y se apagan en gama baja
+    this.postfx?.setAO(on && !lowEnd && this.settings.ao !== false);
+    this.postfx?.setOutline(on && !lowEnd && this.settings.outline !== false);
     this.particles?.setEnabled(on);
+    // sombras de contacto: respetan el toggle postfx/reduceMotion y se apagan
+    // en gama baja para aligerar
+    this.blobShadows?.setEnabled(on && !lowEnd);
     this.postfx?.setSize(window.innerWidth, window.innerHeight, this.renderer.getPixelRatio());
   }
 
@@ -346,6 +380,16 @@ class Game {
       this.world.tormentQty = T * 8;        // y la cantidad de botín
     }
     this.scene.add(this.world.group);
+    // IBL con mesura: baja el envMapIntensity de los materiales del mundo para
+    // que el realce PBR del entorno (scene.environment) sea sutil, no plástico.
+    // Solo afecta a MeshStandardMaterial; barato (una pasada al cargar mundo).
+    if (this.scene.environment) {
+      this.world.group.traverse(o => {
+        const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : null;
+        if (!mats) return;
+        for (const m of mats) if (m && 'envMapIntensity' in m) m.envMapIntensity = 0.35;
+      });
+    }
 
     // ambiente
     const w = this.world;
@@ -2376,6 +2420,21 @@ class Game {
         const base = L.userData.baseI || 0;
         const n = smoothNoise(t * 9 + (L.userData.flick || 0), 7); // -1..1
         L.intensity = base * (0.78 + 0.22 * (n * 0.5 + 0.5)) + n * base * 0.08;
+      }
+    }
+    // sombras de contacto/blob bajo héroe y enemigos (les dan peso)
+    if (this.blobShadows?.enabled && this.state === 'play')
+      this.blobShadows.update(p, this.enemies);
+    // contorno estilizado: refresca la lista de objetos (héroe + enemigos
+    // vivos) a ~10Hz — barato y suficiente para el look "diorama".
+    if (this.postfx?.hasOutline && this.postfx.outlineEnabled) {
+      this._outlineTimer = (this._outlineTimer || 0) + realDt;
+      if (this._outlineTimer >= 0.1) {
+        this._outlineTimer = 0;
+        const targets = [];
+        if (p?.group && this.state === 'play') targets.push(p.group);
+        for (const e of this.enemies) if (e.alive && e.group?.visible) targets.push(e.group);
+        this.postfx.setOutlineTargets(targets);
       }
     }
     // partículas ambientales del bioma (siguen a la cámara)

@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v29';
+const VERSION = 'v30';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -36,6 +36,7 @@ const ASSETS = [
 // Incluye los módulos transitivos que importan EffectComposer/UnrealBloomPass.
 const ADDON_BASE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/';
 const ADDONS = [
+  // núcleo del composer + bloom + viñeta + output
   'postprocessing/EffectComposer.js',
   'postprocessing/RenderPass.js',
   'postprocessing/UnrealBloomPass.js',
@@ -46,6 +47,18 @@ const ADDONS = [
   'shaders/CopyShader.js',
   'shaders/LuminosityHighPassShader.js',
   'shaders/OutputShader.js',
+  // oclusión ambiental de contacto (GTAO) + sus shaders/ruido
+  'postprocessing/GTAOPass.js',
+  'shaders/GTAOShader.js',
+  'shaders/PoissonDenoiseShader.js',
+  'math/SimplexNoise.js',
+  // antialias SMAA + su shader
+  'postprocessing/SMAAPass.js',
+  'shaders/SMAAShader.js',
+  // contorno estilizado (héroe/enemigos)
+  'postprocessing/OutlinePass.js',
+  // IBL gratis: entorno PMREM (RoomEnvironment) para realce PBR
+  'environments/RoomEnvironment.js',
 ].map((p) => ADDON_BASE + p);
 
 self.addEventListener('install', (e) => {
