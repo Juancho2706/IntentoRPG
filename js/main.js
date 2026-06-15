@@ -14,6 +14,8 @@ import { economyMethods } from './economy.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles } from './postfx.js';
+import { ParticleSystem } from './particles.js';
+import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, bossDeathBurst, bossDeathStars } from './fx-enemies.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 
@@ -117,6 +119,10 @@ class Game {
     this.postfx.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
     this.particles = new AmbientParticles(this.scene);
     this.particles.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    // motor de partículas de gameplay (pooled): efectos de enemigos, impactos,
+    // muertes, mecánicas. Tolerante: si no hay WebGL en el test runner, los
+    // métodos que lo usan van guardados con `this.psys?.`.
+    try { this.psys = new ParticleSystem(this.scene, { poolSize: 1500 }); } catch { this.psys = null; }
     this.postfx.init(this.renderer, this.scene, this.camera).then(() => {
       // sincroniza tamaño/calidad iniciales y aplica el estado de calidad actual
       this.syncPostFX();
@@ -293,6 +299,7 @@ class Game {
     clearGroup(this.fxGroup);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
     this.firePools = []; this.telegraphs = []; this.chains = {};
+    this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
 
     // semilla persistente por sesión: la zona se genera una sola vez y mantiene
     // su trazado mientras dure la partida (hasta recargar la página)
@@ -543,6 +550,13 @@ class Game {
     mesh.rotation.y = p.group.rotation.y;
     this.fxGroup.add(mesh);
     this.fx.push({ mesh, t: 0, dur: 0.3, ghost: true });
+  }
+
+  // lanza un preset de partículas en una posición del mundo (motor particles.js)
+  // acepta un objeto preset; pos = Vector3/{x,y,z}/[x,y,z]. Guardado para tests.
+  emitFx(preset, pos) {
+    if (!this.psys || !preset) return;
+    try { this.psys.emit(preset, pos); } catch { /* sin GL en tests */ }
   }
 
   // ráfaga de partículas (muertes, cofres, nivel)
@@ -1041,13 +1055,23 @@ class Game {
       this.entityGroup.add(e.group);
     }
     this.spawnRing(boss.pos, 2.4, 0x8844ff);
+    // vórtice oscuro: anillo que succiona + núcleo arcano en el centro
+    this.emitFx(ENEMY_FX.summon, boss.pos.clone().setY(0.8));
+    this.emitFx(ENEMY_FX.summonCore, boss.pos.clone().setY(0.9));
     this.ui.message(`👹 ¡${boss.def.name} invoca a sus esbirros!`);
     this.sfx('eshoot');
   }
 
   bossFrostNova(boss) {
     // aviso de 0.8s; al estallar daña y congela a quien siga dentro
-    this.spawnTelegraph(boss.pos.clone(), 3.8, 0.8, boss.def.dmg, boss.def.level || 1, { slow: true });
+    this.spawnTelegraph(boss.pos.clone(), 3.8, 0.8, boss.def.dmg, boss.def.level || 1, {
+      slow: true,
+      onDone: (at) => {
+        // onda de esquirlas de hielo + bruma fría al estallar
+        this.emitFx(ENEMY_FX.frostNova, at.clone().setY(0.6));
+        this.emitFx(ENEMY_FX.frostNovaMist, at.clone().setY(0.5));
+      },
+    });
     this.sfx('eshoot');
   }
 
@@ -1060,7 +1084,9 @@ class Game {
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.copy(at).setY(0.06);
         this.fxGroup.add(mesh);
-        this.firePools.push({ mesh, t: 0, dur: 4.5, radius: 1.6, tick: 0.4 });
+        this.firePools.push({ mesh, t: 0, dur: 4.5, radius: 1.6, tick: 0.4, fire: true });
+        // estallido inicial de ignición
+        this.emitFx(ENEMY_FX.firePoolIgnite, at.clone().setY(0.2));
       },
     });
     this.sfx('eshoot');
@@ -1083,6 +1109,9 @@ class Game {
         mesh.position.copy(at).setY(0.05);
         this.fxGroup.add(mesh);
         this.firePools.push({ mesh, t: 0, dur: 2.5, radius: 0, tick: 99 });
+        // hilos y polvo verdoso de la telaraña al cerrarse
+        this.emitFx(ENEMY_FX.web, at.clone().setY(0.3));
+        this.emitFx(ENEMY_FX.webDust, at.clone().setY(0.3));
       },
     });
     this.sfx('eshoot');
@@ -1091,6 +1120,10 @@ class Game {
   // abanico de proyectiles: 3 disparos en arco hacia el jugador (esquivable)
   enemyFan(enemy, target) {
     const baseAngle = Math.atan2(target.x - enemy.pos.x, target.z - enemy.pos.z);
+    // chispas en el cono de disparo, teñidas con el color del proyectil
+    const fcol = hexNum(enemy.def.projColor ?? 0xcc66ff);
+    this.emitFx({ ...ENEMY_FX.fan, color: { start: '#ffffff', end: fcol } },
+      enemy.pos.clone().setY(1.0));
     for (let i = -1; i <= 1; i++) {
       const a = baseAngle + i * 0.26;
       const to = enemy.pos.clone().add(new THREE.Vector3(Math.sin(a) * 8, 0, Math.cos(a) * 8));
@@ -1247,7 +1280,53 @@ class Game {
   enemyChargeWarn(enemy, dir, len) {
     const end = enemy.pos.clone().add(new THREE.Vector3(dir.x, 0, dir.z).multiplyScalar(len));
     this.spawnBeam(enemy.pos.clone().setY(0.3), end.setY(0.3), 0xff5533, 1.0);
+    // polvo bajo las patas anunciando la carga (telegrafía física)
+    this.emitFx(ENEMY_FX.chargeWindup, enemy.pos.clone().setY(0.15));
     this.sfx('eshoot');
+  }
+
+  // Embestidor: polvo al impactar contra el jugador durante el dash.
+  enemyChargeImpact(pos) {
+    this.emitFx(ENEMY_FX.chargeImpact, (pos.clone?.() ?? pos).setY?.(0.3) ?? pos);
+  }
+
+  // Golpe pesado (slam): onda de polvo + esquirlas en el punto de impacto.
+  enemySlamFx(pos) {
+    const at = (pos.clone?.() ?? pos);
+    if (at.setY) at.setY(0.2);
+    this.emitFx(ENEMY_FX.slam, at);
+    this.emitFx(ENEMY_FX.slamSpark, at);
+  }
+
+  // Aura de escarcha: niebla fría pulsante + esquirlas ascendentes (pulso ~0.6s,
+  // disparado por Enemy.update mientras el aura está activa).
+  enemyFrostAuraPulse(pos) {
+    const at = (pos.clone?.() ?? pos);
+    if (at.setY) at.setY(0.4);
+    this.emitFx(ENEMY_FX.frostAura, at);
+    this.emitFx(ENEMY_FX.frostMotes, at);
+  }
+
+  // Aura de exaltación (rally): destellos ascendentes sobre un aliado animado.
+  enemyRallyFx(pos) {
+    const at = (pos.clone?.() ?? pos);
+    if (at.setY) at.setY(0.5);
+    this.emitFx(ENEMY_FX.rallyAura, at);
+  }
+
+  // Teletransporte de brujo: implosión en el origen, aparición en el destino.
+  enemyBlinkFx(fromPos, toPos) {
+    const a = (fromPos.clone?.() ?? fromPos); if (a.setY) a.setY(0.8);
+    const b = (toPos.clone?.() ?? toPos); if (b.setY) b.setY(0.8);
+    this.emitFx(ENEMY_FX.blinkOut, a);
+    this.emitFx(ENEMY_FX.blinkIn, b);
+  }
+
+  // Ataque cuerpo a cuerpo del enemigo: chispa breve en el punto de golpe.
+  enemyMeleeFx(pos) {
+    const at = (pos.clone?.() ?? pos);
+    if (at.setY) at.setY(1.0);
+    this.emitFx(ENEMY_FX.meleeHit, at);
   }
 
   // Sembrador de Esporas (splitter): al morir deja un saco telegrafiado en el
@@ -1746,6 +1825,21 @@ class Game {
       this.music.sting();
     }
     this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
+    // estallido de partículas teñido con el color/tipo del enemigo; jefes con un
+    // estallido más espectacular (esquirlas + destellos estelares).
+    {
+      const dpos = enemy.pos.clone().setY(0.7);
+      const col = hexNum(enemy.def.color ?? 0xffffff);
+      if (enemy.def.boss) {
+        this.emitFx(bossDeathBurst(col), dpos);
+        this.emitFx(bossDeathStars(col), dpos);
+        this.emitFx(deathSmoke(col, 1.8), dpos);
+      } else {
+        const s = enemy.def.rank ? 1.5 : (enemy.def.scale || 1);
+        this.emitFx(deathBurst(col, s), dpos);
+        this.emitFx(deathSmoke(col, s), dpos);
+      }
+    }
 
     // --- efectos al morir de los arquetipos nuevos (telegrafiados / justos) ---
     // Nigromante: al caer, sus esbirros invocados se DEBILITAN (pierden vida y
@@ -2109,6 +2203,15 @@ class Game {
         continue;
       }
       fp.mesh.material.opacity = 0.2 + 0.4 * (1 - fp.t / fp.dur);
+      // charco de fuego: brasas que ascienden + humo (pulsos sobre la zona)
+      if (fp.fire) {
+        fp.emT = (fp.emT ?? 0) - dt;
+        if (fp.emT <= 0) {
+          fp.emT = 0.18;
+          this.emitFx(ENEMY_FX.firePoolEmbers, fp.mesh.position.clone().setY(0.15));
+          this.emitFx(ENEMY_FX.firePoolSmoke, fp.mesh.position.clone().setY(0.2));
+        }
+      }
       fp.tick -= dt;
       if (fp.tick <= 0 && this.state === 'play' && p.alive &&
           p.pos.distanceTo(fp.mesh.position) < fp.radius + 0.3) {
@@ -2206,6 +2309,8 @@ class Game {
     }
     // partículas ambientales del bioma (siguen a la cámara)
     this.particles?.update(realDt, this.camera.position);
+    // partículas de gameplay (enemigos, impactos, muertes)
+    this.psys?.update(dt);
 
     // UI: textos y etiquetas siguen al mundo (cada frame), pero el HUD y el
     // minimapa se refrescan a 10Hz — menos trabajo de DOM, mismo aspecto

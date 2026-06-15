@@ -1049,6 +1049,11 @@ export class Enemy {
       if (this.def.frostAura && d < 2.6) {
         player.slowT = Math.max(player.slowT, 0.4);
       }
+      // niebla fría pulsante alrededor del portador del aura de escarcha
+      if (this.def.frostAura) {
+        this.frostFxT = (this.frostFxT ?? 0) - dt;
+        if (this.frostFxT <= 0) { this.frostFxT = 0.6; g.enemyFrostAuraPulse?.(this.pos); }
+      }
     }
     // aura de mando: potencia a los aliados cercanos (vel. de ataque) — el buff
     // se aplica de forma pasiva marcando a los enemigos próximos cada ~0.5s.
@@ -1058,7 +1063,11 @@ export class Enemy {
         this.rallyTick = 0.5;
         for (const e of g.enemies) {
           if (e === this || !e.alive || e.def.boss) continue;
-          if (e.pos.distanceToSquared(this.pos) < 5 * 5) e.rallyT = 0.7;
+          if (e.pos.distanceToSquared(this.pos) < 5 * 5) {
+            e.rallyT = 0.7;
+            // destellos ascendentes de exaltación sobre el aliado potenciado
+            g.enemyRallyFx?.(e.pos);
+          }
         }
       }
     }
@@ -1160,7 +1169,10 @@ export class Enemy {
         if (g.world.grid.walkable(nx, nz, 0.3) &&
             Math.hypot(nx - player.pos.x, nz - player.pos.z) > d) {
           g.spawnRing(this.pos.clone(), 0.8, 0xaa66ff);
+          const fromPos = this.pos.clone();
           this.pos.set(nx, 0, nz);
+          // implosión en el origen + aparición sombría en el destino
+          g.enemyBlinkFx?.(fromPos, this.pos.clone());
           this.blinkCd = 5;
           g.sfx('eshoot');
           break;
@@ -1246,9 +1258,12 @@ export class Enemy {
             g.sfx('eshoot');
           } else if (this.def.slam) {
             // golpe pesado telegrafiado: avisa, pero castiga fuerte si no lo esquivas
-            g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, Math.round(this.def.dmg * 1.5), this.def.level || 1);
+            g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, Math.round(this.def.dmg * 1.5), this.def.level || 1,
+              { onDone: (at) => g.enemySlamFx?.(at) });
           } else {
             player.takeDamage(this.def.dmg, this.def.level || 1);
+            // chispa breve en el punto de golpe (impacto cuerpo a cuerpo)
+            if (player.alive) g.enemyMeleeFx?.(player.pos);
           }
         }
       } else {
@@ -1306,6 +1321,8 @@ export class Enemy {
         player.takeDamage(this.def.dmg, this.def.level || 1);
         player.slowT = Math.max(player.slowT, 1.2); player._slowTotal = 1.2;
         g.addShake?.(0.18, 0.2);
+        // polvo al impactar la embestida (físico/marrón)
+        g.enemyChargeImpact?.(player.pos);
       }
       // termina al agotar tiempo o al chocar con un muro
       if (this.dashT <= 0 || this.pos.distanceToSquared(before) < 1e-7) {
