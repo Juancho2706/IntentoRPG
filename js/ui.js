@@ -129,6 +129,42 @@ export class UI {
     document.querySelectorAll('.panel-close').forEach(b => b.addEventListener('click', () => this.closePanel()));
     $('btn-collection').addEventListener('click', () => this.openCollection());
     $('btn-respawn').addEventListener('click', () => g.respawn());
+
+    // cerrar panel/popup al tocar/clicar fuera (paneles flotantes, no el de
+    // bendición que obliga a elegir). Se registra en captura para detectar el
+    // origen real del toque; el sello _justOpened evita que el mismo gesto que
+    // abre lo cierre.
+    document.addEventListener('pointerdown', (e) => this.onOutsidePointer(e), true);
+  }
+
+  // ¿el panel/popup activo debe cerrarse al tocar fuera?
+  onOutsidePointer(e) {
+    const popupOpen = !$('item-popup').classList.contains('hidden');
+    // paneles "modales" sin botón de cerrar: no se cierran tocando fuera
+    const modal = this.activePanel === 'blessing';
+    if ((!this.activePanel || modal) && !popupOpen) return;
+    // no cerrar con el MISMO gesto que abrió el panel/popup
+    if (this._justOpened) return;
+    const t = e.target;
+    if (t.closest && (
+      t.closest('.panel') ||           // dentro de un panel
+      t.closest('#item-popup') ||      // dentro del popup de objeto
+      t.closest('#item-tooltip') ||    // tooltip de hover
+      t.closest('#menu-btns') ||       // botones que abren paneles
+      t.closest('#btn-shop')           // botón de tienda (fuera de menu-btns)
+    )) return;
+    // si hay popup abierto, ciérralo primero (deja el panel de fondo); si solo
+    // hay panel, ciérralo
+    if (popupOpen) { $('item-popup').classList.add('hidden'); return; }
+    this.closePanel();
+  }
+
+  // marca que se acaba de abrir algo: ignora el resto del gesto actual para no
+  // cerrarlo en el mismo pointerdown que lo abrió
+  markJustOpened() {
+    this._justOpened = true;
+    clearTimeout(this._justOpenedT);
+    this._justOpenedT = setTimeout(() => { this._justOpened = false; }, 350);
   }
 
   // ---------- selección de héroe y clase ----------
@@ -321,6 +357,76 @@ export class UI {
       const cost = Math.round(skillVal(sk.mana, p.skills[id] || 1));
       btn.classList.toggle('no-mana', p.mp < cost);
     }
+
+    this.renderBuffs();
+  }
+
+  // ---------- fila de buffs/pasivos temporales activos ----------
+  // cada buff: { id, name, icon, remaining, total, desc } (segundos · icon=emoji)
+  renderBuffs() {
+    const bar = $('buff-bar');
+    if (!bar) return;
+    const p = this.game.player;
+    const buffs = (p && p.activeBuffs?.()) || [];
+    if (!buffs.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = 'flex';
+    // reconcilia por id: crea las celdas que falten, elimina las sobrantes
+    const seen = new Set();
+    for (const b of buffs) {
+      seen.add(b.id);
+      let cell = bar.querySelector(`.buff[data-id="${b.id}"]`);
+      if (!cell) {
+        cell = document.createElement('div');
+        cell.className = 'buff';
+        cell.dataset.id = b.id;
+        cell.innerHTML = `<span class="buff-ico"></span><span class="buff-sec"></span>`;
+        // al tocar/clicar: muestra nombre + descripción + tiempo restante
+        cell.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.showBuffInfo(cell._buff || b, e.clientX, e.clientY);
+        });
+        bar.appendChild(cell);
+      }
+      cell._buff = b;
+      cell.querySelector('.buff-ico').textContent = b.icon || '✨';
+      const secs = Math.max(0, Math.ceil(b.remaining));
+      cell.querySelector('.buff-sec').textContent = secs >= 60 ? `${Math.ceil(secs / 60)}m` : secs;
+      // anillo de cuenta atrás: se vacía según remaining/total
+      const frac = b.total > 0 ? Math.max(0, Math.min(1, b.remaining / b.total)) : 0;
+      const deg = Math.round(frac * 360);
+      cell.style.setProperty('--buff-deg', deg + 'deg');
+      cell.classList.toggle('expiring', b.remaining <= 3);
+    }
+    for (const cell of [...bar.children]) {
+      if (!seen.has(cell.dataset.id)) cell.remove();
+    }
+  }
+
+  // tooltip/popup pequeño con la ficha de un buff
+  showBuffInfo(b, x, y) {
+    const pop = $('item-popup');
+    this.markJustOpened();
+    const secs = Math.max(0, Math.ceil(b.remaining));
+    const time = secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`;
+    pop.innerHTML = `
+      <div class="popup-name">${b.icon || '✨'} ${b.name || 'Efecto'}</div>
+      <div class="popup-sub">⏳ ${time} restantes</div>
+      <div class="stat-line">${b.desc || ''}</div>
+      <div class="popup-btns"></div>`;
+    const c = document.createElement('button');
+    c.textContent = 'Cerrar';
+    c.onclick = () => pop.classList.add('hidden');
+    pop.querySelector('.popup-btns').appendChild(c);
+    // posiciona cerca del toque, dentro de la pantalla (anula el centrado CSS)
+    pop.style.transform = 'none';
+    pop.classList.remove('hidden');
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    let nx = x - w / 2, ny = y + 14;
+    if (nx + w > window.innerWidth - 8) nx = window.innerWidth - w - 8;
+    if (ny + h > window.innerHeight - 8) ny = y - h - 14;
+    pop.style.left = Math.max(8, nx) + 'px';
+    pop.style.top = Math.max(8, ny) + 'px';
   }
 
   refreshHotbar() {
@@ -418,14 +524,24 @@ export class UI {
     this.closePanel();
     this.activePanel = name;
     $('panel-' + name).classList.remove('hidden');
+    this.markJustOpened();
     this.renderPanel();
   }
 
   closePanel() {
-    if (!this.activePanel) return;
-    $('panel-' + this.activePanel).classList.add('hidden');
-    this.activePanel = null;
     $('item-popup').classList.add('hidden');
+    if (!this.activePanel) return;
+    const panel = $('panel-' + this.activePanel);
+    if (panel) panel.classList.add('hidden');
+    this.activePanel = null;
+  }
+
+  // cierra TODOS los paneles y el popup, dejando un estado limpio (arranque)
+  closeAllPanels() {
+    document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+    $('item-popup').classList.add('hidden');
+    $('item-tooltip').classList.add('hidden');
+    this.activePanel = null;
   }
 
   renderPanel() {
@@ -447,6 +563,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'stash';
       $('panel-stash').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderStash();
   }
@@ -552,6 +669,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'quest';
       $('panel-quest').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderQuest();
   }
@@ -563,6 +681,7 @@ export class UI {
     this.activePanel = 'pacts';
     const panel = $('panel-pacts');
     panel.classList.remove('hidden');
+    this.markJustOpened();
     const body = $('pacts-body');
     body.innerHTML = '';
     for (const pact of PACTS) {
@@ -590,6 +709,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'recipes';
       $('panel-recipes').classList.remove('hidden');
+      this.markJustOpened();
     }
     const runeName = (id) => (RUNES.find(r => r.id === id) || {}).name || id;
     const cube = [
@@ -618,6 +738,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'collection';
       $('panel-collection').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderCollection();
   }
@@ -697,6 +818,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'waypoints';
       $('panel-waypoints').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderWaypoints();
   }
@@ -864,9 +986,15 @@ export class UI {
     const p = g.player;
     const r = RARITIES[item.rarity];
     const pop = $('item-popup');
+    this.markJustOpened();
+    this.hideItemTooltip();
+    // restaura el centrado por CSS (showBuffInfo lo posiciona en línea)
+    pop.style.left = pop.style.top = pop.style.transform = '';
     const lines = itemStatLines(item).map(l => `<div class="stat-line">${l}</div>`).join('');
-    // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo)
-    const compare = ctx.from === 'inv' ? this.buildCompare(item) : '';
+    // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo);
+    // también desde el equipo (compara la pieza con su misma ranura, no aporta
+    // diff pero buildCompare lo gestiona). En táctil esto da el "tap = comparar".
+    const compare = (ctx.from === 'inv' || ctx.from === 'equip') ? this.buildCompare(item) : '';
     // información del conjunto: piezas y bonus (activos en verde)
     let setHTML = '';
     if (item.setId) {
@@ -966,6 +1094,7 @@ export class UI {
   gemChooser(item) {
     const g = this.game, p = g.player;
     const pop = $('item-popup');
+    pop.style.left = pop.style.top = pop.style.transform = '';
     pop.innerHTML = `
       <div class="popup-name">💎 Elige una gema para:</div>
       <div class="popup-sub">${item.name} (${(item.gems || []).length}/${item.sockets} engarces)</div>
@@ -1293,6 +1422,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'map';
       $('panel-map').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderMap();
   }
@@ -1431,6 +1561,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'progress';
       $('panel-progress').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderProgress();
   }
@@ -1482,6 +1613,7 @@ export class UI {
       this.closePanel();
       this.activePanel = 'paragon';
       $('panel-paragon').classList.remove('hidden');
+      this.markJustOpened();
     }
     this.renderParagon();
   }
@@ -1543,6 +1675,7 @@ export class UI {
   paragonGlyphChooser(node) {
     const g = this.game, p = g.player;
     const pop = $('item-popup');
+    pop.style.left = pop.style.top = pop.style.transform = '';
     const glyphs = p.inventory.filter(it => it.kind === 'glyph');
     const cur = p.paragon.glyphs?.[node.id];
     pop.innerHTML = `
