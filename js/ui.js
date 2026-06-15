@@ -7,7 +7,44 @@ import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemSta
 
 const $ = (id) => document.getElementById(id);
 
-// glifo de rareza: la rareza no depende solo del color (accesibilidad)
+// ============================================================
+// Set de iconos SVG (sprite inline en index.html, símbolos #ic-...).
+// Monocromos y teñibles por CSS (currentColor). Helper icon(name) que
+// genera <svg><use href="#ic-name"/></svg>; si el símbolo no existe en el
+// sprite, hace fallback a un texto/emoji para no romper la lectura.
+// ------------------------------------------------------------
+// símbolos disponibles en el sprite (debe coincidir con index.html)
+const ICON_SET = new Set([
+  'bag', 'book', 'hero', 'cart', 'gear', 'eye', 'eye-off', 'map', 'chart',
+  'scroll', 'book-open', 'sword', 'dash', 'hand', 'potion', 'search', 'broom',
+  'sort', 'recycle', 'close', 'str', 'dex', 'vit', 'ene', 'crit', 'blood',
+  'mana', 'thorns', 'shield', 'boot', 'clover', 'hourglass', 'target', 'skull',
+  'star', 'crown', 'mask', 'pit', 'portal', 'chest', 'coin', 'clock', 'grave',
+  'village', 'camp', 'leaf', 'lock', 'vortex', 'flask', 'gem', 'anvil', 'chat',
+  'medal', 'globe', 'trophy', 'dice', 'question', 'warn', 'link', 'save',
+  'copy', 'import', 'sun', 'speaker', 'music', 'shake', 'phone', 'rocket',
+  'palette', 'text', 'bulb', 'paint', 'magic', 'play', 'trash', 'plus',
+  'check', 'gift', 'wolf', 'fav',
+]);
+
+// genera el marcado de un icono. opts: { cls, title, size, fallback }
+// Devuelve una cadena HTML lista para insertar en innerHTML.
+function icon(name, opts = {}) {
+  const { cls = '', title = '', size = 0, fallback = '' } = opts;
+  if (!ICON_SET.has(name)) {
+    // fallback accesible: texto/emoji entre <span> con título
+    const t = title ? ` title="${title}"` : '';
+    return `<span class="ui-ico-fallback ${cls}"${t} aria-hidden="true">${fallback || '•'}</span>`;
+  }
+  const sz = size ? ` style="width:${size}px;height:${size}px"` : '';
+  const t = title ? ` title="${title}"` : '';
+  const a = title ? ` role="img" aria-label="${title}"` : ' aria-hidden="true"';
+  return `<svg class="ui-ico ${cls}"${sz}${t}${a}><use href="#ic-${name}"/></svg>`;
+}
+
+// glifo de rareza: la rareza no depende solo del color (accesibilidad).
+// SVG monocromo teñido por color de rareza (vía currentColor en el contenedor).
+const RARITY_ICON = { normal: '', magico: 'magic', raro: 'gem', legendario: 'star', conjunto: 'crown' };
 const RARITY_GLYPH = { normal: '', magico: '✦', raro: '◆', legendario: '★', conjunto: '❖' };
 // icono guía de cada ranura vacía (ayuda a saber qué va en cada hueco)
 const SLOT_ICON = {
@@ -145,13 +182,17 @@ export class UI {
     // modo limpio del HUD: oculta lo no esencial (persiste en settings)
     const cleanBtn = $('btn-clean-hud');
     if (cleanBtn) {
-      cleanBtn.setAttribute('aria-pressed', String(!!g.settings?.cleanHud));
+      const syncCleanIcon = () => {
+        cleanBtn.setAttribute('aria-pressed', String(!!g.settings?.cleanHud));
+        cleanBtn.innerHTML = `<svg class="ui-ico"><use href="#ic-${g.settings?.cleanHud ? 'eye-off' : 'eye'}"/></svg>`;
+      };
+      syncCleanIcon();
       cleanBtn.addEventListener('click', () => {
         g.settings.cleanHud = !g.settings.cleanHud;
-        cleanBtn.setAttribute('aria-pressed', String(!!g.settings.cleanHud));
+        syncCleanIcon();
         g.saveSettings?.();
         this.updateHUD();
-        this.message(g.settings.cleanHud ? '👁️ Modo limpio activado' : '👁️ HUD completo', 1600);
+        this.message(g.settings.cleanHud ? 'Modo limpio activado' : 'HUD completo', 1600);
       });
     }
     $('btn-identify').addEventListener('click', () => g.identifyAll());
@@ -218,14 +259,15 @@ export class UI {
         const cls = CLASSES[m.classId];
         const dot = m.tint != null ? `<span class="slot-tint" style="background:#${(m.tint).toString(16).padStart(6, '0')}"></span>` : '';
         const nm = m.name && m.name !== cls?.name ? `${m.name} · ` : '';
-        card.innerHTML = `<div class="slot-info">${dot}${cls?.icon || '🧍'} <b>${nm}${cls?.name || '?'} Nv ${m.level}</b><small>Piso máx ${m.maxFloor}${m.hardcore ? ' ☠️' : ''}</small></div>`;
+        card.innerHTML = `<div class="slot-info">${dot}${cls?.icon || '🧍'} <b>${nm}${cls?.name || '?'} Nv ${m.level}</b><small>Piso máx ${m.maxFloor}${m.hardcore ? ' ' + icon('skull', { cls: 'hud-hc', title: 'Hardcore' }) : ''}</small></div>`;
         const play = document.createElement('button');
         play.className = 'slot-play';
-        play.textContent = '▶️ Jugar';
+        play.innerHTML = `${icon('play')} Jugar`;
         play.onclick = () => { el.classList.add('hidden'); onPick(i, 'continue'); };
         const del = document.createElement('button');
         del.className = 'slot-del';
-        del.textContent = '🗑️';
+        del.innerHTML = icon('trash');
+        del.title = 'Borrar héroe'; del.setAttribute('aria-label', 'Borrar héroe');
         del.onclick = () => {
           if (confirm('¿Borrar este héroe para siempre? (El alijo compartido se conserva)')) {
             this.game.deleteSlot(i);
@@ -255,7 +297,7 @@ export class UI {
 
     const hc = document.createElement('label');
     hc.className = 'hc-toggle';
-    hc.innerHTML = `<input type="checkbox" id="hc-check"> ☠️ Modo Hardcore — la muerte es permanente`;
+    hc.innerHTML = `<input type="checkbox" id="hc-check"> ${icon('skull')} Modo Hardcore — la muerte es permanente`;
     cont.appendChild(hc);
 
     // personalización del héroe: nombre y color de armadura
@@ -321,12 +363,12 @@ export class UI {
     $('orb-mp-txt').textContent = `${Math.ceil(p.mp)}`;
     const need = xpForLevel(p.level);
     $('xp-fill').style.width = Math.min(100, p.xp / need * 100) + '%';
-    $('hud-level').textContent = `Nv ${p.level}${p.hardcore ? ' ☠️' : ''}`;
+    $('hud-level').innerHTML = `Nv ${p.level}${p.hardcore ? ' ' + icon('skull', { cls: 'hud-hc', title: 'Hardcore' }) : ''}`;
     const tracker = $('quest-tracker');
     if (p.quest) {
       tracker.style.display = '';
       const done = p.quest.progress >= p.quest.goal;
-      tracker.textContent = done ? '🎯 ¡Completada! Ve con el Capitán' : `🎯 ${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal} — ${p.quest.desc}`;
+      tracker.innerHTML = icon('target') + ' ' + (done ? '¡Completada! Ve con el Capitán' : `${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal} — ${p.quest.desc}`);
     } else tracker.style.display = 'none';
     // contratos de zona
     const ct = $('zone-contracts');
@@ -336,31 +378,36 @@ export class UI {
       const rows = w.bounties.map(b => {
         const cur = Math.min(b.progress, b.goal);
         return b.done
-          ? `<div class="c-row c-done">✔️ ${b.desc}</div>`
-          : `<div class="c-row">▫️ ${b.desc} <b>${cur}/${b.goal}</b></div>`;
+          ? `<div class="c-row c-done">${icon('check')} ${b.desc}</div>`
+          : `<div class="c-row">${icon('target', { cls: 'c-bullet' })} ${b.desc} <b>${cur}/${b.goal}</b></div>`;
       }).join('');
-      ct.innerHTML = `<div class="c-title">📜 Contratos</div>${rows}`;
+      ct.innerHTML = `<div class="c-title">${icon('scroll')} Contratos</div>${rows}`;
     } else ct.style.display = 'none';
-    $('hud-gold').textContent = `🪙 ${p.gold}`;
-    $('hud-zone').textContent = this.game.world?.type === 'town' ? '🏘️ Pueblo'
-      : this.game.world?.type === 'refuge' ? '🏕️ Refugio'
-      : this.game.world?.type === 'zone' ? `🌿 ${this.game.world.biome}`
-      : this.game.world?.rift ? `🌀 Grieta ${this.game.world.rift}` : `🕳️ Piso ${this.game.world.floor}`;
+    $('hud-gold').innerHTML = `${icon('coin', { cls: 'ico-gold' })} ${p.gold}`;
+    const zoneIco = (n, txt) => `${icon(n)} ${txt}`;
+    $('hud-zone').innerHTML = this.game.world?.type === 'town' ? zoneIco('village', 'Pueblo')
+      : this.game.world?.type === 'refuge' ? zoneIco('camp', 'Refugio')
+      : this.game.world?.type === 'zone' ? zoneIco('leaf', this.game.world.biome)
+      : this.game.world?.rift ? zoneIco('vortex', `Grieta ${this.game.world.rift}`) : zoneIco('pit', `Piso ${this.game.world.floor}`);
     $('pot-hp-count').textContent = p.potions.hp;
     $('pot-mp-count').textContent = p.potions.mp;
     // aviso pulsante cuando la vida es crítica
     document.body.classList.toggle('low-hp', p.alive && hpPct < 30);
 
-    // botón de acción contextual: interactuar o atacar
+    // botón de acción contextual: interactuar o atacar (iconos SVG del set)
     const it = this.game.currentInteract;
     const icons = {
-      portal_dungeon: '🌀', portal_town: '🌀', portal_next: '🌀', portal_daily: '🌟',
-      portal_zone: '🌿', gate_zone: '🌿', zone_dungeon: '🕳️', world_event: '🌀',
-      waypoint: '🗺️', questgiver: '💬', stash: '🗃️', vendor: '💰', chest: '📦', shrine: '✨', enchanter: '🔮',
+      portal_dungeon: 'vortex', portal_town: 'vortex', portal_next: 'vortex', portal_daily: 'star',
+      portal_zone: 'leaf', gate_zone: 'leaf', zone_dungeon: 'pit', world_event: 'vortex',
+      waypoint: 'map', questgiver: 'chat', stash: 'chest', vendor: 'coin', chest: 'chest', shrine: 'magic', enchanter: 'magic',
     };
     const atkBtn = $('btn-attack');
-    const icon = it ? (icons[it.type] || '✋') : '⚔️';
-    if (atkBtn.textContent !== icon) atkBtn.textContent = icon;
+    const iconName = it ? (icons[it.type] || 'hand') : 'sword';
+    // sustituye el icono solo si cambia (evita reescribir el DOM cada frame)
+    if (atkBtn.dataset.icon !== iconName) {
+      atkBtn.dataset.icon = iconName;
+      atkBtn.innerHTML = `<svg class="ui-ico"><use href="#ic-${iconName}"/></svg>`;
+    }
     atkBtn.classList.toggle('interact', !!it);
 
     // cooldown de la esquiva
@@ -800,10 +847,18 @@ export class UI {
     const g = this.game;
     const cont = $('settings-body');
     cont.innerHTML = '';
-    const toggle = (key, label, onChange) => {
+    // helper de sección con cabecera y separador claro
+    const section = (ico, title) => {
+      const h = document.createElement('h4');
+      h.className = 'opt-section';
+      h.innerHTML = `${icon(ico)} ${title}`;
+      cont.appendChild(h);
+    };
+    const toggle = (key, ico, label, onChange, def) => {
       const row = document.createElement('label');
       row.className = 'opt-row';
-      row.innerHTML = `<span>${label}</span><input type="checkbox" ${g.settings[key] ? 'checked' : ''}>`;
+      const checked = (g.settings[key] ?? def) ? 'checked' : '';
+      row.innerHTML = `<span>${icon(ico)} ${label}</span><input type="checkbox" ${checked}>`;
       row.querySelector('input').onchange = (e) => {
         g.settings[key] = e.target.checked;
         g.saveSettings();
@@ -811,19 +866,28 @@ export class UI {
       };
       cont.appendChild(row);
     };
-    toggle('sound', '🔊 Sonido');
-    toggle('music', '🎵 Música ambiental', (v) => g.music.setEnabled(v));
-    toggle('shake', '📳 Sacudida de cámara');
-    toggle('haptics', '📱 Vibración (móvil)');
-    toggle('autoq', '🚀 Calidad automática (baja gráficos si van lentos)');
-    // accesibilidad
-    toggle('reduceMotion', '🎯 Movimiento reducido (menos animaciones)', () => g.applyAccessibility());
-    toggle('bigText', '🔠 Texto grande', () => g.applyAccessibility());
-    toggle('colorblind', '🎨 Modo daltónico (colores de rareza seguros)', () => g.applyAccessibility());
+
+    section('speaker', 'Audio');
+    toggle('sound', 'speaker', 'Sonido');
+    toggle('music', 'music', 'Música ambiental', (v) => g.music.setEnabled(v));
+
+    section('eye', 'Gráficos');
+    toggle('postfx', 'magic', 'Efectos visuales (postprocesado, bloom)', () => g.syncPostFX?.(), true);
+    // los lee el sistema de render (otro módulo); se guardan con el flujo normal
+    toggle('ao', 'bulb', 'Oclusión ambiental', () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); }, true);
+    toggle('outline', 'paint', 'Contorno', () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); }, true);
+    toggle('shake', 'shake', 'Sacudida de cámara');
+    toggle('haptics', 'phone', 'Vibración (móvil)');
+    toggle('autoq', 'rocket', 'Calidad automática (baja gráficos si van lentos)');
+
+    section('hero', 'Accesibilidad');
+    toggle('reduceMotion', 'target', 'Movimiento reducido (menos animaciones)', () => g.applyAccessibility());
+    toggle('bigText', 'text', 'Texto grande', () => g.applyAccessibility());
+    toggle('colorblind', 'palette', 'Modo daltónico (colores de rareza seguros)', () => g.applyAccessibility());
     // brillo: útil en mazmorras oscuras o pantallas con reflejos
     const row = document.createElement('label');
     row.className = 'opt-row';
-    row.innerHTML = `<span>💡 Brillo</span>
+    row.innerHTML = `<span>${icon('sun')} Brillo</span>
       <input type="range" min="60" max="170" step="5" value="${Math.round((g.settings.brightness || 1) * 100)}">`;
     const slider = row.querySelector('input');
     slider.oninput = () => {
@@ -836,7 +900,7 @@ export class UI {
     // filtro de loot: oculta el botín por debajo de la rareza elegida
     const fr = document.createElement('label');
     fr.className = 'opt-row';
-    fr.innerHTML = `<span>🔍 Filtro de loot (mostrar desde)</span>
+    fr.innerHTML = `<span>${icon('search')} Filtro de loot (mostrar desde)</span>
       <select>
         <option value="normal">Todo</option>
         <option value="magico">Mágico+</option>
@@ -850,7 +914,8 @@ export class UI {
 
     // copia de seguridad de la partida (de momento local; nube más adelante)
     const head = document.createElement('h4');
-    head.textContent = '💾 Copia de seguridad';
+    head.className = 'opt-section';
+    head.innerHTML = `${icon('save')} Copia de seguridad`;
     cont.appendChild(head);
     const mkBtn = (txt, fn) => {
       const b = document.createElement('button');
@@ -859,8 +924,8 @@ export class UI {
       b.onclick = fn;
       cont.appendChild(b);
     };
-    mkBtn('📋 Copiar código de guardado <small class="shop-stats">Incluye tu héroe actual y el alijo</small>', () => g.exportSave());
-    mkBtn('📥 Importar código de guardado <small class="shop-stats">Sobrescribe el héroe del hueco actual</small>', () => g.importSave());
+    mkBtn(`${icon('copy')} Copiar código de guardado <small class="shop-stats">Incluye tu héroe actual y el alijo</small>`, () => g.exportSave());
+    mkBtn(`${icon('import')} Importar código de guardado <small class="shop-stats">Sobrescribe el héroe del hueco actual</small>`, () => g.importSave());
   }
 
   openQuest() {
@@ -1034,24 +1099,24 @@ export class UI {
       b.onclick = fn;
       cont.appendChild(b);
     };
-    mk('🏘️ Pueblo', g.world.type === 'town', () => g.travelTo('town'));
+    mk(`${icon('village')} Pueblo`, g.world.type === 'town', () => g.travelTo('town'));
     if (p.refugeUnlocked)
-      mk('🏕️ Refugio del Abismo', g.world.type === 'refuge', () => g.travelTo('refuge'));
+      mk(`${icon('camp')} Refugio del Abismo`, g.world.type === 'refuge', () => g.travelTo('refuge'));
     // zonas abiertas (regiones), desbloqueadas por nivel
     const head = document.createElement('div');
-    head.className = 'tier-head'; head.textContent = '🌍 Zonas abiertas';
+    head.className = 'tier-head'; head.innerHTML = `${icon('globe')} Zonas abiertas`;
     cont.appendChild(head);
     for (const z of ZONE_LIST) {
       const unlocked = p.level >= z.minLevel;
       const here = g.world.type === 'zone' && g.world.biome === z.biome;
-      mk(unlocked ? `🌿 ${z.biome}` : `🔒 ${z.biome} (nivel ${z.minLevel})`,
+      mk(unlocked ? `${icon('leaf')} ${z.biome}` : `${icon('lock')} ${z.biome} (nivel ${z.minLevel})`,
         here || !unlocked, () => g.travelToZone(z.biome));
     }
     const head2 = document.createElement('div');
-    head2.className = 'tier-head'; head2.textContent = '🕳️ Pisos de mazmorra';
+    head2.className = 'tier-head'; head2.innerHTML = `${icon('pit')} Pisos de mazmorra`;
     cont.appendChild(head2);
     for (const f of [...p.waypoints].sort((a, b) => a - b))
-      mk(`🕳️ Piso ${f}`, g.world.type === 'dungeon' && g.world.floor === f, () => g.travelTo(f));
+      mk(`${icon('pit')} Piso ${f}`, g.world.type === 'dungeon' && g.world.floor === f, () => g.travelTo(f));
   }
 
   itemCellHTML(item) {
@@ -1064,12 +1129,12 @@ export class UI {
       if (free > 0) sockets = `<span class="cell-sockets" title="${free} engarce(s) libre(s)">${free}</span>`;
     }
     // glifo de rareza (esquina inferior derecha): el color no es el único indicador
-    const glyph = (!item.unidentified && RARITY_GLYPH[item.rarity])
-      ? `<span class="cell-glyph" style="color:${r.color}" title="${r.name}">${RARITY_GLYPH[item.rarity]}</span>` : '';
+    const glyph = (!item.unidentified && RARITY_ICON[item.rarity])
+      ? `<span class="cell-glyph" style="color:${r.color}" title="${r.name}">${icon(RARITY_ICON[item.rarity])}</span>` : '';
     // objeto sin identificar: interrogante claro
-    const unid = item.unidentified ? '<span class="cell-unid" title="Sin identificar">❓</span>' : '';
+    const unid = item.unidentified ? `<span class="cell-unid" title="Sin identificar">${icon('question')}</span>` : '';
     return `<span class="cell-icon" style="text-shadow:0 0 6px ${r.color}">${item.icon}</span>` +
-      `${item.fav ? '<span class="fav-star">⭐</span>' : ''}${sockets}${glyph}${unid}`;
+      `${item.fav ? `<span class="fav-star">${icon('fav')}</span>` : ''}${sockets}${glyph}${unid}`;
   }
 
   renderInventory() {
@@ -1113,8 +1178,9 @@ export class UI {
     // libro de recetas
     const rb = document.createElement('button');
     rb.id = 'btn-recipes';
-    rb.textContent = '📖';
+    rb.innerHTML = icon('book');
     rb.title = 'Ver recetas';
+    rb.setAttribute('aria-label', 'Ver recetas');
     rb.onclick = () => this.openRecipes();
     cubeRow.appendChild(rb);
 
@@ -1128,7 +1194,7 @@ export class UI {
       this.bindCell(div, { zone: 'inv', key: i, item }, item ? () => this.itemPopup(item, { from: 'inv', index: i }) : null);
       invGrid.appendChild(div);
     }
-    $('inv-gold').textContent = `🪙 ${p.gold} oro · toca para comparar/equipar · arrastra para mover (I o B para abrir)`;
+    $('inv-gold').innerHTML = `${icon('coin', { cls: 'ico-gold' })} ${p.gold} oro · toca para comparar/equipar · arrastra para mover (I o B para abrir)`;
 
     // bolsa de materiales (gemas, runas, llaves, fragmentos, glifos)
     this.renderMaterials();
@@ -1197,7 +1263,7 @@ export class UI {
     if (!item) return;
     const tip = $('item-tooltip');
     const r = RARITIES[item.rarity] || RARITIES.normal;
-    const glyph = RARITY_GLYPH[item.rarity] || '';
+    const glyph = RARITY_ICON[item.rarity] ? icon(RARITY_ICON[item.rarity], { cls: 'rarity-ico' }) : '';
     const lines = itemStatLines(item).map(l => `<div class="stat-line">${l}</div>`).join('');
     tip.innerHTML = `<div class="popup-name" style="color:${r.color}">${glyph} ${item.icon} ${item.name}</div>` +
       `<div class="popup-sub">${r.name}${SLOT_NAMES[item.slot] ? ' · ' + SLOT_NAMES[item.slot] : ''}${item.ilvl ? ' · Nv. ' + item.ilvl : ''}</div>` +
@@ -1251,11 +1317,11 @@ export class UI {
       }
     }
     const nameColor = item.unidentified ? '#b8a0d8' : r.color;
-    const glyph = item.unidentified ? '' : (RARITY_GLYPH[item.rarity] || '');
+    const glyph = item.unidentified ? '' : (RARITY_ICON[item.rarity] ? icon(RARITY_ICON[item.rarity], { cls: 'rarity-ico' }) : '');
     const nameTxt = item.unidentified ? `${item.icon} Objeto sin identificar` : `${glyph} ${item.icon} ${item.name}`;
     pop.innerHTML = `
       <div class="popup-name" style="color:${nameColor}">${nameTxt}</div>
-      <div class="popup-sub">${item.unidentified ? '❓ ' + r.name : r.name}${SLOT_NAMES[item.slot] ? ' · ' + SLOT_NAMES[item.slot] : ''}${item.ilvl ? ' · Nv. ' + item.ilvl : ''}</div>
+      <div class="popup-sub">${item.unidentified ? icon('question') + ' ' + r.name : r.name}${SLOT_NAMES[item.slot] ? ' · ' + SLOT_NAMES[item.slot] : ''}${item.ilvl ? ' · Nv. ' + item.ilvl : ''}</div>
       ${lines}${setHTML}${compare}
       <div class="popup-btns"></div>`;
     const btns = pop.querySelector('.popup-btns');
@@ -1530,12 +1596,12 @@ export class UI {
     const freeGlyphs = this.unsocketedGlyphCount();
     const pgBadge = (pgPts + freeGlyphs) > 0 ? `<span class="bnav-badge">${pgPts + freeGlyphs}</span>` : '';
     const hasBoard = p.level >= 20 || pgPts > 0 || Object.keys(para.nodes || {}).length > 0;
-    const tab = (key, icon, label, badge, on) =>
-      `<button class="bnav-tab${on ? ' on' : ''}" data-bnav="${key}">${icon} <span class="bnav-lbl">${label}</span>${badge}</button>`;
+    const tab = (key, ico, label, badge, on) =>
+      `<button class="bnav-tab${on ? ' on' : ''}" data-bnav="${key}">${icon(ico)} <span class="bnav-lbl">${label}</span>${badge}</button>`;
     return `<div class="build-nav">
-        ${tab('stats', '🧍', 'Personaje', '', active === 'stats')}
-        ${tab('skills', '📖', 'Habilidades', skillBadge, active === 'skills')}
-        ${hasBoard ? tab('paragon', '🌟', 'Paragon / Glifos', pgBadge, active === 'paragon') : ''}
+        ${tab('stats', 'hero', 'Personaje', '', active === 'stats')}
+        ${tab('skills', 'book', 'Habilidades', skillBadge, active === 'skills')}
+        ${hasBoard ? tab('paragon', 'star', 'Paragon / Glifos', pgBadge, active === 'paragon') : ''}
       </div>`;
   }
 
@@ -1579,7 +1645,7 @@ export class UI {
     const sp = $('stat-points');
     sp.textContent = p.statPoints > 0 ? `${p.statPoints} pts` : 'Sin puntos';
     sp.classList.toggle('cs-points-active', p.statPoints > 0);
-    const ATTR_ICONS = { fue: '💪', des: '🏹', vit: '❤️', ene: '🔮' };
+    const ATTR_ICONS = { fue: 'str', des: 'dex', vit: 'vit', ene: 'ene' };
     const cont = $('attr-list');
     cont.innerHTML = '';
     for (const key of ['fue', 'des', 'vit', 'ene']) {
@@ -1587,7 +1653,7 @@ export class UI {
       row.className = 'cs-attr';
       row.title = STAT_DESC[key];
       row.innerHTML = `
-        <span class="cs-attr-icon">${ATTR_ICONS[key]}</span>
+        <span class="cs-attr-icon">${icon(ATTR_ICONS[key], { cls: 'attr-' + key })}</span>
         <div class="cs-attr-body">
           <div class="cs-attr-name">${STAT_NAMES[key]} <span class="cs-attr-val">${p.attributes[key]}</span></div>
           <div class="cs-attr-desc">${STAT_DESC[key]}</div>
@@ -1638,23 +1704,23 @@ export class UI {
 
     // --- estadísticas derivadas, agrupadas ---
     // cada línea lleva un tooltip (title) que explica qué hace la estadística
-    const statLine = (icon, label, val, key) =>
-      `<div class="cs-stat"${key && DERIVED_DESC[key] ? ` title="${DERIVED_DESC[key]}"` : ''}><span class="cs-stat-lbl">${icon} ${label}</span><span class="cs-stat-val">${val}</span></div>`;
+    const statLine = (ico, label, val, key) =>
+      `<div class="cs-stat"${key && DERIVED_DESC[key] ? ` title="${DERIVED_DESC[key]}"` : ''}><span class="cs-stat-lbl">${icon(ico, { cls: 'cs-stat-ico' })} ${label}</span><span class="cs-stat-val">${val}</span></div>`;
     const group = (title, lines) => lines ? `<div class="cs-stat-group"><div class="cs-stat-group-title">${title}</div>${lines}</div>` : '';
     const offensive =
-      statLine('⚔️', 'Daño', `${s.dmgMin} - ${s.dmgMax}`, 'dmg') +
-      statLine('🎯', 'Crítico', `${s.crit.toFixed(1)}%`, 'crit') +
-      (s.lph ? statLine('🩸', 'Vida al golpear', s.lph, 'lph') : '') +
-      (s.mph ? statLine('🔹', 'Maná al golpear', s.mph, 'mph') : '') +
-      (s.thorns ? statLine('🌵', 'Espinas', s.thorns, 'thorns') : '');
+      statLine('sword', 'Daño', `${s.dmgMin} - ${s.dmgMax}`, 'dmg') +
+      statLine('crit', 'Crítico', `${s.crit.toFixed(1)}%`, 'crit') +
+      (s.lph ? statLine('blood', 'Vida al golpear', s.lph, 'lph') : '') +
+      (s.mph ? statLine('mana', 'Maná al golpear', s.mph, 'mph') : '') +
+      (s.thorns ? statLine('thorns', 'Espinas', s.thorns, 'thorns') : '');
     const defensive =
-      statLine('❤️', 'Vida', `${Math.ceil(p.hp)} / ${s.maxHP}`, 'maxHP') +
-      statLine('💧', 'Maná', `${Math.ceil(p.mp)} / ${s.maxMP}`, 'maxMP') +
-      statLine('🛡️', 'Armadura', s.arm, 'arm');
+      statLine('vit', 'Vida', `${Math.ceil(p.hp)} / ${s.maxHP}`, 'maxHP') +
+      statLine('mana', 'Maná', `${Math.ceil(p.mp)} / ${s.maxMP}`, 'maxMP') +
+      statLine('shield', 'Armadura', s.arm, 'arm');
     const utility =
-      statLine('👟', 'Velocidad', s.spd.toFixed(1), 'spd') +
-      statLine('🍀', 'Hallazgo mágico', `${s.mf || 0}%`, 'mf') +
-      (s.cdr ? statLine('⏳', 'Reducción de enfriamiento', `${s.cdr}%`, 'cdr') : '');
+      statLine('boot', 'Velocidad', s.spd.toFixed(1), 'spd') +
+      statLine('clover', 'Hallazgo mágico', `${s.mf || 0}%`, 'mf') +
+      (s.cdr ? statLine('hourglass', 'Reducción de enfriamiento', `${s.cdr}%`, 'cdr') : '');
     $('derived-stats').innerHTML =
       group('Ofensivas', offensive) +
       group('Defensivas', defensive) +
@@ -1663,22 +1729,22 @@ export class UI {
     // --- crónica ---
     const r = p.records;
     const h = Math.floor(r.playTime / 3600), m = Math.floor((r.playTime % 3600) / 60);
-    const rec = (icon, label, val) => `<div class="cs-rec"><span class="cs-rec-lbl">${icon} ${label}</span><span class="cs-rec-val">${val}</span></div>`;
+    const rec = (ico, label, val) => `<div class="cs-rec"><span class="cs-rec-lbl">${icon(ico, { cls: 'cs-rec-ico' })} ${label}</span><span class="cs-rec-val">${val}</span></div>`;
     $('records').innerHTML =
-      rec('💀', 'Monstruos', r.kills) +
-      rec('⭐', 'Élites/campeones', r.eliteKills) +
-      rec('👹', 'Jefes', r.bossKills) +
-      rec('🎭', 'Mímicos', r.mimics) +
-      rec('🕳️', 'Piso más profundo', r.maxFloor) +
-      rec('🌀', 'Grieta máxima', `Nv ${r.maxRift || 0}`) +
-      rec('🟠', 'Legendarios', r.legendaries) +
-      rec('🟢', 'Piezas de conjunto', r.setPieces || 0) +
-      rec('📦', 'Cofres abiertos', r.chests) +
-      rec('🪙', 'Oro recogido', r.goldEarned) +
-      rec('🎯', 'Misiones', r.quests || 0) +
-      rec('🌟', 'Desafíos diarios', r.dailies || 0) +
-      rec('⚰️', 'Muertes', r.deaths) +
-      rec('⏱️', 'Tiempo jugado', `${h}h ${m}m`);
+      rec('skull', 'Monstruos', r.kills) +
+      rec('star', 'Élites/campeones', r.eliteKills) +
+      rec('crown', 'Jefes', r.bossKills) +
+      rec('mask', 'Mímicos', r.mimics) +
+      rec('pit', 'Piso más profundo', r.maxFloor) +
+      rec('vortex', 'Grieta máxima', `Nv ${r.maxRift || 0}`) +
+      rec('star', 'Legendarios', r.legendaries) +
+      rec('crown', 'Piezas de conjunto', r.setPieces || 0) +
+      rec('chest', 'Cofres abiertos', r.chests) +
+      rec('coin', 'Oro recogido', r.goldEarned) +
+      rec('target', 'Misiones', r.quests || 0) +
+      rec('dice', 'Desafíos diarios', r.dailies || 0) +
+      rec('grave', 'Muertes', r.deaths) +
+      rec('clock', 'Tiempo jugado', `${h}h ${m}m`);
 
     // tabla local del desafío diario
     const log = this.game.dailyLog || [];
@@ -1709,7 +1775,7 @@ export class UI {
       b.className = 'shop-item';
       const poor = p.gold < price;
       if (poor) b.classList.add('no-gold');
-      b.innerHTML = `<span class="shop-name">${html}</span><span class="shop-price">🪙 ${price}</span>`;
+      b.innerHTML = `<span class="shop-name">${html}</span><span class="shop-price">${icon('coin', { cls: 'ico-gold' })} ${price}</span>`;
       b.disabled = poor;
       if (poor) b.title = 'Oro insuficiente';
       b.onclick = () => { fn(); this.renderShop(); this.updateHUD(); };
@@ -1717,21 +1783,21 @@ export class UI {
     };
 
     // --- consumibles ---
-    const sCons = section('🧪 Consumibles', 'Reabastece tus pociones antes de bajar.');
-    offer(sCons, `🧪 Poción de Vida <small class="shop-stats">Tienes ${p.potions.hp}</small>`, POTION_PRICES.hp,
+    const sCons = section(`${icon('flask')} Consumibles`, 'Reabastece tus pociones antes de bajar.');
+    offer(sCons, `${icon('potion')} Poción de Vida <small class="shop-stats">Tienes ${p.potions.hp}</small>`, POTION_PRICES.hp,
       () => { p.gold -= POTION_PRICES.hp; p.potions.hp++; g.sfx('potion'); g.save(); });
-    offer(sCons, `🔷 Poción de Maná <small class="shop-stats">Tienes ${p.potions.mp}</small>`, POTION_PRICES.mp,
+    offer(sCons, `${icon('flask')} Poción de Maná <small class="shop-stats">Tienes ${p.potions.mp}</small>`, POTION_PRICES.mp,
       () => { p.gold -= POTION_PRICES.mp; p.potions.mp++; g.sfx('potion'); g.save(); });
 
     // --- mascota (solo si aún no la tienes) ---
     if (!p.pet) {
-      const sPet = section('🐺 Compañero', 'Una sola compra: te acompaña para siempre.');
-      offer(sPet, `🐺 Lobo de caza <small class="shop-stats">Te sigue y ataca a tus enemigos.</small>`,
+      const sPet = section(`${icon('wolf')} Compañero`, 'Una sola compra: te acompaña para siempre.');
+      offer(sPet, `${icon('wolf')} Lobo de caza <small class="shop-stats">Te sigue y ataca a tus enemigos.</small>`,
         PET_PRICE, () => g.buyPet());
     }
 
     // --- mercancía rotativa ---
-    const sStock = section('📦 Mercancía del día', 'Stock que rota con el temporizador.');
+    const sStock = section(`${icon('chest')} Mercancía del día`, 'Stock que rota con el temporizador.');
     if (!g.shopStock.items.length) {
       sStock.insertAdjacentHTML('beforeend', '<p class="npc-empty">Agotado — vuelve tras la próxima rotación.</p>');
     }
@@ -1747,27 +1813,27 @@ export class UI {
     }
 
     // --- apuesta: objetos sin identificar, puede tocar legendario ---
-    const sGamble = section('🎲 Apuesta del Mercader', 'Objetos sin identificar: rareza mínima mágica… ¿quizá legendario?');
+    const sGamble = section(`${icon('dice')} Apuesta del Mercader`, 'Objetos sin identificar: rareza mínima mágica… ¿quizá legendario?');
     if (!g.shopStock.gamble.length) {
       sGamble.insertAdjacentHTML('beforeend', '<p class="npc-empty">Sin apuestas disponibles ahora mismo.</p>');
     }
     for (const ofr of g.shopStock.gamble) {
       offer(sGamble,
-        `❓ ${SLOT_NAMES[ofr.slot]} misterioso
+        `${icon('question')} ${SLOT_NAMES[ofr.slot]} misterioso
          <small class="shop-stats">Se identifica al comprarlo.</small>`,
         ofr.price,
         () => g.buyGambleItem(ofr.uid)
       );
     }
     this.updateShopTimer();
-    $('shop-gold').textContent = `🪙 ${p.gold}`;
+    $('shop-gold').innerHTML = `${icon('coin', { cls: 'ico-gold' })} ${p.gold}`;
   }
 
   updateShopTimer() {
     const stock = this.game.shopStock;
     if (!stock) return;
     const s = Math.max(0, Math.ceil((stock.until - Date.now()) / 1000));
-    $('shop-timer').textContent = `⏳ Rota en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    $('shop-timer').innerHTML = `${icon('hourglass')} Rota en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   showDeath(hardcore = false) {

@@ -25,6 +25,108 @@
 </head>
 <body>
 
+<!-- ============================================================
+     SPRITE DE ICONOS SVG (fantasía, monocromo · teñible con currentColor)
+     Siluetas propias de trazo simple. Se referencian con <use href="#ic-...">.
+     Helper en js/ui.js: icon(name). Fallback a texto si el símbolo no existe.
+     viewBox unificado 0 0 24 24.
+     ============================================================ -->
+<svg id="ui-icons" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- menú / paneles -->
+    <symbol id="ic-bag" viewBox="0 0 24 24"><path fill="currentColor" d="M8 8V6a4 4 0 0 1 8 0v2h2.2a1 1 0 0 1 1 .9l1.1 10a2 2 0 0 1-2 2.1H5.7a2 2 0 0 1-2-2.1l1.1-10a1 1 0 0 1 1-.9H8Zm2 0h4V6a2 2 0 1 0-4 0v2Zm-1 3a1 1 0 1 0 2 0H9Zm4 0a1 1 0 1 0 2 0h-2Z"/></symbol>
+    <symbol id="ic-book" viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h9a3 3 0 0 1 3 3v13a1 1 0 0 1-1.4.9A6 6 0 0 0 12 19H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm14 0a1 1 0 0 1 1 1v14a1 1 0 0 1-1.5.86A5 5 0 0 0 16 18.2V6a4 4 0 0 0-.3-1.5A2.9 2.9 0 0 1 18 3h1Z"/></symbol>
+    <symbol id="ic-hero" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm-7 19a7 7 0 0 1 14 0 1 1 0 0 1-1 1H6a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="ic-cart" viewBox="0 0 24 24"><path fill="currentColor" d="M3 3h2.3a1 1 0 0 1 1 .8L6.7 6H20a1 1 0 0 1 1 1.2l-1.4 6a2 2 0 0 1-2 1.6H9.1a1 1 0 0 0-1 .8l-.1.6h11a1 1 0 1 1 0 2H6.8a1 1 0 0 1-1-1.2l.5-2.3L4.2 5H3a1 1 0 0 1 0-2Zm6 17a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm9 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"/></symbol>
+    <symbol id="ic-gear" viewBox="0 0 24 24"><path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm9 4.3-1.9.3a7 7 0 0 1-.6 1.5l1.1 1.6a1 1 0 0 1-.1 1.3l-1 1a1 1 0 0 1-1.3.1l-1.6-1.1a7 7 0 0 1-1.5.6l-.3 1.9a1 1 0 0 1-1 .8h-1.4a1 1 0 0 1-1-.8l-.3-1.9a7 7 0 0 1-1.5-.6l-1.6 1.1a1 1 0 0 1-1.3-.1l-1-1a1 1 0 0 1-.1-1.3l1.1-1.6a7 7 0 0 1-.6-1.5l-1.9-.3a1 1 0 0 1-.8-1v-1.4a1 1 0 0 1 .8-1l1.9-.3a7 7 0 0 1 .6-1.5L3.9 6.4a1 1 0 0 1 .1-1.3l1-1a1 1 0 0 1 1.3-.1l1.6 1.1a7 7 0 0 1 1.5-.6l.3-1.9a1 1 0 0 1 1-.8h1.4a1 1 0 0 1 1 .8l.3 1.9a7 7 0 0 1 1.5.6l1.6-1.1a1 1 0 0 1 1.3.1l1 1a1 1 0 0 1 .1 1.3l-1.1 1.6a7 7 0 0 1 .6 1.5l1.9.3a1 1 0 0 1 .8 1v1.4a1 1 0 0 1-.8 1Z"/></symbol>
+    <symbol id="ic-eye" viewBox="0 0 24 24"><path fill="currentColor" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></symbol>
+    <symbol id="ic-eye-off" viewBox="0 0 24 24"><path fill="currentColor" d="M3.3 2.3 21.7 20.7l-1.4 1.4-3-3A11 11 0 0 1 12 20C7 20 3 15.5 2 13c.5-1.2 1.7-3 3.5-4.4L1.9 3.7l1.4-1.4ZM12 8a4 4 0 0 1 4 4c0 .5-.1 1-.3 1.4l-5-5c.4-.3.9-.4 1.3-.4ZM12 6c5 0 9 4.5 10 7-.4 1-1.3 2.3-2.6 3.5l-2.2-2.2A4 4 0 0 0 9.7 9.3L7.9 7.5A11 11 0 0 1 12 6Z"/></symbol>
+    <symbol id="ic-map" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2.5 3.4 4.1A1 1 0 0 0 2.7 5v15a1 1 0 0 0 1.3 1l5-1.4 6 1.7 5.6-1.6a1 1 0 0 0 .7-1V3.7a1 1 0 0 0-1.3-1L15 4.2 9 2.5Zm0 2.1 6 1.7v12.9l-6-1.7V4.6Z"/></symbol>
+    <symbol id="ic-chart" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3a1 1 0 0 1 1 1v15h15a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm4 9a1 1 0 0 1 1 1v4H7v-4a1 1 0 0 1 1-1Zm4-5a1 1 0 0 1 1 1v9h-2V8a1 1 0 0 1 1-1Zm4 3a1 1 0 0 1 1 1v6h-2v-6a1 1 0 0 1 1-1Z"/></symbol>
+    <symbol id="ic-scroll" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h11a2 2 0 0 1 2 2v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm0 2a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1 1 1 0 0 0 1-1V6a1 1 0 0 0-1-1Zm3 3h7v2H9V8Zm0 4h7v2H9v-2Z"/></symbol>
+    <symbol id="ic-book-open" viewBox="0 0 24 24"><path fill="currentColor" d="M12 5a8 8 0 0 0-8-1.5A1 1 0 0 0 3 4.5v13a1 1 0 0 0 1.3 1A7 7 0 0 1 12 19a7 7 0 0 1 7.7-.5 1 1 0 0 0 1.3-1v-13a1 1 0 0 0-1-1A8 8 0 0 0 12 5Zm-1 12.2A9 9 0 0 0 5 16.4V5.7a6 6 0 0 1 6 1V17.2Zm8-.8a9 9 0 0 0-6 .8V6.7a6 6 0 0 1 6-1v10.7Z"/></symbol>
+
+    <!-- acciones -->
+    <symbol id="ic-sword" viewBox="0 0 24 24"><path fill="currentColor" d="m14.5 3 5.5 0a1 1 0 0 1 1 1v5l-8.3 8.3-1.4-1.4 1.3-1.3-2.1-2.1-1.3 1.3-1.4-1.4L14.5 3Zm-7 11.7 2.8 2.8-3 3a1 1 0 0 1-.7.3H4a1 1 0 0 1-1-1v-2.6a1 1 0 0 1 .3-.7l4.2-4.2Z"/></symbol>
+    <symbol id="ic-dash" viewBox="0 0 24 24"><path fill="currentColor" d="M3 7h9a1 1 0 1 1 0 2H3a1 1 0 0 1 0-2Zm14.3-3.7 4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L18.6 9H8a1 1 0 0 1 0-2h10.6l-2.7-2.3a1 1 0 1 1 1.4-1.4ZM3 13h7a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2Zm0 4h11a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2Z"/></symbol>
+    <symbol id="ic-hand" viewBox="0 0 24 24"><path fill="currentColor" d="M11 2a1.4 1.4 0 0 1 1.4 1.4V10h.6V4.4a1.4 1.4 0 0 1 2.8 0V10h.6V6a1.4 1.4 0 0 1 2.8 0v8a7 7 0 0 1-7 7 7 7 0 0 1-5-2.1l-3.8-4a1.5 1.5 0 0 1 2-2.2l1.8 1.6V4.4A1.4 1.4 0 0 1 9.6 3v7h.6V3.4A1.4 1.4 0 0 1 11 2Z"/></symbol>
+    <symbol id="ic-potion" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2h6a1 1 0 1 1 0 2h-.5v3.1l3.8 8.3A4 4 0 0 1 14.7 21H9.3a4 4 0 0 1-3.6-5.6l3.8-8.3V4H9a1 1 0 0 1 0-2Zm1.5 2v3.5a1 1 0 0 1-.1.4l-1.6 3.6h6.4l-1.6-3.6a1 1 0 0 1-.1-.4V4h-3Z"/></symbol>
+    <symbol id="ic-search" viewBox="0 0 24 24"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3a1 1 0 0 1-1.4 1.4l-4.3-4.3A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></symbol>
+    <symbol id="ic-broom" viewBox="0 0 24 24"><path fill="currentColor" d="M14.6 2.8a1 1 0 0 1 1.4 0l5.2 5.2a1 1 0 0 1 0 1.4l-4 4-2-2-3.4 3.4-4-4 3.4-3.4-2-2 5.4-2.6ZM6.7 13.5l3.8 3.8-3.6 4.3a1 1 0 0 1-.7.4l-3.1.3a1 1 0 0 1-1.1-1.1l.3-3.1a1 1 0 0 1 .4-.7l4-3.9Z"/></symbol>
+    <symbol id="ic-sort" viewBox="0 0 24 24"><path fill="currentColor" d="M7 3a1 1 0 0 1 .7.3l3 3a1 1 0 0 1-1.4 1.4L8 6.4V20a1 1 0 1 1-2 0V6.4L4.7 7.7a1 1 0 0 1-1.4-1.4l3-3A1 1 0 0 1 7 3Zm10 18a1 1 0 0 1-.7-.3l-3-3a1 1 0 0 1 1.4-1.4l1.3 1.3V4a1 1 0 1 1 2 0v13.6l1.3-1.3a1 1 0 0 1 1.4 1.4l-3 3a1 1 0 0 1-.7.3Z"/></symbol>
+    <symbol id="ic-recycle" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4a8 8 0 0 1 7.5 5.3l1-1.7a1 1 0 0 1 1.7 1l-2.2 3.8a1 1 0 0 1-1.4.4l-3.8-2.2a1 1 0 1 1 1-1.7l1.6.9A6 6 0 0 0 6 12a1 1 0 0 1-2 0 8 8 0 0 1 8-8Zm8 8a8 8 0 0 1-15.5 2.7l-1 1.7a1 1 0 0 1-1.7-1l2.2-3.8a1 1 0 0 1 1.4-.4l3.8 2.2a1 1 0 1 1-1 1.7l-1.6-.9A6 6 0 0 0 18 12a1 1 0 0 1 2 0Z"/></symbol>
+    <symbol id="ic-close" viewBox="0 0 24 24"><path fill="currentColor" d="M5.7 4.3 12 10.6l6.3-6.3a1 1 0 0 1 1.4 1.4L13.4 12l6.3 6.3a1 1 0 0 1-1.4 1.4L12 13.4l-6.3 6.3a1 1 0 0 1-1.4-1.4L10.6 12 4.3 5.7a1 1 0 0 1 1.4-1.4Z"/></symbol>
+
+    <!-- atributos -->
+    <symbol id="ic-str" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5c0 1.6.7 2.5 1.3 3.3.5.6.7 1 .7 1.7v.5a1 1 0 0 1-1 1H6a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1v3a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3h1a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1h-2a1 1 0 0 1-1-1v-.5c0-.7.2-1.1.7-1.7C16.3 9.5 17 8.6 17 7a5 5 0 0 0-5-5Z"/></symbol>
+    <symbol id="ic-dex" viewBox="0 0 24 24"><path fill="currentColor" d="M21 3v5a1 1 0 0 1-2 0V6.4l-6.3 6.3 1.6 1.6a1 1 0 0 1-.3 1.6l-3 1.2-1.2 3a1 1 0 0 1-1.6.3L6.3 18 3.7 20.7a1 1 0 0 1-1.4-1.4L5 16.6l-2.4-2.3a1 1 0 0 1 .3-1.6l3-1.2 1.2-3a1 1 0 0 1 1.6-.3l1.6 1.6L17.6 5H16a1 1 0 0 1 0-2h5Z"/></symbol>
+    <symbol id="ic-vit" viewBox="0 0 24 24"><path fill="currentColor" d="M12 21S3 14.5 3 8.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9 2.5C21 14.5 12 21 12 21Z"/></symbol>
+    <symbol id="ic-ene" viewBox="0 0 24 24"><path fill="currentColor" d="M11.5 2 5 13h5l-1.5 9L19 11h-5l1.5-9h-4Z"/></symbol>
+
+    <!-- estadísticas derivadas -->
+    <symbol id="ic-crit" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 9.2 9.2 2 12l7.2 2.8L12 22l2.8-7.2L22 12l-7.2-2.8L12 2Z"/></symbol>
+    <symbol id="ic-blood" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2s7 8 7 12.5A7 7 0 0 1 5 14.5C5 10 12 2 12 2Z"/></symbol>
+    <symbol id="ic-mana" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 5 9a7 7 0 1 0 14 0l-7-7Z"/></symbol>
+    <symbol id="ic-thorns" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 7 7l3 1-5 5 4 .5L6 22l6-6 6 6-3-8.5 4-.5-5-5 3-1-5-5Z"/></symbol>
+    <symbol id="ic-shield" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.2 5 5v6.2c0 4.5 3 8.4 7 9.6 4-1.2 7-5.1 7-9.6V5l-7-2.8Z"/></symbol>
+    <symbol id="ic-boot" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3a1 1 0 0 1 1 1v8h2.2a2 2 0 0 1 1.6.8l3 4a4 4 0 0 0 3.2 1.7H20a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h1Z"/></symbol>
+    <symbol id="ic-clover" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12c-1.5-2-5-2-5 .8 0 2 1.7 3.2 3.5 3.2.8 0 1.3-.2 1.5-.4-.2 1.4-.8 2.6-2 3.4h6c-1.2-.8-1.8-2-2-3.4.2.2.7.4 1.5.4 1.8 0 3.5-1.2 3.5-3.2 0-2.8-3.5-2.8-5-.8 .8-1 .8-2.6 0-4-1.2-2-4.8-1-4.8 1.6 0 1.2.6 2 1.3 2.4Z"/></symbol>
+    <symbol id="ic-hourglass" viewBox="0 0 24 24"><path fill="currentColor" d="M6 2h12a1 1 0 1 1 0 2h-1v2.5a4 4 0 0 1-1.4 3L13 12l2.6 2.5a4 4 0 0 1 1.4 3V20h1a1 1 0 1 1 0 2H6a1 1 0 1 1 0-2h1v-2.5a4 4 0 0 1 1.4-3L11 12 8.4 9.5A4 4 0 0 1 7 6.5V4H6a1 1 0 0 1 0-2Z"/></symbol>
+    <symbol id="ic-target" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"/></symbol>
+
+    <!-- crónica / records -->
+    <symbol id="ic-skull" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a8 8 0 0 0-8 8c0 2.8 1.5 4.7 3 6v3a1 1 0 0 0 1 1h1v-2h2v2h2v-2h2v2h1a1 1 0 0 0 1-1v-3c1.5-1.3 3-3.2 3-6a8 8 0 0 0-8-8ZM8.5 9a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6Zm7 0a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6Z"/></symbol>
+    <symbol id="ic-star" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.6 6.1 20.8l1.2-6.6L2.5 9l6.6-.9L12 2Z"/></symbol>
+    <symbol id="ic-crown" viewBox="0 0 24 24"><path fill="currentColor" d="M3 7l3.5 3L12 4l5.5 6L21 7l-1.5 11h-15L3 7Zm2.3 9h13.4l.3-2H5l.3 2Z"/></symbol>
+    <symbol id="ic-mask" viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v5a8 8 0 0 1-16 0V6a1 1 0 0 1 1-1Zm4 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm-7 5a4 4 0 0 0 6 0H9Z"/></symbol>
+    <symbol id="ic-pit" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3c5 0 9 2.2 9 5s-4 5-9 5-9-2.2-9-5 4-5 9-5Zm-9 6.8C5 11.6 8.2 13 12 13s7-1.4 9-3.2V16c0 2.8-4 5-9 5s-9-2.2-9-5V9.8Z"/></symbol>
+    <symbol id="ic-portal" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 3a7 7 0 0 1 7 7 1 1 0 0 1-2 0 5 5 0 0 0-5-5 1 1 0 0 1 0-2Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></symbol>
+    <symbol id="ic-chest" viewBox="0 0 24 24"><path fill="currentColor" d="M5 4h14a2 2 0 0 1 2 2v4H3V6a2 2 0 0 1 2-2Zm-2 8h7v2h4v-2h7v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6Zm9 0h0v0Z"/></symbol>
+    <symbol id="ic-coin" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm.9 2.5h-1.4v1c-1.2.2-2 1-2 2.1 0 1.3 1 1.9 2.3 2.2 1 .3 1.2.5 1.2.9 0 .4-.4.6-1 .6-.8 0-1.5-.3-2-.7l-.8 1.3c.6.5 1.4.8 2.1.9v1h1.4v-1c1.3-.2 2.1-1 2.1-2.2 0-1.3-.9-1.9-2.3-2.3-1-.3-1.2-.5-1.2-.8 0-.3.3-.5.8-.5.7 0 1.3.3 1.8.6l.8-1.3c-.5-.4-1.1-.6-1.7-.7v-1Z"/></symbol>
+    <symbol id="ic-clock" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm-1 2a1 1 0 0 1 1 1v3.6l2.5 1.4a1 1 0 0 1-1 1.7l-3-1.7A1 1 0 0 1 10 12V8a1 1 0 0 1 1-1Z"/></symbol>
+    <symbol id="ic-grave" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a6 6 0 0 1 6 6v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V8a6 6 0 0 1 6-6Zm-1 5v2H9v2h2v4h2v-4h2V9h-2V7h-2Z"/></symbol>
+
+    <!-- económico / NPCs / progreso -->
+    <symbol id="ic-village" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 3 9v1h2v11h5v-6h4v6h5V10h2V9l-9-7Z"/></symbol>
+    <symbol id="ic-camp" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 3 20h6l3-6 3 6h6L12 2Zm0 7 3.5 7h-7L12 9Z"/></symbol>
+    <symbol id="ic-leaf" viewBox="0 0 24 24"><path fill="currentColor" d="M20 3C9 3 4 8 4 15c0 1.7.4 3.2 1.1 4.5L3 21.5 4.5 23l2-2.1A8.6 8.6 0 0 0 11 22c7 0 9-9 9-19ZM7 17c1-5 4-8 9-9-3 1.5-5.5 4-7 9l-2 0Z"/></symbol>
+    <symbol id="ic-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M7 9V7a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1h1Zm2 0h6V7a3 3 0 0 0-6 0v2Zm3 4a1.5 1.5 0 0 0-1 2.6V18h2v-2.4A1.5 1.5 0 0 0 12 13Z"/></symbol>
+    <symbol id="ic-vortex" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-9.9 8.6 1 1 0 0 0 1.9.6A8 8 0 0 1 18.5 9 6 6 0 0 0 7 11a4 4 0 0 0 6.8 2.8 1 1 0 1 0-1.4-1.4A2 2 0 0 1 9 11a4 4 0 0 1 7.6-1.7 6 6 0 0 1-11 4.3 1 1 0 0 0-1.8.8A8 8 0 0 0 22 12 10 10 0 0 0 12 2Z"/></symbol>
+    <symbol id="ic-flask" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2h6a1 1 0 1 1 0 2v5.1l4.8 8.4A3 3 0 0 1 17.2 22H6.8a3 3 0 0 1-2.6-4.5L9 9.1V4a1 1 0 0 1 0-2Z"/></symbol>
+    <symbol id="ic-gem" viewBox="0 0 24 24"><path fill="currentColor" d="M7 3h10l4 6-9 12L3 9l4-6Zm.6 2L5.4 8.5h4.1L11 5H7.6Zm5.4 0 1.5 3.5h4.1L16.4 5H13Zm-1 .8L10.3 8.5h3.4L12 5.8ZM5.6 10.5 11 17.6V10.5H5.6Zm7.4 0v7.1l5.4-7.1H13Z"/></symbol>
+    <symbol id="ic-anvil" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6h7v2a4 4 0 0 0 4 4h1l3-3 1.5 1.5L19 13h2v2h-2v2H7v-2H5a3 3 0 0 1-3-3 1 1 0 0 1 2 0 1 1 0 0 0 1 1h2V8H3V6Zm4 13h10v2H7v-2Z"/></symbol>
+    <symbol id="ic-chat" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></symbol>
+    <symbol id="ic-medal" viewBox="0 0 24 24"><path fill="currentColor" d="M8 2h8l-2 6h-4L8 2Zm4 6a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm0 3-1.2 2.4-2.6.4 1.9 1.8-.4 2.6L12 17.4l2.3 1.2-.4-2.6 1.9-1.8-2.6-.4L12 11Z"/></symbol>
+    <symbol id="ic-globe" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 9h-3a15 15 0 0 0-1.1-5A8 8 0 0 1 18.9 11ZM12 4c.9 0 2.2 2.4 2.7 7H9.3C9.8 6.4 11.1 4 12 4ZM4.6 13h3a15 15 0 0 0 1.1 5A8 8 0 0 1 4.6 13Zm4.7 0h5.4c-.5 4.6-1.8 7-2.7 7s-2.2-2.4-2.7-7Zm5.4-2H9.3c.5-4.6 1.8-7 2.7-7s2.2 2.4 2.7 7Zm-.6-5a8 8 0 0 1 4.2 3h-3a15 15 0 0 0-1.2-3ZM9.5 6a15 15 0 0 0-1.1 5h-3a8 8 0 0 1 4.1-5Z"/></symbol>
+    <symbol id="ic-trophy" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.3A6 6 0 0 1 13 15.7V18h3v2H8v-2h3v-2.3A6 6 0 0 1 7.3 12H7a4 4 0 0 1-4-4V5h3V3Zm0 4H5v1a2 2 0 0 0 1 1.7V7Zm12 0v2.7A2 2 0 0 0 19 8V7h-1Z"/></symbol>
+    <symbol id="ic-dice" viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm3 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm-4 4.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM8 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></symbol>
+    <symbol id="ic-question" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 4a3.5 3.5 0 0 1 3.5 3.5c0 1.6-1 2.3-1.8 2.9-.6.4-.9.7-.9 1.1v.5h-1.6v-.7c0-1.1.7-1.7 1.4-2.2.6-.4 1-.7 1-1.6A1.6 1.6 0 0 0 12 8.4a1.6 1.6 0 0 0-1.6 1.4l-1.7-.3A3.4 3.4 0 0 1 12 6Zm0 11.5a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2Z"/></symbol>
+    <symbol id="ic-warn" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5 22 20H2L12 2.5Zm-1 6v5h2V8.5h-2Zm0 7v2h2v-2h-2Z"/></symbol>
+    <symbol id="ic-link" viewBox="0 0 24 24"><path fill="currentColor" d="M10.6 13.4a1 1 0 0 1 0-1.4l2-2a1 1 0 0 1 1.4 1.4l-2 2a1 1 0 0 1-1.4 0Zm-2.8 4.9a3 3 0 0 1-4.2-4.2l2.5-2.5a3 3 0 0 1 4.2 0 1 1 0 0 1-1.4 1.4 1 1 0 0 0-1.4 0l-2.5 2.5a1 1 0 0 0 1.4 1.4l1.2-1.2a1 1 0 1 1 1.4 1.4l-1.2 1.2Zm12.6-8.6-2.5 2.5a3 3 0 0 1-4.2 0 1 1 0 0 1 1.4-1.4 1 1 0 0 0 1.4 0l2.5-2.5a1 1 0 0 0-1.4-1.4l-1.2 1.2a1 1 0 0 1-1.4-1.4l1.2-1.2a3 3 0 0 1 4.2 4.2Z"/></symbol>
+    <symbol id="ic-save" viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm3 1v4h7V4H8Zm4 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></symbol>
+    <symbol id="ic-copy" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2h9a2 2 0 0 1 2 2v12h-2V4H9V2Zm-3 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/></symbol>
+    <symbol id="ic-import" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v8.6l2.3-2.3a1 1 0 0 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 1.4-1.4l2.3 2.3V4a1 1 0 0 1 1-1ZM5 17a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/></symbol>
+    <symbol id="ic-sun" viewBox="0 0 24 24"><path fill="currentColor" d="M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0-5a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm0 16a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1ZM2 12a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1Zm17 0a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1ZM4.2 4.2a1 1 0 0 1 1.4 0l1.5 1.5a1 1 0 0 1-1.4 1.4L4.2 5.6a1 1 0 0 1 0-1.4Zm12.7 12.7a1 1 0 0 1 1.4 0l1.5 1.5a1 1 0 0 1-1.4 1.4l-1.5-1.5a1 1 0 0 1 0-1.4ZM19.8 4.2a1 1 0 0 1 0 1.4l-1.5 1.5a1 1 0 0 1-1.4-1.4l1.5-1.5a1 1 0 0 1 1.4 0ZM7.1 16.9a1 1 0 0 1 0 1.4l-1.5 1.5a1 1 0 0 1-1.4-1.4l1.5-1.5a1 1 0 0 1 1.4 0Z"/></symbol>
+    <symbol id="ic-speaker" viewBox="0 0 24 24"><path fill="currentColor" d="M5 9h3l4-4v14l-4-4H5a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm11.5-1.5a1 1 0 0 1 1.4 0 6 6 0 0 1 0 8.5 1 1 0 0 1-1.4-1.4 4 4 0 0 0 0-5.7 1 1 0 0 1 0-1.4Z"/></symbol>
+    <symbol id="ic-music" viewBox="0 0 24 24"><path fill="currentColor" d="M9 3 19 1v13.5a3.5 3.5 0 1 1-2-3.2V5.4l-6 1.2v8.9A3.5 3.5 0 1 1 9 12.3V3Z"/></symbol>
+    <symbol id="ic-shake" viewBox="0 0 24 24"><path fill="currentColor" d="M5 7a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V8a1 1 0 0 1 1-1Zm14 0a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V8a1 1 0 0 1 1-1ZM9 4a2 2 0 0 1 2 2v12a2 2 0 0 1-4 0V6a2 2 0 0 1 2-2Zm6 0a2 2 0 0 1 2 2v12a2 2 0 0 1-4 0V6a2 2 0 0 1 2-2Z"/></symbol>
+    <symbol id="ic-phone" viewBox="0 0 24 24"><path fill="currentColor" d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm5 16a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM7 4v13h10V4H7Z"/></symbol>
+    <symbol id="ic-rocket" viewBox="0 0 24 24"><path fill="currentColor" d="M14 3c4 0 7 3 7 7 0 .5-.3 2-2.5 4.2l-1 1 .5 3a1 1 0 0 1-.3.9l-2.4 2.4-2-4-3-3-4-2 2.4-2.4a1 1 0 0 1 .9-.3l3 .5 1-1C13.5 3 15 3 14 3Zm.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM4 17c1-1 2.5-1 3.5 0s1 2.5 0 3.5c-.7.7-3.5 1.5-4.5 1 .5-1 .3-3.8 1-4.5Z"/></symbol>
+    <symbol id="ic-palette" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.3-.4-.5-.8-.5-1.3a1.7 1.7 0 0 1 1.7-1.7H17a5 5 0 0 0 5-5C22 6 17.5 2 12 2ZM6.5 11A1.5 1.5 0 1 1 6.5 8a1.5 1.5 0 0 1 0 3Zm3-4A1.5 1.5 0 1 1 9.5 4a1.5 1.5 0 0 1 0 3Zm5 0A1.5 1.5 0 1 1 14.5 4a1.5 1.5 0 0 1 0 3Zm3 4A1.5 1.5 0 1 1 17.5 8a1.5 1.5 0 0 1 0 3Z"/></symbol>
+    <symbol id="ic-text" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h16v4h-2V6h-5v12h2v2H9v-2h2V6H6v2H4V4Z"/></symbol>
+    <symbol id="ic-bulb" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 1 4 12.7c-.6.4-1 1.1-1 1.8V17H9v-.5c0-.7-.4-1.4-1-1.8A7 7 0 0 1 12 2ZM9 18h6v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1Z"/></symbol>
+    <symbol id="ic-paint" viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-6v2h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1V9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></symbol>
+    <symbol id="ic-magic" viewBox="0 0 24 24"><path fill="currentColor" d="m14.5 2 1.3 2.7L18.5 6l-2.7 1.3L14.5 10l-1.3-2.7L10.5 6l2.7-1.3L14.5 2ZM6 9l.9 1.9L9 11.8l-2.1.9L6 14.6l-.9-1.9L3 11.8l2.1-.9L6 9Zm5.3 3.3 9.4 9.4-1.4 1.4-9.4-9.4 1.4-1.4Z"/></symbol>
+    <symbol id="ic-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.5a1 1 0 0 1 1.5-.9l11 7a1 1 0 0 1 0 1.7l-11 7A1 1 0 0 1 7 18.5v-14Z"/></symbol>
+    <symbol id="ic-trash" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6H4a1 1 0 0 1 0-2h4V3a1 1 0 0 1 1-1Zm1 6v10h2V8h-2Zm4 0v10h2V8h-2Z"/></symbol>
+    <symbol id="ic-plus" viewBox="0 0 24 24"><path fill="currentColor" d="M11 4a1 1 0 0 1 2 0v7h7a1 1 0 1 1 0 2h-7v7a1 1 0 1 1-2 0v-7H4a1 1 0 1 1 0-2h7V4Z"/></symbol>
+    <symbol id="ic-check" viewBox="0 0 24 24"><path fill="currentColor" d="M20 6.5 9.5 17 4 11.5l1.5-1.5 4 4L18.5 5 20 6.5Z"/></symbol>
+    <symbol id="ic-gift" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4a2.5 2.5 0 0 1 4.6 1.3A2.5 2.5 0 0 1 16 7h4a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4a2.5 2.5 0 0 1 3-3Zm-1 8H6v7h5v-7Zm2 0v7h5v-7h-5Zm-3-5a.7.7 0 1 0 0 .1V7H10Zm4 0h1a.7.7 0 1 0-1 0Z"/></symbol>
+    <symbol id="ic-wolf" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3l3 2 5-1 5 1 3-2-1 5 2 3-3 1-1 4-3 2H8l-3-2-1-4-3-1 2-3-1-5Zm5 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-3 4 2 2h-4l2-2Z"/></symbol>
+    <symbol id="ic-fav" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.6 6.1 20.8l1.2-6.6L2.5 9l6.6-.9L12 2Z"/></symbol>
+  </defs>
+</svg>
+
 <div id="game"></div>
 
 <!-- capas de superposición -->
@@ -54,12 +156,12 @@
     <div id="quest-tracker" style="display:none"></div>
     <div id="zone-contracts" style="display:none"></div>
     <div id="menu-btns">
-      <button id="btn-inv" title="Inventario [I]">🎒</button>
-      <button id="btn-skills" title="Habilidades [T]">📖<span class="badge" id="badge-skills"></span></button>
-      <button id="btn-stats" title="Personaje [C]">🧍<span class="badge" id="badge-stats"></span></button>
-      <button id="btn-shop" title="Tienda" style="display:none">🛒</button>
-      <button id="btn-settings" title="Opciones">⚙️</button>
-      <button id="btn-clean-hud" title="Modo limpio (ocultar HUD no esencial)" aria-pressed="false">👁️</button>
+      <button id="btn-inv" class="ui-iconbtn" title="Inventario [I]" aria-label="Inventario"><svg class="ui-ico"><use href="#ic-bag"/></svg></button>
+      <button id="btn-skills" class="ui-iconbtn" title="Habilidades [T]" aria-label="Habilidades"><svg class="ui-ico"><use href="#ic-book"/></svg><span class="badge" id="badge-skills"></span></button>
+      <button id="btn-stats" class="ui-iconbtn" title="Personaje [C]" aria-label="Personaje"><svg class="ui-ico"><use href="#ic-hero"/></svg><span class="badge" id="badge-stats"></span></button>
+      <button id="btn-shop" class="ui-iconbtn" title="Tienda" aria-label="Tienda" style="display:none"><svg class="ui-ico"><use href="#ic-cart"/></svg></button>
+      <button id="btn-settings" class="ui-iconbtn" title="Opciones" aria-label="Opciones"><svg class="ui-ico"><use href="#ic-gear"/></svg></button>
+      <button id="btn-clean-hud" class="ui-iconbtn" title="Modo limpio (ocultar HUD no esencial)" aria-label="Modo limpio" aria-pressed="false"><svg class="ui-ico"><use href="#ic-eye"/></svg></button>
     </div>
   </div>
 
@@ -75,27 +177,27 @@
     <div class="orb-fill" id="orb-hp-fill"></div>
     <span class="orb-txt" id="orb-hp-txt">0</span>
   </div>
-  <button id="btn-pot-hp" class="pot-btn">🧪<span class="pot-count" id="pot-hp-count">0</span><span class="pot-key">Q</span></button>
+  <button id="btn-pot-hp" class="pot-btn pot-hp" title="Poción de vida [Q]" aria-label="Poción de vida"><svg class="ui-ico"><use href="#ic-potion"/></svg><span class="pot-count" id="pot-hp-count">0</span><span class="pot-key">Q</span></button>
 
   <!-- orbe de maná + poción -->
   <div id="orb-mp" class="orb">
     <div class="orb-fill" id="orb-mp-fill"></div>
     <span class="orb-txt" id="orb-mp-txt">0</span>
   </div>
-  <button id="btn-pot-mp" class="pot-btn">🔷<span class="pot-count" id="pot-mp-count">0</span><span class="pot-key">E</span></button>
+  <button id="btn-pot-mp" class="pot-btn pot-mp" title="Poción de maná [E]" aria-label="Poción de maná"><svg class="ui-ico"><use href="#ic-flask"/></svg><span class="pot-count" id="pot-mp-count">0</span><span class="pot-key">E</span></button>
 
   <!-- acciones -->
   <div id="action-cluster">
     <div id="skillbar"></div>
-    <button id="btn-grab" title="Recoger botín [F]">🖐️</button>
-    <button id="btn-dodge" title="Esquivar [Shift]">💨<div class="cd-overlay"></div></button>
-    <button id="btn-attack" title="Atacar / Interactuar [Espacio]">⚔️</button>
+    <button id="btn-grab" class="ui-iconbtn" title="Recoger botín [F]" aria-label="Recoger botín"><svg class="ui-ico"><use href="#ic-hand"/></svg></button>
+    <button id="btn-dodge" class="ui-iconbtn" title="Esquivar [Shift]" aria-label="Esquivar"><svg class="ui-ico"><use href="#ic-dash"/></svg><div class="cd-overlay"></div></button>
+    <button id="btn-attack" class="ui-iconbtn" title="Atacar / Interactuar [Espacio]" aria-label="Atacar o interactuar"><svg class="ui-ico"><use href="#ic-sword"/></svg></button>
   </div>
 </div>
 
 <!-- paneles -->
 <div id="panel-inv" class="panel hidden">
-  <div class="panel-head"><h2>🎒 Inventario</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-bag"/></svg> Inventario</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
 
   <!-- Diablo IV: dos columnas en escritorio (equipo | mochila), apilado en móvil -->
   <div id="inv-layout">
@@ -103,12 +205,12 @@
     <!-- columna izquierda: muñeco de equipo + cubo -->
     <div class="inv-col inv-col-left">
       <section class="inv-section">
-        <h4 class="inv-sec-head"><span class="inv-sec-ico">🛡️</span> Equipo</h4>
+        <h4 class="inv-sec-head"><span class="inv-sec-ico"><svg class="ui-ico"><use href="#ic-shield"/></svg></span> Equipo</h4>
         <div id="equip-slots"></div>
       </section>
 
       <section class="inv-section inv-cube-section">
-        <h4 class="inv-sec-head"><span class="inv-sec-ico">🧪</span> Cubo de Transmutación</h4>
+        <h4 class="inv-sec-head"><span class="inv-sec-ico"><svg class="ui-ico"><use href="#ic-flask"/></svg></span> Cubo de Transmutación</h4>
         <p class="dim cube-help">3 objetos de la misma rareza → 1 superior (cuesta oro) · 3 legendarios → reforjar uno nuevo (caro) · si comparten ranura, el resultado es de esa ranura · 3 gemas iguales → gema superior</p>
         <div id="cube-row"></div>
       </section>
@@ -117,15 +219,15 @@
     <!-- columna derecha: pestañas Mochila / Materiales -->
     <div class="inv-col inv-col-right">
       <div id="inv-tabs" class="inv-tabs">
-        <button class="inv-tab on" data-invtab="bag"><span class="inv-sec-ico">🎒</span> Mochila</button>
-        <button class="inv-tab" data-invtab="mat"><span class="inv-sec-ico">💎</span> Materiales</button>
+        <button class="inv-tab on" data-invtab="bag"><span class="inv-sec-ico"><svg class="ui-ico"><use href="#ic-bag"/></svg></span> Mochila</button>
+        <button class="inv-tab" data-invtab="mat"><span class="inv-sec-ico"><svg class="ui-ico"><use href="#ic-gem"/></svg></span> Materiales</button>
       </div>
 
       <section class="inv-section inv-tab-pane" data-pane="bag">
         <div id="inv-tools">
-          <button id="btn-identify">🔎 Identificar</button>
-          <button id="btn-junk">🧹 Vender morralla</button>
-          <button id="btn-sort">↕️ Ordenar</button>
+          <button id="btn-identify"><svg class="ui-ico"><use href="#ic-search"/></svg> Identificar</button>
+          <button id="btn-junk"><svg class="ui-ico"><use href="#ic-broom"/></svg> Vender morralla</button>
+          <button id="btn-sort"><svg class="ui-ico"><use href="#ic-sort"/></svg> Ordenar</button>
         </div>
         <p class="dim inv-gold-line"><span id="inv-gold"></span></p>
         <div id="inv-grid"></div>
@@ -140,31 +242,31 @@
   </div>
 
   <div class="inv-legend dim">
-    <span><span class="lg-glyph" style="color:#6f8cff">✦</span> Mágico</span>
-    <span><span class="lg-glyph" style="color:#ffd24a">◆</span> Raro</span>
-    <span><span class="lg-glyph" style="color:#ff8c2e">★</span> Legendario</span>
-    <span><span class="lg-glyph" style="color:#4ade80">❖</span> Conjunto</span>
-    <span>❓ Sin identificar</span>
-    <span>⭐ Favorito</span>
+    <span><span class="lg-glyph" style="color:#6f8cff"><svg class="ui-ico"><use href="#ic-magic"/></svg></span> Mágico</span>
+    <span><span class="lg-glyph" style="color:#ffd24a"><svg class="ui-ico"><use href="#ic-gem"/></svg></span> Raro</span>
+    <span><span class="lg-glyph" style="color:#ff8c2e"><svg class="ui-ico"><use href="#ic-star"/></svg></span> Legendario</span>
+    <span><span class="lg-glyph" style="color:#4ade80"><svg class="ui-ico"><use href="#ic-crown"/></svg></span> Conjunto</span>
+    <span><span class="lg-glyph"><svg class="ui-ico"><use href="#ic-question"/></svg></span> Sin identificar</span>
+    <span><span class="lg-glyph" style="color:#ffd24a"><svg class="ui-ico"><use href="#ic-fav"/></svg></span> Favorito</span>
   </div>
 </div>
 
 <div id="panel-skills" class="panel hidden">
-  <div class="panel-head"><h2>📖 Árbol de Habilidades</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-book"/></svg> Árbol de Habilidades</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <div id="sk-build-nav"></div>
   <p id="skill-points" class="points-txt"></p>
   <div id="skill-tree"></div>
 </div>
 
 <div id="panel-stats" class="panel hidden cs-panel">
-  <div class="panel-head"><h2>🧍 Personaje</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-hero"/></svg> Personaje</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
 
   <div id="cs-build-nav"></div>
 
   <div id="cs-hero" class="cs-hero"></div>
 
   <section class="cs-section">
-    <div class="cs-section-head"><span class="cs-section-title">💪 Atributos</span><span id="stat-points" class="cs-points"></span></div>
+    <div class="cs-section-head"><span class="cs-section-title"><svg class="ui-ico"><use href="#ic-str"/></svg> Atributos</span><span id="stat-points" class="cs-points"></span></div>
     <div id="attr-list" class="cs-attr-list"></div>
   </section>
 
@@ -173,74 +275,74 @@
   </section>
 
   <section class="cs-section">
-    <div class="cs-section-head"><span class="cs-section-title">📊 Estadísticas</span></div>
+    <div class="cs-section-head"><span class="cs-section-title"><svg class="ui-ico"><use href="#ic-chart"/></svg> Estadísticas</span></div>
     <div id="derived-stats"></div>
   </section>
 
   <section class="cs-section">
-    <div class="cs-section-head"><span class="cs-section-title">📜 Crónica</span></div>
+    <div class="cs-section-head"><span class="cs-section-title"><svg class="ui-ico"><use href="#ic-scroll"/></svg> Crónica</span></div>
     <div id="records"></div>
   </section>
 
   <section class="cs-section">
-    <div class="cs-section-head"><span class="cs-section-title">🌟 Desafíos Diarios</span></div>
+    <div class="cs-section-head"><span class="cs-section-title"><svg class="ui-ico"><use href="#ic-star"/></svg> Desafíos Diarios</span></div>
     <div id="daily-log"></div>
   </section>
 
-  <button id="btn-collection" class="quest-btn">📚 Colección y Bestiario</button>
+  <button id="btn-collection" class="quest-btn"><svg class="ui-ico"><use href="#ic-book-open"/></svg> Colección y Bestiario</button>
 </div>
 
 <div id="panel-collection" class="panel hidden npc-panel">
-  <div class="panel-head"><h2>📚 Colección</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-book-open"/></svg> Colección</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <p class="npc-intro">Tu progreso de conjuntos, poderes legendarios y enemigos derrotados.</p>
   <div id="collection-body"></div>
 </div>
 
 <div id="panel-recipes" class="panel hidden npc-panel">
-  <div class="panel-head"><h2>📖 Recetas</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-book"/></svg> Recetas</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <p class="npc-intro">Combina objetos en el Cubo de Transmutación y descubre palabras rúnicas.</p>
   <div id="recipes-body"></div>
 </div>
 
 <div id="panel-pacts" class="panel hidden npc-panel">
-  <div class="panel-head"><h2>🩸 Altar de Pactos</h2><button class="panel-close">✕</button></div>
-  <p class="npc-intro">⚠️ Sella un pacto para este piso: más peligro a cambio de más recompensa. <b>Solo uno por piso.</b></p>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-blood"/></svg> Altar de Pactos</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
+  <p class="npc-intro"><svg class="ui-ico"><use href="#ic-warn"/></svg> Sella un pacto para este piso: más peligro a cambio de más recompensa. <b>Solo uno por piso.</b></p>
   <div id="pacts-body"></div>
 </div>
 
 <div id="panel-stash" class="panel hidden npc-panel">
-  <div class="panel-head"><h2>🗃️ Alijo Compartido</h2><button class="panel-close">✕</button></div>
-  <p class="npc-intro">🔒 Compartido entre todos tus héroes — sobrevive incluso a la muerte en Hardcore.</p>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-chest"/></svg> Alijo Compartido</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
+  <p class="npc-intro"><svg class="ui-ico"><use href="#ic-lock"/></svg> Compartido entre todos tus héroes — sobrevive incluso a la muerte en Hardcore.</p>
   <div class="npc-section">
-    <div class="npc-section-head"><span>🗃️ Alijo</span><span id="stash-count" class="npc-tag"></span></div>
+    <div class="npc-section-head"><span><svg class="ui-ico"><use href="#ic-chest"/></svg> Alijo</span><span id="stash-count" class="npc-tag"></span></div>
     <p class="npc-help">Toca un objeto para devolverlo a tu mochila.</p>
     <div id="stash-grid"></div>
   </div>
   <div class="npc-section">
-    <div class="npc-section-head"><span>🎒 Tu mochila</span></div>
+    <div class="npc-section-head"><span><svg class="ui-ico"><use href="#ic-bag"/></svg> Tu mochila</span></div>
     <p class="npc-help">Toca un objeto para guardarlo en el alijo.</p>
     <div id="stash-inv-grid"></div>
   </div>
 </div>
 
 <div id="panel-waypoints" class="panel hidden">
-  <div class="panel-head"><h2>🗺️ Waypoints</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-map"/></svg> Waypoints</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <p class="dim">Viaja al instante a los pisos descubiertos. Encontrarás un waypoint cada 5 pisos de la mazmorra.</p>
   <div id="wp-list"></div>
 </div>
 
 <div id="panel-quest" class="panel hidden npc-panel">
-  <div class="panel-head"><h2>🎖️ Capitán de la Guardia</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-medal"/></svg> Capitán de la Guardia</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <div id="quest-body"></div>
 </div>
 
 <div id="panel-settings" class="panel hidden">
-  <div class="panel-head"><h2>⚙️ Opciones</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-gear"/></svg> Opciones</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <div id="settings-body"></div>
 </div>
 
 <div id="panel-shop" class="panel hidden npc-panel">
-  <div class="panel-head"><h2>🛒 Mercader</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-cart"/></svg> Mercader</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <div id="shop-bar">
     <span id="shop-timer" class="shop-timer-tag"></span>
     <span id="shop-gold" class="shop-gold-tag"></span>
@@ -252,26 +354,26 @@
 <div id="item-tooltip" class="hidden"></div>
 
 <div id="panel-map" class="panel hidden">
-  <div class="panel-head"><h2>🗺️ Mapa</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-map"/></svg> Mapa</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <canvas id="map-canvas"></canvas>
   <p id="map-info" class="dim"></p>
 </div>
 
 <!-- Estatua del Mundo: dificultad (Tormento) + Códice de Aspectos -->
 <div id="panel-progress" class="panel hidden">
-  <div class="panel-head"><h2>☠️ Estatua del Mundo</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-skull"/></svg> Estatua del Mundo</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <div id="progress-body"></div>
 </div>
 
 <!-- elección de bendición (recompensa de grieta) — sin cerrar: hay que elegir -->
 <div id="panel-blessing" class="panel hidden">
-  <div class="panel-head"><h2>🌟 Bendición de Corrupción</h2></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-star"/></svg> Bendición de Corrupción</h2></div>
   <div id="blessing-body"></div>
 </div>
 
 <!-- Tablero de Paragon -->
 <div id="panel-paragon" class="panel hidden">
-  <div class="panel-head"><h2>🌟 Tablero de Paragon</h2><button class="panel-close">✕</button></div>
+  <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-star"/></svg> Tablero de Paragon</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
   <div id="pg-build-nav"></div>
   <p id="paragon-points" class="points-txt"></p>
   <div id="pg-alert"></div>
@@ -287,7 +389,7 @@
 
 <!-- selección de clase -->
 <div id="class-select" class="fullscreen hidden">
-  <h1>⚔️ IntentoRPG</h1>
+  <h1><svg class="ui-ico title-ico"><use href="#ic-sword"/></svg> IntentoRPG</h1>
   <p class="subtitle">Un ARPG isométrico de mazmorras y botín</p>
   <div id="class-cards"></div>
   <p class="hint">Escritorio: clic para moverte/atacar · 1-4 habilidades · Q/E pociones · I/T/C paneles<br>
@@ -296,7 +398,7 @@
 
 <!-- pantalla de muerte -->
 <div id="death-screen" class="fullscreen hidden">
-  <h1 class="death-title">💀 Has Muerto</h1>
+  <h1 class="death-title"><svg class="ui-ico title-ico"><use href="#ic-skull"/></svg> Has Muerto</h1>
   <p id="death-text">Las profundidades reclaman otra alma...</p>
   <button id="btn-respawn">Despertar en el Pueblo</button>
 </div>

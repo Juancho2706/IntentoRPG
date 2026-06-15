@@ -1579,3 +1579,158 @@ body.reduce-motion .skill-btn.mana-flash { animation: none !important; }
 @media (max-width: 700px) {
   #mat-grid { grid-template-columns: repeat(6, 1fr); }
 }
+
+/* ============================================================
+   SET DE ICONOS SVG + PULIDO VISUAL DEL CHROME (sección nueva)
+   - Iconos monocromos teñibles con currentColor (heredan el color del texto).
+   - Reemplazan los emojis del chrome de la UI (botones, cabeceras, stats,
+     atributos y marcadores de rareza). Fallback a texto vía .ui-ico-fallback.
+   - Ornamento sutil de paneles, separadores, transiciones de apertura y
+     estados hover/activo más claros. Respeta big-text / reduce-motion y
+     mantiene objetivos táctiles >=44px.
+   ============================================================ */
+
+/* ---------- icono base ---------- */
+.ui-ico {
+  width: 1.05em; height: 1.05em;
+  display: inline-block; vertical-align: -0.16em;
+  fill: currentColor; color: inherit;
+  flex: none; pointer-events: none;
+}
+.ui-ico-fallback { display: inline-block; vertical-align: -0.1em; line-height: 1; }
+
+/* iconos en cabeceras de panel / títulos: un poco mayores y dorados */
+.panel-head h2 .head-ico { width: 1.15em; height: 1.15em; color: var(--gold); vertical-align: -0.2em; margin-right: 2px; }
+.fullscreen h1 .title-ico { width: 0.95em; height: 0.95em; vertical-align: -0.08em; }
+
+/* ---------- botones de icono del HUD ---------- */
+.ui-iconbtn { display: inline-flex; align-items: center; justify-content: center; }
+#menu-btns button .ui-ico { width: 24px; height: 24px; color: #e7dcc0; }
+#menu-btns button:hover .ui-ico,
+#menu-btns button[aria-pressed="true"] .ui-ico { color: var(--gold); }
+#menu-btns button {
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.1s ease;
+}
+#menu-btns button:hover {
+  border-color: rgba(201, 162, 39, 0.6);
+  background: rgba(201, 162, 39, 0.12);
+}
+#menu-btns button:active { transform: translateY(1px) scale(0.96); }
+#menu-btns button[aria-pressed="true"] {
+  border-color: rgba(201, 162, 39, 0.7);
+  background: rgba(201, 162, 39, 0.16);
+}
+
+/* botones de acción redondos: icono centrado, sin texto */
+#btn-attack .ui-ico { width: 32px; height: 32px; color: #fff; }
+#btn-dodge .ui-ico, #btn-grab .ui-ico { width: 26px; height: 26px; color: #fff; }
+#btn-attack.interact .ui-ico { color: #fff7d8; }
+.pot-btn .ui-ico { width: 24px; height: 24px; }
+#btn-pot-hp .ui-ico { color: #ff7a6a; }
+#btn-pot-mp .ui-ico { color: #7aa6ff; }
+
+/* botón de cerrar panel: silueta clara, target táctil amplio */
+.panel-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; min-width: 34px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--panel-border); border-radius: 8px;
+  color: #cbb98c;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.panel-close .ui-ico { width: 18px; height: 18px; }
+.panel-close:hover { color: #ffd9d0; border-color: #a8553c; background: rgba(168,85,60,0.18); }
+.panel-close:active { transform: scale(0.93); }
+
+/* iconos dentro de botones de herramientas/lista con texto al lado */
+#inv-tools button .ui-ico,
+.shop-name .ui-ico, .npc-section-head .ui-ico,
+.tier-head .ui-ico, .opt-row span .ui-ico, .opt-section .ui-ico,
+.quest-btn .ui-ico, .bnav-tab .ui-ico { width: 1em; height: 1em; vertical-align: -0.14em; margin-right: 3px; }
+.quest-btn .ui-ico { color: var(--gold); }
+
+/* ---------- atributos y estadísticas ---------- */
+.cs-attr-icon .ui-ico { width: 22px; height: 22px; }
+.cs-attr-icon .attr-fue { color: #e0794a; }
+.cs-attr-icon .attr-des { color: #5fce8a; }
+.cs-attr-icon .attr-vit { color: #ff6a6a; }
+.cs-attr-icon .attr-ene { color: #8c7aff; }
+.cs-section-title .ui-ico { width: 1.05em; height: 1.05em; color: var(--gold); vertical-align: -0.18em; margin-right: 4px; }
+.cs-stat-ico { color: #cbb98c; }
+.cs-rec-ico { color: #b6a878; }
+
+/* iconos en celdas de objeto (rareza / sin identificar / favorito) */
+.cell-glyph .ui-ico, .cell-unid .ui-ico, .fav-star .ui-ico,
+.lg-glyph .ui-ico, .rarity-ico { width: 1em; height: 1em; vertical-align: -0.12em; }
+.cell-unid .ui-ico { color: #c9a8e8; }
+.inv-legend .lg-glyph .ui-ico { width: 1.1em; height: 1.1em; }
+
+/* iconos en HUD-info (oro / zona / nivel hardcore) */
+#hud-info .ui-ico { width: 1em; height: 1em; vertical-align: -0.14em; }
+.ico-gold { color: var(--gold); }
+.hud-hc { color: #d05050; }
+#quest-tracker .ui-ico, #zone-contracts .ui-ico { width: 1em; height: 1em; vertical-align: -0.14em; }
+#zone-contracts .c-done .ui-ico { color: #6ad07a; }
+
+/* ---------- pulido de paneles: ornamento, cabeceras, transiciones ---------- */
+.panel {
+  /* marco sutil + acento dorado interior */
+  box-shadow:
+    inset 0 0 0 1px rgba(201, 162, 39, 0.10),
+    0 12px 40px rgba(0, 0, 0, 0.6);
+}
+/* línea ornamental bajo la cabecera del panel */
+.panel-head {
+  position: relative;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.18);
+  background:
+    linear-gradient(180deg, rgba(201,162,39,0.05), transparent 70%);
+}
+.panel-head::after {
+  content: ""; position: absolute; left: 0; bottom: -1px;
+  width: 48px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+
+/* transición suave de apertura de paneles (se ignora con reduce-motion) */
+.panel:not(.hidden) { animation: panelIn 0.18s ease-out; }
+@keyframes panelIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* separadores de sección de opciones, más legibles */
+.opt-section {
+  margin: 14px 0 6px; padding-bottom: 4px;
+  color: var(--gold); font-size: 13px; letter-spacing: 0.4px;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.16);
+  display: flex; align-items: center; gap: 6px;
+}
+.opt-section:first-child { margin-top: 2px; }
+.opt-section .ui-ico { color: var(--gold); }
+
+/* fila de opción: hover claro y target táctil cómodo */
+.opt-row {
+  min-height: 44px;
+  transition: background 0.14s ease;
+  border-radius: 6px;
+}
+.opt-row:hover { background: rgba(255, 255, 255, 0.03); }
+.opt-row span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- accesibilidad: contraste y tamaño ---------- */
+/* texto grande: agranda también los iconos para mantener la proporción */
+body.big-text .ui-ico { width: 1.12em; height: 1.12em; }
+body.big-text #menu-btns button .ui-ico { width: 28px; height: 28px; }
+body.big-text .panel-close { width: 40px; height: 40px; }
+
+/* movimiento reducido: sin animación de apertura de paneles */
+body.reduce-motion .panel:not(.hidden) { animation: none; }
+
+/* objetivos táctiles mínimos en móvil (>=44px) para botones de icono */
+@media (max-width: 700px) {
+  #inv-tools button { min-height: 44px; }
+  .opt-row { min-height: 46px; }
+  .panel-close { width: 40px; height: 40px; }
+}
