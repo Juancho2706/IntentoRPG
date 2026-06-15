@@ -274,6 +274,9 @@ export class Player {
     this.era = this.era && typeof this.era === 'object' ? this.era : null;
     this.titles = Array.isArray(this.titles) ? this.titles : [];
     this.title = this.title || null;
+    // mundo (D4-lite): zonas descubiertas y pueblo favorito (reaparición)
+    this.discoveredZones = Array.isArray(this.discoveredZones) && this.discoveredZones.length ? this.discoveredZones : ['Cripta'];
+    this.homeZone = this.homeZone || 'Cripta';
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;

@@ -3,7 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS } from './data.js';
-import { buildTown, buildDungeon, buildRefuge } from './world.js';
+import { buildTown, buildDungeon, buildRefuge, makePortal } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet, MAX_MATERIALS } from './entities.js';
 import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES } from './items.js';
@@ -349,7 +349,8 @@ class Game {
       gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
-      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title, dailyDone: p.dailyDone, tips: p.tips,
+      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title,
+      discoveredZones: p.discoveredZones, homeZone: p.homeZone, dailyDone: p.dailyDone, tips: p.tips,
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
@@ -445,10 +446,25 @@ class Game {
     this.edgeArmed = false; // puertas automáticas desarmadas hasta alejarse
     // en la zona, el portal de retorno se cruza caminando (como salir por el sur)
     if (w.type === 'zone') {
+      // descubrimiento del mundo (D4-lite): registra la región al pisarla
+      if (this.player && !this.player.discoveredZones.includes(w.biome)) {
+        this.player.discoveredZones.push(w.biome);
+        this.ui.message(`🗺️ Nueva región descubierta: ${w.biome}`, 3500);
+      }
       // niebla de guerra persistente por sesión: la zona recuerda lo explorado
       if (!this.zoneExplored) this.zoneExplored = {};
       if (!this.zoneExplored[w.biome]) this.zoneExplored[w.biome] = new Set();
       w.explored = this.zoneExplored[w.biome];
+      // "caminos" a las regiones adyacentes: un portal en el borde por cada enlace
+      const zdef = ZONE_LIST.find(z => z.biome === w.biome);
+      for (const linkBiome of (zdef?.links || [])) {
+        const cell = this.randomZoneCellFrom(w, w.spawn, 34) || this.randomZoneCellFrom(w, w.spawn, 20);
+        if (!cell) continue;
+        const road = makePortal(0x88bb66, linkBiome);
+        road.position.copy(cell);
+        w.group.add(road);
+        w.interactables.push({ type: 'zone_exit', biome: linkBiome, auto: true, pos: cell.clone(), radius: 1.5, label: `🛣️ Camino a ${linkBiome}`, labelCls: 'lbl-portal', mesh: road });
+      }
       // contratos de zona (persistentes por sesión)
       w.bounties = this.ensureZoneBounties(w.biome).list;
       const ret = w.interactables.find(it => it.type === 'portal_town');
@@ -1630,8 +1646,8 @@ class Game {
     p.mp = p.stats.maxMP;
     this.state = 'play';
     this.ui.hideDeath();
-    this.loadWorld({ type: 'zone', biome: 'Cripta' });
-    this.ui.message('Has despertado en el campamento... (-10% oro)', 3500);
+    this.loadWorld({ type: 'zone', biome: p.homeZone || 'Cripta' });
+    this.ui.message('Has despertado en tu campamento... (-10% oro)', 3500);
   }
 
   // ---------- bucle principal ----------
@@ -1985,9 +2001,14 @@ class Game {
         break;
       case 'portal_town':
         // desde una mazmorra entrada por una zona → vuelves a esa zona; en otro
-        // caso → vuelves al hogar (campamento contiguo a la Cripta)
+        // caso → vuelves a tu hogar (pueblo favorito)
         if (this.fromZone) { const b = this.fromZone; this.fromZone = null; this.loadWorld({ type: 'zone', biome: b }); }
-        else this.loadWorld({ type: 'zone', biome: 'Cripta' });
+        else this.loadWorld({ type: 'zone', biome: p.homeZone || 'Cripta' });
+        break;
+      case 'zone_exit':
+        // "camino" a una región adyacente: se cruza caminando (mundo D4-lite)
+        this.fromZone = null;
+        this.loadWorld({ type: 'zone', biome: it.biome });
         break;
       case 'portal_next':
         p.lastFloor = this.world.floor + 1;

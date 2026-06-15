@@ -2,7 +2,6 @@
 // salvo o ellos cruzan el borde, abandonan la caza y vuelven a su spawn.
 import * as THREE from 'three';
 import { Enemy } from '../js/entities.js';
-import { scaleEnemy, pickEnemyDef } from '../js/data.js';
 import { buildZone } from '../js/zones.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -15,11 +14,13 @@ const center = new THREE.Vector3((sz.minX + sz.maxX) / 2, 0, (sz.minZ + sz.maxZ)
 let hit = 0;
 const g = {
   ui: { spawnText() {}, message() {} }, sfx() {}, vibrate() {}, addShake() {}, world, enemies: [],
+  // stubs de FX por si la IA de un enemigo dispara alguna habilidad
+  spawnRing() {}, spawnBeam() {}, spawnBurst() {}, spawnTelegraph() {}, spawnFirePool() {},
   player: { alive: true, pos: center.clone(), takeDamage() { hit++; }, stats: { maxHP: 100 } },
 };
 
-// enemigo aparece FUERA del campamento, con su spawn lejos del borde
-const def = scaleEnemy(pickEnemyDef(3), 3);
+// enemigo simple (sin habilidades especiales) para una prueba determinista
+const def = { id: 'dummy', name: 'Dummy', hp: 60, dmg: 6, spd: 3.2, color: 0x886644, scale: 1, shape: 'humanoid', level: 3 };
 const spawn = new THREE.Vector3(sz.maxX + 8, 0, center.z);
 const e = new Enemy(g, def, spawn);
 g.enemies = [e];

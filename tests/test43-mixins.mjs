@@ -45,7 +45,7 @@ console.log(`endgameMethods exporta los ${ENDGAME_EXPECTED.length} métodos espe
 
 const WORLDFLOW_EXPECTED = [
   'ensureQuestOffer', 'acceptQuest', 'questProgress', 'claimQuest',
-  'checkDailyReward', 'travelTo', 'travelToZone', 'applyPact',
+  'checkDailyReward', 'travelTo', 'travelToZone', 'applyPact', 'setHomeZone',
 ];
 const wfKeys = Object.keys(worldFlowMethods);
 for (const m of WORLDFLOW_EXPECTED) {

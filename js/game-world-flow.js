@@ -5,7 +5,7 @@
 // Acciones periféricas al combate que mutan el estado de sesión/mundo.
 // Se inyecta en Game.prototype con Object.assign (igual que economyMethods /
 // enemyAbilities / endgameMethods). Todo `this` resuelve vía instancia.
-import { PACTS, generateQuest } from './data.js';
+import { PACTS, generateQuest, ZONE_LIST } from './data.js';
 import { makeGold, generateItem } from './items.js';
 
 export const worldFlowMethods = {
@@ -89,6 +89,18 @@ export const worldFlowMethods = {
     this.ui.closePanel();
     this.fromZone = null;
     this.loadWorld({ type: 'zone', biome });
+  },
+
+  // fija el pueblo favorito (reaparición) — solo zonas con campamento descubiertas
+  setHomeZone(biome) {
+    const p = this.player;
+    const z = ZONE_LIST.find(x => x.biome === biome);
+    if (!z || !z.home) return;
+    if (!p.discoveredZones?.includes(biome)) return;
+    p.homeZone = biome;
+    this.ui.message(`⭐ Hogar fijado: ${biome}. Reaparecerás aquí.`, 3000);
+    this.sfx('levelup');
+    this.save();
   },
 
   // ---------- pactos: riesgo↔recompensa por piso ----------

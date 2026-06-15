@@ -2122,6 +2122,45 @@ export class UI {
     ctx.restore();
     const pct = Math.round(ex.size / (g.w * g.h) * 100);
     $('map-info').textContent = `${this.game.world.biome || this.game.world.type} · descubierto ${pct}%`;
+    this.renderWorldMap();
+  }
+
+  // Mapa del Mundo (D4-lite): regiones descubiertas, su estado y viaje rápido.
+  // Las vecinas sin descubrir se insinúan como "???" para invitar a explorar.
+  renderWorldMap() {
+    const el = $('worldmap-body'); if (!el) return;
+    const g = this.game, p = g.player;
+    if (!p) { el.innerHTML = ''; return; }
+    const disc = new Set(p.discoveredZones || ['Cripta']);
+    const show = new Set(disc);
+    for (const z of ZONE_LIST) if (disc.has(z.biome)) for (const l of (z.links || [])) show.add(l);
+    let html = `<div class="wm-title">🌍 Mundo — ${disc.size}/${ZONE_LIST.length} regiones descubiertas</div><div class="wm-list">`;
+    for (const z of ZONE_LIST) {
+      if (!show.has(z.biome)) continue;
+      if (!disc.has(z.biome)) {
+        html += `<div class="wm-zone locked"><span class="wm-zname">❓ Región sin descubrir</span><span class="dim wm-zhint">sigue un camino 🛣️ para hallarla</span></div>`;
+        continue;
+      }
+      const here = g.world.type === 'zone' && g.world.biome === z.biome;
+      const unlocked = p.level >= z.minLevel;
+      const isHome = p.homeZone === z.biome;
+      const links = (z.links || []).join(', ');
+      let actions = '';
+      if (here) actions += `<span class="wm-here">Estás aquí</span>`;
+      else if (!unlocked) actions += `<span class="wm-lock">${icon('lock')} Nivel ${z.minLevel}</span>`;
+      else actions += `<button class="wm-go" data-go="${z.biome}">Viajar</button>`;
+      if (z.home) actions += isHome
+        ? `<span class="wm-fav">⭐ Hogar</span>`
+        : `<button class="wm-fav-set" data-home="${z.biome}">Fijar hogar</button>`;
+      html += `<div class="wm-zone${here ? ' here' : ''}">
+        <div class="wm-zinfo"><span class="wm-zname">${z.home ? '🏕️ ' : '🌿 '}${z.biome}</span>
+          <span class="dim wm-zhint">Nv ${z.minLevel}+${links ? ` · caminos: ${links}` : ''}</span></div>
+        <div class="wm-zact">${actions}</div></div>`;
+    }
+    html += `</div>`;
+    el.innerHTML = html;
+    el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => g.travelToZone(b.dataset.go));
+    el.querySelectorAll('[data-home]').forEach(b => b.onclick = () => { g.setHomeZone(b.dataset.home); this.renderWorldMap(); });
   }
 
   // ---------- minimapa ----------
