@@ -25,6 +25,9 @@ export class UI {
     this._v = new THREE.Vector3();
     this.activePanel = null;
     this.drag = null;
+    // brújula de objetivos fuera de pantalla (goblin del tesoro / jefe de mundo)
+    this._compass = new Map();      // id -> { el, alpha }
+    this._cv = new THREE.Vector3(); // vector auxiliar reutilizable (proyección)
     this._onDragMove = this.onDragMove.bind(this);
     this._onDragUp = this.onDragUp.bind(this);
     this.bindHUD();
@@ -123,6 +126,18 @@ export class UI {
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
     $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
+    // modo limpio del HUD: oculta lo no esencial (persiste en settings)
+    const cleanBtn = $('btn-clean-hud');
+    if (cleanBtn) {
+      cleanBtn.setAttribute('aria-pressed', String(!!g.settings?.cleanHud));
+      cleanBtn.addEventListener('click', () => {
+        g.settings.cleanHud = !g.settings.cleanHud;
+        cleanBtn.setAttribute('aria-pressed', String(!!g.settings.cleanHud));
+        g.saveSettings?.();
+        this.updateHUD();
+        this.message(g.settings.cleanHud ? '👁️ Modo limpio activado' : '👁️ HUD completo', 1600);
+      });
+    }
     $('btn-identify').addEventListener('click', () => g.identifyAll());
     $('btn-junk').addEventListener('click', () => g.sellJunk());
     $('btn-sort').addEventListener('click', () => g.sortInventory());
@@ -346,19 +361,92 @@ export class UI {
     $('btn-shop').style.display = this.game.nearVendor ? '' : 'none';
     if (this.activePanel === 'shop') this.updateShopTimer();
 
-    // cooldowns de la barra de habilidades
+    // cooldowns de la barra de habilidades (overlay RADIAL via conic-gradient)
     for (const btn of $('skillbar').children) {
       const id = btn.dataset.skill;
       if (!id) continue;
       const sk = p.cls.skills.find(s => s.id === id);
       const cd = p.cds[id] || 0;
       const ov = btn.querySelector('.cd-overlay');
-      ov.style.height = cd > 0 ? (cd / sk.cd * 100) + '%' : '0%';
+      const frac = cd > 0 ? Math.max(0, Math.min(1, cd / sk.cd)) : 0;
+      // el ángulo barre en sentido horario y se vacía según se enfría
+      ov.style.setProperty('--cd-deg', Math.round(frac * 360) + 'deg');
+      ov.classList.toggle('on', frac > 0);
       const cost = Math.round(skillVal(sk.mana, p.skills[id] || 1));
+      const costEl = btn.querySelector('.sk-cost');
+      if (costEl && costEl.textContent !== String(cost)) costEl.textContent = cost;
       btn.classList.toggle('no-mana', p.mp < cost);
     }
 
+    // brújula de objetivos importantes fuera de pantalla
+    this.updateCompass();
+    // modo limpio del HUD: oculta lo no esencial (toggle en Opciones)
+    document.body.classList.toggle('hud-clean', !!this.game.settings?.cleanHud);
+
     this.renderBuffs();
+  }
+
+  // ---------- brújula / indicador de borde ----------
+  // Proyecta objetivos importantes a pantalla; si están FUERA de la vista,
+  // muestra una flecha+icono clampada al borde que apunta hacia ellos. Cuando el
+  // objetivo entra en pantalla la flecha se desvanece y desaparece.
+  // No invasiva: pequeña, semitransparente, se atenúa con suavidad.
+  updateCompass() {
+    const cont = $('compass');
+    if (!cont) return;
+    const w = this.game.world;
+    const targets = [];
+    if (w?.goblin?.alive) targets.push({ id: 'goblin', e: w.goblin, icon: '🪙', cls: 'cmp-goblin' });
+    if (w?.worldBoss?.alive) targets.push({ id: 'boss', e: w.worldBoss, icon: '👑', cls: 'cmp-boss' });
+    const seen = new Set();
+    const W = window.innerWidth, H = window.innerHeight;
+    const cx = W / 2, cy = H / 2;
+    const pad = 26;            // separación del borde
+    for (const t of targets) {
+      seen.add(t.id);
+      let rec = this._compass.get(t.id);
+      if (!rec) {
+        const el = document.createElement('div');
+        el.className = 'compass-arrow ' + t.cls;
+        el.innerHTML = `<span class="cmp-ico">${t.icon}</span><span class="cmp-tip">➤</span>`;
+        cont.appendChild(el);
+        rec = { el, alpha: 0 };
+        this._compass.set(t.id, rec);
+      }
+      // proyecta la posición del mundo a pantalla
+      this._cv.copy(t.e.pos).setY(1.4).project(this.game.camera);
+      const behind = this._cv.z > 1;
+      let sx = (this._cv.x * 0.5 + 0.5) * W;
+      let sy = (-this._cv.y * 0.5 + 0.5) * H;
+      // ¿está dentro de la vista (y delante de la cámara)?
+      const onScreen = !behind && sx >= pad && sx <= W - pad && sy >= pad && sy <= H - pad;
+      let target = 0;
+      if (!onScreen) {
+        target = 1;
+        // si está detrás de la cámara, invierte la dirección proyectada
+        if (behind) { sx = W - sx; sy = H - sy; }
+        // ángulo desde el centro hacia el objetivo, clampado al rectángulo
+        const dx = sx - cx, dy = sy - cy;
+        const ang = Math.atan2(dy, dx);
+        const hx = (W / 2 - pad), hy = (H / 2 - pad);
+        // intersección rayo-rectángulo
+        const tx = Math.abs(Math.cos(ang)) < 1e-4 ? Infinity : hx / Math.abs(Math.cos(ang));
+        const ty = Math.abs(Math.sin(ang)) < 1e-4 ? Infinity : hy / Math.abs(Math.sin(ang));
+        const tt = Math.min(tx, ty);
+        const ex = cx + Math.cos(ang) * tt, ey = cy + Math.sin(ang) * tt;
+        rec.el.style.transform =
+          `translate(-50%, -50%) translate(${ex}px, ${ey}px) rotate(${ang}rad)`;
+        // el icono se mantiene derecho (contra-rota la inclinación del contenedor)
+        rec.el.style.setProperty('--cmp-rot', ang + 'rad');
+      }
+      // atenuación suave (aparece/desaparece sin parpadeos)
+      rec.alpha += (target - rec.alpha) * 0.25;
+      rec.el.style.opacity = rec.alpha < 0.02 ? '0' : (rec.alpha * 0.78).toFixed(3);
+      rec.el.style.display = rec.alpha < 0.02 ? 'none' : '';
+    }
+    for (const [id, rec] of this._compass) {
+      if (!seen.has(id)) { rec.el.remove(); this._compass.delete(id); }
+    }
   }
 
   // ---------- fila de buffs/pasivos temporales activos ----------
@@ -438,11 +526,31 @@ export class UI {
       const btn = document.createElement('button');
       btn.className = 'skill-btn';
       btn.dataset.skill = sk.id;
-      btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${i + 1}</span><div class="cd-overlay"></div>`;
-      btn.title = sk.name;
-      btn.addEventListener('pointerdown', e => { e.preventDefault(); this.game.castSkillSlot(i); });
+      const cost = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
+      // cd-overlay RADIAL + coste de maná visible en la celda
+      btn.innerHTML = `<span class="sk-icon">${sk.icon}</span>` +
+        `<span class="sk-key">${i + 1}</span>` +
+        `<span class="sk-cost">${cost}</span>` +
+        `<div class="cd-overlay cd-radial"></div>`;
+      btn.title = `${sk.name} · ${cost} maná`;
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        // feedback de falta de maná: parpadeo rojo si no llega para lanzar
+        const need = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
+        const onCd = (p.cds[sk.id] || 0) > 0;
+        if (p.mp < need && !onCd) this.flashNoMana(btn);
+        this.game.castSkillSlot(i);
+      });
       bar.appendChild(btn);
     });
+  }
+
+  // parpadeo rojo de una celda de habilidad cuando no hay maná suficiente
+  flashNoMana(btn) {
+    btn.classList.remove('mana-flash');
+    void btn.offsetWidth;   // reinicia la animación
+    btn.classList.add('mana-flash');
+    setTimeout(() => btn.classList.remove('mana-flash'), 450);
   }
 
   flashDamage() {
@@ -453,6 +561,9 @@ export class UI {
   }
 
   message(text, ms = 2600) {
+    // detección de momentos clave para disparar flourishes (no invasiva: la UI
+    // posee message(), así que reaccionamos aquí sin tocar la lógica de juego)
+    this.detectFlourish(text);
     const cont = $('messages');
     const div = document.createElement('div');
     div.className = 'msg';
@@ -462,14 +573,86 @@ export class UI {
     setTimeout(() => { div.classList.add('fade'); setTimeout(() => div.remove(), 500); }, ms);
   }
 
+  // dispara flourishes según el texto del mensaje (subir de nivel, legendario...)
+  detectFlourish(text) {
+    if (typeof text !== 'string') return;
+    // subir de nivel: "⭐ ¡Nivel N!" o "🌟 ¡Nivel N!" (Paragon)
+    if (/¡Nivel\s+\d+/.test(text) && /[⭐🌟]/.test(text)) {
+      this.flourishLevelUp();
+      return;
+    }
+    // pieza de conjunto o cualquier mención de legendario/mítico al obtenerlo
+    if (/Pieza de conjunto/i.test(text) || /legendari[oa]/i.test(text) || /m[íi]tic[oa]/i.test(text)) {
+      // extrae un posible nombre tras ":" o "!" para mostrarlo en el haz
+      const m = text.match(/[!:]\s*([^!.]+)$/);
+      this.flourishLegendary(m ? m[1].trim() : '');
+    }
+  }
+
   // ---------- textos flotantes (daño, xp...) ----------
+  // Anti-saturación: los números de daño se AGRUPAN — si ya hay un texto del
+  // mismo tipo recién creado cerca del mismo punto, se suma a él en vez de
+  // crear otro elemento. Además hay un tope duro de simultáneos.
   spawnText(worldPos, text, cls) {
-    if (this.floats.length > 40) return;
+    // ¿es un número de daño puro? (para agrupar). Conserva firma pública.
+    const dmgCls = cls === 'txt-dmg' || cls === 'txt-crit';
+    const n = dmgCls ? parseInt(text, 10) : NaN;
+    if (dmgCls && !Number.isNaN(n)) {
+      for (let i = this.floats.length - 1; i >= 0; i--) {
+        const f = this.floats[i];
+        if (f.group !== cls || f.t > 0.28) continue;
+        if (f.pos.distanceToSquared(worldPos) > 9) continue; // ~3u de radio
+        f.sum = (f.sum || f.val || 0) + n;
+        f.val = f.sum;
+        f.el.textContent = String(f.sum);
+        f.t = 0;                       // reinicia la subida/desvanecido
+        f.el.classList.remove('coalesce');
+        void f.el.offsetWidth;
+        f.el.classList.add('coalesce'); // pequeño "tick" al acumular
+        return;
+      }
+    }
+    if (this.floats.length > 36) {
+      // satura: recicla el más antiguo en vez de seguir creciendo el DOM
+      const old = this.floats.shift();
+      old?.el.remove();
+    }
     const el = document.createElement('div');
     el.className = 'float-txt ' + cls;
     el.textContent = text;
     $('floats').appendChild(el);
-    this.floats.push({ el, pos: worldPos.clone().add(new THREE.Vector3(0, 1.6, 0)), t: 0 });
+    this.floats.push({
+      el, pos: worldPos.clone().add(new THREE.Vector3(0, 1.6, 0)), t: 0,
+      group: dmgCls ? cls : null, val: Number.isNaN(n) ? 0 : n,
+    });
+  }
+
+  // ---------- flourishes de momentos clave ----------
+  // anillo dorado + destello al subir de nivel
+  flourishLevelUp() {
+    if (this.game.settings?.reduceMotion) return;
+    const fx = $('flourish');
+    if (!fx) return;
+    const ring = document.createElement('div');
+    ring.className = 'fl-levelup';
+    ring.innerHTML = `<span class="fl-ring"></span><span class="fl-burst"></span><span class="fl-lbl">¡SUBES DE NIVEL!</span>`;
+    fx.appendChild(ring);
+    setTimeout(() => ring.remove(), 1500);
+  }
+
+  // haz + viñeta dorada breve al recoger un legendario/mítico (+ sonido)
+  flourishLegendary(name = '') {
+    const fx = $('flourish');
+    if (!fx) return;
+    if (!this.game.settings?.reduceMotion) {
+      const fl = document.createElement('div');
+      fl.className = 'fl-legendary';
+      fl.innerHTML = `<span class="fl-vignette"></span><span class="fl-beam"></span>` +
+        (name ? `<span class="fl-name">★ ${name}</span>` : '');
+      fx.appendChild(fl);
+      setTimeout(() => fl.remove(), 1600);
+    }
+    try { this.game.sfx?.('levelup'); } catch { /* sin audio */ }
   }
 
   updateFloats(dt) {
@@ -1469,7 +1652,15 @@ export class UI {
       ? '☠️ Modo Hardcore: tu héroe ha caído para siempre y su historia termina aquí.'
       : 'Las profundidades reclaman otra alma...';
     $('btn-respawn').textContent = hardcore ? 'Crear un nuevo héroe' : 'Despertar en el Pueblo';
-    $('death-screen').classList.remove('hidden');
+    const scr = $('death-screen');
+    // pantalla de muerte más dramática: fundido a rojo/negro + entrada reiniciada
+    scr.classList.toggle('hardcore', !!hardcore);
+    scr.classList.remove('hidden');
+    if (!this.game.settings?.reduceMotion) {
+      scr.classList.remove('dramatic');
+      void scr.offsetWidth;          // reinicia la animación de entrada
+      scr.classList.add('dramatic');
+    }
   }
   hideDeath() { $('death-screen').classList.add('hidden'); }
 
