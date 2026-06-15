@@ -6,6 +6,7 @@
 import { economyMethods } from '../js/economy.js';
 import { enemyAbilities } from '../js/enemy-abilities.js';
 import { endgameMethods } from '../js/game-endgame.js';
+import { worldFlowMethods } from '../js/game-world-flow.js';
 
 const EXPECTED = [
   'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
@@ -39,8 +40,21 @@ if (endKeys.length !== ENDGAME_EXPECTED.length) {
 }
 console.log(`endgameMethods exporta los ${ENDGAME_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-// sin colisiones de nombres entre los tres mixins (se aplican todos al prototype)
-const mixins = { economyMethods, enemyAbilities, endgameMethods };
+const WORLDFLOW_EXPECTED = [
+  'ensureQuestOffer', 'acceptQuest', 'questProgress', 'claimQuest',
+  'checkDailyReward', 'travelTo', 'travelToZone', 'applyPact',
+];
+const wfKeys = Object.keys(worldFlowMethods);
+for (const m of WORLDFLOW_EXPECTED) {
+  if (typeof worldFlowMethods[m] !== 'function') throw new Error('falta método world-flow o no es función: ' + m);
+}
+if (wfKeys.length !== WORLDFLOW_EXPECTED.length) {
+  throw new Error(`worldFlowMethods tiene ${wfKeys.length} métodos, esperaba ${WORLDFLOW_EXPECTED.length}: ${wfKeys.join(', ')}`);
+}
+console.log(`worldFlowMethods exporta los ${WORLDFLOW_EXPECTED.length} métodos esperados, todos funciones ✓`);
+
+// sin colisiones de nombres entre los cuatro mixins (se aplican todos al prototype)
+const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods };
 const seen = new Map();
 for (const [name, obj] of Object.entries(mixins)) {
   for (const k of Object.keys(obj)) {
@@ -48,7 +62,7 @@ for (const [name, obj] of Object.entries(mixins)) {
     seen.set(k, name);
   }
 }
-console.log('Sin colisiones de nombres entre economyMethods, enemyAbilities y endgameMethods ✓');
+console.log('Sin colisiones de nombres entre los cuatro mixins de Game ✓');
 
 // todos los métodos de los mixins siguen siendo funciones (sanidad)
 for (const [name, obj] of Object.entries(mixins)) {
