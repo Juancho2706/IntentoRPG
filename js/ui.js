@@ -2566,7 +2566,7 @@ export class UI {
     const pts = p.mastery.points || 0;
     let html = `<div class="mastery-head"><span class="mastery-head-ico">${m.icon}</span> <b>${m.name}</b> <span class="dim">— ${m.desc}</span></div>`;
     html += `<p class="points-txt">Puntos de maestría: <b>${pts}</b> · asignados: <b>${spent}</b></p>`;
-    const tiers = [{ k: 'minor', label: 'Menores' }, { k: 'notable', label: 'Notables (req. 3)' }, { k: 'capstone', label: 'Capstone (req. 5)' }];
+    const tiers = [{ k: 'minor', label: 'Menores' }, { k: 'notable', label: 'Notables (req. 3)' }, { k: 'mayor', label: 'Mayores (req. 6)' }, { k: 'capstone', label: 'Capstone (req. 8)' }];
     html += `<div class="mastery-tree">`;
     for (const t of tiers) {
       const nodes = m.nodes.filter(n => n.type === t.k);
