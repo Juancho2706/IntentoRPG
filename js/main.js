@@ -1229,6 +1229,15 @@ class Game {
     this.entityGroup.add(this.pet.group);
   }
 
+  // reconstruye la mascota en escena (al cambiar de modelo en el Domador)
+  refreshPet() {
+    if (!this.player?.pet) return;
+    const at = this.pet ? this.pet.pos.clone() : this.player.pos.clone();
+    if (this.pet) { this.entityGroup.remove(this.pet.group); this.pet = null; }
+    this.spawnPet();
+    if (this.pet) { this.pet.pos.copy(at); this.pet.pos.y = 0; }
+  }
+
 
   // ---------- loot ----------
   onEnemyKilled(enemy) {
@@ -1447,7 +1456,12 @@ class Game {
     const idx = this.groundItems.indexOf(gi);
     if (idx < 0) return;
     const it = gi.item;
-    if (it.kind === 'gold') { p.gold += it.amount; p.records.goldEarned += it.amount; this.ui.spawnText(p.pos, `+${it.amount} 🪙`, 'txt-gold'); this.sfx('gold'); }
+    if (it.kind === 'gold') {
+      // bonus de oro del collar de la mascota (Collar de Avaricia)
+      const amt = Math.round(it.amount * (1 + (p.stats.goldPct || 0) / 100));
+      p.gold += amt; p.records.goldEarned += amt;
+      this.ui.spawnText(p.pos, `+${amt} 🪙`, 'txt-gold'); this.sfx('gold');
+    }
     else if (it.kind === 'potion') {
       if (p.potions[it.pot] >= 99) return;
       p.potions[it.pot]++;
@@ -1936,6 +1950,9 @@ class Game {
         break;
       case 'vendor':
         this.ui.togglePanel('shop');
+        break;
+      case 'petkeeper':
+        this.ui.openPet();
         break;
       case 'chest':
         this.openChest(it);

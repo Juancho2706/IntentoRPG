@@ -353,7 +353,43 @@ export function generateQuest(level) {
   };
 }
 
-export const PET_PRICE = 500;
+export const PET_PRICE = 500; // (compat) precio base; ver PET_KINDS
+
+// ------------------------------------------------------------
+// MASCOTA DE UTILIDAD: compañero que NO hace daño. Se compra y mejora con el
+// Domador de Bestias (NPC del pueblo). Tres modelos (cosmético + radio base de
+// recolección distinto), mejoras por oro y un "collar" que da un aura de
+// utilidad (no DPS). El estado vive en player.pet:
+//   { kind, owned:{lobo:true}, level, xp, upgrades:{}, collar }
+// ------------------------------------------------------------
+export const PET_KINDS = {
+  lobo:     { name: 'Lobo de caza',     icon: '🐺', price: 500,  color: 0x8a8d96, model: 'wolf', baseRadius: 5.5,
+              desc: 'Veterano y fiel. Buen radio de recolección a ras de suelo.' },
+  halcon:   { name: 'Halcón vigía',     icon: '🦅', price: 1400, color: 0xb98a55, model: 'hawk', baseRadius: 7.0,
+              desc: 'Sobrevuela el campo: mayor radio de recolección.' },
+  familiar: { name: 'Familiar arcano',  icon: '✨', price: 3200, color: 0x66ccff, model: 'wisp', baseRadius: 6.0,
+              desc: 'Orbe etéreo. Imán de oro de serie y aura más intensa.' },
+};
+
+// Mejoras del pet (gold sink). `max` niveles; coste crece con el nivel actual.
+export const PET_UPGRADES = {
+  pickup:    { name: 'Radio de recolección', icon: '🧲', max: 5, costBase: 300, per: 1.1,
+               desc: 'Auto-recoge oro y pociones desde más lejos.' },
+  magnet:    { name: 'Imán de tesoros',      icon: '💰', max: 3, costBase: 450,
+               desc: 'Atrae oro y orbes cercanos hacia ti.' },
+  materials: { name: 'Recolección de materiales', icon: '💎', max: 2, costBase: 600,
+               desc: 'Nv.1: recoge gemas y runas. Nv.2: también fragmentos, llaves y glifos.' },
+  speed:     { name: 'Agilidad',             icon: '💨', max: 3, costBase: 250,
+               desc: 'El compañero se mueve más rápido.' },
+};
+
+// Collares: aura de UTILIDAD (un stat de jugador, nunca daño). Se compran/cambian.
+export const PET_COLLARS = {
+  none:    { name: 'Sin collar',          icon: '⭕', price: 0,    stat: null,    value: 0,  desc: 'Sin aura.' },
+  oro:     { name: 'Collar de Avaricia',  icon: '🪙', price: 800,  stat: 'goldPct', value: 20, desc: '+20% oro recogido.' },
+  fortuna: { name: 'Collar de Fortuna',   icon: '🍀', price: 1100, stat: 'mf',     value: 25, desc: '+25 hallazgo mágico.' },
+  vigor:   { name: 'Collar de Vigor',     icon: '❤️', price: 1100, stat: 'spdPct', value: 8,  desc: '+8% velocidad de movimiento.' },
+};
 
 // Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
 // habilidad activa. Se encuentran como botín, se aprenden y se asignan.

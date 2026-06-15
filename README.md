@@ -63,7 +63,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Misiones**: el Capitán de la Guardia del pueblo ofrece misiones (matar monstruos/élites/jefes, abrir cofres) con oro, XP y objetos raros de recompensa
 - **Desafío Diario**: portal dorado con una mazmorra de semilla fija — el mismo trazado para todos cada día, con botín legendario al derrotar a su jefe (una vez al día)
 - **Modo Hardcore** opcional al crear personaje: la muerte es permanente y borra el guardado
-- **Lobo de caza**: mascota comprable al mercader que te sigue y ataca a tus enemigos
+- **Compañero de utilidad**: adóptalo y mejóralo con el **Domador de Bestias** (NPC del pueblo). No combate: recoge botín, atrae tesoros (imán) y otorga un aura de utilidad según su collar (oro/hallazgo mágico/velocidad). Tres modelos (lobo 🐺, halcón 🦅, familiar arcano ✨) y mejoras por oro (radio de recolección, imán, materiales, agilidad)
 - **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
 - **Inventario estilo Diablo IV**: en escritorio, equipo y mochila en **dos columnas a la vez** (sin scroll); 32 casillas + **12 ranuras de equipo** en silueta anatómica; **armas y off-hands acordes a tu clase** (escudo para el Guerrero, orbe/foco para la Maga, carcaj para la Arquera). Se abre con `I` o `B`
 - **Bolsa de materiales** aparte (pestaña propia): gemas, runas, llaves de grieta, fragmentos y glifos no ocupan espacio en la mochila
@@ -115,7 +115,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 | Inventario / Habilidades / Personaje | `I` / `T` / `C` | Botones del menú |
 | Recoger objeto | Etiqueta o tecla `F` | Etiqueta o botón 🖐️ |
 
-El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). Si no hay nada que usar, ataca al enemigo más cercano — **puedes atacar mientras te mueves** con el joystick. El oro, las pociones, las gemas y las runas se recogen automáticamente al pasar por encima — y el lobo de caza va a buscarlos por ti. En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
+El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). Si no hay nada que usar, ataca al enemigo más cercano — **puedes atacar mientras te mueves** con el joystick. El oro, las pociones, las gemas y las runas se recogen automáticamente al pasar por encima — y tu compañero va a buscarlos por ti (según sus mejoras). En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
 
 ## 📁 Estructura
 

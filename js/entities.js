@@ -2,7 +2,7 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, skillVal, xpForLevel, PARAGON_BOARD } from './data.js';
+import { CLASSES, skillVal, xpForLevel, PARAGON_BOARD, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
@@ -251,7 +251,19 @@ export class Player {
     }
     this.knownSupports = Array.isArray(this.knownSupports) ? this.knownSupports : []; // soportes aprendidos
     this.hardcore = !!this.hardcore;
-    this.pet = this.pet || null;
+    // mascota: normaliza el esquema (migración de guardados antiguos {level:1})
+    if (this.pet) {
+      const k = PET_KINDS[this.pet.kind] ? this.pet.kind : 'lobo';
+      this.pet = {
+        kind: k,
+        owned: this.pet.owned || { [k]: true },
+        level: this.pet.level || 1,
+        xp: this.pet.xp || 0,
+        upgrades: this.pet.upgrades || {},
+        collar: PET_COLLARS[this.pet.collar] ? this.pet.collar : 'none',
+        ownedCollars: this.pet.ownedCollars || { none: true },
+      };
+    } else this.pet = null;
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;
@@ -310,7 +322,7 @@ export class Player {
   recompute() {
     const a = { ...this.attributes };
     const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0, mf: 0,
-                   lph: 0, mph: 0, cdr: 0, thorns: 0 };
+                   lph: 0, mph: 0, cdr: 0, thorns: 0, goldPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -365,6 +377,11 @@ export class Player {
     for (const b of this.buffs) addStats(b.stats);
     // bendiciones permanentes del endgame (una por categoría)
     for (const bl of Object.values(this.blessings || {})) addStats({ [bl.stat]: bl.value });
+    // collar de la mascota: aura de UTILIDAD (un stat de jugador, nunca daño)
+    if (this.pet?.collar && this.pet.collar !== 'none') {
+      const c = PET_COLLARS[this.pet.collar];
+      if (c?.stat) addStats({ [c.stat]: c.value });
+    }
     // pasivas
     for (const sk of this.cls.skills) {
       const lvl = this.skills[sk.id];
@@ -395,6 +412,7 @@ export class Player {
       mf: Math.round(item.mf),
       lph: item.lph, mph: item.mph, thorns: item.thorns,
       cdr: Math.min(50, item.cdr), // tope de reducción de enfriamiento
+      goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
     };
     if (this.hp != null) {
       this.hp = Math.min(this.hp, this.stats.maxHP);
@@ -1466,7 +1484,8 @@ export class Projectile {
 }
 
 // ------------------------------------------------------------
-// MASCOTA: lobo de caza que sigue al jugador y ataca a su objetivo
+// MASCOTA DE UTILIDAD: compañero que sigue al jugador, recoge botín y otorga
+// un aura (collar). NO hace daño. Tres modelos cosméticos (lobo/halcón/familiar).
 // ------------------------------------------------------------
 function makeWolfModel() {
   const g = new THREE.Group();
@@ -1491,85 +1510,166 @@ function makeWolfModel() {
   tail.rotation.x = -0.5;
   body.castShadow = head.castShadow = true;
   g.add(body, head, snout, tail);
-  // el lobo gira sobre su eje Z+ (mismo convenio que jugador/enemigos)
+  // gira sobre su eje Z+ (mismo convenio que jugador/enemigos)
   return g;
+}
+
+// halcón vigía: sobrevuela; cuerpo fusiforme + alas que baten (animadas)
+function makeHawkModel(color = 0xb98a55) {
+  const g = new THREE.Group();
+  const feather = std(color, { rough: 0.7 });
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.6, 8), feather);
+  body.rotation.x = Math.PI / 2; body.position.y = 0.9; body.castShadow = true;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), feather.clone());
+  head.position.set(0, 0.94, 0.3);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5), std(0xf0c040));
+  beak.rotation.x = Math.PI / 2; beak.position.set(0, 0.93, 0.46);
+  for (const sx of [-0.06, 0.06]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    eye.position.set(sx, 0.97, 0.4); g.add(eye);
+  }
+  const wings = [];
+  for (const sx of [-1, 1]) {
+    const wing = new THREE.Group();
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.26), feather.clone());
+    w.position.x = sx * 0.28; w.castShadow = true; wing.add(w);
+    wing.position.set(0, 0.9, 0); g.add(wing); wings.push(wing);
+  }
+  g.add(body, head, beak);
+  g.userData.wings = wings; // animadas en Pet.update
+  return g;
+}
+
+// familiar arcano: orbe emisivo translúcido con un núcleo brillante
+function makeWispModel(color = 0x66ccff) {
+  const g = new THREE.Group();
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.1, roughness: 0.3, transparent: true, opacity: 0.85 }));
+  orb.position.y = 0.85;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  core.position.y = 0.85;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.02, 6, 20),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
+  ring.position.y = 0.85; ring.rotation.x = Math.PI / 2;
+  g.add(orb, core, ring);
+  g.userData.ring = ring; // gira en Pet.update
+  return g;
+}
+
+export function makePetModel(kind = 'lobo') {
+  const def = PET_KINDS[kind] || PET_KINDS.lobo;
+  if (def.model === 'hawk') return makeHawkModel(def.color);
+  if (def.model === 'wisp') return makeWispModel(def.color);
+  return makeWolfModel();
 }
 
 export class Pet {
   constructor(game) {
     this.game = game;
-    this.atkCd = 0;
     this.lunge = 0;
-    this.group = makeWolfModel();
+    this.t = 0;
+    this.kind = game.player?.pet?.kind || 'lobo';
+    this.group = makePetModel(this.kind);
   }
 
   get pos() { return this.group.position; }
 
-  // botín que se recoge solo (cerca del dueño, no del lobo, para no alejarse)
+  // datos de mejora del pet (vive en player.pet)
+  get data() { return this.game.player?.pet || {}; }
+  upg(key) { return this.data.upgrades?.[key] || 0; }
+
+  // radio de auto-recolección (base del modelo + mejora de radio), al cuadrado
+  pickRadiusSq() {
+    const base = PET_KINDS[this.kind]?.baseRadius || 5.5;
+    const r = base + this.upg('pickup') * 1.6;
+    return r * r;
+  }
+
+  // ¿este objeto del suelo lo recoge el pet automáticamente?
+  autoPicks(kind, p) {
+    if (kind === 'gold' || kind === 'potion') return true;
+    const mat = this.upg('materials');
+    const pouchOK = (p.materials?.length || 0) < MAX_MATERIALS;
+    if ((kind === 'gem' || kind === 'rune') && mat >= 1 && pouchOK) return true;
+    if ((kind === 'fragment' || kind === 'key' || kind === 'glyph') && mat >= 2 && pouchOK) return true;
+    return false;
+  }
+
+  // botín recogible más cercano al DUEÑO (no al pet, para no alejarse)
   nearestLoot(g, p) {
-    let best = null, bd = 81;
+    let best = null, bd = this.pickRadiusSq();
     for (const gi of g.groundItems || []) {
-      const k = gi.item.kind;
-      const auto = k === 'gold' || k === 'potion' ||
-        ((k === 'gem' || k === 'rune') && (p.materials?.length || 0) < MAX_MATERIALS);
-      if (!auto) continue;
+      if (!this.autoPicks(gi.item.kind, p)) continue;
       const d = gi.mesh.position.distanceToSquared(p.pos);
       if (d < bd) { bd = d; best = gi; }
     }
     return best;
   }
 
+  // imán de tesoros: arrastra oro/orbes cercanos hacia el jugador (muy satisfactorio)
+  magnetPull(g, p, dt) {
+    const lvl = this.upg('magnet');
+    if (lvl <= 0) return;
+    const range = 6 + lvl * 2.5, rangeSq = range * range, speed = (5 + lvl * 3) * dt;
+    for (const gi of g.groundItems || []) {
+      const k = gi.item.kind;
+      if (k !== 'gold' && k !== 'potion') continue;
+      const m = gi.mesh.position;
+      const dx = p.pos.x - m.x, dz = p.pos.z - m.z;
+      const dsq = dx * dx + dz * dz;
+      if (dsq > rangeSq || dsq < 0.04) continue;
+      const l = Math.sqrt(dsq);
+      m.x += dx / l * speed; m.z += dz / l * speed;
+    }
+  }
+
   update(dt) {
     const g = this.game, p = g.player;
-    this.atkCd = Math.max(0, this.atkCd - dt);
+    this.t += dt;
     this.lunge = Math.max(0, this.lunge - dt * 4);
+    const flying = this.kind !== 'lobo';   // halcón/familiar flotan más alto
+    const baseY = flying ? 0.6 : 0;
 
     const dp = this.pos.distanceTo(p.pos);
-    if (dp > 12) { this.pos.copy(p.pos); return; } // teletransporte si se queda atrás
+    if (dp > 13) { this.pos.copy(p.pos); return; } // teletransporte si se queda atrás
 
-    // objetivo: el del jugador, o el enemigo más cercano a su dueño
-    let target = p.attackTarget && p.attackTarget.alive ? p.attackTarget : null;
-    if (!target) {
-      let bd = 36;
-      for (const e of g.enemies) {
-        if (!e.alive) continue;
-        const d = e.pos.distanceToSquared(p.pos);
-        if (d < bd) { bd = d; target = e; }
-      }
-    }
+    // imán de tesoros (no requiere moverse)
+    this.magnetPull(g, p, dt);
+
+    // velocidad de desplazamiento (mejora de agilidad)
+    const moveSpd = 5 + this.upg('speed') * 1.4;
 
     let dest = null;
-    if (target) {
-      const dte = this.pos.distanceTo(target.pos);
-      if (dte <= 1.5) {
-        this.group.rotation.y = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
-        if (this.atkCd <= 0) {
-          this.atkCd = 1.1;
-          this.lunge = 1;
-          // el lobo escala con el daño del dueño (sigue siendo útil en el endgame)
-          const dmg = Math.max(2, Math.round(3 + (p.stats.dmgMin + p.stats.dmgMax) / 2 * 0.45));
-          target.takeDamage(dmg, false);
-          g.sfx('hit');
-        }
-      } else dest = target.pos;
-    } else {
-      // sin combate: el lobo va a buscar el botín recogible cercano
-      const gi = this.nearestLoot(g, p);
-      if (gi) {
-        const dgi = this.pos.distanceTo(gi.mesh.position.clone().setY(this.pos.y));
-        if (dgi < 0.7) g.pickupGroundItem(gi);
-        else dest = gi.mesh.position;
-      } else if (dp > 2.2) {
-        dest = p.pos;
-      }
+    // sin daño: el compañero solo va a por el botín recogible cercano
+    const gi = this.nearestLoot(g, p);
+    if (gi) {
+      const dgi = this.pos.distanceTo(gi.mesh.position.clone().setY(this.pos.y));
+      if (dgi < 0.8) { g.pickupGroundItem(gi); this.lunge = 1; }
+      else dest = gi.mesh.position;
+    } else if (dp > 2.2) {
+      dest = p.pos;
     }
 
     if (dest) {
       const dx = dest.x - this.pos.x, dz = dest.z - this.pos.z;
       const l = Math.hypot(dx, dz) || 1;
-      moveWithCollision(g.world.grid, this.pos, dx / l * 5 * dt, dz / l * 5 * dt, 0.25);
+      moveWithCollision(g.world.grid, this.pos, dx / l * moveSpd * dt, dz / l * moveSpd * dt, 0.25);
       this.group.rotation.y = Math.atan2(dx, dz);
     }
-    this.group.position.y = Math.abs(Math.sin(performance.now() / 1000 * 8)) * (dest ? 0.07 : 0.02) + this.lunge * 0.18;
+
+    // animación cosmética por modelo
+    const moving = !!dest;
+    if (this.kind === 'lobo') {
+      this.group.position.y = Math.abs(Math.sin(this.t * 8)) * (moving ? 0.07 : 0.02) + this.lunge * 0.18;
+    } else if (this.kind === 'halcon') {
+      this.group.position.y = baseY + Math.sin(this.t * 2.5) * 0.12;
+      const flap = Math.sin(this.t * 16) * 0.5;
+      for (const [i, wing] of (this.group.userData.wings || []).entries())
+        wing.rotation.z = (i === 0 ? 1 : -1) * flap;
+    } else { // familiar
+      this.group.position.y = baseY + Math.sin(this.t * 3) * 0.1;
+      this.group.rotation.y += dt * 0.6;
+      if (this.group.userData.ring) this.group.userData.ring.rotation.z += dt * 2;
+    }
   }
 }

@@ -463,6 +463,19 @@ export function buildTown() {
   group.add(stall);
   interactables.push({ type: 'vendor', pos: vendorPos.clone(), radius: 2.4, label: '💰 Mercader', labelCls: 'lbl-npc' });
 
+  // Domador de Bestias: compra y mejora tu compañero de utilidad
+  const tamerPos = grid.center(18, 18);
+  const tamer = makeNPC(0x3a7d4a, 0x224a2a);
+  tamer.position.copy(tamerPos);
+  group.add(tamer);
+  // pequeña perrera/poste junto al domador
+  const kennel = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x5a4326, roughness: 1 }));
+  kennel.position.set(tamerPos.x + 1.3, 0.35, tamerPos.z);
+  kennel.castShadow = true;
+  group.add(kennel);
+  interactables.push({ type: 'petkeeper', pos: tamerPos.clone(), radius: 2.2, label: '🐾 Domador de Bestias', labelCls: 'lbl-npc' });
+
   // salida del pueblo a la zona abierta (al norte): se cruza caminando
   const gatePos = grid.center(Math.floor(W / 2), 2);
   const gate = makePortal(0x66cc55, 'Cripta');
@@ -898,6 +911,13 @@ export function buildRefuge() {
   vendor.position.copy(vendorPos);
   group.add(vendor);
   interactables.push({ type: 'vendor', pos: vendorPos.clone(), radius: 2.4, label: '💰 Mercader Errante', labelCls: 'lbl-npc' });
+
+  // Domador de Bestias (refugio)
+  const tamerPos = grid.center(23, 14);
+  const tamer = makeNPC(0x3a7d4a, 0x224a2a);
+  tamer.position.copy(tamerPos);
+  group.add(tamer);
+  interactables.push({ type: 'petkeeper', pos: tamerPos.clone(), radius: 2.2, label: '🐾 Domador de Bestias', labelCls: 'lbl-npc' });
 
   // alijo compartido
   const stashPos = grid.center(13, 18);

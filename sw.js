@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v36';
+const VERSION = 'v37';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [

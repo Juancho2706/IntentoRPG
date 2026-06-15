@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -801,6 +801,7 @@ export class UI {
     else if (this.activePanel === 'stash') this.renderStash();
     else if (this.activePanel === 'collection') this.renderCollection();
     else if (this.activePanel === 'progress') this.renderProgress();
+    else if (this.activePanel === 'pet') this.renderPet();
     else if (this.activePanel === 'paragon') this.renderParagon();
   }
 
@@ -1808,11 +1809,10 @@ export class UI {
     offer(sCons, `${icon('flask')} Poción de Maná <small class="shop-stats">Tienes ${p.potions.mp}</small>`, POTION_PRICES.mp,
       () => { p.gold -= POTION_PRICES.mp; p.potions.mp++; g.sfx('potion'); g.save(); });
 
-    // --- mascota (solo si aún no la tienes) ---
-    if (!p.pet) {
-      const sPet = section(`${icon('wolf')} Compañero`, 'Una sola compra: te acompaña para siempre.');
-      offer(sPet, `${icon('wolf')} Lobo de caza <small class="shop-stats">Te sigue y ataca a tus enemigos.</small>`,
-        PET_PRICE, () => g.buyPet());
+    // --- mascota: ahora se compra y mejora con el Domador de Bestias ---
+    {
+      const sPet = section(`${icon('wolf')} Compañero`, 'El Domador de Bestias (🐾) se encarga de mascotas y mejoras.');
+      sPet.insertAdjacentHTML('beforeend', '<p class="npc-empty">Busca al <b>Domador de Bestias</b> en el pueblo para adoptar y mejorar a tu compañero.</p>');
     }
 
     // --- mercancía rotativa ---
@@ -1959,7 +1959,7 @@ export class UI {
     if (type === 'shrine') return '#9ff0c4';
     if (type === 'world_event') return '#cc66ff';
     if (type.startsWith('portal')) return '#55aaff';
-    if (type === 'vendor' || type === 'questgiver' || type === 'stash' || type === 'enchanter' || type === 'healer') return '#ffd24a';
+    if (type === 'vendor' || type === 'questgiver' || type === 'stash' || type === 'enchanter' || type === 'healer' || type === 'petkeeper') return '#ffd24a';
     return null;
   }
 
@@ -2062,6 +2062,103 @@ export class UI {
     }
     const pb = $('pinnacle-btn');
     if (pb) { pb.disabled = frags < 3; pb.onclick = () => g.summonPinnacle(); }
+  }
+
+  // ---------- Domador de Bestias (mascota de utilidad) ----------
+  openPet() {
+    if (this.activePanel !== 'pet') {
+      this.closePanel();
+      this.activePanel = 'pet';
+      $('panel-pet').classList.remove('hidden');
+      this.markJustOpened();
+    }
+    this.renderPet();
+  }
+
+  renderPet() {
+    const g = this.game, p = g.player;
+    const body = $('pet-body');
+    const gold = p.gold;
+    const pet = p.pet;
+    let html = '';
+
+    if (!pet) {
+      // adopción: elegir modelo
+      html += `<h4>🐾 Adopta un compañero</h4>`;
+      html += `<p class="dim">Tu compañero <b>no combate</b>: recoge botín, atrae tesoros y te otorga un aura de utilidad. Elige modelo (puedes conseguir más luego):</p>`;
+      html += `<div class="pet-grid">`;
+      for (const [id, k] of Object.entries(PET_KINDS)) {
+        const poor = gold < k.price;
+        html += `<div class="pet-card">
+          <div class="pet-card-ico">${k.icon}</div>
+          <div class="pet-card-name">${k.name}</div>
+          <div class="dim pet-card-desc">${k.desc}</div>
+          <button class="quest-btn pet-buy${poor ? ' no-gold' : ''}" data-buy="${id}" ${poor ? 'disabled' : ''}>
+            ${icon('coin', { cls: 'ico-gold' })} ${k.price}</button>
+        </div>`;
+      }
+      html += `</div>`;
+      body.innerHTML = html;
+      body.querySelectorAll('[data-buy]').forEach(b =>
+        b.onclick = () => { g.buyPet(b.dataset.buy); this.renderPet(); this.updateHUD(); });
+      return;
+    }
+
+    // --- ya tienes compañero ---
+    const cur = PET_KINDS[pet.kind] || PET_KINDS.lobo;
+    html += `<h4>${cur.icon} ${cur.name}</h4>`;
+    html += `<p class="dim">Compañero de utilidad — no hace daño. Recoge botín y te da un aura según su collar.</p>`;
+
+    // mejoras
+    html += `<h4>⬆️ Mejoras</h4><div class="pet-upg-list">`;
+    for (const [key, u] of Object.entries(PET_UPGRADES)) {
+      const lvl = pet.upgrades?.[key] || 0;
+      const maxed = lvl >= u.max;
+      const cost = g.petUpgradeCost(key);
+      const poor = gold < cost;
+      const pips = '●'.repeat(lvl) + '○'.repeat(u.max - lvl);
+      html += `<div class="pet-upg">
+        <div class="pet-upg-info"><b>${u.icon} ${u.name}</b> <span class="dim pet-pips">${pips}</span><br>
+          <span class="dim">${u.desc}</span></div>
+        <button class="quest-btn pet-upg-btn${poor && !maxed ? ' no-gold' : ''}" data-upg="${key}" ${maxed || poor ? 'disabled' : ''}>
+          ${maxed ? 'MÁX' : `${icon('coin', { cls: 'ico-gold' })} ${cost}`}</button>
+      </div>`;
+    }
+    html += `</div>`;
+
+    // collar (aura de utilidad)
+    html += `<h4>📿 Collar (aura de utilidad)</h4><div class="pet-collar-row">`;
+    for (const [id, c] of Object.entries(PET_COLLARS)) {
+      const owned = id === 'none' || pet.ownedCollars?.[id];
+      const equipped = pet.collar === id;
+      const poor = !owned && gold < c.price;
+      const label = id === 'none' ? `${c.icon} Ninguno`
+        : `${c.icon} ${c.name}<br><small class="dim">${c.desc}</small>`;
+      const cost = owned ? (equipped ? 'Equipado' : 'Equipar') : `${c.price}`;
+      html += `<button class="quest-btn pet-collar${equipped ? ' sel' : ''}${poor ? ' no-gold' : ''}"
+        data-collar="${id}" ${equipped || poor ? 'disabled' : ''}>${label}<span class="pet-collar-cost">${owned ? cost : icon('coin', { cls: 'ico-gold' }) + ' ' + cost}</span></button>`;
+    }
+    html += `</div>`;
+
+    // otros modelos
+    html += `<h4>🎨 Modelos</h4><div class="pet-collar-row">`;
+    for (const [id, k] of Object.entries(PET_KINDS)) {
+      const owned = pet.owned?.[id];
+      const active = pet.kind === id;
+      const poor = !owned && gold < k.price;
+      const cost = owned ? (active ? 'Activo' : 'Usar') : `${k.price}`;
+      html += `<button class="quest-btn pet-collar${active ? ' sel' : ''}${poor ? ' no-gold' : ''}"
+        data-kind="${id}" ${active || poor ? 'disabled' : ''}>${k.icon} ${k.name}<span class="pet-collar-cost">${owned ? cost : icon('coin', { cls: 'ico-gold' }) + ' ' + cost}</span></button>`;
+    }
+    html += `</div>`;
+
+    body.innerHTML = html;
+    body.querySelectorAll('[data-upg]').forEach(b =>
+      b.onclick = () => { g.upgradePet(b.dataset.upg); });
+    body.querySelectorAll('[data-collar]').forEach(b =>
+      b.onclick = () => { g.setPetCollar(b.dataset.collar); });
+    body.querySelectorAll('[data-kind]').forEach(b =>
+      b.onclick = () => { g.switchPetKind(b.dataset.kind); });
   }
 
   // ---------- Tablero de Paragon ----------

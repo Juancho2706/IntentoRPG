@@ -39,19 +39,20 @@ const p2 = new Player(fake, 'maga', saved);
 if (!p2.hardcore) throw new Error('hardcore no persiste');
 console.log('Hardcore: flag persistente ✓ · precio del lobo:', PET_PRICE);
 
-// mascota: sigue al dueño y mata a un enemigo cercano
+// mascota de utilidad: NO hace daño y sigue al dueño
 fake.player = p;
+p.pet = { kind: 'lobo', owned: { lobo: true }, level: 1, upgrades: {}, collar: 'none' };
 p.pos.copy(world.spawn);
 const enemy = new Enemy(fake, scaleEnemy(pickEnemyDef(1), 1), world.spawn.clone().add(new THREE.Vector3(1.5, 0, 0)));
+const hp0 = enemy.hp;
 fake.enemies = [enemy];
 const pet = new Pet(fake);
 pet.pos.copy(world.spawn).add(new THREE.Vector3(-1, 0, 0));
-let ticks = 0;
-while (enemy.alive && ticks++ < 1800) { fake.onEnemyKilled = () => {}; pet.update(1/60); }
-if (enemy.alive) throw new Error('el lobo no mató al enemigo');
-// y vuelve con el dueño
+for (let i = 0; i < 600; i++) pet.update(1/60);
+if (!enemy.alive || enemy.hp < hp0) throw new Error('la mascota dañó al enemigo (debe ser de utilidad, sin daño)');
+// y sigue al dueño cuando este se aleja
 p.pos.set(world.spawn.x + 3, 0, world.spawn.z);
 for (let i = 0; i < 600; i++) pet.update(1/60);
-if (pet.pos.distanceTo(p.pos) > 3) throw new Error('el lobo no sigue al dueño');
-console.log(`Mascota: mató al ${enemy.def.name} en ${ticks} ticks y sigue al dueño ✓`);
+if (pet.pos.distanceTo(p.pos) > 3) throw new Error('la mascota no sigue al dueño');
+console.log('Mascota: no hace daño y sigue al dueño ✓');
 console.log('✅ MISIONES/DIARIA/HARDCORE/MASCOTA OK');

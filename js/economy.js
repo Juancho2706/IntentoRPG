@@ -3,7 +3,7 @@
 // re-spec y paragon. Se mezclan en Game.prototype.
 // ============================================================
 import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
-import { SHOP_REFRESH_MS, PET_PRICE, PARAGON_BOARD } from './data.js';
+import { SHOP_REFRESH_MS, PET_PRICE, PARAGON_BOARD, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 import { MAX_MATERIALS } from './entities.js';
 
 export const economyMethods = {
@@ -70,14 +70,87 @@ export const economyMethods = {
     this.save();
   },
   
-  buyPet() {
+  // ---------- Domador de Bestias (mascota de utilidad) ----------
+  // Primera compra: crea el compañero con el modelo elegido.
+  buyPet(kind = 'lobo') {
     const p = this.player;
-    if (p.pet || p.gold < PET_PRICE) return;
-    p.gold -= PET_PRICE;
-    p.pet = { level: 1 };
+    const def = PET_KINDS[kind];
+    if (!def || p.pet) return;
+    if (p.gold < def.price) { this.ui.message('🪙 Oro insuficiente'); return; }
+    p.gold -= def.price;
+    p.pet = { kind, owned: { [kind]: true }, level: 1, xp: 0, upgrades: {}, collar: 'none' };
     this.spawnPet();
-    this.ui.message('🐺 ¡El lobo de caza se une a ti!', 3000);
+    p.recompute();
+    this.ui.message(`${def.icon} ¡${def.name} se une a ti!`, 3000);
     this.sfx('levelup');
+    this.ui.renderPanel?.();
+    this.save();
+  },
+
+  // coste de la siguiente mejora (crece con el nivel ya comprado)
+  petUpgradeCost(key) {
+    const u = PET_UPGRADES[key];
+    if (!u) return Infinity;
+    const cur = this.player.pet?.upgrades?.[key] || 0;
+    return Math.round(u.costBase * Math.pow(1.6, cur));
+  },
+
+  upgradePet(key) {
+    const p = this.player;
+    const u = PET_UPGRADES[key];
+    if (!p.pet || !u) return;
+    const cur = p.pet.upgrades[key] || 0;
+    if (cur >= u.max) { this.ui.message('Mejora al máximo'); return; }
+    const cost = this.petUpgradeCost(key);
+    if (p.gold < cost) { this.ui.message('🪙 Oro insuficiente'); return; }
+    p.gold -= cost;
+    p.pet.upgrades[key] = cur + 1;
+    this.sfx('levelup');
+    this.ui.message(`${u.icon} ${u.name} → nivel ${cur + 1}`, 2500);
+    this.ui.renderPet?.();
+    this.ui.updateHUD?.();
+    this.save();
+  },
+
+  // cambia el collar (aura de utilidad). Cobra el precio una vez por collar nuevo.
+  setPetCollar(collar) {
+    const p = this.player;
+    const c = PET_COLLARS[collar];
+    if (!p.pet || !c) return;
+    if (p.pet.collar === collar) return;
+    p.pet.ownedCollars = p.pet.ownedCollars || { none: true };
+    if (!p.pet.ownedCollars[collar]) {
+      if (p.gold < c.price) { this.ui.message('🪙 Oro insuficiente'); return; }
+      p.gold -= c.price;
+      p.pet.ownedCollars[collar] = true;
+    }
+    p.pet.collar = collar;
+    p.recompute();
+    this.sfx('pickup');
+    this.ui.message(`${c.icon} Collar equipado: ${c.name}`, 2500);
+    this.ui.renderPet?.();
+    this.ui.updateHUD?.();
+    this.save();
+  },
+
+  // compra/cambia el modelo del compañero (las mejoras/collar se conservan)
+  switchPetKind(kind) {
+    const p = this.player;
+    const def = PET_KINDS[kind];
+    if (!p.pet || !def) return;
+    if (p.pet.kind === kind) return;
+    p.pet.owned = p.pet.owned || {};
+    if (!p.pet.owned[kind]) {
+      if (p.gold < def.price) { this.ui.message('🪙 Oro insuficiente'); return; }
+      p.gold -= def.price;
+      p.pet.owned[kind] = true;
+    }
+    p.pet.kind = kind;
+    this.refreshPet();   // reconstruye el modelo en escena
+    this.sfx('levelup');
+    this.ui.message(`${def.icon} Compañero: ${def.name}`, 2500);
+    this.ui.renderPet?.();
+    this.ui.updateHUD?.();
     this.save();
   },
   
