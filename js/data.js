@@ -391,6 +391,124 @@ export const PET_COLLARS = {
   vigor:   { name: 'Collar de Vigor',     icon: '❤️', price: 1100, stat: 'spdPct', value: 8,  desc: '+8% velocidad de movimiento.' },
 };
 
+// ------------------------------------------------------------
+// MAESTRÍAS DE CLASE (ramas / sub-especialización, estilo Last Epoch + D4)
+// ------------------------------------------------------------
+// A partir del nivel MASTERY_START_LEVEL eliges UNA de 3 maestrías por clase y
+// ganas 1 punto de maestría cada 2 niveles. Cada maestría tiene 6 nodos:
+//   - 3 menores (req 0): stats puros
+//   - 2 notables (req 3 puntos gastados): stats fuertes o un PODER
+//   - 1 capstone (req 5): un poder que define la identidad de la build
+// Cada nodo es `stats` (los suma recompute) y/o `power` (entra en this.powers y
+// se interpreta en combate). Reespecializable por oro. 100% data-driven.
+export const MASTERY_START_LEVEL = 12;
+
+export const MASTERIES = {
+  guerrero: [
+    { id: 'berserker', name: 'Berserker', icon: '🔥',
+      desc: 'Furia desatada: más daño cuanto más arriesgas.',
+      nodes: [
+        { id: 'b_dmg', name: 'Ira creciente', type: 'minor',  req: 0, stats: { dmgPct: 10 }, desc: '+10% daño' },
+        { id: 'b_as',  name: 'Frenesí',       type: 'minor',  req: 0, stats: { aspdPct: 8 }, desc: '+8% vel. de ataque' },
+        { id: 'b_ls',  name: 'Sed',           type: 'minor',  req: 0, stats: { lph: 3 },     desc: '+3 vida al golpear' },
+        { id: 'b_n1',  name: 'Carnicería',    type: 'notable',req: 3, stats: { dmgPct: 14, lph: 3 }, desc: '+14% daño, +3 vida al golpear' },
+        { id: 'b_n2',  name: 'Festín de guerra', type: 'notable', req: 3, power: 'festin', desc: 'Te curas al matar (poder del Festín)' },
+        { id: 'b_cap', name: 'Sed de Batalla', type: 'capstone', req: 5, power: 'm_berserk', desc: 'Con vida <40%, +40% de daño' },
+      ] },
+    { id: 'guardian', name: 'Guardián', icon: '🛡️',
+      desc: 'Muralla viviente: absorbe el castigo y lo devuelve.',
+      nodes: [
+        { id: 'g_arm', name: 'Coraza',     type: 'minor',  req: 0, stats: { arm: 30 },   desc: '+30 armadura' },
+        { id: 'g_hp',  name: 'Fortaleza',  type: 'minor',  req: 0, stats: { hp: 45 },     desc: '+45 vida' },
+        { id: 'g_th',  name: 'Púas',       type: 'minor',  req: 0, stats: { thorns: 8 },  desc: '+8 daño de espinas' },
+        { id: 'g_n1',  name: 'Baluarte',   type: 'notable',req: 3, stats: { arm: 40, hp: 40 }, desc: '+40 armadura, +40 vida' },
+        { id: 'g_n2',  name: 'Represalia', type: 'notable',req: 3, stats: { thorns: 18 }, desc: '+18 espinas' },
+        { id: 'g_cap', name: 'Muro Inquebrantable', type: 'capstone', req: 5, power: 'm_aegis', desc: 'Un golpe letal te deja a 1 de vida e inmune 2s (recarga 30s)' },
+      ] },
+    { id: 'cruzado', name: 'Cruzado', icon: '✨',
+      desc: 'Justicia sagrada: castiga en área a los caídos.',
+      nodes: [
+        { id: 'c_dmg', name: 'Fervor',      type: 'minor',  req: 0, stats: { dmgPct: 8 },  desc: '+8% daño' },
+        { id: 'c_hp',  name: 'Devoción',    type: 'minor',  req: 0, stats: { hp: 35 },     desc: '+35 vida' },
+        { id: 'c_cdr', name: 'Plegaria',    type: 'minor',  req: 0, stats: { cdr: 8 },     desc: '+8% reducción de enfriamiento' },
+        { id: 'c_n1',  name: 'Aura de Valor', type: 'notable', req: 3, stats: { dmgPct: 10, arm: 25 }, desc: '+10% daño, +25 armadura' },
+        { id: 'c_n2',  name: 'Condena',     type: 'notable',req: 3, power: 'volatil', desc: 'Los cadáveres explotan (poder Volátil)' },
+        { id: 'c_cap', name: 'Juicio',      type: 'capstone', req: 5, power: 'm_judgment', desc: 'Al matar, una onda sagrada daña a los enemigos cercanos' },
+      ] },
+  ],
+  maga: [
+    { id: 'piromante', name: 'Piromante', icon: '🔥',
+      desc: 'Todo arde: el fuego se propaga y estalla.',
+      nodes: [
+        { id: 'p_dmg', name: 'Llama viva',  type: 'minor',  req: 0, stats: { dmgPct: 10 }, desc: '+10% daño' },
+        { id: 'p_cdr', name: 'Combustión',  type: 'minor',  req: 0, stats: { cdr: 8 },     desc: '+8% reducción de enfriamiento' },
+        { id: 'p_mp',  name: 'Foco ardiente', type: 'minor', req: 0, stats: { mph: 2 },    desc: '+2 maná al golpear' },
+        { id: 'p_n1',  name: 'Pira',        type: 'notable',req: 3, stats: { dmgPct: 16 }, desc: '+16% daño' },
+        { id: 'p_n2',  name: 'Brasas',      type: 'notable',req: 3, power: 'volatil', desc: 'Los enemigos estallan al morir (poder Volátil)' },
+        { id: 'p_cap', name: 'Conflagración', type: 'capstone', req: 5, power: 'm_conflag', desc: 'Al matar, una explosión de fuego daña la zona' },
+      ] },
+    { id: 'crionte', name: 'Crionte', icon: '❄️',
+      desc: 'Hielo y control: ralentiza, congela y astilla.',
+      nodes: [
+        { id: 'k_dmg', name: 'Escarcha',    type: 'minor',  req: 0, stats: { dmgPct: 8 },  desc: '+8% daño' },
+        { id: 'k_crit',name: 'Filo gélido', type: 'minor',  req: 0, stats: { crit: 5 },    desc: '+5% prob. crítica' },
+        { id: 'k_hp',  name: 'Coraza de hielo', type: 'minor', req: 0, stats: { hp: 30 },  desc: '+30 vida' },
+        { id: 'k_n1',  name: 'Ventisca',    type: 'notable',req: 3, stats: { dmgPct: 12, crit: 4 }, desc: '+12% daño, +4% crítico' },
+        { id: 'k_n2',  name: 'Sangre fría', type: 'notable',req: 3, stats: { crit: 10 }, desc: '+10% prob. crítica' },
+        { id: 'k_cap', name: 'Cero Absoluto', type: 'capstone', req: 5, power: 'm_shatter', desc: 'Enemigos ralentizados con poca vida se astillan (muerte instantánea, no jefes)' },
+      ] },
+    { id: 'arcanista', name: 'Arcanista', icon: '⚡',
+      desc: 'Maná y cadenas: sostenibilidad y crítico.',
+      nodes: [
+        { id: 'a_crit',name: 'Saber arcano',type: 'minor',  req: 0, stats: { crit: 6 },    desc: '+6% prob. crítica' },
+        { id: 'a_mp',  name: 'Conducto',    type: 'minor',  req: 0, stats: { mph: 3 },     desc: '+3 maná al golpear' },
+        { id: 'a_cdr', name: 'Flujo',       type: 'minor',  req: 0, stats: { cdr: 10 },    desc: '+10% reducción de enfriamiento' },
+        { id: 'a_n1',  name: 'Resonancia',  type: 'notable',req: 3, stats: { crit: 8, mph: 2 }, desc: '+8% crítico, +2 maná al golpear' },
+        { id: 'a_n2',  name: 'Eco',         type: 'notable',req: 3, stats: { dmgPct: 12 }, desc: '+12% daño' },
+        { id: 'a_cap', name: 'Sobrecarga Arcana', type: 'capstone', req: 5, power: 'm_overload', desc: 'Recuperas maná con cada golpe' },
+      ] },
+  ],
+  arquera: [
+    { id: 'francotiradora', name: 'Francotiradora', icon: '🎯',
+      desc: 'Golpes únicos enormes: crítico letal a distancia.',
+      nodes: [
+        { id: 'f_crit',name: 'Ojo de halcón', type: 'minor', req: 0, stats: { crit: 7 },  desc: '+7% prob. crítica' },
+        { id: 'f_dmg', name: 'Precisión',   type: 'minor',  req: 0, stats: { dmgPct: 10 }, desc: '+10% daño' },
+        { id: 'f_as',  name: 'Pulso firme', type: 'minor',  req: 0, stats: { aspdPct: 6 }, desc: '+6% vel. de ataque' },
+        { id: 'f_n1',  name: 'Punto débil', type: 'notable',req: 3, stats: { crit: 10, dmgPct: 8 }, desc: '+10% crítico, +8% daño' },
+        { id: 'f_n2',  name: 'Cazadora',    type: 'notable',req: 3, power: 'festin', desc: 'Te curas al matar (poder del Festín)' },
+        { id: 'f_cap', name: 'Tiro Mortal', type: 'capstone', req: 5, power: 'm_deadeye', desc: 'Críticos a enemigos con vida alta infligen +50% de daño' },
+      ] },
+    { id: 'montaraz', name: 'Montaraz', icon: '🪤',
+      desc: 'Control de zona: ralentiza y castiga a las presas.',
+      nodes: [
+        { id: 'm_dmg', name: 'Acoso',       type: 'minor',  req: 0, stats: { dmgPct: 9 },  desc: '+9% daño' },
+        { id: 'm_spd', name: 'Pies ligeros',type: 'minor',  req: 0, stats: { spdPct: 8 },  desc: '+8% velocidad de movimiento' },
+        { id: 'm_th',  name: 'Trampas',     type: 'minor',  req: 0, stats: { thorns: 10 }, desc: '+10 daño de espinas' },
+        { id: 'm_n1',  name: 'Emboscada',   type: 'notable',req: 3, stats: { dmgPct: 14, crit: 4 }, desc: '+14% daño, +4% crítico' },
+        { id: 'm_n2',  name: 'Carroña',     type: 'notable',req: 3, power: 'volatil', desc: 'Los cadáveres explotan (poder Volátil)' },
+        { id: 'm_cap', name: 'Cacería',     type: 'capstone', req: 5, power: 'm_hunt', desc: 'Infliges +25% de daño a enemigos ralentizados' },
+      ] },
+    { id: 'tiradora', name: 'Tiradora Veloz', icon: '💨',
+      desc: 'Cadencia y multiproyectil: una tormenta de flechas.',
+      nodes: [
+        { id: 't_as',  name: 'Cadencia',    type: 'minor',  req: 0, stats: { aspdPct: 10 }, desc: '+10% vel. de ataque' },
+        { id: 't_spd', name: 'Movilidad',   type: 'minor',  req: 0, stats: { spdPct: 7 },  desc: '+7% velocidad de movimiento' },
+        { id: 't_agil',name: 'Reflejos',    type: 'minor',  req: 0, power: 'agil', desc: 'Esquiva con recarga más rápida (poder Ágil)' },
+        { id: 't_n1',  name: 'Ráfaga',      type: 'notable',req: 3, stats: { aspdPct: 12, dmgPct: 6 }, desc: '+12% vel. de ataque, +6% daño' },
+        { id: 't_n2',  name: 'Lluvia',      type: 'notable',req: 3, power: 'multidisparo', desc: '+1 proyectil (poder del Vendaval)' },
+        { id: 't_cap', name: 'Tormenta de Flechas', type: 'capstone', req: 5, power: 'multidisparo', stats: { aspdPct: 15 }, desc: '+1 proyectil y +15% vel. de ataque' },
+      ] },
+  ],
+};
+
+// devuelve la maestría {…} por id (busca en todas las clases)
+export function findMastery(id) {
+  for (const list of Object.values(MASTERIES))
+    for (const m of list) if (m.id === id) return m;
+  return null;
+}
+
 // Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
 // habilidad activa. Se encuentran como botín, se aprenden y se asignan.
 // Cada soporte declara su efecto y, cuando procede, su CONTRAPARTIDA (trade-off).

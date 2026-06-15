@@ -2,7 +2,7 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, skillVal, xpForLevel, PARAGON_BOARD, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
+import { CLASSES, skillVal, xpForLevel, PARAGON_BOARD, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL } from './data.js';
 import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
@@ -264,6 +264,12 @@ export class Player {
         ownedCollars: this.pet.ownedCollars || { none: true },
       };
     } else this.pet = null;
+    // maestría de clase (rama): id elegida, nodos asignados y puntos disponibles.
+    // Migración: ausencia ⇒ sin maestría elegida.
+    this.mastery = this.mastery && typeof this.mastery === 'object'
+      ? { id: findMastery(this.mastery.id) ? this.mastery.id : null,
+          nodes: this.mastery.nodes || {}, points: this.mastery.points || 0 }
+      : { id: null, nodes: {}, points: 0 };
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;
@@ -382,6 +388,15 @@ export class Player {
       const c = PET_COLLARS[this.pet.collar];
       if (c?.stat) addStats({ [c.stat]: c.value });
     }
+    // maestría de clase: suma stats de nodos asignados y registra sus poderes
+    if (this.mastery?.id) {
+      const m = findMastery(this.mastery.id);
+      if (m) for (const node of m.nodes) {
+        if (!this.mastery.nodes[node.id]) continue;
+        if (node.stats) addStats(node.stats);
+        if (node.power) this.powers.add(node.power);
+      }
+    }
     // pasivas
     for (const sk of this.cls.skills) {
       const lvl = this.skills[sk.id];
@@ -432,6 +447,8 @@ export class Player {
   onDealHit() {
     if (this.stats.lph) this.hp = Math.min(this.stats.maxHP, this.hp + this.stats.lph);
     if (this.stats.mph) this.mp = Math.min(this.stats.maxMP, this.mp + this.stats.mph);
+    // maestría Arcanista (Sobrecarga Arcana): recupera maná con cada golpe
+    if (this.powers?.has('m_overload')) this.mp = Math.min(this.stats.maxMP, this.mp + this.stats.maxMP * 0.04);
   }
 
   rollDamage(mult = 1, critBonus = 0) {
@@ -440,6 +457,8 @@ export class Player {
     if (crit) dmg *= 1.8;
     // poder 'furia': más daño con la vida alta
     if (this.powers?.has('furia') && this.hp > this.stats.maxHP * 0.8) dmg *= 1.25;
+    // maestría Berserker (Sed de Batalla): más daño con la vida baja
+    if (this.powers?.has('m_berserk') && this.hp < this.stats.maxHP * 0.4) dmg *= 1.4;
     return { dmg: Math.max(1, Math.round(dmg)), crit };
   }
 
@@ -547,6 +566,14 @@ export class Player {
         this.skillPoints += 1;
         this.game.ui.message(`⭐ ¡Nivel ${this.level}! +5 atributos, +1 punto de habilidad`);
       }
+      // maestrías: 1 punto cada 2 niveles a partir del nivel umbral
+      if (this.level >= MASTERY_START_LEVEL && this.level % 2 === 0) {
+        this.mastery.points++;
+        if (this.level === MASTERY_START_LEVEL)
+          this.game.ui.message('🌿 ¡Maestrías de clase desbloqueadas! Elige una rama en Habilidades', 5000);
+        else
+          this.game.ui.message('🌿 +1 punto de maestría (panel de Habilidades)');
+      }
       this.recompute();
       this.hp = this.stats.maxHP;
       this.mp = this.stats.maxMP;
@@ -579,6 +606,18 @@ export class Player {
     this.game.sfx('hurt');
     this.game.tip('pocion', 'Si tu vida baja, bebe una poción: tecla Q o el botón 🧪');
     if (this.hp <= 0) {
+      // maestría Guardián (Muro Inquebrantable): un golpe letal te deja a 1 de
+      // vida y te vuelve inmune un instante (recarga larga)
+      if (this.powers?.has('m_aegis') && (this.aegisCd || 0) <= 0) {
+        this.hp = 1;
+        this.aegisCd = 30;     // s de recarga (lo descuenta Player.update)
+        this.dodgeT = Math.max(this.dodgeT, 2); // 2s de inmunidad (reutiliza la esquiva)
+        this.game.ui.message('🛡️ ¡Muro Inquebrantable! Sobrevives al golpe letal', 3000);
+        this.game.ui.spawnText(this.pos, '¡INQUEBRANTABLE!', 'txt-heal');
+        this.game.addShake(0.5, 0.5);
+        this.game.sfx('levelup');
+        return;
+      }
       this.hp = 0;
       this.alive = false;
       this.game.onPlayerDeath();
@@ -617,6 +656,7 @@ export class Player {
     // cooldowns y regeneración
     this.atkCd = Math.max(0, this.atkCd - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+    if (this.aegisCd > 0) this.aegisCd = Math.max(0, this.aegisCd - dt); // recarga del Muro Inquebrantable
     if (this.xpBoostT > 0) this.xpBoostT -= dt;
     for (const k in this.cds) this.cds[k] = Math.max(0, this.cds[k] - dt);
     this.mp = Math.min(this.stats.maxMP, this.mp + (1 + this.stats.ene * 0.05) * dt);
@@ -817,6 +857,22 @@ export class Enemy {
   takeDamage(amount, crit = false) {
     if (!this.alive) return;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
+    // maestrías con efecto dependiente del objetivo (el daño al enemigo siempre
+    // procede del jugador: la mascota no daña y los enemigos no se golpean entre sí)
+    const pw = this.game.player?.powers;
+    if (pw) {
+      const frac = this.hp / this.maxHP;
+      // Montaraz (Cacería): +25% a ralentizados
+      if (pw.has('m_hunt') && this.slowT > 0) amount = Math.round(amount * 1.25);
+      // Francotiradora (Tiro Mortal): crítico a enemigos con vida alta → +50%
+      if (pw.has('m_deadeye') && crit && frac > 0.6) amount = Math.round(amount * 1.5);
+      // Crionte (Cero Absoluto): ralentizado + poca vida + no jefe → ejecución
+      const boss = this.def.boss || this.def.uber || this.def.worldBoss;
+      if (pw.has('m_shatter') && this.slowT > 0 && !boss && (this.hp - amount) <= this.maxHP * 0.18) {
+        amount = this.hp;
+        this.game.ui.spawnText(this.pos.clone().add(new THREE.Vector3(0, this.def.scale, 0)), '¡ASTILLADO!', 'txt-crit');
+      }
+    }
     this.hp -= amount;
     // destello BLANCO: ~70ms base, escala suave con el % de daño recibido
     const pct = Math.min(1, amount / Math.max(1, this.maxHP));

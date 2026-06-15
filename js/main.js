@@ -15,6 +15,7 @@ import { enemyAbilities } from './enemy-abilities.js';
 import { endgameMethods } from './game-endgame.js';
 import { worldFlowMethods } from './game-world-flow.js';
 import { zoneLifeMethods } from './game-zone-life.js';
+import { masteryMethods } from './game-mastery.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
@@ -346,7 +347,7 @@ class Game {
       gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
-      quest: p.quest, hardcore: p.hardcore, pet: p.pet, dailyDone: p.dailyDone, tips: p.tips,
+      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, dailyDone: p.dailyDone, tips: p.tips,
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
@@ -1328,6 +1329,22 @@ class Game {
           e.takeDamage(boom, false);
       }
     }
+    // maestría Cruzado (Juicio): onda sagrada en área al matar
+    if (p.powers?.has('m_judgment')) {
+      const dmg = Math.max(2, Math.round((p.stats.dmgMin + p.stats.dmgMax) / 2 * 0.6));
+      this.spawnRing(enemy.pos.clone(), 2.8, 0xffe680);
+      this.spawnBurst(enemy.pos, 0xffe680, 10);
+      for (const e of this.enemies)
+        if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= 2.9 * 2.9) e.takeDamage(dmg, false);
+    }
+    // maestría Piromante (Conflagración): explosión de fuego en área al matar
+    if (p.powers?.has('m_conflag')) {
+      const dmg = Math.max(2, Math.round((p.stats.dmgMin + p.stats.dmgMax) / 2 * 0.7));
+      this.spawnRing(enemy.pos.clone(), 3.1, 0xff7722);
+      this.spawnBurst(enemy.pos, 0xff7722, 14);
+      for (const e of this.enemies)
+        if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= 3.1 * 3.1) e.takeDamage(dmg, false);
+    }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
     const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId };
@@ -2149,6 +2166,6 @@ class Game {
   }
 }
 
-Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods);
+Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods);
 
 new Game();

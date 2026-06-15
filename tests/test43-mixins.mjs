@@ -8,6 +8,7 @@ import { enemyAbilities } from '../js/enemy-abilities.js';
 import { endgameMethods } from '../js/game-endgame.js';
 import { worldFlowMethods } from '../js/game-world-flow.js';
 import { zoneLifeMethods } from '../js/game-zone-life.js';
+import { masteryMethods } from '../js/game-mastery.js';
 
 const EXPECTED = [
   'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
@@ -67,8 +68,18 @@ if (zlKeys.length !== ZONELIFE_EXPECTED.length) {
 }
 console.log(`zoneLifeMethods exporta los ${ZONELIFE_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-// sin colisiones de nombres entre los cinco mixins (se aplican todos al prototype)
-const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods };
+const MASTERY_EXPECTED = ['masterySpent', 'chooseMastery', 'allocateMasteryNode', 'masteryRespecCost', 'respecMastery'];
+const msKeys = Object.keys(masteryMethods);
+for (const m of MASTERY_EXPECTED) {
+  if (typeof masteryMethods[m] !== 'function') throw new Error('falta método mastery o no es función: ' + m);
+}
+if (msKeys.length !== MASTERY_EXPECTED.length) {
+  throw new Error(`masteryMethods tiene ${msKeys.length} métodos, esperaba ${MASTERY_EXPECTED.length}: ${msKeys.join(', ')}`);
+}
+console.log(`masteryMethods exporta los ${MASTERY_EXPECTED.length} métodos esperados, todos funciones ✓`);
+
+// sin colisiones de nombres entre los seis mixins (se aplican todos al prototype)
+const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods };
 const seen = new Map();
 for (const [name, obj] of Object.entries(mixins)) {
   for (const k of Object.keys(obj)) {
@@ -76,7 +87,7 @@ for (const [name, obj] of Object.entries(mixins)) {
     seen.set(k, name);
   }
 }
-console.log('Sin colisiones de nombres entre los cinco mixins de Game ✓');
+console.log('Sin colisiones de nombres entre los seis mixins de Game ✓');
 
 // todos los métodos de los mixins siguen siendo funciones (sanidad)
 for (const [name, obj] of Object.entries(mixins)) {

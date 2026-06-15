@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 
 const $ = (id) => document.getElementById(id);
@@ -802,6 +802,7 @@ export class UI {
     else if (this.activePanel === 'collection') this.renderCollection();
     else if (this.activePanel === 'progress') this.renderProgress();
     else if (this.activePanel === 'pet') this.renderPet();
+    else if (this.activePanel === 'mastery') this.renderMastery();
     else if (this.activePanel === 'paragon') this.renderParagon();
   }
 
@@ -1650,11 +1651,15 @@ export class UI {
     const freeGlyphs = this.unsocketedGlyphCount();
     const pgBadge = (pgPts + freeGlyphs) > 0 ? `<span class="bnav-badge">${pgPts + freeGlyphs}</span>` : '';
     const hasBoard = p.level >= 20 || pgPts > 0 || Object.keys(para.nodes || {}).length > 0;
+    const mPts = p.mastery?.points || 0;
+    const hasMastery = p.level >= MASTERY_START_LEVEL || p.mastery?.id;
+    const mBadge = mPts > 0 ? `<span class="bnav-badge">${mPts}</span>` : '';
     const tab = (key, ico, label, badge, on) =>
       `<button class="bnav-tab${on ? ' on' : ''}" data-bnav="${key}">${icon(ico)} <span class="bnav-lbl">${label}</span>${badge}</button>`;
     return `<div class="build-nav">
         ${tab('stats', 'hero', 'Personaje', '', active === 'stats')}
         ${tab('skills', 'book', 'Habilidades', skillBadge, active === 'skills')}
+        ${hasMastery ? tab('mastery', 'magic', 'Maestría', mBadge, active === 'mastery') : ''}
         ${hasBoard ? tab('paragon', 'star', 'Paragon / Glifos', pgBadge, active === 'paragon') : ''}
       </div>`;
   }
@@ -1666,6 +1671,7 @@ export class UI {
       btn.onclick = () => {
         const dest = btn.dataset.bnav;
         if (dest === 'paragon') this.openParagon();
+        else if (dest === 'mastery') this.openMastery();
         else this.togglePanel(dest);
       };
     });
@@ -2193,6 +2199,85 @@ export class UI {
       b.onclick = () => { g.setPetCollar(b.dataset.collar); });
     body.querySelectorAll('[data-kind]').forEach(b =>
       b.onclick = () => { g.switchPetKind(b.dataset.kind); });
+  }
+
+  // ---------- Maestrías de clase (ramas) ----------
+  openMastery() {
+    if (this.activePanel !== 'mastery') {
+      this.closePanel();
+      this.activePanel = 'mastery';
+      $('panel-mastery').classList.remove('hidden');
+      this.markJustOpened();
+    }
+    this.renderMastery();
+  }
+
+  renderMastery() {
+    const g = this.game, p = g.player;
+    const nav = $('mastery-build-nav');
+    if (nav) { nav.innerHTML = this.buildNavHTML('mastery'); this.bindBuildNav(nav); }
+    const body = $('mastery-body');
+    const list = MASTERIES[p.classId] || [];
+
+    if (p.level < MASTERY_START_LEVEL && !p.mastery?.id) {
+      body.innerHTML = `<p class="dim">Las maestrías de clase se desbloquean en el <b>nivel ${MASTERY_START_LEVEL}</b>. Cada 2 niveles ganas 1 punto de maestría.</p>`;
+      return;
+    }
+
+    // aún sin elegir: muestra las 3 ramas para escoger
+    if (!p.mastery?.id) {
+      let html = `<p class="dim">Elige <b>una</b> maestría: define la identidad de tu build. Podrás reespecializar por oro más adelante. Puntos: <b>${p.mastery?.points || 0}</b></p>`;
+      html += `<div class="mastery-pick">`;
+      for (const m of list) {
+        html += `<div class="mastery-card">
+          <div class="mastery-card-ico">${m.icon}</div>
+          <div class="mastery-card-name">${m.name}</div>
+          <div class="dim mastery-card-desc">${m.desc}</div>
+          <ul class="mastery-card-nodes">${m.nodes.map(n => `<li>${n.type === 'capstone' ? '★ ' : ''}<b>${n.name}</b>: ${n.desc}</li>`).join('')}</ul>
+          <button class="quest-btn" data-pick="${m.id}">Elegir ${m.icon} ${m.name}</button>
+        </div>`;
+      }
+      html += `</div>`;
+      body.innerHTML = html;
+      body.querySelectorAll('[data-pick]').forEach(b =>
+        b.onclick = () => { g.chooseMastery(b.dataset.pick); this.renderMastery(); this.updateHUD(); });
+      return;
+    }
+
+    // ya elegida: muestra el árbol de nodos por tier
+    const m = findMastery(p.mastery.id);
+    const spent = g.masterySpent();
+    const pts = p.mastery.points || 0;
+    let html = `<div class="mastery-head"><span class="mastery-head-ico">${m.icon}</span> <b>${m.name}</b> <span class="dim">— ${m.desc}</span></div>`;
+    html += `<p class="points-txt">Puntos de maestría: <b>${pts}</b> · asignados: <b>${spent}</b></p>`;
+    const tiers = [{ k: 'minor', label: 'Menores' }, { k: 'notable', label: 'Notables (req. 3)' }, { k: 'capstone', label: 'Capstone (req. 5)' }];
+    html += `<div class="mastery-tree">`;
+    for (const t of tiers) {
+      const nodes = m.nodes.filter(n => n.type === t.k);
+      if (!nodes.length) continue;
+      html += `<div class="mastery-tier"><div class="mastery-tier-lbl">${t.label}</div><div class="mastery-row">`;
+      for (const n of nodes) {
+        const owned = !!p.mastery.nodes[n.id];
+        const locked = spent < n.req;
+        const canBuy = !owned && !locked && pts > 0;
+        const cls = owned ? ' owned' : locked ? ' locked' : canBuy ? ' avail' : '';
+        html += `<button class="mastery-node${cls}" data-node="${n.id}" ${owned || locked || pts <= 0 ? 'disabled' : ''}>
+          <b>${n.type === 'capstone' ? '★ ' : ''}${n.name}</b>
+          <span class="mastery-node-desc">${n.desc}</span>
+          <span class="mastery-node-tag">${owned ? '✓ asignado' : locked ? `🔒 req. ${n.req}` : pts > 0 ? 'Asignar (1 pt)' : 'sin puntos'}</span>
+        </button>`;
+      }
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+    // reespecializar
+    const cost = g.masteryRespecCost();
+    html += `<button id="mastery-respec" class="quest-btn mastery-respec${p.gold < cost ? ' no-gold' : ''}" ${p.gold < cost ? 'disabled' : ''}>♻️ Reespecializar (${icon('coin', { cls: 'ico-gold' })} ${cost})</button>`;
+    body.innerHTML = html;
+    body.querySelectorAll('[data-node]').forEach(b =>
+      b.onclick = () => { g.allocateMasteryNode(b.dataset.node); });
+    const rb = $('mastery-respec');
+    if (rb) rb.onclick = () => { g.respecMastery(); this.renderMastery(); this.updateHUD(); };
   }
 
   // ---------- Tablero de Paragon ----------
