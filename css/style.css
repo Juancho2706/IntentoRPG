@@ -1278,20 +1278,21 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
   border: 1px solid var(--panel-border);
 }
 .bnav-tab {
-  flex: 1; position: relative;
-  display: flex; align-items: center; justify-content: center; gap: 4px;
+  flex: 1; min-width: 0; position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 3px; flex-wrap: wrap;
   min-height: 38px; padding: 6px 4px;
   font-size: 12px; font-weight: bold; color: #d8c7a6;
   background: rgba(255,255,255,0.03);
   border: 1px solid transparent; border-radius: 6px;
   cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
+.bnav-tab .ui-ico { flex-shrink: 0; }
 .bnav-tab:hover { background: rgba(201,162,39,0.12); color: #fff; }
 .bnav-tab.on {
   background: rgba(201,162,39,0.18);
   border-color: var(--gold); color: var(--gold);
 }
-.bnav-lbl { white-space: nowrap; }
+.bnav-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bnav-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 17px; height: 17px; padding: 0 4px; margin-left: 2px;
@@ -1943,8 +1944,10 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
 /* ====================== Descubribilidad / onboarding ====================== */
 /* Pestaña de build bloqueada: visible (aspiración) con candado y nivel. */
 .bnav-tab.bnav-locked { opacity: 0.7; border-style: dashed; }
-.bnav-lock { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px;
-  font-size: 10px; font-weight: 700; color: #c7a3a3; }
+/* el indicador de bloqueo va en su PROPIA línea (flex-basis 100%) para no
+   empujar la etiqueta fuera del botón */
+.bnav-lock { flex-basis: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+  margin: 1px 0 0; font-size: 10px; font-weight: 700; color: #c7a3a3; }
 .bnav-lock .ui-ico { width: 11px; height: 11px; }
 
 /* Banner "se desbloquea en…" en paneles de preview. */

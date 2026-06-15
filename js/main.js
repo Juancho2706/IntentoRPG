@@ -564,6 +564,7 @@ class Game {
     if (w.pinnacle) this.ui.message(`👁️ ¡El Pináculo! El Heraldo del Vacío te espera. Derrótalo para obtener un objeto MÍTICO.`, 5000);
     else if (w.rift) this.ui.message(`🌀 Grieta Nivel ${w.rift} · ${w.biome} — enemigos reforzados, botín aumentado. ¡Derrota al jefe!`, 4500);
     else if (w.daily) this.ui.message(`🌟 Desafío Diario · trazado del día, dificultad de piso ${w.scaleFloor}. ¡Derrota al jefe!`, 4500);
+    else if (w.isHome) this.ui.message(`🏕️ Campamento de la ${w.biome} — tu hogar. Sal caminando a la zona abierta; aquí están los NPCs y servicios.`, 4000);
     else if (w.type === 'zone') this.ui.message(`🌿 ${w.biome} — zona abierta. Explora y entra a las mazmorras (🕳️).`, 4000);
     else if (w.type === 'dungeon') this.ui.message(`🕳️ Piso ${w.floor} · ${w.biome}`, 3000);
     this.sfx('portal');
@@ -1941,7 +1942,7 @@ class Game {
     if (!nearAuto) this.edgeArmed = true; // ya saliste de la puerta: lista para cruzar de vuelta
     this.currentInteract = best;
     if (best) this.tip('interactuar', 'Pulsa el botón de acción (o Espacio) para usar portales, abrir cofres y hablar con NPCs');
-    this.tip('salir', 'Camina hacia la salida 🌿 del pueblo para entrar a las Tierras de la Cripta');
+    if (this.world.isHome) this.tip('salir', 'Sal del campamento caminando para entrar a la zona abierta; vuelve cuando quieras usar los NPCs y servicios');
   }
 
   // botón de acción: interactúa si hay algo cerca; si no, ataca

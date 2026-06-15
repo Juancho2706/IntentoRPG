@@ -1809,7 +1809,7 @@ export class UI {
         ${tab('stats', 'hero', 'Personaje', '', active === 'stats')}
         ${tab('skills', 'book', 'Habilidades', skillBadge, active === 'skills')}
         ${tab('mastery', 'magic', 'Maestría', mBadge, active === 'mastery', hasMastery ? 0 : MASTERY_START_LEVEL)}
-        ${tab('paragon', 'star', 'Paragon / Glifos', pgBadge, active === 'paragon', hasBoard ? 0 : 20)}
+        ${tab('paragon', 'star', 'Paragon', pgBadge, active === 'paragon', hasBoard ? 0 : 20)}
       </div>`;
   }
 

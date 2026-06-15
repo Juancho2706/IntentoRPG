@@ -88,7 +88,7 @@ export const endgameMethods = {
     if (this.player._tormentCap == null) { this.player._tormentCap = cap; return; }
     if (cap > this.player._tormentCap) {
       this.player._tormentCap = cap;
-      this.ui.message(`☠️ ¡Nuevo nivel de dificultad: Tormento ${cap}! Ajústalo en la Estatua del Mundo (pueblo)`, 5000);
+      this.ui.message(`☠️ ¡Nuevo nivel de dificultad: Tormento ${cap}! Ajústalo en la Estatua del Mundo del campamento`, 5000);
     }
   },
 
