@@ -195,6 +195,8 @@ class Game {
     this.ui.updateHUD();
     this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Entra al portal del norte para explorar la mazmorra.`, 5000);
     document.getElementById('hud').classList.remove('hidden');
+    // garantiza que no quede ningún panel abierto al entrar (lo añade la UI)
+    this.ui.closeAllPanels?.();
     const touch = window.matchMedia('(pointer: coarse)').matches;
     this.tip('mover', touch
       ? 'Mantén el pulgar en la mitad izquierda para moverte con el joystick; toca un enemigo para atacarlo'
@@ -523,7 +525,7 @@ class Game {
       // impacto
       if (tg.dmg && p.alive && p.pos.distanceTo(tg.group.position) <= tg.radius + 0.3) {
         p.takeDamage(tg.dmg, tg.attackerLevel);
-        if (tg.slow && p.alive) { p.slowT = 2.5; this.ui.message('❄️ ¡Estás congelado!', 1500); }
+        if (tg.slow && p.alive) { p.slowT = 2.5; p._slowTotal = 2.5; this.ui.message('❄️ ¡Estás congelado!', 1500); }
       }
       this.spawnRing(tg.group.position, tg.radius, 0xff5533);
       this.addShake(0.12, 0.15);
@@ -698,15 +700,26 @@ class Game {
     this.music.sting();
   }
 
-  // goblin del tesoro: huye y suelta gran botín si lo cazas a tiempo
-  spawnGoblin(pos = null) {
+  // goblin del tesoro: huye y suelta gran botín si lo cazas a tiempo.
+  // Tres tipos, cada uno con una ventana real para alcanzarlo (melee o rango).
+  spawnGoblin(pos = null, type = null) {
     const w = this.world;
     const at = pos || this.randomZoneCell(14) || this.randomZoneCell(6);
     if (!at) return null;
     const floor = w.scaleFloor || w.floor || 1;
+    type = type || ['veloz', 'cargado', 'portal'][Math.floor(Math.random() * 3)];
+    const VARIANTS = {
+      veloz:   { spd: 4.6, label: '🪙 Goblin Veloz',   msg: 'un Goblin Veloz (corre, pero se detiene a burlarse)' },
+      cargado: { spd: 3.4, label: '🪙 Goblin Cargado', msg: 'un Goblin Cargado (lento, suelta oro al huir)', hpMul: 1.2 },
+      portal:  { spd: 4.0, label: '🪙 Goblin Portal',  msg: 'un Goblin Portal (parpadea, pero queda aturdido)', hpMul: 0.65 },
+    };
+    const v = VARIANTS[type] || VARIANTS.veloz;
     const def = scaleEnemy(GOBLIN, floor);
     def.goblin = true;
-    def.rankLabel = '🪙 Goblin del Tesoro';
+    def.goblinType = type;
+    def.spd = v.spd;
+    if (v.hpMul) def.hp = Math.round(def.hp * v.hpMul);
+    def.rankLabel = v.label;
     def.labelCls = 'lbl-elite';
     const e = new Enemy(this, def, at);
     e.escapeT = 26;
@@ -714,7 +727,7 @@ class Game {
     this.entityGroup.add(e.group);
     if (w.type === 'zone') w.goblin = e;
     this.spawnRing(at.clone(), 1.2, 0xffd24a);
-    this.ui.message('🪙 ¡Un Goblin del Tesoro! Cázalo antes de que escape', 3500);
+    this.ui.message(`🪙 ¡Aparece ${v.msg}! Cázalo antes de que escape`, 3500);
     this.sfx('portal');
     return e;
   }
@@ -966,6 +979,51 @@ class Game {
     this.sfx('eshoot');
   }
 
+  // telaraña/escarcha telegrafiada: aviso en el suelo; al estallar, ralentiza
+  // al jugador unos segundos si sigue dentro (sin daño injusto).
+  enemyWeb(enemy, pos) {
+    this.spawnTelegraph(pos, 2.0, 0.7, 0, enemy.def.level || 1, {
+      onDone: (at) => {
+        const p = this.player;
+        if (p && p.alive && p.pos.distanceTo(at) <= 2.3) {
+          p.slowT = 3; p._slowTotal = 3;
+          this.ui.message('🕸️ ¡Atrapado! Estás ralentizado', 1500);
+        }
+        // marca visual breve en el suelo
+        const mesh = new THREE.Mesh(new THREE.CircleGeometry(2.0, 20),
+          new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.4 }));
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.copy(at).setY(0.05);
+        this.fxGroup.add(mesh);
+        this.firePools.push({ mesh, t: 0, dur: 2.5, radius: 0, tick: 99 });
+      },
+    });
+    this.sfx('eshoot');
+  }
+
+  // abanico de proyectiles: 3 disparos en arco hacia el jugador (esquivable)
+  enemyFan(enemy, target) {
+    const baseAngle = Math.atan2(target.x - enemy.pos.x, target.z - enemy.pos.z);
+    for (let i = -1; i <= 1; i++) {
+      const a = baseAngle + i * 0.26;
+      const to = enemy.pos.clone().add(new THREE.Vector3(Math.sin(a) * 8, 0, Math.cos(a) * 8));
+      this.spawnProjectile({
+        from: enemy.pos.clone().setY(1.1), to: to.setY(1.0),
+        speed: enemy.def.projSpeed || 9, range: 11,
+        dmg: Math.round(enemy.def.dmg * 0.7), friendly: false,
+        color: enemy.def.projColor || 0xcc66ff, size: 0.16,
+        attackerLevel: enemy.def.level || 1,
+      });
+    }
+    this.sfx('eshoot');
+  }
+
+  // goblin cargado: deja caer una moneda al huir (botín gratis del reguero)
+  goblinGoldDrip(enemy) {
+    const floor = this.world.scaleFloor || this.world.floor || 1;
+    this.spawnGroundItem(makeGold(Math.max(1, floor - 1)), enemy.pos);
+  }
+
   // ---------- combate ----------
   spawnProjectile(opts) {
     const pr = new Projectile(this, opts);
@@ -1159,7 +1217,7 @@ class Game {
       case 'buff': {
         const stats = {};
         for (const [k, arr] of Object.entries(sk.buff)) stats[k] = Math.round(skillVal(arr, lvl));
-        p.addBuff(sk.id, stats, sk.dur);
+        p.addBuff(sk.id, stats, sk.dur, { name: sk.name, icon: sk.icon, desc: sk.desc });
         this.spawnRing(p.pos, 1.4, 0x66ddff);
         break;
       }
@@ -1900,11 +1958,12 @@ class Game {
     const floor = this.world.scaleFloor || this.world.floor || 1;
     switch (it.shrine) {
       case 'xp':
-        p.xpBoostT = 60;
+        p.xpBoostT = 60; p._xpBoostTotal = 60;
         this.ui.message('✨ ¡Bendición de Experiencia! +50% XP durante 60s', 3500);
         break;
       case 'dmg':
-        p.addBuff('shrine_dmg', { dmgPct: 25 }, 45);
+        p.addBuff('shrine_dmg', { dmgPct: 25 }, 45,
+          { name: 'Bendición de Furia', icon: '⚔️', desc: '+25% daño' });
         this.ui.message('⚔️ ¡Bendición de Furia! +25% daño durante 45s', 3500);
         break;
       case 'pocion':
@@ -1919,7 +1978,8 @@ class Game {
         this.ui.message('🪙 ¡Bendición Dorada!', 2500);
         break;
       case 'fortuna':
-        p.addBuff('shrine_mf', { mf: 80 }, 60);
+        p.addBuff('shrine_mf', { mf: 80 }, 60,
+          { name: 'Bendición de la Fortuna', icon: '🍀', desc: '+80% hallazgo mágico' });
         this.ui.message('🍀 ¡Bendición de la Fortuna! +80% hallazgo mágico durante 60s', 3500);
         break;
       case 'avaricia':

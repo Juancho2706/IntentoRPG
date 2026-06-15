@@ -378,10 +378,74 @@ export class Player {
     return { dmg: Math.max(1, Math.round(dmg)), crit };
   }
 
-  addBuff(id, stats, dur) {
+  // meta opcional: { name, icon, desc } para que la UI muestre el efecto.
+  // Guardamos `dur` (total) además de `t` (restante) para poder calcular progreso.
+  addBuff(id, stats, dur, meta = {}) {
     this.buffs = this.buffs.filter(b => b.id !== id);
-    this.buffs.push({ id, stats, t: dur });
+    this.buffs.push({
+      id, stats, t: dur, dur,
+      name: meta.name, icon: meta.icon, desc: meta.desc,
+    });
     this.recompute();
+  }
+
+  // Descripción legible por defecto a partir de los stats de un buff
+  _buffStatsDesc(stats) {
+    if (!stats) return '';
+    const LABELS = {
+      dmgPct: '% daño', crit: '% crítico', arm: ' armadura', spdPct: '% vel. mov.',
+      aspdPct: '% vel. ataque', mf: '% hallazgo mágico', hp: ' vida', mp: ' maná',
+      lph: ' vida al golpear', mph: ' maná al golpear', cdr: '% enfriamiento', thorns: ' espinas',
+    };
+    return Object.entries(stats)
+      .map(([k, v]) => `+${v}${LABELS[k] || ' ' + k}`)
+      .join(', ');
+  }
+
+  // CONTRATO UI: devuelve TODOS los efectos temporales activos, normalizados.
+  // Cada uno: { id, name, icon, remaining, total, desc } (segundos).
+  // Nunca lanza: si no hay efectos devuelve [].
+  activeBuffs() {
+    const out = [];
+    try {
+      // 1) buffs de habilidades/altares con stats
+      for (const b of this.buffs || []) {
+        if (!b || b.t <= 0) continue;
+        out.push({
+          id: b.id,
+          name: b.name || 'Bendición',
+          icon: b.icon || '✨',
+          remaining: Math.max(0, b.t),
+          total: b.dur || b.t,
+          desc: b.desc || this._buffStatsDesc(b.stats),
+        });
+      }
+      // 2) santuario de experiencia (temporizador suelto, no es un buff con stats)
+      if (this.xpBoostT > 0) {
+        out.push({
+          id: 'xp_boost', name: 'Bendición de Experiencia', icon: '✨',
+          remaining: this.xpBoostT, total: this._xpBoostTotal || 60,
+          desc: '+50% experiencia',
+        });
+      }
+      // 3) ralentización del jugador (telaraña/escarcha/congelación)
+      if (this.slowT > 0) {
+        out.push({
+          id: 'slow', name: 'Ralentizado', icon: '❄️',
+          remaining: this.slowT, total: this._slowTotal || this.slowT,
+          desc: '-45% velocidad de movimiento',
+        });
+      }
+      // 4) invulnerabilidad de esquiva (si está activa)
+      if (this.dodgeT > 0) {
+        out.push({
+          id: 'dodge', name: 'Esquiva', icon: '💨',
+          remaining: this.dodgeT, total: DASH_DUR,
+          desc: 'Invulnerable mientras dura',
+        });
+      }
+    } catch { /* nunca lanzar: la UI debe poder llamarlo siempre */ }
+    return out;
   }
 
   // esquiva: impulso rápido con invulnerabilidad breve
@@ -697,21 +761,80 @@ export class Enemy {
     if (!player || !player.alive) return false;
 
     // --- goblin del tesoro: nunca ataca; huye y, si no lo cazas, escapa ---
+    // Tres tipos, cada uno con una VENTANA REAL para alcanzarlo (melee o rango):
+    //   'veloz'  → corre rápido pero se detiene a burlarse cada pocos segundos
+    //   'cargado'→ lento (más que el jugador) y deja un reguero de oro
+    //   'portal' → se teletransporta de cerca pero queda aturdido tras parpadear
     if (this.def.goblin) {
       if (this.slowT > 0) this.slowT -= dt;
-      const gspd = this.def.spd * (this.slowT > 0 ? 0.5 : 1);
+      const type = this.def.goblinType || 'veloz';
       const dg = this.pos.distanceTo(player.pos);
       this.escapeT = (this.escapeT ?? 26) - dt;
-      if (dg < 11 && dg > 0.01) {
+
+      // estado de aturdimiento (portal): quieto y vulnerable
+      this.gobStunT = Math.max(0, (this.gobStunT ?? 0) - dt);
+      // estado de descanso/burla (veloz): quieto y vulnerable
+      this.gobRestT = Math.max(0, (this.gobRestT ?? 0) - dt);
+
+      // multiplicador de huida por tipo (relativo a su def.spd)
+      let fleeMul = 1.25;
+      if (type === 'cargado') fleeMul = 1.0;
+      else if (type === 'portal') fleeMul = 0.9;
+
+      let resting = false;
+
+      if (type === 'veloz') {
+        // ciclo correr / descansar: corre ~2.5s, descansa ~1.2s (ventana de golpe)
+        if (this.gobRestT > 0) {
+          resting = true;
+        } else {
+          this.gobRunT = (this.gobRunT ?? 2.5) - dt;
+          if (this.gobRunT <= 0) { this.gobRunT = 2.5; this.gobRestT = 1.2; resting = true; }
+        }
+      } else if (type === 'portal') {
+        if (this.gobStunT > 0) {
+          resting = true; // aturdido tras parpadear
+        } else {
+          // se teletransporta lejos cuando te acercas, y queda aturdido al llegar
+          this.gobBlinkCd = Math.max(0, (this.gobBlinkCd ?? 0) - dt);
+          if (dg < 2.6 && this.gobBlinkCd <= 0 && dg > 0.01) {
+            for (let t = 0; t < 8; t++) {
+              const a = Math.random() * Math.PI * 2;
+              const nx = this.pos.x + Math.sin(a) * 5, nz = this.pos.z + Math.cos(a) * 5;
+              if (g.world.grid.walkable(nx, nz, 0.3) &&
+                  Math.hypot(nx - player.pos.x, nz - player.pos.z) > dg) {
+                g.spawnRing?.(this.pos.clone(), 0.9, 0xffd24a);
+                this.pos.set(nx, 0, nz);
+                this.gobBlinkCd = 4;
+                this.gobStunT = 1.5; // ventana de golpe: queda aturdido
+                g.sfx?.('portal');
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const gspd = this.def.spd * (this.slowT > 0 ? 0.5 : 1) * fleeMul;
+
+      if (resting) {
+        // detenido (descansando, burlándose o aturdido): bamboleo en el sitio
+        if (dg > 0.01) this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+      } else if (dg < 11 && dg > 0.01) {
         // huye del jugador; si choca con un muro, lo rodea en perpendicular
         const nx = (this.pos.x - player.pos.x) / dg, nz = (this.pos.z - player.pos.z) / dg;
         const before = this.pos.clone();
-        moveWithCollision(g.world.grid, this.pos, nx * gspd * 1.25 * dt, nz * gspd * 1.25 * dt, 0.3);
+        moveWithCollision(g.world.grid, this.pos, nx * gspd * dt, nz * gspd * dt, 0.3);
         if (this.pos.distanceToSquared(before) < 1e-7) {
-          moveWithCollision(g.world.grid, this.pos, -nz * gspd * 1.25 * dt, nx * gspd * 1.25 * dt, 0.3);
+          moveWithCollision(g.world.grid, this.pos, -nz * gspd * dt, nx * gspd * dt, 0.3);
           this.group.rotation.y = Math.atan2(-nz, nx);
         } else {
           this.group.rotation.y = Math.atan2(nx, nz);
+        }
+        // goblin cargado: va soltando un reguero de oro mientras huye
+        if (type === 'cargado') {
+          this.goldDripT = (this.goldDripT ?? 0) - dt;
+          if (this.goldDripT <= 0) { this.goldDripT = 0.55; g.goblinGoldDrip?.(this); }
         }
       } else {
         // deambula despacio mientras no lo ves
@@ -729,7 +852,8 @@ export class Enemy {
         }
       }
       const body = this.group.userData.body;
-      if (body) body.position.y = 0.75 + Math.abs(Math.sin(performance.now() / 90)) * 0.12;
+      // bamboleo más intenso al correr; suave al descansar/aturdido
+      if (body) body.position.y = 0.75 + Math.abs(Math.sin(performance.now() / (resting ? 220 : 90))) * (resting ? 0.05 : 0.12);
       if (this.escapeT <= 0) { g.goblinEscape(this); return false; }
       return false;
     }
@@ -809,16 +933,52 @@ export class Enemy {
           player.takeDamage(Math.max(1, Math.round(2 + (this.def.level || 1) * 1.2)), this.def.level || 1);
         }
       }
+      // aura de escarcha: ralentiza al jugador mientras esté cerca (sin daño)
+      if (this.def.frostAura && d < 2.6) {
+        player.slowT = Math.max(player.slowT, 0.4);
+      }
     }
+    // aura de mando: potencia a los aliados cercanos (vel. de ataque) — el buff
+    // se aplica de forma pasiva marcando a los enemigos próximos cada ~0.5s.
+    if (this.def.rallyAura) {
+      this.rallyTick = (this.rallyTick ?? 0) - dt;
+      if (this.rallyTick <= 0) {
+        this.rallyTick = 0.5;
+        for (const e of g.enemies) {
+          if (e === this || !e.alive || e.def.boss) continue;
+          if (e.pos.distanceToSquared(this.pos) < 5 * 5) e.rallyT = 0.7;
+        }
+      }
+    }
+    // beneficiado por un aura de mando aliada: ataca más rápido un instante
+    this.rallyT = Math.max(0, (this.rallyT ?? 0) - dt);
 
-    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1);
+    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1);
 
-    // cobardes: con poca vida huyen de ti
+    // cobardes: con poca vida huyen de ti, pero EN RÁFAGAS — corren ~1.5s y
+    // luego se cansan ~1.5s (se ralentizan y se dan la vuelta), dando una
+    // ventana real para alcanzarlos. Ya no huyen indefinidamente.
     if (this.def.coward && this.hp < this.maxHP * 0.3 && d < 6 && d > 0.01) {
-      const nx = (this.pos.x - player.pos.x) / d, nz = (this.pos.z - player.pos.z) / d;
-      moveWithCollision(g.world.grid, this.pos, nx * spd * dt, nz * spd * dt, 0.3);
-      this.group.rotation.y = Math.atan2(nx, nz);
-      return false;
+      this.cowardPhaseT = (this.cowardPhaseT ?? 0) - dt;
+      if (this.cowardPhaseT <= 0) {
+        // alterna entre huir y cansarse
+        this.cowardFleeing = !this.cowardFleeing;
+        this.cowardPhaseT = this.cowardFleeing ? 1.5 : 1.5;
+      }
+      if (this.cowardFleeing) {
+        const nx = (this.pos.x - player.pos.x) / d, nz = (this.pos.z - player.pos.z) / d;
+        moveWithCollision(g.world.grid, this.pos, nx * spd * dt, nz * spd * dt, 0.3);
+        this.group.rotation.y = Math.atan2(nx, nz);
+        return false;
+      }
+      // cansado: se gira hacia el jugador y avanza muy despacio (alcanzable);
+      // si el jugador está en rango, deja que el bloque de ataque actúe.
+      this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+      if (d > this.def.range) {
+        const nx = (player.pos.x - this.pos.x) / d, nz = (player.pos.z - this.pos.z) / d;
+        moveWithCollision(g.world.grid, this.pos, nx * spd * 0.35 * dt, nz * spd * 0.35 * dt, 0.3);
+        return false;
+      }
     }
 
     // brujos: se teletransportan lejos si te acercas demasiado
@@ -854,6 +1014,10 @@ export class Enemy {
           if (this.mechCd <= 0) {
             if (this.def.mechanic === 'frost_nova' && d < 7) { this.mechCd = 6; g.bossFrostNova(this); }
             else if (this.def.mechanic === 'fire_pool' && d < 11) { this.mechCd = 5; g.spawnFirePool(player.pos.clone()); }
+            // telaraña/escarcha telegrafiada: avisa y, si no esquivas, te ralentiza
+            else if (this.def.mechanic === 'web' && d < 9 && this.hasLOS) { this.mechCd = 5; g.enemyWeb(this, player.pos.clone()); }
+            // abanico de proyectiles hacia el jugador (esquivable)
+            else if (this.def.mechanic === 'fan' && d < 11 && this.hasLOS) { this.mechCd = 4.5; g.enemyFan(this, player.pos.clone()); }
           }
         }
       }
@@ -861,7 +1025,7 @@ export class Enemy {
       const range = this.def.range;
       if (d <= range && this.hasLOS) {
         if (this.atkCd <= 0) {
-          this.atkCd = this.def.atkTime;
+          this.atkCd = this.def.atkTime * (this.rallyT > 0 ? 0.8 : 1);
           if (this.def.rangedAttack && d > 2.2) {
             g.spawnProjectile({
               from: this.pos.clone().setY(1.1), to: player.pos.clone().setY(1.0),
