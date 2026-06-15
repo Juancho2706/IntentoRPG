@@ -616,6 +616,20 @@ export const SUPPORTS = [
   { id: 'overcharge', name: 'Sobrecarga', icon: '💥', desc: '+50% de daño, pero +40% de coste de maná',
     effect: '+50% daño', trade: '+40% maná', tag: 'tradeoff',
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+
+  // --- SOPORTES 3.0 (utilidad / meta): builds de sostenibilidad y uptime ---
+  { id: 'efficient', name: 'Eficiente', icon: '💧', desc: '−35% de coste de maná de la habilidad',
+    effect: '−35% maná', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj', 'buff'] },
+  { id: 'swift', name: 'Raudo', icon: '⏱️', desc: '−30% de enfriamiento de la habilidad',
+    effect: '−30% enfriamiento', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj', 'buff'] },
+  { id: 'focused', name: 'Certero', icon: '🎯', desc: '+25% de prob. de crítico de la habilidad',
+    effect: '+25% crítico', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+  { id: 'lasting', name: 'Persistente', icon: '⌛', desc: '+80% de duración de buff y +50% de daño de los DoT',
+    effect: '+duración buff / +DoT', tag: 'pro',
+    types: ['buff', 'melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
 ];
 
 // ------------------------------------------------------------

@@ -1076,6 +1076,7 @@ class Game {
     let manaMul = 1;
     if (supsCost.includes('echo')) manaMul *= 1.6;
     if (supsCost.includes('overcharge')) manaMul *= 1.4;
+    if (supsCost.includes('efficient')) manaMul *= 0.65; // soporte Eficiente
     const cost = Math.round(baseCost * manaMul);
     if (!isEcho && p.mp < cost) { this.ui.message('Maná insuficiente'); return; }
 
@@ -1118,7 +1119,8 @@ class Game {
     if (m.pierce) supPierce = true;
     if (m.radius) supRadius *= 1 + m.radius / 100;
     if (m.slow) supSlow = Math.max(supSlow || 0, m.slow);
-    const skCrit = (sk.critBonus || 0) + m.crit;   // bonus de crítico base + aspecto
+    let skCrit = (sk.critBonus || 0) + m.crit;   // bonus de crítico base + aspecto
+    if (has('focused')) skCrit += 25;            // soporte Certero
     // Daño por tiempo (Sed de Sangre/Veneno/Aspecto): total a repartir en tics.
     const avgHit = (p.stats.dmgMin + p.stats.dmgMax) / 2 * mult;
     const dotKind = (has('poison') || m.dot === 'poison') ? 'poison'
@@ -1131,6 +1133,7 @@ class Game {
         : dotKind === 'bleed'
           ? { total: avgHit * 0.6, ticks: 3, interval: 1.0, color: 0xff4466 }
           : null;
+    if (supDoT && has('lasting')) supDoT.total *= 1.5; // soporte Persistente: DoT más fuerte
     const applyDoT = e => { if (supDoT && e && e.alive) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval); };
     let casted = true;
 
@@ -1263,7 +1266,8 @@ class Game {
         const stats = {};
         const buffMul = 1 + (m.buff || 0) / 100;           // Mejora/Aspecto: +potencia
         for (const [k, arr] of Object.entries(sk.buff)) stats[k] = Math.round(skillVal(arr, lvl) * buffMul);
-        p.addBuff(sk.id, stats, sk.dur * (1 + (m.dur || 0) / 100), { name: sk.name, icon: sk.icon, desc: sk.desc });
+        const durMul = (1 + (m.dur || 0) / 100) * (has('lasting') ? 1.8 : 1); // Aspecto/soporte Persistente
+        p.addBuff(sk.id, stats, sk.dur * durMul, { name: sk.name, icon: sk.icon, desc: sk.desc });
         this.spawnRing(p.pos, 1.4, 0x66ddff);
         // aura de buff sobre el jugador (Grito de Guerra, Armadura Helada, Agilidad).
         if (fx?.aura) this.emitFx(fx.aura, p.pos.clone().setY(1.0));
@@ -1274,7 +1278,7 @@ class Game {
     if (casted) {
       if (!isEcho) {
         p.mp -= cost;
-        p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100); // reducción de enfriamiento
+        p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100) * (has('swift') ? 0.7 : 1); // CDR + soporte Raudo
         // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
         if (has('echo')) setTimeout(() => this.castSkillSlot(slot, 0.5), 500);
       }

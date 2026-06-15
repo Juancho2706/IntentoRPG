@@ -75,4 +75,11 @@ const pr = new Projectile(fake, { from: new THREE.Vector3(-1,1,0), to: new THREE
 for (let i = 0; i < 60 && !e.slowT; i++) pr.update(1/60);
 if (e.slowT !== 3) throw new Error('el soporte gélido (slow) no ralentizó: ' + e.slowT);
 console.log('Soporte Gélido: el proyectil ralentiza al impactar ✓');
+
+// soportes 3.0 (utilidad/meta): existen y tienen tipos/efecto válidos
+for (const id of ['efficient', 'swift', 'focused', 'lasting']) {
+  const s = SUPPORTS.find(x => x.id === id);
+  if (!s || !s.types?.length || !s.effect) throw new Error('soporte 3.0 inválido: ' + id);
+}
+console.log('Soportes 3.0 (Eficiente/Raudo/Certero/Persistente) presentes y válidos ✓');
 console.log('✅ SOPORTES DE HABILIDAD OK');
