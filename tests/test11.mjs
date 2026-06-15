@@ -45,7 +45,7 @@ if (telegraphs < 1) throw new Error('el gólem no telegrafió');
 console.log('Gólem telegrafia su golpe ✓');
 
 // mods de élite: auras y mecánicas
-if (ELITE_MODS.length !== 6 || !ELITE_MODS.every(m => m.aura)) throw new Error('mods sin aura');
+if (ELITE_MODS.length < 6 || !ELITE_MODS.every(m => m.aura)) throw new Error('mods sin aura');
 let elite = null;
 for (let i = 0; i < 2000 && !elite; i++) {
   const d = rollEnemyRank(scaleEnemy(pickEnemyDef(3), 3), 3);

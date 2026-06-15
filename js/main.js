@@ -246,7 +246,7 @@ class Game {
     clearGroup(this.lootGroup);
     clearGroup(this.fxGroup);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
-    this.firePools = []; this.telegraphs = [];
+    this.firePools = []; this.telegraphs = []; this.chains = {};
 
     // semilla persistente por sesión: la zona se genera una sola vez y mantiene
     // su trazado mientras dure la partida (hasta recargar la página)
@@ -552,9 +552,16 @@ class Game {
         rankLabel: `${rk.icon} ${d.name} ${rk.name}`,
       };
     }
+    // afijo Cadenas: la manada entera comparte daño. Marcamos un id de cadena
+    // común; el reparto del daño lo resuelve onEnemyHit (sin tocar takeDamage).
+    const chainId = leader.modId === 'cadenas' ? `chain_${Date.now()}_${Math.floor(Math.random() * 1e4)}` : null;
+    const linked = [];
+
     const lead = new Enemy(this, leader, positions[0]);
+    if (chainId) lead.chainId = chainId;
     this.enemies.push(lead);
     this.entityGroup.add(lead.group);
+    linked.push(lead);
     for (const pos of positions.slice(1)) {
       const m = scaleEnemy(base, floor);
       const minion = {
@@ -562,10 +569,16 @@ class Game {
         thorns: leader.thorns, xp: Math.round(m.xp * 1.2),
       };
       if (leader.modId === 'veloz') minion.spd = m.spd * 1.3;
+      // los esbirros de una manada Cadenas también comparten el daño
+      if (chainId) minion.chains = true;
       const e = new Enemy(this, minion, pos);
+      if (chainId) e.chainId = chainId;
       this.enemies.push(e);
       this.entityGroup.add(e.group);
+      linked.push(e);
     }
+    // registro de cadenas para el reparto de daño
+    if (chainId) { this.chains = this.chains || {}; this.chains[chainId] = linked; }
   }
 
   // aplica los modificadores del pacto a un enemigo que aparece tras sellarlo
@@ -1018,6 +1031,178 @@ class Game {
     this.sfx('eshoot');
   }
 
+  // ---------- mecánicas de arquetipos nuevos ----------
+  // Nigromante: invoca 2 esqueletos con anillo visible. Quedan ligados al
+  // nigromante (raisedBy) para poder debilitarlos cuando este muera.
+  enemyRaise(enemy) {
+    const base = ENEMIES.find(e => e.id === 'esqueleto');
+    const floor = this.world.scaleFloor || 1;
+    for (let i = 0; i < 2; i++) {
+      const a = Math.PI * 2 * (i + Math.random()) / 2;
+      const pos = enemy.pos.clone().add(new THREE.Vector3(Math.sin(a) * 1.6, 0, Math.cos(a) * 1.6));
+      if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(enemy.pos);
+      pos.y = 0;
+      const e = new Enemy(this, scaleEnemy(base, floor), pos);
+      e.raisedBy = enemy.uid; // vínculo para debilitarlos al morir el invocador
+      e.aggroed = true;
+      this.enemies.push(e);
+      this.entityGroup.add(e.group);
+    }
+    this.spawnRing(enemy.pos.clone(), 1.8, 0x66ff88);
+    this.spawnBurst(enemy.pos, 0x66ff88, 8);
+    this.sfx('eshoot');
+  }
+
+  // Acólito: cura a un aliado herido cercano con un haz visible. Contrajuego:
+  // enfocar al acólito (es frágil) para cortar la curación.
+  enemyHeal(enemy) {
+    let best = null, bd = 7 * 7;
+    for (const e of this.enemies) {
+      if (e === enemy || !e.alive || e.def.boss) continue;
+      if (e.hp >= e.maxHP) continue;
+      const dd = e.pos.distanceToSquared(enemy.pos);
+      if (dd < bd) { bd = dd; best = e; }
+    }
+    if (!best) return;
+    const heal = Math.round(best.maxHP * 0.18);
+    best.hp = Math.min(best.maxHP, best.hp + heal);
+    const fg = best.group.userData.barFg;
+    if (fg) { fg.scale.x = Math.max(0.001, best.hp / best.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); }
+    // haz visible entre acólito y aliado curado
+    this.spawnBeam(enemy.pos.clone().setY(1.1), best.pos.clone().setY(1.1), 0x88ffcc);
+    this.ui.spawnText(best.pos.clone().setY(best.def.scale + 0.5), `+${heal}`, 'txt-heal');
+    this.sfx('skill');
+  }
+
+  // haz/línea visible breve entre dos puntos (curación, aviso de francotirador)
+  spawnBeam(from, to, color, dur = 0.4) {
+    const dir = to.clone().sub(from);
+    const len = dir.length();
+    if (len < 0.01) return;
+    const geo = new THREE.CylinderGeometry(0.05, 0.05, len, 6);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 }));
+    mesh.position.copy(from).addScaledVector(dir, 0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    this.fxGroup.add(mesh);
+    this.fx.push({ mesh, t: 0, dur, ring: true });
+  }
+
+  // Francotirador del Vacío: línea de aviso de largo alcance; tras ~1s dispara un
+  // proyectil rápido por esa línea (lo dispara Enemy.update). Contrajuego: romper
+  // visión / esquivar tras ver la línea.
+  enemySnipe(enemy, target) {
+    const dir = target.clone().sub(enemy.pos); dir.y = 0;
+    const l = Math.hypot(dir.x, dir.z) || 1;
+    const nx = dir.x / l, nz = dir.z / l;
+    const end = enemy.pos.clone().add(new THREE.Vector3(nx, 0, nz).multiplyScalar(16));
+    this.spawnBeam(enemy.pos.clone().setY(1.0), end.setY(1.0), 0xcc66ff, 1.0); // línea de aviso
+    enemy.snipeDir = { nx, nz };
+    enemy.snipeFireT = 1.0; // Enemy.update dispara al agotarse
+    this.sfx('eshoot');
+  }
+
+  // dispara el proyectil cargado del francotirador (llamado por Enemy.update)
+  fireSnipe(enemy) {
+    const d = enemy.snipeDir;
+    if (!d) return;
+    const to = enemy.pos.clone().add(new THREE.Vector3(d.nx, 0, d.nz).multiplyScalar(16));
+    this.spawnProjectile({
+      from: enemy.pos.clone().setY(1.0), to: to.setY(1.0),
+      speed: enemy.def.projSpeed || 22, range: 17,
+      dmg: enemy.def.dmg, friendly: false, color: enemy.def.projColor || 0xcc66ff, size: 0.2,
+      attackerLevel: enemy.def.level || 1,
+    });
+    enemy.snipeDir = null;
+    this.sfx('eshoot');
+  }
+
+  // afijo Encarcelador: telegrafía un anillo bajo el jugador; si sigue dentro al
+  // llenarse, lo enraíza brevemente (SLOW fuerte y corto, sin stun).
+  enemyJail(enemy, pos) {
+    this.spawnTelegraph(pos, 1.8, 0.8, 0, enemy.def.level || 1, {
+      onDone: (at) => {
+        const p = this.player;
+        if (p && p.alive && p.pos.distanceTo(at) <= 2.0) {
+          p.slowT = Math.max(p.slowT, 1.4); p._slowTotal = 1.4;
+          this.ui.message('⛓️ ¡Apresado! Ralentizado un instante', 1200);
+        }
+        const mesh = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.8, 24),
+          new THREE.MeshBasicMaterial({ color: 0x66ffcc, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.copy(at).setY(0.05);
+        this.fxGroup.add(mesh);
+        this.firePools.push({ mesh, t: 0, dur: 1.4, radius: 0, tick: 99 });
+      },
+    });
+    this.sfx('eshoot');
+  }
+
+  // afijo Vórtice: tirón único hacia el enemigo, telegrafiado con un anillo. Solo
+  // ocurre una vez por enemigo (no encadenable). Respeta los muros.
+  enemyVortex(enemy) {
+    const p = this.player;
+    if (!p || !p.alive) return;
+    this.spawnRing(enemy.pos.clone(), 2.5, 0x9966ff);
+    const dir = enemy.pos.clone().sub(p.pos); dir.y = 0;
+    const l = Math.hypot(dir.x, dir.z) || 1;
+    const pull = Math.min(3.0, l - 1.5);
+    if (pull > 0) {
+      const nx = dir.x / l, nz = dir.z / l;
+      const tx = p.pos.x + nx * pull, tz = p.pos.z + nz * pull;
+      if (this.world.grid.walkable(tx, tz, 0.32)) { p.pos.x = tx; p.pos.z = tz; }
+    }
+    this.ui.message('🌀 ¡Te arrastra el Vórtice!', 1200);
+    this.sfx('eshoot');
+  }
+
+  // afijo Escudado: cáscara visible de inmunidad temporal sobre el enemigo.
+  enemyShield(enemy) {
+    if (!enemy.shieldShell) {
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
+      shell.position.y = 0.9;
+      enemy.group.add(shell);
+      enemy.shieldShell = shell;
+    }
+    enemy.shieldShell.visible = true;
+    this.spawnRing(enemy.pos.clone(), 1.4, 0xffee88);
+    this.sfx('skill');
+  }
+
+  // Embestidor: línea de aviso de la carga inminente (ventana de escape).
+  enemyChargeWarn(enemy, dir, len) {
+    const end = enemy.pos.clone().add(new THREE.Vector3(dir.x, 0, dir.z).multiplyScalar(len));
+    this.spawnBeam(enemy.pos.clone().setY(0.3), end.setY(0.3), 0xff5533, 1.0);
+    this.sfx('eshoot');
+  }
+
+  // Sembrador de Esporas (splitter): al morir deja un saco telegrafiado en el
+  // suelo; tras ~1.5s revienta en 3 crías. Hay ventana de escape (marca visible).
+  spawnSporeSack(pos, floor) {
+    // marca de suelo (saco) que avisa antes de reventar
+    const sack = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0x9ad86a, transparent: true, opacity: 0.7 }));
+    sack.position.copy(pos).setY(0.4);
+    this.fxGroup.add(sack);
+    this.firePools.push({ mesh: sack, t: 0, dur: 1.5, radius: 0, tick: 99 });
+    this.spawnTelegraph(pos.clone(), 1.4, 1.5, 0, 1, {
+      onDone: (at) => {
+        const base = ENEMIES.find(e => e.id === 'cria_espora');
+        for (let i = 0; i < 3; i++) {
+          const a = Math.PI * 2 * i / 3;
+          const cp = at.clone().add(new THREE.Vector3(Math.sin(a) * 0.9, 0, Math.cos(a) * 0.9));
+          if (!this.world.grid.walkable(cp.x, cp.z)) cp.copy(at);
+          cp.y = 0;
+          const e = new Enemy(this, scaleEnemy(base, floor), cp);
+          e.aggroed = true;
+          this.enemies.push(e);
+          this.entityGroup.add(e.group);
+        }
+        this.spawnBurst(at, 0x9ad86a, 8);
+      },
+    });
+  }
+
   // goblin cargado: deja caer una moneda al huir (botín gratis del reguero)
   goblinGoldDrip(enemy) {
     const floor = this.world.scaleFloor || this.world.floor || 1;
@@ -1365,6 +1550,12 @@ class Game {
   // ---------- loot ----------
   onEnemyKilled(enemy) {
     const p = this.player;
+    // afijo Escudado: si "muere" durante su ventana de inmunidad, el golpe no
+    // cuenta — no da recompensas y Enemy.update lo revive en el próximo frame.
+    if (enemy.def.shielded && enemy.shieldT > 0) {
+      this.ui.spawnText(enemy.pos.clone().setY((enemy.def.scale || 1) + 0.5), '¡Inmune!', 'txt-heal');
+      return;
+    }
     p.gainXP(Math.round(enemy.def.xp * (1 + (this.world.pact?.xp || 0) / 100)));
     p.records.kills++;
     if (enemy.def.boss) p.records.bossKills++;
@@ -1389,6 +1580,31 @@ class Game {
       this.music.sting();
     }
     this.spawnBurst(enemy.pos, enemy.def.color, enemy.def.boss ? 18 : 8);
+
+    // --- efectos al morir de los arquetipos nuevos (telegrafiados / justos) ---
+    // Nigromante: al caer, sus esbirros invocados se DEBILITAN (pierden vida y
+    // daño) — contrajuego claro: matar al invocador rebaja a su corte.
+    if (enemy.def.mechanic === 'raise') {
+      for (const e of this.enemies) {
+        if (!e.alive || e.raisedBy !== enemy.uid) continue;
+        e.hp = Math.max(1, Math.round(e.hp * 0.5));
+        e.maxHP = Math.max(1, Math.round(e.maxHP * 0.5));
+        e.def = { ...e.def, dmg: Math.max(1, Math.round(e.def.dmg * 0.6)) };
+        const fg = e.group.userData.barFg;
+        if (fg) { fg.scale.x = Math.max(0.001, e.hp / e.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); e.group.userData.bar.visible = true; }
+        this.spawnRing(e.pos.clone(), 1.0, 0x447755);
+      }
+    }
+    // Sembrador de Esporas: deja un saco telegrafiado que revienta en 3 crías
+    // tras ~1.5s (con ventana de escape y marca de suelo).
+    if (enemy.def.mechanic === 'split') {
+      this.spawnSporeSack(enemy.pos.clone(), this.world.scaleFloor || this.world.floor || 1);
+    }
+    // afijo Cadenas: limpia el registro de la cadena al morir un miembro
+    if (enemy.chainId && this.chains && this.chains[enemy.chainId]) {
+      this.chains[enemy.chainId] = this.chains[enemy.chainId].filter(e => e.alive && e !== enemy);
+      if (this.chains[enemy.chainId].length === 0) delete this.chains[enemy.chainId];
+    }
 
     // poderes únicos al matar
     if (p.powers?.has('festin') && p.alive) {
