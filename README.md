@@ -45,6 +45,10 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Arquetipos de enemigos** con telegrafía y contrajuego: **Nigromante** (invoca esbirros), **Acólito Sanador**, **Portaestandarte** (escudo a aliados), **Sembrador de Esporas** (se divide al morir), **Embestidor** (carga en línea con aviso) y **Francotirador del Vacío** (disparo cargado de largo alcance)
 - **Game-feel / efectos de impacto**: *hit-stop* escalado con la fuerza del golpe, destello blanco en los enemigos golpeados, sacudida de cámara basada en "trauma" y estallidos al impactar los proyectiles
 - **Modelos de enemigos con animación**: siluetas con cabeza, brazos, piernas y cola; animación procedural de caminar (oscilación de piernas/brazos), respiración en reposo y arremetida al atacar; los limos saltan y aplastan, los cofres mímicos castañean
+- **Post-procesado (estética)**: bloom selectivo sobre lo emisivo, tone mapping ACES, viñeta y **gradación de color por bioma** (frío/cálido/violeta); **partículas ambientales** (polvo, nieve, brasas, vacío) y antorchas que titilan — todo desactivable y con calidad adaptativa
+- **Brújula de objetivos**: cuando aparece un **Goblin del Tesoro** o un **Jefe de Mundo** fuera de pantalla, una flecha discreta en el borde te señala dónde está (se desvanece al tenerlo a la vista)
+- **Feedback de momentos**: destellos al subir de nivel y al caer un legendario/mítico, cooldowns radiales y coste de maná en las habilidades, y números de daño que no saturan
+- **Build a la vista**: barra de navegación Personaje ↔ Habilidades ↔ Paragon/Glifos, con avisos de puntos sin gastar y glifos sin engarzar; el inventario se abre también con **B**
 - **Esquiva** con invulnerabilidad breve (Shift / botón 💨) y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo
 - **Santuarios** en las mazmorras: bendiciones de XP, furia, vida y oro… y alguno maldito
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios, con tasas equilibradas (los legendarios son un acontecimiento, no rutina)

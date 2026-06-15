@@ -1937,7 +1937,7 @@ class Game {
         this.sfx('levelup');
         this.vibrate([40, 30, 40]);
       } else {
-        if (it.rarity === 'legendario') this.vibrate([40, 30, 40]);
+        if (it.rarity === 'legendario') { this.vibrate([40, 30, 40]); this.ui.flourishLegendary?.(it.mythic ? `✦ ${it.name}` : it.name); }
         this.ui.message(`Obtienes: ${it.name}`, 1800);
         this.sfx('pickup');
       }
