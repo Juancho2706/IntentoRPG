@@ -13,8 +13,21 @@ import { Input } from './input.js';
 import { economyMethods } from './economy.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
+import { PostFX, AmbientParticles } from './postfx.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
+
+// Color grading por bioma (estética 2026): tinte del composer + multiplicador
+// de exposición + color/tono de la luz de relleno (rim). Realza la identidad
+// fría/cálida/violeta de cada bioma sin tocar la jugabilidad. `tint` se mezcla
+// muy levemente (tintAmt) sobre la imagen final en postfx.js.
+const BIOME_GRADE = {
+  'Cripta':            { tint: 0xc9c2a8, tintAmt: 0.14, exposure: 0.96, rim: 0x6a78a0, rimI: 0.55 },
+  'Cavernas de Hielo': { tint: 0x9fc6ff, tintAmt: 0.20, exposure: 1.06, rim: 0x88bbff, rimI: 0.75 },
+  'Infierno':          { tint: 0xff9a5a, tintAmt: 0.20, exposure: 1.04, rim: 0xff7a44, rimI: 0.7 },
+  'Abismo Estelar':    { tint: 0xb088ff, tintAmt: 0.22, exposure: 1.0,  rim: 0x9a7aff, rimI: 0.7 },
+};
+const DEFAULT_GRADE = { tint: 0xffffff, tintAmt: 0.0, exposure: 1.0, rim: 0xaaccff, rimI: 0.5 };
 // glifo de rareza para las etiquetas del suelo (rareza no solo por color)
 const RGLYPH = { normal: '', magico: '✦', raro: '◆', legendario: '★', conjunto: '❖' };
 
@@ -45,7 +58,7 @@ class Game {
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
     this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
-      reduceMotion: false, bigText: false, colorblind: false, ...opts };
+      reduceMotion: false, bigText: false, colorblind: false, postfx: true, ...opts };
     this.applyAccessibility();
     this.qualityLevel = 0;
     this.fpsAcc = 0;
@@ -92,6 +105,22 @@ class Game {
     this.scene.add(this.ambient, this.sun, this.sun.target);
     this.playerLight = new THREE.PointLight(0xffcc88, 0, 11, 1.5);
     this.scene.add(this.playerLight);
+    // luz de relleno/rim: separa al héroe del fondo desde detrás-arriba; no
+    // proyecta sombras (barata) y tiñe levemente el borde del personaje.
+    this.rimLight = new THREE.DirectionalLight(0xaaccff, 0.6);
+    this.scene.add(this.rimLight, this.rimLight.target);
+
+    // post-procesado opcional (bloom + viñeta + grading de bioma) y partículas
+    // ambientales. Ambos tolerantes a fallos: si el CDN de addons no carga, el
+    // juego sigue con render directo y sin partículas (ver postfx.js).
+    this.postfx = new PostFX();
+    this.postfx.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    this.particles = new AmbientParticles(this.scene);
+    this.particles.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    this.postfx.init(this.renderer, this.scene, this.camera).then(() => {
+      // sincroniza tamaño/calidad iniciales y aplica el estado de calidad actual
+      this.syncPostFX();
+    });
 
     this.raycaster = new THREE.Raycaster();
     this.ui = new UI(this);
@@ -119,6 +148,20 @@ class Game {
     this.camera.bottom = -f / 2;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // mantener el composer en sincronía con el renderer (tamaño + pixelRatio)
+    this.postfx?.setSize(window.innerWidth, window.innerHeight, this.renderer.getPixelRatio());
+  }
+
+  // Aplica el estado de calidad/accesibilidad al post-procesado:
+  // - bloom OFF en calidad baja o reduceMotion (caro en móvil),
+  // - composer y partículas obedecen el toggle `postfx` + reduceMotion,
+  // - tamaño/pixelRatio igualados al renderer.
+  syncPostFX() {
+    const on = this.settings.postfx !== false && !this.settings.reduceMotion;
+    this.postfx?.setEnabled(on);
+    this.postfx?.setBloom(on && this.qualityLevel < 2);
+    this.particles?.setEnabled(on);
+    this.postfx?.setSize(window.innerWidth, window.innerHeight, this.renderer.getPixelRatio());
   }
 
   // ---------- huecos de guardado ----------
@@ -351,6 +394,28 @@ class Game {
     this.sun.color.setHex(w.sun.color);
     this.playerLight.intensity = w.type === 'dungeon' ? 16 : 0;
 
+    // --- color grading + ambiente por bioma ---
+    const grade = BIOME_GRADE[w.biome] || DEFAULT_GRADE;
+    this.exposureBase = this.settings.brightness * grade.exposure;
+    this.renderer.toneMappingExposure = this.exposureBase;
+    this.postfx?.setTint(grade.tint, grade.tintAmt);
+    // luz de relleno/rim teñida por bioma, ubicada detrás-arriba del héroe
+    this.rimLight.color.setHex(grade.rim);
+    this.rimLight.intensity = grade.rimI;
+    // partículas ambientales del bioma (motas/nieve/brasas/vacío); solo en
+    // mundos jugables con bioma (no pueblo/refugio)
+    if ((w.type === 'dungeon' || w.type === 'zone') && w.biome)
+      this.particles?.setBiome(w.biome, w.spawn);
+    else
+      this.particles?.setBiome(null);
+    // flicker real de antorchas: cada PointLight guarda su intensidad base y
+    // una fase de ruido propia para titilar de forma independiente
+    this.torchLights = w.torchLights || [];
+    for (const L of this.torchLights) {
+      L.userData.baseI = L.intensity;
+      L.userData.flick = Math.random() * 100;
+    }
+
     // enemigos: sueltos, manadas con líder, élites de tesoro y jefe
     const sf = w.scaleFloor;
     for (const s of w.spawns) {
@@ -430,6 +495,8 @@ class Game {
     this.renderer.setPixelRatio(ratios[level]);
     this.sun.castShadow = level < 2;
     this.resize();
+    // bloom y tamaño del composer siguen a la calidad (se apaga en nivel 2)
+    this.syncPostFX();
   }
 
   monitorFPS(dt) {
@@ -2115,6 +2182,21 @@ class Game {
     this.playerLight.position.copy(p.pos).setY(2.2);
     this.sun.position.copy(p.pos).add(new THREE.Vector3(10, 18, 6));
     this.sun.target.position.copy(p.pos);
+    // rim/relleno: desde detrás-arriba respecto a la cámara para recortar al
+    // héroe contra el fondo (apunta al jugador)
+    this.rimLight.position.copy(p.pos).add(new THREE.Vector3(-9, 12, -9));
+    this.rimLight.target.position.copy(p.pos);
+
+    // flicker de antorchas: ruido suave sobre la intensidad base (tiempo real)
+    if (this.torchLights && this.torchLights.length) {
+      for (const L of this.torchLights) {
+        const base = L.userData.baseI || 0;
+        const n = smoothNoise(t * 9 + (L.userData.flick || 0), 7); // -1..1
+        L.intensity = base * (0.78 + 0.22 * (n * 0.5 + 0.5)) + n * base * 0.08;
+      }
+    }
+    // partículas ambientales del bioma (siguen a la cámara)
+    this.particles?.update(realDt, this.camera.position);
 
     // UI: textos y etiquetas siguen al mundo (cada frame), pero el HUD y el
     // minimapa se refrescan a 10Hz — menos trabajo de DOM, mismo aspecto
@@ -2142,7 +2224,10 @@ class Game {
     this.saveTimer += dt;
     if (this.saveTimer > 8) { this.saveTimer = 0; this.save(); }
 
-    this.renderer.render(this.scene, this.camera);
+    // render: vía composer si el post-procesado está activo; si no (CDN no
+    // cargado, toggle off o reduceMotion), render directo — nunca se rompe.
+    if (this.postfx?.shouldRender) this.postfx.render();
+    else this.renderer.render(this.scene, this.camera);
   }
 
   // Detecta el interactuable más cercano; la acción ya no se dispara al
