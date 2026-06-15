@@ -157,6 +157,44 @@ export const ENEMIES = [
   { id: 'caballero_abismo', name: 'Caballero del Abismo', color: 0x443a66, shape: 'golem',
     hp: 160, dmg: 26, spd: 1.9, xp: 95, range: 1.9, atkTime: 1.6, scale: 1.45, slam: true,
     minFloor: 16, weight: 14 },
+
+  // --- arquetipos nuevos (2026): cada uno con telegrafía clara y contrajuego ---
+  // Nigromante: invocador común. Cada ~8s invoca 2 esqueletos (anillo visible).
+  // Contrajuego: al morir, sus esbirros vivos se debilitan (pierden vida/daño).
+  { id: 'nigromante', name: 'Nigromante', color: 0x4a6a4a, shape: 'humanoid', coward: true,
+    hp: 60, dmg: 8, spd: 2.0, xp: 48, range: 6, atkTime: 1.8, scale: 1.05,
+    rangedAttack: true, projSpeed: 8, projColor: 0x66ff88,
+    mechanic: 'raise', minFloor: 4, weight: 14 },
+  // Acólito Sanador: cura a aliados heridos cercanos con un haz visible.
+  // Contrajuego: enfócalo (es frágil) para detener las curas.
+  { id: 'acolito', name: 'Acólito Sanador', color: 0xeaeac0, shape: 'humanoid', coward: true,
+    hp: 50, dmg: 6, spd: 2.3, xp: 46, range: 1.5, atkTime: 1.4, scale: 0.95,
+    mechanic: 'heal', minFloor: 5, weight: 13 },
+  // Portaestandarte: aura que da escudo/armadura temporal a aliados (no velocidad).
+  // Contrajuego: matarlo retira el escudo; el aura se telegrafía con un anillo.
+  { id: 'portaestandarte', name: 'Portaestandarte', color: 0x8a7a3a, shape: 'humanoid',
+    hp: 95, dmg: 11, spd: 2.0, xp: 56, range: 1.6, atkTime: 1.3, scale: 1.1,
+    wardAura: true, aura: 0xffdd66, minFloor: 7, weight: 11 },
+  // Sembrador de Esporas (splitter): al morir deja un saco telegrafiado que tras
+  // ~1.5s revienta en 3 crías. Contrajuego: alejarse del saco antes de que reviente.
+  { id: 'sembrador', name: 'Sembrador de Esporas', color: 0x7aa84a, shape: 'slime',
+    hp: 64, dmg: 9, spd: 1.8, xp: 44, range: 1.5, atkTime: 1.4, scale: 1.1,
+    mechanic: 'split', minFloor: 5, weight: 13 },
+  // Cría de espora: pequeña, rápida, débil (la deja el Sembrador al reventar).
+  { id: 'cria_espora', name: 'Cría de Espora', color: 0x9ad86a, shape: 'slime',
+    hp: 12, dmg: 5, spd: 3.2, xp: 6, range: 1.2, atkTime: 1.0, scale: 0.5,
+    minFloor: 5, weight: 0 },
+  // Embestidor: marca tu posición y embiste en línea recta tras ~1s aplicando
+  // SLOW (no stun). Queda vulnerable ~1.5s tras la carga. Contrajuego: apartarse.
+  { id: 'embestidor', name: 'Embestidor', color: 0xb04a30, shape: 'demon',
+    hp: 80, dmg: 16, spd: 2.4, xp: 52, range: 1.7, atkTime: 1.3, scale: 1.15,
+    mechanic: 'charge', minFloor: 6, weight: 13 },
+  // Francotirador del Vacío: disparo cargado de largo alcance con línea de aviso.
+  // Contrajuego: romper la visión o esquivar tras el telegrafiado.
+  { id: 'francotirador', name: 'Francotirador del Vacío', color: 0x5a4a8a, shape: 'humanoid',
+    hp: 58, dmg: 22, spd: 1.9, xp: 58, range: 14, atkTime: 3.2, scale: 1.0,
+    rangedAttack: true, projSpeed: 22, projColor: 0xcc66ff,
+    mechanic: 'snipe', minFloor: 9, weight: 11 },
 ];
 
 // Un jefe por bioma, cada uno con su mecánica especial
@@ -231,6 +269,9 @@ export const ENEMY_RANKS = {
   elite:   { id: 'elite',   name: 'Élite',   icon: '☠️', hp: 3.2, dmg: 1.6,  xp: 4.0, scale: 1.28, glow: 0x5a3a00, labelCls: 'lbl-elite' },
 };
 
+// Afijos de élite. Cada uno es LEGIBLE (aura de color distinta) y tiene
+// CONTRAJUEGO. Los efectos de CC al jugador usan SLOW breve (nunca stun
+// encadenable ni pérdida total de control) y se telegrafían cuando aplican daño.
 export const ELITE_MODS = [
   { id: 'veloz',     name: 'Veloz',     spd: 1.45,           aura: 0x44ddff },
   { id: 'brutal',    name: 'Brutal',    dmg: 1.35,           aura: 0xcc2222 },
@@ -238,6 +279,19 @@ export const ELITE_MODS = [
   { id: 'ardiente',  name: 'Ardiente',  dmg: 1.2, spd: 1.15, aura: 0xff6622, burn: true },
   { id: 'explosivo', name: 'Explosivo', dmg: 1.1,            aura: 0xff3300, explode: true },
   { id: 'espinoso',  name: 'Espinoso',  hp: 1.3,             aura: 0xaa55ff, thorns: 0.2 },
+  // Encarcelador: cada cierto tiempo telegrafía un anillo bajo tus pies; si no
+  // sales a tiempo, te enraíza brevemente (SLOW fuerte y corto, con cooldown
+  // largo para que no sea encadenable — DR efectiva).
+  { id: 'encarcelador', name: 'Encarcelador', hp: 1.2,       aura: 0x66ffcc, jail: true },
+  // Vórtice: una sola vez (cuando se acerca lo suficiente) te atrae hacia él con
+  // un tirón telegrafiado. Contrajuego: posicionarte; solo ocurre una vez.
+  { id: 'vortice',   name: 'Vórtice',   hp: 1.15,            aura: 0x9966ff, vortex: true },
+  // Escudado: gana inmunidad temporal periódica (visible: brillo de escudo).
+  // Contrajuego: esperar a que caiga el escudo o reventarlo con burst.
+  { id: 'escudado',  name: 'Escudado',  hp: 1.25,            aura: 0xffee88, shielded: true },
+  // Cadenas: en una manada, el daño se comparte entre los miembros encadenados.
+  // Contrajuego: concentrar el daño igualmente baja a todos a la vez.
+  { id: 'cadenas',   name: 'Cadenas',   hp: 1.3,             aura: 0xbbbbbb, chains: true },
 ];
 
 // Aplica (o no) una rareza aleatoria a un enemigo ya escalado por piso
@@ -264,6 +318,11 @@ export function rollEnemyRank(def, floor) {
     if (mod.burn) out.burn = true;
     if (mod.explode) out.explode = true;
     if (mod.thorns) out.thorns = mod.thorns;
+    // afijos de élite nuevos (efectos resueltos en entities/main)
+    if (mod.jail) out.jail = true;
+    if (mod.vortex) out.vortex = true;
+    if (mod.shielded) out.shielded = true;
+    if (mod.chains) out.chains = true;
     out.rankLabel = `${rank.icon} ${def.name} ${mod.name}`;
   } else {
     out.aura = 0x2244aa; // aura tenue de campeón

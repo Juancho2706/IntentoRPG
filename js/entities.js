@@ -112,6 +112,19 @@ export function makeEnemyModel(def) {
     body.castShadow = true;
     g.add(body, head);
     bodyH = 0.9;
+  } else if (def.shape === 'slime') {
+    // gota gelatinosa: cúpula traslúcida con núcleo brillante
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 10),
+      std(def.color, { rough: 0.4, ei: 0.4, emissive: def.color }));
+    body.material.transparent = true; body.material.opacity = 0.85;
+    body.scale.set(1.1, 0.8, 1.1);
+    body.position.y = 0.34;
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    core.position.y = 0.32;
+    body.castShadow = true;
+    g.add(body, core);
+    bodyH = 0.55;
   } else if (def.shape === 'mimic') {
     // cofre con dientes
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), mat);
@@ -143,6 +156,7 @@ export function makeEnemyModel(def) {
   if (def.shape === 'rat') { eyeY = 0.4; eyeZ = 0.45; }
   else if (def.shape === 'golem') { eyeY = 1.58; }
   else if (def.shape === 'mimic') { eyeY = 0.52; eyeZ = 0.33; }
+  else if (def.shape === 'slime') { eyeY = 0.42; eyeZ = 0.4; }
   for (const sx of [-0.09, 0.09]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6),
       new THREE.MeshBasicMaterial({ color: def.boss ? 0xff2200 : 0xffcc00 }));
@@ -744,6 +758,18 @@ export class Enemy {
 
   update(dt) {
     const g = this.game;
+    // afijo Escudado: si un golpe lo "mató" durante la ventana de inmunidad,
+    // la inmunidad lo niega (revive a la vida que tenía al activar el escudo).
+    // Resuelve aquí el caso de un burst letal sin tocar takeDamage().
+    if (!this.alive && this.shieldT > 0 && this.def.shielded) {
+      this.alive = true;
+      this.hp = this.shieldHP || Math.max(1, Math.round(this.maxHP * 0.2));
+      this.fade = 0;
+      this.group.position.y = 0;
+      this.group.rotation.x = 0;
+      const fg = this.group.userData.barFg;
+      if (fg) { fg.scale.x = Math.max(0.001, this.hp / this.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); }
+    }
     if (!this.alive) {
       // animación de muerte: hundirse y desvanecer
       this.fade += dt;
@@ -959,6 +985,64 @@ export class Enemy {
     // beneficiado por un aura de mando aliada: ataca más rápido un instante
     this.rallyT = Math.max(0, (this.rallyT ?? 0) - dt);
 
+    // aura de baluarte (Portaestandarte): otorga escudo/armadura temporal a los
+    // aliados cercanos marcándolos cada ~0.6s (no toca su velocidad). El propio
+    // portaestandarte también se beneficia. Contrajuego: matarlo retira el aura.
+    if (this.def.wardAura) {
+      this.wardTick = (this.wardTick ?? 0) - dt;
+      if (this.wardTick <= 0) {
+        this.wardTick = 0.6;
+        for (const e of g.enemies) {
+          if (!e.alive || e.def.boss) continue;
+          if (e.pos.distanceToSquared(this.pos) < 5.5 * 5.5) e.wardT = 0.9;
+        }
+      }
+    }
+    // beneficiado por un aura de baluarte: escudo regenerativo. Mientras el aura
+    // lo cubre, recupera vida lentamente (sin tocar takeDamage). Contrajuego:
+    // matar al portaestandarte (cae el aura) o reventarlos con burst.
+    if (this.wardT > 0) {
+      this.wardT -= dt;
+      if (this.hp < this.maxHP) {
+        this.hp = Math.min(this.maxHP, this.hp + this.maxHP * 0.04 * dt);
+        const fg = this.group.userData.barFg;
+        if (fg) { fg.scale.x = Math.max(0.001, this.hp / this.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); }
+      }
+    }
+
+    // afijo Encarcelador: telegrafía un anillo bajo tus pies con cooldown largo;
+    // si no sales antes de que se llene, te enraíza brevemente (SLOW corto, sin
+    // stun). El cooldown largo evita encadenarlo (DR efectiva).
+    if (this.def.jail && this.hasLOS) {
+      this.jailCd = Math.max(0, (this.jailCd ?? 3) - dt);
+      if (this.jailCd <= 0 && d < 8 && d > 0.01) {
+        this.jailCd = 9;
+        g.enemyJail?.(this, player.pos.clone());
+      }
+    }
+    // afijo Vórtice: una sola vez, cuando se acerca, telegrafía y te atrae.
+    if (this.def.vortex && !this.vortexUsed && this.hasLOS && d < 7 && d > 2.5) {
+      this.vortexUsed = true;
+      g.enemyVortex?.(this);
+    }
+    // afijo Escudado: gana inmunidad periódica visible. Mientras dura, restaura
+    // la vida perdida (la inmunidad se resuelve aquí sin tocar takeDamage) y
+    // brilla con fuerza. Contrajuego: esperar a que caiga (ventana clara).
+    if (this.def.shielded) {
+      this.shieldCd = Math.max(0, (this.shieldCd ?? 5) - dt);
+      if (this.shieldT > 0) {
+        this.shieldT -= dt;
+        this.hp = this.shieldHP ?? this.hp; // niega el daño recibido durante la ventana
+        if (this.aura) this.aura.material.opacity = 0.75;
+        if (this.shieldT <= 0 && this.shieldShell) { this.shieldShell.visible = false; }
+      } else if (this.shieldCd <= 0) {
+        this.shieldCd = 8;
+        this.shieldT = 2.0;
+        this.shieldHP = this.hp;
+        g.enemyShield?.(this);
+      }
+    }
+
     const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1);
 
     // cobardes: con poca vida huyen de ti, pero EN RÁFAGAS — corren ~1.5s y
@@ -1004,6 +1088,32 @@ export class Enemy {
       }
     }
 
+    // afijo Cadenas: el pack comparte el daño. Cada frame igualamos a todos los
+    // miembros vivos a la fracción de vida MÁS BAJA del grupo (el daño a uno
+    // arrastra a todos: caen juntos). Nunca cura (solo propaga pérdidas).
+    if (this.chainId && g.chains && g.chains[this.chainId]) {
+      const members = g.chains[this.chainId].filter(e => e.alive);
+      if (members.length > 1) {
+        let minFrac = 1;
+        for (const e of members) minFrac = Math.min(minFrac, e.hp / e.maxHP);
+        for (const e of members) {
+          const target = minFrac * e.maxHP;
+          if (e.hp > target + 0.01) {
+            e.hp = target;
+            const fg = e.group.userData.barFg;
+            if (fg) { fg.scale.x = Math.max(0.001, e.hp / e.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); e.group.userData.bar.visible = true; }
+            if (e.hp <= 0 && e.alive) e.die();
+          }
+        }
+      }
+    }
+
+    // francotirador: tras la línea de aviso, dispara el proyectil cargado
+    if (this.snipeFireT > 0) {
+      this.snipeFireT -= dt;
+      if (this.snipeFireT <= 0) g.fireSnipe?.(this);
+    }
+
     // enemigo activo: mira, usa mecánicas, ataca o persigue
     {
       this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
@@ -1015,6 +1125,11 @@ export class Enemy {
             this.summoned = true;
             g.bossSummon(this);
           }
+        } else if (this.def.mechanic === 'charge') {
+          // Embestidor: máquina de estados. Marca tu posición (telegrafía la
+          // línea ~1s), embiste en línea recta aplicando SLOW (no stun), y queda
+          // vulnerable ~1.5s tras la carga. Maneja su propio movimiento y sale.
+          if (this.updateCharge(dt, player, d)) return false;
         } else {
           this.mechCd = (this.mechCd ?? 4) - dt;
           if (this.mechCd <= 0) {
@@ -1024,6 +1139,14 @@ export class Enemy {
             else if (this.def.mechanic === 'web' && d < 9 && this.hasLOS) { this.mechCd = 5; g.enemyWeb(this, player.pos.clone()); }
             // abanico de proyectiles hacia el jugador (esquivable)
             else if (this.def.mechanic === 'fan' && d < 11 && this.hasLOS) { this.mechCd = 4.5; g.enemyFan(this, player.pos.clone()); }
+            // Nigromante: invoca 2 esqueletos con anillo visible (~8s)
+            else if (this.def.mechanic === 'raise' && d < 10 && this.hasLOS) { this.mechCd = 8; g.enemyRaise(this); }
+            // Acólito: cura a un aliado herido cercano con un haz visible (~3s)
+            else if (this.def.mechanic === 'heal') { this.mechCd = 3; g.enemyHeal(this); }
+            // Sembrador: sin habilidad activa; su efecto es al morir (split)
+            else if (this.def.mechanic === 'split') { this.mechCd = 4; }
+            // Francotirador: disparo cargado de largo alcance con línea de aviso
+            else if (this.def.mechanic === 'snipe' && d < 14 && this.hasLOS) { this.mechCd = 4; g.enemySnipe(this, player.pos.clone()); }
           }
         }
       }
@@ -1056,6 +1179,71 @@ export class Enemy {
         }
       }
       void aggro;
+    }
+    return false;
+  }
+
+  // Embestidor: ciclo windup → dash → recuperación. Devuelve true mientras el
+  // ciclo controla al enemigo (movimiento propio); false para usar la IA normal.
+  // Anti-feel-bad: el aviso (línea telegrafiada) precede a la carga; el impacto
+  // aplica SLOW breve (no stun) y al terminar queda vulnerable un rato.
+  updateCharge(dt, player, d) {
+    const g = this.game;
+    this.chargeState = this.chargeState || 'idle';
+    this.chargeCd = Math.max(0, (this.chargeCd ?? 2.5) - dt);
+
+    if (this.chargeState === 'idle') {
+      if (this.chargeCd <= 0 && d < 9 && d > 2.2 && this.hasLOS) {
+        // marca tu posición actual y telegrafía la línea de carga
+        this.chargeState = 'windup';
+        this.windupT = 1.0;
+        const dx = player.pos.x - this.pos.x, dz = player.pos.z - this.pos.z;
+        const l = Math.hypot(dx, dz) || 1;
+        this.chargeDir = { x: dx / l, z: dz / l };
+        g.enemyChargeWarn?.(this, this.chargeDir, Math.min(9, l + 1.5));
+        return true;
+      }
+      return false; // sin carga: IA normal
+    }
+
+    if (this.chargeState === 'windup') {
+      // se prepara: quieto, mirando la dirección marcada (ventana de escape)
+      this.windupT -= dt;
+      this.group.rotation.y = Math.atan2(this.chargeDir.x, this.chargeDir.z);
+      if (this.windupT <= 0) { this.chargeState = 'dash'; this.dashT = 0.55; this.chargeHit = false; }
+      return true;
+    }
+
+    if (this.chargeState === 'dash') {
+      this.dashT -= dt;
+      const dashSpd = this.def.spd * 4.5;
+      const before = this.pos.clone();
+      moveWithCollision(g.world.grid, this.pos, this.chargeDir.x * dashSpd * dt, this.chargeDir.z * dashSpd * dt, 0.3);
+      // impacta una sola vez si pasa cerca del jugador: daño + SLOW (no stun)
+      if (!this.chargeHit && player.alive && this.pos.distanceTo(player.pos) < 1.4) {
+        this.chargeHit = true;
+        player.takeDamage(this.def.dmg, this.def.level || 1);
+        player.slowT = Math.max(player.slowT, 1.2); player._slowTotal = 1.2;
+        g.addShake?.(0.18, 0.2);
+      }
+      // termina al agotar tiempo o al chocar con un muro
+      if (this.dashT <= 0 || this.pos.distanceToSquared(before) < 1e-7) {
+        this.chargeState = 'recover'; this.recoverT = 1.5;
+      }
+      return true;
+    }
+
+    if (this.chargeState === 'recover') {
+      // vulnerable: quieto y tambaleante tras la carga
+      this.recoverT -= dt;
+      const body = this.group.userData.body;
+      if (body) body.rotation.z = Math.sin(performance.now() / 90) * 0.18;
+      if (this.recoverT <= 0) {
+        if (body) body.rotation.z = 0;
+        this.chargeState = 'idle';
+        this.chargeCd = 3.5;
+      }
+      return true;
     }
     return false;
   }
