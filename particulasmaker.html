@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>IntentoRPG — Editor de Partículas</title>
+<style>
+  :root {
+    --bg: #14110d; --panel: #1d1812; --panel2: #261f17; --line: #3a2f22;
+    --gold: #e8c66a; --gold-dim: #b89545; --text: #ece4d4; --muted: #9a8f7c;
+    --accent: #f5c542;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+  #app { display: flex; height: 100vh; overflow: hidden; }
+  #stage { flex: 1; position: relative; min-width: 0; background: #0a0907; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: absolute; top: 10px; left: 12px; font-size: 12px; color: var(--muted);
+    background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 6px; line-height: 1.5;
+    pointer-events: none; }
+  #hud b { color: var(--accent); }
+  #stage-bar { position: absolute; top: 10px; right: 12px; display: flex; gap: 8px; }
+  #panel { width: 360px; max-width: 46vw; background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 0 0 40px; }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel2);
+    position: sticky; top: 0; z-index: 5; }
+  header h1 { margin: 0; font-size: 15px; color: var(--gold); letter-spacing: .5px;
+    font-family: "Cinzel", Georgia, serif; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 5px 16px; }
+  .row label { flex: 0 0 110px; color: var(--muted); font-size: 12px; }
+  .row .ctl { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  input[type=range] { flex: 1; min-width: 40px; accent-color: var(--gold); }
+  input[type=number] { width: 58px; background: #100d09; color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px; padding: 3px 5px; }
+  input[type=text] { background: #100d09; color: var(--text); border: 1px solid var(--line);
+    border-radius: 4px; padding: 4px 6px; width: 100%; }
+  input[type=color] { width: 34px; height: 26px; border: 1px solid var(--line);
+    background: #100d09; border-radius: 4px; padding: 0; }
+  select { background: #100d09; color: var(--text); border: 1px solid var(--line);
+    border-radius: 4px; padding: 4px 6px; flex: 1; }
+  .num-val { width: 44px; text-align: right; color: var(--accent); font-variant-numeric: tabular-nums; }
+  fieldset { border: none; border-top: 1px solid var(--line); margin: 0; padding: 8px 0 4px; }
+  legend { color: var(--gold-dim); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; padding: 6px 16px 2px; font-weight: 600; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 12px; }
+  button:hover { border-color: var(--gold-dim); }
+  button.primary { background: var(--gold); color: #1a1308; border-color: var(--gold);
+    font-weight: 600; }
+  button.primary:hover { background: var(--accent); }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; }
+  select#presetPick { width: 100%; }
+  textarea { width: calc(100% - 32px); margin: 0 16px; height: 150px; background: #0c0a07;
+    color: #cfe6c8; border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; resize: vertical; }
+  .toggle { display: flex; gap: 4px; }
+  .toggle button { flex: 1; padding: 5px; }
+  .toggle button.on { background: var(--gold); color: #1a1308; border-color: var(--gold); }
+  .hint { color: var(--muted); font-size: 11px; padding: 2px 16px 6px; }
+  @media (max-width: 720px) {
+    #app { flex-direction: column; }
+    #panel { width: 100%; max-width: none; height: 50vh; border-left: none; border-top: 1px solid var(--line); }
+    #stage { height: 50vh; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="hud">FPS <b id="fps">0</b> · Vivas <b id="alive">0</b></div>
+    <div id="stage-bar">
+      <button id="btnPlay" class="primary">▶ Reproducir</button>
+      <button id="btnLoop">⟳ Auto</button>
+    </div>
+  </div>
+
+  <div id="panel">
+    <header>
+      <h1>Editor de Partículas</h1>
+      <p>IntentoRPG · herramienta standalone · usa js/particles.js</p>
+    </header>
+
+    <fieldset>
+      <legend>Preset integrado</legend>
+      <div class="row"><div class="ctl"><select id="presetPick"></select></div></div>
+      <div class="row"><label>Nombre</label><div class="ctl"><input id="f_name" type="text"></div></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Aspecto</legend>
+      <div class="row"><label>Textura</label><div class="ctl">
+        <select id="f_texture">
+          <option value="glow">glow</option><option value="spark">spark</option>
+          <option value="smoke">smoke</option><option value="disc">disc</option>
+          <option value="star">star</option>
+        </select></div></div>
+      <div class="row"><label>Mezclado</label><div class="ctl toggle">
+        <button data-blend="additive">Aditivo</button>
+        <button data-blend="normal">Normal</button></div></div>
+      <div class="row"><label>Color inicio</label><div class="ctl">
+        <input id="f_colStart" type="color"><input id="f_colStartHex" type="text" style="width:80px"></div></div>
+      <div class="row"><label>Color fin</label><div class="ctl">
+        <input id="f_colEnd" type="color"><input id="f_colEndHex" type="text" style="width:80px"></div></div>
+      <div class="row"><label>Alpha inicio</label><div class="ctl">
+        <input id="f_alphaS" type="range" min="0" max="1" step="0.01"><span class="num-val" id="v_alphaS"></span></div></div>
+      <div class="row"><label>Alpha fin</label><div class="ctl">
+        <input id="f_alphaE" type="range" min="0" max="1" step="0.01"><span class="num-val" id="v_alphaE"></span></div></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Emisión</legend>
+      <div class="row"><label>Modo</label><div class="ctl toggle">
+        <button data-burst="1">Estallido</button>
+        <button data-burst="0">Continuo</button></div></div>
+      <div class="row"><label>Cantidad</label><div class="ctl">
+        <input id="f_count" type="range" min="1" max="400" step="1"><span class="num-val" id="v_count"></span></div></div>
+      <div class="row" data-cont><label>Duración (s)</label><div class="ctl">
+        <input id="f_duration" type="range" min="0" max="6" step="0.1"><span class="num-val" id="v_duration"></span></div></div>
+      <div class="row" data-cont><label>Ritmo (/s)</label><div class="ctl">
+        <input id="f_rate" type="range" min="1" max="300" step="1"><span class="num-val" id="v_rate"></span></div></div>
+      <div class="row"><label>Vida mín (s)</label><div class="ctl">
+        <input id="f_lifeMin" type="range" min="0.05" max="4" step="0.05"><span class="num-val" id="v_lifeMin"></span></div></div>
+      <div class="row"><label>Vida máx (s)</label><div class="ctl">
+        <input id="f_lifeMax" type="range" min="0.05" max="4" step="0.05"><span class="num-val" id="v_lifeMax"></span></div></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Forma</legend>
+      <div class="row"><label>Forma</label><div class="ctl">
+        <select id="f_shape">
+          <option value="point">point</option><option value="sphere">sphere</option>
+          <option value="cone">cone</option><option value="ring">ring</option>
+          <option value="disc">disc</option>
+        </select></div></div>
+      <div class="row"><label>Radio</label><div class="ctl">
+        <input id="f_radius" type="range" min="0" max="3" step="0.05"><span class="num-val" id="v_radius"></span></div></div>
+      <div class="row"><label>Ángulo cono</label><div class="ctl">
+        <input id="f_cone" type="range" min="0" max="180" step="1"><span class="num-val" id="v_cone"></span></div></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Movimiento</legend>
+      <div class="row"><label>Velocidad mín</label><div class="ctl">
+        <input id="f_spdMin" type="range" min="0" max="20" step="0.1"><span class="num-val" id="v_spdMin"></span></div></div>
+      <div class="row"><label>Velocidad máx</label><div class="ctl">
+        <input id="f_spdMax" type="range" min="0" max="20" step="0.1"><span class="num-val" id="v_spdMax"></span></div></div>
+      <div class="row"><label>Gravedad</label><div class="ctl">
+        <input id="f_gravity" type="range" min="-10" max="15" step="0.1"><span class="num-val" id="v_gravity"></span></div></div>
+      <div class="row"><label>Arrastre</label><div class="ctl">
+        <input id="f_drag" type="range" min="0" max="3" step="0.05"><span class="num-val" id="v_drag"></span></div></div>
+      <div class="row"><label>Giro (°/s)</label><div class="ctl">
+        <input id="f_spin" type="range" min="0" max="360" step="5"><span class="num-val" id="v_spin"></span></div></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Tamaño</legend>
+      <div class="row"><label>Inicio mín</label><div class="ctl">
+        <input id="f_szMin" type="range" min="0" max="3" step="0.02"><span class="num-val" id="v_szMin"></span></div></div>
+      <div class="row"><label>Inicio máx</label><div class="ctl">
+        <input id="f_szMax" type="range" min="0" max="3" step="0.02"><span class="num-val" id="v_szMax"></span></div></div>
+      <div class="row"><label>Tamaño fin</label><div class="ctl">
+        <input id="f_szEnd" type="range" min="0" max="3" step="0.02"><span class="num-val" id="v_szEnd"></span></div></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Exportar / Importar</legend>
+      <div class="btns">
+        <button id="btnCopy">⧉ Copiar JSON</button>
+        <button id="btnDownload">⬇ Descargar .json</button>
+        <button id="btnImport" class="primary">↥ Importar / Previsualizar</button>
+      </div>
+      <p class="hint">Edita o pega un preset JSON y pulsa Importar.</p>
+      <textarea id="json" spellcheck="false"></textarea>
+    </fieldset>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import {
+  ParticleSystem, PRESETS, DEFAULT_PRESET,
+  normalizePreset, serializePreset, deserializePreset,
+} from './js/particles.js';
+
+// ---- Escena ---------------------------------------------------------------
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0a0907');
+const camera = new THREE.PerspectiveCamera(55, stage.clientWidth / stage.clientHeight, 0.1, 100);
+camera.position.set(0, 2.4, 6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1, 0);
+controls.enableDamping = true;
+
+const grid = new THREE.GridHelper(20, 20, 0x6b5a3a, 0x2a2218);
+scene.add(grid);
+// marcador del punto de emisión
+const emitPos = new THREE.Vector3(0, 1, 0);
+const marker = new THREE.Mesh(
+  new THREE.SphereGeometry(0.05, 12, 12),
+  new THREE.MeshBasicMaterial({ color: 0xe8c66a, transparent: true, opacity: 0.5 }),
+);
+marker.position.copy(emitPos);
+scene.add(marker);
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+const fx = new ParticleSystem(scene, { poolSize: 4000 });
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+// ---- Estado del preset ----------------------------------------------------
+let preset = normalizePreset(PRESETS.fireImpact);
+let autoLoop = false, loopTimer = 0;
+
+// ---- Construcción del selector de presets ---------------------------------
+const pick = document.getElementById('presetPick');
+for (const [key, p] of Object.entries(PRESETS)) {
+  const o = document.createElement('option');
+  o.value = key; o.textContent = p.name;
+  pick.appendChild(o);
+}
+pick.addEventListener('change', () => {
+  preset = normalizePreset(PRESETS[pick.value]);
+  syncForm(); play();
+});
+
+// ---- Helpers de binding ---------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const setVal = (id, v) => { const el = $(id); if (el) el.textContent = (+v).toFixed(2); };
+
+// Conecta un slider/number con un path del preset.
+function bindRange(id, valId, get, set) {
+  const el = $(id);
+  el.addEventListener('input', () => { set(parseFloat(el.value)); setVal(valId, el.value); });
+}
+
+function syncForm() {
+  $('f_name').value = preset.name;
+  $('f_texture').value = preset.texture;
+  document.querySelectorAll('[data-blend]').forEach((b) =>
+    b.classList.toggle('on', b.dataset.blend === preset.blending));
+  $('f_colStart').value = preset.color.start; $('f_colStartHex').value = preset.color.start;
+  $('f_colEnd').value = preset.color.end; $('f_colEndHex').value = preset.color.end;
+  $('f_alphaS').value = preset.alpha.start; setVal('v_alphaS', preset.alpha.start);
+  $('f_alphaE').value = preset.alpha.end; setVal('v_alphaE', preset.alpha.end);
+
+  document.querySelectorAll('[data-burst]').forEach((b) =>
+    b.classList.toggle('on', (b.dataset.burst === '1') === !!preset.burst));
+  document.querySelectorAll('[data-cont]').forEach((r) =>
+    r.style.display = preset.burst ? 'none' : 'flex');
+  $('f_count').value = preset.count; setVal('v_count', preset.count);
+  $('f_duration').value = preset.duration; setVal('v_duration', preset.duration);
+  $('f_rate').value = preset.rate; setVal('v_rate', preset.rate);
+  $('f_lifeMin').value = preset.lifetime[0]; setVal('v_lifeMin', preset.lifetime[0]);
+  $('f_lifeMax').value = preset.lifetime[1]; setVal('v_lifeMax', preset.lifetime[1]);
+
+  $('f_shape').value = preset.shape;
+  $('f_radius').value = preset.shapeRadius; setVal('v_radius', preset.shapeRadius);
+  $('f_cone').value = preset.coneAngle; setVal('v_cone', preset.coneAngle);
+
+  $('f_spdMin').value = preset.speed[0]; setVal('v_spdMin', preset.speed[0]);
+  $('f_spdMax').value = preset.speed[1]; setVal('v_spdMax', preset.speed[1]);
+  $('f_gravity').value = preset.gravity; setVal('v_gravity', preset.gravity);
+  $('f_drag').value = preset.drag; setVal('v_drag', preset.drag);
+  $('f_spin').value = preset.spin; setVal('v_spin', preset.spin);
+
+  $('f_szMin').value = preset.size.start[0]; setVal('v_szMin', preset.size.start[0]);
+  $('f_szMax').value = preset.size.start[1]; setVal('v_szMax', preset.size.start[1]);
+  $('f_szEnd').value = preset.size.end; setVal('v_szEnd', preset.size.end);
+
+  refreshJSON();
+}
+
+function refreshJSON() { $('json').value = serializePreset(preset); }
+
+// ---- Bindings -------------------------------------------------------------
+$('f_name').addEventListener('input', (e) => { preset.name = e.target.value; refreshJSON(); });
+$('f_texture').addEventListener('change', (e) => { preset.texture = e.target.value; refreshJSON(); });
+document.querySelectorAll('[data-blend]').forEach((b) =>
+  b.addEventListener('click', () => {
+    preset.blending = b.dataset.blend;
+    document.querySelectorAll('[data-blend]').forEach((x) =>
+      x.classList.toggle('on', x === b));
+    refreshJSON();
+  }));
+document.querySelectorAll('[data-burst]').forEach((b) =>
+  b.addEventListener('click', () => {
+    preset.burst = b.dataset.burst === '1';
+    syncForm();
+  }));
+
+function bindColor(picker, hex, key) {
+  $(picker).addEventListener('input', (e) => { preset.color[key] = e.target.value; $(hex).value = e.target.value; refreshJSON(); });
+  $(hex).addEventListener('change', (e) => {
+    if (/^#?[0-9a-fA-F]{6}$/.test(e.target.value)) {
+      const v = e.target.value.startsWith('#') ? e.target.value : '#' + e.target.value;
+      preset.color[key] = v; $(picker).value = v; refreshJSON();
+    }
+  });
+}
+bindColor('f_colStart', 'f_colStartHex', 'start');
+bindColor('f_colEnd', 'f_colEndHex', 'end');
+
+bindRange('f_alphaS', 'v_alphaS', () => preset.alpha.start, (v) => { preset.alpha.start = v; refreshJSON(); });
+bindRange('f_alphaE', 'v_alphaE', () => preset.alpha.end, (v) => { preset.alpha.end = v; refreshJSON(); });
+bindRange('f_count', 'v_count', () => preset.count, (v) => { preset.count = Math.round(v); refreshJSON(); });
+bindRange('f_duration', 'v_duration', () => preset.duration, (v) => { preset.duration = v; refreshJSON(); });
+bindRange('f_rate', 'v_rate', () => preset.rate, (v) => { preset.rate = v; refreshJSON(); });
+bindRange('f_lifeMin', 'v_lifeMin', () => preset.lifetime[0], (v) => { preset.lifetime[0] = v; refreshJSON(); });
+bindRange('f_lifeMax', 'v_lifeMax', () => preset.lifetime[1], (v) => { preset.lifetime[1] = v; refreshJSON(); });
+$('f_shape').addEventListener('change', (e) => { preset.shape = e.target.value; refreshJSON(); });
+bindRange('f_radius', 'v_radius', () => preset.shapeRadius, (v) => { preset.shapeRadius = v; refreshJSON(); });
+bindRange('f_cone', 'v_cone', () => preset.coneAngle, (v) => { preset.coneAngle = v; refreshJSON(); });
+bindRange('f_spdMin', 'v_spdMin', () => preset.speed[0], (v) => { preset.speed[0] = v; refreshJSON(); });
+bindRange('f_spdMax', 'v_spdMax', () => preset.speed[1], (v) => { preset.speed[1] = v; refreshJSON(); });
+bindRange('f_gravity', 'v_gravity', () => preset.gravity, (v) => { preset.gravity = v; refreshJSON(); });
+bindRange('f_drag', 'v_drag', () => preset.drag, (v) => { preset.drag = v; refreshJSON(); });
+bindRange('f_spin', 'v_spin', () => preset.spin, (v) => { preset.spin = v; refreshJSON(); });
+bindRange('f_szMin', 'v_szMin', () => preset.size.start[0], (v) => { preset.size.start[0] = v; refreshJSON(); });
+bindRange('f_szMax', 'v_szMax', () => preset.size.start[1], (v) => { preset.size.start[1] = v; refreshJSON(); });
+bindRange('f_szEnd', 'v_szEnd', () => preset.size.end, (v) => { preset.size.end = v; refreshJSON(); });
+
+// ---- Reproducir / loop ----------------------------------------------------
+function play() { fx.clear(); fx.emit(preset, emitPos); }
+$('btnPlay').addEventListener('click', play);
+$('btnLoop').addEventListener('click', () => {
+  autoLoop = !autoLoop; loopTimer = 0;
+  $('btnLoop').classList.toggle('on', autoLoop);
+  $('btnLoop').classList.toggle('primary', autoLoop);
+  if (autoLoop) play();
+});
+
+// ---- Exportar / importar --------------------------------------------------
+$('btnCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(serializePreset(preset)); flash($('btnCopy'), '✓ Copiado'); }
+  catch { $('json').select(); document.execCommand('copy'); flash($('btnCopy'), '✓ Copiado'); }
+});
+$('btnDownload').addEventListener('click', () => {
+  const blob = new Blob([serializePreset(preset)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (preset.name || 'preset').replace(/\s+/g, '_').toLowerCase() + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$('btnImport').addEventListener('click', () => {
+  try {
+    preset = deserializePreset($('json').value);
+    syncForm(); play(); flash($('btnImport'), '✓ Importado');
+  } catch (e) { flash($('btnImport'), '✗ JSON inválido'); }
+});
+function flash(btn, txt) {
+  const o = btn.textContent; btn.textContent = txt;
+  setTimeout(() => (btn.textContent = o), 1100);
+}
+
+// ---- Bucle ----------------------------------------------------------------
+let last = performance.now(), fpsT = 0, frames = 0;
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  controls.update();
+  fx.update(dt);
+
+  if (autoLoop) {
+    loopTimer += dt;
+    if (loopTimer > 1.8) { loopTimer = 0; play(); }
+  }
+
+  renderer.render(scene, camera);
+
+  frames++; fpsT += dt;
+  if (fpsT >= 0.5) {
+    $('fps').textContent = Math.round(frames / fpsT);
+    $('alive').textContent = fx.aliveCount;
+    frames = 0; fpsT = 0;
+  }
+  requestAnimationFrame(loop);
+}
+
+syncForm();
+play();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
