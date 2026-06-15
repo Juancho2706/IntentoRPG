@@ -664,8 +664,9 @@ export class Player {
       const tpos = target.pos.clone();
       target.takeDamage(dmg, crit);
       this.onDealHit();
-      // game-feel: hit-stop seco al impactar (más fuerte si es crítico)
-      g.hitStop?.(crit ? 'crit' : 'heavy');
+      // game-feel: hit-stop seco SOLO en crítico (en cada golpe se sentía
+      // como tirones); el golpe normal se refuerza con el destello/partículas
+      if (crit) g.hitStop?.('heavy');
       g.spawnBurst?.(tpos, crit ? 0xffffff : 0xffddaa, crit ? 8 : 5);
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
@@ -1312,7 +1313,9 @@ export class Projectile {
           if (this.slow) e.slowT = this.slow;
           g.sfx('hit');
           this.burst();
-          g.hitStop?.(this.crit ? 'crit' : 'normal'); // hit-stop en impacto de proyectil
+          // hit-stop SOLO en crítico y breve: en impactos normales causaba
+          // micro-pausas constantes con clases a distancia (mago/arquera)
+          if (this.crit) g.hitStop?.(45);
           if (!this.pierce) return true;
           this.hitSet.add(e);
         }

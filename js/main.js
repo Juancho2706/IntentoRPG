@@ -1841,6 +1841,11 @@ class Game {
 
   pickupGroundItem(gi) {
     const p = this.player;
+    // a prueba de doble recogida: si ya no está en la lista, no hagas nada
+    // (un indexOf(-1) en el splice borraría el ÚLTIMO objeto y dejaría su modelo
+    //  huérfano en el suelo — la causa de los "items pegados")
+    const idx = this.groundItems.indexOf(gi);
+    if (idx < 0) return;
     const it = gi.item;
     if (it.kind === 'gold') { p.gold += it.amount; p.records.goldEarned += it.amount; this.ui.spawnText(p.pos, `+${it.amount} 🪙`, 'txt-gold'); this.sfx('gold'); }
     else if (it.kind === 'potion') {
@@ -1880,6 +1885,8 @@ class Game {
     this.groundItems.splice(this.groundItems.indexOf(gi), 1);
     this.save();
   }
+
+
 
 
   // ---------- alijo compartido entre personajes ----------
@@ -2048,10 +2055,14 @@ class Game {
       if (gi.beam) { gi.beam.visible = !filtered; gi.beam.material.opacity = 0.22 + Math.sin(t * 2.5 + gi.bob) * 0.1; }
       if (this.state === 'play') {
         const k = gi.item.kind;
-        // oro y pociones siempre; gemas y runas si hay sitio en la mochila
-        const auto = k === 'gold' || k === 'potion' ||
-          ((k === 'gem' || k === 'rune') && p.inventory.length < 32);
-        if (auto && gi.mesh.position.distanceToSquared(p.pos.clone().setY(gi.mesh.position.y)) < 1.1)
+        // recogida automática al pasar por encima: oro/pociones/soportes siempre;
+        // el resto (objetos, gemas, runas, llaves, fragmentos, glifos) si hay
+        // hueco en la mochila y supera el filtro de loot. Así, caminar hasta el
+        // botín lo recoge aunque uses el joystick (que cancela el "ir a por él").
+        const needsBag = k === 'item' || k === 'gem' || k === 'rune' || k === 'riftkey' || k === 'fragment' || k === 'glyph';
+        const auto = k === 'gold' || k === 'potion' || k === 'support'
+          || (needsBag && p.inventory.length < 32 && this.passesLootFilter(gi.item.rarity));
+        if (auto && gi.mesh.position.distanceToSquared(p.pos.clone().setY(gi.mesh.position.y)) < 1.2)
           this.pickupGroundItem(gi);
       }
     }
