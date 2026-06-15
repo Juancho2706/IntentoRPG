@@ -23,7 +23,7 @@
 
 ## 2. Arquitectura
 
-- **`js/main.js`** (~2150 líneas): clase `Game` (orquestador): renderer, escena, cámara isométrica ortográfica, bucle `tick`, `loadWorld`, combate, FX, loot, interacción con NPCs.
+- **`js/main.js`** (~2170 líneas): clase `Game` (orquestador): renderer, escena, cámara isométrica ortográfica, bucle `tick`, `loadWorld`, combate, FX, loot, interacción con NPCs. `js/ui.js` (~2440) es el otro archivo grande (toda la UI).
 - **Mixins inyectados en `Game.prototype`** con `Object.assign` (al final de main.js). NO duplicar nombres entre ellos (lo valida `test43-mixins`):
   - `economy.js` → `economyMethods` (tienda, transmutación/cubo, engarce, mascota, drag&drop)
   - `enemy-abilities.js` → `enemyAbilities` (habilidades/telegrafías de enemigos)
@@ -44,14 +44,22 @@
 - ✅ **Maestrías/ramas de clase YA EXISTEN** (HECHO 2026‑06‑15): `MASTERIES` en `data.js` (3 ramas por clase, 6 nodos c/u: 3 menores + 2 notables + 1 capstone). Se desbloquean en nivel `MASTERY_START_LEVEL` (12), +1 punto cada 2 niveles. Estado en `player.mastery = { id, nodes, points }`. Nodos = `stats` (los suma `recompute`) y/o `power` (entra en `this.powers` y se interpreta en combate). Capstones nuevos cableados: `m_berserk` (rollDamage), `m_aegis` (Player.takeDamage, survive‑lethal), `m_judgment`/`m_conflag` (onEnemyKilled novas), `m_overload` (onDealHit maná), `m_deadeye`/`m_shatter`/`m_hunt` (Enemy.takeDamage). Reespecializable por oro. UI: pestaña "Maestría" en el build‑nav → `UI.openMastery/renderMastery`, `#panel-mastery`. Economía/gestión: `game-mastery.js`. Tests: `test45-maestrias`.
 
 ### Loot / crafteo
-- Rarezas normal→conjunto, afijos primarios/secundarios, **engarces+gemas+runas+runewords**, **sets**, **míticos** doble poder, relics, glifos, fragmentos, llaves.
-- **Cubo** (transmutación/reforja/engarce), **bolsa de materiales** (`p.materials`, cap `MAX_MATERIALS=60`), **alijo** compartido, filtro de loot.
+- Rarezas normal→conjunto, afijos primarios/secundarios (mayores ★), **engarces+gemas (6)+runas (6)+runewords (5)**, **sets (3)**, **míticos** doble poder, **relics** de jefe, glifos, fragmentos, llaves de grieta.
+- **Masterworking / calidad** (`it.quality` 0–`MAX_QUALITY=5`): escala armadura y afijos; lo aplica `recompute` (`q = 1 + quality*0.06`).
+- **Charms** (`makeCharm`): amuletos de mochila que dan stats **sin equiparse** (los suma `recompute` desde `inventory`).
+- **Cubo** (transmutación/reforja/engarce, recetas en `#panel-recipes`), **bolsa de materiales** (`p.materials`, cap `MAX_MATERIALS=60`), **alijo** compartido (`#panel-stash`), **filtro de loot**.
+- **Apuesta** (gamble): el Mercader vende objetos sin identificar por slot (`buyGambleItem`/`gambleItem`).
+- **Colección / Bestiario** (`#panel-collection`): registro de sets, poderes y enemigos descubiertos (`player.discovered`).
 - ✅ **Feedback de drop YA EXISTE**: pilar de luz por rareza (altura/grosor/brillo escalados), **halo giratorio** en legendario+/mítico, **sonido de drop por rareza** (`droprare`/`droplegend`, con anti‑spam), flourish de legendario al recoger (`main.js spawnGroundItem`, `lootTier`, `dropSound`).
 - ✅ **Comparador de objetos YA EXISTE**: `UI.buildCompare()` con **veredicto ⬆ Mejora / ↔ Lateral / ⬇ Peor** (por "poder" `itemPower`), diffs ▲▼ por stat, y manejo de anillos (compara con el que se reemplazaría).
 
 ### Mundo
-- **Pueblo** (NPCs: Curandero, Mercader, Encantadora, Capitán/misiones, Alijo, Estatua del Mundo, **Domador de Bestias**), **mazmorras** procedurales (altares de pacto, waypoints), **zonas open** (120×120, 4 biomas, respawn, jefe de mundo con leash, goblins 3 tipos, obelisco de evento, contratos), **refugio** (2.º pueblo, piso 16).
+- **Pueblo** (NPCs/servicios: Curandero, Mercader/tienda, Encantadora/reforja, Capitán/misiones, Alijo, Estatua del Mundo, **Domador de Bestias**), **mazmorras** procedurales (altares de pacto, **cofres**, **santuarios/shrines** de buff temporal, waypoints cada 5 pisos, jefe por bioma), **zonas open** (120×120, 4 biomas, respawn, jefe de mundo con leash, goblins 3 tipos, obelisco de evento/oleadas, contratos), **refugio** (2.º pueblo, piso 16).
+- **Desafío Diario** (portal en el pueblo, semilla determinista por fecha) con **registro/tabla local** (`dailyLog`, top 14). **Hardcore** (muerte permanente, flag persistente).
 - Salida pueblo→Cripta es una **puerta `gate_zone`** que dispara `loadWorld` (transición encubierta, NO seamless). → backlog #11 (pueblo contiguo).
+
+### Paneles de UI (todos en index.html, render en ui.js)
+`inv` · `skills` · `stats` · `mastery` · `paragon` · `shop` · `stash` · `quest` · `pacts` · `progress` (Estatua: Tormento/Códice/Bendiciones/Pináculo) · `pet` (Domador) · `collection` (bestiario) · `recipes` (cubo) · `waypoints` · `map` · `blessing` (modal) · `settings`. Navegación de build: `buildNavHTML` (Personaje↔Habilidades↔Maestría↔Paragon).
 
 ### Mascota (REWORK HECHO 2026‑06‑15)
 - ✅ **Mascota de UTILIDAD, NO hace daño.** Se compra/mejora con el **Domador de Bestias** (NPC en pueblo y refugio), NO en el Mercader.
@@ -76,8 +84,9 @@
 
 ## 4. Documentos en la raíz
 
+- **`CLAUDE.md`**: guía operativa (convenciones, comandos, arquitectura, patrones) que Claude Code carga automáticamente. Apunta aquí.
 - **`INFORME_EXPANSION_2026.md`**: auditoría + investigación de mercado 2026 + backlog priorizado de 18 ítems (ramas de clase, pueblo contiguo, pet, remapeo, menú, hub). Es la hoja de ruta de producto.
-- **`MEMORIA.md`** (este): inventario de lo que ya existe.
+- **`MEMORIA.md`** (este): inventario detallado de lo que ya existe.
 
 ## 5. Backlog grande pendiente (del informe, sin empezar)
 
