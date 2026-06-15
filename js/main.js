@@ -1055,6 +1055,7 @@ class Game {
   castSkillSlot(slot, echoMult = 0) {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play') return;
+    if (this._paused && !echoMult) return; // no actuar con un panel abierto (pausa)
     const actives = p.cls.skills.filter(s => s.type !== 'passive' && p.skills[s.id] > 0).slice(0, 4);
     const sk = actives[slot];
     if (!sk) return;
@@ -1685,6 +1686,17 @@ class Game {
     if (this.state === 'select') { this.renderer.render(this.scene, this.camera); return; }
     this.monitorFPS(realDt);
 
+    // PAUSA: con un panel abierto durante la partida se congela la simulación
+    // (no mueres en menús; estándar en ARPG single-player). Sigue el render y el
+    // ambiente para que no se vea "muerto"; la UI responde por sus propios eventos.
+    const paused = this.state === 'play' && !!this.ui?.activePanel;
+    if (paused !== this._paused) { this._paused = paused; document.body.classList.toggle('paused', paused); }
+    if (paused) {
+      this.particles?.update(realDt, this.camera.position); // motas ambientales (estético)
+      this.renderScene();
+      return;
+    }
+
     // --- hit-stop: congela el tiempo de juego unos ms al impactar ---
     // Se descuenta con el reloj real (no setTimeout). Mientras dura, el dt
     // de animación/movimiento se escala casi a 0 para un "punch" seco.
@@ -1925,8 +1937,12 @@ class Game {
     this.saveTimer += dt;
     if (this.saveTimer > 8) { this.saveTimer = 0; this.save(); }
 
-    // render: vía composer si el post-procesado está activo; si no (CDN no
-    // cargado, toggle off o reduceMotion), render directo — nunca se rompe.
+    this.renderScene();
+  }
+
+  // render: vía composer si el post-procesado está activo; si no (CDN no
+  // cargado, toggle off o reduceMotion), render directo — nunca se rompe.
+  renderScene() {
     if (this.postfx?.shouldRender) this.postfx.render();
     else this.renderer.render(this.scene, this.camera);
   }
@@ -1999,6 +2015,7 @@ class Game {
   // botón de acción: interactúa si hay algo cerca; si no, ataca
   primaryAction() {
     if (!this.player || !this.player.alive || this.state !== 'play') return;
+    if (this._paused) return; // panel abierto → pausa
     if (this.currentInteract) this.interactWith(this.currentInteract);
     else this.attackNearest();
   }

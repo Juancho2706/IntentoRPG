@@ -2083,3 +2083,13 @@ body.reduce-motion.low-hp #orb-hp { animation: none; }
 /* foco accesible coherente en todos los controles de panel */
 .quest-btn:focus-visible, .shop-item:focus-visible, .torment-btn:focus-visible,
 .wm-node:focus-visible, .opt-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ====================== Indicador de pausa (panel abierto en partida) ====================== */
+#pause-indic {
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+  z-index: 19; pointer-events: none; display: none;
+  font-family: 'Cinzel', Georgia, serif; font-size: 13px; font-weight: 700; letter-spacing: 1px;
+  color: var(--gold); background: rgba(8,10,14,0.7); border: 1px solid rgba(201,162,39,0.4);
+  border-radius: 20px; padding: 4px 14px; text-shadow: 0 1px 3px #000;
+}
+body.paused #pause-indic { display: block; }

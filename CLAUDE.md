@@ -16,6 +16,7 @@ desktop, guardado en `localStorage`. Texto del juego en **español**.
 - Sintaxis rápida: `node --check js/<archivo>.js`.
 
 ## Convenciones (IMPORTANTES)
+0. **Antes de implementar CUALQUIER cosa: investiga en internet** (WebSearch/WebFetch) con la **fecha de este mes/año** (p. ej. "… 2026") buscando inspiración/referencias actuales, y LUEGO combínalo con tu creatividad para diseñar lo que vas a hacer. Aplica a toda feature/pulido de aquí en adelante.
 1. **`npm test` en verde** siempre antes de commitear.
 2. **Bump `sw.js` `VERSION`** en cada cambio de assets desplegable; añade nuevos `js/*.js` a `ASSETS` en `sw.js`.
 3. **Git author:** `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita "Unverified").
