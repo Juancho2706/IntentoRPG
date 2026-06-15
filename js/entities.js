@@ -772,6 +772,10 @@ export class Enemy {
     this.group = makeEnemyModel(def);
     this.group.position.copy(pos);
     this.group.userData.enemy = this;
+    // hereda la política de sombras de la calidad actual (gama baja = sin sombra)
+    if (game.enemyShadows === false) {
+      this.group.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    }
     // élites/campeones/jefes/goblin muestran su barra de vida SIEMPRE (no solo al
     // recibir daño), para que se distingan e identifiquen de un vistazo
     if (def.rank || def.boss || def.uber || def.goblin) {
@@ -893,9 +897,13 @@ export class Enemy {
       });
     }
 
-    this.animate(dt);   // caminar / idle / lunge procedural
+    // animación procedural de miembros: se OMITE para enemigos lejos de la
+    // cámara (fuera de pantalla en isométrica). La IA/movimiento sigue corriendo;
+    // solo nos ahorramos el vaivén de miembros cuando nadie lo ve.
+    const pl = g.player;
+    if (!pl || this.group.position.distanceToSquared(pl.pos) < 30 * 30) this.animate(dt);
 
-    const player = g.player;
+    const player = pl;
     if (!player || !player.alive) return false;
 
     // --- goblin del tesoro: nunca ataca; huye y, si no lo cazas, escapa ---

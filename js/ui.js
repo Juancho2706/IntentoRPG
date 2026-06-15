@@ -872,13 +872,32 @@ export class UI {
     toggle('music', 'music', 'Música ambiental', (v) => g.music.setEnabled(v));
 
     section('eye', 'Gráficos');
+    // selector de calidad: Auto (gama detectada + ajuste dinámico) o fija
+    const qrow = document.createElement('label');
+    qrow.className = 'opt-row';
+    const qcur = g.settings.quality ?? 'auto';
+    const qopt = (v, lbl) => `<option value="${v}" ${String(qcur) === String(v) ? 'selected' : ''}>${lbl}</option>`;
+    qrow.innerHTML = `<span>${icon('rocket')} Calidad gráfica</span>
+      <select>
+        ${qopt('auto', 'Automática')}
+        ${qopt(0, 'Alta')}
+        ${qopt(1, 'Media')}
+        ${qopt(2, 'Baja')}
+        ${qopt(3, 'Mínima')}
+      </select>`;
+    qrow.querySelector('select').onchange = (e) => {
+      const v = e.target.value;
+      g.setQuality?.(v === 'auto' ? 'auto' : (parseInt(v, 10)));
+    };
+    cont.appendChild(qrow);
     toggle('postfx', 'magic', 'Efectos visuales (postprocesado, bloom)', () => g.syncPostFX?.(), true);
     // los lee el sistema de render (otro módulo); se guardan con el flujo normal
     toggle('ao', 'bulb', 'Oclusión ambiental', () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); }, true);
     toggle('outline', 'paint', 'Contorno', () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); }, true);
     toggle('shake', 'shake', 'Sacudida de cámara');
     toggle('haptics', 'phone', 'Vibración (móvil)');
-    toggle('autoq', 'rocket', 'Calidad automática (baja gráficos si van lentos)');
+    toggle('autoq', 'rocket', 'Ajuste dinámico en modo Automático (baja si va lento)', null, true);
+    toggle('perfHud', 'bulb', 'Mostrar FPS y rendimiento', (v) => g.togglePerfHud?.(v));
 
     section('hero', 'Accesibilidad');
     toggle('reduceMotion', 'target', 'Movimiento reducido (menos animaciones)', () => g.applyAccessibility());

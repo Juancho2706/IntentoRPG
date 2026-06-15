@@ -362,7 +362,16 @@ export class AmbientParticles {
     this.enabled = true;
     this.active = false;   // hay un preset cargado y visible
     this._max = 160;
+    this._density = 1;     // escala de densidad por gama del dispositivo (0..1)
+    this._biome = null;    // último bioma para re-sembrar al cambiar densidad
+    this._center = null;
     this._build();
+  }
+
+  // Ajusta la densidad (0..1) y re-siembra el bioma activo con el nuevo conteo.
+  setDensity(scale) {
+    this._density = Math.max(0.1, Math.min(1, scale || 1));
+    if (this.active && this._biome) this.setBiome(this._biome, this._center);
   }
 
   _build() {
@@ -391,12 +400,14 @@ export class AmbientParticles {
   setBiome(biomeName, center) {
     const preset = PRESETS[biomeName] || null;
     this.preset = preset;
+    this._biome = biomeName;
+    if (center) this._center = { x: center.x, y: center.y, z: center.z };
     if (!preset) {
       this.active = false;
       this.points.visible = false;
       return;
     }
-    const count = Math.min(preset.count, this._max);
+    const count = Math.max(8, Math.min(Math.round(preset.count * this._density), this._max));
     const geo = this.points.geometry;
     const pos = geo.attributes.position.array;
     const cx = center?.x || 0, cy = center?.y || 0, cz = center?.z || 0;

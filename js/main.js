@@ -61,11 +61,19 @@ class Game {
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
     this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
-      reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true, ...opts };
+      reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true,
+      quality: 'auto', perfHud: false, ...opts };
     this.applyAccessibility();
+    // gama del dispositivo (0 alta … 3 mínima): semilla de calidad + densidad de
+    // partículas. Se calcula una vez por núcleos/memoria/puntero/DPR.
+    this.deviceTier = this.detectDeviceTier();
+    this.particleScale = [1, 1, 0.65, 0.35][this.deviceTier];
     this.qualityLevel = 0;
+    this.enemyShadows = true;
     this.fpsAcc = 0;
     this.fpsFrames = 0;
+    this.fps = 60;
+    this.recoverAcc = 0;   // ventana de FPS altos sostenidos (para volver a subir)
     this.loadStash();
     try { this.dailyLog = JSON.parse(localStorage.getItem('intentorpg_dailylog') || '[]'); } catch { this.dailyLog = []; }
     const rawSfx = createSfx();
@@ -120,6 +128,7 @@ class Game {
     this.postfx.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
     this.particles = new AmbientParticles(this.scene);
     this.particles.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    this.particles.setDensity?.(this.particleScale);
     // sombras de contacto/blob bajo héroe y enemigos: les dan "peso" sin coste
     // de sombras reales. Tolerante a fallos (sin canvas en tests = no-op).
     try { this.blobShadows = new BlobShadows(this.scene); }
@@ -131,12 +140,18 @@ class Game {
     // motor de partículas de GAMEPLAY (impactos, habilidades, enemigos) — pooled.
     // Va en la escena (no en fxGroup, que se limpia al cambiar de mundo); psys
     // tiene su propio clear(). try/catch para degradar si WebGL falla.
-    try { this.psys = new ParticleSystem(this.scene, { poolSize: 2000 }); }
+    // pool de partículas escalado a la gama (menos memoria/relleno en móvil)
+    const psysPool = Math.round(2000 * (this.deviceTier >= 2 ? 0.5 : 1));
+    try { this.psys = new ParticleSystem(this.scene, { poolSize: psysPool }); }
     catch { this.psys = null; }
-    this.postfx.init(this.renderer, this.scene, this.camera).then(() => {
-      // sincroniza tamaño/calidad iniciales y aplica el estado de calidad actual
-      this.syncPostFX();
-    });
+    // post-procesado: carga PEREZOSA. En gama mínima (tier 3) o con postfx/
+    // reduceMotion desactivados NI siquiera se baja el addon del CDN — se
+    // renderiza directo y se ahorra memoria/arranque. Si no, init() importa
+    // dinámicamente sin bloquear el primer frame.
+    const wantPostFX = this.deviceTier < 3 && this.settings.postfx !== false && !this.settings.reduceMotion;
+    if (wantPostFX) {
+      this.postfx.init(this.renderer, this.scene, this.camera).then(() => this.syncPostFX());
+    }
 
     this.raycaster = new THREE.Raycaster();
     this.ui = new UI(this);
@@ -152,7 +167,32 @@ class Game {
     this.activeSlot = 0;
     this.ui.showClassSelect((slot, pick, opts) => this.startGame(pick, opts, slot));
 
+    // calidad inicial: preferencia manual o, en 'auto', la gama detectada
+    const pref = this.settings.quality;
+    this.applyQuality(pref === 'auto' || pref == null ? this.deviceTier : (pref | 0));
+    if (this.settings.perfHud) this.togglePerfHud(true);
     this.renderer.setAnimationLoop(() => this.tick());
+  }
+
+  // Estima la gama del dispositivo (0 alta … 3 mínima) a partir de núcleos,
+  // memoria, tipo de puntero y densidad de píxeles. Heurística conservadora:
+  // ante la duda, mejor empezar fluido y dejar que la calidad auto suba.
+  detectDeviceTier() {
+    const cores = navigator.hardwareConcurrency || 4;
+    const mem = navigator.deviceMemory || 4;            // GB (solo Chromium)
+    const coarse = !!window.matchMedia?.('(pointer: coarse)')?.matches;
+    const dpr = window.devicePixelRatio || 1;
+    let score = 0;
+    if (cores <= 4) score++;
+    if (cores <= 2) score++;
+    if (mem <= 4) score++;
+    if (mem <= 2) score++;
+    if (coarse) score++;                                 // móvil / tablet
+    if (coarse && dpr >= 2.5) score++;                   // hiDPI = mucho relleno
+    if (score >= 5) return 3;
+    if (score >= 3) return 2;
+    if (score >= 1) return 1;
+    return 0;
   }
 
   resize() {
@@ -194,12 +234,14 @@ class Game {
   syncPostFX() {
     const on = this.settings.postfx !== false && !this.settings.reduceMotion;
     const lowEnd = this.qualityLevel >= 2;
-    this.postfx?.setEnabled(on);
+    const minimal = this.qualityLevel >= 3;
+    this.postfx?.setEnabled(on && !minimal);
     this.postfx?.setBloom(on && !lowEnd);
     // AO/outline: respetan su flag de usuario y se apagan en gama baja
     this.postfx?.setAO(on && !lowEnd && this.settings.ao !== false);
     this.postfx?.setOutline(on && !lowEnd && this.settings.outline !== false);
-    this.particles?.setEnabled(on);
+    // partículas ambientales: fuera en gama mínima (ahorra relleno)
+    this.particles?.setEnabled(on && !minimal);
     // sombras de contacto: respetan el toggle postfx/reduceMotion y se apagan
     // en gama baja para aligerar
     this.blobShadows?.setEnabled(on && !lowEnd);
@@ -541,32 +583,86 @@ class Game {
     return (rank[rarity] ?? 0) >= (rank[this.settings.lootFilter] ?? 0);
   }
 
-  // calidad adaptativa: si los FPS caen, baja resolución y sombras
+  // calidad adaptativa (0 alta … 3 mínima). Cada nivel baja resolución,
+  // sombras del sol, sombras de enemigos, post-proceso y densidad de partículas.
   applyQuality(level) {
+    level = Math.max(0, Math.min(3, level | 0));
     this.qualityLevel = level;
-    const ratios = [Math.min(window.devicePixelRatio, 1.75), Math.min(window.devicePixelRatio, 1.25), 1];
+    const dpr = window.devicePixelRatio;
+    const ratios = [Math.min(dpr, 1.75), Math.min(dpr, 1.25), 1, Math.min(dpr, 0.8)];
     this.renderer.setPixelRatio(ratios[level]);
-    this.sun.castShadow = level < 2;
+    this.sun.castShadow = level < 2;                 // sombras reales solo en alta/media
+    this.enemyShadows = level < 1;                   // enemigos proyectan sombra solo en alta
+    this.applyEnemyShadows();
+    // densidad de partículas: combina la gama del dispositivo con el nivel actual
+    const densByLevel = [1, 0.85, 0.55, 0.3][level];
+    this.particles?.setDensity?.(this.particleScale * densByLevel);
     this.resize();
-    // bloom y tamaño del composer siguen a la calidad (se apaga en nivel 2)
     this.syncPostFX();
   }
 
-  monitorFPS(dt) {
-    if (!this.settings.autoq) {
-      if (this.qualityLevel !== 0) this.applyQuality(0);
-      return;
+  // Activa/desactiva la proyección de sombras de los enemigos ya presentes.
+  // (Los nuevos la heredan en el constructor de Enemy vía game.enemyShadows.)
+  applyEnemyShadows() {
+    const on = this.enemyShadows !== false;
+    for (const e of this.enemies) {
+      e.group?.traverse?.(o => { if (o.isMesh && o.userData.shadowCaster !== false) o.castShadow = on; });
     }
+  }
+
+  // Bucle de calidad: mide FPS en ventanas de 2s. Baja si va lento; sube de
+  // nuevo (con histéresis) si se sostiene fluido — pero nunca por encima de la
+  // gama del dispositivo. Solo actúa en modo 'auto' con autoq activado.
+  monitorFPS(dt) {
     this.fpsAcc += dt;
     this.fpsFrames++;
     if (this.fpsAcc < 2) return;
-    const fps = this.fpsFrames / this.fpsAcc;
+    this.fps = this.fpsFrames / this.fpsAcc;
     this.fpsAcc = 0;
     this.fpsFrames = 0;
-    if (fps < 45 && this.qualityLevel < 2) {
+    const auto = (this.settings.quality === 'auto' || this.settings.quality == null) && this.settings.autoq;
+    if (!auto) { this.recoverAcc = 0; return; }
+    if (this.fps < 45 && this.qualityLevel < 3) {
       this.applyQuality(this.qualityLevel + 1);
+      this.recoverAcc = 0;
       if (this.qualityLevel === 1) this.ui.message('⚙️ Calidad ajustada para mantener la fluidez', 2500);
+    } else if (this.fps > 57 && this.qualityLevel > this.deviceTier) {
+      // recuperación: requiere ~6s sostenidos de holgura antes de volver a subir
+      this.recoverAcc += 2;
+      if (this.recoverAcc >= 6) { this.applyQuality(this.qualityLevel - 1); this.recoverAcc = 0; }
+    } else {
+      this.recoverAcc = 0;
     }
+  }
+
+  // Overlay de diagnóstico (FPS + draw calls + triángulos + nivel de calidad).
+  // Se alimenta de renderer.info (coste real de GPU) y se refresca a 10Hz.
+  updatePerfHud() {
+    const el = document.getElementById('perf-overlay');
+    if (!el) return;
+    const r = this.renderer.info.render;
+    const tierName = ['Alta', 'Media', 'Baja', 'Mínima'][this.qualityLevel] || '—';
+    const fps = Math.round(this.fps);
+    const col = fps >= 55 ? '#7CFC8A' : fps >= 40 ? '#ffd27a' : '#ff7a7a';
+    el.innerHTML =
+      `<span style="color:${col}">${fps} FPS</span> · ` +
+      `${r.calls} draws · ${(r.triangles / 1000).toFixed(1)}k tris<br>` +
+      `Q: ${tierName} (${this.qualityLevel}) · enem: ${this.enemies.length}`;
+  }
+
+  // Muestra/oculta el overlay de rendimiento según la opción.
+  togglePerfHud(on) {
+    const el = document.getElementById('perf-overlay');
+    if (el) el.classList.toggle('hidden', !on);
+    if (on) this.updatePerfHud();
+  }
+
+  // Cambia la preferencia de calidad ('auto' | 0..3) y la aplica al momento.
+  setQuality(pref) {
+    this.settings.quality = pref;
+    this.saveSettings();
+    if (pref === 'auto') this.applyQuality(this.deviceTier);
+    else this.applyQuality(pref | 0);
   }
 
   // Cámara basada en "trauma": cada impacto AÑADE trauma (0..1) que decae solo.
@@ -2455,6 +2551,7 @@ class Game {
       // el mapa completo, si está abierto, se refresca "en vivo": enemigos y
       // jugador se mueven mientras lo miras (el panel deja pasar el control)
       if (this.ui.activePanel === 'map') this.ui.renderMap();
+      if (this.settings.perfHud) this.updatePerfHud();
     }
 
     // rotación de la mercancía de la tienda
