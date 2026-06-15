@@ -199,8 +199,10 @@ export function buildZone(biomeName, opts = {}) {
   // HOME (seamless hub): el campamento/pueblo va integrado en el bolsillo seguro
   // del spawn — se sale caminando al mundo abierto, sin portal de retorno.
   let safeZone = null;
+  let campRadius = 0;
   if (opts.townPocket) {
     const { radius } = placeTownServices(grid, group, interactables, torchLights, spawnCell, { radius: 10 });
+    campRadius = radius;
     const half = radius + 0.5;
     safeZone = { minX: spawn.x - half, maxX: spawn.x + half, minZ: spawn.z - half, maxZ: spawn.z + half };
   } else {
@@ -306,17 +308,20 @@ export function buildZone(biomeName, opts = {}) {
   // 9) Enemigos en CLÚSTERES repartidos por la zona (no junto al spawn)
   // ----------------------------------------------------------
   let placedEnemies = 0;
-  const targetEnemies = 65;        // ~50-80
+  const targetEnemies = 58;        // ~50-70 (algo menos = mejor FPS en gama media)
+  // los enemigos no aparecen pegados a la ciudad: si hay campamento, exígeles
+  // estar bien lejos del borde (anti-cheese: no se puede pegar-y-correr al pueblo)
+  const spawnMinDist = campRadius ? campRadius + 9 : 9;
   for (let guard = 0; guard < 400 && placedEnemies < targetEnemies; guard++) {
     // centro del clúster lejos del spawn
-    const center = pickOpenCell(14, Infinity);
+    const center = pickOpenCell(spawnMinDist + 4, Infinity);
     if (!center) break;
     const packSize = ri(3, 6);
     const positions = [];
     for (let k = 0; k < packSize * 3 && positions.length < packSize; k++) {
       const ox = ri(-3, 3), oz = ri(-3, 3);
       const nx = center[0] + ox, nz = center[1] + oz;
-      if (inBounds(nx, nz) && grid.cells[nz][nx] === 1 && cellDistToSpawn(nx, nz) >= 10)
+      if (inBounds(nx, nz) && grid.cells[nz][nx] === 1 && cellDistToSpawn(nx, nz) >= spawnMinDist)
         positions.push(grid.center(nx, nz));
     }
     if (positions.length >= 3) {

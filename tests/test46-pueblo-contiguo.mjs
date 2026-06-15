@@ -39,6 +39,15 @@ for (const s of home.spawns) {
 if (bad) throw new Error(`${bad} posiciones de enemigo dentro del campamento`);
 console.log(`Enemigos fuera del campamento (${home.spawns.length} grupos/spawns, 0 dentro) ✓`);
 
+// anti-cheese: además de fuera, deben estar BIEN lejos del borde (no se puede
+// pegar-y-correr al pueblo). Mínima distancia del centro >= radio + margen.
+const half = (sz.maxX - sz.minX) / 2;
+let nearest = Infinity;
+for (const s of home.spawns) for (const p of (s.positions || (s.pos ? [s.pos] : [])))
+  nearest = Math.min(nearest, Math.hypot(p.x - sc.x, p.z - sc.z));
+if (nearest < half + 6) throw new Error(`enemigos demasiado cerca del campamento (más cercano ${nearest.toFixed(1)}, mínimo ${(half + 6).toFixed(1)})`);
+console.log(`Anti-cheese: enemigo más cercano a ${nearest.toFixed(1)} del centro (campamento radio ~${half.toFixed(0)}) ✓`);
+
 // --- ZONA NORMAL (otro bioma): mantiene portal de retorno, sin campamento ---
 const wild = buildZone('Cavernas de Hielo', { seed: 999 });
 if (wild.isHome || wild.safeZone) throw new Error('una zona normal no debe ser hogar');

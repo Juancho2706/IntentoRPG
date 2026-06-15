@@ -422,13 +422,13 @@ export function placeTownServices(grid, group, interactables, torchLights, cente
   }
   group.add(instancedBoxes(fence, [0.5, 1.2, 0.5], 0x6b5a3e, { castShadow: true }));
 
-  // 5) fogata central + un par de antorchas (luz cálida del campamento)
+  // 5) fogata central con UNA sola luz real (las antorchas laterales son solo
+  // malla: las point lights son caras, mejor 1 que 3 en el campamento)
   { const fire = makeTorch(0xffaa33); fire.position.set(C.x, 0, C.z); group.add(fire);
-    const light = new THREE.PointLight(0xffcc88, 14, 12, 1.6); light.position.set(C.x, 1.8, C.z);
+    const light = new THREE.PointLight(0xffcc88, 16, 13, 1.6); light.position.set(C.x, 1.8, C.z);
     group.add(light); torchLights.push(light); }
   for (const [dx, dz] of [[-5, -5], [5, 5]]) {
     const t = makeTorch(0xffaa33); const p = grid.center(cx + dx, cz + dz); t.position.copy(p); group.add(t);
-    const light = new THREE.PointLight(0xffcc88, 10, 9, 1.7); light.position.set(p.x, 1.8, p.z); group.add(light); torchLights.push(light);
   }
   return { radius: R };
 }

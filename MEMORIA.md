@@ -84,6 +84,10 @@
 - UI: panel del Domador (`UI.openPet`/`renderPet`, `#panel-pet`). Economía: `buyPet/upgradePet/setPetCollar/switchPetKind/petUpgradeCost` (economy.js), `refreshPet` (main.js).
 - Cubierto por `test44-mascota` (economía), `test15-recogida` (recolección/imán), `test8` (no daña).
 
+### Anti-cheese de spawn + ajustes de FPS (2026‑06‑15)
+- ✅ **Enemigos no aparecen pegados a la ciudad**: en `zones.js` los clústeres exigen distancia `campRadius + 9` celdas del spawn; `randomZoneCellFrom` (respawn) excluye el `safeZone` **+ margen 9** → no se puede pegar‑y‑correr al pueblo. Test: `test46` (verifica el buffer).
+- ✅ **FPS**: tope de enemigos vivos según gama (`zoneTick`: 38/52/64 por `deviceTier`), `targetEnemies` 65→58, campamento con **1 sola point light** (antes 3), y `renderWorldMap` solo al abrir el mapa (no a 10Hz). El leash cura al enemigo al volver (anti‑cheese extra).
+
 ### Rendimiento / calidad (YA EXISTE)
 - **Gama de dispositivo** (`detectDeviceTier`), **calidad adaptativa 0–3** con histéresis (`applyQuality`/`monitorFPS`), selector de calidad en Opciones, **overlay FPS/draw calls** (`perfHud`), post‑proceso de carga perezosa (no se baja en gama mínima), densidad de partículas escalada, sombras de enemigos solo en gama alta, animación de miembros omitida fuera de pantalla.
 - Estética: GTAO/SMAA/Outline/bloom/viñeta, IBL (RoomEnvironment), BlobShadows, grading por bioma, rim light.

@@ -2073,6 +2073,7 @@ export class UI {
       this.markJustOpened();
     }
     this.renderMap();
+    this.renderWorldMap(); // el listado del mundo solo al abrir (no a 10Hz)
   }
 
   // dibuja el mapa descubierto; se llama cada frame mientras el panel está
@@ -2122,7 +2123,6 @@ export class UI {
     ctx.restore();
     const pct = Math.round(ex.size / (g.w * g.h) * 100);
     $('map-info').textContent = `${this.game.world.biome || this.game.world.type} · descubierto ${pct}%`;
-    this.renderWorldMap();
   }
 
   // Mapa del Mundo (D4-lite): regiones descubiertas, su estado y viaje rápido.

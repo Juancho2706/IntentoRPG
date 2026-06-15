@@ -20,8 +20,10 @@ export const zoneLifeMethods = {
       const z = 2 + Math.floor(Math.random() * (g.h - 4));
       if (!g.cells[z][x]) continue;
       const c = g.center(x, z);
-      // nunca generes enemigos dentro del campamento seguro (hogar)
-      if (sz && c.x >= sz.minX && c.x <= sz.maxX && c.z >= sz.minZ && c.z <= sz.maxZ) continue;
+      // nunca generes enemigos dentro del campamento NI pegados a su borde
+      // (margen anti-cheese para que no se pueda pegar-y-correr al pueblo)
+      const M = 9;
+      if (sz && c.x >= sz.minX - M && c.x <= sz.maxX + M && c.z >= sz.minZ - M && c.z <= sz.maxZ + M) continue;
       if (c.distanceTo(fromPos) >= minDist) return c;
     }
     return null;
@@ -41,7 +43,9 @@ export const zoneLifeMethods = {
     w.respawnT = (w.respawnT ?? 8) - dt;
     if (w.respawnT <= 0) {
       w.respawnT = 7 + Math.random() * 6;
-      if (alive < 70) {
+      // tope de enemigos vivos según la gama del dispositivo (FPS en gama baja)
+      const cap = this.deviceTier >= 2 ? 38 : this.deviceTier >= 1 ? 52 : 64;
+      if (alive < cap) {
         const pos = this.randomZoneCell(16);
         if (pos) {
           const positions = [pos];
