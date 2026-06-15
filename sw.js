@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v27';
+const VERSION = 'v28';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -21,6 +21,9 @@ const ASSETS = [
   './js/zones.js',
   './js/music.js',
   './js/postfx.js',
+  './js/particles.js',
+  './js/fx-skills.js',
+  './js/fx-enemies.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
