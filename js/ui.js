@@ -2,8 +2,8 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
-import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
+import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
 import { SYSTEMS_GUIDE, SKILL_MODS } from './data.js';
 
@@ -2617,6 +2617,7 @@ export class UI {
     const g = this.game, p = g.player;
     const para = p.paragon || { points: 0, nodes: {} };
     const N = PARAGON_BOARD_SIZE;
+    const board = paragonBoardFor(p.classId);
     const cost = g.respecParagonCost();
     const nav = $('pg-build-nav');
     if (nav) { nav.innerHTML = this.buildNavHTML('paragon'); this.bindBuildNav(nav); }
@@ -2626,7 +2627,7 @@ export class UI {
     const alertEl = $('pg-alert');
     if (alertEl) {
       const freeGlyphs = this.unsocketedGlyphCount();
-      const freeSockets = PARAGON_BOARD.filter(n => n.type === 'socket' && para.nodes?.[n.id] && !para.glyphs?.[n.id]).length;
+      const freeSockets = board.filter(n => n.type === 'socket' && para.nodes?.[n.id] && !para.glyphs?.[n.id]).length;
       const lockedBoard = p.level < 20 && !para.points && !Object.keys(para.nodes || {}).length;
       let html = '';
       if (lockedBoard) html += `<div class="locked-banner">${icon('lock')} El Tablero de Paragon se desbloquea en el <b>nivel 20</b> (te faltan ${20 - p.level}). A partir de ahí cada nivel da 1 punto para gastar en este tablero. Esto es una vista previa de lo que te espera.</div>`;
@@ -2638,7 +2639,7 @@ export class UI {
     grid.innerHTML = '';
     grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
     const byPos = {};
-    for (const n of PARAGON_BOARD) byPos[n.x + ',' + n.y] = n;
+    for (const n of board) byPos[n.x + ',' + n.y] = n;
     const glyph = { start: '◉', legendary: '★', rare: '◆', magic: '✦', minor: '•', socket: '◇' };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const cell = document.createElement('div');
@@ -2649,6 +2650,7 @@ export class UI {
         const avail = !on && para.points > 0 && g.paragonNodeReachable(node.id);
         const gl = node.type === 'socket' ? para.glyphs?.[node.id] : null;
         cell.classList.add('para-node', 'pn-' + node.type);
+        if (node.cat) cell.classList.add('cat-' + node.cat);
         if (on) cell.classList.add('on');
         if (avail) cell.classList.add('avail');
         if (gl) cell.classList.add('has-glyph');
@@ -2684,9 +2686,15 @@ export class UI {
     pop.style.left = pop.style.top = pop.style.transform = '';
     const glyphs = p.materials.filter(it => it.kind === 'glyph');
     const cur = p.paragon.glyphs?.[node.id];
+    // familias de los nodos activos contiguos a este engarce (decisión de colocación)
+    const board = paragonBoardFor(p.classId);
+    const pnodes = p.paragon?.nodes || {};
+    const adjNodes = board.filter(o => Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1 && (o.type === 'start' || pnodes[o.id]));
+    const adjFamCount = (fam) => adjNodes.filter(o => o.cat === fam).length;
+    const famsHere = [...new Set(adjNodes.map(o => o.cat).filter(Boolean))].map(c => PARAGON_CATS[c] || c).join(', ') || 'ninguna activa';
     pop.innerHTML = `
       <div class="popup-name">🔷 Engarce de Paragon</div>
-      <div class="popup-sub">${cur ? 'Engarzado: ' + cur.name : 'Engarce vacío'}</div>
+      <div class="popup-sub">${cur ? 'Engarzado: ' + cur.name : 'Engarce vacío'} · familias contiguas: ${famsHere}</div>
       <div class="popup-btns codex-choose"></div>`;
     const btns = pop.querySelector('.popup-btns');
     if (!glyphs.length && !cur) {
@@ -2696,7 +2704,9 @@ export class UI {
     }
     glyphs.forEach(gl => {
       const b = document.createElement('button'); b.className = 'btn-good';
-      b.textContent = `Engarzar ${gl.name}`;
+      const val = Math.round(glyphValue(gl, adjNodes.length, adjFamCount(gl.fam)));
+      const famHit = gl.fam && adjFamCount(gl.fam) > 0 ? ' ⭐' : '';
+      b.innerHTML = `Engarzar ${gl.name} <small class="dim">(→ ${statText(gl.stat, val)}${famHit})</small>`;
       b.onclick = () => { g.socketGlyph(node.id, p.materials.indexOf(gl)); pop.classList.add('hidden'); this.renderParagon(); this.updateHUD(); };
       btns.appendChild(b);
     });

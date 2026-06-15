@@ -2,7 +2,8 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, skillVal, xpForLevel, PARAGON_BOARD, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL } from './data.js';
+import { CLASSES, skillVal, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL } from './data.js';
+import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
@@ -366,21 +367,24 @@ export class Player {
       if (it.power2) this.powers.add(it.power2.id);        // míticos: segundo poder
     }
     if (this.powers.has('avaricia')) item.mf += 30;
-    // paragon: tablero de nodos (los nodos legendarios otorgan poderes)
+    // paragon: tablero TEMÁTICO de la clase (los nodos legendarios otorgan poderes)
+    const board = paragonBoardFor(this.classId);
     const pnodes = this.paragon?.nodes || {};
-    for (const node of PARAGON_BOARD) {
+    for (const node of board) {
       if (node.type !== 'start' && !pnodes[node.id]) continue;
       if (node.stats) addStats(node.stats);
       if (node.power) this.powers.add(node.power);
     }
     // glifos engarzados: valor por rango + bonus por nodos activos adyacentes
+    // (+ bonus de FAMILIA por cada adyacente del mismo cuadrante que el glifo)
     const glyphs = this.paragon?.glyphs || {};
     for (const [nodeId, gl] of Object.entries(glyphs)) {
       if (!pnodes[nodeId]) continue; // solo si el engarce está activo
-      const node = PARAGON_BOARD.find(n => n.id === nodeId);
+      const node = board.find(n => n.id === nodeId);
       if (!node) continue;
-      const adj = PARAGON_BOARD.filter(o => Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1 && (o.type === 'start' || pnodes[o.id])).length;
-      addStats({ [gl.stat]: gl.rank * gl.per + adj * gl.adj });
+      const adjNodes = board.filter(o => Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1 && (o.type === 'start' || pnodes[o.id]));
+      const adjFam = gl.fam ? adjNodes.filter(o => o.cat === gl.fam).length : 0;
+      addStats({ [gl.stat]: glyphValue(gl, adjNodes.length, adjFam) });
     }
     // bonus de conjunto por número de piezas equipadas
     for (const [sid, n] of Object.entries(setCounts)) {

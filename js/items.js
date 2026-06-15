@@ -386,12 +386,18 @@ export function makeSupport(supId) {
 // per/adj atenuados (auditoría): los glifos rango 10 eran la palanca más inflada
 // del endgame (+90% sobre el resto). Bajarlos deja al Paragon+bendiciones como
 // grueso del crecimiento y mantiene el equipo relevante.
+// FASE 4 — GLIFOS DE FAMILIA: cada glifo tiene una `fam` (cuadrante del tablero:
+// ofensiva/sustento/defensa/utilidad) y dos tasas de adyacencia: `adj` (bonus por
+// CUALQUIER nodo activo contiguo) y `famAdj` (bonus MAYOR por nodo contiguo de su
+// familia). Colocarlo en un engarce rodeado de su familia rinde mucho más → la
+// posición del glifo pasa a ser una decisión de build (estilo D4 Season 13).
+export const GLYPH_FAM_LABEL = { ofensiva: 'Ofensiva', sustento: 'Sustento', defensa: 'Defensa', utilidad: 'Utilidad' };
 export const GLYPH_TYPES = [
-  { id: 'g_dmg',  stat: 'dmgPct', name: 'Glifo de Cólera',    per: 1.5, adj: 1 },
-  { id: 'g_hp',   stat: 'hp',     name: 'Glifo de Vigor',     per: 7,   adj: 4 },
-  { id: 'g_arm',  stat: 'arm',    name: 'Glifo de Égida',     per: 3.5, adj: 2 },
-  { id: 'g_crit', stat: 'crit',   name: 'Glifo de Precisión', per: 0.8, adj: 0.5 },
-  { id: 'g_mf',   stat: 'mf',     name: 'Glifo de Codicia',   per: 3,   adj: 2 },
+  { id: 'g_dmg',  stat: 'dmgPct', name: 'Glifo de Cólera',    per: 1.5, adj: 0.5, fam: 'ofensiva', famAdj: 1.5 },
+  { id: 'g_hp',   stat: 'hp',     name: 'Glifo de Vigor',     per: 7,   adj: 2,   fam: 'sustento', famAdj: 5 },
+  { id: 'g_arm',  stat: 'arm',    name: 'Glifo de Égida',     per: 3.5, adj: 1,   fam: 'defensa',  famAdj: 2.5 },
+  { id: 'g_crit', stat: 'crit',   name: 'Glifo de Precisión', per: 0.8, adj: 0.3, fam: 'ofensiva', famAdj: 0.7 },
+  { id: 'g_mf',   stat: 'mf',     name: 'Glifo de Codicia',   per: 3,   adj: 1,   fam: 'utilidad', famAdj: 2.5 },
 ];
 
 export function makeGlyph(rank = 1) {
@@ -400,12 +406,13 @@ export function makeGlyph(rank = 1) {
   return {
     uid: itemUid++, kind: 'glyph', glyphId: t.id, stat: t.stat,
     baseName: t.name, name: `${t.name} · rango ${rank}`, icon: '🔷',
-    rarity: 'raro', rank, per: t.per, adj: t.adj, value: 40 + rank * 20,
+    rarity: 'raro', rank, per: t.per, adj: t.adj, fam: t.fam, famAdj: t.famAdj, value: 40 + rank * 20,
   };
 }
 
-export function glyphValue(glyph, adjAllocated = 0) {
-  return glyph.rank * glyph.per + adjAllocated * glyph.adj;
+// valor = rango×per + (adyacentes activos)×adj + (adyacentes de su familia)×famAdj
+export function glyphValue(glyph, adjAllocated = 0, adjFamily = 0) {
+  return glyph.rank * glyph.per + adjAllocated * glyph.adj + adjFamily * (glyph.famAdj || 0);
 }
 
 // Fragmento de Pináculo: material para invocar al jefe pináculo (uber).
@@ -511,7 +518,7 @@ export function itemStatLines(item) {
   const lines = [];
   if (item.kind === 'riftkey') return [`🌀 Abre una Grieta de Nivel ${item.riftLevel}`, 'Enemigos reforzados, botín y XP aumentados. Derrota al jefe para subir de nivel de grieta.'];
   if (item.kind === 'fragment') return ['✴️ Fragmento de Pináculo', 'Reúne 3 y ofréndalos en la Estatua del Mundo para invocar al jefe Pináculo y obtener botín mítico.'];
-  if (item.kind === 'glyph') return [`🔷 ${item.baseName} · rango ${item.rank}`, `Engárzalo en un nodo de engarce (◇) del Tablero de Paragon.`, `Otorga ${statText(item.stat, Math.round(glyphValue(item, 0)))} + bonus por cada nodo activo adyacente al engarce.`];
+  if (item.kind === 'glyph') return [`🔷 ${item.baseName} · rango ${item.rank}`, `Engárzalo en un nodo de engarce (◇) del Tablero de Paragon.`, `Otorga ${statText(item.stat, Math.round(glyphValue(item, 0)))} + bonus por cada nodo activo adyacente${item.fam ? ` (×${(item.famAdj / (item.adj || 1)).toFixed(0)} si es de familia ${GLYPH_FAM_LABEL[item.fam] || item.fam})` : ''}.`];
   if (item.kind === 'support') {
     const s = SUPPORTS.find(x => x.id === item.supportId);
     return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.types.join(', ')}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];

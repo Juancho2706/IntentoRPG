@@ -114,12 +114,12 @@ Hoy: 12 planos, 2 slots, sin escalado. Objetivo: que **transformen** y **escalen
 | **1** | **Sinergias 2.0** (2‑3 por skill, no solo daño) + mostrarlas | Alto | Bajo‑Medio | Bajo (data + recompute) | ✅ HECHO |
 | **2** | **Soportes 3.0**: rango/escalado + 5‑6 soportes nuevos (conversión, DoT escalable, condicionales) + combos | **Muy alto** | Medio | Medio (cast + items) | ✅ HECHO (4 nuevos: eficiente/raudo/certero/persistente; rango por nivel pendiente) |
 | **3** | **Maestrías a 10‑12 nodos** con sub‑carriles + pasivas de familia; reajustar economía de puntos | **Muy alto** | Medio‑Alto | Medio | ✅ HECHO (9 nodos/rama: 3 menores `req0` + 3 notables `req3` + 2 mayores `req6` + 1 capstone `req8`; absorbe el excedente de puntos) |
-| **4** | **Paragon temático** por clase + glifos de familia | Medio | Medio | Bajo | pendiente |
+| **4** | **Paragon temático** por clase + glifos de familia | Medio | Medio | Bajo | ✅ HECHO (`PARAGON_BOARDS` por clase con legendarios temáticos + `cat` por cuadrante; glifos con `fam`/`famAdj` que premian la colocación) |
 | **5** | **Sub‑personalización por skill** (Last Epoch‑lite) | Muy alto | Alto | Medio‑Alto | ✅ HECHO (`SKILL_MODS`: 1 Mejora + 2 Aspectos excluyentes por skill) |
 
 **Recomendación de arranque**: **Fase 1 (sinergias 2.0)** por ser barata y notarse ya, en paralelo con el diseño de **Fase 2 (soportes 3.0)** que es la que más variedad desbloquea. La Fase 3 (maestrías profundas) es el siguiente gran salto y de paso arregla la economía de puntos de maestría.
 
-**Progreso (2026‑06‑15)**: Fases 1, 2, 3 y 5 implementadas. Pendientes: Fase 4 (paragon temático) y el escalado de soportes por nivel de Fase 2.
+**Progreso (2026‑06‑15)**: Fases 1, 2, 3, 4 y 5 implementadas. Pendiente menor: el escalado de soportes por nivel de Fase 2 (los demás ejes del plan de variedad de builds están cubiertos).
 
 ---
 

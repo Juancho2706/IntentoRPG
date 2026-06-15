@@ -1205,6 +1205,13 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
 .para-node.pn-socket.on { color: #aef0ff; border-color: #44ccff; }
 .para-node.has-glyph { color: #fff; border-color: #44ccff; box-shadow: inset 0 0 6px rgba(68,204,255,0.5); }
 
+/* FASE 4 — cuadrantes temáticos: tinte suave por familia (ofensiva/sustento/
+   defensa/utilidad) para leer el tablero de un vistazo. El estado .on lo cubre. */
+.para-node.cat-ofensiva { background: rgba(255, 80, 60, 0.07); border-color: #5a3a36; }
+.para-node.cat-sustento { background: rgba(80, 220, 120, 0.07); border-color: #36523f; }
+.para-node.cat-defensa  { background: rgba(90, 150, 255, 0.07); border-color: #364a5a; }
+.para-node.cat-utilidad { background: rgba(190, 120, 255, 0.07); border-color: #4a3a5a; }
+
 /* ============================================================
    BUFFS / PASIVOS TEMPORALES en el HUD (añadido — fila de iconos)
    Muestra los efectos activos del jugador con cuenta atrás visual.

@@ -3,7 +3,7 @@
 // re-spec y paragon. Se mezclan en Game.prototype.
 // ============================================================
 import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
-import { SHOP_REFRESH_MS, PET_PRICE, PARAGON_BOARD, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
+import { SHOP_REFRESH_MS, PET_PRICE, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 import { MAX_MATERIALS } from './entities.js';
 
 export const economyMethods = {
@@ -479,12 +479,16 @@ export const economyMethods = {
   },
   
   // ---------- paragon: tablero de nodos (nivel 20+) ----------
+  // tablero temático de la clase del jugador (Fase 4)
+  paragonBoard() { return paragonBoardFor(this.player?.classId); },
+
   // un nodo es accesible si conecta ortogonalmente con el Inicio o un nodo activo
   paragonNodeReachable(nodeId) {
-    const node = PARAGON_BOARD.find(n => n.id === nodeId);
+    const board = this.paragonBoard();
+    const node = board.find(n => n.id === nodeId);
     if (!node) return false;
     const alloc = this.player.paragon.nodes || {};
-    return PARAGON_BOARD.some(o => o.id !== nodeId &&
+    return board.some(o => o.id !== nodeId &&
       (o.type === 'start' || alloc[o.id]) &&
       Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1);
   },
@@ -494,7 +498,7 @@ export const economyMethods = {
     const para = p.paragon;
     if (para.points <= 0) { this.ui.message('No tienes puntos Paragon'); return; }
     if (para.nodes[nodeId]) return;
-    const node = PARAGON_BOARD.find(n => n.id === nodeId);
+    const node = this.paragonBoard().find(n => n.id === nodeId);
     if (!node || node.type === 'start') return;
     if (!this.paragonNodeReachable(nodeId)) { this.ui.message('Debe conectar con un nodo ya activado'); return; }
     para.nodes[nodeId] = true;
@@ -508,7 +512,7 @@ export const economyMethods = {
   // matIndex = índice en la bolsa de materiales (p.materials)
   socketGlyph(nodeId, matIndex) {
     const p = this.player;
-    const node = PARAGON_BOARD.find(n => n.id === nodeId);
+    const node = this.paragonBoard().find(n => n.id === nodeId);
     if (!node || node.type !== 'socket' || !p.paragon.nodes[nodeId]) return;
     const gl = p.materials[matIndex];
     if (!gl || gl.kind !== 'glyph') return;
