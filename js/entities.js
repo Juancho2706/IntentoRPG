@@ -641,8 +641,12 @@ export class Player {
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
       const { dmg, crit } = this.rollDamage(1);
+      const tpos = target.pos.clone();
       target.takeDamage(dmg, crit);
       this.onDealHit();
+      // game-feel: hit-stop seco al impactar (más fuerte si es crítico)
+      g.hitStop?.(crit ? 'crit' : 'heavy');
+      g.spawnBurst?.(tpos, crit ? 0xffffff : 0xffddaa, crit ? 8 : 5);
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
       for (const e of g.enemies) {
@@ -717,7 +721,9 @@ export class Enemy {
     if (!this.alive) return;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
     this.hp -= amount;
-    this.flashT = 0.12;
+    // destello BLANCO: ~70ms base, escala suave con el % de daño recibido
+    const pct = Math.min(1, amount / Math.max(1, this.maxHP));
+    this.flashT = 0.07 + pct * 0.08;
     const bar = this.group.userData.bar;
     bar.visible = true;
     const fg = this.group.userData.barFg;
@@ -753,7 +759,7 @@ export class Enemy {
       this._flashState = flashing;
       this.group.traverse(o => {
         if (o.isMesh && o.material && o.material.emissive)
-          o.material.emissive.setHex(flashing ? 0x661111 : this.baseEmissive);
+          o.material.emissive.setHex(flashing ? 0xffffff : this.baseEmissive);
       });
     }
 
@@ -1068,6 +1074,7 @@ export class Projectile {
     this.slow = opts.slow || 0;
     this.attackerLevel = opts.attackerLevel || 1;
     this.hitSet = new Set();
+    this.color = opts.color || 0xffffff; // color del estallido al impactar
 
     const dir = opts.to.clone().sub(opts.from);
     dir.y = 0;
@@ -1083,6 +1090,14 @@ export class Projectile {
     this.mesh.position.copy(opts.from);
   }
 
+  // estallido/anillo en el punto de impacto (la "Bola de Fuego" explota)
+  burst() {
+    const g = this.game;
+    const at = this.mesh.position.clone();
+    g.spawnBurst?.(at, this.color, this.crit ? 9 : 6);
+    g.spawnRing?.(at, this.crit ? 1.0 : 0.7, this.color);
+  }
+
   // devuelve true cuando hay que eliminarlo
   update(dt) {
     const g = this.game;
@@ -1091,7 +1106,7 @@ export class Projectile {
     this.mesh.position.addScaledVector(this.vel, dt);
     const p = this.mesh.position;
 
-    if (!g.world.grid.walkable(p.x, p.z, 0.05)) return true;
+    if (!g.world.grid.walkable(p.x, p.z, 0.05)) { this.burst(); return true; }
 
     if (this.friendly) {
       for (const e of g.enemies) {
@@ -1102,6 +1117,8 @@ export class Projectile {
           g.player?.onDealHit();
           if (this.slow) e.slowT = this.slow;
           g.sfx('hit');
+          this.burst();
+          g.hitStop?.(this.crit ? 'crit' : 'normal'); // hit-stop en impacto de proyectil
           if (!this.pierce) return true;
           this.hitSet.add(e);
         }
@@ -1110,6 +1127,7 @@ export class Projectile {
       const pl = g.player;
       if (pl && pl.alive && p.distanceToSquared(pl.pos.clone().setY(p.y)) < 0.45) {
         pl.takeDamage(this.dmg, this.attackerLevel);
+        this.burst();
         return true;
       }
     }
