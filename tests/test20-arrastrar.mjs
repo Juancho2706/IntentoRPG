@@ -44,13 +44,15 @@ fake.moveItem({ zone: 'inv', key: 0 }, { zone: 'equip', key: 'ring2' });
 if (!p.equipment.ring || !p.equipment.ring2) throw new Error('los dos anillos no se equiparon');
 console.log('Dos anillos en ring y ring2 ✓');
 
-// 5) gema arrastrada sobre objeto con engarce → engarza
+// 5) gema (bolsa de materiales) arrastrada sobre objeto con engarce → engarza
 const arma = generateItem(8, 'raro', 'weapon'); arma.unidentified = false; arma.sockets = 1; arma.gems = [];
 const gema = makeGem(5, 'rubi');
-p.inventory = [gema, arma];
-fake.moveItem({ zone: 'inv', key: 0 }, { zone: 'inv', key: 1 });
+p.inventory = [arma];
+p.materials = [gema];
+fake.moveItem({ zone: 'mat', key: 0 }, { zone: 'inv', key: 0 });
 if ((arma.gems || []).length !== 1) throw new Error('la gema no se engarzó al arrastrarla');
-console.log('Arrastrar gema sobre objeto con engarce lo engarza ✓');
+if (p.materials.length !== 0) throw new Error('la gema no salió de la bolsa de materiales');
+console.log('Arrastrar gema (materiales) sobre objeto con engarce lo engarza ✓');
 
 // 6) reordenar mochila: intercambia
 const a = generateItem(3, 'magico'); const b = generateItem(3, 'magico');

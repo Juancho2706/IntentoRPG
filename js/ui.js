@@ -1129,6 +1129,44 @@ export class UI {
       invGrid.appendChild(div);
     }
     $('inv-gold').textContent = `🪙 ${p.gold} oro · toca para comparar/equipar · arrastra para mover (I o B para abrir)`;
+
+    // bolsa de materiales (gemas, runas, llaves, fragmentos, glifos)
+    this.renderMaterials();
+    this.bindInvTabs();
+  }
+
+  // pinta la rejilla de la bolsa de materiales
+  renderMaterials() {
+    const g = this.game, p = g.player;
+    const grid = $('mat-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const mats = p.materials || [];
+    // celdas para todo el material + algunas vacías para arrastrar/soltar
+    const cells = Math.max(24, mats.length + 4);
+    for (let i = 0; i < cells; i++) {
+      const item = mats[i];
+      const div = document.createElement('div');
+      div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
+      div.innerHTML = this.itemCellHTML(item);
+      this.bindCell(div, { zone: 'mat', key: i, item }, item ? () => this.itemPopup(item, { from: 'mat', index: i }) : null);
+      grid.appendChild(div);
+    }
+  }
+
+  // conmuta entre las pestañas Mochila / Materiales del inventario
+  bindInvTabs() {
+    const tabs = document.querySelectorAll('#inv-tabs .inv-tab');
+    if (!tabs.length) return;
+    tabs.forEach(tab => {
+      tab.onclick = () => {
+        const key = tab.dataset.invtab;
+        tabs.forEach(t => t.classList.toggle('on', t === tab));
+        document.querySelectorAll('#panel-inv .inv-tab-pane').forEach(pane => {
+          pane.classList.toggle('hidden', pane.dataset.pane !== (key === 'mat' ? 'mat' : 'bag'));
+        });
+      };
+    });
   }
 
   // bloque ▲▼ de comparación de un objeto del inventario contra lo equipado
@@ -1238,12 +1276,19 @@ export class UI {
       pop.classList.remove('hidden');
       return;
     }
-    // llave de grieta: abrir la grieta (endgame)
+    // llave de grieta: abrir la grieta (endgame) — vive en la bolsa de materiales
     if (item.kind === 'riftkey') {
-      if (ctx.from === 'inv') {
+      if (ctx.from === 'mat') {
         addBtn(`🌀 Abrir Grieta Nv ${item.riftLevel}`, () => g.useRiftKey(ctx.index), 'btn-good');
-        addBtn('Tirar', () => g.dropItem(ctx.index), 'btn-bad');
       }
+      addBtn('Cerrar', () => {});
+      pop.classList.remove('hidden');
+      return;
+    }
+    // materiales (gemas, runas, fragmentos, glifos): acciones específicas
+    if (ctx.from === 'mat') {
+      if ((item.kind === 'gem' || item.kind === 'rune') && p.cube.length < 3)
+        addBtn('Al cubo 🧪', () => g.addMaterialToCube(ctx.index));
       addBtn('Cerrar', () => {});
       pop.classList.remove('hidden');
       return;
@@ -1267,7 +1312,7 @@ export class UI {
       addBtn(`🔨 Mejorar calidad (${g.masterworkCost(item)} 🪙)`, () => g.masterworkItem(ctx.index), 'btn-good');
     }
     // engarzar gemas/runas si el objeto tiene ranura libre y hay en la mochila
-    if (item.sockets && (item.gems || []).length < item.sockets && p.inventory.some(i => i.kind === 'gem' || i.kind === 'rune')) {
+    if (item.sockets && (item.gems || []).length < item.sockets && p.materials.some(i => i.kind === 'gem' || i.kind === 'rune')) {
       const b = document.createElement('button');
       b.textContent = 'Engarzar 💎';
       b.className = 'btn-good';
@@ -1299,7 +1344,7 @@ export class UI {
       <div class="popup-sub">${item.name} (${(item.gems || []).length}/${item.sockets} engarces)</div>
       <div class="popup-btns gem-list"></div>`;
     const btns = pop.querySelector('.popup-btns');
-    p.inventory.forEach((gm, i) => {
+    p.materials.forEach((gm, i) => {
       if (gm.kind !== 'gem' && gm.kind !== 'rune') return;
       const b = document.createElement('button');
       b.innerHTML = `${gm.icon} ${gm.name} · ${itemStatLines(gm)[0] || ''}`;
@@ -1471,7 +1516,7 @@ export class UI {
   // nº de glifos que tienes en la mochila sin engarzar en el Tablero de Paragon
   unsocketedGlyphCount() {
     const p = this.game.player;
-    return p.inventory.filter(it => it.kind === 'glyph').length;
+    return (p.materials || []).filter(it => it.kind === 'glyph').length;
   }
 
   // Barra de navegación del "build" que conecta Personaje ↔ Habilidades ↔ Paragon.
@@ -2018,7 +2063,7 @@ export class UI {
     const g = this.game, p = g.player;
     const pop = $('item-popup');
     pop.style.left = pop.style.top = pop.style.transform = '';
-    const glyphs = p.inventory.filter(it => it.kind === 'glyph');
+    const glyphs = p.materials.filter(it => it.kind === 'glyph');
     const cur = p.paragon.glyphs?.[node.id];
     pop.innerHTML = `
       <div class="popup-name">🔷 Engarce de Paragon</div>
@@ -2033,7 +2078,7 @@ export class UI {
     glyphs.forEach(gl => {
       const b = document.createElement('button'); b.className = 'btn-good';
       b.textContent = `Engarzar ${gl.name}`;
-      b.onclick = () => { g.socketGlyph(node.id, p.inventory.indexOf(gl)); pop.classList.add('hidden'); this.renderParagon(); this.updateHUD(); };
+      b.onclick = () => { g.socketGlyph(node.id, p.materials.indexOf(gl)); pop.classList.add('hidden'); this.renderParagon(); this.updateHUD(); };
       btns.appendChild(b);
     });
     if (cur) {

@@ -97,26 +97,47 @@
 <div id="panel-inv" class="panel hidden">
   <div class="panel-head"><h2>🎒 Inventario</h2><button class="panel-close">✕</button></div>
 
-  <section class="inv-section">
-    <h4 class="inv-sec-head"><span class="inv-sec-ico">🛡️</span> Equipo</h4>
-    <div id="equip-slots"></div>
-  </section>
+  <!-- Diablo IV: dos columnas en escritorio (equipo | mochila), apilado en móvil -->
+  <div id="inv-layout">
 
-  <section class="inv-section">
-    <h4 class="inv-sec-head"><span class="inv-sec-ico">🧪</span> Cubo de Transmutación</h4>
-    <p class="dim cube-help">3 objetos de la misma rareza → 1 superior (cuesta oro) · 3 legendarios → reforjar uno nuevo (caro) · si comparten ranura, el resultado es de esa ranura · 3 gemas iguales → gema superior</p>
-    <div id="cube-row"></div>
-  </section>
+    <!-- columna izquierda: muñeco de equipo + cubo -->
+    <div class="inv-col inv-col-left">
+      <section class="inv-section">
+        <h4 class="inv-sec-head"><span class="inv-sec-ico">🛡️</span> Equipo</h4>
+        <div id="equip-slots"></div>
+      </section>
 
-  <section class="inv-section">
-    <h4 class="inv-sec-head"><span class="inv-sec-ico">🎒</span> Mochila <span id="inv-gold" class="dim"></span></h4>
-    <div id="inv-tools">
-      <button id="btn-identify">🔎 Identificar</button>
-      <button id="btn-junk">🧹 Vender morralla</button>
-      <button id="btn-sort">↕️ Ordenar</button>
+      <section class="inv-section inv-cube-section">
+        <h4 class="inv-sec-head"><span class="inv-sec-ico">🧪</span> Cubo de Transmutación</h4>
+        <p class="dim cube-help">3 objetos de la misma rareza → 1 superior (cuesta oro) · 3 legendarios → reforjar uno nuevo (caro) · si comparten ranura, el resultado es de esa ranura · 3 gemas iguales → gema superior</p>
+        <div id="cube-row"></div>
+      </section>
     </div>
-    <div id="inv-grid"></div>
-  </section>
+
+    <!-- columna derecha: pestañas Mochila / Materiales -->
+    <div class="inv-col inv-col-right">
+      <div id="inv-tabs" class="inv-tabs">
+        <button class="inv-tab on" data-invtab="bag"><span class="inv-sec-ico">🎒</span> Mochila</button>
+        <button class="inv-tab" data-invtab="mat"><span class="inv-sec-ico">💎</span> Materiales</button>
+      </div>
+
+      <section class="inv-section inv-tab-pane" data-pane="bag">
+        <div id="inv-tools">
+          <button id="btn-identify">🔎 Identificar</button>
+          <button id="btn-junk">🧹 Vender morralla</button>
+          <button id="btn-sort">↕️ Ordenar</button>
+        </div>
+        <p class="dim inv-gold-line"><span id="inv-gold"></span></p>
+        <div id="inv-grid"></div>
+      </section>
+
+      <section class="inv-section inv-tab-pane hidden" data-pane="mat">
+        <p class="dim mat-help">Gemas, runas, llaves de grieta, fragmentos y glifos. No ocupan espacio en la mochila.</p>
+        <div id="mat-grid"></div>
+      </section>
+    </div>
+
+  </div>
 
   <div class="inv-legend dim">
     <span><span class="lg-glyph" style="color:#6f8cff">✦</span> Mágico</span>
