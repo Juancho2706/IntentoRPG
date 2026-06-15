@@ -14,6 +14,8 @@ import { economyMethods } from './economy.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles } from './postfx.js';
+import { ParticleSystem } from './particles.js';
+import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 
@@ -117,6 +119,10 @@ class Game {
     this.postfx.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
     this.particles = new AmbientParticles(this.scene);
     this.particles.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    // Motor de partículas de gameplay (impactos, habilidades, buffs). Pooled:
+    // no crea geometría por frame. Se actualiza en el tick (ver this.psys.update).
+    try { this.psys = new ParticleSystem(this.fxGroup, { poolSize: 2200 }); }
+    catch { this.psys = null; }
     this.postfx.init(this.renderer, this.scene, this.camera).then(() => {
       // sincroniza tamaño/calidad iniciales y aplica el estado de calidad actual
       this.syncPostFX();
@@ -1418,6 +1424,15 @@ class Game {
     }
   }
 
+  // Lanza un preset de partículas en una posición. Atajo tolerante (no rompe si
+  // el motor no está activo, p.ej. en tests). Acepta un objeto-preset o un nombre
+  // del catálogo de fx-skills.
+  emitFx(preset, pos) {
+    if (!this.psys || !preset) return;
+    const p = typeof preset === 'string' ? SKILL_FX_PRESETS[preset] : preset;
+    if (p) this.psys.emit(p, pos);
+  }
+
   // echoMult: si se pasa (p.ej. 0.5), es una repetición del soporte Eco —
   // omite consumo de maná/CD y no vuelve a hacer eco (evita bucle).
   castSkillSlot(slot, echoMult = 0) {
@@ -1479,6 +1494,13 @@ class Game {
     const applyDoT = e => { if (supDoT && e && e.alive) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval); };
     let casted = true;
 
+    // efectos temáticos por habilidad (impacto/estela/aura/buff). Tolerante:
+    // emitFx no hace nada si el motor de partículas no está activo.
+    const fx = SKILL_FX[sk.id];
+    // pose de lanzamiento del jugador (raise breve de la mano), sin romper
+    // el movimiento ni el ataque básico (usa el mismo canal `swing`).
+    p.castPose?.(sk.type);
+
     switch (sk.type) {
       case 'melee': {
         const e = near && p.pos.distanceTo(near.pos) <= (sk.range || 2.2) ? near : null;
@@ -1492,6 +1514,10 @@ class Game {
         applyDoT(e);
         p.onDealHit();
         this.spawnRing(e.pos, 0.8, 0xffbb44);
+        // Golpe Brutal: impacto físico contundente sobre el enemigo + polvo bajo.
+        const hp = e.pos.clone().setY(1.0);
+        this.emitFx(fx?.impact, hp);
+        if (fx?.extra) this.emitFx(fx.extra, e.pos.clone().setY(0.1));
         break;
       }
       case 'aoe_self': {
@@ -1499,6 +1525,12 @@ class Game {
         this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
         this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
         p.swing = 1;
+        // Aura/onda centrada en el jugador (Torbellino, Nova de Hielo).
+        if (fx?.aura) {
+          const fp = sk.id === 'nova_hielo' ? p.pos.clone().setY(0.4) : p.pos.clone().setY(1.0);
+          this.emitFx(fx.aura, fp);
+        }
+        if (fx?.extra) this.emitFx(fx.extra, p.pos.clone().setY(0.5));
         break;
       }
       case 'aoe_target': {
@@ -1511,11 +1543,24 @@ class Game {
         ball.position.copy(target).setY(5);
         this.fxGroup.add(ball);
         this.fx.push({ mesh: ball, t: 0, dur: 0.25, fall: target.clone() });
+        // estela de caída (Meteoro) y, tras un instante, impacto/polvo en la zona.
+        if (fx?.trail) this.emitFx(fx.trail, target.clone().setY(4.5));
+        const gp = target.clone().setY(0.3);
+        const dp = target.clone().setY(0.1);
+        // sincroniza el burst de impacto con la llegada de la bola decorativa.
+        setTimeout(() => {
+          if (this.state !== 'play') return;
+          if (fx?.impact) this.emitFx(fx.impact, gp);
+          if (fx?.aura) this.emitFx(fx.aura, gp);
+          if (fx?.extra) this.emitFx(fx.extra, dp);
+          this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
+        }, 230);
         this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
         break;
       }
       case 'dash': {
         p.faceToward(target);
+        const start = p.pos.clone();
         const dir = target.clone().sub(p.pos).setY(0);
         const dist = dir.length();
         if (dist > 0.1) {
@@ -1527,12 +1572,17 @@ class Game {
             if (!this.world.grid.walkable(nx, nz)) break;
             p.pos.x = nx; p.pos.z = nz;
             traveled += step;
+            // estela de carga sembrada a lo largo del recorrido.
+            if (fx?.trail && traveled % 0.6 < 0.3)
+              this.emitFx(fx.trail, new THREE.Vector3(p.pos.x, 0.9, p.pos.z));
           }
         }
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
         this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
         p.swing = 1;
+        // impacto contundente al llegar.
+        if (fx?.impact) this.emitFx(fx.impact, p.pos.clone().setY(0.7));
         break;
       }
       case 'proj': {
@@ -1540,6 +1590,11 @@ class Game {
         p.swing = 1;
         const count = (sk.count ? Math.floor(skillVal(sk.count, lvl)) : 1) + (p.powers?.has('multidisparo') ? 1 : 0) + supExtraProj;
         const baseAngle = Math.atan2(target.x - p.pos.x, target.z - p.pos.z);
+        // fogonazo de lanzamiento en la mano (estela/abanico elemental).
+        const muzzle = p.pos.clone().setY(1.0)
+          .add(new THREE.Vector3(Math.sin(baseAngle) * 0.5, 0, Math.cos(baseAngle) * 0.5));
+        if (fx?.aura) this.emitFx(fx.aura, muzzle);
+        else if (fx?.trail) this.emitFx(fx.trail, muzzle);
         for (let i = 0; i < count; i++) {
           const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
           const a = baseAngle + off;
@@ -1558,6 +1613,8 @@ class Game {
         if (near && near.alive && p.pos.distanceTo(near.pos) <= (sk.range || 10)) {
           if (has('chain')) this.spawnChainBounce(near, Math.round(avgHit), 2, [], sk.color || 0x66ddff);
           applyDoT(near);
+          // impacto elemental sobre el objetivo apuntado (feedback claro de golpe).
+          if (fx?.impact) this.emitFx(fx.impact, near.pos.clone().setY(1.0));
         }
         break;
       }
@@ -1566,6 +1623,8 @@ class Game {
         for (const [k, arr] of Object.entries(sk.buff)) stats[k] = Math.round(skillVal(arr, lvl));
         p.addBuff(sk.id, stats, sk.dur, { name: sk.name, icon: sk.icon, desc: sk.desc });
         this.spawnRing(p.pos, 1.4, 0x66ddff);
+        // aura de buff sobre el jugador (Grito de Guerra, Armadura Helada, Agilidad).
+        if (fx?.aura) this.emitFx(fx.aura, p.pos.clone().setY(1.0));
         break;
       }
     }
@@ -2206,6 +2265,8 @@ class Game {
     }
     // partículas ambientales del bioma (siguen a la cámara)
     this.particles?.update(realDt, this.camera.position);
+    // motor de partículas de gameplay (impactos/habilidades/buffs)
+    this.psys?.update(realDt);
 
     // UI: textos y etiquetas siguen al mundo (cada frame), pero el HUD y el
     // minimapa se refrescan a 10Hz — menos trabajo de DOM, mismo aspecto
