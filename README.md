@@ -32,6 +32,10 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Mapa en vivo**: el mapa completo no detiene el juego — puedes seguir moviéndote y combatir mientras lo miras, y los enemigos descubiertos se mueven en tiempo real
 - **Héroe personalizable**: ponle nombre y elige el color de su armadura al crear el personaje
 - **Vida en el mundo abierto**: **Goblins del Tesoro** que huyen y sueltan un gran botín si los cazas antes de que escapen; **santuarios de campo** (incluido el de la Avaricia, que invoca un goblin); **tesoros custodiados** por élites; y **Contratos de zona** (estilo susurros) con objetivos seguidos en vivo (cazar enemigos/élites, saquear cofres, abatir al jefe o al goblin) que premian con oro, un legendario y una Llave de Grieta al completarlos
+- **Goblins del Tesoro con mecánica de captura** (3 tipos): el Veloz se detiene a burlarse, el Cargado va lento soltando oro, el de Portal se teletransporta pero queda aturdido — todos alcanzables como melee o a distancia
+- **Mecánicas de enemigos**: lanzadores con abanico de proyectiles, **CC telegrafiado** (telaraña/escarcha que ralentiza), auras de escarcha y de exaltación de aliados; los cobardes huyen a ráfagas y se cansan (ya no escapan eternamente)
+- **Iconos de buff/efectos activos** en el HUD con cuenta atrás visual; tócalos para ver qué hacen y cuánto duran
+- **Calidad de vida**: toca/clica fuera de un menú para cerrarlo, y compara objetos (▲▼) al tocarlos o pasar el ratón también en el inventario y el equipo
 - **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
 - **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
 - **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes
