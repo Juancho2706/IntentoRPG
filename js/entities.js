@@ -908,6 +908,15 @@ export class Enemy {
     fg.position.x = -0.43 * (1 - fg.scale.x);
     this.game.ui.spawnText(this.pos.clone().add(new THREE.Vector3(rand(-0.3, 0.3), this.def.scale, 0)),
       `${amount}${crit ? '!' : ''}`, crit ? 'txt-crit' : 'txt-dmg', { big: pct >= 0.18 });
+    // impacto: hit-stop BREVE solo en golpes NOTABLES (peso a los momentos
+    // grandes sin que cada impacto/AoE se sienta lento). hitStop usa max, así que
+    // varios golpes en el mismo frame no se acumulan.
+    const notable = this.def.boss || this.def.uber || this.def.worldBoss || this.def.rank;
+    if (!this.game.settings?.reduceMotion) {
+      if (this.hp <= 0 && notable) { this.game.hitStop?.(130); this.game.addShake?.(0.35, 0.35); }
+      else if (crit && notable) this.game.hitStop?.(55);
+      else if (pct >= 0.30) this.game.hitStop?.(45);
+    }
     if (this.hp <= 0) this.die();
   }
 

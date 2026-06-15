@@ -86,6 +86,7 @@
 
 ### HUD de combate (pulido 2026‑06‑15)
 - El HUD ya era completo (cooldown radial, coste de maná, no‑mana flash, esquiva, buffs con anillo+segundos, brújula). Pulido añadido: **segundos restantes** sobre la celda de habilidad mientras enfría (`.sk-cd-sec`), **pulso verde "listo"** al terminar el enfriamiento (`.skill-btn.just-ready`), y **latido rojo del orbe de vida** con vida baja (`body.low-hp #orb-hp`). Solo presentación.
+- **Juice de daño**: números con jerarquía — golpes que arrancan ≥18% de vida salen más grandes (`.big-hit`); el crítico mantiene su rebote. **Hit-stop breve** (`Enemy.takeDamage` → `game.hitStop`) SOLO en golpes notables (crítico a élite/jefe 55ms, golpe enorme ≥30% 45ms, muerte de élite/jefe 130ms + shake) — antes `hitStop()` existía pero no se llamaba. Respeta `reduceMotion`.
 
 ### Anti-cheese de spawn + ajustes de FPS (2026‑06‑15)
 - ✅ **Enemigos no aparecen pegados a la ciudad**: en `zones.js` los clústeres exigen distancia `campRadius + 9` celdas del spawn; `randomZoneCellFrom` (respawn) excluye el `safeZone` **+ margen 9** → no se puede pegar‑y‑correr al pueblo. Test: `test46` (verifica el buffer).
