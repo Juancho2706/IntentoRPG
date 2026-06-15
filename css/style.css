@@ -1986,26 +1986,40 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
   border: 1px solid rgba(201,162,39,0.3); border-radius: 8px; padding: 3px 10px; cursor: help; }
 .cs-power b { font-size: 15px; color: #fff; }
 
-/* ====================== Mapa del Mundo (D4-lite) ====================== */
+/* ====================== Mapa del Mundo (grafo D4-lite) ====================== */
 #worldmap-body { margin-top: 12px; }
 .wm-title { font-family: 'Cinzel', Georgia, serif; font-size: 14px; color: var(--gold);
-  border-bottom: 1px solid rgba(201,162,39,0.25); padding-bottom: 4px; margin-bottom: 8px; }
-.wm-list { display: flex; flex-direction: column; gap: 6px; }
-.wm-zone { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }
-.wm-zone.here { border-color: var(--gold); background: rgba(201,162,39,0.12); }
-.wm-zone.locked { opacity: 0.6; }
-.wm-zinfo { display: flex; flex-direction: column; min-width: 0; }
-.wm-zname { font-weight: 700; font-size: 13.5px; }
-.wm-zhint { font-size: 11px; }
-.wm-zact { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.wm-go, .wm-fav-set { padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600;
-  border-radius: 7px; color: #e8e2d4; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); }
-.wm-go:hover, .wm-fav-set:hover { border-color: var(--gold); }
-.wm-here { font-size: 11px; font-weight: 700; color: var(--gold); }
-.wm-fav { font-size: 11px; font-weight: 700; color: #ffd86b; }
-.wm-lock { font-size: 11px; font-weight: 700; color: #c7a3a3; display: inline-flex; align-items: center; gap: 3px; }
-.wm-lock .ui-ico { width: 11px; height: 11px; }
+  border-bottom: 1px solid rgba(201,162,39,0.25); padding-bottom: 4px; margin-bottom: 10px; }
+/* grafo horizontal tipo "línea de metro": nodos conectados por caminos */
+.wm-graph { display: flex; align-items: stretch; flex-wrap: wrap; gap: 0; justify-content: center; }
+.wm-edge { flex: 0 0 18px; align-self: center; height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.12); }
+.wm-edge.on { background: linear-gradient(90deg, rgba(201,162,39,0.7), rgba(201,162,39,0.7)); } /* ambas descubiertas */
+.wm-edge.none { background: transparent; border-top: 2px dashed rgba(255,255,255,0.12); height: 0; }
+.wm-node { position: relative; flex: 0 0 auto; width: 92px; min-height: 86px; padding: 8px 6px 7px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+  color: #e8e2d4; cursor: pointer; transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s; }
+.wm-node[data-go]:hover { transform: translateY(-2px); border-color: var(--gold); box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.wm-node.here { border-color: var(--gold); background: rgba(201,162,39,0.16); cursor: default; }
+.wm-node.lvl-locked { opacity: 0.55; cursor: not-allowed; }
+.wm-node.locked { opacity: 0.5; cursor: default; border-style: dashed; }
+.wm-node.refuge { border-color: rgba(110,204,74,0.5); }
+.wm-node.unclaimed { border-color: rgba(255,120,40,0.55); }
+.wm-node-ico { font-size: 26px; line-height: 1; }
+.wm-node-name { font-size: 11px; font-weight: 700; line-height: 1.15; }
+.wm-node-sub { font-size: 10px; opacity: 0.7; }
+.wm-node.here .wm-node-sub { color: var(--gold); opacity: 1; }
+.wm-star { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; cursor: pointer;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); filter: grayscale(1); opacity: 0.7; }
+.wm-star.on { filter: none; opacity: 1; border-color: var(--gold); box-shadow: 0 0 6px rgba(201,162,39,0.7); }
+.wm-foot { font-size: 11px; margin-top: 10px; text-align: center; }
+
+/* mejora en la mochila: brillo verde + chevron (reusa itemPower) */
+.inv-cell.inv-upgrade { border-color: #6ecc4a !important; box-shadow: 0 0 9px rgba(110,204,74,0.5), inset 0 0 0 1px rgba(110,204,74,0.4); }
+.inv-up-badge { position: absolute; bottom: 0; right: 3px; font-size: 11px; font-weight: 900; color: #6ecc4a;
+  text-shadow: 0 1px 2px #000; pointer-events: none; line-height: 1; }
 
 /* ====================== HUD: pulido de habilidades y orbes ====================== */
 /* Segundos restantes legibles sobre la celda mientras enfría. */
@@ -2060,3 +2074,12 @@ body.reduce-motion.low-hp #orb-hp { animation: none; }
 .panel::-webkit-scrollbar-thumb { background: rgba(201,162,39,0.35); border-radius: 8px; }
 .panel::-webkit-scrollbar-thumb:hover { background: rgba(201,162,39,0.55); }
 .panel { scrollbar-width: thin; scrollbar-color: rgba(201,162,39,0.4) rgba(0,0,0,0.25); }
+
+/* ====================== Consistencia: botones de lista y foco ====================== */
+.shop-item { transition: border-color 0.12s, background 0.12s, transform 0.06s; cursor: pointer; }
+@media (hover: hover) { .shop-item:hover:not(:disabled) { border-color: var(--gold); background: #352819; } }
+.shop-item:active:not(:disabled) { transform: scale(0.99); }
+.shop-item:disabled { opacity: 0.5; cursor: default; }
+/* foco accesible coherente en todos los controles de panel */
+.quest-btn:focus-visible, .shop-item:focus-visible, .torment-btn:focus-visible,
+.wm-node:focus-visible, .opt-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

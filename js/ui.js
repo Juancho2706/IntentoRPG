@@ -1317,8 +1317,8 @@ export class UI {
     for (let i = 0; i < 32; i++) {
       const item = p.inventory[i];
       const div = document.createElement('div');
-      div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
-      div.innerHTML = this.itemCellHTML(item);
+      div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '') + (this.isUpgrade(item) ? ' inv-upgrade' : '');
+      div.innerHTML = this.itemCellHTML(item) + (this.isUpgrade(item) ? '<span class="inv-up-badge">▲</span>' : '');
       this.bindCell(div, { zone: 'inv', key: i, item }, item ? () => this.itemPopup(item, { from: 'inv', index: i }) : null);
       invGrid.appendChild(div);
     }
@@ -1376,6 +1376,20 @@ export class UI {
     s *= 1 + (it.quality || 0) * 0.06;
     if (it.power) s += 12;                  // un aspecto legendario vale mucho
     return Math.round(s);
+  }
+
+  // ¿equipar este objeto mejoraría tu build? (para resaltarlo en la mochila)
+  isUpgrade(item) {
+    if (!item || item.kind !== 'item' || !item.slot || item.unidentified) return false;
+    const p = this.game.player;
+    let equipped;
+    if (item.slot === 'ring') {
+      const r1 = p.equipment.ring, r2 = p.equipment.ring2;
+      if (!r1 || !r2) return true;                    // hay ranura de anillo libre
+      equipped = this.itemPower(r1) <= this.itemPower(r2) ? r1 : r2;
+    } else equipped = p.equipment[item.slot];
+    if (!equipped) return true;                        // ranura vacía
+    return this.itemPower(item) > this.itemPower(equipped) + 1;
   }
 
   buildCompare(item) {
@@ -2141,40 +2155,38 @@ export class UI {
     const g = this.game, p = g.player;
     if (!p) { el.innerHTML = ''; return; }
     const disc = new Set(p.discoveredZones || ['Cripta']);
-    const show = new Set(disc);
-    for (const z of ZONE_LIST) if (disc.has(z.biome)) for (const l of (z.links || [])) show.add(l);
-    let html = `<div class="wm-title">🌍 Mundo — ${disc.size}/${ZONE_LIST.length} regiones descubiertas</div><div class="wm-list">`;
-    for (const z of ZONE_LIST) {
-      if (!show.has(z.biome)) continue;
+    // visible = descubierta o vecina de una descubierta (se insinúa como "???")
+    const shown = ZONE_LIST.filter(z => disc.has(z.biome) ||
+      ZONE_LIST.some(o => disc.has(o.biome) && (o.links || []).includes(z.biome)));
+    let html = `<div class="wm-title">🌍 Mapa del Mundo — ${disc.size}/${ZONE_LIST.length} regiones</div><div class="wm-graph">`;
+    shown.forEach((z, idx) => {
+      if (idx > 0) {
+        const prev = shown[idx - 1];
+        const linked = (z.links || []).includes(prev.biome);
+        const both = disc.has(z.biome) && disc.has(prev.biome);
+        html += `<div class="wm-edge${linked ? '' : ' none'}${both ? ' on' : ''}"></div>`;
+      }
       if (!disc.has(z.biome)) {
-        html += `<div class="wm-zone locked"><span class="wm-zname">❓ Región sin descubrir</span><span class="dim wm-zhint">sigue un camino 🛣️ para hallarla</span></div>`;
-        continue;
+        html += `<div class="wm-node locked" title="Región sin descubrir — sigue un camino 🛣️"><span class="wm-node-ico">❓</span><span class="wm-node-name">¿? ¿?</span><span class="wm-node-sub">sin descubrir</span></div>`;
+        return;
       }
       const here = g.world.type === 'zone' && g.world.biome === z.biome;
       const unlocked = p.level >= z.minLevel;
-      const isHome = p.homeZone === z.biome;
       const cleared = (p.strongholdsCleared || []).includes(z.biome);
-      const isRefuge = z.home || cleared;           // tiene campamento elegible
-      const unclaimed = z.stronghold && !cleared;   // bastión por reclamar
-      const links = (z.links || []).join(', ');
-      const ico = isRefuge ? '🏕️ ' : unclaimed ? '🏰 ' : '🌿 ';
-      let actions = '';
-      if (here) actions += `<span class="wm-here">Estás aquí</span>`;
-      else if (!unlocked) actions += `<span class="wm-lock">${icon('lock')} Nivel ${z.minLevel}</span>`;
-      else actions += `<button class="wm-go" data-go="${z.biome}">Viajar</button>`;
-      if (isRefuge) actions += isHome
-        ? `<span class="wm-fav">⭐ Hogar</span>`
-        : `<button class="wm-fav-set" data-home="${z.biome}">Fijar hogar</button>`;
-      const status = unclaimed ? ' · 🏰 Bastión sin reclamar' : cleared ? ' · refugio reclamado' : '';
-      html += `<div class="wm-zone${here ? ' here' : ''}">
-        <div class="wm-zinfo"><span class="wm-zname">${ico}${z.biome}</span>
-          <span class="dim wm-zhint">Nv ${z.minLevel}+${status}${links ? ` · caminos: ${links}` : ''}</span></div>
-        <div class="wm-zact">${actions}</div></div>`;
-    }
-    html += `</div>`;
+      const isRefuge = z.home || cleared;
+      const unclaimed = z.stronghold && !cleared;
+      const isHome = p.homeZone === z.biome;
+      const ico = isRefuge ? '🏕️' : unclaimed ? '🏰' : '🌿';
+      const sub = here ? 'aquí' : !unlocked ? `Nv ${z.minLevel}` : unclaimed ? 'bastión' : 'viajar';
+      const cls = `wm-node${here ? ' here' : ''}${!unlocked ? ' lvl-locked' : ''}${isRefuge ? ' refuge' : ''}${unclaimed ? ' unclaimed' : ''}`;
+      const star = isRefuge ? `<button class="wm-star${isHome ? ' on' : ''}" data-home="${z.biome}" title="${isHome ? 'Tu hogar de reaparición' : 'Fijar como hogar'}">⭐</button>` : '';
+      html += `<div class="${cls}" ${(!here && unlocked) ? `data-go="${z.biome}"` : ''} title="${z.biome}${unclaimed ? ' · Bastión sin reclamar' : ''}">
+        ${star}<span class="wm-node-ico">${ico}</span><span class="wm-node-name">${z.biome}</span><span class="wm-node-sub">${sub}</span></div>`;
+    });
+    html += `</div><p class="dim wm-foot">Toca una región conectada para viajar · ⭐ fija tu hogar de reaparición.</p>`;
     el.innerHTML = html;
-    el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => g.travelToZone(b.dataset.go));
-    el.querySelectorAll('[data-home]').forEach(b => b.onclick = () => { g.setHomeZone(b.dataset.home); this.renderWorldMap(); });
+    el.querySelectorAll('.wm-node[data-go]').forEach(n => n.onclick = () => g.travelToZone(n.dataset.go));
+    el.querySelectorAll('.wm-star').forEach(b => b.onclick = (e) => { e.stopPropagation(); g.setHomeZone(b.dataset.home); this.renderWorldMap(); });
   }
 
   // ---------- minimapa ----------

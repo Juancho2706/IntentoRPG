@@ -73,7 +73,9 @@
 - ✅ **Guía de Sistemas** (códice de onboarding): botón **❓** en el HUD → `#panel-guide` (`UI.openGuide/renderGuide`) que lista los 16 sistemas (`SYSTEMS_GUIDE` en data.js) con icono, descripción y estado 🔒 Nv X / ✓ Disponible / cómo se accede. Tests: `test49-guia`.
 
 ### Consistencia visual (pase 2026‑06‑15)
-- Cabeceras de sección unificadas: todas las `.panel h4` (progress/collection/recipes/quest/pacts…) ahora usan el mismo dorado con acento inferior que `.opt-section`/`.npc-section-head` (antes eran apagadas `#bba868` sin línea). Scrollbar coherente en paneles desplazables. Solo CSS.
+- Cabeceras de sección unificadas: todas las `.panel h4` ahora usan el mismo dorado con acento inferior que `.opt-section`/`.npc-section-head`. Scrollbar coherente; hover/active/disabled en `.shop-item` y foco accesible (`:focus-visible`) coherente en botones de panel. Solo CSS.
+- ✅ **Mapa del Mundo visual** (grafo): `renderWorldMap` ahora dibuja un grafo "línea de metro" (`.wm-graph`/`.wm-node`/`.wm-edge`) — nodos de región conectados por caminos, con ⭐ para fijar hogar; las no descubiertas se insinúan como "???".
+- ✅ **Resaltado de mejoras en mochila**: `UI.isUpgrade(item)` (reusa `itemPower`, maneja anillos/ranura libre) marca con borde/halo verde + chevron ▲ los objetos que mejorarían tu build.
 
 ### Paneles de UI (todos en index.html, render en ui.js)
 `inv` · `skills` · `stats` · `mastery` · `paragon` · `shop` · `stash` · `quest` · `pacts` · `progress` (Estatua: Tormento/Códice/Bendiciones/Pináculo) · `pet` (Domador) · `collection` (bestiario) · `recipes` (cubo) · `waypoints` · `map` · `blessing` (modal) · `settings`. Navegación de build: `buildNavHTML` (Personaje↔Habilidades↔Maestría↔Paragon).
