@@ -19,6 +19,17 @@ export class Input {
     window.addEventListener('pointerup', e => this.onPointerUp(e));
     window.addEventListener('contextmenu', e => e.preventDefault());
 
+    // Bloqueo de orientación a horizontal (best-effort): solo funciona en móvil
+    // y en contexto pantalla completa / PWA instalada; si falla, el overlay
+    // "gira el dispositivo" cubre el caso. Se intenta una vez al primer gesto.
+    const tryLockLandscape = () => {
+      window.removeEventListener('pointerdown', tryLockLandscape);
+      try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch { /* no soportado */ }
+    };
+    if (window.matchMedia?.('(pointer: coarse)').matches) {
+      window.addEventListener('pointerdown', tryLockLandscape, { once: true });
+    }
+
     window.addEventListener('keydown', e => {
       if (e.repeat) return;
       this.keys.add(e.code);
