@@ -39,7 +39,8 @@
 ### Clases y progresión
 - **3 clases** (Guerrero/Maga/Arquera), 6 skills c/u en 3 tiers (`TIER_LEVELS=[1,6,12]`), máx 5 puntos, **sinergias** (`data.js`).
 - **Soportes de habilidad** (estilo gemas de soporte PoE): 12 soportes, 2 por skill (`data.js SUPPORTS`).
-- ✅ **UI del árbol de habilidades reworkeada** (2026‑06‑15): `UI.renderSkills` rediseñado — cabecera con clase + puntos destacados, rejilla de **tarjetas** (1/2 col responsive), **pips de rango** (●●●○○), etiquetas Activa/Pasiva/▲Mejorable/★Máx, **previsualización del próximo nivel** (`skillUpgradeLine`/`skillMainAt`: "actual → siguiente"), botón **+** flotante, engarces de soporte con look de chip. CSS `.sk-*` nuevo.
+- ✅ **UI del árbol de habilidades reworkeada** (2026‑06‑15): `UI.renderSkills` rediseñado — cabecera con clase + puntos destacados, rejilla de **tarjetas** (1/2 col responsive), **pips de rango** (●●●○○), etiquetas Activa/Pasiva/▲Mejorable/★Máx, **previsualización del próximo nivel** (`skillUpgradeLine`/`skillMainAt`: "actual → siguiente"), botón **+** flotante, engarces de soporte con look de chip. CSS `.sk-*` nuevo. (Cuidado: `.sk-plus` absoluto SOLO bajo `.sk-card`; en la ficha el `+` de atributos es `.cs-plus` hijo flex.)
+- ✅ **Polish UI/UX ficha/inventario/paragon** (2026‑06‑15): título de Era bajo el nombre (`.cs-hero-title`), **engarce activo vacío resaltado** (`.para-node.open-socket`, antes sin CSS), micro‑interacciones (hover/scale/transición, solo `hover:hover`), foco accesible, latido del glifo engarzado, brillo de rareza en ranuras equipadas. Lógica (drag&drop/asignación) intacta.
 - **Paragon**: tablero 9×9 con nodos + engarces de **glifos** (escalan con adyacentes).
 - **Bendiciones** permanentes (8, 4 categorías, una por categoría) — recompensa de grietas.
 - **Tormento** (dificultad 0–10, Estatua del Mundo), **Códice de Aspectos** (extraer/grabar poderes), **Pináculo** (uber boss con Fragmentos → míticos).

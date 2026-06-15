@@ -1834,6 +1834,7 @@ export class UI {
         <div class="cs-hero-id">
           <div class="cs-hero-name">${p.heroName}</div>
           <div class="cs-hero-sub">${p.cls.name} · Nivel ${p.level}</div>
+          ${p.title ? `<div class="cs-hero-title">${p.title}</div>` : ''}
         </div>
       </div>
       <div class="cs-xp"><div class="cs-xp-fill" style="width:${xpPct}%"></div></div>

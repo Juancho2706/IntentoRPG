@@ -1904,3 +1904,38 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
 .era-claim { padding: 3px 8px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600;
   background: rgba(201,162,39,0.18); border: 1px solid var(--gold); border-radius: 6px; color: var(--gold); }
 .era-claimed { font-size: 12px; color: #6ecc4a; font-weight: 600; }
+
+/* ====================== Rework UI/UX: ficha / inventario / paragon ====================== */
+/* Título de Era (cosmético) bajo el nombre del héroe en la ficha. */
+.cs-hero-title { margin-top: 3px; font-size: 12px; font-weight: 700; color: #ffd86b;
+  text-shadow: 0 1px 4px rgba(201,162,39,0.4); letter-spacing: 0.2px; }
+
+/* Engarce de glifo ACTIVO y VACÍO: faltaba estilo — ahora resalta dónde colocar
+   glifos (pulso cian) para que sea evidente. */
+.para-node.open-socket {
+  color: #aef0ff; border-color: #44ccff; border-style: dashed;
+  animation: socketPulse 1.4s ease-in-out infinite;
+}
+@keyframes socketPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(68,204,255,0); }
+  50% { box-shadow: 0 0 9px rgba(68,204,255,0.7), inset 0 0 6px rgba(68,204,255,0.4); }
+}
+
+/* Micro-interacciones (2026): transición y realce al pasar el puntero. Solo en
+   dispositivos con hover real (no ensucia el táctil). */
+.para-node, .inv-cell, .cs-stat, .cs-rec { transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+@media (hover: hover) {
+  .inv-cell:hover:not(.empty-slot) { transform: translateY(-1px); border-color: rgba(255,255,255,0.3); }
+  .para-node.avail:hover, .para-node.open-socket:hover { transform: scale(1.08); }
+  .cs-stat:hover { background: rgba(255,255,255,0.05); }
+}
+/* foco accesible por teclado/gamepad en celdas y nodos interactivos */
+.inv-cell:focus-visible, .para-node:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+/* glifo engarzado: latido suave para que se lea como "vivo" */
+.para-node.has-glyph { animation: glyphGlow 2.4s ease-in-out infinite; }
+@keyframes glyphGlow { 50% { box-shadow: inset 0 0 9px rgba(68,204,255,0.75); } }
+
+/* equipo: brillo de rareza más marcado en las ranuras equipadas (jerarquía visual) */
+#panel-inv .equip-cell.rarity-legendario { box-shadow: 0 0 10px rgba(255,140,46,0.35), inset 0 0 8px rgba(255,140,46,0.3); }
+#panel-inv .equip-cell.rarity-conjunto { box-shadow: 0 0 10px rgba(74,222,128,0.3), inset 0 0 8px rgba(74,222,128,0.25); }
