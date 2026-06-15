@@ -1158,21 +1158,9 @@ export class UI {
           b.onclick = () => { this.game.learnSkill(sk.id); this.renderSkills(); this.updateHUD(); };
           div.appendChild(b);
         }
-        // selector de soporte: para habilidades activas aprendidas con soportes compatibles conocidos
+        // selectores de soporte: multi-socket (hasta 2) para habilidades activas aprendidas.
         if (lvl > 0 && sk.type !== 'passive') {
-          const compat = SUPPORTS.filter(s => s.types.includes(sk.type) && p.knownSupports.includes(s.id));
-          if (compat.length) {
-            const sel = document.createElement('select');
-            sel.className = 'sk-support';
-            sel.innerHTML = `<option value="">Sin soporte</option>` +
-              compat.map(s => `<option value="${s.id}">${s.icon} ${s.name}</option>`).join('');
-            sel.value = p.supports[sk.id] || '';
-            sel.onchange = () => {
-              if (sel.value) p.supports[sk.id] = sel.value; else delete p.supports[sk.id];
-              this.game.save();
-            };
-            div.querySelector('.sk-info').appendChild(sel);
-          }
+          this.renderSupportSlots(div.querySelector('.sk-info'), sk);
         }
         tierDiv.appendChild(div);
       }
@@ -1187,6 +1175,75 @@ export class UI {
       rb.onclick = () => { this.game.respecSkills(); this.renderSkills(); this.updateHUD(); };
       cont.appendChild(rb);
     }
+  }
+
+  // Multi-socket: hasta 2 soportes por habilidad. Muestra dos selectores con el
+  // efecto y la contrapartida de cada soporte; los incompatibles aparecen en gris.
+  renderSupportSlots(infoEl, sk) {
+    const p = this.game.player;
+    const MAX_SLOTS = 2;
+    // normaliza a array (retrocompat con saves viejos en string)
+    let cur = p.supports[sk.id];
+    if (typeof cur === 'string') cur = cur ? [cur] : [];
+    if (!Array.isArray(cur)) cur = [];
+    p.supports[sk.id] = cur;
+
+    // soportes conocidos compatibles con el tipo de esta habilidad
+    const compat = SUPPORTS.filter(s => s.types.includes(sk.type) && p.knownSupports.includes(s.id));
+    if (!compat.length && !cur.length) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'sk-supports';
+
+    const persist = () => {
+      // limpia vacíos y duplicados, recorta a MAX_SLOTS
+      const clean = [];
+      for (const id of p.supports[sk.id]) if (id && !clean.includes(id)) clean.push(id);
+      p.supports[sk.id] = clean.slice(0, MAX_SLOTS);
+      this.game.save();
+      this.renderSkills();
+    };
+
+    for (let slot = 0; slot < MAX_SLOTS; slot++) {
+      const chosen = cur[slot] || '';
+      const sel = document.createElement('select');
+      sel.className = 'sk-support';
+      // opciones: vacío + compatibles conocidos. Los ya usados en el OTRO slot se marcan en gris/disabled.
+      const usedElsewhere = cur.filter((_, i) => i !== slot);
+      let opts = `<option value="">Engarce ${slot + 1}: vacío</option>`;
+      // los conocidos pero incompatibles con esta habilidad se listan deshabilitados (gris)
+      const known = SUPPORTS.filter(s => p.knownSupports.includes(s.id));
+      for (const s of known) {
+        const incompatible = !s.types.includes(sk.type);
+        const dup = usedElsewhere.includes(s.id);
+        const dis = incompatible || dup;
+        const label = `${s.icon} ${s.name}${s.trade ? ` (${s.effect}, ${s.trade})` : ` (${s.effect || ''})`}` +
+          (incompatible ? ' — incompatible' : dup ? ' — ya engarzado' : '');
+        opts += `<option value="${s.id}"${s.id === chosen ? ' selected' : ''}${dis && s.id !== chosen ? ' disabled' : ''}>${label}</option>`;
+      }
+      sel.innerHTML = opts;
+      sel.value = chosen;
+      sel.onchange = () => {
+        const arr = p.supports[sk.id].slice();
+        arr[slot] = sel.value;
+        p.supports[sk.id] = arr;
+        persist();
+      };
+      wrap.appendChild(sel);
+    }
+
+    // resumen del efecto combinado de los soportes engarzados
+    const active = cur.map(id => SUPPORTS.find(s => s.id === id)).filter(Boolean);
+    if (active.length) {
+      const sum = document.createElement('small');
+      sum.className = 'sk-support-sum';
+      sum.innerHTML = active.map(s =>
+        `${s.icon} <b>${s.effect || s.name}</b>${s.trade ? ` <span class="sk-trade">⚠ ${s.trade}</span>` : ''}`
+      ).join(' · ');
+      wrap.appendChild(sum);
+    }
+
+    infoEl.appendChild(wrap);
   }
 
   skillDetails(sk, lvl) {

@@ -201,7 +201,13 @@ export class Player {
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
     this.quest = this.quest || null;
-    this.supports = this.supports || {};               // habilidad → soporte asignado
+    this.supports = this.supports || {};               // habilidad → soportes asignados (array, máx 2)
+    // retrocompat: saves viejos guardaban 1 soporte como string; lo convertimos a [string]
+    for (const k of Object.keys(this.supports)) {
+      const v = this.supports[k];
+      if (typeof v === 'string') this.supports[k] = v ? [v] : [];
+      else if (!Array.isArray(v)) this.supports[k] = [];
+    }
     this.knownSupports = Array.isArray(this.knownSupports) ? this.knownSupports : []; // soportes aprendidos
     this.hardcore = !!this.hardcore;
     this.pet = this.pet || null;
