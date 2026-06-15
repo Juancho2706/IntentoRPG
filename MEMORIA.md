@@ -31,6 +31,7 @@
   - `game-world-flow.js` → `worldFlowMethods` (misiones, desafío diario, viajes, pactos)
   - `game-zone-life.js` → `zoneLifeMethods` (respawn, jefe de mundo, goblin, oleadas, celdas aleatorias)
   - `game-mastery.js` → `masteryMethods` (elegir rama, asignar nodos, reespecializar)
+  - `game-eras.js` → `eraMethods` (temporadas locales: mutador semanal + objetivos)
 - **Otros módulos:** `entities.js` (Player, Enemy, Projectile, **Pet**, modelos), `data.js` (clases, skills, enemigos, soportes, paragon, bendiciones, **PET_KINDS/UPGRADES/COLLARS**), `items.js` (loot/rarezas/crafteo), `world.js` (pueblo/mazmorra/refugio), `zones.js` (zonas open), `ui.js` (toda la UI/paneles/HUD), `input.js` (teclado/ratón/joystick), `postfx.js` (post‑proceso + AmbientParticles + BlobShadows), `particles.js` (motor de partículas de gameplay), `fx-skills.js`/`fx-enemies.js` (catálogos VFX), `sfx.js` (sintetizador WebAudio), `music.js`, `vfx.js` (hitStop/noise).
 
 ## 3. FEATURES QUE YA EXISTEN (no reimplementar)
@@ -41,6 +42,7 @@
 - **Paragon**: tablero 9×9 con nodos + engarces de **glifos** (escalan con adyacentes).
 - **Bendiciones** permanentes (8, 4 categorías, una por categoría) — recompensa de grietas.
 - **Tormento** (dificultad 0–10, Estatua del Mundo), **Códice de Aspectos** (extraer/grabar poderes), **Pináculo** (uber boss con Fragmentos → míticos).
+- ✅ **Eras / temporadas locales YA EXISTEN** (HECHO 2026‑06‑15, #16): `game-eras.js` + `ERA_MUTATORS`/`ERA_OBJECTIVES`/`eraIdForTime` (data.js). Cada **semana** (bucket de 7 días, determinista) cambia un **mutador global** (reaprovecha recompute stat/power + `xpMul`/`goldMul`) y **3 objetivos** semanales medidos como **delta de `p.records`** desde una instantánea (sin hooks de combate nuevos). Recompensa: oro + Fragmentos; completar las 3 da un **título** cosmético (`p.titles`/`p.title`). UI: sección "Temporada" en el panel de la Estatua del Mundo (`renderProgress`), con barras y botón de reclamar. Estado en `p.era = {id, base, claimed, titleClaimed}`. Tests: `test48-eras`.
 - ✅ **Maestrías/ramas de clase YA EXISTEN** (HECHO 2026‑06‑15): `MASTERIES` en `data.js` (3 ramas por clase, 6 nodos c/u: 3 menores + 2 notables + 1 capstone). Se desbloquean en nivel `MASTERY_START_LEVEL` (12), +1 punto cada 2 niveles. Estado en `player.mastery = { id, nodes, points }`. Nodos = `stats` (los suma `recompute`) y/o `power` (entra en `this.powers` y se interpreta en combate). Capstones nuevos cableados: `m_berserk` (rollDamage), `m_aegis` (Player.takeDamage, survive‑lethal), `m_judgment`/`m_conflag` (onEnemyKilled novas), `m_overload` (onDealHit maná), `m_deadeye`/`m_shatter`/`m_hunt` (Enemy.takeDamage). Reespecializable por oro. UI: pestaña "Maestría" en el build‑nav → `UI.openMastery/renderMastery`, `#panel-mastery`. Economía/gestión: `game-mastery.js`. Tests: `test45-maestrias`.
 
 ### Loot / crafteo
@@ -101,7 +103,7 @@
 | #11 | **Pueblo contiguo a zona open** (seamless hub, sin portal) | ✅ HECHO (2026‑06‑15) |
 | #12 | Herrero (Masterworking) + más servicios de hub | pendiente |
 | #15 | HUD de objetivo del loop + "Poder del héroe" | parcial (itemPower existe) |
-| #16 | "Eras"/temporadas locales | pendiente |
+| #16 | "Eras"/temporadas locales (mutador + objetivos semanales) | ✅ HECHO (2026‑06‑15) |
 
 ## 6. Bugs/gotchas conocidos
 

@@ -270,6 +270,10 @@ export class Player {
       ? { id: findMastery(this.mastery.id) ? this.mastery.id : null,
           nodes: this.mastery.nodes || {}, points: this.mastery.points || 0 }
       : { id: null, nodes: {}, points: 0 };
+    // eras (temporada local): estado por semana; títulos cosméticos obtenidos
+    this.era = this.era && typeof this.era === 'object' ? this.era : null;
+    this.titles = Array.isArray(this.titles) ? this.titles : [];
+    this.title = this.title || null;
     this.dailyDone = this.dailyDone || null;
     this.tips = this.tips || {};
     this.refugeUnlocked = !!this.refugeUnlocked;
@@ -397,6 +401,9 @@ export class Player {
         if (node.power) this.powers.add(node.power);
       }
     }
+    // mutador de la Era (temporada local): stat/power global de la semana
+    const eraB = this.game?.eraMutatorBonus?.();
+    if (eraB) { if (eraB.stat) addStats(eraB.stat); if (eraB.power) this.powers.add(eraB.power); }
     // pasivas
     for (const sk of this.cls.skills) {
       const lvl = this.skills[sk.id];
@@ -552,6 +559,9 @@ export class Player {
 
   gainXP(amount) {
     if (this.xpBoostT > 0) amount = Math.round(amount * 1.5);
+    // mutador de Era (p. ej. Era de la Sabiduría: +50% XP)
+    const xpMul = this.game?.eraMutatorBonus?.()?.xpMul || 1;
+    if (xpMul !== 1) amount = Math.round(amount * xpMul);
     this.xp += amount;
     this.game.ui.spawnText(this.pos, `+${amount} XP`, 'txt-xp');
     while (this.xp >= xpForLevel(this.level)) {

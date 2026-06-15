@@ -9,6 +9,7 @@ import { endgameMethods } from '../js/game-endgame.js';
 import { worldFlowMethods } from '../js/game-world-flow.js';
 import { zoneLifeMethods } from '../js/game-zone-life.js';
 import { masteryMethods } from '../js/game-mastery.js';
+import { eraMethods } from '../js/game-eras.js';
 
 const EXPECTED = [
   'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
@@ -78,8 +79,18 @@ if (msKeys.length !== MASTERY_EXPECTED.length) {
 }
 console.log(`masteryMethods exporta los ${MASTERY_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-// sin colisiones de nombres entre los seis mixins (se aplican todos al prototype)
-const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods };
+const ERA_EXPECTED = ['currentEraId', 'eraDef', 'eraMutatorBonus', 'ensureEra', 'eraObjProgress', 'eraInfo', 'claimEraReward'];
+const erKeys = Object.keys(eraMethods);
+for (const m of ERA_EXPECTED) {
+  if (typeof eraMethods[m] !== 'function') throw new Error('falta método era o no es función: ' + m);
+}
+if (erKeys.length !== ERA_EXPECTED.length) {
+  throw new Error(`eraMethods tiene ${erKeys.length} métodos, esperaba ${ERA_EXPECTED.length}: ${erKeys.join(', ')}`);
+}
+console.log(`eraMethods exporta los ${ERA_EXPECTED.length} métodos esperados, todos funciones ✓`);
+
+// sin colisiones de nombres entre los siete mixins (se aplican todos al prototype)
+const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods };
 const seen = new Map();
 for (const [name, obj] of Object.entries(mixins)) {
   for (const k of Object.keys(obj)) {
@@ -87,7 +98,7 @@ for (const [name, obj] of Object.entries(mixins)) {
     seen.set(k, name);
   }
 }
-console.log('Sin colisiones de nombres entre los seis mixins de Game ✓');
+console.log('Sin colisiones de nombres entre los siete mixins de Game ✓');
 
 // todos los métodos de los mixins siguen siendo funciones (sanidad)
 for (const [name, obj] of Object.entries(mixins)) {

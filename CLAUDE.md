@@ -29,7 +29,7 @@ desktop, guardado en `localStorage`. Texto del juego en **español**.
 ## Arquitectura (mapa rápido)
 - **`js/main.js`** — clase `Game`: renderer, escena, cámara iso ortográfica, bucle `tick`, `loadWorld`, combate, FX, loot.
 - **Mixins de `Game`** (al final de main.js, `Object.assign(Game.prototype, …)`; **sin colisión de nombres**, lo valida `test43-mixins`):
-  `economy.js` (tienda/cubo/engarce/mascota/drag), `enemy-abilities.js` (habilidades enemigas), `game-endgame.js` (bounties/tormento/códice/bendiciones/pináculo), `game-world-flow.js` (misiones/diaria/viajes/pactos), `game-zone-life.js` (respawn/jefe/goblin/oleadas), `game-mastery.js` (maestrías).
+  `economy.js` (tienda/cubo/engarce/mascota/drag), `enemy-abilities.js` (habilidades enemigas), `game-endgame.js` (bounties/tormento/códice/bendiciones/pináculo), `game-world-flow.js` (misiones/diaria/viajes/pactos), `game-zone-life.js` (respawn/jefe/goblin/oleadas), `game-mastery.js` (maestrías), `game-eras.js` (temporadas locales/eras).
 - **`js/entities.js`** — `Player` (incl. `recompute()`, fuente única de stats: equipo, gemas, sets, paragon/glifos, bendiciones, collar del pet, **maestría**, buffs, pasivas), `Enemy`, `Projectile`, `Pet`.
 - **`js/data.js`** — catálogos: `CLASSES`, skills+sinergias, `ENEMIES`/`BOSSES`, `SUPPORTS`, `MASTERIES`, `PARAGON_BOARD`, `BLESSINGS`, `PACTS`, `PET_KINDS/UPGRADES/COLLARS`, `ZONE_LIST`, quests.
 - **`js/items.js`** — loot/rarezas/afijos/sets/runewords/gemas/runas/míticos/glifos/charms/masterworking/gamble/`rollDrops`.

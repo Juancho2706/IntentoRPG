@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v41';
+const VERSION = 'v42';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -20,6 +20,7 @@ const ASSETS = [
   './js/game-world-flow.js',
   './js/game-zone-life.js',
   './js/game-mastery.js',
+  './js/game-eras.js',
   './js/input.js',
   './js/bindings.js',
   './js/sfx.js',

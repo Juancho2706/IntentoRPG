@@ -2158,7 +2158,23 @@ export class UI {
     const cur = Math.min(cap, p.torment || 0);
     const body = $('progress-body');
     const aspects = Object.values(p.codex || {});
-    let html = `<h4>☠️ Dificultad — Tormento</h4>`;
+    // --- Era (temporada local) ---
+    const era = g.eraInfo();
+    let html = `<h4>${era.mutator.icon} ${era.mutator.name} <span class="dim">· Temporada</span></h4>`;
+    html += `<p class="dim">Mutador de la semana: <b>${era.mutator.desc}</b>. Cambia en ${Math.ceil(era.daysLeft)} día(s).</p>`;
+    html += `<div class="era-objs">`;
+    for (const o of era.objectives) {
+      const pctO = Math.round(o.progress / o.goal * 100);
+      const state = o.claimed ? '<span class="era-claimed">✔ Reclamado</span>'
+        : o.done ? `<button class="era-claim" data-era="${o.id}">🏆 Reclamar (+${o.reward.gold}🪙${o.reward.frag ? ' +Frag' : ''})</button>`
+        : `<span class="dim">${o.progress}/${o.goal}</span>`;
+      html += `<div class="era-obj">
+        <div class="era-obj-top"><span>${o.desc}</span>${state}</div>
+        <div class="era-bar"><div class="era-bar-fill" style="width:${pctO}%"></div></div></div>`;
+    }
+    html += `</div>`;
+    if (era.allDone && era.titleClaimed) html += `<p class="dim">🏆 ¡Temporada completada! Título obtenido.</p>`;
+    html += `<h4>☠️ Dificultad — Tormento</h4>`;
     html += `<p class="dim">Más Tormento = enemigos más fuertes y mejor botín (rareza y cantidad). Se desbloquea empujando grietas y descendiendo en las mazmorras.</p>`;
     html += `<div class="torment-row" id="torment-btns"></div>`;
     html += `<p class="dim">Desbloqueado: <b>Tormento ${cap}</b>. ${cap < 10 ? 'Sigue progresando para subir el tope.' : '¡Tope máximo alcanzado!'}</p>`;
@@ -2191,6 +2207,8 @@ export class UI {
     }
     const pb = $('pinnacle-btn');
     if (pb) { pb.disabled = frags < 3; pb.onclick = () => g.summonPinnacle(); }
+    body.querySelectorAll('[data-era]').forEach(b =>
+      b.onclick = () => { g.claimEraReward(b.dataset.era); this.renderProgress(); this.updateHUD(); });
   }
 
   // ---------- Domador de Bestias (mascota de utilidad) ----------

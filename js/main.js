@@ -16,6 +16,7 @@ import { endgameMethods } from './game-endgame.js';
 import { worldFlowMethods } from './game-world-flow.js';
 import { zoneLifeMethods } from './game-zone-life.js';
 import { masteryMethods } from './game-mastery.js';
+import { eraMethods } from './game-eras.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
@@ -326,9 +327,10 @@ class Game {
     if (this.player.pet) this.spawnPet();
     this.state = 'play';
     this.loadWorld({ type: 'zone', biome: 'Cripta' }); // hogar: campamento contiguo a la Cripta (seamless)
+    this.ensureEra();        // inicializa la temporada local de la semana actual
     this.ui.refreshHotbar();
     this.ui.updateHUD();
-    this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Entra al portal del norte para explorar la mazmorra.`, 5000);
+    this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Sal del campamento para explorar las Tierras de la Cripta.`, 5000);
     document.getElementById('hud').classList.remove('hidden');
     // garantiza que no quede ningún panel abierto al entrar (lo añade la UI)
     this.ui.closeAllPanels?.();
@@ -347,7 +349,7 @@ class Game {
       gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
       lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
       waypoints: p.waypoints, records: p.records, cube: p.cube,
-      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, dailyDone: p.dailyDone, tips: p.tips,
+      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title, dailyDone: p.dailyDone, tips: p.tips,
       supports: p.supports, knownSupports: p.knownSupports,
       paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
       heroName: p.heroName, tint: p.tint,
@@ -1514,8 +1516,9 @@ class Game {
     if (idx < 0) return;
     const it = gi.item;
     if (it.kind === 'gold') {
-      // bonus de oro del collar de la mascota (Collar de Avaricia)
-      const amt = Math.round(it.amount * (1 + (p.stats.goldPct || 0) / 100));
+      // bonus de oro: collar del pet (goldPct) + mutador de Era (goldMul)
+      const eraMul = this.eraMutatorBonus?.()?.goldMul || 1;
+      const amt = Math.round(it.amount * (1 + (p.stats.goldPct || 0) / 100) * eraMul);
       p.gold += amt; p.records.goldEarned += amt;
       this.ui.spawnText(p.pos, `+${amt} 🪙`, 'txt-gold'); this.sfx('gold');
     }
@@ -2178,6 +2181,6 @@ class Game {
   }
 }
 
-Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods);
+Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods);
 
 new Game();

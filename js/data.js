@@ -509,6 +509,41 @@ export function findMastery(id) {
   return null;
 }
 
+// ------------------------------------------------------------
+// ERAS (temporadas locales): cada semana cambia un MUTADOR global (un giro al
+// estilo "artefacto" de roguelite) y 3 OBJETIVOS semanales con recompensa. Todo
+// se deriva de forma determinista del índice de semana, así que no necesita red.
+// El mutador reaprovecha recompute (stat/power) + xpMul/goldMul; los objetivos
+// se miden como deltas de p.records desde una instantánea al empezar la era.
+// ------------------------------------------------------------
+export const ERA_MUTATORS = [
+  { id: 'fervor',    name: 'Era del Fervor',     icon: '⚔️', desc: '+15% de daño',                         stat: { dmgPct: 15 } },
+  { id: 'fortuna',   name: 'Era de la Fortuna',  icon: '🍀', desc: '+40 hallazgo mágico y +25% de oro',     stat: { mf: 40 }, goldMul: 1.25 },
+  { id: 'sabiduria', name: 'Era de la Sabiduría',icon: '📖', desc: '+50% de experiencia',                   xpMul: 1.5 },
+  { id: 'celeridad', name: 'Era de la Celeridad', icon: '💨', desc: '+12% vel. de ataque y de movimiento',  stat: { aspdPct: 12, spdPct: 12 } },
+  { id: 'furia',     name: 'Era de la Furia',    icon: '🔥', desc: '+10% crítico y poder de Furia',          stat: { crit: 10 }, power: 'furia' },
+  { id: 'cazador',   name: 'Era del Cazador',    icon: '🏹', desc: '+1 proyectil (Vendaval)',               power: 'multidisparo' },
+  { id: 'bastion',   name: 'Era del Bastión',    icon: '🛡️', desc: '+80 vida y +30 armadura',               stat: { hp: 80, arm: 30 } },
+];
+
+// objetivos semanales: se miden como CUENTA desde el inicio de la era (delta de
+// p.records[metric]). reward: oro y, a veces, un Fragmento de Pináculo.
+export const ERA_OBJECTIVES = [
+  { id: 'o_kill',   metric: 'kills',       goal: 250, desc: 'Derrota 250 enemigos',          reward: { gold: 1500 } },
+  { id: 'o_boss',   metric: 'bossKills',   goal: 6,   desc: 'Derrota 6 jefes',               reward: { gold: 2000, frag: true } },
+  { id: 'o_elite',  metric: 'eliteKills',  goal: 20,  desc: 'Abate 20 élites o campeones',   reward: { gold: 1500 } },
+  { id: 'o_chest',  metric: 'chests',      goal: 12,  desc: 'Saquea 12 cofres',              reward: { gold: 1200 } },
+  { id: 'o_gold',   metric: 'goldEarned',  goal: 6000,desc: 'Consigue 6000 de oro',          reward: { gold: 1000 } },
+  { id: 'o_legend', metric: 'legendaries', goal: 4,   desc: 'Encuentra 4 legendarios',       reward: { gold: 2000, frag: true } },
+  { id: 'o_quest',  metric: 'quests',      goal: 5,   desc: 'Completa 5 misiones',           reward: { gold: 1500 } },
+  { id: 'o_mimic',  metric: 'mimics',      goal: 3,   desc: 'Descubre 3 mímicos',            reward: { gold: 1800, frag: true } },
+];
+
+// índice de semana (bucket de 7 días desde epoch) → id de era determinista
+export function eraIdForTime(now = Date.now()) {
+  return Math.floor(now / (7 * 24 * 60 * 60 * 1000));
+}
+
 // Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
 // habilidad activa. Se encuentran como botín, se aprenden y se asignan.
 // Cada soporte declara su efecto y, cuando procede, su CONTRAPARTIDA (trade-off).
