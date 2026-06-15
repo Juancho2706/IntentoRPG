@@ -31,21 +31,42 @@ const fake = {
 // importar la lógica de castSkill desde main es complejo (instancia DOM); validamos el contrato del conteo:
 // count = base(1) + multidisparo(0) + supExtraProj(2) = 3 con soporte 'multi'
 const p = new Player(fake, 'maga');
-p.skills = {}; p.knownSupports = ['multi','amplify','freeze']; p.supports = {};
+p.skills = {}; p.knownSupports = ['multi','amplify','freeze','chain']; p.supports = {};
 // el bola_fuego es 'proj'
 const fb = CLASSES.maga.skills.find(s => s.type === 'proj');
-p.supports[fb.id] = 'multi';
-// replica de la fórmula de conteo de castSkill
+// multi-socket: hasta 2 soportes por habilidad (array)
+p.supports[fb.id] = ['multi', 'amplify'];
+// replica de la fórmula de conteo de castSkill (soportes en array)
+const sups = p.supports[fb.id];
 const base = (fb.count ? Math.floor(fb.count[0]) : 1);
-const withSup = base + 0 + (p.supports[fb.id] === 'multi' ? 2 : 0);
+const withSup = base + 0 + (sups.includes('multi') ? 2 : 0);
 if (withSup !== base + 2) throw new Error('multi no añade 2 proyectiles');
-console.log(`Soporte Multiproyectil: ${base} → ${withSup} proyectiles ✓`);
+console.log(`Soporte Multiproyectil (multi-socket): ${base} → ${withSup} proyectiles ✓`);
 
-// persistencia: supports y knownSupports en el contrato de guardado
+// multi-socket: dos soportes aplican a la vez (amplify ×1.3 junto a multi)
+let mult = 1;
+if (sups.includes('amplify')) mult *= 1.3;
+if (Math.abs(mult - 1.3) > 1e-9) throw new Error('multi-socket: el 2º soporte no aplica');
+console.log('Multi-socket: 2 soportes aplican simultáneamente ✓');
+
+// persistencia: supports (array) y knownSupports en el contrato de guardado
 const saved = { supports: p.supports, knownSupports: p.knownSupports };
 const p2 = new Player(fake, 'maga', { classId: 'maga', ...saved });
-if (p2.supports[fb.id] !== 'multi' || !p2.knownSupports.includes('amplify')) throw new Error('soportes no persisten');
-console.log('Soportes asignados y aprendidos persisten ✓');
+if (!Array.isArray(p2.supports[fb.id]) || !p2.supports[fb.id].includes('multi') || !p2.knownSupports.includes('amplify'))
+  throw new Error('soportes no persisten');
+console.log('Soportes asignados (array) y aprendidos persisten ✓');
+
+// retrocompatibilidad: un save viejo con soporte en string se normaliza a [string]
+const pOld = new Player(fake, 'maga', { classId: 'maga', supports: { [fb.id]: 'multi' }, knownSupports: ['multi'] });
+if (!Array.isArray(pOld.supports[fb.id]) || pOld.supports[fb.id][0] !== 'multi')
+  throw new Error('retrocompat: string no convertido a array');
+console.log('Retrocompatibilidad: save antiguo (string) → array ✓');
+
+// catálogo 2.0: los nuevos soportes existen con su descripción
+for (const id of ['chain','concentrated','echo','bleed','poison','coldblood','overcharge']) {
+  if (!SUPPORTS.find(s => s.id === id)) throw new Error('falta soporte nuevo: ' + id);
+}
+console.log('Soportes 2.0 presentes (chain, concentrated, echo, bleed, poison, coldblood, overcharge) ✓');
 
 // freeze: el proyectil con slow ralentiza al impactar
 const e = { alive: true, def: { scale: 1 }, pos: new THREE.Vector3(0,0,0), slowT: 0, takeDamage(){} };

@@ -1241,14 +1241,69 @@ class Game {
       if (!e.alive) continue;
       const r = radius + 0.5 * (e.def.scale || 1);
       if (e.pos.distanceToSquared(pos) <= r * r) {
-        const { dmg, crit } = this.player.rollDamage(mult, opts.critBonus || 0);
+        // Sangre Fría: crítico garantizado si el objetivo ya está ralentizado/congelado
+        const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? 100 : 0);
+        const { dmg, crit } = this.player.rollDamage(mult, cb);
         e.takeDamage(dmg, crit);
         if (opts.slow) e.slowT = opts.slow;
+        if (opts.onHit) opts.onHit(e, dmg);
         hits++;
       }
     }
     if (hits) this.player.onDealHit(); // vida/maná al golpear (una vez por AoE)
     return hits;
+  }
+
+  // soportes asignados a una habilidad, siempre como array (multi-socket, máx 2).
+  // tolera saves viejos en formato string.
+  skillSupports(skillId) {
+    const v = this.player?.supports?.[skillId];
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string' && v) return [v];
+    return [];
+  }
+
+  // Daño por tiempo (sangrado/veneno): tics independientes del bucle principal.
+  // Reutiliza el patrón de "charco" pero sobre un enemigo concreto. Usa setTimeout
+  // para no tocar el bucle tick ni el update de las entidades (alcance acotado).
+  applyDoT(enemy, totalDmg, ticks, interval, color = 'txt-dmg') {
+    if (!enemy || !enemy.alive || totalDmg <= 0) return;
+    const per = Math.max(1, Math.round(totalDmg / ticks));
+    let n = 0;
+    const tick = () => {
+      if (this.state !== 'play' || !enemy.alive) return;
+      enemy.takeDamage(per, false);
+      if (++n < ticks && enemy.alive) setTimeout(tick, interval * 1000);
+    };
+    setTimeout(tick, interval * 1000);
+  }
+
+  // Encadenado: tras el impacto, busca enemigos cercanos al objetivo y dispara
+  // proyectiles de rebote con daño reducido (−25% por salto). Hasta `jumps` saltos.
+  spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color) {
+    if (!fromEnemy || baseDmg <= 0 || jumps <= 0) return;
+    const seen = new Set(exclude || []);
+    seen.add(fromEnemy);
+    let origin = fromEnemy;
+    let dmg = baseDmg;
+    for (let j = 0; j < jumps; j++) {
+      dmg = Math.round(dmg * 0.75); // −25% de daño por salto
+      if (dmg <= 0) break;
+      let next = null, bd = 6 * 6;
+      for (const e of this.enemies) {
+        if (!e.alive || seen.has(e)) continue;
+        const d = e.pos.distanceToSquared(origin.pos);
+        if (d < bd) { bd = d; next = e; }
+      }
+      if (!next) break;
+      seen.add(next);
+      this.spawnProjectile({
+        from: origin.pos.clone().setY(1.0), to: next.pos.clone().setY(1.0),
+        speed: 18, range: Math.sqrt(bd) + 1, dmg, crit: false, friendly: true,
+        color: color || 0x66ddff, size: 0.12,
+      });
+      origin = next;
+    }
   }
 
   nearestEnemy(maxDist = 10, from = null) {
@@ -1296,16 +1351,25 @@ class Game {
     }
   }
 
-  castSkillSlot(slot) {
+  // echoMult: si se pasa (p.ej. 0.5), es una repetición del soporte Eco —
+  // omite consumo de maná/CD y no vuelve a hacer eco (evita bucle).
+  castSkillSlot(slot, echoMult = 0) {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play') return;
     const actives = p.cls.skills.filter(s => s.type !== 'passive' && p.skills[s.id] > 0).slice(0, 4);
     const sk = actives[slot];
     if (!sk) return;
+    const isEcho = echoMult > 0;
     const lvl = p.skills[sk.id];
-    const cost = Math.round(skillVal(sk.mana, lvl));
-    if ((p.cds[sk.id] || 0) > 0) return;
-    if (p.mp < cost) { this.ui.message('Maná insuficiente'); return; }
+    const baseCost = Math.round(skillVal(sk.mana, lvl));
+    if (!isEcho && (p.cds[sk.id] || 0) > 0) return;
+    // coste extra de maná de algunos soportes (Eco +60%, Sobrecarga +40%)
+    const supsCost = this.skillSupports(sk.id);
+    let manaMul = 1;
+    if (supsCost.includes('echo')) manaMul *= 1.6;
+    if (supsCost.includes('overcharge')) manaMul *= 1.4;
+    const cost = Math.round(baseCost * manaMul);
+    if (!isEcho && p.mp < cost) { this.ui.message('Maná insuficiente'); return; }
 
     // objetivo: ratón (escritorio) o enemigo más cercano (móvil)
     const maxRange = sk.range || 8;
@@ -1324,13 +1388,28 @@ class Game {
 
     // sinergias: puntos en otras habilidades aumentan el daño de esta
     let mult = sk.mult ? skillVal(sk.mult, lvl) * (1 + synergyBonus(sk, p.skills) / 100) : 1;
-    // soporte asignado a esta habilidad
-    const sup = p.supports?.[sk.id];
-    if (sup === 'amplify') mult *= 1.3;
-    const supSlow = sup === 'freeze' ? 3 : sk.slow;
-    const supPierce = sup === 'pierce' ? true : sk.pierce;
-    const supExtraProj = sup === 'multi' ? 2 : 0;
-    const supRadius = sup === 'wide' ? 1.45 : 1;
+    if (isEcho) mult *= echoMult; // la repetición del Eco pega al 50%
+    // soportes asignados a esta habilidad (multi-socket: array de hasta 2 ids)
+    const sups = this.skillSupports(sk.id); // normaliza a array siempre
+    const has = id => sups.includes(id);
+    if (has('amplify')) mult *= 1.3;
+    if (has('concentrated')) mult *= 1.35;
+    if (has('overcharge')) mult *= 1.5;
+    const supSlow = has('freeze') ? 3 : sk.slow;
+    const supPierce = (has('pierce') || has('chain')) ? true : sk.pierce;
+    const supExtraProj = has('multi') ? 2 : 0;
+    let supRadius = has('wide') ? 1.45 : 1;
+    if (has('concentrated')) supRadius *= 0.7; // −30% radio (contrapartida)
+    // Sangre Fría: crítico garantizado contra objetivos ya ralentizados/congelados
+    const supColdblood = has('coldblood');
+    // Daño por tiempo (Sed de Sangre/Veneno): total a repartir en tics, basado en el daño medio.
+    const avgHit = (p.stats.dmgMin + p.stats.dmgMax) / 2 * mult;
+    const supDoT = has('poison')
+      ? { total: avgHit * 0.9, ticks: 5, interval: 1.0, color: 0x66ff66 }
+      : has('bleed')
+        ? { total: avgHit * 0.6, ticks: 3, interval: 1.0, color: 0xff4466 }
+        : null;
+    const applyDoT = e => { if (supDoT && e && e.alive) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval); };
     let casted = true;
 
     switch (sk.type) {
@@ -1339,9 +1418,11 @@ class Game {
         if (!e) { this.ui.message('Ningún enemigo al alcance'); casted = false; break; }
         p.faceToward(e.pos);
         p.swing = 1;
-        const { dmg, crit } = p.rollDamage(mult);
+        const cb = (sk.critBonus || 0) + (supColdblood && e.slowT > 0 ? 100 : 0);
+        const { dmg, crit } = p.rollDamage(mult, cb);
         e.takeDamage(dmg, crit);
         if (supSlow && e.alive) e.slowT = supSlow;
+        applyDoT(e);
         p.onDealHit();
         this.spawnRing(e.pos, 0.8, 0xffbb44);
         break;
@@ -1349,7 +1430,7 @@ class Game {
       case 'aoe_self': {
         const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
         this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
-        this.dealArea(p.pos, rad, mult, { slow: supSlow });
+        this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
         p.swing = 1;
         break;
       }
@@ -1363,7 +1444,7 @@ class Game {
         ball.position.copy(target).setY(5);
         this.fxGroup.add(ball);
         this.fx.push({ mesh: ball, t: 0, dur: 0.25, fall: target.clone() });
-        this.dealArea(target, rad, mult, { slow: supSlow });
+        this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
         break;
       }
       case 'dash': {
@@ -1383,7 +1464,7 @@ class Game {
         }
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
-        this.dealArea(p.pos, rad, mult, { slow: supSlow });
+        this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
         p.swing = 1;
         break;
       }
@@ -1396,13 +1477,20 @@ class Game {
           const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
           const a = baseAngle + off;
           const to = p.pos.clone().add(new THREE.Vector3(Math.sin(a) * 5, 0, Math.cos(a) * 5));
-          const { dmg, crit } = p.rollDamage(mult, sk.critBonus || 0);
+          const cb = (sk.critBonus || 0) + (supColdblood && near && near.slowT > 0 ? 100 : 0);
+          const { dmg, crit } = p.rollDamage(mult, cb);
           this.spawnProjectile({
             from: p.pos.clone().setY(1.0), to: to.setY(1.0),
             speed: sk.speed || 14, range: sk.range || 10,
             dmg, crit, friendly: true, pierce: supPierce, slow: supSlow,
             color: sk.color || 0xffffff, size: 0.14,
           });
+        }
+        // Encadenado y DoT de proyectil: se aplican sobre el objetivo apuntado
+        // (el enemigo más cercano), donde tenemos confirmación de impacto.
+        if (near && near.alive && p.pos.distanceTo(near.pos) <= (sk.range || 10)) {
+          if (has('chain')) this.spawnChainBounce(near, Math.round(avgHit), 2, [], sk.color || 0x66ddff);
+          applyDoT(near);
         }
         break;
       }
@@ -1416,8 +1504,12 @@ class Game {
     }
 
     if (casted) {
-      p.mp -= cost;
-      p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100); // reducción de enfriamiento
+      if (!isEcho) {
+        p.mp -= cost;
+        p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100); // reducción de enfriamiento
+        // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
+        if (has('echo')) setTimeout(() => this.castSkillSlot(slot, 0.5), 500);
+      }
       this.sfx('skill');
     }
   }

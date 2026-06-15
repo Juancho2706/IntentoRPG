@@ -357,16 +357,47 @@ export const PET_PRICE = 500;
 
 // Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
 // habilidad activa. Se encuentran como botín, se aprenden y se asignan.
+// Cada soporte declara su efecto y, cuando procede, su CONTRAPARTIDA (trade-off).
+// Campo `tag`: 'pro' (beneficio neto) o 'tradeoff' (mejora algo a costa de otra cosa),
+// usado por la UI para resaltar el coste. `effect` resume el efecto en combate.
 export const SUPPORTS = [
   { id: 'amplify', name: 'Amplificado', icon: '🔆', desc: '+30% de daño de la habilidad',
+    effect: '+30% daño', tag: 'pro',
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
   { id: 'multi',   name: 'Multiproyectil', icon: '🔱', desc: '+2 proyectiles',
+    effect: '+2 proyectiles', tag: 'pro',
     types: ['proj'] },
   { id: 'pierce',  name: 'Perforante', icon: '➶', desc: 'Los proyectiles atraviesan a los enemigos',
+    effect: 'atraviesa enemigos', tag: 'pro',
     types: ['proj'] },
   { id: 'wide',    name: 'Expansivo', icon: '⭕', desc: '+45% de radio de área',
+    effect: '+45% radio', tag: 'pro',
     types: ['aoe_self', 'aoe_target', 'dash'] },
   { id: 'freeze',  name: 'Gélido', icon: '❄️', desc: 'Ralentiza a los enemigos golpeados',
+    effect: 'ralentiza al golpear', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+
+  // --- SOPORTES 2.0 ---
+  { id: 'chain',   name: 'Encadenado', icon: '⚡', desc: 'El proyectil rebota a 2 enemigos cercanos; −25% de daño por salto',
+    effect: 'rebota a 2 enemigos', trade: '−25% daño/salto', tag: 'tradeoff',
+    types: ['proj'] },
+  { id: 'concentrated', name: 'Concentrado', icon: '🎯', desc: '+35% de daño, pero −30% de radio de área',
+    effect: '+35% daño', trade: '−30% radio', tag: 'tradeoff',
+    types: ['aoe_self', 'aoe_target', 'dash'] },
+  { id: 'echo',    name: 'Eco', icon: '🔁', desc: 'Repite la habilidad ~0.5s después al 50% de daño; +60% de coste de maná',
+    effect: 'repite al 50%', trade: '+60% maná', tag: 'tradeoff',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+  { id: 'bleed',   name: 'Sed de Sangre', icon: '🩸', desc: 'Aplica sangrado: daño por tiempo durante 3s tras el golpe',
+    effect: 'DoT sangrado 3s', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+  { id: 'poison',  name: 'Veneno', icon: '☠️', desc: 'Aplica veneno: daño por tiempo durante 5s tras el golpe',
+    effect: 'DoT veneno 5s', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+  { id: 'coldblood', name: 'Sangre Fría', icon: '🧊', desc: '+100% de prob. de crítico contra enemigos ralentizados/congelados (combo con Gélido)',
+    effect: '+crítico vs ralentizados', tag: 'pro',
+    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+  { id: 'overcharge', name: 'Sobrecarga', icon: '💥', desc: '+50% de daño, pero +40% de coste de maná',
+    effect: '+50% daño', trade: '+40% maná', tag: 'tradeoff',
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
 ];
 
