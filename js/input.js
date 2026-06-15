@@ -111,6 +111,7 @@ export class Input {
       case 'primary': e?.preventDefault(); g.primaryAction(); break;
       case 'dodge': g.player?.dodge(); break;
       case 'grab': g.grabNearest(); break;
+      case 'map': e?.preventDefault(); g.ui.activePanel === 'map' ? g.ui.closePanel() : g.ui.openMap(); break;
       case 'close': g.ui.closePanel(); break;
       case 'skill1': g.castSkillSlot(0); break;
       case 'skill2': g.castSkillSlot(1); break;
