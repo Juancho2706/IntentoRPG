@@ -74,10 +74,11 @@
 - **Gama de dispositivo** (`detectDeviceTier`), **calidad adaptativa 0–3** con histéresis (`applyQuality`/`monitorFPS`), selector de calidad en Opciones, **overlay FPS/draw calls** (`perfHud`), post‑proceso de carga perezosa (no se baja en gama mínima), densidad de partículas escalada, sombras de enemigos solo en gama alta, animación de miembros omitida fuera de pantalla.
 - Estética: GTAO/SMAA/Outline/bloom/viñeta, IBL (RoomEnvironment), BlobShadows, grading por bioma, rim light.
 
-### Controles / opciones (estado)
-- Teclado **hardcodeado** en `input.js` (I/B inventario, T skills, C stats, Q/E pociones, Space acción, Shift esquiva, F recoger, 1‑4 skills, WASD/flechas). Joystick táctil + asistencia de puntería.
-- Menú de opciones **plano** (Audio/Gráficos/Accesibilidad/Datos) en `UI.renderSettings`.
-- ❌ NO existe: **remapeo de teclas** (#5), **layout táctil configurable** (#7), **menú por categorías + búsqueda/presets** (#6). → backlog del informe.
+### Controles / opciones (HECHO 2026‑06‑15)
+- ✅ **Remapeo de teclado** (#5): `js/bindings.js` (módulo PURO: `DEFAULT_BINDINGS`, `BINDABLE_ACTIONS`, `mergeBindings`/`buildCodeMap`/`assignBinding`/`keyLabel`). `input.js` resuelve `code→action` (`doAction`), captura de tecla (`beginCapture`), `setBinding`/`resetBindings`; anulaciones en `settings.bindings`. Movimiento se lee "mantenido" (`held()`), el resto dispara al pulsar.
+- ✅ **Menú de opciones por categorías** (#6): `UI.renderSettings` ahora es **data-driven** (`settingsCategories()` → `renderOptItem`) con **pestañas** (Gráficos/Audio/Controles/Interfaz/Accesib./Datos), **buscador** (`opt-search`, corta propagación para no disparar acciones) y **presets de gráficos** (Batería/Equilibrado/Calidad → `applyGraphicsPreset`).
+- ✅ **Táctil parcial** (#7): joystick a la derecha (zurdo, `joystickRight` → `body.joy-right`) y **escala de controles** (`hudScale` → var CSS `--hud-scale`), aplicados en `applyAccessibility`. Drag libre de botones = pendiente.
+- Tests: `test47-remapeo` (módulo de bindings). Joystick táctil + asistencia de puntería siguen igual.
 
 ### PWA / accesibilidad
 - SW con cache versionado, offline. Orientación **landscape** + overlay "gira el dispositivo". Accesibilidad: movimiento reducido, texto grande, daltónico, brillo, sacudida, vibración.
@@ -92,9 +93,9 @@
 
 | # | Feature | Estado |
 |---|---|---|
-| #5 | Remapeo de teclado (capa acción↔tecla) | pendiente |
-| #6 | Menú de opciones por categorías + presets/búsqueda | pendiente |
-| #7 | Remapeo táctil (layout, zurdo) | pendiente |
+| #5 | Remapeo de teclado (capa acción↔tecla) | ✅ HECHO (2026‑06‑15) |
+| #6 | Menú de opciones por categorías + presets/búsqueda | ✅ HECHO (2026‑06‑15) |
+| #7 | Remapeo táctil (zurdo + escala) | ✅ parcial; drag libre de botones pendiente |
 | #10 | **Maestrías/ramas de clase** (rama + nodos + capstones) | ✅ HECHO (2026‑06‑15) |
 | #13 | Maestrías fase 3: soportes `transform`/aspectos de habilidad | pendiente (ampliación) |
 | #11 | **Pueblo contiguo a zona open** (seamless hub, sin portal) | ✅ HECHO (2026‑06‑15) |

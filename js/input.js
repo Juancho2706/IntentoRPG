@@ -2,6 +2,7 @@
 // Entrada: ratón, teclado y joystick táctil
 // ============================================================
 import * as THREE from 'three';
+import { mergeBindings, buildCodeMap, assignBinding, MOVE_ACTIONS } from './bindings.js';
 
 export class Input {
   constructor(game) {
@@ -12,6 +13,11 @@ export class Input {
     this.pointerDown = false;
     this.keys = new Set();
     this.joyId = null;
+    // remapeo: acciones↔teclas (defaults + anulaciones del jugador)
+    this.bindings = mergeBindings(game.settings?.bindings);
+    this.codeToAction = buildCodeMap(this.bindings);
+    this.capturing = null;  // acción que espera la siguiente tecla (UI de remapeo)
+    this.captureCb = null;
 
     const canvas = game.renderer.domElement;
     canvas.addEventListener('pointerdown', e => this.onPointerDown(e));
@@ -32,23 +38,20 @@ export class Input {
 
     window.addEventListener('keydown', e => {
       if (e.repeat) return;
+      // captura de remapeo: la siguiente tecla se asigna a la acción pendiente
+      if (this.capturing) {
+        e.preventDefault();
+        const action = this.capturing, cb = this.captureCb;
+        this.capturing = null; this.captureCb = null;
+        if (e.code !== 'Escape') this.setBinding(action, e.code); // Esc = cancelar
+        cb?.(e.code !== 'Escape' ? e.code : null);
+        return;
+      }
       this.keys.add(e.code);
       this.updateKeyDir();
-      const g = this.game;
-      if (e.code === 'KeyI') g.ui.togglePanel('inv');
-      if (e.code === 'KeyB') g.ui.togglePanel('inv');
-      if (e.code === 'KeyT') g.ui.togglePanel('skills');
-      if (e.code === 'KeyC') g.ui.togglePanel('stats');
-      if (e.code === 'KeyQ') { g.player?.usePotion('hp'); }
-      if (e.code === 'KeyE') { g.player?.usePotion('mp'); }
-      if (e.code === 'Space') { e.preventDefault(); g.primaryAction(); }
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') g.player?.dodge();
-      if (e.code === 'KeyF') g.grabNearest();
-      if (e.code === 'Escape') g.ui.closePanel();
-      if (e.code.startsWith('Digit')) {
-        const n = parseInt(e.code.slice(5));
-        if (n >= 1 && n <= 4) g.castSkillSlot(n - 1);
-      }
+      const action = this.codeToAction[e.code];
+      // las acciones de movimiento se leen "mantenidas" (updateKeyDir), no aquí
+      if (action && !MOVE_ACTIONS.has(action)) this.doAction(action, e);
     });
     window.addEventListener('keyup', e => { this.keys.delete(e.code); this.updateKeyDir(); });
 
@@ -93,12 +96,54 @@ export class Input {
     document.addEventListener('visibilitychange', () => { if (document.hidden) endJoy(); });
   }
 
+  // ¿hay alguna tecla de esta acción mantenida?
+  held(action) { return this.bindings[action]?.some(c => this.keys.has(c)); }
+
+  // despacha una acción lógica (resuelta desde la tecla pulsada)
+  doAction(action, e) {
+    const g = this.game;
+    switch (action) {
+      case 'inventory': g.ui.togglePanel('inv'); break;
+      case 'skills': g.ui.togglePanel('skills'); break;
+      case 'character': g.ui.togglePanel('stats'); break;
+      case 'potionHP': g.player?.usePotion('hp'); break;
+      case 'potionMP': g.player?.usePotion('mp'); break;
+      case 'primary': e?.preventDefault(); g.primaryAction(); break;
+      case 'dodge': g.player?.dodge(); break;
+      case 'grab': g.grabNearest(); break;
+      case 'close': g.ui.closePanel(); break;
+      case 'skill1': g.castSkillSlot(0); break;
+      case 'skill2': g.castSkillSlot(1); break;
+      case 'skill3': g.castSkillSlot(2); break;
+      case 'skill4': g.castSkillSlot(3); break;
+    }
+  }
+
+  // empieza a capturar la siguiente tecla para reasignar `action` (UI de remapeo)
+  beginCapture(action, cb) { this.capturing = action; this.captureCb = cb; }
+
+  // asigna una tecla a una acción (sin duplicados) y persiste
+  setBinding(action, code) {
+    assignBinding(this.bindings, action, code);
+    this.codeToAction = buildCodeMap(this.bindings);
+    this.game.settings.bindings = this.bindings;
+    this.game.saveSettings?.();
+  }
+
+  // restaura los controles por defecto
+  resetBindings() {
+    this.bindings = mergeBindings({});
+    this.codeToAction = buildCodeMap(this.bindings);
+    this.game.settings.bindings = null;
+    this.game.saveSettings?.();
+  }
+
   updateKeyDir() {
     let x = 0, z = 0;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) { x -= 1; z -= 1; }
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) { x += 1; z += 1; }
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) { x -= 1; z += 1; }
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) { x += 1; z -= 1; }
+    if (this.held('moveUp')) { x -= 1; z -= 1; }
+    if (this.held('moveDown')) { x += 1; z += 1; }
+    if (this.held('moveLeft')) { x -= 1; z += 1; }
+    if (this.held('moveRight')) { x += 1; z -= 1; }
     const l = Math.hypot(x, z);
     this.keyDir = l > 0 ? { x: x / l, z: z / l } : null;
   }

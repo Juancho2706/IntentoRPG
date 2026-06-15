@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
+import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -845,108 +846,193 @@ export class UI {
     }
   }
 
-  renderSettings() {
+  // catálogo de opciones por categorías (data-driven). Cada item se renderiza
+  // con renderOptItem; `kw` ayuda a la búsqueda.
+  settingsCategories() {
     const g = this.game;
+    return [
+      { id: 'graficos', icon: 'eye', label: 'Gráficos', items: [
+        { t: 'preset' },
+        { t: 'select', key: 'quality', icon: 'rocket', label: 'Calidad gráfica', def: 'auto',
+          opts: [['auto', 'Automática'], [0, 'Alta'], [1, 'Media'], [2, 'Baja'], [3, 'Mínima']],
+          onChange: (v) => g.setQuality?.(v === 'auto' ? 'auto' : parseInt(v, 10)) },
+        { t: 'toggle', key: 'postfx', icon: 'magic', label: 'Efectos visuales (bloom, postproceso)', def: true, onChange: () => g.syncPostFX?.() },
+        { t: 'toggle', key: 'ao', icon: 'bulb', label: 'Oclusión ambiental', def: true, onChange: () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); } },
+        { t: 'toggle', key: 'outline', icon: 'paint', label: 'Contorno', def: true, onChange: () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); } },
+        { t: 'toggle', key: 'autoq', icon: 'rocket', label: 'Ajuste dinámico (baja si va lento)', def: true },
+        { t: 'toggle', key: 'perfHud', icon: 'bulb', label: 'Mostrar FPS y rendimiento', def: false, onChange: (v) => g.togglePerfHud?.(v) },
+        { t: 'range', icon: 'sun', label: 'Brillo', min: 60, max: 170, step: 5,
+          get: () => Math.round((g.settings.brightness || 1) * 100),
+          set: (v) => { g.settings.brightness = v / 100; g.renderer.toneMappingExposure = g.settings.brightness; } },
+      ] },
+      { id: 'audio', icon: 'speaker', label: 'Audio', items: [
+        { t: 'toggle', key: 'sound', icon: 'speaker', label: 'Sonido', def: true },
+        { t: 'toggle', key: 'music', icon: 'music', label: 'Música ambiental', def: true, onChange: (v) => g.music.setEnabled(v) },
+      ] },
+      { id: 'controles', icon: 'gear', label: 'Controles', items: [
+        { t: 'keybinds' },
+        { t: 'toggle', key: 'joystickRight', icon: 'hand', label: 'Joystick a la derecha (zurdo)', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'range', icon: 'plus', label: 'Tamaño de los controles', min: 70, max: 150, step: 5,
+          get: () => Math.round((g.settings.hudScale || 1) * 100),
+          set: (v) => { g.settings.hudScale = v / 100; g.applyAccessibility(); } },
+        { t: 'toggle', key: 'haptics', icon: 'phone', label: 'Vibración (móvil)', def: true },
+      ] },
+      { id: 'interfaz', icon: 'eye', label: 'Interfaz', items: [
+        { t: 'toggle', key: 'cleanHud', icon: 'eye-off', label: 'HUD limpio (oculta lo no esencial)', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'toggle', key: 'shake', icon: 'shake', label: 'Sacudida de cámara', def: true },
+        { t: 'select', key: 'lootFilter', icon: 'search', label: 'Filtro de loot (mostrar desde)', def: 'normal',
+          opts: [['normal', 'Todo'], ['magico', 'Mágico+'], ['raro', 'Raro+'], ['legendario', 'Legendario']] },
+      ] },
+      { id: 'accesibilidad', icon: 'hero', label: 'Accesib.', items: [
+        { t: 'toggle', key: 'reduceMotion', icon: 'target', label: 'Movimiento reducido (menos animaciones)', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'toggle', key: 'bigText', icon: 'text', label: 'Texto grande', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'toggle', key: 'colorblind', icon: 'palette', label: 'Modo daltónico (colores de rareza seguros)', def: false, onChange: () => g.applyAccessibility() },
+      ] },
+      { id: 'datos', icon: 'save', label: 'Datos', items: [
+        { t: 'button', icon: 'copy', label: 'Copiar código de guardado', desc: 'Incluye tu héroe actual y el alijo', fn: () => g.exportSave() },
+        { t: 'button', icon: 'import', label: 'Importar código de guardado', desc: 'Sobrescribe el héroe del hueco actual', fn: () => g.importSave() },
+      ] },
+    ];
+  }
+
+  renderSettings() {
     const cont = $('settings-body');
+    this.settingsCat = this.settingsCat || 'graficos';
     cont.innerHTML = '';
-    // helper de sección con cabecera y separador claro
-    const section = (ico, title) => {
-      const h = document.createElement('h4');
-      h.className = 'opt-section';
-      h.innerHTML = `${icon(ico)} ${title}`;
-      cont.appendChild(h);
-    };
-    const toggle = (key, ico, label, onChange, def) => {
-      const row = document.createElement('label');
-      row.className = 'opt-row';
-      const checked = (g.settings[key] ?? def) ? 'checked' : '';
-      row.innerHTML = `<span>${icon(ico)} ${label}</span><input type="checkbox" ${checked}>`;
-      row.querySelector('input').onchange = (e) => {
-        g.settings[key] = e.target.checked;
-        g.saveSettings();
-        if (onChange) onChange(e.target.checked);
-      };
-      cont.appendChild(row);
-    };
-
-    section('speaker', 'Audio');
-    toggle('sound', 'speaker', 'Sonido');
-    toggle('music', 'music', 'Música ambiental', (v) => g.music.setEnabled(v));
-
-    section('eye', 'Gráficos');
-    // selector de calidad: Auto (gama detectada + ajuste dinámico) o fija
-    const qrow = document.createElement('label');
-    qrow.className = 'opt-row';
-    const qcur = g.settings.quality ?? 'auto';
-    const qopt = (v, lbl) => `<option value="${v}" ${String(qcur) === String(v) ? 'selected' : ''}>${lbl}</option>`;
-    qrow.innerHTML = `<span>${icon('rocket')} Calidad gráfica</span>
-      <select>
-        ${qopt('auto', 'Automática')}
-        ${qopt(0, 'Alta')}
-        ${qopt(1, 'Media')}
-        ${qopt(2, 'Baja')}
-        ${qopt(3, 'Mínima')}
-      </select>`;
-    qrow.querySelector('select').onchange = (e) => {
-      const v = e.target.value;
-      g.setQuality?.(v === 'auto' ? 'auto' : (parseInt(v, 10)));
-    };
-    cont.appendChild(qrow);
-    toggle('postfx', 'magic', 'Efectos visuales (postprocesado, bloom)', () => g.syncPostFX?.(), true);
-    // los lee el sistema de render (otro módulo); se guardan con el flujo normal
-    toggle('ao', 'bulb', 'Oclusión ambiental', () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); }, true);
-    toggle('outline', 'paint', 'Contorno', () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); }, true);
-    toggle('shake', 'shake', 'Sacudida de cámara');
-    toggle('haptics', 'phone', 'Vibración (móvil)');
-    toggle('autoq', 'rocket', 'Ajuste dinámico en modo Automático (baja si va lento)', null, true);
-    toggle('perfHud', 'bulb', 'Mostrar FPS y rendimiento', (v) => g.togglePerfHud?.(v));
-
-    section('hero', 'Accesibilidad');
-    toggle('reduceMotion', 'target', 'Movimiento reducido (menos animaciones)', () => g.applyAccessibility());
-    toggle('bigText', 'text', 'Texto grande', () => g.applyAccessibility());
-    toggle('colorblind', 'palette', 'Modo daltónico (colores de rareza seguros)', () => g.applyAccessibility());
-    // brillo: útil en mazmorras oscuras o pantallas con reflejos
-    const row = document.createElement('label');
-    row.className = 'opt-row';
-    row.innerHTML = `<span>${icon('sun')} Brillo</span>
-      <input type="range" min="60" max="170" step="5" value="${Math.round((g.settings.brightness || 1) * 100)}">`;
-    const slider = row.querySelector('input');
-    slider.oninput = () => {
-      g.settings.brightness = slider.value / 100;
-      g.renderer.toneMappingExposure = g.settings.brightness;
-    };
-    slider.onchange = () => g.saveSettings();
-    cont.appendChild(row);
-
-    // filtro de loot: oculta el botín por debajo de la rareza elegida
-    const fr = document.createElement('label');
-    fr.className = 'opt-row';
-    fr.innerHTML = `<span>${icon('search')} Filtro de loot (mostrar desde)</span>
-      <select>
-        <option value="normal">Todo</option>
-        <option value="magico">Mágico+</option>
-        <option value="raro">Raro+</option>
-        <option value="legendario">Legendario</option>
-      </select>`;
-    const sel = fr.querySelector('select');
-    sel.value = g.settings.lootFilter || 'normal';
-    sel.onchange = () => { g.settings.lootFilter = sel.value; g.saveSettings(); };
-    cont.appendChild(fr);
-
-    // copia de seguridad de la partida (de momento local; nube más adelante)
-    const head = document.createElement('h4');
-    head.className = 'opt-section';
-    head.innerHTML = `${icon('save')} Copia de seguridad`;
-    cont.appendChild(head);
-    const mkBtn = (txt, fn) => {
+    // buscador (no debe disparar acciones del juego: corta la propagación)
+    const search = document.createElement('input');
+    search.type = 'search'; search.className = 'opt-search'; search.placeholder = '🔍 Buscar opción...';
+    search.value = this.settingsQuery || '';
+    search.addEventListener('keydown', (e) => e.stopPropagation());
+    search.oninput = () => { this.settingsQuery = search.value; this.renderSettingsBody(); };
+    cont.appendChild(search);
+    // pestañas de categoría
+    const tabs = document.createElement('div'); tabs.className = 'opt-tabs';
+    for (const cat of this.settingsCategories()) {
       const b = document.createElement('button');
-      b.className = 'shop-item';
-      b.innerHTML = `<span class="shop-name">${txt}</span>`;
-      b.onclick = fn;
-      cont.appendChild(b);
-    };
-    mkBtn(`${icon('copy')} Copiar código de guardado <small class="shop-stats">Incluye tu héroe actual y el alijo</small>`, () => g.exportSave());
-    mkBtn(`${icon('import')} Importar código de guardado <small class="shop-stats">Sobrescribe el héroe del hueco actual</small>`, () => g.importSave());
+      b.className = 'opt-tab' + (cat.id === this.settingsCat && !this.settingsQuery ? ' on' : '');
+      b.innerHTML = `${icon(cat.icon)} <span>${cat.label}</span>`;
+      b.onclick = () => { this.settingsCat = cat.id; this.settingsQuery = ''; this.renderSettings(); };
+      tabs.appendChild(b);
+    }
+    cont.appendChild(tabs);
+    const body = document.createElement('div'); body.id = 'opt-content';
+    cont.appendChild(body);
+    this.renderSettingsBody();
+  }
+
+  renderSettingsBody() {
+    const body = $('opt-content');
+    if (!body) return;
+    body.innerHTML = '';
+    const q = (this.settingsQuery || '').trim().toLowerCase();
+    const cats = this.settingsCategories();
+    if (q) {
+      // búsqueda: muestra todos los items cuya etiqueta coincide, agrupados
+      let found = 0;
+      for (const cat of cats) {
+        const matches = cat.items.filter(it => (it.label || (it.t === 'keybinds' ? 'controles teclas remapeo' : '') || (it.t === 'preset' ? 'presets calidad' : '')).toLowerCase().includes(q));
+        if (!matches.length) continue;
+        const h = document.createElement('h4'); h.className = 'opt-section'; h.innerHTML = `${icon(cat.icon)} ${cat.label}`;
+        body.appendChild(h);
+        for (const it of matches) { body.appendChild(this.renderOptItem(it)); found++; }
+      }
+      if (!found) body.innerHTML = '<p class="dim">Sin resultados.</p>';
+      return;
+    }
+    const cat = cats.find(c => c.id === this.settingsCat) || cats[0];
+    for (const it of cat.items) body.appendChild(this.renderOptItem(it));
+  }
+
+  // renderiza un descriptor de opción a un nodo DOM
+  renderOptItem(it) {
+    const g = this.game;
+    if (it.t === 'toggle') {
+      const row = document.createElement('label'); row.className = 'opt-row';
+      const checked = (g.settings[it.key] ?? it.def) ? 'checked' : '';
+      row.innerHTML = `<span>${icon(it.icon)} ${it.label}</span><input type="checkbox" ${checked}>`;
+      row.querySelector('input').onchange = (e) => { g.settings[it.key] = e.target.checked; g.saveSettings(); it.onChange?.(e.target.checked); };
+      return row;
+    }
+    if (it.t === 'select') {
+      const row = document.createElement('label'); row.className = 'opt-row';
+      const cur = g.settings[it.key] ?? it.def;
+      const opts = it.opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('');
+      row.innerHTML = `<span>${icon(it.icon)} ${it.label}</span><select>${opts}</select>`;
+      row.querySelector('select').onchange = (e) => {
+        if (it.onChange) it.onChange(e.target.value);
+        else { g.settings[it.key] = e.target.value; g.saveSettings(); }
+      };
+      return row;
+    }
+    if (it.t === 'range') {
+      const row = document.createElement('label'); row.className = 'opt-row';
+      row.innerHTML = `<span>${icon(it.icon)} ${it.label}</span><input type="range" min="${it.min}" max="${it.max}" step="${it.step}" value="${it.get()}">`;
+      const s = row.querySelector('input');
+      s.oninput = () => it.set(parseFloat(s.value));
+      s.onchange = () => g.saveSettings();
+      return row;
+    }
+    if (it.t === 'button') {
+      const b = document.createElement('button'); b.className = 'shop-item';
+      b.innerHTML = `<span class="shop-name">${icon(it.icon)} ${it.label}${it.desc ? ` <small class="shop-stats">${it.desc}</small>` : ''}</span>`;
+      b.onclick = it.fn;
+      return b;
+    }
+    if (it.t === 'preset') {
+      const wrap = document.createElement('div'); wrap.className = 'opt-presets';
+      wrap.innerHTML = `<span class="opt-presets-lbl">${icon('rocket')} Presets</span>`;
+      const mk = (id, label) => {
+        const b = document.createElement('button'); b.className = 'opt-preset-btn'; b.textContent = label;
+        b.onclick = () => { this.applyGraphicsPreset(id); this.renderSettings(); };
+        wrap.appendChild(b);
+      };
+      mk('bateria', '🔋 Batería'); mk('equilibrado', '⚖️ Equilibrado'); mk('calidad', '✨ Calidad');
+      return wrap;
+    }
+    if (it.t === 'keybinds') return this.renderKeybinds();
+    return document.createElement('div');
+  }
+
+  // presets de gráficos: fijan varios ajustes de golpe
+  applyGraphicsPreset(id) {
+    const g = this.game, s = g.settings;
+    if (id === 'bateria') { s.postfx = false; s.ao = false; s.outline = false; s.perfHud = false; g.setQuality?.(3); }
+    else if (id === 'equilibrado') { s.postfx = true; s.ao = true; s.outline = true; g.setQuality?.('auto'); }
+    else if (id === 'calidad') { s.postfx = true; s.ao = true; s.outline = true; g.setQuality?.(0); }
+    g.syncPostFX?.(); g.saveSettings();
+    this.message('⚙️ Preset aplicado', 1800);
+  }
+
+  // UI de remapeo de teclado: lista de acciones con su tecla; clic = reasignar
+  renderKeybinds() {
+    const g = this.game, input = g.input;
+    const wrap = document.createElement('div'); wrap.className = 'keybinds';
+    wrap.innerHTML = `<p class="dim">Pulsa una acción y luego la tecla nueva (Esc cancela). Reasignar una tecla la quita de su acción anterior.</p>`;
+    let lastGroup = '';
+    for (const a of BINDABLE_ACTIONS) {
+      if (a.group !== lastGroup) {
+        lastGroup = a.group;
+        const h = document.createElement('div'); h.className = 'keybind-group'; h.textContent = a.group;
+        wrap.appendChild(h);
+      }
+      const row = document.createElement('div'); row.className = 'keybind-row';
+      const codes = input?.bindings?.[a.id] || [];
+      const keysTxt = codes.length ? codes.map(keyLabel).join(' / ') : '—';
+      row.innerHTML = `<span class="keybind-act">${a.label}</span>`;
+      const btn = document.createElement('button'); btn.className = 'keybind-key'; btn.textContent = keysTxt;
+      btn.onclick = () => {
+        btn.textContent = '… pulsa una tecla'; btn.classList.add('capturing');
+        input.beginCapture(a.id, () => this.renderSettingsBody());
+      };
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    }
+    const reset = document.createElement('button'); reset.className = 'shop-item';
+    reset.innerHTML = `<span class="shop-name">${icon('recycle')} Restaurar controles por defecto</span>`;
+    reset.onclick = () => { input.resetBindings(); this.renderSettingsBody(); this.message('Controles restaurados', 1800); };
+    wrap.appendChild(reset);
+    return wrap;
   }
 
   openQuest() {

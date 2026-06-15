@@ -67,7 +67,7 @@ class Game {
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
     this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
       reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true,
-      quality: 'auto', perfHud: false, ...opts };
+      quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null, ...opts };
     this.applyAccessibility();
     // gama del dispositivo (0 alta … 3 mínima): semilla de calidad + densidad de
     // partículas. Se calcula una vez por núcleos/memoria/puntero/DPR.
@@ -579,6 +579,11 @@ class Game {
     b.classList.toggle('reduce-motion', !!this.settings.reduceMotion);
     b.classList.toggle('big-text', !!this.settings.bigText);
     b.classList.toggle('cb', !!this.settings.colorblind);
+    b.classList.toggle('hud-clean', !!this.settings.cleanHud);
+    b.classList.toggle('joy-right', !!this.settings.joystickRight);
+    // escala de los controles/HUD táctil (variable CSS)
+    const scale = Math.max(0.7, Math.min(1.5, this.settings.hudScale || 1));
+    b.style.setProperty('--hud-scale', scale);
     this.saveSettings();
   }
 
