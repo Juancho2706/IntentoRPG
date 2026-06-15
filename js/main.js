@@ -645,7 +645,10 @@ class Game {
     const ratios = [Math.min(dpr, 1.75), Math.min(dpr, 1.25), 1, Math.min(dpr, 0.8)];
     this.renderer.setPixelRatio(ratios[level]);
     this.sun.castShadow = level < 2;                 // sombras reales solo en alta/media
-    this.enemyShadows = level < 1;                   // enemigos proyectan sombra solo en alta
+    // los enemigos NO proyectan sombra de sol: ya tienen sombra de contacto (blob),
+    // y con 60+ enemigos su pase de sombras es carísimo (gran coste en PC también).
+    // Solo el héroe y el mundo (muros/props) proyectan la sombra del sol.
+    this.enemyShadows = false;
     this.applyEnemyShadows();
     // densidad de partículas: combina la gama del dispositivo con el nivel actual
     const densByLevel = [1, 0.85, 0.55, 0.3][level];
@@ -1871,15 +1874,21 @@ class Game {
     // sombras de contacto/blob bajo héroe y enemigos (les dan peso)
     if (this.blobShadows?.enabled && this.state === 'play')
       this.blobShadows.update(p, this.enemies);
-    // contorno estilizado: refresca la lista de objetos (héroe + enemigos
-    // vivos) a ~10Hz — barato y suficiente para el look "diorama".
+    // contorno estilizado: refresca la lista a ~10Hz. SOLO héroe + enemigos
+    // NOTABLES (jefes/élites/campeones/goblin/uber). OutlinePass hace varios
+    // pases sobre su lista; con 60+ enemigos era el mayor coste de FPS (también
+    // en PC). Los enemigos comunes ya destacan con su barra/aura.
     if (this.postfx?.hasOutline && this.postfx.outlineEnabled) {
       this._outlineTimer = (this._outlineTimer || 0) + realDt;
       if (this._outlineTimer >= 0.1) {
         this._outlineTimer = 0;
         const targets = [];
         if (p?.group && this.state === 'play') targets.push(p.group);
-        for (const e of this.enemies) if (e.alive && e.group?.visible) targets.push(e.group);
+        for (const e of this.enemies) {
+          if (!e.alive || !e.group?.visible) continue;
+          const d = e.def;
+          if (d.boss || d.uber || d.worldBoss || d.rank || d.goblin || d.stronghold) targets.push(e.group);
+        }
         this.postfx.setOutlineTargets(targets);
       }
     }

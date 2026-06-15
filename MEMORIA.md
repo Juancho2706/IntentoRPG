@@ -88,6 +88,10 @@
 - ✅ **Enemigos no aparecen pegados a la ciudad**: en `zones.js` los clústeres exigen distancia `campRadius + 9` celdas del spawn; `randomZoneCellFrom` (respawn) excluye el `safeZone` **+ margen 9** → no se puede pegar‑y‑correr al pueblo. Test: `test46` (verifica el buffer).
 - ✅ **FPS**: tope de enemigos vivos según gama (`zoneTick`: 38/52/64 por `deviceTier`), `targetEnemies` 65→58, campamento con **1 sola point light** (antes 3), y `renderWorldMap` solo al abrir el mapa (no a 10Hz). El leash cura al enemigo al volver (anti‑cheese extra).
 
+### FPS en PC — culpables del pipeline (2026‑06‑15)
+- ✅ **Enemigos no proyectan sombra de sol**: ya tienen sombra de contacto (blob); con 60+ enemigos su pase de sombras era carísimo. Solo héroe + mundo proyectan la sombra del sol (`enemyShadows=false` siempre en `applyQuality`).
+- ✅ **OutlinePass solo sobre notables**: contornear los 60+ enemigos cada frame (OutlinePass hace varios pases sobre su lista) era el mayor coste. Ahora solo **héroe + jefes/élites/campeones/goblin/uber/guardián**. Si los FPS siguen flojos, el siguiente sospechoso es **GTAO** (el AO de contacto), que puede apagarse en Opciones.
+
 ### Rendimiento / calidad (YA EXISTE)
 - **Gama de dispositivo** (`detectDeviceTier`), **calidad adaptativa 0–3** con histéresis (`applyQuality`/`monitorFPS`), selector de calidad en Opciones, **overlay FPS/draw calls** (`perfHud`), post‑proceso de carga perezosa (no se baja en gama mínima), densidad de partículas escalada, sombras de enemigos solo en gama alta, animación de miembros omitida fuera de pantalla.
 - Estética: GTAO/SMAA/Outline/bloom/viñeta, IBL (RoomEnvironment), BlobShadows, grading por bioma, rim light.
