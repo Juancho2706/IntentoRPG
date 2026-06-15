@@ -62,7 +62,8 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Modo Hardcore** opcional al crear personaje: la muerte es permanente y borra el guardado
 - **Lobo de caza**: mascota comprable al mercader que te sigue y ataca a tus enemigos
 - **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
-- **Inventario** de 32 casillas + **12 ranuras de equipo** estilo Diablo en silueta anatómica; **armas y off-hands acordes a tu clase** (escudo para el Guerrero, orbe/foco para la Maga, carcaj para la Arquera)
+- **Inventario estilo Diablo IV**: en escritorio, equipo y mochila en **dos columnas a la vez** (sin scroll); 32 casillas + **12 ranuras de equipo** en silueta anatómica; **armas y off-hands acordes a tu clase** (escudo para el Guerrero, orbe/foco para la Maga, carcaj para la Arquera). Se abre con `I` o `B`
+- **Bolsa de materiales** aparte (pestaña propia): gemas, runas, llaves de grieta, fragmentos y glifos no ocupan espacio en la mochila
 - **Arrastrar y soltar**: mueve objetos entre mochila, equipo, cubo y alijo; arrastra una pieza a su ranura para equiparla o una gema/runa sobre un objeto con engarce para incrustarla (Pointer Events: funciona en ratón y táctil)
 - **Stats secundarios** estilo Diablo 3/4: Vida al golpear, Maná al golpear, Reducción de enfriamiento (tope 50%) y Espinas
 - **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura
