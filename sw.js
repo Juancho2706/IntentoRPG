@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v35';
+const VERSION = 'v36';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -18,6 +18,7 @@ const ASSETS = [
   './js/enemy-abilities.js',
   './js/game-endgame.js',
   './js/game-world-flow.js',
+  './js/game-zone-life.js',
   './js/input.js',
   './js/sfx.js',
   './js/vfx.js',
