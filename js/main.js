@@ -1293,7 +1293,7 @@ class Game {
   spawnRing(pos, radius, color) {
     const mesh = new THREE.Mesh(
       new THREE.RingGeometry(radius * 0.8, radius, 28),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.copy(pos).setY(0.07);

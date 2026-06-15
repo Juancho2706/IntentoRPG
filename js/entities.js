@@ -1347,8 +1347,8 @@ export class Projectile {
   burst() {
     const g = this.game;
     const at = this.mesh.position.clone();
-    g.spawnBurst?.(at, this.color, this.crit ? 9 : 6);
-    g.spawnRing?.(at, this.crit ? 1.0 : 0.7, this.color);
+    g.spawnBurst?.(at, this.color, this.crit ? 6 : 4);
+    if (this.crit) g.spawnRing?.(at, 0.8, this.color); // anillo solo en crítico (menos saturación)
   }
 
   // devuelve true cuando hay que eliminarlo
