@@ -2404,7 +2404,7 @@ export class UI {
       const poor = gold < cost;
       const pips = '●'.repeat(lvl) + '○'.repeat(u.max - lvl);
       html += `<div class="pet-upg">
-        <div class="pet-upg-info"><b>${u.icon} ${u.name}</b> <span class="dim pet-pips">${pips}</span><br>
+        <div class="pet-upg-info"><b>${u.icon} ${u.name}</b> <span class="pet-pips">${pips}</span>
           <span class="dim">${u.desc}</span></div>
         <button class="quest-btn pet-upg-btn${poor && !maxed ? ' no-gold' : ''}" data-upg="${key}" ${maxed || poor ? 'disabled' : ''}>
           ${maxed ? 'MÁX' : `${icon('coin', { cls: 'ico-gold' })} ${cost}`}</button>
