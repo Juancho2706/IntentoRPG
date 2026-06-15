@@ -14,6 +14,7 @@ import { economyMethods } from './economy.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles } from './postfx.js';
+import { ParticleSystem, PRESETS } from './particles.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 
@@ -117,6 +118,8 @@ class Game {
     this.postfx.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
     this.particles = new AmbientParticles(this.scene);
     this.particles.setEnabled(this.settings.postfx !== false && !this.settings.reduceMotion);
+    // motor de partículas de GAMEPLAY (impactos, habilidades, enemigos) — pooled
+    this.psys = new ParticleSystem(this.scene, { poolSize: 1500 });
     this.postfx.init(this.renderer, this.scene, this.camera).then(() => {
       // sincroniza tamaño/calidad iniciales y aplica el estado de calidad actual
       this.syncPostFX();
@@ -293,6 +296,7 @@ class Game {
     clearGroup(this.fxGroup);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
     this.firePools = []; this.telegraphs = []; this.chains = {};
+    this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
 
     // semilla persistente por sesión: la zona se genera una sola vez y mantiene
     // su trazado mientras dure la partida (hasta recargar la página)
@@ -543,6 +547,14 @@ class Game {
     mesh.rotation.y = p.group.rotation.y;
     this.fxGroup.add(mesh);
     this.fx.push({ mesh, t: 0, dur: 0.3, ghost: true });
+  }
+
+  // lanza un preset de partículas en una posición del mundo (motor js/particles.js)
+  // acepta un objeto preset o un nombre de PRESETS; pos = Vector3/{x,y,z}/[x,y,z]
+  emitFx(preset, pos) {
+    if (!this.psys) return;
+    const ps = typeof preset === 'string' ? PRESETS[preset] : preset;
+    if (ps) this.psys.emit(ps, pos);
   }
 
   // ráfaga de partículas (muertes, cofres, nivel)
@@ -2206,6 +2218,8 @@ class Game {
     }
     // partículas ambientales del bioma (siguen a la cámara)
     this.particles?.update(realDt, this.camera.position);
+    // partículas de gameplay (impactos/habilidades/enemigos)
+    this.psys?.update(dt);
 
     // UI: textos y etiquetas siguen al mundo (cada frame), pero el HUD y el
     // minimapa se refrescan a 10Hz — menos trabajo de DOM, mismo aspecto

@@ -1344,6 +1344,11 @@ export class Projectile {
     this.attackerLevel = opts.attackerLevel || 1;
     this.hitSet = new Set();
     this.color = opts.color || 0xffffff; // color del estallido al impactar
+    // estela + impacto con partículas (motor js/particles.js); personalizable por el llamador
+    this._hex = '#' + (((this.color >>> 0) & 0xffffff).toString(16).padStart(6, '0'));
+    this._trailT = 0;
+    this.trailPreset = opts.trailPreset || { texture: 'glow', count: 1, burst: true, lifetime: [0.2, 0.32], shape: 'point', speed: [0, 0.3], drag: 3, size: { start: [0.16, 0.22], end: 0 }, color: { start: this._hex, end: this._hex }, alpha: { start: 0.5, end: 0 } };
+    this.impactPreset = opts.impactPreset || { texture: 'glow', count: this.crit ? 16 : 9, burst: true, lifetime: [0.25, 0.5], shape: 'sphere', shapeRadius: 0.12, speed: [1.2, this.crit ? 4.5 : 3], gravity: -2, drag: 2.5, size: { start: [0.2, 0.32], end: 0 }, color: { start: this._hex, end: this._hex }, alpha: { start: 0.9, end: 0 } };
 
     const dir = opts.to.clone().sub(opts.from);
     dir.y = 0;
@@ -1363,8 +1368,9 @@ export class Projectile {
   burst() {
     const g = this.game;
     const at = this.mesh.position.clone();
-    g.spawnBurst?.(at, this.color, this.crit ? 6 : 4);
-    if (this.crit) g.spawnRing?.(at, 0.8, this.color); // anillo solo en crítico (menos saturación)
+    if (g.psys) g.psys.emit(this.impactPreset, at);
+    else g.spawnBurst?.(at, this.color, this.crit ? 6 : 4);
+    if (this.crit) g.spawnRing?.(at, 0.8, this.color); // anillo extra solo en crítico
   }
 
   // devuelve true cuando hay que eliminarlo
@@ -1374,6 +1380,8 @@ export class Projectile {
     if (this.life <= 0) return true;
     this.mesh.position.addScaledVector(this.vel, dt);
     const p = this.mesh.position;
+    // estela de partículas
+    if (g.psys) { this._trailT -= dt; if (this._trailT <= 0) { this._trailT = 0.03; g.psys.emit(this.trailPreset, p); } }
 
     if (!g.world.grid.walkable(p.x, p.z, 0.05)) { this.burst(); return true; }
 
