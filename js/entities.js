@@ -675,8 +675,20 @@ export class Player {
     const t = performance.now() / 1000;
     body.position.y = 0.75 + (moving ? Math.abs(Math.sin(t * 9)) * 0.09 : Math.sin(t * 2) * 0.02);
     this.swing = Math.max(0, this.swing - dt * 5);
+    this.castPoseT = Math.max(0, (this.castPoseT || 0) - dt * 4);
     const hand = this.group.userData.hand;
-    hand.rotation.x = -this.swing * 1.6;
+    // pose de lanzamiento: breve elevación de la mano/arma al castear, encima
+    // de la animación de swing del ataque básico (no la reemplaza).
+    const raise = this.castPoseT * (this.castPoseDir || 0);
+    hand.rotation.x = -this.swing * 1.6 + raise;
+  }
+
+  // Dispara una pose breve de lanzamiento de habilidad. El tipo ajusta el gesto:
+  // los buffs/área levantan más el brazo; los proyectiles/melee, un gesto corto.
+  // Solo afecta a la pose visual de la mano (canal aparte del swing).
+  castPose(type) {
+    this.castPoseT = 1;
+    this.castPoseDir = (type === 'buff' || type === 'aoe_self' || type === 'aoe_target') ? 1.7 : 1.1;
   }
 
   basicAttack(target) {
@@ -705,6 +717,10 @@ export class Player {
         }
       }
       g.spawnRing(target.pos.clone(), 1.4, 0xffbb66);
+      // arco de chispas del tajo + impacto seco sobre el objetivo.
+      const cp = tpos.clone(); cp.y = 1.0;
+      g.emitFx?.('basicCleave', cp);
+      g.emitFx?.('meleeHit', target.pos.clone().setY(1.0));
       g.sfx('hit');
       return;
     }
@@ -716,6 +732,10 @@ export class Player {
     const size = arrow ? 0.09 : 0.17;
     const extra = this.powers?.has('multidisparo') ? 1 : 0;
     const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+    // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
+    const muzzle = this.pos.clone().setY(1.0)
+      .add(new THREE.Vector3(Math.sin(baseAngle) * 0.45, 0, Math.cos(baseAngle) * 0.45));
+    g.emitFx?.(arrow ? 'basicArrow' : 'basicBolt', muzzle);
     for (let i = 0; i <= extra; i++) {
       const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
