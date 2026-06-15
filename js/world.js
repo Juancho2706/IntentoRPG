@@ -5,6 +5,168 @@ import * as THREE from 'three';
 
 function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
 
+// ---------------------------------------------------------
+// Texturas de suelo generadas por canvas (sin assets)
+// ---------------------------------------------------------
+// Genera albedo (ruido sutil teñido al color base) + normal map a juego, para
+// dar grano y micro-relieve al suelo sin depender de imágenes externas. Cachea
+// por color base para no regenerar al recargar el mismo bioma. Tolerante a
+// entornos sin DOM (tests): devuelve null y el material cae a color plano.
+const _groundTexCache = new Map();
+
+function _valueNoise(ctx, s, baseRGB, variation) {
+  // ruido de valor multi-octava pintado celda a celda (barato, una vez)
+  const img = ctx.createImageData(s, s);
+  const d = img.data;
+  // mapa de ruido suavizado por interpolación de una rejilla gruesa
+  const grid = 16, gv = [];
+  for (let i = 0; i <= grid; i++) { gv[i] = []; for (let j = 0; j <= grid; j++) gv[i][j] = Math.random(); }
+  const lerp = (a, b, t) => a + (b - a) * (t * t * (3 - 2 * t));
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const gx = (x / s) * grid, gy = (y / s) * grid;
+      const x0 = gx | 0, y0 = gy | 0, tx = gx - x0, ty = gy - y0;
+      const n = lerp(lerp(gv[x0][y0], gv[x0 + 1][y0], tx),
+                     lerp(gv[x0][y0 + 1], gv[x0 + 1][y0 + 1], tx), ty);
+      // detalle fino superpuesto
+      const fine = (Math.sin(x * 0.7) * Math.cos(y * 0.7) * 0.5 + 0.5);
+      const v = n * 0.8 + fine * 0.2;
+      const k = ((y * s) + x) * 4;
+      const f = (v - 0.5) * variation;
+      d[k]     = Math.max(0, Math.min(255, baseRGB[0] * (1 + f)));
+      d[k + 1] = Math.max(0, Math.min(255, baseRGB[1] * (1 + f)));
+      d[k + 2] = Math.max(0, Math.min(255, baseRGB[2] * (1 + f)));
+      d[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// Devuelve { map, normalMap } o null si no hay canvas (tests).
+export function makeGroundTextures(colorHex, opts = {}) {
+  if (typeof document === 'undefined') return null;
+  const key = colorHex + ':' + (opts.variation ?? 0.18);
+  if (_groundTexCache.has(key)) return _groundTexCache.get(key);
+  const s = 256;
+  const c = new THREE.Color(colorHex);
+  const baseRGB = [c.r * 255, c.g * 255, c.b * 255];
+
+  // --- albedo ---
+  const cv = document.createElement('canvas'); cv.width = cv.height = s;
+  const ctx = cv.getContext('2d');
+  _valueNoise(ctx, s, baseRGB, opts.variation ?? 0.18);
+  const map = new THREE.CanvasTexture(cv);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+
+  // --- normal map derivado del brillo del albedo (Sobel) ---
+  const ncv = document.createElement('canvas'); ncv.width = ncv.height = s;
+  const nctx = ncv.getContext('2d');
+  const src = ctx.getImageData(0, 0, s, s).data;
+  const nimg = nctx.createImageData(s, s);
+  const nd = nimg.data;
+  const lum = (x, y) => {
+    const xi = (x + s) % s, yi = (y + s) % s;
+    const k = (yi * s + xi) * 4;
+    return (src[k] + src[k + 1] + src[k + 2]) / 765;
+  };
+  const strength = opts.normalStrength ?? 1.6;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const dx = (lum(x - 1, y) - lum(x + 1, y)) * strength;
+      const dy = (lum(x, y - 1) - lum(x, y + 1)) * strength;
+      const nz = 1.0;
+      const inv = 1 / Math.hypot(dx, dy, nz);
+      const k = (y * s + x) * 4;
+      nd[k]     = (dx * inv * 0.5 + 0.5) * 255;
+      nd[k + 1] = (dy * inv * 0.5 + 0.5) * 255;
+      nd[k + 2] = (nz * inv * 0.5 + 0.5) * 255;
+      nd[k + 3] = 255;
+    }
+  }
+  nctx.putImageData(nimg, 0, 0);
+  const normalMap = new THREE.CanvasTexture(ncv);
+  normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
+
+  const out = { map, normalMap };
+  _groundTexCache.set(key, out);
+  return out;
+}
+
+// Construye los parámetros de un MeshStandardMaterial de suelo con textura/
+// normal opcionales. Si no hay texturas (tests), cae a color plano sin incluir
+// claves undefined (evita warnings de three por normalScale sin normalMap).
+export function groundMatParams(colorHex, tex, normalScale = 0.6) {
+  const p = { color: colorHex, roughness: 1 };
+  if (tex) {
+    p.map = tex.map;
+    p.normalMap = tex.normalMap;
+    p.normalScale = new THREE.Vector2(normalScale, normalScale);
+  }
+  return p;
+}
+
+// Esparce "decals" simples (discos oscuros: grietas/manchas) sobre el suelo.
+// `isOpen(x,z)` opcional filtra a celdas transitables. Pooled en un solo Group.
+export function scatterDecals(group, rnd, count, opts = {}) {
+  if (typeof document === 'undefined') return; // sin canvas en tests
+  const tex = _decalTexture();
+  if (!tex) return;
+  const geo = new THREE.CircleGeometry(1, 12);
+  const minX = opts.minX ?? -10, maxX = opts.maxX ?? 10;
+  const minZ = opts.minZ ?? -10, maxZ = opts.maxZ ?? 10;
+  for (let i = 0; i < count; i++) {
+    const x = minX + rnd() * (maxX - minX);
+    const z = minZ + rnd() * (maxZ - minZ);
+    if (opts.isOpen && !opts.isOpen(x, z)) continue;
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, opacity: 0.18 + rnd() * 0.22,
+      color: opts.color ?? 0x000000, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.rotation.z = rnd() * Math.PI;
+    const r = 0.6 + rnd() * 1.4;
+    m.scale.set(r, r, 1);
+    m.position.set(x, (opts.y ?? 0) + 0.011, z);
+    m.renderOrder = 1;
+    group.add(m);
+  }
+}
+
+let _decalTex = null;
+function _decalTexture() {
+  if (_decalTex) return _decalTex;
+  if (typeof document === 'undefined') return null;
+  const s = 64;
+  const cv = document.createElement('canvas'); cv.width = cv.height = s;
+  const ctx = cv.getContext('2d');
+  // mancha irregular con borde difuso (grieta/suciedad)
+  const g = ctx.createRadialGradient(s / 2, s / 2, 2, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(0,0,0,0.9)');
+  g.addColorStop(0.6, 'rgba(0,0,0,0.5)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+  // unas vetas que sugieren grietas
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    let x = s / 2, y = s / 2;
+    ctx.moveTo(x, y);
+    const steps = 4 + (Math.random() * 3 | 0);
+    const ang = Math.random() * Math.PI * 2;
+    for (let j = 0; j < steps; j++) {
+      x += Math.cos(ang + (Math.random() - 0.5)) * 6;
+      y += Math.sin(ang + (Math.random() - 0.5)) * 6;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  _decalTex = new THREE.CanvasTexture(cv);
+  return _decalTex;
+}
+
 // RNG determinista para la mazmorra diaria (misma semilla = mismo trazado)
 export function mulberry32(a) {
   return function () {
@@ -64,10 +226,18 @@ export class Grid {
 
 export function instancedBoxes(positions, size, color, opts = {}) {
   const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
-  const mat = new THREE.MeshStandardMaterial({
+  const matParams = {
     color, roughness: opts.roughness ?? 0.95, metalness: 0.02,
     emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.emissiveIntensity ?? 1,
-  });
+  };
+  // texturas opcionales: solo se incluyen si existen (evita warnings de three
+  // por parámetros undefined, p.ej. normalScale sin normalMap)
+  if (opts.map) matParams.map = opts.map;
+  if (opts.normalMap) {
+    matParams.normalMap = opts.normalMap;
+    matParams.normalScale = new THREE.Vector2(opts.normalScale ?? 0.6, opts.normalScale ?? 0.6);
+  }
+  const mat = new THREE.MeshStandardMaterial(matParams);
   const mesh = new THREE.InstancedMesh(geo, mat, positions.length);
   const m = new THREE.Matrix4();
   const c = new THREE.Color();
@@ -192,14 +362,18 @@ export function buildTown() {
     for (let x = 1; x < W - 1; x++)
       grid.cells[z][x] = 1;
 
-  // suelo
+  // suelo con grano: textura/normal generadas por canvas (césped del pueblo)
+  const gTex = makeGroundTextures(0x5e7a44, { variation: 0.22, normalStrength: 1.4 });
+  if (gTex) { gTex.map.repeat.set(W / 5, H / 5); gTex.normalMap.repeat.set(W / 5, H / 5); }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(W, H),
-    new THREE.MeshStandardMaterial({ color: 0x5e7a44, roughness: 1 })
+    new THREE.MeshStandardMaterial(groundMatParams(0x5e7a44, gTex, 0.6))
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   group.add(ground);
+  // manchas/parches de tierra repartidos (coherente con el camino)
+  scatterDecals(group, Math.random, 22, { minX: -W / 2 + 2, maxX: W / 2 - 2, minZ: -H / 2 + 2, maxZ: H / 2 - 2, color: 0x3a2c1a });
 
   // camino central de tierra
   const path = new THREE.Mesh(
@@ -436,7 +610,11 @@ export function buildDungeon(floor, seed = null) {
         }
       }
     }
-  group.add(instancedBoxes(floorPos, [1, 0.1, 1], biome.floor, { vary: 0.05 }));
+  // suelo de mazmorra con grano por bioma (textura/normal canvas; cada losa
+  // recibe el mapa con leve relieve para asentar la iluminación de contacto)
+  const dTex = makeGroundTextures(biome.floor, { variation: 0.16, normalStrength: 1.6 });
+  group.add(instancedBoxes(floorPos, [1, 0.1, 1], biome.floor,
+    { vary: 0.05, map: dTex?.map || null, normalMap: dTex?.normalMap || null, normalScale: 0.5 }));
   // muros bajos para que los enemigos no queden ocultos tras ellos en la vista isométrica
   group.add(instancedBoxes(wallPos, [1, 1.2, 1], biome.wall, { vary: 0.08, castShadow: false }));
   if (accentPos.length)
@@ -672,13 +850,16 @@ export function buildRefuge() {
     for (let x = 1; x < W - 1; x++)
       grid.cells[z][x] = 1;
 
+  const rTex = makeGroundTextures(0x2e2848, { variation: 0.16, normalStrength: 1.5 });
+  if (rTex) { rTex.map.repeat.set(W / 5, H / 5); rTex.normalMap.repeat.set(W / 5, H / 5); }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(W, H),
-    new THREE.MeshStandardMaterial({ color: 0x2e2848, roughness: 1 })
+    new THREE.MeshStandardMaterial(groundMatParams(0x2e2848, rTex, 0.5))
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   group.add(ground);
+  scatterDecals(group, Math.random, 16, { minX: -W / 2 + 2, maxX: W / 2 - 2, minZ: -H / 2 + 2, maxZ: H / 2 - 2, color: 0x120a22 });
 
   // muralla
   const wallPos = [];

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {
   Grid, instancedBoxes, makePortal, makeWaypoint, makeNPC, makeTorch, mulberry32, BIOMES,
-  makeShrineMesh, SHRINE_DEFS,
+  makeShrineMesh, SHRINE_DEFS, makeGroundTextures, groundMatParams, scatterDecals,
 } from './world.js';
 
 // Construye una zona abierta para el bioma indicado.
@@ -102,14 +102,25 @@ export function buildZone(biomeName, opts = {}) {
   // ----------------------------------------------------------
   // 3) Suelo: un único plano grande
   // ----------------------------------------------------------
+  // suelo con grano por bioma: textura/normal generadas por canvas (coherente
+  // con el color de cada bioma y el grading del composer). Cae a color plano
+  // en entornos sin canvas (tests).
+  const zTex = makeGroundTextures(biome.floor, { variation: 0.2, normalStrength: 1.6 });
+  if (zTex) { zTex.map.repeat.set(W / 5, H / 5); zTex.normalMap.repeat.set(W / 5, H / 5); }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(W, H),
-    new THREE.MeshStandardMaterial({ color: biome.floor, roughness: 1 })
+    new THREE.MeshStandardMaterial(groundMatParams(biome.floor, zTex, 0.7))
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.05;
   ground.receiveShadow = true;
   group.add(ground);
+  // grietas/manchas repartidas solo sobre celdas transitables del bioma
+  scatterDecals(group, rnd, 60, {
+    minX: grid.ox + 2, maxX: grid.ox + W - 2, minZ: grid.oz + 2, maxZ: grid.oz + H - 2,
+    y: -0.05, color: 0x000000,
+    isOpen: (x, z) => grid.walkable(x, z),
+  });
 
   // ----------------------------------------------------------
   // 4) Obstáculos instanciados (rocas/formaciones) + borde perimetral
