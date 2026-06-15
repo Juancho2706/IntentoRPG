@@ -17,6 +17,22 @@ const SLOT_ICON = {
 };
 const HOVER_TOOLTIP = window.matchMedia('(pointer: fine)').matches;
 
+// contexto de cada estadística derivada (qué hace) — se muestra como tooltip
+// en la hoja de personaje para que el jugador entienda su build.
+const DERIVED_DESC = {
+  dmg: 'Daño por golpe de tu arma + atributos. Base de todo tu daño.',
+  crit: 'Probabilidad de golpe crítico (x2 daño).',
+  lph: 'Vida que recuperas cada vez que golpeas a un enemigo.',
+  mph: 'Maná que recuperas cada vez que golpeas a un enemigo.',
+  thorns: 'Daño que devuelves a quien te golpea cuerpo a cuerpo.',
+  maxHP: 'Vida máxima. Al llegar a 0 mueres.',
+  maxMP: 'Maná máximo. Lo gastan tus habilidades.',
+  arm: 'Reduce el daño físico recibido.',
+  spd: 'Velocidad de movimiento.',
+  mf: 'Hallazgo mágico: sube la probabilidad de botín raro y legendario.',
+  cdr: 'Reducción de enfriamiento: tus habilidades se recargan más rápido.',
+};
+
 export class UI {
   constructor(game) {
     this.game = game;
@@ -929,7 +945,7 @@ export class UI {
       this.bindCell(div, { zone: 'inv', key: i, item }, item ? () => this.itemPopup(item, { from: 'inv', index: i }) : null);
       invGrid.appendChild(div);
     }
-    $('inv-gold').textContent = `🪙 ${p.gold} oro · arrastra para equipar, engarzar u ordenar`;
+    $('inv-gold').textContent = `🪙 ${p.gold} oro · toca para comparar/equipar · arrastra para mover (I o B para abrir)`;
   }
 
   // bloque ▲▼ de comparación de un objeto del inventario contra lo equipado
@@ -1120,6 +1136,8 @@ export class UI {
 
   renderSkills() {
     const p = this.game.player;
+    const nav = $('sk-build-nav');
+    if (nav) { nav.innerHTML = this.buildNavHTML('skills'); this.bindBuildNav(nav); }
     $('skill-points').textContent = p.skillPoints > 0 ? `Puntos disponibles: ${p.skillPoints}` : 'Sin puntos disponibles';
     const cont = $('skill-tree');
     cont.innerHTML = '';
@@ -1131,8 +1149,10 @@ export class UI {
       tierDiv.innerHTML = `<div class="tier-head">Tier ${tier} ${unlocked ? '' : `· requiere nivel ${reqLvl}`}</div>`;
       for (const sk of p.cls.skills.filter(s => s.tier === tier)) {
         const lvl = p.skills[sk.id] || 0;
+        // mejorable = aprendida, con puntos disponibles y por debajo del máximo
+        const upgradeable = unlocked && p.skillPoints > 0 && lvl < sk.max;
         const div = document.createElement('div');
-        div.className = 'skill-node' + (lvl > 0 ? ' learned' : '');
+        div.className = 'skill-node' + (lvl > 0 ? ' learned' : '') + (upgradeable ? ' upgradeable' : '');
         const details = this.skillDetails(sk, Math.max(1, lvl));
         let synHTML = '';
         if (sk.synergies) {
@@ -1141,12 +1161,14 @@ export class UI {
             return `+${sy.pct}% daño por punto en ${src ? src.name : sy.from}`;
           });
           const bonus = synergyBonus(sk, p.skills);
-          synHTML = `<small class="sk-syn">🔗 ${txts.join(' · ')}${bonus > 0 ? ` <b>(actual +${bonus}%)</b>` : ''}</small>`;
+          synHTML = `<small class="sk-syn">🔗 Sinergia: ${txts.join(' · ')}${bonus > 0 ? ` <b>(actual +${bonus}%)</b>` : ''}</small>`;
         }
+        const typeTag = sk.type === 'passive' ? '<span class="sk-tag passive">Pasiva</span>' : '<span class="sk-tag active">Activa</span>';
+        const upTag = upgradeable ? '<span class="sk-tag up">▲ Mejorable</span>' : '';
         div.innerHTML = `
           <span class="sk-big">${sk.icon}</span>
           <div class="sk-info">
-            <strong>${sk.name} <em>${lvl}/${sk.max}</em></strong>
+            <strong>${sk.name} <em>${lvl}/${sk.max}</em> ${typeTag}${upTag}</strong>
             <small>${sk.desc}</small>
             <small class="sk-nums">${details}</small>
             ${synHTML}
@@ -1194,6 +1216,11 @@ export class UI {
 
     const wrap = document.createElement('div');
     wrap.className = 'sk-supports';
+    const head = document.createElement('div');
+    head.className = 'sk-supports-head';
+    head.textContent = `🔧 Soportes (${cur.length}/${MAX_SLOTS})`;
+    head.title = 'Engarza hasta 2 soportes para modificar esta habilidad. Cada uno tiene un efecto y, a veces, una contrapartida.';
+    wrap.appendChild(head);
 
     const persist = () => {
       // limpia vacíos y duplicados, recorta a MAX_SLOTS
@@ -1258,11 +1285,53 @@ export class UI {
     return parts.join(' · ');
   }
 
+  // nº de glifos que tienes en la mochila sin engarzar en el Tablero de Paragon
+  unsocketedGlyphCount() {
+    const p = this.game.player;
+    return p.inventory.filter(it => it.kind === 'glyph').length;
+  }
+
+  // Barra de navegación del "build" que conecta Personaje ↔ Habilidades ↔ Paragon.
+  // Se inserta en lo alto de los tres paneles para que se entienda que son partes
+  // del mismo sistema y para hacer EVIDENTE dónde están habilidades y glifos.
+  buildNavHTML(active) {
+    const p = this.game.player;
+    const para = p.paragon || {};
+    const skillBadge = p.skillPoints > 0 ? `<span class="bnav-badge">${p.skillPoints}</span>` : '';
+    const pgPts = para.points || 0;
+    const freeGlyphs = this.unsocketedGlyphCount();
+    const pgBadge = (pgPts + freeGlyphs) > 0 ? `<span class="bnav-badge">${pgPts + freeGlyphs}</span>` : '';
+    const hasBoard = p.level >= 20 || pgPts > 0 || Object.keys(para.nodes || {}).length > 0;
+    const tab = (key, icon, label, badge, on) =>
+      `<button class="bnav-tab${on ? ' on' : ''}" data-bnav="${key}">${icon} <span class="bnav-lbl">${label}</span>${badge}</button>`;
+    return `<div class="build-nav">
+        ${tab('stats', '🧍', 'Personaje', '', active === 'stats')}
+        ${tab('skills', '📖', 'Habilidades', skillBadge, active === 'skills')}
+        ${hasBoard ? tab('paragon', '🌟', 'Paragon / Glifos', pgBadge, active === 'paragon') : ''}
+      </div>`;
+  }
+
+  // conecta los clics de la barra de build a los paneles correspondientes
+  bindBuildNav(containerEl) {
+    if (!containerEl) return;
+    containerEl.querySelectorAll('[data-bnav]').forEach(btn => {
+      btn.onclick = () => {
+        const dest = btn.dataset.bnav;
+        if (dest === 'paragon') this.openParagon();
+        else this.togglePanel(dest);
+      };
+    });
+  }
+
   renderStats() {
     const p = this.game.player;
     const s = p.stats;
     const head = document.querySelector('#panel-stats .panel-head h2');
     if (head) head.textContent = `${p.cls.icon} ${p.heroName} · ${p.cls.name} Nv ${p.level}`;
+
+    // barra de navegación del build (Personaje ↔ Habilidades ↔ Paragon)
+    const nav = $('cs-build-nav');
+    if (nav) { nav.innerHTML = this.buildNavHTML('stats'); this.bindBuildNav(nav); }
 
     // --- cabecera del héroe ---
     const xpNeed = xpForLevel(p.level);
@@ -1288,6 +1357,7 @@ export class UI {
     for (const key of ['fue', 'des', 'vit', 'ene']) {
       const row = document.createElement('div');
       row.className = 'cs-attr';
+      row.title = STAT_DESC[key];
       row.innerHTML = `
         <span class="cs-attr-icon">${ATTR_ICONS[key]}</span>
         <div class="cs-attr-body">
@@ -1318,36 +1388,45 @@ export class UI {
     const pg = $('paragon');
     const para = p.paragon || {};
     const hasBoard = p.level >= 20 || para.points > 0 || Object.keys(para.nodes || {}).length > 0;
+    const freeGlyphs = this.unsocketedGlyphCount();
     if (hasBoard) {
       pgSection.style.display = '';
+      // avisos: puntos sin gastar y/o glifos sin engarzar (descubribilidad)
+      let alert = '';
+      if (para.points > 0) alert += `<div class="cs-build-alert">⚠️ Tienes <b>${para.points}</b> punto(s) de Paragon sin gastar.</div>`;
+      if (freeGlyphs > 0) alert += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) en la mochila sin engarzar.</div>`;
       pg.innerHTML = `<div class="cs-section-head">
-          <span class="cs-section-title">🌟 Paragon</span>
+          <span class="cs-section-title">🌟 Paragon y Glifos</span>
           <span class="cs-points ${para.points > 0 ? 'cs-points-active' : ''}">${para.points > 0 ? `${para.points} pts sin gastar` : 'Nv 20+'}</span>
-        </div>`;
+        </div>
+        ${alert}
+        <p class="cs-build-help">Engarza glifos (🔷) en los nodos de engarce (◇) del tablero para potenciar tu build.</p>`;
       const ob = document.createElement('button');
-      ob.className = 'quest-btn';
-      ob.textContent = '🌟 Abrir Tablero de Paragon';
+      ob.className = 'quest-btn cs-build-cta';
+      ob.innerHTML = `🌟 Abrir Tablero de Paragon / Glifos${(para.points + freeGlyphs) > 0 ? ` <span class="bnav-badge">${para.points + freeGlyphs}</span>` : ''}`;
       ob.onclick = () => this.openParagon();
       pg.appendChild(ob);
     } else pgSection.style.display = 'none';
 
     // --- estadísticas derivadas, agrupadas ---
-    const statLine = (icon, label, val) => `<div class="cs-stat"><span class="cs-stat-lbl">${icon} ${label}</span><span class="cs-stat-val">${val}</span></div>`;
+    // cada línea lleva un tooltip (title) que explica qué hace la estadística
+    const statLine = (icon, label, val, key) =>
+      `<div class="cs-stat"${key && DERIVED_DESC[key] ? ` title="${DERIVED_DESC[key]}"` : ''}><span class="cs-stat-lbl">${icon} ${label}</span><span class="cs-stat-val">${val}</span></div>`;
     const group = (title, lines) => lines ? `<div class="cs-stat-group"><div class="cs-stat-group-title">${title}</div>${lines}</div>` : '';
     const offensive =
-      statLine('⚔️', 'Daño', `${s.dmgMin} - ${s.dmgMax}`) +
-      statLine('🎯', 'Crítico', `${s.crit.toFixed(1)}%`) +
-      (s.lph ? statLine('🩸', 'Vida al golpear', s.lph) : '') +
-      (s.mph ? statLine('🔹', 'Maná al golpear', s.mph) : '') +
-      (s.thorns ? statLine('🌵', 'Espinas', s.thorns) : '');
+      statLine('⚔️', 'Daño', `${s.dmgMin} - ${s.dmgMax}`, 'dmg') +
+      statLine('🎯', 'Crítico', `${s.crit.toFixed(1)}%`, 'crit') +
+      (s.lph ? statLine('🩸', 'Vida al golpear', s.lph, 'lph') : '') +
+      (s.mph ? statLine('🔹', 'Maná al golpear', s.mph, 'mph') : '') +
+      (s.thorns ? statLine('🌵', 'Espinas', s.thorns, 'thorns') : '');
     const defensive =
-      statLine('❤️', 'Vida', `${Math.ceil(p.hp)} / ${s.maxHP}`) +
-      statLine('💧', 'Maná', `${Math.ceil(p.mp)} / ${s.maxMP}`) +
-      statLine('🛡️', 'Armadura', s.arm);
+      statLine('❤️', 'Vida', `${Math.ceil(p.hp)} / ${s.maxHP}`, 'maxHP') +
+      statLine('💧', 'Maná', `${Math.ceil(p.mp)} / ${s.maxMP}`, 'maxMP') +
+      statLine('🛡️', 'Armadura', s.arm, 'arm');
     const utility =
-      statLine('👟', 'Velocidad', s.spd.toFixed(1)) +
-      statLine('🍀', 'Hallazgo mágico', `${s.mf || 0}%`) +
-      (s.cdr ? statLine('⏳', 'Reducción de enfriamiento', `${s.cdr}%`) : '');
+      statLine('👟', 'Velocidad', s.spd.toFixed(1), 'spd') +
+      statLine('🍀', 'Hallazgo mágico', `${s.mf || 0}%`, 'mf') +
+      (s.cdr ? statLine('⏳', 'Reducción de enfriamiento', `${s.cdr}%`, 'cdr') : '');
     $('derived-stats').innerHTML =
       group('Ofensivas', offensive) +
       group('Defensivas', defensive) +
@@ -1686,8 +1765,20 @@ export class UI {
     const para = p.paragon || { points: 0, nodes: {} };
     const N = PARAGON_BOARD_SIZE;
     const cost = g.respecParagonCost();
+    const nav = $('pg-build-nav');
+    if (nav) { nav.innerHTML = this.buildNavHTML('paragon'); this.bindBuildNav(nav); }
     $('paragon-points').textContent = para.points > 0 ? `${para.points} puntos sin gastar` : 'Sin puntos · sube de nivel (20+)';
     $('paragon-points').classList.toggle('cs-points-active', para.points > 0);
+    // avisos visibles: puntos sin gastar / glifos sin engarzar
+    const alertEl = $('pg-alert');
+    if (alertEl) {
+      const freeGlyphs = this.unsocketedGlyphCount();
+      const freeSockets = PARAGON_BOARD.filter(n => n.type === 'socket' && para.nodes?.[n.id] && !para.glyphs?.[n.id]).length;
+      let html = '';
+      if (para.points > 0) html += `<div class="cs-build-alert">⚠️ Tienes <b>${para.points}</b> punto(s) sin gastar.</div>`;
+      if (freeGlyphs > 0) html += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) sin engarzar${freeSockets > 0 ? ` y <b>${freeSockets}</b> engarce(s) ◇ libre(s)` : ''}. Toca un engarce activo para colocarlos.</div>`;
+      alertEl.innerHTML = html;
+    }
     const grid = $('paragon-grid');
     grid.innerHTML = '';
     grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
@@ -1706,9 +1797,12 @@ export class UI {
         if (on) cell.classList.add('on');
         if (avail) cell.classList.add('avail');
         if (gl) cell.classList.add('has-glyph');
+        // engarce activo y vacío: resáltalo para que se vea dónde poner glifos
+        const openSocket = node.type === 'socket' && on && !gl;
+        if (openSocket) cell.classList.add('open-socket');
         cell.textContent = gl ? '🔷' : (glyph[node.type] || '•');
         cell.title = node.type === 'socket'
-          ? (gl ? `${gl.name}` : 'Engarce vacío') + (on ? ' (toca para engarzar)' : '')
+          ? (gl ? `🔷 ${gl.name} (toca para cambiar/quitar)` : 'Engarce de glifo ◇' + (on ? ' — toca para engarzar un glifo' : ' (actívalo primero)'))
           : (node.name ? node.name + ': ' : '') + this.nodeStatsText(node);
         cell.onclick = () => {
           if (node.type === 'socket') {

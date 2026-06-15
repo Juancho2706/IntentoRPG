@@ -121,12 +121,15 @@
 
 <div id="panel-skills" class="panel hidden">
   <div class="panel-head"><h2>📖 Árbol de Habilidades</h2><button class="panel-close">✕</button></div>
+  <div id="sk-build-nav"></div>
   <p id="skill-points" class="points-txt"></p>
   <div id="skill-tree"></div>
 </div>
 
 <div id="panel-stats" class="panel hidden cs-panel">
   <div class="panel-head"><h2>🧍 Personaje</h2><button class="panel-close">✕</button></div>
+
+  <div id="cs-build-nav"></div>
 
   <div id="cs-hero" class="cs-hero"></div>
 
@@ -239,7 +242,14 @@
 <!-- Tablero de Paragon -->
 <div id="panel-paragon" class="panel hidden">
   <div class="panel-head"><h2>🌟 Tablero de Paragon</h2><button class="panel-close">✕</button></div>
+  <div id="pg-build-nav"></div>
   <p id="paragon-points" class="points-txt"></p>
+  <div id="pg-alert"></div>
+  <div class="pg-legend">
+    <span class="pg-help-title">¿Cómo funciona?</span>
+    <span><b>◉</b> inicio · <b>•◆✦</b> nodos de stats · <b>★</b> poderes legendarios</span>
+    <span><b>◇</b> = engarce de glifo · toca un engarce <b>activo</b> para colocar un glifo (🔷) de tu mochila</span>
+  </div>
   <div id="paragon-grid"></div>
   <p id="paragon-info" class="dim">Toca un nodo conectado para activarlo. Los ★ legendarios otorgan poderes.</p>
   <button id="paragon-respec" class="quest-btn"></button>
