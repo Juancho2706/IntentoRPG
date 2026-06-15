@@ -673,7 +673,7 @@ export class UI {
   // Anti-saturación: los números de daño se AGRUPAN — si ya hay un texto del
   // mismo tipo recién creado cerca del mismo punto, se suma a él en vez de
   // crear otro elemento. Además hay un tope duro de simultáneos.
-  spawnText(worldPos, text, cls) {
+  spawnText(worldPos, text, cls, opts = {}) {
     // ¿es un número de daño puro? (para agrupar). Conserva firma pública.
     const dmgCls = cls === 'txt-dmg' || cls === 'txt-crit';
     const n = dmgCls ? parseInt(text, 10) : NaN;
@@ -685,6 +685,7 @@ export class UI {
         f.sum = (f.sum || f.val || 0) + n;
         f.val = f.sum;
         f.el.textContent = String(f.sum);
+        if (opts.big) f.el.classList.add('big-hit'); // si un golpe grande se suma, sube de tamaño
         f.t = 0;                       // reinicia la subida/desvanecido
         f.el.classList.remove('coalesce');
         void f.el.offsetWidth;
@@ -698,7 +699,7 @@ export class UI {
       old?.el.remove();
     }
     const el = document.createElement('div');
-    el.className = 'float-txt ' + cls;
+    el.className = 'float-txt ' + cls + (opts.big ? ' big-hit' : '');
     el.textContent = text;
     $('floats').appendChild(el);
     this.floats.push({

@@ -2030,3 +2030,10 @@ body.low-hp #orb-hp { animation: orbLowHp 0.9s ease-in-out infinite; }
   50% { box-shadow: 0 0 16px rgba(255,40,40,0.85), inset 0 0 12px rgba(255,0,0,0.4); }
 }
 body.reduce-motion.low-hp #orb-hp { animation: none; }
+
+/* ====================== Jerarquía de números de daño ====================== */
+/* Golpe grande (>=18% de la vida del objetivo): número más grande y vistoso.
+   Crítico ya tiene su rebote (critpop2); aquí solo damos tamaño/color. */
+.float-txt.big-hit { font-weight: 900; letter-spacing: 0.3px; }
+.txt-dmg.big-hit { font-size: 26px; color: #ffd76b; text-shadow: 0 0 7px rgba(255,200,60,0.7), 0 1px 3px #000; }
+.txt-crit.big-hit { font-size: 34px; color: #ffb030; text-shadow: 0 0 13px rgba(255,150,30,0.95), 0 2px 4px #000; }

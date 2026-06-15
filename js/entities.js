@@ -907,7 +907,7 @@ export class Enemy {
     fg.scale.x = Math.max(0.001, this.hp / this.maxHP);
     fg.position.x = -0.43 * (1 - fg.scale.x);
     this.game.ui.spawnText(this.pos.clone().add(new THREE.Vector3(rand(-0.3, 0.3), this.def.scale, 0)),
-      `${amount}${crit ? '!' : ''}`, crit ? 'txt-crit' : 'txt-dmg');
+      `${amount}${crit ? '!' : ''}`, crit ? 'txt-crit' : 'txt-dmg', { big: pct >= 0.18 });
     if (this.hp <= 0) this.die();
   }
 
