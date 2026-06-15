@@ -1231,3 +1231,109 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
   .buff { width: 40px; height: 40px; }
   .buff-ico { font-size: 18px; }
 }
+
+/* ============================================================
+   UX de PANELES de BUILD (hoja de personaje, habilidades, paragon)
+   y DESCUBRIBILIDAD de glifos/paragon — agente paneles
+   ============================================================ */
+
+/* --- barra de navegación del build (Personaje ↔ Habilidades ↔ Paragon) --- */
+.build-nav {
+  display: flex; gap: 6px; margin: 0 0 10px;
+  padding: 4px; border-radius: 8px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--panel-border);
+}
+.bnav-tab {
+  flex: 1; position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  min-height: 38px; padding: 6px 4px;
+  font-size: 12px; font-weight: bold; color: #d8c7a6;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid transparent; border-radius: 6px;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.bnav-tab:hover { background: rgba(201,162,39,0.12); color: #fff; }
+.bnav-tab.on {
+  background: rgba(201,162,39,0.18);
+  border-color: var(--gold); color: var(--gold);
+}
+.bnav-lbl { white-space: nowrap; }
+.bnav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 4px; margin-left: 2px;
+  font-size: 11px; font-weight: bold; color: #1a1208;
+  background: var(--gold); border-radius: 9px;
+  box-shadow: 0 0 6px rgba(201,162,39,0.7);
+  animation: bnavPulse 1.4s ease-in-out infinite;
+}
+@keyframes bnavPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(201,162,39,0.5); }
+  50% { box-shadow: 0 0 11px rgba(201,162,39,0.95); }
+}
+@media (max-width: 520px) {
+  .bnav-lbl { font-size: 11px; }
+}
+
+/* --- avisos de build (puntos sin gastar / glifos sin engarzar) --- */
+.cs-build-alert {
+  margin: 6px 0; padding: 7px 9px;
+  font-size: 12px; line-height: 1.35; color: #ffe9a8;
+  background: rgba(201,162,39,0.12);
+  border-left: 3px solid var(--gold); border-radius: 5px;
+}
+.cs-build-alert.glyph {
+  color: #bfe4ff;
+  background: rgba(74,158,255,0.12);
+  border-left-color: #4a9eff;
+}
+.cs-build-help {
+  margin: 4px 0 8px; font-size: 11px; color: #9c8e6f; line-height: 1.35;
+}
+.cs-build-cta { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.cs-attr { cursor: help; }
+
+/* --- leyenda/ayuda del Tablero de Paragon --- */
+.pg-legend {
+  margin: 0 0 10px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 11px; line-height: 1.4; color: #c4b48c;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--panel-border); border-radius: 7px;
+}
+.pg-legend .pg-help-title { font-weight: bold; color: var(--gold); font-size: 12px; }
+.pg-legend b { color: #e8d9a8; }
+
+/* engarce de glifo activo y vacío: resáltalo para que se descubra */
+.para-cell.open-socket {
+  color: #4a9eff;
+  box-shadow: 0 0 8px rgba(74,158,255,0.7), inset 0 0 6px rgba(74,158,255,0.4);
+  border-color: #4a9eff !important;
+  animation: socketPulse 1.5s ease-in-out infinite;
+}
+@keyframes socketPulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(74,158,255,0.5), inset 0 0 4px rgba(74,158,255,0.3); }
+  50% { box-shadow: 0 0 12px rgba(74,158,255,0.95), inset 0 0 8px rgba(74,158,255,0.55); }
+}
+
+/* --- habilidades: etiquetas de tipo / mejorable y resalte --- */
+.sk-tag {
+  display: inline-block; margin-left: 4px; padding: 1px 6px;
+  font-size: 9px; font-weight: bold; border-radius: 8px;
+  vertical-align: middle;
+}
+.sk-tag.active { background: rgba(201,162,39,0.2); color: #e8d9a8; }
+.sk-tag.passive { background: rgba(120,140,255,0.18); color: #b9c4ff; }
+.sk-tag.up {
+  background: rgba(74,222,128,0.2); color: #7ee8a0;
+  animation: bnavPulse 1.4s ease-in-out infinite;
+}
+.skill-node.upgradeable {
+  border-color: rgba(74,222,128,0.55);
+  box-shadow: 0 0 7px rgba(74,222,128,0.25);
+}
+.sk-supports-head {
+  margin: 6px 0 3px; font-size: 11px; font-weight: bold;
+  color: var(--gold); cursor: help;
+}
+

@@ -25,6 +25,7 @@ export class Input {
       this.updateKeyDir();
       const g = this.game;
       if (e.code === 'KeyI') g.ui.togglePanel('inv');
+      if (e.code === 'KeyB') g.ui.togglePanel('inv');
       if (e.code === 'KeyT') g.ui.togglePanel('skills');
       if (e.code === 'KeyC') g.ui.togglePanel('stats');
       if (e.code === 'KeyQ') { g.player?.usePotion('hp'); }
