@@ -1337,3 +1337,179 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
   color: var(--gold); cursor: help;
 }
 
+/* ============================================================
+   HUD+ — tipografía, brújula, feedback y flourishes
+   (sección añadida: mejoras de HUD / brújula / momentos)
+   ============================================================ */
+
+/* ---------- tipografía global ----------
+   Inter (sans legible) para datos; Cinzel (display de fantasía) para títulos.
+   Fallback a las serif previas si las webfonts no cargan (sin conexión). */
+html, body {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+h1, h2, h3, h4,
+.death-title, .quest-status, .cs-section-title,
+.panel-head h2, .popup-name {
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.02em;
+}
+/* los datos numéricos del HUD se leen mejor con cifras tabulares */
+#hud-info, .orb-txt, .pot-count, #hud-gold, .sk-cost, .float-txt {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- brújula / indicador de borde ---------- */
+#compass { position: fixed; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+.compass-arrow {
+  position: absolute; left: 0; top: 0;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  will-change: transform, opacity;
+  transition: opacity 0.15s linear;
+  filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));
+}
+/* la flecha (➤) gira con el contenedor (apunta al objetivo); el icono se
+   mantiene legible girado en sentido contrario */
+.compass-arrow .cmp-tip {
+  position: absolute; right: -12px; font-size: 16px;
+}
+.compass-arrow .cmp-ico {
+  font-size: 18px;
+  transform: rotate(calc(-1 * var(--cmp-rot, 0deg)));
+}
+.cmp-goblin .cmp-ico, .cmp-goblin .cmp-tip { color: #ffd24a; text-shadow: 0 0 6px rgba(255,210,74,0.8); }
+.cmp-boss .cmp-ico, .cmp-boss .cmp-tip { color: #ff5544; text-shadow: 0 0 6px rgba(255,60,40,0.9); }
+.cmp-boss { animation: cmpPulse 1.2s ease-in-out infinite; }
+@keyframes cmpPulse { 0%,100% { filter: drop-shadow(0 0 4px rgba(0,0,0,0.8)); } 50% { filter: drop-shadow(0 0 9px rgba(255,60,40,0.9)); } }
+
+/* ---------- barra de habilidades: cooldown RADIAL + coste de maná ---------- */
+.cd-overlay.cd-radial {
+  /* anula la versión lineal: ahora barre en radial con conic-gradient */
+  height: 100% !important; border-radius: inherit;
+  background: conic-gradient(rgba(0,0,0,0.66) var(--cd-deg, 0deg), transparent 0deg);
+}
+.cd-overlay.cd-radial:not(.on) { background: transparent; }
+.sk-cost {
+  position: absolute; bottom: 1px; right: 4px;
+  font-size: 10px; font-weight: 600; color: #7fb3ff;
+  text-shadow: 0 1px 2px #000; pointer-events: none;
+}
+.skill-btn.no-mana .sk-cost { color: #ff6a6a; }
+/* parpadeo rojo al intentar lanzar sin maná */
+.skill-btn.mana-flash { animation: manaFlash 0.45s ease-out; }
+@keyframes manaFlash {
+  0%, 100% { box-shadow: none; border-color: #41506a; }
+  25%, 75% { box-shadow: 0 0 12px rgba(255,40,40,0.9) inset, 0 0 8px rgba(255,40,40,0.7); border-color: #ff4040; }
+}
+
+/* ---------- números de daño: color por tipo + pop en críticos ---------- */
+/* (refuerza lo existente; el crit recibe un "pop" más marcado y resplandor) */
+.txt-crit {
+  color: #ff7a2e;
+  text-shadow: 0 0 8px rgba(255,90,20,0.9), 0 1px 3px #000;
+  animation: critpop2 0.34s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes critpop2 {
+  0% { scale: 2.4; rotate: -6deg; }
+  60% { scale: 0.92; rotate: 2deg; }
+  100% { scale: 1; rotate: 0deg; }
+}
+/* "tick" cuando varios golpes se agrupan en el mismo número */
+.float-txt.coalesce { animation: coalescePop 0.18s ease-out; }
+@keyframes coalescePop { 0% { scale: 1.35; } 100% { scale: 1; } }
+
+/* ---------- flourishes de momentos ---------- */
+#flourish { position: fixed; inset: 0; pointer-events: none; z-index: 7; overflow: hidden; }
+
+/* subir de nivel: anillo dorado expansivo + destello + rótulo */
+.fl-levelup {
+  position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%);
+  width: 0; height: 0;
+}
+.fl-levelup .fl-ring {
+  position: absolute; left: 50%; top: 50%; width: 40px; height: 40px;
+  border: 3px solid var(--gold); border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 24px rgba(201,162,39,0.9);
+  animation: flRing 1.2s ease-out forwards;
+}
+.fl-levelup .fl-burst {
+  position: absolute; left: 50%; top: 50%; width: 8px; height: 8px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255,236,160,0.95), rgba(201,162,39,0) 70%);
+  animation: flBurst 0.9s ease-out forwards;
+}
+.fl-levelup .fl-lbl {
+  position: absolute; left: 50%; top: -54px; transform: translateX(-50%);
+  font-family: 'Cinzel', Georgia, serif; font-weight: 700; font-size: 22px;
+  color: #ffe9a8; text-shadow: 0 0 12px rgba(201,162,39,0.95), 0 2px 4px #000;
+  white-space: nowrap; animation: flLbl 1.4s ease-out forwards;
+}
+@keyframes flRing { 0% { width: 40px; height: 40px; opacity: 0.95; } 100% { width: 340px; height: 340px; opacity: 0; } }
+@keyframes flBurst { 0% { width: 8px; height: 8px; opacity: 1; } 100% { width: 220px; height: 220px; opacity: 0; } }
+@keyframes flLbl { 0% { opacity: 0; transform: translateX(-50%) scale(0.7); } 25% { opacity: 1; transform: translateX(-50%) scale(1.05); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) scale(1) translateY(-12px); } }
+
+/* legendario/mítico: haz vertical + viñeta dorada breve + nombre */
+.fl-legendary .fl-vignette {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(201,162,39,0.30) 100%);
+  animation: flVignette 1.5s ease-out forwards;
+}
+.fl-legendary .fl-beam {
+  position: fixed; left: 50%; top: 0; bottom: 0; width: 120px;
+  transform: translateX(-50%);
+  background: linear-gradient(to bottom, rgba(255,210,74,0) 0%, rgba(255,210,74,0.45) 45%, rgba(255,236,160,0.7) 75%, rgba(255,210,74,0) 100%);
+  filter: blur(6px);
+  animation: flBeam 1.4s ease-out forwards;
+}
+.fl-legendary .fl-name {
+  position: fixed; left: 50%; top: 60%; transform: translateX(-50%);
+  font-family: 'Cinzel', Georgia, serif; font-weight: 700; font-size: 20px;
+  color: #ffce5e; text-shadow: 0 0 12px rgba(255,160,40,0.9), 0 2px 4px #000;
+  white-space: nowrap; animation: flLbl 1.6s ease-out forwards;
+}
+@keyframes flVignette { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes flBeam { 0% { opacity: 0; transform: translateX(-50%) scaleY(0.6); } 30% { opacity: 1; transform: translateX(-50%) scaleY(1); } 100% { opacity: 0; transform: translateX(-50%) scaleY(1.1); } }
+
+/* ---------- pantalla de muerte más dramática ---------- */
+#death-screen.dramatic { animation: deathFade 0.9s ease-out; }
+#death-screen.dramatic .death-title {
+  animation: deathTitle 1.1s cubic-bezier(.2,.9,.3,1) both;
+  text-shadow: 0 0 18px rgba(200,20,20,0.8), 0 3px 8px #000;
+}
+#death-screen.dramatic #death-text { animation: deathText 1.3s ease-out both; }
+#death-screen.hardcore { background: radial-gradient(ellipse at center, #2a0303 0%, #000 100%); }
+#death-screen.hardcore .death-title { animation: deathTitleHC 1.3s ease-out both; }
+@keyframes deathFade { 0% { background-color: rgba(60,0,0,0.0); opacity: 0; } 100% { opacity: 1; } }
+@keyframes deathTitle { 0% { opacity: 0; transform: scale(2.2); filter: blur(8px); } 55% { opacity: 1; transform: scale(0.96); filter: blur(0); } 100% { transform: scale(1); } }
+@keyframes deathTitleHC { 0% { opacity: 0; letter-spacing: 0.6em; } 100% { opacity: 1; letter-spacing: 0.02em; } }
+@keyframes deathText { 0% { opacity: 0; } 60% { opacity: 0; } 100% { opacity: 0.9; } }
+
+/* ---------- modo limpio del HUD ----------
+   oculta lo no esencial; conserva orbes, pociones, acciones y avisos críticos */
+body.hud-clean #minimap,
+body.hud-clean #buff-bar,
+body.hud-clean #quest-tracker,
+body.hud-clean #zone-contracts,
+body.hud-clean #hud-info { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+/* el botón para alternar y los avisos siguen visibles y usables */
+body.hud-clean #menu-btns { opacity: 0.55; }
+body.hud-clean #menu-btns:hover { opacity: 1; }
+#btn-clean-hud[aria-pressed="true"] { box-shadow: 0 0 8px rgba(201,162,39,0.8) inset; color: var(--gold); }
+
+/* respeta movimiento reducido: sin animaciones de flourish ni brújula pulsante */
+body.reduce-motion .fl-levelup *,
+body.reduce-motion .fl-legendary *,
+body.reduce-motion .cmp-boss,
+body.reduce-motion #death-screen.dramatic,
+body.reduce-motion #death-screen.dramatic .death-title,
+body.reduce-motion .txt-crit,
+body.reduce-motion .float-txt.coalesce,
+body.reduce-motion .skill-btn.mana-flash { animation: none !important; }
+
+@media (max-width: 520px) {
+  .compass-arrow { width: 26px; height: 26px; }
+  .compass-arrow .cmp-ico { font-size: 16px; }
+  .fl-levelup .fl-lbl, .fl-legendary .fl-name { font-size: 17px; }
+}
