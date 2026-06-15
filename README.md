@@ -22,7 +22,7 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Atributos RPG**: Fuerza, Destreza, Vitalidad y Energía (+5 puntos por nivel)
 - **Árbol de habilidades**: 6 habilidades por clase en 3 tiers (activas, buffs y pasivas), +1 punto por nivel
 - **Sinergias** estilo Diablo 2: invertir puntos en una habilidad potencia a otras de su rama
-- **Soportes de habilidad** (estilo gemas de PoE): modificadores que se aprenden del botín y se asignan a una habilidad (Amplificado, Multiproyectil, Perforante, Expansivo, Gélido)
+- **Soportes de habilidad 2.0** (estilo gemas de PoE): se aprenden del botín y se engarzan **hasta 2 por habilidad**, con efectos y contrapartidas (Amplificado, Multiproyectil, Perforante, Expansivo, Gélido, **Encadenado**, **Concentrado** +daño/−área, **Eco** que repite la habilidad, **Veneno/Sangrado** con daño por tiempo, **Sangre Fría** crítico contra congelados, **Sobrecarga**)
 - **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
 - **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
 - **Mundo abierto (4 regiones)**: zonas abiertas (Cripta, Cavernas de Hielo, Infierno, Abismo Estelar; 120×120, terreno orgánico) desbloqueadas por nivel y viajables desde cualquier waypoint; el pueblo conecta con la Cripta por puertas que se cruzan caminando. Cada zona tiene entradas a mazmorras instanciadas escaladas a su bioma, **respawn gradual**, **jefe de mundo** con gran botín y **obeliscos de evento**; tap en el minimapa abre el **mapa descubierto** (niebla de guerra)
@@ -41,7 +41,9 @@ Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en 
 - **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes
 - **Jefes con mecánicas por bioma**: el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego
 - **Cubo de transmutación** (sumidero de oro): 3 objetos de la misma rareza → 1 superior pagando oro (escala con la rareza); 3 legendarios → reforjar uno nuevo (muy caro); si los 3 comparten ranura, el resultado es de esa ranura; recetas de gemas gratis
-- **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente quema de cerca, Explosivo detona al morir, Espinoso refleja daño…)
+- **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente, Explosivo, Espinoso, **Encarcelador**, **Vórtice**, **Escudado**, **Cadenas**…)
+- **Arquetipos de enemigos** con telegrafía y contrajuego: **Nigromante** (invoca esbirros), **Acólito Sanador**, **Portaestandarte** (escudo a aliados), **Sembrador de Esporas** (se divide al morir), **Embestidor** (carga en línea con aviso) y **Francotirador del Vacío** (disparo cargado de largo alcance)
+- **Game-feel / efectos de impacto**: *hit-stop* escalado con la fuerza del golpe, destello blanco en los enemigos golpeados, sacudida de cámara basada en "trauma" y estallidos al impactar los proyectiles
 - **Esquiva** con invulnerabilidad breve (Shift / botón 💨) y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo
 - **Santuarios** en las mazmorras: bendiciones de XP, furia, vida y oro… y alguno maldito
 - **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios, con tasas equilibradas (los legendarios son un acontecimiento, no rutina)
