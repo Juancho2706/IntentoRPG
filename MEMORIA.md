@@ -39,6 +39,7 @@
 ### Clases y progresión
 - **3 clases** (Guerrero/Maga/Arquera), 6 skills c/u en 3 tiers (`TIER_LEVELS=[1,6,12]`), máx 5 puntos, **sinergias** (`data.js`).
 - **Soportes de habilidad** (estilo gemas de soporte PoE): 12 soportes, 2 por skill (`data.js SUPPORTS`).
+- ✅ **UI del árbol de habilidades reworkeada** (2026‑06‑15): `UI.renderSkills` rediseñado — cabecera con clase + puntos destacados, rejilla de **tarjetas** (1/2 col responsive), **pips de rango** (●●●○○), etiquetas Activa/Pasiva/▲Mejorable/★Máx, **previsualización del próximo nivel** (`skillUpgradeLine`/`skillMainAt`: "actual → siguiente"), botón **+** flotante, engarces de soporte con look de chip. CSS `.sk-*` nuevo.
 - **Paragon**: tablero 9×9 con nodos + engarces de **glifos** (escalan con adyacentes).
 - **Bendiciones** permanentes (8, 4 categorías, una por categoría) — recompensa de grietas.
 - **Tormento** (dificultad 0–10, Estatua del Mundo), **Códice de Aspectos** (extraer/grabar poderes), **Pináculo** (uber boss con Fragmentos → míticos).

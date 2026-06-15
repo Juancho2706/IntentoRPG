@@ -1572,66 +1572,115 @@ export class UI {
     btns.appendChild(c);
   }
 
+  // pips de rango (●●●○○) para leer el nivel de un vistazo
+  skillPips(lvl, max) {
+    return `<span class="sk-pips">${'●'.repeat(lvl)}<span class="sk-pips-empty">${'○'.repeat(Math.max(0, max - lvl))}</span></span>`;
+  }
+
+  // valor principal de una skill a un nivel (para previsualizar la mejora)
+  skillMainAt(sk, lvl) {
+    if (sk.mult) return `Daño ${Math.round(skillVal(sk.mult, lvl) * 100)}%`;
+    if (sk.buff) return Object.entries(sk.buff).map(([k, v]) => `+${Math.round(skillVal(v, lvl))} ${STAT_NAMES[k] || k}`).join(', ');
+    if (sk.passive) return Object.entries(sk.passive).map(([k, v]) => `+${Math.round(skillVal(v, lvl))} ${STAT_NAMES[k] || k}`).join(', ');
+    if (sk.count) return `${Math.floor(skillVal(sk.count, lvl))} proyectiles`;
+    return null;
+  }
+
+  // línea verde "actual → siguiente" para ver qué aporta el próximo punto
+  skillUpgradeLine(sk, lvl) {
+    const nxt = this.skillMainAt(sk, lvl + 1);
+    if (!nxt) return '';
+    if (lvl === 0) return `<small class="sk-next">Al aprender: <b>${nxt}</b></small>`;
+    const cur = this.skillMainAt(sk, lvl);
+    if (cur === nxt) return '';
+    return `<small class="sk-next">Siguiente: ${cur} <b>→ ${nxt}</b></small>`;
+  }
+
   renderSkills() {
     const p = this.game.player;
     const nav = $('sk-build-nav');
     if (nav) { nav.innerHTML = this.buildNavHTML('skills'); this.bindBuildNav(nav); }
-    $('skill-points').textContent = p.skillPoints > 0 ? `Puntos disponibles: ${p.skillPoints}` : 'Sin puntos disponibles';
+    // cabecera: clase + puntos disponibles destacados + consejo
+    const ptsEl = $('skill-points');
+    const learned = Object.keys(p.skills).length;
+    ptsEl.className = 'sk-summary' + (p.skillPoints > 0 ? ' has-points' : '');
+    ptsEl.innerHTML = `<span class="sk-sum-cls">${p.cls.icon} ${p.cls.name}</span>` +
+      (p.skillPoints > 0
+        ? `<span class="sk-sum-pts">✦ ${p.skillPoints} punto${p.skillPoints > 1 ? 's' : ''} por gastar</span>`
+        : `<span class="sk-sum-pts dim">Sin puntos · ${learned} habilidad${learned === 1 ? '' : 'es'} aprendida${learned === 1 ? '' : 's'}</span>`);
     const cont = $('skill-tree');
     cont.innerHTML = '';
+
     for (let tier = 1; tier <= 3; tier++) {
       const reqLvl = TIER_LEVELS[tier - 1];
       const unlocked = p.level >= reqLvl;
       const tierDiv = document.createElement('div');
-      tierDiv.className = 'skill-tier' + (unlocked ? '' : ' locked');
-      tierDiv.innerHTML = `<div class="tier-head">Tier ${tier} ${unlocked ? '' : `· requiere nivel ${reqLvl}`}</div>`;
+      tierDiv.className = 'sk-tier' + (unlocked ? '' : ' locked');
+      tierDiv.innerHTML = `<div class="sk-tier-head"><span>Nivel ${tier}</span>${unlocked ? '' : `<span class="sk-tier-lock">${icon('lock')} requiere nivel ${reqLvl}</span>`}</div>`;
+      const grid = document.createElement('div');
+      grid.className = 'sk-grid';
+
       for (const sk of p.cls.skills.filter(s => s.tier === tier)) {
         const lvl = p.skills[sk.id] || 0;
-        // mejorable = aprendida, con puntos disponibles y por debajo del máximo
-        const upgradeable = unlocked && p.skillPoints > 0 && lvl < sk.max;
-        const div = document.createElement('div');
-        div.className = 'skill-node' + (lvl > 0 ? ' learned' : '') + (upgradeable ? ' upgradeable' : '');
-        const details = this.skillDetails(sk, Math.max(1, lvl));
+        const maxed = lvl >= sk.max;
+        const upgradeable = unlocked && p.skillPoints > 0 && !maxed;
+        const card = document.createElement('div');
+        card.className = 'sk-card' + (lvl > 0 ? ' learned' : '') + (upgradeable ? ' upgradeable' : '') + (maxed ? ' maxed' : '');
+
+        const typeTag = sk.type === 'passive'
+          ? '<span class="sk-tag passive">Pasiva</span>'
+          : '<span class="sk-tag active">Activa</span>';
+        const stateTag = maxed ? '<span class="sk-tag max">★ Máx</span>'
+          : upgradeable ? '<span class="sk-tag up">▲ Mejorable</span>' : '';
+        // sinergia
         let synHTML = '';
         if (sk.synergies) {
           const txts = sk.synergies.map(sy => {
             const src = p.cls.skills.find(s => s.id === sy.from);
-            return `+${sy.pct}% daño por punto en ${src ? src.name : sy.from}`;
+            return `${sy.pct}%/pt en ${src ? src.name : sy.from}`;
           });
           const bonus = synergyBonus(sk, p.skills);
-          synHTML = `<small class="sk-syn">🔗 Sinergia: ${txts.join(' · ')}${bonus > 0 ? ` <b>(actual +${bonus}%)</b>` : ''}</small>`;
+          synHTML = `<small class="sk-syn">🔗 ${txts.join(' · ')}${bonus > 0 ? ` <b>(+${bonus}% activo)</b>` : ''}</small>`;
         }
-        const typeTag = sk.type === 'passive' ? '<span class="sk-tag passive">Pasiva</span>' : '<span class="sk-tag active">Activa</span>';
-        const upTag = upgradeable ? '<span class="sk-tag up">▲ Mejorable</span>' : '';
-        div.innerHTML = `
-          <span class="sk-big">${sk.icon}</span>
-          <div class="sk-info">
-            <strong>${sk.name} <em>${lvl}/${sk.max}</em> ${typeTag}${upTag}</strong>
-            <small>${sk.desc}</small>
-            <small class="sk-nums">${details}</small>
-            ${synHTML}
-          </div>`;
-        if (unlocked && p.skillPoints > 0 && lvl < sk.max) {
+        const details = this.skillDetails(sk, Math.max(1, lvl));
+        const upLine = (unlocked && !maxed) ? this.skillUpgradeLine(sk, lvl) : '';
+
+        card.innerHTML = `
+          <div class="sk-card-head">
+            <span class="sk-ico" data-lv="${lvl}">${sk.icon}</span>
+            <div class="sk-card-titles">
+              <div class="sk-name-row"><strong>${sk.name}</strong>${typeTag}${stateTag}</div>
+              <div class="sk-rank">${this.skillPips(lvl, sk.max)} <em>${lvl}/${sk.max}</em></div>
+            </div>
+          </div>
+          <small class="sk-desc">${sk.desc}</small>
+          ${details ? `<small class="sk-nums">${details}</small>` : ''}
+          ${upLine}
+          ${synHTML}`;
+
+        if (upgradeable) {
           const b = document.createElement('button');
           b.className = 'sk-plus';
-          b.textContent = '+';
+          b.setAttribute('aria-label', `Mejorar ${sk.name}`);
+          b.innerHTML = '<span>+</span>';
           b.onclick = () => { this.game.learnSkill(sk.id); this.renderSkills(); this.updateHUD(); };
-          div.appendChild(b);
+          card.querySelector('.sk-card-head').appendChild(b);
         }
-        // selectores de soporte: multi-socket (hasta 2) para habilidades activas aprendidas.
-        if (lvl > 0 && sk.type !== 'passive') {
-          this.renderSupportSlots(div.querySelector('.sk-info'), sk);
-        }
-        tierDiv.appendChild(div);
+        // engarces de soporte (hasta 2) para habilidades activas aprendidas
+        if (lvl > 0 && sk.type !== 'passive') this.renderSupportSlots(card, sk);
+        grid.appendChild(card);
       }
+      tierDiv.appendChild(grid);
       cont.appendChild(tierDiv);
     }
+
     // respec de habilidades (sumidero de oro)
     if (Object.keys(p.skills).length) {
+      const cost = this.game.respecCost();
       const rb = document.createElement('button');
-      rb.className = 'quest-btn';
-      rb.textContent = `🔄 Redistribuir habilidades (${this.game.respecCost()} 🪙)`;
-      rb.disabled = p.gold < this.game.respecCost();
+      rb.className = 'quest-btn sk-respec';
+      rb.innerHTML = `${icon('recycle')} Redistribuir habilidades <span class="dim">(${cost} 🪙)</span>`;
+      rb.disabled = p.gold < cost;
       rb.onclick = () => { this.game.respecSkills(); this.renderSkills(); this.updateHUD(); };
       cont.appendChild(rb);
     }
@@ -1656,7 +1705,7 @@ export class UI {
     wrap.className = 'sk-supports';
     const head = document.createElement('div');
     head.className = 'sk-supports-head';
-    head.textContent = `🔧 Soportes (${cur.length}/${MAX_SLOTS})`;
+    head.innerHTML = `${icon('gem')} Engarces de soporte <span class="sk-eng-count">${cur.length}/${MAX_SLOTS}</span>`;
     head.title = 'Engarza hasta 2 soportes para modificar esta habilidad. Cada uno tiene un efecto y, a veces, una contrapartida.';
     wrap.appendChild(head);
 

@@ -438,30 +438,57 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .popup-btns .btn-bad { background: #3a1d1d; border-color: #6a3a3a; }
 
 /* árbol de habilidades */
-.skill-tier { margin-bottom: 10px; }
-.skill-tier.locked { opacity: 0.45; }
-.tier-head { font-size: 12px; color: #bba868; border-bottom: 1px solid #3a3226; margin-bottom: 6px; padding-bottom: 2px; }
-.skill-node {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px; margin-bottom: 5px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #3a3226; border-radius: 7px;
-}
-.skill-node.learned { border-color: #6a5a30; background: rgba(201, 162, 39, 0.07); }
-.sk-big { font-size: 26px; width: 36px; text-align: center; }
-.sk-info { flex: 1; }
-.sk-info strong { font-size: 14px; }
-.sk-info em { color: var(--gold); font-style: normal; font-size: 12px; }
-.sk-info small { display: block; font-size: 11px; opacity: 0.75; }
+/* ===== Árbol de habilidades (rework UI/UX) ===== */
+.sk-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 2px 0 12px; padding: 8px 12px; border-radius: 9px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
+.sk-summary.has-points { border-color: var(--gold); background: rgba(201,162,39,0.12); box-shadow: 0 0 0 1px rgba(201,162,39,0.25) inset; }
+.sk-sum-cls { font-weight: 700; }
+.sk-sum-pts { font-size: 13px; font-weight: 700; color: var(--gold); }
+.sk-sum-pts.dim { color: #9a937f; font-weight: 500; }
+
+.sk-tier { margin-bottom: 16px; }
+.sk-tier.locked { opacity: 0.5; }
+.sk-tier-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;
+  font-family: 'Cinzel', Georgia, serif; font-size: 14px; color: var(--gold);
+  border-bottom: 1px solid rgba(201,162,39,0.25); padding-bottom: 4px; }
+.sk-tier-lock { font-size: 11px; color: #b08a8a; font-family: inherit; margin-left: auto; }
+.sk-tier-lock .ui-ico { width: 12px; height: 12px; vertical-align: -1px; }
+
+/* rejilla de tarjetas: 1 col en móvil estrecho, 2 cuando hay sitio */
+.sk-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 560px) { .sk-grid { grid-template-columns: 1fr 1fr; } }
+
+.sk-card { position: relative; padding: 10px 11px; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  transition: border-color 0.15s, transform 0.08s; }
+.sk-card.learned { border-color: #6a5a30; background: rgba(201,162,39,0.07); }
+.sk-card.upgradeable { border-color: #6ecc4a; box-shadow: 0 0 10px rgba(110,204,74,0.15); }
+.sk-card.maxed { border-color: rgba(201,162,39,0.5); }
+.sk-card-head { display: flex; align-items: center; gap: 10px; }
+.sk-ico { font-size: 28px; width: 46px; height: 46px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 10px; background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.08); }
+.sk-card.learned .sk-ico { border-color: rgba(201,162,39,0.5); }
+.sk-ico[data-lv="0"] { filter: grayscale(0.7) brightness(0.8); }
+.sk-card-titles { flex: 1; min-width: 0; }
+.sk-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sk-name-row strong { font-size: 14px; }
+.sk-rank { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.sk-rank em { color: var(--gold); font-style: normal; font-size: 11px; }
+.sk-pips { letter-spacing: 2px; color: var(--gold); font-size: 11px; }
+.sk-pips-empty { color: rgba(255,255,255,0.2); }
+.sk-card small { display: block; font-size: 11px; line-height: 1.45; margin-top: 4px; }
+.sk-desc { opacity: 0.78; }
 .sk-nums { color: #9fc8ff !important; }
-.sk-syn { color: #b8e8a0 !important; }
+.sk-next { color: #8fdd8f !important; }
+.sk-next b { color: #b6f0a0; }
+.sk-syn { color: #b8e8a0 !important; opacity: 0.95; }
 .sk-syn b { color: #8fdd8f; }
-.sk-plus {
-  width: 38px; height: 38px; font-size: 20px; border-radius: 8px;
-  background: #1d3a1d; color: #8fdd8f;
-  border: 1px solid #3a6a3a;
-  flex-shrink: 0;
-}
+.sk-plus { position: absolute; top: 9px; right: 9px; width: 40px; height: 40px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 22px; font-weight: 700;
+  background: linear-gradient(180deg, #265a26, #1d3a1d); color: #aef0ae;
+  border: 1px solid #3a7a3a; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+.sk-plus:active { transform: scale(0.92); }
 
 #records { font-size: 13px; line-height: 1.8; opacity: 0.9; }
 #wp-list { margin-top: 8px; }
@@ -670,10 +697,11 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 }
 
 .sk-support {
-  display: block; margin-top: 5px; width: 100%;
-  background: #1a1510; color: #b8e8a0; border: 1px solid #3a5a2a;
-  border-radius: 6px; padding: 4px 6px; font-family: inherit; font-size: 12px;
+  display: block; margin-top: 5px; width: 100%; box-sizing: border-box;
+  background: rgba(26,40,20,0.85); color: #cfeeb8; border: 1px solid #3a5a2a;
+  border-radius: 7px; padding: 6px 8px; font-family: inherit; font-size: 12px;
 }
+.sk-support:focus { outline: none; border-color: #6ecc4a; }
 .sk-support option:disabled { color: #666; }
 .sk-supports { display: block; margin-top: 4px; }
 .sk-support-sum {
@@ -1332,14 +1360,16 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
   background: rgba(74,222,128,0.2); color: #7ee8a0;
   animation: bnavPulse 1.4s ease-in-out infinite;
 }
-.skill-node.upgradeable {
-  border-color: rgba(74,222,128,0.55);
-  box-shadow: 0 0 7px rgba(74,222,128,0.25);
-}
+.sk-tag.max { background: rgba(201,162,39,0.28); color: #ffe39a; }
+/* --- engarces de soporte dentro de la tarjeta de skill --- */
+.sk-supports { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); }
 .sk-supports-head {
-  margin: 6px 0 3px; font-size: 11px; font-weight: bold;
-  color: var(--gold); cursor: help;
+  margin: 0 0 5px; font-size: 11px; font-weight: bold;
+  color: var(--gold); cursor: help; display: flex; align-items: center; gap: 5px;
 }
+.sk-supports-head .ui-ico { width: 13px; height: 13px; }
+.sk-eng-count { margin-left: auto; font-size: 10px; opacity: 0.8; background: rgba(0,0,0,0.3);
+  padding: 1px 7px; border-radius: 8px; }
 
 /* ============================================================
    HUD+ — tipografía, brújula, feedback y flourishes
