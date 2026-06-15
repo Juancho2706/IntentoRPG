@@ -47,6 +47,9 @@
 - ✅ **Eras / temporadas locales YA EXISTEN** (HECHO 2026‑06‑15, #16): `game-eras.js` + `ERA_MUTATORS`/`ERA_OBJECTIVES`/`eraIdForTime` (data.js). Cada **semana** (bucket de 7 días, determinista) cambia un **mutador global** (reaprovecha recompute stat/power + `xpMul`/`goldMul`) y **3 objetivos** semanales medidos como **delta de `p.records`** desde una instantánea (sin hooks de combate nuevos). Recompensa: oro + Fragmentos; completar las 3 da un **título** cosmético (`p.titles`/`p.title`). UI: sección "Temporada" en el panel de la Estatua del Mundo (`renderProgress`), con barras y botón de reclamar. Estado en `p.era = {id, base, claimed, titleClaimed}`. Tests: `test48-eras`.
 - ✅ **Maestrías/ramas de clase YA EXISTEN** (HECHO 2026‑06‑15): `MASTERIES` en `data.js` (3 ramas por clase, 6 nodos c/u: 3 menores + 2 notables + 1 capstone). Se desbloquean en nivel `MASTERY_START_LEVEL` (12), +1 punto cada 2 niveles. Estado en `player.mastery = { id, nodes, points }`. Nodos = `stats` (los suma `recompute`) y/o `power` (entra en `this.powers` y se interpreta en combate). Capstones nuevos cableados: `m_berserk` (rollDamage), `m_aegis` (Player.takeDamage, survive‑lethal), `m_judgment`/`m_conflag` (onEnemyKilled novas), `m_overload` (onDealHit maná), `m_deadeye`/`m_shatter`/`m_hunt` (Enemy.takeDamage). Reespecializable por oro. UI: pestaña "Maestría" en el build‑nav → `UI.openMastery/renderMastery`, `#panel-mastery`. Economía/gestión: `game-mastery.js`. Tests: `test45-maestrias`.
 
+### Poder del héroe (HECHO 2026‑06‑15, #15)
+- ✅ `stats.power` (en `recompute`): puntuación única que resume la build (daño efectivo con crít/aspd + vida + armadura + maná + mf + lph + thorns + cdr). Se muestra en la ficha (`.cs-power`, "⚡ Poder N") y **flota "+N ⚡ Poder"** cuando sube (detección en `updateHUD`, 10Hz). Test: `test50-poder-heroe`.
+
 ### Loot / crafteo
 - Rarezas normal→conjunto, afijos primarios/secundarios (mayores ★), **engarces+gemas (6)+runas (6)+runewords (5)**, **sets (3)**, **míticos** doble poder, **relics** de jefe, glifos, fragmentos, llaves de grieta.
 - **Masterworking / calidad** (`it.quality` 0–`MAX_QUALITY=5`): escala armadura y afijos; lo aplica `recompute` (`q = 1 + quality*0.06`).
@@ -108,7 +111,7 @@
 | #13 | Maestrías fase 3: soportes `transform`/aspectos de habilidad | pendiente (ampliación) |
 | #11 | **Pueblo contiguo a zona open** (seamless hub, sin portal) | ✅ HECHO (2026‑06‑15) |
 | #12 | Herrero (Masterworking) + más servicios de hub | pendiente |
-| #15 | HUD de objetivo del loop + "Poder del héroe" | parcial (itemPower existe) |
+| #15 | "Poder del héroe" (puntuación de build + feedback) | ✅ HECHO (2026‑06‑15); HUD de objetivo del loop = pendiente |
 | #16 | "Eras"/temporadas locales (mutador + objetivos semanales) | ✅ HECHO (2026‑06‑15) |
 
 ## 6. Bugs/gotchas conocidos

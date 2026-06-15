@@ -436,6 +436,15 @@ export class Player {
       cdr: Math.min(50, item.cdr), // tope de reducción de enfriamiento
       goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
     };
+    // "Poder del héroe": puntuación única que resume tu build (sube al mejorar
+    // equipo/nivel/paragon/maestrías…). Refuerza la sensación de "número sube".
+    const st = this.stats;
+    // el crítico multiplica el daño efectivo; aspd (atkTime menor = más DPS)
+    const dmgAvg = (st.dmgMin + st.dmgMax) / 2 * (1 + st.crit / 100 * 0.8) * (this.cls.atkTime / st.atkTime);
+    st.power = Math.round(
+      dmgAvg * 1.4 + st.maxHP * 0.08 + st.arm * 0.25 + st.maxMP * 0.03 +
+      (st.mf || 0) * 0.1 + (st.lph || 0) * 0.6 + (st.thorns || 0) * 0.3 + st.cdr * 0.6
+    );
     if (this.hp != null) {
       this.hp = Math.min(this.hp, this.stats.maxHP);
       this.mp = Math.min(this.mp, this.stats.maxMP);

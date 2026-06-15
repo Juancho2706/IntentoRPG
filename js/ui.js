@@ -358,6 +358,12 @@ export class UI {
   updateHUD() {
     const p = this.game.player;
     if (!p) return;
+    // "Poder del héroe": feedback flotante cuando SUBE (equipar mejor, nivel,
+    // paragon, maestría…). Un solo punto de detección, barato (10Hz).
+    const pw = p.stats.power || 0;
+    if (this._lastPower != null && pw > this._lastPower && this.game.state === 'play')
+      this.spawnText(p.pos, `+${pw - this._lastPower} ⚡ Poder`, 'txt-gold');
+    this._lastPower = pw;
     const hpPct = Math.max(0, p.hp / p.stats.maxHP * 100);
     const mpPct = Math.max(0, p.mp / p.stats.maxMP * 100);
     $('orb-hp-fill').style.height = hpPct + '%';
@@ -1842,6 +1848,7 @@ export class UI {
           ${p.title ? `<div class="cs-hero-title">${p.title}</div>` : ''}
         </div>
       </div>
+      <div class="cs-power" title="Poder del héroe: resume la fuerza de tu build. Sube al mejorar equipo, nivel, paragon o maestrías.">⚡ Poder <b>${s.power || 0}</b></div>
       <div class="cs-xp"><div class="cs-xp-fill" style="width:${xpPct}%"></div></div>
       <div class="cs-xp-txt">XP ${p.xp} / ${xpNeed}</div>`;
 

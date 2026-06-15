@@ -1966,3 +1966,9 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
 .guide-lock .ui-ico { width: 11px; height: 11px; }
 .guide-ok { font-size: 11px; font-weight: 700; color: #6ecc4a; }
 .guide-how { font-size: 11px; font-weight: 600; color: #8fb8e0; }
+
+/* Poder del héroe (resumen de build) en la ficha de personaje */
+.cs-power { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+  font-size: 13px; color: #ffd86b; background: rgba(201,162,39,0.12);
+  border: 1px solid rgba(201,162,39,0.3); border-radius: 8px; padding: 3px 10px; cursor: help; }
+.cs-power b { font-size: 15px; color: #fff; }
