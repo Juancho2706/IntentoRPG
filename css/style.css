@@ -411,6 +411,10 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .diff { font-size: 13px; padding: 1px 0; }
 .diff.up { color: #6ecc4a; }
 .diff.down { color: #ff6655; }
+.verdict { display: block; font-weight: 700; font-size: 13px; margin-bottom: 3px; letter-spacing: 0.3px; }
+.verdict.up { color: #6ecc4a; }
+.verdict.down { color: #ff6655; }
+.verdict.side { color: #d8c07a; }
 
 /* opciones */
 .opt-row {

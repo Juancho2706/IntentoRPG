@@ -1256,10 +1256,44 @@ export class UI {
   }
 
   // bloque ▲▼ de comparación de un objeto del inventario contra lo equipado
+  // "poder" del objeto: suma ponderada para el veredicto de un vistazo
+  itemPower(it) {
+    if (!it || it.kind !== 'item') return 0;
+    let s = 0;
+    if (it.dmg) s += (it.dmg[0] + it.dmg[1]) / 2 * 2;
+    if (it.arm) s += it.arm;
+    const W = { crit: 3, dmgPct: 1.5, aspdPct: 1.2, spdPct: 0.8, mf: 0.4, cdr: 1.2, lph: 0.5, mph: 0.4, thorns: 0.3 };
+    for (const [k, v] of Object.entries(it.affixes || {})) s += v * (W[k] ?? 1);
+    if (it.gems?.length) for (const gm of it.gems) for (const v of Object.values(gm.stats || {})) s += v;
+    s *= 1 + (it.quality || 0) * 0.06;
+    if (it.power) s += 12;                  // un aspecto legendario vale mucho
+    return Math.round(s);
+  }
+
   buildCompare(item) {
     const p = this.game.player;
-    const equipped = item.slot ? p.equipment[item.slot] : null;
-    if (!equipped || equipped === item || item.kind !== 'item') return '';
+    if (item.kind !== 'item' || !item.slot) return '';
+    // ranura objetivo: en anillos, se compara con el que SE REEMPLAZARÍA (el peor
+    // equipado si ambas ranuras están ocupadas; si hay hueco, no hay rival)
+    let equipped, freeSlot = false;
+    if (item.slot === 'ring') {
+      const r1 = p.equipment.ring, r2 = p.equipment.ring2;
+      if (!r1 || !r2) { equipped = null; freeSlot = true; }
+      else equipped = this.itemPower(r1) <= this.itemPower(r2) ? r1 : r2;
+    } else equipped = p.equipment[item.slot] || null;
+    if (equipped === item) return '';
+
+    // veredicto por poder
+    const dPow = this.itemPower(item) - this.itemPower(equipped);
+    let verdict;
+    if (freeSlot) verdict = `<span class="verdict up">⬆ Mejora (ranura libre)</span>`;
+    else if (!equipped) verdict = `<span class="verdict up">⬆ Mejora (nada equipado)</span>`;
+    else if (dPow > 1) verdict = `<span class="verdict up">⬆ Mejora (+${dPow} poder)</span>`;
+    else if (dPow < -1) verdict = `<span class="verdict down">⬇ Peor (${dPow} poder)</span>`;
+    else verdict = `<span class="verdict side">↔ Lateral</span>`;
+
+    if (!equipped) return `<div class="compare">${verdict}</div>`;
+
     const summarize = (it) => {
       const m = {};
       if (it.dmg) m._dmg = (it.dmg[0] + it.dmg[1]) / 2;
@@ -1275,7 +1309,7 @@ export class UI {
       const label = k === '_dmg' ? `${Math.abs(d)} daño medio` : statText(k, Math.abs(d)).replace('+', '');
       diffs.push(`<div class="diff ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ -'}${label}</div>`);
     }
-    return `<div class="compare"><em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
+    return `<div class="compare">${verdict}<em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
   }
 
   // tooltip de escritorio: aparece al pasar el ratón sobre una celda

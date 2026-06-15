@@ -1433,19 +1433,54 @@ class Game {
       mesh.position.set(pos.x, 0.35, pos.z);
     this.lootGroup.add(mesh);
     const gi = { id: 'gi' + this.giUid++, item, mesh, bob: Math.random() * Math.PI * 2 };
-    // pilar de luz por rareza: el loot bueno se ve desde lejos
+    // pilar de luz por rareza: el loot bueno se ve desde lejos. La altura, el
+    // grosor y el brillo escalan con la rareza (un legendario "canta" desde lejos).
     if (item.kind === 'item' || item.kind === 'gem' || item.kind === 'rune' || item.kind === 'riftkey' || item.kind === 'support' || item.kind === 'fragment' || item.kind === 'glyph') {
+      const tier = this.lootTier(item);
+      const h = 2.2 + tier * 0.55, base = 0.18 + tier * 0.06;
       const beam = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.07, 0.13, 2.4, 6, 1, true),
+        new THREE.CylinderGeometry(0.06 + tier * 0.02, 0.12 + tier * 0.03, h, 7, 1, true),
         new THREE.MeshBasicMaterial({
-          color: RARITIES[item.rarity].glow, transparent: true, opacity: 0.3,
+          color: RARITIES[item.rarity]?.glow ?? 0xffffff, transparent: true, opacity: base,
           blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
         }));
-      beam.position.set(mesh.position.x, 1.2, mesh.position.z);
+      beam.position.set(mesh.position.x, h / 2, mesh.position.z);
       this.lootGroup.add(beam);
-      gi.beam = beam;
+      gi.beam = beam; gi.beamBase = base;
+      // halo en el suelo para botín top (legendario/conjunto/mítico): gira y pulsa
+      if (tier >= 3) {
+        const halo = new THREE.Mesh(
+          new THREE.RingGeometry(0.45, 0.7, 28),
+          new THREE.MeshBasicMaterial({ color: RARITIES[item.rarity]?.glow ?? 0xffcc44, transparent: true, opacity: 0.55, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+        halo.rotation.x = -Math.PI / 2;
+        halo.position.set(mesh.position.x, 0.06, mesh.position.z);
+        this.lootGroup.add(halo);
+        gi.halo = halo;
+      }
+      // sonido de caída por rareza (throttled para no saturar en oleadas de drops)
+      this.dropSound(tier);
     }
     this.groundItems.push(gi);
+  }
+
+  // tier de "fanfarria" del botín (0 normal … 3 legendario/conjunto/mítico)
+  lootTier(item) {
+    if (item.mythic) return 3;
+    const byRarity = { normal: 0, magico: 1, raro: 2, legendario: 3, conjunto: 3 };
+    if (item.rarity in byRarity) return byRarity[item.rarity];
+    // materiales valiosos (glifos/fragmentos/llaves) cuentan como notables
+    if (item.kind === 'glyph' || item.kind === 'fragment' || item.kind === 'riftkey') return 2;
+    return 1;
+  }
+
+  // sonido de drop por rareza, con ventana anti-spam: en una ráfaga de drops
+  // solo suena el de mayor rareza (no una cacofonía por cada objeto del pack)
+  dropSound(tier) {
+    if (tier < 2) return;
+    const now = performance.now();
+    if (now - (this._dropSfxAt || 0) < 400 && tier <= (this._dropSfxTier || 0)) return;
+    this._dropSfxAt = now; this._dropSfxTier = tier;
+    this.sfx(tier >= 3 ? 'droplegend' : 'droprare');
   }
 
   pickupGroundItem(gi) {
@@ -1501,6 +1536,10 @@ class Game {
     if (gi.beam) {
       this.lootGroup.remove(gi.beam);
       gi.beam.geometry.dispose(); gi.beam.material.dispose();
+    }
+    if (gi.halo) {
+      this.lootGroup.remove(gi.halo);
+      gi.halo.geometry.dispose(); gi.halo.material.dispose();
     }
     this.groundItems.splice(this.groundItems.indexOf(gi), 1);
     this.save();
@@ -1682,7 +1721,8 @@ class Game {
       // filtro de loot: atenúa la baliza del botín por debajo del umbral (oro/pociones siempre visibles)
       const filtered = gi.item.rarity && !this.passesLootFilter(gi.item.rarity);
       gi.mesh.visible = !filtered;
-      if (gi.beam) { gi.beam.visible = !filtered; gi.beam.material.opacity = 0.22 + Math.sin(t * 2.5 + gi.bob) * 0.1; }
+      if (gi.beam) { gi.beam.visible = !filtered; gi.beam.material.opacity = (gi.beamBase || 0.22) + Math.sin(t * 2.5 + gi.bob) * 0.1; }
+      if (gi.halo) { gi.halo.visible = !filtered; gi.halo.rotation.z += dt * 1.4; gi.halo.material.opacity = 0.4 + Math.sin(t * 3 + gi.bob) * 0.18; }
       if (this.state === 'play') {
         const k = gi.item.kind;
         // recogida automática al pasar por encima: oro/pociones/soportes siempre;

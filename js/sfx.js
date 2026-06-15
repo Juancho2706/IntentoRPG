@@ -23,6 +23,9 @@ export function createSfx() {
     chest:   [{ f: 350, d: 0.1, type: 'triangle', v: 0.12 }, { f: 700, d: 0.15, type: 'triangle', v: 0.1, t: 0.1 }],
     skill:   [{ f: 520, d: 0.1, type: 'sawtooth', v: 0.09, slide: 250 }],
     dash:    [{ f: 450, d: 0.16, type: 'sawtooth', v: 0.08, slide: -280 }],
+    // caída de botín por rareza: raro = doble nota corta; legendario = arpegio brillante
+    droprare:  [{ f: 660, d: 0.09, type: 'triangle', v: 0.09 }, { f: 990, d: 0.1, type: 'triangle', v: 0.08, t: 0.07 }],
+    droplegend:[{ f: 780, d: 0.1, type: 'sine', v: 0.12 }, { f: 1170, d: 0.1, type: 'sine', v: 0.11, t: 0.08 }, { f: 1560, d: 0.22, type: 'sine', v: 0.1, t: 0.16 }],
   };
   return (name) => {
     const c = ensure();
