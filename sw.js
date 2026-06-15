@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v24';
+const VERSION = 'v25';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -20,14 +20,39 @@ const ASSETS = [
   './js/vfx.js',
   './js/zones.js',
   './js/music.js',
+  './js/postfx.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
   'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
 ];
 
+// Addons de post-procesado (post-fx: bloom + viñeta + grading). Se precachean
+// aparte y de forma NO atómica: si alguno falla, el post-procesado se degrada
+// con elegancia (render directo) sin romper la instalación del núcleo offline.
+// Incluye los módulos transitivos que importan EffectComposer/UnrealBloomPass.
+const ADDON_BASE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/';
+const ADDONS = [
+  'postprocessing/EffectComposer.js',
+  'postprocessing/RenderPass.js',
+  'postprocessing/UnrealBloomPass.js',
+  'postprocessing/ShaderPass.js',
+  'postprocessing/OutputPass.js',
+  'postprocessing/Pass.js',
+  'postprocessing/MaskPass.js',
+  'shaders/CopyShader.js',
+  'shaders/LuminosityHighPassShader.js',
+  'shaders/OutputShader.js',
+].map((p) => ADDON_BASE + p);
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS)
+        // addons en paralelo, tolerante a fallos individuales (no aborta install)
+        .then(() => Promise.all(ADDONS.map((u) => c.add(u).catch(() => {})))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
