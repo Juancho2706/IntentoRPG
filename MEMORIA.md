@@ -62,6 +62,10 @@
 - **`buildTown()`** (pueblo clásico 36×36) se conserva pero ya **no se usa** en el flujo principal (fallback). **Refugio** (2.º pueblo, piso 16) y **mazmorras** procedurales (altares de pacto, **cofres**, **santuarios/shrines**, waypoints cada 5 pisos, jefe por bioma) sin cambios. Otras **zonas open** (Hielo/Infierno/Abismo, 120×120) mantienen su `portal_town` de retorno (→ ahora vuelve al hogar Cripta).
 - **Desafío Diario** (portal en el campamento, semilla determinista por fecha) con **registro/tabla local** (`dailyLog`, top 14). **Hardcore** (muerte permanente, flag persistente).
 
+### Descubribilidad / onboarding (HECHO 2026‑06‑15)
+- ✅ **Sistemas late‑game visibles aunque bloqueados** (aspiración, estilo ARPG moderno): `buildNavHTML` muestra SIEMPRE las pestañas Maestría (🔒 Nv12) y Paragon (🔒 Nv20); al pulsarlas se abre una **vista previa** (maestría: preview de las 3 ramas + capstones; paragon: banner "se desbloquea en Nv20" + tablero visible).
+- ✅ **Guía de Sistemas** (códice de onboarding): botón **❓** en el HUD → `#panel-guide` (`UI.openGuide/renderGuide`) que lista los 16 sistemas (`SYSTEMS_GUIDE` en data.js) con icono, descripción y estado 🔒 Nv X / ✓ Disponible / cómo se accede. Tests: `test49-guia`.
+
 ### Paneles de UI (todos en index.html, render en ui.js)
 `inv` · `skills` · `stats` · `mastery` · `paragon` · `shop` · `stash` · `quest` · `pacts` · `progress` (Estatua: Tormento/Códice/Bendiciones/Pináculo) · `pet` (Domador) · `collection` (bestiario) · `recipes` (cubo) · `waypoints` · `map` · `blessing` (modal) · `settings`. Navegación de build: `buildNavHTML` (Personaje↔Habilidades↔Maestría↔Paragon).
 

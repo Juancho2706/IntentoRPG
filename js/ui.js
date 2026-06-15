@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, PARAGON_BOARD, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
+import { SYSTEMS_GUIDE } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -180,6 +181,7 @@ export class UI {
     $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
     $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
+    $('btn-guide')?.addEventListener('click', () => this.openGuide());
     // modo limpio del HUD: oculta lo no esencial (persiste en settings)
     const cleanBtn = $('btn-clean-hud');
     if (cleanBtn) {
@@ -803,6 +805,7 @@ export class UI {
     else if (this.activePanel === 'collection') this.renderCollection();
     else if (this.activePanel === 'progress') this.renderProgress();
     else if (this.activePanel === 'pet') this.renderPet();
+    else if (this.activePanel === 'guide') this.renderGuide();
     else if (this.activePanel === 'mastery') this.renderMastery();
     else if (this.activePanel === 'paragon') this.renderParagon();
   }
@@ -1792,13 +1795,15 @@ export class UI {
     const mPts = p.mastery?.points || 0;
     const hasMastery = p.level >= MASTERY_START_LEVEL || p.mastery?.id;
     const mBadge = mPts > 0 ? `<span class="bnav-badge">${mPts}</span>` : '';
-    const tab = (key, ico, label, badge, on) =>
-      `<button class="bnav-tab${on ? ' on' : ''}" data-bnav="${key}">${icon(ico)} <span class="bnav-lbl">${label}</span>${badge}</button>`;
+    // tab: si está bloqueado se muestra IGUAL (descubribilidad/aspiración) con
+    // candado y el nivel requerido; al pulsarlo se abre una vista de preview.
+    const tab = (key, ico, label, badge, on, lockLvl) =>
+      `<button class="bnav-tab${on ? ' on' : ''}${lockLvl ? ' bnav-locked' : ''}" data-bnav="${key}"${lockLvl ? ` title="Se desbloquea en el nivel ${lockLvl}"` : ''}>${icon(ico)} <span class="bnav-lbl">${label}</span>${lockLvl ? `<span class="bnav-lock">${icon('lock')} Nv ${lockLvl}</span>` : badge}</button>`;
     return `<div class="build-nav">
         ${tab('stats', 'hero', 'Personaje', '', active === 'stats')}
         ${tab('skills', 'book', 'Habilidades', skillBadge, active === 'skills')}
-        ${hasMastery ? tab('mastery', 'magic', 'Maestría', mBadge, active === 'mastery') : ''}
-        ${hasBoard ? tab('paragon', 'star', 'Paragon / Glifos', pgBadge, active === 'paragon') : ''}
+        ${tab('mastery', 'magic', 'Maestría', mBadge, active === 'mastery', hasMastery ? 0 : MASTERY_START_LEVEL)}
+        ${tab('paragon', 'star', 'Paragon / Glifos', pgBadge, active === 'paragon', hasBoard ? 0 : 20)}
       </div>`;
   }
 
@@ -2261,6 +2266,39 @@ export class UI {
       b.onclick = () => { g.claimEraReward(b.dataset.era); this.renderProgress(); this.updateHUD(); });
   }
 
+  // ---------- Guía de Sistemas (onboarding / descubribilidad) ----------
+  openGuide() {
+    if (this.activePanel !== 'guide') {
+      this.closePanel();
+      this.activePanel = 'guide';
+      $('panel-guide').classList.remove('hidden');
+      this.markJustOpened();
+    }
+    this.renderGuide();
+  }
+
+  renderGuide() {
+    const p = this.game.player;
+    const body = $('guide-body');
+    let html = `<p class="dim">Todo lo que ofrece IntentoRPG. Lo bloqueado se desbloquea jugando — así sabes qué te espera.</p>`;
+    html += `<div class="guide-list">`;
+    for (const sys of SYSTEMS_GUIDE) {
+      const lvlLocked = sys.req && p.level < sys.req;
+      const status = lvlLocked
+        ? `<span class="guide-lock">${icon('lock')} Nivel ${sys.req}</span>`
+        : sys.req
+          ? `<span class="guide-ok">✓ Disponible</span>`
+          : `<span class="guide-how">${sys.reqText || ''}</span>`;
+      html += `<div class="guide-row${lvlLocked ? ' locked' : ''}">
+        <span class="guide-ico">${sys.icon}</span>
+        <div class="guide-info"><div class="guide-name">${sys.name} ${status}</div>
+          <div class="guide-desc">${sys.desc}</div></div>
+      </div>`;
+    }
+    html += `</div>`;
+    body.innerHTML = html;
+  }
+
   // ---------- Domador de Bestias (mascota de utilidad) ----------
   openPet() {
     if (this.activePanel !== 'pet') {
@@ -2377,7 +2415,19 @@ export class UI {
     const list = MASTERIES[p.classId] || [];
 
     if (p.level < MASTERY_START_LEVEL && !p.mastery?.id) {
-      body.innerHTML = `<p class="dim">Las maestrías de clase se desbloquean en el <b>nivel ${MASTERY_START_LEVEL}</b>. Cada 2 niveles ganas 1 punto de maestría.</p>`;
+      // PREVIEW (bloqueado): se ve qué viene, para que el jugador lo anhele
+      let html = `<div class="locked-banner">${icon('lock')} Las maestrías se desbloquean en el <b>nivel ${MASTERY_START_LEVEL}</b> (te faltan ${MASTERY_START_LEVEL - p.level}). Elegirás <b>una</b> de estas ${list.length} ramas y ganarás 1 punto cada 2 niveles. Vista previa:</div>`;
+      html += `<div class="mastery-pick preview">`;
+      for (const m of list) {
+        html += `<div class="mastery-card locked">
+          <div class="mastery-card-ico">${m.icon}</div>
+          <div class="mastery-card-name">${m.name}</div>
+          <div class="dim mastery-card-desc">${m.desc}</div>
+          <ul class="mastery-card-nodes">${m.nodes.filter(n => n.type === 'capstone').map(n => `<li>★ <b>${n.name}</b>: ${n.desc}</li>`).join('')}</ul>
+        </div>`;
+      }
+      html += `</div>`;
+      body.innerHTML = html;
       return;
     }
 
@@ -2468,7 +2518,9 @@ export class UI {
     if (alertEl) {
       const freeGlyphs = this.unsocketedGlyphCount();
       const freeSockets = PARAGON_BOARD.filter(n => n.type === 'socket' && para.nodes?.[n.id] && !para.glyphs?.[n.id]).length;
+      const lockedBoard = p.level < 20 && !para.points && !Object.keys(para.nodes || {}).length;
       let html = '';
+      if (lockedBoard) html += `<div class="locked-banner">${icon('lock')} El Tablero de Paragon se desbloquea en el <b>nivel 20</b> (te faltan ${20 - p.level}). A partir de ahí cada nivel da 1 punto para gastar en este tablero. Esto es una vista previa de lo que te espera.</div>`;
       if (para.points > 0) html += `<div class="cs-build-alert">⚠️ Tienes <b>${para.points}</b> punto(s) sin gastar.</div>`;
       if (freeGlyphs > 0) html += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) sin engarzar${freeSockets > 0 ? ` y <b>${freeSockets}</b> engarce(s) ◇ libre(s)` : ''}. Toca un engarce activo para colocarlos.</div>`;
       alertEl.innerHTML = html;

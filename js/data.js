@@ -544,6 +544,31 @@ export function eraIdForTime(now = Date.now()) {
   return Math.floor(now / (7 * 24 * 60 * 60 * 1000));
 }
 
+// ------------------------------------------------------------
+// GUÍA DE SISTEMAS (códice de onboarding): lista TODO lo que ofrece el juego,
+// para que un jugador nuevo descubra lo que existe (aunque aún no pueda usarlo).
+// `req` = nivel de personaje necesario (0 = desde el inicio); `reqText` = cómo
+// se accede cuando no es por nivel. La UI marca 🔒/✅ según el estado.
+// ------------------------------------------------------------
+export const SYSTEMS_GUIDE = [
+  { icon: '⚔️', name: 'Atributos y daño', desc: 'Reparte puntos en Fuerza/Destreza/Vitalidad/Energía para moldear a tu héroe.', req: 1 },
+  { icon: '📖', name: 'Árbol de habilidades', desc: '6 habilidades por clase en 3 niveles, con sinergias entre ellas.', req: 1 },
+  { icon: '💎', name: 'Soportes de habilidad', desc: 'Engarza hasta 2 soportes por habilidad para modificar su comportamiento (estilo gemas de PoE).', reqText: 'Caen como botín' },
+  { icon: '🌿', name: 'Maestrías de clase', desc: 'Elige 1 de 3 ramas que define tu build, con un capstone potente que la corona.', req: 12 },
+  { icon: '🌟', name: 'Tablero de Paragon', desc: 'Tablero de nodos conectados: cada nivel tras el 20 da un punto para potenciar tu build.', req: 20 },
+  { icon: '🔷', name: 'Glifos', desc: 'Se engarzan en nodos de engarce del Paragon; su poder crece con el rango y los nodos adyacentes.', req: 20 },
+  { icon: '🏆', name: 'Eras (temporadas)', desc: 'Cada semana cambia un mutador global y trae 3 objetivos con recompensa y un título.', req: 1 },
+  { icon: '☠️', name: 'Tormento', desc: 'Dificultad global seleccionable en la Estatua del Mundo: más reto = mejor botín.', reqText: 'Estatua del Mundo' },
+  { icon: '🌀', name: 'Grietas', desc: 'Usa Llaves de Grieta para zonas corruptas de dificultad creciente y gran botín.', reqText: 'Consigue Llaves de Grieta' },
+  { icon: '🌟', name: 'Bendiciones', desc: 'Cada grieta completada ofrece una bendición permanente (una por categoría).', reqText: 'Completa grietas' },
+  { icon: '👁️', name: 'Pináculo', desc: 'Reúne 3 Fragmentos e invoca al jefe uber para conseguir objetos míticos.', reqText: 'Reúne 3 Fragmentos' },
+  { icon: '🩸', name: 'Pactos', desc: 'En mazmorras, sella un pacto: enemigos más fuertes a cambio de más recompensa.', reqText: 'Altares en mazmorras' },
+  { icon: '📜', name: 'Contratos de zona', desc: 'Objetivos por zona abierta; complétalos todos para una gran recompensa.', reqText: 'En zonas abiertas' },
+  { icon: '🐾', name: 'Compañero', desc: 'Adopta y mejora una mascota de UTILIDAD (recoge botín, imán de oro, auras) con el Domador.', reqText: 'Domador de Bestias' },
+  { icon: '🔨', name: 'Cubo, engarce y mejora', desc: 'Transmuta objetos, engarza gemas/runas, reforja afijos y mejora la calidad (masterworking).', req: 1 },
+  { icon: '🗃️', name: 'Alijo compartido', desc: 'Almacén compartido entre todos tus héroes del mismo dispositivo.', req: 1 },
+];
+
 // Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
 // habilidad activa. Se encuentran como botín, se aprenden y se asignan.
 // Cada soporte declara su efecto y, cuando procede, su CONTRAPARTIDA (trade-off).

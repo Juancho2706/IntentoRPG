@@ -1939,3 +1939,30 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
 /* equipo: brillo de rareza más marcado en las ranuras equipadas (jerarquía visual) */
 #panel-inv .equip-cell.rarity-legendario { box-shadow: 0 0 10px rgba(255,140,46,0.35), inset 0 0 8px rgba(255,140,46,0.3); }
 #panel-inv .equip-cell.rarity-conjunto { box-shadow: 0 0 10px rgba(74,222,128,0.3), inset 0 0 8px rgba(74,222,128,0.25); }
+
+/* ====================== Descubribilidad / onboarding ====================== */
+/* Pestaña de build bloqueada: visible (aspiración) con candado y nivel. */
+.bnav-tab.bnav-locked { opacity: 0.7; border-style: dashed; }
+.bnav-lock { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px;
+  font-size: 10px; font-weight: 700; color: #c7a3a3; }
+.bnav-lock .ui-ico { width: 11px; height: 11px; }
+
+/* Banner "se desbloquea en…" en paneles de preview. */
+.locked-banner { margin: 4px 0 12px; padding: 9px 12px; border-radius: 9px; font-size: 13px; line-height: 1.45;
+  background: rgba(201,162,39,0.1); border: 1px solid rgba(201,162,39,0.35); color: #e8dcb0; }
+.locked-banner .ui-ico { width: 14px; height: 14px; vertical-align: -2px; }
+.mastery-pick.preview .mastery-card.locked { opacity: 0.78; filter: saturate(0.85); }
+
+/* Guía de sistemas (códice). */
+.guide-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.guide-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 9px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
+.guide-row.locked { opacity: 0.7; }
+.guide-ico { font-size: 22px; width: 30px; text-align: center; flex-shrink: 0; }
+.guide-info { flex: 1; min-width: 0; }
+.guide-name { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.guide-desc { font-size: 12px; opacity: 0.78; margin-top: 2px; line-height: 1.45; }
+.guide-lock { font-size: 11px; font-weight: 700; color: #c7a3a3; display: inline-flex; align-items: center; gap: 3px; }
+.guide-lock .ui-ico { width: 11px; height: 11px; }
+.guide-ok { font-size: 11px; font-weight: 700; color: #6ecc4a; }
+.guide-how { font-size: 11px; font-weight: 600; color: #8fb8e0; }
