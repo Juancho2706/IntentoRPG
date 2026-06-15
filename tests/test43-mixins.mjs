@@ -5,6 +5,7 @@
 // (una colisión sobrescribiría silenciosamente comportamiento real).
 import { economyMethods } from '../js/economy.js';
 import { enemyAbilities } from '../js/enemy-abilities.js';
+import { endgameMethods } from '../js/game-endgame.js';
 
 const EXPECTED = [
   'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
@@ -23,14 +24,36 @@ if (keys.length !== EXPECTED.length) {
 }
 console.log(`enemyAbilities exporta los ${EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-// sin colisiones de nombres entre los dos mixins (se aplican ambos al prototype)
-const eco = new Set(Object.keys(economyMethods));
-const overlap = keys.filter(k => eco.has(k));
-if (overlap.length) throw new Error('colisión de nombres entre mixins: ' + overlap.join(', '));
-console.log('Sin colisiones de nombres entre economyMethods y enemyAbilities ✓');
+const ENDGAME_EXPECTED = [
+  'ensureZoneBounties', 'bountyProgress', 'grantBountyReward', 'tormentUnlocked',
+  'setTorment', 'checkTormentUnlock', 'extractAspect', 'imprintCost',
+  'imprintAspect', 'offerBlessing', 'chooseBlessing', 'fragmentCount',
+  'pinnacleFloor', 'summonPinnacle',
+];
+const endKeys = Object.keys(endgameMethods);
+for (const m of ENDGAME_EXPECTED) {
+  if (typeof endgameMethods[m] !== 'function') throw new Error('falta método endgame o no es función: ' + m);
+}
+if (endKeys.length !== ENDGAME_EXPECTED.length) {
+  throw new Error(`endgameMethods tiene ${endKeys.length} métodos, esperaba ${ENDGAME_EXPECTED.length}: ${endKeys.join(', ')}`);
+}
+console.log(`endgameMethods exporta los ${ENDGAME_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-// todos los métodos de economyMethods siguen siendo funciones (sanidad)
-for (const [k, v] of Object.entries(economyMethods)) {
-  if (typeof v !== 'function') throw new Error('economyMethods.' + k + ' no es función');
+// sin colisiones de nombres entre los tres mixins (se aplican todos al prototype)
+const mixins = { economyMethods, enemyAbilities, endgameMethods };
+const seen = new Map();
+for (const [name, obj] of Object.entries(mixins)) {
+  for (const k of Object.keys(obj)) {
+    if (seen.has(k)) throw new Error(`colisión de nombres: "${k}" en ${seen.get(k)} y ${name}`);
+    seen.set(k, name);
+  }
+}
+console.log('Sin colisiones de nombres entre economyMethods, enemyAbilities y endgameMethods ✓');
+
+// todos los métodos de los mixins siguen siendo funciones (sanidad)
+for (const [name, obj] of Object.entries(mixins)) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v !== 'function') throw new Error(`${name}.${k} no es función`);
+  }
 }
 console.log('Mixins de Game estructuralmente OK ✓');
