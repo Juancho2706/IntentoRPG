@@ -72,6 +72,9 @@
 - ✅ **Sistemas late‑game visibles aunque bloqueados** (aspiración, estilo ARPG moderno): `buildNavHTML` muestra SIEMPRE las pestañas Maestría (🔒 Nv12) y Paragon (🔒 Nv20); al pulsarlas se abre una **vista previa** (maestría: preview de las 3 ramas + capstones; paragon: banner "se desbloquea en Nv20" + tablero visible).
 - ✅ **Guía de Sistemas** (códice de onboarding): botón **❓** en el HUD → `#panel-guide` (`UI.openGuide/renderGuide`) que lista los 16 sistemas (`SYSTEMS_GUIDE` en data.js) con icono, descripción y estado 🔒 Nv X / ✓ Disponible / cómo se accede. Tests: `test49-guia`.
 
+### Consistencia visual (pase 2026‑06‑15)
+- Cabeceras de sección unificadas: todas las `.panel h4` (progress/collection/recipes/quest/pacts…) ahora usan el mismo dorado con acento inferior que `.opt-section`/`.npc-section-head` (antes eran apagadas `#bba868` sin línea). Scrollbar coherente en paneles desplazables. Solo CSS.
+
 ### Paneles de UI (todos en index.html, render en ui.js)
 `inv` · `skills` · `stats` · `mastery` · `paragon` · `shop` · `stash` · `quest` · `pacts` · `progress` (Estatua: Tormento/Códice/Bendiciones/Pináculo) · `pet` (Domador) · `collection` (bestiario) · `recipes` (cubo) · `waypoints` · `map` · `blessing` (modal) · `settings`. Navegación de build: `buildNavHTML` (Personaje↔Habilidades↔Maestría↔Paragon).
 

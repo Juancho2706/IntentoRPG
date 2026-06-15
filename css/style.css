@@ -2037,3 +2037,26 @@ body.reduce-motion.low-hp #orb-hp { animation: none; }
 .float-txt.big-hit { font-weight: 900; letter-spacing: 0.3px; }
 .txt-dmg.big-hit { font-size: 26px; color: #ffd76b; text-shadow: 0 0 7px rgba(255,200,60,0.7), 0 1px 3px #000; }
 .txt-crit.big-hit { font-size: 34px; color: #ffb030; text-shadow: 0 0 13px rgba(255,150,30,0.95), 0 2px 4px #000; }
+
+/* ====================== Pase de consistencia: cabeceras de sección ====================== */
+/* Unifica TODAS las cabeceras h4 de los paneles al mismo lenguaje dorado con
+   acento inferior (antes algunas eran apagadas #bba868 sin línea). Iguala el
+   look de .opt-section / .npc-section-head en los paneles "antiguos". */
+.panel h4,
+#panel-progress h4,
+#collection-body h4,
+#recipes-body h4 {
+  margin: 14px 0 7px; padding-bottom: 4px;
+  color: var(--gold); font-weight: 600; font-size: 13px; letter-spacing: 0.4px;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.16);
+}
+.panel h4:first-child { margin-top: 2px; }
+/* cabeceras de NPC (tienda/alijo/pactos): mismo acento inferior para cohesión */
+.npc-section-head { padding-bottom: 4px; border-bottom: 1px solid rgba(201, 162, 39, 0.16); font-size: 13px; }
+
+/* Scrollbar coherente en paneles desplazables (sutil, dorado tenue) */
+.panel::-webkit-scrollbar { width: 9px; }
+.panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.25); border-radius: 8px; }
+.panel::-webkit-scrollbar-thumb { background: rgba(201,162,39,0.35); border-radius: 8px; }
+.panel::-webkit-scrollbar-thumb:hover { background: rgba(201,162,39,0.55); }
+.panel { scrollbar-width: thin; scrollbar-color: rgba(201,162,39,0.4) rgba(0,0,0,0.25); }
