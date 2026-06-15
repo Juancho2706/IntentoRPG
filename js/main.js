@@ -12,6 +12,7 @@ import { createSfx } from './sfx.js';
 import { Input } from './input.js';
 import { economyMethods } from './economy.js';
 import { Music } from './music.js';
+import { smoothNoise, hitStopMs } from './vfx.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 // glifo de rareza para las etiquetas del suelo (rareza no solo por color)
@@ -35,9 +36,11 @@ class Game {
     this.healPulse = 0;
     this.saveTimer = 0;
     this.giUid = 1;
-    this.shakeT = 0;
-    this.shakeDur = 1;
-    this.shakeAmp = 0;
+    // game-feel: cámara basada en "trauma" (0..1) y hit-stop por reloj propio
+    this.trauma = 0;       // acumulador 0..1, el desplazamiento usa trauma²
+    this.shakeMag = 0;     // amplitud máxima pedida por las llamadas a addShake
+    this.shakeClock = 0;   // tiempo para el ruido suave (no depende del frame)
+    this.hitStopT = 0;     // segundos restantes de congelado de tiempo
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
@@ -446,11 +449,15 @@ class Game {
     }
   }
 
+  // Cámara basada en "trauma": cada impacto AÑADE trauma (0..1) que decae solo.
+  // El desplazamiento aplicado es trauma² (sensación de golpe seco) con ruido
+  // suave. Misma firma que antes: amp ~ intensidad, dur ~ cuánto trauma sumar.
   addShake(amp, dur = 0.25) {
     if (!this.settings.shake || this.settings.reduceMotion) return;
-    this.shakeAmp = Math.max(this.shakeAmp, amp);
-    this.shakeT = Math.max(this.shakeT, dur);
-    this.shakeDur = dur;
+    // 'amp' marca la amplitud máxima en metros que un trauma pleno desplazará;
+    // 'dur' modula cuánto trauma inyecta este impacto (golpes largos = más).
+    this.shakeMag = Math.max(this.shakeMag, amp);
+    this.trauma = Math.min(1, this.trauma + amp * 0.9 + dur * 0.4);
   }
 
   vibrate(pattern) {
@@ -1629,9 +1636,19 @@ class Game {
 
   // ---------- bucle principal ----------
   tick() {
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const realDt = Math.min(0.05, this.clock.getDelta());
     if (this.state === 'select') { this.renderer.render(this.scene, this.camera); return; }
-    this.monitorFPS(dt);
+    this.monitorFPS(realDt);
+
+    // --- hit-stop: congela el tiempo de juego unos ms al impactar ---
+    // Se descuenta con el reloj real (no setTimeout). Mientras dura, el dt
+    // de animación/movimiento se escala casi a 0 para un "punch" seco.
+    let timeScale = 1;
+    if (this.hitStopT > 0) {
+      this.hitStopT = Math.max(0, this.hitStopT - realDt);
+      timeScale = 0.02;
+    }
+    const dt = realDt * timeScale;
 
     const p = this.player;
     if (this.state === 'play') {
@@ -1763,14 +1780,18 @@ class Game {
     this.camTarget.lerp(p.pos, Math.min(1, dt * 6));
     this.camera.position.copy(this.camTarget).add(this.camOffset);
     this.camera.lookAt(this.camTarget);
-    if (this.shakeT > 0) {
-      this.shakeT = Math.max(0, this.shakeT - dt);
-      const k = this.shakeT / this.shakeDur;
-      const a = this.shakeAmp * k * k;
-      this.camera.position.x += (Math.random() - 0.5) * a;
-      this.camera.position.y += (Math.random() - 0.5) * a * 0.6;
-      this.camera.position.z += (Math.random() - 0.5) * a;
-      if (this.shakeT === 0) this.shakeAmp = 0;
+    // sacudida basada en trauma: usa tiempo REAL (sigue temblando aunque el
+    // hit-stop congele el gameplay) y ruido suave para un movimiento orgánico.
+    if (this.trauma > 0) {
+      this.shakeClock += realDt;
+      this.trauma = Math.max(0, this.trauma - realDt * 1.2); // decaimiento ~1.2/s
+      const shake = this.trauma * this.trauma;               // trauma²
+      const a = this.shakeMag * shake;
+      const f = 22; // frecuencia del ruido
+      this.camera.position.x += smoothNoise(this.shakeClock * f, 1) * a;
+      this.camera.position.y += smoothNoise(this.shakeClock * f, 2) * a * 0.6;
+      this.camera.position.z += smoothNoise(this.shakeClock * f, 3) * a;
+      if (this.trauma === 0) this.shakeMag = 0;
     }
     this.playerLight.position.copy(p.pos).setY(2.2);
     this.sun.position.copy(p.pos).add(new THREE.Vector3(10, 18, 6));
@@ -2084,6 +2105,16 @@ class Game {
       });
     }
     this.ui.syncLabels(entries.slice(0, 24));
+  }
+
+  // ---------- game-feel ----------
+  // Hit-stop: breve congelado del tiempo al impactar. Usa el reloj del juego
+  // (lo consume tick()), nunca setTimeout. Respeta reduceMotion.
+  // Acepta milisegundos (número) o un tipo: 'normal' | 'heavy' | 'crit'.
+  hitStop(amount) {
+    if (this.settings.reduceMotion) return; // accesibilidad: sin congelado
+    const ms = typeof amount === 'string' ? hitStopMs(amount) : amount;
+    this.hitStopT = Math.max(this.hitStopT, ms / 1000);
   }
 }
 
