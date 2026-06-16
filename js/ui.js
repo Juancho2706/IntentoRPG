@@ -1728,12 +1728,13 @@ export class UI {
     const tree = p.cls.tree || [];
     const kindLabel = { basic: 'Genera recurso', core: 'Habilidad', ultimate: 'Definitiva', passive: 'Pasiva' };
     const sections = [];
-    const ZZ = 150; // desfase del zig-zag
     tree.forEach((node, idx) => {
       const unlocked = p.level >= node.req;
       const sec = document.createElement('div');
-      sec.className = 'sk-knode-sec' + (unlocked ? '' : ' locked');
-      if (idx % 2 === 0) sec.style.marginRight = ZZ + 'px'; else sec.style.marginLeft = ZZ + 'px';
+      // nodo raíz (1): ramifica hacia ABAJO. El resto: a los LADOS alternando
+      // (por arriba les llega el espinazo), creando el zig-zag.
+      const side = idx === 0 ? 'down' : (idx % 2 ? 'right' : 'left');
+      sec.className = 'sk-knode-sec sk-sec-' + side + (unlocked ? '' : ' locked');
       const head = document.createElement('div');
       head.className = 'sk-knode-head';
       head.innerHTML =
@@ -1967,13 +1968,13 @@ export class UI {
         const b = c(sections[i + 1].marker);
         spine += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} L${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
       }
-      // RAMAS: del rombo (borde inferior) SURGEN las habilidades (curva en abanico)
-      const ab = cBot(mk);
+      // RAMAS: del rombo SURGEN las habilidades con una curva suave (sirve igual
+      // hacia abajo —nodo 1— que hacia los lados —resto de nodos—)
       for (const s of sections[i].skills) {
-        const b = cTop(s.node);
-        const my = (ab.y + b.y) / 2;
-        branch += `M${ab.x.toFixed(1)} ${ab.y.toFixed(1)} C${ab.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
-        // RAMITAS: de cada habilidad surgen sus 3 filas de pasivos
+        const b = c(s.node);
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        branch += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} C${mx.toFixed(1)} ${a.y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
+        // RAMITAS: de cada habilidad surgen sus filas de pasivos (hacia abajo)
         const sb = cBot(s.node);
         for (const row of s.rows) {
           const t = cLeft(row);
