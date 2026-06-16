@@ -208,7 +208,7 @@ export class Player {
     this.xp = 0;
     this.attributes = { ...this.cls.base };
     this.statPoints = 0;
-    this.skillPoints = 1;
+    this.skillPoints = 0;       // nv1: solo el ataque básico; el 1er punto llega al nv2
     this.skills = {};           // id -> nivel
     this.gold = 50;
     this.potions = { hp: 3, mp: 2 };
@@ -310,24 +310,25 @@ export class Player {
       ...(this.records || {}),
     };
 
-    // --- Sistema de habilidades v2 (D4-lite): el ATAQUE BÁSICO (arma) es el
-    // generador de recurso con el que naces; aprendes 4 habilidades CORE que lo
-    // gastan. Migración: los saves del sistema viejo reembolsan TODO lo invertido
-    // y la build arranca limpia (nivel/oro/equipo/paragon/maestrías intactos).
+    // --- Sistema de habilidades v3 (árbol D4, 6 nodos): naces sabiendo SOLO el
+    // ataque básico de arma; las cores/ultis/pasivas se aprenden con puntos por
+    // nodo (gating por nivel). Migración: reembolsa TODO y deja la build limpia.
     this.skills = (this.skills && typeof this.skills === 'object') ? this.skills : {};
-    if (this.skillSystemV !== 2) {
-      if (saved) {
-        const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0);
-        this.skillPoints = (this.skillPoints | 0) + spent; // reembolso total
-      }
-      this.skills = {};       // build limpia (el básico es implícito, no ocupa skill)
-      this.skillMods = {};    // los Aspectos se reasignan en el nuevo árbol
-      this.skillSystemV = 2;
+    const weaponBasic = (this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon') || this.cls.skills.find(s => s.kind === 'basic') || this.cls.skills[0]);
+    if (this.skillSystemV !== 3) {
+      const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0)
+        + Object.values(this.skillMods || {}).reduce((a, o) => a + Object.keys(o || {}).length, 0);
+      this.skillPoints = (this.skillPoints | 0) + spent; // reembolso total
+      this.skills = {};
+      this.skillMods = {};
+      this.skillSystemV = 3;
     }
-    // purga niveles de habilidades que ya no existen (pasivas/single-target retiradas)
+    // siempre conoces el ataque básico de arma (es tu "ataque principal")
+    if (weaponBasic && !(this.skills[weaponBasic.id] > 0)) this.skills[weaponBasic.id] = 1;
+    // purga niveles de habilidades que ya no existen
     const _valid = new Set(this.cls.skills.map(s => s.id));
     for (const id of Object.keys(this.skills)) if (!_valid.has(id)) delete this.skills[id];
-    // hotbar de 6 ranuras: 🖱️Izq = básico (generador), 🖱️Der + teclas 1·2·3·4
+    // hotbar de 6 ranuras: 🖱️Izq = básico de arma, 🖱️Der + teclas 1·2·3·4
     this.hotbar = this.normalizeHotbar(this.hotbar);
     this.furiaIdle = 0; // temporizador de disipación de Furia (fuera de combate)
 
@@ -357,16 +358,24 @@ export class Player {
     }
   }
 
-  // hotbar de 6 ranuras (lmb/rmb/k1-4). 'basic' = ataque básico generador.
-  // Valida contra las cores actuales y rellena con los valores por defecto.
+  // hotbar de 6 ranuras (lmb/rmb/k1-4). Barra libre: cualquier skill conocible
+  // (básico/core/ultimate) en cualquier ranura. Valida ids y rellena por defecto.
   normalizeHotbar(h) {
-    const cores = this.cls.skills.filter(s => s.kind === 'core').map(s => s.id);
-    const def = { lmb: 'basic', rmb: cores[0] || null, k1: cores[0] || null, k2: cores[1] || null, k3: cores[2] || null, k4: cores[3] || null };
-    const ok = id => id === 'basic' || id === null || cores.includes(id);
+    const all = this.cls.skills;
+    const byKind = k => all.filter(s => s.kind === k).map(s => s.id);
+    const basics = byKind('basic'), cores = byKind('core'), ults = byKind('ultimate');
+    const weapon = all.find(s => s.kind === 'basic' && s.type === 'weapon')?.id || basics[0] || null;
+    const def = { lmb: weapon, rmb: cores[0] || null, k1: cores[1] || null, k2: cores[2] || null, k3: cores[3] || null, k4: ults[0] || null };
+    const placeable = new Set([...basics, ...cores, ...ults]);
+    const ok = id => id === null || placeable.has(id);
     if (!h || typeof h !== 'object') return def;
+    // migración: el literal viejo 'basic' → el básico de arma
     const out = {};
-    for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) out[s] = ok(h[s]) ? (h[s] === undefined ? def[s] : h[s]) : def[s];
-    if (!out.lmb) out.lmb = 'basic';
+    for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
+      let v = h[s];
+      if (v === 'basic') v = weapon;
+      out[s] = (v === undefined) ? def[s] : (ok(v) ? v : def[s]);
+    }
     return out;
   }
 

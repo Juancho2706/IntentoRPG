@@ -541,6 +541,23 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .sk-detail-nums { color: #9fc8ff; font-size: 12px; margin: 4px 0; }
 .sk-detail-syn { color: #b8e8a0; font-size: 12px; margin-bottom: 4px; }
 
+/* ====== Árbol de 6 nodos en cadena (estilo D4) ====== */
+.sk-tree6 { display: flex; flex-direction: column; align-items: center; padding: 4px 0 14px; }
+.sk-trunk6 { width: 3px; height: 22px; background: var(--sk-line); border-radius: 2px; }
+.sk-knode-sec { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.sk-knode-sec.locked { opacity: 0.78; }
+.sk-knode-head { display: flex; align-items: center; gap: 9px; }
+.sk-knode { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+  border: 2px solid #4a5570; background: #1a2233; transform: rotate(45deg); }
+.sk-knode .sk-knode-n { transform: rotate(-45deg); font-weight: 700; color: var(--gold); font-size: 13px; }
+.sk-knode.kind-ultimate { border-color: #d06a2a; }
+.sk-knode.kind-passive { border-radius: 50%; }
+.sk-knode.locked { filter: grayscale(0.8) brightness(0.6); }
+.sk-knode-lbl b { font-size: 13px; }
+.sk-knode-lbl small { display: block; font-size: 10px; opacity: 0.7; }
+.sk-knode-skills { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding: 2px 4px; }
+.sk-skill { display: flex; flex-direction: column; align-items: center; }
+
 /* ====== Editor único de la barra de habilidades ====== */
 .hb-editor { margin: 4px 0 14px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid #2c3344; }
 .hb-editor-head { font-size: 13px; margin-bottom: 8px; }

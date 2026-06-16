@@ -1066,9 +1066,9 @@ class Game {
     if (!p?.hotbar) return;
     const SLOTS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
     if (!SLOTS.includes(slot)) return;
-    if (id !== 'basic') for (const s of SLOTS) if (p.hotbar[s] === id) p.hotbar[s] = null;
+    // sin duplicados: si la habilidad estaba en otra ranura, se libera
+    if (id) for (const s of SLOTS) if (p.hotbar[s] === id) p.hotbar[s] = null;
     p.hotbar[slot] = id;
-    if (!p.hotbar.lmb) p.hotbar.lmb = 'basic';
     this.ui.refreshHotbar();
     this.save();
   }
@@ -1108,21 +1108,27 @@ class Game {
     const key = typeof slotKey === 'number' ? ['k1', 'k2', 'k3', 'k4'][slotKey] : slotKey;
     const skId = (p.hotbar || {})[key];
     if (!skId) return;
-    if (skId === 'basic') { if (!echoMult) this.castBasic(); return; } // generador
     const sk = p.cls.skills.find(s => s.id === skId);
     if (!sk || !(p.skills[sk.id] > 0)) return;
+    // básico de arma (cleave/bolt/arrow) → ataque generador apuntado al cursor
+    if (sk.kind === 'basic' && sk.type === 'weapon') { if (!echoMult) this.castBasic(); return; }
+    const isBasic = sk.kind === 'basic'; // básicos NO-arma (melee/aoe): coste 0, generan recurso
     const isEcho = echoMult > 0;
     const lvl = p.skills[sk.id];
-    const baseCost = Math.round(skillVal(sk.mana, lvl));
-    if (!isEcho && (p.cds[sk.id] || 0) > 0) return;
-    // coste extra de maná de algunos soportes (Eco +60%, Sobrecarga +40%)
+    // gating: los básicos se rigen por la cadencia de ataque (atkCd); el resto por su CD
+    if (!isEcho) {
+      if (isBasic) { if (p.atkCd > 0) return; }
+      else if ((p.cds[sk.id] || 0) > 0) return;
+    }
+    const baseCost = isBasic ? 0 : Math.round(skillVal(sk.mana, lvl));
+    // coste extra de recurso de algunos soportes (Eco +60%, Sobrecarga +40%)
     const supsCost = this.skillSupports(sk.id);
     let manaMul = 1;
     if (supsCost.includes('echo')) manaMul *= 1.6;
     if (supsCost.includes('overcharge')) manaMul *= 1.4;
     if (supsCost.includes('efficient')) manaMul *= 0.65; // soporte Eficiente
     const cost = Math.round(baseCost * manaMul);
-    if (!isEcho && p.mp < cost) {
+    if (!isEcho && !isBasic && p.mp < cost) {
       // throttle: con clic mantenido no spamear el aviso cada frame
       const now = performance.now();
       if (!this._noResAt || now - this._noResAt > 700) { this.ui.message(`${p.cls.resource?.name || 'Maná'} insuficiente`); this._noResAt = now; }
@@ -1326,10 +1332,17 @@ class Game {
 
     if (casted) {
       if (!isEcho) {
-        p.mp -= cost;
-        p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100) * (has('swift') ? 0.7 : 1); // CDR + soporte Raudo
-        // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
-        if (has('echo')) setTimeout(() => this.castSkillSlot(key, 0.5), 500);
+        if (isBasic) {
+          // básico: no cuesta recurso, lo GENERA, y se rige por la cadencia de ataque
+          p.atkCd = p.stats.atkTime;
+          p.mp = Math.min(p.stats.maxMP, p.mp + (sk.gen || p.cls.resource?.gen || 0));
+          p.furiaIdle = 0;
+        } else {
+          p.mp -= cost;
+          p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100) * (has('swift') ? 0.7 : 1); // CDR + soporte Raudo
+          // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
+          if (has('echo')) setTimeout(() => this.castSkillSlot(key, 0.5), 500);
+        }
       }
       this.sfx('skill');
     }
@@ -1340,7 +1353,8 @@ class Game {
     const sk = p.cls.skills.find(s => s.id === id);
     if (!sk || p.skillPoints <= 0) return;
     const lvl = p.skills[id] || 0;
-    if (lvl >= sk.max || p.level < TIER_LEVELS[sk.tier - 1]) return;
+    const req = sk.req || 1; // gating por nivel del nodo del árbol
+    if (lvl >= sk.max || p.level < req) return;
     p.skills[id] = lvl + 1;
     p.skillPoints--;
     p.recompute();

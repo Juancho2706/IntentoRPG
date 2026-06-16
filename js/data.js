@@ -8,6 +8,12 @@ export function xpForLevel(level) {
   return Math.floor(80 * Math.pow(level, 1.5));
 }
 
+// Árbol de habilidades estilo D4 (6 nodos en cadena):
+//  n1 Básicos (varios tipos de ataque principal) · n2-n4 Habilidades (3 c/u, con
+//  3 mini-ramas de pasivos = SKILL_MODS) · n5 Definitiva (ultimates) · n6 Pasivas.
+//  `tree` define los nodos (kind + req de nivel + ids); `skills` es la lista plana
+//  (cada skill: kind 'basic'|'core'|'ultimate'|'passive'). Barra libre: colocas lo
+//  que quieras en cualquier ranura. Gating: nv1 solo básicos; primera core en nv2.
 export const CLASSES = {
   guerrero: {
     id: 'guerrero', name: 'Guerrero', icon: '⚔️', color: 0xb5452a,
@@ -17,27 +23,60 @@ export const CLASSES = {
     baseHP: 45, baseMP: 40, hpPerVit: 4, mpPerEne: 1.5,
     atkRange: 2.1, atkTime: 1.0, ranged: false, atk: 'cleave',
     fists: [3, 6],
-    // recurso de clase (estilo D4): la FURIA no se regenera sola; la generas con
-    // el ataque básico (Tajo) y la gastas en las habilidades core. Se disipa al
-    // estar fuera de combate.
     resource: { id: 'furia', name: 'Furia', icon: '🔥', color: 0xff5a3c, regen: 0, decay: 8, start: 0, gen: 11 },
     basicName: 'Tajo', basicDesc: 'Ataque básico: corta a los enemigos cercanos y genera Furia.',
+    tree: [
+      { id: 'g_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['g_tajo', 'g_mandoble', 'g_embate'] },
+      { id: 'g_n2', kind: 'core',     name: 'Habilidades I',    req: 2,  skills: ['torbellino', 'embestida', 'g_martillo'] },
+      { id: 'g_n3', kind: 'core',     name: 'Habilidades II',   req: 5,  skills: ['terremoto', 'grito_guerra', 'g_lanza'] },
+      { id: 'g_n4', kind: 'core',     name: 'Habilidades III',  req: 9,  skills: ['g_salto', 'g_provocacion', 'g_hendidura'] },
+      { id: 'g_n5', kind: 'ultimate', name: 'Definitiva',       req: 15, skills: ['g_u_furia', 'g_u_cataclismo', 'g_u_estandarte'] },
+      { id: 'g_n6', kind: 'passive',  name: 'Pasivas',          req: 20, skills: ['g_p_fuerza', 'g_p_coraza', 'g_p_sed'] },
+    ],
     skills: [
-      { id: 'grito_guerra', name: 'Grito de Guerra', icon: '📢', tier: 1, max: 5, kind: 'core', type: 'buff',
-        mana: [8, 1], cd: 15, dur: 12, buff: { dmgPct: [15, 8] },
-        desc: 'Aumenta tu daño durante unos segundos.' },
-      { id: 'torbellino', name: 'Torbellino', icon: '🌀', tier: 2, max: 5, kind: 'core', type: 'aoe_self',
+      // — n1 BÁSICOS (generan Furia, sin coste; el primero es el ataque de arma) —
+      { id: 'g_tajo', name: 'Tajo', icon: '⚔️', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 11, desc: 'Corta a los enemigos cercanos y genera Furia.' },
+      { id: 'g_mandoble', name: 'Mandoble', icon: '🗡️', kind: 'basic', type: 'melee', req: 1, max: 5, mana: [0, 0], cd: 0.1, gen: 15, mult: [1.4, 0.18], range: 2.4, desc: 'Un golpe único contundente. Genera mucha Furia.' },
+      { id: 'g_embate', name: 'Embate', icon: '🌀', kind: 'basic', type: 'aoe_self', req: 1, max: 5, mana: [0, 0], cd: 0.1, gen: 9, mult: [0.8, 0.12], radius: 2.5, desc: 'Un barrido corto alrededor. Genera Furia.' },
+      // — n2 HABILIDADES I —
+      { id: 'torbellino', name: 'Torbellino', icon: '🌪️', kind: 'core', type: 'aoe_self', req: 2, max: 5,
         mana: [10, 1], cd: 4, mult: [1.2, 0.2], radius: 2.9,
-        synergies: [{ from: 'embestida', pct: 4 }, { from: 'terremoto', pct: 3 }],
-        desc: 'Giras con tu arma dañando a todos los enemigos cercanos.' },
-      { id: 'embestida', name: 'Embestida', icon: '💨', tier: 2, max: 5, kind: 'core', type: 'dash',
+        synergies: [{ from: 'embestida', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Giras con tu arma dañando a todos los enemigos cercanos.' },
+      { id: 'embestida', name: 'Embestida', icon: '💨', kind: 'core', type: 'dash', req: 2, max: 5,
         mana: [9, 1], cd: 6, mult: [1.3, 0.22], range: 7, radius: 1.9,
-        synergies: [{ from: 'torbellino', pct: 4 }, { from: 'terremoto', pct: 3 }],
-        desc: 'Cargas hacia el objetivo dañando lo que encuentres al llegar.' },
-      { id: 'terremoto', name: 'Terremoto', icon: '💥', tier: 3, max: 5, kind: 'core', type: 'aoe_target',
+        synergies: [{ from: 'torbellino', pct: 4 }, { from: 'g_martillo', pct: 3 }], desc: 'Cargas hacia el objetivo dañando lo que encuentres al llegar.' },
+      { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', kind: 'core', type: 'aoe_target', req: 2, max: 5,
+        mana: [12, 1.5], cd: 5, mult: [1.8, 0.3], radius: 3, range: 7,
+        synergies: [{ from: 'terremoto', pct: 4 }, { from: 'g_salto', pct: 3 }], desc: 'Aplastas el suelo con tu martillo creando una onda.' },
+      // — n3 HABILIDADES II —
+      { id: 'terremoto', name: 'Terremoto', icon: '💥', kind: 'core', type: 'aoe_target', req: 5, max: 5,
         mana: [16, 2], cd: 8, mult: [2.0, 0.35], radius: 3.5, range: 8,
-        synergies: [{ from: 'torbellino', pct: 5 }, { from: 'embestida', pct: 3 }],
-        desc: 'Golpeas el suelo creando una onda destructiva en la zona.' },
+        synergies: [{ from: 'torbellino', pct: 5 }, { from: 'embestida', pct: 3 }], desc: 'Golpeas el suelo creando una onda destructiva en la zona.' },
+      { id: 'grito_guerra', name: 'Grito de Guerra', icon: '📢', kind: 'core', type: 'buff', req: 5, max: 5,
+        mana: [8, 1], cd: 15, dur: 12, buff: { dmgPct: [15, 8] }, desc: 'Aumenta tu daño durante unos segundos.' },
+      { id: 'g_lanza', name: 'Lanza Arrojadiza', icon: '🎯', kind: 'core', type: 'proj', req: 5, max: 5,
+        mana: [8, 1], cd: 2.5, mult: [1.6, 0.28], speed: 16, range: 11, pierce: true,
+        synergies: [{ from: 'g_martillo', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Arrojas una lanza que atraviesa a los enemigos en línea.' },
+      // — n4 HABILIDADES III —
+      { id: 'g_salto', name: 'Salto Devastador', icon: '🦶', kind: 'core', type: 'aoe_target', req: 9, max: 5,
+        mana: [16, 2], cd: 8, mult: [2.0, 0.35], radius: 3.2, range: 8,
+        synergies: [{ from: 'g_martillo', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Saltas y caes con fuerza demoledora sobre la zona.' },
+      { id: 'g_provocacion', name: 'Provocación', icon: '🛡️', kind: 'core', type: 'buff', req: 9, max: 5,
+        mana: [10, 1], cd: 16, dur: 10, buff: { arm: [20, 8], dmgPct: [10, 5] }, desc: 'Aumentas tu armadura y tu daño un tiempo.' },
+      { id: 'g_hendidura', name: 'Hendidura', icon: '🪓', kind: 'core', type: 'aoe_self', req: 9, max: 5,
+        mana: [11, 1], cd: 5, mult: [1.4, 0.25], radius: 3.2,
+        synergies: [{ from: 'torbellino', pct: 4 }, { from: 'g_salto', pct: 3 }], desc: 'Un barrido amplio que desgarra a todo alrededor.' },
+      // — n5 DEFINITIVAS (ultimate) —
+      { id: 'g_u_furia', name: 'Furia Inmortal', icon: '😤', kind: 'ultimate', type: 'buff', req: 15, max: 5,
+        mana: [40, 0], cd: 45, dur: 8, buff: { dmgPct: [40, 10], arm: [40, 10], lph: [6, 2] }, desc: 'Definitiva: te vuelves una bestia imparable unos segundos.' },
+      { id: 'g_u_cataclismo', name: 'Cataclismo', icon: '☄️', kind: 'ultimate', type: 'aoe_target', req: 15, max: 5,
+        mana: [45, 0], cd: 40, mult: [4, 0.6], radius: 5, range: 9, desc: 'Definitiva: una devastación se desploma sobre la zona.' },
+      { id: 'g_u_estandarte', name: 'Estandarte de Guerra', icon: '🚩', kind: 'ultimate', type: 'buff', req: 15, max: 5,
+        mana: [40, 0], cd: 50, dur: 12, buff: { dmgPct: [20, 6], aspdPct: [20, 6] }, desc: 'Definitiva: clavas tu estandarte y combates con furia renovada.' },
+      // — n6 PASIVAS —
+      { id: 'g_p_fuerza', name: 'Fuerza Bruta', icon: '💪', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { dmgPct: [8, 5] }, desc: 'Pasiva: aumenta tu daño.' },
+      { id: 'g_p_coraza', name: 'Coraza de Guerra', icon: '🛡️', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { arm: [8, 5], hp: [20, 12] }, desc: 'Pasiva: aumenta tu armadura y vida.' },
+      { id: 'g_p_sed', name: 'Sed de Sangre', icon: '🩸', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { lph: [2, 1], crit: [3, 2] }, desc: 'Pasiva: +vida al golpear y +crítico.' },
     ],
   },
   maga: {
@@ -48,27 +87,33 @@ export const CLASSES = {
     baseHP: 32, baseMP: 28, hpPerVit: 3, mpPerEne: 2.2,
     atkRange: 7, atkTime: 1.1, ranged: true, atk: 'bolt',
     fists: [2, 5],
-    // el MANÁ se regenera con el tiempo; el Dardo Arcano (básico) aporta un extra
-    // al golpear. Las habilidades core lo consumen.
     resource: { id: 'mana', name: 'Maná', icon: '🔵', color: 0x4a8cff, regen: 1, decay: 0, start: 1, gen: 7 },
     basicName: 'Dardo Arcano', basicDesc: 'Ataque básico: lanza un dardo a distancia y recupera Maná.',
+    tree: [
+      { id: 'm_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['m_dardo'] },
+      { id: 'm_n2', kind: 'core',     name: 'Habilidades I',    req: 2,  skills: ['bola_fuego', 'nova_hielo'] },
+      { id: 'm_n3', kind: 'core',     name: 'Habilidades II',   req: 5,  skills: ['rayo'] },
+      { id: 'm_n4', kind: 'core',     name: 'Habilidades III',  req: 9,  skills: ['meteoro'] },
+      { id: 'm_n5', kind: 'ultimate', name: 'Definitiva',       req: 15, skills: ['m_u_supernova'] },
+      { id: 'm_n6', kind: 'passive',  name: 'Pasivas',          req: 20, skills: ['m_p_arcano'] },
+    ],
     skills: [
-      { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', tier: 1, max: 5, kind: 'core', type: 'proj',
+      { id: 'm_dardo', name: 'Dardo Arcano', icon: '✨', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 7, desc: 'Lanza un dardo a distancia y recupera Maná.' },
+      { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', kind: 'core', type: 'proj', req: 2, max: 5,
         mana: [5, 0.8], cd: 0.9, mult: [1.5, 0.3], speed: 13, range: 12, color: 0xff6622,
-        synergies: [{ from: 'rayo', pct: 3 }, { from: 'meteoro', pct: 3 }],
-        desc: 'Lanza una esfera ardiente que explota al impactar.' },
-      { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', tier: 1, max: 5, kind: 'core', type: 'aoe_self',
+        synergies: [{ from: 'rayo', pct: 3 }, { from: 'meteoro', pct: 3 }], desc: 'Lanza una esfera ardiente que explota al impactar.' },
+      { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', kind: 'core', type: 'aoe_self', req: 2, max: 5,
         mana: [11, 1.2], cd: 6, mult: [1.0, 0.18], radius: 3.3, slow: 3, color: 0x66ccff,
-        synergies: [{ from: 'rayo', pct: 5 }, { from: 'bola_fuego', pct: 3 }],
-        desc: 'Una onda gélida daña y ralentiza a los enemigos cercanos.' },
-      { id: 'rayo', name: 'Rayo', icon: '⚡', tier: 2, max: 5, kind: 'core', type: 'proj',
+        synergies: [{ from: 'rayo', pct: 5 }, { from: 'bola_fuego', pct: 3 }], desc: 'Una onda gélida daña y ralentiza a los enemigos cercanos.' },
+      { id: 'rayo', name: 'Rayo', icon: '⚡', kind: 'core', type: 'proj', req: 5, max: 5,
         mana: [9, 1], cd: 2.2, mult: [1.9, 0.3], speed: 18, range: 13, pierce: true, color: 0xffee66,
-        synergies: [{ from: 'bola_fuego', pct: 4 }, { from: 'nova_hielo', pct: 3 }],
-        desc: 'Un rayo que atraviesa a todos los enemigos en línea.' },
-      { id: 'meteoro', name: 'Meteoro', icon: '☄️', tier: 3, max: 5, kind: 'core', type: 'aoe_target',
+        synergies: [{ from: 'bola_fuego', pct: 4 }, { from: 'nova_hielo', pct: 3 }], desc: 'Un rayo que atraviesa a todos los enemigos en línea.' },
+      { id: 'meteoro', name: 'Meteoro', icon: '☄️', kind: 'core', type: 'aoe_target', req: 9, max: 5,
         mana: [18, 2], cd: 7, mult: [2.6, 0.45], radius: 3, range: 11, color: 0xff4400,
-        synergies: [{ from: 'bola_fuego', pct: 5 }, { from: 'rayo', pct: 3 }],
-        desc: 'Invoca un meteoro que arrasa la zona objetivo.' },
+        synergies: [{ from: 'bola_fuego', pct: 5 }, { from: 'rayo', pct: 3 }], desc: 'Invoca un meteoro que arrasa la zona objetivo.' },
+      { id: 'm_u_supernova', name: 'Supernova', icon: '🌟', kind: 'ultimate', type: 'aoe_target', req: 15, max: 5,
+        mana: [45, 0], cd: 40, mult: [4, 0.6], radius: 5, range: 10, color: 0xffcc44, desc: 'Definitiva: una estrella estalla arrasando la zona.' },
+      { id: 'm_p_arcano', name: 'Saber Arcano', icon: '✨', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { dmgPct: [8, 5], mp: [10, 8] }, desc: 'Pasiva: +daño y +maná máximo.' },
     ],
   },
   arquera: {
@@ -79,26 +124,32 @@ export const CLASSES = {
     baseHP: 38, baseMP: 22, hpPerVit: 3.5, mpPerEne: 1.8,
     atkRange: 8.5, atkTime: 0.9, ranged: true, atk: 'arrow',
     fists: [2, 5],
-    // la ENERGÍA se regenera rápido; el Disparo Rápido (básico) la rellena al
-    // golpear. Las habilidades core la consumen.
     resource: { id: 'energia', name: 'Energía', icon: '🟢', color: 0x6ad06a, regen: 1.5, decay: 0, start: 1, gen: 8 },
     basicName: 'Disparo Rápido', basicDesc: 'Ataque básico: dispara una flecha veloz y recupera Energía.',
+    tree: [
+      { id: 'a_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['a_disparo'] },
+      { id: 'a_n2', kind: 'core',     name: 'Habilidades I',    req: 2,  skills: ['flecha_multiple', 'flecha_perforante'] },
+      { id: 'a_n3', kind: 'core',     name: 'Habilidades II',   req: 5,  skills: ['agilidad'] },
+      { id: 'a_n4', kind: 'core',     name: 'Habilidades III',  req: 9,  skills: ['lluvia_flechas'] },
+      { id: 'a_n5', kind: 'ultimate', name: 'Definitiva',       req: 15, skills: ['a_u_diluvio'] },
+      { id: 'a_n6', kind: 'passive',  name: 'Pasivas',          req: 20, skills: ['a_p_punteria'] },
+    ],
     skills: [
-      { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', tier: 1, max: 5, kind: 'core', type: 'proj',
+      { id: 'a_disparo', name: 'Disparo Rápido', icon: '🏹', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 8, desc: 'Dispara una flecha veloz y recupera Energía.' },
+      { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', kind: 'core', type: 'proj', req: 2, max: 5,
         mana: [7, 1], cd: 2.5, mult: [0.9, 0.12], speed: 15, range: 10, count: [3, 0.5], spread: 0.5, color: 0xccddaa,
-        synergies: [{ from: 'flecha_perforante', pct: 4 }, { from: 'lluvia_flechas', pct: 3 }],
-        desc: 'Disparas un abanico de flechas a la vez.' },
-      { id: 'flecha_perforante', name: 'Flecha Perforante', icon: '➶', tier: 2, max: 5, kind: 'core', type: 'proj',
+        synergies: [{ from: 'flecha_perforante', pct: 4 }, { from: 'lluvia_flechas', pct: 3 }], desc: 'Disparas un abanico de flechas a la vez.' },
+      { id: 'flecha_perforante', name: 'Flecha Perforante', icon: '➶', kind: 'core', type: 'proj', req: 2, max: 5,
         mana: [8, 1], cd: 3, mult: [1.6, 0.28], speed: 17, range: 13, pierce: true, color: 0xffffcc,
-        synergies: [{ from: 'flecha_multiple', pct: 4 }, { from: 'lluvia_flechas', pct: 3 }],
-        desc: 'Una flecha que atraviesa a todos los enemigos en su camino.' },
-      { id: 'agilidad', name: 'Agilidad', icon: '🌪️', tier: 2, max: 5, kind: 'core', type: 'buff',
-        mana: [10, 1], cd: 18, dur: 10, buff: { spdPct: [15, 5], aspdPct: [15, 5] },
-        desc: 'Aumenta tu velocidad de movimiento y de ataque.' },
-      { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', tier: 3, max: 5, kind: 'core', type: 'aoe_target',
+        synergies: [{ from: 'flecha_multiple', pct: 4 }, { from: 'lluvia_flechas', pct: 3 }], desc: 'Una flecha que atraviesa a todos los enemigos en su camino.' },
+      { id: 'agilidad', name: 'Agilidad', icon: '🌪️', kind: 'core', type: 'buff', req: 5, max: 5,
+        mana: [10, 1], cd: 18, dur: 10, buff: { spdPct: [15, 5], aspdPct: [15, 5] }, desc: 'Aumenta tu velocidad de movimiento y de ataque.' },
+      { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', kind: 'core', type: 'aoe_target', req: 9, max: 5,
         mana: [15, 2], cd: 7, mult: [2.2, 0.4], radius: 3, range: 11, color: 0xaaffaa,
-        synergies: [{ from: 'flecha_multiple', pct: 5 }, { from: 'flecha_perforante', pct: 3 }],
-        desc: 'Una lluvia mortal de flechas cae sobre la zona objetivo.' },
+        synergies: [{ from: 'flecha_multiple', pct: 5 }, { from: 'flecha_perforante', pct: 3 }], desc: 'Una lluvia mortal de flechas cae sobre la zona objetivo.' },
+      { id: 'a_u_diluvio', name: 'Diluvio de Saetas', icon: '🌠', kind: 'ultimate', type: 'aoe_target', req: 15, max: 5,
+        mana: [42, 0], cd: 40, mult: [3.6, 0.55], radius: 4.5, range: 12, color: 0xbfffbf, desc: 'Definitiva: un diluvio de saetas asola una gran zona.' },
+      { id: 'a_p_punteria', name: 'Puntería', icon: '👁️', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { crit: [5, 3], dmgPct: [6, 4] }, desc: 'Pasiva: +crítico y +daño.' },
     ],
   },
 };
@@ -682,6 +733,31 @@ export const SKILL_MODS = {
     { id: 'te_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
     { id: 'te_a1', kind: 'aspecto', group: 'te', req: 'te_m', name: 'Sísmico', radius: 35, desc: '+35% de radio' },
     { id: 'te_a2', kind: 'aspecto', group: 'te', req: 'te_m', name: 'Fisura', slow: 2.5, desc: 'ralentiza la zona' },
+  ],
+  g_martillo: [
+    { id: 'gm_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'gm_a1', kind: 'aspecto', group: 'gm', req: 'gm_m', name: 'Onda Expansiva', radius: 35, desc: '+35% de radio' },
+    { id: 'gm_a2', kind: 'aspecto', group: 'gm', req: 'gm_m', name: 'Conmoción', slow: 2.5, desc: 'ralentiza al impactar' },
+  ],
+  g_lanza: [
+    { id: 'gl_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'gl_a1', kind: 'aspecto', group: 'gl', req: 'gl_m', name: 'Doble Lanza', proj: 1, desc: '+1 proyectil' },
+    { id: 'gl_a2', kind: 'aspecto', group: 'gl', req: 'gl_m', name: 'Punta Letal', crit: 25, desc: '+25% de prob. crítica' },
+  ],
+  g_salto: [
+    { id: 'gs_m', kind: 'mejora', dmg: 30, desc: '+30% de daño' },
+    { id: 'gs_a1', kind: 'aspecto', group: 'gs', req: 'gs_m', name: 'Impacto Sísmico', radius: 40, desc: '+40% de radio' },
+    { id: 'gs_a2', kind: 'aspecto', group: 'gs', req: 'gs_m', name: 'Grietas', slow: 2.5, desc: 'agrieta el suelo (ralentiza)' },
+  ],
+  g_provocacion: [
+    { id: 'gp_m', kind: 'mejora', buff: 30, desc: '+30% de potencia del grito' },
+    { id: 'gp_a1', kind: 'aspecto', group: 'gp', req: 'gp_m', name: 'Duradera', dur: 80, desc: '+80% de duración' },
+    { id: 'gp_a2', kind: 'aspecto', group: 'gp', req: 'gp_m', name: 'Inquebrantable', buff: 45, desc: '+45% de potencia adicional' },
+  ],
+  g_hendidura: [
+    { id: 'gh_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
+    { id: 'gh_a1', kind: 'aspecto', group: 'gh', req: 'gh_m', name: 'Amplia', radius: 35, desc: '+35% de radio' },
+    { id: 'gh_a2', kind: 'aspecto', group: 'gh', req: 'gh_m', name: 'Desangrar', dot: 'bleed', desc: 'aplica sangrado' },
   ],
   // MAGA
   bola_fuego: [

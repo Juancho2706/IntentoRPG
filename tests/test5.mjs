@@ -18,13 +18,14 @@ if (b !== 25) throw new Error('synergyBonus esperaba 25, dio ' + b);
 const b2 = synergyBonus(meteoro, { bola_fuego: 5, rayo: 5 });
 if (b2 !== 40) throw new Error('synergyBonus multi-fuente esperaba 40 (25+15), dio ' + b2);
 console.log(`Meteoro: +${b}% con Bola de Fuego, +${b2}% sumando Rayo (sinergias 2.0)`);
-// cada skill de daño tiene al menos una sinergia (variedad de builds de familia)
+// cada habilidad CORE de daño tiene al menos una sinergia (familia de builds).
+// Básicos y definitivas no requieren sinergias.
 for (const c of Object.values(CLASSES)) {
   for (const sk of c.skills) {
-    if (sk.mult && !sk.synergies) throw new Error(`${sk.id} (daño) debería tener sinergias`);
+    if (sk.kind === 'core' && sk.mult && !sk.synergies) throw new Error(`${sk.id} (core de daño) debería tener sinergias`);
   }
 }
-console.log('Todas las habilidades de daño tienen sinergias de familia ✓');
+console.log('Todas las habilidades core de daño tienen sinergias de familia ✓');
 
 // biomas por profundidad
 const expect = { 1: 'Cripta', 5: 'Cripta', 6: 'Cavernas de Hielo', 10: 'Cavernas de Hielo', 11: 'Infierno', 15: 'Infierno', 16: 'Abismo Estelar', 20: 'Abismo Estelar' };

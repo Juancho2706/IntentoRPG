@@ -1,17 +1,18 @@
 // Modificadores de habilidad (D4-lite): integridad de datos + agregación.
 import { SKILL_MODS, aggregateSkillMods, CLASSES } from '../js/data.js';
 
-// cada skill ACTIVA de cada clase tiene su set de modificadores
-let activeCount = 0;
+// cada habilidad CORE (nodos 2-4) tiene sus 3 mini-ramas (Mejora + 2 Aspectos).
+// Los básicos, ultimates y pasivas no las necesitan.
+let coreCount = 0;
 for (const cls of Object.values(CLASSES)) {
   for (const sk of cls.skills) {
-    if (sk.type === 'passive') continue;
-    activeCount++;
+    if (sk.kind !== 'core') continue;
+    coreCount++;
     const list = SKILL_MODS[sk.id];
-    if (!list) throw new Error('skill activa sin modificadores: ' + sk.id);
+    if (!list) throw new Error('habilidad core sin modificadores: ' + sk.id);
   }
 }
-console.log(`Cobertura: ${activeCount} habilidades activas, todas con modificadores ✓`);
+console.log(`Cobertura: ${coreCount} habilidades core, todas con sus mini-ramas ✓`);
 
 // estructura: 1 Mejora + 2 Aspectos excluyentes que requieren la Mejora
 for (const [skId, list] of Object.entries(SKILL_MODS)) {

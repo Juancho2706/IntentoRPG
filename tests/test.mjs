@@ -42,7 +42,8 @@ const b = scaleEnemy(BOSS, 4); console.log('Jefe piso 4: HP', b.hp);
 for (const c of Object.values(CLASSES)) {
   for (const sk of c.skills) {
     if (sk.type !== 'passive') { skillVal(sk.mana, 5); if (sk.mult) skillVal(sk.mult, 5); }
-    if (![1,2,3].includes(sk.tier)) throw new Error('tier inválido');
+    if (typeof sk.req !== 'number' || sk.req < 1) throw new Error('req de nivel inválido: ' + sk.id);
+    if (!['basic', 'core', 'ultimate', 'passive'].includes(sk.kind)) throw new Error('kind inválido: ' + sk.id);
   }
   console.log(`Clase ${c.name}: ${c.skills.length} habilidades OK`);
 }
