@@ -846,6 +846,7 @@ export class UI {
     if (this.activePanel === name) return this.closePanel();
     this.closePanel();
     this.activePanel = name;
+    if (name === 'skills') { this._skGrew = false; this._focusSkill = null; } // re-anima la vid al abrir
     $('panel-' + name).classList.remove('hidden');
     this.markJustOpened();
     this.renderPanel();
@@ -1869,7 +1870,8 @@ export class UI {
     w.append(node, l); return w;
   }
   skConn() { const d = document.createElement('div'); d.className = 'sk-conn'; return d; }
-  // una habilidad dentro de su nodo del árbol (con sus 3 mini-ramas si es core)
+  // nodo de habilidad en la vista MAPA (macro): solo icono + rango + insignia de
+  // ramas desbloqueadas. Al hacer clic se abre la vista FOCO (especialización radial).
   skTreeSkill(sk, node, unlocked) {
     const p = this.game.player;
     const lvl = p.skills[sk.id] || 0;
@@ -1879,8 +1881,14 @@ export class UI {
     const wrap = document.createElement('div'); wrap.className = 'sk-skill';
     const n = document.createElement('button');
     n.className = 'sk-node ' + shape + (lvl > 0 ? ' learned' : '') + (canLearn ? ' avail' : '') + (maxed ? ' maxed' : '') + (!unlocked ? ' tier-locked' : '');
-    n.innerHTML = `<span class="sk-node-ico">${sk.icon}</span><span class="sk-node-rank">${lvl}/${sk.max}</span>` + (!unlocked ? `<span class="sk-node-lock">${icon('lock')}</span>` : '');
-    n.title = `${sk.name} — ${sk.desc}` + (!unlocked ? `\n🔒 Requiere nivel ${node.req}` : '');
+    const branches = SKILL_MODS[sk.id];
+    let badge = '';
+    if (branches) {
+      const unl = Object.values(p.skillBranches?.[sk.id] || {}).filter(Boolean).length;
+      badge = `<span class="sk-node-mods${unl ? ' on' : ''}">${unl}/${branches.length}</span>`;
+    }
+    n.innerHTML = `<span class="sk-node-ico">${sk.icon}</span><span class="sk-node-rank">${lvl}/${sk.max}</span>${badge}` + (!unlocked ? `<span class="sk-node-lock">${icon('lock')}</span>` : '');
+    n.title = `${sk.name} — ${sk.desc}` + (!unlocked ? `\n🔒 Requiere nivel ${node.req}` : '\nClic para especializar');
     n.onclick = () => {
       if (!unlocked) { this.message(`🔒 ${node.name}: requiere nivel ${node.req}`); return; }
       if (node.kind === 'passive') {
@@ -1888,18 +1896,9 @@ export class UI {
         else this.message(maxed ? `${sk.name} al máximo` : 'Sin puntos de habilidad');
         return;
       }
-      this.skillDetailPopup(sk, node);
+      this.openSkillFocus(sk.id);
     };
     wrap.appendChild(this.skNodeWrap(n, sk.name));
-    // 3 mini-ramas × 3 opciones (símbolos sin texto). SIEMPRE visibles para
-    // poder planear, aunque la habilidad no esté aprendida. 1 elegida por rama.
-    const branches = SKILL_MODS[sk.id];
-    if (branches && node.kind !== 'passive') {
-      const mods = document.createElement('div'); mods.className = 'sk-branches';
-      for (const br of branches) mods.appendChild(this.skBranchRow(sk, br));
-      wrap.appendChild(this.skConn());
-      wrap.appendChild(mods);
-    }
     return wrap;
   }
   // símbolo (sin texto) que representa el efecto dominante de una opción de pasivo
@@ -1912,31 +1911,107 @@ export class UI {
     if (o.buff) return '⬆️'; if (o.dur) return '⌛'; if (o.dmg) return '⚔️';
     return '◆';
   }
-  // una mini-rama (twig): etiqueta + 3 opciones como SÍMBOLOS (elige 1). La 1ª
-  // elección DESBLOQUEA la rama (1 punto); luego cambias gratis entre las 3.
-  skBranchRow(sk, br) {
+  // refresca la vista de habilidades respetando si está abierto el FOCO
+  refreshSkillsView() { if (this._focusSkill) this.renderSkillFocus(); else if (this.activePanel === 'skills') this.renderSkills(); }
+
+  // ===== Vista FOCO (drill-down): especialización RADIAL de una habilidad =====
+  openSkillFocus(skId) { this._focusSkill = skId; this._modPending = null; this.renderSkillFocus(); }
+  closeSkillFocus() {
+    this._focusSkill = null;
+    const ov = $('skill-tree')?.querySelector('.sk-focus');
+    if (ov) ov.remove();
+    this.renderSkills(); this.updateHUD();
+  }
+  // texto del inspector (abajo): opción enfocada o, por defecto, la habilidad
+  _focusInspect(html) { const el = document.getElementById('sk-focus-insp'); if (el) el.innerHTML = html; }
+
+  renderSkillFocus() {
+    const skId = this._focusSkill; if (!skId) return;
     const g = this.game, p = g.player;
-    const unlocked = !!p.skillBranches?.[sk.id]?.[br.id];
-    const sel = (p.skillMods[sk.id] || {})[br.id] || null;
-    const big = br.name === 'Transformación';
-    const row = document.createElement('div'); row.className = 'sk-branch' + (unlocked ? ' unlocked' : ' locked') + (big ? ' big' : '');
-    const tag = document.createElement('span'); tag.className = 'sk-branch-tag';
-    tag.innerHTML = unlocked ? br.name : `${icon('lock')}<b>1</b>`;
-    tag.title = unlocked ? `Rama «${br.name}» — elige 1 (cambia gratis)` : `Desbloquea «${br.name}» por 1 punto de habilidad; luego cambias gratis entre sus 3 opciones`;
-    row.appendChild(tag);
-    const opts = document.createElement('div'); opts.className = 'sk-branch-opts';
-    for (const o of br.opts) {
-      const on = sel === o.id;
-      const pending = !unlocked && g._modPending === (sk.id + '/' + br.id + '/' + o.id);
-      const b = document.createElement('button');
-      b.className = 'sk-opt' + (on ? ' on' : '') + (unlocked ? '' : ' locked') + (pending ? ' pending' : '');
-      b.textContent = this.optSym(o);
-      b.title = `${o.name}: ${o.desc}` + (unlocked ? (on ? '\n✓ activa' : '') : pending ? '\n⚠ toca otra vez para desbloquear (1 punto)' : '\n🔒 desbloquea la rama (1 punto)');
-      b.onclick = () => { g.chooseSkillMod(sk.id, br.id, o.id); this.renderSkills(); this.updateHUD(); };
-      opts.appendChild(b);
+    const sk = p.cls.skills.find(s => s.id === skId); if (!sk) return;
+    const node = (p.cls.tree || []).find(nd => nd.skills?.includes(skId)) || { req: 1, name: '' };
+    const vp = $('skill-tree')?.querySelector('.sk-viewport'); if (!vp) return;
+    let ov = vp.querySelector('.sk-focus');
+    if (!ov) {
+      ov = document.createElement('div'); ov.className = 'sk-focus';
+      // el foco captura sus propios gestos: no dejar que d3-zoom mueva el árbol de fondo
+      ov.addEventListener('pointerdown', e => e.stopPropagation());
+      ov.addEventListener('wheel', e => e.stopPropagation());
+      vp.appendChild(ov);
     }
-    row.appendChild(opts);
-    return row;
+    const W = vp.clientWidth, H = vp.clientHeight;
+    ov.innerHTML = '';
+    ov.onclick = e => { if (e.target === ov) this.closeSkillFocus(); };
+    const back = document.createElement('button'); back.className = 'sk-focus-back';
+    back.innerHTML = '← Volver al árbol'; back.onclick = () => this.closeSkillFocus();
+    ov.appendChild(back);
+    const wheel = document.createElement('div'); wheel.className = 'sk-focus-wheel'; ov.appendChild(wheel);
+    const cx = W / 2, cy = H * 0.45, R = Math.max(120, Math.min(W * 0.40, H * 0.42));
+
+    const lvl = p.skills[sk.id] || 0, maxed = lvl >= sk.max;
+    const unlockedSkill = p.level >= (node.req || 1);
+    const cost = Math.round(skillVal(sk.mana, Math.max(1, lvl)));
+    const res = p.cls.resource;
+
+    // SVG de líneas radiales (rombo-habilidad → cada opción)
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'sk-focus-svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    wheel.appendChild(svg);
+    let lines = '';
+
+    const branches = SKILL_MODS[sk.id] || [];
+    const N = Math.max(1, branches.length);
+    branches.forEach((br, bi) => {
+      const baseAng = (-90 + bi * (360 / N)) * Math.PI / 180;
+      const unlocked = !!p.skillBranches?.[sk.id]?.[br.id];
+      const sel = (p.skillMods[sk.id] || {})[br.id] || null;
+      const M = br.opts.length;
+      br.opts.forEach((o, oi) => {
+        const ang = baseAng + (oi - (M - 1) / 2) * (26 * Math.PI / 180);
+        const x = cx + Math.cos(ang) * R, y = cy + Math.sin(ang) * R;
+        lines += `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="sk-focus-line${unlocked ? ' on' : ''}${sel === o.id ? ' sel' : ''}"/>`;
+        const on = sel === o.id;
+        const pending = !unlocked && g._modPending === (sk.id + '/' + br.id + '/' + o.id);
+        const b = document.createElement('button');
+        b.className = 'sk-focus-opt' + (on ? ' on' : '') + (unlocked ? '' : ' locked') + (pending ? ' pending' : '') + (br.name === 'Transformación' ? ' big' : '');
+        b.style.left = x + 'px'; b.style.top = y + 'px';
+        b.textContent = this.optSym(o);
+        const show = () => this._focusInspect(`<b>${o.name}</b><span>${o.desc}</span><em>${unlocked ? (on ? '✓ activa' : 'Toca para elegir (gratis)') : pending ? '⚠ Toca otra vez para desbloquear (1 punto)' : `🔒 Rama «${br.name}» — desbloquea por 1 punto`}</em>`);
+        b.onmouseenter = show; b.onfocus = show;
+        b.onclick = () => { show(); g.chooseSkillMod(sk.id, br.id, o.id); };
+        wheel.appendChild(b);
+      });
+      // etiqueta de la rama
+      const lx = cx + Math.cos(baseAng) * (R + 52), ly = cy + Math.sin(baseAng) * (R + 52);
+      const lbl = document.createElement('div');
+      lbl.className = 'sk-focus-blabel' + (unlocked ? ' on' : '') + (br.name === 'Transformación' ? ' big' : '');
+      lbl.style.left = lx + 'px'; lbl.style.top = ly + 'px';
+      lbl.innerHTML = unlocked ? br.name : `🔒 ${br.name}<small>1 punto</small>`;
+      wheel.appendChild(lbl);
+    });
+    svg.innerHTML = lines;
+
+    // centro: habilidad + rango + subir + soportes
+    const center = document.createElement('div'); center.className = 'sk-focus-center';
+    center.style.left = cx + 'px'; center.style.top = cy + 'px';
+    let upHtml;
+    if (!unlockedSkill) upHtml = `<button class="sk-focus-up" disabled>🔒 Nivel ${node.req}</button>`;
+    else if (maxed) upHtml = `<button class="sk-focus-up" disabled>★ Rango máximo</button>`;
+    else if (p.skillPoints > 0) upHtml = `<button class="sk-focus-up btn-good">${lvl === 0 ? 'Aprender' : 'Subir a ' + (lvl + 1)} (1 pt)</button>`;
+    else upHtml = `<button class="sk-focus-up" disabled>Sin puntos</button>`;
+    center.innerHTML = `<div class="sk-focus-ico">${sk.icon}</div><div class="sk-focus-name">${sk.name}</div>` +
+      `<div class="sk-focus-rank">${this.skillPips(lvl, sk.max)} <em>${lvl}/${sk.max}</em></div>${upHtml}`;
+    wheel.appendChild(center);
+    const upBtn = center.querySelector('.sk-focus-up:not([disabled])');
+    if (upBtn) upBtn.onclick = () => { g.learnSkill(sk.id); this.renderSkillFocus(); this.updateHUD(); };
+    // soportes (engarces) bajo el centro, si está aprendida y es core/ultimate
+    if (lvl > 0 && (sk.kind === 'core' || sk.kind === 'ultimate')) this.renderSupportSlots(center, sk, () => this.renderSkillFocus());
+
+    // inspector inferior
+    const insp = document.createElement('div'); insp.className = 'sk-focus-inspector'; insp.id = 'sk-focus-insp';
+    ov.appendChild(insp);
+    this._focusInspect(`<b>${sk.icon} ${sk.name}</b><span>${sk.desc}</span><em>Daño/efecto a rango ${Math.max(1, lvl)} · cuesta ${cost} ${res?.name || ''}. Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
   }
 
   // centra/encaja el árbol en el visor (transform inicial de d3-zoom)
@@ -1963,19 +2038,27 @@ export class UI {
     const c = el => { const r = { x: 0, y: 0 }; let n = el; while (n && n !== graph) { r.x += n.offsetLeft; r.y += n.offsetTop; n = n.offsetParent; } r.x += el.offsetWidth / 2; r.y += el.offsetHeight / 2; return r; };
     const lv = d3.linkVertical(), lh = d3.linkHorizontal();
     const draw = (gen, a, b) => gen({ source: [a.x, a.y], target: [b.x, b.y] }) + ' ';
-    let spine = '', branch = '', twig = '';
+    let spine = '', branch = '';
     for (let i = 0; i < sections.length; i++) {
       const mk = sections[i].marker; if (!mk) continue;
       const a = c(mk);
       if (i < sections.length - 1 && sections[i + 1].marker) spine += draw(lv, a, c(sections[i + 1].marker));
       const horiz = sections[i].side !== 'down'; // nodos laterales: curva horizontal
-      for (const s of sections[i].skills) {
-        const b = c(s.node);
-        branch += draw(horiz ? lh : lv, a, b);
-        for (const row of s.rows) twig += draw(lv, b, c(row));
+      for (const s of sections[i].skills) branch += draw(horiz ? lh : lv, a, c(s.node));
+    }
+    svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/>`;
+    // efecto VIVO: la "vid" crece (stroke-dashoffset) una sola vez al abrir
+    if (!this._skGrew) {
+      this._skGrew = true;
+      for (const path of svg.querySelectorAll('path')) {
+        const len = path.getTotalLength?.() || 0;
+        if (!len) continue;
+        path.style.strokeDasharray = len; path.style.strokeDashoffset = len;
+        path.getBoundingClientRect(); // fuerza reflow
+        path.style.transition = 'stroke-dashoffset 0.9s ease-out';
+        path.style.strokeDashoffset = '0';
       }
     }
-    svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/><path class="sk-link-twig" d="${twig}"/>`;
   }
 
   // detalle de una habilidad (subir rango + engarces de soporte si aplica)

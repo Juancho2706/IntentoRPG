@@ -1451,7 +1451,7 @@ class Game {
         this.sfx('uiclick');
       }
     }
-    this.ui.renderPanel?.();
+    this.ui.refreshSkillsView?.(); // refresca el FOCO si está abierto, si no el panel
     this.ui.updateHUD?.();
     this.save();
   }
