@@ -310,6 +310,27 @@ export class Player {
       ...(this.records || {}),
     };
 
+    // --- Sistema de habilidades v2 (D4-lite): el ATAQUE BÁSICO (arma) es el
+    // generador de recurso con el que naces; aprendes 4 habilidades CORE que lo
+    // gastan. Migración: los saves del sistema viejo reembolsan TODO lo invertido
+    // y la build arranca limpia (nivel/oro/equipo/paragon/maestrías intactos).
+    this.skills = (this.skills && typeof this.skills === 'object') ? this.skills : {};
+    if (this.skillSystemV !== 2) {
+      if (saved) {
+        const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0);
+        this.skillPoints = (this.skillPoints | 0) + spent; // reembolso total
+      }
+      this.skills = {};       // build limpia (el básico es implícito, no ocupa skill)
+      this.skillMods = {};    // los Aspectos se reasignan en el nuevo árbol
+      this.skillSystemV = 2;
+    }
+    // purga niveles de habilidades que ya no existen (pasivas/single-target retiradas)
+    const _valid = new Set(this.cls.skills.map(s => s.id));
+    for (const id of Object.keys(this.skills)) if (!_valid.has(id)) delete this.skills[id];
+    // hotbar de 6 ranuras: 🖱️Izq = básico (generador), 🖱️Der + teclas 1·2·3·4
+    this.hotbar = this.normalizeHotbar(this.hotbar);
+    this.furiaIdle = 0; // temporizador de disipación de Furia (fuera de combate)
+
     this.buffs = [];
     this.cds = {};
     this.atkCd = 0;
@@ -328,8 +349,25 @@ export class Player {
     this.group = makePlayerModel(this.cls, this.tint);
     this.recompute();
     this.hp = this.stats.maxHP;
-    this.mp = this.stats.maxMP;
-    if (saved && saved.hp != null) { this.hp = Math.min(saved.hp, this.stats.maxHP); this.mp = Math.min(saved.mp, this.stats.maxMP); }
+    // recurso inicial: la Furia (start:0) arranca vacía; Maná/Energía llenos
+    this.mp = this.cls.resource?.start === 0 ? 0 : this.stats.maxMP;
+    if (saved && saved.hp != null) {
+      this.hp = Math.min(saved.hp, this.stats.maxHP);
+      if (saved.mp != null) this.mp = Math.min(saved.mp, this.stats.maxMP);
+    }
+  }
+
+  // hotbar de 6 ranuras (lmb/rmb/k1-4). 'basic' = ataque básico generador.
+  // Valida contra las cores actuales y rellena con los valores por defecto.
+  normalizeHotbar(h) {
+    const cores = this.cls.skills.filter(s => s.kind === 'core').map(s => s.id);
+    const def = { lmb: 'basic', rmb: cores[0] || null, k1: cores[0] || null, k2: cores[1] || null, k3: cores[2] || null, k4: cores[3] || null };
+    const ok = id => id === 'basic' || id === null || cores.includes(id);
+    if (!h || typeof h !== 'object') return def;
+    const out = {};
+    for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) out[s] = ok(h[s]) ? (h[s] === undefined ? def[s] : h[s]) : def[s];
+    if (!out.lmb) out.lmb = 'basic';
+    return out;
   }
 
   get pos() { return this.group.position; }
@@ -687,7 +725,15 @@ export class Player {
     if (this.aegisCd > 0) this.aegisCd = Math.max(0, this.aegisCd - dt); // recarga del Muro Inquebrantable
     if (this.xpBoostT > 0) this.xpBoostT -= dt;
     for (const k in this.cds) this.cds[k] = Math.max(0, this.cds[k] - dt);
-    this.mp = Math.min(this.stats.maxMP, this.mp + (1 + this.stats.ene * 0.05) * dt);
+    // recurso de clase: Furia se disipa (sin regen pasiva); Maná/Energía regeneran
+    const res = this.cls.resource;
+    if (res && res.decay && !res.regen) {
+      this.furiaIdle += dt;
+      if (this.furiaIdle > 2.2) this.mp = Math.max(0, this.mp - res.decay * dt); // solo fuera de combate
+    } else {
+      const rg = (res?.regen ?? 1) * (1 + this.stats.ene * 0.05);
+      this.mp = Math.min(this.stats.maxMP, this.mp + rg * dt);
+    }
     this.hp = Math.min(this.stats.maxHP, this.hp + (0.4 + this.stats.vit * 0.02) * dt);
 
     // ---- movimiento ----
@@ -757,6 +803,14 @@ export class Player {
       }
     }
 
+    // esquema WASD+ratón: el héroe MIRA hacia el cursor (apuntado libre), no hacia
+    // su dirección de movimiento. En clic-mover o táctil (sin mouseWorld) se ignora.
+    if (g.settings?.controlScheme !== 'click' && g.input?.mouseWorld) {
+      const mw = g.input.mouseWorld;
+      const dx = mw.x - this.pos.x, dz = mw.z - this.pos.z;
+      if (dx * dx + dz * dz > 0.04) this.group.rotation.y = Math.atan2(dx, dz);
+    }
+
     // animación procedural
     const t = performance.now() / 1000;
     body.position.y = 0.75 + (moving ? Math.abs(Math.sin(t * 9)) * 0.09 : Math.sin(t * 2) * 0.02);
@@ -782,6 +836,9 @@ export class Player {
     this.swing = 1;
     const g = this.game;
     const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
+    // el ataque básico ES el generador de recurso de la clase (Furia/Maná/Energía)
+    const res = this.cls.resource;
+    if (res?.gen) { this.mp = Math.min(this.stats.maxMP, this.mp + res.gen); this.furiaIdle = 0; }
 
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados

@@ -69,6 +69,7 @@ class Game {
     this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
       reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true,
       quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null,
+      controlScheme: 'wasd', // 'wasd' (WASD+ratón, D4) | 'click' (clic-mover, D2)
       volMaster: 1, volMusic: 0.75, volSfx: 0.9, ...opts };
     this.applyAccessibility();
     // gama del dispositivo (0 alta … 3 mínima): semilla de calidad + densidad de
@@ -1058,15 +1059,55 @@ class Game {
     }
   }
 
+  // asigna una habilidad (o 'basic') a una ranura del hotbar; evita duplicados
+  // de cores (el básico sí puede repetirse) y nunca deja el básico sin sitio.
+  assignHotbar(slot, id) {
+    const p = this.player;
+    if (!p?.hotbar) return;
+    const SLOTS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
+    if (!SLOTS.includes(slot)) return;
+    if (id !== 'basic') for (const s of SLOTS) if (p.hotbar[s] === id) p.hotbar[s] = null;
+    p.hotbar[slot] = id;
+    if (!p.hotbar.lmb) p.hotbar.lmb = 'basic';
+    this.ui.refreshHotbar();
+    this.save();
+  }
+
+  // Ataque básico = GENERADOR de recurso (el arma con la que naces). Apunta al
+  // cursor; melee golpea al enemigo a rango, a distancia dispara hacia la mira.
+  castBasic() {
+    const p = this.player;
+    if (!p || !p.alive || this.state !== 'play' || this._paused || p.atkCd > 0) return;
+    const aim = this.input?.mouseWorld || null;
+    const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
+    if (p.cls.ranged) {
+      const fwd = new THREE.Vector3(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
+      const tgt = near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) };
+      p.faceToward(tgt.pos);
+      p.basicAttack(tgt);
+    } else if (near && p.pos.distanceTo(near.pos) <= p.cls.atkRange) {
+      p.faceToward(near.pos);
+      p.basicAttack(near);
+    } else {
+      // golpe melee al vacío hacia la mira (no genera Furia: hay que acertar)
+      if (aim) p.faceToward(aim);
+      p.atkCd = p.stats.atkTime * 0.6; p.swing = 1;
+    }
+  }
+
   // echoMult: si se pasa (p.ej. 0.5), es una repetición del soporte Eco —
-  // omite consumo de maná/CD y no vuelve a hacer eco (evita bucle).
-  castSkillSlot(slot, echoMult = 0) {
+  // omite consumo de recurso/CD y no vuelve a hacer eco (evita bucle).
+  // slotKey: 'lmb' | 'rmb' | 'k1'..'k4' (o índice numérico 0-3 → k1-4, retrocompat).
+  castSkillSlot(slotKey, echoMult = 0) {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play') return;
     if (this._paused && !echoMult) return; // no actuar con un panel abierto (pausa)
-    const actives = p.cls.skills.filter(s => s.type !== 'passive' && p.skills[s.id] > 0).slice(0, 4);
-    const sk = actives[slot];
-    if (!sk) return;
+    const key = typeof slotKey === 'number' ? ['k1', 'k2', 'k3', 'k4'][slotKey] : slotKey;
+    const skId = (p.hotbar || {})[key];
+    if (!skId) return;
+    if (skId === 'basic') { if (!echoMult) this.castBasic(); return; } // generador
+    const sk = p.cls.skills.find(s => s.id === skId);
+    if (!sk || !(p.skills[sk.id] > 0)) return;
     const isEcho = echoMult > 0;
     const lvl = p.skills[sk.id];
     const baseCost = Math.round(skillVal(sk.mana, lvl));
@@ -1078,7 +1119,12 @@ class Game {
     if (supsCost.includes('overcharge')) manaMul *= 1.4;
     if (supsCost.includes('efficient')) manaMul *= 0.65; // soporte Eficiente
     const cost = Math.round(baseCost * manaMul);
-    if (!isEcho && p.mp < cost) { this.ui.message('Maná insuficiente'); return; }
+    if (!isEcho && p.mp < cost) {
+      // throttle: con clic mantenido no spamear el aviso cada frame
+      const now = performance.now();
+      if (!this._noResAt || now - this._noResAt > 700) { this.ui.message(`${p.cls.resource?.name || 'Maná'} insuficiente`); this._noResAt = now; }
+      return;
+    }
 
     // objetivo: ratón (escritorio) o enemigo más cercano (móvil)
     const maxRange = sk.range || 8;
@@ -1280,7 +1326,7 @@ class Game {
         p.mp -= cost;
         p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100) * (has('swift') ? 0.7 : 1); // CDR + soporte Raudo
         // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
-        if (has('echo')) setTimeout(() => this.castSkillSlot(slot, 0.5), 500);
+        if (has('echo')) setTimeout(() => this.castSkillSlot(key, 0.5), 500);
       }
       this.sfx('skill');
     }
@@ -1757,6 +1803,12 @@ class Game {
 
     const p = this.player;
     if (this.state === 'play') {
+      // esquema WASD+ratón: clic izq/der MANTENIDOS lanzan la ranura asignada
+      // (las recargas/atkCd internos regulan la cadencia). En clic-mover no aplica.
+      if ((this.settings?.controlScheme || 'wasd') !== 'click' && this.input?.mouseHeld) {
+        if (this.input.mouseHeld.l) this.castSkillSlot('lmb');
+        if (this.input.mouseHeld.r) this.castSkillSlot('rmb');
+      }
       p.update(dt);
       p.records.playTime += dt;
       if (this.pet) this.pet.update(dt);

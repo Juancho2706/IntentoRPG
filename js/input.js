@@ -11,6 +11,7 @@ export class Input {
     this.keyDir = null;     // {x,z} desde WASD/flechas
     this.mouseWorld = null; // último punto del mundo bajo el ratón
     this.pointerDown = false;
+    this.mouseHeld = { l: false, r: false }; // botones de ratón mantenidos (esquema WASD)
     this.keys = new Set();
     this.joyId = null;
     // remapeo: acciones↔teclas (defaults + anulaciones del jugador)
@@ -92,8 +93,10 @@ export class Input {
     };
     window.addEventListener('pointerup', endJoy);
     window.addEventListener('pointercancel', endJoy);
-    window.addEventListener('blur', () => endJoy());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) endJoy(); });
+    const clearHeld = () => { this.mouseHeld.l = this.mouseHeld.r = false; this.pointerDown = false; };
+    window.addEventListener('blur', () => { endJoy(); clearHeld(); });
+    window.addEventListener('pointercancel', clearHeld);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { endJoy(); clearHeld(); } });
   }
 
   // ¿hay alguna tecla de esta acción mantenida?
@@ -170,6 +173,18 @@ export class Input {
     const g = this.game;
     if (!g.player || !g.player.alive || g.state !== 'play') return;
     this.pointerDown = true;
+    const scheme = g.settings?.controlScheme || 'wasd';
+
+    // --- esquema WASD+ratón: el ratón NO mueve; clic izq/der lanzan habilidades ---
+    if (e.pointerType === 'mouse' && scheme !== 'click') {
+      e.preventDefault();
+      if (e.button === 2) { this.mouseHeld.r = true; g.castSkillSlot('rmb'); }
+      else { this.mouseHeld.l = true; g.castSkillSlot('lmb'); }
+      return;
+    }
+    // --- esquema clic-mover (D2): el botón DERECHO lanza la ranura 🖱️Der ---
+    if (e.pointerType === 'mouse' && e.button === 2) { e.preventDefault(); g.castSkillSlot('rmb'); return; }
+
     // ¿tocó un enemigo?
     const ray = this.raycast(e);
     const hits = ray.intersectObjects(g.entityGroup.children, true);
@@ -213,5 +228,5 @@ export class Input {
     }
   }
 
-  onPointerUp() { this.pointerDown = false; }
+  onPointerUp() { this.pointerDown = false; this.mouseHeld.l = this.mouseHeld.r = false; }
 }

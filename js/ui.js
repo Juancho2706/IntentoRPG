@@ -370,6 +370,14 @@ export class UI {
     $('orb-mp-fill').style.height = mpPct + '%';
     $('orb-hp-txt').textContent = `${Math.ceil(p.hp)}`;
     $('orb-mp-txt').textContent = `${Math.ceil(p.mp)}`;
+    // tinta el orbe del recurso según la clase (Furia rojo / Maná azul / Energía verde)
+    const res = p.cls.resource;
+    if (res && this._orbRes !== res.id) {
+      const c = '#' + (res.color >>> 0).toString(16).padStart(6, '0');
+      const orb = $('orb-mp-fill'); if (orb) orb.style.background = c;
+      const wrap = $('orb-mp-fill').parentElement; if (wrap) wrap.title = res.name;
+      this._orbRes = res.id;
+    }
     const need = xpForLevel(p.level);
     $('xp-fill').style.width = Math.min(100, p.xp / need * 100) + '%';
     $('hud-level').innerHTML = `Nv ${p.level}${p.hardcore ? ' ' + icon('skull', { cls: 'hud-hc', title: 'Hardcore' }) : ''}`;
@@ -436,8 +444,9 @@ export class UI {
     // cooldowns de la barra de habilidades (overlay RADIAL via conic-gradient)
     for (const btn of $('skillbar').children) {
       const id = btn.dataset.skill;
-      if (!id) continue;
+      if (!id || id === 'basic') continue; // el básico usa atkCd, no tiene overlay
       const sk = p.cls.skills.find(s => s.id === id);
+      if (!sk) continue;
       const cd = p.cds[id] || 0;
       const ov = btn.querySelector('.cd-overlay');
       const frac = cd > 0 ? Math.max(0, Math.min(1, cd / sk.cd)) : 0;
@@ -596,33 +605,75 @@ export class UI {
     pop.style.top = Math.max(8, ny) + 'px';
   }
 
+  // Hotbar de 6 ranuras (estilo D4): 🖱️Izq = básico generador, 🖱️Der + 1·2·3·4.
   refreshHotbar() {
     const p = this.game.player;
     const bar = $('skillbar');
     bar.innerHTML = '';
-    const actives = p.cls.skills.filter(s => s.type !== 'passive' && p.skills[s.id] > 0).slice(0, 4);
-    actives.forEach((sk, i) => {
+    const res = p.cls.resource;
+    const basicIcon = { cleave: '⚔️', bolt: '✨', arrow: '🏹' }[p.cls.atk] || '⚔️';
+    const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
+    for (const [slot, label] of SLOTS) {
+      const id = p.hotbar?.[slot] || null;
       const btn = document.createElement('button');
       btn.className = 'skill-btn';
-      btn.dataset.skill = sk.id;
+      btn.dataset.slot = slot;
+      if (!id) {
+        btn.classList.add('hb-empty');
+        btn.innerHTML = `<span class="sk-icon dim">·</span><span class="sk-key">${label}</span>`;
+        btn.title = 'Ranura vacía — asígnale una habilidad en el panel Habilidades';
+        bar.appendChild(btn);
+        continue;
+      }
+      if (id === 'basic') {
+        btn.dataset.skill = 'basic';
+        btn.classList.add('hb-basic');
+        btn.innerHTML = `<span class="sk-icon">${basicIcon}</span><span class="sk-key">${label}</span>` +
+          `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${res?.gen || 0}</span>`;
+        btn.title = `${p.cls.basicName || 'Ataque básico'} · genera ${res?.name || 'recurso'}`;
+        btn.addEventListener('pointerdown', e => { e.preventDefault(); this.game.castSkillSlot(slot); });
+        bar.appendChild(btn);
+        continue;
+      }
+      const sk = p.cls.skills.find(s => s.id === id);
+      if (!sk) { bar.appendChild(btn); continue; }
+      const known = p.skills[sk.id] > 0;
       const cost = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
-      // cd-overlay RADIAL + coste de maná visible en la celda
+      btn.dataset.skill = sk.id;
+      if (!known) btn.classList.add('hb-locked');
       btn.innerHTML = `<span class="sk-icon">${sk.icon}</span>` +
-        `<span class="sk-key">${i + 1}</span>` +
+        `<span class="sk-key">${label}</span>` +
         `<span class="sk-cost">${cost}</span>` +
         `<div class="cd-overlay cd-radial"></div>` +
         `<span class="sk-cd-sec"></span>`;
-      btn.title = `${sk.name} · ${cost} maná`;
+      btn.title = known ? `${sk.name} · ${cost} ${res?.name || 'maná'}` : `${sk.name} (apréndela en Habilidades)`;
       btn.addEventListener('pointerdown', e => {
         e.preventDefault();
-        // feedback de falta de maná: parpadeo rojo si no llega para lanzar
-        const need = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
+        if (!known) { this.message(`${sk.name}: apréndela en el panel de Habilidades`); return; }
         const onCd = (p.cds[sk.id] || 0) > 0;
-        if (p.mp < need && !onCd) this.flashNoMana(btn);
-        this.game.castSkillSlot(i);
+        if (p.mp < cost && !onCd) this.flashNoMana(btn);
+        this.game.castSkillSlot(slot);
       });
       bar.appendChild(btn);
-    });
+    }
+  }
+
+  // fila de botones para asignar una habilidad (o 'basic') a una ranura del hotbar
+  hotbarAssignRow(id) {
+    const p = this.game.player;
+    const row = document.createElement('div');
+    row.className = 'sk-assign';
+    row.innerHTML = `<span class="sk-assign-lbl">Asignar a:</span>`;
+    const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
+    for (const [slot, label] of SLOTS) {
+      const b = document.createElement('button');
+      b.className = 'sk-assign-btn' + (p.hotbar?.[slot] === id ? ' on' : '');
+      b.textContent = label;
+      b.title = `Colocar en ${label}`;
+      b.onclick = () => { this.game.assignHotbar(slot, id); this.renderSkills(); this.updateHUD(); };
+      row.appendChild(b);
+    }
+    return row;
   }
 
   // parpadeo rojo de una celda de habilidad cuando no hay maná suficiente
@@ -898,6 +949,8 @@ export class UI {
           set: (v) => { g.settings.volSfx = v / 100; }, onCommit: () => g.sfx('uiclick') },
       ] },
       { id: 'controles', icon: 'gear', label: 'Controles', items: [
+        { t: 'select', key: 'controlScheme', icon: 'hand', label: 'Esquema de control (PC)', def: 'wasd',
+          opts: [['wasd', 'WASD + ratón (apuntar; clic = habilidad)'], ['click', 'Clic para mover (estilo Diablo II)']] },
         { t: 'keybinds' },
         { t: 'toggle', key: 'joystickRight', icon: 'hand', label: 'Joystick a la derecha (zurdo)', def: false, onChange: () => g.applyAccessibility() },
         { t: 'range', icon: 'plus', label: 'Tamaño de los controles', min: 70, max: 150, step: 5,
@@ -1653,6 +1706,24 @@ export class UI {
     const cont = $('skill-tree');
     cont.innerHTML = '';
 
+    // tarjeta del ATAQUE BÁSICO (generador de recurso): siempre disponible, es
+    // la "habilidad principal" con la que naces. Solo se asigna a ranuras.
+    const res = p.cls.resource;
+    const bIcon = { cleave: '⚔️', bolt: '✨', arrow: '🏹' }[p.cls.atk] || '⚔️';
+    const bcard = document.createElement('div');
+    bcard.className = 'sk-card learned sk-basic-card';
+    bcard.innerHTML = `
+      <div class="sk-card-head">
+        <span class="sk-ico" data-lv="1">${bIcon}</span>
+        <div class="sk-card-titles">
+          <div class="sk-name-row"><strong>${p.cls.basicName || 'Ataque básico'}</strong><span class="sk-tag active">Generador</span></div>
+          <div class="sk-rank dim">${res?.icon || ''} Genera <b>+${res?.gen || 0} ${res?.name || ''}</b> al golpear</div>
+        </div>
+      </div>
+      <small class="sk-desc">${p.cls.basicDesc || 'Tu ataque básico genera recurso para tus habilidades core.'}</small>`;
+    bcard.appendChild(this.hotbarAssignRow('basic'));
+    cont.appendChild(bcard);
+
     for (let tier = 1; tier <= 3; tier++) {
       const reqLvl = TIER_LEVELS[tier - 1];
       const unlocked = p.level >= reqLvl;
@@ -1712,6 +1783,8 @@ export class UI {
         if (lvl > 0 && sk.type !== 'passive') this.renderSupportSlots(card, sk);
         // modificadores de habilidad (Mejora + Aspectos, estilo D4)
         if (lvl > 0 && SKILL_MODS[sk.id]) this.renderSkillMods(card, sk);
+        // asignación a la hotbar (🖱️Izq/Der + 1·2·3·4)
+        if (lvl > 0) card.appendChild(this.hotbarAssignRow(sk.id));
         grid.appendChild(card);
       }
       tierDiv.appendChild(grid);
