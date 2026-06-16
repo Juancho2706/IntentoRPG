@@ -1742,18 +1742,18 @@ export class UI {
       sec.appendChild(head);
       const skillsRow = document.createElement('div');
       skillsRow.className = 'sk-knode-skills';
-      const skillNodes = [];
+      const skills = [];
       for (const sid of node.skills) {
         const sk = p.cls.skills.find(s => s.id === sid);
         if (!sk) continue;
         const wrap = this.skTreeSkill(sk, node, unlocked);
         skillsRow.appendChild(wrap);
         const sn = wrap.querySelector('.sk-node');
-        if (sn) skillNodes.push(sn);
+        if (sn) skills.push({ node: sn, rows: [...wrap.querySelectorAll('.sk-branch')] });
       }
       sec.appendChild(skillsRow);
       graph.appendChild(sec);
-      sections.push({ marker: head.querySelector('.sk-knode'), skillNodes });
+      sections.push({ marker: head.querySelector('.sk-knode'), skills });
     });
     this._skLinks = { svg, sections }; // para redibujar tras el layout
     // zoom in/out (el árbol es grande): toolbar + rueda del ratón
@@ -1955,23 +1955,33 @@ export class UI {
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('width', W); svg.setAttribute('height', H);
     const c = el => { const r = { x: 0, y: 0 }; let n = el; while (n && n !== graph) { r.x += n.offsetLeft; r.y += n.offsetTop; n = n.offsetParent; } r.x += el.offsetWidth / 2; r.y += el.offsetHeight / 2; return r; };
-    let spine = '', branch = '';
+    const cTop = el => { const p = c(el); p.y -= el.offsetHeight / 2; return p; };       // borde superior
+    const cBot = el => { const p = c(el); p.y += el.offsetHeight / 2; return p; };       // borde inferior
+    const cLeft = el => { const p = c(el); p.x -= el.offsetWidth / 2; return p; };       // borde izquierdo
+    let spine = '', branch = '', twig = '';
     for (let i = 0; i < sections.length; i++) {
-      const a = sections[i].marker ? c(sections[i].marker) : null;
-      if (!a) continue;
+      const mk = sections[i].marker; if (!mk) continue;
+      const a = c(mk);
       // espinazo: une rombos consecutivos (línea diagonal del zig-zag)
       if (i < sections.length - 1 && sections[i + 1].marker) {
         const b = c(sections[i + 1].marker);
         spine += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} L${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
       }
-      // ramas: del rombo a cada habilidad, con una curva suave (orgánico)
-      for (const sn of sections[i].skillNodes) {
-        const b = c(sn);
-        const my = (a.y + b.y) / 2;
-        branch += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} C${a.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
+      // RAMAS: del rombo (borde inferior) SURGEN las habilidades (curva en abanico)
+      const ab = cBot(mk);
+      for (const s of sections[i].skills) {
+        const b = cTop(s.node);
+        const my = (ab.y + b.y) / 2;
+        branch += `M${ab.x.toFixed(1)} ${ab.y.toFixed(1)} C${ab.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
+        // RAMITAS: de cada habilidad surgen sus 3 filas de pasivos
+        const sb = cBot(s.node);
+        for (const row of s.rows) {
+          const t = cLeft(row);
+          twig += `M${sb.x.toFixed(1)} ${sb.y.toFixed(1)} C${sb.x.toFixed(1)} ${t.y.toFixed(1)} ${(t.x - 10).toFixed(1)} ${t.y.toFixed(1)} ${t.x.toFixed(1)} ${t.y.toFixed(1)} `;
+        }
       }
     }
-    svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/>`;
+    svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/><path class="sk-link-twig" d="${twig}"/>`;
   }
 
   // detalle de una habilidad (subir rango + engarces de soporte si aplica)

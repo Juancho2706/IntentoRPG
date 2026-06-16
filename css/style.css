@@ -549,6 +549,7 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .sk-links { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; overflow: visible; }
 .sk-link-spine { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round; opacity: 0.7; }
 .sk-link-branch { fill: none; stroke: #56627e; stroke-width: 2.5; stroke-linecap: round; opacity: 0.6; }
+.sk-link-twig { fill: none; stroke: #4a5266; stroke-width: 1.8; stroke-linecap: round; opacity: 0.5; }
 .sk-trunk6 { width: 3px; height: 22px; background: var(--sk-line); border-radius: 2px; }
 .sk-knode-sec { display: flex; flex-direction: column; align-items: center; gap: 10px; width: auto; position: relative; z-index: 1; }
 .sk-knode-sec.locked { opacity: 0.82; }
@@ -562,12 +563,11 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .sk-knode.locked { filter: grayscale(0.8) brightness(0.6); }
 .sk-knode-lbl b { font-size: 13px; }
 .sk-knode-lbl small { display: block; font-size: 10px; opacity: 0.7; }
-.sk-knode-skills { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; padding: 2px 4px; align-items: flex-start; }
+/* habilidades en ABANICO (no se apilan): surgen del rombo una al lado de otra */
+.sk-knode-skills { display: flex; flex-wrap: nowrap; justify-content: center; gap: 34px; padding: 14px 4px 2px; align-items: flex-start; }
 .sk-skill { display: flex; flex-direction: column; align-items: center; }
-/* 3 mini-ramas (twigs) saliendo de la habilidad, con tronco vertical */
-.sk-branches { display: flex; flex-direction: column; gap: 7px; margin-top: 2px; padding: 7px 8px 8px; border-radius: 10px; position: relative;
-  background: rgba(255,255,255,0.03); border: 1px solid #2c3344; }
-.sk-branches::before { content: ''; position: absolute; top: -8px; left: 50%; width: 3px; height: 8px; background: var(--sk-line); transform: translateX(-50%); }
+/* 3 mini-ramas (twigs) que surgen de la habilidad (las líneas las dibuja el SVG) */
+.sk-branches { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding: 0; position: relative; }
 /* cada mini-rama = una fila claramente separada donde eliges 1 */
 .sk-branch { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 4px; border-radius: 8px; border: 1px solid #333c4e; background: rgba(0,0,0,0.18); }
 .sk-branch.big { border-color: #c9742a; background: rgba(208,116,42,0.10); } /* Transformación */
