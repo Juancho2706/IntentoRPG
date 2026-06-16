@@ -2,6 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
+import * as d3 from 'd3';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
@@ -1754,50 +1755,44 @@ export class UI {
       }
       sec.appendChild(skillsRow);
       graph.appendChild(sec);
-      sections.push({ marker: head.querySelector('.sk-knode'), skills });
+      sections.push({ marker: head.querySelector('.sk-knode'), skills, side });
     });
     this._skLinks = { svg, sections }; // para redibujar tras el layout
-    // zoom in/out (el árbol es grande): toolbar + rueda del ratón
-    // PAN + ZOOM tipo mapa: el árbol se mueve con transform (translate+scale)
-    // dentro de un visor de altura fija, así se ARRASTRA en cualquier dirección.
-    this.skillZoom = this.skillZoom || 1;
-    this.skillPanX = this.skillPanX || 0; this.skillPanY = this.skillPanY || 0;
-    const applyT = () => { graph.style.transform = `translate(${this.skillPanX}px, ${this.skillPanY}px) scale(${this.skillZoom})`; if (zl) zl.textContent = Math.round(this.skillZoom * 100) + '%'; };
-    const setZoom = z => { this.skillZoom = Math.max(0.5, Math.min(1.8, Math.round(z * 20) / 20)); applyT(); };
+    // ===== PAN + ZOOM profesionales con d3-zoom (rueda al cursor, arrastre,
+    // pellizco táctil, momentum). El visor es el objetivo; el grafo recibe el
+    // transform. transform-origin 0 0 para que la matemática de d3 cuadre. =====
     const zoomBar = document.createElement('div'); zoomBar.className = 'sk-zoom';
     zoomBar.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-zoom-lbl">100%</span><button class="sk-zoom-b" data-z="in">+</button><button class="sk-zoom-b" data-z="reset">⟲</button>`;
     const zl = zoomBar.querySelector('.sk-zoom-lbl');
-    zoomBar.querySelector('[data-z=out]').onclick = () => setZoom(this.skillZoom - 0.1);
-    zoomBar.querySelector('[data-z=in]').onclick = () => setZoom(this.skillZoom + 0.1);
-    zoomBar.querySelector('[data-z=reset]').onclick = () => { this.skillPanX = 0; this.skillPanY = 0; setZoom(1); };
     cont.appendChild(zoomBar);
-    // visor con alto fijo: SOLO el árbol se mueve aquí (la hotbar/respec quedan fuera)
     const viewport = document.createElement('div'); viewport.className = 'sk-viewport';
-    graph.style.transformOrigin = '50% 0';
+    graph.style.transformOrigin = '0 0';
     viewport.appendChild(graph);
     cont.appendChild(viewport);
-    applyT();
-    // dibuja las líneas del árbol (espinazo zig-zag + ramas) tras el layout
-    requestAnimationFrame(() => this.drawSkillLinks());
-    viewport.onwheel = e => { e.preventDefault(); setZoom(this.skillZoom + (e.deltaY < 0 ? 0.1 : -0.1)); };
-    // ARRASTRAR para desplazar el árbol en cualquier dirección (clic izq / dedo).
-    // No interfiere al tocar un botón/opción (closest('button')).
-    let drag = null;
-    viewport.onpointerdown = e => {
-      if (e.button != null && e.button !== 0) return;
-      if (e.target.closest('button, select, input')) return;
-      drag = { x: e.clientX, y: e.clientY, px: this.skillPanX, py: this.skillPanY };
-      viewport.classList.add('grabbing');
-      try { viewport.setPointerCapture(e.pointerId); } catch { /* no soportado */ }
-    };
-    viewport.onpointermove = e => {
-      if (!drag) return;
-      this.skillPanX = drag.px + (e.clientX - drag.x);
-      this.skillPanY = drag.py + (e.clientY - drag.y);
-      applyT();
-    };
-    const endDrag = () => { drag = null; viewport.classList.remove('grabbing'); };
-    viewport.onpointerup = endDrag; viewport.onpointercancel = endDrag;
+
+    const zoomB = d3.zoom()
+      .scaleExtent([0.35, 2.4])
+      // la rueda hace zoom siempre; el arrastre NO empieza sobre un control
+      .filter(ev => ev.type === 'wheel' || !ev.target.closest('button, select, input'))
+      .on('start', () => viewport.classList.add('grabbing'))
+      .on('end', () => viewport.classList.remove('grabbing'))
+      .on('zoom', ev => {
+        const t = ev.transform;
+        graph.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.k})`;
+        this._skXform = t;
+        if (zl) zl.textContent = Math.round(t.k * 100) + '%';
+      });
+    const sel = d3.select(viewport);
+    sel.call(zoomB).on('dblclick.zoom', null); // doble clic no hace zoom (lo usan los nodos)
+    zoomBar.querySelector('[data-z=out]').onclick = () => sel.transition().duration(150).call(zoomB.scaleBy, 0.8);
+    zoomBar.querySelector('[data-z=in]').onclick = () => sel.transition().duration(150).call(zoomB.scaleBy, 1.25);
+    zoomBar.querySelector('[data-z=reset]').onclick = () => { this._skXform = null; this._centerSkillTree(viewport, graph, sel, zoomB); };
+    // dibuja las líneas y recoloca el árbol tras el layout
+    requestAnimationFrame(() => {
+      this.drawSkillLinks();
+      if (this._skXform) sel.call(zoomB.transform, this._skXform); // conserva pan/zoom entre renders
+      else this._centerSkillTree(viewport, graph, sel, zoomB);     // centra al abrir
+    });
 
     // respec (habilidades + aspectos comparten el mismo pool de puntos)
     if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
@@ -1944,9 +1939,19 @@ export class UI {
     return row;
   }
 
-  // dibuja las líneas del árbol: ESPINAZO en zig-zag entre rombos + RAMAS de
-  // cada rombo a sus habilidades. Usa coords de layout (offsetLeft/Top), que el
-  // SVG comparte con el grafo (ambos se escalan/desplazan juntos con transform).
+  // centra/encaja el árbol en el visor (transform inicial de d3-zoom)
+  _centerSkillTree(viewport, graph, sel, zoomB) {
+    const vw = viewport.clientWidth, vh = viewport.clientHeight;
+    const gw = graph.offsetWidth, gh = graph.offsetHeight;
+    if (!vw || !gw) return;
+    const k = Math.max(0.35, Math.min(1, (vw - 40) / gw, (vh - 40) / gh));
+    const tx = (vw - gw * k) / 2, ty = 24;
+    sel.transition().duration(220).call(zoomB.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
+  }
+
+  // dibuja las líneas del árbol con generadores de curvas de D3 (espinazo entre
+  // rombos + ramas rombo→habilidad + ramitas habilidad→pasivos). Coords de layout
+  // (offsetLeft/Top), que el SVG comparte con el grafo (se transforman juntos).
   drawSkillLinks() {
     const data = this._skLinks; if (!data) return;
     const { svg, sections } = data;
@@ -1956,30 +1961,18 @@ export class UI {
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('width', W); svg.setAttribute('height', H);
     const c = el => { const r = { x: 0, y: 0 }; let n = el; while (n && n !== graph) { r.x += n.offsetLeft; r.y += n.offsetTop; n = n.offsetParent; } r.x += el.offsetWidth / 2; r.y += el.offsetHeight / 2; return r; };
-    const cTop = el => { const p = c(el); p.y -= el.offsetHeight / 2; return p; };       // borde superior
-    const cBot = el => { const p = c(el); p.y += el.offsetHeight / 2; return p; };       // borde inferior
-    const cLeft = el => { const p = c(el); p.x -= el.offsetWidth / 2; return p; };       // borde izquierdo
+    const lv = d3.linkVertical(), lh = d3.linkHorizontal();
+    const draw = (gen, a, b) => gen({ source: [a.x, a.y], target: [b.x, b.y] }) + ' ';
     let spine = '', branch = '', twig = '';
     for (let i = 0; i < sections.length; i++) {
       const mk = sections[i].marker; if (!mk) continue;
       const a = c(mk);
-      // espinazo: une rombos consecutivos (línea diagonal del zig-zag)
-      if (i < sections.length - 1 && sections[i + 1].marker) {
-        const b = c(sections[i + 1].marker);
-        spine += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} L${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
-      }
-      // RAMAS: del rombo SURGEN las habilidades con una curva suave (sirve igual
-      // hacia abajo —nodo 1— que hacia los lados —resto de nodos—)
+      if (i < sections.length - 1 && sections[i + 1].marker) spine += draw(lv, a, c(sections[i + 1].marker));
+      const horiz = sections[i].side !== 'down'; // nodos laterales: curva horizontal
       for (const s of sections[i].skills) {
         const b = c(s.node);
-        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-        branch += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} C${mx.toFixed(1)} ${a.y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
-        // RAMITAS: de cada habilidad surgen sus filas de pasivos (hacia abajo)
-        const sb = cBot(s.node);
-        for (const row of s.rows) {
-          const t = cLeft(row);
-          twig += `M${sb.x.toFixed(1)} ${sb.y.toFixed(1)} C${sb.x.toFixed(1)} ${t.y.toFixed(1)} ${(t.x - 10).toFixed(1)} ${t.y.toFixed(1)} ${t.x.toFixed(1)} ${t.y.toFixed(1)} `;
-        }
+        branch += draw(horiz ? lh : lv, a, b);
+        for (const row of s.rows) twig += draw(lv, b, c(row));
       }
     }
     svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/><path class="sk-link-twig" d="${twig}"/>`;
