@@ -545,7 +545,7 @@ export const ERA_MUTATORS = [
   { id: 'sabiduria', name: 'Era de la Sabiduría',icon: '📖', desc: '+50% de experiencia',                   xpMul: 1.5 },
   { id: 'celeridad', name: 'Era de la Celeridad', icon: '💨', desc: '+12% vel. de ataque y de movimiento',  stat: { aspdPct: 12, spdPct: 12 } },
   { id: 'furia',     name: 'Era de la Furia',    icon: '🔥', desc: '+10% crítico y poder de Furia',          stat: { crit: 10 }, power: 'furia' },
-  { id: 'cazador',   name: 'Era del Cazador',    icon: '🏹', desc: '+1 proyectil (Vendaval)',               power: 'multidisparo' },
+  { id: 'cazador',   name: 'Era del Cazador',    icon: '🏹', desc: '+12% crítico y +8% daño',               stat: { crit: 12, dmgPct: 8 } },
   { id: 'bastion',   name: 'Era del Bastión',    icon: '🛡️', desc: '+80 vida y +30 armadura',               stat: { hp: 80, arm: 30 } },
 ];
 

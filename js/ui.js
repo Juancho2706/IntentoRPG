@@ -290,6 +290,30 @@ export class UI {
     });
     cont.appendChild(slotRow);
 
+    // selector de esquema de control (PC) — se elige al empezar el juego
+    const ctrl = document.createElement('div');
+    ctrl.className = 'ctrl-select';
+    ctrl.innerHTML = `<span class="ctrl-lbl">🖥️ Controles (PC):</span>`;
+    const curScheme = this.game.settings?.controlScheme || 'wasd';
+    const ctrlOpts = [
+      ['wasd', '⌨️ WASD + ratón', 'Mueves con WASD, apuntas con el ratón; clic izq/der y 1-4 lanzan habilidades'],
+      ['click', '🖱️ Clic para mover', 'Estilo Diablo II: clic izquierdo mueve y ataca'],
+    ];
+    for (const [val, label, desc] of ctrlOpts) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ctrl-opt' + (val === curScheme ? ' sel' : '');
+      b.innerHTML = `<b>${label}</b><small>${desc}</small>`;
+      b.onclick = () => {
+        this.game.settings.controlScheme = val;
+        this.game.saveSettings?.();
+        ctrl.querySelectorAll('.ctrl-opt').forEach(x => x.classList.remove('sel'));
+        b.classList.add('sel');
+      };
+      ctrl.appendChild(b);
+    }
+    cont.appendChild(ctrl);
+
     if (selectedSlot < 0) {
       const full = document.createElement('p');
       full.className = 'dim';
@@ -658,23 +682,6 @@ export class UI {
     }
   }
 
-  // fila de botones para asignar una habilidad (o 'basic') a una ranura del hotbar
-  hotbarAssignRow(id) {
-    const p = this.game.player;
-    const row = document.createElement('div');
-    row.className = 'sk-assign';
-    row.innerHTML = `<span class="sk-assign-lbl">Asignar a:</span>`;
-    const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
-    for (const [slot, label] of SLOTS) {
-      const b = document.createElement('button');
-      b.className = 'sk-assign-btn' + (p.hotbar?.[slot] === id ? ' on' : '');
-      b.textContent = label;
-      b.title = `Colocar en ${label}`;
-      b.onclick = () => { this.game.assignHotbar(slot, id); this.renderSkills(); this.updateHUD(); };
-      row.appendChild(b);
-    }
-    return row;
-  }
 
   // parpadeo rojo de una celda de habilidad cuando no hay maná suficiente
   flashNoMana(btn) {
@@ -1695,104 +1702,32 @@ export class UI {
     const p = this.game.player;
     const nav = $('sk-build-nav');
     if (nav) { nav.innerHTML = this.buildNavHTML('skills'); this.bindBuildNav(nav); }
-    // cabecera: clase + puntos disponibles destacados + consejo
     const ptsEl = $('skill-points');
-    const learned = Object.keys(p.skills).length;
     ptsEl.className = 'sk-summary' + (p.skillPoints > 0 ? ' has-points' : '');
-    ptsEl.innerHTML = `<span class="sk-sum-cls">${p.cls.icon} ${p.cls.name}</span>` +
+    ptsEl.innerHTML = `<span class="sk-sum-cls">${p.cls.icon} ${p.cls.name} · ${p.cls.resource?.icon || ''} ${p.cls.resource?.name || ''}</span>` +
       (p.skillPoints > 0
         ? `<span class="sk-sum-pts">✦ ${p.skillPoints} punto${p.skillPoints > 1 ? 's' : ''} por gastar</span>`
-        : `<span class="sk-sum-pts dim">Sin puntos · ${learned} habilidad${learned === 1 ? '' : 'es'} aprendida${learned === 1 ? '' : 's'}</span>`);
+        : `<span class="sk-sum-pts dim">Sin puntos por gastar</span>`);
     const cont = $('skill-tree');
     cont.innerHTML = '';
 
-    // tarjeta del ATAQUE BÁSICO (generador de recurso): siempre disponible, es
-    // la "habilidad principal" con la que naces. Solo se asigna a ranuras.
-    const res = p.cls.resource;
-    const bIcon = { cleave: '⚔️', bolt: '✨', arrow: '🏹' }[p.cls.atk] || '⚔️';
-    const bcard = document.createElement('div');
-    bcard.className = 'sk-card learned sk-basic-card';
-    bcard.innerHTML = `
-      <div class="sk-card-head">
-        <span class="sk-ico" data-lv="1">${bIcon}</span>
-        <div class="sk-card-titles">
-          <div class="sk-name-row"><strong>${p.cls.basicName || 'Ataque básico'}</strong><span class="sk-tag active">Generador</span></div>
-          <div class="sk-rank dim">${res?.icon || ''} Genera <b>+${res?.gen || 0} ${res?.name || ''}</b> al golpear</div>
-        </div>
-      </div>
-      <small class="sk-desc">${p.cls.basicDesc || 'Tu ataque básico genera recurso para tus habilidades core.'}</small>`;
-    bcard.appendChild(this.hotbarAssignRow('basic'));
-    cont.appendChild(bcard);
+    // editor ÚNICO de la barra: toca una ranura → elige qué habilidad colocar
+    cont.appendChild(this.renderHotbarEditor());
 
-    for (let tier = 1; tier <= 3; tier++) {
-      const reqLvl = TIER_LEVELS[tier - 1];
-      const unlocked = p.level >= reqLvl;
-      const tierDiv = document.createElement('div');
-      tierDiv.className = 'sk-tier' + (unlocked ? '' : ' locked');
-      tierDiv.innerHTML = `<div class="sk-tier-head"><span>Nivel ${tier}</span>${unlocked ? '' : `<span class="sk-tier-lock">${icon('lock')} requiere nivel ${reqLvl}</span>`}</div>`;
-      const grid = document.createElement('div');
-      grid.className = 'sk-grid';
+    // grafo de habilidades estilo D4: raíz (básico) → 4 cores → Mejora + 2 Aspectos,
+    // conectados con líneas. Toca un nodo core para ver su detalle y subirlo.
+    const graph = document.createElement('div');
+    graph.className = 'sk-graph';
+    graph.appendChild(this.skBasicNode());
+    const trunk = document.createElement('div'); trunk.className = 'sk-trunk';
+    graph.appendChild(trunk);
+    const cols = document.createElement('div'); cols.className = 'sk-cols';
+    for (const sk of p.cls.skills.filter(s => s.kind === 'core')) cols.appendChild(this.skCoreColumn(sk));
+    graph.appendChild(cols);
+    cont.appendChild(graph);
 
-      for (const sk of p.cls.skills.filter(s => s.tier === tier)) {
-        const lvl = p.skills[sk.id] || 0;
-        const maxed = lvl >= sk.max;
-        const upgradeable = unlocked && p.skillPoints > 0 && !maxed;
-        const card = document.createElement('div');
-        card.className = 'sk-card' + (lvl > 0 ? ' learned' : '') + (upgradeable ? ' upgradeable' : '') + (maxed ? ' maxed' : '');
-
-        const typeTag = sk.type === 'passive'
-          ? '<span class="sk-tag passive">Pasiva</span>'
-          : '<span class="sk-tag active">Activa</span>';
-        const stateTag = maxed ? '<span class="sk-tag max">★ Máx</span>'
-          : upgradeable ? '<span class="sk-tag up">▲ Mejorable</span>' : '';
-        // sinergia
-        let synHTML = '';
-        if (sk.synergies) {
-          const txts = sk.synergies.map(sy => {
-            const src = p.cls.skills.find(s => s.id === sy.from);
-            return `${sy.pct}%/pt en ${src ? src.name : sy.from}`;
-          });
-          const bonus = synergyBonus(sk, p.skills);
-          synHTML = `<small class="sk-syn">🔗 ${txts.join(' · ')}${bonus > 0 ? ` <b>(+${bonus}% activo)</b>` : ''}</small>`;
-        }
-        const details = this.skillDetails(sk, Math.max(1, lvl));
-        const upLine = (unlocked && !maxed) ? this.skillUpgradeLine(sk, lvl) : '';
-
-        card.innerHTML = `
-          <div class="sk-card-head">
-            <span class="sk-ico" data-lv="${lvl}">${sk.icon}</span>
-            <div class="sk-card-titles">
-              <div class="sk-name-row"><strong>${sk.name}</strong>${typeTag}${stateTag}</div>
-              <div class="sk-rank">${this.skillPips(lvl, sk.max)} <em>${lvl}/${sk.max}</em></div>
-            </div>
-          </div>
-          <small class="sk-desc">${sk.desc}</small>
-          ${details ? `<small class="sk-nums">${details}</small>` : ''}
-          ${upLine}
-          ${synHTML}`;
-
-        if (upgradeable) {
-          const b = document.createElement('button');
-          b.className = 'sk-plus';
-          b.setAttribute('aria-label', `Mejorar ${sk.name}`);
-          b.innerHTML = '<span>+</span>';
-          b.onclick = () => { this.game.learnSkill(sk.id); this.renderSkills(); this.updateHUD(); };
-          card.querySelector('.sk-card-head').appendChild(b);
-        }
-        // engarces de soporte (hasta 2) para habilidades activas aprendidas
-        if (lvl > 0 && sk.type !== 'passive') this.renderSupportSlots(card, sk);
-        // modificadores de habilidad (Mejora + Aspectos, estilo D4)
-        if (lvl > 0 && SKILL_MODS[sk.id]) this.renderSkillMods(card, sk);
-        // asignación a la hotbar (🖱️Izq/Der + 1·2·3·4)
-        if (lvl > 0) card.appendChild(this.hotbarAssignRow(sk.id));
-        grid.appendChild(card);
-      }
-      tierDiv.appendChild(grid);
-      cont.appendChild(tierDiv);
-    }
-
-    // respec de habilidades (sumidero de oro)
-    if (Object.keys(p.skills).length) {
+    // respec (habilidades + aspectos comparten el mismo pool de puntos)
+    if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
       const cost = this.game.respecCost();
       const rb = document.createElement('button');
       rb.className = 'quest-btn sk-respec';
@@ -1803,9 +1738,168 @@ export class UI {
     }
   }
 
+  // ---- editor único de la hotbar (toca una ranura → elige habilidad) ----
+  renderHotbarEditor() {
+    const p = this.game.player;
+    const wrap = document.createElement('div');
+    wrap.className = 'hb-editor';
+    wrap.innerHTML = `<div class="hb-editor-head">🎮 Barra de habilidades <small class="dim">— toca una ranura y elige qué colocar</small></div>`;
+    const row = document.createElement('div'); row.className = 'hb-slots';
+    const basicIcon = { cleave: '⚔️', bolt: '✨', arrow: '🏹' }[p.cls.atk] || '⚔️';
+    const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
+    for (const [slot, label] of SLOTS) {
+      const id = p.hotbar?.[slot] || null;
+      let ico = '·', nm = 'Vacío', cls = ' empty';
+      if (id === 'basic') { ico = basicIcon; nm = p.cls.basicName || 'Básico'; cls = ' basic'; }
+      else if (id) { const sk = p.cls.skills.find(s => s.id === id); if (sk) { ico = sk.icon; nm = sk.name + (p.skills[id] > 0 ? '' : ' (sin aprender)'); cls = ''; } }
+      const b = document.createElement('button');
+      b.className = 'hb-slot' + cls;
+      b.innerHTML = `<span class="hb-slot-key">${label}</span><span class="hb-slot-ico">${ico}</span>`;
+      b.title = `${label}: ${nm} — toca para cambiar`;
+      b.onclick = () => this.hotbarSlotChooser(slot, label);
+      row.appendChild(b);
+    }
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  // popup: elige qué habilidad colocar en una ranura concreta
+  hotbarSlotChooser(slot, label) {
+    const g = this.game, p = g.player;
+    const pop = $('item-popup');
+    pop.style.left = pop.style.top = pop.style.transform = '';
+    const basicIcon = { cleave: '⚔️', bolt: '✨', arrow: '🏹' }[p.cls.atk] || '⚔️';
+    pop.innerHTML = `<div class="popup-name">🎮 Asignar a la ranura ${label}</div><div class="popup-btns codex-choose"></div>`;
+    const btns = pop.querySelector('.popup-btns');
+    const add = (id, html, dim = false) => {
+      const b = document.createElement('button');
+      b.className = 'btn-good' + (p.hotbar?.[slot] === id ? ' on' : '');
+      if (dim) b.style.opacity = '0.55';
+      b.innerHTML = html;
+      b.onclick = () => { g.assignHotbar(slot, id); pop.classList.add('hidden'); this.renderSkills(); this.updateHUD(); };
+      btns.appendChild(b);
+    };
+    add('basic', `${basicIcon} ${p.cls.basicName || 'Ataque básico'} <small class="dim">(generador)</small>`);
+    for (const sk of p.cls.skills.filter(s => s.kind === 'core')) {
+      const known = p.skills[sk.id] > 0;
+      add(sk.id, `${sk.icon} ${sk.name}${known ? '' : ' <small class="dim">(sin aprender)</small>'}`, !known);
+    }
+    const clr = document.createElement('button'); clr.textContent = '✖ Vaciar ranura';
+    clr.onclick = () => { g.assignHotbar(slot, null); pop.classList.add('hidden'); this.renderSkills(); this.updateHUD(); };
+    btns.appendChild(clr);
+    const c = document.createElement('button'); c.textContent = 'Cerrar';
+    c.onclick = () => pop.classList.add('hidden');
+    btns.appendChild(c);
+    pop.classList.remove('hidden');
+  }
+
+  // ---- nodos del grafo de habilidades (estilo D4) ----
+  skNodeWrap(node, label) {
+    const w = document.createElement('div'); w.className = 'sk-nwrap';
+    const l = document.createElement('div'); l.className = 'sk-nlbl'; l.textContent = label;
+    w.append(node, l); return w;
+  }
+  skConn() { const d = document.createElement('div'); d.className = 'sk-conn'; return d; }
+  skBasicNode() {
+    const p = this.game.player, res = p.cls.resource;
+    const bIcon = { cleave: '⚔️', bolt: '✨', arrow: '🏹' }[p.cls.atk] || '⚔️';
+    const node = document.createElement('button');
+    node.className = 'sk-node basic learned';
+    node.innerHTML = `<span class="sk-node-ico">${bIcon}</span>`;
+    node.title = `${p.cls.basicName || 'Ataque básico'} — ${p.cls.basicDesc || ''}\nGenera +${res?.gen || 0} ${res?.name || ''} al golpear`;
+    node.onclick = () => this.message(`${p.cls.basicName || 'Ataque básico'}: tu generador de ${res?.name || 'recurso'} (🖱️Izq por defecto)`);
+    return this.skNodeWrap(node, p.cls.basicName || 'Básico');
+  }
+  skCoreColumn(sk) {
+    const p = this.game.player;
+    const col = document.createElement('div'); col.className = 'sk-col';
+    const lvl = p.skills[sk.id] || 0;
+    const reqLvl = TIER_LEVELS[sk.tier - 1];
+    const unlocked = p.level >= reqLvl;
+    const maxed = lvl >= sk.max;
+    const canLearn = unlocked && p.skillPoints > 0 && !maxed;
+    const cnode = document.createElement('button');
+    cnode.className = 'sk-node core' + (lvl > 0 ? ' learned' : '') + (canLearn ? ' avail' : '') + (maxed ? ' maxed' : '') + (!unlocked ? ' tier-locked' : '');
+    cnode.innerHTML = `<span class="sk-node-ico">${sk.icon}</span><span class="sk-node-rank">${lvl}/${sk.max}</span>` + (!unlocked ? `<span class="sk-node-lock">${icon('lock')}</span>` : '');
+    cnode.title = `${sk.name} — ${sk.desc}` + (!unlocked ? `\n🔒 Requiere nivel ${reqLvl}` : '');
+    cnode.onclick = () => this.skillDetailPopup(sk);
+    col.appendChild(this.skNodeWrap(cnode, sk.name));
+    const list = SKILL_MODS[sk.id];
+    if (list) {
+      col.appendChild(this.skConn());
+      const mejora = list.find(m => m.kind === 'mejora');
+      if (mejora) col.appendChild(this.skModNode(sk, mejora));
+      col.appendChild(this.skConn());
+      const aspRow = document.createElement('div'); aspRow.className = 'sk-asp-row';
+      for (const a of list.filter(m => m.kind === 'aspecto')) aspRow.appendChild(this.skModNode(sk, a));
+      col.appendChild(aspRow);
+    }
+    return col;
+  }
+  skModNode(sk, mod) {
+    const g = this.game, p = g.player;
+    const owned = p.skillMods[sk.id] || {};
+    const has = !!owned[mod.id];
+    const list = SKILL_MODS[sk.id];
+    const groupTaken = mod.group && list.some(x => x.group === mod.group && x.id !== mod.id && owned[x.id]);
+    const needReq = mod.req && !owned[mod.req];
+    const learned = p.skills[sk.id] > 0;
+    const isMejora = mod.kind === 'mejora';
+    const can = learned && !has && p.skillPoints > 0 && !groupTaken && !needReq;
+    const node = document.createElement('button');
+    node.className = 'sk-node mod ' + (isMejora ? 'mejora' : 'aspecto') + (has ? ' owned' : '') + (can ? ' avail' : '') + (((needReq || groupTaken || !learned) && !has) ? ' locked' : '');
+    node.innerHTML = `<span class="sk-node-ico">${isMejora ? '⬆' : '◆'}</span>`;
+    node.title = `${isMejora ? 'Mejora' : mod.name}: ${mod.desc}` + (!learned ? '\n🔒 aprende la habilidad' : needReq ? '\n🔒 requiere la Mejora' : groupTaken ? '\n(elegiste el otro Aspecto)' : has ? '\n✓ activo' : p.skillPoints > 0 ? '\n+1 punto' : '\nsin puntos');
+    node.onclick = () => {
+      if (!learned) { this.message(`Aprende ${sk.name} primero`); return; }
+      g.allocateSkillMod(sk.id, mod.id); this.renderSkills(); this.updateHUD();
+    };
+    return this.skNodeWrap(node, isMejora ? 'Mejora' : mod.name);
+  }
+
+  // detalle de una habilidad core (subir rango + engarces de soporte)
+  skillDetailPopup(sk) {
+    const g = this.game, p = g.player;
+    const pop = $('item-popup');
+    pop.style.left = pop.style.top = pop.style.transform = '';
+    const lvl = p.skills[sk.id] || 0;
+    const reqLvl = TIER_LEVELS[sk.tier - 1];
+    const unlocked = p.level >= reqLvl;
+    const maxed = lvl >= sk.max;
+    const cost = Math.round(skillVal(sk.mana, Math.max(1, lvl)));
+    const res = p.cls.resource;
+    const details = this.skillDetails(sk, Math.max(1, lvl));
+    let syn = '';
+    if (sk.synergies) {
+      const txts = sk.synergies.map(sy => { const src = p.cls.skills.find(s => s.id === sy.from); return `${sy.pct}%/pt en ${src ? src.name : sy.from}`; });
+      const bonus = synergyBonus(sk, p.skills);
+      syn = `<div class="sk-detail-syn">🔗 ${txts.join(' · ')}${bonus > 0 ? ` <b>(+${bonus}%)</b>` : ''}</div>`;
+    }
+    pop.innerHTML = `
+      <div class="popup-name">${sk.icon} ${sk.name} <span class="dim">${lvl}/${sk.max}</span></div>
+      <div class="popup-sub">${sk.desc}</div>
+      <div class="sk-detail-nums">${details} · cuesta ${cost} ${res?.name || ''}</div>
+      ${syn}
+      <div class="popup-btns codex-choose"></div>`;
+    const btns = pop.querySelector('.popup-btns');
+    const up = document.createElement('button');
+    up.className = 'btn-good';
+    if (!unlocked) { up.disabled = true; up.textContent = `🔒 Requiere nivel ${reqLvl}`; }
+    else if (maxed) { up.disabled = true; up.textContent = '★ Rango máximo'; }
+    else if (p.skillPoints <= 0) { up.disabled = true; up.textContent = 'Sin puntos de habilidad'; }
+    else up.textContent = lvl === 0 ? 'Aprender (1 punto)' : `Subir a rango ${lvl + 1} (1 punto)`;
+    up.onclick = () => { g.learnSkill(sk.id); pop.classList.add('hidden'); this.renderSkills(); this.updateHUD(); };
+    btns.appendChild(up);
+    if (lvl > 0) this.renderSupportSlots(pop, sk, () => this.skillDetailPopup(sk));
+    const c = document.createElement('button'); c.textContent = 'Cerrar';
+    c.onclick = () => pop.classList.add('hidden');
+    btns.appendChild(c);
+    pop.classList.remove('hidden');
+  }
+
   // Multi-socket: hasta 2 soportes por habilidad. Muestra dos selectores con el
   // efecto y la contrapartida de cada soporte; los incompatibles aparecen en gris.
-  renderSupportSlots(infoEl, sk) {
+  renderSupportSlots(infoEl, sk, onChange) {
     const p = this.game.player;
     const MAX_SLOTS = 2;
     // normaliza a array (retrocompat con saves viejos en string)
@@ -1832,7 +1926,7 @@ export class UI {
       for (const id of p.supports[sk.id]) if (id && !clean.includes(id)) clean.push(id);
       p.supports[sk.id] = clean.slice(0, MAX_SLOTS);
       this.game.save();
-      this.renderSkills();
+      (onChange || (() => this.renderSkills()))();
     };
 
     for (let slot = 0; slot < MAX_SLOTS; slot++) {

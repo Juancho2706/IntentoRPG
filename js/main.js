@@ -1080,9 +1080,12 @@ class Game {
     if (!p || !p.alive || this.state !== 'play' || this._paused || p.atkCd > 0) return;
     const aim = this.input?.mouseWorld || null;
     const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
+    const scheme = this.settings?.controlScheme || 'wasd';
     if (p.cls.ranged) {
       const fwd = new THREE.Vector3(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
-      const tgt = near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) };
+      // WASD: dispara SIEMPRE hacia el cursor (apuntado manual, no autodirigido).
+      // Clic-mover: hacia el enemigo cercano (no hay mira persistente).
+      const tgt = (scheme !== 'click' && aim) ? { pos: aim } : (near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) });
       p.faceToward(tgt.pos);
       p.basicAttack(tgt);
     } else if (near && p.pos.distanceTo(near.pos) <= p.cls.atkRange) {

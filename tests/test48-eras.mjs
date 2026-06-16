@@ -15,6 +15,12 @@ const g = {
 Object.assign(g, eraMethods);
 const p = new Player(g, 'guerrero'); g.player = p;
 
+// --- regresión: NINGÚN mutador de era otorga +1 proyectil (multidisparo) como
+// poder global, que duplicaba los proyectiles del básico/habilidades a nivel 1 ---
+if (ERA_MUTATORS.some(m => m.power === 'multidisparo'))
+  throw new Error('un mutador de era no debe regalar multidisparo (bug de proyectiles a nivel 1)');
+console.log('Eras: ningún mutador regala multidisparo (proyectiles correctos a nivel 1) ✓');
+
 // --- determinismo: misma era → mismo mutador y objetivos ---
 const a = g.eraDef(1000), b = g.eraDef(1000);
 if (a.mutator.id !== b.mutator.id) throw new Error('mutador no determinista');

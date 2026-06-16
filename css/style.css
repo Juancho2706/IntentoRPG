@@ -504,6 +504,64 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
   background: linear-gradient(180deg, #265a26, #1d3a1d); color: #aef0ae;
   border: 1px solid #3a7a3a; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
 .sk-card .sk-plus { position: absolute; top: 9px; right: 9px; } /* solo en tarjetas de skill */
+
+/* ====== Grafo de habilidades estilo D4 (nodos conectados por líneas) ====== */
+:root { --sk-line: #4a5570; }
+.sk-graph { display: flex; flex-direction: column; align-items: center; padding: 6px 0 14px; }
+.sk-trunk { width: 3px; height: 20px; background: var(--sk-line); border-radius: 2px; }
+.sk-cols { display: flex; gap: 14px; justify-content: center; align-items: flex-start; position: relative; padding-top: 20px; flex-wrap: wrap; }
+/* bus horizontal que une los 4 cores bajo la raíz */
+.sk-cols::before { content: ''; position: absolute; top: 0; left: 12.5%; right: 12.5%; height: 3px; background: var(--sk-line); border-radius: 2px; }
+.sk-col { display: flex; flex-direction: column; align-items: center; position: relative; min-width: 78px; }
+/* gota vertical desde el bus a cada core */
+.sk-col::before { content: ''; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 3px; height: 20px; background: var(--sk-line); border-radius: 2px; }
+.sk-conn { width: 3px; height: 16px; background: var(--sk-line); border-radius: 2px; }
+.sk-asp-row { display: flex; gap: 10px; }
+.sk-nwrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.sk-nlbl { font-size: 9.5px; opacity: 0.72; text-align: center; max-width: 84px; line-height: 1.1; }
+
+.sk-node { position: relative; display: grid; place-items: center; cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, #2a3344, #131a26);
+  border: 2px solid #3a4358; color: #cdd6e6; }
+.sk-node .sk-node-ico { font-size: 20px; line-height: 1; }
+.sk-node.core { width: 52px; height: 52px; border-radius: 11px; }   /* activas = cuadrado */
+.sk-node.basic { width: 56px; height: 56px; border-radius: 12px; border-color: #c9a227; background: radial-gradient(circle at 35% 30%, #3a3320, #1a160d); }
+.sk-node.mod { width: 38px; height: 38px; border-radius: 50%; }      /* modificadores = redondo */
+.sk-node.mod .sk-node-ico { font-size: 15px; }
+.sk-node-rank { position: absolute; bottom: -3px; right: -3px; font-size: 9px; background: #0c1018; border: 1px solid #3a4358; border-radius: 6px; padding: 0 3px; color: var(--gold); }
+.sk-node-lock { position: absolute; top: -4px; right: -4px; font-size: 11px; opacity: 0.85; }
+.sk-node.learned { border-color: var(--gold); color: #fff; box-shadow: inset 0 0 8px rgba(201,162,39,0.35); }
+.sk-node.owned { border-color: #6ecc4a; color: #fff; box-shadow: inset 0 0 8px rgba(110,204,74,0.4); }
+.sk-node.avail { border-color: #6ecc4a; border-style: dashed; animation: paraPulse 1.3s ease-in-out infinite; }
+.sk-node.maxed { border-color: rgba(201,162,39,0.6); }
+.sk-node.locked, .sk-node.tier-locked { filter: grayscale(0.85) brightness(0.6); cursor: pointer; }
+.sk-node.mejora.owned { border-color: var(--gold); }
+@media (hover: hover) { .sk-node:hover { transform: scale(1.07); } }
+
+.sk-detail-nums { color: #9fc8ff; font-size: 12px; margin: 4px 0; }
+.sk-detail-syn { color: #b8e8a0; font-size: 12px; margin-bottom: 4px; }
+
+/* ====== Editor único de la barra de habilidades ====== */
+.hb-editor { margin: 4px 0 14px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid #2c3344; }
+.hb-editor-head { font-size: 13px; margin-bottom: 8px; }
+.hb-slots { display: flex; gap: 8px; flex-wrap: wrap; }
+.hb-slot { position: relative; width: 54px; height: 54px; border-radius: 10px; cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, #2a3344, #131a26); border: 2px solid #41506a; color: #fff;
+  display: grid; place-items: center; }
+.hb-slot.basic { border-color: #c9a227; background: radial-gradient(circle at 35% 30%, #3a3320, #1a160d); }
+.hb-slot.empty { border-style: dashed; opacity: 0.6; }
+.hb-slot-key { position: absolute; top: 1px; left: 4px; font-size: 9px; opacity: 0.75; }
+.hb-slot-ico { font-size: 22px; }
+@media (hover: hover) { .hb-slot:hover { border-color: var(--gold); transform: scale(1.05); } }
+
+/* ====== Selector de control en la pantalla de inicio ====== */
+.ctrl-select { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+.ctrl-lbl { align-self: center; font-size: 13px; opacity: 0.85; width: 100%; text-align: center; }
+.ctrl-opt { flex: 1 1 200px; max-width: 280px; text-align: left; padding: 9px 12px; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 2px solid #41506a; color: #cdd6e6; }
+.ctrl-opt b { display: block; font-size: 13px; margin-bottom: 2px; }
+.ctrl-opt small { display: block; font-size: 11px; opacity: 0.7; line-height: 1.3; }
+.ctrl-opt.sel { border-color: var(--gold); background: rgba(201,162,39,0.18); color: #fff; }
 .sk-plus:active { transform: scale(0.92); }
 
 #records { font-size: 13px; line-height: 1.8; opacity: 0.9; }
