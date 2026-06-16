@@ -633,6 +633,11 @@ class Game {
     b.classList.toggle('cb', !!this.settings.colorblind);
     b.classList.toggle('hud-clean', !!this.settings.cleanHud);
     b.classList.toggle('joy-right', !!this.settings.joystickRight);
+    // detección de dispositivo TÁCTIL (móvil/tablet): muestra UI móvil (joystick
+    // + botones) y oculta lo de PC (selector WASD/clic). Más fiable que solo el
+    // media query (algunos móviles/híbridos reportan 'pointer: fine').
+    this.isTouch = !!(window.matchMedia?.('(pointer: coarse)')?.matches || (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window);
+    b.classList.toggle('touch', this.isTouch);
     // escala de los controles/HUD táctil (variable CSS)
     const scale = Math.max(0.7, Math.min(1.5, this.settings.hudScale || 1));
     b.style.setProperty('--hud-scale', scale);

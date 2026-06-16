@@ -275,6 +275,14 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
   z-index: 8; display: none; touch-action: none;
 }
 @media (pointer: coarse) { #joy-zone { display: block; } }
+/* dispositivo táctil detectado por JS (body.touch): muestra el joystick aunque
+   el navegador reporte 'pointer: fine' (móviles/híbridos) */
+body.touch #joy-zone { display: block; }
+body.touch #joy-hint { display: block; }
+/* pista de controles según dispositivo (pantalla de inicio) */
+.hint-touch { display: none; }
+body.touch .hint-pc { display: none; }
+body.touch .hint-touch { display: inline; }
 #joy-hint {
   display: none; position: fixed; z-index: 7; pointer-events: none;
   left: 26px; bottom: calc(26px + var(--safe-b));
@@ -619,7 +627,15 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .sk-focus-back { position: absolute; top: 10px; left: 10px; z-index: 8; padding: 6px 12px; border-radius: 8px;
   background: rgba(255,255,255,0.06); border: 1px solid #41506a; color: #cdd6e6; cursor: pointer; font-size: 13px; }
 .sk-focus-back:hover { border-color: var(--gold); }
-.sk-focus-wheel { position: absolute; inset: 0; }
+.sk-focus-wheel { position: absolute; inset: 0; transform-origin: 50% 45%; animation: skWheelIn 0.28s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes skWheelIn { from { transform: scale(0.72); opacity: 0.2; } to { transform: scale(1); opacity: 1; } }
+/* brasas ambientales del árbol (efecto vivo) */
+.sk-ember { position: absolute; bottom: -8px; width: 4px; height: 4px; border-radius: 50%; pointer-events: none; z-index: 1;
+  background: radial-gradient(circle, rgba(255,201,120,0.95), rgba(255,140,40,0)); animation: skEmber linear infinite; }
+@keyframes skEmber { 0% { transform: translateY(0) scale(1); opacity: 0; } 12% { opacity: 0.85; } 88% { opacity: 0.45; } 100% { transform: translateY(-52vh) scale(0.35); opacity: 0; } }
+body.reduce-motion .sk-ember { display: none; }
+body.reduce-motion .sk-node.learned { animation: none; }
+body.reduce-motion .sk-focus-wheel { animation: none; }
 .sk-focus-svg { position: absolute; inset: 0; pointer-events: none; }
 .sk-focus-line { stroke: #3a4358; stroke-width: 2; }
 .sk-focus-line.on { stroke: #6a7da0; }

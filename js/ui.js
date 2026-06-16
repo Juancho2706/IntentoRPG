@@ -291,29 +291,31 @@ export class UI {
     });
     cont.appendChild(slotRow);
 
-    // selector de esquema de control (PC) — se elige al empezar el juego
-    const ctrl = document.createElement('div');
-    ctrl.className = 'ctrl-select';
-    ctrl.innerHTML = `<span class="ctrl-lbl">🖥️ Controles (PC):</span>`;
-    const curScheme = this.game.settings?.controlScheme || 'wasd';
-    const ctrlOpts = [
-      ['wasd', '⌨️ WASD + ratón', 'Mueves con WASD, apuntas con el ratón; clic izq/der y 1-4 lanzan habilidades'],
-      ['click', '🖱️ Clic para mover', 'Estilo Diablo II: clic izquierdo mueve y ataca'],
-    ];
-    for (const [val, label, desc] of ctrlOpts) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'ctrl-opt' + (val === curScheme ? ' sel' : '');
-      b.innerHTML = `<b>${label}</b><small>${desc}</small>`;
-      b.onclick = () => {
-        this.game.settings.controlScheme = val;
-        this.game.saveSettings?.();
-        ctrl.querySelectorAll('.ctrl-opt').forEach(x => x.classList.remove('sel'));
-        b.classList.add('sel');
-      };
-      ctrl.appendChild(b);
+    // selector de esquema de control (solo PC; en móvil se usa joystick táctil)
+    if (!this.game.isTouch) {
+      const ctrl = document.createElement('div');
+      ctrl.className = 'ctrl-select';
+      ctrl.innerHTML = `<span class="ctrl-lbl">🖥️ Controles (PC):</span>`;
+      const curScheme = this.game.settings?.controlScheme || 'wasd';
+      const ctrlOpts = [
+        ['wasd', '⌨️ WASD + ratón', 'Mueves con WASD, apuntas con el ratón; clic izq/der y 1-4 lanzan habilidades'],
+        ['click', '🖱️ Clic para mover', 'Estilo Diablo II: clic izquierdo mueve y ataca'],
+      ];
+      for (const [val, label, desc] of ctrlOpts) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ctrl-opt' + (val === curScheme ? ' sel' : '');
+        b.innerHTML = `<b>${label}</b><small>${desc}</small>`;
+        b.onclick = () => {
+          this.game.settings.controlScheme = val;
+          this.game.saveSettings?.();
+          ctrl.querySelectorAll('.ctrl-opt').forEach(x => x.classList.remove('sel'));
+          b.classList.add('sel');
+        };
+        ctrl.appendChild(b);
+      }
+      cont.appendChild(ctrl);
     }
-    cont.appendChild(ctrl);
 
     if (selectedSlot < 0) {
       const full = document.createElement('p');
@@ -1770,6 +1772,16 @@ export class UI {
     graph.style.transformOrigin = '0 0';
     viewport.appendChild(graph);
     cont.appendChild(viewport);
+    // brasas ambientales (efecto "vivo") — suben y se desvanecen
+    if (!this.game.settings?.reduceMotion) {
+      for (let i = 0; i < 7; i++) {
+        const em = document.createElement('div'); em.className = 'sk-ember';
+        em.style.left = (6 + Math.random() * 88) + '%';
+        em.style.animationDelay = (-Math.random() * 9) + 's';
+        em.style.animationDuration = (6 + Math.random() * 5) + 's';
+        viewport.appendChild(em);
+      }
+    }
 
     const zoomB = d3.zoom()
       .scaleExtent([0.35, 2.4])
@@ -2048,7 +2060,7 @@ export class UI {
     }
     svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/>`;
     // efecto VIVO: la "vid" crece (stroke-dashoffset) una sola vez al abrir
-    if (!this._skGrew) {
+    if (!this._skGrew && !this.game.settings?.reduceMotion) {
       this._skGrew = true;
       for (const path of svg.querySelectorAll('path')) {
         const len = path.getTotalLength?.() || 0;
