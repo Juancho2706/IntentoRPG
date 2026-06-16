@@ -1754,6 +1754,23 @@ export class UI {
     cont.appendChild(graph);
     applyZoom(this.skillZoom);
     cont.onwheel = e => { if (e.ctrlKey || e.shiftKey) { e.preventDefault(); applyZoom(this.skillZoom + (e.deltaY < 0 ? 0.1 : -0.1)); } };
+    // ARRASTRAR para desplazar todo el árbol (clic izq / dedo), no solo scroll.
+    // No interfiere al tocar un botón/opción (closest('button')).
+    let drag = null;
+    cont.onpointerdown = e => {
+      if (e.button != null && e.button !== 0) return;
+      if (e.target.closest('button, select, input')) return;
+      drag = { x: e.clientX, y: e.clientY, sl: cont.scrollLeft, st: cont.scrollTop };
+      cont.classList.add('grabbing');
+      try { cont.setPointerCapture(e.pointerId); } catch { /* no soportado */ }
+    };
+    cont.onpointermove = e => {
+      if (!drag) return;
+      cont.scrollLeft = drag.sl - (e.clientX - drag.x);
+      cont.scrollTop = drag.st - (e.clientY - drag.y);
+    };
+    const endDrag = () => { drag = null; cont.classList.remove('grabbing'); };
+    cont.onpointerup = endDrag; cont.onpointercancel = endDrag;
 
     // respec (habilidades + aspectos comparten el mismo pool de puntos)
     if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
@@ -1852,9 +1869,10 @@ export class UI {
       this.skillDetailPopup(sk, node);
     };
     wrap.appendChild(this.skNodeWrap(n, sk.name));
-    // 3 ramas de pasivos × 3 opciones (elige 1 por rama, swap libre) — solo si aprendida
+    // 3 mini-ramas × 3 opciones (símbolos sin texto). SIEMPRE visibles para
+    // poder planear, aunque la habilidad no esté aprendida. 1 elegida por rama.
     const branches = SKILL_MODS[sk.id];
-    if (branches && lvl > 0 && node.kind !== 'passive') {
+    if (branches && node.kind !== 'passive') {
       const mods = document.createElement('div'); mods.className = 'sk-branches';
       for (const br of branches) mods.appendChild(this.skBranchRow(sk, br));
       wrap.appendChild(this.skConn());
@@ -1862,25 +1880,31 @@ export class UI {
     }
     return wrap;
   }
-  // una rama de pasivos: etiqueta + 3 opciones (1 activa). Tocar una opción la
-  // elige; tocar la activa la quita. Gratis y cambiable cuando quieras.
+  // símbolo (sin texto) que representa el efecto dominante de una opción de pasivo
+  optSym(o) {
+    if (o.dot === 'bleed') return '🩸'; if (o.dot === 'burn') return '🔥'; if (o.dot === 'poison') return '🧪';
+    if (o.execute) return '☠️'; if (o.chain) return '⛓️'; if (o.pierce) return '🏹';
+    if (o.stun) return '💫'; if (o.vuln) return '🎯'; if (o.slow) return '❄️';
+    if (o.proj) return '✺'; if (o.radius) return '🌀'; if (o.crit) return '✦';
+    if (o.lifesteal) return '🩹'; if (o.gen) return '⚡'; if (o.cdr > 0) return '⏱️';
+    if (o.buff) return '⬆️'; if (o.dur) return '⌛'; if (o.dmg) return '⚔️';
+    return '◆';
+  }
+  // una mini-rama: 3 opciones como símbolos (1 activa). Tocar = elegir + ver qué
+  // hace; tocar la activa = quitar. Gratis y cambiable cuando quieras.
   skBranchRow(sk, br) {
     const g = this.game, p = g.player;
     const sel = (p.skillMods[sk.id] || {})[br.id] || null;
     const row = document.createElement('div'); row.className = 'sk-branch';
-    const lbl = document.createElement('span'); lbl.className = 'sk-branch-lbl'; lbl.textContent = br.name;
-    row.appendChild(lbl);
-    const opts = document.createElement('div'); opts.className = 'sk-branch-opts';
     for (const o of br.opts) {
-      const b = document.createElement('button');
       const on = sel === o.id;
+      const b = document.createElement('button');
       b.className = 'sk-opt' + (on ? ' on' : '');
-      b.innerHTML = `<span class="sk-opt-name">${o.name}</span>`;
+      b.textContent = this.optSym(o);
       b.title = `${o.name}: ${o.desc}` + (on ? '\n✓ activa (toca para quitar)' : '');
       b.onclick = () => { g.setSkillMod(sk.id, br.id, o.id); this.renderSkills(); this.updateHUD(); };
-      opts.appendChild(b);
+      row.appendChild(b);
     }
-    row.appendChild(opts);
     return row;
   }
 

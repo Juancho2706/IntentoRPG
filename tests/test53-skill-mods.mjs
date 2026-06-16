@@ -42,10 +42,15 @@ if (aggregateSkillMods('torbellino', {}).dmg !== 0) throw new Error('agregado va
 const tb = SKILL_MODS['torbellino'];
 const off = tb.find(b => b.name === 'Ofensiva');
 const variant = tb.find(b => b.name === 'Variante');
-const agg = aggregateSkillMods('torbellino', { [off.id]: off.opts[0].id, [variant.id]: variant.opts[0].id });
-if (agg.dmg !== 25) throw new Error('Afilado debe dar +25% daño: ' + agg.dmg);
-if (agg.dot !== 'bleed') throw new Error('la 1ª variante de Torbellino debe aplicar sangrado');
-console.log('Agregación: 1 opción por rama suma efectos (dmg + dot) ✓');
+const o1 = off.opts[0], v1 = variant.opts[0];
+const agg = aggregateSkillMods('torbellino', { [off.id]: o1.id, [variant.id]: v1.id });
+const expectDmg = (o1.dmg || 0) + (v1.dmg || 0);
+if (agg.dmg !== expectDmg) throw new Error(`la suma de daño de las opciones elegidas debe ser ${expectDmg}, dio ${agg.dmg}`);
+if (v1.dot && agg.dot !== v1.dot) throw new Error('la variante con DoT debe agregar su tipo de daño por tiempo');
+// contrapartida: alguna opción tiene un efecto negativo (algo malo por algo bueno)
+const hasTradeoff = Object.values(SKILL_MODS).some(brs => brs.some(b => b.opts.some(o => (o.dmg < 0 || o.cdr < 0 || o.dur < 0 || o.buff < 0))));
+if (!hasTradeoff) throw new Error('debe haber pasivos con contrapartida (algo malo por algo bueno)');
+console.log('Agregación: 1 opción por rama suma efectos (con contrapartidas) ✓');
 
 // 5) vocabulario nuevo (cdr/gen/lifesteal/vuln/stun) presente y agregable
 const fury = tb.find(b => b.name === 'Ímpetu');

@@ -1195,6 +1195,11 @@ class Game {
       if (supDoT) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval);
       if (m.vuln) e.vulnT = Math.max(e.vulnT || 0, m.vuln);
       if (m.stun) { e.stunT = Math.max(e.stunT || 0, m.stun); e.slowT = Math.max(e.slowT || 0, m.stun); }
+      // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
+      if (m.execute && e.alive) {
+        const boss = e.def?.boss || e.def?.uber || e.def?.worldBoss;
+        if (!boss && e.hp / e.maxHP <= m.execute / 100) e.takeDamage(e.hp + 1, false);
+      }
     };
     let casted = true;
 
@@ -1216,6 +1221,7 @@ class Game {
         e.takeDamage(dmg, crit);
         if (supSlow && e.alive) e.slowT = supSlow;
         applyDoT(e);
+        if (m.chain && e.alive) this.spawnChainBounce(e, Math.round(avgHit), m.chain, [], 0xffbb44);
         p.onDealHit();
         this.spawnRing(e.pos, 0.8, 0xffbb44);
         // Golpe Brutal: impacto físico contundente sobre el enemigo + polvo bajo.
@@ -1284,6 +1290,7 @@ class Game {
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
         this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        if (m.chain) { const ne = this.nearestEnemy(rad + 2); if (ne) this.spawnChainBounce(ne, Math.round(avgHit), m.chain, [], 0xffcc66); }
         p.swing = 1;
         // impacto contundente al llegar.
         if (fx?.impact) this.emitFx(fx.impact, p.pos.clone().setY(0.7));
@@ -1318,7 +1325,7 @@ class Game {
         // Encadenado y DoT de proyectil: se aplican sobre el objetivo apuntado
         // (el enemigo más cercano), donde tenemos confirmación de impacto.
         if (near && near.alive && p.pos.distanceTo(near.pos) <= (sk.range || 10)) {
-          if (has('chain')) this.spawnChainBounce(near, Math.round(avgHit), 2, [], sk.color || 0x66ddff);
+          if (has('chain') || m.chain) this.spawnChainBounce(near, Math.round(avgHit), (m.chain || 2), [], sk.color || 0x66ddff);
           applyDoT(near);
         }
         break;
@@ -1378,7 +1385,8 @@ class Game {
   setSkillMod(skillId, branchId, optId) {
     const p = this.player;
     const branches = SKILL_MODS[skillId]; if (!branches) return;
-    if (!(p.skills[skillId] > 0)) { this.ui.message('Aprende la habilidad primero'); return; }
+    // se puede elegir aunque la habilidad no esté aprendida (planificar): el
+    // efecto se aplicará cuando la aprendas y la uses.
     const br = branches.find(b => b.id === branchId); if (!br) return;
     const opt = (br.opts || []).find(o => o.id === optId); if (!opt) return;
     const sel = p.skillMods[skillId] || (p.skillMods[skillId] = {});

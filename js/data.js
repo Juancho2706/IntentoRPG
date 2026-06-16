@@ -712,31 +712,34 @@ export const SUPPORTS = [
 //   dot('bleed|poison|burn') · cdr(−%CD) · gen(+recurso) · lifesteal(+%robo)
 //   vuln(s vulnerable) · stun(s) · buff(+% magnitud) · dur(+% duración)
 // ------------------------------------------------------------
-// Opciones de "Variante" reutilizables (el builder les pone id único por skill)
-const V_BLEED  = { name: 'Sangrante',  desc: 'aplica sangrado (daño por tiempo)', dot: 'bleed' };
-const V_BURN   = { name: 'Incendiario', desc: 'incendia (daño por tiempo)', dot: 'burn' };
-const V_POISON = { name: 'Tóxico',     desc: 'envenena (daño por tiempo)', dot: 'poison' };
-const V_VULN   = { name: 'Vulnerador', desc: 'vuelve vulnerables 4s (+20% de daño recibido)', vuln: 4 };
-const V_STUN   = { name: 'Aturdidor',  desc: 'aturde al golpear (1.5s)', stun: 1.5 };
-const V_SLOW   = { name: 'Lacerante',  desc: 'ralentiza 3s', slow: 3 };
-const V_PIERCE = { name: 'Perforante', desc: 'atraviesa a los enemigos', pierce: true };
-// terceras opciones de la rama Ofensiva
-const O_RAD  = { name: 'Amplio', desc: '+35% de radio', radius: 35 };
-const O_PROJ = { name: 'Adicional', desc: '+1 proyectil', proj: 1 };
-const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles', proj: 2 };
-const O_BIG  = { name: 'Salvaje', desc: '+40% de daño', dmg: 40 };
+// Opciones de "Variante" reutilizables (creativas, con contrapartida) — el
+// builder les pone id único por skill. Cambian CÓMO se comporta la habilidad.
+const V_BLEED  = { name: 'Desangrar', desc: 'Aplica un sangrado intenso, pero −10% de daño directo.', dot: 'bleed', dmg: -10 };
+const V_BURN   = { name: 'Calcinar',  desc: 'Incendia al objetivo, pero −10% de daño directo.', dot: 'burn', dmg: -10 };
+const V_POISON = { name: 'Emponzoñar', desc: 'Envenena al objetivo, pero −10% de daño directo.', dot: 'poison', dmg: -10 };
+const V_VULN   = { name: 'Quebrantar', desc: 'Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).', vuln: 4 };
+const V_STUN   = { name: 'Conmocionar', desc: 'Aturde 1.5s al golpear, pero −12% de daño.', stun: 1.5, dmg: -12 };
+const V_SLOW   = { name: 'Tullir', desc: 'Ralentiza 3s a los enemigos golpeados.', slow: 3 };
+const V_PIERCE = { name: 'Atravesar', desc: 'Atraviesa a todos los enemigos en línea.', pierce: true };
+const V_EXEC   = { name: 'Decapitar', desc: 'Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.', execute: 18, dmg: -10 };
+const V_CHAIN  = { name: 'Rebote', desc: 'El golpe rebota a 2 enemigos cercanos.', chain: 2 };
+// terceras opciones de la rama Ofensiva (con contrapartida)
+const O_RAD   = { name: 'Vorágine', desc: '+55% de radio, pero −15% de daño.', radius: 55, dmg: -15 };
+const O_PROJ  = { name: 'Doble', desc: '+1 proyectil, pero −15% de daño.', proj: 1, dmg: -15 };
+const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles, pero −25% de daño.', proj: 2, dmg: -25 };
+const O_BIG   = { name: 'Aplastar', desc: '+60% de daño, pero +30% de enfriamiento.', dmg: 60, cdr: -30 };
 // builder: ramas de una habilidad de DAÑO (Ofensiva / Ímpetu / Variante)
 function dmgMods(id, third, v1, v2, v3) {
   return [
     { id: `${id}_o`, name: 'Ofensiva', opts: [
-      { id: `${id}_o1`, name: 'Afilado', desc: '+25% de daño', dmg: 25 },
-      { id: `${id}_o2`, name: 'Preciso', desc: '+15% de prob. crítica', crit: 15 },
+      { id: `${id}_o1`, name: 'Brutal', desc: '+45% de daño, pero +20% de enfriamiento.', dmg: 45, cdr: -20 },
+      { id: `${id}_o2`, name: 'Quirúrgico', desc: '+30% de prob. crítica, pero −12% de daño base.', crit: 30, dmg: -12 },
       { id: `${id}_o3`, ...third },
     ] },
     { id: `${id}_f`, name: 'Ímpetu', opts: [
-      { id: `${id}_f1`, name: 'Frenético', desc: '−25% de enfriamiento', cdr: 25 },
-      { id: `${id}_f2`, name: 'Sediento', desc: 'roba 10% del daño como vida', lifesteal: 10 },
-      { id: `${id}_f3`, name: 'Furibundo', desc: 'genera +12 de recurso al usarla', gen: 12 },
+      { id: `${id}_f1`, name: 'Frenético', desc: '−30% de enfriamiento, pero −12% de daño.', cdr: 30, dmg: -12 },
+      { id: `${id}_f2`, name: 'Sediento', desc: 'Roba un 14% del daño infligido como vida.', lifesteal: 14 },
+      { id: `${id}_f3`, name: 'Furibundo', desc: 'Genera +16 de recurso al usarla.', gen: 16 },
     ] },
     { id: `${id}_v`, name: 'Variante', opts: [
       { id: `${id}_v1`, ...v1 }, { id: `${id}_v2`, ...v2 }, { id: `${id}_v3`, ...v3 },
@@ -747,19 +750,19 @@ function dmgMods(id, third, v1, v2, v3) {
 function buffMods(id) {
   return [
     { id: `${id}_o`, name: 'Potencia', opts: [
-      { id: `${id}_o1`, name: 'Reforzado', desc: '+30% de potencia', buff: 30 },
-      { id: `${id}_o2`, name: 'Supremo', desc: '+50% de potencia', buff: 50 },
-      { id: `${id}_o3`, name: 'Equilibrado', desc: '+25% de potencia y +40% de duración', buff: 25, dur: 40 },
+      { id: `${id}_o1`, name: 'Reforzado', desc: '+35% de potencia, pero −20% de duración.', buff: 35, dur: -20 },
+      { id: `${id}_o2`, name: 'Supremo', desc: '+60% de potencia, pero +25% de enfriamiento.', buff: 60, cdr: -25 },
+      { id: `${id}_o3`, name: 'Equilibrado', desc: '+25% de potencia y +30% de duración.', buff: 25, dur: 30 },
     ] },
     { id: `${id}_d`, name: 'Duración', opts: [
-      { id: `${id}_d1`, name: 'Duradero', desc: '+60% de duración', dur: 60 },
-      { id: `${id}_d2`, name: 'Eterno', desc: '+100% de duración', dur: 100 },
-      { id: `${id}_d3`, name: 'Sostenido', desc: '+40% de duración y −15% de enfriamiento', dur: 40, cdr: 15 },
+      { id: `${id}_d1`, name: 'Duradero', desc: '+70% de duración.', dur: 70 },
+      { id: `${id}_d2`, name: 'Eterno', desc: '+120% de duración, pero −15% de potencia.', dur: 120, buff: -15 },
+      { id: `${id}_d3`, name: 'Sostenido', desc: '+40% de duración y −15% de enfriamiento.', dur: 40, cdr: 15 },
     ] },
     { id: `${id}_f`, name: 'Recurso', opts: [
-      { id: `${id}_f1`, name: 'Rápido', desc: '−25% de enfriamiento', cdr: 25 },
-      { id: `${id}_f2`, name: 'Iracundo', desc: 'genera +20 de recurso al usarla', gen: 20 },
-      { id: `${id}_f3`, name: 'Eficiente', desc: '−15% de enfriamiento y +10 de recurso', cdr: 15, gen: 10 },
+      { id: `${id}_f1`, name: 'Rápido', desc: '−30% de enfriamiento, pero −15% de duración.', cdr: 30, dur: -15 },
+      { id: `${id}_f2`, name: 'Iracundo', desc: 'Genera +22 de recurso al usarla.', gen: 22 },
+      { id: `${id}_f3`, name: 'Eficiente', desc: '−15% de enfriamiento y +12 de recurso.', cdr: 15, gen: 12 },
     ] },
   ];
 }
@@ -767,20 +770,20 @@ export const SKILL_MODS = {
   // ===== GUERRERO (plantilla completa: cada habilidad con 3 ramas × 3 opciones) =====
   // básicos
   g_tajo:      dmgMods('g_tajo', O_RAD, V_BLEED, V_VULN, V_STUN),
-  g_mandoble:  dmgMods('g_mandoble', O_BIG, V_BLEED, V_STUN, V_VULN),
+  g_mandoble:  dmgMods('g_mandoble', O_BIG, V_EXEC, V_STUN, V_BLEED),
   g_embate:    dmgMods('g_embate', O_RAD, V_BLEED, V_SLOW, V_VULN),
   // cores
-  torbellino:  dmgMods('torbellino', O_RAD, V_BLEED, V_VULN, V_STUN),
-  embestida:   dmgMods('embestida', O_RAD, V_STUN, V_VULN, V_BLEED),
+  torbellino:  dmgMods('torbellino', O_RAD, V_BLEED, V_VULN, V_EXEC),
+  embestida:   dmgMods('embestida', O_RAD, V_STUN, V_VULN, V_CHAIN),
   g_martillo:  dmgMods('g_martillo', O_RAD, V_STUN, V_VULN, V_BLEED),
-  terremoto:   dmgMods('terremoto', O_RAD, V_SLOW, V_VULN, V_BLEED),
-  g_lanza:     dmgMods('g_lanza', O_PROJ, V_PIERCE, V_BLEED, V_VULN),
-  g_salto:     dmgMods('g_salto', O_RAD, V_STUN, V_VULN, V_BLEED),
+  terremoto:   dmgMods('terremoto', O_RAD, V_SLOW, V_VULN, V_EXEC),
+  g_lanza:     dmgMods('g_lanza', O_PROJ, V_PIERCE, V_CHAIN, V_BLEED),
+  g_salto:     dmgMods('g_salto', O_RAD, V_STUN, V_VULN, V_EXEC),
   g_hendidura: dmgMods('g_hendidura', O_RAD, V_BLEED, V_VULN, V_SLOW),
   grito_guerra: buffMods('grito_guerra'),
   g_provocacion: buffMods('g_provocacion'),
   // definitivas
-  g_u_cataclismo: dmgMods('g_u_cataclismo', O_RAD, V_BURN, V_VULN, V_STUN),
+  g_u_cataclismo: dmgMods('g_u_cataclismo', O_RAD, V_BURN, V_VULN, V_EXEC),
   g_u_furia:      buffMods('g_u_furia'),
   g_u_estandarte: buffMods('g_u_estandarte'),
   // ===== MAGA =====
@@ -801,7 +804,7 @@ export const SKILL_MODS = {
 
 // agrega los efectos de las OPCIONES elegidas (1 por rama). `chosen` = { ramaId: opcionId }
 export function aggregateSkillMods(skId, chosen) {
-  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0, cdr: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0 };
+  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0, cdr: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0, execute: 0, chain: 0 };
   const branches = SKILL_MODS[skId]; if (!branches || !chosen) return out;
   for (const br of branches) {
     const optId = chosen[br.id]; if (!optId) continue;
@@ -820,6 +823,8 @@ export function aggregateSkillMods(skId, chosen) {
     if (o.lifesteal) out.lifesteal += o.lifesteal;
     if (o.vuln) out.vuln = Math.max(out.vuln, o.vuln);
     if (o.stun) out.stun = Math.max(out.stun, o.stun);
+    if (o.execute) out.execute = Math.max(out.execute, o.execute);
+    if (o.chain) out.chain = Math.max(out.chain, o.chain);
   }
   return out;
 }
