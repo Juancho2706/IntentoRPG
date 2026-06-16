@@ -723,6 +723,12 @@ const V_SLOW   = { name: 'Tullir', desc: 'Ralentiza 3s a los enemigos golpeados.
 const V_PIERCE = { name: 'Atravesar', desc: 'Atraviesa a todos los enemigos en línea.', pierce: true };
 const V_EXEC   = { name: 'Decapitar', desc: 'Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.', execute: 18, dmg: -10 };
 const V_CHAIN  = { name: 'Rebote', desc: 'El golpe rebota a 2 enemigos cercanos.', chain: 2 };
+// TRANSFORMACIONES: cambian EN GRANDE cómo funciona la habilidad (rama 3)
+const T_ZONE   = { name: 'Estela', desc: 'Deja una ZONA DE DAÑO durante 4s donde golpea.', zone: 1 };
+const T_CDHIT  = { name: 'Masacre', desc: 'Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.', cdhit: 4 };
+const T_ECHO   = { name: 'Eco', desc: 'Se ejecuta una 2ª vez (al 60% de daño) tras un instante.', echo: 1 };
+const T_GIANT  = { name: 'Coloso', desc: '+90% de radio y +40% de daño, pero +50% de enfriamiento.', radius: 90, dmg: 40, cdr: -50 };
+const T_NOVA   = { name: 'Onda', desc: '+30% de radio y aturde 1s a los golpeados.', radius: 30, stun: 1 };
 // terceras opciones de la rama Ofensiva (con contrapartida)
 const O_RAD   = { name: 'Vorágine', desc: '+55% de radio, pero −15% de daño.', radius: 55, dmg: -15 };
 const O_PROJ  = { name: 'Doble', desc: '+1 proyectil, pero −15% de daño.', proj: 1, dmg: -15 };
@@ -741,7 +747,7 @@ function dmgMods(id, third, v1, v2, v3) {
       { id: `${id}_f2`, name: 'Sediento', desc: 'Roba un 14% del daño infligido como vida.', lifesteal: 14 },
       { id: `${id}_f3`, name: 'Furibundo', desc: 'Genera +16 de recurso al usarla.', gen: 16 },
     ] },
-    { id: `${id}_v`, name: 'Variante', opts: [
+    { id: `${id}_v`, name: 'Transformación', opts: [
       { id: `${id}_v1`, ...v1 }, { id: `${id}_v2`, ...v2 }, { id: `${id}_v3`, ...v3 },
     ] },
   ];
@@ -769,21 +775,22 @@ function buffMods(id) {
 export const SKILL_MODS = {
   // ===== GUERRERO (plantilla completa: cada habilidad con 3 ramas × 3 opciones) =====
   // básicos
-  g_tajo:      dmgMods('g_tajo', O_RAD, V_BLEED, V_VULN, V_STUN),
-  g_mandoble:  dmgMods('g_mandoble', O_BIG, V_EXEC, V_STUN, V_BLEED),
-  g_embate:    dmgMods('g_embate', O_RAD, V_BLEED, V_SLOW, V_VULN),
-  // cores
-  torbellino:  dmgMods('torbellino', O_RAD, V_BLEED, V_VULN, V_EXEC),
-  embestida:   dmgMods('embestida', O_RAD, V_STUN, V_VULN, V_CHAIN),
-  g_martillo:  dmgMods('g_martillo', O_RAD, V_STUN, V_VULN, V_BLEED),
-  terremoto:   dmgMods('terremoto', O_RAD, V_SLOW, V_VULN, V_EXEC),
-  g_lanza:     dmgMods('g_lanza', O_PROJ, V_PIERCE, V_CHAIN, V_BLEED),
-  g_salto:     dmgMods('g_salto', O_RAD, V_STUN, V_VULN, V_EXEC),
-  g_hendidura: dmgMods('g_hendidura', O_RAD, V_BLEED, V_VULN, V_SLOW),
+  // básicos (Transformación más ligera)
+  g_tajo:      dmgMods('g_tajo', O_RAD, V_BLEED, V_VULN, V_CHAIN),
+  g_mandoble:  dmgMods('g_mandoble', O_BIG, V_EXEC, V_STUN, T_ECHO),
+  g_embate:    dmgMods('g_embate', O_RAD, V_BLEED, V_SLOW, T_ZONE),
+  // cores (Transformación = cambia EN GRANDE cómo funciona)
+  torbellino:  dmgMods('torbellino', O_RAD, T_ZONE, T_CDHIT, T_GIANT),
+  embestida:   dmgMods('embestida', O_RAD, V_CHAIN, T_NOVA, T_ZONE),
+  g_martillo:  dmgMods('g_martillo', O_RAD, T_NOVA, T_CDHIT, T_ZONE),
+  terremoto:   dmgMods('terremoto', O_RAD, T_ZONE, T_GIANT, V_EXEC),
+  g_lanza:     dmgMods('g_lanza', O_PROJ, V_PIERCE, V_CHAIN, T_ECHO),
+  g_salto:     dmgMods('g_salto', O_RAD, T_NOVA, T_CDHIT, T_ZONE),
+  g_hendidura: dmgMods('g_hendidura', O_RAD, T_ZONE, T_CDHIT, V_BLEED),
   grito_guerra: buffMods('grito_guerra'),
   g_provocacion: buffMods('g_provocacion'),
-  // definitivas
-  g_u_cataclismo: dmgMods('g_u_cataclismo', O_RAD, V_BURN, V_VULN, V_EXEC),
+  // definitivas (Transformación grande)
+  g_u_cataclismo: dmgMods('g_u_cataclismo', O_RAD, T_ZONE, T_GIANT, V_EXEC),
   g_u_furia:      buffMods('g_u_furia'),
   g_u_estandarte: buffMods('g_u_estandarte'),
   // ===== MAGA =====
@@ -804,7 +811,7 @@ export const SKILL_MODS = {
 
 // agrega los efectos de las OPCIONES elegidas (1 por rama). `chosen` = { ramaId: opcionId }
 export function aggregateSkillMods(skId, chosen) {
-  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0, cdr: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0, execute: 0, chain: 0 };
+  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0, cdr: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0, execute: 0, chain: 0, zone: 0, cdhit: 0, echo: false };
   const branches = SKILL_MODS[skId]; if (!branches || !chosen) return out;
   for (const br of branches) {
     const optId = chosen[br.id]; if (!optId) continue;
@@ -825,6 +832,9 @@ export function aggregateSkillMods(skId, chosen) {
     if (o.stun) out.stun = Math.max(out.stun, o.stun);
     if (o.execute) out.execute = Math.max(out.execute, o.execute);
     if (o.chain) out.chain = Math.max(out.chain, o.chain);
+    if (o.zone) out.zone = Math.max(out.zone, o.zone);
+    if (o.cdhit) out.cdhit = Math.max(out.cdhit, o.cdhit);
+    if (o.echo) out.echo = true;
   }
   return out;
 }

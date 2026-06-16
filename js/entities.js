@@ -314,14 +314,19 @@ export class Player {
     // ataque básico de arma; las cores/ultis/pasivas se aprenden con puntos por
     // nodo (gating por nivel). Migración: reembolsa TODO y deja la build limpia.
     this.skills = (this.skills && typeof this.skills === 'object') ? this.skills : {};
+    this.skillMods = (this.skillMods && typeof this.skillMods === 'object') ? this.skillMods : {};
+    // skillBranches[skId][branchId] = true → mini-rama de pasivos DESBLOQUEADA (cuesta 1 punto)
+    this.skillBranches = (this.skillBranches && typeof this.skillBranches === 'object') ? this.skillBranches : {};
     const weaponBasic = (this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon') || this.cls.skills.find(s => s.kind === 'basic') || this.cls.skills[0]);
-    if (this.skillSystemV !== 3) {
+    // v4: las mini-ramas de pasivos cuestan punto → reembolsa y resetea builds previas
+    if (this.skillSystemV !== 4) {
       const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0)
-        + Object.values(this.skillMods || {}).reduce((a, o) => a + Object.keys(o || {}).length, 0);
+        + Object.values(this.skillBranches || {}).reduce((a, o) => a + Object.keys(o || {}).length, 0);
       this.skillPoints = (this.skillPoints | 0) + spent; // reembolso total
       this.skills = {};
       this.skillMods = {};
-      this.skillSystemV = 3;
+      this.skillBranches = {};
+      this.skillSystemV = 4;
     }
     // siempre conoces el ataque básico de arma (es tu "ataque principal")
     if (weaponBasic && !(this.skills[weaponBasic.id] > 0)) this.skills[weaponBasic.id] = 1;

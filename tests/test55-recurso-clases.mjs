@@ -54,7 +54,7 @@ const p = new Player(g, 'guerrero'); g.player = p;
 if (Object.keys(p.skills).length !== 1 || !(p.skills['g_tajo'] > 0)) throw new Error('debes nacer sabiendo solo el básico de arma (g_tajo)');
 if (p.skillPoints !== 0) throw new Error('a nivel 1 no debes tener puntos por gastar, tienes ' + p.skillPoints);
 if (p.hotbar.lmb !== 'g_tajo') throw new Error('🖱️Izq debe ser el básico de arma por defecto');
-if (p.skillSystemV !== 3) throw new Error('skillSystemV debe quedar a 3');
+if (p.skillSystemV !== 4) throw new Error('skillSystemV debe quedar a 4');
 console.log('Inicio: solo el básico de arma (g_tajo), 0 puntos, hotbar lmb=g_tajo ✓');
 
 // --- 3) recurso inicial: Furia 0; Maná lleno ---
@@ -71,11 +71,11 @@ p.basicAttack(e);
 if (!(p.mp > before)) throw new Error('el ataque básico debe generar recurso (Furia)');
 console.log(`Generador: el básico sube la Furia ${before} → ${p.mp} ✓`);
 
-// --- 5) migración: save viejo (sin skillSystemV=3) reembolsa todo y resetea ---
-const old = new Player(mk(), 'guerrero', { classId: 'guerrero', skills: { torbellino: 3, embestida: 2 }, skillMods: { torbellino: { tb_m: true } }, skillPoints: 0, skillSystemV: 2 });
+// --- 5) migración: save viejo reembolsa niveles + mini-ramas y resetea (v4) ---
+const old = new Player(mk(), 'guerrero', { classId: 'guerrero', skills: { torbellino: 3, embestida: 2 }, skillBranches: { torbellino: { torbellino_o: true } }, skillPoints: 0, skillSystemV: 3 });
 if (Object.keys(old.skills).length !== 1 || !(old.skills['g_tajo'] > 0)) throw new Error('la migración debe dejar solo el básico de arma');
-if (old.skillPoints !== 6) throw new Error('debe reembolsar 5 niveles + 1 aspecto = 6, dio ' + old.skillPoints);
-if (old.skillSystemV !== 3) throw new Error('la migración debe marcar skillSystemV=3');
+if (old.skillPoints !== 6) throw new Error('debe reembolsar 5 niveles + 1 mini-rama = 6, dio ' + old.skillPoints);
+if (old.skillSystemV !== 4) throw new Error('la migración debe marcar skillSystemV=4');
 console.log('Migración: build vieja reembolsada (6 pts) y reseteada al árbol nuevo ✓');
 
 // --- 6) normalizeHotbar: descarta ids inválidos, conserva válidos, respeta huecos ---

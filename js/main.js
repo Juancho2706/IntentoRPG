@@ -410,7 +410,7 @@ class Game {
     clearGroup(this.lootGroup);
     clearGroup(this.fxGroup);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
-    this.firePools = []; this.telegraphs = []; this.chains = {};
+    this.firePools = []; this.telegraphs = []; this.chains = {}; this.groundZones = [];
     this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
 
     // semilla persistente por sesión: la zona se genera una sola vez y mantiene
@@ -1202,6 +1202,8 @@ class Game {
       }
     };
     let casted = true;
+    let hitCount = 0;                 // nº de enemigos golpeados (para Masacre/cdhit)
+    let zoneCenter = null, zoneRad = 0; // dónde dejar la Estela (zona de daño)
 
     // efectos temáticos por habilidad (impacto/estela/aura/buff). Tolerante:
     // emitFx no hace nada si el motor de partículas no está activo.
@@ -1233,7 +1235,8 @@ class Game {
       case 'aoe_self': {
         const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
         this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
-        this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        zoneCenter = p.pos.clone(); zoneRad = rad;
         p.swing = 1;
         // Aura/onda centrada en el jugador (Torbellino, Nova de Hielo).
         if (fx?.aura) {
@@ -1265,7 +1268,8 @@ class Game {
           if (fx?.extra) this.emitFx(fx.extra, dp);
           this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
         }, 230);
-        this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        zoneCenter = target.clone(); zoneRad = rad;
         break;
       }
       case 'dash': {
@@ -1289,7 +1293,8 @@ class Game {
         }
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
-        this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        zoneCenter = p.pos.clone(); zoneRad = rad;
         if (m.chain) { const ne = this.nearestEnemy(rad + 2); if (ne) this.spawnChainBounce(ne, Math.round(avgHit), m.chain, [], 0xffcc66); }
         p.swing = 1;
         // impacto contundente al llegar.
@@ -1345,6 +1350,10 @@ class Game {
 
     // robo de vida (opción Sediento): cura según el daño medio del lanzamiento
     if (casted && m.lifesteal) p.hp = Math.min(p.stats.maxHP, p.hp + avgHit * m.lifesteal / 100);
+    // Estela (Transformación): deja una ZONA DE DAÑO persistente donde golpeó
+    if (casted && m.zone && zoneCenter) {
+      this.spawnGroundZone(zoneCenter, Math.max(2, zoneRad * 0.9), avgHit * 0.45, 4, sk.color || 0xff7733);
+    }
     if (casted) {
       if (!isEcho) {
         if (isBasic) {
@@ -1356,12 +1365,41 @@ class Game {
           p.mp -= cost;
           if (m.gen) p.mp = Math.min(p.stats.maxMP, p.mp + m.gen); // opción Furibundo/Iracundo
           // CDR del jugador + soporte Raudo + opción Frenético/Rápido de la habilidad
-          p.cds[sk.id] = sk.cd * (1 - ((p.stats.cdr || 0) + (m.cdr || 0)) / 100) * (has('swift') ? 0.7 : 1);
-          // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
-          if (has('echo')) setTimeout(() => this.castSkillSlot(key, 0.5), 500);
+          let cd = sk.cd * (1 - ((p.stats.cdr || 0) + (m.cdr || 0)) / 100) * (has('swift') ? 0.7 : 1);
+          // Masacre: si golpeó a suficientes enemigos, su enfriamiento se reduce a la mitad
+          if (m.cdhit && hitCount >= m.cdhit) cd *= 0.5;
+          p.cds[sk.id] = cd;
+          // Eco (soporte o Transformación): repite la habilidad ~0.5s después al 50-60%
+          if (has('echo') || m.echo) setTimeout(() => this.castSkillSlot(key, m.echo ? 0.6 : 0.5), 500);
         }
       }
       this.sfx('skill');
+    }
+  }
+
+  // Estela: zona de daño persistente en el suelo (Transformación). Daña a los
+  // enemigos dentro cada `interval`s durante `dur`s. La consume el tick().
+  spawnGroundZone(pos, radius, dps, dur, color = 0xff7733) {
+    if (!this.groundZones) this.groundZones = [];
+    this.groundZones.push({ pos: pos.clone().setY(0.05), radius, dps, t: dur, interval: 0.5, acc: 0, color });
+    this.spawnRing?.(pos, radius, color);
+  }
+
+  // actualiza las zonas de daño (Estela): aplica daño por tic y caduca
+  updateGroundZones(dt) {
+    const zones = this.groundZones; if (!zones || !zones.length) return;
+    for (let i = zones.length - 1; i >= 0; i--) {
+      const z = zones[i];
+      z.t -= dt; z.acc += dt;
+      if (z.acc >= z.interval) {
+        z.acc = 0;
+        for (const e of this.enemies) {
+          if (!e.alive) continue;
+          if (e.pos.distanceToSquared(z.pos) <= z.radius * z.radius) e.takeDamage(Math.max(1, Math.round(z.dps * z.interval)), false);
+        }
+        this.spawnRing?.(z.pos, z.radius * (0.7 + 0.3 * Math.random()), z.color);
+      }
+      if (z.t <= 0) zones.splice(i, 1);
     }
   }
 
@@ -1380,20 +1418,39 @@ class Game {
     this.save();
   }
 
-  // elige (o quita) una OPCIÓN dentro de una RAMA de pasivos de una habilidad.
-  // Gratis y cambiable cuando quieras; solo 1 opción activa por rama.
-  setSkillMod(skillId, branchId, optId) {
+  // elige una OPCIÓN de una mini-rama de pasivos. La PRIMERA elección de una
+  // mini-rama la DESBLOQUEA y cuesta 1 punto de habilidad; después puedes cambiar
+  // libremente entre sus 3 opciones (gratis). Solo 1 activa por mini-rama.
+  chooseSkillMod(skillId, branchId, optId) {
     const p = this.player;
     const branches = SKILL_MODS[skillId]; if (!branches) return;
-    // se puede elegir aunque la habilidad no esté aprendida (planificar): el
-    // efecto se aplicará cuando la aprendas y la uses.
     const br = branches.find(b => b.id === branchId); if (!br) return;
     const opt = (br.opts || []).find(o => o.id === optId); if (!opt) return;
-    const sel = p.skillMods[skillId] || (p.skillMods[skillId] = {});
-    // toggle: si ya estaba elegida la quita; si no, la fija (reemplaza a la de su rama)
-    if (sel[branchId] === optId) { sel[branchId] = null; }
-    else { sel[branchId] = optId; this.ui.message(`✦ ${opt.name}: ${opt.desc}`, 2200); }
-    this.sfx('uiclick');
+    const unlocked = p.skillBranches?.[skillId]?.[branchId];
+    if (unlocked) {
+      // rama ya desbloqueada: cambiar de opción es GRATIS e inmediato
+      (p.skillMods[skillId] || (p.skillMods[skillId] = {}))[branchId] = optId;
+      this.ui.message(`✦ ${opt.name}: ${opt.desc}`, 2200);
+      this.sfx('uiclick');
+    } else {
+      // rama BLOQUEADA: 1er toque muestra qué hace; 2º toque (misma opción)
+      // la desbloquea por 1 punto. Evita gastos accidentales (sobre todo en móvil).
+      if (!(p.skills[skillId] > 0)) { this.ui.message(`Aprende ${this.player.cls.skills.find(s => s.id === skillId)?.name || 'la habilidad'} primero`); return; }
+      if (p.skillPoints <= 0) { this.ui.message(`🔒 ${opt.name}: ${opt.desc} — necesitas 1 punto`, 2800); this.sfx('error'); return; }
+      const key = skillId + '/' + branchId + '/' + optId;
+      if (this._modPending === key) {
+        this._modPending = null;
+        (p.skillBranches[skillId] || (p.skillBranches[skillId] = {}))[branchId] = true;
+        p.skillPoints--;
+        (p.skillMods[skillId] || (p.skillMods[skillId] = {}))[branchId] = optId;
+        this.ui.message(`🔓 ${opt.name} desbloqueado`, 2200);
+        this.sfx('levelup');
+      } else {
+        this._modPending = key;
+        this.ui.message(`${opt.name}: ${opt.desc} — toca otra vez para desbloquear (1 punto)`, 3200);
+        this.sfx('uiclick');
+      }
+    }
     this.ui.renderPanel?.();
     this.ui.updateHUD?.();
     this.save();
@@ -1844,6 +1901,7 @@ class Game {
       p.update(dt);
       p.records.playTime += dt;
       if (this.pet) this.pet.update(dt);
+      this.updateGroundZones(dt); // Estelas (zonas de daño de Transformación)
     }
 
     // enemigos

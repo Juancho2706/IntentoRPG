@@ -1741,36 +1741,44 @@ export class UI {
       if (idx < tree.length - 1) { const t = document.createElement('div'); t.className = 'sk-trunk6'; graph.appendChild(t); }
     });
     // zoom in/out (el árbol es grande): toolbar + rueda del ratón
+    // PAN + ZOOM tipo mapa: el árbol se mueve con transform (translate+scale)
+    // dentro de un visor de altura fija, así se ARRASTRA en cualquier dirección.
     this.skillZoom = this.skillZoom || 1;
-    const applyZoom = z => { this.skillZoom = Math.max(0.5, Math.min(1.6, Math.round(z * 20) / 20)); graph.style.transform = `scale(${this.skillZoom})`; if (zl) zl.textContent = Math.round(this.skillZoom * 100) + '%'; };
+    this.skillPanX = this.skillPanX || 0; this.skillPanY = this.skillPanY || 0;
+    const applyT = () => { graph.style.transform = `translate(${this.skillPanX}px, ${this.skillPanY}px) scale(${this.skillZoom})`; if (zl) zl.textContent = Math.round(this.skillZoom * 100) + '%'; };
+    const setZoom = z => { this.skillZoom = Math.max(0.5, Math.min(1.8, Math.round(z * 20) / 20)); applyT(); };
     const zoomBar = document.createElement('div'); zoomBar.className = 'sk-zoom';
     zoomBar.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-zoom-lbl">100%</span><button class="sk-zoom-b" data-z="in">+</button><button class="sk-zoom-b" data-z="reset">⟲</button>`;
     const zl = zoomBar.querySelector('.sk-zoom-lbl');
-    zoomBar.querySelector('[data-z=out]').onclick = () => applyZoom(this.skillZoom - 0.1);
-    zoomBar.querySelector('[data-z=in]').onclick = () => applyZoom(this.skillZoom + 0.1);
-    zoomBar.querySelector('[data-z=reset]').onclick = () => applyZoom(1);
+    zoomBar.querySelector('[data-z=out]').onclick = () => setZoom(this.skillZoom - 0.1);
+    zoomBar.querySelector('[data-z=in]').onclick = () => setZoom(this.skillZoom + 0.1);
+    zoomBar.querySelector('[data-z=reset]').onclick = () => { this.skillPanX = 0; this.skillPanY = 0; setZoom(1); };
     cont.appendChild(zoomBar);
-    graph.style.transformOrigin = 'top center';
-    cont.appendChild(graph);
-    applyZoom(this.skillZoom);
-    cont.onwheel = e => { if (e.ctrlKey || e.shiftKey) { e.preventDefault(); applyZoom(this.skillZoom + (e.deltaY < 0 ? 0.1 : -0.1)); } };
-    // ARRASTRAR para desplazar todo el árbol (clic izq / dedo), no solo scroll.
+    // visor con alto fijo: SOLO el árbol se mueve aquí (la hotbar/respec quedan fuera)
+    const viewport = document.createElement('div'); viewport.className = 'sk-viewport';
+    graph.style.transformOrigin = '50% 0';
+    viewport.appendChild(graph);
+    cont.appendChild(viewport);
+    applyT();
+    viewport.onwheel = e => { e.preventDefault(); setZoom(this.skillZoom + (e.deltaY < 0 ? 0.1 : -0.1)); };
+    // ARRASTRAR para desplazar el árbol en cualquier dirección (clic izq / dedo).
     // No interfiere al tocar un botón/opción (closest('button')).
     let drag = null;
-    cont.onpointerdown = e => {
+    viewport.onpointerdown = e => {
       if (e.button != null && e.button !== 0) return;
       if (e.target.closest('button, select, input')) return;
-      drag = { x: e.clientX, y: e.clientY, sl: cont.scrollLeft, st: cont.scrollTop };
-      cont.classList.add('grabbing');
-      try { cont.setPointerCapture(e.pointerId); } catch { /* no soportado */ }
+      drag = { x: e.clientX, y: e.clientY, px: this.skillPanX, py: this.skillPanY };
+      viewport.classList.add('grabbing');
+      try { viewport.setPointerCapture(e.pointerId); } catch { /* no soportado */ }
     };
-    cont.onpointermove = e => {
+    viewport.onpointermove = e => {
       if (!drag) return;
-      cont.scrollLeft = drag.sl - (e.clientX - drag.x);
-      cont.scrollTop = drag.st - (e.clientY - drag.y);
+      this.skillPanX = drag.px + (e.clientX - drag.x);
+      this.skillPanY = drag.py + (e.clientY - drag.y);
+      applyT();
     };
-    const endDrag = () => { drag = null; cont.classList.remove('grabbing'); };
-    cont.onpointerup = endDrag; cont.onpointercancel = endDrag;
+    const endDrag = () => { drag = null; viewport.classList.remove('grabbing'); };
+    viewport.onpointerup = endDrag; viewport.onpointercancel = endDrag;
 
     // respec (habilidades + aspectos comparten el mismo pool de puntos)
     if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
@@ -1890,21 +1898,30 @@ export class UI {
     if (o.buff) return '⬆️'; if (o.dur) return '⌛'; if (o.dmg) return '⚔️';
     return '◆';
   }
-  // una mini-rama: 3 opciones como símbolos (1 activa). Tocar = elegir + ver qué
-  // hace; tocar la activa = quitar. Gratis y cambiable cuando quieras.
+  // una mini-rama (twig): etiqueta + 3 opciones como SÍMBOLOS (elige 1). La 1ª
+  // elección DESBLOQUEA la rama (1 punto); luego cambias gratis entre las 3.
   skBranchRow(sk, br) {
     const g = this.game, p = g.player;
+    const unlocked = !!p.skillBranches?.[sk.id]?.[br.id];
     const sel = (p.skillMods[sk.id] || {})[br.id] || null;
-    const row = document.createElement('div'); row.className = 'sk-branch';
+    const big = br.name === 'Transformación';
+    const row = document.createElement('div'); row.className = 'sk-branch' + (unlocked ? ' unlocked' : ' locked') + (big ? ' big' : '');
+    const tag = document.createElement('span'); tag.className = 'sk-branch-tag';
+    tag.innerHTML = unlocked ? br.name : `${icon('lock')}<b>1</b>`;
+    tag.title = unlocked ? `Rama «${br.name}» — elige 1 (cambia gratis)` : `Desbloquea «${br.name}» por 1 punto de habilidad; luego cambias gratis entre sus 3 opciones`;
+    row.appendChild(tag);
+    const opts = document.createElement('div'); opts.className = 'sk-branch-opts';
     for (const o of br.opts) {
       const on = sel === o.id;
+      const pending = !unlocked && g._modPending === (sk.id + '/' + br.id + '/' + o.id);
       const b = document.createElement('button');
-      b.className = 'sk-opt' + (on ? ' on' : '');
+      b.className = 'sk-opt' + (on ? ' on' : '') + (unlocked ? '' : ' locked') + (pending ? ' pending' : '');
       b.textContent = this.optSym(o);
-      b.title = `${o.name}: ${o.desc}` + (on ? '\n✓ activa (toca para quitar)' : '');
-      b.onclick = () => { g.setSkillMod(sk.id, br.id, o.id); this.renderSkills(); this.updateHUD(); };
-      row.appendChild(b);
+      b.title = `${o.name}: ${o.desc}` + (unlocked ? (on ? '\n✓ activa' : '') : pending ? '\n⚠ toca otra vez para desbloquear (1 punto)' : '\n🔒 desbloquea la rama (1 punto)');
+      b.onclick = () => { g.chooseSkillMod(sk.id, br.id, o.id); this.renderSkills(); this.updateHUD(); };
+      opts.appendChild(b);
     }
+    row.appendChild(opts);
     return row;
   }
 

@@ -467,7 +467,8 @@ export const economyMethods = {
     if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
     p.gold -= cost;
     p.skills = {};
-    p.skillMods = {};   // los Aspectos/Mejoras también se reembolsan (mismo pool)
+    p.skillMods = {};       // las opciones elegidas se reembolsan
+    p.skillBranches = {};   // las mini-ramas desbloqueadas (1 pt c/u) también
     p.skillPoints = Math.min(p.level, 20);
     p.buffs = [];
     p.cds = {};

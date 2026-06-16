@@ -41,7 +41,8 @@ console.log('Guerrero: 3 ramas × 3 opciones por habilidad ✓');
 if (aggregateSkillMods('torbellino', {}).dmg !== 0) throw new Error('agregado vacío debe ser neutro');
 const tb = SKILL_MODS['torbellino'];
 const off = tb.find(b => b.name === 'Ofensiva');
-const variant = tb.find(b => b.name === 'Variante');
+const variant = tb.find(b => b.name === 'Transformación');
+if (!variant) throw new Error('cada habilidad debe tener una rama de Transformación (cambia en grande)');
 const o1 = off.opts[0], v1 = variant.opts[0];
 const agg = aggregateSkillMods('torbellino', { [off.id]: o1.id, [variant.id]: v1.id });
 const expectDmg = (o1.dmg || 0) + (v1.dmg || 0);
@@ -57,5 +58,19 @@ const fury = tb.find(b => b.name === 'Ímpetu');
 const cdrOpt = fury.opts.find(o => o.cdr);
 if (!cdrOpt || !(aggregateSkillMods('torbellino', { [fury.id]: cdrOpt.id }).cdr > 0)) throw new Error('la rama Ímpetu debe poder dar CDR');
 console.log('Vocabulario nuevo: cdr/gen/lifesteal/vuln/stun disponibles ✓');
+
+// 6) la rama de Transformación de los CORES del Guerrero cambia EN GRANDE cómo
+//    funciona la habilidad (zona de daño / CD a la mitad si pegas a varios / eco…)
+const BIG = ['zone', 'cdhit', 'echo'];
+const tbT = tb.find(b => b.name === 'Transformación');
+if (!tbT.opts.some(o => BIG.some(k => o[k]))) throw new Error('Torbellino: la Transformación debe tener un efecto que cambie en grande (zona/cdhit/eco)');
+let bigCores = 0;
+for (const sk of G.skills) {
+  if (sk.kind !== 'core') continue;
+  const t = SKILL_MODS[sk.id].find(b => b.name === 'Transformación');
+  if (t && t.opts.some(o => BIG.some(k => o[k]) || o.execute || o.chain)) bigCores++;
+}
+if (bigCores < 6) throw new Error('la mayoría de cores de daño del Guerrero deben tener Transformación de gran impacto, hay ' + bigCores);
+console.log(`Transformación: ${bigCores} cores de daño del Guerrero con efecto de gran impacto ✓`);
 
 console.log('\n✅ MODIFICADORES (RAMAS × OPCIONES) OK');
