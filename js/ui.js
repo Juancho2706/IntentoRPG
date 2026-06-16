@@ -1716,14 +1716,24 @@ export class UI {
     // árbol de habilidades estilo D4: 6 nodos en cadena (Básicos → Hab. I/II/III
     // → Definitiva → Pasivas), conectados por líneas. Cada nodo despliega sus
     // habilidades, y cada habilidad sus 3 mini-ramas de pasivos (Mejora+Aspectos).
+    // ÁRBOL ORGÁNICO: rombos (nodos) en ZIG-ZAG hacia abajo, conectados por
+    // líneas; de cada rombo salen sus habilidades como ramas, y de cada habilidad
+    // sus 3 mini-ramas de pasivos. Las líneas se dibujan en un SVG (drawSkillLinks).
+    const SVGNS = 'http://www.w3.org/2000/svg';
     const graph = document.createElement('div');
     graph.className = 'sk-tree6';
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.classList.add('sk-links'); svg.setAttribute('aria-hidden', 'true');
+    graph.appendChild(svg);
     const tree = p.cls.tree || [];
     const kindLabel = { basic: 'Genera recurso', core: 'Habilidad', ultimate: 'Definitiva', passive: 'Pasiva' };
+    const sections = [];
+    const ZZ = 150; // desfase del zig-zag
     tree.forEach((node, idx) => {
       const unlocked = p.level >= node.req;
       const sec = document.createElement('div');
       sec.className = 'sk-knode-sec' + (unlocked ? '' : ' locked');
+      if (idx % 2 === 0) sec.style.marginRight = ZZ + 'px'; else sec.style.marginLeft = ZZ + 'px';
       const head = document.createElement('div');
       head.className = 'sk-knode-head';
       head.innerHTML =
@@ -1732,14 +1742,20 @@ export class UI {
       sec.appendChild(head);
       const skillsRow = document.createElement('div');
       skillsRow.className = 'sk-knode-skills';
+      const skillNodes = [];
       for (const sid of node.skills) {
         const sk = p.cls.skills.find(s => s.id === sid);
-        if (sk) skillsRow.appendChild(this.skTreeSkill(sk, node, unlocked));
+        if (!sk) continue;
+        const wrap = this.skTreeSkill(sk, node, unlocked);
+        skillsRow.appendChild(wrap);
+        const sn = wrap.querySelector('.sk-node');
+        if (sn) skillNodes.push(sn);
       }
       sec.appendChild(skillsRow);
       graph.appendChild(sec);
-      if (idx < tree.length - 1) { const t = document.createElement('div'); t.className = 'sk-trunk6'; graph.appendChild(t); }
+      sections.push({ marker: head.querySelector('.sk-knode'), skillNodes });
     });
+    this._skLinks = { svg, sections }; // para redibujar tras el layout
     // zoom in/out (el árbol es grande): toolbar + rueda del ratón
     // PAN + ZOOM tipo mapa: el árbol se mueve con transform (translate+scale)
     // dentro de un visor de altura fija, así se ARRASTRA en cualquier dirección.
@@ -1760,6 +1776,8 @@ export class UI {
     viewport.appendChild(graph);
     cont.appendChild(viewport);
     applyT();
+    // dibuja las líneas del árbol (espinazo zig-zag + ramas) tras el layout
+    requestAnimationFrame(() => this.drawSkillLinks());
     viewport.onwheel = e => { e.preventDefault(); setZoom(this.skillZoom + (e.deltaY < 0 ? 0.1 : -0.1)); };
     // ARRASTRAR para desplazar el árbol en cualquier dirección (clic izq / dedo).
     // No interfiere al tocar un botón/opción (closest('button')).
@@ -1923,6 +1941,37 @@ export class UI {
     }
     row.appendChild(opts);
     return row;
+  }
+
+  // dibuja las líneas del árbol: ESPINAZO en zig-zag entre rombos + RAMAS de
+  // cada rombo a sus habilidades. Usa coords de layout (offsetLeft/Top), que el
+  // SVG comparte con el grafo (ambos se escalan/desplazan juntos con transform).
+  drawSkillLinks() {
+    const data = this._skLinks; if (!data) return;
+    const { svg, sections } = data;
+    const graph = svg.parentElement; if (!graph) return;
+    const W = graph.offsetWidth, H = graph.offsetHeight;
+    if (!W || !H) return;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W); svg.setAttribute('height', H);
+    const c = el => { const r = { x: 0, y: 0 }; let n = el; while (n && n !== graph) { r.x += n.offsetLeft; r.y += n.offsetTop; n = n.offsetParent; } r.x += el.offsetWidth / 2; r.y += el.offsetHeight / 2; return r; };
+    let spine = '', branch = '';
+    for (let i = 0; i < sections.length; i++) {
+      const a = sections[i].marker ? c(sections[i].marker) : null;
+      if (!a) continue;
+      // espinazo: une rombos consecutivos (línea diagonal del zig-zag)
+      if (i < sections.length - 1 && sections[i + 1].marker) {
+        const b = c(sections[i + 1].marker);
+        spine += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} L${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
+      }
+      // ramas: del rombo a cada habilidad, con una curva suave (orgánico)
+      for (const sn of sections[i].skillNodes) {
+        const b = c(sn);
+        const my = (a.y + b.y) / 2;
+        branch += `M${a.x.toFixed(1)} ${a.y.toFixed(1)} C${a.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)} `;
+      }
+    }
+    svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/>`;
   }
 
   // detalle de una habilidad (subir rango + engarces de soporte si aplica)

@@ -544,12 +544,16 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 .sk-detail-nums { color: #9fc8ff; font-size: 12px; margin: 4px 0; }
 .sk-detail-syn { color: #b8e8a0; font-size: 12px; margin-bottom: 4px; }
 
-/* ====== Árbol de 6 nodos en cadena (estilo D4) ====== */
-.sk-tree6 { display: flex; flex-direction: column; align-items: center; padding: 4px 0 14px; }
+/* ====== Árbol orgánico: rombos en zig-zag + ramas (SVG) ====== */
+.sk-tree6 { display: flex; flex-direction: column; align-items: center; gap: 46px; padding: 36px 70px; position: relative; }
+.sk-links { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; overflow: visible; }
+.sk-link-spine { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round; opacity: 0.7; }
+.sk-link-branch { fill: none; stroke: #56627e; stroke-width: 2.5; stroke-linecap: round; opacity: 0.6; }
 .sk-trunk6 { width: 3px; height: 22px; background: var(--sk-line); border-radius: 2px; }
-.sk-knode-sec { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
-.sk-knode-sec.locked { opacity: 0.78; }
-.sk-knode-head { display: flex; align-items: center; gap: 9px; }
+.sk-knode-sec { display: flex; flex-direction: column; align-items: center; gap: 10px; width: auto; position: relative; z-index: 1; }
+.sk-knode-sec.locked { opacity: 0.82; }
+.sk-knode-head { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sk-knode-lbl { text-align: center; }
 .sk-knode { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
   border: 2px solid #4a5570; background: #1a2233; transform: rotate(45deg); }
 .sk-knode .sk-knode-n { transform: rotate(-45deg); font-weight: 700; color: var(--gold); font-size: 13px; }
