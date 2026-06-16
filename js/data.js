@@ -704,120 +704,122 @@ export const SUPPORTS = [
 ];
 
 // ------------------------------------------------------------
-// MODIFICADORES DE HABILIDAD (estilo D4: "Mejora" + 2 "Aspectos" excluyentes).
-// Cada skill activa puede potenciarse con su Mejora (kind:'mejora') y luego UNO
-// de sus dos Aspectos (kind:'aspecto', mismo `group`, requieren la Mejora `req`).
-// Cuestan 1 punto de habilidad cada uno (misma tensión de build que D4). Sus
-// efectos usan el MISMO vocabulario que los soportes y se aplican en el cast:
-//   dmg(+%)·proj(+n)·pierce(bool)·radius(+%)·slow(s)·crit(+%)·dot('bleed|poison|burn')
-//   buff(+% magnitud)·dur(+% duración)  (para habilidades de tipo buff)
+// MODIFICADORES DE HABILIDAD (estilo D4 Lord of Hatred): cada habilidad tiene
+// 3 RAMAS de pasivos y cada rama 3 OPCIONES; eliges 1 por rama y puedes
+// cambiarla cuando quieras (gratis). Estado en `player.skillMods[skId] =
+// { ramaId: opcionId }`. Vocabulario de efectos (se fusiona en el cast):
+//   dmg(+%) · crit(+%) · radius(+%) · proj(+n) · pierce(bool) · slow(s)
+//   dot('bleed|poison|burn') · cdr(−%CD) · gen(+recurso) · lifesteal(+%robo)
+//   vuln(s vulnerable) · stun(s) · buff(+% magnitud) · dur(+% duración)
 // ------------------------------------------------------------
+// Opciones de "Variante" reutilizables (el builder les pone id único por skill)
+const V_BLEED  = { name: 'Sangrante',  desc: 'aplica sangrado (daño por tiempo)', dot: 'bleed' };
+const V_BURN   = { name: 'Incendiario', desc: 'incendia (daño por tiempo)', dot: 'burn' };
+const V_POISON = { name: 'Tóxico',     desc: 'envenena (daño por tiempo)', dot: 'poison' };
+const V_VULN   = { name: 'Vulnerador', desc: 'vuelve vulnerables 4s (+20% de daño recibido)', vuln: 4 };
+const V_STUN   = { name: 'Aturdidor',  desc: 'aturde al golpear (1.5s)', stun: 1.5 };
+const V_SLOW   = { name: 'Lacerante',  desc: 'ralentiza 3s', slow: 3 };
+const V_PIERCE = { name: 'Perforante', desc: 'atraviesa a los enemigos', pierce: true };
+// terceras opciones de la rama Ofensiva
+const O_RAD  = { name: 'Amplio', desc: '+35% de radio', radius: 35 };
+const O_PROJ = { name: 'Adicional', desc: '+1 proyectil', proj: 1 };
+const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles', proj: 2 };
+const O_BIG  = { name: 'Salvaje', desc: '+40% de daño', dmg: 40 };
+// builder: ramas de una habilidad de DAÑO (Ofensiva / Ímpetu / Variante)
+function dmgMods(id, third, v1, v2, v3) {
+  return [
+    { id: `${id}_o`, name: 'Ofensiva', opts: [
+      { id: `${id}_o1`, name: 'Afilado', desc: '+25% de daño', dmg: 25 },
+      { id: `${id}_o2`, name: 'Preciso', desc: '+15% de prob. crítica', crit: 15 },
+      { id: `${id}_o3`, ...third },
+    ] },
+    { id: `${id}_f`, name: 'Ímpetu', opts: [
+      { id: `${id}_f1`, name: 'Frenético', desc: '−25% de enfriamiento', cdr: 25 },
+      { id: `${id}_f2`, name: 'Sediento', desc: 'roba 10% del daño como vida', lifesteal: 10 },
+      { id: `${id}_f3`, name: 'Furibundo', desc: 'genera +12 de recurso al usarla', gen: 12 },
+    ] },
+    { id: `${id}_v`, name: 'Variante', opts: [
+      { id: `${id}_v1`, ...v1 }, { id: `${id}_v2`, ...v2 }, { id: `${id}_v3`, ...v3 },
+    ] },
+  ];
+}
+// builder: ramas de una habilidad de BUFF (Potencia / Duración / Recurso)
+function buffMods(id) {
+  return [
+    { id: `${id}_o`, name: 'Potencia', opts: [
+      { id: `${id}_o1`, name: 'Reforzado', desc: '+30% de potencia', buff: 30 },
+      { id: `${id}_o2`, name: 'Supremo', desc: '+50% de potencia', buff: 50 },
+      { id: `${id}_o3`, name: 'Equilibrado', desc: '+25% de potencia y +40% de duración', buff: 25, dur: 40 },
+    ] },
+    { id: `${id}_d`, name: 'Duración', opts: [
+      { id: `${id}_d1`, name: 'Duradero', desc: '+60% de duración', dur: 60 },
+      { id: `${id}_d2`, name: 'Eterno', desc: '+100% de duración', dur: 100 },
+      { id: `${id}_d3`, name: 'Sostenido', desc: '+40% de duración y −15% de enfriamiento', dur: 40, cdr: 15 },
+    ] },
+    { id: `${id}_f`, name: 'Recurso', opts: [
+      { id: `${id}_f1`, name: 'Rápido', desc: '−25% de enfriamiento', cdr: 25 },
+      { id: `${id}_f2`, name: 'Iracundo', desc: 'genera +20 de recurso al usarla', gen: 20 },
+      { id: `${id}_f3`, name: 'Eficiente', desc: '−15% de enfriamiento y +10 de recurso', cdr: 15, gen: 10 },
+    ] },
+  ];
+}
 export const SKILL_MODS = {
-  // GUERRERO
-  grito_guerra: [
-    { id: 'gg_m', kind: 'mejora', buff: 30, desc: '+30% de potencia del grito' },
-    { id: 'gg_a1', kind: 'aspecto', group: 'gg', req: 'gg_m', name: 'Duradero', dur: 80, desc: '+80% de duración' },
-    { id: 'gg_a2', kind: 'aspecto', group: 'gg', req: 'gg_m', name: 'Vigorizante', buff: 45, desc: '+45% de potencia adicional' },
-  ],
-  torbellino: [
-    { id: 'tb_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'tb_a1', kind: 'aspecto', group: 'tb', req: 'tb_m', name: 'Amplio', radius: 35, desc: '+35% de radio' },
-    { id: 'tb_a2', kind: 'aspecto', group: 'tb', req: 'tb_m', name: 'Carnicero', dot: 'bleed', desc: 'aplica sangrado' },
-  ],
-  embestida: [
-    { id: 'em_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'em_a1', kind: 'aspecto', group: 'em', req: 'em_m', name: 'Demoledor', radius: 45, desc: '+45% de radio de impacto' },
-    { id: 'em_a2', kind: 'aspecto', group: 'em', req: 'em_m', name: 'Aturdidor', slow: 2.5, desc: 'ralentiza al impactar' },
-  ],
-  terremoto: [
-    { id: 'te_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'te_a1', kind: 'aspecto', group: 'te', req: 'te_m', name: 'Sísmico', radius: 35, desc: '+35% de radio' },
-    { id: 'te_a2', kind: 'aspecto', group: 'te', req: 'te_m', name: 'Fisura', slow: 2.5, desc: 'ralentiza la zona' },
-  ],
-  g_martillo: [
-    { id: 'gm_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'gm_a1', kind: 'aspecto', group: 'gm', req: 'gm_m', name: 'Onda Expansiva', radius: 35, desc: '+35% de radio' },
-    { id: 'gm_a2', kind: 'aspecto', group: 'gm', req: 'gm_m', name: 'Conmoción', slow: 2.5, desc: 'ralentiza al impactar' },
-  ],
-  g_lanza: [
-    { id: 'gl_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'gl_a1', kind: 'aspecto', group: 'gl', req: 'gl_m', name: 'Doble Lanza', proj: 1, desc: '+1 proyectil' },
-    { id: 'gl_a2', kind: 'aspecto', group: 'gl', req: 'gl_m', name: 'Punta Letal', crit: 25, desc: '+25% de prob. crítica' },
-  ],
-  g_salto: [
-    { id: 'gs_m', kind: 'mejora', dmg: 30, desc: '+30% de daño' },
-    { id: 'gs_a1', kind: 'aspecto', group: 'gs', req: 'gs_m', name: 'Impacto Sísmico', radius: 40, desc: '+40% de radio' },
-    { id: 'gs_a2', kind: 'aspecto', group: 'gs', req: 'gs_m', name: 'Grietas', slow: 2.5, desc: 'agrieta el suelo (ralentiza)' },
-  ],
-  g_provocacion: [
-    { id: 'gp_m', kind: 'mejora', buff: 30, desc: '+30% de potencia del grito' },
-    { id: 'gp_a1', kind: 'aspecto', group: 'gp', req: 'gp_m', name: 'Duradera', dur: 80, desc: '+80% de duración' },
-    { id: 'gp_a2', kind: 'aspecto', group: 'gp', req: 'gp_m', name: 'Inquebrantable', buff: 45, desc: '+45% de potencia adicional' },
-  ],
-  g_hendidura: [
-    { id: 'gh_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'gh_a1', kind: 'aspecto', group: 'gh', req: 'gh_m', name: 'Amplia', radius: 35, desc: '+35% de radio' },
-    { id: 'gh_a2', kind: 'aspecto', group: 'gh', req: 'gh_m', name: 'Desangrar', dot: 'bleed', desc: 'aplica sangrado' },
-  ],
-  // MAGA
-  bola_fuego: [
-    { id: 'bf_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'bf_a1', kind: 'aspecto', group: 'bf', req: 'bf_m', name: 'Multilanza', proj: 1, desc: '+1 proyectil' },
-    { id: 'bf_a2', kind: 'aspecto', group: 'bf', req: 'bf_m', name: 'Ígnea', dot: 'burn', desc: 'incendia (daño por tiempo)' },
-  ],
-  nova_hielo: [
-    { id: 'nh_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'nh_a1', kind: 'aspecto', group: 'nh', req: 'nh_m', name: 'Glacial', radius: 40, desc: '+40% de radio' },
-    { id: 'nh_a2', kind: 'aspecto', group: 'nh', req: 'nh_m', name: 'Escarcha', slow: 2, desc: 'ralentiza más tiempo' },
-  ],
-  rayo: [
-    { id: 'ra_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'ra_a1', kind: 'aspecto', group: 'ra', req: 'ra_m', name: 'Bifurcado', proj: 1, desc: '+1 rayo' },
-    { id: 'ra_a2', kind: 'aspecto', group: 'ra', req: 'ra_m', name: 'Sobrecargado', crit: 25, desc: '+25% de prob. crítica' },
-  ],
-  meteoro: [
-    { id: 'me_m', kind: 'mejora', dmg: 30, desc: '+30% de daño' },
-    { id: 'me_a1', kind: 'aspecto', group: 'me', req: 'me_m', name: 'Cráter', radius: 40, desc: '+40% de radio' },
-    { id: 'me_a2', kind: 'aspecto', group: 'me', req: 'me_m', name: 'Ardiente', dot: 'burn', desc: 'incendia la zona' },
-  ],
-  // ARQUERA
-  flecha_multiple: [
-    { id: 'fm_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'fm_a1', kind: 'aspecto', group: 'fm', req: 'fm_m', name: 'Enjambre', proj: 2, desc: '+2 flechas' },
-    { id: 'fm_a2', kind: 'aspecto', group: 'fm', req: 'fm_m', name: 'Tóxica', dot: 'poison', desc: 'envenena' },
-  ],
-  flecha_perforante: [
-    { id: 'fp_m', kind: 'mejora', dmg: 30, desc: '+30% de daño' },
-    { id: 'fp_a1', kind: 'aspecto', group: 'fp', req: 'fp_m', name: 'Penetrante', proj: 1, desc: '+1 flecha' },
-    { id: 'fp_a2', kind: 'aspecto', group: 'fp', req: 'fp_m', name: 'Venenosa', dot: 'poison', desc: 'envenena' },
-  ],
-  agilidad: [
-    { id: 'ag_m', kind: 'mejora', buff: 30, desc: '+30% de potencia del buff' },
-    { id: 'ag_a1', kind: 'aspecto', group: 'ag', req: 'ag_m', name: 'Duradera', dur: 80, desc: '+80% de duración' },
-    { id: 'ag_a2', kind: 'aspecto', group: 'ag', req: 'ag_m', name: 'Frenética', buff: 40, desc: '+40% de potencia adicional' },
-  ],
-  lluvia_flechas: [
-    { id: 'lf_m', kind: 'mejora', dmg: 25, desc: '+25% de daño' },
-    { id: 'lf_a1', kind: 'aspecto', group: 'lf', req: 'lf_m', name: 'Diluvio', radius: 35, desc: '+35% de radio' },
-    { id: 'lf_a2', kind: 'aspecto', group: 'lf', req: 'lf_m', name: 'Empapada', dot: 'poison', desc: 'envenena la zona' },
-  ],
+  // ===== GUERRERO (plantilla completa: cada habilidad con 3 ramas × 3 opciones) =====
+  // básicos
+  g_tajo:      dmgMods('g_tajo', O_RAD, V_BLEED, V_VULN, V_STUN),
+  g_mandoble:  dmgMods('g_mandoble', O_BIG, V_BLEED, V_STUN, V_VULN),
+  g_embate:    dmgMods('g_embate', O_RAD, V_BLEED, V_SLOW, V_VULN),
+  // cores
+  torbellino:  dmgMods('torbellino', O_RAD, V_BLEED, V_VULN, V_STUN),
+  embestida:   dmgMods('embestida', O_RAD, V_STUN, V_VULN, V_BLEED),
+  g_martillo:  dmgMods('g_martillo', O_RAD, V_STUN, V_VULN, V_BLEED),
+  terremoto:   dmgMods('terremoto', O_RAD, V_SLOW, V_VULN, V_BLEED),
+  g_lanza:     dmgMods('g_lanza', O_PROJ, V_PIERCE, V_BLEED, V_VULN),
+  g_salto:     dmgMods('g_salto', O_RAD, V_STUN, V_VULN, V_BLEED),
+  g_hendidura: dmgMods('g_hendidura', O_RAD, V_BLEED, V_VULN, V_SLOW),
+  grito_guerra: buffMods('grito_guerra'),
+  g_provocacion: buffMods('g_provocacion'),
+  // definitivas
+  g_u_cataclismo: dmgMods('g_u_cataclismo', O_RAD, V_BURN, V_VULN, V_STUN),
+  g_u_furia:      buffMods('g_u_furia'),
+  g_u_estandarte: buffMods('g_u_estandarte'),
+  // ===== MAGA =====
+  m_dardo:     dmgMods('m_dardo', O_PROJ, V_BURN, V_VULN, V_SLOW),
+  bola_fuego:  dmgMods('bola_fuego', O_PROJ, V_BURN, V_VULN, V_STUN),
+  nova_hielo:  dmgMods('nova_hielo', O_RAD, V_SLOW, V_VULN, V_STUN),
+  rayo:        dmgMods('rayo', O_PROJ, V_PIERCE, V_VULN, V_STUN),
+  meteoro:     dmgMods('meteoro', O_RAD, V_BURN, V_VULN, V_STUN),
+  m_u_supernova: dmgMods('m_u_supernova', O_RAD, V_BURN, V_VULN, V_STUN),
+  // ===== ARQUERA =====
+  a_disparo:        dmgMods('a_disparo', O_PROJ, V_POISON, V_VULN, V_PIERCE),
+  flecha_multiple:  dmgMods('flecha_multiple', O_PROJ2, V_POISON, V_VULN, V_STUN),
+  flecha_perforante: dmgMods('flecha_perforante', O_PROJ, V_PIERCE, V_POISON, V_VULN),
+  agilidad:         buffMods('agilidad'),
+  lluvia_flechas:   dmgMods('lluvia_flechas', O_RAD, V_POISON, V_VULN, V_STUN),
+  a_u_diluvio:      dmgMods('a_u_diluvio', O_RAD, V_POISON, V_VULN, V_STUN),
 };
 
-// agrega los efectos de los modificadores ASIGNADOS de una skill (objeto plano)
-export function aggregateSkillMods(skId, allocated) {
-  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0 };
-  const list = SKILL_MODS[skId]; if (!list || !allocated) return out;
-  for (const m of list) {
-    if (!allocated[m.id]) continue;
-    if (m.dmg) out.dmg += m.dmg;
-    if (m.proj) out.proj += m.proj;
-    if (m.pierce) out.pierce = true;
-    if (m.radius) out.radius += m.radius;
-    if (m.slow) out.slow = Math.max(out.slow, m.slow);
-    if (m.crit) out.crit += m.crit;
-    if (m.dot && !out.dot) out.dot = m.dot;
-    if (m.buff) out.buff += m.buff;
-    if (m.dur) out.dur += m.dur;
+// agrega los efectos de las OPCIONES elegidas (1 por rama). `chosen` = { ramaId: opcionId }
+export function aggregateSkillMods(skId, chosen) {
+  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0, cdr: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0 };
+  const branches = SKILL_MODS[skId]; if (!branches || !chosen) return out;
+  for (const br of branches) {
+    const optId = chosen[br.id]; if (!optId) continue;
+    const o = (br.opts || []).find(x => x.id === optId); if (!o) continue;
+    if (o.dmg) out.dmg += o.dmg;
+    if (o.proj) out.proj += o.proj;
+    if (o.pierce) out.pierce = true;
+    if (o.radius) out.radius += o.radius;
+    if (o.slow) out.slow = Math.max(out.slow, o.slow);
+    if (o.crit) out.crit += o.crit;
+    if (o.dot && !out.dot) out.dot = o.dot;
+    if (o.buff) out.buff += o.buff;
+    if (o.dur) out.dur += o.dur;
+    if (o.cdr) out.cdr += o.cdr;
+    if (o.gen) out.gen += o.gen;
+    if (o.lifesteal) out.lifesteal += o.lifesteal;
+    if (o.vuln) out.vuln = Math.max(out.vuln, o.vuln);
+    if (o.stun) out.stun = Math.max(out.stun, o.stun);
   }
   return out;
 }

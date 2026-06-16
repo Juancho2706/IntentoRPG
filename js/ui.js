@@ -1740,7 +1740,20 @@ export class UI {
       graph.appendChild(sec);
       if (idx < tree.length - 1) { const t = document.createElement('div'); t.className = 'sk-trunk6'; graph.appendChild(t); }
     });
+    // zoom in/out (el árbol es grande): toolbar + rueda del ratón
+    this.skillZoom = this.skillZoom || 1;
+    const applyZoom = z => { this.skillZoom = Math.max(0.5, Math.min(1.6, Math.round(z * 20) / 20)); graph.style.transform = `scale(${this.skillZoom})`; if (zl) zl.textContent = Math.round(this.skillZoom * 100) + '%'; };
+    const zoomBar = document.createElement('div'); zoomBar.className = 'sk-zoom';
+    zoomBar.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-zoom-lbl">100%</span><button class="sk-zoom-b" data-z="in">+</button><button class="sk-zoom-b" data-z="reset">⟲</button>`;
+    const zl = zoomBar.querySelector('.sk-zoom-lbl');
+    zoomBar.querySelector('[data-z=out]').onclick = () => applyZoom(this.skillZoom - 0.1);
+    zoomBar.querySelector('[data-z=in]').onclick = () => applyZoom(this.skillZoom + 0.1);
+    zoomBar.querySelector('[data-z=reset]').onclick = () => applyZoom(1);
+    cont.appendChild(zoomBar);
+    graph.style.transformOrigin = 'top center';
     cont.appendChild(graph);
+    applyZoom(this.skillZoom);
+    cont.onwheel = e => { if (e.ctrlKey || e.shiftKey) { e.preventDefault(); applyZoom(this.skillZoom + (e.deltaY < 0 ? 0.1 : -0.1)); } };
 
     // respec (habilidades + aspectos comparten el mismo pool de puntos)
     if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
@@ -1839,38 +1852,36 @@ export class UI {
       this.skillDetailPopup(sk, node);
     };
     wrap.appendChild(this.skNodeWrap(n, sk.name));
-    // mini-ramas de pasivos (Mejora + 2 Aspectos) para cores/ultis con SKILL_MODS
-    const list = SKILL_MODS[sk.id];
-    if (list && (node.kind === 'core' || node.kind === 'ultimate')) {
+    // 3 ramas de pasivos × 3 opciones (elige 1 por rama, swap libre) — solo si aprendida
+    const branches = SKILL_MODS[sk.id];
+    if (branches && lvl > 0 && node.kind !== 'passive') {
+      const mods = document.createElement('div'); mods.className = 'sk-branches';
+      for (const br of branches) mods.appendChild(this.skBranchRow(sk, br));
       wrap.appendChild(this.skConn());
-      const mejora = list.find(m => m.kind === 'mejora');
-      if (mejora) wrap.appendChild(this.skModNode(sk, mejora));
-      wrap.appendChild(this.skConn());
-      const aspRow = document.createElement('div'); aspRow.className = 'sk-asp-row';
-      for (const a of list.filter(m => m.kind === 'aspecto')) aspRow.appendChild(this.skModNode(sk, a));
-      wrap.appendChild(aspRow);
+      wrap.appendChild(mods);
     }
     return wrap;
   }
-  skModNode(sk, mod) {
+  // una rama de pasivos: etiqueta + 3 opciones (1 activa). Tocar una opción la
+  // elige; tocar la activa la quita. Gratis y cambiable cuando quieras.
+  skBranchRow(sk, br) {
     const g = this.game, p = g.player;
-    const owned = p.skillMods[sk.id] || {};
-    const has = !!owned[mod.id];
-    const list = SKILL_MODS[sk.id];
-    const groupTaken = mod.group && list.some(x => x.group === mod.group && x.id !== mod.id && owned[x.id]);
-    const needReq = mod.req && !owned[mod.req];
-    const learned = p.skills[sk.id] > 0;
-    const isMejora = mod.kind === 'mejora';
-    const can = learned && !has && p.skillPoints > 0 && !groupTaken && !needReq;
-    const node = document.createElement('button');
-    node.className = 'sk-node mod ' + (isMejora ? 'mejora' : 'aspecto') + (has ? ' owned' : '') + (can ? ' avail' : '') + (((needReq || groupTaken || !learned) && !has) ? ' locked' : '');
-    node.innerHTML = `<span class="sk-node-ico">${isMejora ? '⬆' : '◆'}</span>`;
-    node.title = `${isMejora ? 'Mejora' : mod.name}: ${mod.desc}` + (!learned ? '\n🔒 aprende la habilidad' : needReq ? '\n🔒 requiere la Mejora' : groupTaken ? '\n(elegiste el otro Aspecto)' : has ? '\n✓ activo' : p.skillPoints > 0 ? '\n+1 punto' : '\nsin puntos');
-    node.onclick = () => {
-      if (!learned) { this.message(`Aprende ${sk.name} primero`); return; }
-      g.allocateSkillMod(sk.id, mod.id); this.renderSkills(); this.updateHUD();
-    };
-    return this.skNodeWrap(node, isMejora ? 'Mejora' : mod.name);
+    const sel = (p.skillMods[sk.id] || {})[br.id] || null;
+    const row = document.createElement('div'); row.className = 'sk-branch';
+    const lbl = document.createElement('span'); lbl.className = 'sk-branch-lbl'; lbl.textContent = br.name;
+    row.appendChild(lbl);
+    const opts = document.createElement('div'); opts.className = 'sk-branch-opts';
+    for (const o of br.opts) {
+      const b = document.createElement('button');
+      const on = sel === o.id;
+      b.className = 'sk-opt' + (on ? ' on' : '');
+      b.innerHTML = `<span class="sk-opt-name">${o.name}</span>`;
+      b.title = `${o.name}: ${o.desc}` + (on ? '\n✓ activa (toca para quitar)' : '');
+      b.onclick = () => { g.setSkillMod(sk.id, br.id, o.id); this.renderSkills(); this.updateHUD(); };
+      opts.appendChild(b);
+    }
+    row.appendChild(opts);
+    return row;
   }
 
   // detalle de una habilidad (subir rango + engarces de soporte si aplica)
@@ -1985,31 +1996,6 @@ export class UI {
     }
 
     infoEl.appendChild(wrap);
-  }
-
-  // Modificadores de habilidad (estilo D4): una Mejora + 2 Aspectos excluyentes.
-  renderSkillMods(card, sk) {
-    const g = this.game, p = g.player;
-    const list = SKILL_MODS[sk.id]; if (!list) return;
-    const owned = p.skillMods[sk.id] || {};
-    const wrap = document.createElement('div');
-    wrap.className = 'sk-mods';
-    wrap.innerHTML = `<div class="sk-mods-head">✦ Mejora y Aspectos</div>`;
-    for (const mod of list) {
-      const has = !!owned[mod.id];
-      const groupTaken = mod.group && list.some(x => x.group === mod.group && x.id !== mod.id && owned[x.id]);
-      const needReq = mod.req && !owned[mod.req];
-      const can = !has && p.skillPoints > 0 && !groupTaken && !needReq;
-      const title = mod.kind === 'mejora' ? '⬆ Mejora' : `◆ ${mod.name}`;
-      const tag = has ? '✓ activo' : needReq ? '🔒 requiere Mejora' : groupTaken ? '—' : p.skillPoints > 0 ? '+1 pt' : 'sin puntos';
-      const b = document.createElement('button');
-      b.className = 'sk-mod' + (has ? ' owned' : '') + (can ? ' avail' : '') + ((needReq || groupTaken) && !has ? ' locked' : '');
-      b.disabled = !can;
-      b.innerHTML = `<span class="sk-mod-name">${title}</span><span class="sk-mod-desc">${mod.desc}</span><span class="sk-mod-tag">${tag}</span>`;
-      b.onclick = () => { g.allocateSkillMod(sk.id, mod.id); };
-      wrap.appendChild(b);
-    }
-    card.appendChild(wrap);
   }
 
   skillDetails(sk, lvl) {

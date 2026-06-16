@@ -2,7 +2,7 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, skillVal, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL } from './data.js';
+import { CLASSES, skillVal, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, aggregateSkillMods } from './data.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 
@@ -354,7 +354,8 @@ export class Player {
     this.mp = this.cls.resource?.start === 0 ? 0 : this.stats.maxMP;
     if (saved && saved.hp != null) {
       this.hp = Math.min(saved.hp, this.stats.maxHP);
-      if (saved.mp != null) this.mp = Math.min(saved.mp, this.stats.maxMP);
+      // los recursos que se GENERAN (Furia, start:0) no se guardan: siempre 0 al cargar
+      if (saved.mp != null && this.cls.resource?.start !== 0) this.mp = Math.min(saved.mp, this.stats.maxMP);
     }
   }
 
@@ -365,7 +366,9 @@ export class Player {
     const byKind = k => all.filter(s => s.kind === k).map(s => s.id);
     const basics = byKind('basic'), cores = byKind('core'), ults = byKind('ultimate');
     const weapon = all.find(s => s.kind === 'basic' && s.type === 'weapon')?.id || basics[0] || null;
-    const def = { lmb: weapon, rmb: cores[0] || null, k1: cores[1] || null, k2: cores[2] || null, k3: cores[3] || null, k4: ults[0] || null };
+    // barra VACÍA al empezar: solo el ataque principal (básico) en 🖱️Izq; el resto
+    // lo coloca el jugador a medida que aprende habilidades.
+    const def = { lmb: weapon, rmb: null, k1: null, k2: null, k3: null, k4: null };
     const placeable = new Set([...basics, ...cores, ...ults]);
     const ok = id => id === null || placeable.has(id);
     if (!h || typeof h !== 'object') return def;
@@ -651,7 +654,8 @@ export class Player {
       }
       this.recompute();
       this.hp = this.stats.maxHP;
-      this.mp = this.stats.maxMP;
+      // los recursos que se GENERAN (Furia) no se rellenan al subir de nivel
+      if (this.cls.resource?.start !== 0) this.mp = this.stats.maxMP;
       this.game.sfx('levelup');
       this.game.vibrate([50, 30, 70]);
       this.game.spawnBurst(this.pos, 0xffd24a, 14);
@@ -848,12 +852,28 @@ export class Player {
     // el ataque básico ES el generador de recurso de la clase (Furia/Maná/Energía)
     const res = this.cls.resource;
     if (res?.gen) { this.mp = Math.min(this.stats.maxMP, this.mp + res.gen); this.furiaIdle = 0; }
+    // modificadores del básico de arma (sus 3 ramas): daño/crit/recurso/robo/control
+    const wb = this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon');
+    const bm = wb ? aggregateSkillMods(wb.id, this.skillMods?.[wb.id]) : null;
+    const bMul = bm ? (1 + (bm.dmg || 0) / 100) : 1;
+    const bCrit = bm ? (bm.crit || 0) : 0;
+    if (bm?.gen) this.mp = Math.min(this.stats.maxMP, this.mp + bm.gen);
+    const avgHit = (this.stats.dmgMin + this.stats.dmgMax) / 2 * bMul;
+    const onHit = e => {
+      if (!e || !e.alive || !bm) return;
+      if (bm.vuln) e.vulnT = Math.max(e.vulnT || 0, bm.vuln);
+      if (bm.stun) { e.stunT = Math.max(e.stunT || 0, bm.stun); e.slowT = Math.max(e.slowT || 0, bm.stun); }
+      if (bm.slow) e.slowT = Math.max(e.slowT || 0, bm.slow);
+      if (bm.dot) g.applyDoT?.(e, avgHit * (bm.dot === 'poison' ? 0.9 : bm.dot === 'burn' ? 0.8 : 0.6), bm.dot === 'poison' ? 5 : bm.dot === 'burn' ? 4 : 3, bm.dot === 'burn' ? 0.8 : 1.0);
+    };
+    const lifeHeal = () => { if (bm?.lifesteal) this.hp = Math.min(this.stats.maxHP, this.hp + avgHit * bm.lifesteal / 100); };
 
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
-      const { dmg, crit } = this.rollDamage(1);
+      const { dmg, crit } = this.rollDamage(bMul, bCrit);
       const tpos = target.pos.clone();
       target.takeDamage(dmg, crit);
+      onHit(target);
       this.onDealHit();
       // game-feel: hit-stop seco SOLO en crítico (en cada golpe se sentía
       // como tirones); el golpe normal se refuerza con el destello/partículas
@@ -864,10 +884,12 @@ export class Player {
       for (const e of g.enemies) {
         if (e === target || !e.alive) continue;
         if (e.pos.distanceToSquared(target.pos) < 2.0 * 2.0) {
-          const r = this.rollDamage(0.5);
+          const r = this.rollDamage(0.5 * bMul, bCrit);
           e.takeDamage(r.dmg, r.crit);
+          onHit(e);
         }
       }
+      lifeHeal();
       g.spawnRing(target.pos.clone(), 1.4, 0xffbb66);
       // arco de chispas del tajo + impacto seco sobre el objetivo.
       const cp = tpos.clone(); cp.y = 1.0;
@@ -882,7 +904,7 @@ export class Player {
     const color = arrow ? 0xe8d8a0 : 0xcc66ff;
     const speed = arrow ? 18 : 13;
     const size = arrow ? 0.09 : 0.17;
-    const extra = this.powers?.has('multidisparo') ? 1 : 0;
+    const extra = (this.powers?.has('multidisparo') ? 1 : 0) + (bm?.proj || 0); // +proyectil del aspecto "Adicional"
     const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
     // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
     const muzzle = this.pos.clone().setY(1.0)
@@ -891,12 +913,13 @@ export class Player {
     for (let i = 0; i <= extra; i++) {
       const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
-      const { dmg, crit } = this.rollDamage(1);
+      const { dmg, crit } = this.rollDamage(bMul, bCrit);
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed, range: this.cls.atkRange + 2, dmg, crit, friendly: true, color, size,
+        speed, range: this.cls.atkRange + 2, dmg, crit, friendly: true, color, size, pierce: !!bm?.pierce,
       });
     }
+    onHit(target); lifeHeal();
     g.sfx(arrow ? 'shoot' : 'skill');
   }
 }
@@ -916,6 +939,8 @@ export class Enemy {
     this.alive = true;
     this.atkCd = rand(0.2, 1);
     this.slowT = 0;
+    this.vulnT = 0;             // vulnerable (+% de daño recibido) por opciones de habilidad
+    this.stunT = 0;             // aturdido (no se mueve ni ataca)
     this.flashT = 0;
     this.fade = 0;
     this.lunge = 0;             // empuje de animación al atacar
@@ -952,6 +977,7 @@ export class Enemy {
   takeDamage(amount, crit = false) {
     if (!this.alive) return;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
+    if (this.vulnT > 0) amount = Math.round(amount * 1.2); // Vulnerable: +20% de daño recibido
     // maestrías con efecto dependiente del objetivo (el daño al enemigo siempre
     // procede del jugador: la mascota no daña y los enemigos no se golpean entre sí)
     const pw = this.game.player?.powers;
@@ -1065,6 +1091,8 @@ export class Enemy {
     }
 
     if (this.flashT > 0) this.flashT -= dt;
+    if (this.vulnT > 0) this.vulnT -= dt;   // vulnerabilidad temporal
+    if (this.stunT > 0) this.stunT -= dt;    // aturdimiento temporal
     // recorrer el modelo solo cuando el flash cambia de estado
     const flashing = this.flashT > 0;
     if (flashing !== this._flashState) {
@@ -1083,6 +1111,8 @@ export class Enemy {
 
     const player = pl;
     if (!player || !player.alive) return false;
+    // ATURDIDO: ni se mueve ni ataca (la animación/flash siguen)
+    if (this.stunT > 0) return false;
 
     // --- goblin del tesoro: nunca ataca; huye y, si no lo cazas, escapa ---
     // Tres tipos, cada uno con una VENTANA REAL para alcanzarlo (melee o rango):

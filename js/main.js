@@ -1189,7 +1189,13 @@ class Game {
           ? { total: avgHit * 0.6, ticks: 3, interval: 1.0, color: 0xff4466 }
           : null;
     if (supDoT && has('lasting')) supDoT.total *= 1.5; // soporte Persistente: DoT más fuerte
-    const applyDoT = e => { if (supDoT && e && e.alive) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval); };
+    // efectos al golpear: DoT + Vulnerable + Aturdir (de las opciones de Variante)
+    const applyDoT = e => {
+      if (!e || !e.alive) return;
+      if (supDoT) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval);
+      if (m.vuln) e.vulnT = Math.max(e.vulnT || 0, m.vuln);
+      if (m.stun) { e.stunT = Math.max(e.stunT || 0, m.stun); e.slowT = Math.max(e.slowT || 0, m.stun); }
+    };
     let casted = true;
 
     // efectos temáticos por habilidad (impacto/estela/aura/buff). Tolerante:
@@ -1330,16 +1336,20 @@ class Game {
       }
     }
 
+    // robo de vida (opción Sediento): cura según el daño medio del lanzamiento
+    if (casted && m.lifesteal) p.hp = Math.min(p.stats.maxHP, p.hp + avgHit * m.lifesteal / 100);
     if (casted) {
       if (!isEcho) {
         if (isBasic) {
           // básico: no cuesta recurso, lo GENERA, y se rige por la cadencia de ataque
           p.atkCd = p.stats.atkTime;
-          p.mp = Math.min(p.stats.maxMP, p.mp + (sk.gen || p.cls.resource?.gen || 0));
+          p.mp = Math.min(p.stats.maxMP, p.mp + (sk.gen || p.cls.resource?.gen || 0) + (m.gen || 0));
           p.furiaIdle = 0;
         } else {
           p.mp -= cost;
-          p.cds[sk.id] = sk.cd * (1 - (p.stats.cdr || 0) / 100) * (has('swift') ? 0.7 : 1); // CDR + soporte Raudo
+          if (m.gen) p.mp = Math.min(p.stats.maxMP, p.mp + m.gen); // opción Furibundo/Iracundo
+          // CDR del jugador + soporte Raudo + opción Frenético/Rápido de la habilidad
+          p.cds[sk.id] = sk.cd * (1 - ((p.stats.cdr || 0) + (m.cdr || 0)) / 100) * (has('swift') ? 0.7 : 1);
           // Eco: repite la habilidad ~0.5s después al 50% de daño (sin coste ni CD extra)
           if (has('echo')) setTimeout(() => this.castSkillSlot(key, 0.5), 500);
         }
@@ -1363,22 +1373,19 @@ class Game {
     this.save();
   }
 
-  // asigna un modificador de habilidad (Mejora/Aspecto D4-lite). Cuesta 1 punto
-  // de habilidad; el Aspecto requiere la Mejora y solo 1 por grupo (excluyente).
-  allocateSkillMod(skillId, modId) {
+  // elige (o quita) una OPCIÓN dentro de una RAMA de pasivos de una habilidad.
+  // Gratis y cambiable cuando quieras; solo 1 opción activa por rama.
+  setSkillMod(skillId, branchId, optId) {
     const p = this.player;
-    const list = SKILL_MODS[skillId]; if (!list) return;
-    const mod = list.find(x => x.id === modId); if (!mod) return;
-    if (p.skillPoints <= 0) { this.ui.message('Sin puntos de habilidad'); return; }
+    const branches = SKILL_MODS[skillId]; if (!branches) return;
     if (!(p.skills[skillId] > 0)) { this.ui.message('Aprende la habilidad primero'); return; }
-    const owned = p.skillMods[skillId] || (p.skillMods[skillId] = {});
-    if (owned[modId]) return;
-    if (mod.req && !owned[mod.req]) { this.ui.message('Requiere la Mejora de la habilidad', 2500); return; }
-    if (mod.group && list.some(x => x.group === mod.group && owned[x.id])) { this.ui.message('Ya elegiste un Aspecto (reespecializa para cambiarlo)', 3000); return; }
-    owned[modId] = true;
-    p.skillPoints--;
-    this.sfx('levelup');
-    this.ui.message(`✦ ${mod.name || 'Mejora'}: ${mod.desc}`, 2500);
+    const br = branches.find(b => b.id === branchId); if (!br) return;
+    const opt = (br.opts || []).find(o => o.id === optId); if (!opt) return;
+    const sel = p.skillMods[skillId] || (p.skillMods[skillId] = {});
+    // toggle: si ya estaba elegida la quita; si no, la fija (reemplaza a la de su rama)
+    if (sel[branchId] === optId) { sel[branchId] = null; }
+    else { sel[branchId] = optId; this.ui.message(`✦ ${opt.name}: ${opt.desc}`, 2200); }
+    this.sfx('uiclick');
     this.ui.renderPanel?.();
     this.ui.updateHUD?.();
     this.save();
