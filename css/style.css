@@ -603,9 +603,17 @@ body.touch .hint-touch { display: inline; }
 .sk-branch.big .sk-opt.on { background: rgba(208,116,42,0.32); border-color: #ff9a3c; box-shadow: 0 0 9px rgba(255,154,60,0.6); }
 @media (hover: hover) { .sk-opt:hover { transform: scale(1.12); } }
 /* visor del árbol: alto fijo, se ARRASTRA y hace zoom (pan/zoom tipo mapa) */
-.sk-viewport { height: 54vh; min-height: 280px; overflow: hidden; position: relative; cursor: grab; touch-action: none;
-  border: 1px solid #2c3344; border-radius: 10px; background: rgba(0,0,0,0.15); }
+.sk-viewport { height: 62vh; min-height: 320px; overflow: hidden; position: relative; cursor: grab; touch-action: none;
+  border: 1px solid #2c3344; border-radius: 10px; background: rgba(0,0,0,0.18); }
 .sk-viewport.grabbing { cursor: grabbing; }
+/* controles de zoom FLOTANDO dentro de la ventana del árbol (esquina) */
+.sk-viewport > .sk-zoom { position: absolute; top: 8px; right: 10px; z-index: 4; margin: 0;
+  background: rgba(10,14,22,0.7); border: 1px solid #2c3344; border-radius: 8px; padding: 3px 6px; }
+/* capa de zoom de la rueda de pasivos (foco) */
+.sk-focus-zoom { position: absolute; inset: 0; }
+.sk-fzoom { position: absolute; top: 10px; right: 10px; z-index: 9; margin: 0;
+  background: rgba(10,14,22,0.7); border: 1px solid #2c3344; border-radius: 8px; padding: 3px 6px; }
+.sk-fzoom-lbl { font-size: 12px; min-width: 38px; text-align: center; opacity: 0.85; }
 .sk-tree6 { will-change: transform; }
 .sk-zoom { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 0 8px; }
 .sk-zoom-b { width: 30px; height: 28px; border-radius: 7px; background: rgba(255,255,255,0.05); border: 1px solid #41506a; color: #cdd6e6; cursor: pointer; font-size: 15px; }

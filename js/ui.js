@@ -1714,15 +1714,10 @@ export class UI {
     const cont = $('skill-tree');
     cont.innerHTML = '';
 
-    // editor ÚNICO de la barra: toca una ranura → elige qué habilidad colocar
-    cont.appendChild(this.renderHotbarEditor());
-
-    // árbol de habilidades estilo D4: 6 nodos en cadena (Básicos → Hab. I/II/III
-    // → Definitiva → Pasivas), conectados por líneas. Cada nodo despliega sus
-    // habilidades, y cada habilidad sus 3 mini-ramas de pasivos (Mejora+Aspectos).
-    // ÁRBOL ORGÁNICO: rombos (nodos) en ZIG-ZAG hacia abajo, conectados por
-    // líneas; de cada rombo salen sus habilidades como ramas, y de cada habilidad
-    // sus 3 mini-ramas de pasivos. Las líneas se dibujan en un SVG (drawSkillLinks).
+    // El ÁRBOL es su propia "ventana" (viewport grande). La barra de habilidades
+    // (hotbar editor) y el respec van DESPUÉS, separados del árbol.
+    // árbol orgánico: rombos (nodos) en ZIG-ZAG; de cada rombo salen sus
+    // habilidades; las líneas las dibuja un SVG (drawSkillLinks).
     const SVGNS = 'http://www.w3.org/2000/svg';
     const graph = document.createElement('div');
     graph.className = 'sk-tree6';
@@ -1767,10 +1762,10 @@ export class UI {
     const zoomBar = document.createElement('div'); zoomBar.className = 'sk-zoom';
     zoomBar.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-zoom-lbl">100%</span><button class="sk-zoom-b" data-z="in">+</button><button class="sk-zoom-b" data-z="reset">⟲</button>`;
     const zl = zoomBar.querySelector('.sk-zoom-lbl');
-    cont.appendChild(zoomBar);
     const viewport = document.createElement('div'); viewport.className = 'sk-viewport';
     graph.style.transformOrigin = '0 0';
     viewport.appendChild(graph);
+    viewport.appendChild(zoomBar); // los controles de zoom FLOTAN dentro de la ventana
     cont.appendChild(viewport);
     // brasas ambientales (efecto "vivo") — suben y se desvanecen
     if (!this.game.settings?.reduceMotion) {
@@ -1807,7 +1802,8 @@ export class UI {
       else this._centerSkillTree(viewport, graph, sel, zoomB);     // centra al abrir
     });
 
-    // respec (habilidades + aspectos comparten el mismo pool de puntos)
+    // ----- DEBAJO del árbol, separado: la barra de habilidades + respec -----
+    cont.appendChild(this.renderHotbarEditor());
     if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
       const cost = this.game.respecCost();
       const rb = document.createElement('button');
@@ -1927,7 +1923,7 @@ export class UI {
   refreshSkillsView() { if (this._focusSkill) this.renderSkillFocus(); else if (this.activePanel === 'skills') this.renderSkills(); }
 
   // ===== Vista FOCO (drill-down): especialización RADIAL de una habilidad =====
-  openSkillFocus(skId) { this._focusSkill = skId; this._modPending = null; this.renderSkillFocus(); }
+  openSkillFocus(skId) { this._focusSkill = skId; this._modPending = null; this._focusZoom = 1; this.renderSkillFocus(); }
   closeSkillFocus() {
     this._focusSkill = null;
     const ov = $('skill-tree')?.querySelector('.sk-focus');
@@ -1958,7 +1954,22 @@ export class UI {
     back.innerHTML = '← Volver al árbol'; back.onclick = () => this.closeSkillFocus();
     ov.appendChild(back);
     const wheel = document.createElement('div'); wheel.className = 'sk-focus-wheel'; ov.appendChild(wheel);
-    const cx = W / 2, cy = H * 0.45, R = Math.max(120, Math.min(W * 0.40, H * 0.42));
+    // capa de zoom: todo el contenido radial va aquí para poder reducirlo
+    const zoomLayer = document.createElement('div'); zoomLayer.className = 'sk-focus-zoom'; wheel.appendChild(zoomLayer);
+    const cx = W / 2, cy = H * 0.47;
+    // radio que ENCAJA en el visor dejando margen para etiquetas y nodos
+    const R = Math.max(64, Math.min(W / 2 - 86, cy - 70, H - cy - 90));
+    this._focusZoom = this._focusZoom || 1;
+    zoomLayer.style.transformOrigin = `${cx}px ${cy}px`;
+    zoomLayer.style.transform = `scale(${this._focusZoom})`;
+    const applyFZoom = () => { zoomLayer.style.transform = `scale(${this._focusZoom})`; const l = ov.querySelector('.sk-fzoom-lbl'); if (l) l.textContent = Math.round(this._focusZoom * 100) + '%'; };
+    // controles de zoom de la rueda (rueda del ratón + botones)
+    ov.onwheel = e => { e.preventDefault(); this._focusZoom = Math.max(0.45, Math.min(1.4, Math.round((this._focusZoom + (e.deltaY < 0 ? 0.1 : -0.1)) * 20) / 20)); applyFZoom(); };
+    const fz = document.createElement('div'); fz.className = 'sk-zoom sk-fzoom';
+    fz.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-fzoom-lbl">${Math.round(this._focusZoom * 100)}%</span><button class="sk-zoom-b" data-z="in">+</button>`;
+    fz.querySelector('[data-z=out]').onclick = () => { this._focusZoom = Math.max(0.45, this._focusZoom - 0.1); applyFZoom(); };
+    fz.querySelector('[data-z=in]').onclick = () => { this._focusZoom = Math.min(1.4, this._focusZoom + 0.1); applyFZoom(); };
+    ov.appendChild(fz);
 
     const lvl = p.skills[sk.id] || 0, maxed = lvl >= sk.max;
     const unlockedSkill = p.level >= (node.req || 1);
@@ -1969,7 +1980,7 @@ export class UI {
     const SVGNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'sk-focus-svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
-    wheel.appendChild(svg);
+    zoomLayer.appendChild(svg);
     let lines = '';
 
     const branches = SKILL_MODS[sk.id] || [];
@@ -1992,7 +2003,7 @@ export class UI {
         const show = () => this._focusInspect(`<b>${o.name}</b><span>${o.desc}</span><em>${unlocked ? (on ? '✓ activa' : 'Toca para elegir (gratis)') : pending ? '⚠ Toca otra vez para desbloquear (1 punto)' : `🔒 Rama «${br.name}» — desbloquea por 1 punto`}</em>`);
         b.onmouseenter = show; b.onfocus = show;
         b.onclick = () => { show(); g.chooseSkillMod(sk.id, br.id, o.id); };
-        wheel.appendChild(b);
+        zoomLayer.appendChild(b);
       });
       // etiqueta de la rama
       const lx = cx + Math.cos(baseAng) * (R + 52), ly = cy + Math.sin(baseAng) * (R + 52);
@@ -2000,7 +2011,7 @@ export class UI {
       lbl.className = 'sk-focus-blabel' + (unlocked ? ' on' : '') + (br.name === 'Transformación' ? ' big' : '');
       lbl.style.left = lx + 'px'; lbl.style.top = ly + 'px';
       lbl.innerHTML = unlocked ? br.name : `🔒 ${br.name}<small>1 punto</small>`;
-      wheel.appendChild(lbl);
+      zoomLayer.appendChild(lbl);
     });
     svg.innerHTML = lines;
 
@@ -2014,7 +2025,7 @@ export class UI {
     else upHtml = `<button class="sk-focus-up" disabled>Sin puntos</button>`;
     center.innerHTML = `<div class="sk-focus-ico">${sk.icon}</div><div class="sk-focus-name">${sk.name}</div>` +
       `<div class="sk-focus-rank">${this.skillPips(lvl, sk.max)} <em>${lvl}/${sk.max}</em></div>${upHtml}`;
-    wheel.appendChild(center);
+    zoomLayer.appendChild(center);
     const upBtn = center.querySelector('.sk-focus-up:not([disabled])');
     if (upBtn) upBtn.onclick = () => { g.learnSkill(sk.id); this.renderSkillFocus(); this.updateHUD(); };
     // soportes (engarces) bajo el centro, si está aprendida y es core/ultimate
