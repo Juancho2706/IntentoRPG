@@ -633,6 +633,7 @@ export class UI {
   }
 
   // Hotbar de 6 ranuras (estilo D4): 🖱️Izq = básico generador, 🖱️Der + 1·2·3·4.
+  // Toque/clic = lanzar; clic DERECHO o mantener pulsado = asignar (solo aprendidas).
   refreshHotbar() {
     const p = this.game.player;
     const bar = $('skillbar');
@@ -641,47 +642,57 @@ export class UI {
     const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
     for (const [slot, label] of SLOTS) {
       const id = p.hotbar?.[slot] || null;
+      const sk = id ? p.cls.skills.find(s => s.id === id) : null;
+      const known = sk && p.skills[sk.id] > 0;
       const btn = document.createElement('button');
       btn.className = 'skill-btn';
       btn.dataset.slot = slot;
-      if (!id) {
+      let castFn = null;
+      if (!sk) {
         btn.classList.add('hb-empty');
-        btn.innerHTML = `<span class="sk-icon dim">·</span><span class="sk-key">${label}</span>`;
-        btn.title = 'Ranura vacía — asígnale una habilidad en el panel Habilidades';
-        bar.appendChild(btn);
-        continue;
-      }
-      const sk = p.cls.skills.find(s => s.id === id);
-      if (!sk) { bar.appendChild(btn); continue; }
-      const known = p.skills[sk.id] > 0;
-      btn.dataset.skill = sk.id;
-      if (!known) btn.classList.add('hb-locked');
-      if (sk.kind === 'basic') {
-        // básico: genera recurso, sin coste; no muestra coste ni overlay de CD
-        btn.classList.add('hb-basic');
+        btn.innerHTML = `<span class="sk-icon dim">+</span><span class="sk-key">${label}</span>`;
+        btn.title = `${label}: ranura vacía — clic derecho / mantener para asignar`;
+      } else if (sk.kind === 'basic') {
+        btn.classList.add('hb-basic'); btn.dataset.skill = sk.id;
+        if (!known) btn.classList.add('hb-locked');
         btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${label}</span>` +
           `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${sk.gen || res?.gen || 0}</span>`;
         btn.title = `${sk.name} · genera ${res?.name || 'recurso'}`;
-        btn.addEventListener('pointerdown', e => { e.preventDefault(); if (!known) { this.message(`${sk.name}: apréndelo en Habilidades`); return; } this.game.castSkillSlot(slot); });
-        bar.appendChild(btn);
-        continue;
+        castFn = () => { if (!known) { this.message(`${sk.name}: apréndelo en Habilidades`); return; } this.game.castSkillSlot(slot); };
+      } else {
+        btn.dataset.skill = sk.id; if (!known) btn.classList.add('hb-locked');
+        const cost = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
+        btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${label}</span>` +
+          `<span class="sk-cost">${cost}</span><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span>`;
+        btn.title = known ? `${sk.name} · ${cost} ${res?.name || 'maná'}` : `${sk.name} (apréndela en Habilidades)`;
+        castFn = () => {
+          if (!known) { this.message(`${sk.name}: apréndela en el panel de Habilidades`); return; }
+          const onCd = (p.cds[sk.id] || 0) > 0;
+          if (p.mp < cost && !onCd) this.flashNoMana(btn);
+          this.game.castSkillSlot(slot);
+        };
       }
-      const cost = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
-      btn.innerHTML = `<span class="sk-icon">${sk.icon}</span>` +
-        `<span class="sk-key">${label}</span>` +
-        `<span class="sk-cost">${cost}</span>` +
-        `<div class="cd-overlay cd-radial"></div>` +
-        `<span class="sk-cd-sec"></span>`;
-      btn.title = known ? `${sk.name} · ${cost} ${res?.name || 'maná'}` : `${sk.name} (apréndela en Habilidades)`;
-      btn.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        if (!known) { this.message(`${sk.name}: apréndela en el panel de Habilidades`); return; }
-        const onCd = (p.cds[sk.id] || 0) > 0;
-        if (p.mp < cost && !onCd) this.flashNoMana(btn);
-        this.game.castSkillSlot(slot);
-      });
+      this._bindHotbarSlot(btn, slot, label, castFn);
       bar.appendChild(btn);
     }
+  }
+
+  // toque corto = lanzar (castFn); clic derecho o pulsación larga = asignar
+  _bindHotbarSlot(btn, slot, label, castFn) {
+    let lp = null, moved = false;
+    const openAssign = () => { if (lp) { clearTimeout(lp); lp = null; } this.hotbarSlotChooser(slot, label); };
+    btn.addEventListener('contextmenu', e => { e.preventDefault(); openAssign(); });
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (e.button === 2) return;                 // botón derecho → lo maneja contextmenu
+      moved = false;
+      lp = setTimeout(() => { lp = null; this.hotbarSlotChooser(slot, label); }, 450); // mantener = asignar
+    });
+    btn.addEventListener('pointermove', () => { moved = true; });
+    btn.addEventListener('pointerup', () => { if (lp) { clearTimeout(lp); lp = null; if (!moved && castFn) castFn(); } });
+    const cancel = () => { if (lp) { clearTimeout(lp); lp = null; } };
+    btn.addEventListener('pointercancel', cancel);
+    btn.addEventListener('pointerleave', cancel);
   }
 
 
@@ -1802,8 +1813,10 @@ export class UI {
       else this._centerSkillTree(viewport, graph, sel, zoomB);     // centra al abrir
     });
 
-    // ----- DEBAJO del árbol, separado: la barra de habilidades + respec -----
-    cont.appendChild(this.renderHotbarEditor());
+    // ----- DEBAJO del árbol: respec (la barra se asigna con clic derecho en el HUD) -----
+    const hint = document.createElement('div'); hint.className = 'sk-assign-hint dim';
+    hint.innerHTML = '🖱️ Clic derecho (o mantén pulsado) en una ranura de la barra inferior para asignar una habilidad aprendida.';
+    cont.appendChild(hint);
     if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
       const cost = this.game.respecCost();
       const rb = document.createElement('button');
@@ -1848,22 +1861,24 @@ export class UI {
     const add = (id, html, dim = false) => {
       const b = document.createElement('button');
       b.className = 'btn-good' + (p.hotbar?.[slot] === id ? ' on' : '');
-      if (dim) b.style.opacity = '0.55';
       b.innerHTML = html;
-      b.onclick = () => { g.assignHotbar(slot, id); pop.classList.add('hidden'); this.renderSkills(); this.updateHUD(); };
+      b.onclick = () => { g.assignHotbar(slot, id); pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); };
       btns.appendChild(b);
     };
-    // básicos, cores y ultimates son colocables (las pasivas no van a la barra)
-    const groups = [['basic', 'Básicos'], ['core', 'Habilidades'], ['ultimate', 'Definitivas']];
-    for (const [kind] of groups) {
-      for (const sk of p.cls.skills.filter(s => s.kind === kind)) {
-        const known = p.skills[sk.id] > 0;
-        const tag = kind === 'basic' ? ' <small class="dim">(generador)</small>' : kind === 'ultimate' ? ' <small class="dim">(definitiva)</small>' : '';
-        add(sk.id, `${sk.icon} ${sk.name}${known ? tag : ' <small class="dim">(sin aprender)</small>'}`, !known);
-      }
+    // SOLO habilidades APRENDIDAS (básicos/cores/definitivas; las pasivas no van a la barra)
+    const kinds = ['basic', 'core', 'ultimate'];
+    const learned = p.cls.skills.filter(s => kinds.includes(s.kind) && p.skills[s.id] > 0);
+    if (!learned.length) {
+      const e = document.createElement('div'); e.className = 'dim'; e.style.padding = '4px 2px';
+      e.textContent = 'Aún no has aprendido habilidades. Apréndelas en el árbol (botón Habilidades).';
+      btns.appendChild(e);
+    }
+    for (const sk of learned) {
+      const tag = sk.kind === 'basic' ? ' <small class="dim">(generador)</small>' : sk.kind === 'ultimate' ? ' <small class="dim">(definitiva)</small>' : '';
+      add(sk.id, `${sk.icon} ${sk.name}${tag}`);
     }
     const clr = document.createElement('button'); clr.textContent = '✖ Vaciar ranura';
-    clr.onclick = () => { g.assignHotbar(slot, null); pop.classList.add('hidden'); this.renderSkills(); this.updateHUD(); };
+    clr.onclick = () => { g.assignHotbar(slot, null); pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); };
     btns.appendChild(clr);
     const c = document.createElement('button'); c.textContent = 'Cerrar';
     c.onclick = () => pop.classList.add('hidden');
