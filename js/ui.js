@@ -183,6 +183,12 @@ export class UI {
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
     $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
     $('btn-guide')?.addEventListener('click', () => this.openGuide());
+    // menú principal colapsable: un botón ☰ despliega el resto; al elegir, se cierra
+    const menuToggle = $('btn-menu-toggle');
+    if (menuToggle) {
+      menuToggle.addEventListener('click', () => $('hud-menu')?.classList.toggle('open'));
+      $('menu-btns')?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => $('hud-menu')?.classList.remove('open')));
+    }
     // modo limpio del HUD: oculta lo no esencial (persiste en settings)
     const cleanBtn = $('btn-clean-hud');
     if (cleanBtn) {

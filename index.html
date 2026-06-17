@@ -125,6 +125,7 @@
     <symbol id="ic-gift" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4a2.5 2.5 0 0 1 4.6 1.3A2.5 2.5 0 0 1 16 7h4a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4a2.5 2.5 0 0 1 3-3Zm-1 8H6v7h5v-7Zm2 0v7h5v-7h-5Zm-3-5a.7.7 0 1 0 0 .1V7H10Zm4 0h1a.7.7 0 1 0-1 0Z"/></symbol>
     <symbol id="ic-wolf" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3l3 2 5-1 5 1 3-2-1 5 2 3-3 1-1 4-3 2H8l-3-2-1-4-3-1 2-3-1-5Zm5 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-3 4 2 2h-4l2-2Z"/></symbol>
     <symbol id="ic-fav" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2 2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.6 6.1 20.8l1.2-6.6L2.5 9l6.6-.9L12 2Z"/></symbol>
+    <symbol id="ic-menu" viewBox="0 0 24 24"><path fill="currentColor" d="M4 6h16a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2Zm0 5h16a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2Zm0 5h16a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2Z"/></symbol>
   </defs>
 </svg>
 
@@ -167,8 +168,25 @@
       <span id="hud-gold">🪙 0</span>
       <span id="hud-zone">🏘️ Pueblo</span>
     </div>
+  </div>
+
+  <canvas id="minimap" width="132" height="132"></canvas>
+
+  <!-- objetivos (misiones + contratos): DEBAJO del minimapa -->
+  <div id="hud-objectives">
     <div id="quest-tracker" style="display:none"></div>
     <div id="zone-contracts" style="display:none"></div>
+  </div>
+
+  <!-- stack inferior centrado: BUFFS encima de la BARRA DE PODERES, y esta encima de la XP -->
+  <div id="hud-bottom">
+    <div id="buff-bar"></div>
+    <div id="skillbar"></div>
+    <div id="xp-bar"><div id="xp-fill"></div></div>
+  </div>
+
+  <!-- menú principal: un solo botón ☰ que despliega el resto, a la derecha de la XP -->
+  <div id="hud-menu">
     <div id="menu-btns">
       <button id="btn-inv" class="ui-iconbtn" title="Inventario [I]" aria-label="Inventario"><svg class="ui-ico"><use href="#ic-bag"/></svg></button>
       <button id="btn-skills" class="ui-iconbtn" title="Habilidades [T]" aria-label="Habilidades"><svg class="ui-ico"><use href="#ic-book"/></svg><span class="badge" id="badge-skills"></span></button>
@@ -178,14 +196,8 @@
       <button id="btn-guide" class="ui-iconbtn" title="Guía de sistemas" aria-label="Guía de sistemas"><svg class="ui-ico"><use href="#ic-question"/></svg></button>
       <button id="btn-clean-hud" class="ui-iconbtn" title="Modo limpio (ocultar HUD no esencial)" aria-label="Modo limpio" aria-pressed="false"><svg class="ui-ico"><use href="#ic-eye"/></svg></button>
     </div>
+    <button id="btn-menu-toggle" class="ui-iconbtn" title="Menú" aria-label="Menú"><svg class="ui-ico"><use href="#ic-menu"/></svg></button>
   </div>
-
-  <canvas id="minimap" width="132" height="132"></canvas>
-
-  <!-- fila de buffs/pasivos temporales activos (se rellena por JS) -->
-  <div id="buff-bar"></div>
-
-  <div id="xp-bar"><div id="xp-fill"></div></div>
 
   <!-- orbe de vida + poción -->
   <div id="orb-hp" class="orb">
@@ -201,9 +213,8 @@
   </div>
   <button id="btn-pot-mp" class="pot-btn pot-mp" title="Poción de maná [E]" aria-label="Poción de maná"><svg class="ui-ico"><use href="#ic-flask"/></svg><span class="pot-count" id="pot-mp-count">0</span><span class="pot-key">E</span></button>
 
-  <!-- acciones -->
+  <!-- acciones (la barra de poderes ahora va al centro) -->
   <div id="action-cluster">
-    <div id="skillbar"></div>
     <button id="btn-grab" class="ui-iconbtn" title="Recoger botín [F]" aria-label="Recoger botín"><svg class="ui-ico"><use href="#ic-hand"/></svg></button>
     <button id="btn-dodge" class="ui-iconbtn" title="Esquivar [Shift]" aria-label="Esquivar"><svg class="ui-ico"><use href="#ic-dash"/></svg><div class="cd-overlay"></div></button>
     <button id="btn-attack" class="ui-iconbtn" title="Atacar / Interactuar [Espacio]" aria-label="Atacar o interactuar"><svg class="ui-ico"><use href="#ic-sword"/></svg></button>
