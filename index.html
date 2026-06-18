@@ -162,18 +162,15 @@
 
 <!-- HUD -->
 <div id="hud" class="hidden">
-  <div id="top-left">
+  <canvas id="minimap" width="132" height="132"></canvas>
+
+  <!-- bajo el minimapa: info (Nv/oro/zona) y, debajo, objetivos (misiones + contratos) -->
+  <div id="hud-objectives">
     <div id="hud-info">
       <span id="hud-level">Nv 1</span>
       <span id="hud-gold">🪙 0</span>
       <span id="hud-zone">🏘️ Pueblo</span>
     </div>
-  </div>
-
-  <canvas id="minimap" width="132" height="132"></canvas>
-
-  <!-- objetivos (misiones + contratos): DEBAJO del minimapa -->
-  <div id="hud-objectives">
     <div id="quest-tracker" style="display:none"></div>
     <div id="zone-contracts" style="display:none"></div>
   </div>
