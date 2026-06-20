@@ -28,50 +28,104 @@ function std(color, opts = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0.05, emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1 });
 }
 
+// oscurece/aclara un color hex (factor <1 oscurece) — para mantos, sombras, etc.
+function shade(hex, f) {
+  const r = Math.min(255, Math.round(((hex >> 16) & 255) * f));
+  const g = Math.min(255, Math.round(((hex >> 8) & 255) * f));
+  const b = Math.min(255, Math.round((hex & 255) * f));
+  return (r << 16) | (g << 8) | b;
+}
+
+// Héroe ARTICULADO: torso, cabeza con cuello, dos brazos (el derecho empuña/actúa),
+// dos piernas con pies, capa con inercia y equipo por clase. Todas las piezas
+// animables se exponen en `userData.anim` (las anima Player.update con poses
+// procedurales: ciclo de caminar, swing con anticipación, idle, esquiva…).
 export function makePlayerModel(cls, tint = null) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.55, 6, 12), std(tint ?? cls.color));
-  body.position.y = 0.75;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 12), std(0xd9a878));
-  head.position.y = 1.45;
-  body.castShadow = head.castShadow = true;
-  g.add(body, head);
+  const rig = new THREE.Group();              // bob/inclinación/voltereta van aquí
+  g.add(rig);
+  const skin = 0xd9a878;
+  const cloth = tint ?? cls.color;
 
-  const hand = new THREE.Group();
-  hand.position.set(0.38, 0.95, 0.1);
-  g.add(hand);
+  // torso + pelvis
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.42, 6, 12), std(cloth));
+  torso.position.y = 1.04; torso.castShadow = true;
+  const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.1, 4, 10), std(shade(cloth, 0.8)));
+  pelvis.position.y = 0.82;
+  rig.add(torso, pelvis);
 
+  // cuello-pivote + cabeza (permite mirar/bob de cabeza)
+  const neck = new THREE.Group(); neck.position.set(0, 1.32, 0); rig.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), std(skin));
+  head.position.y = 0.18; head.castShadow = true; neck.add(head);
+
+  // piernas con pivote en la cadera + pie
+  const legGeo = new THREE.CapsuleGeometry(0.1, 0.46, 4, 8);
+  const makeLeg = (x) => {
+    const piv = new THREE.Group(); piv.position.set(x, 0.8, 0);
+    const leg = new THREE.Mesh(legGeo, std(0x3a3128));
+    leg.position.y = -0.35; leg.castShadow = true;
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.27), std(0x241b12));
+    foot.position.set(0, -0.66, 0.05);
+    piv.add(leg, foot);
+    return piv;
+  };
+  const legL = makeLeg(-0.14), legR = makeLeg(0.14);
+  rig.add(legL, legR);
+
+  // brazos con pivote en el hombro; el derecho lleva la mano "activa"
+  const armGeo = new THREE.CapsuleGeometry(0.09, 0.4, 4, 8);
+  const makeArm = (x) => {
+    const piv = new THREE.Group(); piv.position.set(x, 1.2, 0);
+    const arm = new THREE.Mesh(armGeo, std(shade(cloth, 0.92)));
+    arm.position.y = -0.29; arm.castShadow = true;
+    const hand = new THREE.Group(); hand.position.y = -0.54;
+    piv.add(arm, hand);
+    piv.userData.hand = hand;
+    return piv;
+  };
+  const armL = makeArm(-0.34), armR = makeArm(0.34);
+  rig.add(armL, armR);
+  const rhand = armR.userData.hand, lhand = armL.userData.hand;
+
+  // capa: movimiento secundario (inercia con el desplazamiento y los golpes)
+  const capePiv = new THREE.Group(); capePiv.position.set(0, 1.24, -0.16);
+  const cape = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.82, 0.035), std(shade(cloth, 0.55)));
+  cape.position.y = -0.4; capePiv.add(cape); rig.add(capePiv);
+
+  // equipo por clase
   if (cls.id === 'guerrero') {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.95, 0.16), std(0xc8ccd4, { metal: 0.7, rough: 0.35 }));
-    blade.position.y = 0.45;
-    const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.08), std(0x7a5a2a));
-    blade.castShadow = true;
-    hand.add(blade, hilt);
-    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.07, 12), std(0x8a6a3a));
-    shield.rotation.z = Math.PI / 2;
-    shield.position.set(-0.42, 0.9, 0.1);
-    g.add(shield);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.14), std(0xc8ccd4, { metal: 0.7, rough: 0.3 }));
+    blade.position.y = 0.42; blade.castShadow = true;
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.07), std(0x7a5a2a));
+    rhand.add(blade, guard);
+    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 16), std(0x8a6a3a, { metal: 0.3 }));
+    shield.rotation.x = Math.PI / 2; shield.position.set(-0.04, -0.08, 0.14);
+    lhand.add(shield);
+    for (const sx of [-1, 1]) {        // hombreras metálicas
+      const pa = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), std(0x6a6a72, { metal: 0.4, rough: 0.45 }));
+      pa.scale.y = 0.65; pa.position.set(sx * 0.34, 1.2, 0); rig.add(pa);
+    }
   } else if (cls.id === 'maga') {
-    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 1.5, 7), std(0x5a4028));
-    staff.position.y = 0.3;
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), std(0x66ccff, { emissive: 0x3399ff, ei: 1.8 }));
-    orb.position.y = 1.08;
-    hand.add(staff, orb);
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.55, 10), std(0x2a4ba6));
-    hat.position.y = 1.78;
-    g.add(hat);
+    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.4, 8), std(0x5a4028));
+    staff.position.y = 0.35; rhand.add(staff);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), std(0x66ccff, { emissive: 0x3399ff, ei: 1.8 }));
+    orb.position.y = 1.05; rhand.add(orb);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.62, 12), std(0x2a4ba6));
+    hat.position.y = 0.35; neck.add(hat);
   } else {
-    // arquera: arco
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.035, 6, 14, Math.PI), std(0x6e4a22));
-    bow.rotation.z = -Math.PI / 2;
-    bow.position.y = 0.3;
-    hand.add(bow);
-    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.27, 0.4, 10), std(0x2e5e30));
-    hood.position.y = 1.66;
-    g.add(hood);
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.03, 6, 16, Math.PI), std(0x6e4a22));
+    bow.rotation.z = -Math.PI / 2; bow.position.y = 0.08; rhand.add(bow);
+    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.42, 12), std(0x2e5e30));
+    hood.position.y = 0.16; neck.add(hood);
+    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.42, 8), std(0x4a3520));
+    quiver.rotation.x = 0.45; quiver.position.set(-0.16, 1.02, -0.22); rig.add(quiver);
   }
-  g.userData.hand = hand;
-  g.userData.body = body;
+
+  // handles de compatibilidad + set de animación
+  g.userData.body = torso;            // compat
+  g.userData.hand = armR;             // compat: el swing/cast animan el brazo derecho
+  g.userData.anim = { rig, torso, neck, head, legL, legR, armL, armR, capePiv, cape, rhand, lhand };
   return g;
 }
 
@@ -167,7 +221,7 @@ export function makeEnemyModel(def) {
     bodyH = 1.0; eyeY = 1.5; eyeZ = 0.16;
   }
   // bases de animación
-  if (anim.body) { anim.bodyY = anim.body.position.y; anim.bodyZ = anim.body.position.z; }
+  if (anim.body) { anim.bodyY = anim.body.position.y; anim.bodyZ = anim.body.position.z; anim.bodyScale = anim.body.scale.clone(); }
 
   // ojos brillantes
   for (const sx of [-0.09, 0.09]) {
@@ -687,6 +741,7 @@ export class Player {
     }
     this.game.ui.spawnText(this.pos, `-${dmg}`, 'txt-dmg-player');
     this.game.ui.flashDamage();
+    this.hurtT = 1;   // sacudida de daño (flinch) del cuerpo
     // sonido al RECIBIR daño (throttle para no saturar con golpes seguidos)
     const now = performance.now();
     if (!this._hurtAt || now - this._hurtAt > 220) { this.game.sfx?.('hurt'); this._hurtAt = now; }
@@ -794,19 +849,19 @@ export class Player {
     if (this.slowT > 0) this.slowT -= dt;
     const spd = this.stats.spd * (this.slowT > 0 ? 0.55 : 1);
 
-    // esquiva en curso: impulso con voltereta. Velocidad con ease-out (sale
-    // rápido y frena) — se siente mucho más ágil que a velocidad constante.
-    const body = this.group.userData.body;
+    // esquiva en curso: voltereta de buceo (gira sobre los pies + arco de salto).
+    // Velocidad con ease-out (sale rápido y frena) — se siente mucho más ágil.
+    const a = this.group.userData.anim;
     if (this.dodgeT > 0) {
       this.dodgeT -= dt;
       const k = Math.max(0, this.dodgeT) / DASH_DUR;     // 1 → 0
       const speed = DASH_PEAK * k;                        // decelera hacia el final
       moveWithCollision(g.world.grid, this.pos, this.dodgeDir.x * speed * dt, this.dodgeDir.z * speed * dt);
-      body.rotation.x = (1 - k) * Math.PI * 2;            // voltereta completa
+      if (a) { a.rig.rotation.x = (1 - k) * Math.PI * 2; a.rig.position.y = Math.sin((1 - k) * Math.PI) * 0.22; }
       // estela de imágenes residuales (cada ~25ms)
       this.dashTrail = (this.dashTrail || 0) + dt;
       if (this.dashTrail >= 0.025) { this.dashTrail = 0; g.spawnDashGhost?.(this); }
-      if (this.dodgeT <= 0) body.rotation.x = 0;
+      if (this.dodgeT <= 0 && a) { a.rig.rotation.x = 0; a.rig.position.y = 0; }
       return;
     }
 
@@ -834,21 +889,52 @@ export class Player {
       if (dx * dx + dz * dz > 0.04) this.group.rotation.y = Math.atan2(dx, dz);
     }
 
-    // animación procedural
+    // ---- animación procedural del cuerpo articulado ----
     const t = performance.now() / 1000;
-    body.position.y = 0.75 + (moving ? Math.abs(Math.sin(t * 9)) * 0.09 : Math.sin(t * 2) * 0.02);
     this.swing = Math.max(0, this.swing - dt * 5);
     this.castPoseT = Math.max(0, (this.castPoseT || 0) - dt * 4);
-    const hand = this.group.userData.hand;
-    // pose de lanzamiento: breve elevación de la mano/arma al castear, encima
-    // de la animación de swing del ataque básico (no la reemplaza).
-    const raise = this.castPoseT * (this.castPoseDir || 0);
-    hand.rotation.x = -this.swing * 1.6 + raise;
+    this.hurtT = Math.max(0, (this.hurtT || 0) - dt * 5);
+    if (a) {
+      const wt = (this._walkT = (this._walkT || 0) + dt * (moving ? 11 : 0));
+      const sw = Math.sin(wt);
+      const breathe = Math.sin(t * 2) * 0.012;
+      // bob vertical: peso del paso al andar; respiración en reposo
+      a.rig.position.y = moving ? Math.abs(sw) * 0.06 : breathe;
+      // inclinación: se adelanta al correr; sacudida al recibir daño
+      a.rig.rotation.x = (moving ? 0.13 : 0) - this.hurtT * 0.55;
+      // squash en cada pisada (cambio de peso)
+      const land = moving ? Math.max(0, -Math.cos(wt * 2)) * 0.045 : 0;
+      a.torso.scale.y = 1 - land; a.torso.scale.x = a.torso.scale.z = 1 + land * 0.5;
+      // piernas en contrafase
+      if (a.legL) { a.legL.rotation.x = moving ? sw * 0.7 : 0; a.legR.rotation.x = moving ? -sw * 0.7 : 0; }
+      // brazo izquierdo: contrabalanceo al andar / vaivén leve en reposo
+      const idle = Math.sin(t * 1.5) * 0.05;
+      a.armL.rotation.x = moving ? -sw * 0.55 : idle;
+      // brazo derecho (activo): caminar + SWING (anticipación→golpe→retorno) + pose de cast
+      const raise = this.castPoseT * (this.castPoseDir || 0);
+      a.armR.rotation.x = (moving ? sw * 0.55 : -idle) + this._swingPose() + raise;
+      // cabeza: contramovimiento al andar + respiración
+      if (a.head) a.head.rotation.x = (moving ? -Math.sin(wt * 2) * 0.04 : breathe * 0.6);
+      // capa con inercia: reacciona a la velocidad y al golpe
+      const target = (moving ? 0.45 : 0.12) + this.swing * 0.7;
+      this._capeSway = (this._capeSway || 0) + (target - (this._capeSway || 0)) * Math.min(1, dt * 8);
+      if (a.capePiv) a.capePiv.rotation.x = -this._capeSway;
+    }
+  }
+
+  // Curva del swing del brazo derecho a partir de `this.swing` (1→0): anticipación
+  // (lo lleva atrás), golpe rápido hacia delante y recuperación suave. Da peso al ataque.
+  _swingPose() {
+    const s = this.swing; if (s <= 0) return 0;
+    const p = 1 - s;                                   // fase 0 → 1
+    if (p < 0.18) return (p / 0.18) * 0.5;             // anticipación (atrás/arriba)
+    if (p < 0.5) return 0.5 - ((p - 0.18) / 0.32) * 2.4; // golpe (+0.5 → −1.9)
+    return -1.9 * (1 - (p - 0.5) / 0.5);               // recuperación (−1.9 → 0)
   }
 
   // Dispara una pose breve de lanzamiento de habilidad. El tipo ajusta el gesto:
   // los buffs/área levantan más el brazo; los proyectiles/melee, un gesto corto.
-  // Solo afecta a la pose visual de la mano (canal aparte del swing).
+  // Solo afecta a la pose visual del brazo (canal aparte del swing).
   castPose(type) {
     this.castPoseT = 1;
     this.castPoseDir = (type === 'buff' || type === 'aoe_self' || type === 'aoe_target') ? 1.7 : 1.1;
@@ -1008,6 +1094,7 @@ export class Enemy {
     // destello BLANCO: ~70ms base, escala suave con el % de daño recibido
     const pct = Math.min(1, amount / Math.max(1, this.maxHP));
     this.flashT = 0.07 + pct * 0.08;
+    if (this.hp > 0) this.hitT = 0.16 + pct * 0.12;   // squash de impacto (juice)
     const bar = this.group.userData.bar;
     bar.visible = true;
     const fg = this.group.userData.barFg;
@@ -1060,15 +1147,17 @@ export class Enemy {
     const moving = moved > 0.002;
     this.walkT = (this.walkT || 0) + dt * (moving ? 11 : 0);
     this.lunge = Math.max(0, (this.lunge || 0) - dt * 4);
+    this.hitT = Math.max(0, (this.hitT || 0) - dt * 6);
     const sw = Math.sin(this.walkT);
     const lunge = this.lunge;
+    const hit = this.hitT;     // squash de impacto (0 → ~0.28)
 
     if (a.slime) {
       // gelatina: salta aplastándose; al moverse, salto más marcado
       const k = moving ? 0.22 : 0.07;
       const w = Math.abs(Math.sin(t * (moving ? 9 : 2.2) + this._aoff));
-      a.body.scale.y = a.sy * (1 - w * k);
-      a.body.scale.x = a.body.scale.z = a.sx * (1 + w * k * 0.5);
+      a.body.scale.y = a.sy * (1 - w * k) * (1 - hit * 1.4);
+      a.body.scale.x = a.body.scale.z = a.sx * (1 + w * k * 0.5) * (1 + hit * 0.8);
       a.body.position.y = a.bodyY + (moving ? w * 0.12 : 0) + lunge * 0.2;
       return;
     }
@@ -1076,6 +1165,8 @@ export class Enemy {
       a.body.position.y = a.bodyY + (moving ? Math.abs(sw) * 0.06 : Math.sin(t * 2 + this._aoff) * 0.02);
       a.body.position.z = a.bodyZ + lunge * 0.28;
       a.body.rotation.x = -lunge * 0.5 + (moving ? Math.sin(this.walkT * 2) * 0.04 : 0);
+      // squash de impacto al recibir daño (sobre la escala base de la forma)
+      if (a.bodyScale) a.body.scale.set(a.bodyScale.x * (1 + hit * 0.7), a.bodyScale.y * (1 - hit * 1.3), a.bodyScale.z * (1 + hit * 0.7));
     }
     if (a.head) a.head.rotation.x = lunge * 0.6 + (moving ? -Math.sin(this.walkT * 2) * 0.05 : 0);
     if (a.legs) {
@@ -1099,18 +1190,24 @@ export class Enemy {
     if (!this.alive && this.shieldT > 0 && this.def.shielded) {
       this.alive = true;
       this.hp = this.shieldHP || Math.max(1, Math.round(this.maxHP * 0.2));
-      this.fade = 0;
+      this.fade = 0; this._deathRoll = null;
       this.group.position.y = 0;
-      this.group.rotation.x = 0;
+      this.group.rotation.x = 0; this.group.rotation.z = 0;
+      this.group.scale.setScalar(1);
       const fg = this.group.userData.barFg;
       if (fg) { fg.scale.x = Math.max(0.001, this.hp / this.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); }
     }
     if (!this.alive) {
-      // animación de muerte: hundirse y desvanecer
+      // animación de muerte: "pop" breve, desplome de lado y hundimiento
       this.fade += dt;
-      this.group.position.y = -this.fade * 1.2;
-      this.group.rotation.x = Math.min(Math.PI / 2, this.fade * 2.5);
-      return this.fade > 1.2; // true => eliminar
+      if (this._deathRoll == null) this._deathRoll = (Math.random() < 0.5 ? -1 : 1);
+      const f = this.fade;
+      const pop = f < 0.12 ? 1 + (0.12 - f) * 1.6 : 1;
+      this.group.scale.setScalar(pop);
+      this.group.position.y = -f * 1.0;
+      this.group.rotation.x = Math.min(Math.PI / 2, f * 3.0);
+      this.group.rotation.z = this._deathRoll * Math.min(0.55, f * 1.3);
+      return f > 1.2; // true => eliminar
     }
 
     if (this.flashT > 0) this.flashT -= dt;
