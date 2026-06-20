@@ -20,7 +20,7 @@ import { eraMethods } from './game-eras.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
-import { ParticleSystem, PRESETS } from './particles.js';
+import { ParticleSystem, PRESETS, normalizePreset } from './particles.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, bossDeathBurst, bossDeathStars } from './fx-enemies.js';
 
@@ -442,7 +442,11 @@ class Game {
       const L = spec.rift;
       this.world.pact = { id: 'rift', qty: 25 + L * 12, mf: 30 + L * 15, xp: 20 + L * 10 };
       this.world.pactEnemyMods = { ehp: 0.3 + L * 0.12, edmg: 0.2 + L * 0.08, espd: Math.min(0.5, 0.05 + L * 0.04) };
-    }
+      // instantánea para el resumen de la grieta (deltas de la corrida)
+      const r = this.player.records;
+      this._runStats = { t0: (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+        xp0: r.totalXP || 0, gold0: this.player.gold, kills0: r.kills || 0, lvl0: this.player.level };
+    } else this._runStats = null;
     // Tormento: dificultad global seleccionable. Sube la dificultad efectiva
     // (más vida/daño enemigo) y el botín (rareza/cantidad). No aplica a grietas
     // ni a la diaria, que tienen su propia escalera.
@@ -804,27 +808,50 @@ class Game {
   // círculo rojo de aviso: al llenarse, daña a quien siga dentro
   spawnTelegraph(pos, radius, dur, dmg, attackerLevel = 1, opts = {}) {
     const group = new THREE.Group();
+    // borde de peligro GRUESO (pulsa y se intensifica) — lectura periférica clara
     const outer = new THREE.Mesh(
-      new THREE.RingGeometry(radius - 0.08, radius, 28),
-      new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+      new THREE.RingGeometry(radius - 0.18, radius, 40),
+      new THREE.MeshBasicMaterial({ color: 0xff3322, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+    // relleno que CRECE: ámbar al inicio → rojo al impactar (anticipación)
     const inner = new THREE.Mesh(
-      new THREE.CircleGeometry(radius, 28),
-      new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
-    outer.rotation.x = inner.rotation.x = -Math.PI / 2;
+      new THREE.CircleGeometry(radius, 40),
+      new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
+    // aro interior que se contrae hacia el centro (cuenta atrás por FORMA, útil
+    // también para daltónicos: no depende solo del color)
+    const closing = new THREE.Mesh(
+      new THREE.RingGeometry(radius - 0.07, radius, 40),
+      new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+    outer.rotation.x = inner.rotation.x = closing.rotation.x = -Math.PI / 2;
     inner.scale.setScalar(0.01);
-    group.add(outer, inner);
+    group.add(inner, outer, closing);
     group.position.copy(pos).setY(0.08);
     this.fxGroup.add(group);
-    this.telegraphs.push({ group, inner, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone });
+    this.telegraphs.push({ group, inner, outer, closing, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone, ping: 0 });
     this.tip('esquiva', '¡Círculo rojo = peligro! Apártate o esquiva (💨 / Shift) antes de que se llene');
   }
 
   updateTelegraphs(dt) {
     const p = this.player;
+    const reduce = this.settings?.reduceMotion;
     for (let i = this.telegraphs.length - 1; i >= 0; i--) {
       const tg = this.telegraphs[i];
       tg.t += dt;
-      tg.inner.scale.setScalar(Math.max(0.01, Math.min(1, tg.t / tg.dur)));
+      const prog = Math.max(0, Math.min(1, tg.t / tg.dur));
+      tg.inner.scale.setScalar(Math.max(0.01, prog));
+      // ámbar → rojo según se acerca el impacto (lerp por canal R/G)
+      const g = Math.round(0xcc * (1 - prog));
+      tg.inner.material.color.setRGB(1, g / 255 * 0.8 + 0.13, 0.15);
+      tg.inner.material.opacity = 0.26 + 0.34 * prog;
+      // borde: pulso que ACELERA cerca del final (señal de "ya casi")
+      if (!reduce) {
+        const speed = 6 + prog * 22;
+        tg.outer.material.opacity = 0.6 + 0.4 * Math.abs(Math.sin(tg.t * speed));
+        // aro de cuenta atrás contrayéndose hacia el centro
+        if (tg.closing) tg.closing.scale.setScalar(Math.max(0.05, 1 - prog));
+      }
+      // "ping" de radar periódico hacia fuera: marca la zona de peligro
+      tg.ping += dt;
+      if (!reduce && tg.ping >= 0.34) { tg.ping = 0; this.spawnRing(tg.group.position, tg.radius, 0xff5533); }
       if (tg.t < tg.dur) continue;
       // impacto
       if (tg.dmg && p.alive && p.pos.distanceTo(tg.group.position) <= tg.radius + 0.3) {
@@ -1389,16 +1416,38 @@ class Game {
   // enemigos dentro cada `interval`s durante `dur`s. La consume el tick().
   spawnGroundZone(pos, radius, dps, dur, color = 0xff7733) {
     if (!this.groundZones) this.groundZones = [];
-    this.groundZones.push({ pos: pos.clone().setY(0.05), radius, dps, t: dur, interval: 0.5, acc: 0, color });
+    const hex = '#' + (((color >>> 0) & 0xffffff).toString(16).padStart(6, '0'));
+    const z = { pos: pos.clone().setY(0.05), radius, dps, t: dur, dur, interval: 0.5, acc: 0, fxAcc: 0, color };
+    // brasas vivas que suben de la zona, tintadas con el color de la habilidad
+    try {
+      z.fx = normalizePreset({
+        name: 'Estela', texture: 'glow', blending: 'additive',
+        count: 5, burst: true, lifetime: [0.4, 1.0], shape: 'disc', shapeRadius: radius * 0.85,
+        speed: [0.6, 2.0], gravity: -2.2, drag: 0.5, size: { start: [0.16, 0.36], end: 0 },
+        color: { start: '#ffe9b0', end: hex }, alpha: { start: 0.95, end: 0 },
+      });
+    } catch { /* sin GL en tests */ }
+    // decal del suelo: disco translúcido que marca la zona de peligro/daño
+    try {
+      const decal = new THREE.Mesh(
+        new THREE.CircleGeometry(radius, 36),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+      decal.rotation.x = -Math.PI / 2;
+      decal.position.copy(z.pos);
+      this.fxGroup.add(decal);
+      z.decal = decal;
+    } catch { /* sin GL en tests */ }
+    this.groundZones.push(z);
     this.spawnRing?.(pos, radius, color);
   }
 
-  // actualiza las zonas de daño (Estela): aplica daño por tic y caduca
+  // actualiza las zonas de daño (Estela): aplica daño por tic, anima y caduca
   updateGroundZones(dt) {
     const zones = this.groundZones; if (!zones || !zones.length) return;
+    const reduce = this.settings?.reduceMotion;
     for (let i = zones.length - 1; i >= 0; i--) {
       const z = zones[i];
-      z.t -= dt; z.acc += dt;
+      z.t -= dt; z.acc += dt; z.fxAcc += dt;
       if (z.acc >= z.interval) {
         z.acc = 0;
         for (const e of this.enemies) {
@@ -1407,7 +1456,20 @@ class Game {
         }
         this.spawnRing?.(z.pos, z.radius * (0.7 + 0.3 * Math.random()), z.color);
       }
-      if (z.t <= 0) zones.splice(i, 1);
+      // brasas continuas (tandas cortas) + parpadeo del decal
+      if (!reduce && z.fx && z.fxAcc >= 0.18) {
+        z.fxAcc = 0;
+        const a = Math.random() * Math.PI * 2, r = Math.random() * z.radius * 0.7;
+        this.emitFx?.(z.fx, { x: z.pos.x + Math.cos(a) * r, y: 0.12, z: z.pos.z + Math.sin(a) * r });
+      }
+      if (z.decal) {
+        const life = Math.max(0, Math.min(1, z.t / (z.dur || 1)));
+        z.decal.material.opacity = (0.16 + 0.12 * Math.abs(Math.sin(z.t * 6))) * (0.4 + 0.6 * life);
+      }
+      if (z.t <= 0) {
+        if (z.decal) { this.fxGroup.remove(z.decal); z.decal.geometry.dispose(); z.decal.material.dispose(); }
+        zones.splice(i, 1);
+      }
     }
   }
 
@@ -1641,25 +1703,44 @@ class Game {
       const L = this.world.rift;
       p.records.maxRift = Math.max(p.records.maxRift || 0, L);
       this.checkTormentUnlock();
-      drops.push(generateItem(floor, 'legendario', null, null, p.classId));
-      drops.push(makeRiftKey(L + 1));
-      if (Math.random() < 0.7) drops.push(makeFragment()); // fragmento para el Pináculo
-      if (Math.random() < 0.5) drops.push(makeGlyph(L));    // glifo para el tablero
+      const rewards = [];
+      drops.push(generateItem(floor, 'legendario', null, null, p.classId)); rewards.push({ icon: '🟧', label: 'Objeto legendario' });
+      drops.push(makeRiftKey(L + 1)); rewards.push({ icon: '🗝️', label: `Llave de Grieta Nv ${L + 1}` });
+      if (Math.random() < 0.7) { drops.push(makeFragment()); rewards.push({ icon: '🔱', label: 'Fragmento de Pináculo' }); } // para el Pináculo
+      if (Math.random() < 0.5) { drops.push(makeGlyph(L)); rewards.push({ icon: '🔣', label: 'Glifo de Paragon' }); }       // para el tablero
       // los glifos engarzados suben de rango al completar grietas (tope 10)
+      let ranked = 0;
       for (const gl of Object.values(p.paragon.glyphs || {})) {
-        if (gl.rank < 10) { gl.rank++; gl.name = `${gl.baseName} · rango ${gl.rank}`; }
+        if (gl.rank < 10) { gl.rank++; gl.name = `${gl.baseName} · rango ${gl.rank}`; ranked++; }
       }
+      if (ranked) rewards.push({ icon: '⬆️', label: `${ranked} glifo(s) subieron de rango` });
+      rewards.push({ icon: '🌟', label: 'Elige una bendición permanente' });
       p.recompute();
-      this.ui.message(`🌀 ¡Grieta Nivel ${L} completada! Botín extra y Llave de Grieta Nv ${L + 1}`, 5000);
       this.music.sting();
-      this._riftCompleted = L; // ofrece una bendición de corrupción al terminar
+      // resumen de la corrida (deltas desde la entrada a la grieta)
+      const rs = this._runStats;
+      this._riftSummary = {
+        rift: L,
+        time: rs ? (((typeof performance !== 'undefined' ? performance.now() : Date.now()) - rs.t0) / 1000) : null,
+        kills: rs ? Math.max(0, (p.records.kills || 0) - rs.kills0) : null,
+        xp: rs ? Math.max(0, (p.records.totalXP || 0) - rs.xp0) : null,
+        gold: rs ? Math.max(0, p.gold - rs.gold0) : null,
+        levels: rs ? Math.max(0, p.level - rs.lvl0) : 0,
+        rewards,
+      };
+      this._runStats = null;
+      this._riftCompleted = L; // ofrece una bendición de corrupción tras el resumen
     }
     for (const d of drops) this.spawnGroundItem(d, enemy.pos);
     if (enemy.def.boss && !this.world.rift) this.ui.message(`💀 ¡Has derrotado al ${enemy.def.name}!`, 4000);
     this.sfx('death');
     this.save();
-    // recompensa de corrupción: ofrece elegir una bendición permanente
-    if (this._riftCompleted != null) { const L = this._riftCompleted; this._riftCompleted = null; this.offerBlessing(L); }
+    // grieta completada: muestra el RESUMEN; al continuar, ofrece la bendición
+    if (this._riftSummary) {
+      const sum = this._riftSummary; this._riftSummary = null;
+      const L = this._riftCompleted; this._riftCompleted = null;
+      this.ui.showRiftSummary(sum, () => this.offerBlessing(L));
+    } else if (this._riftCompleted != null) { const L = this._riftCompleted; this._riftCompleted = null; this.offerBlessing(L); }
   }
 
   // abre una grieta de endgame consumiendo una llave del inventario

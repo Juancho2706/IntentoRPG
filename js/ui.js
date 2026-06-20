@@ -223,7 +223,7 @@ export class UI {
   onOutsidePointer(e) {
     const popupOpen = !$('item-popup').classList.contains('hidden');
     // paneles "modales" sin botón de cerrar: no se cierran tocando fuera
-    const modal = this.activePanel === 'blessing';
+    const modal = this.activePanel === 'blessing' || this.activePanel === 'riftsummary';
     if ((!this.activePanel || modal) && !popupOpen) return;
     // no cerrar con el MISMO gesto que abrió el panel/popup
     if (this._justOpened) return;
@@ -407,10 +407,13 @@ export class UI {
     this._pulseOrb('orb-hp', hpPct, this._lastHpPct);
     this._pulseOrb('orb-mp', mpPct, this._lastMpPct);
     this._lastHpPct = hpPct; this._lastMpPct = mpPct;
-    // aviso en el borde del orbe de recurso: lleno (gastador/ultimate listo) o bajo (no alcanza)
+    // aviso en el borde del orbe de recurso: LLENO solo para recursos que se
+    // CONSTRUYEN (Furia, start:0 → llenarse = gastadores listos; no para maná que
+    // descansa lleno) y BAJO cuando no alcanza para gastar.
     const mpOrb = $('orb-mp');
     if (mpOrb) {
-      mpOrb.classList.toggle('orb-full', mpPct >= 99);
+      const builder = p.cls.resource?.start === 0;
+      mpOrb.classList.toggle('orb-full', builder && mpPct >= 99);
       mpOrb.classList.toggle('orb-low', p.alive && mpPct < 15);
     }
     // tinta el orbe del recurso según la clase (Furia rojo / Maná azul / Energía verde)
@@ -3258,6 +3261,41 @@ export class UI {
   }
 
   // elección de bendición permanente (recompensa de grieta/corrupción)
+  // Resumen al completar una grieta: estadísticas de la corrida + recompensas.
+  // Modal (pausa el juego vía activePanel); el botón Continuar encadena la oferta
+  // de bendición. El elemento se crea perezosamente y se reutiliza.
+  showRiftSummary(d, onContinue) {
+    this.closePanel();
+    let el = $('panel-riftsummary');
+    if (!el) { el = document.createElement('div'); el.id = 'panel-riftsummary'; el.className = 'panel'; document.body.appendChild(el); }
+    const fmtTime = (s) => { if (s == null) return '—'; const m = Math.floor(s / 60), ss = Math.round(s % 60); return `${m}:${ss.toString().padStart(2, '0')}`; };
+    const num = (v) => (v == null ? null : Math.round(v).toLocaleString('es'));
+    const stat = (ic, label, val) => (val == null ? '' : `<div class="rs-stat"><span class="rs-ico">${ic}</span><b class="rs-val">${val}</b><span class="rs-lbl">${label}</span></div>`);
+    const rewards = (d.rewards || []).map(r => `<div class="rs-reward">${r.icon} ${r.label}</div>`).join('') || '<div class="dim">— botín en el suelo —</div>';
+    el.innerHTML = `
+      <div class="rs-banner">🌀</div>
+      <h2 class="rs-title">Grieta Nivel ${d.rift} <span>completada</span></h2>
+      <div class="rs-stats">
+        ${stat('⏱️', 'Tiempo', fmtTime(d.time))}
+        ${stat('💀', 'Monstruos', num(d.kills))}
+        ${stat('✨', 'XP', num(d.xp))}
+        ${stat('🪙', 'Oro', num(d.gold))}
+        ${d.levels ? stat('⭐', 'Niveles', '+' + d.levels) : ''}
+      </div>
+      <div class="rs-rew-title">Recompensas</div>
+      <div class="rs-rewards">${rewards}</div>
+      <button class="rs-continue">Continuar ▸</button>`;
+    el.classList.remove('hidden');
+    this.activePanel = 'riftsummary';
+    this.markJustOpened();
+    this.game.sfx?.('levelup');
+    el.querySelector('.rs-continue').onclick = () => {
+      el.classList.add('hidden');
+      this.activePanel = null;
+      onContinue?.();
+    };
+  }
+
   openBlessing(offers) {
     this.closePanel();
     this.activePanel = 'blessing';

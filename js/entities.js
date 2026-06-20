@@ -636,6 +636,7 @@ export class Player {
     const xpMul = this.game?.eraMutatorBonus?.()?.xpMul || 1;
     if (xpMul !== 1) amount = Math.round(amount * xpMul);
     this.xp += amount;
+    this.records.totalXP = (this.records.totalXP || 0) + amount; // acumulado (resúmenes de corrida)
     this.game.ui.spawnText(this.pos, `+${amount} XP`, 'txt-xp');
     while (this.xp >= xpForLevel(this.level)) {
       this.xp -= xpForLevel(this.level);
