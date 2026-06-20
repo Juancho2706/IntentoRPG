@@ -193,6 +193,24 @@ body.low-hp #orb-hp { animation: lowhp-orb 1.1s ease-in-out infinite; }
 }
 #orb-hp-fill { background: radial-gradient(circle at 38% 26%, #ff7c68, #b01818 72%); }
 #orb-mp-fill { background: radial-gradient(circle at 38% 26%, #6a9aff, #1030a0 72%); } /* el JS lo tinta por clase */
+/* superficie líquida: dos crestas de espuma que ondulan y se desplazan sobre el
+   nivel del fluido (tiles de 24px que se desplazan 24px = bucle sin saltos) */
+.orb-fill::before, .orb-fill::after {
+  content: ''; position: absolute; left: 0; width: 100%; pointer-events: none; z-index: 1;
+}
+.orb-fill::before {
+  top: -7px; height: 13px;
+  background: radial-gradient(circle at 50% 130%, rgba(255,255,255,0.50) 5px, transparent 6px) 0 0 / 24px 13px repeat-x;
+  animation: orbCrest 2.6s linear infinite;
+}
+.orb-fill::after {
+  top: -4px; height: 11px;
+  background: radial-gradient(circle at 50% 130%, rgba(255,255,255,0.22) 7px, transparent 8px) 0 0 / 24px 11px repeat-x;
+  animation: orbCrest 4.2s linear infinite reverse;
+}
+@keyframes orbCrest { to { background-position-x: 24px; } }
+body.reduce-motion .orb-fill::before,
+body.reduce-motion .orb-fill::after { animation: none; }
 .orb-txt {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   font-size: 19px; font-weight: 800; text-shadow: 0 1px 4px #000, 0 0 6px rgba(0,0,0,0.8); z-index: 3;
@@ -498,6 +516,15 @@ body.touch .hint-touch { display: inline; }
 .verdict.up { color: #6ecc4a; }
 .verdict.down { color: #ff6655; }
 .verdict.side { color: #d8c07a; }
+/* impacto de personaje (DPS/Vida/Armadura): fila con valor actual→nuevo y delta */
+.cmp-stats { margin: 4px 0 5px; padding: 4px 6px; background: rgba(255,255,255,0.04); border-radius: 6px; }
+.cmp-row { display: flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 1px 0; }
+.cmp-row > span { flex: 0 0 58px; color: #b9c3d4; }
+.cmp-row > b { font-weight: 700; color: #e6ecf6; font-variant-numeric: tabular-nums; }
+.cmp-row > i { margin-left: auto; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cmp-row.up > i { color: #6ecc4a; }
+.cmp-row.down > i { color: #ff6655; }
+.cmp-row.dim > b { color: #8b97a8; }
 
 /* opciones */
 .opt-row {
@@ -1028,6 +1055,13 @@ body.cb .world-label.rarity-conjunto, body.cb .inv-cell.rarity-conjunto { border
 #minimap { cursor: pointer; }
 #map-canvas { width: min(86vw, 380px); height: auto; image-rendering: pixelated; border: 1px solid var(--panel-border); border-radius: 6px; display: block; margin: 0 auto; }
 #map-info { text-align: center; margin-top: 6px; }
+/* leyenda del mapa: marcadores con su forma/color y etiqueta */
+#map-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; margin: 8px auto 2px; max-width: min(86vw, 380px); font-size: 11.5px; color: #c4ccd8; }
+.lg-item { display: inline-flex; align-items: center; gap: 5px; }
+.lg-mk { display: inline-block; width: 9px; height: 9px; flex: none; }
+.lg-dot { border-radius: 50%; }
+.lg-square { border-radius: 1px; }
+.lg-diamond { transform: rotate(45deg); border-radius: 1px; }
 
 /* ===== Hoja de personaje rediseño ===== */
 /* Estilos exclusivos del panel #panel-stats. Clases con prefijo .cs- para no
@@ -2316,6 +2350,66 @@ body.low-hp #orb-hp { animation: orbLowHp 0.9s ease-in-out infinite; }
   50% { box-shadow: 0 0 16px rgba(255,40,40,0.85), inset 0 0 12px rgba(255,0,0,0.4); }
 }
 body.reduce-motion.low-hp #orb-hp { animation: none; }
+
+/* ---------- Feedback "jugoso" de los orbes ---------- */
+/* Pulso al ganar (brillo + escala) y al gastar (hundimiento breve). */
+.orb.orb-gain { animation: orbGain 0.38s ease-out; }
+.orb.orb-spend { animation: orbSpend 0.38s ease-out; }
+@keyframes orbGain {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.09); filter: brightness(1.55) saturate(1.2); }
+  100% { transform: scale(1); filter: none; }
+}
+@keyframes orbSpend {
+  0% { transform: scale(1); }
+  28% { transform: scale(0.92); filter: brightness(0.72); }
+  100% { transform: scale(1); filter: none; }
+}
+/* Recurso LLENO: borde dorado que late (gastador/ultimate listo). */
+#orb-mp.orb-full { animation: orbFull 1.5s ease-in-out infinite; }
+@keyframes orbFull {
+  0%, 100% { border-color: rgba(255,224,120,0.55); box-shadow: inset 0 0 22px rgba(0,0,0,0.9), 0 0 8px rgba(255,236,150,0.45), 0 0 0 4px rgba(0,0,0,0.35); }
+  50% { border-color: rgba(255,238,170,0.95); box-shadow: inset 0 0 22px rgba(0,0,0,0.9), 0 0 22px rgba(255,236,150,0.95), 0 0 0 4px rgba(0,0,0,0.35); }
+}
+/* Recurso BAJO: borde rojizo de aviso (no alcanza para el gastador). */
+#orb-mp.orb-low { border-color: rgba(255,110,110,0.6); box-shadow: inset 0 0 22px rgba(0,0,0,0.9), 0 0 10px rgba(255,60,60,0.45), 0 0 0 4px rgba(0,0,0,0.35); }
+body.reduce-motion .orb.orb-gain,
+body.reduce-motion .orb.orb-spend,
+body.reduce-motion #orb-mp.orb-full { animation: none; }
+
+/* ---------- Destello de subida de nivel ---------- */
+#levelup-flash {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+}
+#levelup-flash.show { animation: luFade 1.5s ease-out forwards; }
+@keyframes luFade { 0% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+#levelup-flash .lu-ring {
+  position: absolute; width: 120px; height: 120px; border-radius: 50%;
+  border: 4px solid rgba(255,224,120,0.95);
+  box-shadow: 0 0 40px rgba(255,210,90,0.9), inset 0 0 30px rgba(255,210,90,0.5);
+}
+#levelup-flash.show .lu-ring { animation: luRing 1.1s cubic-bezier(0.2,0.7,0.3,1) forwards; }
+@keyframes luRing {
+  0% { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(6); opacity: 0; }
+}
+#levelup-flash .lu-text {
+  position: relative; font-weight: 900; font-size: clamp(28px, 6vw, 56px);
+  letter-spacing: 1px; color: #ffe08a;
+  text-shadow: 0 0 18px rgba(255,200,60,0.9), 0 3px 8px #000;
+  -webkit-text-stroke: 1px rgba(120,70,0,0.5);
+}
+#levelup-flash.show .lu-text { animation: luText 1.5s cubic-bezier(0.2,0.8,0.3,1) forwards; }
+@keyframes luText {
+  0% { transform: scale(0.4) translateY(20px); opacity: 0; }
+  18% { transform: scale(1.12) translateY(0); opacity: 1; }
+  30% { transform: scale(1); }
+  78% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(1.05) translateY(-26px); }
+}
+body.reduce-motion #levelup-flash { display: none; }
 
 /* ====================== Jerarquía de números de daño ====================== */
 /* Golpe grande (>=18% de la vida del objetivo): número más grande y vistoso.

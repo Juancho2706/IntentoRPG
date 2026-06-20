@@ -403,6 +403,16 @@ export class UI {
     $('orb-mp-fill').style.height = mpPct + '%';
     $('orb-hp-txt').textContent = `${Math.ceil(p.hp)}`;
     $('orb-mp-txt').textContent = `${Math.ceil(p.mp)}`;
+    // pulso "jugoso" del orbe al ganar/gastar (vida y recurso)
+    this._pulseOrb('orb-hp', hpPct, this._lastHpPct);
+    this._pulseOrb('orb-mp', mpPct, this._lastMpPct);
+    this._lastHpPct = hpPct; this._lastMpPct = mpPct;
+    // aviso en el borde del orbe de recurso: lleno (gastador/ultimate listo) o bajo (no alcanza)
+    const mpOrb = $('orb-mp');
+    if (mpOrb) {
+      mpOrb.classList.toggle('orb-full', mpPct >= 99);
+      mpOrb.classList.toggle('orb-low', p.alive && mpPct < 15);
+    }
     // tinta el orbe del recurso según la clase (Furia rojo / Maná azul / Energía verde)
     const res = p.cls.resource;
     if (res && this._orbRes !== res.id) {
@@ -505,6 +515,38 @@ export class UI {
     document.body.classList.toggle('hud-clean', !!this.game.settings?.cleanHud);
 
     this.renderBuffs();
+  }
+
+  // Pulso del orbe al variar la vida/recurso: brillo+escala al ganar, hundimiento
+  // al gastar. Barato y reinicia la animación cada vez (offsetWidth = reflow).
+  _pulseOrb(id, pct, prev) {
+    if (prev == null || this.game.settings?.reduceMotion) return;
+    const d = pct - prev;
+    if (Math.abs(d) < 1.5) return;
+    const el = $(id); if (!el) return;
+    const cls = d > 0 ? 'orb-gain' : 'orb-spend';
+    el.classList.remove('orb-gain', 'orb-spend');
+    void el.offsetWidth;
+    el.classList.add(cls);
+    clearTimeout(this['_pt_' + id]);
+    this['_pt_' + id] = setTimeout(() => el.classList.remove(cls), 380);
+  }
+
+  // Destello de subida de nivel: anillo dorado expansivo + rótulo central.
+  levelUpFlash(level) {
+    if (this.game.settings?.reduceMotion) return;
+    let el = $('levelup-flash');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'levelup-flash';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = `<div class="lu-ring"></div><div class="lu-text">¡NIVEL ${level}!</div>`;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(this._luTimer);
+    this._luTimer = setTimeout(() => el.classList.remove('show'), 1500);
   }
 
   // ---------- brújula / indicador de borde ----------
@@ -754,6 +796,10 @@ export class UI {
   spawnText(worldPos, text, cls, opts = {}) {
     // ¿es un número de daño puro? (para agrupar). Conserva firma pública.
     const dmgCls = cls === 'txt-dmg' || cls === 'txt-crit';
+    if (dmgCls && this.game.settings?.dmgNumbers === false) return; // toggle: ocultar daño
+    const col = opts.color != null
+      ? (typeof opts.color === 'number' ? '#' + (opts.color >>> 0).toString(16).padStart(6, '0') : opts.color)
+      : null;
     const n = dmgCls ? parseInt(text, 10) : NaN;
     if (dmgCls && !Number.isNaN(n)) {
       for (let i = this.floats.length - 1; i >= 0; i--) {
@@ -779,6 +825,7 @@ export class UI {
     const el = document.createElement('div');
     el.className = 'float-txt ' + cls + (opts.big ? ' big-hit' : '');
     el.textContent = text;
+    if (col) { el.style.color = col; if (cls === 'txt-crit') el.style.textShadow = `0 0 10px ${col}, 0 2px 4px #000`; }
     $('floats').appendChild(el);
     this.floats.push({
       el, pos: worldPos.clone().add(new THREE.Vector3(0, 1.6, 0)), t: 0,
@@ -987,6 +1034,7 @@ export class UI {
       ] },
       { id: 'interfaz', icon: 'eye', label: 'Interfaz', items: [
         { t: 'toggle', key: 'cleanHud', icon: 'eye-off', label: 'HUD limpio (oculta lo no esencial)', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'toggle', key: 'dmgNumbers', icon: 'crit', label: 'Números de daño flotantes', def: true },
         { t: 'toggle', key: 'shake', icon: 'shake', label: 'Sacudida de cámara', def: true },
         { t: 'select', key: 'lootFilter', icon: 'search', label: 'Filtro de loot (mostrar desde)', def: 'normal',
           opts: [['normal', 'Todo'], ['magico', 'Mágico+'], ['raro', 'Raro+'], ['legendario', 'Legendario']] },
@@ -1482,6 +1530,34 @@ export class UI {
     return this.itemPower(item) > this.itemPower(equipped) + 1;
   }
 
+  // DPS de personaje a partir de un bloque de stats (daño medio × crítico ÷ tiempo
+  // de ataque). Sirve para previsualizar el impacto real de equipar un objeto.
+  _charDPS(st) {
+    if (!st) return 0;
+    return ((st.dmgMin + st.dmgMax) / 2) * (1 + (st.crit || 0) / 100 * 0.8) / Math.max(0.05, st.atkTime || 1);
+  }
+
+  // Previsualiza equipar un objeto SIN efectos secundarios: equipa en una copia,
+  // recalcula, captura las stats clave y restaura. recompute() es determinista a
+  // partir del equipo, así que restaurar + recalcular devuelve el estado exacto.
+  _previewEquip(item) {
+    const p = this.game.player;
+    if (!p || item.kind !== 'item' || !item.slot || item.unidentified) return null;
+    let key = item.slot;
+    if (item.slot === 'ring') {
+      const r1 = p.equipment.ring, r2 = p.equipment.ring2;
+      key = !r1 ? 'ring' : !r2 ? 'ring2' : (this.itemPower(r1) <= this.itemPower(r2) ? 'ring' : 'ring2');
+    }
+    const prev = p.equipment[key];
+    if (prev === item) return null;
+    const grab = () => ({ dps: this._charDPS(p.stats), hp: p.stats.maxHP, arm: p.stats.arm, power: p.stats.power || 0 });
+    const before = grab();
+    p.equipment[key] = item; p.recompute();
+    const after = grab();
+    p.equipment[key] = prev; p.recompute();   // restaura el estado exacto
+    return { before, after };
+  }
+
   buildCompare(item) {
     const p = this.game.player;
     if (item.kind !== 'item' || !item.slot) return '';
@@ -1504,7 +1580,25 @@ export class UI {
     else if (dPow < -1) verdict = `<span class="verdict down">⬇ Peor (${dPow} poder)</span>`;
     else verdict = `<span class="verdict side">↔ Lateral</span>`;
 
-    if (!equipped) return `<div class="compare">${verdict}</div>`;
+    // impacto REAL en el personaje (DPS / vida / armadura) por simulación de equipo
+    const pv = this._previewEquip(item);
+    let impact = '';
+    if (pv) {
+      const row = (label, b, a, dec = 0) => {
+        const d = a - b;
+        if (Math.abs(d) < (dec ? 0.5 : 0.5)) return `<div class="cmp-row dim"><span>${label}</span><b>${a.toFixed(dec)}</b></div>`;
+        const cls = d > 0 ? 'up' : 'down';
+        const sign = d > 0 ? '▲ +' : '▼ ';
+        return `<div class="cmp-row ${cls}"><span>${label}</span><b>${b.toFixed(dec)} → ${a.toFixed(dec)}</b><i>${sign}${Math.abs(d).toFixed(dec)}</i></div>`;
+      };
+      impact = `<div class="cmp-stats">` +
+        row('DPS', pv.before.dps, pv.after.dps) +
+        row('Vida', pv.before.hp, pv.after.hp) +
+        row('Armadura', pv.before.arm, pv.after.arm) +
+        `</div>`;
+    }
+
+    if (!equipped) return `<div class="compare">${verdict}${impact}</div>`;
 
     const summarize = (it) => {
       const m = {};
@@ -1521,7 +1615,7 @@ export class UI {
       const label = k === '_dmg' ? `${Math.abs(d)} daño medio` : statText(k, Math.abs(d)).replace('+', '');
       diffs.push(`<div class="diff ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ -'}${label}</div>`);
     }
-    return `<div class="compare">${verdict}<em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
+    return `<div class="compare">${verdict}${impact}<em>Frente a: ${equipped.name}</em>${diffs.join('') || '<div class="diff dim">Sin diferencias</div>'}</div>`;
   }
 
   // tooltip de escritorio: aparece al pasar el ratón sobre una celda
@@ -2550,29 +2644,53 @@ export class UI {
       ctx.fillStyle = g.cells[z][x] ? '#3a4a3a' : '#1a1a22';
       ctx.fillRect(x * cs, z * cs, Math.ceil(cs), Math.ceil(cs));
     }
-    const dot = (pos, color, r) => {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc((pos.x - g.ox) * cs, (pos.z - g.oz) * cs, r, 0, Math.PI * 2);
-      ctx.fill();
-    };
+    const dot = (pos, color, r, shape) => this._marker(ctx, (pos.x - g.ox) * cs, (pos.z - g.oz) * cs, color, r, shape);
+    const seen = (pos) => ex.has((Math.floor(pos.z - g.oz)) * g.w + Math.floor(pos.x - g.ox));
     // POIs (solo los ya descubiertos)
     for (const it of this.game.world.interactables) {
-      const col = this.poiColor(it.type);
-      if (!col) continue;
-      const x = Math.floor(it.pos.x - g.ox), z = Math.floor(it.pos.z - g.oz);
-      if (ex.has(z * g.w + x)) dot(it.pos, col, 4);
+      const s = this._poiStyle(it);
+      if (s && seen(it.pos)) dot(it.pos, s.color, s.r + 1.5, s.shape);
+    }
+    // botín en el suelo (mágico o mejor) en celdas descubiertas
+    for (const gi of this.game.groundItems || []) {
+      const it = gi.item; if (!it || !gi.mesh) continue;
+      if (it.kind === 'gold' || it.rarity === 'normal' || !RARITIES[it.rarity]) continue;
+      if (seen(gi.mesh.position)) dot(gi.mesh.position, '#' + ((RARITIES[it.rarity].glow ?? 0xffffff) >>> 0).toString(16).padStart(6, '0'), 3, 'diamond');
     }
     // enemigos en vivo (solo en celdas descubiertas)
     for (const e of this.game.enemies) {
-      if (!e.alive) continue;
-      const x = Math.floor(e.pos.x - g.ox), z = Math.floor(e.pos.z - g.oz);
-      if (ex.has(z * g.w + x)) dot(e.pos, this.enemyDot(e), (e.def.boss || e.def.worldBoss) ? 5 : 3);
+      if (!e.alive || !seen(e.pos)) continue;
+      dot(e.pos, this.enemyDot(e), (e.def.boss || e.def.worldBoss) ? 5 : 3, (e.def.boss || e.def.worldBoss) ? 'diamond' : 'dot');
     }
     if (this.game.player) dot(this.game.player.pos, '#ffffff', 4);
     ctx.restore();
     const pct = Math.round(ex.size / (g.w * g.h) * 100);
     $('map-info').textContent = `${this.game.world.biome || this.game.world.type} · descubierto ${pct}%`;
+    this.renderMapLegend();
+  }
+
+  // leyenda del mapa: explica forma/color de los marcadores. Solo lista lo que
+  // PUEDE aparecer en este mundo (p. ej. cofres/salida en mazmorra, no en pueblo).
+  renderMapLegend() {
+    const el = $('map-legend'); if (!el) return;
+    const w = this.game.world;
+    const has = (t) => (w.interactables || []).some(it => it.type === t);
+    const items = [
+      ['#ffffff', 'dot', 'Tú'],
+      ['#cc4444', 'dot', 'Enemigo'],
+      ['#ff2200', 'diamond', 'Jefe'],
+    ];
+    if (has('chest')) items.push(['#ffcf4a', 'square', 'Cofre']);
+    if (has('portal_next')) items.push(['#ff5577', 'diamond', 'Descenso']);
+    if (has('waypoint')) items.push(['#44ddff', 'diamond', 'Punto de viaje']);
+    if (has('zone_dungeon')) items.push(['#aa66ff', 'diamond', 'Mazmorra']);
+    if ((w.interactables || []).some(it => it.type.startsWith('portal') && it.type !== 'portal_next')) items.push(['#55aaff', 'diamond', 'Portal']);
+    if (has('shrine')) items.push(['#9ff0c4', 'dot', 'Altar']);
+    if ((w.interactables || []).some(it => ['vendor', 'questgiver', 'stash', 'enchanter', 'healer', 'petkeeper'].includes(it.type))) items.push(['#ffd24a', 'dot', 'NPC']);
+    items.push(['#ff66cc', 'diamond', 'Botín']);
+    el.innerHTML = items.map(([c, sh, label]) =>
+      `<span class="lg-item"><i class="lg-mk lg-${sh}" style="background:${c}"></i>${label}</span>`
+    ).join('');
   }
 
   // Mapa del Mundo (D4-lite): regiones descubiertas, su estado y viaje rápido.
@@ -2641,9 +2759,34 @@ export class UI {
     if (type === 'waypoint') return '#44ddff';
     if (type === 'shrine') return '#9ff0c4';
     if (type === 'world_event') return '#cc66ff';
+    if (type === 'chest') return '#ffcf4a';
     if (type.startsWith('portal')) return '#55aaff';
     if (type === 'vendor' || type === 'questgiver' || type === 'stash' || type === 'enchanter' || type === 'healer' || type === 'petkeeper') return '#ffd24a';
     return null;
+  }
+
+  // estilo de marcador de un interactuable en los mapas: color, tamaño y FORMA
+  // (rombo = punto de viaje/salida importante, cuadrado = cofre, punto = resto).
+  // Devuelve null si no debe pintarse (p. ej. cofre ya saqueado).
+  _poiStyle(it) {
+    const t = it.type;
+    if (t === 'chest') return it.opened ? null : { color: '#ffcf4a', r: 2.6, shape: 'square' };
+    if (t === 'portal_next') return { color: '#ff5577', r: 3, shape: 'diamond' };
+    if (t === 'zone_dungeon') return { color: '#aa66ff', r: 3, shape: 'diamond' };
+    if (t === 'waypoint') return { color: '#44ddff', r: 3, shape: 'diamond' };
+    if (t.startsWith('portal')) return { color: this.poiColor(t) || '#55aaff', r: 3, shape: 'diamond' };
+    const col = this.poiColor(t);
+    return col ? { color: col, r: 2, shape: 'dot' } : null;
+  }
+
+  // dibuja un marcador con forma en un contexto 2D ya transformado
+  _marker(ctx, x, y, color, r, shape = 'dot') {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (shape === 'diamond') { ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); }
+    else if (shape === 'square') { ctx.rect(x - r, y - r, r * 2, r * 2); }
+    else { ctx.arc(x, y, r, 0, Math.PI * 2); }
+    ctx.fill();
   }
 
   // color del punto de un enemigo en mapas (goblin dorado, jefe rojo, resto)
@@ -2678,19 +2821,22 @@ export class UI {
       ctx.drawImage(this.minimapBase, 0, 0, cv.width, cv.height);
       scale = cv.width / g.w;
     }
-    const dot = (pos, color, r) => {
+    const dot = (pos, color, r, shape) => {
       const cx = (pos.x - g.ox - ox0) * scale, cz = (pos.z - g.oz - oz0) * scale;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(cx, cz, r, 0, Math.PI * 2);
-      ctx.fill();
+      this._marker(ctx, cx, cz, color, r, shape);
     };
     for (const it of this.game.world.interactables) {
-      const col = this.poiColor(it.type);
-      if (col) dot(it.pos, col, it.type === 'zone_dungeon' || it.type.startsWith('portal') ? 3 : 2);
+      const s = this._poiStyle(it);
+      if (s) dot(it.pos, s.color, s.r, s.shape);
+    }
+    // botín en el suelo (mágico o mejor): rombo del color de su rareza
+    for (const gi of this.game.groundItems || []) {
+      const it = gi.item; if (!it || !gi.mesh) continue;
+      if (it.kind === 'gold' || it.rarity === 'normal' || !RARITIES[it.rarity]) continue;
+      dot(gi.mesh.position, '#' + ((RARITIES[it.rarity].glow ?? 0xffffff) >>> 0).toString(16).padStart(6, '0'), 2, 'diamond');
     }
     for (const e of this.game.enemies)
-      if (e.alive) dot(e.pos, this.enemyDot(e), e.def.goblin ? 3 : 2);
+      if (e.alive) dot(e.pos, this.enemyDot(e), e.def.goblin ? 3 : 2, (e.def.boss || e.def.worldBoss) ? 'diamond' : 'dot');
     if (p) dot(p.pos, '#ffffff', 3);
     ctx.restore();
   }

@@ -664,6 +664,7 @@ export class Player {
       this.game.sfx('levelup');
       this.game.vibrate([50, 30, 70]);
       this.game.spawnBurst(this.pos, 0xffd24a, 14);
+      this.game.ui.levelUpFlash?.(this.level);
       this.game.tip('subir', 'Reparte tus puntos: Personaje (C / 🧍) y Habilidades (T / 📖)');
     }
   }
@@ -685,6 +686,9 @@ export class Player {
     }
     this.game.ui.spawnText(this.pos, `-${dmg}`, 'txt-dmg-player');
     this.game.ui.flashDamage();
+    // sonido al RECIBIR daño (throttle para no saturar con golpes seguidos)
+    const now = performance.now();
+    if (!this._hurtAt || now - this._hurtAt > 220) { this.game.sfx?.('hurt'); this._hurtAt = now; }
     this.game.addShake(0.15 + Math.min(0.25, dmg / this.stats.maxHP), 0.22);
     this.game.vibrate(35);
     this.game.sfx('hurt');
@@ -979,7 +983,7 @@ export class Enemy {
 
   get pos() { return this.group.position; }
 
-  takeDamage(amount, crit = false) {
+  takeDamage(amount, crit = false, opts = {}) {
     if (!this.alive) return;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
     if (this.vulnT > 0) amount = Math.round(amount * 1.2); // Vulnerable: +20% de daño recibido
@@ -1009,7 +1013,20 @@ export class Enemy {
     fg.scale.x = Math.max(0.001, this.hp / this.maxHP);
     fg.position.x = -0.43 * (1 - fg.scale.x);
     this.game.ui.spawnText(this.pos.clone().add(new THREE.Vector3(rand(-0.3, 0.3), this.def.scale, 0)),
-      `${amount}${crit ? '!' : ''}`, crit ? 'txt-crit' : 'txt-dmg', { big: pct >= 0.18 });
+      `${amount}${crit ? '!' : ''}`, crit ? 'txt-crit' : 'txt-dmg', { big: pct >= 0.18, color: opts.color });
+    // KNOCKBACK físico: empuje breve alejándose del jugador, escalado por el daño
+    // e inverso al tamaño del enemigo (masa). Jefes/uber son inamovibles.
+    const immovable = this.def.boss || this.def.uber || this.def.worldBoss;
+    if (!immovable && this.hp > 0) {
+      const src = opts.from || this.game.player?.pos;
+      if (src) {
+        const dx = this.pos.x - src.x, dz = this.pos.z - src.z, l = Math.hypot(dx, dz) || 1;
+        const k = Math.min(0.34, 0.12 + pct * 0.9) / Math.max(0.6, this.def.scale || 1) * (this.def.rank ? 0.5 : 1);
+        const nx = this.pos.x + dx / l * k, nz = this.pos.z + dz / l * k;
+        if (this.game.world?.grid?.walkable(nx, nz)) { this.pos.x = nx; this.pos.z = nz; }
+        this.lunge = Math.max(this.lunge || 0, 0.6); // reacción de animación
+      }
+    }
     // impacto: hit-stop BREVE solo en golpes NOTABLES (peso a los momentos
     // grandes sin que cada impacto/AoE se sienta lento). hitStop usa max, así que
     // varios golpes en el mismo frame no se acumulan.
@@ -1674,7 +1691,7 @@ export class Projectile {
         if (!e.alive || this.hitSet.has(e)) continue;
         const r = 0.55 * (e.def.scale || 1);
         if (p.distanceToSquared(e.pos.clone().setY(p.y)) < r * r) {
-          e.takeDamage(this.dmg, this.crit);
+          e.takeDamage(this.dmg, this.crit, { color: this.color });
           g.player?.onDealHit();
           if (this.slow) e.slowT = this.slow;
           g.sfx('hit');

@@ -70,6 +70,7 @@ class Game {
       reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true,
       quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null,
       controlScheme: 'wasd', // 'wasd' (WASD+ratón, D4) | 'click' (clic-mover, D2)
+      dmgNumbers: true, // mostrar números de daño flotantes
       volMaster: 1, volMusic: 0.75, volSfx: 0.9, ...opts };
     this.applyAccessibility();
     // gama del dispositivo (0 alta … 3 mínima): semilla de calidad + densidad de
@@ -957,7 +958,7 @@ class Game {
         // Sangre Fría: crítico garantizado si el objetivo ya está ralentizado/congelado
         const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? 100 : 0);
         const { dmg, crit } = this.player.rollDamage(mult, cb);
-        e.takeDamage(dmg, crit);
+        e.takeDamage(dmg, crit, { color: opts.color });
         if (opts.slow) e.slowT = opts.slow;
         if (opts.onHit) opts.onHit(e, dmg);
         hits++;
@@ -1186,6 +1187,8 @@ class Game {
     const dotKind = (has('poison') || m.dot === 'poison') ? 'poison'
       : (has('bleed') || m.dot === 'bleed') ? 'bleed'
         : (m.dot === 'burn') ? 'burn' : null;
+    // color "elemental" del número de daño (del color de la skill o su DoT)
+    const dmgColor = sk.color || (dotKind === 'poison' ? 0x7cff6a : dotKind === 'burn' ? 0xff7722 : dotKind === 'bleed' ? 0xff4466 : null) || undefined;
     const supDoT = dotKind === 'poison'
       ? { total: avgHit * 0.9, ticks: 5, interval: 1.0, color: 0x66ff66 }
       : dotKind === 'burn'
@@ -1225,7 +1228,7 @@ class Game {
         p.swing = 1;
         const cb = skCrit + (supColdblood && e.slowT > 0 ? 100 : 0);
         const { dmg, crit } = p.rollDamage(mult, cb);
-        e.takeDamage(dmg, crit);
+        e.takeDamage(dmg, crit, { color: dmgColor });
         if (supSlow && e.alive) e.slowT = supSlow;
         applyDoT(e);
         if (m.chain && e.alive) this.spawnChainBounce(e, Math.round(avgHit), m.chain, [], 0xffbb44);
@@ -1240,7 +1243,7 @@ class Game {
       case 'aoe_self': {
         const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
         this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT, color: dmgColor });
         zoneCenter = p.pos.clone(); zoneRad = rad;
         p.swing = 1;
         // Aura/onda centrada en el jugador (Torbellino, Nova de Hielo).
@@ -1273,7 +1276,7 @@ class Game {
           if (fx?.extra) this.emitFx(fx.extra, dp);
           this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
         }, 230);
-        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT, color: dmgColor });
         zoneCenter = target.clone(); zoneRad = rad;
         break;
       }
@@ -1298,7 +1301,7 @@ class Game {
         }
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT, color: dmgColor });
         zoneCenter = p.pos.clone(); zoneRad = rad;
         if (m.chain) { const ne = this.nearestEnemy(rad + 2); if (ne) this.spawnChainBounce(ne, Math.round(avgHit), m.chain, [], 0xffcc66); }
         p.swing = 1;
