@@ -6,7 +6,16 @@ import * as THREE from 'three';
 import {
   Grid, instancedBoxes, makePortal, makeWaypoint, makeNPC, makeTorch, mulberry32, BIOMES,
   makeShrineMesh, SHRINE_DEFS, makeGroundTextures, groundMatParams, scatterDecals, placeTownServices,
+  makeRock, makeCrystalCluster, makeBonePile, makeRoot, makeGrassTuft, makeMushroom, makeRuinPillar,
 } from './world.js';
+
+// Paleta de props ambientales por bioma (colores coherentes con el grading).
+const ZONE_DECOR = {
+  'Cripta': { grass: 0x4e6a34, rock: 0x5f5a4e, mossColor: 0x46622f, root: true, moss: true, ground: { tint: 0x6a7a44, tintAmt: 0.35 } },
+  'Cavernas de Hielo': { grass: 0x5a7a86, rock: 0x46586e, mossColor: 0x4a6a7a, frost: true, ground: { tint: 0x9fe8ff, tintAmt: 0.28 } },
+  'Infierno': { grass: 0x7a4a2a, rock: 0x4a2a22, mossColor: 0x6a3320, ember: true, ground: { tint: 0xff6a22, tintAmt: 0.3 } },
+  'Abismo Estelar': { grass: 0x4a3f6a, rock: 0x2e2748, mossColor: 0x5a3f8a, mushroom: true, ground: { tint: 0xaa88ff, tintAmt: 0.32 } },
+};
 
 // Construye una zona abierta para el bioma indicado.
 //   biomeName: nombre de un bioma de BIOMES (p.ej. 'Cripta').
@@ -105,11 +114,12 @@ export function buildZone(biomeName, opts = {}) {
   // suelo con grano por bioma: textura/normal generadas por canvas (coherente
   // con el color de cada bioma y el grading del composer). Cae a color plano
   // en entornos sin canvas (tests).
-  const zTex = makeGroundTextures(biome.floor, { variation: 0.2, normalStrength: 1.6 });
-  if (zTex) { zTex.map.repeat.set(W / 5, H / 5); zTex.normalMap.repeat.set(W / 5, H / 5); }
+  const decor = ZONE_DECOR[biome.name] || ZONE_DECOR['Cripta'];
+  const zTex = makeGroundTextures(biome.floor, { variation: 0.24, normalStrength: 1.9, ...(decor.ground || {}) });
+  if (zTex) { for (const t of [zTex.map, zTex.normalMap, zTex.roughnessMap]) if (t) t.repeat.set(W / 4, H / 4); }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(W, H),
-    new THREE.MeshStandardMaterial(groundMatParams(biome.floor, zTex, 0.7))
+    new THREE.MeshStandardMaterial(groundMatParams(biome.floor, zTex, 0.8))
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.05;
@@ -145,28 +155,51 @@ export function buildZone(biomeName, opts = {}) {
     }
   group.add(instancedBoxes(obstaclePos, [1, 1.2, 1], biome.wall, { vary: 0.08, castShadow: false }));
   group.add(instancedBoxes(borderPos, [1, 2.5, 1], biome.wall, { vary: 0.06, castShadow: false }));
+  // "vestir" algunas formaciones interiores con una roca poligonal encima, para
+  // romper la silueta cúbica (decorativo, sobre el muro ya existente)
+  for (const p of obstaclePos) {
+    if (rnd() > 0.18) continue;
+    const rock = makeRock(rnd, { r: 0.5 + rnd() * 0.5, color: biome.wall, moss: decor.moss, mossColor: decor.mossColor });
+    rock.position.set(p.x, 1.2, p.z); rock.scale.multiplyScalar(1.1 + rnd() * 0.5);
+    group.add(rock);
+  }
 
   // ----------------------------------------------------------
-  // 5) Decoración instanciada dispersa (rocas pequeñas / cristales)
+  // 5) Decoración dispersa con VIDA: props procedurales por bioma sobre celdas
+  //    abiertas (no bloquean el paso). Mezcla de hierba/maleza, rocas con musgo,
+  //    racimos de cristal, raíces, setas luminosas, huesos y ruinas, según el
+  //    bioma. El grano de tierra (instanced) se mantiene para densidad barata.
   // ----------------------------------------------------------
-  // Pequeñas rocas decorativas (no bloquean: van sobre celdas abiertas)
-  const rockPos = [];
-  const crystalPos = [];
+  const pebblePos = [];   // chinas planas baratas (instanced) para densidad
+  // contadores para no saturar de mallas individuales en zonas enormes
+  let nGrass = 0, nRock = 0, nCryst = 0, nBone = 0, nRoot = 0, nMush = 0, nRuin = 0;
+  const capG = 220, capR = 120, capC = 70, capB = 36, capRt = 50, capM = 70, capRu = 22;
   for (const [x, z] of openCells) {
-    if (rnd() < 0.012) {
-      const c = grid.center(x, z);
-      rockPos.push({ x: c.x, y: 0.18, z: c.z });
-    } else if (biome.crystal && rnd() < 0.006) {
-      const c = grid.center(x, z);
-      crystalPos.push({ x: c.x, y: 0.35, z: c.z });
-    }
+    const roll = rnd();
+    // chinas: muy frecuentes pero baratísimas (instanced más abajo)
+    if (roll < 0.020) { const c = grid.center(x, z); pebblePos.push({ x: c.x, y: 0.06, z: c.z }); continue; }
+    if (roll >= 0.085) continue; // densidad global de props "ricos"
+    const c = grid.center(x, z);
+    const jx = (rnd() - 0.5) * 0.6, jz = (rnd() - 0.5) * 0.6;
+    let m = null;
+    const t = rnd();
+    if (t < 0.42 && nGrass < capG) { m = makeGrassTuft(rnd, { color: decor.grass }); nGrass++; }
+    else if (t < 0.66 && nRock < capR) { m = makeRock(rnd, { r: 0.2 + rnd() * 0.35, color: decor.rock, moss: decor.moss, mossColor: decor.mossColor }); nRock++; }
+    else if (t < 0.78 && biome.crystal && nCryst < capC) { m = makeCrystalCluster(rnd, { color: biome.crystal.color, emissive: biome.crystal.emissive, count: 2 + (rnd() * 2 | 0) }); nCryst++; }
+    else if (t < 0.86 && decor.root && nRoot < capRt) { m = makeRoot(rnd); nRoot++; }
+    else if (t < 0.86 && decor.mushroom && nMush < capM) { m = makeMushroom(rnd, { color: biome.crystal?.color ?? 0x9b6bff, emissive: biome.crystal?.emissive ?? 0x5a2fbf }); nMush++; }
+    else if (t < 0.94 && nBone < capB) { m = makeBonePile(rnd); nBone++; }
+    else if (nRuin < capRu) { m = makeRuinPillar(rnd, { color: decor.rock }); nRuin++; }
+    else if (nGrass < capG) { m = makeGrassTuft(rnd, { color: decor.grass }); nGrass++; }
+    if (!m) continue;
+    m.position.set(c.x + jx, 0, c.z + jz);
+    m.rotation.y = rnd() * Math.PI * 2;
+    m.scale.multiplyScalar(0.85 + rnd() * 0.4);
+    group.add(m);
   }
-  if (rockPos.length)
-    group.add(instancedBoxes(rockPos, [0.45, 0.36, 0.45], biome.accent ? biome.accent.color : biome.wall,
-      { vary: 0.1, castShadow: false }));
-  if (crystalPos.length)
-    group.add(instancedBoxes(crystalPos, [0.32, 0.8, 0.32], biome.crystal.color,
-      { emissive: biome.crystal.emissive, emissiveIntensity: 1.1, vary: 0.05, castShadow: false }));
+  if (pebblePos.length)
+    group.add(instancedBoxes(pebblePos, [0.3, 0.14, 0.3], decor.rock,
+      { vary: 0.12, castShadow: false }));
 
   // ----------------------------------------------------------
   // 6) Punto de aparición del jugador (celda abierta cerca del centro)

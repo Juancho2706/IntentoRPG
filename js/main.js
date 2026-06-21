@@ -22,7 +22,7 @@ import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
 import { ParticleSystem, PRESETS, normalizePreset } from './particles.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
-import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, bossDeathBurst, bossDeathStars } from './fx-enemies.js';
+import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, deathWave, bossDeathBurst, bossDeathStars, bossDeathFlash, bossDeathWave } from './fx-enemies.js';
 
 const SAVE_KEY = 'intentorpg_save_v1';
 
@@ -96,7 +96,7 @@ class Game {
     // renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -118,12 +118,16 @@ class Game {
     window.addEventListener('resize', () => this.resize());
 
     // luces
-    this.ambient = new THREE.HemisphereLight(0xbbccdd, 0x445544, 0.8);
-    this.sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
+    this.ambient = new THREE.HemisphereLight(0xc2d4ea, 0x4a4438, 0.85);
+    this.sun = new THREE.DirectionalLight(0xfff2d8, 2.35);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1024, 1024);
-    this.sun.shadow.camera.left = -22; this.sun.shadow.camera.right = 22;
-    this.sun.shadow.camera.top = 22; this.sun.shadow.camera.bottom = -22;
+    // sombras de alta resolución y suaves (PCFSoft) — el FPS no es limitante aquí
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.radius = 3.5;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.02;
+    this.sun.shadow.camera.left = -24; this.sun.shadow.camera.right = 24;
+    this.sun.shadow.camera.top = 24; this.sun.shadow.camera.bottom = -24;
     this.scene.add(this.ambient, this.sun, this.sun.target);
     this.playerLight = new THREE.PointLight(0xffcc88, 0, 11, 1.5);
     this.scene.add(this.playerLight);
@@ -781,18 +785,21 @@ class Game {
 
   // ráfaga de partículas (muertes, cofres, nivel)
   spawnBurst(pos, color, n = 9) {
-    const geo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
-    const mat = new THREE.MeshBasicMaterial({ color });
+    const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    // esquirlas brillantes (additive) que se funden con el bloom
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
     const group = new THREE.Group();
     const parts = [];
     for (let i = 0; i < n; i++) {
       const m = new THREE.Mesh(geo, mat);
       m.position.set(pos.x, 0.6, pos.z);
+      const sc = 0.6 + Math.random() * 0.9; m.scale.setScalar(sc);
+      m.rotation.set(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
       group.add(m);
-      parts.push({ m, vx: (Math.random() - 0.5) * 4.5, vy: 2 + Math.random() * 3, vz: (Math.random() - 0.5) * 4.5 });
+      parts.push({ m, sc0: sc, vx: (Math.random() - 0.5) * 5.5, vy: 2.4 + Math.random() * 3.4, vz: (Math.random() - 0.5) * 5.5, spin: (Math.random() - 0.5) * 16 });
     }
     this.fxGroup.add(group);
-    this.fx.push({ mesh: group, t: 0, dur: 0.55, burst: parts });
+    this.fx.push({ mesh: group, t: 0, dur: 0.6, burst: parts });
   }
 
   // consejo contextual que solo se muestra una vez por partida
@@ -944,8 +951,9 @@ class Game {
 
   spawnRing(pos, radius, color) {
     const mesh = new THREE.Mesh(
-      new THREE.RingGeometry(radius * 0.8, radius, 28),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+      new THREE.RingGeometry(radius * 0.82, radius, 40),
+      // additive + sin depthWrite: brilla y se funde con el bloom (look de onda de energía)
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.copy(pos).setY(0.07);
@@ -1586,13 +1594,17 @@ class Game {
       const dpos = enemy.pos.clone().setY(0.7);
       const col = hexNum(enemy.def.color ?? 0xffffff);
       if (enemy.def.boss) {
+        this.emitFx(bossDeathFlash(col), dpos);
         this.emitFx(bossDeathBurst(col), dpos);
         this.emitFx(bossDeathStars(col), dpos);
+        this.emitFx(bossDeathWave(col), enemy.pos.clone().setY(0.1));
         this.emitFx(deathSmoke(col, 1.8), dpos);
+        this.spawnRing(enemy.pos, 3.4, col);
       } else {
         const s = enemy.def.rank ? 1.5 : (enemy.def.scale || 1);
         this.emitFx(deathBurst(col, s), dpos);
         this.emitFx(deathSmoke(col, s), dpos);
+        if (enemy.def.rank) this.emitFx(deathWave(col, s), enemy.pos.clone().setY(0.1)); // élites: onda de choque
       }
     }
 
@@ -2033,12 +2045,14 @@ class Game {
       if (f.ghost) f.mesh.material.opacity = 0.4 * (1 - k);
       if (f.fall) f.mesh.position.y = 5 * (1 - k);
       if (f.burst) {
+        f.burst[0].m.material.opacity = 0.95 * (1 - k * k);  // fade (material compartido)
         for (const pt of f.burst) {
           pt.vy -= 11 * dt;
           pt.m.position.x += pt.vx * dt;
           pt.m.position.y = Math.max(0.05, pt.m.position.y + pt.vy * dt);
           pt.m.position.z += pt.vz * dt;
-          pt.m.scale.setScalar(1 - k * 0.8);
+          pt.m.scale.setScalar((pt.sc0 || 1) * (1 - k * 0.8));
+          if (pt.spin) { pt.m.rotation.x += pt.spin * dt; pt.m.rotation.z += pt.spin * dt; }
         }
       }
     }

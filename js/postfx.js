@@ -135,10 +135,10 @@ export class PostFX {
       // --- 3) Bloom selectivo por UMBRAL ---
       // Solo lo realmente brillante/emisivo (orbes, proyectiles, cristales,
       // portales, ojos, loot legendario) supera el threshold y florece.
-      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.4, 0.86);
-      bloom.threshold = 0.86;   // solo florece lo más brillante
-      bloom.strength = 0.5;
-      bloom.radius = 0.4;
+      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.78, 0.55, 0.72);
+      bloom.threshold = 0.72;   // florece lo brillante/emisivo (más generoso)
+      bloom.strength = 0.78;    // glow más presente (FPS no es limitante)
+      bloom.radius = 0.55;
       composer.addPass(bloom);
       this.bloomPass = bloom;
 

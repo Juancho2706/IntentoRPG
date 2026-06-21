@@ -25,7 +25,94 @@ export function moveWithCollision(grid, pos, dx, dz, r = 0.32) {
 // Modelos low-poly procedurales
 // ------------------------------------------------------------
 function std(color, opts = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0.05, emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1 });
+  const m = new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.85, metalness: opts.metal ?? 0.05, emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 1 });
+  // detalle de superficie procedural (normal + roughness) para que no se vea plano
+  const tex = opts.tex ? charTex(opts.tex) : null;
+  if (tex) {
+    if (tex.normalMap) { m.normalMap = tex.normalMap; const n = opts.normal ?? 0.65; m.normalScale = new THREE.Vector2(n, n); }
+    if (tex.roughnessMap) m.roughnessMap = tex.roughnessMap;
+  }
+  // rim/fresnel: realce en los bordes (silueta) — separa al personaje del fondo.
+  // onBeforeCompile no se ejecuta sin renderer (tests headless): es seguro.
+  if (opts.rim !== false) addRim(m, opts.rimColor, opts.rimI ?? 0.5);
+  return m;
+}
+
+// ---- detalle de superficie procedural (cache; null en headless = color plano) ----
+const _charTexCache = new Map();
+function _sobelNormal(srcCtx, s, strength) {
+  const src = srcCtx.getImageData(0, 0, s, s).data;
+  const ncv = document.createElement('canvas'); ncv.width = ncv.height = s;
+  const nctx = ncv.getContext('2d');
+  const nimg = nctx.createImageData(s, s); const nd = nimg.data;
+  const lum = (x, y) => { const xi = (x + s) % s, yi = (y + s) % s, k = (yi * s + xi) * 4; return (src[k] + src[k + 1] + src[k + 2]) / 765; };
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const dx = (lum(x - 1, y) - lum(x + 1, y)) * strength;
+    const dy = (lum(x, y - 1) - lum(x, y + 1)) * strength;
+    const inv = 1 / Math.hypot(dx, dy, 1); const k = (y * s + x) * 4;
+    nd[k] = (dx * inv * 0.5 + 0.5) * 255; nd[k + 1] = (dy * inv * 0.5 + 0.5) * 255; nd[k + 2] = (inv * 0.5 + 0.5) * 255; nd[k + 3] = 255;
+  }
+  nctx.putImageData(nimg, 0, 0);
+  const t = new THREE.CanvasTexture(ncv); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+// genera {normalMap, roughnessMap} para 'cloth'|'metal'|'skin'|'leather'|'fur'|'scale'
+function charTex(kind) {
+  if (typeof document === 'undefined') return null;     // tests: sin canvas
+  if (_charTexCache.has(kind)) return _charTexCache.get(kind);
+  const s = 128;
+  const cv = document.createElement('canvas'); cv.width = cv.height = s;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);   // base neutra (height medio)
+  const noise = (n, a, sz) => { for (let i = 0; i < n; i++) { const v = 128 + (Math.random() - 0.5) * a; ctx.fillStyle = `rgb(${v},${v},${v})`; const x = Math.random() * s, y = Math.random() * s, r = sz * (0.5 + Math.random()); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill(); } };
+  let strength = 2.0, rep = 3;
+  if (kind === 'cloth') {           // tejido: trama fina cruzada
+    ctx.strokeStyle = 'rgba(70,70,70,0.5)'; ctx.lineWidth = 1;
+    for (let i = 0; i < s; i += 4) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(190,190,190,0.4)';
+    for (let i = 0; i < s; i += 4) { ctx.beginPath(); ctx.moveTo(0, i + 2); ctx.lineTo(s, i + 2); ctx.stroke(); }
+    noise(120, 40, 1.2); strength = 1.4; rep = 4;
+  } else if (kind === 'metal') {    // metal cepillado: arañazos horizontales + abolladuras
+    ctx.strokeStyle = 'rgba(60,60,60,0.4)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 70; i++) { const y = Math.random() * s; ctx.globalAlpha = 0.3 + Math.random() * 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(s, y + (Math.random() - 0.5) * 3); ctx.stroke(); }
+    ctx.globalAlpha = 1; noise(40, 80, 3); strength = 2.4; rep = 2;
+  } else if (kind === 'skin') {     // piel: poros suaves de baja frecuencia
+    noise(220, 26, 2.4); strength = 0.9; rep = 1;
+  } else if (kind === 'leather') {  // cuero: celdas/grietas
+    noise(90, 60, 4); ctx.strokeStyle = 'rgba(50,50,50,0.5)'; ctx.lineWidth = 1.4;
+    for (let i = 0; i < 26; i++) { ctx.beginPath(); ctx.moveTo(Math.random() * s, Math.random() * s); ctx.lineTo(Math.random() * s, Math.random() * s); ctx.stroke(); }
+    strength = 2.0; rep = 2;
+  } else if (kind === 'fur') {      // pelaje: mechones direccionales
+    ctx.strokeStyle = 'rgba(70,70,70,0.45)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 260; i++) { const x = Math.random() * s, y = Math.random() * s; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (Math.random() - 0.5) * 4, y + 5 + Math.random() * 4); ctx.stroke(); }
+    strength = 1.6; rep = 3;
+  } else {                          // 'scale': escamas
+    for (let yy = 0; yy < s; yy += 10) for (let xx = 0; xx < s; xx += 10) { ctx.fillStyle = `rgba(${90 + Math.random() * 60 | 0},${90 + Math.random() * 60 | 0},${90 + Math.random() * 60 | 0},0.6)`; ctx.beginPath(); ctx.arc(xx + (yy / 10 % 2 ? 5 : 0), yy, 5, 0, 3.14); ctx.fill(); }
+    strength = 2.2; rep = 3;
+  }
+  const roughnessMap = new THREE.CanvasTexture(cv);
+  roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping; roughnessMap.repeat.set(rep, rep);
+  const normalMap = _sobelNormal(ctx, s, strength);
+  normalMap.repeat.set(rep, rep);
+  const out = { normalMap, roughnessMap };
+  _charTexCache.set(kind, out);
+  return out;
+}
+
+// Rim/fresnel sobre un MeshStandardMaterial: suma luz en los bordes a contraluz.
+// Inyección por onBeforeCompile (no corre sin GPU → tests a salvo; si el nombre
+// del chunk cambiara, el replace no ocurre y el material sigue funcionando).
+const _RIM_DEFAULT = new THREE.Color(0.5, 0.65, 1.0);
+function addRim(mat, color, intensity = 0.5) {
+  const col = color != null ? new THREE.Color(color) : _RIM_DEFAULT;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.rimColor = { value: col };
+    shader.uniforms.rimIntensity = { value: intensity };
+    shader.fragmentShader = 'uniform vec3 rimColor;\nuniform float rimIntensity;\n' + shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'float _rim = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 3.0);\n  outgoingLight += rimColor * _rim * rimIntensity;\n#include <opaque_fragment>'
+    );
+  };
+  mat.customProgramCacheKey = () => 'rim' + intensity;
 }
 
 // oscurece/aclara un color hex (factor <1 oscurece) — para mantos, sombras, etc.
@@ -48,24 +135,29 @@ export function makePlayerModel(cls, tint = null) {
   const cloth = tint ?? cls.color;
 
   // torso + pelvis
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.42, 6, 12), std(cloth));
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.42, 6, 12), std(cloth, { tex: 'cloth' }));
   torso.position.y = 1.04; torso.castShadow = true;
-  const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.1, 4, 10), std(shade(cloth, 0.8)));
+  const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.1, 4, 10), std(shade(cloth, 0.8), { tex: 'leather' }));
   pelvis.position.y = 0.82;
   rig.add(torso, pelvis);
 
   // cuello-pivote + cabeza (permite mirar/bob de cabeza)
   const neck = new THREE.Group(); neck.position.set(0, 1.32, 0); rig.add(neck);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), std(skin));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), std(skin, { tex: 'skin', rough: 0.6 }));
   head.position.y = 0.18; head.castShadow = true; neck.add(head);
+  // ojos con leve brillo (foco facial; captan el bloom)
+  for (const ex of [-0.075, 0.075]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), new THREE.MeshStandardMaterial({ color: 0x223044, emissive: 0x66aaff, emissiveIntensity: 1.1 }));
+    eye.position.set(ex, 0.2, 0.18); neck.add(eye);
+  }
 
   // piernas con pivote en la cadera + pie
   const legGeo = new THREE.CapsuleGeometry(0.1, 0.46, 4, 8);
   const makeLeg = (x) => {
     const piv = new THREE.Group(); piv.position.set(x, 0.8, 0);
-    const leg = new THREE.Mesh(legGeo, std(0x3a3128));
+    const leg = new THREE.Mesh(legGeo, std(0x3a3128, { tex: 'leather' }));
     leg.position.y = -0.35; leg.castShadow = true;
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.27), std(0x241b12));
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.27), std(0x241b12, { tex: 'leather' }));
     foot.position.set(0, -0.66, 0.05);
     piv.add(leg, foot);
     return piv;
@@ -77,7 +169,7 @@ export function makePlayerModel(cls, tint = null) {
   const armGeo = new THREE.CapsuleGeometry(0.09, 0.4, 4, 8);
   const makeArm = (x) => {
     const piv = new THREE.Group(); piv.position.set(x, 1.2, 0);
-    const arm = new THREE.Mesh(armGeo, std(shade(cloth, 0.92)));
+    const arm = new THREE.Mesh(armGeo, std(shade(cloth, 0.92), { tex: 'cloth' }));
     arm.position.y = -0.29; arm.castShadow = true;
     const hand = new THREE.Group(); hand.position.y = -0.54;
     piv.add(arm, hand);
@@ -90,35 +182,35 @@ export function makePlayerModel(cls, tint = null) {
 
   // capa: movimiento secundario (inercia con el desplazamiento y los golpes)
   const capePiv = new THREE.Group(); capePiv.position.set(0, 1.24, -0.16);
-  const cape = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.82, 0.035), std(shade(cloth, 0.55)));
+  const cape = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.82, 0.035), std(shade(cloth, 0.55), { tex: 'cloth' }));
   cape.position.y = -0.4; capePiv.add(cape); rig.add(capePiv);
 
   // equipo por clase
   if (cls.id === 'guerrero') {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.14), std(0xc8ccd4, { metal: 0.7, rough: 0.3 }));
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.14), std(0xc8ccd4, { metal: 0.7, rough: 0.3, tex: 'metal' }));
     blade.position.y = 0.42; blade.castShadow = true;
-    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.07), std(0x7a5a2a));
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.07), std(0x7a5a2a, { metal: 0.5, tex: 'metal' }));
     rhand.add(blade, guard);
-    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 16), std(0x8a6a3a, { metal: 0.3 }));
+    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 16), std(0x8a6a3a, { metal: 0.4, rough: 0.4, tex: 'metal' }));
     shield.rotation.x = Math.PI / 2; shield.position.set(-0.04, -0.08, 0.14);
     lhand.add(shield);
     for (const sx of [-1, 1]) {        // hombreras metálicas
-      const pa = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), std(0x6a6a72, { metal: 0.4, rough: 0.45 }));
+      const pa = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), std(0x6a6a72, { metal: 0.5, rough: 0.4, tex: 'metal' }));
       pa.scale.y = 0.65; pa.position.set(sx * 0.34, 1.2, 0); rig.add(pa);
     }
   } else if (cls.id === 'maga') {
-    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.4, 8), std(0x5a4028));
+    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.4, 8), std(0x5a4028, { tex: 'leather' }));
     staff.position.y = 0.35; rhand.add(staff);
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), std(0x66ccff, { emissive: 0x3399ff, ei: 1.8 }));
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), std(0x66ccff, { emissive: 0x3399ff, ei: 1.8, rim: false }));
     orb.position.y = 1.05; rhand.add(orb);
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.62, 12), std(0x2a4ba6));
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.62, 12), std(0x2a4ba6, { tex: 'cloth' }));
     hat.position.y = 0.35; neck.add(hat);
   } else {
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.03, 6, 16, Math.PI), std(0x6e4a22));
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.03, 6, 16, Math.PI), std(0x6e4a22, { tex: 'leather' }));
     bow.rotation.z = -Math.PI / 2; bow.position.y = 0.08; rhand.add(bow);
-    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.42, 12), std(0x2e5e30));
+    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.42, 12), std(0x2e5e30, { tex: 'cloth' }));
     hood.position.y = 0.16; neck.add(hood);
-    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.42, 8), std(0x4a3520));
+    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.42, 8), std(0x4a3520, { tex: 'leather' }));
     quiver.rotation.x = 0.45; quiver.position.set(-0.16, 1.02, -0.22); rig.add(quiver);
   }
 
@@ -132,7 +224,13 @@ export function makePlayerModel(cls, tint = null) {
 export function makeEnemyModel(def) {
   const g = new THREE.Group();
   const s = def.scale || 1;
-  const mat = std(def.color);
+  // textura de superficie por tipo de criatura (detalle de luz, no oscurece albedo)
+  const bodyTex = def.shape === 'rat' ? 'fur'
+    : def.shape === 'golem' ? 'scale'
+    : def.shape === 'slime' ? null
+    : def.shape === 'chest' ? 'metal'
+    : 'leather';
+  const mat = std(def.color, bodyTex ? { tex: bodyTex } : {});
   const anim = {};                 // piezas animables (cuerpo, piernas, brazos…)
   let bodyH = 0.75;
   // pierna/brazo con pivote en la cadera/hombro para que oscilen al rotar

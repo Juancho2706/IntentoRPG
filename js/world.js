@@ -14,67 +14,112 @@ function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1))
 // entornos sin DOM (tests): devuelve null y el material cae a color plano.
 const _groundTexCache = new Map();
 
-function _valueNoise(ctx, s, baseRGB, variation) {
-  // ruido de valor multi-octava pintado celda a celda (barato, una vez)
-  const img = ctx.createImageData(s, s);
-  const d = img.data;
-  // mapa de ruido suavizado por interpolación de una rejilla gruesa
-  const grid = 16, gv = [];
-  for (let i = 0; i <= grid; i++) { gv[i] = []; for (let j = 0; j <= grid; j++) gv[i][j] = Math.random(); }
-  const lerp = (a, b, t) => a + (b - a) * (t * t * (3 - 2 * t));
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      const gx = (x / s) * grid, gy = (y / s) * grid;
-      const x0 = gx | 0, y0 = gy | 0, tx = gx - x0, ty = gy - y0;
-      const n = lerp(lerp(gv[x0][y0], gv[x0 + 1][y0], tx),
-                     lerp(gv[x0][y0 + 1], gv[x0 + 1][y0 + 1], tx), ty);
-      // detalle fino superpuesto
-      const fine = (Math.sin(x * 0.7) * Math.cos(y * 0.7) * 0.5 + 0.5);
-      const v = n * 0.8 + fine * 0.2;
-      const k = ((y * s) + x) * 4;
-      const f = (v - 0.5) * variation;
-      d[k]     = Math.max(0, Math.min(255, baseRGB[0] * (1 + f)));
-      d[k + 1] = Math.max(0, Math.min(255, baseRGB[1] * (1 + f)));
-      d[k + 2] = Math.max(0, Math.min(255, baseRGB[2] * (1 + f)));
-      d[k + 3] = 255;
-    }
+// Construye un campo de ruido fractal (fBm) tileable en una rejilla, devuelto
+// como función muestreable n(x,y)∈[0,1]. Varias octavas de value-noise con
+// rejillas que envuelven (toroidal) para que la textura se repita sin costuras.
+function _makeFbm(octaves = 4, baseGrid = 8) {
+  const layers = [];
+  for (let o = 0; o < octaves; o++) {
+    const g = baseGrid * (1 << o);
+    const gv = new Float32Array((g + 1) * (g + 1));
+    for (let i = 0; i <= g; i++)
+      for (let j = 0; j <= g; j++)
+        gv[i * (g + 1) + j] = (i === g || j === g)
+          ? gv[(i % g) * (g + 1) + (j % g)]   // envolver bordes (tileable)
+          : Math.random();
+    layers.push({ g, gv, amp: 1 / (1 << o) });
   }
-  ctx.putImageData(img, 0, 0);
+  const sm = t => t * t * (3 - 2 * t);
+  return (u, v) => {
+    let sum = 0, norm = 0;
+    for (const L of layers) {
+      const gx = u * L.g, gy = v * L.g;
+      const x0 = gx | 0, y0 = gy | 0, tx = sm(gx - x0), ty = sm(gy - y0);
+      const w = L.g + 1;
+      const a = L.gv[x0 * w + y0], b = L.gv[(x0 + 1) * w + y0];
+      const c2 = L.gv[x0 * w + (y0 + 1)], d2 = L.gv[(x0 + 1) * w + (y0 + 1)];
+      const top = a + (b - a) * tx, bot = c2 + (d2 - c2) * tx;
+      sum += (top + (bot - top) * ty) * L.amp; norm += L.amp;
+    }
+    return sum / norm;
+  };
 }
 
-// Devuelve { map, normalMap } o null si no hay canvas (tests).
+// Devuelve { map, normalMap, roughnessMap } o null si no hay canvas (tests).
+// Albedo = fBm teñido al color base + manchas/vetas + grano; normal por Sobel
+// (más nítido); roughness inversa al ruido (zonas pulidas brillan distinto).
 export function makeGroundTextures(colorHex, opts = {}) {
   if (typeof document === 'undefined') return null;
-  const key = colorHex + ':' + (opts.variation ?? 0.18);
+  const variation = opts.variation ?? 0.18;
+  const key = colorHex + ':' + variation + ':' + (opts.tint ?? '');
   if (_groundTexCache.has(key)) return _groundTexCache.get(key);
   const s = 256;
   const c = new THREE.Color(colorHex);
   const baseRGB = [c.r * 255, c.g * 255, c.b * 255];
+  // color de veta/mancha: una variante más oscura y desaturada del base
+  const dark = c.clone().offsetHSL(0, -0.08, -0.16);
+  const darkRGB = [dark.r * 255, dark.g * 255, dark.b * 255];
+  // tinte opcional (motas de musgo/ceniza/escarcha) según bioma
+  let tintRGB = null;
+  if (opts.tint != null) { const t = new THREE.Color(opts.tint); tintRGB = [t.r * 255, t.g * 255, t.b * 255]; }
 
-  // --- albedo ---
+  const fbm = _makeFbm(opts.octaves ?? 4, opts.baseGrid ?? 8);
+  const blotch = _makeFbm(2, 3);   // manchas grandes de suciedad/musgo
+  const grain = _makeFbm(1, 64);   // grano fino de alta frecuencia
+
+  // --- albedo + buffer de altura (para normal y roughness) ---
   const cv = document.createElement('canvas'); cv.width = cv.height = s;
   const ctx = cv.getContext('2d');
-  _valueNoise(ctx, s, baseRGB, opts.variation ?? 0.18);
+  const img = ctx.createImageData(s, s);
+  const d = img.data;
+  const height = new Float32Array(s * s);
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const u = x / s, v = y / s;
+      const n = fbm(u, v);                 // estructura principal
+      const bl = blotch(u, v);             // manchas
+      const gr = grain(u, v);              // grano
+      const k = (y * s + x) * 4;
+      height[y * s + x] = n * 0.8 + gr * 0.2;
+      // mezcla base→oscuro según manchas, modulada por variación de ruido
+      let mix = Math.max(0, Math.min(1, (bl - 0.42) * 1.7));
+      const f = (n - 0.5) * variation + (gr - 0.5) * variation * 0.45;
+      let r = baseRGB[0] * (1 + f) * (1 - mix) + darkRGB[0] * mix;
+      let g = baseRGB[1] * (1 + f) * (1 - mix) + darkRGB[1] * mix;
+      let b = baseRGB[2] * (1 + f) * (1 - mix) + darkRGB[2] * mix;
+      if (tintRGB) {
+        // motas de tinte donde el ruido fino pica alto (musgo/escarcha/ceniza)
+        const sp = Math.max(0, (gr - 0.7) * 3.0) * (opts.tintAmt ?? 0.5);
+        r = r * (1 - sp) + tintRGB[0] * sp;
+        g = g * (1 - sp) + tintRGB[1] * sp;
+        b = b * (1 - sp) + tintRGB[2] * sp;
+      }
+      d[k]     = Math.max(0, Math.min(255, r));
+      d[k + 1] = Math.max(0, Math.min(255, g));
+      d[k + 2] = Math.max(0, Math.min(255, b));
+      d[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
   const map = new THREE.CanvasTexture(cv);
   map.colorSpace = THREE.SRGBColorSpace;
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.anisotropy = 8;
 
-  // --- normal map derivado del brillo del albedo (Sobel) ---
+  // --- normal map desde el buffer de altura (Sobel envolvente) ---
   const ncv = document.createElement('canvas'); ncv.width = ncv.height = s;
   const nctx = ncv.getContext('2d');
-  const src = ctx.getImageData(0, 0, s, s).data;
   const nimg = nctx.createImageData(s, s);
   const nd = nimg.data;
-  const lum = (x, y) => {
-    const xi = (x + s) % s, yi = (y + s) % s;
-    const k = (yi * s + xi) * 4;
-    return (src[k] + src[k + 1] + src[k + 2]) / 765;
-  };
+  const H = (x, y) => height[((y + s) % s) * s + ((x + s) % s)];
   const strength = opts.normalStrength ?? 1.6;
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
-      const dx = (lum(x - 1, y) - lum(x + 1, y)) * strength;
-      const dy = (lum(x, y - 1) - lum(x, y + 1)) * strength;
+      // Sobel 3×3 para un relieve más suave y direccional
+      const dx = ((H(x - 1, y - 1) + 2 * H(x - 1, y) + H(x - 1, y + 1)) -
+                  (H(x + 1, y - 1) + 2 * H(x + 1, y) + H(x + 1, y + 1))) * strength;
+      const dy = ((H(x - 1, y - 1) + 2 * H(x, y - 1) + H(x + 1, y - 1)) -
+                  (H(x - 1, y + 1) + 2 * H(x, y + 1) + H(x + 1, y + 1))) * strength;
       const nz = 1.0;
       const inv = 1 / Math.hypot(dx, dy, nz);
       const k = (y * s + x) * 4;
@@ -87,8 +132,26 @@ export function makeGroundTextures(colorHex, opts = {}) {
   nctx.putImageData(nimg, 0, 0);
   const normalMap = new THREE.CanvasTexture(ncv);
   normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
+  normalMap.anisotropy = 8;
 
-  const out = { map, normalMap };
+  // --- roughness map: las hondonadas (musgo/agua) algo más pulidas ---
+  const rcv = document.createElement('canvas'); rcv.width = rcv.height = s;
+  const rctx = rcv.getContext('2d');
+  const rimg = rctx.createImageData(s, s);
+  const rd = rimg.data;
+  for (let i = 0; i < s * s; i++) {
+    const h = height[i];
+    // crestas ásperas (cerca de 1) / hondonadas más lisas (0.6)
+    const rough = 0.66 + h * 0.34;
+    const k = i * 4;
+    rd[k] = rd[k + 1] = rd[k + 2] = Math.max(0, Math.min(255, rough * 255));
+    rd[k + 3] = 255;
+  }
+  rctx.putImageData(rimg, 0, 0);
+  const roughnessMap = new THREE.CanvasTexture(rcv);
+  roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
+
+  const out = { map, normalMap, roughnessMap };
   _groundTexCache.set(key, out);
   return out;
 }
@@ -97,11 +160,12 @@ export function makeGroundTextures(colorHex, opts = {}) {
 // normal opcionales. Si no hay texturas (tests), cae a color plano sin incluir
 // claves undefined (evita warnings de three por normalScale sin normalMap).
 export function groundMatParams(colorHex, tex, normalScale = 0.6) {
-  const p = { color: colorHex, roughness: 1 };
+  const p = { color: colorHex, roughness: 1, metalness: 0.0 };
   if (tex) {
     p.map = tex.map;
     p.normalMap = tex.normalMap;
     p.normalScale = new THREE.Vector2(normalScale, normalScale);
+    if (tex.roughnessMap) p.roughnessMap = tex.roughnessMap;
   }
   return p;
 }
@@ -349,6 +413,188 @@ export function makeTorch(flameColor = 0xffaa33) {
 }
 
 // ---------------------------------------------------------
+// PROPS AMBIENTALES PROCEDURALES (sin assets, solo geometría Three)
+// ---------------------------------------------------------
+// Todos devuelven un Group/Mesh listo para posicionar. Pensados como decoración
+// NO colisionable (no tocan el grid). Usan solo primitivas → seguros en tests.
+function _shade(hex, f) { return new THREE.Color(hex).offsetHSL(0, 0, f).getHex(); }
+
+// Roca poligonal irregular (dodecaedro deformado) con musgo opcional encima.
+export function makeRock(rnd = Math.random, opts = {}) {
+  const g = new THREE.Group();
+  const baseR = opts.r ?? (0.3 + rnd() * 0.5);
+  const col = opts.color ?? 0x6a6660;
+  const geo = new THREE.DodecahedronGeometry(baseR, 0);
+  // deformar vértices para que no sea un poliedro perfecto
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const j = (rnd() - 0.5) * baseR * 0.35;
+    pos.setXYZ(i, pos.getX(i) + j, pos.getY(i) + (rnd() - 0.5) * baseR * 0.2, pos.getZ(i) + (rnd() - 0.5) * baseR * 0.35);
+  }
+  geo.computeVertexNormals();
+  const rock = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.95, flatShading: true }));
+  rock.scale.y = 0.7 + rnd() * 0.4;
+  rock.position.y = baseR * 0.55;
+  rock.rotation.set(rnd() * 0.4, rnd() * Math.PI, rnd() * 0.4);
+  rock.castShadow = true; rock.receiveShadow = true;
+  g.add(rock);
+  if (opts.moss && rnd() < 0.7) {
+    const moss = new THREE.Mesh(new THREE.SphereGeometry(baseR * 0.85, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.5),
+      new THREE.MeshStandardMaterial({ color: opts.mossColor ?? 0x4a6a32, roughness: 1 }));
+    moss.position.y = baseR * 0.9; moss.scale.set(1, 0.5, 1);
+    g.add(moss);
+  }
+  return g;
+}
+
+// Racimo de cristales (varios prismas que emergen de una base).
+export function makeCrystalCluster(rnd = Math.random, opts = {}) {
+  const g = new THREE.Group();
+  const col = opts.color ?? 0xbfeaff, em = opts.emissive ?? 0x44aadd;
+  const n = opts.count ?? (2 + (rnd() * 3 | 0));
+  for (let i = 0; i < n; i++) {
+    const h = 0.4 + rnd() * (opts.maxH ?? 0.9);
+    const r = 0.06 + rnd() * 0.12;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 5),
+      new THREE.MeshStandardMaterial({ color: col, emissive: em, emissiveIntensity: 0.9 + rnd() * 0.6, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.92 }));
+    const a = rnd() * Math.PI * 2, off = rnd() * 0.18;
+    m.position.set(Math.cos(a) * off, h * 0.5, Math.sin(a) * off);
+    m.rotation.set((rnd() - 0.5) * 0.5, rnd() * Math.PI, (rnd() - 0.5) * 0.5);
+    m.castShadow = true;
+    g.add(m);
+  }
+  return g;
+}
+
+// Pila de huesos / costillar (esfera achatada + arcos finos).
+export function makeBonePile(rnd = Math.random) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xcfc7b0, roughness: 1 });
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 7), mat);
+  skull.scale.set(1, 0.9, 1.1); skull.position.y = 0.14; g.add(skull);
+  for (let i = 0; i < 3 + (rnd() * 2 | 0); i++) {
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.12 + rnd() * 0.06, 0.018, 5, 10, Math.PI), mat);
+    rib.position.set((rnd() - 0.5) * 0.3, 0.05 + rnd() * 0.04, (rnd() - 0.5) * 0.3);
+    rib.rotation.set(Math.PI / 2 + (rnd() - 0.5), rnd() * Math.PI, 0);
+    g.add(rib);
+  }
+  g.rotation.y = rnd() * Math.PI;
+  return g;
+}
+
+// Raíz/zarcillo retorcido que sale del suelo (cilindros encadenados).
+export function makeRoot(rnd = Math.random, opts = {}) {
+  const g = new THREE.Group();
+  const col = opts.color ?? 0x3a2c1c;
+  let x = 0, z = 0, y = 0, ang = rnd() * Math.PI * 2, r = 0.07 + rnd() * 0.05;
+  const seg = 3 + (rnd() * 3 | 0);
+  for (let i = 0; i < seg; i++) {
+    const len = 0.25 + rnd() * 0.25;
+    const seg3 = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, len, 6),
+      new THREE.MeshStandardMaterial({ color: col, roughness: 1 }));
+    const tilt = 0.5 + rnd() * 0.5;
+    seg3.position.set(x, y + len * 0.4, z);
+    seg3.rotation.set(Math.cos(ang) * tilt, 0, Math.sin(ang) * tilt);
+    seg3.castShadow = true;
+    g.add(seg3);
+    x += Math.cos(ang) * len * tilt * 0.6; z += Math.sin(ang) * len * tilt * 0.6; y += len * 0.5;
+    ang += (rnd() - 0.5) * 1.4; r *= 0.8;
+  }
+  return g;
+}
+
+// Tufo de hierba/maleza: varias palas finas (PlaneGeometry) en abanico.
+export function makeGrassTuft(rnd = Math.random, opts = {}) {
+  const g = new THREE.Group();
+  const col = opts.color ?? 0x4e7a36;
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 1, side: THREE.DoubleSide });
+  const n = 3 + (rnd() * 3 | 0);
+  for (let i = 0; i < n; i++) {
+    const h = 0.3 + rnd() * 0.35;
+    const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.08, h), mat);
+    blade.position.set((rnd() - 0.5) * 0.18, h * 0.5, (rnd() - 0.5) * 0.18);
+    blade.rotation.set((rnd() - 0.5) * 0.3, rnd() * Math.PI, (rnd() - 0.5) * 0.4);
+    g.add(blade);
+  }
+  return g;
+}
+
+// Seta luminosa (sombrero emisivo + tallo). Para biomas oscuros/abismo.
+export function makeMushroom(rnd = Math.random, opts = {}) {
+  const g = new THREE.Group();
+  const cap = opts.color ?? 0x9b6bff, em = opts.emissive ?? 0x5a2fbf;
+  const h = 0.18 + rnd() * 0.22;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, h, 6),
+    new THREE.MeshStandardMaterial({ color: 0xd8d0c0, roughness: 1, emissive: 0x222018, emissiveIntensity: 0.3 }));
+  stem.position.y = h * 0.5;
+  const hat = new THREE.Mesh(new THREE.SphereGeometry(0.1 + rnd() * 0.06, 9, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.MeshStandardMaterial({ color: cap, emissive: em, emissiveIntensity: 1.1, roughness: 0.5 }));
+  hat.position.y = h; hat.scale.y = 0.7;
+  g.add(stem, hat);
+  return g;
+}
+
+// Pilar/columna en ruinas (fuste con cierto deterioro + base/capitel).
+export function makeRuinPillar(rnd = Math.random, opts = {}) {
+  const g = new THREE.Group();
+  const col = opts.color ?? 0x6a6052;
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.92, flatShading: true });
+  const hh = 0.8 + rnd() * 1.4;
+  const broken = rnd() < 0.5;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, hh, 8, 1), mat);
+  shaft.position.y = hh * 0.5; shaft.castShadow = true; shaft.receiveShadow = true;
+  shaft.rotation.y = rnd() * Math.PI;
+  g.add(shaft);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.22, 0.8), mat);
+  base.position.y = 0.11; base.castShadow = true; g.add(base);
+  if (!broken) {
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.2, 0.72), mat);
+    cap.position.y = hh + 0.1; cap.castShadow = true; g.add(cap);
+  } else {
+    shaft.rotation.z = (rnd() - 0.5) * 0.18; // ligeramente inclinado
+    // bloque caído junto a la base
+    const chunk = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.4), mat);
+    chunk.position.set(0.5 + rnd() * 0.3, 0.15, (rnd() - 0.5) * 0.6);
+    chunk.rotation.set(rnd(), rnd(), rnd()); chunk.castShadow = true; g.add(chunk);
+  }
+  return g;
+}
+
+// Estandarte colgante para el campamento (poste + tela emisiva sutil).
+export function makeBanner(rnd = Math.random, color = 0x9a2f3a) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.2, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3a2c1c, roughness: 1 }));
+  pole.position.y = 1.1; pole.castShadow = true;
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 1.0),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85, side: THREE.DoubleSide, emissive: color, emissiveIntensity: 0.06 }));
+  cloth.position.set(0.36, 1.45, 0);
+  g.add(pole, cloth);
+  return g;
+}
+
+// Coloca instancias de un factory de prop sobre celdas abiertas (no toca grid).
+// `cells` = lista [x,z]; `chance` por celda; `make(rnd)` crea el prop.
+function _scatterProp(group, grid, cells, rnd, chance, make, opts = {}) {
+  const skip = opts.skip; // (x,z)=>bool para excluir (p.ej. campamento)
+  let placed = 0; const cap = opts.cap ?? Infinity;
+  for (const [x, z] of cells) {
+    if (placed >= cap) break;
+    if (rnd() >= chance) continue;
+    if (skip && skip(x, z)) continue;
+    const c = grid.center(x, z);
+    const m = make(rnd);
+    m.position.set(c.x + (rnd() - 0.5) * 0.5, opts.y ?? 0, c.z + (rnd() - 0.5) * 0.5);
+    m.rotation.y = rnd() * Math.PI * 2;
+    const sc = (opts.minScale ?? 0.85) + rnd() * ((opts.maxScale ?? 1.25) - (opts.minScale ?? 0.85));
+    m.scale.multiplyScalar(sc);
+    group.add(m);
+    placed++;
+  }
+  return placed;
+}
+
+// ---------------------------------------------------------
 // CAMPAMENTO/PUEBLO contiguo dentro de una zona abierta (seamless hub)
 // ---------------------------------------------------------
 // Coloca los servicios del pueblo en un "bolsillo" seguro alrededor de una
@@ -364,12 +610,20 @@ export function placeTownServices(grid, group, interactables, torchLights, cente
     for (let dx = -R; dx <= R; dx++)
       if (dx * dx + dz * dz <= R * R) carve(cx + dx, cz + dz);
 
-  // 2) suelo del campamento (parche de tierra) sobre la zona
+  // 2) suelo del campamento (parche de tierra) sobre la zona, con textura
   const C = grid.center(cx, cz);
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(R - 0.5, 28),
-    new THREE.MeshStandardMaterial({ color: 0x6a5740, roughness: 1 }));
+  const campTex = makeGroundTextures(0x6a5740, { variation: 0.26, normalStrength: 1.8, tint: 0x8a7a55, tintAmt: 0.4 });
+  if (campTex) { for (const t of [campTex.map, campTex.normalMap, campTex.roughnessMap]) if (t) t.repeat.set(3, 3); }
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(R - 0.5, 36),
+    new THREE.MeshStandardMaterial(groundMatParams(0x6a5740, campTex, 0.8)));
   floor.rotation.x = -Math.PI / 2; floor.position.set(C.x, 0.02, C.z); floor.receiveShadow = true;
   group.add(floor);
+  // anillo empedrado en el borde del parche (lee como camino del campamento)
+  const cobble = new THREE.Mesh(new THREE.RingGeometry(R - 1.4, R - 0.5, 40, 1),
+    new THREE.MeshStandardMaterial({ color: 0x564a3a, roughness: 1 }));
+  cobble.rotation.x = -Math.PI / 2; cobble.position.set(C.x, 0.025, C.z); cobble.receiveShadow = true;
+  group.add(cobble);
+  scatterDecals(group, Math.random, 14, { minX: C.x - R + 2, maxX: C.x + R - 2, minZ: C.z - R + 2, maxZ: C.z + R - 2, y: 0.03, color: 0x2a1f12 });
 
   // 3) servicios alrededor del centro (cada uno en su celda, ya transitable)
   const npc = (dx, dz, type, label, col, col2) => {
@@ -430,6 +684,20 @@ export function placeTownServices(grid, group, interactables, torchLights, cente
   for (const [dx, dz] of [[-5, -5], [5, 5]]) {
     const t = makeTorch(0xffaa33); const p = grid.center(cx + dx, cz + dz); t.position.copy(p); group.add(t);
   }
+  // estandartes junto a las antorchas (color del campamento)
+  for (const [dx, dz, col] of [[-5, -5, 0x9a2f3a], [5, 5, 0x2f5a9a]]) {
+    const b = makeBanner(Math.random, col); const p = grid.center(cx + dx, cz + dz);
+    b.position.set(p.x + 0.6, 0, p.z); group.add(b);
+  }
+  // matojos de hierba y piedrecitas alrededor del parche (decorativo)
+  const tuftCol = (opts.grassColor ?? 0x4e6a34);
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2, rr = (R - 2) + Math.random() * 2.2;
+    const px = C.x + Math.cos(a) * rr, pz = C.z + Math.sin(a) * rr;
+    const m = Math.random() < 0.55 ? makeGrassTuft(Math.random, { color: tuftCol }) : makeRock(Math.random, { r: 0.18 + Math.random() * 0.2, moss: true });
+    m.position.set(px, 0, pz); m.rotation.y = Math.random() * Math.PI * 2;
+    group.add(m);
+  }
   return { radius: R };
 }
 
@@ -447,12 +715,13 @@ export function buildTown() {
     for (let x = 1; x < W - 1; x++)
       grid.cells[z][x] = 1;
 
-  // suelo con grano: textura/normal generadas por canvas (césped del pueblo)
-  const gTex = makeGroundTextures(0x5e7a44, { variation: 0.22, normalStrength: 1.4 });
-  if (gTex) { gTex.map.repeat.set(W / 5, H / 5); gTex.normalMap.repeat.set(W / 5, H / 5); }
+  // suelo con grano: textura/normal/roughness generadas por canvas (césped del
+  // pueblo, con motas de musgo más claro y manchas de tierra)
+  const gTex = makeGroundTextures(0x5e7a44, { variation: 0.26, normalStrength: 1.6, tint: 0x7e9a52, tintAmt: 0.5 });
+  if (gTex) { for (const t of [gTex.map, gTex.normalMap, gTex.roughnessMap]) if (t) t.repeat.set(W / 5, H / 5); }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(W, H),
-    new THREE.MeshStandardMaterial(groundMatParams(0x5e7a44, gTex, 0.6))
+    new THREE.MeshStandardMaterial(groundMatParams(0x5e7a44, gTex, 0.7))
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -511,14 +780,41 @@ export function buildTown() {
     if (reserved.some(([rx, rz]) => Math.abs(rx - x) < 3 && Math.abs(rz - z) < 3)) continue;
     grid.cells[z][x] = 0;
     const c = grid.center(x, z);
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.2, 7),
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.3, 7),
       new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 1 }));
-    trunk.position.set(c.x, 0.6, c.z);
-    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.9 + Math.random() * 0.4, 10, 8),
-      new THREE.MeshStandardMaterial({ color: 0x3f6e2f, roughness: 1 }));
-    crown.position.set(c.x, 1.9, c.z);
-    trunk.castShadow = crown.castShadow = true;
-    group.add(trunk, crown);
+    trunk.position.set(c.x, 0.65, c.z);
+    // copa en dos esferas desfasadas (más volumen y silueta orgánica)
+    const cr = 0.85 + Math.random() * 0.4;
+    const leafA = _shade(0x3f6e2f, (Math.random() - 0.5) * 0.1);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(cr, 10, 8),
+      new THREE.MeshStandardMaterial({ color: leafA, roughness: 1, flatShading: true }));
+    crown.position.set(c.x, 2.0, c.z);
+    const crown2 = new THREE.Mesh(new THREE.SphereGeometry(cr * 0.72, 9, 7),
+      new THREE.MeshStandardMaterial({ color: _shade(leafA, 0.06), roughness: 1, flatShading: true }));
+    crown2.position.set(c.x + (Math.random() - 0.5) * 0.6, 2.6, c.z + (Math.random() - 0.5) * 0.6);
+    trunk.castShadow = crown.castShadow = crown2.castShadow = true;
+    group.add(trunk, crown, crown2);
+    // matojos de hierba al pie del árbol
+    const tuft = makeGrassTuft(Math.random, { color: _shade(0x4e7a36, (Math.random() - 0.5) * 0.08) });
+    tuft.position.set(c.x + (Math.random() - 0.5) * 0.7, 0, c.z + (Math.random() - 0.5) * 0.7);
+    group.add(tuft);
+  }
+
+  // dispersión ambiental: hierba, piedras y alguna ruina sobre suelo transitable
+  for (let i = 0; i < 60; i++) {
+    const x = ri(2, W - 3), z = ri(2, H - 3);
+    if (!grid.cells[z][x]) continue;
+    if (Math.abs(grid.ox + x) < 3) continue;            // no en el camino
+    if (reserved.some(([rx, rz]) => Math.abs(rx - x) < 2 && Math.abs(rz - z) < 2)) continue;
+    const c = grid.center(x, z);
+    const roll = Math.random();
+    let m;
+    if (roll < 0.6) m = makeGrassTuft(Math.random, { color: _shade(0x4e7a36, (Math.random() - 0.5) * 0.1) });
+    else if (roll < 0.88) m = makeRock(Math.random, { r: 0.18 + Math.random() * 0.3, moss: true });
+    else m = makeRuinPillar(Math.random, { color: 0x76705c });
+    m.position.set(c.x + (Math.random() - 0.5) * 0.5, 0, c.z + (Math.random() - 0.5) * 0.5);
+    m.rotation.y = Math.random() * Math.PI * 2;
+    group.add(m);
   }
 
   // fuente del curandero
@@ -710,44 +1006,54 @@ export function buildDungeon(floor, seed = null) {
     }
   // suelo de mazmorra con grano por bioma (textura/normal canvas; cada losa
   // recibe el mapa con leve relieve para asentar la iluminación de contacto)
-  const dTex = makeGroundTextures(biome.floor, { variation: 0.16, normalStrength: 1.6 });
+  const dTex = makeGroundTextures(biome.floor, { variation: 0.22, normalStrength: 1.9, tint: biome.accent?.color, tintAmt: 0.22 });
   group.add(instancedBoxes(floorPos, [1, 0.1, 1], biome.floor,
-    { vary: 0.05, map: dTex?.map || null, normalMap: dTex?.normalMap || null, normalScale: 0.5 }));
+    { vary: 0.07, map: dTex?.map || null, normalMap: dTex?.normalMap || null, normalScale: 0.6 }));
   // muros bajos para que los enemigos no queden ocultos tras ellos en la vista isométrica
   group.add(instancedBoxes(wallPos, [1, 1.2, 1], biome.wall, { vary: 0.08, castShadow: false }));
   if (accentPos.length)
     group.add(instancedBoxes(accentPos, [1, 0.12, 1], biome.accent.color,
       { emissive: biome.accent.emissive, emissiveIntensity: 0.7, vary: 0.04 }));
 
-  // decoración: pilares y huesos en salas
+  // decoración por sala: pilares en ruinas, huesos, cristales y props de bioma.
+  // todo NO bloquea salvo los pilares grandes (que sí marcan el grid, como antes).
+  const isCrypt = biome.name === 'Cripta';
+  const isAbyss = biome.name === 'Abismo Estelar';
   for (const r of rooms) {
     if (rnd() < 0.5 && r.w > 6 && r.d > 6) {
       for (const [px, pz] of [[r.x + 1, r.z + 1], [r.x + r.w - 2, r.z + r.d - 2]]) {
         grid.cells[pz][px] = 0;
         const c = grid.center(px, pz);
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.5, 8),
-          new THREE.MeshStandardMaterial({ color: 0x4a4756, roughness: 0.9 }));
-        pillar.position.set(c.x, 0.75, c.z);
-        pillar.castShadow = true;
+        const pillar = makeRuinPillar(rnd, { color: 0x4a4756 });
+        pillar.position.set(c.x, 0, c.z);
         group.add(pillar);
       }
     }
+    // pila de huesos detallada
     if (rnd() < 0.6) {
       const c = grid.center(ri(r.x + 1, r.x + r.w - 2), ri(r.z + 1, r.z + r.d - 2));
-      const bones = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0),
-        new THREE.MeshStandardMaterial({ color: 0xbbb5a0, roughness: 1 }));
-      bones.position.set(c.x, 0.12, c.z);
+      const bones = makeBonePile(rnd);
+      bones.position.set(c.x, 0, c.z);
       group.add(bones);
     }
-    // cristales de hielo / rocas de lava según el bioma
+    // racimo de cristales/rocas según el bioma
     if (biome.crystal && rnd() < 0.55) {
       const c = grid.center(ri(r.x + 1, r.x + r.w - 2), ri(r.z + 1, r.z + r.d - 2));
-      const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7 + rnd() * 0.5, 5),
-        new THREE.MeshStandardMaterial({ color: biome.crystal.color, emissive: biome.crystal.emissive, emissiveIntensity: 1.1, roughness: 0.4 }));
-      crystal.position.set(c.x, 0.35, c.z);
-      crystal.rotation.y = rnd() * Math.PI;
-      crystal.castShadow = true;
-      group.add(crystal);
+      const cl = makeCrystalCluster(rnd, { color: biome.crystal.color, emissive: biome.crystal.emissive, count: 2 + (rnd() * 3 | 0) });
+      cl.position.set(c.x, 0, c.z);
+      group.add(cl);
+    }
+    // props ambientales pequeños extra: raíces (cripta), setas (abismo), rocas
+    const extra = 1 + (rnd() * 2 | 0);
+    for (let e = 0; e < extra; e++) {
+      if (rnd() < 0.45) continue;
+      const c = grid.center(ri(r.x + 1, r.x + r.w - 2), ri(r.z + 1, r.z + r.d - 2));
+      let m;
+      if (isCrypt && rnd() < 0.5) m = makeRoot(rnd);
+      else if (isAbyss && rnd() < 0.6) m = makeMushroom(rnd, { color: biome.crystal?.color ?? 0x9b6bff, emissive: biome.crystal?.emissive ?? 0x5a2fbf });
+      else m = makeRock(rnd, { r: 0.2 + rnd() * 0.3, color: biome.wall, moss: isCrypt, mossColor: 0x44663a });
+      m.position.set(c.x, 0, c.z); m.rotation.y = rnd() * Math.PI * 2;
+      group.add(m);
     }
   }
 
@@ -948,11 +1254,11 @@ export function buildRefuge() {
     for (let x = 1; x < W - 1; x++)
       grid.cells[z][x] = 1;
 
-  const rTex = makeGroundTextures(0x2e2848, { variation: 0.16, normalStrength: 1.5 });
-  if (rTex) { rTex.map.repeat.set(W / 5, H / 5); rTex.normalMap.repeat.set(W / 5, H / 5); }
+  const rTex = makeGroundTextures(0x2e2848, { variation: 0.24, normalStrength: 1.8, tint: 0x6a4fb0, tintAmt: 0.3 });
+  if (rTex) { for (const t of [rTex.map, rTex.normalMap, rTex.roughnessMap]) if (t) t.repeat.set(W / 5, H / 5); }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(W, H),
-    new THREE.MeshStandardMaterial(groundMatParams(0x2e2848, rTex, 0.5))
+    new THREE.MeshStandardMaterial(groundMatParams(0x2e2848, rTex, 0.7))
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -969,18 +1275,27 @@ export function buildRefuge() {
       }
   group.add(instancedBoxes(wallPos, [1, 2, 1], 0x3a3055, { castShadow: true }));
 
-  // cristales del vacío decorativos
+  // cristales del vacío decorativos (racimos) + setas luminosas y rocas
   for (let i = 0; i < 10; i++) {
     const x = ri(3, W - 4), z = ri(3, H - 4);
     if (!grid.cells[z][x] || (Math.abs(x - W / 2) < 4 && Math.abs(z - H / 2) < 6)) continue;
     grid.cells[z][x] = 0;
     const c = grid.center(x, z);
-    const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.2 + Math.random(), 5),
-      new THREE.MeshStandardMaterial({ color: 0xcc99ff, emissive: 0x7744cc, emissiveIntensity: 0.9, roughness: 0.4 }));
-    crystal.position.set(c.x, 0.6, c.z);
-    crystal.rotation.y = Math.random() * Math.PI;
-    crystal.castShadow = true;
-    group.add(crystal);
+    const cl = makeCrystalCluster(Math.random, { color: 0xcc99ff, emissive: 0x7744cc, count: 3 + (Math.random() * 3 | 0), maxH: 1.3 });
+    cl.position.set(c.x, 0, c.z);
+    group.add(cl);
+  }
+  // setas luminosas y piedrecitas dispersas (no bloquean)
+  for (let i = 0; i < 24; i++) {
+    const x = ri(2, W - 3), z = ri(2, H - 3);
+    if (!grid.cells[z][x] || (Math.abs(x - W / 2) < 3 && Math.abs(z - H / 2) < 4)) continue;
+    const c = grid.center(x, z);
+    const m = Math.random() < 0.5
+      ? makeMushroom(Math.random, { color: 0xb88bff, emissive: 0x6a3fcf })
+      : makeRock(Math.random, { r: 0.18 + Math.random() * 0.24, color: 0x3a3055 });
+    m.position.set(c.x + (Math.random() - 0.5) * 0.5, 0, c.z + (Math.random() - 0.5) * 0.5);
+    m.rotation.y = Math.random() * Math.PI * 2;
+    group.add(m);
   }
 
   // curandera

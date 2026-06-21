@@ -29,7 +29,7 @@ const _texCache = new Map();
 
 // Crea (y cachea) una CanvasTexture para el tipo dado.
 // kinds: 'glow' | 'spark' | 'smoke' | 'disc' | 'star'
-export function makeParticleTexture(kind = 'glow', size = 128) {
+export function makeParticleTexture(kind = 'glow', size = 256) {
   const key = `${kind}@${size}`;
   if (_texCache.has(key)) return _texCache.get(key);
 
@@ -41,69 +41,118 @@ export function makeParticleTexture(kind = 'glow', size = 128) {
 
   switch (kind) {
     case 'spark': {
-      // núcleo brillante + halo corto: bueno para chispas/rayo.
+      // núcleo MUY brillante (sobreexpuesto) + halo + cruz de difracción tipo
+      // lens-flare para que cada chispa "queme" en pantalla con additive.
       const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
       g.addColorStop(0.0, 'rgba(255,255,255,1)');
-      g.addColorStop(0.25, 'rgba(255,255,255,0.9)');
-      g.addColorStop(0.5, 'rgba(255,255,255,0.25)');
+      g.addColorStop(0.18, 'rgba(255,255,255,1)');
+      g.addColorStop(0.4, 'rgba(255,255,255,0.55)');
+      g.addColorStop(0.7, 'rgba(255,255,255,0.16)');
       g.addColorStop(1.0, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, size, size);
+      // cruz de difracción (anamórfica) sutil
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 2; i++) {
+        const a = i * Math.PI / 2;
+        const len = cx * 0.92;
+        const grad = ctx.createLinearGradient(
+          cx - Math.cos(a) * len, cx - Math.sin(a) * len,
+          cx + Math.cos(a) * len, cx + Math.sin(a) * len);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.8)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = size * 0.03;
+        ctx.beginPath();
+        ctx.moveTo(cx - Math.cos(a) * len, cx - Math.sin(a) * len);
+        ctx.lineTo(cx + Math.cos(a) * len, cx + Math.sin(a) * len);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
       break;
     }
     case 'smoke': {
-      // suave, sin núcleo duro: humo / nubes.
-      const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
-      g.addColorStop(0.0, 'rgba(255,255,255,0.55)');
-      g.addColorStop(0.5, 'rgba(255,255,255,0.28)');
-      g.addColorStop(1.0, 'rgba(255,255,255,0)');
-      ctx.fillStyle = g;
+      // humo con textura fractal: varias bolas suaves desplazadas para romper la
+      // simetría perfecta y dar cuerpo volumétrico.
+      const base = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+      base.addColorStop(0.0, 'rgba(255,255,255,0.6)');
+      base.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+      base.addColorStop(1.0, 'rgba(255,255,255,0)');
+      ctx.fillStyle = base;
       ctx.fillRect(0, 0, size, size);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const rr = cx * 0.32;
+        const lx = cx + Math.cos(a) * rr;
+        const ly = cx + Math.sin(a) * rr;
+        const lobe = ctx.createRadialGradient(lx, ly, 0, lx, ly, cx * 0.5);
+        lobe.addColorStop(0, 'rgba(255,255,255,0.22)');
+        lobe.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = lobe;
+        ctx.fillRect(0, 0, size, size);
+      }
+      ctx.globalCompositeOperation = 'source-over';
       break;
     }
     case 'disc': {
-      // disco sólido con borde suave: ondas / anillos / salpicaduras.
+      // anillo/onda con borde brillante (más "energético" que un disco plano):
+      // núcleo translúcido + reborde luminoso.
       const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
-      g.addColorStop(0.0, 'rgba(255,255,255,1)');
-      g.addColorStop(0.7, 'rgba(255,255,255,1)');
-      g.addColorStop(0.85, 'rgba(255,255,255,0.6)');
+      g.addColorStop(0.0, 'rgba(255,255,255,0.85)');
+      g.addColorStop(0.55, 'rgba(255,255,255,0.7)');
+      g.addColorStop(0.78, 'rgba(255,255,255,1)');
+      g.addColorStop(0.9, 'rgba(255,255,255,0.85)');
       g.addColorStop(1.0, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, size, size);
       break;
     }
     case 'star': {
-      // destello en estrella de 4 puntas + núcleo: arcano / legendario.
-      const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx * 0.4);
-      g.addColorStop(0, 'rgba(255,255,255,1)');
-      g.addColorStop(1, 'rgba(255,255,255,0.15)');
-      ctx.fillStyle = g;
+      // destello estelar de 6 puntas (3 largas + 3 cortas) + núcleo sobreexpuesto
+      // + halo: lectura "legendaria/arcana" muy vistosa.
+      const halo = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+      halo.addColorStop(0, 'rgba(255,255,255,0.9)');
+      halo.addColorStop(0.25, 'rgba(255,255,255,0.4)');
+      halo.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, size, size);
+      const core = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx * 0.32);
+      core.addColorStop(0, 'rgba(255,255,255,1)');
+      core.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = core;
       ctx.beginPath();
-      ctx.arc(cx, cx, cx * 0.3, 0, Math.PI * 2);
+      ctx.arc(cx, cx, cx * 0.32, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.lineWidth = size * 0.04;
+      ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
-      const arm = cx * 0.95;
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2;
+      const arms = 6;
+      for (let i = 0; i < arms; i++) {
+        const a = (i / arms) * Math.PI * 2;
+        const arm = cx * (i % 2 === 0 ? 0.98 : 0.55);
         const grad = ctx.createLinearGradient(cx, cx, cx + Math.cos(a) * arm, cx + Math.sin(a) * arm);
-        grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.55)');
         grad.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.strokeStyle = grad;
+        ctx.lineWidth = size * (i % 2 === 0 ? 0.045 : 0.03);
         ctx.beginPath();
         ctx.moveTo(cx, cx);
         ctx.lineTo(cx + Math.cos(a) * arm, cx + Math.sin(a) * arm);
         ctx.stroke();
       }
+      ctx.globalCompositeOperation = 'source-over';
       break;
     }
     case 'glow':
     default: {
-      // degradado radial estándar: chispa de fuego, brillo genérico.
+      // degradado radial con núcleo sobreexpuesto: glow más intenso y "caliente".
       const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
       g.addColorStop(0.0, 'rgba(255,255,255,1)');
-      g.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+      g.addColorStop(0.22, 'rgba(255,255,255,0.85)');
+      g.addColorStop(0.5, 'rgba(255,255,255,0.4)');
       g.addColorStop(1.0, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, size, size);
@@ -242,66 +291,101 @@ export function deserializePreset(json) {
 export const PRESETS = {
   fireImpact: normalizePreset({
     name: 'Impacto de fuego', texture: 'glow', blending: 'additive',
-    count: 60, burst: true, lifetime: [0.35, 0.8],
-    shape: 'sphere', shapeRadius: 0.25, speed: [2.5, 6], gravity: -1.5, drag: 0.6,
-    size: { start: [0.4, 0.9], end: 0.0 },
-    color: { start: '#fff2a8', end: '#b3160c' }, alpha: { start: 1, end: 0 },
+    count: 130, burst: true, lifetime: [0.4, 1.0],
+    shape: 'sphere', shapeRadius: 0.3, speed: [3, 8], gravity: -2, drag: 0.6,
+    size: { start: [0.55, 1.2], end: 0.0 },
+    color: { start: '#fffbe0', end: '#b3160c' }, alpha: { start: 1, end: 0 },
   }),
   iceBurst: normalizePreset({
     name: 'Estallido de hielo', texture: 'spark', blending: 'additive',
-    count: 50, burst: true, lifetime: [0.4, 0.9],
-    shape: 'sphere', shapeRadius: 0.2, speed: [3, 7], gravity: 2.5, drag: 0.3,
-    size: { start: [0.18, 0.4], end: 0.0 },
-    color: { start: '#ffffff', end: '#3aa7ff' }, alpha: { start: 1, end: 0 }, spin: 180,
+    count: 110, burst: true, lifetime: [0.45, 1.0],
+    shape: 'sphere', shapeRadius: 0.25, speed: [4, 9], gravity: 2.5, drag: 0.3,
+    size: { start: [0.22, 0.55], end: 0.0 },
+    color: { start: '#ffffff', end: '#3aa7ff' }, alpha: { start: 1, end: 0 }, spin: 220,
   }),
   lightningSpark: normalizePreset({
     name: 'Chispa de rayo', texture: 'spark', blending: 'additive',
-    count: 36, burst: true, lifetime: [0.12, 0.35],
-    shape: 'cone', shapeRadius: 0.1, coneAngle: 55, speed: [6, 12], gravity: 0, drag: 0.8,
-    size: { start: [0.15, 0.35], end: 0.0 },
+    count: 80, burst: true, lifetime: [0.12, 0.4],
+    shape: 'cone', shapeRadius: 0.1, coneAngle: 60, speed: [8, 16], gravity: 0, drag: 0.8,
+    size: { start: [0.18, 0.45], end: 0.0 },
     color: { start: '#ffffff', end: '#9b6bff' }, alpha: { start: 1, end: 0 },
   }),
   poisonCloud: normalizePreset({
     name: 'Nube de veneno', texture: 'smoke', blending: 'normal',
-    count: 26, burst: false, duration: 2.0, rate: 18, lifetime: [1.4, 2.6],
-    shape: 'disc', shapeRadius: 0.6, speed: [0.2, 0.8], gravity: -0.4, drag: 0.5,
-    size: { start: [0.7, 1.3], end: 1.8 },
-    color: { start: '#9bff5e', end: '#2e5d18' }, alpha: { start: 0.55, end: 0 }, spin: 20,
+    count: 44, burst: false, duration: 2.2, rate: 30, lifetime: [1.4, 2.8],
+    shape: 'disc', shapeRadius: 0.7, speed: [0.2, 0.9], gravity: -0.4, drag: 0.5,
+    size: { start: [0.8, 1.5], end: 2.2 },
+    color: { start: '#9bff5e', end: '#2e5d18' }, alpha: { start: 0.6, end: 0 }, spin: 24,
   }),
   arcaneFlash: normalizePreset({
     name: 'Destello arcano', texture: 'star', blending: 'additive',
-    count: 30, burst: true, lifetime: [0.4, 0.9],
-    shape: 'sphere', shapeRadius: 0.15, speed: [1.5, 4], gravity: 0, drag: 0.5,
-    size: { start: [0.5, 1.0], end: 0.0 },
-    color: { start: '#e9c6ff', end: '#7a3cff' }, alpha: { start: 1, end: 0 }, spin: 90,
+    count: 64, burst: true, lifetime: [0.45, 1.1],
+    shape: 'sphere', shapeRadius: 0.2, speed: [2, 5], gravity: 0, drag: 0.5,
+    size: { start: [0.6, 1.3], end: 0.0 },
+    color: { start: '#f4e0ff', end: '#7a3cff' }, alpha: { start: 1, end: 0 }, spin: 110,
   }),
   bloodSplatter: normalizePreset({
     name: 'Salpicadura de sangre', texture: 'disc', blending: 'normal',
-    count: 34, burst: true, lifetime: [0.4, 0.85],
-    shape: 'cone', shapeRadius: 0.1, coneAngle: 65, speed: [2.5, 6], gravity: 9, drag: 0.1,
-    size: { start: [0.12, 0.3], end: 0.05 },
-    color: { start: '#c20a0a', end: '#5a0303' }, alpha: { start: 1, end: 0 },
+    count: 60, burst: true, lifetime: [0.45, 0.95],
+    shape: 'cone', shapeRadius: 0.12, coneAngle: 70, speed: [3, 8], gravity: 11, drag: 0.1,
+    size: { start: [0.14, 0.38], end: 0.05 },
+    color: { start: '#e01414', end: '#4a0202' }, alpha: { start: 1, end: 0 },
   }),
   goldPickup: normalizePreset({
     name: 'Recogida de oro', texture: 'glow', blending: 'additive',
-    count: 24, burst: true, lifetime: [0.5, 1.0],
-    shape: 'ring', shapeRadius: 0.35, speed: [1, 2.5], gravity: -3, drag: 0.4,
-    size: { start: [0.2, 0.45], end: 0.0 },
-    color: { start: '#fff0a0', end: '#e0a51e' }, alpha: { start: 1, end: 0 }, spin: 60,
+    count: 44, burst: true, lifetime: [0.5, 1.1],
+    shape: 'ring', shapeRadius: 0.35, speed: [1.2, 3], gravity: -3.5, drag: 0.4,
+    size: { start: [0.25, 0.55], end: 0.0 },
+    color: { start: '#fff6c0', end: '#e0a51e' }, alpha: { start: 1, end: 0 }, spin: 70,
   }),
   levelUp: normalizePreset({
     name: 'Subida de nivel', texture: 'star', blending: 'additive',
-    count: 48, burst: true, lifetime: [0.7, 1.4],
-    shape: 'ring', shapeRadius: 0.5, speed: [1.5, 3.5], gravity: -2.5, drag: 0.3,
-    size: { start: [0.4, 0.8], end: 0.0 },
-    color: { start: '#fff7d6', end: '#f5c542' }, alpha: { start: 1, end: 0 }, spin: 120,
+    count: 96, burst: true, lifetime: [0.8, 1.6],
+    shape: 'ring', shapeRadius: 0.5, speed: [2, 4.5], gravity: -3, drag: 0.3,
+    size: { start: [0.5, 1.1], end: 0.0 },
+    color: { start: '#fffbe6', end: '#f5c542' }, alpha: { start: 1, end: 0 }, spin: 150,
   }),
   legendaryBeam: normalizePreset({
     name: 'Haz legendario', texture: 'glow', blending: 'additive',
-    count: 40, burst: false, duration: 1.6, rate: 60, lifetime: [0.6, 1.2],
-    shape: 'cone', shapeRadius: 0.12, coneAngle: 12, speed: [4, 8], gravity: -3, drag: 0.2,
-    size: { start: [0.3, 0.6], end: 0.0 },
-    color: { start: '#fff4cf', end: '#ff8a1e' }, alpha: { start: 1, end: 0 }, spin: 30,
+    count: 80, burst: false, duration: 1.6, rate: 120, lifetime: [0.6, 1.3],
+    shape: 'cone', shapeRadius: 0.12, coneAngle: 12, speed: [5, 10], gravity: -3, drag: 0.2,
+    size: { start: [0.4, 0.8], end: 0.0 },
+    color: { start: '#fffbe6', end: '#ff8a1e' }, alpha: { start: 1, end: 0 }, spin: 30,
+  }),
+
+  // --- NUEVOS presets reutilizables (capas genéricas de espectáculo) ---
+
+  // Onda de choque plana: anillo expansivo en el suelo (usar al impactar fuerte).
+  shockwave: normalizePreset({
+    name: 'Onda de choque', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.32, 0.42],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.4, 0.5], end: 6.5 },
+    color: { start: '#ffffff', end: '#ffb24d' }, alpha: { start: 0.9, end: 0 },
+  }),
+  // Destello de núcleo: un flash blanco grande y muy corto (golpe seco de luz).
+  coreFlash: normalizePreset({
+    name: 'Destello de núcleo', texture: 'glow', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.12, 0.18],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [2.2, 2.8], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffe9b0' }, alpha: { start: 1, end: 0 },
+  }),
+  // Destello de crítico: estrella dorada + chispas, para golpes críticos.
+  critFlash: normalizePreset({
+    name: 'Crítico', texture: 'star', blending: 'additive',
+    count: 28, burst: true, lifetime: [0.25, 0.55],
+    shape: 'sphere', shapeRadius: 0.18, speed: [5, 11], gravity: 1, drag: 0.7,
+    size: { start: [0.5, 1.1], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffae00' }, alpha: { start: 1, end: 0 }, spin: 200,
+  }),
+  // Brasas ascendentes genéricas (capa de ambiente para fuego/legendario).
+  embersRise: normalizePreset({
+    name: 'Brasas ascendentes', texture: 'spark', blending: 'additive',
+    count: 30, burst: true, lifetime: [0.7, 1.6],
+    shape: 'disc', shapeRadius: 0.5, speed: [0.6, 2], gravity: -2.2, drag: 0.4,
+    size: { start: [0.1, 0.28], end: 0.0 },
+    color: { start: '#ffd27a', end: '#ff3a0c' }, alpha: { start: 1, end: 0 },
   }),
 };
 
@@ -314,7 +398,7 @@ export class ParticleSystem {
   // opts.poolSize: nº máximo de partículas vivas simultáneas (default 2000)
   constructor(scene, opts = {}) {
     this.scene = scene;
-    this.poolSize = opts.poolSize || 2000;
+    this.poolSize = opts.poolSize || 8000;
     const N = this.poolSize;
 
     // Arrays de simulación (CPU).
@@ -570,7 +654,7 @@ function makePointsMaterial(texture, additive) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTex: { value: texture },
-      uScale: { value: 600.0 }, // factor de tamaño en pantalla
+      uScale: { value: 720.0 }, // factor de tamaño en pantalla
     },
     vertexShader: /* glsl */`
       attribute float psize;
