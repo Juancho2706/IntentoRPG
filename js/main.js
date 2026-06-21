@@ -71,6 +71,7 @@ class Game {
       quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null,
       controlScheme: 'wasd', // 'wasd' (WASD+ratón, D4) | 'click' (clic-mover, D2)
       dmgNumbers: true, // mostrar números de daño flotantes
+      renderScale: 1, shadows: 'auto', // opciones de vídeo: escala de resolución y sombras
       volMaster: 1, volMusic: 0.75, volSfx: 0.9, ...opts };
     this.applyAccessibility();
     // gama del dispositivo (0 alta … 3 mínima): semilla de calidad + densidad de
@@ -664,10 +665,23 @@ class Game {
   applyQuality(level) {
     level = Math.max(0, Math.min(3, level | 0));
     this.qualityLevel = level;
-    const dpr = window.devicePixelRatio;
-    const ratios = [Math.min(dpr, 1.75), Math.min(dpr, 1.25), 1, Math.min(dpr, 0.8)];
-    this.renderer.setPixelRatio(ratios[level]);
-    this.sun.castShadow = level < 2;                 // sombras reales solo en alta/media
+    // resolución de render (pixel ratio) por nivel × escala manual del usuario
+    this._baseRatio = [2, 1.5, 1, 0.75][level];
+    this.applyResolution();
+    // SOMBRAS: tamaño de mapa por nivel (alta nítida → baja apagada). El usuario
+    // puede forzar 'off' (gran palanca de FPS) desde las opciones de vídeo.
+    const shadowMap = [2048, 1536, 1024, 0][level];
+    const wantShadow = this.settings.shadows !== 'off' && shadowMap > 0;
+    if (wantShadow) {
+      this.sun.castShadow = true;
+      if (this.sun.shadow.mapSize.x !== shadowMap) {
+        this.sun.shadow.mapSize.set(shadowMap, shadowMap);
+        this.sun.shadow.map?.dispose?.();
+        this.sun.shadow.map = null;   // fuerza a three a recrear el target al nuevo tamaño
+      }
+    } else {
+      this.sun.castShadow = false;
+    }
     // los enemigos NO proyectan sombra de sol: ya tienen sombra de contacto (blob),
     // y con 60+ enemigos su pase de sombras es carísimo (gran coste en PC también).
     // Solo el héroe y el mundo (muros/props) proyectan la sombra del sol.
@@ -678,6 +692,16 @@ class Game {
     this.particles?.setDensity?.(this.particleScale * densByLevel);
     this.resize();
     this.syncPostFX();
+  }
+
+  // Pixel ratio efectivo = tope por nivel × escala de resolución del usuario,
+  // acotado por el DPR real. Es la palanca principal de nitidez↔FPS.
+  applyResolution() {
+    const scale = this.settings.renderScale ?? 1;
+    const dpr = window.devicePixelRatio || 1;
+    const ratio = Math.min(dpr, this._baseRatio ?? 1.75) * scale;
+    this.renderer.setPixelRatio(Math.max(0.4, ratio));
+    this.postfx?.setSize?.(window.innerWidth, window.innerHeight, this.renderer.getPixelRatio());
   }
 
   // Activa/desactiva la proyección de sombras de los enemigos ya presentes.

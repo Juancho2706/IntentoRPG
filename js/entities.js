@@ -187,10 +187,15 @@ export function makePlayerModel(cls, tint = null) {
 
   // equipo por clase
   if (cls.id === 'guerrero') {
+    // espada en grupo propio, en POSE DE GUARDIA (punta arriba-adelante-afuera) para
+    // que en reposo no atraviese el torso/cabeza; el slash la anima desde aquí.
+    const weapon = new THREE.Group();
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.14), std(0xc8ccd4, { metal: 0.7, rough: 0.3, tex: 'metal' }));
-    blade.position.y = 0.42; blade.castShadow = true;
+    blade.position.y = 0.45; blade.castShadow = true;
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.07), std(0x7a5a2a, { metal: 0.5, tex: 'metal' }));
-    rhand.add(blade, guard);
+    weapon.add(blade, guard);
+    weapon.rotation.set(0.6, 0, -0.28);   // punta hacia delante (+z) y afuera (+x)
+    rhand.add(weapon);
     const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 16), std(0x8a6a3a, { metal: 0.4, rough: 0.4, tex: 'metal' }));
     shield.rotation.x = Math.PI / 2; shield.position.set(-0.04, -0.08, 0.14);
     lhand.add(shield);
@@ -1008,9 +1013,14 @@ export class Player {
       // brazo izquierdo: contrabalanceo al andar / vaivén leve en reposo
       const idle = Math.sin(t * 1.5) * 0.05;
       a.armL.rotation.x = moving ? -sw * 0.55 : idle;
-      // brazo derecho (activo): caminar + SWING (anticipación→golpe→retorno) + pose de cast
+      // brazo derecho (activo): caminar + SLASH diagonal (anticipación→barrido→retorno) + pose de cast
       const raise = this.castPoseT * (this.castPoseDir || 0);
-      a.armR.rotation.x = (moving ? sw * 0.55 : -idle) + this._swingPose() + raise;
+      const sa = this._swingArm();
+      const ss = this.classId === 'guerrero' ? 1 : 0.6;   // el guerrero hace el slash completo
+      a.armR.rotation.x = (moving ? sw * 0.55 : -idle) + (sa ? sa.x * ss : 0) + raise;
+      a.armR.rotation.z = sa ? sa.z * ss : 0;
+      // el cuerpo se inclina hacia el golpe (peso/follow-through)
+      a.rig.rotation.z = sa ? sa.lean * ss : 0;
       // cabeza: contramovimiento al andar + respiración
       if (a.head) a.head.rotation.x = (moving ? -Math.sin(wt * 2) * 0.04 : breathe * 0.6);
       // capa con inercia: reacciona a la velocidad y al golpe
@@ -1020,14 +1030,22 @@ export class Player {
     }
   }
 
-  // Curva del swing del brazo derecho a partir de `this.swing` (1→0): anticipación
-  // (lo lleva atrás), golpe rápido hacia delante y recuperación suave. Da peso al ataque.
-  _swingPose() {
-    const s = this.swing; if (s <= 0) return 0;
-    const p = 1 - s;                                   // fase 0 → 1
-    if (p < 0.18) return (p / 0.18) * 0.5;             // anticipación (atrás/arriba)
-    if (p < 0.5) return 0.5 - ((p - 0.18) / 0.32) * 2.4; // golpe (+0.5 → −1.9)
-    return -1.9 * (1 - (p - 0.5) / 0.5);               // recuperación (−1.9 → 0)
+  // Slash diagonal del brazo derecho a partir de `this.swing` (1→0): carga arriba-
+  // derecha (anticipación), barrido rápido abajo-izquierda (golpe) y recuperación.
+  // Devuelve {x,z,lean} (rotaciones del hombro + inclinación del torso) o null.
+  _swingArm() {
+    const s = this.swing; if (s <= 0) return null;
+    const p = 1 - s;                                  // fase 0 → 1
+    if (p < 0.2) {                                    // anticipación: cargar arriba-derecha
+      const w = p / 0.2;
+      return { x: -1.4 * w, z: 0.7 * w, lean: 0.07 * w };
+    }
+    if (p < 0.5) {                                    // golpe: barrido diagonal abajo-izquierda
+      const w = (p - 0.2) / 0.3;
+      return { x: -1.4 + 1.1 * w, z: 0.7 - 1.7 * w, lean: 0.07 - 0.27 * w };
+    }
+    const w = (p - 0.5) / 0.5;                        // recuperación suave
+    return { x: -0.3 * (1 - w), z: -1.0 * (1 - w), lean: -0.2 * (1 - w) };
   }
 
   // Dispara una pose breve de lanzamiento de habilidad. El tipo ajusta el gesto:

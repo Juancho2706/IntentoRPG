@@ -1003,6 +1003,12 @@ export class UI {
         { t: 'select', key: 'quality', icon: 'rocket', label: 'Calidad gráfica', def: 'auto',
           opts: [['auto', 'Automática'], [0, 'Alta'], [1, 'Media'], [2, 'Baja'], [3, 'Mínima']],
           onChange: (v) => g.setQuality?.(v === 'auto' ? 'auto' : parseInt(v, 10)) },
+        { t: 'range', icon: 'eye', label: 'Escala de resolución', min: 50, max: 150, step: 5,
+          get: () => Math.round((g.settings.renderScale ?? 1) * 100),
+          set: (v) => { g.settings.renderScale = v / 100; g.applyResolution?.(); } },
+        { t: 'select', key: 'shadows', icon: 'sun', label: 'Sombras', def: 'auto',
+          opts: [['auto', 'Según calidad'], ['off', 'Desactivadas (más FPS)']],
+          onChange: () => g.applyQuality?.(g.qualityLevel ?? 0) },
         { t: 'toggle', key: 'postfx', icon: 'magic', label: 'Efectos visuales (bloom, postproceso)', def: true, onChange: () => g.syncPostFX?.() },
         { t: 'toggle', key: 'ao', icon: 'bulb', label: 'Oclusión ambiental', def: true, onChange: () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); } },
         { t: 'toggle', key: 'outline', icon: 'paint', label: 'Contorno', def: true, onChange: () => { g.applyQuality?.(g.qualityLevel ?? 0); g.syncPostFX?.(); } },
@@ -1156,10 +1162,10 @@ export class UI {
   // presets de gráficos: fijan varios ajustes de golpe
   applyGraphicsPreset(id) {
     const g = this.game, s = g.settings;
-    if (id === 'bateria') { s.postfx = false; s.ao = false; s.outline = false; s.perfHud = false; g.setQuality?.(3); }
-    else if (id === 'equilibrado') { s.postfx = true; s.ao = true; s.outline = true; g.setQuality?.('auto'); }
-    else if (id === 'calidad') { s.postfx = true; s.ao = true; s.outline = true; g.setQuality?.(0); }
-    g.syncPostFX?.(); g.saveSettings();
+    if (id === 'bateria') { s.postfx = false; s.ao = false; s.outline = false; s.perfHud = false; s.shadows = 'off'; s.renderScale = 0.75; g.setQuality?.(3); }
+    else if (id === 'equilibrado') { s.postfx = true; s.ao = true; s.outline = true; s.shadows = 'auto'; s.renderScale = 1; g.setQuality?.('auto'); }
+    else if (id === 'calidad') { s.postfx = true; s.ao = true; s.outline = true; s.shadows = 'auto'; s.renderScale = 1; g.setQuality?.(0); }
+    g.applyResolution?.(); g.syncPostFX?.(); g.saveSettings();
     this.message('⚙️ Preset aplicado', 1800);
   }
 
