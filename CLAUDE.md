@@ -39,6 +39,7 @@ desktop, guardado en `localStorage`. Texto del juego en **español**.
 ## Patrones clave
 - **Poderes** (`player.powers` Set): el punto de extensión de comportamiento. Se llenan en `recompute()` (items, paragon, **nodos de maestría**) y se consumen en combate (`rollDamage`, `Enemy.takeDamage`, `onEnemyKilled`, `onDealHit`, `Player.takeDamage`). Para un efecto nuevo: añade un `power` a un nodo/objeto y cabléalo en el hook adecuado.
 - **`recompute()`** es la única fuente de `player.stats`. Cualquier bonus nuevo se suma ahí.
+- **Fórmulas de combate**: SOLO en `js/combat-math.js` (puro): daño = arma × coef × (1+Σaditivo) × atributo × crítico × vulnerable × Π[×] (máx 3 multiplicadores), topes (`CAPS`), defensas en capas, curva `G(AL)`, Tormento. Un bonus "+X %" va al saco aditivo (stat `dmgPct` o `addPct` de la habilidad); un multiplicador nuevo se registra con `registerMultiplier`. Tras tocar números, `node tests/balance-bench.mjs --report`.
 - **Nuevo sistema de progresión** → considera un **mixin** nuevo (como `game-mastery.js`) y regístralo en `Object.assign` + `test43-mixins`.
 - **`ui.js` y `main.js` NO se importan headless** (usan `window`/DOM): la lógica testeable vive en módulos puros (data/items/economy/entities/world/zones). Los tests usan un `game` "fake".
 

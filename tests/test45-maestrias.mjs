@@ -1,9 +1,9 @@
 // Maestrías de clase (ramas): integridad de datos, puntos por nivel, elección,
 // asignación con gating por req, aplicación en recompute (stats + powers) y respec.
 import * as THREE from 'three';
-import { Player } from '../js/entities.js';
+import { Player, Enemy } from '../js/entities.js';
 import { masteryMethods } from '../js/game-mastery.js';
-import { MASTERIES, findMastery, MASTERY_START_LEVEL, xpForLevel } from '../js/data.js';
+import { MASTERIES, findMastery, MASTERY_START_LEVEL, xpForLevel, ENEMIES, scaleEnemy } from '../js/data.js';
 import { buildDungeon } from '../js/world.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -75,13 +75,14 @@ if (!p.powers.has('m_berserk')) throw new Error('el capstone no registró el pod
 if (!p.powers.has('festin')) throw new Error('la notable no registró el poder festin');
 console.log('Gating por req: capstone solo con 8 nodos; poderes registrados en recompute ✓');
 
-// --- m_berserk en rollDamage: con vida baja pega más ---
-p.hp = p.stats.maxHP * 0.3; // <40%
-let sumLow = 0; for (let i = 0; i < 400; i++) sumLow += p.rollDamage(1, 100).dmg; // critBonus 100 → siempre crítico (determinista en crit)
-p.hp = p.stats.maxHP;       // vida alta
-let sumHigh = 0; for (let i = 0; i < 400; i++) sumHigh += p.rollDamage(1, 100).dmg;
-if (!(sumLow > sumHigh * 1.2)) throw new Error('m_berserk no aumenta el daño con vida baja');
-console.log('Capstone m_berserk: +daño con vida baja, activo en rollDamage ✓');
+// --- m_berserk: multiplicador [×] (combat-math) al impactar: con vida baja pega más ---
+const dummy = new Enemy(g, { ...ENEMIES[0], hp: 1e6 }, new THREE.Vector3(6, 0, 0));
+p.hp = p.stats.maxHP * 0.3; // <40 %
+const dLow = dummy.takeDamage(1000, false);
+p.hp = p.stats.maxHP * 0.6; // ni Furia (>80 %) ni Sed de Batalla (<40 %)
+const dMid = dummy.takeDamage(1000, false);
+if (!(dLow > dMid * 1.2)) throw new Error('m_berserk no aumenta el daño con vida baja: ' + dMid + '→' + dLow);
+console.log(`Capstone m_berserk: ${dMid} → ${dLow} con vida baja (Enemy.takeDamage) ✓`);
 
 // --- respec: devuelve puntos y limpia ---
 p.gold = 100000;

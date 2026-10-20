@@ -2,6 +2,7 @@
 // Sistema de objetos: generación de loot, rarezas y afijos
 // ============================================================
 import { SUPPORTS } from './data.js';
+import { weaponBase, armorBase, affixScale, itemLevel, ILVL_MAX, ITEM_SCALE_VERSION, LEGACY_ITEM } from './combat-math.js';
 
 export const RARITIES = {
   normal:   { id: 'normal',   name: 'Normal',    color: '#e8e6e0', glow: 0xcccccc, affixes: [0, 0], statMult: 1.0,  weight: 82 },
@@ -93,10 +94,10 @@ export const SETS = [
 // Poderes únicos que cambian cómo juegas (solo en legendarios y reliquias)
 export const LEGENDARY_POWERS = [
   { id: 'festin',      name: 'del Festín',   desc: 'Recuperas 6% de tu vida máxima al matar un enemigo.' },
-  { id: 'volatil',     name: 'Volátil',      desc: 'Los enemigos explotan al morir y dañan a los cercanos.' },
+  { id: 'volatil',     name: 'Volátil',      desc: 'Los enemigos explotan al morir: 50% de tu golpe medio a los cercanos (no encadena).' },
   { id: 'multidisparo', name: 'del Vendaval', desc: 'Tus ataques y habilidades de proyectil lanzan +1 proyectil.' },
   { id: 'agil',        name: 'del Viento',   desc: 'Tu esquiva se recarga un 40% más rápido.' },
-  { id: 'furia',       name: 'de la Furia',  desc: '+25% de daño mientras tu vida esté por encima del 80%.' },
+  { id: 'furia',       name: 'de la Furia',  desc: 'Daño ×1,15 (multiplicador) mientras tu vida esté por encima del 80%.' },
   { id: 'avaricia',    name: 'de la Avaricia', desc: 'Los enemigos sueltan más oro y tienes +30% de hallazgo mágico.' },
 ];
 
@@ -182,6 +183,7 @@ export function rollRarity(bonus = 0) {
 // rng (opcional): stream con semilla (js/rng.js); sin él, Math.random.
 export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonus = null, classHint = null, rng = null) {
   if (rng && rng !== _rng) return withItemRng(rng, () => generateItem(ilvl, forceRarityId, slot, rarityBonus, classHint));
+  ilvl = Math.max(1, Math.min(ILVL_MAX, Math.round(ilvl || 1))); // ilvl acotado (combat-math)
   let basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
   // armas y off-hands acordes a la clase del jugador (la armadura no tiene clase)
   if (classHint) {
@@ -192,7 +194,6 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
   // curva de profundidad más suave: el botín alto se gana bajando (y con hallazgo mágico)
   const bonus = rarityBonus != null ? rarityBonus : Math.min(2.0, (ilvl - 1) * 0.10);
   const rarity = forceRarityId ? RARITIES[forceRarityId] : rollRarity(bonus);
-  const scale = 1 + 0.22 * (ilvl - 1);
 
   const item = {
     uid: itemUid++,
@@ -203,13 +204,15 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
     ilvl,
     rarity: rarity.id,
     affixes: {},
+    sv: ITEM_SCALE_VERSION,
   };
 
   if (base.slot === 'weapon') {
-    const lo = Math.round((3 + 2.0 * (ilvl - 1)) * rarity.statMult * (0.85 + _rand() * 0.3));
-    item.dmg = [Math.max(1, lo), Math.max(2, lo + ri(2, 4 + ilvl))];
+    // poder de arma: sigue la curva única G(ilvl) (combat-math)
+    const lo = Math.max(1, Math.round(weaponBase(ilvl) * rarity.statMult * (0.85 + _rand() * 0.3)));
+    item.dmg = [lo, Math.max(lo + 1, Math.round(lo * (1.5 + _rand() * 0.4)))];
   } else if (ARMOR_SLOTS.includes(base.slot)) {
-    item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * rarity.statMult * (0.85 + _rand() * 0.3)));
+    item.arm = Math.max(1, Math.round(armorBase(ilvl) * rarity.statMult * (0.85 + _rand() * 0.3)));
     if (base.slot === 'chest') item.arm = Math.round(item.arm * 1.5);
     if (base.slot === 'offhand') item.arm = Math.round(item.arm * 1.3);
     if (base.slot === 'belt' || base.slot === 'gloves') item.arm = Math.max(1, Math.round(item.arm * 0.7));
@@ -219,7 +222,7 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
   const nAffixes = ri(rarity.affixes[0], rarity.affixes[1]);
   const rollAffix = (af) => {
     let v = ri(af.min, af.max);
-    if (!af.flat) v = Math.round(v * scale);
+    if (!af.flat) v = Math.round(v * affixScale(af.stat, ilvl));
     v = Math.round(v * rarity.statMult);
     // afijo superior (★): ~8% de probabilidad, 1.5× más fuerte (estilo D4)
     if (rarity.id !== 'normal' && _rand() < 0.08) {
@@ -294,21 +297,21 @@ export function makeGem(ilvl, gemId = null) {
 export function generateSetItem(ilvl) {
   const set = pick(SETS);
   const piece = pick(set.pieces);
-  const scale = 1 + 0.2 * (ilvl - 1);
+  ilvl = itemLevel(ilvl);
   const item = {
     uid: itemUid++, kind: 'item', slot: piece.slot, icon: piece.icon,
     baseName: piece.name, name: piece.name, ilvl,
-    rarity: 'conjunto', setId: set.id, affixes: {},
+    rarity: 'conjunto', setId: set.id, affixes: {}, sv: ITEM_SCALE_VERSION,
   };
   for (const [stat, v] of Object.entries(piece.affixes)) {
     const af = AFFIX_POOL.find(a => a.stat === stat);
-    item.affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * scale)) : v;
+    item.affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * affixScale(stat, ilvl))) : v;
   }
   if (piece.slot === 'weapon') {
-    const lo = Math.max(1, Math.round((3 + 2.0 * (ilvl - 1)) * 1.35 * (0.9 + _rand() * 0.2)));
-    item.dmg = [lo, lo + ri(2, 4 + ilvl)];
+    const lo = Math.max(1, Math.round(weaponBase(ilvl) * 1.35 * (0.9 + _rand() * 0.2)));
+    item.dmg = [lo, Math.max(lo + 1, Math.round(lo * (1.5 + _rand() * 0.4)))];
   } else if (piece.slot === 'helm' || piece.slot === 'chest' || piece.slot === 'boots') {
-    item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * 1.35));
+    item.arm = Math.max(1, Math.round(armorBase(ilvl) * 1.35));
     if (piece.slot === 'chest') item.arm = Math.round(item.arm * 1.5);
   }
   item.value = Math.round((10 + ilvl * 5) * 3);
@@ -327,14 +330,14 @@ const RELICS = {
 export function makeRelic(bossId, ilvl) {
   const r = RELICS[bossId] || RELICS.senor_abismo;
   const pw = LEGENDARY_POWERS.find(p => p.id === r.power);
-  const scale = 1 + 0.2 * (ilvl - 1);
+  ilvl = itemLevel(ilvl);
   const affixes = {};
   for (const [stat, v] of Object.entries(r.stats)) {
     const af = AFFIX_POOL.find(a => a.stat === stat);
-    affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * scale)) : v;
+    affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * affixScale(stat, ilvl))) : v;
   }
   return {
-    uid: itemUid++, kind: 'item', slot: 'amulet', icon: '🏅', relic: true,
+    uid: itemUid++, kind: 'item', slot: 'amulet', icon: '🏅', relic: true, sv: ITEM_SCALE_VERSION,
     baseName: 'Reliquia', name: r.name, ilvl, rarity: 'legendario', affixes,
     power: { id: pw.id, name: pw.name, desc: pw.desc },
     unidentified: true, value: 200 + ilvl * 10,
@@ -392,7 +395,7 @@ export function rerollAffix(item) {
   const af = pool[Math.floor(_rand() * pool.length)];
   const rarity = RARITIES[item.rarity] || RARITIES.normal;
   let v = ri(af.min, af.max);
-  if (!af.flat) v = Math.round(v * (1 + 0.22 * (item.ilvl - 1)));
+  if (!af.flat) v = Math.round(v * affixScale(af.stat, item.ilvl || 1));
   v = Math.max(1, Math.round(v * rarity.statMult));
   item.affixes[af.stat] = v;
   item.rerolls = (item.rerolls || 0) + 1;
@@ -522,6 +525,11 @@ export function makeGold(floor) {
 export function rollDrops(floor, opts = {}) {
   if (opts.rng && opts.rng !== _rng) return withItemRng(opts.rng, () => rollDrops(floor, opts));
   const drops = [];
+  // ilvl ACOTADO (combat-math.ILVL_MAX): el piso/grieta sigue subiendo la rareza
+  // y el oro, pero el poder del objeto deja de crecer; el Tormento aporta CALIDAD.
+  const il = itemLevel(floor);
+  const quality = Math.max(0, Math.min(MAX_QUALITY, opts.quality | 0));
+  const withQ = it => { if (quality && it && it.kind === 'item') it.quality = Math.max(it.quality || 0, quality); return it; };
   const mf = (opts.mf || 0) / 100;
   const qty = 1 + (opts.qty || 0) / 100;
   // bonus de rareza por profundidad + hallazgo mágico (el MF empuja hacia lo alto)
@@ -532,23 +540,23 @@ export function rollDrops(floor, opts = {}) {
 
   if (_rand() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
   if (_rand() < (opts.potionChance ?? 0.22)) drops.push(makePotion(_rand() < 0.6 ? 'hp' : 'mp'));
-  if (_rand() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(floor));
+  if (_rand() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(il));
   if (_rand() < (opts.runeChance ?? 0.025) * (1 + mf)) drops.push(makeRune());
-  if (_rand() < (opts.charmChance ?? 0.012) * (1 + mf)) drops.push(makeCharm(floor));
+  if (_rand() < (opts.charmChance ?? 0.012) * (1 + mf)) drops.push(makeCharm(il));
   if (_rand() < (opts.supportChance ?? 0.015) * (1 + mf)) drops.push(makeSupport());
 
   let count = opts.minItems || 0;
   if (_rand() < (opts.itemChance ?? 0.18) * qty) count++;
   for (let i = 0; i < count; i++) {
-    if (!opts.forceRarity && _rand() < setCh) drops.push(generateSetItem(floor));
-    else drops.push(generateItem(floor, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus, opts.cls));
+    if (!opts.forceRarity && _rand() < setCh) drops.push(withQ(generateSetItem(il)));
+    else drops.push(withQ(generateItem(il, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus, opts.cls)));
   }
   if (opts.boss) {
     // el jefe siempre da un raro; la prob. de legendario/set sube con el piso.
     // El clamp va FUERA del (1+mf) para que el Tormento no garantice legendario 100%
     const legCh = Math.min(0.6, (0.06 + floor * 0.015) * (1 + mf * 0.5));
-    drops.push(generateItem(floor, _rand() < legCh ? 'legendario' : 'raro', null, null, opts.cls));
-    if (_rand() < Math.min(0.4, (0.05 + floor * 0.01) * (1 + mf * 0.4))) drops.push(generateSetItem(floor));
+    drops.push(withQ(generateItem(il, _rand() < legCh ? 'legendario' : 'raro', null, null, opts.cls)));
+    if (_rand() < Math.min(0.4, (0.05 + floor * 0.01) * (1 + mf * 0.4))) drops.push(withQ(generateSetItem(il)));
     drops.push(makeGold(floor), makeGold(floor));
   }
   return drops;
@@ -609,4 +617,35 @@ export function itemStatLines(item) {
       lines.push(`· ${statText(stat, v)}`);
   }
   return lines;
+}
+
+// ---------------------------------------------------------
+// Paso 1A — reescalado de objetos guardados con las fórmulas viejas (lineales)
+// a la curva única G(ilvl) de combat-math. Idempotente: marca `sv` en el objeto.
+// Arma: × weaponBase/legacy; armadura: × armorBase/legacy; afijos no planos:
+// × affixScale/legacy (atributos: escala lineal suave). Conjuntos/reliquias solo
+// reescalan arma/armadura (sus afijos ya usaban una base fija pequeña). Gemas,
+// runas y amuletos de mochila no cambian de fórmula. Devuelve true si lo tocó.
+// ---------------------------------------------------------
+const FLAT_STATS = new Set(AFFIX_POOL.filter(a => a.flat).map(a => a.stat));
+export function rescaleItemToCurrent(it) {
+  if (!it || typeof it !== 'object' || it.kind !== 'item') return false;
+  if ((it.sv | 0) >= ITEM_SCALE_VERSION) return false;
+  const il = Math.max(1, it.ilvl || 1);
+  const ilNew = itemLevel(il);
+  if (Array.isArray(it.dmg)) {
+    const f = weaponBase(ilNew) / LEGACY_ITEM.weaponBase(il);
+    it.dmg = [Math.max(1, Math.round(it.dmg[0] * f)), Math.max(2, Math.round(it.dmg[1] * f))];
+    if (it.dmg[1] <= it.dmg[0]) it.dmg[1] = it.dmg[0] + 1;
+  }
+  if (it.arm) it.arm = Math.max(1, Math.round(it.arm * armorBase(ilNew) / LEGACY_ITEM.armorBase(il)));
+  if (!it.setId && !it.relic) {
+    for (const [k, v] of Object.entries(it.affixes || {})) {
+      if (FLAT_STATS.has(k) || typeof v !== 'number') continue;
+      it.affixes[k] = Math.max(1, Math.round(v * affixScale(k, ilNew) / LEGACY_ITEM.affixScale(il)));
+    }
+  }
+  it.ilvl = ilNew;
+  it.sv = ITEM_SCALE_VERSION;
+  return true;
 }

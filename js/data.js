@@ -2,6 +2,8 @@
 // Datos del juego: clases, habilidades, enemigos, constantes
 // ============================================================
 
+import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, BOSS_HP_MULT, UBER_HP_MULT } from './combat-math.js';
+
 export const TIER_LEVELS = [1, 6, 12]; // nivel de personaje para desbloquear cada tier
 
 export function xpForLevel(level) {
@@ -23,7 +25,7 @@ export const CLASSES = {
     baseHP: 45, baseMP: 40, hpPerVit: 4, mpPerEne: 1.5,
     atkRange: 2.1, atkTime: 1.0, ranged: false, atk: 'cleave',
     fists: [3, 6],
-    resource: { id: 'furia', name: 'Furia', icon: '🔥', color: 0xff5a3c, regen: 0, decay: 8, start: 0, gen: 11 },
+    resource: { id: 'furia', name: 'Furia', icon: '🔥', color: 0xff5a3c, regen: 0, decay: 8, start: 0, gen: 13 },
     basicName: 'Tajo', basicDesc: 'Ataque básico: corta a los enemigos cercanos y genera Furia.',
     tree: [
       { id: 'g_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['g_tajo', 'g_mandoble', 'g_embate'] },
@@ -35,18 +37,18 @@ export const CLASSES = {
     ],
     skills: [
       // — n1 BÁSICOS (generan Furia, sin coste; el primero es el ataque de arma) —
-      { id: 'g_tajo', name: 'Tajo', icon: '⚔️', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 11, desc: 'Corta a los enemigos cercanos y genera Furia.' },
+      { id: 'g_tajo', name: 'Tajo', icon: '⚔️', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 13, desc: 'Corta a los enemigos cercanos y genera Furia.' },
       { id: 'g_mandoble', name: 'Mandoble', icon: '🗡️', kind: 'basic', type: 'melee', req: 1, max: 5, mana: [0, 0], cd: 0.1, gen: 15, mult: [1.4, 0.18], range: 2.4, desc: 'Un golpe único contundente. Genera mucha Furia.' },
       { id: 'g_embate', name: 'Embate', icon: '🌀', kind: 'basic', type: 'aoe_self', req: 1, max: 5, mana: [0, 0], cd: 0.1, gen: 9, mult: [0.8, 0.12], radius: 2.5, desc: 'Un barrido corto alrededor. Genera Furia.' },
       // — n2 HABILIDADES I —
       { id: 'torbellino', name: 'Torbellino', icon: '🌪️', kind: 'core', type: 'aoe_self', req: 2, max: 5,
-        mana: [10, 1], cd: 4, mult: [1.2, 0.2], radius: 2.9,
+        mana: [10, 1], cd: 3, mult: [1.2, 0.2], radius: 2.9,
         synergies: [{ from: 'embestida', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Giras con tu arma dañando a todos los enemigos cercanos.' },
       { id: 'embestida', name: 'Embestida', icon: '💨', kind: 'core', type: 'dash', req: 2, max: 5,
         mana: [9, 1], cd: 6, mult: [1.3, 0.22], range: 7, radius: 1.9,
         synergies: [{ from: 'torbellino', pct: 4 }, { from: 'g_martillo', pct: 3 }], desc: 'Cargas hacia el objetivo dañando lo que encuentres al llegar.' },
       { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', kind: 'core', type: 'aoe_target', req: 2, max: 5,
-        mana: [12, 1.5], cd: 5, mult: [1.8, 0.3], radius: 3, range: 7,
+        mana: [12, 1.5], cd: 4, mult: [1.8, 0.3], radius: 3, range: 7,
         synergies: [{ from: 'terremoto', pct: 4 }, { from: 'g_salto', pct: 3 }], desc: 'Aplastas el suelo con tu martillo creando una onda.' },
       // — n3 HABILIDADES II —
       { id: 'terremoto', name: 'Terremoto', icon: '💥', kind: 'core', type: 'aoe_target', req: 5, max: 5,
@@ -100,7 +102,7 @@ export const CLASSES = {
     skills: [
       { id: 'm_dardo', name: 'Dardo Arcano', icon: '✨', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 7, desc: 'Lanza un dardo a distancia y recupera Maná.' },
       { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', kind: 'core', type: 'proj', req: 2, max: 5,
-        mana: [5, 0.8], cd: 0.9, mult: [1.5, 0.3], speed: 13, range: 12, color: 0xff6622,
+        mana: [5, 0.8], cd: 1.5, mult: [1.5, 0.3], speed: 13, range: 12, color: 0xff6622,
         synergies: [{ from: 'rayo', pct: 3 }, { from: 'meteoro', pct: 3 }], desc: 'Lanza una esfera ardiente que explota al impactar.' },
       { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', kind: 'core', type: 'aoe_self', req: 2, max: 5,
         mana: [11, 1.2], cd: 6, mult: [1.0, 0.18], radius: 3.3, slow: 3, color: 0x66ccff,
@@ -290,15 +292,18 @@ export const GOBLIN = {
   hp: 60, dmg: 0, spd: 3.7, xp: 30, range: 1.2, atkTime: 2, scale: 0.8, goblin: true,
 };
 
-// Escalado de enemigos por piso de mazmorra
+// Escalado de enemigos por nivel de área (= piso). Fórmulas en combat-math:
+// vida ∝ G(AL)^ENEMY_CURVE.hpExp, daño ∝ G(AL)^dmgExp, XP lineal. Los jefes multiplican su vida
+// (BOSS_HP_MULT) para combates de ~1 min con el equipo típico (banco de balance).
 export function scaleEnemy(def, floor) {
-  const f = floor - 1;
+  const al = Math.max(1, floor || 1);
+  const bossMul = (def.boss ? BOSS_HP_MULT : 1) * (def.uber ? UBER_HP_MULT : 1);
   return {
     ...def,
-    hp: Math.round(def.hp * (1 + 0.45 * f)),
-    dmg: Math.round(def.dmg * (1 + 0.42 * f)),
-    xp: Math.round(def.xp * (1 + 0.35 * f)),
-    level: floor,
+    hp: Math.max(1, Math.round(def.hp * enemyHpScale(al) * bossMul)),
+    dmg: def.dmg > 0 ? Math.max(1, Math.round(def.dmg * enemyDmgScale(al))) : 0, // el goblin no pega
+    xp: Math.round(def.xp * enemyXpScale(al)),
+    level: al,
   };
 }
 
@@ -312,8 +317,8 @@ export function pickEnemyDef(floor, rng = Math.random) {
 
 // Rarezas de monstruos estilo Diablo 2
 export const ENEMY_RANKS = {
-  campeon: { id: 'campeon', name: 'Campeón', icon: '⚔️', hp: 2.0, dmg: 1.35, xp: 2.5, scale: 1.12, glow: 0x182866, labelCls: 'lbl-champ' },
-  elite:   { id: 'elite',   name: 'Élite',   icon: '☠️', hp: 3.2, dmg: 1.6,  xp: 4.0, scale: 1.28, glow: 0x5a3a00, labelCls: 'lbl-elite' },
+  campeon: { id: 'campeon', name: 'Campeón', icon: '⚔️', hp: RANK_HP.campeon, dmg: RANK_DMG.campeon, xp: 2.5, scale: 1.12, glow: 0x182866, labelCls: 'lbl-champ' },
+  elite:   { id: 'elite',   name: 'Élite',   icon: '☠️', hp: RANK_HP.elite, dmg: RANK_DMG.elite, xp: 4.0, scale: 1.28, glow: 0x5a3a00, labelCls: 'lbl-elite' },
 };
 
 // Afijos de élite. Cada uno es LEGIBLE (aura de color distinta) y tiene
@@ -474,7 +479,7 @@ export const MASTERIES = {
         { id: 'b_n3',  name: 'Ímpetu',        type: 'notable',req: 3, stats: { dmgPct: 12, crit: 4 }, desc: '+12% daño, +4% crítico' },
         { id: 'b_m1',  name: 'Furia sangrienta', type: 'mayor', req: 6, stats: { lph: 5, dmgPct: 8 }, desc: '+5 vida al golpear, +8% daño' },
         { id: 'b_m2',  name: 'Vorágine',      type: 'mayor',  req: 6, stats: { aspdPct: 10, dmgPct: 8 }, desc: '+10% vel. de ataque, +8% daño' },
-        { id: 'b_cap', name: 'Sed de Batalla', type: 'capstone', req: 8, power: 'm_berserk', desc: 'Con vida <40%, +40% de daño' },
+        { id: 'b_cap', name: 'Sed de Batalla', type: 'capstone', req: 8, power: 'm_berserk', desc: 'Con vida <40%, daño ×1,25 (multiplicador)' },
       ] },
     { id: 'guardian', name: 'Guardián', icon: '🛡️',
       desc: 'Muralla viviente: absorbe el castigo y lo devuelve.',
@@ -556,7 +561,7 @@ export const MASTERIES = {
         { id: 'f_n3',  name: 'Concentración', type: 'notable', req: 3, stats: { crit: 10, aspdPct: 6 }, desc: '+10% crítico, +6% vel. de ataque' },
         { id: 'f_m1',  name: 'Cazatesoros', type: 'mayor',  req: 6, stats: { dmgPct: 12, crit: 6 }, desc: '+12% daño, +6% crítico' },
         { id: 'f_m2',  name: 'Ojo letal',   type: 'mayor',  req: 6, stats: { crit: 12 }, desc: '+12% prob. crítica' },
-        { id: 'f_cap', name: 'Tiro Mortal', type: 'capstone', req: 8, power: 'm_deadeye', desc: 'Críticos a enemigos con vida alta infligen +50% de daño' },
+        { id: 'f_cap', name: 'Tiro Mortal', type: 'capstone', req: 8, power: 'm_deadeye', desc: 'Críticos a enemigos con vida >60% infligen daño ×1,25 (multiplicador)' },
       ] },
     { id: 'montaraz', name: 'Montaraz', icon: '🪤',
       desc: 'Control de zona: ralentiza y castiga a las presas.',
@@ -569,7 +574,7 @@ export const MASTERIES = {
         { id: 'm_n3',  name: 'Rastreo',     type: 'notable',req: 3, stats: { dmgPct: 10, spdPct: 6 }, desc: '+10% daño, +6% velocidad' },
         { id: 'm_m1',  name: 'Cepo',        type: 'mayor',  req: 6, stats: { thorns: 18, dmgPct: 8 }, desc: '+18 espinas, +8% daño' },
         { id: 'm_m2',  name: 'Depredador',  type: 'mayor',  req: 6, stats: { crit: 8, dmgPct: 10 }, desc: '+8% crítico, +10% daño' },
-        { id: 'm_cap', name: 'Cacería',     type: 'capstone', req: 8, power: 'm_hunt', desc: 'Infliges +25% de daño a enemigos ralentizados' },
+        { id: 'm_cap', name: 'Cacería',     type: 'capstone', req: 8, power: 'm_hunt', desc: 'Daño ×1,15 a enemigos ralentizados (multiplicador)' },
       ] },
     { id: 'tiradora', name: 'Tiradora Veloz', icon: '💨',
       desc: 'Cadencia y multiproyectil: una tormenta de flechas.',
@@ -692,7 +697,7 @@ export const SUPPORTS = [
   { id: 'poison',  name: 'Veneno', icon: '☠️', desc: 'Aplica veneno: daño por tiempo durante 5s tras el golpe',
     effect: 'DoT veneno 5s', tag: 'pro',
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
-  { id: 'coldblood', name: 'Sangre Fría', icon: '🧊', desc: '+100% de prob. de crítico contra enemigos ralentizados/congelados (combo con Gélido)',
+  { id: 'coldblood', name: 'Sangre Fría', icon: '🧊', desc: 'Crítico al tope (60%) contra enemigos ralentizados/congelados (combo con Gélido)',
     effect: '+crítico vs ralentizados', tag: 'pro',
     types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
   { id: 'overcharge', name: 'Sobrecarga', icon: '💥', desc: '+50% de daño, pero +40% de coste de maná',
@@ -911,7 +916,7 @@ export const PARAGON_CATS = { ofensiva: 'Ofensiva', sustento: 'Sustento', defens
 const PG_CFG = {
   guerrero: {
     leg: {
-      off: { name: 'Sed de Batalla',  stats: { dmgPct: 8 },          power: 'furia',        desc: 'poder de la Furia: +25% daño con vida alta' },
+      off: { name: 'Sed de Batalla',  stats: { dmgPct: 8 },          power: 'furia',        desc: 'poder de la Furia: daño ×1,15 con vida alta' },
       sus: { name: 'Corazón Voraz',   stats: { hp: 40 },             power: 'festin',       desc: 'poder del Festín: cura al matar' },
       def: { name: 'Muralla',         stats: { arm: 30, thorns: 12 },                       desc: '+30 armadura y +12 espinas' },
       uti: { name: 'Cosecha Macabra', stats: { aspdPct: 8 },         power: 'volatil',      desc: 'poder Volátil: los cadáveres estallan' },
@@ -929,7 +934,7 @@ const PG_CFG = {
   },
   arquera: {
     leg: {
-      off: { name: 'Ojo del Halcón',    stats: { crit: 6, dmgPct: 4 }, power: 'furia',        desc: 'poder de la Furia: +25% daño con vida alta' },
+      off: { name: 'Ojo del Halcón',    stats: { crit: 6, dmgPct: 4 }, power: 'furia',        desc: 'poder de la Furia: daño ×1,15 con vida alta' },
       sus: { name: 'Festín del Cazador',stats: { hp: 36, lph: 2 },     power: 'festin',       desc: 'poder del Festín: cura al matar' },
       def: { name: 'Reflejos Felinos',  stats: { arm: 24, aspdPct: 4 },power: 'agil',         desc: 'poder Ágil: esquiva con recarga más rápida' },
       uti: { name: 'Lluvia de Flechas', stats: { aspdPct: 8 },         power: 'multidisparo',  desc: 'poder del Vendaval: +1 proyectil' },

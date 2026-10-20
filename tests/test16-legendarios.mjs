@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { generateItem, makeRelic, LEGENDARY_POWERS, itemStatLines } from '../js/items.js';
-import { Player } from '../js/entities.js';
+import { Player, Enemy } from '../js/entities.js';
+import { ENEMIES, scaleEnemy } from '../js/data.js';
 import { buildDungeon } from '../js/world.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -40,14 +41,16 @@ if (p.powers.has('furia')) throw new Error('un objeto sin identificar no deberí
 furia.unidentified = false;
 p.recompute();
 if (!p.powers.has('furia')) throw new Error('debería dar el poder tras identificar');
-// furia: +25% daño con vida alta
+// furia: multiplicador [×] (combat-math, ×1,15 con vida >80 %) aplicado AL IMPACTAR
+// (Enemy.takeDamage), no en la tirada
+fake.player = p;
+const dummy = new Enemy(fake, { ...scaleEnemy(ENEMIES[0], 1), hp: 1e6 }, new THREE.Vector3(6, 0, 0));
 p.hp = p.stats.maxHP;
-const hi = []; for (let i=0;i<400;i++) hi.push(p.rollDamage(1).dmg);
+const hi = dummy.takeDamage(100, false);
 p.hp = p.stats.maxHP * 0.5;
-const lo = []; for (let i=0;i<400;i++) lo.push(p.rollDamage(1).dmg);
-const avg = a => a.reduce((s,x)=>s+x,0)/a.length;
-if (avg(hi) <= avg(lo) * 1.1) throw new Error('furia no aumentó el daño con vida alta');
-console.log(`Poder Furia: daño ${avg(lo).toFixed(0)} (vida baja) → ${avg(hi).toFixed(0)} (vida alta) ✓`);
+const lo = dummy.takeDamage(100, false);
+if (!(hi > lo * 1.1)) throw new Error('furia no aumentó el daño con vida alta: ' + lo + '→' + hi);
+console.log(`Poder Furia: daño ${lo} (vida baja) → ${hi} (vida alta) ✓`);
 
 // agil: esquiva con menos enfriamiento
 const agil = generateItem(8,'legendario'); agil.power={id:'agil',name:'',desc:''}; agil.unidentified=false;

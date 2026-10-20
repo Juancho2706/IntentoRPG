@@ -137,7 +137,7 @@ export const zoneLifeMethods = {
     const pos = this.randomZoneCellFrom(w, w.spawn, 30) || this.randomZoneCellFrom(w, w.spawn, 15);
     if (!pos) return;
     const def = scaleEnemy(bossForFloor(w.scaleFloor + 3), w.scaleFloor + 3);
-    def.hp = Math.round(def.hp * 1.8);
+    def.hp = Math.round(def.hp * 1.3); // Paso 1A: los jefes ya llevan BOSS_HP_MULT (antes ×1,8)
     def.stronghold = biome;
     def.rankLabel = `🏰 Guardián del Bastión`;
     def.labelCls = 'lbl-elite';

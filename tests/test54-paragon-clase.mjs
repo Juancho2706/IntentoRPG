@@ -50,25 +50,25 @@ console.log(`Glifo de familia: ${baseV} → ${famV} con un adyacente de su cuadr
 //        junto a un nodo de su familia (ofensiva) que junto a otra (defensa) ---
 const world = buildDungeon(1);
 const mkGame = () => { const g = { ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, world, enemies: [], input: { joyDir: null, keyDir: null }, save() {} }; Object.assign(g, economyMethods); return g; };
-// famAdj grande para que la diferencia supere el redondeo de dmgMax
+// se mide el saco aditivo stats.dmgPct (Paso 1A: dmgMax redondea con puños)
 const mkGlyph = () => { const o = makeGlyph(2); o.glyphId = 'g_dmg'; o.stat = 'dmgPct'; o.per = 5; o.adj = 0.5; o.fam = 'ofensiva'; o.famAdj = 10; o.rank = 2; return o; };
 
 // Escenario A: socket 3_3 con su único adyacente activo OFENSIVO (4_3)
 const gA = mkGame(); const pA = new Player(gA, 'maga'); gA.player = pA; pA.paragon.points = 20;
 gA.allocateParagonNode('4_3'); gA.allocateParagonNode('3_3');
 if (!pA.paragon.nodes['3_3']) throw new Error('A: no se activó 3_3');
-const aNo = pA.stats.dmgMax; pA.materials = [mkGlyph()]; gA.socketGlyph('3_3', 0);
-const contribA = pA.stats.dmgMax - aNo; // adj=1, famAdj=1 (4_3 ofensiva)
+const aNo = pA.stats.dmgPct; pA.materials = [mkGlyph()]; gA.socketGlyph('3_3', 0);
+const contribA = pA.stats.dmgPct - aNo; // adj=1, famAdj=1 (4_3 ofensiva)
 
 // Escenario B: socket 3_3 con su único adyacente activo de DEFENSA (3_4)
 const gB = mkGame(); const pB = new Player(gB, 'maga'); gB.player = pB; pB.paragon.points = 20;
 gB.allocateParagonNode('3_4'); gB.allocateParagonNode('3_3');
 if (!pB.paragon.nodes['3_3']) throw new Error('B: no se activó 3_3');
-const bNo = pB.stats.dmgMax; pB.materials = [mkGlyph()]; gB.socketGlyph('3_3', 0);
-const contribB = pB.stats.dmgMax - bNo; // adj=1, famAdj=0 (3_4 defensa)
+const bNo = pB.stats.dmgPct; pB.materials = [mkGlyph()]; gB.socketGlyph('3_3', 0);
+const contribB = pB.stats.dmgPct - bNo; // adj=1, famAdj=0 (3_4 defensa)
 
 if (!(contribA > contribB)) throw new Error(`el bonus de familia no se refleja en recompute (A=${contribA} debe > B=${contribB})`);
-console.log(`Recompute: glifo ofensivo aporta +${contribA} dmgMax junto a familia vs +${contribB} junto a otra familia ✓`);
+console.log(`Recompute: glifo ofensivo aporta +${contribA}% daño junto a familia vs +${contribB}% junto a otra familia ✓`);
 
 void THREE;
 console.log('\n✅ PARAGON TEMÁTICO + GLIFOS DE FAMILIA OK');

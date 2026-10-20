@@ -5,44 +5,62 @@ import { Player } from '../js/entities.js';
 import { generateItem, rollDrops, GLYPH_TYPES } from '../js/items.js';
 import { scaleEnemy, ENEMIES, bossForFloor, PARAGON_BOARD } from '../js/data.js';
 import { buildDungeon } from '../js/world.js';
+import { CRIT_MULT, expectedMitigation, tormentMods } from '../js/combat-math.js';
+import { createRng, hashSeed } from '../js/rng.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 const world = buildDungeon(1);
 const fake = { ui: { spawnText() {}, message() {} }, sfx() {}, addShake() {}, vibrate() {}, tip() {}, spawnBurst() {}, input: { joyDir: null, keyDir: null }, world, enemies: [] };
 
-function buildHero(floor) {
+function buildHero(floor, seed = null) {
+  const rng = seed == null ? null : createRng(hashSeed('t38', floor, seed)); // misma semilla = mismo equipo
   const p = new Player(fake, 'guerrero');
   p.level = Math.min(20 + Math.max(0, floor - 16) * 2, Math.max(1, floor + 4));
   const pts = 5 * (Math.min(p.level, 20) - 1);
   p.attributes.fue += Math.round(pts * 0.6); p.attributes.vit += Math.round(pts * 0.4);
   for (const slot of ['weapon', 'helm', 'chest', 'boots', 'gloves', 'pants', 'shoulders', 'belt', 'offhand', 'ring', 'amulet']) {
     let best = null, bv = -1;
-    for (let i = 0; i < 30; i++) { const it = generateItem(Math.max(1, floor), 'raro', slot); const v = (it.dmg ? it.dmg[0] + it.dmg[1] : 0) + (it.arm || 0) + Object.values(it.affixes).reduce((a, b) => a + b, 0); if (v > bv) { bv = v; best = it; } }
+    for (let i = 0; i < 30; i++) { const it = generateItem(Math.max(1, floor), 'raro', slot, null, null, rng); const v = (it.dmg ? it.dmg[0] + it.dmg[1] : 0) + (it.arm || 0) + Object.values(it.affixes).reduce((a, b) => a + b, 0); if (v > bv) { bv = v; best = it; } }
     p.equipment[slot] = best;
   }
   p.recompute(); return p;
 }
 const median = arr => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)];
 let fail = false;
+const T0 = {};
 
-// 1) Tormento dentro de rangos sanos (ef.piso = base + T)
+// 1) Tormento (Paso 1A): multiplicadores por escalón SIN subir el nivel de área;
+//    el botín gana calidad (masterwork), no ilvl. Con el equipo que da cada
+//    escalón, subir de Tormento debe ser SIEMPRE más difícil (antes, +1 piso/T
+//    subía el ilvl del botín y T10 con equipo de T10 era MÁS FÁCIL que T0).
 console.log('== Tormento ==');
-const TB = { ttkN: [0.3, 6], ttkB: [5, 70], hits: [12, 95] };
-for (const [base, T] of [[8, 0], [8, 6], [16, 0], [16, 6], [16, 10], [25, 0], [25, 10]]) {
-  const ef = base + T;
-  const runs = [];
-  for (let r = 0; r < 5; r++) {
-    const p = buildHero(base), s = p.stats;
-    const dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + s.crit / 100 * 0.8) / s.atkTime;
-    const e = scaleEnemy(ENEMIES.find(x => x.id === 'esqueleto'), ef), b = scaleEnemy(bossForFloor(ef), ef);
-    const red = s.arm / (s.arm + 60 + 16 * ef);
-    runs.push({ ttkN: e.hp / dps, ttkB: b.hp / dps, hits: s.maxHP / Math.max(1, e.dmg * (1 - Math.min(0.75, red))) });
+for (const base of [8, 16, 25]) {
+  let prev = null;
+  for (const T of [0, 3, 6, 10]) {
+    const tm = tormentMods(T);
+    const runs = [];
+    for (let r = 0; r < 5; r++) {
+      const p = buildHero(base, r);
+      for (const it of Object.values(p.equipment)) if (it) it.quality = tm.quality; // botín del escalón
+      p.recompute();
+      const s = p.stats;
+      const dps = p.avgHit(1) * (1 + s.crit / 100 * (CRIT_MULT - 1)) / s.atkTime;
+      const e = scaleEnemy(ENEMIES.find(x => x.id === 'esqueleto'), base), b = scaleEnemy(bossForFloor(base), base);
+      runs.push({ ttkN: e.hp * tm.hp / dps, ttkB: b.hp * tm.hp / dps, hits: s.maxHP / Math.max(1, e.dmg * tm.dmg * expectedMitigation(s, base)) });
+    }
+    const row = { ttkN: median(runs.map(r => r.ttkN)), ttkB: median(runs.map(r => r.ttkB)), hits: median(runs.map(r => r.hits)) };
+    const errs = [];
+    if (prev && !(row.ttkN > prev.ttkN)) errs.push('TTK no sube');
+    if (prev && !(row.hits < prev.hits)) errs.push('aguante no baja');
+    if (T === 10 && !(row.ttkB > prev0(base).ttkB * 2.5)) errs.push('T10 debe ser >×2,5 más lento que T0');
+    if (row.hits < 8) errs.push('one-shots (aguantas < 8 golpes)');
+    console.log(`piso ${String(base).padStart(2)} T${String(T).padStart(2)}: TTK básico ${row.ttkN.toFixed(1)}s · jefe ${row.ttkB.toFixed(0)}s · ${row.hits.toFixed(0)} golpes ${errs.length ? '❌ ' + errs.join(',') : '✓'}`);
+    if (errs.length) fail = true;
+    if (T === 0) T0[base] = row;
+    prev = row;
   }
-  const row = { ttkN: median(runs.map(r => r.ttkN)), ttkB: median(runs.map(r => r.ttkB)), hits: median(runs.map(r => r.hits)) };
-  const errs = Object.entries(TB).filter(([k, [lo, hi]]) => row[k] < lo || row[k] > hi).map(([k]) => `${k}=${row[k].toFixed(1)}`);
-  console.log(`piso ${String(base).padStart(2)} T${String(T).padStart(2)}: TTK ${row.ttkN.toFixed(1)}s · jefe ${row.ttkB.toFixed(0)}s · ${row.hits.toFixed(0)} golpes ${errs.length ? '❌ ' + errs.join(',') : '✓'}`);
-  if (errs.length) fail = true;
 }
+function prev0(base) { return T0[base]; }
 
 // 2) Tasas de loot: conjuntos y legendario de jefe no se vuelven rutina con Tormento
 console.log('== Loot ==');

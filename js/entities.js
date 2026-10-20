@@ -6,6 +6,8 @@ import { CLASSES, skillVal, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 import { migrateSave, serializePlayer } from './save-schema.js';
+import { CAPS, CRIT_MULT, VULN_MULT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
+  multiplierProduct, mitigate, leechRefill, leechTake, hazardDamage, resourceRegen } from './combat-math.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
@@ -582,8 +584,15 @@ export class Player {
   // estadísticas derivadas de atributos + equipo + buffs + pasivas
   recompute() {
     const a = { ...this.attributes };
+    // Sacos de stats (combat-math). dmgPct = saco ADITIVO de daño; critDmg = extra
+    // de daño crítico (también aditivo, solo en críticos); dr = reducción de daño
+    // %; block = prob. de bloqueo; res* = resistencias elementales (0 por defecto).
+    // HOOK DE TALENTOS: un nodo que "suma" declara stats (van por addStats a su
+    // saco); uno "multiplicativo" se registra con combat-math.registerMultiplier
+    // (condicional) o se añade a this.extraMultipliers ([{id, mult}] estáticos).
     const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0, mf: 0,
-                   lph: 0, mph: 0, cdr: 0, thorns: 0, goldPct: 0 };
+                   lph: 0, mph: 0, cdr: 0, thorns: 0, goldPct: 0,
+                   critDmg: 0, dr: 0, block: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -674,27 +683,38 @@ export class Player {
     const wq = w ? 1 + (w.quality || 0) * 0.06 : 1; // calidad del arma
     const wDmg = w ? [w.dmg[0] * wq, w.dmg[1] * wq] : c.fists;
     const main = a[c.mainStat];
+    const mainMult = mainStatMult(main);
+    const sheet = v => v * mainMult * Math.max(0, 1 + item.dmgPct / 100);
+    const critRaw = 5 + a.des * 0.15 + item.crit;
 
     this.stats = {
       ...a,
       maxHP: Math.round(c.baseHP + a.vit * c.hpPerVit + item.hp + (this.level - 1) * 4),
       maxMP: Math.round(c.baseMP + a.ene * c.mpPerEne + item.mp + (this.level - 1) * 2),
-      dmgMin: Math.max(1, Math.round(wDmg[0] * (1 + main * 0.012) * (1 + item.dmgPct / 100))),
-      dmgMax: Math.max(2, Math.round(wDmg[1] * (1 + main * 0.012) * (1 + item.dmgPct / 100))),
-      crit: Math.min(75, 5 + a.des * 0.15 + item.crit),
+      // daño de hoja (arma × atributo × saco aditivo de equipo): lo que ve la UI
+      dmgMin: Math.max(1, Math.round(sheet(wDmg[0]))),
+      dmgMax: Math.max(2, Math.round(sheet(wDmg[1]))),
+      // piezas de la fórmula (combat-math.hitDamage)
+      wMin: wDmg[0], wMax: wDmg[1], mainMult, dmgPct: item.dmgPct, critDmg: item.critDmg,
+      critRaw,                                   // sin topar (se le suman bonus de habilidad)
+      crit: critChance(critRaw),                 // tope CAPS.crit
       arm: Math.round(item.arm + a.des * 0.3),
-      spd: 4.3 * (1 + item.spdPct / 100),
-      atkTime: c.atkTime / (1 + item.aspdPct / 100),
+      aspdPct: Math.min(CAPS.aspd, item.aspdPct),
+      spdPct: Math.min(CAPS.spd, item.spdPct),
+      spd: moveSpeed(4.3, item.spdPct),          // tope +50 %
+      atkTime: attackTime(c.atkTime, item.aspdPct), // tope +100 %
       mf: Math.round(item.mf),
       lph: item.lph, mph: item.mph, thorns: item.thorns,
-      cdr: Math.min(50, item.cdr), // tope de reducción de enfriamiento
+      cdr: Math.min(CAPS.cdr, item.cdr), // tope de reducción de enfriamiento
       goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
+      dr: Math.min(CAPS.dr, item.dr), block: Math.min(CAPS.block, item.block),
+      resFire: item.resFire, resCold: item.resCold, resLightning: item.resLightning, resPoison: item.resPoison,
     };
     // "Poder del héroe": puntuación única que resume tu build (sube al mejorar
     // equipo/nivel/paragon/maestrías…). Refuerza la sensación de "número sube".
     const st = this.stats;
     // el crítico multiplica el daño efectivo; aspd (atkTime menor = más DPS)
-    const dmgAvg = (st.dmgMin + st.dmgMax) / 2 * (1 + st.crit / 100 * 0.8) * (this.cls.atkTime / st.atkTime);
+    const dmgAvg = (st.dmgMin + st.dmgMax) / 2 * (1 + st.crit / 100 * (CRIT_MULT - 1)) * (this.cls.atkTime / st.atkTime);
     st.power = Math.round(
       dmgAvg * 1.4 + st.maxHP * 0.08 + st.arm * 0.25 + st.maxMP * 0.03 +
       (st.mf || 0) * 0.1 + (st.lph || 0) * 0.6 + (st.thorns || 0) * 0.3 + st.cdr * 0.6
@@ -721,15 +741,35 @@ export class Player {
     if (this.powers?.has('m_overload')) this.mp = Math.min(this.stats.maxMP, this.mp + this.stats.maxMP * 0.04);
   }
 
-  rollDamage(mult = 1, critBonus = 0) {
-    let dmg = rand(this.stats.dmgMin, this.stats.dmgMax) * mult;
-    const crit = Math.random() * 100 < this.stats.crit + critBonus;
-    if (crit) dmg *= 1.8;
-    // poder 'furia': más daño con la vida alta
-    if (this.powers?.has('furia') && this.hp > this.stats.maxHP * 0.8) dmg *= 1.25;
-    // maestría Berserker (Sed de Batalla): más daño con la vida baja
-    if (this.powers?.has('m_berserk') && this.hp < this.stats.maxHP * 0.4) dmg *= 1.4;
+  // Tirada de un golpe (combat-math.hitDamage): arma × coef × (1+Σaditivo) ×
+  // atributo × crítico. coef = coeficiente de la habilidad (1 = básico);
+  // addPct = lo que la habilidad suma al saco ADITIVO (sinergias, soportes,
+  // modificadores); critBonus = prob. de crítico extra (se topa DESPUÉS).
+  // Vulnerable y los multiplicadores [×] (Furia, Sed de Batalla, Tiro Mortal,
+  // Cacería…) dependen del objetivo/estado al IMPACTAR: los aplica Enemy.takeDamage.
+  rollDamage(coef = 1, critBonus = 0, addPct = 0) {
+    const r = this.combatRng || Math.random;
+    const st = this.stats;
+    const w = st.wMin + r() * (st.wMax - st.wMin);
+    const crit = r() * 100 < critChance(st.critRaw ?? st.crit, critBonus);
+    const dmg = hitDamage(w, coef, st, addPct, crit);
     return { dmg: Math.max(1, Math.round(dmg)), crit };
+  }
+
+  // golpe MEDIO esperado sin crítico (para DoT/Estela/explosiones/encadenado)
+  avgHit(coef = 1, addPct = 0) {
+    const st = this.stats;
+    return hitDamage((st.wMin + st.wMax) / 2, coef, st, addPct, false);
+  }
+
+  // Robo de vida con TOPE POR SEGUNDO (combat-math): cura sobre el daño infligido
+  // de verdad, pero nunca más de LEECH_CAP_PER_SEC × vida máx. por segundo.
+  leech(amount) {
+    if (!(amount > 0) || !this.alive) return 0;
+    const r = leechTake(this._leech, this.stats.maxHP, amount);
+    this._leech = r.bucket;
+    this.hp = Math.min(this.stats.maxHP, this.hp + r.heal);
+    return r.heal;
   }
 
   // meta opcional: { name, icon, desc } para que la UI muestre el efecto.
@@ -860,21 +900,26 @@ export class Player {
     }
   }
 
-  takeDamage(amount, attackerLevel = 1) {
+  // Daño recibido en CAPAS (combat-math.mitigate): bloqueo → armadura (solo
+  // físico, vs nivel de área del atacante, tope 75 %) → resistencia elemental
+  // (tope 70 %) → reducción de daño %. opts: { element='phys', melee=false,
+  // source=Enemy }. Las espinas SOLO responden a golpes cuerpo a cuerpo.
+  takeDamage(amount, attackerLevel = 1, opts = {}) {
     if (!this.alive) return;
     if (this.dodgeT > 0) {
       // invulnerable durante la esquiva
       this.game.ui.spawnText(this.pos, '¡Esquivado!', 'txt-heal');
       return;
     }
-    const red = this.stats.arm / (this.stats.arm + 60 + 16 * attackerLevel);
-    const dmg = Math.max(1, Math.round(amount * (1 - Math.min(0.75, red))));
+    const mit = mitigate(amount, this.stats, { al: attackerLevel, element: opts.element || 'phys', rng: this.combatRng });
+    const dmg = mit.dmg;
     this.hp -= dmg;
-    // espinas: refleja daño al atacante cuerpo a cuerpo más cercano
-    if (this.stats.thorns) {
-      const e = this.game.nearestEnemy(2.6);
-      if (e) e.takeDamage(this.stats.thorns, false);
+    // espinas: refleja daño al atacante CUERPO A CUERPO (no a proyectiles/áreas)
+    if (this.stats.thorns && opts.melee) {
+      const e = (opts.source && opts.source.alive) ? opts.source : this.game.nearestEnemy?.(2.6);
+      if (e) e.takeDamage(this.stats.thorns, false, { proc: true });
     }
+    if (mit.blocked) this.game.ui.spawnText(this.pos, '¡Bloqueo!', 'txt-heal');
     this.game.ui.spawnText(this.pos, `-${dmg}`, 'txt-dmg-player');
     this.game.ui.flashDamage();
     this.hurtT = 1;   // sacudida de daño (flinch) del cuerpo
@@ -945,10 +990,11 @@ export class Player {
       this.furiaIdle += dt;
       if (this.furiaIdle > 2.2) this.mp = Math.max(0, this.mp - res.decay * dt); // solo fuera de combate
     } else {
-      const rg = (res?.regen ?? 1) * (1 + this.stats.ene * 0.05);
+      const rg = resourceRegen(res?.regen ?? 1, this.stats.ene); // combat-math
       this.mp = Math.min(this.stats.maxMP, this.mp + rg * dt);
     }
     this.hp = Math.min(this.stats.maxHP, this.hp + (0.4 + this.stats.vit * 0.02) * dt);
+    this._leech = leechRefill(this._leech, this.stats.maxHP, dt); // cubeta del robo de vida
 
     // ---- movimiento ----
     let dir = null;
@@ -1099,9 +1145,10 @@ export class Player {
     // modificadores del básico de arma (sus 3 ramas): daño/crit/recurso/robo/control
     const wb = this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon');
     const bm = wb ? aggregateSkillMods(wb.id, this.skillMods?.[wb.id]) : null;
-    const bMul = bm ? (1 + (bm.dmg || 0) / 100) : 1;
+    // "+X %" de las ramas → saco ADITIVO (combat-math), no multiplicador aparte
+    const bAdd = bm ? (bm.dmg || 0) : 0;
     const bCrit = bm ? (bm.crit || 0) : 0;
-    const avgHit = (this.stats.dmgMin + this.stats.dmgMax) / 2 * bMul;
+    const avgHit = this.avgHit(1, bAdd);
     // recurso: SOLO al acertar (una vez por ataque, aunque haya multidisparo)
     let genGiven = false;
     const grantGen = () => {
@@ -1120,11 +1167,11 @@ export class Player {
       if (bm.dot) g.applyDoT?.(e, avgHit * (bm.dot === 'poison' ? 0.9 : bm.dot === 'burn' ? 0.8 : 0.6), bm.dot === 'poison' ? 5 : bm.dot === 'burn' ? 4 : 3, bm.dot === 'burn' ? 0.8 : 1.0, undefined, `rama:${bm.dot}`);
     };
     // robo de vida sobre el daño infligido de verdad
-    const lifeHeal = (dealt) => { if (bm?.lifesteal && dealt > 0) this.hp = Math.min(this.stats.maxHP, this.hp + dealt * bm.lifesteal / 100); };
+    const lifeHeal = (dealt) => { if (bm?.lifesteal && dealt > 0) this.leech(dealt * bm.lifesteal / 100); };
 
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
-      const { dmg, crit } = this.rollDamage(bMul, bCrit);
+      const { dmg, crit } = this.rollDamage(1, bCrit, bAdd);
       const tpos = target.pos.clone();
       let dealtTotal = target.takeDamage(dmg, crit) || 0;
       grantGen(); // el tajo solo se lanza con un objetivo a rango: siempre acierta
@@ -1139,7 +1186,7 @@ export class Player {
       for (const e of g.enemies) {
         if (e === target || !e.alive) continue;
         if (e.pos.distanceToSquared(target.pos) < 2.0 * 2.0) {
-          const r = this.rollDamage(0.5 * bMul, bCrit);
+          const r = this.rollDamage(0.5, bCrit, bAdd);
           dealtTotal += e.takeDamage(r.dmg, r.crit) || 0;
           onHit(e);
         }
@@ -1168,7 +1215,7 @@ export class Player {
     for (let i = 0; i <= extra; i++) {
       const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
-      const { dmg, crit } = this.rollDamage(bMul, bCrit);
+      const { dmg, crit } = this.rollDamage(1, bCrit, bAdd);
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
         speed, range: this.cls.atkRange + 2, dmg, crit, friendly: true, color, size, pierce: !!bm?.pierce,
@@ -1277,16 +1324,23 @@ export class Enemy {
   takeDamage(amount, crit = false, opts = {}) {
     if (!this.alive) return 0;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
-    if (this.vulnT > 0) amount = Math.round(amount * 1.2); // Vulnerable: +20% de daño recibido
-    // maestrías con efecto dependiente del objetivo (el daño al enemigo siempre
-    // procede del jugador: la mascota no daña y los enemigos no se golpean entre sí)
-    const pw = this.game.player?.powers;
+    // Vulnerable: saco propio ×VULN_MULT (combat-math)
+    if (this.vulnT > 0) amount *= VULN_MULT;
+    // multiplicadores [×] del héroe (Furia, Sed de Batalla, Tiro Mortal, Cacería y
+    // el hook de talentos): solo los MAX_MULT_ACTIVE mayores activos. No aplican a
+    // los "procs" (espinas, explosiones al matar) para que no se realimenten.
+    // (el daño al enemigo siempre procede del jugador: la mascota no daña y los
+    // enemigos no se golpean entre sí)
+    const pl = this.game.player;
+    if (pl && !opts.proc) {
+      amount *= multiplierProduct(pl.powers, {
+        hpFrac: pl.stats?.maxHP ? pl.hp / pl.stats.maxHP : 1,
+        targetFrac: this.hp / this.maxHP, targetSlowed: this.slowT > 0, crit,
+      }, pl.extraMultipliers);
+    }
+    amount = Math.max(1, Math.round(amount));
+    const pw = pl?.powers;
     if (pw) {
-      const frac = this.hp / this.maxHP;
-      // Montaraz (Cacería): +25% a ralentizados
-      if (pw.has('m_hunt') && this.slowT > 0) amount = Math.round(amount * 1.25);
-      // Francotiradora (Tiro Mortal): crítico a enemigos con vida alta → +50%
-      if (pw.has('m_deadeye') && crit && frac > 0.6) amount = Math.round(amount * 1.5);
       // Crionte (Cero Absoluto): ralentizado + poca vida + no jefe → ejecución
       const boss = this.def.boss || this.def.uber || this.def.worldBoss;
       if (pw.has('m_shatter') && this.slowT > 0 && !boss && (this.hp - amount) <= this.maxHP * 0.18) {
@@ -1630,7 +1684,8 @@ export class Enemy {
         this.burnTick -= dt;
         if (this.burnTick <= 0) {
           this.burnTick = 0.5;
-          player.takeDamage(Math.max(1, Math.round(2 + (this.def.level || 1) * 1.2)), this.def.level || 1);
+          // aura ardiente: daño de FUEGO (lo mitiga la resistencia, no la armadura)
+          player.takeDamage(hazardDamage(3, this.def.level || 1), this.def.level || 1, { element: 'fire' });
         }
       }
       // aura de escarcha: ralentiza al jugador mientras esté cerca (sin daño)
@@ -1849,7 +1904,7 @@ export class Enemy {
             g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, Math.round(this.def.dmg * 1.5), this.def.level || 1,
               { onDone: (at) => g.enemySlamFx?.(at) });
           } else {
-            player.takeDamage(this.def.dmg, this.def.level || 1);
+            player.takeDamage(this.def.dmg, this.def.level || 1, { melee: true, source: this });
             // chispa breve en el punto de golpe (impacto cuerpo a cuerpo)
             if (player.alive) g.enemyMeleeFx?.(player.pos);
           }
@@ -1934,7 +1989,7 @@ export class Enemy {
       // impacta una sola vez si pasa cerca del jugador: daño + SLOW (no stun)
       if (!this.chargeHit && player.alive && this.pos.distanceTo(player.pos) < 1.4) {
         this.chargeHit = true;
-        player.takeDamage(this.def.dmg, this.def.level || 1);
+        player.takeDamage(this.def.dmg, this.def.level || 1, { melee: true, source: this });
         player.slowT = Math.max(player.slowT, 1.2); player._slowTotal = 1.2;
         g.addShake?.(0.18, 0.2);
         // polvo al impactar la embestida (físico/marrón)

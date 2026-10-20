@@ -45,7 +45,10 @@ p.pos.set(0, 0, 0);
 const e = new Enemy(fake, scaleEnemy(pickEnemyDef(1), 1), new THREE.Vector3(1.5, 0, 0));
 e.maxHP = 999; e.hp = 999;
 fake.enemies = [e];
+// Paso 1A: las espinas SOLO responden a golpes cuerpo a cuerpo (opts.melee)
 p.takeDamage(5, 1);
+if (e.hp !== 999) throw new Error('espinas no deben reflejar golpes a distancia/área: ' + e.hp);
+p.takeDamage(5, 1, { melee: true, source: e });
 if (e.hp !== 999 - 15) throw new Error('espinas no reflejaron: ' + e.hp);
 console.log(`Espinas: enemigo 999 → ${e.hp} (reflejó 15) ✓`);
 console.log('✅ STATS SECUNDARIOS (D3/D4) OK');

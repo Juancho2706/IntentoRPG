@@ -17,8 +17,9 @@
 // El alijo (`intentorpg_stash`, array de objetos compartido) y las claves de
 // hueco (`intentorpg_save_slot{0..2}`) no cambian de formato.
 import { CLASSES } from './data.js';
+import { rescaleItemToCurrent } from './items.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 // Orden = orden de claves en el JSON (estable para comparar en tests).
 export const PLAYER_SAVE_FIELDS = [
@@ -104,6 +105,18 @@ export const MIGRATIONS = {
       d.skillBranches = {};
       d.skillSystemV = 4;
     }
+    return d;
+  },
+  // v1 → v2 (Paso 1A, fórmulas de combate): los objetos pasan de la escala lineal
+  // vieja (arma 3+2·(ilvl−1), afijos 1+0,22·(ilvl−1)) a la curva única G(ilvl) de
+  // combat-math, y el ilvl se acota a ILVL_MAX. Sin esto, un arma vieja de ilvl 30
+  // pegaría ~3× más que una nueva. Idempotente por objeto (marca `sv`). El alijo
+  // (clave aparte) se reescala al cargarlo (Game.loadStash) con la misma función.
+  1(d) {
+    const each = arr => { if (Array.isArray(arr)) for (const it of arr) rescaleItemToCurrent(it); };
+    each(d.inventory);
+    each(d.cube);
+    if (d.equipment && typeof d.equipment === 'object') for (const it of Object.values(d.equipment)) rescaleItemToCurrent(it);
     return d;
   },
 };

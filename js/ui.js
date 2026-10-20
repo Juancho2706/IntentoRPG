@@ -8,6 +8,7 @@ import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemSta
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
 import { materialStackKey } from './entities.js';
 import { SYSTEMS_GUIDE, SKILL_MODS } from './data.js';
+import { CAPS, CRIT_MULT, armorReduction, tormentMods, areaLevelForHero } from './combat-math.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -62,16 +63,17 @@ const HOVER_TOOLTIP = window.matchMedia('(pointer: fine)').matches;
 // en la hoja de personaje para que el jugador entienda su build.
 const DERIVED_DESC = {
   dmg: 'Daño por golpe de tu arma + atributos. Base de todo tu daño.',
-  crit: 'Probabilidad de golpe crítico (x2 daño).',
+  crit: `Probabilidad de golpe crítico (×${CRIT_MULT} de daño). Tope ${CAPS.crit}% contando los bonus de habilidades y soportes.`,
   lph: 'Vida que recuperas cada vez que golpeas a un enemigo.',
   mph: 'Maná que recuperas cada vez que golpeas a un enemigo.',
   thorns: 'Daño que devuelves a quien te golpea cuerpo a cuerpo.',
   maxHP: 'Vida máxima. Al llegar a 0 mueres.',
   maxMP: 'Maná máximo. Lo gastan tus habilidades.',
-  arm: 'Reduce el daño físico recibido.',
-  spd: 'Velocidad de movimiento.',
+  arm: `Reduce el daño FÍSICO recibido. Rinde menos contra enemigos de más nivel de área; tope ${CAPS.armor}%.`,
+  aspd: `Ataques por segundo de tu ataque básico. Tope +${CAPS.aspd}% de velocidad de ataque.`,
+  spd: `Velocidad de movimiento. Tope +${CAPS.spd}%.`,
   mf: 'Hallazgo mágico: sube la probabilidad de botín raro y legendario.',
-  cdr: 'Reducción de enfriamiento: tus habilidades se recargan más rápido.',
+  cdr: `Reducción de enfriamiento: tus habilidades se recargan más rápido. Tope ${CAPS.cdr}% sumando soportes y modificadores.`,
 };
 
 export class UI {
@@ -1557,7 +1559,7 @@ export class UI {
   // de ataque). Sirve para previsualizar el impacto real de equipar un objeto.
   _charDPS(st) {
     if (!st) return 0;
-    return ((st.dmgMin + st.dmgMax) / 2) * (1 + (st.crit || 0) / 100 * 0.8) / Math.max(0.05, st.atkTime || 1);
+    return ((st.dmgMin + st.dmgMax) / 2) * (1 + (st.crit || 0) / 100 * (CRIT_MULT - 1)) / Math.max(0.05, st.atkTime || 1);
   }
 
   // Previsualiza equipar un objeto SIN efectos secundarios: equipa en una copia,
@@ -2494,8 +2496,9 @@ export class UI {
     const defensive =
       statLine('vit', 'Vida', `${Math.ceil(p.hp)} / ${s.maxHP}`, 'maxHP') +
       statLine('mana', 'Maná', `${Math.ceil(p.mp)} / ${s.maxMP}`, 'maxMP') +
-      statLine('shield', 'Armadura', s.arm, 'arm');
+      statLine('shield', 'Armadura', `${s.arm} <span class="dim">(−${Math.round(armorReduction(s.arm, (this.game.world?.type === 'dungeon' || this.game.world?.type === 'zone') ? this.game.world.scaleFloor : areaLevelForHero(p.level)) * 100)}% físico)</span>`, 'arm');
     const utility =
+      statLine('sword', 'Vel. de ataque', `${(1 / Math.max(0.05, s.atkTime)).toFixed(2)}/s${s.aspdPct ? ` <span class="dim">(+${Math.round(s.aspdPct)}%)</span>` : ''}`, 'aspd') +
       statLine('boot', 'Velocidad', s.spd.toFixed(1), 'spd') +
       statLine('clover', 'Hallazgo mágico', `${s.mf || 0}%`, 'mf') +
       (s.cdr ? statLine('hourglass', 'Reducción de enfriamiento', `${s.cdr}%`, 'cdr') : '');
@@ -2905,7 +2908,7 @@ export class UI {
     html += `</div>`;
     if (era.allDone && era.titleClaimed) html += `<p class="dim">🏆 ¡Temporada completada! Título obtenido.</p>`;
     html += `<h4>☠️ Dificultad — Tormento</h4>`;
-    html += `<p class="dim">Más Tormento = enemigos más fuertes y mejor botín (rareza y cantidad). Se desbloquea empujando grietas y descendiendo en las mazmorras.</p>`;
+    { const tm = tormentMods(Math.max(1, cur)); html += `<p class="dim">Más Tormento = enemigos más fuertes y mejor botín (rareza, cantidad y CALIDAD pre-forjada; el nivel de objeto no sube). Se desbloquea empujando grietas y descendiendo en las mazmorras.${cur > 0 ? ` Ahora (T${cur}): vida enemiga ×${tm.hp.toFixed(1)}, daño ×${tm.dmg.toFixed(2)}, XP ×${tm.xp.toFixed(1)}, calidad +${tm.quality}.` : ''}</p>`; }
     html += `<div class="torment-row" id="torment-btns"></div>`;
     html += `<p class="dim">Desbloqueado: <b>Tormento ${cap}</b>. ${cap < 10 ? 'Sigue progresando para subir el tope.' : '¡Tope máximo alcanzado!'}</p>`;
     html += `<h4>🔮 Códice de Aspectos</h4>`;

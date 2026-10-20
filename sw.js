@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v90';
+const VERSION = 'v91';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -34,6 +34,7 @@ const ASSETS = [
   './js/rng.js',
   './js/timers.js',
   './js/save-schema.js',
+  './js/combat-math.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

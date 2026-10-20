@@ -6,9 +6,10 @@ import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleE
 import { buildTown, buildDungeon, buildRefuge, makePortal } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet, canAddMaterial } from './entities.js';
-import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES, syncItemUids, withItemRng } from './items.js';
+import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES, syncItemUids, withItemRng, rescaleItemToCurrent } from './items.js';
 import { createWorldRng, riftSeed } from './rng.js';
 import { TickScheduler, applyDoTInstance } from './timers.js';
+import { skillProfile, skillCooldown, skillCostMult, COLDBLOOD_CRIT, volatileDamage, tormentMods, hazardDamage } from './combat-math.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -467,12 +468,16 @@ class Game {
     const T = (spec.rift || spec.daily || spec.type === 'town' || spec.type === 'refuge')
       ? 0 : Math.min(this.tormentUnlocked(), this.player.torment || 0);
     this.world.torment = T;
+    // Paso 1A: el Tormento ya NO sube el nivel de área (antes +1 piso/T ⇒ mejor
+    // ilvl de botín ⇒ T10 con equipo de T10 era MÁS FÁCIL que T0). Ahora son
+    // multiplicadores por escalón (combat-math.tormentMods) de vida/daño/XP
+    // enemigos —los aplica buffByPact a TODO enemigo— y el botín gana CALIDAD
+    // (masterwork pre-forjado) + rareza/cantidad, con el ilvl del área.
+    this.world.tormentMods = T > 0 ? tormentMods(T) : null;
     if (T > 0) {
-      // +1 piso efectivo por Tormento (antes +2): el jugador no escala su poder al
-      // subir Tormento, así que +2 disparaba el TTK y los one-shots (auditoría)
-      this.world.scaleFloor += T;           // enemigos más duros y mejor ilvl de botín
-      this.world.tormentMF = T * 12;        // empuja la rareza hacia arriba
-      this.world.tormentQty = T * 8;        // y la cantidad de botín
+      this.world.tormentMF = this.world.tormentMods.mf;        // empuja la rareza
+      this.world.tormentQty = this.world.tormentMods.qty;      // y la cantidad
+      this.world.tormentQuality = this.world.tormentMods.quality; // calidad del botín
     }
     this.scene.add(this.world.group);
     // IBL con mesura: baja el envMapIntensity de los materiales del mundo para
@@ -964,6 +969,13 @@ class Game {
   // TODO enemigo creado en el mundo debe pasar por aquí (spawn inicial, manadas,
   // oleadas, respawn, invocaciones…); lo vigila test56-hotfixes.
   buffByPact(e) {
+    // Tormento (multiplicadores por escalón, combat-math.tormentMods)
+    const tm = this.world?.tormentMods;
+    if (tm && !e._tormented) {
+      e._tormented = true;
+      const add = Math.round(e.maxHP * (tm.hp - 1)); e.maxHP += add; e.hp += add;
+      e.def = { ...e.def, dmg: Math.round(e.def.dmg * tm.dmg), xp: Math.round((e.def.xp || 0) * tm.xp) };
+    }
     const m = this.world?.pactEnemyMods;
     if (!m) return e;
     if (m.ehp) { const add = Math.round(e.maxHP * m.ehp); e.maxHP += add; e.hp += add; }
@@ -1027,15 +1039,16 @@ class Game {
     }
   }
 
+  // mult = coeficiente de la habilidad; opts.addPct = su aporte al saco aditivo
   dealArea(pos, radius, mult, opts = {}) {
     let hits = 0;
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const r = radius + 0.5 * (e.def.scale || 1);
       if (e.pos.distanceToSquared(pos) <= r * r) {
-        // Sangre Fría: crítico garantizado si el objetivo ya está ralentizado/congelado
-        const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? 100 : 0);
-        const { dmg, crit } = this.player.rollDamage(mult, cb);
+        // Sangre Fría: crítico al tope si el objetivo ya está ralentizado/congelado
+        const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
+        const { dmg, crit } = this.player.rollDamage(mult, cb, opts.addPct || 0);
         const dealt = e.takeDamage(dmg, crit, { color: opts.color }) || 0;
         if (opts.slow) e.slowT = opts.slow;
         if (opts.onHit) opts.onHit(e, dealt); // daño REAL infligido (robo de vida)
@@ -1199,12 +1212,8 @@ class Game {
     }
     const baseCost = isBasic ? 0 : Math.round(skillVal(sk.mana, lvl));
     // coste extra de recurso de algunos soportes (Eco +60%, Sobrecarga +40%)
-    const supsCost = this.skillSupports(sk.id);
-    let manaMul = 1;
-    if (supsCost.includes('echo')) manaMul *= 1.6;
-    if (supsCost.includes('overcharge')) manaMul *= 1.4;
-    if (supsCost.includes('efficient')) manaMul *= 0.65; // soporte Eficiente
-    const cost = Math.round(baseCost * manaMul);
+    // (Eco ×1,6, Sobrecarga ×1,4, Eficiente ×0,65 — combat-math.SUPPORT_COST)
+    const cost = Math.round(baseCost * skillCostMult(this.skillSupports(sk.id)));
     if (!isEcho && !isBasic && p.mp < cost) {
       // throttle: con clic mantenido no spamear el aviso cada frame
       const now = performance.now();
@@ -1227,15 +1236,22 @@ class Game {
     delta.y = 0;
     if (delta.length() > maxRange) target = p.pos.clone().addScaledVector(delta.normalize(), maxRange);
 
-    // sinergias: puntos en otras habilidades aumentan el daño de esta
-    let mult = sk.mult ? skillVal(sk.mult, lvl) * (1 + synergyBonus(sk, p.skills) / 100) : 1;
-    if (isEcho) mult *= echoMult; // la repetición del Eco pega al 50%
     // soportes asignados a esta habilidad (multi-socket: array de hasta 2 ids)
     const sups = this.skillSupports(sk.id); // normaliza a array siempre
     const has = id => sups.includes(id);
-    if (has('amplify')) mult *= 1.3;
-    if (has('concentrated')) mult *= 1.35;
-    if (has('overcharge')) mult *= 1.5;
+    // --- Modificadores de habilidad (Aspectos D4-lite): mismo vocabulario que
+    // los soportes, fusionados aquí en un único punto ---
+    const m = aggregateSkillMods(sk.id, p.skillMods?.[sk.id]);
+    // Perfil de daño (combat-math.skillProfile): coeficiente (rango × Eco) y lo
+    // que suma al saco ADITIVO: sinergias + soportes (Amplificado/Concentrado/
+    // Sobrecarga) + mods "+X %". Antes eran multiplicadores encadenados.
+    const prof = skillProfile({
+      mult: sk.mult ? skillVal(sk.mult, lvl) : 1,
+      synergyPct: synergyBonus(sk, p.skills), sups, mods: m, echoMult,
+      critBonus: sk.critBonus || 0,
+    });
+    const mult = prof.coef;
+    const addPct = prof.addPct;
     let supSlow = has('freeze') ? 3 : sk.slow;
     let supPierce = (has('pierce') || has('chain')) ? true : sk.pierce;
     let supExtraProj = has('multi') ? 2 : 0;
@@ -1243,18 +1259,13 @@ class Game {
     if (has('concentrated')) supRadius *= 0.7; // −30% radio (contrapartida)
     // Sangre Fría: crítico garantizado contra objetivos ya ralentizados/congelados
     const supColdblood = has('coldblood');
-    // --- Modificadores de habilidad (Aspectos D4-lite): mismo vocabulario que
-    // los soportes, fusionados aquí en un único punto ---
-    const m = aggregateSkillMods(sk.id, p.skillMods?.[sk.id]);
-    if (m.dmg) mult *= 1 + m.dmg / 100;
     supExtraProj += m.proj;
     if (m.pierce) supPierce = true;
     if (m.radius) supRadius *= 1 + m.radius / 100;
     if (m.slow) supSlow = Math.max(supSlow || 0, m.slow);
-    let skCrit = (sk.critBonus || 0) + m.crit;   // bonus de crítico base + aspecto
-    if (has('focused')) skCrit += 25;            // soporte Certero
+    const skCrit = prof.critBonus;               // base + aspecto + Certero (tope al tirar)
     // Daño por tiempo (Sed de Sangre/Veneno/Aspecto): total a repartir en tics.
-    const avgHit = (p.stats.dmgMin + p.stats.dmgMax) / 2 * mult;
+    const avgHit = p.avgHit(mult, addPct);
     const dotKind = (has('poison') || m.dot === 'poison') ? 'poison'
       : (has('bleed') || m.dot === 'bleed') ? 'bleed'
         : (m.dot === 'burn') ? 'burn' : null;
@@ -1307,7 +1318,7 @@ class Game {
         this.spawnChainBounce(e, Math.round(avgHit), (m.chain || 2), [], sk.color || 0x66ddff);
       }
       applyDoT(e);
-      if (m.lifesteal && dealt > 0) p.hp = Math.min(p.stats.maxHP, p.hp + dealt * m.lifesteal / 100);
+      if (m.lifesteal && dealt > 0) p.leech(dealt * m.lifesteal / 100); // robo con tope por segundo
       grantBasicGen();
     };
 
@@ -1324,8 +1335,8 @@ class Game {
         if (!e) { this.ui.message('Ningún enemigo al alcance'); casted = false; break; }
         p.faceToward(e.pos);
         p.swing = 1;
-        const cb = skCrit + (supColdblood && e.slowT > 0 ? 100 : 0);
-        const { dmg, crit } = p.rollDamage(mult, cb);
+        const cb = skCrit + (supColdblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
+        const { dmg, crit } = p.rollDamage(mult, cb, addPct);
         dealtTotal += e.takeDamage(dmg, crit, { color: dmgColor }) || 0;
         hitCount = 1;
         if (supSlow && e.alive) e.slowT = supSlow;
@@ -1342,7 +1353,7 @@ class Game {
       case 'aoe_self': {
         const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
         this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor, addPct, critBonus: skCrit });
         zoneCenter = p.pos.clone(); zoneRad = rad;
         p.swing = 1;
         // Aura/onda centrada en el jugador (Torbellino, Nova de Hielo).
@@ -1375,7 +1386,7 @@ class Game {
           if (fx?.extra) this.emitFx(fx.extra, dp);
           this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
         });
-        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
+        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor, addPct, critBonus: skCrit });
         zoneCenter = target.clone(); zoneRad = rad;
         break;
       }
@@ -1400,7 +1411,7 @@ class Game {
         }
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor, addPct, critBonus: skCrit });
         zoneCenter = p.pos.clone(); zoneRad = rad;
         if (m.chain) { const ne = this.nearestEnemy(rad + 2); if (ne) this.spawnChainBounce(ne, Math.round(avgHit), m.chain, [], 0xffcc66); }
         p.swing = 1;
@@ -1422,8 +1433,8 @@ class Game {
           const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
           const a = baseAngle + off;
           const to = p.pos.clone().add(new THREE.Vector3(Math.sin(a) * 5, 0, Math.cos(a) * 5));
-          const cb = skCrit + (supColdblood && near && near.slowT > 0 ? 100 : 0);
-          const { dmg, crit } = p.rollDamage(mult, cb);
+          const cb = skCrit + (supColdblood && near && near.slowT > 0 ? COLDBLOOD_CRIT : 0);
+          const { dmg, crit } = p.rollDamage(mult, cb, addPct);
           this.spawnProjectile({
             from: p.pos.clone().setY(1.0), to: to.setY(1.0),
             speed: sk.speed || 14, range: sk.range || 10,
@@ -1452,7 +1463,7 @@ class Game {
 
     // robo de vida (opción Sediento): % del daño REALMENTE infligido (0 si falla).
     // Los proyectiles lo aplican en su impacto (projHit).
-    if (casted && m.lifesteal && dealtTotal > 0) p.hp = Math.min(p.stats.maxHP, p.hp + dealtTotal * m.lifesteal / 100);
+    if (casted && m.lifesteal && dealtTotal > 0) p.leech(dealtTotal * m.lifesteal / 100);
     // Estela (Transformación): deja una ZONA DE DAÑO persistente donde golpeó
     if (casted && m.zone && zoneCenter) {
       this.spawnGroundZone(zoneCenter, Math.max(2, zoneRad * 0.9), avgHit * 0.45, 4, sk.color || 0xff7733);
@@ -1467,11 +1478,9 @@ class Game {
         } else {
           p.mp -= cost;
           if (m.gen) p.mp = Math.min(p.stats.maxMP, p.mp + m.gen); // opción Furibundo/Iracundo
-          // CDR del jugador + soporte Raudo + opción Frenético/Rápido de la habilidad
-          let cd = sk.cd * (1 - ((p.stats.cdr || 0) + (m.cdr || 0)) / 100) * (has('swift') ? 0.7 : 1);
-          // Masacre: si golpeó a suficientes enemigos, su enfriamiento se reduce a la mitad
-          if (m.cdhit && hitCount >= m.cdhit) cd *= 0.5;
-          p.cds[sk.id] = cd;
+          // UN número de CDR (combat-math): stat + Frenético/Rápido (y los negativos
+          // de Brutal/Aplastar/Coloso) + Raudo + Masacre (golpear a 4+) → tope 50 %
+          p.cds[sk.id] = skillCooldown(sk.cd, p.stats.cdr || 0, m, sups, !!(m.cdhit && hitCount >= m.cdhit));
           // Eco (soporte o Transformación): repite la habilidad ~0.5s después al 50-60%
           if (has('echo') || m.echo) this.timers.schedule(0.5, () => this.castSkillSlot(key, m.echo ? 0.6 : 0.5));
         }
@@ -1698,31 +1707,28 @@ class Game {
       p.hp = Math.min(p.stats.maxHP, p.hp + p.stats.maxHP * 0.06);
       this.ui.spawnText(p.pos, '+❤️', 'txt-heal');
     }
-    if (p.powers?.has('volatil')) {
-      // el enemigo explota dañando a los cercanos
-      const boom = Math.round((enemy.maxHP || 20) * 0.4);
-      this.spawnRing(enemy.pos.clone(), 2.2, 0xff6622);
-      this.spawnBurst(enemy.pos, 0xff6622, 10);
-      for (const e of this.enemies) {
-        if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= 2.6 * 2.6)
-          e.takeDamage(boom, false);
-      }
-    }
-    // maestría Cruzado (Juicio): onda sagrada en área al matar
-    if (p.powers?.has('m_judgment')) {
-      const dmg = Math.max(2, Math.round((p.stats.dmgMin + p.stats.dmgMax) / 2 * 0.6));
-      this.spawnRing(enemy.pos.clone(), 2.8, 0xffe680);
-      this.spawnBurst(enemy.pos, 0xffe680, 10);
-      for (const e of this.enemies)
-        if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= 2.9 * 2.9) e.takeDamage(dmg, false);
-    }
-    // maestría Piromante (Conflagración): explosión de fuego en área al matar
-    if (p.powers?.has('m_conflag')) {
-      const dmg = Math.max(2, Math.round((p.stats.dmgMin + p.stats.dmgMax) / 2 * 0.7));
-      this.spawnRing(enemy.pos.clone(), 3.1, 0xff7722);
-      this.spawnBurst(enemy.pos, 0xff7722, 14);
-      for (const e of this.enemies)
-        if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= 3.1 * 3.1) e.takeDamage(dmg, false);
+    // Explosiones al matar (Volátil / Juicio / Conflagración). Paso 1A:
+    //  - escalan con el daño del HÉROE (golpe medio), no con la vida del muerto
+    //    (antes Volátil = 40 % de la vida máx. del enemigo: ignoraba la dificultad);
+    //  - NO son recursivas: una muerte causada por una explosión no dispara otra
+    //    (antes una manada entera se encadenaba en un solo frame);
+    //  - son 'procs': no reciben los multiplicadores [×] del héroe.
+    if (!this._killBurst) {
+      this._killBurst = true;
+      try {
+        const avg = p.avgHit ? p.avgHit() : (p.stats.dmgMin + p.stats.dmgMax) / 2;
+        const burst = (dmg, rad, color, n) => {
+          this.spawnRing(enemy.pos.clone(), rad, color);
+          this.spawnBurst(enemy.pos, color, n);
+          for (const e of this.enemies)
+            if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= rad * rad) e.takeDamage(dmg, false, { proc: true });
+        };
+        if (p.powers?.has('volatil')) burst(volatileDamage(avg), 2.6, 0xff6622, 10);
+        // maestría Cruzado (Juicio): onda sagrada en área al matar
+        if (p.powers?.has('m_judgment')) burst(Math.max(2, Math.round(avg * 0.6)), 2.9, 0xffe680, 10);
+        // maestría Piromante (Conflagración): explosión de fuego en área al matar
+        if (p.powers?.has('m_conflag')) burst(Math.max(2, Math.round(avg * 0.7)), 3.1, 0xff7722, 14);
+      } finally { this._killBurst = false; }
     }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
@@ -1730,7 +1736,7 @@ class Game {
     // muertes → mismo botín. withLoot(fn) envuelve los generadores de items.js.
     const lr = this.simRng('loot');
     const withLoot = fn => withItemRng(lr, fn);
-    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId, rng: lr };
+    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), quality: this.world.tormentQuality || 0, cls: p.classId, rng: lr };
     if (enemy.def.mimic) drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.5, setChance: 0.025 });
     else if (enemy.def.boss) drops = rollDrops(floor, { ...lootOpts, boss: true, goldChance: 1, potionChance: 0.8 });
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
@@ -1972,6 +1978,8 @@ class Game {
   // ---------- alijo compartido entre personajes ----------
   loadStash() {
     try { this.stash = JSON.parse(localStorage.getItem('intentorpg_stash') || '[]'); } catch { this.stash = []; }
+    // Paso 1A: objetos del alijo con la escala vieja → curva G (idempotente por objeto)
+    if (Array.isArray(this.stash)) { let n = 0; for (const it of this.stash) if (rescaleItemToCurrent(it)) n++; if (n) this.saveStash(); }
   }
 
   saveStash() {
@@ -2151,7 +2159,8 @@ class Game {
       if (fp.tick <= 0 && this.state === 'play' && p.alive &&
           p.pos.distanceTo(fp.mesh.position) < fp.radius + 0.3) {
         fp.tick = 0.5;
-        p.takeDamage(4 + 2 * (this.world.scaleFloor || 1), this.world.scaleFloor || 1);
+        // charco de fuego: daño de FUEGO escalado con la curva de área (combat-math)
+        p.takeDamage(Math.round(hazardDamage(6, this.world.scaleFloor || 1) * (this.world.tormentMods?.dmg || 1)), this.world.scaleFloor || 1, { element: 'fire' });
       }
     }
 
@@ -2557,7 +2566,7 @@ class Game {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
       const lr = this.simRng('loot');
-      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02, rng: lr });
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), quality: this.world.tormentQuality || 0, cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02, rng: lr });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
       this.spawnGroundItem(withItemRng(lr, () => makeGold(this.world.scaleFloor || this.world.floor)), it.pos);
       p.records.chests++;
