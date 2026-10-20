@@ -148,7 +148,8 @@ export function gateFail(tree, ranks, node, level) {
 }
 export function reqFail(tree, ranks, node) {
   if (!node.req || !node.req.length) return null;
-  if (node.req.some(id => (ranks[id] | 0) >= (nodeById(tree, id)?.max || 1))) return null;
+  // el nodo clave gratis (free) cuenta como comprado: nunca se guarda en `ranks`
+  if (node.req.some(id => { const par = nodeById(tree, id); return !!par?.free || (ranks[id] | 0) >= (par?.max || 1); })) return null;
   return `Requiere ${node.req.map(id => nodeById(tree, id)?.name || id).join(' o ')} al máximo`;
 }
 function validRanks(tree, ranks, level) {
