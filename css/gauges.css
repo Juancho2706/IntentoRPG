@@ -1,0 +1,90 @@
+/* ============================================================
+   BARRAS DE MECÁNICA · gramática común (Paso 2d.2 §3.0; copiada del mockup docs/mockups/hud-pc.html)
+   ============================================================
+   Lo enlaza solo js/ui-gauges.js (ensureStyles) y, por clase, css/gauges-<clase>.css.
+   Huella fija 520×72: fila 1 (16 px) etiqueta + subtítulo; fila 2 (56 px) cuerpo de la forma
+   a la izquierda, número tabular y anillo de tiempo de 36 px a la derecha.
+   A8: @keyframes y transition SOLO de transform y opacity. */
+
+.gz-host,
+#spec-gauge.gz-host { position: relative; display: block; flex: none; width: 520px; height: 72px; pointer-events: none; }
+.gz-host.hidden,
+#spec-gauge.gz-host.hidden { display: none; }
+.gz-host.gz-hover { pointer-events: auto; }
+
+.gz {
+  --c: #e8c06a; --ink: #ede6d6;
+  position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 16px 56px;
+  column-gap: 10px; color: var(--ink); font: 14px/1.2 Inter, system-ui, sans-serif; contain: layout paint;
+  transition: opacity .15s linear;
+}
+.gz-lbl { grid-column: 1 / 3; display: flex; gap: 8px; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap;
+  font: 700 11px/16px Inter, system-ui, sans-serif; letter-spacing: 1.6px; color: var(--c); text-shadow: 0 1px 3px #000; }
+.gz-lbl .sub { font-weight: 600; letter-spacing: .3px; color: #d9cfc0; text-transform: none; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+.gz-body { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; height: 56px; }
+.gz-end { display: flex; align-items: center; gap: 8px; height: 56px; }
+.gz-num { min-width: 52px; text-align: right; font: 800 18px/1 Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000; }
+.gz-ring { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; opacity: 0; transition: opacity .2s linear;
+  background: conic-gradient(var(--c) calc(var(--p, 0) * 360deg), #ffffff18 0); }
+.gz-ring::after { content: ''; width: 26px; height: 26px; border-radius: 50%; background: #0d0b10; }
+.gz.has-t .gz-ring { opacity: 1; }
+.gz-hint { font: 600 12px/1.2 Inter, system-ui, sans-serif; color: #d9cfc0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* estados (data-state: idle · building · full · active · decay · prey) */
+.gz[data-state="idle"] .gz-body { opacity: .55; }
+
+/* destello único de umbral/descarga (600 ms; el núcleo quita la clase) */
+.gz.flash::before { content: ''; position: absolute; inset: 1px; border-radius: 10px; border: 2px solid var(--c); pointer-events: none;
+  animation: gz-flash .6s ease-out forwards; }
+@keyframes gz-flash { from { opacity: 1; transform: scale(.97); } to { opacity: 0; transform: scale(1.03); } }
+
+/* fuera de combate: 40 % y bucles parados; vuelve al 100 % en 150 ms (R2) */
+.gz.ooc { opacity: .4; transition: opacity .4s linear; }
+.gz.ooc *, .gz.ooc *::before, .gz.ooc *::after { animation-play-state: paused !important; }
+
+/* arte pintado (R9): la piel aparece al cargar; si falla queda la forma CSS (.no-art) */
+.gz-art { display: block; pointer-events: none; user-select: none; opacity: 0; transition: opacity .2s linear; }
+.gz-art.is-loaded { opacity: 1; }
+.gz-art.no-art { display: none; }
+
+/* animaciones compartidas que pueden usar las formas de cada clase */
+@keyframes gz-spin { to { transform: rotate(360deg); } }
+@keyframes gz-beat { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.14); } }
+@keyframes gz-blink { 50% { opacity: .35; } }
+
+/* renderizador GENÉRICO de reserva (barra segmentada) */
+.gz-gen { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 7px; }
+.gz-gen-track { position: relative; height: 12px; border-radius: 6px; overflow: hidden; background: #140e0cea;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, #1a1410); }
+.gz-gen-fill { position: absolute; inset: 0; background: var(--c); transform-origin: 0 50%; transform: scaleX(0); transition: transform .1s linear; }
+.gz-gen-segs i { position: absolute; top: 0; bottom: 0; width: 1px; background: #000a; }
+.gz-generic[data-state="active"] .gz-gen-track,
+.gz-generic[data-state="prey"] .gz-gen-track { border-color: var(--c); }
+.gz-generic[data-state="decay"] .gz-gen-fill { opacity: .55; }
+
+/* ranura de la barra enlazada a la mecánica (view.ready → onReady → ui.js añade la clase) */
+.gz-ready-slot { position: relative; }
+.gz-ready-slot::after { content: ''; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid var(--gz-ready, #e8c06a);
+  pointer-events: none; animation: gz-blink 1.2s ease-in-out infinite; }
+
+/* tooltip (marco ui_tooltip, 360 px): título, 2–3 líneas, «Ahora», pie */
+.gz-tip { position: fixed; z-index: 60; width: 360px; padding: 10px 14px; pointer-events: none; --c: #e8c06a;
+  background: #120e15f4; border: 1px solid #3a2f45; border-radius: 6px; box-shadow: 0 10px 30px #000c;
+  font: 12.5px/1.45 Inter, system-ui, sans-serif; color: #e6dccb; }
+.gz-tip h4 { margin: 0 0 4px; font: 700 14px Cinzel, Georgia, serif; color: var(--c); }
+.gz-tip p { margin: 3px 0; }
+.gz-tip b { color: var(--c); }
+.gz-tip .now { margin-top: 6px; padding-top: 6px; border-top: 1px solid #ffffff18; color: #c9bfae; }
+.gz-tip .k { margin-top: 6px; font-size: 11px; color: #9a917f; }
+.gz-tip kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid #6b5a3a; border-bottom-width: 2px; border-radius: 4px;
+  background: #1d1710; color: #f3e2b5; font: 700 11px/16px Inter, sans-serif; text-align: center; }
+
+/* movimiento reducido (settings.reduceMotion → body.reduce-motion, o el del sistema):
+   sin bucles ni destellos de escala; el cambio de estado es un contorno estático de 300 ms */
+body.reduce-motion .gz, body.reduce-motion .gz *, body.reduce-motion .gz *::before, body.reduce-motion .gz *::after,
+body.reduce-motion .gz-ready-slot::after { animation: none !important; transition: none !important; }
+body.reduce-motion .gz.flash::before { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .gz, .gz *, .gz *::before, .gz *::after, .gz-ready-slot::after { animation: none !important; transition: none !important; }
+  .gz.flash::before { opacity: 1; transform: none; }
+}
