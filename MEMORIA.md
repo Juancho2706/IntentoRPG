@@ -2,19 +2,19 @@
 
 > **Propósito:** índice vivo de lo que YA EXISTE en el juego, para no re-proponer
 > ni reimplementar features ya hechas, y para arrancar cada sesión con contexto.
-> Mantener actualizado al añadir/cambiar sistemas. Última actualización: **2026‑10‑20** (Paso 2b.0).
+> Mantener actualizado al añadir/cambiar sistemas. Última actualización: **2026‑10‑20** (Paso 2b.2).
 
 ---
 
 ## 0. Qué es / stack
 
 - **IntentoRPG**: ARPG isométrico estilo Diablo 2/4, **JavaScript vanilla + Three.js 0.160**, **sin build step** (ES modules vía importmap CDN jsdelivr). PWA (Vercel), móvil + desktop, guardado en `localStorage` (3 huecos + export/import base64). Texto del juego en español.
-- **Sin bundler, sin npm deps de runtime.** Tests: simulación headless en `tests/*.mjs` (sin DOM/WebGL), corren con `npm test` (`node tests/run.mjs`). **69 suites** (incl. `balance-bench`).
+- **Sin bundler, sin npm deps de runtime.** Tests: simulación headless en `tests/*.mjs` (sin DOM/WebGL), corren con `npm test` (`node tests/run.mjs`). **73 suites** (incl. `balance-bench`).
 
 ## 1. Convenciones de desarrollo (IMPORTANTES)
 
 - **`npm test` debe quedar en verde** siempre antes de commitear.
-- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v93**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
+- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v94**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
 - **Git author**: `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita commits "Unverified").
 - **Push a AMBAS ramas**: `claude/isometric-rpg-game-xmer7p` y `main` (fast‑forward `origin <branch>:main`).
 - **No tocar archivos que esté escribiendo un agente en background** (p. ej. informes).
@@ -275,6 +275,52 @@ Implementa `docs/paso2-diseno.md` §9.2 «2b.0» (contratos §9.1). El catálogo
    TTD sin cambios (la defensa no se tocó). **Para 2b.2**: márgenes justos — Guerrero Nv10 élite 10,1 (tope 10,5) y Arquera Nv25 jefe 98,8 (tope 100); el banco aún no modela GCD/windup/impactDelay ni el `LOADOUT` por clase.
 10. **Fuera de alcance (2c)**: stagger, amenaza/`forceTarget`, `spec-mechanics.js` (⑩ onGauge), `talents.js`, `powers-<clase>.js`.
 
+### ✅ Paso 2b.1 — catálogo base por clase (HECHO 2026‑10‑20, 3 trabajadores)
+`js/skills-<clase>.js` + `js/fx-skills-<clase>.js` + `tests/test-skills-<clase>.mjs` con las habilidades **base** de §3.1–§3.3 (Guerrero 16, Maga 15, Arquera 13; las de talento son de 2c). Dejaron fallbacks y pedidos al núcleo → resueltos en 2b.2.
+
+### ✅ Paso 2b.2 — integración y recalibración (HECHO 2026‑10‑20, sw v94, test nuevo `test69-nucleo-2b2`)
+Cierre de 2b (`docs/paso2-diseno.md` §9.2). **APIs nuevas del núcleo** (resuelven los pedidos de 2b.1; los fallbacks se quitaron de `skills-*.js`):
+1. **Ralentizar al héroe**: SOLO por `Player.applySlow(dur)` (enemigos, telarañas, aura de escarcha, telegrafías); respeta `p.slowImmuneT` (`grantSlowImmune(s)`) y el imparable. Habilidad: `slowImmune:true` (Agilidad, Piel de Hierro, Furia Inmortal). Sin purgas cada 0,1 s.
+2. **Fallo de proyectiles enemigos**: `Projectile` tira `pl.projMissChance()` (stat de buff `projMissPct` o zona aliada con `data.projMissPct`); el que falla sigue de largo. **Zonas aliadas**: `Player.zoneDefense()` → `{dr, miss}` de los campos que te contienen (`allyDr`, aplicado en `takeDamage`). La Bomba de Humo es un `zone` genérico (`allyDr:40, projMissPct:50`).
+3. **Proyectiles genéricos terminan AL IMPACTAR** (`GENERIC.proj` diferido): el básico da recurso con el primer impacto (Disparo Disperso, Cicuta y Ascua ya sin comportamiento); `sk.splash` (+`radius`) = salpicadura sin el objetivo directo (Bola de Fuego y Ascua genéricas); `sk.hitDot:{kind,coef,dur}` = DoT propio al impactar (Cicuta).
+4. **Recurso**: `g.gainResource(p, n)`; `sk.gen` en NO básicos se gana al lanzar (Grito +30), `sk.genOnHit` solo si golpea (Embestida +12, Provocación +15).
+5. **Daño saliente por enemigo**: `Enemy.weakenOutgoing(id, pct, dur)` / `outDmgMul()`; `Player.takeDamage` lo aplica con `opts.source` (melee, proyectiles enemigos y golpes telegrafiados llevan su fuente). Provocación: `taunt` genérico con `weakenPct` (ya no toca `e.def`).
+6. **Coste por buff**: stat `spenderCostPct` (−100 = gratis) dentro de `resolveSkill`, solo a gastadoras. Furia Inmortal = buff genérico `{aspdPct:30, spenderCostPct:−100}` + `unstoppable` + `slowImmune` (ya no mantiene la Furia al máximo).
+7. **Auras**: tipo genérico **`aura`** → campo `'aura'` (`field-entities.js`): cada 0,5 s renueva el buff a los aliados en el radio y da `resPerSec` al dueño (primer pulso al lanzar). Estandarte de Guerra migrado.
+8. **Cadencia**: `sk.cadence` del básico (Mandoble 1,5 · Embate 1,1) en el canal (descontando el windup). Mandoble, Embate, Embestida, Piel, Grito, Furia Inmortal, Provocación y Estandarte son genéricos. Básico cuerpo a cuerpo sin objetivo = golpe al vacío (no se lanza; consume el golpe).
+9. **Canalización**: `g.startChannel(ctx, done, {dur, ticks, unstoppable, onTick, onEnd})`; `type:'channel'` + `behavior` **solo con tick/end** conviven (`defineSkillBehavior` acepta tick sin cast; `validateSkillDef` lo valida). Objetivo pegajoso. Desgarro Arcano = channel genérico con `unstoppable`.
+10. **`g.fireProjectile(ctx, opts)`**: un proyectil del perfil con crítico + Sangre Fría, `ctx.hit`, robo, Encadenado y salpicadura (lo usan el genérico y el Tiro Celestial). `skill-defs.js` exporta `COLDBLOOD_CRIT` (= combat-math, lo vigila `test69`) y `projFanOffset`; se quitaron las copias locales.
+11. **Básico de arma con su VFX/SFX** (`SKILL_FX[id]` en `basicAttack`): el Dardo suena `bolt`.
+12. **Reglas nuevas que destapó el banco real** (núcleo, no catálogo):
+   - **Sin escopetazo**: si la habilidad dispara 1 proyectil de base, los extra (Multiproyectil, Doble, Vendaval/`multidisparo`) comparten `castHits` y golpean a cada enemigo UNA vez (cubren más enemigos; antes daban ×2 contra jefes grandes). Las de abanico propio (Flecha Múltiple, Disperso) sí pueden acertar varias veces.
+   - **Abanico**: sin `sk.spread`, el primer proyectil va RECTO y los extra se alternan a ±0,18 rad (antes, con 2 proyectiles ninguno iba recto y ambos fallaban a 5 m a una rata).
+   - **`CAPS.mph = 2`** (recurso al golpear, por impacto): el afijo plano escala ×G y con rares típicos daba +58 (Nv25) / +125 (Nv50) de Furia por golpe = recurso infinito. Revisar en el Paso 4 (el afijo no debería escalar con G con pozos fijos).
+   - Los tics de DoT (`timers.applyDoTInstance`) llegan con `{dot:true, skill}`: no disparan onHit (contrato de HitInfo) y se atribuyen a su habilidad.
+13. **Calendario §1.2 y valores de diseño** (tests del núcleo corregidos: `test55`, `test62`, `test64`, `test26`, `test40`, `test43`): básicos B/C en Nv3/Nv8 en las 3 clases (Mandoble Nv3, Embate Nv8), kit base completo en Nv16 (Provocación Nv16); Martillo coste 30; Lanza con bloqueo 0,3 s; Piel de Hierro `cat:'defense'`; Grito sin coste (+30; Eficiente ya no encaja porque exige coste); Bola de Fuego con tag `area` (Expansivo/Concentrado cambian su explosión) y lanzamiento de 0,3 s (windup); Terremoto `bossStun:false` (los jefes no se aturden; stagger en 2c).
+14. **Banco (`tests/balance-bench.mjs`) sobre el CANAL REAL** (arnés de tests): héroe real + `castSkillSlot` real con GCD 0,2 s, windup, impactDelay, bloqueos, cadencia, proyectiles al impactar, comportamientos de varios golpes (Diluvio 8 oleadas, Cataclismo 6 impactos, Supernova 2 ondas, canalizaciones por tics, salpicaduras), DoT por el planificador, Debilidad y Π[×]; **Furia por daño recibido** (el objetivo pega con su DPS medio tras mitigar). `LOADOUT` por clase: 🖱️Der · 2 ofensiva = gastadora CON enfriamiento (Terremoto / Meteoro, Rayo antes de Nv14 / Lluvia) · 2 defensiva = Piel / Armadura de Hielo / Bomba de Humo · 4 = definitiva de daño (Cataclismo / Supernova / Diluvio). Rotación §7.1 (definitiva → 2 con enfriamiento → 🖱️Der → básico; reserva recurso para la de 2; una acción cada 0,2 s). TTK con la ofensiva; TTD (Paso 1A, sin defensa) y **TTD+** (defensiva usada al enfriarse). **UNI** = 60 s a un jefe inmortal con reparto del daño por habilidad. Aserciones NUEVAS (típico, T0): «solo básico» ≤ 0,6× la rotación (Nv ≥ 5); la definitiva aporta 12–22 % de UNI (Nv ≥ 15); **ninguna gastadora trampa**: cada gastadora de la barra aporta ≥ 10 % de UNI y su daño por uso es ≥ 1,8× el golpe del básico (1,3× si es de área/cono/línea, que reparte ≈70 % por objetivo); TTD+ ≥ TTD. Se mantienen TODOS los objetivos del Paso 1A; curvas de enemigos congeladas. Corre en ≈1,2 s.
+15. **Recalibración (solo coef/coste/enfriamiento de `skills-*.js`)**: Hendidura coef 2,6→**2,9**; Terremoto 3,0/35→**3,3/30**; Flecha Perforante 2,2/20→**2,0/22**; Lluvia 0,75→**0,7** por oleada (2,8 WD); Diluvio 2,5→**2,0** por oleada (16 WD). El resto, los números de §3.
+   Resultados (TTK común/élite/jefe · TTD, s; ANTES = banco analítico de 2b.0 en `d68c530`; DESPUÉS = canal real, entre paréntesis TTD+):
+   | | ANTES típico | DESPUÉS típico | ANTES óptimo | DESPUÉS óptimo |
+   |---|---|---|---|---|
+   | Guerrero Nv1 | 1,50/10,3/57 · 7,4 | 1,28/9,7/55 · 7,4 (7,4) | 0,34/1,71/8,0 | 0,07/1,51/8,1 |
+   | Guerrero Nv5 | 1,42/8,8/51 · 6,7 | 0,79/7,4/45 · 6,7 (6,8) | 0,34/1,78/6,8 | 0,03/1,03/5,1 |
+   | Guerrero Nv10 | 1,26/8,0/66 · 10,0 | 1,26/10,0/83 · 10,0 (11,9) | 0,41/1,21/5,8 | 0,11/1,30/7,2 |
+   | Guerrero Nv25 | 0,95/6,5/61 · 7,4 | 1,11/7,2/67 · 7,4 (9,5) | 0,42/1,51/8,3 | 0,10/0,98/9,4 |
+   | Guerrero Nv50 | 0,79/6,0/49 · 6,2 | 0,85/5,7/44 · 6,2 (8,5) | 0,35/1,21/6,3 | 0,07/0,77/6,4 |
+   | Maga Nv1 | 1,34/9,4/49 · 8,3 | 1,37/9,4/49 · 8,3 (8,3) | 0,34/1,70/7,7 | 0,37/1,69/7,4 |
+   | Maga Nv5 | 0,81/7,1/41 · 8,5 | 1,10/7,7/42 · 8,5 (8,5) | 0,34/1,04/4,9 | 0,57/1,51/6,2 |
+   | Maga Nv10 | 0,62/5,7/59 · 6,2 | 0,69/5,6/48 · 6,2 (7,5) | 0,40/1,08/11,5 | 0,51/1,15/9,0 |
+   | Maga Nv25 | 0,70/6,0/77 · 6,9 | 0,95/6,9/60 · 6,9 (8,5) | 0,34/0,71/12,3 | 0,60/1,29/10,6 |
+   | Maga Nv50 | 0,50/6,0/69 · 6,6 | 0,98/6,8/53 · 6,6 (8,3) | 0,34/0,82/5,2 | 0,61/1,33/6,2 |
+   | Arquera Nv1 | 1,20/8,3/43 · 9,8 | 1,16/8,5/45 · 9,8 (9,8) | 0,34/1,82/8,3 | 0,27/1,74/8,2 |
+   | Arquera Nv5 | 1,19/7,3/46 · 12,3 | 0,88/6,7/40 · 12,3 (12,4) | 0,34/1,21/5,1 | 0,28/1,01/4,6 |
+   | Arquera Nv10 | 1,14/9,0/71 · 6,5 | 1,13/8,3/66 · 6,5 (6,5) | 0,38/1,21/9,7 | 0,32/1,36/9,5 |
+   | Arquera Nv25 | 1,10/8,9/90 · 7,3 | 1,19/7,8/84 · 7,3 (9,1) | 0,37/1,63/17,2 | 0,33/1,52/12,5 |
+   | Arquera Nv50 | 0,75/6,8/56 · 6,3 | 0,67/4,6/41 · 6,3 (8,4) | 0,48/2,66/20,9 | 0,40/1,78/14,5 |
+   | Nv50 T10 jefe (G/M/A) | 157 / 304 / 346 | 121 / 230 / 270 | 26 / 67 / 63 | 31 / 51 / 50 |
+   UNI típico: «solo básico» ×0,23–0,55 de la rotación; definitiva 14–15 % (G), 13–18 % (M), 14–21 % (A); ranura 2 ofensiva +0–4 % de UNI (G), +28–35 % (M), +1–9 % (A); defensiva +19–36 % de TTD+. Óptimo/típico ×2,8–11,7. El óptimo del Guerrero mata comunes en 0,03–0,11 s (antes 0,34: el banco viejo tenía una acción cada 0,3 s).
+16. **Riesgos/pendientes para 2c/2e**: (a) márgenes justos con la semilla 1: Guerrero Nv10 élite 9,96 (tope 10,5), Arquera Nv50 élite 4,61 (suelo 4,5) y Diluvio 21 % (tope 22); con otras semillas de equipo la Arquera Nv50 va de 4,6 a 8,4 s de élite → en 2e medir varias semillas; (b) **intercambio de la ranura 2** (§7.2: ofensiva +12–25 % de UNI): sin especialización el Guerrero y la Arquera ganan poco (dos gastadoras sin enfriamiento se pisan el recurso) y la Maga gana de más (+28–35 %) → lo cierran talentos/especializaciones con su métrica de rol (2e); (c) mantener los dos botones lanza básico y gastadora en paralelo (el básico no tiene GCD); el banco lo limita a una acción cada 0,2 s; (d) el banco aún usa la maestría y el paragon de clase de 1A (poderes `multidisparo`, `m_deadeye`…), que 2c sustituye por talentos → recalibrar otra vez en 2c.2; (e) `CAPS.mph` es un parche hasta el Paso 4; (f) el banco es de objetivo único: las áreas (Torbellino, Flecha Múltiple, salpicaduras) se valoran en ÁREA×5 (2e).
+
 - `recompute()` **ignora objetos sin identificar** (no dan stats) — clave en tests de gemas (ver `test9`, ya endurecido).
 - El motor de partículas necesita `document` (canvas) → guardado con try/catch para tests headless (`game.psys?`).
 - `ui.js` y `main.js` **no se pueden importar headless** (usan `window`/DOM) → la lógica UI/Game no es unit‑testable directamente; se prueban los módulos puros (data/items/economy/entities/world/zones).
@@ -320,7 +366,7 @@ export const GUERRERO_SKILL_BEHAVIORS = {
   },
 };
 ```
-`js/powers.js` los registra al cargar (`defineSkillBehavior`: falla si el id se repite o falta `cast`). Usa métodos de `Game` (`g.dealArea`, `g.dealProcDamage`, `g.enemiesInCone/InLine`, `g.spawnField`, `g.applyDoT`, `g.heal`, `g.shield`), nunca `setTimeout` (usa `g.timers.schedule`). Poderes (`definePower`) y campos nuevos (`defineField`) NO son de 2b.1: van en `powers-<clase>.js` (2c).
+`js/powers.js` los registra al cargar (`defineSkillBehavior`: falla si el id se repite o falta `cast`). Usa métodos de `Game` (`g.dealArea`, `g.dealProcDamage`, `g.enemiesInCone/InLine`, `g.spawnField`, `g.applyDoT`, `g.heal`, `g.shield`; desde 2b.2 también `g.gainResource`, `g.fireProjectile`, `g.startChannel`), nunca `setTimeout` (usa `g.timers.schedule`). Antes de escribir un comportamiento, mira si basta un genérico con las claves de 2b.2 (`cadence`, `gen`/`genOnHit`, `splash`, `hitDot`, `slowImmune`, `unstoppable`, `allyDr`/`projMissPct`, `weakenPct`, `spenderCostPct`, type `aura`). Poderes (`definePower`) y campos nuevos (`defineField`) NO son de 2b.1: van en `powers-<clase>.js` (2c).
 
 **4. Tests** (`tests/test-skills-<clase>.mjs`, `npm test` lo recoge solo):
 ```js

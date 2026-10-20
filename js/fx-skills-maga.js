@@ -177,5 +177,5 @@ export const MAGA_FX = {
   // definitivas
   m_u_supernova:   { trail: 'supernovaFall', impact: 'supernovaCore', aura: 'supernovaFlare', extra: 'meteorEmbers', color: 0xffcc44, sfx: 'fire' },
   m_u_tormenta:    { aura: 'glacialStorm', extra: 'glacialStormMist', color: 0xbfe9ff, sfx: 'ice' },
-  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt' },
+  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt', tickSfx: 'bolt' },
 };

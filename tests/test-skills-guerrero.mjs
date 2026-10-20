@@ -24,18 +24,18 @@ const SK = id => CLASSES.guerrero.skills.find(s => s.id === id);
 // estado de §3.1 (C conserva · R rehace · N nueva) y números de diseño a rango 1
 const EXPECT = {
   g_tajo:         { st: 'C', cat: 'basic',    req: 1,  coef: 1.0, cost: 0,  cd: 0,  gen: 10 },
-  g_mandoble:     { st: 'R', cat: 'basic',    req: 1,  coef: 1.5, cost: 0,  cd: 0,  gen: 14 },
-  g_embate:       { st: 'R', cat: 'basic',    req: 1,  coef: 0.6, cost: 0,  cd: 0,  gen: 7 },
+  g_mandoble:     { st: 'R', cat: 'basic',    req: 3,  coef: 1.5, cost: 0,  cd: 0,  gen: 14 },   // básico B (Nv3)
+  g_embate:       { st: 'R', cat: 'basic',    req: 8,  coef: 0.6, cost: 0,  cd: 0,  gen: 7 },    // básico C (Nv8)
   torbellino:     { st: 'R', cat: 'spender',  req: 2,  coef: 1.6, cost: 25, cd: 0 },
-  g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.6, cost: 30, cd: 0 },
-  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 2.4, cost: 12, cd: 0 },   // coste 30 en diseño (test64 fija 12)
-  terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.0, cost: 35, cd: 6 },
+  g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.9, cost: 30, cd: 0 },   // 2,6 → 2,9 (banco 2b.2)
+  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 2.4, cost: 30, cd: 0 },
+  terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.3, cost: 30, cd: 6 },   // 3,0/35 → 3,3/30 (banco 2b.2)
   g_lanza:        { st: 'C', cat: 'spender',  req: 14, coef: 1.9, cost: 20, cd: 0 },
   embestida:      { st: 'C', cat: 'movement', req: 4,  coef: 1.2, cost: 0,  cd: 8 },
   g_salto:        { st: 'R', cat: 'movement', req: 12, coef: 1.8, cost: 0,  cd: 12 },
-  g_piel:         { st: 'N', cat: 'utility',  req: 6,  coef: 0,   cost: 0,  cd: 25 },   // defensa (tag) en k2
-  g_provocacion:  { st: 'R', cat: 'utility',  req: 15, coef: 0,   cost: 0,  cd: 8 },
-  grito_guerra:   { st: 'R', cat: 'utility',  req: 12, coef: 0,   cost: 5,  cd: 20 },   // neto +30 (test62: Eficiente exige coste)
+  g_piel:         { st: 'N', cat: 'defense',  req: 6,  coef: 0,   cost: 0,  cd: 25 },
+  g_provocacion:  { st: 'R', cat: 'utility',  req: 16, coef: 0,   cost: 0,  cd: 8 },    // utilidad C (Nv16)
+  grito_guerra:   { st: 'R', cat: 'utility',  req: 12, coef: 0,   cost: 0,  cd: 20 },   // sin coste, +30 al lanzar
   g_u_furia:      { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 60 },
   g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.5, cost: 0,  cd: 50 },
   g_u_estandarte: { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 55 },
@@ -72,9 +72,9 @@ console.log('Catálogo del Guerrero: 16 habilidades base válidas, ramas 3×3, r
 // ------------------------------------------------ 2) resolveSkill en Nv1 / Nv20 / Nv50
 const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, input: { joyDir: null, keyDir: null }, enemies: [] });
 const LITERAL = {   // coef final a mano: base × (1 + 0,10·(rango−1)), rango = clamp(1+⌊(Nv−req)/8⌋,1,5)
-  1:  { torbellino: 1.6,  g_hendidura: 2.6,  terremoto: 3.0, g_tajo: 1.0, g_u_cataclismo: 3.5 },
-  20: { torbellino: 1.92, g_hendidura: 2.86, terremoto: 3.0, g_tajo: 1.2, g_u_cataclismo: 3.5 },
-  50: { torbellino: 2.24, g_hendidura: 3.64, terremoto: 4.2, g_tajo: 1.4, g_u_cataclismo: 4.9 },
+  1:  { torbellino: 1.6,  g_hendidura: 2.9,  terremoto: 3.3, g_tajo: 1.0, g_u_cataclismo: 3.5 },
+  20: { torbellino: 1.92, g_hendidura: 3.19, terremoto: 3.3, g_tajo: 1.2, g_u_cataclismo: 3.5 },
+  50: { torbellino: 2.24, g_hendidura: 4.06, terremoto: 4.62, g_tajo: 1.4, g_u_cataclismo: 4.9 },
 };
 for (const L of [1, 20, 50]) {
   const p = new Player(mk(), 'guerrero');
@@ -123,11 +123,13 @@ assert.equal(e.hp, 1e6, 'Mandoble: aún en preparación');
 h.step(0.13);
 assert.ok(e.hp < 1e6 && e2.hp === 1e6, 'Mandoble: golpe único');
 assert.equal(h.p.mp, 14, 'Mandoble: +14 al acertar');
-assert.ok(h.p.atkCd > h.p.stats.atkTime * 1.4, `Mandoble: cadencia ×1,5 (${h.p.atkCd.toFixed(2)} vs ${h.p.stats.atkTime.toFixed(2)})`);
-// al vacío: no genera
+// sk.cadence del núcleo: atkCd = atkTime × 1,5 − windup (ya esperado) − lo avanzado tras el golpe
+assert.ok(approx(h.p.atkCd, h.p.stats.atkTime * 1.5 - 0.12 - 0.01, 0.02), `Mandoble: cadencia ×1,5 (${h.p.atkCd.toFixed(2)} vs ${h.p.stats.atkTime.toFixed(2)})`);
+// al vacío: golpe sin objetivo (no se lanza, no genera)
 h.p.mp = 0; e.alive = e2.alive = false; h.p.atkCd = 0;
-assert.equal(h.cast('lmb'), true); h.step(0.2);
+assert.equal(h.cast('lmb'), false); h.step(0.2);
 assert.equal(h.p.mp, 0, 'Mandoble al vacío: sin Furia');
+assert.ok(h.p.atkCd > 0, 'Mandoble al vacío: igual consume el golpe');
 
 // Embate: todos a 2,5 m, +7 +2 por extra, cadencia ×1,1
 h = makeHarness({ classId: 'guerrero', level: 20 });
@@ -159,7 +161,11 @@ h.step(0.2); assert.ok(e.hp < 1e6, 'Martillo: impacta 2,5 m delante con radio 3'
 h = hz(20); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [4, 0, 3] });
 h.aim(8, 0); h.setSlot('rmb', 'terremoto'); assert.equal(h.cast('rmb'), true); h.step(0.2);
 assert.ok(e.hp < 1e6 && e.stunT > 0 && e2.hp === 1e6, 'Terremoto: daña y aturde en la línea');
-assert.ok(approx(h.p.cds.terremoto, 6, 0.05) && h.p.mp === 65, 'Terremoto: 35 de Furia y 6 s');
+assert.ok(approx(h.p.cds.terremoto, 6, 0.05) && h.p.mp === 70, 'Terremoto: 30 de Furia y 6 s');
+// los jefes NO se aturden (bossStun:false; sumarán stagger en 2c)
+h = hz(20); e = h.enemy({ hp: 1e6, pos: [6, 0, 0], boss: true });
+h.aim(8, 0); h.setSlot('rmb', 'terremoto'); assert.equal(h.cast('rmb'), true); h.step(0.2);
+assert.ok(e.hp < 1e6 && !(e.stunT > 0), 'Terremoto: al jefe le hace daño pero no lo aturde');
 
 // Lanza: proyectil perforante
 h = hz(20); e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [7, 0, 0] });
@@ -187,7 +193,8 @@ h = hz(6); h.setSlot('k2', 'g_piel'); h.p.slowT = 3;
 assert.equal(h.cast('k2'), true);
 assert.equal(h.p.stats.dr, 30, 'Piel: dr 30 a rango 1');
 h.p.slowT = 2; h.step(0.15);
-assert.equal(h.p.slowT, 0, 'Piel: purga las ralentizaciones mientras dura');
+assert.equal(h.p.slowT, 0, 'Piel: inmune a ralentizaciones mientras dura (p.slowImmuneT)');
+assert.equal(h.p.applySlow(2), false, 'Piel: applySlow no tiene efecto');
 h.tick(6.2); h.p.slowT = 2; h.step(0.2);
 assert.ok(h.p.slowT > 1 && h.p.stats.dr === 0, 'Piel: al terminar vuelve la ralentización y se va el dr');
 
@@ -197,11 +204,11 @@ e = h.enemy({ hp: 1e6, pos: [10, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [11, 0, 
 const dmg0 = e.def.dmg;
 h.aim(10, 0); h.setSlot('k2', 'g_provocacion'); assert.equal(h.cast('k2'), true);
 assert.ok(e.tauntT > 0 && !(e2.tauntT > 0), 'Provocación: a uno solo');
-assert.ok(approx(e.def.dmg, dmg0 * 0.85), 'Provocación: −15 % de daño del provocado');
+assert.ok(approx(e.outDmgMul(), 0.85) && e.def.dmg === dmg0, 'Provocación: −15 % de daño saliente (e.outDmgMul, sin tocar e.def)');
 assert.equal(h.p.mp, 15, 'Provocación: +15 de Furia');
 assert.equal(h.p.cds.g_provocacion, 8);
 h.tick(4.2);
-assert.ok(approx(e.def.dmg, dmg0), 'Provocación: el debilitamiento caduca');
+assert.ok(approx(e.outDmgMul(), 1), 'Provocación: el debilitamiento caduca');
 e.alive = e2.alive = false; h.p.cds = {}; h.p.gcdT = 0;
 assert.equal(h.cast('k2'), true);
 assert.equal(h.p.cds.g_provocacion, 0, 'Provocación sin objetivo: no gasta el enfriamiento');
@@ -210,10 +217,9 @@ assert.equal(h.p.cds.g_provocacion, 0, 'Provocación sin objetivo: no gasta el e
 h = makeHarness({ classId: 'guerrero', level: 12 });
 h.setSlot('k2', 'grito_guerra');
 const dmgPct0 = h.p.stats.dmgPct;
-assert.equal(h.cast('k2'), false, 'Grito: con 0 de Furia no alcanza el coste de 5');
-h.p.mp = 10;
-assert.equal(h.cast('k2'), true);
-assert.ok(h.p.mp === 40 && h.p.stats.dmgPct === dmgPct0 + 10, 'Grito: +30 de Furia y +10 % de daño');
+assert.equal(h.p.mp, 0);
+assert.equal(h.cast('k2'), true, 'Grito: sin coste (se lanza con 0 de Furia)');
+assert.ok(h.p.mp === 30 && h.p.stats.dmgPct === dmgPct0 + 10, 'Grito: +30 de Furia (sk.gen) y +10 % de daño');
 assert.ok(h.p.buffs.some(b => b.id === 'grito_guerra' && approx(b.dur, 8)), 'Grito: 8 s');
 
 // Furia Inmortal: imparable, +30 % de velocidad de ataque y gastadoras sin coste
@@ -223,11 +229,15 @@ const aspd0 = h.p.stats.aspdPct;
 h.setSlot('k4', 'g_u_furia'); assert.equal(h.cast('k4'), true);
 assert.ok(h.p.unstoppableT > 9 && h.p.stats.aspdPct === aspd0 + 30, 'Furia Inmortal: imparable y +30 % vel. ataque');
 h.tick(0.3);
-h.setSlot('rmb', 'torbellino'); assert.equal(h.cast('rmb'), true, 'gastadora lanzable aunque la Furia empezara en 0');
+assert.equal(resolveSkill(h.p, SK('torbellino')).cost, 0, 'Furia Inmortal: coste 0 en resolveSkill (spenderCostPct del buff)');
+assert.ok(h.p.slowImmuneT > 9, 'Furia Inmortal: inmune a ralentizaciones');
+const mpF = h.p.mp;
+h.setSlot('rmb', 'torbellino'); assert.equal(h.cast('rmb'), true, 'gastadora lanzable con la Furia a 0');
 h.step(0.15);
-assert.equal(h.p.mp, h.p.stats.maxMP, 'Furia Inmortal: la gastadora no consume Furia');
+assert.ok(h.p.mp >= mpF, 'Furia Inmortal: la gastadora no consume Furia');
 h.tick(10.5);
 assert.ok(!h.p.buffs.some(b => b.id === 'g_u_furia'), 'Furia Inmortal: dura 10 s');
+assert.equal(resolveSkill(h.p, SK('torbellino')).cost, 25, 'al terminar, el coste vuelve');
 
 // Cataclismo: 6 impactos en 3 s (telegrafía 0,4 s), el centro recibe los 6
 h = makeHarness({ classId: 'guerrero', level: 15 });
@@ -261,5 +271,5 @@ assert.equal(mh, 2, 'Mandoble con Eco: dos golpes');
 
 assert.deepEqual(warns, [], 'ningún comportamiento lanzó errores');
 console.warn = origWarn;
-console.log('Comportamientos (Mandoble, Embate, Embestida, Piel, Provocación, Grito, Furia, Cataclismo, Estandarte) y tipos genéricos ✓');
+console.log('Tipos genéricos (Mandoble, Embate, Embestida, Piel, Provocación, Grito, Furia, Estandarte) y comportamiento (Cataclismo) ✓');
 console.log('\n✅ HABILIDADES DEL GUERRERO OK');

@@ -179,6 +179,44 @@ defineField('zona', {
 });
 
 // ------------------------------------------------------------
+// AURA en el suelo (tipo `aura`: Estandarte de Guerra; base de las auras de 2c).
+// Cada `interval` s (0,5) renueva el buff `buffId` a los ALIADOS dentro (g.allies)
+// con una duración corta (al salir caduca solo) y da resPerSec de recurso al dueño
+// si está dentro. data = { buff:{stat:valor}, buffId, meta, resPerSec, color }
+// ------------------------------------------------------------
+defineField('aura', {
+  name: 'Aura',
+  init(f) { f.data.interval = f.data.interval || 0.5; f.acc = f.data.interval; f.data.color = f.data.color ?? 0xd8a040; f.ringAcc = 0; },
+  tick(g, f, dt) {
+    f.acc += dt; f.ringAcc += dt;
+    if (f.acc < f.data.interval - 1e-9) return;
+    const step = f.acc; f.acc = 0;
+    const keep = f.data.interval + 0.15;
+    const allies = g.allies ? g.allies(new THREE.Vector3(f.pos.x, 0, f.pos.z), f.radius) : [];
+    for (const a of allies) {
+      if (f.data.buffId && f.data.buff) {
+        const b = a.buffs?.find(x => x.id === f.data.buffId);
+        if (b) { b.t = Math.max(b.t, keep); b.dur = Math.max(b.dur || 0, keep); }
+        else a.addBuff?.(f.data.buffId, { ...f.data.buff }, keep, f.data.meta || {});
+      }
+      if (a === f.owner && f.data.resPerSec > 0) g.gainResource?.(a, f.data.resPerSec * step);
+    }
+    if (f.ringAcc >= 1) { f.ringAcc = 0; g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius, f.data.color); }
+  },
+  render(g, f) {
+    if (f.dead) { if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; } return; }
+    if (!f.decal) {
+      const decal = new THREE.Mesh(new THREE.RingGeometry(f.radius * 0.92, f.radius, 48),
+        new THREE.MeshBasicMaterial({ color: f.data.color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+      decal.rotation.x = -Math.PI / 2;
+      decal.position.set(f.pos.x, 0.06, f.pos.z);
+      g.fxGroup.add(decal);
+      f.decal = decal;
+    }
+  },
+});
+
+// ------------------------------------------------------------
 // TRAMPA genérica (tipo `trap`): se arma en el suelo y salta con el primer
 // enemigo que entra: daño (proc del dueño) + inmovilizar. data = { dmg, root, color, skill }
 // ------------------------------------------------------------

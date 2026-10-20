@@ -35,7 +35,14 @@ for (const c of Object.values(CLASSES)) {
   assert.ok(c.tree.length >= 3 && c.tree[0].kind === 'basic' && c.tree.at(-1).kind === 'ultimate');
   for (const nd of c.tree) for (const sid of nd.skills) assert.ok(ids.has(sid), `${c.id}: ${sid} del árbol no existe`);
 }
-assert.deepEqual(Object.fromEntries(GUERRERO_SKILLS.map(s => [s.cat, 1])), { basic: 1, spender: 1, movement: 1, utility: 1, ultimate: 1 });
+assert.deepEqual(Object.fromEntries(GUERRERO_SKILLS.map(s => [s.cat, 1])), { basic: 1, spender: 1, movement: 1, defense: 1, utility: 1, ultimate: 1 });
+// calendario §1.2 (todas las clases): básico B en Nv3, básico C en Nv8, kit base completo en Nv16
+for (const c of Object.values(CLASSES)) {
+  const basics = c.skills.filter(s => s.cat === 'basic').map(s => s.req).sort((a, b) => a - b);
+  assert.deepEqual(basics, [1, 3, 8], `${c.id}: básicos A/B/C en Nv1/3/8`);
+  assert.ok(c.skills.every(s => s.req <= 16), `${c.id}: el kit base se completa en Nv16`);
+}
+assert.equal(GUERRERO_SKILLS.find(s => s.id === 'g_provocacion').req, 16, 'Provocación = Defensa/utilidad C (Nv16)');
 console.log('Clases: recurso de §2, básico generador, catálogo por categoría desde skills-<clase>.js ✓');
 
 // --- harness clásico ---
@@ -47,12 +54,14 @@ const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {}, refres
 // --- 2) aprendidas por nivel ---
 const g = mk();
 const p = new Player(g, 'guerrero'); g.player = p;
-assert.deepEqual(Object.keys(p.skills).sort(), ['g_embate', 'g_mandoble', 'g_tajo'], 'Nv1: solo los básicos');
+assert.deepEqual(Object.keys(p.skills).sort(), ['g_tajo'], 'Nv1: solo el básico A');
 assert.equal(p.skillPoints, 0, 'Nv1: 0 puntos');
 assert.equal(p.hotbar.lmb, 'g_tajo', '🖱️Izq = básico de arma');
 assert.equal(p.skillSystemV, 5);
 p.level = 15; p.recompute();
-for (const s of CLASSES.guerrero.skills) assert.ok(p.skills[s.id] > 0, `Nv15 conoce ${s.id}`);
+assert.ok(!p.skills.g_provocacion, 'Nv15 aún no conoce la utilidad C');
+p.level = 16; p.recompute();
+for (const s of CLASSES.guerrero.skills) assert.ok(p.skills[s.id] > 0, `Nv16 conoce ${s.id}`);
 console.log('Las habilidades se aprenden solas por nivel; el rango es derivado ✓');
 
 // --- 3) hotbar con categoría ---

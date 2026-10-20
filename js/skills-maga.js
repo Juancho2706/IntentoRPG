@@ -11,6 +11,10 @@
 // enfriamientos es la build ofensiva de la Maga).
 // Lo que depende de los indicadores de especialización (Cargas Arcanas, capas de
 // Escarcha, Calor/Quemadura de Ignición) es del Paso 2c (spec-mechanics.js).
+// Paso 2b.2: Ascua y Bola de Fuego usan el tipo genérico `proj` con salpicadura
+// (`splash`, el daño se tira al impactar y el básico da Maná al acertar) y el
+// Desgarro Arcano la canalización genérica (`unstoppable`). Números recalibrados
+// con el banco (solo coef/coste/enfriamiento).
 // Este archivo SOLO importa js/skill-defs.js (evita ciclos con powers.js).
 import { dmgMods, utilMods, O_RAD, O_PROJ, O_BIG, V_BURN, V_VULN, V_STUN, V_SLOW, V_CHAIN, V_EXEC,
   T_ZONE } from './skill-defs.js';
@@ -21,17 +25,18 @@ export const MAGA_SKILLS = [
     type: 'weapon', req: 1, coef: 1.0, gen: 3, color: 0xcc66ff,
     desc: 'Lanza un dardo arcano a distancia (100 % del daño de arma) y recupera 3 de Maná al impactar.' },
   { id: 'm_ascua', name: 'Ascua', icon: '🔸', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'area', 'fire'], elem: 'fire',
-    behavior: 'm_ascua', req: 3, coef: 0.75, splash: 0.3, radius: 1.5, gen: 3, speed: 14, range: 9, color: 0xff8a33,
+    type: 'proj', req: 3, coef: 0.75, splash: 0.3, radius: 1.5, gen: 3, speed: 14, range: 9, size: 0.16, color: 0xff8a33,
     desc: 'Lanza una ascua que estalla al impactar: 75 % de daño al objetivo y 30 % a los enemigos a 1,5 m. Recupera 3 de Maná si acierta.' },
   { id: 'm_toque', name: 'Toque Gélido', icon: '🌬️', cat: 'basic', slots: ['lmb'], tags: ['basic', 'cone', 'cc', 'frost'], elem: 'frost',
     type: 'cone', req: 8, coef: 0.7, radius: 4, angle: 70, range: 4, slow: 1.5, slowPct: 20, gen: 4, color: 0x9fe3ff,
     desc: 'Exhalas un vaho helado en un cono de 70° y 4 m: 70 % de daño a todos y los ralentiza un 20 % durante 1,5 s. Recupera 4 de Maná si acierta.' },
 
   // — GASTADORAS (🖱️Der o ranura 2; todas con enfriamiento) —
-  // Bola de Fuego: SIN tag 'area' (test26/test61 fijan que Expansivo no encaja en ella).
-  { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'fire'], elem: 'fire',
-    behavior: 'bola_fuego', req: 2, coef: 2.2, splash: 1.0, radius: 2, cost: 18, cd: 1.5, lockT: 0.3, speed: 13, range: 12, color: 0xff6622,
-    desc: 'Lanza una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 100 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s.' },
+  // Bola de Fuego: tag 'area' (explota: Expansivo/Concentrado cambian su radio) y
+  // lanzamiento de 0,3 s (windup: la esquiva lo cancela sin coste)
+  { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'fire'], elem: 'fire',
+    type: 'proj', req: 2, coef: 2.2, splash: 1.0, radius: 2, cost: 18, cd: 1.5, windup: 0.3, speed: 13, range: 12, size: 0.26, color: 0xff6622,
+    desc: 'Tras 0,3 s de lanzamiento, una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 100 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s.' },
   { id: 'rayo', name: 'Rayo', icon: '⚡', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'arcane'], elem: 'arcane',
     type: 'proj', req: 8, coef: 2.8, cost: 20, cd: 2.2, lockT: 0.3, speed: 18, range: 13, pierce: true, beam: true, color: 0xffee66,
     desc: 'Un rayo arcano que atraviesa a todos los enemigos en línea (280 % de daño). Cuesta 20 de Maná; enfriamiento 2,2 s.' },
@@ -67,7 +72,7 @@ export const MAGA_SKILLS = [
     behavior: 'm_u_tormenta', req: 15, coef: 0.6, cd: 55, radius: 6, dur: 8, interval: 0.5, slowPct: 40, freeze: 1.5, freezeAt: 5, color: 0xbfe9ff,
     desc: 'Definitiva: una ventisca te sigue durante 8 s (6 m): 60 % de daño cada 0,5 s (960 % en total), ralentiza un 40 % y congela 1,5 s a quien encadena 5 golpes (con rendimientos decrecientes). Enfriamiento 55 s.' },
   { id: 'm_u_desgarro', name: 'Desgarro Arcano', icon: '🌌', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'channel', 'arcane'], elem: 'arcane',
-    behavior: 'm_u_desgarro', req: 15, coef: 3.25, channelT: 3, ticks: 6, cd: 45, range: 10, color: 0xd28cff,
+    type: 'channel', unstoppable: true, req: 15, coef: 3.25, channelT: 3, ticks: 6, cd: 45, range: 10, color: 0xd28cff,
     desc: 'Definitiva: canalizas un rayo arcano gigante durante 3 s contra un objetivo (650 % de daño por segundo, 1950 % en total). Eres imparable mientras dura; mantén la tecla. Enfriamiento 45 s.' },
 ];
 
@@ -106,81 +111,6 @@ export const MAGA_SKILL_MODS = {
 // se obtienen con .clone() de los que ya existen.
 // ------------------------------------------------------------
 const STORMS = new WeakMap(); // héroe → tormenta activa (una a la vez)
-
-// golpe directo de un perfil sobre un enemigo (misma tirada que los genéricos)
-function strike(p, e, coef, ctx) {
-  const { dmg, crit } = p.rollDamage(coef, ctx.prof.critBonus, ctx.prof.addPct, e, ctx.hitInfo);
-  const dealt = e.takeDamage(dmg, crit, ctx.dmgOpts) || 0;
-  ctx.hit(e, dealt);
-  return dealt;
-}
-
-// salpicadura: daña a los enemigos en `radius` alrededor de `center` SALVO `exclude`
-// (el objetivo del impacto ya recibió el golpe directo). Devuelve cuántos tocó.
-function splashAround(g, p, center, radius, coef, ctx, exclude) {
-  if (!(coef > 0) || !(radius > 0)) return 0;
-  let n = 0;
-  for (const e of g.enemies || []) {
-    if (!e.alive || e === exclude) continue;
-    const r = radius + 0.5 * (e.def?.scale || 1);
-    const dx = e.pos.x - center.x, dz = e.pos.z - center.z;
-    if (dx * dx + dz * dz > r * r) continue;
-    strike(p, e, coef, ctx);
-    n++;
-  }
-  if (n) p.onDealHit?.();
-  return n;
-}
-
-// proyectiles que EXPLOTAN al impactar (Bola de Fuego, Ascua). El daño se tira al
-// impactar (rollAt) y el lanzamiento termina (cast.done) cuando todos los
-// proyectiles resolvieron o se agotó su alcance → el recurso de los básicos y
-// el ⑦ afterCast ven los impactos reales.
-function fireExploding(g, p, prof, cast, { size = 0.2 } = {}) {
-  const ctx = cast.ctx, sk = cast.sk;
-  const tgt = cast.target || p.pos;
-  p.faceToward?.(tgt);
-  p.swing = 1;
-  const count = Math.max(1, (prof.count || 1) + (prof.proj || 0));
-  const base = Math.atan2(tgt.x - p.pos.x, tgt.z - p.pos.z);
-  const splashCoef = ctx.coef * ((sk.splash || 0) / (sk.coef || 1));
-  const color = ctx.color || sk.color;
-  let pending = count;
-  const finish = () => cast.done(ctx.res);
-  const muzzle = p.pos.clone(); muzzle.y = 1.0;
-  muzzle.x += Math.sin(base) * 0.5; muzzle.z += Math.cos(base) * 0.5;
-  if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, muzzle);
-  for (let i = 0; i < count; i++) {
-    const off = count > 1 ? (i - (count - 1) / 2) * prof.spread / Math.max(1, count - 1) * 2 : 0;
-    const a = base + off;
-    const from = p.pos.clone(); from.y = 1.0;
-    const to = p.pos.clone(); to.x += Math.sin(a) * 5; to.z += Math.cos(a) * 5; to.y = 1.0;
-    let resolved = false;
-    g.spawnProjectile({
-      from, to, speed: prof.speed, range: prof.range || 10,
-      friendly: true, pierce: prof.pierce, color, size,
-      rollAt: e => p.rollDamage(ctx.coef, prof.critBonus, prof.addPct, e, ctx.hitInfo),
-      ...ctx.dmgOpts,
-      onHit: (e, dealt) => {
-        ctx.hit(e, dealt);
-        const at = e.pos.clone();
-        splashAround(g, p, at, prof.radius, splashCoef, ctx, e);
-        if (prof.chain && e.alive) g.spawnChainBounce?.(e, Math.round(ctx.avgHit), prof.chain, [], color);
-        ctx.zoneCenter = at; ctx.zoneRad = Math.max(1.5, prof.radius || 1.5);
-        at.y = 1.0;
-        if (ctx.fx?.impact) g.emitFx?.(ctx.fx.impact, at);
-        at.y = 0.3;
-        if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, at);
-        if (ctx.fx?.extra) g.emitFx?.(ctx.fx.extra, at);
-        g.spawnRing?.(at, prof.radius || 1.5, color);
-        if (!prof.pierce && !resolved) { resolved = true; if (--pending <= 0) finish(); }
-      },
-    });
-  }
-  // respaldo: si alguno falla (o perfora), el lanzamiento termina al agotarse el alcance
-  g.timers.schedule((prof.range || 10) / Math.max(1, prof.speed || 14) + 0.1, finish);
-  return undefined;
-}
 
 // deslizamiento hacia la mira (como el tipo genérico `dash`, sin daño). Devuelve
 // los puntos recorridos (para dejar la estela) y deja al héroe en el destino.
@@ -225,16 +155,6 @@ function trailFields(g, p, prof, cast, pts, data) {
 }
 
 export const MAGA_SKILL_BEHAVIORS = {
-  // Ascua: básico de proyectil con salpicadura; el Maná llega al impactar (_finishCast)
-  m_ascua: {
-    cast(g, p, prof, cast) { return fireExploding(g, p, prof, cast, { size: 0.16 }); },
-  },
-
-  // Bola de Fuego: explota AL IMPACTAR (golpe directo + salpicadura en 2 m)
-  bola_fuego: {
-    cast(g, p, prof, cast) { return fireExploding(g, p, prof, cast, { size: 0.26 }); },
-  },
-
   // Paso de Escarcha: desliz de 6 m + estela que ralentiza 40 % durante 3 s
   m_paso_escarcha: {
     cast(g, p, prof, cast) {
@@ -362,48 +282,4 @@ export const MAGA_SKILL_BEHAVIORS = {
     },
   },
 
-  // Desgarro Arcano: canalización de 3 s (6 tics) contra UN objetivo, IMPARABLE
-  // (p.unstoppableT: un golpe fuerte no la corta). Usa la canalización del núcleo
-  // (g._channel / g._endChannel / g.cancelCast: soltar la tecla o esquivar la cortan).
-  m_u_desgarro: {
-    cast(g, p, prof, cast) {
-      const ctx = cast.ctx, sk = cast.sk;
-      const dur = sk.channelT || 3;
-      const ticks = Math.max(1, sk.ticks || 6);
-      const interval = dur / ticks;
-      const range = prof.range || 10;
-      const color = ctx.color || sk.color;
-      const inst = { ctx, left: ticks, timer: 0, done: cast.done, target: cast.enemy || null, unstoppable: true };
-      g._channel = inst;
-      p.castLock = dur + 0.05;
-      p.unstoppableT = Math.max(p.unstoppableT || 0, dur + 0.1);
-      if (inst.target) p.faceToward?.(inst.target.pos);
-      const step = () => {
-        if (g._channel !== inst) return;
-        if (!p.alive || !g.slotHeld(ctx.key)) { g.cancelCast('release'); return; }
-        let e = inst.target;
-        if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) {
-          e = inst.target = g.nearestEnemy(Math.max(3, range), cast.target) || g.nearestEnemy(range) || null;
-        }
-        if (e) {
-          p.faceToward?.(e.pos);
-          strike(p, e, ctx.coef, ctx);
-          p.onDealHit?.();
-          g.spawnBeam?.(p.pos, e.pos, color, interval);
-          const at = e.pos.clone(); at.y = 1.0;
-          if (ctx.fx?.impact) g.emitFx?.(ctx.fx.impact, at);
-          g.sfx?.('bolt');
-        }
-        inst.left--;
-        if (inst.left > 0) inst.timer = g.timers.schedule(interval, step);
-        else g._endChannel(inst, false);
-      };
-      if (ctx.fx?.aura) { const at = p.pos.clone(); at.y = 1.0; g.emitFx?.(ctx.fx.aura, at); }
-      inst.timer = g.timers.schedule(interval, step);
-      return undefined; // diferido: termina con el último tic (o al cortarla)
-    },
-    end(g, p, inst) {
-      if (inst?.unstoppable && p) p.unstoppableT = 0;
-    },
-  },
 };

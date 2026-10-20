@@ -34,7 +34,8 @@ const fb = CLASSES.maga.skills.find(s => s.id === 'bola_fuego');
 const nova = CLASSES.maga.skills.find(s => s.id === 'nova_hielo');
 const S = id => SUPPORTS.find(s => s.id === id);
 assert.ok(supportFits(S('multi'), fb) && !supportFits(S('multi'), nova), 'Multiproyectil: solo proyectiles');
-assert.ok(supportFits(S('wide'), nova) && !supportFits(S('wide'), fb), 'Expansivo: solo áreas');
+const rayo = CLASSES.maga.skills.find(s => s.id === 'rayo');
+assert.ok(supportFits(S('wide'), nova) && supportFits(S('wide'), fb) && !supportFits(S('wide'), rayo), 'Expansivo: áreas (la Bola de Fuego explota), no proyectiles puros');
 const nueva = { id: 'x', cat: 'spender', tags: ['spender', 'channel', 'arcane'], elem: 'arcane', coef: 1, cost: 10, cd: 0 };
 assert.ok(!supportFits(S('multi'), nueva) && !supportFits(S('echo'), nueva) && supportFits(S('amplify'), nueva), 'una canalización nueva: por tags, sin listas de tipos');
 console.log('Compatibilidad por tags (también para habilidades futuras) ✓');
@@ -63,6 +64,8 @@ console.log('Soportes asignados (array) y aprendidos persisten; retrocompat ✓'
   const e = h.enemy({ hp: 1e6, pos: [0, 0, 5] });
   h.aim(0, 5); h.setSlot('rmb', 'bola_fuego');
   assert.equal(h.cast('rmb'), true);
+  assert.equal(h.g.projectiles.length, 0, 'lanzamiento de 0,3 s: aún no sale');
+  h.step(0.32);
   assert.equal(h.g.projectiles.length, 3, 'Multiproyectil: 3 proyectiles');
   h.step(1);
   assert.ok(e.hp < 1e6 && e.slowT > 0, 'Gélido: el impacto ralentiza');

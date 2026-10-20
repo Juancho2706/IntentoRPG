@@ -128,7 +128,9 @@ const lost = e => e.maxHP - e.hp;
   h.aim(0, 5); h.setSlot('rmb', 'bola_fuego');
   const mp0 = h.p.mp;
   assert.equal(h.cast('rmb'), true);
-  assert.equal(h.p.mp, mp0 - 18, 'cuesta 18');
+  assert.equal(h.p.mp, mp0, 'lanzamiento de 0,3 s: el coste se cobra al soltarla');
+  h.step(0.32);
+  assert.ok(h.p.mp <= mp0 - 18 + 2 && h.p.mp >= mp0 - 18, `cuesta 18 (${h.p.mp} de ${mp0}, con regeneración)`);
   assert.equal(lost(e), 0, 'aún no impacta');
   h.step(0.7);
   assert.ok(lost(e) > 0 && lost(n) > 0, 'golpe directo + explosión');
@@ -142,13 +144,13 @@ const lost = e => e.maxHP - e.hp;
   h.enemy({ hp: 1e6, pos: [0, 0, 5] }); h.aim(0, 5);
   h.setSlot('rmb', 'bola_fuego'); h.setSlot('k2', 'rayo');
   assert.equal(h.cast('rmb'), true);
-  assert.equal(h.cast('k2'), false, 'GCD/bloqueo: no se encadenan en el mismo instante');
+  assert.equal(h.cast('k2'), false, 'GCD/lanzamiento: no se encadenan en el mismo instante');
   h.step(0.35);
   assert.equal(h.cast('k2'), true, 'tras el GCD y el bloqueo, la segunda gastadora sale');
   assert.equal(h.cast('rmb'), false, 'la Bola sigue en enfriamiento');
   assert.ok(h.p.cds.bola_fuego > 0 && h.p.cds.rayo > 0, 'cada una conserva su enfriamiento');
-  h.step(1.2);
-  assert.equal(h.cast('rmb'), true, 'Bola de nuevo (1,5 s)');
+  h.step(1.5);
+  assert.equal(h.cast('rmb'), true, 'Bola de nuevo (1,5 s desde que se soltó)');
   console.log('Ranura 2 ofensiva: Bola (🖱️Der) + Rayo (2) con GCD y enfriamientos propios ✓');
 }
 

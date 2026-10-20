@@ -12,6 +12,8 @@ import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critCha
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT } from './skill-resolve.js';
 import { firePower, buildHookIndex } from './powers.js';
+import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
+import { projFanOffset } from './skill-defs.js';
 import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
   potionResourceAmount, touchCombat } from './resources.js';
 
@@ -29,7 +31,8 @@ export function weaponBasicOf(cls) {
 export function applyHitEffects(g, p, e, prof, avgHit) {
   if (!e || !e.alive || !prof) return;
   if (prof.vuln) e.vulnT = Math.max(e.vulnT || 0, prof.vuln);
-  if (prof.stun) e.applyCC ? e.applyCC('stun', prof.stun, { src: p }) : e.applyStun?.(prof.stun);
+  // bossStun:false (Terremoto): los jefes no se aturden (sumarán stagger en el Paso 2c)
+  if (prof.stun && (prof.bossStun !== false || !isBossDef(e.def))) e.applyCC ? e.applyCC('stun', prof.stun, { src: p }) : e.applyStun?.(prof.stun);
   if (prof.root && e.alive) e.applyCC?.('root', prof.root, { src: p });
   if (prof.slow && e.alive) {
     if (e.applyCC) e.applyCC('slow', prof.slow, { pct: prof.slowPct || 50, src: p });
@@ -38,6 +41,14 @@ export function applyHitEffects(g, p, e, prof, avgHit) {
   if (prof.dot && e.alive) {
     const d = dotProfile(prof.dot, avgHit, { dotMul: prof.dotMul || 1, tv: p?.tv });
     if (d) g?.applyDoT?.(e, d.total, d.ticks, d.interval, undefined, `${prof.id}:${prof.dot}`);
+  }
+  // DoT PROPIO de la habilidad (sk.hitDot, p. ej. Flecha de Cicuta): total = golpe
+  // medio × coef (avgHit ya es el golpe de la habilidad: se reescala a su coef)
+  if (prof.hitDot && e.alive && prof.coef > 0) {
+    const hd = prof.hitDot;
+    const total = avgHit * hd.coef / prof.coef;
+    const ticks = Math.max(1, Math.round(hd.dur / 0.5));
+    if (total > 0) g?.applyDoT?.(e, total, ticks, 0.5, undefined, `${prof.id}:${hd.kind}`);
   }
   // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
   if (prof.execute && e.alive && !isBossDef(e.def) && e.hp / e.maxHP <= prof.execute / 100)
@@ -557,6 +568,7 @@ export class Player {
     this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
     this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
+    this.slowImmuneT = 0;       // inmune a ralentizaciones (Agilidad, Piel de Hierro, Furia Inmortal)
     this.leap = null;           // salto en curso (tipo de habilidad `leap`)
     this.simT = 0;              // reloj de simulación del héroe (icd de poderes)
     this.sinceCombat = 99;      // s desde el último golpe dado o recibido
@@ -640,7 +652,9 @@ export class Player {
                    lph: 0, mph: 0, cdr: 0, thorns: 0, goldPct: 0,
                    critDmg: 0, dr: 0, block: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0,
                    // Paso 2b.0: esquiva (s menos de recarga), regen. de Energía y curación de habilidad
-                   dodgeCdr: 0, energyRegen: 0, healPct: 0 };
+                   dodgeCdr: 0, energyRegen: 0, healPct: 0,
+                   // Paso 2b.2: coste de gastadoras por buff (−100 = gratis) y fallo de proyectiles enemigos
+                   spenderCostPct: 0, projMissPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -749,12 +763,13 @@ export class Player {
       spd: moveSpeed(4.3, item.spdPct),          // tope +50 %
       atkTime: attackTime(c.atkTime, item.aspdPct), // tope +100 %
       mf: Math.round(item.mf),
-      lph: item.lph, mph: item.mph, thorns: item.thorns,
+      lph: item.lph, mph: Math.min(CAPS.mph, item.mph), thorns: item.thorns,   // recurso al golpear topado (§2)
       cdr: Math.min(CAPS.cdr, item.cdr), // tope de reducción de enfriamiento
       goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
       dr: Math.min(CAPS.dr, item.dr), block: Math.min(CAPS.block, item.block),
       resFire: item.resFire, resCold: item.resCold, resLightning: item.resLightning, resPoison: item.resPoison,
       dodgeCdr: item.dodgeCdr, energyRegen: item.energyRegen, healPct: Math.min(CAPS.heal, item.healPct),
+      spenderCostPct: Math.max(-100, item.spenderCostPct), projMissPct: Math.min(100, Math.max(0, item.projMissPct)),
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
@@ -879,6 +894,38 @@ export class Player {
   grantInvuln(sec) { this.invulnT = Math.max(this.invulnT || 0, sec || 0); }
   // libera de ralentizaciones (opción de rama «Purga»)
   cleanse() { this.slowT = 0; }
+  // ÚNICA entrada de las ralentizaciones al héroe (enemigos, telarañas, auras,
+  // telegrafías): respeta la inmunidad (slowImmuneT) y el estado imparable.
+  // Devuelve true si se aplicó.
+  applySlow(dur, total = dur) {
+    if (!(dur > 0) || !this.alive) return false;
+    if (this.slowImmuneT > 0 || this.unstoppableT > 0) return false;
+    if (dur > (this.slowT || 0)) { this.slowT = dur; this._slowTotal = total; }
+    return true;
+  }
+  // inmunidad a ralentizaciones durante `sec` (purga la que hubiera)
+  grantSlowImmune(sec) {
+    if (!(sec > 0)) return;
+    this.slowImmuneT = Math.max(this.slowImmuneT || 0, sec);
+    this.slowT = 0;
+  }
+  // defensa de las ZONAS aliadas que te contienen (Bomba de Humo…): campos con
+  // data.allyDr (puntos de reducción de daño) y data.projMissPct (fallo de los
+  // proyectiles enemigos). Gana la más fuerte de cada clave (no se suman nubes).
+  zoneDefense() {
+    const out = { dr: 0, miss: 0 };
+    const list = this.game?.fieldsAt?.(this.pos) || [];
+    for (const f of list) {
+      if (f.owner && f.owner !== this && !this.game?.allies?.().includes(f.owner)) continue;
+      out.dr = Math.max(out.dr, f.data?.allyDr || 0);
+      out.miss = Math.max(out.miss, f.data?.projMissPct || 0);
+    }
+    return out;
+  }
+  // probabilidad (%) de que un proyectil ENEMIGO falle al héroe: buff + zona (tope 100)
+  projMissChance() {
+    return Math.min(100, Math.max(this.stats?.projMissPct || 0, this.zoneDefense().miss));
+  }
 
   // meta opcional: { name, icon, desc } para que la UI muestre el efecto.
   // Guardamos `dur` (total) además de `t` (restante) para poder calcular progreso.
@@ -1042,8 +1089,13 @@ export class Player {
       return;
     }
     const g = this.game;
+    // daño SALIENTE del atacante debilitado (Provocación: Enemy.outDmgMul)
+    const om = opts.source?.outDmgMul?.() ?? 1;
+    if (om !== 1) amount = Math.max(0, amount * om);
     const info = { amount, raw: amount, element: opts.element || 'phys', melee: !!opts.melee, blocked: false, src: opts.source || null };
-    const extraDr = this.hookIndex?.condDr ? firePower('condDr', this, this, info) : 0;
+    let extraDr = this.hookIndex?.condDr ? firePower('condDr', this, this, info) : 0;
+    const zd = this.zoneDefense().dr;                 // dentro de una zona aliada (Bomba de Humo)
+    if (zd > 0) extraDr += zd;
     const st = extraDr ? { ...this.stats, dr: (this.stats.dr || 0) + extraDr } : this.stats;
     const mit = mitigate(amount, st, { al: attackerLevel, element: info.element, rng: this.combatRng });
     info.blocked = mit.blocked;
@@ -1125,6 +1177,7 @@ export class Player {
     if (this.castLock > 0) this.castLock = Math.max(0, this.castLock - dt); // red de seguridad (windup/canalización)
     if (this.invulnT > 0) this.invulnT = Math.max(0, this.invulnT - dt);
     if (this.unstoppableT > 0) this.unstoppableT = Math.max(0, this.unstoppableT - dt);
+    if (this.slowImmuneT > 0) { this.slowImmuneT = Math.max(0, this.slowImmuneT - dt); this.slowT = 0; }
     if (this.shields?.length) { for (const s of this.shields) s.t -= dt; this.shields = this.shields.filter(s => s.t > 0 && s.amt > 0); }
     if (this.xpBoostT > 0) this.xpBoostT -= dt;
     for (const k in this.cds) this.cds[k] = Math.max(0, this.cds[k] - dt);
@@ -1310,6 +1363,9 @@ export class Player {
     const hitInfo = { skill: wb?.id || null, tags: prof?.tags || EMPTY_TAGS, elem: prof?.elem || null };
     const dmgOpts = { skill: hitInfo.skill, tags: hitInfo.tags, elem: hitInfo.elem };
     const avgHit = this.avgHit(coef, bAdd);
+    // VFX/SFX del básico de la clase (fx-skills-<clase>.js): el Dardo suena `bolt`
+    const fx = (wb && SKILL_FX[wb.id]) || null;
+    const fxp = x => (typeof x === 'string' ? (SKILL_FX_PRESETS[x] || x) : x);
     // recurso: SOLO al acertar (una vez por ataque, aunque haya multidisparo)
     let genGiven = false;
     const grantGen = (targets = 1) => {
@@ -1354,16 +1410,16 @@ export class Player {
       g.spawnRing?.(target.pos.clone(), 1.4, 0xffbb66);
       // arco de chispas del tajo + impacto seco sobre el objetivo.
       const cp = tpos.clone(); cp.y = 1.0;
-      g.emitFx?.('basicCleave', cp);
-      g.emitFx?.('meleeHit', target.pos.clone().setY(1.0));
-      g.sfx('hit');
+      g.emitFx?.(fxp(fx?.impact) || 'basicCleave', cp);
+      g.emitFx?.(fxp(fx?.extra) || 'meleeHit', target.pos.clone().setY(1.0));
+      g.sfx(fx?.sfx || 'hit');
       return;
     }
 
     // Maga (proyectil arcano) y Arquera (flecha): a distancia; el daño se TIRA AL
     // IMPACTAR (rollAt), con los bonos condicionados al objetivo real
     const arrow = atk === 'arrow';
-    const color = arrow ? 0xe8d8a0 : 0xcc66ff;
+    const color = fx?.color ?? wb?.color ?? (arrow ? 0xe8d8a0 : 0xcc66ff);
     const speed = arrow ? 18 : 13;
     const size = arrow ? 0.09 : 0.17;
     const extra = prof?.proj || 0; // multidisparo (poder) + aspecto "Doble"/"Enjambre"
@@ -1371,20 +1427,22 @@ export class Player {
     // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
     const muzzle = this.pos.clone().setY(1.0)
       .add(new THREE.Vector3(Math.sin(baseAngle) * 0.45, 0, Math.cos(baseAngle) * 0.45));
-    g.emitFx?.(arrow ? 'basicArrow' : 'basicBolt', muzzle);
+    g.emitFx?.(fxp(fx?.aura || fx?.trail) || (arrow ? 'basicArrow' : 'basicBolt'), muzzle);
+    const castHits = extra ? new Set() : null;   // sin escopetazo: un impacto por enemigo
     for (let i = 0; i <= extra; i++) {
-      const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
+      const a = baseAngle + projFanOffset(i, extra + 1);   // el primero recto a la mira
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed, range: this.cls.atkRange + 2, friendly: true, color, size, pierce: !!prof?.pierce,
+        speed, range: this.cls.atkRange + 2, friendly: true, color, size, pierce: !!prof?.pierce, castHits,
         rollAt: e => this.rollDamage(coef, bCrit, bAdd, e, hitInfo), ...dmgOpts,
+        ...(fx?.impact ? { impactPreset: fxp(fx.impact) } : {}),
         // recurso, efectos de rama y robo de vida: al IMPACTAR (no al disparar).
         // Así también funcionan apuntando a un punto vacío ({pos: aim} en WASD).
         onHit: (e, dealt) => { grantGen(1); onHit(e); lifeHeal(dealt); },
       });
     }
-    g.sfx(arrow ? 'shoot' : 'skill');
+    g.sfx(fx?.sfx || (arrow ? 'shoot' : 'skill'));
   }
 }
 
@@ -1413,6 +1471,7 @@ export class Enemy {
     this.silenceT = 0;          // silenciado/interrumpido
     this.tauntT = 0;            // provocado (objetivo forzado)
     this.debuffs = {};          // saco DEBILIDAD: { id: { pct, t } } (una entrada por fuente)
+    this.outWeak = {};          // daño SALIENTE debilitado: { id: { pct, t } } (Provocación)
     this.flashT = 0;
     this.fade = 0;
     this.lunge = 0;             // empuje de animación al atacar
@@ -1533,6 +1592,18 @@ export class Enemy {
     this.debuffs[id] = { pct: Math.max(0, pct || 0), t: dur };
   }
   weaknessPct() { return sumWeakness(this.debuffs); }
+  // Debilita el daño que ESTE enemigo inflige (una entrada por id, se refresca;
+  // tope −90 %). Lo aplica Player.takeDamage con opts.source = este enemigo.
+  weakenOutgoing(id, pct, dur) {
+    if (!this.alive || !(dur > 0) || !(pct > 0)) return;
+    this.outWeak[id] = { pct: Math.min(90, pct), t: dur };
+  }
+  // multiplicador del daño saliente (Π de las entradas activas)
+  outDmgMul() {
+    let m = 1;
+    for (const k in this.outWeak) m *= 1 - this.outWeak[k].pct / 100;
+    return Math.max(0.1, m);
+  }
 
   // Libera la memoria de GPU del modelo al quitar el enemigo de la escena: cada
   // enemigo crea sus PROPIAS geometrías/materiales (makeEnemyModel, aura, cáscara
@@ -1558,6 +1629,7 @@ export class Enemy {
     if (this.silenceImmuneT > 0) this.silenceImmuneT -= dt;
     if (this.tauntT > 0) this.tauntT -= dt;
     for (const k in this.debuffs) { const d = this.debuffs[k]; d.t -= dt; if (d.t <= 0) delete this.debuffs[k]; }
+    for (const k in this.outWeak) { const d = this.outWeak[k]; d.t -= dt; if (d.t <= 0) delete this.outWeak[k]; }
   }
 
   // Devuelve el daño REALMENTE infligido (0 si ya estaba muerto), para que el
@@ -1939,7 +2011,7 @@ export class Enemy {
       }
       // aura de escarcha: ralentiza al jugador mientras esté cerca (sin daño)
       if (this.def.frostAura && d < 2.6) {
-        player.slowT = Math.max(player.slowT, 0.4);
+        player.applySlow?.(0.4, player._slowTotal || 0.4);
       }
       // niebla fría pulsante alrededor del portador del aura de escarcha
       if (this.def.frostAura) {
@@ -2145,13 +2217,13 @@ export class Enemy {
               from: this.pos.clone().setY(1.1), to: player.pos.clone().setY(1.0),
               speed: this.def.projSpeed || 8, range: range + 3,
               dmg: this.def.dmg, friendly: false, color: this.def.projColor || 0xaa44ff, size: 0.16,
-              attackerLevel: this.def.level || 1,
+              attackerLevel: this.def.level || 1, source: this,
             });
             g.sfx('eshoot');
           } else if (this.def.slam) {
             // golpe pesado telegrafiado: avisa, pero castiga fuerte si no lo esquivas
             g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, Math.round(this.def.dmg * 1.5), this.def.level || 1,
-              { onDone: (at) => g.enemySlamFx?.(at) });
+              { onDone: (at) => g.enemySlamFx?.(at), source: this });
           } else {
             player.takeDamage(this.def.dmg, this.def.level || 1, { melee: true, source: this });
             // chispa breve en el punto de golpe (impacto cuerpo a cuerpo)
@@ -2193,7 +2265,7 @@ export class Enemy {
       from: this.pos.clone().setY(1.1), to: player.pos.clone().setY(1.0),
       speed: def.projSpeed || 8, range: (def.rangedRange || 10) + 3,
       dmg: def.dmg, friendly: false, color: def.projColor || 0xaa44ff, size: 0.22,
-      attackerLevel: def.level || 1,
+      attackerLevel: def.level || 1, source: this,
     });
     g.sfx?.('eshoot');
     return true;
@@ -2239,7 +2311,7 @@ export class Enemy {
       if (!this.chargeHit && player.alive && this.pos.distanceTo(player.pos) < 1.4) {
         this.chargeHit = true;
         player.takeDamage(this.def.dmg, this.def.level || 1, { melee: true, source: this });
-        player.slowT = Math.max(player.slowT, 1.2); player._slowTotal = 1.2;
+        player.applySlow?.(1.2);
         g.addShake?.(0.18, 0.2);
         // polvo al impactar la embestida (físico/marrón)
         g.enemyChargeImpact?.(player.pos);
@@ -2287,7 +2359,13 @@ export class Projectile {
     this.slow = opts.slow || 0;
     this.slowPct = opts.slowPct || 0;
     this.attackerLevel = opts.attackerLevel || 1;
+    this.source = opts.source || null;   // enemigo que lo disparó (daño saliente debilitado)
+    this.missed = false;                 // proyectil enemigo que FALLÓ al héroe (sigue de largo)
     this.hitSet = new Set();
+    // SIN ESCOPETAZO (Paso 2b.2): los proyectiles de un mismo lanzamiento que
+    // comparten `castHits` golpean a cada enemigo UNA vez (los extra de
+    // Multiproyectil/Doble/Vendaval cubren más enemigos, no multiplican el daño a uno)
+    this.castHits = opts.castHits || null;
     // callback al IMPACTAR de verdad (e, dañoInfligido): DoT/aturdir/vulnerable/
     // encadenado/robo de vida/recurso se aplican aquí, no al lanzar
     this.onHit = typeof opts.onHit === 'function' ? opts.onHit : null;
@@ -2336,7 +2414,7 @@ export class Projectile {
 
     if (this.friendly) {
       for (const e of g.enemies) {
-        if (!e.alive || this.hitSet.has(e)) continue;
+        if (!e.alive || this.hitSet.has(e) || this.castHits?.has(e)) continue;
         const r = 0.55 * (e.def.scale || 1);
         if (p.distanceToSquared(e.pos.clone().setY(p.y)) < r * r) {
           if (this.rollAt) {
@@ -2344,6 +2422,7 @@ export class Projectile {
             this.dmg = roll.dmg; this.crit = roll.crit;
             if (this._autoImpact) this.impactPreset.count = this.crit ? 16 : 9;
           }
+          this.castHits?.add(e);
           const dealt = e.takeDamage(this.dmg, this.crit, { color: this.color, skill: this.skill, tags: this.tags || undefined, elem: this.elem }) || 0;
           g.player?.onDealHit();
           if (this.slow && e.alive) {
@@ -2362,8 +2441,15 @@ export class Projectile {
       }
     } else {
       const pl = g.player;
-      if (pl && pl.alive && p.distanceToSquared(pl.pos.clone().setY(p.y)) < 0.45) {
-        pl.takeDamage(this.dmg, this.attackerLevel);
+      if (!this.missed && pl && pl.alive && p.distanceToSquared(pl.pos.clone().setY(p.y)) < 0.45) {
+        // probabilidad de FALLO (Bomba de Humo, buffs projMissPct): una tirada por proyectil
+        const miss = pl.projMissChance?.() || 0;
+        if (miss > 0 && (pl.combatRng || Math.random)() * 100 < miss) {
+          this.missed = true;
+          g.ui?.spawnText?.(pl.pos, '¡Fallo!', 'txt-heal');
+          return false;
+        }
+        pl.takeDamage(this.dmg, this.attackerLevel, { source: this.source });
         this.burst();
         return true;
       }

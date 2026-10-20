@@ -7,14 +7,14 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { CLASSES, SKILL_MODS } from '../js/data.js';
-import { validateSkillDef, defaultSlots, SLOT_KEYS, TAGS } from '../js/skill-defs.js';
+import { validateSkillDef, defaultSlots, SLOT_KEYS, TAGS, COLDBLOOD_CRIT as DEFS_COLDBLOOD } from '../js/skill-defs.js';
 import { SKILL_BEHAVIORS } from '../js/powers.js';
 import { resolveSkill, fitsSlot, rankBase } from '../js/skill-resolve.js';
 import { rankCoef, COLDBLOOD_CRIT } from '../js/combat-math.js';
 import { Projectile } from '../js/entities.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { normalizePreset } from '../js/particles.js';
-import { ARQUERA_SKILLS, ARQUERA_SKILL_BEHAVIORS, ARQ_COLDBLOOD_CRIT } from '../js/skills-arquera.js';
+import { ARQUERA_SKILLS, ARQUERA_SKILL_BEHAVIORS } from '../js/skills-arquera.js';
 import { ARQUERA_FX, ARQUERA_FX_PRESETS } from '../js/fx-skills-arquera.js';
 import { makeHarness } from './helpers/power-harness.mjs';
 
@@ -49,7 +49,8 @@ assert.deepEqual(S('a_u_zarzas').slots, ['k4']);
 assert.deepEqual(SKILL_MODS.flecha_perforante.map(b => b.id), ['flecha_perforante_o', 'flecha_perforante_f', 'flecha_perforante_v']);
 assert.deepEqual(SKILL_MODS.agilidad.map(b => b.id), ['agilidad_o', 'agilidad_d', 'agilidad_f']);
 assert.deepEqual(SKILL_MODS.a_paso.map(b => b.id), ['a_paso_o', 'a_paso_r', 'a_paso_v'], 'utilMods en movilidad/defensa nuevas');
-assert.equal(ARQ_COLDBLOOD_CRIT, COLDBLOOD_CRIT, 'la copia local de Sangre Fría coincide con combat-math');
+assert.equal(DEFS_COLDBLOOD, COLDBLOOD_CRIT, 'skill-defs exporta la misma Sangre Fría que combat-math (sin copias locales)');
+assert.ok(ARQUERA_SKILLS.length === skills.length);
 console.log('Formato: 13 habilidades válidas, 3 ramas, ranuras de su categoría y calendario §1.2 ✓');
 
 // ------------------------------------------------ 2) Energía (§2)
@@ -61,9 +62,11 @@ for (const s of skills) {
   }
   if (s.cat === 'ultimate') { assert.equal(s.cost, 0, `${s.id}: sin coste`); assert.ok(s.cd >= 50, `${s.id}: enfriamiento ≥ 50 s`); }
 }
-assert.deepEqual([S('flecha_perforante').coef, S('flecha_multiple').coef, S('flecha_multiple').count], [2.2, 0.7, 5], 'números de §3.3');
-assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 3.0, 'Lluvia: 3,0 WD en total');
-assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 20, 'Diluvio: 20 WD por objetivo');
+// números de §3.3 recalibrados con el banco (Paso 2b.2): Perforante 2,2→2,0 y coste 20→22,
+// Lluvia 3,0→2,8 WD en total, Diluvio 20→16 WD (la definitiva queda en el 12–22 % de UNI)
+assert.deepEqual([S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [2.0, 22, 0.7, 5], 'números de §3.3 (2b.2)');
+assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.8, 'Lluvia: 2,8 WD en total');
+assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 16, 'Diluvio: 16 WD por objetivo');
 assert.equal(S('a_u_celeste').coef * S('a_u_celeste').shots, 21, 'Tiro Celestial: 3 × 7,0');
 console.log('Energía: básicos +5, gastadoras sin enfriamiento (Lluvia 4 s), definitivas gratis ✓');
 
@@ -129,26 +132,26 @@ const countHits = (e, skill) => {
   h.step(0.5);
   const after = e.hp;
   assert.ok(after < 1e6, 'la flecha impacta');
-  assert.ok(e._dots?.['a_cicuta:veneno'], 'aplica el Veneno');
+  assert.ok(e._dots?.['a_cicuta:poison'], 'aplica el Veneno (hitDot del núcleo)');
   h.step(4.2);
   assert.ok(e.hp < after, 'el Veneno sigue haciendo daño');
-  assert.ok(!e._dots?.['a_cicuta:veneno'], 'el Veneno dura 4 s');
+  assert.ok(!e._dots?.['a_cicuta:poison'], 'el Veneno dura 4 s');
   console.log('Flecha de Cicuta: impacto + Veneno 4 s ✓');
 }
 
-// Flecha Perforante: atraviesa, cuesta 20, sin enfriamiento (solo GCD/bloqueo)
+// Flecha Perforante: atraviesa, cuesta 22, sin enfriamiento (solo GCD/bloqueo)
 {
   const h = mk();
   const e1 = h.enemy({ hp: 1e6, pos: [0, 0, 3] }), e2 = h.enemy({ hp: 1e6, pos: [0, 0, 6] });
   h.aim(0, 4); h.setSlot('rmb', 'flecha_perforante');
   const mp0 = h.p.mp;
   assert.equal(h.cast('rmb'), true);
-  assert.equal(mp0 - h.p.mp, 20, 'cuesta 20 de Energía');
+  assert.equal(mp0 - h.p.mp, 22, 'cuesta 22 de Energía');
   assert.equal(h.p.cds.flecha_perforante, 0, 'sin enfriamiento');
   h.step(1);
   assert.ok(e1.hp < 1e6 && e2.hp < 1e6, 'atraviesa a los dos');
   assert.equal(h.cast('rmb'), true, 'se puede relanzar en cuanto pasa el bloqueo');
-  console.log('Flecha Perforante: perfora, 20 de Energía, sin enfriamiento ✓');
+  console.log('Flecha Perforante: perfora, 22 de Energía, sin enfriamiento ✓');
 }
 
 // Flecha Múltiple: 5 flechas en 50°
@@ -234,28 +237,38 @@ const countHits = (e, skill) => {
   console.log('Red de Caza: inmoviliza 2 s en área a distancia ✓');
 }
 
-// Bomba de Humo: −40 % de daño dentro y la mitad de los proyectiles enemigos fallan
+// Bomba de Humo (zona genérica del núcleo): −40 % de daño dentro (allyDr) y la
+// mitad de los proyectiles enemigos que te alcanzan fallan (projMissPct en Projectile)
 {
   const h = mk(20);
   h.setSlot('k2', 'a_humo');
-  const dr0 = h.p.stats.dr || 0;
   assert.equal(h.cast('k2'), true);
   h.step(0.15);
   const want = Math.round(40 * resolveSkill(h.p, S('a_humo')).buffMul);   // 40 a rango 1 (+6 %/rango)
-  assert.equal((h.p.stats.dr || 0) - dr0, want, `dentro: −${want} % de daño recibido`);
-  // proyectiles enemigos dentro de la nube (se alejan del héroe para no impactarle)
+  assert.equal(h.p.zoneDefense().dr, want, `dentro: −${want} % de daño recibido`);
+  assert.equal(h.p.projMissChance(), 50, 'dentro: 50 % de fallo de proyectiles enemigos');
+  // el −40 % se nota en el daño recibido (mitigación en capas)
+  const hp0 = h.p.hp; h.p.takeDamage(100, 1); const inSmoke = hp0 - h.p.hp;
+  // proyectiles enemigos que vienen hacia el héroe: ≈50 % fallan y siguen de largo
+  let hits = 0;
+  const orig = h.p.takeDamage.bind(h.p);
+  h.p.takeDamage = (a, l, o) => { hits++; return orig(a, l, o); };
   const N = 60;
   for (let i = 0; i < N; i++) {
     const a = i / N * Math.PI * 2;
     h.g.projectiles.push(new Projectile(h.g, { from: new THREE.Vector3(Math.sin(a) * 2, 1, Math.cos(a) * 2),
-      to: new THREE.Vector3(Math.sin(a) * 3, 1, Math.cos(a) * 3), speed: 1, range: 20, dmg: 5, friendly: false }));
+      to: new THREE.Vector3(0, 1, 0), speed: 8, range: 6, dmg: 1, friendly: false }));
   }
-  h.step(0.25);
-  const left = h.g.projectiles.filter(pr => !pr.friendly).length;
-  assert.ok(left > N * 0.25 && left < N * 0.75, `≈50 % fallan (${N - left}/${N})`);
+  h.step(0.4);
+  assert.ok(hits > N * 0.25 && hits < N * 0.75, `≈50 % fallan (${N - hits}/${N})`);
+  h.p.takeDamage = orig;
   h.p.pos.set(10, 0, 0);
-  h.step(0.6);
-  assert.equal((h.p.stats.dr || 0) - dr0, 0, 'fuera del humo no protege');
+  h.step(0.1);
+  assert.equal(h.p.zoneDefense().dr, 0, 'fuera del humo no protege');
+  assert.equal(h.p.projMissChance(), 0);
+  h.p.hp = h.p.stats.maxHP;
+  const hp1 = h.p.hp; h.p.takeDamage(100, 1); const outSmoke = hp1 - h.p.hp;
+  assert.ok(inSmoke < outSmoke * 0.75, `dentro se recibe menos daño (${inSmoke} vs ${outSmoke})`);
   console.log('Bomba de Humo: −40 % de daño dentro y ≈50 % de fallo de proyectiles enemigos ✓');
 }
 

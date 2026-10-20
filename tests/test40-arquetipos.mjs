@@ -72,6 +72,7 @@ function makeGame() {
   const center = new THREE.Vector3(0, 0, 0);
   let slowApplied = 0, stunFlagged = false;
   g.player = { alive: true, pos: new THREE.Vector3(5, 0, 0), slowT: 0,
+    applySlow(d) { this.slowT = Math.max(this.slowT, d); return true; },   // Player.applySlow (Paso 2b.2)
     takeDamage() {}, get stunned() { stunFlagged = true; return false; } };
   const def = scaleEnemy(ENEMIES.find(e => e.id === 'embestidor'), 6);
   const emb = new Enemy(g, def, center.clone());

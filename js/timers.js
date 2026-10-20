@@ -80,7 +80,10 @@ export function applyDoTInstance(sched, enemy, opts) {
   const step = () => {
     if (dots[source] !== inst) return;               // reemplazada
     if (!enemy.alive) { inst.left = 0; delete dots[source]; return; }
-    enemy.takeDamage(inst.per, false);
+    // tic de DoT (HitInfo.dot: no dispara onHit salvo `procs:true`); la fuente
+    // `${habilidad}:${tipo}` atribuye el daño a su habilidad (KillInfo, banco)
+    const sep = source.indexOf(':');
+    enemy.takeDamage(inst.per, false, { dot: true, source: `dot:${source}`, skill: sep > 0 ? source.slice(0, sep) : null });
     inst.left--;
     if (inst.left > 0 && enemy.alive) inst.timer = sched.schedule(interval, step);
     else delete dots[source];

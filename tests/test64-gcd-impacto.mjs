@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { CLASSES } from '../js/data.js';
 import { normalizeSkillDef } from '../js/skill-defs.js';
 import { definePower } from '../js/powers.js';
-import { GCD } from '../js/skill-resolve.js';
+import { GCD, resolveSkill } from '../js/skill-resolve.js';
 import { makeHarness } from './helpers/power-harness.mjs';
 
 // habilidades sintéticas de prueba para los tipos genéricos que aún no usa el catálogo
@@ -35,14 +35,20 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   fury(h);
   h.enemy({ hp: 1e6, pos: [3, 0, 0] });
   h.aim(3, 0);
-  h.setSlot('rmb', 'g_lanza'); h.setSlot('k2', 'terremoto'); h.setSlot('k1', 'embestida');
+  // t_linea: gastadora sin bloqueo (aísla el GCD); la Lanza tiene bloqueo de 0,3 s (§3.1)
+  h.setSlot('rmb', 't_linea'); h.setSlot('k2', 'g_lanza'); h.setSlot('k1', 'embestida');
   assert.equal(h.cast('rmb'), true, 'primera gastadora');
   assert.ok(Math.abs(h.p.gcdT - GCD) < 1e-9, 'pone el GCD de 0,2 s');
   assert.equal(h.cast('k2'), false, 'la segunda gastadora espera al GCD');
   assert.equal(h.cast('k1'), true, 'la movilidad está FUERA del GCD');
   h.tick(0.3);
   assert.equal(h.cast('k2'), true, 'tras 0,2 s la segunda gastadora sale');
-  console.log('GCD 0,2 s entre gastadoras; movilidad fuera del GCD ✓');
+  assert.ok(Math.abs(h.p.castLock - 0.3) < 1e-9, 'Lanza Arrojadiza: bloqueo de 0,3 s');
+  h.p.cds.embestida = 0;
+  assert.equal(h.cast('k1'), false, 'durante el bloqueo no se lanza otra cosa');
+  h.tick(0.3);
+  assert.equal(h.cast('k1'), true, 'tras el bloqueo, la movilidad sale');
+  console.log('GCD 0,2 s entre gastadoras; movilidad fuera del GCD; bloqueo de la Lanza ✓');
 }
 
 // ------------------------------------------------ 2) windup cancelable sin coste
@@ -52,7 +58,8 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   const e = h.enemy({ hp: 1e6, pos: [4, 0, 0] });
   h.aim(4, 0);
   h.setSlot('rmb', 'g_martillo');  // windup 0,15 + impacto 0,23
-  const cost = 12;
+  const cost = resolveSkill(h.p, CLASSES.guerrero.skills.find(s => s.id === 'g_martillo')).cost;
+  assert.equal(cost, 30, 'Martillo de Guerra: coste 30 (§3.1)');
   assert.equal(h.cast('rmb'), true);
   assert.equal(h.p.mp, 100, 'el coste NO se cobra durante el windup');
   h.p.dodge();                      // la esquiva cancela el windup

@@ -94,7 +94,7 @@ console.log(`eraMethods exporta los ${ERA_EXPECTED.length} métodos esperados, t
 
 // Paso 2b.0: canal de lanzamiento de habilidades (game-skills.js) y entidades de suelo (field-entities.js)
 const SKILLS_EXPECTED = [
-  'allies', 'heal', 'shield', 'dealProcDamage', 'onPlayerHit',
+  'allies', 'heal', 'shield', 'dealProcDamage', 'gainResource', 'fireProjectile', 'startChannel', 'onPlayerHit',
   'skillSupports', 'applyDoT', 'spawnChainBounce', 'dealArea', 'enemiesInCone', 'enemiesInLine', 'clampWalkable', 'slotHeld',
   'assignHotbar', 'chooseSkillMod', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
   'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',

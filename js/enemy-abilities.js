@@ -87,7 +87,7 @@ export const enemyAbilities = {
       onDone: (at) => {
         const p = this.player;
         if (p && p.alive && p.pos.distanceTo(at) <= 2.3) {
-          p.slowT = 3; p._slowTotal = 3;
+          p.applySlow?.(3);
           this.ui.message('🕸️ ¡Atrapado! Estás ralentizado', 1500);
         }
         // marca visual breve en el suelo
@@ -120,7 +120,7 @@ export const enemyAbilities = {
         speed: enemy.def.projSpeed || 9, range: 11,
         dmg: Math.round(enemy.def.dmg * 0.7), friendly: false,
         color: enemy.def.projColor || 0xcc66ff, size: 0.16,
-        attackerLevel: enemy.def.level || 1,
+        attackerLevel: enemy.def.level || 1, source: enemy,
       });
     }
     this.sfx('eshoot');
@@ -192,7 +192,7 @@ export const enemyAbilities = {
       from: enemy.pos.clone().setY(1.0), to: to.setY(1.0),
       speed: enemy.def.projSpeed || 22, range: 17,
       dmg: enemy.def.dmg, friendly: false, color: enemy.def.projColor || 0xcc66ff, size: 0.2,
-      attackerLevel: enemy.def.level || 1,
+      attackerLevel: enemy.def.level || 1, source: enemy,
     });
     enemy.snipeDir = null;
     this.sfx('eshoot');
@@ -205,7 +205,7 @@ export const enemyAbilities = {
       onDone: (at) => {
         const p = this.player;
         if (p && p.alive && p.pos.distanceTo(at) <= 2.0) {
-          p.slowT = Math.max(p.slowT, 1.4); p._slowTotal = 1.4;
+          p.applySlow?.(1.4);
           this.ui.message('⛓️ ¡Apresado! Ralentizado un instante', 1200);
         }
         const mesh = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.8, 24),

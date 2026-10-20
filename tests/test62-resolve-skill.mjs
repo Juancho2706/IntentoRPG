@@ -46,7 +46,7 @@ assert.equal(rankBase(33, 1), 5); assert.equal(rankBase(50, 2), 5, 'tope 5 de ba
 assert.equal(rankBase(1, 9), 1, 'nunca por debajo de 1');
 assert.equal(TALENT_SKILL_REQ, 10);
 const p = new Player(mk(), 'guerrero');
-assert.deepEqual(Object.keys(p.skills).sort(), ['g_embate', 'g_mandoble', 'g_tajo'], 'Nv1: solo los básicos');
+assert.deepEqual(Object.keys(p.skills).sort(), ['g_tajo'], 'Nv1: solo el básico A (B en Nv3, C en Nv8)');
 assert.ok(!isKnown(p, sk('guerrero', 'torbellino')));
 p.level = 9; p.recompute();
 assert.ok(isKnown(p, sk('guerrero', 'torbellino')) && isKnown(p, sk('guerrero', 'g_hendidura')) && !isKnown(p, sk('guerrero', 'g_u_furia')));
@@ -126,7 +126,9 @@ assert.ok(supportFits(S('wide'), tb) && !supportFits(S('wide'), lanza), 'Expansi
 assert.ok(supportFits(S('multi'), lanza) && !supportFits(S('multi'), tb), 'Multiproyectil: proj');
 assert.ok(!supportFits(S('echo'), emb) && supportFits(S('echo'), tb), 'Eco excluye movilidad');
 assert.ok(supportFits(S('lasting'), grito) && !supportFits(S('lasting'), lanza), 'Persistente: buff/dot/aura/zona/escudo');
-assert.ok(!supportFits(S('efficient'), ult) && supportFits(S('efficient'), grito), 'Eficiente exige coste');
+// Grito de Guerra no cuesta Furia (+30 al lanzarlo): Eficiente NO encaja en habilidades sin coste
+assert.ok(!supportFits(S('efficient'), ult) && !supportFits(S('efficient'), grito) && supportFits(S('efficient'), tb), 'Eficiente exige coste');
+assert.equal(grito.cost, 0, 'Grito de Guerra: sin coste');
 assert.ok(!supportFits(S('swift'), tajo), 'Raudo exige enfriamiento');
 assert.ok(supportFits(S('bleed'), tajo) && !supportFits(S('bleed'), grito), 'Sed de Sangre: daño y melee|proj|area');
 assert.equal(supportSockets(tajo), 1); assert.equal(supportSockets(ult), 1); assert.equal(supportSockets(tb), 2);

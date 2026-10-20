@@ -13,8 +13,19 @@
 // interrumpen con la esquiva, al soltar la tecla o con un golpe > 10 % de la vida.
 // Primitivas para poderes (§9.1.4): onPlayerHit ⑤, dealProcDamage, heal, shield,
 // allies. Sin setTimeout (lo vigila test59). Se inyecta en Game.prototype.
+// Paso 2b.2 — API para comportamientos de clase:
+//   g.gainResource(p, n)              recurso de clase (Furia/Maná/Energía)
+//   g.fireProjectile(ctx, opts)       un proyectil del perfil: crítico + Sangre Fría,
+//                                     robo de vida, Encadenado, salpicadura y ctx.hit
+//   g.startChannel(ctx, done, opts)   canalización por tics (soltar/esquivar/golpe la cortan)
+// y en los tipos genéricos: sk.cadence (básicos), sk.gen (al lanzar) / genOnHit,
+// proyectiles con final AL IMPACTAR (el básico da recurso al acertar), splash,
+// hitDot, slowImmune/unstoppable (buff/canal), zonas con allyDr/projMissPct,
+// provocación con daño saliente debilitado (weakenPct) y auras (campo 'aura').
 import * as THREE from 'three';
 import { resolveSkill, isKnown, fitsSlot, GCD, cooldownWithMassacre } from './skill-resolve.js';
+import { projFanOffset } from './skill-defs.js';
+import { FIELD_DEFS } from './field-entities.js';
 import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from './powers.js';
 import { applyHitEffects, weaponBasicOf } from './entities.js';
 import { canAfford, spendResource, gainResource } from './resources.js';
@@ -46,6 +57,7 @@ const GENERIC = {
     ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
     if (prof.chain && e.alive) g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], 0xffbb44);
     p.onDealHit();
+    if (crit && prof.windup > 0) g.hitStop?.('heavy');   // golpe pesado (Mandoble)
     g.spawnRing?.(e.pos, 0.8, 0xffbb44);
     g.emitFx(fxp(ctx.fx?.impact), e.pos.clone().setY(1.0));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), e.pos.clone().setY(0.1));
@@ -129,39 +141,40 @@ const GENERIC = {
     return ctx.res;
   },
 
-  proj(g, ctx) {
+  // Proyectiles: el daño se tira AL IMPACTAR y el lanzamiento TERMINA al impactar
+  // (básicos: con el primer impacto, así el recurso llega solo si aciertas; resto:
+  // cuando todos resolvieron) o, si fallan o perforan, al agotar su alcance.
+  proj(g, ctx, done) {
     const { p, prof, sk, fx } = ctx;
     p.faceToward(ctx.target);
     p.swing = 1;
     const count = prof.count + (prof.proj || 0);
     const baseAngle = Math.atan2(ctx.target.x - p.pos.x, ctx.target.z - p.pos.z);
     const muzzle = p.pos.clone().setY(1.0).add(v3(Math.sin(baseAngle) * 0.5, Math.cos(baseAngle) * 0.5));
-    if (fx?.aura) g.emitFx(fxp(fx.aura), muzzle);
-    else if (fx?.trail) g.emitFx(fxp(fx.trail), muzzle);
-    let chained = false;
-    const projHit = (e, dealt) => {
-      if (e?.alive && !chained && prof.chain) { chained = true; g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], ctx.color || 0x66ddff); }
-      ctx.hit(e, dealt);
-      if (prof.lifesteal && dealt > 0) p.leech(dealt * prof.lifesteal / 100);
-    };
-    const near = ctx.enemy;
+    if (fx?.trail) g.emitFx(fxp(fx.trail), muzzle);
+    else if (fx?.aura && !(prof.splash > 0)) g.emitFx(fxp(fx.aura), muzzle);
+    const finish = () => done(ctx.res);
+    const firstHit = ctx.isBasic && !ctx.isEcho;
+    // sin escopetazo: si la habilidad dispara 1 proyectil de base, los extra
+    // (Multiproyectil, Doble, Vendaval) no repiten impacto en el mismo enemigo
+    const castHits = count > 1 && (sk.count || 1) <= 1 ? new Set() : null;
+    let pending = count;
     for (let i = 0; i < count; i++) {
-      const off = count > 1 ? (i - (count - 1) / 2) * prof.spread / Math.max(1, count - 1) * 2 : 0;
-      const a = baseAngle + off;
-      const to = p.pos.clone().add(v3(Math.sin(a) * 5, Math.cos(a) * 5));
-      g.spawnProjectile({
-        from: p.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed: prof.speed, range: prof.range || sk.range || 10,
-        friendly: true, pierce: prof.pierce, color: ctx.color || 0xffffff, size: 0.14,
-        rollAt: e => p.rollDamage(ctx.coef, prof.critBonus + (prof.coldblood && (e || near)?.slowT > 0 ? COLDBLOOD_CRIT : 0), prof.addPct, e, ctx.hitInfo),
-        ...ctx.dmgOpts,
-        impactPreset: fxp(fx?.impact),
-        onHit: projHit,
+      const off = projFanOffset(i, count, prof.spread);
+      let resolved = false;
+      g.fireProjectile(ctx, {
+        angle: baseAngle + off, castHits,
+        onImpact: () => {
+          if (firstHit) { finish(); return; }
+          if (!prof.pierce && !resolved) { resolved = true; if (--pending <= 0) finish(); }
+        },
       });
     }
     if (sk.beam) g.spawnBeam?.(muzzle, ctx.target.clone().setY(1.0), ctx.color || 0xffee66);
     ctx.lifestealDone = true; // el robo de los proyectiles va por impacto
-    return ctx.res;
+    const range = prof.range || sk.range || 10;
+    g.timers.schedule(range / Math.max(1, prof.speed || 14) + 0.05, finish);
+    return undefined; // diferido: termina al impactar (o al agotar el alcance)
   },
 
   leap(g, ctx, done) {
@@ -230,25 +243,50 @@ const GENERIC = {
     return ctx.res;
   },
 
+  // Provocación: con radio, a todos en él; sin radio, a UN enemigo (el de la mira o
+  // el más cercano a `range`). sk.weakenPct: ese enemigo te hace −X % (× potencia)
+  // mientras dura (Enemy.weakenOutgoing). Sin objetivo: no gasta el enfriamiento.
   taunt(g, ctx) {
     const { p, prof, sk } = ctx;
     const dur = prof.dur || 4;
-    const list = prof.radius > 0
-      ? (g.enemies || []).filter(e => e.alive && e.pos.distanceTo(p.pos) <= prof.radius)
-      : (ctx.enemy ? [ctx.enemy] : []);
-    for (const e of list) if (e.applyCC('taunt', dur, { src: p })) ctx.res.hits++;
+    let list;
+    if (prof.radius > 0) list = (g.enemies || []).filter(e => e.alive && e.pos.distanceTo(p.pos) <= prof.radius);
+    else {
+      const range = prof.range || 15;
+      let e = ctx.enemy;
+      if (!e?.alive || e.pos.distanceTo(p.pos) > range + 0.5) e = g.nearestEnemy?.(range) || null;
+      list = e ? [e] : [];
+    }
+    if (!list.length && !ctx.isEcho) {
+      p.cds[sk.id] = 0;
+      g.ui?.message?.('Ningún enemigo al alcance');
+      return ctx.res;
+    }
+    const weak = sk.weakenPct ? Math.min(90, sk.weakenPct * (prof.buffMul || 1)) : 0;
+    for (const e of list) {
+      if (e.applyCC('taunt', dur, { src: p })) ctx.res.hits++;
+      if (weak > 0) e.weakenOutgoing?.(sk.id, weak, dur);
+      if (list.length === 1) g.spawnRing?.(e.pos, 1.2, ctx.color || 0xff5544);
+      if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), e.pos.clone().setY(1.6));
+    }
+    if (list.length === 1) p.faceToward(list[0].pos);
     g.spawnRing?.(p.pos, prof.radius || 2, ctx.color || 0xff5544);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
-    void sk;
     return ctx.res;
   },
 
   zone(g, ctx) {
     const { p, prof, sk } = ctx;
     const pos = sk.at === 'self' ? p.pos.clone() : ctx.target.clone();
-    // coef de una zona = WD por segundo
+    pos.y = 0;
+    // coef de una zona = WD por segundo · allyDr/projMissPct: defensa de los aliados dentro
     g.spawnField('zona', { pos, radius: prof.radius || 3, dur: prof.dur || 4, owner: p,
-      data: { dps: ctx.avgHit, slow: prof.slow, slowPct: prof.slowPct, color: ctx.color, skill: sk.id, tags: prof.tags } });
+      data: { dps: ctx.coef > 0 ? ctx.avgHit : 0, slow: prof.slow, slowPct: prof.slowPct, color: ctx.color, skill: sk.id, tags: prof.tags,
+        allyDr: sk.allyDr ? Math.round(sk.allyDr * (prof.buffMul || 1)) : 0, projMissPct: sk.projMissPct || 0 } });
+    ctx.zoneCenter = pos; ctx.zoneRad = prof.radius || 3;
+    g.spawnRing?.(pos, prof.radius || 3, ctx.color || 0x9aa0a8);
+    if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), pos.clone().setY(0.6));
+    if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), pos.clone().setY(0.3));
     return ctx.res;
   },
 
@@ -272,44 +310,66 @@ const GENERIC = {
     return ctx.res;
   },
 
+  // Canalización genérica (g.startChannel): cada tic golpea a un objetivo
+  // PEGAJOSO (el mismo enemigo mientras siga vivo y a rango) o un área si la
+  // habilidad tiene radio. Si declara `behavior` con tick (sin cast), ese tick
+  // SUSTITUYE al golpe por defecto: type:'channel' + behavior conviven.
   channel(g, ctx, done) {
     const { p, prof, sk } = ctx;
-    const dur = sk.channelT || prof.dur || 2;
-    const ticks = Math.max(1, sk.ticks || Math.round(dur / 0.33));
-    const interval = dur / ticks;
-    const inst = { ctx, left: ticks, timer: 0, done };
-    g._channel = inst;
-    p.castLock = dur + 0.05;
-    const step = () => {
-      if (g._channel !== inst) return;
-      if (!p.alive || !g.slotHeld(ctx.key)) { g.cancelCast('release'); return; }
-      // cada tic: golpe al enemigo más cercano a la mira (rayo) o área si hay radio
-      if (prof.radius > 0) g.dealArea(ctx.target.clone(), prof.radius, ctx.coef, ctx.areaOpts);
-      else {
-        const e = g.nearestEnemy(Math.max(2, prof.range || 8), ctx.target) || g.nearestEnemy(prof.range || 8);
-        if (e) {
-          const { dmg, crit } = p.rollDamage(ctx.coef, prof.critBonus, prof.addPct, e, ctx.hitInfo);
-          ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
-          p.onDealHit();
-          g.spawnBeam?.(p.pos, e.pos, ctx.color || 0xcc88ff, interval);
-        }
-      }
-      SKILL_BEHAVIORS[sk.behavior]?.tick?.(g, p, inst, interval);
-      inst.left--;
-      if (inst.left > 0) inst.timer = g.timers.schedule(interval, step);
-      else g._endChannel(inst, false);
-    };
-    inst.timer = g.timers.schedule(interval, step);
-    return undefined; // diferido: termina con el último tic
+    const beh = sk.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
+    if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
+    return g.startChannel(ctx, done, {
+      dur: sk.channelT || prof.dur || 2,
+      ticks: sk.ticks,
+      unstoppable: prof.unstoppable,
+      onTick: beh?.tick ? (inst, interval) => beh.tick(g, p, inst, interval) : (inst, interval) => {
+        if (prof.radius > 0) { g.dealArea(ctx.target.clone(), prof.radius, ctx.coef, ctx.areaOpts); return; }
+        const range = Math.max(2, prof.range || 8);
+        let e = inst.target;
+        if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) e = inst.target = g.nearestEnemy(range, ctx.target) || g.nearestEnemy(range) || null;
+        if (!e) return;
+        p.faceToward(e.pos);
+        const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
+        const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct, e, ctx.hitInfo);
+        ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
+        p.onDealHit();
+        g.spawnBeam?.(p.pos, e.pos, ctx.color || 0xcc88ff, interval);
+        if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), e.pos.clone().setY(1.0));
+        if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
+      },
+      onEnd: beh?.end ? (inst) => beh.end(g, p, inst) : null,
+    });
   },
 
   buff(g, ctx) {
     const { p, prof, sk } = ctx;
     const meta = { name: sk.name, icon: sk.icon, desc: sk.desc };
     const targets = prof.tags.has('ally') ? g.allies(p.pos, sk.allyRadius || 15) : [p];
-    for (const a of targets) a.addBuff?.(sk.id, { ...prof.buff }, prof.dur, meta);
-    g.spawnRing?.(p.pos, 1.4, 0x66ddff);
+    for (const a of targets) {
+      a.addBuff?.(sk.id, { ...prof.buff }, prof.dur, meta);
+      if (prof.slowImmune) a.grantSlowImmune?.(prof.dur);           // Agilidad, Piel de Hierro
+      if (prof.unstoppable) a.unstoppableT = Math.max(a.unstoppableT || 0, prof.dur);
+    }
+    g.spawnRing?.(p.pos, 1.4, ctx.color || 0x66ddff);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
+    if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), p.pos.clone().setY(0.2));
+    return ctx.res;
+  },
+
+  // AURA en el suelo (Estandarte de Guerra): campo 'aura' a tus pies; cada 0,5 s
+  // renueva el buff a los aliados en el radio y da resPerSec de recurso al dueño dentro.
+  aura(g, ctx) {
+    const { p, prof, sk } = ctx;
+    const pos = (sk.at === 'target' ? ctx.target : p.pos).clone().setY(0);
+    const rad = prof.radius || 8;
+    const f = g.spawnField('aura', { pos, radius: rad, dur: prof.dur || 10, owner: p,
+      data: { buff: { ...prof.buff }, buffId: sk.id, meta: { name: sk.name, icon: sk.icon, desc: sk.desc },
+        resPerSec: (sk.resPerSec || 0) * (prof.buffMul || 1), color: ctx.color || sk.color || 0xd8a040 } });
+    if (f) { try { FIELD_DEFS.aura.tick(g, f, 0); } catch { /* primer pulso: buff al instante */ } }
+    ctx.zoneCenter = pos; ctx.zoneRad = rad;
+    g.spawnRing?.(pos, rad, ctx.color || 0xd8a040);
+    if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), pos.clone().setY(0.2));
+    if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), pos.clone().setY(1.6));
     return ctx.res;
   },
 };
@@ -343,6 +403,73 @@ export const skillMethods = {
   },
   // daño originado por un PODER (proc: sin Π[×], no dispara onHit)
   dealProcDamage(e, amount, opts = {}) { return powerProcDamage(this, e, amount, opts); },
+  // recurso de clase para comportamientos y poderes (la Furia además reinicia su pérdida)
+  gainResource(p, n) { return gainResource(p || this.player, n); },
+
+  // Un proyectil del PERFIL de un lanzamiento (ctx del canal). Hace lo mismo que el
+  // tipo genérico `proj`: tirada al impactar con crítico + Sangre Fría, ctx.hit
+  // (efectos de rama/soporte), robo de vida, Encadenado (una vez por lanzamiento),
+  // salpicadura (ctx.splashCoef en prof.radius, sin el objetivo directo) y VFX.
+  // opts = { angle | to, speed, range, pierce, size, color, castHits:Set (sin escopetazo),
+  //          onEnemy(e, dealt), onImpact(e, dealt) }
+  fireProjectile(ctx, opts = {}) {
+    const { p, prof, sk, fx } = ctx;
+    const color = opts.color ?? ctx.color ?? sk.color ?? 0xffffff;
+    let to = opts.to;
+    if (!to) {
+      const a = opts.angle ?? Math.atan2(ctx.target.x - p.pos.x, ctx.target.z - p.pos.z);
+      to = p.pos.clone().add(v3(Math.sin(a) * 5, Math.cos(a) * 5));
+    }
+    const splashCoef = ctx.splashCoef || 0;
+    this.spawnProjectile({
+      from: p.pos.clone().setY(1.0), to: to.clone().setY(1.0),
+      speed: opts.speed ?? prof.speed, range: opts.range ?? (prof.range || sk.range || 10),
+      friendly: true, pierce: opts.pierce ?? prof.pierce, color, size: opts.size ?? sk.size ?? 0.14, castHits: opts.castHits || null,
+      rollAt: e => p.rollDamage(ctx.coef, prof.critBonus + (prof.coldblood && e?.slowT > 0 ? COLDBLOOD_CRIT : 0), prof.addPct, e, ctx.hitInfo),
+      ...ctx.dmgOpts,
+      impactPreset: fxp(fx?.impact),
+      onHit: (e, dealt) => {
+        if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; this.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color); }
+        ctx.hit(e, dealt);
+        if (prof.lifesteal && dealt > 0) p.leech(dealt * prof.lifesteal / 100);
+        if (e && splashCoef > 0 && prof.radius > 0) {
+          const at = e.pos.clone().setY(0);
+          this.dealArea(at, prof.radius, splashCoef, { ...ctx.areaOpts, exclude: e });
+          ctx.zoneCenter = at; ctx.zoneRad = Math.max(1.5, prof.radius);
+          this.spawnRing?.(at, prof.radius, color);
+          if (fx?.aura) this.emitFx(fxp(fx.aura), at.clone().setY(0.3));
+          if (fx?.extra) this.emitFx(fxp(fx.extra), at.clone().setY(0.3));
+        } else if (e) { ctx.zoneCenter = e.pos.clone().setY(0); ctx.zoneRad = 1.5; }
+        try { opts.onEnemy?.(e, dealt); } catch (err) { console.warn(`[proyectil ${sk.id}]`, err); }
+        opts.onImpact?.(e, dealt);
+      },
+    });
+  },
+
+  // Canalización por tics del planificador (API pública para comportamientos).
+  // opts = { dur, ticks, interval?, unstoppable, onTick(inst, interval), onEnd(inst) }.
+  // Soltar la tecla, la esquiva o un golpe > 10 % de la vida (si es `int` y no
+  // eres imparable) la cortan. Termina llamando a done(ctx.res).
+  startChannel(ctx, done, opts = {}) {
+    const p = ctx.p;
+    const dur = opts.dur || 2;
+    const ticks = Math.max(1, Math.round(opts.ticks || dur / 0.33));
+    const interval = opts.interval || dur / ticks;
+    const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null };
+    this._channel = inst;
+    p.castLock = dur + 0.05;
+    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dur + 0.1);
+    const step = () => {
+      if (this._channel !== inst) return;
+      if (!p.alive || !this.slotHeld(ctx.key)) { this.cancelCast('release'); return; }
+      try { opts.onTick?.(inst, interval); } catch (err) { console.warn(`[canalización ${ctx.sk.id}]`, err); }
+      inst.left--;
+      if (inst.left > 0) inst.timer = this.timers.schedule(interval, step);
+      else this._endChannel(inst, false);
+    };
+    inst.timer = this.timers.schedule(interval, step);
+    return undefined; // diferido: termina con el último tic
+  },
   // ⑤ punto único por impacto (lo llama Enemy.takeDamage)
   onPlayerHit(e, hit) {
     const p = this.player;
@@ -390,13 +517,13 @@ export const skillMethods = {
     }
   },
   // daño en área: tira el golpe POR OBJETIVO (bonos condicionados) y aplica efectos
-  // opts = { addPct, critBonus, coldblood, onHit(e, dealt), color, hitInfo }
+  // opts = { addPct, critBonus, coldblood, onHit(e, dealt), color, hitInfo, exclude }
   dealArea(pos, radius, mult, opts = {}) {
     let hits = 0;
     const p = this.player;
     const dmgOpts = { color: opts.color, skill: opts.hitInfo?.skill, tags: opts.hitInfo?.tags, elem: opts.hitInfo?.elem };
     for (const e of this.enemies) {
-      if (!e.alive) continue;
+      if (!e.alive || e === opts.exclude) continue;
       const r = radius + 0.5 * (e.def.scale || 1);
       if (e.pos.distanceToSquared(pos) <= r * r) {
         const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
@@ -588,6 +715,12 @@ export const skillMethods = {
     }
     const { target, near } = this.skillTarget(p, prof);
     if (prof.type === 'melee' && !prof.behavior && (!near || p.pos.distanceTo(near.pos) > (prof.range || 2.2) + 0.6)) {
+      // básico cuerpo a cuerpo sin objetivo: golpe al vacío (no genera recurso)
+      if (isBasic && !isEcho) {
+        if (this.input?.mouseWorld) p.faceToward(this.input.mouseWorld);
+        p.atkCd = p.stats.atkTime * 0.6; p.swing = 1;
+        return false;
+      }
       // con el clic mantenido no spamear el aviso cada frame
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       if (!isEcho && (!this._noTgtAt || now - this._noTgtAt > 900)) { this.ui?.message?.('Ningún enemigo al alcance'); this._noTgtAt = now; }
@@ -604,6 +737,7 @@ export const skillMethods = {
       p, sk, prof, key, target, enemy: near, coef, isEcho, isBasic, hitInfo, color, fx, cast,
       dmgOpts: { color, skill: sk.id, tags: prof.tags, elem: prof.elem },
       avgHit: p.avgHit(coef, prof.addPct),
+      splashCoef: (prof.splash || 0) * (isEcho ? echoMult : 1),
       res: { hits: 0, dealt: 0, killed: 0 },
     };
     // impacto REAL sobre un enemigo: cuenta, daño infligido y efectos de rama/soporte
@@ -636,10 +770,11 @@ export const skillMethods = {
   _commitCast(ctx) {
     const { p, sk, prof, isEcho, isBasic } = ctx;
     if (!isEcho) {
-      if (isBasic) p.atkCd = p.stats.atkTime;
+      // básico: cadencia × sk.cadence (Mandoble 1,5 · Embate 1,1), sin contar el windup ya esperado
+      if (isBasic) p.atkCd = Math.max(0.05, p.stats.atkTime * (prof.cadence || 1) - (prof.windup || 0));
       else {
         if (!spendResource(p, prof.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
-        if (prof.gen) gainResource(p, prof.gen);   // ramas Furibundo/Iracundo
+        if (prof.gen) gainResource(p, prof.gen);   // sk.gen (Grito de Guerra) + ramas Furibundo/Iracundo
         p.cds[sk.id] = prof.cd;
         p.cdMax[sk.id] = prof.cd;
       }
@@ -657,7 +792,7 @@ export const skillMethods = {
     let res;
     try {
       const beh = prof.behavior ? SKILL_BEHAVIORS[prof.behavior] : null;
-      if (beh) res = beh.cast(this, p, prof, { ...ctx.cast, ctx, done });
+      if (beh?.cast) res = beh.cast(this, p, prof, { ...ctx.cast, ctx, done });
       else {
         const fn = GENERIC[sk.type];
         if (!fn) { console.warn(`[habilidad ${sk.id}] tipo genérico desconocido: ${sk.type}`); res = ctx.res; }
@@ -692,6 +827,8 @@ export const skillMethods = {
       if (prof.genPerExtra && res.hits > 1) add = Math.min(Math.max(prof.genMax || 0, prof.gen), add + prof.genPerExtra * (res.hits - 1));
       gainResource(p, add);
     }
+    // no básicos: recurso SOLO si golpea (Embestida +12, Provocación +15)
+    if (!isBasic && !isEcho && prof.genOnHit && res.hits > 0) gainResource(p, prof.genOnHit);
     if (!isEcho) firePower('afterCast', p, this, p, ctx.cast, res);
   },
 
@@ -720,8 +857,11 @@ export const skillMethods = {
     this._channel = null;
     if (inst.timer) this.timers.cancel(inst.timer);
     const p = this.player;
-    if (p) p.castLock = 0;
-    try { SKILL_BEHAVIORS[inst.ctx.sk.behavior]?.end?.(this, p, inst); } catch (err) { console.warn('[canalización] end', err); }
+    if (p) { p.castLock = 0; if (inst.unstoppable) p.unstoppableT = 0; }
+    try {
+      if (inst.onEnd) inst.onEnd(inst);
+      else SKILL_BEHAVIORS[inst.ctx.sk.behavior]?.end?.(this, p, inst);
+    } catch (err) { console.warn('[canalización] end', err); }
     inst.canceled = !!canceled;
     inst.done?.(inst.ctx.res);
   },

@@ -141,13 +141,16 @@ export function dealProcDamage(g, e, amount, opts = {}) {
 
 // ------------------------------------------------------------
 // Comportamientos de habilidad (§9.1.3): las activas que no encajan en un tipo
-// genérico. def = { cast(g, p, prof, cast) → CastResult, tick?(g, p, inst, dt), end?(g, p, inst) }
+// genérico. def = { cast?(g, p, prof, cast) → CastResult, tick?(g, p, inst, dt), end?(g, p, inst) }
+// Sin cast, el canal usa el TIPO GENÉRICO de la habilidad y llama a tick/end (canalización).
 // ------------------------------------------------------------
 export const SKILL_BEHAVIORS = {};
 const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'name', 'desc']);
 export function defineSkillBehavior(id, def) {
   if (!id || SKILL_BEHAVIORS[id]) throw new Error(`defineSkillBehavior: id inválido o repetido "${id}"`);
-  if (!def || typeof def.cast !== 'function') throw new Error(`defineSkillBehavior("${id}"): falta cast()`);
+  // cast() es lo normal; un comportamiento SOLO con tick/end convive con el tipo
+  // genérico de la habilidad (p. ej. type:'channel' + behavior con tick por tic)
+  if (!def || (typeof def.cast !== 'function' && typeof def.tick !== 'function')) throw new Error(`defineSkillBehavior("${id}"): falta cast() o tick()`);
   for (const k of Object.keys(def)) if (!BEHAVIOR_KEYS.has(k)) throw new Error(`defineSkillBehavior("${id}"): clave desconocida "${k}"`);
   SKILL_BEHAVIORS[id] = Object.freeze({ id, ...def });
   return SKILL_BEHAVIORS[id];

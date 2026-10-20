@@ -876,7 +876,7 @@ class Game {
     group.add(inner, outer, closing);
     group.position.copy(pos).setY(0.08);
     this.fxGroup.add(group);
-    this.telegraphs.push({ group, inner, outer, closing, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone, ping: 0 });
+    this.telegraphs.push({ group, inner, outer, closing, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone, source: opts.source || null, ping: 0 });
     this.tip('esquiva', '¡Círculo rojo = peligro! Apártate o esquiva (💨 / Shift) antes de que se llene');
   }
 
@@ -905,8 +905,8 @@ class Game {
       if (tg.t < tg.dur) continue;
       // impacto
       if (tg.dmg && p.alive && p.pos.distanceTo(tg.group.position) <= tg.radius + 0.3) {
-        p.takeDamage(tg.dmg, tg.attackerLevel);
-        if (tg.slow && p.alive) { p.slowT = 2.5; p._slowTotal = 2.5; this.ui.message('❄️ ¡Estás congelado!', 1500); }
+        p.takeDamage(tg.dmg, tg.attackerLevel, { source: tg.source });
+        if (tg.slow && p.alive && p.applySlow(2.5)) this.ui.message('❄️ ¡Estás congelado!', 1500);
       }
       this.spawnRing(tg.group.position, tg.radius, 0xff5533);
       this.addShake(0.12, 0.15);

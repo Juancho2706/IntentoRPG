@@ -20,7 +20,14 @@
 //     …parámetros del tipo (radius, range, speed, count, spread, pierce, slow, stun,
 //       root, dur, buff:{stat:valor}, shieldPct, at:'self'|'target', angle, width…)
 //     windup (s, cancelable con la esquiva, no cobra coste), impactDelay (s, daño
-//       sincronizado con el VFX), lockT (s de bloqueo), int:true (interrumpible) }
+//       sincronizado con el VFX), lockT (s de bloqueo), int:true (interrumpible)
+//     Paso 2b.2 (núcleo): cadence (× cadencia de un básico), gen (básico: al acertar;
+//       resto: al lanzar), genOnHit (no básicos: si golpea), splash (coef de la
+//       salpicadura de un proyectil, radius = su radio), hitDot:{kind, coef, dur}
+//       (DoT propio al impactar), bossStun:false (no aturde a jefes), unstoppable /
+//       slowImmune (buff/canal: imparable / inmune a ralentizaciones), allyDr y
+//       projMissPct (zona: −daño y fallo de proyectiles enemigos para aliados dentro),
+//       resPerSec (aura: recurso por segundo al dueño dentro) }
 // ============================================================
 
 // ---------- categorías, ranuras y tags ----------
@@ -61,7 +68,22 @@ export const TAGS = new Set([
 
 // tipos genéricos que implementa js/game-skills.js (si la habilidad no declara `behavior`)
 export const GENERIC_TYPES = ['weapon', 'melee', 'proj', 'area', 'cone', 'line', 'leap', 'dash',
-  'blink', 'shield', 'taunt', 'zone', 'trap', 'mark', 'channel', 'buff'];
+  'blink', 'shield', 'taunt', 'zone', 'trap', 'mark', 'channel', 'buff', 'aura'];
+
+// Constantes de combate que los catálogos necesitan (este módulo no importa nada:
+// combat-math define las mismas cifras y test62 vigila que coincidan).
+export const COLDBLOOD_CRIT = 100;   // Sangre Fría: +100 de prob. crítica contra ralentizados
+
+// Ángulo (rad, relativo a la mira) del proyectil i de n. Con abanico propio
+// (sk.spread = semiapertura) se reparte en él. Sin él (1 proyectil + Multiproyectil,
+// Doble, multidisparo) el PRIMERO va recto a la mira y los extras se alternan a
+// ±0,18 rad: así el disparo apuntado acierta siempre a un objetivo pequeño (antes,
+// con 2 proyectiles ninguno iba recto y ambos fallaban a 5 m a una rata).
+export function projFanOffset(i, n, spread = 0) {
+  if (n <= 1) return 0;
+  if (spread > 0) return (i - (n - 1) / 2) * spread * 2 / (n - 1);
+  return i === 0 ? 0 : (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.18;
+}
 
 export const RANK_MAX = 5; // rango base máximo por nivel (§4.1); talentos/equipo suman encima
 
@@ -125,7 +147,12 @@ export function validateSkillDef(def, { behaviors = null } = {}) {
   const want = defaultSlots(def.cat, def.tags || []);
   const slots = def.slots || [];
   if (!slots.length || slots.some(s => !want.includes(s))) err.push(`${id}: slots ${JSON.stringify(slots)} no encaja con CAT_SLOTS ${JSON.stringify(want)}`);
-  if (def.behavior) { if (behaviors && !behaviors[def.behavior]) err.push(`${id}: comportamiento sin registrar ${def.behavior}`); }
+  if (def.behavior) {
+    const b = behaviors?.[def.behavior];
+    if (behaviors && !b) err.push(`${id}: comportamiento sin registrar ${def.behavior}`);
+    // un comportamiento SIN cast (solo tick/end) convive con su tipo genérico (p. ej. channel)
+    if (b && !b.cast && !GENERIC_TYPES.includes(def.type)) err.push(`${id}: el comportamiento ${def.behavior} no tiene cast y el type genérico ${def.type} no existe`);
+  }
   else if (!GENERIC_TYPES.includes(def.type)) err.push(`${id}: type genérico desconocido ${def.type}`);
   for (const k of ['coef', 'cost', 'cd']) if (def[k] != null && !(typeof def[k] === 'number' && def[k] >= 0)) err.push(`${id}: ${k} debe ser un número ≥ 0`);
   if (def.cat === 'basic' && !(def.gen > 0)) err.push(`${id}: un básico debe generar recurso (gen)`);

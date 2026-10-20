@@ -50,6 +50,10 @@ export const CAPS = {
   dr: 50,       // % reducción de daño genérica (saco multiplicativo escaso)
   block: 40,    // % prob. de bloqueo
   heal: 50,     // % curación de habilidad adicional (healPct) — Paso 2b.0, §6.1
+  // recurso al golpear (stat `mph`, por impacto) — Paso 2b.2: el afijo plano escala
+  // con G, pero los pozos de Furia (100) y Energía (60) son fijos (§2): sin tope, a
+  // partir de Nv25 los rares típicos daban +50–125 por golpe (recurso infinito)
+  mph: 2,
 };
 
 export const CRIT_MULT = 1.5;          // daño crítico base (el extra va al saco aditivo)

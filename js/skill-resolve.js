@@ -134,6 +134,9 @@ function computeProfile(p, sk) {
   let costRed = tv.costRed || 0;
   if (tv.costRedBig && (sk.cost || 0) > (tv.costRedBig.over || 0)) costRed += tv.costRedBig.pct || 0;
   cost *= Math.max(0, 1 - costRed / 100) * Math.max(0, 1 + (mods.cost || 0) / 100);
+  // multiplicador de coste por BUFF (stat spenderCostPct, p. ej. Furia Inmortal −100 =
+  // gastadoras gratis): solo a las gastadoras (incluidas las de especialización)
+  if (tags.has('spender') && st.spenderCostPct) cost *= Math.max(0, 1 + st.spenderCostPct / 100);
   cost = Math.max(0, Math.round(cost));
 
   // enfriamiento: UN número de CDR (stat + ramas + soportes), tope CAPS.cdr
@@ -166,7 +169,7 @@ function computeProfile(p, sk) {
     // geometría
     radiusMul, radius: (sk.radius || 0) * radiusMul, range: (sk.range || 0) * rangeMul, rangeMul,
     angle: sk.angle || 90, width: sk.width || 2, speed: sk.speed || 14,
-    count: Math.max(1, Math.floor(sk.count || 1)), spread: sk.spread || 0.4,
+    count: Math.max(1, Math.floor(sk.count || 1)), spread: sk.spread || 0,   // 0 = sin abanico propio (extras a 0,18 rad)
     proj: mods.proj || 0, pierce: !!(sk.pierce || mods.pierce), chain: mods.chain || 0,
     // control y efectos al golpear
     slow: Math.max(sk.slow || 0, mods.slow || 0), slowPct: Math.max(sk.slowPct || 0, mods.slowPct || 0),
@@ -176,9 +179,18 @@ function computeProfile(p, sk) {
     echo: supEcho || (mods.echo ? 0.6 : 0), execute: mods.execute || 0, cdhit: mods.cdhit || 0,
     critCdr: mods.critCdr || 0, lifesteal: mods.lifesteal || 0, coldblood: !!mods.coldblood,
     haste: mods.haste || 0, cleanse: !!mods.cleanse,
-    // recurso que genera: básicos al acertar (+extra por objetivo); resto al lanzar (ramas)
-    gen: (isBasic ? (sk.gen || 0) : 0) + (mods.gen || 0),
+    // recurso que genera: básicos al ACERTAR (+extra por objetivo); resto AL LANZAR
+    // (sk.gen de la habilidad + ramas Furibundo/Iracundo) y genOnHit si golpea
+    gen: (sk.gen || 0) + (mods.gen || 0),
     genPerExtra: isBasic ? (sk.genPerExtra || 0) : 0, genMax: isBasic ? (sk.genMax || 0) : 0,
+    genOnHit: isBasic ? 0 : (sk.genOnHit || 0),
+    cadence: isBasic ? Math.max(0.2, sk.cadence || 1) : 1,   // × cadencia del básico (Mandoble 1,5)
+    // salpicadura de un proyectil (coef por objetivo en `radius` alrededor del impacto)
+    splash: (sk.splash || 0) * rankCoef(rank),
+    // DoT propio al impactar (Cicuta): total = golpe medio × coef (escala con rango y saco aditivo)
+    hitDot: sk.hitDot ? { kind: sk.hitDot.kind || 'poison', coef: (sk.hitDot.coef || 0) * rankCoef(rank) * dotMul, dur: sk.hitDot.dur || 4 } : null,
+    bossStun: sk.bossStun !== false,            // false: el aturdimiento no afecta a jefes (stagger en 2c)
+    unstoppable: !!sk.unstoppable, slowImmune: !!sk.slowImmune,
     // buffs / escudos / duraciones
     buff, buffMul, durMul, durS: mods.durS || 0,
     dur: Math.max(0, (sk.dur || 0) * durMul + (mods.durS || 0)),

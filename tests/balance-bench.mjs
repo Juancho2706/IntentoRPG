@@ -1,58 +1,69 @@
 // ============================================================
-// BANCO DE BALANCE (Paso 1A) — rotaciones REALES de las 3 clases
+// BANCO DE BALANCE — Paso 1A (objetivos) · Paso 2b.2 (canal real de lanzamiento)
 // ============================================================
 // Simula combates contra enemigos común/élite/jefe con:
 //  - héroes construidos con el código real (Player.recompute, generateItem,
-//    maestría, paragon, bendiciones, soportes, modificadores de habilidad);
-//  - las fórmulas de combat-math (las mismas que usan castSkillSlot,
-//    Player.rollDamage y Enemy.takeDamage): perfil de habilidad, saco aditivo,
-//    crítico topado, multiplicadores [×] (máx 3), Vulnerable, CDR con tope,
-//    coste/recurso (Furia/Maná/Energía con su generación y regeneración);
+//    maestría, paragon, bendiciones, soportes, ramas de habilidad);
+//  - el CANAL REAL de lanzamiento (js/game-skills.js vía el arnés de tests): el
+//    mismo resolveSkill, GCD de 0,2 s, windup, impactDelay, bloqueos, cadencia de
+//    los básicos, proyectiles que tiran el daño al impactar, comportamientos de
+//    varios golpes (Diluvio 8 oleadas, Cataclismo 6 impactos, Supernova 2 ondas,
+//    canalizaciones por tics, salpicaduras), DoT por el planificador, Debilidad y
+//    multiplicadores [×] en Enemy.takeDamage, recurso real (Furia/Maná/Energía);
+//  - Furia por daño recibido: el objetivo pega al héroe con su DPS medio (tras
+//    mitigar) → resources.onHurtResource (el héroe no pierde vida en la simulación);
 //  - azar con semilla fija (js/rng.js) → resultados reproducibles.
-// Supuestos documentados (MEMORIA.md, Paso 1A):
-//  - objetivo único (las AoE/rebotes/multiproyectil no suman objetivos extra);
-//  - "humano": como mucho 1 acción cada ACTION_LOCK s; prioridad = buffs que
-//    no están activos → habilidad lista de mayor coeficiente → básico;
-//  - TTK común/élite: cadena de N combates seguidos (los CD y el recurso
-//    continúan entre combates, con WALK s de desplazamiento);
-//  - TTD: manada (1 campeón + 4 comunes del nivel de área) pegando cuerpo a
-//    cuerpo sin parar, el héroe sin mitigación activa (ni pociones, ni
-//    esquiva, ni robo de vida): solo armadura/bloqueo/resistencias y regen.
+// LOADOUT por clase (§1.4/§7.1, sin especialización hasta el Paso 2c):
+//  🖱️Izq = básico de arma · 🖱️Der = gastadora principal · 2 = segunda gastadora
+//  (variante OFENSIVA) o defensa (variante DEFENSIVA) · 4 = definitiva de daño.
+//  La movilidad (1) no entra en la rotación de daño (es para moverse).
+// ROTACIÓN (§7.1, una acción cada vez que el canal lo permite y como mucho una
+// cada HUMAN_GAP s): definitiva → gastadora de 2 si tiene enfriamiento →
+// gastadora de 🖱️Der → gastadora de 2 sin enfriamiento → básico. La defensa de la
+// variante defensiva no se pulsa en los TTK (la vida no baja): solo cuenta en TTD+.
+// Supuestos documentados (MEMORIA.md, Paso 2b.2):
+//  - objetivo único (las áreas, rebotes y salpicaduras no suman objetivos extra);
+//  - TTK común/élite: cadena de N combates seguidos (CD y recurso continúan entre
+//    combates, con WALK s de desplazamiento); el objetivo no se mueve;
+//  - TTD (Paso 1A): manada (1 campeón + 4 comunes) pegando cuerpo a cuerpo sin
+//    parar, sin mitigación activa; TTD+ = lo mismo con la defensa de la ranura 2
+//    usada al enfriarse (variante defensiva);
+//  - UNI: 60 s contra un jefe que no muere (reparto de daño por habilidad).
 // Uso: `node tests/balance-bench.mjs` (afirma) · `--report` (solo imprime)
 // ============================================================
-import { Player } from '../js/entities.js';
+import * as THREE from 'three';
+import { Player, Enemy } from '../js/entities.js';
 import { generateItem } from '../js/items.js';
 import { CLASSES, ENEMIES, ELITE_MODS, ENEMY_RANKS, bossForFloor, scaleEnemy,
   SKILL_MODS, MASTERIES, paragonBoardFor, BLESSINGS, blessingValue } from '../js/data.js';
 import * as CM from '../js/combat-math.js';
-// Paso 2b.0: el banco usa el MISMO resolvedor que el juego (rangos por nivel,
-// ramas, soportes por tags, CDR/coste) y los recursos de §2 (resources.js).
-// La adaptación completa (GCD/windup/escenarios por rol) es de 2b.2 / 2e.
-import { resolveSkill, isKnown } from '../js/skill-resolve.js';
-import { resourceDefFor, resourceRegenRate } from '../js/resources.js';
+import { resolveSkill, isKnown, GCD } from '../js/skill-resolve.js';
+import { onHurtResource } from '../js/resources.js';
 import { createRng, hashSeed } from '../js/rng.js';
+import { makeGame } from './helpers/power-harness.mjs';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 const REPORT_ONLY = process.argv.includes('--report');
-const fake = () => ({
-  ui: { spawnText() {}, message() {}, flashDamage() {}, levelUpFlash() {} },
-  sfx() {}, addShake() {}, vibrate() {}, tip() {}, spawnBurst() {}, onPlayerDeath() {},
-  input: { joyDir: null, keyDir: null }, enemies: [], nearestEnemy() { return null; },
-});
 
-const DT = 0.05, ACTION_LOCK = 0.3, WALK = 0.6;
+const DT = 1 / 30, WALK = 0.6, HUMAN_GAP = GCD, UNI_T = 60;
 const SLOTS = [['weapon', 'weapon'], ['offhand', 'offhand'], ['helm', 'helm'], ['shoulders', 'shoulders'],
   ['chest', 'chest'], ['gloves', 'gloves'], ['belt', 'belt'], ['pants', 'pants'], ['boots', 'boots'],
   ['amulet', 'amulet'], ['ring', 'ring'], ['ring2', 'ring']];
-// rotación (habilidades del kit; las pasivas compradas se eliminaron en el Paso 2b)
-const ROT = {
-  guerrero: ['torbellino', 'g_martillo', 'terremoto', 'grito_guerra', 'g_salto', 'g_u_cataclismo'],
-  maga: ['bola_fuego', 'rayo', 'nova_hielo', 'meteoro', 'm_u_supernova'],
-  arquera: ['flecha_perforante', 'flecha_multiple', 'agilidad', 'lluvia_flechas', 'a_u_diluvio'],
+// LOADOUT por clase: por ranura, la primera habilidad CONOCIDA de la lista (y distinta
+// de la de 🖱️Der). k2off = variante ofensiva · k2def = variante defensiva.
+// La ofensiva lleva en 2 una gastadora CON enfriamiento: con dos sin enfriamiento
+// (Hendidura + Torbellino, Perforante + Múltiple) la de 🖱️Der siempre llega antes y
+// la de 2 solo le roba recurso en un objetivo (su valor es de área: ÁREA×5, Paso 2e).
+// Antes de tenerla (Guerrero Nv8–13, Arquera Nv8–13) la ofensiva = sin segunda gastadora.
+export const LOADOUT = {
+  guerrero: { rmb: ['g_hendidura', 'torbellino'], k2off: ['terremoto'], k2def: ['g_piel'], k4: ['g_u_cataclismo'] },
+  maga:     { rmb: ['bola_fuego'], k2off: ['meteoro', 'rayo'], k2def: ['m_armadura'], k4: ['m_u_supernova'] },
+  arquera:  { rmb: ['flecha_perforante'], k2off: ['lluvia_flechas'], k2def: ['a_humo'], k4: ['a_u_diluvio'] },
 };
 const MASTERY_PICK = { guerrero: 'berserker', maga: 'piromante', arquera: 'francotiradora' };
 const PARAGON_ORDER = ['4_3', '4_5', '4_2', '4_6', '4_1', '4_7', '3_2', '5_2', '3_6', '5_6', '4_0', '4_8',
   '3_4', '5_4', '2_4', '6_4', '1_4', '7_4', '2_3', '2_5', '6_3', '6_5', '0_4', '8_4', '3_3', '5_3', '3_5', '5_5'];
+const DIST = { guerrero: 1.6, maga: 5, arquera: 5 }; // distancia al objetivo (cuerpo a cuerpo / a distancia)
 
 function itemValue(it) {
   const a = it.affixes || {};
@@ -60,19 +71,21 @@ function itemValue(it) {
     (a.dmgPct || 0) * 2 + (a.crit || 0) * 2 + (a.fue || 0) + (a.des || 0) + (a.ene || 0) + (a.vit || 0) + (a.aspdPct || 0);
 }
 
-// build: 'tipico' (raros, sin soportes/mods, maestría y paragon en orden natural)
+// build: 'tipico' (raros, sin soportes/ramas, maestría y paragon en orden natural)
 //        'optimo' (legendarios calidad máx. con poderes elegidos, soportes,
-//                  mods, paragon con glifos r10, bendiciones de grieta)
-export function buildHero(classId, level, build, { al = CM.areaLevelForHero(level), torment = 0, seed = 1 } = {}) {
+//                  ramas, paragon con glifos r10, bendiciones de grieta)
+// variant: 'ofensiva' | 'defensiva' | 'basico' (solo el básico, para la regla 0,6×)
+export function buildHero(classId, level, build, { al = CM.areaLevelForHero(level), torment = 0, seed = 1, variant = 'ofensiva' } = {}) {
   const rng = createRng(hashSeed('bench', classId, level, build, al, torment, seed));
-  const p = new Player(fake(), classId);
+  const g = makeGame({ seed });
+  const p = new Player(g, classId);
+  g.player = p;
   p.combatRng = rng.fork('combate');
   p.level = level;
   const cls = CLASSES[classId];
   const pts = 5 * (Math.min(level, 20) - 1);
   p.attributes[cls.mainStat] += Math.round(pts * 0.6);
   p.attributes.vit += pts - Math.round(pts * 0.6);
-  // habilidades: se aprenden solas por nivel y su rango sale del nivel (§4.1)
   const opt = build === 'optimo';
   // equipo: ilvl del área (acotado) y calidad del Tormento (combat-math)
   const il = CM.itemLevel(al);
@@ -94,7 +107,7 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
     }
     p.equipment[slot] = best;
   }
-  // maestría (1 punto cada 2 niveles desde el 12): nodos en orden de la lista
+  // maestría (1 punto cada 2 niveles desde el 12): nodos en orden de la lista (hasta 2c)
   if (level >= 12) {
     const m = MASTERIES[classId].find(x => x.id === MASTERY_PICK[classId]);
     let mp = Math.floor((level - 12) / 2) + 1;
@@ -114,7 +127,7 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
       p.blessings = { Ofensiva: pick('b_dmg'), Celeridad: pick('b_cdr'), Defensiva: pick('b_hp') };
     }
   }
-  // soportes y modificadores (solo el óptimo)
+  // soportes y ramas (solo el óptimo)
   if (opt) {
     for (const s of cls.skills) {
       // los incompatibles por tags (Sobrecarga en básicos, definitivas…) los ignora el resolvedor
@@ -133,10 +146,25 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
   p.recompute();
   p.hp = p.stats.maxHP;
   p.mp = cls.resource?.start === 0 ? 0 : p.stats.maxMP;
+  p.pos.set(0, 0, 0);
+  applyLoadout(p, variant);
   return p;
 }
-// perfil resuelto de una habilidad del héroe (mismo resolvedor que el juego)
-const profOf = (p, s) => resolveSkill(p, s);
+
+// barra del banco según la variante (solo habilidades conocidas a ese nivel)
+export function loadoutOf(p, variant = 'ofensiva') {
+  const L = LOADOUT[p.classId];
+  const cls = p.cls;
+  const known = id => { const s = cls.skills.find(x => x.id === id); return s && isKnown(p, s) ? id : null; };
+  const first = (list, not = null) => (list || []).map(known).find(id => id && id !== not) || null;
+  const bar = { lmb: cls.skills.find(s => s.cat === 'basic' && s.type === 'weapon').id, rmb: null, k1: null, k2: null, k3: null, k4: null };
+  if (variant === 'basico') return bar;
+  bar.rmb = first(L.rmb);
+  bar.k2 = variant === 'defensiva' ? first(L.k2def) : first(L.k2off, bar.rmb);
+  bar.k4 = first(L.k4);
+  return bar;
+}
+function applyLoadout(p, variant) { p.hotbar = loadoutOf(p, variant); }
 
 // --- enemigos de referencia de un nivel de área ---
 export function refEnemies(al, torment = 0) {
@@ -147,103 +175,141 @@ export function refEnemies(al, torment = 0) {
   const hp = sc.reduce((s, x) => s + x.s.hp * x.e.weight, 0) / W * tm.hp;
   const dps = sc.reduce((s, x) => s + x.s.dmg / x.e.atkTime * x.e.weight, 0) / W * tm.dmg;
   const eliteMod = ELITE_MODS.reduce((s, m) => s + (m.hp || 1), 0) / ELITE_MODS.length;
-  const boss = scaleEnemy(bossForFloor(al), al);
+  const bossDef = bossForFloor(al);
+  const boss = scaleEnemy(bossDef, al);
   return {
     common: hp,
     elite: hp * CM.eliteHpMult(al) * eliteMod,
     boss: boss.hp * tm.hp,
-    commonDps: dps, champDps: dps * ENEMY_RANKS.campeon.dmg,
+    commonDps: dps, champDps: dps * ENEMY_RANKS.campeon.dmg, eliteDps: dps * ENEMY_RANKS.elite.dmg,
+    bossDps: boss.dmg / (bossDef.atkTime || 1) * tm.dmg,
+    al,
   };
 }
 
-// --- simulación de rotación contra una cadena de objetivos ---
-export function simulate(p, hpEach, count, { boss = false } = {}) {
-  const cls = p.cls, res = cls.resource || {};
-  const rdef = resourceDefFor(cls);
-  const wb = cls.skills.find(s => s.cat === 'basic' && s.type === 'weapon');
-  const bp = profOf(p, wb);
-  const rot = ROT[p.classId].map(id => cls.skills.find(s => s.id === id))
-    .filter(s => s && isKnown(p, s))
-    .map(s => { const prof = profOf(p, s); return { s, prof, cost: prof.cost }; })
-    .sort((a, b) => (b.s.type === 'buff') - (a.s.type === 'buff') || b.prof.coef * (1 + b.prof.addPct / 100) - a.prof.coef * (1 + a.prof.addPct / 100));
-  const cds = {}; let atkCd = 0, lock = 0, t = 0, dealtAll = 0, maxHit = 0, idle = 0;
-  const pending = []; // [{at, dmg}] golpes diferidos (Eco, tics de DoT/Estela)
-  const kills = [];
-  for (let k = 0; k < count; k++) {
-    const tgt = { hp: hpEach, max: hpEach, vulnT: 0, slowT: 0 };
-    const t0 = t;
-    const hit = (dmg, crit, proc = false) => {
-      let d = dmg;
-      if (tgt.vulnT > 0) d *= CM.VULN_MULT;
-      if (!proc) d *= CM.multiplierProduct(p.powers, { hpFrac: p.hp / p.stats.maxHP, targetFrac: tgt.hp / tgt.max, targetSlowed: tgt.slowT > 0, crit }, p.extraMultipliers);
-      d = Math.max(1, Math.round(d));
-      if (d > maxHit) maxHit = d;
-      tgt.hp -= d; dealtAll += d;
-    };
-    // efectos al golpear del perfil resuelto (mismas cifras que applyHitEffects)
-    const effects = (prof, avg) => {
-      if (prof.vuln) tgt.vulnT = Math.max(tgt.vulnT, prof.vuln);
-      if (prof.slow) tgt.slowT = Math.max(tgt.slowT, prof.slow);
-      const d = prof.dot ? CM.dotProfile(prof.dot, avg, { dotMul: prof.dotMul, tv: p.tv }) : null;
-      if (d) for (let i = 1; i <= d.ticks; i++) pending.push({ at: t + i * d.interval, dmg: d.total / d.ticks });
-      if (prof.zone) for (let i = 1; i <= prof.zoneDur * 2; i++) pending.push({ at: t + i * 0.5, dmg: avg * 0.45 * 0.5 });
-    };
-    let guard = 0;
-    while (tgt.hp > 0 && guard++ < 40000) {
-      // regeneración / tiempos (réplica de Player.update)
-      p.mp = Math.min(p.stats.maxMP, p.mp + resourceRegenRate(rdef, p.stats) * DT);
-      let exp = false;
-      for (const b of p.buffs) { b.t -= DT; if (b.t <= 0) exp = true; }
-      if (exp) { p.buffs = p.buffs.filter(b => b.t > 0); p.recompute(); }
-      for (const id in cds) cds[id] = Math.max(0, cds[id] - DT);
-      atkCd = Math.max(0, atkCd - DT); lock = Math.max(0, lock - DT);
-      tgt.vulnT = Math.max(0, tgt.vulnT - DT); tgt.slowT = Math.max(0, tgt.slowT - DT);
-      for (let i = pending.length - 1; i >= 0; i--) if (pending[i].at <= t) { hit(pending[i].dmg, false); pending.splice(i, 1); }
-      if (lock <= 0) {
-        const r = rot.find(x => (cds[x.s.id] || 0) <= 0 && p.mp >= x.cost && !(x.s.type === 'buff' && p.buffs.some(b => b.id === x.s.id)));
-        if (r) {
-          const { s, prof } = r;
-          p.mp -= r.cost; if (prof.gen) p.mp = Math.min(p.stats.maxMP, p.mp + prof.gen);
-          if (s.type === 'buff') {
-            p.addBuff(s.id, { ...prof.buff }, prof.dur);
-          } else {
-            const cb = prof.critBonus + (prof.coldblood && tgt.slowT > 0 ? CM.COLDBLOOD_CRIT : 0);
-            const { dmg, crit } = p.rollDamage(prof.coef, cb, prof.addPct);
-            hit(dmg, crit);
-            effects(prof, p.avgHit(prof.coef, prof.addPct));
-            if (prof.echo > 0) { const e = p.rollDamage(prof.coef * prof.echo, prof.critBonus, prof.addPct); pending.push({ at: t + 0.5, dmg: e.dmg }); }
-          }
-          cds[s.id] = prof.cd;
-          lock = ACTION_LOCK;
-        } else if (atkCd <= 0) {
-          const { dmg, crit } = p.rollDamage(bp.coef, bp.critBonus, bp.addPct);
-          hit(dmg, crit);
-          effects(bp, p.avgHit(bp.coef, bp.addPct));
-          p.mp = Math.min(p.stats.maxMP, p.mp + bp.gen);
-          atkCd = p.stats.atkTime; lock = Math.min(ACTION_LOCK, p.stats.atkTime);
-        } else idle += DT;
-      }
-      t += DT;
-    }
-    kills.push(t - t0);
-    pending.length = 0; // los tics pendientes se pierden con el muerto
-    t += WALK;
-    for (const id in cds) cds[id] = Math.max(0, cds[id] - WALK);
-    atkCd = 0;
-    p.mp = Math.min(p.stats.maxMP, p.mp + resourceRegenRate(rdef, p.stats) * WALK);
-  }
-  const ttk = kills.reduce((a, b) => a + b, 0) / kills.length;
-  return { ttk, dps: dealtAll / kills.reduce((a, b) => a + b, 0), maxHit };
+// enemigo REAL inmóvil (Enemy de entities.js: applyCC, Debilidad, Π[×], onKill)
+function spawnTarget(g, kind, hp, ref, dist) {
+  const base = kind === 'boss' ? bossForFloor(ref.al) : ENEMIES[0];
+  const def = { ...scaleEnemy(base, ref.al), hp };
+  if (kind === 'elite') def.rank = 'elite';
+  const e = new Enemy(g, def, new THREE.Vector3(dist, 0, 0));
+  e.maxHP = e.hp = hp;
+  g.enemies.push(e);
+  return e;
 }
 
-// TTD contra manada (1 campeón + 4 comunes) sin mitigación activa
+// estadísticas de daño por habilidad (atribución por opts.skill del golpe)
+function track(e, stats) {
+  const orig = e.takeDamage.bind(e);
+  e.takeDamage = (amount, crit, opts = {}) => {
+    const before = e.hp;
+    const dealt = orig(amount, crit, opts);
+    const d = Math.max(0, before - e.hp);           // sin topar a la vida restante (golpe real)
+    if (d > stats.maxHit) stats.maxHit = d;
+    const k = opts.skill || (opts.source && String(opts.source)) || 'otros';
+    stats.by[k] = (stats.by[k] || 0) + d;
+    stats.total += d;
+    return dealt;
+  };
+}
+
+// --- simulación con el canal REAL contra una cadena de objetivos ---
+// kind: 'common' | 'elite' | 'boss' · count objetivos de vida hpEach · maxT por objetivo
+export function simulate(p, hpEach, count, { kind = 'common', ref, maxT = 400 } = {}) {
+  const g = p.game;
+  const dist = DIST[p.classId] || 2;
+  const incDps = kind === 'boss' ? ref.bossDps : kind === 'elite' ? ref.eliteDps : ref.commonDps;
+  const stats = { maxHit: 0, by: {}, total: 0, uses: {} };
+  const kills = [];
+  let gap = 0, t = 0;
+  // §7.1 ROT_SPEC: la gastadora de 2 va ANTES que la de 🖱️Der solo si tiene enfriamiento
+  const k2sk = p.hotbar.k2 ? p.cls.skills.find(s => s.id === p.hotbar.k2) : null;
+  const k2cd = !!(k2sk && (k2sk.cd || 0) > 0);
+  const order = k2cd ? ['k4', 'k2', 'rmb'] : ['k4', 'rmb', 'k2'];
+  const stepWorld = (act, e) => {
+    if (act && gap <= 0 && e?.alive) {
+      g.input.mouseWorld = e.pos.clone();
+      let acted = null;
+      // reserva: con la gastadora de 2 (con enfriamiento) lista pero sin recurso, no se
+      // gasta en la de 🖱️Der (un jugador junta Energía/Furia para la Lluvia)
+      const pool = k2cd && !(p.cds[k2sk.id] > 0) && p.mp < resolveSkill(p, k2sk).cost;
+      for (const k of order) {
+        if (pool && k === 'rmb') continue;
+        if (p.hotbar[k] && g.castSkillSlot(k)) { acted = k; break; }
+      }
+      if (!acted && p.atkCd <= 0 && !(p.castLock > 0)) {
+        g.castSkillSlot('lmb');                       // básico: arrancó si puso su cadencia o un windup
+        if (p.atkCd > 0 || g._windup) acted = 'lmb';
+      }
+      if (acted) {
+        gap = HUMAN_GAP;
+        const id = p.hotbar[acted];
+        stats.uses[id] = (stats.uses[id] || 0) + 1;
+      }
+    }
+    // Furia por daño recibido (el objetivo pega con su DPS medio, tras mitigar)
+    if (act && e?.alive && incDps > 0) onHurtResource(p, incDps * CM.expectedMitigation(p.stats, ref.al) * DT);
+    g.step(DT);
+    if (e?.alive) e.pos.set(dist, 0, 0);           // inmóvil (deshace el retroceso)
+    gap = Math.max(0, gap - DT);
+    t += DT;
+  };
+  for (let k = 0; k < count; k++) {
+    g.enemies = g.enemies.filter(x => x.alive);
+    const e = spawnTarget(g, kind, hpEach, ref, dist);
+    track(e, stats);
+    const t0 = t;
+    while (e.alive && t - t0 < maxT) stepWorld(true, e);
+    kills.push(t - t0);
+    for (let w = 0; w < WALK - 1e-9; w += DT) stepWorld(false, null);
+  }
+  const ttk = kills.reduce((a, b) => a + b, 0) / kills.length;
+  return { ttk, dps: stats.total / Math.max(1e-9, kills.reduce((a, b) => a + b, 0)), maxHit: stats.maxHit, stats };
+}
+
+// UNI: 60 s contra un jefe que no muere → DPS y reparto por habilidad
+export function simulateUni(p, ref, dur = UNI_T) {
+  const r = simulate(p, 1e12, 1, { kind: 'boss', ref, maxT: dur });
+  return { dps: r.stats.total / dur, by: r.stats.by, uses: r.stats.uses, total: r.stats.total };
+}
+
+// TTD contra manada (1 campeón + 4 comunes) sin mitigación activa (Paso 1A)
 export function ttdPack(p, ref, al) {
   const incoming = (ref.commonDps * 4 + ref.champDps) * CM.expectedMitigation(p.stats, al);
   const regen = 0.4 + p.stats.vit * 0.02;
   return incoming <= regen ? Infinity : p.stats.maxHP / (incoming - regen);
 }
+// TTD+: misma manada; la defensa de la ranura 2 (variante defensiva) se usa al
+// enfriarse: dr de buff (Piel de Hierro), escudo (Armadura de Hielo) o zona con
+// allyDr (Bomba de Humo). Perfiles reales de resolveSkill.
+export function ttdPlus(p, ref, al) {
+  const id = p.hotbar.k2;
+  const sk = id ? p.cls.skills.find(s => s.id === id) : null;
+  const prof = sk ? resolveSkill(p, sk) : null;
+  const regen = 0.4 + p.stats.vit * 0.02;
+  const raw = ref.commonDps * 4 + ref.champDps;
+  let hp = p.stats.maxHP, t = 0, cd = 0, active = 0, shield = 0;
+  const dt = 0.05;
+  while (hp > 0 && t < 600) {
+    if (prof && cd <= 0) {
+      cd = prof.cd || 20;
+      active = prof.dur || sk.dur || 0;
+      if (sk.type === 'shield') shield = (sk.shieldPct || 20) / 100 * p.stats.maxHP * prof.buffMul;
+    }
+    let dr = 0;
+    if (active > 0 && prof) dr = (prof.buff?.dr || 0) + (sk.allyDr ? sk.allyDr * prof.buffMul : 0);
+    const st = dr ? { ...p.stats, dr: Math.min(CM.CAPS.dr, (p.stats.dr || 0) + dr) } : p.stats;
+    let inc = raw * CM.expectedMitigation(st, al) * dt;
+    if (shield > 0) { const a = Math.min(shield, inc); shield -= a; inc -= a; }
+    hp -= inc - regen * dt;
+    t += dt; cd -= dt; active -= dt;
+    if (active <= 0) shield = 0;
+  }
+  return t;
+}
 
 // ---------------- ejecución ----------------
+const ULT_MIN_LEVEL = 15;
 export function runBench({ classes = ['guerrero', 'maga', 'arquera'], levels = [1, 5, 10, 25, 50], torment = [[50, 10]] } = {}) {
   const rows = [];
   const cases = [...levels.map(L => ({ L, T: 0 })), ...torment.map(([L, T]) => ({ L, T }))];
@@ -252,11 +318,23 @@ export function runBench({ classes = ['guerrero', 'maga', 'arquera'], levels = [
     const ref = refEnemies(al, T);
     const row = { cls: c, L, T, al };
     for (const b of ['tipico', 'optimo']) {
-      const mk = () => buildHero(c, L, b, { al, torment: T });
-      const n = simulate(mk(), ref.common, 24);
-      const e = simulate(mk(), ref.elite, 6);
-      const bo = simulate(mk(), ref.boss, 2, { boss: true });
-      row[b] = { ttkN: n.ttk, ttkE: e.ttk, ttkB: bo.ttk, dps: bo.dps, maxHit: Math.max(n.maxHit, e.maxHit, bo.maxHit), ttd: ttdPack(mk(), ref, al) };
+      const mk = (variant = 'ofensiva') => buildHero(c, L, b, { al, torment: T, variant });
+      const n = simulate(mk(), ref.common, 24, { kind: 'common', ref });
+      const e = simulate(mk(), ref.elite, 6, { kind: 'elite', ref });
+      const bo = simulate(mk(), ref.boss, 2, { kind: 'boss', ref });
+      const def = mk('defensiva');
+      row[b] = { ttkN: n.ttk, ttkE: e.ttk, ttkB: bo.ttk, dps: bo.dps, maxHit: Math.max(n.maxHit, e.maxHit, bo.maxHit),
+        ttd: ttdPack(def, ref, al), ttdPlus: ttdPlus(def, ref, al) };
+      if (b === 'tipico' && T === 0) {
+        const off = mk();
+        row.uni = simulateUni(off, ref);
+        row.uniBar = { ...off.hotbar };
+        row.uniBasic = simulateUni(mk('basico'), ref);
+        row.uniDef = simulateUni(mk('defensiva'), ref);
+        row.ttdPlusOff = ttdPlus(off, ref, al);
+        row.basicHit = off.avgHit(resolveSkill(off, off.cls.skills.find(s => s.id === off.hotbar.lmb)).coef, 0);
+        row.wd = off.avgHit(1, 0);                      // 1 WD (arma × atributo, coef 1)
+      }
     }
     row.bossHp = ref.boss;
     row.ratio = row.optimo.dps / row.tipico.dps;
@@ -266,25 +344,43 @@ export function runBench({ classes = ['guerrero', 'maga', 'arquera'], levels = [
 }
 
 const f1 = v => (v === Infinity ? '∞' : v.toFixed(v < 10 ? 2 : 1));
+const pct = v => `${(v * 100).toFixed(0)}%`;
 export function printRows(rows) {
-  console.log('clase    Nv  T  AL | TÍPICO TTK común/élite/jefe  TTD   | ÓPTIMO común/élite/jefe  TTD  | opt/típ  golpeMáx/vidaJefe');
+  console.log('clase    Nv  T  AL | TÍPICO TTK común/élite/jefe  TTD  TTD+ | ÓPTIMO común/élite/jefe  TTD  | opt/típ  golpeMáx/vidaJefe');
   for (const r of rows) {
     const t = r.tipico, o = r.optimo;
     console.log(`${r.cls.padEnd(8)} ${String(r.L).padStart(2)} ${String(r.T).padStart(2)} ${String(r.al).padStart(3)} | ` +
-      `${f1(t.ttkN).padStart(5)} ${f1(t.ttkE).padStart(5)} ${f1(t.ttkB).padStart(6)}  ${f1(t.ttd).padStart(5)} | ` +
+      `${f1(t.ttkN).padStart(5)} ${f1(t.ttkE).padStart(5)} ${f1(t.ttkB).padStart(6)}  ${f1(t.ttd).padStart(5)} ${f1(t.ttdPlus).padStart(5)} | ` +
       `${f1(o.ttkN).padStart(5)} ${f1(o.ttkE).padStart(5)} ${f1(o.ttkB).padStart(6)}  ${f1(o.ttd).padStart(5)} | ` +
       `×${r.ratio.toFixed(1).padStart(4)}   ${(o.maxHit / r.bossHp * 100).toFixed(1)}%`);
   }
+  console.log('\nUNI (típico, 60 s a un jefe; variante ofensiva) — reparto del daño por habilidad');
+  for (const r of rows.filter(x => x.uni)) {
+    const parts = Object.entries(r.uni.by).sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k} ${pct(v / r.uni.total)}${r.uni.uses[k] ? `·${r.uni.uses[k]}u` : ''}`).join(' · ');
+    const k2 = r.uniDef.dps > 0 ? r.uni.dps / r.uniDef.dps - 1 : 0;
+    const k2t = r.ttdPlusOff > 0 ? r.tipico.ttdPlus / r.ttdPlusOff - 1 : 0;
+    console.log(`${r.cls.padEnd(8)} Nv${String(r.L).padStart(2)} | DPS ${f1(r.uni.dps).padStart(7)} (${(r.uni.dps / r.wd).toFixed(2)} WD/s) · solo básico ×${(r.uniBasic.dps / r.uni.dps).toFixed(2)} · ` +
+      `ranura 2: ofensiva +${pct(k2)} UNI / defensiva +${pct(k2t)} TTD | ${parts}`);
+  }
 }
 
-// OBJETIVOS (héroe típico, T0). Dos niveles de exigencia:
+// OBJETIVOS (héroe típico, T0). Dos niveles de exigencia (Paso 1A, sin cambios):
 //  - DISEÑO: la MEDIA de las 3 clases dentro del objetivo del Paso 1A
-//    (común 0,6–1,5 s · élite 5–10 · jefe 45–90 · TTD 6–10), con un margen pequeño;
-//  - CLASE: cada clase por separado. Élite (4,5–10,5 s) y TTD (≥ 6 s) se exigen
-//    POR CLASE en todos los niveles; común y jefe con algo de tolerancia (hasta
-//    el rework de clases hay diferencias de rol: la Maga revienta antes).
+//    (común 0,6–1,5 s · élite 4,5–10,5 · jefe 45–90 · TTD 6–10);
+//  - CLASE: cada clase por separado (élite 4,5–10,5 s y TTD 6–13 s en todos los
+//    niveles; común y jefe con algo de tolerancia).
 // Jefe por nivel: la vida de jefe sube en rampa (combat-math.bossHpMult) → Nv1
 // (solo el básico) 30–60 s, Nv5 30–90 s, y desde Nv10 el rango normal.
+// Paso 2b.2 (UNI, típico, T0):
+//  - basicOnly: «solo básico» ≤ 0,6× la rotación (desde Nv5, con al menos una gastadora);
+//  - ultShare: la definitiva aporta el 12–22 % del daño (Nv ≥ 15);
+//  - NINGUNA GASTADORA TRAMPA: cada gastadora de la barra por defecto aporta
+//    ≥ spenderShare (10 %) del daño y su daño por uso es ≥ spenderPerUse (1,8×)
+//    el golpe medio del básico (1,3× si es de área/cono/línea). Por qué: 10 % es
+//    lo mínimo para que pulsarla se note frente a la rotación entera; 1,8× el
+//    básico es el suelo del presupuesto §3.0 (gastadora 2,2–3 WD vs básico 1 WD)
+//    con margen, y las de área reparten ≈70 % por objetivo (§3.0).
 export const TARGETS = {
   mean: { ttkN: [0.6, 1.5], ttkE: [4.5, 10.5], ttkB: [45, 90], ttd: [6, 10] },
   cls: { ttkN: [0.45, 1.8], ttkE: [4.5, 10.5], ttkB: [35, 100], ttd: [6, 13] },
@@ -293,12 +389,14 @@ export const TARGETS = {
   ratio: [1.3, 15],        // DPS óptimo / típico (Nv ≥ 10)
   classSpread: 2.5,        // jefe: clase más lenta / más rápida (Nv ≥ 10)
   maxHitBoss: 0.25,        // un golpe del óptimo ≤ 25 % de la vida del jefe
+  basicOnly: 0.6,
+  ultShare: [0.12, 0.22],
+  spenderShare: 0.10,
+  spenderPerUse: 1.8,       // gastadora de un objetivo
+  spenderPerUseArea: 1.3,   // de área/cono/línea: reparte ≈70 % por objetivo (§3.0) → 1,8 × 0,7
 };
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop());
-if (isMain) {
-  const rows = runBench();
-  printRows(rows);
+export function checkRows(rows) {
   const errs = [];
   const chk = (ok, msg) => { if (!ok) errs.push(msg); };
   const inR = (v, [lo, hi]) => v >= lo && v <= hi;
@@ -311,7 +409,25 @@ if (isMain) {
       const bw = r.L === 1 ? TARGETS.bossNv1 : r.L < 10 ? TARGETS.bossRamp : C.ttkB;
       chk(inR(t.ttkB, bw), `${id}: TTK jefe ${f1(t.ttkB)}s fuera de ${bw}`);
       chk(inR(t.ttd, C.ttd), `${id}: TTD manada ${f1(t.ttd)}s fuera de ${C.ttd}`);
+      chk(t.ttdPlus >= t.ttd - 1e-6, `${id}: TTD+ con defensa (${f1(t.ttdPlus)}) < TTD sin ella (${f1(t.ttd)})`);
       if (r.L >= 10) chk(inR(r.ratio, TARGETS.ratio), `${id}: óptimo/típico ×${r.ratio.toFixed(1)} fuera de ${TARGETS.ratio}`);
+      // --- reglas del Paso 2b.2 sobre UNI ---
+      const u = r.uni, bar = r.uniBar;
+      if (r.L >= 5 && bar.rmb) chk(r.uniBasic.dps <= TARGETS.basicOnly * u.dps, `${id}: «solo básico» ×${(r.uniBasic.dps / u.dps).toFixed(2)} de la rotación (> ${TARGETS.basicOnly})`);
+      if (r.L >= ULT_MIN_LEVEL && bar.k4) {
+        const sh = (u.by[bar.k4] || 0) / u.total;
+        chk(inR(sh, TARGETS.ultShare), `${id}: la definitiva ${bar.k4} aporta ${pct(sh)} del daño UNI (objetivo 12–22 %)`);
+      }
+      for (const slot of ['rmb', 'k2']) {
+        const sid = bar[slot]; if (!sid) continue;
+        const sh = (u.by[sid] || 0) / u.total;
+        const per = u.uses[sid] ? (u.by[sid] || 0) / u.uses[sid] : 0;
+        chk(sh >= TARGETS.spenderShare, `${id}: gastadora trampa ${sid} (${slot}) aporta ${pct(sh)} del daño UNI (< ${pct(TARGETS.spenderShare)})`);
+        const sk = CLASSES[r.cls].skills.find(s => s.id === sid);
+        const area = (sk.tags || []).some(t => t === 'area' || t === 'cone' || t === 'line');
+        const need = (area ? TARGETS.spenderPerUseArea : TARGETS.spenderPerUse) * r.basicHit;
+        chk(per >= need, `${id}: gastadora trampa ${sid}: ${f1(per)} por uso < ${area ? TARGETS.spenderPerUseArea : TARGETS.spenderPerUse}× el básico (${f1(r.basicHit)})`);
+      }
     }
     chk(r.optimo.maxHit <= r.bossHp * TARGETS.maxHitBoss, `${id}: un golpe óptimo quita ${(r.optimo.maxHit / r.bossHp * 100).toFixed(0)}% de la vida del jefe`);
   }
@@ -336,6 +452,16 @@ if (isMain) {
     chk(t10.tipico.ttkB > t0.tipico.ttkB * 1.5, `${c}: T10 no es más lento de matar (${f1(t10.tipico.ttkB)}s vs ${f1(t0.tipico.ttkB)}s)`);
     chk(t10.tipico.ttd < t0.tipico.ttd * 0.8, `${c}: T10 no es más peligroso (TTD ${f1(t10.tipico.ttd)}s vs ${f1(t0.tipico.ttd)}s)`);
   }
+  return errs;
+}
+
+const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop());
+if (isMain) {
+  const t0 = Date.now();
+  const rows = runBench();
+  printRows(rows);
+  const errs = checkRows(rows);
+  console.log(`(${((Date.now() - t0) / 1000).toFixed(1)} s)`);
   if (errs.length && !REPORT_ONLY) { console.error('❌ BANCO DE BALANCE FUERA DE RANGO\n - ' + errs.join('\n - ')); process.exit(1); }
   if (errs.length) console.log('(report) avisos:\n - ' + errs.join('\n - '));
   else console.log('✅ BANCO DE BALANCE DENTRO DE RANGO');
