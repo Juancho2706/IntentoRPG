@@ -191,7 +191,7 @@ export const ARQUERA_SKILL_BEHAVIORS = {
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
       const inp = g.input || {};
-      const d = inp.joyDir || inp.keyDir;
+      const d = inp.keyDir;
       let dx, dz;
       if (d && Math.hypot(d.x, d.z) > 1e-3) { const l = Math.hypot(d.x, d.z); dx = d.x / l; dz = d.z / l; }
       else {

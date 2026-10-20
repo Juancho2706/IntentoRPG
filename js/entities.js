@@ -1087,7 +1087,7 @@ export class Player {
   dodge() {
     if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0) return;
     const g = this.game;
-    const dir = g.input.joyDir || g.input.keyDir;
+    const dir = g.input.keyDir;
     let dx, dz;
     if (dir) { const l = Math.hypot(dir.x, dir.z) || 1; dx = dir.x / l; dz = dir.z / l; }
     else { dx = Math.sin(this.group.rotation.y); dz = Math.cos(this.group.rotation.y); }
@@ -1304,10 +1304,8 @@ export class Player {
 
     // ---- movimiento ----
     let dir = null;
-    const joy = g.input.joyDir;
     const key = g.input.keyDir;
-    if (joy) { dir = joy; this.moveTarget = this.attackTarget = this.pickTarget = null; }
-    else if (key) { dir = key; this.moveTarget = this.attackTarget = this.pickTarget = null; }
+    if (key) { dir = key; this.moveTarget = this.attackTarget = this.pickTarget = null; }
 
     if (!dir && this.attackTarget) {
       const t = this.attackTarget;

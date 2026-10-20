@@ -3,7 +3,7 @@
 // sprites del mapa, estados, indicador de especialización, stagger del jefe y que
 // todos los assets que referencia la interfaz existen en assets/ (y en sw.js).
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as HM from '../js/hud-model.js';
@@ -175,8 +175,28 @@ assert.match(sw, /ART_RE = .*talents\|specs\|emblems\|ui256/);
 // cada panel de index.html tiene icono de menú
 const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 for (const [, id] of html.matchAll(/id="panel-([a-z]+)"/g)) assert.ok(HM.MENU_ICON[id], 'panel sin icono de menú: ' + id);
-for (const id of ['spec-gauge', 'boss-frame', 'spec-prompt', 'btn-talents', 'minimap-frame', 'orb-mp-res']) assert.ok(html.includes(`id="${id}"`), 'index.html sin #' + id);
+// Paso 2d.2: el marco del jefe es #target-frame (amplía #boss-frame) y Talentos está en el micromenú (#mb-talents)
+for (const id of ['spec-gauge', 'target-frame', 'spec-prompt', 'mb-talents', 'minimap-frame', 'orb-mp-res']) assert.ok(html.includes(`id="${id}"`), 'index.html sin #' + id);
 assert.ok(html.includes('href="css/talents.css"'), 'index.html enlaza css/talents.css');
 console.log(`Assets: ${need.size} ficheros de ui/, map/ y chrome/ existen y los precarga sw.js; paneles con icono ✓`);
+
+// ---------- 9. Paso 2d.2 (E2): barras de mecánica, HUD de PC y marcas de mundo en el service worker ----------
+// todo el código y los estilos (js/*.js, css/*.css) y TODAS las piezas de assets/hud y assets/gauges
+const list = (d, re) => readdirSync(join(ROOT, d)).filter(f => re.test(f)).map(f => `${d}/${f}`);
+const swAll = [...list('js', /\.js$/), ...list('css', /\.css$/), ...list('assets/hud', /\.webp$/), ...list('assets/gauges', /\.webp$/)];
+for (const f of swAll) assert.ok(sw.includes(`'./${f}'`), 'sw.js no precarga ' + f);
+assert.equal(list('assets/hud', /\.webp$/).length, 13, 'assets/hud: 13 piezas (tanda C)');
+assert.equal(list('assets/gauges', /\.webp$/).length, 33, 'assets/gauges: 33 piezas (tandas A y B)');
+// cada pieza que citan los renderizadores, sus CSS y las marcas de mundo existe
+const gzRefs = new Set();
+for (const f of [...list('js', /^(ui-gauges.*|world-marks)\.js$/), ...list('css', /^gauges.*\.css$/)])
+  for (const [m] of readFileSync(join(ROOT, f), 'utf8').matchAll(/gz_[a-z]+_[a-z_]+/g)) gzRefs.add(m);
+for (const n of gzRefs) assert.ok(has(`assets/gauges/${n}.webp`), 'falta assets/gauges/' + n + '.webp');
+const hudRefs = new Set();
+for (const f of ['index.html', 'css/style.css', ...list('css', /^gauges.*\.css$/), 'js/ui.js', 'js/ui-gauges.js'])
+  for (const [m] of readFileSync(join(ROOT, f), 'utf8').matchAll(/assets\/hud\/[a-z_]+\.webp/g)) hudRefs.add(m);
+for (const f of hudRefs) assert.ok(has(f), 'falta ' + f);
+assert.match(sw, /const VERSION = 'v(\d+)'/);
+console.log(`Service worker: ${swAll.length} ficheros (js, css, assets/hud, assets/gauges) precargados; ${gzRefs.size} piezas gz_* y ${hudRefs.size} de hud citadas existen ✓`);
 
 console.log('\n✅ MODELO DEL HUD (Paso 2d) OK');

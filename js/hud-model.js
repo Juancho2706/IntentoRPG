@@ -285,3 +285,195 @@ export function talentSkillArt(trees, skillId) {
   }
   return null;
 }
+
+// ============================================================
+// Paso 2d.2 · HUD de PC (docs/paso2d2-hud-pc.md §2): escala, registro de botín,
+// objetivo del indicador y del marco superior, enrutado de mensajes y micromenú
+// ============================================================
+export const HUD_ASSET = (name) => `assets/hud/${name}.webp`;
+// referencia de diseño: 1920×1080 a --s = 1
+export const HUD_REF = Object.freeze({ w: 1920, h: 1080, sMin: 0.8, sMax: 1.25 });
+// zona de combate reservada: 56 % × 56 % de la pantalla, centrada en el héroe
+export const COMBAT_ZONE = 0.56;
+// alto (px a --s = 1) de la columna de identidad del dock contado desde el borde
+// inferior: margen 8 + XP 6 + barra 72 + mecánica 72 + aviso 26 + huecos (medido con ?hudcheck=1)
+export const DOCK_COLUMN_H = 206;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// escala del HUD: --s = clamp(0,8, min(vw/1920, vh/1080), 1,25), recortada para que
+// la columna central nunca entre en la zona de combate (1280×720 → 0,75), × la
+// opción «Escala del HUD» (70–150 %). Debajo de 1600 px de ancho el micromenú va en 2×5.
+// → { s, microRows, combat: [x, y, w, h] }
+export function hudLayout(vw, vh, scale = 1) {
+  const W = Math.max(1, +vw || HUD_REF.w), H = Math.max(1, +vh || HUD_REF.h);
+  const base = clamp(Math.min(W / HUD_REF.w, H / HUD_REF.h), HUD_REF.sMin, HUD_REF.sMax);
+  const fit = ((1 - COMBAT_ZONE) / 2 * H - 1) / DOCK_COLUMN_H;
+  const k = clamp(+scale || 1, 0.7, 1.5);
+  const s = Math.round(Math.min(base, fit) * k * 1000) / 1000;
+  const m = (1 - COMBAT_ZONE) / 2;
+  return { s, microRows: W < 1600 ? 2 : 1, combat: [Math.round(W * m), Math.round(H * m), Math.round(W * COMBAT_ZONE), Math.round(H * COMBAT_ZONE)] };
+}
+
+// color de cada especialización (IntentoRPG-assets/STYLE.md; el mismo del mockup)
+export const SPEC_COLOR = Object.freeze({
+  berserker: '#e8634a', guardian: '#7fb0e8', cruzado: '#ecc760', piromante: '#ff8a3d', crionte: '#74cdf2',
+  arcanista: '#b996ff', francotiradora: '#ead86e', montaraz: '#86d47a', tiradora: '#66d7c7',
+});
+const ROMAN = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+export function roman(n) {
+  let v = Math.max(0, n | 0), out = '';
+  for (const [k, r] of ROMAN) while (v >= k) { out += r; v -= k; }
+  return out;
+}
+// placa del héroe (arriba-izq.): «Nv 42 · Crionte» / «Maga · Tormento III»
+// → { title, sub, color, emblem (ruta o null), icon (emoji de respaldo) }
+export function plateView(p, spec = null) {
+  if (!p) return null;
+  const cls = p.cls?.name || '';
+  const torment = (p.torment | 0) > 0 ? `Tormento ${roman(p.torment)}` : 'Normal';
+  return {
+    title: `Nv ${p.level || 1} · ${spec?.name || cls}`,
+    sub: `${cls} · ${torment}`,
+    color: (spec && SPEC_COLOR[spec.id]) || '#e8c06a',
+    emblem: spec?.id ? `assets/emblems/${spec.id}.webp` : null,
+    icon: p.cls?.icon || '⚔️',
+  };
+}
+
+// cifras con separador de miles fino («12 340»), también en 4 cifras como el mockup
+export function fmtNum(n) {
+  const v = Math.round(+n || 0);
+  return (v < 0 ? '−' : '') + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+// ---------- registro de botín (#hud-loot) ----------
+const RARITY_LABEL = { normal: '', magico: 'Mágico', raro: 'Raro', legendario: 'Legendario', conjunto: 'Conjunto' };
+export const LOOT_COLOR = Object.freeze({
+  normal: '#d9d4c8', magico: '#7f9bff', raro: '#ffd24a', legendario: '#ff9a3d', conjunto: '#5fe08a',
+  gold: '#f1d97a', xp: '#c8a2ff', mat: '#9fd8e8', potion: '#ff9a8a',
+});
+const MAT_KINDS = new Set(['gem', 'rune', 'riftkey', 'fragment', 'glyph', 'support']);
+// it: objeto recogido ({ kind, name, rarity, amount, pot, mythic, unidentified }) o
+// { kind: 'xp' | 'gold', amount } → { text, rarity, color, merge? } | null
+// `merge` = clave para sumar entradas seguidas (oro y XP no llenan el registro)
+export function lootLogEntry(item) {
+  if (!item || typeof item !== 'object') return null;
+  const k = item.kind;
+  if (k === 'gold' || k === 'xp') {
+    const amt = Math.round(item.amount || 0);
+    if (amt <= 0) return null;
+    return { text: `+${fmtNum(amt)} ${k === 'xp' ? 'XP' : 'oro'}`, rarity: k, color: LOOT_COLOR[k], merge: k, amount: amt };
+  }
+  if (k === 'potion') return { text: `+ Poción de ${item.pot === 'mp' ? 'recurso' : 'vida'}`, rarity: 'potion', color: LOOT_COLOR.potion };
+  const name = String(item.name || '').trim();
+  if (!name) return null;
+  if (MAT_KINDS.has(k)) return { text: `+ ${name}`, rarity: 'mat', color: LOOT_COLOR.mat };
+  const r = RARITY_LABEL[item.rarity] != null ? item.rarity : 'normal';
+  const tag = item.unidentified ? ' (sin identificar)' : item.mythic ? ' (Mítico)' : RARITY_LABEL[r] ? ` (${RARITY_LABEL[r]})` : '';
+  return { text: `+ ${name}${tag}`, rarity: r, color: LOOT_COLOR[r] };
+}
+
+// ---------- objetivo del indicador de especialización (R1) ----------
+// bajo el cursor > jefe en combate (el vivo más cercano a ≤ range m) > null
+// (gaugeView elige entonces el más afectado). enemies: lista viva del juego
+export function pickGaugeTarget(enemies, hover, pos, range = 30) {
+  if (hover?.alive && (enemies || []).includes(hover)) return hover;
+  if (!pos) return null;
+  return pickBossTarget(enemies, pos, range);
+}
+
+// ---------- marco del objetivo/jefe (#target-frame) ----------
+// tipo de marco: jefe (hud_objetivo_marco), élite (hud_objetivo_elite) o normal
+export function targetKind(e) {
+  const d = e?.def || {};
+  if (d.boss || d.worldBoss || d.uber) return 'boss';
+  if (d.rank === 'elite' || d.goblin) return 'elite';
+  if (d.rank === 'campeon') return 'champion';
+  return 'normal';
+}
+const KIND_TAG = { boss: 'JEFE', elite: 'ÉLITE', champion: 'CAMPEÓN', normal: '' };
+// qué enemigo muestra el marco: el jefe cercano manda; si no, el enemigo bajo el cursor
+export function pickTargetFrame(enemies, hover, pos, range = 30) {
+  const boss = pos ? pickBossTarget(enemies, pos, range) : null;
+  if (boss) return boss;
+  return hover?.alive && (enemies || []).includes(hover) ? hover : null;
+}
+// → { kind, name, tag, hpPct (0–1), hpTxt, frame (asset) } | null
+export function targetView(e, ctx = {}) {
+  if (!e) return null;
+  const kind = targetKind(e);
+  const max = Math.max(1, e.maxHP || e.def?.hp || 1);
+  const hp = Math.max(0, Math.min(max, e.hp || 0));
+  const pct = hp / max;
+  const where = ctx.floor ? ` · PISO ${ctx.floor}` : '';
+  const name = stripIcon(e.def?.name) || 'Enemigo';
+  return {
+    kind, name, tag: (KIND_TAG[kind] || '') + (KIND_TAG[kind] ? where : ''),
+    hpPct: Math.round(pct * 1000) / 1000,
+    hpTxt: `${fmtNum(Math.ceil(hp))} / ${fmtNum(Math.ceil(max))} · ${Math.round(pct * 100)} %`,
+    frame: kind === 'boss' ? HUD_ASSET('hud_objetivo_marco') : kind === 'normal' ? null : HUD_ASSET('hud_objetivo_elite'),
+  };
+}
+
+// ---------- mensajes: registro de sistema o banner crítico ----------
+// Los avisos largos (≥ 4 s) son sucesos importantes → banner bajo el marco del jefe
+// (y quedan en el registro). Los consejos (💡) y lo breve, solo al registro.
+export function messageRoute(text, ms = 2600) {
+  const t = String(text || '');
+  if (!t) return 'none';
+  if (t.startsWith('💡')) return 'syslog';
+  return ms >= 4000 ? 'banner' : 'syslog';
+}
+
+// ---------- micromenú (abajo a la derecha): icono menu_*, acción de bindings.js ----------
+// panel = id de #panel-<id> que abre (para el resaltado del activo)
+export const MICRO_MENU = Object.freeze([
+  { id: 'stats', action: 'character', icon: 'menu_estadisticas', label: 'Personaje' },
+  { id: 'inv', action: 'inventory', icon: 'menu_inventario', label: 'Inventario' },
+  { id: 'skills', action: 'skills', icon: 'menu_habilidades', label: 'Habilidades' },
+  { id: 'talents', action: 'talents', icon: 'menu_talentos', label: 'Talentos' },
+  { id: 'paragon', action: 'paragon', icon: 'menu_paragon', label: 'Paragon' },
+  { id: 'map', action: 'map', icon: 'menu_mapa', label: 'Mapa' },
+  { id: 'quest', action: 'quests', icon: 'menu_misiones', label: 'Misiones' },
+  { id: 'collection', action: 'collection', icon: 'menu_coleccion', label: 'Colección' },
+  { id: 'guide', action: 'guide', icon: 'menu_guia', label: 'Guía' },
+  { id: 'settings', action: 'close', icon: 'menu_ajustes', label: 'Opciones' },
+]);
+
+// ---------- alas de beneficios (izq.) y perjuicios (der., borde rojo) ----------
+const DEBUFF_RE = /ralent|congel|sangr|venen|quem|aturd|maldi|debilit|vulnerab|aterid|inmoviliz|silenci/i;
+export function isDebuff(b) {
+  if (!b) return false;
+  if (b.debuff === true || b.kind === 'debuff') return true;
+  if (b.debuff === false) return false;
+  return b.id === 'slow' || DEBUFF_RE.test(b.name || '');
+}
+// reparte la lista de activeBuffs() en las dos alas → { buffs, debuffs }
+export function splitBuffs(list) {
+  const buffs = [], debuffs = [];
+  for (const b of list || []) (isDebuff(b) ? debuffs : buffs).push(b);
+  return { buffs, debuffs };
+}
+
+// ---------- aviso contextual (#hud-prompt) ----------
+const INTERACT_VERB = {
+  vendor: 'Comerciar', questgiver: 'Hablar', stash: 'Abrir', chest: 'Abrir', waypoint: 'Viajar', shrine: 'Activar',
+  enchanter: 'Reforjar', world_event: 'Activar', healer: 'Hablar', petkeeper: 'Hablar', blacksmith: 'Hablar',
+};
+const stripIcon = (s) => String(s || '').replace(/^[^\p{L}\p{N}«(¡¿]+/u, '').trim();
+// interact: interactuable activo (game.currentInteract) · loot: objeto más cercano
+// (gi.item) · keys: { primary, grab } etiquetas de tecla → { key, verb, name, rarity } | null
+export function promptView({ interact = null, loot = null, keys = {} } = {}) {
+  if (interact) {
+    const t = interact.type || '';
+    const verb = INTERACT_VERB[t] || (t.startsWith('portal') || t.includes('dungeon') || t.includes('gate') || t.includes('exit') ? 'Entrar' : 'Usar');
+    return { key: keys.primary || 'Espacio', verb, name: stripIcon(interact.label), rarity: '' };
+  }
+  if (loot) {
+    const e = lootLogEntry(loot);
+    const name = loot.unidentified ? 'Objeto sin identificar' : String(loot.name || '').trim();
+    if (!name) return null;
+    return { key: keys.grab || 'F', verb: 'Recoger', name, rarity: e?.rarity || 'normal', tag: RARITY_LABEL[loot.rarity] || '' };
+  }
+  return null;
+}

@@ -1,0 +1,179 @@
+/* ============================================================
+   BARRAS DE MECÁNICA · Guerrero (Paso 2d.2 · E1) — docs/paso2d2-hud-pc.md §3.1–§3.3
+   ============================================================
+   Formas de js/ui-gauges-guerrero.js: Sed (venas y corazón), Bastión (muralla de 5 escudos)
+   y Fervor (halo con 3 soles). La forma y la animación son CSS/SVG; el arte pintado
+   (assets/gauges/gz_*.webp) es la piel: la raíz gana `.art-<asset>` al cargarlo y entonces
+   se oculta la reserva CSS del mockup; si falla queda la reserva (`.no-art`).
+   A8: @keyframes y transition SOLO de transform y opacity. Única excepción: la transición
+   de stroke-dashoffset de las venas de la Sed (cambia a 10 Hz como mucho). */
+
+/* precargas ocultas (dan `.art-<asset>` a la raíz sin ocupar sitio) */
+.gz-sed .gz-pre, .gz-fervor .gz-pre { display: none !important; }
+
+/* ============================================================
+   1 · SED — dos venas curvas que desembocan en un corazón central
+   ============================================================ */
+.gz-sed .sd { position: relative; flex: 1; min-width: 0; height: 56px; }
+.gz-sed .sd-veins { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+/* stroke-dasharray 100 200 sobre pathLength=100: el modelo pone el offset (ver sedModel).
+   Grosores en unidades del viewBox: con vector-effect: non-scaling-stroke Chrome mediría el
+   guion en píxeles de pantalla y no en la fracción de pathLength. */
+.gz-sed .vb, .gz-sed .vi, .gz-sed .vf, .gz-sed .vp, .gz-sed .vt, .gz-sed .sd-m { fill: none; stroke-linecap: round; }
+.gz-sed .vb { stroke: #3a120e; stroke-width: 40; }
+.gz-sed .vi { stroke: #160404; stroke-width: 28; }
+.gz-sed .vf { stroke-width: 22; stroke-dasharray: 100 200; stroke-dashoffset: 101; transition: stroke-dashoffset .1s linear; }
+.gz-sed .vp { stroke: #ffd0c0; stroke-width: 9; opacity: 0; stroke-dasharray: 100 200; stroke-dashoffset: 101; transition: stroke-dashoffset .1s linear; }
+/* piel pintada: gz_sed_venas apagada debajo y viva enmascarada por el trazo de la sangre */
+.gz-sed .sd-art { opacity: 0; }
+.gz-sed.art-gz_sed_venas .sd-art { opacity: 1; }
+.gz-sed.art-gz_sed_venas .sd-css { opacity: 0; }
+.gz-sed .sd-dim { filter: grayscale(.85) brightness(.3); }
+.gz-sed .sd-m { stroke: #fff; stroke-width: 70; stroke-dasharray: 100 200; stroke-dashoffset: 101; transition: stroke-dashoffset .1s linear; }
+/* sangre fresca (gz_sed_sangre en mosaico) por el canal ya lleno */
+.gz-sed .vt { stroke-width: 20; stroke-dasharray: 100 200; stroke-dashoffset: 101; opacity: 0; transition: stroke-dashoffset .1s linear, opacity .2s linear; }
+.gz-sed.art-gz_sed_sangre.lit .vt { opacity: .45; }
+.gz-sed.art-gz_sed_sangre.sated .vt { opacity: .8; }
+/* pulso de luz por tramos: 1,4 s · 0,9 s · 0,55 s (<34 · <67 · ≥67) */
+.gz-sed.b1 .vp { animation: gz-sed-pulse 1.4s ease-in-out infinite; }
+.gz-sed.b2 .vp { animation: gz-sed-pulse .9s ease-in-out infinite; }
+.gz-sed.b3 .vp { animation: gz-sed-pulse .55s ease-in-out infinite; }
+@keyframes gz-sed-pulse { 0%, 100% { opacity: 0; } 40% { opacity: .6; } }
+/* sobre la piel pintada el pulso es un brillo más suave */
+.gz-sed.art-gz_sed_venas .vp { stroke: #ffb39c; stroke-width: 7; }
+.gz-sed.art-gz_sed_venas.b1 .vp, .gz-sed.art-gz_sed_venas.b2 .vp, .gz-sed.art-gz_sed_venas.b3 .vp { animation-name: gz-sed-pulse-art; }
+@keyframes gz-sed-pulse-art { 0%, 100% { opacity: 0; } 40% { opacity: .38; } }
+/* Desenfreno (s14): venas ámbar */
+.gz-sed.frenzy .vb { stroke: #7a3a10; }
+.gz-sed.frenzy .vf { stroke: #ffb36a; }
+.gz-sed.frenzy .sd-live, .gz-sed.frenzy .vt { filter: hue-rotate(28deg) saturate(1.5) brightness(1.2); }
+/* drenándose: la sangre se retira hacia el corazón y la piel viva se enfría */
+.gz-sed.drain .sd-live { opacity: .7; }
+
+/* corazón: se hincha con la Sed (scale .78 → 1,08), late con vida baja y en Sed Saciada */
+.gz-sed .sd-heart { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  transform: scale(var(--hs, .78)); transition: transform .1s linear; }
+.gz-sed .sd-hw { position: absolute; inset: 0; }
+.gz-sed .sd-hb { position: absolute; inset: 0; color: #4a1410; }
+.gz-sed .sd-hb svg { width: 100%; height: 100%; fill: currentColor; stroke: #1a0505; stroke-width: 1; }
+.gz-sed.lit .sd-hb { color: #c21d10; }
+.gz-sed.low .sd-hb, .gz-sed.sated .sd-hb { color: #ff4a36; }
+.gz-sed .sd-glow { position: absolute; inset: -2px; border-radius: 50%; background: radial-gradient(circle, #ff4a3677, #0000 70%); opacity: 0; transition: opacity .2s linear; }
+.gz-sed.low .sd-glow, .gz-sed.sated .sd-glow { opacity: 1; }
+.gz-sed.low .sd-hw, .gz-sed.sated .sd-hw { animation: gz-sed-beat .5s ease-in-out infinite; }
+@keyframes gz-sed-beat { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.14); } }
+/* piel del corazón: gz_sed_corazon (apagado sin Sed) y gz_sed_saciada al desbordarse */
+.gz-sed .sd-hw .gz-art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; }
+.gz-sed.art-gz_sed_corazon .sd-hb { opacity: 0; }
+.gz-sed .sd-hw .gz-art.sd-himg { filter: grayscale(.55) brightness(.6); }
+.gz-sed.lit .sd-hw .gz-art.sd-himg { filter: none; }
+.gz-sed .sd-hw .gz-art.sd-simg.is-loaded { opacity: 0; transform: scale(.85); transition: opacity .2s linear, transform .2s ease-out; }
+.gz-sed.sated .sd-hw .gz-art.sd-simg.is-loaded { opacity: 1; transform: scale(1.08); }
+.gz-sed.sated.art-gz_sed_saciada .sd-hw .gz-art.sd-himg { opacity: 0; }
+/* goteo: 3 gotas bajo el corazón, desfasadas 0,33 s */
+.gz-sed .sd-drip { position: absolute; top: 41px; width: 4px; height: 7px; border-radius: 0 0 3px 3px; background: #c21d10; opacity: 0; }
+.gz-sed .sd-drip.d1 { left: calc(50% - 9px); }
+.gz-sed .sd-drip.d2 { left: calc(50% - 2px); }
+.gz-sed .sd-drip.d3 { left: calc(50% + 5px); }
+.gz-sed.sated .sd-drip { animation: gz-sed-drip 1s ease-in infinite; }
+.gz-sed.sated .sd-drip.d2 { animation-delay: .33s; }
+.gz-sed.sated .sd-drip.d3 { animation-delay: .66s; }
+@keyframes gz-sed-drip { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(8px); } }
+
+/* ============================================================
+   2 · BASTIÓN — muralla de 5 escudos de cometa
+   ============================================================ */
+.gz-bastion .gz-defs { position: absolute; width: 0; height: 0; }
+.gz-bastion .bs-row { position: relative; flex: none; display: flex; gap: 8px; align-items: center; height: 56px; }
+.gz-bastion .sh { position: relative; flex: none; width: 36px; height: 46px; transition: transform .25s ease-out; }
+.gz-bastion .sh-in { position: absolute; inset: 0; }
+.gz-bastion .sh-css { position: absolute; inset: 2px 1px; }
+.gz-bastion .sh-css svg { display: block; width: 100%; height: 100%; }
+.gz-bastion .sh-css path { stroke: #cfe3ff; stroke-width: 1.4; }
+.gz-bastion .sh:not(.on) .sh-css path { fill: #141b26; stroke: #3a5070; }
+/* grieta de reserva: dos trazos oscuros recortados a la silueta */
+.gz-bastion .sh-crk { position: absolute; inset: 2px 1px; opacity: 0;
+  background: linear-gradient(115deg, #0000 46%, #0b0f15 47% 50%, #0000 51%), linear-gradient(70deg, #0000 55%, #0b0f15 56% 58%, #0000 59%);
+  clip-path: polygon(50% 4%, 95% 17%, 95% 46%, 50% 96%, 5% 46%, 5% 17%); }
+/* piel: gz_bastion_escudo_vacio (hueco tallado) · gz_bastion_escudo (encendido) · gz_bastion_grieta */
+.gz-bastion .sh .gz-art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; }
+.gz-bastion .sh .gz-art.sh-on.is-loaded { opacity: 0; transition: opacity .15s linear; }
+.gz-bastion .sh.on .gz-art.sh-on.is-loaded { opacity: 1; }
+.gz-bastion .sh .gz-art.sh-empty.is-loaded { opacity: .9; }
+.gz-bastion .sh .gz-art.sh-grieta { mix-blend-mode: screen; }
+.gz-bastion.art-gz_bastion_escudo .sh-css { opacity: 0; }
+.gz-bastion.art-gz_bastion_grieta .sh-crk { display: none; }
+/* encaje de golpe (250 ms): dos animaciones iguales para reiniciarla sin leer layout */
+.gz-bastion .sh-in.in-a { animation: gz-bastion-slam-a .25s ease-out; }
+.gz-bastion .sh-in.in-b { animation: gz-bastion-slam-b .25s ease-out; }
+@keyframes gz-bastion-slam-a { from { transform: scale(1.35) translateY(-3px); } to { transform: none; } }
+@keyframes gz-bastion-slam-b { from { transform: scale(1.35) translateY(-3px); } to { transform: none; } }
+/* la carga a punto de perderse tiembla; la perdida cae y se apaga */
+.gz-bastion .sh.trem { animation: gz-bastion-trem .16s steps(2) infinite; }
+@keyframes gz-bastion-trem { 0% { transform: translateX(-1px); } 100% { transform: translateX(1px); } }
+.gz-bastion .sh.lost .sh-css, .gz-bastion .sh.lost .gz-art.sh-on { animation: gz-bastion-fall .4s ease-in; }
+@keyframes gz-bastion-fall { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(7px) rotate(8deg) scale(.9); } }
+/* Muro de Escudos: los escudos se juntan (translateX) en un muro solapado con onda de luz */
+.gz-bastion.wall .sh { transform: translateX(calc((2 - var(--i)) * 11px)); }
+.gz-bastion.wall .sh-in { transform: scale(1.06); transition: transform .25s ease-out; }
+.gz-bastion.wall .sh-css path { stroke: #fff; }
+.gz-bastion .bs-wave { position: absolute; left: 14px; right: 14px; top: 10px; bottom: 10px; z-index: 2; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, #cfe7ffcc 0, #7fb0e866 35%, #0000 70%); opacity: 0; transform: scaleX(.3); }
+.gz-bastion.wall .bs-wave { animation: gz-bastion-wave 1.6s ease-out infinite; }
+@keyframes gz-bastion-wave { 0% { opacity: .9; transform: scaleX(.3); } 100% { opacity: 0; transform: scaleX(1.12); } }
+/* lado: icono del Muro (apagado hasta alzarlo) y texto de reducción */
+.gz-bastion .bs-side { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 56px; }
+.gz-bastion .bs-side .gz-art.bs-muro { flex: none; width: 50px; height: 37px; object-fit: contain; }
+.gz-bastion .bs-side .gz-art.bs-muro.is-loaded { opacity: .28; transform: scale(.86); transition: opacity .25s linear, transform .25s ease-out; filter: grayscale(.7); }
+.gz-bastion.wall .bs-side .gz-art.bs-muro.is-loaded { opacity: 1; transform: none; filter: none; }
+.gz-bastion .bs-dr { min-width: 0; font: 700 12.5px/1.15 Inter, system-ui, sans-serif; color: #a9cdf5; white-space: normal; overflow: hidden; max-height: 30px; }
+.gz-bastion.wall .bs-dr { color: #e4f1ff; }
+
+/* ============================================================
+   3 · FERVOR — halo con tres soles
+   ============================================================ */
+.gz-fervor .fv { position: relative; flex: none; width: 168px; height: 56px; overflow: hidden; }
+.gz-fervor .fv-fx { position: absolute; inset: 0; z-index: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #0000 0, #000 28%); mask-image: linear-gradient(to bottom, #0000 0, #000 28%); }   /* funde el recorte superior */
+/* rayos (gz_fervor_rayos, aditivo sobre negro → máscara de luminancia) tras la corona */
+.gz-fervor .fv-fx::before { content: ''; position: absolute; left: 50%; top: 28%; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+  background: repeating-conic-gradient(#ffe39a40 0 5deg, #0000 5deg 15deg); opacity: 0; transition: opacity .3s linear; }
+.gz-fervor.art-gz_fervor_rayos .fv-fx::before { border-radius: 0; background: var(--fv-rays) center / contain no-repeat;
+  -webkit-mask: var(--fv-rays) center / contain no-repeat; mask-image: var(--fv-rays); mask-position: center; mask-size: contain; mask-repeat: no-repeat; mask-mode: luminance; }
+.gz-fervor.rays .fv-fx::before { opacity: 1; animation: gz-fervor-spin 9s linear infinite; }
+@keyframes gz-fervor-spin { to { transform: rotate(360deg); } }
+/* alas de Ascensión (gz_fervor_ascension) abiertas tras el halo */
+.gz-fervor .fv-fx::after { content: ''; position: absolute; left: 50%; top: 50%; width: 104px; height: 104px; margin: -50px 0 0 -52px;
+  background: radial-gradient(ellipse at 50% 55%, #fff3c099, #ecc76033 40%, #0000 68%); opacity: 0; transform: scale(.7); transition: opacity .3s linear, transform .3s ease-out; }
+.gz-fervor.art-gz_fervor_ascension .fv-fx::after { background: var(--fv-wings) center / contain no-repeat; }
+.gz-fervor.wings .fv-fx::after { opacity: .9; transform: scale(1); animation: gz-fervor-breathe 2.4s ease-in-out infinite; }
+.gz-fervor.wings .fv-fx::before { animation: none; opacity: .75; }
+@keyframes gz-fervor-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+/* arco: reserva SVG o piel gz_fervor_halo */
+.gz-fervor .fv-arc { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; fill: none; stroke: #5a4a1e; stroke-width: 2.5; }
+.gz-fervor.wings .fv-arc, .gz-fervor.rays .fv-arc { stroke: #c9a443; }
+.gz-fervor .fv > .gz-art.fv-halo { position: absolute; left: 0; top: 0; z-index: 1; width: 100%; height: 100%; object-fit: fill; }
+.gz-fervor.art-gz_fervor_halo .fv-arc { opacity: 0; }
+/* soles en los engarces del halo: izquierda, derecha y corona (3.º) */
+.gz-fervor .jw { position: absolute; z-index: 2; width: 22px; height: 24px; margin: -12px 0 0 -11px; }
+.gz-fervor .jw.j0 { left: 7.5%; top: 74%; --d: 2; }
+.gz-fervor .jw.j1 { left: 92.5%; top: 74%; --d: 1; }
+.gz-fervor .jw.j2 { left: 50%; top: 29%; --d: 0; width: 26px; height: 28px; margin: -14px 0 0 -13px; }
+.gz-fervor .jw-css { position: absolute; left: 4px; top: 5px; width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid #6a5726; background: #1a160c; }
+.gz-fervor .jw.j2 .jw-css { left: 5px; top: 6px; width: 16px; height: 16px; }
+.gz-fervor .jw.on .jw-css { background: radial-gradient(circle, #fff6cf, #ecc760 55%, #9c7a1e); border-color: #fff1b8; }
+.gz-fervor .jw .gz-art.jw-sol { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; }
+.gz-fervor .jw .gz-art.jw-sol.is-loaded { opacity: 0; transform: scale(.55); transition: opacity .2s linear, transform .2s ease-out; }
+.gz-fervor .jw.on .gz-art.jw-sol.is-loaded { opacity: 1; transform: none; }
+.gz-fervor.art-gz_fervor_sol .jw-css { opacity: 0; }
+/* al gastar, los soles se apagan en cascada (corona → derecha → izquierda, 80 ms cada uno) */
+.gz-fervor.cascade .jw .gz-art.jw-sol.is-loaded { transition-delay: calc(var(--d) * 80ms); }
+/* lado: cuentas del Martillo (0–2 de 3) y texto */
+.gz-fervor .fv-side { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 56px; }
+.gz-fervor .fv-hm { flex: none; display: flex; gap: 5px; padding-left: 2px; }
+.gz-fervor .fv-hm i { width: 8px; height: 8px; border: 1px solid #8a7330; background: #1a160c; transform: rotate(45deg) scale(.8); transition: transform .15s ease-out; }
+.gz-fervor .fv-hm i.on { background: #ecc760; border-color: #fff1b8; transform: rotate(45deg) scale(1.1); }
+.gz-fervor .fv-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; white-space: nowrap; overflow: hidden; }
+.gz-fervor .fv-txt b { font: 700 12.5px/1.2 Inter, system-ui, sans-serif; color: #f3d98c; overflow: hidden; text-overflow: ellipsis; }
+.gz-fervor .fv-txt small { font: 600 11px/1.2 Inter, system-ui, sans-serif; color: #c9bfae; overflow: hidden; text-overflow: ellipsis; }
+.gz-fervor.ready .fv-txt b { color: #fff3c0; }

@@ -158,7 +158,7 @@ export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed
     gauge(id, n, e = null) { return setGauge(p, id, n, e); },
     gaugeValue(id, e = null) { return gaugeValue(p, id, e); },
     gaugeState(id, e = null) { return gaugeState(p, id, e); },
-    gaugeView() { return gaugeView(p); },
+    gaugeView(opts) { return gaugeView(p, opts); },   // v2 (2d.2): opts.target = enemigo bajo el cursor
   };
   return h;
 }

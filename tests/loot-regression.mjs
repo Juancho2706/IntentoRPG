@@ -1,7 +1,8 @@
 // Regresión de economía de loot: protege la sensación de "el legendario es un evento".
 // Simula un piso completo (normales + manadas + tesoro + cofres + jefe) y comprueba
 // que la rareza esté en rango y que profundizar (o usar hallazgo mágico) rente.
-import { rollDrops } from '../js/items.js';
+import { rollDrops, withItemRng } from '../js/items.js';
+import { createRng } from '../js/rng.js';
 
 function simulateFloor(floor, mf = 0) {
   const out = { items: 0, magico: 0, raro: 0, legendario: 0, conjunto: 0 };
@@ -25,7 +26,10 @@ function avg(floor, mf = 0, runs = 2000) {
   return acc;
 }
 
-const f1 = avg(1), f20 = avg(20), f1mf = avg(1, 200);
+// azar CON SEMILLA (stream propio por caso): sin ella la prueba era estadística (Math.random) y el
+// cociente con +200 % MF (~2,0–2,3) caía de vez en cuando bajo 1,8 por ruido, no por regresión
+const seeded = (tag, fn) => withItemRng(createRng(`loot-regression:${tag}`), fn);
+const f1 = seeded('f1', () => avg(1)), f20 = seeded('f20', () => avg(20)), f1mf = seeded('f1mf', () => avg(1, 200));
 const fmt = (o) => `items ${o.items.toFixed(1)} | raro ${o.raro.toFixed(2)} | LEG ${o.legendario.toFixed(2)} | set ${o.conjunto.toFixed(2)}`;
 console.log(`Piso  1        : ${fmt(f1)}`);
 console.log(`Piso 20        : ${fmt(f20)}`);

@@ -2,7 +2,7 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, ELITE_MODS, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
 // Paso 2b.0: números finales de las habilidades (coste/CD/soportes) desde el resolvedor único
 import { resolveSkill, supportFits, supportSockets, fitsSlot, profileSummary, isKnown, RANK_MAX, GCD } from './skill-resolve.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
@@ -64,7 +64,7 @@ const SLOT_ICON = {
   chest: '🧥', gloves: '🧤', belt: '🔗', pants: '👖',
   boots: '🥾', amulet: '📿', ring: '💍', ring2: '💍',
 };
-const HOVER_TOOLTIP = window.matchMedia('(pointer: fine)').matches;
+const HOVER_TOOLTIP = true; // solo PC: la ficha de objeto sale al pasar el ratón
 
 // contexto de cada estadística derivada (qué hace) — se muestra como tooltip
 // en la hoja de personaje para que el jugador entienda su build.
@@ -96,7 +96,13 @@ export class UI {
     this._cv = new THREE.Vector3(); // vector auxiliar reutilizable (proyección)
     this._onDragMove = this.onDragMove.bind(this);
     this._onDragUp = this.onDragUp.bind(this);
+    this.altHeld = false;           // Alt mantenido (input.js): tooltips del HUD en combate
+    this.hoverEnemy = null;         // enemigo bajo el cursor (marco del objetivo, mecánica)
     this.bindHUD();
+    // Paso 2d.2: escala del HUD (--s) y verificación de solapes (?hudcheck=1)
+    this.applyHudScale();
+    window.addEventListener('resize', () => this.applyHudScale());
+    if (/[?&]hudcheck=1(&|$)/.test(location.search)) setTimeout(() => this.hudCheck(), 600);
     // Paso 2d
     this.initTalentPanel();
     this.preloadMapSprites();
@@ -194,17 +200,16 @@ export class UI {
     }
   }
 
-  // ---------- arrastrar y soltar (Pointer Events: ratón + táctil) ----------
+  // ---------- arrastrar y soltar (Pointer Events) ----------
   // Cada celda lleva data-zone / data-key. Las celdas con objeto son
-  // arrastrables; todas son destinos válidos. Un toque sin arrastre = tap.
+  // arrastrables; todas son destinos válidos. Un clic sin arrastre = acción.
   bindCell(div, desc, tapFn) {
     div.dataset.zone = desc.zone;
     div.dataset.key = desc.key;
     div._tapFn = tapFn;
     if (desc.item) {
-      div.style.touchAction = 'none';
       div.addEventListener('pointerdown', (e) => this.dragStart(e, div, desc, tapFn));
-      // tooltip al pasar el ratón (solo escritorio; en táctil se toca para ver la ficha)
+      // ficha del objeto al pasar el ratón
       if (HOVER_TOOLTIP) {
         div.addEventListener('pointerenter', (e) => { if (!this.drag) this.showItemTooltip(desc.item, e.clientX, e.clientY); });
         div.addEventListener('pointermove', (e) => { if (!this.drag) this.moveTooltip(e.clientX, e.clientY); });
@@ -262,7 +267,7 @@ export class UI {
     this._dropCell?.classList.remove('drop-hover');
     this._dropCell = null;
     if (d.ghost) d.ghost.remove();
-    if (!d.moved) { if (d.tapFn) d.tapFn(); return; } // fue un toque, no un arrastre
+    if (!d.moved) { if (d.tapFn) d.tapFn(); return; } // fue un clic, no un arrastre
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const cell = el && el.closest('[data-zone]');
     if (cell) {
@@ -276,42 +281,20 @@ export class UI {
 
   bindHUD() {
     const g = this.game;
-    $('btn-pot-hp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('hp'); this.updateHUD(); });
-    $('btn-pot-mp').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.usePotion('mp'); this.updateHUD(); });
-    $('btn-attack').addEventListener('pointerdown', e => { e.preventDefault(); g.primaryAction(); });
-    $('btn-dodge').addEventListener('pointerdown', e => { e.preventDefault(); g.player?.dodge(); });
-    $('btn-grab').addEventListener('pointerdown', e => { e.preventDefault(); g.grabNearest(); });
+    const tap = (id, fn) => $(id)?.addEventListener('click', e => { e.preventDefault(); fn(); });
+    tap('btn-pot-hp', () => { g.player?.usePotion('hp'); this.updateHUD(); });
+    tap('btn-pot-mp', () => { g.player?.usePotion('mp'); this.updateHUD(); });
+    tap('btn-dodge', () => g.player?.dodge());
+    for (const id of ['btn-pot-hp', 'btn-pot-mp', 'btn-dodge']) $(id)?.addEventListener('pointerdown', e => e.preventDefault());
     $('minimap').addEventListener('click', () => this.openMap());
-    $('btn-inv').addEventListener('click', () => this.togglePanel('inv'));
-    $('btn-skills').addEventListener('click', () => this.togglePanel('skills'));
-    $('btn-stats').addEventListener('click', () => this.togglePanel('stats'));
-    $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
-    $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
-    $('btn-guide')?.addEventListener('click', () => this.openGuide());
-    $('btn-talents')?.addEventListener('click', () => this.openTalents());
-    $('btn-map')?.addEventListener('click', () => (this.activePanel === 'map' ? this.closePanel() : this.openMap()));
+    // micromenú (abajo a la derecha): cada botón hace lo mismo que su tecla
+    document.querySelectorAll('#hud-micro .mb').forEach(b => b.addEventListener('click', () => this.microAction(b.dataset.micro)));
     $('spec-prompt')?.addEventListener('click', () => this.openSpecChoice());
-    // menú principal colapsable: un botón ☰ despliega el resto; al elegir, se cierra
-    const menuToggle = $('btn-menu-toggle');
-    if (menuToggle) {
-      menuToggle.addEventListener('click', () => $('hud-menu')?.classList.toggle('open'));
-      $('menu-btns')?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => $('hud-menu')?.classList.remove('open')));
-    }
-    // modo limpio del HUD: oculta lo no esencial (persiste en settings)
-    const cleanBtn = $('btn-clean-hud');
-    if (cleanBtn) {
-      const syncCleanIcon = () => {
-        cleanBtn.setAttribute('aria-pressed', String(!!g.settings?.cleanHud));
-        cleanBtn.innerHTML = `<svg class="ui-ico"><use href="#ic-${g.settings?.cleanHud ? 'eye-off' : 'eye'}"/></svg>`;
-      };
-      syncCleanIcon();
-      cleanBtn.addEventListener('click', () => {
-        g.settings.cleanHud = !g.settings.cleanHud;
-        syncCleanIcon();
-        g.saveSettings?.();
-        this.updateHUD();
-        this.message(g.settings.cleanHud ? 'Modo limpio activado' : 'HUD completo', 1600);
-      });
+    // alas de beneficios y perjuicios: ficha al pasar el ratón (fuera de combate o con Alt)
+    for (const id of ['buff-wing', 'debuff-wing']) {
+      const wing = $(id); if (!wing) continue;
+      wing.addEventListener('pointerover', e => { const c = e.target.closest?.('.buff'); if (c?._buff) this.showHudTip(this.buffTipHTML(c._buff), c); });
+      wing.addEventListener('pointerout', e => { if (!e.relatedTarget || !wing.contains(e.relatedTarget)) this.hideHudTip(); });
     }
     $('btn-identify').addEventListener('click', () => g.identifyAll());
     $('btn-junk').addEventListener('click', () => g.sellJunk());
@@ -319,18 +302,92 @@ export class UI {
     document.querySelectorAll('.panel-close').forEach(b => b.addEventListener('click', () => this.closePanel()));
     $('btn-collection').addEventListener('click', () => this.openCollection());
     $('btn-respawn').addEventListener('click', () => g.respawn());
+    this.refreshKeyLabels();
 
-    // cerrar panel/popup al tocar/clicar fuera (paneles flotantes, no el de
+    // cerrar panel/popup al hacer clic fuera (paneles flotantes, no el de
     // bendición que obliga a elegir). Se registra en captura para detectar el
-    // origen real del toque; el sello _justOpened evita que el mismo gesto que
+    // origen real del clic; el sello _justOpened evita que el mismo gesto que
     // abre lo cierre.
     document.addEventListener('pointerdown', (e) => this.onOutsidePointer(e), true);
   }
 
-  // ¿el panel/popup activo debe cerrarse al tocar fuera?
+  // ============================================================
+  // Paso 2d.2 · HUD de PC (docs/paso2d2-hud-pc.md §2)
+  // ============================================================
+  // --s del HUD: HM.hudLayout(ancho, alto, Escala del HUD) → 1 a 1080p, 0,8 a 768p
+  applyHudScale() {
+    const L = HM.hudLayout(window.innerWidth, window.innerHeight, this.game.settings?.hudScale || 1);
+    if (L.s !== this._hudS) { this._hudS = L.s; document.documentElement.style.setProperty('--s', String(L.s)); }
+    document.body.classList.toggle('micro-2', L.microRows === 2);
+    this.hudLayout = L;
+    return L;
+  }
+
+  // acción de un botón del micromenú (o de su tecla)
+  microAction(id) {
+    switch (id) {
+      case 'talents': this.openTalents(); break;
+      case 'map': this.activePanel === 'map' ? this.closePanel() : this.openMap(); break;
+      case 'quest': this.activePanel === 'quest' ? this.closePanel() : this.openQuest(); break;
+      case 'collection': this.activePanel === 'collection' ? this.closePanel() : this.openCollection(); break;
+      case 'guide': this.activePanel === 'guide' ? this.closePanel() : this.openGuide(); break;
+      case 'paragon': this.activePanel === 'paragon' ? this.closePanel() : this.openParagon(); break;
+      case 'settings': this.togglePanel('settings'); break;
+      default: this.togglePanel(id);
+    }
+  }
+  // Esc: cierra lo que haya abierto; sin nada abierto, abre las Opciones (D4)
+  escape() {
+    const popupOpen = !$('item-popup').classList.contains('hidden');
+    if (this.activePanel || popupOpen) { this.closePanel(); return; }
+    if (this.game.state === 'play') this.togglePanel('settings');
+  }
+  // Z: modo limpio del HUD (persiste en settings)
+  toggleCleanHud() {
+    const g = this.game;
+    g.settings.cleanHud = !g.settings.cleanHud;
+    g.saveSettings?.();
+    document.body.classList.toggle('hud-clean', !!g.settings.cleanHud);
+    this.message(g.settings.cleanHud ? 'Modo limpio activado [Z]' : 'HUD completo [Z]', 1600);
+  }
+  // teclas visibles del HUD (micromenú, pociones, esquiva) según los atajos remapeados
+  refreshKeyLabels() {
+    const b = this.game.input?.bindings;
+    const lab = (action, fb) => { const c = b?.[action]?.[0]; return c ? keyLabel(c).replace(/^Mayús (izq|der)$/, '⇧') : fb; };
+    const MAP = { stats: 'character', inv: 'inventory', skills: 'skills', talents: 'talents', paragon: 'paragon', map: 'map', quest: 'quests', collection: 'collection', guide: 'guide', settings: 'close' };
+    for (const m of HM.MICRO_MENU) {
+      const btn = document.querySelector(`#hud-micro [data-micro="${m.id}"]`); if (!btn) continue;
+      const k = lab(MAP[m.id], '');
+      const kb = btn.querySelector('kbd'); if (kb && k) kb.textContent = k;
+      btn.title = `${m.label}${k ? ` [${k}]` : ''}`;
+    }
+    for (const kb of document.querySelectorAll('#hud-bar .hb-kbd[data-key]')) kb.textContent = lab(kb.dataset.key, kb.textContent);
+    if (this.game.player) this.refreshHotbar();
+  }
+
+  // ---------- tooltip pequeño del HUD (alas) ----------
+  buffTipHTML(b) {
+    const secs = Math.max(0, Math.ceil(b.remaining || 0));
+    const time = secs >= 60 ? `${Math.floor(secs / 60)} min ${secs % 60} s` : `${secs} s`;
+    return `<b>${b.name || 'Efecto'}</b>${b.desc || ''}<small>${b.remaining > 0 ? `Quedan ${time}` : ''}</small>`;
+  }
+  showHudTip(html, anchor) {
+    if (document.body.classList.contains('in-combat') && !this.altHeld) return;
+    let tip = $('hud-tip');
+    if (!tip) { tip = document.createElement('div'); tip.id = 'hud-tip'; document.body.appendChild(tip); }
+    tip.innerHTML = html;
+    tip.classList.remove('hidden');
+    const r = anchor.getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+    tip.style.top = Math.max(8, r.top - h - 10) + 'px';
+  }
+  hideHudTip() { $('hud-tip')?.classList.add('hidden'); }
+
+  // ¿el panel/popup activo debe cerrarse al hacer clic fuera?
   onOutsidePointer(e) {
     const popupOpen = !$('item-popup').classList.contains('hidden');
-    // paneles "modales" sin botón de cerrar: no se cierran tocando fuera
+    // paneles "modales" sin botón de cerrar: no se cierran con un clic fuera
     const modal = this.activePanel === 'blessing' || this.activePanel === 'riftsummary';
     if ((!this.activePanel || modal) && !popupOpen) return;
     // no cerrar con el MISMO gesto que abrió el panel/popup
@@ -340,8 +397,7 @@ export class UI {
       t.closest('.panel') ||           // dentro de un panel
       t.closest('#item-popup') ||      // dentro del popup de objeto
       t.closest('#item-tooltip') ||    // tooltip de hover
-      t.closest('#menu-btns') ||       // botones que abren paneles
-      t.closest('#btn-shop')           // botón de tienda (fuera de menu-btns)
+      t.closest('#hud-micro')          // micromenú: abre/alterna paneles
     )) return;
     // si hay popup abierto, ciérralo primero (deja el panel de fondo); si solo
     // hay panel, ciérralo
@@ -405,8 +461,8 @@ export class UI {
     });
     cont.appendChild(slotRow);
 
-    // selector de esquema de control (solo PC; en móvil se usa joystick táctil)
-    if (!this.game.isTouch) {
+    // selector de esquema de control
+    {
       const ctrl = document.createElement('div');
       ctrl.className = 'ctrl-select';
       ctrl.innerHTML = `<span class="ctrl-lbl">🖥️ Controles (PC):</span>`;
@@ -495,195 +551,465 @@ export class UI {
     cont.appendChild(row);
   }
 
-  // ---------- HUD ----------
+  // ---------- HUD de PC (10 Hz desde main.js) ----------
   updateHUD() {
     const p = this.game.player;
     if (!p) return;
+    const g = this.game;
     // "Poder del héroe": feedback flotante cuando SUBE (equipar mejor, nivel,
     // paragon, talentos…). Un solo punto de detección, barato (10Hz).
     const pw = p.stats.power || 0;
-    if (this._lastPower != null && pw > this._lastPower && this.game.state === 'play')
+    if (this._lastPower != null && pw > this._lastPower && g.state === 'play')
       this.spawnText(p.pos, `+${pw - this._lastPower} ⚡ Poder`, 'txt-gold');
     this._lastPower = pw;
-    const hpPct = Math.max(0, p.hp / p.stats.maxHP * 100);
-    const mpPct = Math.max(0, p.mp / p.stats.maxMP * 100);
-    $('orb-hp-fill').style.height = hpPct + '%';
-    $('orb-mp-fill').style.height = mpPct + '%';
-    $('orb-hp-txt').textContent = `${Math.ceil(p.hp)}`;
-    $('orb-mp-txt').textContent = `${Math.ceil(p.mp)}`;
-    // pulso "jugoso" del orbe al ganar/gastar (vida y recurso)
+    // orbes: el líquido sube/baja por translateY (sin layout)
+    const hpPct = Math.max(0, Math.min(100, p.hp / p.stats.maxHP * 100));
+    const mpPct = Math.max(0, Math.min(100, p.mp / Math.max(1, p.stats.maxMP) * 100));
+    this._setOrb('orb-hp-fill', hpPct);
+    this._setOrb('orb-mp-fill', mpPct);
+    this._txt('orb-hp-txt', HM.fmtNum(Math.ceil(p.hp)));
+    this._txt('orb-mp-txt', HM.fmtNum(Math.ceil(p.mp)));
+    // escudos (Barrera, Muro, Piel de Hierro…): tinte y número sobre el orbe de vida
+    const sh = Math.round(p.shieldTotal?.() || 0);
+    $('orb-hp').classList.toggle('shielded', sh > 0);
+    this._txt('orb-hp-sh', sh > 0 ? `🛡 ${HM.fmtNum(sh)}` : '');
     this._pulseOrb('orb-hp', hpPct, this._lastHpPct);
     this._pulseOrb('orb-mp', mpPct, this._lastMpPct);
     this._lastHpPct = hpPct; this._lastMpPct = mpPct;
-    // aviso en el borde del orbe de recurso: LLENO solo para recursos que se
-    // CONSTRUYEN (Furia, start:0 → llenarse = gastadores listos; no para maná que
-    // descansa lleno) y BAJO cuando no alcanza para gastar.
+    // aviso en el orbe de recurso: LLENO solo para recursos que se CONSTRUYEN
+    // (Furia, start:0 → gastadores listos) y BAJO cuando no alcanza para gastar
     const mpOrb = $('orb-mp');
-    if (mpOrb) {
-      const builder = p.cls.resource?.start === 0;
-      mpOrb.classList.toggle('orb-full', builder && mpPct >= 99);
-      mpOrb.classList.toggle('orb-low', p.alive && mpPct < 15);
-    }
-    // tinta el orbe del recurso según la clase (Furia rojo / Maná azul / Energía verde)
+    const builder = p.cls.resource?.start === 0;
+    mpOrb.classList.toggle('orb-full', builder && mpPct >= 99);
+    mpOrb.classList.toggle('orb-low', p.alive && mpPct < 15);
+    // orbe del recurso de la clase: líquido, icono res_* y rótulo (Furia ≠ vida: magma y «FURIA»)
     const res = p.cls.resource;
     if (res && this._orbRes !== res.id) {
-      const c = '#' + (res.color >>> 0).toString(16).padStart(6, '0');
-      const orb = $('orb-mp-fill'); if (orb) orb.style.background = c;
-      const wrap = $('orb-mp-fill').parentElement; if (wrap) wrap.title = res.name;
+      this._orbRes = res.id;
+      mpOrb.dataset.res = res.id; mpOrb.title = res.name;
+      $('btn-pot-mp').dataset.res = res.id;
+      $('btn-pot-mp').setAttribute('aria-label', `Poción de ${res.name.toLowerCase()}`);
+      this._txt('orb-mp-name', res.name.toUpperCase());
       const ri = $('orb-mp-res'), src = HM.resIcon(res.id);
       if (ri && src) { ri.onerror = () => ri.classList.add('hidden'); ri.onload = () => ri.classList.remove('hidden'); ri.src = src; ri.title = res.name; }
-      this._orbRes = res.id;
+      this.refreshKeyLabels();
     }
     const need = xpForLevel(p.level);
-    $('xp-fill').style.width = Math.min(100, p.xp / need * 100) + '%';
-    $('hud-level').innerHTML = `Nv ${p.level}${p.hardcore ? ' ' + icon('skull', { cls: 'hud-hc', title: 'Hardcore' }) : ''}`;
-    const tracker = $('quest-tracker');
-    if (p.quest) {
-      tracker.style.display = '';
-      const done = p.quest.progress >= p.quest.goal;
-      tracker.innerHTML = icon('target') + ' ' + (done ? '¡Completada! Ve con el Capitán' : `${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal} — ${p.quest.desc}`);
-    } else tracker.style.display = 'none';
-    // contratos de zona
-    const ct = $('zone-contracts');
-    const w = this.game.world;
-    if (w?.type === 'zone' && w.bounties?.length) {
-      ct.style.display = '';
-      const rows = w.bounties.map(b => {
-        const cur = Math.min(b.progress, b.goal);
-        return b.done
-          ? `<div class="c-row c-done">${icon('check')} ${b.desc}</div>`
-          : `<div class="c-row">${icon('target', { cls: 'c-bullet' })} ${b.desc} <b>${cur}/${b.goal}</b></div>`;
-      }).join('');
-      ct.innerHTML = `<div class="c-title">${icon('scroll')} Contratos</div>${rows}`;
-    } else ct.style.display = 'none';
-    if (this._hudGold !== p.gold) { this._hudGold = p.gold; $('hud-gold').innerHTML = `<img class="hud-mat" src="${HM.matIcon('gold')}" alt="" draggable="false">${p.gold}`; }
-    const zoneIco = (n, txt) => `${icon(n)} ${txt}`;
-    $('hud-zone').innerHTML = this.game.world?.type === 'town' ? zoneIco('village', 'Pueblo')
-      : this.game.world?.type === 'refuge' ? zoneIco('camp', 'Refugio')
-      : this.game.world?.type === 'zone' ? zoneIco('leaf', this.game.world.biome)
-      : this.game.world?.rift ? zoneIco('vortex', `Grieta ${this.game.world.rift}`) : zoneIco('pit', `Piso ${this.game.world.floor}`);
-    $('pot-hp-count').textContent = p.potions.hp;
-    $('pot-mp-count').textContent = p.potions.mp;
-    // aviso pulsante cuando la vida es crítica
-    document.body.classList.toggle('low-hp', p.alive && hpPct < 30);
-
-    // botón de acción contextual: interactuar o atacar (iconos SVG del set)
-    const it = this.game.currentInteract;
-    const icons = {
-      portal_dungeon: 'vortex', portal_town: 'vortex', portal_next: 'vortex', portal_daily: 'star',
-      portal_zone: 'leaf', gate_zone: 'leaf', zone_dungeon: 'pit', world_event: 'vortex',
-      waypoint: 'map', questgiver: 'chat', stash: 'chest', vendor: 'coin', chest: 'chest', shrine: 'magic', enchanter: 'magic',
-    };
-    const atkBtn = $('btn-attack');
-    const iconName = it ? (icons[it.type] || 'hand') : 'sword';
-    // sustituye el icono solo si cambia (evita reescribir el DOM cada frame)
-    if (atkBtn.dataset.icon !== iconName) {
-      atkBtn.dataset.icon = iconName;
-      atkBtn.innerHTML = `<svg class="ui-ico"><use href="#ic-${iconName}"/></svg>`;
+    const xpK = Math.max(0, Math.min(1, p.xp / need));
+    const xf = $('xp-fill'); const xt = `scaleX(${xpK.toFixed(4)})`; if (xf.style.transform !== xt) xf.style.transform = xt;
+    $('xp-bar').title = `Experiencia: ${HM.fmtNum(p.xp)} / ${HM.fmtNum(need)}`;
+    this.updatePlate(p);
+    this.updateObjectives(p);
+    // oro y fragmentos (sobre el micromenú)
+    const frags = (p.materials || []).filter(m => m.kind === 'fragment').reduce((a, m) => a + (m.qty || m.count || 1), 0);
+    const goldKey = p.gold + '|' + frags;
+    if (this._hudGold !== goldKey) {
+      this._hudGold = goldKey;
+      $('hud-gold').innerHTML = `<span title="Oro"><img src="${HM.matIcon('gold')}" alt="" draggable="false">${HM.fmtNum(p.gold)}</span>` +
+        (frags > 0 ? `<span title="Fragmentos de Pináculo"><img src="${HM.matIcon('fragment')}" alt="" draggable="false">${frags}</span>` : '');
     }
-    atkBtn.classList.toggle('interact', !!it);
-
-    // cooldown de la esquiva
-    $('btn-dodge').querySelector('.cd-overlay').style.height =
-      p.dodgeCd > 0 ? (p.dodgeCd / (p.dodgeCdMax || 3) * 100) + '%' : '0%';
-
-    // el botón de recoger brilla si hay botín cerca
-    const lootNear = this.game.groundItems.some(gi => gi.mesh.position.distanceToSquared(p.pos) < 81);
-    $('btn-grab').classList.toggle('has-loot', lootNear);
-
-    const badge = (id, n) => { const b = $(id); b.style.display = n > 0 ? 'flex' : 'none'; b.textContent = n; };
-    badge('badge-stats', p.statPoints + p.paragon.points);
-    badge('badge-skills', p.skillPoints);
-    $('btn-shop').style.display = this.game.nearVendor ? '' : 'none';
+    this.updateZone();
+    this._txt('pot-hp-count', String(p.potions.hp)); $('pot-hp-count').classList.toggle('zero', !p.potions.hp);
+    this._txt('pot-mp-count', String(p.potions.mp)); $('pot-mp-count').classList.toggle('zero', !p.potions.mp);
+    // aviso pulsante cuando la vida es crítica · en combate (R7: el HUD deja pasar los clics)
+    document.body.classList.toggle('low-hp', p.alive && hpPct < 30);
+    document.body.classList.toggle('in-combat', (p.sinceCombat ?? 99) < 5);
+    // esquiva: barrido de enfriamiento
+    const dk = p.dodgeCd > 0 ? Math.min(1, p.dodgeCd / (p.dodgeCdMax || 3)) : 0;
+    const dov = $('btn-dodge').querySelector('.cd-overlay');
+    dov.style.setProperty('--cd-deg', Math.round(dk * 360) + 'deg'); dov.classList.toggle('on', dk > 0);
+    const dsec = $('btn-dodge').querySelector('.sk-cd-sec'), dt = HM.cdText(p.dodgeCd); if (dsec.textContent !== dt) dsec.textContent = dt;
+    // aviso contextual («F Recoger · …», «Espacio Hablar · …»)
+    this.updatePrompt(p);
+    // insignias del micromenú (punto rojo si hay puntos por gastar) y panel activo
+    const dot = (id, n, what) => { const b = $(id); if (!b) return; b.classList.toggle('on', n > 0); b.parentElement.title = b.parentElement.title.replace(/ · \d+ .*$/, '') + (n > 0 ? ` · ${n} ${what}` : ''); };
+    dot('badge-stats', p.statPoints || 0, 'puntos de atributo');
+    dot('badge-paragon', p.paragon?.points || 0, 'puntos de Paragon');
+    dot('badge-skills', p.skillPoints || 0, 'puntos');
+    const tp = g.talentPointsInfo?.() || { cls: 0, spec: 0 };
+    dot('badge-talents', p.level >= Talents.TALENT_START_LEVEL ? (Talents.activeSpec(p) ? tp.cls + tp.spec : 1) : 0, 'puntos de talento');
+    if (this._microOn !== this.activePanel) {
+      this._microOn = this.activePanel;
+      document.querySelectorAll('#hud-micro .mb').forEach(b => b.classList.toggle('on', b.dataset.micro === this.activePanel));
+    }
     if (this.activePanel === 'shop') this.updateShopTimer();
 
-    // barra de 6 ranuras: enfriamiento, sombra de GCD y recurso (Paso 2d)
+    // barra de 6 ranuras, mecánica de la especialización, objetivo/jefe y franja superior
+    this.updateHoverEnemy();
     this.updateHotbarState(p);
     this.updateSpecGauge(p);
-    this.updateBossFrame(p);
+    this.updateTargetFrame(p);
     this.updateTopBand();
     this.updateSpecPrompt(p);
-    const tp = this.game.talentPointsInfo?.() || { cls: 0, spec: 0 };
-    badge('badge-talents', p.level >= Talents.TALENT_START_LEVEL ? (Talents.activeSpec(p) ? tp.cls + tp.spec : 1) : 0);
 
     // brújula de objetivos importantes fuera de pantalla
     this.updateCompass();
-    // modo limpio del HUD: oculta lo no esencial (toggle en Opciones)
-    document.body.classList.toggle('hud-clean', !!this.game.settings?.cleanHud);
+    // modo limpio del HUD: oculta lo no esencial (Z u Opciones)
+    document.body.classList.toggle('hud-clean', !!g.settings?.cleanHud);
 
     this.renderBuffs();
   }
+  // escribe texto solo si cambia (evita mutaciones del DOM a 10 Hz)
+  _txt(id, t) { const el = $(id); if (el && el.textContent !== t) el.textContent = t; }
+  _setOrb(id, pct) {
+    const el = $(id); if (!el) return;
+    const t = `translateY(${(100 - pct).toFixed(1)}%)`;
+    if (el.style.transform !== t) el.style.transform = t;
+  }
 
-  // indicador de la especialización activa sobre la barra: js/ui-gauges.js lo pinta;
-  // aquí solo se alimenta con gaugeView(p) (10 Hz, desde updateHUD)
+  // placa del héroe: emblema de la especialización (o el icono de la clase), nivel, clase y Tormento
+  updatePlate(p) {
+    const spec = Talents.activeSpec(p);
+    const v = HM.plateView(p, spec);
+    const key = [v.title, v.sub, v.emblem, p.hardcore].join('|');
+    if (this._plateKey === key) return;
+    this._plateKey = key;
+    document.documentElement.style.setProperty('--hud-c', v.color);
+    $('hud-level').textContent = v.title;
+    $('plate-sub').innerHTML = v.sub + (p.hardcore ? ' ' + icon('skull', { cls: 'hud-hc', title: 'Hardcore' }) : '');
+    const emb = $('plate-emb');
+    emb.innerHTML = v.emblem ? `<img src="${v.emblem}" alt="" draggable="false" onerror="this.parentNode.textContent='${v.icon}'">` : v.icon;
+  }
+
+  // misión activa y contratos de zona (arriba a la derecha, bajo el minimapa)
+  updateObjectives(p) {
+    const tracker = $('quest-tracker');
+    let qh = '';
+    if (p.quest) {
+      const done = p.quest.progress >= p.quest.goal;
+      qh = `<b>Misión</b><div>${done ? '¡Completada! Ve con el Capitán' : `${p.quest.desc} <em>${Math.min(p.quest.progress, p.quest.goal)}/${p.quest.goal}</em>`}</div>`;
+    }
+    if (tracker._h !== qh) { tracker._h = qh; tracker.innerHTML = qh; tracker.style.display = qh ? '' : 'none'; }
+    const ct = $('zone-contracts');
+    const w = this.game.world;
+    let ch = '';
+    if (w?.type === 'zone' && w.bounties?.length) {
+      ch = `<div class="c-title">Contratos</div>` + w.bounties.map(b => b.done
+        ? `<div class="c-row c-done">${icon('check')} ${b.desc}</div>`
+        : `<div class="c-row">${b.desc} <b>${Math.min(b.progress, b.goal)}/${b.goal}</b></div>`).join('');
+    }
+    if (ct._h !== ch) { ct._h = ch; ct.innerHTML = ch; ct.style.display = ch ? '' : 'none'; }
+  }
+
+  // zona bajo el minimapa: nombre, Tormento y atajo del mapa
+  updateZone() {
+    const w = this.game.world, p = this.game.player;
+    const name = w?.type === 'town' ? 'Pueblo' : w?.type === 'refuge' ? 'Refugio'
+      : w?.type === 'zone' ? (w.biome || 'Zona') : w?.rift ? `Grieta ${w.rift}` : `${w?.biome ? w.biome + ' · ' : ''}Piso ${w?.floor || 1}`;
+    const tor = (p?.torment | 0) > 0 ? `Tormento ${HM.roman(p.torment)}` : 'Normal';
+    const mk = keyLabel(this.game.input?.bindings?.map?.[0] || 'KeyM');
+    const h = `${name}<small>${tor} · <kbd>${mk}</kbd> mapa</small>`;
+    const el = $('hud-zone');
+    if (el._h !== h) { el._h = h; el.innerHTML = h; }
+  }
+
+  // aviso contextual encima de la mecánica: interactuar (Espacio) o recoger (F)
+  updatePrompt(p) {
+    const g = this.game, el = $('hud-prompt');
+    let loot = null;
+    if (!g.currentInteract) {
+      let bd = 4.5 * 4.5;
+      for (const gi of g.groundItems) {
+        const k = gi.item?.kind;
+        if (k === 'gold' || k === 'potion') continue;
+        const d = gi.mesh.position.distanceToSquared(p.pos);
+        if (d < bd) { bd = d; loot = gi.item; }
+      }
+    }
+    const b = g.input?.bindings || {};
+    const v = HM.promptView({ interact: g.currentInteract, loot, keys: { primary: keyLabel(b.primary?.[0] || 'Space'), grab: keyLabel(b.grab?.[0] || 'KeyF') } });
+    const key = v ? `${v.key}|${v.verb}|${v.name}|${v.rarity}` : '';
+    if (el._k === key) return;
+    el._k = key;
+    el.classList.toggle('off', !v);
+    if (!v) { el.innerHTML = ''; return; }
+    const col = v.rarity && HM.LOOT_COLOR[v.rarity] ? ` style="color:${HM.LOOT_COLOR[v.rarity]}"` : '';
+    el.innerHTML = `<kbd>${v.key}</kbd> ${v.verb} · <span class="rar"${col}>${v.name}</span>${v.tag ? ` (${v.tag})` : ''}`;
+  }
+
+  // enemigo bajo el cursor (proyección a pantalla, 10 Hz): marco del objetivo y Escarcha (R1)
+  updateHoverEnemy() {
+    const ms = this.game.input?.mouseScreen, p = this.game.player;
+    let best = null;
+    if (ms && p && this.game.state === 'play' && !this.activePanel) {
+      let bd = Infinity;
+      const unit = window.innerHeight / (this.game.frustum || 17); // px por metro (cámara ortográfica)
+      for (const e of this.game.enemies) {
+        if (!e.alive || e.pos.distanceToSquared(p.pos) > 24 * 24) continue;
+        this._cv.copy(e.pos).setY((e.def.scale || 1) * 0.9).project(this.game.camera);
+        if (this._cv.z > 1) continue;
+        const sx = (this._cv.x * 0.5 + 0.5) * window.innerWidth, sy = (-this._cv.y * 0.5 + 0.5) * window.innerHeight;
+        const r = unit * 0.8 * Math.max(0.8, e.def.scale || 1);
+        const d = (sx - ms.x) ** 2 + (sy - ms.y) ** 2;
+        if (d < r * r && d < bd) { bd = d; best = e; }
+      }
+    }
+    this.hoverEnemy = best;
+  }
+
+  // zona de mecánica (520×72) sobre la barra: js/ui-gauges.js la pinta; aquí solo se
+  // alimenta con gaugeView(p, { target }) a 10 Hz. Objetivo (R1): bajo el cursor >
+  // jefe en combate > el que elija gaugeView. Si la firma no acepta opts, se ignora.
   updateSpecGauge(p) {
     if (!this.gaugeHud) {
       const host = $('spec-gauge');
       if (!host) return;
-      this.gaugeHud = createGaugeHud(host, { getView: () => null });
+      // sfx/onReady: opciones del núcleo de ui-gauges (E0); una versión anterior las ignora
+      this.gaugeHud = createGaugeHud(host, { getView: () => null, sfx: (n) => this.game.sfx?.(n), onReady: (ids) => this._markReady(ids) });
+      try { this.gaugeHud.setAltHeld?.(!!this.altHeld); } catch { /* sin soporte de Alt */ }
     }
     let view = null;
-    try { view = gaugeView(p); } catch { view = null; }
+    try { view = gaugeView(p, { target: HM.pickGaugeTarget(this.game.enemies, this.hoverEnemy, p.pos) }); } catch { view = null; }
     this.gaugeHud.update(view ? { ...view, specName: Talents.activeSpec(p)?.name || '' } : null);
+    // §3.0: las ranuras de las habilidades «listas» de la mecánica laten
+    this._markReady(view?.ready);
+  }
+  _markReady(ids) {
+    const ready = new Set(Array.isArray(ids) ? ids : []);
+    const sig = [...ready].join(',');
+    if (sig === this._readySig) return;
+    this._readySig = sig;
+    for (const btn of document.querySelectorAll('#skillbar .skill-btn')) btn.classList.toggle('spec-ready', !!btn.dataset.skill && (ready.has(btn.dataset.skill) || ready.has(btn.dataset.slot))); // ids de habilidad o de ranura
   }
 
-  // marco del jefe: vida, barra de stagger (Quebrantado) y estados con iconos st_*
-  updateBossFrame(p) {
-    const el = $('boss-frame'); if (!el) return;
-    const e = HM.pickBossTarget(this.game.enemies, p.pos, 30);
+  // marco del objetivo/jefe: el jefe cercano manda; si no, el enemigo bajo el cursor.
+  // Jefe: raíles hud_objetivo_marco + aturdimiento (cadena hud_stagger); élite: hud_objetivo_elite
+  updateTargetFrame(p) {
+    const el = $('target-frame'); if (!el) return;
+    const e = HM.pickTargetFrame(this.game.enemies, this.hoverEnemy, p.pos, 30);
     el.classList.toggle('hidden', !e);
-    if (!e) { this._bossRef = null; return; }
-    if (this._bossRef !== e) {
-      this._bossRef = e;
-      el.querySelector('.bf-name').textContent = `${e.def.icon || '👑'} ${e.def.name || 'Jefe'}`;
+    if (!e) { this._tfRef = null; return; }
+    const w = this.game.world;
+    const v = HM.targetView(e, { floor: w?.type === 'dungeon' ? (w.scaleFloor || w.floor) : 0 });
+    if (this._tfRef !== e) {
+      this._tfRef = e;
+      el.dataset.kind = v.kind;
+      el.querySelector('.tf-name').textContent = v.name;
+      el.querySelector('.tf-tag').textContent = v.tag;
+      this._tfStSig = null;
     }
-    const hpPct = Math.max(0, Math.min(100, e.hp / e.maxHP * 100));
-    el.querySelector('.bf-hp-fill').style.width = hpPct.toFixed(1) + '%';
-    el.querySelector('.bf-hp-txt').textContent = `${Math.ceil(e.hp).toLocaleString('es')} / ${Math.ceil(e.maxHP).toLocaleString('es')}`;
+    const fill = el.querySelector('.bf-hp-fill'), ft = `scaleX(${v.hpPct.toFixed(3)})`;
+    if (fill.style.transform !== ft) fill.style.transform = ft;
+    const ht = el.querySelector('.bf-hp-txt'); if (ht.textContent !== v.hpTxt) ht.textContent = v.hpTxt;
     const st = HM.staggerBar(e.staggerView?.());
     const sw = el.querySelector('.bf-stagger');
     sw.classList.toggle('hidden', !st);
+    let hint = '';
     if (st) {
       sw.dataset.state = st.state;
-      el.querySelector('.bf-st-fill').style.width = st.pct + '%';
-      el.querySelector('.bf-st-txt').textContent = st.label;
+      const sf = el.querySelector('.bf-st-fill'), stt = `scaleX(${(st.pct / 100).toFixed(3)})`;
+      if (sf.style.transform !== stt) sf.style.transform = stt;
+      hint = st.state === 'building' || st.state === 'idle' ? `${st.label} · a 100: Quebrantado` : st.label;
+    } else if (v.kind === 'elite') {
+      const mod = ELITE_MODS.find(m => m.id === e.def.modId);
+      hint = mod ? `Afijo: ${mod.name}` : '';
     }
+    const hEl = el.querySelector('.tf-hint'); if (hEl.textContent !== hint) hEl.textContent = hint;
     el.classList.toggle('broken', st?.state === 'broken');
     const sts = HM.enemyStatuses(e);
     const sig = sts.map(x => x.id + x.label).join(',');
-    const box = el.querySelector('.bf-status');
-    if (sig !== this._bossStSig) {
-      this._bossStSig = sig;
-      box.innerHTML = sts.map(x => `<span class="st-chip st-${x.id}" title="${x.label}"><img src="${HM.statusIcon(x.id)}" alt="" draggable="false" onerror="this.remove()"><em>${x.label}</em></span>`).join('');
+    if (sig !== this._tfStSig) {
+      this._tfStSig = sig;
+      el.querySelector('.bf-status').innerHTML = sts.slice(0, 4).map(x => `<span class="st-chip st-${x.id}" title="${x.label}"><img src="${HM.statusIcon(x.id)}" alt="" draggable="false" onerror="this.remove()"><em>${x.label}</em></span>`).join('');
     }
   }
 
-  // franja superior: borde inferior de la píldora de PAUSA o del marco del jefe.
-  // Los avisos grandes (#hud-announce), los mensajes y los números flotantes se
-  // quedan por debajo (nunca tapan la pausa ni la vida del jefe)
+  // franja superior: borde inferior del marco del objetivo, del banner o de la PAUSA.
+  // Los números flotantes no suben por encima (nunca tapan la vida del jefe)
   updateTopBand() {
     let band = 0;
-    const bf = $('boss-frame');
-    if (bf && !bf.classList.contains('hidden')) band = bf.getBoundingClientRect().bottom;
+    for (const id of ['target-frame', 'hud-banner']) {
+      const el = $(id);
+      if (el && !el.classList.contains('hidden') && (id !== 'hud-banner' || el.childElementCount)) band = Math.max(band, el.getBoundingClientRect().bottom);
+    }
     if (document.body.classList.contains('paused')) { const pi = $('pause-indic'); if (pi) band = Math.max(band, pi.getBoundingClientRect().bottom); }
     band = Math.max(40, Math.round(band)) + 8;
     if (band !== this._topBand) { this._topBand = band; document.documentElement.style.setProperty('--top-band', band + 'px'); }
   }
-  // aviso grande en su franja (p. ej. «¡QUEBRANTADO!» del stagger de un jefe)
+  // aviso grande en el banner bajo el marco (p. ej. «¡QUEBRANTADO!» del aturdimiento de un jefe)
   announce(text, kind = '', ms = 1600) {
-    const box = $('hud-announce'); if (!box) return;
-    this.updateTopBand();
+    this.banner(text, ms, 'ann' + (kind ? ' ann-' + kind : ''));
+  }
+  // banner crítico: un solo renglón bajo el marco del objetivo (el nuevo sustituye al anterior)
+  banner(text, ms = 3500, cls = '') {
+    const box = $('hud-banner'); if (!box) return;
+    box.innerHTML = '';
     const el = document.createElement('div');
-    el.className = 'ann' + (kind ? ' ann-' + kind : '');
+    el.className = 'ban' + (cls ? ' ' + cls : '');
     el.textContent = text;
+    el.title = text;
     box.appendChild(el);
-    while (box.children.length > 2) box.firstChild.remove();
-    setTimeout(() => el.classList.add('out'), Math.max(0, ms - 350));
-    setTimeout(() => el.remove(), ms);
+    clearTimeout(this._banT1); clearTimeout(this._banT2);
+    this._banT1 = setTimeout(() => el.classList.add('out'), Math.max(0, ms - 350));
+    this._banT2 = setTimeout(() => { el.remove(); this.updateTopBand(); }, ms);
+    this.updateTopBand();
   }
 
-  // Pulso del orbe al variar la vida/recurso: brillo+escala al ganar, hundimiento
-  // al gastar. Barato y reinicia la animación cada vez (offsetWidth = reflow).
+  // registro de sistema (abajo a la izquierda): 4 líneas, se atenúan a los 6 s
+  syslog(text, hi = false) {
+    const box = $('hud-syslog'); if (!box || !text) return;
+    const el = document.createElement('div');
+    el.className = 'sl' + (hi ? ' hi' : '');
+    el.textContent = text;
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    setTimeout(() => el.classList.add('old'), 6000);
+    setTimeout(() => el.classList.add('out'), 11400);
+    setTimeout(() => el.remove(), 12000);
+  }
+
+  // registro de botín y XP (derecha, sobre el micromenú): 6 entradas, color por rareza;
+  // el oro y la XP seguidos se suman en la misma línea
+  logLoot(item) {
+    const e = HM.lootLogEntry(item);
+    const box = $('hud-loot');
+    if (!e || !box) return;
+    const now = performance.now();
+    const last = box.lastElementChild;
+    if (e.merge && last?._merge === e.merge && now - last._t < 2500 && !last.classList.contains('old')) {
+      last._amount += e.amount;
+      last.textContent = HM.lootLogEntry({ kind: e.merge, amount: last._amount }).text;
+      last._t = now;
+      this._fadeLoot(last);
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'lg lg-' + e.rarity;
+    el.style.color = e.color;
+    el.textContent = e.text;
+    el._merge = e.merge || null; el._amount = e.amount || 0; el._t = now;
+    box.appendChild(el);
+    while (box.children.length > 6) box.firstChild.remove();
+    this._fadeLoot(el);
+  }
+  _fadeLoot(el) {
+    clearTimeout(el._f1); clearTimeout(el._f2); clearTimeout(el._f3);
+    el.classList.remove('old', 'out');
+    el._f1 = setTimeout(() => el.classList.add('old'), 3000);
+    el._f2 = setTimeout(() => el.classList.add('out'), 5400);
+    el._f3 = setTimeout(() => el.remove(), 6000);
+  }
+
+  // ============================================================
+  // ?hudcheck=1 (criterio A2 de docs/paso2d2-hud-pc.md §7.1): rellena con contenido
+  // de muestra los bloques del HUD que estén vacíos u ocultos (peor caso: jefe con
+  // estados, banner, aviso, 4 beneficios y 4 perjuicios, 6 líneas de botín…), mide
+  // la caja de cada bloque [data-hud-block] (unión con sus descendientes visibles,
+  // recortada por overflow) y vuelca en <pre id="measure"> los solapes entre bloques
+  // y con la zona de combate central (56 % × 56 %). Lo mismo que ?measure=1 del mockup.
+  // ============================================================
+  hudCheck() {
+    const g = this.game;
+    document.body.classList.add('hudcheck');
+    $('class-select')?.classList.add('hidden');
+    $('hud').classList.remove('hidden');
+    this.applyHudScale();
+    const fill = (id, html) => { const el = $(id); if (el && !el.textContent.trim()) el.innerHTML = html; return el; };
+    // placa
+    if (!g.player) {
+      $('hud-level').textContent = 'Nv 42 · Crionte';
+      $('plate-sub').textContent = 'Maga · Tormento III';
+      $('plate-emb').innerHTML = '<img src="assets/emblems/crionte.webp" alt="">';
+    }
+    // marco del objetivo: jefe con aturdimiento y 3 estados
+    const tf = $('target-frame');
+    if (tf.classList.contains('hidden')) {
+      tf.classList.remove('hidden'); tf.dataset.kind = 'boss';
+      tf.querySelector('.tf-name').textContent = 'Señor del Osario';
+      tf.querySelector('.tf-tag').textContent = 'JEFE · PISO 12';
+      tf.querySelector('.bf-hp-fill').style.transform = 'scaleX(0.63)';
+      tf.querySelector('.bf-hp-txt').textContent = '412 880 / 655 000 · 63 %';
+      tf.querySelector('.bf-stagger').classList.remove('hidden');
+      tf.querySelector('.bf-st-fill').style.transform = 'scaleX(0.42)';
+      tf.querySelector('.tf-hint').textContent = 'Aturdimiento 42 % · a 100: Quebrantado';
+      tf.querySelector('.bf-status').innerHTML = ['escarcha:Aterido', 'ralentizado:Ralentizado', 'debilidad:Vulnerable'].map(s => { const [id, l] = s.split(':'); return `<span class="st-chip"><img src="${HM.statusIcon(id)}" alt=""><em>${l}</em></span>`; }).join('');
+    }
+    fill('hud-banner', '<div class="ban">¡El Señor del Osario prepara Lamento Sepulcral!</div>');
+    // derecha: zona, misión y contratos
+    fill('hud-zone', 'Cripta de Hueso · Piso 12<small>Tormento III · <kbd>M</kbd> mapa</small>');
+    const qt = $('quest-tracker');
+    if (qt.style.display === 'none' || !qt.textContent.trim()) { qt.style.display = ''; qt.innerHTML = '<b>Misión</b><div>Destruye los osarios <em>2/3</em></div><div>Derrota al Señor del Osario</div>'; }
+    // registros de botín (6) y de sistema (3)
+    const loot = $('hud-loot');
+    if (!loot.children.length) {
+      for (const it of [{ name: 'Anillo de Plata', rarity: 'normal' }, { name: 'Botas del Viajero', rarity: 'magico' }, { kind: 'xp', amount: 1240 },
+        { name: 'Báculo Glacial', rarity: 'raro' }, { kind: 'gold', amount: 412 }, { name: 'Yelmo del Coloso', rarity: 'legendario' }]) {
+        const e = HM.lootLogEntry(it.kind ? it : { kind: 'item', ...it });
+        loot.insertAdjacentHTML('beforeend', `<div class="lg" style="color:${e.color}">${e.text}</div>`);
+      }
+    }
+    fill('hud-syslog', '<div class="sl">Has entrado en Cripta de Hueso.</div><div class="sl">Contrato completado: Purga de esqueletos (+2 fragmentos)</div><div class="sl hi">Nueva activa de talento: Lanza de Hielo (ranura 3) · N</div>');
+    fill('hud-gold', `<span><img src="${HM.matIcon('gold')}" alt="">12 340</span><span><img src="${HM.matIcon('fragment')}" alt="">37</span>`);
+    // alas: 4 beneficios y 4 perjuicios (una fila de 4 sobre cada orbe)
+    const wing = (id, de) => { const w = $(id); if (!w.children.length) w.innerHTML = Array.from({ length: 4 }, (_, i) => `<div class="buff${de ? ' de' : ''}" style="--buff-deg:${90 * (i + 1)}deg"><span class="buff-ico">${de ? '❄️' : '✨'}</span><span class="buff-sec">${5 + i}</span></div>`).join(''); };
+    wing('buff-wing', false); wing('debuff-wing', true);
+    // aviso contextual y zona de mecánica
+    const pr = $('hud-prompt');
+    if (pr.classList.contains('off')) { pr.classList.remove('off'); pr.innerHTML = '<kbd>F</kbd> Recoger · <span class="rar" style="color:#ffd24a">Báculo Glacial</span> (Raro)'; }
+    const sg = $('spec-gauge');
+    if (!sg.childElementCount || sg.classList.contains('hidden')) {
+      if (!this.gaugeHud) this.gaugeHud = createGaugeHud(sg, { getView: () => null });
+      this.gaugeHud.update({ id: 'escarcha', name: 'Escarcha', value: 3, max: 5, color: '#74cdf2', state: 'building', specName: 'Crionte' });
+    }
+    // barra: 6 ranuras de muestra si aún no hay héroe
+    const bar = $('skillbar');
+    if (!bar.children.length) {
+      bar.innerHTML = ['k1', 'k2', 'k3', 'k4', 'lmb', 'rmb'].map((s, i) => `<button class="skill-btn slot-${s}"><span class="sk-icon">✦</span>${i < 4 ? `<kbd class="hb-kbd">${i + 1}</kbd>` : `<span class="hb-mouse ${s === 'lmb' ? 'l' : 'r'}"><i></i></span>`}</button>`).join('');
+    }
+    $('xp-fill').style.transform = 'scaleX(0.62)';
+    void document.body.offsetWidth;
+    const res = this.measureHud();
+    let pre = $('measure');
+    if (!pre) { pre = document.createElement('pre'); pre.id = 'measure'; document.body.appendChild(pre); }
+    pre.textContent = JSON.stringify(res);
+    // contorno de la zona de combate (solo visual)
+    let cz = $('hud-combat-zone');
+    if (!cz) { cz = document.createElement('div'); cz.id = 'hud-combat-zone'; document.body.appendChild(cz); }
+    const [x, y, w, h] = res.box.zonaCombate;
+    Object.assign(cz.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+    return res;
+  }
+
+  // cajas (px de pantalla) de cada bloque del HUD + zona de combate y sus solapes
+  measureHud() {
+    const W = window.innerWidth, H = window.innerHeight;
+    const L = this.hudLayout || HM.hudLayout(W, H, this.game.settings?.hudScale || 1);
+    const visible = (el) => { const cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden'; };
+    const rectOf = (block) => {
+      let r = block.getBoundingClientRect();
+      let [x0, y0, x1, y1] = [r.left, r.top, r.right, r.bottom];
+      for (const el of block.querySelectorAll('*')) {
+        if (!visible(el)) continue;
+        let b = el.getBoundingClientRect();
+        if (b.width < 1 || b.height < 1) continue;
+        let bx0 = b.left, by0 = b.top, bx1 = b.right, by1 = b.bottom;
+        // recorta por los ancestros (dentro del bloque) que ocultan su desborde
+        for (let a = el.parentElement; a && a !== block.parentElement; a = a.parentElement) {
+          if (getComputedStyle(a).overflow === 'visible') continue;
+          const c = a.getBoundingClientRect();
+          bx0 = Math.max(bx0, c.left); by0 = Math.max(by0, c.top); bx1 = Math.min(bx1, c.right); by1 = Math.min(by1, c.bottom);
+        }
+        if (bx1 - bx0 < 1 || by1 - by0 < 1) continue;
+        x0 = Math.min(x0, bx0); y0 = Math.min(y0, by0); x1 = Math.max(x1, bx1); y1 = Math.max(y1, by1);
+      }
+      return [Math.round(x0), Math.round(y0), Math.round(x1 - x0), Math.round(y1 - y0)];
+    };
+    const box = {};
+    for (const el of document.querySelectorAll('#hud [data-hud-block]')) {
+      if (!visible(el)) continue;
+      box[el.dataset.hudBlock] = rectOf(el);
+    }
+    box.zonaCombate = L.combat;
+    const hit = (a, b, t = 0.5) => a[0] + t < b[0] + b[2] && b[0] + t < a[0] + a[2] && a[1] + t < b[1] + b[3] && b[1] + t < a[1] + a[3];
+    const names = Object.keys(box), solapes = [];
+    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (hit(box[names[i]], box[names[j]])) solapes.push(names[i] + '×' + names[j]);
+    // y nada se sale de la pantalla
+    const fuera = names.filter(n => n !== 'zonaCombate' && (box[n][0] < 0 || box[n][1] < 0 || box[n][0] + box[n][2] > W || box[n][1] + box[n][3] > H));
+    return { res: W + 'x' + H, s: L.s, microRows: L.microRows, box, solapes, fuera };
+  }
+
+  // Pulso del orbe al variar la vida/recurso: escala breve del líquido al ganar
+  // o gastar (solo transform). Reinicia la animación cada vez.
   _pulseOrb(id, pct, prev) {
     if (prev == null || this.game.settings?.reduceMotion) return;
     const d = pct - prev;
@@ -777,37 +1103,34 @@ export class UI {
     }
   }
 
-  // ---------- fila de buffs/pasivos temporales activos ----------
-  // cada buff: { id, name, icon, remaining, total, desc } (segundos · icon=emoji)
+  // ---------- alas de beneficios y perjuicios (sobre los orbes) ----------
+  // cada efecto: { id, name, icon, remaining, total, desc } (segundos · icon=emoji).
+  // Cuadros de 34 px con anillo de tiempo; ficha al pasar el ratón (fuera de combate o con Alt)
   renderBuffs() {
-    const bar = $('buff-bar');
-    if (!bar) return;
+    const L = $('buff-wing'), R = $('debuff-wing');
+    if (!L || !R) return;
     const p = this.game.player;
-    const buffs = (p && p.activeBuffs?.()) || [];
+    const list = (p && p.activeBuffs?.()) || [];
     // escudos activos (Paso 2d): se muestran con el icono de estado st_escudo
     if (p?.shields?.length) {
       const amt = Math.round(p.shieldTotal?.() || 0), t = Math.max(...p.shields.map(x => x.t || 0));
-      if (amt > 0) buffs.push({ id: 'shield', name: 'Escudo', icon: '🛡️', remaining: t, total: Math.max(t, this._shieldTotal = Math.max(this._shieldTotal || 0, t)), desc: `Absorbe ${amt} de daño` });
+      if (amt > 0) list.push({ id: 'shield', name: 'Escudo', icon: '🛡️', remaining: t, total: Math.max(t, this._shieldTotal = Math.max(this._shieldTotal || 0, t)), desc: `Absorbe ${HM.fmtNum(amt)} de daño`, debuff: false });
     } else this._shieldTotal = 0;
-    if (!buffs.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
-    bar.style.display = 'flex';
-    // reconcilia por id: crea las celdas que falten, elimina las sobrantes
+    const { buffs, debuffs } = HM.splitBuffs(list);
+    this._renderWing(L, buffs.slice(0, 8), false);
+    this._renderWing(R, debuffs.slice(0, 8), true);
+  }
+  _renderWing(wing, list, de) {
     const seen = new Set();
-    for (const b of buffs) {
+    for (const b of list) {
       seen.add(b.id);
-      let cell = bar.querySelector(`.buff[data-id="${b.id}"]`);
+      let cell = wing.querySelector(`.buff[data-id="${b.id}"]`);
       if (!cell) {
         cell = document.createElement('div');
-        cell.className = 'buff';
+        cell.className = 'buff' + (de ? ' de' : '');
         cell.dataset.id = b.id;
         cell.innerHTML = `<span class="buff-ico"></span><span class="buff-sec"></span>`;
-        // al tocar/clicar: muestra nombre + descripción + tiempo restante
-        cell.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this.showBuffInfo(cell._buff || b, e.clientX, e.clientY);
-        });
-        bar.appendChild(cell);
+        wing.appendChild(cell);
       }
       cell._buff = b;
       const stIco = HM.playerStatusIcon(b);
@@ -819,42 +1142,15 @@ export class UI {
         else icoEl.textContent = b.icon || '✨';
       }
       const secs = Math.max(0, Math.ceil(b.remaining));
-      cell.querySelector('.buff-sec').textContent = secs >= 60 ? `${Math.ceil(secs / 60)}m` : secs;
+      const st = secs >= 60 ? `${Math.ceil(secs / 60)}m` : String(secs);
+      const se = cell.querySelector('.buff-sec'); if (se.textContent !== st) se.textContent = st;
       // anillo de cuenta atrás: se vacía según remaining/total
       const frac = b.total > 0 ? Math.max(0, Math.min(1, b.remaining / b.total)) : 0;
-      const deg = Math.round(frac * 360);
-      cell.style.setProperty('--buff-deg', deg + 'deg');
+      const deg = Math.round(frac * 36) * 10 + 'deg';
+      if (cell._deg !== deg) { cell._deg = deg; cell.style.setProperty('--buff-deg', deg); }
       cell.classList.toggle('expiring', b.remaining <= 3);
     }
-    for (const cell of [...bar.children]) {
-      if (!seen.has(cell.dataset.id)) cell.remove();
-    }
-  }
-
-  // tooltip/popup pequeño con la ficha de un buff
-  showBuffInfo(b, x, y) {
-    const pop = $('item-popup');
-    this.markJustOpened();
-    const secs = Math.max(0, Math.ceil(b.remaining));
-    const time = secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`;
-    pop.innerHTML = `
-      <div class="popup-name">${b.icon || '✨'} ${b.name || 'Efecto'}</div>
-      <div class="popup-sub">⏳ ${time} restantes</div>
-      <div class="stat-line">${b.desc || ''}</div>
-      <div class="popup-btns"></div>`;
-    const c = document.createElement('button');
-    c.textContent = 'Cerrar';
-    c.onclick = () => pop.classList.add('hidden');
-    pop.querySelector('.popup-btns').appendChild(c);
-    // posiciona cerca del toque, dentro de la pantalla (anula el centrado CSS)
-    pop.style.transform = 'none';
-    pop.classList.remove('hidden');
-    const w = pop.offsetWidth, h = pop.offsetHeight;
-    let nx = x - w / 2, ny = y + 14;
-    if (nx + w > window.innerWidth - 8) nx = window.innerWidth - w - 8;
-    if (ny + h > window.innerHeight - 8) ny = y - h - 14;
-    pop.style.left = Math.max(8, nx) + 'px';
-    pop.style.top = Math.max(8, ny) + 'px';
+    for (const cell of [...wing.children]) if (!seen.has(cell.dataset.id)) cell.remove();
   }
 
   // ---------- barra de 6 ranuras (Paso 2d, docs/paso2-diseno.md §1.1) ----------
@@ -900,9 +1196,14 @@ export class UI {
     const bar = $('skillbar');
     if (!p || !bar) return;
     bar.innerHTML = '';
+    this._readySig = null;
     const res = p.cls.resource;
-    for (const slot of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
+    // Paso 2d.2: orden de D4, 1 2 3 4 | IZQ DER (el ratón a la derecha, junto a la mano que lo usa)
+    for (const slot of ['k1', 'k2', 'k3', 'k4', 'lmb', 'rmb']) {
       const label = this.slotKeyLabel(slot);
+      const keyHTML = slot === 'lmb' || slot === 'rmb'
+        ? `<span class="hb-mouse ${slot === 'lmb' ? 'l' : 'r'}" title="${slot === 'lmb' ? 'Clic izquierdo' : 'Clic derecho'}"><i></i></span>`
+        : `<kbd class="hb-kbd">${label}</kbd>`;
       const id = p.hotbar?.[slot] || null;
       const sk = id ? p.cls.skills.find(s => s.id === id) : null;
       const known = sk && isKnown(p, sk);
@@ -915,7 +1216,7 @@ export class UI {
       const sec = HM.BOOK_SECTIONS.find(s => s.slots.includes(slot));
       if (!sk) {
         btn.classList.add('hb-empty');
-        btn.innerHTML = `<span class="sk-icon dim">+</span><span class="sk-key">${label}</span>` + this.catBadgeHTML(slot === 'k2' ? 'defense' : sec?.cats[0]);
+        btn.innerHTML = `<span class="sk-icon dim">+</span><span class="sk-key">${label}</span>` + keyHTML + this.catBadgeHTML(slot === 'k2' ? 'defense' : sec?.cats[0]);
         btn.title = `${label}: ranura vacía — clic derecho para asignar (o arrastra desde el libro de habilidades)`;
       } else {
         btn.dataset.skill = sk.id;
@@ -927,7 +1228,7 @@ export class UI {
         const costHTML = sk.cat === 'basic'
           ? `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${prof?.gen ?? sk.gen ?? 0}</span>`
           : (cost ? `<span class="sk-cost">${cost}</span>` : '');
-        btn.innerHTML = this.skillIconHTML(sk) + this.catBadgeHTML(sk.cat) + `<span class="sk-key">${label}</span>` + costHTML +
+        btn.innerHTML = this.skillIconHTML(sk) + this.catBadgeHTML(sk.cat) + `<span class="sk-key">${label}</span>` + keyHTML + costHTML +
           `<div class="gcd-overlay"></div><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span>` +
           (sk.kind === 'talent' ? '<span class="sk-talent-tag">TALENTO</span>' : '');
         const catTxt = HM.catLabel(sk.cat);
@@ -1048,13 +1349,12 @@ export class UI {
     // detección de momentos clave para disparar flourishes (no invasiva: la UI
     // posee message(), así que reaccionamos aquí sin tocar la lógica de juego)
     this.detectFlourish(text);
-    const cont = $('messages');
-    const div = document.createElement('div');
-    div.className = 'msg';
-    div.textContent = text;
-    cont.appendChild(div);
-    while (cont.children.length > 3) cont.firstChild.remove();
-    setTimeout(() => { div.classList.add('fade'); setTimeout(() => div.remove(), 500); }, ms);
+    // Paso 2d.2: todo queda en el registro de sistema (abajo a la izquierda); los
+    // sucesos importantes (avisos largos) además salen en el banner bajo el marco
+    const route = HM.messageRoute(text, ms);
+    if (route === 'none') return;
+    this.syslog(String(text), route === 'banner');
+    if (route === 'banner') this.banner(String(text), Math.min(ms, 5000));
   }
 
   // dispara flourishes según el texto del mensaje (subir de nivel, legendario...)
@@ -1319,14 +1619,12 @@ export class UI {
         { t: 'select', key: 'controlScheme', icon: 'hand', label: 'Esquema de control (PC)', def: 'wasd',
           opts: [['wasd', 'WASD + ratón (apuntar; clic = habilidad)'], ['click', 'Clic para mover (estilo Diablo II)']] },
         { t: 'keybinds' },
-        { t: 'toggle', key: 'joystickRight', icon: 'hand', label: 'Joystick a la derecha (zurdo)', def: false, onChange: () => g.applyAccessibility() },
-        { t: 'range', icon: 'plus', label: 'Tamaño de los controles', min: 70, max: 150, step: 5,
-          get: () => Math.round((g.settings.hudScale || 1) * 100),
-          set: (v) => { g.settings.hudScale = v / 100; g.applyAccessibility(); } },
-        { t: 'toggle', key: 'haptics', icon: 'phone', label: 'Vibración (móvil)', def: true },
       ] },
       { id: 'interfaz', icon: 'eye', label: 'Interfaz', items: [
-        { t: 'toggle', key: 'cleanHud', icon: 'eye-off', label: 'HUD limpio (oculta lo no esencial)', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'toggle', key: 'cleanHud', icon: 'eye-off', label: 'HUD limpio (oculta lo no esencial) [Z]', def: false, onChange: () => g.applyAccessibility() },
+        { t: 'range', icon: 'plus', label: 'Escala del HUD (%)', min: 70, max: 150, step: 5,
+          get: () => Math.round((g.settings.hudScale || 1) * 100),
+          set: (v) => { g.settings.hudScale = v / 100; this.applyHudScale(); } },
         { t: 'toggle', key: 'dmgNumbers', icon: 'crit', label: 'Números de daño flotantes', def: true },
         { t: 'toggle', key: 'shake', icon: 'shake', label: 'Sacudida de cámara', def: true },
         { t: 'select', key: 'lootFilter', icon: 'search', label: 'Filtro de loot (mostrar desde)', def: 'normal',
@@ -1760,7 +2058,7 @@ export class UI {
       this.bindCell(div, { zone: 'inv', key: i, item }, item ? () => this.itemPopup(item, { from: 'inv', index: i }) : null);
       invGrid.appendChild(div);
     }
-    $('inv-gold').innerHTML = `${icon('coin', { cls: 'ico-gold' })} ${p.gold} oro · toca para comparar/equipar · arrastra para mover (I o B para abrir)`;
+    $('inv-gold').innerHTML = `${icon('coin', { cls: 'ico-gold' })} ${p.gold} oro · haz clic para comparar/equipar · arrastra para mover (I o B para abrir)`;
 
     // bolsa de materiales (gemas, runas, llaves, fragmentos, glifos)
     this.renderMaterials();
@@ -1969,7 +2267,7 @@ export class UI {
     const lines = itemStatLines(item).map(l => `<div class="stat-line">${l}</div>`).join('');
     // comparación rápida ▲▼ contra lo equipado (lectura en un vistazo);
     // también desde el equipo (compara la pieza con su misma ranura, no aporta
-    // diff pero buildCompare lo gestiona). En táctil esto da el "tap = comparar".
+    // diff pero buildCompare lo gestiona). Un clic abre la comparación.
     const compare = (ctx.from === 'inv' || ctx.from === 'equip') ? this.buildCompare(item) : '';
     // información del conjunto: piezas y bonus (activos en verde)
     let setHTML = '';
@@ -2383,7 +2681,7 @@ export class UI {
         b.className = 'sk-focus-opt' + (on ? ' on' : '') + (unlocked ? '' : ' locked') + (pending ? ' pending' : '') + (br.name === 'Transformación' ? ' big' : '');
         b.style.left = x + 'px'; b.style.top = y + 'px';
         b.textContent = this.optSym(o);
-        const show = () => this._focusInspect(`<b>${o.name}</b><span>${o.desc}</span><em>${unlocked ? (on ? '✓ activa' : 'Toca para elegir (gratis)') : pending ? '⚠ Toca otra vez para desbloquear (1 punto)' : `🔒 Rama «${br.name}» — desbloquea por 1 punto`}</em>`);
+        const show = () => this._focusInspect(`<b>${o.name}</b><span>${o.desc}</span><em>${unlocked ? (on ? '✓ activa' : 'Haz clic para elegir (gratis)') : pending ? '⚠ Haz clic otra vez para desbloquear (1 punto)' : `🔒 Rama «${br.name}» — desbloquea por 1 punto`}</em>`);
         b.onmouseenter = show; b.onfocus = show;
         b.onclick = () => { show(); g.chooseSkillMod(sk.id, br.id, o.id); };
         zoomLayer.appendChild(b);
@@ -2968,7 +3266,7 @@ export class UI {
       html += `<div class="${cls}" ${(!here && unlocked) ? `data-go="${z.biome}"` : ''} title="${z.biome}${unclaimed ? ' · Bastión sin reclamar' : ''}">
         ${star}<span class="wm-node-ico">${ico}</span><span class="wm-node-name">${z.biome}</span><span class="wm-node-sub">${sub}</span></div>`;
     });
-    html += `</div><p class="dim wm-foot">Toca una región conectada para viajar · ⭐ fija tu hogar de reaparición.</p>`;
+    html += `</div><p class="dim wm-foot">Haz clic en una región conectada para viajar · ⭐ fija tu hogar de reaparición.</p>`;
     el.innerHTML = html;
     el.querySelectorAll('.wm-node[data-go]').forEach(n => n.onclick = () => g.travelToZone(n.dataset.go));
     el.querySelectorAll('.wm-star').forEach(b => b.onclick = (e) => { e.stopPropagation(); g.setHomeZone(b.dataset.home); this.renderWorldMap(); });
@@ -3338,7 +3636,7 @@ export class UI {
       let html = '';
       if (lockedBoard) html += `<div class="locked-banner">${icon('lock')} El Tablero de Paragon se desbloquea en el <b>nivel 20</b> (te faltan ${20 - p.level}). A partir de ahí cada nivel da 1 punto para gastar en este tablero. Esto es una vista previa de lo que te espera.</div>`;
       if (para.points > 0) html += `<div class="cs-build-alert">⚠️ Tienes <b>${para.points}</b> punto(s) sin gastar.</div>`;
-      if (freeGlyphs > 0) html += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) sin engarzar${freeSockets > 0 ? ` y <b>${freeSockets}</b> engarce(s) ◇ libre(s)` : ''}. Toca un engarce activo para colocarlos.</div>`;
+      if (freeGlyphs > 0) html += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) sin engarzar${freeSockets > 0 ? ` y <b>${freeSockets}</b> engarce(s) ◇ libre(s)` : ''}. Haz clic en un engarce activo para colocarlos.</div>`;
       alertEl.innerHTML = html;
     }
     const grid = $('paragon-grid');
@@ -3365,7 +3663,7 @@ export class UI {
         if (openSocket) cell.classList.add('open-socket');
         cell.textContent = gl ? '🔷' : (glyph[node.type] || '•');
         cell.title = node.type === 'socket'
-          ? (gl ? `🔷 ${gl.name} (toca para cambiar/quitar)` : 'Engarce de glifo ◇' + (on ? ' — toca para engarzar un glifo' : ' (actívalo primero)'))
+          ? (gl ? `🔷 ${gl.name} (clic para cambiar/quitar)` : 'Engarce de glifo ◇' + (on ? ' — clic para engarzar un glifo' : ' (actívalo primero)'))
           : (node.name ? node.name + ': ' : '') + this.nodeStatsText(node);
         cell.onclick = () => {
           if (node.type === 'socket') {

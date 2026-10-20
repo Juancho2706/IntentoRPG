@@ -25,6 +25,12 @@ export const DEFAULT_BINDINGS = {
   skill3:    ['Digit3'],
   skill4:    ['Digit4'],
   talents:   ['KeyN'],   // Paso 2b.0: árbol de talentos (convención de WoW); el panel llega en 2d
+  // Paso 2d.2: atajos del micromenú del HUD de PC (abajo a la derecha)
+  paragon:    ['KeyP'],
+  quests:     ['KeyJ'],
+  collection: ['KeyK'],
+  guide:      ['KeyH'],
+  cleanHud:   ['KeyZ'],  // modo limpio del HUD (sin combinaciones: Alt se lee aparte, mantenido)
 };
 
 // acciones de movimiento: se leen "mantenidas" (no disparan al pulsar)
@@ -50,7 +56,12 @@ export const BINDABLE_ACTIONS = [
   { id: 'skills',    label: 'Habilidades',    group: 'Paneles' },
   { id: 'character', label: 'Personaje',      group: 'Paneles' },
   { id: 'talents',   label: 'Talentos',       group: 'Paneles' },
-  { id: 'close',     label: 'Cerrar panel',   group: 'Paneles' },
+  { id: 'paragon',   label: 'Paragon',        group: 'Paneles' },
+  { id: 'quests',    label: 'Misiones',       group: 'Paneles' },
+  { id: 'collection',label: 'Colección',      group: 'Paneles' },
+  { id: 'guide',     label: 'Guía de sistemas', group: 'Paneles' },
+  { id: 'close',     label: 'Cerrar panel / Opciones', group: 'Paneles' },
+  { id: 'cleanHud',  label: 'Modo limpio del HUD', group: 'Interfaz' },
 ];
 
 // fusiona defaults con anulaciones (solo acciones conocidas; copia defensiva)

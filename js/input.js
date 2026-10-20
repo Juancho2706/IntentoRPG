@@ -1,19 +1,20 @@
 // ============================================================
-// Entrada: ratón, teclado y joystick táctil
+// Entrada (solo PC): ratón y teclado
 // ============================================================
 import * as THREE from 'three';
 import { mergeBindings, buildCodeMap, assignBinding, MOVE_ACTIONS } from './bindings.js';
 
+const ALT_CODES = new Set(['AltLeft', 'AltRight']);
+
 export class Input {
   constructor(game) {
     this.game = game;
-    this.joyDir = null;     // {x,z} desde el joystick táctil
     this.keyDir = null;     // {x,z} desde WASD/flechas
     this.mouseWorld = null; // último punto del mundo bajo el ratón
+    this.mouseScreen = null; // { x, y } en px de pantalla (enemigo bajo el cursor, HUD)
     this.pointerDown = false;
     this.mouseHeld = { l: false, r: false }; // botones de ratón mantenidos (esquema WASD)
     this.keys = new Set();
-    this.joyId = null;
     // remapeo: acciones↔teclas (defaults + anulaciones del jugador)
     this.bindings = mergeBindings(game.settings?.bindings);
     this.codeToAction = buildCodeMap(this.bindings);
@@ -26,18 +27,9 @@ export class Input {
     window.addEventListener('pointerup', e => this.onPointerUp(e));
     window.addEventListener('contextmenu', e => e.preventDefault());
 
-    // Bloqueo de orientación a horizontal (best-effort): solo funciona en móvil
-    // y en contexto pantalla completa / PWA instalada; si falla, el overlay
-    // "gira el dispositivo" cubre el caso. Se intenta una vez al primer gesto.
-    const tryLockLandscape = () => {
-      window.removeEventListener('pointerdown', tryLockLandscape);
-      try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch { /* no soportado */ }
-    };
-    if (window.matchMedia?.('(pointer: coarse)').matches) {
-      window.addEventListener('pointerdown', tryLockLandscape, { once: true });
-    }
-
     window.addEventListener('keydown', e => {
+      // Alt mantenido: tooltips del HUD en combate (convención de PoE). No es una acción.
+      if (ALT_CODES.has(e.code)) { e.preventDefault(); this.setAlt(true); return; }
       if (e.repeat) return;
       // captura de remapeo: la siguiente tecla se asigna a la acción pendiente
       if (this.capturing) {
@@ -56,49 +48,24 @@ export class Input {
       // las acciones de movimiento se leen "mantenidas" (updateKeyDir), no aquí
       if (action && !MOVE_ACTIONS.has(action)) this.doAction(action, e);
     });
-    window.addEventListener('keyup', e => { this.keys.delete(e.code); this.updateKeyDir(); });
+    window.addEventListener('keyup', e => {
+      if (ALT_CODES.has(e.code)) { this.setAlt(false); return; }
+      this.keys.delete(e.code); this.updateKeyDir();
+    });
 
-    // joystick táctil: aparece al tocar la mitad izquierda.
-    // El seguimiento y el fin del gesto se escuchan en window para no
-    // perder el pointerup si el dedo termina sobre otro elemento del HUD.
-    const zone = document.getElementById('joy-zone');
-    zone.addEventListener('pointerdown', e => {
-      if (this.joyId !== null) return;
-      e.preventDefault();
-      this.joyId = e.pointerId;
-      this.joyOrigin = { x: e.clientX, y: e.clientY };
-      const joy = document.getElementById('joystick');
-      joy.classList.remove('hidden');
-      joy.style.left = e.clientX + 'px';
-      joy.style.top = e.clientY + 'px';
-    });
-    window.addEventListener('pointermove', e => {
-      if (e.pointerId !== this.joyId) return;
-      let dx = e.clientX - this.joyOrigin.x, dy = e.clientY - this.joyOrigin.y;
-      const len = Math.hypot(dx, dy);
-      const max = 48;
-      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-      document.getElementById('joy-knob').style.transform = `translate(${dx}px, ${dy}px)`;
-      if (len > 10) {
-        // convertir dirección de pantalla a dirección de mundo (cámara isométrica girada 45°)
-        const wx = (dx + dy) * 0.7071, wz = (dy - dx) * 0.7071;
-        const wl = Math.hypot(wx, wz) || 1;
-        this.joyDir = { x: wx / wl, z: wz / wl };
-      } else this.joyDir = null;
-    });
-    const endJoy = e => {
-      if (e && e.pointerId !== undefined && e.pointerId !== this.joyId) return;
-      this.joyId = null;
-      this.joyDir = null;
-      document.getElementById('joystick').classList.add('hidden');
-      document.getElementById('joy-knob').style.transform = '';
-    };
-    window.addEventListener('pointerup', endJoy);
-    window.addEventListener('pointercancel', endJoy);
-    const clearHeld = () => { this.mouseHeld.l = this.mouseHeld.r = false; this.pointerDown = false; };
-    window.addEventListener('blur', () => { endJoy(); clearHeld(); });
+    const clearHeld = () => { this.mouseHeld.l = this.mouseHeld.r = false; this.pointerDown = false; this.setAlt(false); };
+    window.addEventListener('blur', clearHeld);
     window.addEventListener('pointercancel', clearHeld);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { endJoy(); clearHeld(); } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) clearHeld(); });
+  }
+
+  // Alt mantenido → ui.altHeld (y el widget de mecánica, si expone setAltHeld)
+  setAlt(on) {
+    const ui = this.game.ui;
+    if (!ui || !!ui.altHeld === !!on) return;
+    ui.altHeld = !!on;
+    document.body.classList.toggle('alt-held', !!on);
+    try { ui.gaugeHud?.setAltHeld?.(!!on); } catch { /* widget sin soporte de Alt */ }
   }
 
   // ¿hay alguna tecla de esta acción mantenida?
@@ -114,13 +81,20 @@ export class Input {
       // talentos (KeyN, convención de WoW): panel de js/ui-talents.js (Paso 2d); sin
       // especialización a partir del Nv10 abre directamente la pantalla de elección
       case 'talents': g.ui.openTalents(); break;
+      // Paso 2d.2: atajos del micromenú
+      case 'paragon': g.ui.microAction('paragon'); break;
+      case 'quests': g.ui.microAction('quest'); break;
+      case 'collection': g.ui.microAction('collection'); break;
+      case 'guide': g.ui.microAction('guide'); break;
+      case 'cleanHud': g.ui.toggleCleanHud(); break;
       case 'potionHP': g.player?.usePotion('hp'); break;
       case 'potionMP': g.player?.usePotion('mp'); break;
       case 'primary': e?.preventDefault(); g.primaryAction(); break;
       case 'dodge': g.player?.dodge(); break;
       case 'grab': g.grabNearest(); break;
       case 'map': e?.preventDefault(); g.ui.activePanel === 'map' ? g.ui.closePanel() : g.ui.openMap(); break;
-      case 'close': g.ui.closePanel(); break;
+      // Esc: cierra el panel abierto; sin panel, abre las Opciones (convención de D4)
+      case 'close': g.ui.escape(); break;
       case 'skill1': g.castSkillSlot(0); break;
       case 'skill2': g.castSkillSlot(1); break;
       case 'skill3': g.castSkillSlot(2); break;
@@ -137,6 +111,7 @@ export class Input {
     this.codeToAction = buildCodeMap(this.bindings);
     this.game.settings.bindings = this.bindings;
     this.game.saveSettings?.();
+    this.game.ui?.refreshKeyLabels?.();
   }
 
   // restaura los controles por defecto
@@ -145,6 +120,7 @@ export class Input {
     this.codeToAction = buildCodeMap(this.bindings);
     this.game.settings.bindings = null;
     this.game.saveSettings?.();
+    this.game.ui?.refreshKeyLabels?.();
   }
 
   updateKeyDir() {
@@ -181,16 +157,16 @@ export class Input {
     const scheme = g.settings?.controlScheme || 'wasd';
 
     // --- esquema WASD+ratón: el ratón NO mueve; clic izq/der lanzan habilidades ---
-    if (e.pointerType === 'mouse' && scheme !== 'click') {
+    if (scheme !== 'click') {
       e.preventDefault();
       if (e.button === 2) { this.mouseHeld.r = true; g.castSkillSlot('rmb'); }
       else { this.mouseHeld.l = true; g.castSkillSlot('lmb'); }
       return;
     }
-    // --- esquema clic-mover (D2): el botón DERECHO lanza la ranura 🖱️Der ---
-    if (e.pointerType === 'mouse' && e.button === 2) { e.preventDefault(); g.castSkillSlot('rmb'); return; }
+    // --- esquema clic-mover (D2): el botón DERECHO lanza la ranura DER ---
+    if (e.button === 2) { e.preventDefault(); g.castSkillSlot('rmb'); return; }
 
-    // ¿tocó un enemigo?
+    // ¿clic sobre un enemigo?
     const ray = this.raycast(e);
     const hits = ray.intersectObjects(g.entityGroup.children, true);
     for (const h of hits) {
@@ -202,21 +178,6 @@ export class Input {
         return;
       }
     }
-    if (e.pointerType !== 'mouse') {
-      // asistencia de puntería táctil: fijar al enemigo más cercano al toque
-      // (objetivo efectivo ≥48px aunque el modelo sea pequeño en pantalla)
-      let best = null, bd = 55 * 55;
-      for (const en of g.enemies) {
-        if (!en.alive) continue;
-        const s = g.ui.worldToScreen(en.pos);
-        if (s.behind) continue;
-        const dx = s.x - e.clientX, dy = s.y - e.clientY;
-        const d = dx * dx + dy * dy;
-        if (d < bd) { bd = d; best = en; }
-      }
-      if (best) { g.player.attackTarget = best; g.player.moveTarget = null; }
-      return; // en táctil no se camina con tap
-    }
     const p = this.groundPoint(e);
     if (p) {
       g.player.moveTarget = p;
@@ -226,8 +187,9 @@ export class Input {
   }
 
   onPointerMove(e) {
-    if (e.pointerType === 'mouse') this.mouseWorld = this.groundPoint(e);
-    if (this.pointerDown && e.pointerType === 'mouse' && this.game.player?.alive) {
+    this.mouseScreen = { x: e.clientX, y: e.clientY };
+    this.mouseWorld = this.groundPoint(e);
+    if (this.pointerDown && this.game.player?.alive) {
       const p = this.groundPoint(e);
       if (p && this.game.player.moveTarget) this.game.player.moveTarget = p;
     }
