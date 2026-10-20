@@ -8,9 +8,9 @@
 
 ## 0. Resumen ejecutivo
 
-1. **Kit fijo de 6 ranuras con categoría**: 🖱️Izq básico · 🖱️Der gastadora · `1` movilidad · `2` defensa/utilidad · `3` especialización · `4` definitiva, más la esquiva común (`Mayús`). Cada ranura solo acepta su categoría.
-   *Por qué:* la auditoría mostró que con barra libre nadie elegía movilidad ni defensa y que Maga/Arquera llenaban 5 ranuras con 5 habilidades: no había decisiones. Con categorías, la decisión pasa a ser *qué* movilidad o *qué* defensa usar, no *si* llevarla.
-2. **Recursos con identidad**: Furia (100, sin regeneración, se gana golpeando **y recibiendo daño**), Maná (pozo grande ≈150–450, regeneración lenta, gastadoras con enfriamiento) y Energía (pozo fijo de 60, regeneración rápida, gastadoras sin enfriamiento).
+1. **Kit de 6 ranuras con categoría**: 🖱️Izq básico · 🖱️Der gastadora · `1` movilidad · **`2` flexible (defensa, utilidad o segunda gastadora)** · `3` especialización · `4` definitiva, más la esquiva común (`Mayús`). Cada ranura solo acepta sus categorías.
+   *Por qué:* la auditoría mostró que con barra libre nadie elegía movilidad ni defensa y que Maga/Arquera llenaban 5 ranuras con 5 habilidades: no había decisiones. Con categorías, la decisión pasa a ser *qué* movilidad usar y, en la ranura `2`, **supervivencia frente a daño**: es la decisión de build más visible del kit y la que permite a la Maga gestionar dos enfriamientos de gastadora.
+2. **Recursos con identidad**: Furia (100, sin regeneración, se gana golpeando **y recibiendo daño**), Maná (pozo grande ≈150–450, regeneración lenta, gastadoras con enfriamiento; es el único recurso que escala con el atributo Energía) y Energía (pozo fijo de 60, regeneración **plana** de 6/s, gastadoras sin enfriamiento).
 3. **Catálogo**: 14 habilidades base por clase (3 básicos, 4–5 gastadoras, 2 movilidades, 2–3 defensas o utilidades y 3 definitivas) y **42 habilidades otorgadas por talento** que salen de los mockups. Se eliminan las 5 pasivas compradas y las sinergias. Se rehacen Mandoble, Embate, Torbellino, Hendidura, Salto Devastador, Provocación, Grito de Guerra, Agilidad y las 3 definitivas de cada clase.
 4. **Fin de los rangos comprados**: el rango de una habilidad sale del **nivel del héroe**, de los **talentos** (`skillLv`) y, más adelante, del **equipo**. Los 19 puntos de habilidad (Nv2–20) pasan a **desbloquear ramas** (1 punto por mini‑rama). Las habilidades se aprenden solas al llegar a su nivel.
 5. **Un único resolvedor puro** `resolveSkill(p, sk)` (`js/skill-resolve.js`) fusiona rango, ramas, soportes por **tags**, talentos (`mod`, `skillLv`, `tv.costRed…`) y produce coeficiente, coste, enfriamiento, radio y efectos. Lo usan el lanzamiento, el banco y los tooltips. Habrá **GCD de 0,2 s** entre gastadoras, *windup* de 80–150 ms en los golpes pesados y **daño sincronizado con el impacto**.
@@ -18,6 +18,8 @@
 7. **Primitivas de rol**: amenaza y provocación, alcance de buffs `self/party/aura`, curas y escudos al «aliado con menos vida», **barra de aturdimiento acumulado (stagger) en jefes** y control con rendimientos decrecientes por categoría.
 8. **Banco por rol**: escenarios de un objetivo, área ×5, aguante con defensas activas, aporte de apoyo y tiempo de control. Cada especialización debe ser la mejor de su clase en su métrica de rol, con al menos un 10 % de margen.
 9. **Migración**: guardado v3 (kit, ramas, hotbar y soportes, Paso 2b) y v4 (maestría → talentos, Paso 2c). La reespecialización pasa a ser **gratuita fuera de combate**.
+10. **Arquitectura de poderes data‑driven** (§9.1): cada poder es una entrada de `POWER_HOOKS` con ganchos tipados (`onHit`, `onKill`, `onDamaged`, `modifyResolve`…), invocados desde un número fijo de puntos del juego. No habrá `if (powers.has(...))` dispersos, y la etapa 2c se reparte con un trabajador por clase sin tocar archivos compartidos.
+11. **Dos reglas de sustento y daño**: un único saco **Debilidad** en el objetivo (Vulnerable + debilitamientos, tope ×1,5) y una única **cubeta de sustento** (toda cura disparada por golpes o muertes comparte el tope de 6 % de vida/s del Paso 1A).
 
 ---
 
@@ -30,14 +32,25 @@
 | `lmb` | Clic izquierdo | `basic` (generador) | Nv1 | Mantener pulsado = repetir (ya existe en `tick`). Sin GCD; lo marca la cadencia. |
 | `rmb` | Clic derecho | `spender` (gastadora principal) | Nv2 | GCD 0,2 s. Admite también las gastadoras de especialización (Veredicto Final, Lanza de Hielo, Misiles Arcanos, Disparo Apuntado). |
 | `k1` | `1` | `movement` | Nv4 | **Fuera del GCD**: escapar siempre es posible. |
-| `k2` | `2` | `defense` / `utility` | Nv6 | GCD 0,2 s. |
+| `k2` | `2` | **flexible**: `defense` / `utility` / `spender` | Nv6 (la opción gastadora, desde Nv8 con la Gastadora B) | GCD 0,2 s. **Decisión de build: supervivencia frente a daño.** No admite la misma habilidad que `rmb`. |
 | `k3` | `3` | `spec` | Nv10 (al elegir especialización) | Admite cualquier activa otorgada por el árbol de la especialización activa. Por defecto, la insignia. |
 | `k4` | `4` | `ultimate` | Nv15 | GCD 0,2 s. Sin coste de recurso; solo enfriamiento de 45–60 s. |
 | esquiva | `Mayús` | común | Nv1 | Recarga 3 s (1,8 s con el poder Ágil) e invulnerable 0,26 s. **Cancela** el *windup* y la canalización en curso. |
 
 - `js/bindings.js` **no cambia de teclas**: `skill1..4` = `Digit1..4`, `dodge` = `Shift` y `primary` = `Espacio` (atacar al más cercano o interactuar). Solo se añade la acción `talents: ['KeyN']` (convención de WoW) y su etiqueta en `BINDABLE_ACTIONS`.
-- `assignHotbar(slot, id)` valida que `sk.slots.includes(slot)`; cada habilidad declara sus ranuras válidas en `slots` (normalmente una; las gastadoras de especialización declaran `['rmb','k3']`).
-- *Por qué hay categorías estrictas:* con 4 teclas más 2 botones, el jugador de PC lee el kit de un vistazo (modelo Lost Ark / WoW). El banco puede suponer que toda build tiene una movilidad y una defensa, y el diseño de enemigos puede contar con ello (p. ej. telegrafías que exigen desplazarse).
+- `assignHotbar(slot, id)` valida que `sk.slots.includes(slot)` y que la habilidad no esté ya en otra ranura. Cada habilidad declara sus ranuras válidas en `slots`, que se derivan de su categoría (`CAT_SLOTS`):
+  - básico → `['lmb']`;
+  - gastadora → `['rmb','k2']`;
+  - gastadora de especialización → `['rmb','k2','k3']`;
+  - defensa o utilidad → `['k2']` (las de especialización, `['k2','k3']`);
+  - movilidad → `['k1']`;
+  - especialización → `['k3']`;
+  - definitiva → `['k4']`.
+- *Por qué hay categorías:* con 4 teclas más 2 botones, el jugador de PC lee el kit de un vistazo (modelo Lost Ark / WoW). Toda build tiene una movilidad, y el diseño de enemigos puede contar con ello (p. ej. telegrafías que exigen desplazarse).
+- *Por qué `k2` es flexible:* con una sola ranura de gastadora, la identidad de la Maga («gestionar enfriamientos») era imposible. Una build de Meteoro, con 7 s de enfriamiento, pasaba ~80 % del tiempo en el básico. La flexibilidad convierte la ranura en la **decisión de build más visible**:
+  - con una defensa: aguante (tanques, contenido difícil, Hardcore);
+  - con una segunda gastadora: +15–25 % de daño a cambio de depender de la esquiva y la movilidad.
+  El banco mide ambas variantes (§7) para que la decisión sea real y no una trampa.
 
 ### 1.2 Calendario de desbloqueo (todas las clases)
 
@@ -48,7 +61,7 @@
 | 3 | Básico B |
 | 4 | Movilidad A |
 | 6 | Defensa/utilidad A |
-| 8 | Gastadora B y Básico C |
+| 8 | Gastadora B (primera vez que `2` puede ser gastadora) y Básico C |
 | 10 | **Especialización** (habilidad insignia en `3`) y árbol de talentos |
 | 12 | Movilidad B y Defensa/utilidad B |
 | 14 | Gastadora C (y D) |
@@ -69,7 +82,18 @@
 | Especialización | Remolino Sangriento / Temeridad / Ira Ciega (Berserker) · Grito Desafiante / Muro de Escudos (Guardián) · Aura de Devoción / Veredicto Final (Cruzado) | Llamarada / Combustión (Piromante) · Prisión de Hielo / Ventisca / Lanza de Hielo (Crionte) · Orbe Arcano / Sello del Archimago / Misiles / Evocación (Arcanista) | Disparo Apuntado / Visión Certera (Francotiradora) · Trampa de Cepo / Arpón (Montaraz) · Andanada / Danza de Flechas (Tiradora) |
 | Definitiva | Furia Inmortal · Cataclismo · Estandarte de Guerra | Supernova · Tormenta Glacial · Desgarro Arcano | Diluvio de Saetas · Tiro Celestial · Cerco de Zarzas |
 
-† = la otorga un talento (árbol de clase o de especialización). Las activas de talento ocupan su categoría natural; las del árbol de especialización pueden ir también en `3`.
+† = la otorga un talento (árbol de clase o de especialización). Las activas de talento ocupan su categoría natural; las del árbol de especialización pueden ir también en `3`. Todas las gastadoras de la fila «Gastadora» pueden ir en `rmb` **o** en `2`.
+
+### 1.4 Qué gana cada clase con la ranura `2` flexible
+
+| Clase | Combinación ofensiva (gastadora en `2`) | Combinación defensiva | Por qué es una decisión real |
+|---|---|---|---|
+| **Maga** | **Piromante**: Bola de Fuego (`rmb`, 1,5 s) + **Meteoro** (`2`, 7 s) + Llamarada (`3`, 8 s): tres enfriamientos que entrelazar con el Calor (Ignición Total abarata el Meteoro). **Crionte**: Nova de Hielo + Lanza de Hielo; congelar y astillar. **Arcanista**: Rayo + Misiles Arcanos (`2`) con Orbe en `3`; la ráfaga entera de Cargas | Armadura de Hielo, Barrera de Maná o Inversión del Tiempo | La Maga es la clase más frágil: llevar dos gastadoras significa vivir de la esquiva y de Parpadeo. Es la build de quien juega bien |
+| **Guerrero** | **Berserker**: Hendidura (`rmb`) + Torbellino (`2`); un golpe frontal y un giro, sin defensivo, lo que encaja con Sed (perder vida llena el indicador). **Cruzado**: Veredicto Final (`rmb`) + Martillo de Guerra (`2`), que genera Fervor sin esperar muertes. **Guardián**: Martillo + Terremoto (control), solo para quien juega solo en dificultad baja | Piel de Hierro, Segundo Aliento, Bramido o Provocación | La Furia por daño recibido premia al que se expone: la combinación ofensiva del Berserker es su fantasía, y la del Guardián es una trampa intencionada (su métrica de rol se mide con defensa) |
+| **Arquera** | **Tiradora**: Flecha Múltiple (`rmb`) + Lluvia de Flechas (`2`); hordas a dos niveles. **Francotiradora**: Flecha Perforante (`rmb`) + Disparo Apuntado (`2`), y deja `3` para Visión Certera. **Montaraz**: Lluvia de Flechas con Abrojos en `2` + Trampa en `3` | Bomba de Humo, Red de Caza, Camuflaje o Disparo Conmocionante | La Energía no da para gastar dos gastadoras sin pausa, así que la ofensiva exige más ritmo. La Francotiradora libera `3` para su buff de 90 s, otra forma de ráfaga |
+
+Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una conserva su enfriamiento. **No hay una tercera gastadora**: `k3` solo admite las gastadoras de *especialización*.
+*Por qué:* así la ranura de especialización sigue siendo identitaria.
 
 ---
 
@@ -77,9 +101,9 @@
 
 | | **Furia** (Guerrero) | **Maná** (Maga) | **Energía** (Arquera) |
 |---|---|---|---|
-| Máximo | **100** fijo (+talentos/equipo planos) | **100 + 2·Energía(atrib.) + 3·(nivel−1)** → ≈145 en Nv1, ≈260 en Nv50 sin equipo, 350–450 con equipo | **60** fijo (+6/rango de Carcaj Profundo; equipo hasta +20). **No** escala con el atributo Energía |
+| Máximo | **100** fijo (+talentos/equipo planos) | **100 + 2·Energía(atrib.) + 3·(nivel−1)** → ≈145 en Nv1, ≈260 en Nv50 sin equipo, 350–450 con equipo | **60** fijo (+6/rango de Carcaj Profundo; equipo hasta +20). **No** escala con ningún atributo |
 | Al empezar o cargar | 0 | lleno | lleno |
-| Regeneración pasiva | **0** | **2,5/s** × (1 + Energía·0,02) ≈ 3,6/s en Nv1 (`combat-math.resourceRegen`) | **6/s** × (1 + Energía·0,02) ≈ 7/s |
+| Regeneración pasiva | **0** | **2,5/s** × (1 + Energía·0,02) ≈ 3,6/s en Nv1 (`combat-math.resourceRegen`) | **6/s plana** + stat `energyRegen` (talentos y equipo, tope +4/s). **No** usa el atributo Energía |
 | Generación por básico | Tajo **+10** (+2 por objetivo extra, máx. +16) · Mandoble **+14** · Embate **+7** (+2/extra, máx. +15). Solo al acertar | **+3** (Toque Gélido +4). «Casi no genera» | **+5** al acertar |
 | Generación por daño recibido | **+1 por cada 2 % de vida máx. perdida** (tras mitigar), tope 12/s | — | — |
 | Pérdida | tras **4 s** sin golpear ni recibir daño: **−12/s** | — | — |
@@ -91,15 +115,17 @@
 **Por qué cada uno:**
 - *Furia*: el guerrero se gana el combate en primera línea. Que el daño recibido genere recurso hace que el tanque tenga más recurso cuanto más le pegan (fantasía de Guardián) y castiga el «kiteo» melee. La pérdida fuera de combate impide almacenarla.
 - *Maná*: ahora es un **pozo de ráfaga**. La Maga abre con 6–8 hechizos y luego administra. El límite real lo ponen los enfriamientos cortos de sus gastadoras (gestionar enfriamientos es su identidad), no esperar a que se rellene una barra. Que el básico casi no genere evita el bucle «dardo, bola, dardo» de hoy.
-- *Energía*: un **pozo chico que vuelve rápido** da ritmo de ráfagas cortas (gastar 3, respirar 2 s). Que no escale con el atributo Energía deshace la confusión de nombres y la equivalencia Maná ≈ Energía que señaló la auditoría.
+- *Energía*: un **pozo chico que vuelve rápido** da ritmo de ráfagas cortas (gastar 3, respirar 2 s). Regeneración plana y máximo fijo: ni el máximo ni la regeneración leen el atributo Energía. Así se deshace la confusión de nombres y la equivalencia Maná ≈ Energía que señaló la auditoría.
+- **Atributo Energía**: **solo** tiene efecto de recurso en la Maga (máximo y regeneración de Maná). `resources.js` llama `resourceRegen(base, ene)` con `ene` solo si `res.id === 'mana'`; si no, con 0. Para el Guerrero y la Arquera el atributo no aporta recurso, y la ficha lo indica con una nota gris («sin efecto en tu clase»). Darle un uso a ese atributo en esas clases queda para el paso de itemización y atributos.
+  *Por qué:* es coherente y simple. Hoy un punto de Energía da recurso a las tres clases y eso, justamente, igualaba Maná y Energía.
 
-**Objetivo de sostenido** (rotación base sin especialización, contra un objetivo): **1,7–2,0 WD/s en las tres clases (±10 %)**. Fracción de acciones que son gastadoras: Guerrero ≈ 20–30 % (sube si recibe daño), Maga ≈ 45 % los primeros 18 s y ≈ 30 % después, Arquera ≈ 25–30 %. El banco lo verifica (§7).
+**Objetivo de sostenido** (rotación base sin especialización, contra un objetivo): **1,7–2,0 WD/s en las tres clases (±10 %)**. Fracción de acciones que son gastadoras: Guerrero ≈ 20–30 % (sube si recibe daño), Maga ≈ 45 % los primeros 18 s y ≈ 30 % después, Arquera ≈ 25–30 %. Con una segunda gastadora en `2`, el objetivo es **+15–25 %** sobre esa cifra (la Maga, más cerca del +25 %, porque su límite eran los enfriamientos y no el recurso). El banco lo verifica (§7).
 
 **Mecánicas propias de cada especialización** (indicador secundario sobre la barra de habilidades, como `CALOR · PIROMANTE` en el mockup del HUD). Viven en `js/spec-mechanics.js` (puro):
 
 | Especialización | Indicador | Cómo se llena | Qué hace |
 |---|---|---|---|
-| Berserker | **Sed** 0–100 | +1 por 1 % de vida perdida · +2 por tic de Sangrado (máx. 10/s) · +4 por enemigo golpeado por Remolino (nodo s4, máx. 20 por uso) · +2 por crítico (Instinto Asesino) | Al llegar a 100: **Sed Saciada** 6 s, que activa el multiplicador `m_berserk` ×1,25 aunque tengas la vida alta; luego vuelve a 0. Con Sangre Hirviente (s14): **Desenfreno** 8 s (+30 % de velocidad de ataque y +1 % de vida por golpe). Baja −8/s tras 4 s fuera de combate |
+| Berserker | **Sed** 0–100 | +1 por 1 % de vida perdida · +2 por tic de Sangrado (máx. 10/s) · +4 por enemigo golpeado por Remolino (nodo s4, máx. 20 por uso) · +2 por crítico (Instinto Asesino) | Al llegar a 100: **Sed Saciada** 6 s, que activa el multiplicador `m_berserk` ×1,25 aunque tengas la vida alta; luego vuelve a 0. Con Sangre Hirviente (s14): **Desenfreno** 8 s (+30 % de velocidad de ataque y +1 % de vida por golpe; es cura al golpear y pasa por la cubeta de sustento, §6.1). Baja −8/s tras 4 s fuera de combate |
 | Guardián | **Bastión** 0–5 cargas | +1 por bloqueo · +2 por Grito Desafiante (s4) · +1 si Martillo golpea a 3 o más (s7) | −2 % de daño recibido por carga (s17). Muro de Escudos las gasta. Se pierde 1 carga cada 6 s sin ganar ninguna |
 | Cruzado | **Fervor** 0–3 | +1 por muerte con Juicio · +1 cada 3 impactos de Martillo de Guerra · +15 %/rango por impacto (s12) · +1 al lanzar Aura de Devoción (s4) | Veredicto Final gasta 3. Ascensión (x3) hace que no se gaste |
 | Piromante | **Calor** 0–100 | +5 por golpe de Fuego que aplica Quemadura · +25 por Llamarada (s4) · ×2 durante Combustión | A 100: **Ignición Total**: la siguiente Bola de Fuego o Meteoro cuesta 0 y es crítico seguro; vuelve a 0. Baja −10/s tras 3 s |
@@ -132,11 +158,11 @@
 | `g_tajo` | Tajo | C | lmb | basic melee area | **+10** (+2/extra) | cadencia 1,0 s | 1,0 objetivo + 0,5 adyacentes (≤2 m) | — | 0 / 0,6× cadencia | Guardián | `basicCleave` / `hit` |
 | `g_mandoble` | Mandoble | R | lmb | basic melee | **+14** | cadencia ×1,5 | **1,5** | Golpe único. *Antes 2,12 WD/s gratis; ahora 1,0 WD/s* | **120 ms** | Berserker (c5A, s6B, s7) | `meleeHit` grande / `hit`+`crit` |
 | `g_embate` | Embate | R | lmb | basic melee area | **+7** (+2/extra, máx. 15) | cadencia ×1,1 | 0,6 × todos en r 2,5 | — | 0 | hordas; c5B | anillo / `hit` |
-| `torbellino` | Torbellino | R | rmb | spender melee area | 25 | — | **1,6** × todos r 2,9 | Giro instantáneo | 0 / 0,3 s | Berserker (s3, s10, s16), c9 | aura de giro / `dash` |
-| `g_hendidura` | Hendidura | R | rmb | spender melee cone | 30 | — | **2,6** cono 120° 4,5 m | Golpe frontal pesado (ya no es otro Torbellino) | **120 ms** | Berserker (s3, s10) | arco rojo / `hit` |
-| `g_martillo` | Martillo de Guerra | R | rmb | spender melee area | 30 | — | **2,4** r 3 delante (alcance 2,5) | Genera Fervor (1 cada 3 impactos) o Bastión (s7) | **150 ms** | Guardián, Cruzado | onda + polvo / `hit` grave |
-| `terremoto` | Terremoto | R | rmb | spender line cc | 35 | 6 s | **3,0** en línea 8×2 m | Aturde **0,75 s** a los no jefes; en jefes suma 20 de stagger | **150 ms** | Guardián (s10) | grieta en el suelo / temblor |
-| `g_lanza` | Lanza Arrojadiza | C | rmb | spender proj | 20 | — | **1,9** perforante | Opción a distancia para voladores o lanzadores | 0 / 0,3 s | todas | `shoot` |
+| `torbellino` | Torbellino | R | rmb/k2 | spender melee area | 25 | — | **1,6** × todos r 2,9 | Giro instantáneo | 0 / 0,3 s | Berserker (s3, s10, s16), c9 | aura de giro / `dash` |
+| `g_hendidura` | Hendidura | R | rmb/k2 | spender melee cone | 30 | — | **2,6** cono 120° 4,5 m | Golpe frontal pesado (ya no es otro Torbellino) | **120 ms** | Berserker (s3, s10) | arco rojo / `hit` |
+| `g_martillo` | Martillo de Guerra | R | rmb/k2 | spender melee area | 30 | — | **2,4** r 3 delante (alcance 2,5) | Genera Fervor (1 cada 3 impactos) o Bastión (s7) | **150 ms** | Guardián, Cruzado | onda + polvo / `hit` grave |
+| `terremoto` | Terremoto | R | rmb/k2 | spender line cc | 35 | 6 s | **3,0** en línea 8×2 m | Aturde **0,75 s** a los no jefes; en jefes suma 20 de stagger | **150 ms** | Guardián (s10) | grieta en el suelo / temblor |
+| `g_lanza` | Lanza Arrojadiza | C | rmb/k2 | spender proj | 20 | — | **1,9** perforante | Opción a distancia para voladores o lanzadores | 0 / 0,3 s | todas | `shoot` |
 | `embestida` | Embestida | C | k1 | movement melee area | gen **+12** si golpea | 8 s | 1,2 r 1,9 al llegar | Embiste 7 m | 0 / 0,25 s | Berserker, c11 | estela / `dash` |
 | `g_salto` | Salto Devastador | R | k1 | movement area cc | — | 12 s | **1,8** r 3,2 | **Ahora sí te mueve** (8 m al cursor, 0,45 s en el aire, intocable). Ralentiza 40 % 2 s | 0 / 0,45 s | Berserker, Guardián, c11 | caída + anillo / `hit` grave |
 | `g_piel` | Piel de Hierro | N | k2 | defense buff | — | 25 s | — | **−30 % de daño recibido** (saco `dr`, tope 50) 6 s; inmune a ralentizaciones | 0 | todas (Nv6) | brillo metálico / `equip` |
@@ -152,7 +178,7 @@
 | `g_t_muro` | Muro de Escudos | T (s9) | k3/k2 | spec defense | gasta todo el Bastión | 25 s | — | −10 % de daño por carga durante 8 s (máx. −50 %, saco `dr`); Venganza (x2) devuelve un % | 0 | Guardián | domo de escudos / `equip` |
 | `g_t_carga` | Carga de Escudo | T (s13B) | k1 | movement cc | — | 14 s | 1,0 | Cargas 8 m arrastrando enemigos y los aturdes 1,5 s | 0 / 0,35 s | Guardián | estela azul / `dash` |
 | `g_t_devocion` | Aura de Devoción | T (**s0** Cruzado) | k3 | spec aura heal ally holy | — | 30 s | — | Grupo a 15 m durante 8 s: **2 % de vida/s** y +30 de armadura; +1 Fervor (s4) | 0 | **Cruzado (insignia)** | círculo sagrado / campana (nuevo `holy`) |
-| `g_t_veredicto` | Veredicto Final | T (s9) | rmb/k3 | spec spender cone holy heal | **3 Fervor** | — | **3,0** cono 6 m | Cura al grupo el 25 % del daño hecho (+10 %/rango de Gracia) | **120 ms** | Cruzado | martillo de luz / `crit` |
+| `g_t_veredicto` | Veredicto Final | T (s9) | rmb/k2/k3 | spec spender cone holy heal | **3 Fervor** | — | **3,0** cono 6 m | Cura al grupo el 25 % del daño hecho (+10 %/rango de Gracia) | **120 ms** | Cruzado | martillo de luz / `crit` |
 | `g_t_justicia` | Martillo de Justicia | T (s13B) | k2 | utility proj cc holy | — | 15 s | 1,2 | Aturde 3 s (jefes: 1,5 s **y** +30 de stagger) | 0 | Cruzado | martillo arrojado / `hit` |
 | `g_u_furia` | Furia Inmortal | R | k4 | ultimate buff | — | **60 s** | ≈ **12–14 WD** equivalentes | 10 s: gastadoras a coste 0, +30 % de velocidad de ataque, imparable | 0 | Berserker | aura de fuego / rugido |
 | `g_u_cataclismo` | Cataclismo | R | k4 | ultimate area holy | — | **50 s** | 6 impactos × **3,5** en 3 s, r 3 (**21 WD** en el centro) | Telegrafía de 0,4 s por impacto | 150 ms | Cruzado (s16) | meteoros de luz / `fire` grave |
@@ -167,12 +193,12 @@
 | `m_dardo` | Dardo Arcano | C | lmb | basic proj | **+3** | cadencia 1,1 s | 1,0 | +1 Carga Arcana (Arcanista). Con Carámbanos (Crionte s7) pasa a Escarcha y suma 1 capa | 0 | Arcanista, Crionte | dardo violeta / `bolt` |
 | `m_ascua` | Ascua | N | lmb | basic proj area fire | **+3** | 1,1 s | 0,75 + 0,3 salpicadura r 1,5 | Aplica Quemadura con Ignición (s0) | 0 | Piromante | ascua / `fire` |
 | `m_toque` | Toque Gélido | N | lmb | basic cone frost cc | **+4** | 1,1 s | 0,7 × todos en cono 70° 4 m | Ralentiza 20 % 1,5 s; +1 capa | 0 | Crionte | vaho helado / `ice` |
-| `bola_fuego` | Bola de Fuego | C | rmb | spender proj area fire | 18 | **1,5 s** | **2,2** + 1,0 r 2 | Explota al impactar (daño en el impacto, no al lanzar) | lanzamiento 0,3 s | Piromante (s2) | bola + estallido / `fire` |
-| `rayo` | Rayo | C | rmb | spender proj arcane | 20 | **2,2 s** | **2,8** perforante | Consume Cargas: +35 % aditivo y +5 de maná por carga | 0 / 0,3 s | Arcanista (s2, s10, x1) | `spawnBeam` / `bolt` |
-| `nova_hielo` | Nova de Hielo | C | rmb | spender area frost cc | 25 | **4 s** (antes 6) | 1,4 r 3,3 | +2 capas; ralentiza 30 % 3 s | 0 | Crionte (s2, s6, s11, s16, x1) | anillo de hielo / `ice` |
-| `meteoro` | Meteoro | C | rmb | spender area fire | 40 | **7 s** | **5,0** r 3 | **Impacta a 0,6 s** (el daño llega con la bola, no antes); charco con Pira (s7) | telegrafía 0,6 s | Piromante (s7, s10) | caída + cráter / `fire` |
-| `k_lanza` | Lanza de Hielo | T (s9 Crionte) | rmb/k3 | spec spender proj frost | 22 | 6 s | **2,5** perforante | ×3 a los Congelados y los astilla; estallido de 3 m | 0 | Crionte | lanza cristalina / `ice` |
-| `a_misiles` | Misiles Arcanos | T (s6A Arcanista) | rmb/k3 | spec spender channel | 30 | — | 6 × **0,7** en 2 s (4,2) | +1 % de maná por misil. **Int.** | canalización 2 s | Arcanista | misiles / `bolt` ×6 |
+| `bola_fuego` | Bola de Fuego | C | rmb/k2 | spender proj area fire | 18 | **1,5 s** | **2,2** + 1,0 r 2 | Explota al impactar (daño en el impacto, no al lanzar) | lanzamiento 0,3 s | Piromante (s2) | bola + estallido / `fire` |
+| `rayo` | Rayo | C | rmb/k2 | spender proj arcane | 20 | **2,2 s** | **2,8** perforante | Consume Cargas: +35 % aditivo y +5 de maná por carga | 0 / 0,3 s | Arcanista (s2, s10, x1) | `spawnBeam` / `bolt` |
+| `nova_hielo` | Nova de Hielo | C | rmb/k2 | spender area frost cc | 25 | **4 s** (antes 6) | 1,4 r 3,3 | +2 capas; ralentiza 30 % 3 s | 0 | Crionte (s2, s6, s11, s16, x1) | anillo de hielo / `ice` |
+| `meteoro` | Meteoro | C | rmb/k2 | spender area fire | 40 | **7 s** | **5,0** r 3 | **Impacta a 0,6 s** (el daño llega con la bola, no antes); charco con Pira (s7) | telegrafía 0,6 s | Piromante (s7, s10) | caída + cráter / `fire` |
+| `k_lanza` | Lanza de Hielo | T (s9 Crionte) | rmb/k2/k3 | spec spender proj frost | 22 | 6 s | **2,5** perforante | ×3 a los Congelados y los astilla; estallido de 3 m | 0 | Crionte | lanza cristalina / `ice` |
+| `a_misiles` | Misiles Arcanos | T (s6A Arcanista) | rmb/k2/k3 | spec spender channel | 30 | — | 6 × **0,7** en 2 s (4,2) | +1 % de maná por misil. **Int.** | canalización 2 s | Arcanista | misiles / `bolt` ×6 |
 | `m_paso_escarcha` | Paso de Escarcha | N | k1 | movement frost | — | 10 s | — | Desliza 6 m; estela de 3 s que ralentiza 40 % y suma 1 capa | 0 / 0,2 s | Crionte | estela helada / `dash` |
 | `m_estela_ignea` | Estela Ígnea | N | k1 | movement fire zone | — | 10 s | 0,4/s durante 3 s | Desliza 6 m dejando fuego | 0 / 0,2 s | Piromante | estela de fuego / `dash` |
 | `m_t_parpadeo` | Parpadeo | T (c3) | k1 | movement | — | 15 s | — | Teletransporte de 8 m al cursor (instantáneo; atraviesa enemigos, no muros) | 0 | todas | destello / `portal` |
@@ -204,10 +230,10 @@
 | `a_disparo` | Disparo Rápido | C | lmb | basic proj | **+5** | cadencia 0,9 s | 1,0 | — | 0 | Francotiradora | flecha / `shoot` |
 | `a_disperso` | Disparo Disperso | N | lmb | basic proj area | **+5** | 0,9 s | 3 × 0,45 en 25° | — | 0 | Tiradora | 3 flechas / `shoot` |
 | `a_cicuta` | Flecha de Cicuta | N | lmb | basic proj nature dot | **+5** | 0,9 s | 0,7 + Veneno 0,5 en 4 s | — | 0 | Montaraz | flecha verde / `shoot` |
-| `flecha_perforante` | Flecha Perforante | R | rmb | spender proj | 20 | — (antes 3 s) | **2,2** perforante | — | 0 / 0,35 s | Francotiradora (s3), Montaraz (s10), c9 | flecha pesada / `shoot` grave |
-| `flecha_multiple` | Flecha Múltiple | R | rmb | spender proj area | 22 | — (antes 2,5 s) | 5 × **0,7** en 50° (≈1,5 a un objetivo pegado) | — | 0 / 0,35 s | Tiradora (s3, s6, s7, s15), Montaraz (s5) | abanico / `shoot` ×3 |
-| `lluvia_flechas` | Lluvia de Flechas | C | rmb | spender area | 30 | **4 s** | **3,0** total en 1,5 s, r 3 | Abrojos con Montaraz s3 | telegrafía 0,3 s | Tiradora (s10), Montaraz (s3) | lluvia / `shoot` |
-| `a_t_apuntado` | Disparo Apuntado | T (**s0** Francotiradora) | rmb/k3 | spec spender proj | 30 | 6 s | **3,8** perforante | Carga 1 s (cancelable; **instantáneo** con Concentración 100 y s4) | carga 1 s | **Francotiradora (insignia)** | rayo de luz / `crit` |
+| `flecha_perforante` | Flecha Perforante | R | rmb/k2 | spender proj | 20 | — (antes 3 s) | **2,2** perforante | — | 0 / 0,35 s | Francotiradora (s3), Montaraz (s10), c9 | flecha pesada / `shoot` grave |
+| `flecha_multiple` | Flecha Múltiple | R | rmb/k2 | spender proj area | 22 | — (antes 2,5 s) | 5 × **0,7** en 50° (≈1,5 a un objetivo pegado) | — | 0 / 0,35 s | Tiradora (s3, s6, s7, s15), Montaraz (s5) | abanico / `shoot` ×3 |
+| `lluvia_flechas` | Lluvia de Flechas | C | rmb/k2 | spender area | 30 | **4 s** | **3,0** total en 1,5 s, r 3 | Abrojos con Montaraz s3 | telegrafía 0,3 s | Tiradora (s10), Montaraz (s3) | lluvia / `shoot` |
+| `a_t_apuntado` | Disparo Apuntado | T (**s0** Francotiradora) | rmb/k2/k3 | spec spender proj | 30 | 6 s | **3,8** perforante | Carga 1 s (cancelable; **instantáneo** con Concentración 100 y s4) | carga 1 s | **Francotiradora (insignia)** | rayo de luz / `crit` |
 | `a_paso` | Paso Veloz | N | k1 | movement | — | 9 s | — | Rueda 6 m en la dirección de movimiento; +20 % de velocidad de ataque 3 s | 0 / 0,2 s | todas (Nv4) | polvo / `dash` |
 | `agilidad` | Agilidad | R | k1 | movement buff | — | 16 s | — | 6 s: +30 % de velocidad de movimiento, +15 % de velocidad de ataque e inmune a ralentizaciones | 0 | Tiradora (s5), c11 | viento / `dash` |
 | `a_t_voltereta` | Voltereta | T (c2) | k1 | movement | — | 12 s | — | 6 m hacia atrás; el siguiente disparo no cuesta Energía | 0 / 0,25 s | todas | voltereta / `dash` |
@@ -227,7 +253,7 @@
 | `a_t_vision` | Visión Certera | T (s9) | k3 | spec buff | — | 90 s | — | 12 s: moverse no vacía la Concentración, +25 % de velocidad de ataque y Disparo Apuntado se recarga un 50 % más rápido | 0 | Francotiradora | ojo dorado / `crit` |
 | `a_u_diluvio` | Diluvio de Saetas | R | k4 | ultimate area | — | **50 s** | **20 WD** por objetivo en 4 s, r 5 | Telegrafía | 150 ms | Tiradora (s16) | diluvio / `shoot` masivo |
 | `a_u_celeste` | Tiro Celestial | N | k4 | ultimate proj | — | **50 s** | 3 disparos × **7,0** perforantes en 8 s (**21**) | Cada disparo, a voluntad (reutilizar la tecla) | carga 0,3 s | Francotiradora | haz celeste / `crit` |
-| `a_u_zarzas` | Cerco de Zarzas | N | k4 | ultimate zone cc nature | — | **55 s** | Veneno 1,0/s × 8 s (8) + control | Anillo r 7 durante 8 s: cruzarlo **inmoviliza 1,5 s**; dentro, +15 % de daño recibido (saco Expuesto) | 0 | Montaraz | zarzas / crujido |
+| `a_u_zarzas` | Cerco de Zarzas | N | k4 | ultimate zone cc nature | — | **55 s** | Veneno 1,0/s × 8 s (8) + control | Anillo r 7 durante 8 s: cruzarlo **inmoviliza 1,5 s**; dentro, +15 % de daño recibido (saco Debilidad) | 0 | Montaraz | zarzas / crujido |
 
 **Eliminada**: `a_p_punteria` (pasiva). Francotiradora s12 «+1 a Puntería» pasa a «+1 a Disparo Apuntado».
 
@@ -249,6 +275,7 @@
   - `rangoBase = clamp(1 + ⌊(nivel − req)/8⌋, 1, 5)`. Las activas de talento usan `req = 10`, lo que unifica el `talentSkillBase` de `talents.js`.
   - Tope práctico: 5 de base + 2 de talento + 2 de equipo = **9** (+80 % de coeficiente).
 - **Puntos de habilidad**: siguen siendo 19 (1 por nivel de Nv2 a Nv20) y **solo desbloquean mini‑ramas** (1 punto por rama; luego se cambia de opción gratis, como hoy). Con 5 ranuras con ramas × 3 = 15 ramas, sobran 4 para experimentar con habilidades alternativas.
+- **Recalibración obligatoria**: el banco del Paso 1A daba al héroe «típico» **rangos comprados** (rotación con puntos repartidos por `ROT`) y sinergias. El rango por nivel y la desaparición de sinergias cambian el daño de cada habilidad. Por eso la **etapa 2b no se cierra hasta que `balance-bench` vuelve a estar en verde con sus objetivos del Paso 1A**, y la recalibración se hace **solo sobre los coeficientes, costes y enfriamientos del catálogo §3** (`skills-*.js`). **No se tocan** `ENEMY_CURVE`, `bossHpMult`, `eliteHpMult` ni `tormentMods`, que quedan congeladas desde el Paso 1A. El cierre incluye una **tabla antes/después** en `MEMORIA.md` (TTK común/élite/jefe y TTD por clase y nivel, típico y óptimo), como la del Paso 1A.
 - **Las sinergias se eliminan**: dependían de comprar rangos de otras habilidades; los talentos `mod`/`elem` cumplen ese papel.
 - **Reespecializar ramas y talentos es gratis fuera de combate** (tras 5 s sin daño o en un campamento). Se eliminan `respecCost` y `masteryRespecCost`.
 - *Por qué:* la auditoría encontró 19 puntos para más de 129 rangos, con los rangos 2–5 como trampa (+18 % por punto frente a una rama que cambia la habilidad). Que el rango venga del nivel garantiza que ninguna habilidad «se quede atrás». Los puntos se gastan en decisiones cualitativas (estilo D4 Lord of Hatred, donde las mejoras cambian tags y comportamiento) y el árbol de talentos cubre lo cuantitativo. La reespecialización gratuita sigue el modelo de WoW Midnight: experimentar es parte del juego, no un castigo en oro.
@@ -299,7 +326,7 @@ Se sustituye `types:[…]` por `requires` y `forbids` sobre tags:
 | Eficiente | coste > 0 | | |
 | Raudo | enfriamiento > 0 | `ultimate` | |
 
-Huecos de engarce: `lmb` 1, ranuras 1–3 2, `k4` 1. Al migrar, un soporte que deja de ser compatible se **desengarza** (sigue en `knownSupports`).
+Huecos de engarce: `lmb` 1; `rmb`, `k1`, `k2` y `k3` 2; `k4` 1. Los soportes van **con la habilidad**, no con la ranura: una gastadora movida de `rmb` a `2` conserva los suyos. Al migrar, un soporte que deja de ser compatible se **desengarza** (sigue en `knownSupports`).
 *Por qué tags:* es el modelo de PoE2. El soporte declara qué necesita y cualquier habilidad nueva (las 42 de talento) es compatible sin tocar la lista de soportes.
 
 ### 4.4 GCD, windup e impacto sincronizado
@@ -367,7 +394,7 @@ export const GUERRERO_TALENTS = {
 | Montaraz s5 | `slow:10` | `slowPct:10, slow:3` | idem |
 | Montaraz s6B | `radius:3` (m) | `radius:100` (% → 3 m sobre la base de 1,5) | `radius` es un % |
 | Montaraz s6A, s16 | `stun` | `root` | inmovilizar ≠ aturdir (rendimientos decrecientes distintos) |
-| Montaraz s17 | `mod.a_t_cepo.vuln:10` | `tv.rootedExposed:10` | `vuln` está en segundos; es un debuff de grupo |
+| Montaraz s17 | `mod.a_t_cepo.vuln:10` | `tv.rootedWeak:10` | `vuln` está en segundos; es un debuff de grupo |
 | Clase Arquera c11 / Tiradora s5 | `agilidad.dur:1` | `durS:1` | `dur` es un % |
 | Clase Arquera c14 / clase Maga c14 | `costRed` con umbral | `costRedBig:{pct:15, over:15|20}` | Disciplina de Combate (c6 Guerrero) es incondicional |
 | Francotiradora s12 | `a_p_punteria` | `a_t_apuntado` | pasiva eliminada |
@@ -433,7 +460,7 @@ export const GUERRERO_TALENTS = {
 
 ### 5.3 Claves `tv`, `power` y `grant` que necesitan código nuevo (lista exhaustiva)
 
-`talents.js` agrega, pero **nada consume todavía** sus salidas. Hooks:
+`talents.js` agrega, pero **nada consume todavía** sus salidas. **Todo poder se implementa como una entrada `PowerDef` del registro de §9.1**; las siglas de abajo corresponden a los puntos de despacho ①–⑩ de §9.1.2 (R=①, RS=②, RD=③, ET=④, OH=⑤, OK=⑥, CS=⑦, PT=⑧, PU=⑨; ENT = registro de campos). Hooks:
 - **R** = `Player.recompute`
 - **RS** = `resolveSkill`
 - **RD** = `Player.rollDamage(…, target)` → nuevo `condAddPct(target)`
@@ -448,7 +475,13 @@ export const GUERRERO_TALENTS = {
 **Sacos de `combat-math`:**
 - **A** = ADITIVO (incluye `critDmg`)
 - **×** = Π[×] (`registerMultiplier`)
-- **EXP** = **Expuesto**: Vulnerable se generaliza en un saco del objetivo, `1 + (Vulnerable 20 + Σ debuffs)/100`, **tope ×1,5**
+- **DEB** = **Debilidad**: es **el mismo saco** que el Vulnerable del Paso 1A, renombrado y ampliado. No hay un multiplicador aparte.
+  - Fórmula: `DEB = min(1,5; 1 + (V + Σd)/100)`.
+  - `V` = 20 si el objetivo está Vulnerable (bandera, no se acumula); el estado Quebrantado aplica Vulnerable y no suma por separado.
+  - `Σd` = suma **aditiva** de los debilitamientos activos sobre el objetivo, por fuente única: Sentencia +20, Glaciación +8/rango, Espinas Venenosas +10/rango, Singularidad +15 por acumulación (máx. 2), Cerco de Zarzas +15, Punto Débil 0 (da crítico, no Debilidad).
+  - Tope total: **×1,5**.
+  - En `combat-math`: `VULN_MULT` se sustituye por `weaknessMult(v, sumDebuffs)`, con `WEAKNESS_CAP = 1.5`. `Enemy.takeDamage` lo aplica donde hoy aplica `VULN_MULT`.
+  - *Por qué:* un segundo saco multiplicativo reabriría la inflación que cerró el Paso 1A (×1,2 × ×1,5 = ×1,8). Con un solo saco con tope, el ejemplo peor de Montaraz (V 20 + Espinas 20 + Zarzas 15 = 55) queda en ×1,5.
 - **DR** = reducción de daño (tope 50)
 - **DoT** = multiplicador interno del DoT
 - **—** = no es daño
@@ -472,15 +505,15 @@ export const GUERRERO_TALENTS = {
 | `costRed`, `costRedBig` | RS | — | |
 | `bleedPct`, `poisonPct`, `burnPct`, `dotPct` | perfil central de DoT (`dotProfile`) | DoT | |
 | `dotDur`, `burnDur` | `dotProfile` | — | +s con el mismo daño por segundo |
-| `killHeal`, `burnKillHeal` | OK | — | cura % de vida (Cruzado: también aliados, `g_luz_sanadora`) |
+| `killHeal`, `burnKillHeal` | OK | — | % de vida por **sustento** (cubeta compartida, §6.1). Cruzado: también a los aliados (`g_luz_sanadora`) |
 | `manaOnKill`, `burnKillMana` | OK | — | recurso de clase |
 | `executePct` | ET | — / A | no jefes: remate; élites y jefes: +40 % aditivo bajo el umbral |
 | `shatterPct` | ET | — | astillar Congelados |
 | `fervorChance` | OH | — | Martillo |
 | `verdictHeal` | CS | — | Veredicto |
 | `frostLayers` | OH | — | capas extra de Nova |
-| `fieldVuln` | ET | EXP | dentro del campo helado |
-| `rootedExposed` | ET | EXP | inmovilizados |
+| `fieldVuln` | ET | DEB | dentro del campo helado |
+| `rootedWeak` | ET | DEB | inmovilizados |
 | `focusRate`, `focusEnergy` | PU | — | Concentración |
 | `galeHeal` | PU | — | al llenar el Impulso |
 | `clarityPct` | CS | — | Rayo gratis |
@@ -495,7 +528,7 @@ export const GUERRERO_TALENTS = {
   - Auras de clase `g_aura_hermandad`, `m_aura_intelecto` y `a_aura_halcon`. En solitario dan su parte propia; cada una es un buff `aura` con radio 15. La parte de recurso de Hermandad, +5 % de Furia por aliado, es 0 en solitario.
   - Escarcha: `k_frost_armor`, `k_numb`.
   - Otros: `f_perch`, `a_manaskin`, `g_muralla_viva`, `g_mano_sanadora`, `a_tailwind`, `t_slipstream`, `m_warden`.
-- **ET**: `m_shatter`, `f_overpen`, `a_singularity` (EXP +15 ×2), `g_sentencia` (EXP +20 contra élites y jefes), `f_weakspot` (crítico +15 para el grupo), `a_sello` (acumula el 25 %).
+- **ET**: `m_shatter`, `f_overpen`, `a_singularity` (DEB +15 ×2), `g_sentencia` (DEB +20 contra élites y jefes), `f_weakspot` (crítico +15 para el grupo), `a_sello` (acumula el 25 %).
 - **OH**:
   - Arcano: `m_overload`, `a_chain_crit`, `a_arc_charge`, `a_overvolt`, `a_resonance`, `a_clarity`.
   - Escarcha: `k_icicle_dart`, `k_nova_push`.
@@ -517,7 +550,7 @@ export const GUERRERO_TALENTS = {
 
 **`grant`**: 42 activas (§3, estado **T**). Se registran en `CLASSES[cid].skills` con `kind:'talent'` (ya lo hace `talents.js`). `aggregateTalents().grants` alimenta `p.unlockedSkills`, que valida `assignHotbar`. Si se retira el nodo, la habilidad se desengarza de la barra.
 
-**Stats nuevas en `recompute`**: `mpPct`, `xpPct`, `threatMult`, `healPct`, `staggerPct`, `skillLv`.
+**Stats nuevas en `recompute`**: `mpPct`, `xpPct`, `threatMult`, `healPct` (tope +50, `CAPS.heal`), `staggerPct`, `skillLv`, `energyRegen` (tope +4/s).
 
 ### 5.4 Reemplazo de MASTERIES y game‑mastery.js
 
@@ -545,11 +578,40 @@ Todo se modela **sobre una lista de aliados** que hoy contiene solo al jugador: 
 | **Amenaza** | `Enemy.threat: Map(fuente → valor)`. Daño ×1, curación ×0,5 (repartida entre los enemigos en combate), × `threatMult` (Guardián ×3). El objetivo es la fuente con más amenaza; para cambiar de objetivo, la nueva debe superar el 110 % (cuerpo a cuerpo) o el 130 % (a distancia) de la actual | Sin efecto (una sola fuente), salvo el **Señuelo**, que es una fuente |
 | **Provocación** | `Enemy.forceTarget(src, t)`: objetivo forzado durante `t` y amenaza = máx. + 10 %. Los jefes **sí** se pueden provocar; sin rendimientos decrecientes | Provocación: el enemigo provocado te hace −15 %. Grito Desafiante: agrupa a la manada sobre ti, útil para el AoE |
 | **Alcance de los buffs** | `addBuff(id, stats, dur, {scope:'self'\|'party'\|'aura', radius})`. Con `party` se aplica al lanzarlo a los aliados en el radio; con `aura` se reevalúa cada 0,5 s mientras dure la fuente (estandarte, auras de clase) | Todo cae sobre ti |
-| **Curas y escudos** | `Game.heal(amount, {target:'lowest'\|'self'\|'all', radius})` y `Game.shield(…)`. «Lowest» elige al aliado con menor % de vida en el radio. Escudos: `p.shields=[{amt,t,src}]`, que se consumen **después** de mitigar y antes de la vida. Ambos escalan con `healPct` | Tú. El banco cuenta la curación efectiva (sin el exceso) |
-| **Stagger de jefes** | `Enemy.stagger` 0–100 (solo jefes, uber y jefes de mundo). El control **no se pierde**: suma stagger (aturdir 30 por s nominal, congelar 25, inmovilizar 15 por s, empujar 10, interrumpir 20, ralentizar ≥30 % 4/s, Prisión 20/35). A 100 → **Quebrantado 4 s**: aturdimiento real (ignora la resistencia) y Expuesto +20. Luego 15 s bloqueado (barra gris). Barra visible bajo la vida del jefe | Es lo que hace que Crionte y Montaraz sirvan contra jefes (hoy el aturdimiento contra jefes es ×0,35 con resistencia, desde el Paso 0) |
+| **Curas y escudos** | `Game.heal(amount, {target:'lowest'\|'self'\|'all', radius})` y `Game.shield(…)`. «Lowest» elige al aliado con menor % de vida en el radio. Escudos: `p.shields=[{amt,t,src}]`, que se consumen **después** de mitigar y antes de la vida. Hay dos familias con reglas distintas (§6.1): **sustento** (con tope por segundo) y **curación de habilidad** (escala con `healPct`) | Tú. El banco cuenta la curación efectiva (sin el exceso) |
+| **Stagger de jefes** | `Enemy.stagger` 0–100 (solo jefes, uber y jefes de mundo). El control **no se pierde**: suma stagger (aturdir 30 por s nominal, congelar 25, inmovilizar 15 por s, empujar 10, interrumpir 20, ralentizar ≥30 % 4/s, Prisión 20/35). A 100 → **Quebrantado 4 s**: aturdimiento real (ignora la resistencia) y **Vulnerable** (saco Debilidad; no se suma a otro Vulnerable). Luego 15 s bloqueado (barra gris). Barra visible bajo la vida del jefe | Es lo que hace que Crionte y Montaraz sirvan contra jefes (hoy el aturdimiento contra jefes es ×0,35 con resistencia, desde el Paso 0) |
 | **Control con rendimientos decrecientes** | Se generaliza `stunDR` a tres canales: **duro** (aturdir, congelar, empujar; +0,35 por aplicación), **inmovilizar** (+0,25) e **interrumpir** (sin rendimientos, pero los lanzadores tienen 6 s de inmunidad tras silenciarlos). Decaen 0,12/s; inmunes a partir de 0,9. **Ralentizar**: no acumula (gana el más fuerte), tope 70 % (jefes ×0,5). Los élites tienen rendimientos decrecientes normales; los jefes solo stagger | Evita el bloqueo permanente de manadas con Ventisca y Prisión |
 | **Interrupción** | Las habilidades de `enemy-abilities.js` con lanzamiento visible declaran `interruptible:true` y `castT`. Contrahechizo y Flecha Silenciadora las cancelan | Lanzadores de grieta y jefes con canalización |
 | **Imparable** | `p.unstoppableT`: inmune a control y a interrupciones de canalización | Furia Inmortal, Ira Ciega, Desgarro Arcano |
+
+### 6.1 Curación: cubeta de sustento frente a curación de habilidad
+
+Toda curación pasa por una de **dos** funciones, y nunca se escribe `hp +=` directamente fuera de ellas.
+
+**A) Sustento** (`p.sustain(amount, src)`): toda curación **disparada por un impacto o una muerte propios**. Comparte **una sola cubeta** por receptor, la del robo de vida del Paso 1A (`leechRefill`/`leechTake`): **tope de 6 % de la vida máx. por segundo**, sumando todas las fuentes. **No** escala con `healPct`.
+
+| Fuente | Tipo |
+|---|---|
+| Robo de vida de ramas (Sediento) y de talentos | % del daño infligido |
+| Vida al golpear `lph` (equipo, gemas, Sangre de Guerrero c10, Mano Sanadora s3) | plano por golpe. **Entra en la cubeta**; el Paso 1A la dejaba fuera. Cambio intencional para que la regla sea única |
+| Desenfreno (Berserker): +1 % por golpe | por golpe |
+| Veredicto Final: cura el 25 % (+10 %/rango) del daño hecho | por impacto (a cada aliado, contra **su** cubeta) |
+| Martillo Bendito: +1 % a los aliados por golpe | por impacto, a aliados |
+| Maestro de Armas, Sobrecarga Arcana, Manantial y otros efectos «de maná al golpear» | **no** son curación (son recurso; no usan la cubeta) |
+| Curas al matar: Festín (6 %), Festín de Sangre, Recuperación, Luz Sanadora, Fuego Interior (`killHeal`, `burnKillHeal`) | por muerte: también **pasan por la cubeta** (con manadas, la cura al matar se acumulaba sin límite) |
+| Segundo Aliento del Impulso (Tiradora s11, `galeHeal`) | proc de indicador: cubeta |
+
+**B) Curación de habilidad o aura** (`game.heal(amount, opts)` / `game.shield(amount, opts)`): la lanza **una acción deliberada** con enfriamiento. **No** usa la cubeta; **escala con `healPct`**, con **tope de +50 %** (`CAPS.heal = 50` en `combat-math`).
+
+| Fuente | Tipo |
+|---|---|
+| Aura de Devoción (2 %/s), Bramido de Guerra, Segundo Aliento (Furia → vida), Guardabosques (trampas, 3 %/s) | curación de habilidad o aura |
+| Pociones | curación de habilidad (escalan con `healPct`) |
+| Escudos: Intervención, Armadura de Hielo, Barrera de Maná, Bastión Eterno | escudos (escalan con `healPct`) |
+| Inversión del Tiempo, Fénix, Negación de la Muerte, Muro Inquebrantable | **restauraciones** (fijan la vida a un valor); no escalan ni usan la cubeta |
+
+Fuentes de `healPct`: innata del Cruzado +15, nodos futuros de talento o equipo. Tope +50.
+*Por qué:* el sustento ofensivo es lo que rompió el equilibrio en D3 y PoE. Con un solo tope por segundo, añadir otra fuente diversifica la build, pero no apila. La curación deliberada es la herramienta del apoyo, así que puede crecer con `healPct`, pero con tope para que el Cruzado no haga inmortal al grupo.
 
 ---
 
@@ -562,10 +624,38 @@ Todo se modela **sobre una lista de aliados** que hoy contiene solo al jugador: 
 | **UNI** | DPS contra un objetivo | Jefe de 90 s de vida, 60 s de simulación; con GCD, windup, cadencia y recurso reales |
 | **ÁREA×5** | DPS total contra 5 enemigos agrupados (r 3) | Las habilidades de área golpean a todos, los proyectiles según abanico y perforación, las cadenas a N |
 | **TTD+** | Aguante con defensas activas | Manada (campeón + 4 comunes) sin pausa; el héroe usa su defensa al enfriarse; cuentan escudos, curas, `dr`, bloqueo, Bastión y Furia por daño |
-| **APOYO** | Aporte al grupo | 2 aliados fantasma con DPS = media y vida = media. Aporte = (DPS extra de los aliados por buffs y Expuesto) / DPS de un aliado + curación y escudos efectivos en % de vida/s del grupo |
+| **APOYO** | Aporte al grupo | 2 aliados fantasma con DPS = media y vida = media. Aporte = (DPS extra de los aliados por buffs y Debilidad) / DPS de un aliado + curación y escudos efectivos en % de vida/s del grupo |
 | **CONTROL** | Tiempo de control | Contra 5 comunes: % del tiempo con control duro o inmovilizados y % con ralentización ≥30 %. Contra jefe: Quebrantados por minuto |
 
-Builds: héroe **típico** Nv50 (raros, sin soportes) **por especialización**, con el `preset` del mockup, su rotación de prioridad (tabla `ROT_SPEC`: indicador lleno → gastadora de especialización → insignia → gastadora → básico; definitiva al enfriarse) y las ranuras por defecto de §1.3.
+Builds: héroe **típico** Nv50 (raros, sin soportes) **por especialización**, con el `preset` del mockup y **dos configuraciones de la ranura `2`** (`LOADOUT_SPEC`):
+
+| Especialización | `rmb` | `2` ofensiva | `2` defensiva | `3` |
+|---|---|---|---|---|
+| Berserker | Hendidura | Torbellino | Piel de Hierro | Remolino Sangriento |
+| Guardián | Martillo de Guerra | Terremoto | Piel de Hierro | Grito Desafiante |
+| Cruzado | Veredicto Final | Martillo de Guerra | Bramido de Guerra | Aura de Devoción |
+| Piromante | Bola de Fuego | Meteoro | Armadura de Hielo | Llamarada |
+| Crionte | Nova de Hielo | Lanza de Hielo | Armadura de Hielo | Prisión de Hielo |
+| Arcanista | Rayo | Misiles Arcanos | Barrera de Maná | Orbe Arcano |
+| Francotiradora | Flecha Perforante | Disparo Apuntado | Bomba de Humo | Visión Certera |
+| Montaraz | Flecha Múltiple | Lluvia de Flechas | Red de Caza | Trampa de Cepo |
+| Tiradora | Flecha Múltiple | Lluvia de Flechas | Bomba de Humo | Andanada |
+
+**Rotación `ROT_SPEC`** (prioridad, una acción cada vez que el bloqueo lo permite):
+1. Defensa en `2` si la vida < 50 % (variante defensiva).
+2. Gasto del indicador lleno (Veredicto, Ignición Total, Muro con 5 Bastión…).
+3. Insignia de especialización.
+4. Gastadora de `2` con enfriamiento (variante ofensiva).
+5. Gastadora de `rmb`.
+6. Básico.
+
+La definitiva se usa al enfriarse.
+
+**Qué variante se usa en cada escenario**:
+- UNI, ÁREA×5, APOYO y CONTROL: la **ofensiva**.
+- TTD+: la **defensiva** (la defensa se usa al enfriarse o con vida < 50 %).
+- El Guardián se mide en **todos** los escenarios con la defensiva, porque es la que define su rol.
+- `--report` imprime ambas variantes en UNI y TTD+ para ver el intercambio.
 
 ### 7.2 Objetivos (Nv50 típico, T0)
 
@@ -589,7 +679,12 @@ Reglas transversales:
 - La definitiva aporta el **12–22 %** del daño en UNI. Fuera de ese rango, o es una trampa (como hoy, 0,15 WD/s) o es obligatoria.
 - **Básico frente a gastadoras**: en UNI, el DPS de «solo básico» ≤ **0,6×** el de la rotación. La auditoría encontró básicos que superaban a todas las gastadoras.
 - Ningún golpe ≥ 25 % de la vida del jefe (se mantiene).
-- `--report` imprime una matriz de 9 especializaciones × 5 escenarios.
+- **Intercambio de la ranura `2`**, para cada especialización salvo el Guardián:
+  - la variante ofensiva da **+12–25 %** de UNI sobre la defensiva;
+  - la defensiva da **≥ +30 %** de TTD+ sobre la ofensiva.
+  Fuera de esos rangos, una de las dos opciones es una trampa y se ajusta.
+- Los objetivos de rol de §7.2 (TTD+ ≥ 2,0·M del Guardián, suelos de TTD+) se calculan con la **variante defensiva** de todas las especializaciones. Así el tanque se compara con los demás en igualdad, porque todos llevan una defensa.
+- `--report` imprime una matriz de 9 especializaciones × 5 escenarios, con UNI y TTD+ desdoblados por variante.
 
 *Por qué:* cada rol tiene **una** métrica de ganar y suelos para jugar solo. Es la lección de los roles de WoW trasladada a un ARPG en el que, por ahora, se juega solo: el tanque debe poder matar a un jefe, pero ser el que más aguanta con diferencia.
 
@@ -609,7 +704,7 @@ Son dos versiones, una por etapa. Cada una es idempotente y opera sobre una copi
    - `lmb`: el básico que hubiera si es `basic`; si no, el de arma.
    - `rmb`: la primera gastadora que hubiera en la barra vieja; si no, la gastadora A.
    - `k1`: Embestida, Salto Devastador o Agilidad si estaban; si no, la movilidad A (Nv ≥ 4).
-   - `k2`: Provocación o Grito si estaban; si no, la defensa A (Nv ≥ 6).
+   - `k2`: Provocación o Grito si estaban; si no, la **segunda gastadora** de la barra vieja (respeta a quien jugaba con dos); si no, la defensa A (Nv ≥ 6).
    - `k4`: la definitiva vieja si estaba; si no, nada.
    - `k3`: nada hasta elegir especialización.
 4. `supports`: se desengarzan los incompatibles por tags o de habilidades eliminadas (siguen en `knownSupports`).
@@ -632,88 +727,211 @@ Son dos versiones, una por etapa. Cada una es idempotente y opera sobre una copi
 
 ## 9. Plan de implementación
 
-Las etapas van **en orden**: comparten `main.js`, `entities.js` y `ui.js`, así que no se paralelizan entre sí. Dentro de cada etapa sí se puede repartir por clase, con un trabajador por `skills-<clase>.js` o `talents-<clase>.js`. Cada etapa cierra con `npm test` en verde, subida de versión de `sw.js` y la actualización de `MEMORIA.md` y `CLAUDE.md`.
+Principio: **el juego tiene un número fijo de puntos de despacho y todo el comportamiento variable vive en registros data‑driven, en archivos por clase**. Así cada sub‑etapa «núcleo» la hace el jefe, en secuencia y sobre los archivos compartidos, y cada sub‑etapa «por clase» se reparte con un trabajador por clase que **solo toca sus propios archivos**.
 
-### 2b. Sistema de habilidades, kit y recursos
+### 9.1 Contratos de API
+
+#### 9.1.1 Registro de poderes: `js/powers.js` (puro, sin DOM)
+
+```js
+// ---- tipos (JSDoc): firmas EXACTAS que reciben los ganchos ----
+/** @typedef {{ dealt:number, raw:number, crit:boolean, skill:string|null, tags:Set<string>,
+ *   elem:string|null, proc:boolean, source:string, pos:{x:number,z:number} }} HitInfo */
+/** @typedef {{ skill:string|null, tags:Set<string>, crit:boolean, overkill:number,
+ *   status:{ frozen:boolean, bleeding:boolean, burning:boolean, poisoned:boolean,
+ *            slowed:boolean, rooted:boolean, prey:boolean, weakened:boolean } }} KillInfo */
+/** @typedef {{ amount:number, raw:number, element:string, melee:boolean, blocked:boolean,
+ *   src:object|null }} DamageTaken      // `amount` es MUTABLE en onDamaged (redirección/absorción) */
+/** @typedef {{ sk:object, prof:object, slot:string, target:{x:number,z:number}|null,
+ *   enemy:object|null }} CastInfo */
+/** @typedef {{ hits:number, dealt:number, killed:number }} CastResult */
+
+export const POWER_HOOKS = {};               // id → PowerDef (congelado tras definir)
+export function definePower(id, def) {}      // lanza si el id está repetido o si hay una clave desconocida
+export function registerPowers(map) {}       // definePower para cada entrada de un módulo de clase
+export function buildHookIndex(p) {}         // p.hookIndex[hook] = [defs activos con ese gancho] (lo llama recompute)
+export function firePower(hook, p, ...args) {} // recorre p.hookIndex[hook]; try/catch por poder (un poder roto no tumba el juego)
+export function powerState(p, id) {}         // p.powerState[id] (estado volátil, no se guarda)
+```
+
+**`PowerDef`**: todas las claves son opcionales; no se admite ninguna fuera de esta tabla.
+
+| Clave | Firma | Punto de despacho | Devuelve / efecto |
+|---|---|---|---|
+| `stats` | `(p) → {stat: valor}` | ① `recompute` | stats sumadas a su saco |
+| `mult` | `{ mult:number≤1,3, when:(c)=>bool }` | al definir → `registerMultiplier(id, …)` | Π[×]; `c = {hpFrac, targetFrac, targetSlowed, crit, p, e}` |
+| `modifyResolve` | `(p, sk, prof) → void` | ② `resolveSkill` | muta el perfil (coste, enfriamiento, tags, efectos) |
+| `condAdd` | `(p, e, hit) → number` | ③ `rollDamage` | puntos al saco ADITIVO para ese golpe |
+| `condCrit` | `(p, e, hit) → number` | ③ `rollDamage` | probabilidad de crítico extra (se topa al tirar) |
+| `onCast` | `(g, p, cast:CastInfo) → void\|false` | ⑦ canal de lanzamiento, **antes** de cobrar | `false` cancela el lanzamiento sin coste |
+| `afterCast` | `(g, p, cast, res:CastResult) → void` | ⑦ tras el impacto | |
+| `onHit` | `(g, p, e, hit:HitInfo) → void` | ⑤ `onPlayerHit` | no se llama si `hit.proc` (salvo con `procs:true`) |
+| `onKill` | `(g, p, e, kill:KillInfo) → void` | ⑥ `onEnemyKilled` | |
+| `condDr` | `(p, dmg:DamageTaken) → number` | ⑧ `Player.takeDamage`, antes de mitigar | puntos de `dr` temporales para ese golpe |
+| `onDamaged` | `(g, p, dmg:DamageTaken) → void` | ⑧ tras mitigar y aplicar escudos | puede reducir `dmg.amount` |
+| `onLethal` | `(g, p, dmg) → boolean` | ⑧ si la vida llega a 0 o menos | `true` = sobrevive; gana el primero por `priority` |
+| `onTick` | `(g, p, dt) → void` | ⑨ `Player.update`, **a 10 Hz** (dt acumulado) | |
+| `onGauge` | `(g, p, id, ev:'gain'\|'full'\|'spent'\|'empty', n) → void` | ⑩ `spec-mechanics` | |
+| `icd` | `number` (s) | el despachador | enfriamiento interno; el gancho no se llama mientras dure |
+| `priority` | `number` (por defecto 0) | | orden dentro del gancho (mayor = antes) |
+| `procs` | `boolean` | | si `true`, `onHit` también recibe golpes de procs |
+| `state` | `() → object` | primera consulta | estado inicial por héroe |
+| `name`, `desc`, `tags` | metadatos | UI y tests | |
+
+**Reglas del despachador**:
+- **Daño originado por un poder** → `dealProcDamage(g, e, amount, {source:'power:<id>', tags})`, con `proc:true`. No aplica Π[×] ni dispara `onHit`, lo que evita cascadas: generaliza la guarda `_killBurst` del Paso 1A.
+- **Prohibido** escribir `powers.has(` fuera de `js/powers*.js`. Un test, `test67-sin-powers-has`, lo vigila como `test59` vigila `setTimeout`. Los poderes que ya existen (`festin`, `volatil`, `furia`, `agil`, `multidisparo`, `avaricia`, `m_*`) se migran a `js/powers-common.js` en la etapa 2b.0.
+- Los poderes **nunca** tocan directamente `e.stunT`, `e.slowT` ni `p.hp`. Usan las primitivas de §9.1.4.
+
+#### 9.1.2 Puntos fijos de despacho (los **únicos** que llaman a `firePower`)
+
+| # | Punto | Archivo | Ganchos | Argumentos que construye |
+|---|---|---|---|---|
+| ① | `Player.recompute()` | `entities.js` | `stats`, más `buildHookIndex` | — |
+| ② | `resolveSkill(p, sk)` | `skill-resolve.js` | `modifyResolve` | `prof` en curso |
+| ③ | `Player.rollDamage(coef, critBonus, addPct, e, hit)` | `entities.js` | `condAdd`, `condCrit` | `hit` parcial (skill, tags, elem) |
+| ④ | `Enemy.takeDamage(amount, crit, opts)` | `entities.js` | sin ganchos: aplica **Debilidad** (`e.debuffs`) y **Π[×]** (`MULT_POWERS`) y luego llama a ⑤ | `opts = {skill, tags, elem, proc, source}` |
+| ⑤ | `Game.onPlayerHit(e, hit)` | `game-skills.js` | `onHit`, más las ganancias de indicador por tags/elem | `HitInfo` |
+| ⑥ | `Game.onEnemyKilled(e)` | `main.js` | `onKill` | `KillInfo` (estado tomado **antes** de limpiar el DoT o el control) |
+| ⑦ | Canal de lanzamiento | `game-skills.js` | `onCast`, `afterCast` | `CastInfo`, `CastResult` |
+| ⑧ | `Player.takeDamage(amount, al, opts)` | `entities.js` | `condDr` → mitigar → escudos → `onDamaged` → `onLethal` | `DamageTaken` |
+| ⑨ | `Player.update(dt)` | `entities.js` | `onTick` (10 Hz) | — |
+| ⑩ | `gainGauge` / `spendGauge` | `spec-mechanics.js` | `onGauge` | id, evento, cantidad |
+
+#### 9.1.3 Otros registros (mismo patrón)
+
+| Registro | Archivo | API | Para qué |
+|---|---|---|---|
+| **Comportamientos de habilidad** | `js/powers.js` | `defineSkillBehavior(id, { cast(g, p, prof, cast) → CastResult, tick?(g, p, inst, dt), end?(g, p, inst) })` | Las ≈15 activas que no encajan en un tipo genérico (Sello, Muro de Escudos, Veredicto, Evocación, Arpón, Señuelo…). `game-skills.js` usa el tipo genérico (`melee`, `proj`, `area`, `cone`, `line`, `leap`, `blink`, `shield`, `taunt`, `zone`, `trap`, `channel`, `buff`) si `sk.behavior` no existe |
+| **Entidades de suelo** | `js/field-entities.js` | `defineField(kind, { init(f, opts), tick(g, f, dt), onEnter?(g, f, e), onExit?(g, f, e), onExpire?(g, f), render?(g, f) })`; `g.spawnField(kind, {pos, radius, dur, owner, data}) → f\|null` (tope de 12 por dueño, FIFO); `g.fieldsAt(pos)` | Trampas, red de espinas, campo helado, estandarte, martillos orbitales, muro de fuego, Estela. `render` es opcional y va en try/catch, así que en headless no se dibuja nada |
+| **Indicadores de especialización** | `js/spec-mechanics.js` | `defineGauge(id, { max, perEnemy?:bool, decay:{after, rate}, onFull? })`; `gainGauge(p, id, n, e?)`, `spendGauge(p, id, n) → bool`, `gaugeValue(p, id, e?)` | Sed, Bastión, Fervor, Calor, Escarcha (por enemigo), Cargas, Concentración, Impulso; las trampas del Coto se cuentan como campos |
+| **Multiplicadores** | `combat-math.js` (ya existe) | solo a través de `PowerDef.mult` | Únicamente los nodos clave de §5.2 y los legendarios actuales. Un test verifica que ningún otro poder declare `mult` |
+
+#### 9.1.4 Primitivas que usan los poderes (en `entities.js` / `game-skills.js`, núcleo)
+
+- `applyCC(e, kind:'stun'|'freeze'|'root'|'knock'|'slow'|'interrupt'|'taunt', dur, src)`: centraliza los rendimientos decrecientes, el stagger de jefes y el estado imparable.
+- `applyWeakness(e, id, pct, dur)`: entrada del saco Debilidad; una por id, que se refresca.
+- `applyDot(e, kind, base, src)`: usa `dotProfile` (`bleedPct`, `burnDur`…) y el planificador.
+- `p.sustain(n, src)`, `g.heal(n, opts)`, `g.shield(n, opts)` (§6.1).
+- `dealProcDamage(g, e, amount, opts)`.
+- `g.allies(pos?, r?)`, `g.forceTarget(e, src, t)`, `g.addThreat(e, src, n)`.
+
+#### 9.1.5 Cómo se prueba un poder de forma aislada
+
+`tests/helpers/power-harness.mjs`, que se crea en la etapa 2b.0:
+
+```js
+import { makeHarness } from './helpers/power-harness.mjs';
+const h = makeHarness({ classId: 'guerrero', spec: 'berserker', level: 50,
+                        talents: { spec: { s14: 1 } }, seed: 7 });
+const e = h.enemy({ hp: 1000, rank: 'elite' });           // Enemy falso con debuffs/applyCC reales
+h.gauge('sed', 100);                                       // fuerza el indicador → dispara onGauge('full')
+h.hit(e, { skill: 'g_mandoble', crit: true, dealt: 120 }); // pasa por ⑤ con el despachador REAL
+h.tick(1.0);                                               // 10 ticks de onTick
+assert.ok(h.p.buffs.some(b => b.id === 'g_desenfreno'));
+assert.ok(h.sustained() <= 0.06 * h.p.stats.maxHP * 1.0 + 1e-6); // respeta la cubeta
+```
+
+- El arnés usa un `Player` real (headless, como el resto de los tests), un `TickScheduler` real, el registro de campos real (sin dibujar), una `ui` falsa que cuenta mensajes, `sfx` y `emitFx` vacíos, y RNG con semilla.
+- **Cobertura por clase** (`tests/test-powers-<clase>.mjs`):
+  - (a) Todo `power` y todo `grant` referenciado en `talents-<clase>.js` existe en `POWER_HOOKS`, o como comportamiento o tipo genérico de habilidad.
+  - (b) Al menos un caso de comportamiento por poder.
+  - (c) `definePower` rechaza claves desconocidas.
+  - (d) Ningún poder fuera de la lista de nodos clave declara `mult`.
+
+#### 9.1.6 Propiedad de archivos por clase
+
+| Archivo | Dueño | Contenido |
+|---|---|---|
+| `js/skills-<clase>.js` | trabajador de la clase (2b.1) | catálogo base de §3 + `SKILL_MODS` de la clase (salen de `data.js`) |
+| `js/fx-skills-<clase>.js` | trabajador (2b.1) | presets de VFX y SFX de sus habilidades (`fx-skills.js` los fusiona en `SKILL_FX`) |
+| `js/talents-<clase>.js` | trabajador (2c.1) | árboles + definiciones de las activas `grant` |
+| `js/powers-<clase>.js` | trabajador (2c.1) | `export const <CLASE>_POWERS`, `_BEHAVIORS`, `_FIELDS`, `_GAUGES` |
+| `tests/test-skills-<clase>.mjs`, `tests/test-powers-<clase>.mjs` | trabajador | |
+| Todo lo demás (`main.js`, `entities.js`, `ui.js`, `combat-math.js`, `powers.js`, `game-skills.js`, `spec-mechanics.js`, `field-entities.js`, `save-schema.js`, `data.js`, `sw.js`) | **jefe** (núcleo) | El núcleo deja creados los **stubs vacíos** de los archivos por clase y sus `import`, así los trabajadores nunca tocan un archivo compartido |
+
+### 9.2 Etapas
+
+Cada etapa cierra con `npm test` en verde, subida de versión de `sw.js` y la actualización de `MEMORIA.md` y `CLAUDE.md`. Tras cada tanda de trabajadores, el jefe hace una **pasada de juicio** (revisa los diffs contra este documento y devuelve lo deficiente al mismo trabajador con comentarios concretos).
+
+**2b.0 · Núcleo de habilidades (jefe, secuencial)**
 - **Nuevos**:
-  - `js/skill-resolve.js` (resolvedor puro, `SUPPORT_MOD`, tags y rangos).
-  - `js/skills-guerrero.js`, `js/skills-maga.js`, `js/skills-arquera.js` (catálogo de §3 sin las activas de talento; `data.js` las importa en `CLASSES`).
-  - `js/resources.js` (reglas de Furia, Maná y Energía; generación y pérdida).
-  - `js/game-skills.js` (mixin: canal de lanzamiento con GCD, windup, `impactDelay`, canalización y los tipos nuevos `cone`, `line`, `leap`, `blink`, `shield`, `taunt`, `zone`, `trap`, `mark`, `channel`).
+  - `js/skill-resolve.js` (resolvedor, `SUPPORT_MOD`, tags, rangos, `CAT_SLOTS`).
+  - `js/game-skills.js` (canal de lanzamiento: GCD, windup, `impactDelay`, canalización, tipos genéricos, `onPlayerHit`).
+  - `js/resources.js`.
+  - `js/powers.js` (registro, despachador, comportamientos) y `js/powers-common.js` (poderes actuales migrados).
+  - `js/field-entities.js` (registro + Estela migrada desde `groundZones`).
+  - `tests/helpers/power-harness.mjs`.
+  - Stubs `skills-<clase>.js` y `fx-skills-<clase>.js`.
 - **Tocados**:
-  - `js/data.js`: `CLASSES` sin pasivas ni sinergias; `SKILL_MODS` + `utilMods`; `SUPPORTS` con `requires`/`forbids`.
-  - `js/main.js`: `castSkillSlot` y `castBasic` delegan en el mixin; `dealArea` con `impactDelay`; `Object.assign`.
-  - `js/entities.js`:
-    - `Player`: rangos derivados, `gcdT`, escudos, Furia por daño recibido, `rollDamage(…, target)`.
-    - `Projectile`: tira el daño al impactar.
-    - `Enemy`: rendimientos decrecientes por canal.
-  - `js/combat-math.js`: saco **Expuesto**, `condAddPct` y GCD.
-  - `js/bindings.js`: acción `talents`.
-  - `js/fx-skills.js` y `js/sfx.js`: presets y sonidos.
-  - `js/save-schema.js`: v3.
-  - `sw.js`.
+  - `entities.js`: puntos ①③④⑧⑨; `Projectile` tira el daño al impactar; `Player` con rangos derivados, `gcdT`, escudos, `sustain` y Furia por daño recibido; `Enemy` con `applyCC`, `applyWeakness` y rendimientos decrecientes por canal.
+  - `main.js`: delega en `game-skills.js` y llama a ⑥.
+  - `combat-math.js`: Debilidad, cubeta compartida, `CAPS.heal`, `condAddPct`.
+  - `data.js`: `SUPPORTS` con `requires`/`forbids`; `CLASSES` importa `skills-<clase>.js`.
+  - `bindings.js` (acción `talents`), `save-schema.js` (v3), `sw.js`.
 - **Tests**:
   - Reescribir `test53`, `test55` y `test26`.
-  - Nuevos: `test61` (migración v3), `test62-resolve-skill`, `test63-recursos` y `test64-gcd-impacto`.
-  - Adaptar `balance-bench` a `resolveSkill`.
+  - Nuevos: `test61` (migración v3), `test62-resolve-skill`, `test63-recursos`, `test64-gcd-impacto`, `test67-sin-powers-has` y `test68-sustento-debilidad` (cubeta compartida, tope de `healPct`, tope ×1,5).
 
-### 2c. Talentos conectados y migración de las maestrías
+**2b.1 · Catálogo por clase (3 trabajadores Opus en paralelo, uno por clase)**
+- Cada uno escribe `skills-<clase>.js`, `fx-skills-<clase>.js` y `test-skills-<clase>.mjs`: las habilidades **base** de §3 (sin las de talento), sus ramas y su VFX.
+
+**2b.2 · Integración y recalibración (jefe), cierre de 2b**
+- Adaptar `balance-bench` a `resolveSkill`: el típico usa los rangos por nivel y el `LOADOUT` defensivo y ofensivo por clase.
+- **Recalibrar SOLO coeficientes, costes y enfriamientos de `skills-*.js`** hasta que `balance-bench` vuelva a estar **en verde con los objetivos del Paso 1A**. Las curvas de enemigos (`ENEMY_CURVE`, `bossHpMult`, `eliteHpMult`, `tormentMods`) **quedan congeladas**.
+- Tabla **antes/después** en `MEMORIA.md` (TTK común/élite/jefe y TTD por clase y nivel, típico y óptimo).
+- Sin esto, 2c no empieza.
+
+**2c.0 · Núcleo de talentos (jefe, secuencial)**
 - **Nuevos**:
-  - `js/talents-guerrero.js`, `js/talents-maga.js`, `js/talents-arquera.js` (transcripción de los mockups con los ajustes de §5.2 y las 42 activas `grant`).
-  - `js/spec-mechanics.js` (los 9 indicadores y sus reglas).
   - `js/game-talents.js` (mixin).
-  - `js/field-entities.js` (trampas, red, campo helado, estandarte, martillos orbitales; generaliza `groundZones`).
+  - `js/spec-mechanics.js` (registro de indicadores + punto ⑩ + lectura para el HUD).
+  - Stubs `talents-<clase>.js` y `powers-<clase>.js` con sus `import` en `talents.js` y `powers.js`.
 - **Tocados**:
-  - `js/talents.js`: vocabulario corregido, `@spec`, `costRedBig`, `durS`, `root`, `slowPct`, `critCdr` e `innate`.
-  - `js/entities.js`:
-    - `recompute` usa `aggregateTalents`.
-    - Hooks PT/ET.
-    - Stagger, amenaza y `forceTarget`.
-  - `js/main.js`: `onPlayerHit` y `onEnemyKilled`.
-  - `js/enemy-abilities.js`: `interruptible`.
-  - `js/data.js`: fuera `MASTERIES`; `SYSTEMS_GUIDE`.
-  - `js/save-schema.js`: v4.
-  - Borrar `js/game-mastery.js`.
-- **Tests**:
-  - `test45-maestrias` → `test65-talentos` (puntos, puertas, requisitos, presets, `aggregateTalents`, cada `power` que se puede cablear).
-  - `test43-mixins`.
-  - `test66-roles-primitivas` (provocación, escudo al de menos vida, stagger, rendimientos decrecientes).
+  - `talents.js`: vocabulario corregido de §5.2, `@spec`, `innate`, `costRedBig`, `durS`, `root`, `slowPct`, `critCdr`.
+  - `entities.js`: `recompute` con `aggregateTalents` e `innate`; stagger, amenaza y `forceTarget`.
+  - `enemy-abilities.js` (`interruptible`).
+  - `data.js`: fuera `MASTERIES`; `SYSTEMS_GUIDE`.
+  - `save-schema.js` (v4); borrar `game-mastery.js`.
+- **Tests**: `test43-mixins`, `test65-talentos` (puntos, puertas, requisitos, presets, agregación), `test66-roles-primitivas` (provocación, escudo al de menos vida, stagger, rendimientos decrecientes) y `test61` (migración v4).
 
-### 2d. Interfaz
-- **Panel de talentos estilo WoW** (`#panel-talents`, tecla N):
-  - Dos árboles lado a lado (clase a la izquierda, especialización a la derecha) con la rejilla `r/c` del mockup.
-  - Nodos con los sprites `web/talents/*.webp` (atlas `web/sprites/*.webp` + `index.json`).
-  - Cabecera con retrato (`web/specs`) y emblema (`web/emblems`).
-  - Contador de puntos por árbol, puertas con mensaje («Gasta 6 puntos…»), tooltip con el rango actual y el siguiente, elecciones A/B, y botones «Recomendado», «Reiniciar», «Exportar/Importar código».
-  - Pantalla de **elección de especialización en Nv10** (3 retratos + rol + mecánica).
-- **Libro de habilidades** (sustituye la vista de árbol D4): lista por categoría y foco radial de ramas (se reutiliza `renderSkillFocus`).
-- **Barra de 6 ranuras con categoría**: icono de categoría en la ranura vacía, arrastrar desde el libro, segundos de enfriamiento y sombra de GCD, más el **indicador de especialización** sobre la barra (mockup HUD).
-- **Barra de stagger** bajo la vida del jefe.
-- **Archivos**:
-  - `js/ui.js`, `index.html` y `css/style.css`.
-  - Copiar los assets de `D:\Proyectos\IntentoRPG-assets\web\` (`specs`, `emblems`, `icons`, `talents`, `sprites`) a `assets/`. Caché en tiempo de ejecución (*cache‑first*), **no** precarga de los 234 iconos de talento: solo los de la clase al abrir el panel.
-  - Las habilidades base nuevas sin icono usan temporalmente el sprite del nodo de talento más afín y luego se generan con el canal Codex.
-- **Tests**: `test49-guia` (texto), `test47-remapeo` (acción `talents`).
+**2c.1 · Talentos y poderes por clase (3 trabajadores en paralelo)**
+- Cada uno escribe `talents-<clase>.js` (transcripción de los mockups con los ajustes de §5.2 y sus activas `grant`), `powers-<clase>.js` (poderes, comportamientos, campos e indicadores de sus 3 especializaciones) y `test-powers-<clase>.mjs` (cobertura de §9.1.5).
+- **Sin tocar archivos compartidos.** Los poderes de cooperativo (`g_vinculo`, `g_intercesion`, la parte «aliados» de las auras) se implementan sobre `g.allies()`; en solitario no hacen nada, pero sí tienen test.
 
-### 2e. Pruebas de rol en el banco
-- `tests/balance-bench.mjs`:
-  - Escenarios UNI, ÁREA×5, TTD+, APOYO y CONTROL.
-  - `buildHero(classId, level, build, {spec})`, `ROT_SPEC` y `TARGETS.role`.
-  - Matriz `--report`.
-- Ajuste de números de `skills-*.js` y `talents-*.js` hasta cumplir §7. Si hace falta, ajuste fino de `ENEMY_CURVE`, pero **solo** si las tres clases se desvían en el mismo sentido.
-- Documentar los resultados en `MEMORIA.md` (tabla antes y después, como en el Paso 1A).
+**2c.2 · Integración (jefe)**
+- Pasada de juicio, `npm test` completo y `balance-bench` sin regresiones del Paso 1A.
 
-### Riesgos
+**2d · Interfaz (jefe + 1 trabajador)**
+- Para poder paralelizar, el panel de talentos va en un módulo nuevo, `js/ui-talents.js`, que `ui.js` importa.
+- **Trabajador** (`ui-talents.js` + CSS propio `css/talents.css`): panel de talentos estilo WoW (`#panel-talents`, tecla N).
+  - Dos árboles (clase y especialización) en la rejilla `r/c` del mockup, con los sprites `web/talents/*.webp` (atlas `web/sprites/*.webp` + `index.json`), retrato (`web/specs`) y emblema (`web/emblems`).
+  - Puertas con mensaje, tooltip con el rango actual y el siguiente, elecciones A/B, «Recomendado», «Reiniciar», «Exportar/Importar código».
+  - Pantalla de elección de especialización en Nv10.
+- **Jefe** (`ui.js`, `index.html`, `css/style.css`):
+  - Libro de habilidades: lista por categoría + foco radial de ramas (`renderSkillFocus`).
+  - **Barra de 6 ranuras** con icono de categoría; la ranura `2` muestra un selector de dos pestañas, «Defensa/utilidad» y «Gastadora».
+  - Sombra de GCD, indicador de especialización sobre la barra (mockup HUD) y barra de stagger de los jefes.
+- **Assets**: copiar de `D:\Proyectos\IntentoRPG-assets\web\` a `assets/`, con caché en tiempo de ejecución por clase (no se precargan los 234 iconos). Las 16 habilidades base nuevas usan temporalmente el sprite del nodo más afín.
+- **Tests**: `test49-guia`, `test47-remapeo`.
+
+**2e · Pruebas de rol en el banco (jefe)**
+- `tests/balance-bench.mjs`: escenarios UNI, ÁREA×5, TTD+, APOYO y CONTROL; `buildHero(classId, level, build, {spec, loadout})`; `LOADOUT_SPEC`, `ROT_SPEC`, `TARGETS.role` y `TARGETS.k2Tradeoff`; matriz `--report`.
+- El ajuste se hace solo en `skills-*.js`, `talents-*.js` y `powers-*.js`. Las curvas de enemigos siguen congeladas.
+- Resultados documentados en `MEMORIA.md`.
+
+
+### 9.3 Riesgos
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| **Volumen**: más de 70 habilidades nuevas o rehechas y más de 70 poderes | Etapa 2c enorme | Hacer 2c por clase (Guerrero → Maga → Arquera) y desplegar cada clase cuando su test de talentos esté en verde. Los poderes de cooperativo (`g_vinculo`, `g_intercesion`) se implementan como no‑op con test pendiente |
-| Archivos compartidos `main.js` / `entities.js` / `ui.js` | Conflictos entre trabajadores | Sacar la lógica a mixins y módulos puros (`game-skills`, `game-talents`, `spec-mechanics`, `field-entities`); los trabajadores tocan su archivo y el jefe integra |
-| Balance del nuevo saco Expuesto y de las condiciones aditivas | Ráfagas fuera de rango | Tope ×1,5; el banco lo vigila (golpe ≤ 25 % del jefe) |
+| **Volumen**: más de 70 habilidades nuevas o rehechas y más de 70 poderes | Etapa 2c enorme | Registro data‑driven (§9.1): 10 puntos de despacho fijos y 3 trabajadores en paralelo (2b.1 y 2c.1), cada uno en sus archivos; test de cobertura por clase. Cada clase se puede desplegar cuando su `test-powers-<clase>` está en verde |
+| Archivos compartidos `main.js` / `entities.js` / `ui.js` | Conflictos entre trabajadores | Solo los toca el jefe en las sub‑etapas de núcleo (2b.0 y 2c.0), que dejan creados los stubs y los `import` por clase (§9.1.6). `test67` prohíbe `powers.has(` fuera del registro |
+| Balance del saco Debilidad ampliado y de las condiciones aditivas | Ráfagas fuera de rango | Un solo saco con tope ×1,5 (no hay segundo multiplicador); el banco lo vigila (golpe ≤ 25 % del jefe) |
 | Migración (dos versiones seguidas) | Pérdida de builds | Idempotencia + `test61` con fixtures reales de cada versión |
 | Rendimiento: trampas, campos, auras cada 0,5 s y amenaza por enemigo | FPS con 60 enemigos | Amenaza solo si hay más de una fuente; auras reevaluadas a 2 Hz; entidades de suelo con un tope de 12 |
 | Mockups de Maga y Piromante sin `fx` | Interpretación propia | Tabla explícita en §5.2; el texto del nodo manda |
-| Pérdida de identidad por las categorías estrictas | Quejas de builds con «dos gastadoras» | Las gastadoras de especialización pueden ir en `rmb` o en `3`, lo que ya permite dos |
+| La ranura `2` flexible se vuelve obligatoriamente ofensiva (la defensa sería una trampa) | Se pierde la decisión supervivencia frente a daño | El banco exige que la variante defensiva aguante ≥ +30 % en TTD+ y que la ofensiva no pase de +25 % de DPS (§7.2) |
 | Peso de los assets (234 webp de talentos + retratos) | Instalación de la PWA | Caché en tiempo de ejecución por clase |
 
 ---
