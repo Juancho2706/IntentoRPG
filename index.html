@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,6 +17,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/talents.css">
+<!-- Paso 2d.2: gramática común de las barras de mecánica (js/ui-gauges.js) -->
+<link rel="stylesheet" href="css/gauges.css">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -132,7 +134,7 @@
 
 <div id="game"></div>
 
-<!-- capas de superposición -->
+<!-- capas de superposición del MUNDO: siempre por debajo del HUD (z-index 4–7 < 10) -->
 <div id="damage-flash"></div>
 <div id="low-hp-vignette"></div>
 <div id="labels"></div>
@@ -141,101 +143,113 @@
 <div id="compass"></div>
 <!-- flourishes de momentos clave (subir nivel, legendario, etc.) -->
 <div id="flourish"></div>
-<div id="messages"></div>
-<!-- Paso 2d: avisos grandes (¡QUEBRANTADO!…) en su franja, bajo la pausa y el marco del jefe -->
-<div id="hud-announce" aria-live="assertive"></div>
 <!-- indicador de pausa (al abrir un panel durante la partida) -->
 <div id="pause-indic">⏸ Pausa</div>
 <!-- overlay de rendimiento (FPS / draw calls / triángulos); opcional -->
 <div id="perf-overlay" class="hidden"></div>
 
-<!-- aviso de rotación: en móvil en vertical, pide girar a horizontal -->
-<div id="rotate-prompt">
-  <div class="rot-icon" aria-hidden="true">
-    <svg viewBox="0 0 64 64" width="84" height="84"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="20" y="6" width="24" height="40" rx="4"/><line x1="20" y1="12" x2="44" y2="12"/><line x1="20" y1="40" x2="44" y2="40"/><path d="M10 50a26 26 0 0 0 44 4"/><polyline points="54 44 54 56 42 56"/></g></svg>
-  </div>
-  <div class="rot-title">Gira tu dispositivo</div>
-  <div class="rot-sub">IntentoRPG se juega en <b>horizontal</b>. Pon el móvil de lado — y activa el <b>bloqueo de rotación</b> para que no gire.</div>
-</div>
-
-<!-- zona del joystick táctil (mitad izquierda) -->
-<div id="joy-zone"></div>
-<div id="joy-hint"></div>
-<div id="joystick" class="hidden"><div id="joy-knob"></div></div>
-
-<!-- HUD -->
+<!-- ============================================================
+     HUD DE PC (Paso 2d.2 · docs/paso2d2-hud-pc.md §2). Solo ratón y teclado.
+     Seis anclas (.cl) escaladas desde su esquina por --s + el registro de botín.
+     La columna central del dock es solo del héroe: aviso, mecánica, barra y XP.
+     ============================================================ -->
 <div id="hud" class="hidden">
-  <canvas id="minimap" width="150" height="150"></canvas>
-  <div id="minimap-frame" aria-hidden="true"></div>
-
-  <!-- bajo el minimapa: info (Nv/oro/zona) y, debajo, objetivos (misiones + contratos) -->
-  <div id="hud-objectives">
-    <div id="hud-info">
-      <span id="hud-level">Nv 1</span>
-      <span id="hud-gold">🪙 0</span>
-      <span id="hud-zone">🏘️ Pueblo</span>
+  <!-- arriba-izquierda: placa del héroe (debajo, reserva para marcos de grupo) -->
+  <div class="cl tl" id="hud-tl">
+    <div id="hud-plate" data-hud-block="placa">
+      <span id="plate-emb" aria-hidden="true"></span>
+      <div class="plate-txt"><b id="hud-level">Nv 1</b><small id="plate-sub"></small></div>
     </div>
-    <div id="quest-tracker" style="display:none"></div>
-    <div id="zone-contracts" style="display:none"></div>
   </div>
 
-  <!-- stack inferior centrado: BUFFS encima de la BARRA DE PODERES, y esta encima de la XP -->
-  <div id="hud-bottom">
-    <div id="buff-bar"></div>
-    <!-- Paso 2d: indicador de la especialización activa; lo construye js/ui-gauges.js -->
-    <div id="spec-gauge"></div>
-    <div id="skillbar"></div>
-    <div id="xp-bar"><div id="xp-fill"></div></div>
-  </div>
-
-  <!-- Paso 2d: marco del jefe (vida + stagger + estados), arriba al centro -->
-  <div id="boss-frame" class="hidden" aria-live="polite">
-    <div class="bf-name"></div>
-    <div class="bf-hp"><div class="bf-hp-fill"></div><span class="bf-hp-txt"></span></div>
-    <div class="bf-stagger" title="Stagger: el control y los golpes lo llenan; a 100 el jefe queda Quebrantado (aturdido y Vulnerable)">
-      <div class="bf-st-fill"></div><span class="bf-st-txt"></span>
+  <!-- arriba-centro: marco del objetivo/jefe (jefe, élite o el enemigo bajo el cursor) + banner crítico -->
+  <div class="cl tc" id="hud-tc">
+    <div id="target-frame" class="hidden" data-kind="boss" data-hud-block="objetivo" aria-live="polite">
+      <div class="bf-name"><span class="tf-name"></span><small class="tf-tag"></small></div>
+      <div class="bf-hp"><div class="bf-hp-clip"><div class="bf-hp-fill"></div></div><span class="bf-hp-txt"></span><i class="tf-rails" aria-hidden="true"></i></div>
+      <div class="bf-stagger" title="Aturdimiento: el control y los golpes lo llenan; a 100 el jefe queda Quebrantado (aturdido y Vulnerable)">
+        <div class="bf-st-fill"></div><span class="bf-st-txt"></span>
+      </div>
+      <div class="tf-row"><span class="tf-hint"></span><div class="bf-status"></div></div>
     </div>
-    <div class="bf-status"></div>
+    <div id="hud-banner" data-hud-block="banner" aria-live="assertive"></div>
+    <!-- Paso 2d: aviso de especialización pendiente (Nv10) -->
+    <button id="spec-prompt" class="hidden" title="Elegir especialización [N]"><img src="assets/ui/menu_talentos.webp" alt="" draggable="false"><span><b>¡Nivel 10!</b> Elige tu especialización <kbd>N</kbd></span></button>
   </div>
-  <!-- Paso 2d: aviso de especialización pendiente (Nv10) -->
-  <button id="spec-prompt" class="hidden" title="Elegir especialización [N]"><img src="assets/ui/menu_talentos.webp" alt="" draggable="false"><span><b>¡Nivel 10!</b> Elige tu especialización <kbd>N</kbd></span></button>
 
-  <!-- menú principal: un solo botón ☰ que despliega el resto, a la derecha de la XP -->
-  <div id="hud-menu">
-    <div id="menu-btns">
-      <button id="btn-inv" class="ui-iconbtn" title="Inventario [I]" aria-label="Inventario"><img class="menu-img" src="assets/ui/menu_inventario.webp" alt="" draggable="false"></button>
-      <button id="btn-skills" class="ui-iconbtn" title="Habilidades [T]" aria-label="Habilidades"><img class="menu-img" src="assets/ui/menu_habilidades.webp" alt="" draggable="false"><span class="badge" id="badge-skills"></span></button>
-      <button id="btn-talents" class="ui-iconbtn" title="Talentos [N]" aria-label="Talentos"><img class="menu-img" src="assets/ui/menu_talentos.webp" alt="" draggable="false"><span class="badge" id="badge-talents"></span></button>
-      <button id="btn-map" class="ui-iconbtn" title="Mapa [M]" aria-label="Mapa"><img class="menu-img" src="assets/ui/menu_mapa.webp" alt="" draggable="false"></button>
-      <button id="btn-stats" class="ui-iconbtn" title="Personaje [C]" aria-label="Personaje"><img class="menu-img" src="assets/ui/menu_estadisticas.webp" alt="" draggable="false"><span class="badge" id="badge-stats"></span></button>
-      <button id="btn-shop" class="ui-iconbtn" title="Tienda" aria-label="Tienda" style="display:none"><img class="menu-img" src="assets/ui/menu_tienda.webp" alt="" draggable="false"></button>
-      <button id="btn-settings" class="ui-iconbtn" title="Opciones" aria-label="Opciones"><img class="menu-img" src="assets/ui/menu_ajustes.webp" alt="" draggable="false"></button>
-      <button id="btn-guide" class="ui-iconbtn" title="Guía de sistemas" aria-label="Guía de sistemas"><img class="menu-img" src="assets/ui/menu_guia.webp" alt="" draggable="false"></button>
-      <button id="btn-clean-hud" class="ui-iconbtn" title="Modo limpio (ocultar HUD no esencial)" aria-label="Modo limpio" aria-pressed="false"><svg class="ui-ico"><use href="#ic-eye"/></svg></button>
+  <!-- arriba-derecha: minimapa, zona y misión activa (+ contratos de zona) -->
+  <div class="cl tr" id="hud-tr">
+    <div id="hud-minimap" data-hud-block="minimapa" title="Mapa [M]">
+      <canvas id="minimap" width="200" height="200"></canvas>
+      <div id="minimap-frame" aria-hidden="true"></div>
     </div>
-    <button id="btn-menu-toggle" class="ui-iconbtn" title="Menú" aria-label="Menú"><svg class="ui-ico"><use href="#ic-menu"/></svg></button>
+    <div id="hud-zone"></div>
+    <div id="hud-objectives" data-hud-block="mision">
+      <div id="quest-tracker" style="display:none"></div>
+      <div id="zone-contracts" style="display:none"></div>
+    </div>
   </div>
 
-  <!-- orbe de vida + poción -->
-  <div id="orb-hp" class="orb">
-    <div class="orb-fill" id="orb-hp-fill"></div>
-    <span class="orb-txt" id="orb-hp-txt">0</span>
-  </div>
-  <button id="btn-pot-hp" class="pot-btn pot-hp" title="Poción de vida [Q]" aria-label="Poción de vida"><svg class="ui-ico"><use href="#ic-potion"/></svg><span class="pot-count" id="pot-hp-count">0</span><span class="pot-key">Q</span></button>
+  <!-- derecha: registro de botín y XP (6 entradas, color por rareza, se desvanece) -->
+  <div class="cl rr" id="hud-rr"><div id="hud-loot" data-hud-block="botin" aria-live="polite"></div></div>
 
-  <!-- orbe de maná + poción -->
-  <div id="orb-mp" class="orb">
-    <div class="orb-fill" id="orb-mp-fill"></div>
-    <span class="orb-txt" id="orb-mp-txt">0</span>
-    <img id="orb-mp-res" class="orb-res hidden" alt="" draggable="false">
-  </div>
-  <button id="btn-pot-mp" class="pot-btn pot-mp" title="Poción de maná [E]" aria-label="Poción de maná"><svg class="ui-ico"><use href="#ic-flask"/></svg><span class="pot-count" id="pot-mp-count">0</span><span class="pot-key">E</span></button>
+  <!-- abajo-izquierda: registro de sistema (luego, el chat cooperativo) -->
+  <div class="cl bl" id="hud-bl"><div id="hud-syslog" data-hud-block="sistema" aria-live="polite"></div></div>
 
-  <!-- acciones (la barra de poderes ahora va al centro) -->
-  <div id="action-cluster">
-    <button id="btn-grab" class="ui-iconbtn" title="Recoger botín [F]" aria-label="Recoger botín"><svg class="ui-ico"><use href="#ic-hand"/></svg></button>
-    <button id="btn-dodge" class="ui-iconbtn" title="Esquivar [Shift]" aria-label="Esquivar"><svg class="ui-ico"><use href="#ic-dash"/></svg><div class="cd-overlay"></div></button>
-    <button id="btn-attack" class="ui-iconbtn" title="Atacar / Interactuar [Espacio]" aria-label="Atacar o interactuar"><svg class="ui-ico"><use href="#ic-sword"/></svg></button>
+  <!-- abajo-derecha: oro y materiales + micromenú (iconos menu_* con su tecla) -->
+  <div class="cl br" id="hud-br">
+    <div id="hud-gold" data-hud-block="oro"></div>
+    <div id="hud-micro" data-hud-block="micromenu" role="toolbar" aria-label="Menú">
+      <button class="mb" id="mb-stats" data-micro="stats" title="Personaje [C]" aria-label="Personaje"><img src="assets/ui/menu_estadisticas.webp" alt="" draggable="false"><i class="mb-badge" id="badge-stats"></i><kbd>C</kbd></button>
+      <button class="mb" id="mb-inv" data-micro="inv" title="Inventario [I]" aria-label="Inventario"><img src="assets/ui/menu_inventario.webp" alt="" draggable="false"><kbd>I</kbd></button>
+      <button class="mb" id="mb-skills" data-micro="skills" title="Habilidades [T]" aria-label="Habilidades"><img src="assets/ui/menu_habilidades.webp" alt="" draggable="false"><i class="mb-badge" id="badge-skills"></i><kbd>T</kbd></button>
+      <button class="mb" id="mb-talents" data-micro="talents" title="Talentos [N]" aria-label="Talentos"><img src="assets/ui/menu_talentos.webp" alt="" draggable="false"><i class="mb-badge" id="badge-talents"></i><kbd>N</kbd></button>
+      <button class="mb" id="mb-paragon" data-micro="paragon" title="Paragon [P]" aria-label="Paragon"><img src="assets/ui/menu_paragon.webp" alt="" draggable="false"><i class="mb-badge" id="badge-paragon"></i><kbd>P</kbd></button>
+      <button class="mb" id="mb-map" data-micro="map" title="Mapa [M]" aria-label="Mapa"><img src="assets/ui/menu_mapa.webp" alt="" draggable="false"><kbd>M</kbd></button>
+      <button class="mb" id="mb-quest" data-micro="quest" title="Misiones [J]" aria-label="Misiones"><img src="assets/ui/menu_misiones.webp" alt="" draggable="false"><kbd>J</kbd></button>
+      <button class="mb" id="mb-collection" data-micro="collection" title="Colección [K]" aria-label="Colección"><img src="assets/ui/menu_coleccion.webp" alt="" draggable="false"><kbd>K</kbd></button>
+      <button class="mb" id="mb-guide" data-micro="guide" title="Guía [H]" aria-label="Guía de sistemas"><img src="assets/ui/menu_guia.webp" alt="" draggable="false"><kbd>H</kbd></button>
+      <button class="mb" id="mb-settings" data-micro="settings" title="Opciones [Esc]" aria-label="Opciones"><img src="assets/ui/menu_ajustes.webp" alt="" draggable="false"><kbd>Esc</kbd></button>
+    </div>
+  </div>
+
+  <!-- abajo-centro: dock. Alas de beneficios/perjuicios sobre los orbes; columna del héroe en medio -->
+  <div class="cl bc" id="hud-bc">
+    <div id="hud-dock">
+      <div id="buff-wing" class="wing l" data-hud-block="alaBenef" aria-label="Beneficios"></div>
+      <div id="debuff-wing" class="wing r" data-hud-block="alaPerj" aria-label="Perjuicios"></div>
+
+      <div id="orb-hp" class="orb hp" data-hud-block="orbeVida">
+        <div class="orb-liq"><div class="orb-fill" id="orb-hp-fill"><i class="orb-tex"></i></div></div>
+        <div class="orb-shield" aria-hidden="true"></div>
+        <i class="orb-halo" aria-hidden="true"></i>
+        <img class="orb-frm" src="assets/hud/hud_orbe_marco_vida.webp" alt="" draggable="false">
+        <div class="orb-val"><div><span class="orb-txt" id="orb-hp-txt">0</span><small class="orb-lbl">VIDA</small><small class="orb-sh" id="orb-hp-sh"></small></div></div>
+      </div>
+
+      <div class="dock-col">
+        <div id="hud-prompt" class="off" data-hud-block="aviso" aria-live="polite"></div>
+        <!-- zona de mecánica de la especialización (520×72): la construye js/ui-gauges.js -->
+        <div id="spec-gauge" data-hud-block="mecanica"></div>
+        <div id="hud-bar" data-hud-block="barra">
+          <button id="btn-pot-hp" class="hb-small hb-pot" title="Poción de vida [Q]" aria-label="Poción de vida"><svg class="ui-ico"><use href="#ic-potion"/></svg><kbd class="hb-kbd" data-key="potionHP">Q</kbd><span class="pot-count" id="pot-hp-count">0</span></button>
+          <i class="hb-sep" aria-hidden="true"></i>
+          <div id="skillbar"></div>
+          <i class="hb-sep" aria-hidden="true"></i>
+          <button id="btn-dodge" class="hb-small" title="Esquivar [Mayús]" aria-label="Esquivar"><svg class="ui-ico"><use href="#ic-dash"/></svg><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span><kbd class="hb-kbd" data-key="dodge">⇧</kbd></button>
+          <button id="btn-pot-mp" class="hb-small hb-pot" title="Poción de recurso [E]" aria-label="Poción de recurso"><svg class="ui-ico"><use href="#ic-flask"/></svg><kbd class="hb-kbd" data-key="potionMP">E</kbd><span class="pot-count" id="pot-mp-count">0</span></button>
+        </div>
+        <div id="xp-bar" title="Experiencia"><div id="xp-fill"></div></div>
+      </div>
+
+      <div id="orb-mp" class="orb res" data-res="mana" data-hud-block="orbeRecurso">
+        <div class="orb-liq"><div class="orb-fill" id="orb-mp-fill"><i class="orb-tex"></i></div></div>
+        <i class="orb-halo" aria-hidden="true"></i>
+        <img class="orb-frm" src="assets/hud/hud_orbe_marco_recurso.webp" alt="" draggable="false">
+        <img id="orb-mp-res" class="orb-res hidden" alt="" draggable="false">
+        <div class="orb-val"><div><span class="orb-txt" id="orb-mp-txt">0</span><small class="orb-lbl" id="orb-mp-name">MANÁ</small></div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -243,7 +257,7 @@
 <div id="panel-inv" class="panel hidden">
   <div class="panel-head"><h2><svg class="ui-ico head-ico"><use href="#ic-bag"/></svg> Inventario</h2><button class="panel-close" title="Cerrar" aria-label="Cerrar"><svg class="ui-ico"><use href="#ic-close"/></svg></button></div>
 
-  <!-- Diablo IV: dos columnas en escritorio (equipo | mochila), apilado en móvil -->
+  <!-- Diablo IV: dos columnas (equipo | mochila) -->
   <div id="inv-layout">
 
     <!-- columna izquierda: muñeco de equipo + cubo -->
@@ -359,12 +373,12 @@
   <p class="npc-intro"><svg class="ui-ico"><use href="#ic-lock"/></svg> Compartido entre todos tus héroes — sobrevive incluso a la muerte en Hardcore.</p>
   <div class="npc-section">
     <div class="npc-section-head"><span><svg class="ui-ico"><use href="#ic-chest"/></svg> Alijo</span><span id="stash-count" class="npc-tag"></span></div>
-    <p class="npc-help">Toca un objeto para devolverlo a tu mochila.</p>
+    <p class="npc-help">Haz clic en un objeto para devolverlo a tu mochila (o arrástralo).</p>
     <div id="stash-grid"></div>
   </div>
   <div class="npc-section">
     <div class="npc-section-head"><span><svg class="ui-ico"><use href="#ic-bag"/></svg> Tu mochila</span></div>
-    <p class="npc-help">Toca un objeto para guardarlo en el alijo.</p>
+    <p class="npc-help">Haz clic en un objeto para guardarlo en el alijo (o arrástralo).</p>
     <div id="stash-inv-grid"></div>
   </div>
 </div>
@@ -438,10 +452,10 @@
   <div class="pg-legend">
     <span class="pg-help-title">¿Cómo funciona?</span>
     <span><b>◉</b> inicio · <b>•◆✦</b> nodos de stats · <b>★</b> poderes legendarios</span>
-    <span><b>◇</b> = engarce de glifo · toca un engarce <b>activo</b> para colocar un glifo (🔷) de tu mochila</span>
+    <span><b>◇</b> = engarce de glifo · haz clic en un engarce <b>activo</b> para colocar un glifo (🔷) de tu mochila</span>
   </div>
   <div id="paragon-grid"></div>
-  <p id="paragon-info" class="dim">Toca un nodo conectado para activarlo. Los ★ legendarios otorgan poderes.</p>
+  <p id="paragon-info" class="dim">Haz clic en un nodo conectado para activarlo. Los ★ legendarios otorgan poderes.</p>
   <button id="paragon-respec" class="quest-btn"></button>
 </div>
 
@@ -451,9 +465,8 @@
   <p class="subtitle">Un ARPG isométrico de mazmorras y botín</p>
   <div id="class-cards"></div>
   <p class="hint">
-    <span class="hint-pc">PC (WASD+ratón): muévete con WASD, apunta con el ratón, clic izq/der + 1-4 lanzan habilidades · Q/E pociones · I/T/C paneles<br>
-    PC (clic-mover): elígelo arriba · clic izquierdo mueve y ataca</span>
-    <span class="hint-touch">📱 Móvil: joystick a la izquierda para moverte · botones de acción a la derecha para habilidades y pociones · toca enemigos para apuntar</span>
+    <span class="hint-pc">WASD + ratón: muévete con WASD, apunta con el ratón; clic izquierdo/derecho y 1–4 lanzan habilidades · Mayús esquiva · Q/E pociones · C/I/T/N/P/M/J/K/H paneles · Z modo limpio<br>
+    Clic para mover: elígelo arriba · clic izquierdo mueve y ataca</span>
   </p>
 </div>
 
