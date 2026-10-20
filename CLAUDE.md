@@ -46,4 +46,5 @@ desktop, guardado en `localStorage`. Texto del juego en **español**.
 - `recompute()` **ignora objetos sin identificar** (no dan stats).
 - El motor de partículas necesita `document` → protegido con `?.`/try-catch para tests.
 - `pickupGroundItem` tiene guarda anti doble-recogida (`indexOf<0`).
-- Migración de saves: normaliza esquemas nuevos en el constructor de `Player` (ver `pet`, `mastery`).
+- Migración de saves: los campos persistidos y las migraciones de formato viven en `js/save-schema.js` (`PLAYER_SAVE_FIELDS`, `SAVE_VERSION`, `MIGRATIONS[v]`); el constructor de `Player` solo pone valores por defecto y valida contra catálogos.
+- Azar: la simulación usa streams con semilla (`js/rng.js`: `layout`/`spawn`/`loot`; `game.simRng(stream)`); `Math.random` solo para FX/UI. Efectos con retardo de combate van por el planificador por ticks (`js/timers.js`), nunca `setTimeout`.
