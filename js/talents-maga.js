@@ -39,9 +39,14 @@
 //    de una activa de talento: ver cabecera de powers-maga.js).
 //  · Las claves tv sin consumidor en el núcleo las consumen poderes que ya tiene la rama:
 //    p_ignicion (s5, s8, s12, s15, s16, x2 de la Piromante), k_eternal_winter (x2 fieldVuln),
-//    a_clarity / a_arc_charge, el comportamiento de m_t_barrera (c7 barrierDr). Crionte s15
-//    (manaOnKill) y el «ralentiza» de s16 los consume el primer poder de Crionte presente
-//    (sin ninguno —ruta s1→s3→s6A→s9→s12→s15— no hacen nada: pedido al núcleo).
+//    a_clarity / a_arc_charge, el comportamiento de m_t_barrera (c7 barrierDr).
+//  · Crionte s15 (Mente Gélida) lleva `power: 'k_shatter_chain'` y s16 (Nova Perpetua)
+//    `power: 'k_eternal_winter'`: no tienen id propio en §5.3 (test65a solo admite esos) y
+//    sin poder su efecto dependía de que hubiera OTRO poder de Crionte activo (nodo trampa
+//    por la ruta s1→s3→s6A→s9→s12→s15). Son los poderes de su mismo efecto (astillamientos /
+//    suelo helado de la Nova) y cada efecto lo enciende SU nodo: la cadena de capas solo
+//    con s14, el maná solo con tv.manaOnKill (s15), el campo de 6 s solo con x1 y el
+//    ralentizar de la Estela solo con la Estela de la Nova (que solo crea s16).
 //  · Arcanista s8 (Piel de Maná): el núcleo suma tv.dmgReduc sin condición; a_manaskin lo
 //    resta con el maná ≤ 50 % (pedido al núcleo: dmgReduc condicional).
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
@@ -198,8 +203,8 @@ export const MAGA_TALENTS = {
           { k: 'A', name: 'Tumba Glacial', desc: 'Los enemigos que mueren Congelados dejan un bloque de hielo que corta el paso 4 s.', fx: { power: 'k_ice_tomb' } },
           { k: 'B', name: 'Aliento Boreal', desc: 'Activa: un cono helado de 6 m que empuja 4 m y suma 3 capas. Enfriamiento 12 s.', active: true, fx: { grant: 'k_aliento' } } ] },
         { id: 's14', name: 'Reacción Glacial', icon: 'talents/maga-crionte-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Cada astillamiento suma 2 capas a los enemigos en 4 m: la congelación salta de uno a otro.', fx: { power: 'k_shatter_chain' } },
-        { id: 's15', name: 'Mente Gélida', icon: 'talents/maga-crionte-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)} de maná por cada enemigo astillado o abatido.`, fx: { tv: { manaOnKill: 3 } } },
-        { id: 's16', name: 'Nova Perpetua', icon: 'talents/maga-crionte-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `Nova de Hielo deja suelo helado 4 s que daña y ralentiza; +${x(15, r)}% de su daño.`, fx: { mod: { nova_hielo: { zone: 1, dmg: 15 } } } },
+        { id: 's15', name: 'Mente Gélida', icon: 'talents/maga-crionte-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)} de maná por cada enemigo astillado o abatido.`, fx: { tv: { manaOnKill: 3 }, power: 'k_shatter_chain' } },
+        { id: 's16', name: 'Nova Perpetua', icon: 'talents/maga-crionte-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `Nova de Hielo deja suelo helado 4 s que daña y ralentiza; +${x(15, r)}% de su daño.`, fx: { mod: { nova_hielo: { zone: 1, dmg: 15 } }, power: 'k_eternal_winter' } },
         { id: 's17', name: 'Frío Implacable', icon: 'talents/maga-crionte-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(8, r)}% de daño contra élites y jefes; los Ateridos atacan un 15% más lento.`, fx: { tv: { eliteDmg: 8 }, power: 'k_numb' } },
         { id: 'x1', name: 'Invierno Eterno', icon: 'talents/maga-crionte-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50%.', fx: { power: 'k_eternal_winter' } },
         { id: 'x2', name: 'Glaciación', icon: 'talents/maga-crionte-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: los enemigos dentro del campo helado reciben +${x(8, r)}% de daño de todo tu grupo.`, fx: { tv: { fieldVuln: 8 } } },

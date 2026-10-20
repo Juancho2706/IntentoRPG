@@ -33,8 +33,9 @@
 //          s6B k_nova_push · s7 k_icicle_dart · s8 k_frost_armor · s9 k_lanza (comp.) ·
 //          s13A k_ice_tomb (campo) · s13B k_aliento (comp.) · s14 k_shatter_chain ·
 //          s17 k_numb · x1 k_eternal_winter (campo; x2 fieldVuln) · x3 k_ice_age.
-//          s15 manaOnKill y el «ralentiza» del suelo de s16 los consume el primer poder de
-//          Crionte presente (ANFITRIÓN compartido, ver crioHost) — rodeo: pedido al núcleo.
+//          s15 (manaOnKill) lleva también el poder k_shatter_chain y s16 el k_eternal_winter
+//          (test65a solo admite los ids de §5.3): cada efecto de esos dos poderes lo enciende
+//          SU nodo (specRank), así ningún nodo depende de que otro poder esté activo.
 //  Arcan.  s0 a_orbe (comp.) · s4 a_orbe_resonante · s6A a_misiles (comp. tick) ·
 //          s8 a_manaskin · s9 a_sello (comp.) · s11 a_clarity · s13A a_evocacion (comp.) ·
 //          s14 a_resonance · s15 a_overvolt · x1 a_chain_crit · x2 a_arc_charge · x3 a_singularity.
@@ -210,10 +211,16 @@ function scheduleAutoCast(g, p, skillId, fallbackPos) {
   });
 }
 
+// rango de un nodo de la especialización ACTIVA (poderes que comparten varios nodos:
+// cada efecto lo enciende SU nodo, no la mera presencia del poder)
+function specRank(p, spec, id) {
+  return p?.talentAgg?.spec === spec ? Math.max(0, p.talents?.sp?.[spec]?.[id] | 0) : 0;
+}
+
 // ---- Escarcha: astillamientos (Reacción Glacial s14 · Edad de Hielo x3) ----
 function shatterEvent(g, p, e) {
   const T = magaTuning();
-  if (hasPower(p, 'k_shatter_chain')) {
+  if (hasPower(p, 'k_shatter_chain') && specRank(p, 'crionte', 's14') > 0) {
     for (const o of alivesNear(g, e.pos, T.chainR, e)) gainGauge(p, 'escarcha', T.chainLayers, o);
     ring(g, e.pos, T.chainR, 0xbfeaff);
   }
@@ -229,28 +236,6 @@ function detectShatter(g, p, e, hit, id) {
   if (hit?.source !== 'power:m_shatter' || e?.alive) return;
   const first = ['k_shatter_chain', 'k_ice_age'].find(k => hasPower(p, k));
   if (first === id) shatterEvent(g, p, e);
-}
-// ANFITRIÓN de Crionte: s15 (manaOnKill) y el «ralentiza» del suelo helado de s16 no
-// tienen poder propio (test65a no admite ids fuera de §5.3): los consume el PRIMER
-// poder de Crionte presente. Pedido al núcleo: consumir tv.manaOnKill en onEnemyKilled
-// (§5.3 OK) y que la Estela lea prof.slow.
-function crioIds() { return ['k_prision_profunda', 'k_nova_push', 'k_icicle_dart', 'k_frost_armor', 'k_ice_tomb', 'k_shatter_chain', 'k_numb', 'k_eternal_winter', 'k_ice_age']; }
-function crioHost(p, id) { return crioIds().find(k => hasPower(p, k)) === id; }
-function crioHostKill(g, p) { const n = p.tv?.manaOnKill || 0; if (n > 0) g.gainResource?.(p, n); }
-function crioHostTick(g, p) {
-  const T = magaTuning();
-  for (const f of g?.fields || []) {
-    if (f.dead || f.kind !== 'estela' || f.owner !== p || f.data?.skill !== 'nova_hielo') continue;
-    for (const e of g.enemies || []) if (e.alive && dist2(e.pos, f.pos) <= f.radius * f.radius) e.applyCC?.('slow', 0.5, { pct: T.novaFloorSlow, src: p });
-  }
-}
-function withCrioHost(id, def) {
-  const own = { onKill: def.onKill, onTick: def.onTick };
-  return {
-    ...def,
-    onKill(g, p, e, kill) { if (own.onKill) own.onKill(g, p, e, kill); if (crioHost(p, id)) crioHostKill(g, p, e, kill); },
-    onTick(g, p, dt) { if (own.onTick) own.onTick(g, p, dt); if (crioHost(p, id)) crioHostTick(g, p, dt); },
-  };
 }
 
 // ---- Inversión del Tiempo: historial de vida/posición ----
@@ -464,17 +449,17 @@ export function magaPowers() {
 
     // ---------------------------------------------------- CRIONTE
     // s4 Prisión Profunda: Congelado 3 s y 35 de stagger (lo lee el comportamiento)
-    k_prision_profunda: withCrioHost('k_prision_profunda', {
+    k_prision_profunda: {
       name: 'Prisión Profunda', desc: 'Prisión de Hielo congela 3 s y suma 35 de stagger a los jefes.',
       modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') { prof.prisonFreeze = T.prisonFreezeBig; prof.prisonStagger = T.prisonStaggerBig; } },
-    }),
+    },
     // s6B Témpano: la Nova empuja 3 m (el aturdir 1 s y el radio los da su mod)
-    k_nova_push: withCrioHost('k_nova_push', {
+    k_nova_push: {
       name: 'Témpano', desc: 'Nova de Hielo empuja 3 m a los enemigos que toca.',
       onHit(g, p, e, hit) { if (hit?.skill === 'nova_hielo' && e?.alive) e.applyCC?.('knock', T.novaPush, { from: p.pos.clone(), src: p }); },
-    }),
+    },
     // s7 Carámbanos: el Dardo Arcano pasa a Escarcha (suma 1 capa por el indicador base)
-    k_icicle_dart: withCrioHost('k_icicle_dart', {
+    k_icicle_dart: {
       name: 'Carámbanos', desc: 'Dardo Arcano dispara carámbanos de Escarcha que suman 1 capa.',
       modifyResolve(p, sk, prof) {
         if (sk.id !== 'm_dardo') return;
@@ -482,48 +467,60 @@ export function magaPowers() {
         const tags = new Set(prof.tags); tags.delete('arcane'); tags.add('frost');
         prof.tags = tags;
       },
-    }),
+    },
     // s8 Coraza de Escarcha: quien te golpea cuerpo a cuerpo gana 1 capa (el −5 % es tv.dmgReduc)
-    k_frost_armor: withCrioHost('k_frost_armor', {
+    k_frost_armor: {
       name: 'Coraza de Escarcha', desc: 'Quien te golpea cuerpo a cuerpo gana 1 capa de Escarcha.',
       onDamaged(g, p, dmg) { if (dmg?.melee && dmg.src?.alive) gainGauge(p, 'escarcha', T.frostArmorLayers, dmg.src); },
-    }),
+    },
     // s13A Tumba Glacial: los que mueren Congelados dejan un bloque que corta el paso 4 s
-    k_ice_tomb: withCrioHost('k_ice_tomb', {
+    k_ice_tomb: {
       name: 'Tumba Glacial', desc: 'Los enemigos que mueren Congelados dejan un bloque de hielo que corta el paso 4 s.',
       onKill(g, p, e, kill) {
         if (!(kill?.status?.frozen || e.frozenT > 0)) return;
         g.spawnField?.('k_tumba', { pos: e.pos, radius: T.iceTombR, dur: T.iceTombT, owner: p, data: { color: 0xbfeaff } });
       },
-    }),
+    },
     // s14 Reacción Glacial: cada astillamiento suma 2 capas a los enemigos en 4 m
-    k_shatter_chain: withCrioHost('k_shatter_chain', {
-      name: 'Reacción Glacial', desc: 'Cada astillamiento suma 2 capas a los enemigos en 4 m.',
+    // poder de los ASTILLAMIENTOS: lo llevan s14 (Reacción Glacial: +2 capas en 4 m, solo
+    // con s14) y s15 (Mente Gélida: tv.manaOnKill, que solo da s15), así s15 funciona por
+    // cualquier ruta del árbol sin depender de otro poder
+    k_shatter_chain: {
+      name: 'Reacción Glacial / Mente Gélida', desc: 'Cada astillamiento suma 2 capas a los enemigos en 4 m (s14); +maná por cada enemigo astillado o abatido (s15).',
       procs: true,
       onHit(g, p, e, hit) { detectShatter(g, p, e, hit, 'k_shatter_chain'); },
-    }),
+      onKill(g, p) { const n = p.tv?.manaOnKill || 0; if (n > 0) g.gainResource?.(p, n); },
+    },
     // s17 Frío Implacable: los Ateridos atacan un 15 % más lento (sobre el −15 % base)
-    k_numb: withCrioHost('k_numb', {
+    k_numb: {
       name: 'Frío Implacable', desc: 'Los enemigos Ateridos atacan un 15 % más lento.',
       onTick(g, p, dt) {
         for (const e of g?.enemies || []) if (e.alive && e.numbT > 0 && e.atkCd > 0) e.atkCd += T.numbExtra * dt;
       },
-    }),
+    },
     // x1 Invierno Eterno: la Nova deja un campo helado 6 s (+1 capa/s, −50 % de movimiento)
-    k_eternal_winter: withCrioHost('k_eternal_winter', {
-      name: 'Invierno Eterno', desc: 'Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50 %.',
+    // poder del SUELO HELADO de la Nova: lo llevan x1 (Invierno Eterno: campo de 6 s, solo
+    // con x1) y s16 (Nova Perpetua: su Estela de 4 s ralentiza; esa Estela solo existe con s16)
+    k_eternal_winter: {
+      name: 'Invierno Eterno / Nova Perpetua', desc: 'Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50 % (x1); el suelo helado de Nova Perpetua ralentiza (s16).',
       afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'nova_hielo') return;
+        if (cast?.sk?.id !== 'nova_hielo' || !(specRank(p, 'crionte', 'x1') > 0)) return;
         g.spawnField?.('k_campo_helado', { pos: p.pos, radius: cast.prof?.radius || 3.3, dur: T.winterT, owner: p, data: { color: 0x9fe3ff } });
       },
-    }),
+      onTick(g, p) {
+        for (const f of g?.fields || []) {
+          if (f.dead || f.kind !== 'estela' || f.owner !== p || f.data?.skill !== 'nova_hielo') continue;
+          for (const e of g.enemies || []) if (e.alive && dist2(e.pos, f.pos) <= f.radius * f.radius) e.applyCC?.('slow', 0.5, { pct: T.novaFloorSlow, src: p });
+        }
+      },
+    },
     // x3 Edad de Hielo: cada 15 astillamientos, Prisión de Hielo sola y gratis
-    k_ice_age: withCrioHost('k_ice_age', {
+    k_ice_age: {
       name: 'Edad de Hielo', desc: 'Cada 15 astillamientos, Prisión de Hielo se lanza sola y gratis sobre el grupo más numeroso.',
       state: () => ({ n: 0 }),
       procs: true,
       onHit(g, p, e, hit) { detectShatter(g, p, e, hit, 'k_ice_age'); },
-    }),
+    },
 
     // ---------------------------------------------------- ARCANISTA
     // s4 Orbe Resonante: +1 Carga por enemigo golpeado por el Orbe (máx. 2 por lanzamiento)

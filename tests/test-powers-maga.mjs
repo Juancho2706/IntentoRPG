@@ -404,17 +404,51 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.equal(h.p.cds.k_prision || 0, 0, 'gratis');
   assert.equal(h.p.hotbar.k3, null);
 }
-{ // anfitrión de Crionte: s15 Mente Gélida (maná al abatir) y suelo de s16 que ralentiza
-  const h = mk('crionte', { s7: 1, s15: 2, s16: 2 });
+{ // s15 Mente Gélida por la ruta EXACTA s1→s3→s6A→s9→s12→s15 (ningún otro poder de Crionte)
+  const route = { s1: 3, s3: 2, s6: 1, s9: 1, s12: 2, s15: 2 };
+  const h = mk('crionte', route, { choice: { s6: 'A' } });
+  const own = [...h.p.powers].filter(id => /^k_/.test(id));
+  assert.deepEqual(own, ['k_shatter_chain'], 'por esta ruta solo está el poder que lleva s15');
   const v = h.enemy({ hp: 50, pos: [3, 0, 0] });
   h.p.mp = 10;
   v.takeDamage(1e6, false, { skill: 'rayo' });
   near(h.p.mp, 16, 1e-6, 's15: +6 de maná por enemigo abatido');
+  // astillado (Cero Absoluto) también cuenta, y SIN s14 no hay Reacción Glacial
+  const e = h.enemy({ hp: 100, pos: [3, 0, 0] }), o = h.enemy({ hp: 1e6, pos: [4.5, 0, 0] });
+  e.applyCC('freeze', 2, { src: h.p }); e.hp = 10;
+  h.p.mp = 10;
+  h.hit(e, { skill: 'm_toque', elem: 'frost', dealt: 1 });
+  assert.ok(!e.alive, 'astillado');
+  near(h.p.mp, 16, 1e-6, 's15: +6 de maná por enemigo astillado');
+  assert.equal(h.gaugeValue('escarcha', o), 0, 'sin s14, el astillamiento no suma capas');
+}
+{ // s16 Nova Perpetua por la ruta s1→s2→s4→s6A→s9→s12→s13B→s16 (sin otro poder de Crionte)
+  const route = { s1: 3, s2: 2, s4: 1, s6: 1, s9: 1, s12: 2, s13: 1, s16: 2 };
+  const h = mk('crionte', route, { choice: { s6: 'A', s13: 'B' } });
+  assert.deepEqual([...h.p.powers].filter(id => /^k_/.test(id)).sort(), ['k_eternal_winter', 'k_prision_profunda']);
   const e = h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
-  h.p.mp = h.p.stats.maxMP;
   castAt(h, 'rmb', 'nova_hielo', 2, 0, 0.1);
+  assert.ok(h.g.fields.some(f => f.kind === 'estela' && f.data?.skill === 'nova_hielo'), 's16: suelo helado de la Nova');
+  assert.ok(!h.g.fields.some(f => f.kind === 'k_campo_helado'), 'sin x1 no hay campo de Invierno Eterno');
   h.tick(3.4);
-  assert.ok(e.slowT > 0, 's16: el suelo helado ralentiza cuando acaba el de la Nova');
+  assert.ok(e.slowT > 0, 's16: el suelo helado ralentiza cuando acaba el ralentizar de la Nova');
+  const n = mk('crionte', { s1: 3, s2: 2, s4: 1, s6: 1, s9: 1, s12: 2, s13: 1 }, { choice: { s6: 'A', s13: 'B' } });
+  const f = n.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+  castAt(n, 'rmb', 'nova_hielo', 2, 0, 0.1);
+  n.tick(3.4);
+  assert.ok(!(f.slowT > 0), 'sin s16, a los 3,4 s ya no está ralentizado');
+}
+{ // ningún nodo con efecto propio depende de OTRO poder: por cada nodo con `power`, el
+  // árbol con SOLO ese nodo (y la clave gratis) lo deja en p.powers
+  for (const s of TALENT_TREES.maga.specs) {
+    for (const n of s.nodes) {
+      for (const o of n.t === 'c' ? n.opts : [{ k: null, fx: n.fx }]) {
+        if (!o.fx?.power || n.free) continue;
+        const h = mk(s.id, { [n.id]: 1 }, { choice: o.k ? { [n.id]: o.k } : {} });
+        assert.ok(h.p.powers.has(o.fx.power), `${s.id}/${n.id}${o.k || ''}: ${o.fx.power} activo con su nodo`);
+      }
+    }
+  }
 }
 
 // ================================================ ARCANISTA
