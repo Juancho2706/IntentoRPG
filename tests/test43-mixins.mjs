@@ -96,7 +96,7 @@ console.log(`eraMethods exporta los ${ERA_EXPECTED.length} métodos esperados, t
 const SKILLS_EXPECTED = [
   'allies', 'heal', 'shield', 'dealProcDamage', 'gainResource', 'fireProjectile', 'startChannel', 'onPlayerHit',
   'skillSupports', 'applyDoT', 'spawnChainBounce', 'dealArea', 'enemiesInCone', 'enemiesInLine', 'clampWalkable', 'slotHeld',
-  'assignHotbar', 'chooseSkillMod', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
+  'assignHotbar', 'chooseSkillMod', '_spenderWaiting', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
   'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',
 ];
 const skKeys = Object.keys(skillMethods);

@@ -229,7 +229,7 @@ const lost = e => e.maxHP - e.hp;
   console.log('Onda Repulsora: 0,8 WD, empuja 5 m y aturde 0,5 s (jefes no se empujan) ✓');
 }
 
-// Supernova: windup 0,15 + telegrafía 0,5, dos ondas y Quemadura
+// Supernova: windup 0,15 + telegrafía 0,5, TRES ondas de 4,7 WD (2b.2: golpe máximo ≤ 21 % del jefe) y Quemadura
 {
   const h = makeHarness({ classId: 'maga', level: 20 }); noCrit(h);
   const e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
@@ -237,15 +237,16 @@ const lost = e => e.maxHP - e.hp;
   assert.equal(h.cast('k4'), true);
   h.step(0.6); assert.equal(lost(e), 0, 'telegrafía: aún no estalla');
   h.step(0.1); const first = lost(e); assert.ok(first > 0, 'primera onda a 0,65 s');
-  h.step(0.3); const second = lost(e); assert.ok(second > first * 1.6, 'segunda onda 0,3 s después');
+  h.step(0.25); const second = lost(e); assert.ok(second > first * 1.6, 'segunda onda 0,25 s después');
+  h.step(0.25); const third = lost(e); assert.ok(third > second * 1.3, 'tercera onda 0,25 s después');
   assert.ok(Object.keys(e._dots || {}).some(k => k.includes('burn')), 'deja Quemadura');
   h.step(6.5);
-  const burn = lost(e) - second;
+  const burn = lost(e) - third;
   const prof = resolveSkill(h.p, S('m_u_supernova'));
-  const want = h.p.avgHit(prof.coef * 6 / 7, prof.addPct);
+  const want = h.p.avgHit(prof.coef * 6 / S('m_u_supernova').coef, prof.addPct);
   assert.ok(burn > want * 0.8 && burn < want * 1.2, `Quemadura ≈ 6 WD (${burn} vs ${want.toFixed(0)})`);
   assert.equal(h.p.cdMax.m_u_supernova, 50, 'enfriamiento 50 s');
-  console.log('Supernova: 2 ondas de 7 WD + Quemadura de 6 WD (≈20 WD) ✓');
+  console.log('Supernova: 3 ondas de 4,7 WD + Quemadura de 6 WD (≈20 WD) ✓');
 }
 
 // Tormenta Glacial: te sigue, ralentiza y congela al 5.º golpe

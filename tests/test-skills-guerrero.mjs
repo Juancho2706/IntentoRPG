@@ -27,9 +27,9 @@ const EXPECT = {
   g_mandoble:     { st: 'R', cat: 'basic',    req: 3,  coef: 1.5, cost: 0,  cd: 0,  gen: 14 },   // básico B (Nv3)
   g_embate:       { st: 'R', cat: 'basic',    req: 8,  coef: 0.6, cost: 0,  cd: 0,  gen: 7 },    // básico C (Nv8)
   torbellino:     { st: 'R', cat: 'spender',  req: 2,  coef: 1.6, cost: 25, cd: 0 },
-  g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.9, cost: 30, cd: 0 },   // 2,6 → 2,9 (banco 2b.2)
+  g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.9, cost: 27, cd: 0 },   // 2,6/30 → 2,9/27 (banco 2b.2)
   g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 2.4, cost: 30, cd: 0 },
-  terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.3, cost: 30, cd: 6 },   // 3,0/35 → 3,3/30 (banco 2b.2)
+  terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.1, cost: 26, cd: 4 },   // 3,0/35/6 → 3,1/26/4 (banco 2b.2)
   g_lanza:        { st: 'C', cat: 'spender',  req: 14, coef: 1.9, cost: 20, cd: 0 },
   embestida:      { st: 'C', cat: 'movement', req: 4,  coef: 1.2, cost: 0,  cd: 8 },
   g_salto:        { st: 'R', cat: 'movement', req: 12, coef: 1.8, cost: 0,  cd: 12 },
@@ -37,7 +37,7 @@ const EXPECT = {
   g_provocacion:  { st: 'R', cat: 'utility',  req: 16, coef: 0,   cost: 0,  cd: 8 },    // utilidad C (Nv16)
   grito_guerra:   { st: 'R', cat: 'utility',  req: 12, coef: 0,   cost: 0,  cd: 20 },   // sin coste, +30 al lanzar
   g_u_furia:      { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 60 },
-  g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.5, cost: 0,  cd: 50 },
+  g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.6, cost: 0,  cd: 50 },   // 3,5 → 3,6 (banco 2b.2)
   g_u_estandarte: { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 55 },
 };
 assert.deepEqual(GUERRERO_SKILLS.map(s => s.id).sort(), Object.keys(EXPECT).sort(), 'catálogo base = §3.1 sin las de talento');
@@ -72,9 +72,9 @@ console.log('Catálogo del Guerrero: 16 habilidades base válidas, ramas 3×3, r
 // ------------------------------------------------ 2) resolveSkill en Nv1 / Nv20 / Nv50
 const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, input: { joyDir: null, keyDir: null }, enemies: [] });
 const LITERAL = {   // coef final a mano: base × (1 + 0,10·(rango−1)), rango = clamp(1+⌊(Nv−req)/8⌋,1,5)
-  1:  { torbellino: 1.6,  g_hendidura: 2.9,  terremoto: 3.3, g_tajo: 1.0, g_u_cataclismo: 3.5 },
-  20: { torbellino: 1.92, g_hendidura: 3.19, terremoto: 3.3, g_tajo: 1.2, g_u_cataclismo: 3.5 },
-  50: { torbellino: 2.24, g_hendidura: 4.06, terremoto: 4.62, g_tajo: 1.4, g_u_cataclismo: 4.9 },
+  1:  { torbellino: 1.6,  g_hendidura: 2.9,  terremoto: 3.1, g_tajo: 1.0, g_u_cataclismo: 3.6 },
+  20: { torbellino: 1.92, g_hendidura: 3.19, terremoto: 3.1, g_tajo: 1.2, g_u_cataclismo: 3.6 },
+  50: { torbellino: 2.24, g_hendidura: 4.06, terremoto: 4.34, g_tajo: 1.4, g_u_cataclismo: 5.04 },
 };
 for (const L of [1, 20, 50]) {
   const p = new Player(mk(), 'guerrero');
@@ -149,7 +149,7 @@ assert.ok(e.hp < 1e6 && e2.hp < 1e6 && h.p.mp === 75, 'Torbellino: golpea alrede
 // Hendidura: cono 120°/4,5 m tras 0,12 s; cuesta 30
 h = hz(20); e = h.enemy({ hp: 1e6, pos: [4, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [-2, 0, 0] });
 h.aim(5, 0); h.setSlot('rmb', 'g_hendidura'); assert.equal(h.cast('rmb'), true); h.step(0.2);
-assert.ok(e.hp < 1e6 && e2.hp === 1e6 && h.p.mp === 70, 'Hendidura: delante a 4 m sí, detrás no; cuesta 30');
+assert.ok(e.hp < 1e6 && e2.hp === 1e6 && h.p.mp === 73, 'Hendidura: delante a 4 m sí, detrás no; cuesta 27');
 
 // Martillo: alcance 2,5 m, r 3, impacta a 0,15 + 0,23 s
 h = hz(20); e = h.enemy({ hp: 1e6, pos: [4, 0, 0] });
@@ -161,7 +161,7 @@ h.step(0.2); assert.ok(e.hp < 1e6, 'Martillo: impacta 2,5 m delante con radio 3'
 h = hz(20); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [4, 0, 3] });
 h.aim(8, 0); h.setSlot('rmb', 'terremoto'); assert.equal(h.cast('rmb'), true); h.step(0.2);
 assert.ok(e.hp < 1e6 && e.stunT > 0 && e2.hp === 1e6, 'Terremoto: daña y aturde en la línea');
-assert.ok(approx(h.p.cds.terremoto, 6, 0.05) && h.p.mp === 70, 'Terremoto: 30 de Furia y 6 s');
+assert.ok(approx(h.p.cds.terremoto, 4, 0.05) && h.p.mp === 74, 'Terremoto: 26 de Furia y 4 s');
 // los jefes NO se aturden (bossStun:false; sumarán stagger en 2c)
 h = hz(20); e = h.enemy({ hp: 1e6, pos: [6, 0, 0], boss: true });
 h.aim(8, 0); h.setSlot('rmb', 'terremoto'); assert.equal(h.cast('rmb'), true); h.step(0.2);

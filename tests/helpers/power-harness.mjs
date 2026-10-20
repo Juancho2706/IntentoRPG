@@ -35,7 +35,9 @@ export function makeGame({ seed = 7 } = {}) {
   };
   const g = {
     ui, state: 'play', settings: {}, _paused: false,
-    input: { joyDir: null, keyDir: null, mouseWorld: null, mouseHeld: { l: true, r: true }, held: () => true },
+    // 🖱️Der NO mantenido por defecto (si no, el básico cederá el turno a la gastadora
+    // de 🖱️Der: regla de los dos botones del Paso 2b.2); h.g.input.mouseHeld.r = true lo simula
+    input: { joyDir: null, keyDir: null, mouseWorld: null, mouseHeld: { l: true, r: false }, held: () => true },
     world: { grid: { walkable: () => true, lineOfSight: () => true } },
     enemies: [], projectiles: [], fx: [], kills: [],
     timers: new TickScheduler(),

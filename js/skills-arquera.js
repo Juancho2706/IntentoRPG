@@ -31,7 +31,7 @@ import { dmgMods, buffMods, utilMods, O_RAD, O_PROJ, O_PROJ2, V_POISON, V_VULN, 
 export const ARQUERA_SKILLS = [
   // — BÁSICOS (generan +5 de Energía al ACERTAR; cadencia 0,9 s, sin GCD) —
   { id: 'a_disparo', name: 'Disparo Rápido', icon: '🏹', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'physical'], elem: 'physical',
-    type: 'weapon', req: 1, coef: 1.0, gen: 5,
+    type: 'weapon', req: 1, coef: 1.15, gen: 5,
     desc: 'Dispara una flecha veloz (100 % del daño del arma). Al acertar recupera 5 de Energía.' },
   { id: 'a_disperso', name: 'Disparo Disperso', icon: '🎇', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'area', 'physical'], elem: 'physical',
     type: 'proj', req: 3, coef: 0.45, gen: 5, count: 3, spread: 0.218, speed: 18, range: 9.5, size: 0.1, color: 0xe8d8a0,
@@ -42,13 +42,13 @@ export const ARQUERA_SKILLS = [
 
   // — GASTADORAS (rmb o k2; sin enfriamiento salvo la Lluvia) —
   { id: 'flecha_perforante', name: 'Flecha Perforante', icon: '➶', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', req: 2, coef: 2.0, cost: 22, cd: 0, speed: 17, range: 13, pierce: true, lockT: 0.35, color: 0xffffcc,
+    type: 'proj', req: 2, coef: 2.1, cost: 26, cd: 0, speed: 17, range: 13, pierce: true, lockT: 0.35, color: 0xffffcc,
     desc: 'Una flecha pesada (220 % del arma) que atraviesa a todos los enemigos en su camino. 20 de Energía, sin enfriamiento.' },
   { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'physical'], elem: 'physical',
     type: 'proj', req: 8, coef: 0.7, cost: 22, cd: 0, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
     desc: 'Dispara 5 flechas en un abanico de 50° (70 % del arma cada una; ≈150 % a un objetivo pegado). 22 de Energía, sin enfriamiento.' },
   { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.7, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
+    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.6, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
     desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (75 % del arma cada una: 300 % en total). 30 de Energía, enfriamiento 4 s.' },
 
   // — MOVILIDAD (k1, fuera del GCD) —
@@ -69,7 +69,7 @@ export const ARQUERA_SKILLS = [
 
   // — DEFINITIVAS (k4, sin coste; eliges una) —
   { id: 'a_u_diluvio', name: 'Diluvio de Saetas', icon: '🌠', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_diluvio', at: 'target', req: 15, coef: 2.0, waves: 8, span: 3.6, cd: 50, radius: 5, range: 12, windup: 0.15, impactDelay: 0.4, shake: 0.18, color: 0xbfffbf,
+    behavior: 'a_diluvio', at: 'target', req: 15, coef: 2.2, waves: 8, span: 3.6, cd: 50, radius: 5, range: 12, windup: 0.15, impactDelay: 0.4, shake: 0.18, color: 0xbfffbf,
     desc: 'Definitiva: tras una telegrafía, 8 oleadas de saetas arrasan un círculo de 5 m durante 4 s (250 % del arma cada una: 2000 % por objetivo). Enfriamiento 50 s.' },
   { id: 'a_u_celeste', name: 'Tiro Celestial', icon: '🌌', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'proj', 'physical'], elem: 'physical',
     behavior: 'a_celeste', req: 15, coef: 7.0, shots: 3, window: 8, recastGap: 0.35, cd: 50, speed: 30, range: 16, pierce: true, beam: true, windup: 0.3, color: 0x9fd8ff,

@@ -640,15 +640,37 @@ export const skillMethods = {
     this.save();
   },
 
+  // ¿Hay una gastadora PEDIDA (🖱️Der mantenido) y lista para salir? Entonces el
+  // básico cede el turno ese frame: con los dos botones mantenidos nunca salen dos
+  // acciones a la vez y la gastadora conserva su cadencia. Sin ratón (tests sin
+  // input real), nunca.
+  _spenderWaiting() {
+    const p = this.player, inp = this.input;
+    if (!p || !inp?.mouseHeld?.r) return false;
+    const id = p.hotbar?.rmb;
+    const sk = id ? p.cls.skills.find(s => s.id === id) : null;
+    if (!sk || sk.cat === 'basic' || !isKnown(p, sk)) return false;
+    if ((p.cds[sk.id] || 0) > 0 || p.gcdT > 0 || p.castLock > 0 || p.leap || this._channel) return false;
+    const prof = resolveSkill(p, sk);
+    if (!canAfford(p, prof.cost)) return false;
+    if (prof.type === 'melee') {
+      const e = this.nearestEnemy(Math.max(2.2, prof.range || 2.2) + 0.6);
+      if (!e) return false;
+    }
+    return true;
+  },
+
   // ---------------- ataque básico ----------------
   // Básico de arma = GENERADOR. Apunta al cursor; melee golpea al enemigo a
   // rango, a distancia dispara hacia la mira. Sin GCD (lo marca la cadencia).
   castBasic() {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play' || this._paused || p.atkCd > 0 || p.castLock > 0 || p.leap || this._windup) return;
+    if (p.actionLockT > 0 || this._spenderWaiting()) return;   // la gastadora en curso / pedida manda
     const aim = this.input?.mouseWorld || null;
     const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
     const scheme = this.settings?.controlScheme || 'wasd';
+    p.basicAt = p.simT;                                         // una acción por frame
     if (p.cls.ranged) {
       const fwd = v3(Math.sin(p.group.rotation.y), Math.cos(p.group.rotation.y));
       const tgt = (scheme !== 'click' && aim) ? { pos: aim } : (near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) });
@@ -702,10 +724,22 @@ export const skillMethods = {
     const prof = resolveSkill(p, sk);
     const isBasic = sk.cat === 'basic';
     const isEcho = echoMult > 0;
+    // una gastadora puede CANCELAR el windup de un básico en curso (el remate del
+    // Mandoble), como en D4: la gastadora tiene prioridad sobre el básico
+    const yieldBasic = !isEcho && !isBasic && !!this._windup?.ctx?.isBasic;
     if (!isEcho) {
-      if (p.castLock > 0 || p.leap || this._windup || this._channel) return false; // bloqueo en curso
-      if (isBasic) { if (p.atkCd > 0) return false; }
+      if (((p.castLock > 0 || this._windup) && !yieldBasic) || p.leap || this._channel) return false; // bloqueo en curso
+      if (isBasic) {
+        if (p.atkCd > 0) return false;
+        // bloqueo de ACCIÓN compartido: mientras una gastadora prepara, bloquea o
+        // vuela hacia su impacto, el básico no sale (queda a la espera con el
+        // botón mantenido); y si hay una gastadora pedida y lista, cede el turno
+        if (p.actionLockT > 0 || this._spenderWaiting()) return false;
+      }
       else if ((p.cds[sk.id] || 0) > 0) return false;
+      // una sola acción por frame: si el básico acaba de salir en ESTE instante, la
+      // gastadora sale en el siguiente (16 ms; el básico no la retrasa más que eso)
+      else if (p.basicAt != null && p.basicAt === p.simT) return false;
       if (prof.gcd && p.gcdT > 0) return false;                                       // GCD 0,2 s
       if (!canAfford(p, prof.cost)) {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -728,6 +762,13 @@ export const skillMethods = {
     }
     const cast = { sk, prof, slot: key, target, enemy: near };
     if (!isEcho && firePower('onCast', p, this, p, cast) === false) return false; // cancelado sin coste
+    if (yieldBasic) this.cancelCast('gastadora');                                    // corta el remate del básico
+    // bloqueo de acción para el básico: preparación + max(bloqueo, impacto diferido,
+    // vuelo del proyectil hasta la mira), nunca menos que el GCD
+    if (!isEcho && !isBasic && prof.gcd) {
+      const flight = prof.tags.has('proj') ? Math.min(prof.range || 10, p.pos.distanceTo(target)) / Math.max(1, prof.speed || 14) : 0;
+      p.actionLockT = Math.max(p.actionLockT || 0, GCD, (prof.windup || 0) + Math.max(prof.lockT || 0, prof.impactDelay || 0, flight));
+    }
     const fx = SKILL_FX[sk.id] || null;
     const dotKind = prof.dot;
     const color = sk.color || (dotKind ? DOT_COLORS[dotKind] : null) || undefined;
@@ -771,7 +812,7 @@ export const skillMethods = {
     const { p, sk, prof, isEcho, isBasic } = ctx;
     if (!isEcho) {
       // básico: cadencia × sk.cadence (Mandoble 1,5 · Embate 1,1), sin contar el windup ya esperado
-      if (isBasic) p.atkCd = Math.max(0.05, p.stats.atkTime * (prof.cadence || 1) - (prof.windup || 0));
+      if (isBasic) { p.atkCd = Math.max(0.05, p.stats.atkTime * (prof.cadence || 1) - (prof.windup || 0)); p.basicAt = p.simT; }
       else {
         if (!spendResource(p, prof.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
         if (prof.gen) gainResource(p, prof.gen);   // sk.gen (Grito de Guerra) + ramas Furibundo/Iracundo
@@ -870,6 +911,6 @@ export const skillMethods = {
     this._windup = null;
     this._channel = null;
     const p = this.player;
-    if (p) { p.castLock = 0; p.leap = null; p.gcdT = 0; }
+    if (p) { p.castLock = 0; p.leap = null; p.gcdT = 0; p.actionLockT = 0; }
   },
 };

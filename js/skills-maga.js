@@ -22,7 +22,7 @@ import { dmgMods, utilMods, O_RAD, O_PROJ, O_BIG, V_BURN, V_VULN, V_STUN, V_SLOW
 export const MAGA_SKILLS = [
   // — BÁSICOS (generan Maná; «casi no genera») —
   { id: 'm_dardo', name: 'Dardo Arcano', icon: '✨', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'arcane'], elem: 'arcane',
-    type: 'weapon', req: 1, coef: 1.0, gen: 3, color: 0xcc66ff,
+    type: 'weapon', req: 1, coef: 1.05, gen: 3, color: 0xcc66ff,
     desc: 'Lanza un dardo arcano a distancia (100 % del daño de arma) y recupera 3 de Maná al impactar.' },
   { id: 'm_ascua', name: 'Ascua', icon: '🔸', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'area', 'fire'], elem: 'fire',
     type: 'proj', req: 3, coef: 0.75, splash: 0.3, radius: 1.5, gen: 3, speed: 14, range: 9, size: 0.16, color: 0xff8a33,
@@ -44,8 +44,8 @@ export const MAGA_SKILLS = [
     type: 'area', at: 'self', req: 14, coef: 1.4, cost: 25, cd: 4, radius: 3.3, slow: 3, slowPct: 30, color: 0x66ccff,
     desc: 'Una onda gélida a tu alrededor (3,3 m): 140 % de daño y ralentiza un 30 % durante 3 s. Cuesta 25 de Maná; enfriamiento 4 s.' },
   { id: 'meteoro', name: 'Meteoro', icon: '☄️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'fire'], elem: 'fire',
-    type: 'area', at: 'target', req: 14, coef: 5.0, cost: 40, cd: 7, radius: 3, range: 11, impactDelay: 0.6, shake: 0.5, color: 0xff4400,
-    desc: 'Invoca un meteoro que se estrella 0,6 s después en la zona elegida (3 m): 500 % de daño. Cuesta 40 de Maná; enfriamiento 7 s.' },
+    type: 'area', at: 'target', req: 14, coef: 4.1, cost: 40, cd: 6, radius: 3, range: 11, impactDelay: 0.6, shake: 0.5, color: 0xff4400,
+    desc: 'Invoca un meteoro que se estrella 0,6 s después en la zona elegida (3 m): 410 % de daño. Cuesta 40 de Maná; enfriamiento 6 s.' },
 
   // — MOVILIDAD (ranura 1, fuera del GCD) —
   { id: 'm_paso_escarcha', name: 'Paso de Escarcha', icon: '🧊', cat: 'movement', slots: ['k1'], tags: ['movement', 'frost'], elem: 'frost',
@@ -65,9 +65,9 @@ export const MAGA_SKILLS = [
 
   // — DEFINITIVAS (ranura 4, sin coste; eliges una) —
   { id: 'm_u_supernova', name: 'Supernova', icon: '🌟', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'fire'], elem: 'fire',
-    behavior: 'm_u_supernova', req: 15, coef: 7, pulses: 2, pulseGap: 0.3, burn: 6, burnT: 6, cd: 50, radius: 5, range: 10,
+    behavior: 'm_u_supernova', req: 15, coef: 4.7, pulses: 3, pulseGap: 0.25, burn: 6, burnT: 6, cd: 50, radius: 5, range: 10,
     windup: 0.15, impactDelay: 0.5, shake: 0.6, color: 0xffcc44,
-    desc: 'Definitiva: una estrella cae en la zona (5 m) y estalla 0,5 s después en dos ondas de 700 % de daño (1400 % en total) que dejan una quemadura de 600 % en 6 s. Enfriamiento 50 s.' },
+    desc: 'Definitiva: una estrella cae en la zona (5 m) y estalla 0,5 s después en tres ondas de 470 % de daño (1410 % en total) que dejan una quemadura de 600 % en 6 s. Enfriamiento 50 s.' },
   { id: 'm_u_tormenta', name: 'Tormenta Glacial', icon: '🌨️', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'zone', 'cc', 'frost'], elem: 'frost',
     behavior: 'm_u_tormenta', req: 15, coef: 0.6, cd: 55, radius: 6, dur: 8, interval: 0.5, slowPct: 40, freeze: 1.5, freezeAt: 5, color: 0xbfe9ff,
     desc: 'Definitiva: una ventisca te sigue durante 8 s (6 m): 60 % de daño cada 0,5 s (960 % en total), ralentiza un 40 % y congela 1,5 s a quien encadena 5 golpes (con rendimientos decrecientes). Enfriamiento 55 s.' },
@@ -199,8 +199,8 @@ export const MAGA_SKILL_BEHAVIORS = {
     },
   },
 
-  // Supernova: telegrafía 0,5 s y DOS ondas de 7 WD (14 en total) + Quemadura de
-  // 6 WD en 6 s. En dos ondas para que ningún golpe suelto supere el 25 % de la
+  // Supernova: telegrafía 0,5 s y TRES ondas de 4,7 WD (14,1 en total) + Quemadura de
+  // 6 WD en 6 s. En tres ondas para que ningún golpe suelto supere el 21 % de la
   // vida de un jefe (banco), con el mismo presupuesto de §3.2 (≈20 WD).
   m_u_supernova: {
     cast(g, p, prof, cast) {

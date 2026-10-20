@@ -565,6 +565,7 @@ export class Player {
     this.cdMax = {};            // enfriamiento total del último uso (overlay de la UI)
     this.gcdT = 0;              // enfriamiento global (0,2 s entre gastadoras)
     this.castLock = 0;          // bloqueo de lanzamiento (windup / canalización)
+    this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una gastadora (Paso 2b.2)
     this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
     this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
@@ -1174,6 +1175,7 @@ export class Player {
     this.atkCd = Math.max(0, this.atkCd - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.gcdT = Math.max(0, (this.gcdT || 0) - dt);
+    if (this.actionLockT > 0) this.actionLockT = Math.max(0, this.actionLockT - dt);
     if (this.castLock > 0) this.castLock = Math.max(0, this.castLock - dt); // red de seguridad (windup/canalización)
     if (this.invulnT > 0) this.invulnT = Math.max(0, this.invulnT - dt);
     if (this.unstoppableT > 0) this.unstoppableT = Math.max(0, this.unstoppableT - dt);

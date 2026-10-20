@@ -254,4 +254,73 @@ function addSkill(cid, def) {
   console.log('Sin escopetazo · primer proyectil recto · tope de recurso al golpear · tics de DoT atribuidos ✓');
 }
 
+// ------------------------------------------------ dos botones mantenidos (🖱️Izq + 🖱️Der)
+{
+  // 3 s con los dos botones mantenidos, como el bucle de main.js (lmb y luego rmb cada frame)
+  const h = makeHarness({ classId: 'guerrero', level: 20 });
+  h.p.mp = h.p.stats.maxMP;
+  const e = h.enemy({ hp: 1e9, pos: [1.6, 0, 0] });
+  h.aim(1.6, 0); h.setSlot('lmb', 'g_tajo'); h.setSlot('rmb', 'g_hendidura');
+  h.g.input.mouseHeld = { l: true, r: true };
+  const hits = [];                                   // [frame, skill] impactos directos
+  let frame = 0;
+  const orig = e.takeDamage.bind(e);
+  e.takeDamage = (a, c, o = {}) => { if (!o.dot && !o.proc && o.skill) hits.push([frame, o.skill]); return orig(a, c, o); };
+  let both = 0, spenders = 0, basics = 0;
+  for (; frame < 180; frame++) {
+    const a0 = h.p.atkCd;
+    h.g.castSkillSlot('lmb');
+    const b = h.p.atkCd > a0;
+    const s = h.g.castSkillSlot('rmb');
+    if (b && s) both++;
+    basics += b ? 1 : 0; spenders += s ? 1 : 0;
+    h.step(1 / 60, 1 / 60);
+  }
+  assert.equal(both, 0, 'nunca salen básico y gastadora en el mismo frame');
+  const byFrame = {};
+  for (const [f, k] of hits) (byFrame[f] || (byFrame[f] = new Set())).add(k);
+  assert.ok(!Object.values(byFrame).some(x => x.has('g_tajo') && x.has('g_hendidura')), 'nunca dos acciones con impacto en el mismo frame');
+  assert.ok(spenders >= 3 && basics >= 3, `gasta la Furia en Hendiduras y el básico rellena (${spenders} Hendiduras, ${basics} Tajos en 3 s)`);
+  // con Furia infinita la gastadora sale con SU cadencia (windup + GCD) y el básico cede siempre
+  {
+    const k = makeHarness({ classId: 'guerrero', level: 20 });
+    k.enemy({ hp: 1e9, pos: [1.6, 0, 0] });
+    k.aim(1.6, 0); k.setSlot('lmb', 'g_tajo'); k.setSlot('rmb', 'g_hendidura');
+    k.g.input.mouseHeld = { l: true, r: true };
+    let sp = 0, ba = 0, bb = 0;
+    for (let f = 0; f < 180; f++) {
+      k.p.mp = k.p.stats.maxMP;
+      const a0 = k.p.atkCd; k.g.castSkillSlot('lmb'); const b = k.p.atkCd > a0;
+      const s2 = k.g.castSkillSlot('rmb');
+      sp += s2 ? 1 : 0; ba += b ? 1 : 0; if (b && s2) bb++;
+      k.step(1 / 60, 1 / 60);
+    }
+    assert.ok(sp >= 10 && bb === 0, `cadencia de la gastadora con los dos botones: ${sp} en 3 s, ${ba} básicos`);
+  }
+  // el windup del básico (Mandoble) lo cancela la gastadora: tiene prioridad
+  const m = makeHarness({ classId: 'guerrero', level: 20 });
+  m.p.mp = m.p.stats.maxMP;
+  m.enemy({ hp: 1e9, pos: [1.6, 0, 0] });
+  m.aim(1.6, 0); m.setSlot('lmb', 'g_mandoble'); m.setSlot('rmb', 'g_hendidura');
+  assert.equal(m.cast('lmb'), true); assert.ok(m.g._windup?.ctx.isBasic, 'Mandoble preparando');
+  m.step(0.05);
+  assert.equal(m.cast('rmb'), true, 'la gastadora corta el remate del básico');
+  assert.ok(m.g._windup?.ctx.sk.id === 'g_hendidura', 'el windup en curso es ahora el de la Hendidura');
+  assert.ok(m.p.actionLockT > 0 && m.cast('lmb') === false, 'mientras la gastadora prepara, el básico espera');
+  // DPS de «los dos botones» ≈ rotación del banco (±10 %) en las tres clases
+  const { buildHero, refEnemies, simulateUni } = await import('./balance-bench.mjs');
+  const { areaLevelForHero } = await import('../js/combat-math.js');
+  for (const [c, L] of [['guerrero', 25], ['maga', 25], ['arquera', 25]]) {
+    const ref = refEnemies(areaLevelForHero(L));
+    const mk = () => { const p = buildHero(c, L, 'tipico'); p.hotbar.k2 = null; p.hotbar.k4 = null; return p; };
+    const rot = simulateUni(mk(), ref), btn = simulateUni(mk(), ref, 60, { buttons: true });
+    assert.equal(btn.sameFrameCasts, 0, `${c}: sin dos acciones en el mismo frame`);
+    assert.equal(btn.sameFrameHits, 0, `${c}: sin impactos de básico y gastadora en el mismo frame`);
+    assert.ok(Math.abs(btn.dps / rot.dps - 1) <= 0.10, `${c}: los dos botones ≈ la rotación (${btn.dps.toFixed(0)} vs ${rot.dps.toFixed(0)})`);
+    const sid = mk().hotbar.rmb;
+    assert.ok(Math.abs((btn.uses[sid] || 0) - (rot.uses[sid] || 0)) <= Math.max(2, 0.1 * (rot.uses[sid] || 0)), `${c}: la gastadora conserva su cadencia`);
+  }
+  console.log('Dos botones mantenidos: una acción por frame, la gastadora manda y el DPS ≈ rotación ✓');
+}
+
 console.log('\n✅ NÚCLEO 2b.2 (pedidos de 2b.1) OK');

@@ -62,11 +62,11 @@ for (const s of skills) {
   }
   if (s.cat === 'ultimate') { assert.equal(s.cost, 0, `${s.id}: sin coste`); assert.ok(s.cd >= 50, `${s.id}: enfriamiento ≥ 50 s`); }
 }
-// números de §3.3 recalibrados con el banco (Paso 2b.2): Perforante 2,2→2,0 y coste 20→22,
-// Lluvia 3,0→2,8 WD en total, Diluvio 20→16 WD (la definitiva queda en el 12–22 % de UNI)
-assert.deepEqual([S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [2.0, 22, 0.7, 5], 'números de §3.3 (2b.2)');
-assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.8, 'Lluvia: 2,8 WD en total');
-assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 16, 'Diluvio: 16 WD por objetivo');
+// números de §3.3 recalibrados con el banco (Paso 2b.2): Disparo Rápido 1,0→1,15,
+// Perforante 2,2/20→2,1/26, Lluvia 3,0→2,4 WD en total, Diluvio 20→17,6 WD
+assert.deepEqual([S('a_disparo').coef, S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [1.15, 2.1, 26, 0.7, 5], 'números de §3.3 (2b.2)');
+assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.4, 'Lluvia: 2,4 WD en total');
+assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 17.6, 'Diluvio: 17,6 WD por objetivo');
 assert.equal(S('a_u_celeste').coef * S('a_u_celeste').shots, 21, 'Tiro Celestial: 3 × 7,0');
 console.log('Energía: básicos +5, gastadoras sin enfriamiento (Lluvia 4 s), definitivas gratis ✓');
 
@@ -139,19 +139,19 @@ const countHits = (e, skill) => {
   console.log('Flecha de Cicuta: impacto + Veneno 4 s ✓');
 }
 
-// Flecha Perforante: atraviesa, cuesta 22, sin enfriamiento (solo GCD/bloqueo)
+// Flecha Perforante: atraviesa, cuesta 26, sin enfriamiento (solo GCD/bloqueo)
 {
   const h = mk();
   const e1 = h.enemy({ hp: 1e6, pos: [0, 0, 3] }), e2 = h.enemy({ hp: 1e6, pos: [0, 0, 6] });
   h.aim(0, 4); h.setSlot('rmb', 'flecha_perforante');
   const mp0 = h.p.mp;
   assert.equal(h.cast('rmb'), true);
-  assert.equal(mp0 - h.p.mp, 22, 'cuesta 22 de Energía');
+  assert.equal(mp0 - h.p.mp, 26, 'cuesta 26 de Energía');
   assert.equal(h.p.cds.flecha_perforante, 0, 'sin enfriamiento');
   h.step(1);
   assert.ok(e1.hp < 1e6 && e2.hp < 1e6, 'atraviesa a los dos');
   assert.equal(h.cast('rmb'), true, 'se puede relanzar en cuanto pasa el bloqueo');
-  console.log('Flecha Perforante: perfora, 22 de Energía, sin enfriamiento ✓');
+  console.log('Flecha Perforante: perfora, 26 de Energía, sin enfriamiento ✓');
 }
 
 // Flecha Múltiple: 5 flechas en 50°
