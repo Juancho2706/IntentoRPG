@@ -26,23 +26,24 @@
 //  · p_muro_fuego y k_aliento / a_evocacion (k2/k3 en §3.2) llevan el tag 'spec' para que
 //    defaultSlots les abra k2 y k3.
 //
-// PENDIENTE_2C1 (lo que falta para que estos datos hagan algo):
-//  · Núcleo (2c.0):
-//      talents.js: skillLv '@spec' (c9) aún no se expande; tv.costRedBig es un OBJETO y
-//        aggregateTalents lo suma como número ("0[object Object]") → 2c.0 debe fusionarlo aparte.
-//      stats nuevas: mpPct (c6), xpPct (c13); innate.staggerPct (Crionte).
-//  · Comportamientos (defineSkillBehavior en powers-maga.js) de las activas de abajo:
-//      m_t_barrera m_t_contrahechizo m_t_inversion m_t_bloque p_llamarada p_combustion
-//      p_muro_fuego k_prision k_lanza k_ventisca k_aliento a_orbe a_misiles a_sello a_evocacion
-//  · Poderes (definePower) que aún no existen en POWER_HOOKS:
-//      m_ralentizar m_aura_intelecto p_ignicion p_llamarada_avivada p_propagacion p_acumular
-//      p_fenix p_corazon_sol p_nova_solar k_prision_profunda k_nova_push k_icicle_dart
-//      k_frost_armor k_ice_tomb k_shatter_chain k_numb k_eternal_winter k_ice_age
-//      a_orbe_resonante a_manaskin a_clarity a_resonance a_overvolt a_chain_crit a_arc_charge
-//      a_singularity
-//    (ya existen en powers-common.js: m_conflag, m_shatter, m_overload; habrá que ajustar sus valores, §5.2.2)
-//  · Poderes que NO están en la lista de §5.3 (añadidos por §5.2.1 o presentes en el mockup):
-//      k_prision_profunda a_orbe_resonante
+// PENDIENTE_2C1: (vacío — Paso 2c.1 hecho: poderes, comportamientos y campos en js/powers-maga.js)
+//
+// AJUSTES DE DATOS del Paso 2c.1 (para que cada nodo haga lo que dice su texto):
+//  · Arcanista x1 (Cadena de Rayos): fuera `mod: { rayo: { chain: 3 } }`. Ese mod encadenaba
+//    TODOS los impactos de Rayo (−25 %/salto, rebotes del núcleo); el texto es «los CRÍTICOS
+//    saltan a 3 enemigos con el 50 %; si está solo, lo golpean dos veces» → lo hace el poder
+//    a_chain_crit (solo el primer crítico de cada Rayo).
+//  · m_t_bloque: «cancelable» = la ESQUIVA rompe el hielo (volver a pulsar no llega al
+//    comportamiento: la ranura está en enfriamiento); texto actualizado.
+//  · m_t_inversion: el texto avisa de que necesita historial (lo graba el primer lanzamiento
+//    de una activa de talento: ver cabecera de powers-maga.js).
+//  · Las claves tv sin consumidor en el núcleo las consumen poderes que ya tiene la rama:
+//    p_ignicion (s5, s8, s12, s15, s16, x2 de la Piromante), k_eternal_winter (x2 fieldVuln),
+//    a_clarity / a_arc_charge, el comportamiento de m_t_barrera (c7 barrierDr). Crionte s15
+//    (manaOnKill) y el «ralentiza» de s16 los consume el primer poder de Crionte presente
+//    (sin ninguno —ruta s1→s3→s6A→s9→s12→s15— no hacen nada: pedido al núcleo).
+//  · Arcanista s8 (Piel de Maná): el núcleo suma tv.dmgReduc sin condición; a_manaskin lo
+//    resta con el maná ≤ 50 % (pedido al núcleo: dmgReduc condicional).
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple
@@ -51,8 +52,8 @@ const pl = (r, one, many) => (r > 1 ? many : one);
 
 // Activas `grant` de la Maga (§3.2, estado T). Formato de MEMORIA.md §7; todas
 // kind 'talent' y req 10 (TALENT_SKILL_REQ). `type` = tipo genérico de
-// game-skills.js; `behavior` = comportamiento propio PENDIENTE (si aún no está
-// registrado, el canal de lanzamiento cae al `type` genérico, si lo hay).
+// game-skills.js; `behavior` = comportamiento propio (js/powers-maga.js, Paso 2c.1): si
+// tiene cast, sustituye al `type` genérico; a_misiles solo aporta el tic de su canalización.
 export const MAGA_TALENT_SKILLS = [
   // — árbol de clase —
   { id: 'm_t_barrera', name: 'Barrera de Maná', icon: '🔮', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'shield', 'arcane'], elem: 'arcane',
@@ -66,10 +67,10 @@ export const MAGA_TALENT_SKILLS = [
     desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.' },
   { id: 'm_t_inversion', name: 'Inversión del Tiempo', icon: '⏳', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane',
     behavior: 'm_t_inversion', req: 10, cd: 60, rewind: 5, color: 0xd7c2ff,
-    desc: 'Vuelves a la vida y a la posición que tenías hace 5 s. Enfriamiento 60 s.' },
+    desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo empieza a grabarse con tu primera activa de talento). Enfriamiento 60 s.' },
   { id: 'm_t_bloque', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost',
     behavior: 'm_t_bloque', req: 10, cd: 90, dur: 4, color: 0x9fe3ff,
-    desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (vuelve a pulsar para salir antes). Enfriamiento 90 s.' },
+    desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s.' },
   // — Piromante —
   { id: 'p_llamarada', name: 'Llamarada', icon: '🔥', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'cone', 'fire'], elem: 'fire',
     type: 'cone', behavior: 'p_llamarada', req: 10, coef: 1.5, cost: 25, cd: 8, radius: 7, angle: 70, windup: 0.1, detonatePct: 60, color: 0xff7a22,
@@ -235,7 +236,7 @@ export const MAGA_TALENTS = {
         { id: 's15', name: 'Sobretensión', icon: 'talents/maga-arcanista-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `Con 4 Cargas, Dardo Arcano atraviesa a los enemigos; +${x(10, r)}% de su daño.`, fx: { power: 'a_overvolt', mod: { m_dardo: { dmg: 10 } } } },
         { id: 's16', name: 'Desintegrar', icon: 'talents/maga-arcanista-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(10, r)}% de daño contra enemigos por debajo del 35% de vida.`, fx: { tv: { lowHpDmg: 10 } } },
         { id: 's17', name: 'Dominio Arcano', icon: 'talents/maga-arcanista-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} de Rayo y Orbe Arcano.`, fx: { skillLv: { rayo: 1, a_orbe: 1 } } },
-        { id: 'x1', name: 'Cadena de Rayos', icon: 'talents/maga-arcanista-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: los críticos de Rayo saltan a 3 enemigos con el 50% del daño; si el objetivo está solo, lo golpean dos veces.', fx: { mod: { rayo: { chain: 3 } }, power: 'a_chain_crit' } },
+        { id: 'x1', name: 'Cadena de Rayos', icon: 'talents/maga-arcanista-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: los críticos de Rayo saltan a 3 enemigos con el 50% del daño; si el objetivo está solo, lo golpean dos veces.', fx: { power: 'a_chain_crit' } },
         { id: 'x2', name: 'Arco Eterno', icon: 'talents/maga-arcanista-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: cada salto de la cadena tiene un ${x(25, r)}% de probabilidad de darte 1 Carga Arcana.`, fx: { power: 'a_arc_charge', tv: { arcChargePct: 25 } } },
         { id: 'x3', name: 'Singularidad', icon: 'talents/maga-arcanista-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): descargar 4 Cargas hace que el objetivo reciba +15% de tu daño durante 6 s (hasta 2 veces).', fx: { power: 'a_singularity' } },
       ],
