@@ -284,7 +284,8 @@ function baseGauges() {
           if ((o.frozenT || 0) > 0) frozen++;
         }
         const boss = !!e && isBoss(e), numbT = e && e.numbT > 0 ? e.numbT : 0;
-        out.x = { enemyName: e ? (e.def?.name || e.name || '') : '', boss, layered, frozen, numbT };
+        // targetFrozen: el objetivo de la vista está Congelado ahora (la UI no lee e.frozenT)
+        out.x = { enemyName: e ? (e.def?.name || e.name || '') : '', boss, layered, frozen, numbT, targetFrozen: !!e && (e.frozenT || 0) > 0 };
         if (boss && numbT > 0) { out.state = 'active'; out.label = 'Aterido'; out.t = numbT; out.tMax = T.escarcha.numbT; }
       },
     },
@@ -306,7 +307,8 @@ function baseGauges() {
         const n = Math.floor(out.value);
         const resonance = hasPower(p, 'a_resonance') && n >= out.max;
         out.x = { loseAfter: T.cargas.loseAfter, bonusPct: T.cargas.dmgPerCharge * n, manaBack: T.cargas.manaPerCharge * n, resonance };
-        if (resonance) { out.decayIn = null; out.hold = true; }
+        // Resonancia es una ventana: estado 'active' (no caducan) con su rótulo
+        if (resonance) { out.decayIn = null; out.hold = true; out.state = 'active'; out.label = 'Resonancia'; }
         out.ready = n >= 1 ? ['rayo'] : [];
       },
     },

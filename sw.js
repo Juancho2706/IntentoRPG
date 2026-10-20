@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v99';
+const VERSION = 'v100';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -63,6 +63,15 @@ const ASSETS = [
   // Paso 2d: modelo puro del HUD + indicador de especialización
   './js/hud-model.js',
   './js/ui-gauges.js',
+  // Paso 2d.2: barras de mecánica por clase, sus estilos y las marcas de mundo
+  './js/ui-gauges-guerrero.js',
+  './js/ui-gauges-maga.js',
+  './js/ui-gauges-arquera.js',
+  './js/world-marks.js',
+  './css/gauges.css',
+  './css/gauges-guerrero.css',
+  './css/gauges-maga.css',
+  './css/gauges-arquera.css',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -160,6 +169,53 @@ const UI_ASSETS = [
   './assets/chrome/ui_ranura.webp',
   './assets/chrome/ui_separador.webp',
   './assets/chrome/ui_tooltip.webp',
+  // Paso 2d.2: piezas del HUD de PC (13) y pieles de las 9 barras de mecánica (33): pequeñas, se precargan
+  './assets/hud/hud_anillo_tiempo.webp',
+  './assets/hud/hud_destello.webp',
+  './assets/hud/hud_dock.webp',
+  './assets/hud/hud_dock_fino.webp',
+  './assets/hud/hud_liquido_energia.webp',
+  './assets/hud/hud_liquido_furia.webp',
+  './assets/hud/hud_liquido_mana.webp',
+  './assets/hud/hud_liquido_vida.webp',
+  './assets/hud/hud_objetivo_elite.webp',
+  './assets/hud/hud_objetivo_marco.webp',
+  './assets/hud/hud_orbe_marco_recurso.webp',
+  './assets/hud/hud_orbe_marco_vida.webp',
+  './assets/hud/hud_stagger.webp',
+  './assets/gauges/gz_bastion_escudo.webp',
+  './assets/gauges/gz_bastion_escudo_vacio.webp',
+  './assets/gauges/gz_bastion_grieta.webp',
+  './assets/gauges/gz_bastion_muro.webp',
+  './assets/gauges/gz_calor_brasero.webp',
+  './assets/gauges/gz_calor_ignicion.webp',
+  './assets/gauges/gz_calor_llama.webp',
+  './assets/gauges/gz_calor_llama_blanca.webp',
+  './assets/gauges/gz_cargas_anillo.webp',
+  './assets/gauges/gz_cargas_nucleo.webp',
+  './assets/gauges/gz_cargas_runa.webp',
+  './assets/gauges/gz_conc_anillo.webp',
+  './assets/gauges/gz_conc_esquinera.webp',
+  './assets/gauges/gz_conc_fijado.webp',
+  './assets/gauges/gz_coto_cepo.webp',
+  './assets/gauges/gz_coto_cepo_vacio.webp',
+  './assets/gauges/gz_coto_marca_suelo.webp',
+  './assets/gauges/gz_coto_presa.webp',
+  './assets/gauges/gz_escarcha_aterido.webp',
+  './assets/gauges/gz_escarcha_congelado.webp',
+  './assets/gauges/gz_escarcha_cristal.webp',
+  './assets/gauges/gz_escarcha_engaste.webp',
+  './assets/gauges/gz_fervor_ascension.webp',
+  './assets/gauges/gz_fervor_halo.webp',
+  './assets/gauges/gz_fervor_rayos.webp',
+  './assets/gauges/gz_fervor_sol.webp',
+  './assets/gauges/gz_impulso_pluma.webp',
+  './assets/gauges/gz_impulso_rosa.webp',
+  './assets/gauges/gz_impulso_vendaval.webp',
+  './assets/gauges/gz_sed_corazon.webp',
+  './assets/gauges/gz_sed_saciada.webp',
+  './assets/gauges/gz_sed_sangre.webp',
+  './assets/gauges/gz_sed_venas.webp',
   // Paso 2d (revisión): iconos pintados de las 43 habilidades base (128 px)
   './assets/skills/a_cicuta.webp',
   './assets/skills/a_disparo.webp',

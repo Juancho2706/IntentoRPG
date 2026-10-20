@@ -216,7 +216,9 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 /* ---------- columna central ---------- */
 .tp-mid { flex-shrink: 0; height: 100%; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .tp-detail {
-  flex: 0 0 auto; min-height: 250px; border-radius: 16px; background: var(--tp-card2); border: 1px solid var(--tp-line);
+  /* alto FIJO: si cambiara con el nodo, el bloque de mecánica saltaría bajo el ratón (y la
+     píldora perdería el hover); el texto largo se desplaza dentro de .tp-d-lines */
+  flex: 0 0 auto; height: 286px; border-radius: 16px; background: var(--tp-card2); border: 1px solid var(--tp-line);
   padding: 20px 22px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;
   animation: tpTip 220ms cubic-bezier(.2, .8, .2, 1);
 }
@@ -226,7 +228,8 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 .tp-d-kind { font-size: 12px; font-weight: 700; letter-spacing: 2px; }
 .tp-d-rank { font-size: 13px; color: var(--tp-soft); white-space: nowrap; }
 .tp-d-name { font-family: Cinzel, Georgia, serif; font-size: 23px; font-weight: 700; color: #f3ecdc; line-height: 1.15; }
-.tp-d-lines { display: flex; gap: 10px; flex-shrink: 0; }
+.tp-d-lines.is-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent); mask-image: linear-gradient(to bottom, #000 72%, transparent); }
+.tp-d-lines { display: flex; gap: 10px; flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(232, 192, 106, 0.3) transparent; }
 .tp-d-lines:not(.is-choice) { flex-direction: column; gap: 6px; }
 .tp-line {
   flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left;
@@ -241,31 +244,68 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 .tp-line-opt:hover { border-color: #4d3f5c; }
 .tp-line-opt.is-on { background: #2a2133; border-color: #6b5530; }
 .tp-line-opt.is-on .tp-line-title { color: var(--tp-gold); }
-.tp-d-status { margin-top: auto; font-size: 13px; font-weight: 600; }
+.tp-d-status { margin-top: auto; flex-shrink: 0; font-size: 13px; font-weight: 600; }
 .tp-s-gold { color: var(--tp-gold); } .tp-s-warn { color: var(--tp-warn); } .tp-s-ok { color: var(--tp-ok-txt); }
-.tp-d-hint { font-size: 12px; color: var(--tp-dim2); }
+.tp-d-hint { display: none; font-size: 12px; color: var(--tp-dim2); } /* la leyenda ya lo dice */
 
 .tp-mech {
-  flex: 0 0 auto; height: 236px; position: relative; overflow: hidden;
+  flex: 0 0 auto; position: relative; overflow: hidden;
   border-radius: 16px; background: var(--tp-mech-bg); border: 1px solid var(--tp-mech-bd);
-  padding: 18px 22px; display: flex; flex-direction: column; gap: 12px;
+  padding: 13px 18px 14px; display: flex; flex-direction: column; gap: 7px;
 }
-.tp-mech-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.tp-mech-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--tp-hi); }
-.tp-mech-only { font-size: 12px; color: color-mix(in srgb, var(--tp-hi) 65%, #b8ad9a); white-space: nowrap; }
-.tp-mech-text { margin: 0; font-size: 14px; line-height: 1.5; color: #eee3d6; }
+.tp-mech-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 26px; }
+.tp-mech-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--tp-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tp-mech-text { margin: 0; font-size: 13.5px; line-height: 1.45; color: #eee3d6; }
 .tp-mech-text b, .tp-card-mech b { color: var(--tp-hi); }
-.tp-gauge { position: relative; height: 18px; flex-shrink: 0; border-radius: 9px; overflow: hidden; background: color-mix(in srgb, var(--tp-mech-bg) 60%, #000); border: 1px solid var(--tp-mech-bd); }
-.tp-gauge-fill {
-  height: 100%; border-radius: 9px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--tp-spec) 35%, #000), var(--tp-spec) 70%, color-mix(in srgb, var(--tp-hi) 60%, #fff));
-  animation: tpGauge 3.2s cubic-bezier(.4, 0, .2, 1) infinite;
+/* controles: ▶ Demostración · ◉ Mi estado · ↺ */
+.tp-mech-ctl { display: flex; gap: 4px; flex-shrink: 0; }
+.tp-mbtn {
+  height: 26px; padding: 0 9px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--tp-line); background: #17131c; color: var(--tp-soft); font-size: 12px; font-weight: 600;
+  transition: border-color 160ms, color 160ms;
 }
-@keyframes tpGauge { 0% { width: 4%; } 70% { width: 100%; } 82% { width: 100%; filter: brightness(1.6); } 100% { width: 4%; } }
+.tp-mbtn:hover { border-color: #4d3f5c; color: var(--tp-text); }
+.tp-mbtn.is-on { border-color: var(--tp-spec); color: var(--tp-hi); background: color-mix(in srgb, var(--tp-spec) 12%, #17131c); }
+.tp-mbtn:focus-visible { outline: 2px solid var(--tp-gold-hi); outline-offset: 2px; }
+/* el widget de js/ui-gauges.js (520×72) escalado a lo que quepa (--gz-k, lo calcula el JS) */
+.tp-gz { position: relative; flex-shrink: 0; width: calc(520px * var(--gz-k, 1)); height: calc(72px * var(--gz-k, 1)); }
+.tp-gz > .gz-host { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform: scale(var(--gz-k, 1)); }
+.tp-mech .tp-gz { align-self: center; }
+/* subtítulo de la fase en curso de la demo (frame.cap): alto fijo de 2 líneas, sin saltos */
+.tp-mech-cap { min-height: calc(2 * 1.4em); font-size: 13px; line-height: 1.4; color: #e6dccb; }
+/* píldoras: los nodos que la demo menciona; se encienden con la fase y al pasar el ratón */
+.tp-pills { display: flex; flex-wrap: wrap; gap: 5px 6px; }
+.tp-pill {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; height: 26px; padding: 0 9px 0 2px;
+  border-radius: 13px; border: 1px solid #3a3040; background: transparent; color: #a99f90; cursor: default;
+  font-size: 11.5px; font-weight: 600; transition: border-color 200ms, color 200ms, background 200ms;
+}
+.tp-pill-ic { position: relative; flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; overflow: hidden; background: #0d0b10;
+  display: flex; align-items: center; justify-content: center; }
+.tp-pill-ic .tp-glyph { font-size: 9px; }
+.tp-pill-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; filter: grayscale(0.5) brightness(0.8); transition: filter 200ms; }
+.tp-pill-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-pill.is-on, .tp-pill:hover { border-color: var(--tp-spec); color: #fff; background: color-mix(in srgb, var(--tp-spec) 18%, #120f16); }
+.tp-pill.is-on .tp-pill-img, .tp-pill:hover .tp-pill-img { filter: none; }
+.tp-pill:focus-visible { outline: 2px solid var(--tp-gold-hi); outline-offset: 2px; }
 .tp-mech-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.tp-mech-cols div { display: flex; flex-direction: column; gap: 2px; }
-.tp-mech-cols span:first-child { font-size: 12px; font-weight: 700; color: var(--tp-hi); }
-.tp-mech-cols span:last-child { font-size: 13px; line-height: 1.4; color: color-mix(in srgb, var(--tp-hi) 25%, #d9cfc4); }
+.tp-mech-cols div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tp-mech-cols span:first-child { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: var(--tp-hi); }
+.tp-mech-cols span:last-child { font-size: 12.5px; line-height: 1.38; color: color-mix(in srgb, var(--tp-hi) 25%, #d9cfc4); }
+/* nodo del árbol que potencia la mecánica y que la demo (o el ratón) señala ahora: contorno del
+   color de la especialización con un latido de 1,2 s (solo transform/opacity) */
+.tp-node::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--tp-spec); pointer-events: none;
+  opacity: 0; transform: scale(0.9); transition: opacity 200ms;
+}
+.tp-node.k-p::after { border-radius: 14px; }
+.tp-node.k-c::after, .tp-node.k-x::after { border-radius: 10px; }
+.tp-node.is-mech-hint::after { opacity: 1; animation: tpMechHint 1.2s ease-in-out infinite; box-shadow: 0 0 14px color-mix(in srgb, var(--tp-spec) 55%, transparent); }
+@keyframes tpMechHint { 0%, 100% { transform: scale(0.96); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.55; } }
+/* detalle: «Potencia tu Escarcha: …» */
+.tp-d-mech { flex-shrink: 0; font-size: 13px; line-height: 1.45; color: #e2d9c8; padding: 6px 10px; border-radius: 8px;
+  border-left: 3px solid var(--tp-spec); background: color-mix(in srgb, var(--tp-spec) 9%, transparent); }
+.tp-d-mech b { color: var(--tp-hi); }
 
 .tp-grants {
   flex: 1 1 auto; min-height: 0; border-radius: 16px; background: var(--tp-card); border: 1px solid var(--tp-line);
@@ -363,9 +403,8 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 .tp-card-role { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--hi); }
 .tp-card-name { margin: 0; font-family: Cinzel, Georgia, serif; font-size: 28px; font-weight: 700; color: #f3ecdc; }
 .tp-card-desc { margin: 0; font-size: 14px; line-height: 1.5; color: var(--tp-soft); min-height: 3em; }
-.tp-card-mech { text-align: left; border-radius: 12px; background: var(--mbg); border: 1px solid var(--mbd); padding: 10px 14px; }
-.tp-card-mech span { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--hi); }
-.tp-card-mech p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: #e7ddd0; }
+.tp-card-mech { text-align: left; border-radius: 12px; background: var(--mbg); border: 1px solid var(--mbd); padding: 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tp-card-mech .tp-card-cap { align-self: stretch; margin: 0; min-height: calc(2 * 1.4em); font-size: 12.5px; line-height: 1.4; color: #e7ddd0; }
 .tp-card-mech b { color: var(--hi); }
 .tp-card-foot { margin-top: 4px; display: flex; justify-content: center; }
 .tp-card-foot .tp-btn { min-width: 70%; justify-content: center; }
@@ -397,7 +436,7 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 .tp-compact .tp-badge { right: -12px; bottom: -7px; min-width: 26px; font-size: 10.5px; line-height: 13px; padding: 1px 4px; }
 .tp-compact .tp-glyph { font-size: 13px; }
 .tp-compact .tp-mid { gap: 10px; }
-.tp-compact .tp-detail { min-height: 200px; padding: 14px 16px; gap: 7px; }
+.tp-compact .tp-detail { height: 196px; padding: 12px 16px; gap: 6px; }
 .tp-compact .tp-d-name { font-size: 19px; }
 .tp-compact .tp-d-kind { font-size: 11px; letter-spacing: 1.4px; }
 .tp-compact .tp-d-rank { font-size: 12px; }
@@ -406,16 +445,24 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 .tp-compact .tp-line-opt { padding: 7px 9px; }
 .tp-compact .tp-d-status { font-size: 12px; }
 .tp-compact .tp-d-hint { display: none; }
-.tp-compact .tp-mech { height: auto; padding: 12px 16px; gap: 7px; }
-.tp-compact .tp-mech-title, .tp-compact .tp-mech-only { font-size: 11px; }
-.tp-compact .tp-mech-text { font-size: 12.5px; line-height: 1.42; }
-.tp-compact .tp-gauge { display: none; }
+.tp-compact .tp-mech { padding-top: 10px; padding-bottom: 11px; gap: 6px; }
+.tp-compact .tp-mech-top { min-height: 24px; }
+.tp-compact .tp-mech-title { font-size: 11px; letter-spacing: 1.5px; }
+.tp-compact .tp-mbtn { height: 24px; padding: 0 7px; font-size: 11.5px; }
+.tp-compact .tp-mbtn span { display: none; }          /* solo ▶ ◉ ↺ (con title) */
+.tp-compact .tp-mech-text { font-size: 12px; line-height: 1.4; }
+.tp-compact .tp-mech-cap { font-size: 12px; line-height: 1.35; min-height: calc(2 * 1.35em); }
+.tp-compact .tp-pill { height: 24px; padding: 0 2px; gap: 0; }
+.tp-compact .tp-pill-name { display: none; }          /* iconos: el nombre está en el detalle al pasar el ratón */
+.tp-compact .tp-pill-ic { width: 20px; height: 20px; }
+/* sin sitio para las columnas Generar/Descargar/Pérdida: las mismas líneas salen en el tooltip
+   del widget (explain().tip) al pasar el ratón por la barra */
 .tp-compact .tp-mech-cols { display: none; }
+.tp-compact .tp-d-mech { font-size: 12px; padding: 4px 8px; }
 .tp-compact .tp-grants { padding: 12px 14px; gap: 8px; }
 .tp-compact .tp-label { font-size: 11px; letter-spacing: 1.5px; }
 .tp-compact .tp-grant-list { gap: 6px 12px; }
 .tp-compact .tp-grant-txt { line-height: 1.2; }
-.tp-compact .tp-detail { min-height: 180px; }
 .tp-compact .tp-grant-ic { width: 30px; height: 30px; }
 .tp-compact .tp-grant-name { font-size: 12.5px; }
 .tp-compact .tp-grant-tag { font-size: 11px; }
@@ -428,8 +475,8 @@ body.reduce-motion #panel-talents.panel:not(.hidden) { animation: none; }
 .tp-compact .tp-card-body { padding: 10px 16px 14px; gap: 6px; }
 .tp-compact .tp-card-name { font-size: 22px; }
 .tp-compact .tp-card-desc { font-size: 12.5px; }
-.tp-compact .tp-card-mech { padding: 8px 11px; }
-.tp-compact .tp-card-mech p { font-size: 12px; }
+.tp-compact .tp-card-mech { padding: 6px 12px; }
+.tp-compact .tp-card-mech .tp-card-cap { font-size: 11.5px; }
 .tp-compact .tp-card-emblem { width: 60px; height: 60px; }
 
 /* movimiento reducido: sin animaciones decorativas */

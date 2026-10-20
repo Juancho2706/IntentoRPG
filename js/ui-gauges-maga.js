@@ -151,7 +151,7 @@ export function escarchaModel(v, T = gaugeTuning()) {
   // el último cristal se escarcha y pierde brillo según decayIn / cada (2 s)
   const fade = n > 0 && !numb && v.decayIn != null ? r3(clamp01(v.decayIn / E.decayEvery)) : 1;
   const frozen = x.frozen || 0, layered = x.layered || 0;
-  const targetFrozen = !!(x.targetFrozen ?? (v?.enemy && v.enemy.frozenT > 0));
+  const targetFrozen = !!x.targetFrozen;          // del núcleo (spec-mechanics viewX): la UI no lee el enemigo
   const full = n >= max;
   const counter = frozen ? `${frozen} congelado${frozen > 1 ? 's' : ''}` : layered ? `${layered} con capas` : '';
   let sub;
@@ -433,7 +433,7 @@ function cargasDemo(T) {
     { t: tLost - 0.6, decayIn: 0.6 },
     { t: tLost - 0.5, value: 0, state: 'idle', decayIn: null, ready: null, fire: 'spent', x: X(0),
       cap: `Rayo las consume: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga.`, nodes: [] },
-    { t: tLost + 0.6, value: A.max, state: 'full', decayIn: null, hold: true, ready: ['rayo'], fire: 'full', x: { ...X(A.max), resonance: true },
+    { t: tLost + 0.6, value: A.max, state: 'active', label: 'Resonancia', decayIn: null, hold: true, ready: ['rayo'], fire: 'full', x: { ...X(A.max), resonance: true },
       cap: `Resonancia: con ${A.max} Cargas no se desvanecen y tus hechizos Arcanos tienen +${A.resonanceCrit} % de crítico.`, nodes: ['s14'], tag: 'active' },
     { t: tLost + 3, end: 1 },
   ];

@@ -20,7 +20,19 @@
 //                                   // talents-ops por las del juego (mixin game-talents,
 //                                   // que además sincroniza la barra); mismas firmas
 //   });
-//   → { el, open(), close(), render(), isOpen(), showSpecChoice(), destroy() }
+//   → { el, open(), close(), render(), isOpen(), showSpecChoice(), destroy(), mech(), mechFocus(id) }
+//
+// MECÁNICA ÚNICA (Paso 2d.2 · E2, docs/paso2d2-hud-pc.md §4): la columna central monta el
+// MISMO widget del HUD (createGaugeHud de js/ui-gauges.js) en modo 'demo' con la línea de
+// tiempo del renderizador de la mecánica; texto y columnas salen de explain(gaugeTuning())
+// (mechInfo; SPEC_INFO ya no tiene textos de mecánica). Debajo, el subtítulo de la fase
+// (frame.cap) y las PÍLDORAS de los nodos que la demo menciona: la fase en curso las enciende
+// junto a su nodo del árbol (.tp-node.is-mech-hint); pasar el ratón por una píldora o por un
+// nodo que potencia la mecánica (def.nodes) salta la demo a su fase, la retiene mientras dure
+// el hover y el detalle añade «Potencia tu X: …». Controles: ▶ Demostración · ◉ Mi estado
+// (modo 'live' con gaugeView(p), 10 Hz) · ↺. La elección de especialización (Nv10) muestra la
+// barra de cada tarjeta en demo. Escala del widget: 1 en el diseño completo, 0,8 en el compacto
+// (LAYOUTS.gzK / cardGzK). Los relojes de 10 Hz se paran al cerrar o reconstruir (destroyGauges).
 //
 //   · Construye su propio DOM: añade a `host` un <div id="panel-talents"
 //     class="panel tp hidden">. open()/close() solo quitan/ponen `hidden` y
@@ -43,69 +55,79 @@
 //   en renderPanel(): `else if (this.activePanel === 'talents') this.talentPanel.render();`
 //   input.js: case 'talents': g.ui.togglePanel('talents').
 import { createTalentOps } from './talents-ops.js';
+// Paso 2d.2 · E2: el bloque «Mecánica única» monta el MISMO widget del HUD (js/ui-gauges.js) en
+// modo demostración; los textos de la mecánica salen de explain(gaugeTuning()) del renderizador.
+import { createGaugeHud, gaugeViewFor, demoNodes } from './ui-gauges.js';
+import { gaugeDefs, gaugeTuning, gaugeView } from './spec-mechanics.js';
 
 // ---------- presentación por especialización (copiado de los mockups) ----------
 const CLASS_COLOR = { guerrero: '#c98b6b', maga: '#9fbaff', arquera: '#a8d88a' };
 const CLASS_NAME = { guerrero: 'Guerrero', maga: 'Maga', arquera: 'Arquera' };
 const ROLE_LABEL = { dps: 'Daño', tank: 'Tanque', support: 'Apoyo', control: 'Control' };
-// color · acento · fondo/borde de la tarjeta de mecánica · borde del árbol
+// color · acento · fondo/borde de la tarjeta de mecánica · borde del árbol · rol · descripción.
+// SIN textos de mecánica (Paso 2d.2 §3.10 punto 2, Anexo A): salen de explain(gaugeTuning())
+// del renderizador de cada mecánica (mechInfo), así que los números nunca se desfasan.
 export const SPEC_INFO = {
   berserker: { color: '#e8634a', hi: '#ff8f7a', bg: '#1c0f0e', bd: '#5a2620', tree: '#4a2622', role: 'Daño cuerpo a cuerpo',
-    mech: 'Sed', text: 'Perder vida y desangrar enemigos llena tu Sed. A 100 entras en <b>Desenfreno</b>: 8 s de +30% de velocidad de ataque y cada golpe te cura.',
-    cols: [['Generar', 'Perder 1% de vida +1 · Remolino +4'], ['Descargar', 'Desenfreno automático al llegar a 100'], ['Ventana', 'Ejecutar remata y alarga el Desenfreno']],
     desc: 'Cuerpo a cuerpo temerario: cuanta menos vida te queda, más golpeas. Sangrados, críticos y remates en cadena.' },
   guardian: { color: '#7fb0e8', hi: '#a9cdf5', bg: '#0f1520', bd: '#2b4566', tree: '#263a52', role: 'Tanque de grupo',
-    mech: 'Bastión', text: 'Bloquear y provocar te da cargas de Bastión (máx. 5). Guárdalas para el golpe fuerte del jefe: <b>Muro de Escudos</b> las gasta y reduce el daño un 10% por carga.',
-    cols: [['Generar', 'Bloqueo +1 · Grito Desafiante +2'], ['Descargar', 'Muro de Escudos: −10% de daño por carga'], ['Ventana', 'Con 5 cargas tus espinas se duplican']],
     desc: 'El muro del grupo: bloquea, provoca y aguanta el golpe fuerte del jefe mientras devuelves el daño con espinas.' },
   cruzado: { color: '#ecc760', hi: '#f3d98c', bg: '#1a160c', bd: '#5a4a1e', tree: '#4a3e1c', role: 'Apoyo de grupo',
-    mech: 'Fervor', text: 'Martillo de Guerra y cada Juicio te dan Fervor (máx. 3). Con 3 cargas, <b>Veredicto Final</b> castiga en cono y cura a todo el grupo con parte del daño.',
-    cols: [['Generar', 'Martillo de Guerra +1 · Juicio al matar +1'], ['Descargar', 'Veredicto Final gasta 3: daño y curación'], ['Ventana', 'Cada Fervor gastado alarga el Aura 1 s']],
     desc: 'Martillo sagrado y auras: castiga a los enemigos en cono y cura al grupo con parte del daño que haces.' },
   piromante: { color: '#ff8a3d', hi: '#ffb27a', bg: '#1a120d', bd: '#5a3a22', tree: '#4a3324', role: 'Daño en área',
-    mech: 'Calor', text: 'Cada hechizo de Fuego suma Calor. Al llegar a 100 se dispara <b>Combustión Espontánea</b>: tu próximo Meteoro es instantáneo, gratis y deja el suelo en llamas.',
-    cols: [['Generar', 'Bola de Fuego +12 · Llamarada +25'], ['Descargar', 'Meteoro instantáneo y gratis a 100'], ['Ventana', 'Combustión duplica el Calor 10 s']],
-    desc: 'Fuego en área: quemaduras que se propagan, detonaciones y Meteoros instantáneos para arrasar hordas.' },
+    desc: 'Fuego en área: quemaduras que se propagan, detonaciones y, con el brasero al máximo, una Bola de Fuego o un Meteoro gratis y crítico.' },
   crionte: { color: '#74cdf2', hi: '#a8e0f8', bg: '#0b161d', bd: '#22445a', tree: '#24485e', role: 'Control',
-    mech: 'Escarcha', text: 'Cada golpe de Escarcha suma una capa de hielo. A 5 capas el enemigo queda <b>Congelado</b> y Lanza de Hielo lo <b>astilla</b> en fragmentos.',
-    cols: [['Cubrir', 'Nova de Hielo y Dardo: +1 capa por golpe'], ['Astillar', 'Lanza de Hielo: daño ×3 a Congelados'], ['Jefes', 'No se congelan: quedan Ateridos 4 s']],
     desc: 'Control de escarcha: congela grupos enteros y astilla a los congelados con la Lanza de Hielo.' },
   arcanista: { color: '#b996ff', hi: '#cfbaff', bg: '#130e22', bd: '#3e2f66', tree: '#3c2f60', role: 'Daño a un objetivo',
-    mech: 'Cargas Arcanas', text: 'Dardo y Orbe suman Cargas (máx. 4): +12% de daño y +25% de coste de maná cada una. <b>Rayo</b> las descarga todas y te devuelve maná.',
-    cols: [['Cargar', 'Dardo +1 · Orbe +1 por enemigo'], ['Descargar', 'Rayo: +50% de daño y 5% de maná por Carga'], ['Riesgo', 'Sin maná, las Cargas implosionan: silencio 1 s']],
     desc: 'Daño a un objetivo con riesgo: acumula Cargas Arcanas y descárgalas con Rayo sin quedarte sin maná.' },
   francotiradora: { color: '#ead86e', hi: '#f2e39a', bg: '#16140b', bd: '#4d4520', tree: '#4a4224', role: 'Daño a un objetivo',
-    mech: 'Concentración', text: 'Quedarte quieta llena la Concentración y moverte la vacía. Al llegar a 100 la retícula se cierra: <b>Tiro Fijado</b>, tu próximo Disparo Apuntado es instantáneo y crítico seguro.',
-    cols: [['Generar', 'Quieta +20 por segundo · Disparo Rápido +5'], ['Descargar', 'Disparo Apuntado instantáneo y crítico a 100'], ['Ventana', 'Sangre Fría: 4 s moviéndote sin perderla']],
     desc: 'Precisión a distancia: quieta llenas la Concentración y tus Disparos Apuntados rompen jefes.' },
   montaraz: { color: '#86d47a', hi: '#a9e59d', bg: '#0f170d', bd: '#2d4a28', tree: '#2f4a2a', role: 'Control',
-    mech: 'Coto de Caza', text: 'Mantienes hasta 3 trampas armadas. Cuando tu <b>Presa</b> pisa una, todas las trampas armadas saltan a la vez sobre ella: queda inmovilizada y el grupo la remata.',
-    cols: [['Armar', 'Trampa de Cepo · Arpón arrastra a la Presa'], ['Cerrar', 'La Presa activa todas las trampas armadas'], ['Ventana', 'Presa atrapada: +25% de daño del grupo 4 s']],
     desc: 'Trampera de control: arma el coto de caza, inmoviliza a la presa y deja que el grupo la remate.' },
   tiradora: { color: '#66d7c7', hi: '#94e8dc', bg: '#0c1716', bd: '#1f4a45', tree: '#22443f', role: 'Daño en área',
-    mech: 'Impulso', text: 'Disparar mientras corres acumula Impulso; quedarte quieta lo desploma. A 100 se desata el <b>Vendaval</b>: 6 s en los que cada Disparo Rápido sale en abanico de 3 flechas.',
-    cols: [['Generar', '+4 por flecha en movimiento · Voltereta +15'], ['Descargar', 'Vendaval: Disparo Rápido en abanico 6 s'], ['Freno', 'Quieta más de 1.5 s: el Impulso cae a la mitad']],
-    desc: 'Arquera en movimiento: dispara mientras corres para acumular Impulso y desatar el Vendaval en abanico.' },
+    desc: 'Arquera en movimiento: dispara mientras corres para acumular Impulso y desatar el Vendaval: más cadencia y una flecha más en Flecha Múltiple.' },
 };
-const DEFAULT_INFO = { color: '#e8c06a', hi: '#f5d999', bg: '#17131c', bd: '#3a2f45', tree: '#3a2f45', mech: '', text: '', cols: [], desc: '' };
+const DEFAULT_INFO = { color: '#e8c06a', hi: '#f5d999', bg: '#17131c', bd: '#3a2f45', tree: '#3a2f45', desc: '' };
 function specInfo(spec) {
   if (!spec) return DEFAULT_INFO;
   const base = SPEC_INFO[spec.id] || DEFAULT_INFO;
-  // los datos reales pueden sobreescribir la presentación (spec.color, spec.mechInfo…)
-  return { ...base, ...(spec.color ? { color: spec.color } : null), ...(spec.mechInfo || null),
+  // los datos reales pueden sobreescribir la presentación (spec.color…)
+  return { ...base, ...(spec.color ? { color: spec.color } : null),
     role: spec.roleLabel || base.role || ROLE_LABEL[spec.role] || '', desc: spec.desc || base.desc };
 }
+// mecánica única de una especialización: nombre (spec-mechanics), textos (explain del
+// renderizador, con los números de gaugeTuning()), nodos que la potencian y los de la demo
+export function mechInfo(spec) {
+  const id = spec?.mechanic;
+  if (!id) return null;
+  const def = gaugeViewFor(id);
+  let E = null;
+  try { E = def.explain(gaugeTuning()); } catch { E = null; }
+  return { id, name: gaugeDefs()[id]?.name || id, text: E?.text || '', cols: E?.cols || [],
+    nodes: def.nodes || {}, demoNodes: demoNodes(def.demo) };
+}
+// escala del widget (520×72) para que quepa en un ancho dado: nunca más de 1
+function gzScale(w) { return Math.max(0.5, Math.min(1, Math.floor((w / 520) * 100) / 100)); }
 
 // ---------- geometría (la del mockup y una compacta para 1366×768) ----------
 const LAYOUTS = {
   full: { name: 'full', W: 1760, H: 1080, padY: 32, padX: 40, headH: 72, gap: 20, legendH: 56,
     clsW: 520, specW: 560, midW: 560, treeHead: 60, cy0: 44, dy: 82, node: 52, big: 60,
     cls: { cx0: 71, dx: 126 }, spec: { cx0: 85, dx: 130 } },
+  // compacto: la columna central se ensancha (390 → 450) para el widget de mecánica al 0,8
+  // (416 px); los árboles ceden 30 px cada uno estrechando la separación entre columnas
   compact: { name: 'compact', W: 1330, H: 740, padY: 14, padX: 18, headH: 56, gap: 12, legendH: 34,
-    clsW: 430, specW: 450, midW: 390, treeHead: 46, cy0: 34, dy: 61, node: 44, big: 50,
-    cls: { cx0: 58, dx: 104 }, spec: { cx0: 62, dx: 108 } },
+    clsW: 400, specW: 420, midW: 450, treeHead: 46, cy0: 34, dy: 61, node: 44, big: 50,
+    cls: { cx0: 50, dx: 100 }, spec: { cx0: 57, dx: 102 } },
 };
-for (const L of Object.values(LAYOUTS)) L.mainH = L.H - 2 * L.padY - L.headH - L.legendH - 2 * L.gap;
+for (const L of Object.values(LAYOUTS)) {
+  L.mainH = L.H - 2 * L.padY - L.headH - L.legendH - 2 * L.gap;
+  // escala del widget: bloque de mecánica (columna central − borde − relleno) y tarjeta de elección
+  L.mechPadX = L.name === 'full' ? 18 : 14;
+  L.gzK = gzScale(L.midW - 2 - 2 * L.mechPadX);
+  L.cardPadX = L.name === 'full' ? 22 : 16;
+  L.cardGzK = gzScale((L.W - 2 * L.padX - 2 * L.gap) / 3 - 2 - 2 * L.cardPadX - 2 * 12);   // − relleno de .tp-card-mech
+}
 function pickLayout(vw, vh) {
   const F = LAYOUTS.full, C = LAYOUTS.compact;
   const sf = Math.min((vw - 24) / F.W, (vh - 24) / F.H);
@@ -113,6 +135,8 @@ function pickLayout(vw, vh) {
   const sc = Math.min((vw - 16) / C.W, (vh - 16) / C.H);
   return { L: C, scale: Math.max(0.5, Math.min(sc, 1.15)) };
 }
+
+export { LAYOUTS as TALENT_LAYOUTS };   // tests (escala del widget por diseño)
 
 const KINDS = { p: 'PASIVA', a: 'ACTIVA NUEVA', c: 'ELECCIÓN', k: 'NODO CLAVE', x: 'APEX' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -145,6 +169,16 @@ export function createTalentPanel(host, opts = {}) {
     importing: false, importErr: '', resetArmed: false, resetT: 0,
     trees: {},                  // which → { tree, nodes: Map(id → refs), edges: [], gates: [], band }
     refs: {},
+    // bloque «Mecánica única» (Paso 2d.2 · E2): el widget del HUD en demo/en vivo
+    mech: null,                 // mechInfo(spec) de la especialización mostrada
+    gz: null,                   // createGaugeHud del bloque (modo 'demo' | 'live')
+    gzMode: 'demo',
+    gzLive: 0,                  // intervalo de 10 Hz del modo «Mi estado»
+    cardGz: [],                 // widgets de las tarjetas de elección (Nv10)
+    mechHint: new Set(),        // nodos del árbol de especialización con .is-mech-hint
+    mechPin: null,              // nodo bajo el ratón (píldora o árbol) que fija el resalte
+    frameNodes: [],             // nodos del fotograma en curso de la demo
+    capSig: '', pillSig: '',
   };
   const close = () => { if (opts.onClose) opts.onClose(); else api.close(); };
 
@@ -201,7 +235,9 @@ export function createTalentPanel(host, opts = {}) {
 
   // ---------- esqueleto ----------
   function buildSkeleton(p, spec, view) {
+    destroyGauges();
     const info = specInfo(spec);
+    S.mech = view === 'choose' ? null : mechInfo(spec);
     const cc = CLASS_COLOR[p.classId] || '#e8c06a';
     stage.style.setProperty('--tp-spec', info.color);
     stage.style.setProperty('--tp-hi', info.hi);
@@ -222,12 +258,7 @@ export function createTalentPanel(host, opts = {}) {
       </section>
       <div class="tp-mid" style="width:${L.midW}px">
         <div class="tp-detail" data-detail></div>
-        ${info.mech ? `<div class="tp-mech">
-          <div class="tp-mech-top"><span class="tp-mech-title">MECÁNICA ÚNICA · ${esc(info.mech.toUpperCase())}</span><span class="tp-mech-only">Solo ${esc(spec.name)}</span></div>
-          <p class="tp-mech-text">${info.text}</p>
-          <div class="tp-gauge"><div class="tp-gauge-fill"></div></div>
-          <div class="tp-mech-cols">${info.cols.map(([a, b]) => `<div><span>${esc(a.toUpperCase())}</span><span>${esc(b)}</span></div>`).join('')}</div>
-        </div>` : ''}
+        ${S.mech ? mechHTML(p, spec, S.mech) : ''}
         <div class="tp-grants">
           <div class="tp-label">HABILIDADES CONCEDIDAS POR TALENTOS</div>
           <div class="tp-grant-list" data-grants></div>
@@ -290,7 +321,133 @@ export function createTalentPanel(host, opts = {}) {
         else if (e.key === 'Escape') { e.preventDefault(); setImporting(false); }
       });
       ci.addEventListener('keyup', (e) => e.stopPropagation());
+      mountMechGauge(p, spec);
+    } else mountCardGauges(p);
+  }
+
+  // ---------- bloque «Mecánica única» (§4): el widget del HUD en demostración ----------
+  function mechHTML(p, spec, M) {
+    const L = S.layout;
+    const tree = T.treeOf(p, 'spec');
+    const pills = M.demoNodes.map(id => {
+      const n = tree && T.nodeById(tree, id);
+      if (!n) return '';
+      const how = M.nodes[id] || '';
+      return `<button class="tp-pill" type="button" data-mech-node="${esc(id)}" title="${esc(how || n.name)}">
+        <span class="tp-pill-ic">${imgTag(iconSrc(p, 'spec', n), 'tp-pill-img')}<span class="tp-glyph">${esc(initials(n.name))}</span></span><span class="tp-pill-name">${esc(n.name)}</span></button>`;
+    }).join('');
+    return `<div class="tp-mech" data-mech style="--gz-k:${L.gzK};padding-left:${L.mechPadX}px;padding-right:${L.mechPadX}px">
+      <div class="tp-mech-top"><span class="tp-mech-title">MECÁNICA ÚNICA · ${esc(M.name.toLocaleUpperCase('es'))}</span>
+        <span class="tp-mech-ctl" role="group" aria-label="Demostración de la mecánica">
+          <button class="tp-mbtn is-on" type="button" data-act="mech-demo" title="Demostración en bucle">▶<span> Demostración</span></button>
+          <button class="tp-mbtn" type="button" data-act="mech-live" title="Tu ${esc(M.name)} ahora mismo">◉<span> Mi estado</span></button>
+          <button class="tp-mbtn" type="button" data-act="mech-replay" title="Repetir la demostración" aria-label="Repetir">↺</button>
+        </span></div>
+      <p class="tp-mech-text">${M.text}</p>
+      <div class="tp-gz"><div data-gz></div></div>
+      <div class="tp-mech-cap" data-cap></div>
+      ${pills ? `<div class="tp-pills" data-pills>${pills}</div>` : ''}
+      <div class="tp-mech-cols">${M.cols.map(([a, b]) => `<div><span>${esc(a.toLocaleUpperCase('es'))}</span><span>${esc(b)}</span></div>`).join('')}</div>
+    </div>`;
+  }
+  function mountMechGauge(p, spec) {
+    const host = stage.querySelector('[data-gz]');
+    const M = S.mech;
+    if (!host || !M) return;
+    S.refs.cap = stage.querySelector('[data-cap]');
+    S.refs.pills = [...stage.querySelectorAll('[data-mech-node]')];
+    S.capSig = ''; S.pillSig = ''; S.frameNodes = []; S.mechPin = null;
+    S.gzMode = 'demo';
+    try {
+      S.gz = createGaugeHud(host, {
+        mode: 'demo', id: M.id, specName: spec.name,
+        // «Mi estado»: la vista real del héroe (sin el desvanecimiento de fuera de combate)
+        getView: () => { const q = getPlayer(); let v = null; try { v = q && gaugeView(q); } catch { v = null; } return v ? { ...v, ooc: false, specName: spec.name } : null; },
+        onFrame: (fr) => onMechFrame(fr),
+      });
+    } catch (e) { console.error('[talentos] widget de mecánica', e); S.gz = null; }
+  }
+  function mountCardGauges(p) {
+    const t = T.talentTreesFor(p.classId);
+    for (const host of stage.querySelectorAll('[data-card-gz]')) {
+      const s = (t?.specs || []).find(x => x.id === host.dataset.cardGz);
+      if (!s?.mechanic) continue;
+      const cap = host.closest('.tp-card-mech')?.querySelector('[data-card-cap]');
+      let last = '';
+      try {
+        S.cardGz.push(createGaugeHud(host, { mode: 'demo', id: s.mechanic, specName: s.name,
+          onFrame: (fr) => { if (!alive()) return; if (fr.cap && fr.cap !== last && cap) { last = fr.cap; cap.textContent = fr.cap; } } }));
+      } catch (e) { console.error('[talentos] widget de la tarjeta', e); }
     }
+  }
+  // si el panel se cerró por otra vía (closeAllPanels quita la clase sin llamar a close),
+  // los relojes de la demo se paran solos
+  function alive() {
+    if (!root.classList.contains('hidden')) return true;
+    destroyGauges();
+    return false;
+  }
+  function destroyGauges() {
+    if (S.gzLive) { win.clearInterval(S.gzLive); S.gzLive = 0; }
+    try { S.gz?.destroy(); } catch { /* */ }
+    S.gz = null;
+    for (const g of S.cardGz) { try { g.destroy(); } catch { /* */ } }
+    S.cardGz = [];
+    S.mechHint = new Set(); S.mechPin = null; S.frameNodes = [];
+  }
+  // fotograma de la demo (10 Hz): subtítulo, píldoras y nodos del árbol encendidos
+  function onMechFrame(fr) {
+    if (!alive() || S.gzMode !== 'demo') return;
+    // con un nodo bajo el ratón la demo se queda en SU fase (la repite) hasta que sales
+    if (S.mechPin && !S.seeking && !(fr.nodes || []).includes(S.mechPin)) {
+      S.seeking = true;
+      try { if (S.gz?.seekNode(S.mechPin)) return; } finally { S.seeking = false; }
+    }
+    // el subtítulo se conserva hasta el siguiente fotograma que traiga el suyo
+    if (fr.cap && fr.cap !== S.capSig && S.refs.cap) { S.capSig = fr.cap; S.refs.cap.textContent = fr.cap; }
+    S.frameNodes = fr.nodes || [];
+    syncMechHint();
+  }
+  function syncMechHint() {
+    const on = new Set(S.gzMode === 'demo' ? S.frameNodes : []);
+    if (S.mechPin) on.add(S.mechPin);
+    const sig = [...on].sort().join(',');
+    if (sig === S.pillSig) return;
+    S.pillSig = sig;
+    for (const b of S.refs.pills || []) b.classList.toggle('is-on', on.has(b.dataset.mechNode));
+    const TT = S.trees.spec;
+    if (TT) for (const [id, R] of TT.nodes) R.el.classList.toggle('is-mech-hint', on.has(id));
+    S.mechHint = on;
+  }
+  // un nodo del árbol de especialización (o su píldora) bajo el ratón: si potencia la
+  // mecánica, la demo salta a la fase que lo explica y el nodo queda resaltado
+  function mechFocus(id) {
+    const M = S.mech;
+    const pin = id && M && (M.nodes[id] || M.demoNodes.includes(id)) ? id : null;
+    if (pin === S.mechPin) return;
+    S.mechPin = pin;
+    if (pin && S.gz && S.gzMode === 'demo') S.gz.seekNode(pin);
+    syncMechHint();
+  }
+  function setMechMode(m) {
+    if (!S.gz) return;
+    S.gzMode = m;
+    if (S.gzLive) { win.clearInterval(S.gzLive); S.gzLive = 0; }
+    if (m === 'live') {
+      S.gz.setMode('live');
+      const tick = () => {
+        if (!alive() || !S.gz) return;
+        S.gz.update();
+        const v = S.gz.view();
+        const cap = !v ? 'Sin datos de la mecánica.' : (v.value > 0 || v.state === 'active' || v.state === 'prey')
+          ? 'Tu estado ahora mismo (con tus talentos actuales).' : `Vacía: tu ${S.mech?.name || 'mecánica'} se llena en combate.`;
+        if (cap !== S.capSig && S.refs.cap) { S.capSig = cap; S.refs.cap.textContent = cap; }
+      };
+      tick();
+      S.gzLive = win.setInterval(tick, 100);
+    } else S.gz.play(S.mech?.id);
+    syncMechHint();
+    for (const b of stage.querySelectorAll('[data-act^="mech-"]')) b.classList.toggle('is-on', b.dataset.act === (m === 'live' ? 'mech-live' : 'mech-demo'));
   }
 
   function chooserHTML(p) {
@@ -300,6 +457,7 @@ export function createTalentPanel(host, opts = {}) {
     return `<div class="tp-choose">
       ${(t?.specs || []).map(s => {
         const info = specInfo(s);
+        const M = mechInfo(s);
         const isCur = s.id === cur;
         const btn = lockLvl ? `<button class="tp-btn" disabled>Disponible en el nivel ${T.TALENT_START_LEVEL}</button>`
           : isCur ? '<button class="tp-btn tp-btn-gold" data-act="back">Especialización actual · ver talentos</button>'
@@ -307,11 +465,12 @@ export function createTalentPanel(host, opts = {}) {
         return `<article class="tp-card${isCur ? ' tp-card-cur' : ''}${lockLvl ? ' tp-card-lock' : ''}" style="--c:${info.color};--hi:${info.hi};--mbg:${info.bg};--mbd:${info.bd}">
           <div class="tp-card-art">${imgTag(base + (s.icon || `specs/${s.id}.webp`), 'tp-card-portrait')}
             <div class="tp-card-emblem">${imgTag(base + (s.emblem || `emblems/${s.id}.webp`), 'tp-card-emblem-img')}</div></div>
-          <div class="tp-card-body">
+          <div class="tp-card-body" style="padding-left:${S.layout.cardPadX}px;padding-right:${S.layout.cardPadX}px">
             <div class="tp-card-role">${esc((info.role || '').toUpperCase())}</div>
             <h3 class="tp-card-name">${esc(s.name)}</h3>
             <p class="tp-card-desc">${esc(info.desc)}</p>
-            ${info.mech ? `<div class="tp-card-mech"><span>MECÁNICA · ${esc(info.mech.toUpperCase())}</span><p>${info.text}</p></div>` : ''}
+            ${M ? `<div class="tp-card-mech" style="--gz-k:${S.layout.cardGzK}" aria-label="Mecánica: ${esc(M.name)}">
+              <div class="tp-gz"><div data-card-gz="${esc(s.id)}"></div></div><p class="tp-card-cap" data-card-cap></p></div>` : ''}
             <div class="tp-card-foot">${btn}</div>
           </div></article>`;
       }).join('')}
@@ -375,7 +534,7 @@ export function createTalentPanel(host, opts = {}) {
     for (const n of tree.nodes) {
       const R = TT.nodes.get(n.id); if (!R) continue;
       const st = ops.nodeState(p, which, n, tree);
-      R.el.className = `tp-node k-${n.t} is-${st.state}${st.canAdd ? ' can-add' : ''}`;
+      R.el.className = `tp-node k-${n.t} is-${st.state}${st.canAdd ? ' can-add' : ''}${which === 'spec' && S.mechHint.has(n.id) ? ' is-mech-hint' : ''}`;
       if (R.badge) R.badge.textContent = `${st.rank}/${n.max}`;
       if (R.opt) R.opt.textContent = st.rank > 0 ? (st.choice || n.opts[0].k) : '';
       R.btn.setAttribute('aria-label', `${n.name}, rango ${st.rank} de ${n.max}${st.canAdd ? ', disponible' : ''}${st.state === 'locked' ? ', bloqueado' : ''}`);
@@ -446,8 +605,11 @@ export function createTalentPanel(host, opts = {}) {
         <span class="tp-d-rank">Rango ${st.rank}/${n.max} · fila ${n.r + 1}</span></div>
       <div class="tp-d-name">${esc(n.name)}</div>
       <div class="tp-d-lines${n.t === 'c' ? ' is-choice' : ''}">${lines.join('')}</div>
+      ${h.which === 'spec' && S.mech?.nodes[n.id] ? `<div class="tp-d-mech"><b>Potencia tu ${esc(S.mech.name)}:</b> ${esc(S.mech.nodes[n.id].replace(/^[^:]+:\s*/, ''))}</div>` : ''}
       <div class="tp-d-status tp-s-${sc}">${esc(status)}</div>
       <div class="tp-d-hint">Clic: +1 rango · Clic derecho: −1 · En elecciones, clic alterna la opción</div>`;
+    const dl = box.querySelector('.tp-d-lines');      // texto largo: se desplaza con un degradado
+    if (dl) dl.classList.toggle('is-scroll', dl.scrollHeight > dl.clientHeight + 2);
   }
 
   function updateGrants(p) {
@@ -509,6 +671,7 @@ export function createTalentPanel(host, opts = {}) {
   function render() {
     if (root.classList.contains('hidden')) { // lo cerró otro (ui.closePanel)
       if (S.open) { S.open = false; win.removeEventListener('resize', onResize); }
+      destroyGauges(); S.key = null;
       return;
     }
     if (!S.open) return;
@@ -583,6 +746,9 @@ export function createTalentPanel(host, opts = {}) {
       } else { S.resetArmed = false; clearTimeout(S.resetT); mutate(q => ops.resetAll(q), 'Talentos reiniciados'); }
     }
     else if (act === 'opt') mutate(q => ops.setChoice(q, b.dataset.which, b.dataset.id, b.dataset.k));
+    else if (act === 'mech-demo') setMechMode('demo');
+    else if (act === 'mech-live') setMechMode('live');
+    else if (act === 'mech-replay') { setMechMode('demo'); S.gz?.seek(0); }
     else if (act === 'copy') copyCode();
     else if (act === 'import') setImporting(true);
     else if (act === 'import-cancel') setImporting(false);
@@ -602,9 +768,17 @@ export function createTalentPanel(host, opts = {}) {
   };
   root.addEventListener('mouseover', (e) => {
     const nd = nodeFromEvent(e);
-    if (nd) { hoverTo(nd.which, nd.id); return; }
+    if (nd) { hoverTo(nd.which, nd.id); mechFocus(nd.which === 'spec' ? nd.id : null); return; }
+    const pill = e.target.closest?.('[data-mech-node]');
+    if (pill && stage.contains(pill)) { hoverTo('spec', pill.dataset.mechNode); mechFocus(pill.dataset.mechNode); return; }
     const g = e.target.closest?.('[data-hover-id]');
     if (g && stage.contains(g)) hoverTo(g.dataset.hoverWhich, g.dataset.hoverId);
+  });
+  root.addEventListener('mouseout', (e) => {
+    const from = e.target.closest?.('.tp-node, [data-mech-node]');
+    if (!from) return;
+    const to = e.relatedTarget?.closest?.('.tp-node, [data-mech-node]');
+    if (to !== from) mechFocus(null);
   });
   root.addEventListener('focusin', (e) => { const nd = nodeFromEvent(e); if (nd) hoverTo(nd.which, nd.id); });
 
@@ -622,6 +796,7 @@ export function createTalentPanel(host, opts = {}) {
     close() {
       if (S.open) { S.open = false; win.removeEventListener('resize', onResize); }
       root.classList.add('hidden');
+      destroyGauges(); S.key = null;   // al reabrir se reconstruye (y la demo arranca de cero)
       S.resetArmed = false; clearTimeout(S.resetT);
     },
     render() {
@@ -631,6 +806,9 @@ export function createTalentPanel(host, opts = {}) {
     },
     showSpecChoice() { api.open(); S.view = 'choose'; render(); },
     destroy() { api.close(); root.remove(); },
+    // pruebas y capturas (A12): el bloque de mecánica
+    mech: () => ({ info: S.mech, gauge: S.gz, mode: S.gzMode, hint: [...S.mechHint], cards: S.cardGz.length }),
+    mechFocus,
     ops,
   };
   return api;

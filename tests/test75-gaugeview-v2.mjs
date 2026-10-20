@@ -27,7 +27,7 @@ const X_KEYS = {
   bastion: ['drPct', 'wallT', 'wallMax', 'wallDr', 'decayEvery'],
   fervor: ['hammerHits', 'hammerNeed', 'ascT', 'ascMax'],
   calor: ['cooling', 'combT', 'combMax', 'mult'],
-  escarcha: ['enemyName', 'boss', 'layered', 'frozen', 'numbT'],
+  escarcha: ['enemyName', 'boss', 'layered', 'frozen', 'numbT', 'targetFrozen'],
   cargas: ['loseAfter', 'bonusPct', 'manaBack', 'resonance'],
   concentracion: ['moving', 'critPct', 'visionT', 'visionMax'],
   coto: ['preyName', 'preyHpPct', 'trapCharges', 'trapChargesMax', 'trapCdFrac', 'preyTrapped'],
@@ -193,6 +193,8 @@ function seqDelta(h, id, fn) {
   assert.ok(d.gain === 2 && d.full === 1 && d.empty === 1, `Escarcha: gain ×2, full (congelación) y empty (${JSON.stringify(d)})`);
   v = h.gaugeView({ target: a });
   assert.equal(v.x.frozen, 1, 'Escarcha: x.frozen = congelados ahora');
+  assert.equal(v.x.targetFrozen, true, 'Escarcha: x.targetFrozen = el objetivo está Congelado');
+  assert.equal(h.gaugeView({ target: b }).x.targetFrozen, false, 'Escarcha: x.targetFrozen falso si el objetivo no está Congelado');
   const boss = h.enemy({ hp: 1e6, boss: true, pos: [0, 0, 3] });
   boss.def = { ...boss.def, name: 'Señor del Osario' };
   h.hit(boss, { elem: 'frost', skill: 'm_toque' });
@@ -221,6 +223,7 @@ function seqDelta(h, id, fn) {
   h.addPowers('a_resonance');
   v = h.gaugeView();
   assert.ok(v.x.resonance === true && v.decayIn === null && v.hold === true, 'Cargas: Resonancia con 4 (no caducan)');
+  assert.ok(v.state === 'active' && v.label === 'Resonancia', 'Cargas: Resonancia = estado active');
   d = seqDelta(h, 'cargas', () => spendGauge(p, 'cargas', 4));
   assert.ok(d.spent === 1 && d.empty === 1, 'Cargas: spent + empty');
   assert.deepEqual(h.gaugeView().ready, []);

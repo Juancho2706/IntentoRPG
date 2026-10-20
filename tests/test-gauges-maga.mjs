@@ -232,7 +232,7 @@ const mk = spec => makeHarness({ classId: 'maga', spec, level: 40 });
   h.addPowers('a_resonance');
   const vr = h.gaugeView();
   m = V.cargas.model(vr, T);
-  assert.ok(vr.x.resonance && m.res && m.arc === 1 && !m.warn && m.sub.startsWith('Resonancia'), 'Cargas active: Resonancia, el arco queda lleno');
+  assert.ok(vr.state === 'active' && G.gaugeDataState(vr) === 'active' && vr.x.resonance && m.res && m.arc === 1 && !m.warn && m.sub.startsWith('Resonancia'), 'Cargas active: Resonancia, el arco queda lleno');
 }
 
 console.log('✅ Barras de la Maga (2d.2 E1): registro, A3, A4, A8, modelos por estado y world.overhead OK');

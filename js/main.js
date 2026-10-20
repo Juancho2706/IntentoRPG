@@ -30,6 +30,7 @@ import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
 import { ParticleSystem, PRESETS } from './particles.js';
+import { WorldMarks } from './world-marks.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, deathWave, bossDeathBurst, bossDeathStars, bossDeathFlash, bossDeathWave } from './fx-enemies.js';
 
@@ -176,6 +177,10 @@ class Game {
     const psysPool = Math.round(2000 * (this.deviceTier >= 2 ? 0.5 : 1));
     try { this.psys = new ParticleSystem(this.scene, { poolSize: psysPool }); }
     catch { this.psys = null; }
+    // marcas de mundo de la mecánica (Paso 2d.2 E2): capas de Escarcha sobre la barra de vida
+    // y anillo de la Presa del Montaraz. Pool fijo en su propio grupo de la escena.
+    try { this.worldMarks = new WorldMarks(this.scene); }
+    catch { this.worldMarks = null; }
     // post-procesado: carga PEREZOSA. En gama mínima (tier 3) o con postfx/
     // reduceMotion desactivados NI siquiera se baja el addon del CDN — se
     // renderiza directo y se ahorra memoria/arranque. Si no, init() importa
@@ -426,6 +431,7 @@ class Game {
     this.clearFields();   // entidades de suelo (Estela, zonas, trampas) del mundo anterior
     this.resetCastState(); // windup/canalización/salto pendientes
     this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
+    this.worldMarks?.clear(); // marcas de mecánica de los enemigos del mundo anterior
     this.timers.clear();  // DoT/Eco/impactos pendientes del mundo anterior
 
     // semilla persistente por sesión: la zona se genera una sola vez y mantiene
@@ -1571,6 +1577,8 @@ class Game {
         e.group.userData.bar.quaternion.copy(this._q.invert().multiply(this.camera.quaternion));
       }
     }
+    // marcas de la mecánica sobre los enemigos / bajo la Presa (datos a 10 Hz, posiciones por frame)
+    this.worldMarks?.update(this, realDt);
 
     // proyectiles
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -2078,7 +2086,8 @@ class Game {
       entries.push({
         id: 'en' + e.uid,
         // por encima de la barra de vida para no taparla
-        pos: e.pos.clone().setY(3.05 * (e.def.scale || 1)),
+        // (y más arriba si lleva la tira de la mecánica encima de la barra: world-marks.js)
+        pos: e.pos.clone().setY(3.05 * (e.def.scale || 1) + (this.worldMarks?.hasMark(e) ? 0.45 : 0)),
         text: e.def.rankLabel, cls: e.def.labelCls,
         onClick: () => { p.attackTarget = e; p.moveTarget = null; p.pickTarget = null; },
       });

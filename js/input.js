@@ -9,8 +9,6 @@ const ALT_CODES = new Set(['AltLeft', 'AltRight']);
 export class Input {
   constructor(game) {
     this.game = game;
-    // Paso 2d.2: ya no hay joystick; entities.js todavía lee joyDir (siempre null)
-    this.joyDir = null;
     this.keyDir = null;     // {x,z} desde WASD/flechas
     this.mouseWorld = null; // último punto del mundo bajo el ratón
     this.mouseScreen = null; // { x, y } en px de pantalla (enemigo bajo el cursor, HUD)
