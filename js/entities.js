@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { CLASSES, skillVal, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, aggregateSkillMods } from './data.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
+import { migrateSave, serializePlayer } from './save-schema.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
@@ -411,7 +412,13 @@ export class Player {
     };
     this.lastFloor = 1;
 
-    if (saved) Object.assign(this, saved, { game: this.game, cls: this.cls });
+    // guardado versionado (js/save-schema.js): migra v0→…→SAVE_VERSION sobre una
+    // copia y luego vuelca los campos. saveVersion no vive en el héroe.
+    if (saved) {
+      saved = migrateSave(saved);
+      Object.assign(this, saved, { game: this.game, cls: this.cls });
+      delete this.saveVersion;
+    }
 
     // valores por defecto compatibles con guardados antiguos
     this.equipment = {
@@ -422,29 +429,20 @@ export class Player {
     this.waypoints = Array.isArray(this.waypoints) ? this.waypoints : [];
     this.cube = Array.isArray(this.cube) ? this.cube : [];
     // Bolsa de materiales: gemas, runas, llaves, fragmentos y glifos.
-    // Migración de guardados: mueve de inventory a materials cualquier material
-    // que viviera antiguamente en la mochila.
+    // (La mudanza mochila→materiales de saves viejos vive en MIGRATIONS[0].)
+    this.inventory = Array.isArray(this.inventory) ? this.inventory : [];
     this.materials = Array.isArray(this.materials) ? this.materials : [];
-    const MATERIAL_KINDS = ['gem', 'rune', 'riftkey', 'fragment', 'glyph'];
-    if (Array.isArray(this.inventory)) {
-      const moved = this.inventory.filter(it => it && MATERIAL_KINDS.includes(it.kind));
-      if (moved.length) {
-        this.inventory = this.inventory.filter(it => !(it && MATERIAL_KINDS.includes(it.kind)));
-        this.materials.push(...moved);
-      }
-    }
     this.quest = this.quest || null;
-    this.supports = this.supports || {};               // habilidad → soportes asignados (array, máx 2)
-    // retrocompat: saves viejos guardaban 1 soporte como string; lo convertimos a [string]
-    for (const k of Object.keys(this.supports)) {
-      const v = this.supports[k];
-      if (typeof v === 'string') this.supports[k] = v ? [v] : [];
-      else if (!Array.isArray(v)) this.supports[k] = [];
-    }
+    // habilidad → soportes asignados (array, máx 2). El formato viejo (string)
+    // se convierte en MIGRATIONS[0]; aquí solo se sanea lo que no sea array.
+    this.supports = this.supports && typeof this.supports === 'object' ? this.supports : {};
+    for (const k of Object.keys(this.supports)) if (!Array.isArray(this.supports[k])) this.supports[k] = [];
     this.knownSupports = Array.isArray(this.knownSupports) ? this.knownSupports : []; // soportes aprendidos
     this.skillMods = this.skillMods && typeof this.skillMods === 'object' ? this.skillMods : {}; // id skill → { modId:true } (D4-lite)
     this.hardcore = !!this.hardcore;
-    // mascota: normaliza el esquema (migración de guardados antiguos {level:1})
+    // mascota: normaliza el esquema (guardados antiguos {level:1}) y valida contra
+    // los catálogos ACTUALES (PET_KINDS/PET_COLLARS). Se queda aquí y no en
+    // MIGRATIONS porque el catálogo puede cambiar sin cambiar el formato.
     if (this.pet) {
       const k = PET_KINDS[this.pet.kind] ? this.pet.kind : 'lobo';
       this.pet = {
@@ -485,8 +483,9 @@ export class Player {
     this.blessings = this.blessings || {};
     // registro de colección: sets vistos, poderes legendarios, bestiario
     this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
-    // Paragon: tablero de nodos. Migra saves antiguos (formato plano) reembolsando
-    // todos los puntos ganados (level-20) al tablero vacío.
+    // Paragon: tablero de nodos. La conversión del formato plano antiguo vive en
+    // MIGRATIONS[0]; esto es el valor por defecto (héroe nuevo) y red de
+    // seguridad ante un save corrupto (reembolsa level-20 al tablero vacío).
     if (this.paragon && this.paragon.nodes) {
       this.paragon.points = this.paragon.points || 0;
       this.paragon.nodes = this.paragon.nodes || {};
@@ -509,20 +508,10 @@ export class Player {
     // skillBranches[skId][branchId] = true → mini-rama de pasivos DESBLOQUEADA (cuesta 1 punto)
     this.skillBranches = (this.skillBranches && typeof this.skillBranches === 'object') ? this.skillBranches : {};
     const weaponBasic = (this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon') || this.cls.skills.find(s => s.kind === 'basic') || this.cls.skills[0]);
-    // v4: las mini-ramas de pasivos cuestan punto → reembolsa y resetea builds previas
-    // Idempotente: skillSystemV/skillBranches/hotbar se guardan (toSaveData), así
-    // que un save ya migrado NO vuelve a reembolsar al cargarse. El rango 1 del
-    // básico de arma es gratis (no se compró con puntos) → no se reembolsa.
-    if (this.skillSystemV !== 4) {
-      const freeBasic = (weaponBasic && this.skills[weaponBasic.id] > 0) ? 1 : 0;
-      const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0) - freeBasic
-        + Object.values(this.skillBranches || {}).reduce((a, o) => a + Object.keys(o || {}).length, 0);
-      this.skillPoints = (this.skillPoints | 0) + spent; // reembolso total
-      this.skills = {};
-      this.skillMods = {};
-      this.skillBranches = {};
-      this.skillSystemV = 4;
-    }
+    // v4 (mini-ramas que cuestan punto): el reembolso de builds previas vive en
+    // MIGRATIONS[0] (save-schema.js), idempotente vía skillSystemV. Aquí solo el
+    // valor por defecto para héroes nuevos.
+    if (this.skillSystemV == null) this.skillSystemV = 4;
     // siempre conoces el ataque básico de arma (es tu "ataque principal")
     if (weaponBasic && !(this.skills[weaponBasic.id] > 0)) this.skills[weaponBasic.id] = 1;
     // purga niveles de habilidades que ya no existen
@@ -560,25 +549,9 @@ export class Player {
   }
 
   // Datos persistentes del héroe (lo que escribe Game.save en localStorage).
-  // Vive aquí (módulo puro) para poder probar la ida y vuelta sin DOM.
-  // IMPORTANTE: skillSystemV, skillBranches y hotbar DEBEN guardarse; si no, al
-  // cargar se re-ejecuta la migración v4 y se pierde/reembolsa la build.
+  // La lista de campos y la versión viven en js/save-schema.js (declarativo).
   toSaveData() {
-    const p = this;
-    return {
-      classId: p.classId, level: p.level, xp: p.xp, attributes: p.attributes,
-      statPoints: p.statPoints, skillPoints: p.skillPoints, skills: p.skills,
-      skillSystemV: p.skillSystemV, skillBranches: p.skillBranches, hotbar: p.hotbar,
-      gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
-      lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
-      waypoints: p.waypoints, records: p.records, cube: p.cube,
-      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title,
-      discoveredZones: p.discoveredZones, homeZone: p.homeZone, strongholdsCleared: p.strongholdsCleared, dailyDone: p.dailyDone, tips: p.tips,
-      supports: p.supports, knownSupports: p.knownSupports, skillMods: p.skillMods,
-      paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
-      heroName: p.heroName, tint: p.tint,
-      torment: p.torment, codex: p.codex, blessings: p.blessings,
-    };
+    return serializePlayer(this);
   }
 
   // hotbar de 6 ranuras (lmb/rmb/k1-4). Barra libre: cualquier skill conocible
@@ -1144,7 +1117,7 @@ export class Player {
       if (bm.vuln) e.vulnT = Math.max(e.vulnT || 0, bm.vuln);
       if (bm.stun) e.applyStun(bm.stun); // rendimientos decrecientes + regla de jefe
       if (bm.slow) e.slowT = Math.max(e.slowT || 0, bm.slow);
-      if (bm.dot) g.applyDoT?.(e, avgHit * (bm.dot === 'poison' ? 0.9 : bm.dot === 'burn' ? 0.8 : 0.6), bm.dot === 'poison' ? 5 : bm.dot === 'burn' ? 4 : 3, bm.dot === 'burn' ? 0.8 : 1.0);
+      if (bm.dot) g.applyDoT?.(e, avgHit * (bm.dot === 'poison' ? 0.9 : bm.dot === 'burn' ? 0.8 : 0.6), bm.dot === 'poison' ? 5 : bm.dot === 'burn' ? 4 : 3, bm.dot === 'burn' ? 0.8 : 1.0, undefined, `rama:${bm.dot}`);
     };
     // robo de vida sobre el daño infligido de verdad
     const lifeHeal = (dealt) => { if (bm?.lifesteal && dealt > 0) this.hp = Math.min(this.stats.maxHP, this.hp + dealt * bm.lifesteal / 100); };

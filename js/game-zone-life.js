@@ -11,13 +11,15 @@ import { Enemy } from './entities.js';
 import { rollDrops } from './items.js';
 
 export const zoneLifeMethods = {
-  // celda transitable aleatoria de un mundo, lejos de un punto dado
-  randomZoneCellFrom(world, fromPos, minDist = 12) {
+  // celda transitable aleatoria de un mundo, lejos de un punto dado.
+  // rng opcional (p. ej. stream 'layout' del mundo para colocar caminos/obelisco
+  // de forma reproducible); por defecto Math.random.
+  randomZoneCellFrom(world, fromPos, minDist = 12, rng = Math.random) {
     const g = world.grid;
     const sz = world.safeZone;
     for (let t = 0; t < 50; t++) {
-      const x = 2 + Math.floor(Math.random() * (g.w - 4));
-      const z = 2 + Math.floor(Math.random() * (g.h - 4));
+      const x = 2 + Math.floor(rng() * (g.w - 4));
+      const z = 2 + Math.floor(rng() * (g.h - 4));
       if (!g.cells[z][x]) continue;
       const c = g.center(x, z);
       // nunca generes enemigos dentro del campamento NI pegados a su borde
@@ -86,7 +88,8 @@ export const zoneLifeMethods = {
             if (w.grid.walkable(c.x, c.z)) positions.push(c);
           }
           for (const pos of positions) {
-            const def = rollEnemyRank(scaleEnemy(pickEnemyDef(w.scaleFloor), w.scaleFloor), w.scaleFloor);
+            const srng = this.simRng?.('spawn') || Math.random;
+            const def = rollEnemyRank(scaleEnemy(pickEnemyDef(w.scaleFloor, srng), w.scaleFloor), w.scaleFloor, srng);
             def.eventEnemy = true;
             const e = this.buffByPact(new Enemy(this, def, pos));
             e.aggroed = true;
@@ -98,7 +101,7 @@ export const zoneLifeMethods = {
         } else {
           // evento completado: recompensa
           w.event.active = false;
-          for (const d of rollDrops(w.scaleFloor, { mf: this.player.stats.mf || 0, boss: true, cls: this.player.classId }))
+          for (const d of rollDrops(w.scaleFloor, { mf: this.player.stats.mf || 0, boss: true, cls: this.player.classId, rng: this.simRng?.('loot') }))
             this.spawnGroundItem(d, w.event.pos);
           this.ui.message('🌀 ¡Evento completado! Botín liberado', 4000);
           this.music.sting();

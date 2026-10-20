@@ -2,11 +2,13 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SKILL_MODS, aggregateSkillMods } from './data.js';
+import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, rollSpawnDef, skillVal, synergyBonus, TIER_LEVELS, SKILL_MODS, aggregateSkillMods } from './data.js';
 import { buildTown, buildDungeon, buildRefuge, makePortal } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet, canAddMaterial } from './entities.js';
-import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES, syncItemUids } from './items.js';
+import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES, syncItemUids, withItemRng } from './items.js';
+import { createWorldRng, riftSeed } from './rng.js';
+import { TickScheduler, applyDoTInstance } from './timers.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -58,6 +60,11 @@ class Game {
     this.healPulse = 0;
     this.saveTimer = 0;
     this.giUid = 1;
+    // planificador por ticks de la simulación (DoT, Eco, impactos diferidos):
+    // avanza con el dt del juego (se pausa con paneles) y se limpia al cambiar de mundo
+    this.timers = new TickScheduler();
+    // streams de azar con semilla del mundo actual (layout/spawn/loot; ver rng.js)
+    this.worldRng = null;
     // game-feel: cámara basada en "trauma" (0..1) y hit-stop por reloj propio
     this.trauma = 0;       // acumulador 0..1, el desplazamiento usa trauma²
     this.shakeMag = 0;     // amplitud máxima pedida por las llamadas a addShake
@@ -409,6 +416,7 @@ class Game {
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
     this.firePools = []; this.telegraphs = []; this.chains = {}; this.groundZones = [];
     this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
+    this.timers.clear();  // DoT/Eco/impactos pendientes del mundo anterior
 
     // semilla persistente por sesión: la zona se genera una sola vez y mantiene
     // su trazado mientras dure la partida (hasta recargar la página)
@@ -418,10 +426,20 @@ class Game {
         this.zoneSeeds[spec.biome] = (Math.random() * 1e9) | 0;
       spec.seed = this.zoneSeeds[spec.biome];
     }
+    // Semilla del mundo (layout = la propia semilla; spawn/loot = streams
+    // derivados). Grietas: la semilla de la llave (o, en llaves viejas sin
+    // seed, la semanal por nivel) → misma semilla = mismo mapa, mismo elenco y
+    // mismo botín por secuencia de muertes. Sin semilla explícita se sortea una
+    // (queda en world.seed).
+    if (spec.type === 'dungeon' && spec.seed == null && spec.rift)
+      spec.seed = spec.riftSeed ?? riftSeed(spec.rift);
+    this.worldRng = createWorldRng(spec.type === 'dungeon' || spec.type === 'zone' ? spec.seed : null);
+    if (spec.type === 'dungeon') spec.seed = this.worldRng.seed;
     this.world = spec.type === 'town' ? buildTown()
       : spec.type === 'refuge' ? buildRefuge()
       : spec.type === 'zone' ? buildZone(spec.biome, { seed: spec.seed ?? null, townPocket: this.isHomeZone(spec.biome) })
       : buildDungeon(spec.rift ? 16 + spec.rift * 2 : spec.floor, spec.seed ?? null);
+    this.world.seed = this.worldRng.seed;
     this.world.daily = !!spec.daily;
     this.world.pinnacle = !!spec.pinnacle;
     this.world.rift = spec.rift || 0;
@@ -485,7 +503,7 @@ class Game {
       // "caminos" a las regiones adyacentes: un portal en el borde por cada enlace
       const zdef = ZONE_LIST.find(z => z.biome === w.biome);
       for (const linkBiome of (zdef?.links || [])) {
-        const cell = this.randomZoneCellFrom(w, w.spawn, 34) || this.randomZoneCellFrom(w, w.spawn, 20);
+        const cell = this.randomZoneCellFrom(w, w.spawn, 34, this.worldRng.layout) || this.randomZoneCellFrom(w, w.spawn, 20, this.worldRng.layout);
         if (!cell) continue;
         const road = makePortal(0x88bb66, linkBiome);
         road.position.copy(cell);
@@ -509,7 +527,7 @@ class Game {
         d.label = `🕳️ Mazmorra (piso ${d.floor})`;
       });
       // obelisco de evento: una pieza interactuable que desata oleadas
-      const op = this.randomZoneCellFrom(w, w.spawn, 18);
+      const op = this.randomZoneCellFrom(w, w.spawn, 18, this.worldRng.layout);
       if (op) {
         const ob = new THREE.Group();
         const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 0.5),
@@ -576,12 +594,9 @@ class Game {
         def = w.pinnacle ? scaleEnemy(UBER_BOSS, sf) : scaleEnemy(bossForFloor(sf), sf);
         def.rankLabel = w.pinnacle ? `👁️ ${def.name} (Pináculo)` : `👹 ${def.name}`;
         def.labelCls = 'lbl-elite';
-      } else if (s.kind === 'elite') {
-        def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
-        for (let t = 0; t < 25 && def.rank !== 'elite'; t++)
-          def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
       } else {
-        def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
+        // sueltos y élites de tesoro: elenco con el stream 'spawn' del mundo
+        def = rollSpawnDef(s.kind, sf, this.simRng('spawn'));
       }
       // mods de grieta/pacto también al spawn inicial (antes solo oleadas/respawn)
       const enemy = this.buffByPact(new Enemy(this, def, s.pos));
@@ -896,9 +911,10 @@ class Game {
   // ---------- manadas y emboscadas ----------
   // manada: líder campeón/élite y esbirros del mismo tipo que heredan su rasgo
   spawnPack(positions, floor) {
-    const base = pickEnemyDef(floor);
-    let leader = rollEnemyRank(scaleEnemy(base, floor), floor);
-    for (let t = 0; t < 25 && !leader.rank; t++) leader = rollEnemyRank(scaleEnemy(base, floor), floor);
+    const rng = this.simRng('spawn');
+    const base = pickEnemyDef(floor, rng);
+    let leader = rollEnemyRank(scaleEnemy(base, floor), floor, rng);
+    for (let t = 0; t < 25 && !leader.rank; t++) leader = rollEnemyRank(scaleEnemy(base, floor), floor, rng);
     if (!leader.rank) {
       const rk = ENEMY_RANKS.campeon;
       const d = scaleEnemy(base, floor);
@@ -938,6 +954,12 @@ class Game {
     if (chainId) { this.chains = this.chains || {}; this.chains[chainId] = linked; }
   }
 
+  // stream de azar con semilla del mundo actual ('layout'|'spawn'|'loot');
+  // 'fx' o sin mundo → Math.random (cosmético / fuera de la simulación)
+  simRng(stream) {
+    return (stream !== 'fx' && this.worldRng?.[stream]) || Math.random;
+  }
+
   // aplica los modificadores del pacto a un enemigo que aparece tras sellarlo
   // TODO enemigo creado en el mundo debe pasar por aquí (spawn inicial, manadas,
   // oleadas, respawn, invocaciones…); lo vigila test56-hotfixes.
@@ -953,7 +975,7 @@ class Game {
   spawnWave(positions) {
     const sf = this.world.scaleFloor || 1;
     for (const pos of positions) {
-      const def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
+      const def = rollSpawnDef('enemy', sf, this.simRng('spawn'));
       const e = this.buffByPact(new Enemy(this, def, pos));
       e.aggroed = true; // vienen directos a por ti
       this.enemies.push(e);
@@ -1033,19 +1055,12 @@ class Game {
     return [];
   }
 
-  // Daño por tiempo (sangrado/veneno): tics independientes del bucle principal.
-  // Reutiliza el patrón de "charco" pero sobre un enemigo concreto. Usa setTimeout
-  // para no tocar el bucle tick ni el update de las entidades (alcance acotado).
-  applyDoT(enemy, totalDmg, ticks, interval, color = 'txt-dmg') {
-    if (!enemy || !enemy.alive || totalDmg <= 0) return;
-    const per = Math.max(1, Math.round(totalDmg / ticks));
-    let n = 0;
-    const tick = () => {
-      if (this.state !== 'play' || !enemy.alive) return;
-      enemy.takeDamage(per, false);
-      if (++n < ticks && enemy.alive) setTimeout(tick, interval * 1000);
-    };
-    setTimeout(tick, interval * 1000);
+  // Daño por tiempo (sangrado/veneno/quemadura) sobre el planificador por ticks
+  // (js/timers.js): se pausa con la simulación, se limpia al cambiar de mundo y
+  // mantiene UNA instancia por (fuente, objetivo) que se refresca absorbiendo el
+  // daño pendiente (mismo daño total que el apilado anterior).
+  applyDoT(enemy, totalDmg, ticks, interval, color = 'txt-dmg', source = 'dot') {
+    return applyDoTInstance(this.timers, enemy, { total: totalDmg, ticks, interval, source });
   }
 
   // Encadenado: tras el impacto, busca enemigos cercanos al objetivo y dispara
@@ -1256,7 +1271,7 @@ class Game {
     // efectos al golpear: DoT + Vulnerable + Aturdir (de las opciones de Variante)
     const applyDoT = e => {
       if (!e || !e.alive) return;
-      if (supDoT) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval);
+      if (supDoT) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval, undefined, `${sk.id}:${dotKind}`);
       if (m.vuln) e.vulnT = Math.max(e.vulnT || 0, m.vuln);
       if (m.stun) e.applyStun(m.stun); // con rendimientos decrecientes y regla de jefe
       // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
@@ -1352,14 +1367,14 @@ class Game {
         if (fx?.trail) this.emitFx(fx.trail, target.clone().setY(4.5));
         const gp = target.clone().setY(0.3);
         const dp = target.clone().setY(0.1);
-        // sincroniza el burst de impacto con la llegada de la bola decorativa.
-        setTimeout(() => {
-          if (this.state !== 'play') return;
+        // sincroniza el burst de impacto con la llegada de la bola decorativa
+        // (planificador de la simulación: se pausa y se limpia con el mundo).
+        this.timers.schedule(0.23, () => {
           if (fx?.impact) this.emitFx(fx.impact, gp);
           if (fx?.aura) this.emitFx(fx.aura, gp);
           if (fx?.extra) this.emitFx(fx.extra, dp);
           this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
-        }, 230);
+        });
         hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
         zoneCenter = target.clone(); zoneRad = rad;
         break;
@@ -1458,7 +1473,7 @@ class Game {
           if (m.cdhit && hitCount >= m.cdhit) cd *= 0.5;
           p.cds[sk.id] = cd;
           // Eco (soporte o Transformación): repite la habilidad ~0.5s después al 50-60%
-          if (has('echo') || m.echo) setTimeout(() => this.castSkillSlot(key, m.echo ? 0.6 : 0.5), 500);
+          if (has('echo') || m.echo) this.timers.schedule(0.5, () => this.castSkillSlot(key, m.echo ? 0.6 : 0.5));
         }
       }
       this.sfx('skill');
@@ -1711,7 +1726,11 @@ class Game {
     }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
-    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId };
+    // botín con el stream 'loot' del mundo: misma semilla + misma secuencia de
+    // muertes → mismo botín. withLoot(fn) envuelve los generadores de items.js.
+    const lr = this.simRng('loot');
+    const withLoot = fn => withItemRng(lr, fn);
+    const lootOpts = { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId, rng: lr };
     if (enemy.def.mimic) drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.5, setChance: 0.025 });
     else if (enemy.def.boss) drops = rollDrops(floor, { ...lootOpts, boss: true, goldChance: 1, potionChance: 0.8 });
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
@@ -1719,16 +1738,16 @@ class Game {
     else drops = rollDrops(floor, lootOpts);
     if (p.powers?.has('avaricia')) for (const d of drops) if (d.kind === 'gold') d.amount = Math.round(d.amount * 1.5);
     // reliquia temática del jefe (baja probabilidad, mejora con el hallazgo mágico)
-    if (enemy.def.boss && Math.random() < 0.12 * (1 + (p.stats.mf || 0) / 100))
-      drops.push(makeRelic(enemy.def.id, floor));
+    if (enemy.def.boss && lr() < 0.12 * (1 + (p.stats.mf || 0) / 100))
+      drops.push(withLoot(() => makeRelic(enemy.def.id, floor)));
     // grietas: el jefe de un piso profundo suelta una Llave de Grieta (entrada al endgame)
-    if (enemy.def.boss && !this.world.rift && (this.world.floor || 0) >= 10 && Math.random() < 0.5)
-      drops.push(makeRiftKey(1));
+    if (enemy.def.boss && !this.world.rift && (this.world.floor || 0) >= 10 && lr() < 0.5)
+      drops.push(withLoot(() => makeRiftKey(1)));
     // goblin del tesoro: lluvia de oro y un objeto extra (mágico+)
     if (enemy.def.goblin) {
       if (this.world.goblin === enemy) this.world.goblin = null;
-      for (let i = 0; i < 6; i++) drops.push(makeGold(floor + 3));
-      drops.push(generateItem(floor + 1, Math.random() < 0.12 ? 'legendario' : Math.random() < 0.5 ? 'raro' : 'magico', null, null, p.classId));
+      for (let i = 0; i < 6; i++) drops.push(withLoot(() => makeGold(floor + 3)));
+      drops.push(generateItem(floor + 1, lr() < 0.12 ? 'legendario' : lr() < 0.5 ? 'raro' : 'magico', null, null, p.classId, lr));
       this.ui.message('🪙 ¡Goblin del Tesoro abatido! Botín liberado', 3500);
       this.music.sting();
     }
@@ -1738,19 +1757,19 @@ class Game {
       this.world.bossDone = true;
       this.world.bossT = 90; // volverá a aparecer
       this.world.bossDone = false;
-      drops.push(generateItem(floor + 2, 'legendario', null, null, p.classId));
-      drops.push(makeRiftKey(1));
+      drops.push(generateItem(floor + 2, 'legendario', null, null, p.classId, lr));
+      drops.push(withLoot(() => makeRiftKey(1)));
       drops.push(makeFragment()); // fragmento para el Pináculo
       this.ui.message('👑 ¡Jefe de Mundo derrotado! Botín mayor + Fragmento de Pináculo', 5000);
     }
     // jefe Pináculo (uber): botín MÍTICO exclusivo
     if (enemy.def.uber) {
       p.records.uberKills = (p.records.uberKills || 0) + 1;
-      drops.push(makeMythic(floor + 4, p.classId));
-      drops.push(generateItem(floor + 3, 'legendario', null, null, p.classId));
-      drops.push(makeGlyph(Math.max(2, (p.records.maxRift || 0) + 1)));
-      for (let i = 0; i < 5; i++) drops.push(makeGold(floor + 6));
-      drops.push(makeRiftKey(Math.max(1, (p.records.maxRift || 0))));
+      drops.push(withLoot(() => makeMythic(floor + 4, p.classId)));
+      drops.push(generateItem(floor + 3, 'legendario', null, null, p.classId, lr));
+      drops.push(withLoot(() => makeGlyph(Math.max(2, (p.records.maxRift || 0) + 1))));
+      for (let i = 0; i < 5; i++) drops.push(withLoot(() => makeGold(floor + 6)));
+      drops.push(withLoot(() => makeRiftKey(Math.max(1, (p.records.maxRift || 0)))));
       this.ui.message('👁️ ¡Heraldo del Vacío derrotado! Ha caído un objeto MÍTICO', 6000);
       this.music.sting();
       this.addShake(0.5, 0.6);
@@ -1761,10 +1780,10 @@ class Game {
       p.records.maxRift = Math.max(p.records.maxRift || 0, L);
       this.checkTormentUnlock();
       const rewards = [];
-      drops.push(generateItem(floor, 'legendario', null, null, p.classId)); rewards.push({ icon: '🟧', label: 'Objeto legendario' });
-      drops.push(makeRiftKey(L + 1)); rewards.push({ icon: '🗝️', label: `Llave de Grieta Nv ${L + 1}` });
-      if (Math.random() < 0.7) { drops.push(makeFragment()); rewards.push({ icon: '🔱', label: 'Fragmento de Pináculo' }); } // para el Pináculo
-      if (Math.random() < 0.5) { drops.push(makeGlyph(L)); rewards.push({ icon: '🔣', label: 'Glifo de Paragon' }); }       // para el tablero
+      drops.push(generateItem(floor, 'legendario', null, null, p.classId, lr)); rewards.push({ icon: '🟧', label: 'Objeto legendario' });
+      drops.push(withLoot(() => makeRiftKey(L + 1))); rewards.push({ icon: '🗝️', label: `Llave de Grieta Nv ${L + 1}` });
+      if (lr() < 0.7) { drops.push(makeFragment()); rewards.push({ icon: '🔱', label: 'Fragmento de Pináculo' }); } // para el Pináculo
+      if (lr() < 0.5) { drops.push(withItemRng(lr, () => makeGlyph(L))); rewards.push({ icon: '🔣', label: 'Glifo de Paragon' }); }       // para el tablero
       // los glifos engarzados suben de rango al completar grietas (tope 10)
       let ranked = 0;
       for (const gl of Object.values(p.paragon.glyphs || {})) {
@@ -1808,7 +1827,7 @@ class Game {
     if (!key || key.kind !== 'riftkey') return;
     p.materials.splice(index, 1);
     this.ui.closePanel();
-    this.loadWorld({ type: 'dungeon', rift: key.riftLevel });
+    this.loadWorld({ type: 'dungeon', rift: key.riftLevel, riftSeed: key.seed }); // sin key.seed → semilla semanal
   }
 
   spawnGroundItem(item, pos) {
@@ -2049,6 +2068,7 @@ class Game {
       p.records.playTime += dt;
       if (this.pet) this.pet.update(dt);
       this.updateGroundZones(dt); // Estelas (zonas de daño de Transformación)
+      this.timers.tick(dt);       // DoT/Eco/impactos diferidos (reloj de simulación)
     }
 
     // enemigos
@@ -2486,16 +2506,17 @@ class Game {
         this.ui.message('🪙 ¡Santuario de la Avaricia! Aparece un Goblin del Tesoro', 3500);
         break;
       case 'maldito': {
-        this.spawnGroundItem(generateItem(floor, 'raro'), it.pos);
+        this.spawnGroundItem(generateItem(floor, 'raro', null, null, null, this.simRng('loot')), it.pos);
+        const srng = this.simRng('spawn');
         for (let i = 0; i < 3; i++) {
           const a = Math.PI * 2 * i / 3;
           const pos = it.pos.clone().add(new THREE.Vector3(Math.sin(a) * 2, 0, Math.cos(a) * 2));
           if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(it.pos);
           pos.y = 0;
           // reintenta hasta conseguir un campeón/élite para que la emboscada pique
-          let def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor), floor), floor);
+          let def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor, srng), floor), floor, srng);
           for (let t = 0; t < 12 && !def.rank; t++)
-            def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor), floor), floor);
+            def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor, srng), floor), floor, srng);
           const e = this.buffByPact(new Enemy(this, def, pos));
           this.enemies.push(e);
           this.entityGroup.add(e.group);
@@ -2535,9 +2556,10 @@ class Game {
     } else {
       it.label = '📦 Cofre vacío';
       it.mesh.children[1].rotation.x = -1.1;
-      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02 });
+      const lr = this.simRng('loot');
+      const drops = rollDrops(this.world.scaleFloor || this.world.floor, { mf: (p.stats.mf || 0) + (this.world.pact?.mf || 0) + (this.world.tormentMF || 0), qty: (this.world.pact?.qty || 0) + (this.world.tormentQty || 0), cls: p.classId, minItems: 1, itemChance: 0.3, goldChance: 1, setChance: 0.02, rng: lr });
       for (const drop of drops) this.spawnGroundItem(drop, it.pos);
-      this.spawnGroundItem(makeGold(this.world.scaleFloor || this.world.floor), it.pos);
+      this.spawnGroundItem(withItemRng(lr, () => makeGold(this.world.scaleFloor || this.world.floor)), it.pos);
       p.records.chests++;
       this.questProgress('chest');
       if (this.world.type === 'zone') this.bountyProgress('chest');

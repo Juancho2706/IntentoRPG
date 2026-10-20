@@ -234,7 +234,11 @@ export function buildZone(biomeName, opts = {}) {
   let safeZone = null;
   let campRadius = 0;
   if (opts.townPocket) {
-    const { radius } = placeTownServices(grid, group, interactables, torchLights, spawnCell, { radius: 10 });
+    const { radius } = placeTownServices(grid, group, interactables, torchLights, spawnCell, {
+      radius: 10,
+      // decoración del campamento con stream derivado (no desplaza el de trazado)
+      rnd: opts.seed != null ? mulberry32((opts.seed ^ 0x27d4eb2f) >>> 0) : Math.random,
+    });
     campRadius = radius;
     const half = radius + 0.5;
     safeZone = { minX: spawn.x - half, maxX: spawn.x + half, minZ: spawn.z - half, maxZ: spawn.z + half };

@@ -604,6 +604,8 @@ function _scatterProp(group, grid, cells, rnd, chance, make, opts = {}) {
 export function placeTownServices(grid, group, interactables, torchLights, centerCell, opts = {}) {
   const [cx, cz] = centerCell;
   const R = opts.radius || 7;
+  // decoración del campamento: rng de la zona si viene (determinista), si no Math.random
+  const rnd = opts.rnd || Math.random;
   const carve = (x, z) => { if (grid.cells[z] && grid.cells[z][x] !== undefined) grid.cells[z][x] = 1; };
   // 1) despeja el bolsillo seguro (transitable) en forma de disco
   for (let dz = -R; dz <= R; dz++)
@@ -623,7 +625,7 @@ export function placeTownServices(grid, group, interactables, torchLights, cente
     new THREE.MeshStandardMaterial({ color: 0x564a3a, roughness: 1 }));
   cobble.rotation.x = -Math.PI / 2; cobble.position.set(C.x, 0.025, C.z); cobble.receiveShadow = true;
   group.add(cobble);
-  scatterDecals(group, Math.random, 14, { minX: C.x - R + 2, maxX: C.x + R - 2, minZ: C.z - R + 2, maxZ: C.z + R - 2, y: 0.03, color: 0x2a1f12 });
+  scatterDecals(group, rnd, 14, { minX: C.x - R + 2, maxX: C.x + R - 2, minZ: C.z - R + 2, maxZ: C.z + R - 2, y: 0.03, color: 0x2a1f12 });
 
   // 3) servicios alrededor del centro (cada uno en su celda, ya transitable)
   const npc = (dx, dz, type, label, col, col2) => {
@@ -686,16 +688,16 @@ export function placeTownServices(grid, group, interactables, torchLights, cente
   }
   // estandartes junto a las antorchas (color del campamento)
   for (const [dx, dz, col] of [[-5, -5, 0x9a2f3a], [5, 5, 0x2f5a9a]]) {
-    const b = makeBanner(Math.random, col); const p = grid.center(cx + dx, cz + dz);
+    const b = makeBanner(rnd, col); const p = grid.center(cx + dx, cz + dz);
     b.position.set(p.x + 0.6, 0, p.z); group.add(b);
   }
   // matojos de hierba y piedrecitas alrededor del parche (decorativo)
   const tuftCol = (opts.grassColor ?? 0x4e6a34);
   for (let i = 0; i < 16; i++) {
-    const a = Math.random() * Math.PI * 2, rr = (R - 2) + Math.random() * 2.2;
+    const a = rnd() * Math.PI * 2, rr = (R - 2) + rnd() * 2.2;
     const px = C.x + Math.cos(a) * rr, pz = C.z + Math.sin(a) * rr;
-    const m = Math.random() < 0.55 ? makeGrassTuft(Math.random, { color: tuftCol }) : makeRock(Math.random, { r: 0.18 + Math.random() * 0.2, moss: true });
-    m.position.set(px, 0, pz); m.rotation.y = Math.random() * Math.PI * 2;
+    const m = rnd() < 0.55 ? makeGrassTuft(rnd, { color: tuftCol }) : makeRock(rnd, { r: 0.18 + rnd() * 0.2, moss: true });
+    m.position.set(px, 0, pz); m.rotation.y = rnd() * Math.PI * 2;
     group.add(m);
   }
   return { radius: R };
@@ -953,6 +955,9 @@ export function buildDungeon(floor, seed = null) {
   // con semilla, el trazado es idéntico para todos (desafío diario)
   const rnd = seed != null ? mulberry32(seed) : Math.random;
   const ri = (min, max) => Math.floor(min + rnd() * (max - min + 1));
+  // stream decorativo derivado (losas de acento): determinista con la semilla
+  // pero SEPARADO del de trazado, para no desplazar las semillas ya publicadas
+  const deco = seed != null ? mulberry32((seed ^ 0x5bd1e995) >>> 0) : Math.random;
 
   // generar salas
   const rooms = [];
@@ -986,7 +991,7 @@ export function buildDungeon(floor, seed = null) {
     for (let x = 0; x < W; x++) {
       if (grid.cells[z][x]) {
         const c = grid.center(x, z);
-        if (biome.accent && Math.random() < biome.accent.chance)
+        if (biome.accent && deco() < biome.accent.chance)
           accentPos.push({ x: c.x, y: -0.04, z: c.z });
         else
           floorPos.push({ x: c.x, y: -0.05, z: c.z });

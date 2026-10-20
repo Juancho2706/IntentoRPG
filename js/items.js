@@ -142,8 +142,25 @@ export function syncItemUids(...roots) {
 // próximo uid que se asignará (para tests/diagnóstico)
 export function peekItemUid() { return itemUid; }
 
-function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+// ---------------------------------------------------------
+// Azar del botín (stream 'loot', ver js/rng.js)
+// ---------------------------------------------------------
+// Todas las tiradas de este módulo pasan por _rand(). Por defecto es
+// Math.random; withItemRng(rng, fn) lo sustituye SOLO mientras corre fn
+// (síncrono, se restaura aunque lance) para que rollDrops/generateItem y todos
+// los helpers internos (afijos, gemas, runas, sets…) sean reproducibles con la
+// semilla del mundo sin cambiar sus firmas.
+let _rng = Math.random;
+function _rand() { return _rng(); }
+export function withItemRng(rng, fn) {
+  if (!rng || rng === _rng) return fn();
+  const prev = _rng;
+  _rng = rng;
+  try { return fn(); } finally { _rng = prev; }
+}
+
+function ri(min, max) { return Math.floor(min + _rand() * (max - min + 1)); }
+function pick(arr) { return arr[Math.floor(_rand() * arr.length)]; }
 
 export function rollRarity(bonus = 0) {
   // el bonus por profundidad favorece las rarezas altas sin tocar el peso del normal
@@ -154,7 +171,7 @@ export function rollRarity(bonus = 0) {
     total += w;
     return w;
   });
-  let roll = Math.random() * total;
+  let roll = _rand() * total;
   for (let i = 0; i < entries.length; i++) {
     roll -= weights[i];
     if (roll <= 0) return entries[i];
@@ -162,7 +179,9 @@ export function rollRarity(bonus = 0) {
   return entries[0];
 }
 
-export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonus = null, classHint = null) {
+// rng (opcional): stream con semilla (js/rng.js); sin él, Math.random.
+export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonus = null, classHint = null, rng = null) {
+  if (rng && rng !== _rng) return withItemRng(rng, () => generateItem(ilvl, forceRarityId, slot, rarityBonus, classHint));
   let basePool = slot ? BASES.filter(b => b.slot === slot) : BASES;
   // armas y off-hands acordes a la clase del jugador (la armadura no tiene clase)
   if (classHint) {
@@ -187,10 +206,10 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
   };
 
   if (base.slot === 'weapon') {
-    const lo = Math.round((3 + 2.0 * (ilvl - 1)) * rarity.statMult * (0.85 + Math.random() * 0.3));
+    const lo = Math.round((3 + 2.0 * (ilvl - 1)) * rarity.statMult * (0.85 + _rand() * 0.3));
     item.dmg = [Math.max(1, lo), Math.max(2, lo + ri(2, 4 + ilvl))];
   } else if (ARMOR_SLOTS.includes(base.slot)) {
-    item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * rarity.statMult * (0.85 + Math.random() * 0.3)));
+    item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * rarity.statMult * (0.85 + _rand() * 0.3)));
     if (base.slot === 'chest') item.arm = Math.round(item.arm * 1.5);
     if (base.slot === 'offhand') item.arm = Math.round(item.arm * 1.3);
     if (base.slot === 'belt' || base.slot === 'gloves') item.arm = Math.max(1, Math.round(item.arm * 0.7));
@@ -203,7 +222,7 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
     if (!af.flat) v = Math.round(v * scale);
     v = Math.round(v * rarity.statMult);
     // afijo superior (★): ~8% de probabilidad, 1.5× más fuerte (estilo D4)
-    if (rarity.id !== 'normal' && Math.random() < 0.08) {
+    if (rarity.id !== 'normal' && _rand() < 0.08) {
       v = Math.round(v * 1.5);
       (item.greater || (item.greater = [])).push(af.stat);
     }
@@ -213,13 +232,13 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
   const secondary = AFFIX_POOL.filter(a => a.secondary);
   const pool = [...primary];
   for (let i = 0; i < nAffixes && pool.length; i++) {
-    rollAffix(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    rollAffix(pool.splice(Math.floor(_rand() * pool.length), 1)[0]);
   }
   // los raros traen 1 stat secundario; los legendarios 1-2
   const nSecondary = rarity.id === 'legendario' ? ri(1, 2) : rarity.id === 'raro' ? 1 : 0;
   const secPool = [...secondary];
   for (let i = 0; i < nSecondary && secPool.length; i++) {
-    rollAffix(secPool.splice(Math.floor(Math.random() * secPool.length), 1)[0]);
+    rollAffix(secPool.splice(Math.floor(_rand() * secPool.length), 1)[0]);
   }
 
   // nombre
@@ -234,16 +253,16 @@ export function generateItem(ilvl, forceRarityId = null, slot = null, rarityBonu
   } else if (rarity.id === 'raro') {
     item.name = `${item.baseName} ${pick(PREFIXES)} ${pick(SUFFIXES)}`;
   } else if (rarity.id === 'magico') {
-    item.name = Math.random() < 0.5 ? `${item.baseName} ${pick(PREFIXES)}` : `${item.baseName} ${pick(SUFFIXES)}`;
+    item.name = _rand() < 0.5 ? `${item.baseName} ${pick(PREFIXES)}` : `${item.baseName} ${pick(SUFFIXES)}`;
   } else {
     item.name = item.baseName;
   }
 
   // engarces para gemas y runas (más probables y numerosos a mayor rareza)
   const sockChance = { normal: 0.08, magico: 0.2, raro: 0.35, legendario: 0.5 }[rarity.id] || 0;
-  if (Math.random() < sockChance) {
-    item.sockets = rarity.id === 'legendario' ? 2 + (Math.random() < 0.5 ? 1 : 0)
-      : rarity.id === 'raro' ? 1 + (Math.random() < 0.3 ? 1 : 0) : 1;
+  if (_rand() < sockChance) {
+    item.sockets = rarity.id === 'legendario' ? 2 + (_rand() < 0.5 ? 1 : 0)
+      : rarity.id === 'raro' ? 1 + (_rand() < 0.3 ? 1 : 0) : 1;
     item.gems = [];
   }
 
@@ -286,7 +305,7 @@ export function generateSetItem(ilvl) {
     item.affixes[stat] = af && !af.flat ? Math.max(1, Math.round(v * scale)) : v;
   }
   if (piece.slot === 'weapon') {
-    const lo = Math.max(1, Math.round((3 + 2.0 * (ilvl - 1)) * 1.35 * (0.9 + Math.random() * 0.2)));
+    const lo = Math.max(1, Math.round((3 + 2.0 * (ilvl - 1)) * 1.35 * (0.9 + _rand() * 0.2)));
     item.dmg = [lo, lo + ri(2, 4 + ilvl)];
   } else if (piece.slot === 'helm' || piece.slot === 'chest' || piece.slot === 'boots') {
     item.arm = Math.max(1, Math.round((2 + 1.6 * (ilvl - 1)) * 1.35));
@@ -342,7 +361,7 @@ export const RUNEWORDS = [
 
 export function makeRune() {
   const total = RUNES.reduce((s, r) => s + r.weight, 0);
-  let roll = Math.random() * total;
+  let roll = _rand() * total;
   let rune = RUNES[0];
   for (const r of RUNES) { roll -= r.weight; if (roll <= 0) { rune = r; break; } }
   return {
@@ -368,9 +387,9 @@ export function checkRuneword(item) {
 export function rerollAffix(item) {
   const keys = Object.keys(item.affixes || {});
   if (!keys.length) return null;
-  delete item.affixes[keys[Math.floor(Math.random() * keys.length)]];
+  delete item.affixes[keys[Math.floor(_rand() * keys.length)]];
   const pool = AFFIX_POOL.filter(a => !(a.stat in item.affixes));
-  const af = pool[Math.floor(Math.random() * pool.length)];
+  const af = pool[Math.floor(_rand() * pool.length)];
   const rarity = RARITIES[item.rarity] || RARITIES.normal;
   let v = ri(af.min, af.max);
   if (!af.flat) v = Math.round(v * (1 + 0.22 * (item.ilvl - 1)));
@@ -383,7 +402,7 @@ export function rerollAffix(item) {
 // Apuesta del mercader: objeto sin identificar, nunca normal,
 // con pequeña posibilidad de raro o legendario (estilo gambling de D2)
 export function gambleItem(ilvl, slot, classHint = null) {
-  const r = Math.random();
+  const r = _rand();
   const rarity = r < 0.70 ? 'magico' : r < 0.92 ? 'raro' : 'legendario';
   return generateItem(ilvl, rarity, slot, null, classHint);
 }
@@ -393,11 +412,11 @@ export function gambleItem(ilvl, slot, classHint = null) {
 const CHARM_NAMES = ['Pequeño Amuleto', 'Amuleto Grande', 'Gran Talismán'];
 export function makeCharm(ilvl) {
   const pool = AFFIX_POOL.filter(a => ['fue', 'des', 'vit', 'ene', 'hp', 'mp', 'crit', 'mf'].includes(a.stat));
-  const n = 1 + (Math.random() < 0.4 ? 1 : 0);
+  const n = 1 + (_rand() < 0.4 ? 1 : 0);
   const affixes = {};
   const avail = [...pool];
   for (let i = 0; i < n && avail.length; i++) {
-    const af = avail.splice(Math.floor(Math.random() * avail.length), 1)[0];
+    const af = avail.splice(Math.floor(_rand() * avail.length), 1)[0];
     let v = ri(af.min, af.max);
     if (!af.flat) v = Math.round(v * (1 + 0.15 * (ilvl - 1)));
     affixes[af.stat] = Math.max(1, v);
@@ -410,7 +429,7 @@ export function makeCharm(ilvl) {
 
 // Gema de Soporte: se aprende al recogerla y se asigna a una habilidad
 export function makeSupport(supId) {
-  const s = SUPPORTS.find(x => x.id === supId) || SUPPORTS[Math.floor(Math.random() * SUPPORTS.length)];
+  const s = SUPPORTS.find(x => x.id === supId) || SUPPORTS[Math.floor(_rand() * SUPPORTS.length)];
   return {
     uid: itemUid++, kind: 'support', supportId: s.id, icon: s.icon,
     name: `Soporte: ${s.name}`, rarity: 'raro', value: 60,
@@ -475,10 +494,13 @@ export function makeMythic(ilvl, classHint = null) {
   return it;
 }
 
-// Llave de Grieta: consumible que abre una grieta de endgame de nivel N
+// Llave de Grieta: consumible que abre una grieta de endgame de nivel N.
+// `seed`: semilla propia de la grieta (mapa/elenco/botín reproducibles con la
+// llave; sale del stream de botín → determinista dentro de una corrida con
+// semilla). Las llaves viejas sin seed usan la semilla semanal (rng.riftSeed).
 export function makeRiftKey(level) {
   return {
-    uid: itemUid++, kind: 'riftkey', icon: '🗝️', riftLevel: level,
+    uid: itemUid++, kind: 'riftkey', icon: '🗝️', riftLevel: level, seed: (_rand() * 4294967296) >>> 0,
     name: `Llave de Grieta · Nivel ${level}`, rarity: 'raro',
     value: 50 + level * 20,
   };
@@ -495,7 +517,10 @@ export function makeGold(floor) {
 
 // Tirada de loot al morir un enemigo / abrir un cofre.
 // opts.mf = hallazgo mágico (%), opts.qty = cantidad extra (%) de los pactos.
+// opts.rng (opcional) = stream 'loot' del mundo: misma semilla + misma
+// secuencia de llamadas → mismo botín. Sin él, Math.random.
 export function rollDrops(floor, opts = {}) {
+  if (opts.rng && opts.rng !== _rng) return withItemRng(opts.rng, () => rollDrops(floor, opts));
   const drops = [];
   const mf = (opts.mf || 0) / 100;
   const qty = 1 + (opts.qty || 0) / 100;
@@ -505,25 +530,25 @@ export function rollDrops(floor, opts = {}) {
   // MF atenuado (×0.3) para que el Tormento no los convierta en rutina (auditoría)
   const setCh = (opts.setChance ?? (0.008 + floor * 0.0015)) * (1 + mf * 0.3);
 
-  if (Math.random() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
-  if (Math.random() < (opts.potionChance ?? 0.22)) drops.push(makePotion(Math.random() < 0.6 ? 'hp' : 'mp'));
-  if (Math.random() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(floor));
-  if (Math.random() < (opts.runeChance ?? 0.025) * (1 + mf)) drops.push(makeRune());
-  if (Math.random() < (opts.charmChance ?? 0.012) * (1 + mf)) drops.push(makeCharm(floor));
-  if (Math.random() < (opts.supportChance ?? 0.015) * (1 + mf)) drops.push(makeSupport());
+  if (_rand() < (opts.goldChance ?? 0.55)) drops.push(makeGold(floor));
+  if (_rand() < (opts.potionChance ?? 0.22)) drops.push(makePotion(_rand() < 0.6 ? 'hp' : 'mp'));
+  if (_rand() < (opts.gemChance ?? 0.05) * (1 + mf)) drops.push(makeGem(floor));
+  if (_rand() < (opts.runeChance ?? 0.025) * (1 + mf)) drops.push(makeRune());
+  if (_rand() < (opts.charmChance ?? 0.012) * (1 + mf)) drops.push(makeCharm(floor));
+  if (_rand() < (opts.supportChance ?? 0.015) * (1 + mf)) drops.push(makeSupport());
 
   let count = opts.minItems || 0;
-  if (Math.random() < (opts.itemChance ?? 0.18) * qty) count++;
+  if (_rand() < (opts.itemChance ?? 0.18) * qty) count++;
   for (let i = 0; i < count; i++) {
-    if (!opts.forceRarity && Math.random() < setCh) drops.push(generateSetItem(floor));
+    if (!opts.forceRarity && _rand() < setCh) drops.push(generateSetItem(floor));
     else drops.push(generateItem(floor, opts.forceRarity || null, null, opts.forceRarity ? null : rarBonus, opts.cls));
   }
   if (opts.boss) {
     // el jefe siempre da un raro; la prob. de legendario/set sube con el piso.
     // El clamp va FUERA del (1+mf) para que el Tormento no garantice legendario 100%
     const legCh = Math.min(0.6, (0.06 + floor * 0.015) * (1 + mf * 0.5));
-    drops.push(generateItem(floor, Math.random() < legCh ? 'legendario' : 'raro', null, null, opts.cls));
-    if (Math.random() < Math.min(0.4, (0.05 + floor * 0.01) * (1 + mf * 0.4))) drops.push(generateSetItem(floor));
+    drops.push(generateItem(floor, _rand() < legCh ? 'legendario' : 'raro', null, null, opts.cls));
+    if (_rand() < Math.min(0.4, (0.05 + floor * 0.01) * (1 + mf * 0.4))) drops.push(generateSetItem(floor));
     drops.push(makeGold(floor), makeGold(floor));
   }
   return drops;

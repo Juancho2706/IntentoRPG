@@ -342,8 +342,9 @@ export const ELITE_MODS = [
 ];
 
 // Aplica (o no) una rareza aleatoria a un enemigo ya escalado por piso
-export function rollEnemyRank(def, floor) {
-  const r = Math.random();
+// rng (opcional): stream 'spawn' del mundo (js/rng.js); sin él, Math.random.
+export function rollEnemyRank(def, floor, rng = Math.random) {
+  const r = rng();
   let rank = null;
   if (r < 0.04 + Math.min(0.04, floor * 0.005)) rank = ENEMY_RANKS.elite;
   else if (r < 0.14) rank = ENEMY_RANKS.campeon;
@@ -356,7 +357,7 @@ export function rollEnemyRank(def, floor) {
     rankLabel: `${rank.icon} ${def.name} ${rank.name}`,
   };
   if (rank.id === 'elite') {
-    const mod = ELITE_MODS[Math.floor(Math.random() * ELITE_MODS.length)];
+    const mod = ELITE_MODS[Math.floor(rng() * ELITE_MODS.length)];
     if (mod.spd) out.spd = def.spd * mod.spd;
     if (mod.dmg) out.dmg = Math.round(out.dmg * mod.dmg);
     if (mod.hp) out.hp = Math.round(out.hp * mod.hp);
@@ -375,6 +376,16 @@ export function rollEnemyRank(def, floor) {
     out.aura = 0x2244aa; // aura tenue de campeón
   }
   return out;
+}
+
+// Elenco de un spawn de mundo (sueltos/élites de tesoro): tipo escalado + rango.
+// kind 'elite' reintenta hasta 25 veces para garantizar un élite. Pura: con el
+// stream 'spawn' del mundo, misma semilla → mismo elenco (lo usa Game.loadWorld).
+export function rollSpawnDef(kind, floor, rng = Math.random) {
+  const roll = () => rollEnemyRank(scaleEnemy(pickEnemyDef(floor, rng), floor), floor, rng);
+  let def = roll();
+  if (kind === 'elite') for (let t = 0; t < 25 && def.rank !== 'elite'; t++) def = roll();
+  return def;
 }
 
 export const SHOP_REFRESH_MS = 5 * 60 * 1000; // la tienda rota cada 5 minutos
