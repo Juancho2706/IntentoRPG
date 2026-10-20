@@ -325,7 +325,7 @@ function nodeText(cls, spec, id) {
 }
 const has = (txt, ...bits) => bits.every(b => txt.includes(b));
 assert.ok(has(nodeText('guerrero', 'berserker', 's14'), `${T.sed.frenzy.t} s`, `${T.sed.frenzy.aspdPct}%`), 'Desenfreno: 8 s / +30 %');
-assert.ok(has(nodeText('guerrero', 'berserker', 's4'), `${T.sed.remolino.perEnemy} de Sed`, `máx. ${T.sed.remolino.max}`), 'Remolino Sediento');
+assert.ok(has(nodeText('guerrero', 'berserker', 's4'), `${T.sed.remolino.perHit} de Sed`, `máx. ${T.sed.remolino.max}`), 'Remolino Sediento');
 assert.ok(has(nodeText('guerrero', 'guardian', 's4'), `${T.bastion.shout} cargas`), 'Desafío Firme');
 assert.ok(has(nodeText('guerrero', 'guardian', 's17'), `${T.bastion.murallaPerRank}%`), 'Muralla Viviente');
 assert.ok(has(nodeText('guerrero', 'guardian', 's9'), `${T.bastion.wall.drPerCharge}%`, `${T.bastion.wall.t} s`), 'Muro de Escudos');

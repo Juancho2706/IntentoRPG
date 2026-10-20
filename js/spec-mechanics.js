@@ -88,6 +88,13 @@ function talentSkill(id) {
   return {};
 }
 function now(p) { return p?.simT || 0; }
+// golpe del básico (habilidad de categoría basic o el ataque de arma)
+function isBasicHit(p, hit) {
+  if (!hit) return false;
+  if (hit.weapon || hit.basic) return true;
+  const s = (p?.cls?.skills || []).find(x => x.id === hit.skill);
+  return s?.cat === 'basic';
+}
 // el resolvedor cachea perfiles: un indicador que cambia coste/crítico/proyectiles
 // (Ignición Total, Vendaval) los invalida
 function invalidate(p) { if (p) p.resolved = {}; }
@@ -108,23 +115,23 @@ export function gaugeTuning() {
   return (TUNING = Object.freeze({
     sed:      { perHpPct: 1, perBleedTick: 2, bleedPerSec: 10, satedT: 6, decayAfter: 4, decayRate: 8,
       max: 100, lowHpPct: 40, satedDmgPct: 25,                              // m_berserk ×1,25
-      remolino: { perEnemy: 4, max: 20 },                                    // s4 Remolino Sediento
+      remolino: { perHit: 2, max: 20 },                                      // s4 Remolino Sediento (2e: por golpe)
       frenzy: { t: 8, aspdPct: 30, healPct: 1 } },                           // s14 Sangre Hirviente
     bastion:  { max: 5, perBlock: 1, decayEvery: 6, blockPct: 15,
       shout: 2,                                                              // s4 Desafío Firme
-      murallaPerRank: 2,                                                     // s17 Muralla Viviente
+      murallaPerRank: 1,                                                     // s17 Muralla Viviente (2e: era 2)
       wall: { t: muro.dur ?? 8, drPerCharge: muro.drPerCharge ?? 10, drMax: muro.drMax ?? 50 } },
-    fervor:   { max: 3, perKill: 1, hammerHits: 3,
+    fervor:   { max: 3, perKill: 1, hammerHits: 3, basicHits: 3,             // 2e: también 1 cada 3 básicos
       verdict: { cost: ver.gaugeCost ?? 3, coefPct: Math.round((ver.coef ?? 3) * 100), healPct: ver.healDealtPct ?? 25 },
       ascension: { t: 10, need: 3 } },                                       // x3 Ascensión
     calor:    { perFireHit: 5, decayAfter: 3, decayRate: 10, skills: ['bola_fuego', 'meteoro'],
       max: 100, llamarada: 25,                                               // s4 Llamarada Avivada
       combustion: { t: comb.dur ?? 10, mult: comb.gaugeMult ?? 2 } },
-    escarcha: { max: 5, perHit: 1, nova: 2, freezeT: 1.5, numbT: 4, decayEvery: 2,
+    escarcha: { max: 5, perHit: 1, nova: 2, freezeT: 1.0, numbT: 4, decayEvery: 2,
       bossStagger: STAGGER_CC.freeze, numbMovePct: 30, numbAspdPct: 15 },
     cargas:   { max: 4, perDart: 1, dmgPerCharge: 35, manaPerCharge: 5, loseAfter: 6,
       orbMax: 2,                                                             // s4 Orbe Resonante
-      resonanceCrit: 15 },                                                   // s14 Resonancia
+      resonanceCrit: 12 },                                                   // s14 Resonancia (2e: era 15)
     concentracion: { gainPerSec: 20, losePerSec: 25, critPerPoint: 0.15, max: 100,
       alientoSpend: 50,                                                      // s4 Aliento del Cazador
       vision: { t: vis.dur ?? 12 } },
@@ -192,11 +199,17 @@ function baseGauges() {
     // Martillo de Guerra. Veredicto Final gasta 3.
     fervor: {
       name: 'Fervor', color: '#ecc760', max: T.fervor.max, integer: true,
-      state: () => ({ hammerHits: 0 }),
+      state: () => ({ hammerHits: 0, basicHits: 0 }),
       onKill(g, p) { gainGauge(p, 'fervor', T.fervor.perKill); },
+      // Paso 2e: el básico que acierta también da Fervor (1 cada 3); sin Martillo en la barra
+      // (variante defensiva de §7.1) el Cruzado no ganaba Fervor contra un jefe
       onHit(g, p, e, hit, st) {
-        if (hit?.proc || hit?.dot || hit?.skill !== 'g_martillo') return;
-        if (++st.hammerHits >= T.fervor.hammerHits) { st.hammerHits = 0; gainGauge(p, 'fervor', 1); }
+        if (hit?.proc || hit?.dot) return;
+        if (hit?.skill === 'g_martillo') {
+          if (++st.hammerHits >= T.fervor.hammerHits) { st.hammerHits = 0; gainGauge(p, 'fervor', 1); }
+        } else if (isBasicHit(p, hit)) {
+          if (++st.basicHits >= T.fervor.basicHits) { st.basicHits = 0; gainGauge(p, 'fervor', 1); }
+        }
       },
       // Fervor Creciente (tv.fervorChance, Paso 2c.2): un Martillo que golpea tiene X % de dar 1 más
       afterCast(g, p, cast, res) {

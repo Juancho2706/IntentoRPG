@@ -606,6 +606,9 @@ export function guerreroSkillBehaviors() {
       cast(g, p, prof, cast) {
         const { sk, ctx } = cast;
         const targets = castBuff(g, p, prof, sk, ctx);
+        // Paso 2e: la vida máxima sube YA (antes la cura topaba con la vida máxima vieja y el
+        // «+15 % de vida» no daba vida hasta el siguiente recompute)
+        for (const a of targets) a.recompute?.();
         const pct = (sk.healPct || 15) * (prof.buffMul || 1);
         for (const a of targets) skillHeal(g, p, a, (a.stats?.maxHP || 0) * pct / 100, sk.id);
         ctx.res.hits = targets.length;
@@ -613,7 +616,7 @@ export function guerreroSkillBehaviors() {
       },
     },
     // s0 Remolino Sangriento (insignia del Berserker): 2 s girando (te mueves a velocidad
-    // normal), 10 golpes a todo lo que hay a 2,9 m (47 % del arma cada uno) y Sangrado por
+    // normal), 10 golpes a todo lo que hay a 2,9 m (57 % del arma cada uno) y Sangrado por
     // golpe (30 % del perfil de Sangrado; los tics llenan la Sed). Carnicería (s6A): +10 % de
     // radio y el Sangrado salta a 1 enemigo cercano por golpe. No exige mantener la tecla
     // (canalización del núcleo con hold: false); la esquiva la corta.
@@ -687,6 +690,8 @@ export function guerreroSkillBehaviors() {
         if (!list.length) { refundCd(g, p, sk, 'Ningún enemigo al alcance'); return ctx.res; }
         for (const e of list) {
           if (e.applyCC('taunt', dur, { src: p })) ctx.res.hits++;
+          // Paso 2e: los provocados te hacen −weakenPct % de daño mientras dura (× potencia)
+          if (sk.weakenPct > 0) e.weakenOutgoing?.('g_t_desafio', Math.round(sk.weakenPct * (prof.buffMul || 1)), dur);
           if (prof.slow > 0) e.applyCC('slow', prof.slow, { pct: prof.slowPct || 50, src: p });
           fxAt(g, ctx.fx?.impact, e.pos, (e.def?.scale || 1) + 0.8);
         }

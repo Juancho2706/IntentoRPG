@@ -42,14 +42,14 @@ export const ARQUERA_SKILLS = [
 
   // — GASTADORAS (rmb o k2; sin enfriamiento salvo la Lluvia) —
   { id: 'flecha_perforante', name: 'Flecha Perforante', icon: '➶', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', req: 2, coef: 2.1, cost: 26, cd: 0, speed: 17, range: 13, pierce: true, lockT: 0.35, color: 0xffffcc,
-    desc: 'Una flecha pesada (220 % del arma) que atraviesa a todos los enemigos en su camino. 20 de Energía, sin enfriamiento.' },
+    type: 'proj', req: 2, coef: 2.4, cost: 26, cd: 0, speed: 17, range: 13, pierce: true, lockT: 0.35, color: 0xffffcc,
+    desc: 'Una flecha pesada (240 % del arma) que atraviesa a todos los enemigos en su camino. 26 de Energía, sin enfriamiento.' },
   { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'physical'], elem: 'physical',
-    type: 'proj', req: 8, coef: 0.35, cost: 22, cd: 0, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
-    desc: 'Dispara 5 flechas en un abanico de 50° (35 % del arma cada una; ≈70 % a un objetivo pegado). 22 de Energía, sin enfriamiento.' },
+    type: 'proj', req: 8, coef: 0.39, cost: 22, cd: 0, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
+    desc: 'Dispara 5 flechas en un abanico de 50° (39 % del arma cada una; ≈78 % a un objetivo pegado). 22 de Energía, sin enfriamiento.' },
   { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.7, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
-    desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (70 % del arma cada una: 280 % en total). 30 de Energía, enfriamiento 4 s.' },
+    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.6, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
+    desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (60 % del arma cada una: 240 % en total). 30 de Energía, enfriamiento 4 s.' },
 
   // — MOVILIDAD (k1, fuera del GCD) —
   { id: 'a_paso', name: 'Paso Veloz', icon: '👣', cat: 'movement', slots: ['k1'], tags: ['movement', 'physical'], elem: 'physical',
@@ -61,16 +61,16 @@ export const ARQUERA_SKILLS = [
 
   // — DEFENSA / UTILIDAD (k2) —
   { id: 'a_red', name: 'Red de Caza', icon: '🕸️', cat: 'utility', slots: ['k2'], tags: ['utility', 'cc', 'physical'], elem: 'physical',
-    behavior: 'a_red', at: 'target', req: 6, cost: 10, cd: 14, radius: 2.5, range: 9, root: 1.5, color: 0xd8c49a,
-    desc: 'Lanzas una red a hasta 9 m que inmoviliza 1,5 s a todo lo que atrapa en 2,5 m (los jefes, menos tiempo). 10 de Energía, enfriamiento 14 s.' },
+    behavior: 'a_red', at: 'target', req: 6, cost: 10, cd: 14, radius: 2.5, range: 9, root: 2.5, color: 0xd8c49a,
+    desc: 'Lanzas una red a hasta 9 m que inmoviliza 2,5 s a todo lo que atrapa en 2,5 m (los jefes, menos tiempo). 10 de Energía, enfriamiento 14 s.' },
   { id: 'a_humo', name: 'Bomba de Humo', icon: '💨', cat: 'defense', slots: ['k2'], tags: ['defense', 'zone', 'physical'], elem: 'physical',
-    type: 'zone', at: 'self', req: 12, cd: 13, radius: 4, dur: 6, allyDr: 50, projMissPct: 50, color: 0x9aa0a8,
-    desc: 'Una nube de humo de 4 m a tus pies durante 6 s: dentro recibes −50 % de daño y la mitad de los proyectiles enemigos que la cruzan se pierden. Enfriamiento 13 s.' },
+    type: 'zone', behavior: 'a_humo', at: 'self', req: 12, cd: 16, radius: 4, dur: 8, allyDr: 50, projMissPct: 50, blindPct: 30, color: 0x9aa0a8,
+    desc: 'Una nube de humo de 4 m a tus pies durante 8 s: dentro recibes −50 % de daño, la mitad de los proyectiles enemigos que la cruzan se pierden y los enemigos dentro, cegados, hacen −30 % de daño. Enfriamiento 16 s.' },
 
   // — DEFINITIVAS (k4, sin coste; eliges una) —
   { id: 'a_u_diluvio', name: 'Diluvio de Saetas', icon: '🌠', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_diluvio', at: 'target', req: 15, coef: 1.95, waves: 8, span: 3.6, cd: 50, radius: 5, range: 12, windup: 0.15, impactDelay: 0.4, shake: 0.18, color: 0xbfffbf,
-    desc: 'Definitiva: tras una telegrafía, 8 oleadas de saetas arrasan un círculo de 5 m durante 4 s (195 % del arma cada una: 1560 % por objetivo). Enfriamiento 50 s.' },
+    behavior: 'a_diluvio', at: 'target', req: 15, coef: 2.73, waves: 8, span: 3.6, cd: 50, radius: 5, range: 12, windup: 0.15, impactDelay: 0.4, shake: 0.18, color: 0xbfffbf,
+    desc: 'Definitiva: tras una telegrafía, 8 oleadas de saetas arrasan un círculo de 5 m durante 4 s (273 % del arma cada una: 2184 % por objetivo). Enfriamiento 50 s.' },
   { id: 'a_u_celeste', name: 'Tiro Celestial', icon: '🌌', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'proj', 'physical'], elem: 'physical',
     behavior: 'a_celeste', req: 15, coef: 7.0, shots: 3, window: 8, recastGap: 0.35, cd: 50, speed: 30, range: 16, pierce: true, beam: true, windup: 0.3, color: 0x9fd8ff,
     desc: 'Definitiva: hasta 3 haces celestes perforantes (700 % del arma cada uno) que disparas a voluntad pulsando otra vez la tecla durante 8 s; cada uno carga 0,3 s. Enfriamiento 50 s desde el primero.' },

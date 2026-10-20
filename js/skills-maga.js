@@ -35,17 +35,17 @@ export const MAGA_SKILLS = [
   // Bola de Fuego: tag 'area' (explota: Expansivo/Concentrado cambian su radio) y
   // lanzamiento de 0,3 s (windup: la esquiva lo cancela sin coste)
   { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'fire'], elem: 'fire',
-    type: 'proj', req: 2, coef: 2.2, splash: 2.5, radius: 2, cost: 18, cd: 1.5, windup: 0.3, speed: 13, range: 12, size: 0.26, color: 0xff6622,
-    desc: 'Tras 0,3 s de lanzamiento, una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 250 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s.' },
+    type: 'proj', req: 2, coef: 2.2, splash: 3.5, radius: 2, cost: 18, cd: 1.5, windup: 0.3, speed: 13, range: 12, size: 0.26, color: 0xff6622,
+    desc: 'Tras 0,3 s de lanzamiento, una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 350 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s.' },
   { id: 'rayo', name: 'Rayo', icon: '⚡', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'arcane'], elem: 'arcane',
-    type: 'proj', req: 8, coef: 2.8, cost: 20, cd: 2.2, lockT: 0.3, speed: 18, range: 13, pierce: true, beam: true, color: 0xffee66,
-    desc: 'Un rayo arcano que atraviesa a todos los enemigos en línea (280 % de daño). Cuesta 20 de Maná; enfriamiento 2,2 s.' },
+    type: 'proj', req: 8, coef: 2.3, cost: 20, cd: 2.2, lockT: 0.3, speed: 18, range: 13, pierce: true, beam: true, color: 0xffee66,
+    desc: 'Un rayo arcano que atraviesa a todos los enemigos en línea (230 % de daño). Cuesta 20 de Maná; enfriamiento 2,2 s.' },
   { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'cc', 'frost'], elem: 'frost',
     type: 'area', at: 'self', req: 14, coef: 1.4, cost: 25, cd: 4, radius: 3.3, slow: 3, slowPct: 30, color: 0x66ccff,
     desc: 'Una onda gélida a tu alrededor (3,3 m): 140 % de daño y ralentiza un 30 % durante 3 s. Cuesta 25 de Maná; enfriamiento 4 s.' },
   { id: 'meteoro', name: 'Meteoro', icon: '☄️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'fire'], elem: 'fire',
-    type: 'area', at: 'target', req: 14, coef: 4.1, cost: 40, cd: 6, radius: 3, range: 11, impactDelay: 0.6, shake: 0.5, color: 0xff4400,
-    desc: 'Invoca un meteoro que se estrella 0,6 s después en la zona elegida (3 m): 410 % de daño. Cuesta 40 de Maná; enfriamiento 6 s.' },
+    type: 'area', at: 'target', req: 14, coef: 3.7, cost: 40, cd: 6, radius: 3, range: 11, impactDelay: 0.6, shake: 0.5, color: 0xff4400,
+    desc: 'Invoca un meteoro que se estrella 0,6 s después en la zona elegida (3 m): 370 % de daño. Cuesta 40 de Maná; enfriamiento 6 s.' },
 
   // — MOVILIDAD (ranura 1, fuera del GCD) —
   { id: 'm_paso_escarcha', name: 'Paso de Escarcha', icon: '🧊', cat: 'movement', slots: ['k1'], tags: ['movement', 'frost'], elem: 'frost',
@@ -57,8 +57,8 @@ export const MAGA_SKILLS = [
 
   // — DEFENSA / UTILIDAD (ranura 2) —
   { id: 'm_armadura', name: 'Armadura de Hielo', icon: '🛡️', cat: 'defense', slots: ['k2'], tags: ['defense', 'shield', 'frost'], elem: 'frost',
-    type: 'shield', req: 6, cd: 20, shieldPct: 25, dur: 6, color: 0x88ccff,
-    desc: 'Te envuelve una coraza de hielo: escudo del 25 % de tu vida máxima durante 6 s. Enfriamiento 20 s.' },
+    type: 'shield', req: 6, cd: 12, shieldPct: 30, dur: 8, color: 0x88ccff,
+    desc: 'Te envuelve una coraza de hielo: escudo del 30 % de tu vida máxima durante 8 s. Enfriamiento 12 s.' },
   { id: 'm_onda', name: 'Onda Repulsora', icon: '🌀', cat: 'utility', slots: ['k2'], tags: ['utility', 'area', 'cc', 'arcane'], elem: 'arcane',
     behavior: 'm_onda', req: 12, coef: 0.8, cost: 15, cd: 12, radius: 4, knock: 5, stun: 0.5, color: 0xb98cff,
     desc: 'Una onda arcana a tu alrededor (4 m): 80 % de daño, empuja 5 m a los enemigos y los aturde 0,5 s. Cuesta 15 de Maná; enfriamiento 12 s.' },
@@ -72,8 +72,8 @@ export const MAGA_SKILLS = [
     behavior: 'm_u_tormenta', req: 15, coef: 0.6, cd: 55, radius: 6, dur: 8, interval: 0.5, slowPct: 40, freeze: 1.5, freezeAt: 5, color: 0xbfe9ff,
     desc: 'Definitiva: una ventisca te sigue durante 8 s (6 m): 60 % de daño cada 0,5 s (960 % en total), ralentiza un 40 % y congela 1,5 s a quien encadena 5 golpes (con rendimientos decrecientes). Enfriamiento 55 s.' },
   { id: 'm_u_desgarro', name: 'Desgarro Arcano', icon: '🌌', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'channel', 'arcane'], elem: 'arcane',
-    type: 'channel', unstoppable: true, req: 15, coef: 3.25, channelT: 3, ticks: 6, cd: 45, range: 10, color: 0xd28cff,
-    desc: 'Definitiva: canalizas un rayo arcano gigante durante 3 s contra un objetivo (650 % de daño por segundo, 1950 % en total). Eres imparable mientras dura; mantén la tecla. Enfriamiento 45 s.' },
+    type: 'channel', unstoppable: true, req: 15, coef: 4.4, channelT: 3, ticks: 6, cd: 45, range: 10, color: 0xd28cff,
+    desc: 'Definitiva: canalizas un rayo arcano gigante durante 3 s contra un objetivo (880 % de daño por segundo, 2640 % en total). Eres imparable mientras dura; mantén la tecla. Enfriamiento 45 s.' },
 ];
 
 // Opción propia (misma forma que las O_*/V_*/T_* de skill-defs.js)

@@ -134,7 +134,7 @@ const SED = {
     { t: 0.8, value: 0, state: 'building', ease: 1, cap: `Recibes golpes: +${TT.sed.perHpPct} de Sed por cada 1${NB}% de vida perdida.`, nodes: ['s0'] },
     { t: 2.6, value: 42, x: { low: 1 }, ease: 1, cap: `Con menos del ${TT.sed.lowHpPct}${NB}% de vida el corazón se enciende: +${TT.sed.satedDmgPct}${NB}% de daño.`, nodes: ['s0'], tag: 'building' },
     { t: 3.6, value: 55, x: { low: 0 }, decaying: true, decayIn: 0, ease: 1, cap: `Tras ${TT.sed.decayAfter} s fuera de combate se drena: −${TT.sed.decayRate}/s.`, nodes: [], tag: 'decay' },
-    { t: 5.2, value: 42, decaying: false, decayIn: TT.sed.decayAfter, ease: 1, cap: `Remolino Sediento: +${TT.sed.remolino.perEnemy} por enemigo golpeado (máx. ${TT.sed.remolino.max} por uso).`, nodes: ['s4'] },
+    { t: 5.2, value: 42, decaying: false, decayIn: TT.sed.decayAfter, ease: 1, cap: `Remolino Sediento: +${TT.sed.remolino.perHit} por golpe del giro (máx. ${TT.sed.remolino.max} por uso).`, nodes: ['s4'] },
     { t: 6.4, value: 84, ease: 1, cap: 'Temeridad: la Sed se llena el doble de rápido.', nodes: ['s9'] },
     { t: 7.2, value: 100, state: 'active', label: 'Sed Saciada', t2: TT.sed.satedT, tMax: TT.sed.satedT, decayIn: null, fire: 'full', ease: 1,
       x: { frenzyT: TT.sed.frenzy.t, frenzyMax: TT.sed.frenzy.t },
@@ -161,7 +161,7 @@ const SED = {
   },
   nodes: {
     s0: `Sed de Batalla (clave): la Sed existe; con menos del ${TT.sed.lowHpPct} % de vida o con la Sed Saciada, +${TT.sed.satedDmgPct} % de daño.`,
-    s4: `Remolino Sediento: cada enemigo golpeado por Remolino Sangriento suma ${TT.sed.remolino.perEnemy} de Sed (máx. ${TT.sed.remolino.max} por uso).`,
+    s4: `Remolino Sediento: cada golpe de Remolino Sangriento suma ${TT.sed.remolino.perHit} de Sed (máx. ${TT.sed.remolino.max} por uso).`,
     s5: 'Instinto Asesino: cada crítico suma Sed.',
     s9: 'Temeridad: mientras dura, la Sed se llena el doble de rápido.',
     s13: 'Negación de la Muerte: un golpe letal te deja con la Sed llena.',
@@ -403,21 +403,21 @@ const FERVOR = {
   explain: T => {
     const F = T.fervor;
     return {
-      text: `Cada muerte (Juicio) te da ${F.perKill} de <b>Fervor</b> y cada ${F.hammerHits} impactos de Martillo de Guerra, otro (máx. ${F.max}). <b>Veredicto Final</b> gasta ${F.verdict.cost}: ${F.verdict.coefPct} % del arma en cono y cura al grupo un ${F.verdict.healPct} % del daño.`,
+      text: `Cada muerte (Juicio) te da ${F.perKill} de <b>Fervor</b>; cada ${F.hammerHits} impactos de Martillo de Guerra, otro, y cada ${F.basicHits} golpes de tu básico, otro (máx. ${F.max}). <b>Veredicto Final</b> gasta ${F.verdict.cost}: ${F.verdict.coefPct} % del arma en cono y cura al grupo un ${F.verdict.healPct} % del daño.`,
       cols: [
-        ['Generar', `Muerte +${F.perKill} · uno por cada ${F.hammerHits} impactos de Martillo`],
+        ['Generar', `Muerte +${F.perKill} · uno por cada ${F.hammerHits} impactos de Martillo · uno por cada ${F.basicHits} golpes del básico`],
         ['Descargar', `Veredicto Final (${F.verdict.cost}): ${F.verdict.coefPct} % del arma y cura al grupo`],
         ['Ventana', `Ascensión: ${F.ascension.t} s sin gastar Fervor (tras ${F.ascension.need} Veredictos)`],
       ],
       tip: [
         `<b>Qué es:</b> un halo de ${F.max} soles; con los ${F.verdict.cost} encendidos, Veredicto Final está listo.`,
-        `<b>Gana:</b> ${F.perKill} por muerte (Juicio) y uno por cada ${F.hammerHits} impactos de Martillo de Guerra (las cuentas).`,
+        `<b>Gana:</b> ${F.perKill} por muerte (Juicio), uno por cada ${F.hammerHits} impactos de Martillo de Guerra (las cuentas) y uno por cada ${F.basicHits} golpes del básico que acierten.`,
         `<b>Descarga:</b> Veredicto Final, ${F.verdict.coefPct} % del arma en cono. No se pierde con el tiempo; Ascensión: ${F.ascension.t} s sin gastarlo.`,
       ],
     };
   },
   nodes: {
-    s0: `Juicio (clave): cada muerte te da ${TT.fervor.perKill} de Fervor.`,
+    s0: `Juicio (clave): cada muerte te da ${TT.fervor.perKill} de Fervor (y cada ${TT.fervor.basicHits} golpes del básico, otro).`,
     s4: 'Devoción Ferviente: Aura de Devoción te da Fervor al lanzarla.',
     s9: `Veredicto Final: gasta ${TT.fervor.verdict.cost} de Fervor en un golpe del ${TT.fervor.verdict.coefPct} % que cura al grupo.`,
     s12: 'Fervor Creciente: cada Martillo de Guerra que golpea puede dar Fervor extra.',

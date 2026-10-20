@@ -25,15 +25,19 @@
 // ESCENARIOS (típico Nv50 T0 por especialización; matriz de `--report`):
 //  - UNI: 60 s contra un jefe de «90 s de vida» (vida = vida del jefe × 90 / su
 //    TTK de jefe): DPS, reparto por habilidad y Quebrantados/min (stagger real).
-//  - ÁREA×5: 30 s contra 5 comunes agrupados (r 1,4 alrededor de un punto) con
-//    vida de campeón (×3) que se reponen al morir: DPS total (cuentan las muertes:
-//    Juicio, Conflagración, remates…).
-//  - TTD+: manada inmortal (1 campeón + 4 comunes en anillo de 1,3 m) que pega
-//    cuerpo a cuerpo sin pausa por Player.takeDamage (bloqueo, armadura, dr,
-//    escudos, condDr, onDamaged, onLethal, curas, Bastión, Furia); el héroe pelea
-//    con su rotación y usa la defensa de 2 al enfriarse. Los aturdidos/congelados
-//    no pegan; a los héroes a distancia tampoco les pegan los inmovilizados (se
-//    alejan). Tope 180 s.
+//  - ÁREA×5: 30 s contra 5 comunes agrupados (uno en el centro y 4 a 2 m) con
+//    vida de campeón (×3) que LLEGAN CAMINANDO desde 8 m (a su velocidad; los
+//    ralentizados más despacio, los inmovilizados/aturdidos se paran; se detienen al
+//    llegar al cuerpo a cuerpo) y se reponen al morir con una oleada nueva desde 8 m:
+//    DPS total (cuentan las muertes: Juicio, Conflagración, remates…, y las trampas
+//    que se pisan). El héroe no recibe daño (su Furia sí, por onHurtResource).
+//  - TTD+: TIEMPO HASTA PERDER EL 50 % DE LA VIDA contra una manada inmortal de
+//    3 élites + 4 comunes (anillo de 1,4 m) que pega cuerpo a cuerpo sin pausa por
+//    Player.takeDamage (bloqueo, armadura, dr, escudos, condDr, onDamaged, curas,
+//    Bastión, Furia); el héroe pelea con su rotación y usa la defensa de 2 al
+//    enfriarse. Los aturdidos/congelados no pegan; a los héroes a distancia tampoco
+//    les pegan los inmovilizados (se alejan). Tope 180 s. (2e: antes «hasta morir»
+//    contra 1 campeón + 4 comunes: casi singular por el sustento.)
 //  - APOYO: UNI con 2 aliados fantasma en g.party (vida = media de las 9
 //    especializaciones, pierden 2 %/s, empiezan al 60 %). Aporte = Σ aliados del
 //    DPS extra que les dan tus buffs (dmgPct, vel. de ataque, crítico ×0,5) y la
@@ -47,7 +51,9 @@
 // La Tiradora se mide disparando en movimiento (vaivén lateral de 0,3 s): su
 // Impulso solo se llena así; el resto, quietos.
 // Uso: `node tests/balance-bench.mjs` (afirma) · `--report` (solo imprime) ·
-//      `--seeds N` (medianas de las semillas 1..N, solo informe)
+//      `--seeds N` (la matriz de rol con las medianas de N semillas en vez de 5, y el
+//      informe de semillas de las filas de clase). La matriz de rol afirma con las
+//      medianas de las semillas y un 5 % de margen a los bordes.
 // ============================================================
 import * as THREE from 'three';
 import { Player, Enemy } from '../js/entities.js';
@@ -67,6 +73,8 @@ const REPORT_ONLY = process.argv.includes('--report');
 
 const DT = 1 / 60, WALK = 0.6, HUMAN_GAP = GCD, UNI_T = 60, UNI_LIFE = 90;
 const AREA_T = 30, CTL_T = 30, TTD_MAX = 180, APOYO_T = 60;
+const SEED_MARGIN = 0.05;   // matriz de rol: las medianas a ≥ 5 % de cada borde (decisión del jefe, 2e)
+const SPEC_SEEDS = 5;        // semillas de la matriz de rol por defecto
 const SLOTS = [['weapon', 'weapon'], ['offhand', 'offhand'], ['helm', 'helm'], ['shoulders', 'shoulders'],
   ['chest', 'chest'], ['gloves', 'gloves'], ['belt', 'belt'], ['pants', 'pants'], ['boots', 'boots'],
   ['amulet', 'amulet'], ['ring', 'ring'], ['ring2', 'ring']];
@@ -119,6 +127,64 @@ function itemValue(it, mainStat = null) {
     (a.dmgPct || 0) * 2 + (a.crit || 0) * 2 + attr('fue') + attr('des') + attr('ene') + attr('vit') + (a.aspdPct || 0);
 }
 
+// Paso 2e (decisión del jefe): PERFIL DE EQUIPO FIJO por nivel, IGUAL para las 3 clases.
+// La parte del equipo que decide el poder (daño del arma, armadura y los afijos de GEAR_KEYS;
+// el atributo principal cuenta como uno solo y se aplica al de cada clase) toma la mediana
+// (daño, armadura) o la media (afijos) de GEAR_K tiradas POR CLASE, juntadas las 3 clases y
+// con una semilla que no depende ni de la clase ni de la de la prueba: mismo DPS de arma,
+// misma armadura y los mismos afijos principales (escalados a su atributo) para todas. La
+// semilla solo varía el azar de combate y los afijos secundarios (atributos no principales,
+// maná, espinas, resistencias…). Sin esto, las reglas ×M comparaban la suerte del equipo de
+// una clase con la de otra (Guardián con el jefe a 63–107 s según la semilla).
+const GEAR_K = 15;
+// afijos que deciden el poder (perfil fijo); el resto (atributos no principales, maná,
+// espinas, resistencias, velocidad de movimiento…) sigue la semilla
+const GEAR_KEYS = ['hp', 'vit', 'dmgPct', 'crit', 'critDmg', 'aspdPct', 'lph', 'cdr', 'arm', 'thorns', 'spdPct', 'mp', 'mph'];
+const GEAR_CACHE = new Map();
+function gearProfile(classId, kind, il, opt) {
+  const key = [kind, il, opt].join('|');
+  if (GEAR_CACHE.has(key)) return withMain(GEAR_CACHE.get(key), classId);
+  const keys = ['main', ...GEAR_KEYS];
+  const rng = createRng(hashSeed('perfil-equipo', kind, il, opt));
+  const S = { dmg: [], arm: [] };
+  for (const k of keys) S[k] = [];
+  for (const cid of Object.keys(CLASSES)) for (let n = 0; n < GEAR_K; n++) {
+    const main = CLASSES[cid].mainStat;
+    let best = null, bv = -1;
+    for (let i = 0; i < (opt ? 12 : 3); i++) {
+      const it = generateItem(il, opt ? 'legendario' : 'raro', kind, null, cid, rng);
+      const v = itemValue(it, opt ? main : null);
+      if (v > bv) { bv = v; best = it; }
+    }
+    const a = best.affixes || {};
+    S.dmg.push(best.dmg ? best.dmg[0] + best.dmg[1] : 0);
+    S.arm.push(best.arm || 0);
+    for (const k of keys) S[k].push(a[k === 'main' ? main : k] || 0);
+  }
+  // daño y armadura: mediana; afijos (salen o no según la tirada): la media, para que uno
+  // que aparece en menos de la mitad de las piezas no quede en 0
+  const mid = a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  const avg = a => +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1);
+  const prof = { dmg: mid(S.dmg), arm: mid(S.arm), aff: Object.fromEntries(keys.map(k => [k, avg(S[k])])) };
+  GEAR_CACHE.set(key, prof);
+  return withMain(prof, classId);
+}
+// el afijo «main» del perfil pasa al atributo principal de la clase
+function withMain(P, classId) {
+  const { main, ...aff } = P.aff;
+  return { ...P, aff: { ...aff, [CLASSES[classId].mainStat]: main } };
+}
+function applyGearProfile(it, P) {
+  if (it.dmg && P.dmg > 0) {
+    const sum = it.dmg[0] + it.dmg[1] || 1;
+    it.dmg = [Math.max(1, Math.round(P.dmg * it.dmg[0] / sum)), 0];
+    it.dmg[1] = Math.max(it.dmg[0], P.dmg - it.dmg[0]);
+  }
+  if (it.arm != null || P.arm > 0) it.arm = P.arm;
+  it.affixes = it.affixes || {};
+  for (const [k, v] of Object.entries(P.aff)) { if (v > 0) it.affixes[k] = v; else delete it.affixes[k]; }
+}
+
 // build: 'tipico' (raros, sin soportes/ramas, talentos con el preset y paragon en orden natural)
 //        'optimo' (legendarios calidad máx. con poderes elegidos, soportes,
 //                  ramas, paragon con glifos r10, bendiciones de grieta)
@@ -147,6 +213,7 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
       const v = itemValue(it, opt ? cls.mainStat : null);   // el típico no optimiza (Paso 1A)
       if (v > bv) { bv = v; best = it; }
     }
+    applyGearProfile(best, gearProfile(classId, kind, il, opt));
     best.unidentified = false;
     best.quality = opt ? CM.tormentMods(10).quality : q;
     if (opt) {
@@ -239,6 +306,7 @@ export function refEnemies(al, torment = 0) {
     common: hp,
     elite: hp * CM.eliteHpMult(al) * eliteMod,
     boss: boss.hp * tm.hp,
+    commonSpd: sc.reduce((s, x) => s + (x.s.spd || x.e.spd || 3) * x.e.weight, 0) / W,
     commonDps: dps, champDps: dps * ENEMY_RANKS.campeon.dmg, eliteDps: dps * ENEMY_RANKS.elite.dmg,
     bossDps: boss.dmg / (bossDef.atkTime || 1) * tm.dmg,
     al,
@@ -305,12 +373,14 @@ export function makeRotation(p, { defAtCd = false } = {}) {
   const k2 = skOf(bar.k2);
   const k2def = !!k2 && (k2.cat === 'defense' || k2.cat === 'utility');
   const k2cd = !!k2 && !k2def && (k2.cd || 0) > 0;
+  const k2heal = !!k2def && (k2.healPct > 0 || (k2.tags || []).includes('heal'));
   const tail = ['k4', 'k3', ...(k2cd ? ['k2'] : []), 'rmb', ...(!k2def && !k2cd && k2 ? ['k2'] : [])];
   const spec = p._benchSpec;
   const ok = k => { const id = bar[k]; return !!id && (!SKILL_GATE[id] || SKILL_GATE[id](p)); };
   return (g, e) => {
     const order = [];
-    if (k2def && (defAtCd || p.hp < 0.5 * p.stats.maxHP)) order.push('k2');
+    // una defensa que CURA (Bramido…) se guarda hasta tener algo que curar (vida < 75 %)
+    if (k2def && ((defAtCd && (!k2heal || p.hp < 0.75 * p.stats.maxHP)) || p.hp < 0.5 * p.stats.maxHP)) order.push('k2');
     const gs = GAUGE_SPEND[spec]?.(p, g, e);
     if (gs) order.push(gs);
     // una gastadora de 2 sin enfriamiento que deja Vulnerable se pulsa antes si el
@@ -330,7 +400,16 @@ export function makeRotation(p, { defAtCd = false } = {}) {
       if (reserve && (k === 'rmb' || (k === 'k2' && !k2cd && !k2def))) {
         const s = skOf(bar[k]);
         if (!((s?.cd || 0) > 0)) continue;
-      }      if (g.castSkillSlot(k)) return k;
+      }
+      // trampas en ÁREA×5: se arman en el CAMINO de la manada (g._benchTrapSpots, por turnos),
+      // como un jugador que la ve llegar; fuera de ÁREA, sobre el objetivo
+      const tk = skOf(bar[k]);
+      const spots = tk?.type === 'trap' ? g._benchTrapSpots : null;
+      const aim = g.input.mouseWorld;
+      if (spots?.length) { const [x, z] = spots[(g._benchTrapI || 0) % spots.length]; g.input.mouseWorld = new THREE.Vector3(x, 0, z); }
+      const done = g.castSkillSlot(k);
+      if (spots?.length) { g.input.mouseWorld = aim; if (done) g._benchTrapI = (g._benchTrapI || 0) + 1; }
+      if (done) return k;
     }
     if (p.atkCd <= 0 && !(p.castLock > 0)) {
       g.castSkillSlot('lmb');                       // básico: arrancó si puso su cadencia o un windup
@@ -465,20 +544,27 @@ function ring(n, r, cx = 0, cz = 0, center = false, off = 0.3) {
   return out;
 }
 
-// TTD+ (§7.1) simulado: manada inmortal que pega de verdad. defAtCd = la defensa de 2
-// se pulsa al enfriarse (variante defensiva); la ofensiva pelea igual sin defensa.
+// TTD+ (§7.1, redefinido en 2e por decisión del jefe): TIEMPO HASTA PERDER EL 50 % DE LA
+// VIDA contra una manada inmortal de 3 élites + 4 comunes que pega sin pausa. Antes era
+// «tiempo hasta morir» contra 1 campeón + 4 comunes: el sustento (cubeta del 6 %/s) casi
+// igualaba al daño entrante y la medida era casi singular (el mismo héroe daba 39 o 184 s
+// según el equipo). defAtCd = la defensa de 2 se pulsa al enfriarse (variante defensiva).
+export const TTDP_PACK = { elites: 3, commons: 4, lose: 0.5 };
 export function ttdPlusSim(p, ref, { defAtCd = true, maxT = TTD_MAX } = {}) {
   const g = p.game;
   const rot = makeRotation(p, { defAtCd });
   const step = stepper(p, { rot });
-  const pack = ring(5, 1.3).map(([x, z], i) => {
-    const e = spawnAt(g, ref, i === 0 ? 'champ' : 'common', 1e12, x, z);
-    return { e, dps: i === 0 ? ref.champDps : ref.commonDps, atk: 0.2 * i + 0.1 };
+  const n = TTDP_PACK.elites + TTDP_PACK.commons;
+  const pack = ring(n, 1.4).map(([x, z], i) => {
+    const elite = i < TTDP_PACK.elites;
+    const e = spawnAt(g, ref, elite ? 'elite' : 'common', 1e12, x, z);
+    return { e, dps: elite ? ref.eliteDps : ref.commonDps, atk: 0.13 * i + 0.1 };
   });
   const ranged = !!p.cls.ranged;
   const ATK = 1.0;
+  const floor = p.stats.maxHP * (1 - TTDP_PACK.lose);
   let t = 0;
-  while (p.alive && t < maxT) {
+  while (p.alive && p.hp > floor && t < maxT) {
     t = step(true, pack[0].e);
     for (const s of pack) {
       const e = s.e;
@@ -487,7 +573,9 @@ export function ttdPlusSim(p, ref, { defAtCd = true, maxT = TTD_MAX } = {}) {
       if (s.atk > 0) continue;
       s.atk += ATK * (e.numbT > 0 ? 1 / 0.85 : 1);
       const stopped = e.stunT > 0 || (ranged && e.rootT > 0);
-      if (!stopped && p.alive) p.takeDamage(s.dps * ATK, ref.al, { melee: true, source: e });
+      // el debilitamiento del enemigo (Provocación, Reto Singular, Grito Desafiante) cuenta
+      // como en Enemy.update: Π de outWeak
+      if (!stopped && p.alive) p.takeDamage(s.dps * ATK * (e.outDmgMul?.() ?? 1), ref.al, { melee: true, source: e });
     }
   }
   return t;
@@ -500,35 +588,65 @@ export function ttdPlusSim(p, ref, { defAtCd = true, maxT = TTD_MAX } = {}) {
 const AREA_R = 2.0;
 function packCenter(p) { return p.cls.ranged || SPEC_DIST[p._benchSpec] ? distOf(p) + 0.5 : 2.2; }
 // ÁREA×5 (§7.1): 5 comunes agrupados con vida de campeón que se reponen al morir
+export const AREA_WALK = { from: 8 };         // la manada llega caminando desde 8 m (2e)
 export function areaSim(p, ref, { dur = AREA_T } = {}) {
   const g = p.game;
   const stats = newStats();
   const step = stepper(p, { rot: makeRotation(p), stats });
   // dos disposiciones de la manada, la mitad del tiempo cada una: en CRUZ alineada con el
   // héroe (una perforación atraviesa 3; un proyectil choca con el de delante) y en ASPA
-  // (el camino al centro libre: la explosión al impactar alcanza a los 5)
-  const layouts = [ring(5, AREA_R, packCenter(p), 0, true, 0), ring(5, AREA_R, packCenter(p), 0, true, Math.PI / 4)];
+  // (el camino al centro libre: la explosión al impactar alcanza a los 5). La manada LLEGA
+  // CAMINANDO desde AREA_WALK.from m hasta el cuerpo a cuerpo (centro a 2,2 m) y cada
+  // muerto vuelve con una oleada nueva desde el mismo sitio.
+  const CX = 2.2, FROM = AREA_WALK.from + AREA_R;
+  const offs = [ring(5, AREA_R, 0, 0, true, 0), ring(5, AREA_R, 0, 0, true, Math.PI / 4)];
   const hp = ref.common * ENEMY_RANKS.campeon.hp;
-  const mk = ([x, z]) => { const e = spawnAt(g, ref, 'common', hp, x, z); track(e, stats); return e; };
-  let spots = layouts[0];
-  let live = spots.map(mk);
+  const mk = ([ox, oz]) => {
+    const e = spawnAt(g, ref, 'common', hp, FROM + ox, oz);
+    e._home.set(CX + ox, 0, oz);                    // a dónde camina
+    track(e, stats);
+    return e;
+  };
+  // trampas: un coto ALREDEDOR del sitio al que llega la manada (fuera de su camino, a
+  // 4,9 m a cada lado): las que se pisan inmovilizan y la Red de Espinas (x1) une las
+  // armadas a través de la manada, como haría un Montaraz que la ve llegar
+  g._benchTrapSpots = [[CX + 2.4, 4.9], [CX + 2.4, -4.9], [CX + 0.8, 4.9], [CX + 0.8, -4.9]];
+  g._benchTrapI = 0;
+  let off = offs[0];
+  let live = off.map(mk);
   let t = 0, kills = 0;
   const inc = 5 * ref.commonDps;
+  // el cuerpo a cuerpo SALE AL ENCUENTRO de la manada (a su velocidad de movimiento): se
+  // modela acercándola a la suma de las dos velocidades (el héroe se queda en el origen)
+  const run = p.cls.ranged || SPEC_DIST[p._benchSpec] ? 0 : (p.stats.spd || 0);
+  const walk = e => {
+    if (e.stunT > 0 || e.rootT > 0) return;
+    const f = e.slowT > 0 ? Math.max(0, 1 - (e.slowPct || 0) / 100) : 1;
+    const dx = e._home.x - e.pos.x, dz = e._home.z - e.pos.z, d = Math.hypot(dx, dz);
+    if (d < 1e-6) return;
+    const m = Math.min(d, (ref.commonSpd * f + run) * DT);
+    e.pos.x += dx / d * m; e.pos.z += dz / d * m;
+  };
   while (t < dur) {
-    if (spots === layouts[0] && t >= dur / 2) {
+    if (off === offs[0] && t >= dur / 2) {
       for (const e of live) { e.alive = false; }
       g.enemies = g.enemies.filter(x => !live.includes(x));
-      spots = layouts[1];
-      live = spots.map(mk);
+      off = offs[1];
+      live = off.map(mk);
     }
-    const focus = live[0];
+    // objetivo: el centro de la manada si ya llegó; si no, el que esté más cerca del héroe
+    const arrived = e => e.alive && Math.hypot(e.pos.x - e._home.x, e.pos.z - e._home.z) < 0.5;
+    const focus = arrived(live[0]) ? live[0]
+      : (live.filter(arrived).sort((a, b) => Math.hypot(a.pos.x - CX, a.pos.z) - Math.hypot(b.pos.x - CX, b.pos.z))[0]
+        || live.reduce((b, e) => (e.alive && (!b || e.pos.x < b.pos.x) ? e : b), null) || live[0]);
     onHurtResource(p, inc * CM.expectedMitigation(p.stats, ref.al) * DT);
     t = step(true, focus);
     for (let i = 0; i < live.length; i++) {
-      if (!live[i].alive) { kills++; g.enemies = g.enemies.filter(x => x !== live[i]); live[i] = mk(spots[i]); }
-      else live[i].pos.copy(live[i]._home);
+      if (!live[i].alive) { kills++; g.enemies = g.enemies.filter(x => x !== live[i]); live[i] = mk(off[i]); }
+      else walk(live[i]);
     }
   }
+  g._benchTrapSpots = null;
   return { dps: stats.total / dur, by: stats.by, total: stats.total, kills };
 }
 
@@ -849,10 +967,13 @@ function roleMetric(r, k) {
   if (k === 'ctl') return r.ctl.slow;
   return 0;
 }
-export function checkSpecs(rows) {
+// margin (Paso 2e, --seeds): las medianas deben quedar a ≥ margin (relativo) de cada borde
+export function checkSpecs(rows, { margin = 0 } = {}) {
   const errs = [];
-  const chk = (ok, msg) => { if (!ok) errs.push(msg); };
-  const inR = (v, [lo, hi]) => v >= lo && v <= hi;
+  const tag = margin ? ` [margen ${Math.round(margin * 100)} %]` : '';
+  const chk = (ok, msg) => { if (!ok) errs.push(msg + tag); };
+  const up = v => v * (1 + margin), dn = v => v * (1 - margin);    // umbral mínimo / máximo con margen
+  const inR = (v, [lo, hi]) => v >= up(lo) && v <= dn(hi);
   const M = { uni: meanOf(rows, r => r.uni.dps), area: meanOf(rows, r => r.area.dps), ttdp: meanOf(rows, r => r.ttdp) };
   const S = TARGETS.spec;
   for (const r of rows) {
@@ -861,21 +982,21 @@ export function checkSpecs(rows) {
     // §7.2 suelos y métrica principal (×M)
     for (const [k, v] of Object.entries(R?.min || {})) {
       const x = roleMetric(r, k) / M[k];
-      chk(x >= v - 1e-9, `${id}: ${k.toUpperCase()} ×${x.toFixed(2)} de la media (< ×${v})`);
+      chk(x >= up(v) - 1e-9, `${id}: ${k.toUpperCase()} ×${x.toFixed(2)} de la media (< ×${v})`);
     }
     const A = R?.abs || {};
-    if (A.apoyoDps != null) chk(r.apoyo.dpsShare >= A.apoyoDps, `${id}: APOYO ${pct(r.apoyo.dpsShare)} del DPS de un aliado (< ${pct(A.apoyoDps)})`);
-    if (A.apoyoHeal != null) chk(r.apoyo.heal >= A.apoyoHeal, `${id}: APOYO cura ${r.apoyo.heal.toFixed(2)} %/s al grupo (< ${A.apoyoHeal})`);
-    if (A.slow != null) chk(r.ctl.slow >= A.slow, `${id}: CONTROL ${pct(r.ctl.slow)} del tiempo ralentizados/inmovilizados (< ${pct(A.slow)})`);
-    if (A.hard != null) chk(r.ctl.hard >= A.hard, `${id}: CONTROL ${pct(r.ctl.hard)} del tiempo con control duro (< ${pct(A.hard)})`);
-    if (A.breaks != null) chk(r.breaks >= A.breaks, `${id}: ${r.breaks.toFixed(1)} Quebrantados/min contra el jefe (< ${A.breaks})`);
+    if (A.apoyoDps != null) chk(r.apoyo.dpsShare >= up(A.apoyoDps), `${id}: APOYO ${pct(r.apoyo.dpsShare)} del DPS de un aliado (< ${pct(A.apoyoDps)})`);
+    if (A.apoyoHeal != null) chk(r.apoyo.heal >= up(A.apoyoHeal), `${id}: APOYO cura ${r.apoyo.heal.toFixed(2)} %/s al grupo (< ${A.apoyoHeal})`);
+    if (A.slow != null) chk(r.ctl.slow >= up(A.slow), `${id}: CONTROL ${pct(r.ctl.slow)} del tiempo ralentizados/inmovilizados (< ${pct(A.slow)})`);
+    if (A.hard != null) chk(r.ctl.hard >= up(A.hard), `${id}: CONTROL ${pct(r.ctl.hard)} del tiempo con control duro (< ${pct(A.hard)})`);
+    if (A.breaks != null) chk(r.breaks >= up(A.breaks), `${id}: ${r.breaks.toFixed(1)} Quebrantados/min contra el jefe (< ${A.breaks})`);
     // la mejor de su clase en su métrica por ≥ 10 %
     if (R?.best) {
       const mine = roleMetric(r, R.best);
       const others = rows.filter(o => o.cls === r.cls && o.spec !== r.spec);
       const top = Math.max(0, ...others.map(o => roleMetric(o, R.best)));
       const need = r.spec === 'guardian' ? R.ttdpVsClass : TARGETS.bestBy;
-      chk(mine >= top * need - 1e-9, `${id}: ${R.best.toUpperCase()} no es la mejor de su clase por ×${need} (${f1(mine)} frente a ${f1(top)})`);
+      chk(mine >= top * up(need) - 1e-9, `${id}: ${R.best.toUpperCase()} no es la mejor de su clase por ×${need} (${f1(mine)} frente a ${f1(top)})`);
     }
     // rangos del Paso 1A ±20 % por especialización
     chk(inR(r.ttkN, S.ttkN), `${id}: TTK común ${f1(r.ttkN)}s fuera de ${S.ttkN}`);
@@ -885,53 +1006,22 @@ export function checkSpecs(rows) {
     chk(inR(r.ttd, S.ttd), `${id}: TTD manada ${f1(r.ttd)}s fuera de ${S.ttd}`);
     // transversales en UNI
     if (r.bar.k4) chk(inR(r.ult, TARGETS.ultShare), `${id}: la definitiva ${r.bar.k4} aporta ${pct(r.ult)} del daño UNI (objetivo 12–22 %)`);
-    chk(r.uniBasic.dps <= TARGETS.basicOnly * r.uni.dps, `${id}: «solo básico» ×${(r.uniBasic.dps / r.uni.dps).toFixed(2)} de la rotación (> ${TARGETS.basicOnly})`);
-    chk(r.optMaxHit <= r.bossHp * TARGETS.maxHitBoss, `${id}: un golpe óptimo (${r.optMaxHitBy}) quita ${(r.optMaxHit / r.bossHp * 100).toFixed(0)}% de la vida del jefe`);
+    chk(r.uniBasic.dps <= dn(TARGETS.basicOnly) * r.uni.dps, `${id}: «solo básico» ×${(r.uniBasic.dps / r.uni.dps).toFixed(2)} de la rotación (> ${TARGETS.basicOnly})`);
+    chk(r.optMaxHit <= r.bossHp * dn(TARGETS.maxHitBoss), `${id}: un golpe óptimo (${r.optMaxHitBy}) quita ${(r.optMaxHit / r.bossHp * 100).toFixed(0)}% de la vida del jefe`);
     // intercambio de la ranura 2
     const K = TARGETS.k2Tradeoff;
     if (!K.except.includes(r.spec)) {
       const u = r.uniOff.dps / Math.max(1e-9, r.uniDef.dps) - 1, t = r.ttdp / Math.max(1e-9, r.ttdpOff) - 1;
       chk(inR(u, K.uni), `${id}: ranura 2 ofensiva ${sgn(u)} de UNI sobre la defensiva (objetivo +12–25 %)`);
-      chk(t >= K.ttdp, `${id}: ranura 2 defensiva ${sgn(t)} de TTD+ sobre la ofensiva (objetivo ≥ +30 %)`);
+      chk(t >= up(K.ttdp), `${id}: ranura 2 defensiva ${sgn(t)} de TTD+ sobre la ofensiva (objetivo ≥ +30 %)`);
     }
   }
   const bs = rows.map(r => r.ttkB);
-  if (rows.length > 1) chk(Math.max(...bs) / Math.min(...bs) <= S.bossSpread, `Nv${rows[0].L}: jefe más lento ×${(Math.max(...bs) / Math.min(...bs)).toFixed(2)} el más rápido (> ×${S.bossSpread})`);
+  if (rows.length > 1) chk(Math.max(...bs) / Math.min(...bs) <= dn(S.bossSpread), `Nv${rows[0].L}: jefe más lento ×${(Math.max(...bs) / Math.min(...bs)).toFixed(2)} el más rápido (> ×${S.bossSpread})`);
   return errs;
 }
 
-// Paso 2e: objetivos de §7.2 que NO se alcanzan sin tocar el núcleo (spec-mechanics), los
-// enemigos o el propio escenario de §7.1. No se relajan en silencio: cada uno lleva la causa
-// y el cambio mínimo propuesto, se imprime como «⚠ PENDIENTE» y vigila un SUELO de
-// no-regresión (si la medida cae por debajo del suelo, vuelve a ser un error). Si un
-// pendiente llega a cumplirse, el banco avisa para quitarlo de la lista.
-const k2u = r => r.uniOff.dps / Math.max(1e-9, r.uniDef.dps) - 1;
-const k2t = r => r.ttdp / Math.max(1e-9, r.ttdpOff) - 1;
-export const PENDING_2E = [
-  { re: /^cruzado Nv50: ranura 2 ofensiva/, spec: 'cruzado', floor: r => k2u(r) <= 1.0, floorTxt: 'ofensiva ≤ +100 % de UNI',
-    why: 'la tabla de §7.1 pone el Martillo de Guerra (el motor del Fervor: 3 golpes = 1 Fervor) en la ranura 2 ofensiva; con el Bramido en su lugar el Cruzado no genera Fervor contra un jefe (solo al matar), nunca lanza Veredicto y su UNI queda en Tajo + Cataclismo',
-    fix: 'spec-mechanics: el Fervor también por golpes del básico (p. ej. 1 cada 4 Tajos), o la tabla de §7.1 con el Martillo en 🖱️Der y el Veredicto en la ranura 2 ofensiva' },
-  { re: /^cruzado Nv50: ranura 2 defensiva/, spec: 'cruzado', floor: r => k2t(r) >= -0.45, floorTxt: 'defensiva ≥ −45 % de TTD+',
-    why: 'misma causa: el Martillo es también el sustento del Cruzado (Martillos Benditos, vida al golpear de Mano Sanadora y la cura del Veredicto); sin él, la variante defensiva aguanta menos que la ofensiva aunque lleve el Bramido',
-    fix: 'el mismo cambio del Fervor (con Fervor sin Martillo, el Veredicto vuelve a curar al grupo en la variante defensiva)' },
-  { re: /^montaraz Nv50: AREA/, spec: 'montaraz', floor: (r, M) => r.area.dps / M.area >= 0.70, floorTxt: 'ÁREA×5 ≥ 0,70·M',
-    why: 'el daño en área del Montaraz son trampas que se activan al pisarlas, la Red de Espinas entre trampas armadas (Apex I/II) y los Abrojos; ÁREA×5 (§7.1) es un grupo QUIETO que reaparece en su sitio: la trampa salta al instante sobre el objetivo (0 % del daño) y la red nunca se forma (pide ≥ 2 trampas armadas)',
-    fix: 'ÁREA×5 con la manada caminando hacia el héroe desde 8 m (como en el juego) o con trampas prearmadas para las especializaciones de trampas; subir la Lluvia para todos rompe la Francotiradora (mejor de su clase) y el intercambio de la ranura 2 del Montaraz' },
-];
-export function splitPending(errs, rows) {
-  const M = { uni: meanOf(rows, r => r.uni.dps), area: meanOf(rows, r => r.area.dps), ttdp: meanOf(rows, r => r.ttdp) };
-  const pending = [], solved = [], out = [];
-  for (const e of errs) {
-    const P = PENDING_2E.find(x => x.re.test(e));
-    const r = P && rows.find(x => x.spec === P.spec);
-    if (P && r && P.floor(r, M)) pending.push(`${e}\n     causa: ${P.why}\n     propuesta: ${P.fix}\n     suelo vigilado: ${P.floorTxt}`);
-    else out.push(P ? `${e} — PENDIENTE por debajo de su suelo (${P.floorTxt})` : e);
-  }
-  for (const P of PENDING_2E) if (rows.some(r => r.spec === P.spec) && !errs.some(e => P.re.test(e))) solved.push(`${P.re.source}: ya se cumple; quítalo de PENDING_2E`);
-  return { errs: out, pending, solved };
-}
-
-// --seeds N: robustez frente al azar del EQUIPO (solo informe). Para cada fila típica
+// --seeds N: robustez frente al azar (informe de clase). Para cada fila típica
 // T0: mínimo / mediana / máximo del TTK de élite y de jefe y del reparto de la
 // definitiva en UNI con las semillas 1..N. Las afirmaciones siguen con la semilla 1.
 // Paso 2c.2: marca con ⚠ las MEDIANAS fuera de su rango (TARGETS.cls / rampa de jefe /
@@ -975,7 +1065,9 @@ function nearEdge(v, [lo, hi]) { return !(v >= lo * 1.05 && v <= hi * 0.95); }
 
 // Paso 2e: medianas de la matriz de rol con las semillas 1..N. Cada métrica se toma de la
 // fila mediana; las métricas relativas (×M) se recalculan con las medianas, y se pasan
-// las mismas comprobaciones que con la semilla 1 (solo informe).
+// las mismas comprobaciones que con la semilla 1 con un margen del 5 % (SEED_MARGIN) a
+// los bordes. Es la comprobación de la matriz de rol del banco: sus fallos lo hacen fallar
+// (salvo con --report).
 export function specSeedReport(n, { level = 50 } = {}) {
   const runs = [];
   for (let seed = 1; seed <= n; seed++) runs.push(runSpecs({ level, seed }));
@@ -996,16 +1088,15 @@ export function specSeedReport(n, { level = 50 } = {}) {
   });
   console.log(`\nMEDIANAS DE ${n} SEMILLAS — matriz de rol Nv${level}`);
   printSpecs(rows);
-  const sp = splitPending(checkSpecs(rows), rows);
-  if (sp.pending.length) console.log('⚠ PENDIENTES (PENDING_2E) en las medianas:\n - ' + sp.pending.map(s => s.split('\n')[0]).join('\n - '));
-  console.log(sp.errs.length ? '⚠ medianas de valores absolutos fuera de objetivo:\n - ' + sp.errs.join('\n - ') : '✅ medianas dentro de objetivo (salvo los pendientes)');
+  const errs = checkSpecs(rows, { margin: SEED_MARGIN });
+  console.log(errs.length ? '⚠ medianas fuera de objetivo o a menos de un 5 % de un borde:\n - ' + errs.join('\n - ') : '✅ medianas dentro de objetivo y a ≥ 5 % de los bordes');
   // Por semilla: cada semilla es un mundo coherente (mismo equipo para las especializaciones de
   // una clase y su propia M), así que las reglas relativas (×M, mejor de su clase, ranura 2)
   // se comprueban semilla a semilla; una regla «falla en la mediana» si falla en más de la
   // mitad de las semillas.
   const keyOf = e => e.replace(/[-+−]?\d+(?:[.,]\d+)?/g, '#');
   const fails = new Map();
-  for (const rs of runs) for (const e of splitPending(checkSpecs(rs), rs).errs) {
+  for (const rs of runs) for (const e of checkSpecs(rs)) {
     const k = keyOf(e);
     if (!fails.has(k)) fails.set(k, []);
     fails.get(k).push(e);
@@ -1013,8 +1104,8 @@ export function specSeedReport(n, { level = 50 } = {}) {
   const medFail = [...fails.values()].filter(a => a.length > n / 2);
   const lines = [...fails.values()].sort((a, b) => b.length - a.length).map(a => `${a.length}/${n} semillas · ${a[0]}`);
   console.log(lines.length ? `Reglas que fallan en alguna semilla (por semilla, con su propia M):\n - ${lines.join('\n - ')}` : 'Ninguna regla falla en ninguna semilla.');
-  console.log(medFail.length ? `⚠ ${medFail.length} regla(s) fallan en la mayoría de las semillas` : `✅ por semilla: ninguna regla falla en la mayoría de las ${n} semillas (salvo los pendientes)`);
-  return { rows, errs: sp.errs, pending: sp.pending, perSeed: lines, medFail: medFail.map(a => a[0]) };
+  console.log(medFail.length ? `⚠ ${medFail.length} regla(s) fallan en la mayoría de las semillas` : `✅ por semilla: ninguna regla falla en la mayoría de las ${n} semillas`);
+  return { rows, errs, perSeed: lines, medFail: medFail.map(a => a[0]) };
 }
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop());
@@ -1023,20 +1114,15 @@ if (isMain) {
   const rows = runBench();
   printRows(rows);
   const errs = checkRows(rows);
-  const specRows = runSpecs();
-  printSpecs(specRows);
-  const sp = splitPending(checkSpecs(specRows), specRows);
-  errs.push(...sp.errs);
+  // Paso 2e: la matriz de rol se juzga por las MEDIANAS de SPEC_SEEDS semillas (o N con
+  // --seeds N), con un margen del 5 % a los bordes; una sola semilla es una muestra (el
+  // azar de combate mueve ÁREA y TTD+ un ±10 %) y solo se informa por semilla
   const si = process.argv.indexOf('--seeds');
-  if (si > 0) {
-    const n = Math.max(1, parseInt(process.argv[si + 1], 10) || 5);
-    seedReport(n);
-    specSeedReport(n);
-  }
+  const n = si > 0 ? Math.max(1, parseInt(process.argv[si + 1], 10) || SPEC_SEEDS) : SPEC_SEEDS;
+  const ss = specSeedReport(n);
+  errs.push(...ss.errs.map(e => `medianas de ${n} semillas · ${e}`));
+  if (si > 0) seedReport(n);
   console.log(`(${((Date.now() - t0) / 1000).toFixed(1)} s)`);
-  if (sp.pending.length) console.log('⚠ PENDIENTES DEL PASO 2e (no se relajan; ver PENDING_2E):\n - ' + sp.pending.join('\n - '));
-  if (sp.solved.length) console.log('ℹ pendientes ya resueltos:\n - ' + sp.solved.join('\n - '));
-  // todo error que no sea un pendiente documentado (y por encima de su suelo) falla
   if (errs.length && !REPORT_ONLY) { console.error('❌ BANCO DE BALANCE FUERA DE RANGO\n - ' + errs.join('\n - ')); process.exit(1); }
   if (errs.length) console.log('(report) avisos:\n - ' + errs.join('\n - '));
   else console.log('✅ BANCO DE BALANCE DENTRO DE RANGO');
