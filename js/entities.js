@@ -8,8 +8,42 @@ import { SETS } from './items.js';
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
-// Tope de la bolsa de materiales (gemas, runas, llaves, fragmentos, glifos).
+// Tope de la bolsa de materiales, en HUECOS (no en objetos):
+//  - las gemas/runas idénticas se APILAN (un hueco por pila, contador en la UI);
+//  - los materiales de PROGRESO (llaves de grieta, fragmentos, glifos) no ocupan
+//    hueco: nunca quedan bloqueados por el tope.
+// El array p.materials sigue guardando un objeto por unidad (compatibilidad con
+// cubo/engarce/consumo por índice); el apilado es lógico → saves viejos válidos.
 export const MAX_MATERIALS = 60;
+export const PROGRESS_MATERIAL_KINDS = ['riftkey', 'fragment', 'glyph'];
+
+// clave de pila: dos gemas/runas con la misma clave son idénticas (null = no apila)
+export function materialStackKey(it) {
+  if (!it) return null;
+  if (it.kind === 'gem') return `gem|${it.gemId}|${it.ilvl}|${JSON.stringify(it.stats || {})}`;
+  if (it.kind === 'rune') return `rune|${it.runeId}|${JSON.stringify(it.stats || {})}`;
+  return null;
+}
+
+// huecos ocupados de la bolsa (pilas de gemas/runas + otros; progreso no cuenta)
+export function materialSlotsUsed(mats) {
+  const keys = new Set();
+  let n = 0;
+  for (const it of mats || []) {
+    if (it && PROGRESS_MATERIAL_KINDS.includes(it.kind)) continue;
+    const k = materialStackKey(it);
+    if (k) { if (!keys.has(k)) { keys.add(k); n++; } } else n++;
+  }
+  return n;
+}
+
+// ¿cabe este material en la bolsa? (sin item → ¿hay algún hueco libre?)
+export function canAddMaterial(mats, item = null) {
+  if (item && PROGRESS_MATERIAL_KINDS.includes(item.kind)) return true;
+  const k = materialStackKey(item);
+  if (k && (mats || []).some(m => materialStackKey(m) === k)) return true; // se apila
+  return materialSlotsUsed(mats) < MAX_MATERIALS;
+}
 
 // Esquiva: duración corta y pico de velocidad alto con ease-out (recorre ~3.4u)
 const DASH_DUR = 0.26;
@@ -476,8 +510,12 @@ export class Player {
     this.skillBranches = (this.skillBranches && typeof this.skillBranches === 'object') ? this.skillBranches : {};
     const weaponBasic = (this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon') || this.cls.skills.find(s => s.kind === 'basic') || this.cls.skills[0]);
     // v4: las mini-ramas de pasivos cuestan punto → reembolsa y resetea builds previas
+    // Idempotente: skillSystemV/skillBranches/hotbar se guardan (toSaveData), así
+    // que un save ya migrado NO vuelve a reembolsar al cargarse. El rango 1 del
+    // básico de arma es gratis (no se compró con puntos) → no se reembolsa.
     if (this.skillSystemV !== 4) {
-      const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0)
+      const freeBasic = (weaponBasic && this.skills[weaponBasic.id] > 0) ? 1 : 0;
+      const spent = Object.values(this.skills).reduce((a, b) => a + (b | 0), 0) - freeBasic
         + Object.values(this.skillBranches || {}).reduce((a, o) => a + Object.keys(o || {}).length, 0);
       this.skillPoints = (this.skillPoints | 0) + spent; // reembolso total
       this.skills = {};
@@ -519,6 +557,28 @@ export class Player {
       // los recursos que se GENERAN (Furia, start:0) no se guardan: siempre 0 al cargar
       if (saved.mp != null && this.cls.resource?.start !== 0) this.mp = Math.min(saved.mp, this.stats.maxMP);
     }
+  }
+
+  // Datos persistentes del héroe (lo que escribe Game.save en localStorage).
+  // Vive aquí (módulo puro) para poder probar la ida y vuelta sin DOM.
+  // IMPORTANTE: skillSystemV, skillBranches y hotbar DEBEN guardarse; si no, al
+  // cargar se re-ejecuta la migración v4 y se pierde/reembolsa la build.
+  toSaveData() {
+    const p = this;
+    return {
+      classId: p.classId, level: p.level, xp: p.xp, attributes: p.attributes,
+      statPoints: p.statPoints, skillPoints: p.skillPoints, skills: p.skills,
+      skillSystemV: p.skillSystemV, skillBranches: p.skillBranches, hotbar: p.hotbar,
+      gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
+      lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
+      waypoints: p.waypoints, records: p.records, cube: p.cube,
+      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title,
+      discoveredZones: p.discoveredZones, homeZone: p.homeZone, strongholdsCleared: p.strongholdsCleared, dailyDone: p.dailyDone, tips: p.tips,
+      supports: p.supports, knownSupports: p.knownSupports, skillMods: p.skillMods,
+      paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
+      heroName: p.heroName, tint: p.tint,
+      torment: p.torment, codex: p.codex, blessings: p.blessings,
+    };
   }
 
   // hotbar de 6 ranuras (lmb/rmb/k1-4). Barra libre: cualquier skill conocible
@@ -1063,28 +1123,38 @@ export class Player {
     const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
     // el ataque básico ES el generador de recurso de la clase (Furia/Maná/Energía)
     const res = this.cls.resource;
-    if (res?.gen) { this.mp = Math.min(this.stats.maxMP, this.mp + res.gen); this.furiaIdle = 0; }
     // modificadores del básico de arma (sus 3 ramas): daño/crit/recurso/robo/control
     const wb = this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon');
     const bm = wb ? aggregateSkillMods(wb.id, this.skillMods?.[wb.id]) : null;
     const bMul = bm ? (1 + (bm.dmg || 0) / 100) : 1;
     const bCrit = bm ? (bm.crit || 0) : 0;
-    if (bm?.gen) this.mp = Math.min(this.stats.maxMP, this.mp + bm.gen);
     const avgHit = (this.stats.dmgMin + this.stats.dmgMax) / 2 * bMul;
+    // recurso: SOLO al acertar (una vez por ataque, aunque haya multidisparo)
+    let genGiven = false;
+    const grantGen = () => {
+      if (genGiven) return;
+      genGiven = true;
+      const add = (res?.gen || 0) + (bm?.gen || 0);
+      if (add) this.mp = Math.min(this.stats.maxMP, this.mp + add);
+      this.furiaIdle = 0;
+    };
+    // efectos de las ramas sobre un enemigo REALMENTE golpeado
     const onHit = e => {
       if (!e || !e.alive || !bm) return;
       if (bm.vuln) e.vulnT = Math.max(e.vulnT || 0, bm.vuln);
-      if (bm.stun) { e.stunT = Math.max(e.stunT || 0, bm.stun); e.slowT = Math.max(e.slowT || 0, bm.stun); }
+      if (bm.stun) e.applyStun(bm.stun); // rendimientos decrecientes + regla de jefe
       if (bm.slow) e.slowT = Math.max(e.slowT || 0, bm.slow);
       if (bm.dot) g.applyDoT?.(e, avgHit * (bm.dot === 'poison' ? 0.9 : bm.dot === 'burn' ? 0.8 : 0.6), bm.dot === 'poison' ? 5 : bm.dot === 'burn' ? 4 : 3, bm.dot === 'burn' ? 0.8 : 1.0);
     };
-    const lifeHeal = () => { if (bm?.lifesteal) this.hp = Math.min(this.stats.maxHP, this.hp + avgHit * bm.lifesteal / 100); };
+    // robo de vida sobre el daño infligido de verdad
+    const lifeHeal = (dealt) => { if (bm?.lifesteal && dealt > 0) this.hp = Math.min(this.stats.maxHP, this.hp + dealt * bm.lifesteal / 100); };
 
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
       const { dmg, crit } = this.rollDamage(bMul, bCrit);
       const tpos = target.pos.clone();
-      target.takeDamage(dmg, crit);
+      let dealtTotal = target.takeDamage(dmg, crit) || 0;
+      grantGen(); // el tajo solo se lanza con un objetivo a rango: siempre acierta
       onHit(target);
       this.onDealHit();
       // game-feel: hit-stop seco SOLO en crítico (en cada golpe se sentía
@@ -1097,11 +1167,11 @@ export class Player {
         if (e === target || !e.alive) continue;
         if (e.pos.distanceToSquared(target.pos) < 2.0 * 2.0) {
           const r = this.rollDamage(0.5 * bMul, bCrit);
-          e.takeDamage(r.dmg, r.crit);
+          dealtTotal += e.takeDamage(r.dmg, r.crit) || 0;
           onHit(e);
         }
       }
-      lifeHeal();
+      lifeHeal(dealtTotal);
       g.spawnRing(target.pos.clone(), 1.4, 0xffbb66);
       // arco de chispas del tajo + impacto seco sobre el objetivo.
       const cp = tpos.clone(); cp.y = 1.0;
@@ -1129,9 +1199,11 @@ export class Player {
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
         speed, range: this.cls.atkRange + 2, dmg, crit, friendly: true, color, size, pierce: !!bm?.pierce,
+        // recurso, efectos de rama y robo de vida: al IMPACTAR (no al disparar).
+        // Así también funcionan apuntando a un punto vacío ({pos: aim} en WASD).
+        onHit: (e, dealt) => { grantGen(); onHit(e); lifeHeal(dealt); },
       });
     }
-    onHit(target); lifeHeal();
     g.sfx(arrow ? 'shoot' : 'skill');
   }
 }
@@ -1153,6 +1225,7 @@ export class Enemy {
     this.slowT = 0;
     this.vulnT = 0;             // vulnerable (+% de daño recibido) por opciones de habilidad
     this.stunT = 0;             // aturdido (no se mueve ni ataca)
+    this.stunDR = 0;            // resistencia al aturdimiento (rendimientos decrecientes)
     this.flashT = 0;
     this.fade = 0;
     this.lunge = 0;             // empuje de animación al atacar
@@ -1186,8 +1259,50 @@ export class Enemy {
 
   get pos() { return this.group.position; }
 
+  // Aturdimiento con RENDIMIENTOS DECRECIENTES (evita el bloqueo permanente con
+  // Bola de Fuego/Mandoble + "Conmocionar"):
+  //  - cada aturdimiento que se aplica suma resistencia (stunDR, 0..1) que decae
+  //    sola con el tiempo (~0.12/s); la duración efectiva es dur × (1 − stunDR);
+  //  - con stunDR ≥ 0.9 el enemigo es INMUNE hasta que la resistencia baje;
+  //  - jefes/uber/jefes de mundo: duración ×0.35 y acumulan resistencia más rápido.
+  // Un aturdimiento más corto que el que ya tiene no lo extiende ni suma DR.
+  // Devuelve la duración aplicada (0 si no tuvo efecto).
+  applyStun(dur) {
+    if (!(dur > 0) || !this.alive) return 0;
+    const boss = this.def.boss || this.def.uber || this.def.worldBoss;
+    const dr = this.stunDR || 0;
+    if (dr >= 0.9) return 0;                                   // inmune por ahora
+    const d = dur * (1 - dr) * (boss ? 0.35 : 1);
+    if (d < 0.05 || d <= (this.stunT || 0)) return 0;          // no mejora el actual
+    this.stunT = d;
+    this.slowT = Math.max(this.slowT || 0, d);
+    this.stunDR = Math.min(1, dr + (boss ? 0.6 : 0.35));
+    return d;
+  }
+
+  // Libera la memoria de GPU del modelo al quitar el enemigo de la escena: cada
+  // enemigo crea sus PROPIAS geometrías/materiales (makeEnemyModel, aura, cáscara
+  // de escudo). Las TEXTURAS (normal/roughness de charTex) están cacheadas y
+  // compartidas → NO se liberan (material.dispose() no toca texturas).
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.group?.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose());
+    });
+  }
+
+  // avanza el aturdimiento y su resistencia (llamado desde update)
+  tickStun(dt) {
+    if (this.stunT > 0) this.stunT -= dt;
+    if (this.stunDR > 0) this.stunDR = Math.max(0, this.stunDR - dt * 0.12);
+  }
+
+  // Devuelve el daño REALMENTE infligido (0 si ya estaba muerto), para que el
+  // robo de vida/efectos se calculen sobre impactos reales.
   takeDamage(amount, crit = false, opts = {}) {
-    if (!this.alive) return;
+    if (!this.alive) return 0;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
     if (this.vulnT > 0) amount = Math.round(amount * 1.2); // Vulnerable: +20% de daño recibido
     // maestrías con efecto dependiente del objetivo (el daño al enemigo siempre
@@ -1206,6 +1321,7 @@ export class Enemy {
         this.game.ui.spawnText(this.pos.clone().add(new THREE.Vector3(0, this.def.scale, 0)), '¡ASTILLADO!', 'txt-crit');
       }
     }
+    const dealt = Math.max(0, Math.min(amount, this.hp));
     this.hp -= amount;
     // destello BLANCO: ~70ms base, escala suave con el % de daño recibido
     const pct = Math.min(1, amount / Math.max(1, this.maxHP));
@@ -1241,6 +1357,7 @@ export class Enemy {
       else if (pct >= 0.30) this.game.hitStop?.(45);
     }
     if (this.hp <= 0) this.die();
+    return dealt;
   }
 
   die() {
@@ -1328,7 +1445,7 @@ export class Enemy {
 
     if (this.flashT > 0) this.flashT -= dt;
     if (this.vulnT > 0) this.vulnT -= dt;   // vulnerabilidad temporal
-    if (this.stunT > 0) this.stunT -= dt;    // aturdimiento temporal
+    this.tickStun(dt);                       // aturdimiento + rendimientos decrecientes
     // recorrer el modelo solo cuando el flash cambia de estado
     const flashing = this.flashT > 0;
     if (flashing !== this._flashState) {
@@ -1765,6 +1882,9 @@ export class Enemy {
           }
         }
       } else {
+        // jefes con ataque a distancia (rangedChance): fuera de su alcance melee
+        // pueden lanzarte un proyectil mientras te persiguen
+        this.tryRangedVolley(d, player);
         // perseguir; los tiradores mantienen distancia
         const stop = this.def.rangedAttack ? range * 0.8 : 0;
         if (d > stop) {
@@ -1775,6 +1895,31 @@ export class Enemy {
       void aggro;
     }
     return false;
+  }
+
+  // Ataque a distancia de JEFE (def.rangedChance): antes nunca se disparaba porque
+  // la condición era d > 2.2 && d <= range con range 2.2 (melee). Ahora, cuando
+  // estás FUERA de su alcance melee pero a tiro (def.rangedRange, por defecto 10)
+  // y con línea de visión, cada vez que su ataque está listo tira rangedChance:
+  // si sale, dispara; si no, espera medio ciclo (sin re-tirar cada frame).
+  // Devuelve true si disparó.
+  tryRangedVolley(d, player) {
+    const def = this.def;
+    if (!(def.rangedChance > 0) || !def.rangedAttack) return false;
+    if (d <= def.range || d > (def.rangedRange || 10) || this.hasLOS === false) return false;
+    if (this.atkCd > 0) return false;
+    const g = this.game;
+    if (Math.random() >= def.rangedChance) { this.atkCd = def.atkTime * 0.5; return false; }
+    this.atkCd = def.atkTime * (this.rallyT > 0 ? 0.8 : 1);
+    this.lunge = 1;
+    g.spawnProjectile({
+      from: this.pos.clone().setY(1.1), to: player.pos.clone().setY(1.0),
+      speed: def.projSpeed || 8, range: (def.rangedRange || 10) + 3,
+      dmg: def.dmg, friendly: false, color: def.projColor || 0xaa44ff, size: 0.22,
+      attackerLevel: def.level || 1,
+    });
+    g.sfx?.('eshoot');
+    return true;
   }
 
   // Embestidor: ciclo windup → dash → recuperación. Devuelve true mientras el
@@ -1858,6 +2003,9 @@ export class Projectile {
     this.slow = opts.slow || 0;
     this.attackerLevel = opts.attackerLevel || 1;
     this.hitSet = new Set();
+    // callback al IMPACTAR de verdad (e, dañoInfligido): DoT/aturdir/vulnerable/
+    // encadenado/robo de vida/recurso se aplican aquí, no al lanzar
+    this.onHit = typeof opts.onHit === 'function' ? opts.onHit : null;
     this.color = opts.color || 0xffffff; // color del estallido al impactar
     // estela + impacto con partículas (motor js/particles.js); personalizable por el llamador
     this._hex = '#' + (((this.color >>> 0) & 0xffffff).toString(16).padStart(6, '0'));
@@ -1905,9 +2053,10 @@ export class Projectile {
         if (!e.alive || this.hitSet.has(e)) continue;
         const r = 0.55 * (e.def.scale || 1);
         if (p.distanceToSquared(e.pos.clone().setY(p.y)) < r * r) {
-          e.takeDamage(this.dmg, this.crit, { color: this.color });
+          const dealt = e.takeDamage(this.dmg, this.crit, { color: this.color }) || 0;
           g.player?.onDealHit();
           if (this.slow) e.slowT = this.slow;
+          if (this.onHit) { try { this.onHit(e, dealt); } catch (err) { console.warn('onHit de proyectil', err); } }
           g.sfx('hit');
           this.burst();
           // hit-stop SOLO en crítico y breve: en impactos normales causaba
@@ -2032,12 +2181,16 @@ export class Pet {
   }
 
   // ¿este objeto del suelo lo recoge el pet automáticamente?
-  autoPicks(kind, p) {
+  // acepta el objeto (preferido: permite saber si apila) o solo su kind
+  autoPicks(kindOrItem, p) {
+    const item = (kindOrItem && typeof kindOrItem === 'object') ? kindOrItem : null;
+    const kind = item ? item.kind : kindOrItem;
     if (kind === 'gold' || kind === 'potion') return true;
     const mat = this.upg('materials');
-    const pouchOK = (p.materials?.length || 0) < MAX_MATERIALS;
+    const pouchOK = canAddMaterial(p.materials, item || { kind });
     if ((kind === 'gem' || kind === 'rune') && mat >= 1 && pouchOK) return true;
-    if ((kind === 'fragment' || kind === 'key' || kind === 'glyph') && mat >= 2 && pouchOK) return true;
+    // las llaves son kind 'riftkey' (antes se buscaba 'key' y nunca se recogían)
+    if ((kind === 'fragment' || kind === 'riftkey' || kind === 'glyph') && mat >= 2 && pouchOK) return true;
     return false;
   }
 
@@ -2045,7 +2198,7 @@ export class Pet {
   nearestLoot(g, p) {
     let best = null, bd = this.pickRadiusSq();
     for (const gi of g.groundItems || []) {
-      if (!this.autoPicks(gi.item.kind, p)) continue;
+      if (!this.autoPicks(gi.item, p)) continue;
       const d = gi.mesh.position.distanceToSquared(p.pos);
       if (d < bd) { bd = d; best = gi; }
     }

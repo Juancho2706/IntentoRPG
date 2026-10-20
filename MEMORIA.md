@@ -9,7 +9,7 @@
 ## 0. Qué es / stack
 
 - **IntentoRPG**: ARPG isométrico estilo Diablo 2/4, **JavaScript vanilla + Three.js 0.160**, **sin build step** (ES modules vía importmap CDN jsdelivr). PWA (Vercel), móvil + desktop, guardado en `localStorage` (3 huecos + export/import base64). Texto del juego en español.
-- **Sin bundler, sin npm deps de runtime.** Tests: simulación headless en `tests/*.mjs` (sin DOM/WebGL), corren con `npm test` (`node tests/run.mjs`). **47 suites.**
+- **Sin bundler, sin npm deps de runtime.** Tests: simulación headless en `tests/*.mjs` (sin DOM/WebGL), corren con `npm test` (`node tests/run.mjs`). **58 suites.**
 
 ## 1. Convenciones de desarrollo (IMPORTANTES)
 
@@ -183,6 +183,19 @@
 | #16 | "Eras"/temporadas locales (mutador + objetivos semanales) | ✅ HECHO (2026‑06‑15) |
 
 ## 6. Bugs/gotchas conocidos
+
+### ✅ Paso 0 — hotfixes que rompían partidas (HECHO 2026‑10‑20, sw v89, test `test56-hotfixes`)
+1. **Guardado de la build**: `Player.toSaveData()` (fuente única de lo que guarda `Game.save`) incluye `skillSystemV`/`skillBranches`/`hotbar`; la migración v4 es idempotente y **no reembolsa el rango gratis del básico** (antes: +1 punto infinito por recarga y ramas perdidas). Los saves viejos reciben un último reembolso al cargar.
+2. **uids de objetos**: `syncItemUids(...)` (items.js) en `startGame` sube el contador por encima del máximo uid guardado (héroe+alijo+tienda) y re-numera duplicados viejos.
+3. **Bolsa de materiales en HUECOS**: gemas/runas idénticas **apilan** (`materialStackKey`, contador ×N en `renderMaterials`); llaves/fragmentos/glifos (`PROGRESS_MATERIAL_KINDS`) **no ocupan hueco ni se bloquean**. Usar siempre `canAddMaterial(mats, item)` / `materialSlotsUsed(mats)` (entities.js) en vez de `materials.length`. El array sigue siendo 1 objeto por unidad → saves viejos compatibles sin migrar.
+4. **Mascota**: recoge `riftkey` (buscaba `'key'`); `autoPicks` acepta el objeto.
+5. **Caminos entre regiones** (`zone_exit`): `crossZoneExit`/`zoneLevelGap` (world-flow) exigen `minLevel` (avisa y no cruza; también `travelToZone`); marcador en minimapa/mapa + leyenda (gris si bloqueado).
+6/8/9. **Impacto real**: `Projectile` acepta `onHit(e, dealt)`; `Enemy.takeDamage` **devuelve el daño infligido**. Recurso del básico, robo de vida ("Sediento") y efectos de rama/Variante (DoT, aturdir, vulnerable, encadenado) se aplican al impactar, sobre el daño real; Embate/Mandoble solo generan si golpean. Las ramas del básico a distancia funcionan en WASD (`{pos: aim}`).
+7. **Aturdimiento**: `Enemy.applyStun(dur)` con rendimientos decrecientes (`stunDR`, decae 0.12/s, inmune ≥0.9) y jefes ×0.35; `tickStun(dt)`. No asignar `stunT` a mano.
+10. **Fuga de GPU**: `Enemy.dispose()` (geometrías/materiales propios; las texturas de `charTex` son compartidas y NO se liberan) al quitar enemigos (tick y `loadWorld`).
+11. **Jefes a distancia**: `Enemy.tryRangedVolley(d, player)` usa `rangedChance` fuera del alcance melee (`rangedRange`, def. 10).
+12. **Mods de grieta/pacto**: TODO `new Enemy(` pasa por `buffByPact` (spawn inicial, manadas, invocaciones, jefes de mundo…); lo vigila `test56`.
+
 
 - `recompute()` **ignora objetos sin identificar** (no dan stats) — clave en tests de gemas (ver `test9`, ya endurecido).
 - El motor de partículas necesita `document` (canvas) → guardado con try/catch para tests headless (`game.psys?`).

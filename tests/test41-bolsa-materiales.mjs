@@ -43,12 +43,19 @@ g.cubeReturn(0);
 if (p.materials.length !== 1 || p.cube.length !== 0) throw new Error('la gema no volvió a la bolsa');
 console.log('cubeReturn devuelve gema cubo→bolsa ✓');
 
-// tope MAX_MATERIALS: si la bolsa está llena, cubeReturn no la vacía
-p.materials = Array.from({ length: MAX_MATERIALS }, () => makeGem(1));
-p.cube = [makeGem(1)];
+// tope MAX_MATERIALS (en huecos/pilas): si la bolsa está llena de pilas DISTINTAS,
+// cubeReturn no mete una gema nueva (gemas de ilvl distinto = pilas distintas)
+p.materials = Array.from({ length: MAX_MATERIALS }, (_, i) => makeGem(i + 1));
+p.cube = [makeGem(MAX_MATERIALS + 5)];
 g.cubeReturn(0);
 if (p.materials.length !== MAX_MATERIALS || p.cube.length !== 1) throw new Error('no debe exceder MAX_MATERIALS');
 console.log(`cubeReturn respeta tope MAX_MATERIALS (${MAX_MATERIALS}) ✓`);
+// …pero una gema IDÉNTICA a una pila existente sí entra (se apila)
+const twin = { ...p.materials[3], uid: 99999 };
+p.cube = [twin];
+g.cubeReturn(0);
+if (p.materials.length !== MAX_MATERIALS + 1 || p.cube.length !== 0) throw new Error('una gema idéntica debe apilarse aunque la bolsa esté llena');
+console.log('cubeReturn apila una gema idéntica con la bolsa llena ✓');
 
 // --- swapMaterials: reordena (intercambio y mover-al-final) ---
 const a = makeGem(1), b = makeGem(2), c = makeGem(3);

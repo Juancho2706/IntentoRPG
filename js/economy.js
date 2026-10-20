@@ -4,7 +4,7 @@
 // ============================================================
 import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
 import { SHOP_REFRESH_MS, PET_PRICE, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
-import { MAX_MATERIALS } from './entities.js';
+import { MAX_MATERIALS, canAddMaterial, materialSlotsUsed } from './entities.js';
 
 export const economyMethods = {
   // ---------- tienda del mercader ----------
@@ -222,7 +222,7 @@ export const economyMethods = {
     if (!item) return;
     // las gemas/runas vuelven a la bolsa de materiales; los objetos a la mochila
     if (item.kind === 'gem' || item.kind === 'rune') {
-      if (p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
+      if (!canAddMaterial(p.materials, item)) { this.ui.message('Bolsa de materiales llena'); return; }
       p.cube.splice(i, 1);
       p.materials.push(item);
     } else {
@@ -297,7 +297,7 @@ export const economyMethods = {
     // Solo bloqueamos por mochila llena si el resultado va a ser un objeto.
     const allGems = p.cube.every(it => it.kind === 'gem');
     if (!allGems && p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
-    if (allGems && p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
+    if (allGems && materialSlotsUsed(p.materials) >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
     const c = p.cube;
     let item = null;
 
@@ -531,7 +531,7 @@ export const economyMethods = {
     const p = this.player;
     const gl = p.paragon.glyphs?.[nodeId];
     if (!gl) return;
-    if (p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
+    if (!canAddMaterial(p.materials, gl)) { this.ui.message('Bolsa de materiales llena'); return; }
     delete p.paragon.glyphs[nodeId];
     p.materials.push(gl);
     p.recompute();

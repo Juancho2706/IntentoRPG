@@ -6,6 +6,7 @@ import * as d3 from 'd3';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
+import { materialStackKey } from './entities.js';
 import { SYSTEMS_GUIDE, SKILL_MODS } from './data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -1483,13 +1484,26 @@ export class UI {
     if (!grid) return;
     grid.innerHTML = '';
     const mats = p.materials || [];
+    // gemas/runas idénticas se muestran APILADAS (una celda con contador); la
+    // celda referencia el índice real de la primera unidad de la pila
+    const cellsList = [];
+    const stackAt = new Map();
+    mats.forEach((item, i) => {
+      const k = materialStackKey(item);
+      if (k && stackAt.has(k)) { stackAt.get(k).count++; return; }
+      const c = { item, index: i, count: 1 };
+      if (k) stackAt.set(k, c);
+      cellsList.push(c);
+    });
     // celdas para todo el material + algunas vacías para arrastrar/soltar
-    const cells = Math.max(24, mats.length + 4);
-    for (let i = 0; i < cells; i++) {
-      const item = mats[i];
+    const cells = Math.max(24, cellsList.length + 4);
+    for (let n = 0; n < cells; n++) {
+      const c = cellsList[n];
+      const item = c?.item;
+      const i = c ? c.index : mats.length + (n - cellsList.length); // vacías → "al final"
       const div = document.createElement('div');
       div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
-      div.innerHTML = this.itemCellHTML(item);
+      div.innerHTML = this.itemCellHTML(item) + (c && c.count > 1 ? `<span class="cell-qty">×${c.count}</span>` : '');
       this.bindCell(div, { zone: 'mat', key: i, item }, item ? () => this.itemPopup(item, { from: 'mat', index: i }) : null);
       grid.appendChild(div);
     }
@@ -2693,6 +2707,7 @@ export class UI {
     if (has('portal_next')) items.push(['#ff5577', 'diamond', 'Descenso']);
     if (has('waypoint')) items.push(['#44ddff', 'diamond', 'Punto de viaje']);
     if (has('zone_dungeon')) items.push(['#aa66ff', 'diamond', 'Mazmorra']);
+    if (has('zone_exit')) items.push(['#88dd66', 'diamond', 'Camino a región']);
     if ((w.interactables || []).some(it => it.type.startsWith('portal') && it.type !== 'portal_next')) items.push(['#55aaff', 'diamond', 'Portal']);
     if (has('shrine')) items.push(['#9ff0c4', 'dot', 'Altar']);
     if ((w.interactables || []).some(it => ['vendor', 'questgiver', 'stash', 'enchanter', 'healer', 'petkeeper'].includes(it.type))) items.push(['#ffd24a', 'dot', 'NPC']);
@@ -2764,6 +2779,7 @@ export class UI {
   poiColor(type) {
     if (type === 'zone_dungeon') return '#aa66ff';
     if (type === 'portal_zone') return '#66cc55';
+    if (type === 'zone_exit') return '#88dd66';
     if (type === 'portal_next') return '#ff5577';
     if (type === 'waypoint') return '#44ddff';
     if (type === 'shrine') return '#9ff0c4';
@@ -2783,6 +2799,11 @@ export class UI {
     if (t === 'portal_next') return { color: '#ff5577', r: 3, shape: 'diamond' };
     if (t === 'zone_dungeon') return { color: '#aa66ff', r: 3, shape: 'diamond' };
     if (t === 'waypoint') return { color: '#44ddff', r: 3, shape: 'diamond' };
+    // camino a otra región: verde; gris si aún no alcanzas su nivel mínimo
+    if (t === 'zone_exit') {
+      const locked = (this.game.player?.level || 1) < (it.minLevel || 0);
+      return { color: locked ? '#777777' : '#88dd66', r: 3, shape: 'diamond' };
+    }
     if (t.startsWith('portal')) return { color: this.poiColor(t) || '#55aaff', r: 3, shape: 'diamond' };
     const col = this.poiColor(t);
     return col ? { color: col, r: 2, shape: 'dot' } : null;

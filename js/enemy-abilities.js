@@ -38,7 +38,7 @@ export const enemyAbilities = {
       const pos = boss.pos.clone().add(new THREE.Vector3(Math.sin(a) * 1.8, 0, Math.cos(a) * 1.8));
       if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(boss.pos);
       pos.y = 0;
-      const e = new Enemy(this, scaleEnemy(base, this.world.scaleFloor || 1), pos);
+      const e = this.buffByPact(new Enemy(this, scaleEnemy(base, this.world.scaleFloor || 1), pos));
       this.enemies.push(e);
       this.entityGroup.add(e.group);
     }
@@ -137,7 +137,7 @@ export const enemyAbilities = {
       const pos = enemy.pos.clone().add(new THREE.Vector3(Math.sin(a) * 1.6, 0, Math.cos(a) * 1.6));
       if (!this.world.grid.walkable(pos.x, pos.z)) pos.copy(enemy.pos);
       pos.y = 0;
-      const e = new Enemy(this, scaleEnemy(base, floor), pos);
+      const e = this.buffByPact(new Enemy(this, scaleEnemy(base, floor), pos));
       e.raisedBy = enemy.uid; // vínculo para debilitarlos al morir el invocador
       e.aggroed = true;
       this.enemies.push(e);
@@ -321,7 +321,7 @@ export const enemyAbilities = {
           const cp = at.clone().add(new THREE.Vector3(Math.sin(a) * 0.9, 0, Math.cos(a) * 0.9));
           if (!this.world.grid.walkable(cp.x, cp.z)) cp.copy(at);
           cp.y = 0;
-          const e = new Enemy(this, scaleEnemy(base, floor), cp);
+          const e = this.buffByPact(new Enemy(this, scaleEnemy(base, floor), cp));
           e.aggroed = true;
           this.enemies.push(e);
           this.entityGroup.add(e.group);

@@ -116,7 +116,7 @@ export const zoneLifeMethods = {
     def.worldBoss = true;
     def.rankLabel = `👑 ${def.name} (Jefe de Mundo)`;
     def.labelCls = 'lbl-elite';
-    const e = new Enemy(this, def, pos);
+    const e = this.buffByPact(new Enemy(this, def, pos));
     e.home = pos.clone();   // ronda su zona; si lo alejas demasiado, vuelve
     e.leash = 14;
     this.enemies.push(e);
@@ -138,7 +138,7 @@ export const zoneLifeMethods = {
     def.stronghold = biome;
     def.rankLabel = `🏰 Guardián del Bastión`;
     def.labelCls = 'lbl-elite';
-    const e = new Enemy(this, def, pos);
+    const e = this.buffByPact(new Enemy(this, def, pos));
     e.home = pos.clone();
     e.leash = 16;
     this.enemies.push(e);
@@ -167,7 +167,7 @@ export const zoneLifeMethods = {
     if (v.hpMul) def.hp = Math.round(def.hp * v.hpMul);
     def.rankLabel = v.label;
     def.labelCls = 'lbl-elite';
-    const e = new Enemy(this, def, at);
+    const e = this.buffByPact(new Enemy(this, def, at));
     e.escapeT = 26;
     this.enemies.push(e);
     this.entityGroup.add(e.group);

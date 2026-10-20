@@ -74,6 +74,7 @@ export const eraMethods = {
     if (this.eraObjProgress(obj) < obj.goal) { this.ui.message('Aún no has completado ese objetivo'); return; }
     p.era.claimed[objId] = true;
     p.gold += obj.reward.gold || 0;
+    // los fragmentos son material de PROGRESO: nunca los bloquea el tope de la bolsa
     if (obj.reward.frag) { p.materials.push(makeFragment()); }
     this.sfx('levelup');
     this.ui.message(`🏆 Recompensa de Era: +${obj.reward.gold} 🪙${obj.reward.frag ? ' y un Fragmento' : ''}`, 3500);

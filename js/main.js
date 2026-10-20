@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, skillVal, synergyBonus, TIER_LEVELS, SKILL_MODS, aggregateSkillMods } from './data.js';
 import { buildTown, buildDungeon, buildRefuge, makePortal } from './world.js';
 import { buildZone } from './zones.js';
-import { Player, Enemy, Projectile, Pet, MAX_MATERIALS } from './entities.js';
-import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES } from './items.js';
+import { Player, Enemy, Projectile, Pet, canAddMaterial } from './entities.js';
+import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES, syncItemUids } from './items.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -326,6 +326,9 @@ class Game {
     }
     const classId = saved ? saved.classId : pick;
     this.player = new Player(this, classId, saved, opts);
+    // uids de objetos: el contador arranca por encima de lo ya guardado (héroe +
+    // alijo compartido + tienda en memoria) y se re-numeran duplicados viejos
+    syncItemUids(this.player.toSaveData(), this.stash, this.shopStock?.items);
     if (!saved) {
       // primera habilidad gratis
       const first = this.player.cls.skills[0];
@@ -353,19 +356,7 @@ class Game {
   save() {
     const p = this.player;
     if (!p) return;
-    const data = {
-      classId: p.classId, level: p.level, xp: p.xp, attributes: p.attributes,
-      statPoints: p.statPoints, skillPoints: p.skillPoints, skills: p.skills,
-      gold: p.gold, potions: p.potions, inventory: p.inventory, materials: p.materials, equipment: p.equipment,
-      lastFloor: p.lastFloor, hp: Math.round(p.hp), mp: Math.round(p.mp),
-      waypoints: p.waypoints, records: p.records, cube: p.cube,
-      quest: p.quest, hardcore: p.hardcore, pet: p.pet, mastery: p.mastery, era: p.era, titles: p.titles, title: p.title,
-      discoveredZones: p.discoveredZones, homeZone: p.homeZone, strongholdsCleared: p.strongholdsCleared, dailyDone: p.dailyDone, tips: p.tips,
-      supports: p.supports, knownSupports: p.knownSupports, skillMods: p.skillMods,
-      paragon: p.paragon, refugeUnlocked: p.refugeUnlocked, discovered: p.discovered,
-      heroName: p.heroName, tint: p.tint,
-      torment: p.torment, codex: p.codex, blessings: p.blessings,
-    };
+    const data = p.toSaveData(); // incluye skillSystemV/skillBranches/hotbar (migración idempotente)
     try { localStorage.setItem(this.slotKey(this.activeSlot), JSON.stringify(data)); } catch { /* sin almacenamiento */ }
   }
 
@@ -401,7 +392,7 @@ class Game {
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose());
       });
     }
-    for (const e of this.enemies) this.entityGroup.remove(e.group);
+    for (const e of this.enemies) { this.entityGroup.remove(e.group); e.dispose?.(); } // libera GPU
     // limpia por completo loot y efectos (a prueba de mallas huérfanas que
     // quedaban como objetos estáticos al cambiar de mundo)
     const clearGroup = (grp) => {
@@ -499,7 +490,10 @@ class Game {
         const road = makePortal(0x88bb66, linkBiome);
         road.position.copy(cell);
         w.group.add(road);
-        w.interactables.push({ type: 'zone_exit', biome: linkBiome, auto: true, pos: cell.clone(), radius: 1.5, label: `🛣️ Camino a ${linkBiome}`, labelCls: 'lbl-portal', mesh: road });
+        const minLevel = ZONE_LIST.find(z => z.biome === linkBiome)?.minLevel || 1;
+        const locked = (this.player?.level || 1) < minLevel;
+        w.interactables.push({ type: 'zone_exit', biome: linkBiome, minLevel, auto: true, pos: cell.clone(), radius: 1.5,
+          label: locked ? `🔒 Camino a ${linkBiome} (nivel ${minLevel})` : `🛣️ Camino a ${linkBiome}`, labelCls: 'lbl-portal', mesh: road });
       }
       // Bastión sin reclamar: aparece su Guardián (al caer, la zona se reclama)
       if (zdef?.stronghold && !this.isHomeZone(w.biome)) this.spawnStrongholdGuardian(w.biome);
@@ -589,7 +583,8 @@ class Game {
       } else {
         def = rollEnemyRank(scaleEnemy(pickEnemyDef(sf), sf), sf);
       }
-      const enemy = new Enemy(this, def, s.pos);
+      // mods de grieta/pacto también al spawn inicial (antes solo oleadas/respawn)
+      const enemy = this.buffByPact(new Enemy(this, def, s.pos));
       this.enemies.push(enemy);
       this.entityGroup.add(enemy.group);
     }
@@ -919,7 +914,7 @@ class Game {
     const chainId = leader.modId === 'cadenas' ? `chain_${Date.now()}_${Math.floor(Math.random() * 1e4)}` : null;
     const linked = [];
 
-    const lead = new Enemy(this, leader, positions[0]);
+    const lead = this.buffByPact(new Enemy(this, leader, positions[0]));
     if (chainId) lead.chainId = chainId;
     this.enemies.push(lead);
     this.entityGroup.add(lead.group);
@@ -933,7 +928,7 @@ class Game {
       if (leader.modId === 'veloz') minion.spd = m.spd * 1.3;
       // los esbirros de una manada Cadenas también comparten el daño
       if (chainId) minion.chains = true;
-      const e = new Enemy(this, minion, pos);
+      const e = this.buffByPact(new Enemy(this, minion, pos));
       if (chainId) e.chainId = chainId;
       this.enemies.push(e);
       this.entityGroup.add(e.group);
@@ -944,8 +939,10 @@ class Game {
   }
 
   // aplica los modificadores del pacto a un enemigo que aparece tras sellarlo
+  // TODO enemigo creado en el mundo debe pasar por aquí (spawn inicial, manadas,
+  // oleadas, respawn, invocaciones…); lo vigila test56-hotfixes.
   buffByPact(e) {
-    const m = this.world.pactEnemyMods;
+    const m = this.world?.pactEnemyMods;
     if (!m) return e;
     if (m.ehp) { const add = Math.round(e.maxHP * m.ehp); e.maxHP += add; e.hp += add; }
     if (m.edmg) e.def = { ...e.def, dmg: Math.round(e.def.dmg * (1 + m.edmg)) };
@@ -1017,9 +1014,9 @@ class Game {
         // Sangre Fría: crítico garantizado si el objetivo ya está ralentizado/congelado
         const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? 100 : 0);
         const { dmg, crit } = this.player.rollDamage(mult, cb);
-        e.takeDamage(dmg, crit, { color: opts.color });
+        const dealt = e.takeDamage(dmg, crit, { color: opts.color }) || 0;
         if (opts.slow) e.slowT = opts.slow;
-        if (opts.onHit) opts.onHit(e, dmg);
+        if (opts.onHit) opts.onHit(e, dealt); // daño REAL infligido (robo de vida)
         hits++;
       }
     }
@@ -1261,7 +1258,7 @@ class Game {
       if (!e || !e.alive) return;
       if (supDoT) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval);
       if (m.vuln) e.vulnT = Math.max(e.vulnT || 0, m.vuln);
-      if (m.stun) { e.stunT = Math.max(e.stunT || 0, m.stun); e.slowT = Math.max(e.slowT || 0, m.stun); }
+      if (m.stun) e.applyStun(m.stun); // con rendimientos decrecientes y regla de jefe
       // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
       if (m.execute && e.alive) {
         const boss = e.def?.boss || e.def?.uber || e.def?.worldBoss;
@@ -1270,7 +1267,34 @@ class Game {
     };
     let casted = true;
     let hitCount = 0;                 // nº de enemigos golpeados (para Masacre/cdhit)
+    let dealtTotal = 0;               // daño infligido de verdad (robo de vida "Sediento")
+    // impacto de área/melee: acumula daño real y aplica los efectos al golpeado
+    const onAreaHit = (e, dealt) => { dealtTotal += dealt || 0; applyDoT(e); };
+    // recurso de los básicos NO-arma (Mandoble/Embate): solo si golpean algo
+    let genGiven = false;
+    const grantBasicGen = () => {
+      if (genGiven || !isBasic || isEcho) return;
+      genGiven = true;
+      p.mp = Math.min(p.stats.maxMP, p.mp + (sk.gen || p.cls.resource?.gen || 0) + (m.gen || 0));
+      p.furiaIdle = 0;
+    };
     let zoneCenter = null, zoneRad = 0; // dónde dejar la Estela (zona de daño)
+
+    // impacto REAL de un proyectil de esta habilidad: efectos de Variante (DoT,
+    // aturdir, vulnerable), encadenado (una vez por lanzamiento), robo de vida
+    // sobre el daño infligido y recurso de los básicos. Antes se aplicaban al
+    // enemigo más cercano al lanzar, aunque el proyectil fallara.
+    let chained = false;
+    const projHit = (e, dealt) => {
+      if (casted === false) return;
+      if (e?.alive && !chained && (has('chain') || m.chain)) {
+        chained = true;
+        this.spawnChainBounce(e, Math.round(avgHit), (m.chain || 2), [], sk.color || 0x66ddff);
+      }
+      applyDoT(e);
+      if (m.lifesteal && dealt > 0) p.hp = Math.min(p.stats.maxHP, p.hp + dealt * m.lifesteal / 100);
+      grantBasicGen();
+    };
 
     // efectos temáticos por habilidad (impacto/estela/aura/buff). Tolerante:
     // emitFx no hace nada si el motor de partículas no está activo.
@@ -1287,7 +1311,8 @@ class Game {
         p.swing = 1;
         const cb = skCrit + (supColdblood && e.slowT > 0 ? 100 : 0);
         const { dmg, crit } = p.rollDamage(mult, cb);
-        e.takeDamage(dmg, crit, { color: dmgColor });
+        dealtTotal += e.takeDamage(dmg, crit, { color: dmgColor }) || 0;
+        hitCount = 1;
         if (supSlow && e.alive) e.slowT = supSlow;
         applyDoT(e);
         if (m.chain && e.alive) this.spawnChainBounce(e, Math.round(avgHit), m.chain, [], 0xffbb44);
@@ -1302,7 +1327,7 @@ class Game {
       case 'aoe_self': {
         const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
         this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT, color: dmgColor });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
         zoneCenter = p.pos.clone(); zoneRad = rad;
         p.swing = 1;
         // Aura/onda centrada en el jugador (Torbellino, Nova de Hielo).
@@ -1335,7 +1360,7 @@ class Game {
           if (fx?.extra) this.emitFx(fx.extra, dp);
           this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
         }, 230);
-        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT, color: dmgColor });
+        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
         zoneCenter = target.clone(); zoneRad = rad;
         break;
       }
@@ -1360,7 +1385,7 @@ class Game {
         }
         const rad = sk.radius * supRadius;
         this.spawnRing(p.pos, rad, 0xffcc66);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: applyDoT, color: dmgColor });
+        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor });
         zoneCenter = p.pos.clone(); zoneRad = rad;
         if (m.chain) { const ne = this.nearestEnemy(rad + 2); if (ne) this.spawnChainBounce(ne, Math.round(avgHit), m.chain, [], 0xffcc66); }
         p.swing = 1;
@@ -1390,16 +1415,11 @@ class Game {
             dmg, crit, friendly: true, pierce: supPierce, slow: supSlow,
             color: sk.color || 0xffffff, size: 0.14,
             impactPreset: fx?.impact,   // el impacto temático lo dispara el proyectil AL CHOCAR
+            onHit: projHit,             // DoT/aturdir/vulnerable/encadenado/robo: al impactar
           });
         }
         // rayo: además del proyectil veloz, un "zap" eléctrico instantáneo
         if (sk.id === 'rayo' || sk.beam) this.spawnBeam(muzzle, target.clone().setY(1.0), sk.color || 0xffee66);
-        // Encadenado y DoT de proyectil: se aplican sobre el objetivo apuntado
-        // (el enemigo más cercano), donde tenemos confirmación de impacto.
-        if (near && near.alive && p.pos.distanceTo(near.pos) <= (sk.range || 10)) {
-          if (has('chain') || m.chain) this.spawnChainBounce(near, Math.round(avgHit), (m.chain || 2), [], sk.color || 0x66ddff);
-          applyDoT(near);
-        }
         break;
       }
       case 'buff': {
@@ -1415,8 +1435,9 @@ class Game {
       }
     }
 
-    // robo de vida (opción Sediento): cura según el daño medio del lanzamiento
-    if (casted && m.lifesteal) p.hp = Math.min(p.stats.maxHP, p.hp + avgHit * m.lifesteal / 100);
+    // robo de vida (opción Sediento): % del daño REALMENTE infligido (0 si falla).
+    // Los proyectiles lo aplican en su impacto (projHit).
+    if (casted && m.lifesteal && dealtTotal > 0) p.hp = Math.min(p.stats.maxHP, p.hp + dealtTotal * m.lifesteal / 100);
     // Estela (Transformación): deja una ZONA DE DAÑO persistente donde golpeó
     if (casted && m.zone && zoneCenter) {
       this.spawnGroundZone(zoneCenter, Math.max(2, zoneRad * 0.9), avgHit * 0.45, 4, sk.color || 0xff7733);
@@ -1424,10 +1445,10 @@ class Game {
     if (casted) {
       if (!isEcho) {
         if (isBasic) {
-          // básico: no cuesta recurso, lo GENERA, y se rige por la cadencia de ataque
+          // básico: no cuesta recurso, lo GENERA (solo si golpeó algo; los de
+          // proyectil lo generan al impactar), y se rige por la cadencia de ataque
           p.atkCd = p.stats.atkTime;
-          p.mp = Math.min(p.stats.maxMP, p.mp + (sk.gen || p.cls.resource?.gen || 0) + (m.gen || 0));
-          p.furiaIdle = 0;
+          if (hitCount > 0) grantBasicGen();
         } else {
           p.mp -= cost;
           if (m.gen) p.mp = Math.min(p.stats.maxMP, p.mp + m.gen); // opción Furibundo/Iracundo
@@ -1890,7 +1911,8 @@ class Game {
       } else { p.gold += 30; this.ui.message('Soporte ya conocido (+30 🪙)'); }
     } else if (it.kind === 'gem' || it.kind === 'rune' || it.kind === 'riftkey' || it.kind === 'fragment' || it.kind === 'glyph') {
       // materiales: van a la bolsa de materiales (no a la mochila)
-      if (p.materials.length >= MAX_MATERIALS) { this.ui.message('Bolsa de materiales llena'); return; }
+      // gemas/runas idénticas apilan; llaves/fragmentos/glifos nunca se bloquean
+      if (!canAddMaterial(p.materials, it)) { this.ui.message('Bolsa de materiales llena'); return; }
       p.materials.push(it);
       this.ui.message(`Obtienes: ${it.name}`, 1800);
       this.sfx('pickup');
@@ -2034,6 +2056,7 @@ class Game {
       const e = this.enemies[i];
       if (e.update(dt)) {
         this.entityGroup.remove(e.group);
+        e.dispose?.();            // geometrías/materiales propios (evita fuga de GPU)
         this.enemies.splice(i, 1);
       } else if (e.alive && e.group.userData.bar.visible) {
         // orientar la barra de vida hacia la cámara compensando la rotación del enemigo
@@ -2130,7 +2153,7 @@ class Game {
         // hueco en la mochila y supera el filtro de loot. Así, caminar hasta el
         // botín lo recoge aunque uses el joystick (que cancela el "ir a por él").
         const isMaterial = k === 'gem' || k === 'rune' || k === 'riftkey' || k === 'fragment' || k === 'glyph';
-        const hasRoom = isMaterial ? p.materials.length < MAX_MATERIALS : p.inventory.length < 32;
+        const hasRoom = isMaterial ? canAddMaterial(p.materials, gi.item) : p.inventory.length < 32;
         const needsBag = k === 'item' || isMaterial;
         const auto = k === 'gold' || k === 'potion' || k === 'support'
           || (needsBag && hasRoom && this.passesLootFilter(gi.item.rarity));
@@ -2375,9 +2398,9 @@ class Game {
         else this.loadWorld({ type: 'zone', biome: p.homeZone || 'Cripta' });
         break;
       case 'zone_exit':
-        // "camino" a una región adyacente: se cruza caminando (mundo D4-lite)
-        this.fromZone = null;
-        this.loadWorld({ type: 'zone', biome: it.biome });
+        // "camino" a una región adyacente: se cruza caminando (mundo D4-lite),
+        // respetando el nivel mínimo de la región (crossZoneExit avisa si no)
+        this.crossZoneExit(it);
         break;
       case 'portal_next':
         p.lastFloor = this.world.floor + 1;
@@ -2473,7 +2496,7 @@ class Game {
           let def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor), floor), floor);
           for (let t = 0; t < 12 && !def.rank; t++)
             def = rollEnemyRank(scaleEnemy(pickEnemyDef(floor), floor), floor);
-          const e = new Enemy(this, def, pos);
+          const e = this.buffByPact(new Enemy(this, def, pos));
           this.enemies.push(e);
           this.entityGroup.add(e.group);
         }

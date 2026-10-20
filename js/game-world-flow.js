@@ -87,8 +87,31 @@ export const worldFlowMethods = {
   // viaje a una zona abierta (regiones desbloqueadas por nivel)
   travelToZone(biome) {
     this.ui.closePanel();
+    const need = this.zoneLevelGap(biome);
+    if (need) { this.ui.message(`🔒 ${biome} requiere nivel ${need}`, 2500); return false; }
     this.fromZone = null;
     this.loadWorld({ type: 'zone', biome });
+    return true;
+  },
+
+  // nivel que falta para entrar a una región (0 = accesible ya)
+  zoneLevelGap(biome) {
+    const z = ZONE_LIST.find(x => x.biome === biome);
+    const need = z?.minLevel || 0;
+    return (this.player?.level || 1) >= need ? 0 : need;
+  },
+
+  // "camino" (zone_exit) a una región adyacente: se cruza caminando, pero SOLO
+  // si alcanzas su nivel mínimo; si no, avisa y no cruza.
+  crossZoneExit(it) {
+    const need = this.zoneLevelGap(it.biome);
+    if (need) {
+      this.ui.message(`🔒 Camino a ${it.biome} bloqueado: requiere nivel ${need} (tienes ${this.player?.level || 1})`, 3000);
+      return false;
+    }
+    this.fromZone = null;
+    this.loadWorld({ type: 'zone', biome: it.biome });
+    return true;
   },
 
   // fija el pueblo favorito (reaparición) — solo refugios descubiertos (Cripta o

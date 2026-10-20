@@ -106,6 +106,42 @@ const LEGENDARY_NAMES = ['Perdición de Reyes', 'Aliento del Dragón', 'Lágrima
 
 let itemUid = 1;
 
+// Los objetos guardados conservan su uid, pero el contador se reiniciaba en cada
+// carga → los nuevos drops repetían uids y socketGem/tienda (que buscan por uid)
+// podían tocar el objeto equivocado. Al cargar se llama a syncItemUids con TODO
+// lo persistido (inventario, materiales, equipo, cubo, glifos, alijo, tienda):
+//  1) sube el contador por encima del máximo uid numérico existente;
+//  2) re-numera los uids DUPLICADOS (saves ya afectados por el bug).
+// Recorre en profundidad (gemas engarzadas incluidas) con guarda de ciclos.
+export function syncItemUids(...roots) {
+  const found = [];
+  const seenObj = new Set();
+  const walk = (v, depth) => {
+    if (!v || typeof v !== 'object' || depth > 8 || seenObj.has(v)) return;
+    seenObj.add(v);
+    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+    // solo objetos planos (evita meterse en Player/Three.js si alguien los pasa)
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) return;
+    if (typeof v.uid === 'number' && v.kind) found.push(v);
+    for (const k of Object.keys(v)) walk(v[k], depth + 1);
+  };
+  for (const r of roots) walk(r, 0);
+  let max = 0;
+  for (const it of found) if (it.uid > max) max = it.uid;
+  itemUid = Math.max(itemUid, max + 1);
+  const used = new Set();
+  let renumbered = 0;
+  for (const it of found) {
+    if (used.has(it.uid)) { it.uid = itemUid++; renumbered++; }
+    used.add(it.uid);
+  }
+  return renumbered;
+}
+
+// próximo uid que se asignará (para tests/diagnóstico)
+export function peekItemUid() { return itemUid; }
+
 function ri(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
