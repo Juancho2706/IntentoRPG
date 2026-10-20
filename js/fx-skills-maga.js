@@ -1,14 +1,181 @@
 // ============================================================
 // VFX/SFX de las habilidades de la clase MAGA — dueño: trabajador de la clase (2b.1)
 // ============================================================
-// Stub del Paso 2b.0: js/fx-skills.js FUSIONA estos mapas en SKILL_FX /
-// SKILL_FX_PRESETS, así el trabajador no toca archivos compartidos.
+// js/fx-skills.js FUSIONA estos mapas en SKILL_FX / SKILL_FX_PRESETS.
 //  - MAGA_FX: { idHabilidad: { trail?, impact?, aura?, extra?, auraY?, color?, sfx? } }
 //    cada campo es un preset de partículas (objeto parcial, ver js/particles.js) o el
-//    NOMBRE de uno existente (string; p. ej. 'fireballBlast'). `sfx` es un nombre de
-//    js/sfx.js ('fire', 'ice', 'bolt', 'holy', 'trap', 'chain', 'hit', 'shoot'…).
-//  - MAGA_FX_PRESETS: presets nuevos con nombre (se pueden referenciar por string).
-// Para reutilizar un preset de fx-skills.js, refiérelo por su NOMBRE (no lo importes:
-// fx-skills.js importa este archivo y se formaría un ciclo).
-export const MAGA_FX = {};
-export const MAGA_FX_PRESETS = {};
+//    NOMBRE de uno existente (string). `sfx` es un nombre de js/sfx.js.
+//  - MAGA_FX_PRESETS: presets nuevos con nombre (se citan por string).
+// Presets de fx-skills.js citados por NOMBRE (no se importan: habría ciclo):
+//   fireballTrail/Blast/Wave/Smoke, frostNova/Shards/Mist, boltTrail/Spark/Flash,
+//   frostArmor/frostArmorRing, meteorFall/Impact/Wave/Embers/Smoke.
+// Paleta por elemento (fx-skills.js): fuego naranja/rojo · escarcha cian/blanco ·
+// arcano violeta. Sonidos elementales de §4.4: fire / ice / bolt.
+// Este archivo no importa nada.
+
+export const MAGA_FX_PRESETS = {
+  // ---- Ascua (básico de fuego): brasa pequeña + chisporroteo al estallar ----
+  emberTrail: {
+    name: 'Ascua estela', texture: 'glow', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.15, 0.3],
+    shape: 'sphere', shapeRadius: 0.1, speed: [0.3, 1.2], gravity: -0.6, drag: 0.6,
+    size: { start: [0.16, 0.3], end: 0.0 },
+    color: { start: '#ffe6a8', end: '#e0400c' }, alpha: { start: 0.9, end: 0 },
+  },
+  emberBurst: {
+    name: 'Ascua estallido', texture: 'spark', blending: 'additive',
+    count: 26, burst: true, lifetime: [0.18, 0.42],
+    shape: 'sphere', shapeRadius: 0.16, speed: [2.5, 6], gravity: 3, drag: 0.6,
+    size: { start: [0.12, 0.28], end: 0.0 },
+    color: { start: '#fff0c0', end: '#ff5a14' }, alpha: { start: 1, end: 0 },
+  },
+  emberRing: {
+    name: 'Ascua onda', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.2, 0.26],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.3, 0.4], end: 2.6 },
+    color: { start: '#ffd98a', end: '#c8300a' }, alpha: { start: 0.75, end: 0 },
+  },
+
+  // ---- Toque Gélido (básico de escarcha): vaho en cono + escarcha flotante ----
+  frostBreath: {
+    name: 'Toque Gélido vaho', texture: 'smoke', blending: 'additive',
+    count: 26, burst: true, lifetime: [0.3, 0.6],
+    shape: 'cone', shapeRadius: 0.12, coneAngle: 70, speed: [4, 8], gravity: -0.2, drag: 1.2,
+    size: { start: [0.3, 0.55], end: 1.3 },
+    color: { start: '#eaf7ff', end: '#5cb6ff' }, alpha: { start: 0.55, end: 0 },
+  },
+  frostBreathMotes: {
+    name: 'Toque Gélido escarcha', texture: 'star', blending: 'additive',
+    count: 14, burst: true, lifetime: [0.35, 0.7],
+    shape: 'disc', shapeRadius: 0.9, speed: [0.4, 1.4], gravity: -0.8, drag: 0.6,
+    size: { start: [0.12, 0.24], end: 0.0 },
+    color: { start: '#ffffff', end: '#9fe3ff' }, alpha: { start: 0.9, end: 0 }, spin: 160,
+  },
+
+  // ---- Paso de Escarcha: polvo de hielo a ras de suelo + destello al llegar ----
+  frostStepTrail: {
+    name: 'Paso de Escarcha estela', texture: 'spark', blending: 'additive',
+    count: 12, burst: true, lifetime: [0.3, 0.7],
+    shape: 'disc', shapeRadius: 0.5, speed: [0.4, 1.6], gravity: -0.4, drag: 0.8,
+    size: { start: [0.14, 0.3], end: 0.0 },
+    color: { start: '#ffffff', end: '#7accff' }, alpha: { start: 0.9, end: 0 }, spin: 200,
+  },
+  frostStepBurst: {
+    name: 'Paso de Escarcha llegada', texture: 'star', blending: 'additive',
+    count: 22, burst: true, lifetime: [0.3, 0.6],
+    shape: 'ring', shapeRadius: 0.5, speed: [1.5, 3.5], gravity: -1, drag: 0.6,
+    size: { start: [0.18, 0.36], end: 0.0 },
+    color: { start: '#eaf7ff', end: '#5cb6ff' }, alpha: { start: 0.95, end: 0 }, spin: 140,
+  },
+
+  // ---- Estela Ígnea: llamas que brotan del rastro + fogonazo al llegar ----
+  fireStepTrail: {
+    name: 'Estela Ígnea llamas', texture: 'glow', blending: 'additive',
+    count: 14, burst: true, lifetime: [0.3, 0.65],
+    shape: 'disc', shapeRadius: 0.5, speed: [0.6, 2.2], gravity: -2.4, drag: 0.6,
+    size: { start: [0.25, 0.5], end: 0.0 },
+    color: { start: '#fff2b0', end: '#d83a0a' }, alpha: { start: 0.9, end: 0 },
+  },
+  fireStepBurst: {
+    name: 'Estela Ígnea llegada', texture: 'spark', blending: 'additive',
+    count: 24, burst: true, lifetime: [0.25, 0.55],
+    shape: 'ring', shapeRadius: 0.4, speed: [2, 5], gravity: 2, drag: 0.5,
+    size: { start: [0.14, 0.3], end: 0.0 },
+    color: { start: '#ffe6a8', end: '#ff4a10' }, alpha: { start: 1, end: 0 },
+  },
+
+  // ---- Onda Repulsora: anillo arcano que se expande + runas que salen despedidas ----
+  repulseWave: {
+    name: 'Onda Repulsora anillo', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.3, 0.36],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.6, 0.7], end: 7.0 },
+    color: { start: '#f0e0ff', end: '#7a3cd6' }, alpha: { start: 0.85, end: 0 },
+  },
+  repulseRunes: {
+    name: 'Onda Repulsora runas', texture: 'star', blending: 'additive',
+    count: 40, burst: true, lifetime: [0.3, 0.6],
+    shape: 'ring', shapeRadius: 0.8, speed: [7, 12], gravity: 0, drag: 1.4,
+    size: { start: [0.18, 0.38], end: 0.0 },
+    color: { start: '#ffffff', end: '#b98cff' }, alpha: { start: 1, end: 0 }, spin: 220,
+  },
+
+  // ---- Supernova: núcleo estelar que colapsa + llamarada dorada + brasas ----
+  supernovaFall: {
+    name: 'Supernova caída', texture: 'star', blending: 'additive',
+    count: 30, burst: true, lifetime: [0.3, 0.55],
+    shape: 'sphere', shapeRadius: 0.4, speed: [0.5, 2], gravity: 6, drag: 0.3,
+    size: { start: [0.4, 0.8], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffcc44' }, alpha: { start: 1, end: 0 }, spin: 90,
+  },
+  supernovaCore: {
+    name: 'Supernova núcleo', texture: 'glow', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.22, 0.3],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [3.2, 3.6], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffd27a' }, alpha: { start: 1, end: 0 },
+  },
+  supernovaFlare: {
+    name: 'Supernova llamarada', texture: 'glow', blending: 'additive',
+    count: 120, burst: true, lifetime: [0.35, 0.9],
+    shape: 'disc', shapeRadius: 1.0, speed: [6, 13], gravity: -1, drag: 0.5,
+    size: { start: [0.5, 1.1], end: 0.0 },
+    color: { start: '#fffbe0', end: '#e0621a' }, alpha: { start: 1, end: 0 },
+  },
+
+  // ---- Tormenta Glacial: remolino de nieve que acompaña a la Maga ----
+  glacialStorm: {
+    name: 'Tormenta Glacial nieve', texture: 'star', blending: 'additive',
+    count: 30, burst: true, lifetime: [0.5, 1.0],
+    shape: 'ring', shapeRadius: 3.2, speed: [1.5, 4], gravity: 1.2, drag: 0.4,
+    size: { start: [0.14, 0.3], end: 0.0 },
+    color: { start: '#ffffff', end: '#9fd8ff' }, alpha: { start: 0.9, end: 0 }, spin: 260,
+  },
+  glacialStormMist: {
+    name: 'Tormenta Glacial bruma', texture: 'smoke', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.6, 1.1],
+    shape: 'disc', shapeRadius: 3.5, speed: [0.6, 1.8], gravity: -0.2, drag: 0.6,
+    size: { start: [0.8, 1.4], end: 2.6 },
+    color: { start: '#dff3ff', end: '#3a7ab8' }, alpha: { start: 0.3, end: 0 },
+  },
+
+  // ---- Desgarro Arcano: carga en la mano + desgarro violeta en el objetivo ----
+  riftCharge: {
+    name: 'Desgarro Arcano carga', texture: 'star', blending: 'additive',
+    count: 30, burst: true, lifetime: [0.3, 0.6],
+    shape: 'sphere', shapeRadius: 0.6, speed: [-3, -1], gravity: 0, drag: 0.2,
+    size: { start: [0.2, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#a050ff' }, alpha: { start: 1, end: 0 }, spin: 180,
+  },
+  riftImpact: {
+    name: 'Desgarro Arcano impacto', texture: 'spark', blending: 'additive',
+    count: 34, burst: true, lifetime: [0.15, 0.4],
+    shape: 'sphere', shapeRadius: 0.25, speed: [4, 9], gravity: 0, drag: 0.8,
+    size: { start: [0.2, 0.45], end: 0.0 },
+    color: { start: '#ffffff', end: '#c070ff' }, alpha: { start: 1, end: 0 },
+  },
+};
+
+export const MAGA_FX = {
+  // básicos (el Dardo lo dibuja Player.basicAttack: 'basicBolt'; se deja su entrada
+  // para cuando el núcleo lea SKILL_FX también en el básico de arma)
+  m_dardo:         { impact: 'riftImpact', color: 0xcc66ff, sfx: 'bolt' },
+  m_ascua:         { trail: 'emberTrail', impact: 'emberBurst', aura: 'emberRing', color: 0xff8a33, sfx: 'fire' },
+  m_toque:         { impact: 'frostBreathMotes', aura: 'frostBreath', color: 0x9fe3ff, sfx: 'ice' },
+  // gastadoras
+  bola_fuego:      { trail: 'fireballTrail', impact: 'fireballBlast', aura: 'fireballWave', extra: 'fireballSmoke', color: 0xff6622, sfx: 'fire' },
+  rayo:            { aura: 'boltFlash', impact: 'boltSpark', color: 0xffee66, sfx: 'bolt' },
+  nova_hielo:      { aura: 'frostNova', extra: 'frostShards', impact: 'frostMist', auraY: 0.4, color: 0x66ccff, sfx: 'ice' },
+  meteoro:         { trail: 'meteorFall', impact: 'meteorImpact', aura: 'meteorWave', extra: 'meteorEmbers', color: 0xff4400, sfx: 'fire' },
+  // movilidad
+  m_paso_escarcha: { trail: 'frostStepTrail', impact: 'frostStepBurst', color: 0x9fe3ff, sfx: 'dash' },
+  m_estela_ignea:  { trail: 'fireStepTrail', impact: 'fireStepBurst', color: 0xff7733, sfx: 'dash' },
+  // defensa / utilidad
+  m_armadura:      { aura: 'frostArmor', extra: 'frostArmorRing', color: 0x88ccff, sfx: 'ice' },
+  m_onda:          { aura: 'repulseWave', extra: 'repulseRunes', color: 0xb98cff, sfx: 'portal' },
+  // definitivas
+  m_u_supernova:   { trail: 'supernovaFall', impact: 'supernovaCore', aura: 'supernovaFlare', extra: 'meteorEmbers', color: 0xffcc44, sfx: 'fire' },
+  m_u_tormenta:    { aura: 'glacialStorm', extra: 'glacialStormMist', color: 0xbfe9ff, sfx: 'ice' },
+  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt' },
+};
