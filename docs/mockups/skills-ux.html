@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Libro de habilidades · IntentoRPG (mockup Paso 2f)</title>
+<!-- Mockup INTERACTIVO del Paso 2f (docs/paso2f-habilidades-ux.md): libro por categorías,
+     forja de una habilidad (Mejora + 2 Variantes), tooltip rico al pasar el ratón,
+     barra de 6 ranuras con arrastre y estado «variante elegida».
+     Ábrelo en Chrome directamente (file:///). Arte real: D:\Proyectos\IntentoRPG-assets\web\.
+     Los iconos de VARIANTE aún no existen (tandas de Codex, §5): aquí se ven como el icono
+     base virado de color + el glifo de su papel (reserva del juego si un asset no carga).
+     Parámetros: ?cls=guerrero|maga|arquera &res=1920|1366 &sel=<id> &tip=base|mejora|A|B
+                 &drag=<id> (arrastre congelado) &combat=1 &alt=1 &shot=1 (oculta la barra de control) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0b10; --panel:#15111a; --panel2:#1b1621; --gold:#e8c06a; --gold2:#f6dd9c; --ink:#ede6d6; --dim:#a39a88; --dim2:#7c7466;
+  --line:#2f2638; --ok:#7fd36b; --bad:#e2604f; --c:#e8c06a;
+  --r-uni:#f0c45a; --r-area:#ff8a3d; --r-ctrl:#74cdf2; --r-agu:#7fb0e8; --r-apo:#ecc760; --r-mov:#86d47a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#06050a;color:var(--ink);font:15px/1.4 Inter,system-ui,sans-serif}
+kbd{display:inline-block;min-width:20px;padding:0 5px;border:1px solid #6b5a3a;border-bottom-width:2px;border-radius:4px;background:#1d1710;color:#f3e2b5;font:700 11px/17px Inter,sans-serif;text-align:center}
+.ctl{position:sticky;top:0;z-index:100;display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:10px 20px;background:#110e15ee;border-bottom:1px solid var(--line)}
+.ctl h1{margin:0 8px 0 0;font:700 17px Cinzel,serif;color:var(--gold)}
+.ctl label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--dim)}
+.ctl select,.ctl button{background:#1c1622;color:var(--ink);border:1px solid #3a2f45;border-radius:6px;padding:5px 9px;font:inherit;font-size:13px;cursor:pointer}
+body.shot .ctl{display:none}
+#fitbox{position:relative}
+#screen{position:relative;overflow:hidden;width:1920px;height:1080px;--s:1;
+  background:radial-gradient(ellipse 60% 55% at 50% 52%,rgba(120,104,84,.18),transparent 70%),
+    repeating-linear-gradient(30deg,rgba(255,255,255,.03) 0 1px,transparent 1px 64px),
+    repeating-linear-gradient(-30deg,rgba(255,255,255,.03) 0 1px,transparent 1px 64px),
+    radial-gradient(ellipse at 50% 50%,#262019 0%,#121014 60%,#08070a 100%)}
+#screen.r768{width:1366px;height:768px;--s:.8}
+#screen::after{content:'';position:absolute;inset:0;background:rgba(5,4,8,.55);z-index:1}
+
+/* ======================= PANEL ======================= */
+.panel{position:absolute;left:50%;top:50%;z-index:5;width:1560px;height:930px;transform:translate(-50%,-50%) scale(var(--s));transform-origin:50% 50%;
+  display:grid;grid-template-rows:86px 1fr 104px;gap:14px;padding:22px 28px 22px;
+  background:linear-gradient(#17121c,#120e16);border:1px solid #3a2f45;border-radius:14px;
+  box-shadow:0 30px 80px rgba(0,0,0,.7),inset 0 0 0 1px rgba(232,192,106,.08)}
+.p-head{display:flex;align-items:center;gap:18px}
+.p-head .emb{width:64px;height:64px;border-radius:12px;border:1px solid #7a6131;background:#0d0b10 center/cover;box-shadow:0 0 0 3px #1a1420,0 0 18px rgba(232,192,106,.18)}
+.p-head h2{margin:0;font:700 30px Cinzel,serif;color:var(--gold);letter-spacing:.6px;font-variant:small-caps}
+.p-head .sub{color:var(--dim);font-size:14px;margin-top:2px}
+.p-head .sub b{color:var(--ink);font-weight:600}
+.p-head .sp{flex:1}
+.hbtn{display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid #4a3c2a;border-radius:8px;background:linear-gradient(#211a14,#16110d);color:var(--ink);font:600 14px Inter;cursor:pointer}
+.hbtn img{width:26px;height:26px}
+.hbtn.x{width:44px;justify-content:center;padding:0;font-size:20px}
+.hbtn:hover{border-color:var(--gold);color:var(--gold2)}
+.p-body{display:grid;grid-template-columns:660px 1fr;gap:16px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;position:relative;min-height:0;overflow:hidden}
+.card-h{display:flex;align-items:baseline;gap:10px;padding:14px 20px 4px}
+.card-h h3{margin:0;font:700 17px Cinzel,serif;color:var(--ink);font-variant:small-caps;letter-spacing:.5px}
+.card-h .r{margin-left:auto;color:var(--dim);font-size:13px}
+
+/* ---- libro ---- */
+.book{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:min-content;gap:0 14px;padding:0 16px 10px;align-content:start;overflow:auto;max-height:calc(100% - 44px)}
+.sec{padding:4px 2px 0}
+.sec.full{grid-column:1/-1}
+.sec-h{display:flex;align-items:center;gap:7px;height:26px;color:var(--dim);font:600 12px Inter;letter-spacing:1.4px;text-transform:uppercase}
+.sec-h img{width:22px;height:22px;opacity:.9}
+.sec-h .n{margin-left:auto;font-weight:500;letter-spacing:0;color:var(--dim2)}
+.tiles{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
+.tile{position:relative;width:88px;padding:6px 2px 4px;border-radius:10px;text-align:center;cursor:pointer;outline:none;border:1px solid transparent}
+.tile:hover,.tile:focus-visible{background:#1f1926;border-color:#3d3248}
+.tile.sel{background:#241c18;border-color:var(--gold);box-shadow:0 0 0 1px rgba(232,192,106,.3),0 0 16px rgba(232,192,106,.15)}
+.ico{position:relative;width:66px;height:66px;margin:0 auto;border-radius:9px;background:#0d0b10 center/cover no-repeat;
+  box-shadow:inset 0 0 0 2px #3b3044,0 2px 6px rgba(0,0,0,.5)}
+.ico.cat-basic{box-shadow:inset 0 0 0 2px #6b5a3a,0 2px 6px #0008}
+.tile.locked .ico{filter:grayscale(1) brightness(.45)}
+.tile .nm{margin-top:6px;font:600 12.5px/1.15 Inter;color:var(--ink);height:29px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile.locked .nm{color:var(--dim2)}
+.keycap{position:absolute;left:-4px;top:-4px;z-index:2;min-width:30px;height:19px;padding:0 5px;border-radius:5px;background:#e8c06a;color:#1a120a;font:800 11px/19px Inter;letter-spacing:.3px;box-shadow:0 1px 0 #7a5c22}
+.lockb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#d7cdb9;font:700 12px Inter;text-shadow:0 1px 2px #000}
+.lockb svg{width:20px;height:20px;opacity:.85}
+.pips{position:absolute;right:-5px;bottom:-5px;display:flex;gap:2px;z-index:2}
+.pip{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 10px Cinzel,serif;background:#0d0b10;border:1.5px solid #4a3e54;color:#6d6377}
+.pip.m.on{border-color:var(--gold);color:var(--gold);background:#2a2012}
+.pip.v.on{border-color:var(--gold);background:radial-gradient(#5a4520,#241a0c);color:#ffe7a8}
+.pip.v.todo{border-color:var(--gold);color:var(--gold);animation:pulse 1.4s infinite}
+.tile.todo .ico{box-shadow:inset 0 0 0 2px var(--gold),0 0 0 2px rgba(232,192,106,.35);animation:pulse 1.6s infinite}
+.newdot{position:absolute;right:6px;top:2px;width:10px;height:10px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);z-index:3}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,192,106,.6)}50%{box-shadow:0 0 0 6px rgba(232,192,106,0)}}
+.tile.talent .ico{border-radius:50%}
+.ttag{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);padding:0 5px;border-radius:4px;background:#2c2238;border:1px solid #5b4a6c;color:#cdb8ec;font:700 9px/14px Inter;letter-spacing:.8px}
+
+/* ---- forja ---- */
+.forge{display:grid;grid-template-rows:auto 1fr auto;min-height:0}
+.fh{display:grid;grid-template-columns:104px 1fr auto;gap:18px;align-items:center;padding:20px 24px 8px}
+.fh .ico{width:104px;height:104px;border-radius:14px}
+.fh h4{margin:0;font:700 30px Cinzel,serif;color:var(--gold2);font-variant:small-caps}
+.fh .line{margin-top:2px;color:var(--ink);font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:13px;background:#211b28;border:1px solid #3a3045;color:#d8cfbf;font:600 12.5px Inter}
+.chip img{width:18px;height:18px}
+.chip.gold{border-color:#6b5631;color:var(--gold2)}
+.rank{display:flex;flex-direction:column;align-items:flex-end;gap:4px;color:var(--dim);font-size:12px}
+.rank .dots{display:flex;gap:4px}
+.rank .dots i{width:11px;height:11px;border-radius:50%;border:1.5px solid #6b5631}
+.rank .dots i.on{background:var(--gold);border-color:var(--gold)}
+.rank b{color:var(--gold2);font:700 18px Cinzel,serif}
+.tree{position:relative;margin:0 24px;min-height:0}
+.tree svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.tree path{fill:none;stroke:#3d3248;stroke-width:3}
+.tree path.on{stroke:#8a6f38}
+.tree path.sel{stroke:var(--gold);stroke-width:4;filter:drop-shadow(0 0 4px rgba(232,192,106,.7))}
+.node{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:default}
+.node .lbl{margin-top:8px;font:700 11px Inter;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim)}
+.node .nm2{font:700 16px Cinzel,serif;color:var(--ink);white-space:nowrap}
+.n-base .ico{width:92px;height:92px;border-radius:50%;box-shadow:inset 0 0 0 3px #6b5631,0 0 0 4px #15111a,0 0 0 5px #3b3044}
+.n-mej{cursor:pointer}
+.n-mej .dia{width:78px;height:78px;margin:0 auto;transform:rotate(45deg);border-radius:12px;overflow:hidden;box-shadow:0 0 0 3px #4a3e54,0 0 0 6px #15111a}
+.n-mej .dia .ico{width:110px;height:110px;margin:-16px;transform:rotate(-45deg);border-radius:0;box-shadow:none}
+.n-mej.on .dia{box-shadow:0 0 0 3px var(--gold),0 0 0 6px #15111a,0 0 18px rgba(232,192,106,.35)}
+.n-mej.off .dia{filter:grayscale(1) brightness(.5)}
+.n-mej .badge{position:absolute;left:50%;top:-6px;transform:translateX(-50%);z-index:2}
+.vcard{position:absolute;width:380px;height:176px;transform:translate(-50%,-50%);display:grid;grid-template-columns:112px 1fr;gap:14px;align-items:center;padding:14px 16px;
+  border-radius:14px;background:linear-gradient(#1d1723,#171219);border:1.5px solid #3d3248;cursor:pointer;transition:transform .12s,opacity .2s,border-color .2s}
+.vcard:hover{border-color:#8a6f38;transform:translate(-50%,-50%) translateY(-2px)}
+.vcard .ico{width:112px;height:112px;border-radius:12px}
+.vcard .num{position:absolute;left:-14px;top:-14px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(#3a2d17,#1a130a);border:2px solid #8a6f38;color:var(--gold2);font:700 15px Cinzel,serif;z-index:3}
+.vcard .vn{font:700 18px/1.1 Cinzel,serif;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vcard .vs{margin-top:6px;color:#d6ccba;font-size:14px;line-height:1.3}
+.role{display:inline-flex;align-items:center;gap:5px;margin-top:8px;height:24px;padding:0 9px 0 6px;border-radius:12px;font:700 11.5px Inter;letter-spacing:.8px;text-transform:uppercase;background:#0f0c12;border:1px solid currentColor}
+.role svg{width:15px;height:15px}
+.vcard.chosen{border-color:var(--gold);background:linear-gradient(#2a2015,#1a140f);box-shadow:0 0 0 1px rgba(232,192,106,.25),0 0 26px rgba(232,192,106,.18)}
+.vcard.chosen .num{background:radial-gradient(#e8c06a,#9b7a33);color:#1a120a;border-color:#ffe7a8}
+.vcard.other{opacity:.74;filter:saturate(.6)}
+.vcard.other:hover{opacity:.9}
+.vcard.locked{cursor:default;opacity:.6}
+.vcard.locked .ico{filter:grayscale(1) brightness(.45)}
+.vcard.todo{border-color:var(--gold);animation:pulse 1.6s infinite}
+.seal{position:absolute;right:12px;top:-12px;height:24px;padding:0 10px;border-radius:12px;background:linear-gradient(#f3d488,#b88b35);color:#1a120a;font:800 11px/24px Inter;letter-spacing:1.2px;box-shadow:0 2px 6px #0009}
+.lockpill{position:absolute;right:12px;top:-12px;height:24px;padding:0 10px;border-radius:12px;background:#221c28;border:1px solid #4a3e54;color:#cfc4b0;font:700 11px/22px Inter;letter-spacing:.6px;display:inline-flex;align-items:center;gap:5px}
+.lockpill svg{width:12px;height:12px;flex:none}
+.varglyph{position:absolute;right:-3px;bottom:-3px;width:34px;height:34px;border-radius:50%;background:#0d0b10;border:2px solid currentColor;display:flex;align-items:center;justify-content:center}
+.varglyph svg{width:19px;height:19px}
+.vico{position:relative;width:112px;height:112px;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 2px #3b3044}
+.vico .bgi{position:absolute;inset:0;background:#0d0b10 center/cover no-repeat;filter:brightness(.62) contrast(1.15)}
+.vico.ii .bgi{transform:scaleX(-1) scale(1.25);background-position:30% 40%}
+.vico.i .bgi{transform:scale(1.25);background-position:70% 40%}
+.vico .tint{position:absolute;inset:0;mix-blend-mode:color;opacity:.85}
+.vico .gl{position:absolute;left:50%;top:50%;width:48%;height:48%;transform:translate(-50%,-50%);filter:drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 2px #000)}
+.vico .gl svg{width:100%;height:100%}
+.vico .art{position:absolute;inset:0;background:center/cover no-repeat}
+.vico.sm{width:46px;height:46px;border-radius:8px}
+.ffoot{display:flex;align-items:center;gap:22px;padding:10px 24px 16px;border-top:1px solid var(--line);margin-top:4px}
+.ffoot .t{font:600 12px Inter;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim)}
+.sock{position:relative;width:54px;height:54px;border-radius:50%;background:#0d0b10;border:2px dashed #4a3e54;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim2);font-size:24px}
+.sock.on{border:2px solid #8a6f38;background:radial-gradient(#2a2232,#120e16)}
+.sock.on span{font-size:26px}
+.sock:hover{border-color:var(--gold)}
+.ffoot .note{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:13px}
+.ffoot .note.lock{color:#e6a17a}
+
+/* ---- barra ---- */
+.p-bar{display:flex;align-items:center;gap:22px;padding:0 22px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.p-bar .t{font:700 15px Cinzel,serif;color:var(--dim);font-variant:small-caps;letter-spacing:.5px}
+.slots{display:flex;gap:10px;padding:6px 14px;border-radius:12px;background:linear-gradient(#0f0c12,#1a1520);border:1px solid #3a2f45}
+.slot{position:relative;width:70px;height:70px;border-radius:10px;background:#0b090e;box-shadow:inset 0 0 0 2px #3b3044}
+.slot .ico{width:70px;height:70px;border-radius:10px}
+.slot .k{position:absolute;left:3px;top:2px;z-index:2;font:800 10.5px Inter;color:#f3e2b5;text-shadow:0 1px 2px #000,0 0 3px #000}
+.slot.empty::after{content:'+';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#4a3e54;font-size:28px}
+.slot.flex{box-shadow:inset 0 0 0 2px #6b5631}
+.slot .flexb{position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);z-index:3;padding:0 6px;border-radius:4px;background:#2a2012;border:1px solid #8a6f38;color:var(--gold2);font:800 9px/15px Inter;letter-spacing:1px}
+.slot.ok{outline:3px solid var(--ok);outline-offset:3px;box-shadow:0 0 18px rgba(127,211,107,.55)}
+.slot.ok::before{content:'✓';position:absolute;right:-9px;top:-11px;z-index:4;width:20px;height:20px;border-radius:50%;background:var(--ok);color:#0d0b10;font:800 13px/20px Inter;text-align:center}
+.slot.no{opacity:.35}
+.slot.hov{transform:scale(1.07)}
+.slot .vp{position:absolute;right:-5px;bottom:-5px;z-index:2}
+.hints{margin-left:auto;display:flex;flex-direction:column;gap:6px;color:var(--dim);font-size:13px;text-align:right}
+.hints span{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+
+/* ---- tooltip ---- */
+#tip{position:absolute;z-index:50;width:380px;pointer-events:none;opacity:0;transform:scale(var(--s)) translateY(4px);transform-origin:0 0;transition:opacity .12s,transform .12s;
+  background:linear-gradient(#1c1621f5,#120e16f5);border:1px solid #6b5631;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.75),inset 0 0 0 1px rgba(255,255,255,.03);padding:14px 16px 12px}
+#tip.on{opacity:1;transform:scale(var(--s))}
+#tip .th{display:grid;grid-template-columns:46px 1fr;gap:12px;align-items:center}
+#tip .th .ico{width:46px;height:46px;border-radius:8px}
+#tip .tn{font:700 19px/1.1 Cinzel,serif;color:var(--gold2)}
+#tip .tk{color:var(--dim);font-size:12px;margin-top:2px}
+#tip .tl{margin:10px 0 0;color:var(--ink);font-size:14.5px;line-height:1.35}
+#tip .tg{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px}
+#tip .tg i{font-style:normal;padding:1px 7px;border-radius:9px;background:#272030;color:#cfc3e0;font:600 11px/18px Inter}
+#tip .tg i.add{background:#1d3020;color:#a6e69a}
+#tip .tg i.del{background:#3a1f1c;color:#f0a093;text-decoration:line-through}
+#tip table{width:100%;margin-top:10px;border-collapse:collapse;font-size:13.5px}
+#tip td{padding:3px 0;color:#d8cfbf}
+#tip td:last-child{text-align:right;font-weight:600;color:var(--ink);white-space:nowrap}
+#tip td .nx{color:var(--ok);font-weight:700}
+#tip .cmp{margin-top:10px;padding-top:9px;border-top:1px solid #3a3045;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+#tip .rc{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid #4a3e54;color:#7c7286;flex:none}
+#tip .rc svg{width:16px;height:16px}
+#tip .rc.me{border-color:currentColor;background:#1a1410}
+#tip .rc.ot{border-style:dashed;color:#8a8090}
+#tip .bar5{display:flex;gap:3px}
+#tip .bar5 b{width:22px;height:7px;border-radius:2px;background:#2d2535}
+#tip .bar5 b.on{background:var(--gold)}
+#tip .bar5 b.alt{background:#6d6377}
+#tip .tf{margin-top:10px;padding-top:8px;border-top:1px solid #3a3045;display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--dim);font-size:12px}
+#tip .adv{margin-top:9px;padding:8px 10px;border-radius:7px;background:#0e0b11;border:1px solid #2f2638;color:#bdb3a1;font:12px/1.45 ui-monospace,Consolas,monospace}
+#tip .st{margin-top:8px;font:700 12px Inter;letter-spacing:.6px}
+#tip .st.ok{color:var(--ok)} #tip .st.lk{color:#e6a17a} #tip .st.g{color:var(--gold)}
+
+#toast{position:absolute;left:50%;top:calc(24px*var(--s));z-index:40;transform:translateX(-50%) scale(var(--s));transform-origin:50% 0;display:flex;align-items:center;gap:12px;padding:10px 18px 10px 10px;
+  border-radius:12px;background:linear-gradient(#2a2015,#17120d);border:1px solid #8a6f38;box-shadow:0 10px 30px #000a;color:var(--ink);font-size:14px}
+#toast .ico{width:42px;height:42px;border-radius:8px}
+#toast b{color:var(--gold2)}
+#toast small{display:block;color:var(--dim);font-size:12px}
+#ghost{position:absolute;z-index:60;width:70px;height:70px;pointer-events:none;transform:translate(-50%,-50%) scale(calc(var(--s)*1.05));display:none}
+#ghost .ico{width:70px;height:70px;border-radius:10px;box-shadow:0 0 0 2px var(--gold),0 10px 24px #000c}
+#pop{position:absolute;z-index:45;display:none;padding:12px;border-radius:10px;background:#18131d;border:1px solid #6b5631;box-shadow:0 12px 30px #000b;transform-origin:0 100%}
+#pop .g{display:grid;grid-template-columns:repeat(6,48px);gap:8px}
+#pop .gm{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;background:radial-gradient(#2a2232,#110d14);border:1.5px solid #5a4a3a;cursor:pointer}
+#pop .gm.no{opacity:.25;cursor:not-allowed}
+#pop .gm:hover:not(.no){border-color:var(--gold)}
+#pop .pt{font:600 12px Inter;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.dragging .tile{cursor:grabbing}
+</style>
+</head>
+<body>
+<div class="ctl">
+  <h1>Libro de habilidades · mockup 2f</h1>
+  <label>Clase <select id="cCls"><option value="guerrero">Guerrero</option><option value="maga" selected>Maga</option><option value="arquera">Arquera</option></select></label>
+  <label>Resolución <select id="cRes"><option value="1920">1920×1080</option><option value="1366">1366×768</option></select></label>
+  <label><input type="checkbox" id="cCombat"> En combate (forja bloqueada)</label>
+  <label><input type="checkbox" id="cAlt"> Mantener <kbd>Alt</kbd> (tooltip avanzado)</label>
+  <button id="cReset">Reiniciar demo</button>
+  <span style="color:var(--dim);font-size:12px">Pasa el ratón por todo · clic en una habilidad · arrastra a la barra · <kbd>1</kbd>–<kbd>4</kbd> sobre una habilidad la asigna</span>
+</div>
+<div id="fitbox"><div id="screen">
+  <div class="panel" id="P">
+    <div class="p-head">
+      <div class="emb" id="hEmb"></div>
+      <div><h2 id="hTitle">Habilidades</h2><div class="sub" id="hSub"></div></div>
+      <div class="sp"></div>
+      <button class="hbtn" id="bTal"><img alt="" src="">Talentos <kbd>N</kbd></button>
+      <button class="hbtn" id="bRec">Recomendado</button>
+      <button class="hbtn x" title="Cerrar (T / Esc)">✕</button>
+    </div>
+    <div class="p-body">
+      <div class="card"><div class="card-h"><h3>Libro</h3><span class="r" id="bookCount"></span></div><div class="book" id="book"></div></div>
+      <div class="card forge" id="forge"></div>
+    </div>
+    <div class="p-bar">
+      <span class="t">Barra</span>
+      <div class="slots" id="slots"></div>
+      <div class="hints"><span>⇢ arrastra · <kbd>1</kbd>–<kbd>4</kbd> asigna · <kbd>Alt</kbd> detalle · <kbd>T</kbd> cerrar</span></div>
+    </div>
+  </div>
+  <div id="tip"></div>
+  <div id="toast" hidden></div>
+  <div id="ghost"></div>
+  <div id="pop"></div>
+</div></div>
+<script>
+const A = 'file:///D:/Proyectos/IntentoRPG-assets/web/';
+const DATA = {"CATALOG":{"guerrero":[{"id":"g_tajo","n":"Tajo","cat":"basic","req":1,"elem":"physical","coef":1,"gen":10,"s":"Corta al objetivo y salpica a los pegados a él.","M":{"n":"Filo Ancho","s":"Salpicadura 50 → 65 % y alcance 2 → 2,5 m.","k":"★add{cleave:+.15, cleaveR:+.5}"},"A":{"n":"Desgarro","r":"UNI","s":"El objetivo sangra 60 % en 4 s; salpicadura 30 %.","k":"hitDot bleed .6/4s · ★add{cleave:−.2}","m":"espada curva que abre un tajo del que brotan gotas de sangre carmesí"},"B":{"n":"Siega","r":"AREA","s":"Barrido de 3 m a todos al 75 %; el principal 85 %.","k":"★set{cleave:.75, cleaveR:3} · dmg −15","m":"arco ancho de acero como una guadaña barriendo polvo y chispas en semicírculo"}},{"id":"g_mandoble","n":"Mandoble","cat":"basic","req":3,"elem":"physical","coef":1.5,"gen":14,"s":"Golpe único y pesado, más lento.","M":{"n":"Contundente","s":"+4 Furia al acertar y +50 % de stagger a jefes.","k":"gen +4 · ★add{stagger:+.5}"},"A":{"n":"Verdugo","r":"UNI","s":"+40 % de daño a enemigos bajo el 40 % de vida.","k":"★power v_verdugo (condAdd)","m":"hoja de mandoble descendiendo sobre un cráneo agrietado con brillo rojo"},"B":{"n":"Media Luna","r":"AREA","s":"Arco de 180° y 3 m al 110 %.","k":"★set{type:cone, angle:180, radius:3, coef:1.1}","m":"media luna de acero incandescente trazada por un mandoble"}},{"id":"g_embate","n":"Embate","cat":"basic","req":8,"elem":"physical","coef":0.6,"gen":7,"s":"Barrido circular a todos a 2,5 m.","M":{"n":"Inercia","s":"10 % más rápido (cadencia 1,1 → 1,0).","k":"★set{cadence:1.0}"},"A":{"n":"Ojo del Huracán","r":"CTRL","s":"Atrae 1,5 m hacia ti a los golpeados.","k":"★pull 1.5","m":"remolino de polvo y acero que succiona hacia un centro luminoso"},"B":{"n":"Coraza de Polvo","r":"AGU","s":"Cada golpeado: −1 % de daño recibido 3 s (máx. 10 %).","k":"★power v_coraza_polvo","m":"torso de armadura envuelto en un anillo de polvo y piedras girando"}},{"id":"torbellino","n":"Torbellino","cat":"spender","req":2,"elem":"physical","coef":1.6,"cost":25,"s":"Giro instantáneo que golpea a todos a 2,9 m.","M":{"n":"Giro Firme","s":"−3 de coste (25 → 22) e inmune a ralentizaciones al girar.","k":"cost −12 · ★set{slowImmune:true}"},"A":{"n":"Vendaval de Acero","r":"AREA","s":"Mantén para girar y moverte: 90 % cada 0,5 s, 12 Furia por giro.","k":"★set{type:channel, ticks, move:.7} · behavior v_torbellino_canal","m":"guerrero girando dentro de un tornado de hojas de acero, vista cenital"},"B":{"n":"Ciclón","r":"CTRL","s":"Atrae 2 m y ralentiza 30 % 2 s; −15 % de daño.","k":"★pull 2 · slow 2 · slowPct 30 · dmg −15","m":"espiral de viento gris que arrastra siluetas de enemigos hacia dentro"}},{"id":"g_hendidura","n":"Hendidura","cat":"spender","req":8,"elem":"physical","coef":2.9,"cost":27,"s":"Tajo frontal pesado en cono de 120°.","M":{"n":"Arco Amplio","s":"Cono 120 → 150°.","k":"★set{angle:150}"},"A":{"n":"Rompefilas","r":"UNI","s":"+45 % de daño si golpea a un único enemigo.","k":"★power v_rompefilas (condAdd)","m":"hacha que parte en dos un escudo de torre con estallido de astillas"},"B":{"n":"Grieta","r":"AREA","s":"Deja una grieta 2 s (40 %/s); solo 1 activa.","k":"zone · zoneDur 2 · ★add{zoneMax:1}","m":"tajo de hacha que abre una grieta brillante en el suelo de piedra"}},{"id":"g_martillo","n":"Martillo de Guerra","cat":"spender","req":8,"elem":"physical","coef":2.4,"cost":30,"s":"Onda de 3 m al golpear el suelo delante.","M":{"n":"Impacto Hondo","s":"Alcance 2,5 → 3,5 m y +25 % de stagger.","k":"range +40 · ★add{stagger:+.25}"},"A":{"n":"Martillo Arrojadizo","r":"UNI","s":"Lo lanzas a 9 m (200 %) y vuelve a tu mano.","k":"★set{type:proj, range:9, coef:2.0} · behavior v_martillo_vuelta","m":"martillo de guerra girando en el aire dejando una estela dorada en arco"},"B":{"n":"Temblor","r":"CTRL","s":"La onda aturde 0,75 s; −10 % de daño.","k":"stun .75 · dmg −10","m":"martillo clavado en el suelo con anillos concéntricos de roca levantándose"}},{"id":"terremoto","n":"Terremoto","cat":"spender","req":14,"elem":"physical","coef":3.1,"cost":26,"cd":4,"s":"Grieta de 8 m que aturde 0,75 s.","M":{"n":"Falla","s":"Longitud 8 → 11 m.","k":"range +37"},"A":{"n":"Grieta Abierta","r":"AREA","s":"La grieta arde 3 s más (40 %/s).","k":"zone · zoneDur 3","m":"falla en la tierra con magma tenue y polvo flotando"},"B":{"n":"Sacudida Circular","r":"CTRL","s":"Anillo de 4 m a tu alrededor: aturde 1 s, 80 % del daño.","k":"★set{type:area, at:self, radius:4} · stun 1 · dmg −20","m":"anillo de rocas alzándose en círculo alrededor de un punto central"}},{"id":"g_lanza","n":"Lanza Arrojadiza","cat":"spender","req":14,"elem":"physical","coef":1.9,"cost":20,"s":"Lanza que atraviesa en línea 11 m.","M":{"n":"Punta de Arpón","s":"Los golpeados se ralentizan 30 % 2 s.","k":"slow 2 · slowPct 30"},"A":{"n":"Arpón","r":"CTRL","s":"El primero golpeado es arrastrado 4 m hacia ti (+30 %).","k":"★pull 4 · ★set{pierce:false} · dmg +30","m":"arpón con cadena tensa arrastrando hacia el espectador"},"B":{"n":"Jabalinas","r":"AREA","s":"3 lanzas en abanico al 70 %.","k":"★set{count:3, spread:.25} · dmg −30","m":"tres jabalinas en abanico cortando el aire con estelas blancas"}},{"id":"embestida","n":"Embestida","cat":"movement","req":4,"elem":"physical","coef":1.2,"cd":8,"s":"Embistes 7 m y golpeas al llegar.","M":{"n":"Carga Fiera","s":"Alcance 7 → 9 m y +4 Furia si golpea.","k":"range +28 · ★add{genOnHit:4}"},"A":{"n":"Carnero","r":"CTRL","s":"Arrastras a los del camino y los aturdes 0,5 s.","k":"★power v_carnero · stun .5","m":"hombrera con cuernos de carnero embistiendo entre polvo"},"B":{"n":"Doble Carga","r":"MOV","s":"2 cargas (8 s cada una).","k":"★charges 2","m":"dos siluetas de carga superpuestas con estelas paralelas"}},{"id":"g_salto","n":"Salto Devastador","cat":"movement","req":12,"elem":"physical","coef":1.8,"cd":12,"s":"Saltas 8 m y ralentizas al caer.","M":{"n":"Caída Pesada","s":"Radio 3,2 → 4 m.","k":"radius +25"},"A":{"n":"Impacto Sísmico","r":"CTRL","s":"Al caer atraes 2 m y aturdes 0,75 s.","k":"★pull 2 · stun .75","m":"botas cayendo sobre un cráter con escombros succionados al centro"},"B":{"n":"Asalto Aéreo","r":"MOV","s":"−4 s de enfriamiento; se reinicia si matas al caer.","k":"cdr 33 · ★killReset","m":"figura en pleno salto con alas de polvo y un reloj de arena roto"}},{"id":"g_piel","n":"Piel de Hierro","cat":"defense","req":6,"elem":"physical","cd":25,"s":"−30 % de daño recibido 6 s.","M":{"n":"Acero Templado","s":"Al activarla te curas el 8 % de la vida.","k":"★power v_temple (onCast g.heal)"},"A":{"n":"Espinas","r":"AREA","s":"Devuelve el 40 % del daño cuerpo a cuerpo recibido.","k":"★power v_espinas (onDamaged)","m":"brazo acorazado cubierto de púas de hierro con chispas de rebote"},"B":{"n":"Bastión","r":"AGU","s":"Dura 8 s y te vuelve imparable; +5 s de enfriamiento.","k":"durS 2 · ★set{unstoppable:true} · cdr −20","m":"yelmo de hierro macizo con un aura azul acero inamovible"}},{"id":"g_provocacion","n":"Provocación","cat":"utility","req":16,"elem":"physical","cd":8,"s":"Un enemigo te ataca 4 s y pega −15 %.","M":{"n":"Voz Ronca","s":"Alcance 15 → 20 m y +5 Furia.","k":"range +33 · gen +5"},"A":{"n":"Desafío","r":"APO","s":"Provoca a todos a 6 m a la vez.","k":"★set{radius:6} · behavior v_provoca_area","m":"guerrero rugiendo con ondas rojas en círculo y ojos enemigos girándose"},"B":{"n":"Humillar","r":"UNI","s":"El provocado recibe +20 % de daño 4 s (no se debilita).","k":"vuln 4 · ★set{weakenPct:0}","m":"guantelete señalando a un enemigo marcado con una diana rota"}},{"id":"grito_guerra","n":"Grito de Guerra","cat":"utility","req":12,"elem":"physical","cd":20,"s":"+30 Furia y +10 % de daño al grupo 8 s.","M":{"n":"Eco del Grito","s":"Dura 8 → 10 s.","k":"durS 2"},"A":{"n":"Grito de Batalla","r":"UNI","s":"+18 % de daño, pero solo para ti.","k":"buff +80 · ★set{allyRadius:0}","m":"boca abierta de un casco con fuego rojo saliendo como rugido"},"B":{"n":"Grito Intimidante","r":"AGU","s":"Los enemigos a 8 m pegan −20 % 5 s.","k":"★power v_intimidar (weakenOutgoing)","m":"ondas de sonido oscuras que hacen retroceder sombras con garras"}},{"id":"g_u_furia","n":"Furia Inmortal","cat":"ultimate","req":15,"elem":"physical","cd":60,"s":"10 s: gastadoras gratis, +30 % vel. de ataque, imparable.","M":{"n":"Sin Freno","s":"Dura 10 → 12 s.","k":"durS 2"},"A":{"n":"Sed de Batalla","r":"AGU","s":"Mientras dura, robas el 8 % del daño como vida.","k":"★power v_sed_batalla (sustain)","m":"corazón de hierro rodeado de llamas rojas que absorbe hilos de sangre"},"B":{"n":"Frenesí","r":"UNI","s":"+50 % de velocidad de ataque, pero ya no eres imparable.","k":"buff +67 · ★set{unstoppable:false}","m":"dos hachas cruzadas vibrando con estelas rojas múltiples"}},{"id":"g_u_cataclismo","n":"Cataclismo","cat":"ultimate","req":15,"elem":"holy","coef":3.4,"cd":50,"s":"8 meteoros de luz caen en 5 s.","M":{"n":"Aviso Breve","s":"Aviso 0,4 → 0,25 s y +1 impacto (9).","k":"★add{impacts:1} · ★set{teleT:.25}"},"A":{"n":"Juicio","r":"UNI","s":"Todos caen en el mismo punto: radio 2 m, +25 % de daño.","k":"★set{scatter:0} · radius −33 · dmg +25","m":"una sola columna de luz dorada perforando el suelo desde el cielo"},"B":{"n":"Lluvia Sagrada","r":"AREA","s":"12 impactos al 70 % en un círculo de 7 m.","k":"★set{impacts:12, scatter:4} · dmg −30","m":"decenas de pequeñas estrellas doradas cayendo en un círculo amplio"}},{"id":"g_u_estandarte","n":"Estandarte de Guerra","cat":"ultimate","req":15,"elem":"physical","cd":55,"s":"Aura 12 s: +20 % daño, −15 % daño recibido.","M":{"n":"Asta Firme","s":"Radio 8 → 10 m.","k":"radius +25"},"A":{"n":"Pendón Carmesí","r":"UNI","s":"+30 % de daño, sin reducción de daño.","k":"buff +50 · ★set{buff.dr:0}","m":"estandarte rojo sangre ondeando con un filo dorado"},"B":{"n":"Baluarte","r":"AGU","s":"−30 % de daño recibido y 2 %/s de cura; sin bonus de daño.","k":"★set{buff:{dr:30}} · ★power v_baluarte (heal)","m":"estandarte azul acero clavado en un muro de escudos"}}],"maga":[{"id":"m_dardo","n":"Dardo Arcano","cat":"basic","req":1,"elem":"arcane","coef":1.05,"gen":3,"s":"Dardo arcano a distancia; recupera Maná al impactar.","M":{"n":"Dardo Veloz","s":"+40 % de velocidad del proyectil y +1 Maná al acertar.","k":"★add{speed:+40%} · gen +1"},"A":{"n":"Saeta Ígnea","r":"AREA","s":"Se vuelve de Fuego: quema 40 % en 3 s.","k":"★elem fire · hitDot burn .4/3s","m":"dardo de fuego naranja con estela de brasas"},"B":{"n":"Saeta Gélida","r":"CTRL","s":"Se vuelve de Hielo: ralentiza 20 % 1,5 s; −10 % daño.","k":"★elem frost · slow 1.5 · slowPct 20 · dmg −10","m":"dardo de hielo cristalino con escarcha blanca"}},{"id":"m_ascua","n":"Ascua","cat":"basic","req":3,"elem":"fire","coef":0.75,"gen":3,"s":"Ascua que estalla a 1,5 m al impactar.","M":{"n":"Brasa Viva","s":"Estallido 1,5 → 2 m.","k":"radius +33"},"A":{"n":"Ascua Saltarina","r":"AREA","s":"Rebota a 2 enemigos cercanos al 60 %.","k":"chain 2","m":"brasa rebotando en zigzag dejando chispas"},"B":{"n":"Carbón Encendido","r":"UNI","s":"El objetivo arde 60 % en 4 s; estallido 15 %.","k":"hitDot burn .6/4s · ★add{splash:−.15}","m":"carbón al rojo vivo con grietas incandescentes"}},{"id":"m_toque","n":"Toque Gélido","cat":"basic","req":8,"elem":"frost","coef":0.7,"gen":4,"s":"Cono helado de 70° que ralentiza.","M":{"n":"Aliento Ártico","s":"Cono 70 → 90°.","k":"★set{angle:90}"},"A":{"n":"Congelación","r":"CTRL","s":"3 toques al mismo enemigo lo congelan 1 s.","k":"★power v_congelar (applyCC)","m":"mano que congela una silueta en un bloque de hielo"},"B":{"n":"Mordisco Glacial","r":"UNI","s":"+100 de prob. crítica contra ralentizados.","k":"coldblood","m":"fauces de hielo con colmillos cristalinos"}},{"id":"bola_fuego","n":"Bola de Fuego","cat":"spender","req":2,"elem":"fire","coef":2.2,"cost":18,"cd":1.5,"s":"Esfera ardiente que explota a 2 m.","M":{"n":"Núcleo Inestable","s":"Explosión 2 → 2,6 m.","k":"radius +30"},"A":{"n":"Pirodardo","r":"UNI","s":"Sin preparación y muy rápida; explosión 40 %.","k":"★set{windup:0, speed:22} · ★add{splash:−.6}","m":"flecha de fuego comprimida y veloz, estela fina y blanca en el núcleo"},"B":{"n":"Racimo","r":"AREA","s":"Al explotar suelta 3 brasas que estallan (40 % c/u).","k":"★power v_racimo (onHit)","m":"bola de fuego partiéndose en tres brasas menores"}},{"id":"rayo","n":"Rayo","cat":"spender","req":8,"elem":"arcane","coef":2.8,"cost":20,"cd":2.2,"s":"Rayo que atraviesa a todos en línea.","M":{"n":"Sobrecarga","s":"Alcance 13 → 15 m y +10 % de prob. crítica.","k":"range +15 · crit +10"},"A":{"n":"Rayo en Cadena","r":"AREA","s":"No perfora: salta a 4 enemigos (−20 % por salto).","k":"★set{pierce:false} · chain 4","m":"rayo violeta saltando entre cuatro puntos"},"B":{"n":"Haz Concentrado","r":"UNI","s":"Canaliza 1,5 s: 4 pulsos de 100 %.","k":"★set{type:channel, ticks:4, channelT:1.5, coef:1.0}","m":"haz recto de energía arcana muy concentrado con anillos"}},{"id":"nova_hielo","n":"Nova de Hielo","cat":"spender","req":14,"elem":"frost","coef":1.4,"cost":25,"cd":4,"s":"Onda gélida de 3,3 m que ralentiza.","M":{"n":"Escarcha Profunda","s":"Ralentiza 30 → 40 %.","k":"slowPct 40"},"A":{"n":"Corazón de Hielo","r":"AGU","s":"Escudo del 3 % de vida por golpeado (máx. 15 %).","k":"★shieldGain 3/15","m":"corazón de cristal de hielo dentro de una coraza helada"},"B":{"n":"Nova Fracturante","r":"UNI","s":"+40 % de daño a enemigos ya ralentizados.","k":"★power v_fractura (condAdd)","m":"onda de hielo agrietando una silueta congelada"}},{"id":"meteoro","n":"Meteoro","cat":"spender","req":14,"elem":"fire","coef":4.1,"cost":40,"cd":6,"s":"Meteoro que cae a los 0,6 s en 3 m.","M":{"n":"Puntería Ígnea","s":"Cae a los 0,45 s.","k":"★set{impactDelay:.45}"},"A":{"n":"Lluvia de Meteoritos","r":"AREA","s":"3 meteoritos (55 % c/u, 2,2 m) en un área de 5 m.","k":"★set{impacts:3, scatter:2.5} · behavior v_meteoritos","m":"tres meteoritos pequeños cayendo en diagonal"},"B":{"n":"Meteoro Ancestral","r":"UNI","s":"+60 % de daño y aturde 1 s; enfriamiento 6 → 9 s.","k":"dmg +60 · stun 1 · cdr −50","m":"meteoro colosal de roca negra con núcleo de lava"}},{"id":"m_paso_escarcha","n":"Paso de Escarcha","cat":"movement","req":4,"elem":"frost","cd":10,"s":"Te deslizas 6 m dejando hielo que ralentiza.","M":{"n":"Paso Ligero","s":"Enfriamiento 10 → 8 s.","k":"cdr 20"},"A":{"n":"Paso Doble","r":"MOV","s":"2 cargas (10 s cada una).","k":"★charges 2","m":"dos huellas de escarcha luminosas consecutivas"},"B":{"n":"Prisión Fugaz","r":"CTRL","s":"Quien pisa el hielo queda inmovilizado 1 s.","k":"root 1","m":"pies atrapados por cristales de hielo que brotan del suelo"}},{"id":"m_estela_ignea","n":"Estela Ígnea","cat":"movement","req":12,"elem":"fire","coef":0.4,"cd":10,"s":"Te deslizas 6 m dejando fuego 3 s.","M":{"n":"Rastro Ardiente","s":"El fuego dura 3 → 4 s.","k":"durS 1"},"A":{"n":"Senda de Llamas","r":"AREA","s":"Rastro el doble de ancho (3 m) y 55 %/s.","k":"radius +100 · dmg +37","m":"camino ancho de llamas altas en perspectiva"},"B":{"n":"Fénix","r":"AGU","s":"Te cura el 10 % y te libra de ralentizaciones.","k":"cleanse · ★power v_fenix (heal)","m":"ave de fuego naciendo de las cenizas"}},{"id":"m_armadura","n":"Armadura de Hielo","cat":"defense","req":6,"elem":"frost","cd":20,"s":"Escudo del 20 % de vida 6 s.","M":{"n":"Hielo Grueso","s":"Escudo 20 → 25 %.","k":"buff +25"},"A":{"n":"Armadura Reactiva","r":"CTRL","s":"Al romperse congela 1,5 s a los cercanos (3 m).","k":"★power v_reactiva (onShieldBreak)","m":"coraza de hielo estallando en esquirlas hacia fuera"},"B":{"n":"Coraza Arcana","r":"UNI","s":"Mientras aguanta, +15 % de daño de hechizos.","k":"★power v_coraza_arcana (cond)","m":"coraza de hielo con runas violeta brillando"}},{"id":"m_onda","n":"Onda Repulsora","cat":"utility","req":12,"elem":"arcane","coef":0.8,"cost":15,"cd":12,"s":"Empuja 5 m y aturde 0,5 s.","M":{"n":"Onda Amplia","s":"Radio 4 → 5 m.","k":"radius +25"},"A":{"n":"Implosión","r":"CTRL","s":"Atrae 4 m en vez de empujar.","k":"★set{knock:0} · ★pull 4","m":"esfera arcana que succiona fragmentos hacia su centro"},"B":{"n":"Escudo Repulsor","r":"AGU","s":"Tras empujar, −25 % de daño recibido 3 s.","k":"★power v_repulsor (addBuff dr)","m":"burbuja arcana violeta repeliendo garras"}},{"id":"m_u_supernova","n":"Supernova","cat":"ultimate","req":15,"elem":"fire","coef":4.7,"cd":50,"s":"Estrella que estalla en 3 ondas y quema.","M":{"n":"Gravedad Solar","s":"Atrae 2 m antes de estallar.","k":"★pull 2"},"A":{"n":"Sol Errante","r":"AREA","s":"La estrella te sigue 4 s y estalla 4 veces (380 %).","k":"★set{follow:true, pulses:4} · behavior","m":"pequeño sol orbitando sobre la cabeza de una maga"},"B":{"n":"Colapso","r":"UNI","s":"Una sola onda de 1300 % en 3 m.","k":"★set{pulses:1, radius:3} · ★set{coef:13}","m":"estrella implosionando en un punto blanco cegador"}},{"id":"m_u_tormenta","n":"Tormenta Glacial","cat":"ultimate","req":15,"elem":"frost","coef":0.6,"cd":55,"s":"Ventisca que te sigue 8 s y congela.","M":{"n":"Ojo de la Tormenta","s":"Radio 6 → 7 m.","k":"radius +17"},"A":{"n":"Ventisca Anclada","r":"CTRL","s":"Fija en el punto elegido, 8 m; congela a los 4 golpes.","k":"★set{follow:false, radius:8, freezeAt:4}","m":"remolino de nieve anclado a un cristal clavado en el suelo"},"B":{"n":"Granizo","r":"UNI","s":"+50 % de daño, radio 6 → 4 m.","k":"dmg +50 · radius −33","m":"piedras de granizo afiladas cayendo en columna"}},{"id":"m_u_desgarro","n":"Desgarro Arcano","cat":"ultimate","req":15,"elem":"arcane","coef":3.25,"cd":45,"s":"Canaliza 3 s un rayo arcano gigante.","M":{"n":"Desgarro Estable","s":"Dura 3 → 3,5 s.","k":"★add{channelT:.5, ticks:1}"},"A":{"n":"Brecha","r":"AREA","s":"Perfora en línea a todos; −25 % de daño.","k":"pierce · dmg −25","m":"grieta dimensional violeta abriéndose en línea recta"},"B":{"n":"Singularidad","r":"UNI","s":"+10 % de daño y +100 % de stagger: quiebra jefes.","k":"dmg +10 · ★add{stagger:+1}","m":"agujero negro violeta con anillo de acreción"}}],"arquera":[{"id":"a_disparo","n":"Disparo Rápido","cat":"basic","req":1,"elem":"physical","coef":1.15,"gen":5,"s":"Flecha veloz; +5 Energía al acertar.","M":{"n":"Mano Rápida","s":"10 % más rápido.","k":"★set{cadence:.9}"},"A":{"n":"Ojo Fijo","r":"UNI","s":"Cada acierto seguido al mismo objetivo: +5 % crítico (máx. 25 %).","k":"★power v_ojo_fijo (stacks)","m":"ojo de halcón con una retícula dorada superpuesta"},"B":{"n":"Flecha Partida","r":"AREA","s":"Al impactar se parte en 2 astillas perforantes (40 %).","k":"★power v_partida (onHit)","m":"flecha que se divide en dos al chocar"}},{"id":"a_disperso","n":"Disparo Disperso","cat":"basic","req":3,"elem":"physical","coef":0.45,"gen":5,"s":"3 flechas en abanico de 25°.","M":{"n":"Abanico","s":"3 → 4 flechas.","k":"★add{count:1}"},"A":{"n":"Ráfaga Cerrada","r":"UNI","s":"Abanico de 8°: todas al mismo objetivo.","k":"★set{spread:.07}","m":"tres flechas paralelas muy juntas apuntando al centro"},"B":{"n":"Metralla","r":"CTRL","s":"Empuja 1 m y ralentiza 20 % 1 s.","k":"★knock 1 · slow 1 · slowPct 20","m":"flechas romas estallando en esquirlas de madera"}},{"id":"a_cicuta","n":"Flecha de Cicuta","cat":"basic","req":8,"elem":"nature","coef":0.7,"gen":5,"s":"Flecha con veneno que se acumula.","M":{"n":"Cicuta Concentrada","s":"Veneno 50 → 70 %.","k":"★add{hitDot.coef:+.2}"},"A":{"n":"Contagio","r":"AREA","s":"Al morir un envenenado, el veneno salta a 2 cercanos.","k":"★power v_contagio (onKill)","m":"calavera verde soltando esporas hacia dos lados"},"B":{"n":"Parálisis","r":"CTRL","s":"3 capas inmovilizan 1 s (a jefes: stagger).","k":"★power v_paralisis (applyCC root)","m":"serpiente verde enroscada alrededor de una pierna"}},{"id":"flecha_perforante","n":"Flecha Perforante","cat":"spender","req":2,"elem":"physical","coef":2.1,"cost":26,"s":"Flecha pesada que atraviesa a todos.","M":{"n":"Astil de Fresno","s":"+2 m de alcance y +20 % de velocidad.","k":"range +15 · ★add{speed:+20%}"},"A":{"n":"Flecha Explosiva","r":"AREA","s":"No perfora: explota en 3 m al 80 %.","k":"★set{pierce:false} · ★set{splash:.8, radius:3}","m":"punta de flecha con carga de pólvora estallando"},"B":{"n":"Tiro de Precisión","r":"UNI","s":"Prepara 0,35 s: +45 % de daño.","k":"★set{windup:.35} · dmg +45","m":"arco tensado al máximo con la flecha brillando en la punta"}},{"id":"flecha_multiple","n":"Flecha Múltiple","cat":"spender","req":8,"elem":"physical","coef":0.7,"cost":22,"s":"5 flechas en abanico de 50°.","M":{"n":"Plumas Equilibradas","s":"−3 de coste (22 → 19).","k":"cost −14"},"A":{"n":"Lluvia Arqueada","r":"AREA","s":"Caen en un círculo de 4 m delante (todas al área).","k":"★set{type:area, at:target, radius:4} · behavior","m":"flechas en arco parabólico cayendo sobre un círculo"},"B":{"n":"Puntas de Espino","r":"UNI","s":"Se vuelven de Naturaleza: cada una envenena 30 % en 3 s.","k":"★elem nature · hitDot poison .3/3s","m":"flechas con puntas de espino verde goteando veneno"}},{"id":"lluvia_flechas","n":"Lluvia de Flechas","cat":"spender","req":14,"elem":"physical","coef":0.52,"cost":30,"cd":4,"s":"4 oleadas de flechas sobre 3 m.","M":{"n":"Cielo Plomizo","s":"4 → 5 oleadas.","k":"★add{waves:1}"},"A":{"n":"Aguacero","r":"UNI","s":"Radio 2 m, en 0,8 s y +40 % de daño.","k":"radius −33 · ★set{span:.8} · dmg +40","m":"columna densa de flechas cayendo en un punto"},"B":{"n":"Cortina","r":"AGU","s":"Dentro, los enemigos pegan −15 % y fallan la mitad de proyectiles.","k":"★set{allyDr:15, projMissPct:50} (zona)","m":"muro de flechas clavadas formando una barrera"}},{"id":"a_paso","n":"Paso Veloz","cat":"movement","req":4,"elem":"physical","cd":9,"s":"Ruedas 6 m y +20 % de vel. de ataque 3 s.","M":{"n":"Ágil","s":"El bonus dura 3 → 4 s.","k":"durS 1"},"A":{"n":"Rodar y Disparar","r":"UNI","s":"Al rodar disparas un Disparo Rápido gratis al 150 %.","k":"★power v_rodar (afterCast)","m":"arquera rodando mientras dispara una flecha"},"B":{"n":"Voltereta Trampa","r":"CTRL","s":"Dejas un abrojo que inmoviliza 1,5 s.","k":"★power v_abrojo (spawnField)","m":"abrojo de hierro con púas sobre hojas secas"}},{"id":"agilidad","n":"Agilidad","cat":"movement","req":12,"elem":"physical","cd":16,"s":"6 s: +30 % velocidad, +15 % vel. de ataque.","M":{"n":"Viento a Favor","s":"Dura 6 → 7 s.","k":"durS 1"},"A":{"n":"Ojo de Halcón","r":"UNI","s":"En vez de velocidad: +15 % de prob. crítica.","k":"★set{buff:{crit:15, aspdPct:15}}","m":"cabeza de halcón con ojo dorado brillante"},"B":{"n":"Bruma","r":"AGU","s":"Además, el 30 % de los proyectiles enemigos te fallan.","k":"★power v_bruma (projMiss)","m":"silueta difuminada entre jirones de niebla"}},{"id":"a_red","n":"Red de Caza","cat":"utility","req":6,"elem":"physical","cost":10,"cd":14,"s":"Red que inmoviliza 2 s en 2,5 m.","M":{"n":"Red Lastrada","s":"Radio 2,5 → 3 m.","k":"radius +20"},"A":{"n":"Red de Púas","r":"UNI","s":"Los atrapados reciben +20 % de daño 4 s.","k":"vuln 4","m":"red de cuerda con púas metálicas y gotas de sangre"},"B":{"n":"Red de Arrastre","r":"CTRL","s":"Junta a los atrapados en el centro y dura 3 s.","k":"★pull 2 · rootAdd 1","m":"red cerrándose como un saco sobre varias siluetas"}},{"id":"a_humo","n":"Bomba de Humo","cat":"defense","req":12,"elem":"physical","cd":22,"s":"Nube 4 s: −40 % de daño recibido dentro.","M":{"n":"Humo Denso","s":"Dura 4 → 5 s.","k":"durS 1"},"A":{"n":"Humo Venenoso","r":"AREA","s":"Dentro, los enemigos sufren veneno 40 %/s.","k":"dot poison · ★set{coef:.4}","m":"nube de humo verde tóxico con burbujas"},"B":{"n":"Desvanecer","r":"AGU","s":"Te vuelves invisible 2 s al lanzarla.","k":"★power v_desvanecer (goInvisible)","m":"capa que se disuelve en humo dejando solo la silueta"}},{"id":"a_u_diluvio","n":"Diluvio de Saetas","cat":"ultimate","req":15,"elem":"physical","coef":1.95,"cd":50,"s":"8 oleadas de saetas en 5 m durante 4 s.","M":{"n":"Diluvio Cerrado","s":"Aviso 0,4 → 0,25 s.","k":"★set{impactDelay:.25}"},"A":{"n":"Diluvio Itinerante","r":"AREA","s":"La zona sigue a la mira mientras dura.","k":"★set{follow:\"aim\"} · behavior","m":"nube de saetas desplazándose sobre el campo"},"B":{"n":"Andanada Final","r":"UNI","s":"4 oleadas de 420 % en 3 m.","k":"★set{waves:4, radius:3, coef:4.2}","m":"cuatro saetas enormes cayendo en paralelo"}},{"id":"a_u_celeste","n":"Tiro Celestial","cat":"ultimate","req":15,"elem":"physical","coef":7,"cd":50,"s":"Hasta 3 haces perforantes de 700 %.","M":{"n":"Recarga Celeste","s":"Ventana 8 → 10 s.","k":"★add{window:2}"},"A":{"n":"Constelación","r":"AREA","s":"5 haces de 450 %.","k":"★set{shots:5, coef:4.5}","m":"cinco haces de luz azul en abanico como constelación"},"B":{"n":"Disparo Estelar","r":"UNI","s":"2 haces de 1100 %; carga 0,5 s.","k":"★set{shots:2, coef:11, windup:.5}","m":"un haz de luz blanca y azul gigantesco con anillo estelar"}},{"id":"a_u_zarzas","n":"Cerco de Zarzas","cat":"ultimate","req":15,"elem":"nature","coef":1,"cd":55,"s":"Anillo de 7 m 8 s: veneno e inmoviliza al cruzar.","M":{"n":"Espinas Largas","s":"Dura 8 → 10 s.","k":"durS 2"},"A":{"n":"Jardín Espinoso","r":"AREA","s":"9 m, +30 % de veneno; ya no inmoviliza.","k":"radius +28 · dmg +30 · ★set{crossRoot:0}","m":"campo amplio de zarzas con flores venenosas"},"B":{"n":"Jaula","r":"CTRL","s":"4,5 m: cruzar inmoviliza 3 s y dentro +25 % de daño recibido.","k":"radius −35 · ★set{crossRoot:3, weakPct:25}","m":"jaula de raíces y espinas cerrándose"}}]},"CLASS_META":{"guerrero":{"name":"Guerrero","res":"Furia","resIcon":"res_furia","lvl":18,"color":"#e8634a","spec":"berserker","specName":"Berserker","talent":[{"n":"Remolino Sangriento","s":"Activa de Berserker (talento).","icon":"talents/guerrero-berserker-x1.webp"}]},"maga":{"name":"Maga","res":"Maná","resIcon":"res_mana","lvl":18,"color":"#ff8a3d","spec":"piromante","specName":"Piromante","talent":[{"n":"Ignición","s":"Activa de Piromante (talento).","icon":"talents/maga-piromante-x1.webp"}]},"arquera":{"name":"Arquera","res":"Energía","resIcon":"res_energia","lvl":18,"color":"#ead86e","spec":"francotiradora","specName":"Francotiradora","talent":[{"n":"Visión Certera","s":"Activa de Francotiradora (talento).","icon":"talents/arquera-francotiradora-x1.webp"}]}},"MEJORA_AT":3,"VAR_AT":6};
+const { CATALOG, CLASS_META, MEJORA_AT, VAR_AT } = DATA;
+const Q = new URLSearchParams(location.search);
+const $ = s => document.querySelector(s);
+const CATS = [
+  { id:'basic', label:'Básico', icon:'cat_basico', slots:['lmb'] },
+  { id:'movement', label:'Movilidad', icon:'cat_movilidad', slots:['k1'] },
+  { id:'spender', label:'Gastadora', icon:'cat_gastadora', slots:['rmb','k2'], full:true },
+  { id:'defutil', label:'Defensa · utilidad', icon:'cat_defensa', slots:['k2'], cats:['defense','utility'] },
+  { id:'spec', label:'Especialización', icon:'cat_especializacion', slots:['k3'] },
+  { id:'ultimate', label:'Definitiva', icon:'cat_definitiva', slots:['k4'], full:true },
+];
+const CAT_NAME = { basic:'Básico', spender:'Gastadora', movement:'Movilidad', defense:'Defensa', utility:'Utilidad', ultimate:'Definitiva', spec:'Especialización' };
+const SLOT_OF = { basic:['lmb'], spender:['rmb','k2'], movement:['k1'], defense:['k2'], utility:['k2'], spec:['k3'], ultimate:['k4'] };
+const SLOT_LBL = { lmb:'IZQ', rmb:'DER', k1:'1', k2:'2', k3:'3', k4:'4' };
+const ELEM = { physical:'Físico', fire:'Fuego', frost:'Hielo', arcane:'Arcano', nature:'Naturaleza', holy:'Sagrado' };
+const ROLE = { UNI:{ n:'Un objetivo', c:'var(--r-uni)' }, AREA:{ n:'Área', c:'var(--r-area)' }, CTRL:{ n:'Control', c:'var(--r-ctrl)' },
+  AGU:{ n:'Aguante', c:'var(--r-agu)' }, APO:{ n:'Apoyo', c:'var(--r-apo)' }, MOV:{ n:'Movilidad', c:'var(--r-mov)' } };
+const RG = { // glifos de papel (reserva del juego hasta tener los iconos rol_* de Codex)
+  UNI:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
+  AREA:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M5.6 6.6a9 9 0 0 0 0 10.8M18.4 6.6a9 9 0 0 1 0 10.8M8.5 9a4.6 4.6 0 0 0 0 6M15.5 9a4.6 4.6 0 0 1 0 6"/></svg>',
+  CTRL:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="9" width="8" height="6" rx="3"/><rect x="13" y="9" width="8" height="6" rx="3"/></svg>',
+  AGU:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3l8 3v6c0 4.5-3.4 7.8-8 9-4.6-1.2-8-4.5-8-9V6z"/></svg>',
+  APO:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 21V3M6 4h11l-3 4 3 4H6"/></svg>',
+  MOV:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 16h9l3-6M13 16l5 0 2-3M3 11h6M5 7h6"/></svg>',
+};
+const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+// tono del icono de variante (reserva hasta tener el arte): por papel y por elemento si lo cambia
+const HUE = { UNI:'hue-rotate(-12deg) saturate(1.3)', AREA:'hue-rotate(18deg) saturate(1.45)', CTRL:'hue-rotate(170deg) saturate(1.2)', AGU:'hue-rotate(200deg) saturate(.9) brightness(1.1)', APO:'sepia(.5) saturate(1.6)', MOV:'hue-rotate(80deg) saturate(1.2)' };
+const SUPPORTS = [
+  { id:'amplify', i:'🔆', n:'Amplificado', e:'+30 % de daño', fit:sk => sk.coef > 0 && sk.cat !== 'ultimate' },
+  { id:'overcharge', i:'💠', n:'Sobrecarga', e:'+50 % de daño · +40 % de coste', fit:sk => sk.coef > 0 && !['ultimate','basic'].includes(sk.cat) },
+  { id:'focused', i:'🎯', n:'Certero', e:'+25 de prob. crítica', fit:sk => sk.coef > 0 && sk.cat !== 'ultimate' },
+  { id:'wide', i:'⭕', n:'Expansivo', e:'+45 % de radio', fit:sk => /area|cone|zone|radio|m\b/.test(sk.s) },
+  { id:'multi', i:'🔱', n:'Multiproyectil', e:'+2 proyectiles', fit:sk => /dardo|flecha|lanza|bola|ascua|rayo|disparo/i.test(sk.n) },
+  { id:'echo', i:'🔁', n:'Eco', e:'se repite al 50 % · +60 % de coste', fit:sk => sk.coef > 0 && !['ultimate','movement'].includes(sk.cat) },
+  { id:'swift', i:'⏱️', n:'Raudo', e:'−30 % de enfriamiento', fit:sk => (sk.cd||0) > 0 && sk.cat !== 'ultimate' },
+  { id:'efficient', i:'🪶', n:'Eficiente', e:'−35 % de coste', fit:sk => (sk.cost||0) > 0 },
+  { id:'lasting', i:'⌛', n:'Persistente', e:'+80 % de duración', fit:sk => /s\b|durante|dura/.test(sk.s) },
+  { id:'freeze', i:'❄️', n:'Gélido', e:'ralentiza al golpear', fit:sk => sk.coef > 0 && sk.cat !== 'ultimate' },
+  { id:'bleed', i:'🩸', n:'Sed de Sangre', e:'aplica sangrado', fit:sk => sk.coef > 0 },
+  { id:'poison', i:'🧪', n:'Veneno', e:'aplica veneno', fit:sk => sk.coef > 0 },
+];
+const DEFAULTS = {
+  guerrero: { bar:{ lmb:'g_tajo', rmb:'g_hendidura', k1:'embestida', k2:'terremoto', k3:'@talent', k4:'g_u_cataclismo' },
+    forge:{ g_tajo:'B', g_hendidura:'B', embestida:'B', torbellino:'A' }, sup:{ g_hendidura:['amplify','bleed'] }, sel:'g_hendidura' },
+  maga: { bar:{ lmb:'m_dardo', rmb:'bola_fuego', k1:'m_paso_escarcha', k2:'meteoro', k3:'@talent', k4:'m_u_supernova' },
+    forge:{ m_dardo:'A', bola_fuego:'B', m_paso_escarcha:'A', m_ascua:'A' }, sup:{ bola_fuego:['amplify','wide'] }, sel:'bola_fuego' },
+  arquera: { bar:{ lmb:'a_disparo', rmb:'flecha_perforante', k1:'a_paso', k2:'a_red', k3:'@talent', k4:'a_u_diluvio' },
+    forge:{ a_disparo:'A', flecha_perforante:'B', a_paso:'A' }, sup:{ flecha_perforante:['amplify','focused'] }, sel:'flecha_perforante' },
+};
+let S; // estado
+function reset(cls) {
+  const d = DEFAULTS[cls];
+  S = { cls, lvl: CLASS_META[cls].lvl, bar: { ...d.bar }, forge: { ...d.forge }, sup: JSON.parse(JSON.stringify(d.sup)), sel: Q.get('sel') || d.sel,
+    combat: $('#cCombat').checked, alt: $('#cAlt').checked, seen: new Set() };
+}
+const skills = () => CATALOG[S.cls];
+const talentSk = () => { const t = CLASS_META[S.cls].talent[0]; return { id:'@talent', n:t.n, s:t.s, cat:'spec', req:10, talent:true, icon:t.icon, elem:'physical' }; };
+const find = id => id === '@talent' ? talentSk() : skills().find(s => s.id === id);
+const iconUrl = sk => sk.talent ? A + sk.icon : `${A}icons256/${sk.id}.webp`;
+const known = sk => S.lvl >= sk.req;
+const mejOn = sk => !sk.talent && S.lvl >= sk.req + MEJORA_AT;
+const varOn = sk => !sk.talent && S.lvl >= sk.req + VAR_AT;
+const isNew = sk => mejOn(sk) && S.lvl === sk.req + MEJORA_AT || varOn(sk) && S.lvl === sk.req + VAR_AT;
+const rankOf = (sk, lvl = S.lvl) => Math.max(1, Math.min(5, 1 + Math.floor((lvl - sk.req) / 8)));
+const pct = (sk, r) => Math.round(sk.coef * 100 * (1 + 0.1 * (r - 1)));
+const onBar = id => Object.entries(S.bar).find(([, v]) => v === id)?.[0] || null;
+const ico = (sk, cls = '', extra = '') => `<div class="ico ${cls}" style="background-image:url('${iconUrl(sk)}');${extra}"></div>`;
+// icono de variante: arte de Codex (web/forge/v_<id>_i|ii.webp) si existe; si no, RESERVA legible:
+// icono base virado al color de su papel (II en espejo) + glifo grande del papel
+const varIco = (sk, w, size = '') => { const o = sk[w], c = ROLE[o.r].c;
+  return `<div class="vico ${w === 'A' ? 'i' : 'ii'} ${size}"><div class="bgi" style="background-image:url('${iconUrl(sk)}')"></div><div class="tint" style="background:${c}"></div>` +
+    `<div class="gl" style="color:${c}">${RG[o.r]}</div><div class="art" style="background-image:url('${A}forge/v_${sk.id}_${w === 'A' ? 'i' : 'ii'}.webp')"></div></div>`; };
+const roleChip = r => `<span class="role" style="color:${ROLE[r].c}">${RG[r]}${ROLE[r].n}</span>`;
+
+// ===================== LIBRO =====================
+function renderBook() {
+  const all = [...skills(), talentSk()];
+  const book = $('#book'); book.innerHTML = '';
+  let kn = 0;
+  for (const c of CATS) {
+    const list = all.filter(sk => (c.cats || [c.id]).includes(sk.cat));
+    if (!list.length) continue;
+    const sec = document.createElement('div'); sec.className = 'sec' + (c.full ? ' full' : '');
+    const k = list.filter(known).length; kn += k;
+    sec.innerHTML = `<div class="sec-h"><img src="${A}ui/${c.icon}.webp" alt="">${c.label}<span class="n">${k}/${list.length}</span></div><div class="tiles"></div>`;
+    const tiles = sec.querySelector('.tiles');
+    for (const sk of list) tiles.appendChild(tileEl(sk));
+    book.appendChild(sec);
+  }
+  $('#bookCount').textContent = `${kn} de ${all.length} aprendidas`;
+}
+function tileEl(sk) {
+  const t = document.createElement('div');
+  const kn = known(sk), slot = onBar(sk.id), v = S.forge[sk.id];
+  t.className = 'tile' + (kn ? '' : ' locked') + (S.sel === sk.id ? ' sel' : '') + (sk.talent ? ' talent' : '');
+  t.tabIndex = 0; t.dataset.id = sk.id;
+  // UN solo marcador por casilla: sello I/II si hay variante elegida; anillo dorado si falta elegir
+  let pips = '';
+  if (!sk.talent && kn && v) pips = `<div class="pips"><span class="pip v on">${v === 'A' ? 'I' : 'II'}</span></div>`;
+  if (!sk.talent && kn && varOn(sk) && !v) t.classList.add('todo');
+  t.innerHTML = (slot ? `<span class="keycap">${SLOT_LBL[slot]}</span>` : '') + (isNew(sk) ? '<span class="newdot"></span>' : '') +
+    `<div style="position:relative;width:66px;margin:0 auto">${ico(sk, 'cat-' + sk.cat)}${kn ? '' : `<div class="lockb">${LOCK}Nv ${sk.req}</div>`}${pips}${sk.talent ? '<span class="ttag">TALENTO</span>' : ''}</div>` +
+    `<div class="nm">${sk.n}</div>`;
+  t.addEventListener('mouseenter', e => showTip(e, () => tipSkill(sk)));
+  t.addEventListener('mousemove', moveTip);
+  t.addEventListener('mouseleave', hideTip);
+  t.addEventListener('pointerdown', e => dragStart(e, sk));
+  t.addEventListener('contextmenu', e => { e.preventDefault(); if (kn) assign(SLOT_OF[sk.cat][0], sk); });
+  t.addEventListener('keydown', e => { if (e.key === 'Enter') select(sk.id); });
+  t.addEventListener('focus', () => { hovered = sk; });
+  return t;
+}
+let hovered = null;
+document.addEventListener('mouseover', e => { const t = e.target.closest?.('.tile'); hovered = t ? find(t.dataset.id) : null; });
+
+// ===================== FORJA =====================
+function select(id) { S.sel = id; S.seen.add(id); renderBook(); renderForge(); }
+function renderForge() {
+  const sk = find(S.sel); const f = $('#forge');
+  const r = sk.talent ? 1 : rankOf(sk);
+  const slots = SLOT_OF[sk.cat].map(s => `<kbd>${SLOT_LBL[s]}</kbd>`).join(' o ');
+  const chips = [];
+  chips.push(`<span class="chip"><img src="${A}ui/${CATS.find(c => (c.cats || [c.id]).includes(sk.cat)).icon}.webp" alt="">${CAT_NAME[sk.cat]} · ${slots}</span>`);
+  if (sk.coef) chips.push(`<span class="chip gold">Daño ${pct(sk, r)} %</span>`);
+  if (sk.cost) chips.push(`<span class="chip"><img src="${A}ui/${CLASS_META[S.cls].resIcon}.webp" alt="">${sk.cost}</span>`);
+  if (sk.cd) chips.push(`<span class="chip">⏱ ${String(sk.cd).replace('.', ',')} s</span>`);
+  chips.push(`<span class="chip">${ELEM[sk.elem]}</span>`);
+  const dots = [1,2,3,4,5].map(i => `<i class="${i <= r ? 'on' : ''}"></i>`).join('');
+  let html = `<div class="fh">${ico(sk)}<div><h4>${sk.n}</h4><div class="line">${sk.s}</div><div class="chips">${chips.join('')}</div></div>` +
+    (sk.talent ? '' : `<div class="rank"><span>Rango</span><b>${r}</b><div class="dots">${dots}</div><span>sube con el nivel</span></div>`) + '</div>';
+  if (sk.talent) {
+    html += `<div class="tree" style="display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:15px;text-align:center">Activa de talento: sus modificaciones están en el árbol de su especialización.<br><button class="hbtn" style="margin:14px auto 0">Abrir Talentos <kbd>N</kbd></button></div><div></div>`;
+    f.innerHTML = html; return;
+  }
+  html += `<div class="tree" id="tree"><svg id="tsvg"></svg></div>`;
+  const sup = S.sup[sk.id] || [];
+  const ns = sk.cat === 'basic' || sk.cat === 'ultimate' ? 1 : 2;
+  let socks = '';
+  for (let i = 0; i < ns; i++) { const s = SUPPORTS.find(x => x.id === sup[i]); socks += `<div class="sock${s ? ' on' : ''}" data-i="${i}">${s ? `<span>${s.i}</span>` : '+'}</div>`; }
+  html += `<div class="ffoot"><span class="t">Engarces</span>${socks}` +
+    (S.combat ? `<span class="note lock">${LOCK.replace('<svg', '<svg width="16" height="16"')} En combate: variantes y engarces bloqueados</span>`
+      : `<span class="note">Cambiar de variante es <b style="color:var(--ink)">gratis</b> fuera de combate</span>`) + '</div>';
+  f.innerHTML = html;
+  f.querySelectorAll('.sock').forEach(el => {
+    el.addEventListener('mouseenter', e => showTip(e, () => tipSock(sk, +el.dataset.i)));
+    el.addEventListener('mousemove', moveTip); el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('click', () => openPop(el, sk, +el.dataset.i));
+  });
+  layoutTree(sk);
+}
+function layoutTree(sk) {
+  const tree = $('#tree'); const W = tree.clientWidth, H = tree.clientHeight;
+  const by = H / 2, mx = 150, vx = W - 230, vy1 = H * 0.25, vy2 = H * 0.75;
+  const mo = mejOn(sk), vo = varOn(sk), ch = S.forge[sk.id];
+  const p = (x1, y1, x2, y2, cls) => `<path class="${cls}" d="M${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}"/>`;
+  $('#tsvg').innerHTML = p(mx + 50, by, vx - 178, vy1, ch === 'A' ? 'sel' : vo ? 'on' : '') + p(mx + 40, by, vx - 178, vy2, ch === 'B' ? 'sel' : vo ? 'on' : '');
+  const add = (html, x, y) => { const d = document.createElement('div'); d.innerHTML = html; const el = d.firstElementChild; el.style.left = x + 'px'; el.style.top = y + 'px'; tree.appendChild(el); return el; };
+  const mej = add(`<div class="node n-mej ${mo ? 'on' : 'off'}"><div class="lbl" style="margin:0 0 22px">Mejora</div><div class="dia">${ico(sk)}</div><div style="height:16px"></div><div class="nm2" style="color:${mo ? 'var(--gold2)' : 'var(--dim2)'}">${sk.M.n}</div></div>`, mx, by);
+  mej.addEventListener('mouseenter', e => showTip(e, () => tipMejora(sk))); mej.addEventListener('mousemove', moveTip); mej.addEventListener('mouseleave', hideTip);
+  for (const [w, y] of [['A', vy1], ['B', vy2]]) {
+    const o = sk[w];
+    const st = !vo ? 'locked' : ch === w ? 'chosen' : ch ? 'other' : 'todo';
+    const pill = st === 'locked' ? `<span class="lockpill">${LOCK.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} Nv ${sk.req + VAR_AT}</span>` : st === 'chosen' ? '<span class="seal">ELEGIDA</span>' : '';
+    const el = add(`<div class="vcard ${st}" data-w="${w}" tabindex="0"><span class="num">${w === 'A' ? 'I' : 'II'}</span>${pill}` +
+      `<div style="position:relative">${varIco(sk, w)}</div>` +
+      `<div><div class="vn">${o.n}</div><div class="vs">${o.s}</div>${roleChip(o.r)}</div></div>`, vx, y);
+    el.addEventListener('mouseenter', e => showTip(e, () => tipVar(sk, w), el));
+    el.addEventListener('mousemove', moveTip); el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('click', () => chooseVar(sk, w));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') chooseVar(sk, w); });
+  }
+}
+function chooseVar(sk, w) {
+  if (!varOn(sk)) return flash(`${sk[w].n} se desbloquea al nivel ${sk.req + VAR_AT}`);
+  if (S.combat) return flash('En combate no puedes cambiar de variante');
+  S.forge[sk.id] = S.forge[sk.id] === w ? null : w;
+  renderBook(); renderForge(); renderBar();
+  const e = document.querySelector(`.vcard[data-w="${w}"]`);
+  if (e && lastEv) showTip(lastEv, () => tipVar(sk, w), e);
+}
+
+// ===================== BARRA =====================
+function renderBar() {
+  const el = $('#slots'); el.innerHTML = '';
+  for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
+    const sk = S.bar[s] ? find(S.bar[s]) : null;
+    const d = document.createElement('div'); d.className = 'slot' + (sk ? '' : ' empty') + (s === 'k2' ? ' flex' : ''); d.dataset.slot = s;
+    const v = sk && S.forge[sk.id];
+    d.innerHTML = (sk ? ico(sk) : '') + `<span class="k">${SLOT_LBL[s]}</span>` + (s === 'k2' ? '<span class="flexb">FLEX</span>' : '') +
+      (v ? `<span class="vp"><span class="pip v on">${v === 'A' ? 'I' : 'II'}</span></span>` : '');
+    d.addEventListener('mouseenter', e => showTip(e, () => tipSlot(s, sk)));
+    d.addEventListener('mousemove', moveTip); d.addEventListener('mouseleave', hideTip);
+    d.addEventListener('click', () => sk && select(sk.id));
+    el.appendChild(d);
+  }
+}
+function fits(sk, slot) { return SLOT_OF[sk.cat].includes(slot); }
+function assign(slot, sk) {
+  if (!known(sk)) return flash(`${sk.n} se aprende al nivel ${sk.req}`);
+  if (!fits(sk, slot)) return flash(`${sk.n} va en ${SLOT_OF[sk.cat].map(x => SLOT_LBL[x]).join(' o ')}`);
+  for (const k of Object.keys(S.bar)) if (S.bar[k] === sk.id) S.bar[k] = null;
+  S.bar[slot] = sk.id; renderBar(); renderBook();
+  flash(`${sk.n} → ranura ${SLOT_LBL[slot]}`, sk);
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Alt') { e.preventDefault(); S.alt = true; refreshTip(); }
+  const m = { '1':'k1', '2':'k2', '3':'k3', '4':'k4' }[e.key];
+  if (m && hovered) assign(m, hovered);
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    const ts = [...document.querySelectorAll('.tile')]; const i = ts.findIndex(t => t.dataset.id === S.sel);
+    const n = ts[(i + (e.key === 'ArrowRight' ? 1 : -1) + ts.length) % ts.length]; select(n.dataset.id); document.querySelector(`.tile[data-id="${n.dataset.id}"]`)?.focus();
+  }
+});
+document.addEventListener('keyup', e => { if (e.key === 'Alt') { S.alt = $('#cAlt').checked; refreshTip(); } });
+
+// ---- arrastre ----
+let drag = null;
+function dragStart(e, sk) {
+  if (e.button !== 0) return;
+  drag = { sk, sx: e.clientX, sy: e.clientY, moved: false };
+  const mv = ev => {
+    if (!drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > 7) { if (!known(sk)) return; drag.moved = true; beginDragVisual(sk); hideTip(); }
+    if (drag.moved) moveGhost(ev.clientX, ev.clientY);
+  };
+  const up = ev => {
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    const d = drag; drag = null; endDragVisual();
+    if (!d.moved) { select(sk.id); return; }
+    const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.slot');
+    if (el) assign(el.dataset.slot, sk);
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+}
+function beginDragVisual(sk) {
+  document.body.classList.add('dragging');
+  $('#ghost').innerHTML = ico(sk); $('#ghost').style.display = 'block';
+  document.querySelectorAll('.slot').forEach(s => s.classList.add(fits(sk, s.dataset.slot) ? 'ok' : 'no'));
+}
+function moveGhost(cx, cy) {
+  const r = $('#screen').getBoundingClientRect(), k = r.width / $('#screen').offsetWidth;
+  $('#ghost').style.left = (cx - r.left) / k + 'px'; $('#ghost').style.top = (cy - r.top) / k + 'px';
+  document.querySelectorAll('.slot').forEach(s => s.classList.remove('hov'));
+  document.elementFromPoint(cx, cy)?.closest('.slot')?.classList.add('hov');
+}
+function endDragVisual() { document.body.classList.remove('dragging'); $('#ghost').style.display = 'none'; document.querySelectorAll('.slot').forEach(s => s.classList.remove('ok', 'no', 'hov')); }
+
+// ===================== TOOLTIP =====================
+let tipFn = null, lastEv = null, tipTimer = 0, tipAnchor = null;
+function showTip(e, fn, anchor = null) { tipFn = fn; lastEv = e; tipAnchor = anchor; clearTimeout(tipTimer); tipTimer = setTimeout(() => { $('#tip').innerHTML = fn(); $('#tip').classList.add('on'); placeTip(e); }, Q.get('tip') ? 0 : 160); }
+function moveTip(e) { lastEv = e; if ($('#tip').classList.contains('on')) placeTip(e); }
+function hideTip() { clearTimeout(tipTimer); tipFn = null; $('#tip').classList.remove('on'); }
+function refreshTip() { if (tipFn && $('#tip').classList.contains('on')) { $('#tip').innerHTML = tipFn(); placeTip(lastEv); } }
+function placeTip(e) {
+  const sc = $('#screen'), r = sc.getBoundingClientRect(), k = r.width / sc.offsetWidth, s = parseFloat(getComputedStyle(sc).getPropertyValue('--s'));
+  const t = $('#tip'), w = t.offsetWidth * s, h = t.offsetHeight * s;
+  let x = (e.clientX - r.left) / k + 22, y = (e.clientY - r.top) / k + 18;
+  if (tipAnchor) {   // anclado: a la izquierda del elemento, alineado arriba (no tapa a su hermano)
+    const a = tipAnchor.getBoundingClientRect();
+    x = (a.left - r.left) / k - w - 14; y = (a.top - r.top) / k;
+    if (x < 8) x = (a.right - r.left) / k + 14;
+  }
+  if (x + w > sc.offsetWidth - 8) x = (e.clientX - r.left) / k - w - 22;
+  if (y + h > sc.offsetHeight - 8) y = sc.offsetHeight - h - 8;
+  t.style.left = Math.max(8, x) + 'px'; t.style.top = Math.max(8, y) + 'px';
+}
+const tagList = sk => {
+  const t = [CAT_NAME[sk.cat], ELEM[sk.elem]];
+  if (/proyectil|dardo|flecha|lanza|bola|ascua|rayo|disparo|saeta/i.test(sk.n + sk.s)) t.push('Proyectil');
+  if (/m\b|área|a todos|onda|anillo|círculo|barrido/i.test(sk.s)) t.push('Área');
+  if (/ralentiza|aturde|inmoviliza|congela|empuja|provoca/i.test(sk.s)) t.push('Control');
+  return t;
+};
+function tipSkill(sk) {
+  if (sk.talent) return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">Especialización · ranura 3</div></div></div><div class="tl">${sk.s}</div><div class="tf"><span>Se modifica en <kbd>N</kbd> Talentos</span></div>`;
+  const r = rankOf(sk), nxtLv = sk.req + 8 * r;
+  const rows = [];
+  if (sk.coef) rows.push(`<tr><td>Daño</td><td>${pct(sk, r)} %${r < 5 ? ` <span class="nx">→ ${pct(sk, r + 1)} %</span>` : ''}</td></tr>`);
+  if (sk.cost) rows.push(`<tr><td>Coste</td><td>${sk.cost} ${CLASS_META[S.cls].res}</td></tr>`);
+  if (sk.cd) rows.push(`<tr><td>Enfriamiento</td><td>${String(sk.cd).replace('.', ',')} s</td></tr>`);
+  if (sk.gen) rows.push(`<tr><td>Genera</td><td>${sk.gen} ${CLASS_META[S.cls].res}</td></tr>`);
+  const v = S.forge[sk.id];
+  const st = !known(sk) ? `<div class="st lk">Se aprende al nivel ${sk.req}</div>` :
+    varOn(sk) && !v ? '<div class="st g">¡Elige una variante!</div>' : v ? `<div class="st ok">Variante ${v === 'A' ? 'I' : 'II'}: ${sk[v].n}</div>` : '';
+  return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">${CAT_NAME[sk.cat]} · ${SLOT_OF[sk.cat].map(s => SLOT_LBL[s]).join(' o ')} · Rango ${r}</div></div></div>` +
+    `<div class="tl">${sk.s}</div><table>${rows.join('')}</table>${r < 5 && known(sk) ? `<div class="tk" style="margin-top:2px">Rango ${r + 1} al nivel ${nxtLv}</div>` : ''}${st}` +
+    (S.alt ? `<div class="tg">${tagList(sk).map(t => `<i>${t}</i>`).join('')}</div><div class="adv">Daño = arma × ${(sk.coef * (1 + 0.1 * (r - 1))).toFixed(2)} × (1 + Σ aditivos) × atributo × crítico</div>` : '') +
+    `<div class="tf"><span>Clic: forja</span><span>Arrastra a la barra</span><span><kbd>Alt</kbd> detalle</span></div>`;
+}
+function tipMejora(sk) {
+  const on = mejOn(sk);
+  return `<div class="th"><div class="ico" style="background-image:url('${iconUrl(sk)}');border-radius:50%"></div><div><div class="tn">${sk.M.n}</div><div class="tk">Mejora de ${sk.n} · automática</div></div></div>` +
+    `<div class="tl">${sk.M.s}</div>` + (on ? '<div class="st ok">✓ Activa</div>' : `<div class="st lk">Se activa sola al nivel ${sk.req + MEJORA_AT}</div>`) +
+    (S.alt ? `<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> ${sk.M.k}</div>` : '');
+}
+function tipVar(sk, w) {
+  const o = sk[w], other = sk[w === 'A' ? 'B' : 'A'], ch = S.forge[sk.id];
+  const rows = ['UNI', 'AREA', 'CTRL', 'AGU', 'MOV'].map(k => `<span class="rc ${k === o.r ? 'me' : k === other.r ? 'ot' : ''}" style="${k === o.r ? 'color:' + ROLE[k].c : ''}">${RG[k]}</span>`).join('') +
+    `<span style="margin-left:4px">gana en <b style="color:${ROLE[o.r].c}">${ROLE[o.r].n}</b></span>`;
+  const st = !varOn(sk) ? `<div class="st lk">Se desbloquea al nivel ${sk.req + VAR_AT}</div>` : S.combat ? `<div class="st lk">${ch === w ? '✓ Elegida · ' : ''}bloqueada en combate</div>` :
+    ch === w ? '<div class="st ok">✓ Elegida · clic para quitarla</div>' : `<div class="st g">Clic: elegir${ch ? ` (sustituye a ${sk[ch].n})` : ''} · gratis</div>`;
+  const elemTag = /se vuelve de (\w+)/i.exec(o.s);
+  return `<div class="th"><div style="position:relative">${varIco(sk, w, 'sm')}</div><div><div class="tn">${o.n}</div><div class="tk">Variante ${w === 'A' ? 'I' : 'II'} de ${sk.n}</div></div></div>` +
+    `<div class="tl">${o.s}</div>` +
+    (elemTag ? `<div class="tg"><i class="del">${ELEM[sk.elem]}</i><i class="add">${elemTag[1]}</i></div>` : '') +
+    `<div class="cmp">${rows}</div>` +
+    st + (S.alt ? `<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> ${o.k}</div>` : '');
+}
+function tipSlot(s, sk) {
+  const flex = s === 'k2' ? '<div class="tl" style="color:var(--gold2)">Ranura flexible: una defensa/utilidad <b>o</b> una segunda gastadora.</div>' : '';
+  if (!sk) return `<div class="tn">Ranura ${SLOT_LBL[s]}</div>${flex}<div class="tl">Vacía: arrastra aquí una habilidad.</div>`;
+  return tipSkill(sk).replace('<div class="tf">', flex + '<div class="tf">');
+}
+function tipSock(sk, i) {
+  const s = SUPPORTS.find(x => x.id === (S.sup[sk.id] || [])[i]);
+  if (!s) return `<div class="tn">Engarce ${i + 1}</div><div class="tl">Vacío. Clic para engarzar un soporte compatible.</div>`;
+  return `<div class="tn">${s.i} ${s.n}</div><div class="tl">${s.e}</div><div class="tf"><span>Clic: cambiar</span></div>`;
+}
+function openPop(el, sk, i) {
+  if (S.combat) return flash('En combate no puedes cambiar engarces');
+  const pop = $('#pop'); const cur = S.sup[sk.id] || (S.sup[sk.id] = []);
+  pop.innerHTML = `<div class="pt">Soportes · ${sk.n}</div><div class="g">${SUPPORTS.map(s => `<div class="gm${s.fit(sk) ? '' : ' no'}" data-id="${s.id}">${s.i}</div>`).join('')}</div>`;
+  const sc = $('#screen'), r = sc.getBoundingClientRect(), k = r.width / sc.offsetWidth, er = el.getBoundingClientRect();
+  pop.style.display = 'block'; pop.style.transform = `scale(${getComputedStyle(sc).getPropertyValue('--s')})`;
+  pop.style.left = (er.left - r.left) / k + 'px'; pop.style.top = ((er.top - r.top) / k - pop.offsetHeight * parseFloat(getComputedStyle(sc).getPropertyValue('--s')) - 10) + 'px';
+  pop.querySelectorAll('.gm').forEach(g => {
+    const s = SUPPORTS.find(x => x.id === g.dataset.id);
+    g.addEventListener('mouseenter', e => showTip(e, () => `<div class="tn">${s.i} ${s.n}</div><div class="tl">${s.e}</div>${s.fit(sk) ? '' : '<div class="st lk">Incompatible con esta habilidad</div>'}`));
+    g.addEventListener('mousemove', moveTip); g.addEventListener('mouseleave', hideTip);
+    g.addEventListener('click', () => { if (!s.fit(sk)) return; cur[i] = s.id; pop.style.display = 'none'; hideTip(); renderForge(); });
+  });
+}
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#pop') && !e.target.closest('.sock')) $('#pop').style.display = 'none'; });
+
+let flashT = 0;
+function flash(msg, sk) {
+  const t = $('#toast'); t.hidden = false;
+  t.innerHTML = (sk ? ico(sk) : '') + `<div>${msg}</div>`; clearTimeout(flashT); flashT = setTimeout(() => { t.hidden = true; }, 2200);
+}
+function welcomeToast() {
+  const sk = skills().find(s => S.lvl === s.req + MEJORA_AT) || skills().find(s => S.lvl === s.req + VAR_AT);
+  if (!sk) return;
+  const t = $('#toast'); t.hidden = false;
+  t.innerHTML = ico(sk) + `<div><b>Nivel ${S.lvl}</b> · ${sk.n}: mejora <b>${sk.M.n}</b><small>${sk.M.s}</small></div>`;
+  clearTimeout(flashT); flashT = setTimeout(() => { t.hidden = true; }, Q.get('shot') ? 1e9 : 5000);
+}
+
+// ===================== cabecera / ajuste =====================
+function renderHead() {
+  const m = CLASS_META[S.cls];
+  $('#hEmb').style.backgroundImage = `url('${A}ui256/menu_habilidades.webp')`;
+  $('#hTitle').textContent = `Habilidades · ${m.name}`;
+  const pend = skills().filter(s => varOn(s) && !S.forge[s.id]).length;
+  $('#hSub').innerHTML = `Nivel <b>${S.lvl}</b> · ${m.specName} · <img src="${A}ui/${m.resIcon}.webp" style="width:16px;height:16px;vertical-align:-3px" alt=""> ${m.res}` +
+    (pend ? ` · <b style="color:var(--gold)">${pend} variante${pend > 1 ? 's' : ''} por elegir</b>` : '');
+  $('#bTal img').src = `${A}ui/menu_talentos.webp`;
+}
+function fit() {
+  const sc = $('#screen'); sc.classList.toggle('r768', $('#cRes').value === '1366');
+  const avail = window.innerWidth; const k = Math.min(1, avail / sc.offsetWidth);
+  sc.style.transform = `scale(${k})`; sc.style.transformOrigin = '0 0'; $('#fitbox').style.height = sc.offsetHeight * k + 'px';
+}
+function all() { renderHead(); renderBook(); renderForge(); renderBar(); }
+function boot() {
+  if (Q.get('shot')) document.body.classList.add('shot');
+  if (Q.get('cls')) $('#cCls').value = Q.get('cls');
+  if (Q.get('res')) $('#cRes').value = Q.get('res');
+  if (Q.get('combat')) $('#cCombat').checked = true;
+  if (Q.get('alt')) $('#cAlt').checked = true;
+  reset($('#cCls').value); fit(); all(); welcomeToast();
+  const tip = Q.get('tip');
+  if (tip) requestAnimationFrame(() => {
+    const el = tip === 'base' ? document.querySelector('.tile.sel') : tip === 'mejora' ? document.querySelector('.n-mej') : document.querySelector(`.vcard[data-w="${tip}"]`);
+    const b = el.getBoundingClientRect();
+    const ev = { clientX: b.left + b.width * 0.62, clientY: b.top + b.height * 0.55 };
+    showTip(ev, tip === 'base' ? () => tipSkill(find(S.sel)) : tip === 'mejora' ? () => tipMejora(find(S.sel)) : () => tipVar(find(S.sel), tip), tip === 'A' || tip === 'B' ? el : null);
+    el.dispatchEvent(new Event('noop'));
+  });
+  const dg = Q.get('drag');
+  if (dg) requestAnimationFrame(() => {
+    const sk = find(dg); beginDragVisual(sk);
+    const tgt = document.querySelector(`.slot[data-slot="${SLOT_OF[sk.cat][1] || SLOT_OF[sk.cat][0]}"]`).getBoundingClientRect();
+    moveGhost(tgt.left + tgt.width * 0.7, tgt.top - 4);
+  });
+}
+$('#cCls').onchange = () => { reset($('#cCls').value); all(); welcomeToast(); };
+$('#cRes').onchange = () => { fit(); all(); };
+$('#cCombat').onchange = () => { S.combat = $('#cCombat').checked; renderForge(); };
+$('#cAlt').onchange = () => { S.alt = $('#cAlt').checked; refreshTip(); };
+$('#cReset').onclick = () => { reset(S.cls); all(); };
+window.addEventListener('resize', fit);
+boot();
+</script>
+</body>
+</html>
