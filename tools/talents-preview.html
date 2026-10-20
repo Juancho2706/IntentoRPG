@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Previsualización · Panel de talentos</title>
+<!-- Página de desarrollo (NO la sirve el juego): monta js/ui-talents.js con un
+     jugador fake. Servir la raíz del repo (npx http-server -p 8091) y abrir
+     http://localhost:8091/tools/talents-preview.html
+     Parámetros: ?class=guerrero|maga|arquera  &lvl=10|30|50  &spec=<id>|none
+                 &build=preset|empty  &view=choose  &hover=spec:s6
+                 &import=<código>  &shot=1 (oculta la barra de controles)
+                 &real=1 → usa los js/talents-<clase>.js reales (sin fixture)  -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/talents.css">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2a2620 radial-gradient(circle at 30% 40%, #3b3428, #14110d 70%); }
+  #pv-bar { position: fixed; left: 8px; top: 8px; z-index: 100; display: flex; gap: 6px; align-items: center; font: 12px Inter, sans-serif; color: #ddd;
+    background: rgba(0,0,0,.75); padding: 6px 8px; border-radius: 8px; border: 1px solid #444; }
+  #pv-bar select, #pv-bar button { font: inherit; background: #222; color: #eee; border: 1px solid #555; border-radius: 5px; padding: 2px 6px; }
+  body.pv-shot #pv-bar { display: none; }
+</style>
+<script>
+  // mapa de imports: por defecto, los datos por clase salen del fixture de los
+  // mockups (los js/talents-<clase>.js reales los transcribe otro agente)
+  (function () {
+    var q = new URLSearchParams(location.search);
+    if (q.get('shot')) document.documentElement.classList.add('pv-shot');
+    if (q.get('real')) return;
+    var fx = '../tests/fixtures/talents-sample.mjs';
+    var map = { imports: { '../js/talents-guerrero.js': fx, '../js/talents-maga.js': fx, '../js/talents-arquera.js': fx } };
+    var s = document.createElement('script');
+    s.type = 'importmap';
+    s.textContent = JSON.stringify(map);
+    document.currentScript.after(s);
+  })();
+</script>
+</head>
+<body>
+<div id="pv-bar">
+  <select id="pv-class"><option value="guerrero">Guerrero</option><option value="maga">Maga</option><option value="arquera">Arquera</option></select>
+  <select id="pv-lvl"><option>5</option><option>10</option><option>30</option><option selected>50</option></select>
+  <select id="pv-spec"></select>
+  <button id="pv-open">Abrir (N)</button>
+  <label><input type="checkbox" id="pv-lock"> en combate</label>
+</div>
+<script type="module">
+  import * as Talents from '../js/talents.js';
+  import { createTalentPanel } from '../js/ui-talents.js';
+  if (document.documentElement.classList.contains('pv-shot')) document.body.classList.add('pv-shot');
+  const q = new URLSearchParams(location.search);
+  const $ = (id) => document.getElementById(id);
+  let player = null;
+  function makePlayer(classId, level, specId, build) {
+    const p = { classId, level, strongholdsCleared: level >= 30 ? ['a', 'b'] : [], records: { bossKills: level >= 30 ? 6 : 0 },
+      talents: Talents.normalizeTalents(null, classId), recompute() {} };
+    const ops = panel.ops;
+    if (specId && specId !== 'none' && level >= Talents.TALENT_START_LEVEL) ops.chooseSpec(p, specId);
+    if (build === 'preset') ops.applyPresetAll(p);
+    return p;
+  }
+  let saves = 0;
+  const panel = createTalentPanel(document.body, {
+    api: Talents,
+    getPlayer: () => player,
+    onChange: (p) => { p.recompute(); saves++; window.__saves = saves; },
+    canEdit: () => ($('pv-lock').checked ? 'No puedes cambiar talentos en combate' : null),
+    assetBase: '../assets/',
+  });
+  window.__panel = panel;
+  function fillSpecs() {
+    const t = Talents.talentTreesFor($('pv-class').value);
+    $('pv-spec').innerHTML = '<option value="none">(sin especialización)</option>' + (t?.specs || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  }
+  function reload(fromQuery) {
+    const classId = fromQuery ? (q.get('class') || 'guerrero') : $('pv-class').value;
+    $('pv-class').value = classId; if (fromQuery) fillSpecs();
+    const lvl = +(fromQuery ? (q.get('lvl') || 50) : $('pv-lvl').value);
+    $('pv-lvl').value = String(lvl);
+    const def = Talents.talentTreesFor(classId)?.specs[0]?.id;
+    const spec = fromQuery ? (q.get('spec') || def) : $('pv-spec').value;
+    $('pv-spec').value = spec;
+    player = makePlayer(classId, lvl, spec, fromQuery ? (q.get('build') || 'preset') : 'preset');
+    panel.open();
+  }
+  $('pv-class').onchange = () => { fillSpecs(); $('pv-spec').value = Talents.talentTreesFor($('pv-class').value).specs[0].id; reload(false); };
+  $('pv-lvl').onchange = $('pv-spec').onchange = () => reload(false);
+  $('pv-open').onclick = () => (panel.isOpen() ? panel.close() : panel.open());
+  $('pv-lock').onchange = () => panel.render();
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyN') panel.isOpen() ? panel.close() : panel.open();
+    if (e.code === 'Escape') panel.close();
+  });
+  fillSpecs();
+  reload(true);
+  if (q.get('view') === 'choose') panel.showSpecChoice();
+  if (q.get('hover')) {
+    const [w, id] = q.get('hover').split(':');
+    document.querySelector(`.tp-node[data-tree="${w}"][data-id="${id}"]`)?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  }
+  if (q.get('import')) {
+    document.querySelector('[data-act="import"]').click();
+    document.querySelector('[data-code]').value = q.get('import');
+    document.querySelector('[data-act="import-apply"]').click();
+  }
+  if (q.get('debug')) setTimeout(() => {
+    const out = [...document.querySelectorAll(q.get('debug'))].slice(0, 4).map(el => {
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+      return `${el.className} ${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} nat=${el.naturalWidth} done=${el.complete} vis=${cs.visibility} op=${cs.opacity} disp=${cs.display}`;
+    });
+    const pre = document.createElement('pre'); pre.id = 'pv-debug'; pre.textContent = out.join('\n'); document.body.append(pre);
+  }, 1500);
+  // ?selftest=1 → recorre el panel con clics reales del DOM y escribe el
+  // resultado en <pre id="pv-debug"> (lo lee la verificación headless)
+  if (q.get('selftest')) {
+    const log = [], ok = (c, m) => log.push((c ? 'OK  ' : 'FAIL') + ' ' + m);
+    const node = (w, id) => document.querySelector(`.tp-node[data-tree="${w}"][data-id="${id}"] .tp-nbtn`);
+    const click = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+    const rclick = (el) => el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+    const act = (a) => click(document.querySelector(`[data-act="${a}"]`));
+    const toastTxt = () => document.querySelector('[data-toast]')?.textContent || '';
+    player = makePlayer('guerrero', 50, 'berserker', 'empty'); panel.open();
+    click(node('cls', 'c1')); ok(player.talents.cls.c1 === 1 && saves === 1, 'clic suma rango y llama onChange');
+    click(node('cls', 'c1')); click(node('cls', 'c2')); ok(player.talents.cls.c2 === 1, 'requisito al máximo desbloquea c2');
+    ok(node('cls', 'c1').closest('.tp-node').classList.contains('is-max'), 'c1 se pinta al máximo');
+    rclick(node('cls', 'c1')); ok(player.talents.cls.c1 === 2 && /Segundo Aliento/.test(toastTxt()), 'clic derecho bloqueado si otro depende: ' + toastTxt());
+    rclick(node('cls', 'c2')); ok(!player.talents.cls.c2, 'clic derecho resta');
+    click(node('spec', 's1')); ok(player.talents.sp.berserker.s1 === 1, 's1 (req nodo clave gratis) se aprende');
+    click(node('cls', 'c7')); ok(!player.talents.cls.c7 && /Gasta 6 puntos|Requiere/.test(toastTxt()), 'puerta/requisito: ' + toastTxt());
+    act('preset'); ok(Talents.spentIn(Talents.treeOf(player, 'cls'), player.talents.cls) > 10, 'Recomendado rellena el árbol');
+    const c5 = player.talents.choice.c5; click(node('cls', 'c5')); ok(player.talents.choice.c5 && player.talents.choice.c5 !== c5, 'clic en elección aprendida alterna A/B');
+    const code = document.querySelector('[data-code]').value; ok(/^IRPG1-guerrero-berserker-/.test(code), 'código visible: ' + code);
+    act('reset'); ok(/Seguro/.test(document.querySelector('[data-act="reset"]').textContent), 'Reiniciar pide confirmación');
+    act('reset'); ok(Object.keys(player.talents.cls).length === 0, 'Reiniciar confirma y vacía');
+    act('import'); document.querySelector('[data-code]').value = code; act('import-apply');
+    ok(panel.ops.exportCode(player) === code, 'Importar restaura la build exportada');
+    act('import'); document.querySelector('[data-code]').value = 'IRPG1-maga-x--' ; act('import-apply');
+    ok(/dañado|incompleto/.test(document.querySelector('[data-code-err]').textContent), 'código corrupto: ' + document.querySelector('[data-code-err]').textContent);
+    act('import-cancel');
+    act('spec'); ok(!!document.querySelector('.tp-choose'), 'Especialización abre la elección');
+    click(document.querySelector('[data-act="choose"][data-spec="guardian"]')); ok(player.talents.spec === 'guardian' && !document.querySelector('.tp-choose'), 'elegir Guardián vuelve al árbol');
+    $('pv-lock').checked = true; const before = JSON.stringify(player.talents);
+    click(node('cls', 'c3')); ok(JSON.stringify(player.talents) === before && /combate/.test(toastTxt()), 'canEdit bloquea: ' + toastTxt());
+    $('pv-lock').checked = false;
+    const hovered = node('spec', 's2'); hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    ok(document.querySelector('.tp-d-name').textContent === Talents.nodeById(Talents.treeOf(player, 'spec'), 's2').name, 'hover actualiza el detalle');
+    act('close'); ok(!panel.isOpen() && panel.el.classList.contains('hidden'), 'cerrar oculta el panel');
+    const sw = document.documentElement.scrollWidth <= innerWidth; ok(sw, 'sin scroll horizontal');
+    const pre = document.createElement('pre'); pre.id = 'pv-debug'; pre.textContent = log.join('\n'); document.body.append(pre);
+  }
+  document.title += ' · listo';
+</script>
+</body>
+</html>
