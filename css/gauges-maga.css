@@ -1,0 +1,170 @@
+/* ============================================================
+   BARRAS DE MECÁNICA · Maga (Paso 2d.2 · E1) — docs/paso2d2-hud-pc.md §3.4–§3.6
+   ============================================================
+   Formas del mockup docs/mockups/hud-pc.html (bloques 4 · CALOR, 5 · ESCARCHA, 6 · CARGAS)
+   con el arte pintado de assets/gauges/ como piel: cada pieza de arte oculta su reserva CSS
+   cuando carga (.art-<asset> en la raíz) y, si falla, queda la forma CSS (.no-art).
+   Cuerpo útil ≈414×56. A8: @keyframes y transition SOLO de transform y opacity. */
+
+/* ======================= 4 · CALOR — el brasero ======================= */
+.gz-calor .brz { position: relative; width: 300px; height: 56px; flex: 0 0 auto; }
+.gz-calor .brz-bowl { position: absolute; left: 0; right: 0; bottom: 2px; height: 18px; }
+.gz-calor .brz-bowl svg { display: block; width: 100%; height: 100%; }
+.gz-calor .brz-bowl-art { position: absolute; z-index: 2; left: 0; bottom: 0; width: 300px; height: 34px; object-fit: fill; }
+.gz-calor.art-gz_calor_brasero .brz-bowl { opacity: 0; }
+
+/* las 10 llamas: TODAS crecen a la vez en altura (scaleY), corona de hoguera */
+.gz-calor .brz-fls { position: absolute; z-index: 1; left: 28px; right: 28px; bottom: 20px; height: 35px; display: flex; justify-content: space-between; align-items: flex-end; }
+.gz-calor .fl { position: relative; width: 22px; height: 35px; transform-origin: 50% 100%; transform: scaleY(0); transition: transform .1s linear; }
+.gz-calor .fl-c { position: absolute; inset: 0; transform-origin: 50% 100%; }
+.gz-calor .fl-sh, .gz-calor .fl-ash { position: absolute; inset: 0; clip-path: path('M11 0C15 10 22 16 22 26a11 10 0 0 1-22 0C0 16 7 10 11 0Z'); }
+.gz-calor .fl-sh { background: linear-gradient(0deg, #5a160c, #9a2a12); }
+.gz-calor .brz[data-tier="2"] .fl-sh { background: linear-gradient(0deg, #b0300f, #ff6a1a 70%, #ffb04a); }
+.gz-calor .brz[data-tier="3"] .fl-sh { background: linear-gradient(0deg, #ff7a1a, #ffd27a 70%, #fff1c8); }
+.gz-calor .brz[data-tier="4"] .fl-sh { background: linear-gradient(0deg, #ffd27a, #fffbe8); }
+.gz-calor .fl-ash { opacity: 0; background: linear-gradient(0deg, #3a3532, #8a817a 70%, #b9b2aa); transition: opacity .2s linear; }
+.gz-calor .brz[data-ash="1"] .fl-ash { opacity: 1; }
+/* piel pintada: la lengua de fuego se tiñe por tramo (filtro ESTÁTICO: cambia 1 vez por tramo) */
+.gz-calor .fl-art { position: absolute; left: -1px; bottom: 0; width: 24px; height: 36px; object-fit: fill; }
+.gz-calor.art-gz_calor_llama .fl-sh { opacity: 0; }
+.gz-calor.art-gz_calor_llama .fl-ash { clip-path: none; background: none; }
+.gz-calor .brz[data-tier="1"] .fl-art { filter: saturate(1.5) hue-rotate(-16deg) brightness(.7); }
+.gz-calor .brz[data-tier="3"] .fl-art { filter: brightness(1.15) saturate(.92); }
+.gz-calor .brz[data-tier="4"] .fl-art { filter: saturate(.2) brightness(1.9); }
+.gz-calor .brz[data-ash="1"] .fl-art { filter: grayscale(1) brightness(.62) contrast(.9); }
+/* parpadeo (un solo bucle): steps(2), impares desfasadas; nunca en ceniza */
+.gz-calor .brz:not([data-ash="1"])[data-tier="2"] .fl-c,
+.gz-calor .brz:not([data-ash="1"])[data-tier="3"] .fl-c,
+.gz-calor .brz[data-tier="4"] .fl-c { animation: gz-calor-flick .4s steps(2) infinite; }
+.gz-calor .fl.odd .fl-c { animation-delay: -.2s; }
+@keyframes gz-calor-flick { 50% { transform: scaleX(.86) skewX(4deg); } }
+
+/* brasas en el borde del cuenco: brillan con el Calor; grises al enfriarse */
+.gz-calor .brz-emb { position: absolute; z-index: 3; left: 28px; right: 28px; bottom: 24px; height: 6px; display: flex; justify-content: space-between; pointer-events: none; }
+.gz-calor .brz-emb b { width: 22px; height: 6px; border-radius: 50%; opacity: 0; transition: opacity .3s linear;
+  background: radial-gradient(ellipse at 50% 50%, #ffd27a 0, #ff6a1a 40%, #ff6a1a00 72%); }
+.gz-calor .brz[data-ash="1"] .brz-emb b { background: radial-gradient(ellipse at 50% 50%, #b9b2aa 0, #6f6862 40%, #6f686200 72%); }
+
+/* Ignición Total: columna central blanca, más alta y ancha (transform + opacity, 200 ms) */
+.gz-calor .brz-col { position: absolute; z-index: 1; left: 50%; bottom: 14px; width: 44px; height: 42px; margin-left: -22px; opacity: 0;
+  transform: scaleY(.4); transform-origin: 50% 100%; transition: opacity .2s linear, transform .2s ease-out; }
+.gz-calor .brz[data-ign="1"] .brz-col { opacity: 1; transform: none; }
+.gz-calor .brz-col-css { position: absolute; inset: 0; clip-path: path('M22 0C30 13 44 21 44 30a22 12 0 0 1-44 0C0 21 14 13 22 0Z');
+  background: linear-gradient(0deg, #ffd27a, #ffffff); }
+.gz-calor .brz-col-art { position: absolute; left: 50%; bottom: -12px; width: 40px; height: 54px; margin-left: -20px; object-fit: fill; }
+.gz-calor.art-gz_calor_llama_blanca .brz-col-css { opacity: 0; }
+.gz-calor .brz[data-ign="1"] .fl:nth-child(5), .gz-calor .brz[data-ign="1"] .fl:nth-child(6) { opacity: 0; }
+
+/* lado: icono de Ignición (meta, apagado hasta 100) e insignia ×2 de Combustión */
+.gz-calor .brz-side { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.gz-calor .brz-ign { position: relative; width: 36px; height: 48px; opacity: .3; transform: scale(.82); transition: opacity .2s linear, transform .2s ease-out; }
+.gz-calor[data-state="active"] .brz-ign { opacity: 1; transform: none; }
+.gz-calor .brz-ign-css { position: absolute; inset: 0; display: grid; place-items: center; font: 800 26px/1 Inter, sans-serif; font-style: normal; color: #ff8a3d; }
+.gz-calor .brz-ign-art { position: absolute; left: 0; top: 0; width: 36px; height: 48px; object-fit: contain; }
+.gz-calor.art-gz_calor_ignicion .brz-ign-css { opacity: 0; }
+.gz-calor .brz-x2 { font: 800 13px/18px Inter, sans-serif; color: #fff1c8; background: #c2380f; border: 1px solid #ffb04a; border-radius: 4px; padding: 0 5px; }
+.gz-calor .brz-side[data-comb="0"] .brz-x2 { display: none; }
+
+/* ======================= 5 · ESCARCHA — cinco cristales del enemigo ======================= */
+.gz-escarcha .fr-tag { display: flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 128px; height: 26px; padding: 0 9px 0 6px;
+  border-radius: 13px; background: #0b161d; border: 1px solid #22445a; font: 600 12px/1 Inter, sans-serif; color: #a8e0f8; white-space: nowrap; overflow: hidden; }
+.gz-escarcha .fr-nm { overflow: hidden; text-overflow: ellipsis; }
+.gz-escarcha .fr-tag[data-none="1"] { color: #5f8496; border-style: dashed; }
+.gz-escarcha .fr-crown { position: relative; display: none; flex: none; width: 20px; height: 20px; margin-left: -3px; }
+.gz-escarcha .fr-tag[data-boss="1"] { border-color: #ffcf5a88; }
+.gz-escarcha .fr-tag[data-boss="1"] .fr-crown { display: block; }
+.gz-escarcha .fr-crown-css { position: absolute; inset: 0; display: grid; place-items: center; font: 700 14px/1 Inter, sans-serif; font-style: normal; color: #ffcf5a; }
+.gz-escarcha .fr-crown-art { position: absolute; left: 0; top: 0; width: 20px; height: 20px; object-fit: contain; }
+.gz-escarcha.art-gz_escarcha_aterido .fr-crown-css { opacity: 0; }
+
+.gz-escarcha .fr-hexes { position: relative; display: flex; gap: 4px; flex: 0 0 auto; }
+.gz-escarcha .fr-hex { position: relative; width: 32px; height: 37px; flex: none; }
+.gz-escarcha .fr-sock { position: absolute; inset: 0; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #2a4a5c; }
+.gz-escarcha .fr-sock::after { content: ''; position: absolute; inset: 3px; clip-path: inherit; background: #0b161d; }
+.gz-escarcha .fr-sock-art { position: absolute; left: 0; top: 0; width: 32px; height: 37px; object-fit: fill; }
+.gz-escarcha.art-gz_escarcha_engaste .fr-sock { background: #0b161dcc; }
+.gz-escarcha.art-gz_escarcha_engaste .fr-sock::after { opacity: 0; }
+.gz-escarcha .fr-gem { position: absolute; inset: 0; opacity: 0; transition: opacity .15s linear; }
+.gz-escarcha .fr-hex.on .fr-gem { opacity: 1; }
+.gz-escarcha .fr-gem-css { position: absolute; inset: 3px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(160deg, #e9fbff, #74cdf2 55%, #2a7fa8); }
+.gz-escarcha .fr-gem-art { position: absolute; left: 50%; top: 3px; width: 14px; height: 31px; margin-left: -7px; object-fit: fill; }
+.gz-escarcha.art-gz_escarcha_cristal .fr-gem-css { opacity: 0; }
+/* escarcha del último cristal (pierde brillo según decayIn) y de los engastes en Aterido */
+.gz-escarcha .fr-rime { position: absolute; inset: 4px 5px; opacity: 0; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: repeating-linear-gradient(60deg, #ffffff66 0 2px, #0000 2px 5px), linear-gradient(180deg, #e8f6ffcc, #9cc4d8aa); transition: opacity .1s linear; }
+.gz-escarcha .fr-hexes[data-numb="1"] .fr-hex:not(.on) .fr-rime { opacity: .3; }
+.gz-escarcha .fr-hexes[data-numb="1"]::before { content: ''; position: absolute; inset: -4px -3px; border-radius: 12px;
+  background: radial-gradient(ellipse at 50% 50%, #a8e0f855, #74cdf218 60%, #74cdf200 75%); }
+/* estallido al congelar (seq.full): alterna el nombre del @keyframes para reiniciarlo sin reflow */
+.gz-escarcha .fr-hexes[data-burst="a"] .fr-gem { animation: gz-escarcha-shatter-a .6s ease-out; }
+.gz-escarcha .fr-hexes[data-burst="b"] .fr-gem { animation: gz-escarcha-shatter-b .6s ease-out; }
+@keyframes gz-escarcha-shatter-a {
+  0% { opacity: 1; transform: scale(1.2); }
+  55% { opacity: .8; transform: translate(var(--sx), var(--sy)) rotate(var(--sr)) scale(.75); }
+  100% { opacity: 0; transform: translate(var(--sx), 6px) rotate(var(--sr)) scale(.4); }
+}
+@keyframes gz-escarcha-shatter-b {
+  0% { opacity: 1; transform: scale(1.2); }
+  55% { opacity: .8; transform: translate(var(--sx), var(--sy)) rotate(var(--sr)) scale(.75); }
+  100% { opacity: 0; transform: translate(var(--sx), 6px) rotate(var(--sr)) scale(.4); }
+}
+/* contador de grupo: «❄ 2 congelados» / «6 con capas» */
+.gz-escarcha .fr-cnt { display: flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; font: 700 12px/1 Inter, sans-serif; color: #a8e0f8; white-space: nowrap; overflow: hidden; }
+.gz-escarcha .fr-cnt-t { overflow: hidden; text-overflow: ellipsis; }
+.gz-escarcha .fr-ice { position: relative; display: none; flex: none; width: 24px; height: 26px; }
+.gz-escarcha .fr-cnt[data-frozen="1"] .fr-ice { display: block; }
+.gz-escarcha .fr-cnt[data-frozen="1"] { color: #e9fbff; }
+.gz-escarcha .fr-ice-css { position: absolute; inset: 0; display: grid; place-items: center; font: 700 15px/1 Inter, sans-serif; font-style: normal; color: #a8e0f8; }
+.gz-escarcha .fr-ice-art { position: absolute; left: 0; top: 0; width: 24px; height: 26px; object-fit: contain; }
+.gz-escarcha.art-gz_escarcha_congelado .fr-ice-css { opacity: 0; }
+
+/* ======================= 6 · CARGAS ARCANAS — cuatro runas en órbita ======================= */
+.gz-cargas .ac { position: relative; width: 48px; height: 48px; flex: 0 0 auto; margin: 0 6px 0 4px; }
+/* arco de caducidad (conic a 10 Hz) de 6 s a 0; parpadea por debajo de 2 s; lleno con Resonancia */
+.gz-cargas .ac-arc { position: absolute; inset: -4px; border-radius: 50%; --lp: 0;
+  background: conic-gradient(#b996ff calc(var(--lp) * 360deg), #ffffff14 0);
+  -webkit-mask: radial-gradient(circle closest-side, #0000 calc(100% - 3.5px), #000 calc(100% - 3px));
+  mask: radial-gradient(circle closest-side, #0000 calc(100% - 3.5px), #000 calc(100% - 3px)); }
+.gz-cargas .ac[data-warn="1"] .ac-arc { background: conic-gradient(#ff7ad0 calc(var(--lp) * 360deg), #ffffff14 0); animation: gz-cargas-warn .5s steps(2) infinite; }
+.gz-cargas .ac[data-res="1"] .ac-arc { background: #e7dbff; }
+@keyframes gz-cargas-warn { 50% { opacity: .2; } }
+/* el anillo rúnico (piel) y las runas que orbitan (un solo bucle, solo con Cargas) */
+.gz-cargas .ac-orbit { position: absolute; inset: 0; }
+.gz-cargas .ac[data-orbit="1"] .ac-orbit { animation: gz-cargas-orbit 16s linear infinite; }
+.gz-cargas .ac[data-res="1"] .ac-orbit { animation-duration: 7s; }
+@keyframes gz-cargas-orbit { to { transform: rotate(360deg); } }
+.gz-cargas .ac-ring-css { position: absolute; inset: 3px; border-radius: 50%; border: 2px solid #3e2f66; }
+.gz-cargas .ac-ring-art { position: absolute; left: 0; top: 0; width: 48px; height: 48px; object-fit: contain; }
+.gz-cargas.art-gz_cargas_anillo .ac-ring-css { opacity: 0; }
+.gz-cargas .ac-rune { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px; transform: translate(var(--dx), var(--dy)); }
+.gz-cargas .ac-rune-off { position: absolute; inset: 3px; transform: rotate(45deg); border: 1.5px solid #5a4890; background: #130e22; }
+.gz-cargas.art-gz_cargas_anillo .ac-rune-off { opacity: 0; }
+.gz-cargas .ac-rune-on { position: absolute; inset: 0; opacity: 0; transform: scale(.4); transition: opacity .2s linear, transform .2s ease-out; }
+.gz-cargas .ac-rune.on .ac-rune-on { opacity: 1; transform: none; }
+.gz-cargas .ac-rune-css { position: absolute; inset: 3px; transform: rotate(45deg); background: #e7dbff; border: 1.5px solid #fff; }
+.gz-cargas .ac-rune-art { position: absolute; left: -1px; top: -1px; width: 18px; height: 18px; object-fit: contain; }
+.gz-cargas.art-gz_cargas_runa .ac-rune-css { opacity: 0; }
+/* núcleo: se enciende con las Cargas. El arte es ADITIVO sobre negro (screen); el disco oscuro de
+   debajo evita el cuadro negro aunque la barra quede aislada por una opacidad (idle, fuera de combate) */
+.gz-cargas .ac-core { position: absolute; inset: 11px; border-radius: 50%; }
+.gz-cargas .ac-core::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #0d0a16; }
+.gz-cargas .ac-core-css { position: absolute; inset: 1px; border-radius: 50%; background: radial-gradient(circle, #fff, #b996ff 50%, #3e2f66); opacity: var(--co, .3); transition: opacity .2s linear; }
+.gz-cargas .ac-core-art { position: absolute; left: -5px; top: -5px; width: 36px; height: 36px; clip-path: circle(34% at 50% 50%); mix-blend-mode: screen; opacity: var(--co, .3); transition: opacity .2s linear; }
+.gz-cargas.art-gz_cargas_nucleo .ac-core-css { opacity: 0 !important; }
+/* descarga (seq.spent): las runas colapsan al centro (450 ms), alternando el @keyframes */
+.gz-cargas .ac-ghosts { position: absolute; inset: 0; pointer-events: none; }
+.gz-cargas .ac-ghost { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px; opacity: 0; transform: translate(var(--dx), var(--dy)); }
+.gz-cargas .ac-ghosts[data-n="1"] .ac-ghost:nth-child(n+2),
+.gz-cargas .ac-ghosts[data-n="2"] .ac-ghost:nth-child(n+3),
+.gz-cargas .ac-ghosts[data-n="3"] .ac-ghost:nth-child(n+4) { display: none; }
+.gz-cargas .ac-ghosts[data-burst="a"] .ac-ghost { animation: gz-cargas-collapse-a .45s ease-in; }
+.gz-cargas .ac-ghosts[data-burst="b"] .ac-ghost { animation: gz-cargas-collapse-b .45s ease-in; }
+@keyframes gz-cargas-collapse-a { 0% { opacity: 1; transform: translate(var(--dx), var(--dy)); } 100% { opacity: 0; transform: translate(0, 0) scale(.3); } }
+@keyframes gz-cargas-collapse-b { 0% { opacity: 1; transform: translate(var(--dx), var(--dy)); } 100% { opacity: 0; transform: translate(0, 0) scale(.3); } }
+/* previsión del próximo Rayo y RESONANCIA */
+.gz-cargas .ac-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gz-cargas .ac-txt { font: 600 13px/1.2 Inter, sans-serif; color: #cfbaff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gz-cargas .ac-txt b { color: #fff; }
+.gz-cargas .ac-res { display: none; font: 700 10.5px/16px Inter, sans-serif; letter-spacing: .6px; color: #0d0b10; background: #cfbaff; border-radius: 4px; padding: 0 5px; }
+.gz-cargas .ac-info[data-res="1"] .ac-res { display: inline-block; }
