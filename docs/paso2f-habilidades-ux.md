@@ -28,6 +28,13 @@
 - **Elegir una variante cuesta 2 clics; equipar, 1 gesto; ver qué hace algo, 0** (tooltip rico; con Alt, el detalle).
 - El texto visible por defecto es el nombre más una línea.
 
+**Vista de talentos en el mockup (§3.8).**
+- El mockup abre también el **panel de talentos real**, ya aprobado (`js/ui-talents.js` + barras `ui-gauges*`), con datos reales: `N` lo abre y `T` vuelve al libro.
+- Encima se aplica la regla de poco texto (las columnas de la mecánica pasan al tooltip) y se conectan las dos vistas:
+  - al cambiar de especialización sale un aviso de lo que cambia en el libro;
+  - el tooltip de la forja lista los talentos que tocan la habilidad, y el de un nodo, las habilidades que toca.
+- Nota para la pasada de VFX: un **aura de pasivas por especialización** (§3.9).
+
 **Entregables.**
 - **95 imágenes para Codex** en 4 tandas de 24/24/24/23 (§5): 86 iconos de variante y 9 piezas de UI.
 - Un plan de 5 etapas con trabajadores sin archivos compartidos, una migración de guardado v4→v5 y criterios de aceptación verificables (§6).
@@ -457,6 +464,62 @@ Marco `ui_tooltip` (9-slice), 380 px, anclado a la tarjeta y sin tapar a su herm
 - **Tamaños mínimos a 1366 × 768 (`--s` 0,8):** nombre de casilla 10 px, cuerpo 11,2 px y tooltip 11,6 px. Esos 10 px se aceptan solo para el nombre bajo el icono. El resto ≥ 11 px.
 - **Texto:** una línea por tarjeta (≤ 70 caracteres) y nombres de casilla de 2 líneas como máximo, sin cortes con «…».
 
+### 3.8 Vista de talentos y su vínculo con el libro
+
+**Qué es.**
+- Es el **panel real** de talentos (`createTalentPanel` de `js/ui-talents.js`, con `css/talents.css`, las barras `js/ui-gauges*.js` y `css/gauges-*.css`), con sus datos (`talents-<clase>.js`, `spec-mechanics.js`, `explain(gaugeTuning())`).
+- Va empaquetado dentro del mockup con esbuild, sin THREE.
+- **No se rediseña:** se ve igual que en el juego (captura `07_talentos_N`): selector de las 3 especializaciones con retrato y emblema (botón «Especialización»), árbol de clase y de especialización con iconos reales, puntos, puertas (6/12 puntos y Apex Nv40), nodo clave gratis, elecciones A/B, barra de mecánica en demo y lista de activas concedidas.
+- **Navegación:** «Talentos `N`» en la cabecera del libro (o la tecla `N`) abre los talentos. «Habilidades `T`» es el único botón añadido a la cabecera del panel; con `T`, `Esc` o ✕ se vuelve al libro.
+- El héroe del mockup lleva el preset recomendado de su especialización y Nv18.
+
+**Regla de poco texto** (solo donde había párrafos fijos):
+
+| Párrafo de hoy | Ahora |
+|---|---|
+| Mecánica única: texto + 3 columnas «Generar / Descargar / Pérdida» (~30 palabras) siempre visibles | Queda el texto en **2 líneas** y la barra. Las 3 columnas y el texto completo salen en el **tooltip** al pasar por el texto o por la barra |
+| Inspector del nodo a 1366 (diseño compacto): la descripción se cortaba a media línea | Se recorta a 2 líneas con «…». Si el texto supera ~110 caracteres, el **tooltip del nodo** lo trae entero |
+| (nuevo) Nodo que toca habilidades | Tooltip compacto: icono, nombre, tipo y rango, más **«Habilidades que toca»** con sus iconos. El inspector del panel ya muestra la descripción y no se repite |
+
+**Vínculo entre las dos vistas.**
+1. **Al cambiar de especialización** sale un aviso breve en una tira sobre la leyenda inferior, que no tapa el árbol nuevo:
+   - `3` insignia vieja ~~tachada~~ → insignia nueva, con su icono. Pasa a la ranura 3 de la barra.
+   - Activas de talento que **entran** (+) o **salen** (−). Las que salen se quitan de la barra.
+   - **★ variantes recomendadas** (iconos). En el libro quedan marcadas con una estrella hasta que las eliges, y la tarjeta de variante lleva «★ <especialización>».
+   - **▮ barra de mecánica nueva**, más «`T` ver en el libro».
+   - El libro reordena las activas de talento en su categoría con la etiqueta TALENTO.
+2. **El tooltip de la forja** (habilidad y variante) añade **«Talentos que la tocan»**: icono y nombre de cada nodo de clase o de la especialización activa cuyo `fx.mod` / `skillLv` / `grant` nombra esa habilidad. Los comprados llevan ✓ y el resto sale atenuado.
+3. **Al revés:** el tooltip de un nodo lista **«Habilidades que toca»**. Se calcula de los mismos `fx`; los `@elem`/`@spec` quedan fuera para no listar media clase.
+4. **«Recomendado» del libro** aplica las variantes recomendadas de la especialización activa. Es la tabla `RECO` del mockup; en el juego, `recoVariants` junto a `clsPreset` en `talents-<clase>.js`.
+
+**Para la implementación** (se suma a E2 de §6):
+- `js/hud-model.js` gana `talentLinks(p, skillId)` y `nodeSkills(node)`, puros y con su test, a partir de `nodeFx`.
+- El aviso de especialización es `specSwapSummary(pPrev, pNext)` (puro): insignia, entradas, salidas, recomendadas y mecánica. Lo pinta `ui-skills.js`.
+- En `ui-talents.js` solo se añaden el botón «Habilidades T», el recorte de `.tp-mech-cols` al tooltip y el gancho `onNodeHover` para el tooltip de habilidades. Lo hace su dueño, sin rediseñar.
+
+### 3.9 Nota para la pasada de VFX (sin implementar): aura de pasivas por especialización
+
+- **El modelo 3D del héroe NO cambia por especialización.** La identidad visual de la especialización la da un **aura alrededor del héroe que reacciona a los procs de sus pasivas**, una por especialización.
+- Se alimenta de los mismos eventos que las barras de mecánica: `onGauge` ⑩, `firePower` de las pasivas clave y `gaugeView` a 10 Hz. Ejemplos:
+
+| Especialización | Reposo | Reacciona a… |
+|---|---|---|
+| Berserker | vaho rojo a ras de suelo | Sed Saciada → venas rojas que laten en el aura |
+| Guardián | anillo de acero tenue | cada carga de Bastión → un escudo que orbita |
+| Cruzado | motas doradas | Fervor lleno → halo con rayos |
+| Piromante | brasas sueltas | **Ignición/Combustión → estallido de brasas** |
+| Crionte | escarcha en los pies | **cada capa de Escarcha acumulada → cristales que crecen**; Congelado → destello frío |
+| Arcanista | runas en órbita | cada Carga Arcana → una runa más encendida |
+| Francotiradora | retícula en el suelo | Concentración máxima → retícula que se cierra |
+| Montaraz | hojas que caen | trampa armada → raíces; Presa marcada → destello verde |
+| Tiradora | remolino de viento | Impulso → estela que se alarga con la velocidad |
+
+- **Reglas:**
+  - Un único sistema de partículas por héroe: `postfx`/`particles` con el pool fijo de `world-marks`.
+  - Intensidad acotada para no tapar el combate, y opción de reducirla con «reducir movimiento».
+  - Los colores salen de STYLE.md.
+  - Se diseña en la pasada de VFX y sonido (memoria «UX habilidades y FX»), no en 2f.
+
 ---
 
 ## 4. Mockup
@@ -471,7 +534,11 @@ Marco `ui_tooltip` (9-slice), 380 px, anclado a la tarjeta y sin tapar a su herm
   - arrastrar a la barra (con validación de ranura), tecla `1`–`4` sobre una casilla y clic derecho → ranura natural;
   - engarces con cuadrícula de soportes;
   - interruptores «En combate» y `Alt`, y selector de clase y de resolución.
-- **Parámetros:** `?cls=guerrero|maga|arquera &res=1920|1366 &sel=<id> &tip=base|mejora|A|B &drag=<id> &combat=1 &alt=1 &shot=1`.
+- **Parámetros:** `?cls=guerrero|maga|arquera &res=1920|1366 &sel=<id> &tip=base|mejora|A|B &drag=<id> &combat=1 &alt=1 &shot=1`. Vista de talentos: `&view=talents`, `&spec=<id>`, `&swap=<id>` (simula el cambio de especialización), `&back=1` (vuelve al libro tras el cambio), `&tipnode=spec:s2` y `&tip2=A|B`.
+- **Vista de talentos:**
+  - Carga `../../css/talents.css` y los `gauges*.css` del repo, así que el mockup se abre desde `docs/mockups/`. El arte sale de `IntentoRPG-assets/web/`.
+  - Como en el juego, el panel elige su diseño completo o compacto según el **tamaño real de la ventana**.
+  - La demo de la barra de mecánica anima en tiempo real. Las capturas de talentos se sacan con `--timeout`, no con `--virtual-time-budget`: con tiempo virtual la demo se queda en su primer fotograma.
 - **Iconos de variante:** todavía no existen (§5). El mockup usa la **reserva legible** que tendrá el juego si un asset no carga: el icono base virado al color de su papel (la II en espejo) y el glifo grande del papel. Si existe `web/forge/v_<id>_i|ii.webp`, se ve el arte encima.
 
 ### 4.2 Capturas finales (Chrome headless, `--headless=new --enable-gpu --use-angle=d3d11`)
@@ -488,7 +555,17 @@ Carpeta: `C:\Users\juanm\AppData\Local\Temp\claude\D--Proyectos-IntentoRPG\6ead5
 | `final_arquera_drag_1366.png` | Arrastre de Lluvia de Flechas: `DER` y `2` en verde con ✓, y el resto apagado |
 | `final_maga_combate_alt_1920.png` | Modo combate (todo bloqueado) con `Alt`: tooltip avanzado |
 
-Las capturas de cada ronda se conservan como evidencia: `r1_*.png` (antes de la refutación 1) y `r2_*.png` (antes de la 2).
+**Vista de talentos:**
+
+| Captura | Muestra |
+|---|---|
+| `final_tal_maga_1920.png` | Talentos de la Maga Piromante a 1920: los dos árboles, la mecánica Calor animada y el tooltip del nodo «Combustión Rápida» con **«Habilidades que toca: Bola de Fuego»** |
+| `final_tal_guerrero_1366.png` | Talentos del Berserker a 1366 (compacto), con la barra Sed en demo y el tooltip del nodo clave |
+| `final_tal_swap_maga_1366.png` | Cambio a Crionte a 1366: tira de aviso (`3` Llamarada → Prisión de Hielo · ★ 5 variantes · ▮ Escarcha · `T`) y la barra Escarcha en demo |
+| `final_tal_swap_arquera_1920.png` | Cambio a Montaraz a 1920 (Trampa de Cepo · Coto de Caza) |
+| `final_tal_libro_tras_cambio_1920.png` | Vuelta al libro tras el cambio: ★ en las variantes recomendadas, ranura 3 = Prisión de Hielo y tooltip de Saeta Gélida con **«Talentos que la tocan: Carámbanos»** |
+
+Las capturas de cada ronda se conservan como evidencia: `r1_*.png` y `r2_*.png` (libro), y `t1_*.png` y `t2_*.png` (talentos).
 
 ### 4.3 Refutaciones del mockup (dos, como pidió el dueño)
 
@@ -515,6 +592,26 @@ Las capturas de cada ronda se conservan como evidencia: `r1_*.png` (antes de la 
 | Los títulos largos («Vendaval de Acero») se partían en 2 líneas y movían la tarjeta | Tarjeta de 380 px y título en una línea |
 | Los glifos apagados del tooltip tenían poco contraste | `#7c7286` sobre borde `#4a3e54` |
 | (Encontrado al verificar) En combate, el tooltip de la variante elegida decía «clic para quitarla» | Ahora dice «✓ Elegida · bloqueada en combate». Con `Alt`, el detalle va rotulado «Detalle (Alt)» |
+
+No se hizo una tercera ronda.
+
+**Vista de talentos · refutación 1** (sobre `t1_*.png`)
+
+| Crítica | Cambio |
+|---|---|
+| El aviso «Nivel 18 · mejora…» del libro se colaba en la vista de talentos y tapaba «Habilidades T» | El aviso del libro se oculta de verdad al cambiar de vista (`[hidden]`) |
+| La mecánica tenía ~30 palabras fijas en 3 columnas (Generar / Descargar / Pérdida) además del texto: párrafo permanente | Columnas al **tooltip** (al pasar por el texto o la barra). Quedan 2 líneas, la barra en demo y las píldoras de nodos |
+| El tooltip flotante del nodo repetía la misma descripción que el inspector del panel | Tooltip **compacto**: solo nombre, tipo y rango, más «Habilidades que toca». Sin habilidades que mostrar, no hay tooltip |
+| El aviso de especialización tenía una fila «±» vacía (no entraba ni salía ninguna activa aparte de la insignia) | La fila solo aparece si hay entradas o salidas |
+| La barra de mecánica salía vacía («El brasero está frío», 0) en la captura a 1920 | Las capturas posan la demo en una fase con contenido (`seekNode`) y se toman en tiempo real |
+
+**Vista de talentos · refutación 2** (sobre `t2_*.png`)
+
+| Crítica | Cambio |
+|---|---|
+| El aviso de especialización, arriba a la derecha, **tapaba el nodo clave y la cabecera del árbol nuevo**, justo lo que el jugador quiere ver tras cambiar | Pasa a una **tira de una línea abajo, sobre la leyenda**: emblema · `3` vieja → nueva · ± · ★ iconos · ▮ mecánica · `T` |
+| A 1366 el inspector cortaba la descripción del nodo clave a media línea | Se recorta a 2 líneas con «…», y el tooltip del nodo trae el texto entero cuando es largo |
+| (Al verificar) Las activas de talento ahora salen en el libro: con 4 casillas, «Defensa · utilidad» empujaba «Definitiva» fuera del libro a 1366 | «Defensa · utilidad» ocupa todo el ancho y «Especialización» y «Definitiva» comparten fila |
 
 No se hizo una tercera ronda.
 
