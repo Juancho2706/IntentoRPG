@@ -1,6 +1,6 @@
 # Paso 2d.2: HUD de PC y barras de mecánica por especialización (documento de diseño)
 
-> Estado: **diseño** (sin código del juego). Fecha: 2026-10-20.
+> Estado: **diseño** (sin código del juego). Fecha: 2026-10-20. **Revisión v2** (tras la revisión del coordinador): zona de mecánica de 520×72, nuevas siluetas para Berserker, Piromante y Tiradora, comprobación de solapes dentro de cada widget (`?measure=1`) y assets de las tandas A y B actualizados (§9).
 > Mockup navegable: [`docs/mockups/hud-pc.html`](mockups/hud-pc.html). Ábrelo en Chrome con `file:///`; usa los assets de `D:\Proyectos\IntentoRPG-assets\web\`.
 > Insumos: `docs/paso2-diseno.md` §1.1 y §2, `js/spec-mechanics.js`, `js/talents-*.js`, `index.html`, `css/style.css`, `js/ui.js`, `js/hud-model.js`, `js/ui-talents.js`, los mockups `HUD.dc.html`, `Talentos.dc.html` y `Spec-*.dc.html`, y `IntentoRPG-assets/STYLE.md`.
 
@@ -12,7 +12,7 @@
 
 1. **HUD de PC al estilo D4/D3.**
    - Un *dock* centrado abajo: orbe de vida, la barra de 6 ranuras con la esquiva y las 2 pociones, y el orbe de recurso.
-   - Justo encima, la **zona de mecánica** (440×48 px a 1080p).
+   - Justo encima, la **zona de mecánica** (520×72 px a 1080p).
    - Las esquinas tienen un uso fijo: placa del héroe, objetivo o jefe, minimapa con misión, botín, avisos y micromenú con los iconos `menu_*`.
    - Todo escala con una sola variable `--s` (1 a 1080p, 0,8 a 768p).
    - Se eliminan el joystick, los botones táctiles redondos, el menú hamburguesa, los avisos de «toca» y las *media queries* de móvil.
@@ -20,15 +20,15 @@
 
    | Especialización | Forma de la barra |
    |---|---|
-   | Berserker | vena que late |
+   | Berserker | dos venas curvas que desembocan en un corazón central que se hincha y gotea |
    | Guardián | muralla de 5 escudos |
    | Cruzado | halo con 3 soles |
-   | Piromante | parrilla de forja de 10 barrotes |
+   | Piromante | brasero cuyas 10 llamas crecen en altura (corona de hoguera) y se vuelven ceniza al enfriarse |
    | Crionte | 5 cristales del enemigo bajo el cursor |
    | Arcanista | anillo de 4 runas |
    | Francotiradora | retícula que se cierra |
    | Montaraz | cepos armados y medallón de Presa |
-   | Tiradora | chevrones de viento |
+   | Tiradora | rosa de los vientos que gira más rápido y se llena de 5 plumas |
 
 3. **Un único widget** (`js/ui-gauges.js` + `defineGaugeView`) que se monta en el HUD (en vivo) y en el panel de talentos (en modo demostración, con los nodos que lo potencian resaltados).
 4. **Pedido al núcleo:** `gaugeView` v2 añade contadores de eventos `seq`, `tMax`, `decayIn`, `ready` y un objeto `x` por indicador (§3.10).
@@ -46,7 +46,7 @@
 | 3 | [Counterpoint (addon para Midnight)](https://www.curseforge.com/wow/addons/counterpoint-combo-points-class-resources) y [Resource Architect](https://www.curseforge.com/wow/addons/resource-architect-resource-bar) | Los jugadores piden **marcas por punto** (23 estilos) y **perfiles por especialización**: la queja es que la UI por defecto pinta igual todos los recursos secundarios. **Tomamos:** una forma **distinta por especialización**, con unidades discretas (escudo, sol, runa, cepo) cuando el recurso es entero. |
 | 4 | [PureDiablo, «Combo Points» (D4, Pícaro)](https://www.purediablo.com/diablo4/Combo_Points) y [d4guides, clases (temporada 14)](https://d4guides.gg/en/database/classes) | En D4 los puntos de combo del Pícaro se ven **encima de la barra de experiencia**, junto a las ranuras. Cada clase tiene su mecánica (Arsenal, Libro de los Muertos, Salón de los Espíritus, Bendiciones de Espíritu). **Tomamos:** la posición «justo encima de la barra» y que la mecánica se aprende en un menú propio. Nosotros lo hacemos en el panel de talentos. |
 | 5 | [Gfinity, «PoE2: How do Power Charges work»](https://www.gfinityesports.com/article/path-of-exile-2-how-do-power-charges-work) y [Sportskeeda, Infusiones en PoE2](https://sportskeeda.com/mmo/path-exile-2-how-get-use-infuse-weapon) | En PoE2 las cargas (Aguante, Frenesí, Poder) duran 15 s, se renuevan al ganar otra y se ven como **orbes alrededor del personaje** y como iconos con contador; las Infusiones se ligan a un elemento. **Tomamos:** el **anillo de caducidad** (Cargas Arcanas: «se pierden a los 6 s») y la idea de que una carga «a punto de caducar» avise antes de perderse (grieta del Bastión). |
-| 6 | [PoE2 Wiki, «Infernal Flame» (Infernalista)](https://www.poe2wiki.net/wiki/Low_Infernal_Flame) | Una barra que **se llena gastando**, **decae a los 2 s sin ganar** y **castiga al desbordarse**, con umbrales que dan beneficios. **Tomamos:** el estado «enfriamiento» como estado visual propio (la parrilla del Calor «se enfría» tras 3 s) y los umbrales con forma (no solo color). |
+| 6 | [PoE2 Wiki, «Infernal Flame» (Infernalista)](https://www.poe2wiki.net/wiki/Low_Infernal_Flame) | Una barra que **se llena gastando**, **decae a los 2 s sin ganar** y **castiga al desbordarse**, con umbrales que dan beneficios. **Tomamos:** el estado «enfriamiento» como estado visual propio (el brasero del Calor «se enfría» tras 3 s) y los umbrales con forma (no solo color). |
 | 7 | [Maxroll, «Lost Ark Class Overview»](https://maxroll.gg/lost-ark/resources/class-overview) y [GamerEmpire, «Identity Skills»](https://gamerempire.net/lost-ark-what-are-identity-skills/) | El **medidor de identidad** está entre las habilidades y los consumibles, abajo al centro. Cada clase lo usa distinto: transformarse (Reaper, Destroyer), potenciar un golpe (Battle Master, burbujas que se gastan por cantidad) o buffs por nivel de llenado (Blaster). **Tomamos:** la identidad visual por clase en el mismo hueco fijo y la tipología «llenar → descargar automática» (Sed, Impulso) frente a «acumular → gastar con una habilidad» (Fervor, Cargas, Bastión). |
 | 8 | [Sportskeeda, «Ward en Last Epoch»](https://sportskeeda.com/mmo/what-ward-work-last-epoch) | Last Epoch muestra la Guarda como un **tinte azulado sobre el orbe de vida** con el número arriba. **Tomamos:** los escudos (Barrera de Maná, Muro de Escudos) se ven sobre el **orbe de vida** como capa y número; no ocupan otra barra. |
 | 9 | [Universidad de Bonn, «Toward Minimalist HUDs?» (2026)](https://bonndoc.ulb.uni-bonn.de/xmlui/handle/20.500.11811/14207?show=full) | Estudio longitudinal de 30 nominados a GOTY (2014–2025), incluidos ARPG: **tendencia clara al HUD minimalista** y contextual, asociada a más inmersión y preferencia. **Tomamos:** el desvanecimiento fuera de combate, el modo limpio y que lo contextual (recoger, interactuar) aparezca **solo** cuando aplica. |
@@ -104,7 +104,7 @@ Formato: `x, y, ancho × alto` en px de pantalla. A 1366×768, `--s = 0,8`.
 |---|---|---|---|
 | Placa del héroe (arriba-izq.) | 19, 17 · 230×66 | 15, 14 · 184×53 | Emblema de la especialización (52 px), «Nv 42 · Crionte», clase y Tormento. Debajo, reserva para marcos de grupo (cooperativo) |
 | Marco del objetivo/jefe (arriba-centro) | 640, 15 · 640×149 | 427, 12 · 512×119 | Nombre y rango, vida (22 px con número y %), **stagger** (10 px), estados `st_*` |
-| *Banner* crítico | 711, 178 · ≈500×38 | 484, 143 · ≈400×30 | «¡El Señor del Osario prepara…!» (aviso de jefe, punto 1 de §0.1) |
+| *Banner* crítico | 711, 170 · ≈500×38 | 484, 136 · ≈400×30 | «¡El Señor del Osario prepara…!» (aviso de jefe, punto 1 de §0.1) |
 | Minimapa (arriba-der.) | 1665, 15 · 236×236 | 1162, 12 · 189×189 | Círculo de 200 px dentro de `ui_marco_minimapa`, marcadores `mk_*`. Debajo: zona, Tormento, reloj y `M` |
 | Misión activa | 1601, 301 · 300×69 | 1111, 241 · 240×55 | Título y objetivos con progreso (y contratos de zona debajo) |
 | Registro de botín/XP (der.) | 1581, 806 · 320×123 | 1095, 549 · 256×98 | Últimas 6 entradas, color por rareza, se desvanece a los 6 s |
@@ -112,13 +112,20 @@ Formato: `x, y, ancho × alto` en px de pantalla. A 1366×768, `--s = 0,8`.
 | Micromenú (abajo-der.) | 1466, 1017 · 437×50 (1×10) | 1175, 683 · 178×74 (2×5) | Botones `menu_*` de 38 px con tecla: Personaje `C`, Inventario `I`, Habilidades `T`, Talentos `N`, Paragon `P`, Mapa `M`, Misiones `J`, Colección `K`, Guía `H`, Opciones `Esc`. Insignia roja si hay puntos |
 | Registro de sistema (abajo-izq.) | 19, 978 · 360×88 | 15, 686 · 288×70 | Mensajes de sistema; luego, chat |
 | Orbe de vida | 522, 935 · 136×136 | 333, 652 · 109×109 | Capa de escudo y Guarda (Barrera, Muro) como tinte y número |
-| Beneficios (ala izq.) | 522, 887 · 300×34 | 333, 613 · 240×27 | Cuadros de 34 px con anillo de tiempo; crecen hacia arriba |
-| Aviso contextual | 833, 897 · ≈254×26 | 581, 621 · ≈204×21 | «`F` Recoger · …», «`Espacio` Hablar con…» (solo cuando aplica) |
-| **Zona de mecánica** | **740, 929 · 440×48** | **507, 647 · 352×38** | El widget de la especialización (§3) |
+| Beneficios (ala izq.) | 522, 887 · 170×34 | 333, 613 · 136×27 | Cuadros de 34 px con anillo de tiempo, 4 por fila sobre el orbe; las filas crecen hacia arriba (`wrap-reverse`) |
+| Aviso contextual | 833, 873 · ≈254×26 | 581, 602 · ≈204×21 | «`F` Recoger · …», «`Espacio` Hablar con…» (solo cuando aplica) |
+| **Zona de mecánica** | **700, 905 · 520×72** | **475, 628 · 416×58** | El widget de la especialización (§3): etiqueta de 16 px y cuerpo de 56 px |
 | Barra de acciones | 670, 983 · 580×72 | 451, 690 · 464×58 | `Q` · `1` `2` `3` `4` · `IZQ` `DER` · `⇧` esquiva · `E`. Ranuras de 56 px y pociones o esquiva de 44 px |
 | XP | bajo la barra, 580×6 | 464×5 | Línea dorada |
-| Perjuicios (ala der.) | 1098, 887 · 300×34 | 793, 613 · 240×27 | Borde rojo; crecen hacia arriba |
+| Perjuicios (ala der.) | 1228, 887 · 170×34 | 897, 613 · 136×27 | Borde rojo; crecen hacia arriba |
 | Orbe de recurso | 1262, 935 · 136×136 | 925, 652 · 109×109 | Color e icono por recurso (`res_*`); Furia diferenciada (R3) |
+| *Zona de combate* (reservada) | 422, 238 · 1075×605 | 301, 169 · 765×430 | 56 % × 56 % de la pantalla, centrada en el héroe: **ningún bloque del HUD entra** (lo comprueba `?measure=1`) |
+
+**Holguras con la zona de 520×72.**
+- La mecánica queda a 8 px de cada ala: las alas miden 170 px y van sobre los orbes.
+- El aviso «Recoger» va encima de la mecánica sin tocarla.
+- El borde superior del aviso (873 px a 1080p; 602 px a 768p) queda por debajo de la zona de combate (843 px; 599 px).
+- `?measure=1` informa `"solapes":[]` en ambas resoluciones.
 
 **Orden de la barra.** El orden es `1 2 3 4 | IZQ DER`, el de D4, con los botones del ratón a la derecha, junto a la mano que los usa. `fitsSlot` y las teclas no cambian. Solo cambia el orden visual de `refreshHotbar` (hoy `lmb, rmb, k1…k4`).
 
@@ -149,12 +156,13 @@ Parámetros de URL para capturas: `?res=1366&spec=piromante&state=active&only=sc
 
 | Regla | Valor |
 |---|---|
-| Huella | **440×48 px** a 1080p (×`--s`), centrada sobre la barra. Nunca crece: los estados cambian dentro de la huella |
-| Estructura | Fila 1 (15 px): `NOMBRE · ESPECIALIZACIÓN` en versalitas del color de la especialización, más un **subtítulo de estado** («Sed Saciada · 5,6 s»). Fila 2 (33 px): **cuerpo** propio a la izquierda, **número** tabular (15 px, 800) y **anillo de tiempo** de 28 px a la derecha, siempre en el mismo sitio |
+| Huella | **520×72 px** a 1080p (×`--s`: 416×58 a 768p), centrada sobre la barra. Nunca crece: los estados cambian dentro de la huella. Ningún elemento del cuerpo puede salirse del widget, pisar la etiqueta ni pisar el número o el anillo (`?measure=1` → `solapesWidget`, en los 5 estados) |
+| Estructura | Fila 1 (16 px): `NOMBRE · ESPECIALIZACIÓN` en versalitas del color de la especialización, más un **subtítulo de estado** («Sed Saciada · 5,6 s»). Fila 2 (56 px): **cuerpo** propio a la izquierda (≈414 px útiles), **número** tabular (18 px, 800) y **anillo de tiempo** de 36 px a la derecha, siempre en el mismo sitio |
+| Silueta | **Ninguna barra es un rectángulo que se rellena de izquierda a derecha.** Cada especialización tiene una figura propia (venas con corazón, muralla, halo, hoguera, cristales, anillo rúnico, retícula, cepos con medallón, rosa de los vientos). La prueba de las siluetas en gris (criterio A5) lo verifica |
 | Estados | `idle` (vacío: cuerpo al 55 % de opacidad) · `building` (llenando) · `full` (umbral o listo: destello único de 600 ms del contorno) · `active` (descarga o ventana: el anillo de tiempo aparece) · `decay` (enfriamiento o pérdida: patrón propio de cada forma, nunca solo color). Montaraz añade `prey` (equivale a `active`) |
 | Tres niveles de lectura | 1) **número** (siempre); 2) **forma y estado** (silueta llena o vacía, anillo); 3) **tooltip** al pasar el ratón fuera de combate o con `Alt` |
 | Color | El de la especialización según `STYLE.md` (no el de `def.color`, que hoy difiere; §3.10). Un estado se expresa siempre con **forma más texto**, además del color (R3) |
-| Ritmo | Datos a **10 Hz** (`updateHUD`). Las animaciones son solo CSS sobre `transform` y `opacity` (R4). Los rellenos usan `transform: scaleX/scaleY` con `transition: 100ms linear`, que suaviza los 10 Hz sin JS por frame |
+| Ritmo | Datos a **10 Hz** (`updateHUD`). Los **bucles** (`@keyframes`) animan solo `transform` y `opacity` (R4). Los rellenos usan `transform: scaleX/scaleY` con `transition: 100ms linear`. En trazos SVG pequeños (las venas de la Sed) usan `stroke-dashoffset`, que cambia como mucho 10 veces por segundo y repinta ≈400×56 px |
 | Fuera de combate | Tras 5 s sin combate (`p.sinceCombat`), opacidad 40 % y bucles parados. Vuelve al 100 % en 150 ms al primer golpe (R2) |
 | Movimiento reducido | `settings.reduceMotion` o `prefers-reduced-motion`: sin bucles ni destellos de escala. Los cambios de estado se marcan con un contorno estático de 300 ms |
 | Ratón | `pointer-events: none` en combate, para no tragarse clics al mundo. Fuera de combate, o con `Alt` pulsado, recibe el *hover* y muestra el tooltip (R7) |
@@ -166,33 +174,39 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 
 ---
 
-### 3.1 Berserker · **Sed**: la vena que late
+### 3.1 Berserker · **Sed**: las venas y el corazón (v2)
 
-- **Qué representa.**
-  - Un **tubo-vena de hierro** (420×18) con un corazón de 30 px a la izquierda.
-  - La sangre (`scaleX`) llena el tubo y un **pulso de luz** recorre la vena.
-  - El latido se acelera en 3 tramos: 1,4 s · 0,9 s · 0,55 s (<34 · <67 · ≥67).
-  - El corazón se enciende y late cuando la vida baja del 40 %, porque entonces `m_berserk` ya está activo.
-  - A 100 la vena **se desborda**: gotas que caen y borde incandescente.
-  - Con Sangre Hirviente (s14), el borde pasa a ámbar con el rótulo «Desenfreno».
+- **Qué representa.** La figura es **«~♥~»**: **dos venas curvas** de carne y hierro que serpentean desde los extremos del cuerpo y **desembocan en un corazón central** de 46 px. No es una barra recta.
+  - La sangre **fluye desde los extremos hacia el corazón**, a la vez por las dos venas: es un trazo SVG con `pathLength=100` y `stroke-dashoffset = 100 − valor`.
+  - El **corazón se hincha** con la Sed: `scale` de 0,78 a 1,08.
+  - Un **pulso de luz** recorre las venas. Su ritmo se acelera en 3 tramos: 1,4 s · 0,9 s · 0,55 s (<34 · <67 · ≥67).
+  - Con la vida por debajo del 40 % (`m_berserk` activo), el corazón se enciende, late y tiene halo.
+  - A 100 el corazón **se desborda**: late, tiene halo y **gotea** 3 gotas bajo él. Aparecen el anillo de 6 s y «Sed Saciada».
+  - Con Sangre Hirviente (s14), las venas pasan a ámbar y el rótulo dice «Desenfreno».
 - **Datos que consume:** `value`, `max`, `state`, `label` («Sed Saciada»), `t`.
-- **Faltan:** `tMax` (6, o 8 con Desenfreno), `x.low` (vida < 40 %), `x.frenzyT`/`x.frenzyMax` (poder `g_desenfreno`), `decayIn` (s hasta que empiece la pérdida fuera de combate, `after − sinceCombat`), `seq.full`.
+- **Faltan:** `tMax` (6, o 8 con Desenfreno), `x.low` (vida < 40 %), `x.frenzyT`/`x.frenzyMax` (poder `g_desenfreno`), `decayIn` (s hasta que empiece la pérdida fuera de combate: `after − sinceCombat`), `seq.full`.
 
 | Estado | Visual |
 |---|---|
-| idle | Vena oscura y corazón apagado |
-| building | Sangre más pulso con el ritmo del tramo; número 0–100 |
-| full / active | Vena desbordada, gotas, anillo de 6 s y subtítulo «Sed Saciada · 5,6 s» |
-| decay | Fuera de combate la sangre se oscurece (`brightness .7`) y el pulso se para; subtítulo «−8/s» |
+| idle | Venas vacías (interior oscuro) y corazón pequeño y apagado |
+| building | Sangre avanzando hacia el centro, corazón creciendo y pulso con el ritmo del tramo; número 0–100 |
+| full / active | Corazón al máximo latiendo, halo y goteo; anillo de 6 s; subtítulo «Sed Saciada · 5,6 s» |
+| decay | Fuera de combate el pulso se para y la sangre se retira de los extremos hacia el centro; subtítulo «−8/s» |
 
-- **Animaciones:** pulso (`translateX`, *ease-in*, infinito según el tramo), latido del corazón (`scale 1→1,18`, 0,5 s) y goteo (3 gotas, `translateY` 1 s, desfasadas 0,35 s). Destello de umbral de 600 ms.
+- **Animaciones:**
+  - pulso: `opacity` del trazo claro, en bucle según el tramo;
+  - latido: `scale 1→1,14`, 0,5 s;
+  - goteo: 3 gotas con `translateY` de 1 s, desfasadas 0,33 s;
+  - hinchazón del corazón: `transform` con transición de 100 ms;
+  - destello de umbral: 600 ms.
+- **Tamaño:** cuerpo completo (≈414×56); el corazón de 46 px va centrado.
 - **Sonido:** `hurt` (grave) al saciarse y `crit` al entrar en Desenfreno.
 - **Tooltip:** «Perder vida y desangrar enemigos llena tu Sed. A 100: **Sed Saciada** 6 s (+25 % de daño aunque tengas la vida alta). / Gana: +1 por 1 % de vida perdida, +2 por tic de Sangrado (máx. 10/s). / Pierde: −8/s tras 4 s fuera de combate».
 
 ### 3.2 Guardián · **Bastión**: la muralla de 5 escudos
 
 - **Qué representa.**
-  - Una **fila de 5 escudos de cometa** (26×31) separados 7 px, como almenas.
+  - Una **fila de 5 escudos de cometa** (34×41) separados 8 px, como almenas.
   - Un bloqueo encaja un escudo **de golpe** (`scale 1.35→1`, 250 ms).
   - La carga que se perderá a continuación muestra una **grieta** que crece con `decayIn` (6 s → 0).
   - Al usar **Muro de Escudos**, los escudos se **juntan** (`gap` 7→0) en un muro brillante, con el rótulo «−40 % daño» y el anillo de 8 s.
@@ -215,7 +229,7 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 ### 3.3 Cruzado · **Fervor**: el halo con tres soles
 
 - **Qué representa.**
-  - Un **arco de halo** (170×33) con **3 joyas-sol** romboidales en el arco.
+  - Un **arco de halo** (220×56) con **3 joyas-sol** romboidales en el arco.
   - Junto al halo, **3 cuentas pequeñas** marcan los impactos de Martillo (0–2 de 3): así el jugador ve que el tercero da Fervor.
   - A 3, detrás del halo **giran rayos de luz** (`rotate`, 9 s) y el texto dice «Veredicto Final listo». La ranura de Veredicto late (`ready`).
   - En **Ascensión** (x3), el halo queda fijo y encendido con el anillo de 10 s y «no se gasta».
@@ -234,26 +248,32 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 - **Sonido:** `holy` a 3 de Fervor y `holy` más grave al gastar.
 - **Tooltip:** «Cada muerte (Juicio) y cada 3 impactos de Martillo de Guerra te dan 1 de Fervor (máx. 3). **Veredicto Final** gasta 3: 300 % del arma en cono y cura al grupo. / Ascensión (x3): 10 s sin gastar Fervor».
 
-### 3.4 Piromante · **Calor**: la parrilla de forja
+### 3.4 Piromante · **Calor**: el brasero (v2)
 
-- **Qué representa.**
-  - Una **rejilla de hierro con 10 barrotes verticales** (cada uno vale 10 de Calor). Cada barrote se calienta por tramos: hierro, rojo, naranja y blanco amarillo.
-  - Por encima de 70 asoman **lenguas de fuego** por arriba.
-  - Tras 3 s sin golpes de Fuego, la parrilla **se enfría**: los barrotes se desaturan y aparece «se enfría». Es el estado `decay`, legible sin color.
-  - A 100: **Ignición Total**. Todos los barrotes al blanco, el **brasero** de la izquierda late, el subtítulo dice «Ignición Total» y las ranuras de Bola de Fuego y Meteoro laten.
+- **Qué representa.** Un **brasero de forja**: un cuenco de hierro bajo y ancho (300×16, con patas cortas) con **10 llamas** encima. Su silueta es una **corona de hoguera**: las llamas centrales son más altas (factor de corona `0,55 + 0,45·sin`) y tienen alturas desiguales fijas.
+  - **Todas las llamas crecen a la vez en altura** con el Calor (`scaleY` de 0,14 a 1 × corona). No se encienden de izquierda a derecha.
+  - El color sube por tramos de temperatura: brasa roja, naranja, amarillo y, en Ignición, blanco.
+  - Bajo cada llama hay una **brasa** en el borde del cuenco, cuyo brillo crece con el Calor.
+  - **Enfriamiento** (3 s sin golpes de Fuego): las llamas se vuelven **ceniza gris** y bajan, las brasas se apagan a gris y el subtítulo dice «se enfría: −10/s». Es el estado `decay`, legible sin color.
+  - A 100: **Ignición Total**. Las 10 llamas suben a su altura máxima en blanco, una **columna central** más alta y ancha se alza sobre el brasero, el subtítulo dice «Ignición Total» y las ranuras de Bola de Fuego y Meteoro laten.
   - **Combustión** muestra una insignia «×2» y el anillo de 10 s.
 - **Datos que consume:** `value`, `state = active` (Ignición), `label`.
 - **Faltan:** `decayIn` (= `coolIn`, `after − (simT − last)`), `x.cooling` (perdiendo ahora), `x.combT`/`x.combMax` (`p_combustion`), `x.mult` (2), `ready: ['bola_fuego', 'meteoro']` (sale de `TUNING.calor.skills`), `seq.full` y `seq.spent`.
 
 | Estado | Visual |
 |---|---|
-| idle | Rejilla fría |
-| building | Barrotes calentándose; llamas desde 70 |
-| full = active | Todo blanco, brasero latiendo y ranuras enlazadas |
-| decay | «se enfría» con barrotes desaturados |
+| idle | Brasero frío: sin llamas y brasas apagadas |
+| building | Hoguera que crece en altura; color por tramo y parpadeo de las llamas |
+| full = active | 10 llamas blancas a la altura máxima, columna central y ranuras enlazadas |
+| decay | Llamas de ceniza que bajan, brasas grises y «se enfría» |
 | Combustión | «×2» y anillo |
 
-- **Animaciones:** cambio de clase por barrote (transición de color de 200 ms; solo cambian los barrotes que cruzan un tramo, como mucho 1–2 por actualización), parpadeo de llamas (`steps(2)`, 0,35 s, `transform`) y brasero (`scale`).
+- **Animaciones:**
+  - altura de las llamas: `transform: scaleY` con transición de 100 ms;
+  - parpadeo: `scaleX` + `skewX` en `steps(2)`, 0,4 s, con las llamas impares desfasadas;
+  - columna de Ignición: `transform` y `opacity`, 200 ms;
+  - color por clase: como mucho 1 cambio por tramo; las 10 llamas comparten clase.
+- **Tamaño:** brasero de 300×56 a la izquierda del cuerpo y la insignia «×2» a su lado.
 - **Sonido:** `fire` en Ignición Total.
 - **Tooltip:** «Cada golpe de Fuego suma 5 de Calor (una vez por instante). A 100: **Ignición Total**: la siguiente Bola de Fuego o Meteoro cuesta 0 y es crítico seguro. / Pierde: −10/s tras 3 s sin golpes de Fuego».
 
@@ -289,7 +309,7 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 ### 3.6 Arcanista · **Cargas Arcanas**: las cuatro runas en órbita
 
 - **Qué representa.**
-  - Un **anillo rúnico** de 28 px con **4 runas en los puntos cardinales** y un **núcleo** que se enciende con 4 Cargas.
+  - Un **anillo rúnico** de 44 px (54 px con el arco de caducidad) con **4 runas en los puntos cardinales** y un **núcleo** que se enciende con 4 Cargas.
   - Alrededor, un **arco de caducidad** (conic) que se vacía de 6 s a 0 desde la última ganancia: es la regla que más sorprende.
   - A la derecha, un **texto de previsión** con el daño y el maná del próximo Rayo («Rayo **+140 %** · +20 maná»).
   - Al lanzar Rayo, las runas **colapsan al centro** (450 ms).
@@ -312,7 +332,7 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 ### 3.7 Francotiradora · **Concentración**: la retícula que se cierra
 
 - **Qué representa.**
-  - Una **retícula de mira** de 28 px con **4 esquineras** que se acercan al centro según el valor (desplazamiento 5 px → 0).
+  - Una **retícula de mira** de 40 px con **4 esquineras** que se acercan al centro según el valor (desplazamiento 6 px → 0; caja máxima de 52 px).
   - Al lado, un **hilo de llenado** fino y el texto «+12,0 % crít» (0,15 % por punto).
   - **Moviéndote**, la retícula **tiembla** (2 px, `steps(2)`) y aparece «MOVIÉNDOTE» en coral. El estado de pérdida se lee sin color.
   - A 100 se enciende el **punto rojo** central. Con Aliento del Cazador (s4), la ranura de Disparo Apuntado late.
@@ -335,7 +355,7 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 ### 3.8 Montaraz · **Coto de Caza**: cepos armados y medallón de Presa
 
 - **Qué representa.**
-  - **3 ranuras de cepo** (32×30), o **4** con Coto Cerrado (s14): la 4.ª aparece al activar el nodo.
+  - **3 ranuras de cepo** (42×40), o **4** con Coto Cerrado (s14): la 4.ª aparece al activar el nodo.
   - Un cepo **armado** se ve con fauces de acero abiertas y brillo verde; uno **desarmado**, como huella tallada.
   - La siguiente carga de Trampa de Cepo **se recarga** con un barrido conic en la primera ranura libre.
   - A la derecha, el **medallón de Presa** (🦌 hasta que exista el asset) con su nombre. Cuando hay Presa toma el estado `prey`, con el anillo de 15 s y «Presa · Bestia Alfa».
@@ -355,25 +375,31 @@ Cada subsección siguiente describe la forma de una especialización: datos (los
 - **Sonido:** `trap` al armar y al cerrarse.
 - **Tooltip:** «El valor son tus trampas armadas (máx. 3; 4 con Coto Cerrado). El primer élite o jefe que golpeas es tu **Presa** 15 s y cuenta como élite para tus bonificaciones. / Trampa de Cepo: 1 carga, 8 s por carga».
 
-### 3.9 Tiradora · **Impulso**: los chevrones de viento
+### 3.9 Tiradora · **Impulso**: la rosa de los vientos (v2)
 
-- **Qué representa.**
-  - **5 chevrones** (30×24), cada uno de 20 puntos, que se llenan de izquierda a derecha.
-  - **En movimiento** los chevrones encendidos **fluyen**: avanzan 4 px en ola, con un desfase de 80 ms entre uno y otro.
-  - **Quieta**, se paran y aparece «¡MUÉVETE!»: el estado «no gano» se lee sin color.
-  - A 100: **Vendaval**. Los chevrones pasan a blanco viento, un **destello** los barre cada 0,7 s, aparece el anillo de 6 s y la ranura de Flecha Múltiple late.
+- **Qué representa.** Una **rosa de los vientos** de 56 px (estrella de 4 puntas con gema central) con **5 plumas** dispuestas radialmente, a 72° entre sí, que hacen de aspas.
+  - Cada 20 de Impulso **se llena una pluma** (media pluma en tramos parciales). Las plumas se llenan alrededor del círculo, no en fila.
+  - **En movimiento la rosa gira**, y más rápido cuanto más Impulso tiene: 3 s, 1,6 s y 0,8 s por vuelta (<34 · <67 · ≥67).
+  - **Quieta**, la rosa **se detiene** y aparece «¡MUÉVETE!»: el estado «no gano» se lee por el movimiento y por el texto.
+  - A su derecha, dos líneas: «2 de 5 plumas» y «+3 por disparo en movimiento».
+  - A 100: **Vendaval**. La rosa gira a 0,4 s por vuelta, las plumas pasan a blanco viento, un **anillo de ráfaga** discontinuo gira en sentido contrario, aparece el anillo de 6 s y la ranura de Flecha Múltiple late. El texto cambia a «Vendaval: +25 % vel. de ataque · +1 proyectil a Flecha Múltiple».
   - Vendaval Perpetuo (s14) recarga el anillo con cada muerte (+0,5 s).
 - **Datos que consume:** `value`, `state`, `label`, `t`.
 - **Faltan:** `x.moving`, `tMax` (6), `x.galeExt` (segundos extra acumulados de s14), `ready: ['flecha_multiple']` durante el Vendaval, `seq.full`.
 
 | Estado | Visual |
 |---|---|
-| idle | Chevrones apagados y «¡MUÉVETE!» |
-| building | Llenado más flujo |
-| full = active | Vendaval: barrido y anillo |
-| decay | (no pierde; quieta = parado) |
+| idle | Rosa quieta, plumas apagadas y «¡MUÉVETE!» |
+| building | Plumas llenándose alrededor; giro más rápido por tramo; se detiene si te paras |
+| full = active | Vendaval: giro rápido, plumas blancas, anillo de ráfaga y anillo de 6 s |
+| decay | (no pierde; quieta = rosa detenida y «¡MUÉVETE!») |
 
-- **Animaciones:** flujo (`transform`, 0,6 s, desfasado) y ráfaga (`translateX` de un brillo, 0,7 s).
+- **Animaciones:**
+  - giro: `rotate` en bucle; la duración cambia por clase de tramo; `animation-play-state` la pausa al quedarte quieta;
+  - anillo de ráfaga: `rotate` inverso de 1,2 s;
+  - llenado de pluma: `fill`, 150 ms;
+  - la rosa ocupa un cuadrado fijo de 56 px, así que el giro no cambia su caja.
+- **Tamaño:** rosa de 56×56 a la izquierda del cuerpo, más el texto.
 - **Sonido:** `dash` al entrar en Vendaval.
 - **Tooltip:** «Cada disparo hecho **en movimiento** suma 3 de Impulso. A 100: **Vendaval** 6 s: +25 % de velocidad de ataque y +1 proyectil a Flecha Múltiple. / Andanada Impulsiva (s4): +20».
 
@@ -436,7 +462,7 @@ Hoy (`ui-talents.js:224–230`) el bloque tiene el título, un párrafo de `SPEC
 
 1. **Cabecera**: «MECÁNICA ÚNICA · ESCARCHA» y «Solo Crionte», como hoy.
 2. **Texto**: `explain().text` (2 líneas, números de `gaugeTuning()`).
-3. **El widget real**: `createGaugeHud(host, { mode: 'demo', id })`, a 440×48 (0,8 en compacto, **nunca oculto**).
+3. **El widget real**: `createGaugeHud(host, { mode: 'demo', id })`, a 520×72 (0,8 en compacto, **nunca oculto**).
    - Reproduce en bucle la línea de tiempo `demo` del renderizador (10–13 s): vacío → llenando → umbral → descarga → pérdida.
    - Los valores son sintéticos y salen del mismo contrato de vista (§3.10), así que también validan los renderizadores.
 4. **Subtítulo** de la fase en curso (`frame.cap`): «Nova de Hielo: +2 capas a todos (+1 por rango de Escarcha Contagiosa)».
@@ -475,7 +501,7 @@ demo: [
 - Se verifican duplicados por md5 tras cada tanda paralela (en la tanda anterior hubo 11 archivos cruzados).
 - Al repo van a `assets/gauges/` y `assets/hud/` en la etapa E2.
 
-**Regla de oro (R9):** Codex genera **iconos, medallones, marcos y texturas de 64 px o más**. Las formas estructurales que se animan (el tubo de la vena, los barrotes, los chevrones, la retícula y los anillos) se dibujan con CSS/SVG y usan el asset solo como «piel». Si un asset falla al cargar, queda el CSS del mockup (`onerror` → clase `no-art`).
+**Regla de oro (R9):** Codex genera **iconos, medallones, marcos y texturas de 64 px o más**. Las formas estructurales que se animan (el trazo de las venas, la altura de las llamas, el giro de la rosa, la retícula y los anillos) se dibujan con CSS/SVG y usan el asset solo como «piel». Si un asset falla al cargar, queda el CSS del mockup (`onerror` → clase `no-art`).
 
 **Cabecera común de cada tanda** (se pega al inicio de cada `.txt`):
 
@@ -494,10 +520,10 @@ Referencia `-i` por tanda: A = `web/ui/res_furia.webp` y `web/chrome/ui_marco_mi
 
 | n.º | Archivo (`raw/gauges/`) | Final (`web/gauges/`, 2×) | Fondo | Prompt |
 |---|---|---|---|---|
-| 1 | `gz_sed_corazon.png` | 64×64 | TRANSPARENTE | Corazón anatómico estilizado de hierro negro forjado con venas de sangre viva brillando por dentro, rojo sangre #e8634a, gotas en la base; silueta compacta y muy clara, metal con remaches, luz lateral cálida. |
-| 2 | `gz_sed_tubo.png` | 880×80 | TRANSPARENTE | Marco horizontal alargado (proporción 11:1) en forma de vena o tubo de hierro negro con remaches, pequeñas espinas y abrazaderas cada cierto tramo, extremos redondeados; el INTERIOR del tubo totalmente transparente (es un marco 9-slice: los extremos ornamentados y el tramo central liso y repetible). |
-| 3 | `gz_sed_sangre.png` | 512×64 | MOSAICO horizontal | Sangre espesa y brillante vista de lado, con burbujas, vetas oscuras y reflejos húmedos, rojo profundo a carmesí; continua de izquierda a derecha sin costura. |
-| 4 | `gz_sed_saciada.png` | 128×128 | TRANSPARENTE | Icono de estado: fauces de bestia de hierro abiertas goteando sangre, con un aura carmesí que arde alrededor; transmite frenesí saciado. |
+| 1 | `gz_sed_corazon.png` | 96×96 | TRANSPARENTE | Corazón anatómico de hierro negro forjado y carne viva, visto de frente, con dos arterias cortadas a los lados (izquierda y derecha) por donde entrará la sangre; venas rojas brillando por dentro, rojo sangre #e8634a; silueta compacta y muy clara, legible a 46 px. Es la pieza CENTRAL de la figura. |
+| 2 | `gz_sed_venas.png` | 828×112 | TRANSPARENTE | Dos venas orgánicas gruesas de carne oscura y anillos de hierro que serpentean en curvas suaves (como una ola) desde los dos extremos de la imagen hacia el centro, simétricas, con capilares finos y pequeñas espinas; en el CENTRO un hueco vacío del tamaño de un corazón (transparente). El CANAL INTERIOR de cada vena es transparente (por ahí se ve la sangre). Proporción 7,4:1. |
+| 3 | `gz_sed_sangre.png` | 512×64 | MOSAICO horizontal | Sangre espesa y brillante vista de lado, con burbujas, vetas oscuras y reflejos húmedos, rojo profundo a carmesí; continua de izquierda a derecha sin costura (se usa como patrón del trazo de las venas). |
+| 4 | `gz_sed_saciada.png` | 128×128 | TRANSPARENTE | Icono de estado: corazón de hierro desbordándose, la sangre rebosa por arriba y gotea, con un aura carmesí que arde alrededor; transmite frenesí saciado (Sed Saciada / Desenfreno). |
 | 5 | `gz_bastion_escudo.png` | 64×76 | TRANSPARENTE | Escudo de cometa de acero azulado con borde de plata y un umbo central, brillo azul acero #7fb0e8 en el canto; silueta limpia, vista frontal. |
 | 6 | `gz_bastion_escudo_vacio.png` | 64×76 | TRANSPARENTE | El mismo escudo de cometa como hueco vacío tallado en piedra oscura: solo contorno biselado, sin metal ni brillo (ranura vacía). |
 | 7 | `gz_bastion_grieta.png` | 64×76 | TRANSPARENTE | Superposición de grietas finas de luz blanca azulada con la forma del escudo de cometa; solo las grietas, el resto transparente. |
@@ -517,10 +543,10 @@ Referencia `-i` por tanda: A = `web/ui/res_furia.webp` y `web/chrome/ui_marco_mi
 
 | n.º | Archivo | Final | Fondo | Prompt |
 |---|---|---|---|---|
-| 1 | `gz_calor_parrilla.png` | 880×80 | TRANSPARENTE | Rejilla de forja horizontal de hierro negro (proporción 11:1) con DIEZ huecos verticales iguales separados por barrotes gruesos remachados y un marco exterior con esquinas de garra; los diez huecos totalmente transparentes. |
-| 2 | `gz_calor_brasas.png` | 512×128 | MOSAICO en ambos ejes | Lecho de brasas incandescentes y carbón agrietado, naranja #ff8a3d a rojo, con puntos blancos de calor; sin llamas altas. |
-| 3 | `gz_calor_llama.png` | 256×256 | ADITIVO | Una sola lengua de fuego vertical, naranja y amarillo con núcleo blanco, base ancha. |
-| 4 | `gz_calor_ignicion.png` | 128×128 | TRANSPARENTE | Icono de estado: corazón de fuego blanco-naranja que estalla en llamas dentro de un brasero de hierro. |
+| 1 | `gz_calor_brasero.png` | 600×56 | TRANSPARENTE | Brasero de forja de hierro negro visto de frente: cuenco ancho y bajo (proporción 11:1), borde superior con diez muescas y garras en las esquinas, dos patas cortas; brillo naranja tenue en el canto; el espacio de ENCIMA del cuenco totalmente transparente (de ahí salen las llamas). |
+| 2 | `gz_calor_llama.png` | 44×80 | TRANSPARENTE | Una sola lengua de fuego vertical y estilizada, base ancha y punta afilada, naranja #ff8a3d a amarillo con núcleo claro, borde nítido (se escala en altura por código; 10 copias forman la hoguera). Generar alta, proporción 1:1,8. |
+| 3 | `gz_calor_llama_blanca.png` | 88×90 | TRANSPARENTE | La misma lengua de fuego en blanco incandescente con borde amarillo pálido, más ancha: la columna central de Ignición Total. |
+| 4 | `gz_calor_ignicion.png` | 128×128 | TRANSPARENTE | Icono de estado: brasero de hierro del que se alza una columna de fuego blanco-naranja con chispas (Ignición Total). |
 | 5 | `gz_escarcha_cristal.png` | 64×72 | TRANSPARENTE | Cristal de hielo hexagonal vertical, facetado, cian #74cdf2 a blanco, luz interior; silueta hexagonal limpia. |
 | 6 | `gz_escarcha_engaste.png` | 64×72 | TRANSPARENTE | Engaste hexagonal vacío de plata escarchada con escarcha en los bordes; el interior transparente. |
 | 7 | `gz_escarcha_congelado.png` | 128×128 | TRANSPARENTE | Icono de estado: bloque de hielo con la silueta oscura de una criatura atrapada dentro, grietas luminosas. |
@@ -529,9 +555,9 @@ Referencia `-i` por tanda: A = `web/ui/res_furia.webp` y `web/chrome/ui_marco_mi
 | 10 | `gz_coto_cepo_vacio.png` | 64×64 | TRANSPARENTE | Contorno del mismo cepo tallado en madera oscura, sin metal (ranura vacía). |
 | 11 | `gz_coto_presa.png` | 128×128 | TRANSPARENTE | Medallón de caza de bronce con un cráneo de ciervo de gran cornamenta marcado con una runa verde brillante. |
 | 12 | `gz_coto_marca_suelo.png` | 256×256 | ADITIVO | Anillo de espinas y zarzas visto desde arriba, verde luminoso sobre negro, para marcar el suelo bajo una presa. |
-| 13 | `gz_impulso_chevron.png` | 64×52 | TRANSPARENTE | Chevron apuntando a la derecha formado por plumas de flecha estilizadas, turquesa viento #66d7c7, borde nítido. |
-| 14 | `gz_impulso_estela.png` | 512×64 | ADITIVO, MOSAICO horizontal | Estelas de viento horizontales, líneas finas turquesa y blancas que se desvanecen. |
-| 15 | `gz_impulso_vendaval.png` | 128×128 | TRANSPARENTE | Icono de estado: remolino de viento turquesa con tres flechas girando dentro. |
+| 13 | `gz_impulso_rosa.png` | 112×112 | TRANSPARENTE | Rosa de los vientos de bronce envejecido: estrella de cuatro puntas con una gema turquesa #66d7c7 en el centro y un aro fino; SIN plumas (las plumas son otra pieza); simetría perfecta, vista cenital. |
+| 14 | `gz_impulso_pluma.png` | 28×56 | TRANSPARENTE | Una pluma alargada y luminosa, turquesa viento con el raquis claro y la punta hacia ARRIBA, vista de frente (se rota 5 veces por código alrededor de la rosa). Generar alta, proporción 1:2. |
+| 15 | `gz_impulso_vendaval.png` | 128×128 | TRANSPARENTE | Icono de estado: rosa de los vientos girando dentro de un remolino turquesa, con cinco plumas arrastradas por el viento (Vendaval). |
 
 ### Tanda C (12 imágenes): piezas del HUD de PC (`web/hud/`)
 
@@ -652,13 +678,14 @@ Para leer resultados, `--dump-dom` y `grep` del `<pre id="measure">` (el truco d
 | # | Criterio | Cómo se verifica |
 |---|---|---|
 | A1 | `npm test` en verde, con `test72`–`test74` y los 3 `test-gauges-<clase>` | `npm test` |
-| A2 | **Sin solapes** entre bloques del HUD a 1920×1080, 1600×900, 1366×768 y 1280×720 | `index.html?hudcheck=1` vuelca las cajas y los solapes como `?measure=1` del mockup; `--dump-dom` y `grep '"solapes":\[\]'` |
+| A2 | **Sin solapes** entre bloques del HUD, ni de ningún bloque con la **zona de combate** central (56 % × 56 %), a 1920×1080, 1600×900, 1366×768 y 1280×720 | `index.html?hudcheck=1` vuelca las cajas y los solapes como `?measure=1` del mockup; `--dump-dom` y `grep` de `"solapes":[]` |
+| A2b | **Sin solapes dentro de cada widget** en los 5 estados: ningún elemento del cuerpo se sale del widget ni pisa la etiqueta o el número y el anillo. Se mide con las animaciones paradas | Lo mismo, con `"solapesWidget":[]`. El mockup ya lo cumple para los 9 a 1920 y a 1366 |
 | A3 | Los 9 renderizadores registrados con `mount/update/demo/explain/nodes`; cada `demo` tiene fotogramas con `tag` `idle`, `building`, `full` o `active`; los ids de `nodes` existen en `TALENT_TREES` | `test74` |
 | A4 | `explain(gaugeTuning())` cita los números de `gaugeTuning()` (p. ej. el texto de Cargas contiene «35 %» y «6 s») | `test-gauges-<clase>` |
-| A5 | 45 capturas: 9 especializaciones × 5 estados en `tests/visual/gauges.html?spec=X&state=Y`, revisadas por el jefe; **las 9 siluetas se distinguen en escala de grises** | Capturas con `filter: grayscale(1)` y contacto 9×5 |
+| A5 | 45 capturas: 9 especializaciones × 5 estados en `tests/visual/gauges.html?spec=X&state=Y`, revisadas por el jefe; **las 9 siluetas se distinguen en escala de grises** y **ninguna es un rectángulo que se rellena de izquierda a derecha** | Capturas con `filter: grayscale(1)` y contacto 9×5 |
 | A6 | Daltonismo: con la matriz de deuteranopía (`?cb=1`), cada estado se distingue por **forma o texto** (no solo por tono) | Capturas `cb=1` de `full` y `active` frente a `building` |
 | A7 | Coste: `update()` medio < 0,15 ms y **0 mutaciones del DOM** si la vista no cambia | Arnés visual: 1000 `update` con `performance.now()` y un `MutationObserver` |
-| A8 | Solo se animan `transform` y `opacity` en `css/gauges*.css` (sin `@keyframes` con `box-shadow`, `filter`, `width`, `height`, `left` o `top`) | `tests/test74` (grep de los `@keyframes`) |
+| A8 | Los `@keyframes` de `css/gauges*.css` solo animan `transform` y `opacity` (sin `box-shadow`, `filter`, `width`, `height`, `left`, `top` ni `stroke-dashoffset`). La única propiedad no compuesta permitida es la **transición** de `stroke-dashoffset` de las venas de la Sed (a 10 Hz) | `tests/test74` (grep de los `@keyframes` y las `transition`) |
 | A9 | Sin herencia móvil: ni `joy-`, ni `body.touch`, ni `pointer: coarse`, ni `rotate-prompt`, ni `safe-area`, ni «toca»/«Toca» en `index.html`, `css/style.css`, `js/ui.js`, `js/input.js` y `js/main.js` | `tests/test73` (lectura de archivos y regex) |
 | A10 | Movimiento reducido: con `body.reduce-motion`, `getAnimations()` del HUD = 0 tras 1 s | Arnés visual |
 | A11 | Partida real: Crionte Nv20 contra un grupo; la barra muestra al enemigo bajo el cursor; al congelar suenan `ice` y el destello; el jefe muestra Aterido con anillo | Captura de juego con `?debug`, revisión del jefe |
@@ -674,11 +701,13 @@ Para leer resultados, `--dump-dom` y `grep` del `<pre id="measure">` (el truco d
 | **R2** | **Ruido visual.** Nueve formas con latidos, flujos y llamas en bucle permanente, junto a orbes que también ondulan, compiten con la telegrafía de los enemigos, que es lo que mata | Bucles **solo** con valor > 0 y en combate; **fuera de combate, opacidad del 40 %** sin bucles; como mucho **un** bucle por barra; los destellos de umbral son únicos (600 ms), nunca repetidos; la columna de identidad no admite nada más (§2.1, §3.0) |
 | **R3** | **Daltonismo.** Con deuteranopía, Berserker (rojo), Cruzado (oro) y Piromante (naranja) se vuelven amarillos casi iguales (comprobado en el mockup con `?cb=1`). Calor «listo» frente a «llenando» era solo color. **El orbe de Furia es rojo como el de vida** | Cada estado se marca con **forma y texto**: «se enfría», «MOVIÉNDOTE», «¡MUÉVETE!», la grieta, el anillo y el subtítulo. Las 9 **siluetas son distintas** (criterio A5 en escala de grises). La Furia pasa a magma oscuro con textura (`hud_liquido_furia`), icono `res_furia` y rótulo «FURIA» |
 | **R4** | **Rendimiento.** El primer boceto animaba `box-shadow`/`filter` (latidos con resplandor, `drop-shadow`) y el HUD actual usa `backdrop-filter` sobre el canvas WebGL. Escribir el DOM a 10 Hz en 9 componentes sin diferenciar provoca *layout* | Animaciones **solo de `transform`/`opacity`** (A8); resplandores con un sprite pre-renderizado (`hud_destello`, aditivo) que cambia de opacidad; `contain: layout paint` por barra; `update` diferenciado (A7); **fuera `backdrop-filter`** del HUD; rellenos de los orbes por `scaleY` en vez de `height`. El mockup aún usa `drop-shadow` estático en dos estados: en el juego, sprite |
-| **R5** | **Consistencia entre clases.** Nueve widgets a medida pueden ser nueve reglas de lectura: el número en sitios distintos, tiempos en barras o anillos y tamaños que bailan al cambiar de especialización | **Gramática común** (§3.0): huella fija de 440×48, número tabular y anillo de tiempo **siempre a la derecha**, los mismos 5 estados con el mismo destello y el mismo formato de tooltip. Las formas cambian solo **dentro del cuerpo** |
+| **R5** | **Consistencia entre clases.** Nueve widgets a medida pueden ser nueve reglas de lectura: el número en sitios distintos, tiempos en barras o anillos y tamaños que bailan al cambiar de especialización | **Gramática común** (§3.0): huella fija de 520×72, número tabular y anillo de tiempo **siempre a la derecha**, los mismos 5 estados con el mismo destello y el mismo formato de tooltip. Las formas cambian solo **dentro del cuerpo** |
 | **R6** | **Curva de aprendizaje.** A Nv10 aparece de golpe una forma nueva sin explicación. El panel de talentos explicaba con textos **erróneos** (Anexo A) | Textos generados desde `gaugeTuning()` (una sola fuente); **demo** en el panel; al elegir especialización, el panel se abre en la mecánica y aparece una **marca de guía** de un uso en el HUD; en `idle`, una pista corta en el subtítulo durante los primeros 10 min con la especialización («Golpea con Escarcha para sumar capas») |
-| **R7** | **Clics tragados.** La zona de mecánica (440×48) está sobre el mundo, en la mitad inferior, justo donde se apunta a enemigos que vienen de abajo; con *hover* activo, los clics de ataque se pierden | `pointer-events: none` **en combate**; tooltip fuera de combate o con **`Alt`** (convención de PoE). Las alas de beneficios y perjuicios siguen la misma regla. Solo la barra de acciones y el micromenú capturan clics siempre |
+| **R7** | **Clics tragados.** La zona de mecánica (520×72) está sobre el mundo, en la mitad inferior, justo donde se apunta a enemigos que vienen de abajo; con *hover* activo, los clics de ataque se pierden | `pointer-events: none` **en combate**; tooltip fuera de combate o con **`Alt`** (convención de PoE). Las alas de beneficios y perjuicios siguen la misma regla. Solo la barra de acciones y el micromenú capturan clics siempre |
 | **R8** | **Alas contra columna.** En el primer diseño los beneficios iban encima de la zona de mecánica (como hoy `#buff-bar`). Con 6 o más beneficios, la fila crecía hacia arriba, tapaba el aviso contextual y empujaba la vista lejos de la mecánica | Beneficios y perjuicios pasan a **alas** sobre los orbes (§2.2); la columna central queda solo para el aviso contextual, la mecánica, la barra y la XP. El mockup ya muestra la versión corregida |
-| **R9** | **Assets ilegibles o inconsistentes.** Pedir a Codex piezas de 26 px (cristales, escudos, chevrones) da imágenes que, reducidas, se vuelven manchas, y 9 estilos distintos rompen el set. Un marco 9-slice para un tubo es difícil de cortar | Codex genera **≥ 64 px** (finales a 2×); las formas que se animan son CSS/SVG con el asset como piel; cada tanda usa la n.º 1 como referencia y una cabecera común; reserva CSS si falla la carga (el mockup es esa reserva); de 60+ piezas posibles se baja a **45** |
+| **R9** | **Assets ilegibles o inconsistentes.** Pedir a Codex piezas de 26 px (cristales, escudos, plumas) da imágenes que, reducidas, se vuelven manchas, y 9 estilos distintos rompen el set. Un marco 9-slice para un tubo es difícil de cortar | Codex genera **≥ 64 px** (finales a 2×); las formas que se animan son CSS/SVG con el asset como piel; cada tanda usa la n.º 1 como referencia y una cabecera común; reserva CSS si falla la carga (el mockup es esa reserva); de 60+ piezas posibles se baja a **45** |
+
+| **R10** (revisión del coordinador, v2) | **Identidad débil en 3 de 9 y widgets apretados.** Berserker (barra recta con corazón), Piromante (10 cajas en fila) y Tiradora (fila de chevrones) se leían las tres como «una barra horizontal», contra el pedido explícito del dueño. A 440×48, el anillo de runas y la retícula pisaban su etiqueta y el arte pintado no tenía sitio | Nuevas siluetas: **venas con corazón central** (la sangre fluye hacia el centro), **brasero con hoguera** que crece en altura y se vuelve ceniza, y **rosa de los vientos** que gira y se llena de plumas. Zona de **520×72**. `?measure=1` comprueba los solapes **dentro** de cada widget en los 5 estados (`solapesWidget`) y contra la zona de combate. Alas de 170 px para no tocar la zona ampliada |
 
 **Qué cambió respecto al primer boceto:**
 - Objetivo de la Escarcha (R1).
@@ -689,6 +718,7 @@ Para leer resultados, `--dump-dom` y `grep` del `<pre id="measure">` (el truco d
 - Una sola fuente de texto, demo, guía y pista en `idle` (R6).
 - Clics atravesando en combate y `Alt` (R7).
 - Beneficios a las alas (R8).
+- Las 9 siluetas sin barras horizontales y la zona de 520×72 (R10).
 - 45 assets de 64 px o más y reserva CSS (R9).
 
 ---
@@ -708,3 +738,56 @@ Para leer resultados, `--dump-dom` y `grep` del `<pre id="measure">` (el truco d
 | Tiradora | «+4 por flecha · Voltereta +15 · abanico de 3 · quieta 1,5 s cae a la mitad» | **+3** por disparo en movimiento; Vendaval = +25 % de velocidad de ataque y +1 proyectil a Flecha Múltiple; no hay caída por quedarse quieta |
 
 Corrección: §3.10, punto 2 (los textos pasan a `explain(gaugeTuning())`), que ejecuta W8 en E2.
+
+---
+
+## 9. Revisión v2: lista final de archivos de las tandas A y B
+
+Cambios respecto a la v1:
+- `gz_sed_tubo` pasa a `gz_sed_venas`.
+- `gz_calor_parrilla` pasa a `gz_calor_brasero`.
+- `gz_calor_brasas` (mosaico) se sustituye por `gz_calor_llama` (transparente, escalable) y `gz_calor_llama_blanca`.
+- `gz_impulso_chevron` y `gz_impulso_estela` pasan a `gz_impulso_rosa` y `gz_impulso_pluma`.
+- Cambian los prompts de `gz_sed_corazon`, `gz_sed_sangre`, `gz_sed_saciada`, `gz_calor_ignicion` y `gz_impulso_vendaval`.
+- La tanda C no cambia.
+
+**Tanda A (18):**
+1. `gz_sed_corazon`
+2. `gz_sed_venas`
+3. `gz_sed_sangre`
+4. `gz_sed_saciada`
+5. `gz_bastion_escudo`
+6. `gz_bastion_escudo_vacio`
+7. `gz_bastion_grieta`
+8. `gz_bastion_muro`
+9. `gz_fervor_halo`
+10. `gz_fervor_sol`
+11. `gz_fervor_rayos`
+12. `gz_fervor_ascension`
+13. `gz_cargas_anillo`
+14. `gz_cargas_runa`
+15. `gz_cargas_nucleo`
+16. `gz_conc_anillo`
+17. `gz_conc_esquinera`
+18. `gz_conc_fijado`
+
+**Tanda B (15):**
+1. `gz_calor_brasero`
+2. `gz_calor_llama`
+3. `gz_calor_llama_blanca`
+4. `gz_calor_ignicion`
+5. `gz_escarcha_cristal`
+6. `gz_escarcha_engaste`
+7. `gz_escarcha_congelado`
+8. `gz_escarcha_aterido`
+9. `gz_coto_cepo`
+10. `gz_coto_cepo_vacio`
+11. `gz_coto_presa`
+12. `gz_coto_marca_suelo`
+13. `gz_impulso_rosa`
+14. `gz_impulso_pluma`
+15. `gz_impulso_vendaval`
+
+(Todos son `.png` en `raw/gauges/` y `.webp` en `web/gauges/` al tamaño final de las tablas del §5.)
+
+**Verificación del mockup v2:** con `?measure=1`, a 1920×1080 y a 1366×768, con `spec` = crionte, berserker, piromante y tiradora, el resultado es `"solapes":[]` y `"solapesWidget":[]` (9 widgets × 5 estados más el del HUD).
