@@ -724,7 +724,7 @@ export const skillMethods = {
         this.sfx('levelup');
       } else {
         this._modPending = key;
-        this.ui.message(`${opt.name}: ${opt.desc} — toca otra vez para desbloquear (1 punto)`, 3200);
+        this.ui.message(`${opt.name}: ${opt.desc} — haz clic otra vez para desbloquear (1 punto)`, 3200);
         this.sfx('uiclick');
       }
     }
