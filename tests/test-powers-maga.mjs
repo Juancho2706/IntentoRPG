@@ -3,12 +3,17 @@
 //  (b) al menos un caso de comportamiento por poder y por activa (arnés con talentos REALES)
 //  (c) definePower rechaza claves desconocidas
 //  (d) ningún poder de la Maga declara `mult`
+// Paso 2c.2 — sin portadores: las claves tv de la Piromante (s5 s8 s12 s15 x2), Mente
+// Gélida (s15), Nova Perpetua (s16), Piel de Maná (s8) y Escudo Prismático (c7) se prueban
+// por la ruta del NÚCLEO (combat-math / nucleo_tv / Estela / g.shield dr) con las mismas
+// cifras; los DoT se leen con g.dotsOf / dotRemaining / consumeDoT (nada de e._dots).
 import assert from 'node:assert/strict';
 import { makeHarness } from './helpers/power-harness.mjs';
 import { missingFor, talentRefs, KEY_NODE_MULTS } from './helpers/talent-coverage.mjs';
 import { POWER_HOOKS, definePower, firePower, powerState } from '../js/powers.js';
 import { magaPowers, magaSkillBehaviors, magaFields } from '../js/powers-maga.js';
 import { gainGauge, spendGauge, setGauge } from '../js/spec-mechanics.js';
+import { hitDamage } from '../js/combat-math.js';
 import { resolveSkill } from '../js/skill-resolve.js';
 import { FIELD_DEFS } from '../js/field-entities.js';
 import { SKILL_FX } from '../js/fx-skills.js';
@@ -19,7 +24,26 @@ assert.deepEqual(missingFor('maga'), { powers: [], behaviors: [], skills: [] });
 for (const sk of TALENT_TREES.maga.skills) assert.ok(SKILL_FX[sk.id], `${sk.id}: VFX/SFX de la activa`);
 for (const k of ['p_muro_fuego', 'k_ventisca', 'k_tumba', 'k_campo_helado']) assert.ok(FIELD_DEFS[k], `campo ${k} registrado`);
 assert.equal(Object.keys(magaFields()).length, 4);
-console.log('Cobertura: 26 poderes, 15 comportamientos y 4 campos de la Maga registrados ✓');
+// 26 poderes propios (2c.2: sale a_manaskin —Piel de Maná es tv.drHighMana— y entra
+// p_combustion —el Fuego siempre crítico de s9, antes en p_ignicion—)
+assert.equal(Object.keys(magaPowers()).length, 26, 'poderes propios de la Maga');
+assert.ok(!magaPowers().a_manaskin && magaPowers().p_combustion);
+assert.equal(Object.keys(magaSkillBehaviors()).length, 15, 'comportamientos de las activas');
+// sin portadores: ningún poder de la Maga lo llevan dos nodos (ni dos árboles)
+{
+  const owner = new Map();
+  for (const tree of [TALENT_TREES.maga.cls, ...TALENT_TREES.maga.specs]) {
+    for (const n of tree.nodes) {
+      for (const fx of n.t === 'c' ? n.opts.map(o => o.fx || {}) : [n.fx || {}]) {
+        if (!fx.power) continue;
+        const tag = `${tree.id || 'cls'}/${n.id}`;
+        assert.ok(!owner.has(fx.power) || owner.get(fx.power) === tag, `${fx.power} en dos nodos: ${owner.get(fx.power)} y ${tag}`);
+        owner.set(fx.power, tag);
+      }
+    }
+  }
+}
+console.log('Cobertura: 26 poderes, 15 comportamientos y 4 campos de la Maga registrados; un poder por nodo ✓');
 
 // ------------------------------------------------ (c) y (d)
 assert.throws(() => definePower('t_maga_mal', { onHitt() {} }), /clave desconocida/);
@@ -47,7 +71,8 @@ const track = e => {
   return by;
 };
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} ≉ ${b}`);
-const burnLeft = (e, k = 'p_ignicion:burn') => { const d = e._dots?.[k]; return d ? d.per * d.left : 0; };
+// daño pendiente de las Quemaduras (API de DoT del núcleo)
+const burnLeft = (h, e, k = 'p_ignicion:burn') => h.g.dotRemaining(e, k);
 const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x, z); const ok = h.cast(slot); h.step(sec); return ok; };
 
 // ================================================ CLASE
@@ -57,10 +82,20 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(castAt(h, 'k2', 'm_t_barrera', 2, 0, 0.1));
   const s = h.p.shields.find(x => x.src === 'm_t_barrera');
   assert.ok(s && s.amt >= Math.round(0.3 * h.p.stats.maxMP) - 1, 'escudo = 30 % del maná máximo');
-  assert.equal(h.p.stats.dr, dr0 + 20, 'Escudo Prismático: −20 % de daño mientras dura');
+  // Escudo Prismático = el `dr` del propio escudo (g.shield), no un buff aparte
+  assert.equal(h.p.shieldDr(), 20, 'Escudo Prismático: −20 % de daño mientras dura');
+  assert.equal(h.p.stats.dr, dr0, 'no es una stat permanente');
+  // y se nota en el daño: con c7 el mismo golpe gasta menos escudo
+  const n = mk('arcanista', {}, { cls: { c1: 2, c2: 1 } });
+  castAt(n, 'k2', 'm_t_barrera', 2, 0, 0.1);
+  const amt = x => x.p.shields.find(q => q.src === 'm_t_barrera').amt;
+  const a0 = amt(h), b0 = amt(n);
+  h.p.takeDamage(100, 1, {}); n.p.takeDamage(100, 1, {});
+  assert.ok(a0 - amt(h) < b0 - amt(n), `con c7 absorbe menos (${a0 - amt(h)} < ${b0 - amt(n)})`);
   h.p.absorbShields(1e9);                                  // se rompe
   h.step(0.4);
-  assert.ok(!h.p.buffs.some(b => b.id === 'm_t_barrera_dr'), 'el −% se va con el escudo');
+  assert.equal(h.p.shieldDr(), 0, 'el −% se va con el escudo');
+  assert.ok(!h.p.buffs.some(b => b.id === 'm_t_barrera_dr'), 'sin buff aparte');
   assert.equal(h.p.stats.dr, dr0);
 }
 { // c3 Parpadeo (tipo genérico blink)
@@ -96,6 +131,11 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   h.step(7);
   castAt(h, 'rmb', 'bola_fuego', 4, 0, 1.0);
   assert.ok(e.slowT > 2.5, 'a los 8 s vuelve a estar listo');
+  // 2c.2: el básico de ARMA también pasa por ⑦ onCast (cast.weapon); Ralentizar lo ignora
+  const w = mk('piromante', {}, { cls: { c5: 1 }, choice: { c5: 'B' } });
+  const dardo = w.p.cls.skills.find(s => s.id === 'm_dardo');
+  firePower('onCast', w.p, w.g, w.p, { sk: dardo, prof: resolveSkill(w.p, dardo), slot: 'lmb', weapon: true });
+  assert.equal(powerState(w.p, 'm_ralentizar').armed, null, 'el básico de arma no lo arma');
 }
 { // c15 Aura de Intelecto (grupo)
   const base = mk('arcanista');
@@ -110,7 +150,7 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(cerca.buffs.some(b => b.id === 'm_aura_intelecto' && b.stats.dmgPct === 5 && b.stats.mpPct === 10), 'aliado a 15 m: aura');
   assert.ok(!lejos.buffs.length, 'aliado lejos: nada');
 }
-{ // c12A Inversión del Tiempo
+{ // c12A Inversión del Tiempo (historial por passiveTick desde que conoces la activa)
   const h = mk('arcanista', {}, { cls: { c12: 1 }, choice: { c12: 'A' } });
   castAt(h, 'k2', 'm_t_inversion', 2, 0, 0.1);
   assert.equal(h.p.cds.m_t_inversion || 0, 0, 'sin historial no gasta el enfriamiento');
@@ -123,6 +163,16 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(h.p.pos.x < 0.5, 'vuelve a la posición de hace 5 s');
   assert.ok(h.p.hp > h.p.stats.maxHP * 0.9, 'y a la vida de hace 5 s');
   assert.ok(h.p.cds.m_t_inversion > 50, 'enfriamiento 60 s');
+  // sin haber lanzado NINGUNA otra activa antes (ni ella misma): ya graba al conocerla
+  const f = mk('arcanista', {}, { cls: { c12: 1 }, choice: { c12: 'A' } });
+  f.p.hp = f.p.stats.maxHP;
+  f.tick(2);
+  f.p.pos.set(6, 0, 0); f.p.hp = f.p.stats.maxHP * 0.3;
+  f.tick(4.5);
+  assert.ok(castAt(f, 'k2', 'm_t_inversion', 2, 0, 0.1), 'se lanza');
+  assert.ok(f.p.pos.x < 0.5 && f.p.hp > f.p.stats.maxHP * 0.9, 'primer uso: vuelve a hace 5 s');
+  assert.ok(f.p.cds.m_t_inversion > 50);
+  assert.ok(f.p._mgRewind.hist.length <= 40, 'historial acotado (10 s)');
 }
 { // c12B Bloque de Hielo
   const h = mk('arcanista', {}, { cls: { c12: 1 }, choice: { c12: 'B' } });
@@ -149,33 +199,50 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   const h = mk('piromante');
   const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
   h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: 100 });
-  near(burnLeft(e), 60, 2, 'Quemadura = 60 % del golpe');
-  assert.equal(e._dots['p_ignicion:burn'].left, 4, '4 tics de 1 s');
+  near(burnLeft(h, e), 60, 2, 'Quemadura = 60 % del golpe');
+  assert.equal(h.g.dotsOf(e, 'p_ignicion:burn')[0].left, 4, '4 tics de 1 s');
   assert.ok(h.gaugeValue('calor') >= 5, 'genera Calor');
   h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: 50 });
-  near(burnLeft(e), 30, 2, 'no se apila: la nueva sustituye a la anterior');
+  near(burnLeft(h, e), 30, 2, 'no se apila: la nueva sustituye a la anterior');
   h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: 200 });
-  near(burnLeft(e), 120, 2, 'y renueva su duración');
+  near(burnLeft(h, e), 120, 2, 'y renueva su duración');
   h.hit(e, { skill: 'rayo', elem: 'arcane', dealt: 500 });
-  near(burnLeft(e), 120, 2, 'solo el Fuego quema');
+  near(burnLeft(h, e), 120, 2, 'solo el Fuego quema');
   const hp = e.hp; h.tick(4.2);
-  assert.ok(hp - e.hp >= 110 && !e._dots['p_ignicion:burn'], 'arde y se apaga');
+  assert.ok(hp - e.hp >= 110 && !h.g.hasDoT(e, 'p_ignicion:burn'), 'arde y se apaga');
 }
-{ // claves tv de la Piromante (anfitrión p_ignicion): s5, s8, s12, s15, s16, x2
+{ // claves tv de la Piromante por el NÚCLEO (2c.2; antes las leía p_ignicion): s5, s8, s12, s15, x2
   const h = mk('piromante', { s5: 3, s8: 2, s12: 2, s15: 2, s16: 2, x2: 2 });
+  assert.ok(h.p.powers.has('nucleo_tv'), 'nucleo_tv consume burnKillHeal/burnKillMana/critFireCdr');
   const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
-  assert.equal(firePower('condCrit', h.p, h.p, e, { elem: 'fire' }), 0);
+  const st = h.p.stats;
+  const base = st.critRaw ?? st.crit;
+  // s5: la tirada de crítico de rollDamage cae justo entre la base y la base +12
+  const seq = vals => { let i = 0; h.p.combatRng = () => vals[i++ % vals.length]; };
+  seq([0.5, (base + 6) / 100]);
+  assert.equal(h.p.rollDamage(1, 0, 0, e, { elem: 'fire' }).crit, false, 's5: sin Quemadura, no');
   h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: 100 });
-  assert.equal(firePower('condCrit', h.p, h.p, e, { elem: 'fire' }), 12, 's5: +12 % de crítico contra enemigos en llamas');
+  seq([0.5, (base + 6) / 100]);
+  assert.equal(h.p.rollDamage(1, 0, 0, e, { elem: 'fire' }).crit, true, 's5: +12 % de crítico contra enemigos en llamas');
+  seq([0.5, (base + 12.5) / 100]);
+  assert.equal(h.p.rollDamage(1, 0, 0, e, { elem: 'fire' }).crit, false, 's5: +12, no más');
+  // x2: +10 % aditivo de Fuego (2 rangos × 5; 2c.2: era 15/rango) contra los que ya estallaron (combat-math.condAddPct)
+  const w = st.wMin + 0.5 * (st.wMax - st.wMin);
+  const dmg = hit => { seq([0.5, 0.999]); return h.p.rollDamage(1, 0, 0, e, hit).dmg; };
   e.pyroBurst = true;
-  assert.equal(firePower('condAdd', h.p, h.p, e, { elem: 'fire' }), 30, 'x2: +30 % de Fuego contra los que ya estallaron');
-  assert.equal(firePower('condAdd', h.p, h.p, e, { elem: 'arcane' }), 0);
+  assert.equal(dmg({ elem: 'fire' }), Math.max(1, Math.round(hitDamage(w, 1, st, 10, false))), 'x2: +10 % de Fuego contra los que ya estallaron');
+  assert.equal(dmg({ elem: 'arcane' }), Math.max(1, Math.round(hitDamage(w, 1, st, 0, false))), 'x2: solo el Fuego');
+  e.pyroBurst = false;
+  assert.equal(dmg({ elem: 'fire' }), Math.max(1, Math.round(hitDamage(w, 1, st, 0, false))), 'x2: solo a los que estallaron');
+  h.p.combatRng = () => 0.5;
   // s12 Pirotecnia (no a las definitivas)
   Object.assign(h.p.cds, { bola_fuego: 1.5, meteoro: 6, m_u_supernova: 50 });
   h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: 100, crit: true });
   near(h.p.cds.bola_fuego, 0.5, 1e-9, 's12: −1 s por crítico'); near(h.p.cds.meteoro, 5, 1e-9, 's12');
   assert.equal(h.p.cds.m_u_supernova, 50, 's12: la definitiva no');
-  // s8 / s15 al matar a un enemigo en llamas
+  h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: 100, crit: true });
+  near(h.p.cds.meteoro, 5, 1e-9, 's12: una vez por instante');
+  // s8 / s15 al matar a un enemigo en llamas (KillInfo.status.burning real)
   const v = h.enemy({ hp: 50, pos: [2, 0, 0] });
   h.hit(v, { skill: 'bola_fuego', elem: 'fire', dealt: 10 });
   h.p.hp = h.p.stats.maxHP * 0.5; h.p.mp = 10;
@@ -183,12 +250,28 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   v.takeDamage(1e6, false, { skill: 'rayo' });
   assert.ok(h.p.hp > hp0, 's8: cura (sustento)');
   near(h.p.mp, 16, 1e-6, 's15: +6 de maná');
-  // s16: la Quemadura de Supernova un 100 % más fuerte (quemadura extra)
-  h.g.applyDoT(e, 600, 6, 1, undefined, 'm_u_supernova:burn');
-  firePower('afterCast', h.p, h.g, h.p, { sk: { id: 'm_u_supernova' } }, { hits: 1, dealt: 1, killed: 0 });
-  near(burnLeft(e, 'm_u_supernova:burn'), 1200, 6, 's16: Quemadura de Supernova un 100 % más fuerte');
-  firePower('afterCast', h.p, h.g, h.p, { sk: { id: 'm_u_supernova' } }, { hits: 1, dealt: 1, killed: 0 });
-  near(burnLeft(e, 'm_u_supernova:burn'), 1200, 6, 's16: una sola vez por Quemadura');
+  // sin Quemadura, nada
+  const u = h.enemy({ hp: 50, pos: [2, 0, 0] });
+  h.p.hp = h.p.stats.maxHP * 0.5; h.p.mp = 10;
+  const hp1 = h.p.hp;
+  u.takeDamage(1e6, false, { skill: 'rayo' });
+  assert.ok(h.p.hp === hp1 && Math.abs(h.p.mp - 10) < 1e-6, 's8/s15: solo si ardía');
+}
+{ // s16 Supernova Abrasadora: la Quemadura de Supernova un 100 % más fuerte (al crearla)
+  const burnOf = sp => {
+    const h = mk('piromante', sp);
+    const e = h.enemy({ hp: 1e9, pos: [4, 0, 0] });
+    h.p.combatRng = () => 0.5;
+    h.aim(4, 0); h.setSlot('k4', 'm_u_supernova');
+    assert.ok(h.cast('k4'), 'Supernova se lanza');
+    h.step(1.3);
+    const d = h.g.dotsOf(e, 'm_u_supernova:burn');
+    assert.equal(d.length, 1, 'una sola Quemadura de Supernova');
+    return d[0].total;
+  };
+  const b0 = burnOf({}), b2 = burnOf({ s16: 2 });
+  near(b2, 1.6 * b0, 6 + b0 * 0.01, `s16: Quemadura de Supernova un 60 % más fuerte (${b2} vs ${b0}; 2c.2: 30 %/rango)`);
+  near(burnOf({ s16: 1 }), 1.3 * b0, 6 + b0 * 0.01, 's16 rango 1: +30 %');
 }
 { // s0 Llamarada (insignia): detona (consume) el 60 % de las Quemaduras; s4 Avivada 100 % y +25 Calor
   for (const [sp, pct] of [[{}, 60], [{ s4: 1 }, 100]]) {
@@ -200,14 +283,15 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
     assert.ok(castAt(h, 'k3', 'p_llamarada', 3, 0, 0.4), 'Llamarada se lanza');
     near(by['power:p_llamarada'] || 0, 60 * pct / 100, 2, `detona el ${pct} %`);
     assert.ok((by.p_llamarada || 0) > 0, 'y el cono golpea');
-    assert.ok(e._dots['p_ignicion:burn'], 'el cono vuelve a encenderlo');
+    assert.ok(h.g.hasDoT(e, 'p_ignicion:burn'), 'el cono vuelve a encenderlo');
     if (pct === 100) assert.ok(h.gaugeValue('calor') - c0 >= 25, 's4: +25 de Calor');
   }
 }
 { // s9 Combustión: Fuego siempre crítico y Calor doble
   const h = mk('piromante', { s9: 1 });
   assert.ok(castAt(h, 'k3', 'p_combustion', 2, 0, 0.1));
-  assert.ok(h.p.buffs.some(b => b.id === 'p_combustion'));
+  assert.ok(h.p.powers.has('p_combustion'), 's9 lleva su propio poder (2c.2)');
+  assert.ok(h.p.buffs.some(b => b.id === 'p_combustion' && b.stats['gaugeGain:calor'] === 100), 'buff con Calor ×2');
   assert.equal(resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'bola_fuego')).forceCrit, true, 'Fuego siempre crítico');
   assert.equal(resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'rayo')).forceCrit, false);
   const c0 = h.gaugeValue('calor');
@@ -215,6 +299,9 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   near(h.gaugeValue('calor') - c0, 10, 1e-9, 'el Calor se llena el doble');
   h.step(10.2);
   assert.equal(resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'bola_fuego')).forceCrit, false, 'dura 10 s');
+  const c1 = h.gaugeValue('calor');
+  gainGauge(h.p, 'calor', 5);
+  near(h.gaugeValue('calor') - c1, 5, 1e-9, 'después, el Calor vuelve a ×1');
 }
 { // s13B Muro de Fuego: quema y bloquea el paso (no a los jefes)
   const h = mk('piromante', { s13: 1 }, { choice: { s13: 'B' } });
@@ -236,16 +323,17 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   const a = h.enemy({ hp: 1e6, pos: [4, 0, 0] }), b = h.enemy({ hp: 1e6, pos: [3, 0, 1.5] }), c = h.enemy({ hp: 1e6, pos: [6.5, 0, 0] });
   h.hit(v, { skill: 'bola_fuego', elem: 'fire', dealt: 100 });
   v.takeDamage(1e6, false, { skill: 'rayo' });
-  assert.ok(burnLeft(a) > 50 && burnLeft(b) > 50, 'la Quemadura salta a los 2 más cercanos');
-  assert.equal(burnLeft(c), 0, 'solo a 2');
+  assert.ok(burnLeft(h, a) > 50 && burnLeft(h, b) > 50, 'la Quemadura salta a los 2 más cercanos');
+  assert.equal(burnLeft(h, c), 0, 'solo a 2');
 }
 { // s6B Concentración: hasta 3 Quemaduras
   const h = mk('piromante', { s6: 1 }, { choice: { s6: 'B' } });
   const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
   for (const d of [100, 100, 100, 200]) h.hit(e, { skill: 'bola_fuego', elem: 'fire', dealt: d });
-  const keys = Object.keys(e._dots).filter(k => k.startsWith('p_ignicion'));
-  assert.equal(keys.length, 3, '3 pilas');
-  near(keys.reduce((s, k) => s + burnLeft(e, k), 0), 60 + 60 + 120, 4, 'la 4.ª sustituye a la más débil');
+  const pilas = h.g.dotsOf(e, 'burn').filter(d => d.source.startsWith('p_ignicion'));
+  assert.equal(pilas.length, 3, '3 pilas');
+  assert.equal(new Set(pilas.map(d => d.source)).size, 3, 'con fuentes distintas');
+  near(pilas.reduce((s, d) => s + d.remaining, 0), 60 + 60 + 120, 4, 'la 4.ª sustituye a la más débil');
 }
 { // s13A Fénix
   const h = mk('piromante', { s13: 1 }, { choice: { s13: 'A' } });
@@ -255,7 +343,7 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   h.p.takeDamage(1e9, 1, {});
   assert.ok(!h.p.alive && h.g.dead, 'una vez cada 2 minutos');
 }
-{ // x1 Corazón del Sol: al terminar, la Quemadura explota con el 40 % de su total
+{ // x1 Corazón del Sol: al terminar, la Quemadura explota con el 30 % de su total (2c.2: era 40)
   const h = mk('piromante', { x1: 1 });
   const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }), o = h.enemy({ hp: 1e6, pos: [4, 0, 0] });
   const by = track(o);
@@ -264,14 +352,23 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(!e.pyroBurst);
   h.tick(4.2);
   assert.ok(e.pyroBurst, 'estalló');
-  near(by['power:p_corazon_sol'] || 0, 24, 2, '40 % del total (60) a los cercanos');
+  near(by['power:p_corazon_sol'] || 0, 18, 2, '30 % del total (60) a los cercanos');
   // Llamarada la consume: no estalla
   const h2 = mk('piromante', { x1: 1 });
   const e2 = h2.enemy({ hp: 1e6, pos: [3, 0, 0] });
   h2.hit(e2, { skill: 'bola_fuego', elem: 'fire', dealt: 100 });
   h2.tick(0.3);
-  h2.g.timers.cancel(e2._dots['p_ignicion:burn'].timer); delete e2._dots['p_ignicion:burn']; delete e2._mgBurns['p_ignicion:burn'];
-  h2.tick(1); assert.ok(!e2.pyroBurst, 'una quemadura consumida no estalla');
+  assert.ok(h2.g.consumeDoT(e2, 'burn') > 0, 'Llamarada la detona (consumeDoT)');
+  h2.tick(4.5); assert.ok(!e2.pyroBurst, 'una quemadura consumida no estalla');
+  // ni una sustituida (no se apila: la vieja no «termina»): estalla solo la última, una vez
+  const h3 = mk('piromante', { x1: 1 });
+  const e3 = h3.enemy({ hp: 1e6, pos: [3, 0, 0] }), o3 = h3.enemy({ hp: 1e6, pos: [4, 0, 0] });
+  const by3 = track(o3);
+  h3.hit(e3, { skill: 'bola_fuego', elem: 'fire', dealt: 100 });
+  h3.tick(2);
+  h3.hit(e3, { skill: 'bola_fuego', elem: 'fire', dealt: 50 });
+  h3.tick(4.5);
+  near(by3['power:p_corazon_sol'] || 0, 9, 2, 'solo la que se agotó: 30 % de 30');
 }
 { // x3 Nova Solar: cada 20 explosiones (aquí Conflagración), Supernova sola y gratis
   const h = mk('piromante', { s14: 1, x3: 1 });
@@ -408,7 +505,9 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   const route = { s1: 3, s3: 2, s6: 1, s9: 1, s12: 2, s15: 2 };
   const h = mk('crionte', route, { choice: { s6: 'A' } });
   const own = [...h.p.powers].filter(id => /^k_/.test(id));
-  assert.deepEqual(own, ['k_shatter_chain'], 'por esta ruta solo está el poder que lleva s15');
+  // 2c.2: s15 ya no lleva poder (tv.manaOnKill lo consume nucleo_tv)
+  assert.deepEqual(own, [], 'por esta ruta no hay poderes de Crionte');
+  assert.ok(h.p.powers.has('nucleo_tv'), 'Mente Gélida va por el núcleo');
   const v = h.enemy({ hp: 50, pos: [3, 0, 0] });
   h.p.mp = 10;
   v.takeDamage(1e6, false, { skill: 'rayo' });
@@ -425,7 +524,8 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
 { // s16 Nova Perpetua por la ruta s1→s2→s4→s6A→s9→s12→s13B→s16 (sin otro poder de Crionte)
   const route = { s1: 3, s2: 2, s4: 1, s6: 1, s9: 1, s12: 2, s13: 1, s16: 2 };
   const h = mk('crionte', route, { choice: { s6: 'A', s13: 'B' } });
-  assert.deepEqual([...h.p.powers].filter(id => /^k_/.test(id)).sort(), ['k_eternal_winter', 'k_prision_profunda']);
+  // 2c.2: s16 ya no lleva poder (su suelo helado es la Estela de la Nova, que ralentiza)
+  assert.deepEqual([...h.p.powers].filter(id => /^k_/.test(id)).sort(), ['k_prision_profunda']);
   const e = h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
   castAt(h, 'rmb', 'nova_hielo', 2, 0, 0.1);
   assert.ok(h.g.fields.some(f => f.kind === 'estela' && f.data?.skill === 'nova_hielo'), 's16: suelo helado de la Nova');
@@ -475,13 +575,21 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(6 * per < 30, 'devuelve menos de lo que cuesta');
   assert.ok(h.p.mp > 100 - 30 + 6 * per - 1, '6 × 1 % de maná');
 }
-{ // s8 Piel de Maná: el −% solo con más del 50 % de maná
+{ // s8 Piel de Maná: el −% solo con más del 50 % de maná (tv.drHighMana del núcleo)
+  // 2c.2: antes stats.dr +10 siempre y a_manaskin restaba 10 con poco maná; ahora la
+  // stat no cambia y nucleo_tv suma 10 con maná > 50 % (mismo resultado neto)
   const base = mk('arcanista');
   const h = mk('arcanista', { s8: 2 });
-  assert.equal(h.p.stats.dr, base.p.stats.dr + 10);
-  assert.equal(firePower('condDr', h.p, h.p, { amount: 10 }), 0, 'maná lleno: −10 %');
+  assert.equal(h.p.stats.dr, base.p.stats.dr, 'sin reducción incondicional');
+  assert.ok(!h.p.powers.has('a_manaskin') && h.p.powers.has('nucleo_tv'));
+  assert.equal(firePower('condDr', h.p, h.p, { amount: 10 }), 10, 'maná lleno: −10 %');
+  h.p.mp = h.p.stats.maxMP * 0.5;
+  assert.equal(firePower('condDr', h.p, h.p, { amount: 10 }), 0, 'maná = 50 %: nada');
   h.p.mp = h.p.stats.maxMP * 0.3;
-  assert.equal(firePower('condDr', h.p, h.p, { amount: 10 }), -10, 'maná ≤ 50 %: nada');
+  assert.equal(firePower('condDr', h.p, h.p, { amount: 10 }), 0, 'maná ≤ 50 %: nada');
+  // y se nota en el daño recibido
+  const dmgAt = frac => { const x = mk('arcanista', { s8: 2 }); x.p.mp = x.p.stats.maxMP * frac; x.p.combatRng = () => 0.99; const hp = x.p.hp; x.p.takeDamage(100, 1, {}); return hp - x.p.hp; };
+  assert.ok(dmgAt(1) < dmgAt(0.3), 'con maná alto recibe menos');
 }
 { // s9 Sello del Archimago: +4 Cargas; guarda el 25 % y estalla al expirar
   const h = mk('arcanista', { s9: 1 });

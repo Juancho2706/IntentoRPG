@@ -48,8 +48,8 @@ export const ARQUERA_SKILLS = [
     type: 'proj', req: 8, coef: 0.7, cost: 22, cd: 0, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
     desc: 'Dispara 5 flechas en un abanico de 50° (70 % del arma cada una; ≈150 % a un objetivo pegado). 22 de Energía, sin enfriamiento.' },
   { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.6, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
-    desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (75 % del arma cada una: 300 % en total). 30 de Energía, enfriamiento 4 s.' },
+    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.52, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
+    desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (52 % del arma cada una: 208 % en total). 30 de Energía, enfriamiento 4 s.' },
 
   // — MOVILIDAD (k1, fuera del GCD) —
   { id: 'a_paso', name: 'Paso Veloz', icon: '👣', cat: 'movement', slots: ['k1'], tags: ['movement', 'physical'], elem: 'physical',
@@ -69,8 +69,8 @@ export const ARQUERA_SKILLS = [
 
   // — DEFINITIVAS (k4, sin coste; eliges una) —
   { id: 'a_u_diluvio', name: 'Diluvio de Saetas', icon: '🌠', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_diluvio', at: 'target', req: 15, coef: 2.2, waves: 8, span: 3.6, cd: 50, radius: 5, range: 12, windup: 0.15, impactDelay: 0.4, shake: 0.18, color: 0xbfffbf,
-    desc: 'Definitiva: tras una telegrafía, 8 oleadas de saetas arrasan un círculo de 5 m durante 4 s (250 % del arma cada una: 2000 % por objetivo). Enfriamiento 50 s.' },
+    behavior: 'a_diluvio', at: 'target', req: 15, coef: 1.95, waves: 8, span: 3.6, cd: 50, radius: 5, range: 12, windup: 0.15, impactDelay: 0.4, shake: 0.18, color: 0xbfffbf,
+    desc: 'Definitiva: tras una telegrafía, 8 oleadas de saetas arrasan un círculo de 5 m durante 4 s (195 % del arma cada una: 1560 % por objetivo). Enfriamiento 50 s.' },
   { id: 'a_u_celeste', name: 'Tiro Celestial', icon: '🌌', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'proj', 'physical'], elem: 'physical',
     behavior: 'a_celeste', req: 15, coef: 7.0, shots: 3, window: 8, recastGap: 0.35, cd: 50, speed: 30, range: 16, pierce: true, beam: true, windup: 0.3, color: 0x9fd8ff,
     desc: 'Definitiva: hasta 3 haces celestes perforantes (700 % del arma cada uno) que disparas a voluntad pulsando otra vez la tecla durante 8 s; cada uno carga 0,3 s. Enfriamiento 50 s desde el primero.' },

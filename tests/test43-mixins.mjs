@@ -101,6 +101,8 @@ const SKILLS_EXPECTED = [
   'skillSupports', 'applyDoT', 'spawnChainBounce', 'dealArea', 'enemiesInCone', 'enemiesInLine', 'clampWalkable', 'slotHeld',
   'assignHotbar', 'chooseSkillMod', '_spenderWaiting', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
   'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',
+  // Paso 2c.2: ⑫ daño a aliados y API de DoT (⑬ onDotEnd)
+  'damageAlly', 'dotsOf', 'hasDoT', 'dotRemaining', 'consumeDoT', 'replaceDoT', 'onDotEnd',
 ];
 const skKeys = Object.keys(skillMethods);
 for (const m of SKILLS_EXPECTED) if (typeof skillMethods[m] !== 'function') throw new Error('falta método de skills o no es función: ' + m);

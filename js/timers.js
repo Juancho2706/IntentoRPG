@@ -62,7 +62,12 @@ export class TickScheduler {
 // se acota el número de temporizadores vivos). El ajuste fino de cómo apilan los
 // DoT queda para el paso de fórmulas (combat-math).
 // Se detiene solo al morir el objetivo (o al limpiar el planificador).
-//   opts: { total, ticks, interval, source = 'dot' }
+//   opts: { total, ticks, interval, source = 'dot', replace = false }
+//   replace (Paso 2c.2): SUSTITUYE a la instancia previa sin integrar lo pendiente
+//   («no se apila»: Quemadura de Ignición sin Concentración).
+// Al AGOTARSE sola (el objetivo sigue vivo) avisa a enemy.game.onDotEnd(enemy, inst)
+// (⑬ onDotEnd de los poderes: Corazón del Sol). inst = { source, per, left, ticks,
+// total, interval, timer }.
 export function applyDoTInstance(sched, enemy, opts) {
   const ticks = Math.max(1, opts.ticks | 0);
   const total = +opts.total || 0;
@@ -73,9 +78,9 @@ export function applyDoTInstance(sched, enemy, opts) {
   const prev = dots[source];
   // pendiente de la instancia previa (si sigue viva) → se integra en la nueva
   let pending = 0;
-  if (prev && prev.left > 0) { pending = prev.per * prev.left; sched.cancel(prev.timer); }
+  if (prev && prev.left > 0) { if (!opts.replace) pending = prev.per * prev.left; sched.cancel(prev.timer); }
   const per = Math.max(1, Math.round((Math.max(1, Math.round(total / ticks)) * ticks + pending) / ticks));
-  const inst = { source, per, left: ticks, interval, timer: 0 };
+  const inst = { source, per, left: ticks, ticks, total: per * ticks, interval, timer: 0 };
   dots[source] = inst;
   const step = () => {
     if (dots[source] !== inst) return;               // reemplazada
@@ -86,8 +91,56 @@ export function applyDoTInstance(sched, enemy, opts) {
     enemy.takeDamage(inst.per, false, { dot: true, source: `dot:${source}`, skill: sep > 0 ? source.slice(0, sep) : null });
     inst.left--;
     if (inst.left > 0 && enemy.alive) inst.timer = sched.schedule(interval, step);
-    else delete dots[source];
+    else {
+      if (dots[source] === inst) delete dots[source];
+      if (enemy.alive && inst.left <= 0) { try { enemy.game?.onDotEnd?.(enemy, inst); } catch (err) { console.error('[dot] onDotEnd', err); } }
+    }
   };
   inst.timer = sched.schedule(interval, step);
   return inst;
+}
+
+// ---- consulta y consumo de DoT (Paso 2c.2: los poderes no tocan enemy._dots) ----
+// tipo de un DoT a partir de su fuente `<habilidad>:<tipo>` ('p_ignicion:burn' → 'burn')
+export function dotKindOf(source) {
+  const s = String(source || '');
+  const i = s.lastIndexOf(':');
+  return i >= 0 ? s.slice(i + 1) : s;
+}
+// casa una instancia con `which`: null (todas), un tipo ('burn'), una fuente exacta
+// ('p_ignicion:burn') o una función (inst, source) → bool
+function dotMatch(source, inst, which) {
+  if (which == null) return true;
+  if (typeof which === 'function') return !!which(inst, source);
+  return source === which || dotKindOf(source) === which;
+}
+// instancias VIVAS: [{ source, kind, per, left, ticks, total, remaining }]
+export function dotsOf(enemy, which = null) {
+  const out = [];
+  for (const [source, inst] of Object.entries(enemy?._dots || {})) {
+    if (!inst || !(inst.left > 0) || !dotMatch(source, inst, which)) continue;
+    out.push({ source, kind: dotKindOf(source), per: inst.per, left: inst.left, ticks: inst.ticks || inst.left, total: inst.total || inst.per * inst.left, remaining: inst.per * inst.left });
+  }
+  return out;
+}
+export function dotRemaining(enemy, which = null) {
+  return dotsOf(enemy, which).reduce((a, d) => a + d.remaining, 0);
+}
+// quita (sin aplicar) los DoT que casan y devuelve su daño restante (detonar)
+export function consumeDoTs(sched, enemy, which = null) {
+  let rem = 0;
+  const dots = enemy?._dots;
+  if (!dots) return 0;
+  for (const [source, inst] of Object.entries(dots)) {
+    if (!inst || !(inst.left > 0) || !dotMatch(source, inst, which)) continue;
+    rem += inst.per * inst.left;
+    try { sched?.cancel?.(inst.timer); } catch { /* */ }
+    inst.left = 0;
+    delete dots[source];
+  }
+  return rem;
+}
+// sustituye el DoT de opts.source (lo pendiente se pierde)
+export function replaceDoTInstance(sched, enemy, opts) {
+  return applyDoTInstance(sched, enemy, { ...opts, replace: true });
 }

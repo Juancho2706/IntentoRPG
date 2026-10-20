@@ -1,5 +1,5 @@
 // ============================================================
-// PODERES de la MAGA (Piromante · Crionte · Arcanista) — Paso 2c.1
+// PODERES de la MAGA (Piromante · Crionte · Arcanista) — Paso 2c.1 / 2c.2
 // ============================================================
 // Dueño: el trabajador de la clase en el Paso 2c.1 (docs/paso2-diseno.md §9.1.6).
 // Solo se tocan ESTE archivo, js/talents-maga.js, js/fx-skills-maga.js y
@@ -20,36 +20,43 @@
 //                        base de spec-mechanics.js; aquí se POTENCIAN con gainGauge/spendGauge/onGauge.
 //
 // MAPA nodo → implementación (el texto del nodo manda; desviaciones al final):
-//  Clase   c2 m_t_barrera (comp.; c7 barrierDr = buff `dr` mientras dura el escudo) ·
-//          c5A m_t_contrahechizo · c5B m_ralentizar · c12A m_t_inversion · c12B m_t_bloque ·
+//  Clase   c2 m_t_barrera (comp.) · c5A m_t_contrahechizo · c5B m_ralentizar ·
+//          c12A m_t_inversion (comp. + passiveTick) · c12B m_t_bloque ·
 //          c15 m_aura_intelecto (grupo: g.allies) · resto = stats/tv/mod del núcleo.
-//  Piro    s0 p_ignicion (Quemadura 60 %/4 s + ANFITRIÓN de las claves tv de la Piromante:
-//          burningCrit s5, burnKillHeal s8, critFireCdr s12, burnKillMana s15,
-//          supernovaBurn s16, explodedDmg x2, y el doble Calor de Combustión) ·
-//          p_llamarada (comp.) · s4 p_llamarada_avivada · s6A p_propagacion · s6B p_acumular ·
-//          s9 p_combustion (comp.) · s13A p_fenix · s13B p_muro_fuego (comp. + campo) ·
-//          x1 p_corazon_sol · x3 p_nova_solar.
+//  Piro    s0 p_ignicion (solo la Quemadura 60 %/4 s) · p_llamarada (comp.) ·
+//          s4 p_llamarada_avivada · s6A p_propagacion · s6B p_acumular ·
+//          s9 p_combustion (comp. + poder propio) · s13A p_fenix · s13B p_muro_fuego (comp. + campo) ·
+//          x1 p_corazon_sol (⑬ onDotEnd) · x3 p_nova_solar.
 //  Crionte s0 k_prision (comp.) · s4 k_prision_profunda · s6A k_ventisca (comp. + campo) ·
 //          s6B k_nova_push · s7 k_icicle_dart · s8 k_frost_armor · s9 k_lanza (comp.) ·
 //          s13A k_ice_tomb (campo) · s13B k_aliento (comp.) · s14 k_shatter_chain ·
 //          s17 k_numb · x1 k_eternal_winter (campo; x2 fieldVuln) · x3 k_ice_age.
-//          s15 (manaOnKill) lleva también el poder k_shatter_chain y s16 el k_eternal_winter
-//          (test65a solo admite los ids de §5.3): cada efecto de esos dos poderes lo enciende
-//          SU nodo (specRank), así ningún nodo depende de que otro poder esté activo.
 //  Arcan.  s0 a_orbe (comp.) · s4 a_orbe_resonante · s6A a_misiles (comp. tick) ·
-//          s8 a_manaskin · s9 a_sello (comp.) · s11 a_clarity · s13A a_evocacion (comp.) ·
+//          s9 a_sello (comp.) · s11 a_clarity · s13A a_evocacion (comp.) ·
 //          s14 a_resonance · s15 a_overvolt · x1 a_chain_crit · x2 a_arc_charge · x3 a_singularity.
 //
-// DESVIACIONES / RODEOS LOCALES (pedidos al núcleo, ver también talents-maga.js):
-//  · Quemadura de Ignición NO se apila (s6B Concentración la deja apilar hasta 3): una nueva
-//    aplicación SUSTITUYE a la anterior (lo que le quedaba se pierde; applyDoT del núcleo lo
-//    integraría, así que se cancela la instancia y se borra de e._dots: no hay API
-//    `replaceDoT`/`consumeDoT` en el núcleo — pedido). Así Concentración «mejor contra jefes»
-//    tiene sentido. Se tira sobre hit.raw (sin Π[×]: los tics ya los reciben).
-//  · Llamarada detona (CONSUME) las Quemaduras: 60 % de su daño restante al instante
-//    (100 % con s4). Se detona ANTES de que el cono vuelva a encenderlas.
-//  · Pirotecnia (s12) no reduce el enfriamiento de las definitivas (Supernova): con la
-//    cadencia de impactos de la Maga la dejaba en la mitad.
+// Paso 2c.2 — SIN PORTADORES/ANFITRIONES: cada nodo con efecto propio lleva SU poder
+// (ninguno está en dos nodos) o una clave tv que consume el núcleo:
+//  · Piromante s5 burningCrit → combat-math.condCritPct · x2 explodedDmg → condAddPct ·
+//    s8 burnKillHeal / s15 burnKillMana / s12 critFireCdr → poder común nucleo_tv ·
+//    s16 supernovaBurn → comportamiento m_u_supernova (js/skills-maga.js) al crear su
+//    Quemadura · s9 Combustión → poder p_combustion (Fuego siempre crítico mientras dura el
+//    buff) + stat del buff 'gaugeGain:calor' (Calor ×2).
+//  · Crionte s15 manaOnKill → nucleo_tv · s16 Nova Perpetua → mod nova_hielo { zone } (la
+//    Estela de una habilidad que ralentiza también ralentiza: núcleo).
+//  · Arcanista s8 drHighMana → nucleo_tv (reducción condicional con maná > 50 %).
+//  · Clase c7 barrierDr → g.shield(…, { dr }) del comportamiento m_t_barrera.
+//  · DoT por la API del núcleo (g.replaceDoT / consumeDoT / dotRemaining / dotsOf): nadie
+//    toca e._dots.
+//
+// DESVIACIONES / RODEOS LOCALES:
+//  · Quemadura de Ignición NO se apila (s6B Concentración la deja apilar hasta 3, con
+//    fuentes distintas): una nueva aplicación SUSTITUYE a la anterior (g.replaceDoT: lo que
+//    le quedaba se pierde). Así Concentración «mejor contra jefes» tiene sentido. Se tira
+//    sobre hit.raw (sin Π[×]: los tics ya los reciben).
+//  · Llamarada detona (CONSUME, g.consumeDoT) las Quemaduras: 60 % de su daño restante al
+//    instante (100 % con s4). Se detona ANTES de que el cono vuelva a encenderlas.
+//  · Pirotecnia (s12, núcleo) no reduce el enfriamiento de las definitivas (Supernova).
 //  · Nova Solar (x3) cuenta como «explosiones» las de Corazón del Sol y Conflagración.
 //  · Prisión de Hielo: a los no jefes los congela 2 s (3 s con s4) y les pone las 5 capas;
 //    a los jefes no les suma capas (su base de 5 capas ya da Aterido + 25 de stagger):
@@ -57,29 +64,25 @@
 //  · Lanza de Hielo ×3 a los Congelados = +200 % del golpe como daño de poder (proc; no
 //    hay `mult` nuevo) y «los astilla» = estallido de 3 m con el golpe medio de la Lanza +
 //    un ASTILLAMIENTO (cuenta para s14 y x3).
-//  · Inversión del Tiempo necesita un historial: lo graba un reloj propio (g.timers, cada
-//    0,25 s) que arranca la primera vez que lanzas CUALQUIER activa de talento de la Maga
-//    (ensureRecorder); sin historial, no gasta el enfriamiento. Pedido al núcleo: un
-//    gancho por tic para activas concedidas (o un poder en la opción c12A).
+//  · Inversión del Tiempo: el historial lo graba el passiveTick de su comportamiento (cada
+//    0,25 s) desde que conoces la activa; sin historial, no gasta el enfriamiento.
 //  · Bloque de Hielo: «cancelable» = la ESQUIVA lo rompe (volver a pulsar no llega al
 //    comportamiento: la ranura está en enfriamiento).
 //  · Sello del Archimago guarda el 25 % de la vida que pierde el objetivo marcado (sondeo
 //    de su vida cada 0,1 s; no hay gancho ④ por objetivo marcado sin un poder en s9).
-//  · Piel de Maná (s8): el núcleo suma tv.dmgReduc SIEMPRE; a_manaskin lo resta (condDr
-//    negativo) con el maná ≤ 50 %. Pedido al núcleo: dmgReduc condicional (§5.3 PT).
 //  · Cadena de Rayos (x1): se quitó el mod `rayo.chain` (encadenaba TODOS los impactos con
 //    −25 %/salto); a_chain_crit encadena solo el PRIMER crítico de cada Rayo (50 % a 3
 //    enemigos; solo, 2 veces al mismo).
-//  · Las claves tv de §5.3 que el núcleo aún no consume (burnKillHeal, burnKillMana,
-//    critFireCdr, burningCrit, explodedDmg, supernovaBurn, manaOnKill, fieldVuln,
-//    barrierDr, clarityPct, arcChargePct) las consumen estos poderes.
+//  · Ralentizar (c5B) ignora el básico de ARMA que ahora también pasa por ⑦ onCast
+//    (cast.weapon): antes no lo veía y así no cambia nada.
+//  · Claves tv que consumen poderes de su MISMO nodo: fieldVuln (x2, campo de x1: si no hay
+//    campo no hay nada que potenciar), clarityPct (s11 a_clarity), arcChargePct (x2 a_arc_charge).
 //
 // REGLAS: sin `powers.has(` fuera de js/powers*.js (aquí: hasPower), sin setTimeout
 // (g.timers.schedule), sin Math.random en la simulación (p.combatRng). Daño de un poder:
 // dealProcDamage. Control: e.applyCC. Curas: p.sustain / g.shield; restauraciones p.setHp.
 import { dealProcDamage, powerState, hasPower } from './powers.js';
-import { gainGauge, spendGauge, gaugeValue, gaugeState, touchGauge } from './spec-mechanics.js';
-void spendGauge; void gaugeState;
+import { gainGauge, gaugeValue, touchGauge } from './spec-mechanics.js';
 
 // ------------------------------------------------------------
 // CONSTANTES (perezosas: nada se evalúa al cargar el módulo)
@@ -91,16 +94,16 @@ export function magaTuning() {
     burnFrac: 0.6, burnT: 4, burnStacks: 3,             // Ignición: 60 % del golpe en 4 s (s6B: 3 pilas)
     detonatePct: 60, detonateBig: 100, avivadaCalor: 25, // Llamarada / Llamarada Avivada
     propagateN: 2, propagateR: 5,                        // Propagación
-    coreFrac: 0.4, coreR: 2.5, novaEvery: 20,            // Corazón del Sol / Nova Solar
+    coreFrac: 0.3, coreR: 2.5, novaEvery: 20,            // Corazón del Sol / Nova Solar
     fenixCd: 120, fenixHp: 0.5, fenixInvuln: 1,          // Fénix
     slowEvery: 8, slowPct: 50, slowT: 4,                 // Ralentizar (c5B)
     auraR: 15, auraDmg: 5, auraMp: 10,                   // Aura de Intelecto (c15)
     rewindT: 5, rewindEvery: 0.25, rewindKeep: 40,       // Inversión del Tiempo
     prisonLayers: 5, prisonFreeze: 2, prisonFreezeBig: 3, prisonStagger: 20, prisonStaggerBig: 35, numbT: 4,
     novaPush: 3, frostArmorLayers: 1, iceTombT: 4, iceTombR: 1.2, chainLayers: 2, chainR: 4, iceAgeEvery: 15,
-    numbExtra: 0.15, winterT: 6, winterSlow: 50, novaFloorSlow: 30,
+    numbExtra: 0.15, winterT: 6, winterSlow: 50,
     orbCap: 2, chainCritN: 3, chainCritFrac: 0.5, chainCritR: 6, singPct: 15, singT: 6, singMax: 2,
-    resonanceCrit: 15, sealR: 3, manaSkinAt: 0.5,
+    resonanceCrit: 15, sealR: 3,
   }));
 }
 
@@ -121,30 +124,13 @@ function ring(g, pos, r, color) { try { g.spawnRing?.(at(pos, pos.x, pos.z, 0), 
 function text(g, e, s, cls = 'txt-crit') { try { g.ui?.spawnText?.(at(e.pos, e.pos.x, e.pos.z, (e.def?.scale || 1) + 0.7), s, cls); } catch { /* */ } }
 function invalidate(p, id = null) { if (!p) return; if (id) { if (p.resolved) delete p.resolved[id]; } else p.resolved = {}; }
 
-// ---- Quemaduras (DoT del planificador: e._dots[`<fuente>:burn`] = { per, left, interval, timer }) ----
-function burnKeys(e) { return Object.keys(e?._dots || {}).filter(k => k.endsWith(':burn') && e._dots[k]?.left > 0); }
-function isBurning(e) { return burnKeys(e).length > 0; }
-function burnRemaining(e) { return burnKeys(e).reduce((a, k) => a + e._dots[k].per * e._dots[k].left, 0); }
-// detona (CONSUME) todas las quemaduras de `e`: devuelve su daño restante
-function consumeBurns(g, e) {
-  let rem = 0;
-  for (const k of burnKeys(e)) {
-    const inst = e._dots[k];
-    rem += inst.per * inst.left;
-    try { g.timers?.cancel?.(inst.timer); } catch { /* */ }
-    delete e._dots[k];
-    if (e._mgBurns) delete e._mgBurns[k];
-  }
-  return rem;
-}
-// aplica una quemadura de `total` en `ticks` s con la clave `key`, SIN apilar: la nueva
-// SUSTITUYE a la anterior de esa clave (lo que le quedaba se pierde; applyDoT del núcleo
-// la integraría, por eso se cancela antes). Apilar es lo que da s6B Concentración.
+// ---- Quemaduras (DoT del planificador, fuentes `<origen>:burn`; API del núcleo, sin e._dots) ----
+// aplica una quemadura de `total` en `ticks` s con la fuente `key`, SIN apilar: la nueva
+// SUSTITUYE a la anterior de esa fuente (g.replaceDoT: lo que le quedaba se pierde).
+// Apilar es lo que da s6B Concentración (fuentes distintas).
 function applyBurnTotal(g, e, total, ticks, key) {
-  if (!e?.alive || !(total > 0) || !g?.applyDoT) return 0;
-  const prev = e._dots?.[key];
-  if (prev) { try { g.timers?.cancel?.(prev.timer); } catch { /* */ } delete e._dots[key]; }
-  g.applyDoT(e, Math.max(1, total), ticks, 1, undefined, key);
+  if (!e?.alive || !(total > 0) || !g?.replaceDoT) return 0;
+  g.replaceDoT(e, Math.max(1, total), ticks, 1, key);
   return total;
 }
 // Ignición (Piromante s0): 60 % del golpe en 4 s (+burnDur/dotDur s, × burnPct/dotPct)
@@ -162,8 +148,7 @@ function ignite(g, p, e, base) {
   const keys = ['p_ignicion:burn', 'p_ignicion#2:burn', 'p_ignicion#3:burn'].slice(0, magaTuning().burnStacks);
   let best = keys[0], bv = Infinity;
   for (const k of keys) {
-    const d = e._dots?.[k];
-    const v = d && d.left > 0 ? d.per * d.left : 0;
+    const v = g.dotRemaining?.(e, k) || 0;
     if (v < bv) { bv = v; best = k; }
   }
   return applyBurnTotal(g, e, total, ticks, best);
@@ -211,52 +196,47 @@ function scheduleAutoCast(g, p, skillId, fallbackPos) {
   });
 }
 
-// rango de un nodo de la especialización ACTIVA (poderes que comparten varios nodos:
-// cada efecto lo enciende SU nodo, no la mera presencia del poder)
-function specRank(p, spec, id) {
-  return p?.talentAgg?.spec === spec ? Math.max(0, p.talents?.sp?.[spec]?.[id] | 0) : 0;
-}
-
 // ---- Escarcha: astillamientos (Reacción Glacial s14 · Edad de Hielo x3) ----
-function shatterEvent(g, p, e) {
+// cada efecto es de SU poder: s14 suma capas alrededor, x3 cuenta astillamientos
+function shatterChain(g, p, e) {
   const T = magaTuning();
-  if (hasPower(p, 'k_shatter_chain') && specRank(p, 'crionte', 's14') > 0) {
-    for (const o of alivesNear(g, e.pos, T.chainR, e)) gainGauge(p, 'escarcha', T.chainLayers, o);
-    ring(g, e.pos, T.chainR, 0xbfeaff);
-  }
-  if (hasPower(p, 'k_ice_age')) {
-    const st = powerState(p, 'k_ice_age');
-    st.n = (st.n || 0) + 1;
-    if (st.n >= T.iceAgeEvery) { st.n = 0; scheduleAutoCast(g, p, 'k_prision', e.pos); }
-  }
+  for (const o of alivesNear(g, e.pos, T.chainR, e)) gainGauge(p, 'escarcha', T.chainLayers, o);
+  ring(g, e.pos, T.chainR, 0xbfeaff);
 }
-// detección de los astillamientos de Cero Absoluto (m_shatter, powers-common): su proc
-// mata con source 'power:m_shatter'. La hace el primero presente de estos dos poderes.
-function detectShatter(g, p, e, hit, id) {
-  if (hit?.source !== 'power:m_shatter' || e?.alive) return;
-  const first = ['k_shatter_chain', 'k_ice_age'].find(k => hasPower(p, k));
-  if (first === id) shatterEvent(g, p, e);
+function iceAgeCount(g, p, e) {
+  const T = magaTuning();
+  const st = powerState(p, 'k_ice_age');
+  st.n = (st.n || 0) + 1;
+  if (st.n >= T.iceAgeEvery) { st.n = 0; scheduleAutoCast(g, p, 'k_prision', e.pos); }
 }
+// un astillamiento fuera de Cero Absoluto (estallido de la Lanza de Hielo): avisa a los
+// poderes de astillamiento que tenga el héroe
+function shatterEvent(g, p, e) {
+  if (hasPower(p, 'k_shatter_chain')) shatterChain(g, p, e);
+  if (hasPower(p, 'k_ice_age')) iceAgeCount(g, p, e);
+}
+// astillamiento de Cero Absoluto (m_shatter, powers-common): su proc mata con source
+// 'power:m_shatter' (cada poder de astillamiento lo detecta en su propio onHit)
+function isShatterKill(e, hit) { return hit?.source === 'power:m_shatter' && !e?.alive; }
 
 // ---- Inversión del Tiempo: historial de vida/posición ----
-function ensureRecorder(g, p) {
-  if (!g?.timers || !p) return null;
+// lo graba el passiveTick del comportamiento m_t_inversion (10 Hz mientras CONOCES la
+// activa): una muestra cada 0,25 s, las últimas 40 (10 s). Si la grabación se corta
+// (otro mundo, un hueco en el reloj) se empieza de cero: no se vuelve a un sitio ajeno.
+function rewindState(p) { return p._mgRewind || (p._mgRewind = { hist: [], acc: 1, world: null }); }
+function recordRewind(g, p, dt) {
   const T = magaTuning();
-  const R = p._mgRewind || (p._mgRewind = { hist: [], at: -99, id: 0, g: null });
-  if (R.g === g && g.timers.now - R.at < T.rewindEvery * 2.5) return R;     // sigue vivo
-  R.g = g; R.hist = [];
-  const id = ++R.id;
-  const step = () => {
-    if (R.id !== id || g.player !== p) return;
-    R.at = g.timers.now;
-    if (p.alive) {
-      R.hist.push({ t: now(p), hp: p.hp, x: p.pos.x, z: p.pos.z });
-      while (R.hist.length > T.rewindKeep) R.hist.shift();
-    }
-    g.timers.schedule(T.rewindEvery, step);
-  };
-  step();
-  return R;
+  const R = rewindState(p);
+  const last = R.hist[R.hist.length - 1];
+  if (R.world !== (g?.world || null) || (last && now(p) - last.t > T.rewindEvery * 4)) {
+    R.world = g?.world || null; R.hist = []; R.acc = T.rewindEvery;
+  }
+  R.acc += dt;
+  if (R.acc < T.rewindEvery - 1e-9) return;
+  R.acc = 0;
+  if (!p.alive) return;
+  R.hist.push({ t: now(p), hp: p.hp, x: p.pos.x, z: p.pos.z });
+  while (R.hist.length > T.rewindKeep) R.hist.shift();
 }
 
 // ---- Corazón del Sol: explosión al terminar una quemadura ----
@@ -288,6 +268,7 @@ export function magaPowers() {
       name: 'Ralentizar', desc: 'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s a quien golpea.',
       state: () => ({ readyAt: 0, armed: null, armedAt: -9 }),
       onCast(g, p, cast) {
+        if (cast?.weapon) return;                 // el básico de ARMA (2c.2) no lo arma: como antes
         const st = powerState(p, 'm_ralentizar');
         if (now(p) < st.readyAt || !(cast?.prof?.coef > 0)) return;
         if (st.armed && now(p) - st.armedAt < 3) return;
@@ -322,59 +303,13 @@ export function magaPowers() {
     },
 
     // ---------------------------------------------------- PIROMANTE
-    // s0 Ignición: los golpes de Fuego aplican Quemadura (60 % del golpe en 4 s). Anfitrión
-    // de las claves tv de la Piromante y del doble Calor de Combustión.
+    // s0 Ignición: los golpes de Fuego aplican Quemadura (60 % del golpe en 4 s). Solo eso:
+    // s5/s8/s12/s15/x2 son claves tv del núcleo y s16 la lee el comportamiento de Supernova
     p_ignicion: {
       name: 'Ignición', desc: 'Tus golpes de Fuego aplican Quemadura: el 60 % del golpe en 4 s.',
-      state: () => ({ cdrAt: -1, dbl: false }),
       onHit(g, p, e, hit) {
         if (hit?.proc || hit?.dot || hit?.elem !== 'fire') return;
         if (e?.alive) ignite(g, p, e, hit.raw || hit.dealt || 0);
-        // s12 Pirotecnia: cada crítico reduce los enfriamientos de Fuego (no definitivas)
-        const red = p.tv?.critFireCdr || 0;
-        const st = powerState(p, 'p_ignicion');
-        if (hit.crit && red > 0 && st.cdrAt !== now(p)) {
-          st.cdrAt = now(p);
-          for (const sk of p.cls?.skills || []) {
-            if (sk.elem !== 'fire' || sk.cat === 'ultimate' || !(p.cds?.[sk.id] > 0)) continue;
-            p.cds[sk.id] = Math.max(0, p.cds[sk.id] - red);
-          }
-        }
-      },
-      // s5 Calor Abrasador: +crítico contra enemigos en llamas
-      condCrit(p, e) { return p.tv?.burningCrit && isBurning(e) ? p.tv.burningCrit : 0; },
-      // x2 Sol Naciente: +daño de Fuego contra los que ya estallaron (Corazón del Sol)
-      condAdd(p, e, hit) { return p.tv?.explodedDmg && e?.pyroBurst && hit?.elem === 'fire' ? p.tv.explodedDmg : 0; },
-      // s9 Combustión: el Fuego es siempre crítico mientras dura (addBuff → recompute invalida)
-      modifyResolve(p, sk, prof) { if (prof.elem === 'fire' && combustionOn(p)) prof.forceCrit = true; },
-      // s8 Fuego Interior (sustento) · s15 Combustible (maná)
-      onKill(g, p, e, kill) {
-        if (!(kill?.status?.burning || isBurning(e))) return;
-        const heal = p.tv?.burnKillHeal || 0;
-        if (heal > 0 && p.sustain(p.stats.maxHP * heal / 100, 'p_fuego_interior') > 0) g.ui?.spawnText?.(p.pos, '+❤️', 'txt-heal');
-        const mana = p.tv?.burnKillMana || 0;
-        if (mana > 0) g.gainResource?.(p, mana);
-      },
-      // s16 Supernova Abrasadora: su Quemadura un X % más fuerte (se SUMA a la misma
-      // instancia de DoT: el planificador integra lo pendiente, así sigue siendo de Supernova)
-      afterCast(g, p, cast) {
-        const pct = p.tv?.supernovaBurn || 0;
-        if (!(pct > 0) || cast?.sk?.id !== 'm_u_supernova') return;
-        for (const e of g.enemies || []) {
-          const d = e.alive && e._dots?.['m_u_supernova:burn'];
-          if (d && d.left > 0 && !d._mgBoost) {
-            const inst = g.applyDoT?.(e, d.per * d.left * pct / 100, d.left, d.interval || 1, undefined, 'm_u_supernova:burn');
-            if (inst) inst._mgBoost = true;
-          }
-        }
-      },
-      // Combustión: el Calor se llena el doble
-      onGauge(g, p, id, ev, n) {
-        if (id !== 'calor' || ev !== 'gain' || !combustionOn(p)) return;
-        const st = powerState(p, 'p_ignicion');
-        if (st.dbl) return;
-        st.dbl = true;
-        try { gainGauge(p, 'calor', n); } finally { st.dbl = false; }
       },
     },
     // s4 Llamarada Avivada: detona el 100 % y da 25 de Calor
@@ -387,7 +322,7 @@ export function magaPowers() {
     p_propagacion: {
       name: 'Propagación', desc: 'Si muere un enemigo en llamas, su Quemadura salta a 2 enemigos cercanos.',
       onKill(g, p, e) {
-        const rem = burnRemaining(e);
+        const rem = g.dotRemaining?.(e, 'burn') || 0;
         if (!(rem > 0)) return;
         const near = alivesNear(g, e.pos, T.propagateR, e).sort((a, b) => dist2(a.pos, e.pos) - dist2(b.pos, e.pos)).slice(0, T.propagateN);
         for (const o of near) {
@@ -398,6 +333,13 @@ export function magaPowers() {
     },
     // s6B Concentración: la Quemadura se apila hasta 3 veces (la lee ignite)
     p_acumular: { name: 'Concentración', desc: 'La Quemadura de Ignición se acumula hasta 3 veces sobre el mismo objetivo.' },
+    // s9 Combustión (poder del nodo; la activa homónima es un comportamiento aparte): el
+    // Fuego es siempre crítico mientras dura su buff (addBuff/expirar → recompute invalida).
+    // El Calor doble lo da la stat 'gaugeGain:calor' del propio buff.
+    p_combustion: {
+      name: 'Combustión', desc: 'Mientras dura Combustión, tus hechizos de Fuego son siempre críticos.',
+      modifyResolve(p, sk, prof) { if (prof.elem === 'fire' && combustionOn(p)) prof.forceCrit = true; },
+    },
     // s13A Fénix: una vez cada 2 minutos, al morir renaces con el 50 % de vida
     p_fenix: {
       name: 'Fénix', desc: 'Una vez cada 2 minutos, al morir renaces con el 50 % de vida.',
@@ -417,28 +359,11 @@ export function magaPowers() {
         return true;
       },
     },
-    // x1 Corazón del Sol: cuando una Quemadura termina, explota con el 40 % de su daño total
+    // x1 Corazón del Sol: cuando una Quemadura termina, explota con el 30 % de su daño total (2c.2: era 40)
     p_corazon_sol: {
-      name: 'Corazón del Sol', desc: 'Cuando una Quemadura termina, explota en área con el 40 % de su daño total.',
-      onTick(g, p) {
-        for (const e of g?.enemies || []) {
-          if (!e.alive) continue;
-          const dots = e._dots || {};
-          for (const k in dots) {
-            const d = dots[k];
-            if (!k.endsWith(':burn') || !(d?.left > 0)) continue;
-            const seen = e._mgBurns || (e._mgBurns = {});
-            if (!seen[k] || seen[k].inst !== d) seen[k] = { inst: d, total: d.per * d.left };
-          }
-          if (!e._mgBurns) continue;
-          for (const k of Object.keys(e._mgBurns)) {
-            if (dots[k] && dots[k] === e._mgBurns[k].inst) continue;   // sigue ardiendo
-            const total = e._mgBurns[k].total;
-            delete e._mgBurns[k];
-            if (!dots[k]) solarBurst(g, p, e, total * T.coreFrac);     // terminó sola
-          }
-        }
-      },
+      name: 'Corazón del Sol', desc: 'Cuando una Quemadura termina, explota en área con el 30 % de su daño total.',
+      // ⑬ solo si se agotó SOLA (no consumida por Llamarada, ni sustituida, ni al morir)
+      onDotEnd(g, p, e, dot) { if (dot?.kind === 'burn' && e?.alive) solarBurst(g, p, e, (dot.total || 0) * T.coreFrac); },
     },
     // x3 Nova Solar: cada 20 explosiones (Corazón del Sol, Conflagración), Supernova sola y gratis
     p_nova_solar: {
@@ -482,14 +407,11 @@ export function magaPowers() {
       },
     },
     // s14 Reacción Glacial: cada astillamiento suma 2 capas a los enemigos en 4 m
-    // poder de los ASTILLAMIENTOS: lo llevan s14 (Reacción Glacial: +2 capas en 4 m, solo
-    // con s14) y s15 (Mente Gélida: tv.manaOnKill, que solo da s15), así s15 funciona por
-    // cualquier ruta del árbol sin depender de otro poder
+    // (s15 Mente Gélida ya no lo lleva: su maná al matar es tv.manaOnKill del núcleo)
     k_shatter_chain: {
-      name: 'Reacción Glacial / Mente Gélida', desc: 'Cada astillamiento suma 2 capas a los enemigos en 4 m (s14); +maná por cada enemigo astillado o abatido (s15).',
+      name: 'Reacción Glacial', desc: 'Cada astillamiento suma 2 capas a los enemigos en 4 m.',
       procs: true,
-      onHit(g, p, e, hit) { detectShatter(g, p, e, hit, 'k_shatter_chain'); },
-      onKill(g, p) { const n = p.tv?.manaOnKill || 0; if (n > 0) g.gainResource?.(p, n); },
+      onHit(g, p, e, hit) { if (isShatterKill(e, hit)) shatterChain(g, p, e); },
     },
     // s17 Frío Implacable: los Ateridos atacan un 15 % más lento (sobre el −15 % base)
     k_numb: {
@@ -498,20 +420,13 @@ export function magaPowers() {
         for (const e of g?.enemies || []) if (e.alive && e.numbT > 0 && e.atkCd > 0) e.atkCd += T.numbExtra * dt;
       },
     },
-    // x1 Invierno Eterno: la Nova deja un campo helado 6 s (+1 capa/s, −50 % de movimiento)
-    // poder del SUELO HELADO de la Nova: lo llevan x1 (Invierno Eterno: campo de 6 s, solo
-    // con x1) y s16 (Nova Perpetua: su Estela de 4 s ralentiza; esa Estela solo existe con s16)
+    // x1 Invierno Eterno: la Nova deja un campo helado 6 s (+1 capa/s, −50 % de movimiento).
+    // (El suelo helado de s16 Nova Perpetua es la Estela de la Nova: la ralentiza el núcleo.)
     k_eternal_winter: {
-      name: 'Invierno Eterno / Nova Perpetua', desc: 'Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50 % (x1); el suelo helado de Nova Perpetua ralentiza (s16).',
+      name: 'Invierno Eterno', desc: 'Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50 %.',
       afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'nova_hielo' || !(specRank(p, 'crionte', 'x1') > 0)) return;
+        if (cast?.sk?.id !== 'nova_hielo') return;
         g.spawnField?.('k_campo_helado', { pos: p.pos, radius: cast.prof?.radius || 3.3, dur: T.winterT, owner: p, data: { color: 0x9fe3ff } });
-      },
-      onTick(g, p) {
-        for (const f of g?.fields || []) {
-          if (f.dead || f.kind !== 'estela' || f.owner !== p || f.data?.skill !== 'nova_hielo') continue;
-          for (const e of g.enemies || []) if (e.alive && dist2(e.pos, f.pos) <= f.radius * f.radius) e.applyCC?.('slow', 0.5, { pct: T.novaFloorSlow, src: p });
-        }
       },
     },
     // x3 Edad de Hielo: cada 15 astillamientos, Prisión de Hielo sola y gratis
@@ -519,7 +434,7 @@ export function magaPowers() {
       name: 'Edad de Hielo', desc: 'Cada 15 astillamientos, Prisión de Hielo se lanza sola y gratis sobre el grupo más numeroso.',
       state: () => ({ n: 0 }),
       procs: true,
-      onHit(g, p, e, hit) { detectShatter(g, p, e, hit, 'k_ice_age'); },
+      onHit(g, p, e, hit) { if (isShatterKill(e, hit)) iceAgeCount(g, p, e); },
     },
 
     // ---------------------------------------------------- ARCANISTA
@@ -533,14 +448,6 @@ export function magaPowers() {
         const st = powerState(p, 'a_orbe_resonante');
         if (st.n >= T.orbCap) return;
         if (gainGauge(p, 'cargas', 1) > 0) st.n++;
-      },
-    },
-    // s8 Piel de Maná: el −X % (tv.dmgReduc, que el núcleo suma siempre) solo con > 50 % de maná
-    a_manaskin: {
-      name: 'Piel de Maná', desc: 'Con más del 50 % de maná, recibes menos daño.',
-      condDr(p) {
-        const max = p.stats?.maxMP || 0;
-        return max > 0 && p.mp / max > T.manaSkinAt ? 0 : -(p.tv?.dmgReduc || 0);
       },
     },
     // s11 Claridad: descargar 4 Cargas → X % de que tu siguiente Rayo sea gratis
@@ -687,24 +594,13 @@ export function magaSkillBehaviors() {
   const B = {
     // ---- clase ----
     // Barrera de Maná: escudo del 30 % del maná máximo, 8 s. Escudo Prismático (c7): −X %
-    // de daño recibido mientras el escudo aguanta (buff `dr`, se retira al romperse)
+    // de daño recibido mientras el escudo aguanta (g.shield con `dr`: se va con el escudo)
     m_t_barrera: {
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
         const dur = prof.dur || sk.dur || 8;
         const amt = (sk.shieldManaPct || 30) / 100 * (p.stats.maxMP || 0) * (prof.buffMul || 1);
-        g.shield(amt, { target: 'self', dur, src: 'm_t_barrera' });
-        const dr = p.tv?.barrierDr || 0;
-        if (dr > 0) {
-          p.addBuff('m_t_barrera_dr', { dr }, dur, { name: 'Escudo Prismático', icon: '💠', desc: `−${dr}% de daño recibido mientras dura la Barrera` });
-          const poll = () => {
-            const b = p.buffs?.find(x => x.id === 'm_t_barrera_dr');
-            if (!b || b.t <= 0) return;
-            if (!p.shields?.some(s => s.src === 'm_t_barrera' && s.amt > 0 && s.t > 0)) { b.t = 0; return; }
-            g.timers.schedule(0.1, poll);
-          };
-          g.timers.schedule(0.1, poll);
-        }
+        g.shield(amt, { target: 'self', dur, src: 'm_t_barrera', dr: p.tv?.barrierDr || 0 });
         ring(g, p.pos, 1.4, ctx.color ?? sk.color);
         fx(g, ctx.fx?.aura, p.pos, 1.0);
         return ctx.res;
@@ -730,13 +626,14 @@ export function magaSkillBehaviors() {
         return ctx.res;
       },
     },
-    // Inversión del Tiempo: vuelves a la vida y la posición de hace 5 s
+    // Inversión del Tiempo: vuelves a la vida y la posición de hace 5 s. El historial lo
+    // graba passiveTick (10 Hz desde que conoces la activa, esté o no en la barra)
     m_t_inversion: {
+      passiveTick(g, p, dt) { recordRewind(g, p, dt); },
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
-        const R = ensureRecorder(g, p);
         const want = now(p) - (sk.rewind || T.rewindT);
-        const hist = R?.hist || [];
+        const hist = rewindState(p).hist;
         let snap = null;
         for (const s of hist) if (s.t <= want + 1e-6) snap = s;
         if (!snap && hist.length && hist[0].t < now(p) - 0.5) snap = hist[0];
@@ -798,7 +695,7 @@ export function magaSkillBehaviors() {
         const list = g.enemiesInCone(p.pos, dir, rad, prof.angle || 70);
         const pct = prof.detonatePct || sk.detonatePct || T.detonatePct;
         for (const e of list) {
-          const rem = consumeBurns(g, e);
+          const rem = g.consumeDoT?.(e, 'burn') || 0;
           if (rem > 0) {
             dealProcDamage(g, e, rem * pct / 100, { source: 'power:p_llamarada', skill: 'p_llamarada', elem: 'fire', tags: prof.tags });
             fx(g, 'fireballBlast', e.pos, 0.8);
@@ -815,11 +712,13 @@ export function magaSkillBehaviors() {
         return ctx.res;
       },
     },
-    // Combustión: 10 s de Fuego siempre crítico y Calor doble (los lee p_ignicion)
+    // Combustión: 10 s de Fuego siempre crítico (poder p_combustion del nodo s9) y Calor
+    // doble (stat 'gaugeGain:calor' del buff: +100 % de lo ganado con gaugeMult 2)
     p_combustion: {
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
-        p.addBuff('p_combustion', {}, prof.dur || sk.dur || 10, { name: sk.name, icon: sk.icon, desc: 'Fuego siempre crítico y el Calor se llena el doble' });
+        const gain = Math.max(0, ((sk.gaugeMult || 2) - 1) * 100);
+        p.addBuff('p_combustion', { 'gaugeGain:calor': gain }, prof.dur || sk.dur || 10, { name: sk.name, icon: sk.icon, desc: 'Fuego siempre crítico y el Calor se llena el doble' });
         ring(g, p.pos, 1.6, ctx.color ?? sk.color);
         fx(g, ctx.fx?.aura, p.pos, 1.0);
         fx(g, ctx.fx?.extra, p.pos, 0.2);
@@ -1016,10 +915,6 @@ export function magaSkillBehaviors() {
       },
     },
   };
-  // toda activa de talento de la Maga arranca (si hace falta) el historial de la Inversión
-  for (const [id, b] of Object.entries(B)) {
-    if (b.cast) { const c = b.cast; B[id] = { ...b, cast(g, p, prof, cast) { ensureRecorder(g, p); return c(g, p, prof, cast); } }; }
-  }
   return B;
 }
 

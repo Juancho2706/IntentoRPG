@@ -1,4 +1,4 @@
-// Paso 2c.1 — PODERES y ACTIVAS DE TALENTO del GUERRERO (docs/paso2-diseno.md §9.1.5)
+// Paso 2c.1/2c.2 — PODERES y ACTIVAS DE TALENTO del GUERRERO (docs/paso2-diseno.md §9.1.5)
 //  (a) todo power y grant de js/talents-guerrero.js existe y se puede lanzar (missingFor)
 //  (b) al menos un caso de comportamiento por poder y por activa, con talentos REALES
 //  (c) definePower rechaza claves desconocidas
@@ -13,6 +13,8 @@ import { validateSkillDef } from '../js/skill-defs.js';
 import { resolveSkill } from '../js/skill-resolve.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { gainGauge, spendGauge } from '../js/spec-mechanics.js';
+import { TALENT_TREES } from '../js/talents.js';
+import { condAddPct } from '../js/combat-math.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 const warns = [];
@@ -27,25 +29,29 @@ const H = (opts = {}) => {
   return h;
 };
 const buff = (a, id) => (a.buffs || []).find(b => b.id === id && b.t > 0);
-// aliado del cooperativo (contrato de g.allies / g.party)
-function ally(x, z, maxHP = 1000) {
-  return {
-    pos: new THREE.Vector3(x, 0, z), alive: true, hp: maxHP, stats: { maxHP, healPct: 0 }, buffs: [], shields: [], healed: 0,
-    addBuff(id, stats, dur) { this.buffs = this.buffs.filter(b => b.id !== id); this.buffs.push({ id, stats, t: dur, dur }); },
-    healSkill(n) { const b = this.hp; this.hp = Math.min(this.stats.maxHP, this.hp + n); this.healed += this.hp - b; return this.hp - b; },
-    sustain(n) { return this.healSkill(n); },
-    addShield(n, dur, src) { this.shields.push({ amt: n, t: dur, src }); return n; },
-    setHp(v) { this.hp = Math.max(0, Math.min(this.stats.maxHP, v)); return this.hp; },
-    grantInvuln(s) { this.invulnT = s; },
-    takeDamage(n) { this.hp -= n; if (this.hp <= 0) { this.hp = 0; this.alive = false; } },
-  };
-}
+// aliados: h.ally(x, z, maxHP) del arnés (entra en g.party; su daño va por g.damageAlly ⑫)
 const lost = e => e.maxHP - e.hp;
 
 // ------------------------------------------------ (a) cobertura
 assert.deepEqual(missingFor('guerrero'), { powers: [], behaviors: [], skills: [] });
 const refs = talentRefs('guerrero');
-assert.equal(refs.powers.size, 29, '26 poderes nuevos + m_berserk/m_aegis/m_judgment');
+// Paso 2c.2: 29 poderes propios (los 26 de 2c.1 + g_instinto_asesino, g_martillo_pesado y
+// g_consagracion, que antes eran nodos «portados») + m_berserk/m_aegis/m_judgment = 32
+// poderes DISTINTOS referenciados (nucleo_tv no lo cita ningún nodo: lo añade recompute)
+assert.equal(refs.powers.size, 32, '29 poderes propios + m_berserk/m_aegis/m_judgment');
+// sin portadores: ningún poder del Guerrero está en dos nodos (ni en dos opciones)
+{
+  const seen = new Map();
+  const t = TALENT_TREES.guerrero;
+  for (const tree of [t.cls, ...t.specs]) for (const n of tree.nodes)
+    for (const fx of n.t === 'c' ? (n.opts || []).map(o => o.fx || {}) : [n.fx || {}]) {
+      if (!fx.power) continue;
+      const where = `${tree.id || 'cls'}.${n.id}`;
+      assert.ok(!seen.has(fx.power), `${fx.power} en dos nodos: ${seen.get(fx.power)} y ${where}`);
+      seen.set(fx.power, where);
+    }
+  assert.equal(seen.size, refs.powers.size, 'un nodo por poder');
+}
 const TALENT = CLASSES.guerrero.skills.filter(s => s.kind === 'talent');
 assert.equal(TALENT.length, 12);
 for (const s of TALENT) {
@@ -84,8 +90,7 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
 // c3 Intervención: salto a un aliado + escudo del 15 % a ambos
 {
   const h = H({ talents: { cls: { c1: 2, c3: 1 } } });
-  const p = h.p, a = ally(6, 0);
-  h.g.party = [a];
+  const p = h.p, a = h.ally(6, 0);
   h.setSlot('k1', 'g_t_intervencion');
   h.aim(6, 0.5);
   assert.equal(h.cast('k1'), true);
@@ -104,8 +109,7 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
 // c12A Bramido de Guerra: +15 % de vida y se cura ese 15 % (a ti y a los aliados a 15 m)
 {
   const h = H({ talents: { cls: { c12: 1 }, choice: { c12: 'A' } } });
-  const p = h.p, a = ally(5, 0), far = ally(30, 0);
-  h.g.party = [a, far];
+  const p = h.p, a = h.ally(5, 0), far = h.ally(30, 0);
   a.hp = 500; far.hp = 500;
   h.setSlot('k2', 'g_t_bramido');
   const max0 = p.stats.maxHP;
@@ -132,7 +136,7 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
   firePower('onDamaged', p, h.g, p, { amount: max * 0.05 });
   assert.ok(!buff(p, 'g_coraza_hierro'), 'una vez cada 60 s');
 }
-// c14 Maestro de Armas: +15 % de daño crítico (tv) y cada crítico da 3 de Furia
+// c14 Maestro de Armas: +10 % de daño crítico (tv) y cada crítico da 2 de Furia (recalibrado en 2c.2: 15 % / 3)
 {
   const h = H({ talents: { cls: { c14: 1 } } });
   const p = h.p, e = h.enemy({ hp: 1e6 });
@@ -140,8 +144,8 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
   h.hit(e, { skill: 'g_tajo', crit: false });
   assert.equal(p.mp, 0);
   h.hit(e, { skill: 'g_tajo', crit: true });
-  assert.equal(p.mp, 3, 'crítico → +3 de Furia');
-  assert.equal(p.stats.critDmg, 15);
+  assert.equal(p.mp, 2, 'crítico → +2 de Furia');
+  assert.equal(p.stats.critDmg, 10);
 }
 // c15 Hermandad de Armas: +5 % de daño y +8 % de vida; aliados a 15 m; +5 % de Furia por aliado
 {
@@ -150,16 +154,16 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
   const p = h.p;
   assert.equal(p.stats.dmgPct - base.p.stats.dmgPct, 5, '+5 % de daño');
   assert.ok(approx(p.stats.maxHP, Math.round(base.p.stats.maxHP * 1.08), 1), '+8 % de vida máxima');
-  const a = ally(4, 0), far = ally(40, 0);
-  h.g.party = [a, far];
+  const a = h.ally(4, 0), far = h.ally(40, 0);
   h.tick(0.6);
   assert.ok(buff(a, 'g_aura_hermandad') && !buff(far, 'g_aura_hermandad'), 'el aura alcanza a los aliados a 15 m');
+  // la Furia extra va por ⑪ onResource (lo REALMENTE ganado por gainResource)
   p.mp = 10; h.tick(0.1);
   const mid = p.mp;
-  p.mp = mid + 20; h.tick(0.1);                       // +20 de Furia ganada → +1 (5 % × 1 aliado)
+  h.g.gainResource(p, 20);                            // +20 de Furia ganada → +1 (5 % × 1 aliado)
   assert.ok(approx(p.mp, mid + 21, 1e-6), `Furia +5 % por aliado (${mid} → ${p.mp})`);
   const solo = H({ talents: { cls: { c15: 1 } } });
-  solo.tick(0.6); solo.p.mp = 10; solo.tick(0.1); solo.p.mp = 30; solo.tick(0.1);
+  solo.tick(0.6); solo.p.mp = 10; solo.g.gainResource(solo.p, 20);
   assert.equal(solo.p.mp, 30, 'en solitario la parte de Furia es 0');
 }
 console.log('Clase: Segundo Aliento, Intervención, Bramido, Coraza, Maestro de Armas, Hermandad ✓');
@@ -184,7 +188,7 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   const per = p.avgHit(prof.coef, prof.addPct);
   assert.ok(lost(es[0]) > per * 7, `golpea ~10 veces (${(lost(es[0]) / per).toFixed(1)} golpes medios)`);
   assert.equal(lost(out), 0, 'fuera del radio no');
-  assert.ok(es[0]._dots?.['g_t_remolino:bleed'], 'desangra');
+  assert.ok(h.g.hasDoT(es[0], 'g_t_remolino:bleed'), 'desangra');
   // s4 Remolino Sediento: +4 Sed por enemigo golpeado, máx. 20 por uso
   assert.equal(powerState(p, 'g_remolino_sediento').got, 20, 'Remolino Sediento: 6 enemigos × 4 → tope 20');
   assert.ok(h.gaugeValue('sed') >= 20, 'la Sed sube');
@@ -205,26 +209,28 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   const near = [h.enemy({ hp: 1e6, pos: [5.5, 0, 0] }), h.enemy({ hp: 1e6, pos: [4, 0, 3] })];
   const third = h.enemy({ hp: 1e6, pos: [5.2, 0, -2] });
   p.mp = 100; h.cast('k3'); h.step(0.32);
-  assert.ok(e._dots?.['g_t_remolino:bleed'], 'el golpeado sangra');
-  const jumped = [...near, third].filter(o => o._dots?.['g_t_remolino:bleed']);
+  assert.ok(h.g.hasDoT(e, 'g_t_remolino:bleed'), 'el golpeado sangra');
+  const jumped = [...near, third].filter(o => h.g.hasDoT(o, 'g_t_remolino:bleed'));
   assert.equal(jumped.length, 2, 'el Sangrado salta a 2 cercanos por golpe');
-  assert.ok([...near, third].every(o => o.hp === o.maxHP || o._dots), 'sin que el giro los golpee');
+  assert.ok([...near, third].every(o => o.hp === o.maxHP || h.g.hasDoT(o)), 'sin que el giro los golpee');
 }
-// s5 Instinto Asesino (portador g_carnicero): cada crítico suma 2 de Sed (solo con s5)
+// s5 Instinto Asesino (poder propio g_instinto_asesino): cada crítico suma 2 de Sed (solo con s5)
 {
   const h = B({ s5: 1 });
   const e = h.enemy({ hp: 1e6 });
-  assert.ok(h.p.powers.has('g_carnicero'), 's5 porta g_carnicero');
+  assert.ok(h.p.powers.has('g_instinto_asesino') && !h.p.powers.has('g_carnicero'), 's5 lleva g_instinto_asesino (ya no porta g_carnicero)');
   h.hit(e, { skill: 'g_mandoble', crit: true });
   assert.equal(h.gaugeValue('sed'), 2, 'crítico → +2 Sed');
   const n = B({ s8: 1 });
   n.hit(n.enemy({ hp: 1e6 }), { skill: 'g_mandoble', crit: true });
-  assert.equal(n.gaugeValue('sed'), 0, 'sin Instinto Asesino el portador no da Sed por crítico');
+  assert.equal(n.gaugeValue('sed'), 0, 'sin Instinto Asesino no hay Sed por crítico');
 }
-// s8 Festín de Sangre y s15 Sed Insaciable: matar a un enemigo que SANGRA → vida y Furia
+// s8 Festín de Sangre y s15 Sed Insaciable (tv.bleedKillHeal / bleedKillMana del núcleo):
+// matar a un enemigo que SANGRA → vida y Furia
 {
   const h = B({ s8: 2, s15: 2 });
   const p = h.p;
+  assert.ok(p.powers.has('nucleo_tv') && !p.powers.has('g_carnicero'), 'lo aplica el núcleo (nucleo_tv)');
   p.hp = p.stats.maxHP * 0.5; p.mp = 0;
   const e = h.enemy({ hp: 100 });
   h.g.applyDoT(e, 30, 3, 1, undefined, 'torbellino:bleed');
@@ -238,10 +244,12 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   assert.equal(h.sustained(), s1, 'si no sangra, nada');
   assert.equal(p.mp, 8);
 }
-// x1 Ejecutar · x2 Carnicero · x3 Matanza Eterna
+// x1 Ejecutar (tv.executePct del núcleo) · x2 Carnicero · x3 Matanza Eterna (wasExecuted)
 {
   const h = B({ x1: 1, x2: 2, x3: 1, s14: 1 });
   const p = h.p;
+  // +40 a élites/jefes: ahora es combat-math.condAddPct (contexto de rollDamage), no un condAdd de poder
+  const execAdd = en => condAddPct(p.tv, { targetElite: !!en.def?.rank, targetFrac: en.hp / en.maxHP });
   const e = h.enemy({ hp: 1000 });
   e.hp = 250;
   h.hit(e, { skill: 'g_tajo' });
@@ -254,11 +262,11 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   assert.equal(p.mp, 10, 'Carnicero: +10 de Furia');
   const el = h.enemy({ hp: 1000, rank: 'elite' });
   el.hp = 150;
-  assert.equal(firePower('condAdd', p, p, el, {}), 40, 'élites bajo el umbral: +40 %');
+  assert.equal(execAdd(el), 25, 'élites bajo el umbral: +25 % (tv.executeDmg; 2c.2: era 40)');
   h.hit(el, { skill: 'g_tajo' });
   assert.ok(el.alive, 'a los élites no los remata');
   el.hp = 500;
-  assert.equal(firePower('condAdd', p, p, el, {}), 0);
+  assert.equal(execAdd(el), 0);
   // Matanza Eterna: rematar durante el Desenfreno lo alarga 2 s
   h.gauge('sed', 100);
   const b = buff(p, 'g_desenfreno');
@@ -292,18 +300,24 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
 {
   const h = B({ s9: 1 });
   const p = h.p;
+  assert.ok(!p.powers.has('g_carnicero'), 'Temeridad ya no necesita poder: todo va en su buff');
+  p.combatRng = () => 0.99;                           // sin bloqueos al azar
+  // daño REAL recibido (Player.takeDamage → mitigate × takenMult), con la vida llena
+  const hurt = () => { p.hp = p.stats.maxHP; p.takeDamage(100, 1, {}); return p.stats.maxHP - p.hp; };
+  const l0 = hurt();
   h.setSlot('k3', 'g_t_temeridad');
   const c0 = p.stats.crit;
   assert.equal(h.cast('k3'), true);
   assert.ok(buff(p, 'g_t_temeridad') && p.stats.crit > c0, 'más crítico');
+  h.gauge('sed', 0);
   gainGauge(p, 'sed', 10);
-  assert.equal(h.gaugeValue('sed'), 20, 'la Sed se llena el doble');
-  const info = { amount: 100 };
-  firePower('onDamaged', p, h.g, p, info);
-  assert.ok(approx(info.amount, 110, 1e-9), 'recibes +10 % de daño');
+  assert.equal(h.gaugeValue('sed'), 20, 'la Sed se llena el doble (stat gaugeGain:sed del buff)');
+  assert.equal(p.stats.dmgTakenPct, 10, 'stat dmgTakenPct +10 mientras dura');
+  const l1 = hurt();
+  assert.ok(l1 > l0 && approx(l1, l0 * 1.1, 0.51), `recibes +10 % de daño (redondeo a enteros) (${l0.toFixed(2)} → ${l1.toFixed(2)})`);
   h.tick(10.2);
-  const i2 = { amount: 100 }; firePower('onDamaged', p, h.g, p, i2);
-  assert.equal(i2.amount, 100, 'al terminar, nada');
+  assert.ok(!buff(p, 'g_t_temeridad') && !(p.stats.dmgTakenPct > 0), 'al terminar, nada');
+  assert.ok(approx(hurt(), l0, 1e-6), 'daño recibido normal otra vez');
   h.gauge('sed', 0);
   gainGauge(p, 'sed', 10);
   assert.equal(h.gaugeValue('sed'), 10, 'Sed normal otra vez');
@@ -350,11 +364,11 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   none.cast('k3');
   assert.ok(!(none.p.cds.g_t_desafio > 0) && none.p.mp === 0, 'sin enemigos: ni enfriamiento ni Furia');
 }
-// s7 Martillo Pesado (portador g_desafio_firme): Martillo a 3+ → +1 Bastión · s8 Recuperación
+// s7 Martillo Pesado (poder propio g_martillo_pesado): Martillo a 3+ → +1 Bastión · s8 Recuperación (tv.killHeal)
 {
   const h = G({ s7: 1, s8: 2 });
   const p = h.p;
-  assert.ok(p.powers.has('g_desafio_firme'));
+  assert.ok(p.powers.has('g_martillo_pesado') && !p.powers.has('g_desafio_firme') && p.powers.has('nucleo_tv'), 's7 lleva g_martillo_pesado; s8, la clave del núcleo');
   h.setSlot('rmb', 'g_martillo');
   for (const z of [-0.6, 0, 0.6]) h.enemy({ hp: 1e6, pos: [2.5, 0, z] });
   h.aim(2.5, 0); p.mp = 100;
@@ -369,7 +383,7 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   n.setSlot('rmb', 'g_martillo');
   for (const z of [-0.6, 0, 0.6]) n.enemy({ hp: 1e6, pos: [2.5, 0, z] });
   n.aim(2.5, 0); n.p.mp = 100; n.cast('rmb'); n.step(0.5);
-  assert.equal(n.gaugeValue('bastion'), 0, 'sin s7 el portador no da Bastión');
+  assert.equal(n.gaugeValue('bastion'), 0, 'sin s7 no hay Bastión por el Martillo');
 }
 // s9 Muro de Escudos (+ x1 Represalia · x2 Venganza Acumulada)
 {
@@ -450,15 +464,13 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   assert.ok(boss.stagger > 0 && !(boss.stunT > 0), 'al jefe el aturdimiento le suma stagger');
 }
 // s14 Vínculo del Guardián (cooperativo): recibes el 20 % del daño de los aliados a 10 m
+// (⑫ onAllyDamaged: el golpe al aliado pasa por g.damageAlly; sin sondeo ni h.tick)
 {
   const h = G({ s14: 1 });
-  const p = h.p, a = ally(3, 0), far = ally(30, 0);
-  h.g.party = [a, far];
-  h.tick(0.1);
-  a.takeDamage(100); far.takeDamage(100);
+  const p = h.p, a = h.ally(3, 0), far = h.ally(30, 0);
   const hp0 = p.hp;
-  h.tick(0.1);
-  assert.equal(a.hp, 920, 'el aliado recupera el 20 % de lo sufrido');
+  a.takeDamage(100); far.takeDamage(100);
+  assert.equal(a.hp, 920, 'el aliado solo sufre el 80 % (te quedas el 20 %)');
   assert.ok(p.hp < hp0 && hp0 - p.hp <= 20, `y lo recibes tú, reducido por tu armadura (${(hp0 - p.hp).toFixed(1)})`);
   assert.equal(far.hp, 900, 'fuera de 10 m no');
   const solo = G({ s14: 1 });
@@ -466,24 +478,22 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   assert.ok(solo.p.hp >= s0, 'en solitario no hace nada');
 }
 // x3 Bastión Eterno (cooperativo): con 5 cargas, un aliado a 10 m que cae queda a 1 (cada 60 s)
+// (⑫ onAllyLethal: el golpe letal pasa por g.damageAlly)
 {
   const h = G({ x3: 1 });
-  const a = ally(3, 0);
-  h.g.party = [a];
-  h.tick(0.1);
+  const a = h.ally(3, 0);
   a.takeDamage(5000);
-  h.tick(0.1);
   assert.ok(!a.alive, 'sin 5 cargas no protege');
   const k = G({ x3: 1 });
-  const b = ally(3, 0);
-  k.g.party = [b];
+  const lejos = k.ally(14, 0), b = k.ally(3, 0);
   k.gauge('bastion', 5);
-  k.tick(0.1);
+  lejos.takeDamage(5000);
+  assert.ok(!lejos.alive, 'a más de 10 m no protege (y no gasta la recarga)');
   b.takeDamage(5000);
-  k.tick(0.1);
   assert.ok(b.alive && b.hp === 1 && b.invulnT === 2, 'con 5 cargas: queda a 1 e inmune 2 s');
+  b.invulnT = 0;                                      // el aliado del arnés no descuenta su inmunidad
   k.gauge('bastion', 5);
-  b.takeDamage(5000); k.tick(0.1);
+  b.takeDamage(5000);
   assert.ok(!b.alive, 'una vez cada 60 s');
 }
 console.log('Guardián: Grito Desafiante (+Desafío Firme, Cerco), Martillo Pesado, Recuperación, Muro de Escudos, Represalia, Venganza, Muralla Viviente, Reto, Juramento, Carga de Escudo, Vínculo, Bastión Eterno ✓');
@@ -493,8 +503,7 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
 // s0 Aura de Devoción (+ s4 Devoción Ferviente · s14 Luz del Alba)
 {
   const h = C({ s4: 1, s14: 1 });
-  const p = h.p, a = ally(6, 0), far = ally(40, 0);
-  h.g.party = [a, far];
+  const p = h.p, a = h.ally(6, 0), far = h.ally(40, 0);
   a.hp = 500;
   const arm0 = p.stats.arm, d0 = p.stats.dmgPct;
   p.hp = p.stats.maxHP * 0.5;
@@ -525,8 +534,7 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
 // s9 Veredicto Final (+ s17 Gracia): 3 Fervor → cono de 300 %; el grupo se cura el 25 % del daño
 {
   const h = C({ s9: 1, s17: 2 });
-  const p = h.p, a = ally(2, 2);
-  h.g.party = [a];
+  const p = h.p, a = h.ally(2, 2);
   a.hp = 100;
   h.setSlot('rmb', 'g_t_veredicto');
   const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
@@ -582,8 +590,7 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
 // s3 Mano Sanadora · s6B Sentencia · s8 Luz Sanadora · s12 Fervor Creciente · s6A Consagración
 {
   const h = C({ s3: 2 });
-  const p = h.p, a = ally(5, 0), far = ally(20, 0);
-  h.g.party = [a, far];
+  const p = h.p, a = h.ally(5, 0), far = h.ally(20, 0);
   a.hp = far.hp = 500;
   const e = h.enemy({ hp: 1e6 });
   h.hit(e, { skill: 'g_martillo' }); h.hit(e, { skill: 'g_martillo' });   // mismo instante: una vez
@@ -599,8 +606,8 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   assert.ok(!norm.debuffs.g_sentencia && !farEl.debuffs.g_sentencia, 'ni normales ni lejanos');
 
   const l = C({ s8: 2, s12: 2 });
-  const lp = l.p, la = ally(5, 0);
-  l.g.party = [la]; la.hp = 500;
+  const lp = l.p, la = l.ally(5, 0);
+  la.hp = 500;
   lp.hp = lp.stats.maxHP * 0.5;
   const s0 = l.sustained();
   l.enemy({ hp: 10, pos: [-3, 0, 0] }).takeDamage(99, false, {});
@@ -617,8 +624,8 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   assert.equal(l.gaugeValue('fervor'), fv + 1, 'si el azar no acompaña, nada');
 
   const k = C({ s6: 1 }, { choice: { s6: 'A' } });
-  const ka = ally(2.5, 0.5);
-  k.g.party = [ka]; ka.hp = 500;
+  const ka = k.ally(2.5, 0.5);
+  ka.hp = 500;
   k.setSlot('rmb', 'g_martillo');
   const ke = k.enemy({ hp: 1e6, pos: [2.5, 0, 0] }); k.aim(2.5, 0); k.p.mp = 100;
   k.cast('rmb'); k.step(0.5);
@@ -632,8 +639,7 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   const h = C({ s10: 2 });
   const prof = resolveSkill(h.p, SK('g_u_estandarte'));
   assert.ok(prof.radius === 15 && approx(prof.dur, 12 * 1.4, 1e-9), 'radio 15 m y +40 % de duración');
-  const a = ally(12, 0);
-  h.g.party = [a];
+  const a = h.ally(12, 0);
   h.setSlot('k4', 'g_u_estandarte');
   h.cast('k4'); h.tick(0.6);
   assert.ok(buff(a, 'g_u_estandarte'), 'un aliado a 12 m recibe la bonificación');
@@ -641,15 +647,15 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
 // s13A Intercesión (cooperativo): un aliado que iba a morir queda a 1; tú pierdes un 20 %
 {
   const h = C({ s13: 1 }, { choice: { s13: 'A' } });
-  const p = h.p, a = ally(4, 0);
-  h.g.party = [a];
-  h.tick(0.1);
+  // (⑫ onAllyLethal: el golpe letal pasa por g.damageAlly; sin sondeo ni h.tick)
+  const p = h.p, lejos = h.ally(20, 0), a = h.ally(4, 0);
   const hp0 = p.hp;
+  lejos.takeDamage(5000);
+  assert.ok(!lejos.alive && p.hp === hp0, 'a más de 15 m no intercede (ni gasta la recarga)');
   a.takeDamage(5000);
-  h.tick(0.1);
   assert.ok(a.alive && a.hp === 1, 'el aliado queda a 1 de vida');
   assert.ok(approx(hp0 - p.hp, p.stats.maxHP * 0.2, 1), 'pierdes un 20 % de vida');
-  a.takeDamage(5000); h.tick(0.1);
+  a.takeDamage(5000);
   assert.ok(!a.alive, 'una vez cada 90 s');
 }
 // x1 Martillo Bendito · x2 Martillos del Juicio

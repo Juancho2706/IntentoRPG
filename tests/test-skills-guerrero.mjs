@@ -37,7 +37,7 @@ const EXPECT = {
   g_provocacion:  { st: 'R', cat: 'utility',  req: 16, coef: 0,   cost: 0,  cd: 8 },    // utilidad C (Nv16)
   grito_guerra:   { st: 'R', cat: 'utility',  req: 12, coef: 0,   cost: 0,  cd: 20 },   // sin coste, +30 al lanzar
   g_u_furia:      { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 60 },
-  g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.6, cost: 0,  cd: 50 },   // 3,5 → 3,6 (banco 2b.2)
+  g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.4, cost: 0,  cd: 50 },   // 3,5 → 3,6 (2b.2) → 3,4 × 8 impactos en 5 s (2c.2)
   g_u_estandarte: { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 55 },
 };
 assert.deepEqual(GUERRERO_SKILLS.map(s => s.id).sort(), Object.keys(EXPECT).sort(), 'catálogo base = §3.1 sin las de talento');
@@ -76,9 +76,9 @@ console.log('Catálogo del Guerrero: 16 habilidades base válidas, ramas 3×3, r
 // ------------------------------------------------ 2) resolveSkill en Nv1 / Nv20 / Nv50
 const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, input: { joyDir: null, keyDir: null }, enemies: [] });
 const LITERAL = {   // coef final a mano: base × (1 + 0,10·(rango−1)), rango = clamp(1+⌊(Nv−req)/8⌋,1,5)
-  1:  { torbellino: 1.6,  g_hendidura: 2.9,  terremoto: 3.1, g_tajo: 1.0, g_u_cataclismo: 3.6 },
-  20: { torbellino: 1.92, g_hendidura: 3.19, terremoto: 3.1, g_tajo: 1.2, g_u_cataclismo: 3.6 },
-  50: { torbellino: 2.24, g_hendidura: 4.06, terremoto: 4.34, g_tajo: 1.4, g_u_cataclismo: 5.04 },
+  1:  { torbellino: 1.6,  g_hendidura: 2.9,  terremoto: 3.1, g_tajo: 1.0, g_u_cataclismo: 3.4 },
+  20: { torbellino: 1.92, g_hendidura: 3.19, terremoto: 3.1, g_tajo: 1.2, g_u_cataclismo: 3.4 },
+  50: { torbellino: 2.24, g_hendidura: 4.06, terremoto: 4.34, g_tajo: 1.4, g_u_cataclismo: 4.76 },
 };
 for (const L of [1, 20, 50]) {
   const p = new Player(mk(), 'guerrero');
@@ -243,13 +243,13 @@ h.tick(10.5);
 assert.ok(!h.p.buffs.some(b => b.id === 'g_u_furia'), 'Furia Inmortal: dura 10 s');
 assert.equal(resolveSkill(h.p, SK('torbellino')).cost, 25, 'al terminar, el coste vuelve');
 
-// Cataclismo: 6 impactos en 3 s (telegrafía 0,4 s), el centro recibe los 6
+// Cataclismo: 8 impactos en 5 s (telegrafía 0,4 s), el centro recibe los 8 (2c.2: eran 6 en 3 s)
 h = makeHarness({ classId: 'guerrero', level: 15 });
 e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
 let hits = 0; const td = e.takeDamage.bind(e); e.takeDamage = (a, c, o) => { if (!o?.proc) hits++; return td(a, c, o); };
 h.aim(5, 0); h.setSlot('k4', 'g_u_cataclismo'); assert.equal(h.cast('k4'), true);
 h.step(0.5); assert.equal(hits, 0, 'Cataclismo: windup + telegrafía antes del primer impacto');
-h.step(3.0); assert.equal(hits, 6, `Cataclismo: 6 impactos en el centro (${hits})`);
+h.step(5.0); assert.equal(hits, 8, `Cataclismo: 8 impactos en el centro (${hits})`);
 assert.equal(h.p.cdMax.g_u_cataclismo, 50, 'Cataclismo: enfriamiento 50 s');
 
 // Estandarte de Guerra: +20 % daño y −15 % daño recibido a 8 m, +5 Furia/s, 12 s

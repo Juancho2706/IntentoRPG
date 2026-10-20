@@ -254,6 +254,12 @@ export function sumWeakness(debuffs) {
 // ---------- condiciones ADITIVAS por objetivo (claves tv de talentos, §5.3) ----------
 // ctx = { targetElite, targetSlowed, targetFrac, manaFrac }. Devuelve puntos al
 // saco ADITIVO para ESE golpe (los poderes suman los suyos con PowerDef.condAdd).
+// Paso 2c.2 (claves que antes leían poderes «anfitriones»):
+//   preyDmg       contra la PRESA del Montaraz (Cazadora Paciente)
+//   explodedDmg   golpes de Fuego contra enemigos que ya estallaron (Sol Naciente: e.pyroBurst)
+//   executePct    élites y jefes por debajo del umbral: +executeDmg (Ejecutar; sin esa clave,
+//                 EXECUTE_ELITE_ADD; a los normales los remata el poder común nucleo_tv)
+export const EXECUTE_ELITE_ADD = 40;
 export function condAddPct(tv = {}, c = {}) {
   if (!tv) return 0;
   let a = 0;
@@ -262,6 +268,17 @@ export function condAddPct(tv = {}, c = {}) {
   if ((c.targetFrac ?? 0) > 0.6) a += tv.highHpDmg || 0;
   if ((c.targetFrac ?? 1) < 0.35) a += tv.lowHpDmg || 0;
   if ((c.manaFrac ?? 0) > 0.7) a += tv.highManaDmg || 0;
+  if (c.targetPrey) a += tv.preyDmg || 0;
+  if (c.targetExploded && c.elem === 'fire') a += tv.explodedDmg || 0;
+  if (tv.executePct > 0 && c.targetElite && (c.targetFrac ?? 1) < tv.executePct / 100) a += tv.executeDmg > 0 ? tv.executeDmg : EXECUTE_ELITE_ADD;
+  return a;
+}
+// probabilidad de crítico condicional por claves tv (se suma al critBonus del golpe):
+//   burningCrit   contra enemigos en llamas (Calor Abrasador)
+export function condCritPct(tv = {}, c = {}) {
+  if (!tv) return 0;
+  let a = 0;
+  if (c.targetBurning) a += tv.burningCrit || 0;
   return a;
 }
 
@@ -366,15 +383,17 @@ export function mitigate(amount, stats, opts = {}) {
   if (blockCh > 0 && rng() * 100 < blockCh) { d *= 1 - BLOCK_REDUCTION; blocked = true; }
   const armorPct = el === 'phys' ? armorReduction(stats?.arm || 0, opts.al || 1) : 0;
   const resPct = el === 'phys' ? 0 : resistance(stats, el);
-  d *= (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats));
+  d *= (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats)) * takenMult(stats);
   return { dmg: Math.max(1, Math.round(d)), blocked, armorPct, resPct };
 }
+// daño recibido EXTRA tras mitigar (stat dmgTakenPct: Temeridad +10 %), Paso 2c.2
+export function takenMult(stats) { return Math.max(0, 1 + (stats?.dmgTakenPct || 0) / 100); }
 // Daño esperado (sin azar de bloqueo) — para el banco y la UI
 export function expectedMitigation(stats, al, element = 'phys') {
   const blockCh = Math.max(0, Math.min(CAPS.block, stats?.block || 0)) / 100;
   const armorPct = element === 'phys' ? armorReduction(stats?.arm || 0, al) : 0;
   const resPct = element === 'phys' ? 0 : resistance(stats, element);
-  return (1 - blockCh * BLOCK_REDUCTION) * (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats));
+  return (1 - blockCh * BLOCK_REDUCTION) * (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats)) * takenMult(stats);
 }
 
 // ---------- cubeta de SUSTENTO (robo de vida y TODA cura por golpe/muerte) ----------

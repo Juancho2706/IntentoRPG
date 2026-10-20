@@ -14,7 +14,7 @@
 // Primitivas para poderes (§9.1.4): onPlayerHit ⑤, dealProcDamage, heal, shield,
 // allies. Sin setTimeout (lo vigila test59). Se inyecta en Game.prototype.
 // Paso 2b.2 — API para comportamientos de clase:
-//   g.gainResource(p, n)              recurso de clase (Furia/Maná/Energía)
+//   g.gainResource(p, n, opts?)       recurso de clase (Furia/Maná/Energía); ⑪ onResource
 //   g.fireProjectile(ctx, opts)       un proyectil del perfil: crítico + Sangre Fría,
 //                                     robo de vida, Encadenado, salpicadura y ctx.hit
 //   g.startChannel(ctx, done, opts)   canalización por tics (soltar/esquivar/golpe la cortan)
@@ -22,6 +22,19 @@
 // proyectiles con final AL IMPACTAR (el básico da recurso al acertar), splash,
 // hitDot, slowImmune/unstoppable (buff/canal), zonas con allyDr/projMissPct,
 // provocación con daño saliente debilitado (weakenPct) y auras (campo 'aura').
+// Paso 2c.2 — núcleo de la integración de talentos:
+//   g.heal(n, { target, radius, pos })   curación de habilidad centrada en un PUNTO (pos)
+//   g.shield(n, { …, dr })               escudo que además reduce el daño mientras aguanta
+//   g.startChannel(ctx, done, { hold: false })  canalización que NO exige mantener la tecla
+//   g.damageAlly(ally, n, opts)          ⑫ daño a un aliado del cooperativo (onAllyDamaged /
+//                                        onAllyLethal: Vínculo, Intercesión, Bastión Eterno)
+//   g.dotsOf(e, kind?) · g.hasDoT(e, kind) · g.dotRemaining(e, kind|source)
+//   g.consumeDoT(e, kind|fn) → daño restante (lo quita) · g.replaceDoT(e, total, ticks, interval, source)
+//                                        (sustituye sin integrar lo pendiente: «no se apila»)
+//   g.onDotEnd(e, inst)                  ⑬ (lo llama timers.js al agotarse un DoT solo)
+//   killStatus(e) (export)               estado del KillInfo (frozen/bleeding/burning/…)
+//   CastInfo.weapon / CastInfo.forceCrit el básico de ARMA pasa por ⑦ onCast
+//                                        (Player.basicAttack) y un onCast puede forzar el crítico
 import * as THREE from 'three';
 import { resolveSkill, isKnown, fitsSlot, GCD, cooldownWithMassacre } from './skill-resolve.js';
 import { projFanOffset } from './skill-defs.js';
@@ -30,7 +43,7 @@ import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from '.
 import { applyHitEffects, weaponBasicOf } from './entities.js';
 import { canAfford, spendResource, gainResource } from './resources.js';
 import { COLDBLOOD_CRIT, threatFromHeal } from './combat-math.js';
-import { applyDoTInstance } from './timers.js';
+import { applyDoTInstance, dotsOf, dotRemaining, consumeDoTs, replaceDoTInstance, dotKindOf } from './timers.js';
 import { SKILL_MODS } from './data.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 
@@ -374,6 +387,14 @@ const GENERIC = {
   },
 };
 export const GENERIC_SKILL_TYPES = Object.keys(GENERIC);
+// estado del objetivo para el KillInfo de ⑥ (main.js lo construye igual; el arnés de
+// tests lo usa tal cual): DoT por tipo con dotsOf (claves `<fuente>:<tipo>`)
+export function killStatus(e) {
+  const has = k => dotsOf(e, k).length > 0;
+  return { frozen: (e?.frozenT || 0) > 0, bleeding: has('bleed'), burning: has('burn'), poisoned: has('poison'),
+    slowed: (e?.slowT || 0) > 0, rooted: (e?.rootT || 0) > 0, prey: !!e?.prey,
+    weakened: (e?.weaknessPct?.() || 0) > 0 || (e?.vulnT || 0) > 0 };
+}
 // ¿tiene con qué lanzarse? (comportamiento registrado con cast o tipo genérico). Las
 // activas de talento cuyo comportamiento aún no existe (2c.1) no se lanzan ni cobran.
 export function skillCastable(sk) {
@@ -393,13 +414,16 @@ export const skillMethods = {
     if (!pos || !Number.isFinite(r)) return list;
     return list.filter(a => a.pos.distanceTo(pos) <= r);
   },
-  // CURACIÓN DE HABILIDAD (§6.1 B): escala con healPct; target 'self'|'lowest'|'all'
-  heal(amount, { target = 'self', radius = 15, src = 'skill' } = {}) {
+  // CURACIÓN DE HABILIDAD (§6.1 B): escala con healPct; target 'self'|'lowest'|'all'.
+  // pos (Paso 2c.2): centro del radio (Guardabosques cura a los aliados SOBRE la trampa);
+  // sin pos, alrededor del héroe. 'self' es siempre el héroe. amount puede ser una
+  // función (aliado) → cantidad (p. ej. un % de la vida máxima de CADA aliado).
+  heal(amount, { target = 'self', radius = 15, src = 'skill', pos = null } = {}) {
     const p = this.player;
-    let list = target === 'self' ? (p ? [p] : []) : this.allies(p?.pos, radius);
+    let list = target === 'self' ? (p ? [p] : []) : this.allies(pos || p?.pos, radius);
     if (target === 'lowest' && list.length) list = [list.reduce((a, b) => (b.hp / b.stats.maxHP < a.hp / a.stats.maxHP ? b : a))];
     let total = 0;
-    for (const a of list) total += a.healSkill(amount, src);
+    for (const a of list) total += a.healSkill(typeof amount === 'function' ? amount(a) : amount, src);
     // amenaza de la curación (×0,5, repartida entre los enemigos en combate cercanos)
     if (total > 0 && p) {
       const foes = (this.enemies || []).filter(e => e.alive && e.aggroed && e.pos?.distanceTo?.(p.pos) <= 20);
@@ -407,14 +431,37 @@ export const skillMethods = {
     }
     return total;
   },
-  // ESCUDO (§6): se consume tras mitigar; escala con healPct
-  shield(amount, { target = 'self', radius = 15, dur = 6, src = 'shield' } = {}) {
+  // ESCUDO (§6): se consume tras mitigar; escala con healPct. dr (Paso 2c.2): puntos de
+  // reducción de daño MIENTRAS el escudo aguanta (Escudo Prismático: tv.barrierDr)
+  shield(amount, { target = 'self', radius = 15, dur = 6, src = 'shield', dr = 0, pos = null } = {}) {
     const p = this.player;
-    let list = target === 'self' ? (p ? [p] : []) : this.allies(p?.pos, radius);
+    let list = target === 'self' ? (p ? [p] : []) : this.allies(pos || p?.pos, radius);
     if (target === 'lowest' && list.length) list = [list.reduce((a, b) => (b.hp / b.stats.maxHP < a.hp / a.stats.maxHP ? b : a))];
     let total = 0;
-    for (const a of list) total += a.addShield(amount, dur, src);
+    for (const a of list) total += a.addShield(amount, dur, src, dr > 0 ? { dr } : undefined);
     return total;
+  },
+  // ⑫ DAÑO A UN ALIADO del cooperativo (Paso 2c.2): las entidades de g.party reciben el
+  // daño por aquí. info = { amount (MUTABLE), raw, element, melee, src }. Orden:
+  // onAllyDamaged (Vínculo del Guardián se queda una parte) → vida → si cae a 0,
+  // onAllyLethal (Intercesión, Bastión Eterno: true = queda a 1). Devuelve el daño
+  // aplicado. Sustituye al sondeo de g.party a 10 Hz de 2c.1.
+  damageAlly(ally, amount, { element = 'phys', melee = false, source = null } = {}) {
+    if (!ally || ally.alive === false || !(amount > 0)) return 0;
+    if (ally.invulnT > 0) return 0;
+    const p = this.player;
+    const info = { amount, raw: amount, element, melee, src: source };
+    if (p?.alive && p.hookIndex?.onAllyDamaged) firePower('onAllyDamaged', p, this, p, ally, info);
+    const dmg = Math.max(0, info.amount);
+    if (!(dmg > 0)) return 0;
+    ally.hp = (ally.hp || 0) - dmg;
+    if (ally.hp <= 0) {
+      if (p?.alive && p.hookIndex?.onAllyLethal && firePower('onAllyLethal', p, this, p, ally, info)) {
+        if (ally.hp <= 0) { if (ally.setHp) ally.setHp(1); else ally.hp = 1; }
+        ally.alive = true;
+      } else { ally.hp = 0; ally.alive = false; ally.onDeath?.(); }
+    }
+    return dmg;
   },
   // daño originado por un PODER (proc: sin Π[×], no dispara onHit)
   dealProcDamage(e, amount, opts = {}) { return powerProcDamage(this, e, amount, opts); },
@@ -423,7 +470,7 @@ export const skillMethods = {
   addThreat(e, src, n) { e?.addThreat?.(src || this.player, n); },
   forceTarget(e, src, t) { return e?.forceTarget ? e.forceTarget(src || this.player, t) : 0; },
   // recurso de clase para comportamientos y poderes (la Furia además reinicia su pérdida)
-  gainResource(p, n) { return gainResource(p || this.player, n); },
+  gainResource(p, n, opts) { return gainResource(p || this.player, n, opts); },
 
   // Un proyectil del PERFIL de un lanzamiento (ctx del canal). Hace lo mismo que el
   // tipo genérico `proj`: tirada al impactar con crítico + Sangre Fría, ctx.hit
@@ -466,21 +513,22 @@ export const skillMethods = {
   },
 
   // Canalización por tics del planificador (API pública para comportamientos).
-  // opts = { dur, ticks, interval?, unstoppable, onTick(inst, interval), onEnd(inst) }.
-  // Soltar la tecla, la esquiva o un golpe > 10 % de la vida (si es `int` y no
-  // eres imparable) la cortan. Termina llamando a done(ctx.res).
+  // opts = { dur, ticks, interval?, unstoppable, hold = true, onTick(inst, interval), onEnd(inst) }.
+  // Soltar la tecla (salvo hold:false: Remolino Sangriento gira solo), la esquiva o un
+  // golpe > 10 % de la vida (si es `int` y no eres imparable) la cortan. Termina
+  // llamando a done(ctx.res).
   startChannel(ctx, done, opts = {}) {
     const p = ctx.p;
     const dur = opts.dur || 2;
     const ticks = Math.max(1, Math.round(opts.ticks || dur / 0.33));
     const interval = opts.interval || dur / ticks;
-    const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null };
+    const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null, hold: opts.hold !== false };
     this._channel = inst;
     p.castLock = dur + 0.05;
     if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dur + 0.1);
     const step = () => {
       if (this._channel !== inst) return;
-      if (!p.alive || !this.slotHeld(ctx.key)) { this.cancelCast('release'); return; }
+      if (!p.alive || (inst.hold && !this.slotHeld(ctx.key))) { this.cancelCast('release'); return; }
       try { opts.onTick?.(inst, interval); } catch (err) { console.warn(`[canalización ${ctx.sk.id}]`, err); }
       inst.left--;
       if (inst.left > 0) inst.timer = this.timers.schedule(interval, step);
@@ -518,6 +566,22 @@ export const skillMethods = {
   applyDoT(enemy, totalDmg, ticks, interval, color = 'txt-dmg', source = 'dot') {
     void color;
     return applyDoTInstance(this.timers, enemy, { total: totalDmg, ticks, interval, source });
+  },
+  // ---- API de DoT (Paso 2c.2: los poderes no tocan e._dots) ----
+  // kind = 'burn'|'bleed'|'poison'|… (sufijo de la fuente `<habilidad>:<tipo>`) o null
+  dotsOf(e, kind = null) { return dotsOf(e, kind); },
+  hasDoT(e, kind = null) { return dotsOf(e, kind).length > 0; },
+  // daño pendiente: de una fuente exacta ('p_ignicion:burn') o de todo un tipo ('burn')
+  dotRemaining(e, which = null) { return dotRemaining(e, which); },
+  // CONSUME (detona): quita los DoT que casan (tipo, fuente o función) y devuelve su daño restante
+  consumeDoT(e, which = null) { return consumeDoTs(this.timers, e, which); },
+  // SUSTITUYE el DoT de `source` (lo pendiente se pierde: «no se apila»)
+  replaceDoT(e, total, ticks, interval = 1, source = 'dot') { return replaceDoTInstance(this.timers, e, { total, ticks, interval, source }); },
+  // ⑬ un DoT se agotó SOLO (timers.js): onDotEnd(g, p, e, { source, kind, total, per, ticks })
+  onDotEnd(e, inst) {
+    const p = this.player;
+    if (!p?.hookIndex?.onDotEnd || !inst) return;
+    firePower('onDotEnd', p, this, p, e, { source: inst.source, kind: dotKindOf(inst.source), total: inst.total || 0, per: inst.per, ticks: inst.ticks || 0 });
   },
   // Encadenado: rebotes a enemigos cercanos (−25 % por salto), hasta `jumps`
   spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color) {
@@ -808,7 +872,7 @@ export const skillMethods = {
     const dotKind = prof.dot;
     const color = sk.color || (dotKind ? DOT_COLORS[dotKind] : null) || undefined;
     const coef = prof.coef * (isEcho ? echoMult : 1);
-    const hitInfo = { skill: sk.id, tags: prof.tags, elem: prof.elem, forceCrit: !!prof.forceCrit };
+    const hitInfo = { skill: sk.id, tags: prof.tags, elem: prof.elem, forceCrit: !!(prof.forceCrit || cast.forceCrit) };
     const ctx = {
       p, sk, prof, key, target, enemy: near, coef, isEcho, isBasic, hitInfo, color, fx, cast,
       dmgOpts: { color, skill: sk.id, tags: prof.tags, elem: prof.elem },
@@ -893,9 +957,11 @@ export const skillMethods = {
       const reduced = cooldownWithMassacre(prof);
       p.cds[sk.id] = Math.max(0, (p.cds[sk.id] || 0) - (prof.cd - reduced));
     }
+    // Estela (zone): daña y, si la habilidad ralentiza (prof.slow), también ralentiza
+    // (Paso 2c.2: el suelo helado de Nova Perpetua es la Estela de una Nova que ralentiza)
     if (prof.zone && ctx.zoneCenter && this.spawnField) {
       this.spawnField('estela', { pos: ctx.zoneCenter, radius: Math.max(2, (ctx.zoneRad || 2) * 0.9), dur: prof.zoneDur, owner: p,
-        data: { dps: ctx.avgHit * 0.45, color: sk.color || 0xff7733, skill: sk.id } });
+        data: { dps: ctx.avgHit * 0.45, color: sk.color || 0xff7733, skill: sk.id, slow: prof.slow > 0 ? prof.slow : 0, slowPct: prof.slowPct || 30 } });
     }
     // recurso de los básicos no-arma (Mandoble/Embate): solo si golpean (+extra por objetivo)
     if (isBasic && !isEcho && res.hits > 0) {

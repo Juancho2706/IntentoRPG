@@ -12,6 +12,7 @@
 //    regeneración PLANA de 6/s + stat energyRegen (tope +4/s). No lee atributos.
 // El recurso vive en p.mp / p.stats.maxMP (nombres históricos: la UI los usa).
 import { resourceRegen } from './combat-math.js';
+import { firePower } from './powers.js';   // ⑪ onResource (solo dentro de gainResource: ciclo seguro)
 
 export const RESOURCE_DEFS = Object.freeze({
   furia: Object.freeze({
@@ -74,12 +75,17 @@ export function spendResource(p, cost) {
   return true;
 }
 // gana recurso (generadores, ramas Furibundo, poderes). Golpear "mantiene" la Furia.
-export function gainResource(p, n) {
+// ⑪ (Paso 2c.2): lo REALMENTE ganado dispara onResource(g, p, n, src) — Hermandad de
+// Armas (+5 % de la Furia generada por aliado). Un poder que da recurso EXTRA en
+// respuesta pasa { silent: true } para no realimentarse.
+export function gainResource(p, n, { silent = false, src = null } = {}) {
   if (!(n > 0)) return 0;
   const before = p.mp;
   p.mp = Math.min(p.stats?.maxMP || 0, p.mp + n);
   p.furiaIdle = 0;
-  return p.mp - before;
+  const got = p.mp - before;
+  if (got > 0 && !silent && p.hookIndex?.onResource) firePower('onResource', p, p.game, p, got, src);
+  return got;
 }
 // marca actividad de combate (golpear/recibir): reinicia la pérdida de Furia
 export function touchCombat(p) { p.furiaIdle = 0; }

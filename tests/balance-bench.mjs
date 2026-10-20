@@ -488,35 +488,11 @@ export function checkRows(rows) {
   return errs;
 }
 
-// Paso 2c.0 → 2c.2: desviaciones CONOCIDAS al entrar los talentos (el típico/óptimo
-// Nv ≥ 10 lleva su especialización por defecto y el preset de su nivel). En 2c.0 NO se
-// recalibra (docs/paso2-diseno.md §9.2: el ajuste es de 2c.2/2e en skills/talents/
-// powers-*.js): cada fila se imprime como AVISO con su causa y solo falla si empeora
-// más allá de `floor` (red de seguridad). 2c.2 debe vaciar esta lista.
-export const PENDING_2C2 = [
-  { re: /^guerrero Nv(25|50): la definitiva g_u_cataclismo aporta (\d+)% del daño UNI/, floor: 8,
-    why: 'los talentos del Berserker suben el daño Físico (c1, s1, s10, c13 élites/jefes, c6 −coste) y Cataclismo es Sagrado: su parte del UNI baja de 13 % a 9–11 % aunque su daño no cambia' },
-  { re: /^arquera Nv50: TTK élite ([\d.]+)s/, floor: 3.9,
-    why: 'preset Nv50 de la Francotiradora: s7 Letalidad (+30 % de daño crítico), c13/s16 contra élites, s12, c1, c8, c14 → +15 % de DPS (4,52 → 4,11 s); Tiro Mortal ×1,30 (§5.2.2) solo aporta 0,06 s' },
-  { re: /^Nv50: media TTK jefe ([\d.]+)s/, floor: 40,
-    why: 'con sus talentos la Maga Nv50 baja de 56 a 51 s y la Arquera de 40 a 36 s (antes la media ya estaba en 45,8 s, al borde del suelo de 45)' },
-];
-export function splitPending(errs) {
-  const pending = [], hard = [];
-  for (const e of errs) {
-    const k = PENDING_2C2.find(x => x.re.test(e));
-    if (!k) { hard.push(e); continue; }
-    const m = e.match(k.re);
-    const v = parseFloat(m[m.length - 1]);
-    if (Number.isFinite(v) && v < k.floor) hard.push(`${e} (pendiente de 2c.2, pero por debajo de su red ${k.floor})`);
-    else pending.push({ e, why: k.why });
-  }
-  return { pending, hard };
-}
-
 // --seeds N: robustez frente al azar del EQUIPO (solo informe). Para cada fila típica
 // T0: mínimo / mediana / máximo del TTK de élite y de jefe y del reparto de la
 // definitiva en UNI con las semillas 1..N. Las afirmaciones siguen con la semilla 1.
+// Paso 2c.2: marca con ⚠ las MEDIANAS fuera de su rango (TARGETS.cls / rampa de jefe /
+// ultShare) o a menos de un 5 % de un borde, e imprime la media de las medianas de jefe.
 export function seedReport(n, { classes = ['guerrero', 'maga', 'arquera'], levels = [1, 5, 10, 25, 50] } = {}) {
   const med = a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor((s.length - 1) / 2)]; };
   const fmt = a => `${f1(Math.min(...a)).padStart(5)} / ${f1(med(a)).padStart(5)} / ${f1(Math.max(...a)).padStart(5)}`;
@@ -534,11 +510,24 @@ SEMILLAS 1..${n} (típico T0): mín / mediana / máx`);
       const p = mk();
       if (L >= ULT_MIN_LEVEL && p.hotbar.k4) { const u = simulateUni(p, ref); U.push((u.by[p.hotbar.k4] || 0) / u.total * 100); }
     }
-    out.push({ cls: c, L, E, B, U, medE: med(E), medB: med(B), medU: U.length ? med(U) : null });
-    console.log(`${c.padEnd(8)} ${String(L).padStart(2)} | ${fmt(E)} | ${fmt(B)} | ${U.length ? fmt(U) + ' %' : '—'}`);
+    const row = { cls: c, L, E, B, U, medE: med(E), medB: med(B), medU: U.length ? med(U) : null };
+    const bw = L === 1 ? TARGETS.bossNv1 : L < 10 ? TARGETS.bossRamp : TARGETS.cls.ttkB;
+    const warn = [nearEdge(row.medE, TARGETS.cls.ttkE) && 'élite', nearEdge(row.medB, bw) && 'jefe',
+      row.medU != null && nearEdge(row.medU / 100, TARGETS.ultShare) && 'definitiva'].filter(Boolean);
+    out.push(row);
+    console.log(`${c.padEnd(8)} ${String(L).padStart(2)} | ${fmt(E)} | ${fmt(B)} | ${U.length ? fmt(U) + ' %' : '—'}${warn.length ? '  ⚠ mediana ' + warn.join('/') : ''}`);
+  }
+  // media de las medianas de jefe por nivel (objetivo de diseño 45–90 s, Nv ≥ 10)
+  for (const L of levels.filter(x => x >= 10)) {
+    const rs = out.filter(r => r.L === L);
+    if (rs.length < 2) continue;
+    const m = rs.reduce((a, r) => a + r.medB, 0) / rs.length;
+    console.log(`media de medianas de jefe Nv${L}: ${f1(m)} s${nearEdge(m, TARGETS.mean.ttkB) ? '  ⚠' : ''}`);
   }
   return out;
 }
+// ¿fuera de [lo, hi] o a menos de un 5 % de uno de sus bordes? (Paso 2c.2: margen de las medianas)
+function nearEdge(v, [lo, hi]) { return !(v >= lo * 1.05 && v <= hi * 0.95); }
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop());
 if (isMain) {
@@ -549,9 +538,8 @@ if (isMain) {
   const si = process.argv.indexOf('--seeds');
   if (si > 0) seedReport(Math.max(1, parseInt(process.argv[si + 1], 10) || 5));
   console.log(`(${((Date.now() - t0) / 1000).toFixed(1)} s)`);
-  const { pending, hard } = splitPending(errs);
-  if (pending.length) console.log('⚠️ pendiente de recalibrar en 2c.2 (no falla):\n' + pending.map(x => ` - ${x.e}\n     causa: ${x.why}`).join('\n'));
-  if (hard.length && !REPORT_ONLY) { console.error('❌ BANCO DE BALANCE FUERA DE RANGO\n - ' + hard.join('\n - ')); process.exit(1); }
-  if (hard.length) console.log('(report) avisos:\n - ' + hard.join('\n - '));
-  else console.log('✅ BANCO DE BALANCE DENTRO DE RANGO' + (pending.length ? ` (con ${pending.length} pendientes de 2c.2)` : ''));
+  // Paso 2c.2: sin lista de pendientes (PENDING_2C2 vaciada y retirada): todo error falla
+  if (errs.length && !REPORT_ONLY) { console.error('❌ BANCO DE BALANCE FUERA DE RANGO\n - ' + errs.join('\n - ')); process.exit(1); }
+  if (errs.length) console.log('(report) avisos:\n - ' + errs.join('\n - '));
+  else console.log('✅ BANCO DE BALANCE DENTRO DE RANGO');
 }

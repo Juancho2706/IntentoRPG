@@ -1,5 +1,5 @@
 // ============================================================
-// PODERES de la ARQUERA (Francotiradora · Montaraz · Tiradora) — Paso 2c.1
+// PODERES de la ARQUERA (Francotiradora · Montaraz · Tiradora) — Paso 2c.1 · 2c.2
 // ============================================================
 // Dueño: el trabajador de la clase en el Paso 2c.1 (docs/paso2-diseno.md §9.1.6).
 // Solo se tocan ESTE archivo, js/talents-arquera.js, js/fx-skills-arquera.js y
@@ -23,45 +23,34 @@
 // dealProcDamage. Control: e.applyCC. Curas: p.sustain / g.heal / g.shield. Amenaza:
 // g.forceTarget. Aliados: g.allies(pos, r) (en solitario = solo tú).
 //
-// ── PODERES ANFITRIONES (rodeo local; «pedido al núcleo» abajo) ──────────────────
-// tests/test65a cierra el vocabulario de `power` (§5.3 + POWERS_EXTRA) y de `tv`, así
-// que los nodos cuyo texto necesita un gancho y NO tienen poder propio llevan en su
-// fx el poder más afín de su misma especialización, y ese poder FILTRA cada efecto
-// por el rango del nodo que lo pide (nodeRank/picked). El efecto PROPIO del poder solo
-// se aplica si su nodo está comprado (o si el poder llega sin nodos: p.talentExtra).
-//   a_tailwind ........ c5B Paso Ligero  · anfitrión de c12B Camuflaje (crítico al salir)
-//   f_aliento_cazador . s4               · s11 Respiración Profunda (Energía al llenar)
-//   f_perch ........... s8               · s15 Paso del Acechador (−15 % de pérdida)
-//   f_overpen ......... s14              · s6B Herida Abierta (sangrado de los críticos)
-//   m_cepo_doble ...... s4               · s10 Lazo Corredizo (solo el 1.er enemigo)
-//   m_warden .......... s13B             · s8 Pellejo de Oso (solo contra ralentizados)
-//   m_extratrap / m_greathunt aplican además s17 Espinas Venenosas (tv.rootedWeak: test65a fija
-//                       su fx sin poder; s17 exige s14 o s15, así que uno de los dos existe)
-//   m_thornweb ........ x1               · s3 Abrojos (campo que ralentiza) · s11 Ponzoña Lenta
-//   m_greathunt ....... x3               · s15 Cazadora Paciente (solo la Presa)
-//   t_andanada_impulsiva s4              · s6B Corona de Flechas (360° de verdad)
-//   t_slipstream ...... s13B             · s5 Viento de Cola (+vel. de ataque) · s8 Esquiva Felina
-//   t_galechain ....... s14              · s11 Segundo Aliento (vida y Energía al llenar)
-// PEDIDOS AL NÚCLEO (no se tocaron archivos compartidos):
-//  · test65a: admitir ids propios (f_herida_abierta, f_respiracion, f_acechador, m_lazo,
-//    m_pellejo, m_espinas, m_abrojos, m_ponzona, m_presa, t_corona, t_viento_cola,
-//    t_esquiva_felina, t_segundo_aliento, a_camuflaje) y retirar los anfitriones.
-//  · tv.dmgReduc lo suma recompute SIEMPRE: los condicionales (Pellejo de Oso, Esquiva
-//    Felina) se corrigen aquí con un condDr negativo cuando la condición no se cumple.
-//  · mergeMods toma el MÁXIMO de root: el «+1 s / +0,5 s» del Cepo lo suma el comportamiento.
-//  · Invisibilidad real del héroe (Camuflaje): hoy los enemigos ya enzarzados pierden el
-//    objetivo (persiguen un «fantasma» donde desapareciste), pero uno que te vea por
-//    primera vez puede enzarzarse. Revelar (Bengala, rastro de la Presa): no hay
-//    enemigos invisibles todavía; queda la marca e.revealedT.
-//  · Ritmo de pérdida de la Concentración (tv.focusDrain): Visión Certera y Paso del
-//    Acechador devuelven lo perdido escribiendo gaugeState(...).v (sin eventos ⑩).
-//  · g.heal centrado en un punto (Guardabosques cura a los aliados SOBRE la trampa:
-//    al héroe por g.heal, a los aliados remotos con su healSkill).
-//  · El básico de arma no pasa por ⑦ onCast: Ráfaga Infinita cuenta sus disparos por
-//    p.basicAt (onTick) y el crítico del Camuflaje marca el hitInfo en condCrit.
+// ── Paso 2c.2: un poder (o una clave tv del núcleo) POR NODO ─────────────────────
+// Se retiraron los «poderes anfitriones» de 2c.1 (HOSTS/ownOn/picked): cada nodo con
+// efecto propio lleva SU poder o una clave tv que consume el núcleo. Un poder solo lee
+// el rango de SU nodo (nodeRank) cuando su texto escala con él.
+//   Clase   c5B Paso Ligero ...... a_tailwind (solo su +12 % de movimiento)
+//           c12B Camuflaje ....... a_camuflaje (crítico seguro por ⑦ onCast: cast.forceCrit) +
+//                                  a_t_camuflaje (invisibilidad REAL: p.goInvisible)
+//           c7 Cuero Curtido ..... tv.dmgReduc + tv.drAfterRoll (lo lee la Voltereta)
+//   Franco. s6B Herida Abierta ... f_herida_abierta      · s14 Sobrepenetración ... f_overpen
+//           s8 Posición Elevada .. tv.dmgReduc + tv.drFocus (núcleo: nucleo_tv.condDr)
+//           s11 Respiración Prof.  tv.focusEnergy (núcleo: al llenar la Concentración)
+//           s15 Paso del Acechador f_acechador ('gaugeLoss:concentracion' −15)
+//           s9 Visión Certera .... su buff lleva 'gaugeLoss:concentracion' −100
+//   Mont.   s3 Abrojos ........... m_abrojos             · x1 Red de Espinas ...... m_thornweb
+//           s6A Cepo de Hierro ... m_cepo_hierro (prof.bossSlowPct) + mod.rootAdd
+//           s6B Mina de Espinas .. m_mina (prof.mine)    · s16 Raíces Profundas .. mod.rootAdd
+//           s8 Pellejo de Oso .... tv.drVsSlowed (núcleo) · s13B Guardabosques ... m_warden
+//           s10 Lazo Corredizo ... m_lazo                · s4 Cepo Doble .......... m_cepo_doble
+//           s11 Ponzoña Lenta .... m_ponzona + tv.dotDur · s15 Cazadora Paciente .. tv.preyDmg
+//           s17 Espinas Venenosas  tv.rootedWeak (núcleo) · x3 Gran Cacería ....... m_greathunt
+//   Tirad.  s5 Viento de Cola .... t_viento_cola + mod.agilidad.durS
+//           s6B Corona de Flechas  t_corona              · s4 Andanada Impulsiva .. t_andanada_impulsiva
+//           s8 Esquiva Felina .... tv.drMoving (núcleo)  · s13B Estela de Viento .. t_slipstream
+//           s11 Segundo Aliento .. tv.galeHeal + tv.galeEnergy (núcleo) · s14 ..... t_galechain
+//           x1 Ráfaga Infinita ... t_infinite (cuenta el básico de arma por ⑦ onCast: cast.weapon)
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
-import { gainGauge, spendGauge, gaugeValue, gaugeState, gaugeMax } from './spec-mechanics.js';
+import { gainGauge, spendGauge, gaugeValue, gaugeState } from './spec-mechanics.js';
 import { projFanOffset } from './skill-defs.js';
 import { rankCoef } from './combat-math.js';
 import { enemiesInField } from './field-entities.js';
@@ -76,52 +65,28 @@ function tune() {
     frame: 1e-3,                                     // «cada tick» del planificador
     tailwind: { quiet: 3, spdPct: 12 },              // c5B
     halcon: { radius: 15, crit: 5, spdPct: 6, pulse: 0.5 },   // c15
-    cuero: { drPerRank: 4, dur: 2 },                 // c7: el doble 2 s tras la Voltereta
+    cuero: { dur: 2 },                               // c7: tv.drAfterRoll 2 s tras la Voltereta
     freeShot: { window: 10 },                        // c2: ventana del disparo gratis
-    camo: { pulse: 0.2, radius: 30 },                // c12B
     aliento: { spend: 50 },                          // F s4
-    perch: { drPerRank: 3, over: 50 },               // F s8
-    acechador: { less: 0.15, drain: 25 },            // F s15 (25/s = pérdida base)
+    acechador: { lossPct: -15 },                     // F s15: 'gaugeLoss:concentracion'
+    vision: { lossPct: -100 },                       // F s9: moverte no vacía la Concentración
     patience: { perSec: 2, max: 20 },                // F s13B
     overpen: { perEnemy: 15 },                       // F s14
     herida: { pct: 80, dur: 6 },                     // F s6B
     weakspot: { dur: 8, crit: 15 },                  // F x1
     impossible: { gap: 0.25 },                       // F x3
-    cepo: { maxArmed: 3, extraR: 0.3, ironRoot: 1, deepRootPerRank: 0.5, mineCoef: 1.2, mineAdd: 120, poisonDur: 5 },
+    cepo: { maxArmed: 3, extraR: 0.3, mineCoef: 1.2, poisonDur: 5, ironBossSlow: 50 },
     warden: { pctPerSec: 3, pulse: 0.5 },            // M s13B
-    pellejo: { drPerRank: 5 },                       // M s8
     lazo: { rootPerRank: 0.5 },                      // M s10
     ponzona: { slowPct: 10, slowT: 1.2 },            // M s11
-    presa: { perRank: 10 },                          // M s15
     web: { link: 10, width: 0.6, slowPct: 50, slowT: 0.6, pulse: 0.2, bleedCoef: 1.0, vfx: 0.5 },
     greathunt: { dmgPct: 15, dur: 6 },               // M x3
-    esquiva: { drPerRank: 4 },                       // T s8
     vientoCola: { aspdPerRank: 5 },                  // T s5
     andanada: { impulso: 20 },                       // T s4
     galechain: { perKill: 0.5, max: 6 },             // T s14
-    segundo: { energyPerRank: 10 },                  // T s11
     slip: { spdPct: 15, every: 0.6, dur: 2.5, radius: 1.6 },  // T s13B
     infinite: { every: 10, storm: 5 },               // T x1 / x3
   }));
-}
-
-// poder → { self: [árbol, nodo, opción?], hosted: [[árbol, nodo, opción?]…] } (ver cabecera)
-// eslint-disable-next-line no-var
-var HOSTS;
-function hosts() {
-  return HOSTS || (HOSTS = {
-    a_tailwind: { self: ['cls', 'c5', 'B'], hosted: [['cls', 'c12', 'B']] },
-    f_aliento_cazador: { self: ['francotiradora', 's4'], hosted: [['francotiradora', 's11']] },
-    f_perch: { self: ['francotiradora', 's8'], hosted: [['francotiradora', 's15']] },
-    f_overpen: { self: ['francotiradora', 's14'], hosted: [['francotiradora', 's6', 'B']] },
-    m_cepo_doble: { self: ['montaraz', 's4'], hosted: [['montaraz', 's10']] },
-    m_warden: { self: ['montaraz', 's13', 'B'], hosted: [['montaraz', 's8']] },
-    m_thornweb: { self: ['montaraz', 'x1'], hosted: [['montaraz', 's3'], ['montaraz', 's11']] },
-    m_greathunt: { self: ['montaraz', 'x3'], hosted: [['montaraz', 's15']] },
-    t_andanada_impulsiva: { self: ['tiradora', 's4'], hosted: [['tiradora', 's6', 'B']] },
-    t_slipstream: { self: ['tiradora', 's13', 'B'], hosted: [['tiradora', 's5'], ['tiradora', 's8']] },
-    t_galechain: { self: ['tiradora', 's14'], hosted: [['tiradora', 's11']] },
-  });
 }
 
 // ------------------------------------------------------------
@@ -134,7 +99,8 @@ function v3(x, z, y = 0) { return new THREE.Vector3(x, y, z); }
 function invalidate(p) { if (p) p.resolved = {}; }
 function focus(p) { return gaugeValue(p, 'concentracion'); }
 
-// rango de un nodo: árbol 'cls' o id de especialización (solo la ACTIVA); s0 = 1
+// rango de un nodo: árbol 'cls' o id de especialización (solo la ACTIVA); s0 = 1.
+// Paso 2c.2: un poder solo lo usa para leer el rango de SU PROPIO nodo.
 function nodeRank(p, tree, id) {
   const T = p?.talents;
   if (!T) return 0;
@@ -143,21 +109,6 @@ function nodeRank(p, tree, id) {
   if (id === 's0') return 1;
   return T.sp?.[tree]?.[id] | 0;
 }
-// rango si está comprado (y, en una elección, con esa opción; por defecto la A)
-function picked(p, tree, id, opt = null) {
-  const r = nodeRank(p, tree, id);
-  if (!(r > 0)) return 0;
-  if (opt && (p.talents?.choice?.[id] || 'A') !== opt) return 0;
-  return r;
-}
-// ¿aplica el efecto PROPIO del poder `id`? (su nodo, o el poder llegó sin nodos)
-function ownOn(p, id) {
-  if (!hasPower(p, id)) return false;
-  const h = hosts()[id];
-  if (!h) return true;
-  return picked(p, ...h.self) > 0 || !h.hosted.some(x => picked(p, ...x) > 0);
-}
-
 // renueva (o crea) un buff corto a un aliado (auras/campos)
 function refreshBuff(a, id, stats, keep, meta = {}) {
   const b = a?.buffs?.find?.(x => x.id === id);
@@ -258,9 +209,10 @@ function groundDecal(g, f, { inner = 0.6, opacity = 0.45, color = 0xffffff, disc
 }
 
 // ---------- Trampa de Cepo: cargas, trampas armadas ----------
-function cepoDoble(p) { return ownOn(p, 'm_cepo_doble'); }
-function extraTrap(p) { return ownOn(p, 'm_extratrap'); }
-function wardenOn(p) { return ownOn(p, 'm_warden'); }
+// cada uno es el poder de SU nodo (s4 / s14 / s13B); el comportamiento y el campo lo leen
+function cepoDoble(p) { return hasPower(p, 'm_cepo_doble'); }
+function extraTrap(p) { return hasPower(p, 'm_extratrap'); }
+function wardenOn(p) { return hasPower(p, 'm_warden'); }
 function armedTraps(g, p) {
   return (g?.fields || []).filter(f => !f.dead && !f.sprung && f.owner === p && f.kind === 'a_cepo');
 }
@@ -293,7 +245,8 @@ function springTrap(g, f, e) {
     g.emitFx?.('arqThornBurst', at.clone().setY(0.4));
   } else if (e?.alive) {
     e.applyCC?.('root', d.root, { src: p });
-    // Cepo de Hierro: a los jefes los ralentiza un 50 % (applyCC aplica ×0,5 a los jefes)
+    // Cepo de Hierro (prof.bossSlowPct): a los jefes los ralentiza un 50 % (applyCC aplica
+    // ×0,5 a la ralentización de los jefes, de ahí el ×2)
     if (d.bossSlow && isBoss(e)) e.applyCC?.('slow', d.root, { pct: 2 * d.bossSlow, src: p });
   }
   if (e?.alive && d.poison?.total > 0) g.applyDoT?.(e, d.poison.total, d.poison.ticks, 1, 'txt', `${d.skill}:poison`);
@@ -303,29 +256,15 @@ function springTrap(g, f, e) {
   f.t = 0;
 }
 
-// ---------- Camuflaje ----------
-function camoActive(p) { const st = powerState(p, 'a_t_camuflaje'); return now(p) < (st.until || 0); }
+// ---------- Camuflaje (c12B) ----------
+// a_t_camuflaje te hace invisible DE VERDAD (p.goInvisible: Enemy.update pierde el objetivo
+// y no adquiere uno nuevo); el poder a_camuflaje guarda { active, crit }: al acabar sola la
+// invisibilidad queda «cebado» el crítico; un ataque con daño (también el básico de arma)
+// la rompe (p.reveal) y es crítico seguro (cast.forceCrit).
 function endCamo(p, st, primed) {
-  st.until = 0;
+  st.active = false;
   st.crit = !!primed;
-  if (st.ghost) st.ghost.alive = false;
   if (p.buffs?.some(b => b.id === 'a_t_camuflaje')) p.buffs = p.buffs.filter(b => b.id !== 'a_t_camuflaje');
-}
-// los enemigos enzarzados pierden el objetivo: persiguen al «fantasma»
-function loseTarget(g, p, ghost) {
-  const R = tune().camo.radius;
-  for (const e of g.enemies || []) {
-    if (!e.alive || !e.aggroed || e.pos.distanceTo(p.pos) > R) continue;
-    g.forceTarget?.(e, ghost, tune().camo.pulse + 0.15);
-  }
-}
-
-// Espinas Venenosas (Montaraz s17): Debilidad +tv.rootedWeak a los inmovilizados
-function rootedWeakTick(g, p) {
-  const w = p?.tv?.rootedWeak || 0;
-  if (!(w > 0)) return;
-  for (const e of g?.enemies || [])
-    if (e.alive && e.rootT > 0) e.applyWeakness?.('m_espinas_venenosas', w, e.rootT);
 }
 
 // ---------- Punto Débil ----------
@@ -376,11 +315,10 @@ export function arqueraPowers() {
   return {
     // ---------------- árbol de clase ----------------
     // c5B Paso Ligero: +12 % de velocidad de movimiento si no recibes daño en 3 s.
-    // Anfitrión de c12B Camuflaje: el primer disparo al salir (o el que lo rompe) es crítico seguro.
     a_tailwind: {
       name: 'Paso Ligero', desc: '+12 % de velocidad de movimiento si no recibes daño durante 3 s.',
       state: () => ({ hitAt: -99, on: false }),
-      stats(p) { return ownOn(p, 'a_tailwind') && powerState(p, 'a_tailwind').on ? { spdPct: tune().tailwind.spdPct } : {}; },
+      stats(p) { return powerState(p, 'a_tailwind').on ? { spdPct: tune().tailwind.spdPct } : {}; },
       onDamaged(g, p, info) {
         if (!(info?.raw > 0)) return;
         const st = powerState(p, 'a_tailwind');
@@ -389,20 +327,28 @@ export function arqueraPowers() {
       },
       onTick(g, p) {
         const st = powerState(p, 'a_tailwind');
-        const want = ownOn(p, 'a_tailwind') && now(p) - st.hitAt >= tune().tailwind.quiet;
+        const want = now(p) - st.hitAt >= tune().tailwind.quiet;
         if (want !== st.on) { st.on = want; p.recompute(); }
       },
-      // hit = el hitInfo del disparo: marcarlo hace críticos TODOS sus proyectiles
-      condCrit(p, e, hit) {
-        if (!hit || hit.proc || hit.dot) return 0;
-        const st = powerState(p, 'a_t_camuflaje');
-        if (st.critHit === hit) return 0;
-        if (camoActive(p) || st.crit) {
-          hit.forceCrit = true;
-          st.critHit = hit;
-          endCamo(p, st, false);
-        }
-        return 0;
+    },
+    // c12B Camuflaje: el primer ataque con daño desde la invisibilidad (la rompe) o al
+    // salir de ella es crítico seguro (⑦ onCast → cast.forceCrit: TODOS sus proyectiles).
+    a_camuflaje: {
+      name: 'Camuflaje', desc: 'Tu primer ataque desde la invisibilidad (o al salir de ella) es crítico seguro.',
+      state: () => ({ active: false, crit: false }),
+      onCast(g, p, cast) {
+        if (!cast || !(cast.weapon || (cast.prof?.coef || 0) > 0)) return;
+        const st = powerState(p, 'a_camuflaje');
+        const invis = !!p.isInvisible?.();
+        if (!invis && !st.crit) return;
+        cast.forceCrit = true;
+        endCamo(p, st, false);
+        if (invis) p.reveal();
+      },
+      // la invisibilidad acabó sola: queda cebado el crítico del primer disparo
+      onTick(g, p) {
+        const st = powerState(p, 'a_camuflaje');
+        if (st.active && !p.isInvisible?.()) endCamo(p, st, true);
       },
     },
     // c15 Espíritu del Halcón: tú y los aliados a 15 m, +5 % de crítico y +6 % de movimiento
@@ -423,16 +369,16 @@ export function arqueraPowers() {
 
     // ---------------- Francotiradora ----------------
     // s4 Aliento del Cazador: con Concentración 100, Disparo Apuntado sale sin carga y gasta 50.
-    // Anfitrión de s11 Respiración Profunda: al llenar la Concentración, +tv.focusEnergy de Energía.
+    // (s11 Respiración Profunda es tv.focusEnergy: la Energía al llenar la da el núcleo)
     f_aliento_cazador: {
       name: 'Aliento del Cazador', desc: 'Con la Concentración al 100 %, Disparo Apuntado sale al instante y gasta 50 de Concentración.',
       modifyResolve(p, sk, prof) {
-        if (sk.id !== 'a_t_apuntado' || !ownOn(p, 'f_aliento_cazador')) return;
+        if (sk.id !== 'a_t_apuntado') return;
         if (focus(p) >= 100 - 1e-6) { prof.windup = 0; prof.aliento = true; }
       },
       // el perfil está cacheado: se corrige con la Concentración de ESTE instante
       onCast(g, p, cast) {
-        if (cast?.sk?.id !== 'a_t_apuntado' || !ownOn(p, 'f_aliento_cazador')) return;
+        if (cast?.sk?.id !== 'a_t_apuntado') return;
         const full = focus(p) >= 100 - 1e-6;
         if (full !== !!cast.prof.aliento) {
           cast.prof.windup = full ? 0 : (cast.sk.windup || 0);
@@ -442,36 +388,14 @@ export function arqueraPowers() {
         if (full) spendGauge(p, 'concentracion', tune().aliento.spend);
       },
       onGauge(g, p, id, ev) {
-        if (id !== 'concentracion' || ev !== 'full') return;
-        if (p.resolved) delete p.resolved.a_t_apuntado;
-        if (picked(p, 'francotiradora', 's11')) {
-          const n = p.tv?.focusEnergy || 0;
-          if (n > 0) g?.gainResource?.(p, n);
-        }
+        if (id === 'concentracion' && ev === 'full' && p.resolved) delete p.resolved.a_t_apuntado;
       },
     },
-    // s8 Posición Elevada: el −3 %/rango (tv.dmgReduc) se DUPLICA con la Concentración > 50.
-    // Anfitrión de s15 Paso del Acechador: moverte vacía un 15 % menos de Concentración.
-    f_perch: {
-      name: 'Posición Elevada', desc: 'Con la Concentración por encima de 50, tu reducción de daño de Posición Elevada se duplica.',
-      priority: -1,                                    // su onTick va DESPUÉS del indicador
-      state: () => ({ lastV: null }),
-      condDr(p) {
-        if (!ownOn(p, 'f_perch')) return 0;
-        if (focus(p) <= tune().perch.over) return 0;
-        const r = nodeRank(p, 'francotiradora', 's8');
-        return tune().perch.drPerRank * (r > 0 ? r : 1);
-      },
-      onTick(g, p, dt) {
-        const st = powerState(p, 'f_perch');
-        const s = gaugeState(p, 'concentracion');
-        if (!s || !picked(p, 'francotiradora', 's15')) { st.lastV = null; return; }
-        if (p.moving && st.lastV != null) {
-          const lost = Math.max(0, Math.min(st.lastV - s.v, tune().acechador.drain * dt));
-          if (lost > 0) s.v = Math.min(gaugeMax(p, 'concentracion'), s.v + lost * tune().acechador.less);
-        }
-        st.lastV = s.v;
-      },
+    // s15 Paso del Acechador: moverte vacía un 15 % menos de Concentración (el +5 %/rango
+    // de movimiento es el stats del nodo)
+    f_acechador: {
+      name: 'Paso del Acechador', desc: 'Moverte vacía un 15 % menos de Concentración.',
+      stats: () => ({ 'gaugeLoss:concentracion': tune().acechador.lossPct }),
     },
     // s13B Paciencia del Depredador: quieta, +2 % de daño por segundo (máx. +20 %)
     f_patience: {
@@ -485,19 +409,21 @@ export function arqueraPowers() {
       },
     },
     // s14 Sobrepenetración: cada enemigo atravesado da +15 % (aditivo) contra el siguiente.
-    // Anfitrión de s6B Herida Abierta: los críticos de Disparo Apuntado sangran un 80 % extra en 6 s.
     f_overpen: {
       name: 'Sobrepenetración', desc: 'Cada enemigo que atraviesa Disparo Apuntado aumenta un 15 % su daño contra el siguiente.',
       // hit = hitInfo del disparo (uno por disparo): cuenta los enemigos ya atravesados
       condAdd(p, e, hit) {
-        if (hit?.skill !== 'a_t_apuntado' || hit.proc || hit.dot || !ownOn(p, 'f_overpen')) return 0;
+        if (hit?.skill !== 'a_t_apuntado' || hit.proc || hit.dot) return 0;
         const n = hit._overpen | 0;
         hit._overpen = n + 1;
         return tune().overpen.perEnemy * n;
       },
+    },
+    // s6B Herida Abierta: los críticos de Disparo Apuntado sangran un 80 % extra en 6 s.
+    f_herida_abierta: {
+      name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 80 % extra en 6 s.',
       onHit(g, p, e, hit) {
         if (hit?.skill !== 'a_t_apuntado' || !hit.crit || hit.proc || hit.dot || !e?.alive) return;
-        if (!picked(p, 'francotiradora', 's6', 'B')) return;
         const T = tune().herida;
         const tv = p.tv || {};
         const total = hit.raw * T.pct / 100 * Math.max(0, 1 + ((tv.dotPct || 0) + (tv.bleedPct || 0)) / 100);
@@ -536,51 +462,77 @@ export function arqueraPowers() {
     },
 
     // ---------------- Montaraz ----------------
-    // s4 Cepo Doble: Trampa de Cepo gana una 2.ª carga (la lee el comportamiento).
-    // Anfitrión de s10 Lazo Corredizo: Flecha Perforante inmoviliza al PRIMER enemigo que toca.
+    // s4 Cepo Doble: Trampa de Cepo gana una 2.ª carga (la lee el comportamiento: trapCharges).
     m_cepo_doble: {
       name: 'Cepo Doble', desc: 'Trampa de Cepo gana una 2.ª carga.',
-      state: () => ({ lazo: false }),
+    },
+    // s10 Lazo Corredizo: Flecha Perforante inmoviliza 0,5 s/rango al PRIMER enemigo que toca.
+    m_lazo: {
+      name: 'Lazo Corredizo', desc: 'Flecha Perforante inmoviliza al primer enemigo que toca.',
+      state: () => ({ armed: false }),
       onCast(g, p, cast) {
-        if (cast?.sk?.id === 'flecha_perforante' && picked(p, 'montaraz', 's10')) powerState(p, 'm_cepo_doble').lazo = true;
+        if (cast?.sk?.id === 'flecha_perforante') powerState(p, 'm_lazo').armed = true;
       },
       onHit(g, p, e, hit) {
         if (hit?.skill !== 'flecha_perforante' || hit.proc || hit.dot) return;
-        const st = powerState(p, 'm_cepo_doble');
-        if (!st.lazo) return;
-        st.lazo = false;
-        const r = picked(p, 'montaraz', 's10');
-        if (r > 0 && e?.alive) e.applyCC?.('root', tune().lazo.rootPerRank * r, { src: p });
+        const st = powerState(p, 'm_lazo');
+        if (!st.armed) return;
+        st.armed = false;
+        const r = Math.max(1, nodeRank(p, 'montaraz', 's10'));
+        if (e?.alive) e.applyCC?.('root', tune().lazo.rootPerRank * r, { src: p });
       },
+    },
+    // s6A Cepo de Hierro: a los jefes los ralentiza un 50 % (el «+1 s» es su mod.rootAdd)
+    m_cepo_hierro: {
+      name: 'Cepo de Hierro', desc: 'Trampa de Cepo ralentiza un 50 % a los jefes.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'a_t_cepo') prof.bossSlowPct = tune().cepo.ironBossSlow; },
+    },
+    // s6B Mina de Espinas: la trampa estalla en 3 m (su mod.radius +100 %) con el 120 % del
+    // arma y no inmoviliza (el coeficiente de la explosión lo pone el comportamiento a_t_cepo)
+    m_mina: {
+      name: 'Mina de Espinas', desc: 'Trampa de Cepo estalla en 3 m con el 120 % del arma, pero no inmoviliza.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'a_t_cepo') prof.mine = true; },
     },
     // s13B Guardabosques: las trampas armadas curan un 3 %/s a los aliados encima (campo a_cepo).
-    // Anfitrión de s8 Pellejo de Oso: su −5 %/rango solo vale contra atacantes ralentizados.
     m_warden: {
       name: 'Guardabosques', desc: 'Tus trampas armadas curan un 3 % de vida por segundo a los aliados que estén encima.',
-      condDr(p, info) {
-        const r = picked(p, 'montaraz', 's8');
-        if (!r) return 0;
-        const src = info?.src;
-        const slowed = !!src && ((src.slowT || 0) > 0 || (src.frozenT || 0) > 0);
-        return slowed ? 0 : -tune().pellejo.drPerRank * r;   // recompute ya sumó el incondicional
-      },
     },
     // s14 Coto Cerrado: 1 trampa armada más (4) y +30 % de radio de activación.
-    // Con s17 Espinas Venenosas (tv.rootedWeak): los inmovilizados reciben +X % (Debilidad) de todo el grupo.
     m_extratrap: {
       name: 'Coto Cerrado', desc: 'Puedes armar 1 trampa más (hasta 4) y su radio de activación crece un 30 %.',
-      stats(p) { return ownOn(p, 'm_extratrap') ? { 'gaugeMax:coto': 1 } : {}; },
-      onTick(g, p) { rootedWeakTick(g, p); },
+      stats: () => ({ 'gaugeMax:coto': 1 }),
+    },
+    // s3 Abrojos: la Lluvia de Flechas deja abrojos (2 s/rango) que ralentizan un 30 %.
+    // La Estela que el núcleo crea por mod.zone daña y no ralentiza: se sustituye por a_abrojos.
+    m_abrojos: {
+      name: 'Abrojos', desc: 'Lluvia de Flechas deja abrojos que ralentizan un 30 %.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'lluvia_flechas' || !cast.target) return;
+        const prof = cast.prof;
+        for (const f of g.fields || [])
+          if (!f.dead && f.kind === 'estela' && f.owner === p && f.data?.skill === 'lluvia_flechas' && f.t > (f.dur || 0) - 0.05) {
+            if (g._expireField) g._expireField(f); else f.t = 0;
+          }
+        g.spawnField?.('a_abrojos', { pos: cast.target.clone ? cast.target.clone() : cast.target, radius: prof.radius || 3,
+          dur: prof.zoneDur || 2, owner: p, data: { slowPct: prof.slowPct || 30 } });
+      },
+    },
+    // s11 Ponzoña Lenta: el Veneno ralentiza un 10 % (el «+1,5 s» es su tv.dotDur)
+    m_ponzona: {
+      name: 'Ponzoña Lenta', desc: 'Tu Veneno ralentiza un 10 %.',
+      procs: true,                                     // reacciona a los tics de Veneno
+      onHit(g, p, e, hit) {
+        if (!hit?.dot || !e?.alive || !/:poison$/.test(hit.source || '')) return;
+        const T = tune().ponzona;
+        e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
+      },
     },
     // x1 Red de Espinas: las trampas armadas a ≤ 10 m se unen; quien cruza la red queda
     // ralentizado un 50 % y sangra. x2 Zarzal (tv.webDmg): X % de tu golpe medio por segundo.
-    // Anfitrión de s3 Abrojos (campo a_abrojos tras la Lluvia) y s11 Ponzoña Lenta (veneno ralentiza 10 %).
     m_thornweb: {
       name: 'Red de Espinas', desc: 'Tus trampas armadas a menos de 10 m se unen con una red de espinas que ralentiza un 50 % y hace sangrar.',
-      procs: true,                                     // Ponzoña Lenta reacciona a los tics de Veneno
       state: () => ({ acc: 0, vfx: 0 }),
       onTick(g, p, dt) {
-        if (!ownOn(p, 'm_thornweb')) return;
         const st = powerState(p, 'm_thornweb');
         const T = tune().web;
         st.acc += dt; st.vfx += dt;
@@ -599,14 +551,14 @@ export function arqueraPowers() {
           for (const [a, b] of segs) g.spawnBeam?.(v3(a.x, a.z, 0.3), v3(b.x, b.z, 0.3), 0x7a9a3a, T.vfx);
         }
         const webDmg = p.tv?.webDmg || 0;
-        const great = ownOn(p, 'm_greathunt');
+        const great = hasPower(p, 'm_greathunt');
         const preyE = gaugeState(p, 'coto')?.prey || null;
         for (const e of g.enemies || []) {
           if (!e.alive) continue;
           const r = T.width + 0.3 * (e.def?.scale || 1);
           if (!segs.some(([a, b]) => segDist2(e.pos.x, e.pos.z, a, b) <= r * r)) continue;
           e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
-          if (!e._dots?.['m_thornweb:bleed']) {
+          if (!g.hasDoT?.(e, 'm_thornweb:bleed')) {
             const d = dotOf(p, 'bleed', p.avgHit(T.bleedCoef) * 0.6, 3);
             g.applyDoT?.(e, d.total, d.ticks, 1, 'txt', 'm_thornweb:bleed');
           }
@@ -617,67 +569,45 @@ export function arqueraPowers() {
           if (great && e.alive && e === preyE && e.prey) greatHunt(g, p, e);
         }
       },
-      afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'lluvia_flechas' || !picked(p, 'montaraz', 's3') || !cast.target) return;
-        const prof = cast.prof;
-        // la Estela que el núcleo creó por mod.zone (daña, no ralentiza) se sustituye por los Abrojos
-        for (const f of g.fields || [])
-          if (!f.dead && f.kind === 'estela' && f.owner === p && f.data?.skill === 'lluvia_flechas' && f.t > (f.dur || 0) - 0.05) {
-            if (g._expireField) g._expireField(f); else f.t = 0;
-          }
-        g.spawnField?.('a_abrojos', { pos: cast.target.clone ? cast.target.clone() : cast.target, radius: prof.radius || 3,
-          dur: prof.zoneDur || 2, owner: p, data: { slowPct: prof.slowPct || 30 } });
-      },
-      onHit(g, p, e, hit) {
-        if (!hit?.dot || !e?.alive || !/:poison$/.test(hit.source || '') || !picked(p, 'montaraz', 's11')) return;
-        const T = tune().ponzona;
-        e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
-      },
     },
     // x3 Gran Cacería: si la Presa queda atrapada en la red, todas las trampas se rearman y el
     // grupo gana +15 % de daño 6 s (una vez por Presa; lo dispara m_thornweb).
-    // Anfitrión de s15 Cazadora Paciente: su +10 %/rango (tv.eliteDmg) solo contra la Presa.
     m_greathunt: {
       name: 'Gran Cacería', desc: 'Si tu Presa queda atrapada en la red, todas las trampas se rearman y el grupo gana +15 % de daño durante 6 s.',
-      onTick(g, p) { rootedWeakTick(g, p); },          // s17 (ver m_extratrap)
-      condAdd(p, e) {
-        const r = picked(p, 'montaraz', 's15');
-        if (!r || !e || !isEliteish(e) || e.prey) return 0;
-        return -tune().presa.perRank * r;              // eliteDmg ya lo sumó contra cualquier élite
-      },
     },
 
     // ---------------- Tiradora Veloz ----------------
     // s4 Andanada Impulsiva: Andanada da 20 de Impulso.
-    // Anfitrión de s6B Corona de Flechas: Flecha Múltiple sale en 360°.
     t_andanada_impulsiva: {
       name: 'Andanada Impulsiva', desc: 'Andanada te da 20 de Impulso.',
-      priority: -10,                                   // modifyResolve: después de sumar proyectiles
       onCast(g, p, cast) {
-        if (cast?.sk?.id === 'a_t_andanada' && ownOn(p, 't_andanada_impulsiva')) gainGauge(p, 'impulso', tune().andanada.impulso);
+        if (cast?.sk?.id === 'a_t_andanada') gainGauge(p, 'impulso', tune().andanada.impulso);
       },
+    },
+    // s6B Corona de Flechas: Flecha Múltiple sale en 360° (las +4 flechas y el −30 % son su mod)
+    t_corona: {
+      name: 'Corona de Flechas', desc: 'Flecha Múltiple sale en 360°.',
+      priority: -10,                                   // modifyResolve: después de sumar proyectiles
       modifyResolve(p, sk, prof) {
-        if (sk.id !== 'flecha_multiple' || !picked(p, 'tiradora', 's6', 'B')) return;
+        if (sk.id !== 'flecha_multiple') return;
         const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
         prof.spread = Math.PI * (n - 1) / n;            // n flechas repartidas en la vuelta entera
       },
     },
+    // s5 Viento de Cola: +5 %/rango de vel. de ataque mientras dura Agilidad (el +1 s/rango
+    // es su mod.agilidad.durS)
+    t_viento_cola: {
+      name: 'Viento de Cola', desc: 'Mientras dura Agilidad, ganas +5 % de velocidad de ataque por rango.',
+      stats(p) {
+        if (!p.buffs?.some(b => b.id === 'agilidad')) return {};
+        return { aspdPct: tune().vientoCola.aspdPerRank * Math.max(1, nodeRank(p, 'tiradora', 's5')) };
+      },
+    },
     // s13B Estela de Viento: durante el Vendaval dejas una estela que acelera un 15 % a los aliados.
-    // Anfitrión de s5 Viento de Cola (+5 %/rango de vel. de ataque con Agilidad) y de s8 Esquiva
-    // Felina (su −4 %/rango solo mientras te mueves).
     t_slipstream: {
       name: 'Estela de Viento', desc: 'Durante el Vendaval dejas una estela que acelera un 15 % a los aliados.',
       state: () => ({ acc: 9 }),
-      stats(p) {
-        const r = picked(p, 'tiradora', 's5');
-        return r && p.buffs?.some(b => b.id === 'agilidad') ? { aspdPct: tune().vientoCola.aspdPerRank * r } : {};
-      },
-      condDr(p) {
-        const r = picked(p, 'tiradora', 's8');
-        return r && !p.moving ? -tune().esquiva.drPerRank * r : 0;
-      },
       onTick(g, p, dt) {
-        if (!ownOn(p, 't_slipstream')) return;
         const st = powerState(p, 't_slipstream');
         const T = tune().slip;
         st.acc += dt;
@@ -688,22 +618,14 @@ export function arqueraPowers() {
       },
     },
     // s14 Vendaval Perpetuo: durante el Vendaval cada muerte lo alarga 0,5 s (hasta +6 s).
-    // Anfitrión de s11 Segundo Aliento: al llenar el Impulso, +X % de vida y +10/rango de Energía.
+    // (s11 Segundo Aliento es tv.galeHeal + tv.galeEnergy: lo aplica el núcleo al llenar el Impulso)
     t_galechain: {
       name: 'Vendaval Perpetuo', desc: 'Durante el Vendaval, cada enemigo abatido alarga su duración 0,5 s (hasta +6 s).',
       state: () => ({ ext: 0 }),
       onGauge(g, p, id, ev) {
-        if (id !== 'impulso' || ev !== 'full') return;
-        powerState(p, 't_galechain').ext = 0;
-        const r = picked(p, 'tiradora', 's11');
-        if (r) {
-          const pct = p.tv?.galeHeal || 0;
-          if (pct > 0) g?.heal?.(p.stats.maxHP * pct / 100, { target: 'self', src: 't_segundo_aliento' });
-          g?.gainResource?.(p, tune().segundo.energyPerRank * r);
-        }
+        if (id === 'impulso' && ev === 'full') powerState(p, 't_galechain').ext = 0;
       },
       onKill(g, p) {
-        if (!ownOn(p, 't_galechain')) return;
         const gs = gaugeState(p, 'impulso');
         const st = powerState(p, 't_galechain');
         const T = tune().galechain;
@@ -720,7 +642,7 @@ export function arqueraPowers() {
     t_infinite: {
       name: 'Ráfaga Infinita', desc: 'Cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles.',
       priority: -5,                                    // después de multidisparo/Vendaval, antes de la Corona
-      state: () => ({ shots: 0, ready: false, basicAt: null }),
+      state: () => ({ shots: 0, ready: false }),
       modifyResolve(p, sk, prof) {
         const st = powerState(p, 't_infinite');
         if (!st.ready || !prof.tags?.has?.('proj')) return;
@@ -730,13 +652,11 @@ export function arqueraPowers() {
         prof.addPct = (prof.addPct || 0) + (p.tv?.infiniteDmg || 0);
         prof.infinite = true;
       },
-      onCast(g, p, cast) { if (cast?.prof?.tags?.has?.('proj')) infiniteShot(g, p, !!cast.prof.infinite); },
-      // el básico de arma no pasa por ⑦: se detecta por p.basicAt
-      onTick(g, p) {
-        const st = powerState(p, 't_infinite');
-        if (p.basicAt == null || p.basicAt === st.basicAt) return;
-        st.basicAt = p.basicAt;
-        infiniteShot(g, p, st.ready);
+      // ⑦ las habilidades de proyectil y el básico de ARMA (cast.weapon: cuenta siempre y,
+      // si la Ráfaga está lista, ese disparo la consume, como en 2c.1)
+      onCast(g, p, cast) {
+        if (cast?.weapon) infiniteShot(g, p, powerState(p, 't_infinite').ready);
+        else if (cast?.prof?.tags?.has?.('proj')) infiniteShot(g, p, !!cast.prof.infinite);
       },
     },
     // x3 Ojo del Huracán: durante el Vendaval, Ráfaga Infinita cada 5 disparos (la lee t_infinite)
@@ -752,17 +672,15 @@ export function arqueraPowers() {
 export function arqueraSkillBehaviors() {
   return {
     // c2 Voltereta: ruedas 6 m hacia atrás; el próximo disparo no cuesta Energía (se devuelve
-    // lo que gaste, ventana de 10 s). Cuero Curtido (c7): su reducción de daño se duplica 2 s.
+    // lo que gaste, ventana de 10 s). Cuero Curtido (c7, tv.drAfterRoll): su reducción de daño
+    // se duplica 2 s (buff dr = tv.drAfterRoll; el incondicional es su tv.dmgReduc).
     a_t_voltereta: {
       name: 'Voltereta',
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
         const dest = backDest(g, p, cast.target, prof.range || sk.range || 6);
-        const r7 = nodeRank(p, 'cls', 'c7');
-        if (r7 > 0) {
-          const T = tune().cuero;
-          p.addBuff('a_cuero_curtido', { dr: T.drPerRank * r7 }, T.dur, { name: 'Cuero Curtido', icon: '🛡️', desc: `−${T.drPerRank * r7}% de daño recibido` });
-        }
+        const roll = p.tv?.drAfterRoll || 0;
+        if (roll > 0) p.addBuff('a_cuero_curtido', { dr: roll }, tune().cuero.dur, { name: 'Cuero Curtido', icon: '🛡️', desc: `−${roll}% de daño recibido` });
         const st = powerState(p, 'a_t_voltereta');
         st.until = now(p) + tune().freeShot.window;
         st.lastMp = p.mp;
@@ -817,30 +735,19 @@ export function arqueraSkillBehaviors() {
         return ctx.res;
       },
     },
-    // c12B Camuflaje: invisible 4 s (los enemigos pierden el objetivo); el primer disparo al
-    // salir es crítico seguro (lo marca a_tailwind.condCrit; disparar también rompe el camuflaje)
+    // c12B Camuflaje: invisible 4 s DE VERDAD (p.goInvisible: los enemigos pierden el objetivo
+    // y no adquieren uno nuevo). El crítico del primer ataque (desde la invisibilidad o al
+    // salir) lo pone el poder a_camuflaje por ⑦ onCast; aquí solo se marca el estado.
     a_t_camuflaje: {
       name: 'Camuflaje',
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
         const dur = prof.dur || sk.dur || 4;
-        const st = powerState(p, 'a_t_camuflaje');
-        if (st.ghost) st.ghost.alive = false;
-        const ghost = { pos: p.pos.clone().setY(0), alive: true, ghost: true, takeDamage() { return 0; }, applySlow() { return false; } };
-        st.ghost = ghost;
-        st.until = now(p) + dur;
+        p.goInvisible(dur);
+        const st = powerState(p, 'a_camuflaje');
+        st.active = true;
         st.crit = false;
-        st.critHit = null;
-        const id = st.id = (st.id || 0) + 1;
         p.addBuff(sk.id, {}, dur, { name: sk.name, icon: sk.icon, desc: 'Invisible: los enemigos te pierden; tu primer disparo será crítico' });
-        loseTarget(g, p, ghost);
-        const pulse = () => {
-          if (st.id !== id) return;
-          if (now(p) >= st.until) { if (st.until > 0) endCamo(p, st, true); return; }
-          loseTarget(g, p, ghost);
-          g.timers.schedule(tune().camo.pulse, pulse);
-        };
-        g.timers.schedule(tune().camo.pulse, pulse);
         if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, p.pos.clone().setY(1.0));
         return ctx.res;
       },
@@ -867,16 +774,16 @@ export function arqueraSkillBehaviors() {
       },
     },
     // F s9 Visión Certera: 12 s de +25 % de vel. de ataque; moverte no vacía la Concentración
-    // y Disparo Apuntado se recarga un 50 % más rápido (planificador, cada tick)
+    // (su buff lleva 'gaugeLoss:concentracion' −100) y Disparo Apuntado se recarga un 50 % más
+    // rápido (planificador, cada tick)
     a_t_vision: {
       name: 'Visión Certera',
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
         const dur = prof.dur || sk.dur || 12;
-        p.addBuff(sk.id, { ...prof.buff }, dur, { name: sk.name, icon: sk.icon, desc: sk.desc });
+        p.addBuff(sk.id, { ...prof.buff, 'gaugeLoss:concentracion': tune().vision.lossPct }, dur, { name: sk.name, icon: sk.icon, desc: sk.desc });
         const st = powerState(p, 'a_t_vision');
         st.until = now(p) + dur;
-        st.keep = gaugeState(p, 'concentracion')?.v || 0;
         let last = g.timers.now;
         const id = st.id = (st.id || 0) + 1;
         const faster = (sk.aimedCdr || 50) / 100;
@@ -884,13 +791,6 @@ export function arqueraSkillBehaviors() {
           if (st.id !== id || !p.alive || now(p) >= st.until) return;
           const dt = Math.max(0, g.timers.now - last); last = g.timers.now;
           if ((p.cds?.a_t_apuntado || 0) > 0) p.cds.a_t_apuntado = Math.max(0, p.cds.a_t_apuntado - dt * faster);
-          const s = gaugeState(p, 'concentracion');
-          if (s) {
-            // solo se devuelve la PÉRDIDA por moverte (≤ 25/s); un gasto (Aliento: 50) se queda
-            const lost = st.keep - s.v;
-            if (p.moving && lost > 0 && lost <= tune().acechador.drain * Math.max(dt, 0.1) * 1.5 + 0.05) s.v = st.keep;   // el indicador pierde a 10 Hz
-            else st.keep = s.v;
-          }
           g.timers.schedule(tune().frame, tick);
         };
         g.timers.schedule(tune().frame, tick);
@@ -925,8 +825,9 @@ export function arqueraSkillBehaviors() {
       },
     },
     // M s0 Trampa de Cepo: cargas (1, 2 con Cepo Doble; 8 s por carga), hasta 3 armadas
-    // (4 con Coto Cerrado, +30 % de radio). Inmoviliza 2 s (+1 Cepo de Hierro, +0,5/rango
-    // Raíces Profundas) y envenena 150 % en 5 s. Mina de Espinas: estalla 120 % en 3 m, sin inmovilizar.
+    // (4 con Coto Cerrado, +30 % de radio). Inmoviliza prof.root (2 s + los mod.rootAdd de
+    // Cepo de Hierro y Raíces Profundas) y envenena 150 % en 5 s. prof.bossSlowPct (Cepo de
+    // Hierro): ralentiza a los jefes. prof.mine (Mina de Espinas): estalla 120 % en 3 m, sin inmovilizar.
     a_t_cepo: {
       name: 'Trampa de Cepo',
       cast(g, p, prof, cast) {
@@ -947,21 +848,17 @@ export function arqueraSkillBehaviors() {
           const old = armed.shift();
           if (g._expireField) g._expireField(old); else old.t = 0;
         }
-        const mine = picked(p, 'montaraz', 's6', 'B') > 0;
-        const iron = picked(p, 'montaraz', 's6', 'A') > 0;
+        const mine = !!prof.mine;
         const baseMul = mine ? Math.max(0.2, (prof.radiusMul || 2) - 1) : (prof.radiusMul || 1);   // Mina: radius +100 = solo la explosión
         const trigR = (sk.radius || 1.5) * baseMul * (extraTrap(p) ? 1 + T.extraR : 1);
-        const root = ((sk.root || 2) + (iron ? T.ironRoot : 0) + T.deepRootPerRank * nodeRank(p, 'montaraz', 's16')) * (prof.durMul || 1);
-        // Mina: su mod.dmg +120 (fijado por test65a) es el «120 % de daño» de la explosión, no un
-        // bono aditivo: se descuenta del veneno y de la explosión
-        const add = prof.addPct - (mine ? T.mineAdd : 0);
-        const poison = dotOf(p, 'poison', mine ? p.avgHit(prof.coef, add) : ctx.avgHit, sk.dotDur || T.poisonDur);
+        const root = (prof.root || sk.root || 2) * (prof.durMul || 1);
+        const poison = dotOf(p, 'poison', ctx.avgHit, sk.dotDur || T.poisonDur);
         const at = (cast.target || p.pos).clone(); at.y = 0;
         const color = ctx.color || sk.color || 0x86d47a;
         g.spawnField?.('a_cepo', { pos: at, radius: trigR, dur: sk.armT || 30, owner: p,
-          data: { trap: true, skill: sk.id, color, root, mine, bossSlow: iron ? 50 : 0, poison,
+          data: { trap: true, skill: sk.id, color, root, mine, bossSlow: prof.bossSlowPct || 0, poison,
             blastR: prof.radius || 3, blastCoef: T.mineCoef * rankCoef(prof.rank),
-            areaOpts: { addPct: add, critBonus: prof.critBonus, color, hitInfo: ctx.hitInfo } } });
+            areaOpts: { addPct: prof.addPct, critBonus: prof.critBonus, color, hitInfo: ctx.hitInfo } } });
         p.faceToward?.(at);
         if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, at.clone().setY(0.3));
         g.spawnRing?.(at, trigR, color);
@@ -1094,13 +991,9 @@ function buildFields() {
         const step = f.acc; f.acc = 0;
         const p = f.owner;
         if (!p || !wardenOn(p)) return;
-        const at = v3(f.pos.x, f.pos.z);
-        for (const a of g.allies ? g.allies(at, f.radius) : []) {
-          const n = (a.stats?.maxHP || 0) * T.pctPerSec / 100 * step;
-          if (!(n > 0)) continue;
-          if (a === g.player) g.heal?.(n, { target: 'self', src: 'm_warden' });
-          else a.healSkill?.(n, 'm_warden');
-        }
+        // 3 %/s de la vida de CADA aliado encima de la trampa (curación de habilidad)
+        g.heal?.(a => (a.stats?.maxHP || 0) * T.pctPerSec / 100 * step,
+          { target: 'all', pos: v3(f.pos.x, f.pos.z), radius: f.radius, src: 'm_warden' });
       },
       render(g, f) {
         const d = groundDecal(g, f, { inner: 0.55, opacity: 0.55, color: f.data.color });

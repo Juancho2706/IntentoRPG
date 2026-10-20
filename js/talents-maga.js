@@ -35,20 +35,27 @@
 //    a_chain_crit (solo el primer crítico de cada Rayo).
 //  · m_t_bloque: «cancelable» = la ESQUIVA rompe el hielo (volver a pulsar no llega al
 //    comportamiento: la ranura está en enfriamiento); texto actualizado.
-//  · m_t_inversion: el texto avisa de que necesita historial (lo graba el primer lanzamiento
-//    de una activa de talento: ver cabecera de powers-maga.js).
-//  · Las claves tv sin consumidor en el núcleo las consumen poderes que ya tiene la rama:
-//    p_ignicion (s5, s8, s12, s15, s16, x2 de la Piromante), k_eternal_winter (x2 fieldVuln),
-//    a_clarity / a_arc_charge, el comportamiento de m_t_barrera (c7 barrierDr).
-//  · Crionte s15 (Mente Gélida) lleva `power: 'k_shatter_chain'` y s16 (Nova Perpetua)
-//    `power: 'k_eternal_winter'`: no tienen id propio en §5.3 (test65a solo admite esos) y
-//    sin poder su efecto dependía de que hubiera OTRO poder de Crionte activo (nodo trampa
-//    por la ruta s1→s3→s6A→s9→s12→s15). Son los poderes de su mismo efecto (astillamientos /
-//    suelo helado de la Nova) y cada efecto lo enciende SU nodo: la cadena de capas solo
-//    con s14, el maná solo con tv.manaOnKill (s15), el campo de 6 s solo con x1 y el
-//    ralentizar de la Estela solo con la Estela de la Nova (que solo crea s16).
-//  · Arcanista s8 (Piel de Maná): el núcleo suma tv.dmgReduc sin condición; a_manaskin lo
-//    resta con el maná ≤ 50 % (pedido al núcleo: dmgReduc condicional).
+//
+// Paso 2c.2 — SIN PORTADORES (un poder por nodo; el resto, claves tv del núcleo):
+//  · Piromante: s5 burningCrit · s8 burnKillHeal · s12 critFireCdr · s15 burnKillMana ·
+//    x2 explodedDmg los consume el núcleo (combat-math / nucleo_tv); s16 supernovaBurn lo
+//    lee la Supernova (js/skills-maga.js); s9 Combustión lleva su poder p_combustion
+//    (además de la activa) y p_ignicion (s0) solo aplica la Quemadura.
+//  · Crionte: s15 Mente Gélida = tv.manaOnKill (núcleo, sin poder) · s16 Nova Perpetua =
+//    mod nova_hielo { zone } (la Estela de una Nova que ralentiza también ralentiza: núcleo).
+//    k_shatter_chain queda solo en s14 y k_eternal_winter solo en x1.
+//  · Arcanista: s8 Piel de Maná = tv.drHighMana (reducción condicional del núcleo; fuera
+//    a_manaskin y el tv.dmgReduc incondicional).
+//  · Clase: c7 barrierDr lo aplica g.shield(…, { dr }) de la Barrera; m_t_inversion graba
+//    su historial desde que conoces la activa (passiveTick).
+// RECALIBRACIÓN 2c.2 (banco, típico Nv50 Piromante: jefe 44,4 → 55,9 s; la Maga carga con
+// la media de jefe Nv50 porque el Guerrero no puede bajar más sin pasar el óptimo/típico ×15).
+// Texto y valor cambian JUNTOS (ningún poder por debajo de su texto):
+//  · s7 Pira: charco de 1,5 s/rango → 0,4 s/rango (era el nodo más fuerte: −14,9 % de DPS).
+//  · s1 Llama Viva: +5 %/rango de Fuego → +3 %/rango.
+//  · s16 Supernova Abrasadora: +50 %/rango de Quemadura → +30 %/rango.
+//  · x1 Corazón del Sol: explosión del 40 % → 30 % del total de la Quemadura (powers-maga.js).
+//  · x2 Sol Naciente: +15 %/rango → +5 %/rango contra los que ya estallaron.
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple
@@ -72,7 +79,7 @@ export const MAGA_TALENT_SKILLS = [
     desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.' },
   { id: 'm_t_inversion', name: 'Inversión del Tiempo', icon: '⏳', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane',
     behavior: 'm_t_inversion', req: 10, cd: 60, rewind: 5, color: 0xd7c2ff,
-    desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo empieza a grabarse con tu primera activa de talento). Enfriamiento 60 s.' },
+    desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo se graba desde que conoces esta activa). Enfriamiento 60 s.' },
   { id: 'm_t_bloque', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost',
     behavior: 'm_t_bloque', req: 10, cd: 90, dur: 4, color: 0x9fe3ff,
     desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s.' },
@@ -150,7 +157,7 @@ export const MAGA_TALENTS = {
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 3], ['c5', 1, 'A'], ['c6', 2], ['c8', 2], ['c10', 3], ['c13', 2]],
       nodes: [
         { id: 's0', name: 'Ignición', icon: 'talents/maga-piromante-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): tus golpes de Fuego aplican Quemadura, el 60% del golpe en 4 s, y generan Calor. Otorga la activa Llamarada: un cono de fuego de 7 m que detona las Quemaduras y hace el 60% de su daño restante al instante.', fx: { power: 'p_ignicion', grant: 'p_llamarada' } },
-        { id: 's1', name: 'Llama Viva', icon: 'talents/maga-piromante-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(5, r)}% de daño de Fuego.`, fx: { elem: { fire: 5 } } },
+        { id: 's1', name: 'Llama Viva', icon: 'talents/maga-piromante-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(3, r)}% de daño de Fuego.`, fx: { elem: { fire: 3 } } },
         { id: 's2', name: 'Combustión Rápida', icon: 'talents/maga-piromante-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `−${x(10, r)}% de enfriamiento de Bola de Fuego.`, fx: { mod: { bola_fuego: { cdr: 10 } } } },
         { id: 's3', name: 'Brasas', icon: 'talents/maga-piromante-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `La Quemadura dura +${x(1, r)} s.`, fx: { tv: { burnDur: 1 } } },
         { id: 's4', name: 'Llamarada Avivada', icon: 'talents/maga-piromante-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Llamarada detona el 100% (en vez del 60%) del daño restante de las Quemaduras y te da 25 de Calor.', fx: { power: 'p_llamarada_avivada' } },
@@ -158,9 +165,9 @@ export const MAGA_TALENTS = {
         { id: 's6', name: 'Propagación o Concentración', icon: 'talents/maga-piromante-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
           { k: 'A', name: 'Propagación', desc: 'Si muere un enemigo en llamas, su Quemadura salta a 2 enemigos cercanos.', fx: { power: 'p_propagacion' } },
           { k: 'B', name: 'Concentración', desc: 'La Quemadura se acumula hasta 3 veces sobre el mismo objetivo. Mejor contra jefes.', fx: { power: 'p_acumular' } } ] },
-        { id: 's7', name: 'Pira', icon: 'talents/maga-piromante-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `Meteoro deja un charco de fuego durante ${x(1.5, r)} s.`, fx: { mod: { meteoro: { zone: 1, zoneDur: 1.5 } } } },
+        { id: 's7', name: 'Pira', icon: 'talents/maga-piromante-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `Meteoro deja un charco de fuego durante ${x(0.4, r)} s.`, fx: { mod: { meteoro: { zone: 1, zoneDur: 0.4 } } } },
         { id: 's8', name: 'Fuego Interior', icon: 'talents/maga-piromante-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Matar a un enemigo en llamas te cura un ${x(2, r)}% de vida.`, fx: { tv: { burnKillHeal: 2 } } },
-        { id: 's9', name: 'Combustión', icon: 'talents/maga-piromante-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 10 s tus hechizos de Fuego son siempre críticos y el Calor se duplica. Enfriamiento 90 s.', fx: { grant: 'p_combustion' } },
+        { id: 's9', name: 'Combustión', icon: 'talents/maga-piromante-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 10 s tus hechizos de Fuego son siempre críticos y el Calor se duplica. Enfriamiento 90 s.', fx: { grant: 'p_combustion', power: 'p_combustion' } },
         { id: 's10', name: 'Ceniza Ardiente', icon: 'talents/maga-piromante-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(10, r)}% de daño de Meteoro y Supernova.`, fx: { mod: { meteoro: { dmg: 10 }, m_u_supernova: { dmg: 10 } } } },
         { id: 's11', name: 'Llama Persistente', icon: 'talents/maga-piromante-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(15, r)}% de daño de Quemadura.`, fx: { tv: { burnPct: 15 } } },
         { id: 's12', name: 'Pirotecnia', icon: 'talents/maga-piromante-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `Cada crítico reduce ${x(0.5, r)} s los enfriamientos de Fuego.`, fx: { tv: { critFireCdr: 0.5 } } },
@@ -169,10 +176,10 @@ export const MAGA_TALENTS = {
           { k: 'B', name: 'Muro de Fuego', desc: 'Activa: levanta una línea de fuego que quema y bloquea el paso 5 s.', active: true, fx: { grant: 'p_muro_fuego' } } ] },
         { id: 's14', name: 'Conflagración', icon: 'talents/maga-piromante-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Al matar, una explosión de fuego daña la zona con el 70% de tu daño.', fx: { power: 'm_conflag' } },
         { id: 's15', name: 'Combustible', icon: 'talents/maga-piromante-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)} de maná por cada enemigo en llamas que muere.`, fx: { tv: { burnKillMana: 3 } } },
-        { id: 's16', name: 'Supernova Abrasadora', icon: 'talents/maga-piromante-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `Supernova aplica una Quemadura un ${x(50, r)}% más fuerte.`, fx: { tv: { supernovaBurn: 50 } } },
+        { id: 's16', name: 'Supernova Abrasadora', icon: 'talents/maga-piromante-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `Supernova aplica una Quemadura un ${x(30, r)}% más fuerte.`, fx: { tv: { supernovaBurn: 30 } } },
         { id: 's17', name: 'Ola de Calor', icon: 'talents/maga-piromante-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(20, r)}% de radio de las habilidades de Fuego.`, fx: { mod: { '@fire': { radius: 20 } } } },
-        { id: 'x1', name: 'Corazón del Sol', icon: 'talents/maga-piromante-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: cuando una Quemadura termina, explota en área con el 40% de su daño total.', fx: { power: 'p_corazon_sol' } },
-        { id: 'x2', name: 'Sol Naciente', icon: 'talents/maga-piromante-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: +${x(15, r)}% de daño de Fuego contra enemigos que ya estallaron.`, fx: { tv: { explodedDmg: 15 } } },
+        { id: 'x1', name: 'Corazón del Sol', icon: 'talents/maga-piromante-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: cuando una Quemadura termina, explota en área con el 30% de su daño total.', fx: { power: 'p_corazon_sol' } },
+        { id: 'x2', name: 'Sol Naciente', icon: 'talents/maga-piromante-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: +${x(5, r)}% de daño de Fuego contra enemigos que ya estallaron.`, fx: { tv: { explodedDmg: 5 } } },
         { id: 'x3', name: 'Nova Solar', icon: 'talents/maga-piromante-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): cada 20 explosiones, Supernova se lanza sola y gratis.', fx: { power: 'p_nova_solar' } },
       ],
       preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s6', 1, 'A'], ['s7', 2], ['s9', 1], ['s11', 2], ['s14', 1], ['s17', 2], ['s16', 2], ['x1', 1], ['x2', 1]],
@@ -203,8 +210,8 @@ export const MAGA_TALENTS = {
           { k: 'A', name: 'Tumba Glacial', desc: 'Los enemigos que mueren Congelados dejan un bloque de hielo que corta el paso 4 s.', fx: { power: 'k_ice_tomb' } },
           { k: 'B', name: 'Aliento Boreal', desc: 'Activa: un cono helado de 6 m que empuja 4 m y suma 3 capas. Enfriamiento 12 s.', active: true, fx: { grant: 'k_aliento' } } ] },
         { id: 's14', name: 'Reacción Glacial', icon: 'talents/maga-crionte-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Cada astillamiento suma 2 capas a los enemigos en 4 m: la congelación salta de uno a otro.', fx: { power: 'k_shatter_chain' } },
-        { id: 's15', name: 'Mente Gélida', icon: 'talents/maga-crionte-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)} de maná por cada enemigo astillado o abatido.`, fx: { tv: { manaOnKill: 3 }, power: 'k_shatter_chain' } },
-        { id: 's16', name: 'Nova Perpetua', icon: 'talents/maga-crionte-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `Nova de Hielo deja suelo helado 4 s que daña y ralentiza; +${x(15, r)}% de su daño.`, fx: { mod: { nova_hielo: { zone: 1, dmg: 15 } }, power: 'k_eternal_winter' } },
+        { id: 's15', name: 'Mente Gélida', icon: 'talents/maga-crionte-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)} de maná por cada enemigo astillado o abatido.`, fx: { tv: { manaOnKill: 3 } } },
+        { id: 's16', name: 'Nova Perpetua', icon: 'talents/maga-crionte-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `Nova de Hielo deja suelo helado 4 s que daña y ralentiza; +${x(15, r)}% de su daño.`, fx: { mod: { nova_hielo: { zone: 1, dmg: 15 } } } },
         { id: 's17', name: 'Frío Implacable', icon: 'talents/maga-crionte-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(8, r)}% de daño contra élites y jefes; los Ateridos atacan un 15% más lento.`, fx: { tv: { eliteDmg: 8 }, power: 'k_numb' } },
         { id: 'x1', name: 'Invierno Eterno', icon: 'talents/maga-crionte-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50%.', fx: { power: 'k_eternal_winter' } },
         { id: 'x2', name: 'Glaciación', icon: 'talents/maga-crionte-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: los enemigos dentro del campo helado reciben +${x(8, r)}% de daño de todo tu grupo.`, fx: { tv: { fieldVuln: 8 } } },
@@ -229,7 +236,7 @@ export const MAGA_TALENTS = {
           { k: 'A', name: 'Misiles Arcanos', desc: 'Activa: canalizas 2 s seis misiles sobre un objetivo; cada uno devuelve 1% de maná. Foco total.', active: true, fx: { grant: 'a_misiles' } },
           { k: 'B', name: 'Arco Voltaico', desc: 'Dardo Arcano rebota a 2 enemigos con −10% de daño. Más limpieza de oleadas, menos foco.', fx: { mod: { m_dardo: { chain: 2, dmg: -10 } } } } ] },
         { id: 's7', name: 'Gravedad del Orbe', icon: 'talents/maga-arcanista-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `Orbe Arcano: −${x(12, r)}% de enfriamiento y +${x(15, r)}% de daño.`, fx: { mod: { a_orbe: { cdr: 12, dmg: 15 } } } },
-        { id: 's8', name: 'Piel de Maná', icon: 'talents/maga-arcanista-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Con más del 50% de maná, −${x(5, r)}% de daño recibido.`, fx: { tv: { dmgReduc: 5 }, power: 'a_manaskin' } },
+        { id: 's8', name: 'Piel de Maná', icon: 'talents/maga-arcanista-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Con más del 50% de maná, −${x(5, r)}% de daño recibido.`, fx: { tv: { drHighMana: 5 } } },
         { id: 's9', name: 'Sello del Archimago', icon: 'talents/maga-arcanista-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: marca a un objetivo 8 s y te da 4 Cargas. Guarda el 25% del daño que le haces y al expirar estalla con todo. Enfriamiento 45 s.', fx: { grant: 'a_sello' } },
         { id: 's10', name: 'Alto Voltaje', icon: 'talents/maga-arcanista-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(10, r)}% de daño de Rayo.`, fx: { mod: { rayo: { dmg: 10 } } } },
         { id: 's11', name: 'Claridad', icon: 'talents/maga-arcanista-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `Descargar 4 Cargas tiene un ${x(15, r)}% de probabilidad de dejar gratis tu siguiente Rayo.`, fx: { power: 'a_clarity', tv: { clarityPct: 15 } } },

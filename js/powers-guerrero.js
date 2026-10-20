@@ -34,9 +34,9 @@
 // g.forceTarget(e, p, t) / g.addThreat(e, p, n). Aliados: g.allies(pos, r).
 //
 // ------------------------------------------------------------
-// LO QUE HAY AQUÍ (2c.1)
+// LO QUE HAY AQUÍ (2c.1 + 2c.2)
 // ------------------------------------------------------------
-// · 26 poderes de los árboles (clase, Berserker, Guardián, Cruzado) — tabla abajo.
+// · 29 poderes de los árboles (clase, Berserker, Guardián, Cruzado), uno por nodo.
 // · 11 comportamientos de activas de talento: Segundo Aliento, Intervención, Bramido,
 //   Remolino Sangriento, Temeridad, Ira Ciega, Grito Desafiante, Muro de Escudos,
 //   Carga de Escudo, Aura de Devoción y Veredicto Final (Martillo de Justicia usa el
@@ -44,31 +44,33 @@
 // · 3 campos de suelo: g_devocion (aura que te sigue), g_consagracion (suelo sagrado
 //   que cura) y g_martillos (martillos orbitales del Martillo Bendito).
 // · Indicadores (spec-mechanics): Sed (Remolino Sediento +4/enemigo, Instinto Asesino
-//   +2/crítico, Temeridad ×2, Negación la llena, Desenfreno al llenarse, Carnicero
-//   +15·r por remate), Bastión (Desafío Firme +2, Martillo Pesado +1, Muro de Escudos
-//   las gasta, Muralla Viva −2·r % por carga, Bastión Eterno con 5) y Fervor (Devoción
-//   Ferviente +1, Fervor Creciente, Veredicto gasta 3, Luz del Alba alarga el Aura,
-//   Ascensión no gasta).
+//   +2/crítico, Temeridad ×2 por stat 'gaugeGain:sed', Negación la llena, Desenfreno al
+//   llenarse, Carnicero +15·r por remate), Bastión (Desafío Firme +2, Martillo Pesado +1,
+//   Muro de Escudos las gasta, Muralla Viva −2·r % por carga, Bastión Eterno con 5) y
+//   Fervor (Devoción Ferviente +1, Fervor Creciente del núcleo, Veredicto gasta 3, Luz
+//   del Alba alarga el Aura, Ascensión no gasta).
 //
-// PODERES «PORTADORES» (rodeo local, ver «pedido al núcleo» en la entrega): varios nodos
-// del mockup solo traen claves `tv` que el núcleo aún NO consume (killHeal, manaOnKill,
-// executePct, fervorChance) o un texto sin `power` (Instinto Asesino «+2 Sed por
-// crítico», Martillo Pesado «+1 Bastión si golpea a 3 o más», Temeridad «Sed ×2 y +10 %
-// de daño recibido», Consagración «cura aliados»). test65a solo admite los ids de poder
-// de §5.3 (+ POWERS_EXTRA), así que esos nodos llevan como `power` el de un nodo de su
-// MISMO árbol (el poder es un Set: si coinciden, cuenta una vez) y ese poder:
-//   - consume las claves tv sin condición extra (solo existen si el nodo está), y
-//   - activa su efecto PROPIO y el de los nodos sin tv según el RANGO REAL del nodo
-//     (rk(p, id) = p.talents.sp[spec][id]) o la opción elegida (chose).
-//   Berserker → g_carnicero (x2) en s5, s8, s9, s15, x1
-//   Guardián  → g_desafio_firme (s4) en s7, s8
-//   Cruzado   → g_luz_sanadora (s8) en s6A, s12
+// PASO 2c.2 — sin portadores: cada nodo con efecto propio lleva SU poder o una clave tv
+// que consume el núcleo (poder común nucleo_tv / combat-math / spec-mechanics). Un poder
+// solo lee el rango de SU PROPIO nodo (ownRank).
+//   Berserker  s5 Instinto Asesino → g_instinto_asesino (+2 Sed por crítico)
+//              s8 Festín de Sangre → tv.bleedKillHeal · s15 Sed Insaciable → tv.bleedKillMana
+//              s9 Temeridad → sin poder: su buff lleva 'gaugeGain:sed' (+100) y dmgTakenPct (+10)
+//              x1 Ejecutar → tv.executePct (remate, +40 a élites/jefes, wasExecuted)
+//              x2 Carnicero → g_carnicero (onKill de un remate) · x3 → g_matanza_eterna
+//   Guardián   s4 → g_desafio_firme · s7 Martillo Pesado → g_martillo_pesado
+//              s8 Recuperación → tv.killHeal · s14 Vínculo → ⑫ onAllyDamaged
+//              x3 Bastión Eterno → ⑫ onAllyLethal (icd 60 s)
+//   Cruzado    s6A Consagración → g_consagracion (afterCast de Martillo: campo que cura)
+//              s8 Luz Sanadora → tv.killHeal (a ti) + g_luz_sanadora (a los aliados a 10 m)
+//              s12 Fervor Creciente → tv.fervorChance · s13A Intercesión → ⑫ onAllyLethal (icd 90 s)
+//   Clase      c15 Hermandad de Armas → ⑪ onResource (+5 % de la Furia ganada por aliado)
 //
 // GRUPO (cooperativo; en solitario no hacen nada): Hermandad de Armas (buff a aliados a
 // 15 m y +5 % de Furia por aliado), Bramido/Devoción/Intervención/Veredicto (aliados en
 // el radio), Mano Sanadora, Luz Sanadora, Martillo Bendito (curas a aliados), Vínculo del
-// Guardián (te pasas el 20 % del daño de los aliados a 10 m, por sondeo de su vida a
-// 10 Hz), Intercesión y Bastión Eterno (un aliado que cae a 0 queda a 1: sondeo a 10 Hz).
+// Guardián (te pasas el 20 % del daño de los aliados a 10 m), Intercesión y Bastión Eterno
+// (un aliado que iba a caer queda a 1). El daño de los aliados entra por g.damageAlly (⑫).
 // Los aliados son las entidades de g.party (contrato de g.allies: { pos, alive, hp,
 // stats.maxHP, healSkill, addShield, addBuff?, sustain?, setHp?, grantInvuln? }).
 import * as THREE from 'three';
@@ -76,6 +78,7 @@ import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { gainGauge, spendGauge, gaugeValue, gaugeMax } from './spec-mechanics.js';
 import { dotProfile } from './combat-math.js';
 import { spendResource } from './resources.js';
+import { wasExecuted } from './powers-common.js';
 // (importados: úsalos solo dentro de los ganchos)
 
 // ------------------------------------------------------------
@@ -83,14 +86,13 @@ import { spendResource } from './resources.js';
 // ------------------------------------------------------------
 function tun() {
   return {
-    critFury: 3,                       // c14 Maestro de Armas: Furia por crítico
+    critFury: 2,                       // c14 Maestro de Armas: Furia por crítico
     brother: { dmgPct: 5, hpPct: 8, radius: 15, furyPct: 5, maxAllies: 3 },   // c15
     coraza: { below: 0.3, dr: 30, dur: 5, icd: 60 },                        // c12B
     remolinoSed: { perEnemy: 4, max: 20 },                                  // s4 Berserker
     instintoSed: 2,                    // s5 Berserker: Sed por crítico
     remolinoBleedMul: 0.3,             // Sangrado de Remolino por tic (× perfil de Sangrado)
     carniceria: { jump: 4 },           // s6A: el Sangrado salta a cercanos a ≤ 4 m
-    execEliteAdd: 40,                  // x1 Ejecutar: +40 % contra élites/jefes bajo el umbral
     butcher: { sedPerRank: 15, fury: 10 },                                  // x2 Carnicero
     eternal: 2,                        // x3 Matanza Eterna: +2 s de Desenfreno por remate
     frenzy: { aspdPct: 30, dur: 8, healPct: 1 },                            // s14 Desenfreno
@@ -122,13 +124,14 @@ function tun() {
 function isBoss(e) { return !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss); }
 function isEliteOrBoss(e) { return !!e?.def?.rank || isBoss(e); }
 function specOf(p) { return p?.talentAgg?.spec || null; }
-// rango REAL de un nodo de la especialización activa (0 si no es esa especialización)
-function rk(p, id, spec) {
+// rango REAL del PROPIO nodo del poder que lo pregunta (0 si no es esa especialización).
+// Solo para escalar el efecto de SU nodo (Mano Sanadora, Muralla, Carnicero, Venganza,
+// Martillos del Juicio): nunca para encender el efecto de otro nodo (Paso 2c.2).
+function ownRank(p, id, spec) {
   const s = specOf(p);
   if (!s || (spec && s !== spec)) return 0;
   return (p.talents?.sp?.[s]?.[id] | 0);
 }
-function chose(p, id, k, spec) { return specOf(p) === spec && p.talents?.choice?.[id] === k; }
 function buffOf(a, id) { return (a?.buffs || []).find(b => b.id === id && b.t > 0) || null; }
 // renueva (sin recompute) o crea un buff de duración corta (auras)
 function keepBuff(a, id, stats, dur, meta) {
@@ -149,14 +152,10 @@ function allySustain(a, amt, src) {
   if (!(amt > 0) || !a) return 0;
   return a.sustain ? a.sustain(amt, src) : (a.healSkill?.(amt, src) || 0);
 }
-function bleeding(e, kill) { return !!kill?.status?.bleeding || Object.keys(e?._dots || {}).some(k => k.includes('bleed')); }
-// azar de combate con semilla (nunca Math.random aquí)
-function roll(g, p) { const r = p?.combatRng || g?.simRng?.('combat'); return typeof r === 'function' ? r() : 0.5; }
 function fxAt(g, name, pos, y = 1) {
   if (!name || !pos || !g?.emitFx) return;
   g.emitFx(name, pos.clone ? pos.clone().setY(y) : { x: pos.x, y, z: pos.z });
 }
-function skillDef(p, id) { return (p?.cls?.skills || []).find(s => s.id === id) || {}; }
 function fieldOf(g, p, kind) { return (g?.fields || []).find(f => !f.dead && f.kind === kind && f.owner === p) || null; }
 function v3(x, y, z) { return new THREE.Vector3(x, y, z); }
 // Muro de Escudos: puntos de reducción de daño del buff y daño que evitó en un golpe
@@ -172,23 +171,8 @@ function nearAL(g, p) {
   for (const e of g?.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= 20) al = Math.max(al, e.def?.level || 0);
   return al || p.level || 1;
 }
-// cura de vida al matar (sustento, §6.1): % de la vida máxima
-function killHealSelf(p, pct, src) { if (pct > 0 && p.alive) p.sustain(p.stats.maxHP * pct / 100, src); }
-// ALIADOS QUE CAEN (Intercesión, Bastión Eterno): sondeo a 10 Hz de g.party. El núcleo
-// no tiene un punto de despacho para el daño de los aliados (pedido al núcleo): el que
-// estaba vivo en el tic anterior y ahora tiene 0 de vida queda a 1.
-function pollFallen(g, p, st, radius, save) {
-  const prev = st.prev || (st.prev = new Map());
-  for (const a of g?.party || []) {
-    if (!a || a === p) continue;
-    const down = !(a.hp > 0) || a.alive === false;
-    if (down && prev.get(a) > 0 && a.pos?.distanceTo?.(p.pos) <= radius && save(a)) {
-      if (a.setHp) a.setHp(1); else a.hp = 1;
-      a.alive = true;
-    }
-    prev.set(a, a.alive === false ? 0 : Math.max(0, a.hp || 0));
-  }
-}
+// ¿el aliado (de g.party, no tú) está a ≤ r m?
+function allyNear(p, a, r) { return !!a && a !== p && !!a.pos?.distanceTo && a.pos.distanceTo(p.pos) <= r; }
 // Sangrado de una activa (perfil central de DoT; fuente '<habilidad>:bleed' → Sed y KillInfo)
 function applyBleed(g, p, e, avgHit, mul, skill) {
   if (!e?.alive) return;
@@ -234,31 +218,32 @@ export function guerreroPowers() {
         return true;
       },
     },
-    // c14 Maestro de Armas (+15 % de daño crítico lo da tv.critDmg): cada crítico da 3 de Furia
+    // c14 Maestro de Armas (+10 % de daño crítico lo da tv.critDmg): cada crítico da 2 de Furia (2c.2: era 3)
     g_crit_furia: {
-      name: 'Maestro de Armas', desc: 'Cada crítico te da 3 de Furia.',
+      name: 'Maestro de Armas', desc: 'Cada crítico te da 2 de Furia.',
       onHit(g, p, e, hit) { if (hit?.crit) g.gainResource(p, T.critFury); },
     },
     // c15 Hermandad de Armas (nodo clave de clase): +5 % de daño y +8 % de vida a ti y a los
     // aliados a 15 m; +5 % de Furia generada por aliado cerca (máx. 3; 0 en solitario)
     g_aura_hermandad: {
       name: 'Hermandad de Armas', desc: 'Tú y los aliados a 15 m: +5 % de daño y +8 % de vida máxima. +5 % de Furia por aliado cerca (máx. 3).',
-      state: () => ({ acc: 0, lastMp: null, near: 0 }),
+      state: () => ({ acc: 0, near: 0 }),
       stats: () => ({ dmgPct: T.brother.dmgPct, hpPct: T.brother.hpPct }),
+      // pulso de 0,5 s: renueva el aura de los aliados a 15 m y cuenta cuántos hay (máx. 3)
       onTick(g, p, dt) {
         const st = powerState(p, 'g_aura_hermandad');
         st.acc += dt;
-        if (st.acc >= 0.5 - 1e-9) {
-          st.acc = 0;
-          const list = others(g, p, T.brother.radius);
-          st.near = Math.min(T.brother.maxAllies, list.length);
-          for (const a of list) keepBuff(a, 'g_aura_hermandad', { dmgPct: T.brother.dmgPct, hpPct: T.brother.hpPct }, 0.65,
-            { name: 'Hermandad de Armas', icon: '🤝', desc: `+${T.brother.dmgPct}% de daño y +${T.brother.hpPct}% de vida` });
-        }
-        // Furia ganada desde el último tic × 5 % por aliado (sin punto de despacho de
-        // recurso en el núcleo: se mide la subida de p.mp)
-        if (st.lastMp != null && st.near > 0 && p.mp > st.lastMp) g.gainResource(p, (p.mp - st.lastMp) * T.brother.furyPct / 100 * st.near);
-        st.lastMp = p.mp;
+        if (st.acc < 0.5 - 1e-9) return;
+        st.acc = 0;
+        const list = others(g, p, T.brother.radius);
+        st.near = Math.min(T.brother.maxAllies, list.length);
+        for (const a of list) keepBuff(a, 'g_aura_hermandad', { dmgPct: T.brother.dmgPct, hpPct: T.brother.hpPct }, 0.65,
+          { name: 'Hermandad de Armas', icon: '🤝', desc: `+${T.brother.dmgPct}% de daño y +${T.brother.hpPct}% de vida` });
+      },
+      // ⑪ Furia REALMENTE ganada × 5 % por aliado cerca (silent: no se realimenta)
+      onResource(g, p, n) {
+        const near = powerState(p, 'g_aura_hermandad').near;
+        if (near > 0 && n > 0) g.gainResource(p, n * T.brother.furyPct / 100 * near, { silent: true });
       },
     },
 
@@ -281,6 +266,11 @@ export function guerreroPowers() {
         st.got += n;
         gainGauge(p, 'sed', n);
       },
+    },
+    // s5 Instinto Asesino (+3 %/rango de crítico: stats del nodo): cada crítico suma 2 de Sed
+    g_instinto_asesino: {
+      name: 'Instinto Asesino', desc: 'Cada crítico suma 2 de Sed.',
+      onHit(g, p, e, hit) { if (hit?.crit) gainGauge(p, 'sed', T.instintoSed); },
     },
     // s13A Negación de la Muerte: cada 2 min, un golpe letal te deja a 1 de vida y con la Sed llena
     g_negacion: {
@@ -309,55 +299,16 @@ export function guerreroPowers() {
       },
       onHit(g, p) { if (buffOf(p, 'g_desenfreno')) p.sustain(p.stats.maxHP * T.frenzy.healPct / 100, 'g_desenfreno'); },
     },
-    // x2 Carnicero (y PORTADOR del Berserker: s5, s8, s9, s15, x1; ver cabecera):
-    //  · x1 Ejecutar (tv.executePct): rematas a los normales bajo el umbral; élites y jefes
-    //    reciben +40 % (aditivo) bajo él. Un REMATE = normal ejecutado o élite/jefe que
-    //    muere tras bajar del umbral.
-    //  · x2 (rango r): cada remate suma 15·r de Sed y te devuelve 10 de Furia.
-    //  · s5 Instinto Asesino: cada crítico suma 2 de Sed.
-    //  · s8 Festín de Sangre (tv.killHeal) y s15 Sed Insaciable (tv.manaOnKill): al matar a
-    //    un enemigo que SANGRA, % de vida (sustento) y Furia.
-    //  · s9 Temeridad (mientras dura su buff): la Sed se llena el doble y recibes +10 % de daño.
+    // x2 Carnicero (rango r): cada REMATE (wasExecuted: normal rematado por Ejecutar —
+    // tv.executePct de x1, núcleo nucleo_tv— o élite/jefe que muere tras bajar del umbral)
+    // suma 15·r de Sed y te devuelve 10 de Furia
     g_carnicero: {
-      name: 'Carnicero', desc: 'Cada remate suma Sed y te devuelve 10 de Furia (y efectos de los nodos del Berserker que portan este poder).',
-      priority: 1,
-      state: () => ({ doubling: false }),
-      condAdd(p, e) {
-        const pct = p.tv?.executePct || 0;
-        return pct > 0 && isEliteOrBoss(e) && e.maxHP > 0 && e.hp / e.maxHP < pct / 100 ? T.execEliteAdd : 0;
-      },
-      onHit(g, p, e, hit) {
-        if (hit?.crit && rk(p, 's5', 'berserker') > 0) gainGauge(p, 'sed', T.instintoSed);
-        const pct = p.tv?.executePct || 0;
-        if (!(pct > 0) || !e?.alive || !(e.maxHP > 0) || e.hp / e.maxHP > pct / 100) return;
-        if (isEliteOrBoss(e)) { e._gUnder = true; return; }
-        e._gRemate = true;
-        g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 0.6), '¡REMATE!', 'txt-crit');
-        dealProcDamage(g, e, e.hp + 1, { source: 'power:g_carnicero', skill: hit?.skill || null });
-      },
-      onKill(g, p, e, kill) {
-        const tv = p.tv || {};
-        if (bleeding(e, kill)) {
-          killHealSelf(p, tv.killHeal || 0, 'g_festin_sangre');
-          if (tv.manaOnKill > 0) g.gainResource(p, tv.manaOnKill);
-        }
-        const r = rk(p, 'x2', 'berserker');
-        if (r > 0 && (e._gRemate || e._gUnder)) {
-          gainGauge(p, 'sed', T.butcher.sedPerRank * r);
-          g.gainResource(p, T.butcher.fury);
-        }
-      },
-      onGauge(g, p, id, ev, n) {
-        if (id !== 'sed' || ev !== 'gain' || !buffOf(p, 'g_t_temeridad')) return;
-        const st = powerState(p, 'g_carnicero');
-        if (st.doubling) return;
-        st.doubling = true;
-        const extra = (skillDef(p, 'g_t_temeridad').gaugeMult || 2) - 1;
-        try { gainGauge(p, 'sed', n * extra); } finally { st.doubling = false; }
-      },
-      onDamaged(g, p, dmg) {
-        if (!buffOf(p, 'g_t_temeridad') || !(dmg.amount > 0)) return;
-        dmg.amount *= 1 + (skillDef(p, 'g_t_temeridad').dmgTakenPct || 10) / 100;
+      name: 'Carnicero', desc: 'Cada remate suma 15 de Sed por rango y te devuelve 10 de Furia.',
+      onKill(g, p, e) {
+        const r = ownRank(p, 'x2', 'berserker');
+        if (!(r > 0) || !wasExecuted(e)) return;
+        gainGauge(p, 'sed', T.butcher.sedPerRank * r);
+        g.gainResource(p, T.butcher.fury);
       },
     },
     // x3 Matanza Eterna: rematar durante el Desenfreno lo alarga 2 s, sin límite
@@ -365,25 +316,27 @@ export function guerreroPowers() {
       name: 'Matanza Eterna', desc: 'Rematar durante el Desenfreno lo alarga 2 s, sin límite.',
       onKill(g, p, e) {
         const b = buffOf(p, 'g_desenfreno');
-        if (!b || !(e._gRemate || e._gUnder)) return;
+        if (!b || !wasExecuted(e)) return;
         b.t += T.eternal; b.dur = (b.dur || 0) + T.eternal;
         g.ui?.spawnText?.(p.pos, `+${T.eternal}s`, 'txt-crit');
       },
     },
 
     // ---------------- GUARDIÁN ----------------
-    // s4 Desafío Firme (y PORTADOR del Guardián: s7, s8):
-    //  · s4: Grito Desafiante te da 2 cargas de Bastión (si provoca a alguien).
-    //  · s7 Martillo Pesado: si Martillo de Guerra golpea a 3 o más, +1 carga.
-    //  · s8 Recuperación (tv.killHeal): matar te cura un % de vida (sustento).
+    // s4 Desafío Firme: Grito Desafiante te da 2 cargas de Bastión (si provoca a alguien)
     g_desafio_firme: {
-      name: 'Desafío Firme', desc: 'Grito Desafiante te da 2 cargas de Bastión (y efectos de los nodos del Guardián que portan este poder).',
+      name: 'Desafío Firme', desc: 'Grito Desafiante te da 2 cargas de Bastión.',
       afterCast(g, p, cast, res) {
-        const id = cast?.sk?.id;
-        if (id === 'g_t_desafio' && res?.hits > 0 && rk(p, 's4', 'guardian') > 0) gainGauge(p, 'bastion', T.desafioFirme);
-        if (id === 'g_martillo' && res?.hits >= T.martilloPesado.hits && rk(p, 's7', 'guardian') > 0) gainGauge(p, 'bastion', T.martilloPesado.n);
+        if (cast?.sk?.id === 'g_t_desafio' && res?.hits > 0) gainGauge(p, 'bastion', T.desafioFirme);
       },
-      onKill(g, p) { killHealSelf(p, p.tv?.killHeal || 0, 'g_recuperacion'); },
+    },
+    // s7 Martillo Pesado (+15 %/rango de daño de Martillo: mod del nodo): si Martillo de
+    // Guerra golpea a 3 o más, +1 carga de Bastión
+    g_martillo_pesado: {
+      name: 'Martillo Pesado', desc: 'Si Martillo de Guerra golpea a 3 o más enemigos, suma 1 carga de Bastión.',
+      afterCast(g, p, cast, res) {
+        if (cast?.sk?.id === 'g_martillo' && res?.hits >= T.martilloPesado.hits) gainGauge(p, 'bastion', T.martilloPesado.n);
+      },
     },
     // s6B Reto Singular: Provocación marca a su objetivo: −20 % de daño a tu grupo 8 s
     g_reto: {
@@ -412,30 +365,20 @@ export function guerreroPowers() {
       },
     },
     // s14 Vínculo del Guardián (cooperativo): recibes tú el 20 % del daño que sufren los
-    // aliados a 10 m, reducido por tu armadura (sondeo a 10 Hz de su vida: pedido al núcleo)
+    // aliados a 10 m, reducido por tu armadura (⑫ onAllyDamaged: te quedas esa parte)
     g_vinculo: {
       name: 'Vínculo del Guardián', desc: 'Recibes tú el 20 % del daño que sufren los aliados a 10 m, reducido por tu armadura.',
-      state: () => ({ hp: new Map() }),
-      onTick(g, p) {
-        const st = powerState(p, 'g_vinculo');
-        const near = new Set(others(g, p, T.vinculo.radius));
-        for (const a of [...st.hp.keys()]) if (!near.has(a)) st.hp.delete(a);
-        for (const a of near) {
-          const prev = st.hp.get(a);
-          if (prev != null && a.hp > 0 && a.hp < prev && p.alive) {
-            const share = (prev - a.hp) * T.vinculo.pct / 100;
-            const v = Math.min(a.stats?.maxHP || Infinity, a.hp + share);
-            if (a.setHp) a.setHp(v); else a.hp = v;
-            p.takeDamage(share, nearAL(g, p), { element: 'phys' });
-          }
-          st.hp.set(a, a.hp);
-        }
+      onAllyDamaged(g, p, ally, dmg) {
+        if (!p.alive || !(dmg?.amount > 0) || !allyNear(p, ally, T.vinculo.radius)) return;
+        const share = dmg.amount * T.vinculo.pct / 100;
+        dmg.amount -= share;
+        p.takeDamage(share, nearAL(g, p), { element: 'phys' });
       },
     },
     // s17 Muralla Viviente: cada carga de Bastión te da −2 %/rango de daño recibido
     g_muralla_viva: {
       name: 'Muralla Viviente', desc: 'Cada carga de Bastión te da −2 % de daño recibido por rango.',
-      condDr(p) { return T.muralla * rk(p, 's17', 'guardian') * Math.floor(gaugeValue(p, 'bastion')); },
+      condDr(p) { return T.muralla * ownRank(p, 's17', 'guardian') * Math.floor(gaugeValue(p, 'bastion')); },
     },
     // x1 Represalia: tus espinas reflejan además el 30 % del daño que bloqueas o que absorbe
     // Muro de Escudos (al atacante, como daño de poder)
@@ -460,21 +403,17 @@ export function guerreroPowers() {
       },
     },
     // x3 Bastión Eterno (cooperativo): con 5 cargas, Muro Inquebrantable protege también a
-    // los aliados a 10 m (uno que cae queda a 1 de vida e inmune 2 s; una vez cada 60 s)
+    // los aliados a 10 m (⑫ onAllyLethal: queda a 1 de vida e inmune 2 s; icd 60 s, que
+    // solo se gasta si salva: return false no lo consume)
     g_bastion_eterno: {
       name: 'Bastión Eterno', desc: 'Con 5 cargas de Bastión, Muro Inquebrantable protege también a los aliados a 10 m (una vez cada 60 s).',
-      state: () => ({ cd: 0, prev: null }),
-      onTick(g, p, dt) {
-        const st = powerState(p, 'g_bastion_eterno');
-        if (st.cd > 0) st.cd = Math.max(0, st.cd - dt);
-        pollFallen(g, p, st, T.eterno.radius, (a) => {
-          if (st.cd > 0 || gaugeValue(p, 'bastion') < gaugeMax(p, 'bastion')) return false;
-          st.cd = T.eterno.icd;
-          a.grantInvuln?.(T.eterno.invuln);
-          g.ui?.message?.('🛡️ ¡Bastión Eterno! Tu aliado sobrevive', 2500);
-          fxAt(g, 'shieldWall', a.pos, 1.0);
-          return true;
-        });
+      icd: T.eterno.icd,
+      onAllyLethal(g, p, ally) {
+        if (!p.alive || !allyNear(p, ally, T.eterno.radius) || gaugeValue(p, 'bastion') < gaugeMax(p, 'bastion')) return false;
+        ally.grantInvuln?.(T.eterno.invuln);
+        g.ui?.message?.('🛡️ ¡Bastión Eterno! Tu aliado sobrevive', 2500);
+        fxAt(g, 'shieldWall', ally.pos, 1.0);
+        return true;
       },
     },
 
@@ -487,7 +426,7 @@ export function guerreroPowers() {
         const st = powerState(p, 'g_mano_sanadora');
         if (st.at === p.simT) return;                       // una vez por impacto (como onDealHit)
         st.at = p.simT;
-        const half = rk(p, 's3', 'cruzado');                // la mitad de 2·rango
+        const half = ownRank(p, 's3', 'cruzado');           // la mitad de 2·rango
         if (half > 0) for (const a of others(g, p, T.manoRadius)) allySustain(a, half, 'g_mano_sanadora');
       },
     },
@@ -512,29 +451,25 @@ export function guerreroPowers() {
         }
       },
     },
-    // s8 Luz Sanadora (y PORTADOR del Cruzado: s6A, s12):
-    //  · s8 (tv.killHeal): matar te cura un % de vida a ti y a los aliados a 10 m (sustento).
-    //  · s12 Fervor Creciente (tv.fervorChance): Martillo de Guerra tiene un % de darte 1 de Fervor extra.
-    //  · s6A Consagración: el suelo sagrado de Martillo de Guerra (zona del núcleo) también
-    //    cura a los aliados que lo pisan (campo g_consagracion, 2 % de vida por segundo).
+    // s6A Consagración (mod.zone de Martillo: la zona que daña es del núcleo): el suelo
+    // sagrado también cura a los aliados que lo pisan (campo g_consagracion, 2 %/s)
+    g_consagracion: {
+      name: 'Consagración', desc: 'El suelo sagrado de Martillo de Guerra también cura a los aliados que lo pisan.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_martillo' || !cast.target || !g.spawnField) return;
+        const prof = cast.prof || {};
+        g.spawnField('g_consagracion', { pos: cast.target.clone().setY(0), radius: Math.max(2, (prof.radius || 3) * 0.9),
+          dur: prof.zoneDur || 4, owner: p, data: { healPctPerSec: T.consagracion.healPctPerSec } });
+      },
+    },
+    // s8 Luz Sanadora (tv.killHeal: el núcleo te cura a TI al matar): los aliados a 10 m
+    // reciben el mismo % de SU vida (sustento de cada uno)
     g_luz_sanadora: {
-      name: 'Luz Sanadora', desc: 'Matar a un enemigo cura un % de vida a ti y a los aliados a 10 m (y efectos de los nodos del Cruzado que portan este poder).',
-      state: () => ({ acc: 0 }),
+      name: 'Luz Sanadora', desc: 'Al matar, los aliados a 10 m se curan el mismo % de vida que tú.',
       onKill(g, p) {
         const pct = p.tv?.killHeal || 0;
         if (!(pct > 0)) return;
-        killHealSelf(p, pct, 'g_luz_sanadora');
         for (const a of others(g, p, T.luzRadius)) allySustain(a, (a.stats?.maxHP || 0) * pct / 100, 'g_luz_sanadora');
-      },
-      afterCast(g, p, cast, res) {
-        if (cast?.sk?.id !== 'g_martillo') return;
-        const ch = p.tv?.fervorChance || 0;
-        if (ch > 0 && res?.hits > 0 && roll(g, p) * 100 < ch) gainGauge(p, 'fervor', 1);
-        if (chose(p, 's6', 'A', 'cruzado') && cast.target && g.spawnField) {
-          const prof = cast.prof || {};
-          g.spawnField('g_consagracion', { pos: cast.target.clone().setY(0), radius: Math.max(2, (prof.radius || 3) * 0.9),
-            dur: prof.zoneDur || 4, owner: p, data: { healPctPerSec: T.consagracion.healPctPerSec } });
-        }
       },
     },
     // s10 Estandarte Sagrado (+20 %/rango de duración: mod): su bonificación alcanza a los aliados a 15 m
@@ -542,21 +477,16 @@ export function guerreroPowers() {
       name: 'Estandarte Sagrado', desc: 'La bonificación de Estandarte de Guerra alcanza a los aliados a 15 m.',
       modifyResolve(p, sk, prof) { if (sk.id === 'g_u_estandarte') prof.radius = Math.max(prof.radius || 0, T.banner); },
     },
-    // s13A Intercesión (cooperativo): cada 90 s, un aliado que iba a morir queda a 1 de vida y tú
-    // pierdes un 20 % de vida (sondeo a 10 Hz: pedido al núcleo)
+    // s13A Intercesión (cooperativo): cada 90 s, un aliado a 15 m que iba a morir queda a 1
+    // de vida y tú pierdes un 20 % de vida (⑫ onAllyLethal; icd 90 s, solo si salva)
     g_intercesion: {
       name: 'Intercesión', desc: 'Cada 90 s, un aliado que iba a morir queda a 1 de vida; tú pierdes un 20 % de vida.',
-      state: () => ({ cd: 0, prev: null }),
-      onTick(g, p, dt) {
-        const st = powerState(p, 'g_intercesion');
-        if (st.cd > 0) st.cd = Math.max(0, st.cd - dt);
-        pollFallen(g, p, st, T.intercesion.radius, () => {
-          if (st.cd > 0 || !p.alive) return false;
-          st.cd = T.intercesion.icd;
-          p.setHp(Math.max(1, p.hp - p.stats.maxHP * T.intercesion.cost / 100), 'g_intercesion');
-          g.ui?.message?.('✨ ¡Intercesión! Tu aliado sobrevive', 2500);
-          return true;
-        });
+      icd: T.intercesion.icd,
+      onAllyLethal(g, p, ally) {
+        if (!p.alive || !allyNear(p, ally, T.intercesion.radius)) return false;
+        p.setHp(Math.max(1, p.hp - p.stats.maxHP * T.intercesion.cost / 100), 'g_intercesion');
+        g.ui?.message?.('✨ ¡Intercesión! Tu aliado sobrevive', 2500);
+        return true;
       },
     },
     // s14 Luz del Alba: Aura de Devoción da también +10 % de daño al grupo (lo aplica el campo)
@@ -682,14 +612,14 @@ export function guerreroSkillBehaviors() {
     // normal), 10 golpes a todo lo que hay a 2,9 m (45 % del arma cada uno) y Sangrado por
     // golpe (30 % del perfil de Sangrado; los tics llenan la Sed). Carnicería (s6A): +40 % de
     // radio y el Sangrado salta a 2 enemigos cercanos por golpe. No exige mantener la tecla
-    // (canalización del núcleo con key null); la esquiva la corta.
+    // (canalización del núcleo con hold: false); la esquiva la corta.
     g_t_remolino: {
       cast(g, p, prof, cast) {
         const { sk, ctx } = cast;
         const rad = prof.radius || 2.9;
         fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-        return g.startChannel({ ...ctx, key: null }, cast.done, {
-          dur: sk.channelT || 3, ticks: sk.ticks || 10,
+        return g.startChannel(ctx, cast.done, {
+          hold: false, dur: sk.channelT || 3, ticks: sk.ticks || 10,
           onTick: () => {
             p.swing = 1;
             const hitList = [];
@@ -716,12 +646,17 @@ export function guerreroSkillBehaviors() {
         });
       },
     },
-    // s9 Temeridad: 10 s de +25 % de crítico; la Sed ×2 y el +10 % de daño recibido los aplica
-    // g_carnicero (portador de s9) mientras dura el buff
+    // s9 Temeridad: 10 s de +25 % de crítico (prof.buff, escala por rango); el MISMO buff
+    // lleva la Sed ×2 (stat del núcleo 'gaugeGain:sed' = +100 %) y el +10 % de daño
+    // recibido (stat dmgTakenPct, tras mitigar), sin escalar
     g_t_temeridad: {
       cast(g, p, prof, cast) {
         const { sk, ctx } = cast;
-        castBuff(g, p, prof, sk, ctx);
+        castBuff(g, p, prof, sk, ctx, {
+          ...prof.buff,
+          'gaugeGain:sed': ((sk.gaugeMult ?? 2) - 1) * 100,
+          dmgTakenPct: sk.dmgTakenPct ?? 10,
+        });
         ctx.res.hits = 1;
         return ctx.res;
       },
@@ -774,7 +709,7 @@ export function guerreroSkillBehaviors() {
         g.timers.schedule(dur, () => {
           if (!hasPower(p, 'g_venganza') || !p.alive) return;
           const st = powerState(p, 'g_venganza');
-          const total = st.absorbed * T.venganza.pctPerRank * Math.max(1, rk(p, 'x2', 'guardian')) / 100;
+          const total = st.absorbed * T.venganza.pctPerRank * Math.max(1, ownRank(p, 'x2', 'guardian')) / 100;
           st.absorbed = 0;
           if (!(total > 0)) return;
           g.spawnRing?.(p.pos, T.venganza.radius, 0x9fc4ff);
@@ -973,7 +908,7 @@ export function guerreroFields() {
         f.acc += dt;
         if (f.acc < H.every - 1e-9) return;
         f.acc = 0;
-        const r = hasPower(o, 'g_martillos_juicio') ? Math.max(1, rk(o, 'x2', 'cruzado')) : 0;
+        const r = hasPower(o, 'g_martillos_juicio') ? Math.max(1, ownRank(o, 'x2', 'cruzado')) : 0;
         const n = H.n + r;
         const reach = H.reach;
         const targets = (g.enemies || []).filter(e => e.alive && e.pos.distanceTo(o.pos) <= reach + 0.5 * (e.def?.scale || 1))
@@ -995,7 +930,7 @@ export function guerreroFields() {
         if (f.dead) { for (const m of list) { g.fxGroup.remove(m); m.geometry.dispose(); m.material.dispose(); } f.meshes = null; return; }
         const o = f.owner;
         const H = tun().hammers;
-        const n = H.n + (o && hasPower(o, 'g_martillos_juicio') ? Math.max(1, rk(o, 'x2', 'cruzado')) : 0);
+        const n = H.n + (o && hasPower(o, 'g_martillos_juicio') ? Math.max(1, ownRank(o, 'x2', 'cruzado')) : 0);
         while (list.length < n) {
           const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.42, 0.18),
             new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));

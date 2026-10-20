@@ -172,8 +172,9 @@ function computeProfile(p, sk) {
     count: Math.max(1, Math.floor(sk.count || 1)), spread: sk.spread || 0,   // 0 = sin abanico propio (extras a 0,18 rad)
     proj: mods.proj || 0, pierce: !!(sk.pierce || mods.pierce), chain: mods.chain || 0,
     // control y efectos al golpear
-    slow: Math.max(sk.slow || 0, mods.slow || 0), slowPct: Math.max(sk.slowPct || 0, mods.slowPct || 0),
-    stun: Math.max(sk.stun || 0, mods.stun || 0), root: Math.max(sk.root || 0, mods.root || 0),
+    // root/slowPct = MÁXIMO entre la habilidad y los mods + los «+N» de talento (rootAdd/slowPctAdd)
+    slow: Math.max(sk.slow || 0, mods.slow || 0), slowPct: Math.max(sk.slowPct || 0, mods.slowPct || 0) + (mods.slowPctAdd || 0),
+    stun: Math.max(sk.stun || 0, mods.stun || 0), root: Math.max(sk.root || 0, mods.root || 0) + (mods.rootAdd || 0),
     vuln: mods.vuln || 0, dot, dotMul,
     // zona (Estela): 4 s por defecto; zoneDur = duración EXPLÍCITA (s) cuando la da un
     // talento (Pira 1,5 s/rango, Abrojos 2 s/rango: «el texto del nodo manda», §9.3)

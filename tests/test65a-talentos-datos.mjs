@@ -2,7 +2,9 @@
 //  1) forma: 15 nodos de clase y 21 por especialización (§5.1), ids únicos, rejilla sin
 //     choques, req hacia filas anteriores, max ≥ 1, elecciones A/B, d / d(r) legibles
 //  2) metadatos de especialización (ids de las maestrías, rol, indicador, retrato/emblema)
-//  3) vocabulario: power y claves tv de §5.3, stats conocidas, elem de ELEMS, claves de mod
+//  3) vocabulario: power (§5.3 o id PROPIO del nodo con prefijo de clase/especialización,
+//     registrado en POWER_HOOKS; un poder = un nodo: sin «portadores», Paso 2c.2) y claves
+//     tv de §5.3 + las del núcleo de 2c.2, stats conocidas, elem de ELEMS, claves de mod
 //     y skillLv que existen, ajustes de §5.2 (insignia en s0, s4 potenciador, correcciones)
 //  4) grant ↔ skills: cada grant tiene su activa (42 en total, §3) y pasa validateSkillDef
 //  5) presets válidos (puertas SPEC_GATES/CLASS_GATES, puntos de talents.js) y funciones de
@@ -16,6 +18,7 @@ import { TALENT_TREES, SPEC_GATES, CLASS_GATES, TALENT_START_LEVEL, normalizeTal
 import { GUERRERO_TALENTS } from '../js/talents-guerrero.js';
 import { MAGA_TALENTS } from '../js/talents-maga.js';
 import { ARQUERA_TALENTS } from '../js/talents-arquera.js';
+import { POWER_HOOKS } from '../js/powers.js';
 
 const ASSETS = 'D:/Proyectos/IntentoRPG-assets/web/'; // arte crudo (fuera del repo): solo si existe
 const SPECS = { guerrero: ['berserker', 'guardian', 'cruzado'], maga: ['piromante', 'crionte', 'arcanista'], arquera: ['francotiradora', 'montaraz', 'tiradora'] };
@@ -39,11 +42,23 @@ const POWERS_53 = new Set(['m_berserk', 'm_deadeye', 'm_hunt', 'g_aura_hermandad
 //  · dos que trae el mockup y §5.3 no recoge: g_reto (Guardián s6B) y f_impossible (Francotiradora x3)
 const POWERS_EXTRA = new Set(['g_remolino_sediento', 'g_desafio_firme', 'g_devocion_ferviente', 'k_prision_profunda', 'a_orbe_resonante',
   'f_aliento_cazador', 'm_cepo_doble', 't_andanada_impulsiva', 'g_reto', 'f_impossible']);
+// Paso 2c.2 (DECISIÓN del jefe): además, cada nodo con efecto propio puede llevar SU poder,
+// con el prefijo de su clase o especialización (Guerrero g_ · Maga m_/p_/k_/a_ · Arquera
+// a_/f_/m_/t_) y registrado en POWER_HOOKS. Se retiran los «portadores»: un mismo poder no
+// lo comparten dos nodos (el efecto de cada nodo lo enciende su propio poder o su clave tv).
+const OWN_PREFIX = { guerrero: /^g_[a-z0-9_]+$/, maga: /^[mpka]_[a-z0-9_]+$/, arquera: /^[afmt]_[a-z0-9_]+$/ };
+const powerOwner = new Map();   // poder → `clase/árbol/nodo` (unicidad)
 // §5.3 «Claves tv»
 const TV_53 = new Set(['eliteDmg', 'slowedDmg', 'highHpDmg', 'lowHpDmg', 'highManaDmg', 'explodedDmg', 'infiniteDmg', 'critDmg', 'weakCritDmg',
   'burningCrit', 'dmgReduc', 'barrierDr', 'costRed', 'costRedBig', 'bleedPct', 'poisonPct', 'burnPct', 'dotPct', 'dotDur', 'burnDur',
   'killHeal', 'burnKillHeal', 'manaOnKill', 'burnKillMana', 'executePct', 'shatterPct', 'fervorChance', 'verdictHeal', 'frostLayers',
-  'fieldVuln', 'rootedWeak', 'focusRate', 'focusEnergy', 'galeHeal', 'clarityPct', 'arcChargePct', 'webDmg', 'critFireCdr', 'supernovaBurn']);
+  'fieldVuln', 'rootedWeak', 'focusRate', 'focusEnergy', 'galeHeal', 'clarityPct', 'arcChargePct', 'webDmg', 'critFireCdr', 'supernovaBurn',
+  // Paso 2c.2 (núcleo): curas/recurso al matar a un enemigo que SANGRA, daño contra la Presa,
+  // reducción de daño CONDICIONAL (maná > 50 %, contra ralentizados, en movimiento,
+  // Concentración > 50, tras la Voltereta) y Energía al llenar el Impulso
+  'bleedKillHeal', 'bleedKillMana', 'preyDmg', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus', 'drAfterRoll', 'galeEnergy',
+  // Paso 2c.2 (recalibración): el +X % de Ejecutar contra élites y jefes sale del nodo
+  'executeDmg']);
 // stats que suma recompute hoy + las nuevas de §5.3
 const STATS = new Set(['hp', 'mp', 'dmgPct', 'crit', 'arm', 'spdPct', 'aspdPct', 'mf', 'lph', 'mph', 'cdr', 'thorns', 'goldPct', 'critDmg',
   'dr', 'block', 'dodgeCdr', 'energyRegen', 'healPct', 'mpPct', 'xpPct', 'threatMult', 'staggerPct']);
@@ -111,7 +126,13 @@ for (const [cid, T] of Object.entries(TALENT_TREES)) {
           for (const mk of Object.keys(m)) assert.ok(MOD_KEYS.has(mk), `${tag}: clave de mod desconocida ${k}.${mk}`);
           for (const v of Object.values(m)) if (Array.isArray(v)) assert.equal(v.length, n.max, `${tag}: array de ${k} con un valor por rango`);
         }
-        if (fx.power) assert.ok(POWERS_53.has(fx.power) || POWERS_EXTRA.has(fx.power), `${tag}: power fuera de §5.3: ${fx.power}`);
+        if (fx.power) {
+          assert.ok(POWERS_53.has(fx.power) || POWERS_EXTRA.has(fx.power) || OWN_PREFIX[cid].test(fx.power), `${tag}: power fuera de §5.3 y sin prefijo de ${cid}: ${fx.power}`);
+          assert.ok(POWER_HOOKS[fx.power], `${tag}: power sin registrar en POWER_HOOKS: ${fx.power}`);
+          const prev = powerOwner.get(fx.power);
+          assert.ok(!prev || prev === `${cid}/${label}/${n.id}`, `${tag}: el poder ${fx.power} ya lo lleva ${prev} (sin portadores: un poder por nodo)`);
+          powerOwner.set(fx.power, `${cid}/${label}/${n.id}`);
+        }
         if (fx.grant) { assert.ok(skillIds.has(fx.grant), `${tag}: grant sin activa ${fx.grant}`); granted.add(fx.grant); }
       }
     }
@@ -274,13 +295,14 @@ assert.deepEqual(node('arquera', 'francotiradora', 's10').fx.mod.a_t_apuntado, {
 assert.ok(node('arquera', 'francotiradora', 's12').fx.skillLv.a_t_apuntado && !('a_p_punteria' in node('arquera', 'francotiradora', 's12').fx.skillLv));
 assert.ok(!node('arquera', 'montaraz', 's0').fx.tv, 'Montaraz s0: fuera tv.slowedDmg');
 assert.deepEqual(node('arquera', 'montaraz', 's3').fx.mod.lluvia_flechas, { zone: 1, zoneDur: 2, slowPct: [30, 30] });
-assert.deepEqual(optFx(node('arquera', 'montaraz', 's6'), 'A').mod.a_t_cepo, { root: 1 });
-assert.deepEqual(optFx(node('arquera', 'montaraz', 's6'), 'B').mod.a_t_cepo, { radius: 100, dmg: 120 });
-assert.deepEqual(node('arquera', 'montaraz', 's16').fx.mod.a_t_cepo, { root: 0.5 });
+// Paso 2c.2: los «+N s» de inmovilización van en rootAdd (se SUMAN); la Mina ya no lleva mod.dmg
+assert.deepEqual(optFx(node('arquera', 'montaraz', 's6'), 'A').mod.a_t_cepo, { rootAdd: 1 });
+assert.deepEqual(optFx(node('arquera', 'montaraz', 's6'), 'B').mod.a_t_cepo, { radius: 100 });
+assert.deepEqual(node('arquera', 'montaraz', 's16').fx.mod.a_t_cepo, { rootAdd: 0.5 });
 assert.deepEqual(node('arquera', 'montaraz', 's17').fx, { tv: { rootedWeak: 10 } });
 assert.deepEqual(node('arquera', null, 'c11').fx.mod.agilidad, { durS: 1 });
-assert.deepEqual(node('arquera', 'tiradora', 's5').fx.mod.agilidad, { durS: 1, buff: 5 });
-assert.deepEqual(node('arquera', null, 'c14').fx.tv, { costRedBig: { pct: 15, over: 15 } });
+assert.deepEqual(node('arquera', 'tiradora', 's5').fx.mod.agilidad, { durS: 1 }, 'Tiradora s5: fuera el +5 % relativo del buff (Paso 2c.2)');
+assert.deepEqual(node('arquera', null, 'c14').fx.tv, { costRedBig: { pct: 10, over: 15 } });   // 2c.2: 15 → 10 (recalibración)
 assert.deepEqual(node('maga', null, 'c14').fx.tv, { costRedBig: { pct: 15, over: 20 } });
 assert.deepEqual(node('maga', 'crionte', 's0').fx.tv, { shatterPct: 15 });
 assert.deepEqual(node('maga', null, 'c9').fx, { skillLv: { '@spec': 1 } });

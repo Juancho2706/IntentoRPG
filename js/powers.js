@@ -34,6 +34,16 @@
 //  ⑨ Player.update ............... onTick (10 Hz)                    entities.js
 //  ⑩ gainGauge / spendGauge ...... onGauge(g, p, id, ev, n, e)       spec-mechanics.js
 //       ev: 'gain' | 'full' | 'spent' | 'empty' · e = enemigo (indicadores por enemigo)
+// Paso 2c.2 (núcleo de la integración):
+//  ⑪ resources.gainResource ...... onResource(g, p, n, src)          resources.js
+//       n = recurso REALMENTE ganado (los poderes que dan recurso extra llaman a
+//       gainResource(p, n, { silent: true }) y no vuelven a disparar ⑪)
+//  ⑫ Game.damageAlly ............. onAllyDamaged(g, p, ally, dmg)   (dmg.amount MUTABLE)
+//                                  onAllyLethal(g, p, ally, dmg) → true = el aliado sobrevive
+//       (game-skills.js: los aliados del cooperativo —g.party— reciben daño por ahí)
+//  ⑬ fin natural de un DoT ....... onDotEnd(g, p, e, dot)            timers.js → game-skills.js
+//       dot = { source, kind, total, per, ticks } (solo si se agotó solo: no al
+//       consumirlo, reemplazarlo ni al morir el objetivo)
 //
 // MÓDULOS POR CLASE (Paso 2c.1, §9.1.6): js/powers-<clase>.js exporta
 // <clase>Powers(), <clase>SkillBehaviors() (activas de talento), <clase>Fields() y
@@ -54,7 +64,9 @@ import { defineField } from './field-entities.js';
 import { gaugePowers, registerGauges } from './spec-mechanics.js';
 
 export const HOOK_NAMES = ['stats', 'modifyResolve', 'condAdd', 'condCrit', 'onCast', 'afterCast',
-  'onHit', 'onKill', 'condDr', 'onDamaged', 'onLethal', 'onTick', 'onGauge'];
+  'onHit', 'onKill', 'condDr', 'onDamaged', 'onLethal', 'onTick', 'onGauge',
+  // Paso 2c.2: ⑪ recurso ganado · ⑫ daño / golpe letal a un ALIADO · ⑬ fin de un DoT
+  'onResource', 'onAllyDamaged', 'onAllyLethal', 'onDotEnd'];
 // claves admitidas en un PowerDef (cualquier otra → definePower lanza)
 export const POWER_KEYS = new Set([...HOOK_NAMES, 'mult', 'icd', 'priority', 'procs', 'state', 'name', 'desc', 'tags']);
 
@@ -112,7 +124,7 @@ const SUM_HOOKS = new Set(['condAdd', 'condCrit', 'condDr']);
 // juego). `args` se pasan TAL CUAL al gancho (el punto de despacho construye la
 // firma exacta de la tabla §9.1.1). Agregación del resultado:
 //   condAdd/condCrit/condDr → suma de números · stats → objeto con las sumas
-//   onCast → false si algún poder cancela · onLethal → true si alguno salva
+//   onCast → false si algún poder cancela · onLethal / onAllyLethal → true si alguno salva
 //   resto → undefined.  `icd` (s): el gancho no se llama mientras dure; un gancho
 //   que devuelve `false` no consume el icd (no aplicó).
 export function firePower(hook, p, ...args) {
@@ -120,7 +132,8 @@ export function firePower(hook, p, ...args) {
   const sum = SUM_HOOKS.has(hook);
   let total = 0;
   const stats = hook === 'stats' ? {} : null;
-  if (!list || !list.length) return sum ? 0 : hook === 'stats' ? stats : hook === 'onCast' ? true : hook === 'onLethal' ? false : undefined;
+  const lethal = hook === 'onLethal' || hook === 'onAllyLethal';
+  if (!list || !list.length) return sum ? 0 : hook === 'stats' ? stats : hook === 'onCast' ? true : lethal ? false : undefined;
   let cast = true, saved = false;
   for (const d of list) {
     if (hook === 'onHit') {
@@ -137,12 +150,12 @@ export function firePower(hook, p, ...args) {
     if (sum) total += Number.isFinite(r) ? r : 0;
     else if (stats && r && typeof r === 'object') { for (const [k, v] of Object.entries(r)) if (Number.isFinite(v)) stats[k] = (stats[k] || 0) + v; }
     else if (hook === 'onCast' && r === false) { cast = false; break; }
-    else if (hook === 'onLethal' && r === true) { saved = true; break; }
+    else if (lethal && r === true) { saved = true; break; }
   }
   if (sum) return total;
   if (stats) return stats;
   if (hook === 'onCast') return cast;
-  if (hook === 'onLethal') return saved;
+  if (lethal) return saved;
   return undefined;
 }
 
@@ -154,16 +167,20 @@ export function dealProcDamage(g, e, amount, opts = {}) {
 
 // ------------------------------------------------------------
 // Comportamientos de habilidad (§9.1.3): las activas que no encajan en un tipo
-// genérico. def = { cast?(g, p, prof, cast) → CastResult, tick?(g, p, inst, dt), end?(g, p, inst) }
+// genérico. def = { cast?(g, p, prof, cast) → CastResult, tick?(g, p, inst, dt), end?(g, p, inst),
+//   passiveTick?(g, p, dt) }
 // Sin cast, el canal usa el TIPO GENÉRICO de la habilidad y llama a tick/end (canalización).
+// passiveTick (Paso 2c.2): a 10 Hz mientras el héroe CONOCE la activa (concedida por un
+// nodo de talento o aprendida), esté o no en la barra (Inversión del Tiempo graba su
+// historial desde que la tienes, no desde la primera activa).
 // ------------------------------------------------------------
 export const SKILL_BEHAVIORS = {};
-const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'name', 'desc']);
+const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'passiveTick', 'name', 'desc']);
 export function defineSkillBehavior(id, def) {
   if (!id || SKILL_BEHAVIORS[id]) throw new Error(`defineSkillBehavior: id inválido o repetido "${id}"`);
   // cast() es lo normal; un comportamiento SOLO con tick/end convive con el tipo
   // genérico de la habilidad (p. ej. type:'channel' + behavior con tick por tic)
-  if (!def || (typeof def.cast !== 'function' && typeof def.tick !== 'function')) throw new Error(`defineSkillBehavior("${id}"): falta cast() o tick()`);
+  if (!def || (typeof def.cast !== 'function' && typeof def.tick !== 'function' && typeof def.passiveTick !== 'function')) throw new Error(`defineSkillBehavior("${id}"): falta cast() o tick()`);
   for (const k of Object.keys(def)) if (!BEHAVIOR_KEYS.has(k)) throw new Error(`defineSkillBehavior("${id}"): clave desconocida "${k}"`);
   SKILL_BEHAVIORS[id] = Object.freeze({ id, ...def });
   return SKILL_BEHAVIORS[id];

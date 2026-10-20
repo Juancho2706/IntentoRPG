@@ -4,7 +4,8 @@
 // (a) cobertura: todo power/grant de los árboles existe y se puede lanzar
 // (b) al menos un caso de comportamiento por poder y por activa (arnés con talentos REALES)
 // (c) definePower rechaza claves desconocidas · (d) ningún poder nuevo declara `mult`
-// (e) los «poderes anfitriones» solo aplican el efecto del nodo que está comprado
+// (e) Paso 2c.2: sin «anfitriones»: cada nodo con efecto propio lleva SU poder (ninguno en dos
+//     nodos) o una clave tv del núcleo; los casos de cada nodo prueban las mismas cifras de 2c.1
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { makeHarness } from './helpers/power-harness.mjs';
@@ -14,6 +15,8 @@ import { arqueraPowers, arqueraSkillBehaviors, arqueraFields } from '../js/power
 import { gaugeState, gaugeMax } from '../js/spec-mechanics.js';
 import { resolveSkill } from '../js/skill-resolve.js';
 import { CLASSES } from '../js/data.js';
+import { ARQUERA_TALENTS } from '../js/talents-arquera.js';
+import { condAddPct } from '../js/combat-math.js';
 import { FIELD_DEFS } from '../js/field-entities.js';
 import { SKILL_FX } from '../js/fx-skills.js';
 
@@ -42,10 +45,25 @@ for (const [id, d] of Object.entries(arqueraPowers())) { assert.ok(!('mult' in d
 for (const id of Object.keys(arqueraSkillBehaviors())) assert.ok(SKILL_BEHAVIORS[id]?.cast, `${id}: comportamiento con cast`);
 for (const kind of Object.keys(arqueraFields())) assert.ok(FIELD_DEFS[kind], `campo ${kind} registrado`);
 for (const s of CLASSES.arquera.skills.filter(x => x.kind === 'talent')) assert.ok(SKILL_FX[s.id], `${s.id}: VFX/SFX`);
-console.log('Cobertura: 18 poderes, 13 comportamientos y 5 campos registrados; sin mult nuevo ✓');
+// Paso 2c.2: ningún poder de la Arquera está en dos nodos (ni en dos opciones de una elección)
+{
+  const owner = new Map();
+  const trees = [['cls', ARQUERA_TALENTS.cls.nodes], ...ARQUERA_TALENTS.specs.map(sp => [sp.id, sp.nodes])];
+  for (const [tree, nodes] of trees) for (const n of nodes) {
+    const fxs = n.t === 'c' ? n.opts.map(o => [`${n.id}${o.k}`, o.fx || {}]) : [[n.id, n.fx || {}]];
+    for (const [where, fx] of fxs) {
+      if (!fx.power) continue;
+      const here = `${tree}/${where}`;
+      assert.ok(!owner.has(fx.power), `${fx.power}: en ${owner.get(fx.power)} y en ${here} (sin portadores)`);
+      owner.set(fx.power, here);
+    }
+  }
+  assert.ok(!owner.has('f_perch'), 'f_perch retirado (s8 es tv del núcleo)');
+}
+console.log(`Cobertura: ${Object.keys(arqueraPowers()).length} poderes, 13 comportamientos y 5 campos registrados; sin mult nuevo; un poder por nodo ✓`);
 
 // ================================================ ÁRBOL DE CLASE
-// a_tailwind (c5B Paso Ligero) — y no aplica si solo está por el Camuflaje (c12B)
+// a_tailwind (c5B Paso Ligero) — el Camuflaje (c12B) lleva ahora su propio poder
 {
   const h = mk('francotiradora', {}, { c1: 2, c2: 1, c3: 1, c5: 1 }, { c5: 'B' });
   const p = h.p;
@@ -58,7 +76,8 @@ console.log('Cobertura: 18 poderes, 13 comportamientos y 5 campos registrados; s
   h.tick(0.7); assert.equal(p.stats.spdPct, s0 + 12, 'y vuelve');
   const c = mk('francotiradora', {}, { c12: 1 }, { c12: 'B', c5: 'A' });
   const c0 = c.p.stats.spdPct; c.tick(0.5);
-  assert.equal(c.p.stats.spdPct, c0, 'con solo Camuflaje (anfitrión) no da velocidad');
+  assert.equal(c.p.stats.spdPct, c0, 'con solo Camuflaje no da velocidad');
+  assert.ok(c.p.powers.has('a_camuflaje') && !c.p.powers.has('a_tailwind'), 'c12B: su poder propio a_camuflaje');
 }
 // a_aura_halcon (c15): +5 % crítico y +6 % movimiento propios; a los aliados a 15 m
 {
@@ -134,31 +153,56 @@ console.log('Cobertura: 18 poderes, 13 comportamientos y 5 campos registrados; s
   assert.ok(!h.g.fields.some(f => f.kind === 'a_bengala' && !f.dead) && p.stats.dmgPct === d0, 'dura 8 s');
   h.g.party = [];
 }
-// a_t_camuflaje (c12B, crítico vía anfitrión a_tailwind): los enemigos te pierden; crítico al salir
+// a_t_camuflaje (c12B) + a_camuflaje: invisibilidad REAL (Enemy.update del juego) y crítico
+// seguro del primer ataque al salir (o del que la rompe), por ⑦ onCast → cast.forceCrit
 {
   const h = mk('francotiradora', {}, { c12: 1 }, { c12: 'B' });
   const p = h.p, g = h.g;
-  const e = h.enemy({ hp: 1e7, pos: [3, 0, 0] }); e.aggroed = true;
+  // avanza el arnés y la IA REAL de los enemigos indicados
+  const run = (sec, list) => { for (let t = 0; t < sec - 1e-9; t += 0.05) { g.step(0.05); for (const e of list) if (e.alive) e.update(0.05); } };
+  const near = h.enemy({ hp: 1e7, pos: [1.2, 0, 0] }); near.aggroed = true;   // enzarzado y pegado
   ready(h); h.setSlot('k2', 'a_t_camuflaje');
   assert.equal(h.cast('k2'), true);
-  assert.ok(e.combatTarget(p)?.ghost, 'el enemigo persigue al fantasma');
-  h.tick(2); assert.ok(e.combatTarget(p)?.ghost, 'durante los 4 s');
-  h.tick(2.3);
-  assert.equal(e.combatTarget(p), p, 'al salir te vuelve a ver');
-  const hi = { skill: 'a_disparo' };
-  assert.ok(p.rollDamage(1, 0, 0, e, hi).crit && p.rollDamage(1, 0, 0, e, hi).crit, 'el primer disparo al salir es crítico (todos sus proyectiles)');
-  assert.ok(!powerState(p, 'a_t_camuflaje').crit, 'y se consume');
-  // disparar durante el camuflaje lo rompe y ese disparo es crítico
+  assert.ok(p.isInvisible(), 'invisible de verdad (p.goInvisible)');
+  const fresh = h.enemy({ hp: 1e7, pos: [3, 0, 0] });                        // te «vería» al instante
+  const hp0 = p.hp, at0 = near.pos.clone();
+  run(2, [near, fresh]);
+  assert.ok(!near.aggroed && near.pos.distanceTo(at0) < 1e-6 && p.hp === hp0, 'el enzarzado te pierde: ni te persigue ni te ataca');
+  assert.ok(!fresh.aggroed, 'uno nuevo no se enzarza mientras dura');
+  run(1.8, [fresh]);
+  assert.ok(p.isInvisible() && !fresh.aggroed, 'durante los 4 s');
+  run(0.5, []);
+  assert.ok(!p.isInvisible() && !p.buffs.some(b => b.id === 'a_t_camuflaje'), 'a los 4 s se acaba');
+  assert.ok(powerState(p, 'a_camuflaje').crit, 'y queda cebado el crítico del primer disparo');
+  run(1.0, [fresh]);
+  assert.ok(fresh.aggroed, 'al salir te vuelven a ver');
+  for (const e of [near, fresh]) e.alive = false;
+  // crítico de TODOS los impactos del ataque (aquí el básico de arma: cast.weapon)
+  const crits = (e) => { const out = []; const td = e.takeDamage.bind(e); e.takeDamage = (a, crit, o = {}) => { if (!o.dot && !o.proc) out.push(!!crit); return td(a, crit, o); }; return out; };
+  const tgt = h.enemy({ hp: 1e9, pos: [5, 0, 0] });
+  const c1 = crits(tgt);
+  h.aim(5, 0); ready(h);
+  p.basicAttack(tgt); h.step(0.8);
+  assert.ok(c1.length >= 1 && c1.every(Boolean), `el primer disparo al salir (básico de arma) es crítico (${c1})`);
+  assert.ok(!powerState(p, 'a_camuflaje').crit, 'y se consume');
+  // disparar durante el camuflaje lo rompe y ese disparo (todos sus proyectiles) es crítico
   p.cds.a_t_camuflaje = 0; ready(h);
   assert.equal(h.cast('k2'), true);
-  assert.ok(p.rollDamage(1, 0, 0, e, { skill: 'a_disparo' }).crit, 'disparo desde el camuflaje: crítico');
-  assert.ok(!(powerState(p, 'a_t_camuflaje').until > p.simT) && e.combatTarget(p) === p, 'y rompe el camuflaje');
+  assert.ok(p.isInvisible());
+  ready(h); h.setSlot('rmb', 'flecha_multiple');
+  c1.length = 0;
+  assert.equal(h.cast('rmb'), true);
+  assert.ok(!p.isInvisible(), 'atacar rompe el camuflaje (p.reveal)');
+  h.step(0.8);
+  assert.ok(c1.length >= 1 && c1.every(Boolean), `disparo desde el camuflaje: crítico (${c1})`);
+  h.step(4);
+  assert.ok(!powerState(p, 'a_camuflaje').crit, 'roto a mano, no deja otro crítico cebado');
   void g;
 }
 console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silencio, Bengala, Camuflaje ✓');
 
 // ================================================ FRANCOTIRADORA
-// f_aliento_cazador (s4): instantáneo con Concentración 100 y gasta 50; s11 (anfitrión): Energía al llenar
+// f_aliento_cazador (s4): instantáneo con Concentración 100 y gasta 50; s11 (tv.focusEnergy del núcleo): Energía al llenar
 {
   const h = mk('francotiradora', { s1: 3, s2: 2, s4: 1 });
   const p = h.p, g = h.g;
@@ -177,11 +221,13 @@ console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silen
   r.p.mp = 0; r.gauge('concentracion', 100);
   assert.equal(r.p.mp, 16, 'Respiración Profunda: +16 de Energía al llenar');
 }
-// f_perch (s8): −3 %/rango, el doble con Concentración > 50 · s15 (anfitrión): −15 % de pérdida
+// s8 Posición Elevada (tv.drFocus del núcleo): −3 %/rango, el doble con Concentración > 50 ·
+// s15 Paso del Acechador (f_acechador: 'gaugeLoss:concentracion' −15): −15 % de pérdida
 {
   const h = mk('francotiradora', { s8: 2 });
   const p = h.p;
   h.gauge('concentracion', 60);
+  assert.equal(p.tv.dmgReduc, 6, 'la mitad incondicional (tv.dmgReduc)');
   assert.equal(firePower('condDr', p, p, {}), 6, 'Concentración > 50: +6 de reducción');
   h.gauge('concentracion', 40);
   assert.equal(firePower('condDr', p, p, {}), 0, '≤ 50: nada extra');
@@ -196,7 +242,7 @@ console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silen
   const s = mk('francotiradora', { s15: 1 });
   assert.ok(approx(drain(s), 78.75, 1e-6), 'Paso del Acechador: −15 % de pérdida');
   s.gauge('concentracion', 60);
-  assert.equal(firePower('condDr', s.p, s.p, {}), 0, 'el anfitrión no duplica la reducción sin s8');
+  assert.equal(firePower('condDr', s.p, s.p, {}), 0, 'Paso del Acechador no da reducción sin s8');
 }
 // f_patience (s13B): +2 %/s quieta, máx. +20; se pierde al moverte
 {
@@ -210,7 +256,7 @@ console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silen
   p.moving = true; firePower('onTick', p, h.g, p, 0.1);
   assert.equal(firePower('condAdd', p, p, e, {}), 0, 'moverse la pierde');
 }
-// f_overpen (s14): +15 % por enemigo atravesado · s6B (anfitrión): los críticos sangran el 80 %
+// f_overpen (s14): +15 % por enemigo atravesado · s6B f_herida_abierta: los críticos sangran el 80 %
 {
   const h = mk('francotiradora', { s14: 1 });
   const p = h.p;
@@ -227,15 +273,16 @@ console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silen
   const w = mk('francotiradora', { s6: 1 }, {}, { s6: 'B' });
   const t = w.enemy({ hp: 1e7 });
   w.hit(t, { skill: 'a_t_apuntado', crit: true, dealt: 1000 });
-  assert.ok(t._dots?.['a_t_apuntado:bleed'], 'Herida Abierta: el crítico sangra');
+  assert.ok(w.g.hasDoT(t, 'a_t_apuntado:bleed'), 'Herida Abierta: el crítico sangra');
+  assert.ok(approx(w.g.dotRemaining(t, 'a_t_apuntado:bleed'), 800, 6), 'el 80 % del golpe (redondeo por tic)');
   const t2 = w.enemy({ hp: 1e7, pos: [0, 0, 3] });
   w.hit(t2, { skill: 'a_t_apuntado', crit: false, dealt: 1000 });
-  assert.ok(!t2._dots?.['a_t_apuntado:bleed'], 'sin crítico no');
+  assert.ok(!w.g.hasDoT(t2, 'a_t_apuntado:bleed'), 'sin crítico no');
   assert.equal(firePower('condAdd', w.p, w.p, t, { skill: 'a_t_apuntado', _overpen: 2 }), 0, 'sin s14 no hay Sobrepenetración');
   const a = mk('francotiradora', { s6: 1 }, {}, { s6: 'A' });
   const t3 = a.enemy({ hp: 1e7 });
   a.hit(t3, { skill: 'a_t_apuntado', crit: true, dealt: 1000 });
-  assert.ok(!t3._dots?.['a_t_apuntado:bleed'], 'con Golpe de Gracia no sangra');
+  assert.ok(!a.g.hasDoT(t3, 'a_t_apuntado:bleed'), 'con Golpe de Gracia no sangra');
 }
 // f_weakspot (x1): marca élites/jefes 8 s (+15 % de crítico) · x2: daño crítico extra contra ellos
 {
@@ -320,7 +367,7 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   // salta: inmoviliza 2 s y envenena
   const e = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
   h.step(0.1);
-  assert.ok(approx(e.rootT, 2, 0.12) && e._dots?.['a_t_cepo:poison'], 'inmoviliza 2 s y envenena');
+  assert.ok(approx(e.rootT, 2, 0.12) && h.g.hasDoT(e, 'a_t_cepo:poison'), 'inmoviliza 2 s y envenena');
   h.step(0.1);
   assert.equal(h.gaugeValue('coto'), 2, 'la trampa saltada desaparece');
   // Cepo Doble: 2 cargas seguidas; vuelve una a los 8 s
@@ -338,10 +385,13 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   assert.equal(gaugeMax(c.p, 'coto'), 4);
   assert.ok(approx(traps(c)[0].radius, 1.5 * 1.3, 1e-6), '+30 % de radio de activación');
 }
-// Cepo de Hierro (s6A) + Raíces Profundas (s16): +1 y +0,5/rango; jefes ralentizados 50 %
+// Cepo de Hierro (s6A: mod.rootAdd + m_cepo_hierro) + Raíces Profundas (s16: mod.rootAdd):
+// +1 y +0,5/rango que SE SUMAN (prof.root); jefes ralentizados 50 % (prof.bossSlowPct)
 {
   const h = mk('montaraz', { s6: 1, s16: 2 }, {}, { s6: 'A' });
   h.setSlot('k3', 'a_t_cepo');
+  const cp = resolveSkill(h.p, SK('a_t_cepo'));
+  assert.ok(approx(cp.root, 4) && cp.bossSlowPct === 50, `perfil: root 4 s y bossSlowPct 50 (${cp.root}, ${cp.bossSlowPct})`);
   castTrap(h, 4, 0);
   const e = h.enemy({ hp: 1e7, pos: [4, 0, 0] });
   h.step(0.05);
@@ -353,7 +403,7 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   h.step(0.05);
   assert.ok(b.slowPct === 50 && b.slowT > 3 && b.stagger > 0, 'jefe: ralentizado 50 % y stagger (no inmovilizado)');
 }
-// Mina de Espinas (s6B): estalla 120 % en 3 m, sin inmovilizar
+// Mina de Espinas (s6B: m_mina → prof.mine, mod.radius +100): estalla 120 % en 3 m, sin inmovilizar
 {
   const h = mk('montaraz', { s6: 1 }, {}, { s6: 'B' });
   h.setSlot('k3', 'a_t_cepo');
@@ -363,12 +413,16 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   const e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
   h.step(0.05);
   assert.ok(e.hp < e.maxHP && near.hp < near.maxHP, 'la explosión alcanza 3 m');
-  assert.ok(!(e.rootT > 0) && e._dots?.['a_t_cepo:poison'], 'no inmoviliza; envenena al que la pisa');
+  assert.ok(!(e.rootT > 0) && h.g.hasDoT(e, 'a_t_cepo:poison'), 'no inmoviliza; envenena al que la pisa');
   const blast = e.maxHP - e.hp;
-  const avg = h.p.avgHit(1.2 * resolveSkill(h.p, SK('a_t_cepo')).coef / 1.5, resolveSkill(h.p, SK('a_t_cepo')).addPct - 120);
+  const mp = resolveSkill(h.p, SK('a_t_cepo'));
+  assert.ok(mp.mine, 'perfil: prof.mine');
+  // Paso 2c.2: el +120 % ya no está en mod.dmg (antes se descontaba aquí): addPct es el real
+  const avg = h.p.avgHit(1.2 * mp.coef / 1.5, mp.addPct);
   assert.ok(blast < avg * 1.6 * 1.6, `la explosión es ≈120 % del arma, sin el +120 % aditivo (${blast} frente a ${avg.toFixed(0)})`);
 }
-// m_warden (s13B): las trampas curan un 3 %/s a los aliados encima · s8 (anfitrión): Pellejo de Oso
+// m_warden (s13B): las trampas curan un 3 %/s a los aliados encima (g.heal centrado en la trampa) ·
+// s8 Pellejo de Oso (tv.drVsSlowed del núcleo)
 {
   const h = mk('montaraz', { s13: 1 }, {}, { s13: 'B' });
   const p = h.p;
@@ -387,10 +441,12 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   assert.ok(sp.hp - h0 < sp.stats.maxHP * 0.01, 'sin s13B las trampas no curan');
   const slowE = s8.enemy({ hp: 1e6 }); slowE.applyCC('slow', 3, { pct: 40 });
   const fresh = s8.enemy({ hp: 1e6, pos: [0, 0, 3] });
-  assert.equal(firePower('condDr', sp, sp, { src: slowE }), 0, 'Pellejo de Oso: contra ralentizados vale el −10 %');
-  assert.equal(firePower('condDr', sp, sp, { src: fresh }), -10, 'contra los demás se retira');
+  // 2c.1: tv.dmgReduc 10 + condDr −10 si no estaba ralentizado; 2c.2: solo la condicional
+  assert.ok(!sp.tv.dmgReduc, 'Pellejo de Oso ya no da reducción incondicional');
+  assert.equal(firePower('condDr', sp, sp, { src: slowE }), 10, 'Pellejo de Oso: contra ralentizados, −10 %');
+  assert.equal(firePower('condDr', sp, sp, { src: fresh }), 0, 'contra los demás, nada');
 }
-// m_cepo_doble como anfitrión de s10 Lazo Corredizo: inmoviliza solo al PRIMER enemigo
+// s10 Lazo Corredizo (m_lazo): inmoviliza solo al PRIMER enemigo
 {
   const h = mk('montaraz', { s10: 2 });
   const p = h.p;
@@ -401,7 +457,8 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   assert.ok(approx(a.rootT, 1, 0.8) && a.rootT > 0.3 && !(b.rootT > 0), 'Lazo: solo el primero queda inmovilizado');
   const cd = mk('montaraz', { s10: 2 }); cd.setSlot('k3', 'a_t_cepo');
   castTrap(cd, 3, 0); cd.step(0.3); ready(cd);
-  assert.equal(cd.cast('k3'), false, 'el anfitrión no da la 2.ª carga sin s4');
+  assert.equal(cd.cast('k3'), false, 'Lazo no da la 2.ª carga sin s4');
+  assert.ok(cd.p.powers.has('m_lazo') && !cd.p.powers.has('m_cepo_doble'), 's10: su poder propio');
   void p;
 }
 // m_thornweb (x1): red entre trampas a ≤ 10 m (ralentiza 50 % y sangra) · x2 Zarzal · x3 Gran Cacería
@@ -417,7 +474,7 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   const hp0 = e.hp;
   h.tick(0.5);
   assert.ok(e.slowPct === 50 && e.slowT > 0, 'la red ralentiza un 50 %');
-  assert.ok(e._dots?.['m_thornweb:bleed'], 'y hace sangrar');
+  assert.ok(h.g.hasDoT(e, 'm_thornweb:bleed'), 'y hace sangrar');
   assert.ok(e.hp < hp0, 'Zarzal: daño por segundo');
   assert.ok(p.buffs.some(b => b.id === 'm_greathunt' && b.stats.dmgPct === 15), 'Gran Cacería: +15 % de daño al grupo');
   assert.ok(p.cds.a_t_cepo === 0 && powerState(p, 'a_t_cepo').charges >= 1, 'y las trampas se rearman');
@@ -430,7 +487,7 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   lone.tick(0.5);
   assert.ok(!(e2.slowT > 0), 'trampas a más de 10 m no se unen');
 }
-// m_thornweb como anfitrión: s3 Abrojos (sustituye la Estela por un campo que ralentiza 30 %) y s11 Ponzoña Lenta
+// s3 Abrojos (m_abrojos: sustituye la Estela por un campo que ralentiza 30 %) y s11 Ponzoña Lenta (m_ponzona + tv.dotDur)
 {
   const h = mk('montaraz', { s3: 2 });
   const p = h.p;
@@ -455,7 +512,7 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   pz.step(0.6);
   assert.ok(!(sangre.slowT > 0), 'el Sangrado no');
 }
-// s17 Espinas Venenosas (tv.rootedWeak, la aplican m_extratrap o m_greathunt)
+// s17 Espinas Venenosas (tv.rootedWeak: la aplica el núcleo, nucleo_tv)
 {
   const h = mk('montaraz', { s14: 1, s17: 2 });
   const e = h.enemy({ hp: 1e7 });
@@ -465,20 +522,22 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   const g2 = mk('montaraz', { s15: 1, s17: 1 });
   const e2 = g2.enemy({ hp: 1e7 }); e2.applyCC('root', 2, { src: g2.p }); g2.tick(0.2);
   assert.equal(e2.debuffs.m_espinas_venenosas?.pct, 10, 'también por la rama de s15');
+  assert.ok(g2.p.powers.has('nucleo_tv') && !g2.p.powers.has('m_greathunt'), 'por el núcleo, sin poder ajeno');
   const free = g2.enemy({ hp: 1e7, pos: [0, 0, 3] }); g2.tick(0.2);
   assert.ok(!free.debuffs.m_espinas_venenosas, 'sin inmovilizar, nada');
 }
-// m_greathunt como anfitrión de s15 Cazadora Paciente: solo contra la Presa
+// s15 Cazadora Paciente (tv.preyDmg: combat-math.condAddPct contra la Presa)
 {
   const h = mk('montaraz', { s15: 2 });
   const p = h.p;
-  const el = h.enemy({ hp: 1e7, rank: 'elite' }), el2 = h.enemy({ hp: 1e7, rank: 'elite', pos: [0, 0, 4] }), c = h.enemy({ hp: 1e7, pos: [0, 0, -4] });
+  const el = h.enemy({ hp: 1e7, rank: 'elite' }), el2 = h.enemy({ hp: 1e7, rank: 'elite', pos: [0, 0, 4] });
   h.hit(el, {});
   assert.ok(el.prey && !el2.prey);
-  assert.equal(firePower('condAdd', p, p, el, {}), 0, 'contra la Presa vale el +20 %');
-  assert.equal(firePower('condAdd', p, p, el2, {}), -20, 'contra otro élite se retira');
-  assert.equal(firePower('condAdd', p, p, c, {}), 0, 'un común no lo tenía');
-  assert.equal(p.tv.eliteDmg, 20);
+  assert.equal(p.tv.preyDmg, 20);
+  assert.ok(!p.tv.eliteDmg, 'ya no es eliteDmg corregido por un anfitrión');
+  assert.equal(condAddPct(p.tv, { targetElite: true, targetPrey: !!el.prey }), 20, 'contra la Presa +20 %');
+  assert.equal(condAddPct(p.tv, { targetElite: true, targetPrey: !!el2.prey }), 0, 'contra otro élite, nada');
+  assert.equal(condAddPct(p.tv, { targetElite: false, targetPrey: false }), 0, 'un común tampoco');
 }
 // a_t_arpon (s9): atrae al objetivo hacia la trampa más cercana y lo ralentiza 60 %
 {
@@ -528,7 +587,7 @@ console.log('Montaraz: Cepo (cargas, armadas, Hierro, Mina, Raíces), Guardabosq
   const n = mk('tiradora', {});
   n.enemy({ hp: 1e7, pos: [5, 0, 0] }); n.aim(5, 0); ready(n); n.setSlot('k3', 'a_t_andanada'); n.cast('k3');
   assert.equal(n.gaugeValue('impulso'), 0, 'sin s4 no da Impulso');
-  // s6B Corona de Flechas (anfitrión): 360° de verdad
+  // s6B Corona de Flechas (t_corona): 360° de verdad
   const c = mk('tiradora', { s6: 1 }, {}, { s6: 'B' });
   const fm = resolveSkill(c.p, SK('flecha_multiple'));
   const nn = fm.count + fm.proj;
@@ -536,7 +595,8 @@ console.log('Montaraz: Cepo (cargas, armadas, Hierro, Mina, Raíces), Guardabosq
   assert.ok(approx(fm.spread, Math.PI * (nn - 1) / nn), 'Corona: las flechas cubren la vuelta entera');
   assert.ok(approx(resolveSkill(h.p, SK('flecha_multiple')).spread, SK('flecha_multiple').spread), 'sin s6B, el abanico de 50°');
 }
-// t_slipstream (s13B): estela que acelera a los aliados durante el Vendaval · s5 Viento de Cola · s8 Esquiva Felina
+// t_slipstream (s13B): estela que acelera a los aliados durante el Vendaval · s5 Viento de Cola
+// (t_viento_cola) · s8 Esquiva Felina (tv.drMoving del núcleo)
 {
   const h = mk('tiradora', { s13: 1 }, {}, { s13: 'B' });
   const p = h.p;
@@ -558,13 +618,17 @@ console.log('Montaraz: Cepo (cargas, armadas, Hierro, Mina, Raíces), Guardabosq
   assert.equal(resolveSkill(v.p, SK('agilidad')).dur, 6 + 2, '+2 s de Agilidad');
   v.tick(8.2);
   assert.equal(v.p.stats.aspdPct, a0, 'al terminar, nada');
+  // Paso 2c.2: el buff de Agilidad ya no lleva el +5 % relativo (mod.buff) que el texto no decía
+  assert.equal(buffA, resolveSkill(mk('tiradora', {}).p, SK('agilidad')).buff.aspdPct, 'sin el +5 % relativo del buff');
   const f = mk('tiradora', { s8: 2 });
+  // 2c.1: tv.dmgReduc 8 + condDr −8 quieta; 2c.2: solo la condicional
+  assert.ok(!f.p.tv.dmgReduc, 'Esquiva Felina ya no da reducción incondicional');
   f.p.moving = false;
-  assert.equal(firePower('condDr', f.p, f.p, {}), -8, 'Esquiva Felina: quieta se retira');
+  assert.equal(firePower('condDr', f.p, f.p, {}), 0, 'Esquiva Felina: quieta, nada');
   f.p.moving = true;
-  assert.equal(firePower('condDr', f.p, f.p, {}), 0, 'en movimiento vale el −8 %');
+  assert.equal(firePower('condDr', f.p, f.p, {}), 8, 'en movimiento, −8 %');
 }
-// t_galechain (s14): cada muerte en Vendaval +0,5 s (máx. +6) · s11 Segundo Aliento (anfitrión)
+// t_galechain (s14): cada muerte en Vendaval +0,5 s (máx. +6) · s11 Segundo Aliento (tv.galeHeal + tv.galeEnergy del núcleo)
 {
   const h = mk('tiradora', { s14: 1 });
   const p = h.p;
@@ -594,13 +658,13 @@ console.log('Montaraz: Cepo (cargas, armadas, Hierro, Mina, Raíces), Guardabosq
   const fm0 = resolveSkill(p, SK('flecha_multiple'));
   for (let i = 0; i < 9; i++) firePower('onCast', p, h.g, p, proj);
   assert.ok(!powerState(p, 't_infinite').ready, '9 disparos: aún no');
-  p.basicAt = 1.234; firePower('onTick', p, h.g, p, 0.1);  // el básico también cuenta
+  const tgt0 = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
+  h.aim(5, 0); p.basicAttack(tgt0); h.step(0.6);           // el básico de ARMA también cuenta (⑦ cast.weapon)
   assert.ok(powerState(p, 't_infinite').ready, '10.º disparo: Ráfaga Infinita lista');
   const fm = resolveSkill(p, SK('flecha_multiple'));
   assert.equal(fm.cost, 0, 'no cuesta Energía');
   assert.equal(fm.count + fm.proj, 2 * (fm0.count + fm0.proj), 'el doble de proyectiles');
   assert.equal(fm.addPct, fm0.addPct + 20, 'Huracán: +20 % de daño');
-  h.enemy({ hp: 1e7, pos: [5, 0, 0] });
   h.aim(5, 0); ready(h); h.setSlot('rmb', 'flecha_multiple');
   const mp0 = p.mp; const box = countProj(h.g);
   assert.equal(h.cast('rmb'), true);

@@ -10,12 +10,14 @@ import { SETS } from './items.js';
 import { migrateSave, serializePlayer } from './save-schema.js';
 import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
-  condAddPct, dotProfile, healScaled,
+  condAddPct, condCritPct, dotProfile, healScaled,
   STAGGER_MAX, STAGGER_BREAK_T, STAGGER_LOCK_T, staggerFromCC, staggerFromDamage,
   THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT } from './skill-resolve.js';
-import { firePower, buildHookIndex } from './powers.js';
+import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
+import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
+import { dotsOf } from './timers.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { projFanOffset } from './skill-defs.js';
 import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
@@ -587,6 +589,7 @@ export class Player {
     this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
     this.slowImmuneT = 0;       // inmune a ralentizaciones (Agilidad, Piel de Hierro, Furia Inmortal)
+    this.invisT = 0;            // invisible (Camuflaje): los enemigos pierden el objetivo (Paso 2c.2)
     this.leap = null;           // salto en curso (tipo de habilidad `leap`)
     this.simT = 0;              // reloj de simulación del héroe (icd de poderes)
     this.sinceCombat = 99;      // s desde el último golpe dado o recibido
@@ -678,7 +681,9 @@ export class Player {
                    // Paso 2c.0 (talentos, §5.3): % de vida/maná máx., % de experiencia,
                    // amenaza extra (se suma al ×1 base; la innata del Guardián lo fija en ×3)
                    // y % de stagger contra jefes
-                   hpPct: 0, mpPct: 0, xpPct: 0, threatMult: 0, staggerPct: 0 };
+                   hpPct: 0, mpPct: 0, xpPct: 0, threatMult: 0, staggerPct: 0,
+                   // Paso 2c.2: daño recibido extra (%, tras mitigar: Temeridad +10)
+                   dmgTakenPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -776,6 +781,17 @@ export class Player {
     // poderes y claves tv de los talentos
     for (const id of agg.powers) this.powers.add(id);
     this.tv = agg.tv;
+    // Paso 2c.2: las claves tv que consume el NÚCLEO (curas y recurso al matar, Ejecutar,
+    // reducción de daño condicional, Pirotecnia, Espinas Venenosas…) van por el poder
+    // común `nucleo_tv` (powers-common.js): sin poderes «portadores» en los nodos
+    if (usesCoreTv(agg.tv)) this.powers.add(CORE_TV_POWER);
+    // activas conocidas con passiveTick (⑨ a 10 Hz aunque no estén en la barra)
+    this.passiveBehaviors = [];
+    for (const id of agg.grants || []) {
+      const sk = this.cls?.skills?.find(s => s.id === id);
+      const b = sk?.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
+      if (b?.passiveTick) this.passiveBehaviors.push(b);
+    }
     // ① PODERES: índice de ganchos de los poderes activos + sus stats (registro
     // data-driven, js/powers.js). Las pasivas compradas se eliminaron (Paso 2b.0).
     // powerStats = lo que devolvieron (también claves propias, p. ej. 'gaugeMax:coto')
@@ -821,6 +837,7 @@ export class Player {
       // Paso 2c.0: experiencia, amenaza (multiplicador ≥ 1) y stagger contra jefes
       hpPct: item.hpPct, mpPct: item.mpPct, xpPct: item.xpPct,
       threatMult: Math.max(0.1, 1 + item.threatMult), staggerPct: item.staggerPct,
+      dmgTakenPct: item.dmgTakenPct,
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
@@ -870,12 +887,20 @@ export class Player {
     const r = this.combatRng || Math.random;
     const st = this.stats;
     let add = addPct, cb = critBonus;
-    if (e && this.tv) add += condAddPct(this.tv, {
-      targetElite: !!(e.def?.rank || isBossDef(e.def) || e.prey),
-      targetSlowed: e.slowT > 0 || e.frozenT > 0,
-      targetFrac: e.maxHP ? e.hp / e.maxHP : 1,
-      manaFrac: st.maxMP ? this.mp / st.maxMP : 0,
-    });
+    if (e && this.tv) {
+      // Paso 2c.2: Presa (preyDmg), «ya estallaron» (explodedDmg, Fuego), Ejecutar contra
+      // élites/jefes (executePct) y crítico contra enemigos en llamas (burningCrit)
+      const c = {
+        targetElite: !!(e.def?.rank || isBossDef(e.def) || e.prey),
+        targetSlowed: e.slowT > 0 || e.frozenT > 0,
+        targetFrac: e.maxHP ? e.hp / e.maxHP : 1,
+        manaFrac: st.maxMP ? this.mp / st.maxMP : 0,
+        targetPrey: !!e.prey, targetExploded: !!e.pyroBurst, elem: hit?.elem || null,
+        targetBurning: !!this.tv.burningCrit && dotsOf(e, 'burn').length > 0,
+      };
+      add += condAddPct(this.tv, c);
+      cb += condCritPct(this.tv, c);
+    }
     if (this.hookIndex?.condAdd) add += firePower('condAdd', this, this, e, hit || {});
     if (this.hookIndex?.condCrit) cb += firePower('condCrit', this, this, e, hit || {});
     const w = st.wMin + r() * (st.wMax - st.wMin);
@@ -923,14 +948,23 @@ export class Player {
     void src;
     return this.hp;
   }
-  // escudo: se consume DESPUÉS de mitigar y antes de la vida (escala con healPct)
-  addShield(amount, dur, src = 'shield') {
+  // escudo: se consume DESPUÉS de mitigar y antes de la vida (escala con healPct).
+  // opts.dr (Paso 2c.2): puntos de reducción de daño mientras el escudo aguanta
+  // (Escudo Prismático de la Barrera de Maná); el mayor de los escudos activos
+  addShield(amount, dur, src = 'shield', opts = null) {
     const amt = Math.round(healScaled(amount, this.stats.healPct));
     if (!(amt > 0) || !(dur > 0)) return 0;
     this.shields = (this.shields || []).filter(s => s.src !== src);
-    this.shields.push({ amt, t: dur, src });
+    this.shields.push({ amt, t: dur, src, dr: Math.max(0, opts?.dr || 0) });
     return amt;
   }
+  shieldDr() { let d = 0; for (const s of this.shields || []) if (s.amt > 0 && s.t > 0 && s.dr > d) d = s.dr; return d; }
+  // INVISIBILIDAD (Paso 2c.2, Camuflaje): mientras dura, los enemigos pierden el
+  // objetivo y no adquieren uno nuevo (Enemy.update); atacar NO la rompe aquí (lo
+  // decide el poder que la da: reveal())
+  goInvisible(sec) { if (sec > 0) this.invisT = Math.max(this.invisT || 0, sec); }
+  reveal() { this.invisT = 0; }
+  isInvisible() { return (this.invisT || 0) > 0; }
   shieldTotal() { return (this.shields || []).reduce((a, s) => a + s.amt, 0); }
   // absorbe `dmg` con los escudos activos (los más antiguos primero); devuelve lo que pasa
   absorbShields(dmg) {
@@ -1148,6 +1182,8 @@ export class Player {
     let extraDr = this.hookIndex?.condDr ? firePower('condDr', this, this, info) : 0;
     const zd = this.zoneDefense().dr;                 // dentro de una zona aliada (Bomba de Humo)
     if (zd > 0) extraDr += zd;
+    const sd = this.shieldDr();                       // escudo con reducción (Escudo Prismático)
+    if (sd > 0) extraDr += sd;
     const st = extraDr ? { ...this.stats, dr: (this.stats.dr || 0) + extraDr } : this.stats;
     const mit = mitigate(amount, st, { al: attackerLevel, element: info.element, rng: this.combatRng });
     info.blocked = mit.blocked;
@@ -1229,6 +1265,7 @@ export class Player {
     if (this.actionLockT > 0) this.actionLockT = Math.max(0, this.actionLockT - dt);
     if (this.castLock > 0) this.castLock = Math.max(0, this.castLock - dt); // red de seguridad (windup/canalización)
     if (this.invulnT > 0) this.invulnT = Math.max(0, this.invulnT - dt);
+    if (this.invisT > 0) this.invisT = Math.max(0, this.invisT - dt);
     if (this.unstoppableT > 0) this.unstoppableT = Math.max(0, this.unstoppableT - dt);
     if (this.slowImmuneT > 0) { this.slowImmuneT = Math.max(0, this.slowImmuneT - dt); this.slowT = 0; }
     if (this.shields?.length) { for (const s of this.shields) s.t -= dt; this.shields = this.shields.filter(s => s.t > 0 && s.amt > 0); }
@@ -1241,7 +1278,10 @@ export class Player {
     // ⑨ onTick de los poderes a 10 Hz (dt acumulado)
     if (this.hookIndex?.onTick) {
       this._tickAcc = (this._tickAcc || 0) + dt;
-      while (this._tickAcc >= 0.1) { this._tickAcc -= 0.1; firePower('onTick', this, g, this, 0.1); }
+      while (this._tickAcc >= 0.1) { this._tickAcc -= 0.1; firePower('onTick', this, g, this, 0.1); this._passiveTick(g, 0.1); }
+    } else if (this.passiveBehaviors?.length) {
+      this._tickAcc = (this._tickAcc || 0) + dt;
+      while (this._tickAcc >= 0.1) { this._tickAcc -= 0.1; this._passiveTick(g, 0.1); }
     } else this._tickAcc = 0;
 
     // salto en curso (tipo `leap`): vuela al destino, intocable; al caer, impacto
@@ -1407,17 +1447,29 @@ export class Player {
   // Ataque básico de arma = GENERADOR (§2) y una habilidad más (cat:'basic'): su
   // coeficiente, ramas, soportes y poderes salen de resolveSkill. El recurso se
   // gana SOLO al acertar (Tajo/Embate: +extra por objetivo adicional).
+  // ⑨ passiveTick de las activas conocidas (Inversión del Tiempo graba su historial)
+  _passiveTick(g, dt) {
+    for (const b of this.passiveBehaviors || []) {
+      try { b.passiveTick(g, this, dt); } catch (err) { try { console.warn(`[activa ${b.id}] passiveTick`, err); } catch { /* */ } }
+    }
+  }
+
   basicAttack(target) {
-    this.atkCd = this.stats.atkTime;
-    this.swing = 1;
     const g = this.game;
     const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
     const wb = weaponBasicOf(this.cls);
     const prof = wb ? resolveSkill(this, wb) : null;
+    // ⑦ Paso 2c.2: el básico de ARMA también pasa por onCast (CastInfo.weapon = true):
+    // Ráfaga Infinita cuenta sus disparos y un onCast puede forzar el crítico
+    // (cast.forceCrit: Camuflaje) o cancelarlo (false)
+    const cast = { sk: wb, prof, slot: 'lmb', target: target?.pos || null, enemy: target?.def ? target : null, weapon: true };
+    if (wb && prof && this.hookIndex?.onCast && firePower('onCast', this, g, this, cast) === false) return;
+    this.atkCd = this.stats.atkTime;
+    this.swing = 1;
     const coef = prof ? prof.coef : 1;
     const bAdd = prof?.addPct || 0;
     const bCrit = prof?.critBonus || 0;
-    const hitInfo = { skill: wb?.id || null, tags: prof?.tags || EMPTY_TAGS, elem: prof?.elem || null };
+    const hitInfo = { skill: wb?.id || null, tags: prof?.tags || EMPTY_TAGS, elem: prof?.elem || null, forceCrit: !!(prof?.forceCrit || cast.forceCrit) };
     const dmgOpts = { skill: hitInfo.skill, tags: hitInfo.tags, elem: hitInfo.elem };
     const avgHit = this.avgHit(coef, bAdd);
     // VFX/SFX del básico de la clase (fx-skills-<clase>.js): el Dardo suena `bolt`
@@ -2011,6 +2063,9 @@ export class Enemy {
     // objetivo: provocación > amenaza > el jugador (Paso 2c.0; en solitario, el jugador)
     const player = pl ? this.combatTarget(pl) : pl;
     if (!player || !player.alive) return false;
+    // héroe INVISIBLE (Camuflaje, Paso 2c.2): pierde el objetivo y no adquiere uno nuevo
+    // mientras dura (se queda donde está; si te ve al acabar, vuelve a enzarzarse)
+    if (player === pl && pl.invisT > 0) { this.aggroed = false; this.threatTarget = null; return false; }
     // ATURDIDO: ni se mueve ni ataca (la animación/flash siguen)
     if (this.stunT > 0) return false;
     // LANZANDO (habilidad interrumpible, enemy-abilities.js): quieto hasta terminar

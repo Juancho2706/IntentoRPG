@@ -23,9 +23,11 @@
 //   mod:    { skillId|'@elem'|'@all'|'@spec': { …claves de skill-defs.emptyMods:
 //             dmg proj pierce radius range slow(s) slowPct(%) crit dot buff dur(%)
 //             durS(+s) cdr cost gen lifesteal vuln stun root execute chain zone
-//             zoneDur cdhit echo coldblood haste cleanse critCdr(s por crítico) } }
+//             zoneDur cdhit echo coldblood haste cleanse critCdr(s por crítico)
+//             rootAdd(+s) slowPctAdd(+%) } }
 //             Fusión = skill-defs.mergeMods: se SUMAN salvo slow/slowPct/stun/root/
 //             vuln/execute/chain/zone/cdhit/haste (gana el MÁXIMO) y los booleanos.
+//             Un «+N s de inmovilización» de talento sobre la habilidad = rootAdd (suma).
 //   tv:     { clave: valor } valores que leen los hooks de combate (§5.3). Todos
 //     numéricos y SUMADOS, salvo costRedBig = { pct, over } (objeto: pct se suma,
 //     over = el umbral más bajo). Incondicionales que ya aplica recompute:
