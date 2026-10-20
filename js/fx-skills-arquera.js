@@ -120,6 +120,118 @@ export const ARQUERA_FX_PRESETS = {
     size: { start: [0.16, 0.32], end: 0.04 },
     color: { start: '#c8f090', end: '#4a6e2a' }, alpha: { start: 1, end: 0.1 },
   },
+
+  // ---- Activas de talento (Paso 2c.1) ----
+  // Flecha Silenciadora — estela violeta y sello sobre la cabeza del silenciado
+  arqSilenceTrail: {
+    name: 'Flecha Silenciadora estela', texture: 'glow', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.2, 0.4],
+    shape: 'point', shapeRadius: 0.06, speed: [0.3, 1.0], gravity: 0, drag: 0.8,
+    size: { start: [0.14, 0.26], end: 0.0 },
+    color: { start: '#e6d4ff', end: '#7a4fd0' }, alpha: { start: 0.85, end: 0 },
+  },
+  arqSilenceMark: {
+    name: 'Silenciado', texture: 'star', blending: 'additive',
+    count: 14, burst: true, lifetime: [0.4, 0.8],
+    shape: 'ring', shapeRadius: 0.35, speed: [0.2, 0.8], gravity: -0.5, drag: 0.6,
+    size: { start: [0.16, 0.3], end: 0.0 },
+    color: { start: '#ffffff', end: '#b98cff' }, alpha: { start: 1, end: 0 }, spin: 120,
+  },
+  // Disparo Conmocionante — golpe romo
+  arqStunPop: {
+    name: 'Conmoción', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.2, 0.3],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.3, 0.4], end: 1.6 },
+    color: { start: '#fff2cc', end: '#c8b48a' }, alpha: { start: 0.7, end: 0 },
+  },
+  // Flecha Bengala — estallido dorado en lo alto
+  arqFlareBurst: {
+    name: 'Flecha Bengala', texture: 'star', blending: 'additive',
+    count: 48, burst: true, lifetime: [0.6, 1.4],
+    shape: 'sphere', shapeRadius: 0.3, speed: [2, 5], gravity: 1.5, drag: 0.5,
+    size: { start: [0.2, 0.45], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffcc55' }, alpha: { start: 1, end: 0 }, spin: 90,
+  },
+  // Camuflaje — hojas que envuelven y se dispersan
+  arqCamoLeaves: {
+    name: 'Camuflaje', texture: 'spark', blending: 'normal',
+    count: 30, burst: true, lifetime: [0.5, 1.0],
+    shape: 'sphere', shapeRadius: 0.6, speed: [0.6, 2.0], gravity: -0.4, drag: 0.7,
+    size: { start: [0.18, 0.34], end: 0.06 },
+    color: { start: '#cfe8b0', end: '#4f7a3a' }, alpha: { start: 0.9, end: 0 }, spin: 60,
+  },
+  // Disparo Apuntado — saeta de luz y destello al atravesar
+  arqAimedTrail: {
+    name: 'Disparo Apuntado estela', texture: 'glow', blending: 'additive',
+    count: 14, burst: true, lifetime: [0.2, 0.4],
+    shape: 'point', shapeRadius: 0.08, speed: [0.2, 0.8], gravity: 0, drag: 0.9,
+    size: { start: [0.2, 0.34], end: 0.0 },
+    color: { start: '#ffffff', end: '#fff1a8' }, alpha: { start: 0.95, end: 0 },
+  },
+  arqAimedImpact: {
+    name: 'Disparo Apuntado impacto', texture: 'spark', blending: 'additive',
+    count: 40, burst: true, lifetime: [0.2, 0.45],
+    shape: 'sphere', shapeRadius: 0.15, speed: [4, 9], gravity: 2, drag: 0.5,
+    size: { start: [0.18, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffe680' }, alpha: { start: 1, end: 0 },
+  },
+  // Visión Certera — ojo dorado
+  arqVisionEye: {
+    name: 'Visión Certera', texture: 'star', blending: 'additive',
+    count: 26, burst: true, lifetime: [0.5, 0.9],
+    shape: 'ring', shapeRadius: 0.5, speed: [0.3, 1.2], gravity: -0.8, drag: 0.6,
+    size: { start: [0.2, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffd966' }, alpha: { start: 1, end: 0 }, spin: 140,
+  },
+  // Disparo Disuasorio — estampido a quemarropa
+  arqBlastPop: {
+    name: 'Disparo Disuasorio', texture: 'spark', blending: 'additive',
+    count: 34, burst: true, lifetime: [0.15, 0.35],
+    shape: 'cone', shapeRadius: 0.15, coneAngle: 60, speed: [5, 10], gravity: 1, drag: 0.6,
+    size: { start: [0.18, 0.36], end: 0.0 },
+    color: { start: '#ffffff', end: '#e8d27a' }, alpha: { start: 1, end: 0 },
+  },
+  // Trampa de Cepo — dientes metálicos al cerrarse
+  arqTrapSnap: {
+    name: 'Trampa de Cepo', texture: 'spark', blending: 'additive',
+    count: 24, burst: true, lifetime: [0.2, 0.45],
+    shape: 'ring', shapeRadius: 0.7, speed: [1, 3], gravity: 3, drag: 0.6,
+    size: { start: [0.14, 0.28], end: 0.04 },
+    color: { start: '#f2f2f2', end: '#86d47a' }, alpha: { start: 1, end: 0.1 },
+  },
+  // Mina de Espinas / Señuelo: estallido de espinas
+  arqThornBurst: {
+    name: 'Estallido de espinas', texture: 'spark', blending: 'normal',
+    count: 46, burst: true, lifetime: [0.3, 0.7],
+    shape: 'sphere', shapeRadius: 0.4, speed: [3, 7], gravity: 4, drag: 0.5,
+    size: { start: [0.16, 0.34], end: 0.04 },
+    color: { start: '#d8f0a0', end: '#5a7a2a' }, alpha: { start: 1, end: 0 }, spin: 80,
+  },
+  // Arpón — eslabones de la cadena
+  arqChainTrail: {
+    name: 'Arpón cadena', texture: 'spark', blending: 'normal',
+    count: 8, burst: true, lifetime: [0.15, 0.3],
+    shape: 'point', shapeRadius: 0.05, speed: [0.2, 0.6], gravity: 2, drag: 0.8,
+    size: { start: [0.1, 0.18], end: 0.04 },
+    color: { start: '#e0e0e0', end: '#707070' }, alpha: { start: 0.9, end: 0 },
+  },
+  // Señuelo de Paja — paja al plantarlo
+  arqStrawPuff: {
+    name: 'Señuelo de Paja', texture: 'smoke', blending: 'normal',
+    count: 18, burst: true, lifetime: [0.5, 1.0],
+    shape: 'disc', shapeRadius: 0.5, speed: [0.5, 1.6], gravity: -0.2, drag: 0.7,
+    size: { start: [0.3, 0.5], end: 0.8 },
+    color: { start: '#f0dca0', end: '#a08550' }, alpha: { start: 0.6, end: 0 },
+  },
+  // Danza de Flechas — remolino turquesa
+  arqDanceSwirl: {
+    name: 'Danza de Flechas', texture: 'glow', blending: 'additive',
+    count: 20, burst: true, lifetime: [0.3, 0.6],
+    shape: 'ring', shapeRadius: 1.2, speed: [1, 2.5], gravity: -0.5, drag: 0.6,
+    size: { start: [0.16, 0.3], end: 0.0 },
+    color: { start: '#e8fffb', end: '#7fe8d8' }, alpha: { start: 0.9, end: 0 }, spin: 200,
+  },
 };
 
 export const ARQUERA_FX = {
@@ -140,4 +252,19 @@ export const ARQUERA_FX = {
   a_u_diluvio:       { trail: 'arqDelugeFall', aura: 'arqDeluge', extra: 'arrowRainDust', color: 0xbfffbf, sfx: 'shoot' },
   a_u_celeste:       { aura: 'arqCelestialMuzzle', impact: 'arqCelestialImpact', extra: 'critRing', color: 0x9fd8ff, sfx: 'crit' },
   a_u_zarzas:        { aura: 'arqBriarRing', impact: 'arqBriarSnag', color: 0x5a8a3a, sfx: 'trap' },
+  // activas de talento (Paso 2c.1; comportamientos en js/powers-arquera.js)
+  a_t_voltereta:     { trail: 'arqRollDust', aura: 'arqRollDust', color: 0xd8c49a, sfx: 'dash' },
+  a_t_conmocion:     { trail: 'piercingTrail', impact: 'arqStunPop', color: 0xc8b48a, sfx: 'hit' },
+  a_t_silencio:      { trail: 'arqSilenceTrail', impact: 'arrowSpark', extra: 'arqSilenceMark', color: 0xb98cff, sfx: 'shoot' },
+  a_t_bengala:       { aura: 'arqFlareBurst', color: 0xffcc55, sfx: 'shoot' },
+  a_t_camuflaje:     { aura: 'arqCamoLeaves', color: 0x8fbf7a, sfx: 'portal' },
+  a_t_apuntado:      { trail: 'arqAimedTrail', impact: 'arqAimedImpact', color: 0xfff1a8, sfx: 'crit' },
+  a_t_vision:        { aura: 'arqVisionEye', color: 0xffd966, sfx: 'crit' },
+  a_t_disuasorio:    { trail: 'arqRollDust', impact: 'arqBlastPop', color: 0xe8d27a, sfx: 'hit' },
+  a_t_cepo:          { aura: 'arqTrapSnap', color: 0x86d47a, sfx: 'trap' },
+  a_t_arpon:         { trail: 'arqChainTrail', impact: 'arrowSpark', color: 0xa0a0a0, sfx: 'hit' },
+  a_t_senuelo:       { aura: 'arqStrawPuff', color: 0xc9a86a, sfx: 'trap' },
+  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot' },
+  a_t_danza:         { aura: 'arqDanceSwirl', impact: 'arrowSpark', color: 0x7fe8d8, sfx: 'shoot' },
+  a_t_salto:         { trail: 'arqRollDust', aura: 'multiShotBurst', impact: 'arrowSpark', color: 0x9fe0d6, sfx: 'shoot' },
 };
