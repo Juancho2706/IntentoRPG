@@ -35,6 +35,10 @@ export function createSfx() {
     fire:    [{ f: 240, d: 0.22, type: 'sawtooth', v: 0.08, slide: -120 }],
     ice:     [{ f: 1300, d: 0.18, type: 'sine', v: 0.07, slide: -500 }],
     bolt:    [{ f: 1600, d: 0.07, type: 'square', v: 0.08, slide: -900 }],
+    // Paso 2b.0 (§4.4): sagrado (campana), trampa (clac metálico) y cadena
+    holy:    [{ f: 880, d: 0.25, type: 'sine', v: 0.09 }, { f: 1320, d: 0.3, type: 'sine', v: 0.06, t: 0.04 }],
+    trap:    [{ f: 220, d: 0.05, type: 'square', v: 0.12, slide: 600 }, { f: 140, d: 0.08, type: 'square', v: 0.09, t: 0.05 }],
+    chain:   [{ f: 500, d: 0.06, type: 'sawtooth', v: 0.07, slide: 300 }, { f: 700, d: 0.06, type: 'sawtooth', v: 0.06, t: 0.06, slide: 300 }],
   };
   // `vol` (0..1) escala el volumen de salida (control de volumen del jugador)
   return (name, vol = 1) => {

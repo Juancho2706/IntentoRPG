@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v92';
+const VERSION = 'v93';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -35,6 +35,19 @@ const ASSETS = [
   './js/timers.js',
   './js/save-schema.js',
   './js/combat-math.js',
+  './js/skill-defs.js',
+  './js/skill-resolve.js',
+  './js/game-skills.js',
+  './js/resources.js',
+  './js/powers.js',
+  './js/powers-common.js',
+  './js/field-entities.js',
+  './js/skills-guerrero.js',
+  './js/skills-maga.js',
+  './js/skills-arquera.js',
+  './js/fx-skills-guerrero.js',
+  './js/fx-skills-maga.js',
+  './js/fx-skills-arquera.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

@@ -10,6 +10,8 @@ import { worldFlowMethods } from '../js/game-world-flow.js';
 import { zoneLifeMethods } from '../js/game-zone-life.js';
 import { masteryMethods } from '../js/game-mastery.js';
 import { eraMethods } from '../js/game-eras.js';
+import { skillMethods } from '../js/game-skills.js';
+import { fieldMethods } from '../js/field-entities.js';
 
 const EXPECTED = [
   'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
@@ -90,8 +92,25 @@ if (erKeys.length !== ERA_EXPECTED.length) {
 }
 console.log(`eraMethods exporta los ${ERA_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-// sin colisiones de nombres entre los siete mixins (se aplican todos al prototype)
-const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods };
+// Paso 2b.0: canal de lanzamiento de habilidades (game-skills.js) y entidades de suelo (field-entities.js)
+const SKILLS_EXPECTED = [
+  'allies', 'heal', 'shield', 'dealProcDamage', 'onPlayerHit',
+  'skillSupports', 'applyDoT', 'spawnChainBounce', 'dealArea', 'enemiesInCone', 'enemiesInLine', 'clampWalkable', 'slotHeld',
+  'assignHotbar', 'chooseSkillMod', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
+  'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',
+];
+const skKeys = Object.keys(skillMethods);
+for (const m of SKILLS_EXPECTED) if (typeof skillMethods[m] !== 'function') throw new Error('falta método de skills o no es función: ' + m);
+if (skKeys.length !== SKILLS_EXPECTED.length) throw new Error(`skillMethods tiene ${skKeys.length} métodos, esperaba ${SKILLS_EXPECTED.length}: ${skKeys.join(', ')}`);
+console.log(`skillMethods exporta los ${SKILLS_EXPECTED.length} métodos esperados, todos funciones ✓`);
+const FIELDS_EXPECTED = ['spawnField', 'fieldsAt', 'updateFields', 'clearFields', '_expireField', '_renderField'];
+const fKeys = Object.keys(fieldMethods);
+for (const m of FIELDS_EXPECTED) if (typeof fieldMethods[m] !== 'function') throw new Error('falta método de campos o no es función: ' + m);
+if (fKeys.length !== FIELDS_EXPECTED.length) throw new Error(`fieldMethods tiene ${fKeys.length} métodos, esperaba ${FIELDS_EXPECTED.length}: ${fKeys.join(', ')}`);
+console.log(`fieldMethods exporta los ${FIELDS_EXPECTED.length} métodos esperados, todos funciones ✓`);
+
+// sin colisiones de nombres entre los nueve mixins (se aplican todos al prototype)
+const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods, skillMethods, fieldMethods };
 const seen = new Map();
 for (const [name, obj] of Object.entries(mixins)) {
   for (const k of Object.keys(obj)) {
@@ -99,7 +118,7 @@ for (const [name, obj] of Object.entries(mixins)) {
     seen.set(k, name);
   }
 }
-console.log('Sin colisiones de nombres entre los siete mixins de Game ✓');
+console.log('Sin colisiones de nombres entre los nueve mixins de Game ✓');
 
 // todos los métodos de los mixins siguen siendo funciones (sanidad)
 for (const [name, obj] of Object.entries(mixins)) {

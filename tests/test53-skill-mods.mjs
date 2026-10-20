@@ -1,16 +1,31 @@
-// Modificadores de habilidad estilo D4 Lord of Hatred: cada habilidad activa
-// tiene RAMAS de pasivos (3 en Guerrero) y cada rama OPCIONES (3); eliges 1 por
-// rama. Validamos estructura, unicidad y la agregación de efectos.
+// Modificadores de habilidad estilo D4 Lord of Hatred: cada habilidad base tiene
+// RAMAS (3) y cada rama OPCIONES (3); eliges 1 por rama. Paso 2b.0: las ramas de
+// cada clase viven en js/skills-<clase>.js (constructores de js/skill-defs.js) y
+// data.js solo las fusiona; las activas de TALENTO no tienen ramas (§3.4).
 import { SKILL_MODS, aggregateSkillMods, CLASSES } from '../js/data.js';
+import { GUERRERO_SKILL_MODS } from '../js/skills-guerrero.js';
+import { MAGA_SKILL_MODS } from '../js/skills-maga.js';
+import { ARQUERA_SKILL_MODS } from '../js/skills-arquera.js';
+import { utilMods, aggregateMods } from '../js/skill-defs.js';
 
-// 1) cada habilidad ACTIVA (no pasiva) de cada clase tiene ramas de pasivos
-for (const cls of Object.values(CLASSES)) {
-  for (const sk of cls.skills) {
-    if (sk.kind === 'passive') continue;
-    if (!SKILL_MODS[sk.id]) throw new Error('habilidad activa sin ramas de pasivos: ' + sk.id);
+// 0) propiedad por clase: cada mapa de ramas sale del archivo de su clase
+const OWN = { guerrero: GUERRERO_SKILL_MODS, maga: MAGA_SKILL_MODS, arquera: ARQUERA_SKILL_MODS };
+for (const [cid, map] of Object.entries(OWN)) {
+  for (const id of Object.keys(map)) {
+    if (!CLASSES[cid].skills.some(s => s.id === id)) throw new Error(`${cid}: rama de una habilidad que no es suya: ${id}`);
+    if (SKILL_MODS[id] !== map[id]) throw new Error(`${id}: data.js debe fusionar las ramas de skills-${cid}.js tal cual`);
   }
 }
-console.log('Cobertura: toda habilidad activa tiene ramas de pasivos ✓');
+console.log('Ramas por clase en js/skills-<clase>.js, fusionadas en SKILL_MODS ✓');
+
+// 1) cada habilidad BASE (no de talento) de cada clase tiene ramas
+for (const cls of Object.values(CLASSES)) {
+  for (const sk of cls.skills) {
+    if (sk.kind === 'talent') continue;
+    if (!SKILL_MODS[sk.id]) throw new Error('habilidad base sin ramas: ' + sk.id);
+  }
+}
+console.log('Cobertura: toda habilidad base tiene ramas ✓');
 
 // 2) estructura: ramas con id/name y ≥2 opciones; ids de opción únicos
 const seen = new Set();
@@ -30,7 +45,7 @@ console.log('Estructura: ramas con opciones únicas (id/name/desc) ✓');
 // 3) Guerrero (plantilla): cada habilidad activa = 3 ramas × 3 opciones
 const G = CLASSES.guerrero;
 for (const sk of G.skills) {
-  if (sk.kind === 'passive') continue;
+  if (sk.kind === 'talent') continue;
   const br = SKILL_MODS[sk.id];
   if (br.length !== 3) throw new Error('Guerrero ' + sk.id + ' debe tener 3 ramas');
   if (!br.every(b => b.opts.length === 3)) throw new Error('Guerrero ' + sk.id + ': cada rama 3 opciones');
@@ -66,11 +81,19 @@ const tbT = tb.find(b => b.name === 'Transformación');
 if (!tbT.opts.some(o => BIG.some(k => o[k]))) throw new Error('Torbellino: la Transformación debe tener un efecto que cambie en grande (zona/cdhit/eco)');
 let bigCores = 0;
 for (const sk of G.skills) {
-  if (sk.kind !== 'core') continue;
+  if (!['spender', 'movement'].includes(sk.cat) || !(sk.coef > 0)) continue; // gastadoras y movilidades de daño
   const t = SKILL_MODS[sk.id].find(b => b.name === 'Transformación');
   if (t && t.opts.some(o => BIG.some(k => o[k]) || o.execute || o.chain)) bigCores++;
 }
 if (bigCores < 6) throw new Error('la mayoría de cores de daño del Guerrero deben tener Transformación de gran impacto, hay ' + bigCores);
 console.log(`Transformación: ${bigCores} cores de daño del Guerrero con efecto de gran impacto ✓`);
+
+// 7) constructor nuevo utilMods (§3.4): Potencia / Recarga / Variante
+const um = utilMods('t_util');
+if (um.length !== 3 || !um.every(b => b.opts.length === 3)) throw new Error('utilMods: 3 ramas × 3 opciones');
+if (um.map(b => b.name).join('/') !== 'Potencia/Recarga/Variante') throw new Error('utilMods: nombres de rama');
+const ua = aggregateMods(um, { t_util_r: 't_util_r1', t_util_v: 't_util_v2' });
+if (ua.cdr !== 25 || ua.haste !== 3) throw new Error('utilMods: Recarga −25 % y Variante Impulso');
+console.log('utilMods (movilidad/defensa): Potencia · Recarga · Variante ✓');
 
 console.log('\n✅ MODIFICADORES (RAMAS × OPCIONES) OK');

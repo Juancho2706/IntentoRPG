@@ -3,6 +3,12 @@
 // ============================================================
 
 import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, UBER_HP_MULT, bossHpMult, eliteHpMult } from './combat-math.js';
+import { normalizeSkillDef, aggregateMods } from './skill-defs.js';
+import { RESOURCE_DEFS } from './resources.js';
+// catálogo por clase (cada archivo es de un trabajador; data.js solo lo fusiona)
+import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS } from './skills-guerrero.js';
+import { MAGA_SKILLS, MAGA_SKILL_MODS } from './skills-maga.js';
+import { ARQUERA_SKILLS, ARQUERA_SKILL_MODS } from './skills-arquera.js';
 
 export const TIER_LEVELS = [1, 6, 12]; // nivel de personaje para desbloquear cada tier
 
@@ -10,162 +16,84 @@ export function xpForLevel(level) {
   return Math.floor(80 * Math.pow(level, 1.5));
 }
 
-// Árbol de habilidades estilo D4 (6 nodos en cadena):
-//  n1 Básicos (varios tipos de ataque principal) · n2-n4 Habilidades (3 c/u, con
-//  3 mini-ramas de pasivos = SKILL_MODS) · n5 Definitiva (ultimates) · n6 Pasivas.
-//  `tree` define los nodos (kind + req de nivel + ids); `skills` es la lista plana
-//  (cada skill: kind 'basic'|'core'|'ultimate'|'passive'). Barra libre: colocas lo
-//  que quieras en cualquier ranura. Gating: nv1 solo básicos; primera core en nv2.
+// ------------------------------------------------------------
+// CLASES (Paso 2b.0): el catálogo de habilidades de cada clase vive en su
+// propio archivo js/skills-<clase>.js (dueño: el trabajador de esa clase) y aquí
+// solo se normaliza (skill-defs.normalizeSkillDef: tags ⊇ {cat, elem}, slots,
+// kind de compatibilidad y max). Las habilidades se APRENDEN SOLAS al llegar a
+// su nivel (`req`) y su rango sale del nivel (skill-resolve.skillRank). El
+// recurso de clase (Furia/Maná/Energía) se define en js/resources.js (§2).
+// `tree` es una vista DERIVADA por categoría para la UI previa al Paso 2d.
+// ------------------------------------------------------------
+const CAT_NODES = [
+  { cats: ['basic'],              kind: 'basic',    name: 'Ataques básicos' },
+  { cats: ['spender'],            kind: 'core',     name: 'Gastadoras' },
+  { cats: ['movement'],           kind: 'core',     name: 'Movilidad' },
+  { cats: ['defense', 'utility'], kind: 'core',     name: 'Defensa y utilidad' },
+  { cats: ['spec'],               kind: 'core',     name: 'Especialización' },
+  { cats: ['ultimate'],           kind: 'ultimate', name: 'Definitiva' },
+];
+function buildSkillTree(prefix, skills) {
+  const out = [];
+  for (const nd of CAT_NODES) {
+    const list = skills.filter(s => nd.cats.includes(s.cat) && s.kind !== 'talent').sort((x, y) => x.req - y.req);
+    if (!list.length) continue;
+    out.push({ id: `${prefix}_${nd.cats[0]}`, kind: nd.kind, name: nd.name, req: Math.min(...list.map(s => s.req)), skills: list.map(s => s.id) });
+  }
+  return out;
+}
+function classResource(id, skills) {
+  const def = RESOURCE_DEFS[id];
+  const basic = skills.find(s => s.cat === 'basic' && s.type === 'weapon') || skills.find(s => s.cat === 'basic');
+  // `gen` = generación del básico de arma (la UI lo muestra en la barra)
+  return { id: def.id, name: def.name, icon: def.icon, color: def.color, start: def.start, regen: def.regen, gen: basic?.gen || 0 };
+}
+function makeClass(base, prefix, rawSkills) {
+  const skills = rawSkills.map(normalizeSkillDef);
+  return { ...base, skills, tree: buildSkillTree(prefix, skills), resource: classResource(base.resourceId, skills) };
+}
+
 export const CLASSES = {
-  guerrero: {
+  guerrero: makeClass({
     id: 'guerrero', name: 'Guerrero', icon: '⚔️', color: 0xb5452a,
     desc: 'Maestro del combate cuerpo a cuerpo. Fuerte, resistente y letal de cerca.',
     base: { fue: 18, des: 10, vit: 16, ene: 6 },
     mainStat: 'fue',
-    baseHP: 45, baseMP: 40, hpPerVit: 4, hpPerLevel: 4, mpPerEne: 1.5,
+    baseHP: 45, hpPerVit: 4, hpPerLevel: 4,
     atkRange: 2.1, atkTime: 1.0, ranged: false, atk: 'cleave',
     fists: [3, 6],
-    resource: { id: 'furia', name: 'Furia', icon: '🔥', color: 0xff5a3c, regen: 0, decay: 8, start: 0, gen: 13 },
+    resourceId: 'furia',
     basicName: 'Tajo', basicDesc: 'Ataque básico: corta a los enemigos cercanos y genera Furia.',
-    tree: [
-      { id: 'g_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['g_tajo', 'g_mandoble', 'g_embate'] },
-      { id: 'g_n2', kind: 'core',     name: 'Habilidades I',    req: 2,  skills: ['torbellino', 'embestida', 'g_martillo'] },
-      { id: 'g_n3', kind: 'core',     name: 'Habilidades II',   req: 5,  skills: ['terremoto', 'grito_guerra', 'g_lanza'] },
-      { id: 'g_n4', kind: 'core',     name: 'Habilidades III',  req: 9,  skills: ['g_salto', 'g_provocacion', 'g_hendidura'] },
-      { id: 'g_n5', kind: 'ultimate', name: 'Definitiva',       req: 15, skills: ['g_u_furia', 'g_u_cataclismo', 'g_u_estandarte'] },
-      { id: 'g_n6', kind: 'passive',  name: 'Pasivas',          req: 20, skills: ['g_p_fuerza', 'g_p_coraza', 'g_p_sed'] },
-    ],
-    skills: [
-      // — n1 BÁSICOS (generan Furia, sin coste; el primero es el ataque de arma) —
-      { id: 'g_tajo', name: 'Tajo', icon: '⚔️', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 13, desc: 'Corta a los enemigos cercanos y genera Furia.' },
-      { id: 'g_mandoble', name: 'Mandoble', icon: '🗡️', kind: 'basic', type: 'melee', req: 1, max: 5, mana: [0, 0], cd: 0.1, gen: 15, mult: [1.4, 0.18], range: 2.4, desc: 'Un golpe único contundente. Genera mucha Furia.' },
-      { id: 'g_embate', name: 'Embate', icon: '🌀', kind: 'basic', type: 'aoe_self', req: 1, max: 5, mana: [0, 0], cd: 0.1, gen: 9, mult: [0.8, 0.12], radius: 2.5, desc: 'Un barrido corto alrededor. Genera Furia.' },
-      // — n2 HABILIDADES I —
-      { id: 'torbellino', name: 'Torbellino', icon: '🌪️', kind: 'core', type: 'aoe_self', req: 2, max: 5,
-        mana: [10, 1], cd: 3, mult: [1.2, 0.2], radius: 2.9,
-        synergies: [{ from: 'embestida', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Giras con tu arma dañando a todos los enemigos cercanos.' },
-      { id: 'embestida', name: 'Embestida', icon: '💨', kind: 'core', type: 'dash', req: 2, max: 5,
-        mana: [9, 1], cd: 6, mult: [1.3, 0.22], range: 7, radius: 1.9,
-        synergies: [{ from: 'torbellino', pct: 4 }, { from: 'g_martillo', pct: 3 }], desc: 'Cargas hacia el objetivo dañando lo que encuentres al llegar.' },
-      { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', kind: 'core', type: 'aoe_target', req: 2, max: 5,
-        mana: [12, 1.5], cd: 4, mult: [1.8, 0.3], radius: 3, range: 7,
-        synergies: [{ from: 'terremoto', pct: 4 }, { from: 'g_salto', pct: 3 }], desc: 'Aplastas el suelo con tu martillo creando una onda.' },
-      // — n3 HABILIDADES II —
-      { id: 'terremoto', name: 'Terremoto', icon: '💥', kind: 'core', type: 'aoe_target', req: 5, max: 5,
-        mana: [16, 2], cd: 8, mult: [2.0, 0.35], radius: 3.5, range: 8,
-        synergies: [{ from: 'torbellino', pct: 5 }, { from: 'embestida', pct: 3 }], desc: 'Golpeas el suelo creando una onda destructiva en la zona.' },
-      { id: 'grito_guerra', name: 'Grito de Guerra', icon: '📢', kind: 'core', type: 'buff', req: 5, max: 5,
-        mana: [8, 1], cd: 15, dur: 12, buff: { dmgPct: [15, 8] }, desc: 'Aumenta tu daño durante unos segundos.' },
-      { id: 'g_lanza', name: 'Lanza Arrojadiza', icon: '🎯', kind: 'core', type: 'proj', req: 5, max: 5,
-        mana: [8, 1], cd: 2.5, mult: [1.6, 0.28], speed: 16, range: 11, pierce: true,
-        synergies: [{ from: 'g_martillo', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Arrojas una lanza que atraviesa a los enemigos en línea.' },
-      // — n4 HABILIDADES III —
-      { id: 'g_salto', name: 'Salto Devastador', icon: '🦶', kind: 'core', type: 'aoe_target', req: 9, max: 5,
-        mana: [16, 2], cd: 8, mult: [2.0, 0.35], radius: 3.2, range: 8,
-        synergies: [{ from: 'g_martillo', pct: 4 }, { from: 'terremoto', pct: 3 }], desc: 'Saltas y caes con fuerza demoledora sobre la zona.' },
-      { id: 'g_provocacion', name: 'Provocación', icon: '🛡️', kind: 'core', type: 'buff', req: 9, max: 5,
-        mana: [10, 1], cd: 16, dur: 10, buff: { arm: [20, 8], dmgPct: [10, 5] }, desc: 'Aumentas tu armadura y tu daño un tiempo.' },
-      { id: 'g_hendidura', name: 'Hendidura', icon: '🪓', kind: 'core', type: 'aoe_self', req: 9, max: 5,
-        mana: [11, 1], cd: 5, mult: [1.4, 0.25], radius: 3.2,
-        synergies: [{ from: 'torbellino', pct: 4 }, { from: 'g_salto', pct: 3 }], desc: 'Un barrido amplio que desgarra a todo alrededor.' },
-      // — n5 DEFINITIVAS (ultimate) —
-      { id: 'g_u_furia', name: 'Furia Inmortal', icon: '😤', kind: 'ultimate', type: 'buff', req: 15, max: 5,
-        mana: [40, 0], cd: 45, dur: 8, buff: { dmgPct: [40, 10], arm: [40, 10], lph: [6, 2] }, desc: 'Definitiva: te vuelves una bestia imparable unos segundos.' },
-      { id: 'g_u_cataclismo', name: 'Cataclismo', icon: '☄️', kind: 'ultimate', type: 'aoe_target', req: 15, max: 5,
-        mana: [45, 0], cd: 40, mult: [4, 0.6], radius: 5, range: 9, desc: 'Definitiva: una devastación se desploma sobre la zona.' },
-      { id: 'g_u_estandarte', name: 'Estandarte de Guerra', icon: '🚩', kind: 'ultimate', type: 'buff', req: 15, max: 5,
-        mana: [40, 0], cd: 50, dur: 12, buff: { dmgPct: [20, 6], aspdPct: [20, 6] }, desc: 'Definitiva: clavas tu estandarte y combates con furia renovada.' },
-      // — n6 PASIVAS —
-      { id: 'g_p_fuerza', name: 'Fuerza Bruta', icon: '💪', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { dmgPct: [8, 5] }, desc: 'Pasiva: aumenta tu daño.' },
-      { id: 'g_p_coraza', name: 'Coraza de Guerra', icon: '🛡️', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { arm: [8, 5], hp: [20, 12] }, desc: 'Pasiva: aumenta tu armadura y vida.' },
-      { id: 'g_p_sed', name: 'Sed de Sangre', icon: '🩸', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { lph: [2, 1], crit: [3, 2] }, desc: 'Pasiva: +vida al golpear y +crítico.' },
-    ],
-  },
-  maga: {
+  }, 'g', GUERRERO_SKILLS),
+  maga: makeClass({
     id: 'maga', name: 'Maga', icon: '🔮', color: 0x3a6bd6,
     desc: 'Domina los elementos a distancia. Frágil pero con un poder inmenso.',
     base: { fue: 8, des: 10, vit: 10, ene: 22 },
     mainStat: 'ene',
-    baseHP: 70, baseMP: 28, hpPerVit: 3, hpPerLevel: 6, mpPerEne: 2.2,
+    baseHP: 70, hpPerVit: 3, hpPerLevel: 6,
     atkRange: 7, atkTime: 1.1, ranged: true, atk: 'bolt',
     fists: [2, 5],
-    resource: { id: 'mana', name: 'Maná', icon: '🔵', color: 0x4a8cff, regen: 1, decay: 0, start: 1, gen: 7 },
+    resourceId: 'mana',
     basicName: 'Dardo Arcano', basicDesc: 'Ataque básico: lanza un dardo a distancia y recupera Maná.',
-    tree: [
-      { id: 'm_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['m_dardo'] },
-      { id: 'm_n2', kind: 'core',     name: 'Habilidades I',    req: 2,  skills: ['bola_fuego', 'nova_hielo'] },
-      { id: 'm_n3', kind: 'core',     name: 'Habilidades II',   req: 5,  skills: ['rayo'] },
-      { id: 'm_n4', kind: 'core',     name: 'Habilidades III',  req: 9,  skills: ['meteoro'] },
-      { id: 'm_n5', kind: 'ultimate', name: 'Definitiva',       req: 15, skills: ['m_u_supernova'] },
-      { id: 'm_n6', kind: 'passive',  name: 'Pasivas',          req: 20, skills: ['m_p_arcano'] },
-    ],
-    skills: [
-      { id: 'm_dardo', name: 'Dardo Arcano', icon: '✨', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 7, desc: 'Lanza un dardo a distancia y recupera Maná.' },
-      { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', kind: 'core', type: 'proj', req: 2, max: 5,
-        mana: [5, 0.8], cd: 1.5, mult: [1.5, 0.3], speed: 13, range: 12, color: 0xff6622,
-        synergies: [{ from: 'rayo', pct: 3 }, { from: 'meteoro', pct: 3 }], desc: 'Lanza una esfera ardiente que explota al impactar.' },
-      { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', kind: 'core', type: 'aoe_self', req: 2, max: 5,
-        mana: [11, 1.2], cd: 6, mult: [1.0, 0.18], radius: 3.3, slow: 3, color: 0x66ccff,
-        synergies: [{ from: 'rayo', pct: 5 }, { from: 'bola_fuego', pct: 3 }], desc: 'Una onda gélida daña y ralentiza a los enemigos cercanos.' },
-      { id: 'rayo', name: 'Rayo', icon: '⚡', kind: 'core', type: 'proj', req: 5, max: 5,
-        mana: [9, 1], cd: 2.2, mult: [1.9, 0.3], speed: 18, range: 13, pierce: true, color: 0xffee66,
-        synergies: [{ from: 'bola_fuego', pct: 4 }, { from: 'nova_hielo', pct: 3 }], desc: 'Un rayo que atraviesa a todos los enemigos en línea.' },
-      { id: 'meteoro', name: 'Meteoro', icon: '☄️', kind: 'core', type: 'aoe_target', req: 9, max: 5,
-        mana: [18, 2], cd: 7, mult: [2.6, 0.45], radius: 3, range: 11, color: 0xff4400,
-        synergies: [{ from: 'bola_fuego', pct: 5 }, { from: 'rayo', pct: 3 }], desc: 'Invoca un meteoro que arrasa la zona objetivo.' },
-      { id: 'm_u_supernova', name: 'Supernova', icon: '🌟', kind: 'ultimate', type: 'aoe_target', req: 15, max: 5,
-        mana: [45, 0], cd: 40, mult: [4, 0.6], radius: 5, range: 10, color: 0xffcc44, desc: 'Definitiva: una estrella estalla arrasando la zona.' },
-      { id: 'm_p_arcano', name: 'Saber Arcano', icon: '✨', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { dmgPct: [8, 5], mp: [10, 8] }, desc: 'Pasiva: +daño y +maná máximo.' },
-    ],
-  },
-  arquera: {
+  }, 'm', MAGA_SKILLS),
+  arquera: makeClass({
     id: 'arquera', name: 'Arquera', icon: '🏹', color: 0x3d8c45,
     desc: 'Rápida y precisa. Acaba con sus enemigos antes de que se acerquen.',
     base: { fue: 10, des: 20, vit: 12, ene: 8 },
     mainStat: 'des',
-    baseHP: 65, baseMP: 22, hpPerVit: 3.5, hpPerLevel: 6, mpPerEne: 1.8,
+    baseHP: 65, hpPerVit: 3.5, hpPerLevel: 6,
     atkRange: 8.5, atkTime: 0.9, ranged: true, atk: 'arrow',
     fists: [2, 5],
-    resource: { id: 'energia', name: 'Energía', icon: '🟢', color: 0x6ad06a, regen: 1.5, decay: 0, start: 1, gen: 8 },
+    resourceId: 'energia',
     basicName: 'Disparo Rápido', basicDesc: 'Ataque básico: dispara una flecha veloz y recupera Energía.',
-    tree: [
-      { id: 'a_n1', kind: 'basic',    name: 'Ataques básicos', req: 1,  skills: ['a_disparo'] },
-      { id: 'a_n2', kind: 'core',     name: 'Habilidades I',    req: 2,  skills: ['flecha_multiple', 'flecha_perforante'] },
-      { id: 'a_n3', kind: 'core',     name: 'Habilidades II',   req: 5,  skills: ['agilidad'] },
-      { id: 'a_n4', kind: 'core',     name: 'Habilidades III',  req: 9,  skills: ['lluvia_flechas'] },
-      { id: 'a_n5', kind: 'ultimate', name: 'Definitiva',       req: 15, skills: ['a_u_diluvio'] },
-      { id: 'a_n6', kind: 'passive',  name: 'Pasivas',          req: 20, skills: ['a_p_punteria'] },
-    ],
-    skills: [
-      { id: 'a_disparo', name: 'Disparo Rápido', icon: '🏹', kind: 'basic', type: 'weapon', req: 1, max: 5, mana: [0, 0], cd: 0, gen: 8, desc: 'Dispara una flecha veloz y recupera Energía.' },
-      { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', kind: 'core', type: 'proj', req: 2, max: 5,
-        mana: [7, 1], cd: 2.5, mult: [0.9, 0.12], speed: 15, range: 10, count: [3, 0.5], spread: 0.5, color: 0xccddaa,
-        synergies: [{ from: 'flecha_perforante', pct: 4 }, { from: 'lluvia_flechas', pct: 3 }], desc: 'Disparas un abanico de flechas a la vez.' },
-      { id: 'flecha_perforante', name: 'Flecha Perforante', icon: '➶', kind: 'core', type: 'proj', req: 2, max: 5,
-        mana: [8, 1], cd: 3, mult: [1.6, 0.28], speed: 17, range: 13, pierce: true, color: 0xffffcc,
-        synergies: [{ from: 'flecha_multiple', pct: 4 }, { from: 'lluvia_flechas', pct: 3 }], desc: 'Una flecha que atraviesa a todos los enemigos en su camino.' },
-      { id: 'agilidad', name: 'Agilidad', icon: '🌪️', kind: 'core', type: 'buff', req: 5, max: 5,
-        mana: [10, 1], cd: 18, dur: 10, buff: { spdPct: [15, 5], aspdPct: [15, 5] }, desc: 'Aumenta tu velocidad de movimiento y de ataque.' },
-      { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', kind: 'core', type: 'aoe_target', req: 9, max: 5,
-        mana: [15, 2], cd: 7, mult: [2.2, 0.4], radius: 3, range: 11, color: 0xaaffaa,
-        synergies: [{ from: 'flecha_multiple', pct: 5 }, { from: 'flecha_perforante', pct: 3 }], desc: 'Una lluvia mortal de flechas cae sobre la zona objetivo.' },
-      { id: 'a_u_diluvio', name: 'Diluvio de Saetas', icon: '🌠', kind: 'ultimate', type: 'aoe_target', req: 15, max: 5,
-        mana: [42, 0], cd: 40, mult: [3.6, 0.55], radius: 4.5, range: 12, color: 0xbfffbf, desc: 'Definitiva: un diluvio de saetas asola una gran zona.' },
-      { id: 'a_p_punteria', name: 'Puntería', icon: '👁️', kind: 'passive', type: 'passive', req: 20, max: 5, passive: { crit: [5, 3], dmgPct: [6, 4] }, desc: 'Pasiva: +crítico y +daño.' },
-    ],
-  },
+  }, 'a', ARQUERA_SKILLS),
 };
 
-// Valor de una propiedad escalable de habilidad: [base, porNivel]
+// Valor de una propiedad escalable [base, porNivel] (compat: el catálogo de
+// habilidades ya no la usa; su rango escala con combat-math.rankCoef/rankBuff)
 export function skillVal(arr, lvl) {
   if (!Array.isArray(arr)) return arr;
   return arr[0] + arr[1] * (lvl - 1);
-}
-
-// Bonus de daño (%) que recibe una habilidad por puntos en sus sinergias
-export function synergyBonus(sk, skills) {
-  if (!sk.synergies) return 0;
-  return sk.synergies.reduce((sum, sy) => sum + (skills[sy.from] || 0) * sy.pct, 0);
 }
 
 export const ENEMIES = [
@@ -662,199 +590,78 @@ export const SYSTEMS_GUIDE = [
 ];
 
 // Soportes de habilidad (estilo gemas de soporte de PoE): modifican UNA
-// habilidad activa. Se encuentran como botín, se aprenden y se asignan.
-// Cada soporte declara su efecto y, cuando procede, su CONTRAPARTIDA (trade-off).
-// Campo `tag`: 'pro' (beneficio neto) o 'tradeoff' (mejora algo a costa de otra cosa),
-// usado por la UI para resaltar el coste. `effect` resume el efecto en combate.
+// habilidad. Se encuentran como botín, se aprenden y se engarzan (van CON la
+// habilidad, no con la ranura). Paso 2b.0 (§4.3): la compatibilidad va por TAGS
+// — `requires` (AND; 'a|b' = OR; '@dmg' coef>0, '@cost' coste>0, '@cd' CD>0) y
+// `forbids` (cualquiera excluye). Su efecto en combate es la tabla SUPPORT_MOD de
+// js/skill-resolve.js. `tag`: 'pro' (beneficio neto) o 'tradeoff' (contrapartida).
 export const SUPPORTS = [
   { id: 'amplify', name: 'Amplificado', icon: '🔆', desc: '+30% de daño de la habilidad',
-    effect: '+30% daño', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: '+30% daño', tag: 'pro', fits: 'habilidades de daño (no definitivas)',
+    requires: ['@dmg'], forbids: ['ultimate'] },
   { id: 'multi',   name: 'Multiproyectil', icon: '🔱', desc: '+2 proyectiles',
-    effect: '+2 proyectiles', tag: 'pro',
-    types: ['proj'] },
+    effect: '+2 proyectiles', tag: 'pro', fits: 'proyectiles (no canalizadas)',
+    requires: ['proj'], forbids: ['channel'] },
   { id: 'pierce',  name: 'Perforante', icon: '➶', desc: 'Los proyectiles atraviesan a los enemigos',
-    effect: 'atraviesa enemigos', tag: 'pro',
-    types: ['proj'] },
+    effect: 'atraviesa enemigos', tag: 'pro', fits: 'proyectiles (no canalizadas)',
+    requires: ['proj'], forbids: ['channel'] },
   { id: 'wide',    name: 'Expansivo', icon: '⭕', desc: '+45% de radio de área',
-    effect: '+45% radio', tag: 'pro',
-    types: ['aoe_self', 'aoe_target', 'dash'] },
+    effect: '+45% radio', tag: 'pro', fits: 'áreas, conos y zonas',
+    requires: ['area|cone|zone'] },
   { id: 'freeze',  name: 'Gélido', icon: '❄️', desc: 'Ralentiza a los enemigos golpeados',
-    effect: 'ralentiza al golpear', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: 'ralentiza al golpear', tag: 'pro', fits: 'habilidades de daño (no definitivas)',
+    requires: ['@dmg'], forbids: ['ultimate'] },
 
   // --- SOPORTES 2.0 ---
   { id: 'chain',   name: 'Encadenado', icon: '⚡', desc: 'El proyectil rebota a 2 enemigos cercanos; −25% de daño por salto',
-    effect: 'rebota a 2 enemigos', trade: '−25% daño/salto', tag: 'tradeoff',
-    types: ['proj'] },
+    effect: 'rebota a 2 enemigos', trade: '−25% daño/salto', tag: 'tradeoff', fits: 'proyectiles (no canalizadas)',
+    requires: ['proj'], forbids: ['channel'] },
   { id: 'concentrated', name: 'Concentrado', icon: '🎯', desc: '+35% de daño, pero −30% de radio de área',
-    effect: '+35% daño', trade: '−30% radio', tag: 'tradeoff',
-    types: ['aoe_self', 'aoe_target', 'dash'] },
-  { id: 'echo',    name: 'Eco', icon: '🔁', desc: 'Repite la habilidad ~0.5s después al 50% de daño; +60% de coste de maná',
-    effect: 'repite al 50%', trade: '+60% maná', tag: 'tradeoff',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: '+35% daño', trade: '−30% radio', tag: 'tradeoff', fits: 'áreas, conos y zonas',
+    requires: ['area|cone|zone'] },
+  { id: 'echo',    name: 'Eco', icon: '🔁', desc: 'Repite la habilidad ~0.5s después al 50% de daño; +60% de coste de recurso',
+    effect: 'repite al 50%', trade: '+60% coste', tag: 'tradeoff', fits: 'daño (no canalizadas, definitivas ni movilidad)',
+    requires: ['@dmg'], forbids: ['channel', 'ultimate', 'movement'] },
   { id: 'bleed',   name: 'Sed de Sangre', icon: '🩸', desc: 'Aplica sangrado: daño por tiempo durante 3s tras el golpe',
-    effect: 'DoT sangrado 3s', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: 'DoT sangrado 3s', tag: 'pro', fits: 'daño cuerpo a cuerpo, proyectil o área',
+    requires: ['@dmg', 'melee|proj|area'] },
   { id: 'poison',  name: 'Veneno', icon: '☠️', desc: 'Aplica veneno: daño por tiempo durante 5s tras el golpe',
-    effect: 'DoT veneno 5s', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: 'DoT veneno 5s', tag: 'pro', fits: 'daño cuerpo a cuerpo, proyectil o área',
+    requires: ['@dmg', 'melee|proj|area'] },
   { id: 'coldblood', name: 'Sangre Fría', icon: '🧊', desc: 'Crítico al tope (60%) contra enemigos ralentizados/congelados (combo con Gélido)',
-    effect: '+crítico vs ralentizados', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
-  { id: 'overcharge', name: 'Sobrecarga', icon: '💥', desc: '+50% de daño, pero +40% de coste de maná',
-    effect: '+50% daño', trade: '+40% maná', tag: 'tradeoff',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: '+crítico vs ralentizados', tag: 'pro', fits: 'habilidades de daño (no definitivas)',
+    requires: ['@dmg'], forbids: ['ultimate'] },
+  { id: 'overcharge', name: 'Sobrecarga', icon: '💥', desc: '+50% de daño, pero +40% de coste de recurso',
+    effect: '+50% daño', trade: '+40% coste', tag: 'tradeoff', fits: 'daño (no básicos ni definitivas)',
+    requires: ['@dmg'], forbids: ['ultimate', 'basic'] },
 
   // --- SOPORTES 3.0 (utilidad / meta): builds de sostenibilidad y uptime ---
-  { id: 'efficient', name: 'Eficiente', icon: '💧', desc: '−35% de coste de maná de la habilidad',
-    effect: '−35% maná', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj', 'buff'] },
+  { id: 'efficient', name: 'Eficiente', icon: '💧', desc: '−35% de coste de recurso de la habilidad',
+    effect: '−35% coste', tag: 'pro', fits: 'habilidades con coste',
+    requires: ['@cost'] },
   { id: 'swift', name: 'Raudo', icon: '⏱️', desc: '−30% de enfriamiento de la habilidad',
-    effect: '−30% enfriamiento', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj', 'buff'] },
+    effect: '−30% enfriamiento', tag: 'pro', fits: 'habilidades con enfriamiento (no definitivas)',
+    requires: ['@cd'], forbids: ['ultimate'] },
   { id: 'focused', name: 'Certero', icon: '🎯', desc: '+25% de prob. de crítico de la habilidad',
-    effect: '+25% crítico', tag: 'pro',
-    types: ['melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: '+25% crítico', tag: 'pro', fits: 'habilidades de daño (no definitivas)',
+    requires: ['@dmg'], forbids: ['ultimate'] },
   { id: 'lasting', name: 'Persistente', icon: '⌛', desc: '+80% de duración de buff y +50% de daño de los DoT',
-    effect: '+duración buff / +DoT', tag: 'pro',
-    types: ['buff', 'melee', 'aoe_self', 'aoe_target', 'dash', 'proj'] },
+    effect: '+duración buff / +DoT', tag: 'pro', fits: 'buffs, DoT, auras, zonas y escudos',
+    requires: ['buff|dot|aura|zone|shield'] },
 ];
 
 // ------------------------------------------------------------
-// MODIFICADORES DE HABILIDAD (estilo D4 Lord of Hatred): cada habilidad tiene
-// 3 RAMAS de pasivos y cada rama 3 OPCIONES; eliges 1 por rama y puedes
-// cambiarla cuando quieras (gratis). Estado en `player.skillMods[skId] =
-// { ramaId: opcionId }`. Vocabulario de efectos (se fusiona en el cast):
-//   dmg(+%) · crit(+%) · radius(+%) · proj(+n) · pierce(bool) · slow(s)
-//   dot('bleed|poison|burn') · cdr(−%CD) · gen(+recurso) · lifesteal(+%robo)
-//   vuln(s vulnerable) · stun(s) · buff(+% magnitud) · dur(+% duración)
+// MODIFICADORES DE HABILIDAD (ramas estilo D4 Lord of Hatred): cada habilidad
+// tiene 3 RAMAS y cada rama 3 OPCIONES. Paso 2b.0: las ramas de cada clase viven
+// en js/skills-<clase>.js (constructores dmgMods/buffMods/utilMods en
+// js/skill-defs.js); aquí solo se fusionan. Estado en `player.skillMods[skId] =
+// { ramaId: opcionId }` y `player.skillBranches[skId][ramaId] = true`.
 // ------------------------------------------------------------
-// Opciones de "Variante" reutilizables (creativas, con contrapartida) — el
-// builder les pone id único por skill. Cambian CÓMO se comporta la habilidad.
-const V_BLEED  = { name: 'Desangrar', desc: 'Aplica un sangrado intenso, pero −10% de daño directo.', dot: 'bleed', dmg: -10 };
-const V_BURN   = { name: 'Calcinar',  desc: 'Incendia al objetivo, pero −10% de daño directo.', dot: 'burn', dmg: -10 };
-const V_POISON = { name: 'Emponzoñar', desc: 'Envenena al objetivo, pero −10% de daño directo.', dot: 'poison', dmg: -10 };
-const V_VULN   = { name: 'Quebrantar', desc: 'Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).', vuln: 4 };
-const V_STUN   = { name: 'Conmocionar', desc: 'Aturde 1.5s al golpear, pero −12% de daño.', stun: 1.5, dmg: -12 };
-const V_SLOW   = { name: 'Tullir', desc: 'Ralentiza 3s a los enemigos golpeados.', slow: 3 };
-const V_PIERCE = { name: 'Atravesar', desc: 'Atraviesa a todos los enemigos en línea.', pierce: true };
-const V_EXEC   = { name: 'Decapitar', desc: 'Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.', execute: 18, dmg: -10 };
-const V_CHAIN  = { name: 'Rebote', desc: 'El golpe rebota a 2 enemigos cercanos.', chain: 2 };
-// TRANSFORMACIONES: cambian EN GRANDE cómo funciona la habilidad (rama 3)
-const T_ZONE   = { name: 'Estela', desc: 'Deja una ZONA DE DAÑO durante 4s donde golpea.', zone: 1 };
-const T_CDHIT  = { name: 'Masacre', desc: 'Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.', cdhit: 4 };
-const T_ECHO   = { name: 'Eco', desc: 'Se ejecuta una 2ª vez (al 60% de daño) tras un instante.', echo: 1 };
-const T_GIANT  = { name: 'Coloso', desc: '+90% de radio y +40% de daño, pero +50% de enfriamiento.', radius: 90, dmg: 40, cdr: -50 };
-const T_NOVA   = { name: 'Onda', desc: '+30% de radio y aturde 1s a los golpeados.', radius: 30, stun: 1 };
-// terceras opciones de la rama Ofensiva (con contrapartida)
-const O_RAD   = { name: 'Vorágine', desc: '+55% de radio, pero −15% de daño.', radius: 55, dmg: -15 };
-const O_PROJ  = { name: 'Doble', desc: '+1 proyectil, pero −15% de daño.', proj: 1, dmg: -15 };
-const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles, pero −25% de daño.', proj: 2, dmg: -25 };
-const O_BIG   = { name: 'Aplastar', desc: '+60% de daño, pero +30% de enfriamiento.', dmg: 60, cdr: -30 };
-// builder: ramas de una habilidad de DAÑO (Ofensiva / Ímpetu / Variante)
-function dmgMods(id, third, v1, v2, v3) {
-  return [
-    { id: `${id}_o`, name: 'Ofensiva', opts: [
-      { id: `${id}_o1`, name: 'Brutal', desc: '+45% de daño, pero +20% de enfriamiento.', dmg: 45, cdr: -20 },
-      { id: `${id}_o2`, name: 'Quirúrgico', desc: '+30% de prob. crítica, pero −12% de daño base.', crit: 30, dmg: -12 },
-      { id: `${id}_o3`, ...third },
-    ] },
-    { id: `${id}_f`, name: 'Ímpetu', opts: [
-      { id: `${id}_f1`, name: 'Frenético', desc: '−30% de enfriamiento, pero −12% de daño.', cdr: 30, dmg: -12 },
-      { id: `${id}_f2`, name: 'Sediento', desc: 'Roba un 14% del daño infligido como vida.', lifesteal: 14 },
-      { id: `${id}_f3`, name: 'Furibundo', desc: 'Genera +16 de recurso al usarla.', gen: 16 },
-    ] },
-    { id: `${id}_v`, name: 'Transformación', opts: [
-      { id: `${id}_v1`, ...v1 }, { id: `${id}_v2`, ...v2 }, { id: `${id}_v3`, ...v3 },
-    ] },
-  ];
-}
-// builder: ramas de una habilidad de BUFF (Potencia / Duración / Recurso)
-function buffMods(id) {
-  return [
-    { id: `${id}_o`, name: 'Potencia', opts: [
-      { id: `${id}_o1`, name: 'Reforzado', desc: '+35% de potencia, pero −20% de duración.', buff: 35, dur: -20 },
-      { id: `${id}_o2`, name: 'Supremo', desc: '+60% de potencia, pero +25% de enfriamiento.', buff: 60, cdr: -25 },
-      { id: `${id}_o3`, name: 'Equilibrado', desc: '+25% de potencia y +30% de duración.', buff: 25, dur: 30 },
-    ] },
-    { id: `${id}_d`, name: 'Duración', opts: [
-      { id: `${id}_d1`, name: 'Duradero', desc: '+70% de duración.', dur: 70 },
-      { id: `${id}_d2`, name: 'Eterno', desc: '+120% de duración, pero −15% de potencia.', dur: 120, buff: -15 },
-      { id: `${id}_d3`, name: 'Sostenido', desc: '+40% de duración y −15% de enfriamiento.', dur: 40, cdr: 15 },
-    ] },
-    { id: `${id}_f`, name: 'Recurso', opts: [
-      { id: `${id}_f1`, name: 'Rápido', desc: '−30% de enfriamiento, pero −15% de duración.', cdr: 30, dur: -15 },
-      { id: `${id}_f2`, name: 'Iracundo', desc: 'Genera +22 de recurso al usarla.', gen: 22 },
-      { id: `${id}_f3`, name: 'Eficiente', desc: '−15% de enfriamiento y +12 de recurso.', cdr: 15, gen: 12 },
-    ] },
-  ];
-}
-export const SKILL_MODS = {
-  // ===== GUERRERO (plantilla completa: cada habilidad con 3 ramas × 3 opciones) =====
-  // básicos
-  // básicos (Transformación más ligera)
-  g_tajo:      dmgMods('g_tajo', O_RAD, V_BLEED, V_VULN, V_CHAIN),
-  g_mandoble:  dmgMods('g_mandoble', O_BIG, V_EXEC, V_STUN, T_ECHO),
-  g_embate:    dmgMods('g_embate', O_RAD, V_BLEED, V_SLOW, T_ZONE),
-  // cores (Transformación = cambia EN GRANDE cómo funciona)
-  torbellino:  dmgMods('torbellino', O_RAD, T_ZONE, T_CDHIT, T_GIANT),
-  embestida:   dmgMods('embestida', O_RAD, V_CHAIN, T_NOVA, T_ZONE),
-  g_martillo:  dmgMods('g_martillo', O_RAD, T_NOVA, T_CDHIT, T_ZONE),
-  terremoto:   dmgMods('terremoto', O_RAD, T_ZONE, T_GIANT, V_EXEC),
-  g_lanza:     dmgMods('g_lanza', O_PROJ, V_PIERCE, V_CHAIN, T_ECHO),
-  g_salto:     dmgMods('g_salto', O_RAD, T_NOVA, T_CDHIT, T_ZONE),
-  g_hendidura: dmgMods('g_hendidura', O_RAD, T_ZONE, T_CDHIT, V_BLEED),
-  grito_guerra: buffMods('grito_guerra'),
-  g_provocacion: buffMods('g_provocacion'),
-  // definitivas (Transformación grande)
-  g_u_cataclismo: dmgMods('g_u_cataclismo', O_RAD, T_ZONE, T_GIANT, V_EXEC),
-  g_u_furia:      buffMods('g_u_furia'),
-  g_u_estandarte: buffMods('g_u_estandarte'),
-  // ===== MAGA =====
-  m_dardo:     dmgMods('m_dardo', O_PROJ, V_BURN, V_VULN, V_SLOW),
-  bola_fuego:  dmgMods('bola_fuego', O_PROJ, V_BURN, V_VULN, V_STUN),
-  nova_hielo:  dmgMods('nova_hielo', O_RAD, V_SLOW, V_VULN, V_STUN),
-  rayo:        dmgMods('rayo', O_PROJ, V_PIERCE, V_VULN, V_STUN),
-  meteoro:     dmgMods('meteoro', O_RAD, V_BURN, V_VULN, V_STUN),
-  m_u_supernova: dmgMods('m_u_supernova', O_RAD, V_BURN, V_VULN, V_STUN),
-  // ===== ARQUERA =====
-  a_disparo:        dmgMods('a_disparo', O_PROJ, V_POISON, V_VULN, V_PIERCE),
-  flecha_multiple:  dmgMods('flecha_multiple', O_PROJ2, V_POISON, V_VULN, V_STUN),
-  flecha_perforante: dmgMods('flecha_perforante', O_PROJ, V_PIERCE, V_POISON, V_VULN),
-  agilidad:         buffMods('agilidad'),
-  lluvia_flechas:   dmgMods('lluvia_flechas', O_RAD, V_POISON, V_VULN, V_STUN),
-  a_u_diluvio:      dmgMods('a_u_diluvio', O_RAD, V_POISON, V_VULN, V_STUN),
-};
+export const SKILL_MODS = { ...GUERRERO_SKILL_MODS, ...MAGA_SKILL_MODS, ...ARQUERA_SKILL_MODS };
 
 // agrega los efectos de las OPCIONES elegidas (1 por rama). `chosen` = { ramaId: opcionId }
 export function aggregateSkillMods(skId, chosen) {
-  const out = { dmg: 0, proj: 0, pierce: false, radius: 0, slow: 0, crit: 0, dot: null, buff: 0, dur: 0, cdr: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0, execute: 0, chain: 0, zone: 0, cdhit: 0, echo: false };
-  const branches = SKILL_MODS[skId]; if (!branches || !chosen) return out;
-  for (const br of branches) {
-    const optId = chosen[br.id]; if (!optId) continue;
-    const o = (br.opts || []).find(x => x.id === optId); if (!o) continue;
-    if (o.dmg) out.dmg += o.dmg;
-    if (o.proj) out.proj += o.proj;
-    if (o.pierce) out.pierce = true;
-    if (o.radius) out.radius += o.radius;
-    if (o.slow) out.slow = Math.max(out.slow, o.slow);
-    if (o.crit) out.crit += o.crit;
-    if (o.dot && !out.dot) out.dot = o.dot;
-    if (o.buff) out.buff += o.buff;
-    if (o.dur) out.dur += o.dur;
-    if (o.cdr) out.cdr += o.cdr;
-    if (o.gen) out.gen += o.gen;
-    if (o.lifesteal) out.lifesteal += o.lifesteal;
-    if (o.vuln) out.vuln = Math.max(out.vuln, o.vuln);
-    if (o.stun) out.stun = Math.max(out.stun, o.stun);
-    if (o.execute) out.execute = Math.max(out.execute, o.execute);
-    if (o.chain) out.chain = Math.max(out.chain, o.chain);
-    if (o.zone) out.zone = Math.max(out.zone, o.zone);
-    if (o.cdhit) out.cdhit = Math.max(out.cdhit, o.cdhit);
-    if (o.echo) out.echo = true;
-  }
-  return out;
+  return aggregateMods(SKILL_MODS[skId], chosen);
 }
 
 // Zonas abiertas (regiones): bioma, nivel de desbloqueo y piso base de dificultad

@@ -461,16 +461,19 @@ export const economyMethods = {
     this.save();
   },
   
+  // Paso 2b.0 (§4.1): reespecializar las RAMAS es GRATIS fuera de combate (tras 5 s
+  // sin dar ni recibir daño, o en un campamento). Las habilidades no se reembolsan:
+  // se aprenden solas por nivel.
+  canRespecFree() {
+    const p = this.player;
+    return !!p && (this.inSafeCamp || (p.sinceCombat ?? 99) >= 5);
+  },
   respecSkills() {
     const p = this.player;
-    const cost = this.respecCost();
-    if (p.gold < cost) { this.ui.message('Oro insuficiente'); return; }
-    p.gold -= cost;
-    p.skills = {};
+    if (!this.canRespecFree()) { this.ui.message('⚔️ Solo fuera de combate (5 s sin daño) o en un campamento'); return; }
     p.skillMods = {};       // las opciones elegidas se reembolsan
     p.skillBranches = {};   // las mini-ramas desbloqueadas (1 pt c/u) también
-    p.skillPoints = Math.min(p.level, 20);
-    p.buffs = [];
+    p.skillPoints = Math.max(0, Math.min(p.level, 20) - 1);
     p.cds = {};
     p.recompute();
     this.ui.refreshHotbar();

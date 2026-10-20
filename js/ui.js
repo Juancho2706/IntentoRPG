@@ -3,7 +3,9 @@
 // ============================================================
 import * as THREE from 'three';
 import * as d3 from 'd3';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, skillVal, synergyBonus, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
+// Paso 2b.0: números finales de las habilidades (coste/CD/soportes) desde el resolvedor único
+import { resolveSkill, supportFits, supportSockets, fitsSlot, profileSummary, isKnown, RANK_MAX } from './skill-resolve.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
 import { materialStackKey } from './entities.js';
@@ -498,7 +500,7 @@ export class UI {
       if (!sk || sk.kind === 'basic') continue; // el básico usa atkCd, no tiene overlay/coste
       const cd = p.cds[id] || 0;
       const ov = btn.querySelector('.cd-overlay');
-      const frac = cd > 0 ? Math.max(0, Math.min(1, cd / sk.cd)) : 0;
+      const frac = cd > 0 ? Math.max(0, Math.min(1, cd / (p.cdMax?.[id] || sk.cd || 1))) : 0;
       // el ángulo barre en sentido horario y se vacía según se enfría
       ov.style.setProperty('--cd-deg', Math.round(frac * 360) + 'deg');
       ov.classList.toggle('on', frac > 0);
@@ -509,7 +511,7 @@ export class UI {
         btn.classList.remove('just-ready'); void btn.offsetWidth; btn.classList.add('just-ready');
       }
       btn._lastFrac = frac;
-      const cost = Math.round(skillVal(sk.mana, p.skills[id] || 1));
+      const cost = resolveSkill(p, sk)?.cost || 0;
       const costEl = btn.querySelector('.sk-cost');
       if (costEl && costEl.textContent !== String(cost)) costEl.textContent = cost;
       btn.classList.toggle('no-mana', p.mp < cost);
@@ -697,7 +699,8 @@ export class UI {
     for (const [slot, label] of SLOTS) {
       const id = p.hotbar?.[slot] || null;
       const sk = id ? p.cls.skills.find(s => s.id === id) : null;
-      const known = sk && p.skills[sk.id] > 0;
+      const known = sk && isKnown(p, sk);
+      const prof = sk ? resolveSkill(p, sk) : null;
       const btn = document.createElement('button');
       btn.className = 'skill-btn';
       btn.dataset.slot = slot;
@@ -710,17 +713,17 @@ export class UI {
         btn.classList.add('hb-basic'); btn.dataset.skill = sk.id;
         if (!known) btn.classList.add('hb-locked');
         btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${label}</span>` +
-          `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${sk.gen || res?.gen || 0}</span>`;
+          `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${prof?.gen ?? sk.gen ?? 0}</span>`;
         btn.title = `${sk.name} · genera ${res?.name || 'recurso'}`;
-        castFn = () => { if (!known) { this.message(`${sk.name}: apréndelo en Habilidades`); return; } this.game.castSkillSlot(slot); };
+        castFn = () => { if (!known) { this.message(`${sk.name}: se aprende al nivel ${sk.req}`); return; } this.game.castSkillSlot(slot); };
       } else {
         btn.dataset.skill = sk.id; if (!known) btn.classList.add('hb-locked');
-        const cost = Math.round(skillVal(sk.mana, p.skills[sk.id] || 1));
+        const cost = prof?.cost || 0;
         btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${label}</span>` +
           `<span class="sk-cost">${cost}</span><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span>`;
-        btn.title = known ? `${sk.name} · ${cost} ${res?.name || 'maná'}` : `${sk.name} (apréndela en Habilidades)`;
+        btn.title = known ? `${sk.name} · ${cost} ${res?.name || 'maná'}` : `${sk.name} (se aprende al nivel ${sk.req})`;
         castFn = () => {
-          if (!known) { this.message(`${sk.name}: apréndela en el panel de Habilidades`); return; }
+          if (!known) { this.message(`${sk.name}: se aprende al nivel ${sk.req}`); return; }
           const onCd = (p.cds[sk.id] || 0) > 0;
           if (p.mp < cost && !onCd) this.flashNoMana(btn);
           this.game.castSkillSlot(slot);
@@ -1820,10 +1823,10 @@ export class UI {
 
   // valor principal de una skill a un nivel (para previsualizar la mejora)
   skillMainAt(sk, lvl) {
-    if (sk.mult) return `Daño ${Math.round(skillVal(sk.mult, lvl) * 100)}%`;
-    if (sk.buff) return Object.entries(sk.buff).map(([k, v]) => `+${Math.round(skillVal(v, lvl))} ${STAT_NAMES[k] || k}`).join(', ');
-    if (sk.passive) return Object.entries(sk.passive).map(([k, v]) => `+${Math.round(skillVal(v, lvl))} ${STAT_NAMES[k] || k}`).join(', ');
-    if (sk.count) return `${Math.floor(skillVal(sk.count, lvl))} proyectiles`;
+    const r = Math.max(1, lvl || 1);
+    if (sk.coef) return `Daño ${Math.round(sk.coef * (1 + 0.10 * (r - 1)) * 100)}%`;
+    if (sk.buff) return Object.entries(sk.buff).map(([k, v]) => `+${Math.round(v * (1 + 0.06 * (r - 1)))} ${STAT_NAMES[k] || k}`).join(', ');
+    if (sk.count > 1) return `${sk.count} proyectiles`;
     return null;
   }
 
@@ -1942,12 +1945,12 @@ export class UI {
     const hint = document.createElement('div'); hint.className = 'sk-assign-hint dim';
     hint.innerHTML = '🖱️ Clic derecho (o mantén pulsado) en una ranura de la barra inferior para asignar una habilidad aprendida.';
     cont.appendChild(hint);
-    if (Object.keys(p.skills).length || Object.keys(p.skillMods || {}).length) {
-      const cost = this.game.respecCost();
+    if (Object.keys(p.skillBranches || {}).length || Object.keys(p.skillMods || {}).length) {
+      const free = this.game.canRespecFree?.() ?? true;
       const rb = document.createElement('button');
       rb.className = 'quest-btn sk-respec';
-      rb.innerHTML = `${icon('recycle')} Redistribuir habilidades <span class="dim">(${cost} 🪙)</span>`;
-      rb.disabled = p.gold < cost;
+      rb.innerHTML = `${icon('recycle')} Reiniciar ramas <span class="dim">(gratis fuera de combate)</span>`;
+      rb.disabled = !free;
       rb.onclick = () => { this.game.respecSkills(); this.renderSkills(); this.updateHUD(); };
       cont.appendChild(rb);
     }
@@ -1990,12 +1993,11 @@ export class UI {
       b.onclick = () => { g.assignHotbar(slot, id); pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); };
       btns.appendChild(b);
     };
-    // SOLO habilidades APRENDIDAS (básicos/cores/definitivas; las pasivas no van a la barra)
-    const kinds = ['basic', 'core', 'ultimate'];
-    const learned = p.cls.skills.filter(s => kinds.includes(s.kind) && p.skills[s.id] > 0);
+    // SOLO habilidades CONOCIDAS (se aprenden solas por nivel) cuya categoría encaja en la ranura
+    const learned = p.cls.skills.filter(s => isKnown(p, s) && fitsSlot(s, slot));
     if (!learned.length) {
       const e = document.createElement('div'); e.className = 'dim'; e.style.padding = '4px 2px';
-      e.textContent = 'Aún no has aprendido habilidades. Apréndelas en el árbol (botón Habilidades).';
+      e.textContent = 'Aún no conoces habilidades para esta ranura: se aprenden solas al subir de nivel.';
       btns.appendChild(e);
     }
     for (const sk of learned) {
@@ -2022,10 +2024,10 @@ export class UI {
   // ramas desbloqueadas. Al hacer clic se abre la vista FOCO (especialización radial).
   skTreeSkill(sk, node, unlocked) {
     const p = this.game.player;
-    const lvl = p.skills[sk.id] || 0;
-    const maxed = lvl >= sk.max;
-    const canLearn = unlocked && p.skillPoints > 0 && !maxed;
-    const shape = node.kind === 'passive' ? 'passive' : node.kind === 'ultimate' ? 'ult' : node.kind === 'basic' ? 'basic' : 'core';
+    const lvl = p.skills[sk.id] || 0;                 // rango DERIVADO del nivel (Paso 2b.0)
+    const maxed = lvl >= RANK_MAX;
+    const canLearn = false;                            // ya no se compran rangos
+    const shape = node.kind === 'ultimate' ? 'ult' : node.kind === 'basic' ? 'basic' : 'core';
     const wrap = document.createElement('div'); wrap.className = 'sk-skill';
     const n = document.createElement('button');
     n.className = 'sk-node ' + shape + (lvl > 0 ? ' learned' : '') + (canLearn ? ' avail' : '') + (maxed ? ' maxed' : '') + (!unlocked ? ' tier-locked' : '');
@@ -2035,17 +2037,10 @@ export class UI {
       const unl = Object.values(p.skillBranches?.[sk.id] || {}).filter(Boolean).length;
       badge = `<span class="sk-node-mods${unl ? ' on' : ''}">${unl}/${branches.length}</span>`;
     }
-    n.innerHTML = `<span class="sk-node-ico">${sk.icon}</span><span class="sk-node-rank">${lvl}/${sk.max}</span>${badge}` + (!unlocked ? `<span class="sk-node-lock">${icon('lock')}</span>` : '');
-    n.title = `${sk.name} — ${sk.desc}` + (!unlocked ? `\n🔒 Requiere nivel ${node.req}` : '\nClic para especializar');
-    n.onclick = () => {
-      if (!unlocked) { this.message(`🔒 ${node.name}: requiere nivel ${node.req}`); return; }
-      if (node.kind === 'passive') {
-        if (!maxed && p.skillPoints > 0) { this.game.learnSkill(sk.id); this.renderSkills(); this.updateHUD(); }
-        else this.message(maxed ? `${sk.name} al máximo` : 'Sin puntos de habilidad');
-        return;
-      }
-      this.openSkillFocus(sk.id);
-    };
+    const known = isKnown(p, sk);
+    n.innerHTML = `<span class="sk-node-ico">${sk.icon}</span><span class="sk-node-rank">${known ? 'R' + lvl : 'Nv' + sk.req}</span>${badge}` + (!known ? `<span class="sk-node-lock">${icon('lock')}</span>` : '');
+    n.title = `${sk.name} — ${sk.desc}` + (!known ? `\n🔒 Se aprende sola al nivel ${sk.req}` : `\nRango ${lvl} (sube con el nivel) · clic para sus ramas`);
+    n.onclick = () => { this.openSkillFocus(sk.id); };
     wrap.appendChild(this.skNodeWrap(n, sk.name));
     return wrap;
   }
@@ -2111,9 +2106,10 @@ export class UI {
     fz.querySelector('[data-z=in]').onclick = () => { this._focusZoom = Math.min(1.4, this._focusZoom + 0.1); applyFZoom(); };
     ov.appendChild(fz);
 
-    const lvl = p.skills[sk.id] || 0, maxed = lvl >= sk.max;
-    const unlockedSkill = p.level >= (node.req || 1);
-    const cost = Math.round(skillVal(sk.mana, Math.max(1, lvl)));
+    const lvl = p.skills[sk.id] || 0, maxed = lvl >= RANK_MAX;
+    const unlockedSkill = isKnown(p, sk);
+    const prof = resolveSkill(p, sk);
+    const cost = prof?.cost || 0;
     const res = p.cls.resource;
 
     // SVG de líneas radiales (rombo-habilidad → cada opción)
@@ -2158,23 +2154,20 @@ export class UI {
     // centro: habilidad + rango + subir + soportes
     const center = document.createElement('div'); center.className = 'sk-focus-center';
     center.style.left = cx + 'px'; center.style.top = cy + 'px';
-    let upHtml;
-    if (!unlockedSkill) upHtml = `<button class="sk-focus-up" disabled>🔒 Nivel ${node.req}</button>`;
-    else if (maxed) upHtml = `<button class="sk-focus-up" disabled>★ Rango máximo</button>`;
-    else if (p.skillPoints > 0) upHtml = `<button class="sk-focus-up btn-good">${lvl === 0 ? 'Aprender' : 'Subir a ' + (lvl + 1)} (1 pt)</button>`;
-    else upHtml = `<button class="sk-focus-up" disabled>Sin puntos</button>`;
+    // Paso 2b.0: el rango sube SOLO con el nivel (y talentos/equipo); no se compra
+    const upHtml = !unlockedSkill
+      ? `<button class="sk-focus-up" disabled>🔒 Nivel ${sk.req}</button>`
+      : `<button class="sk-focus-up" disabled>${maxed ? '★ Rango máximo por nivel' : 'Sube con el nivel'}</button>`;
     center.innerHTML = `<div class="sk-focus-ico">${sk.icon}</div><div class="sk-focus-name">${sk.name}</div>` +
-      `<div class="sk-focus-rank">${this.skillPips(lvl, sk.max)} <em>${lvl}/${sk.max}</em></div>${upHtml}`;
+      `<div class="sk-focus-rank">${this.skillPips(Math.min(lvl, RANK_MAX), RANK_MAX)} <em>R${lvl}</em></div>${upHtml}`;
     zoomLayer.appendChild(center);
-    const upBtn = center.querySelector('.sk-focus-up:not([disabled])');
-    if (upBtn) upBtn.onclick = () => { g.learnSkill(sk.id); this.renderSkillFocus(); this.updateHUD(); };
-    // soportes (engarces) bajo el centro, si está aprendida y es core/ultimate
-    if (lvl > 0 && (sk.kind === 'core' || sk.kind === 'ultimate')) this.renderSupportSlots(center, sk, () => this.renderSkillFocus());
+    // soportes (engarces) bajo el centro, si la conoces y tiene huecos (básico/definitiva 1, resto 2)
+    if (unlockedSkill && supportSockets(sk) > 0) this.renderSupportSlots(center, sk, () => this.renderSkillFocus());
 
     // inspector inferior
     const insp = document.createElement('div'); insp.className = 'sk-focus-inspector'; insp.id = 'sk-focus-insp';
     ov.appendChild(insp);
-    this._focusInspect(`<b>${sk.icon} ${sk.name}</b><span>${sk.desc}</span><em>Daño/efecto a rango ${Math.max(1, lvl)} · cuesta ${cost} ${res?.name || ''}. Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
+    this._focusInspect(`<b>${sk.icon} ${sk.name}</b><span>${sk.desc}</span><em>${profileSummary(prof)}${cost ? '' : ' · sin coste'} (${res?.name || ''}). Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
   }
 
   // centra/encaja el árbol en el visor (transform inicial de d3-zoom)
@@ -2231,33 +2224,21 @@ export class UI {
     pop.style.left = pop.style.top = pop.style.transform = '';
     const lvl = p.skills[sk.id] || 0;
     const reqLvl = sk.req || node?.req || 1;
-    const unlocked = p.level >= reqLvl;
-    const maxed = lvl >= sk.max;
-    const cost = Math.round(skillVal(sk.mana, Math.max(1, lvl)));
+    const unlocked = isKnown(p, sk);
     const res = p.cls.resource;
     const details = this.skillDetails(sk, Math.max(1, lvl));
-    let syn = '';
-    if (sk.synergies) {
-      const txts = sk.synergies.map(sy => { const src = p.cls.skills.find(s => s.id === sy.from); return `${sy.pct}%/pt en ${src ? src.name : sy.from}`; });
-      const bonus = synergyBonus(sk, p.skills);
-      syn = `<div class="sk-detail-syn">🔗 ${txts.join(' · ')}${bonus > 0 ? ` <b>(+${bonus}%)</b>` : ''}</div>`;
-    }
     pop.innerHTML = `
-      <div class="popup-name">${sk.icon} ${sk.name} <span class="dim">${lvl}/${sk.max}</span></div>
+      <div class="popup-name">${sk.icon} ${sk.name} <span class="dim">${unlocked ? 'R' + lvl : 'Nv ' + reqLvl}</span></div>
       <div class="popup-sub">${sk.desc}</div>
-      <div class="sk-detail-nums">${details} · cuesta ${cost} ${res?.name || ''}</div>
-      ${syn}
+      <div class="sk-detail-nums">${details} (${res?.name || ''})</div>
       <div class="popup-btns codex-choose"></div>`;
     const btns = pop.querySelector('.popup-btns');
     const up = document.createElement('button');
     up.className = 'btn-good';
-    if (!unlocked) { up.disabled = true; up.textContent = `🔒 Requiere nivel ${reqLvl}`; }
-    else if (maxed) { up.disabled = true; up.textContent = '★ Rango máximo'; }
-    else if (p.skillPoints <= 0) { up.disabled = true; up.textContent = 'Sin puntos de habilidad'; }
-    else up.textContent = lvl === 0 ? 'Aprender (1 punto)' : `Subir a rango ${lvl + 1} (1 punto)`;
-    up.onclick = () => { g.learnSkill(sk.id); pop.classList.add('hidden'); this.renderSkills(); this.updateHUD(); };
+    up.disabled = true;
+    up.textContent = unlocked ? `Rango ${lvl} · sube con el nivel` : `🔒 Se aprende al nivel ${reqLvl}`;
     btns.appendChild(up);
-    if (lvl > 0 && (sk.kind === 'core' || sk.kind === 'ultimate')) this.renderSupportSlots(pop, sk, () => this.skillDetailPopup(sk, node));
+    if (unlocked && supportSockets(sk) > 0) this.renderSupportSlots(pop, sk, () => this.skillDetailPopup(sk, node));
     const c = document.createElement('button'); c.textContent = 'Cerrar';
     c.onclick = () => pop.classList.add('hidden');
     btns.appendChild(c);
@@ -2268,7 +2249,7 @@ export class UI {
   // efecto y la contrapartida de cada soporte; los incompatibles aparecen en gris.
   renderSupportSlots(infoEl, sk, onChange) {
     const p = this.game.player;
-    const MAX_SLOTS = 2;
+    const MAX_SLOTS = supportSockets(sk); // huecos: básico/definitiva 1, resto 2 (§4.3)
     // normaliza a array (retrocompat con saves viejos en string)
     let cur = p.supports[sk.id];
     if (typeof cur === 'string') cur = cur ? [cur] : [];
@@ -2276,7 +2257,7 @@ export class UI {
     p.supports[sk.id] = cur;
 
     // soportes conocidos compatibles con el tipo de esta habilidad
-    const compat = SUPPORTS.filter(s => s.types.includes(sk.type) && p.knownSupports.includes(s.id));
+    const compat = SUPPORTS.filter(s => supportFits(s, sk) && p.knownSupports.includes(s.id));
     if (!compat.length && !cur.length) return;
 
     const wrap = document.createElement('div');
@@ -2292,6 +2273,7 @@ export class UI {
       const clean = [];
       for (const id of p.supports[sk.id]) if (id && !clean.includes(id)) clean.push(id);
       p.supports[sk.id] = clean.slice(0, MAX_SLOTS);
+      p.resolved = {};                 // el perfil de la habilidad cambia con sus soportes
       this.game.save();
       (onChange || (() => this.renderSkills()))();
     };
@@ -2306,7 +2288,7 @@ export class UI {
       // los conocidos pero incompatibles con esta habilidad se listan deshabilitados (gris)
       const known = SUPPORTS.filter(s => p.knownSupports.includes(s.id));
       for (const s of known) {
-        const incompatible = !s.types.includes(sk.type);
+        const incompatible = !supportFits(s, sk);
         const dup = usedElsewhere.includes(s.id);
         const dis = incompatible || dup;
         const label = `${s.icon} ${s.name}${s.trade ? ` (${s.effect}, ${s.trade})` : ` (${s.effect || ''})`}` +
@@ -2338,16 +2320,10 @@ export class UI {
     infoEl.appendChild(wrap);
   }
 
+  // números FINALES del lanzamiento (resolveSkill: rango, ramas, soportes, CDR…)
   skillDetails(sk, lvl) {
-    const parts = [];
-    if (sk.mult) parts.push(`Daño ${Math.round(skillVal(sk.mult, lvl) * 100)}%`);
-    if (sk.mana) parts.push(`Maná ${Math.round(skillVal(sk.mana, lvl))}`);
-    if (sk.cd) parts.push(`CD ${sk.cd}s`);
-    if (sk.radius) parts.push(`Radio ${sk.radius}m`);
-    if (sk.count) parts.push(`Proyectiles ${Math.floor(skillVal(sk.count, lvl))}`);
-    if (sk.buff) parts.push(Object.entries(sk.buff).map(([k, v]) => `+${Math.round(skillVal(v, lvl))} ${k}`).join(', ') + ` (${sk.dur}s)`);
-    if (sk.passive) parts.push(Object.entries(sk.passive).map(([k, v]) => `+${Math.round(skillVal(v, lvl))} ${k}`).join(', '));
-    return parts.join(' · ');
+    void lvl;
+    return profileSummary(resolveSkill(this.game.player, sk)) || '—';
   }
 
   // nº de glifos que tienes en la mochila sin engarzar en el Tablero de Paragon

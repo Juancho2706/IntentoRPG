@@ -17,6 +17,10 @@
 //  - feedback de IMPACTO nítido al golpear a un enemigo (burst corto y seco).
 //
 // No importa THREE ni el juego: solo objetos de datos serializables.
+// Paso 2b.0: fusiona los catálogos por clase (js/fx-skills-<clase>.js).
+import { GUERRERO_FX, GUERRERO_FX_PRESETS } from './fx-skills-guerrero.js';
+import { MAGA_FX, MAGA_FX_PRESETS } from './fx-skills-maga.js';
+import { ARQUERA_FX, ARQUERA_FX_PRESETS } from './fx-skills-arquera.js';
 
 // ------------------------------------------------------------
 // GUERRERO (físico — blanco/ámbar; viento para gritos/cargas)
@@ -411,28 +415,32 @@ export const critRing = {
 // Tabla por id de habilidad (para acceso cómodo desde main.js).
 // Cada entrada describe los presets que usa la habilidad y el color de elemento.
 // ------------------------------------------------------------
-export const SKILL_FX = {
+const BASE_SKILL_FX = {
   // Guerrero
   golpe_brutal:   { impact: brutalStrike, extra: brutalStrikeWave, color: 0xffd58a },
   grito_guerra:   { aura: warCry, color: 0xe08a2a },
   torbellino:     { aura: whirlwind, extra: whirlwindInner, color: 0xcfd6e0 },
-  embestida:      { trail: chargeTrail, impact: chargeImpact, color: 0xffcf7a },
-  terremoto:      { aura: quakeDust, extra: quakeRocks, color: 0x9a8c6e },
-  // Maga
-  bola_fuego:     { trail: fireballTrail, impact: fireballBlast, color: 0xff6622 },
-  nova_hielo:     { aura: frostNova, extra: frostShards, color: 0x66ccff },
-  rayo:           { trail: boltTrail, impact: boltSpark, color: 0xffee66 },
+  embestida:      { trail: chargeTrail, impact: chargeImpact, color: 0xffcf7a, sfx: 'dash' },
+  terremoto:      { aura: quakeDust, extra: quakeRocks, color: 0x9a8c6e, sfx: 'hit' },
+  // Maga (Paso 2b.0: se cablean los sonidos elementales fire/ice/bolt, §4.4)
+  bola_fuego:     { trail: fireballTrail, impact: fireballBlast, color: 0xff6622, sfx: 'fire' },
+  nova_hielo:     { aura: frostNova, extra: frostShards, color: 0x66ccff, auraY: 0.4, sfx: 'ice' },
+  rayo:           { trail: boltTrail, impact: boltSpark, color: 0xffee66, sfx: 'bolt' },
   armadura_helada:{ aura: frostArmor, color: 0x66ccff },
-  meteoro:        { trail: meteorFall, impact: meteorImpact, aura: meteorWave, extra: meteorEmbers, color: 0xff4400 },
+  meteoro:        { trail: meteorFall, impact: meteorImpact, aura: meteorWave, extra: meteorEmbers, color: 0xff4400, sfx: 'fire' },
+  m_u_supernova:  { impact: meteorImpact, aura: meteorWave, extra: meteorEmbers, color: 0xffcc44, sfx: 'fire' },
   // Arquera
   disparo_certero:{ trail: preciseTrail, impact: arrowSpark, color: 0xddffaa },
-  flecha_multiple:{ aura: multiShotBurst, color: 0xccddaa },
-  flecha_perforante:{ trail: piercingTrail, impact: arrowSpark, color: 0xffffcc },
-  agilidad:       { aura: agility, color: 0x9af06a },
-  lluvia_flechas: { aura: arrowRain, extra: arrowRainDust, color: 0xaaffaa },
+  flecha_multiple:{ aura: multiShotBurst, color: 0xccddaa, sfx: 'shoot' },
+  flecha_perforante:{ trail: piercingTrail, impact: arrowSpark, color: 0xffffcc, sfx: 'shoot' },
+  agilidad:       { aura: agility, color: 0x9af06a, sfx: 'dash' },
+  lluvia_flechas: { aura: arrowRain, extra: arrowRainDust, color: 0xaaffaa, sfx: 'shoot' },
 };
+// Paso 2b.0: cada clase aporta sus VFX desde js/fx-skills-<clase>.js (dueño: el
+// trabajador de la clase). Lo de la clase PISA lo base con el mismo id.
+export const SKILL_FX = { ...BASE_SKILL_FX, ...GUERRERO_FX, ...MAGA_FX, ...ARQUERA_FX };
 
-export const SKILL_FX_PRESETS = {
+const BASE_FX_PRESETS = {
   brutalStrike, brutalStrikeDust, brutalStrikeWave,
   warCry, warCryRing, warCryMotes,
   whirlwind, whirlwindInner,
@@ -449,3 +457,5 @@ export const SKILL_FX_PRESETS = {
   meleeHit, meleeHitFlash,
   critStar, critFlash, critRing,
 };
+export const SKILL_FX_PRESETS = { ...BASE_FX_PRESETS, ...GUERRERO_FX_PRESETS, ...MAGA_FX_PRESETS, ...ARQUERA_FX_PRESETS };
+

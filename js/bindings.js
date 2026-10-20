@@ -24,6 +24,7 @@ export const DEFAULT_BINDINGS = {
   skill2:    ['Digit2'],
   skill3:    ['Digit3'],
   skill4:    ['Digit4'],
+  talents:   ['KeyN'],   // Paso 2b.0: árbol de talentos (convención de WoW); el panel llega en 2d
 };
 
 // acciones de movimiento: se leen "mantenidas" (no disparan al pulsar)
@@ -48,6 +49,7 @@ export const BINDABLE_ACTIONS = [
   { id: 'inventory', label: 'Inventario',     group: 'Paneles' },
   { id: 'skills',    label: 'Habilidades',    group: 'Paneles' },
   { id: 'character', label: 'Personaje',      group: 'Paneles' },
+  { id: 'talents',   label: 'Talentos',       group: 'Paneles' },
   { id: 'close',     label: 'Cerrar panel',   group: 'Paneles' },
 ];
 

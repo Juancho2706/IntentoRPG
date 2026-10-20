@@ -2,14 +2,14 @@
 // IntentoRPG — ARPG isométrico estilo Diablo 2 (Three.js)
 // ============================================================
 import * as THREE from 'three';
-import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, rollSpawnDef, skillVal, synergyBonus, TIER_LEVELS, SKILL_MODS, aggregateSkillMods } from './data.js';
+import { ENEMIES, MIMIC, UBER_BOSS, ENEMY_RANKS, ZONE_LIST, bossForFloor, scaleEnemy, pickEnemyDef, rollEnemyRank, rollSpawnDef } from './data.js';
 import { buildTown, buildDungeon, buildRefuge, makePortal } from './world.js';
 import { buildZone } from './zones.js';
 import { Player, Enemy, Projectile, Pet, canAddMaterial } from './entities.js';
 import { rollDrops, makeGold, generateItem, makeRelic, makeRiftKey, makeFragment, makeMythic, makeGlyph, RARITIES, syncItemUids, withItemRng, rescaleItemToCurrent } from './items.js';
 import { createWorldRng, riftSeed } from './rng.js';
-import { TickScheduler, applyDoTInstance } from './timers.js';
-import { skillProfile, skillCooldown, skillCostMult, COLDBLOOD_CRIT, volatileDamage, tormentMods, hazardDamage } from './combat-math.js';
+import { TickScheduler } from './timers.js';
+import { tormentMods, hazardDamage } from './combat-math.js';
 import { UI } from './ui.js';
 import { createSfx } from './sfx.js';
 import { Input } from './input.js';
@@ -20,10 +20,14 @@ import { worldFlowMethods } from './game-world-flow.js';
 import { zoneLifeMethods } from './game-zone-life.js';
 import { masteryMethods } from './game-mastery.js';
 import { eraMethods } from './game-eras.js';
+// Paso 2b.0: canal de lanzamiento de habilidades, entidades de suelo y registro de poderes
+import { skillMethods } from './game-skills.js';
+import { fieldMethods } from './field-entities.js';
+import { firePower } from './powers.js';
 import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
-import { ParticleSystem, PRESETS, normalizePreset } from './particles.js';
+import { ParticleSystem, PRESETS } from './particles.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, deathWave, bossDeathBurst, bossDeathStars, bossDeathFlash, bossDeathWave } from './fx-enemies.js';
 
@@ -338,9 +342,7 @@ class Game {
     // alijo compartido + tienda en memoria) y se re-numeran duplicados viejos
     syncItemUids(this.player.toSaveData(), this.stash, this.shopStock?.items);
     if (!saved) {
-      // primera habilidad gratis
-      const first = this.player.cls.skills[0];
-      this.player.skills[first.id] = 1;
+      // las habilidades se aprenden solas por nivel (Paso 2b.0): no hay "primera gratis"
       this.player.skillPoints = 0;
       this.player.hardcore = !!opts.hardcore;
     }
@@ -415,7 +417,9 @@ class Game {
     clearGroup(this.lootGroup);
     clearGroup(this.fxGroup);
     this.enemies = []; this.projectiles = []; this.groundItems = []; this.fx = [];
-    this.firePools = []; this.telegraphs = []; this.chains = {}; this.groundZones = [];
+    this.firePools = []; this.telegraphs = []; this.chains = {};
+    this.clearFields();   // entidades de suelo (Estela, zonas, trampas) del mundo anterior
+    this.resetCastState(); // windup/canalización/salto pendientes
     this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
     this.timers.clear();  // DoT/Eco/impactos pendientes del mundo anterior
 
@@ -1039,71 +1043,6 @@ class Game {
     }
   }
 
-  // mult = coeficiente de la habilidad; opts.addPct = su aporte al saco aditivo
-  dealArea(pos, radius, mult, opts = {}) {
-    let hits = 0;
-    for (const e of this.enemies) {
-      if (!e.alive) continue;
-      const r = radius + 0.5 * (e.def.scale || 1);
-      if (e.pos.distanceToSquared(pos) <= r * r) {
-        // Sangre Fría: crítico al tope si el objetivo ya está ralentizado/congelado
-        const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
-        const { dmg, crit } = this.player.rollDamage(mult, cb, opts.addPct || 0);
-        const dealt = e.takeDamage(dmg, crit, { color: opts.color }) || 0;
-        if (opts.slow) e.slowT = opts.slow;
-        if (opts.onHit) opts.onHit(e, dealt); // daño REAL infligido (robo de vida)
-        hits++;
-      }
-    }
-    if (hits) this.player.onDealHit(); // vida/maná al golpear (una vez por AoE)
-    return hits;
-  }
-
-  // soportes asignados a una habilidad, siempre como array (multi-socket, máx 2).
-  // tolera saves viejos en formato string.
-  skillSupports(skillId) {
-    const v = this.player?.supports?.[skillId];
-    if (Array.isArray(v)) return v;
-    if (typeof v === 'string' && v) return [v];
-    return [];
-  }
-
-  // Daño por tiempo (sangrado/veneno/quemadura) sobre el planificador por ticks
-  // (js/timers.js): se pausa con la simulación, se limpia al cambiar de mundo y
-  // mantiene UNA instancia por (fuente, objetivo) que se refresca absorbiendo el
-  // daño pendiente (mismo daño total que el apilado anterior).
-  applyDoT(enemy, totalDmg, ticks, interval, color = 'txt-dmg', source = 'dot') {
-    return applyDoTInstance(this.timers, enemy, { total: totalDmg, ticks, interval, source });
-  }
-
-  // Encadenado: tras el impacto, busca enemigos cercanos al objetivo y dispara
-  // proyectiles de rebote con daño reducido (−25% por salto). Hasta `jumps` saltos.
-  spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color) {
-    if (!fromEnemy || baseDmg <= 0 || jumps <= 0) return;
-    const seen = new Set(exclude || []);
-    seen.add(fromEnemy);
-    let origin = fromEnemy;
-    let dmg = baseDmg;
-    for (let j = 0; j < jumps; j++) {
-      dmg = Math.round(dmg * 0.75); // −25% de daño por salto
-      if (dmg <= 0) break;
-      let next = null, bd = 6 * 6;
-      for (const e of this.enemies) {
-        if (!e.alive || seen.has(e)) continue;
-        const d = e.pos.distanceToSquared(origin.pos);
-        if (d < bd) { bd = d; next = e; }
-      }
-      if (!next) break;
-      seen.add(next);
-      this.spawnProjectile({
-        from: origin.pos.clone().setY(1.0), to: next.pos.clone().setY(1.0),
-        speed: 18, range: Math.sqrt(bd) + 1, dmg, crit: false, friendly: true,
-        color: color || 0x66ddff, size: 0.12,
-      });
-      origin = next;
-    }
-  }
-
   nearestEnemy(maxDist = 10, from = null) {
     const origin = from || this.player.pos;
     let best = null, bd = maxDist * maxDist;
@@ -1147,460 +1086,6 @@ class Game {
     } else {
       p.attackTarget = e; p.moveTarget = null;
     }
-  }
-
-  // asigna una habilidad (o 'basic') a una ranura del hotbar; evita duplicados
-  // de cores (el básico sí puede repetirse) y nunca deja el básico sin sitio.
-  assignHotbar(slot, id) {
-    const p = this.player;
-    if (!p?.hotbar) return;
-    const SLOTS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
-    if (!SLOTS.includes(slot)) return;
-    // sin duplicados: si la habilidad estaba en otra ranura, se libera
-    if (id) for (const s of SLOTS) if (p.hotbar[s] === id) p.hotbar[s] = null;
-    p.hotbar[slot] = id;
-    this.ui.refreshHotbar();
-    this.save();
-  }
-
-  // Ataque básico = GENERADOR de recurso (el arma con la que naces). Apunta al
-  // cursor; melee golpea al enemigo a rango, a distancia dispara hacia la mira.
-  castBasic() {
-    const p = this.player;
-    if (!p || !p.alive || this.state !== 'play' || this._paused || p.atkCd > 0) return;
-    const aim = this.input?.mouseWorld || null;
-    const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
-    const scheme = this.settings?.controlScheme || 'wasd';
-    if (p.cls.ranged) {
-      const fwd = new THREE.Vector3(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
-      // WASD: dispara SIEMPRE hacia el cursor (apuntado manual, no autodirigido).
-      // Clic-mover: hacia el enemigo cercano (no hay mira persistente).
-      const tgt = (scheme !== 'click' && aim) ? { pos: aim } : (near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) });
-      p.faceToward(tgt.pos);
-      p.basicAttack(tgt);
-    } else if (near && p.pos.distanceTo(near.pos) <= p.cls.atkRange) {
-      p.faceToward(near.pos);
-      p.basicAttack(near);
-    } else {
-      // golpe melee al vacío hacia la mira (no genera Furia: hay que acertar)
-      if (aim) p.faceToward(aim);
-      p.atkCd = p.stats.atkTime * 0.6; p.swing = 1;
-    }
-  }
-
-  // echoMult: si se pasa (p.ej. 0.5), es una repetición del soporte Eco —
-  // omite consumo de recurso/CD y no vuelve a hacer eco (evita bucle).
-  // slotKey: 'lmb' | 'rmb' | 'k1'..'k4' (o índice numérico 0-3 → k1-4, retrocompat).
-  castSkillSlot(slotKey, echoMult = 0) {
-    const p = this.player;
-    if (!p || !p.alive || this.state !== 'play') return;
-    if (this._paused && !echoMult) return; // no actuar con un panel abierto (pausa)
-    const key = typeof slotKey === 'number' ? ['k1', 'k2', 'k3', 'k4'][slotKey] : slotKey;
-    const skId = (p.hotbar || {})[key];
-    if (!skId) return;
-    const sk = p.cls.skills.find(s => s.id === skId);
-    if (!sk || !(p.skills[sk.id] > 0)) return;
-    // básico de arma (cleave/bolt/arrow) → ataque generador apuntado al cursor
-    if (sk.kind === 'basic' && sk.type === 'weapon') { if (!echoMult) this.castBasic(); return; }
-    const isBasic = sk.kind === 'basic'; // básicos NO-arma (melee/aoe): coste 0, generan recurso
-    const isEcho = echoMult > 0;
-    const lvl = p.skills[sk.id];
-    // gating: los básicos se rigen por la cadencia de ataque (atkCd); el resto por su CD
-    if (!isEcho) {
-      if (isBasic) { if (p.atkCd > 0) return; }
-      else if ((p.cds[sk.id] || 0) > 0) return;
-    }
-    const baseCost = isBasic ? 0 : Math.round(skillVal(sk.mana, lvl));
-    // coste extra de recurso de algunos soportes (Eco +60%, Sobrecarga +40%)
-    // (Eco ×1,6, Sobrecarga ×1,4, Eficiente ×0,65 — combat-math.SUPPORT_COST)
-    const cost = Math.round(baseCost * skillCostMult(this.skillSupports(sk.id)));
-    if (!isEcho && !isBasic && p.mp < cost) {
-      // throttle: con clic mantenido no spamear el aviso cada frame
-      const now = performance.now();
-      if (!this._noResAt || now - this._noResAt > 700) { this.ui.message(`${p.cls.resource?.name || 'Maná'} insuficiente`); this._noResAt = now; }
-      return;
-    }
-
-    // objetivo: ratón (escritorio) o enemigo más cercano (móvil)
-    const maxRange = sk.range || 8;
-    let target = null;
-    const near = this.nearestEnemy(maxRange + 2);
-    if (this.input.mouseWorld) target = this.input.mouseWorld.clone();
-    else if (near) target = near.pos.clone();
-    else {
-      const fwd = new THREE.Vector3(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
-      target = p.pos.clone().addScaledVector(fwd, Math.min(4, maxRange));
-    }
-    // limitar al alcance
-    const delta = target.clone().sub(p.pos);
-    delta.y = 0;
-    if (delta.length() > maxRange) target = p.pos.clone().addScaledVector(delta.normalize(), maxRange);
-
-    // soportes asignados a esta habilidad (multi-socket: array de hasta 2 ids)
-    const sups = this.skillSupports(sk.id); // normaliza a array siempre
-    const has = id => sups.includes(id);
-    // --- Modificadores de habilidad (Aspectos D4-lite): mismo vocabulario que
-    // los soportes, fusionados aquí en un único punto ---
-    const m = aggregateSkillMods(sk.id, p.skillMods?.[sk.id]);
-    // Perfil de daño (combat-math.skillProfile): coeficiente (rango × Eco) y lo
-    // que suma al saco ADITIVO: sinergias + soportes (Amplificado/Concentrado/
-    // Sobrecarga) + mods "+X %". Antes eran multiplicadores encadenados.
-    const prof = skillProfile({
-      mult: sk.mult ? skillVal(sk.mult, lvl) : 1,
-      synergyPct: synergyBonus(sk, p.skills), sups, mods: m, echoMult,
-      critBonus: sk.critBonus || 0,
-    });
-    const mult = prof.coef;
-    const addPct = prof.addPct;
-    let supSlow = has('freeze') ? 3 : sk.slow;
-    let supPierce = (has('pierce') || has('chain')) ? true : sk.pierce;
-    let supExtraProj = has('multi') ? 2 : 0;
-    let supRadius = has('wide') ? 1.45 : 1;
-    if (has('concentrated')) supRadius *= 0.7; // −30% radio (contrapartida)
-    // Sangre Fría: crítico garantizado contra objetivos ya ralentizados/congelados
-    const supColdblood = has('coldblood');
-    supExtraProj += m.proj;
-    if (m.pierce) supPierce = true;
-    if (m.radius) supRadius *= 1 + m.radius / 100;
-    if (m.slow) supSlow = Math.max(supSlow || 0, m.slow);
-    const skCrit = prof.critBonus;               // base + aspecto + Certero (tope al tirar)
-    // Daño por tiempo (Sed de Sangre/Veneno/Aspecto): total a repartir en tics.
-    const avgHit = p.avgHit(mult, addPct);
-    const dotKind = (has('poison') || m.dot === 'poison') ? 'poison'
-      : (has('bleed') || m.dot === 'bleed') ? 'bleed'
-        : (m.dot === 'burn') ? 'burn' : null;
-    // color "elemental" del número de daño (del color de la skill o su DoT)
-    const dmgColor = sk.color || (dotKind === 'poison' ? 0x7cff6a : dotKind === 'burn' ? 0xff7722 : dotKind === 'bleed' ? 0xff4466 : null) || undefined;
-    const supDoT = dotKind === 'poison'
-      ? { total: avgHit * 0.9, ticks: 5, interval: 1.0, color: 0x66ff66 }
-      : dotKind === 'burn'
-        ? { total: avgHit * 0.8, ticks: 4, interval: 0.8, color: 0xff7722 }
-        : dotKind === 'bleed'
-          ? { total: avgHit * 0.6, ticks: 3, interval: 1.0, color: 0xff4466 }
-          : null;
-    if (supDoT && has('lasting')) supDoT.total *= 1.5; // soporte Persistente: DoT más fuerte
-    // efectos al golpear: DoT + Vulnerable + Aturdir (de las opciones de Variante)
-    const applyDoT = e => {
-      if (!e || !e.alive) return;
-      if (supDoT) this.applyDoT(e, supDoT.total, supDoT.ticks, supDoT.interval, undefined, `${sk.id}:${dotKind}`);
-      if (m.vuln) e.vulnT = Math.max(e.vulnT || 0, m.vuln);
-      if (m.stun) e.applyStun(m.stun); // con rendimientos decrecientes y regla de jefe
-      // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
-      if (m.execute && e.alive) {
-        const boss = e.def?.boss || e.def?.uber || e.def?.worldBoss;
-        if (!boss && e.hp / e.maxHP <= m.execute / 100) e.takeDamage(e.hp + 1, false);
-      }
-    };
-    let casted = true;
-    let hitCount = 0;                 // nº de enemigos golpeados (para Masacre/cdhit)
-    let dealtTotal = 0;               // daño infligido de verdad (robo de vida "Sediento")
-    // impacto de área/melee: acumula daño real y aplica los efectos al golpeado
-    const onAreaHit = (e, dealt) => { dealtTotal += dealt || 0; applyDoT(e); };
-    // recurso de los básicos NO-arma (Mandoble/Embate): solo si golpean algo
-    let genGiven = false;
-    const grantBasicGen = () => {
-      if (genGiven || !isBasic || isEcho) return;
-      genGiven = true;
-      p.mp = Math.min(p.stats.maxMP, p.mp + (sk.gen || p.cls.resource?.gen || 0) + (m.gen || 0));
-      p.furiaIdle = 0;
-    };
-    let zoneCenter = null, zoneRad = 0; // dónde dejar la Estela (zona de daño)
-
-    // impacto REAL de un proyectil de esta habilidad: efectos de Variante (DoT,
-    // aturdir, vulnerable), encadenado (una vez por lanzamiento), robo de vida
-    // sobre el daño infligido y recurso de los básicos. Antes se aplicaban al
-    // enemigo más cercano al lanzar, aunque el proyectil fallara.
-    let chained = false;
-    const projHit = (e, dealt) => {
-      if (casted === false) return;
-      if (e?.alive && !chained && (has('chain') || m.chain)) {
-        chained = true;
-        this.spawnChainBounce(e, Math.round(avgHit), (m.chain || 2), [], sk.color || 0x66ddff);
-      }
-      applyDoT(e);
-      if (m.lifesteal && dealt > 0) p.leech(dealt * m.lifesteal / 100); // robo con tope por segundo
-      grantBasicGen();
-    };
-
-    // efectos temáticos por habilidad (impacto/estela/aura/buff). Tolerante:
-    // emitFx no hace nada si el motor de partículas no está activo.
-    const fx = SKILL_FX[sk.id];
-    // pose de lanzamiento del jugador (raise breve de la mano), sin romper
-    // el movimiento ni el ataque básico (usa el mismo canal `swing`).
-    p.castPose?.(sk.type);
-
-    switch (sk.type) {
-      case 'melee': {
-        const e = near && p.pos.distanceTo(near.pos) <= (sk.range || 2.2) ? near : null;
-        if (!e) { this.ui.message('Ningún enemigo al alcance'); casted = false; break; }
-        p.faceToward(e.pos);
-        p.swing = 1;
-        const cb = skCrit + (supColdblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
-        const { dmg, crit } = p.rollDamage(mult, cb, addPct);
-        dealtTotal += e.takeDamage(dmg, crit, { color: dmgColor }) || 0;
-        hitCount = 1;
-        if (supSlow && e.alive) e.slowT = supSlow;
-        applyDoT(e);
-        if (m.chain && e.alive) this.spawnChainBounce(e, Math.round(avgHit), m.chain, [], 0xffbb44);
-        p.onDealHit();
-        this.spawnRing(e.pos, 0.8, 0xffbb44);
-        // Golpe Brutal: impacto físico contundente sobre el enemigo + polvo bajo.
-        const hp = e.pos.clone().setY(1.0);
-        this.emitFx(fx?.impact, hp);
-        if (fx?.extra) this.emitFx(fx.extra, e.pos.clone().setY(0.1));
-        break;
-      }
-      case 'aoe_self': {
-        const rad = (skillVal(sk.radius, lvl) || sk.radius) * supRadius;
-        this.spawnRing(p.pos, rad, sk.color || 0xffaa33);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor, addPct, critBonus: skCrit });
-        zoneCenter = p.pos.clone(); zoneRad = rad;
-        p.swing = 1;
-        // Aura/onda centrada en el jugador (Torbellino, Nova de Hielo).
-        if (fx?.aura) {
-          const fp = sk.id === 'nova_hielo' ? p.pos.clone().setY(0.4) : p.pos.clone().setY(1.0);
-          this.emitFx(fx.aura, fp);
-        }
-        if (fx?.extra) this.emitFx(fx.extra, p.pos.clone().setY(0.5));
-        break;
-      }
-      case 'aoe_target': {
-        p.faceToward(target);
-        const rad = sk.radius * supRadius;
-        this.spawnRing(target, rad, sk.color || 0xff6633);
-        // bola descendente decorativa
-        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6),
-          new THREE.MeshBasicMaterial({ color: sk.color || 0xff6633 }));
-        ball.position.copy(target).setY(5);
-        this.fxGroup.add(ball);
-        this.fx.push({ mesh: ball, t: 0, dur: 0.25, fall: target.clone() });
-        // estela de caída (Meteoro) y, tras un instante, impacto/polvo en la zona.
-        if (fx?.trail) this.emitFx(fx.trail, target.clone().setY(4.5));
-        const gp = target.clone().setY(0.3);
-        const dp = target.clone().setY(0.1);
-        // sincroniza el burst de impacto con la llegada de la bola decorativa
-        // (planificador de la simulación: se pausa y se limpia con el mundo).
-        this.timers.schedule(0.23, () => {
-          if (fx?.impact) this.emitFx(fx.impact, gp);
-          if (fx?.aura) this.emitFx(fx.aura, gp);
-          if (fx?.extra) this.emitFx(fx.extra, dp);
-          this.addShake?.(sk.id === 'terremoto' || sk.id === 'meteoro' ? 0.5 : 0.25);
-        });
-        hitCount = this.dealArea(target, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor, addPct, critBonus: skCrit });
-        zoneCenter = target.clone(); zoneRad = rad;
-        break;
-      }
-      case 'dash': {
-        p.faceToward(target);
-        const start = p.pos.clone();
-        const dir = target.clone().sub(p.pos).setY(0);
-        const dist = dir.length();
-        if (dist > 0.1) {
-          dir.normalize();
-          let traveled = 0;
-          while (traveled < dist) {
-            const step = Math.min(0.3, dist - traveled);
-            const nx = p.pos.x + dir.x * step, nz = p.pos.z + dir.z * step;
-            if (!this.world.grid.walkable(nx, nz)) break;
-            p.pos.x = nx; p.pos.z = nz;
-            traveled += step;
-            // estela de carga sembrada a lo largo del recorrido.
-            if (fx?.trail && traveled % 0.6 < 0.3)
-              this.emitFx(fx.trail, new THREE.Vector3(p.pos.x, 0.9, p.pos.z));
-          }
-        }
-        const rad = sk.radius * supRadius;
-        this.spawnRing(p.pos, rad, 0xffcc66);
-        hitCount = this.dealArea(p.pos, rad, mult, { slow: supSlow, coldblood: supColdblood, onHit: onAreaHit, color: dmgColor, addPct, critBonus: skCrit });
-        zoneCenter = p.pos.clone(); zoneRad = rad;
-        if (m.chain) { const ne = this.nearestEnemy(rad + 2); if (ne) this.spawnChainBounce(ne, Math.round(avgHit), m.chain, [], 0xffcc66); }
-        p.swing = 1;
-        // impacto contundente al llegar.
-        if (fx?.impact) this.emitFx(fx.impact, p.pos.clone().setY(0.7));
-        break;
-      }
-      case 'proj': {
-        p.faceToward(target);
-        p.swing = 1;
-        const count = (sk.count ? Math.floor(skillVal(sk.count, lvl)) : 1) + (p.powers?.has('multidisparo') ? 1 : 0) + supExtraProj;
-        const baseAngle = Math.atan2(target.x - p.pos.x, target.z - p.pos.z);
-        // fogonazo de lanzamiento en la mano (estela/abanico elemental).
-        const muzzle = p.pos.clone().setY(1.0)
-          .add(new THREE.Vector3(Math.sin(baseAngle) * 0.5, 0, Math.cos(baseAngle) * 0.5));
-        if (fx?.aura) this.emitFx(fx.aura, muzzle);
-        else if (fx?.trail) this.emitFx(fx.trail, muzzle);
-        for (let i = 0; i < count; i++) {
-          const off = count > 1 ? (i - (count - 1) / 2) * (sk.spread || 0.4) / Math.max(1, count - 1) * 2 : 0;
-          const a = baseAngle + off;
-          const to = p.pos.clone().add(new THREE.Vector3(Math.sin(a) * 5, 0, Math.cos(a) * 5));
-          const cb = skCrit + (supColdblood && near && near.slowT > 0 ? COLDBLOOD_CRIT : 0);
-          const { dmg, crit } = p.rollDamage(mult, cb, addPct);
-          this.spawnProjectile({
-            from: p.pos.clone().setY(1.0), to: to.setY(1.0),
-            speed: sk.speed || 14, range: sk.range || 10,
-            dmg, crit, friendly: true, pierce: supPierce, slow: supSlow,
-            color: sk.color || 0xffffff, size: 0.14,
-            impactPreset: fx?.impact,   // el impacto temático lo dispara el proyectil AL CHOCAR
-            onHit: projHit,             // DoT/aturdir/vulnerable/encadenado/robo: al impactar
-          });
-        }
-        // rayo: además del proyectil veloz, un "zap" eléctrico instantáneo
-        if (sk.id === 'rayo' || sk.beam) this.spawnBeam(muzzle, target.clone().setY(1.0), sk.color || 0xffee66);
-        break;
-      }
-      case 'buff': {
-        const stats = {};
-        const buffMul = 1 + (m.buff || 0) / 100;           // Mejora/Aspecto: +potencia
-        for (const [k, arr] of Object.entries(sk.buff)) stats[k] = Math.round(skillVal(arr, lvl) * buffMul);
-        const durMul = (1 + (m.dur || 0) / 100) * (has('lasting') ? 1.8 : 1); // Aspecto/soporte Persistente
-        p.addBuff(sk.id, stats, sk.dur * durMul, { name: sk.name, icon: sk.icon, desc: sk.desc });
-        this.spawnRing(p.pos, 1.4, 0x66ddff);
-        // aura de buff sobre el jugador (Grito de Guerra, Armadura Helada, Agilidad).
-        if (fx?.aura) this.emitFx(fx.aura, p.pos.clone().setY(1.0));
-        break;
-      }
-    }
-
-    // robo de vida (opción Sediento): % del daño REALMENTE infligido (0 si falla).
-    // Los proyectiles lo aplican en su impacto (projHit).
-    if (casted && m.lifesteal && dealtTotal > 0) p.leech(dealtTotal * m.lifesteal / 100);
-    // Estela (Transformación): deja una ZONA DE DAÑO persistente donde golpeó
-    if (casted && m.zone && zoneCenter) {
-      this.spawnGroundZone(zoneCenter, Math.max(2, zoneRad * 0.9), avgHit * 0.45, 4, sk.color || 0xff7733);
-    }
-    if (casted) {
-      if (!isEcho) {
-        if (isBasic) {
-          // básico: no cuesta recurso, lo GENERA (solo si golpeó algo; los de
-          // proyectil lo generan al impactar), y se rige por la cadencia de ataque
-          p.atkCd = p.stats.atkTime;
-          if (hitCount > 0) grantBasicGen();
-        } else {
-          p.mp -= cost;
-          if (m.gen) p.mp = Math.min(p.stats.maxMP, p.mp + m.gen); // opción Furibundo/Iracundo
-          // UN número de CDR (combat-math): stat + Frenético/Rápido (y los negativos
-          // de Brutal/Aplastar/Coloso) + Raudo + Masacre (golpear a 4+) → tope 50 %
-          p.cds[sk.id] = skillCooldown(sk.cd, p.stats.cdr || 0, m, sups, !!(m.cdhit && hitCount >= m.cdhit));
-          // Eco (soporte o Transformación): repite la habilidad ~0.5s después al 50-60%
-          if (has('echo') || m.echo) this.timers.schedule(0.5, () => this.castSkillSlot(key, m.echo ? 0.6 : 0.5));
-        }
-      }
-      this.sfx('skill');
-    }
-  }
-
-  // Estela: zona de daño persistente en el suelo (Transformación). Daña a los
-  // enemigos dentro cada `interval`s durante `dur`s. La consume el tick().
-  spawnGroundZone(pos, radius, dps, dur, color = 0xff7733) {
-    if (!this.groundZones) this.groundZones = [];
-    const hex = '#' + (((color >>> 0) & 0xffffff).toString(16).padStart(6, '0'));
-    const z = { pos: pos.clone().setY(0.05), radius, dps, t: dur, dur, interval: 0.5, acc: 0, fxAcc: 0, color };
-    // brasas vivas que suben de la zona, tintadas con el color de la habilidad
-    try {
-      z.fx = normalizePreset({
-        name: 'Estela', texture: 'glow', blending: 'additive',
-        count: 5, burst: true, lifetime: [0.4, 1.0], shape: 'disc', shapeRadius: radius * 0.85,
-        speed: [0.6, 2.0], gravity: -2.2, drag: 0.5, size: { start: [0.16, 0.36], end: 0 },
-        color: { start: '#ffe9b0', end: hex }, alpha: { start: 0.95, end: 0 },
-      });
-    } catch { /* sin GL en tests */ }
-    // decal del suelo: disco translúcido que marca la zona de peligro/daño
-    try {
-      const decal = new THREE.Mesh(
-        new THREE.CircleGeometry(radius, 36),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-      decal.rotation.x = -Math.PI / 2;
-      decal.position.copy(z.pos);
-      this.fxGroup.add(decal);
-      z.decal = decal;
-    } catch { /* sin GL en tests */ }
-    this.groundZones.push(z);
-    this.spawnRing?.(pos, radius, color);
-  }
-
-  // actualiza las zonas de daño (Estela): aplica daño por tic, anima y caduca
-  updateGroundZones(dt) {
-    const zones = this.groundZones; if (!zones || !zones.length) return;
-    const reduce = this.settings?.reduceMotion;
-    for (let i = zones.length - 1; i >= 0; i--) {
-      const z = zones[i];
-      z.t -= dt; z.acc += dt; z.fxAcc += dt;
-      if (z.acc >= z.interval) {
-        z.acc = 0;
-        for (const e of this.enemies) {
-          if (!e.alive) continue;
-          if (e.pos.distanceToSquared(z.pos) <= z.radius * z.radius) e.takeDamage(Math.max(1, Math.round(z.dps * z.interval)), false);
-        }
-        this.spawnRing?.(z.pos, z.radius * (0.7 + 0.3 * Math.random()), z.color);
-      }
-      // brasas continuas (tandas cortas) + parpadeo del decal
-      if (!reduce && z.fx && z.fxAcc >= 0.18) {
-        z.fxAcc = 0;
-        const a = Math.random() * Math.PI * 2, r = Math.random() * z.radius * 0.7;
-        this.emitFx?.(z.fx, { x: z.pos.x + Math.cos(a) * r, y: 0.12, z: z.pos.z + Math.sin(a) * r });
-      }
-      if (z.decal) {
-        const life = Math.max(0, Math.min(1, z.t / (z.dur || 1)));
-        z.decal.material.opacity = (0.16 + 0.12 * Math.abs(Math.sin(z.t * 6))) * (0.4 + 0.6 * life);
-      }
-      if (z.t <= 0) {
-        if (z.decal) { this.fxGroup.remove(z.decal); z.decal.geometry.dispose(); z.decal.material.dispose(); }
-        zones.splice(i, 1);
-      }
-    }
-  }
-
-  learnSkill(id) {
-    const p = this.player;
-    const sk = p.cls.skills.find(s => s.id === id);
-    if (!sk || p.skillPoints <= 0) return;
-    const lvl = p.skills[id] || 0;
-    const req = sk.req || 1; // gating por nivel del nodo del árbol
-    if (lvl >= sk.max || p.level < req) return;
-    p.skills[id] = lvl + 1;
-    p.skillPoints--;
-    p.recompute();
-    this.ui.refreshHotbar();
-    this.sfx('levelup');
-    this.save();
-  }
-
-  // elige una OPCIÓN de una mini-rama de pasivos. La PRIMERA elección de una
-  // mini-rama la DESBLOQUEA y cuesta 1 punto de habilidad; después puedes cambiar
-  // libremente entre sus 3 opciones (gratis). Solo 1 activa por mini-rama.
-  chooseSkillMod(skillId, branchId, optId) {
-    const p = this.player;
-    const branches = SKILL_MODS[skillId]; if (!branches) return;
-    const br = branches.find(b => b.id === branchId); if (!br) return;
-    const opt = (br.opts || []).find(o => o.id === optId); if (!opt) return;
-    const unlocked = p.skillBranches?.[skillId]?.[branchId];
-    if (unlocked) {
-      // rama ya desbloqueada: cambiar de opción es GRATIS e inmediato
-      (p.skillMods[skillId] || (p.skillMods[skillId] = {}))[branchId] = optId;
-      this.ui.message(`✦ ${opt.name}: ${opt.desc}`, 2200);
-      this.sfx('uiclick');
-    } else {
-      // rama BLOQUEADA: 1er toque muestra qué hace; 2º toque (misma opción)
-      // la desbloquea por 1 punto. Evita gastos accidentales (sobre todo en móvil).
-      if (!(p.skills[skillId] > 0)) { this.ui.message(`Aprende ${this.player.cls.skills.find(s => s.id === skillId)?.name || 'la habilidad'} primero`); return; }
-      if (p.skillPoints <= 0) { this.ui.message(`🔒 ${opt.name}: ${opt.desc} — necesitas 1 punto`, 2800); this.sfx('error'); return; }
-      const key = skillId + '/' + branchId + '/' + optId;
-      if (this._modPending === key) {
-        this._modPending = null;
-        (p.skillBranches[skillId] || (p.skillBranches[skillId] = {}))[branchId] = true;
-        p.skillPoints--;
-        (p.skillMods[skillId] || (p.skillMods[skillId] = {}))[branchId] = optId;
-        this.ui.message(`🔓 ${opt.name} desbloqueado`, 2200);
-        this.sfx('levelup');
-      } else {
-        this._modPending = key;
-        this.ui.message(`${opt.name}: ${opt.desc} — toca otra vez para desbloquear (1 punto)`, 3200);
-        this.sfx('uiclick');
-      }
-    }
-    this.ui.refreshSkillsView?.(); // refresca el FOCO si está abierto, si no el panel
-    this.ui.updateHUD?.();
-    this.save();
   }
 
   // ---------- mascota ----------
@@ -1702,34 +1187,20 @@ class Game {
       if (this.chains[enemy.chainId].length === 0) delete this.chains[enemy.chainId];
     }
 
-    // poderes únicos al matar
-    if (p.powers?.has('festin') && p.alive) {
-      p.hp = Math.min(p.stats.maxHP, p.hp + p.stats.maxHP * 0.06);
-      this.ui.spawnText(p.pos, '+❤️', 'txt-heal');
-    }
-    // Explosiones al matar (Volátil / Juicio / Conflagración). Paso 1A:
-    //  - escalan con el daño del HÉROE (golpe medio), no con la vida del muerto
-    //    (antes Volátil = 40 % de la vida máx. del enemigo: ignoraba la dificultad);
-    //  - NO son recursivas: una muerte causada por una explosión no dispara otra
-    //    (antes una manada entera se encadenaba en un solo frame);
-    //  - son 'procs': no reciben los multiplicadores [×] del héroe.
-    if (!this._killBurst) {
-      this._killBurst = true;
-      try {
-        const avg = p.avgHit ? p.avgHit() : (p.stats.dmgMin + p.stats.dmgMax) / 2;
-        const burst = (dmg, rad, color, n) => {
-          this.spawnRing(enemy.pos.clone(), rad, color);
-          this.spawnBurst(enemy.pos, color, n);
-          for (const e of this.enemies)
-            if (e.alive && e !== enemy && e.pos.distanceToSquared(enemy.pos) <= rad * rad) e.takeDamage(dmg, false, { proc: true });
-        };
-        if (p.powers?.has('volatil')) burst(volatileDamage(avg), 2.6, 0xff6622, 10);
-        // maestría Cruzado (Juicio): onda sagrada en área al matar
-        if (p.powers?.has('m_judgment')) burst(Math.max(2, Math.round(avg * 0.6)), 2.9, 0xffe680, 10);
-        // maestría Piromante (Conflagración): explosión de fuego en área al matar
-        if (p.powers?.has('m_conflag')) burst(Math.max(2, Math.round(avg * 0.7)), 3.1, 0xff7722, 14);
-      } finally { this._killBurst = false; }
-    }
+    // ⑥ PODERES al matar (registro data-driven, js/powers.js). KillInfo con el
+    // estado TOMADO ANTES de limpiar DoT/control. `nested`: la muerte ocurre
+    // mientras se resuelve la de otro enemigo (explosiones al matar) → los
+    // estallidos no vuelven a estallar (generaliza la guarda _killBurst del Paso 1A).
+    const kill = {
+      skill: enemy._lastSkill || null, tags: enemy._lastTags || new Set(), crit: !!enemy._lastCrit, overkill: Math.max(0, -enemy.hp),
+      nested: !!this._killBurst, loot: { goldMul: 1 },
+      status: { frozen: enemy.frozenT > 0, bleeding: !!enemy._dots && Object.keys(enemy._dots).some(k => k.includes('bleed')),
+        burning: !!enemy._dots && Object.keys(enemy._dots).some(k => k.includes('burn')), poisoned: !!enemy._dots && Object.keys(enemy._dots).some(k => k.includes('poison')),
+        slowed: enemy.slowT > 0, rooted: enemy.rootT > 0, prey: !!enemy.prey, weakened: (enemy.weaknessPct?.() || 0) > 0 || enemy.vulnT > 0 },
+    };
+    const wasNested = !!this._killBurst;
+    this._killBurst = true;
+    try { firePower('onKill', p, this, p, enemy, kill); } finally { this._killBurst = wasNested; }
     const floor = this.world.scaleFloor || this.world.floor || 1;
     let drops;
     // botín con el stream 'loot' del mundo: misma semilla + misma secuencia de
@@ -1742,7 +1213,7 @@ class Game {
     else if (enemy.def.rank === 'elite') drops = rollDrops(floor, { ...lootOpts, minItems: 1, itemChance: 0.3, goldChance: 1, potionChance: 0.4, setChance: 0.03 });
     else if (enemy.def.rank === 'campeon') drops = rollDrops(floor, { ...lootOpts, itemChance: 0.4, goldChance: 0.85, potionChance: 0.3, setChance: 0.02 });
     else drops = rollDrops(floor, lootOpts);
-    if (p.powers?.has('avaricia')) for (const d of drops) if (d.kind === 'gold') d.amount = Math.round(d.amount * 1.5);
+    if (kill.loot.goldMul !== 1) for (const d of drops) if (d.kind === 'gold') d.amount = Math.round(d.amount * kill.loot.goldMul);
     // reliquia temática del jefe (baja probabilidad, mejora con el hallazgo mágico)
     if (enemy.def.boss && lr() < 0.12 * (1 + (p.stats.mf || 0) / 100))
       drops.push(withLoot(() => makeRelic(enemy.def.id, floor)));
@@ -2011,6 +1482,7 @@ class Game {
 
   // ---------- muerte ----------
   onPlayerDeath() {
+    this.resetCastState?.();
     this.state = 'dead';
     this.player.records.deaths++;
     this.sfx('death');
@@ -2075,7 +1547,7 @@ class Game {
       p.update(dt);
       p.records.playTime += dt;
       if (this.pet) this.pet.update(dt);
-      this.updateGroundZones(dt); // Estelas (zonas de daño de Transformación)
+      this.updateFields(dt);      // entidades de suelo (Estela, zonas, trampas) — field-entities.js
       this.timers.tick(dt);       // DoT/Eco/impactos diferidos (reloj de simulación)
     }
 
@@ -2626,6 +2098,7 @@ class Game {
   }
 }
 
-Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods);
+Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods,
+  skillMethods, fieldMethods);
 
 new Game();

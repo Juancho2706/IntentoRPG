@@ -1,0 +1,146 @@
+// Paso 2b.0 — resolvedor único de habilidades (js/skill-resolve.js, §4)
+//  1) catálogo válido en el formato nuevo (cat/slots/tags/coef) y CAT_SLOTS (k2 flexible)
+//  2) rangos por nivel (rangoBase), conocidas por nivel y mapa derivado p.skills
+//  3) fusión: rango → ramas → talentos → soportes (por tags) → CDR/costRed → poderes
+//  4) compatibilidad de soportes por requires/forbids (§4.3) y huecos por categoría
+//  5) caché p.resolved invalidada en recompute
+import assert from 'node:assert/strict';
+import { CLASSES, SKILL_MODS, SUPPORTS } from '../js/data.js';
+import { validateSkillDef, defaultSlots, CAT_SLOTS, GCD_CATS } from '../js/skill-defs.js';
+import { resolveSkill, rankBase, skillRank, isKnown, knownRankMap, supportFits, supportSockets, validSupports,
+  SUPPORT_MOD, fitsSlot, cooldownWithMassacre, GCD, TALENT_SKILL_REQ } from '../js/skill-resolve.js';
+import { SKILL_BEHAVIORS } from '../js/powers.js';
+import { Player } from '../js/entities.js';
+import { CAPS } from '../js/combat-math.js';
+
+globalThis.performance = globalThis.performance || { now: () => Date.now() };
+const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, input: { joyDir: null, keyDir: null }, enemies: [] });
+const approx = (a, b, e = 1e-9) => Math.abs(a - b) <= e;
+const sk = (cid, id) => CLASSES[cid].skills.find(s => s.id === id);
+
+// ------------------------------------------------ 1) catálogo y ranuras
+for (const c of Object.values(CLASSES)) {
+  for (const s of c.skills) {
+    const errs = validateSkillDef(s, { behaviors: SKILL_BEHAVIORS });
+    assert.deepEqual(errs, [], `${c.id}: ${errs.join('; ')}`);
+    assert.ok(s.slots.every(sl => CAT_SLOTS[s.cat].includes(sl) || defaultSlots(s.cat, s.tags).includes(sl)), `${s.id}: ranura fuera de su categoría`);
+  }
+  assert.ok(c.skills.some(s => s.cat === 'basic' && s.type === 'weapon'), `${c.id}: falta el básico de arma`);
+  assert.equal(c.skills.filter(s => s.cat === 'passive' || s.kind === 'passive').length, 0, `${c.id}: las pasivas compradas se eliminaron`);
+}
+assert.deepEqual(CAT_SLOTS.spender, ['rmb', 'k2'], 'gastadora: rmb o k2 (k2 flexible)');
+assert.deepEqual(CAT_SLOTS.defense, ['k2']); assert.deepEqual(CAT_SLOTS.utility, ['k2']);
+assert.deepEqual(CAT_SLOTS.movement, ['k1']); assert.deepEqual(CAT_SLOTS.ultimate, ['k4']); assert.deepEqual(CAT_SLOTS.basic, ['lmb']);
+assert.deepEqual(defaultSlots('spec', ['spec', 'spender']), ['rmb', 'k2', 'k3'], 'gastadora de especialización');
+assert.deepEqual(defaultSlots('spec', ['spec', 'utility']), ['k2', 'k3'], 'utilidad de especialización');
+assert.deepEqual(defaultSlots('spec', ['spec']), ['k3']);
+assert.ok(fitsSlot(sk('guerrero', 'torbellino'), 'k2') && fitsSlot(sk('guerrero', 'torbellino'), 'rmb') && !fitsSlot(sk('guerrero', 'torbellino'), 'k1'));
+assert.ok(!fitsSlot(sk('guerrero', 'g_u_furia'), 'k1') && fitsSlot(sk('guerrero', 'g_u_furia'), 'k4'));
+assert.ok(GCD === 0.2 && GCD_CATS.has('spender') && !GCD_CATS.has('movement') && !GCD_CATS.has('basic'));
+console.log('Catálogo: formato nuevo válido, sin pasivas, CAT_SLOTS con k2 flexible ✓');
+
+// ------------------------------------------------ 2) rangos y conocidas por nivel
+assert.equal(rankBase(1, 1), 1);
+assert.equal(rankBase(8, 1), 1); assert.equal(rankBase(9, 1), 2);
+assert.equal(rankBase(33, 1), 5); assert.equal(rankBase(50, 2), 5, 'tope 5 de base');
+assert.equal(rankBase(1, 9), 1, 'nunca por debajo de 1');
+assert.equal(TALENT_SKILL_REQ, 10);
+const p = new Player(mk(), 'guerrero');
+assert.deepEqual(Object.keys(p.skills).sort(), ['g_embate', 'g_mandoble', 'g_tajo'], 'Nv1: solo los básicos');
+assert.ok(!isKnown(p, sk('guerrero', 'torbellino')));
+p.level = 9; p.recompute();
+assert.ok(isKnown(p, sk('guerrero', 'torbellino')) && isKnown(p, sk('guerrero', 'g_hendidura')) && !isKnown(p, sk('guerrero', 'g_u_furia')));
+assert.equal(p.skills.torbellino, rankBase(9, 2));
+assert.deepEqual(knownRankMap(p), p.skills, 'p.skills = mapa derivado de rangos');
+p.talentAgg = { powers: new Set(), mods: {}, skillLv: { torbellino: 2 }, grants: new Set(), tv: {} };
+p.recompute();
+assert.equal(skillRank(p, sk('guerrero', 'torbellino')), rankBase(9, 2) + 2, 'talentos.skillLv suma rangos');
+console.log('Rangos: clamp(1+⌊(Nv−req)/8⌋,1,5) + talentos; se aprenden solas por nivel ✓');
+
+// ------------------------------------------------ 3) fusión del perfil
+const g = new Player(mk(), 'guerrero');
+g.level = 20; g.recompute();
+const tb = sk('guerrero', 'torbellino');
+let prof = resolveSkill(g, tb);
+const r = rankBase(20, 2);
+assert.equal(prof.rank, r);
+assert.ok(approx(prof.coef, tb.coef * (1 + 0.1 * (r - 1))), 'coef × (1 + 0,10·(rango−1))');
+assert.equal(prof.cost, tb.cost); assert.ok(approx(prof.cd, tb.cd)); assert.equal(prof.gcd, true);
+assert.ok(prof.tags.has('spender') && prof.tags.has('physical') && prof.tags.has('area'));
+assert.equal(resolveSkill(g, tb), prof, 'cacheado en p.resolved');
+// ramas: Brutal (+45 daño, +20 % CD) y Furibundo (gen)
+g.skillMods = { torbellino: { torbellino_o: 'torbellino_o1', torbellino_f: 'torbellino_f3' } };
+g.recompute();
+prof = resolveSkill(g, tb);
+assert.equal(prof.addPct, 45); assert.ok(approx(prof.cd, tb.cd * 1.2)); assert.equal(prof.gen, 16);
+// soportes por tags: Amplificado (+30 aditivo), Sobrecarga (+50, coste ×1,4); Multiproyectil NO encaja (no es proj)
+g.supports = { torbellino: ['multi', 'amplify', 'overcharge'] };
+g.recompute();
+prof = resolveSkill(g, tb);
+assert.deepEqual(prof.sups, ['amplify', 'overcharge'], 'los incompatibles se ignoran; máx. 2 huecos');
+assert.equal(prof.addPct, 45 + 30 + 50, 'saco ADITIVO: ramas + soportes');
+assert.equal(prof.cost, Math.round(tb.cost * 1.4));
+g.supports = { torbellino: ['efficient', 'swift'] }; g.recompute();
+prof = resolveSkill(g, tb);
+assert.equal(prof.cost, Math.round(tb.cost * 0.65)); assert.ok(approx(prof.cd, tb.cd * (1 - (30 - 20) / 100)), 'Raudo suma CDR al número único');
+// CDR del héroe topada a 50 (stat + ramas + soportes)
+g.equipment.helm = { kind: 'item', slot: 'helm', affixes: { cdr: 90 }, quality: 0 }; g.recompute();
+prof = resolveSkill(g, tb);
+assert.ok(approx(prof.cd, tb.cd * (1 - CAPS.cdr / 100)), 'CDR tope 50');
+assert.ok(approx(cooldownWithMassacre({ ...prof, cdrPts: 20 }), tb.cd * (1 - 45 / 100)), 'Masacre suma 25 puntos de CDR');
+g.equipment.helm = null;
+// talentos: mod de la habilidad + costRed / costRedBig
+g.supports = {}; g.skillMods = {};
+g.talentAgg = { powers: new Set(), mods: { torbellino: { dmg: 10, radius: 20 } }, skillLv: {}, grants: new Set(), tv: { costRed: 10, costRedBig: { pct: 15, over: 9 } } };
+g.recompute();
+prof = resolveSkill(g, tb);
+assert.equal(prof.addPct, 10); assert.ok(approx(prof.radius, tb.radius * 1.2));
+assert.equal(prof.cost, Math.round(tb.cost * (1 - 25 / 100)), 'costRed + costRedBig (coste > umbral)');
+// Eco (soporte) y DoT por soporte (veneno gana a sangrado)
+g.talentAgg = null; g.tv = null; g.supports = { torbellino: ['echo', 'bleed'] }; g.recompute();
+prof = resolveSkill(g, tb);
+assert.equal(prof.echo, 0.5); assert.equal(prof.dot, 'bleed'); assert.equal(prof.cost, Math.round(tb.cost * 1.6));
+console.log('Fusión: rango → ramas → talentos → soportes → CDR/costRed (aditivo por clave, topes) ✓');
+
+// ② poderes: multidisparo solo suma proyectil a habilidades con tag proj
+const a = new Player(mk(), 'arquera'); a.level = 20;
+a.talentAgg = { powers: new Set(['multidisparo']), mods: {}, skillLv: {}, grants: new Set(), tv: {} };
+a.recompute();
+assert.equal(resolveSkill(a, sk('arquera', 'flecha_multiple')).proj, 1, 'multidisparo +1 proyectil (modifyResolve)');
+assert.equal(resolveSkill(a, sk('arquera', 'lluvia_flechas')).proj, 0, 'no afecta a áreas');
+assert.equal(resolveSkill(a, sk('arquera', 'a_disparo')).proj, 1, 'también al básico de proyectil');
+console.log('Poderes en el resolvedor (② modifyResolve) ✓');
+
+// ------------------------------------------------ 4) soportes por tags
+const S = id => SUPPORTS.find(s => s.id === id);
+for (const s of SUPPORTS) {
+  assert.ok(Array.isArray(s.requires) && s.requires.length, `${s.id}: requires`);
+  assert.ok(SUPPORT_MOD[s.id], `${s.id}: falta en SUPPORT_MOD`);
+  assert.ok(!('types' in s), `${s.id}: el formato viejo types[] se eliminó`);
+}
+const ult = sk('guerrero', 'g_u_cataclismo'), tajo = sk('guerrero', 'g_tajo'), grito = sk('guerrero', 'grito_guerra');
+const lanza = sk('guerrero', 'g_lanza'), emb = sk('guerrero', 'embestida');
+assert.ok(!supportFits(S('amplify'), ult) && supportFits(S('amplify'), tb), 'Amplificado excluye definitivas');
+assert.ok(!supportFits(S('overcharge'), tajo) && supportFits(S('amplify'), tajo), 'Sobrecarga excluye básicos');
+assert.ok(supportFits(S('wide'), tb) && !supportFits(S('wide'), lanza), 'Expansivo: área/cono/zona');
+assert.ok(supportFits(S('multi'), lanza) && !supportFits(S('multi'), tb), 'Multiproyectil: proj');
+assert.ok(!supportFits(S('echo'), emb) && supportFits(S('echo'), tb), 'Eco excluye movilidad');
+assert.ok(supportFits(S('lasting'), grito) && !supportFits(S('lasting'), lanza), 'Persistente: buff/dot/aura/zona/escudo');
+assert.ok(!supportFits(S('efficient'), ult) && supportFits(S('efficient'), grito), 'Eficiente exige coste');
+assert.ok(!supportFits(S('swift'), tajo), 'Raudo exige enfriamiento');
+assert.ok(supportFits(S('bleed'), tajo) && !supportFits(S('bleed'), grito), 'Sed de Sangre: daño y melee|proj|area');
+assert.equal(supportSockets(tajo), 1); assert.equal(supportSockets(ult), 1); assert.equal(supportSockets(tb), 2);
+const q = new Player(mk(), 'guerrero'); q.supports = { g_tajo: ['amplify', 'focused'] };
+assert.deepEqual(validSupports(q, tajo), ['amplify'], 'el básico tiene 1 hueco');
+console.log('Soportes por tags (requires/forbids) y huecos por categoría ✓');
+
+// ------------------------------------------------ 5) caché e invalidación
+const c = new Player(mk(), 'maga'); c.level = 10; c.recompute();
+const bf = sk('maga', 'bola_fuego');
+const p1 = resolveSkill(c, bf);
+c.skillMods = { bola_fuego: { bola_fuego_o: 'bola_fuego_o1' } };
+assert.equal(resolveSkill(c, bf), p1, 'sin recompute sigue cacheado');
+c.recompute();
+assert.equal(resolveSkill(c, bf).addPct, 45, 'recompute invalida p.resolved');
+assert.ok(Object.keys(SKILL_MODS).length >= 25);
+console.log('\n✅ RESOLVEDOR DE HABILIDADES (resolveSkill) OK');

@@ -4,7 +4,8 @@
 //  2) toSaveData() == serializePlayer() y cubre TODOS los campos declarados
 //  3) migración de un save "v0" realista (sin saveVersion, formatos viejos)
 //  4) idempotencia: migrar un save ya en la versión actual no lo cambia; los
-//     saves v0 que ya estaban en el sistema de habilidades v4 (Paso 0) no se tocan
+//     saves v0 que ya estaban en el sistema de habilidades v4 (Paso 0) no se
+//     reembolsan dos veces (Paso 2b.0: v3 recalcula los puntos desde el nivel)
 //  5) migrateSave no muta la entrada
 import assert from 'node:assert/strict';
 import { CLASSES, BLESSINGS } from '../js/data.js';
@@ -18,15 +19,15 @@ const json = o => JSON.parse(JSON.stringify(o));
 
 // ------------------------------------------------ 1) héroe completo
 const G = CLASSES.guerrero;
-const core = G.skills.find(s => s.kind === 'core');
-const ult = G.skills.find(s => s.kind === 'ultimate');
+// Paso 2b.0: gastadora de proyectil (admite Multiproyectil por tags) y definitiva
+const core = G.skills.find(s => s.cat === 'spender' && s.tags.includes('proj'));
+const ult = G.skills.find(s => s.cat === 'ultimate');
 const p = new Player(mk(), 'guerrero', null, { name: 'Probador', tint: 0x33aa66 });
 p.level = 34; p.xp = 12345; p.statPoints = 3; p.skillPoints = 2; p.gold = 98765;
 p.attributes = { ...p.attributes, fue: p.attributes.fue + 20 };
-p.skills[core.id] = 3; p.skills[ult.id] = 1;
 p.skillBranches = { [core.id]: { [`${core.id}_o`]: true } };
 p.skillMods = { [core.id]: { m1: true } };
-p.hotbar = p.normalizeHotbar({ lmb: 'g_tajo', rmb: core.id, k1: ult.id, k2: null, k3: null, k4: null });
+p.hotbar = p.normalizeHotbar({ lmb: 'g_tajo', rmb: core.id, k1: null, k2: null, k3: null, k4: ult.id });
 p.inventory = [generateItem(20, 'raro', null, null, 'guerrero'), generateItem(25, 'legendario'), makeCharm(20)];
 p.materials = [makeGem(10), makeGem(10), makeRune(), makeRiftKey(3), makeGlyph(2)];
 p.equipment.weapon = generateItem(30, 'legendario', 'weapon', null, 'guerrero');
@@ -72,7 +73,7 @@ const gem = makeGem(5), rune = makeRune(), key = makeRiftKey(2);
 const sword = generateItem(12, 'raro', 'weapon', null, 'guerrero');
 const v0 = {
   classId: 'guerrero', level: 26, xp: 500, attributes: { ...G.base }, statPoints: 0, skillPoints: 1,
-  // pre-v4: sin skillSystemV → se reembolsan 3 (core) + 1 rama; el básico es gratis
+  // pre-v4: sin skillSystemV → v0 reembolsa y v3 recalcula los puntos desde el nivel
   skills: { g_tajo: 1, [core.id]: 3 }, skillBranches: { [core.id]: { [`${core.id}_o`]: true } },
   gold: 400, potions: { hp: 2, mp: 1 },
   // materiales viviendo aún en la mochila (formato antiguo)
@@ -95,13 +96,14 @@ assert.deepEqual(m.inventory.map(i => i.uid), [sword.uid], 'la mochila conserva 
 assert.deepEqual(m.materials.map(i => i.uid).sort(), [gem.uid, rune.uid, key.uid].sort(), 'gemas/runas/llaves pasan a materiales');
 assert.deepEqual(m.supports[core.id], ['multi'], 'soporte string → array');
 assert.deepEqual(m.paragon, { points: 6, nodes: {}, glyphs: {} }, 'paragon plano → tablero con level-20 puntos');
-assert.equal(m.skillSystemV, 4);
-assert.equal(m.skillPoints, 1 + 3 + 1, 'reembolso: core 3 + 1 rama (el básico es gratis)');
-assert.deepEqual(m.skills, {}); assert.deepEqual(m.skillBranches, {});
+assert.equal(m.skillSystemV, 5);
+assert.equal(m.skillPoints, 19, 'Nv26: los 19 puntos de Nv2–20 (los rangos comprados ya no existen)');
+assert.equal(m.skills, undefined, 'los rangos ya no se guardan'); assert.deepEqual(m.skillBranches, {});
 
 const hero = new Player(mk(), 'guerrero', v0);
-assert.equal(hero.skills.g_tajo, 1, 'siempre conoce el básico');
-assert.equal(hero.skillPoints, 5);
+assert.ok(hero.skills.g_tajo > 0, 'siempre conoce el básico');
+assert.ok(hero.skills[core.id] > 0, 'las habilidades se aprenden solas por nivel');
+assert.equal(hero.skillPoints, 19);
 assert.equal(hero.materials.length, 3);
 assert.equal(hero.pet.kind, 'lobo', 'mascota antigua normalizada');
 assert.equal(hero.gold, 400); assert.equal(hero.heroName, 'Viejo');
@@ -111,15 +113,19 @@ assert.deepEqual(hero.waypoints, [1, 5]);
 const h1 = json(hero.toSaveData());
 const h2 = json(new Player(mk(), 'guerrero', json(h1)).toSaveData());
 assert.deepEqual(h2, h1, 'tras migrar, la ida y vuelta es estable');
-console.log('Save v0 realista migrado: materiales, soportes, paragon, reembolso v4, mascota ✓');
+console.log('Save v0 realista migrado: materiales, soportes, paragon, kit v3, mascota ✓');
 
 // ------------------------------------------------ 4) idempotencia
 assert.deepEqual(migrateSave(s1), s1, 'migrar un save actual no lo cambia');
-// save del Paso 0 (ya v4 pero sin saveVersion): NO reembolsa
-const paso0 = { ...json(s1) }; delete paso0.saveVersion;
+// save del Paso 0 (habilidades v4, sin saveVersion) con rangos y una rama: no se
+// reembolsa en v0 y v3 devuelve exactamente lo gastado en rangos (sin doble reembolso)
+const paso0 = { classId: 'guerrero', level: 34, skillSystemV: 4, skillPoints: 0,
+  skills: { g_tajo: 1, [core.id]: 5 }, skillBranches: { [core.id]: { [`${core.id}_o`]: true } },
+  skillMods: { [core.id]: { [`${core.id}_o`]: `${core.id}_o1` } } };
 const mp0 = migrateSave(paso0);
-assert.equal(mp0.skillPoints, s1.skillPoints, 'un save v4 sin versión no se reembolsa');
-assert.deepEqual(mp0.skills, s1.skills);
-assert.deepEqual(mp0.skillBranches, s1.skillBranches);
+assert.equal(mp0.skillPoints, 19 - 1, 'Paso 0: 19 puntos menos la rama conservada');
+assert.deepEqual(mp0.skillBranches, paso0.skillBranches, 'conserva las ramas que siguen existiendo');
+assert.deepEqual(mp0.skillMods, paso0.skillMods);
+assert.deepEqual(migrateSave(mp0), mp0, 'migrar dos veces da lo mismo');
 assert.equal(migrateSave(null), null);
 console.log('Migración idempotente (saves actuales y del Paso 0 intactos) ✓');

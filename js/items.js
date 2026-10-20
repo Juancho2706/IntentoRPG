@@ -590,7 +590,7 @@ export function itemStatLines(item) {
   if (item.kind === 'glyph') return [`🔷 ${item.baseName} · rango ${item.rank}`, `Engárzalo en un nodo de engarce (◇) del Tablero de Paragon.`, `Otorga ${statText(item.stat, Math.round(glyphValue(item, 0)))} + bonus por cada nodo activo adyacente${item.fam ? ` (×${(item.famAdj / (item.adj || 1)).toFixed(0)} si es de familia ${GLYPH_FAM_LABEL[item.fam] || item.fam})` : ''}.`];
   if (item.kind === 'support') {
     const s = SUPPORTS.find(x => x.id === item.supportId);
-    return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.types.join(', ')}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];
+    return s ? [`${s.icon} ${s.desc}`, `Aplicable a: ${s.fits || 'habilidades compatibles por tags'}`, 'Recógelo para aprenderlo y asígnalo a una habilidad.'] : ['Soporte'];
   }
   if (item.kind === 'charm') lines.push('🧿 Activo mientras esté en la mochila');
   if (item.quality) lines.push(`🔨 Calidad ${item.quality}/${MAX_QUALITY} (+${item.quality * 6}% a sus stats)`);

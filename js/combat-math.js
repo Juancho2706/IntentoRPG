@@ -7,7 +7,7 @@
 //
 // DAÑO DE UN GOLPE DEL JUGADOR (modelo D4 temporada 2+ / PoE "increased vs more"):
 //
-//   daño = arma × coef × (1 + Σ ADITIVO/100) × M(atributo) × CRIT × VULN × Π[×]
+//   daño = arma × coef × (1 + Σ ADITIVO/100) × M(atributo) × CRIT × DEB × Π[×]
 //
 //   arma      tirada entre wMin..wMax (poder de arma, escala con G(ilvl) y calidad)
 //   coef      coeficiente de la habilidad (sk.mult por rango; Eco ×0.5/0.6)
@@ -19,7 +19,8 @@
 //   M         1 + atributo principal × MAIN_STAT_PER_POINT
 //   CRIT      ×CRIT_MULT (1,5) si es crítico; prob. topada en CAPS.crit DESPUÉS
 //             de sumar todos los bonus (equipo + habilidad + soportes)
-//   VULN      ×VULN_MULT (1,2) si el objetivo es Vulnerable (saco propio)
+//   DEB       saco DEBILIDAD del objetivo: Vulnerable (+20) + debilitamientos,
+//             tope ×1,5 (weaknessMult) — Paso 2b.0
 //   Π[×]      multiplicadores ESCASOS: poderes legendarios / nodos clave de
 //             maestría (Furia, Sed de Batalla, Tiro Mortal, Cacería) y el hook de
 //             talentos. Cada uno ×1,10–×1,30 y solo cuentan los MAX_MULT_ACTIVE
@@ -48,13 +49,18 @@ export const CAPS = {
   res: 70,      // % resistencia elemental máxima
   dr: 50,       // % reducción de daño genérica (saco multiplicativo escaso)
   block: 40,    // % prob. de bloqueo
+  heal: 50,     // % curación de habilidad adicional (healPct) — Paso 2b.0, §6.1
 };
 
 export const CRIT_MULT = 1.5;          // daño crítico base (el extra va al saco aditivo)
-export const VULN_MULT = 1.2;          // Vulnerable: +20 % de daño recibido
+// Saco DEBILIDAD (Paso 2b.0, §5.3): Vulnerable (bandera, +20) + debilitamientos
+// del objetivo (Σd, aditivos, una entrada por fuente) en UN SOLO saco con tope ×1,5.
+export const VULN_PCT = 20;            // Vulnerable: +20 puntos en el saco Debilidad
+export const WEAKNESS_CAP = 1.5;       // tope del saco Debilidad
+export const VULN_MULT = 1 + VULN_PCT / 100; // (compat) Vulnerable solo = ×1,2
 export const MAX_MULT_ACTIVE = 3;      // nº máximo de multiplicadores [×] activos
 export const BLOCK_REDUCTION = 0.5;    // un golpe bloqueado pierde el 50 %
-export const LEECH_CAP_PER_SEC = 0.06; // robo de vida: máx. 6 % de la vida máx. por segundo
+export const LEECH_CAP_PER_SEC = 0.06; // cubeta de SUSTENTO: máx. 6 % de la vida máx. por segundo
 export const MAIN_STAT_PER_POINT = 0.01; // +1 % de daño por punto de atributo principal
 export const VOLATILE_COEF = 0.5;      // Volátil: 50 % del golpe medio del héroe
 
@@ -205,12 +211,10 @@ export function hitDamage(w, coef, st, addPct = 0, isCrit = false) {
 // talentos: registerMultiplier(id, { mult, when(ctx) }) — el rework de talentos
 // declarará aquí los suyos y competirán por las MAX_MULT_ACTIVE plazas.
 // ctx = { hpFrac (héroe), targetFrac, targetSlowed, crit }
-export const MULT_POWERS = {
-  furia:     { mult: 1.15, when: c => c.hpFrac > 0.8,  name: 'Furia' },
-  m_berserk: { mult: 1.25, when: c => c.hpFrac < 0.4,  name: 'Sed de Batalla' },
-  m_deadeye: { mult: 1.25, when: c => c.crit && c.targetFrac > 0.6, name: 'Tiro Mortal' },
-  m_hunt:    { mult: 1.15, when: c => c.targetSlowed,  name: 'Cacería' },
-};
+// Paso 2b.0: la tabla se rellena desde el registro de poderes (js/powers.js →
+// PowerDef.mult → registerMultiplier). Los de siempre (Furia ×1,15, Sed de Batalla
+// ×1,25, Tiro Mortal ×1,25, Cacería ×1,15) viven en js/powers-common.js.
+export const MULT_POWERS = {};
 export function registerMultiplier(id, def) {
   if (!id || !def || !(def.mult > 0)) return;
   MULT_POWERS[id] = { mult: Math.min(1.3, Math.max(1, def.mult)), when: def.when || (() => true), name: def.name || id };
@@ -229,6 +233,62 @@ export function activeMultipliers(powers, ctx = {}, extra = []) {
 }
 export function multiplierProduct(powers, ctx = {}, extra = []) {
   return activeMultipliers(powers, ctx, extra).reduce((a, b) => a * b, 1);
+}
+
+// ---------- Debilidad (saco único del objetivo, §5.3) ----------
+// DEB = min(WEAKNESS_CAP; 1 + (V + Σd)/100); V = VULN_PCT si es Vulnerable.
+export function weaknessMult(v = 0, sumDebuffs = 0) {
+  return Math.min(WEAKNESS_CAP, 1 + (Math.max(0, v || 0) + Math.max(0, sumDebuffs || 0)) / 100);
+}
+// suma de los debilitamientos ACTIVOS de un objetivo: debuffs = { id: { pct, t } }
+export function sumWeakness(debuffs) {
+  let s = 0;
+  if (debuffs) for (const d of Object.values(debuffs)) if (d && d.t > 0) s += d.pct || 0;
+  return s;
+}
+
+// ---------- condiciones ADITIVAS por objetivo (claves tv de talentos, §5.3) ----------
+// ctx = { targetElite, targetSlowed, targetFrac, manaFrac }. Devuelve puntos al
+// saco ADITIVO para ESE golpe (los poderes suman los suyos con PowerDef.condAdd).
+export function condAddPct(tv = {}, c = {}) {
+  if (!tv) return 0;
+  let a = 0;
+  if (c.targetElite) a += tv.eliteDmg || 0;
+  if (c.targetSlowed) a += tv.slowedDmg || 0;
+  if ((c.targetFrac ?? 0) > 0.6) a += tv.highHpDmg || 0;
+  if ((c.targetFrac ?? 1) < 0.35) a += tv.lowHpDmg || 0;
+  if ((c.manaFrac ?? 0) > 0.7) a += tv.highManaDmg || 0;
+  return a;
+}
+
+// ---------- perfil central de DoT (sangrado/veneno/quemadura) ----------
+// total = golpe medio × fracción × dotMul × (1 + (dotPct + <tipo>Pct)/100). La
+// duración extra (dotDur/burnDur, s) añade tics con el MISMO daño por segundo.
+export const DOT_PROFILES = Object.freeze({
+  poison: { frac: 0.9, ticks: 5, interval: 1.0, color: 0x66ff66 },
+  burn:   { frac: 0.8, ticks: 4, interval: 0.8, color: 0xff7722 },
+  bleed:  { frac: 0.6, ticks: 3, interval: 1.0, color: 0xff4466 },
+});
+export function dotProfile(kind, avgHit, { dotMul = 1, tv = null } = {}) {
+  const P = DOT_PROFILES[kind];
+  if (!P || !(avgHit > 0)) return null;
+  const pct = (tv?.dotPct || 0) + (tv?.[kind + 'Pct'] || 0);
+  const extraS = (tv?.dotDur || 0) + (kind === 'burn' ? (tv?.burnDur || 0) : 0);
+  const extraTicks = Math.max(0, Math.round(extraS / P.interval));
+  const base = avgHit * P.frac * dotMul * Math.max(0, 1 + pct / 100);
+  return { kind, total: base * (P.ticks + extraTicks) / P.ticks, ticks: P.ticks + extraTicks, interval: P.interval, color: P.color };
+}
+
+// ---------- rango de habilidad (§3.0/§4.1) ----------
+export const RANK_COEF_STEP = 0.10;   // coeficiente +10 %/rango
+export const RANK_BUFF_STEP = 0.06;   // buffs, escudos y curas +6 %/rango
+export function rankCoef(rank) { return 1 + RANK_COEF_STEP * (Math.max(1, rank || 1) - 1); }
+export function rankBuff(rank) { return 1 + RANK_BUFF_STEP * (Math.max(1, rank || 1) - 1); }
+
+// ---------- curación de habilidad (§6.1 B) ----------
+// Escala con healPct (tope CAPS.heal). El SUSTENTO (cubeta) no escala.
+export function healScaled(amount, healPct = 0) {
+  return Math.max(0, amount || 0) * (1 + Math.max(0, Math.min(CAPS.heal, healPct || 0)) / 100);
 }
 
 // ---------- defensa ----------
@@ -273,9 +333,10 @@ export function expectedMitigation(stats, al, element = 'phys') {
   return (1 - blockCh * BLOCK_REDUCTION) * (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats));
 }
 
-// ---------- robo de vida con tope por segundo ----------
-// Cubeta: se rellena a LEECH_CAP_PER_SEC × vidaMáx por segundo hasta 1 s de
-// capacidad. Cada curación por robo consume de la cubeta.
+// ---------- cubeta de SUSTENTO (robo de vida y TODA cura por golpe/muerte) ----------
+// Paso 2b.0 (§6.1 A): una sola cubeta por receptor que comparten el robo de vida,
+// la vida al golpear (lph), las curas al matar (Festín…) y los procs de indicador.
+// Se rellena a LEECH_CAP_PER_SEC × vidaMáx por segundo hasta 1 s de capacidad.
 export function leechRefill(bucket, maxHP, dt) {
   const cap = LEECH_CAP_PER_SEC * maxHP;
   return Math.min(cap, (bucket ?? cap) + cap * dt);
@@ -286,6 +347,10 @@ export function leechTake(bucket, maxHP, want) {
   const got = Math.max(0, Math.min(b, want || 0));
   return { heal: got, bucket: b - got };
 }
+
+export const SUSTAIN_CAP_PER_SEC = LEECH_CAP_PER_SEC;
+export const sustainRefill = leechRefill;
+export const sustainTake = leechTake;
 
 // ---------- Volátil ----------
 // Escala con el daño del HÉROE (no con la vida del muerto) y no encadena.

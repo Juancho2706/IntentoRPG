@@ -1,93 +1,94 @@
-// Árbol de habilidades estilo D4 (6 nodos): recurso por clase, ataque básico
-// generador, nodos con sus habilidades, gating por nivel y migración de saves.
+// Paso 2b.0 — kit de 6 ranuras con categoría y recurso por clase (reescrito)
+//  1) cada clase: recurso de §2, básico de arma generador, catálogo por categorías
+//     (desde js/skills-<clase>.js) y vista `tree` derivada para la UI previa al 2d
+//  2) las habilidades se aprenden SOLAS por nivel (sin compra de rangos)
+//  3) hotbar con categoría: normalizeHotbar/assignHotbar validan CAT_SLOTS (k2 flexible)
+//  4) el básico GENERA recurso al acertar; Furia arranca a 0 y Maná/Energía llenos
+//  5) al subir de nivel, la habilidad nueva se coloca sola si su ranura está libre
+import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { CLASSES } from '../js/data.js';
+import { GUERRERO_SKILLS } from '../js/skills-guerrero.js';
+import { MAGA_SKILLS } from '../js/skills-maga.js';
+import { ARQUERA_SKILLS } from '../js/skills-arquera.js';
 import { Player, Enemy } from '../js/entities.js';
 import { scaleEnemy, pickEnemyDef } from '../js/data.js';
 import { buildDungeon } from '../js/world.js';
+import { makeHarness } from './helpers/power-harness.mjs';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 
-// --- 1) cada clase: recurso válido + árbol de 6 nodos con kinds correctos ---
-const EXPECT_KINDS = ['basic', 'core', 'core', 'core', 'ultimate', 'passive'];
+// --- 1) recurso, básico, catálogo por clase ---
+const SRC = { guerrero: GUERRERO_SKILLS, maga: MAGA_SKILLS, arquera: ARQUERA_SKILLS };
+const RES = { guerrero: 'furia', maga: 'mana', arquera: 'energia' };
 for (const c of Object.values(CLASSES)) {
-  const r = c.resource;
-  if (!r || !r.id || !r.name || typeof r.gen !== 'number') throw new Error(`${c.id} sin recurso válido`);
-  if (!Array.isArray(c.tree) || c.tree.length !== 6) throw new Error(`${c.id} debe tener un árbol de 6 nodos`);
+  assert.equal(c.resource.id, RES[c.id], `${c.id}: recurso de §2`);
+  assert.deepEqual(c.skills.map(s => s.id), SRC[c.id].map(s => s.id), `${c.id}: el catálogo sale de js/skills-${c.id}.js`);
+  const wb = c.skills.filter(s => s.cat === 'basic' && s.type === 'weapon');
+  assert.equal(wb.length, 1, `${c.id}: un básico de arma`);
+  assert.ok(wb[0].gen > 0 && wb[0].req === 1, `${c.id}: el básico de arma genera recurso desde Nv1`);
+  assert.ok(c.skills.some(s => s.cat === 'spender' && s.req === 2), `${c.id}: Gastadora A en Nv2`);
+  assert.ok(c.skills.some(s => s.cat === 'ultimate' && s.req === 15), `${c.id}: definitivas en Nv15`);
+  for (const s of c.skills.filter(x => x.cat === 'ultimate')) assert.equal(s.cost, 0, `${s.id}: la definitiva no cuesta recurso`);
+  // vista derivada (UI previa al 2d): nodos por categoría con ids válidos
   const ids = new Set(c.skills.map(s => s.id));
-  let lastReq = 0;
-  c.tree.forEach((node, i) => {
-    if (node.kind !== EXPECT_KINDS[i]) throw new Error(`${c.id} nodo ${i + 1}: kind ${node.kind} ≠ ${EXPECT_KINDS[i]}`);
-    if (typeof node.req !== 'number' || node.req < lastReq) throw new Error(`${c.id} nodo ${i + 1}: req debe ser creciente`);
-    lastReq = node.req;
-    if (!node.skills.length) throw new Error(`${c.id} nodo ${i + 1} sin habilidades`);
-    for (const sid of node.skills) if (!ids.has(sid)) throw new Error(`${c.id}: ${sid} en el árbol no existe en skills`);
-  });
-  // hay al menos un básico de arma (el ataque principal)
-  if (!c.skills.some(s => s.kind === 'basic' && s.type === 'weapon')) throw new Error(`${c.id} sin básico de arma`);
+  assert.ok(c.tree.length >= 3 && c.tree[0].kind === 'basic' && c.tree.at(-1).kind === 'ultimate');
+  for (const nd of c.tree) for (const sid of nd.skills) assert.ok(ids.has(sid), `${c.id}: ${sid} del árbol no existe`);
 }
-console.log('Árbol: 6 nodos por clase (Básico/3×Hab/Ulti/Pasiva), reqs crecientes, ids válidos ✓');
+assert.deepEqual(Object.fromEntries(GUERRERO_SKILLS.map(s => [s.cat, 1])), { basic: 1, spender: 1, movement: 1, utility: 1, ultimate: 1 });
+console.log('Clases: recurso de §2, básico generador, catálogo por categoría desde skills-<clase>.js ✓');
 
-// --- gating de D4 ---: nivel 1 los básicos, primeras habilidades en nivel 2
-for (const c of Object.values(CLASSES)) {
-  if (c.tree[0].req !== 1) throw new Error(`${c.id}: el nodo de básicos debe ser nivel 1`);
-  if (c.tree[1].req !== 2) throw new Error(`${c.id}: las primeras habilidades deben pedir nivel 2`);
-}
-console.log('Gating: básicos a nivel 1, primera habilidad a nivel 2 ✓');
-
-// --- Guerrero completo: 3 básicos + 9 cores + 3 ultis + 3 pasivas ---
-const G = CLASSES.guerrero;
-const byKind = k => G.skills.filter(s => s.kind === k).length;
-if (byKind('basic') !== 3 || byKind('core') !== 9 || byKind('ultimate') !== 3 || byKind('passive') !== 3)
-  throw new Error(`Guerrero (plantilla) debe tener 3 básicos/9 cores/3 ultis/3 pasivas, tiene ${byKind('basic')}/${byKind('core')}/${byKind('ultimate')}/${byKind('passive')}`);
-console.log('Guerrero (plantilla): 3 básicos · 9 habilidades · 3 definitivas · 3 pasivas ✓');
-
-// --- harness ---
+// --- harness clásico ---
 const world = buildDungeon(1);
-const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, addShake() {}, vibrate() {}, tip() {},
+const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {}, refreshHotbar() {} }, sfx() {}, addShake() {}, vibrate() {}, tip() {},
   spawnBurst() {}, spawnRing() {}, emitFx() {}, hitStop() {}, onEnemyKilled() {}, input: { joyDir: null, keyDir: null },
-  world, enemies: [], projectiles: [], spawnProjectile(o) { this.projectiles.push(o); } });
+  world, enemies: [], projectiles: [], spawnProjectile(o) { this.projectiles.push(o); }, spawnBeam() {}, levelUpFlash() {} });
 
-// --- 2) naces sabiendo SOLO el básico de arma; nivel 1 → 0 puntos ---
+// --- 2) aprendidas por nivel ---
 const g = mk();
 const p = new Player(g, 'guerrero'); g.player = p;
-if (Object.keys(p.skills).length !== 1 || !(p.skills['g_tajo'] > 0)) throw new Error('debes nacer sabiendo solo el básico de arma (g_tajo)');
-if (p.skillPoints !== 0) throw new Error('a nivel 1 no debes tener puntos por gastar, tienes ' + p.skillPoints);
-if (p.hotbar.lmb !== 'g_tajo') throw new Error('🖱️Izq debe ser el básico de arma por defecto');
-if (p.skillSystemV !== 4) throw new Error('skillSystemV debe quedar a 4');
-console.log('Inicio: solo el básico de arma (g_tajo), 0 puntos, hotbar lmb=g_tajo ✓');
+assert.deepEqual(Object.keys(p.skills).sort(), ['g_embate', 'g_mandoble', 'g_tajo'], 'Nv1: solo los básicos');
+assert.equal(p.skillPoints, 0, 'Nv1: 0 puntos');
+assert.equal(p.hotbar.lmb, 'g_tajo', '🖱️Izq = básico de arma');
+assert.equal(p.skillSystemV, 5);
+p.level = 15; p.recompute();
+for (const s of CLASSES.guerrero.skills) assert.ok(p.skills[s.id] > 0, `Nv15 conoce ${s.id}`);
+console.log('Las habilidades se aprenden solas por nivel; el rango es derivado ✓');
 
-// --- 3) recurso inicial: Furia 0; Maná lleno ---
-if (p.mp !== 0) throw new Error('la Furia del guerrero debe arrancar a 0');
+// --- 3) hotbar con categoría ---
+const hb = p.normalizeHotbar({ lmb: 'g_tajo', rmb: 'inexistente', k1: 'torbellino', k2: 'g_lanza', k3: null, k4: 'g_u_furia' });
+assert.equal(hb.rmb, null, 'descarta ids inválidos');
+assert.equal(hb.k1, null, 'una gastadora NO va en k1 (movilidad)');
+assert.equal(hb.k2, 'g_lanza', 'k2 flexible admite una gastadora');
+assert.equal(hb.k4, 'g_u_furia', 'k4 = definitiva');
+assert.equal(p.normalizeHotbar({ lmb: 'basic' }).lmb, 'g_tajo', 'el literal viejo basic → básico de arma');
+assert.equal(p.normalizeHotbar({ lmb: 'g_tajo', rmb: 'torbellino', k2: 'torbellino' }).k2, null, 'sin duplicados');
+const h = makeHarness({ classId: 'guerrero', level: 20 });
+assert.equal(h.g.assignHotbar('k2', 'grito_guerra'), true, 'utilidad en k2');
+assert.equal(h.g.assignHotbar('k2', 'terremoto'), true, 'gastadora en k2 (flexible)');
+assert.equal(h.g.assignHotbar('k1', 'terremoto'), false, 'una gastadora no va en k1');
+assert.equal(h.g.assignHotbar('rmb', 'terremoto'), true);
+assert.equal(h.p.hotbar.k2, null, 'al moverla de k2 a rmb, k2 queda libre (sin duplicados)');
+assert.equal(h.g.assignHotbar('lmb', null), true);
+assert.equal(h.p.hotbar.lmb, 'g_tajo', '🖱️Izq nunca queda vacía');
+const low = makeHarness({ classId: 'guerrero', level: 3 });
+assert.equal(low.g.assignHotbar('k4', 'g_u_furia'), false, 'no se asigna lo que aún no conoces');
+console.log('Hotbar con categoría: CAT_SLOTS, k2 flexible, sin duplicados ✓');
+
+// --- 4) recurso inicial y básico generador ---
+assert.equal(p.mp, 0, 'la Furia del guerrero arranca a 0');
 const pm = new Player(mk(), 'maga');
-if (pm.mp !== pm.stats.maxMP) throw new Error('el Maná de la maga debe arrancar lleno');
-console.log(`Recurso inicial: Furia 0 (guerrero), Maná ${pm.mp}/${pm.stats.maxMP} (maga) ✓`);
-
-// --- 4) el ataque básico GENERA recurso ---
+assert.equal(pm.mp, pm.stats.maxMP, 'el Maná arranca lleno');
 const e = new Enemy(g, scaleEnemy(pickEnemyDef(1), 1), new THREE.Vector3(1.4, 0, 0));
 e.maxHP = e.hp = 9999; g.enemies = [e];
-const before = p.mp;
 p.basicAttack(e);
-if (!(p.mp > before)) throw new Error('el ataque básico debe generar recurso (Furia)');
-console.log(`Generador: el básico sube la Furia ${before} → ${p.mp} ✓`);
+assert.ok(p.mp > 0, 'el ataque básico GENERA Furia');
+console.log(`Generador: el básico sube la Furia a ${p.mp} ✓`);
 
-// --- 5) migración: save viejo reembolsa niveles + mini-ramas y resetea (v4) ---
-const old = new Player(mk(), 'guerrero', { classId: 'guerrero', skills: { torbellino: 3, embestida: 2 }, skillBranches: { torbellino: { torbellino_o: true } }, skillPoints: 0, skillSystemV: 3 });
-if (Object.keys(old.skills).length !== 1 || !(old.skills['g_tajo'] > 0)) throw new Error('la migración debe dejar solo el básico de arma');
-if (old.skillPoints !== 6) throw new Error('debe reembolsar 5 niveles + 1 mini-rama = 6, dio ' + old.skillPoints);
-if (old.skillSystemV !== 4) throw new Error('la migración debe marcar skillSystemV=4');
-console.log('Migración: build vieja reembolsada (6 pts) y reseteada al árbol nuevo ✓');
-
-// --- 6) normalizeHotbar: descarta ids inválidos, conserva válidos, respeta huecos ---
-const cores = G.skills.filter(s => s.kind === 'core').map(s => s.id);
-const hb = p.normalizeHotbar({ lmb: 'g_tajo', rmb: 'inexistente', k1: cores[1], k2: null });
-if (hb.lmb !== 'g_tajo') throw new Error('debe conservar el básico de arma');
-if (hb.rmb === 'inexistente') throw new Error('debe descartar ids inválidos');
-if (hb.k1 !== cores[1]) throw new Error('debe conservar una habilidad válida asignada');
-if (hb.k2 !== null) throw new Error('debe respetar una ranura vaciada');
-// retrocompat: el literal viejo 'basic' se convierte en el básico de arma
-if (p.normalizeHotbar({ lmb: 'basic' }).lmb !== 'g_tajo') throw new Error('el literal viejo basic debe migrar al básico de arma');
-console.log('normalizeHotbar: valida ids, respeta huecos y migra el literal viejo ✓');
-
-void THREE;
-console.log('\n✅ ÁRBOL DE HABILIDADES (6 NODOS) OK');
+// --- 5) habilidad nueva al subir de nivel → se coloca sola ---
+const q = new Player(mk(), 'guerrero');
+q.gainXP(400); // pasa a Nv2+
+assert.ok(q.level >= 2 && q.skills.torbellino > 0, 'Nv2: aprende la Gastadora A');
+assert.equal(q.hotbar.rmb, 'torbellino', 'se coloca sola en su ranura libre');
+console.log('Al subir de nivel, la habilidad nueva se coloca sola en su ranura ✓');
+console.log('\n✅ KIT DE 6 RANURAS CON CATEGORÍA + RECURSO POR CLASE OK');

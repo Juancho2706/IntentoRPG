@@ -2,12 +2,47 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, skillVal, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, aggregateSkillMods } from './data.js';
+import { CLASSES, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL } from './data.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 import { migrateSave, serializePlayer } from './save-schema.js';
-import { CAPS, CRIT_MULT, VULN_MULT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
-  multiplierProduct, mitigate, leechRefill, leechTake, hazardDamage, resourceRegen } from './combat-math.js';
+import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
+  multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
+  condAddPct, dotProfile, healScaled } from './combat-math.js';
+// Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
+import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT } from './skill-resolve.js';
+import { firePower, buildHookIndex } from './powers.js';
+import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
+  potionResourceAmount, touchCombat } from './resources.js';
+
+const EMPTY_TAGS = new Set();
+const isBossDef = d => !!(d?.boss || d?.uber || d?.worldBoss);
+// básico de arma de una clase (el "ataque principal" con el que naces)
+export function weaponBasicOf(cls) {
+  return cls?.skills.find(s => s.cat === 'basic' && s.type === 'weapon') || cls?.skills.find(s => s.cat === 'basic') || null;
+}
+
+// Efectos AL GOLPEAR de un perfil de habilidad (resolveSkill) sobre un enemigo
+// REALMENTE golpeado: Vulnerable, aturdir/inmovilizar/ralentizar (Enemy.applyCC,
+// con rendimientos decrecientes), DoT (perfil central de combat-math) y Decapitar.
+// Lo comparten el básico (Player.basicAttack) y el canal de lanzamiento (game-skills).
+export function applyHitEffects(g, p, e, prof, avgHit) {
+  if (!e || !e.alive || !prof) return;
+  if (prof.vuln) e.vulnT = Math.max(e.vulnT || 0, prof.vuln);
+  if (prof.stun) e.applyCC ? e.applyCC('stun', prof.stun, { src: p }) : e.applyStun?.(prof.stun);
+  if (prof.root && e.alive) e.applyCC?.('root', prof.root, { src: p });
+  if (prof.slow && e.alive) {
+    if (e.applyCC) e.applyCC('slow', prof.slow, { pct: prof.slowPct || 50, src: p });
+    else e.slowT = Math.max(e.slowT || 0, prof.slow);
+  }
+  if (prof.dot && e.alive) {
+    const d = dotProfile(prof.dot, avgHit, { dotMul: prof.dotMul || 1, tv: p?.tv });
+    if (d) g?.applyDoT?.(e, d.total, d.ticks, d.interval, undefined, `${prof.id}:${prof.dot}`);
+  }
+  // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
+  if (prof.execute && e.alive && !isBossDef(e.def) && e.hp / e.maxHP <= prof.execute / 100)
+    e.takeDamage(e.hp + 1, false, { proc: true, source: 'execute', skill: prof.id });
+}
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 
@@ -502,29 +537,31 @@ export class Player {
       ...(this.records || {}),
     };
 
-    // --- Sistema de habilidades v3 (árbol D4, 6 nodos): naces sabiendo SOLO el
-    // ataque básico de arma; las cores/ultis/pasivas se aprenden con puntos por
-    // nodo (gating por nivel). Migración: reembolsa TODO y deja la build limpia.
-    this.skills = (this.skills && typeof this.skills === 'object') ? this.skills : {};
+    // --- Sistema de habilidades v5 (Paso 2b.0, kit de 6 ranuras con categoría):
+    // las habilidades se APRENDEN SOLAS al llegar a su nivel y su rango sale del
+    // nivel (+talentos/equipo): `this.skills` (id → rango) es DERIVADO y lo
+    // rellena recompute(); ya no se guarda. Los puntos de habilidad (Nv2–20) solo
+    // desbloquean mini-ramas (skillBranches). La migración vive en MIGRATIONS[2].
+    this.skills = {};
     this.skillMods = (this.skillMods && typeof this.skillMods === 'object') ? this.skillMods : {};
     // skillBranches[skId][branchId] = true → mini-rama de pasivos DESBLOQUEADA (cuesta 1 punto)
     this.skillBranches = (this.skillBranches && typeof this.skillBranches === 'object') ? this.skillBranches : {};
-    const weaponBasic = (this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon') || this.cls.skills.find(s => s.kind === 'basic') || this.cls.skills[0]);
-    // v4 (mini-ramas que cuestan punto): el reembolso de builds previas vive en
-    // MIGRATIONS[0] (save-schema.js), idempotente vía skillSystemV. Aquí solo el
-    // valor por defecto para héroes nuevos.
-    if (this.skillSystemV == null) this.skillSystemV = 4;
-    // siempre conoces el ataque básico de arma (es tu "ataque principal")
-    if (weaponBasic && !(this.skills[weaponBasic.id] > 0)) this.skills[weaponBasic.id] = 1;
-    // purga niveles de habilidades que ya no existen
-    const _valid = new Set(this.cls.skills.map(s => s.id));
-    for (const id of Object.keys(this.skills)) if (!_valid.has(id)) delete this.skills[id];
-    // hotbar de 6 ranuras: 🖱️Izq = básico de arma, 🖱️Der + teclas 1·2·3·4
-    this.hotbar = this.normalizeHotbar(this.hotbar);
+    if (this.skillSystemV == null) this.skillSystemV = 5;
     this.furiaIdle = 0; // temporizador de disipación de Furia (fuera de combate)
 
     this.buffs = [];
     this.cds = {};
+    this.cdMax = {};            // enfriamiento total del último uso (overlay de la UI)
+    this.gcdT = 0;              // enfriamiento global (0,2 s entre gastadoras)
+    this.castLock = 0;          // bloqueo de lanzamiento (windup / canalización)
+    this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
+    this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
+    this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
+    this.leap = null;           // salto en curso (tipo de habilidad `leap`)
+    this.simT = 0;              // reloj de simulación del héroe (icd de poderes)
+    this.sinceCombat = 99;      // s desde el último golpe dado o recibido
+    this.powerState = {};       // estado volátil de los poderes (powers.powerState)
+    this.resolved = {};         // caché de resolveSkill (se invalida en recompute)
     this.atkCd = 0;
     this.slowT = 0;
     this.dodgeT = 0;
@@ -540,9 +577,12 @@ export class Player {
 
     this.group = makePlayerModel(this.cls, this.tint);
     this.recompute();
+    // hotbar de 6 ranuras con categoría (lmb básico · rmb gastadora · k1 movilidad ·
+    // k2 flexible · k3 especialización · k4 definitiva); se valida con el nivel ya cargado
+    this.hotbar = this.normalizeHotbar(this.hotbar);
     this.hp = this.stats.maxHP;
-    // recurso inicial: la Furia (start:0) arranca vacía; Maná/Energía llenos
-    this.mp = this.cls.resource?.start === 0 ? 0 : this.stats.maxMP;
+    // recurso inicial (resources.js): la Furia arranca vacía; Maná/Energía llenos
+    this.mp = initialResource(resourceDefFor(this.cls), this.stats.maxMP);
     if (saved && saved.hp != null) {
       this.hp = Math.min(saved.hp, this.stats.maxHP);
       // los recursos que se GENERAN (Furia, start:0) no se guardan: siempre 0 al cargar
@@ -556,27 +596,33 @@ export class Player {
     return serializePlayer(this);
   }
 
-  // hotbar de 6 ranuras (lmb/rmb/k1-4). Barra libre: cualquier skill conocible
-  // (básico/core/ultimate) en cualquier ranura. Valida ids y rellena por defecto.
+  // hotbar de 6 ranuras con CATEGORÍA (§1.1): cada habilidad solo entra en sus
+  // `slots` (CAT_SLOTS) y no puede estar en dos ranuras. Valida ids, ranura y que
+  // la habilidad exista; las que aún no conoces se conservan (se activan al
+  // aprenderlas). Rellena por defecto: 🖱️Izq = básico de arma.
   normalizeHotbar(h) {
     const all = this.cls.skills;
-    const byKind = k => all.filter(s => s.kind === k).map(s => s.id);
-    const basics = byKind('basic'), cores = byKind('core'), ults = byKind('ultimate');
-    const weapon = all.find(s => s.kind === 'basic' && s.type === 'weapon')?.id || basics[0] || null;
-    // barra VACÍA al empezar: solo el ataque principal (básico) en 🖱️Izq; el resto
-    // lo coloca el jugador a medida que aprende habilidades.
+    const weapon = weaponBasicOf(this.cls)?.id || null;
     const def = { lmb: weapon, rmb: null, k1: null, k2: null, k3: null, k4: null };
-    const placeable = new Set([...basics, ...cores, ...ults]);
-    const ok = id => id === null || placeable.has(id);
     if (!h || typeof h !== 'object') return def;
-    // migración: el literal viejo 'basic' → el básico de arma
     const out = {};
+    const used = new Set();
     for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
       let v = h[s];
-      if (v === 'basic') v = weapon;
-      out[s] = (v === undefined) ? def[s] : (ok(v) ? v : def[s]);
+      if (v === 'basic') v = weapon;                 // literal viejo 'basic' → básico de arma
+      if (v === undefined) { out[s] = def[s]; continue; }
+      const sk = v ? all.find(x => x.id === v) : null;
+      out[s] = (v === null) ? null : (sk && fitsSlot(sk, s) && !used.has(v) ? v : def[s]);
+      if (out[s]) used.add(out[s]);
     }
+    if (!out.lmb) out.lmb = weapon;                  // nunca sin ataque principal
     return out;
+  }
+
+  // ¿conoce la habilidad? (por nivel o concedida por talento)
+  knows(id) {
+    const sk = typeof id === 'string' ? this.cls.skills.find(s => s.id === id) : id;
+    return isKnown(this, sk);
   }
 
   get pos() { return this.group.position; }
@@ -592,7 +638,9 @@ export class Player {
     // (condicional) o se añade a this.extraMultipliers ([{id, mult}] estáticos).
     const item = { hp: 0, mp: 0, dmgPct: 0, crit: 0, arm: 0, spdPct: 0, aspdPct: 0, mf: 0,
                    lph: 0, mph: 0, cdr: 0, thorns: 0, goldPct: 0,
-                   critDmg: 0, dr: 0, block: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0 };
+                   critDmg: 0, dr: 0, block: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0,
+                   // Paso 2b.0: esquiva (s menos de recarga), regen. de Energía y curación de habilidad
+                   dodgeCdr: 0, energyRegen: 0, healPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -620,7 +668,6 @@ export class Player {
       if (it.power) this.powers.add(it.power.id);          // poderes únicos de legendarios/reliquias
       if (it.power2) this.powers.add(it.power2.id);        // míticos: segundo poder
     }
-    if (this.powers.has('avaricia')) item.mf += 30;
     // paragon: tablero TEMÁTICO de la clase (los nodos legendarios otorgan poderes)
     const board = paragonBoardFor(this.classId);
     const pnodes = this.paragon?.nodes || {};
@@ -667,16 +714,13 @@ export class Player {
     // mutador de la Era (temporada local): stat/power global de la semana
     const eraB = this.game?.eraMutatorBonus?.();
     if (eraB) { if (eraB.stat) addStats(eraB.stat); if (eraB.power) this.powers.add(eraB.power); }
-    // pasivas
-    for (const sk of this.cls.skills) {
-      const lvl = this.skills[sk.id];
-      if (lvl && sk.type === 'passive') {
-        for (const [k, arr] of Object.entries(sk.passive)) {
-          const v = Math.round(skillVal(arr, lvl));
-          if (k in a) a[k] += v; else if (k in item) item[k] += v;
-        }
-      }
-    }
+    // talentos (Paso 2c rellena p.talentAgg con aggregateTalents): sus poderes y claves tv
+    if (this.talentAgg?.powers) for (const id of this.talentAgg.powers) this.powers.add(id);
+    this.tv = this.talentAgg?.tv || {};
+    // ① PODERES: índice de ganchos de los poderes activos + sus stats (registro
+    // data-driven, js/powers.js). Las pasivas compradas se eliminaron (Paso 2b.0).
+    buildHookIndex(this);
+    addStats(firePower('stats', this, this));
 
     const c = this.cls;
     const w = this.equipment.weapon;
@@ -690,7 +734,8 @@ export class Player {
     this.stats = {
       ...a,
       maxHP: Math.round(c.baseHP + a.vit * c.hpPerVit + item.hp + (this.level - 1) * (c.hpPerLevel ?? 4)), // vida por nivel según clase (Paso 1A)
-      maxMP: Math.round(c.baseMP + a.ene * c.mpPerEne + item.mp + (this.level - 1) * 2),
+      // recurso de clase (resources.js §2): Furia 100 · Maná 100+2·Ene+3·(Nv−1) · Energía 60
+      maxMP: resourceMax(resourceDefFor(c), { ene: a.ene, level: this.level, bonus: item.mp }),
       // daño de hoja (arma × atributo × saco aditivo de equipo): lo que ve la UI
       dmgMin: Math.max(1, Math.round(sheet(wDmg[0]))),
       dmgMax: Math.max(2, Math.round(sheet(wDmg[1]))),
@@ -709,7 +754,11 @@ export class Player {
       goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
       dr: Math.min(CAPS.dr, item.dr), block: Math.min(CAPS.block, item.block),
       resFire: item.resFire, resCold: item.resCold, resLightning: item.resLightning, resPoison: item.resPoison,
+      dodgeCdr: item.dodgeCdr, energyRegen: item.energyRegen, healPct: Math.min(CAPS.heal, item.healPct),
     };
+    // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
+    this.resolved = {};
+    this.skills = knownRankMap(this);
     // "Poder del héroe": puntuación única que resume tu build (sube al mejorar
     // equipo/nivel/paragon/maestrías…). Refuerza la sensación de "número sube".
     const st = this.stats;
@@ -733,26 +782,39 @@ export class Player {
     if (item.power2) this.discovered.powers[item.power2.id] = true;
   }
 
-  // vida/maná al golpear (se llama cuando el jugador daña a un enemigo)
+  // vida/recurso al golpear (una vez por impacto: AoE, proyectil, golpe). La vida
+  // al golpear (lph) ENTRA en la cubeta de sustento (§6.1, cambio intencional).
+  // Los poderes "por golpe" (Sobrecarga Arcana…) van por ⑤ onHit (registro).
   onDealHit() {
-    if (this.stats.lph) this.hp = Math.min(this.stats.maxHP, this.hp + this.stats.lph);
-    if (this.stats.mph) this.mp = Math.min(this.stats.maxMP, this.mp + this.stats.mph);
-    // maestría Arcanista (Sobrecarga Arcana): recupera maná con cada golpe
-    if (this.powers?.has('m_overload')) this.mp = Math.min(this.stats.maxMP, this.mp + this.stats.maxMP * 0.04);
+    this.sinceCombat = 0;
+    touchCombat(this);
+    if (this.stats.lph) this.sustain(this.stats.lph, 'lph');
+    if (this.stats.mph) gainResource(this, this.stats.mph);
   }
 
-  // Tirada de un golpe (combat-math.hitDamage): arma × coef × (1+Σaditivo) ×
+  // ③ Tirada de un golpe (combat-math.hitDamage): arma × coef × (1+Σaditivo) ×
   // atributo × crítico. coef = coeficiente de la habilidad (1 = básico);
-  // addPct = lo que la habilidad suma al saco ADITIVO (sinergias, soportes,
-  // modificadores); critBonus = prob. de crítico extra (se topa DESPUÉS).
-  // Vulnerable y los multiplicadores [×] (Furia, Sed de Batalla, Tiro Mortal,
-  // Cacería…) dependen del objetivo/estado al IMPACTAR: los aplica Enemy.takeDamage.
-  rollDamage(coef = 1, critBonus = 0, addPct = 0) {
+  // addPct = lo que la habilidad suma al saco ADITIVO (ramas, soportes,
+  // talentos); critBonus = prob. de crítico extra (se topa DESPUÉS).
+  // `e` (objetivo, si se conoce al tirar: los proyectiles tiran AL IMPACTAR) y
+  // `hit` ({skill, tags, elem}) habilitan los bonos condicionados al objetivo:
+  // claves tv (combat-math.condAddPct) + poderes condAdd/condCrit.
+  // Debilidad y los multiplicadores [×] los aplica Enemy.takeDamage al impactar.
+  rollDamage(coef = 1, critBonus = 0, addPct = 0, e = null, hit = null) {
     const r = this.combatRng || Math.random;
     const st = this.stats;
+    let add = addPct, cb = critBonus;
+    if (e && this.tv) add += condAddPct(this.tv, {
+      targetElite: !!(e.def?.rank || isBossDef(e.def) || e.prey),
+      targetSlowed: e.slowT > 0 || e.frozenT > 0,
+      targetFrac: e.maxHP ? e.hp / e.maxHP : 1,
+      manaFrac: st.maxMP ? this.mp / st.maxMP : 0,
+    });
+    if (this.hookIndex?.condAdd) add += firePower('condAdd', this, this, e, hit || {});
+    if (this.hookIndex?.condCrit) cb += firePower('condCrit', this, this, e, hit || {});
     const w = st.wMin + r() * (st.wMax - st.wMin);
-    const crit = r() * 100 < critChance(st.critRaw ?? st.crit, critBonus);
-    const dmg = hitDamage(w, coef, st, addPct, crit);
+    const crit = r() * 100 < critChance(st.critRaw ?? st.crit, cb);
+    const dmg = hitDamage(w, coef, st, add, crit);
     return { dmg: Math.max(1, Math.round(dmg)), crit };
   }
 
@@ -762,15 +824,61 @@ export class Player {
     return hitDamage((st.wMin + st.wMax) / 2, coef, st, addPct, false);
   }
 
-  // Robo de vida con TOPE POR SEGUNDO (combat-math): cura sobre el daño infligido
-  // de verdad, pero nunca más de LEECH_CAP_PER_SEC × vida máx. por segundo.
-  leech(amount) {
+  // SUSTENTO (§6.1 A): TODA cura disparada por un golpe o una muerte propios
+  // (robo de vida, vida al golpear, Festín, curas al matar…) comparte UNA cubeta
+  // con tope de 6 % de la vida máx. por segundo. No escala con healPct.
+  sustain(amount, src = 'sustain') {
     if (!(amount > 0) || !this.alive) return 0;
-    const r = leechTake(this._leech, this.stats.maxHP, amount);
+    const r = sustainTake(this._leech, this.stats.maxHP, amount);
     this._leech = r.bucket;
+    const before = this.hp;
     this.hp = Math.min(this.stats.maxHP, this.hp + r.heal);
-    return r.heal;
+    const healed = this.hp - before;
+    this._sustained = (this._sustained || 0) + healed;
+    void src;
+    return healed;
   }
+  // robo de vida = sustento sobre el daño infligido de verdad
+  leech(amount) { return this.sustain(amount, 'leech'); }
+
+  // CURACIÓN DE HABILIDAD (§6.1 B): acción deliberada; escala con healPct (tope +50 %)
+  // y NO usa la cubeta. Devuelve la curación efectiva (sin exceso).
+  healSkill(amount, src = 'skill') {
+    if (!(amount > 0) || !this.alive) return 0;
+    const before = this.hp;
+    this.hp = Math.min(this.stats.maxHP, this.hp + healScaled(amount, this.stats.healPct));
+    void src;
+    return this.hp - before;
+  }
+  // RESTAURACIÓN: fija la vida a un valor (Muro Inquebrantable, Fénix…); no escala
+  setHp(v, src = 'restore') {
+    this.hp = Math.max(0, Math.min(this.stats.maxHP, v));
+    void src;
+    return this.hp;
+  }
+  // escudo: se consume DESPUÉS de mitigar y antes de la vida (escala con healPct)
+  addShield(amount, dur, src = 'shield') {
+    const amt = Math.round(healScaled(amount, this.stats.healPct));
+    if (!(amt > 0) || !(dur > 0)) return 0;
+    this.shields = (this.shields || []).filter(s => s.src !== src);
+    this.shields.push({ amt, t: dur, src });
+    return amt;
+  }
+  shieldTotal() { return (this.shields || []).reduce((a, s) => a + s.amt, 0); }
+  // absorbe `dmg` con los escudos activos (los más antiguos primero); devuelve lo que pasa
+  absorbShields(dmg) {
+    let left = dmg;
+    for (const s of this.shields || []) {
+      if (left <= 0) break;
+      const take = Math.min(s.amt, left);
+      s.amt -= take; left -= take;
+    }
+    if (this.shields?.length) this.shields = this.shields.filter(s => s.amt > 0 && s.t > 0);
+    return left;
+  }
+  grantInvuln(sec) { this.invulnT = Math.max(this.invulnT || 0, sec || 0); }
+  // libera de ralentizaciones (opción de rama «Purga»)
+  cleanse() { this.slowT = 0; }
 
   // meta opcional: { name, icon, desc } para que la UI muestre el efecto.
   // Guardamos `dur` (total) además de `t` (restante) para poder calcular progreso.
@@ -852,7 +960,10 @@ export class Player {
     else { dx = Math.sin(this.group.rotation.y); dz = Math.cos(this.group.rotation.y); }
     this.dodgeDir = { x: dx, z: dz };
     this.dodgeT = DASH_DUR;
-    this.dodgeCd = this.dodgeCdMax = this.powers?.has('agil') ? 1.8 : 3; // poder 'agil': recarga más rápida
+    // recarga 3 s (stat dodgeCdr: el poder Ágil la deja en 1,8 s)
+    this.dodgeCd = this.dodgeCdMax = Math.max(0.6, 3 - (this.stats.dodgeCdr || 0));
+    // la esquiva CANCELA el windup (sin cobrar el coste) y la canalización en curso
+    g.cancelCast?.('dodge');
     this.dashTrail = 0;
     this.moveTarget = this.attackTarget = this.pickTarget = null;
     this.group.rotation.y = Math.atan2(dx, dz);
@@ -861,6 +972,7 @@ export class Player {
   }
 
   gainXP(amount) {
+    const knownBefore = new Set(Object.keys(this.skills || {}));
     if (this.xpBoostT > 0) amount = Math.round(amount * 1.5);
     // mutador de Era (p. ej. Era de la Sabiduría: +50% XP)
     const xpMul = this.game?.eraMutatorBonus?.()?.xpMul || 1;
@@ -898,22 +1010,52 @@ export class Player {
       this.game.ui.levelUpFlash?.(this.level);
       this.game.tip('subir', 'Reparte tus puntos: Personaje (C / 🧍) y Habilidades (T / 📖)');
     }
+    this.onSkillsLearned(knownBefore);
+  }
+
+  // habilidades aprendidas solas al subir de nivel (§4.1): aviso y, si su ranura
+  // natural está libre, se colocan en la barra.
+  onSkillsLearned(knownBefore) {
+    const fresh = knownSkills(this).filter(sk => !knownBefore.has(sk.id));
+    if (!fresh.length) return;
+    let placed = false;
+    for (const sk of fresh) {
+      const slot = (sk.slots || []).find(s => this.hotbar && !this.hotbar[s]);
+      if (slot && !Object.values(this.hotbar).includes(sk.id)) { this.hotbar[slot] = sk.id; placed = true; }
+      this.game.ui?.message?.(`📖 Nueva habilidad: ${sk.icon} ${sk.name}${slot ? ` (ranura ${slot.toUpperCase()})` : ''}`, 3500);
+    }
+    if (placed) this.game.ui?.refreshHotbar?.();
   }
 
   // Daño recibido en CAPAS (combat-math.mitigate): bloqueo → armadura (solo
   // físico, vs nivel de área del atacante, tope 75 %) → resistencia elemental
   // (tope 70 %) → reducción de daño %. opts: { element='phys', melee=false,
   // source=Enemy }. Las espinas SOLO responden a golpes cuerpo a cuerpo.
+  // ⑧ Paso 2b.0: condDr (poderes) → mitigar → escudos → onDamaged → vida → onLethal.
+  // Recibir daño genera Furia (resources.onHurtResource) y un golpe de más del 10 %
+  // de la vida interrumpe las canalizaciones/habilidades `int` (salvo imparable).
   takeDamage(amount, attackerLevel = 1, opts = {}) {
     if (!this.alive) return;
-    if (this.dodgeT > 0) {
-      // invulnerable durante la esquiva
+    if (this.dodgeT > 0 || this.invulnT > 0 || this.leap) {
+      // invulnerable durante la esquiva, el salto o una inmunidad
       this.game.ui.spawnText(this.pos, '¡Esquivado!', 'txt-heal');
       return;
     }
-    const mit = mitigate(amount, this.stats, { al: attackerLevel, element: opts.element || 'phys', rng: this.combatRng });
-    const dmg = mit.dmg;
+    const g = this.game;
+    const info = { amount, raw: amount, element: opts.element || 'phys', melee: !!opts.melee, blocked: false, src: opts.source || null };
+    const extraDr = this.hookIndex?.condDr ? firePower('condDr', this, this, info) : 0;
+    const st = extraDr ? { ...this.stats, dr: (this.stats.dr || 0) + extraDr } : this.stats;
+    const mit = mitigate(amount, st, { al: attackerLevel, element: info.element, rng: this.combatRng });
+    info.blocked = mit.blocked;
+    const absorbed = mit.dmg - this.absorbShields(mit.dmg);
+    info.amount = mit.dmg - absorbed;
+    if (this.hookIndex?.onDamaged) firePower('onDamaged', this, g, this, info);
+    const dmg = Math.max(0, Math.round(info.amount));
     this.hp -= dmg;
+    this.sinceCombat = 0;
+    onHurtResource(this, dmg);                      // Furia por daño recibido (tope 12/s)
+    if (dmg > BIG_HIT_INTERRUPT * this.stats.maxHP && !(this.unstoppableT > 0)) g.interruptCast?.('hit');
+    if (absorbed > 0) g.ui.spawnText(this.pos, `🛡${absorbed}`, 'txt-heal');
     // espinas: refleja daño al atacante CUERPO A CUERPO (no a proyectiles/áreas)
     if (this.stats.thorns && opts.melee) {
       const e = (opts.source && opts.source.alive) ? opts.source : this.game.nearestEnemy?.(2.6);
@@ -931,16 +1073,9 @@ export class Player {
     this.game.sfx('hurt');
     this.game.tip('pocion', 'Si tu vida baja, bebe una poción: tecla Q o el botón 🧪');
     if (this.hp <= 0) {
-      // maestría Guardián (Muro Inquebrantable): un golpe letal te deja a 1 de
-      // vida y te vuelve inmune un instante (recarga larga)
-      if (this.powers?.has('m_aegis') && (this.aegisCd || 0) <= 0) {
-        this.hp = 1;
-        this.aegisCd = 30;     // s de recarga (lo descuenta Player.update)
-        this.dodgeT = Math.max(this.dodgeT, 2); // 2s de inmunidad (reutiliza la esquiva)
-        this.game.ui.message('🛡️ ¡Muro Inquebrantable! Sobrevives al golpe letal', 3000);
-        this.game.ui.spawnText(this.pos, '¡INQUEBRANTABLE!', 'txt-heal');
-        this.game.addShake(0.5, 0.5);
-        this.game.sfx('levelup');
+      // onLethal: un poder puede salvarte (Muro Inquebrantable…); gana el primero por prioridad
+      if (this.hookIndex?.onLethal && firePower('onLethal', this, g, this, info)) {
+        if (this.hp <= 0) this.hp = 1;
         return;
       }
       this.hp = 0;
@@ -953,12 +1088,15 @@ export class Player {
     if (this.potions[pot] <= 0) { this.game.ui.message('No te quedan pociones'); return; }
     if (pot === 'hp') {
       if (this.hp >= this.stats.maxHP) return;
-      this.hp = Math.min(this.stats.maxHP, this.hp + Math.round(this.stats.maxHP * 0.4));
+      // curación de habilidad (§6.1 B): escala con healPct
+      this.healSkill(Math.round(this.stats.maxHP * 0.4), 'potion');
       this.game.ui.spawnText(this.pos, '+Vida', 'txt-heal');
     } else {
       if (this.mp >= this.stats.maxMP) return;
-      this.mp = Math.min(this.stats.maxMP, this.mp + Math.round(this.stats.maxMP * 0.45));
-      this.game.ui.spawnText(this.pos, '+Maná', 'txt-mana');
+      // poción de recurso (§2): Furia +40 · Maná +45 % · Energía +100 %
+      const def = resourceDefFor(this.cls);
+      this.mp = Math.min(this.stats.maxMP, this.mp + potionResourceAmount(def, this.stats.maxMP));
+      this.game.ui.spawnText(this.pos, `+${def.name}`, 'txt-mana');
     }
     this.potions[pot]--;
     this.game.sfx('potion');
@@ -979,22 +1117,43 @@ export class Player {
     if (expired) { this.buffs = this.buffs.filter(b => b.t > 0); this.recompute(); }
 
     // cooldowns y regeneración
+    this.simT = (this.simT || 0) + dt;
+    this.sinceCombat = (this.sinceCombat || 0) + dt;
     this.atkCd = Math.max(0, this.atkCd - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
-    if (this.aegisCd > 0) this.aegisCd = Math.max(0, this.aegisCd - dt); // recarga del Muro Inquebrantable
+    this.gcdT = Math.max(0, (this.gcdT || 0) - dt);
+    if (this.castLock > 0) this.castLock = Math.max(0, this.castLock - dt); // red de seguridad (windup/canalización)
+    if (this.invulnT > 0) this.invulnT = Math.max(0, this.invulnT - dt);
+    if (this.unstoppableT > 0) this.unstoppableT = Math.max(0, this.unstoppableT - dt);
+    if (this.shields?.length) { for (const s of this.shields) s.t -= dt; this.shields = this.shields.filter(s => s.t > 0 && s.amt > 0); }
     if (this.xpBoostT > 0) this.xpBoostT -= dt;
     for (const k in this.cds) this.cds[k] = Math.max(0, this.cds[k] - dt);
-    // recurso de clase: Furia se disipa (sin regen pasiva); Maná/Energía regeneran
-    const res = this.cls.resource;
-    if (res && res.decay && !res.regen) {
-      this.furiaIdle += dt;
-      if (this.furiaIdle > 2.2) this.mp = Math.max(0, this.mp - res.decay * dt); // solo fuera de combate
-    } else {
-      const rg = resourceRegen(res?.regen ?? 1, this.stats.ene); // combat-math
-      this.mp = Math.min(this.stats.maxMP, this.mp + rg * dt);
-    }
+    // recurso de clase (resources.js §2): Furia se pierde fuera de combate; Maná/Energía regeneran
+    tickResource(this, dt);
     this.hp = Math.min(this.stats.maxHP, this.hp + (0.4 + this.stats.vit * 0.02) * dt);
-    this._leech = leechRefill(this._leech, this.stats.maxHP, dt); // cubeta del robo de vida
+    this._leech = sustainRefill(this._leech, this.stats.maxHP, dt); // cubeta de sustento
+    // ⑨ onTick de los poderes a 10 Hz (dt acumulado)
+    if (this.hookIndex?.onTick) {
+      this._tickAcc = (this._tickAcc || 0) + dt;
+      while (this._tickAcc >= 0.1) { this._tickAcc -= 0.1; firePower('onTick', this, g, this, 0.1); }
+    } else this._tickAcc = 0;
+
+    // salto en curso (tipo `leap`): vuela al destino, intocable; al caer, impacto
+    if (this.leap) {
+      const L = this.leap;
+      L.t += dt;
+      const k = Math.min(1, L.t / L.dur);
+      this.pos.x = L.from.x + (L.to.x - L.from.x) * k;
+      this.pos.z = L.from.z + (L.to.z - L.from.z) * k;
+      const a = this.group.userData.anim;
+      if (a) a.rig.position.y = Math.sin(k * Math.PI) * 1.4;
+      if (k >= 1) {
+        this.leap = null;
+        if (a) a.rig.position.y = 0;
+        try { L.onLand?.(); } catch (err) { console.warn('[salto] onLand', err); }
+      }
+      return;
+    }
 
     // ---- movimiento ----
     let dir = null;
@@ -1132,49 +1291,44 @@ export class Player {
   // Solo afecta a la pose visual del brazo (canal aparte del swing).
   castPose(type) {
     this.castPoseT = 1;
-    this.castPoseDir = (type === 'buff' || type === 'aoe_self' || type === 'aoe_target') ? 1.7 : 1.1;
+    this.castPoseDir = ['buff', 'area', 'shield', 'zone', 'taunt', 'channel', 'aoe_self', 'aoe_target'].includes(type) ? 1.7 : 1.1;
   }
 
+  // Ataque básico de arma = GENERADOR (§2) y una habilidad más (cat:'basic'): su
+  // coeficiente, ramas, soportes y poderes salen de resolveSkill. El recurso se
+  // gana SOLO al acertar (Tajo/Embate: +extra por objetivo adicional).
   basicAttack(target) {
     this.atkCd = this.stats.atkTime;
     this.swing = 1;
     const g = this.game;
     const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
-    // el ataque básico ES el generador de recurso de la clase (Furia/Maná/Energía)
-    const res = this.cls.resource;
-    // modificadores del básico de arma (sus 3 ramas): daño/crit/recurso/robo/control
-    const wb = this.cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon');
-    const bm = wb ? aggregateSkillMods(wb.id, this.skillMods?.[wb.id]) : null;
-    // "+X %" de las ramas → saco ADITIVO (combat-math), no multiplicador aparte
-    const bAdd = bm ? (bm.dmg || 0) : 0;
-    const bCrit = bm ? (bm.crit || 0) : 0;
-    const avgHit = this.avgHit(1, bAdd);
+    const wb = weaponBasicOf(this.cls);
+    const prof = wb ? resolveSkill(this, wb) : null;
+    const coef = prof ? prof.coef : 1;
+    const bAdd = prof?.addPct || 0;
+    const bCrit = prof?.critBonus || 0;
+    const hitInfo = { skill: wb?.id || null, tags: prof?.tags || EMPTY_TAGS, elem: prof?.elem || null };
+    const dmgOpts = { skill: hitInfo.skill, tags: hitInfo.tags, elem: hitInfo.elem };
+    const avgHit = this.avgHit(coef, bAdd);
     // recurso: SOLO al acertar (una vez por ataque, aunque haya multidisparo)
     let genGiven = false;
-    const grantGen = () => {
+    const grantGen = (targets = 1) => {
       if (genGiven) return;
       genGiven = true;
-      const add = (res?.gen || 0) + (bm?.gen || 0);
-      if (add) this.mp = Math.min(this.stats.maxMP, this.mp + add);
-      this.furiaIdle = 0;
+      let add = prof ? prof.gen : (this.cls.resource?.gen || 0);
+      if (prof?.genPerExtra && targets > 1) add = Math.min(Math.max(prof.genMax || 0, prof.gen), add + prof.genPerExtra * (targets - 1));
+      gainResource(this, add);
     };
-    // efectos de las ramas sobre un enemigo REALMENTE golpeado
-    const onHit = e => {
-      if (!e || !e.alive || !bm) return;
-      if (bm.vuln) e.vulnT = Math.max(e.vulnT || 0, bm.vuln);
-      if (bm.stun) e.applyStun(bm.stun); // rendimientos decrecientes + regla de jefe
-      if (bm.slow) e.slowT = Math.max(e.slowT || 0, bm.slow);
-      if (bm.dot) g.applyDoT?.(e, avgHit * (bm.dot === 'poison' ? 0.9 : bm.dot === 'burn' ? 0.8 : 0.6), bm.dot === 'poison' ? 5 : bm.dot === 'burn' ? 4 : 3, bm.dot === 'burn' ? 0.8 : 1.0, undefined, `rama:${bm.dot}`);
-    };
-    // robo de vida sobre el daño infligido de verdad
-    const lifeHeal = (dealt) => { if (bm?.lifesteal && dealt > 0) this.leech(dealt * bm.lifesteal / 100); };
+    // efectos de ramas/soportes sobre un enemigo REALMENTE golpeado
+    const onHit = e => applyHitEffects(g, this, e, prof, avgHit);
+    // robo de vida sobre el daño infligido de verdad (cubeta de sustento)
+    const lifeHeal = (dealt) => { if (prof?.lifesteal && dealt > 0) this.leech(dealt * prof.lifesteal / 100); };
 
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
-      const { dmg, crit } = this.rollDamage(1, bCrit, bAdd);
+      const { dmg, crit } = this.rollDamage(coef, bCrit, bAdd, target, hitInfo);
       const tpos = target.pos.clone();
-      let dealtTotal = target.takeDamage(dmg, crit) || 0;
-      grantGen(); // el tajo solo se lanza con un objetivo a rango: siempre acierta
+      let dealtTotal = target.takeDamage(dmg, crit, dmgOpts) || 0;
       onHit(target);
       this.onDealHit();
       // game-feel: hit-stop seco SOLO en crítico (en cada golpe se sentía
@@ -1183,16 +1337,21 @@ export class Player {
       g.spawnBurst?.(tpos, crit ? 0xffffff : 0xffddaa, crit ? 8 : 5);
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
+      let targets = 1;
+      const cleaveCoef = coef * (wb?.cleave ?? 0.5);
+      const cleaveR = wb?.cleaveR ?? 2.0;
       for (const e of g.enemies) {
         if (e === target || !e.alive) continue;
-        if (e.pos.distanceToSquared(target.pos) < 2.0 * 2.0) {
-          const r = this.rollDamage(0.5, bCrit, bAdd);
-          dealtTotal += e.takeDamage(r.dmg, r.crit) || 0;
+        if (e.pos.distanceToSquared(target.pos) < cleaveR * cleaveR) {
+          const r = this.rollDamage(cleaveCoef, bCrit, bAdd, e, hitInfo);
+          dealtTotal += e.takeDamage(r.dmg, r.crit, dmgOpts) || 0;
           onHit(e);
+          targets++;
         }
       }
+      grantGen(targets); // el tajo solo se lanza con un objetivo a rango: siempre acierta
       lifeHeal(dealtTotal);
-      g.spawnRing(target.pos.clone(), 1.4, 0xffbb66);
+      g.spawnRing?.(target.pos.clone(), 1.4, 0xffbb66);
       // arco de chispas del tajo + impacto seco sobre el objetivo.
       const cp = tpos.clone(); cp.y = 1.0;
       g.emitFx?.('basicCleave', cp);
@@ -1201,12 +1360,13 @@ export class Player {
       return;
     }
 
-    // Maga (proyectil arcano) y Arquera (flecha): a distancia, con multidisparo
+    // Maga (proyectil arcano) y Arquera (flecha): a distancia; el daño se TIRA AL
+    // IMPACTAR (rollAt), con los bonos condicionados al objetivo real
     const arrow = atk === 'arrow';
     const color = arrow ? 0xe8d8a0 : 0xcc66ff;
     const speed = arrow ? 18 : 13;
     const size = arrow ? 0.09 : 0.17;
-    const extra = (this.powers?.has('multidisparo') ? 1 : 0) + (bm?.proj || 0); // +proyectil del aspecto "Adicional"
+    const extra = prof?.proj || 0; // multidisparo (poder) + aspecto "Doble"/"Enjambre"
     const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
     // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
     const muzzle = this.pos.clone().setY(1.0)
@@ -1215,13 +1375,13 @@ export class Player {
     for (let i = 0; i <= extra; i++) {
       const a = baseAngle + (extra ? (i - extra / 2) * 0.18 : 0);
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
-      const { dmg, crit } = this.rollDamage(1, bCrit, bAdd);
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed, range: this.cls.atkRange + 2, dmg, crit, friendly: true, color, size, pierce: !!bm?.pierce,
+        speed, range: this.cls.atkRange + 2, friendly: true, color, size, pierce: !!prof?.pierce,
+        rollAt: e => this.rollDamage(coef, bCrit, bAdd, e, hitInfo), ...dmgOpts,
         // recurso, efectos de rama y robo de vida: al IMPACTAR (no al disparar).
         // Así también funcionan apuntando a un punto vacío ({pos: aim} en WASD).
-        onHit: (e, dealt) => { grantGen(); onHit(e); lifeHeal(dealt); },
+        onHit: (e, dealt) => { grantGen(1); onHit(e); lifeHeal(dealt); },
       });
     }
     g.sfx(arrow ? 'shoot' : 'skill');
@@ -1245,7 +1405,14 @@ export class Enemy {
     this.slowT = 0;
     this.vulnT = 0;             // vulnerable (+% de daño recibido) por opciones de habilidad
     this.stunT = 0;             // aturdido (no se mueve ni ataca)
-    this.stunDR = 0;            // resistencia al aturdimiento (rendimientos decrecientes)
+    this.stunDR = 0;            // rendimientos decrecientes del canal DURO (aturdir/congelar/empujar)
+    this.rootT = 0;             // inmovilizado (no se mueve, sí ataca)
+    this.rootDR = 0;            // rendimientos decrecientes del canal INMOVILIZAR
+    this.frozenT = 0;           // congelado (aturdimiento de escarcha)
+    this.slowPct = 0;           // magnitud de la ralentización activa (gana la más fuerte)
+    this.silenceT = 0;          // silenciado/interrumpido
+    this.tauntT = 0;            // provocado (objetivo forzado)
+    this.debuffs = {};          // saco DEBILIDAD: { id: { pct, t } } (una entrada por fuente)
     this.flashT = 0;
     this.fade = 0;
     this.lunge = 0;             // empuje de animación al atacar
@@ -1287,18 +1454,85 @@ export class Enemy {
   //  - jefes/uber/jefes de mundo: duración ×0.35 y acumulan resistencia más rápido.
   // Un aturdimiento más corto que el que ya tiene no lo extiende ni suma DR.
   // Devuelve la duración aplicada (0 si no tuvo efecto).
-  applyStun(dur) {
+  applyStun(dur) { return this.applyCC('stun', dur); }
+
+  // CONTROL centralizado (Paso 2b.0, §6/§9.1.4) con rendimientos decrecientes por CANAL:
+  //  - duro (stun/freeze/knock): +0,35 por aplicación (jefes ×0,35 de duración y +0,6)
+  //  - inmovilizar (root): +0,25 por aplicación
+  //  - ambos decaen 0,12/s y el enemigo es inmune con ≥0,9
+  //  - slow: no acumula (gana el más fuerte), tope 70 % (jefes ×0,5)
+  //  - interrupt: sin rendimientos; 6 s de inmunidad tras silenciar
+  //  - taunt: objetivo forzado (los jefes sí se pueden provocar)
+  // opts = { src, pct (slow), from (knock: origen del empuje) }. Devuelve lo aplicado (0 = nada).
+  // El stagger de jefes (Quebrantado) llega en el Paso 2c.
+  applyCC(kind, dur, opts = {}) {
     if (!(dur > 0) || !this.alive) return 0;
-    const boss = this.def.boss || this.def.uber || this.def.worldBoss;
-    const dr = this.stunDR || 0;
-    if (dr >= 0.9) return 0;                                   // inmune por ahora
-    const d = dur * (1 - dr) * (boss ? 0.35 : 1);
-    if (d < 0.05 || d <= (this.stunT || 0)) return 0;          // no mejora el actual
-    this.stunT = d;
-    this.slowT = Math.max(this.slowT || 0, d);
-    this.stunDR = Math.min(1, dr + (boss ? 0.6 : 0.35));
-    return d;
+    const boss = isBossDef(this.def);
+    switch (kind) {
+      case 'stun': case 'freeze': {
+        const dr = this.stunDR || 0;
+        if (dr >= 0.9) return 0;                                   // inmune por ahora
+        const d = dur * (1 - dr) * (boss ? 0.35 : 1);
+        if (d < 0.05 || d <= (this.stunT || 0)) return 0;          // no mejora el actual
+        this.stunT = d;
+        if (kind === 'freeze') this.frozenT = Math.max(this.frozenT || 0, d);
+        this.slowT = Math.max(this.slowT || 0, d);
+        this.stunDR = Math.min(1, dr + (boss ? 0.6 : 0.35));
+        return d;
+      }
+      case 'knock': {                                              // dur = metros de empuje
+        if (boss) return 0;
+        const dr = this.stunDR || 0;
+        if (dr >= 0.9) return 0;
+        const dist = dur * (1 - dr);
+        const src = opts.from || this.game.player?.pos;
+        if (src) {
+          const dx = this.pos.x - src.x, dz = this.pos.z - src.z, l = Math.hypot(dx, dz) || 1;
+          const nx = this.pos.x + dx / l * dist, nz = this.pos.z + dz / l * dist;
+          if (this.game.world?.grid?.walkable(nx, nz)) { this.pos.x = nx; this.pos.z = nz; }
+        }
+        this.stunDR = Math.min(1, dr + 0.35);
+        return dist;
+      }
+      case 'root': {
+        const dr = this.rootDR || 0;
+        if (dr >= 0.9) return 0;
+        const d = dur * (1 - dr) * (boss ? 0.35 : 1);
+        if (d < 0.05 || d <= (this.rootT || 0)) return 0;
+        this.rootT = d;
+        this.rootDR = Math.min(1, dr + 0.25);
+        return d;
+      }
+      case 'slow': {
+        const pct = Math.min(70, Math.max(1, opts.pct ?? 50) * (boss ? 0.5 : 1));
+        if (this.slowT > 0 && pct < (this.slowPct || 0)) return 0;  // gana el más fuerte
+        this.slowPct = pct;
+        this.slowT = Math.max(this.slowT || 0, dur);
+        return dur;
+      }
+      case 'interrupt': {
+        if ((this.silenceImmuneT || 0) > 0) return 0;
+        this.silenceT = dur;
+        this.silenceImmuneT = dur + 6;
+        this.castT = 0;
+        return dur;
+      }
+      case 'taunt': {
+        this.tauntT = dur;
+        this.tauntSrc = opts.src || null;
+        this.aggroed = true;
+        return dur;
+      }
+    }
+    return 0;
   }
+
+  // Entrada del saco DEBILIDAD: una por id (se refresca), `pct` puntos durante `dur` s
+  applyWeakness(id, pct, dur) {
+    if (!this.alive || !(dur > 0)) return;
+    this.debuffs[id] = { pct: Math.max(0, pct || 0), t: dur };
+  }
+  weaknessPct() { return sumWeakness(this.debuffs); }
 
   // Libera la memoria de GPU del modelo al quitar el enemigo de la escena: cada
   // enemigo crea sus PROPIAS geometrías/materiales (makeEnemyModel, aura, cáscara
@@ -1317,38 +1551,44 @@ export class Enemy {
   tickStun(dt) {
     if (this.stunT > 0) this.stunT -= dt;
     if (this.stunDR > 0) this.stunDR = Math.max(0, this.stunDR - dt * 0.12);
+    if (this.rootT > 0) this.rootT -= dt;
+    if (this.rootDR > 0) this.rootDR = Math.max(0, this.rootDR - dt * 0.12);
+    if (this.frozenT > 0) this.frozenT -= dt;
+    if (this.silenceT > 0) this.silenceT -= dt;
+    if (this.silenceImmuneT > 0) this.silenceImmuneT -= dt;
+    if (this.tauntT > 0) this.tauntT -= dt;
+    for (const k in this.debuffs) { const d = this.debuffs[k]; d.t -= dt; if (d.t <= 0) delete this.debuffs[k]; }
   }
 
   // Devuelve el daño REALMENTE infligido (0 si ya estaba muerto), para que el
   // robo de vida/efectos se calculen sobre impactos reales.
+  // ④ Paso 2b.0 (sin ganchos): aplica el saco DEBILIDAD (Vulnerable + debilitamientos,
+  // tope ×1,5) y los multiplicadores [×] del héroe (MULT_POWERS, máx. 3), resta la
+  // vida y llama a ⑤ (Game.onPlayerHit → poderes onHit).
+  // opts = { skill, tags:Set, elem, proc, dot, source, color, from }.
+  //   proc: daño de un poder/espinas/explosión → sin Π[×] y no dispara onHit
+  //   dot: tic de DoT o de campo → recibe Π[×] pero tampoco dispara onHit
   takeDamage(amount, crit = false, opts = {}) {
     if (!this.alive) return 0;
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
-    // Vulnerable: saco propio ×VULN_MULT (combat-math)
-    if (this.vulnT > 0) amount *= VULN_MULT;
+    const raw = amount;
+    amount *= weaknessMult(this.vulnT > 0 ? VULN_PCT : 0, sumWeakness(this.debuffs));
     // multiplicadores [×] del héroe (Furia, Sed de Batalla, Tiro Mortal, Cacería y
-    // el hook de talentos): solo los MAX_MULT_ACTIVE mayores activos. No aplican a
-    // los "procs" (espinas, explosiones al matar) para que no se realimenten.
-    // (el daño al enemigo siempre procede del jugador: la mascota no daña y los
-    // enemigos no se golpean entre sí)
+    // los nodos clave de talento): solo los MAX_MULT_ACTIVE mayores activos. No
+    // aplican a los "procs" para que no se realimenten. (El daño al enemigo siempre
+    // procede del jugador: la mascota no daña y los enemigos no se golpean entre sí.)
     const pl = this.game.player;
     if (pl && !opts.proc) {
       amount *= multiplierProduct(pl.powers, {
         hpFrac: pl.stats?.maxHP ? pl.hp / pl.stats.maxHP : 1,
-        targetFrac: this.hp / this.maxHP, targetSlowed: this.slowT > 0, crit,
+        targetFrac: this.hp / this.maxHP, targetSlowed: this.slowT > 0 || this.frozenT > 0, crit, p: pl, e: this,
       }, pl.extraMultipliers);
     }
     amount = Math.max(1, Math.round(amount));
-    const pw = pl?.powers;
-    if (pw) {
-      // Crionte (Cero Absoluto): ralentizado + poca vida + no jefe → ejecución
-      const boss = this.def.boss || this.def.uber || this.def.worldBoss;
-      if (pw.has('m_shatter') && this.slowT > 0 && !boss && (this.hp - amount) <= this.maxHP * 0.18) {
-        amount = this.hp;
-        this.game.ui.spawnText(this.pos.clone().add(new THREE.Vector3(0, this.def.scale, 0)), '¡ASTILLADO!', 'txt-crit');
-      }
-    }
     const dealt = Math.max(0, Math.min(amount, this.hp));
+    // último golpe recibido (KillInfo de ⑥ onKill)
+    if (opts.skill) { this._lastSkill = opts.skill; this._lastTags = opts.tags || EMPTY_TAGS; }
+    this._lastCrit = !!crit;
     this.hp -= amount;
     // destello BLANCO: ~70ms base, escala suave con el % de daño recibido
     const pct = Math.min(1, amount / Math.max(1, this.maxHP));
@@ -1384,6 +1624,15 @@ export class Enemy {
       else if (pct >= 0.30) this.game.hitStop?.(45);
     }
     if (this.hp <= 0) this.die();
+    // ⑤ punto único por impacto: poderes onHit (y, en 2c, indicadores de especialización)
+    if (pl) {
+      const hit = { dealt, raw, crit: !!crit, skill: opts.skill || null, tags: opts.tags || EMPTY_TAGS, elem: opts.elem || null,
+        proc: !!opts.proc, dot: !!opts.dot, source: opts.source || (opts.proc ? 'proc' : opts.dot ? 'dot' : 'hit'),
+        pos: { x: this.pos.x, z: this.pos.z } };
+      const g = this.game;
+      if (g.onPlayerHit) g.onPlayerHit(this, hit);
+      else if (pl.hookIndex?.onHit) firePower('onHit', pl, g, pl, this, hit);
+    }
     return dealt;
   }
 
@@ -1549,7 +1798,7 @@ export class Enemy {
         }
       }
 
-      const gspd = this.def.spd * (this.slowT > 0 ? 0.5 : 1) * fleeMul;
+      const gspd = this.def.spd * (this.slowT > 0 ? 0.5 : 1) * (this.rootT > 0 ? 0 : 1) * fleeMul;
 
       if (resting) {
         // detenido (descansando, burlándose o aturdido): bamboleo en el sitio
@@ -1775,7 +2024,7 @@ export class Enemy {
       }
     }
 
-    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1);
+    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1) * (this.rootT > 0 ? 0 : 1); // inmovilizado: no se mueve
 
     // cobardes: con poca vida huyen de ti, pero EN RÁFAGAS — corren ~1.5s y
     // luego se cansan ~1.5s (se ralentizan y se dan la vuelta), dando una
@@ -2027,8 +2276,16 @@ export class Projectile {
     this.friendly = opts.friendly;
     this.dmg = opts.dmg;
     this.crit = opts.crit || false;
+    // Paso 2b.0: los proyectiles del jugador TIRAN EL DAÑO AL IMPACTAR —
+    // rollAt(e) → { dmg, crit } (Player.rollDamage con el objetivo real: bonos
+    // condicionados al objetivo). Sin rollAt se usan dmg/crit fijos (enemigos, rebotes).
+    this.rollAt = typeof opts.rollAt === 'function' ? opts.rollAt : null;
+    this.skill = opts.skill || null;
+    this.tags = opts.tags || null;
+    this.elem = opts.elem || null;
     this.pierce = opts.pierce || false;
     this.slow = opts.slow || 0;
+    this.slowPct = opts.slowPct || 0;
     this.attackerLevel = opts.attackerLevel || 1;
     this.hitSet = new Set();
     // callback al IMPACTAR de verdad (e, dañoInfligido): DoT/aturdir/vulnerable/
@@ -2039,6 +2296,7 @@ export class Projectile {
     this._hex = '#' + (((this.color >>> 0) & 0xffffff).toString(16).padStart(6, '0'));
     this._trailT = 0;
     this.trailPreset = opts.trailPreset || { texture: 'glow', count: 1, burst: true, lifetime: [0.2, 0.32], shape: 'point', speed: [0, 0.3], drag: 3, size: { start: [0.16, 0.22], end: 0 }, color: { start: this._hex, end: this._hex }, alpha: { start: 0.5, end: 0 } };
+    this._autoImpact = !opts.impactPreset;
     this.impactPreset = opts.impactPreset || { texture: 'glow', count: this.crit ? 16 : 9, burst: true, lifetime: [0.25, 0.5], shape: 'sphere', shapeRadius: 0.12, speed: [1.2, this.crit ? 4.5 : 3], gravity: -2, drag: 2.5, size: { start: [0.2, 0.32], end: 0 }, color: { start: this._hex, end: this._hex }, alpha: { start: 0.9, end: 0 } };
 
     const dir = opts.to.clone().sub(opts.from);
@@ -2081,9 +2339,17 @@ export class Projectile {
         if (!e.alive || this.hitSet.has(e)) continue;
         const r = 0.55 * (e.def.scale || 1);
         if (p.distanceToSquared(e.pos.clone().setY(p.y)) < r * r) {
-          const dealt = e.takeDamage(this.dmg, this.crit, { color: this.color }) || 0;
+          if (this.rollAt) {
+            const roll = this.rollAt(e);
+            this.dmg = roll.dmg; this.crit = roll.crit;
+            if (this._autoImpact) this.impactPreset.count = this.crit ? 16 : 9;
+          }
+          const dealt = e.takeDamage(this.dmg, this.crit, { color: this.color, skill: this.skill, tags: this.tags || undefined, elem: this.elem }) || 0;
           g.player?.onDealHit();
-          if (this.slow) e.slowT = this.slow;
+          if (this.slow && e.alive) {
+            if (e.applyCC) e.applyCC('slow', this.slow, { pct: this.slowPct || 50, src: g.player });
+            else e.slowT = this.slow;
+          }
           if (this.onHit) { try { this.onHit(e, dealt); } catch (err) { console.warn('onHit de proyectil', err); } }
           g.sfx('hit');
           this.burst();

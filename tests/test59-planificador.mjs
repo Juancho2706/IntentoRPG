@@ -105,7 +105,8 @@ const mkEnemy = (hp) => ({
 // ------------------------------------------------ 4) sin setTimeout en combate
 {
   const dir = dirname(fileURLToPath(import.meta.url));
-  const src = ['main.js', 'entities.js', 'enemy-abilities.js', 'game-zone-life.js', 'game-endgame.js']
+  const src = ['main.js', 'entities.js', 'enemy-abilities.js', 'game-zone-life.js', 'game-endgame.js',
+    'game-skills.js', 'field-entities.js', 'powers.js', 'powers-common.js', 'skill-resolve.js', 'resources.js']
     .map(f => readFileSync(join(dir, '..', 'js', f), 'utf8')).join('\n');
   const uses = src.split('\n').filter(l => /\bsetTimeout\s*\(/.test(l) && !/^\s*\/\//.test(l));
   assert.deepEqual(uses, [], 'setTimeout en código de simulación:\n' + uses.join('\n'));

@@ -88,7 +88,10 @@ console.log('Enemy.takeDamage: Vulnerable + [×] al impactar, procs sin [×] ✓
 // --- 7) Volátil: escala con el héroe y no es recursivo ---
 ok(CM.volatileDamage(100) === 50, 'Volátil = 50 % del golpe medio');
 const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
-ok(/_killBurst/.test(main) && /volatileDamage\(/.test(main) && !/maxHP \|\| 20\) \* 0\.4/.test(main), 'onEnemyKilled debe usar volatileDamage y la guarda _killBurst');
+// Paso 2b.0: el poder vive en el registro (js/powers-common.js) y onEnemyKilled
+// conserva la guarda _killBurst (KillInfo.nested: un estallido no vuelve a estallar)
+const commonSrc = readFileSync(new URL('../js/powers-common.js', import.meta.url), 'utf8');
+ok(/_killBurst/.test(main) && /nested/.test(main) && /volatileDamage\(/.test(commonSrc) && /kill\?\.nested/.test(commonSrc) && !/maxHP \|\| 20\) \* 0\.4/.test(commonSrc), 'onEnemyKilled debe usar la guarda _killBurst/nested y Volátil volatileDamage');
 console.log('Volátil: daño del héroe, sin cadena recursiva ✓');
 
 // --- 8) escalado: curva única, jefes, Tormento sin ilvl ---

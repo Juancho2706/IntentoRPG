@@ -35,8 +35,13 @@ p.equipment.helm = lphItem; p.recompute();
 p.hp = p.stats.maxHP - 50;
 const before = p.hp;
 p.onDealHit();
-if (p.hp !== before + 10) throw new Error('vida al golpear no curó: ' + before + '→' + p.hp);
-console.log(`Vida al golpear: ${before} → ${p.hp} ✓`);
+// Paso 2b.0 (§6.1): la vida al golpear ENTRA en la cubeta de sustento (6 % de la
+// vida máx./s compartido con el robo de vida y las curas al matar)
+const expectHeal = Math.min(10, 0.06 * p.stats.maxHP);
+if (Math.abs((p.hp - before) - expectHeal) > 1e-6) throw new Error('vida al golpear no curó lo esperado: ' + before + '→' + p.hp + ' (esperado +' + expectHeal + ')');
+p.onDealHit();
+if (Math.abs((p.hp - before) - expectHeal) > 1e-6) throw new Error('la cubeta de sustento debía estar vacía en el mismo instante');
+console.log(`Vida al golpear (cubeta de sustento): ${before} → ${p.hp} ✓`);
 
 // espinas reflejan daño al atacante cercano
 const thornItem = generateItem(8, 'raro'); thornItem.unidentified = false; thornItem.affixes = { thorns: 15 };

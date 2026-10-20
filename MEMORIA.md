@@ -2,19 +2,19 @@
 
 > **Propósito:** índice vivo de lo que YA EXISTE en el juego, para no re-proponer
 > ni reimplementar features ya hechas, y para arrancar cada sesión con contexto.
-> Mantener actualizado al añadir/cambiar sistemas. Última actualización: **2026‑10‑20** (Paso 1A).
+> Mantener actualizado al añadir/cambiar sistemas. Última actualización: **2026‑10‑20** (Paso 2b.0).
 
 ---
 
 ## 0. Qué es / stack
 
 - **IntentoRPG**: ARPG isométrico estilo Diablo 2/4, **JavaScript vanilla + Three.js 0.160**, **sin build step** (ES modules vía importmap CDN jsdelivr). PWA (Vercel), móvil + desktop, guardado en `localStorage` (3 huecos + export/import base64). Texto del juego en español.
-- **Sin bundler, sin npm deps de runtime.** Tests: simulación headless en `tests/*.mjs` (sin DOM/WebGL), corren con `npm test` (`node tests/run.mjs`). **63 suites** (incl. `balance-bench`).
+- **Sin bundler, sin npm deps de runtime.** Tests: simulación headless en `tests/*.mjs` (sin DOM/WebGL), corren con `npm test` (`node tests/run.mjs`). **69 suites** (incl. `balance-bench`).
 
 ## 1. Convenciones de desarrollo (IMPORTANTES)
 
 - **`npm test` debe quedar en verde** siempre antes de commitear.
-- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v92**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
+- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v93**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
 - **Git author**: `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita commits "Unverified").
 - **Push a AMBAS ramas**: `claude/isometric-rpg-game-xmer7p` y `main` (fast‑forward `origin <branch>:main`).
 - **No tocar archivos que esté escribiendo un agente en background** (p. ej. informes).
@@ -32,11 +32,12 @@
   - `game-zone-life.js` → `zoneLifeMethods` (respawn, jefe de mundo, goblin, oleadas, celdas aleatorias)
   - `game-mastery.js` → `masteryMethods` (elegir rama, asignar nodos, reespecializar)
   - `game-eras.js` → `eraMethods` (temporadas locales: mutador semanal + objetivos)
-- **Otros módulos:** `entities.js` (Player, Enemy, Projectile, **Pet**, modelos), `data.js` (clases, skills, enemigos, soportes, paragon, bendiciones, **PET_KINDS/UPGRADES/COLLARS**), `items.js` (loot/rarezas/crafteo), `world.js` (pueblo/mazmorra/refugio), `zones.js` (zonas open), `ui.js` (toda la UI/paneles/HUD), `input.js` (teclado/ratón/joystick), `postfx.js` (post‑proceso + AmbientParticles + BlobShadows), `particles.js` (motor de partículas de gameplay), `fx-skills.js`/`fx-enemies.js` (catálogos VFX), `sfx.js` (sintetizador WebAudio), `music.js`, `vfx.js` (hitStop/noise). **Cimientos (Paso 1B):** `save-schema.js` (guardado versionado), `rng.js` (azar con semilla por subsistema), `timers.js` (planificador por ticks de la simulación). **Fórmulas (Paso 1A):** `combat-math.js` (daño por sacos, topes, defensas en capas, curva G(AL), Tormento).
+- **Otros módulos:** `entities.js` (Player, Enemy, Projectile, **Pet**, modelos), `data.js` (clases, skills, enemigos, soportes, paragon, bendiciones, **PET_KINDS/UPGRADES/COLLARS**), `items.js` (loot/rarezas/crafteo), `world.js` (pueblo/mazmorra/refugio), `zones.js` (zonas open), `ui.js` (toda la UI/paneles/HUD), `input.js` (teclado/ratón/joystick), `postfx.js` (post‑proceso + AmbientParticles + BlobShadows), `particles.js` (motor de partículas de gameplay), `fx-skills.js`/`fx-enemies.js` (catálogos VFX), `sfx.js` (sintetizador WebAudio), `music.js`, `vfx.js` (hitStop/noise). **Cimientos (Paso 1B):** `save-schema.js` (guardado versionado), `rng.js` (azar con semilla por subsistema), `timers.js` (planificador por ticks de la simulación). **Fórmulas (Paso 1A):** `combat-math.js` (daño por sacos, topes, defensas en capas, curva G(AL), Tormento). **Núcleo de habilidades (Paso 2b.0):** `skill-defs.js` (vocabulario puro: categorías, `CAT_SLOTS`, tags, formato y validación, constructores de ramas), `skills-<clase>.js` + `fx-skills-<clase>.js` (catálogo y VFX por clase), `skill-resolve.js` (`resolveSkill`), `game-skills.js` (mixin: canal de lanzamiento), `resources.js` (Furia/Maná/Energía), `powers.js` + `powers-common.js` (registro de poderes y comportamientos), `field-entities.js` (campos de suelo).
 
 ## 3. FEATURES QUE YA EXISTEN (no reimplementar)
 
 ### Clases y progresión
+- ⚠️ *Lo siguiente lo REEMPLAZA el Paso 2b.0 (§6): rangos por nivel, sin puntos de habilidad, `CAT_SLOTS`, catálogo en `skills-<clase>.js`.*
 - ✅ **REWORK de clases estilo D4 — recurso + generador/gastadoras** (HECHO 2026‑06‑16, sistema de skills **v2**): cada clase tiene un **recurso** (`cls.resource`): Guerrero=**Furia** (no regenera, se disipa fuera de combate; `decay`), Maga=**Maná** y Arquera=**Energía** (regeneran; `regen`). El **ATAQUE BÁSICO** (arma: cleave/bolt/arrow, `basicAttack`) es el **generador** con el que NACES (genera `resource.gen` al golpear) y vive en la ranura 🖱️Izq. Hay **4 habilidades CORE** por clase (`kind:'core'`) que **gastan** recurso (su `mana` es el coste). Se retiraron las pasivas del árbol (viven en maestrías) y el single‑target redundante. Empiezas sabiendo SOLO el básico; las cores se aprenden con puntos. **Migración** (`Player` constructor, `skillSystemV`): los saves viejos reembolsan TODO lo invertido y arrancan limpios (nivel/oro/equipo/paragon/maestrías intactos). **Hotbar de 6 ranuras** `player.hotbar = {lmb,rmb,k1,k2,k3,k4}` (`normalizeHotbar`), reasignable (`game.assignHotbar`, UI `hotbarAssignRow` en el panel de Habilidades). El recurso reusa `player.mp`/`stats.maxMP`; el orbe se tinta por clase en `updateHUD`. Tests: `test55-recurso-clases` (+ `test21`/`test53`/`test5` adaptados).
 - ✅ **2 esquemas de control en PC** (HECHO 2026‑06‑16, `settings.controlScheme`, default `'wasd'`): **WASD+ratón** (D4): WASD mueve, el ratón APUNTA (el héroe mira al cursor — facing en `entities.update`), **clic izq=ranura lmb (básico), clic der=ranura rmb**, teclas **1·2·3·4** = k1‑k4. Clic mantenido lanza en bucle (held en `tick`, `input.mouseHeld`). **Clic‑mover** (D2): clic izq mueve/ataca como siempre, clic der lanza la ranura rmb. Conmutable en Opciones→Controles. Móvil (joystick+tap) intacto (el esquema solo afecta a eventos de ratón). Wiring: `input.js onPointerDown` por esquema, `main.castSkillSlot(slotKey)` + `castBasic`.
 - ✅ **Estética de árbol orgánico (zig-zag + ramas SVG)** (HECHO 2026‑06‑16): el árbol se dibuja como un **árbol descendente en ZIG-ZAG**: los rombos (nodos) se desfasan a izq/der alternando (`marginLeft/Right`), un **SVG** (`.sk-links`, `drawSkillLinks`) traza el **espinazo** diagonal entre rombos (dorado), las **ramas** en abanico que **surgen del rombo** hacia sus habilidades (las 3 habilidades van en **fila/`nowrap`**, no apiladas), y las **ramitas** de cada habilidad hacia sus 3 filas de pasivos. Coordenadas por layout (`offsetLeft/Top` acumulado por la cadena `offsetParent`), así el SVG se escala/desplaza junto al grafo con el `transform`. El rombo va centrado arriba de sus habilidades (`.sk-knode-head` en columna). **El nodo 1 (raíz) ramifica hacia ABAJO (habilidades en fila); los nodos 2+ ramifican a los LADOS alternando** (`.sk-sec-down/right/left`, habilidades apiladas en columna a un lado), porque el espinazo les llega por arriba → genera el zig-zag sin offsets manuales.
@@ -254,7 +255,93 @@ Inspiración (oct‑2026): D4 desde Season of Blood (crítico/vulnerable con mul
    - `balance-regression.mjs` ahora vigila **ritmo** (XP/nivel, TTK del básico, golpes aguantados) con las fórmulas de combat-math; `test38` comprueba que cada escalón de Tormento (con la calidad que da) sube el TTK y baja el aguante.
 8. **Riesgos/pendientes:** (a) diferencias por clase (la Maga revienta comunes antes; Guerrero Nv10 más lento contra jefes; márgenes justos: élite Maga Nv10 4,7 s, TTD Guerrero Nv50 6,2 s) → rework de clases/talentos con el banco; (b) a T10 el equipo típico muere en ~3 s ante manadas: T10 es para builds optimizadas; (c) objetos viejos reescalados (ilvl alto pierde ~3× de daño de arma, igual que los enemigos nuevos); (d) azar de combate: `player.combatRng` opcional (si no, Math.random) — base para el ladder; (e) el banco no modela AoE, movimiento ni mecánicas de jefe; (f) apilado de DoT (pandemic/tope) sigue pendiente; (g) fuentes de `block`/`dr`/resistencias aún no existen en el botín (preparadas).
 
+### ✅ Paso 2b.0 — núcleo de habilidades (HECHO 2026‑10‑20, sw v93, save v3, tests `test61`‑`test64`, `test67`, `test68`)
+Implementa `docs/paso2-diseno.md` §9.2 «2b.0» (contratos §9.1). El catálogo actual se movió **tal cual** al formato nuevo; el catálogo completo de §3 es de 2b.1.
+1. **Formato y catálogo por clase.** `js/skill-defs.js` (puro, sin imports) define `CATS`, `SLOT_KEYS`, **`CAT_SLOTS`** (`basic→lmb`, `spender→rmb|k2`, `movement→k1`, `defense|utility→k2`, `spec→k3`, `ultimate→k4`; la ranura `k2` es la flexible), `SLOT_UNLOCK`, `GCD_CATS`, `TAGS`, `ELEMS`, `GENERIC_TYPES`, `normalizeSkillDef`, `validateSkillDef`, `supportFits` y los constructores de ramas (`dmgMods`/`buffMods`/`utilMods` + opciones `O_*`/`V_*`/`T_*`). Cada clase vive en `js/skills-<clase>.js` (`<CLASE>_SKILLS`, `<CLASE>_SKILL_MODS`, `<CLASE>_SKILL_BEHAVIORS`) y su VFX en `js/fx-skills-<clase>.js` (`<CLASE>_FX`, `<CLASE>_FX_PRESETS`); `data.js` y `fx-skills.js` los fusionan. Se eliminaron las pasivas compradas y las sinergias (`synergyBonus`).
+2. **Rangos por nivel** (`skill-resolve.js`): las habilidades se aprenden solas al llegar a `req` (`isKnown`) y su rango es `clamp(1+⌊(Nv−req)/8⌋, 1, 5)` (`rankBase`; las de talento usan req 10). `p.skills` es un mapa DERIVADO (no se guarda). Coef ×(1+0,10·(rango−1)) (`rankCoef`), buffs ×(1+0,06·(rango−1)) (`rankBuff`). Los puntos de habilidad solo compran ramas; reiniciar ramas es **gratis fuera de combate** (`canRespecFree`).
+3. **`resolveSkill(p, sk)`** = perfil final cacheado en `p.resolved` (se invalida en `recompute` y al cambiar soportes/ramas): rango → ramas → talentos (`p.tv`) → soportes (`SUPPORT_MOD`, por tags `requires`/`forbids`; huecos: básico/definitiva 1, resto 2) → ② `modifyResolve` → CDR/coste (Masacre aparte). Devuelve coef, addPct, critBonus, cost, cd, gcd, windup, impactDelay, radius, proj/pierce/chain, slow/stun/root/vuln/dot/zone/echo, gen, buff/dur…
+4. **Canal de lanzamiento** (`game-skills.js`, mixin `skillMethods`): GCD 0,2 s entre gastadoras/defensa/utilidad/spec/definitiva (movilidad y básico fuera); **windup** cancelable con la esquiva **sin cobrar coste** (se cobra al soltar); `impactDelay` = daño sincronizado con el VFX (Meteoro 0,6 s; golpes pesados 0,15 + 0,23); canalización por ticks del planificador (soltar/esquiva/golpe >10 % la cortan salvo imparable); tipos genéricos `weapon melee proj area cone line leap dash blink shield taunt zone trap mark channel buff`; `onPlayerHit` = punto ⑤. Los **proyectiles tiran el daño al impactar**.
+5. **Registro de poderes** (`powers.js`): `definePower(id, def)` + `firePower(hook, p, ...args)` desde 10 puntos fijos (①‒⑩, ver cabecera de powers.js). Prohibido `powers.has(` fuera de `js/powers*.js` (`test67`). Todos los poderes que existían migraron a `powers-common.js` (Furia/Sed/Tiro Mortal/Cacería como `mult`, Avaricia, Ágil, Multidisparo, Sobrecarga, Quebrar, Festín, Volátil/Juicio/Conflagración, Égida).
+6. **Recursos** (`resources.js`, §2): Furia 100 (empieza en 0, sin regen, decae 12/s tras 4 s fuera de combate, +0,5 por % de vida perdida con tope 12/s), Maná 100 + 2·Ene + 3·Nv (regen 2,5/s), Energía 60 (+20 por objetos, regen 6/s). Generación de básicos: Tajo +10 (+2/extra, máx 16), Mandoble +14, Embate +7 (+2/extra, máx 15), Dardo +3, Disparo +5. Definitivas sin coste.
+7. **Combate** (`combat-math.js` + `entities.js`): saco **Debilidad** (Vulnerable 20 % + debilidades; tope ×1,5, `weaknessMult`), **cubeta de sustento compartida** (robo, vida al golpear, Festín: máx 6 % vida/s), `CAPS.heal` 50, `condAddPct(tv, ctx)`, `dotProfile`. `Enemy.applyCC(kind, dur)` con rendimientos decrecientes por canal (duro/raíz/ralentización/interrupción/provocación), `applyWeakness`. `Player.takeDamage` = ⑧ (condDr → mitigar → escudos → onDamaged → onLethal); invulnerable en el aire del Salto. Campos de suelo: `field-entities.js` (`defineField`, `spawnField`; Estela/zona/trampa; tope 12 por dueño).
+8. **Guardado v3** (`MIGRATIONS[2]`): borra `skills`, conserva ramas válidas y reembolsa puntos (`min(Nv,20)−1−ramas`), remapea la barra y filtra soportes por tags/huecos; `skillSystemV` 5. Tecla **N = talentos** (abre Maestría hasta 2d).
+9. **Banco** (`balance-bench`): usa `resolveSkill`/`isKnown`/`resourceRegenRate`/`dotProfile` (rangos por nivel, sin compra de rangos). La migración dejaba al Guerrero Nv10 élite en 10,7‑10,8 s (> 10,5); **ajuste mínimo**: Torbellino coef 1,2→1,3 y Martillo 1,8→2,0. Verde. Típico (TTK común/élite/jefe · TTD, s):
+   | | ANTES (HEAD) | DESPUÉS |
+   |---|---|---|
+   | Guerrero Nv1 / 10 / 25 / 50 | 1,50/10,3/57 · 1,46/10,3/86 · 1,12/8,5/80 · 0,96/8,6/68 | 1,50/10,3/57 · 1,47/10,1/88 · 1,11/8,8/88 · 0,91/7,5/64 |
+   | Maga Nv1 / 10 / 25 / 50 | 1,34/9,4/49 · 0,61/4,7/40 · 0,64/4,9/58 · 0,56/5,4/57 | 1,34/9,4/49 · 0,93/6,3/48 · 0,85/6,8/67 · 0,69/6,7/55 |
+   | Arquera Nv1 / 10 / 25 / 50 | 1,20/8,3/43 · 1,10/8,2/66 · 1,05/8,6/86 · 0,57/6,2/54 | 1,20/8,3/43 · 1,39/10,0/81 · 1,26/9,9/99 · 0,69/6,4/52 |
+   | Nv50 T10 jefe (G/M/A) | 209 / 235 / 405 | 194 / 252 / 398 |
+   TTD sin cambios (la defensa no se tocó). **Para 2b.2**: márgenes justos — Guerrero Nv10 élite 10,1 (tope 10,5) y Arquera Nv25 jefe 98,8 (tope 100); el banco aún no modela GCD/windup/impactDelay ni el `LOADOUT` por clase.
+10. **Fuera de alcance (2c)**: stagger, amenaza/`forceTarget`, `spec-mechanics.js` (⑩ onGauge), `talents.js`, `powers-<clase>.js`.
+
 - `recompute()` **ignora objetos sin identificar** (no dan stats) — clave en tests de gemas (ver `test9`, ya endurecido).
 - El motor de partículas necesita `document` (canvas) → guardado con try/catch para tests headless (`game.psys?`).
 - `ui.js` y `main.js` **no se pueden importar headless** (usan `window`/DOM) → la lógica UI/Game no es unit‑testable directamente; se prueban los módulos puros (data/items/economy/entities/world/zones).
 - Pickup a prueba de doble‑recogida (`indexOf<0` guard) en `pickupGroundItem`.
+
+---
+
+## 7. Guía para trabajadores 2b.1 (catálogo por clase)
+
+**Tus archivos (solo estos):** `js/skills-<clase>.js`, `js/fx-skills-<clase>.js`, `tests/test-skills-<clase>.mjs`. No toques `data.js`, `fx-skills.js`, `powers.js`, `game-skills.js`, `entities.js`, `main.js` ni `ui.js`: ya importan y fusionan tus mapas. `skills-<clase>.js` solo puede importar `./skill-defs.js`; `fx-skills-<clase>.js` no importa nada (presets ajenos se citan por NOMBRE). Diseño de cada habilidad: `docs/paso2-diseno.md` §3 (solo las **base**, no las de talento).
+
+**1. Formato exacto de una habilidad** (`<CLASE>_SKILLS`, ejemplo real del Guerrero):
+```js
+{ id: 'g_hendidura', name: 'Hendidura', icon: '🪓',
+  cat: 'spender',                 // basic | spender | movement | defense | utility | spec | ultimate
+  slots: ['rmb', 'k2'],           // = defaultSlots(cat, tags) (CAT_SLOTS); validateSkillDef lo exige
+  tags: ['spender', 'melee', 'cone', 'physical'], // vocabulario cerrado TAGS; incluye cat y elem
+  elem: 'physical',               // physical | fire | frost | arcane | holy | nature
+  type: 'cone',                   // tipo genérico (GENERIC_TYPES) — o behavior: 'id' (ver 3)
+  req: 9,                         // nivel en que se aprende sola (rango = clamp(1+⌊(Nv−req)/8⌋,1,5))
+  coef: 1.4, cost: 11, cd: 5,     // WD por objetivo a rango 1 · coste de recurso · enfriamiento (s)
+  radius: 3.2, angle: 120,        // parámetros del tipo
+  windup: 0.12,                   // opcional: s de preparación (la esquiva lo cancela sin coste)
+  desc: 'Un golpe frontal pesado que desgarra a todo lo que tienes delante.' },
+```
+- Parámetros por tipo: `melee` (range) · `proj` (speed, range, count, spread, pierce, beam) · `area` (`at:'self'|'target'`, radius, range, impactDelay, shake) · `cone` (radius, angle) · `line` (range, width) · `leap` (range, radius, airT) · `dash` (range, radius) · `blink` (range) · `shield` (shieldPct, dur) · `taunt` (radius, dur) · `zone` (at, radius, dur) · `trap` (radius, root, armT) · `mark` (dur, weakPct) · `channel` (channelT, ticks, `int:true`) · `buff` (dur, `buff:{stat: valor}`). Comunes: slow, stun, root, lockT, impactDelay, color. Básicos: `gen`, `genPerExtra`, `genMax` (sin `cost`). Definitivas: sin `cost` (cd ≥ 40). Ejemplos vivos de cada tipo genérico en `tests/test64-gcd-impacto.mjs` (`t_linea`, `t_blink`, `t_escudo`, `t_provoca`, `t_zona`, `t_cepo`, `t_marca`, `t_canal`).
+- Ramas (`<CLASE>_SKILL_MODS`, 3 × 3, mismos ids que la habilidad): `g_hendidura: dmgMods('g_hendidura', O_RAD, T_ZONE, T_CDHIT, V_BLEED)` · buffs: `buffMods(id)` · utilidad/defensa: `utilMods(id)`. Las opciones `O_*`/`V_*`/`T_*` están en `skill-defs.js`; si necesitas una nueva, decláralo en tu archivo con la misma forma (`{ name, desc, dmg?, dot?, slow?, … }`, claves de `MOD_MAX`/`MOD_BOOL`).
+
+**2. VFX/SFX** (`fx-skills-<clase>.js`): `<CLASE>_FX = { g_hendidura: { impact: 'brutalStrike', aura: 'brutalStrikeWave', color: 0xffaa55, sfx: 'hit' } }`. Campos: `trail` (proyectil/caída), `impact` (al impactar), `aura` (en el centro), `extra`, `auraY`, `color`, `sfx` (nombre de `sfx.js`). Cada campo es un preset de `particles.js` (objeto) o el NOMBRE de uno de `SKILL_FX_PRESETS` (`whirlwind`, `meteorImpact`, `frostNova`, `arrowRain`…). Presets nuevos: `<CLASE>_FX_PRESETS = { miPreset: { … } }` y se citan por nombre. El impacto ya está sincronizado: el daño de un `area` con `impactDelay` llega cuando cae el VFX.
+
+**3. Comportamiento a medida** (solo si ningún tipo genérico sirve): la habilidad declara `behavior: 'g_mi_cosa'` (sin `type` genérico) y en `<CLASE>_SKILL_BEHAVIORS`:
+```js
+export const GUERRERO_SKILL_BEHAVIORS = {
+  g_mi_cosa: {
+    // cast(g, p, prof, cast): cast = { sk, prof, slot, target, enemy, ctx, done }
+    // ctx.coef / ctx.areaOpts / ctx.hit(e, dealt) / ctx.res — devuelve ctx.res (instantáneo)
+    // o undefined y llama a cast.done(ctx.res) más tarde (diferido, vía g.timers.schedule)
+    cast(g, p, prof, cast) {
+      g.dealArea(cast.target, prof.radius, cast.ctx.coef, cast.ctx.areaOpts);
+      return cast.ctx.res;
+    },
+    // tick?(g, p, inst, dt) y end?(g, p, inst) solo para canalizaciones
+  },
+};
+```
+`js/powers.js` los registra al cargar (`defineSkillBehavior`: falla si el id se repite o falta `cast`). Usa métodos de `Game` (`g.dealArea`, `g.dealProcDamage`, `g.enemiesInCone/InLine`, `g.spawnField`, `g.applyDoT`, `g.heal`, `g.shield`), nunca `setTimeout` (usa `g.timers.schedule`). Poderes (`definePower`) y campos nuevos (`defineField`) NO son de 2b.1: van en `powers-<clase>.js` (2c).
+
+**4. Tests** (`tests/test-skills-<clase>.mjs`, `npm test` lo recoge solo):
+```js
+import assert from 'node:assert/strict';
+import { CLASSES, SKILL_MODS } from '../js/data.js';
+import { validateSkillDef } from '../js/skill-defs.js';
+import { SKILL_BEHAVIORS } from '../js/powers.js';
+import { resolveSkill } from '../js/skill-resolve.js';
+import { makeHarness } from './helpers/power-harness.mjs';
+for (const s of CLASSES.guerrero.skills) {
+  assert.deepEqual(validateSkillDef(s, { behaviors: SKILL_BEHAVIORS }), [], s.id);
+  assert.equal(SKILL_MODS[s.id]?.length, 3, `${s.id}: 3 ramas`);
+}
+const h = makeHarness({ classId: 'guerrero', level: 20 });
+h.p.mp = h.p.stats.maxMP;
+const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }); h.aim(2, 0);
+h.setSlot('rmb', 'g_hendidura');
+assert.equal(h.cast('rmb'), true);
+h.step(0.3);                                   // windup 0,12 s + impacto
+assert.ok(e.hp < e.maxHP, 'la Hendidura golpea');
+assert.ok(resolveSkill(h.p, CLASSES.guerrero.skills.find(s => s.id === 'g_hendidura')).rank >= 2);
+console.log('✅ HABILIDADES DEL GUERRERO OK');
+```
+Cierre: `node --check` de tus 3 archivos, `npm test` completo en verde y `node tests/balance-bench.mjs --report` (el ajuste fino de números es de 2b.2: si el banco falla por tus números, avísalo, no lo desactives).

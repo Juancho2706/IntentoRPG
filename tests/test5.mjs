@@ -1,31 +1,15 @@
-import { CLASSES, synergyBonus, ENEMIES, pickEnemyDef } from '../js/data.js';
+import * as DATA from '../js/data.js';
+import { CLASSES, ENEMIES, pickEnemyDef } from '../js/data.js';
 import { buildDungeon } from '../js/world.js';
 
-// sinergias: cada clase tiene al menos 2 habilidades con sinergia válida
+// Paso 2b.0 (§4.1): las SINERGIAS se eliminaron (dependían de comprar rangos de
+// otras habilidades; ese papel lo cumplen los talentos `mod`/`elem`).
 for (const c of Object.values(CLASSES)) {
   const withSyn = c.skills.filter(s => s.synergies);
-  if (withSyn.length < 2) throw new Error(c.name + ' sin sinergias suficientes');
-  for (const sk of withSyn)
-    for (const sy of sk.synergies)
-      if (!c.skills.some(s => s.id === sy.from)) throw new Error('sinergia rota: ' + sk.id + ' ← ' + sy.from);
-  console.log(`${c.name}: ${withSyn.map(s => s.id).join(', ')} con sinergia`);
+  if (withSyn.length) throw new Error(c.name + ' aún declara sinergias: ' + withSyn.map(s => s.id).join(', '));
 }
-// cálculo: meteoro con 5 puntos en bola_fuego = +25% (5% por punto)
-const meteoro = CLASSES.maga.skills.find(s => s.id === 'meteoro');
-const b = synergyBonus(meteoro, { bola_fuego: 5 });
-if (b !== 25) throw new Error('synergyBonus esperaba 25, dio ' + b);
-// sinergias 2.0: varias fuentes se SUMAN (familia de habilidades)
-const b2 = synergyBonus(meteoro, { bola_fuego: 5, rayo: 5 });
-if (b2 !== 40) throw new Error('synergyBonus multi-fuente esperaba 40 (25+15), dio ' + b2);
-console.log(`Meteoro: +${b}% con Bola de Fuego, +${b2}% sumando Rayo (sinergias 2.0)`);
-// cada habilidad CORE de daño tiene al menos una sinergia (familia de builds).
-// Básicos y definitivas no requieren sinergias.
-for (const c of Object.values(CLASSES)) {
-  for (const sk of c.skills) {
-    if (sk.kind === 'core' && sk.mult && !sk.synergies) throw new Error(`${sk.id} (core de daño) debería tener sinergias`);
-  }
-}
-console.log('Todas las habilidades core de daño tienen sinergias de familia ✓');
+if ('synergyBonus' in DATA) throw new Error('synergyBonus debía eliminarse de data.js');
+console.log('Sinergias eliminadas en las 3 clases ✓');
 
 // biomas por profundidad
 const expect = { 1: 'Cripta', 5: 'Cripta', 6: 'Cavernas de Hielo', 10: 'Cavernas de Hielo', 11: 'Infierno', 15: 'Infierno', 16: 'Abismo Estelar', 20: 'Abismo Estelar' };
@@ -45,4 +29,4 @@ for (let i = 0; i < 2000; i++) {
 }
 if (!yeti || !diablillo) throw new Error('nuevos enemigos no aparecen');
 console.log(`En 2000 tiradas: yeti ${yeti} (piso 7), diablillo ${diablillo} (piso 12)`);
-console.log('✅ SINERGIAS Y BIOMAS OK');
+console.log('✅ SIN SINERGIAS + BIOMAS OK');

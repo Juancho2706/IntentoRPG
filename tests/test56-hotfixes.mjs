@@ -36,11 +36,12 @@ const mk = () => ({
 
 // ---------------------------------------------------------------- 1) guardado
 {
+  // Paso 2b.0 (guardado v3): `skills` se DERIVA del nivel (no se guarda);
+  // skillSystemV/skillBranches/hotbar/skillPoints siguen persistiendo.
   const G = CLASSES.guerrero;
-  const core = G.skills.find(s => s.kind === 'core');
+  const core = G.skills.find(s => s.cat === 'spender');
   const p = new Player(mk(), 'guerrero');
-  p.level = 10; p.skillPoints = 4;
-  p.skills[core.id] = 2;
+  p.level = 10; p.recompute(); p.skillPoints = 4;
   p.skillBranches = { [core.id]: { [`${core.id}_o`]: true } };
   p.hotbar = p.normalizeHotbar({ lmb: 'g_tajo', rmb: core.id, k1: null, k2: null, k3: null, k4: null });
   const snap = JSON.stringify({ s: p.skills, b: p.skillBranches, h: p.hotbar, pts: p.skillPoints });
@@ -48,21 +49,23 @@ const mk = () => ({
   let cur = p;
   for (let i = 0; i < 2; i++) {
     const saved = JSON.parse(JSON.stringify(cur.toSaveData()));
-    assert(saved.skillSystemV === 4, 'el guardado debe incluir skillSystemV');
+    assert(saved.skillSystemV === 5, 'el guardado debe incluir skillSystemV (5)');
+    assert(saved.skills === undefined, 'los rangos de habilidad ya no se guardan (se derivan del nivel)');
     assert(saved.skillBranches && saved.hotbar, 'el guardado debe incluir skillBranches y hotbar');
     cur = new Player(mk(), saved.classId, saved);
     const now = JSON.stringify({ s: cur.skills, b: cur.skillBranches, h: cur.hotbar, pts: cur.skillPoints });
     assert(now === snap, `recarga ${i + 1}: la build cambió\n antes ${snap}\n ahora ${now}`);
   }
-  console.log('Guardado: skills/ramas/hotbar/puntos idénticos tras 2 recargas ✓');
+  console.log('Guardado: habilidades derivadas/ramas/hotbar/puntos idénticos tras 2 recargas ✓');
 
-  // save legado (sin skillSystemV): reembolsa UNA vez y sin contar el básico gratis
+  // save legado (sin skillSystemV): los puntos se recalculan UNA vez desde el nivel
+  // (Nv10 → 9 puntos ganados, sin ramas) y la migración es idempotente
   const legacy = { classId: 'guerrero', level: 10, skills: { g_tajo: 1, [core.id]: 2 }, skillPoints: 3 };
   const a = new Player(mk(), 'guerrero', legacy);
-  assert(a.skillPoints === 5, `migración legada: esperaba 3+2=5 puntos (básico gratis no se reembolsa), dio ${a.skillPoints}`);
+  assert(a.skillPoints === 9, `migración legada: esperaba 9 puntos (Nv2–10), dio ${a.skillPoints}`);
   const b = new Player(mk(), 'guerrero', JSON.parse(JSON.stringify(a.toSaveData())));
-  assert(b.skillPoints === 5, `la migración no es idempotente: ${b.skillPoints}`);
-  console.log('Migración v4: reembolso único (sin el básico gratis) e idempotente ✓');
+  assert(b.skillPoints === 9, `la migración no es idempotente: ${b.skillPoints}`);
+  console.log('Migración v4→v3 de guardado: puntos recalculados una sola vez e idempotente ✓');
 }
 
 // ---------------------------------------------------------------- 2) uids

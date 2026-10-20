@@ -109,6 +109,8 @@ export class Input {
       case 'inventory': g.ui.togglePanel('inv'); break;
       case 'skills': g.ui.togglePanel('skills'); break;
       case 'character': g.ui.togglePanel('stats'); break;
+      // talentos (KeyN): hasta el panel del Paso 2d abre el de Maestría (su antecesor)
+      case 'talents': g.ui.togglePanel?.('mastery'); break;
       case 'potionHP': g.player?.usePotion('hp'); break;
       case 'potionMP': g.player?.usePotion('mp'); break;
       case 'primary': e?.preventDefault(); g.primaryAction(); break;

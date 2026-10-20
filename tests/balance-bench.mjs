@@ -22,9 +22,14 @@
 // ============================================================
 import { Player } from '../js/entities.js';
 import { generateItem } from '../js/items.js';
-import { CLASSES, ENEMIES, ELITE_MODS, ENEMY_RANKS, bossForFloor, scaleEnemy, skillVal, synergyBonus,
-  aggregateSkillMods, SKILL_MODS, MASTERIES, paragonBoardFor, BLESSINGS, blessingValue } from '../js/data.js';
+import { CLASSES, ENEMIES, ELITE_MODS, ENEMY_RANKS, bossForFloor, scaleEnemy,
+  SKILL_MODS, MASTERIES, paragonBoardFor, BLESSINGS, blessingValue } from '../js/data.js';
 import * as CM from '../js/combat-math.js';
+// Paso 2b.0: el banco usa el MISMO resolvedor que el juego (rangos por nivel,
+// ramas, soportes por tags, CDR/coste) y los recursos de §2 (resources.js).
+// La adaptación completa (GCD/windup/escenarios por rol) es de 2b.2 / 2e.
+import { resolveSkill, isKnown } from '../js/skill-resolve.js';
+import { resourceDefFor, resourceRegenRate } from '../js/resources.js';
 import { createRng, hashSeed } from '../js/rng.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -39,11 +44,11 @@ const DT = 0.05, ACTION_LOCK = 0.3, WALK = 0.6;
 const SLOTS = [['weapon', 'weapon'], ['offhand', 'offhand'], ['helm', 'helm'], ['shoulders', 'shoulders'],
   ['chest', 'chest'], ['gloves', 'gloves'], ['belt', 'belt'], ['pants', 'pants'], ['boots', 'boots'],
   ['amulet', 'amulet'], ['ring', 'ring'], ['ring2', 'ring']];
-// rotación (orden = prioridad de aprendizaje)
+// rotación (habilidades del kit; las pasivas compradas se eliminaron en el Paso 2b)
 const ROT = {
-  guerrero: ['torbellino', 'g_martillo', 'terremoto', 'grito_guerra', 'g_salto', 'g_u_cataclismo', 'g_p_fuerza'],
-  maga: ['bola_fuego', 'rayo', 'nova_hielo', 'meteoro', 'm_u_supernova', 'm_p_arcano'],
-  arquera: ['flecha_perforante', 'flecha_multiple', 'agilidad', 'lluvia_flechas', 'a_u_diluvio', 'a_p_punteria'],
+  guerrero: ['torbellino', 'g_martillo', 'terremoto', 'grito_guerra', 'g_salto', 'g_u_cataclismo'],
+  maga: ['bola_fuego', 'rayo', 'nova_hielo', 'meteoro', 'm_u_supernova'],
+  arquera: ['flecha_perforante', 'flecha_multiple', 'agilidad', 'lluvia_flechas', 'a_u_diluvio'],
 };
 const MASTERY_PICK = { guerrero: 'berserker', maga: 'piromante', arquera: 'francotiradora' };
 const PARAGON_ORDER = ['4_3', '4_5', '4_2', '4_6', '4_1', '4_7', '3_2', '5_2', '3_6', '5_6', '4_0', '4_8',
@@ -67,11 +72,7 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
   const pts = 5 * (Math.min(level, 20) - 1);
   p.attributes[cls.mainStat] += Math.round(pts * 0.6);
   p.attributes.vit += pts - Math.round(pts * 0.6);
-  // habilidades: aprende la rotación en orden y luego sube rangos
-  let sp = Math.min(level, 20) - 1;
-  const avail = ROT[classId].map(id => cls.skills.find(s => s.id === id)).filter(s => s && s.req <= level);
-  for (const s of avail) if (sp > 0) { p.skills[s.id] = 1; sp--; }
-  for (const s of avail) while (sp > 0 && p.skills[s.id] < s.max) { p.skills[s.id]++; sp--; }
+  // habilidades: se aprenden solas por nivel y su rango sale del nivel (§4.1)
   const opt = build === 'optimo';
   // equipo: ilvl del área (acotado) y calidad del Tormento (combat-math)
   const il = CM.itemLevel(al);
@@ -116,7 +117,7 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
   // soportes y modificadores (solo el óptimo)
   if (opt) {
     for (const s of cls.skills) {
-      if (s.kind === 'passive') continue;
+      // los incompatibles por tags (Sobrecarga en básicos, definitivas…) los ignora el resolvedor
       if (s.type !== 'buff') p.supports[s.id] = ['amplify', 'overcharge'];
       const br = SKILL_MODS[s.id];
       if (!br) continue;
@@ -134,6 +135,8 @@ export function buildHero(classId, level, build, { al = CM.areaLevelForHero(leve
   p.mp = cls.resource?.start === 0 ? 0 : p.stats.maxMP;
   return p;
 }
+// perfil resuelto de una habilidad del héroe (mismo resolvedor que el juego)
+const profOf = (p, s) => resolveSkill(p, s);
 
 // --- enemigos de referencia de un nivel de área ---
 export function refEnemies(al, torment = 0) {
@@ -156,15 +159,12 @@ export function refEnemies(al, torment = 0) {
 // --- simulación de rotación contra una cadena de objetivos ---
 export function simulate(p, hpEach, count, { boss = false } = {}) {
   const cls = p.cls, res = cls.resource || {};
-  const wb = cls.skills.find(s => s.kind === 'basic' && s.type === 'weapon');
-  const bm = aggregateSkillMods(wb.id, p.skillMods?.[wb.id]);
+  const rdef = resourceDefFor(cls);
+  const wb = cls.skills.find(s => s.cat === 'basic' && s.type === 'weapon');
+  const bp = profOf(p, wb);
   const rot = ROT[p.classId].map(id => cls.skills.find(s => s.id === id))
-    .filter(s => s && p.skills[s.id] > 0 && s.kind !== 'passive')
-    .map(s => {
-      const lvl = p.skills[s.id], sups = p.supports[s.id] || [], m = aggregateSkillMods(s.id, p.skillMods?.[s.id]);
-      return { s, lvl, sups, m, cost: Math.round(skillVal(s.mana, lvl) * CM.skillCostMult(sups)),
-        prof: CM.skillProfile({ mult: s.mult ? skillVal(s.mult, lvl) : 1, synergyPct: synergyBonus(s, p.skills), sups, mods: m, critBonus: s.critBonus || 0 }) };
-    })
+    .filter(s => s && isKnown(p, s))
+    .map(s => { const prof = profOf(p, s); return { s, prof, cost: prof.cost }; })
     .sort((a, b) => (b.s.type === 'buff') - (a.s.type === 'buff') || b.prof.coef * (1 + b.prof.addPct / 100) - a.prof.coef * (1 + a.prof.addPct / 100));
   const cds = {}; let atkCd = 0, lock = 0, t = 0, dealtAll = 0, maxHit = 0, idle = 0;
   const pending = []; // [{at, dmg}] golpes diferidos (Eco, tics de DoT/Estela)
@@ -180,18 +180,18 @@ export function simulate(p, hpEach, count, { boss = false } = {}) {
       if (d > maxHit) maxHit = d;
       tgt.hp -= d; dealtAll += d;
     };
-    const effects = (m, sups, s, avg) => {
-      if (m.vuln) tgt.vulnT = Math.max(tgt.vulnT, m.vuln);
-      const slow = sups.includes('freeze') ? 3 : Math.max(s?.slow || 0, m.slow || 0);
-      if (slow) tgt.slowT = Math.max(tgt.slowT, slow);
-      const dot = sups.includes('poison') || m.dot === 'poison' ? [0.9, 5, 1.0] : sups.includes('bleed') || m.dot === 'bleed' ? [0.6, 3, 1.0] : m.dot === 'burn' ? [0.8, 4, 0.8] : null;
-      if (dot) { const tot = avg * dot[0] * (sups.includes('lasting') ? 1.5 : 1); for (let i = 1; i <= dot[1]; i++) pending.push({ at: t + i * dot[2], dmg: tot / dot[1] }); }
-      if (m.zone) for (let i = 1; i <= 8; i++) pending.push({ at: t + i * 0.5, dmg: avg * 0.45 * 0.5 });
+    // efectos al golpear del perfil resuelto (mismas cifras que applyHitEffects)
+    const effects = (prof, avg) => {
+      if (prof.vuln) tgt.vulnT = Math.max(tgt.vulnT, prof.vuln);
+      if (prof.slow) tgt.slowT = Math.max(tgt.slowT, prof.slow);
+      const d = prof.dot ? CM.dotProfile(prof.dot, avg, { dotMul: prof.dotMul, tv: p.tv }) : null;
+      if (d) for (let i = 1; i <= d.ticks; i++) pending.push({ at: t + i * d.interval, dmg: d.total / d.ticks });
+      if (prof.zone) for (let i = 1; i <= prof.zoneDur * 2; i++) pending.push({ at: t + i * 0.5, dmg: avg * 0.45 * 0.5 });
     };
     let guard = 0;
     while (tgt.hp > 0 && guard++ < 40000) {
       // regeneración / tiempos (réplica de Player.update)
-      if (!(res.decay && !res.regen)) p.mp = Math.min(p.stats.maxMP, p.mp + CM.resourceRegen(res.regen ?? 1, p.stats.ene) * DT);
+      p.mp = Math.min(p.stats.maxMP, p.mp + resourceRegenRate(rdef, p.stats) * DT);
       let exp = false;
       for (const b of p.buffs) { b.t -= DT; if (b.t <= 0) exp = true; }
       if (exp) { p.buffs = p.buffs.filter(b => b.t > 0); p.recompute(); }
@@ -202,26 +202,24 @@ export function simulate(p, hpEach, count, { boss = false } = {}) {
       if (lock <= 0) {
         const r = rot.find(x => (cds[x.s.id] || 0) <= 0 && p.mp >= x.cost && !(x.s.type === 'buff' && p.buffs.some(b => b.id === x.s.id)));
         if (r) {
-          const { s, lvl, sups, m, prof } = r;
-          p.mp -= r.cost; if (m.gen) p.mp = Math.min(p.stats.maxMP, p.mp + m.gen);
+          const { s, prof } = r;
+          p.mp -= r.cost; if (prof.gen) p.mp = Math.min(p.stats.maxMP, p.mp + prof.gen);
           if (s.type === 'buff') {
-            const stats = {}; const bmul = 1 + (m.buff || 0) / 100;
-            for (const [kk, arr] of Object.entries(s.buff)) stats[kk] = Math.round(skillVal(arr, lvl) * bmul);
-            p.addBuff(s.id, stats, s.dur * (1 + (m.dur || 0) / 100) * (sups.includes('lasting') ? 1.8 : 1));
+            p.addBuff(s.id, { ...prof.buff }, prof.dur);
           } else {
-            const cb = prof.critBonus + (sups.includes('coldblood') && tgt.slowT > 0 ? CM.COLDBLOOD_CRIT : 0);
+            const cb = prof.critBonus + (prof.coldblood && tgt.slowT > 0 ? CM.COLDBLOOD_CRIT : 0);
             const { dmg, crit } = p.rollDamage(prof.coef, cb, prof.addPct);
             hit(dmg, crit);
-            effects(m, sups, s, p.avgHit(prof.coef, prof.addPct));
-            if (sups.includes('echo') || m.echo) { const e = p.rollDamage(prof.coef * (m.echo ? 0.6 : 0.5), prof.critBonus, prof.addPct); pending.push({ at: t + 0.5, dmg: e.dmg }); }
+            effects(prof, p.avgHit(prof.coef, prof.addPct));
+            if (prof.echo > 0) { const e = p.rollDamage(prof.coef * prof.echo, prof.critBonus, prof.addPct); pending.push({ at: t + 0.5, dmg: e.dmg }); }
           }
-          cds[s.id] = CM.skillCooldown(s.cd, p.stats.cdr, m, sups, false);
+          cds[s.id] = prof.cd;
           lock = ACTION_LOCK;
         } else if (atkCd <= 0) {
-          const { dmg, crit } = p.rollDamage(1, bm.crit || 0, bm.dmg || 0);
+          const { dmg, crit } = p.rollDamage(bp.coef, bp.critBonus, bp.addPct);
           hit(dmg, crit);
-          effects(bm, [], null, p.avgHit(1, bm.dmg || 0));
-          p.mp = Math.min(p.stats.maxMP, p.mp + (res.gen || 0) + (bm.gen || 0));
+          effects(bp, p.avgHit(bp.coef, bp.addPct));
+          p.mp = Math.min(p.stats.maxMP, p.mp + bp.gen);
           atkCd = p.stats.atkTime; lock = Math.min(ACTION_LOCK, p.stats.atkTime);
         } else idle += DT;
       }
@@ -232,7 +230,7 @@ export function simulate(p, hpEach, count, { boss = false } = {}) {
     t += WALK;
     for (const id in cds) cds[id] = Math.max(0, cds[id] - WALK);
     atkCd = 0;
-    if (!(res.decay && !res.regen)) p.mp = Math.min(p.stats.maxMP, p.mp + CM.resourceRegen(res.regen ?? 1, p.stats.ene) * WALK);
+    p.mp = Math.min(p.stats.maxMP, p.mp + resourceRegenRate(rdef, p.stats) * WALK);
   }
   const ttk = kills.reduce((a, b) => a + b, 0) / kills.length;
   return { ttk, dps: dealtAll / kills.reduce((a, b) => a + b, 0), maxHit };
