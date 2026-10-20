@@ -136,6 +136,21 @@ for (const [cid, cls] of Object.entries(CLASSES)) for (const sk of cls.skills.fi
   arts++;
 }
 console.log(`Activas de talento: ${arts} con el sprite de su nodo ✓`);
+// habilidades BASE: icono pintado propio (128 px precargado; 256 px en tiempo de ejecución)
+const swTxt = readFileSync(join(ROOT, 'sw.js'), 'utf8');
+let bases = 0;
+for (const [cid, cls] of Object.entries(CLASSES)) for (const sk of cls.skills.filter(s => s.kind !== 'talent')) {
+  const ic = HM.baseSkillIcon(sk), big = HM.baseSkillIcon(sk, true);
+  assert.equal(ic, `skills/${sk.id}.webp`);
+  assert.ok(has('assets/' + ic), `${cid}/${sk.id}: falta assets/${ic}`);
+  assert.ok(has('assets/' + big), `${cid}/${sk.id}: falta assets/${big}`);
+  assert.ok(swTxt.includes(`'./assets/${ic}'`), `sw.js no precarga assets/${ic}`);
+  bases++;
+}
+assert.equal(HM.baseSkillIcon({ id: 'x', kind: 'talent' }), null, 'las activas de talento usan el sprite de su nodo');
+assert.ok(/ART_RE = .*skills256/.test(swTxt), 'skills256 va a la caché de arte en tiempo de ejecución');
+assert.ok(!swTxt.includes("'./assets/skills256/"), 'los iconos de 256 px no se precargan');
+console.log(`Habilidades base: ${bases} con icono pintado en assets/skills (precargado) y skills256 (en tiempo de ejecución) ✓`);
 
 // ---------- 8. assets referenciados (y precargados por el service worker) ----------
 const need = new Set();

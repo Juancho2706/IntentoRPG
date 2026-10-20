@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v97';
+const VERSION = 'v98';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -69,7 +69,7 @@ const ASSETS = [
   'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
 ];
 
-// Paso 2d: interfaz pintada PEQUEÑA (iconos 128 px, marcadores 64 px, marcos): se
+// Paso 2d: interfaz pintada PEQUEÑA (iconos 128 px, habilidades base 128 px, marcadores 64 px, marcos): se
 // precarga (no atómico). Los 234 iconos de talentos, retratos, emblemas y ui256 NO:
 // van a la caché de arte en tiempo de ejecución (ART_CACHE, ver fetch).
 const UI_ASSETS = [
@@ -160,9 +160,53 @@ const UI_ASSETS = [
   './assets/chrome/ui_ranura.webp',
   './assets/chrome/ui_separador.webp',
   './assets/chrome/ui_tooltip.webp',
+  // Paso 2d (revisión): iconos pintados de las 43 habilidades base (128 px)
+  './assets/skills/a_cicuta.webp',
+  './assets/skills/a_disparo.webp',
+  './assets/skills/a_disperso.webp',
+  './assets/skills/a_humo.webp',
+  './assets/skills/a_paso.webp',
+  './assets/skills/a_red.webp',
+  './assets/skills/a_u_celeste.webp',
+  './assets/skills/a_u_diluvio.webp',
+  './assets/skills/a_u_zarzas.webp',
+  './assets/skills/agilidad.webp',
+  './assets/skills/bola_fuego.webp',
+  './assets/skills/embestida.webp',
+  './assets/skills/flecha_multiple.webp',
+  './assets/skills/flecha_perforante.webp',
+  './assets/skills/g_embate.webp',
+  './assets/skills/g_hendidura.webp',
+  './assets/skills/g_lanza.webp',
+  './assets/skills/g_mandoble.webp',
+  './assets/skills/g_martillo.webp',
+  './assets/skills/g_piel.webp',
+  './assets/skills/g_provocacion.webp',
+  './assets/skills/g_salto.webp',
+  './assets/skills/g_tajo.webp',
+  './assets/skills/g_u_cataclismo.webp',
+  './assets/skills/g_u_estandarte.webp',
+  './assets/skills/g_u_furia.webp',
+  './assets/skills/grito_guerra.webp',
+  './assets/skills/lluvia_flechas.webp',
+  './assets/skills/m_armadura.webp',
+  './assets/skills/m_ascua.webp',
+  './assets/skills/m_dardo.webp',
+  './assets/skills/m_estela_ignea.webp',
+  './assets/skills/m_onda.webp',
+  './assets/skills/m_paso_escarcha.webp',
+  './assets/skills/m_toque.webp',
+  './assets/skills/m_u_desgarro.webp',
+  './assets/skills/m_u_supernova.webp',
+  './assets/skills/m_u_tormenta.webp',
+  './assets/skills/meteoro.webp',
+  './assets/skills/nova_hielo.webp',
+  './assets/skills/rayo.webp',
+  './assets/skills/terremoto.webp',
+  './assets/skills/torbellino.webp',
 ];
 const ART_CACHE = 'intentorpg-art-v1';
-const ART_RE = /\/assets\/(talents|specs|emblems|ui256|vfx)\//;
+const ART_RE = /\/assets\/(talents|specs|emblems|ui256|skills256|vfx)\//;
 
 // Addons de post-procesado (post-fx: bloom + viñeta + grading). Se precachean
 // aparte y de forma NO atómica: si alguno falla, el post-procesado se degrada

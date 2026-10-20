@@ -1689,7 +1689,9 @@ export class Enemy {
     this.staggerBreaks = (this.staggerBreaks || 0) + 1;
     const g = this.game;
     try {
-      g.ui?.spawnText?.(this.pos.clone().add(new THREE.Vector3(0, (this.def.scale || 1) + 1.0, 0)), '¡QUEBRANTADO!', 'txt-crit', { big: true });
+      // aviso grande en la franja del HUD (bajo el marco del jefe); sin HUD, texto flotante
+      if (g.ui?.announce) g.ui.announce('¡QUEBRANTADO!', 'broken');
+      else g.ui?.spawnText?.(this.pos.clone().add(new THREE.Vector3(0, (this.def.scale || 1) + 1.0, 0)), '¡QUEBRANTADO!', 'txt-crit', { big: true });
       g.addShake?.(0.3, 0.3);
       g.onStaggerBreak?.(this);
     } catch { /* headless */ }

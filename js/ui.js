@@ -601,6 +601,7 @@ export class UI {
     this.updateHotbarState(p);
     this.updateSpecGauge(p);
     this.updateBossFrame(p);
+    this.updateTopBand();
     this.updateSpecPrompt(p);
     const tp = this.game.talentPointsInfo?.() || { cls: 0, spec: 0 };
     badge('badge-talents', p.level >= Talents.TALENT_START_LEVEL ? (Talents.activeSpec(p) ? tp.cls + tp.spec : 1) : 0);
@@ -655,6 +656,30 @@ export class UI {
       this._bossStSig = sig;
       box.innerHTML = sts.map(x => `<span class="st-chip st-${x.id}" title="${x.label}"><img src="${HM.statusIcon(x.id)}" alt="" draggable="false" onerror="this.remove()"><em>${x.label}</em></span>`).join('');
     }
+  }
+
+  // franja superior: borde inferior de la píldora de PAUSA o del marco del jefe.
+  // Los avisos grandes (#hud-announce), los mensajes y los números flotantes se
+  // quedan por debajo (nunca tapan la pausa ni la vida del jefe)
+  updateTopBand() {
+    let band = 0;
+    const bf = $('boss-frame');
+    if (bf && !bf.classList.contains('hidden')) band = bf.getBoundingClientRect().bottom;
+    if (document.body.classList.contains('paused')) { const pi = $('pause-indic'); if (pi) band = Math.max(band, pi.getBoundingClientRect().bottom); }
+    band = Math.max(40, Math.round(band)) + 8;
+    if (band !== this._topBand) { this._topBand = band; document.documentElement.style.setProperty('--top-band', band + 'px'); }
+  }
+  // aviso grande en su franja (p. ej. «¡QUEBRANTADO!» del stagger de un jefe)
+  announce(text, kind = '', ms = 1600) {
+    const box = $('hud-announce'); if (!box) return;
+    this.updateTopBand();
+    const el = document.createElement('div');
+    el.className = 'ann' + (kind ? ' ann-' + kind : '');
+    el.textContent = text;
+    box.appendChild(el);
+    while (box.children.length > 2) box.firstChild.remove();
+    setTimeout(() => el.classList.add('out'), Math.max(0, ms - 350));
+    setTimeout(() => el.remove(), ms);
   }
 
   // Pulso del orbe al variar la vida/recurso: brillo+escala al ganar, hundimiento
@@ -844,22 +869,25 @@ export class UI {
     const code = this.game.input?.bindings?.['skill' + n]?.[0];
     return code ? keyLabel(code) : String(n);
   }
-  // arte de una habilidad: las activas de talento usan el sprite de su nodo; el
-  // resto, su emoji (las habilidades base aún no tienen icono pintado)
+  // arte de una habilidad: las base tienen su icono pintado (assets/skills, 256 px
+  // en assets/skills256); las activas de talento, el sprite de su nodo. El emoji
+  // queda de respaldo si la imagen no carga.
   skillArt(sk) {
     if (!sk) return null;
     const p = this.game.player;
     const key = (p?.classId || '') + ':' + sk.id;
     this._artCache = this._artCache || new Map();
     if (!this._artCache.has(key)) {
-      const art = sk.kind === 'talent' ? HM.talentSkillArt(Talents.TALENT_TREES[p?.classId], sk.id) : null;
+      const art = sk.kind === 'talent' ? HM.talentSkillArt(Talents.TALENT_TREES[p?.classId], sk.id)
+        : { icon: HM.baseSkillIcon(sk), big: HM.baseSkillIcon(sk, true) };
       this._artCache.set(key, art);
     }
     return this._artCache.get(key);
   }
-  skillIconHTML(sk, cls = 'sk-icon') {
+  skillIconHTML(sk, cls = 'sk-icon', { big = false } = {}) {
     const art = this.skillArt(sk);
-    if (art?.icon) return `<span class="${cls} has-art" data-emoji="${sk.icon || '✦'}"><img class="sk-art" src="assets/${art.icon}" alt="" draggable="false" onerror="const s=this.parentNode;s.classList.remove('has-art');s.textContent=s.dataset.emoji"></span>`;
+    const src = art && (big && art.big ? art.big : art.icon);
+    if (src) return `<span class="${cls} has-art" data-emoji="${sk.icon || '✦'}"><img class="sk-art" src="assets/${src}" alt="" draggable="false" onerror="const s=this.parentNode;s.classList.remove('has-art');s.textContent=s.dataset.emoji"></span>`;
     return `<span class="${cls}">${sk.icon || '✦'}</span>`;
   }
   catBadgeHTML(cat, cls = 'sk-cat') {
@@ -1124,7 +1152,8 @@ export class UI {
       if (f.t > 0.9) { f.el.remove(); this.floats.splice(i, 1); continue; }
       f.pos.y += dt * 1.2;
       const s = this.worldToScreen(f.pos);
-      f.el.style.transform = `translate(${s.x}px, ${s.y}px)`;
+      const y = Math.max(s.y, (this._topBand || 48) + 4); // por debajo de la pausa / marco del jefe
+      f.el.style.transform = `translate(${s.x}px, ${y}px)`;
       f.el.style.opacity = String(1 - f.t / 0.9);
     }
   }
@@ -2376,7 +2405,7 @@ export class UI {
     const upHtml = !unlockedSkill
       ? `<button class="sk-focus-up" disabled>🔒 Nivel ${sk.req}</button>`
       : `<button class="sk-focus-up" disabled>${maxed ? '★ Rango máximo por nivel' : 'Sube con el nivel'}</button>`;
-    center.innerHTML = `<div class="sk-focus-ico">${sk.icon}</div><div class="sk-focus-name">${sk.name}</div>` +
+    center.innerHTML = `${this.skillIconHTML(sk, 'sk-focus-ico', { big: true })}<div class="sk-focus-name">${sk.name}</div>` +
       `<div class="sk-focus-rank">${this.skillPips(Math.min(lvl, RANK_MAX), RANK_MAX)} <em>R${lvl}</em></div>${upHtml}`;
     zoomLayer.appendChild(center);
     // soportes (engarces) bajo el centro, si la conoces y tiene huecos (básico/definitiva 1, resto 2)
@@ -2385,7 +2414,7 @@ export class UI {
     // inspector inferior
     const insp = document.createElement('div'); insp.className = 'sk-focus-inspector'; insp.id = 'sk-focus-insp';
     ov.appendChild(insp);
-    this._focusInspect(`<b>${sk.icon} ${sk.name}</b><span>${sk.desc}</span><em>${profileSummary(prof)}${cost ? '' : ' · sin coste'} (${res?.name || ''}). Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
+    this._focusInspect(`<b>${this.skillIconHTML(sk, 'sk-inline-ico')} ${sk.name}</b><span>${sk.desc}</span><em>${profileSummary(prof)}${cost ? '' : ' · sin coste'} (${res?.name || ''}). Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
   }
 
   // detalle de una habilidad (subir rango + engarces de soporte si aplica)
@@ -2399,7 +2428,7 @@ export class UI {
     const res = p.cls.resource;
     const details = this.skillDetails(sk, Math.max(1, lvl));
     pop.innerHTML = `
-      <div class="popup-name">${sk.icon} ${sk.name} <span class="dim">${unlocked ? 'R' + lvl : 'Nv ' + reqLvl}</span></div>
+      <div class="popup-name">${this.skillIconHTML(sk, 'sk-inline-ico')} ${sk.name} <span class="dim">${unlocked ? 'R' + lvl : 'Nv ' + reqLvl}</span></div>
       <div class="popup-sub">${sk.desc}</div>
       <div class="sk-detail-nums">${details} (${res?.name || ''})</div>
       <div class="popup-btns codex-choose"></div>`;

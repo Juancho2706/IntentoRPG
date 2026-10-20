@@ -2812,3 +2812,28 @@ body.hud-clean #minimap-frame { opacity: 0; transition: opacity 0.25s; }
 .hb-pick-txt b { font: 600 13px Inter, sans-serif; }
 .hb-pick-txt small { font: 400 11px Inter, sans-serif; color: var(--ink-dim); }
 .hb-pick-cat { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; }
+
+/* ---------- Paso 2d (revisión): iconos pintados de habilidades base ---------- */
+.sk-focus-ico { display: block; }
+.sk-focus-ico.has-art { width: 76px; height: 76px; margin: 0 auto 2px; border-radius: 14px; overflow: hidden;
+  border: 2px solid #8a7350; box-shadow: 0 0 16px rgba(201,162,39,0.45); filter: none; }
+.sk-inline-ico { display: inline-block; vertical-align: -6px; }
+.sk-inline-ico.has-art { width: 24px; height: 24px; border-radius: 5px; overflow: hidden; border: 1px solid #5a4a30; }
+
+/* ---------- franja superior: PAUSA → marco del jefe → avisos grandes → mensajes ----------
+   --top-band = borde inferior de lo que haya arriba al centro (pausa o marco del jefe);
+   lo calcula ui.updateTopBand() a 10 Hz. Nada grande se dibuja por encima de esa línea. */
+:root { --top-band: 48px; }
+#hud-announce { position: fixed; z-index: 18; left: 50%; top: var(--top-band); transform: translateX(-50%);
+  pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(720px, 90vw); }
+.ann { font: 900 30px/1.1 Cinzel, Georgia, serif; letter-spacing: 2px; text-align: center; white-space: nowrap;
+  color: #ffd07a; text-shadow: 0 0 14px rgba(255,150,30,0.9), 0 2px 4px #000; animation: annPop 0.22s ease-out; transition: opacity 0.35s ease; }
+.ann.out { opacity: 0; }
+.ann-broken { color: #ffe9a8; }
+@keyframes annPop { from { transform: scale(1.18); } to { transform: scale(1); } }
+body.reduce-motion .ann { animation: none; }
+#messages { top: max(14%, calc(var(--top-band) + 48px)); }
+#messages { width: min(92%, calc(100vw - 480px)); }
+/* claves y coste legibles sobre los iconos pintados */
+.skill-btn .sk-key, .sk-bb-key { background: rgba(8,6,10,0.72); padding: 0 3px; border-radius: 3px; line-height: 13px; }
+.skill-btn .sk-cost { background: rgba(8,6,10,0.72); padding: 0 3px; border-radius: 3px; line-height: 13px; }

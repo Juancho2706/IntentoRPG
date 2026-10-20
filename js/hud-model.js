@@ -263,6 +263,14 @@ export function pickBossTarget(enemies, pos, range = 28) {
   return best;
 }
 
+// ---------- arte de las habilidades base ----------
+// icono pintado de una habilidad BASE (assets/skills/<id>.webp, 128 px; skills256/
+// para el foco de ramas). Las activas de talento usan el sprite de su nodo.
+export function baseSkillIcon(sk, big = false) {
+  if (!sk?.id || sk.kind === 'talent') return null;
+  return `${big ? 'skills256' : 'skills'}/${sk.id}.webp`;
+}
+
 // ---------- arte de las activas de talento ----------
 // sprite del nodo que concede la activa (talents/<clase>-<clase|spec>-<nodo>.webp)
 //   trees = TALENT_TREES[classId] → { tree: 'cls'|specId, specName, icon } | null

@@ -1529,7 +1529,7 @@ class Game {
     // (no mueres en menús; estándar en ARPG single-player). Sigue el render y el
     // ambiente para que no se vea "muerto"; la UI responde por sus propios eventos.
     const paused = this.state === 'play' && !!this.ui?.activePanel;
-    if (paused !== this._paused) { this._paused = paused; document.body.classList.toggle('paused', paused); }
+    if (paused !== this._paused) { this._paused = paused; document.body.classList.toggle('paused', paused); this.ui?.updateTopBand?.(); }
     if (paused) {
       this.particles?.update(realDt, this.camera.position); // motas ambientales (estético)
       this.renderScene();
