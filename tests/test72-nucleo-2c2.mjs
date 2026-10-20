@@ -323,12 +323,13 @@ assert.ok(POWER_HOOKS[CORE_TV_POWER], 'poder común nucleo_tv registrado');
   firePower('onTick', f.p, f.g, f.p, 0.1);
   assert.ok(near(gaugeValue(f.p, 'concentracion'), 46), 'stat de un poder: −40 % de pérdida');
 }
-{ // fervorChance (Martillo que golpea), focusEnergy (Concentración llena), galeHeal/galeEnergy (Impulso lleno)
+{ // fervorChance (golpe del básico; Paso 2e: antes el Martillo), focusEnergy (Concentración llena), galeHeal/galeEnergy (Impulso lleno)
   const c = mk({ spec: 'cruzado', tv: { fervorChance: 100 } });
-  firePower('afterCast', c.p, c.g, c.p, { sk: { id: 'g_martillo' } }, { hits: 0 });
-  assert.equal(gaugeValue(c.p, 'fervor'), 0, 'sin golpear, nada');
+  const ce = c.enemy({ hp: 1e6 });
   firePower('afterCast', c.p, c.g, c.p, { sk: { id: 'g_martillo' } }, { hits: 2 });
-  assert.equal(gaugeValue(c.p, 'fervor'), 1, 'fervorChance 100: +1');
+  assert.equal(gaugeValue(c.p, 'fervor'), 0, 'el Martillo ya no tira fervorChance');
+  c.hit(ce, { skill: 'g_tajo' });
+  assert.equal(gaugeValue(c.p, 'fervor'), 1, 'fervorChance 100: +1 por golpe del básico');
   const f = makeHarness({ classId: 'arquera', level: 30, spec: 'francotiradora', tv: { focusEnergy: 8 } });
   f.p.mp = 0; f.gauge('concentracion', 100);
   assert.equal(Math.round(f.p.mp), 8, 'focusEnergy al llenar la Concentración');

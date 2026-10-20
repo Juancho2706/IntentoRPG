@@ -152,14 +152,14 @@ console.log('Agregación: @spec, costRedBig, root/slowPct (máx.), durS, critCdr
   h.g.chooseSpec('guardian');
   assert.equal(p.stats.block, block0, 'sin escudo, la innata de bloqueo no cuenta');
   assert.equal(p.stats.threatMult, 3, 'Guardián: amenaza ×3');
-  assert.ok(approx(p.stats.maxHP, Math.round(hp0 * 1.10), 1), `Guardián: +10 % de vida (${hp0} → ${p.stats.maxHP})`);
+  assert.ok(approx(p.stats.maxHP, Math.round(hp0 * 1.05), 1), `Guardián: +5 % de vida (2e: era +10 %; ${hp0} → ${p.stats.maxHP})`);
   p.equipment.offhand = { kind: 'item', slot: 'offhand', icon: '🛡️', baseName: 'Escudo de Hierro', affixes: {}, arm: 5, quality: 0 };
   p.recompute();
   assert.equal(p.stats.block, block0 + 15, 'con escudo: +15 de bloqueo');
   p.equipment.offhand.icon = '🔮'; p.equipment.offhand.baseName = 'Orbe Arcano'; p.recompute();
   assert.equal(p.stats.block, block0, 'un orbe no es escudo');
   h.g.chooseSpec('cruzado');
-  assert.equal(p.stats.healPct, 15, 'Cruzado: +15 % de curación');
+  assert.equal(p.stats.healPct, 30, 'Cruzado: +30 % de curación (2e: era +15 %)');
   assert.equal(p.stats.threatMult, 1);
   const c = mk('maga', 20); c.g.chooseSpec('crionte');
   assert.equal(c.p.stats.staggerPct, 25, 'Crionte: +25 % de stagger');
@@ -324,7 +324,7 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.p
   assert.equal(h.gaugeValue('escarcha', e), 4); assert.equal(h.gaugeValue('escarcha', o), 0, 'las capas son por enemigo');
   assert.equal(gaugeView(p).value, 4);
   h.hit(e, { elem: 'frost', skill: 'm_toque' });
-  assert.ok(e.frozenT > 1.4 && e.stunT > 1.4, 'a 5 capas: Congelado 1,5 s');
+  assert.ok(e.frozenT > 0.9 && e.stunT > 0.9 && e.frozenT <= 1.0 + 1e-9, 'a 5 capas: Congelado 1 s (2e: era 1,5 s)');
   assert.equal(h.gaugeValue('escarcha', e), 0, 'y las capas vuelven a 0');
   h.hit(o, { elem: 'frost', skill: 'nova_hielo' });
   assert.equal(h.gaugeValue('escarcha', o), 2, 'Nova de Hielo +2');
@@ -333,11 +333,16 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.p
   for (let i = 0; i < 5; i++) h.hit(b, { elem: 'frost', skill: 'm_toque' });
   assert.ok(b.numbT > 3.9 && b.stunT === 0, 'jefe: Aterido 4 s (no se congela)');
   assert.ok(approx(b.stagger, 25 * 1.25), `jefe: +25 de stagger × innata +25 % (${b.stagger})`);
-  // Cero Absoluto (m_shatter): astilla a los Congelados por debajo del 15 %
+  // Cero Absoluto (m_shatter): astilla a los Congelados por debajo del 38 % (2e: era 15 %),
+  // salvo jefes y élites (2e)
   const w = h.enemy({ hp: 100, pos: [0, 0, -3] });
-  w.hp = 14; w.frozenT = 1;
+  w.hp = 37; w.frozenT = 1;
   h.hit(w, { elem: 'frost', skill: 'm_toque', dealt: 1 });
-  assert.ok(!w.alive, 'Congelado < 15 %: astillado');
+  assert.ok(!w.alive, 'Congelado < 38 %: astillado');
+  const we = h.enemy({ hp: 100, rank: 'elite', pos: [0, 0, -4] });
+  we.hp = 10; we.frozenT = 1;
+  h.hit(we, { elem: 'frost', skill: 'm_toque', dealt: 1 });
+  assert.ok(we.alive, 'un élite no se astilla (2e)');
 }
 // Cargas Arcanas (Arcanista): Dardo +1 (máx. 4); Rayo las descarga (+35 %/carga, +5 de maná/carga)
 {

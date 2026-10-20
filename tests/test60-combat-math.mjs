@@ -31,7 +31,9 @@ CM.registerMultiplier('t_test_a', { mult: 1.3, when: () => true });
 CM.registerMultiplier('t_test_b', { mult: 2.0, when: () => true }); // se topa a 1,3
 const act = CM.activeMultipliers(new Set(['furia', 'm_berserk', 'm_hunt', 't_test_a', 't_test_b']),
   { hpFrac: 1, targetSlowed: true }, [{ id: 'x', mult: 1.12 }]);
-ok(act.length === CM.MAX_MULT_ACTIVE && act.every(m => m <= 1.3) && approx(act[0], 1.3) && approx(act[1], 1.3) && approx(act[2], 1.15), 'activeMultipliers: ' + act);   // Paso 2e: Cacería ×1,10, así que el tercero es Furia ×1,15
+ok(act.length === CM.MAX_MULT_ACTIVE && act.every(m => m <= 1.3) && approx(act[0], 1.3) && approx(act[1], 1.3) && approx(act[2], 1.3), 'activeMultipliers: ' + act);   // Paso 2e: Cacería ×1,10 → ×1,30 (salvo jefes)
+ok(approx(CM.multiplierProduct(new Set(['m_hunt']), { targetSlowed: true, e: { def: { boss: true } } }), 1), 'Cacería no cuenta contra jefes (2e)');
+ok(approx(CM.multiplierProduct(new Set(['m_hunt']), { targetSlowed: true, e: { def: {} } }), 1.3), 'Cacería ×1,30 contra ralentizados (2e)');
 ok(CM.multiplierProduct(new Set(['m_berserk']), { hpFrac: 0.9 }) === 1, 'Sed de Batalla solo con vida baja');
 delete CM.MULT_POWERS.t_test_a; delete CM.MULT_POWERS.t_test_b;
 console.log('Multiplicadores escasos: máx 3 activos, tope ×1,3 c/u, hook registerMultiplier ✓');

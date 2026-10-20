@@ -68,9 +68,11 @@ for (const s of skills) {
 // números de §3.3 recalibrados con el banco (Paso 2b.2): Disparo Rápido 1,0→1,15,
 // Perforante 2,2/20→2,1/26, Lluvia 3,0→2,4 WD en total, Diluvio 20→17,6 WD;
 // Paso 2c.2 (banco con talentos): Lluvia 2,4→2,08 WD, Diluvio 17,6→15,6 WD
-assert.deepEqual([S('a_disparo').coef, S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [1.0, 2.1, 26, 0.35, 5], 'números de §3.3 (2b.2 → 2e)');
-assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.8, 'Lluvia: 2,8 WD en total (2e)');
-assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 15.6, 'Diluvio: 15,6 WD por objetivo');
+// Paso 2e (roles, ÁREA×5 con la manada que camina): Perforante 2,1→2,4, Múltiple 0,35→0,39,
+// Lluvia 2,8→2,4 WD, Diluvio 15,6→21,84 WD (la definitiva aportaba < 12 % del UNI)
+assert.deepEqual([S('a_disparo').coef, S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [1.0, 2.4, 26, 0.39, 5], 'números de §3.3 (2b.2 → 2e)');
+assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.4, 'Lluvia: 2,4 WD en total (2e)');
+assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 21.84, 'Diluvio: 21,84 WD por objetivo (2e)');
 assert.equal(S('a_u_celeste').coef * S('a_u_celeste').shots, 21, 'Tiro Celestial: 3 × 7,0');
 console.log('Energía: básicos +5, gastadoras sin enfriamiento (Lluvia 4 s), definitivas gratis ✓');
 
@@ -247,8 +249,12 @@ const countHits = (e, skill) => {
 {
   const h = mk(20);
   h.setSlot('k2', 'a_humo');
+  const ciego = h.enemy({ hp: 1e6, pos: [1.5, 0, 0] }), lejos = h.enemy({ hp: 1e6, pos: [9, 0, 0] });
   assert.equal(h.cast('k2'), true);
   h.step(0.15);
+  // Paso 2e: CEGUERA — los enemigos dentro del humo hacen −blindPct (30 %) de daño
+  assert.ok(Math.abs(ciego.outDmgMul() - (1 - S('a_humo').blindPct / 100)) < 1e-9, `ceguera dentro (×${ciego.outDmgMul()})`);
+  assert.equal(lejos.outDmgMul(), 1, 'fuera del humo no ciega');
   const want = Math.round(50 * resolveSkill(h.p, S('a_humo')).buffMul);   // 50 a rango 1 (+6 %/rango)
   assert.equal(h.p.zoneDefense().dr, want, `dentro: −${want} % de daño recibido`);
   assert.equal(h.p.projMissChance(), 50, 'dentro: 50 % de fallo de proyectiles enemigos');
@@ -274,7 +280,7 @@ const countHits = (e, skill) => {
   h.p.hp = h.p.stats.maxHP;
   const hp1 = h.p.hp; h.p.takeDamage(100, 1); const outSmoke = hp1 - h.p.hp;
   assert.ok(inSmoke < outSmoke * 0.75, `dentro se recibe menos daño (${inSmoke} vs ${outSmoke})`);
-  console.log('Bomba de Humo: −40 % de daño dentro y ≈50 % de fallo de proyectiles enemigos ✓');
+  console.log('Bomba de Humo: −50 % de daño dentro, ≈50 % de fallo de proyectiles enemigos y ceguera del 30 % ✓');
 }
 
 // Diluvio de Saetas: windup + telegrafía y 8 oleadas en 4 s

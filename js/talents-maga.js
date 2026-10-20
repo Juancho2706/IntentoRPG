@@ -77,6 +77,24 @@
 //  · Defensas de la ranura 2 (§7.2: la defensiva da ≥ +30 % de TTD+): Barrera de Maná (c2)
 //    30 % del maná/30 s → 60 %/20 s (antes +11 %) y Armadura de Hielo (skills-maga.js)
 //    escudo 20 → 25 % de la vida.
+// RECALIBRACIÓN 2e — cierre (TTD+ al 50 % contra 3 élites + 4 comunes, ÁREA×5 con la manada
+// caminando desde 8 m, medianas de 5 semillas; ver talents-guerrero.js):
+//  · Piromante: la ranura 2 ofensiva daba +26 % de UNI (> 25): Meteoro (skills-maga.js) 4,1 →
+//    3,7. El área vuelve por la Bola de Fuego (salpicadura 2,5 → 3,5 a 2 m) y s14 Conflagración
+//    200 → 270 % del golpe medio al matar (powers-common.js): con la manada que llega en
+//    oleadas, las muertes encadenadas son su área.
+//  · Crionte: ÁREA×5 0,89 → 0,98·M: s0 Cero Absoluto astilla por debajo del 15 → 38 % (no
+//    jefes NI élites: las élites no se borran de un golpe; powers-common.js) y s1 Mordedura
+//    Gélida 5 → 7 %/rango. Congelado 1,5 → 1 s (spec-mechanics.js, s0): contra la manada de
+//    élites congelarla 1,5 s cada 5 golpes le daba ×1,17·M de TTD+ (más que el Berserker) y
+//    subía la M de la que cuelgan los suelos de TTD+ del resto; su control sigue en 73 %
+//    lento / 29 % duro. Armadura de Hielo (skills-maga.js) 25 %/6 s/20 s → 30 %/8 s/12 s: la
+//    defensiva daba +12 % de TTD+ (≥ +30 %).
+//  · Arcanista: la ranura 2 ofensiva daba +8 % (< 12) y la definitiva el 11 % del UNI: Rayo
+//    (skills-maga.js) 2,8 → 2,3, Misiles Arcanos 55 → 66 % por misil, Desgarro Arcano 3,25 →
+//    4,4 por tic (650 → 880 %/s). x1 Cadena de Rayos 90 → 150 % (powers-maga.js) para que el
+//    Rayo más flojo no hunda su área (≥ 0,75·M).
+//  · Barra (ui-gauges-maga.js lee gaugeTuning): Resonancia 15 → 12 %, como el poder.
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple

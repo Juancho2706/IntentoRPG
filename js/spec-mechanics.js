@@ -195,8 +195,8 @@ function baseGauges() {
         if (wall) { out.state = 'active'; out.label = 'Muro de Escudos'; out.t = wall.t; out.tMax = out.x.wallMax; }
       },
     },
-    // Cruzado: +1 por muerte (Juicio, su nodo clave) y +1 cada 3 impactos de
-    // Martillo de Guerra. Veredicto Final gasta 3.
+    // Cruzado: +1 por muerte (Juicio, su nodo clave), +1 cada 3 impactos de Martillo de
+    // Guerra y +1 cada 3 golpes del básico que aciertan (Paso 2e). Veredicto Final gasta 3.
     fervor: {
       name: 'Fervor', color: '#ecc760', max: T.fervor.max, integer: true,
       state: () => ({ hammerHits: 0, basicHits: 0 }),
@@ -209,14 +209,14 @@ function baseGauges() {
           if (++st.hammerHits >= T.fervor.hammerHits) { st.hammerHits = 0; gainGauge(p, 'fervor', 1); }
         } else if (isBasicHit(p, hit)) {
           if (++st.basicHits >= T.fervor.basicHits) { st.basicHits = 0; gainGauge(p, 'fervor', 1); }
+          // Fervor Creciente (tv.fervorChance; Paso 2e: del Martillo pasa al básico): cada
+          // golpe del básico que acierta tiene X % de dar 1 más
+          const ch = p.tv?.fervorChance || 0;
+          if (ch > 0) {
+            const r = typeof p.combatRng === 'function' ? p.combatRng() : 0.5;
+            if (r * 100 < ch) gainGauge(p, 'fervor', 1);
+          }
         }
-      },
-      // Fervor Creciente (tv.fervorChance, Paso 2c.2): un Martillo que golpea tiene X % de dar 1 más
-      afterCast(g, p, cast, res) {
-        const ch = p.tv?.fervorChance || 0;
-        if (!(ch > 0) || cast?.sk?.id !== 'g_martillo' || !(res?.hits > 0)) return;
-        const r = typeof p.combatRng === 'function' ? p.combatRng() : 0.5;
-        if (r * 100 < ch) gainGauge(p, 'fervor', 1);
       },
       // v2: cuentas del Martillo, Ascensión (x3: buff g_ascension) y Veredicto listo
       viewX(p, st, e, out) {

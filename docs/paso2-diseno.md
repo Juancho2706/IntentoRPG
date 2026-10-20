@@ -127,9 +127,9 @@ Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una 
 |---|---|---|---|
 | Berserker | **Sed** 0–100 | +1 por 1 % de vida perdida · +2 por tic de Sangrado (máx. 10/s) · +4 por enemigo golpeado por Remolino (nodo s4, máx. 20 por uso) · +2 por crítico (Instinto Asesino) | Al llegar a 100: **Sed Saciada** 6 s, que activa el multiplicador `m_berserk` ×1,25 aunque tengas la vida alta; luego vuelve a 0. Con Sangre Hirviente (s14): **Desenfreno** 8 s (+30 % de velocidad de ataque y +1 % de vida por golpe; es cura al golpear y pasa por la cubeta de sustento, §6.1). Baja −8/s tras 4 s fuera de combate |
 | Guardián | **Bastión** 0–5 cargas | +1 por bloqueo · +2 por Grito Desafiante (s4) · +1 si Martillo golpea a 3 o más (s7) | −2 % de daño recibido por carga (s17). Muro de Escudos las gasta. Se pierde 1 carga cada 6 s sin ganar ninguna |
-| Cruzado | **Fervor** 0–3 | +1 por muerte con Juicio · +1 cada 3 impactos de Martillo de Guerra · +15 %/rango por impacto (s12) · +1 al lanzar Aura de Devoción (s4) | Veredicto Final gasta 3. Ascensión (x3) hace que no se gaste |
+| Cruzado | **Fervor** 0–3 | +1 por muerte con Juicio · +1 cada 3 impactos de Martillo de Guerra · **+1 cada 3 golpes del básico que aciertan** (Paso 2e) · +5 %/rango por golpe del básico (s12; Paso 2e: antes por impacto de Martillo) · +1 al lanzar Aura de Devoción (s4) | Veredicto Final gasta 3. Ascensión (x3) hace que no se gaste |
 | Piromante | **Calor** 0–100 | +5 por golpe de Fuego que aplica Quemadura · +25 por Llamarada (s4) · ×2 durante Combustión | A 100: **Ignición Total**: la siguiente Bola de Fuego o Meteoro cuesta 0 y es crítico seguro; vuelve a 0. Baja −10/s tras 3 s |
-| Crionte | **Escarcha** 0–5 capas **por enemigo** | +1 por golpe de Escarcha · Nova +2 (+1/rango de s11) · Ventisca +1/s · Aliento Boreal +3 | A 5 capas: **Congelado** 1,5 s (control duro con rendimientos decrecientes; en jefes: **Aterido** 4 s = −30 % de movimiento y −15 % de velocidad de ataque, y suma 25 de stagger). Las capas caen 1 cada 2 s |
+| Crionte | **Escarcha** 0–5 capas **por enemigo** | +1 por golpe de Escarcha · Nova +2 (+1/rango de s11) · Ventisca +1/s · Aliento Boreal +3 | A 5 capas: **Congelado** 1 s (Paso 2e: era 1,5 s; control duro con rendimientos decrecientes; en jefes: **Aterido** 4 s = −30 % de movimiento y −15 % de velocidad de ataque, y suma 25 de stagger). Las capas caen 1 cada 2 s |
 | Arcanista | **Cargas Arcanas** 0–4 | Dardo +1 por impacto · Orbe +1 por enemigo (máx. 2, s4) · Sello +4 | Rayo las consume todas: **+35 % de daño aditivo por carga** y devuelve 5 de maná por carga. Se pierden 6 s después de la última ganancia (salvo con Resonancia) |
 | Francotiradora | **Concentración** 0–100 | +20/s quieta (+20 %/rango con s2) · moverse: −25/s | +0,15 % de crítico por punto (+15 % a 100). A 100, Disparo Apuntado es instantáneo (s4) y gasta 50 |
 | Montaraz | **Coto de Caza**: trampas armadas (máx. 3, o 4 con s14) y Presa | Trampa de Cepo: 1 carga (2 con s4), recarga de 8 s por carga · Presa = primer élite o jefe golpeado, 15 s | Las trampas son entidades en el suelo. Presa: revelada, +10 %/rango de daño (s15) |
@@ -160,7 +160,7 @@ Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una 
 | `g_embate` | Embate | R | lmb | basic melee area | **+7** (+2/extra, máx. 15) | cadencia ×1,1 | 0,6 × todos en r 2,5 | — | 0 | hordas; c5B | anillo / `hit` |
 | `torbellino` | Torbellino | R | rmb/k2 | spender melee area | 25 | — | **1,6** × todos r 2,9 | Giro instantáneo | 0 / 0,3 s | Berserker (s3, s10, s16), c9 | aura de giro / `dash` |
 | `g_hendidura` | Hendidura | R | rmb/k2 | spender melee cone | 30 | — | **2,6** cono 120° 4,5 m | Golpe frontal pesado (ya no es otro Torbellino) | **120 ms** | Berserker (s3, s10) | arco rojo / `hit` |
-| `g_martillo` | Martillo de Guerra | R | rmb/k2 | spender melee area | 30 | — | **2,4** r 3 delante (alcance 2,5) | Genera Fervor (1 cada 3 impactos) o Bastión (s7) | **150 ms** | Guardián, Cruzado | onda + polvo / `hit` grave |
+| `g_martillo` | Martillo de Guerra | R | rmb/k2 | spender melee area | 30 | — | **2,4** r 3 delante (alcance 2,5) | Genera Fervor (1 cada 3 impactos) o Bastión (s7). **Paso 2e:** la onda base es ligera (0,34, el constructor de Fervor del Cruzado); Martillo Pesado (Guardián s7) la convierte en un golpe de 2,0 | **150 ms** | Guardián, Cruzado | onda + polvo / `hit` grave |
 | `terremoto` | Terremoto | R | rmb/k2 | spender line cc | 35 | 6 s | **3,0** en línea 8×2 m | Aturde **0,75 s** a los no jefes; en jefes suma 20 de stagger | **150 ms** | Guardián (s10) | grieta en el suelo / temblor |
 | `g_lanza` | Lanza Arrojadiza | C | rmb/k2 | spender proj | 20 | — | **1,9** perforante | Opción a distancia para voladores o lanzadores | 0 / 0,3 s | todas | `shoot` |
 | `embestida` | Embestida | C | k1 | movement melee area | gen **+12** si golpea | 8 s | 1,2 r 1,9 al llegar | Embiste 7 m | 0 / 0,25 s | Berserker, c11 | estela / `dash` |
@@ -452,8 +452,8 @@ export const GUERRERO_TALENTS = {
 | x3 | `power:'p_nova_solar'` |
 
 5. **Pasivas innatas por especialización** (`spec.innate`; no son nodos, se aplican siempre que la especialización está activa):
-   - Guardián: `block:15` con escudo, amenaza ×3, +10 % de vida.
-   - Cruzado: +15 % de curación realizada.
+   - Guardián: `block:15` con escudo, amenaza ×3, +5 % de vida (Paso 2e: era +10 %; el TTD pasivo del Guardián quedaba en el techo del 1A).
+   - Cruzado: +30 % de curación realizada (Paso 2e: era +15 %; TTD+ del Cruzado ≥ 1,3·M con el Bramido como defensa).
    - Crionte y Montaraz: +25 % de stagger contra jefes.
    - El resto, nada.
    *Por qué:* las especializaciones de rol de WoW tienen su línea base. Sin bloqueo, el Bastión del Guardián no tiene de dónde salir y la amenaza no distingue al tanque.
@@ -622,10 +622,16 @@ Fuentes de `healPct`: innata del Cruzado +15, nodos futuros de talento o equipo.
 | Escenario | Qué mide | Modelo |
 |---|---|---|
 | **UNI** | DPS contra un objetivo | Jefe de 90 s de vida, 60 s de simulación; con GCD, windup, cadencia y recurso reales |
-| **ÁREA×5** | DPS total contra 5 enemigos agrupados (r 3) | Las habilidades de área golpean a todos, los proyectiles según abanico y perforación, las cadenas a N |
-| **TTD+** | Aguante con defensas activas | Manada (campeón + 4 comunes) sin pausa; el héroe usa su defensa al enfriarse; cuentan escudos, curas, `dr`, bloqueo, Bastión y Furia por daño |
+| **ÁREA×5** | DPS total contra 5 enemigos agrupados (r 2) | La manada (vida de campeón) **llega caminando desde 8 m** hacia el héroe (a su velocidad; los ralentizados más despacio, los inmovilizados y aturdidos se paran) y cada muerto vuelve con una oleada nueva desde 8 m; el cuerpo a cuerpo sale a su encuentro. Las habilidades de área golpean a todos, los proyectiles según abanico y perforación, las cadenas a N, y las trampas se arman en el camino |
+| **TTD+** | Aguante con defensas activas | **Tiempo hasta perder el 50 % de la vida** contra una manada inmortal de **3 élites + 4 comunes** que pega sin pausa; el héroe pelea con su rotación y usa su defensa al enfriarse; cuentan escudos, curas, `dr`, bloqueo, Bastión, debilitamientos (provocación, ceguera) y Furia por daño |
 | **APOYO** | Aporte al grupo | 2 aliados fantasma con DPS = media y vida = media. Aporte = (DPS extra de los aliados por buffs y Debilidad) / DPS de un aliado + curación y escudos efectivos en % de vida/s del grupo |
 | **CONTROL** | Tiempo de control | Contra 5 comunes: % del tiempo con control duro o inmovilizados y % con ralentización ≥30 %. Contra jefe: Quebrantados por minuto |
+
+**Redefiniciones del Paso 2e** (decisiones del jefe tras la primera pasada del banco):
+- **TTD+ = tiempo hasta perder el 50 %** contra 3 élites + 4 comunes, no «tiempo hasta morir» contra 1 campeón + 4 comunes. *Por qué:* la medida antigua era casi singular. A T0, la cubeta de sustento (6 %/s) casi igualaba el daño entrante de esa manada, así que el TTD+ era ≈ vida / (daño − sustento) con un denominador cercano a 0: el mismo Guardián daba 39 o 184 s según el equipo de la semilla. Con élites el daño entrante supera de largo al sustento, y medir hasta el 50 % no depende de cómo termina la pelea. Los objetivos de §7.2 siguen siendo ratios ×M sobre **esta** métrica.
+- **ÁREA×5 con la manada caminando desde 8 m** (todas las especializaciones). *Por qué:* con la manada quieta las trampas se pisaban al instante y la red del Montaraz no se formaba, y el área de un golpe en el sitio exacto valía más que la que controla el avance. Efecto secundario conocido: matar más rápido deja más tiempo con la oleada caminando, así que el ÁREA×5 de las especializaciones que limpian muy deprisa se satura (no crece con más daño).
+- **Equipo por percentil común (`--seeds`)**: el equipo típico y el óptimo usan un **perfil fijo por nivel e igual para las 3 clases**: mediana del daño de arma y de la armadura y media de los afijos que deciden el poder (vida, daño, crítico, velocidad, CDR, el atributo principal aplicado al de cada clase…), sacados de 15 tiradas por clase con una semilla común. La semilla solo varía el azar de combate y los afijos secundarios. *Por qué:* antes cada clase tiraba su equipo por semilla y las reglas ×M comparaban la suerte de una clase con la de otra (jefe del Guardián entre 63 y 107 s según la semilla).
+- **La matriz se juzga por las medianas de 5 semillas**, a ≥ 5 % de cada borde. La semilla 1 se imprime solo como informe. No hay objetivos «pendientes».
 
 Builds: héroe **típico** Nv50 (raros, sin soportes) **por especialización**, con el `preset` del mockup y **dos configuraciones de la ranura `2`** (`LOADOUT_SPEC`):
 
@@ -656,10 +662,11 @@ La definitiva se usa al enfriarse.
 - TTD+: la **defensiva** (la defensa se usa al enfriarse o con vida < 50 %).
 - El Guardián se mide en **todos** los escenarios con la defensiva, porque es la que define su rol.
 - `--report` imprime ambas variantes en UNI y TTD+ para ver el intercambio.
+- **Cruzado (Paso 2e):** con el Bramido en la `2` no lleva Martillo, así que contra un jefe no generaba Fervor ni lanzaba Veredicto (+86 % de UNI de la ofensiva sobre la defensiva). Desde 2e gana **1 de Fervor cada 3 golpes de su básico que aciertan** (el Martillo sigue dando el suyo). La tabla no cambia.
 
 ### 7.2 Objetivos (Nv50 típico, T0)
 
-M = media de las 9 especializaciones en esa métrica.
+M = media de las 9 especializaciones en esa métrica. El TTD+ es el de §7.1 redefinido en 2e (tiempo hasta perder el 50 % contra 3 élites + 4 comunes). Se cumple con las **medianas de 5 semillas** y un margen del 5 % a cada borde (`node tests/balance-bench.mjs`; `--seeds N` cambia el número de semillas).
 
 | Especialización | Rol | Métrica principal (debe ser **la mejor de su clase** por ≥10 %) | Suelos (que nadie quede inservible) |
 |---|---|---|---|

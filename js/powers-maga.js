@@ -481,7 +481,7 @@ export function magaPowers() {
       modifyResolve(p, sk, prof) { if (sk.id === 'm_dardo' && gaugeValue(p, 'cargas') >= 4) prof.pierce = true; },
       onGauge(g, p, id) { if (id === 'cargas') invalidate(p, 'm_dardo'); },
     },
-    // x1 Cadena de Rayos: el primer crítico de cada Rayo salta a 3 enemigos con el 50 %;
+    // x1 Cadena de Rayos: el primer crítico de cada Rayo salta a 3 enemigos con el 150 % (2e);
     // si está solo, lo golpea dos veces
     a_chain_crit: {
       name: 'Cadena de Rayos', desc: 'Los críticos de Rayo saltan a 3 enemigos con el 150 % del daño; sin otro enemigo cerca no saltan.',

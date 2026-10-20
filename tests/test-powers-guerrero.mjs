@@ -106,7 +106,7 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
   s.cast('k1'); s.step(0.6);
   assert.ok(approx(s.p.pos.x, 7.8, 0.35) && s.p.shieldTotal() > 0, `sin aliado: 8 m al cursor (${s.p.pos.x.toFixed(2)})`);
 }
-// c12A Bramido de Guerra: +15 % de vida y se cura ese 15 % (a ti y a los aliados a 15 m)
+// c12A Bramido de Guerra: +30 % de vida y se cura un 40 % (a ti y a los aliados a 15 m; 2e: 15/21 → 30/40 %)
 {
   const h = H({ talents: { cls: { c12: 1 }, choice: { c12: 'A' } } });
   const p = h.p, a = h.ally(5, 0), far = h.ally(30, 0);
@@ -118,7 +118,8 @@ console.log('(c) definePower rechaza claves desconocidas · (d) ningún mult nue
   assert.equal(h.cast('k2'), true);
   const prof = resolveSkill(p, SK('g_t_bramido'));
   assert.ok(buff(p, 'g_t_bramido') && approx(p.stats.maxHP, Math.round(max0 * (1 + prof.buff.hpPct / 100)), 2), `+${prof.buff.hpPct} % de vida máxima`);
-  assert.ok(p.hp - hp0 > p.stats.maxHP * 0.15, 'se cura ese 15 %');
+  // la cura usa la vida máxima NUEVA (addBuff recalcula antes): 40 % × potencia de rango
+  assert.ok(p.hp - hp0 >= p.stats.maxHP * 0.42, `se cura el 40 % de la vida NUEVA (${Math.round(p.hp - hp0)} de ${p.stats.maxHP})`);
   assert.ok(buff(a, 'g_t_bramido') && a.healed > 140, 'el aliado cercano también');
   assert.ok(!buff(far, 'g_t_bramido') && far.healed === 0, 'el lejano no');
 }
@@ -198,14 +199,14 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   h.g.cancelCast('dodge');
   assert.ok(!h.g._channel, 'la esquiva corta el giro');
 }
-// s6A Carnicería: +10 % de radio y el Sangrado salta a 1 cercano (2e)
+// s6A Carnicería: +40 % de radio y el Sangrado salta a 1 cercano (2e: +40 → +10 → +40 %, ÁREA×5 con la manada que camina)
 {
   const h = B({ s6: 1 }, { choice: { s6: 'A' } });
   const p = h.p;
   const prof = resolveSkill(p, SK('g_t_remolino'));
-  assert.ok(approx(prof.radius, 2.9 * 1.1, 1e-9) && prof.chain === 1, 'radio ×1,1 y salto a 1');
+  assert.ok(approx(prof.radius, 2.9 * 1.4, 1e-9) && prof.chain === 1, 'radio ×1,4 y salto a 1');
   const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] });
-  // fuera del giro (radio 3,19 + 0,5) pero a ≤ 4 m del golpeado
+  // fuera del giro (radio 4,06 + 0,5) pero a ≤ 4 m del golpeado
   const near = [h.enemy({ hp: 1e6, pos: [5.5, 0, 0] }), h.enemy({ hp: 1e6, pos: [4, 0, 3] })];
   const third = h.enemy({ hp: 1e6, pos: [5.2, 0, -2] });
   p.mp = 100; h.cast('k3'); h.step(0.32);
@@ -357,6 +358,9 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   assert.ok(es.every(e => e.tauntT > 0 && e.tauntSrc === p) && !(far.tauntT > 0), 'provoca a todos a 10 m');
   assert.equal(p.mp, 20, '+20 de Furia');
   assert.equal(h.gaugeValue('bastion'), 2, 'Desafío Firme: +2 Bastión');
+  // 2e: los provocados te hacen −weakenPct % de daño mientras dura (× potencia del rango)
+  const dp = resolveSkill(p, SK('g_t_desafio'));
+  assert.ok(approx(es[0].outDmgMul(), 1 - Math.round(SK('g_t_desafio').weakenPct * dp.buffMul) / 100, 1e-9) && far.outDmgMul() === 1, `Grito Desafiante debilita a los provocados (×${es[0].outDmgMul()})`);
   const c = G({ s6: 1 }, { choice: { s6: 'A' } });
   const ce = c.enemy({ pos: [14, 0, 0] });
   c.cast('k3');
@@ -370,6 +374,12 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   const h = G({ s7: 1, s8: 2 });
   const p = h.p;
   assert.ok(p.powers.has('g_martillo_pesado') && !p.powers.has('g_desafio_firme') && p.powers.has('nucleo_tv'), 's7 lleva g_martillo_pesado; s8, la clave del núcleo');
+  // 2e: el Martillo de la clase es la onda ligera (0,34, el constructor de Fervor del Cruzado);
+  // con Martillo Pesado pasa a un golpe de 2,0 (× rango de la habilidad)
+  const mp = resolveSkill(p, SK('g_martillo'));
+  assert.ok(approx(mp.coef, 2.0 * (1 + 0.1 * (mp.rank - 1)), 1e-9), `Martillo Pesado: coef 2,0 × rango (${mp.coef})`);
+  const mp0 = resolveSkill(G().p, SK('g_martillo'));
+  assert.ok(approx(mp0.coef, 0.34 * (1 + 0.1 * (mp0.rank - 1)), 1e-9), `sin s7: la onda ligera 0,34 (${mp0.coef})`);
   h.setSlot('rmb', 'g_martillo');
   for (const z of [-0.6, 0, 0.6]) h.enemy({ hp: 1e6, pos: [2.5, 0, z] });
   h.aim(2.5, 0); p.mp = 100;
@@ -614,15 +624,19 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   l.enemy({ hp: 10, pos: [-3, 0, 0] }).takeDamage(99, false, {});
   assert.ok(approx(l.sustained() - s0, lp.stats.maxHP * 0.03, 1) && approx(la.healed, 30, 1e-6), 'Luz Sanadora: 3 % a ti y a los aliados a 10 m');
   l.g.party = [];
-  l.setSlot('rmb', 'g_martillo');
-  l.enemy({ hp: 1e6, pos: [2.5, 0, 0] }); l.aim(2.5, 0);
-  lp.combatRng = () => 0; lp.mp = 100;
+  // Paso 2e: Fervor Creciente pasa del Martillo al BÁSICO (cada golpe que acierta, X %)
+  const le = l.enemy({ hp: 1e6, pos: [2.5, 0, 0] });
+  lp.combatRng = () => 0;
   const fv = l.gaugeValue('fervor');
-  l.cast('rmb'); l.step(0.5);
-  assert.equal(l.gaugeValue('fervor'), fv + 1, 'Fervor Creciente: +1 Fervor (azar con semilla)');
-  lp.combatRng = () => 0.99; lp.mp = 100; l.step(0.3);
-  l.cast('rmb'); l.step(0.5);
-  assert.equal(l.gaugeValue('fervor'), fv + 1, 'si el azar no acompaña, nada');
+  l.hit(le, { skill: 'g_tajo' });
+  assert.equal(l.gaugeValue('fervor'), fv + 1, 'Fervor Creciente: +1 Fervor por golpe del básico (azar con semilla)');
+  l.hit(le, { skill: 'g_martillo' });
+  assert.equal(l.gaugeValue('fervor'), fv + 1, 'el Martillo ya no tira Fervor Creciente');
+  lp.combatRng = () => 0.99;
+  l.hit(le, { skill: 'g_tajo' });
+  assert.equal(l.gaugeValue('fervor'), fv + 1, 'si el azar no acompaña, nada (2.º golpe del básico)');
+  l.hit(le, { skill: 'g_tajo' });
+  assert.equal(l.gaugeValue('fervor'), fv + 2, '3.er golpe del básico: +1 (1 cada 3, Juicio)');
 
   const k = C({ s6: 1 }, { choice: { s6: 'A' } });
   const ka = k.ally(2.5, 0.5);

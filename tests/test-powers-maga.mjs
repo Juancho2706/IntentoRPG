@@ -651,9 +651,9 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   const os = [[5, 0], [4, 2], [6, 1], [9.5, 0]].map(([x, z]) => h.enemy({ hp: 1e7, pos: [x, 0, z] }));
   const bys = os.map(track);
   h.hit(e, { skill: 'rayo', crit: true, dealt: 200 });
-  assert.deepEqual(bys.map(b => Math.round(b['power:a_chain_crit'] || 0)), [180, 180, 180, 0], 'salta a 3 con el 90 % (2e)');
+  assert.deepEqual(bys.map(b => Math.round(b['power:a_chain_crit'] || 0)), [300, 300, 300, 0], 'salta a 3 con el 150 % (2e: 90 → 150 %)');
   h.hit(e, { skill: 'rayo', crit: true, dealt: 200 });
-  assert.equal(Math.round(bys[0]['power:a_chain_crit']), 180, 'una cadena por Rayo');
+  assert.equal(Math.round(bys[0]['power:a_chain_crit']), 300, 'una cadena por Rayo');
   firePower('afterCast', h.p, h.g, h.p, { sk: { id: 'rayo' } }, { hits: 1, dealt: 1, killed: 0 });
   assert.equal(h.gaugeValue('cargas'), 3, 'x2: cada salto da 1 Carga (al terminar el Rayo)');
   const solo = mk('arcanista', { x1: 1 });

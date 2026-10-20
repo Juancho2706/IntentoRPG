@@ -103,6 +103,26 @@
 //  · Clase: c9 Flechas Templadas: +1 nivel a Múltiple y Perforante → a Múltiple y +2 a Lluvia;
 //    c14 Economía Letal −10 → −5 %. skills-arquera.js: Disparo Rápido 1,15 → 1,0 («solo
 //    básico» Nv10 ×0,63 > 0,6) y Lluvia de Flechas 0,52 → 0,7 por oleada (2,8 WD).
+// RECALIBRACIÓN 2e — cierre (TTD+ al 50 % contra 3 élites + 4 comunes, ÁREA×5 con la manada
+// caminando desde 8 m, equipo por percentil común, medianas de 5 semillas; ver
+// talents-guerrero.js):
+//  · Francotiradora: con el equipo igual para las 3 clases su UNI quedaba en ×1,06·M (< 1,15):
+//    Flecha Perforante (skills-arquera.js) 2,1 → 2,4, s1 Ojo de Águila +4 → +12 % de daño
+//    crítico/rango y s7 Letalidad +2 → +5 %/rango → ×1,22. Bomba de Humo 6 s/13 s → 8 s/16 s y
+//    CEGUERA: los enemigos dentro hacen −30 % de daño (comportamiento a_humo + campo
+//    a_humo_ciego): contra élites el −50 % de reducción topaba y perdía la mitad de la vida en
+//    9 s (TTD+ 0,87 → 0,91·M; Tiradora igual).
+//  · Montaraz (área ≥ 0,9·M; antes 0,71 con la manada que camina): s0 Cacería ×1,10 → ×1,30
+//    contra ralentizados o inmovilizados SALVO JEFES (powers-common.js; así no vuelve a ser UNI
+//    pura contra un jefe), s1 Puntas de Cicuta: +2 %/rango de Naturaleza y Veneno (su daño es
+//    Físico: no hacía nada) → +9 %/rango contra ralentizados, x2 Zarzal 20 → 520 % de un golpe
+//    de arma por segundo a quien pisa la red (la red entre trampas es su área contra una
+//    manada que llega). La ranura 2 ofensiva daba +29 %: Lluvia de Flechas 0,7 → 0,6 por
+//    oleada (2,4 WD). Red de Caza 1,5 → 2,5 s: la defensiva daba +23 % de TTD+ (≥ +30 %).
+//  · Tiradora: s10 Lluvia Torrencial +50 → +65 %/rango (compensa la Lluvia más baja; su UNI
+//    ×0,89 → ×0,90 y la ofensiva +13 %) y Flecha Múltiple 0,35 → 0,39 por flecha.
+//  · Diluvio de Saetas 1,95 → 2,73 por oleada (21,8 WD): la definitiva aportaba el 11–12 % del
+//    UNI (12–22 %).
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple
@@ -255,7 +275,7 @@ export const ARQUERA_TALENTS = {
         { id: 's16', name: 'Raíces Profundas', icon: 'talents/arquera-montaraz-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `La inmovilización de tus trampas dura +${x(0.5, r)} s.`, fx: { mod: { a_t_cepo: { rootAdd: 0.5 } } } },
         { id: 's17', name: 'Espinas Venenosas', icon: 'talents/arquera-montaraz-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `Los enemigos inmovilizados reciben +${x(10, r)}% de daño de todo el grupo.`, fx: { tv: { rootedWeak: 10 } } },
         { id: 'x1', name: 'Red de Espinas', icon: 'talents/arquera-montaraz-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: las trampas armadas a menos de 10 m se unen con una red de espinas; quien la cruza queda ralentizado un 50% y sangra.', fx: { power: 'm_thornweb' } },
-        { id: 'x2', name: 'Zarzal', icon: 'talents/arquera-montaraz-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: la red inflige el ${x(480, r)}% de tu daño por segundo.`, fx: { tv: { webDmg: 480 } } },
+        { id: 'x2', name: 'Zarzal', icon: 'talents/arquera-montaraz-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: la red inflige el ${x(520, r)}% de tu daño por segundo.`, fx: { tv: { webDmg: 520 } } },
         { id: 'x3', name: 'Gran Cacería', icon: 'talents/arquera-montaraz-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): si tu Presa queda atrapada en la red, todas las trampas se rearman y el grupo gana +15% de daño durante 6 s.', fx: { power: 'm_greathunt' } },
       ],
       preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s5', 1], ['s6', 1, 'A'], ['s8', 2], ['s9', 1], ['s11', 2], ['s13', 1, 'A'], ['s14', 1], ['s16', 2], ['x1', 1], ['x2', 1]],

@@ -26,18 +26,18 @@ const EXPECT = {
   g_tajo:         { st: 'C', cat: 'basic',    req: 1,  coef: 1.0, cost: 0,  cd: 0,  gen: 10 },
   g_mandoble:     { st: 'R', cat: 'basic',    req: 3,  coef: 1.5, cost: 0,  cd: 0,  gen: 14 },   // básico B (Nv3)
   g_embate:       { st: 'R', cat: 'basic',    req: 8,  coef: 0.6, cost: 0,  cd: 0,  gen: 7 },    // básico C (Nv8)
-  torbellino:     { st: 'R', cat: 'spender',  req: 2,  coef: 1.6, cost: 25, cd: 0 },
+  torbellino:     { st: 'R', cat: 'spender',  req: 2,  coef: 1.5, cost: 25, cd: 0 },   // 1,6 → 1,5 (2e: con Torbellino de Acero)
   g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.9, cost: 27, cd: 0 },   // 2,6/30 → 2,9/27 (banco 2b.2)
-  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 1.8, cost: 30, cd: 0 },   // 2,4 → 1,8 (banco de roles 2e)
+  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 0.34, cost: 30, cd: 0 },  // 2,4 → 1,8 → 0,34 (2e: constructor de Fervor; el Guardián lo hace pesado con s7)
   terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.1, cost: 26, cd: 4 },   // 3,0/35/6 → 3,1/26/4 (banco 2b.2)
   g_lanza:        { st: 'C', cat: 'spender',  req: 14, coef: 1.9, cost: 20, cd: 0 },
   embestida:      { st: 'C', cat: 'movement', req: 4,  coef: 1.2, cost: 0,  cd: 8 },
   g_salto:        { st: 'R', cat: 'movement', req: 12, coef: 1.8, cost: 0,  cd: 12 },
-  g_piel:         { st: 'N', cat: 'defense',  req: 6,  coef: 0,   cost: 0,  cd: 25 },
+  g_piel:         { st: 'N', cat: 'defense',  req: 6,  coef: 0,   cost: 0,  cd: 20 },   // 25 → 20 s (2e)
   g_provocacion:  { st: 'R', cat: 'utility',  req: 16, coef: 0,   cost: 0,  cd: 8 },    // utilidad C (Nv16)
   grito_guerra:   { st: 'R', cat: 'utility',  req: 12, coef: 0,   cost: 0,  cd: 20 },   // sin coste, +30 al lanzar
   g_u_furia:      { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 60 },
-  g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.4, cost: 0,  cd: 50 },   // 3,5 → 3,6 (2b.2) → 3,4 × 8 impactos en 5 s (2c.2)
+  g_u_cataclismo: { st: 'R', cat: 'ultimate', req: 15, coef: 3.1, cost: 0,  cd: 50 },   // 3,5 → 3,6 (2b.2) → 3,4 × 8 impactos en 5 s (2c.2) → 3,1 (2e)
   g_u_estandarte: { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 55 },
 };
 assert.deepEqual(GUERRERO_SKILLS.map(s => s.id).sort(), Object.keys(EXPECT).sort(), 'catálogo base = §3.1 sin las de talento');
@@ -76,9 +76,9 @@ console.log('Catálogo del Guerrero: 16 habilidades base válidas, ramas 3×3, r
 // ------------------------------------------------ 2) resolveSkill en Nv1 / Nv20 / Nv50
 const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, input: { joyDir: null, keyDir: null }, enemies: [] });
 const LITERAL = {   // coef final a mano: base × (1 + 0,10·(rango−1)), rango = clamp(1+⌊(Nv−req)/8⌋,1,5)
-  1:  { torbellino: 1.6,  g_hendidura: 2.9,  terremoto: 3.1, g_tajo: 1.0, g_u_cataclismo: 3.4 },
-  20: { torbellino: 1.92, g_hendidura: 3.19, terremoto: 3.1, g_tajo: 1.2, g_u_cataclismo: 3.4 },
-  50: { torbellino: 2.24, g_hendidura: 4.06, terremoto: 4.34, g_tajo: 1.4, g_u_cataclismo: 4.76 },
+  1:  { torbellino: 1.5,  g_hendidura: 2.9,  terremoto: 3.1, g_tajo: 1.0, g_u_cataclismo: 3.1 },
+  20: { torbellino: 1.8,  g_hendidura: 3.19, terremoto: 3.1, g_tajo: 1.2, g_u_cataclismo: 3.1 },
+  50: { torbellino: 2.1,  g_hendidura: 4.06, terremoto: 4.34, g_tajo: 1.4, g_u_cataclismo: 4.34 },
 };
 for (const L of [1, 20, 50]) {
   const p = new Player(mk(), 'guerrero');
@@ -100,7 +100,7 @@ for (const L of [1, 20, 50]) {
 }
 { // números concretos de Nv50 (rango 5): buffs +24 %
   const p = new Player(mk(), 'guerrero'); p.level = 50; p.recompute();
-  assert.deepEqual(resolveSkill(p, SK('g_piel')).buff, { dr: 50 });   // 2e: 40 × 1,24 = 49,6 → 50
+  assert.deepEqual(resolveSkill(p, SK('g_piel')).buff, { dr: 62 });   // 2e: 50 × 1,24 = 62 (el tope de dr del 50 % lo aplica recompute)
   assert.deepEqual(resolveSkill(p, SK('grito_guerra')).buff, { dmgPct: 12 });
   assert.deepEqual(resolveSkill(p, SK('g_u_estandarte')).buff, { dmgPct: 25, dr: 19 });   // rango 5 (req 15: 1+⌊35/8⌋=5)
   assert.ok(approx(resolveSkill(p, SK('g_salto')).coef, 1.8 * 1.4) && resolveSkill(p, SK('g_salto')).slowPct === 40);
@@ -192,14 +192,14 @@ const hp0 = h.p.hp; h.p.takeDamage(50, 1); assert.equal(h.p.hp, hp0, 'Salto: int
 h.step(0.6);
 assert.ok(Math.abs(h.p.pos.x - 6) < 0.05 && e.hp < 1e6 && e.slowT > 1 && e.slowPct === 40, 'Salto: aterriza, daña y ralentiza 40 %');
 
-// Piel de Hierro: −40 % (+6 %/rango) de daño recibido 8 s (2e), inmune a ralentizaciones
+// Piel de Hierro: −50 % (+6 %/rango) de daño recibido 12 s (2e), inmune a ralentizaciones
 h = hz(6); h.setSlot('k2', 'g_piel'); h.p.slowT = 3;
 assert.equal(h.cast('k2'), true);
-assert.equal(h.p.stats.dr, 40, 'Piel: dr 40 a rango 1');
+assert.equal(h.p.stats.dr, 50, 'Piel: dr 50 a rango 1');
 h.p.slowT = 2; h.step(0.15);
 assert.equal(h.p.slowT, 0, 'Piel: inmune a ralentizaciones mientras dura (p.slowImmuneT)');
 assert.equal(h.p.applySlow(2), false, 'Piel: applySlow no tiene efecto');
-h.tick(8.2); h.p.slowT = 2; h.step(0.2);
+h.tick(12.2); h.p.slowT = 2; h.step(0.2);
 assert.ok(h.p.slowT > 1 && h.p.stats.dr === 0, 'Piel: al terminar vuelve la ralentización y se va el dr');
 
 // Provocación: provoca a 1 enemigo a 15 m, −15 % de su daño 4 s, +15 de Furia

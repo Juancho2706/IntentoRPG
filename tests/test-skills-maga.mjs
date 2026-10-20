@@ -136,8 +136,10 @@ const lost = e => e.maxHP - e.hp;
   assert.equal(lost(e), 0, 'aún no impacta');
   h.step(0.7);
   assert.ok(lost(e) > 0 && lost(n) > 0, 'golpe directo + explosión');
-  // Paso 2e: la explosión (2,5) pesa más que el impacto directo (2,2): la Bola es de área
-  assert.ok(lost(n) > lost(e) && lost(n) < lost(e) * 1.6, `directo 2,2 frente a salpicadura 2,5 (${lost(e)} vs ${lost(n)})`);
+  // Paso 2e: la explosión (2,5 → 3,5 con la manada que camina) pesa más que el impacto
+  // directo (2,2): la Bola es de área (golpes pequeños a Nv10: ±25 % por redondeo)
+  const ratio = S('bola_fuego').splash / S('bola_fuego').coef;
+  assert.ok(lost(n) > lost(e) * ratio * 0.75 && lost(n) < lost(e) * ratio * 1.25, `directo 2,2 frente a salpicadura 3,5 (${lost(e)} vs ${lost(n)})`);
   console.log('Bola de Fuego: daño al impactar + explosión de 2 m ✓');
 }
 
@@ -202,18 +204,18 @@ const lost = e => e.maxHP - e.hp;
   console.log('Estela Ígnea: rastro de fuego de 3 s ✓');
 }
 
-// Armadura de Hielo: escudo del 25 % de la vida 6 s (2e)
+// Armadura de Hielo: escudo del 30 % de la vida 8 s, enfriamiento 12 s (2e)
 {
   const h = makeHarness({ classId: 'maga', level: 6 });
   h.setSlot('k2', 'm_armadura');
   assert.equal(h.cast('k2'), true);
   const sh = h.p.shieldTotal();
-  assert.ok(Math.abs(sh - Math.round(0.25 * h.p.stats.maxHP)) <= 1, `escudo 25 % (${sh} de ${h.p.stats.maxHP})`);
+  assert.ok(Math.abs(sh - Math.round(0.30 * h.p.stats.maxHP)) <= 1, `escudo 30 % (${sh} de ${h.p.stats.maxHP})`);
   const hp0 = h.p.hp;
   h.p.takeDamage(Math.floor(sh / 2), 1, { element: 'fire' });
   assert.equal(h.p.hp, hp0, 'el escudo absorbe antes que la vida');
-  assert.equal(h.p.cds.m_armadura, 20);
-  console.log('Armadura de Hielo: escudo del 20 % de la vida máxima ✓');
+  assert.equal(h.p.cds.m_armadura, 12);
+  console.log('Armadura de Hielo: escudo del 30 % de la vida máxima ✓');
 }
 
 // Onda Repulsora: daño, empuje de 5 m y aturdimiento

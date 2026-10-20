@@ -55,8 +55,8 @@
 //    ritmo inicial, que es lo que infla al óptimo): parte de la definitiva 9 → 14 % (Nv50) y
 //    11 → 16 % (Nv25).
 // RECALIBRACIÓN 2e (banco de roles, §7.2: matriz 9 especializaciones × 5 escenarios; antes
-// 46 objetivos fuera, después 0 con la semilla 1 + 3 pendientes documentados en
-// PENDING_2E de tests/balance-bench.mjs). Texto y valor cambian JUNTOS:
+// 46 objetivos fuera, después 0 con la semilla 1; los 3 «pendientes» de esta primera pasada
+// los cierra el bloque «cierre» de abajo). Texto y valor cambian JUNTOS:
 //  · Remolino Sangriento (insignia Berserker): canal 3 → 2 s (mismos 10 golpes), 45 → 47 %
 //    por golpe. Con 3 s de cada 6 girando era una TRAMPA de tiempo: sin él el Guerrero Nv10
 //    mataba al jefe en 77 s y con él en 104 (élite 9,1 → 12,9 s, fuera del 1A).
@@ -83,6 +83,37 @@
 //  · skills-guerrero.js: Martillo de Guerra 2,4 → 1,8 (era el 57 % del área del Cruzado) y
 //    Piel de Hierro 6 s/−30 % → 8 s/−40 % (la ranura 2 defensiva del Berserker y del Guardián).
 //  · powers-common.js: Juicio 60 → 20 % del golpe medio al matar.
+// RECALIBRACIÓN 2e — cierre (decisiones del jefe: TTD+ = tiempo hasta perder el 50 % contra
+// 3 élites + 4 comunes, ÁREA×5 con la manada caminando desde 8 m, equipo por percentil común
+// y matriz juzgada por las medianas de 5 semillas a ≥ 5 % de los bordes; antes 20 reglas
+// fuera en las medianas, después 0):
+//  · Cruzado, Fervor (spec-mechanics.js, decisión del jefe): +1 cada 3 golpes del BÁSICO que
+//    aciertan (s0 Juicio lo dice). Con el Bramido en la 2 no había Martillo, no había Fervor
+//    contra un jefe y la ofensiva daba +86 % de UNI sobre la defensiva.
+//  · Martillo de Guerra (skills-guerrero.js) 1,8 → 0,34: en el Cruzado (su 2 ofensiva) es el
+//    CONSTRUCTOR de Fervor; con 1 Martillo/s de Furia sobrante, cualquier golpe mayor que una
+//    onda ligera abre la ofensiva > +25 % (0,6 → +38 %, 1,0 → +51 %, 1,8 → +77 %). El daño del
+//    Cruzado pasa a Veredicto Final: 120 → 570 % (s9 y su activa) en un cono de 60 → 40° (era
+//    el 67 % del ÁREA×5 del Cruzado y subía la media de área contra la que se mide el resto).
+//    s12 Fervor Creciente: 8 %/rango por Martillo → 5 %/rango por golpe del BÁSICO (en el
+//    Martillo solo podía bajar a un 1 % sin romper el intercambio; en el básico ayuda a las
+//    dos variantes). s1 Fe Ardiente 5 → 6 %/rango. Innata +15 → +30 % de curación y Bramido
+//    de Guerra (c12A) +15/21 → +30/40 % de vida/cura: TTD+ del Cruzado ≥ 1,3·M con su defensa.
+//  · Guardián: s7 Martillo Pesado convierte la onda en un golpe pesado de coef 2,0 (× rango;
+//    powers-guerrero.js, poder g_martillo_pesado) y entra en su preset (21 puntos a Nv50): su
+//    UNI ×0,77·M con la defensiva. Piel de Hierro (skills-guerrero.js) 8 s/−40 %/25 s →
+//    12 s/−50 %/20 s y Grito Desafiante (s0 y su activa) 4 → 6 s de provocación y −9 % de
+//    daño de los provocados: TTD+ 1,66 → 2,68·M (y ≥ 1,8× el Cruzado) contra élites. Innata
+//    +10 → +5 % de vida: el TTD pasivo (1A) quedaba en el techo (11,5 s de 12).
+//  · Berserker: Remolino Sangriento 47 → 57 % por golpe, s6A Carnicería +10 → +40 % de radio
+//    y s16 Torbellino de Acero −10 → −30 %/rango de coste (y +8 → +6 %/rango de daño), con
+//    Torbellino 1,6 → 1,5: ÁREA×5 0,96 → 1,06·M sin pasar de +25 % la ranura 2. s11 Umbral del
+//    Dolor −13 → −10 %/rango de daño recibido y +3 %/rango de vida máxima (con élites la
+//    reducción topaba con Piel de Hierro; TTD+ ≥ 0,9·M).
+//  · Cataclismo (skills-guerrero.js) 3,4 → 3,1 por impacto: con la definitiva del Guardián al
+//    22 % del UNI (techo del 12–22 %).
+//  · Barra (ui-gauges-guerrero.js lee gaugeTuning): Remolino Sediento «por enemigo» → «por
+//    golpe» y Muralla Viviente 2 → 1 %, alineados con lo que ya hacían los poderes.
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple
@@ -130,8 +161,8 @@ export const GUERRERO_TALENT_SKILLS = [
     type: 'buff', behavior: 'g_t_devocion', req: 10, cd: 30, dur: 12, buff: { arm: 30 }, allyRadius: 15, healPctPerSec: 3, color: 0xffdd77,
     desc: 'Insignia del Cruzado: durante 12 s, tú y los aliados a 15 m recuperan un 3 % de vida por segundo y ganan +30 de armadura. Enfriamiento 30 s.' },
   { id: 'g_t_veredicto', name: 'Veredicto Final', icon: '⚖️', kind: 'talent', cat: 'spec', slots: ['rmb', 'k2', 'k3'], tags: ['spec', 'spender', 'cone', 'heal', 'holy'], elem: 'holy',
-    type: 'cone', behavior: 'g_t_veredicto', req: 10, coef: 5.7, radius: 6, angle: 60, windup: 0.12, gaugeCost: 3, healDealtPct: 25, color: 0xffe08a,
-    desc: 'Gastas 3 de Fervor en un golpe sagrado en cono de 60° y 6 m (preparación de 0,12 s): 570 % del arma; el grupo se cura el 25 % del daño hecho.' },
+    type: 'cone', behavior: 'g_t_veredicto', req: 10, coef: 5.7, radius: 6, angle: 40, windup: 0.12, gaugeCost: 3, healDealtPct: 25, color: 0xffe08a,
+    desc: 'Gastas 3 de Fervor en un golpe sagrado en cono de 40° y 6 m (preparación de 0,12 s): 570 % del arma; el grupo se cura el 25 % del daño hecho.' },
   { id: 'g_t_justicia', name: 'Martillo de Justicia', icon: '🔨', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'proj', 'cc', 'holy'], elem: 'holy',
     type: 'proj', req: 10, coef: 1.2, cd: 15, speed: 16, range: 12, stun: 3, bossStun: 1.5, stagger: 30, color: 0xffd36b,
     desc: 'Arrojas un martillo sagrado: 120 % del arma y aturde 3 s al objetivo (a los jefes, 1,5 s y +30 de stagger). Enfriamiento 15 s.' },
@@ -215,11 +246,11 @@ export const GUERRERO_TALENTS = {
         { id: 's6', name: 'Cerco o Reto', icon: 'talents/guerrero-guardian-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
           { k: 'A', name: 'Cerco', desc: 'Grito Desafiante: +50% de radio y ralentiza 3 s a los provocados. Para hordas.', fx: { mod: { g_t_desafio: { radius: 50, slow: 3 } } } },
           { k: 'B', name: 'Reto Singular', desc: 'Provocación marca a un enemigo: −20% de daño a tu grupo durante 8 s. Para jefes.', fx: { power: 'g_reto' } } ] },
-        { id: 's7', name: 'Martillo Pesado', icon: 'talents/guerrero-guardian-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(15, r)}% de daño de Martillo de Guerra. Si golpea a 3 o más, suma 1 carga de Bastión.`, fx: { mod: { g_martillo: { dmg: 15 } }, power: 'g_martillo_pesado' } },
+        { id: 's7', name: 'Martillo Pesado', icon: 'talents/guerrero-guardian-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `Martillo de Guerra golpea con el 200% del arma (en vez del 34%) y +${x(15, r)}% de daño. Si golpea a 3 o más, suma 1 carga de Bastión.`, fx: { mod: { g_martillo: { dmg: 15 } }, power: 'g_martillo_pesado' } },
         { id: 's8', name: 'Recuperación', icon: 'talents/guerrero-guardian-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Matar a un enemigo te cura un ${x(1.5, r)}% de vida.`, fx: { tv: { killHeal: 1.5 } } },
         { id: 's9', name: 'Muro de Escudos', icon: 'talents/guerrero-guardian-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: gastas todas tus cargas de Bastión y recibes −10% de daño por carga durante 8 s (máx. −50%). Enfriamiento 25 s.', fx: { grant: 'g_t_muro' } },
         { id: 's10', name: 'Sacudida', icon: 'talents/guerrero-guardian-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(10, r)}% de daño de Terremoto. Con 1 rango, aturde 1 s.`, fx: { mod: { terremoto: { dmg: 10, stun: [1, 1] } } } },
-        { id: 's11', name: 'Coloso', icon: 'talents/guerrero-guardian-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(50, r)} de vida máxima, +${x(5, r)} de armadura, +${x(280, r)}% de daño de Martillo de Guerra y +${x(50, r)}% de Tajo.`, fx: { stats: { hp: 50, arm: 5 }, mod: { g_martillo: { dmg: 280 }, g_tajo: { dmg: 50 } } } },
+        { id: 's11', name: 'Coloso', icon: 'talents/guerrero-guardian-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(50, r)} de vida máxima y +${x(5, r)} de armadura.`, fx: { stats: { hp: 50, arm: 5 } } },
         { id: 's12', name: 'Réplica', icon: 'talents/guerrero-guardian-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `+${x(8, r)}% de daño de Tajo y Martillo de Guerra.`, fx: { mod: { g_tajo: { dmg: 8 }, g_martillo: { dmg: 8 } } } },
         { id: 's13', name: 'Juramento o Carga', icon: 'talents/guerrero-guardian-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
           { k: 'A', name: 'Juramento del Escudo', desc: 'Muro Inquebrantable se recarga en 20 s en lugar de 30 s. Más seguro.', fx: { power: 'g_juramento' } },
@@ -232,7 +263,7 @@ export const GUERRERO_TALENTS = {
         { id: 'x2', name: 'Venganza Acumulada', icon: 'talents/guerrero-guardian-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: al terminar Muro de Escudos, una onda devuelve el ${x(20, r)}% del daño absorbido.`, fx: { power: 'g_venganza' } },
         { id: 'x3', name: 'Bastión Eterno', icon: 'talents/guerrero-guardian-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): con 5 cargas, Muro Inquebrantable protege también a los aliados a 10 m (una vez cada 60 s).', fx: { power: 'g_bastion_eterno' } },
       ],
-      preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s5', 1], ['s6', 1, 'A'], ['s8', 2], ['s9', 1], ['s11', 2], ['s13', 1, 'B'], ['s14', 1], ['s17', 2], ['x1', 1], ['x2', 1]],
+      preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s5', 1], ['s6', 1, 'A'], ['s7', 2], ['s8', 2], ['s9', 1], ['s11', 2], ['s13', 1, 'B'], ['s14', 1], ['s17', 2], ['x1', 1], ['x2', 1]],
     },
     {
       id: 'cruzado', name: 'Cruzado', role: 'support', icon: 'specs/cruzado.webp', emblem: 'emblems/cruzado.webp',
@@ -255,7 +286,7 @@ export const GUERRERO_TALENTS = {
         { id: 's9', name: 'Veredicto Final', icon: 'talents/guerrero-cruzado-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: gastas 3 de Fervor en un golpe sagrado en cono del 570% que cura al grupo un 25% del daño hecho.', fx: { grant: 'g_t_veredicto' } },
         { id: 's10', name: 'Estandarte Sagrado', icon: 'talents/guerrero-cruzado-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `Estandarte de Guerra dura un ${x(20, r)}% más y su bonificación alcanza a los aliados a 15 m.`, fx: { mod: { g_u_estandarte: { dur: 20 } }, power: 'g_estandarte_grupo' } },
         { id: 's11', name: 'Égida Sagrada', icon: 'talents/guerrero-cruzado-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(25, r)} de armadura y +${x(6, r)} de espinas.`, fx: { stats: { arm: 25, thorns: 6 } } },
-        { id: 's12', name: 'Fervor Creciente', icon: 'talents/guerrero-cruzado-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `Martillo de Guerra tiene un ${x(1, r)}% de probabilidad de darte 1 de Fervor extra.`, fx: { tv: { fervorChance: 1 } } },
+        { id: 's12', name: 'Fervor Creciente', icon: 'talents/guerrero-cruzado-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `Cada golpe de tu básico que acierta tiene un ${x(5, r)}% de probabilidad de darte 1 de Fervor extra.`, fx: { tv: { fervorChance: 5 } } },
         { id: 's13', name: 'Intercesión o Justicia', icon: 'talents/guerrero-cruzado-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
           { k: 'A', name: 'Intercesión', desc: 'Cada 90 s, un aliado que iba a morir queda a 1 de vida; tú pierdes un 20% de vida.', fx: { power: 'g_intercesion' } },
           { k: 'B', name: 'Martillo de Justicia', desc: 'Activa: arrojas un martillo que aturde 3 s a un enemigo (1.5 s a jefes).', active: true, fx: { grant: 'g_t_justicia' } } ] },

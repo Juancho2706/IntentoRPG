@@ -420,7 +420,7 @@ const FERVOR = {
     s0: `Juicio (clave): cada muerte te da ${TT.fervor.perKill} de Fervor (y cada ${TT.fervor.basicHits} golpes del básico, otro).`,
     s4: 'Devoción Ferviente: Aura de Devoción te da Fervor al lanzarla.',
     s9: `Veredicto Final: gasta ${TT.fervor.verdict.cost} de Fervor en un golpe del ${TT.fervor.verdict.coefPct} % que cura al grupo.`,
-    s12: 'Fervor Creciente: cada Martillo de Guerra que golpea puede dar Fervor extra.',
+    s12: 'Fervor Creciente: cada golpe de tu básico que acierta puede dar Fervor extra.',
     s14: 'Luz del Alba: cada Fervor gastado alarga el Aura de Devoción.',
     s17: 'Gracia: el Veredicto Final cura más.',
     x3: `Ascensión: tras ${TT.fervor.ascension.need} Veredictos seguidos, ${TT.fervor.ascension.t} s en los que el Fervor no se gasta.`,

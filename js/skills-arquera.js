@@ -184,6 +184,27 @@ export const ARQUERA_SKILL_BEHAVIORS = {
     cast(g, p, prof, cast) { return rain(g, p, prof, cast); },
   },
 
+  // Bomba de Humo (Paso 2e): la zona genérica (−allyDr % de daño a quien está dentro y
+  // proyectiles enemigos que se pierden) + CEGUERA: los enemigos dentro del humo hacen
+  // −blindPct % de daño (outWeak). Sin la ceguera, a Nv50 el humo topaba en el −50 % de
+  // reducción y la Francotiradora perdía la mitad de su vida en 9 s contra una manada.
+  a_humo: {
+    name: 'Bomba de Humo',
+    cast(g, p, prof, cast) {
+      const { ctx, sk } = cast;
+      const pos = p.pos.clone(); pos.y = 0;
+      const radius = prof.radius || sk.radius || 4, dur = prof.dur || sk.dur || 6;
+      g.spawnField?.('zona', { pos, radius, dur, owner: p,
+        data: { dps: 0, color: ctx.color, skill: sk.id, tags: prof.tags,
+          allyDr: sk.allyDr ? Math.round(sk.allyDr * (prof.buffMul || 1)) : 0, projMissPct: sk.projMissPct || 0 } });
+      g.spawnField?.('a_humo_ciego', { pos: pos.clone(), radius, dur, owner: p, data: { pct: sk.blindPct || 0 } });
+      ctx.zoneCenter = pos; ctx.zoneRad = radius;
+      g.spawnRing?.(pos, radius, ctx.color || 0x9aa0a8);
+      if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, pos.clone().setY(0.6));
+      return ctx.res;
+    },
+  },
+
   // Paso Veloz: rueda 6 m en la dirección de movimiento (o hacia el cursor) en
   // 0,2 s y da +20 % de velocidad de ataque 3 s
   a_paso: {

@@ -1086,6 +1086,9 @@ export function specSeedReport(n, { level = 50 } = {}) {
       optMaxHit: m(r => r.optMaxHit),
     };
   });
+  // la semilla 1 (una muestra; solo informe) y luego las medianas (las que se afirman)
+  console.log(`\nSEMILLA 1 — matriz de rol Nv${level} (solo informe)`);
+  printSpecs(runs[0]);
   console.log(`\nMEDIANAS DE ${n} SEMILLAS — matriz de rol Nv${level}`);
   printSpecs(rows);
   const errs = checkSpecs(rows, { margin: SEED_MARGIN });
