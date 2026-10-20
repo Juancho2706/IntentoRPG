@@ -26,6 +26,22 @@ if (map['Space'] !== 'primary') throw new Error('Space debería resolver a prima
 if (map['ArrowUp'] !== 'moveUp') throw new Error('ArrowUp debería resolver a moveUp');
 console.log('Mapa inverso code→action correcto ✓');
 
+// Paso 2d (docs/paso2-diseno.md §1.1): talentos en N (convención de WoW) y la barra de
+// 6 ranuras — 🖱️Izq/🖱️Der son el ratón; 1–4 las cuatro ranuras de teclado; esquiva en Mayús
+if (map['KeyN'] !== 'talents') throw new Error('KeyN debería abrir los talentos');
+if (!BINDABLE_ACTIONS.some(a => a.id === 'talents' && a.group === 'Paneles')) throw new Error('Talentos debe ser remapeable (grupo Paneles)');
+for (const [i, code] of ['Digit1', 'Digit2', 'Digit3', 'Digit4'].entries())
+  if (map[code] !== 'skill' + (i + 1)) throw new Error(`${code} debería ser la ranura ${i + 1}`);
+if (map['ShiftLeft'] !== 'dodge' || map['ShiftRight'] !== 'dodge') throw new Error('la esquiva va en Mayús');
+const skillActs = Object.keys(DEFAULT_BINDINGS).filter(a => /^skill\d$/.test(a));
+if (skillActs.length !== 4) throw new Error('la barra tiene 4 ranuras de teclado (+ 2 de ratón = 6)');
+// remapear la ranura 2 mueve la tecla y no deja duplicados
+const b6 = mergeBindings();
+assignBinding(b6, 'skill2', 'KeyN');
+const m6 = buildCodeMap(b6);
+if (m6['KeyN'] !== 'skill2' || b6.talents.includes('KeyN')) throw new Error('reasignar N a la ranura 2 debe quitarla de talentos');
+console.log('Talentos en N, ranuras 1–4 + ratón (6), esquiva en Mayús; remapeo sin duplicados ✓');
+
 // reasignar una tecla la quita de su acción anterior (sin duplicados)
 assignBinding(b, 'skills', 'KeyI'); // KeyI estaba en inventory
 if (!b.skills.includes('KeyI')) throw new Error('KeyI no se asignó a skills');

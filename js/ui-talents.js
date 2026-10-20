@@ -16,6 +16,9 @@
 //     canEdit: (p) => null | 'motivo', // p. ej. bloquear en combate (por defecto: null)
 //     assetBase: 'assets/',         // raíz de talents/, specs/, emblems/, ui/
 //     id: 'panel-talents',          // id del elemento raíz (clase .panel)
+//     ops: { addRank(p, which, id) … }, // OPCIONAL (2d): sustituye mutaciones de
+//                                   // talents-ops por las del juego (mixin game-talents,
+//                                   // que además sincroniza la barra); mismas firmas
 //   });
 //   → { el, open(), close(), render(), isOpen(), showSpecChoice(), destroy() }
 //
@@ -118,7 +121,7 @@ const initials = (name) => (String(name || '?').split(/\s+/).filter(w => w.lengt
 export function createTalentPanel(host, opts = {}) {
   const T = opts.api;
   if (!T) throw new Error('createTalentPanel: falta opts.api (import * as Talents from "./talents.js")');
-  const ops = createTalentOps(T);
+  const ops = { ...createTalentOps(T), ...(opts.ops || {}) };
   const getPlayer = opts.getPlayer || (() => null);
   const onChange = opts.onChange || (() => {});
   const canEdit = opts.canEdit || (() => null);

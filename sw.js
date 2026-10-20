@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v96';
+const VERSION = 'v97';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -60,11 +60,109 @@ const ASSETS = [
   './js/powers-maga.js',
   './js/powers-arquera.js',
   './css/talents.css',
+  // Paso 2d: modelo puro del HUD + indicador de especialización
+  './js/hud-model.js',
+  './js/ui-gauges.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
   'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
 ];
+
+// Paso 2d: interfaz pintada PEQUEÑA (iconos 128 px, marcadores 64 px, marcos): se
+// precarga (no atómico). Los 234 iconos de talentos, retratos, emblemas y ui256 NO:
+// van a la caché de arte en tiempo de ejecución (ART_CACHE, ver fetch).
+const UI_ASSETS = [
+  './assets/ui/cat_basico.webp',
+  './assets/ui/cat_defensa.webp',
+  './assets/ui/cat_definitiva.webp',
+  './assets/ui/cat_especializacion.webp',
+  './assets/ui/cat_gastadora.webp',
+  './assets/ui/cat_movilidad.webp',
+  './assets/ui/eq_amuleto.webp',
+  './assets/ui/eq_anillo.webp',
+  './assets/ui/eq_arma.webp',
+  './assets/ui/eq_botas.webp',
+  './assets/ui/eq_casco.webp',
+  './assets/ui/eq_cinturon.webp',
+  './assets/ui/eq_guantes.webp',
+  './assets/ui/eq_mano_izq.webp',
+  './assets/ui/eq_pecho.webp',
+  './assets/ui/mat_fragmento.webp',
+  './assets/ui/mat_gema.webp',
+  './assets/ui/mat_glifo.webp',
+  './assets/ui/mat_llave_grieta.webp',
+  './assets/ui/mat_oro.webp',
+  './assets/ui/mat_runa.webp',
+  './assets/ui/menu_ajustes.webp',
+  './assets/ui/menu_alijo.webp',
+  './assets/ui/menu_bendiciones.webp',
+  './assets/ui/menu_codice.webp',
+  './assets/ui/menu_coleccion.webp',
+  './assets/ui/menu_cubo.webp',
+  './assets/ui/menu_estadisticas.webp',
+  './assets/ui/menu_guia.webp',
+  './assets/ui/menu_habilidades.webp',
+  './assets/ui/menu_inventario.webp',
+  './assets/ui/menu_maestria.webp',
+  './assets/ui/menu_mapa.webp',
+  './assets/ui/menu_mascota.webp',
+  './assets/ui/menu_misiones.webp',
+  './assets/ui/menu_pactos.webp',
+  './assets/ui/menu_paragon.webp',
+  './assets/ui/menu_talentos.webp',
+  './assets/ui/menu_tienda.webp',
+  './assets/ui/menu_tormento.webp',
+  './assets/ui/menu_viajes.webp',
+  './assets/ui/res_energia.webp',
+  './assets/ui/res_furia.webp',
+  './assets/ui/res_mana.webp',
+  './assets/ui/st_aturdido.webp',
+  './assets/ui/st_debilidad.webp',
+  './assets/ui/st_escarcha.webp',
+  './assets/ui/st_escudo.webp',
+  './assets/ui/st_provocado.webp',
+  './assets/ui/st_quebrantado.webp',
+  './assets/ui/st_quemadura.webp',
+  './assets/ui/st_ralentizado.webp',
+  './assets/ui/st_sangrado.webp',
+  './assets/ui/st_veneno.webp',
+  './assets/map/mk_alijo.webp',
+  './assets/map/mk_cofre.webp',
+  './assets/map/mk_elite.webp',
+  './assets/map/mk_encantador.webp',
+  './assets/map/mk_entregar.webp',
+  './assets/map/mk_evento.webp',
+  './assets/map/mk_goblin.webp',
+  './assets/map/mk_grieta.webp',
+  './assets/map/mk_herrero.webp',
+  './assets/map/mk_jefe.webp',
+  './assets/map/mk_jugador.webp',
+  './assets/map/mk_mascotas.webp',
+  './assets/map/mk_mazmorra.webp',
+  './assets/map/mk_mercader.webp',
+  './assets/map/mk_mision.webp',
+  './assets/map/mk_muerte.webp',
+  './assets/map/mk_portal.webp',
+  './assets/map/mk_portal_siguiente.webp',
+  './assets/map/mk_salida.webp',
+  './assets/map/mk_sanador.webp',
+  './assets/map/mk_waypoint.webp',
+  './assets/chrome/tx_panel.webp',
+  './assets/chrome/tx_pergamino.webp',
+  './assets/chrome/ui_boton.webp',
+  './assets/chrome/ui_boton_hover.webp',
+  './assets/chrome/ui_cabecera.webp',
+  './assets/chrome/ui_cerrar.webp',
+  './assets/chrome/ui_marco_minimapa.webp',
+  './assets/chrome/ui_marco_panel.webp',
+  './assets/chrome/ui_pestana.webp',
+  './assets/chrome/ui_ranura.webp',
+  './assets/chrome/ui_separador.webp',
+  './assets/chrome/ui_tooltip.webp',
+];
+const ART_CACHE = 'intentorpg-art-v1';
+const ART_RE = /\/assets\/(talents|specs|emblems|ui256|vfx)\//;
 
 // Addons de post-procesado (post-fx: bloom + viñeta + grading). Se precachean
 // aparte y de forma NO atómica: si alguno falla, el post-procesado se degrada
@@ -102,7 +200,8 @@ self.addEventListener('install', (e) => {
     caches.open(CACHE)
       .then((c) => c.addAll(ASSETS)
         // addons en paralelo, tolerante a fallos individuales (no aborta install)
-        .then(() => Promise.all(ADDONS.map((u) => c.add(u).catch(() => {})))))
+        .then(() => Promise.all(ADDONS.map((u) => c.add(u).catch(() => {}))))
+        .then(() => Promise.all(UI_ASSETS.map((u) => c.add(u).catch(() => {})))))
       .then(() => self.skipWaiting())
   );
 });
@@ -110,7 +209,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== ART_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -132,6 +231,18 @@ self.addEventListener('fetch', (e) => {
   }
 
   if (url.origin !== location.origin) return;
+
+  // Arte grande (talentos, retratos, emblemas, iconos 256): caché propia en tiempo
+  // de ejecución (sobrevive a las subidas de VERSION), stale-while-revalidate
+  if (ART_RE.test(url.pathname)) {
+    e.respondWith(
+      caches.open(ART_CACHE).then((c) => c.match(e.request).then((hit) => {
+        const refresh = fetch(e.request).then((res) => { if (res.ok) c.put(e.request, res.clone()); return res; }).catch(() => hit);
+        return hit || refresh;
+      }))
+    );
+    return;
+  }
 
   // Recursos propios: stale-while-revalidate (rápido + se actualiza solo)
   e.respondWith(

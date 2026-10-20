@@ -23,6 +23,15 @@ const para = byName('paragon');
 if (!para || para.req !== 20) throw new Error('Paragon debe aparecer con req nivel 20');
 console.log('Hitos por nivel correctos: Talentos y especialización (Nv10), Paragon (Nv20) ✓');
 
+// Paso 2d: la guía explica la tecla N y la barra de 6 ranuras con la 2 flexible
+if (!/tecla N/i.test(tal.desc)) throw new Error('la guía de talentos debe decir que se abren con la tecla N');
+const hab = byName('habilidades');
+if (!hab || !/6 ranuras/.test(hab.desc)) throw new Error('la guía de habilidades debe explicar la barra de 6 ranuras');
+for (const kw of ['movilidad', 'especialización', 'definitiva', 'gastadora']) if (!hab.desc.toLowerCase().includes(kw)) throw new Error('la barra de 6 ranuras debe nombrar: ' + kw);
+if (!/2 defensa o 2\.ª gastadora/.test(hab.desc)) throw new Error('la ranura 2 debe explicarse como flexible');
+if (!/arrastra/i.test(hab.desc)) throw new Error('la guía debe contar que se arrastra desde el libro a la barra');
+console.log('Guía: tecla N para talentos y barra de 6 ranuras (2 flexible, arrastrar desde el libro) ✓');
+
 // debe mencionar sistemas de endgame aunque no sean por nivel
 for (const kw of ['grieta', 'pináculo', 'tormento', 'era', 'compañero']) {
   if (!byName(kw)) throw new Error('falta sistema en la guía: ' + kw);

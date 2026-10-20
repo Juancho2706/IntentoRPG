@@ -34,16 +34,18 @@ export const talentMethods = {
   _talentMutate(fn, okMsg = null, { needEdit = true } = {}) {
     const p = this.player;
     if (!p) return { ok: false, reason: 'Sin héroe' };
+    // _talentQuiet: la llamada viene del panel de talentos, que ya muestra sus avisos
+    const say = this._talentQuiet ? () => {} : (t, ms) => this.ui?.message?.(t, ms);
     if (needEdit) {
       const why = this.canEditTalents();
-      if (why) { this.ui?.message?.(why, 2500); return { ok: false, reason: why }; }
+      if (why) { say(why, 2500); return { ok: false, reason: why }; }
     }
     const before = new Set(p.talentAgg?.grants || []);
     const specBefore = p.talents?.spec || null;
     const r = fn(p) || { ok: false };
-    if (!r.ok) { if (r.reason || r.error) this.ui?.message?.(r.reason || r.error, 2500); return r; }
+    if (!r.ok) { if (r.reason || r.error) say(r.reason || r.error, 2500); return r; }
     this.onTalentsChanged(before, specBefore);
-    if (okMsg) this.ui?.message?.(okMsg, 2500);
+    if (okMsg) say(okMsg, 2500);
     return r;
   },
 
@@ -96,6 +98,8 @@ export const talentMethods = {
     const which = Talents.nodeById(Talents.treeOf(p, 'cls'), nodeId) ? 'cls' : 'spec';
     return this._talentMutate(q => TALENT_OPS.setChoice(q, which, nodeId, k));
   },
+  // nodo de elección ya comprado: alterna entre sus opciones A/B
+  toggleTalentChoice(which, nodeId) { return this._talentMutate(q => TALENT_OPS.toggleChoice(q, which, nodeId)); },
   // build recomendada: which 'cls' | 'spec' | 'all' (preset de clase = el de la especialización activa)
   applyTalentPreset(which = 'all') {
     return this._talentMutate(q => (which === 'all' ? TALENT_OPS.applyPresetAll(q) : TALENT_OPS.applyPreset(q, which)), '🌿 Build recomendada aplicada');

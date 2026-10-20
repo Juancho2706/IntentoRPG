@@ -48,6 +48,8 @@ export class Input {
         cb?.(e.code !== 'Escape' ? e.code : null);
         return;
       }
+      // escribiendo en un campo (p. ej. el código de build de talentos): las teclas no son acciones
+      if (e.code !== 'Escape' && e.target?.closest?.('input:not([type=range]):not([type=checkbox]):not([type=radio]), textarea, [contenteditable="true"]')) return;
       this.keys.add(e.code);
       this.updateKeyDir();
       const action = this.codeToAction[e.code];
@@ -109,12 +111,9 @@ export class Input {
       case 'inventory': g.ui.togglePanel('inv'); break;
       case 'skills': g.ui.togglePanel('skills'); break;
       case 'character': g.ui.togglePanel('stats'); break;
-      // talentos (KeyN): el panel (js/ui-talents.js) se conecta en el Paso 2d; mientras
-      // tanto, un aviso (las maestrías se eliminaron en el Paso 2c.0)
-      case 'talents':
-        if (g.ui.openTalents) g.ui.openTalents();
-        else g.ui.message?.('🌿 Talentos: el panel llega en la próxima versión. Tu especialización y tus talentos ya se guardan.', 3000);
-        break;
+      // talentos (KeyN, convención de WoW): panel de js/ui-talents.js (Paso 2d); sin
+      // especialización a partir del Nv10 abre directamente la pantalla de elección
+      case 'talents': g.ui.openTalents(); break;
       case 'potionHP': g.player?.usePotion('hp'); break;
       case 'potionMP': g.player?.usePotion('mp'); break;
       case 'primary': e?.preventDefault(); g.primaryAction(); break;

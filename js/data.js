@@ -441,7 +441,7 @@ export function eraIdForTime(now = Date.now()) {
 // ------------------------------------------------------------
 export const SYSTEMS_GUIDE = [
   { icon: '⚔️', name: 'Atributos y daño', desc: 'Reparte puntos en Fuerza/Destreza/Vitalidad/Energía para moldear a tu héroe.', req: 1 },
-  { icon: '📖', name: 'Habilidades (estilo D4)', desc: 'Se aprenden solas al subir de nivel: el básico GENERA recurso (Furia/Maná/Energía) y las gastadoras lo GASTAN. Barra de 6 ranuras: 🖱️Izq básico · 🖱️Der gastadora · 1 movilidad · 2 defensa o 2.ª gastadora · 3 especialización · 4 definitiva. Los puntos de habilidad compran ramas.', req: 1 },
+  { icon: '📖', name: 'Habilidades (estilo D4)', desc: 'Se aprenden solas al subir de nivel: el básico GENERA recurso (Furia/Maná/Energía) y las gastadoras lo GASTAN. Barra de 6 ranuras: 🖱️Izq básico · 🖱️Der gastadora · 1 movilidad · 2 defensa o 2.ª gastadora · 3 especialización · 4 definitiva. Libro de habilidades (T): arrastra cada habilidad a su ranura; clic derecho en una ranura para cambiarla. Los puntos de habilidad compran ramas.', req: 1 },
   { icon: '💎', name: 'Soportes de habilidad', desc: 'Engarza hasta 2 soportes por habilidad para modificar su comportamiento (estilo gemas de PoE).', reqText: 'Caen como botín' },
   { icon: '🌿', name: 'Talentos y especialización', desc: 'En el nivel 10 eliges 1 de 3 especializaciones (con su habilidad insignia y su indicador propio) y desde ahí ganas 1 punto de talento por nivel para sus dos árboles (clase y especialización). Cambiarla es gratis fuera de combate (tecla N).', req: 10 },
   { icon: '🌟', name: 'Tablero de Paragon', desc: 'Tablero de nodos conectados: cada nivel tras el 20 da un punto para potenciar tu build.', req: 20 },

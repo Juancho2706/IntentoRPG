@@ -75,7 +75,7 @@ console.log(`zoneLifeMethods exporta los ${ZONELIFE_EXPECTED.length} métodos es
 // Paso 2c.0: game-talents.js sustituye a game-mastery.js (§5.4)
 const TALENT_EXPECTED = ['canEditTalents', '_talentMutate', 'onTalentsChanged', 'chooseSpec', 'switchSpec',
   'addTalentRank', 'removeTalentRank', 'chooseTalentOption', 'applyTalentPreset', 'resetTalentTree',
-  'exportTalentCode', 'importTalentCode', 'talentPointsInfo'];
+  'exportTalentCode', 'importTalentCode', 'talentPointsInfo', 'toggleTalentChoice'];
 const tKeys = Object.keys(talentMethods);
 for (const m of TALENT_EXPECTED) {
   if (typeof talentMethods[m] !== 'function') throw new Error('falta método de talentos o no es función: ' + m);

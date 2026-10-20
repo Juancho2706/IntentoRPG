@@ -55,6 +55,8 @@ const RGLYPH = { normal: '', magico: '✦', raro: '◆', legendario: '★', conj
 // ------------------------------------------------------------
 class Game {
   constructor() {
+    // depuración/capturas: ?dev expone el juego en la consola (window.__game)
+    if (/[?&]dev(&|$)/.test(location.search)) window.__game = this;
     this.state = 'select';
     this.enemies = [];
     this.projectiles = [];
@@ -1490,6 +1492,9 @@ class Game {
     this.resetCastState?.();
     this.state = 'dead';
     this.player.records.deaths++;
+    // Paso 2d: marcador de la última muerte en el mapa/minimapa (no se guarda)
+    const w = this.world;
+    this.lastDeath = { pos: this.player.pos.clone(), type: w?.type, biome: w?.biome || '', floor: w?.floor || 0, rift: w?.rift || 0 };
     this.sfx('death');
     if (this.player.hardcore) {
       // muerte permanente: el guardado se borra para siempre

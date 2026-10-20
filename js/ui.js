@@ -2,15 +2,20 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import * as d3 from 'd3';
 import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
 // Paso 2b.0: números finales de las habilidades (coste/CD/soportes) desde el resolvedor único
-import { resolveSkill, supportFits, supportSockets, fitsSlot, profileSummary, isKnown, RANK_MAX } from './skill-resolve.js';
+import { resolveSkill, supportFits, supportSockets, fitsSlot, profileSummary, isKnown, RANK_MAX, GCD } from './skill-resolve.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
 import { materialStackKey } from './entities.js';
 import { SYSTEMS_GUIDE, SKILL_MODS } from './data.js';
 import { CAPS, CRIT_MULT, armorReduction, tormentMods, areaLevelForHero } from './combat-math.js';
+// Paso 2d: panel de talentos (módulo propio), indicador de especialización y modelo puro del HUD
+import * as Talents from './talents.js';
+import { createTalentPanel } from './ui-talents.js';
+import { gaugeView } from './spec-mechanics.js';
+import { createGaugeHud } from './ui-gauges.js';
+import * as HM from './hud-model.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -92,6 +97,101 @@ export class UI {
     this._onDragMove = this.onDragMove.bind(this);
     this._onDragUp = this.onDragUp.bind(this);
     this.bindHUD();
+    // Paso 2d
+    this.initTalentPanel();
+    this.preloadMapSprites();
+    this.decoratePanels();
+  }
+
+  // ============================================================
+  // Paso 2d · talentos, iconos pintados y marcos
+  // ============================================================
+  // Panel de talentos (js/ui-talents.js). Las mutaciones van por el mixin
+  // game-talents.js (recompute + barra ↔ activas concedidas + guardado); el panel
+  // solo comprueba canEdit antes y repinta después.
+  initTalentPanel() {
+    const g = this.game;
+    const quiet = (fn) => (...a) => { g._talentQuiet = true; try { return fn(...a) || { ok: false }; } finally { g._talentQuiet = false; } };
+    const ops = {
+      addRank: quiet((p, which, id) => g.addTalentRank(which, id)),
+      removeRank: quiet((p, which, id) => g.removeTalentRank(which, id)),
+      setChoice: quiet((p, which, id, k) => g.chooseTalentOption(id, k)),
+      toggleChoice: quiet((p, which, id) => g.toggleTalentChoice(which, id)),
+      chooseSpec: quiet((p, specId) => g.chooseSpec(specId)),
+      applyPresetAll: quiet(() => g.applyTalentPreset('all')),
+      resetAll: quiet(() => g.resetTalentTree('all')),
+      importCode: quiet((p, code) => g.importTalentCode(code)),
+    };
+    try {
+      this.talentPanel = createTalentPanel(document.body, {
+        api: Talents, ops, assetBase: 'assets/',
+        getPlayer: () => g.player,
+        onClose: () => this.closePanel(),
+        canEdit: () => g.canEditTalents?.() || null,
+        // el mixin ya hizo recompute + guardado; aquí solo se refresca el HUD
+        onChange: () => { this.refreshHotbar(); this.updateHUD(); },
+      });
+    } catch (e) { console.error('[talentos] no se pudo crear el panel', e); this.talentPanel = null; }
+  }
+
+  // N: abre el panel de talentos (o la elección de especialización si aún no hay)
+  openTalents() {
+    if (!this.talentPanel) return;
+    if (this.activePanel === 'talents') { this.closePanel(); return; }
+    const p = this.game.player;
+    if (p && p.level >= Talents.TALENT_START_LEVEL && !Talents.activeSpec(p)) { this.openSpecChoice(); return; }
+    this.togglePanel('talents');
+  }
+  openSpecChoice() {
+    if (!this.talentPanel) return;
+    this.closePanel();
+    this.activePanel = 'talents';
+    this.markJustOpened();
+    this.talentPanel.showSpecChoice();
+  }
+
+  // aviso de especialización pendiente (Nv10): banner fijo + apertura automática de
+  // la pantalla de elección la primera vez que estás fuera de combate y sin paneles
+  updateSpecPrompt(p) {
+    const el = $('spec-prompt'); if (!el) return;
+    const need = !!p && p.level >= Talents.TALENT_START_LEVEL && !Talents.activeSpec(p);
+    el.classList.toggle('hidden', !need || this.activePanel === 'talents');
+    if (!need) { this._specAutoShown = false; return; }
+    if (!this._specAutoShown && this.game.state === 'play' && !this.activePanel && !this.game.canEditTalents?.()) {
+      this._specAutoShown = true;
+      this.message('🌿 ¡Nivel 10! Elige tu especialización: define tu rol, abre su árbol de talentos y te da su habilidad insignia (ranura 3).', 5000);
+      this.openSpecChoice();
+    }
+  }
+
+  // sprites del mapa: se cargan UNA vez; si alguno falla, el mapa usa el punto de siempre
+  preloadMapSprites() {
+    this.mapSprites = {};
+    for (const name of HM.MAP_SPRITES) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => { img._ok = true; };
+      img.onerror = () => { img._ok = false; };
+      img.src = HM.mapIcon('mk_' + name);
+      this.mapSprites[name] = img;
+    }
+  }
+  _sprite(name) { const im = name && this.mapSprites?.[name]; return im && im._ok && im.naturalWidth ? im : null; }
+
+  // iconos de menú pintados en las cabeceras de los paneles (#panel-<id> → menu_*),
+  // con el SVG de siempre como respaldo si la imagen no carga
+  decoratePanels() {
+    for (const panel of document.querySelectorAll('.panel[id^="panel-"]')) {
+      const id = panel.id.slice(6);
+      const src = HM.menuIcon(id);
+      const h2 = panel.querySelector('.panel-head h2');
+      if (!src || !h2 || h2.querySelector('.head-img')) continue;
+      const svg = h2.querySelector('.head-ico');
+      const img = document.createElement('img');
+      img.className = 'head-img'; img.alt = ''; img.draggable = false; img.src = src;
+      img.onerror = () => { img.remove(); svg?.classList.remove('hidden'); };
+      if (svg) { svg.classList.add('hidden'); svg.before(img); } else h2.prepend(img);
+    }
   }
 
   // ---------- arrastrar y soltar (Pointer Events: ratón + táctil) ----------
@@ -188,6 +288,9 @@ export class UI {
     $('btn-shop').addEventListener('click', () => this.togglePanel('shop'));
     $('btn-settings').addEventListener('click', () => this.togglePanel('settings'));
     $('btn-guide')?.addEventListener('click', () => this.openGuide());
+    $('btn-talents')?.addEventListener('click', () => this.openTalents());
+    $('btn-map')?.addEventListener('click', () => (this.activePanel === 'map' ? this.closePanel() : this.openMap()));
+    $('spec-prompt')?.addEventListener('click', () => this.openSpecChoice());
     // menú principal colapsable: un botón ☰ despliega el resto; al elegir, se cierra
     const menuToggle = $('btn-menu-toggle');
     if (menuToggle) {
@@ -427,6 +530,8 @@ export class UI {
       const c = '#' + (res.color >>> 0).toString(16).padStart(6, '0');
       const orb = $('orb-mp-fill'); if (orb) orb.style.background = c;
       const wrap = $('orb-mp-fill').parentElement; if (wrap) wrap.title = res.name;
+      const ri = $('orb-mp-res'), src = HM.resIcon(res.id);
+      if (ri && src) { ri.onerror = () => ri.classList.add('hidden'); ri.onload = () => ri.classList.remove('hidden'); ri.src = src; ri.title = res.name; }
       this._orbRes = res.id;
     }
     const need = xpForLevel(p.level);
@@ -451,7 +556,7 @@ export class UI {
       }).join('');
       ct.innerHTML = `<div class="c-title">${icon('scroll')} Contratos</div>${rows}`;
     } else ct.style.display = 'none';
-    $('hud-gold').innerHTML = `${icon('coin', { cls: 'ico-gold' })} ${p.gold}`;
+    if (this._hudGold !== p.gold) { this._hudGold = p.gold; $('hud-gold').innerHTML = `<img class="hud-mat" src="${HM.matIcon('gold')}" alt="" draggable="false">${p.gold}`; }
     const zoneIco = (n, txt) => `${icon(n)} ${txt}`;
     $('hud-zone').innerHTML = this.game.world?.type === 'town' ? zoneIco('village', 'Pueblo')
       : this.game.world?.type === 'refuge' ? zoneIco('camp', 'Refugio')
@@ -492,30 +597,13 @@ export class UI {
     $('btn-shop').style.display = this.game.nearVendor ? '' : 'none';
     if (this.activePanel === 'shop') this.updateShopTimer();
 
-    // cooldowns de la barra de habilidades (overlay RADIAL via conic-gradient)
-    for (const btn of $('skillbar').children) {
-      const id = btn.dataset.skill;
-      if (!id) continue;
-      const sk = p.cls.skills.find(s => s.id === id);
-      if (!sk || sk.kind === 'basic') continue; // el básico usa atkCd, no tiene overlay/coste
-      const cd = p.cds[id] || 0;
-      const ov = btn.querySelector('.cd-overlay');
-      const frac = cd > 0 ? Math.max(0, Math.min(1, cd / (p.cdMax?.[id] || sk.cd || 1))) : 0;
-      // el ángulo barre en sentido horario y se vacía según se enfría
-      ov.style.setProperty('--cd-deg', Math.round(frac * 360) + 'deg');
-      ov.classList.toggle('on', frac > 0);
-      // segundos restantes legibles + pulso de "listo" al terminar el enfriamiento
-      const secEl = btn.querySelector('.sk-cd-sec');
-      if (secEl) secEl.textContent = cd > 0 ? (cd >= 1 ? Math.ceil(cd) : cd.toFixed(1)) : '';
-      if ((btn._lastFrac || 0) > 0 && frac === 0) {
-        btn.classList.remove('just-ready'); void btn.offsetWidth; btn.classList.add('just-ready');
-      }
-      btn._lastFrac = frac;
-      const cost = resolveSkill(p, sk)?.cost || 0;
-      const costEl = btn.querySelector('.sk-cost');
-      if (costEl && costEl.textContent !== String(cost)) costEl.textContent = cost;
-      btn.classList.toggle('no-mana', p.mp < cost);
-    }
+    // barra de 6 ranuras: enfriamiento, sombra de GCD y recurso (Paso 2d)
+    this.updateHotbarState(p);
+    this.updateSpecGauge(p);
+    this.updateBossFrame(p);
+    this.updateSpecPrompt(p);
+    const tp = this.game.talentPointsInfo?.() || { cls: 0, spec: 0 };
+    badge('badge-talents', p.level >= Talents.TALENT_START_LEVEL ? (Talents.activeSpec(p) ? tp.cls + tp.spec : 1) : 0);
 
     // brújula de objetivos importantes fuera de pantalla
     this.updateCompass();
@@ -523,6 +611,50 @@ export class UI {
     document.body.classList.toggle('hud-clean', !!this.game.settings?.cleanHud);
 
     this.renderBuffs();
+  }
+
+  // indicador de la especialización activa sobre la barra: js/ui-gauges.js lo pinta;
+  // aquí solo se alimenta con gaugeView(p) (10 Hz, desde updateHUD)
+  updateSpecGauge(p) {
+    if (!this.gaugeHud) {
+      const host = $('spec-gauge');
+      if (!host) return;
+      this.gaugeHud = createGaugeHud(host, { getView: () => null });
+    }
+    let view = null;
+    try { view = gaugeView(p); } catch { view = null; }
+    this.gaugeHud.update(view ? { ...view, specName: Talents.activeSpec(p)?.name || '' } : null);
+  }
+
+  // marco del jefe: vida, barra de stagger (Quebrantado) y estados con iconos st_*
+  updateBossFrame(p) {
+    const el = $('boss-frame'); if (!el) return;
+    const e = HM.pickBossTarget(this.game.enemies, p.pos, 30);
+    el.classList.toggle('hidden', !e);
+    if (!e) { this._bossRef = null; return; }
+    if (this._bossRef !== e) {
+      this._bossRef = e;
+      el.querySelector('.bf-name').textContent = `${e.def.icon || '👑'} ${e.def.name || 'Jefe'}`;
+    }
+    const hpPct = Math.max(0, Math.min(100, e.hp / e.maxHP * 100));
+    el.querySelector('.bf-hp-fill').style.width = hpPct.toFixed(1) + '%';
+    el.querySelector('.bf-hp-txt').textContent = `${Math.ceil(e.hp).toLocaleString('es')} / ${Math.ceil(e.maxHP).toLocaleString('es')}`;
+    const st = HM.staggerBar(e.staggerView?.());
+    const sw = el.querySelector('.bf-stagger');
+    sw.classList.toggle('hidden', !st);
+    if (st) {
+      sw.dataset.state = st.state;
+      el.querySelector('.bf-st-fill').style.width = st.pct + '%';
+      el.querySelector('.bf-st-txt').textContent = st.label;
+    }
+    el.classList.toggle('broken', st?.state === 'broken');
+    const sts = HM.enemyStatuses(e);
+    const sig = sts.map(x => x.id + x.label).join(',');
+    const box = el.querySelector('.bf-status');
+    if (sig !== this._bossStSig) {
+      this._bossStSig = sig;
+      box.innerHTML = sts.map(x => `<span class="st-chip st-${x.id}" title="${x.label}"><img src="${HM.statusIcon(x.id)}" alt="" draggable="false" onerror="this.remove()"><em>${x.label}</em></span>`).join('');
+    }
   }
 
   // Pulso del orbe al variar la vida/recurso: brillo+escala al ganar, hundimiento
@@ -627,6 +759,11 @@ export class UI {
     if (!bar) return;
     const p = this.game.player;
     const buffs = (p && p.activeBuffs?.()) || [];
+    // escudos activos (Paso 2d): se muestran con el icono de estado st_escudo
+    if (p?.shields?.length) {
+      const amt = Math.round(p.shieldTotal?.() || 0), t = Math.max(...p.shields.map(x => x.t || 0));
+      if (amt > 0) buffs.push({ id: 'shield', name: 'Escudo', icon: '🛡️', remaining: t, total: Math.max(t, this._shieldTotal = Math.max(this._shieldTotal || 0, t)), desc: `Absorbe ${amt} de daño` });
+    } else this._shieldTotal = 0;
     if (!buffs.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
     bar.style.display = 'flex';
     // reconcilia por id: crea las celdas que falten, elimina las sobrantes
@@ -648,7 +785,14 @@ export class UI {
         bar.appendChild(cell);
       }
       cell._buff = b;
-      cell.querySelector('.buff-ico').textContent = b.icon || '✨';
+      const stIco = HM.playerStatusIcon(b);
+      const icoEl = cell.querySelector('.buff-ico');
+      const want = stIco ? 'img:' + stIco : 'txt:' + (b.icon || '✨');
+      if (icoEl.dataset.v !== want) {
+        icoEl.dataset.v = want;
+        if (stIco) icoEl.innerHTML = `<img src="${stIco}" alt="" draggable="false">`;
+        else icoEl.textContent = b.icon || '✨';
+      }
       const secs = Math.max(0, Math.ceil(b.remaining));
       cell.querySelector('.buff-sec').textContent = secs >= 60 ? `${Math.ceil(secs / 60)}m` : secs;
       // anillo de cuenta atrás: se vacía según remaining/total
@@ -688,44 +832,83 @@ export class UI {
     pop.style.top = Math.max(8, ny) + 'px';
   }
 
-  // Hotbar de 6 ranuras (estilo D4): 🖱️Izq = básico generador, 🖱️Der + 1·2·3·4.
-  // Toque/clic = lanzar; clic DERECHO o mantener pulsado = asignar (solo aprendidas).
+  // ---------- barra de 6 ranuras (Paso 2d, docs/paso2-diseno.md §1.1) ----------
+  // lmb básico · rmb gastadora · 1 movilidad (fuera del GCD) · 2 flexible
+  // (defensa/utilidad o 2.ª gastadora) · 3 especialización · 4 definitiva.
+  // Clic = lanzar; clic DERECHO = asignar (la 2 abre el selector de dos pestañas).
+  // Se acepta soltar una habilidad arrastrada desde el libro (respeta fitsSlot).
+  slotKeyLabel(slot) {
+    if (slot === 'lmb') return 'IZQ';
+    if (slot === 'rmb') return 'DER';
+    const n = { k1: 1, k2: 2, k3: 3, k4: 4 }[slot];
+    const code = this.game.input?.bindings?.['skill' + n]?.[0];
+    return code ? keyLabel(code) : String(n);
+  }
+  // arte de una habilidad: las activas de talento usan el sprite de su nodo; el
+  // resto, su emoji (las habilidades base aún no tienen icono pintado)
+  skillArt(sk) {
+    if (!sk) return null;
+    const p = this.game.player;
+    const key = (p?.classId || '') + ':' + sk.id;
+    this._artCache = this._artCache || new Map();
+    if (!this._artCache.has(key)) {
+      const art = sk.kind === 'talent' ? HM.talentSkillArt(Talents.TALENT_TREES[p?.classId], sk.id) : null;
+      this._artCache.set(key, art);
+    }
+    return this._artCache.get(key);
+  }
+  skillIconHTML(sk, cls = 'sk-icon') {
+    const art = this.skillArt(sk);
+    if (art?.icon) return `<span class="${cls} has-art" data-emoji="${sk.icon || '✦'}"><img class="sk-art" src="assets/${art.icon}" alt="" draggable="false" onerror="const s=this.parentNode;s.classList.remove('has-art');s.textContent=s.dataset.emoji"></span>`;
+    return `<span class="${cls}">${sk.icon || '✦'}</span>`;
+  }
+  catBadgeHTML(cat, cls = 'sk-cat') {
+    const src = HM.catIcon(cat);
+    return src ? `<img class="${cls}" src="${src}" alt="" title="${HM.catLabel(cat)}" draggable="false" onerror="this.remove()">` : '';
+  }
+
   refreshHotbar() {
     const p = this.game.player;
     const bar = $('skillbar');
+    if (!p || !bar) return;
     bar.innerHTML = '';
     const res = p.cls.resource;
-    const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
-    for (const [slot, label] of SLOTS) {
+    for (const slot of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
+      const label = this.slotKeyLabel(slot);
       const id = p.hotbar?.[slot] || null;
       const sk = id ? p.cls.skills.find(s => s.id === id) : null;
       const known = sk && isKnown(p, sk);
       const prof = sk ? resolveSkill(p, sk) : null;
       const btn = document.createElement('button');
-      btn.className = 'skill-btn';
+      btn.className = 'skill-btn slot-' + slot;
       btn.dataset.slot = slot;
+      btn.dataset.hbSlot = slot;
       let castFn = null;
+      const sec = HM.BOOK_SECTIONS.find(s => s.slots.includes(slot));
       if (!sk) {
         btn.classList.add('hb-empty');
-        btn.innerHTML = `<span class="sk-icon dim">+</span><span class="sk-key">${label}</span>`;
-        btn.title = `${label}: ranura vacía — clic derecho / mantener para asignar`;
-      } else if (sk.kind === 'basic') {
-        btn.classList.add('hb-basic'); btn.dataset.skill = sk.id;
-        if (!known) btn.classList.add('hb-locked');
-        btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${label}</span>` +
-          `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${prof?.gen ?? sk.gen ?? 0}</span>`;
-        btn.title = `${sk.name} · genera ${res?.name || 'recurso'}`;
-        castFn = () => { if (!known) { this.message(`${sk.name}: se aprende al nivel ${sk.req}`); return; } this.game.castSkillSlot(slot); };
+        btn.innerHTML = `<span class="sk-icon dim">+</span><span class="sk-key">${label}</span>` + this.catBadgeHTML(slot === 'k2' ? 'defense' : sec?.cats[0]);
+        btn.title = `${label}: ranura vacía — clic derecho para asignar (o arrastra desde el libro de habilidades)`;
       } else {
-        btn.dataset.skill = sk.id; if (!known) btn.classList.add('hb-locked');
+        btn.dataset.skill = sk.id;
+        btn.classList.add('cat-' + sk.cat);
+        if (sk.cat === 'basic') btn.classList.add('hb-basic');
+        if (sk.kind === 'talent') btn.classList.add('hb-talent');
+        if (!known) btn.classList.add('hb-locked');
         const cost = prof?.cost || 0;
-        btn.innerHTML = `<span class="sk-icon">${sk.icon}</span><span class="sk-key">${label}</span>` +
-          `<span class="sk-cost">${cost}</span><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span>`;
-        btn.title = known ? `${sk.name} · ${cost} ${res?.name || 'maná'}` : `${sk.name} (se aprende al nivel ${sk.req})`;
+        const costHTML = sk.cat === 'basic'
+          ? `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${prof?.gen ?? sk.gen ?? 0}</span>`
+          : (cost ? `<span class="sk-cost">${cost}</span>` : '');
+        btn.innerHTML = this.skillIconHTML(sk) + this.catBadgeHTML(sk.cat) + `<span class="sk-key">${label}</span>` + costHTML +
+          `<div class="gcd-overlay"></div><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span>` +
+          (sk.kind === 'talent' ? '<span class="sk-talent-tag">TALENTO</span>' : '');
+        const catTxt = HM.catLabel(sk.cat);
+        btn.title = !known ? `${sk.name} (se aprende al nivel ${sk.req})`
+          : `${sk.name} · ${catTxt}${sk.cat === 'basic' ? ` · genera ${res?.name || 'recurso'}` : cost ? ` · ${cost} ${res?.name || ''}` : ''}${sk.kind === 'talent' ? ' · activa de talento' : ''}\nClic derecho: cambiar`;
         castFn = () => {
           if (!known) { this.message(`${sk.name}: se aprende al nivel ${sk.req}`); return; }
-          const onCd = (p.cds[sk.id] || 0) > 0;
-          if (p.mp < cost && !onCd) this.flashNoMana(btn);
+          const v = HM.slotView(p, sk, resolveSkill(p, sk), GCD);
+          if (v.noRes && v.cdFrac === 0) this.flashNoMana(btn);
           this.game.castSkillSlot(slot);
         };
       }
@@ -734,24 +917,88 @@ export class UI {
     }
   }
 
-  // toque corto = lanzar (castFn); clic derecho o pulsación larga = asignar
+  // clic = lanzar (castFn); clic derecho = asignar
   _bindHotbarSlot(btn, slot, label, castFn) {
-    let lp = null, moved = false;
-    const openAssign = () => { if (lp) { clearTimeout(lp); lp = null; } this.hotbarSlotChooser(slot, label); };
-    btn.addEventListener('contextmenu', e => { e.preventDefault(); openAssign(); });
-    btn.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      if (e.button === 2) return;                 // botón derecho → lo maneja contextmenu
-      moved = false;
-      lp = setTimeout(() => { lp = null; this.hotbarSlotChooser(slot, label); }, 450); // mantener = asignar
-    });
-    btn.addEventListener('pointermove', () => { moved = true; });
-    btn.addEventListener('pointerup', () => { if (lp) { clearTimeout(lp); lp = null; if (!moved && castFn) castFn(); } });
-    const cancel = () => { if (lp) { clearTimeout(lp); lp = null; } };
-    btn.addEventListener('pointercancel', cancel);
-    btn.addEventListener('pointerleave', cancel);
+    btn.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); this.hotbarSlotChooser(slot, label); });
+    btn.addEventListener('pointerdown', e => { e.preventDefault(); });
+    btn.addEventListener('click', e => { if (e.button === 0 && castFn) castFn(); });
   }
 
+  // estado en vivo de la barra (10 Hz desde updateHUD): enfriamiento radial,
+  // sombra del GCD (más tenue, en todas las ranuras que lo comparten), coste y recurso
+  updateHotbarState(p) {
+    const bar = $('skillbar'); if (!bar) return;
+    for (const btn of bar.children) {
+      const id = btn.dataset.skill;
+      if (!id) continue;
+      const sk = p.cls.skills.find(s => s.id === id);
+      if (!sk) continue;
+      const v = HM.slotView(p, sk, resolveSkill(p, sk), GCD);
+      const ov = btn.querySelector('.cd-overlay');
+      if (ov) { ov.style.setProperty('--cd-deg', Math.round(v.cdFrac * 360) + 'deg'); ov.classList.toggle('on', v.cdFrac > 0); }
+      const gv = btn.querySelector('.gcd-overlay');
+      if (gv) { gv.style.setProperty('--gcd-deg', Math.round(v.gcdFrac * 360) + 'deg'); gv.classList.toggle('on', v.gcdFrac > 0); }
+      const secEl = btn.querySelector('.sk-cd-sec');
+      if (secEl) { const t = HM.cdText(v.cdSec); if (secEl.textContent !== t) secEl.textContent = t; }
+      if ((btn._lastFrac || 0) > 0 && v.cdFrac === 0) {
+        btn.classList.remove('just-ready'); void btn.offsetWidth; btn.classList.add('just-ready');
+      }
+      btn._lastFrac = v.cdFrac;
+      if (sk.cat !== 'basic') {
+        const costEl = btn.querySelector('.sk-cost');
+        if (costEl && costEl.textContent !== String(v.cost)) costEl.textContent = v.cost;
+      }
+      btn.classList.toggle('no-mana', v.noRes);
+    }
+  }
+
+  // popup: elige qué habilidad colocar en una ranura. La 2 es flexible: dos
+  // pestañas, «Defensa/utilidad» y «Gastadora» (fitsSlot valida cada candidata)
+  hotbarSlotChooser(slot, label = this.slotKeyLabel(slot), tab = null) {
+    const g = this.game, p = g.player;
+    if (!p) return;
+    const pop = $('item-popup');
+    this.markJustOpened();
+    pop.style.left = pop.style.top = pop.style.transform = '';
+    const cur = p.hotbar?.[slot] ? p.cls.skills.find(s => s.id === p.hotbar[slot]) : null;
+    const known = (sk) => isKnown(p, sk);
+    const after = () => { pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); if (this.activePanel === 'skills') this.renderSkills(); };
+    let list, tabsHTML = '';
+    if (slot === 'k2') {
+      const tabs = HM.k2Tabs(p.cls.skills, { fits: fitsSlot, known });
+      const sel = tab || HM.k2TabFor(cur);
+      tabsHTML = `<div class="hb-tabs" role="tablist">${tabs.map(t =>
+        `<button role="tab" class="hb-tab${t.id === sel ? ' on' : ''}" data-tab="${t.id}" aria-selected="${t.id === sel}">` +
+        `<img src="${HM.uiIcon(t.icon)}" alt="" draggable="false">${t.label} <small>${t.skills.length}</small></button>`).join('')}</div>` +
+        `<p class="hb-tab-hint">${sel === 'spender' ? 'Más daño: dependes de la esquiva y la movilidad. No puede repetir la de clic derecho.' : 'Aguante: escudos, control y utilidad para el contenido difícil.'}</p>`;
+      list = tabs.find(t => t.id === sel)?.skills || [];
+    } else list = p.cls.skills.filter(s => known(s) && fitsSlot(s, slot));
+    const headCat = cur?.cat || (slot === 'k2' ? 'defense' : HM.BOOK_SECTIONS.find(s => s.slots.includes(slot))?.cats[0]);
+    pop.innerHTML = `<div class="popup-name">${this.catBadgeHTML(headCat, 'pop-cat')} Ranura ${label}</div>${tabsHTML}<div class="hb-pick"></div><div class="popup-btns"></div>`;
+    const pick = pop.querySelector('.hb-pick');
+    if (!list.length) pick.innerHTML = `<div class="dim" style="padding:6px 2px">Aún no conoces habilidades para esta ranura: se aprenden solas al subir de nivel${slot === 'k3' ? ' y con tu especialización (Nv10)' : ''}.</div>`;
+    for (const sk of list) {
+      const prof = resolveSkill(p, sk);
+      const b = document.createElement('button');
+      const fromRmb = slot === 'k2' && p.hotbar?.rmb === sk.id;
+      b.className = 'hb-pick-row' + (p.hotbar?.[slot] === sk.id ? ' on' : '') + (sk.kind === 'talent' ? ' talent' : '');
+      b.innerHTML = this.skillIconHTML(sk, 'hb-pick-ico') + `<span class="hb-pick-txt"><b>${sk.name}</b><small>${profileSummary(prof) || HM.catLabel(sk.cat)}${fromRmb ? ' · se quita de clic derecho' : ''}</small></span>` +
+        (sk.kind === 'talent' ? '<span class="sk-talent-tag inline">TALENTO</span>' : '') + this.catBadgeHTML(sk.cat, 'hb-pick-cat');
+      b.onclick = () => { g.assignHotbar(slot, sk.id); after(); };
+      pick.appendChild(b);
+    }
+    pop.querySelectorAll('.hb-tab').forEach(t => { t.onclick = (e) => { e.stopPropagation(); this.hotbarSlotChooser(slot, label, t.dataset.tab); }; });
+    const btns = pop.querySelector('.popup-btns');
+    if (slot !== 'lmb') {
+      const clr = document.createElement('button'); clr.textContent = 'Vaciar ranura';
+      clr.onclick = () => { g.assignHotbar(slot, null); after(); };
+      btns.appendChild(clr);
+    }
+    const c = document.createElement('button'); c.textContent = 'Cerrar';
+    c.onclick = () => pop.classList.add('hidden');
+    btns.appendChild(c);
+    pop.classList.remove('hidden');
+  }
 
   // parpadeo rojo de una celda de habilidad cuando no hay maná suficiente
   flashNoMana(btn) {
@@ -922,6 +1169,7 @@ export class UI {
     this.closePanel();
     this.activePanel = name;
     if (name === 'skills') { this._skGrew = false; this._focusSkill = null; } // re-anima la vid al abrir
+    if (name === 'talents') { this.talentPanel?.open(); this.markJustOpened(); return; }
     $('panel-' + name).classList.remove('hidden');
     this.markJustOpened();
     this.renderPanel();
@@ -930,6 +1178,7 @@ export class UI {
   closePanel() {
     $('item-popup').classList.add('hidden');
     if (!this.activePanel) return;
+    if (this.activePanel === 'talents') this.talentPanel?.close();
     const panel = $('panel-' + this.activePanel);
     if (panel) panel.classList.add('hidden');
     this.activePanel = null;
@@ -957,6 +1206,7 @@ export class UI {
     else if (this.activePanel === 'pet') this.renderPet();
     else if (this.activePanel === 'guide') this.renderGuide();
     else if (this.activePanel === 'paragon') this.renderParagon();
+    else if (this.activePanel === 'talents') this.talentPanel?.render();
   }
 
   openStash() {
@@ -1399,9 +1649,16 @@ export class UI {
       mk(`${icon('pit')} Piso ${f}`, g.world.type === 'dungeon' && g.world.floor === f, () => g.travelTo(f));
   }
 
-  itemCellHTML(item) {
+  itemCellHTML(item, { mat = false } = {}) {
     if (!item) return '';
     const r = RARITIES[item.rarity];
+    // Paso 2d: materiales con su icono pintado (mat_*); el emoji queda de distintivo (tipo de gema/runa)
+    const matSrc = mat ? HM.matIcon(item.kind) : null;
+    if (matSrc) {
+      const badge = item.kind === 'gem' || item.kind === 'rune' || item.kind === 'glyph' ? `<span class="cell-mat-kind">${item.icon}</span>` : '';
+      return `<span class="cell-icon cell-mat" style="filter:drop-shadow(0 0 5px ${r.color})"><img src="${matSrc}" alt="" draggable="false"></span>${badge}` +
+        `${item.fav ? `<span class="fav-star">${icon('fav')}</span>` : ''}`;
+    }
     // engarces libres (esquina superior derecha) — oculto en objetos sin identificar
     let sockets = '';
     if (item.sockets && !item.unidentified) {
@@ -1430,7 +1687,7 @@ export class UI {
       div.className = `inv-cell equip-cell slot-${slot}` + (item ? ' rarity-' + item.rarity : ' empty-slot');
       div.innerHTML = item
         ? this.itemCellHTML(item)
-        : `<span class="cell-hint"><span class="slot-glyph">${SLOT_ICON[slot] || ''}</span><span class="slot-name">${label}</span></span>`;
+        : `<span class="cell-hint"><span class="slot-glyph">${HM.eqIcon(slot) ? `<img class="slot-img" src="${HM.eqIcon(slot)}" alt="" draggable="false">` : SLOT_ICON[slot] || ''}</span><span class="slot-name">${label}</span></span>`;
       div.title = item ? '' : label;
       this.bindCell(div, { zone: 'equip', key: slot, item }, item ? () => this.itemPopup(item, { from: 'equip', slot }) : null);
       eq.appendChild(div);
@@ -1507,7 +1764,7 @@ export class UI {
       const i = c ? c.index : mats.length + (n - cellsList.length); // vacías → "al final"
       const div = document.createElement('div');
       div.className = 'inv-cell' + (item ? ' rarity-' + item.rarity : '');
-      div.innerHTML = this.itemCellHTML(item) + (c && c.count > 1 ? `<span class="cell-qty">×${c.count}</span>` : '');
+      div.innerHTML = this.itemCellHTML(item, { mat: true }) + (c && c.count > 1 ? `<span class="cell-qty">×${c.count}</span>` : '');
       this.bindCell(div, { zone: 'mat', key: i, item }, item ? () => this.itemPopup(item, { from: 'mat', index: i }) : null);
       grid.appendChild(div);
     }
@@ -1839,114 +2096,55 @@ export class UI {
     return `<small class="sk-next">Siguiente: ${cur} <b>→ ${nxt}</b></small>`;
   }
 
+  // ============================================================
+  // LIBRO DE HABILIDADES (Paso 2d): lista por categoría (básico, gastadora,
+  // movilidad, defensa/utilidad, especialización, definitiva) con su icono, el
+  // rango por nivel, las ramas y las activas de talento marcadas. Clic en una
+  // habilidad = foco radial de ramas (renderSkillFocus); arrastrarla a una ranura
+  // de la barra (la del libro o la del HUD) la asigna si encaja (fitsSlot).
+  // ============================================================
   renderSkills() {
     const p = this.game.player;
     const nav = $('sk-build-nav');
     if (nav) { nav.innerHTML = this.buildNavHTML('skills'); this.bindBuildNav(nav); }
     const ptsEl = $('skill-points');
+    const res = p.cls.resource;
     ptsEl.className = 'sk-summary' + (p.skillPoints > 0 ? ' has-points' : '');
-    ptsEl.innerHTML = `<span class="sk-sum-cls">${p.cls.icon} ${p.cls.name} · ${p.cls.resource?.icon || ''} ${p.cls.resource?.name || ''}</span>` +
+    const resImg = HM.resIcon(res?.id);
+    ptsEl.innerHTML = `<span class="sk-sum-cls">${p.cls.icon} ${p.cls.name} · ${resImg ? `<img class="sk-sum-res" src="${resImg}" alt="" draggable="false">` : res?.icon || ''} ${res?.name || ''}</span>` +
       (p.skillPoints > 0
-        ? `<span class="sk-sum-pts">✦ ${p.skillPoints} punto${p.skillPoints > 1 ? 's' : ''} por gastar</span>`
-        : `<span class="sk-sum-pts dim">Sin puntos por gastar</span>`);
+        ? `<span class="sk-sum-pts">✦ ${p.skillPoints} punto${p.skillPoints > 1 ? 's' : ''} para ramas</span>`
+        : `<span class="sk-sum-pts dim">Sin puntos para ramas</span>`);
     const cont = $('skill-tree');
     cont.innerHTML = '';
-
-    // El ÁRBOL es su propia "ventana" (viewport grande). La barra de habilidades
-    // (hotbar editor) y el respec van DESPUÉS, separados del árbol.
-    // árbol orgánico: rombos (nodos) en ZIG-ZAG; de cada rombo salen sus
-    // habilidades; las líneas las dibuja un SVG (drawSkillLinks).
-    const SVGNS = 'http://www.w3.org/2000/svg';
-    const graph = document.createElement('div');
-    graph.className = 'sk-tree6';
-    const svg = document.createElementNS(SVGNS, 'svg');
-    svg.classList.add('sk-links'); svg.setAttribute('aria-hidden', 'true');
-    graph.appendChild(svg);
-    // libro: categorías del catálogo base + las activas de TALENTO que conoces (Paso 2c.0;
-    // el libro definitivo por categoría es del Paso 2d)
-    const tree = [...(p.cls.tree || [])];
-    const talentKnown = p.cls.skills.filter(s => s.kind === 'talent' && isKnown(p, s)).map(s => s.id);
-    if (talentKnown.length) tree.splice(Math.max(0, tree.length - 1), 0, { id: `${p.classId}_talent`, kind: 'core', name: 'Activas de talento', req: 10, skills: talentKnown });
-    const kindLabel = { basic: 'Genera recurso', core: 'Habilidad', ultimate: 'Definitiva', passive: 'Pasiva' };
-    const sections = [];
-    tree.forEach((node, idx) => {
-      const unlocked = p.level >= node.req;
-      const sec = document.createElement('div');
-      // nodo raíz (1): ramifica hacia ABAJO. El resto: a los LADOS alternando
-      // (por arriba les llega el espinazo), creando el zig-zag.
-      const side = idx === 0 ? 'down' : (idx % 2 ? 'right' : 'left');
-      sec.className = 'sk-knode-sec sk-sec-' + side + (unlocked ? '' : ' locked');
-      const head = document.createElement('div');
-      head.className = 'sk-knode-head';
-      head.innerHTML =
-        `<div class="sk-knode kind-${node.kind}${unlocked ? '' : ' locked'}"><span class="sk-knode-n">${idx + 1}</span></div>` +
-        `<div class="sk-knode-lbl"><b>${node.name}</b><small>${unlocked ? (kindLabel[node.kind] || '') : `${icon('lock')} Nivel ${node.req}`}</small></div>`;
-      sec.appendChild(head);
-      const skillsRow = document.createElement('div');
-      skillsRow.className = 'sk-knode-skills';
-      const skills = [];
-      for (const sid of node.skills) {
-        const sk = p.cls.skills.find(s => s.id === sid);
-        if (!sk) continue;
-        const wrap = this.skTreeSkill(sk, node, unlocked);
-        skillsRow.appendChild(wrap);
-        const sn = wrap.querySelector('.sk-node');
-        if (sn) skills.push({ node: sn, rows: [...wrap.querySelectorAll('.sk-branch')] });
-      }
-      sec.appendChild(skillsRow);
-      graph.appendChild(sec);
-      sections.push({ marker: head.querySelector('.sk-knode'), skills, side });
-    });
-    this._skLinks = { svg, sections }; // para redibujar tras el layout
-    // ===== PAN + ZOOM profesionales con d3-zoom (rueda al cursor, arrastre,
-    // pellizco táctil, momentum). El visor es el objetivo; el grafo recibe el
-    // transform. transform-origin 0 0 para que la matemática de d3 cuadre. =====
-    const zoomBar = document.createElement('div'); zoomBar.className = 'sk-zoom';
-    zoomBar.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-zoom-lbl">100%</span><button class="sk-zoom-b" data-z="in">+</button><button class="sk-zoom-b" data-z="reset">⟲</button>`;
-    const zl = zoomBar.querySelector('.sk-zoom-lbl');
-    const viewport = document.createElement('div'); viewport.className = 'sk-viewport';
-    graph.style.transformOrigin = '0 0';
-    viewport.appendChild(graph);
-    viewport.appendChild(zoomBar); // los controles de zoom FLOTAN dentro de la ventana
-    cont.appendChild(viewport);
-    // brasas ambientales (efecto "vivo") — suben y se desvanecen
-    if (!this.game.settings?.reduceMotion) {
-      for (let i = 0; i < 7; i++) {
-        const em = document.createElement('div'); em.className = 'sk-ember';
-        em.style.left = (6 + Math.random() * 88) + '%';
-        em.style.animationDelay = (-Math.random() * 9) + 's';
-        em.style.animationDuration = (6 + Math.random() * 5) + 's';
-        viewport.appendChild(em);
-      }
+    // ---- barra (destino de arrastre) ----
+    cont.appendChild(this.renderBookBar());
+    // ---- libro ----
+    const viewport = document.createElement('div'); viewport.className = 'sk-viewport sk-book';
+    const scroll = document.createElement('div'); scroll.className = 'sk-book-scroll';
+    viewport.appendChild(scroll);
+    const spec = Talents.activeSpec(p);
+    const onBar = {};
+    for (const [slot, id] of Object.entries(p.hotbar || {})) if (id) onBar[id] = slot;
+    const sections = HM.bookSections(p.cls.skills, { known: (sk) => isKnown(p, sk) });
+    for (const sec of sections) {
+      const box = document.createElement('section'); box.className = 'sk-book-sec sec-' + sec.id;
+      const knownN = sec.skills.filter(sk => isKnown(p, sk)).length;
+      box.innerHTML = `<header class="sk-book-head"><img class="sk-book-cat" src="${HM.uiIcon(sec.icon)}" alt="" draggable="false" onerror="this.remove()">` +
+        `<span class="sk-book-title">${sec.label}</span><span class="sk-book-hint">${sec.hint}</span><span class="sk-book-count">${knownN}/${sec.skills.length}</span></header>`;
+      const list = document.createElement('div'); list.className = 'sk-book-list';
+      for (const sk of sec.skills) list.appendChild(this.skillBookCard(sk, { onBar: onBar[sk.id], spec }));
+      box.appendChild(list);
+      scroll.appendChild(box);
     }
+    cont.appendChild(viewport);
+    if (this._bookScroll) scroll.scrollTop = this._bookScroll;
+    scroll.addEventListener('scroll', () => { this._bookScroll = scroll.scrollTop; }, { passive: true });
+    if (this._focusSkill) requestAnimationFrame(() => this.renderSkillFocus());
 
-    const zoomB = d3.zoom()
-      .scaleExtent([0.35, 2.4])
-      // la rueda hace zoom siempre; el arrastre NO empieza sobre un control
-      .filter(ev => ev.type === 'wheel' || !ev.target.closest('button, select, input'))
-      .on('start', () => viewport.classList.add('grabbing'))
-      .on('end', () => viewport.classList.remove('grabbing'))
-      .on('zoom', ev => {
-        const t = ev.transform;
-        graph.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.k})`;
-        this._skXform = t;
-        if (zl) zl.textContent = Math.round(t.k * 100) + '%';
-      });
-    const sel = d3.select(viewport);
-    sel.call(zoomB).on('dblclick.zoom', null); // doble clic no hace zoom (lo usan los nodos)
-    zoomBar.querySelector('[data-z=out]').onclick = () => sel.transition().duration(150).call(zoomB.scaleBy, 0.8);
-    zoomBar.querySelector('[data-z=in]').onclick = () => sel.transition().duration(150).call(zoomB.scaleBy, 1.25);
-    zoomBar.querySelector('[data-z=reset]').onclick = () => { this._skXform = null; this._centerSkillTree(viewport, graph, sel, zoomB); };
-    // dibuja las líneas y recoloca el árbol tras el layout
-    requestAnimationFrame(() => {
-      this.drawSkillLinks();
-      if (this._skXform) sel.call(zoomB.transform, this._skXform); // conserva pan/zoom entre renders
-      else this._centerSkillTree(viewport, graph, sel, zoomB);     // centra al abrir
-    });
-
-    // ----- DEBAJO del árbol: respec (la barra se asigna con clic derecho en el HUD) -----
-    const hint = document.createElement('div'); hint.className = 'sk-assign-hint dim';
-    hint.innerHTML = '🖱️ Clic derecho (o mantén pulsado) en una ranura de la barra inferior para asignar una habilidad aprendida.';
+    // ---- pie: ayuda + reinicio de ramas ----
+    const hint = document.createElement('div'); hint.className = 'sk-assign-hint';
+    hint.innerHTML = 'Arrastra una habilidad a una ranura de la barra · clic para ver sus ramas · clic derecho en una ranura del HUD para cambiarla. La ranura <b>2</b> admite defensa/utilidad <b>o</b> una segunda gastadora.';
     cont.appendChild(hint);
     if (Object.keys(p.skillBranches || {}).length || Object.keys(p.skillMods || {}).length) {
       const free = this.game.canRespecFree?.() ?? true;
@@ -1959,94 +2157,111 @@ export class UI {
     }
   }
 
-  // ---- editor único de la hotbar (toca una ranura → elige habilidad) ----
-  renderHotbarEditor() {
+  // barra de 6 ranuras dentro del libro (destino del arrastre; clic = selector)
+  renderBookBar() {
     const p = this.game.player;
-    const wrap = document.createElement('div');
-    wrap.className = 'hb-editor';
-    wrap.innerHTML = `<div class="hb-editor-head">🎮 Barra de habilidades <small class="dim">— toca una ranura y elige qué colocar</small></div>`;
-    const row = document.createElement('div'); row.className = 'hb-slots';
-    const SLOTS = [['lmb', '🖱️I'], ['rmb', '🖱️D'], ['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4']];
-    for (const [slot, label] of SLOTS) {
-      const id = p.hotbar?.[slot] || null;
-      let ico = '·', nm = 'Vacío', cls = ' empty';
-      if (id) { const sk = p.cls.skills.find(s => s.id === id); if (sk) { ico = sk.icon; nm = sk.name + (p.skills[id] > 0 ? '' : ' (sin aprender)'); cls = sk.kind === 'basic' ? ' basic' : ''; } }
+    const wrap = document.createElement('div'); wrap.className = 'sk-book-bar';
+    wrap.innerHTML = '<span class="sk-book-bar-lbl">Barra</span>';
+    for (const slot of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
+      const label = this.slotKeyLabel(slot);
+      const sk = p.hotbar?.[slot] ? p.cls.skills.find(s => s.id === p.hotbar[slot]) : null;
+      const sec = HM.BOOK_SECTIONS.find(s => s.slots.includes(slot));
       const b = document.createElement('button');
-      b.className = 'hb-slot' + cls;
-      b.innerHTML = `<span class="hb-slot-key">${label}</span><span class="hb-slot-ico">${ico}</span>`;
-      b.title = `${label}: ${nm} — toca para cambiar`;
+      b.className = 'sk-bb-slot' + (sk ? ' cat-' + sk.cat : ' empty') + (sk?.kind === 'talent' ? ' talent' : '');
+      b.dataset.hbSlot = slot;
+      b.innerHTML = (sk ? this.skillIconHTML(sk, 'sk-bb-ico') : '<span class="sk-bb-ico dim">+</span>') +
+        this.catBadgeHTML(sk?.cat || (slot === 'k2' ? 'defense' : sec?.cats[0]), 'sk-cat') + `<span class="sk-bb-key">${label}</span>`;
+      b.title = `${label}: ${sk ? sk.name : 'vacía'}${slot === 'k2' ? ' · flexible: defensa/utilidad o gastadora' : ''} — clic para cambiar`;
       b.onclick = () => this.hotbarSlotChooser(slot, label);
-      row.appendChild(b);
+      wrap.appendChild(b);
     }
-    wrap.appendChild(row);
     return wrap;
   }
 
-  // popup: elige qué habilidad colocar en una ranura concreta
-  hotbarSlotChooser(slot, label) {
-    const g = this.game, p = g.player;
-    const pop = $('item-popup');
-    pop.style.left = pop.style.top = pop.style.transform = '';
-    pop.innerHTML = `<div class="popup-name">🎮 Asignar a la ranura ${label}</div><div class="popup-btns codex-choose"></div>`;
-    const btns = pop.querySelector('.popup-btns');
-    const add = (id, html, dim = false) => {
-      const b = document.createElement('button');
-      b.className = 'btn-good' + (p.hotbar?.[slot] === id ? ' on' : '');
-      b.innerHTML = html;
-      b.onclick = () => { g.assignHotbar(slot, id); pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); };
-      btns.appendChild(b);
-    };
-    // SOLO habilidades CONOCIDAS (se aprenden solas por nivel) cuya categoría encaja en la ranura
-    const learned = p.cls.skills.filter(s => isKnown(p, s) && fitsSlot(s, slot));
-    if (!learned.length) {
-      const e = document.createElement('div'); e.className = 'dim'; e.style.padding = '4px 2px';
-      e.textContent = 'Aún no conoces habilidades para esta ranura: se aprenden solas al subir de nivel.';
-      btns.appendChild(e);
-    }
-    for (const sk of learned) {
-      const tag = sk.kind === 'basic' ? ' <small class="dim">(generador)</small>' : sk.kind === 'ultimate' ? ' <small class="dim">(definitiva)</small>' : '';
-      add(sk.id, `${sk.icon} ${sk.name}${tag}`);
-    }
-    const clr = document.createElement('button'); clr.textContent = '✖ Vaciar ranura';
-    clr.onclick = () => { g.assignHotbar(slot, null); pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); };
-    btns.appendChild(clr);
-    const c = document.createElement('button'); c.textContent = 'Cerrar';
-    c.onclick = () => pop.classList.add('hidden');
-    btns.appendChild(c);
-    pop.classList.remove('hidden');
-  }
-
-  // ---- nodos del grafo de habilidades (estilo D4) ----
-  skNodeWrap(node, label) {
-    const w = document.createElement('div'); w.className = 'sk-nwrap';
-    const l = document.createElement('div'); l.className = 'sk-nlbl'; l.textContent = label;
-    w.append(node, l); return w;
-  }
-  skConn() { const d = document.createElement('div'); d.className = 'sk-conn'; return d; }
-  // nodo de habilidad en la vista MAPA (macro): solo icono + rango + insignia de
-  // ramas desbloqueadas. Al hacer clic se abre la vista FOCO (especialización radial).
-  skTreeSkill(sk, node, unlocked) {
+  // tarjeta de una habilidad en el libro
+  skillBookCard(sk, { onBar = null, spec = null } = {}) {
     const p = this.game.player;
-    const lvl = p.skills[sk.id] || 0;                 // rango DERIVADO del nivel (Paso 2b.0)
-    const maxed = lvl >= RANK_MAX;
-    const canLearn = false;                            // ya no se compran rangos
-    const shape = node.kind === 'ultimate' ? 'ult' : node.kind === 'basic' ? 'basic' : 'core';
-    const wrap = document.createElement('div'); wrap.className = 'sk-skill';
-    const n = document.createElement('button');
-    n.className = 'sk-node ' + shape + (lvl > 0 ? ' learned' : '') + (canLearn ? ' avail' : '') + (maxed ? ' maxed' : '') + (!unlocked ? ' tier-locked' : '');
-    const branches = SKILL_MODS[sk.id];
-    let badge = '';
-    if (branches) {
-      const unl = Object.values(p.skillBranches?.[sk.id] || {}).filter(Boolean).length;
-      badge = `<span class="sk-node-mods${unl ? ' on' : ''}">${unl}/${branches.length}</span>`;
-    }
     const known = isKnown(p, sk);
-    n.innerHTML = `<span class="sk-node-ico">${sk.icon}</span><span class="sk-node-rank">${known ? 'R' + lvl : 'Nv' + sk.req}</span>${badge}` + (!known ? `<span class="sk-node-lock">${icon('lock')}</span>` : '');
-    n.title = `${sk.name} — ${sk.desc}` + (!known ? `\n🔒 Se aprende sola al nivel ${sk.req}` : `\nRango ${lvl} (sube con el nivel) · clic para sus ramas`);
-    n.onclick = () => { this.openSkillFocus(sk.id); };
-    wrap.appendChild(this.skNodeWrap(n, sk.name));
-    return wrap;
+    const lvl = p.skills[sk.id] || 0;
+    const prof = known ? resolveSkill(p, sk) : null;
+    const art = sk.kind === 'talent' ? this.skillArt(sk) : null;
+    const card = document.createElement('div');
+    card.className = `sk-card cat-${sk.cat}${sk.kind === 'talent' ? ' talent' : ''}${known ? '' : ' locked'}${onBar ? ' onbar' : ''}`;
+    card.dataset.skill = sk.id;
+    card.tabIndex = 0;
+    const branches = SKILL_MODS[sk.id] || [];
+    const brHTML = branches.length ? `<div class="sk-card-br">${branches.map(br => {
+      const unl = !!p.skillBranches?.[sk.id]?.[br.id];
+      const sel = (p.skillMods?.[sk.id] || {})[br.id];
+      const opt = sel && br.opts.find(o => o.id === sel);
+      return `<span class="sk-br${unl ? ' on' : ''}" title="${br.name}${opt ? ': ' + opt.name + ' — ' + opt.desc : unl ? '' : ' · se desbloquea con 1 punto'}">${unl ? '' : '🔒 '}${br.name}${opt ? ` · <b>${opt.name}</b>` : ''}</span>`;
+    }).join('')}</div>` : '';
+    let tag = '';
+    if (sk.kind === 'talent') {
+      const from = art?.tree === 'cls' ? 'árbol de clase' : art?.specName ? `${art.specName}` : 'talento';
+      tag = `<span class="sk-talent-tag inline" title="Activa concedida por un talento (${from})">TALENTO · ${from}</span>`;
+    }
+    const rankHTML = known
+      ? `<span class="sk-card-rank" title="Rango ${lvl}: sube solo con el nivel (cada 8 niveles desde que se aprende)">R${lvl} ${this.skillPips(Math.min(lvl, RANK_MAX), RANK_MAX)}</span>`
+      : `<span class="sk-card-rank lock">${icon('lock')} ${sk.kind === 'talent' ? 'Talento' : 'Nivel ' + sk.req}</span>`;
+    const barTag = onBar ? `<span class="sk-card-slot" title="Está en la ranura ${this.slotKeyLabel(onBar)}">${this.slotKeyLabel(onBar)}</span>` : '';
+    card.innerHTML = this.skillIconHTML(sk, 'sk-card-ico') +
+      `<div class="sk-card-main"><div class="sk-card-name"><b>${sk.name}</b>${tag}</div>` +
+      `<div class="sk-card-sub">${rankHTML}${prof ? `<span class="sk-card-nums">${profileSummary(prof) || ''}</span>` : ''}</div>` +
+      `<div class="sk-card-desc">${sk.desc || ''}</div>${brHTML}</div>` +
+      `<div class="sk-card-side">${barTag}${branches.length ? `<span class="sk-card-brn" title="Ramas desbloqueadas">${Object.values(p.skillBranches?.[sk.id] || {}).filter(Boolean).length}/${branches.length}</span>` : ''}</div>`;
+    card.title = known ? `${sk.name}: arrastra a la barra · clic para ver sus ramas` : `${sk.name}: ${sk.kind === 'talent' ? 'concédela con su talento (N)' : 'se aprende sola al nivel ' + sk.req}`;
+    card.addEventListener('pointerdown', (e) => this.skillDragStart(e, sk, card));
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.openSkillFocus(sk.id); });
+    return card;
   }
+
+  // ---- arrastrar una habilidad del libro a la barra ----
+  skillDragStart(e, sk, card) {
+    if (e.button !== 0) return;
+    const d = { sk, card, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, id: e.pointerId };
+    const p = this.game.player;
+    const targets = () => document.querySelectorAll('[data-hb-slot]');
+    const move = (ev) => {
+      if (ev.pointerId !== d.id) return;
+      if (!d.moved && Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) > 7) {
+        if (!isKnown(p, sk)) return; // las que no conoces no se arrastran
+        d.moved = true;
+        const gh = document.createElement('div'); gh.className = 'drag-ghost sk-ghost';
+        gh.innerHTML = this.skillIconHTML(sk, 'sk-ghost-ico') + this.catBadgeHTML(sk.cat, 'sk-cat');
+        document.body.appendChild(gh); d.ghost = gh;
+        document.body.classList.add('sk-dragging');
+        for (const t of targets()) t.classList.add(fitsSlot(sk, t.dataset.hbSlot) ? 'drop-ok' : 'drop-no');
+      }
+      if (d.moved) {
+        d.ghost.style.left = ev.clientX + 'px'; d.ghost.style.top = ev.clientY + 'px';
+        const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-hb-slot]') || null;
+        if (el !== d.over) { d.over?.classList.remove('drop-hover'); d.over = el; el?.classList.add('drop-hover'); }
+      }
+    };
+    const up = (ev) => {
+      if (ev.pointerId !== d.id) return;
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      document.body.classList.remove('sk-dragging');
+      for (const t of targets()) t.classList.remove('drop-ok', 'drop-no', 'drop-hover');
+      d.ghost?.remove();
+      if (!d.moved) { if (ev.type === 'pointerup') this.openSkillFocus(sk.id); return; }
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-hb-slot]');
+      if (!el) return;
+      const slot = el.dataset.hbSlot;
+      if (!fitsSlot(sk, slot)) {
+        const where = HM.catSection(sk.cat)?.slots.map(s => this.slotKeyLabel(s)).join(' o ') || '';
+        this.message(`${sk.name} no va en la ranura ${this.slotKeyLabel(slot)}${where ? ` (va en ${where})` : ''}`);
+        this.game.sfx?.('error');
+        return;
+      }
+      if (this.game.assignHotbar(slot, sk.id)) { this.game.sfx?.('uiclick'); this.message(`${sk.name} → ranura ${this.slotKeyLabel(slot)}`, 1600); }
+      this.refreshHotbar(); this.updateHUD();
+      if (this.activePanel === 'skills') this.renderSkills();
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  }
+
   // símbolo (sin texto) que representa el efecto dominante de una opción de pasivo
   optSym(o) {
     if (o.dot === 'bleed') return '🩸'; if (o.dot === 'burn') return '🔥'; if (o.dot === 'poison') return '🧪';
@@ -2089,7 +2304,7 @@ export class UI {
     ov.innerHTML = '';
     ov.onclick = e => { if (e.target === ov) this.closeSkillFocus(); };
     const back = document.createElement('button'); back.className = 'sk-focus-back';
-    back.innerHTML = '← Volver al árbol'; back.onclick = () => this.closeSkillFocus();
+    back.innerHTML = '← Volver al libro'; back.onclick = () => this.closeSkillFocus();
     ov.appendChild(back);
     const wheel = document.createElement('div'); wheel.className = 'sk-focus-wheel'; ov.appendChild(wheel);
     // capa de zoom: todo el contenido radial va aquí para poder reducirlo
@@ -2171,53 +2386,6 @@ export class UI {
     const insp = document.createElement('div'); insp.className = 'sk-focus-inspector'; insp.id = 'sk-focus-insp';
     ov.appendChild(insp);
     this._focusInspect(`<b>${sk.icon} ${sk.name}</b><span>${sk.desc}</span><em>${profileSummary(prof)}${cost ? '' : ' · sin coste'} (${res?.name || ''}). Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
-  }
-
-  // centra/encaja el árbol en el visor (transform inicial de d3-zoom)
-  _centerSkillTree(viewport, graph, sel, zoomB) {
-    const vw = viewport.clientWidth, vh = viewport.clientHeight;
-    const gw = graph.offsetWidth, gh = graph.offsetHeight;
-    if (!vw || !gw) return;
-    const k = Math.max(0.35, Math.min(1, (vw - 40) / gw, (vh - 40) / gh));
-    const tx = (vw - gw * k) / 2, ty = 24;
-    sel.transition().duration(220).call(zoomB.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
-  }
-
-  // dibuja las líneas del árbol con generadores de curvas de D3 (espinazo entre
-  // rombos + ramas rombo→habilidad + ramitas habilidad→pasivos). Coords de layout
-  // (offsetLeft/Top), que el SVG comparte con el grafo (se transforman juntos).
-  drawSkillLinks() {
-    const data = this._skLinks; if (!data) return;
-    const { svg, sections } = data;
-    const graph = svg.parentElement; if (!graph) return;
-    const W = graph.offsetWidth, H = graph.offsetHeight;
-    if (!W || !H) return;
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('width', W); svg.setAttribute('height', H);
-    const c = el => { const r = { x: 0, y: 0 }; let n = el; while (n && n !== graph) { r.x += n.offsetLeft; r.y += n.offsetTop; n = n.offsetParent; } r.x += el.offsetWidth / 2; r.y += el.offsetHeight / 2; return r; };
-    const lv = d3.linkVertical(), lh = d3.linkHorizontal();
-    const draw = (gen, a, b) => gen({ source: [a.x, a.y], target: [b.x, b.y] }) + ' ';
-    let spine = '', branch = '';
-    for (let i = 0; i < sections.length; i++) {
-      const mk = sections[i].marker; if (!mk) continue;
-      const a = c(mk);
-      if (i < sections.length - 1 && sections[i + 1].marker) spine += draw(lv, a, c(sections[i + 1].marker));
-      const horiz = sections[i].side !== 'down'; // nodos laterales: curva horizontal
-      for (const s of sections[i].skills) branch += draw(horiz ? lh : lv, a, c(s.node));
-    }
-    svg.innerHTML = `<path class="sk-link-spine" d="${spine}"/><path class="sk-link-branch" d="${branch}"/>`;
-    // efecto VIVO: la "vid" crece (stroke-dashoffset) una sola vez al abrir
-    if (!this._skGrew && !this.game.settings?.reduceMotion) {
-      this._skGrew = true;
-      for (const path of svg.querySelectorAll('path')) {
-        const len = path.getTotalLength?.() || 0;
-        if (!len) continue;
-        path.style.strokeDasharray = len; path.style.strokeDashoffset = len;
-        path.getBoundingClientRect(); // fuerza reflow
-        path.style.transition = 'stroke-dashoffset 0.9s ease-out';
-        path.style.strokeDashoffset = '0';
-      }
-    }
   }
 
   // detalle de una habilidad (subir rango + engarces de soporte si aplica)
@@ -2621,35 +2789,42 @@ export class UI {
   }
 
   // dibuja el mapa descubierto; se llama cada frame mientras el panel está
-  // abierto para que sea "en vivo" (jugador y enemigos se mueven en tiempo real)
+  // abierto para que sea "en vivo" (jugador y enemigos se mueven en tiempo real).
+  // Paso 2d: fondo de pergamino y marcadores con los sprites mk_* (rectos, aunque
+  // el plano gire 45°); si un sprite no cargó se pinta el punto/rombo de siempre.
   renderMap() {
     if (this.activePanel !== 'map') return;
-    const g = this.game.world.grid;
-    const ex = this.game.world.explored || new Set();
+    const w = this.game.world, g = w.grid;
+    const ex = w.explored || new Set();
     const cv = $('map-canvas');
-    const S = 380; if (cv.width !== S) { cv.width = S; cv.height = S; }
+    const S = 420; if (cv.width !== S) { cv.width = S; cv.height = S; }
     const ctx = cv.getContext('2d');
     const cs = S / Math.max(g.w, g.h);
-    ctx.fillStyle = '#05060a'; ctx.fillRect(0, 0, S, S);
-    // rotación 45° (norte de cámara = arriba) + reducción para que el cuadrado
-    // girado quepa entero dentro del lienzo
+    ctx.clearRect(0, 0, S, S); // el pergamino es el fondo CSS del lienzo
     ctx.save();
     ctx.translate(S / 2, S / 2);
     ctx.rotate(Math.PI / 4);
     ctx.scale(0.7071, 0.7071);
     ctx.translate(-S / 2, -S / 2);
-    // celdas descubiertas
+    // celdas descubiertas: tinta sepia sobre el pergamino
     for (let z = 0; z < g.h; z++) for (let x = 0; x < g.w; x++) {
       if (!ex.has(z * g.w + x)) continue;
-      ctx.fillStyle = g.cells[z][x] ? '#3a4a3a' : '#1a1a22';
+      ctx.fillStyle = g.cells[z][x] ? 'rgba(74,52,28,0.62)' : 'rgba(28,20,12,0.82)';
       ctx.fillRect(x * cs, z * cs, Math.ceil(cs), Math.ceil(cs));
     }
+    const m = ctx.getTransform();
+    const marks = [];
+    const at = (pos) => m.transformPoint(new DOMPoint((pos.x - g.ox) * cs, (pos.z - g.oz) * cs));
     const dot = (pos, color, r, shape) => this._marker(ctx, (pos.x - g.ox) * cs, (pos.z - g.oz) * cs, color, r, shape);
     const seen = (pos) => ex.has((Math.floor(pos.z - g.oz)) * g.w + Math.floor(pos.x - g.ox));
+    const mctx = this._mapCtx();
     // POIs (solo los ya descubiertos)
-    for (const it of this.game.world.interactables) {
+    for (const it of w.interactables) {
+      if (!seen(it.pos)) continue;
+      const spr = HM.poiSprite(it, mctx);
+      if (spr && this._sprite(spr)) { marks.push({ p: at(it.pos), spr, size: HM.markerSize(spr, true), dim: HM.poiLocked(it, mctx) }); continue; }
       const s = this._poiStyle(it);
-      if (s && seen(it.pos)) dot(it.pos, s.color, s.r + 1.5, s.shape);
+      if (s) dot(it.pos, s.color, s.r + 1.5, s.shape);
     }
     // botín en el suelo (mágico o mejor) en celdas descubiertas
     for (const gi of this.game.groundItems || []) {
@@ -2660,38 +2835,73 @@ export class UI {
     // enemigos en vivo (solo en celdas descubiertas)
     for (const e of this.game.enemies) {
       if (!e.alive || !seen(e.pos)) continue;
+      const spr = HM.enemySprite(e);
+      if (spr && this._sprite(spr)) { marks.push({ p: at(e.pos), spr, size: HM.markerSize(spr, true) }); continue; }
       dot(e.pos, this.enemyDot(e), (e.def.boss || e.def.worldBoss) ? 5 : 3, (e.def.boss || e.def.worldBoss) ? 'diamond' : 'dot');
     }
-    if (this.game.player) dot(this.game.player.pos, '#ffffff', 4);
+    const death = this._deathHere();
+    if (death) marks.push({ p: at(death), spr: 'muerte', size: HM.markerSize('muerte', true) });
+    const pl = this.game.player;
+    if (pl) {
+      if (this._sprite('jugador')) marks.push({ p: at(pl.pos), spr: 'jugador', size: HM.markerSize('jugador', true), rot: this._playerMarkRot(m, pl) });
+      else dot(pl.pos, '#ffffff', 4);
+    }
     ctx.restore();
+    this._drawMarks(ctx, marks);
     const pct = Math.round(ex.size / (g.w * g.h) * 100);
-    $('map-info').textContent = `${this.game.world.biome || this.game.world.type} · descubierto ${pct}%`;
+    $('map-info').textContent = `${w.biome || w.type} · descubierto ${pct}%`;
     this.renderMapLegend();
   }
 
-  // leyenda del mapa: explica forma/color de los marcadores. Solo lista lo que
-  // PUEDE aparecer en este mundo (p. ej. cofres/salida en mazmorra, no en pueblo).
+  // contexto para elegir sprites (misión, grieta, nivel)
+  _mapCtx() {
+    const p = this.game.player, w = this.game.world;
+    return { level: p?.level || 1, quest: p?.quest || null, rift: w?.rift || 0 };
+  }
+  // posición de la última muerte si fue en ESTE mundo (no se guarda)
+  _deathHere() {
+    const d = this.game.lastDeath, w = this.game.world;
+    if (!d || !w) return null;
+    return d.type === w.type && (d.biome || '') === (w.biome || '') && (d.floor || 0) === (w.floor || 0) && (d.rift || 0) === (w.rift || 0) ? d.pos : null;
+  }
+  // giro del sprite del jugador: su orientación en el mundo llevada al plano girado
+  _playerMarkRot(m, pl) {
+    const ry = pl.group?.rotation?.y || 0;
+    const dx = Math.sin(ry), dy = Math.cos(ry);
+    const vx = m.a * dx + m.c * dy, vy = m.b * dx + m.d * dy;
+    return Math.atan2(vy, vx) + Math.PI / 2; // el sprite apunta hacia arriba
+  }
+  // sprites rectos (sin la rotación del plano), con una sombra para leerse sobre cualquier fondo
+  _drawMarks(ctx, marks) {
+    // de menos a más importante: el jugador queda encima
+    const order = { jugador: 9, jefe: 8, muerte: 7, elite: 6, goblin: 6 };
+    marks.sort((a, b) => (order[a.spr] || 0) - (order[b.spr] || 0));
+    for (const mk of marks) {
+      const img = this._sprite(mk.spr); if (!img) continue;
+      const sz = mk.size;
+      ctx.save();
+      ctx.translate(mk.p.x, mk.p.y);
+      if (mk.rot) ctx.rotate(mk.rot);
+      ctx.globalAlpha = mk.dim ? 0.45 : 1;
+      ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 3;
+      ctx.drawImage(img, -sz / 2, -sz / 2, sz, sz);
+      ctx.restore();
+    }
+  }
+
+  // leyenda del mapa: los MISMOS sprites que el mapa, solo con lo que puede
+  // aparecer en este mundo (p. ej. cofres/descenso en mazmorra, no en pueblo)
   renderMapLegend() {
     const el = $('map-legend'); if (!el) return;
     const w = this.game.world;
-    const has = (t) => (w.interactables || []).some(it => it.type === t);
-    const items = [
-      ['#ffffff', 'dot', 'Tú'],
-      ['#cc4444', 'dot', 'Enemigo'],
-      ['#ff2200', 'diamond', 'Jefe'],
-    ];
-    if (has('chest')) items.push(['#ffcf4a', 'square', 'Cofre']);
-    if (has('portal_next')) items.push(['#ff5577', 'diamond', 'Descenso']);
-    if (has('waypoint')) items.push(['#44ddff', 'diamond', 'Punto de viaje']);
-    if (has('zone_dungeon')) items.push(['#aa66ff', 'diamond', 'Mazmorra']);
-    if (has('zone_exit')) items.push(['#88dd66', 'diamond', 'Camino a región']);
-    if ((w.interactables || []).some(it => it.type.startsWith('portal') && it.type !== 'portal_next')) items.push(['#55aaff', 'diamond', 'Portal']);
-    if (has('shrine')) items.push(['#9ff0c4', 'dot', 'Altar']);
-    if ((w.interactables || []).some(it => ['vendor', 'questgiver', 'stash', 'enchanter', 'healer', 'petkeeper'].includes(it.type))) items.push(['#ffd24a', 'dot', 'NPC']);
-    items.push(['#ff66cc', 'diamond', 'Botín']);
-    el.innerHTML = items.map(([c, sh, label]) =>
-      `<span class="lg-item"><i class="lg-mk lg-${sh}" style="background:${c}"></i>${label}</span>`
-    ).join('');
+    const ctx = { ...this._mapCtx(), enemies: this.game.enemies.filter(e => e.alive), death: !!this._deathHere() };
+    const items = HM.mapLegend(w, ctx);
+    const sig = items.map(i => i.sprite).join(',');
+    if (sig === this._legendSig) return;
+    this._legendSig = sig;
+    el.innerHTML = items.map(({ sprite, label }) =>
+      `<span class="lg-item"><img class="lg-spr" src="${HM.mapIcon('mk_' + sprite)}" alt="" draggable="false">${label}</span>`
+    ).join('') + `<span class="lg-item"><i class="lg-mk lg-dot" style="background:#cc4444"></i>Enemigo</span><span class="lg-item"><i class="lg-mk lg-diamond" style="background:#ff66cc"></i>Botín</span>`;
   }
 
   // Mapa del Mundo (D4-lite): regiones descubiertas, su estado y viaje rápido.
@@ -2828,11 +3038,16 @@ export class UI {
       ctx.drawImage(this.minimapBase, 0, 0, cv.width, cv.height);
       scale = cv.width / g.w;
     }
-    const dot = (pos, color, r, shape) => {
-      const cx = (pos.x - g.ox - ox0) * scale, cz = (pos.z - g.oz - oz0) * scale;
-      this._marker(ctx, cx, cz, color, r, shape);
-    };
+    const m = ctx.getTransform();
+    const marks = [];
+    const lx = (pos) => (pos.x - g.ox - ox0) * scale, lz = (pos) => (pos.z - g.oz - oz0) * scale;
+    const at = (pos) => m.transformPoint(new DOMPoint(lx(pos), lz(pos)));
+    const dot = (pos, color, r, shape) => this._marker(ctx, lx(pos), lz(pos), color, r, shape);
+    const mctx = this._mapCtx();
+    // Paso 2d: sprites mk_* (14–18 px) para POIs, jefes, élites y goblin; puntos para el resto
     for (const it of this.game.world.interactables) {
+      const spr = HM.poiSprite(it, mctx);
+      if (spr && this._sprite(spr)) { marks.push({ p: at(it.pos), spr, size: HM.markerSize(spr) - 2, dim: HM.poiLocked(it, mctx) }); continue; }
       const s = this._poiStyle(it);
       if (s) dot(it.pos, s.color, s.r, s.shape);
     }
@@ -2842,10 +3057,20 @@ export class UI {
       if (it.kind === 'gold' || it.rarity === 'normal' || !RARITIES[it.rarity]) continue;
       dot(gi.mesh.position, '#' + ((RARITIES[it.rarity].glow ?? 0xffffff) >>> 0).toString(16).padStart(6, '0'), 2, 'diamond');
     }
-    for (const e of this.game.enemies)
-      if (e.alive) dot(e.pos, this.enemyDot(e), e.def.goblin ? 3 : 2, (e.def.boss || e.def.worldBoss) ? 'diamond' : 'dot');
-    if (p) dot(p.pos, '#ffffff', 3);
+    for (const e of this.game.enemies) {
+      if (!e.alive) continue;
+      const spr = HM.enemySprite(e);
+      if (spr && this._sprite(spr)) { marks.push({ p: at(e.pos), spr, size: HM.markerSize(spr) - 2 }); continue; }
+      dot(e.pos, this.enemyDot(e), e.def.goblin ? 3 : 2, (e.def.boss || e.def.worldBoss) ? 'diamond' : 'dot');
+    }
+    const death = this._deathHere();
+    if (death) marks.push({ p: at(death), spr: 'muerte', size: 14 });
+    if (p) {
+      if (this._sprite('jugador')) marks.push({ p: at(p.pos), spr: 'jugador', size: HM.markerSize('jugador'), rot: this._playerMarkRot(m, p) });
+      else dot(p.pos, '#ffffff', 3);
+    }
     ctx.restore();
+    this._drawMarks(ctx, marks);
   }
 
   // ---------- Estatua del Mundo: Tormento (dificultad) + Códice ----------
