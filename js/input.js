@@ -109,8 +109,12 @@ export class Input {
       case 'inventory': g.ui.togglePanel('inv'); break;
       case 'skills': g.ui.togglePanel('skills'); break;
       case 'character': g.ui.togglePanel('stats'); break;
-      // talentos (KeyN): hasta el panel del Paso 2d abre el de Maestría (su antecesor)
-      case 'talents': g.ui.togglePanel?.('mastery'); break;
+      // talentos (KeyN): el panel (js/ui-talents.js) se conecta en el Paso 2d; mientras
+      // tanto, un aviso (las maestrías se eliminaron en el Paso 2c.0)
+      case 'talents':
+        if (g.ui.openTalents) g.ui.openTalents();
+        else g.ui.message?.('🌿 Talentos: el panel llega en la próxima versión. Tu especialización y tus talentos ya se guardan.', 3000);
+        break;
       case 'potionHP': g.player?.usePotion('hp'); break;
       case 'potionMP': g.player?.usePotion('mp'); break;
       case 'primary': e?.preventDefault(); g.primaryAction(); break;

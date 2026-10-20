@@ -13,7 +13,12 @@
 //   h.tick(1.0);                                         // 10 ticks de 0,1 s (onTick a 10 Hz)
 //   h.setSlot('rmb', 'torbellino'); h.cast('rmb'); h.step(0.5);
 //   h.sustained();                                       // vida curada por la cubeta de sustento
-// 2c añadirá `talents`/`spec` (aggregateTalents) y `gauge(id, n)` (spec-mechanics).
+// Paso 2c.0: talentos REALES y su indicador
+//   const h = makeHarness({ classId: 'guerrero', spec: 'berserker', level: 50,
+//                           talents: { spec: { s14: 1 }, cls: { c1: 2 }, choice: { c5: 'B' } } });
+//   h.gauge('sed', 100);        // fija el indicador (dispara onGauge 'gain'/'full' y su descarga)
+//   h.gaugeValue('sed');  h.gaugeView();
+//   powers/tv extra (sin nodos): p.talentExtra (lo suma Player.recompute).
 import * as THREE from 'three';
 import { Player, Enemy, Projectile } from '../../js/entities.js';
 import { TickScheduler } from '../../js/timers.js';
@@ -21,6 +26,8 @@ import { skillMethods } from '../../js/game-skills.js';
 import { fieldMethods } from '../../js/field-entities.js';
 import { firePower } from '../../js/powers.js';
 import { createRng } from '../../js/rng.js';
+import { normalizeTalents } from '../../js/talents.js';
+import { setGauge, gaugeValue, gaugeView, gaugeState } from '../../js/spec-mechanics.js';
 import { ENEMIES, scaleEnemy, ENEMY_RANKS } from '../../js/data.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -81,14 +88,18 @@ export function makeGame({ seed = 7 } = {}) {
   return g;
 }
 
-export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed = 7, tv = null } = {}) {
+export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed = 7, tv = null, spec = null, talents = null } = {}) {
   const g = makeGame({ seed });
   const p = new Player(g, classId);
   g.player = p;
   p.combatRng = createRng(seed).fork('combate');
   p.level = level;
-  // poderes extra por la misma vía que usarán los talentos (p.talentAgg, Paso 2c)
-  p.talentAgg = { powers: new Set(powers), tv: tv || {}, mods: {}, skillLv: {}, grants: new Set() };
+  // talentos REALES (especialización + rangos) y poderes/tv extra (p.talentExtra)
+  if (spec || talents) {
+    const raw = { spec, cls: talents?.cls || {}, sp: spec ? { [spec]: talents?.spec || {} } : {}, choice: talents?.choice || {} };
+    p.talents = normalizeTalents(raw, classId);
+  }
+  p.talentExtra = { powers: new Set(powers), tv: tv || {}, mods: {}, skillLv: {}, grants: new Set() };
   p.recompute();
   p.hp = p.stats.maxHP;
   p.mp = p.cls.resource?.start === 0 ? 0 : p.stats.maxMP;
@@ -120,10 +131,14 @@ export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed
     setSlot(slot, id) { p.hotbar[slot] = id; },
     cast(slot) { return g.castSkillSlot(slot); },
     aim(x, z) { g.input.mouseWorld = new THREE.Vector3(x, 0, z); },
-    addPowers(...ids) { for (const id of ids) p.talentAgg.powers.add(id); p.recompute(); },
+    addPowers(...ids) { for (const id of ids) p.talentExtra.powers.add(id); p.recompute(); },
     sustained() { return p._sustained || 0; },
     messages() { return g.ui.messages; },
-    gauge() { throw new Error('gauge(): los indicadores de especialización llegan en el Paso 2c (spec-mechanics.js)'); },
+    // indicador de especialización (spec-mechanics): fija el valor por gainGauge/drainGauge
+    gauge(id, n, e = null) { return setGauge(p, id, n, e); },
+    gaugeValue(id, e = null) { return gaugeValue(p, id, e); },
+    gaugeState(id, e = null) { return gaugeState(p, id, e); },
+    gaugeView() { return gaugeView(p); },
   };
   return h;
 }

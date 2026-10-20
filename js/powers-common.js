@@ -1,5 +1,6 @@
 // ============================================================
-// Poderes COMUNES (legendarios, Paragon, maestrías, eras) — Paso 2b.0
+// Poderes COMUNES (legendarios, Paragon, eras y los nodos clave de talento que ya
+// existían como maestrías) — Paso 2b.0 · valores de §5.2.2/§5.2.3 en el Paso 2c.0
 // ============================================================
 // Migración de TODOS los `powers.has(...)` que estaban dispersos por main.js y
 // entities.js a entradas del registro (js/powers.js, §9.1). Cada poder declara
@@ -11,7 +12,6 @@
 // Los módulos por clase de 2c (powers-<clase>.js) siguen el mismo patrón.
 import { volatileDamage } from './combat-math.js';
 import { dealProcDamage, powerState } from './powers.js';
-import { gainResource } from './resources.js';
 
 export function commonPowers() {
   const isBoss = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
@@ -27,9 +27,13 @@ export function commonPowers() {
   return {
     // ---- multiplicadores [×] (Paso 1A; ≤ ×1,3; máx. 3 activos) ----
     furia:     { name: 'Furia', desc: 'Daño ×1,15 con vida por encima del 80 %.', mult: { mult: 1.15, when: c => c.hpFrac > 0.8 } },
-    m_berserk: { name: 'Sed de Batalla', desc: 'Daño ×1,25 con vida por debajo del 40 %.', mult: { mult: 1.25, when: c => c.hpFrac < 0.4 } },
-    m_deadeye: { name: 'Tiro Mortal', desc: 'Críticos ×1,25 contra objetivos con más del 60 % de vida.', mult: { mult: 1.25, when: c => c.crit && c.targetFrac > 0.6 } },
-    m_hunt:    { name: 'Cacería', desc: 'Daño ×1,15 contra ralentizados.', mult: { mult: 1.15, when: c => c.targetSlowed } },
+    // nodos clave de talento (§5.2.2): Sed de Batalla también con la Sed Saciada
+    // (indicador de spec-mechanics: p.gauges.sed.satedT), Tiro Mortal ×1,30 y
+    // Cacería ×1,20 contra ralentizados o inmovilizados
+    m_berserk: { name: 'Sed de Batalla', desc: 'Daño ×1,25 con vida por debajo del 40 % o con la Sed Saciada.',
+      mult: { mult: 1.25, when: c => c.hpFrac < 0.4 || (c.p?.gauges?.sed?.satedT || 0) > 0 } },
+    m_deadeye: { name: 'Tiro Mortal', desc: 'Críticos ×1,30 contra objetivos con más del 60 % de vida.', mult: { mult: 1.30, when: c => c.crit && c.targetFrac > 0.6 } },
+    m_hunt:    { name: 'Cacería', desc: 'Daño ×1,20 contra ralentizados o inmovilizados.', mult: { mult: 1.20, when: c => c.targetSlowed || (c.e?.rootT || 0) > 0 } },
 
     // ---- ① stats ----
     avaricia: {
@@ -49,16 +53,23 @@ export function commonPowers() {
     },
 
     // ---- ⑤ onHit ----
+    // Arcanista s0 (Paso 2c.0): el texto del nodo es «cada golpe Arcano te devuelve 1
+    // de maná» (eso lo da su stats.mph: 1) y las Cargas Arcanas (indicador `cargas`
+    // de spec-mechanics.js). El 4 % del maná máximo por golpe de la maestría vieja
+    // era maná infinito con el pozo de §2 (≈16 por golpe a Nv50): el poder queda
+    // como marca del nodo clave, sin efecto propio (los talentos de 2c.1 pueden
+    // reaccionar a él con hasPower).
     m_overload: {
-      name: 'Sobrecarga Arcana', desc: 'Recuperas un 4 % del maná máximo con cada golpe (una vez por impacto).',
-      icd: 0.05,  // un área que golpea a varios en el mismo instante cuenta una vez
-      onHit(g, p) { gainResource(p, (p.stats?.maxMP || 0) * 0.04); },
+      name: 'Sobrecarga Arcana', desc: 'Nodo clave del Arcanista: cada golpe te devuelve maná y el Dardo Arcano genera Cargas Arcanas.',
     },
+    // Crionte s0 (§5.2.3): astilla a los CONGELADOS (5 capas de Escarcha) por debajo
+    // de tv.shatterPct (15 %), no jefes
     m_shatter: {
-      name: 'Cero Absoluto', desc: 'Los enemigos ralentizados (no jefes) con poca vida (≤18 %) se astillan.',
+      name: 'Cero Absoluto', desc: 'Los enemigos Congelados (no jefes) por debajo del 15 % de vida se astillan.',
       procs: true,
       onHit(g, p, e) {
-        if (!e?.alive || isBoss(e) || !(e.slowT > 0) || e.hp > e.maxHP * 0.18) return false;
+        const pct = (p.tv?.shatterPct || 15) / 100;
+        if (!e?.alive || isBoss(e) || !(e.frozenT > 0) || e.hp > e.maxHP * pct) return false;
         g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 0.6), '¡ASTILLADO!', 'txt-crit');
         dealProcDamage(g, e, e.hp + 1, { source: 'power:m_shatter' });
       },

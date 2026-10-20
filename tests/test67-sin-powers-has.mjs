@@ -11,7 +11,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { POWER_HOOKS, POWER_KEYS, definePower, buildHookIndex, firePower, powerState } from '../js/powers.js';
 import { LEGENDARY_POWERS } from '../js/items.js'; // (las reliquias reutilizan estos ids)
-import { MASTERIES, PARAGON_BOARDS, ERA_MUTATORS } from '../js/data.js';
+import { PARAGON_BOARDS, ERA_MUTATORS } from '../js/data.js';
+import { TALENT_TREES } from '../js/talents.js';
 import { MULT_POWERS } from '../js/combat-math.js';
 
 // ------------------------------------------------ 1) sin powers.has( fuera del registro
@@ -28,7 +29,14 @@ console.log('Ningún `powers.has(` fuera de js/powers*.js ✓');
 // ------------------------------------------------ 2) cobertura del contenido actual
 const referenced = new Set();
 for (const p of LEGENDARY_POWERS) referenced.add(p.id);
-for (const list of Object.values(MASTERIES)) for (const m of list) for (const n of m.nodes) if (n.power) referenced.add(n.power);
+// talentos (Paso 2c.0): los poderes que YA deben existir son los de los nodos clave
+// que venían de las maestrías; el resto de poderes de talento los escribe 2c.1
+// (su cobertura completa la vigila tests/test-powers-<clase>.mjs)
+const talentPowers = new Set();
+for (const t of Object.values(TALENT_TREES)) for (const tree of [t.cls, ...t.specs]) for (const n of tree.nodes)
+  for (const fx of n.t === 'c' ? n.opts.map(o => o.fx || {}) : [n.fx || {}]) if (fx.power) talentPowers.add(fx.power);
+for (const id of ['m_berserk', 'm_aegis', 'm_judgment', 'm_conflag', 'm_shatter', 'm_overload', 'm_deadeye', 'm_hunt', 'multidisparo'])
+  assert.ok(talentPowers.has(id), `el nodo clave ${id} sigue referenciado por los talentos`);
 for (const board of Object.values(PARAGON_BOARDS)) for (const n of board) if (n.power) referenced.add(n.power);
 for (const e of ERA_MUTATORS) if (e.power) referenced.add(e.power);
 const missing = [...referenced].filter(id => !POWER_HOOKS[id]);

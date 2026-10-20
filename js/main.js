@@ -18,7 +18,9 @@ import { enemyAbilities } from './enemy-abilities.js';
 import { endgameMethods } from './game-endgame.js';
 import { worldFlowMethods } from './game-world-flow.js';
 import { zoneLifeMethods } from './game-zone-life.js';
-import { masteryMethods } from './game-mastery.js';
+// Paso 2c.0: talentos y especialización (sustituye a game-mastery.js)
+import { talentMethods } from './game-talents.js';
+import { LOAD_NOTICES } from './save-schema.js';
 import { eraMethods } from './game-eras.js';
 // Paso 2b.0: canal de lanzamiento de habilidades, entidades de suelo y registro de poderes
 import { skillMethods } from './game-skills.js';
@@ -354,6 +356,9 @@ class Game {
     this.ui.refreshHotbar();
     this.ui.updateHUD();
     this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Sal del campamento para explorar las Tierras de la Cripta.`, 5000);
+    // avisos de la migración del guardado (p. ej. maestría → talentos, v4)
+    for (const n of this.player.notices || []) if (LOAD_NOTICES[n]) this.ui.message(LOAD_NOTICES[n], 8000);
+    this.player.notices = [];
     document.getElementById('hud').classList.remove('hidden');
     // garantiza que no quede ningún panel abierto al entrar (lo añade la UI)
     this.ui.closeAllPanels?.();
@@ -2098,7 +2103,7 @@ class Game {
   }
 }
 
-Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods,
+Object.assign(Game.prototype, economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, talentMethods, eraMethods,
   skillMethods, fieldMethods);
 
 new Game();

@@ -3,7 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import * as d3 from 'd3';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
 // Paso 2b.0: números finales de las habilidades (coste/CD/soportes) desde el resolvedor único
 import { resolveSkill, supportFits, supportSockets, fitsSlot, profileSummary, isKnown, RANK_MAX } from './skill-resolve.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
@@ -397,7 +397,7 @@ export class UI {
     const p = this.game.player;
     if (!p) return;
     // "Poder del héroe": feedback flotante cuando SUBE (equipar mejor, nivel,
-    // paragon, maestría…). Un solo punto de detección, barato (10Hz).
+    // paragon, talentos…). Un solo punto de detección, barato (10Hz).
     const pw = p.stats.power || 0;
     if (this._lastPower != null && pw > this._lastPower && this.game.state === 'play')
       this.spawnText(p.pos, `+${pw - this._lastPower} ⚡ Poder`, 'txt-gold');
@@ -956,7 +956,6 @@ export class UI {
     else if (this.activePanel === 'progress') this.renderProgress();
     else if (this.activePanel === 'pet') this.renderPet();
     else if (this.activePanel === 'guide') this.renderGuide();
-    else if (this.activePanel === 'mastery') this.renderMastery();
     else if (this.activePanel === 'paragon') this.renderParagon();
   }
 
@@ -1863,7 +1862,11 @@ export class UI {
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.classList.add('sk-links'); svg.setAttribute('aria-hidden', 'true');
     graph.appendChild(svg);
-    const tree = p.cls.tree || [];
+    // libro: categorías del catálogo base + las activas de TALENTO que conoces (Paso 2c.0;
+    // el libro definitivo por categoría es del Paso 2d)
+    const tree = [...(p.cls.tree || [])];
+    const talentKnown = p.cls.skills.filter(s => s.kind === 'talent' && isKnown(p, s)).map(s => s.id);
+    if (talentKnown.length) tree.splice(Math.max(0, tree.length - 1), 0, { id: `${p.classId}_talent`, kind: 'core', name: 'Activas de talento', req: 10, skills: talentKnown });
     const kindLabel = { basic: 'Genera recurso', core: 'Habilidad', ultimate: 'Definitiva', passive: 'Pasiva' };
     const sections = [];
     tree.forEach((node, idx) => {
@@ -2343,9 +2346,6 @@ export class UI {
     const freeGlyphs = this.unsocketedGlyphCount();
     const pgBadge = (pgPts + freeGlyphs) > 0 ? `<span class="bnav-badge">${pgPts + freeGlyphs}</span>` : '';
     const hasBoard = p.level >= 20 || pgPts > 0 || Object.keys(para.nodes || {}).length > 0;
-    const mPts = p.mastery?.points || 0;
-    const hasMastery = p.level >= MASTERY_START_LEVEL || p.mastery?.id;
-    const mBadge = mPts > 0 ? `<span class="bnav-badge">${mPts}</span>` : '';
     // tab: si está bloqueado se muestra IGUAL (descubribilidad/aspiración) con
     // candado y el nivel requerido; al pulsarlo se abre una vista de preview.
     const tab = (key, ico, label, badge, on, lockLvl) =>
@@ -2353,7 +2353,6 @@ export class UI {
     return `<div class="build-nav">
         ${tab('stats', 'hero', 'Personaje', '', active === 'stats')}
         ${tab('skills', 'book', 'Habilidades', skillBadge, active === 'skills')}
-        ${tab('mastery', 'magic', 'Maestría', mBadge, active === 'mastery', hasMastery ? 0 : MASTERY_START_LEVEL)}
         ${tab('paragon', 'star', 'Paragon', pgBadge, active === 'paragon', hasBoard ? 0 : 20)}
       </div>`;
   }
@@ -2365,7 +2364,6 @@ export class UI {
       btn.onclick = () => {
         const dest = btn.dataset.bnav;
         if (dest === 'paragon') this.openParagon();
-        else if (dest === 'mastery') this.openMastery();
         else this.togglePanel(dest);
       };
     });
@@ -2393,7 +2391,7 @@ export class UI {
           ${p.title ? `<div class="cs-hero-title">${p.title}</div>` : ''}
         </div>
       </div>
-      <div class="cs-power" title="Poder del héroe: resume la fuerza de tu build. Sube al mejorar equipo, nivel, paragon o maestrías.">⚡ Poder <b>${s.power || 0}</b></div>
+      <div class="cs-power" title="Poder del héroe: resume la fuerza de tu build. Sube al mejorar equipo, nivel, paragon o talentos.">⚡ Poder <b>${s.power || 0}</b></div>
       <div class="cs-xp"><div class="cs-xp-fill" style="width:${xpPct}%"></div></div>
       <div class="cs-xp-txt">XP ${p.xp} / ${xpNeed}</div>`;
 
@@ -3048,97 +3046,6 @@ export class UI {
       b.onclick = () => { g.setPetCollar(b.dataset.collar); });
     body.querySelectorAll('[data-kind]').forEach(b =>
       b.onclick = () => { g.switchPetKind(b.dataset.kind); });
-  }
-
-  // ---------- Maestrías de clase (ramas) ----------
-  openMastery() {
-    if (this.activePanel !== 'mastery') {
-      this.closePanel();
-      this.activePanel = 'mastery';
-      $('panel-mastery').classList.remove('hidden');
-      this.markJustOpened();
-    }
-    this.renderMastery();
-  }
-
-  renderMastery() {
-    const g = this.game, p = g.player;
-    const nav = $('mastery-build-nav');
-    if (nav) { nav.innerHTML = this.buildNavHTML('mastery'); this.bindBuildNav(nav); }
-    const body = $('mastery-body');
-    const list = MASTERIES[p.classId] || [];
-
-    if (p.level < MASTERY_START_LEVEL && !p.mastery?.id) {
-      // PREVIEW (bloqueado): se ve qué viene, para que el jugador lo anhele
-      let html = `<div class="locked-banner">${icon('lock')} Las maestrías se desbloquean en el <b>nivel ${MASTERY_START_LEVEL}</b> (te faltan ${MASTERY_START_LEVEL - p.level}). Elegirás <b>una</b> de estas ${list.length} ramas y ganarás 1 punto cada 2 niveles. Vista previa:</div>`;
-      html += `<div class="mastery-pick preview">`;
-      for (const m of list) {
-        html += `<div class="mastery-card locked">
-          <div class="mastery-card-ico">${m.icon}</div>
-          <div class="mastery-card-name">${m.name}</div>
-          <div class="dim mastery-card-desc">${m.desc}</div>
-          <ul class="mastery-card-nodes">${m.nodes.filter(n => n.type === 'capstone').map(n => `<li>★ <b>${n.name}</b>: ${n.desc}</li>`).join('')}</ul>
-        </div>`;
-      }
-      html += `</div>`;
-      body.innerHTML = html;
-      return;
-    }
-
-    // aún sin elegir: muestra las 3 ramas para escoger
-    if (!p.mastery?.id) {
-      let html = `<p class="dim">Elige <b>una</b> maestría: define la identidad de tu build. Podrás reespecializar por oro más adelante. Puntos: <b>${p.mastery?.points || 0}</b></p>`;
-      html += `<div class="mastery-pick">`;
-      for (const m of list) {
-        html += `<div class="mastery-card">
-          <div class="mastery-card-ico">${m.icon}</div>
-          <div class="mastery-card-name">${m.name}</div>
-          <div class="dim mastery-card-desc">${m.desc}</div>
-          <ul class="mastery-card-nodes">${m.nodes.map(n => `<li>${n.type === 'capstone' ? '★ ' : ''}<b>${n.name}</b>: ${n.desc}</li>`).join('')}</ul>
-          <button class="quest-btn" data-pick="${m.id}">Elegir ${m.icon} ${m.name}</button>
-        </div>`;
-      }
-      html += `</div>`;
-      body.innerHTML = html;
-      body.querySelectorAll('[data-pick]').forEach(b =>
-        b.onclick = () => { g.chooseMastery(b.dataset.pick); this.renderMastery(); this.updateHUD(); });
-      return;
-    }
-
-    // ya elegida: muestra el árbol de nodos por tier
-    const m = findMastery(p.mastery.id);
-    const spent = g.masterySpent();
-    const pts = p.mastery.points || 0;
-    let html = `<div class="mastery-head"><span class="mastery-head-ico">${m.icon}</span> <b>${m.name}</b> <span class="dim">— ${m.desc}</span></div>`;
-    html += `<p class="points-txt">Puntos de maestría: <b>${pts}</b> · asignados: <b>${spent}</b></p>`;
-    const tiers = [{ k: 'minor', label: 'Menores' }, { k: 'notable', label: 'Notables (req. 3)' }, { k: 'mayor', label: 'Mayores (req. 6)' }, { k: 'capstone', label: 'Capstone (req. 8)' }];
-    html += `<div class="mastery-tree">`;
-    for (const t of tiers) {
-      const nodes = m.nodes.filter(n => n.type === t.k);
-      if (!nodes.length) continue;
-      html += `<div class="mastery-tier"><div class="mastery-tier-lbl">${t.label}</div><div class="mastery-row">`;
-      for (const n of nodes) {
-        const owned = !!p.mastery.nodes[n.id];
-        const locked = spent < n.req;
-        const canBuy = !owned && !locked && pts > 0;
-        const cls = owned ? ' owned' : locked ? ' locked' : canBuy ? ' avail' : '';
-        html += `<button class="mastery-node${cls}" data-node="${n.id}" ${owned || locked || pts <= 0 ? 'disabled' : ''}>
-          <b>${n.type === 'capstone' ? '★ ' : ''}${n.name}</b>
-          <span class="mastery-node-desc">${n.desc}</span>
-          <span class="mastery-node-tag">${owned ? '✓ asignado' : locked ? `🔒 req. ${n.req}` : pts > 0 ? 'Asignar (1 pt)' : 'sin puntos'}</span>
-        </button>`;
-      }
-      html += `</div></div>`;
-    }
-    html += `</div>`;
-    // reespecializar
-    const cost = g.masteryRespecCost();
-    html += `<button id="mastery-respec" class="quest-btn mastery-respec${p.gold < cost ? ' no-gold' : ''}" ${p.gold < cost ? 'disabled' : ''}>♻️ Reespecializar (${icon('coin', { cls: 'ico-gold' })} ${cost})</button>`;
-    body.innerHTML = html;
-    body.querySelectorAll('[data-node]').forEach(b =>
-      b.onclick = () => { g.allocateMasteryNode(b.dataset.node); });
-    const rb = $('mastery-respec');
-    if (rb) rb.onclick = () => { g.respecMastery(); this.renderMastery(); this.updateHUD(); };
   }
 
   // ---------- Tablero de Paragon ----------

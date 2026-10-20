@@ -172,7 +172,7 @@ for (const [cid, T] of Object.entries(TALENT_TREES)) {
     assert.ok(sk.tags.every(t => TAGS.has(t)));
     assert.ok(sk.behavior || GENERIC_TYPES.includes(sk.type), `${sk.id}: tipo genérico o comportamiento`);
     assert.ok(!CLASSES[cid].skills.some(b => b.id === sk.id && b.kind !== 'talent'), `${sk.id}: no pisa una habilidad base`);
-    // talents.js las añade al catálogo de la clase con kind 'talent'
+    // data.js las añade (normalizadas) al catálogo de la clase con kind 'talent'
     assert.equal(CLASSES[cid].skills.filter(b => b.id === sk.id).length, 1, `${sk.id}: registrada una vez en CLASSES.${cid}`);
   }
   totalSkills += T.skills.length;
@@ -203,7 +203,8 @@ for (const [cid, T] of Object.entries(TALENT_TREES)) {
       }
       assert.deepEqual(ranks, want);
       if (which === 'cls') p.talents.cls = saved; else p.talents.sp[s.id] = saved;
-      if (list !== s.clsPreset) assert.deepEqual(presetRanks(p, which), want, `${cid}/${s.id}/${which}: presetRanks`);
+      // Paso 2c.0: el preset de CLASE es el clsPreset de la especialización elegida
+      if (which === 'spec' || list === s.clsPreset) assert.deepEqual(presetRanks(p, which), want, `${cid}/${s.id}/${which}: presetRanks`);
       for (const [id, , ch] of list) if (ch) p.talents.choice[id] = ch;
     }
     // jugador con los dos presets aplicados → aggregateTalents
@@ -215,8 +216,11 @@ for (const [cid, T] of Object.entries(TALENT_TREES)) {
     assert.ok(agg.powers.has(s.nodes[0].fx.power), `${cid}/${s.id}: el poder del nodo clave`);
     for (const g of agg.grants) assert.ok(skillIds.has(g));
     for (const [k, v] of Object.entries(agg.stats)) assert.ok(Number.isFinite(v), `${cid}/${s.id}: stat ${k} = ${v}`);
-    // costRedBig es un objeto {pct, over}: aggregateTalents aún lo suma como número (lo arregla 2c.0)
-    for (const [k, v] of Object.entries(agg.tv)) if (k !== 'costRedBig') assert.ok(Number.isFinite(v), `${cid}/${s.id}: tv ${k} = ${v}`);
+    // costRedBig es un objeto {pct, over} (Paso 2c.0: se fusiona aparte, ya no "0[object Object]")
+    for (const [k, v] of Object.entries(agg.tv)) {
+      if (k === 'costRedBig') assert.ok(Number.isFinite(v.pct) && Number.isFinite(v.over), `${cid}/${s.id}: costRedBig ${JSON.stringify(v)}`);
+      else assert.ok(Number.isFinite(v), `${cid}/${s.id}: tv ${k} = ${v}`);
+    }
     for (const [id, m] of Object.entries(agg.mods)) assert.ok(knownSkill(id) && typeof m === 'object', `${cid}/${s.id}: mod a ${id}`);
     // por debajo de Nv10 la especialización no aporta nada
     const low = aggregateTalents({ ...p, level: TALENT_START_LEVEL - 1 });

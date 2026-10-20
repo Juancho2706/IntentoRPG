@@ -1,10 +1,11 @@
 // ============================================================
 // TALENTOS (estilo WoW Retail): árbol de CLASE + árbol de ESPECIALIZACIÓN
 // ============================================================
-// Reemplaza a las maestrías. Cada clase tiene un árbol de clase compartido y 3
-// especializaciones (los ids son los de las antiguas maestrías → migración
-// trivial). Módulo PURO (sin DOM): lo usan Player.recompute(), el mixin
-// game-mastery.js, la UI y los tests headless.
+// Reemplaza a las maestrías (Paso 2c.0). Cada clase tiene un árbol de clase
+// compartido y 3 especializaciones (los ids son los de las antiguas maestrías →
+// migración trivial, save-schema MIGRATIONS[3]). Módulo PURO (sin DOM): lo usan
+// Player.recompute(), el mixin game-talents.js, talents-ops.js (panel), la
+// migración de guardado y los tests headless.
 //
 // NODO: { id, name, icon, t, r, c, max, req?, free?, fx?, opts?, d? }
 //   t   'p' pasiva · 'a' activa nueva (grant) · 'c' elección (opts A/B) ·
@@ -18,16 +19,29 @@
 // multiplica por el rango; un array da el valor absoluto por rango [r1, r2…].
 //   stats:  { dmgPct, crit, hp, mp, arm, … }        → recompute (como el equipo)
 //   elem:   { fire|frost|arcane|phys|holy|nature: % } → +% daño de esas skills
-//   skillLv:{ skillId|'@elem'|'@all': +niveles }
-//   mod:    { skillId|'@elem'|'@all': { dmg, proj, radius, cdr, dur, crit,
-//             cost, dot, zone, echo, slow, vuln, stun, chain, pierce, coldblood } }
-//   tv:     { clave: valor } valores numéricos que leen los hooks de combate:
-//     eliteDmg slowedDmg highHpDmg lowHpDmg critDmg dmgReduc costRed
-//     dotPct burnPct poisonPct bleedPct dotDur killHeal burnKillHeal
-//     burnExplode killExplode manaOnKill executePct shatterPct highManaDmg
-//   power:  'id' (entra en player.powers; ver hooks en entities/main)
-//   grant:  'skillId' (habilidad activa nueva de kind 'talent')
+//   skillLv:{ skillId|'@elem'|'@all'|'@spec': +niveles }
+//   mod:    { skillId|'@elem'|'@all'|'@spec': { …claves de skill-defs.emptyMods:
+//             dmg proj pierce radius range slow(s) slowPct(%) crit dot buff dur(%)
+//             durS(+s) cdr cost gen lifesteal vuln stun root execute chain zone
+//             zoneDur cdhit echo coldblood haste cleanse critCdr(s por crítico) } }
+//             Fusión = skill-defs.mergeMods: se SUMAN salvo slow/slowPct/stun/root/
+//             vuln/execute/chain/zone/cdhit/haste (gana el MÁXIMO) y los booleanos.
+//   tv:     { clave: valor } valores que leen los hooks de combate (§5.3). Todos
+//     numéricos y SUMADOS, salvo costRedBig = { pct, over } (objeto: pct se suma,
+//     over = el umbral más bajo). Incondicionales que ya aplica recompute:
+//     critDmg (saco aditivo del crítico) y dmgReduc (dr).
+//   power:  'id' (entra en player.powers → registro de poderes, js/powers*.js)
+//   grant:  'skillId' (habilidad activa nueva de kind 'talent'; data.js la añade
+//           NORMALIZADA al catálogo de la clase y talentAgg.grants la desbloquea)
+// '@spec' = las habilidades del ELEMENTO de la especialización ACTIVA (spec.elem o el de
+// su insignia: Piromante fuego, Crionte escarcha, Arcanista arcano…) ∪ las activas
+// que concede su árbol (texto de Maga c9: «habilidades del elemento de tu especialización»).
+// ESPECIALIZACIÓN: { id, name, role, mechanic (indicador de spec-mechanics.js),
+//   innate:{…} (pasivas de línea base, §5.2.5; NO son nodos: aggregateTalents las
+//   devuelve en agg.innate y recompute las aplica: block solo con escudo),
+//   nodes, preset, clsPreset (preset del árbol de CLASE para esta especialización) }
 import { CLASSES } from './data.js';
+import { mergeMods } from './skill-defs.js';
 import { MAGA_TALENTS } from './talents-maga.js';
 import { GUERRERO_TALENTS } from './talents-guerrero.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
@@ -39,13 +53,10 @@ export const CLASS_GATES = [{ row: 3, need: 6 }, { row: 5, need: 12 }];
 
 export const TALENT_TREES = { maga: MAGA_TALENTS, guerrero: GUERRERO_TALENTS, arquera: ARQUERA_TALENTS };
 
-// las habilidades activas que conceden los talentos viven en el catálogo de la
-// clase (kind 'talent'), así la barra, el lanzamiento y la UI las encuentran.
-for (const [cid, t] of Object.entries(TALENT_TREES)) {
-  const list = CLASSES[cid]?.skills;
-  if (!list) continue;
-  for (const sk of t.skills || []) if (!list.some(s => s.id === sk.id)) list.push({ ...sk, kind: 'talent' });
-}
+// Las activas que conceden los talentos (TREE.skills, kind 'talent') las añade
+// data.js al catálogo de la clase YA NORMALIZADAS (skill-defs.normalizeSkillDef),
+// así la barra, el lanzamiento, el resolvedor y la UI las encuentran aunque este
+// módulo no se haya importado todavía.
 
 // elemento de las habilidades base (las de talento lo llevan en `elem`)
 export const SKILL_ELEM = {
@@ -63,6 +74,26 @@ export function skillElem(sk) { return sk ? (sk.elem || SKILL_ELEM[sk.id] || nul
 export function talentTreesFor(classId) { return TALENT_TREES[classId] || null; }
 export function findSpec(classId, specId) {
   return (TALENT_TREES[classId]?.specs || []).find(s => s.id === specId) || null;
+}
+// activa insignia de una especialización: la que otorga su nodo clave gratis (s0)
+export function specInsignia(classId, specId) {
+  const s = findSpec(classId, specId);
+  const k = s?.nodes.find(n => n.free);
+  return k?.fx?.grant || null;
+}
+// especialización ACTIVA del jugador (elegida y con nivel ≥ TALENT_START_LEVEL)
+export function activeSpec(p) {
+  if (!p || (p.level || 1) < TALENT_START_LEVEL) return null;
+  return findSpec(p.classId, p.talents?.spec);
+}
+// todas las activas que concede un árbol (nodos y opciones de elección)
+export function treeGrants(nodes) {
+  const out = [];
+  for (const n of nodes || []) {
+    if (n.fx?.grant) out.push(n.fx.grant);
+    for (const o of n.opts || []) if (o.fx?.grant) out.push(o.fx.grant);
+  }
+  return out;
 }
 // árbol de clase o de especialización activa del jugador, con sus puertas
 export function treeOf(p, which) {
@@ -90,7 +121,8 @@ export function normalizeTalents(raw, classId, legacyMasteryId = null) {
   if (t) {
     const clean = (ranks, nodes) => {
       const o = {};
-      for (const n of nodes) { const r = ranks?.[n.id] | 0; if (r > 0) o[n.id] = Math.min(r, n.max); }
+      // los nodos gratis (s0) no se guardan nunca (los rodeos viejos del panel los guardaban)
+      for (const n of nodes) { const r = ranks?.[n.id] | 0; if (r > 0 && !n.free) o[n.id] = Math.min(r, n.max); }
       return o;
     };
     out.cls = clean(out.cls, t.cls.nodes);
@@ -131,6 +163,8 @@ export function spentIn(tree, ranks, beforeRow = 99) {
   for (const n of tree.nodes) if (!n.free && n.r < beforeRow) s += ranks[n.id] | 0;
   return s;
 }
+// puntos libres de un árbol (los nodos gratis no cuestan: spentIn los ignora aunque
+// un save viejo los tuviera guardados en ranks)
 export function talentPointsLeft(p, which) {
   const tree = treeOf(p, which);
   if (!tree) return which === 'spec' ? 0 : Math.max(0, talentPointsEarned(p, 'cls'));
@@ -171,10 +205,20 @@ export function canRemoveRank(p, which, nodeId) {
   if (r <= 0) return false;
   return validRanks(tree, { ...ranks, [nodeId]: r - 1 }, p.level);
 }
-// rellena el árbol con la build recomendada (lista ordenada de [id, rangos])
+// lista ordenada [id, rangos, opción?] de la build recomendada de un árbol. El
+// preset de CLASE es el `clsPreset` de la especialización elegida (cada mockup
+// trae el suyo); sin especialización, el `cls.preset` (= el de la 1.ª).
+export function presetList(p, which) {
+  const t = TALENT_TREES[p?.classId];
+  if (!t) return [];
+  if (which === 'cls') return findSpec(p.classId, p.talents?.spec)?.clsPreset || t.cls.preset || [];
+  return findSpec(p.classId, p.talents?.spec)?.preset || [];
+}
+// rellena el árbol con la build recomendada (lista ordenada de [id, rangos]).
+// Los nodos gratis (free) NO se guardan en los rangos: reqFail ya los cuenta.
 export function presetRanks(p, which) {
   const tree = treeOf(p, which); if (!tree) return null;
-  const list = which === 'cls' ? TALENT_TREES[p.classId].cls.preset : tree.spec.preset;
+  const list = presetList(p, which);
   const budget = talentPointsEarned(p, which);
   const ranks = {};
   let left = budget;
@@ -205,55 +249,73 @@ export function nodeDesc(node, r, choice) {
   return typeof node.d === 'function' ? node.d(Math.max(1, r)) : (node.d || '');
 }
 
-const MOD_MAX = ['slow', 'vuln', 'stun', 'execute', 'chain', 'zone', 'cdhit'];
-const MOD_BOOL = ['pierce', 'echo', 'coldblood'];
-// fusiona modificadores de skill (mismo vocabulario que aggregateSkillMods)
-export function mergeSkillMods(out, add) {
-  if (!add) return out;
-  for (const [k, v] of Object.entries(add)) {
-    if (MOD_BOOL.includes(k)) { if (v) out[k] = true; }
-    else if (k === 'dot') { if (v && !out.dot) out.dot = v; }
-    else if (MOD_MAX.includes(k)) out[k] = Math.max(out[k] || 0, v);
-    else out[k] = (out[k] || 0) + v;
-  }
-  return out;
-}
+// fusiona modificadores de skill: MISMAS reglas que las ramas (skill-defs.mergeMods:
+// slow/slowPct/stun/root/vuln/… toman el MÁXIMO; el resto suma; booleanos con OR)
+export function mergeSkillMods(out, add) { return mergeMods(out, add); }
 
-// expande '@all' / '@fire' a los ids de skill de la clase
-function expandSkillKey(classId, key) {
+// elemento de una especialización: spec.elem o el de su insignia (s0)
+export function specElem(classId, spec) {
+  if (!spec) return null;
+  if (spec.elem) return spec.elem;
+  const ins = spec.nodes?.find(n => n.free)?.fx?.grant;
+  return skillElem((CLASSES[classId]?.skills || []).find(s => s.id === ins)) || null;
+}
+// expande '@all' / '@fire' / '@spec' a los ids de skill de la clase
+// ('@spec' = habilidades del elemento de la especialización ∪ las activas de su árbol)
+function expandSkillKey(classId, key, spec = null) {
   const list = CLASSES[classId]?.skills || [];
   if (key === '@all') return list.filter(s => s.kind !== 'passive' && s.type !== 'weapon').map(s => s.id);
+  if (key === '@spec') {
+    if (!spec) return [];
+    const el = specElem(classId, spec);
+    const grants = new Set(treeGrants(spec.nodes));
+    return list.filter(s => grants.has(s.id) || (el && skillElem(s) === el && s.type !== 'passive')).map(s => s.id);
+  }
   if (key[0] === '@') { const el = key.slice(1); return list.filter(s => skillElem(s) === el && s.type !== 'passive').map(s => s.id); }
   return [key];
 }
+// suma de una clave tv: números se suman; costRedBig {pct, over} suma pct y se
+// queda con el umbral más bajo (antes se concatenaba como "0[object Object]")
+function addTv(tv, k, v) {
+  if (v && typeof v === 'object') {
+    const cur = tv[k] && typeof tv[k] === 'object' ? tv[k] : null;
+    tv[k] = cur ? { ...cur, pct: (cur.pct || 0) + (v.pct || 0), over: Math.min(cur.over ?? Infinity, v.over ?? Infinity) } : { ...v };
+  } else if (Number.isFinite(v)) tv[k] = (Number.isFinite(tv[k]) ? tv[k] : 0) + v;
+}
 
-// suma TODOS los efectos de los talentos asignados → lo consume recompute()
+// suma TODOS los efectos de los talentos asignados → lo consume recompute().
+// agg = { stats, tv, powers:Set, skillLv, mods, grants:Set, innate, spec, mechanic }
+//  · spec / mechanic / innate solo con la especialización ACTIVA (Nv ≥ 10)
+//  · el nodo clave gratis (free) cuenta siempre como rango 1 (nunca está en ranks)
 export function aggregateTalents(p) {
-  const agg = { stats: {}, tv: {}, powers: new Set(), skillLv: {}, mods: {}, grants: new Set() };
-  const T = p.talents;
-  const t = TALENT_TREES[p.classId];
+  const agg = { stats: {}, tv: {}, powers: new Set(), skillLv: {}, mods: {}, grants: new Set(), innate: {}, spec: null, mechanic: null };
+  const T = p?.talents;
+  const t = TALENT_TREES[p?.classId];
   if (!T || !t) return agg;
+  const s = activeSpec(p);
   const apply = (node, r) => {
     const fx = nodeFx(node, T.choice?.[node.id]);
     for (const [k, v] of Object.entries(fx.stats || {})) agg.stats[k] = (agg.stats[k] || 0) + scaleFx(v, r);
-    for (const [k, v] of Object.entries(fx.tv || {})) agg.tv[k] = (agg.tv[k] || 0) + scaleFx(v, r);
+    for (const [k, v] of Object.entries(fx.tv || {})) addTv(agg.tv, k, scaleFx(v, r));
     for (const [k, v] of Object.entries(fx.skillLv || {}))
-      for (const id of expandSkillKey(p.classId, k)) agg.skillLv[id] = (agg.skillLv[id] || 0) + scaleFx(v, r);
+      for (const id of expandSkillKey(p.classId, k, s)) agg.skillLv[id] = (agg.skillLv[id] || 0) + scaleFx(v, r);
     for (const [el, v] of Object.entries(fx.elem || {}))
       for (const id of expandSkillKey(p.classId, '@' + el)) mergeSkillMods(agg.mods[id] || (agg.mods[id] = {}), { dmg: scaleFx(v, r) });
     for (const [k, m] of Object.entries(fx.mod || {})) {
       const scaled = {};
       for (const [mk, mv] of Object.entries(m)) scaled[mk] = scaleFx(mv, r);
-      for (const id of expandSkillKey(p.classId, k)) mergeSkillMods(agg.mods[id] || (agg.mods[id] = {}), scaled);
+      for (const id of expandSkillKey(p.classId, k, s)) mergeSkillMods(agg.mods[id] || (agg.mods[id] = {}), scaled);
     }
     if (fx.power) agg.powers.add(fx.power);
     if (fx.grant) agg.grants.add(fx.grant);
   };
-  for (const n of t.cls.nodes) { const r = T.cls?.[n.id] | 0; if (r > 0) apply(n, r); }
-  const s = findSpec(p.classId, T.spec);
-  if (s && (p.level || 1) >= TALENT_START_LEVEL) {
+  for (const n of t.cls.nodes) { const r = T.cls?.[n.id] | 0; if (r > 0) apply(n, Math.min(r, n.max)); }
+  if (s) {
+    agg.spec = s.id;
+    agg.mechanic = s.mechanic || null;
+    agg.innate = { ...(s.innate || {}) };
     const ranks = T.sp?.[s.id] || {};
-    for (const n of s.nodes) { const r = n.free ? 1 : (ranks[n.id] | 0); if (r > 0) apply(n, r); }
+    for (const n of s.nodes) { const r = n.free ? 1 : Math.min(ranks[n.id] | 0, n.max); if (r > 0) apply(n, r); }
   }
   return agg;
 }

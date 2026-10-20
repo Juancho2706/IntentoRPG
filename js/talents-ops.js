@@ -37,17 +37,17 @@ export function codeChecksum(str) {
 export function createTalentOps(T) {
   if (!T || typeof T.treeOf !== 'function') throw new Error('createTalentOps: falta la API de talents.js');
 
-  // Los nodos gratis (clave s0) se guardan con su rango máximo en los rangos de
-  // la especialización: talents.reqFail() mira `ranks[id]` y sin esto s1/s2
-  // (req s0) nunca se podrían aprender. spentIn() no los cuenta, canAddRank y
-  // canRemoveRank los ignoran y aggregateTalents ya los trata como rango 1.
-  const seedFree = (nodes, ranks) => { for (const n of nodes) if (n.free) ranks[n.id] = n.max; return ranks; };
+  // Los nodos gratis (clave s0) NUNCA se guardan en los rangos: talents.reqFail()
+  // ya los cuenta como comprados, spentIn()/talentPointsLeft() no los cuentan y
+  // aggregateTalents los trata como rango 1 (Paso 2c.0: se quitó el rodeo que los
+  // sembraba aquí). ensure() limpia los que hubiera dejado esa versión vieja.
+  const dropFree = (nodes, ranks) => { for (const n of nodes) if (n.free) delete ranks[n.id]; return ranks; };
   const ensure = (p) => {
     if (!p.talents || typeof p.talents !== 'object') p.talents = T.normalizeTalents(null, p.classId);
     const t = p.talents;
     t.cls ||= {}; t.sp ||= {}; t.choice ||= {};
     const s = t.spec && T.findSpec(p.classId, t.spec);
-    if (s) seedFree(s.nodes, t.sp[s.id] ||= {});
+    if (s) dropFree(s.nodes, t.sp[s.id] ||= {});
     return t;
   };
   const treeName = (which) => (which === 'cls' ? 'clase' : 'especialización');
@@ -146,7 +146,7 @@ export function createTalentOps(T) {
   function setRanks(p, which, ranks) {
     const t = ensure(p);
     if (which === 'cls') t.cls = ranks;
-    else if (t.spec) t.sp[t.spec] = seedFree(T.findSpec(p.classId, t.spec).nodes, ranks);
+    else if (t.spec) t.sp[t.spec] = dropFree(T.findSpec(p.classId, t.spec).nodes, ranks);
   }
 
   function resetTree(p, which) {
@@ -163,36 +163,16 @@ export function createTalentOps(T) {
     return { ok: a.ok && b.ok };
   }
 
-  // build recomendada: rangos de presetRanks() + las elecciones del preset
-  // (tercer elemento opcional de cada entrada: ['c5', 1, 'B'])
-  function presetList(p, which) {
-    const t = T.talentTreesFor(p.classId);
-    if (!t) return [];
-    if (which === 'cls') return t.cls.preset || [];
-    return T.findSpec(p.classId, p.talents?.spec)?.preset || [];
-  }
-  // = talents.presetRanks() pero partiendo de los nodos gratis ya asignados
-  // (si no, el preset de especialización se corta en s1: ver seedFree)
-  function presetRanks(p, which, tree) {
-    const list = presetList(p, which);
-    if (!list.length) return null;
-    const ranks = seedFree(tree.nodes, {});
-    let left = T.talentPointsEarned(p, which);
-    for (const [id, want] of list) {
-      const node = T.nodeById(tree, id); if (!node || node.free) continue;
-      for (let i = 0; i < want && left > 0; i++) {
-        if ((ranks[id] | 0) >= node.max) break;
-        if (T.gateFail(tree, ranks, node, p.level | 0) || T.reqFail(tree, ranks, node)) break;
-        ranks[id] = (ranks[id] | 0) + 1; left--;
-      }
-    }
-    return ranks;
-  }
+  // build recomendada: rangos de talents.presetRanks() + las elecciones del preset
+  // (tercer elemento opcional de cada entrada: ['c5', 1, 'B']). El preset de CLASE
+  // es el clsPreset de la especialización elegida (talents.presetList).
+  const presetList = (p, which) => (typeof T.presetList === 'function' ? T.presetList(p, which)
+    : (which === 'cls' ? T.talentTreesFor(p.classId)?.cls.preset : T.findSpec(p.classId, p.talents?.spec)?.preset) || []);
   function applyPreset(p, which) {
     ensure(p);
     const tree = T.treeOf(p, which);
     if (!tree) return { ok: false, reason: 'Elige primero una especialización' };
-    const ranks = presetRanks(p, which, tree);
+    const ranks = presetList(p, which).length ? T.presetRanks(p, which) : null;
     if (!ranks) return { ok: false, reason: 'Este árbol no tiene build recomendada' };
     setRanks(p, which, ranks);
     clearChoices(p, tree);
@@ -217,7 +197,7 @@ export function createTalentOps(T) {
     if ((p.level | 0) < T.TALENT_START_LEVEL) return { ok: false, reason: `Las especializaciones se desbloquean en el nivel ${T.TALENT_START_LEVEL}` };
     if (!T.findSpec(p.classId, specId)) return { ok: false, reason: 'Especialización desconocida' };
     p.talents.spec = specId;
-    seedFree(T.findSpec(p.classId, specId).nodes, p.talents.sp[specId] ||= {});
+    dropFree(T.findSpec(p.classId, specId).nodes, p.talents.sp[specId] ||= {});
     return { ok: true };
   }
 
@@ -286,7 +266,6 @@ export function createTalentOps(T) {
       if (!spec) return { ok: false, error: `Especialización desconocida en el código: «${specId}»` };
       sp = decodeTree({ nodes: spec.nodes }, specStr);
       if (sp.error) return { ok: false, error: sp.error };
-      seedFree(spec.nodes, sp.ranks);
     } else if (specStr) return { ok: false, error: 'El código está dañado (árbol de especialización sin especialización)' };
     return { ok: true, classId, specId: specId === 'x' ? null : specId, cls: c.ranks, spec: sp.ranks, choice: { ...c.choice, ...sp.choice } };
   }

@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v95';
+const VERSION = 'v96';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -19,7 +19,7 @@ const ASSETS = [
   './js/game-endgame.js',
   './js/game-world-flow.js',
   './js/game-zone-life.js',
-  './js/game-mastery.js',
+  './js/game-talents.js',
   './js/game-eras.js',
   './js/input.js',
   './js/bindings.js',
@@ -48,6 +48,18 @@ const ASSETS = [
   './js/fx-skills-guerrero.js',
   './js/fx-skills-maga.js',
   './js/fx-skills-arquera.js',
+  // Paso 2c.0: talentos, especializaciones, indicadores y poderes por clase
+  './js/talents.js',
+  './js/talents-guerrero.js',
+  './js/talents-maga.js',
+  './js/talents-arquera.js',
+  './js/talents-ops.js',
+  './js/ui-talents.js',
+  './js/spec-mechanics.js',
+  './js/powers-guerrero.js',
+  './js/powers-maga.js',
+  './js/powers-arquera.js',
+  './css/talents.css',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

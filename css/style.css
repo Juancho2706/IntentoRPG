@@ -2152,37 +2152,6 @@ body.reduce-motion .rot-icon { animation: none; }
   .pet-upg-btn { width: 100%; }
 }
 
-/* ====================== Maestrías de clase ====================== */
-/* Elección de rama (tarjetas) y árbol de nodos por tier. */
-.mastery-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 8px 0; }
-.mastery-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-.mastery-card-ico { font-size: 30px; line-height: 1; }
-.mastery-card-name { font-weight: 700; color: var(--gold); font-size: 16px; }
-.mastery-card-desc { font-size: 12px; }
-.mastery-card-nodes { margin: 4px 0; padding-left: 16px; font-size: 11px; line-height: 1.5; opacity: 0.85; }
-.mastery-card-nodes li { margin: 1px 0; }
-.mastery-card .quest-btn { margin-top: auto; }
-
-.mastery-head { font-size: 15px; margin: 4px 0; }
-.mastery-head-ico { font-size: 20px; }
-.mastery-tree { display: flex; flex-direction: column; gap: 12px; margin: 8px 0; }
-.mastery-tier-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; margin-bottom: 4px; }
-.mastery-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.mastery-node { flex: 1 1 150px; min-width: 150px; text-align: left; display: flex; flex-direction: column; gap: 3px;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 9px;
-  padding: 8px 10px; color: inherit; cursor: pointer; font: inherit; }
-.mastery-node b { font-size: 13px; }
-.mastery-node-desc { font-size: 11px; opacity: 0.8; line-height: 1.35; }
-.mastery-node-tag { font-size: 11px; font-weight: 600; opacity: 0.9; margin-top: 2px; }
-.mastery-node.owned { border-color: var(--gold); background: rgba(201,162,39,0.12); }
-.mastery-node.owned .mastery-node-tag { color: var(--gold); }
-.mastery-node.avail { border-color: #6ecc4a; }
-.mastery-node.avail .mastery-node-tag { color: #6ecc4a; }
-.mastery-node.locked { opacity: 0.5; cursor: not-allowed; }
-.mastery-respec { margin-top: 10px; }
-.mastery-respec.no-gold { opacity: 0.5; }
-
 /* ====================== Menú de opciones por categorías ====================== */
 .opt-search { width: 100%; box-sizing: border-box; margin: 0 0 8px; padding: 8px 10px;
   background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
@@ -2275,7 +2244,6 @@ body.joy-right #action-cluster { right: auto !important; left: 10px; align-items
 .locked-banner { margin: 4px 0 12px; padding: 9px 12px; border-radius: 9px; font-size: 13px; line-height: 1.45;
   background: rgba(201,162,39,0.1); border: 1px solid rgba(201,162,39,0.35); color: #e8dcb0; }
 .locked-banner .ui-ico { width: 14px; height: 14px; vertical-align: -2px; }
-.mastery-pick.preview .mastery-card.locked { opacity: 0.78; filter: saturate(0.85); }
 
 /* Guía de sistemas (códice). */
 .guide-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }

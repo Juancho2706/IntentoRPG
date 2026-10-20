@@ -23,7 +23,10 @@ const SRC = { guerrero: GUERRERO_SKILLS, maga: MAGA_SKILLS, arquera: ARQUERA_SKI
 const RES = { guerrero: 'furia', maga: 'mana', arquera: 'energia' };
 for (const c of Object.values(CLASSES)) {
   assert.equal(c.resource.id, RES[c.id], `${c.id}: recurso de §2`);
-  assert.deepEqual(c.skills.map(s => s.id), SRC[c.id].map(s => s.id), `${c.id}: el catálogo sale de js/skills-${c.id}.js`);
+  // catálogo BASE + activas de talento (kind 'talent', desde talents-<clase>.js; Paso 2c.0) al final
+  const base = c.skills.filter(s => s.kind !== 'talent');
+  assert.deepEqual(base.map(s => s.id), SRC[c.id].map(s => s.id), `${c.id}: el catálogo sale de js/skills-${c.id}.js`);
+  assert.ok(c.skills.slice(base.length).every(s => s.kind === 'talent'), `${c.id}: las activas de talento van detrás del catálogo base`);
   const wb = c.skills.filter(s => s.cat === 'basic' && s.type === 'weapon');
   assert.equal(wb.length, 1, `${c.id}: un básico de arma`);
   assert.ok(wb[0].gen > 0 && wb[0].req === 1, `${c.id}: el básico de arma genera recurso desde Nv1`);
@@ -40,7 +43,8 @@ assert.deepEqual(Object.fromEntries(GUERRERO_SKILLS.map(s => [s.cat, 1])), { bas
 for (const c of Object.values(CLASSES)) {
   const basics = c.skills.filter(s => s.cat === 'basic').map(s => s.req).sort((a, b) => a - b);
   assert.deepEqual(basics, [1, 3, 8], `${c.id}: básicos A/B/C en Nv1/3/8`);
-  assert.ok(c.skills.every(s => s.req <= 16), `${c.id}: el kit base se completa en Nv16`);
+  assert.ok(c.skills.filter(s => s.kind !== 'talent').every(s => s.req <= 16), `${c.id}: el kit base se completa en Nv16`);
+  assert.ok(c.skills.filter(s => s.kind === 'talent').every(s => s.req === 10), `${c.id}: las activas de talento usan req 10`);
 }
 assert.equal(GUERRERO_SKILLS.find(s => s.id === 'g_provocacion').req, 16, 'Provocación = Defensa/utilidad C (Nv16)');
 console.log('Clases: recurso de §2, básico generador, catálogo por categoría desde skills-<clase>.js ✓');
@@ -61,7 +65,8 @@ assert.equal(p.skillSystemV, 5);
 p.level = 15; p.recompute();
 assert.ok(!p.skills.g_provocacion, 'Nv15 aún no conoce la utilidad C');
 p.level = 16; p.recompute();
-for (const s of CLASSES.guerrero.skills) assert.ok(p.skills[s.id] > 0, `Nv16 conoce ${s.id}`);
+for (const s of CLASSES.guerrero.skills.filter(x => x.kind !== 'talent')) assert.ok(p.skills[s.id] > 0, `Nv16 conoce ${s.id}`);
+assert.ok(!CLASSES.guerrero.skills.some(s => s.kind === 'talent' && p.skills[s.id]), 'sin especialización no conoce ninguna activa de talento');
 console.log('Las habilidades se aprenden solas por nivel; el rango es derivado ✓');
 
 // --- 3) hotbar con categoría ---

@@ -13,14 +13,15 @@
 // Qué NO vive aquí (se queda en el constructor de Player, documentado allí):
 //   valores por defecto de campos ausentes (sirven también al héroe nuevo) y
 //   validaciones contra catálogos que pueden cambiar entre despliegues sin
-//   cambiar el formato (mascota/collar, maestría, hotbar, skills inexistentes).
+//   cambiar el formato (mascota/collar, talentos, hotbar, skills inexistentes).
 // El alijo (`intentorpg_stash`, array de objetos compartido) y las claves de
 // hueco (`intentorpg_save_slot{0..2}`) no cambian de formato.
 import { CLASSES, SKILL_MODS, SUPPORTS } from './data.js';
 import { rescaleItemToCurrent } from './items.js';
 import { supportFits, supportSockets, skillSlots } from './skill-defs.js';
+import { normalizeTalents, specInsignia, TALENT_START_LEVEL } from './talents.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 // Orden = orden de claves en el JSON (estable para comparar en tests).
 export const PLAYER_SAVE_FIELDS = [
@@ -32,7 +33,8 @@ export const PLAYER_SAVE_FIELDS = [
   'gold', 'potions', 'inventory', 'materials', 'equipment',
   'lastFloor', 'hp', 'mp',
   'waypoints', 'records', 'cube',
-  'quest', 'hardcore', 'pet', 'mastery', 'era', 'titles', 'title',
+  // Paso 2c.0 (v4): `mastery` sale y entra `talents` ({ v, spec, cls, sp, choice })
+  'quest', 'hardcore', 'pet', 'talents', 'era', 'titles', 'title',
   'discoveredZones', 'homeZone', 'strongholdsCleared', 'dailyDone', 'tips',
   'supports', 'knownSupports', 'skillMods',
   'paragon', 'refugeUnlocked', 'discovered',
@@ -196,6 +198,39 @@ export const MIGRATIONS = {
     d.skillSystemV = SKILL_SYSTEM_V3;                // 5)
     return d;
   },
+  // v3 → v4 (Paso 2c.0, docs/paso2-diseno.md §8): maestría → talentos.
+  //  1) talents = normalizeTalents(null, clase, maestría.id): la maestría elegida
+  //     pasa a ser la especialización (mismos ids) y su nodo clave es gratis. Los
+  //     puntos de maestría NO se convierten: los de talento se calculan por nivel.
+  //  2) `mastery` se elimina (el oro de respecMastery no se devuelve: la
+  //     reespecialización ahora es gratis fuera de combate).
+  //  3) Nv ≥ 10 con maestría → hotbar.k3 = la insignia de esa especialización.
+  //  4) aviso al cargar (notices: 'talentos').
+  // Idempotente: un save que ya trae `talents` solo se normaliza (no se toca la barra).
+  3(d) {
+    const legacy = d.mastery && typeof d.mastery === 'object' && typeof d.mastery.id === 'string' ? d.mastery.id : null;
+    const had = !!(d.talents && typeof d.talents === 'object');
+    d.talents = normalizeTalents(had ? d.talents : null, d.classId, had ? null : legacy);
+    delete d.mastery;
+    if (!had && legacy && d.talents.spec) {
+      const lvl = Math.max(1, d.level | 0 || 1);
+      const ins = specInsignia(d.classId, d.talents.spec);
+      if (lvl >= TALENT_START_LEVEL && ins) {
+        const hb = d.hotbar && typeof d.hotbar === 'object' ? d.hotbar : (d.hotbar = {});
+        for (const k of Object.keys(hb)) if (hb[k] === ins) hb[k] = null;
+        hb.k3 = ins;
+      }
+      const n = Array.isArray(d.notices) ? d.notices : [];
+      if (!n.includes('talentos')) n.push('talentos');
+      d.notices = n;
+    }
+    return d;
+  },
+};
+
+// texto de cada aviso de carga (Player.notices; lo muestra Game al entrar)
+export const LOAD_NOTICES = {
+  talentos: '🌿 Tu héroe se actualizó al sistema de talentos: tu maestría es ahora tu especialización. La reespecialización es gratis: revisa tu árbol (N).',
 };
 
 // Lleva un save (de cualquier versión conocida) a SAVE_VERSION. No muta la

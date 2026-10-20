@@ -21,7 +21,9 @@ const sk = (cid, id) => CLASSES[cid].skills.find(s => s.id === id);
 // ------------------------------------------------ 1) catálogo y ranuras
 for (const c of Object.values(CLASSES)) {
   for (const s of c.skills) {
-    const errs = validateSkillDef(s, { behaviors: SKILL_BEHAVIORS });
+    // las activas de talento (kind 'talent') validan su forma; sus comportamientos los
+    // registra 2c.1 (powers-<clase>.js) y los vigila test-powers-<clase>.mjs
+    const errs = validateSkillDef(s, { behaviors: s.kind === 'talent' ? null : SKILL_BEHAVIORS });
     assert.deepEqual(errs, [], `${c.id}: ${errs.join('; ')}`);
     assert.ok(s.slots.every(sl => CAT_SLOTS[s.cat].includes(sl) || defaultSlots(s.cat, s.tags).includes(sl)), `${s.id}: ranura fuera de su categoría`);
   }
@@ -52,7 +54,7 @@ p.level = 9; p.recompute();
 assert.ok(isKnown(p, sk('guerrero', 'torbellino')) && isKnown(p, sk('guerrero', 'g_hendidura')) && !isKnown(p, sk('guerrero', 'g_u_furia')));
 assert.equal(p.skills.torbellino, rankBase(9, 2));
 assert.deepEqual(knownRankMap(p), p.skills, 'p.skills = mapa derivado de rangos');
-p.talentAgg = { powers: new Set(), mods: {}, skillLv: { torbellino: 2 }, grants: new Set(), tv: {} };
+p.talentExtra = { powers: new Set(), mods: {}, skillLv: { torbellino: 2 }, grants: new Set(), tv: {} };
 p.recompute();
 assert.equal(skillRank(p, sk('guerrero', 'torbellino')), rankBase(9, 2) + 2, 'talentos.skillLv suma rangos');
 console.log('Rangos: clamp(1+⌊(Nv−req)/8⌋,1,5) + talentos; se aprenden solas por nivel ✓');
@@ -91,20 +93,20 @@ assert.ok(approx(cooldownWithMassacre({ ...prof, cdrPts: 20 }), tb.cd * (1 - 45 
 g.equipment.helm = null;
 // talentos: mod de la habilidad + costRed / costRedBig
 g.supports = {}; g.skillMods = {};
-g.talentAgg = { powers: new Set(), mods: { torbellino: { dmg: 10, radius: 20 } }, skillLv: {}, grants: new Set(), tv: { costRed: 10, costRedBig: { pct: 15, over: 9 } } };
+g.talentExtra = { powers: new Set(), mods: { torbellino: { dmg: 10, radius: 20 } }, skillLv: {}, grants: new Set(), tv: { costRed: 10, costRedBig: { pct: 15, over: 9 } } };
 g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.addPct, 10); assert.ok(approx(prof.radius, tb.radius * 1.2));
 assert.equal(prof.cost, Math.round(tb.cost * (1 - 25 / 100)), 'costRed + costRedBig (coste > umbral)');
 // Eco (soporte) y DoT por soporte (veneno gana a sangrado)
-g.talentAgg = null; g.tv = null; g.supports = { torbellino: ['echo', 'bleed'] }; g.recompute();
+g.talentExtra = null; g.supports = { torbellino: ['echo', 'bleed'] }; g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.echo, 0.5); assert.equal(prof.dot, 'bleed'); assert.equal(prof.cost, Math.round(tb.cost * 1.6));
 console.log('Fusión: rango → ramas → talentos → soportes → CDR/costRed (aditivo por clave, topes) ✓');
 
 // ② poderes: multidisparo solo suma proyectil a habilidades con tag proj
 const a = new Player(mk(), 'arquera'); a.level = 20;
-a.talentAgg = { powers: new Set(['multidisparo']), mods: {}, skillLv: {}, grants: new Set(), tv: {} };
+a.talentExtra = { powers: new Set(['multidisparo']), mods: {}, skillLv: {}, grants: new Set(), tv: {} };
 a.recompute();
 assert.equal(resolveSkill(a, sk('arquera', 'flecha_multiple')).proj, 1, 'multidisparo +1 proyectil (modifyResolve)');
 assert.equal(resolveSkill(a, sk('arquera', 'lluvia_flechas')).proj, 0, 'no afecta a áreas');

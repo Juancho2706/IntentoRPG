@@ -81,7 +81,7 @@ const tbT = tb.find(b => b.name === 'Transformación');
 if (!tbT.opts.some(o => BIG.some(k => o[k]))) throw new Error('Torbellino: la Transformación debe tener un efecto que cambie en grande (zona/cdhit/eco)');
 let bigCores = 0;
 for (const sk of G.skills) {
-  if (!['spender', 'movement'].includes(sk.cat) || !(sk.coef > 0)) continue; // gastadoras y movilidades de daño
+  if (sk.kind === 'talent' || !['spender', 'movement'].includes(sk.cat) || !(sk.coef > 0)) continue; // gastadoras y movilidades de daño (base; las de talento no tienen ramas)
   const t = SKILL_MODS[sk.id].find(b => b.name === 'Transformación');
   if (t && t.opts.some(o => BIG.some(k => o[k]) || o.execute || o.chain)) bigCores++;
 }

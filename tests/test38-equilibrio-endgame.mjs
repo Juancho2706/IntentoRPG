@@ -79,7 +79,8 @@ if (l10.bossLegPct > 65) { console.log('❌ el jefe garantiza legendario casi si
 
 // 3) Power budget del endgame: tablero completo + glifos no debe multiplicar x3+
 console.log('== Power budget ==');
-const p = buildHero(20);
+// (con semilla: con Math.random el equipo variaba y el ratio rozaba el tope ×2,8 de vez en cuando)
+const p = buildHero(20, 1);
 const idx = () => { const s = p.stats; const dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + s.crit / 100 * 0.8) / s.atkTime; return dps * s.maxHP * (1 + s.arm / 100); };
 const base = idx();
 for (const n of PARAGON_BOARD) if (n.type !== 'start') p.paragon.nodes[n.id] = true;

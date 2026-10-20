@@ -15,11 +15,13 @@ console.log(`Guía: ${SYSTEMS_GUIDE.length} sistemas, todos con icono/nombre/des
 
 // debe cubrir los hitos gated por nivel con su nivel correcto
 const byName = (n) => SYSTEMS_GUIDE.find(s => s.name.toLowerCase().includes(n));
-const mast = byName('maestr');
-if (!mast || mast.req !== 12) throw new Error('Maestrías deben aparecer con req nivel 12');
+// Paso 2c.0: las maestrías se sustituyeron por talentos y especialización (Nv10)
+if (byName('maestr')) throw new Error('las maestrías ya no existen (talentos, Paso 2c.0)');
+const tal = byName('talento');
+if (!tal || tal.req !== 10) throw new Error('Talentos y especialización deben aparecer con req nivel 10');
 const para = byName('paragon');
 if (!para || para.req !== 20) throw new Error('Paragon debe aparecer con req nivel 20');
-console.log('Hitos por nivel correctos: Maestrías (Nv12), Paragon (Nv20) ✓');
+console.log('Hitos por nivel correctos: Talentos y especialización (Nv10), Paragon (Nv20) ✓');
 
 // debe mencionar sistemas de endgame aunque no sean por nivel
 for (const kw of ['grieta', 'pináculo', 'tormento', 'era', 'compañero']) {

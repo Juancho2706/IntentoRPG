@@ -2,13 +2,17 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS, MASTERIES, findMastery, MASTERY_START_LEVEL } from './data.js';
+import { CLASSES, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
+// Paso 2c.0: talentos y especialización (sustituyen a las maestrías)
+import { aggregateTalents, normalizeTalents, TALENT_START_LEVEL, talentPointsEarned } from './talents.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 import { migrateSave, serializePlayer } from './save-schema.js';
 import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
-  condAddPct, dotProfile, healScaled } from './combat-math.js';
+  condAddPct, dotProfile, healScaled,
+  STAGGER_MAX, STAGGER_BREAK_T, STAGGER_LOCK_T, staggerFromCC, staggerFromDamage,
+  THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT } from './skill-resolve.js';
 import { firePower, buildHookIndex } from './powers.js';
@@ -19,6 +23,10 @@ import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource
 
 const EMPTY_TAGS = new Set();
 const isBossDef = d => !!(d?.boss || d?.uber || d?.worldBoss);
+// ¿es un escudo? (la innata de bloqueo del Guardián solo cuenta con uno equipado)
+export function isShieldItem(it) {
+  return !!it && !it.unidentified && it.slot === 'offhand' && (it.icon === '🛡️' || /escudo/i.test(it.baseName || it.name || ''));
+}
 // básico de arma de una clase (el "ataque principal" con el que naces)
 export function weaponBasicOf(cls) {
   return cls?.skills.find(s => s.cat === 'basic' && s.type === 'weapon') || cls?.skills.find(s => s.cat === 'basic') || null;
@@ -31,8 +39,16 @@ export function weaponBasicOf(cls) {
 export function applyHitEffects(g, p, e, prof, avgHit) {
   if (!e || !e.alive || !prof) return;
   if (prof.vuln) e.vulnT = Math.max(e.vulnT || 0, prof.vuln);
-  // bossStun:false (Terremoto): los jefes no se aturden (sumarán stagger en el Paso 2c)
-  if (prof.stun && (prof.bossStun !== false || !isBossDef(e.def))) e.applyCC ? e.applyCC('stun', prof.stun, { src: p }) : e.applyStun?.(prof.stun);
+  // Paso 2c.0: a los jefes el aturdimiento no los aturde: suma STAGGER (Enemy.applyCC).
+  // bossStun numérico (Martillo de Justicia) = duración nominal contra jefes; false
+  // (Terremoto) ya no se distingue: todo control de jefe va a la barra de stagger.
+  const boss = isBossDef(e.def);
+  if (prof.stun) {
+    const d = boss && typeof prof.bossStun === 'number' ? prof.bossStun : prof.stun;
+    e.applyCC ? e.applyCC('stun', d, { src: p }) : e.applyStun?.(d);
+  }
+  // stagger propio de la habilidad (sk.stagger: Contrahechizo 20, Martillo de Justicia 30…)
+  if (prof.stagger > 0 && boss && e.alive) e.addStagger?.(prof.stagger, p);
   if (prof.root && e.alive) e.applyCC?.('root', prof.root, { src: p });
   if (prof.slow && e.alive) {
     if (e.applyCC) e.applyCC('slow', prof.slow, { pct: prof.slowPct || 50, src: p });
@@ -503,12 +519,13 @@ export class Player {
         ownedCollars: this.pet.ownedCollars || { none: true },
       };
     } else this.pet = null;
-    // maestría de clase (rama): id elegida, nodos asignados y puntos disponibles.
-    // Migración: ausencia ⇒ sin maestría elegida.
-    this.mastery = this.mastery && typeof this.mastery === 'object'
-      ? { id: findMastery(this.mastery.id) ? this.mastery.id : null,
-          nodes: this.mastery.nodes || {}, points: this.mastery.points || 0 }
-      : { id: null, nodes: {}, points: 0 };
+    // talentos (Paso 2c.0, sustituyen a las maestrías): { v, spec, cls, sp, choice }.
+    // normalizeTalents valida contra el catálogo ACTUAL (ids/rangos que ya no existen
+    // se purgan). La migración maestría → especialización vive en MIGRATIONS[3].
+    this.talents = normalizeTalents(this.talents, classId);
+    delete this.mastery;
+    // avisos de carga (la migración v4 deja 'talentos'); los muestra Game y se vacían
+    this.notices = Array.isArray(this.notices) ? this.notices : [];
     // eras (temporada local): estado por semana; títulos cosméticos obtenidos
     this.era = this.era && typeof this.era === 'object' ? this.era : null;
     this.titles = Array.isArray(this.titles) ? this.titles : [];
@@ -574,6 +591,8 @@ export class Player {
     this.simT = 0;              // reloj de simulación del héroe (icd de poderes)
     this.sinceCombat = 99;      // s desde el último golpe dado o recibido
     this.powerState = {};       // estado volátil de los poderes (powers.powerState)
+    this.gauges = {};           // indicadores de especialización (spec-mechanics.js; volátil)
+    this.moving = false;        // ¿se movió en el último frame? (Concentración, Impulso)
     this.resolved = {};         // caché de resolveSkill (se invalida en recompute)
     this.atkCd = 0;
     this.slowT = 0;
@@ -655,7 +674,11 @@ export class Player {
                    // Paso 2b.0: esquiva (s menos de recarga), regen. de Energía y curación de habilidad
                    dodgeCdr: 0, energyRegen: 0, healPct: 0,
                    // Paso 2b.2: coste de gastadoras por buff (−100 = gratis) y fallo de proyectiles enemigos
-                   spenderCostPct: 0, projMissPct: 0 };
+                   spenderCostPct: 0, projMissPct: 0,
+                   // Paso 2c.0 (talentos, §5.3): % de vida/maná máx., % de experiencia,
+                   // amenaza extra (se suma al ×1 base; la innata del Guardián lo fija en ×3)
+                   // y % de stagger contra jefes
+                   hpPct: 0, mpPct: 0, xpPct: 0, threatMult: 0, staggerPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -717,25 +740,48 @@ export class Player {
       const c = PET_COLLARS[this.pet.collar];
       if (c?.stat) addStats({ [c.stat]: c.value });
     }
-    // maestría de clase: suma stats de nodos asignados y registra sus poderes
-    if (this.mastery?.id) {
-      const m = findMastery(this.mastery.id);
-      if (m) for (const node of m.nodes) {
-        if (!this.mastery.nodes[node.id]) continue;
-        if (node.stats) addStats(node.stats);
-        if (node.power) this.powers.add(node.power);
-      }
+    // TALENTOS (Paso 2c.0, §5.4): árbol de clase + especialización activa (Nv ≥ 10).
+    // talentExtra = agregado extra que inyectan los tests/arnés (se suma encima).
+    const agg = aggregateTalents(this);
+    const ex = this.talentExtra;
+    if (ex) {
+      for (const [k, v] of Object.entries(ex.stats || {})) agg.stats[k] = (agg.stats[k] || 0) + v;
+      for (const [k, v] of Object.entries(ex.tv || {})) agg.tv[k] = (typeof v === 'object' || !Number.isFinite(agg.tv[k])) ? v : agg.tv[k] + v;
+      for (const id of ex.powers || []) agg.powers.add(id);
+      for (const id of ex.grants || []) agg.grants.add(id);
+      for (const [k, v] of Object.entries(ex.skillLv || {})) agg.skillLv[k] = (agg.skillLv[k] || 0) + v;
+      for (const [k, m] of Object.entries(ex.mods || {})) agg.mods[k] = { ...(agg.mods[k] || {}), ...m };
+      if (ex.mechanic !== undefined) agg.mechanic = ex.mechanic;
+      if (ex.innate) agg.innate = { ...agg.innate, ...ex.innate };
     }
+    this.talentAgg = agg;
+    addStats(agg.stats);
+    // incondicionales de tv: daño crítico (saco aditivo) y reducción de daño
+    if (agg.tv.critDmg) item.critDmg += agg.tv.critDmg;
+    if (agg.tv.dmgReduc) item.dr += agg.tv.dmgReduc;
+    // pasivas INNATAS de la especialización (§5.2.5): el bloqueo solo con escudo
+    const inn = agg.innate || {};
+    for (const [k, v] of Object.entries(inn)) {
+      if (k === 'block') { if (isShieldItem(this.equipment.offhand)) item.block += v; }
+      else if (k === 'threatMult') item.threatMult += Math.max(0, v - 1);   // ×3 → +2 sobre el ×1 base
+      else if (k in item) item[k] += v;
+    }
+    // indicador de la especialización (spec-mechanics.js): su poder gauge_<id>; al
+    // cambiar de especialización se vacían los indicadores
+    if (agg.mechanic) this.powers.add(`gauge_${agg.mechanic}`);
+    if ((this._gaugeMech || null) !== (agg.mechanic || null)) { this.gauges = {}; this._gaugeMech = agg.mechanic || null; }
     // mutador de la Era (temporada local): stat/power global de la semana
     const eraB = this.game?.eraMutatorBonus?.();
     if (eraB) { if (eraB.stat) addStats(eraB.stat); if (eraB.power) this.powers.add(eraB.power); }
-    // talentos (Paso 2c rellena p.talentAgg con aggregateTalents): sus poderes y claves tv
-    if (this.talentAgg?.powers) for (const id of this.talentAgg.powers) this.powers.add(id);
-    this.tv = this.talentAgg?.tv || {};
+    // poderes y claves tv de los talentos
+    for (const id of agg.powers) this.powers.add(id);
+    this.tv = agg.tv;
     // ① PODERES: índice de ganchos de los poderes activos + sus stats (registro
     // data-driven, js/powers.js). Las pasivas compradas se eliminaron (Paso 2b.0).
+    // powerStats = lo que devolvieron (también claves propias, p. ej. 'gaugeMax:coto')
     buildHookIndex(this);
-    addStats(firePower('stats', this, this));
+    this.powerStats = firePower('stats', this, this);
+    addStats(this.powerStats);
 
     const c = this.cls;
     const w = this.equipment.weapon;
@@ -748,9 +794,10 @@ export class Player {
 
     this.stats = {
       ...a,
-      maxHP: Math.round(c.baseHP + a.vit * c.hpPerVit + item.hp + (this.level - 1) * (c.hpPerLevel ?? 4)), // vida por nivel según clase (Paso 1A)
-      // recurso de clase (resources.js §2): Furia 100 · Maná 100+2·Ene+3·(Nv−1) · Energía 60
-      maxMP: resourceMax(resourceDefFor(c), { ene: a.ene, level: this.level, bonus: item.mp }),
+      // vida por nivel según clase (Paso 1A) × (1 + hpPct) (talentos/innata del Guardián, Paso 2c)
+      maxHP: Math.round((c.baseHP + a.vit * c.hpPerVit + item.hp + (this.level - 1) * (c.hpPerLevel ?? 4)) * Math.max(0.1, 1 + item.hpPct / 100)),
+      // recurso de clase (resources.js §2): Furia 100 · Maná 100+2·Ene+3·(Nv−1) · Energía 60; × (1 + mpPct)
+      maxMP: Math.round(resourceMax(resourceDefFor(c), { ene: a.ene, level: this.level, bonus: item.mp }) * Math.max(0.1, 1 + item.mpPct / 100)),
       // daño de hoja (arma × atributo × saco aditivo de equipo): lo que ve la UI
       dmgMin: Math.max(1, Math.round(sheet(wDmg[0]))),
       dmgMax: Math.max(2, Math.round(sheet(wDmg[1]))),
@@ -771,12 +818,15 @@ export class Player {
       resFire: item.resFire, resCold: item.resCold, resLightning: item.resLightning, resPoison: item.resPoison,
       dodgeCdr: item.dodgeCdr, energyRegen: item.energyRegen, healPct: Math.min(CAPS.heal, item.healPct),
       spenderCostPct: Math.max(-100, item.spenderCostPct), projMissPct: Math.min(100, Math.max(0, item.projMissPct)),
+      // Paso 2c.0: experiencia, amenaza (multiplicador ≥ 1) y stagger contra jefes
+      hpPct: item.hpPct, mpPct: item.mpPct, xpPct: item.xpPct,
+      threatMult: Math.max(0.1, 1 + item.threatMult), staggerPct: item.staggerPct,
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
     this.skills = knownRankMap(this);
     // "Poder del héroe": puntuación única que resume tu build (sube al mejorar
-    // equipo/nivel/paragon/maestrías…). Refuerza la sensación de "número sube".
+    // equipo/nivel/paragon/talentos…). Refuerza la sensación de "número sube".
     const st = this.stats;
     // el crítico multiplica el daño efectivo; aspd (atkTime menor = más DPS)
     const dmgAvg = (st.dmgMin + st.dmgMax) / 2 * (1 + st.crit / 100 * (CRIT_MULT - 1)) * (this.cls.atkTime / st.atkTime);
@@ -829,7 +879,8 @@ export class Player {
     if (this.hookIndex?.condAdd) add += firePower('condAdd', this, this, e, hit || {});
     if (this.hookIndex?.condCrit) cb += firePower('condCrit', this, this, e, hit || {});
     const w = st.wMin + r() * (st.wMax - st.wMin);
-    const crit = r() * 100 < critChance(st.critRaw ?? st.crit, cb);
+    // hit.forceCrit: crítico seguro (Ignición Total del Calor); se tira igual (azar estable)
+    const crit = r() * 100 < critChance(st.critRaw ?? st.crit, cb) || !!hit?.forceCrit;
     const dmg = hitDamage(w, coef, st, add, crit);
     return { dmg: Math.max(1, Math.round(dmg)), crit };
   }
@@ -1025,6 +1076,8 @@ export class Player {
     // mutador de Era (p. ej. Era de la Sabiduría: +50% XP)
     const xpMul = this.game?.eraMutatorBonus?.()?.xpMul || 1;
     if (xpMul !== 1) amount = Math.round(amount * xpMul);
+    // talentos: +% de experiencia (Maga c13…)
+    if (this.stats?.xpPct) amount = Math.round(amount * (1 + this.stats.xpPct / 100));
     this.xp += amount;
     this.records.totalXP = (this.records.totalXP || 0) + amount; // acumulado (resúmenes de corrida)
     this.game.ui.spawnText(this.pos, `+${amount} XP`, 'txt-xp');
@@ -1040,14 +1093,12 @@ export class Player {
         this.skillPoints += 1;
         this.game.ui.message(`⭐ ¡Nivel ${this.level}! +5 atributos, +1 punto de habilidad`);
       }
-      // maestrías: 1 punto cada 2 niveles a partir del nivel umbral
-      if (this.level >= MASTERY_START_LEVEL && this.level % 2 === 0) {
-        this.mastery.points++;
-        if (this.level === MASTERY_START_LEVEL)
-          this.game.ui.message('🌿 ¡Maestrías de clase desbloqueadas! Elige una rama en Habilidades', 5000);
-        else
-          this.game.ui.message('🌿 +1 punto de maestría (panel de Habilidades)');
-      }
+      // talentos (Paso 2c.0): especialización en Nv10 y 1 punto por nivel hasta el 50
+      // (niveles pares → especialización, impares → clase; se CALCULAN, no se guardan)
+      if (this.level === TALENT_START_LEVEL)
+        this.game.ui.message('🌿 ¡Especializaciones desbloqueadas! Elige la tuya en Talentos (N)', 5000);
+      else if (this.level > TALENT_START_LEVEL && talentPointsEarned(this, this.level % 2 ? 'cls' : 'spec') > 0 && this.level <= 50)
+        this.game.ui.message(`🌿 +1 punto de talento de ${this.level % 2 ? 'clase' : 'especialización'} (N)`);
       this.recompute();
       this.hp = this.stats.maxHP;
       // los recursos que se GENERAN (Furia) no se rellenan al subir de nivel
@@ -1207,6 +1258,7 @@ export class Player {
         if (a) a.rig.position.y = 0;
         try { L.onLand?.(); } catch (err) { console.warn('[salto] onLand', err); }
       }
+      this.moving = true;
       return;
     }
 
@@ -1258,6 +1310,7 @@ export class Player {
       this.dashTrail = (this.dashTrail || 0) + dt;
       if (this.dashTrail >= 0.025) { this.dashTrail = 0; g.spawnDashGhost?.(this); }
       if (this.dodgeT <= 0 && a) { a.rig.rotation.x = 0; a.rig.position.y = 0; }
+      this.moving = true;
       return;
     }
 
@@ -1276,6 +1329,8 @@ export class Player {
         }
       }
     }
+
+    this.moving = moving;       // Concentración (quieta) / Impulso (en movimiento)
 
     // esquema WASD+ratón: el héroe MIRA hacia el cursor (apuntado libre), no hacia
     // su dirección de movimiento. En clic-mover o táctil (sin mouseWorld) se ignora.
@@ -1472,6 +1527,15 @@ export class Enemy {
     this.slowPct = 0;           // magnitud de la ralentización activa (gana la más fuerte)
     this.silenceT = 0;          // silenciado/interrumpido
     this.tauntT = 0;            // provocado (objetivo forzado)
+    this.tauntSrc = null;       // quién lo provocó (fuente de amenaza forzada)
+    // Paso 2c.0 (§6): STAGGER (solo jefes) · AMENAZA · lanzamientos interrumpibles
+    this.stagger = 0;           // 0–100: el control suma aquí en vez de aturdir al jefe
+    this.staggerBrokenT = 0;    // Quebrantado (aturdido de verdad + Vulnerable)
+    this.staggerLockT = 0;      // tras el Quebrantado, barra bloqueada (gris)
+    this.threat = null;         // Map(fuente → amenaza); se crea al primer golpe
+    this.threatTarget = null;   // objetivo actual por amenaza (null = el jugador)
+    this.numbT = 0;             // Aterido (Escarcha en jefes): −30 % de movimiento, −15 % de vel. de ataque
+    this.casting = null;        // lanzamiento visible { id, t, total, interruptible, run, onInterrupt }
     this.debuffs = {};          // saco DEBILIDAD: { id: { pct, t } } (una entrada por fuente)
     this.outWeak = {};          // daño SALIENTE debilitado: { id: { pct, t } } (Provocación)
     this.flashT = 0;
@@ -1524,11 +1588,25 @@ export class Enemy {
   //  - slow: no acumula (gana el más fuerte), tope 70 % (jefes ×0,5)
   //  - interrupt: sin rendimientos; 6 s de inmunidad tras silenciar
   //  - taunt: objetivo forzado (los jefes sí se pueden provocar)
-  // opts = { src, pct (slow), from (knock: origen del empuje) }. Devuelve lo aplicado (0 = nada).
-  // El stagger de jefes (Quebrantado) llega en el Paso 2c.
+  // opts = { src, pct (slow), from (knock: origen del empuje), stagger (extra) }.
+  // Devuelve lo aplicado (0 = nada).
+  // Paso 2c.0 (§6) — JEFES (boss/uber/jefe de mundo): el control duro e inmovilizar
+  // NO los afectan: suman STAGGER (combat-math.staggerFromCC × staggerPct del héroe);
+  // al llenarse la barra quedan QUEBRANTADOS (addStagger). Ralentizar sí se aplica
+  // (×0,5) y además suma stagger si es ≥ 30 %; interrumpir corta su lanzamiento y
+  // suma 20; la provocación funciona igual (sin rendimientos decrecientes).
   applyCC(kind, dur, opts = {}) {
     if (!(dur > 0) || !this.alive) return 0;
     const boss = isBossDef(this.def);
+    if (boss) {
+      const sp = opts.src?.stats?.staggerPct || 0;
+      if (opts.stagger > 0) this.addStagger(opts.stagger, opts.src);
+      if (kind === 'stun' || kind === 'freeze' || kind === 'root' || kind === 'knock') {
+        return this.addStagger(staggerFromCC(kind, dur, { staggerPct: sp }), opts.src, { raw: true });
+      }
+      if (kind === 'slow') this.addStagger(staggerFromCC('slow', dur, { pct: opts.pct ?? 50, staggerPct: sp }), opts.src, { raw: true });
+      if (kind === 'interrupt') this.addStagger(staggerFromCC('interrupt', dur, { staggerPct: sp }), opts.src, { raw: true });
+    }
     switch (kind) {
       case 'stun': case 'freeze': {
         const dr = this.stunDR || 0;
@@ -1576,16 +1654,126 @@ export class Enemy {
         this.silenceT = dur;
         this.silenceImmuneT = dur + 6;
         this.castT = 0;
+        this.interruptCast();            // corta el lanzamiento visible (enemy-abilities: interruptible)
         return dur;
       }
       case 'taunt': {
-        this.tauntT = dur;
-        this.tauntSrc = opts.src || null;
-        this.aggroed = true;
+        this.forceTarget(opts.src || this.game.player, dur);
         return dur;
       }
     }
     return 0;
+  }
+
+  // ---------- STAGGER (Paso 2c.0, §6) ----------
+  // Suma `n` a la barra (solo jefes; nada mientras está Quebrantado o bloqueada).
+  // raw: n ya viene escalado por staggerPct (applyCC); si no, se escala aquí con el
+  // staggerPct de `src`. A STAGGER_MAX → QUEBRANTADO STAGGER_BREAK_T s: aturdimiento
+  // REAL (ignora la resistencia) + Vulnerable (saco Debilidad, no se suma a otro
+  // Vulnerable); después la barra queda bloqueada STAGGER_LOCK_T s. Devuelve lo sumado.
+  addStagger(n, src = null, { raw = false } = {}) {
+    if (!(n > 0) || !this.alive || !isBossDef(this.def)) return 0;
+    if (this.staggerBrokenT > 0 || this.staggerLockT > 0) return 0;
+    const add = raw ? n : n * Math.max(0, 1 + (src?.stats?.staggerPct || 0) / 100);
+    this.stagger = Math.min(STAGGER_MAX, (this.stagger || 0) + add);
+    if (this.stagger >= STAGGER_MAX) this.breakStagger();
+    return add;
+  }
+  breakStagger() {
+    this.stagger = 0;
+    this.staggerBrokenT = STAGGER_BREAK_T;
+    this.staggerLockT = STAGGER_BREAK_T + STAGGER_LOCK_T;
+    this.stunT = Math.max(this.stunT || 0, STAGGER_BREAK_T);   // ignora stunDR
+    this.vulnT = Math.max(this.vulnT || 0, STAGGER_BREAK_T);
+    this.interruptCast();
+    this.staggerBreaks = (this.staggerBreaks || 0) + 1;
+    const g = this.game;
+    try {
+      g.ui?.spawnText?.(this.pos.clone().add(new THREE.Vector3(0, (this.def.scale || 1) + 1.0, 0)), '¡QUEBRANTADO!', 'txt-crit', { big: true });
+      g.addShake?.(0.3, 0.3);
+      g.onStaggerBreak?.(this);
+    } catch { /* headless */ }
+  }
+  // lectura para la UI (barra bajo la vida del jefe; 2d): null si no es jefe
+  staggerView() {
+    if (!isBossDef(this.def)) return null;
+    return { value: this.stagger || 0, max: STAGGER_MAX, broken: this.staggerBrokenT > 0, locked: this.staggerLockT > 0 && !(this.staggerBrokenT > 0),
+      brokenT: Math.max(0, this.staggerBrokenT || 0), lockT: Math.max(0, this.staggerLockT || 0) };
+  }
+
+  // ---------- AMENAZA y provocación (Paso 2c.0, §6) ----------
+  // En solitario no cambia nada (una sola fuente: el jugador); el Señuelo o los
+  // aliados del cooperativo son fuentes extra. Una fuente válida es un objeto con
+  // { pos, alive, takeDamage(amount, nivel, opts) } (y opcional applySlow).
+  addThreat(src, n) {
+    if (!src || !(n > 0) || !this.alive) return;
+    const m = this.threat || (this.threat = new Map());
+    m.set(src, (m.get(src) || 0) + n);
+  }
+  threatOf(src) { return this.threat?.get(src) || 0; }
+  // objetivo forzado durante `t` s y amenaza = máx. × 1,1 (los jefes SÍ se provocan)
+  forceTarget(src, t) {
+    if (!src || !(t > 0) || !this.alive) return 0;
+    let max = 0;
+    for (const v of this.threat?.values() || []) max = Math.max(max, v);
+    const m = this.threat || (this.threat = new Map());
+    m.set(src, Math.max(m.get(src) || 0, max * TAUNT_THREAT_BONUS, 1));
+    this.tauntT = Math.max(this.tauntT || 0, t);
+    this.tauntSrc = src;
+    this.threatTarget = src;
+    this.aggroed = true;
+    return t;
+  }
+  // a quién persigue/ataca: provocación > amenaza (con histéresis 110 % cuerpo a
+  // cuerpo / 130 % a distancia) > `fallback` (el jugador). Fuentes muertas se olvidan.
+  combatTarget(fallback) {
+    const ok = s => !!s && s.alive !== false && !!s.pos && typeof s.takeDamage === 'function';
+    if (this.tauntT > 0 && ok(this.tauntSrc)) return this.tauntSrc;
+    const m = this.threat;
+    if (!m || m.size < 2) { this.threatTarget = null; return fallback; }
+    for (const k of [...m.keys()]) if (!ok(k)) m.delete(k);
+    let cur = ok(this.threatTarget) && m.has(this.threatTarget) ? this.threatTarget : (m.has(fallback) ? fallback : null);
+    let best = cur, bv = cur ? m.get(cur) : -1;
+    const need = (this.def.rangedAttack ? THREAT_SWITCH.ranged : THREAT_SWITCH.melee);
+    for (const [k, v] of m) if (k !== cur && v > (cur ? bv * need : bv)) { best = k; bv = v; }
+    this.threatTarget = best;
+    return best || fallback;
+  }
+
+  // ---------- lanzamientos visibles (enemy-abilities: interruptible) ----------
+  // Mientras lanza no se mueve ni ataca; Contrahechizo / Flecha Silenciadora (o
+  // cualquier applyCC('interrupt')) lo cortan y no se ejecuta.
+  beginCast(id, castT, run, { interruptible = true, onInterrupt = null } = {}) {
+    if (!this.alive || this.casting) return false;
+    if (this.silenceT > 0) return false;                       // silenciado: no puede lanzar
+    if (!(castT > 0)) { run?.(); return true; }
+    this.casting = { id, t: castT, total: castT, interruptible: !!interruptible, run, onInterrupt };
+    this.castT = castT;
+    return true;
+  }
+  interruptCast() {
+    const c = this.casting;
+    if (this.snipeFireT > 0) this.snipeFireT = 0;              // el disparo cargado también
+    if (!c) return false;
+    if (!c.interruptible && !(this.staggerBrokenT > 0)) return false;
+    this.casting = null;
+    this.castT = 0;
+    try { c.onInterrupt?.(); } catch { /* */ }
+    try { this.game.ui?.spawnText?.(this.pos.clone().add(new THREE.Vector3(0, (this.def.scale || 1) + 0.7, 0)), '¡Interrumpido!', 'txt-heal'); } catch { /* */ }
+    return true;
+  }
+  tickCast(dt) {
+    const c = this.casting;
+    if (!c) return false;
+    if (this.stunT > 0) return true;                           // aturdido: el lanzamiento espera
+    c.t -= dt;
+    this.castT = Math.max(0, c.t);
+    if (c.t <= 0) {
+      this.casting = null;
+      this.castT = 0;
+      try { c.run?.(); } catch (err) { console.warn(`[lanzamiento ${c.id}]`, err); }
+    }
+    return true;
   }
 
   // Entrada del saco DEBILIDAD: una por id (se refresca), `pct` puntos durante `dur` s
@@ -1629,7 +1817,10 @@ export class Enemy {
     if (this.frozenT > 0) this.frozenT -= dt;
     if (this.silenceT > 0) this.silenceT -= dt;
     if (this.silenceImmuneT > 0) this.silenceImmuneT -= dt;
-    if (this.tauntT > 0) this.tauntT -= dt;
+    if (this.tauntT > 0) { this.tauntT -= dt; if (this.tauntT <= 0) this.tauntSrc = null; }
+    if (this.staggerBrokenT > 0) this.staggerBrokenT -= dt;
+    if (this.staggerLockT > 0) this.staggerLockT -= dt;
+    if (this.numbT > 0) this.numbT -= dt;
     for (const k in this.debuffs) { const d = this.debuffs[k]; d.t -= dt; if (d.t <= 0) delete this.debuffs[k]; }
     for (const k in this.outWeak) { const d = this.outWeak[k]; d.t -= dt; if (d.t <= 0) delete this.outWeak[k]; }
   }
@@ -1664,6 +1855,11 @@ export class Enemy {
     if (opts.skill) { this._lastSkill = opts.skill; this._lastTags = opts.tags || EMPTY_TAGS; }
     this._lastCrit = !!crit;
     this.hp -= amount;
+    // Paso 2c.0: amenaza (× threatMult del héroe) y stagger por daño (jefes)
+    if (pl && dealt > 0) {
+      this.addThreat(pl, threatFromDamage(dealt, pl.stats?.threatMult || 1));
+      if (isBossDef(this.def)) this.addStagger(staggerFromDamage(dealt, this.maxHP, pl.stats?.staggerPct || 0), pl, { raw: true });
+    }
     // destello BLANCO: ~70ms base, escala suave con el % de daño recibido
     const pct = Math.min(1, amount / Math.max(1, this.maxHP));
     this.flashT = 0.07 + pct * 0.08;
@@ -1812,10 +2008,13 @@ export class Enemy {
     const pl = g.player;
     if (!pl || this.group.position.distanceToSquared(pl.pos) < 30 * 30) this.animate(dt);
 
-    const player = pl;
+    // objetivo: provocación > amenaza > el jugador (Paso 2c.0; en solitario, el jugador)
+    const player = pl ? this.combatTarget(pl) : pl;
     if (!player || !player.alive) return false;
     // ATURDIDO: ni se mueve ni ataca (la animación/flash siguen)
     if (this.stunT > 0) return false;
+    // LANZANDO (habilidad interrumpible, enemy-abilities.js): quieto hasta terminar
+    if (this.casting) { if (player.pos) this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z); this.tickCast(dt); return false; }
 
     // --- goblin del tesoro: nunca ataca; huye y, si no lo cazas, escapa ---
     // Tres tipos, cada uno con una VENTANA REAL para alcanzarlo (melee o rango):
@@ -1984,7 +2183,8 @@ export class Enemy {
       this.aggroed = true;
     }
 
-    this.atkCd = Math.max(0, this.atkCd - dt);
+    // Aterido (Escarcha en jefes): −15 % de velocidad de ataque
+    this.atkCd = Math.max(0, this.atkCd - dt * (this.numbT > 0 ? 0.85 : 1));
     if (this.slowT > 0) this.slowT -= dt;
 
     const d = this.pos.distanceTo(player.pos);
@@ -2098,7 +2298,8 @@ export class Enemy {
       }
     }
 
-    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1) * (this.rootT > 0 ? 0 : 1); // inmovilizado: no se mueve
+    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1) * (this.rootT > 0 ? 0 : 1) // inmovilizado: no se mueve
+      * (this.numbT > 0 ? 0.7 : 1);                                                                                     // Aterido: −30 %
 
     // cobardes: con poca vida huyen de ti, pero EN RÁFAGAS — corren ~1.5s y
     // luego se cansan ~1.5s (se ralentizan y se dan la vuelta), dando una
@@ -2181,7 +2382,7 @@ export class Enemy {
         if (this.def.mechanic === 'summon') {
           if (!this.summoned && this.hp < this.maxHP * 0.5) {
             this.summoned = true;
-            g.bossSummon(this);
+            if (g.enemyCast) g.enemyCast(this, 'bossSummon'); else g.bossSummon(this);   // interrumpible
           }
         } else if (this.def.mechanic === 'charge') {
           // Embestidor: máquina de estados. Marca tu posición (telegrafía la
@@ -2191,16 +2392,18 @@ export class Enemy {
         } else {
           this.mechCd = (this.mechCd ?? 4) - dt;
           if (this.mechCd <= 0) {
-            if (this.def.mechanic === 'frost_nova' && d < 7) { this.mechCd = 6; g.bossFrostNova(this); }
+            // las de lanzamiento visible pasan por g.enemyCast (interrumpibles, enemy-abilities.ENEMY_CASTS)
+            const cast = (id, ...a) => (g.enemyCast ? g.enemyCast(this, id, ...a) : g[id]?.(this, ...a));
+            if (this.def.mechanic === 'frost_nova' && d < 7) { this.mechCd = 6; cast('bossFrostNova'); }
             else if (this.def.mechanic === 'fire_pool' && d < 11) { this.mechCd = 5; g.spawnFirePool(player.pos.clone()); }
             // telaraña/escarcha telegrafiada: avisa y, si no esquivas, te ralentiza
             else if (this.def.mechanic === 'web' && d < 9 && this.hasLOS) { this.mechCd = 5; g.enemyWeb(this, player.pos.clone()); }
             // abanico de proyectiles hacia el jugador (esquivable)
             else if (this.def.mechanic === 'fan' && d < 11 && this.hasLOS) { this.mechCd = 4.5; g.enemyFan(this, player.pos.clone()); }
             // Nigromante: invoca 2 esqueletos con anillo visible (~8s)
-            else if (this.def.mechanic === 'raise' && d < 10 && this.hasLOS) { this.mechCd = 8; g.enemyRaise(this); }
+            else if (this.def.mechanic === 'raise' && d < 10 && this.hasLOS) { this.mechCd = 8; cast('enemyRaise'); }
             // Acólito: cura a un aliado herido cercano con un haz visible (~3s)
-            else if (this.def.mechanic === 'heal') { this.mechCd = 3; g.enemyHeal(this); }
+            else if (this.def.mechanic === 'heal') { this.mechCd = 3; cast('enemyHeal'); }
             // Sembrador: sin habilidad activa; su efecto es al morir (split)
             else if (this.def.mechanic === 'split') { this.mechCd = 4; }
             // Francotirador: disparo cargado de largo alcance con línea de aviso

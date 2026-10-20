@@ -265,6 +265,46 @@ export function condAddPct(tv = {}, c = {}) {
   return a;
 }
 
+// ---------- STAGGER de jefes (Paso 2c.0, §6) ----------
+// Barra 0–100 SOLO en jefes/uber/jefes de mundo: el control no los aturde directo,
+// suma stagger. A 100 → QUEBRANTADO STAGGER_BREAK_T s (aturdimiento real que
+// ignora la resistencia + Vulnerable) y después STAGGER_LOCK_T s bloqueada (gris).
+// Por aplicación: aturdir 30 por s nominal · congelar 25 · inmovilizar 15 por s ·
+// empujar 10 · interrumpir 20 · ralentizar (≥30 %) 4 por s; y los GOLPES suman
+// STAGGER_PER_HP_PCT por cada 1 % de la vida máx. infligido. × (1 + staggerPct/100)
+// del héroe (innata de Crionte y Montaraz +25).
+export const STAGGER_MAX = 100;
+export const STAGGER_BREAK_T = 4;
+export const STAGGER_LOCK_T = 15;
+export const STAGGER_PER_HP_PCT = 0.5;
+export const STAGGER_CC = Object.freeze({ stun: 30, freeze: 25, root: 15, knock: 10, interrupt: 20, slow: 4 });
+export const STAGGER_SLOW_MIN_PCT = 30;
+export function staggerFromCC(kind, dur = 0, { pct = 0, staggerPct = 0 } = {}) {
+  const k = STAGGER_CC[kind] || 0;
+  let n = 0;
+  if (kind === 'stun' || kind === 'root') n = k * Math.max(0, dur || 0);
+  else if (kind === 'slow') n = (pct || 0) >= STAGGER_SLOW_MIN_PCT ? k * Math.max(0, dur || 0) : 0;
+  else n = k;
+  return n * Math.max(0, 1 + (staggerPct || 0) / 100);
+}
+export function staggerFromDamage(dealt, maxHP, staggerPct = 0) {
+  if (!(dealt > 0) || !(maxHP > 0)) return 0;
+  return dealt / maxHP * 100 * STAGGER_PER_HP_PCT * Math.max(0, 1 + (staggerPct || 0) / 100);
+}
+
+// ---------- AMENAZA (Paso 2c.0, §6) ----------
+// Daño ×1, curación ×0,5 (repartida entre los enemigos en combate), × threatMult
+// (Guardián ×3). Cambiar de objetivo exige superar el 110 % (cuerpo a cuerpo) o el
+// 130 % (a distancia) de la amenaza del actual; la provocación fija amenaza =
+// máx. × TAUNT_THREAT_BONUS.
+export const THREAT_HEAL_MULT = 0.5;
+export const THREAT_SWITCH = Object.freeze({ melee: 1.10, ranged: 1.30 });
+export const TAUNT_THREAT_BONUS = 1.10;
+export function threatFromDamage(dealt, threatMult = 1) { return Math.max(0, dealt || 0) * Math.max(0, threatMult || 1); }
+export function threatFromHeal(healed, threatMult = 1, enemies = 1) {
+  return Math.max(0, healed || 0) * THREAT_HEAL_MULT * Math.max(0, threatMult || 1) / Math.max(1, enemies | 0);
+}
+
 // ---------- perfil central de DoT (sangrado/veneno/quemadura) ----------
 // total = golpe medio × fracción × dotMul × (1 + (dotPct + <tipo>Pct)/100). La
 // duración extra (dotDur/burnDur, s) añade tics con el MISMO daño por segundo.

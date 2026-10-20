@@ -173,13 +173,16 @@ const mk = () => ({
   assert(Math.abs(n.applyStun(1.0) - 1.0) < 1e-9, 'el primer aturdimiento a un normal dura completo');
   n.stunT = 0; n.stunDR = 0;
   const un = uptime(n);
+  // Paso 2c.0: al jefe el aturdimiento NO lo aturde: suma stagger (30/s nominal) y,
+  // con la barra llena, queda Quebrantado 4 s y la barra se bloquea 15 s → el spam
+  // lo tiene aturdido como mucho 4 s de cada 19 (≈21 %)
   const b = new Enemy(g, scaleEnemy(BOSSES[0], 1), new THREE.Vector3());
   const first = b.applyStun(1.0);
-  assert(first > 0 && first <= 0.36, `al jefe el aturdimiento debe reducirse mucho (${first})`);
-  b.stunT = 0; b.stunDR = 0;
+  assert(first > 0 && b.stunT === 0 && b.stagger > 0, `al jefe el aturdimiento suma stagger en vez de aturdir (${first})`);
+  b.stagger = 0;
   const ub = uptime(b);
   assert(un < 0.4, `spam de aturdimiento: un normal no debe quedar bloqueado (${(un * 100).toFixed(0)}% del tiempo)`);
-  assert(ub < 0.15, `spam de aturdimiento: el jefe no debe quedar bloqueado (${(ub * 100).toFixed(0)}% del tiempo)`);
+  assert(ub <= 4 / 19 + 0.02, `spam de aturdimiento: el jefe solo se Quebranta una vez por ciclo (${(ub * 100).toFixed(0)}% del tiempo)`);
   console.log(`Aturdimiento: rendimientos decrecientes (normal ${(un * 100).toFixed(0)}%, jefe ${(ub * 100).toFixed(0)}% del tiempo con spam) ✓`);
 }
 

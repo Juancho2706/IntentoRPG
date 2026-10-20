@@ -43,7 +43,7 @@ for (const c of Object.values(CLASSES)) {
   for (const sk of c.skills) {
     if (sk.type !== 'passive') { skillVal(sk.mana, 5); if (sk.mult) skillVal(sk.mult, 5); }
     if (typeof sk.req !== 'number' || sk.req < 1) throw new Error('req de nivel inválido: ' + sk.id);
-    if (!['basic', 'core', 'ultimate', 'passive'].includes(sk.kind)) throw new Error('kind inválido: ' + sk.id);
+    if (!['basic', 'core', 'ultimate', 'passive', 'talent'].includes(sk.kind)) throw new Error('kind inválido: ' + sk.id);
   }
   console.log(`Clase ${c.name}: ${c.skills.length} habilidades OK`);
 }

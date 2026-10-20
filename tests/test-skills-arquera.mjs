@@ -18,7 +18,10 @@ import { ARQUERA_SKILLS, ARQUERA_SKILL_BEHAVIORS } from '../js/skills-arquera.js
 import { ARQUERA_FX, ARQUERA_FX_PRESETS } from '../js/fx-skills-arquera.js';
 import { makeHarness } from './helpers/power-harness.mjs';
 
-const skills = CLASSES.arquera.skills;
+// catálogo BASE (las activas de talento, kind 'talent', entran en CLASSES desde el
+// Paso 2c.0 y las cubre tests/test-powers-arquera.mjs en 2c.1)
+const skills = CLASSES.arquera.skills.filter(s => s.kind !== 'talent');
+assert.equal(CLASSES.arquera.skills.filter(s => s.kind === 'talent').length, 14, 'las 14 activas de talento de la Arquera entran en CLASSES con kind talent');
 const S = id => skills.find(s => s.id === id);
 
 // ------------------------------------------------ 1) formato y catálogo
@@ -231,7 +234,8 @@ const countHits = (e, skill) => {
   assert.equal(mp0 - h.p.mp, 10, 'cuesta 10');
   h.step(0.4);
   assert.ok(e.rootT > 1.5, `inmoviliza (${e.rootT})`);
-  assert.ok(boss.rootT > 0 && boss.rootT < e.rootT, 'al jefe, menos tiempo');
+  // Paso 2c.0: a los jefes el control no los inmoviliza: suma stagger (15 por s)
+  assert.ok(boss.rootT === 0 && boss.stagger > 0, 'al jefe no lo inmoviliza: suma stagger');
   assert.equal(far.rootT, 0, 'solo dentro de la red');
   assert.equal(e.hp, 1e6, 'no hace daño');
   console.log('Red de Caza: inmoviliza 2 s en área a distancia ✓');

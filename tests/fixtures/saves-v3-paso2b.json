@@ -1,0 +1,913 @@
+{
+ "guerrero-26-berserker": {
+  "saveVersion": 3,
+  "classId": "guerrero",
+  "level": 26,
+  "xp": 0,
+  "attributes": {
+   "fue": 18,
+   "des": 10,
+   "vit": 16,
+   "ene": 6
+  },
+  "statPoints": 0,
+  "skillPoints": 0,
+  "skillSystemV": 5,
+  "skillBranches": {},
+  "hotbar": {
+   "lmb": "g_tajo",
+   "rmb": "torbellino",
+   "k1": "embestida",
+   "k2": "g_hendidura",
+   "k3": null,
+   "k4": "g_u_furia"
+  },
+  "gold": 1260,
+  "potions": {
+   "hp": 3,
+   "mp": 2
+  },
+  "inventory": [],
+  "materials": [],
+  "equipment": {
+   "weapon": {
+    "uid": 1,
+    "kind": "item",
+    "slot": "weapon",
+    "icon": "🗡️",
+    "baseName": "Maza",
+    "ilvl": 26,
+    "rarity": "raro",
+    "affixes": {
+     "spdPct": 9,
+     "fue": 5,
+     "vit": 5,
+     "thorns": 24
+    },
+    "sv": 2,
+    "dmg": [
+     16,
+     30
+    ],
+    "name": "Maza Cruel del Rey",
+    "value": 341,
+    "unidentified": false
+   },
+   "offhand": {
+    "uid": 2,
+    "kind": "item",
+    "slot": "offhand",
+    "icon": "🛡️",
+    "baseName": "Escudo de Hierro",
+    "ilvl": 26,
+    "rarity": "raro",
+    "affixes": {
+     "spdPct": 5,
+     "mp": 30,
+     "vit": 5,
+     "lph": 6
+    },
+    "sv": 2,
+    "arm": 18,
+    "name": "Escudo de Hierro Sagrado de la Luna",
+    "value": 341,
+    "unidentified": false
+   },
+   "helm": null,
+   "shoulders": null,
+   "chest": null,
+   "gloves": null,
+   "belt": null,
+   "pants": null,
+   "boots": null,
+   "amulet": null,
+   "ring": null,
+   "ring2": null
+  },
+  "lastFloor": 1,
+  "hp": 109,
+  "mp": 0,
+  "waypoints": [],
+  "records": {
+   "kills": 0,
+   "eliteKills": 0,
+   "bossKills": 0,
+   "mimics": 0,
+   "deaths": 0,
+   "maxFloor": 1,
+   "legendaries": 0,
+   "setPieces": 0,
+   "goldEarned": 0,
+   "chests": 0,
+   "playTime": 0,
+   "quests": 0,
+   "dailies": 0,
+   "maxRift": 0
+  },
+  "cube": [],
+  "quest": null,
+  "hardcore": false,
+  "pet": null,
+  "mastery": {
+   "id": "berserker",
+   "nodes": {
+    "b_dmg": true,
+    "b_as": true,
+    "b_ls": true,
+    "b_n1": true,
+    "b_n2": true,
+    "b_n3": true,
+    "b_m1": true
+   },
+   "points": 1
+  },
+  "era": null,
+  "titles": [],
+  "title": null,
+  "discoveredZones": [
+   "Cripta"
+  ],
+  "homeZone": "Cripta",
+  "strongholdsCleared": [],
+  "dailyDone": null,
+  "tips": {},
+  "supports": {},
+  "knownSupports": [],
+  "skillMods": {},
+  "paragon": {
+   "points": 0,
+   "nodes": {},
+   "glyphs": {}
+  },
+  "refugeUnlocked": false,
+  "discovered": {
+   "sets": {},
+   "powers": {},
+   "bestiary": {}
+  },
+  "heroName": "Guerrero",
+  "tint": null,
+  "torment": 0,
+  "codex": {},
+  "blessings": {}
+ },
+ "guerrero-12-guardian": {
+  "saveVersion": 3,
+  "classId": "guerrero",
+  "level": 12,
+  "xp": 0,
+  "attributes": {
+   "fue": 18,
+   "des": 10,
+   "vit": 16,
+   "ene": 6
+  },
+  "statPoints": 0,
+  "skillPoints": 0,
+  "skillSystemV": 5,
+  "skillBranches": {},
+  "hotbar": {
+   "lmb": "g_tajo",
+   "rmb": "torbellino",
+   "k1": "embestida",
+   "k2": "g_hendidura",
+   "k3": null,
+   "k4": null
+  },
+  "gold": 1246,
+  "potions": {
+   "hp": 3,
+   "mp": 2
+  },
+  "inventory": [],
+  "materials": [],
+  "equipment": {
+   "weapon": {
+    "uid": 3,
+    "kind": "item",
+    "slot": "weapon",
+    "icon": "🗡️",
+    "baseName": "Espada Larga",
+    "ilvl": 12,
+    "rarity": "raro",
+    "affixes": {
+     "dmgPct": 13,
+     "vit": 9,
+     "fue": 3,
+     "mph": 3
+    },
+    "sv": 2,
+    "dmg": [
+     7,
+     12
+    ],
+    "name": "Espada Larga Ígneo de la Víbora",
+    "sockets": 1,
+    "gems": [],
+    "value": 166,
+    "unidentified": false
+   },
+   "offhand": {
+    "uid": 4,
+    "kind": "item",
+    "slot": "offhand",
+    "icon": "🛡️",
+    "baseName": "Escudo de Hierro",
+    "ilvl": 12,
+    "rarity": "raro",
+    "affixes": {
+     "mp": 15,
+     "ene": 9,
+     "hp": 25,
+     "lph": 3
+    },
+    "sv": 2,
+    "arm": 7,
+    "name": "Escudo de Hierro Sombrío del Vacío",
+    "value": 166,
+    "unidentified": false
+   },
+   "helm": null,
+   "shoulders": null,
+   "chest": null,
+   "gloves": null,
+   "belt": null,
+   "pants": null,
+   "boots": null,
+   "amulet": null,
+   "ring": null,
+   "ring2": null
+  },
+  "lastFloor": 1,
+  "hp": 109,
+  "mp": 0,
+  "waypoints": [],
+  "records": {
+   "kills": 0,
+   "eliteKills": 0,
+   "bossKills": 0,
+   "mimics": 0,
+   "deaths": 0,
+   "maxFloor": 1,
+   "legendaries": 0,
+   "setPieces": 0,
+   "goldEarned": 0,
+   "chests": 0,
+   "playTime": 0,
+   "quests": 0,
+   "dailies": 0,
+   "maxRift": 0
+  },
+  "cube": [],
+  "quest": null,
+  "hardcore": false,
+  "pet": null,
+  "mastery": {
+   "id": "guardian",
+   "nodes": {
+    "g_arm": true
+   },
+   "points": 0
+  },
+  "era": null,
+  "titles": [],
+  "title": null,
+  "discoveredZones": [
+   "Cripta"
+  ],
+  "homeZone": "Cripta",
+  "strongholdsCleared": [],
+  "dailyDone": null,
+  "tips": {},
+  "supports": {},
+  "knownSupports": [],
+  "skillMods": {},
+  "paragon": {
+   "points": 0,
+   "nodes": {},
+   "glyphs": {}
+  },
+  "refugeUnlocked": false,
+  "discovered": {
+   "sets": {},
+   "powers": {},
+   "bestiary": {}
+  },
+  "heroName": "Guerrero",
+  "tint": null,
+  "torment": 0,
+  "codex": {},
+  "blessings": {}
+ },
+ "maga-18-piromante": {
+  "saveVersion": 3,
+  "classId": "maga",
+  "level": 18,
+  "xp": 0,
+  "attributes": {
+   "fue": 8,
+   "des": 10,
+   "vit": 10,
+   "ene": 22
+  },
+  "statPoints": 0,
+  "skillPoints": 0,
+  "skillSystemV": 5,
+  "skillBranches": {},
+  "hotbar": {
+   "lmb": "m_dardo",
+   "rmb": "bola_fuego",
+   "k1": "m_paso_escarcha",
+   "k2": "rayo",
+   "k3": null,
+   "k4": "m_u_supernova"
+  },
+  "gold": 1252,
+  "potions": {
+   "hp": 3,
+   "mp": 2
+  },
+  "inventory": [],
+  "materials": [],
+  "equipment": {
+   "weapon": {
+    "uid": 5,
+    "kind": "item",
+    "slot": "weapon",
+    "icon": "🪄",
+    "baseName": "Cetro",
+    "ilvl": 18,
+    "rarity": "raro",
+    "affixes": {
+     "mp": 15,
+     "mf": 8,
+     "vit": 6,
+     "aspdPct": 5,
+     "mph": 8
+    },
+    "sv": 2,
+    "dmg": [
+     12,
+     20
+    ],
+    "greater": [
+     "vit"
+    ],
+    "name": "Cetro Maldito del Lobo",
+    "value": 289,
+    "unidentified": false
+   },
+   "offhand": {
+    "uid": 6,
+    "kind": "item",
+    "slot": "offhand",
+    "icon": "🔮",
+    "baseName": "Foco Rúnico",
+    "ilvl": 18,
+    "rarity": "raro",
+    "affixes": {
+     "hp": 36,
+     "fue": 4,
+     "des": 8,
+     "vit": 4,
+     "mph": 8
+    },
+    "sv": 2,
+    "arm": 10,
+    "name": "Foco Rúnico Ígneo de Sangre",
+    "value": 289,
+    "unidentified": false
+   },
+   "helm": null,
+   "shoulders": null,
+   "chest": null,
+   "gloves": null,
+   "belt": null,
+   "pants": null,
+   "boots": null,
+   "amulet": null,
+   "ring": null,
+   "ring2": null
+  },
+  "lastFloor": 1,
+  "hp": 100,
+  "mp": 144,
+  "waypoints": [],
+  "records": {
+   "kills": 0,
+   "eliteKills": 0,
+   "bossKills": 0,
+   "mimics": 0,
+   "deaths": 0,
+   "maxFloor": 1,
+   "legendaries": 0,
+   "setPieces": 0,
+   "goldEarned": 0,
+   "chests": 0,
+   "playTime": 0,
+   "quests": 0,
+   "dailies": 0,
+   "maxRift": 0
+  },
+  "cube": [],
+  "quest": null,
+  "hardcore": false,
+  "pet": null,
+  "mastery": {
+   "id": "piromante",
+   "nodes": {
+    "p_dmg": true,
+    "p_cdr": true,
+    "p_mp": true,
+    "p_n1": true
+   },
+   "points": 0
+  },
+  "era": null,
+  "titles": [],
+  "title": null,
+  "discoveredZones": [
+   "Cripta"
+  ],
+  "homeZone": "Cripta",
+  "strongholdsCleared": [],
+  "dailyDone": null,
+  "tips": {},
+  "supports": {},
+  "knownSupports": [],
+  "skillMods": {},
+  "paragon": {
+   "points": 0,
+   "nodes": {},
+   "glyphs": {}
+  },
+  "refugeUnlocked": false,
+  "discovered": {
+   "sets": {},
+   "powers": {},
+   "bestiary": {}
+  },
+  "heroName": "Maga",
+  "tint": null,
+  "torment": 0,
+  "codex": {},
+  "blessings": {}
+ },
+ "maga-40-arcanista": {
+  "saveVersion": 3,
+  "classId": "maga",
+  "level": 40,
+  "xp": 0,
+  "attributes": {
+   "fue": 8,
+   "des": 10,
+   "vit": 10,
+   "ene": 22
+  },
+  "statPoints": 0,
+  "skillPoints": 0,
+  "skillSystemV": 5,
+  "skillBranches": {},
+  "hotbar": {
+   "lmb": "m_dardo",
+   "rmb": "bola_fuego",
+   "k1": "m_paso_escarcha",
+   "k2": "rayo",
+   "k3": null,
+   "k4": "m_u_supernova"
+  },
+  "gold": 1274,
+  "potions": {
+   "hp": 3,
+   "mp": 2
+  },
+  "inventory": [],
+  "materials": [],
+  "equipment": {
+   "weapon": {
+    "uid": 7,
+    "kind": "item",
+    "slot": "weapon",
+    "icon": "🪄",
+    "baseName": "Cetro",
+    "ilvl": 40,
+    "rarity": "raro",
+    "affixes": {
+     "mp": 103,
+     "fue": 8,
+     "dmgPct": 11,
+     "arm": 59,
+     "thorns": 44
+    },
+    "sv": 2,
+    "dmg": [
+     44,
+     72
+    ],
+    "name": "Cetro Cruel del Abismo",
+    "value": 619,
+    "unidentified": false
+   },
+   "offhand": {
+    "uid": 8,
+    "kind": "item",
+    "slot": "offhand",
+    "icon": "🔮",
+    "baseName": "Orbe Arcano",
+    "ilvl": 40,
+    "rarity": "raro",
+    "affixes": {
+     "mf": 8,
+     "des": 8,
+     "mp": 59,
+     "mph": 15
+    },
+    "sv": 2,
+    "arm": 33,
+    "name": "Orbe Arcano Veloz del Rey",
+    "value": 516,
+    "unidentified": false
+   },
+   "helm": null,
+   "shoulders": null,
+   "chest": null,
+   "gloves": null,
+   "belt": null,
+   "pants": null,
+   "boots": null,
+   "amulet": null,
+   "ring": null,
+   "ring2": null
+  },
+  "lastFloor": 1,
+  "hp": 100,
+  "mp": 144,
+  "waypoints": [],
+  "records": {
+   "kills": 0,
+   "eliteKills": 0,
+   "bossKills": 0,
+   "mimics": 0,
+   "deaths": 0,
+   "maxFloor": 1,
+   "legendaries": 0,
+   "setPieces": 0,
+   "goldEarned": 0,
+   "chests": 0,
+   "playTime": 0,
+   "quests": 0,
+   "dailies": 0,
+   "maxRift": 0
+  },
+  "cube": [],
+  "quest": null,
+  "hardcore": false,
+  "pet": null,
+  "mastery": {
+   "id": "arcanista",
+   "nodes": {
+    "a_crit": true,
+    "a_mp": true,
+    "a_cdr": true,
+    "a_n1": true,
+    "a_n2": true,
+    "a_n3": true,
+    "a_m1": true,
+    "a_m2": true,
+    "a_cap": true
+   },
+   "points": 6
+  },
+  "era": null,
+  "titles": [],
+  "title": null,
+  "discoveredZones": [
+   "Cripta"
+  ],
+  "homeZone": "Cripta",
+  "strongholdsCleared": [],
+  "dailyDone": null,
+  "tips": {},
+  "supports": {},
+  "knownSupports": [],
+  "skillMods": {},
+  "paragon": {
+   "points": 0,
+   "nodes": {},
+   "glyphs": {}
+  },
+  "refugeUnlocked": false,
+  "discovered": {
+   "sets": {},
+   "powers": {},
+   "bestiary": {}
+  },
+  "heroName": "Maga",
+  "tint": null,
+  "torment": 0,
+  "codex": {},
+  "blessings": {}
+ },
+ "arquera-33-francotiradora": {
+  "saveVersion": 3,
+  "classId": "arquera",
+  "level": 33,
+  "xp": 0,
+  "attributes": {
+   "fue": 10,
+   "des": 20,
+   "vit": 12,
+   "ene": 8
+  },
+  "statPoints": 0,
+  "skillPoints": 0,
+  "skillSystemV": 5,
+  "skillBranches": {},
+  "hotbar": {
+   "lmb": "a_disparo",
+   "rmb": "flecha_perforante",
+   "k1": "a_paso",
+   "k2": "flecha_multiple",
+   "k3": null,
+   "k4": "a_u_diluvio"
+  },
+  "gold": 1267,
+  "potions": {
+   "hp": 3,
+   "mp": 2
+  },
+  "inventory": [],
+  "materials": [],
+  "equipment": {
+   "weapon": {
+    "uid": 9,
+    "kind": "item",
+    "slot": "weapon",
+    "icon": "🏹",
+    "baseName": "Arco de Caza",
+    "ilvl": 33,
+    "rarity": "raro",
+    "affixes": {
+     "aspdPct": 8,
+     "vit": 6,
+     "des": 13,
+     "lph": 19
+    },
+    "sv": 2,
+    "dmg": [
+     30,
+     53
+    ],
+    "name": "Arco de Caza Brillante del Águila",
+    "value": 428,
+    "unidentified": false
+   },
+   "offhand": {
+    "uid": 10,
+    "kind": "item",
+    "slot": "offhand",
+    "icon": "🪶",
+    "baseName": "Carcaj del Cazador",
+    "ilvl": 33,
+    "rarity": "raro",
+    "affixes": {
+     "ene": 6,
+     "hp": 66,
+     "crit": 5,
+     "fue": 6,
+     "lph": 29
+    },
+    "sv": 2,
+    "arm": 27,
+    "name": "Carcaj del Cazador Veloz del Titán",
+    "sockets": 1,
+    "gems": [],
+    "value": 514,
+    "unidentified": false
+   },
+   "helm": null,
+   "shoulders": null,
+   "chest": null,
+   "gloves": null,
+   "belt": null,
+   "pants": null,
+   "boots": null,
+   "amulet": null,
+   "ring": null,
+   "ring2": null
+  },
+  "lastFloor": 1,
+  "hp": 107,
+  "mp": 60,
+  "waypoints": [],
+  "records": {
+   "kills": 0,
+   "eliteKills": 0,
+   "bossKills": 0,
+   "mimics": 0,
+   "deaths": 0,
+   "maxFloor": 1,
+   "legendaries": 0,
+   "setPieces": 0,
+   "goldEarned": 0,
+   "chests": 0,
+   "playTime": 0,
+   "quests": 0,
+   "dailies": 0,
+   "maxRift": 0
+  },
+  "cube": [],
+  "quest": null,
+  "hardcore": false,
+  "pet": null,
+  "mastery": {
+   "id": "francotiradora",
+   "nodes": {
+    "f_crit": true,
+    "f_dmg": true,
+    "f_as": true,
+    "f_n1": true,
+    "f_n2": true,
+    "f_n3": true,
+    "f_m1": true,
+    "f_m2": true,
+    "f_cap": true
+   },
+   "points": 2
+  },
+  "era": null,
+  "titles": [],
+  "title": null,
+  "discoveredZones": [
+   "Cripta"
+  ],
+  "homeZone": "Cripta",
+  "strongholdsCleared": [],
+  "dailyDone": null,
+  "tips": {},
+  "supports": {},
+  "knownSupports": [],
+  "skillMods": {},
+  "paragon": {
+   "points": 0,
+   "nodes": {},
+   "glyphs": {}
+  },
+  "refugeUnlocked": false,
+  "discovered": {
+   "sets": {},
+   "powers": {},
+   "bestiary": {}
+  },
+  "heroName": "Arquera",
+  "tint": null,
+  "torment": 0,
+  "codex": {},
+  "blessings": {}
+ },
+ "arquera-9-sin": {
+  "saveVersion": 3,
+  "classId": "arquera",
+  "level": 9,
+  "xp": 0,
+  "attributes": {
+   "fue": 10,
+   "des": 20,
+   "vit": 12,
+   "ene": 8
+  },
+  "statPoints": 0,
+  "skillPoints": 0,
+  "skillSystemV": 5,
+  "skillBranches": {},
+  "hotbar": {
+   "lmb": "a_disparo",
+   "rmb": "flecha_perforante",
+   "k1": "a_paso",
+   "k2": "flecha_multiple",
+   "k3": null,
+   "k4": null
+  },
+  "gold": 1243,
+  "potions": {
+   "hp": 3,
+   "mp": 2
+  },
+  "inventory": [],
+  "materials": [],
+  "equipment": {
+   "weapon": {
+    "uid": 11,
+    "kind": "item",
+    "slot": "weapon",
+    "icon": "🏹",
+    "baseName": "Arco Largo",
+    "ilvl": 9,
+    "rarity": "raro",
+    "affixes": {
+     "crit": 6,
+     "ene": 8,
+     "vit": 3,
+     "des": 8,
+     "lph": 4
+    },
+    "sv": 2,
+    "dmg": [
+     7,
+     11
+    ],
+    "name": "Arco Largo Brillante del Lobo",
+    "value": 154,
+    "unidentified": false
+   },
+   "offhand": {
+    "uid": 12,
+    "kind": "item",
+    "slot": "offhand",
+    "icon": "🪶",
+    "baseName": "Carcaj de Cuero",
+    "ilvl": 9,
+    "rarity": "raro",
+    "affixes": {
+     "spdPct": 10,
+     "aspdPct": 11,
+     "hp": 10,
+     "mph": 4
+    },
+    "sv": 2,
+    "arm": 7,
+    "name": "Carcaj de Cuero Antiguo del Lobo",
+    "value": 128,
+    "unidentified": false
+   },
+   "helm": null,
+   "shoulders": null,
+   "chest": null,
+   "gloves": null,
+   "belt": null,
+   "pants": null,
+   "boots": null,
+   "amulet": null,
+   "ring": null,
+   "ring2": null
+  },
+  "lastFloor": 1,
+  "hp": 107,
+  "mp": 60,
+  "waypoints": [],
+  "records": {
+   "kills": 0,
+   "eliteKills": 0,
+   "bossKills": 0,
+   "mimics": 0,
+   "deaths": 0,
+   "maxFloor": 1,
+   "legendaries": 0,
+   "setPieces": 0,
+   "goldEarned": 0,
+   "chests": 0,
+   "playTime": 0,
+   "quests": 0,
+   "dailies": 0,
+   "maxRift": 0
+  },
+  "cube": [],
+  "quest": null,
+  "hardcore": false,
+  "pet": null,
+  "mastery": {
+   "id": null,
+   "nodes": {},
+   "points": 0
+  },
+  "era": null,
+  "titles": [],
+  "title": null,
+  "discoveredZones": [
+   "Cripta"
+  ],
+  "homeZone": "Cripta",
+  "strongholdsCleared": [],
+  "dailyDone": null,
+  "tips": {},
+  "supports": {},
+  "knownSupports": [],
+  "skillMods": {},
+  "paragon": {
+   "points": 0,
+   "nodes": {},
+   "glyphs": {}
+  },
+  "refugeUnlocked": false,
+  "discovered": {
+   "sets": {},
+   "powers": {},
+   "bestiary": {}
+  },
+  "heroName": "Arquera",
+  "tint": null,
+  "torment": 0,
+  "codex": {},
+  "blessings": {}
+ }
+}

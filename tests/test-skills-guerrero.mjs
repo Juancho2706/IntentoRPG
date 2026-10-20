@@ -41,7 +41,10 @@ const EXPECT = {
   g_u_estandarte: { st: 'R', cat: 'ultimate', req: 15, coef: 0,   cost: 0,  cd: 55 },
 };
 assert.deepEqual(GUERRERO_SKILLS.map(s => s.id).sort(), Object.keys(EXPECT).sort(), 'catálogo base = §3.1 sin las de talento');
-assert.deepEqual(CLASSES.guerrero.skills.filter(s => !s.id.startsWith('t_')).map(s => s.id), GUERRERO_SKILLS.map(s => s.id), 'data.js usa este catálogo');
+// catálogo BASE (las activas de talento, kind 'talent', entran en CLASSES desde el Paso 2c.0)
+const BASE = CLASSES.guerrero.skills.filter(s => s.kind !== 'talent');
+assert.equal(CLASSES.guerrero.skills.filter(s => s.kind === 'talent').length, 12, 'las 12 activas de talento del Guerrero entran en CLASSES con kind talent');
+assert.deepEqual(BASE.filter(s => !s.id.startsWith('t_')).map(s => s.id), GUERRERO_SKILLS.map(s => s.id), 'data.js usa este catálogo');
 for (const s of CLASSES.guerrero.skills.filter(x => EXPECT[x.id])) {
   const want = EXPECT[s.id];
   assert.deepEqual(validateSkillDef(s, { behaviors: SKILL_BEHAVIORS }), [], s.id);
@@ -64,7 +67,8 @@ for (const s of CLASSES.guerrero.skills.filter(x => EXPECT[x.id])) {
   assert.ok(fx && GUERRERO_FX[s.id] && fx.sfx, `${s.id}: VFX/SFX`);
   for (const k of ['trail', 'impact', 'aura', 'extra']) if (typeof fx[k] === 'string') assert.ok(SKILL_FX_PRESETS[fx[k]] || ['basicCleave', 'meleeHit'].includes(fx[k]), `${s.id}: preset ${fx[k]}`);
 }
-assert.ok(!CLASSES.guerrero.skills.some(s => /^g_p_|^g_t_/.test(s.id)), 'sin pasivas compradas ni activas de talento');
+assert.ok(!BASE.some(s => /^g_p_|^g_t_/.test(s.id)), 'sin pasivas compradas ni activas de talento en el catálogo base');
+assert.ok(CLASSES.guerrero.skills.filter(s => /^g_t_/.test(s.id)).every(s => s.kind === 'talent'), 'las g_t_ son de talento');
 assert.ok(SK('g_piel').tags.includes('defense') && SK('g_provocacion').tags.includes('taunt') && SK('g_u_cataclismo').elem === 'holy');
 assert.ok(GUERRERO_SKILLS.filter(s => s.cat === 'ultimate').every(s => !s.cost && s.cd >= 40), 'definitivas: sin coste, enfr. ≥ 40 s');
 console.log('Catálogo del Guerrero: 16 habilidades base válidas, ramas 3×3, ranuras por categoría y VFX ✓');

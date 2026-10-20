@@ -11,7 +11,35 @@ import { Enemy } from './entities.js';
 import { makeGold } from './items.js';
 import { FX as ENEMY_FX, hexNum } from './fx-enemies.js';
 
+// Paso 2c.0 (§6, «Interrupción»): habilidades con LANZAMIENTO VISIBLE. Declaran
+// `interruptible` y `castT` (s de lanzamiento quieto antes del efecto): durante ese
+// tiempo un applyCC('interrupt') (Contrahechizo, Flecha Silenciadora) las cancela
+// y el enemigo queda silenciado (no puede volver a lanzar mientras dure). El
+// disparo cargado del Francotirador (enemySnipe) ya tiene su ventana (snipeFireT,
+// 1 s) y también se corta con la interrupción. onInterrupt: qué pasa si se corta.
+export const ENEMY_CASTS = Object.freeze({
+  bossSummon:    { castT: 1.0, interruptible: true, color: 0x8844ff, onInterrupt: e => { e.summoned = false; } }, // lo reintenta
+  bossFrostNova: { castT: 0.5, interruptible: true, color: 0x88ccff },
+  enemyRaise:    { castT: 0.8, interruptible: true, color: 0x66ff88 },
+  enemyHeal:     { castT: 0.6, interruptible: true, color: 0x88ffcc },
+  enemySnipe:    { castT: 0, interruptible: true },
+});
+
 export const enemyAbilities = {
+  // lanza una habilidad de ENEMY_CASTS (con su tiempo de lanzamiento interrumpible) o,
+  // si no está en la tabla, la ejecuta ya. Devuelve false si no pudo (silenciado o ya lanzando).
+  enemyCast(enemy, id, ...args) {
+    const def = ENEMY_CASTS[id];
+    const run = () => { if (enemy.alive && typeof this[id] === 'function') this[id](enemy, ...args); };
+    if (!def || !(def.castT > 0) || typeof enemy.beginCast !== 'function') { run(); return true; }
+    const ok = enemy.beginCast(id, def.castT, run, {
+      interruptible: def.interruptible !== false,
+      onInterrupt: def.onInterrupt ? () => def.onInterrupt(enemy) : null,
+    });
+    if (ok) this.spawnRing?.(enemy.pos.clone(), 1.1, def.color || 0xcc88ff);
+    return ok;
+  },
+
   updateTriggers(dt) {
     const p = this.player;
     for (const tr of this.world.triggers || []) {

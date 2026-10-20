@@ -29,7 +29,7 @@ import { FIELD_DEFS } from './field-entities.js';
 import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from './powers.js';
 import { applyHitEffects, weaponBasicOf } from './entities.js';
 import { canAfford, spendResource, gainResource } from './resources.js';
-import { COLDBLOOD_CRIT } from './combat-math.js';
+import { COLDBLOOD_CRIT, threatFromHeal } from './combat-math.js';
 import { applyDoTInstance } from './timers.js';
 import { SKILL_MODS } from './data.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
@@ -374,12 +374,22 @@ const GENERIC = {
   },
 };
 export const GENERIC_SKILL_TYPES = Object.keys(GENERIC);
+// ¿tiene con qué lanzarse? (comportamiento registrado con cast o tipo genérico). Las
+// activas de talento cuyo comportamiento aún no existe (2c.1) no se lanzan ni cobran.
+export function skillCastable(sk) {
+  if (!sk) return false;
+  if (sk.type === 'weapon') return true;
+  const b = sk.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
+  return !!(b?.cast || GENERIC[sk.type]);
+}
 
 export const skillMethods = {
   // ---------------- primitivas para poderes (§9.1.4 / §6) ----------------
-  // aliados (hoy: solo el jugador; en cooperativo, los remotos)
+  // aliados (hoy: el jugador; en cooperativo, los remotos de this.party: entidades
+  // con { pos, alive, hp, stats.maxHP, healSkill, addShield }; los tests las simulan)
   allies(pos = null, r = Infinity) {
     const list = this.player?.alive ? [this.player] : [];
+    for (const a of this.party || []) if (a && a.alive !== false && a !== this.player) list.push(a);
     if (!pos || !Number.isFinite(r)) return list;
     return list.filter(a => a.pos.distanceTo(pos) <= r);
   },
@@ -390,6 +400,11 @@ export const skillMethods = {
     if (target === 'lowest' && list.length) list = [list.reduce((a, b) => (b.hp / b.stats.maxHP < a.hp / a.stats.maxHP ? b : a))];
     let total = 0;
     for (const a of list) total += a.healSkill(amount, src);
+    // amenaza de la curación (×0,5, repartida entre los enemigos en combate cercanos)
+    if (total > 0 && p) {
+      const foes = (this.enemies || []).filter(e => e.alive && e.aggroed && e.pos?.distanceTo?.(p.pos) <= 20);
+      for (const e of foes) e.addThreat?.(p, threatFromHeal(total, p.stats?.threatMult || 1, foes.length));
+    }
     return total;
   },
   // ESCUDO (§6): se consume tras mitigar; escala con healPct
@@ -403,6 +418,10 @@ export const skillMethods = {
   },
   // daño originado por un PODER (proc: sin Π[×], no dispara onHit)
   dealProcDamage(e, amount, opts = {}) { return powerProcDamage(this, e, amount, opts); },
+  // AMENAZA (§6): suma amenaza de `src` en `e` · PROVOCACIÓN: objetivo forzado `t` s
+  // con amenaza = máx. + 10 % (los jefes sí se provocan; sin rendimientos decrecientes)
+  addThreat(e, src, n) { e?.addThreat?.(src || this.player, n); },
+  forceTarget(e, src, t) { return e?.forceTarget ? e.forceTarget(src || this.player, t) : 0; },
   // recurso de clase para comportamientos y poderes (la Furia además reinicia su pérdida)
   gainResource(p, n) { return gainResource(p || this.player, n); },
 
@@ -470,10 +489,20 @@ export const skillMethods = {
     inst.timer = this.timers.schedule(interval, step);
     return undefined; // diferido: termina con el último tic
   },
-  // ⑤ punto único por impacto (lo llama Enemy.takeDamage)
+  // ⑤ punto único por impacto (lo llama Enemy.takeDamage): poderes onHit (incluidos
+  // los indicadores de especialización gauge_<id>) y critCdr de la habilidad (rama/talento
+  // `critCdr`: s de enfriamiento menos por crítico directo, como mucho una vez por instante)
   onPlayerHit(e, hit) {
     const p = this.player;
-    if (!p || !p.hookIndex?.onHit) return;
+    if (!p) return;
+    if (hit?.crit && hit.skill && !hit.proc && !hit.dot) {
+      const prof = p.resolved?.[hit.skill] || ((p.cds[hit.skill] || 0) > 0 ? resolveSkill(p, p.cls.skills.find(s => s.id === hit.skill)) : null);
+      if (prof?.critCdr > 0 && (p.cds[hit.skill] || 0) > 0 && p._critCdrAt?.[hit.skill] !== p.simT) {
+        (p._critCdrAt || (p._critCdrAt = {}))[hit.skill] = p.simT;
+        p.cds[hit.skill] = Math.max(0, p.cds[hit.skill] - prof.critCdr);
+      }
+    }
+    if (!p.hookIndex?.onHit) return;
     firePower('onHit', p, this, p, e, hit);
   },
 
@@ -721,6 +750,12 @@ export const skillMethods = {
     const sk = p.cls.skills.find(s => s.id === skId);
     if (!sk || !isKnown(p, sk)) return false;
     if (sk.type === 'weapon') { if (!echoMult) this.castBasic(); return !echoMult; }
+    // activa de talento sin comportamiento todavía (Paso 2c.1): no se lanza ni cobra
+    if (!skillCastable(sk)) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (!echoMult && (!this._noCastAt || now - this._noCastAt > 1500)) { this.ui?.message?.(`${sk.name}: aún no disponible`); this._noCastAt = now; }
+      return false;
+    }
     const prof = resolveSkill(p, sk);
     const isBasic = sk.cat === 'basic';
     const isEcho = echoMult > 0;
@@ -773,7 +808,7 @@ export const skillMethods = {
     const dotKind = prof.dot;
     const color = sk.color || (dotKind ? DOT_COLORS[dotKind] : null) || undefined;
     const coef = prof.coef * (isEcho ? echoMult : 1);
-    const hitInfo = { skill: sk.id, tags: prof.tags, elem: prof.elem };
+    const hitInfo = { skill: sk.id, tags: prof.tags, elem: prof.elem, forceCrit: !!prof.forceCrit };
     const ctx = {
       p, sk, prof, key, target, enemy: near, coef, isEcho, isBasic, hitInfo, color, fx, cast,
       dmgOpts: { color, skill: sk.id, tags: prof.tags, elem: prof.elem },

@@ -32,13 +32,26 @@
 //  ⑦ canal de lanzamiento ........ onCast, afterCast                 game-skills.js
 //  ⑧ Player.takeDamage ........... condDr → mitigar → escudos → onDamaged → onLethal
 //  ⑨ Player.update ............... onTick (10 Hz)                    entities.js
-//  ⑩ gainGauge / spendGauge ...... onGauge                           spec-mechanics.js (2c)
+//  ⑩ gainGauge / spendGauge ...... onGauge(g, p, id, ev, n, e)       spec-mechanics.js
+//       ev: 'gain' | 'full' | 'spent' | 'empty' · e = enemigo (indicadores por enemigo)
+//
+// MÓDULOS POR CLASE (Paso 2c.1, §9.1.6): js/powers-<clase>.js exporta
+// <clase>Powers(), <clase>SkillBehaviors() (activas de talento), <clase>Fields() y
+// <clase>Gauges(); este archivo los registra al cargar (abajo). Los indicadores de
+// especialización (spec-mechanics.js) se enganchan como poderes `gauge_<id>`.
 import { registerMultiplier } from './combat-math.js';
 import { commonPowers, commonBehaviors } from './powers-common.js';
 // comportamientos a medida de cada clase (dueños: trabajadores de 2b.1; solo importan skill-defs.js)
 import { GUERRERO_SKILL_BEHAVIORS } from './skills-guerrero.js';
 import { MAGA_SKILL_BEHAVIORS } from './skills-maga.js';
 import { ARQUERA_SKILL_BEHAVIORS } from './skills-arquera.js';
+// poderes, comportamientos (activas de talento), campos e indicadores por clase (dueños: 2c.1)
+// (funciones: el ciclo powers.js ↔ powers-<clase>.js no puede leer constantes aún sin evaluar)
+import { guerreroPowers, guerreroSkillBehaviors, guerreroFields, guerreroGauges } from './powers-guerrero.js';
+import { magaPowers, magaSkillBehaviors, magaFields, magaGauges } from './powers-maga.js';
+import { arqueraPowers, arqueraSkillBehaviors, arqueraFields, arqueraGauges } from './powers-arquera.js';
+import { defineField } from './field-entities.js';
+import { gaugePowers, registerGauges } from './spec-mechanics.js';
 
 export const HOOK_NAMES = ['stats', 'modifyResolve', 'condAdd', 'condCrit', 'onCast', 'afterCast',
   'onHit', 'onKill', 'condDr', 'onDamaged', 'onLethal', 'onTick', 'onGauge'];
@@ -165,3 +178,17 @@ registerSkillBehaviors(commonBehaviors());
 registerSkillBehaviors(GUERRERO_SKILL_BEHAVIORS);
 registerSkillBehaviors(MAGA_SKILL_BEHAVIORS);
 registerSkillBehaviors(ARQUERA_SKILL_BEHAVIORS);
+// Paso 2c (módulos por clase): poderes de talento, comportamientos de sus activas,
+// campos de suelo e indicadores nuevos; después, los poderes gauge_<id> de TODOS
+// los indicadores (los 9 base de spec-mechanics + los nuevos de cada clase)
+for (const [powers, behaviors, fields, gauges] of [
+  [guerreroPowers, guerreroSkillBehaviors, guerreroFields, guerreroGauges],
+  [magaPowers, magaSkillBehaviors, magaFields, magaGauges],
+  [arqueraPowers, arqueraSkillBehaviors, arqueraFields, arqueraGauges],
+]) {
+  registerPowers(powers());
+  registerSkillBehaviors(behaviors());
+  for (const [kind, def] of Object.entries(fields() || {})) defineField(kind, def);
+  registerGauges(gauges());
+}
+registerPowers(gaugePowers());

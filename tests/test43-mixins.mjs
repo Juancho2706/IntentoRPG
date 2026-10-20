@@ -8,13 +8,13 @@ import { enemyAbilities } from '../js/enemy-abilities.js';
 import { endgameMethods } from '../js/game-endgame.js';
 import { worldFlowMethods } from '../js/game-world-flow.js';
 import { zoneLifeMethods } from '../js/game-zone-life.js';
-import { masteryMethods } from '../js/game-mastery.js';
+import { talentMethods } from '../js/game-talents.js';
 import { eraMethods } from '../js/game-eras.js';
 import { skillMethods } from '../js/game-skills.js';
 import { fieldMethods } from '../js/field-entities.js';
 
 const EXPECTED = [
-  'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
+  'enemyCast', 'updateTriggers', 'bossSummon', 'bossFrostNova', 'spawnFirePool', 'enemyWeb',
   'enemyFan', 'enemyRaise', 'enemyHeal', 'enemySnipe', 'fireSnipe', 'enemyJail',
   'enemyVortex', 'enemyShield', 'enemyChargeWarn', 'enemyChargeImpact',
   'enemySlamFx', 'enemyFrostAuraPulse', 'enemyRallyFx', 'enemyBlinkFx',
@@ -72,15 +72,18 @@ if (zlKeys.length !== ZONELIFE_EXPECTED.length) {
 }
 console.log(`zoneLifeMethods exporta los ${ZONELIFE_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
-const MASTERY_EXPECTED = ['masterySpent', 'chooseMastery', 'allocateMasteryNode', 'masteryRespecCost', 'respecMastery'];
-const msKeys = Object.keys(masteryMethods);
-for (const m of MASTERY_EXPECTED) {
-  if (typeof masteryMethods[m] !== 'function') throw new Error('falta método mastery o no es función: ' + m);
+// Paso 2c.0: game-talents.js sustituye a game-mastery.js (§5.4)
+const TALENT_EXPECTED = ['canEditTalents', '_talentMutate', 'onTalentsChanged', 'chooseSpec', 'switchSpec',
+  'addTalentRank', 'removeTalentRank', 'chooseTalentOption', 'applyTalentPreset', 'resetTalentTree',
+  'exportTalentCode', 'importTalentCode', 'talentPointsInfo'];
+const tKeys = Object.keys(talentMethods);
+for (const m of TALENT_EXPECTED) {
+  if (typeof talentMethods[m] !== 'function') throw new Error('falta método de talentos o no es función: ' + m);
 }
-if (msKeys.length !== MASTERY_EXPECTED.length) {
-  throw new Error(`masteryMethods tiene ${msKeys.length} métodos, esperaba ${MASTERY_EXPECTED.length}: ${msKeys.join(', ')}`);
+if (tKeys.length !== TALENT_EXPECTED.length) {
+  throw new Error(`talentMethods tiene ${tKeys.length} métodos, esperaba ${TALENT_EXPECTED.length}: ${tKeys.join(', ')}`);
 }
-console.log(`masteryMethods exporta los ${MASTERY_EXPECTED.length} métodos esperados, todos funciones ✓`);
+console.log(`talentMethods exporta los ${TALENT_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
 const ERA_EXPECTED = ['currentEraId', 'eraDef', 'eraMutatorBonus', 'ensureEra', 'eraObjProgress', 'eraInfo', 'claimEraReward'];
 const erKeys = Object.keys(eraMethods);
@@ -94,7 +97,7 @@ console.log(`eraMethods exporta los ${ERA_EXPECTED.length} métodos esperados, t
 
 // Paso 2b.0: canal de lanzamiento de habilidades (game-skills.js) y entidades de suelo (field-entities.js)
 const SKILLS_EXPECTED = [
-  'allies', 'heal', 'shield', 'dealProcDamage', 'gainResource', 'fireProjectile', 'startChannel', 'onPlayerHit',
+  'allies', 'heal', 'shield', 'dealProcDamage', 'addThreat', 'forceTarget', 'gainResource', 'fireProjectile', 'startChannel', 'onPlayerHit',
   'skillSupports', 'applyDoT', 'spawnChainBounce', 'dealArea', 'enemiesInCone', 'enemiesInLine', 'clampWalkable', 'slotHeld',
   'assignHotbar', 'chooseSkillMod', '_spenderWaiting', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
   'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',
@@ -110,7 +113,7 @@ if (fKeys.length !== FIELDS_EXPECTED.length) throw new Error(`fieldMethods tiene
 console.log(`fieldMethods exporta los ${FIELDS_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
 // sin colisiones de nombres entre los nueve mixins (se aplican todos al prototype)
-const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, masteryMethods, eraMethods, skillMethods, fieldMethods };
+const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, talentMethods, eraMethods, skillMethods, fieldMethods };
 const seen = new Map();
 for (const [name, obj] of Object.entries(mixins)) {
   for (const k of Object.keys(obj)) {

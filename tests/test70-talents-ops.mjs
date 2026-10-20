@@ -124,7 +124,7 @@ console.log('Elecciones A/B ✓');
   // reinicio
   assert.ok(ops.resetAll(p).ok);
   assert.deepEqual(p.talents.cls, {});
-  assert.deepEqual(p.talents.sp.berserker, { s0: 1 }, 'solo queda el nodo clave gratis');
+  assert.deepEqual(p.talents.sp.berserker, {}, 'vacío: el nodo clave gratis nunca se guarda en los rangos (Paso 2c.0)');
   assert.equal(p.talents.choice.c5, undefined);
   assert.equal(p.talents.spec, 'berserker', 'reiniciar no quita la especialización');
 }
@@ -136,7 +136,7 @@ console.log('Reinicio y build recomendada ✓');
   ops.chooseSpec(p, 'piromante'); ops.applyPreset(p, 'spec');
   const pyro = { ...p.talents.sp.piromante };
   ops.chooseSpec(p, 'crionte');
-  assert.deepEqual(T.ranksOf(p, 'spec'), { s0: 1 }, 'build nueva: solo el nodo clave');
+  assert.deepEqual(T.ranksOf(p, 'spec'), {}, 'build nueva vacía (el nodo clave gratis no se guarda)');
   assert.ok(ops.addRank(p, 'spec', 's1').ok, 's1 (req s0 gratis) se puede aprender');
   ops.chooseSpec(p, 'piromante');
   assert.deepEqual(p.talents.sp.piromante, pyro, 'la build de Piromante sigue ahí');

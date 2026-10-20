@@ -112,8 +112,10 @@ assert.equal(CM.WEAKNESS_CAP, 1.5);
   e.applyCC('slow', 3, { pct: 95 });
   assert.equal(e.slowPct, 70, 'tope de ralentización 70 %');
   const boss = h2.enemy({ hp: 1e6, boss: true });
-  assert.ok(approx(boss.applyCC('stun', 1), 0.35), 'jefes: ×0,35 (el stagger llega en 2c)');
-  assert.equal(boss.applyCC('knock', 3), 0, 'los jefes no se empujan');
+  // Paso 2c.0: el control de jefes suma STAGGER (test66-roles-primitivas lo cubre entero)
+  assert.ok(boss.applyCC('stun', 1) > 0 && boss.stunT === 0 && approx(boss.stagger, 30), 'jefes: el aturdimiento suma stagger (30/s) en vez de aturdir');
+  const bx = boss.pos.x;
+  assert.ok(boss.applyCC('knock', 3) > 0 && boss.pos.x === bx, 'los jefes no se empujan (suman stagger)');
   console.log('Restauraciones (onLethal) y control con rendimientos decrecientes por canal ✓');
 }
 console.log('\n✅ SUSTENTO + DEBILIDAD OK');

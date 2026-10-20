@@ -187,7 +187,7 @@ export function supportFits(sup, sk) {
 //   dmg(+%) crit(+%) radius(+%) range(+%) proj(+n) pierce(bool) chain(n) slow(s) slowPct(%)
 //   stun(s) root(s) vuln(s) dot('bleed|poison|burn') cdr(+% de CDR) cost(+% coste)
 //   gen(+recurso) lifesteal(+% robo) buff(+% potencia) dur(+% duración) durS(+s)
-//   execute(%) zone(1) zoneDur(+s) cdhit(n) echo(bool) coldblood(bool) haste(s) cleanse(bool)
+//   execute(%) zone(1) zoneDur(s: duración de la zona; sin ella 4 s) cdhit(n) echo(bool) coldblood(bool) haste(s) cleanse(bool)
 //   critCdr(s por crítico)
 const MOD_MAX = ['slow', 'vuln', 'stun', 'root', 'execute', 'chain', 'zone', 'cdhit', 'haste', 'slowPct'];
 const MOD_BOOL = ['pierce', 'echo', 'coldblood', 'cleanse'];

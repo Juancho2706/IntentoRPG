@@ -4,7 +4,7 @@
 // resolveSkill(p, sk) fusiona, en este orden y todo ADITIVO dentro de su clave:
 //   1. definición base (sk, de js/skills-<clase>.js)
 //   2. ramas elegidas (SKILL_MODS → aggregateSkillMods)
-//   3. talentos (p.talentAgg.mods[sk.id] + skillLv) — los rellena el Paso 2c
+//   3. talentos (p.talentAgg.mods[sk.id] + skillLv; Player.recompute → aggregateTalents)
 //   4. soportes engarzados compatibles (por tags) → tabla SUPPORT_MOD
 //   5. valores globales del héroe (stats.cdr, tv.costRed / costRedBig)
 //   6. poderes (② modifyResolve) y topes de combat-math (CDR 50; crítico al tirar)
@@ -175,7 +175,9 @@ function computeProfile(p, sk) {
     slow: Math.max(sk.slow || 0, mods.slow || 0), slowPct: Math.max(sk.slowPct || 0, mods.slowPct || 0),
     stun: Math.max(sk.stun || 0, mods.stun || 0), root: Math.max(sk.root || 0, mods.root || 0),
     vuln: mods.vuln || 0, dot, dotMul,
-    zone: mods.zone || 0, zoneDur: 4 + (mods.zoneDur || 0),
+    // zona (Estela): 4 s por defecto; zoneDur = duración EXPLÍCITA (s) cuando la da un
+    // talento (Pira 1,5 s/rango, Abrojos 2 s/rango: «el texto del nodo manda», §9.3)
+    zone: mods.zone || 0, zoneDur: (mods.zoneDur || 0) > 0 ? mods.zoneDur : 4,
     echo: supEcho || (mods.echo ? 0.6 : 0), execute: mods.execute || 0, cdhit: mods.cdhit || 0,
     critCdr: mods.critCdr || 0, lifesteal: mods.lifesteal || 0, coldblood: !!mods.coldblood,
     haste: mods.haste || 0, cleanse: !!mods.cleanse,
@@ -189,7 +191,11 @@ function computeProfile(p, sk) {
     splash: (sk.splash || 0) * rankCoef(rank),
     // DoT propio al impactar (Cicuta): total = golpe medio × coef (escala con rango y saco aditivo)
     hitDot: sk.hitDot ? { kind: sk.hitDot.kind || 'poison', coef: (sk.hitDot.coef || 0) * rankCoef(rank) * dotMul, dur: sk.hitDot.dur || 4 } : null,
-    bossStun: sk.bossStun !== false,            // false: el aturdimiento no afecta a jefes (stagger en 2c)
+    // jefes (Paso 2c.0): todo control suma STAGGER; bossStun numérico = duración
+    // nominal contra jefes (Martillo de Justicia) · stagger = stagger propio por golpe
+    bossStun: typeof sk.bossStun === 'number' ? sk.bossStun : sk.bossStun !== false,
+    stagger: sk.stagger || 0,
+    forceCrit: false,                           // crítico seguro (Ignición Total: modifyResolve)
     unstoppable: !!sk.unstoppable, slowImmune: !!sk.slowImmune,
     // buffs / escudos / duraciones
     buff, buffMul, durMul, durS: mods.durS || 0,

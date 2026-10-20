@@ -15,7 +15,9 @@ import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { resourceDefFor, resourceRegenRate } from '../js/resources.js';
 import { makeHarness } from './helpers/power-harness.mjs';
 
-const M = CLASSES.maga;
+// catálogo BASE (las activas de talento, kind 'talent', entran en CLASSES desde el Paso 2c.0)
+const M = { ...CLASSES.maga, skills: CLASSES.maga.skills.filter(s => s.kind !== 'talent') };
+assert.equal(CLASSES.maga.skills.filter(s => s.kind === 'talent').length, 16, 'las 16 activas de talento de la Maga entran en CLASSES con kind talent');
 const S = id => M.skills.find(s => s.id === id);
 
 // ------------------------------------------------ 1) catálogo y formato
