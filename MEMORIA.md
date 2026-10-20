@@ -14,7 +14,7 @@
 ## 1. Convenciones de desarrollo (IMPORTANTES)
 
 - **`npm test` debe quedar en verde** siempre antes de commitear.
-- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v94**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
+- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v95**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
 - **Git author**: `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita commits "Unverified").
 - **Push a AMBAS ramas**: `claude/isometric-rpg-game-xmer7p` y `main` (fast‑forward `origin <branch>:main`).
 - **No tocar archivos que esté escribiendo un agente en background** (p. ej. informes).
@@ -278,7 +278,7 @@ Implementa `docs/paso2-diseno.md` §9.2 «2b.0» (contratos §9.1). El catálogo
 ### ✅ Paso 2b.1 — catálogo base por clase (HECHO 2026‑10‑20, 3 trabajadores)
 `js/skills-<clase>.js` + `js/fx-skills-<clase>.js` + `tests/test-skills-<clase>.mjs` con las habilidades **base** de §3.1–§3.3 (Guerrero 16, Maga 15, Arquera 13; las de talento son de 2c). Dejaron fallbacks y pedidos al núcleo → resueltos en 2b.2.
 
-### ✅ Paso 2b.2 — integración y recalibración (HECHO 2026‑10‑20, sw v94, test nuevo `test69-nucleo-2b2`)
+### ✅ Paso 2b.2 — integración y recalibración (HECHO 2026‑10‑20, sw v94→v95, test nuevo `test69-nucleo-2b2`)
 Cierre de 2b (`docs/paso2-diseno.md` §9.2). **APIs nuevas del núcleo** (resuelven los pedidos de 2b.1; los fallbacks se quitaron de `skills-*.js`):
 1. **Ralentizar al héroe**: SOLO por `Player.applySlow(dur)` (enemigos, telarañas, aura de escarcha, telegrafías); respeta `p.slowImmuneT` (`grantSlowImmune(s)`) y el imparable. Habilidad: `slowImmune:true` (Agilidad, Piel de Hierro, Furia Inmortal). Sin purgas cada 0,1 s.
 2. **Fallo de proyectiles enemigos**: `Projectile` tira `pl.projMissChance()` (stat de buff `projMissPct` o zona aliada con `data.projMissPct`); el que falla sigue de largo. **Zonas aliadas**: `Player.zoneDefense()` → `{dr, miss}` de los campos que te contienen (`allyDr`, aplicado en `takeDamage`). La Bomba de Humo es un `zone` genérico (`allyDr:40, projMissPct:50`).
