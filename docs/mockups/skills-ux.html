@@ -422,13 +422,209 @@ body.shot #tip{transition:none}
 .scard .sfoot .hbtn.cur{border-color:var(--gold);color:var(--gold2)}
 .scard .sfoot .hbtn[disabled]{opacity:.55;cursor:default}
 .scard .sketch{position:absolute;right:14px;top:14px;z-index:3;padding:3px 10px;border-radius:12px;background:#221c28;border:1px solid #4a3e54;color:#cfc4b0;font:700 11px Inter;letter-spacing:.6px}
+/* ===================== PASO 2g v2 · talentos de la Maga estilo WoW (3 columnas) + motion ===================== */
+#TV2{grid-template-rows:86px 1fr 60px}
+#TV2 .p-head h2{font:700 26px Cinzel,serif;color:var(--gold);letter-spacing:.6px;font-variant:small-caps;margin:0;white-space:nowrap}
+#TV2 .p-head .sub{white-space:nowrap}
+#TV2 .p-head{gap:12px}
+#TV2 .hbtn{height:38px;padding:0 11px;font-size:13px;white-space:nowrap}
+#TV2 .hbtn[disabled]{opacity:.45;cursor:default}
+.t3lo{display:flex;flex-direction:column;gap:2px;color:var(--dim);font:600 10.5px Inter;letter-spacing:1px;text-transform:uppercase}
+.t3lo select{height:30px;min-width:200px;background:#1c1622;color:var(--ink);border:1px solid #4a3c2a;border-radius:7px;font:600 13px Inter;padding:0 8px}
+.t3body{display:grid;grid-template-columns:1fr 300px 1fr;gap:14px;min-height:0}
+.t3col{position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);background:#120e16}
+.t3art{position:absolute;inset:0;background:center 18%/cover no-repeat;opacity:.24;filter:saturate(.9);transition:opacity .5s}
+.t3col::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(18,14,22,.55),rgba(18,14,22,.92) 40%,rgba(18,14,22,.97))}
+.t3col.cls .t3art{opacity:.12;filter:hue-rotate(40deg) saturate(.6)}
+.t3col.hero .t3art{opacity:.3;background-size:auto 120%}
+.t3h{position:relative;z-index:3;display:flex;align-items:center;gap:12px;height:62px;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.t3h .emb{width:34px;height:34px}
+.t3h h3{margin:0;font:700 18px Cinzel,serif;color:var(--ink);font-variant:small-caps;letter-spacing:.5px}
+.t3col.spec .t3h h3{color:#ffcfa8}
+.t3col.hero .t3h h3{color:#ffd98a;font-size:17px;white-space:nowrap}
+.t3col.hero .t3h h3 small{color:var(--dim);font:600 12px Inter;font-variant:normal}
+.t3m{display:flex;gap:12px;margin-top:3px;color:var(--dim);font-size:12.5px;white-space:nowrap}
+.t3col.hero .t3m{gap:8px;font-size:11.5px}
+.t3m b{color:var(--ink)} .t3m .lf{color:var(--ok);font-weight:700} .t3m .rq{color:var(--dim2)}
+.hring{width:36px;height:36px;border-radius:50%;background:#0d0b10 center/cover;box-shadow:0 0 0 2px #b88b35,0 0 14px rgba(232,192,106,.35)}
+.t3can{position:absolute;left:0;right:0;top:62px;bottom:0;z-index:2}
+.t3can svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;color:#4a3e54}
+.t3can line{stroke:#3a3045;stroke-width:2.5;stroke-linecap:round;color:#3a3045}
+.t3can line.on{stroke:#6b5631;color:#6b5631}
+.t3can line.live{stroke:#e8c06a;color:#e8c06a}
+/* nodos */
+.tn3{position:absolute;z-index:3;width:44px;height:44px;margin:-22px 0 0 -22px;cursor:pointer}
+.tn3 .ni{position:absolute;inset:0;border-radius:10px;background:#0d0b10;box-shadow:inset 0 0 0 2px #4a3e54,0 2px 6px #000a;transition:transform .14s cubic-bezier(.2,.8,.2,1)}
+.tn3 .ni i{position:absolute;inset:3px;border-radius:7px;background:center/cover no-repeat}
+.tn3.t-c .ni,.tn3.t-c .ni i,.tn3.t-k.t-k .ni{clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%);border-radius:0}
+.tn3.t-c .ni i{inset:3px}
+.tn3 .ni.split i{inset:3px}
+.tn3 .ni.split .ha{clip-path:polygon(30% 0,50% 0,50% 100%,30% 100%,0 70%,0 30%)}
+.tn3 .ni.split .hb{clip-path:polygon(50% 0,70% 0,100% 30%,100% 70%,70% 100%,50% 100%)}
+.tn3 .ni.split::after{content:'';position:absolute;left:50%;top:6%;bottom:6%;width:2px;margin-left:-1px;background:#0d0b10}
+.tn3.t-k{width:54px;height:54px;margin:-27px 0 0 -27px}
+.tn3.t-k .ni{border-radius:50%} .tn3.t-k .ni i{border-radius:50%}
+.tn3.t-f{width:54px;height:54px;margin:-27px 0 0 -27px}
+.tn3.t-f .ni{border-radius:14px;box-shadow:inset 0 0 0 2px #8a4a22,0 0 0 3px #15111a,0 0 0 4px #5a3a26}
+.tn3.t-x{width:58px;height:58px;margin:-29px 0 0 -29px}
+.tn3.t-x .ni{transform:rotate(45deg) scale(.78);border-radius:10px;overflow:hidden}
+.tn3.t-x .ni i{inset:0;border-radius:0;transform:rotate(-45deg) scale(1.42)}
+.tn3.lock .ni i{filter:grayscale(1) brightness(.38)}
+.tn3.can .ni{box-shadow:inset 0 0 0 2px var(--ok),0 0 12px rgba(127,211,107,.35)}
+.tn3.on .ni{box-shadow:inset 0 0 0 2px #b88b35,0 2px 6px #000a}
+.tn3.full .ni{box-shadow:inset 0 0 0 2.5px var(--gold),0 0 14px rgba(232,192,106,.38)}
+.tn3.t-f.full .ni{box-shadow:inset 0 0 0 3px #ff9a4a,0 0 0 3px #15111a,0 0 0 4px #ffb27a,0 0 22px rgba(255,140,60,.45)}
+.tn3.free .ni{box-shadow:inset 0 0 0 3px var(--gold),0 0 0 3px #15111a,0 0 0 4px #6b5631,0 0 18px rgba(232,192,106,.35)}
+.tn3.hyb:not(.lock) .ni{outline:1.5px dashed rgba(255,190,120,.55);outline-offset:3px}
+.tn3:hover .ni{transform:scale(1.08)}
+.tn3.t-x:hover .ni{transform:rotate(45deg) scale(.84)}
+.tn3 .rk{position:absolute;right:-12px;bottom:-9px;z-index:4;min-width:28px;height:17px;padding:0 4px;border-radius:9px;background:#0d0b10;border:1.5px solid #4a3e54;color:#8f8697;font:800 10px/14px Inter;text-align:center}
+.tn3.on .rk{border-color:#b88b35;color:var(--gold2)} .tn3.full .rk{background:#2a2012;border-color:var(--gold);color:var(--gold2)} .tn3.can .rk{border-color:var(--ok);color:#c4ecb8}
+.tn3 .ab{position:absolute;left:-7px;bottom:-7px;z-index:4;width:17px;height:17px;border-radius:50%;background:radial-gradient(#e8c06a,#9b7a33);color:#1a120a;font:800 10px/17px Inter;text-align:center}
+.pips4{position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);display:flex;gap:3px;z-index:4}
+.pips4 i{width:9px;height:9px;transform:rotate(45deg);background:#0d0b10;border:1.5px solid #6b4a2a}
+.pips4 i.on{background:#ff9a4a;border-color:#ffd0a0}
+.tn3 .tg{display:none;position:absolute;left:-6px;top:-7px;z-index:4;width:15px;height:15px;border-radius:4px;font:800 9px/15px Inter;text-align:center}
+body.alt .tn3 .tg,.alt-on .tn3 .tg{display:block}
+.tg.mec{background:#3a2a52;color:#e2ccff} .tg.num{background:#2a3036;color:#c9d3dc}
+.t3foot i.tg{display:inline-block;position:static;width:15px;height:15px;border-radius:4px;font:800 9px/15px Inter;text-align:center;font-style:normal;margin-left:6px}
+.tn3.hl .ni{outline:3px solid #ffd27a;outline-offset:3px}
+.t3body.dim .tn3:not(.hl){opacity:.22}
+/* puertas */
+.t3gate{position:absolute;left:10px;right:10px;z-index:1;height:0;border-top:1px dashed #4a3e54}
+.t3gate b{position:absolute;left:24px;top:-9px;padding:0 6px;background:#16121b;border-radius:8px;font:800 11px/18px Inter;color:#a8977a;cursor:help}
+.t3gate .seal{position:absolute;left:0;top:-11px;width:22px;height:22px;cursor:help}
+.t3gate .seal i{position:absolute;top:0;width:11px;height:22px;background:#2a2030;border:1.5px solid #8a6f38}
+.t3gate .seal i:first-child{left:0;border-radius:11px 0 0 11px;border-right:0}
+.t3gate .seal i:last-child{right:0;border-radius:0 11px 11px 0;border-left:0}
+.t3gate .seal::after{content:'';position:absolute;left:7px;top:6px;width:8px;height:9px;border-radius:2px;background:#e8c06a;opacity:.9}
+.t3gate.ok{border-top-color:#5a4a2c}
+.t3gate.apx .seal{left:auto;right:0}
+.t3gate.apx .seal{left:8px;right:auto;top:6px}
+.t3gate.apx b,.t3gate.apx.ok b{left:34px;right:auto;top:8px;color:#ffb27a;background:none;padding:0}
+.t3gate.ok .seal{opacity:0}
+.t3gate.ok b{left:0;color:#7c6a48;background:none}
+.t3gate.ok b::before{content:'✓ '}
+.t3gate:not(.apx) .seal{left:calc(var(--gx) - 30px)}
+.t3gate:not(.apx) b,.t3gate.ok:not(.apx) b{left:calc(var(--gx) - 6px);background:#16121b}
+.t3apex{position:absolute;left:6px;right:6px;bottom:4px;z-index:0;border:1px solid #4a3320;border-radius:12px;background:linear-gradient(rgba(70,34,14,.15),rgba(70,34,14,.45))}
+/* columna héroe */
+.htabs{position:absolute;left:0;right:0;top:10px;display:flex;justify-content:center;gap:10px;z-index:4}
+.htab{width:34px;height:34px;align-self:center;border-radius:50%;border:2px solid #4a3e54;background:#0d0b10 center/cover;cursor:pointer;padding:0}
+.htab.on{width:52px;height:52px;border-width:3px;border-color:var(--gold);box-shadow:0 0 0 3px #15111a,0 0 0 4px #6b5631,0 0 18px rgba(232,192,106,.5)}
+.htab.off{opacity:.3;filter:grayscale(1);cursor:default}
+.hline{position:absolute;left:12px;right:12px;bottom:6px;text-align:center;color:var(--dim);font-size:12px;z-index:3}
+.hlock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:18px;text-align:center;z-index:4}
+.hlock > b{font:700 22px Cinzel,serif;color:var(--gold2)}
+.hlock > span{color:var(--dim);font-size:13px}
+.hlk{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1c1622;border:2px solid #6b5631;color:var(--gold)}
+.t3can .hlk svg{position:static;width:30px;height:30px;inset:auto}
+.hprev{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;width:100%;padding:8px;border-radius:10px;background:#1a151f;border:1px solid #3a3045;text-align:left}
+.hprev i{width:44px;height:44px;border-radius:50%;background:center/cover;filter:grayscale(.5)}
+.hprev b{color:var(--ink);font:700 14px Cinzel,serif} .hprev small{display:block;color:var(--dim);font-size:12px}
+.hnote{color:var(--dim2);font-size:11.5px}
+/* pie: kit + leyenda */
+.t3foot{display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--dim);font-size:12.5px}
+.t3foot .kl{font:600 11px Inter;letter-spacing:1.2px;text-transform:uppercase}
+.kit3{display:flex;gap:6px}
+.kit3 .skl{width:38px;height:38px}
+.kit3 .skl.lit,.kit3 .skl.on{box-shadow:inset 0 0 0 2px #ffd27a,0 0 12px rgba(255,210,122,.6);transform:translateY(-2px)}
+.kit3 .skl{transition:transform .15s,box-shadow .15s}
+.t3foot .sep{width:1px;height:26px;background:#3a3045}
+.t3foot .lgd{display:flex;align-items:center;gap:4px}
+.t3foot .lg{display:inline-block;width:14px;height:14px;border:2px solid #8a7f90;margin:0 3px 0 8px}
+.t3foot .lg.p{border-radius:3px} .t3foot .lg.c{clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%);background:#8a7f90}
+.t3foot .lg.f{border-radius:4px;border-color:#ff9a4a} .t3foot .lg.x{transform:rotate(45deg) scale(.8);border-color:#ff9a4a}
+.t3foot .keys{margin-left:auto}
+/* selector A/B al pasar el ratón */
+.t3pop{position:absolute;z-index:55;display:flex;gap:6px;transform:translate(-50%,-50%) scale(var(--ps,1));transform-origin:50% 50%}
+.t3pop[hidden]{display:none!important}
+.t3pop .half{position:relative;width:76px;padding:6px 4px 6px;border-radius:12px;background:#1b1520f5;border:1.5px solid #6b5631;color:var(--ink);cursor:pointer;font:600 11.5px/1.15 Inter;text-align:center;box-shadow:0 10px 24px #000b}
+.t3pop .half i{display:block;width:44px;height:44px;margin:0 auto 4px;background:center/cover;clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
+.t3pop .half b{position:absolute;left:6px;top:4px;color:var(--gold);font:800 11px Inter}
+.t3pop .half span{display:block;min-height:26px}
+.t3pop .half:hover{border-color:var(--gold);background:#2a2015f5}
+.t3pop .half.on{border-color:var(--gold);background:linear-gradient(#3a2d17f5,#1a130af5)}
+.t3pop .half.dis{opacity:.55}
+.t3pop.open .hA{animation:halfA .18s cubic-bezier(.2,.8,.2,1) both}
+.t3pop.open .hB{animation:halfB .18s cubic-bezier(.2,.8,.2,1) both}
+@keyframes halfA{from{transform:translateX(38px) scale(.6);opacity:0}to{transform:none;opacity:1}}
+@keyframes halfB{from{transform:translateX(-38px) scale(.6);opacity:0}to{transform:none;opacity:1}}
+.t3pop.code{left:50%!important;top:110px!important;transform:translateX(-50%) scale(var(--s));flex-direction:column;gap:8px;width:560px;padding:14px 16px;border-radius:12px;background:#1b1520f8;border:1px solid #6b5631;box-shadow:0 14px 30px #000c;color:var(--ink)}
+.t3pop.code input{height:32px;background:#0d0b10;color:var(--gold2);border:1px solid #3a3045;border-radius:6px;font:12px ui-monospace,Consolas,monospace;padding:0 8px}
+.t3pop.code div{display:flex;gap:8px} .t3pop.code small{color:var(--dim)}
+#tip .win{margin-top:8px;padding:7px 9px;border-radius:7px;background:#15201a;border:1px solid #2f5a3a;color:#bfe9b4;font-size:12.5px;line-height:1.35}
+#tip .fin{margin:8px 0 0;padding:6px 9px;border-radius:7px;background:#2a1810;border:1px solid #8a4a22;color:#ffcfa8;font-size:12.5px}
+#tip .hy{margin-top:8px;color:#ffc98f;font:700 12px Inter}
+#tip .tagc{display:inline-block;margin-left:4px;padding:0 6px;border-radius:8px;font:700 10.5px/16px Inter}
+#tip .tagc.mec{background:#3a2a52;color:#e2ccff} #tip .tagc.num{background:#2a3036;color:#c9d3dc}
+#tip .opt .rl{float:right;color:var(--dim);font:600 11px Inter}
+#tip .opt.hov{border-color:var(--gold)}
+#tip .actb{padding:0 5px;border-radius:4px;background:#2c2238;border:1px solid #5b4a6c;color:#cdb8ec;font:800 9.5px/14px Inter}
+
+/* ===================== MOTION (solo transform/opacity; §8 del doc) ===================== */
+.tn3 .burst{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:6;overflow:visible}
+.tn3 .burst i{display:block;position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:50%;background:#ffd27a;box-shadow:0 0 6px #ffb84a;animation:spark .5s cubic-bezier(.2,.8,.2,1) both}
+@keyframes spark{0%{transform:translate(0,0) scale(1.2);opacity:1}55%{opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.3);opacity:0}}
+.tn3.fx-spend .ni{animation:pulse3 .26s cubic-bezier(.2,.8,.2,1)}
+.tn3.t-x.fx-spend .ni{animation:pulseX .26s cubic-bezier(.2,.8,.2,1)}
+@keyframes pulse3{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
+@keyframes pulseX{0%{transform:rotate(45deg) scale(.78)}45%{transform:rotate(45deg) scale(.92)}100%{transform:rotate(45deg) scale(.78)}}
+.tn3.fx-spend::before{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid #ffd27a;animation:ring3 .42s cubic-bezier(.2,.8,.2,1) both;pointer-events:none}
+@keyframes ring3{0%{transform:scale(.7);opacity:1}100%{transform:scale(1.9);opacity:0}}
+.t3can line.fx-lit{stroke-dasharray:1;stroke-dashoffset:1;stroke:#7fd36b;animation:draw .35s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.tn3.fx-unlock .ni{animation:unlock .32s cubic-bezier(.2,.8,.2,1) var(--d,300ms) both}
+@keyframes unlock{0%{transform:scale(.88);opacity:.55}60%{transform:scale(1.07);opacity:1}100%{transform:scale(1)}}
+.tn3.fx-remove .ni{animation:remove3 .22s ease-out}
+@keyframes remove3{0%{transform:scale(1)}40%{transform:scale(.86)}100%{transform:scale(1)}}
+.tn3.fx-deny .ni{animation:deny .3s ease-out}
+@keyframes deny{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.tn3.fx-flip .ni{animation:flip3 .36s cubic-bezier(.4,0,.2,1)}
+@keyframes flip3{0%{transform:perspective(300px) rotateY(180deg) scale(.9)}100%{transform:perspective(300px) rotateY(0) scale(1)}}
+.tn3 .ni{overflow:hidden}
+.tn3.fx-max .ni::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(105deg,transparent 30%,rgba(255,236,180,.75) 50%,transparent 70%);animation:shine .9s cubic-bezier(.4,0,.2,1) .15s both;mix-blend-mode:screen}
+@keyframes shine{0%{transform:translateX(-120%);opacity:1}100%{transform:translateX(120%);opacity:0}}
+.t3gate.fx-open .seal{opacity:1}
+.t3gate.fx-open .seal i:first-child{animation:sealL .48s cubic-bezier(.2,.8,.2,1) forwards}
+.t3gate.fx-open .seal i:last-child{animation:sealR .48s cubic-bezier(.2,.8,.2,1) forwards}
+.t3gate.fx-open .seal::after{animation:fade .3s ease-out forwards}
+@keyframes sealL{to{transform:translate(-12px,-6px) rotate(-28deg);opacity:0}}
+@keyframes sealR{to{transform:translate(12px,-6px) rotate(28deg);opacity:0}}
+@keyframes fade{to{opacity:0}}
+.t3gate.fx-open{animation:gateglow .6s ease-out}
+@keyframes gateglow{0%{border-top-color:#ffd27a}100%{border-top-color:#5a4a2c}}
+.t3col.hero.fx-reveal .t3art{animation:iris .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes iris{0%{clip-path:circle(0% at 50% 30%);opacity:0}100%{clip-path:circle(80% at 50% 30%);opacity:.3}}
+.t3col.hero.fx-reveal .tn3,.t3col.hero.fx-reveal .htabs{animation:rise .34s cubic-bezier(.2,.8,.2,1) var(--d,300ms) both}
+/* las flechas llegan con los nodos (ronda 2: antes se veía un esqueleto de flechas sin nodos) */
+.t3col.hero.fx-reveal svg{animation:edgeIn .4s ease-out .42s both}
+.t3col.spec.fx-swap svg{animation:edgeIn .4s ease-out .38s both}
+@keyframes edgeIn{from{opacity:0}to{opacity:1}}
+@keyframes rise{0%{transform:translateY(10px) scale(.85);opacity:0}100%{transform:none;opacity:1}}
+.t3col.spec.fx-swap .t3art-old{position:absolute;inset:0;background:center 18%/cover no-repeat;opacity:.24;animation:fade .5s ease-out forwards;z-index:0}
+.t3col.spec.fx-swap .t3art{animation:artIn .5s ease-out both}
+@keyframes artIn{from{opacity:0}to{opacity:.24}}
+.t3col.spec.fx-swap .tn3{animation:reflow .38s cubic-bezier(.2,.8,.2,1) var(--d,200ms) both}
+@keyframes reflow{0%{transform:translateY(-8px) scale(.7);opacity:0}100%{transform:none;opacity:1}}
+/* reducir movimiento: sin escalas, sin partículas, solo fundidos cortos */
+@media (prefers-reduced-motion: reduce){.tn3 *,.t3gate *,.t3col *,.t3pop *{animation-duration:.12s!important;animation-name:fade-in-rm!important}.tn3 .burst{display:none}}
+body.rm .tn3 *,body.rm .t3gate *,body.rm .t3col *,body.rm .t3pop *,body.rm .tn3::before,body.rm .tn3::after{animation-duration:.12s!important;animation-name:fade-in-rm!important}
+body.rm .tn3 .burst,body.rm .tn3.fx-spend::before,body.rm .tn3.fx-max::after{display:none}
+@keyframes fade-in-rm{from{opacity:.6}to{opacity:1}}
+
+body.rm .t3can line.fx-lit{stroke-dasharray:none}
+body.rm .t3gate.fx-open .seal{opacity:0}
+@media (prefers-reduced-motion: reduce){.t3can line.fx-lit{stroke-dasharray:none}.t3gate.fx-open .seal{opacity:0}}
+
 </style>
 </head>
 <body>
 <div class="ctl">
   <h1>Libro y talentos · mockup 2f + 2g (Maga)</h1>
   <label>Clase <select id="cCls"><option value="guerrero">Guerrero</option><option value="maga" selected>Maga</option><option value="arquera">Arquera</option></select></label>
-  <label>Nivel <select id="cLvl"><option value="5">5 · sin especialización</option><option value="18" selected>18</option><option value="50">50</option></select></label>
+  <label>Nivel <select id="cLvl"><option value="5">5 · sin especialización</option><option value="18">18</option><option value="32">32</option><option value="40">40</option><option value="41">41 · Paragon</option><option value="53" selected>53</option></select></label>
+  <label><input type="checkbox" id="cRm"> Reducir movimiento</label>
   <label>Resolución <select id="cRes"><option value="1920">1920×1080</option><option value="1366">1366×768</option></select></label>
   <label><input type="checkbox" id="cCombat"> En combate (forja bloqueada)</label>
   <label><input type="checkbox" id="cAlt"> Mantener <kbd>Alt</kbd> (tooltip avanzado)</label>
@@ -701,7 +897,7 @@ function skillsOfNode(n) {
 }
 const iconUrl = sk => sk.icon ? A + sk.icon : `${A}icons256/${sk.id}.webp`;
 const nodeIco = n => `${A}${n.icon}`;
-const known = sk => S.lvl >= sk.req && (!sk.spec || curSpec()?.id === sk.spec); // 2g: el kit de especialización solo con ella
+const known = sk => S.lvl >= sk.req && (!sk.spec || curSpec()?.id === sk.spec) && (!sk.grantBy || (S.cls === 'maga' && t3granted(sk.id))); // 2g: kit de especialización solo con ella; activas de clase solo si las elegiste
 const mejOn = sk => !sk.talent && !sk.sketch && known(sk) && S.lvl >= sk.req + MEJORA_AT;
 const varOn = sk => !sk.talent && !sk.sketch && known(sk) && S.lvl >= sk.req + VAR_AT;
 const isNew = sk => mejOn(sk) && S.lvl === sk.req + MEJORA_AT || varOn(sk) && S.lvl === sk.req + VAR_AT;
@@ -861,7 +1057,7 @@ function assign(slot, sk) {
 document.addEventListener('keydown', e => {
   if (e.key === 'n' || e.key === 'N') { openTalents(); return; }
   if (e.key === 't' || e.key === 'T' || (e.key === 'Escape' && S.view === 'talents')) { openBook(); return; }
-  if (e.key === 'Alt') { e.preventDefault(); S.alt = true; refreshTip(); }
+  if (e.key === 'Alt') { e.preventDefault(); S.alt = true; document.body.classList.add('alt'); refreshTip(); }
   if (S.view === 'talents') return;
   const m = { '1':'k1', '2':'k2', '3':'k3', '4':'k4' }[e.key];
   if (m && hovered) assign(m, hovered);
@@ -870,7 +1066,7 @@ document.addEventListener('keydown', e => {
     const n = ts[(i + (e.key === 'ArrowRight' ? 1 : -1) + ts.length) % ts.length]; select(n.dataset.id); document.querySelector(`.tile[data-id="${n.dataset.id}"]`)?.focus();
   }
 });
-document.addEventListener('keyup', e => { if (e.key === 'Alt') { S.alt = $('#cAlt').checked; refreshTip(); } });
+document.addEventListener('keyup', e => { if (e.key === 'Alt') { S.alt = $('#cAlt').checked; document.body.classList.toggle('alt', S.alt); refreshTip(); } });
 
 // ---- arrastre ----
 let drag = null;
@@ -931,7 +1127,7 @@ const tagList = sk => {
 };
 function tipSkill(sk) {
   if (sk.spec && !known(sk)) return tipLocked(sk);
-  if (sk.talent) return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">Especialización · ranura 3</div></div></div><div class="tl">${sk.s}</div><div class="tf"><span>Se modifica en <kbd>N</kbd> Talentos</span></div>`;
+  if (sk.talent) return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">${sk.grantBy ? `Activa de clase (talento ${sk.grantBy}) · ${CAT_NAME[sk.cat]} · ranura 2` : 'Especialización · ranura 3'}</div></div></div><div class="tl">${sk.s}</div><div class="tf"><span>Se modifica en <kbd>N</kbd> Talentos</span></div>`;
   const r = rankOf(sk), nxtLv = sk.req + 8 * r;
   const rows = [];
   if (sk.coef) rows.push(`<tr><td>Daño</td><td>${pct(sk, r)} %${r < 5 ? ` <span class="nx">→ ${pct(sk, r + 1)} %</span>` : ''}</td></tr>`);
@@ -1149,6 +1345,10 @@ CATALOG.maga = [
     M:{ n:'Burbuja Estable', s:'Dura 8 → 10 s.', k:'durS 2' },
     A:{ n:'Barrera Gélida', r:'CTRL', s:'Se vuelve de Hielo: al romperse congela 1,5 s a 3 m.', k:'★elem frost · ★power v_reactiva (absorbe a Armadura de Hielo)' },
     B:{ n:'Coraza Arcana', r:'UNI', s:'Mientras aguanta, +15 % de daño de hechizos.', k:'★power v_coraza_arcana' } },
+  // — activas de clase que se eligen en un nodo de elección del árbol de clase (ranura 2) —
+  { id:'m_t_bloque', n:'Bloque de Hielo', cat:'defense', req:13, talent:true, grantBy:'c11', elem:'frost', cd:90, icon:'talents/maga-clase-c12.webp', s:'Inmune 4 s, sin moverte; esquiva para romperlo.' },
+  { id:'m_t_inversion', n:'Inversión del Tiempo', cat:'defense', req:14, talent:true, grantBy:'c17', elem:'arcane', cd:60, icon:'talents/maga-clase-c12.webp', s:'Vuelves a tu vida y lugar de hace 5 s.' },
+  { id:'m_t_contrahechizo', n:'Contrahechizo', cat:'utility', req:16, talent:true, grantBy:'c22', elem:'arcane', cd:18, icon:'talents/maga-clase-c5.webp', s:'Interrumpe a 12 m y silencia 3 s.' },
   // — KIT DEL PIROMANTE (solo con la especialización; Nv10–15) —
   { id:'p_llamarada', n:'Llamarada', cat:'spec', req:10, spec:'piromante', elem:'fire', coef:1.5, cost:25, cd:8, icon:'talents/maga-piromante-s0.webp', s:'Cono de fuego de 7 m que detona las Quemaduras (60 %).',
     M:{ n:'Llama Ancha', s:'Cono 70 → 90°.', k:'★set{angle:90}' },
@@ -1194,7 +1394,7 @@ function renderBookMaga() {
   const book = $('#book'); book.innerHTML = '';
   const all = skills(), sp = curSpec();
   const add = (cls, html) => { const d = document.createElement('div'); d.className = 'sec full osec ' + cls; d.innerHTML = html; book.appendChild(d); return d; };
-  const base = all.filter(s => !s.spec).sort(byCat);
+  const base = all.filter(s => !s.spec && (!s.grantBy || known(s))).sort(byCat);
   const s1 = add('base', `<div class="sec-h"><img src="${A}ui/res_mana.webp" alt="">Kit base · Maga<span class="n">${base.filter(known).length}/${base.length} · fuego, hielo y arcano</span></div><div class="tiles"></div>`);
   base.forEach(sk => s1.querySelector('.tiles').appendChild(tileEl(sk)));
   let kn = base.filter(known).length, tot = base.length;
@@ -1252,309 +1452,532 @@ function tipInnate() {
     (S.alt ? '<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> spec.innate { mod: { bola_fuego: { splashAdd: 2.5 } } } · el banco del Piromante no cambia (3,5)</div>' : '');
 }
 
-// ---------- TALENTOS de la Maga (solo pasivas; mismos números que el doc §4) ----------
+// ===== Paso 2g v2 · Talentos de la Maga estilo WoW (fuente única: mockup + tablas del doc) =====
+// Nodo: { id, n (nombre), t: p|c|k|f|x (pasiva|elección|clave|final|ápice), tag: 'num'|'mec', r, c, max, req[],
+//         d(r) → efecto en el rango r, opts:[{k,n,d,tag,role,act}], win ('A gana en … · B gana en …'),
+//         touch:[skillIds], fire:true (todo el Fuego), impl, icon, arch (arquetipo del Piromante) }
+// Puertas (fila: puntos gastados en las filas de ARRIBA): clase r4=8, r7=20 · especialización r4=8, r7=20, r9 (ápice)=25 y Nv35.
+const I = id => `talents/maga-${id}.webp`;
 const n1 = v => String(+(+v).toFixed(2)).replace('.', ',');
-const TI = id => `talents/maga-${id}.webp`;
-const FIRE_IDS = ['m_dardo', 'bola_fuego', 'p_llamarada', 'm_estela_ignea', 'meteoro', 'm_u_supernova'];
-const TAL2 = {
+const TALENTS_V2 = {
+  pts: { cls: 31, spec: 31, hero: 13 },
+  gates: { cls: [{ row: 4, need: 8 }, { row: 7, need: 22 }], spec: [{ row: 4, need: 8 }, { row: 7, need: 20 }, { row: 9, need: 25, level: 35 }] },
+  // ---------------------------------------------------------------- CLASE
   cls: [
-    { id:'c1', name:'Intelecto Arcano', icon:TI('clase-c1'), t:'p', r:0, c:1.5, max:2, d:r => `+${4 * r} % de daño de hechizos`, adv:'mod @all { dmg: 4 } · existe' },
-    { id:'c2', name:'Escudo Prismático', icon:TI('clase-c7'), t:'p', r:1, c:0.5, max:2, req:['c1'], d:r => `−${10 * r} % de daño recibido con la Barrera activa`, touch:['m_barrera'], adv:'tv.barrierDr 10 · existe (era c7)' },
-    { id:'c3', name:'Reflejos Arcanos', icon:TI('clase-c3'), t:'p', r:1, c:2.5, max:2, req:['c1'], d:r => `Parpadeo: −${n1(1.5 * r)} s de enfriamiento`, touch:['m_parpadeo'], adv:'mod m_parpadeo { cdr: 12.5 } · claves existentes' },
-    { id:'c4', name:'Mente Afilada', icon:TI('clase-c4'), t:'p', r:2, c:0, max:3, req:['c2'], d:r => `+${2 * r} % de probabilidad de crítico`, adv:'stats { crit: 2 } · existe' },
-    { id:'c5', name:'Ralentizar o Disrupción', short:'Ralentizar / Disrupción', icon:TI('clase-c5'), t:'c', r:2, c:1.5, max:1, req:['c2', 'c3'], opts:[
-      { k:'A', name:'Ralentizar', d:'Cada 8 s, tu siguiente hechizo ralentiza 50 % 4 s', adv:'power m_ralentizar · existe' },
-      { k:'B', name:'Disrupción', d:'Cada 10 s, tu siguiente Dardo interrumpe y silencia 3 s', touch:['m_dardo'], adv:'power m_disrupcion · NUEVO (lógica de m_t_contrahechizo)' } ] },
-    { id:'c6', name:'Reservas Profundas', icon:TI('clase-c6'), t:'p', r:2, c:3, max:2, req:['c3'], d:r => `+${8 * r} % de maná máximo`, adv:'stats { mpPct: 8 } · existe' },
-    { id:'c7', name:'Piel de Maná', icon:TI('clase-c2'), t:'p', r:3, c:0.5, max:2, req:['c4', 'c5'], d:r => `Con más del 50 % de maná, −${5 * r} % de daño recibido`, adv:'tv.drHighMana 5 · existe (sale de Arcanista s8)' },
-    { id:'c8', name:'Presencia Mental', icon:TI('clase-c8'), t:'p', r:3, c:2.5, max:2, req:['c5', 'c6'], d:r => `−${4 * r} % de enfriamiento de tus habilidades`, adv:'stats { cdr: 4 } · existe' },
-    { id:'c9', name:'Ritmo Arcano', icon:TI('clase-c9'), t:'p', r:4, c:0, max:2, req:['c7'], d:r => `Críticos del Dardo: −${n1(0.25 * r)} s a Parpadeo y Barrera`, touch:['m_dardo', 'm_parpadeo', 'm_barrera'], adv:'tv.dartCritCdr 0,25 · NUEVO (como critFireCdr)' },
-    { id:'c10', name:'Flujo de Maná', icon:TI('clase-c10'), t:'p', r:4, c:1.5, max:3, req:['c7', 'c8'], d:r => `+${r} de maná al golpear`, adv:'stats { mph: 1 } · existe' },
-    { id:'c11', name:'Celeridad', icon:TI('clase-c11'), t:'p', r:4, c:3, max:2, req:['c8'], d:r => `+${4 * r} % de velocidad de lanzamiento`, adv:'stats { aspdPct: 4 } · existe' },
-    { id:'c12', name:'Bloque de Hielo o Escudo de Maná', short:'Bloque / Escudo de Maná', icon:TI('clase-c12'), t:'c', r:5, c:0.5, max:1, req:['c9', 'c10'], opts:[
-      { k:'A', name:'Bloque de Hielo', d:'Bajo el 25 % de vida: hielo 2 s, inmune (cada 90 s)', adv:'power m_bloque_auto · NUEVO (usa el comportamiento m_t_bloque)' },
-      { k:'B', name:'Escudo de Maná', d:'El 20 % del daño recibido lo paga tu maná', adv:'power m_escudo_mana · NUEVO (④ onDamaged)' } ] },
-    { id:'c13', name:'Erudición', icon:TI('clase-c13'), t:'p', r:5, c:2.5, max:2, req:['c10', 'c11'], d:r => `+${3 * r} % de daño a élites · +${6 * r} % de experiencia`, adv:'tv.eliteDmg 3 · stats { xpPct: 6 } · existe' },
-    { id:'c14', name:'Maestría Arcana', icon:TI('clase-c14'), t:'p', r:6, c:1.5, max:1, req:['c12', 'c13'], d:() => 'Hechizos de más de 20 de maná: −15 % de coste', adv:'tv.costRedBig { pct: 15, over: 20 } · existe' },
-    { id:'c15', name:'Aura de Intelecto', icon:TI('clase-c15'), t:'k', r:7, c:1.5, max:1, req:['c14'], d:() => 'Grupo a 15 m: +5 % de daño y +10 % de maná', adv:'power m_aura_intelecto · existe' },
+    { id:'c1', n:'Reservas Profundas', t:'p', tag:'num', r:0, c:1, max:2, d:r=>`+${15*r} % de maná máximo`, icon:I('clase-c6'), impl:'stats.mpPct · existe' },
+    { id:'c2', n:'Intelecto Arcano', t:'p', tag:'num', r:0, c:3, max:2, d:r=>`+${6*r} % de daño de hechizos`, icon:I('clase-c1'), impl:'mod @all dmg · existe' },
+    { id:'c3', n:'Reflejos Arcanos', t:'p', tag:'num', r:0, c:5, max:2, d:r=>`Parpadeo: −${2*r} s de enfriamiento`, touch:['m_parpadeo'], icon:I('clase-c3'), impl:'mod m_parpadeo cdr · existe' },
+    { id:'c4', n:'Escudo Prismático', t:'p', tag:'num', r:1, c:0, max:3, req:['c1'], d:r=>`−${8*r} % de daño recibido con la Barrera activa`, touch:['m_barrera'], icon:I('clase-c7'), impl:'tv.barrierDr · existe' },
+    { id:'c5', n:'Dardo: Certero o Sifón', t:'c', tag:'mec', r:1, c:2, max:1, req:['c1','c2'], touch:['m_dardo'], icon:I('clase-c4'), opts:[
+      { k:'A', n:'Dardo Certero', d:'Cada 4.º Dardo Arcano es crítico seguro', role:'UNI', impl:'power m_dardo_certero · NUEVO' },
+      { k:'B', n:'Dardo Sifón', d:'Si el Dardo mata: +6 de maná y −1 s a tus gastadoras', role:'AREA', impl:'power m_dardo_sifon · NUEVO' } ],
+      win:'A gana en UNI (un crítico seguro cada 4,4 s). B gana en ÁREA×5 (con la manada muriendo, ≈1 gastadora extra cada 8 s)' },
+    { id:'c6', n:'Bola: Núcleo u Onda', t:'c', tag:'num', r:1, c:4, max:1, req:['c2','c3'], touch:['bola_fuego'], icon:I('piromante-s2'), opts:[
+      { k:'A', n:'Núcleo Denso', d:'Bola de Fuego: +30 % de daño del impacto directo', role:'UNI', impl:'mod bola_fuego dmgDirect · NUEVO (clave)' },
+      { k:'B', n:'Onda Expansiva', d:'Bola de Fuego: +35 % de daño de la explosión', role:'AREA', impl:'mod bola_fuego splashPct · NUEVO (clave)' } ],
+      win:'A gana en UNI. B gana en ÁREA×5 (la explosión es la mayor parte del daño contra 5)' },
+    { id:'c7', n:'Paso Fugaz', t:'p', tag:'mec', r:1, c:6, max:1, req:['c3'], d:()=>'Tras Parpadeo: +30 % de velocidad de movimiento 3 s', touch:['m_parpadeo'], icon:I('clase-c11'), impl:'power m_paso_fugaz · NUEVO (afterCast + addBuff)' },
+    { id:'c8', n:'Piel de Maná', t:'p', tag:'num', r:2, c:1, max:2, req:['c4','c5'], d:r=>`Con más del 50 % de maná: −${8*r} % de daño recibido`, icon:I('clase-c2'), impl:'tv.drHighMana · existe' },
+    { id:'c9', n:'Nova: Congelante o Cortante', t:'c', tag:'mec', r:2, c:3, max:1, req:['c5','c6'], touch:['nova_hielo'], icon:I('crionte-s2'), opts:[
+      { k:'A', n:'Nova Congelante', d:'Nova de Hielo congela 1 s a los que no son jefes (1 vez cada 8 s)', role:'CTRL', impl:'power m_nova_congelante · NUEVO (applyCC freeze)' },
+      { k:'B', n:'Nova Cortante', d:'Nova de Hielo: +40 % de daño; ralentiza 1 s menos', role:'AREA', impl:'mod nova_hielo dmg/slow · claves existentes' } ],
+      win:'A gana en CONTROL y TTD+ (8–12 % del tiempo con control duro). B gana en ÁREA×5' },
+    { id:'c10', n:'Ralentizar o Disrupción', t:'c', tag:'mec', r:2, c:5, max:1, req:['c6','c7'], icon:I('clase-c5'), opts:[
+      { k:'A', n:'Ralentizar', d:'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s', role:'CTRL', impl:'power m_ralentizar · existe' },
+      { k:'B', n:'Disrupción', d:'Cada 10 s, tu siguiente Dardo interrumpe y silencia 3 s (jefes: +20 de stagger)', role:'UNI', touch:['m_dardo'], impl:'power m_disrupcion · NUEVO (lógica de m_t_contrahechizo)' } ],
+      win:'A gana en CONTROL y TTD+ contra manadas. B gana contra jefes con lanzamientos (+2 Quebrantados/min) y élites hechiceros' },
+    { id:'c11', n:'Bloque de Hielo o Aguante', t:'c', tag:'mec', r:3, c:0, max:1, req:['c8'], icon:I('clase-c12'), opts:[
+      { k:'A', n:'Bloque de Hielo', d:'ACTIVA (ranura 2): inmune 4 s, sin moverte; 90 s', role:'AGU', act:'m_t_bloque', impl:'activa m_t_bloque · existe' },
+      { k:'B', n:'Aguante Arcano', d:'Un golpe letal te deja con 1 de vida y una Barrera gratis (cada 120 s)', role:'AGU', impl:'power m_aguante · NUEVO (onLethal)' } ],
+      win:'A gana contra golpes anunciados (jefes) si la pones en la 2. B gana sin ocupar ranura (deja la 2 para una gastadora): mejor UNI con seguro' },
+    { id:'c12', n:'Flujo de Maná', t:'p', tag:'num', r:3, c:2, max:2, req:['c8','c9'], d:r=>`+${2*r} de maná al golpear`, icon:I('clase-c10'), impl:'stats.mph · existe' },
+    { id:'c13', n:'Mente Afilada', t:'p', tag:'num', r:3, c:4, max:2, req:['c9','c10'], d:r=>`+${5*r} % de probabilidad de crítico`, icon:I('clase-c4'), impl:'stats.crit · existe' },
+    { id:'c14', n:'Parpadeo: Runa o Reparo', t:'c', tag:'mec', r:3, c:6, max:1, req:['c10'], touch:['m_parpadeo'], icon:I('clase-c3'), opts:[
+      { k:'A', n:'Runa de Escarcha', d:'Al salir de Parpadeo dejas una runa: ralentiza un 50 % 3 s', role:'CTRL', impl:'power m_runa · NUEVO (spawnField zona)' },
+      { k:'B', n:'Parpadeo Reparador', d:'Parpadeo te cura un 8 % y quita las ralentizaciones', role:'AGU', impl:'power m_parpadeo_cura · NUEVO (g.heal)' } ],
+      win:'A gana en CONTROL (escapar de cuerpo a cuerpo). B gana en TTD+' },
+    { id:'c15', n:'Escudo de Maná o Mente Clara', t:'c', tag:'mec', r:4, c:1, max:1, req:['c11','c12'], icon:I('arcanista-s8'), opts:[
+      { k:'A', n:'Escudo de Maná', d:'El 20 % del daño que recibes lo paga tu maná', role:'AGU', impl:'power m_escudo_mana · NUEVO (④ onDamaged)' },
+      { k:'B', n:'Mente Clara', d:'+30 % de regeneración de maná; a maná lleno, +10 % de daño', role:'UNI', impl:'stats regen + tv.highManaDmg · existe' } ],
+      win:'A gana en TTD+ (+15–20 %). B gana en UNI (+6–8 %: más gastadoras)' },
+    { id:'c16', n:'Armonía o Pureza Elemental', t:'k', tag:'mec', r:4, c:3, max:1, req:['c12','c13'], icon:I('clase-c9'), opts:[
+      { k:'A', n:'Armonía Elemental', d:'Cambiar de elemento entre hechizos: +8 % de daño 5 s (hasta ×3)', role:'UNI', impl:'power m_armonia · NUEVO' },
+      { k:'B', n:'Pureza Elemental', d:'3 hechizos seguidos del mismo elemento: +15 % de daño de ese elemento 6 s', role:'AREA', impl:'power m_pureza · NUEVO' } ],
+      win:'A gana con kits mezclados (Dardo arcano + Fuego + Nova): +16–24 %. B gana con kits puros (Saeta Ígnea + Fuego): +15 % casi permanente. Une el árbol con la FORJA' },
+    { id:'c17', n:'Inversión o Anclaje', t:'c', tag:'mec', r:4, c:5, max:1, req:['c13','c14'], icon:I('clase-c12'), opts:[
+      { k:'A', n:'Inversión del Tiempo', d:'ACTIVA (ranura 2): vuelves a tu vida y lugar de hace 5 s; 60 s', role:'AGU', act:'m_t_inversion', impl:'activa m_t_inversion · existe' },
+      { k:'B', n:'Anclaje Temporal', d:'Al bajar del 30 %: −30 % de daño recibido y +50 % de velocidad 4 s (60 s)', role:'AGU', impl:'power m_anclaje · NUEVO (onDamaged)' } ],
+      win:'A gana contra picos de daño (jefes). B gana contra manadas (daño constante) y sin ocupar ranura' },
+    { id:'c18', n:'Barrera Reforzada', t:'p', tag:'num', r:5, c:0, max:2, req:['c15'], d:r=>`La Barrera de Maná absorbe un ${25*r} % más`, touch:['m_barrera'], icon:I('clase-c2'), impl:'mod m_barrera shieldManaPct · claves' },
+    { id:'c19', n:'Barrera Resonante', t:'p', tag:'mec', r:5, c:2, max:1, req:['c15','c16'], d:()=>'Con la Barrera activa, cada Dardo devuelve 2 de maná y la refuerza un 2 % de vida', touch:['m_barrera','m_dardo'], icon:I('arcanista-s3'), hyb:'Defensa + Arcano', impl:'power m_barrera_resonante · NUEVO' },
+    { id:'c20', n:'Escarcha Arcana', t:'p', tag:'mec', r:5, c:4, max:1, req:['c16','c17'], d:()=>'Tus críticos ralentizan un 30 % 2 s; contra ralentizados, tus Dardos tienen +15 % de crítico', touch:['m_dardo'], icon:I('crionte-s5'), hyb:'Arcano + Control', impl:'power m_escarcha_arcana · NUEVO' },
+    { id:'c21', n:'Escarcha Tenaz', t:'p', tag:'num', r:5, c:6, max:1, req:['c17'], d:()=>'Tus ralentizaciones duran +2 s', icon:I('crionte-s3'), impl:'mod @all slow +2 · claves' },
+    { id:'c22', n:'Contrahechizo o Canalizador', t:'c', tag:'mec', r:6, c:1, max:1, req:['c18','c19'], icon:I('clase-c5'), opts:[
+      { k:'A', n:'Contrahechizo', d:'ACTIVA (ranura 2): interrumpe a 12 m y silencia 3 s; 18 s', role:'CTRL', act:'m_t_contrahechizo', impl:'activa m_t_contrahechizo · existe' },
+      { k:'B', n:'Canalizador', d:'Hechizos de más de 20 de maná: −20 % de coste', role:'UNI', impl:'tv.costRedBig · existe' } ],
+      win:'A gana en grupo y contra lanzadores. B gana en UNI (+5–7 %)' },
+    { id:'c23', n:'Ritmo Arcano', t:'p', tag:'mec', r:6, c:3, max:2, req:['c19','c20'], d:r=>`Los críticos del Dardo bajan ${n1(0.5*r)} s el enfriamiento de Parpadeo y Barrera`, touch:['m_dardo','m_parpadeo','m_barrera'], icon:I('clase-c9'), impl:'tv.dartCritCdr · NUEVO' },
+    { id:'c24', n:'Celeridad', t:'p', tag:'num', r:6, c:5, max:2, req:['c20','c21'], d:r=>`+${7*r} % de velocidad de lanzamiento`, icon:I('clase-c11'), impl:'stats.aspdPct · existe' },
+    // penúltimos (fila 7): potentes por sí solos
+    { id:'c25', n:'Cristal de Barrera', t:'p', tag:'mec', r:7, c:0, max:3, req:['c22'], d:r=>`Al romperse, la Barrera estalla: empuja 3 m, ralentiza 40 % 2 s y te devuelve un ${10*r} % de maná`, touch:['m_barrera'], icon:I('clase-c7'), impl:'power m_cristal · NUEVO (onShieldBreak)' },
+    { id:'c26', n:'Torrente de Maná', t:'p', tag:'mec', r:7, c:3, max:3, req:['c23'], d:r=>`Gastar 60 de maná en 3 s te da Sobrecarga 4 s: +${4+8*r} % de daño`, icon:I('clase-c14'), impl:'power m_torrente · NUEVO (⑪ onResource)' },
+    { id:'c27', n:'Imagen Arcana', t:'p', tag:'mec', r:7, c:6, max:3, req:['c24'], d:r=>`Parpadeo deja una imagen ${2+r} s que provoca a los enemigos a 6 m`, touch:['m_parpadeo'], icon:I('arcanista-s14'), impl:'power m_imagen · NUEVO (g.forceTarget)' },
+    // finales (fila 8): un jugador llega a UNO
+    { id:'c28', n:'Bastión Arcano', t:'f', tag:'mec', r:8, c:0, max:3, req:['c25'], d:r=>`La Barrera no caduca: dura hasta romperse y se recarga 20 s después. Mientras aguanta, tus hechizos cuestan un ${10*r} % menos`, touch:['m_barrera'], icon:I('clase-c15'), impl:'power m_bastion · NUEVO', final:'Defensa' },
+    { id:'c29', n:'Archimaga', t:'f', tag:'mec', r:8, c:3, max:3, req:['c26'], d:r=>`Cada 4.ª gastadora se lanza dos veces (la segunda al ${20+20*r} %) sin coste`, icon:I('clase-c1'), impl:'power m_archimaga · NUEVO (eco por el canal)', final:'Arcano' },
+    { id:'c30', n:'Paso del Vacío', t:'f', tag:'mec', r:8, c:6, max:3, req:['c27'], d:r=>`Tras Parpadeo, tu siguiente gastadora no gasta enfriamiento y hace +${15*r} %`, touch:['m_parpadeo'], icon:I('arcanista-x3'), impl:'power m_vacio · NUEVO', final:'Movilidad' },
   ],
+  // ---------------------------------------------------------------- PIROMANTE
   spec: [
-    { id:'s0', name:'Ignición', icon:TI('piromante-s0'), t:'k', r:0, c:1.5, max:1, free:true, d:() => 'Tus golpes de Fuego queman: 60 % del golpe en 4 s', fire:true, adv:'power p_ignicion · existe · ya NO concede Llamarada (está en el libro)' },
-    { id:'s1', name:'Brasas', icon:TI('piromante-s3'), t:'p', r:1, c:0.5, max:2, req:['s0'], d:r => `La Quemadura dura +${r} s`, adv:'tv.burnDur 1 · existe (era s3)' },
-    { id:'s2', name:'Mecha Corta', icon:TI('piromante-s2'), t:'p', r:1, c:2.5, max:2, req:['s0'], d:r => `Bola de Fuego: −${10 * r} % de enfriamiento`, touch:['bola_fuego'], adv:'mod bola_fuego { cdr: 10 } · existe (era «Combustión Rápida»)' },
-    { id:'s3', name:'Llama Persistente', icon:TI('piromante-s11'), t:'p', r:2, c:0, max:2, req:['s1'], d:r => `+${8 * r} % de daño de Quemadura`, adv:'tv.burnPct 8 · existe (era s11)' },
-    { id:'s4', name:'Llamarada Avivada', icon:TI('piromante-s4'), t:'p', r:2, c:1.5, max:1, req:['s1', 's2'], d:() => 'Llamarada detona el 100 % y te da 25 de Calor', touch:['p_llamarada'], adv:'power p_llamarada_avivada · existe' },
-    { id:'s5', name:'Calor Abrasador', icon:TI('piromante-s5'), t:'p', r:2, c:3, max:3, req:['s2'], d:r => `+${4 * r} % de crítico contra enemigos en llamas`, adv:'tv.burningCrit 4 · existe' },
-    { id:'s6', name:'Propagación o Brasa Profunda', short:'Propagación / Brasa', icon:TI('piromante-s6'), t:'c', r:3, c:0.5, max:1, req:['s3', 's4'], opts:[
-      { k:'A', name:'Propagación', d:'Al morir en llamas, su Quemadura salta a 2 cercanos', adv:'power p_propagacion · existe' },
-      { k:'B', name:'Brasa Profunda', d:'La Quemadura se acumula hasta 3 veces (jefes)', adv:'power p_acumular · existe (era «Concentración»)' } ] },
-    { id:'s7', name:'Pira', icon:TI('piromante-s7'), t:'p', r:3, c:2.5, max:2, req:['s4', 's5'], d:r => `Meteoro deja un charco de fuego ${n1(0.4 * r)} s`, touch:['meteoro'], adv:'mod meteoro { zone: 1, zoneDur: 0.4 } · existe' },
-    { id:'s8', name:'Fuego Interior', icon:TI('piromante-s8'), t:'p', r:4, c:0, max:2, req:['s6'], d:r => `Matar a un enemigo en llamas te cura un ${2 * r} %`, adv:'tv.burnKillHeal 2 · existe' },
-    { id:'s9', name:'Combustión', icon:TI('piromante-s9'), t:'k', r:4, c:1.5, max:1, req:['s6', 's7'], d:() => 'Al gastar Ignición Total: 3 s de Fuego siempre crítico', touch:['bola_fuego', 'meteoro'], adv:'power p_combustion · existe + afterCast NUEVO (si cast.prof.ignition → buff 3 s) · ya NO es activa' },
-    { id:'s10', name:'Ceniza Ardiente', icon:TI('piromante-s10'), t:'p', r:4, c:3, max:2, req:['s7'], d:r => `+${10 * r} % de daño de Meteoro y Supernova`, touch:['meteoro', 'm_u_supernova'], adv:'mod meteoro / m_u_supernova { dmg: 10 } · existe' },
-    { id:'s11', name:'Combustible', icon:TI('piromante-s15'), t:'p', r:5, c:0.5, max:2, req:['s8', 's9'], d:r => `+${3 * r} de maná por enemigo en llamas que muere`, adv:'tv.burnKillMana 3 · existe (era s15)' },
-    { id:'s12', name:'Pirotecnia', icon:TI('piromante-s12'), t:'p', r:5, c:2.5, max:2, req:['s9', 's10'], d:r => `Cada crítico: −${n1(0.5 * r)} s a tus enfriamientos de Fuego`, fire:true, adv:'tv.critFireCdr 0,5 · existe (no reduce la definitiva)' },
-    { id:'s13', name:'Fénix o Escudo de Llamas', short:'Fénix / Escudo de Llamas', icon:TI('piromante-s13'), t:'c', r:6, c:0, max:1, req:['s11'], opts:[
-      { k:'A', name:'Fénix', d:'Al morir renaces con 50 % de vida (cada 2 min)', adv:'power p_fenix · existe' },
-      { k:'B', name:'Escudo de Llamas', d:'Quien te pega cuerpo a cuerpo arde; −5 % de daño recibido', adv:'power p_escudo_llamas · NUEVO + tv.dmgReduc 5 (Muro de Fuego pasa a variante de Estela Ígnea)' } ] },
-    { id:'s14', name:'Conflagración', icon:TI('piromante-s14'), t:'k', r:6, c:1.5, max:1, req:['s11', 's12'], d:() => 'Al matar: explosión de fuego del 270 %', adv:'power m_conflag · existe' },
-    { id:'s15', name:'Rastro Avivado', icon:TI('piromante-s1'), t:'p', r:6, c:3, max:2, req:['s12'], d:r => `Estela Ígnea: +${50 * r} % de daño y −${r} s de enfriamiento`, touch:['m_estela_ignea'], adv:'mod m_estela_ignea { dmg: 50, cdr: 10 } · claves existentes' },
-    { id:'s16', name:'Supernova Abrasadora', icon:TI('piromante-s16'), t:'p', r:7, c:0.7, max:2, req:['s13', 's14'], d:r => `Supernova: Quemadura +${30 * r} %`, touch:['m_u_supernova'], adv:'tv.supernovaBurn 30 · existe' },
-    { id:'s17', name:'Ola de Calor', icon:TI('piromante-s17'), t:'p', r:7, c:2.3, max:2, req:['s14', 's15'], d:r => `+${20 * r} % de radio de tu Fuego`, fire:true, adv:'mod @fire { radius: 20 } · existe' },
-    { id:'x1', name:'Corazón del Sol', icon:TI('piromante-x1'), t:'x', r:8, c:0.5, max:1, req:['s16', 's17'], d:() => 'Una Quemadura que termina explota con el 30 %', adv:'power p_corazon_sol (⑬ onDotEnd) · existe' },
-    { id:'x2', name:'Sol Naciente', icon:TI('piromante-x2'), t:'x', r:8, c:1.5, max:2, req:['x1'], d:r => `+${5 * r} % de daño de Fuego a los que ya estallaron`, adv:'tv.explodedDmg 5 · existe' },
-    { id:'x3', name:'Nova Solar', icon:TI('piromante-x3'), t:'x', r:8, c:2.5, max:1, req:['x2'], d:() => 'Cada 20 explosiones, Supernova sola y gratis', touch:['m_u_supernova'], adv:'power p_nova_solar · existe' },
+    { id:'s0', n:'Ignición', t:'k', tag:'mec', r:0, c:3, max:1, free:true, d:()=>'Tus golpes de Fuego queman (60 % en 4 s) y la Bola de Fuego explota al 350 %', fire:true, icon:I('piromante-s0'), impl:'power p_ignicion · existe (+ modifyResolve de la Bola)' },
+    { id:'s1', n:'Brasas', t:'p', tag:'num', r:1, c:1, max:3, req:['s0'], d:r=>`La Quemadura dura +${r} s`, arch:'brasa', icon:I('piromante-s3'), impl:'tv.burnDur · existe' },
+    { id:'s2', n:'Calor Abrasador', t:'p', tag:'num', r:1, c:3, max:3, req:['s0'], d:r=>`+${5*r} % de crítico contra enemigos en llamas`, arch:'ignicion', icon:I('piromante-s5'), impl:'tv.burningCrit · existe' },
+    { id:'s3', n:'Mecha Corta', t:'p', tag:'num', r:1, c:5, max:3, req:['s0'], d:r=>`Bola de Fuego: −${10*r} % de enfriamiento`, touch:['bola_fuego'], arch:'cataclismo', icon:I('piromante-s2'), impl:'mod bola_fuego cdr · existe' },
+    { id:'s4', n:'Llama Persistente', t:'p', tag:'num', r:2, c:0, max:2, req:['s1'], d:r=>`+${15*r} % de daño de Quemadura`, arch:'brasa', icon:I('piromante-s11'), impl:'tv.burnPct · existe' },
+    { id:'s5', n:'Chispas', t:'p', tag:'mec', r:2, c:2, max:1, req:['s1','s2'], d:()=>'Tus críticos sobre enemigos en llamas renuevan su Quemadura y te dan 5 de Calor', arch:'brasa+ignicion', hyb:'Brasa + Ignición', icon:I('piromante-s12'), impl:'power p_chispas · NUEVO' },
+    { id:'s6', n:'Combustible Volátil', t:'p', tag:'mec', r:2, c:4, max:1, req:['s2','s3'], d:()=>'Con Ignición Total, la Bola explota en 4 m y el Meteoro cae al instante', touch:['bola_fuego','meteoro'], arch:'ignicion+cataclismo', hyb:'Ignición + Cataclismo', icon:I('piromante-s10'), impl:'power p_volatil · NUEVO (modifyResolve con prof.ignition)' },
+    { id:'s7', n:'Pira', t:'p', tag:'mec', r:2, c:6, max:2, req:['s3'], d:r=>`Meteoro deja un charco de fuego ${1+r} s (40 %/s)`, touch:['meteoro'], arch:'cataclismo', icon:I('piromante-s7'), impl:'mod meteoro zone · existe' },
+    { id:'s8', n:'Propagación o Brasa Profunda', t:'c', tag:'mec', r:3, c:1, max:1, req:['s4','s5'], arch:'brasa', icon:I('piromante-s6'), opts:[
+      { k:'A', n:'Propagación', d:'Si muere un enemigo en llamas, su Quemadura salta a 2 cercanos', role:'AREA', impl:'power p_propagacion · existe' },
+      { k:'B', n:'Brasa Profunda', d:'La Quemadura se acumula hasta 3 veces en el mismo enemigo', role:'UNI', impl:'power p_acumular · existe' } ],
+      win:'A gana en ÁREA×5 (la manada que muere enciende a la siguiente). B gana en UNI (×2,2 de daño de Quemadura contra el jefe). DEFINE la Brasa: Incendio o Brasa de Jefe' },
+    { id:'s9', n:'Llamarada: Avivada o Voraz', t:'c', tag:'mec', r:3, c:3, max:1, req:['s5','s6'], touch:['p_llamarada'], arch:'ignicion', icon:I('piromante-s4'), opts:[
+      { k:'A', n:'Llamarada Avivada', d:'Llamarada detona el 100 % de las Quemaduras y te da 25 de Calor', role:'UNI', impl:'power p_llamarada_avivada · existe' },
+      { k:'B', n:'Llamarada Voraz', d:'Si Llamarada detona 3 o más Quemaduras: −4 s de enfriamiento y 8 de Calor por enemigo', role:'AREA', impl:'power p_llamarada_voraz · NUEVO' } ],
+      win:'A gana en UNI (una Ignición Total extra cada ~25 s). B gana en ÁREA×5 (Llamarada cada 4 s y Calor al 100 en 2 lanzamientos)' },
+    { id:'s10', n:'Meteoro: Gemelo o Concentrado', t:'c', tag:'mec', r:3, c:5, max:1, req:['s6','s7'], touch:['meteoro'], arch:'cataclismo', icon:I('piromante-s10'), opts:[
+      { k:'A', n:'Meteoro Gemelo', d:'Cada 3.er Meteoro cae dos veces en el mismo sitio', role:'AREA', impl:'power p_meteoro_gemelo · NUEVO (eco por el canal)' },
+      { k:'B', n:'Meteoro Concentrado', d:'Meteoro: +50 % al enemigo más cercano al centro', role:'UNI', impl:'power p_meteoro_conc · NUEVO (condAdd)' } ],
+      win:'A gana en ÁREA×5 (+33 % de Meteoros). B gana en UNI. DEFINE el Cataclismo: barrido o martillo' },
+    { id:'s11', n:'Fuego Interior', t:'p', tag:'num', r:4, c:0, max:2, req:['s8'], d:r=>`Matar a un enemigo en llamas: te curas un ${2*r} % y ganas ${3*r} de maná`, arch:'brasa', icon:I('piromante-s8'), impl:'tv.burnKillHeal + burnKillMana · existen' },
+    { id:'s12', n:'Pirotecnia', t:'p', tag:'mec', r:4, c:2, max:2, req:['s8','s9'], d:r=>`Cada crítico de Fuego baja ${n1(0.5*r)} s tus enfriamientos de Fuego`, fire:true, arch:'ignicion', icon:I('piromante-s12'), impl:'tv.critFireCdr · existe' },
+    { id:'s13', n:'Ceniza Ardiente', t:'p', tag:'num', r:4, c:4, max:2, req:['s9','s10'], d:r=>`+${15*r} % de daño de Meteoro y Supernova`, touch:['meteoro','m_u_supernova'], arch:'cataclismo', icon:I('piromante-s10'), impl:'mod meteoro/supernova dmg · existe' },
+    { id:'s14', n:'Impacto Sísmico', t:'p', tag:'mec', r:4, c:6, max:1, req:['s10'], d:()=>'Meteoro ralentiza un 50 % 3 s a los que sobreviven y suma 20 de stagger a jefes', touch:['meteoro'], arch:'cataclismo', icon:I('piromante-s14'), impl:'mod meteoro slow + stagger · claves' },
+    { id:'s15', n:'Fénix o Escudo de Llamas', t:'c', tag:'mec', r:5, c:1, max:1, req:['s11','s12'], icon:I('piromante-s13'), opts:[
+      { k:'A', n:'Fénix', d:'Al morir renaces con el 50 % de vida (cada 2 min)', role:'AGU', impl:'power p_fenix · existe' },
+      { k:'B', n:'Escudo de Llamas', d:'Quien te pega cuerpo a cuerpo arde; −10 % de daño recibido', role:'AGU', impl:'power p_escudo_llamas · NUEVO' } ],
+      win:'A gana en contenido letal (Hardcore, jefe Pináculo). B gana en TTD+ contra manadas (+12–15 %)' },
+    { id:'s16', n:'Brasero', t:'p', tag:'mec', r:5, c:3, max:2, req:['s12','s13'], d:r=>`Con más de 50 de Calor: Quemaduras +${15+10*r} % y Meteoro +${10+5*r} %`, arch:'brasa+ignicion+cataclismo', hyb:'Los tres estilos (por el Calor)', icon:I('piromante-s1'), impl:'power p_brasero · NUEVO (cond con gaugeValue)' },
+    { id:'s17', n:'Estrellas Fugaces', t:'p', tag:'mec', r:5, c:5, max:2, req:['s13','s14'], d:r=>`Supernova suelta además ${1+2*r} Meteoros menores (40 %) en 3 s`, touch:['m_u_supernova','meteoro'], arch:'cataclismo', icon:I('piromante-s16'), impl:'power p_estrellas_fugaces · NUEVO' },
+    { id:'s18', n:'Brasa Errante', t:'p', tag:'mec', r:6, c:0, max:2, req:['s15'], d:r=>`Las Quemaduras que saltan conservan su daño y duración; +${r} salto${r > 1 ? 's' : ''}`, arch:'brasa', icon:I('piromante-s6'), impl:'power p_brasa_errante · NUEVO' },
+    { id:'s19', n:'Ignición Rápida', t:'p', tag:'mec', r:6, c:2, max:2, req:['s15','s16'], d:r=>`Cada golpe de Fuego da ${5+2*r} de Calor (antes 5)`, arch:'ignicion', icon:I('piromante-s5'), impl:'stat gaugeGain:calor · existe' },
+    { id:'s20', n:'Ola de Calor', t:'p', tag:'num', r:6, c:4, max:2, req:['s16','s17'], d:r=>`+${15*r} % de radio de tu Fuego`, fire:true, icon:I('piromante-s17'), impl:'mod @fire radius · existe' },
+    { id:'s21', n:'Estela Meteórica', t:'p', tag:'mec', r:6, c:6, max:1, req:['s17'], d:()=>'Al terminar Estela Ígnea, tu siguiente Meteoro cae allí al instante', touch:['m_estela_ignea','meteoro'], arch:'cataclismo', icon:I('piromante-s1'), impl:'power p_estela_meteorica · NUEVO' },
+    { id:'s22', n:'Brasa Viva', t:'p', tag:'mec', r:7, c:0, max:3, req:['s18'], d:r=>`Los enemigos en llamas se contagian: cada 1 s, el ${10+10*r} % de su Quemadura salta a otro a 2 m`, arch:'brasa', icon:I('piromante-s11'), impl:'power p_brasa_viva · NUEVO (onTick)' },
+    { id:'s23', n:'Combustión', t:'p', tag:'mec', r:7, c:3, max:3, req:['s19'], d:r=>`Al gastar Ignición Total: ${n1(1.5+r)} s en los que tu Fuego es siempre crítico`, touch:['bola_fuego','meteoro'], arch:'ignicion', icon:I('piromante-s9'), impl:'power p_combustion · existe (+ afterCast con prof.ignition)' },
+    { id:'s24', n:'Cráter', t:'p', tag:'mec', r:7, c:6, max:3, req:['s21'], d:r=>`Meteoro deja un cráter 4 s: dentro reciben +${10+5*r} % de Fuego y tu Bola explota dos veces`, touch:['meteoro','bola_fuego'], arch:'cataclismo', icon:I('piromante-s14'), impl:'power p_crater · NUEVO (campo)' },
+    { id:'s25', n:'Incendio Forestal', t:'f', tag:'mec', r:8, c:0, max:3, req:['s22'], d:r=>`Las Quemaduras se apilan sin límite de origen (máx. 5) y, al morir un enemigo en llamas, TODAS saltan a todos a 4 m${r > 1 ? `; +${20*(r-1)} % de daño de Quemadura` : ''}`, arch:'brasa', icon:I('piromante-x1'), impl:'power p_incendio · NUEVO', final:'Brasa' },
+    { id:'s26', n:'Combustión Perpetua', t:'f', tag:'mec', r:8, c:3, max:3, req:['s23'], d:r=>`En Combustión, cada crítico de Fuego da 4 de Calor; si llegas a 100, Combustión se alarga 3 s y lanza una Bola gratis${r > 1 ? `; +${15*(r-1)} % de daño crítico de Fuego` : ''}`, touch:['bola_fuego'], arch:'ignicion', icon:I('piromante-x2'), impl:'power p_perpetua · NUEVO', final:'Ignición' },
+    { id:'s27', n:'Lluvia de Fuego', t:'f', tag:'mec', r:8, c:6, max:3, req:['s24'], d:r=>`Con Ignición Total, el Meteoro cae 3 veces (100/60/60 %) y reinicia su enfriamiento si golpea a 3+${r > 1 ? `; +${15*(r-1)} % de daño de Meteoro` : ''}`, touch:['meteoro'], arch:'cataclismo', icon:I('piromante-x3'), impl:'power p_lluvia_fuego · NUEVO', final:'Cataclismo' },
+    { id:'s28', n:'Corazón del Sol', t:'x', tag:'mec', r:9, c:3, max:4, req:['s25','s26','s27'], d:r=>['Ignición Total detona las Quemaduras a 8 m (50 % de lo que les queda)', '…y matar a un élite te da 25 de Calor', '…e Ignición Total se activa a 80 de Calor', '…y cada 20 explosiones o detonaciones lanza Supernova sola y gratis'].slice(0, r).join(' '), fire:true, icon:I('piromante-x1'), impl:'power p_corazon_sol (rangos) · NUEVO sobre el existente' },
   ],
-  preset: {
-    cls: [['c1', 2], ['c3', 2], ['c2', 2], ['c4', 3], ['c5', 1, 'B'], ['c6', 2], ['c8', 2], ['c7', 2], ['c10', 3], ['c9', 2], ['c13', 2], ['c12', 1, 'A'], ['c11', 2], ['c14', 1], ['c15', 1]],
-    spec: [['s2', 2], ['s4', 1], ['s1', 2], ['s5', 3], ['s3', 2], ['s7', 2], ['s6', 1, 'A'], ['s9', 1], ['s10', 2], ['s12', 2], ['s14', 1], ['s11', 2], ['s17', 2], ['s16', 2], ['x1', 1], ['x2', 2], ['x3', 1]],
-  },
+  // ---------------------------------------------------------------- HÉROE (Paragon fase 1): 13 nodos; cada árbol, 2 especializaciones
+  hero: [
+    { id:'sol', n:'Señora del Sol', specs:['piromante','arcanista'], art:I('piromante-x1'), line:'Invoca soles arcanos que orbitan y castigan', nodes:[
+      { id:'h0', n:'Sol Arcano', t:'k', tag:'mec', r:0, c:1, max:1, d:()=>'Cada 3 gastadoras invocas un Sol Arcano: orbita 8 s y dispara 40 % del arma cada 1 s (Fuego y Arcano)', icon:I('piromante-x1') },
+      { id:'h1', n:'Fulgor', t:'p', tag:'num', r:1, c:0, max:1, req:['h0'], d:()=>'El Sol Arcano dura +4 s', icon:I('arcanista-s1') },
+      { id:'h2', n:'Sol Gemelo o Concentrado', t:'c', tag:'mec', r:1, c:1, max:1, req:['h0'], icon:I('arcanista-s0'), opts:[
+        { k:'A', n:'Sol Gemelo', d:'Hasta 2 Soles a la vez', role:'AREA' }, { k:'B', n:'Sol Concentrado', d:'El Sol dispara siempre a tu objetivo: +50 %', role:'UNI' } ], win:'A gana en ÁREA×5. B gana en UNI' },
+      { id:'h3', n:'Llamarada Solar', t:'p', tag:'mec', r:1, c:2, max:1, req:['h0'], d:()=>'Tus críticos aceleran los disparos del Sol un 50 % 2 s', icon:I('piromante-s5') },
+      { id:'h4', n:'Viento o Escudo Solar', t:'c', tag:'mec', r:2, c:0, max:1, req:['h1','h2'], icon:I('arcanista-s8'), opts:[
+        { k:'A', n:'Viento Solar', d:'Invocar un Sol empuja 2 m a los cercanos', role:'CTRL' }, { k:'B', n:'Escudo Solar', d:'Invocar un Sol te da un escudo del 8 % de vida', role:'AGU' } ], win:'A gana en CONTROL. B gana en TTD+' },
+      { id:'h5', n:'Alimento Estelar', t:'p', tag:'num', r:2, c:1, max:1, req:['h2'], d:()=>'Cada disparo del Sol te devuelve 2 de maná', icon:I('arcanista-s3') },
+      { id:'h6', n:'Mancha Solar', t:'p', tag:'mec', r:2, c:2, max:1, req:['h2','h3'], d:()=>'Los golpeados por el Sol reciben +10 % de daño de Fuego y Arcano 3 s', icon:I('piromante-s14') },
+      { id:'h7', n:'Eclipse', t:'p', tag:'mec', r:3, c:0, max:1, req:['h4','h5'], d:()=>'Cada 4.º Sol nace como Eclipse: dura el doble y dispara a 2 objetivos', icon:I('arcanista-x3') },
+      { id:'h8', n:'Corona Ígnea o Arcana', t:'c', tag:'mec', r:3, c:1, max:1, req:['h5'], icon:I('piromante-s0'), opts:[
+        { k:'A', n:'Corona Ígnea', d:'Los disparos del Sol aplican Quemadura y dan 3 de Calor', role:'AREA' }, { k:'B', n:'Corona Arcana', d:'Cada 3 disparos del Sol: 1 Carga Arcana', role:'UNI' } ], win:'A gana con Piromante. B gana con Arcanista (la opción se adapta a la especialización)' },
+      { id:'h9', n:'Órbita Ancha', t:'p', tag:'mec', r:3, c:2, max:1, req:['h5','h6'], d:()=>'El Sol orbita a 4 m y cada disparo golpea a 2 enemigos', icon:I('arcanista-s7') },
+      { id:'h10', n:'Solsticio', t:'p', tag:'num', r:4, c:0.5, max:1, req:['h7','h8'], d:()=>'+12 % de daño mientras tengas un Sol activo', icon:I('piromante-s17') },
+      { id:'h11', n:'Llamada del Sol', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['h8','h9'], d:()=>'Tu definitiva invoca 2 Soles al instante', touch:['m_u_supernova'], icon:I('piromante-s16') },
+      { id:'h12', n:'Corona del Sol', t:'f', tag:'mec', r:5, c:1, max:1, req:['h10','h11'], d:()=>'Con 2 Soles o un Eclipse, tus gastadoras hacen +25 % y cada Sol que termina estalla con el 200 %', icon:I('piromante-x3') },
+    ] },
+    { id:'termica', n:'Escarcha Ardiente', specs:['piromante','crionte'], art:I('crionte-x1'), line:'Choque térmico: el fuego y el hielo se rompen entre sí', nodes:[
+      { id:'k0', n:'Choque Térmico', t:'k', tag:'mec', r:0, c:1, max:1, d:()=>'Golpear con Fuego a un ralentizado (o con Hielo a uno en llamas) provoca un Choque: 120 % en 2 m (cada 4 s por enemigo)', icon:I('crionte-x1') },
+      { id:'k1', n:'Vapor', t:'p', tag:'mec', r:1, c:0, max:1, req:['k0'], d:()=>'El Choque ralentiza un 30 % 2 s (prepara el siguiente)', icon:I('crionte-s3') },
+      { id:'k2', n:'Choque Amplio o Profundo', t:'c', tag:'mec', r:1, c:1, max:1, req:['k0'], icon:I('crionte-s14'), opts:[
+        { k:'A', n:'Choque Amplio', d:'Radio del Choque 2 → 3,5 m', role:'AREA' }, { k:'B', n:'Choque Profundo', d:'+60 % al objetivo principal', role:'UNI' } ], win:'A gana en ÁREA×5. B gana en UNI' },
+      { id:'k3', n:'Termoclina', t:'p', tag:'mec', r:1, c:2, max:1, req:['k0'], d:()=>'Cada Choque te da 10 de Calor (Piromante) o 1 capa de Escarcha (Crionte)', icon:I('piromante-s5') },
+      { id:'k4', n:'Niebla o Ebullición', t:'c', tag:'mec', r:2, c:0, max:1, req:['k1','k2'], icon:I('crionte-s8'), opts:[
+        { k:'A', n:'Niebla Térmica', d:'Tras un Choque: −15 % de daño recibido 3 s', role:'AGU' }, { k:'B', n:'Ebullición', d:'Tras un Choque: +15 % de velocidad de lanzamiento 3 s', role:'UNI' } ], win:'A gana en TTD+. B gana en UNI' },
+      { id:'k5', n:'Hielo Ardiente', t:'p', tag:'mec', r:2, c:1, max:1, req:['k2'], d:()=>'Nova de Hielo también aplica Quemadura (40 %): con Piromante, la Nova provoca Choques sola', touch:['nova_hielo'], icon:I('crionte-s2') },
+      { id:'k6', n:'Fuego Helado', t:'p', tag:'mec', r:2, c:2, max:1, req:['k2','k3'], d:()=>'Tus Quemaduras ralentizan un 15 %', icon:I('piromante-s3') },
+      { id:'k7', n:'Choque en Cadena', t:'p', tag:'mec', r:3, c:0, max:1, req:['k4','k5'], d:()=>'Un Choque que mata provoca otro en el enemigo más cercano', icon:I('crionte-s14') },
+      { id:'k8', n:'Equilibrio o Desequilibrio', t:'c', tag:'mec', r:3, c:1, max:1, req:['k5'], icon:I('crionte-s0'), opts:[
+        { k:'A', n:'Equilibrio', d:'Alternar Fuego y Hielo: +10 % de daño', role:'UNI' }, { k:'B', n:'Desequilibrio', d:'Tras 3 hechizos de un elemento, el siguiente del otro provoca un Choque seguro', role:'AREA' } ], win:'A gana en UNI. B gana en ÁREA×5' },
+      { id:'k9', n:'Cristal Fundido', t:'p', tag:'mec', r:3, c:2, max:1, req:['k5','k6'], d:()=>'Los Congelados que mueren por Fuego estallan con el 80 %', icon:I('crionte-s9') },
+      { id:'k10', n:'Punto de Rocío', t:'p', tag:'num', r:4, c:0.5, max:1, req:['k7','k8'], d:()=>'Nova de Hielo: −25 % de enfriamiento', touch:['nova_hielo'], icon:I('crionte-s10') },
+      { id:'k11', n:'Térmica', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['k8','k9'], d:()=>'+5 % de crítico por cada Choque en los últimos 5 s (máx. 15 %)', icon:I('piromante-s5') },
+      { id:'k12', n:'Equilibrio Térmico', t:'f', tag:'mec', r:5, c:1, max:1, req:['k10','k11'], d:()=>'Cada 10 Choques: 6 s en los que todos tus golpes son de Fuego Y de Hielo a la vez (Calor, Quemadura, ralentización y capas)', icon:I('crionte-x3') },
+    ] },
+    { id:'teje', n:'Tejehechizos', specs:['crionte','arcanista'], art:I('arcanista-x1'), line:'Astillas arcanas que se clavan y estallan', sketch:true, nodes:[] },
+  ],
 };
-const T2G = { cls:[{ row:3, need:6 }, { row:5, need:12 }], spec:[{ row:3, need:6 }, { row:6, need:12 }, { row:8, need:17, level:40 }] };
-const KIND2 = { p:'Pasiva', k:'Nodo clave', c:'Elección A/B', x:'Ápice' };
-let T2 = { cls:{}, spec:{}, choice:{} };
-const T2V = { hover:null, chooser:false, gz:null, hl:null };
-const t2node = (w, id) => TAL2[w].find(n => n.id === id);
-const t2rank = (w, n) => n.free ? (curSpec() ? 1 : 0) : (T2[w][n.id] || 0);
-const t2earned = w => { const L = Math.min(S.lvl, 50); return w === 'spec' ? (L >= 10 ? Math.floor((L - 10) / 2) + 1 : 0) : (L >= 11 ? Math.floor((L - 11) / 2) + 1 : 0); };
-const t2spent = (w, below = 99) => TAL2[w].reduce((a, n) => a + (n.free || n.r >= below ? 0 : (T2[w][n.id] || 0)), 0);
-const t2left = w => t2earned(w) - t2spent(w);
-function t2gate(w, n) {
-  for (const g of T2G[w]) { if (n.r < g.row) continue; const h = t2spent(w, g.row);
+// BUILDS del Piromante (rangos por nodo; las elecciones en ch). Todas a Nv40+ (31/31) con héroe a Nv53 (13).
+const BUILDS_V2 = {
+  brasa: { n:'Incendio', arch:'Brasa', hero:'termica', heroCh:{ k2:'A', k4:'A', k8:'B' },
+    cls: { c1:2, c4:3, c5:1, c8:2, c11:1, c15:1, c19:1, c22:1, c25:3, c28:3, c2:2, c12:2, c9:1, c16:1, c18:2, c13:2, c3:1, c6:1, c10:1 },
+    clsCh: { c5:'B', c6:'B', c9:'B', c10:'A', c11:'B', c15:'A', c16:'B', c22:'B' },
+    spec: { s1:3, s4:2, s5:1, s8:1, s11:2, s15:1, s18:2, s22:3, s25:3, s28:4, s2:3, s9:1, s12:2, s16:2, s3:1 },
+    specCh: { s8:'A', s9:'B', s15:'B' } },
+  cataclismo: { n:'Lluvia de Fuego', arch:'Cataclismo', hero:'sol', heroCh:{ h2:'A', h4:'B', h8:'A' },
+    cls: { c2:2, c3:2, c6:1, c7:1, c10:1, c14:1, c17:1, c20:1, c24:2, c27:3, c30:3, c1:2, c5:1, c9:1, c12:2, c13:2, c16:1, c21:1, c23:2, c8:1 },
+    clsCh: { c5:'B', c6:'B', c9:'B', c10:'A', c14:'A', c16:'B', c17:'B' },
+    spec: { s3:3, s7:2, s6:1, s10:1, s13:2, s14:1, s17:2, s21:1, s24:3, s27:3, s28:4, s2:3, s9:1, s16:2, s20:2 },
+    specCh: { s9:'B', s10:'A' } },
+  ignicion: { n:'Combustión Perpetua', arch:'Ignición', hero:'sol', heroCh:{ h2:'B', h4:'B', h8:'A' },
+    cls: { c1:2, c2:2, c5:1, c6:1, c9:1, c12:2, c13:2, c16:1, c19:1, c23:2, c26:3, c29:3, c10:1, c17:1, c20:1, c4:2, c8:2, c15:1, c3:2 },
+    clsCh: { c5:'A', c6:'A', c9:'B', c10:'B', c16:'A', c17:'A', c15:'B' },
+    spec: { s2:3, s5:1, s9:1, s12:2, s16:2, s19:2, s23:3, s26:3, s28:4, s1:3, s4:1, s8:1, s15:1, s3:3, s6:1 },
+    specCh: { s8:'B', s9:'A', s15:'A' } },
+  hibrido: { n:'Brasa Ardiente', arch:'Híbrido Brasa-Ignición', hero:'termica', heroCh:{ k2:'B', k4:'B', k8:'A' },
+    cls: { c1:2, c2:2, c5:1, c6:1, c9:1, c12:2, c13:2, c16:1, c19:1, c23:2, c26:3, c29:3, c10:1, c17:1, c20:1, c4:2, c8:2, c15:1, c3:2 },
+    clsCh: { c5:'A', c6:'B', c9:'B', c10:'A', c16:'B', c17:'B', c15:'A' },
+    spec: { s1:3, s2:3, s4:2, s5:1, s8:1, s9:1, s11:2, s12:2, s15:1, s16:2, s18:2, s19:2, s22:3, s23:3, s3:1, s20:2 },
+    specCh: { s8:'A', s9:'A', s15:'B' } },
+};
+
+
+// ---------- TALENTOS de la Maga · v2 estilo WoW (docs/paso2g-maga-coherencia.md v2) ----------
+// Tres columnas: árbol de CLASE (31 puntos, Nv10–40) · PARAGON / árbol héroe (13, Nv41–53) · PIROMANTE (31, Nv10–40).
+// Datos: TALENTS_V2 / BUILDS_V2 (bloque de arriba, fuente única con las tablas del doc).
+const TV = TALENTS_V2;
+const KIND3 = { p:'Pasiva', c:'Elección', k:'Nodo clave', f:'FINAL de rama', x:'Ápice' };
+const ROLE3 = { UNI:'Un objetivo', AREA:'Área', CTRL:'Control', AGU:'Aguante' };
+const FIRE_IDS = ['m_dardo', 'bola_fuego', 'p_llamarada', 'm_estela_ignea', 'meteoro', 'm_u_supernova'];
+let T2 = { cls:{}, spec:{}, hero:{}, ch:{}, heroTree:'sol' };
+const T2V = { undo:[], loadout:'brasa', hl:null, chooser:false, gz:null, saved:[] };
+const HERO_AT = 41;
+const heroTreeOf = id => TV.hero.find(h => h.id === (id || T2.heroTree));
+const t3nodes = w => w === 'hero' ? heroTreeOf().nodes : TV[w];
+const t3node = (w, id) => t3nodes(w).find(n => n.id === id);
+const t3rank = (w, n) => n.free ? (curSpec() ? 1 : 0) : (T2[w][n.id] || 0);
+const t3earned = w => w === 'hero' ? Math.max(0, Math.min(13, S.lvl - HERO_AT + 1)) : Math.max(0, Math.min(31, S.lvl - 9));
+const t3spent = (w, below = 99) => t3nodes(w).reduce((a, n) => a + (n.free || n.r >= below ? 0 : (T2[w][n.id] || 0)), 0);
+const t3left = w => t3earned(w) - t3spent(w);
+const t3gates = w => TV.gates[w] || [];
+function t3gate(w, n) {
+  for (const g of t3gates(w)) { if (n.r < g.row) continue; const h = t3spent(w, g.row);
     if (h < g.need) return `Gasta ${g.need} puntos en las filas de arriba (${h}/${g.need})`;
-    if (g.level && S.lvl < g.level) return `Ápice: requiere nivel ${g.level}`; }
+    if (g.level && S.lvl < g.level) return `Requiere nivel ${g.level}`; }
   return null;
 }
-function t2req(w, n) {
+function t3req(w, n) {
   if (!n.req?.length) return null;
-  if (n.req.some(id => { const p = t2node(w, id); return p.free || (T2[w][id] || 0) >= p.max; })) return null;
-  return 'Requiere ' + n.req.map(id => t2node(w, id).name).join(' o ') + ' al máximo';
+  if (n.req.some(id => { const p = t3node(w, id); return p.free || (T2[w][id] || 0) >= p.max; })) return null;
+  return 'Requiere ' + n.req.map(id => t3node(w, id).n).join(' o ') + ' al máximo';
 }
-function t2state(w, n) {
-  const r = t2rank(w, n), blk = n.free ? null : (t2gate(w, n) || t2req(w, n));
-  const can = !n.free && !blk && r < n.max && t2left(w) > 0;
-  return { r, blk, can, full: r >= n.max };
+function t3state(w, n) {
+  const r = t3rank(w, n), blk = n.free ? null : (t3gate(w, n) || t3req(w, n));
+  return { r, blk, can: !n.free && !blk && r < n.max && t3left(w) > 0, full: r >= n.max };
 }
-const t2valid = w => TAL2[w].every(n => n.free || !(T2[w][n.id] > 0) || (!t2gate(w, n) && !t2req(w, n)));
-function t2applyPreset() {
-  T2 = { cls:{}, spec:{}, choice:{} };
+const t3valid = w => t3nodes(w).every(n => n.free || !(T2[w][n.id] > 0) || (!t3gate(w, n) && !t3req(w, n)));
+const choiceOf = n => T2.ch[n.id] || null;
+function t2applyPreset(key = T2V.loadout) {
+  const b = BUILDS_V2[key]; if (!b) return;
+  T2 = { cls:{}, spec:{}, hero:{}, ch:{ ...b.clsCh, ...b.specCh, ...b.heroCh }, heroTree: b.hero };
+  // reparte por orden de fila hasta los puntos del nivel (como haría el jugador subiendo)
   for (const w of ['cls', 'spec']) {
     if (w === 'spec' && !curSpec()) continue;
-    for (let pass = 0; pass < 4; pass++) for (const [id, max, k] of TAL2.preset[w]) {
-      while ((T2[w][id] || 0) < max && t2left(w) > 0) {
-        T2[w][id] = (T2[w][id] || 0) + 1;
-        if (!t2valid(w)) { if (--T2[w][id] <= 0) delete T2[w][id]; break; }
-        if (k) T2.choice[id] = k;
-      }
+    const order = Object.entries(b[w]); // orden de la build: primero su camino, como subiría el jugador
+    for (let pass = 0; pass < 6; pass++) for (const [id, max] of order) {
+      while ((T2[w][id] || 0) < max && t3left(w) > 0) { T2[w][id] = (T2[w][id] || 0) + 1; if (!t3valid(w)) { if (--T2[w][id] <= 0) delete T2[w][id]; break; } }
     }
   }
+  for (const n of heroTreeOf().nodes) { if (t3left('hero') <= 0) break; if (!t3req('hero', n)) T2.hero[n.id] = 1; }
+  for (const n of heroTreeOf().nodes.sort?.((a, b) => a.r - b.r) || []) {}
+  T2V.loadout = key;
 }
-const choiceOf = n => T2.choice[n.id] || 'A';
-function touchesOf(n) {
+function touchesOf(n, k = null) {
   const ids = new Set([...(n.touch || [])]);
-  for (const o of n.opts || []) for (const t of o.touch || []) ids.add(t);
+  for (const o of n.opts || []) if (!k || o.k === k) { for (const t of o.touch || []) ids.add(t); if (o.act) ids.add(o.act); }
   if (n.fire) FIRE_IDS.forEach(id => ids.add(id));
-  return [...ids];
+  return [...ids].filter(id => find(id));
 }
-function t2nodesFor(skillId) {
+function t2nodesFor(skillId) { // para el tooltip del libro: talentos que tocan la habilidad
   const out = [];
-  for (const w of ['cls', 'spec']) { if (w === 'spec' && curSpec()?.id !== 'piromante') continue;
-    for (const n of TAL2[w]) if (touchesOf(n).includes(skillId)) out.push({ n, w, r: t2rank(w, n) }); }
+  for (const w of ['cls', 'spec', 'hero']) { if (w !== 'cls' && !curSpec()) continue;
+    for (const n of t3nodes(w)) if (touchesOf(n).includes(skillId)) out.push({ n: { ...n, name: n.n, icon: n.icon }, w, r: t3rank(w, n) }); }
   return out;
 }
+// activas que concede el árbol de CLASE como opción de un nodo de elección (van a la ranura 2)
+const t3granted = id => TV.cls.some(n => (n.opts || []).some(o => o.act === id && T2.ch[n.id] === o.k && (T2.cls[n.id] || 0) > 0));
 
-// ---------- vista ----------
+// ---------------------------------------------------------------- vista
 function openTV2() { hideTip(); S.view = 'talents'; $('#P').style.display = 'none'; $('#toast').hidden = true; $('#TV2').style.display = ''; renderTV2(); }
 function closeTV2() { try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null; $('#TV2').style.display = 'none'; }
-function ptsLabel(w) { const l = t2left(w); return `<b class="${l ? '' : 'z'}">${l}</b> libres · ${t2spent(w)}/${t2earned(w)}`; }
+const artOf = w => w === 'spec' ? `${A}specs/piromante.webp` : w === 'hero' ? `${A}${heroTreeOf().art}` : `${A}specs/arcanista.webp`;
+function colHead(w) {
+  const sp = curSpec(), ht = heroTreeOf();
+  const name = w === 'cls' ? 'Maga' : w === 'spec' ? (sp?.name || 'Especialización') : 'Paragon';
+  const req = w === 'hero' ? HERO_AT : w === 'spec' ? 10 : 10;
+  const emb = w === 'spec' ? `<img class="emb" src="${A}emblems/piromante.webp" alt="">` : w === 'hero' ? `<span class="hring" style="background-image:url('${A}${ht.art}')"></span>` : `<img class="emb" src="${A}ui/res_mana.webp" alt="">`;
+  const left = t3left(w);
+  return `<header class="t3h">${emb}<div><h3>${name}${w === 'hero' ? ` <small>· ${ht.n}</small>` : ''}</h3><div class="t3m"><span>Gastados <b>${t3spent(w)}</b> / ${TV.pts[w]}</span>${left > 0 ? `<span class="lf">${left} libre${left > 1 ? 's' : ''}</span>` : ''}<span class="rq">Nv req. ${req}</span></div></div></header>`;
+}
 function renderTV2() {
   const el = $('#TV2'), sp = curSpec();
   try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null;
-  const lc = t2left('cls'), ls = t2left('spec');
-  const head = `<div class="p-head"><div class="emb" style="background-image:url('${A}${sp ? `emblems/${sp.id}.webp` : 'ui256/menu_talentos.webp'}')"></div>` +
-    `<div><h2>Talentos · Maga${sp ? ' ' + sp.name : ''}</h2><div class="sub">Nivel <b>${S.lvl}</b> · ${sp ? sp.role : 'sin especialización'}` +
-    (sp ? ` · Maga <b class="${lc ? 'g' : ''}">${lc}</b> libres · ${sp.name} <b class="${ls ? 'g' : ''}">${ls}</b> libres · solo pasivas: las activas están en el libro` : ' · la especialización y los talentos se abren al nivel 10') + `</div></div><div class="sp"></div>` +
+  const opts = Object.entries(BUILDS_V2).map(([k, b]) => `<option value="${k}"${T2V.loadout === k ? ' selected' : ''}>${b.arch} · ${b.n}</option>`).join('') +
+    T2V.saved.map((s, i) => `<option value="saved:${i}"${T2V.loadout === 'saved:' + i ? ' selected' : ''}>★ ${s.n}</option>`).join('') +
+    (T2V.loadout === 'custom' ? '<option value="custom" selected>Personalizada (sin guardar)</option>' : '');
+  const head = `<div class="p-head"><div class="emb" style="background-image:url('${A}${sp ? 'emblems/piromante.webp' : 'ui256/menu_talentos.webp'}')"></div>` +
+    `<div><h2>Talentos · Maga${sp ? ' ' + sp.name : ''}</h2><div class="sub">Nivel <b>${S.lvl}</b> · ${sp ? 'gratis fuera de combate · se aplica al instante' : 'se abren al nivel 10'}</div></div><div class="sp"></div>` +
     `<button class="hbtn" data-a="book"><img src="${A}ui/menu_habilidades.webp" alt="">Habilidades <kbd>T</kbd></button>` +
-    (sp ? `<button class="hbtn" data-a="chooser"><img src="${A}emblems/${sp.id}.webp" alt="">Especialización</button><button class="hbtn" data-a="preset">Recomendado</button><button class="hbtn" data-a="reset">Reiniciar</button>` : '') +
+    (sp ? `<label class="t3lo"><span>Configuración</span><select data-a="loadout">${opts}</select></label>` +
+      `<button class="hbtn" data-a="save" title="Guardar como configuración">Guardar</button><button class="hbtn" data-a="code">Código</button>` +
+      `<button class="hbtn" data-a="reco" title="Aplica la build recomendada de la configuración elegida">Recomendado</button>` +
+      `<button class="hbtn" data-a="undo" title="Deshacer (Ctrl+Z)"${T2V.undo.length ? '' : ' disabled'}>↶</button><button class="hbtn" data-a="reset">Reiniciar</button>` : '') +
     `<button class="hbtn x" data-a="book" title="Cerrar (N / Esc)">✕</button></div>`;
-  const chooser = T2V.chooser || !sp;
-  const body = chooser ? chooserHTML() :
-    `<div class="t2body" id="t2b"><div class="card t2tree" data-w="cls"><div class="card-h"><h3>Árbol de la Maga</h3><span class="r">${ptsLabel('cls')}</span></div><div class="t2can" data-w="cls"></div></div>` +
-    `<div class="card t2mid">${midHTML(sp)}</div>` +
-    `<div class="card t2tree spec" data-w="spec"><div class="card-h"><img class="emb" src="${A}emblems/${sp.id}.webp" alt=""><h3>${sp.name}</h3><span class="r">${ptsLabel('spec')}</span></div><div class="t2can" data-w="spec"></div></div></div>`;
-  const foot = chooser ? `<div class="t2foot"><span>Cada especialización trae <b style="color:var(--ink)">su kit al libro</b>, su mecánica y su árbol</span><span class="keys">Cambiar es gratis fuera de combate · <kbd>T</kbd> habilidades</span></div>` :
-    `<div class="t2foot"><span><i class="lg p"></i>Pasiva</span><span><i class="lg k"></i>Nodo clave</span><span><i class="lg c"></i>Elección A/B</span><span><i class="lg x"></i>Ápice</span><span class="sep"></span>` +
-    `<span><i class="dot" style="background:var(--ok)"></i>Disponible</span><span><i class="dot" style="background:var(--gold)"></i>Aprendido</span><span><i class="dot" style="background:#4a4252"></i>Bloqueado</span>` +
-    `<span class="keys">Clic +1 · Clic der. −1 · <kbd>Alt</kbd> detalle · <kbd>T</kbd> habilidades</span></div>`;
-  el.innerHTML = head + body + foot;
-  if (!chooser) { drawTree('cls'); drawTree('spec'); mountGauge(); renderInsp(); if (T2V.hl) t2hl(T2V.hl); }
-  wireTV2(el);
+  const body = !sp ? chooserHTML() :
+    `<div class="t3body" id="t2b">` +
+    `<section class="t3col cls"><div class="t3art" style="background-image:url('${artOf('cls')}')"></div>${colHead('cls')}<div class="t3can" data-w="cls"></div></section>` +
+    `<section class="t3col hero${S.lvl < HERO_AT ? ' locked' : ''}"><div class="t3art" style="background-image:url('${artOf('hero')}')"></div>${colHead('hero')}<div class="t3can" data-w="hero"></div></section>` +
+    `<section class="t3col spec"><div class="t3art" style="background-image:url('${artOf('spec')}')"></div>${colHead('spec')}<div class="t3can" data-w="spec"></div></section></div>`;
+  const kit = skills().filter(sk => known(sk) && !sk.sketch);
+  const foot = !sp ? `<div class="t2foot"><span>Cada especialización trae <b style="color:var(--ink)">su kit al libro</b>, su mecánica y su árbol</span><span class="keys"><kbd>T</kbd> habilidades</span></div>` :
+    `<div class="t3foot"><span class="kl">Tu kit</span><span class="kit3">${kit.map(sk => `<span class="skl" data-sk="${sk.id}" style="background-image:url('${iconUrl(sk)}')"></span>`).join('')}</span>` +
+    `<span class="sep"></span><span class="lgd"><i class="lg p"></i>Pasiva <i class="lg c"></i>Elección <i class="lg f"></i>Final <i class="lg x"></i>Ápice <i class="tg mec">M</i>mecánica <i class="tg num">N</i>número</span>` +
+    `<span class="keys">Clic +1 · Clic der. −1 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Alt</kbd> detalle</span></div>`;
+  el.innerHTML = head + body + foot + '<div class="t3pop" id="t3pop" hidden></div>';
+  if (sp) { drawTree3('cls'); drawTree3('spec'); drawHero(); if (T2V.hl) t3hl(T2V.hl); }
+  wireTV3(el);
 }
-function midHTML(sp) {
-  const lk = (id, base = false) => { const sk = find(id); return `<span class="skl${base ? ' base' : ''}" data-sk="${id}" style="background-image:url('${iconUrl(sk)}')"></span>`; };
-  return `<div class="t2sec"><div class="lb">Mecánica · Calor<span class="n">la llena el Fuego</span></div><div class="gzw" data-mech><div id="gz2"></div></div>` +
-    `<div class="ml" data-mech>Fuego <b>+5</b> · a <b>100</b>: Ignición Total (Bola o Meteoro gratis y crítico)</div></div>` +
-    `<div class="t2sec"><div class="lb">Qué mejora cada árbol<span class="n">ratón: ilumina nodos</span></div>` +
-    `<div class="lrow"><span class="lt"><img src="${A}ui/res_mana.webp" alt="">Maga</span><span class="sks">${['m_dardo', 'm_parpadeo', 'm_barrera'].map(id => lk(id)).join('')}<span class="gen">+ maná, defensa, control</span></span></div>` +
-    `<div class="lrow"><span class="lt"><img src="${A}emblems/${sp.id}.webp" alt="">${sp.name}</span><span class="sks">${lk('bola_fuego', true)}${['p_llamarada', 'm_estela_ignea', 'meteoro', 'm_u_supernova'].map(id => lk(id)).join('')}</span></div></div>` +
-    `<div class="t2sec insp" id="t2insp"></div>`;
+const OCT = 'polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)';
+function nodeHTML(w, n, x, y) {
+  const st = t3state(w, n), ch = choiceOf(n), on = st.r > 0;
+  const cls = `${on ? 'on' : ''}${st.full ? ' full' : ''}${st.can ? ' can' : ''}${!on && !st.can ? ' lock' : ''}${n.free ? ' free' : ''}${n.hyb ? ' hyb' : ''}`;
+  let face;
+  if (n.opts) {
+    const a = n.opts[0], b = n.opts[1], icA = n.opts[0].icon || n.icon, icB = n.opts[1].icon || n.icon;
+    face = on && ch ? `<div class="ni"><i style="background-image:url('${A}${n.icon}')${ch === 'B' ? ';transform:scaleX(-1)' : ''}"></i></div><span class="ab">${ch}</span>`
+      : `<div class="ni split"><i class="ha" style="background-image:url('${A}${icA}')"></i><i class="hb" style="background-image:url('${A}${icB}')"></i></div>`;
+  } else face = `<div class="ni"><i style="background-image:url('${A}${n.icon}')"></i></div>`;
+  const pips = n.t === 'x' ? `<span class="pips4">${[1, 2, 3, 4].map(i => `<i class="${i <= st.r ? 'on' : ''}"></i>`).join('')}</span>` : (n.free ? '' : `<span class="rk">${st.r}/${n.max}</span>`);
+  return `<div class="tn3 t-${n.t} ${cls}" data-w="${w}" data-id="${n.id}" style="left:${x}px;top:${y}px">${face}${pips}<span class="tg ${n.tag}">${n.tag === 'mec' ? 'M' : 'N'}</span><span class="burst"></span></div>`;
 }
-function mountGauge() {
-  const host = $('#gz2'); if (!host || !TPX?.createGauge) return;
-  try { T2V.gz = TPX.createGauge(host, { mode:'demo', id:'calor', specName:'Piromante' }); } catch (e) { console.warn('gauge', e); }
+function layout(w, can) {
+  const nodes = t3nodes(w), Wd = can.clientWidth, H = can.clientHeight;
+  const maxR = Math.max(...nodes.map(n => n.r)), maxC = Math.max(...nodes.map(n => n.c));
+  const padX = w === 'hero' ? 54 : 34, top = w === 'hero' ? 96 : 30, bot = w === 'hero' ? 54 : 44;
+  return { X: c => padX + c * (Wd - 2 * padX) / maxC, Y: r => top + r * (H - top - bot) / maxR, dy: (H - top - bot) / maxR, Wd, H };
 }
-function drawTree(w) {
-  const can = document.querySelector(`.t2can[data-w="${w}"]`); if (!can) return;
-  const nodes = TAL2[w], Wd = can.clientWidth, H = can.clientHeight, maxR = Math.max(...nodes.map(n => n.r));
-  const padX = 112, top = 42, bot = 52;
-  const X = c => padX + c * (Wd - 2 * padX) / 3, Y = r => top + r * (H - top - bot) / maxR, dy = (H - top - bot) / maxR;
-  let svg = `<svg viewBox="0 0 ${Wd} ${H}">`, html = '';
-  for (const n of nodes) for (const id of n.req || []) { const p = t2node(w, id), on = t2rank(w, p) >= p.max, live = on && t2rank(w, n) > 0;
-    svg += `<line x1="${X(p.c)}" y1="${Y(p.r)}" x2="${X(n.c)}" y2="${Y(n.r)}" class="${live ? 'live' : on ? 'on' : ''}"/>`; }
-  svg += '</svg>';
-  for (const g of T2G[w]) { const y = Y(g.row) - 29, h = t2spent(w, g.row), ok = h >= g.need && (!g.level || S.lvl >= g.level);
-    if (g.level) html += `<div class="t2apex" style="top:${y + 3}px"></div>`;
-    html += `<div class="t2gate${ok ? ' ok' : ''}" style="top:${y}px"><span class="gp" data-row="${g.row}">${ok ? '✓' : LOCK.replace('<svg', '<svg width="10" height="10" style="vertical-align:-1px"')} ${g.need}</span>` +
-      (g.level ? `<span class="gx" data-row="${g.row}">Ápice · Nv ${g.level}</span>` : '') + `</div>`; }
-  for (const n of nodes) {
-    const st = t2state(w, n), ch = n.t === 'c' && st.r ? choiceOf(n) : null;
-    const nm = ch ? n.opts.find(o => o.k === ch).name : (n.short || n.name);
-    const cls = `${st.r ? 'on' : ''}${st.full ? ' full' : ''}${st.can ? ' can' : ''}${!st.r && !st.can ? ' lock' : ''}${n.free ? ' free' : ''}`;
-    html += `<div class="tn2 t-${n.t} ${cls}" data-w="${w}" data-id="${n.id}" style="left:${X(n.c)}px;top:${Y(n.r)}px"><div class="ni"><i style="background-image:url('${A}${n.icon}')"></i></div>` +
-      (n.free ? '' : `<span class="rk">${st.r}/${n.max}</span>`) + (ch ? `<span class="ab">${ch}</span>` : '') + `<div class="nn">${nm}</div></div>`;
+function edgesSVG(w, L) {
+  let svg = `<svg viewBox="0 0 ${L.Wd} ${L.H}"><defs><marker id="ar-${w}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="currentColor"/></marker></defs>`;
+  for (const n of t3nodes(w)) for (const id of n.req || []) {
+    const p = t3node(w, id), on = t3rank(w, p) >= p.max, live = on && t3rank(w, n) > 0;
+    const x1 = L.X(p.c), y1 = L.Y(p.r), x2 = L.X(n.c), y2 = L.Y(n.r), d = Math.hypot(x2 - x1, y2 - y1), k = 26 / d;
+    svg += `<line pathLength="1" data-from="${p.id}" data-to="${n.id}" x1="${x1 + (x2 - x1) * k}" y1="${y1 + (y2 - y1) * k}" x2="${x2 - (x2 - x1) * k}" y2="${y2 - (y2 - y1) * k}" class="${live ? 'live' : on ? 'on' : ''}" marker-end="url(#ar-${w})"/>`;
   }
-  can.innerHTML = svg + html;
+  return svg + '</svg>';
 }
-function nodeEffect(n, r) { return n.t === 'c' ? null : n.d(Math.max(1, r)); }
-function statusOf(w, n) {
-  const st = t2state(w, n);
-  if (n.free) return ['g', 'Gratis al elegir Piromante'];
-  if (st.full) return ['g', 'Al máximo · clic derecho para quitar'];
-  if (st.blk) return ['lk', st.blk];
-  if (t2left(w) <= 0) return ['lk', 'Sin puntos libres en este árbol'];
-  return ['ok', n.t === 'c' && st.r ? 'Clic: cambiar de opción' : 'Disponible: clic para aprender'];
+function drawTree3(w) {
+  const can = document.querySelector(`.t3can[data-w="${w}"]`); if (!can) return;
+  const L = layout(w, can); let html = edgesSVG(w, L);
+  for (const g of t3gates(w)) { const y = L.Y(g.row) - L.dy * 0.5, h = t3spent(w, g.row), ok = h >= g.need && (!g.level || S.lvl >= g.level);
+    if (g.level) html += `<div class="t3apex" style="top:${y}px"></div>`;
+    // la etiqueta va en la primera columna libre de las dos filas que separa (no pisa nodos ni pastillas de rango)
+    const occ = new Set(t3nodes(w).filter(n => n.r === g.row - 1 || n.r === g.row).map(n => n.c)), maxC = Math.max(...t3nodes(w).map(n => n.c));
+    let gc = 0; while (gc <= maxC && occ.has(gc)) gc++; const gx = gc > maxC ? 30 : L.X(gc) - 10; // sin columna libre: al borde izquierdo
+    html += `<div class="t3gate${ok ? ' ok' : ''}${g.level ? ' apx' : ''}" data-row="${g.row}" style="top:${y}px;--gx:${gx}px"><span class="seal"><i></i><i></i></span><b>${g.level ? 'Ápice · ' : ''}${ok ? '' : `${h}/`}${g.need}${g.level ? ` · Nv${g.level}` : ''}</b></div>`; }
+  for (const n of t3nodes(w)) html += nodeHTML(w, n, L.X(n.c), L.Y(n.r));
+  can.innerHTML = html;
 }
-const skIcons = (ids, cls = 'tn1') => ids.map(find).filter(Boolean).map(sk => `<span class="${cls}"><i style="background-image:url('${iconUrl(sk)}')"></i>${sk.id === 'm_dardo' && sk === find('m_dardo') && FIRE_IDS.includes('m_dardo') && cls === 'tn1x' ? 'Saeta Ígnea' : sk.n}</span>`).join('');
-function tipNode2(w, n) {
-  const st = t2state(w, n), tree = w === 'cls' ? 'Maga' : 'Piromante';
-  let body = '';
-  if (n.t === 'c') {
-    const ch = st.r ? choiceOf(n) : null;
-    body = n.opts.map(o => `<div class="opt${ch === o.k ? ' on' : ''}">${o.k} · ${o.name}${ch === o.k ? ' <b>✓</b>' : ''}<small>${o.d}</small></div>`).join('');
-  } else {
-    body = `<div class="tl">${st.r ? 'Ahora: ' : ''}${nodeEffect(n, st.r)}</div>` + (st.r && st.r < n.max ? `<div class="tnx">→ Rango ${st.r + 1}: ${n.d(st.r + 1)}</div>` : '');
-  }
-  const tch = touchesOf(n), [sc, stxt] = statusOf(w, n);
-  return `<div class="th"><div class="ico" style="background-image:url('${A}${n.icon}');border-radius:${n.t === 'p' ? '8px' : '50%'}"></div><div><div class="tn">${n.name}</div>` +
-    `<div class="tk">${KIND2[n.t]} · ${tree} · ${n.free ? 'gratis' : `rango ${st.r}/${n.max}`}</div></div></div>` + body +
-    (tch.length ? `<div class="tnodes"><span class="lb">${n.fire ? 'Toca todo tu Fuego' : 'Habilidades que toca'}</span>${skIcons(tch)}</div>` : '') +
-    `<div class="st ${sc}">${stxt}</div>` +
-    (S.alt ? `<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> ${n.id} · ${n.adv || n.opts.map(o => `${o.k}: ${o.adv}`).join(' · ')}</div>` : '') +
-    `<div class="tf"><span>Clic +1</span><span>Clic der. −1</span><span><kbd>Alt</kbd> detalle</span></div>`;
-}
-function nextReco() {
-  for (const w of ['spec', 'cls']) for (const [id, max, k] of TAL2.preset[w]) { const n = t2node(w, id), st = t2state(w, n); if (st.r < max && st.can) return { w, n, k }; }
-  return null;
-}
-function nextPointLvl(w) { for (let l = S.lvl + 1; l <= 50; l++) if (w === 'spec' ? l % 2 === 0 : l % 2 === 1) return l; return null; }
-// la columna central NO repite el tooltip: muestra el siguiente paso recomendado (el detalle de cualquier nodo va en su tooltip)
-function renderInsp() {
-  const box = $('#t2insp'); if (!box) return;
-  const rc = nextReco();
-  if (!rc) {
-    const ls = nextPointLvl('spec'), lc = nextPointLvl('cls');
-    box.innerHTML = `<div class="lb">Recomendado ahora</div><div class="iline">Sin puntos libres.</div>` +
-      `<div class="ist g">${ls ? `Próximo punto: nivel ${Math.min(ls, lc || 99)}` : 'Build completa'}</div>`;
+function drawHero() {
+  const can = document.querySelector('.t3can[data-w="hero"]'); if (!can) return;
+  const trees = TV.hero.filter(h => h.specs.includes('piromante')), other = TV.hero.find(h => !h.specs.includes('piromante'));
+  const tabs = `<div class="htabs">${trees.map(h => `<button class="htab${h.id === T2.heroTree ? ' on' : ''}" data-ht="${h.id}" style="background-image:url('${A}${h.art}')" title="${h.n}"></button>`).join('')}` +
+    `<span class="htab off" style="background-image:url('${A}${other.art}')" title="${other.n}: Crionte y Arcanista"></span></div>`;
+  if (S.lvl < HERO_AT) {
+    can.innerHTML = `<div class="hlock"><div class="hlk">${LOCK}</div><b>Paragon</b><span>Se desbloquea al nivel ${HERO_AT}</span>` +
+      trees.map(h => `<div class="hprev"><i style="background-image:url('${A}${h.art}')"></i><div><b>${h.n}</b><small>${h.line}</small></div></div>`).join('') +
+      `<small class="hnote">Elige uno de los dos. Después, el tablero de glifos (Nv54+).</small><button class="hbtn" data-a="reveal">Simular nivel ${HERO_AT}</button></div>`;
     return;
   }
-  const { w, n, k } = rc, st = t2state(w, n);
-  const eff = n.t === 'c' ? n.opts.find(o => o.k === (k || 'A')).name + ': ' + n.opts.find(o => o.k === (k || 'A')).d : n.d(st.r + 1);
-  const tch = touchesOf(n);
-  box.innerHTML = `<div class="lb">Recomendado ahora<span class="n">build del Piromante</span></div>` +
-    `<div class="ih"><div class="ico" style="background-image:url('${A}${n.icon}')"></div><div><div class="in">${n.name}</div><div class="chips">` +
-    `<span class="chip">${KIND2[n.t]}</span><span class="chip${w === 'spec' ? ' spec' : ''}">${w === 'cls' ? 'Maga' : 'Piromante'}</span><span class="chip gold">${st.r} → ${st.r + 1}/${n.max}</span></div></div></div>` +
-    `<div class="inext">${eff}</div>` + (tch.length ? `<div class="itouch">Toca ${tch.slice(0, 6).map(id => { const sk = find(id); return `<span class="skl" data-sk="${id}" style="background-image:url('${iconUrl(sk)}')"></span>`; }).join('')}</div>` : '') +
-    `<button class="hbtn" data-learn style="margin-top:12px;height:36px">Aprender</button>`;
-  box.querySelectorAll('.skl').forEach(wireLk);
-  box.querySelector('[data-learn]').addEventListener('click', () => { if (k) T2.choice[n.id] = k; t2click(w, n); });
-}
-function t2hl(id) {
-  const b = $('#t2b'); if (!b) return;
-  b.classList.toggle('dim', !!id);
-  b.querySelectorAll('.tn2').forEach(el => { const n = t2node(el.dataset.w, el.dataset.id); el.classList.toggle('hl', !!id && touchesOf(n).includes(id)); });
-}
-function wireLk(el) {
-  const sk = find(el.dataset.sk);
-  el.addEventListener('mouseenter', e => { t2hl(sk.id); showTip(e, () => tipSkill(sk)); });
-  el.addEventListener('mousemove', moveTip);
-  el.addEventListener('mouseleave', () => { t2hl(T2V.hl); hideTip(); });
+  const L = layout('hero', can);
+  let html = tabs + edgesSVG('hero', L);
+  for (const n of t3nodes('hero')) html += nodeHTML('hero', n, L.X(n.c), L.Y(n.r));
+  can.innerHTML = html;
 }
 function chooserHTML() {
-  const sp = curSpec();
-  return `<div class="t2choose">${SPEC_IDS.map(id => {
-    const m = M_SPECS[id], kit = skills().filter(s => s.spec === id).sort(byReq), cur = sp?.id === id;
-    const btn = S.lvl < 10 ? `<button class="hbtn" disabled>${LOCK.replace('<svg', '<svg width="14" height="14"')} Disponible al nivel 10</button>` :
-      cur ? '<button class="hbtn cur" data-a="trees">Especialización actual · ver talentos</button>' : '<button class="hbtn" disabled>Esbozo · se detalla tras aprobar el Piromante</button>';
-    return `<article class="scard${cur ? ' cur' : ''}${m.sketch ? ' sk' : ''}">${m.sketch ? '<span class="sketch">ESBOZO</span>' : ''}<div class="sart" style="background-image:url('${A}specs/${id}.webp')"><img class="semb" src="${A}emblems/${id}.webp" alt=""></div>` +
+  return `<div class="t2choose">${['piromante', 'crionte', 'arcanista'].map(id => {
+    const m = M_SPECS[id], kit = skills().filter(s => s.spec === id).sort((a, b) => a.req - b.req);
+    return `<article class="scard${m.sketch ? ' sk' : ''}">${m.sketch ? '<span class="sketch">ESBOZO</span>' : ''}<div class="sart" style="background-image:url('${A}specs/${id}.webp')"><img class="semb" src="${A}emblems/${id}.webp" alt=""></div>` +
       `<div class="sbody"><div class="srole">${m.role.toUpperCase()}</div><h3>${m.name}</h3><div class="sline">${m.line}</div>` +
-      `<div><div class="t2sec" style="padding:0;border:0"><div class="lb">Desbloquea en el libro</div></div><div class="kits">${kit.map(sk => `<div class="kit" data-id="${sk.id}">${ico(sk)}<div class="nm">${sk.n}</div></div>`).join('')}</div></div>` +
-      `<div class="sgain"><span class="gchip"><i style="background-image:url('${A}${m.mechIco}')"></i>Mecánica: <b>${m.mech}</b></span><span class="gchip">Pasiva: <b>${m.innate}</b></span></div>` +
-      `<div class="sfoot">${btn}</div></div></article>`; }).join('')}</div>`;
-}
-function wireTV2(el) {
-  el.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => {
-    const a = b.dataset.a;
-    if (a === 'book') openBook();
-    else if (a === 'chooser') { T2V.chooser = true; renderTV2(); }
-    else if (a === 'trees') { T2V.chooser = false; renderTV2(); }
-    else if (a === 'preset') { t2applyPreset(); renderTV2(); flash('Build recomendada del Piromante aplicada'); }
-    else if (a === 'reset') { T2 = { cls:{}, spec:{}, choice:{} }; renderTV2(); flash('Talentos reiniciados (gratis)'); }
-  }));
-  el.querySelectorAll('.tn2').forEach(nd => {
-    const w = nd.dataset.w, n = t2node(w, nd.dataset.id);
-    nd.addEventListener('mouseenter', e => showTip(e, () => tipNode2(w, n), nd));
-    nd.addEventListener('mousemove', moveTip);
-    nd.addEventListener('mouseleave', hideTip);
-    nd.addEventListener('click', () => t2click(w, n));
-    nd.addEventListener('contextmenu', e => { e.preventDefault(); t2rem(w, n); });
-  });
-  el.querySelectorAll('.lrow .skl').forEach(wireLk);
-  el.querySelectorAll('.t2gate span').forEach(sp => { const w = sp.closest('.t2can').dataset.w, g = T2G[w].find(x => x.row === +sp.dataset.row), h = t2spent(w, g.row), ok = h >= g.need && (!g.level || S.lvl >= g.level);
-    sp.addEventListener('mouseenter', e => showTip(e, () => `<div class="tn">${g.level ? 'Ápice' : `Fila ${g.row + 1}`}</div><div class="tl">Gasta ${g.need} puntos en las filas de arriba${g.level ? ` y llega al nivel ${g.level}` : ''}.</div><div class="st ${ok ? 'ok' : 'lk'}">${ok ? '✓ Abierta' : `Llevas ${h}/${g.need}`}</div>`));
-    sp.addEventListener('mousemove', moveTip); sp.addEventListener('mouseleave', hideTip); });
-  el.querySelectorAll('[data-mech]').forEach(m => { m.addEventListener('mouseenter', e => showTip(e, tipMech2)); m.addEventListener('mousemove', moveTip); m.addEventListener('mouseleave', hideTip); });
-  el.querySelectorAll('.kit').forEach(k => { const sk = find(k.dataset.id); k.addEventListener('mouseenter', e => showTip(e, () => known(sk) ? tipSkill(sk) : tipLocked(sk))); k.addEventListener('mousemove', moveTip); k.addEventListener('mouseleave', hideTip); });
-}
-function t2refresh(w, n) { renderTV2(); const nd = document.querySelector(`.tn2[data-w="${w}"][data-id="${n.id}"]`); if (nd && lastEv) showTip(lastEv, () => tipNode2(w, n), nd); }
-function t2click(w, n) {
-  if (S.combat) return flash('En combate no puedes cambiar talentos');
-  const st = t2state(w, n);
-  if (n.t === 'c' && st.r) { T2.choice[n.id] = choiceOf(n) === 'A' ? 'B' : 'A'; return t2refresh(w, n); }
-  if (!st.can) return flash(n.free ? 'Nodo clave gratis de la especialización' : st.full ? `${n.name} ya está al máximo` : st.blk || 'Sin puntos libres en este árbol');
-  T2[w][n.id] = st.r + 1; if (n.t === 'c' && !T2.choice[n.id]) T2.choice[n.id] = 'A';
-  t2refresh(w, n);
-}
-function t2rem(w, n) {
-  if (S.combat || n.free || !(T2[w][n.id] > 0)) return;
-  T2[w][n.id]--; if (!T2[w][n.id]) delete T2[w][n.id];
-  if (!t2valid(w)) { T2[w][n.id] = (T2[w][n.id] || 0) + 1; return flash('Otros talentos dependen de este'); }
-  t2refresh(w, n);
+      `<div class="kits">${kit.map(sk => `<div class="kit" data-id="${sk.id}">${ico(sk)}<div class="nm">${sk.n}</div></div>`).join('')}</div>` +
+      `<div class="sgain"><span class="gchip"><i style="background-image:url('${A}${m.mechIco}')"></i>Mecánica: <b>${m.mech}</b></span></div>` +
+      `<div class="sfoot"><button class="hbtn" disabled>${LOCK.replace('<svg', '<svg width="14" height="14"')} Disponible al nivel 10</button></div></div></article>`; }).join('')}</div>`;
 }
 
+// ---------------------------------------------------------------- tooltip
+function tipNode3(w, n) {
+  const st = t3state(w, n), tree = w === 'cls' ? 'Maga' : w === 'spec' ? 'Piromante' : `Paragon · ${heroTreeOf().n}`;
+  let body;
+  if (n.opts) {
+    const ch = st.r ? choiceOf(n) : null;
+    body = n.opts.map(o => `<div class="opt${ch === o.k ? ' on' : ''}">${o.k} · ${o.n}${o.act ? ' <span class="actb">ACTIVA</span>' : ''} <span class="rl">${ROLE3[o.role] || ''}</span>${ch === o.k ? ' <b>✓</b>' : ''}<small>${o.d}</small></div>`).join('') +
+      (n.win ? `<div class="win">${n.win}</div>` : '');
+  } else body = `<div class="tl">${st.r ? 'Ahora: ' : ''}${n.d(Math.max(1, st.r))}</div>` + (st.r && st.r < n.max ? `<div class="tnx">→ Rango ${st.r + 1}: ${n.d(st.r + 1)}</div>` : '');
+  const tch = touchesOf(n), stx = n.free ? ['g', 'Gratis con la especialización'] : st.full ? ['g', 'Al máximo · clic derecho para quitar'] : st.blk ? ['lk', st.blk] : t3left(w) <= 0 ? ['lk', 'Sin puntos libres en este árbol'] : ['ok', n.opts && !st.r ? 'Pasa el ratón: elige A o B con un clic' : 'Disponible: clic para aprender'];
+  const tag = `<span class="tagc ${n.tag}">${n.tag === 'mec' ? 'Mecánica' : 'Número'}</span>`;
+  return `<div class="th"><div class="ico" style="background-image:url('${A}${n.icon}');border-radius:${n.t === 'p' ? '8px' : '50%'}"></div><div><div class="tn">${n.n}</div>` +
+    `<div class="tk">${KIND3[n.t]} · ${tree} · ${n.free ? 'gratis' : `rango ${st.r}/${n.max}`} ${tag}</div></div></div>` +
+    (n.final ? `<div class="fin">Final de la rama «${n.final}»: con 31 puntos llegas a uno; dos solo en rango 1 y renunciando a casi todo lo demás</div>` : '') +
+    (n.hyb ? `<div class="hy">Híbrido · ${n.hyb}</div>` : '') + body +
+    (tch.length ? `<div class="tnodes"><span class="lb">${n.fire ? 'Toca todo tu Fuego' : 'Habilidades que toca'}</span>${tch.map(find).map(sk => `<span class="tn1"><i style="background-image:url('${iconUrl(sk)}')"></i>${sk.n}</span>`).join('')}</div>` : '') +
+    `<div class="st ${stx[0]}">${stx[1]}</div>` +
+    (S.alt ? `<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> ${n.id} · ${n.impl || (n.opts || []).map(o => `${o.k}: ${o.impl || '—'}`).join(' · ') || 'árbol héroe'}</div>` : '');
+}
+
+// ---------------------------------------------------------------- interacción y MOTION
+function pushUndo() { T2V.undo.push(JSON.stringify(T2)); if (T2V.undo.length > 40) T2V.undo.shift(); T2V.loadout = 'custom'; }
+function gatesSnapshot(w) { return t3gates(w).map(g => t3spent(w, g.row) >= g.need && (!g.level || S.lvl >= g.level)); }
+function nodeEl(w, id) { return document.querySelector(`.tn3[data-w="${w}"][data-id="${id}"]`); }
+function t3spend(w, n, k = null) {
+  if (S.combat) return flash('En combate no puedes cambiar talentos');
+  const st = t3state(w, n);
+  if (n.opts && k && st.r) { if (choiceOf(n) === k) return; pushUndo(); T2.ch[n.id] = k; rerender(); fxFlip(w, n.id); return; }
+  if (!st.can) return flash(n.free ? 'Nodo clave gratis' : st.full ? `${n.n} ya está al máximo` : st.blk || 'Sin puntos libres en este árbol');
+  const before = gatesSnapshot(w), availBefore = new Set(t3nodes(w).filter(x => t3state(w, x).can).map(x => x.id));
+  pushUndo(); T2[w][n.id] = st.r + 1; if (n.opts) T2.ch[n.id] = k || T2.ch[n.id] || 'A';
+  rerender();
+  fxSpend(w, n.id, availBefore);
+  const after = gatesSnapshot(w); after.forEach((ok, i) => { if (ok && !before[i]) fxGate(w, t3gates(w)[i].row); });
+  if (t3state(w, n).full) fxMax(w, n.id);
+}
+function t3remove(w, n) {
+  if (S.combat || n.free || !(T2[w][n.id] > 0)) return;
+  const snap = JSON.stringify(T2);
+  T2[w][n.id]--; if (!T2[w][n.id]) delete T2[w][n.id];
+  if (!t3valid(w)) { T2 = JSON.parse(snap); fxDeny(w, n.id); return flash('Otros talentos dependen de este'); }
+  T2V.undo.push(snap); T2V.loadout = 'custom'; rerender(); fxRemove(w, n.id);
+}
+function t3undo() { const s = T2V.undo.pop(); if (!s) return; const prev = T2; T2 = JSON.parse(s); rerender();
+  for (const w of ['cls', 'spec', 'hero']) for (const n of t3nodes(w)) if ((prev[w][n.id] || 0) > (T2[w][n.id] || 0)) fxRemove(w, n.id); }
+function rerender() { const keep = T2V.hl; hideTip(); renderTV2(); if (keep) t3hl(keep); }
+// --- motion: solo transform/opacity (compositor). Duraciones y curvas en el doc §8.
+const EASE = 'cubic-bezier(.2,.8,.2,1)';
+function fxSpend(w, id, availBefore) {
+  const el = nodeEl(w, id); if (!el) return;
+  el.classList.add('fx-spend');
+  const b = el.querySelector('.burst');
+  if (!document.body.classList.contains('rm')) for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 + 0.3, d = 26 + (i % 3) * 7;
+    const p = document.createElement('i'); p.style.setProperty('--dx', `${Math.cos(a) * d}px`); p.style.setProperty('--dy', `${Math.sin(a) * d}px`); p.style.animationDelay = `${(i % 4) * 18}ms`; b.appendChild(p); }
+  // líneas que se encienden hacia los hijos que se acaban de desbloquear
+  let k = 0;
+  for (const n of t3nodes(w)) if ((n.req || []).includes(id) && !availBefore.has(n.id) && t3state(w, n).can) {
+    const ln = document.querySelector(`.t3can[data-w="${w}"] line[data-from="${id}"][data-to="${n.id}"]`);
+    if (ln) { ln.classList.add('fx-lit'); ln.style.animationDelay = `${120 + k * 70}ms`; }
+    const ch = nodeEl(w, n.id); if (ch) { ch.classList.add('fx-unlock'); ch.style.setProperty('--d', `${320 + k * 70}ms`); }
+    k++;
+  }
+}
+function fxRemove(w, id) { nodeEl(w, id)?.classList.add('fx-remove'); }
+function fxDeny(w, id) { nodeEl(w, id)?.classList.add('fx-deny'); }
+function fxMax(w, id) { nodeEl(w, id)?.classList.add('fx-max'); }
+function fxFlip(w, id) { nodeEl(w, id)?.classList.add('fx-flip'); }
+function fxGate(w, row) { document.querySelector(`.t3can[data-w="${w}"] .t3gate[data-row="${row}"]`)?.classList.add('fx-open'); }
+function fxReveal() { const c = document.querySelector('.t3col.hero'); c?.classList.add('fx-reveal');
+  c?.querySelectorAll('.tn3').forEach((n, i) => n.style.setProperty('--d', `${380 + i * 30}ms`)); }
+function fxSwap() { const c = document.querySelector('.t3col.spec'); if (!c) return; c.classList.remove('fx-swap'); void c.offsetWidth; c.classList.add('fx-swap');
+  c.querySelectorAll('.tn3').forEach(n => n.style.setProperty('--d', `${200 + (+n.style.left.replace('px', '')) * 0.6}ms`));
+  const art = c.querySelector('.t3art'); const old = art.cloneNode(); old.classList.add('t3art-old'); old.style.backgroundImage = `url('${A}specs/crionte.webp')`; art.after(old); }
+// selector A/B al pasar el ratón: las dos mitades se abren lado a lado, un clic elige
+function openChoice(w, n, el) {
+  const pop = $('#t3pop'), sc = $('#screen'), b = el.getBoundingClientRect(), st = t3state(w, n), ch = st.r ? choiceOf(n) : null;
+  pop.innerHTML = n.opts.map(o => `<button class="half h${o.k}${ch === o.k ? ' on' : ''}${!st.r && !st.can ? ' dis' : ''}" data-k="${o.k}"><i style="background-image:url('${A}${o.icon || n.icon}')${o.k === 'B' && !o.icon ? ';transform:scaleX(-1)' : ''}"></i><b>${o.k}</b><span>${o.n}</span></button>`).join('');
+  pop.hidden = false; pop.className = 't3pop open'; pop.dataset.w = w; pop.dataset.id = n.id;
+  const s = parseFloat(getComputedStyle(sc).getPropertyValue('--s')), op = pop.offsetParent || sc, r = op.getBoundingClientRect(), k = r.width / op.offsetWidth; // relativo al contenedor real del flotante
+  pop.style.left = ((b.left + b.width / 2 - r.left) / k) + 'px'; pop.style.top = ((b.top + b.height / 2 - r.top) / k) + 'px'; pop.style.setProperty('--ps', s);
+  pop.querySelectorAll('.half').forEach(h => {
+    const o = n.opts.find(x => x.k === h.dataset.k);
+    h.addEventListener('mouseenter', e => showTip(e, () => tipNode3(w, n).replace(`<div class="opt${ch === o.k ? ' on' : ''}">${o.k}`, `<div class="opt hov${ch === o.k ? ' on' : ''}">${o.k}`), pop));
+    h.addEventListener('mouseleave', hideTip);
+    h.addEventListener('click', () => { closeChoice(); t3spend(w, n, o.k); });
+  });
+}
+function closeChoice() { const p = $('#t3pop'); if (p) { p.hidden = true; p.className = 't3pop'; } }
+function t3hl(id) {
+  const b = $('#t2b'); if (!b) return;
+  b.classList.toggle('dim', !!id);
+  b.querySelectorAll('.tn3').forEach(el => { const n = t3node(el.dataset.w, el.dataset.id); el.classList.toggle('hl', !!id && !!n && touchesOf(n).includes(id)); });
+  document.querySelectorAll('.kit3 .skl').forEach(s => s.classList.toggle('on', s.dataset.sk === id));
+}
+function hlKitFor(n) { const ids = n ? touchesOf(n) : []; document.querySelectorAll('.kit3 .skl').forEach(s => s.classList.toggle('lit', ids.includes(s.dataset.sk))); }
+function codeOf() {
+  const enc = w => t3nodes(w).map(n => (T2[w][n.id] || 0) + (T2.ch[n.id] === 'B' ? 'b' : '')).join('');
+  return `IRPG2-maga-piromante-${enc('cls')}-${enc('spec')}-${T2.heroTree}${enc('hero')}`;
+}
+function wireTV3(el) {
+  el.querySelectorAll('[data-a]').forEach(b => {
+    const a = b.dataset.a;
+    if (a === 'loadout') { b.addEventListener('change', () => { const v = b.value; pushUndo();
+      if (v.startsWith('saved:')) { T2 = JSON.parse(T2V.saved[+v.slice(6)].s); T2V.loadout = v; } else t2applyPreset(v); rerender(); fxSwap(); }); return; }
+    b.addEventListener('click', () => {
+      if (a === 'book') openBook();
+      else if (a === 'undo') t3undo();
+      else if (a === 'reset') { pushUndo(); T2 = { cls:{}, spec:{}, hero:{}, ch:{}, heroTree: T2.heroTree }; rerender(); flash('Talentos reiniciados (gratis) · Ctrl+Z para deshacer'); }
+      else if (a === 'reco') { pushUndo(); const k = BUILDS_V2[T2V.loadout] ? T2V.loadout : 'brasa'; t2applyPreset(k); rerender(); flash(`Recomendado aplicado: ${BUILDS_V2[k].arch} · ${BUILDS_V2[k].n}`); }
+      else if (a === 'save') { T2V.saved.push({ n: `Mi build ${T2V.saved.length + 1}`, s: JSON.stringify(T2) }); try { localStorage.setItem('irpg_mock_loadouts', JSON.stringify(T2V.saved)); } catch {} T2V.loadout = 'saved:' + (T2V.saved.length - 1); rerender(); flash('Configuración guardada'); }
+      else if (a === 'code') { const p = $('#t3pop'); p.hidden = false; p.className = 't3pop code'; p.style.left = ''; p.style.top = '';
+        p.innerHTML = `<b>Código para compartir</b><input readonly value="${codeOf()}"><div><button class="hbtn">Copiar</button><button class="hbtn">Importar…</button></div><small>Se pega en el juego o en un enlace; avisa si la build es de otra versión.</small>`; }
+      else if (a === 'reveal') { S.lvl = HERO_AT; $('#cLvl').value = String(HERO_AT); T2.hero = {}; rerender(); fxReveal(); }
+    });
+  });
+  el.querySelectorAll('.htab[data-ht]').forEach(t => t.addEventListener('click', () => { if (t.dataset.ht === T2.heroTree) return; pushUndo(); T2.heroTree = t.dataset.ht; T2.hero = {}; rerender(); fxReveal(); }));
+  el.querySelectorAll('.tn3').forEach(nd => {
+    const w = nd.dataset.w, n = t3node(w, nd.dataset.id);
+    nd.addEventListener('mouseenter', e => { hlKitFor(n); if (n.opts && (t3state(w, n).can || t3state(w, n).r)) { openChoice(w, n, nd); showTip(e, () => tipNode3(w, n), $('#t3pop')); } else showTip(e, () => tipNode3(w, n), nd); });
+    nd.addEventListener('mousemove', moveTip);
+    nd.addEventListener('mouseleave', e => { hlKitFor(null); if (!e.relatedTarget?.closest?.('#t3pop')) { hideTip(); closeChoice(); } });
+    nd.addEventListener('click', () => { if (!n.opts) t3spend(w, n); });
+    nd.addEventListener('contextmenu', e => { e.preventDefault(); t3remove(w, n); });
+  });
+  $('#t3pop')?.addEventListener('mouseleave', e => { if (!e.relatedTarget?.closest?.('.tn3')) { closeChoice(); hideTip(); } });
+  el.querySelectorAll('.kit3 .skl').forEach(s => { const sk = find(s.dataset.sk);
+    s.addEventListener('mouseenter', e => { t3hl(sk.id); showTip(e, () => tipSkill(sk)); }); s.addEventListener('mousemove', moveTip);
+    s.addEventListener('mouseleave', () => { t3hl(T2V.hl); hideTip(); }); });
+  el.querySelectorAll('.t3gate b, .t3gate .seal').forEach(g => { const gate = g.closest('.t3gate'), w = gate.closest('.t3can').dataset.w, row = +gate.dataset.row, G = t3gates(w).find(x => x.row === row), h = t3spent(w, row);
+    g.addEventListener('mouseenter', e => showTip(e, () => `<div class="tn">${G.level ? 'Ápice' : `Puerta de la fila ${row + 1}`}</div><div class="tl">Gasta ${G.need} puntos en las filas de arriba${G.level ? ` y llega al nivel ${G.level}` : ''}.</div><div class="st ${h >= G.need ? 'ok' : 'lk'}">${h >= G.need ? '✓ Abierta' : `Llevas ${h}/${G.need}`}</div>`)); g.addEventListener('mousemove', moveTip); g.addEventListener('mouseleave', hideTip); });
+  el.querySelectorAll('.kit').forEach(k => { const sk = find(k.dataset.id); k.addEventListener('mouseenter', e => showTip(e, () => tipLocked(sk))); k.addEventListener('mousemove', moveTip); k.addEventListener('mouseleave', hideTip); });
+}
+document.addEventListener('keydown', e => { if (S?.view === 'talents' && S.cls === 'maga' && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); t3undo(); } });
+try { T2V.saved = JSON.parse(localStorage.getItem('irpg_mock_loadouts') || '[]'); } catch { T2V.saved = []; }
+// demos de motion para las capturas (&demo=…&t=ms congela todas las animaciones en ese instante)
+function runDemo(kind) {
+  const W = kind === 'gate' ? 'cls' : 'spec';
+  const take = (w, id, k) => { const n = t3node(w, id); T2[w][id] = Math.max(0, (T2[w][id] || 0) - 1); if (!T2[w][id]) delete T2[w][id]; rerender(); t3spend(w, n, k); };
+  if (kind === 'spend') take('spec', 's16');
+  else if (kind === 'gate') { // quita 1 punto de arriba para cerrar la puerta de la fila 4 y lo vuelve a gastar
+    T2.cls = { c2:2, c1:2, c3:2, c6:1 }; T2.ch.c6 = 'B'; rerender(); t3spend('cls', t3node('cls', 'c5'), 'A'); }
+  else if (kind === 'choice') { rerender(); t3spend('spec', t3node('spec', 's9'), T2.ch.s9 === 'A' ? 'B' : 'A'); }
+  else if (kind === 'hover') { const n = t3node('spec', 's9'), el = nodeEl('spec', 's9'); openChoice('spec', n, el); const b = el.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3('spec', n), $('#t3pop')); }
+  else if (kind === 'undo') { const n = t3node('spec', 's23'); t3remove('spec', n); }
+  else if (kind === 'reveal') { S.lvl = HERO_AT; T2.hero = {}; rerender(); fxReveal(); }
+  else if (kind === 'swap') fxSwap();
+  else if (kind === 'hl') t3hl('meteoro');
+  else if (kind === 'code') document.querySelector('[data-a="code"]')?.click();
+}
 
 function boot2g() {
+  if (Q.get('rm')) { document.body.classList.add('rm'); $('#cRm').checked = true; }
+  if (Q.get('alt')) document.body.classList.add('alt');
   requestAnimationFrame(() => {
-    if (Q.get('chooser')) T2V.chooser = true;
+    if (Q.get('loadout') && BUILDS_V2[Q.get('loadout')]) { t2applyPreset(Q.get('loadout')); }
     if (Q.get('hl')) T2V.hl = Q.get('hl');
-    if (Q.get('view') === 'talents' || Q.get('chooser')) openTalents();
+    if (Q.get('view') === 'talents') openTalents();
     setTimeout(() => {
       const tn = Q.get('tipnode');
-      if (tn && S.view === 'talents') { const [w, id] = tn.split(':'); const el = document.querySelector(`.tn2[data-w="${w}"][data-id="${id}"]`); const n = t2node(w, id);
-        if (el && n) { const b = el.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, () => tipNode2(w, n), el); } }
+      if (tn && S.view === 'talents') { const [w, id] = tn.split(':'); const el = nodeEl(w, id), n = t3node(w, id);
+        if (el && n) { const b = el.getBoundingClientRect(); if (n.opts && (t3state(w, n).can || t3state(w, n).r)) { openChoice(w, n, el); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3(w, n), $('#t3pop')); } else showTip({ clientX: b.right, clientY: b.top }, () => tipNode3(w, n), el); } }
       const ts = Q.get('tipskill');
-      if (ts) { const el = S.view === 'talents' ? document.querySelector(`#TV2 .lrow .skl[data-sk="${ts}"], #TV2 .kit[data-id="${ts}"]`) : document.querySelector(`.tile[data-id="${ts}"], .mt[data-id="${ts}"]`); const sk = find(ts);
-        if (el && sk) { const b = el.getBoundingClientRect(); if (el.classList.contains('skl')) t2hl(ts); showTip({ clientX: b.left + b.width * .6, clientY: b.top + b.height * .5 }, () => known(sk) ? tipSkill(sk) : tipLocked(sk)); } }
-      if (T2V.gz && Q.get('shot')) { try { T2V.gz.seek?.(+(Q.get('gzt') || 2.4)); } catch {} }
+      if (ts) { const el = S.view === 'talents' ? document.querySelector(`#TV2 .kit3 .skl[data-sk="${ts}"], #TV2 .kit[data-id="${ts}"]`) : document.querySelector(`.tile[data-id="${ts}"], .mt[data-id="${ts}"]`); const sk = find(ts);
+        if (el && sk) { const b = el.getBoundingClientRect(); if (S.view === 'talents') t3hl(ts); showTip({ clientX: b.left + b.width * .6, clientY: b.top + b.height * .5 }, () => known(sk) ? tipSkill(sk) : tipLocked(sk)); } }
+      const dm = Q.get('demo');
+      if (dm && S.view === 'talents') {
+        runDemo(dm);
+        const t = Q.get('t');
+        if (t != null) requestAnimationFrame(() => document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = +t; } catch {} }));
+      }
     }, 150);
   });
 }
@@ -1614,7 +2037,8 @@ $('#cCls').onchange = () => { const v = S.view; closeTV2(); TPN?.close(); $('#P'
 $('#cLvl').onchange = () => { const v = S.view; if (S.cls !== 'maga') return; reset('maga'); snapSpec(); all(); if (v === 'talents') { S.view = 'book'; $('#P').style.display = ''; openTalents(); } };
 $('#cRes').onchange = () => { fit(); all(); };
 $('#cCombat').onchange = () => { S.combat = $('#cCombat').checked; renderForge(); };
-$('#cAlt').onchange = () => { S.alt = $('#cAlt').checked; refreshTip(); };
+$('#cAlt').onchange = () => { S.alt = $('#cAlt').checked; document.body.classList.toggle('alt', S.alt); refreshTip(); };
+$('#cRm').onchange = () => document.body.classList.toggle('rm', $('#cRm').checked);
 $('#cReset').onclick = () => { reset(S.cls); all(); };
 $('#bTal').onclick = () => openTalents();
 $('#bRec').onclick = () => applyReco();

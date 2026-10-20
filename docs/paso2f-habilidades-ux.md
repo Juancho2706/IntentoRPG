@@ -1,6 +1,6 @@
 # Paso 2f: libro de habilidades y forja (Mejora + 2 Variantes), documento de diseño
 
-> **Nota (Paso 2g):** para la **Maga**, el catálogo de §2.7 queda sustituido por `docs/paso2g-maga-coherencia.md` §4.2. Ascua, Toque Gélido, Armadura de Hielo y Onda Repulsora pasan a ser variantes. Parpadeo, Barrera de Maná y Llamarada pasan al libro con forja. La variante «Fénix» de Estela Ígnea pasa a «Muro de Llamas».
+> **Nota (Paso 2g):** para la **Maga**, el catálogo de §2.7 queda sustituido por `docs/paso2g-maga-coherencia.md` Anexo A.7 (catálogo y forja; los talentos v2 están en sus §4–§7). Ascua, Toque Gélido, Armadura de Hielo y Onda Repulsora pasan a ser variantes. Parpadeo, Barrera de Maná y Llamarada pasan al libro con forja. La variante «Fénix» de Estela Ígnea pasa a «Muro de Llamas».
 
 > Estado: **diseño** (no toca código del juego). Fecha: 2026-10-20. Mockup: `docs/mockups/skills-ux.html`, que pasó dos refutaciones con capturas (§4.3).
 > Insumos: `docs/paso2-diseno.md` (§1, §3, §3.4, §4 y §7), `js/skill-defs.js`, `js/skills-<clase>.js`, `js/skill-resolve.js`, `js/ui.js` (`renderSkills`, `renderSkillFocus`, `renderBookBar` y `hotbarSlotChooser`), `js/hud-model.js`, las capturas del libro actual y el banco de balance.
