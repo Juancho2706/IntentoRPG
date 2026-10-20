@@ -28,7 +28,7 @@ const EXPECT = {
   g_embate:       { st: 'R', cat: 'basic',    req: 8,  coef: 0.6, cost: 0,  cd: 0,  gen: 7 },    // básico C (Nv8)
   torbellino:     { st: 'R', cat: 'spender',  req: 2,  coef: 1.6, cost: 25, cd: 0 },
   g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.9, cost: 27, cd: 0 },   // 2,6/30 → 2,9/27 (banco 2b.2)
-  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 2.4, cost: 30, cd: 0 },
+  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 1.8, cost: 30, cd: 0 },   // 2,4 → 1,8 (banco de roles 2e)
   terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.1, cost: 26, cd: 4 },   // 3,0/35/6 → 3,1/26/4 (banco 2b.2)
   g_lanza:        { st: 'C', cat: 'spender',  req: 14, coef: 1.9, cost: 20, cd: 0 },
   embestida:      { st: 'C', cat: 'movement', req: 4,  coef: 1.2, cost: 0,  cd: 8 },
@@ -100,7 +100,7 @@ for (const L of [1, 20, 50]) {
 }
 { // números concretos de Nv50 (rango 5): buffs +24 %
   const p = new Player(mk(), 'guerrero'); p.level = 50; p.recompute();
-  assert.deepEqual(resolveSkill(p, SK('g_piel')).buff, { dr: 37 });
+  assert.deepEqual(resolveSkill(p, SK('g_piel')).buff, { dr: 50 });   // 2e: 40 × 1,24 = 49,6 → 50
   assert.deepEqual(resolveSkill(p, SK('grito_guerra')).buff, { dmgPct: 12 });
   assert.deepEqual(resolveSkill(p, SK('g_u_estandarte')).buff, { dmgPct: 25, dr: 19 });   // rango 5 (req 15: 1+⌊35/8⌋=5)
   assert.ok(approx(resolveSkill(p, SK('g_salto')).coef, 1.8 * 1.4) && resolveSkill(p, SK('g_salto')).slowPct === 40);
@@ -192,14 +192,14 @@ const hp0 = h.p.hp; h.p.takeDamage(50, 1); assert.equal(h.p.hp, hp0, 'Salto: int
 h.step(0.6);
 assert.ok(Math.abs(h.p.pos.x - 6) < 0.05 && e.hp < 1e6 && e.slowT > 1 && e.slowPct === 40, 'Salto: aterriza, daña y ralentiza 40 %');
 
-// Piel de Hierro: −30 % (+6 %/rango) de daño recibido 6 s, inmune a ralentizaciones
+// Piel de Hierro: −40 % (+6 %/rango) de daño recibido 8 s (2e), inmune a ralentizaciones
 h = hz(6); h.setSlot('k2', 'g_piel'); h.p.slowT = 3;
 assert.equal(h.cast('k2'), true);
-assert.equal(h.p.stats.dr, 30, 'Piel: dr 30 a rango 1');
+assert.equal(h.p.stats.dr, 40, 'Piel: dr 40 a rango 1');
 h.p.slowT = 2; h.step(0.15);
 assert.equal(h.p.slowT, 0, 'Piel: inmune a ralentizaciones mientras dura (p.slowImmuneT)');
 assert.equal(h.p.applySlow(2), false, 'Piel: applySlow no tiene efecto');
-h.tick(6.2); h.p.slowT = 2; h.step(0.2);
+h.tick(8.2); h.p.slowT = 2; h.step(0.2);
 assert.ok(h.p.slowT > 1 && h.p.stats.dr === 0, 'Piel: al terminar vuelve la ralentización y se va el dr');
 
 // Provocación: provoca a 1 enemigo a 15 m, −15 % de su daño 4 s, +15 de Furia

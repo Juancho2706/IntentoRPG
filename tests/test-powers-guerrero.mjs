@@ -183,14 +183,14 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   h.step(1.0);
   p.pos.x += 0.5;                                     // te mueves mientras giras
   h.step(2.3);
-  assert.ok(!h.g._channel, 'termina tras 3 s');
+  assert.ok(!h.g._channel, 'termina tras 2 s (2e)');
   const prof = resolveSkill(p, SK('g_t_remolino'));
   const per = p.avgHit(prof.coef, prof.addPct);
   assert.ok(lost(es[0]) > per * 7, `golpea ~10 veces (${(lost(es[0]) / per).toFixed(1)} golpes medios)`);
   assert.equal(lost(out), 0, 'fuera del radio no');
   assert.ok(h.g.hasDoT(es[0], 'g_t_remolino:bleed'), 'desangra');
-  // s4 Remolino Sediento: +4 Sed por enemigo golpeado, máx. 20 por uso
-  assert.equal(powerState(p, 'g_remolino_sediento').got, 20, 'Remolino Sediento: 6 enemigos × 4 → tope 20');
+  // s4 Remolino Sediento: +2 Sed por golpe (2e), máx. 20 por uso
+  assert.equal(powerState(p, 'g_remolino_sediento').got, 20, 'Remolino Sediento: 2 por golpe → tope 20');
   assert.ok(h.gaugeValue('sed') >= 20, 'la Sed sube');
   // la esquiva lo corta
   p.cds.g_t_remolino = 0; p.mp = 100; h.step(0.3);
@@ -198,20 +198,20 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   h.g.cancelCast('dodge');
   assert.ok(!h.g._channel, 'la esquiva corta el giro');
 }
-// s6A Carnicería: +40 % de radio y el Sangrado salta a 2 cercanos
+// s6A Carnicería: +10 % de radio y el Sangrado salta a 1 cercano (2e)
 {
   const h = B({ s6: 1 }, { choice: { s6: 'A' } });
   const p = h.p;
   const prof = resolveSkill(p, SK('g_t_remolino'));
-  assert.ok(approx(prof.radius, 2.9 * 1.4, 1e-9) && prof.chain === 2, 'radio ×1,4 y salto a 2');
+  assert.ok(approx(prof.radius, 2.9 * 1.1, 1e-9) && prof.chain === 1, 'radio ×1,1 y salto a 1');
   const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] });
-  // fuera del giro (radio 4,06 + 0,5) pero a ≤ 4 m del golpeado
+  // fuera del giro (radio 3,19 + 0,5) pero a ≤ 4 m del golpeado
   const near = [h.enemy({ hp: 1e6, pos: [5.5, 0, 0] }), h.enemy({ hp: 1e6, pos: [4, 0, 3] })];
   const third = h.enemy({ hp: 1e6, pos: [5.2, 0, -2] });
   p.mp = 100; h.cast('k3'); h.step(0.32);
   assert.ok(h.g.hasDoT(e, 'g_t_remolino:bleed'), 'el golpeado sangra');
   const jumped = [...near, third].filter(o => h.g.hasDoT(o, 'g_t_remolino:bleed'));
-  assert.equal(jumped.length, 2, 'el Sangrado salta a 2 cercanos por golpe');
+  assert.equal(jumped.length, 1, 'el Sangrado salta a 1 cercano por golpe');
   assert.ok([...near, third].every(o => o.hp === o.maxHP || h.g.hasDoT(o)), 'sin que el giro los golpee');
 }
 // s5 Instinto Asesino (poder propio g_instinto_asesino): cada crítico suma 2 de Sed (solo con s5)
@@ -251,17 +251,18 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   // +40 a élites/jefes: ahora es combat-math.condAddPct (contexto de rollDamage), no un condAdd de poder
   const execAdd = en => condAddPct(p.tv, { targetElite: !!en.def?.rank, targetFrac: en.hp / en.maxHP });
   const e = h.enemy({ hp: 1000 });
-  e.hp = 250;
+  const thr = p.tv.executePct;                      // 2e: x1 da 6 (más las fuentes de clase)
+  e.hp = (thr + 5) * 10;
   h.hit(e, { skill: 'g_tajo' });
-  assert.ok(e.alive, 'por encima del 20 % no remata');
-  e.hp = 190;
+  assert.ok(e.alive, 'por encima del umbral no remata');
+  e.hp = (thr - 1) * 10;
   p.mp = 0;
   h.hit(e, { skill: 'g_tajo' });
-  assert.ok(!e.alive, 'Ejecutar: remata a los normales bajo el 20 %');
+  assert.ok(!e.alive, `Ejecutar: remata a los normales bajo el ${thr} %`);
   assert.equal(h.gaugeValue('sed'), 30, 'Carnicero: +15 Sed por rango (2) por remate');
-  assert.equal(p.mp, 10, 'Carnicero: +10 de Furia');
+  assert.equal(p.mp, 5, 'Carnicero: +5 de Furia (2e)');
   const el = h.enemy({ hp: 1000, rank: 'elite' });
-  el.hp = 150;
+  el.hp = (thr - 1) * 10;
   assert.equal(execAdd(el), 25, 'élites bajo el umbral: +25 % (tv.executeDmg; 2c.2: era 40)');
   h.hit(el, { skill: 'g_tajo' });
   assert.ok(el.alive, 'a los élites no los remata');
@@ -272,12 +273,12 @@ const B = (spec = {}, extra = {}) => H({ spec: 'berserker', talents: { spec, ...
   const b = buff(p, 'g_desenfreno');
   assert.ok(b, 'Sangre Hirviente: Desenfreno');
   const t0 = b.t;
-  const o = h.enemy({ hp: 1000 }); o.hp = 100;
+  const o = h.enemy({ hp: 1000 }); o.hp = (thr - 1) * 10;
   h.hit(o, { skill: 'g_tajo' });
   assert.ok(!o.alive && approx(b.t, t0 + 2, 1e-6), `Matanza Eterna: +2 s (${t0} → ${b.t})`);
   // la muerte de un élite tras bajar del umbral también es remate
   const el2 = h.enemy({ hp: 1000, rank: 'elite' });
-  el2.hp = 150; h.hit(el2, { skill: 'g_tajo' });
+  el2.hp = (thr - 1) * 10; h.hit(el2, { skill: 'g_tajo' });
   const t1 = b.t;
   el2.takeDamage(999, false, {});
   assert.ok(approx(b.t, t1 + 2, 1e-6), 'élite que muere bajo el umbral: remate');
@@ -417,13 +418,13 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   r.p.takeDamage(200, 1, { melee: true, source: re });
   assert.ok(lost(re) > 0, 'Represalia: también refleja lo bloqueado');
 }
-// s17 Muralla Viviente: −2 %/rango por carga de Bastión (ya no −2 % fijo)
+// s17 Muralla Viviente: −1 %/rango por carga de Bastión (2e; ya no −2 % fijo)
 {
   const h = G({ s17: 2 });
   const p = h.p;
   assert.equal(p.tv.dmgReduc || 0, 0, 'sin reducción fija');
   h.gauge('bastion', 3);
-  assert.equal(firePower('condDr', p, p, { amount: 100 }), 12, '2 rangos × 2 % × 3 cargas');
+  assert.equal(firePower('condDr', p, p, { amount: 100 }), 6, '2 rangos × 1 % × 3 cargas');
 }
 // s6B Reto Singular: la Provocación marca: −20 % de daño a tu grupo 8 s
 {
@@ -515,8 +516,8 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   h.tick(2);
   const prof = resolveSkill(p, SK('g_t_devocion'));
   const regen = (0.4 + p.stats.vit * 0.02) * 2;          // regeneración natural de Player.update
-  const want = p.stats.maxHP * 0.02 * 2 * prof.buffMul * 1.1 * (1 + p.stats.healPct / 100) + regen;
-  assert.ok(approx(p.hp - hp0, want, p.stats.maxHP * 0.003), `2 %/s (+10 % Ferviente, +15 % innata): ${(p.hp - hp0).toFixed(1)} ≈ ${want.toFixed(1)}`);
+  const want = p.stats.maxHP * 0.03 * 2 * prof.buffMul * 1.1 * (1 + p.stats.healPct / 100) + regen;   // 2e: 3 %/s
+  assert.ok(approx(p.hp - hp0, want, p.stats.maxHP * 0.003), `3 %/s (+10 % Ferviente, +15 % innata): ${(p.hp - hp0).toFixed(1)} ≈ ${want.toFixed(1)}`);
   assert.ok(buff(a, 'g_t_devocion') && a.healed > 30 && !buff(far, 'g_t_devocion'), 'aliados a 15 m');
   // el aura te sigue
   const ah = a.healed;
@@ -528,7 +529,7 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   const t0 = f.t;
   h.gauge('fervor', 3); spendGauge(p, 'fervor', 3);
   assert.ok(approx(f.t, t0 + 3, 1e-9), 'Luz del Alba: +1 s por Fervor gastado');
-  h.tick(10);
+  h.tick(14);                                         // 2e: dura 12 s (+3 s de Luz del Alba)
   assert.ok(!buff(p, 'g_t_devocion') && !h.g.fields.some(x => x.kind === 'g_devocion' && !x.dead), 'termina');
 }
 // s9 Veredicto Final (+ s17 Gracia): 3 Fervor → cono de 300 %; el grupo se cura el 25 % del daño
@@ -633,6 +634,9 @@ const C = (spec = {}, extra = {}) => H({ spec: 'cruzado', talents: { spec, ...ex
   const kl = lost(ke);
   k.tick(1.5);
   assert.ok(lost(ke) > kl && ka.healed > 15, 'daña a los enemigos y cura a los aliados');
+  // Paso 2e: no se apila; un Martillo nuevo reemplaza el suelo anterior (antes 4 suelos curaban a la vez)
+  for (let i = 0; i < 3; i++) { k.p.mp = 100; k.p.cds.g_martillo = 0; k.step(0.3); k.cast('rmb'); k.step(0.5); }
+  assert.equal(k.g.fields.filter(f => f.kind === 'g_consagracion' && !f.dead).length, 1, 'Consagración: un solo suelo a la vez');
 }
 // s10 Estandarte Sagrado: la bonificación del Estandarte alcanza a 15 m
 {

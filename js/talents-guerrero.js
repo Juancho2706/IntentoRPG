@@ -54,6 +54,35 @@
 //    5 s (+26 % de daño total, golpe suelto MENOR para el tope del 25 % del jefe y el mismo
 //    ritmo inicial, que es lo que infla al óptimo): parte de la definitiva 9 → 14 % (Nv50) y
 //    11 → 16 % (Nv25).
+// RECALIBRACIÓN 2e (banco de roles, §7.2: matriz 9 especializaciones × 5 escenarios; antes
+// 46 objetivos fuera, después 0 con la semilla 1 + 3 pendientes documentados en
+// PENDING_2E de tests/balance-bench.mjs). Texto y valor cambian JUNTOS:
+//  · Remolino Sangriento (insignia Berserker): canal 3 → 2 s (mismos 10 golpes), 45 → 47 %
+//    por golpe. Con 3 s de cada 6 girando era una TRAMPA de tiempo: sin él el Guerrero Nv10
+//    mataba al jefe en 77 s y con él en 104 (élite 9,1 → 12,9 s, fuera del 1A).
+//  · s4 Remolino Sediento: 4 de Sed por ENEMIGO → 2 por GOLPE (contra un jefe daba 4 por giro;
+//    con 5 enemigos ya topaba). s6A Carnicería: +40 % de radio y salto a 2 → +10 % y 1 (el
+//    área del Berserker ya era ×1,45 de la media). s16 Torbellino de Acero: además −10 %/rango
+//    de coste y Vulnerable 4 s (la ranura 2 ofensiva daba −4 % de UNI: era una trampa), con
+//    +5 %/rango de radio (era 15). s1 Ira Creciente 2 → 1 %/rango, c13 Cazador de Campeones
+//    5 → 3 %/rango y s11 Umbral del Dolor −4 → −13 %/rango (TTD+ del Berserker 0,50 → 0,91·M
+//    sin pasar del jefe ≥ 40 s que necesita la media de clases del 1A).
+//  · x1 Ejecutar 20 → 6 % (rematar al 20 % hacía del Berserker el más rápido en comunes:
+//    TTK 0,40 s < 0,48) · x2 Carnicero 10 → 5 de Furia por remate.
+//  · Guardián: s1 Baluarte 25 → 10 de armadura/rango, s5 Guardia Alta −3 → −1 %/rango,
+//    s11 Coloso +15 → +5 de armadura/rango y s17 Muralla Viviente −2 → −1 %/rango por carga:
+//    su TTD+ estaba en el tope (180 s, inmortal) y ahora queda en 2,4·M y ≥ 1,8× el Cruzado.
+//  · Cruzado: s6A Consagración: suelo 4 → 1 s y la cura NO se apila (bug: 4 suelos a la vez
+//    curaban 8 %/s, powers-guerrero.js). Veredicto Final 300 → 120 % en cono de 90 → 60°
+//    (s9 y su activa): con la cura del 25 % era el AoE más alto del juego (×2,67 de la media).
+//    s7 Martillo Justiciero pierde el +12 %/rango de daño (queda el radio). s5 Celo 3 → 2 %
+//    de crítico/rango. s12 Fervor Creciente 15 → 8 %/rango. Aura de Devoción (insignia y s0):
+//    8 → 12 s y 2 → 3 %/s. s14 Luz del Alba: +10 % al grupo → +25 % a los aliados (+10 % a
+//    ti): APOYO 18 → 60 % del DPS de un aliado (§7.2 pide ≥ 25 %). Bramido de Guerra (c12A):
+//    enfriamiento 45 → 28 s y cura 15 → 21 % (TTD+ del Cruzado 0,53 → 1,31·M).
+//  · skills-guerrero.js: Martillo de Guerra 2,4 → 1,8 (era el 57 % del área del Cruzado) y
+//    Piel de Hierro 6 s/−30 % → 8 s/−40 % (la ranura 2 defensiva del Berserker y del Guardián).
+//  · powers-common.js: Juicio 60 → 20 % del golpe medio al matar.
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple
@@ -73,12 +102,12 @@ export const GUERRERO_TALENT_SKILLS = [
     type: 'leap', behavior: 'g_t_intervencion', req: 10, cd: 20, range: 8, airT: 0.4, lockT: 0.4, shieldPct: 15, dur: 6, color: 0x88bbff,
     desc: 'Saltas hasta un aliado (o 8 m hacia el cursor) y ambos ganan un escudo del 15 % de tu vida máxima durante 6 s. Enfriamiento 20 s.' },
   { id: 'g_t_bramido', name: 'Bramido de Guerra', icon: '📯', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'shout', 'buff', 'ally', 'physical'], elem: 'physical',
-    type: 'buff', behavior: 'g_t_bramido', req: 10, cd: 45, dur: 10, buff: { hpPct: 15 }, allyRadius: 15, healPct: 15, color: 0xff6644,
-    desc: 'Tú y los aliados a 15 m ganan +15 % de vida máxima durante 10 s y se curan ese 15 % al instante. Enfriamiento 45 s.' },
+    type: 'buff', behavior: 'g_t_bramido', req: 10, cd: 28, dur: 10, buff: { hpPct: 15 }, allyRadius: 15, healPct: 21, color: 0xff6644,
+    desc: 'Tú y los aliados a 15 m ganan +15 % de vida máxima durante 10 s y se curan un 21 % al instante. Enfriamiento 28 s.' },
   // — Berserker —
   { id: 'g_t_remolino', name: 'Remolino Sangriento', icon: '🌪️', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'melee', 'area', 'dot', 'physical'], elem: 'physical',
-    behavior: 'g_t_remolino', req: 10, coef: 0.45, cost: 30, cd: 6, channelT: 3, ticks: 10, radius: 2.9, dotKind: 'bleed', moveFree: true, color: 0xcc2222,
-    desc: 'Insignia del Berserker: giras 3 s a velocidad normal golpeando 10 veces a todo lo que hay a 2,9 m (45 % del arma por golpe, 450 % en total) y lo desangras. Cuesta 30 de Furia; enfriamiento 6 s.' },
+    behavior: 'g_t_remolino', req: 10, coef: 0.47, cost: 30, cd: 6, channelT: 2, ticks: 10, radius: 2.9, dotKind: 'bleed', moveFree: true, color: 0xcc2222,
+    desc: 'Insignia del Berserker: giras 2 s a velocidad normal golpeando 10 veces a todo lo que hay a 2,9 m (47 % del arma por golpe, 470 % en total) y lo desangras. Cuesta 30 de Furia; enfriamiento 6 s.' },
   { id: 'g_t_temeridad', name: 'Temeridad', icon: '💢', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'buff', 'physical'], elem: 'physical',
     type: 'buff', behavior: 'g_t_temeridad', req: 10, cd: 90, dur: 10, buff: { crit: 25 }, gaugeMult: 2, dmgTakenPct: 10, color: 0xff3322,
     desc: 'Durante 10 s ganas +25 % de probabilidad de crítico y tu Sed se llena el doble de rápido, pero recibes +10 % de daño. Enfriamiento 90 s.' },
@@ -98,11 +127,11 @@ export const GUERRERO_TALENT_SKILLS = [
     desc: 'Cargas 8 m arrastrando a los enemigos que encuentras; al llegar haces 100 % del arma y los aturdes 1,5 s. Enfriamiento 14 s.' },
   // — Cruzado —
   { id: 'g_t_devocion', name: 'Aura de Devoción', icon: '✨', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'aura', 'heal', 'ally', 'holy'], elem: 'holy',
-    type: 'buff', behavior: 'g_t_devocion', req: 10, cd: 30, dur: 8, buff: { arm: 30 }, allyRadius: 15, healPctPerSec: 2, color: 0xffdd77,
-    desc: 'Insignia del Cruzado: durante 8 s, tú y los aliados a 15 m recuperan un 2 % de vida por segundo y ganan +30 de armadura. Enfriamiento 30 s.' },
+    type: 'buff', behavior: 'g_t_devocion', req: 10, cd: 30, dur: 12, buff: { arm: 30 }, allyRadius: 15, healPctPerSec: 3, color: 0xffdd77,
+    desc: 'Insignia del Cruzado: durante 12 s, tú y los aliados a 15 m recuperan un 3 % de vida por segundo y ganan +30 de armadura. Enfriamiento 30 s.' },
   { id: 'g_t_veredicto', name: 'Veredicto Final', icon: '⚖️', kind: 'talent', cat: 'spec', slots: ['rmb', 'k2', 'k3'], tags: ['spec', 'spender', 'cone', 'heal', 'holy'], elem: 'holy',
-    type: 'cone', behavior: 'g_t_veredicto', req: 10, coef: 3.0, radius: 6, angle: 90, windup: 0.12, gaugeCost: 3, healDealtPct: 25, color: 0xffe08a,
-    desc: 'Gastas 3 de Fervor en un golpe sagrado en cono de 6 m (preparación de 0,12 s): 300 % del arma; el grupo se cura el 25 % del daño hecho.' },
+    type: 'cone', behavior: 'g_t_veredicto', req: 10, coef: 1.2, radius: 6, angle: 60, windup: 0.12, gaugeCost: 3, healDealtPct: 25, color: 0xffe08a,
+    desc: 'Gastas 3 de Fervor en un golpe sagrado en cono de 60° y 6 m (preparación de 0,12 s): 120 % del arma; el grupo se cura el 25 % del daño hecho.' },
   { id: 'g_t_justicia', name: 'Martillo de Justicia', icon: '🔨', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'proj', 'cc', 'holy'], elem: 'holy',
     type: 'proj', req: 10, coef: 1.2, cd: 15, speed: 16, range: 12, stun: 3, bossStun: 1.5, stagger: 30, color: 0xffd36b,
     desc: 'Arrojas un martillo sagrado: 120 % del arma y aturde 3 s al objetivo (a los jefes, 1,5 s y +30 de stagger). Enfriamiento 15 s.' },
@@ -128,7 +157,7 @@ export const GUERRERO_TALENTS = {
       { id: 'c12', name: 'Bramido o Coraza', icon: 'talents/guerrero-clase-c12.webp', t: 'c', r: 5, c: 0.5, max: 1, req: ['c9', 'c10'], opts: [
         { k: 'A', name: 'Bramido de Guerra', desc: 'Activa: +15% de vida máxima para ti y tus aliados a 15 m durante 10 s.', active: true, fx: { grant: 'g_t_bramido' } },
         { k: 'B', name: 'Coraza de Hierro', desc: 'Al bajar del 30% de vida recibes −30% de daño durante 5 s. Una vez cada 60 s.', fx: { power: 'g_coraza_hierro' } } ] },
-      { id: 'c13', name: 'Cazador de Campeones', icon: 'talents/guerrero-clase-c13.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['c10', 'c11'], d: r => `+${x(5, r)}% de daño contra élites y jefes.`, fx: { tv: { eliteDmg: 5 } } },
+      { id: 'c13', name: 'Cazador de Campeones', icon: 'talents/guerrero-clase-c13.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['c10', 'c11'], d: r => `+${x(3, r)}% de daño contra élites y jefes.`, fx: { tv: { eliteDmg: 3 } } },
       { id: 'c14', name: 'Maestro de Armas', icon: 'talents/guerrero-clase-c14.webp', t: 'p', r: 6, c: 1.5, max: 1, req: ['c12', 'c13'], d: '+10% de daño crítico. Cada crítico te da 2 de Furia.', fx: { tv: { critDmg: 10 }, power: 'g_crit_furia' } },
       { id: 'c15', name: 'Hermandad de Armas', icon: 'talents/guerrero-clase-c15.webp', t: 'k', r: 7, c: 1.5, max: 1, req: ['c14'], d: 'Grupo: tú y los aliados a 15 m ganan +5% de daño y +8% de vida máxima. Generas un 5% más de Furia por cada aliado cerca (máx. 3).', fx: { power: 'g_aura_hermandad' } },
     ],
@@ -142,30 +171,30 @@ export const GUERRERO_TALENTS = {
       // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c5', 1, 'B'], ['c6', 2], ['c7', 2], ['c8', 2], ['c10', 3], ['c13', 2], ['c14', 1], ['c15', 1]],
       nodes: [
-        { id: 's0', name: 'Sed de Batalla', icon: 'talents/guerrero-berserker-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): con menos del 40% de vida o con la Sed Saciada haces +25% de daño. Perder vida y desangrar enemigos llena tu Sed. Otorga la activa Remolino Sangriento: giras 3 s desangrando a todo lo que tocas (30 de Furia, enfriamiento 6 s).', fx: { power: 'm_berserk', grant: 'g_t_remolino' } },
-        { id: 's1', name: 'Ira Creciente', icon: 'talents/guerrero-berserker-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(2, r)}% de daño Físico.`, fx: { elem: { physical: 2 } } },
+        { id: 's0', name: 'Sed de Batalla', icon: 'talents/guerrero-berserker-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): con menos del 40% de vida o con la Sed Saciada haces +25% de daño. Perder vida y desangrar enemigos llena tu Sed. Otorga la activa Remolino Sangriento: giras 2 s desangrando a todo lo que tocas (30 de Furia, enfriamiento 6 s).', fx: { power: 'm_berserk', grant: 'g_t_remolino' } },
+        { id: 's1', name: 'Ira Creciente', icon: 'talents/guerrero-berserker-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(1, r)}% de daño Físico.`, fx: { elem: { physical: 1 } } },
         { id: 's2', name: 'Frenesí', icon: 'talents/guerrero-berserker-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `+${x(3, r)}% de velocidad de ataque.`, fx: { stats: { aspdPct: 3 } } },
         { id: 's3', name: 'Heridas Profundas', icon: 'talents/guerrero-berserker-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `Torbellino y Hendidura aplican Sangrado. +${x(15, r)}% de daño de Sangrado.`, fx: { mod: { torbellino: { dot: 'bleed' }, g_hendidura: { dot: 'bleed' } }, tv: { bleedPct: 15 } } },
-        { id: 's4', name: 'Remolino Sediento', icon: 'talents/guerrero-berserker-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Cada enemigo golpeado por Remolino Sangriento suma 4 de Sed (máx. 20 por uso).', fx: { power: 'g_remolino_sediento' } },
+        { id: 's4', name: 'Remolino Sediento', icon: 'talents/guerrero-berserker-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Cada golpe de Remolino Sangriento suma 2 de Sed (máx. 20 por uso).', fx: { power: 'g_remolino_sediento' } },
         { id: 's5', name: 'Instinto Asesino', icon: 'talents/guerrero-berserker-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `+${x(3, r)}% de probabilidad de crítico. Cada crítico suma 2 de Sed.`, fx: { stats: { crit: 3 }, power: 'g_instinto_asesino' } },
         { id: 's6', name: 'Carnicería o Duelista', icon: 'talents/guerrero-berserker-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
-          { k: 'A', name: 'Carnicería', desc: 'Remolino Sangriento: +40% de radio y el Sangrado salta a 2 cercanos. Para hordas.', fx: { mod: { g_t_remolino: { radius: 40, chain: 2 } } } },
+          { k: 'A', name: 'Carnicería', desc: 'Remolino Sangriento: +10% de radio y el Sangrado salta a 1 cercano. Para hordas.', fx: { mod: { g_t_remolino: { radius: 10, chain: 1 } } } },
           { k: 'B', name: 'Duelista', desc: 'Mandoble deja al objetivo vulnerable 4 s (+20% de daño recibido). Para jefes.', fx: { mod: { g_mandoble: { vuln: 4 } } } } ] },
         { id: 's7', name: 'Golpe Salvaje', icon: 'talents/guerrero-berserker-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(12, r)}% de daño de Mandoble.`, fx: { mod: { g_mandoble: { dmg: 12 } } } },
         { id: 's8', name: 'Festín de Sangre', icon: 'talents/guerrero-berserker-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Matar a un enemigo que sangra te cura un ${x(2, r)}% de vida.`, fx: { tv: { bleedKillHeal: 2 } } },
         { id: 's9', name: 'Temeridad', icon: 'talents/guerrero-berserker-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 10 s ganas +25% de crítico y tu Sed se llena el doble de rápido, pero recibes +10% de daño. Enfriamiento 90 s.', fx: { grant: 'g_t_temeridad' } },
         { id: 's10', name: 'Arsenal Brutal', icon: 'talents/guerrero-berserker-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(10, r)}% de daño de Torbellino y Hendidura.`, fx: { mod: { torbellino: { dmg: 10 }, g_hendidura: { dmg: 10 } } } },
-        { id: 's11', name: 'Umbral del Dolor', icon: 'talents/guerrero-berserker-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `−${x(4, r)}% de daño recibido. El dolor solo te enfurece más.`, fx: { tv: { dmgReduc: 4 } } },
+        { id: 's11', name: 'Umbral del Dolor', icon: 'talents/guerrero-berserker-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `−${x(13, r)}% de daño recibido. El dolor solo te enfurece más.`, fx: { tv: { dmgReduc: 13 } } },
         { id: 's12', name: 'Ritmo de Matanza', icon: 'talents/guerrero-berserker-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `−${x(12, r)}% de enfriamiento de Remolino Sangriento y Temeridad.`, fx: { mod: { g_t_remolino: { cdr: 12 }, g_t_temeridad: { cdr: 12 } } } },
         { id: 's13', name: 'Negación o Ira Ciega', icon: 'talents/guerrero-berserker-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
           { k: 'A', name: 'Negación de la Muerte', desc: 'Una vez cada 2 minutos, un golpe letal te deja con 1 de vida y la Sed llena.', fx: { power: 'g_negacion' } },
           { k: 'B', name: 'Ira Ciega', desc: 'Activa: 6 s de +30% de daño e inmune a aturdimientos. Cuesta un 10% de vida.', active: true, fx: { grant: 'g_t_ira_ciega' } } ] },
         { id: 's14', name: 'Sangre Hirviente', icon: 'talents/guerrero-berserker-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Con la Sed llena entras en Desenfreno 8 s: +30% de velocidad de ataque y cada golpe te cura un 1% de vida.', fx: { power: 'g_desenfreno' } },
         { id: 's15', name: 'Sed Insaciable', icon: 'talents/guerrero-berserker-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(4, r)} de Furia cada vez que muere un enemigo que sangra.`, fx: { tv: { bleedKillMana: 4 } } },
-        { id: 's16', name: 'Torbellino de Acero', icon: 'talents/guerrero-berserker-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(15, r)}% de radio y +${x(8, r)}% de daño de Torbellino.`, fx: { mod: { torbellino: { radius: 15, dmg: 8 } } } },
+        { id: 's16', name: 'Torbellino de Acero', icon: 'talents/guerrero-berserker-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(5, r)}% de radio y +${x(8, r)}% de daño de Torbellino; cuesta un ${x(10, r)}% menos de Furia y deja Vulnerables 4 s a los que golpea.`, fx: { mod: { torbellino: { radius: 5, dmg: 8, cost: -10, vuln: [4, 4] } } } },
         { id: 's17', name: 'Golpes Despiadados', icon: 'talents/guerrero-berserker-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(12, r)}% de daño crítico.`, fx: { tv: { critDmg: 12 } } },
-        { id: 'x1', name: 'Ejecutar', icon: 'talents/guerrero-berserker-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: rematas al instante a los enemigos normales bajo el 20% de vida. Contra élites y jefes, +25% de daño bajo ese umbral.', fx: { tv: { executePct: 20, executeDmg: 25 } } },
-        { id: 'x2', name: 'Carnicero', icon: 'talents/guerrero-berserker-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: cada remate suma ${x(15, r)} de Sed y te devuelve 10 de Furia.`, fx: { power: 'g_carnicero' } },
+        { id: 'x1', name: 'Ejecutar', icon: 'talents/guerrero-berserker-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: rematas al instante a los enemigos normales bajo el 6% de vida. Contra élites y jefes, +25% de daño bajo ese umbral.', fx: { tv: { executePct: 6, executeDmg: 25 } } },
+        { id: 'x2', name: 'Carnicero', icon: 'talents/guerrero-berserker-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: cada remate suma ${x(15, r)} de Sed y te devuelve 5 de Furia.`, fx: { power: 'g_carnicero' } },
         { id: 'x3', name: 'Matanza Eterna', icon: 'talents/guerrero-berserker-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): rematar durante el Desenfreno lo alarga 2 s, sin límite.', fx: { power: 'g_matanza_eterna' } },
       ],
       preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s6', 1, 'A'], ['s7', 2], ['s8', 2], ['s9', 1], ['s11', 2], ['s14', 1], ['s16', 2], ['x1', 1], ['x2', 1]],
@@ -178,11 +207,11 @@ export const GUERRERO_TALENTS = {
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 3], ['c5', 1, 'A'], ['c7', 2], ['c9', 2], ['c10', 3], ['c12', 1, 'A'], ['c14', 1], ['c15', 1]],
       nodes: [
         { id: 's0', name: 'Muro Inquebrantable', icon: 'talents/guerrero-guardian-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): un golpe letal te deja a 1 de vida e inmune 2 s (recarga 30 s). Bloquear golpes te da cargas de Bastión. Otorga la activa Grito Desafiante: provocas a todos los enemigos a 10 m durante 4 s (enfriamiento 12 s).', fx: { power: 'm_aegis', grant: 'g_t_desafio' } },
-        { id: 's1', name: 'Baluarte', icon: 'talents/guerrero-guardian-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(25, r)} de armadura.`, fx: { stats: { arm: 25 } } },
+        { id: 's1', name: 'Baluarte', icon: 'talents/guerrero-guardian-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(10, r)} de armadura.`, fx: { stats: { arm: 10 } } },
         { id: 's2', name: 'Fortaleza', icon: 'talents/guerrero-guardian-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `+${x(40, r)} de vida máxima.`, fx: { stats: { hp: 40 } } },
         { id: 's3', name: 'Púas de Hierro', icon: 'talents/guerrero-guardian-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `+${x(10, r)} de daño de espinas.`, fx: { stats: { thorns: 10 } } },
         { id: 's4', name: 'Desafío Firme', icon: 'talents/guerrero-guardian-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Grito Desafiante te da 2 cargas de Bastión.', fx: { power: 'g_desafio_firme' } },
-        { id: 's5', name: 'Guardia Alta', icon: 'talents/guerrero-guardian-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `−${x(3, r)}% de daño recibido.`, fx: { tv: { dmgReduc: 3 } } },
+        { id: 's5', name: 'Guardia Alta', icon: 'talents/guerrero-guardian-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `−${x(1, r)}% de daño recibido.`, fx: { tv: { dmgReduc: 1 } } },
         { id: 's6', name: 'Cerco o Reto', icon: 'talents/guerrero-guardian-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
           { k: 'A', name: 'Cerco', desc: 'Grito Desafiante: +50% de radio y ralentiza 3 s a los provocados. Para hordas.', fx: { mod: { g_t_desafio: { radius: 50, slow: 3 } } } },
           { k: 'B', name: 'Reto Singular', desc: 'Provocación marca a un enemigo: −20% de daño a tu grupo durante 8 s. Para jefes.', fx: { power: 'g_reto' } } ] },
@@ -190,7 +219,7 @@ export const GUERRERO_TALENTS = {
         { id: 's8', name: 'Recuperación', icon: 'talents/guerrero-guardian-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Matar a un enemigo te cura un ${x(1.5, r)}% de vida.`, fx: { tv: { killHeal: 1.5 } } },
         { id: 's9', name: 'Muro de Escudos', icon: 'talents/guerrero-guardian-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: gastas todas tus cargas de Bastión y recibes −10% de daño por carga durante 8 s (máx. −50%). Enfriamiento 25 s.', fx: { grant: 'g_t_muro' } },
         { id: 's10', name: 'Sacudida', icon: 'talents/guerrero-guardian-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(10, r)}% de daño de Terremoto. Con 1 rango, aturde 1 s.`, fx: { mod: { terremoto: { dmg: 10, stun: [1, 1] } } } },
-        { id: 's11', name: 'Coloso', icon: 'talents/guerrero-guardian-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(50, r)} de vida máxima y +${x(15, r)} de armadura.`, fx: { stats: { hp: 50, arm: 15 } } },
+        { id: 's11', name: 'Coloso', icon: 'talents/guerrero-guardian-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(50, r)} de vida máxima y +${x(5, r)} de armadura.`, fx: { stats: { hp: 50, arm: 5 } } },
         { id: 's12', name: 'Réplica', icon: 'talents/guerrero-guardian-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `+${x(8, r)}% de daño de Tajo y Martillo de Guerra.`, fx: { mod: { g_tajo: { dmg: 8 }, g_martillo: { dmg: 8 } } } },
         { id: 's13', name: 'Juramento o Carga', icon: 'talents/guerrero-guardian-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
           { k: 'A', name: 'Juramento del Escudo', desc: 'Muro Inquebrantable se recarga en 20 s en lugar de 30 s. Más seguro.', fx: { power: 'g_juramento' } },
@@ -198,7 +227,7 @@ export const GUERRERO_TALENTS = {
         { id: 's14', name: 'Vínculo del Guardián', icon: 'talents/guerrero-guardian-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Grupo: recibes tú el 20% del daño que sufren los aliados a 10 m, reducido por tu armadura.', fx: { power: 'g_vinculo' } },
         { id: 's15', name: 'Temple', icon: 'talents/guerrero-guardian-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `−${x(4, r)}% de enfriamiento de todas tus habilidades.`, fx: { stats: { cdr: 4 } } },
         { id: 's16', name: 'Erizo', icon: 'talents/guerrero-guardian-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(15, r)} de daño de espinas.`, fx: { stats: { thorns: 15 } } },
-        { id: 's17', name: 'Muralla Viviente', icon: 'talents/guerrero-guardian-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `Cada carga de Bastión te da −${x(2, r)}% de daño recibido.`, fx: { power: 'g_muralla_viva' } },
+        { id: 's17', name: 'Muralla Viviente', icon: 'talents/guerrero-guardian-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `Cada carga de Bastión te da −${x(1, r)}% de daño recibido.`, fx: { power: 'g_muralla_viva' } },
         { id: 'x1', name: 'Represalia', icon: 'talents/guerrero-guardian-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: tus espinas reflejan además el 30% del daño que bloqueas o absorbes con Muro de Escudos.', fx: { power: 'g_represalia' } },
         { id: 'x2', name: 'Venganza Acumulada', icon: 'talents/guerrero-guardian-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: al terminar Muro de Escudos, una onda devuelve el ${x(20, r)}% del daño absorbido.`, fx: { power: 'g_venganza' } },
         { id: 'x3', name: 'Bastión Eterno', icon: 'talents/guerrero-guardian-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): con 5 cargas, Muro Inquebrantable protege también a los aliados a 10 m (una vez cada 60 s).', fx: { power: 'g_bastion_eterno' } },
@@ -212,25 +241,25 @@ export const GUERRERO_TALENTS = {
       // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c5', 1, 'A'], ['c6', 2], ['c7', 2], ['c8', 2], ['c10', 3], ['c11', 1], ['c12', 1, 'A'], ['c14', 1], ['c15', 1]],
       nodes: [
-        { id: 's0', name: 'Juicio', icon: 'talents/guerrero-cruzado-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): al matar, una onda sagrada daña a los enemigos cercanos y te da 1 de Fervor. Otorga la activa Aura de Devoción: durante 8 s, tú y los aliados a 15 m recuperan un 2% de vida por segundo y ganan +30 de armadura (enfriamiento 30 s).', fx: { power: 'm_judgment', grant: 'g_t_devocion' } },
+        { id: 's0', name: 'Juicio', icon: 'talents/guerrero-cruzado-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): al matar, una onda sagrada daña a los enemigos cercanos y te da 1 de Fervor. Otorga la activa Aura de Devoción: durante 12 s, tú y los aliados a 15 m recuperan un 3% de vida por segundo y ganan +30 de armadura (enfriamiento 30 s).', fx: { power: 'm_judgment', grant: 'g_t_devocion' } },
         { id: 's1', name: 'Fe Ardiente', icon: 'talents/guerrero-cruzado-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(5, r)}% de daño Sagrado (Juicio, Veredicto Final, Cataclismo y Martillos Benditos).`, fx: { elem: { holy: 5 } } },
         { id: 's2', name: 'Plegaria', icon: 'talents/guerrero-cruzado-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `−${x(4, r)}% de enfriamiento de todas tus habilidades.`, fx: { stats: { cdr: 4 } } },
         { id: 's3', name: 'Mano Sanadora', icon: 'talents/guerrero-cruzado-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `+${x(2, r)} de vida al golpear. Los aliados a 10 m reciben la mitad.`, fx: { stats: { lph: 2 }, power: 'g_mano_sanadora' } },
         { id: 's4', name: 'Devoción Ferviente', icon: 'talents/guerrero-cruzado-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Aura de Devoción te da 1 de Fervor al lanzarla y cura un 10% más.', fx: { power: 'g_devocion_ferviente' } },
-        { id: 's5', name: 'Celo', icon: 'talents/guerrero-cruzado-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `+${x(3, r)}% de probabilidad de crítico.`, fx: { stats: { crit: 3 } } },
+        { id: 's5', name: 'Celo', icon: 'talents/guerrero-cruzado-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `+${x(2, r)}% de probabilidad de crítico.`, fx: { stats: { crit: 2 } } },
         { id: 's6', name: 'Consagración o Sentencia', icon: 'talents/guerrero-cruzado-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
-          { k: 'A', name: 'Consagración', desc: 'Martillo de Guerra deja suelo sagrado 4 s: daña enemigos y cura aliados.', fx: { mod: { g_martillo: { zone: 1 } }, power: 'g_consagracion' } },
+          { k: 'A', name: 'Consagración', desc: 'Martillo de Guerra deja suelo sagrado 1 s: daña enemigos y cura aliados (la cura no se apila: cada Martillo la renueva).', fx: { mod: { g_martillo: { zone: 1, zoneDur: 1 } }, power: 'g_consagracion' } },
           { k: 'B', name: 'Sentencia', desc: 'Juicio marca a élites y jefes: reciben +20% de daño de todo el grupo durante 4 s.', fx: { power: 'g_sentencia' } } ] },
-        { id: 's7', name: 'Martillo Justiciero', icon: 'talents/guerrero-cruzado-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(12, r)}% de daño y +${x(10, r)}% de radio de Martillo de Guerra.`, fx: { mod: { g_martillo: { dmg: 12, radius: 10 } } } },
+        { id: 's7', name: 'Martillo Justiciero', icon: 'talents/guerrero-cruzado-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(10, r)}% de radio de Martillo de Guerra.`, fx: { mod: { g_martillo: { radius: 10 } } } },
         { id: 's8', name: 'Luz Sanadora', icon: 'talents/guerrero-cruzado-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `Matar a un enemigo cura un ${x(1.5, r)}% de vida a ti y a los aliados a 10 m.`, fx: { tv: { killHeal: 1.5 }, power: 'g_luz_sanadora' } },
-        { id: 's9', name: 'Veredicto Final', icon: 'talents/guerrero-cruzado-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: gastas 3 de Fervor en un golpe sagrado en cono del 300% que cura al grupo un 25% del daño hecho.', fx: { grant: 'g_t_veredicto' } },
+        { id: 's9', name: 'Veredicto Final', icon: 'talents/guerrero-cruzado-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: gastas 3 de Fervor en un golpe sagrado en cono del 120% que cura al grupo un 25% del daño hecho.', fx: { grant: 'g_t_veredicto' } },
         { id: 's10', name: 'Estandarte Sagrado', icon: 'talents/guerrero-cruzado-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `Estandarte de Guerra dura un ${x(20, r)}% más y su bonificación alcanza a los aliados a 15 m.`, fx: { mod: { g_u_estandarte: { dur: 20 } }, power: 'g_estandarte_grupo' } },
         { id: 's11', name: 'Égida Sagrada', icon: 'talents/guerrero-cruzado-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `+${x(25, r)} de armadura y +${x(6, r)} de espinas.`, fx: { stats: { arm: 25, thorns: 6 } } },
-        { id: 's12', name: 'Fervor Creciente', icon: 'talents/guerrero-cruzado-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `Martillo de Guerra tiene un ${x(15, r)}% de probabilidad de darte 1 de Fervor extra.`, fx: { tv: { fervorChance: 15 } } },
+        { id: 's12', name: 'Fervor Creciente', icon: 'talents/guerrero-cruzado-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `Martillo de Guerra tiene un ${x(8, r)}% de probabilidad de darte 1 de Fervor extra.`, fx: { tv: { fervorChance: 8 } } },
         { id: 's13', name: 'Intercesión o Justicia', icon: 'talents/guerrero-cruzado-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
           { k: 'A', name: 'Intercesión', desc: 'Cada 90 s, un aliado que iba a morir queda a 1 de vida; tú pierdes un 20% de vida.', fx: { power: 'g_intercesion' } },
           { k: 'B', name: 'Martillo de Justicia', desc: 'Activa: arrojas un martillo que aturde 3 s a un enemigo (1.5 s a jefes).', active: true, fx: { grant: 'g_t_justicia' } } ] },
-        { id: 's14', name: 'Luz del Alba', icon: 'talents/guerrero-cruzado-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'El Aura de Devoción también da +10% de daño al grupo, y cada Fervor gastado la alarga 1 s.', fx: { power: 'g_luz_alba' } },
+        { id: 's14', name: 'Luz del Alba', icon: 'talents/guerrero-cruzado-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'El Aura de Devoción también da +25% de daño a tus aliados (+10% a ti), y cada Fervor gastado la alarga 1 s.', fx: { power: 'g_luz_alba' } },
         { id: 's15', name: 'Devoción', icon: 'talents/guerrero-cruzado-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(35, r)} de vida máxima.`, fx: { stats: { hp: 35 } } },
         { id: 's16', name: 'Ira Divina', icon: 'talents/guerrero-cruzado-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(15, r)}% de daño de Cataclismo y Veredicto Final.`, fx: { mod: { g_u_cataclismo: { dmg: 15 }, g_t_veredicto: { dmg: 15 } } } },
         { id: 's17', name: 'Gracia', icon: 'talents/guerrero-cruzado-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `Veredicto Final cura un ${x(10, r)}% más del daño hecho.`, fx: { tv: { verdictHeal: 10 } } },

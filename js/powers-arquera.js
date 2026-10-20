@@ -72,7 +72,7 @@ function tune() {
     vision: { lossPct: -100 },                       // F s9: moverte no vacía la Concentración
     patience: { perSec: 2, max: 20 },                // F s13B
     overpen: { perEnemy: 15 },                       // F s14
-    herida: { pct: 80, dur: 6 },                     // F s6B
+    herida: { pct: 50, dur: 6 },                     // F s6B
     weakspot: { dur: 8, crit: 15 },                  // F x1
     impossible: { gap: 0.25 },                       // F x3
     cepo: { maxArmed: 3, extraR: 0.3, mineCoef: 1.2, poisonDur: 5, ironBossSlow: 50 },
@@ -86,6 +86,7 @@ function tune() {
     galechain: { perKill: 0.5, max: 6 },             // T s14
     slip: { spdPct: 15, every: 0.6, dur: 2.5, radius: 1.6 },  // T s13B
     infinite: { every: 10, storm: 5 },               // T x1 / x3
+    rebote: { first: 1.8, jumps: 5 },                // T s6A (Paso 2e)
   }));
 }
 
@@ -293,7 +294,7 @@ function infiniteShot(g, p, wasInfinite) {
   if (wasInfinite && st.ready) {
     st.ready = false;
     invalidate(p);
-    const n = p.tv?.infiniteDmg || 0;           // Huracán (x2): +X de Impulso
+    const n = 2 * (p.tv?.infiniteDmg || 0);     // Huracán (x2): +10 de Impulso/rango (el doble del % de daño, 2e)
     if (n > 0) gainGauge(p, 'impulso', n);
     return;
   }
@@ -421,7 +422,7 @@ export function arqueraPowers() {
     },
     // s6B Herida Abierta: los críticos de Disparo Apuntado sangran un 80 % extra en 6 s.
     f_herida_abierta: {
-      name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 80 % extra en 6 s.',
+      name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 50 % extra en 6 s.',
       onHit(g, p, e, hit) {
         if (hit?.skill !== 'a_t_apuntado' || !hit.crit || hit.proc || hit.dot || !e?.alive) return;
         const T = tune().herida;
@@ -584,6 +585,17 @@ export function arqueraPowers() {
         if (cast?.sk?.id === 'a_t_andanada') gainGauge(p, 'impulso', tune().andanada.impulso);
       },
     },
+    // s6A Flechas Rebotadoras (Paso 2e; antes mod.chain: solo rebotaba la PRIMERA flecha de cada
+    // lanzamiento): cada flecha de Flecha Múltiple que impacta rebota a 5 enemigos cercanos, la
+    // primera con el 180 % de su golpe (el rebote del núcleo pierde un 25 % por salto)
+    t_rebote: {
+      name: 'Flechas Rebotadoras', desc: 'Cada flecha de Flecha Múltiple que impacta rebota a 5 enemigos cercanos (la primera con el 180 %).',
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'flecha_multiple' || hit.proc || hit.dot || !e || !(hit.dealt > 0)) return;
+        const R = tune().rebote;
+        g.spawnChainBounce?.(e, Math.round(hit.dealt * R.first / 0.75), R.jumps, [], 0x66d7c7);
+      },
+    },
     // s6B Corona de Flechas: Flecha Múltiple sale en 360° (las +4 flechas y el −30 % son su mod)
     t_corona: {
       name: 'Corona de Flechas', desc: 'Flecha Múltiple sale en 360°.',
@@ -638,9 +650,9 @@ export function arqueraPowers() {
       },
     },
     // x1 Ráfaga Infinita: cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de
-    // proyectiles. x2 Huracán (tv.infiniteDmg): +X % de daño y +X de Impulso en ese disparo.
+    // proyectiles. x2 Huracán (tv.infiniteDmg): +X % de daño y +2X de Impulso en ese disparo.
     t_infinite: {
-      name: 'Ráfaga Infinita', desc: 'Cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles.',
+      name: 'Ráfaga Infinita', desc: 'Cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles en un abanico el doble de ancho.',
       priority: -5,                                    // después de multidisparo/Vendaval, antes de la Corona
       state: () => ({ shots: 0, ready: false }),
       modifyResolve(p, sk, prof) {
@@ -648,6 +660,7 @@ export function arqueraPowers() {
         if (!st.ready || !prof.tags?.has?.('proj')) return;
         const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
         prof.proj = (prof.proj || 0) + n;               // el doble de proyectiles
+        if (prof.spread > 0) prof.spread *= 2;           // Paso 2e: en un abanico el doble de ancho (contra un jefe no es un escopetazo)
         prof.cost = 0;
         prof.addPct = (prof.addPct || 0) + (p.tv?.infiniteDmg || 0);
         prof.infinite = true;

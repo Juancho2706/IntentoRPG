@@ -420,14 +420,14 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   h.p.takeDamage(5, 1, { melee: false, source: e });
   assert.equal(h.gaugeValue('escarcha', e), 1);
 }
-{ // s9 Lanza de Hielo: ×3 a los Congelados y los astilla (estallido de 3 m)
+{ // s9 Lanza de Hielo: ×3 a los Congelados y los astilla (estallido de 2 m, 2e)
   const h = mk('crionte', { s9: 1 });
-  const e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), o = h.enemy({ hp: 1e7, pos: [4.5, 0, 2] });
+  const e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), o = h.enemy({ hp: 1e7, pos: [4.5, 0, 1.5] });
   const byE = track(e), byO = track(o);
   e.applyCC('freeze', 3, { src: h.p });
   assert.ok(castAt(h, 'k2', 'k_lanza', 4, 0, 1.0), 'Lanza se lanza');
   near(byE['power:k_lanza'], 2 * byE.k_lanza, byE.k_lanza * 0.02 + 2, 'triple de daño (+200 %)');
-  assert.ok(byO['power:k_lanza'] > 0, 'el estallido golpea en 3 m');
+  assert.ok(byO['power:k_lanza'] > 0, 'el estallido golpea en 2 m');
   const h2 = mk('crionte', { s9: 1 });
   const f = h2.enemy({ hp: 1e7, pos: [4, 0, 0] });
   const byF = track(f);
@@ -572,8 +572,10 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(castAt(h, 'k2', 'a_misiles', 4, 0, 2.3));
   assert.ok(by.a_misiles > 0);
   const per = h.p.stats.maxMP * 0.01;
-  assert.ok(6 * per < 30, 'devuelve menos de lo que cuesta');
-  assert.ok(h.p.mp > 100 - 30 + 6 * per - 1, '6 × 1 % de maná');
+  const cost = resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'a_misiles')).cost;   // 2e: 25
+  assert.ok(6 * per < cost, 'devuelve menos de lo que cuesta');
+  assert.ok(h.p.mp > 100 - cost + 6 * per - 1, '6 × 1 % de maná');
+  assert.equal(h.gaugeValue('cargas'), 3, 'Paso 2e: 1 Carga Arcana cada dos misiles');
 }
 { // s8 Piel de Maná: el −% solo con más del 50 % de maná (tv.drHighMana del núcleo)
   // 2c.2: antes stats.dr +10 siempre y a_manaskin restaba 10 con poco maná; ahora la
@@ -621,11 +623,11 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   assert.ok(h.p.mp >= h.p.stats.maxMP * 0.6 - 1, '60 % del maná');
   assert.ok(h.p.mp < h.p.stats.maxMP * 0.75, 'no más');
 }
-{ // s14 Resonancia: con 4 Cargas, +15 % de crítico Arcano y no se desvanecen
+{ // s14 Resonancia: con 4 Cargas, +12 % de crítico Arcano (2e) y no se desvanecen
   const h = mk('arcanista', { s14: 1 });
   const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
   h.gauge('cargas', 4);
-  assert.equal(firePower('condCrit', h.p, h.p, e, { elem: 'arcane' }), 15);
+  assert.equal(firePower('condCrit', h.p, h.p, e, { elem: 'arcane' }), 12);
   assert.equal(firePower('condCrit', h.p, h.p, e, { elem: 'fire' }), 0);
   h.tick(8);
   assert.equal(h.gaugeValue('cargas'), 4, 'las Cargas no se desvanecen');
@@ -649,16 +651,16 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   const os = [[5, 0], [4, 2], [6, 1], [9.5, 0]].map(([x, z]) => h.enemy({ hp: 1e7, pos: [x, 0, z] }));
   const bys = os.map(track);
   h.hit(e, { skill: 'rayo', crit: true, dealt: 200 });
-  assert.deepEqual(bys.map(b => Math.round(b['power:a_chain_crit'] || 0)), [100, 100, 100, 0], 'salta a 3 con el 50 %');
+  assert.deepEqual(bys.map(b => Math.round(b['power:a_chain_crit'] || 0)), [180, 180, 180, 0], 'salta a 3 con el 90 % (2e)');
   h.hit(e, { skill: 'rayo', crit: true, dealt: 200 });
-  assert.equal(Math.round(bys[0]['power:a_chain_crit']), 100, 'una cadena por Rayo');
+  assert.equal(Math.round(bys[0]['power:a_chain_crit']), 180, 'una cadena por Rayo');
   firePower('afterCast', h.p, h.g, h.p, { sk: { id: 'rayo' } }, { hits: 1, dealt: 1, killed: 0 });
   assert.equal(h.gaugeValue('cargas'), 3, 'x2: cada salto da 1 Carga (al terminar el Rayo)');
   const solo = mk('arcanista', { x1: 1 });
   const s = solo.enemy({ hp: 1e7, pos: [4, 0, 0] });
   const byS = track(s);
   solo.hit(s, { skill: 'rayo', crit: true, dealt: 200 });
-  near(byS['power:a_chain_crit'], 200, 2, 'solo: lo golpea dos veces');
+  assert.ok(!(byS['power:a_chain_crit'] > 0), 'solo: no salta (2e: sin el doble golpe en solitario)');
   solo.hit(s, { skill: 'rayo', crit: false, dealt: 200 });
 }
 { // x3 Singularidad: +15 % de daño recibido 6 s, hasta 2 veces

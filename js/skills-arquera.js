@@ -31,7 +31,7 @@ import { dmgMods, buffMods, utilMods, O_RAD, O_PROJ, O_PROJ2, V_POISON, V_VULN, 
 export const ARQUERA_SKILLS = [
   // — BÁSICOS (generan +5 de Energía al ACERTAR; cadencia 0,9 s, sin GCD) —
   { id: 'a_disparo', name: 'Disparo Rápido', icon: '🏹', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'physical'], elem: 'physical',
-    type: 'weapon', req: 1, coef: 1.15, gen: 5,
+    type: 'weapon', req: 1, coef: 1.0, gen: 5,
     desc: 'Dispara una flecha veloz (100 % del daño del arma). Al acertar recupera 5 de Energía.' },
   { id: 'a_disperso', name: 'Disparo Disperso', icon: '🎇', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'area', 'physical'], elem: 'physical',
     type: 'proj', req: 3, coef: 0.45, gen: 5, count: 3, spread: 0.218, speed: 18, range: 9.5, size: 0.1, color: 0xe8d8a0,
@@ -45,11 +45,11 @@ export const ARQUERA_SKILLS = [
     type: 'proj', req: 2, coef: 2.1, cost: 26, cd: 0, speed: 17, range: 13, pierce: true, lockT: 0.35, color: 0xffffcc,
     desc: 'Una flecha pesada (220 % del arma) que atraviesa a todos los enemigos en su camino. 20 de Energía, sin enfriamiento.' },
   { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'physical'], elem: 'physical',
-    type: 'proj', req: 8, coef: 0.7, cost: 22, cd: 0, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
-    desc: 'Dispara 5 flechas en un abanico de 50° (70 % del arma cada una; ≈150 % a un objetivo pegado). 22 de Energía, sin enfriamiento.' },
+    type: 'proj', req: 8, coef: 0.35, cost: 22, cd: 0, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
+    desc: 'Dispara 5 flechas en un abanico de 50° (35 % del arma cada una; ≈70 % a un objetivo pegado). 22 de Energía, sin enfriamiento.' },
   { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.52, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
-    desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (52 % del arma cada una: 208 % en total). 30 de Energía, enfriamiento 4 s.' },
+    behavior: 'a_lluvia', at: 'target', req: 14, coef: 0.7, waves: 4, span: 1.2, cost: 30, cd: 4, radius: 3, range: 11, impactDelay: 0.3, color: 0xaaffaa,
+    desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (70 % del arma cada una: 280 % en total). 30 de Energía, enfriamiento 4 s.' },
 
   // — MOVILIDAD (k1, fuera del GCD) —
   { id: 'a_paso', name: 'Paso Veloz', icon: '👣', cat: 'movement', slots: ['k1'], tags: ['movement', 'physical'], elem: 'physical',
@@ -61,11 +61,11 @@ export const ARQUERA_SKILLS = [
 
   // — DEFENSA / UTILIDAD (k2) —
   { id: 'a_red', name: 'Red de Caza', icon: '🕸️', cat: 'utility', slots: ['k2'], tags: ['utility', 'cc', 'physical'], elem: 'physical',
-    behavior: 'a_red', at: 'target', req: 6, cost: 10, cd: 14, radius: 2.5, range: 9, root: 2, color: 0xd8c49a,
-    desc: 'Lanzas una red a hasta 9 m que inmoviliza 2 s a todo lo que atrapa en 2,5 m (los jefes, menos tiempo). 10 de Energía, enfriamiento 14 s.' },
+    behavior: 'a_red', at: 'target', req: 6, cost: 10, cd: 14, radius: 2.5, range: 9, root: 1.5, color: 0xd8c49a,
+    desc: 'Lanzas una red a hasta 9 m que inmoviliza 1,5 s a todo lo que atrapa en 2,5 m (los jefes, menos tiempo). 10 de Energía, enfriamiento 14 s.' },
   { id: 'a_humo', name: 'Bomba de Humo', icon: '💨', cat: 'defense', slots: ['k2'], tags: ['defense', 'zone', 'physical'], elem: 'physical',
-    type: 'zone', at: 'self', req: 12, cd: 22, radius: 4, dur: 4, allyDr: 40, projMissPct: 50, color: 0x9aa0a8,
-    desc: 'Una nube de humo de 4 m a tus pies durante 4 s: dentro recibes −40 % de daño y la mitad de los proyectiles enemigos que la cruzan se pierden. Enfriamiento 22 s.' },
+    type: 'zone', at: 'self', req: 12, cd: 13, radius: 4, dur: 6, allyDr: 50, projMissPct: 50, color: 0x9aa0a8,
+    desc: 'Una nube de humo de 4 m a tus pies durante 6 s: dentro recibes −50 % de daño y la mitad de los proyectiles enemigos que la cruzan se pierden. Enfriamiento 13 s.' },
 
   // — DEFINITIVAS (k4, sin coste; eliges una) —
   { id: 'a_u_diluvio', name: 'Diluvio de Saetas', icon: '🌠', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'physical'], elem: 'physical',

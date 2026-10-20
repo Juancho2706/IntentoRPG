@@ -66,11 +66,11 @@ export function commonPowers() {
     furia:     { name: 'Furia', desc: 'Daño ×1,15 con vida por encima del 80 %.', mult: { mult: 1.15, when: c => c.hpFrac > 0.8 } },
     // nodos clave de talento (§5.2.2): Sed de Batalla también con la Sed Saciada
     // (indicador de spec-mechanics: p.gauges.sed.satedT), Tiro Mortal ×1,30 y
-    // Cacería ×1,20 contra ralentizados o inmovilizados
+    // Cacería ×1,10 contra ralentizados o inmovilizados
     m_berserk: { name: 'Sed de Batalla', desc: 'Daño ×1,25 con vida por debajo del 40 % o con la Sed Saciada.',
       mult: { mult: 1.25, when: c => c.hpFrac < 0.4 || (c.p?.gauges?.sed?.satedT || 0) > 0 } },
-    m_deadeye: { name: 'Tiro Mortal', desc: 'Críticos ×1,30 contra objetivos con más del 60 % de vida.', mult: { mult: 1.30, when: c => c.crit && c.targetFrac > 0.6 } },
-    m_hunt:    { name: 'Cacería', desc: 'Daño ×1,20 contra ralentizados o inmovilizados.', mult: { mult: 1.20, when: c => c.targetSlowed || (c.e?.rootT || 0) > 0 } },
+    m_deadeye: { name: 'Tiro Mortal', desc: 'Críticos ×1,20 contra objetivos con más del 60 % de vida.', mult: { mult: 1.20, when: c => c.crit && c.targetFrac > 0.6 } },
+    m_hunt:    { name: 'Cacería', desc: 'Daño ×1,10 contra ralentizados o inmovilizados.', mult: { mult: 1.10, when: c => c.targetSlowed || (c.e?.rootT || 0) > 0 } },
 
     // ---- ① stats ----
     avaricia: {
@@ -125,12 +125,12 @@ export function commonPowers() {
       onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, volatileDamage(avgOf(p)), 2.6, 0xff6622, 10, 'volatil'); },
     },
     m_judgment: {
-      name: 'Juicio', desc: 'Al matar, una onda sagrada (60 % del golpe medio) daña a los cercanos.',
-      onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, Math.max(2, Math.round(avgOf(p) * 0.6)), 2.9, 0xffe680, 10, 'm_judgment'); },
+      name: 'Juicio', desc: 'Al matar, una onda sagrada (20 % del golpe medio) daña a los cercanos.',
+      onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, Math.max(2, Math.round(avgOf(p) * 0.2)), 2.9, 0xffe680, 10, 'm_judgment'); },
     },
     m_conflag: {
-      name: 'Conflagración', desc: 'Al matar, una explosión de fuego (70 % del golpe medio) daña la zona.',
-      onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, Math.max(2, Math.round(avgOf(p) * 0.7)), 3.1, 0xff7722, 14, 'm_conflag'); },
+      name: 'Conflagración', desc: 'Al matar, una explosión de fuego (200 % del golpe medio) daña la zona.',
+      onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, Math.max(2, Math.round(avgOf(p) * 2.0)), 3.1, 0xff7722, 14, 'm_conflag'); },
     },
 
     // ---- Paso 2c.2: claves tv del núcleo (ver cabecera) ----

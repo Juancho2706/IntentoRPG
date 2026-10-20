@@ -40,8 +40,8 @@ export const GUERRERO_SKILLS = [
     type: 'cone', req: 8, coef: 2.9, cost: 27, radius: 4.5, angle: 120, windup: 0.12,
     desc: 'Tajo frontal pesado (preparación de 0,12 s): 290 % del arma a todo lo que haya en un cono de 120° y 4,5 m. Cuesta 27 de Furia.' },
   { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'area', 'physical'], elem: 'physical',
-    type: 'area', at: 'target', req: 8, coef: 2.4, cost: 30, radius: 3, range: 2.5, windup: 0.15, impactDelay: 0.23, shake: 0.35,
-    desc: 'Descargas el martillo hasta 2,5 m delante (preparación de 0,15 s): la onda hace 240 % del arma a todos en 3 m al tocar el suelo. Cuesta 30 de Furia.' },
+    type: 'area', at: 'target', req: 8, coef: 1.8, cost: 30, radius: 3, range: 2.5, windup: 0.15, impactDelay: 0.23, shake: 0.35,
+    desc: 'Descargas el martillo hasta 2,5 m delante (preparación de 0,15 s): la onda hace 180 % del arma a todos en 3 m al tocar el suelo. Cuesta 30 de Furia.' },
   { id: 'terremoto', name: 'Terremoto', icon: '💥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'line', 'cc', 'physical'], elem: 'physical',
     type: 'line', req: 14, coef: 3.1, cost: 26, cd: 4, range: 8, width: 2, stun: 0.75, bossStun: false, windup: 0.15,
     desc: 'Partes el suelo en una grieta de 8 × 2 m (preparación de 0,15 s): 310 % del arma y aturde 0,75 s a todo lo que alcanza salvo a los jefes. Cuesta 26 de Furia; enfriamiento 4 s.' },
@@ -59,8 +59,8 @@ export const GUERRERO_SKILLS = [
 
   // ———————————————— DEFENSA / UTILIDAD (k2) ————————————————
   { id: 'g_piel', name: 'Piel de Hierro', icon: '🛡️', cat: 'defense', slots: ['k2'], tags: ['defense', 'buff', 'physical'], elem: 'physical',
-    type: 'buff', req: 6, cd: 25, dur: 6, buff: { dr: 30 }, slowImmune: true,
-    desc: 'Tu piel se vuelve de acero 6 s: −30 % de daño recibido (reducción de daño, tope 50 %) e inmunidad a las ralentizaciones. Enfriamiento 25 s.' },
+    type: 'buff', req: 6, cd: 25, dur: 8, buff: { dr: 40 }, slowImmune: true,
+    desc: 'Tu piel se vuelve de acero 8 s: −40 % de daño recibido (reducción de daño, tope 50 %) e inmunidad a las ralentizaciones. Enfriamiento 25 s.' },
   { id: 'g_provocacion', name: 'Provocación', icon: '😠', cat: 'utility', slots: ['k2'], tags: ['utility', 'taunt', 'cc', 'physical'], elem: 'physical',
     type: 'taunt', req: 16, cd: 8, range: 15, dur: 4, weakenPct: 15, genOnHit: 15,
     desc: 'Provocas a un enemigo a 15 m o menos: te ataca a ti durante 4 s y te hace un 15 % menos de daño. Ganas 15 de Furia. Enfriamiento 8 s (no se gasta si no hay objetivo).' },

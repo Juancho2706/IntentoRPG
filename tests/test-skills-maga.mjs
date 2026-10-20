@@ -136,7 +136,8 @@ const lost = e => e.maxHP - e.hp;
   assert.equal(lost(e), 0, 'aún no impacta');
   h.step(0.7);
   assert.ok(lost(e) > 0 && lost(n) > 0, 'golpe directo + explosión');
-  assert.ok(lost(e) > lost(n) * 1.6, `directo 2,2 frente a salpicadura 1,0 (${lost(e)} vs ${lost(n)})`);
+  // Paso 2e: la explosión (2,5) pesa más que el impacto directo (2,2): la Bola es de área
+  assert.ok(lost(n) > lost(e) && lost(n) < lost(e) * 1.6, `directo 2,2 frente a salpicadura 2,5 (${lost(e)} vs ${lost(n)})`);
   console.log('Bola de Fuego: daño al impactar + explosión de 2 m ✓');
 }
 
@@ -201,13 +202,13 @@ const lost = e => e.maxHP - e.hp;
   console.log('Estela Ígnea: rastro de fuego de 3 s ✓');
 }
 
-// Armadura de Hielo: escudo del 20 % de la vida 6 s
+// Armadura de Hielo: escudo del 25 % de la vida 6 s (2e)
 {
   const h = makeHarness({ classId: 'maga', level: 6 });
   h.setSlot('k2', 'm_armadura');
   assert.equal(h.cast('k2'), true);
   const sh = h.p.shieldTotal();
-  assert.ok(Math.abs(sh - Math.round(0.2 * h.p.stats.maxHP)) <= 1, `escudo 20 % (${sh} de ${h.p.stats.maxHP})`);
+  assert.ok(Math.abs(sh - Math.round(0.25 * h.p.stats.maxHP)) <= 1, `escudo 25 % (${sh} de ${h.p.stats.maxHP})`);
   const hp0 = h.p.hp;
   h.p.takeDamage(Math.floor(sh / 2), 1, { element: 'fire' });
   assert.equal(h.p.hp, hp0, 'el escudo absorbe antes que la vida');
@@ -231,7 +232,7 @@ const lost = e => e.maxHP - e.hp;
   console.log('Onda Repulsora: 0,8 WD, empuja 5 m y aturde 0,5 s (jefes no se empujan) ✓');
 }
 
-// Supernova: windup 0,15 + telegrafía 0,5, TRES ondas de 4,7 WD (2b.2: golpe máximo ≤ 21 % del jefe) y Quemadura
+// Supernova: windup 0,15 + telegrafía 0,5, TRES ondas de 4,7 WD (2b.2: golpe máximo ≤ 21 % del jefe) y Quemadura de 12 WD (2e)
 {
   const h = makeHarness({ classId: 'maga', level: 20 }); noCrit(h);
   const e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
@@ -245,10 +246,10 @@ const lost = e => e.maxHP - e.hp;
   h.step(6.5);
   const burn = lost(e) - third;
   const prof = resolveSkill(h.p, S('m_u_supernova'));
-  const want = h.p.avgHit(prof.coef * 6 / S('m_u_supernova').coef, prof.addPct);
-  assert.ok(burn > want * 0.8 && burn < want * 1.2, `Quemadura ≈ 6 WD (${burn} vs ${want.toFixed(0)})`);
+  const want = h.p.avgHit(prof.coef * S('m_u_supernova').burn / S('m_u_supernova').coef, prof.addPct);
+  assert.ok(burn > want * 0.8 && burn < want * 1.2, `Quemadura ≈ 12 WD (${burn} vs ${want.toFixed(0)})`);
   assert.equal(h.p.cdMax.m_u_supernova, 50, 'enfriamiento 50 s');
-  console.log('Supernova: 3 ondas de 4,7 WD + Quemadura de 6 WD (≈20 WD) ✓');
+  console.log('Supernova: 3 ondas de 4,7 WD + Quemadura de 12 WD (≈26 WD) ✓');
 }
 
 // Tormenta Glacial: te sigue, ralentiza y congela al 5.º golpe

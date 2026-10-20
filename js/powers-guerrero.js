@@ -89,11 +89,11 @@ function tun() {
     critFury: 2,                       // c14 Maestro de Armas: Furia por crítico
     brother: { dmgPct: 5, hpPct: 8, radius: 15, furyPct: 5, maxAllies: 3 },   // c15
     coraza: { below: 0.3, dr: 30, dur: 5, icd: 60 },                        // c12B
-    remolinoSed: { perEnemy: 4, max: 20 },                                  // s4 Berserker
+    remolinoSed: { perHit: 2, max: 20 },                                     // s4 Berserker
     instintoSed: 2,                    // s5 Berserker: Sed por crítico
     remolinoBleedMul: 0.3,             // Sangrado de Remolino por tic (× perfil de Sangrado)
     carniceria: { jump: 4 },           // s6A: el Sangrado salta a cercanos a ≤ 4 m
-    butcher: { sedPerRank: 15, fury: 10 },                                  // x2 Carnicero
+    butcher: { sedPerRank: 15, fury: 5 },                                  // x2 Carnicero
     eternal: 2,                        // x3 Matanza Eterna: +2 s de Desenfreno por remate
     frenzy: { aspdPct: 30, dur: 8, healPct: 1 },                            // s14 Desenfreno
     negacion: { icd: 120 },
@@ -101,7 +101,7 @@ function tun() {
     reto: { pct: 20, dur: 8 },                                              // Guardián s6B
     juramento: 10,                     // s13A: Muro Inquebrantable 30 → 20 s
     vinculo: { pct: 20, radius: 10 },                                       // s14
-    muralla: 2,                        // s17: −2 %/rango por carga de Bastión
+    muralla: 1,                        // s17: −1 %/rango por carga de Bastión (Paso 2e: era 2)
     represalia: 30,                    // x1: % del daño bloqueado o absorbido que reflejas
     venganza: { pctPerRank: 20, radius: 6 },                                // x2
     eterno: { radius: 10, icd: 60, invuln: 2 },                             // x3 Bastión Eterno
@@ -112,7 +112,7 @@ function tun() {
     luzRadius: 10,                     // s8
     banner: 15,                        // s10: radio del Estandarte
     intercesion: { icd: 90, cost: 20, radius: 15 },                         // s13A
-    alba: { dmgPct: 10, perFervor: 1 },                                     // s14
+    alba: { dmgPct: 25, selfDmgPct: 10, perFervor: 1 },                                     // s14
     hammers: { n: 3, coef: 0.15, every: 1, reach: 2.6, healPct: 1, healRadius: 15, juicioPct: 15 },  // x1/x2
     ascension: { need: 3, gap: 8, dur: 10, radius: 30, minCd: 1.5 },        // x3
   };
@@ -248,21 +248,21 @@ export function guerreroPowers() {
     },
 
     // ---------------- BERSERKER ----------------
-    // s4 Remolino Sediento: cada enemigo golpeado por Remolino Sangriento suma 4 de Sed (máx. 20 por uso)
+    // s4 Remolino Sediento: cada GOLPE de Remolino Sangriento suma 2 de Sed (máx. 20 por uso).
+    // Paso 2e: antes 4 por ENEMIGO golpeado: contra un jefe solo daba 4 por giro (la Sed del
+    // Berserker no se llenaba nunca en UNI) y con 5 enemigos ya llegaba al tope de 20
     g_remolino_sediento: {
-      name: 'Remolino Sediento', desc: 'Cada enemigo golpeado por Remolino Sangriento suma 4 de Sed (máx. 20 por uso).',
-      state: () => ({ seen: new Set(), got: 0 }),
+      name: 'Remolino Sediento', desc: 'Cada golpe de Remolino Sangriento suma 2 de Sed (máx. 20 por uso).',
+      state: () => ({ got: 0 }),
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_t_remolino') return;
-        const st = powerState(p, 'g_remolino_sediento');
-        st.seen = new Set(); st.got = 0;
+        powerState(p, 'g_remolino_sediento').got = 0;
       },
       onHit(g, p, e, hit) {
-        if (hit?.skill !== 'g_t_remolino') return;
+        if (hit?.skill !== 'g_t_remolino' || hit.dot || hit.proc) return;
         const st = powerState(p, 'g_remolino_sediento');
-        if (st.seen.has(e) || st.got >= T.remolinoSed.max) return;
-        st.seen.add(e);
-        const n = Math.min(T.remolinoSed.perEnemy, T.remolinoSed.max - st.got);
+        if (st.got >= T.remolinoSed.max) return;
+        const n = Math.min(T.remolinoSed.perHit, T.remolinoSed.max - st.got);
         st.got += n;
         gainGauge(p, 'sed', n);
       },
@@ -303,7 +303,7 @@ export function guerreroPowers() {
     // tv.executePct de x1, núcleo nucleo_tv— o élite/jefe que muere tras bajar del umbral)
     // suma 15·r de Sed y te devuelve 10 de Furia
     g_carnicero: {
-      name: 'Carnicero', desc: 'Cada remate suma 15 de Sed por rango y te devuelve 10 de Furia.',
+      name: 'Carnicero', desc: 'Cada remate suma 15 de Sed por rango y te devuelve 5 de Furia.',
       onKill(g, p, e) {
         const r = ownRank(p, 'x2', 'berserker');
         if (!(r > 0) || !wasExecuted(e)) return;
@@ -377,7 +377,7 @@ export function guerreroPowers() {
     },
     // s17 Muralla Viviente: cada carga de Bastión te da −2 %/rango de daño recibido
     g_muralla_viva: {
-      name: 'Muralla Viviente', desc: 'Cada carga de Bastión te da −2 % de daño recibido por rango.',
+      name: 'Muralla Viviente', desc: 'Cada carga de Bastión te da −1 % de daño recibido por rango.',
       condDr(p) { return T.muralla * ownRank(p, 's17', 'guardian') * Math.floor(gaugeValue(p, 'bastion')); },
     },
     // x1 Represalia: tus espinas reflejan además el 30 % del daño que bloqueas o que absorbe
@@ -452,12 +452,16 @@ export function guerreroPowers() {
       },
     },
     // s6A Consagración (mod.zone de Martillo: la zona que daña es del núcleo): el suelo
-    // sagrado también cura a los aliados que lo pisan (campo g_consagracion, 2 %/s)
+    // sagrado también cura a los aliados que lo pisan (campo g_consagracion, 2 %/s).
+    // Paso 2e: la curación NO se apila (cada Martillo renueva el suelo que cura; antes, con
+    // un Martillo por segundo, 4 campos curaban 8 %/s y el Cruzado era inmortal en TTD+)
     g_consagracion: {
-      name: 'Consagración', desc: 'El suelo sagrado de Martillo de Guerra también cura a los aliados que lo pisan.',
+      name: 'Consagración', desc: 'El suelo sagrado de Martillo de Guerra también cura a los aliados que lo pisan (no se apila: cada Martillo lo renueva).',
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_martillo' || !cast.target || !g.spawnField) return;
         const prof = cast.prof || {};
+        const old = fieldOf(g, p, 'g_consagracion');
+        if (old) old.t = 0;
         g.spawnField('g_consagracion', { pos: cast.target.clone().setY(0), radius: Math.max(2, (prof.radius || 3) * 0.9),
           dur: prof.zoneDur || 4, owner: p, data: { healPctPerSec: T.consagracion.healPctPerSec } });
       },
@@ -492,7 +496,7 @@ export function guerreroPowers() {
     // s14 Luz del Alba: Aura de Devoción da también +10 % de daño al grupo (lo aplica el campo)
     // y cada Fervor gastado la alarga 1 s
     g_luz_alba: {
-      name: 'Luz del Alba', desc: 'Aura de Devoción da +10 % de daño al grupo y cada Fervor gastado la alarga 1 s.',
+      name: 'Luz del Alba', desc: 'Aura de Devoción da +25 % de daño a tus aliados (+10 % a ti) y cada Fervor gastado la alarga 1 s.',
       onGauge(g, p, id, ev, n) {
         if (id !== 'fervor' || ev !== 'spent') return;
         const f = fieldOf(g, p, 'g_devocion');
@@ -608,10 +612,10 @@ export function guerreroSkillBehaviors() {
         return ctx.res;
       },
     },
-    // s0 Remolino Sangriento (insignia del Berserker): 3 s girando (te mueves a velocidad
-    // normal), 10 golpes a todo lo que hay a 2,9 m (45 % del arma cada uno) y Sangrado por
-    // golpe (30 % del perfil de Sangrado; los tics llenan la Sed). Carnicería (s6A): +40 % de
-    // radio y el Sangrado salta a 2 enemigos cercanos por golpe. No exige mantener la tecla
+    // s0 Remolino Sangriento (insignia del Berserker): 2 s girando (te mueves a velocidad
+    // normal), 10 golpes a todo lo que hay a 2,9 m (47 % del arma cada uno) y Sangrado por
+    // golpe (30 % del perfil de Sangrado; los tics llenan la Sed). Carnicería (s6A): +10 % de
+    // radio y el Sangrado salta a 1 enemigo cercano por golpe. No exige mantener la tecla
     // (canalización del núcleo con hold: false); la esquiva la corta.
     g_t_remolino: {
       cast(g, p, prof, cast) {
@@ -822,10 +826,11 @@ function devotionPulse(g, f, step) {
   if (!o?.alive) return;
   const T = tun();
   const buff = { ...f.data.buff };
-  if (hasPower(o, 'g_luz_alba')) buff.dmgPct = (buff.dmgPct || 0) + T.alba.dmgPct;
   const heal = (f.data.healPctPerSec || 2) * step * (f.data.buffMul || 1) * (hasPower(o, 'g_devocion_ferviente') ? 1 + T.ferviente.heal / 100 : 1);
   for (const a of g.allies ? g.allies(v3(f.pos.x, 0, f.pos.z), f.radius) : [o]) {
-    keepBuff(a, 'g_t_devocion', buff, f.data.interval + 0.15, f.data.meta);
+    // Luz del Alba (Paso 2e): +25 % de daño a los aliados y +10 % a ti
+    const b = hasPower(o, 'g_luz_alba') ? { ...buff, dmgPct: (buff.dmgPct || 0) + (a === o ? T.alba.selfDmgPct : T.alba.dmgPct) } : buff;
+    keepBuff(a, 'g_t_devocion', b, f.data.interval + 0.15, f.data.meta);
     if (heal > 0) skillHeal(g, o, a, (a.stats?.maxHP || 0) * heal / 100, 'g_t_devocion');
   }
 }

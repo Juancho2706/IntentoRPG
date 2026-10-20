@@ -312,7 +312,7 @@ function addSkill(cid, def) {
   const { areaLevelForHero } = await import('../js/combat-math.js');
   for (const [c, L] of [['guerrero', 25], ['maga', 25], ['arquera', 25]]) {
     const ref = refEnemies(areaLevelForHero(L));
-    const mk = () => { const p = buildHero(c, L, 'tipico'); p.hotbar.k2 = null; p.hotbar.k4 = null; return p; };
+    const mk = () => { const p = buildHero(c, L, 'tipico'); p.hotbar.k2 = null; p.hotbar.k3 = null; p.hotbar.k4 = null; return p; };   // 2e: buildHero ya pone la insignia en 3
     const rot = simulateUni(mk(), ref), btn = simulateUni(mk(), ref, 60, { buttons: true });
     assert.equal(btn.sameFrameCasts, 0, `${c}: sin dos acciones en el mismo frame`);
     assert.equal(btn.sameFrameHits, 0, `${c}: sin impactos de básico y gastadora en el mismo frame`);

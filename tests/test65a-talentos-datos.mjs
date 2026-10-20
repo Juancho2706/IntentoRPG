@@ -302,7 +302,7 @@ assert.deepEqual(node('arquera', 'montaraz', 's16').fx.mod.a_t_cepo, { rootAdd: 
 assert.deepEqual(node('arquera', 'montaraz', 's17').fx, { tv: { rootedWeak: 10 } });
 assert.deepEqual(node('arquera', null, 'c11').fx.mod.agilidad, { durS: 1 });
 assert.deepEqual(node('arquera', 'tiradora', 's5').fx.mod.agilidad, { durS: 1 }, 'Tiradora s5: fuera el +5 % relativo del buff (Paso 2c.2)');
-assert.deepEqual(node('arquera', null, 'c14').fx.tv, { costRedBig: { pct: 10, over: 15 } });   // 2c.2: 15 → 10 (recalibración)
+assert.deepEqual(node('arquera', null, 'c14').fx.tv, { costRedBig: { pct: 5, over: 15 } });   // 2c.2: 15 → 10 · 2e: 10 → 5 (recalibración)
 assert.deepEqual(node('maga', null, 'c14').fx.tv, { costRedBig: { pct: 15, over: 20 } });
 assert.deepEqual(node('maga', 'crionte', 's0').fx.tv, { shatterPct: 15 });
 assert.deepEqual(node('maga', null, 'c9').fx, { skillLv: { '@spec': 1 } });
@@ -311,8 +311,8 @@ assert.deepEqual(optFx(node('maga', null, 'c5'), 'B'), { power: 'm_ralentizar' }
 assert.deepEqual(node('maga', 'piromante', 's0').fx, { power: 'p_ignicion', grant: 'p_llamarada' });
 assert.deepEqual(node('maga', 'piromante', 's4').fx, { power: 'p_llamarada_avivada' });
 assert.ok(/\+25% de daño/.test(node('guerrero', 'berserker', 's0').d), 'Sed de Batalla ×1,25');
-assert.ok(/\+30% de daño/.test(node('arquera', 'francotiradora', 's0').d), 'Tiro Mortal ×1,30');
-assert.ok(/\+20% de daño/.test(node('arquera', 'montaraz', 's0').d), 'Cacería ×1,20');
+assert.ok(/\+20% de daño/.test(node('arquera', 'francotiradora', 's0').d), 'Tiro Mortal ×1,20 (2e)');
+assert.ok(/\+10% de daño/.test(node('arquera', 'montaraz', 's0').d), 'Cacería ×1,10 (2e)');
 assert.deepEqual(node('guerrero', null, 'c1').fx.elem, { physical: 4 }, "elem 'phys' → 'physical'");
 // todos los nodos de Maga/Piromante tienen fx no vacío (tabla de §5.2.4)
 for (const n of [...TALENT_TREES.maga.cls.nodes, ...TALENT_TREES.maga.specs[0].nodes])

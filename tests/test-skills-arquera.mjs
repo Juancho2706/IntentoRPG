@@ -68,8 +68,8 @@ for (const s of skills) {
 // números de §3.3 recalibrados con el banco (Paso 2b.2): Disparo Rápido 1,0→1,15,
 // Perforante 2,2/20→2,1/26, Lluvia 3,0→2,4 WD en total, Diluvio 20→17,6 WD;
 // Paso 2c.2 (banco con talentos): Lluvia 2,4→2,08 WD, Diluvio 17,6→15,6 WD
-assert.deepEqual([S('a_disparo').coef, S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [1.15, 2.1, 26, 0.7, 5], 'números de §3.3 (2b.2)');
-assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.08, 'Lluvia: 2,08 WD en total');
+assert.deepEqual([S('a_disparo').coef, S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [1.0, 2.1, 26, 0.35, 5], 'números de §3.3 (2b.2 → 2e)');
+assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.8, 'Lluvia: 2,8 WD en total (2e)');
 assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 15.6, 'Diluvio: 15,6 WD por objetivo');
 assert.equal(S('a_u_celeste').coef * S('a_u_celeste').shots, 21, 'Tiro Celestial: 3 × 7,0');
 console.log('Energía: básicos +5, gastadoras sin enfriamiento (Lluvia 4 s), definitivas gratis ✓');
@@ -223,7 +223,7 @@ const countHits = (e, skill) => {
   console.log('Agilidad: +30 % vel., +15 % vel. de ataque e inmunidad a ralentizaciones 6 s ✓');
 }
 
-// Red de Caza: inmoviliza 2 s en 2,5 m (jefes, menos)
+// Red de Caza: inmoviliza 1,5 s en 2,5 m (2e; jefes, menos)
 {
   const h = mk();
   const e = h.enemy({ hp: 1e6, pos: [0, 0, 7] });
@@ -234,25 +234,25 @@ const countHits = (e, skill) => {
   assert.equal(h.cast('k2'), true);
   assert.equal(mp0 - h.p.mp, 10, 'cuesta 10');
   h.step(0.4);
-  assert.ok(e.rootT > 1.5, `inmoviliza (${e.rootT})`);
+  assert.ok(e.rootT > 1.0, `inmoviliza (${e.rootT})`);
   // Paso 2c.0: a los jefes el control no los inmoviliza: suma stagger (15 por s)
   assert.ok(boss.rootT === 0 && boss.stagger > 0, 'al jefe no lo inmoviliza: suma stagger');
   assert.equal(far.rootT, 0, 'solo dentro de la red');
   assert.equal(e.hp, 1e6, 'no hace daño');
-  console.log('Red de Caza: inmoviliza 2 s en área a distancia ✓');
+  console.log('Red de Caza: inmoviliza 1,5 s en área a distancia ✓');
 }
 
-// Bomba de Humo (zona genérica del núcleo): −40 % de daño dentro (allyDr) y la
+// Bomba de Humo (zona genérica del núcleo): −50 % de daño dentro (2e) (allyDr) y la
 // mitad de los proyectiles enemigos que te alcanzan fallan (projMissPct en Projectile)
 {
   const h = mk(20);
   h.setSlot('k2', 'a_humo');
   assert.equal(h.cast('k2'), true);
   h.step(0.15);
-  const want = Math.round(40 * resolveSkill(h.p, S('a_humo')).buffMul);   // 40 a rango 1 (+6 %/rango)
+  const want = Math.round(50 * resolveSkill(h.p, S('a_humo')).buffMul);   // 50 a rango 1 (+6 %/rango)
   assert.equal(h.p.zoneDefense().dr, want, `dentro: −${want} % de daño recibido`);
   assert.equal(h.p.projMissChance(), 50, 'dentro: 50 % de fallo de proyectiles enemigos');
-  // el −40 % se nota en el daño recibido (mitigación en capas)
+  // el −50 % se nota en el daño recibido (mitigación en capas)
   const hp0 = h.p.hp; h.p.takeDamage(100, 1); const inSmoke = hp0 - h.p.hp;
   // proyectiles enemigos que vienen hacia el héroe: ≈50 % fallan y siguen de largo
   let hits = 0;

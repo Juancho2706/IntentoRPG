@@ -35,8 +35,8 @@ export const MAGA_SKILLS = [
   // Bola de Fuego: tag 'area' (explota: Expansivo/Concentrado cambian su radio) y
   // lanzamiento de 0,3 s (windup: la esquiva lo cancela sin coste)
   { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'fire'], elem: 'fire',
-    type: 'proj', req: 2, coef: 2.2, splash: 1.0, radius: 2, cost: 18, cd: 1.5, windup: 0.3, speed: 13, range: 12, size: 0.26, color: 0xff6622,
-    desc: 'Tras 0,3 s de lanzamiento, una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 100 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s.' },
+    type: 'proj', req: 2, coef: 2.2, splash: 2.5, radius: 2, cost: 18, cd: 1.5, windup: 0.3, speed: 13, range: 12, size: 0.26, color: 0xff6622,
+    desc: 'Tras 0,3 s de lanzamiento, una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 250 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s.' },
   { id: 'rayo', name: 'Rayo', icon: '⚡', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'arcane'], elem: 'arcane',
     type: 'proj', req: 8, coef: 2.8, cost: 20, cd: 2.2, lockT: 0.3, speed: 18, range: 13, pierce: true, beam: true, color: 0xffee66,
     desc: 'Un rayo arcano que atraviesa a todos los enemigos en línea (280 % de daño). Cuesta 20 de Maná; enfriamiento 2,2 s.' },
@@ -57,17 +57,17 @@ export const MAGA_SKILLS = [
 
   // — DEFENSA / UTILIDAD (ranura 2) —
   { id: 'm_armadura', name: 'Armadura de Hielo', icon: '🛡️', cat: 'defense', slots: ['k2'], tags: ['defense', 'shield', 'frost'], elem: 'frost',
-    type: 'shield', req: 6, cd: 20, shieldPct: 20, dur: 6, color: 0x88ccff,
-    desc: 'Te envuelve una coraza de hielo: escudo del 20 % de tu vida máxima durante 6 s. Enfriamiento 20 s.' },
+    type: 'shield', req: 6, cd: 20, shieldPct: 25, dur: 6, color: 0x88ccff,
+    desc: 'Te envuelve una coraza de hielo: escudo del 25 % de tu vida máxima durante 6 s. Enfriamiento 20 s.' },
   { id: 'm_onda', name: 'Onda Repulsora', icon: '🌀', cat: 'utility', slots: ['k2'], tags: ['utility', 'area', 'cc', 'arcane'], elem: 'arcane',
     behavior: 'm_onda', req: 12, coef: 0.8, cost: 15, cd: 12, radius: 4, knock: 5, stun: 0.5, color: 0xb98cff,
     desc: 'Una onda arcana a tu alrededor (4 m): 80 % de daño, empuja 5 m a los enemigos y los aturde 0,5 s. Cuesta 15 de Maná; enfriamiento 12 s.' },
 
   // — DEFINITIVAS (ranura 4, sin coste; eliges una) —
   { id: 'm_u_supernova', name: 'Supernova', icon: '🌟', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'fire'], elem: 'fire',
-    behavior: 'm_u_supernova', req: 15, coef: 4.7, pulses: 3, pulseGap: 0.25, burn: 6, burnT: 6, cd: 50, radius: 5, range: 10,
+    behavior: 'm_u_supernova', req: 15, coef: 4.7, pulses: 3, pulseGap: 0.25, burn: 12, burnT: 6, cd: 50, radius: 5, range: 10,
     windup: 0.15, impactDelay: 0.5, shake: 0.6, color: 0xffcc44,
-    desc: 'Definitiva: una estrella cae en la zona (5 m) y estalla 0,5 s después en tres ondas de 470 % de daño (1410 % en total) que dejan una quemadura de 600 % en 6 s. Enfriamiento 50 s.' },
+    desc: 'Definitiva: una estrella cae en la zona (5 m) y estalla 0,5 s después en tres ondas de 470 % de daño (1410 % en total) que dejan una quemadura de 1200 % en 6 s. Enfriamiento 50 s.' },
   { id: 'm_u_tormenta', name: 'Tormenta Glacial', icon: '🌨️', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'zone', 'cc', 'frost'], elem: 'frost',
     behavior: 'm_u_tormenta', req: 15, coef: 0.6, cd: 55, radius: 6, dur: 8, interval: 0.5, slowPct: 40, freeze: 1.5, freezeAt: 5, color: 0xbfe9ff,
     desc: 'Definitiva: una ventisca te sigue durante 8 s (6 m): 60 % de daño cada 0,5 s (960 % en total), ralentiza un 40 % y congela 1,5 s a quien encadena 5 golpes (con rendimientos decrecientes). Enfriamiento 55 s.' },

@@ -59,7 +59,8 @@
 //    y +1,5 de movimiento por rango, que el texto no dice); queda solo el +5 %/rango de vel. de
 //    ataque del texto (t_viento_cola). Pequeña corrección a la baja, a propósito.
 // CHOQUES con el mockup que se quedan como están (núcleo):
-//  · T s6A «rebota con el 50 %»: el Encadenado del núcleo rebota al 75 % y −25 % por salto.
+//  · T s6A «rebota con el 50 %»: el Encadenado del núcleo rebota al 75 % y −25 % por salto
+//    (Paso 2e: el nodo pasa a ser el poder t_rebote; ver RECALIBRACIÓN 2e).
 //  · T s2 «Disparar ya no te frena»: disparar no frena en este juego (se cumple solo).
 //  · M s2 «Ves el rastro de tu Presa» y la parte «revela invisibles» de la Bengala: no hay
 //    enemigos invisibles todavía (la Bengala deja e.revealedT para cuando los haya).
@@ -77,6 +78,31 @@
 //    también a Flecha Perforante).
 //  · skills-arquera.js: Lluvia de Flechas 0,6 → 0,52 por oleada (2,08 WD) y Diluvio de
 //    Saetas 2,2 → 1,95 por oleada (15,6 WD; su parte de UNI a Nv50 llegaba a 21 %).
+// RECALIBRACIÓN 2e (banco de roles, §7.2; texto y valor JUNTOS):
+//  · Francotiradora (un objetivo, la mejor de la clase por ≥ 10 %): Disparo Apuntado 380 →
+//    320 % (la insignia entra en la rotación de §7.1 y ponía al jefe en 30 s < 36), s0 Tiro
+//    Mortal ×1,30 → ×1,20 (powers-common.js), s1 Ojo de Águila +3 % de crítico → +4 % de daño
+//    crítico por rango (el crítico ya topaba al 60 %: el nodo no hacía nada), s7 Letalidad
+//    4 → 2, s17 Tiro Limpio 12 → 9, x2 Herida Expuesta 12 → 6 y s6B Herida Abierta 80 → 50 %
+//    (powers-arquera.js). Bomba de Humo (skills-arquera.js) 4 s/−40 %/22 s → 6 s/−50 %/13 s:
+//    TTD+ 0,43 → 0,97·M (§7.2: ≥ 0,85).
+//  · Tiradora (área ≥ 1,2·M; antes 0,63): s6A Flechas Rebotadoras: de «la PRIMERA flecha de
+//    cada lanzamiento rebota a 2» (mod.chain del núcleo) a «CADA flecha rebota a 5, la primera
+//    con el 180 %» (poder t_rebote; el rebote del núcleo pierde un 25 % por salto); Flecha
+//    Múltiple 70 → 35 % por flecha (skills-arquera.js; el abanico de 5 a un jefe grande era un
+//    escopetazo de 150 %), s10 Lluvia Torrencial +10 → +50 % de daño/rango; s0 +15 → +8 % y
+//    s1 4 → 2 %/rango de velocidad de ataque, s7 −10 → −5 %/rango de coste, s17 6 → 2 %/rango
+//    de Físico y x2 Huracán +10 → +5 % de daño/rango (el Impulso sigue en +10/rango: ahora es
+//    el doble de infiniteDmg en powers-arquera.js). x1 Ráfaga Infinita: abanico el doble de
+//    ancho (contra un jefe no es un escopetazo doble).
+//  · Montaraz (control): s0 Cacería ×1,20 → ×1,10 (powers-common.js; contra un jefe ralentizado
+//    todo el combate era UNI pura y le quitaba a la Francotiradora ser la mejor de la clase),
+//    s1 5 → 2 %/rango, s5 Flecha Lastrada 10/20/30 % → 30/35/40 % de ralentización (§7.2:
+//    ≥ 40 % del tiempo inmovilizados o ralentizados; antes 19 %), Trampa de Cepo 150 → 60 %.
+//    Red de Caza (skills-arquera.js) inmoviliza 2 → 1,5 s.
+//  · Clase: c9 Flechas Templadas: +1 nivel a Múltiple y Perforante → a Múltiple y +2 a Lluvia;
+//    c14 Economía Letal −10 → −5 %. skills-arquera.js: Disparo Rápido 1,15 → 1,0 («solo
+//    básico» Nv10 ×0,63 > 0,6) y Lluvia de Flechas 0,52 → 0,7 por oleada (2,8 WD).
 // Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
 
 // valor de un efecto en el rango r (para los textos d(r)) y plural simple
@@ -106,8 +132,8 @@ export const ARQUERA_TALENT_SKILLS = [
     desc: 'Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s.' },
   // — Francotiradora —
   { id: 'a_t_apuntado', name: 'Disparo Apuntado', icon: '🏹', kind: 'talent', cat: 'spec', slots: ['rmb', 'k2', 'k3'], tags: ['spec', 'spender', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', behavior: 'a_t_apuntado', req: 10, coef: 3.8, cost: 30, cd: 6, windup: 1.0, speed: 30, range: 16, pierce: true, beam: true, color: 0xfff1a8,
-    desc: 'Insignia de la Francotiradora: cargas 1 s (la esquiva lo cancela) y disparas una saeta que atraviesa toda la línea con el 380 % del arma. Cuesta 30 de Energía; enfriamiento 6 s.' },
+    type: 'proj', behavior: 'a_t_apuntado', req: 10, coef: 3.2, cost: 30, cd: 6, windup: 1.0, speed: 30, range: 16, pierce: true, beam: true, color: 0xfff1a8,
+    desc: 'Insignia de la Francotiradora: cargas 1 s (la esquiva lo cancela) y disparas una saeta que atraviesa toda la línea con el 320 % del arma. Cuesta 30 de Energía; enfriamiento 6 s.' },
   { id: 'a_t_vision', name: 'Visión Certera', icon: '👁️', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'buff', 'physical'], elem: 'physical',
     type: 'buff', behavior: 'a_t_vision', req: 10, cd: 90, dur: 12, buff: { aspdPct: 25 }, keepFocus: true, aimedCdr: 50, color: 0xffd966,
     desc: 'Durante 12 s moverte no vacía la Concentración, ganas +25 % de velocidad de ataque y Disparo Apuntado se recarga un 50 % más rápido. Enfriamiento 90 s.' },
@@ -116,8 +142,8 @@ export const ARQUERA_TALENT_SKILLS = [
     desc: 'Un disparo a quemarropa: 120 % del arma, aturde 1 s al objetivo y el retroceso te lanza 8 m hacia atrás. Enfriamiento 12 s.' },
   // — Montaraz —
   { id: 'a_t_cepo', name: 'Trampa de Cepo', icon: '🪤', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'trap', 'cc', 'nature'], elem: 'nature',
-    type: 'trap', behavior: 'a_t_cepo', req: 10, coef: 1.5, cost: 10, cd: 8, charges: 1, maxArmed: 3, radius: 1.5, root: 2, armT: 30, range: 9, dotKind: 'poison', dotDur: 5, color: 0x86d47a,
-    desc: 'Insignia del Montaraz: armas una trampa (hasta 3 a la vez) que inmoviliza 2 s a quien la pisa y lo envenena con el 150 % del arma en 5 s. 1 carga (8 s por carga); cuesta 10 de Energía.' },
+    type: 'trap', behavior: 'a_t_cepo', req: 10, coef: 0.6, cost: 10, cd: 8, charges: 1, maxArmed: 3, radius: 1.5, root: 2, armT: 30, range: 9, dotKind: 'poison', dotDur: 5, color: 0x86d47a,
+    desc: 'Insignia del Montaraz: armas una trampa (hasta 3 a la vez) que inmoviliza 2 s a quien la pisa y lo envenena con el 60 % del arma en 5 s. 1 carga (8 s por carga); cuesta 10 de Energía.' },
   // tag 'utility' para que admita la ranura 2 (k3/k2 en §3.3; defaultSlots lo exige)
   { id: 'a_t_arpon', name: 'Arpón', icon: '🪝', kind: 'talent', cat: 'spec', slots: ['k2', 'k3'], tags: ['spec', 'proj', 'cc', 'utility', 'physical'], elem: 'physical',
     type: 'proj', behavior: 'a_t_arpon', req: 10, coef: 1.2, cost: 15, cd: 10, speed: 22, range: 12, slow: 3, slowPct: 60, pull: 6, color: 0xa0a0a0,
@@ -151,14 +177,14 @@ export const ARQUERA_TALENTS = {
       { id: 'c6', name: 'Carcaj Profundo', icon: 'talents/arquera-clase-c6.webp', t: 'p', r: 2, c: 3, max: 2, req: ['c3'], d: r => `+${x(6, r)} de Energía máxima.`, fx: { stats: { mp: 6 } } },
       { id: 'c7', name: 'Cuero Curtido', icon: 'talents/arquera-clase-c7.webp', t: 'p', r: 3, c: 0.5, max: 2, req: ['c4', 'c5'], d: r => `−${x(4, r)}% de daño recibido; el doble durante 2 s tras una Voltereta.`, fx: { tv: { dmgReduc: 4, drAfterRoll: 4 } } },
       { id: 'c8', name: 'Cadencia', icon: 'talents/arquera-clase-c8.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['c5', 'c6'], d: r => `+${x(2, r)}% de velocidad de ataque.`, fx: { stats: { aspdPct: 2 } } },
-      { id: 'c9', name: 'Flechas Templadas', icon: 'talents/arquera-clase-c9.webp', t: 'p', r: 4, c: 0, max: 2, req: ['c7'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} a Flecha Múltiple y Flecha Perforante.`, fx: { skillLv: { flecha_multiple: 1, flecha_perforante: 1 } } },
+      { id: 'c9', name: 'Flechas Templadas', icon: 'talents/arquera-clase-c9.webp', t: 'p', r: 4, c: 0, max: 2, req: ['c7'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} a Flecha Múltiple y +${x(2, r)} a Lluvia de Flechas.`, fx: { skillLv: { flecha_multiple: 1, lluvia_flechas: 2 } } },
       { id: 'c10', name: 'Instinto de Cazadora', icon: 'talents/arquera-clase-c10.webp', t: 'p', r: 4, c: 1.5, max: 3, req: ['c7', 'c8'], d: r => `+${x(1, r)} de Energía al golpear.`, fx: { stats: { mph: 1 } } },
       { id: 'c11', name: 'Paso de Viento', icon: 'talents/arquera-clase-c11.webp', t: 'p', r: 4, c: 3, max: 2, req: ['c8'], d: r => `+${x(4, r)}% de velocidad de movimiento y +${x(1, r)} s de duración de Agilidad.`, fx: { stats: { spdPct: 4 }, mod: { agilidad: { durS: 1 } } } },
       { id: 'c12', name: 'Bengala o Camuflaje', icon: 'talents/arquera-clase-c12.webp', t: 'c', r: 5, c: 0.5, max: 1, req: ['c9', 'c10'], opts: [
         { k: 'A', name: 'Flecha Bengala', desc: 'Activa: revela a los invisibles en 10 m durante 8 s; dentro, el grupo hace +8% de daño.', active: true, fx: { grant: 'a_t_bengala' } },
         { k: 'B', name: 'Camuflaje', desc: 'Activa: invisible 4 s; tu primer disparo al salir es crítico seguro.', active: true, fx: { grant: 'a_t_camuflaje', power: 'a_camuflaje' } } ] },
       { id: 'c13', name: 'Conocer a la Presa', icon: 'talents/arquera-clase-c13.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['c10', 'c11'], d: r => `+${x(2, r)}% de daño contra élites y jefes.`, fx: { tv: { eliteDmg: 2 } } },
-      { id: 'c14', name: 'Economía Letal', icon: 'talents/arquera-clase-c14.webp', t: 'p', r: 6, c: 1.5, max: 1, req: ['c12', 'c13'], d: 'Las habilidades que cuestan más de 15 de Energía cuestan un 10% menos.', fx: { tv: { costRedBig: { pct: 10, over: 15 } } } },
+      { id: 'c14', name: 'Economía Letal', icon: 'talents/arquera-clase-c14.webp', t: 'p', r: 6, c: 1.5, max: 1, req: ['c12', 'c13'], d: 'Las habilidades que cuestan más de 15 de Energía cuestan un 5% menos.', fx: { tv: { costRedBig: { pct: 5, over: 15 } } } },
       { id: 'c15', name: 'Espíritu del Halcón', icon: 'talents/arquera-clase-c15.webp', t: 'k', r: 7, c: 1.5, max: 1, req: ['c14'], d: 'Grupo: tú y los aliados a 15 m ganan +5% de probabilidad de crítico y +6% de velocidad de movimiento.', fx: { power: 'a_aura_halcon' } },
     ],
     preset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 3], ['c5', 1, 'A'], ['c7', 1], ['c8', 2], ['c10', 3], ['c13', 2], ['c14', 1], ['c15', 1]],
@@ -171,16 +197,16 @@ export const ARQUERA_TALENTS = {
       // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 3], ['c5', 1, 'A'], ['c7', 1], ['c8', 2], ['c10', 3], ['c13', 2], ['c14', 1], ['c15', 1]],
       nodes: [
-        { id: 's0', name: 'Tiro Mortal', icon: 'talents/arquera-francotiradora-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): tus críticos contra enemigos con más del 60% de vida hacen +30% de daño. Quedarte quieta genera Concentración. Otorga la activa Disparo Apuntado: cargas 1 s y disparas una saeta que atraviesa toda la línea con el 380% de daño.', fx: { power: 'm_deadeye', grant: 'a_t_apuntado' } },
-        { id: 's1', name: 'Ojo de Águila', icon: 'talents/arquera-francotiradora-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(3, r)}% de probabilidad de crítico.`, fx: { stats: { crit: 3 } } },
+        { id: 's0', name: 'Tiro Mortal', icon: 'talents/arquera-francotiradora-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): tus críticos contra enemigos con más del 60% de vida hacen +20% de daño. Quedarte quieta genera Concentración. Otorga la activa Disparo Apuntado: cargas 1 s y disparas una saeta que atraviesa toda la línea con el 320% de daño.', fx: { power: 'm_deadeye', grant: 'a_t_apuntado' } },
+        { id: 's1', name: 'Ojo de Águila', icon: 'talents/arquera-francotiradora-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(4, r)}% de daño crítico.`, fx: { tv: { critDmg: 4 } } },
         { id: 's2', name: 'Aliento Contenido', icon: 'talents/arquera-francotiradora-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `La Concentración sube un ${x(20, r)}% más rápido.`, fx: { tv: { focusRate: 20 } } },
         { id: 's3', name: 'Calibre Pesado', icon: 'talents/arquera-francotiradora-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `+${x(10, r)}% de daño de Flecha Perforante.`, fx: { mod: { flecha_perforante: { dmg: 10 } } } },
         { id: 's4', name: 'Aliento del Cazador', icon: 'talents/arquera-francotiradora-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Con la Concentración al 100%, Disparo Apuntado sale al instante (sin carga) y gasta 50 de Concentración.', fx: { power: 'f_aliento_cazador' } },
         { id: 's5', name: 'Primera Sangre', icon: 'talents/arquera-francotiradora-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `+${x(6, r)}% de daño contra enemigos con más del 60% de vida.`, fx: { tv: { highHpDmg: 6 } } },
         { id: 's6', name: 'Remate o Herida Abierta', icon: 'talents/arquera-francotiradora-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
           { k: 'A', name: 'Golpe de Gracia', desc: 'Disparo Apuntado remata a enemigos por debajo del 15% de vida (no jefes).', fx: { mod: { a_t_apuntado: { execute: 15 } } } },
-          { k: 'B', name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 80% extra en 6 s. Mejor contra jefes.', fx: { power: 'f_herida_abierta' } } ] },
-        { id: 's7', name: 'Letalidad', icon: 'talents/arquera-francotiradora-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(4, r)}% de daño de crítico.`, fx: { tv: { critDmg: 4 } } },
+          { k: 'B', name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 50% extra en 6 s. Mejor contra jefes.', fx: { power: 'f_herida_abierta' } } ] },
+        { id: 's7', name: 'Letalidad', icon: 'talents/arquera-francotiradora-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(2, r)}% de daño de crítico.`, fx: { tv: { critDmg: 2 } } },
         { id: 's8', name: 'Posición Elevada', icon: 'talents/arquera-francotiradora-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `−${x(3, r)}% de daño recibido; el doble con la Concentración por encima de 50.`, fx: { tv: { dmgReduc: 3, drFocus: 3 } } },
         { id: 's9', name: 'Visión Certera', icon: 'talents/arquera-francotiradora-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 12 s moverte no vacía la Concentración, +25% de velocidad de ataque y Disparo Apuntado se recarga un 50% más rápido. Enfriamiento 90 s.', fx: { grant: 'a_t_vision' } },
         { id: 's10', name: 'Recarga Táctica', icon: 'talents/arquera-francotiradora-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `Cada crítico reduce ${x(0.4, r)} s el enfriamiento de Disparo Apuntado.`, fx: { mod: { a_t_apuntado: { critCdr: 0.4 } } } },
@@ -192,9 +218,9 @@ export const ARQUERA_TALENTS = {
         { id: 's14', name: 'Sobrepenetración', icon: 'talents/arquera-francotiradora-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Cada enemigo que atraviesa Disparo Apuntado aumenta un 15% su daño contra el siguiente.', fx: { mod: { a_t_apuntado: { pierce: true } }, power: 'f_overpen' } },
         { id: 's15', name: 'Paso del Acechador', icon: 'talents/arquera-francotiradora-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(5, r)}% de velocidad de movimiento; moverte vacía un 15% menos de Concentración.`, fx: { stats: { spdPct: 5 }, power: 'f_acechador' } },
         { id: 's16', name: 'Cazamayores', icon: 'talents/arquera-francotiradora-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(8, r)}% de daño contra élites y jefes.`, fx: { tv: { eliteDmg: 8 } } },
-        { id: 's17', name: 'Tiro Limpio', icon: 'talents/arquera-francotiradora-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(12, r)}% de daño de Disparo Apuntado.`, fx: { mod: { a_t_apuntado: { dmg: 12 } } } },
+        { id: 's17', name: 'Tiro Limpio', icon: 'talents/arquera-francotiradora-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(9, r)}% de daño de Disparo Apuntado.`, fx: { mod: { a_t_apuntado: { dmg: 9 } } } },
         { id: 'x1', name: 'Punto Débil', icon: 'talents/arquera-francotiradora-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: Disparo Apuntado marca a élites y jefes 8 s; tú y tu grupo tienen +15% de probabilidad de crítico contra ellos.', fx: { power: 'f_weakspot' } },
-        { id: 'x2', name: 'Herida Expuesta', icon: 'talents/arquera-francotiradora-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: el grupo hace +${x(12, r)}% de daño de crítico contra objetivos con Punto Débil.`, fx: { tv: { weakCritDmg: 12 } } },
+        { id: 'x2', name: 'Herida Expuesta', icon: 'talents/arquera-francotiradora-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: el grupo hace +${x(6, r)}% de daño de crítico contra objetivos con Punto Débil.`, fx: { tv: { weakCritDmg: 6 } } },
         { id: 'x3', name: 'Disparo Imposible', icon: 'talents/arquera-francotiradora-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): con Concentración al 100%, Disparo Apuntado se dispara dos veces y el segundo es crítico seguro.', fx: { power: 'f_impossible' } },
       ],
       preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s6', 1, 'B'], ['s7', 2], ['s9', 1], ['s10', 2], ['s12', 2], ['s14', 1], ['s17', 2], ['x1', 1], ['x2', 1]],
@@ -206,12 +232,12 @@ export const ARQUERA_TALENTS = {
       // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 1], ['c5', 1, 'A'], ['c7', 2], ['c8', 2], ['c9', 2], ['c10', 3], ['c12', 1, 'A'], ['c14', 1], ['c15', 1]],
       nodes: [
-        { id: 's0', name: 'Cacería', icon: 'talents/arquera-montaraz-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): +20% de daño contra enemigos ralentizados o inmovilizados. El primer élite que golpeas se convierte en tu Presa. Otorga la activa Trampa de Cepo: armas una trampa (hasta 3) que inmoviliza 2 s y envenena con el 150% de daño en 5 s. 1 carga.', fx: { power: 'm_hunt', grant: 'a_t_cepo' } },
-        { id: 's1', name: 'Puntas de Cicuta', icon: 'talents/arquera-montaraz-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(5, r)}% de daño de Naturaleza y de Veneno.`, fx: { elem: { nature: 5 }, tv: { poisonPct: 5 } } },
+        { id: 's0', name: 'Cacería', icon: 'talents/arquera-montaraz-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): +10% de daño contra enemigos ralentizados o inmovilizados. El primer élite que golpeas se convierte en tu Presa. Otorga la activa Trampa de Cepo: armas una trampa (hasta 3) que inmoviliza 2 s y envenena con el 60% de daño en 5 s. 1 carga.', fx: { power: 'm_hunt', grant: 'a_t_cepo' } },
+        { id: 's1', name: 'Puntas de Cicuta', icon: 'talents/arquera-montaraz-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(2, r)}% de daño de Naturaleza y de Veneno.`, fx: { elem: { nature: 2 }, tv: { poisonPct: 2 } } },
         { id: 's2', name: 'Paso del Rastreador', icon: 'talents/arquera-montaraz-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `+${x(4, r)}% de velocidad de movimiento. Ves el rastro de tu Presa.`, fx: { stats: { spdPct: 4 } } },
         { id: 's3', name: 'Abrojos', icon: 'talents/arquera-montaraz-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `Lluvia de Flechas deja abrojos durante ${x(2, r)} s que ralentizan un 30%.`, fx: { mod: { lluvia_flechas: { zone: 1, zoneDur: 2, slowPct: [30, 30] } }, power: 'm_abrojos' } },
         { id: 's4', name: 'Cepo Doble', icon: 'talents/arquera-montaraz-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Trampa de Cepo gana una 2.ª carga.', fx: { power: 'm_cepo_doble' } },
-        { id: 's5', name: 'Flecha Lastrada', icon: 'talents/arquera-montaraz-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `Flecha Múltiple ralentiza un ${x(10, r)}% durante 3 s.`, fx: { mod: { flecha_multiple: { slowPct: 10, slow: [3, 3, 3] } } } },
+        { id: 's5', name: 'Flecha Lastrada', icon: 'talents/arquera-montaraz-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `Flecha Múltiple ralentiza un ${[30, 35, 40][r - 1]}% durante 3 s.`, fx: { mod: { flecha_multiple: { slowPct: [30, 35, 40], slow: [3, 3, 3] } } } },
         { id: 's6', name: 'Cepo o Mina', icon: 'talents/arquera-montaraz-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
           { k: 'A', name: 'Cepo de Hierro', desc: 'La trampa inmoviliza 1 s más y a los jefes los ralentiza un 50%.', fx: { mod: { a_t_cepo: { rootAdd: 1 } }, power: 'm_cepo_hierro' } },
           { k: 'B', name: 'Mina de Espinas', desc: 'La trampa estalla en 3 m con el 120% de daño, pero no inmoviliza.', fx: { mod: { a_t_cepo: { radius: 100 } }, power: 'm_mina' } } ] },
@@ -241,19 +267,19 @@ export const ARQUERA_TALENTS = {
       // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
       clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c6', 2], ['c8', 2], ['c10', 3], ['c11', 2], ['c12', 1, 'B'], ['c13', 2], ['c14', 1], ['c15', 1]],
       nodes: [
-        { id: 's0', name: 'Tormenta de Flechas', icon: 'talents/arquera-tiradora-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): +1 proyectil y +15% de velocidad de ataque. Disparar mientras te mueves genera Impulso. Otorga la activa Andanada: barres un arco de 120° con 12 flechas (60% de daño cada una) mientras retrocedes 3 m.', fx: { power: 'multidisparo', stats: { aspdPct: 15 }, grant: 'a_t_andanada' } },
-        { id: 's1', name: 'Dedos Ligeros', icon: 'talents/arquera-tiradora-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(4, r)}% de velocidad de ataque.`, fx: { stats: { aspdPct: 4 } } },
+        { id: 's0', name: 'Tormenta de Flechas', icon: 'talents/arquera-tiradora-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): +1 proyectil y +8% de velocidad de ataque. Disparar mientras te mueves genera Impulso. Otorga la activa Andanada: barres un arco de 120° con 12 flechas (60% de daño cada una) mientras retrocedes 3 m.', fx: { power: 'multidisparo', stats: { aspdPct: 8 }, grant: 'a_t_andanada' } },
+        { id: 's1', name: 'Dedos Ligeros', icon: 'talents/arquera-tiradora-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(2, r)}% de velocidad de ataque.`, fx: { stats: { aspdPct: 2 } } },
         { id: 's2', name: 'Correr y Disparar', icon: 'talents/arquera-tiradora-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `+${x(4, r)}% de velocidad de movimiento. Disparar ya no te frena.`, fx: { stats: { spdPct: 4 } } },
         { id: 's3', name: 'Abanico Amplio', icon: 'talents/arquera-tiradora-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `Flecha Múltiple dispara +${x(1, r)} ${pl(r, 'flecha', 'flechas')}.`, fx: { mod: { flecha_multiple: { proj: 1 } } } },
         { id: 's4', name: 'Andanada Impulsiva', icon: 'talents/arquera-tiradora-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Andanada te da 20 de Impulso.', fx: { power: 't_andanada_impulsiva' } },
         { id: 's5', name: 'Viento de Cola', icon: 'talents/arquera-tiradora-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `Agilidad dura +${x(1, r)} s y da +${x(5, r)}% de velocidad de ataque adicional.`, fx: { mod: { agilidad: { durS: 1 } }, power: 't_viento_cola' } },
         { id: 's6', name: 'Rebote o Corona', icon: 'talents/arquera-tiradora-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
-          { k: 'A', name: 'Flechas Rebotadoras', desc: 'Flecha Múltiple rebota a 2 enemigos cercanos con el 50% de daño.', fx: { mod: { flecha_multiple: { chain: 2 } } } },
+          { k: 'A', name: 'Flechas Rebotadoras', desc: 'Cada flecha de Flecha Múltiple que impacta rebota a 5 enemigos cercanos (la primera con el 180% de daño).', fx: { power: 't_rebote' } },
           { k: 'B', name: 'Corona de Flechas', desc: 'Flecha Múltiple sale en 360° con −30% de daño. Ideal si te rodean.', fx: { mod: { flecha_multiple: { proj: 4, dmg: -30 } }, power: 't_corona' } } ] },
-        { id: 's7', name: 'Puntas Ligeras', icon: 'talents/arquera-tiradora-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `−${x(10, r)}% de coste de Energía de Flecha Múltiple y Andanada.`, fx: { mod: { flecha_multiple: { cost: -10 }, a_t_andanada: { cost: -10 } } } },
+        { id: 's7', name: 'Puntas Ligeras', icon: 'talents/arquera-tiradora-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `−${x(5, r)}% de coste de Energía de Flecha Múltiple y Andanada.`, fx: { mod: { flecha_multiple: { cost: -5 }, a_t_andanada: { cost: -5 } } } },
         { id: 's8', name: 'Esquiva Felina', icon: 'talents/arquera-tiradora-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `−${x(4, r)}% de daño recibido mientras te mueves.`, fx: { tv: { drMoving: 4 } } },
         { id: 's9', name: 'Danza de Flechas', icon: 'talents/arquera-tiradora-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 4 s disparas flechas en espiral a tu alrededor sin dejar de correr, inmune a ralentizaciones. Enfriamiento 25 s.', fx: { grant: 'a_t_danza' } },
-        { id: 's10', name: 'Lluvia Torrencial', icon: 'talents/arquera-tiradora-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(15, r)}% de radio y +${x(10, r)}% de daño de Lluvia de Flechas.`, fx: { mod: { lluvia_flechas: { radius: 15, dmg: 10 } } } },
+        { id: 's10', name: 'Lluvia Torrencial', icon: 'talents/arquera-tiradora-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(15, r)}% de radio y +${x(50, r)}% de daño de Lluvia de Flechas.`, fx: { mod: { lluvia_flechas: { radius: 15, dmg: 50 } } } },
         { id: 's11', name: 'Segundo Aliento', icon: 'talents/arquera-tiradora-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `Al llenar el Impulso recuperas un ${x(4, r)}% de vida y ${x(10, r)} de Energía.`, fx: { tv: { galeHeal: 4, galeEnergy: 10 } } },
         { id: 's12', name: 'Carcaj Sin Fondo', icon: 'talents/arquera-tiradora-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} a Flecha Múltiple y Lluvia de Flechas.`, fx: { skillLv: { flecha_multiple: 1, lluvia_flechas: 1 } } },
         { id: 's13', name: 'Salto o Estela', icon: 'talents/arquera-tiradora-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
@@ -262,9 +288,9 @@ export const ARQUERA_TALENTS = {
         { id: 's14', name: 'Vendaval Perpetuo', icon: 'talents/arquera-tiradora-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Durante el Vendaval, cada enemigo abatido alarga su duración 0.5 s (hasta +6 s).', fx: { power: 't_galechain' } },
         { id: 's15', name: 'Ojo de Tormenta', icon: 'talents/arquera-tiradora-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)}% de crítico a Flecha Múltiple y Andanada.`, fx: { mod: { flecha_multiple: { crit: 3 }, a_t_andanada: { crit: 3 } } } },
         { id: 's16', name: 'Diluvio Constante', icon: 'talents/arquera-tiradora-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `−${x(15, r)}% de enfriamiento de Diluvio de Saetas.`, fx: { mod: { a_u_diluvio: { cdr: 15 } } } },
-        { id: 's17', name: 'Filo del Viento', icon: 'talents/arquera-tiradora-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(6, r)}% de daño Físico a todas tus flechas.`, fx: { elem: { physical: 6 } } },
-        { id: 'x1', name: 'Ráfaga Infinita', icon: 'talents/arquera-tiradora-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles.', fx: { power: 't_infinite' } },
-        { id: 'x2', name: 'Huracán', icon: 'talents/arquera-tiradora-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: los disparos de Ráfaga Infinita hacen +${x(10, r)}% de daño y dan +${x(10, r)} de Impulso.`, fx: { tv: { infiniteDmg: 10 } } },
+        { id: 's17', name: 'Filo del Viento', icon: 'talents/arquera-tiradora-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(2, r)}% de daño Físico a todas tus flechas.`, fx: { elem: { physical: 2 } } },
+        { id: 'x1', name: 'Ráfaga Infinita', icon: 'talents/arquera-tiradora-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles en un abanico el doble de ancho.', fx: { power: 't_infinite' } },
+        { id: 'x2', name: 'Huracán', icon: 'talents/arquera-tiradora-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: los disparos de Ráfaga Infinita hacen +${x(5, r)}% de daño y dan +${x(10, r)} de Impulso.`, fx: { tv: { infiniteDmg: 5 } } },
         { id: 'x3', name: 'Ojo del Huracán', icon: 'talents/arquera-tiradora-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): durante el Vendaval, Ráfaga Infinita se activa cada 5 disparos en lugar de 10.', fx: { power: 't_eyestorm' } },
       ],
       preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s6', 1, 'A'], ['s7', 2], ['s9', 1], ['s10', 2], ['s12', 2], ['s14', 1], ['s17', 2], ['x1', 1], ['x2', 1]],

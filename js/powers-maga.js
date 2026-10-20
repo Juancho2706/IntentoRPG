@@ -71,7 +71,7 @@
 //  · Sello del Archimago guarda el 25 % de la vida que pierde el objetivo marcado (sondeo
 //    de su vida cada 0,1 s; no hay gancho ④ por objetivo marcado sin un poder en s9).
 //  · Cadena de Rayos (x1): se quitó el mod `rayo.chain` (encadenaba TODOS los impactos con
-//    −25 %/salto); a_chain_crit encadena solo el PRIMER crítico de cada Rayo (50 % a 3
+//    −25 %/salto); a_chain_crit encadena solo el PRIMER crítico de cada Rayo (90 % a 3
 //    enemigos; solo, 2 veces al mismo).
 //  · Ralentizar (c5B) ignora el básico de ARMA que ahora también pasa por ⑦ onCast
 //    (cast.weapon): antes no lo veía y así no cambia nada.
@@ -102,8 +102,9 @@ export function magaTuning() {
     prisonLayers: 5, prisonFreeze: 2, prisonFreezeBig: 3, prisonStagger: 20, prisonStaggerBig: 35, numbT: 4,
     novaPush: 3, frostArmorLayers: 1, iceTombT: 4, iceTombR: 1.2, chainLayers: 2, chainR: 4, iceAgeEvery: 15,
     numbExtra: 0.15, winterT: 6, winterSlow: 50,
-    orbCap: 2, chainCritN: 3, chainCritFrac: 0.5, chainCritR: 6, singPct: 15, singT: 6, singMax: 2,
-    resonanceCrit: 15, sealR: 3,
+    orbCap: 2, chainCritN: 3, chainCritFrac: 0.9, chainCritR: 6, chainCritSolo: 0, singPct: 15, singT: 6, singMax: 2,
+    misilesChargeEvery: 2,                               // Misiles Arcanos: 1 Carga cada 2 misiles (Paso 2e)
+    resonanceCrit: 12, sealR: 3,
   }));
 }
 
@@ -483,7 +484,7 @@ export function magaPowers() {
     // x1 Cadena de Rayos: el primer crítico de cada Rayo salta a 3 enemigos con el 50 %;
     // si está solo, lo golpea dos veces
     a_chain_crit: {
-      name: 'Cadena de Rayos', desc: 'Los críticos de Rayo saltan a 3 enemigos con el 50 % del daño; si el objetivo está solo, lo golpean dos veces.',
+      name: 'Cadena de Rayos', desc: 'Los críticos de Rayo saltan a 3 enemigos con el 90 % del daño; sin otro enemigo cerca no saltan.',
       state: () => ({ done: false }),
       onCast(g, p, cast) { if (cast?.sk?.id === 'rayo') powerState(p, 'a_chain_crit').done = false; },
       onHit(g, p, e, hit) {
@@ -499,7 +500,7 @@ export function magaPowers() {
           let from = e;
           for (const o of others) { try { g.spawnBeam?.(from.pos, o.pos, 0xd6b8ff, 0.18); } catch { /* */ } dealProcDamage(g, o, amt, opts); from = o; }
         } else if (e.alive) {
-          for (let i = 0; i < 2 && e.alive; i++) dealProcDamage(g, e, amt, opts);
+          for (let i = 0; i < T.chainCritSolo && e.alive; i++) dealProcDamage(g, e, amt, opts);
         }
       },
     },
@@ -856,6 +857,9 @@ export function magaSkillBehaviors() {
         strike(p, ctx, e);
         p.onDealHit();
         g.gainResource(p, (p.stats.maxMP || 0) * (sk.manaPerTickPct || 1) / 100);
+        // Paso 2e: cada 2 misiles, 1 Carga Arcana (la variante ofensiva de la Arcanista carga el Rayo)
+        inst._missiles = (inst._missiles || 0) + 1;
+        if (inst._missiles % magaTuning().misilesChargeEvery === 0) gainGauge(p, 'cargas', 1);
         try { g.spawnBeam?.(p.pos, e.pos, ctx.color ?? sk.color, interval); } catch { /* */ }
         fx(g, ctx.fx?.impact, e.pos, 1.0);
         if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);

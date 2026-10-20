@@ -256,7 +256,7 @@ console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silen
   p.moving = true; firePower('onTick', p, h.g, p, 0.1);
   assert.equal(firePower('condAdd', p, p, e, {}), 0, 'moverse la pierde');
 }
-// f_overpen (s14): +15 % por enemigo atravesado · s6B f_herida_abierta: los críticos sangran el 80 %
+// f_overpen (s14): +15 % por enemigo atravesado · s6B f_herida_abierta: los críticos sangran el 50 % (2e)
 {
   const h = mk('francotiradora', { s14: 1 });
   const p = h.p;
@@ -274,7 +274,7 @@ console.log('Árbol de clase: Paso Ligero, Halcón, Voltereta, Conmoción, Silen
   const t = w.enemy({ hp: 1e7 });
   w.hit(t, { skill: 'a_t_apuntado', crit: true, dealt: 1000 });
   assert.ok(w.g.hasDoT(t, 'a_t_apuntado:bleed'), 'Herida Abierta: el crítico sangra');
-  assert.ok(approx(w.g.dotRemaining(t, 'a_t_apuntado:bleed'), 800, 6), 'el 80 % del golpe (redondeo por tic)');
+  assert.ok(approx(w.g.dotRemaining(t, 'a_t_apuntado:bleed'), 500, 6), 'el 50 % del golpe (redondeo por tic)');
   const t2 = w.enemy({ hp: 1e7, pos: [0, 0, 3] });
   w.hit(t2, { skill: 'a_t_apuntado', crit: false, dealt: 1000 });
   assert.ok(!w.g.hasDoT(t2, 'a_t_apuntado:bleed'), 'sin crítico no');
@@ -418,7 +418,7 @@ const castTrap = (h, x, z) => { h.aim(x, z); ready(h); h.p.cds.a_t_cepo = 0; ret
   const mp = resolveSkill(h.p, SK('a_t_cepo'));
   assert.ok(mp.mine, 'perfil: prof.mine');
   // Paso 2c.2: el +120 % ya no está en mod.dmg (antes se descontaba aquí): addPct es el real
-  const avg = h.p.avgHit(1.2 * mp.coef / 1.5, mp.addPct);
+  const avg = h.p.avgHit(1.2 * mp.coef / SK('a_t_cepo').coef, mp.addPct);   // 1,2 × rankCoef (2e: coef base 0,6)
   assert.ok(blast < avg * 1.6 * 1.6, `la explosión es ≈120 % del arma, sin el +120 % aditivo (${blast} frente a ${avg.toFixed(0)})`);
 }
 // m_warden (s13B): las trampas curan un 3 %/s a los aliados encima (g.heal centrado en la trampa) ·
@@ -594,6 +594,21 @@ console.log('Montaraz: Cepo (cargas, armadas, Hierro, Mina, Raíces), Guardabosq
   assert.equal(nn, 10, '5 + 4 + 1');
   assert.ok(approx(fm.spread, Math.PI * (nn - 1) / nn), 'Corona: las flechas cubren la vuelta entera');
   assert.ok(approx(resolveSkill(h.p, SK('flecha_multiple')).spread, SK('flecha_multiple').spread), 'sin s6B, el abanico de 50°');
+  // s6A Flechas Rebotadoras (t_rebote, Paso 2e): CADA flecha de Flecha Múltiple que impacta rebota
+  // a los cercanos (antes solo la primera de cada lanzamiento, por mod.chain)
+  const r = mk('tiradora', { s6: 1 }, {}, { s6: 'A' });
+  assert.ok(r.p.powers.has('t_rebote') && !resolveSkill(r.p, SK('flecha_multiple')).chain, 's6A: poder t_rebote, sin mod.chain');
+  const rt = r.enemy({ hp: 1e7, pos: [4, 0, 0] });
+  const near = [r.enemy({ hp: 1e7, pos: [5.5, 0, 0] }), r.enemy({ hp: 1e7, pos: [4, 0, 1.5] })];
+  r.hit(rt, { skill: 'flecha_multiple', dealt: 100 });
+  r.hit(rt, { skill: 'flecha_multiple', dealt: 100 });
+  r.step(1.5);
+  assert.ok(near.every(x => x.hp < x.maxHP), 'los rebotes alcanzan a los cercanos');
+  const far = r.enemy({ hp: 1e7, pos: [4, 0, -1.5] });
+  r.hit(rt, { skill: 'flecha_multiple', dealt: 100, dot: true });
+  r.hit(rt, { skill: 'flecha_perforante', dealt: 100 });
+  r.step(1.5);
+  assert.equal(far.hp, far.maxHP, 'ni los DoT ni otras habilidades rebotan');
 }
 // t_slipstream (s13B): estela que acelera a los aliados durante el Vendaval · s5 Viento de Cola
 // (t_viento_cola) · s8 Esquiva Felina (tv.drMoving del núcleo)
@@ -664,7 +679,8 @@ console.log('Montaraz: Cepo (cargas, armadas, Hierro, Mina, Raíces), Guardabosq
   const fm = resolveSkill(p, SK('flecha_multiple'));
   assert.equal(fm.cost, 0, 'no cuesta Energía');
   assert.equal(fm.count + fm.proj, 2 * (fm0.count + fm0.proj), 'el doble de proyectiles');
-  assert.equal(fm.addPct, fm0.addPct + 20, 'Huracán: +20 % de daño');
+  assert.equal(fm.addPct, fm0.addPct + 10, 'Huracán: +10 % de daño (2e: 5 %/rango)');
+  if (fm0.spread > 0) assert.ok(approx(fm.spread, 2 * fm0.spread), 'abanico el doble de ancho (2e)');
   h.aim(5, 0); ready(h); h.setSlot('rmb', 'flecha_multiple');
   const mp0 = p.mp; const box = countProj(h.g);
   assert.equal(h.cast('rmb'), true);
