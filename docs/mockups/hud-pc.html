@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>HUD PC · IntentoRPG (mockup Paso 2d.2)</title>
+<!-- Mockup ESTÁTICO del rework del HUD para PC y de las 9 barras de mecánica.
+     Ábrelo en Chrome directamente (file:///). Usa los assets aprobados de
+     D:\Proyectos\IntentoRPG-assets\web\ con ruta absoluta. Las piezas nuevas que
+     generará Codex (docs/paso2d2-hud-pc.md §5) se sustituyen aquí por CSS/SVG,
+     que es además el renderizado de reserva del juego si un asset no carga.
+     Parámetros de URL: ?res=1366|1920 &spec=<id> &state=demo|idle|building|full|active|decay
+                        &only=screen|gallery|talent &cb=1 (simulación de deuteranopía) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --A:'file:///D:/Proyectos/IntentoRPG-assets/web/';
+  --bg:#0d0b10; --panel:#15111a; --gold:#e8c06a; --ink:#ede6d6; --dim:#9a917f; --line:#2c2433;
+  --c:#e8c06a; /* color de la especialización activa (lo fija el JS) */
+}
+*{box-sizing:border-box}
+body{margin:0;background:#06050a;color:var(--ink);font:14px/1.4 Inter,system-ui,sans-serif}
+kbd{display:inline-block;min-width:18px;padding:0 5px;border:1px solid #6b5a3a;border-bottom-width:2px;border-radius:4px;background:#1d1710;color:#f3e2b5;font:700 11px/16px Inter,sans-serif;text-align:center}
+.ctl{position:sticky;top:0;z-index:100;display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:10px 20px;background:#110e15ee;border-bottom:1px solid var(--line);backdrop-filter:blur(4px)}
+.ctl h1{margin:0 10px 0 0;font:700 17px Cinzel,serif;color:var(--gold);letter-spacing:.5px}
+.ctl label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--dim)}
+.ctl select,.ctl button{background:#1c1622;color:var(--ink);border:1px solid #3a2f45;border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
+.sect{padding:22px 24px 8px}
+.sect h2{margin:0 0 4px;font:700 20px Cinzel,serif;color:var(--gold)}
+.sect p.lead{margin:0 0 14px;color:var(--dim);max-width:1100px}
+#fitbox{position:relative}
+#fit{transform-origin:0 0;position:absolute;left:0;top:0}
+
+/* ======================= PANTALLA DE JUEGO ======================= */
+#screen{position:relative;overflow:hidden;width:1920px;height:1080px;--s:1;border:1px solid #2a2230;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 52%, rgba(120,104,84,.20), transparent 70%),
+    repeating-linear-gradient(30deg, rgba(255,255,255,.035) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(-30deg, rgba(255,255,255,.035) 0 1px, transparent 1px 64px),
+    radial-gradient(ellipse at 50% 50%, #2a2420 0%, #141012 60%, #09080b 100%);}
+#screen.r768{width:1366px;height:768px;--s:.8}
+.cl{position:absolute;z-index:10}
+.tl{left:calc(18px*var(--s));top:calc(16px*var(--s));transform-origin:0 0;transform:scale(var(--s))}
+.tc{left:50%;top:calc(14px*var(--s));transform-origin:50% 0;transform:translateX(-50%) scale(var(--s))}
+.tr{right:calc(18px*var(--s));top:calc(14px*var(--s));transform-origin:100% 0;transform:scale(var(--s))}
+.bc{left:50%;bottom:calc(8px*var(--s));transform-origin:50% 100%;transform:translateX(-50%) scale(var(--s))}
+.br{right:calc(16px*var(--s));bottom:calc(12px*var(--s));transform-origin:100% 100%;transform:scale(var(--s))}
+.bl{left:calc(18px*var(--s));bottom:calc(14px*var(--s));transform-origin:0 100%;transform:scale(var(--s))}
+.rr{right:calc(18px*var(--s));bottom:calc(150px*var(--s));transform-origin:100% 100%;transform:scale(var(--s))}
+.frame9{border:16px solid transparent;border-image:var(--f9) 40 fill / 16px stretch}
+
+/* escena de ejemplo: jugador, enemigos, cursor */
+.ent{position:absolute;border-radius:50%;transform:translate(-50%,-50%)}
+.hero{width:46px;height:46px;border:2px solid var(--c);box-shadow:0 0 18px color-mix(in srgb,var(--c) 55%,transparent);background:radial-gradient(circle at 40% 35%,#6d5f52,#2b241f)}
+.mob{width:34px;height:34px;background:radial-gradient(circle at 40% 35%,#5c4f4f,#231b1d);border:1px solid #6a4a48}
+.mob.elite{width:44px;height:44px;border:2px solid #f0b54a}
+.mob.boss{width:84px;height:84px;border:3px solid #d9563a;background:radial-gradient(circle at 40% 35%,#6e3a33,#24120f)}
+.mob .hpb{position:absolute;left:50%;top:-14px;width:40px;height:4px;transform:translateX(-50%);background:#300;border:1px solid #000}
+.mob .hpb i{display:block;height:100%;background:#d23a2a}
+.mob .ov{position:absolute;left:50%;top:-26px;transform:translateX(-50%);display:flex;gap:2px}
+.mob .ov i{width:7px;height:8px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:#1d3442}
+.mob .ov i.on{background:#bfefff;box-shadow:0 0 6px #74cdf2}
+.mob .preyring{position:absolute;inset:-12px;border-radius:50%;border:2px dashed #86d47a;animation:spin 6s linear infinite}
+.cursor{position:absolute;width:22px;height:22px;border:2px solid #f3e2b5;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 6px #000}
+.cursor::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#f3e2b5;border-radius:50%}
+.wlabel{position:absolute;transform:translate(-50%,-100%);padding:2px 8px;background:#000c;border:1px solid #f0d36a;border-radius:3px;color:#ffe27a;font-size:12px;font-weight:600;white-space:nowrap}
+
+/* arriba-izquierda: placa del héroe (+ huecos de grupo futuros) */
+.plate{display:flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border-radius:12px;background:linear-gradient(180deg,#1b1520e6,#0f0c12e6);border:1px solid #3a2f45}
+.plate img{width:52px;height:52px;border-radius:10px;border:1px solid var(--c)}
+.plate b{display:block;font:700 15px Cinzel,serif;color:var(--c)}
+.plate small{color:var(--dim);font-size:12px}
+.party{margin-top:8px;width:230px;height:46px;border:1px dashed #3a2f45;border-radius:10px;color:#5d5366;font-size:11px;display:grid;place-items:center}
+
+/* arriba-centro: marco del objetivo/jefe */
+.target{width:640px;padding:10px 16px 12px;--f9:url('file:///D:/Proyectos/IntentoRPG-assets/web/chrome/ui_tooltip.webp');background:linear-gradient(180deg,#18121bf0,#0d0a10f0);border-radius:6px}
+.tg-name{display:flex;justify-content:space-between;align-items:baseline;font:700 18px Cinzel,serif;color:#f1d3a0}
+.tg-name small{font:600 12px Inter;color:#c98a6a;letter-spacing:.5px}
+.tg-hp{position:relative;height:22px;margin-top:6px;background:#2a0d0b;border:1px solid #000;border-radius:3px;overflow:hidden}
+.tg-hp i{position:absolute;inset:0;transform-origin:0 50%;background:linear-gradient(180deg,#e24a33,#8e1a10)}
+.tg-hp span{position:absolute;inset:0;display:grid;place-items:center;font:700 12px Inter;text-shadow:0 1px 2px #000}
+.tg-st{position:relative;height:10px;margin-top:4px;background:#1c1708;border:1px solid #000;border-radius:2px;overflow:hidden}
+.tg-st i{position:absolute;inset:0;transform-origin:0 50%;background:repeating-linear-gradient(90deg,#f0c23a 0 10px,#c79020 10px 12px)}
+.tg-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:#c9b98e}
+.chips{display:flex;gap:4px}
+.chip{display:flex;align-items:center;gap:4px;padding:1px 6px 1px 2px;border-radius:10px;background:#0009;border:1px solid #4a3d33;font-size:11px}
+.chip img{width:18px;height:18px;border-radius:50%}
+.banner{margin:14px auto 0;width:max-content;padding:8px 22px;border-radius:6px;background:linear-gradient(90deg,transparent,#2a0f0dee 20%,#2a0f0dee 80%,transparent);color:#ffd6a0;font:700 16px Cinzel,serif;letter-spacing:.5px;text-align:center}
+
+/* arriba-derecha: minimapa + zona + misión */
+.mm{position:relative;width:236px;height:236px;margin-left:auto}
+.mm .map{position:absolute;inset:18px;border-radius:50%;overflow:hidden;background:
+   linear-gradient(90deg,transparent 46%,#5a4c3a 46% 54%,transparent 54%),
+   linear-gradient(0deg,transparent 30%,#5a4c3a 30% 38%,transparent 38%),
+   radial-gradient(circle at 70% 30%,#3a3226 0 18%,transparent 19%),
+   radial-gradient(circle,#1e1914,#0b0908)}
+.mm .map img{position:absolute;width:18px;height:18px;transform:translate(-50%,-50%)}
+.mm .frm{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.zone{margin-top:2px;text-align:right;font:700 14px Cinzel,serif;color:#e8d6b0}
+.zone small{display:block;font:500 12px Inter;color:var(--dim)}
+.quest{margin-top:10px;width:300px;margin-left:auto;padding:8px 12px;border-right:3px solid var(--gold);background:linear-gradient(90deg,#0000,#120e0cdd 30%);text-align:right}
+.quest b{display:block;color:var(--gold);font:700 13px Cinzel,serif}
+.quest div{font-size:12.5px;color:#d8ccb0}
+.quest em{font-style:normal;color:#9fdc8a}
+
+/* derecha: registro de botín / XP */
+.loot{width:320px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;font-size:13px;font-weight:600;text-shadow:0 1px 2px #000}
+.loot div{padding:2px 10px;background:linear-gradient(90deg,#0000,#000a);border-radius:3px}
+.loot .old{opacity:.45}
+/* abajo-izquierda: avisos del sistema / chat futuro */
+.sys{width:360px;font-size:12.5px;color:#cfc4ad;display:flex;flex-direction:column;gap:2px}
+.sys div{padding:2px 8px;background:#0007;border-radius:3px}
+.sys .old{opacity:.4}
+.sys b{color:var(--gold)}
+/* abajo-derecha: micromenú (iconos menu_*) */
+.gold{display:flex;justify-content:flex-end;gap:14px;margin-bottom:6px;font:600 13px Inter;color:#f1d97a;text-shadow:0 1px 2px #000}
+.gold img{width:18px;height:18px;vertical-align:-4px}
+.micro{display:flex;gap:5px;padding:5px;border-radius:10px;background:linear-gradient(180deg,#1a1410e6,#0d0a08e6);border:1px solid #4a3c22}
+#screen.r768 .micro{display:grid;grid-template-columns:repeat(5,38px)}
+.mb{position:relative;width:38px;height:38px;border-radius:7px;border:1px solid #5a4724;background:#000;overflow:hidden}
+.mb img{width:100%;height:100%;display:block;filter:saturate(.85)}
+.mb kbd{position:absolute;right:1px;bottom:1px;min-width:13px;padding:0 3px;font-size:9px;line-height:12px;border-width:1px}
+.mb .bd{position:absolute;left:2px;top:2px;width:9px;height:9px;border-radius:50%;background:#e23b3b;box-shadow:0 0 6px #e23b3b}
+
+/* abajo-centro: dock (orbes + ranuras + mecánica) */
+.dock{position:relative;display:flex;align-items:flex-end;gap:12px}
+.orb{position:relative;width:136px;height:136px;flex:0 0 auto}
+.orb .liq{position:absolute;inset:14px;border-radius:50%;overflow:hidden;background:#090608;box-shadow:inset 0 0 22px #000}
+.orb .liq i{position:absolute;left:0;right:0;bottom:0;height:100%;transform-origin:50% 100%}
+.orb.hp .liq i{background:radial-gradient(circle at 38% 26%,#ff7c68,#a01414 70%)}
+.orb .liq::after{content:'';position:absolute;top:6%;left:18%;width:64%;height:40%;border-radius:50%;background:radial-gradient(ellipse at 50% 0,#ffffff55,#0000)}
+.orb .frm{position:absolute;inset:0;width:100%;height:100%}
+.orb .val{position:absolute;inset:0;display:grid;place-items:center;font:800 20px Inter;text-shadow:0 1px 4px #000,0 0 8px #000}
+.orb .val small{display:block;font:600 10px Inter;opacity:.8;text-align:center;letter-spacing:1px}
+.orb .resi{position:absolute;right:6px;top:4px;width:30px;height:30px;border-radius:50%}
+.centercol{display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:4px}
+.prompt{height:26px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:13px;background:#000b;border:1px solid #6b5a3a;font-size:13px;color:#f1e3c0}
+.prompt .rar{color:#ffd24a;font-weight:700}
+.mechzone{position:relative;width:440px;height:48px}
+.mechzone.guide{outline:1px dashed #ffffff22;outline-offset:3px}
+.bar{display:flex;align-items:flex-end;gap:6px;padding:7px 10px;border-radius:12px;
+  background:linear-gradient(180deg,#221a14ee,#0e0b08f2);border:1px solid #5a4724;box-shadow:0 6px 24px #000c, inset 0 1px 0 #ffffff10}
+.sep{width:8px}
+.slot{position:relative;width:56px;height:56px;border-radius:8px;border:2px solid #5d4b2c;background:#000;overflow:visible}
+.slot img{width:100%;height:100%;display:block;border-radius:6px}
+.slot.small{width:44px;height:44px}
+.slot kbd{position:absolute;left:-3px;bottom:-4px}
+.slot .cost{position:absolute;right:2px;top:1px;font:700 10px Inter;color:#9fc8ff;text-shadow:0 1px 2px #000}
+.slot .cost.gen{color:#ffcf5a}
+.slot .cd{position:absolute;inset:0;border-radius:6px;background:conic-gradient(#000b var(--cd,0deg),#0000 0);display:grid;place-items:center;font:800 16px Inter;text-shadow:0 1px 3px #000}
+.slot .pc{position:absolute;right:-4px;bottom:-4px;padding:0 4px;border-radius:7px;background:#211a0e;border:1px solid #6b5a3a;font:700 10px/14px Inter;color:#f1d97a}
+.slot.ready{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 14px color-mix(in srgb,var(--c) 70%,transparent);animation:readyPulse 1.2s ease-in-out infinite}
+@keyframes readyPulse{50%{box-shadow:0 0 0 1px var(--c),0 0 4px color-mix(in srgb,var(--c) 40%,transparent)}}
+.slot svg{width:60%;height:60%;margin:20%}
+.slot[data-s=dodge]{color:#bcd4ff}
+.mouse{position:absolute;left:-3px;bottom:-4px;width:15px;height:19px;border:1px solid #6b5a3a;border-radius:7px 7px 8px 8px;background:#1d1710;overflow:hidden}
+.mouse i{position:absolute;top:0;width:50%;height:45%;background:#f3e2b5}
+.mouse.l i{left:0}.mouse.r i{right:0}
+.xp{width:100%;height:6px;border-radius:3px;background:#0d0a08;border:1px solid #3a2f20;overflow:hidden}
+.xp i{display:block;height:100%;width:62%;background:linear-gradient(90deg,#c9a227,#ffe08a)}
+.wing{position:absolute;bottom:150px;display:flex;flex-wrap:wrap;gap:5px;width:300px}
+.wing.l{left:0}.wing.r{right:0;justify-content:flex-end}
+.buff{position:relative;width:34px;height:34px;border-radius:7px;padding:2px;background:conic-gradient(var(--bc,#e8c06a) var(--bd,270deg),#ffffff1a 0)}
+.buff img{width:100%;height:100%;border-radius:5px;display:block}
+.buff span{position:absolute;right:-3px;bottom:-5px;padding:0 3px;border-radius:6px;background:#000d;font:700 10px/13px Inter}
+.buff.de{--bc:#e04a3a}
+
+/* ======================= BARRAS DE MECÁNICA ======================= */
+/* gramática común: 440×48 · etiqueta arriba-izq · cuerpo · número + anillo de tiempo a la derecha */
+.gz{position:absolute;inset:0;display:grid;grid-template-columns:1fr auto;grid-template-rows:15px 33px;column-gap:10px;--c:#ccc;color:var(--ink);contain:layout paint}
+.gz-lbl{grid-column:1/3;display:flex;gap:8px;align-items:baseline;font:700 10.5px Inter;letter-spacing:1.6px;color:var(--c);white-space:nowrap;overflow:hidden}
+.gz-lbl .sub{font-weight:600;letter-spacing:.3px;color:#d9cfc0;text-transform:none;font-size:11px}
+.gz-body{position:relative;display:flex;align-items:center;gap:6px;min-width:0}
+.gz-end{display:flex;align-items:center;gap:6px}
+.gz-num{min-width:44px;text-align:right;font:800 15px Inter;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000}
+.gz-ring{width:28px;height:28px;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p,0)*360deg),#ffffff18 0);opacity:0;transition:opacity .2s;display:grid;place-items:center}
+.gz-ring::after{content:'';width:20px;height:20px;border-radius:50%;background:#0d0b10}
+.gz.has-t .gz-ring{opacity:1}
+.gz[data-state=idle] .gz-body{opacity:.55}
+.gz.flash::before{content:'';position:absolute;inset:-6px;border-radius:12px;border:2px solid var(--c);animation:flash .6s ease-out forwards;pointer-events:none}
+@keyframes flash{from{opacity:1;transform:scale(.96)}to{opacity:0;transform:scale(1.08)}}
+.gz.ooc{opacity:.4;transition:opacity .4s}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 1 · SED — vena de sangre que late */
+.sed-heart{width:30px;height:30px;flex:0 0 auto;color:#5a1610;transition:color .2s}
+.sed-heart svg{width:100%;height:100%;fill:currentColor;filter:drop-shadow(0 0 2px #000)}
+.gz-sed.low .sed-heart,.gz-sed[data-state=active] .sed-heart{color:#ff4a36;animation:beat .5s ease-in-out infinite}
+.sed-tube{position:relative;flex:1;height:18px;border-radius:9px 12px 12px 9px;background:#1a0606;border:2px solid #4a1d18;box-shadow:inset 0 2px 6px #000;overflow:hidden}
+.sed-fill{position:absolute;inset:0;transform-origin:0 50%;transform:scaleX(0);transition:transform .1s linear;background:linear-gradient(180deg,#ff6a4f,#b3180e 55%,#5e0904)}
+.sed-veins{position:absolute;inset:0;background:repeating-linear-gradient(100deg,#0000 0 22px,#ffffff10 22px 23px,#0000 23px 41px);mix-blend-mode:overlay}
+.sed-pulse{position:absolute;inset:0;background:linear-gradient(90deg,#0000,#ffd0c044,#0000);transform:translateX(-100%);opacity:0}
+.gz-sed.b1 .sed-pulse{opacity:1;animation:vein 1.4s ease-in infinite}
+.gz-sed.b2 .sed-pulse{opacity:1;animation:vein .9s ease-in infinite}
+.gz-sed.b3 .sed-pulse{opacity:1;animation:vein .55s ease-in infinite}
+@keyframes vein{to{transform:translateX(100%)}}
+@keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.18)}}
+.drip{position:absolute;bottom:-2px;width:5px;height:8px;border-radius:0 0 3px 3px;background:#c21d10;opacity:0}
+.gz-sed[data-state=active] .drip{animation:drip 1s ease-in infinite}
+.drip.d1{left:30%}.drip.d2{left:58%;animation-delay:.35s!important}.drip.d3{left:84%;animation-delay:.7s!important}
+@keyframes drip{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(12px)}}
+.gz-sed[data-state=active] .sed-tube{border-color:#ff5a3c;box-shadow:inset 0 2px 6px #000,0 0 12px #e8634a88}
+.gz-sed.frenzy .sed-tube{border-color:#ffb36a}
+
+/* 2 · BASTIÓN — muralla de escudos */
+.bs-row{display:flex;gap:7px;align-items:center;transition:gap .25s}
+.sh{position:relative;width:26px;height:31px;transition:transform .15s}
+.sh svg{width:100%;height:100%;fill:#141b26;stroke:#3a5070;stroke-width:1.4}
+.sh.on svg{fill:url(#gShield);stroke:#cfe3ff}
+.sh.in{animation:slam .25s ease-out}
+@keyframes slam{from{transform:scale(1.35) translateY(-4px)}to{transform:none}}
+.sh .crack{position:absolute;inset:0;opacity:0;background:
+  linear-gradient(115deg,#0000 46%,#0b0f15 47% 50%,#0000 51%),linear-gradient(70deg,#0000 55%,#0b0f15 56% 58%,#0000 59%);clip-path:polygon(50% 4%,95% 17%,95% 46%,50% 96%,5% 46%,5% 17%)}
+.gz-bastion.wall .bs-row{gap:0}
+.gz-bastion.wall .sh svg{fill:url(#gShield);stroke:#ffffff}
+.gz-bastion.wall .bs-row{filter:drop-shadow(0 0 6px #7fb0e8)}
+.bs-dr{font:700 12px Inter;color:#a9cdf5;margin-left:8px}
+
+/* 3 · FERVOR — halo con tres soles */
+.fv{position:relative;width:170px;height:33px}
+.fv svg.arc{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:#5a4a1e;stroke-width:2}
+.fv .rays{position:absolute;left:50%;top:60%;width:120px;height:120px;margin:-60px;border-radius:50%;opacity:0;
+  background:repeating-conic-gradient(#ffe39a33 0 6deg,#0000 6deg 18deg);transition:opacity .3s;-webkit-mask:radial-gradient(circle,#000 20%,#0000 70%);mask:radial-gradient(circle,#000 20%,#0000 70%)}
+.gz-fervor[data-state=full] .fv .rays,.gz-fervor[data-state=active] .fv .rays{opacity:1;animation:spin 9s linear infinite}
+.jw{position:absolute;width:20px;height:20px;margin:-10px;transform:rotate(45deg);border:2px solid #6a5726;background:#1a160c;transition:background .2s,box-shadow .2s}
+.jw.on{background:radial-gradient(circle,#fff6cf,#ecc760 55%,#9c7a1e);border-color:#fff1b8;box-shadow:0 0 10px #ecc760}
+.jw.j0{left:16%;top:68%}.jw.j1{left:50%;top:34%}.jw.j2{left:84%;top:68%}
+.hm{display:flex;gap:3px;margin-left:6px}
+.hm i{width:7px;height:7px;border-radius:50%;border:1px solid #8a7330}
+.hm i.on{background:#ecc760}
+.fv-txt{font:600 11.5px Inter;color:#f3d98c;margin-left:6px;white-space:nowrap}
+
+/* 4 · CALOR — parrilla de forja (10 barrotes que se calientan) */
+.grate{position:relative;flex:1;height:30px;display:flex;gap:4px;padding:3px 6px;border-radius:5px;background:#120c09;border:2px solid #3b2a20;box-shadow:inset 0 0 8px #000}
+.grate i{flex:1;border-radius:2px;background:#2a221e;transition:background .2s,box-shadow .2s}
+.grate i.h1{background:linear-gradient(0deg,#5a160c,#9a2a12)}
+.grate i.h2{background:linear-gradient(0deg,#b0300f,#ff6a1a);box-shadow:0 0 6px #ff6a1a88}
+.grate i.h3{background:linear-gradient(0deg,#ff7a1a,#ffd27a);box-shadow:0 0 8px #ffb04a}
+.grate i.h4{background:linear-gradient(0deg,#ffd27a,#fffbe8);box-shadow:0 0 10px #ffe0a0}
+.grate .fl{position:absolute;left:4px;right:4px;top:-12px;height:14px;opacity:0;pointer-events:none;
+  background:radial-gradient(ellipse 10px 12px at 10% 100%,#ff8a3d 40%,#0000 70%),radial-gradient(ellipse 9px 14px at 32% 100%,#ffb04a 40%,#0000 70%),radial-gradient(ellipse 11px 11px at 55% 100%,#ff7a1a 40%,#0000 70%),radial-gradient(ellipse 9px 13px at 78% 100%,#ffc66a 40%,#0000 70%),radial-gradient(ellipse 10px 12px at 95% 100%,#ff8a3d 40%,#0000 70%)}
+.gz-calor.hot .grate .fl{opacity:.9;animation:flick .35s steps(2) infinite}
+@keyframes flick{50%{transform:scaleY(.8) translateY(2px)}}
+.gz-calor.cooling .grate i{filter:saturate(.35) brightness(.8)}
+.gz-calor.cooling .grate::after{content:'se enfría';position:absolute;right:6px;top:50%;transform:translateY(-50%);font:700 10px Inter;color:#d8cfc7;letter-spacing:1px;text-shadow:0 1px 2px #000}
+.gz-calor[data-state=active] .grate{border-color:#ffd27a;box-shadow:inset 0 0 8px #000,0 0 14px #ff8a3d}
+.ign{width:30px;height:30px;flex:0 0 auto;border-radius:50%;background:radial-gradient(circle,#fffbe8,#ffb04a 45%,#c2380f 70%,#0000 72%);opacity:.15;transition:opacity .2s,transform .2s}
+.gz-calor[data-state=active] .ign{opacity:1;transform:scale(1.1);animation:beat .8s ease-in-out infinite}
+.x2{font:800 12px Inter;color:#fff1c8;background:#c2380f;border-radius:4px;padding:0 4px;display:none}
+.gz-calor.comb .x2{display:inline}
+
+/* 5 · ESCARCHA — cinco cristales del enemigo más escarchado */
+.fr-tag{display:flex;align-items:center;gap:5px;max-width:132px;padding:2px 8px 2px 4px;border-radius:12px;background:#0b161d;border:1px solid #22445a;font:600 11.5px Inter;color:#a8e0f8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr-tag .crown{display:none;color:#ffcf5a}
+.gz-escarcha.boss .fr-tag .crown{display:inline}
+.hexes{display:flex;gap:4px}
+.hex{position:relative;width:26px;height:29px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:#16303e;transition:background .15s}
+.hex::after{content:'';position:absolute;inset:3px;clip-path:inherit;background:#0b161d}
+.hex.on{background:#d8f6ff}.hex.on::after{background:linear-gradient(160deg,#e9fbff,#74cdf2 55%,#2a7fa8)}
+.gz-escarcha.shatter .hex{animation:shatter .6s ease-out}
+@keyframes shatter{0%{transform:scale(1.25);filter:brightness(2)}60%{transform:scale(.6) rotate(25deg);opacity:.2}100%{transform:none;opacity:1}}
+.fr-cnt{font:700 12px Inter;color:#a8e0f8;white-space:nowrap}
+.gz-escarcha[data-state=active] .hexes{filter:drop-shadow(0 0 6px #74cdf2)}
+
+/* 6 · CARGAS ARCANAS — cuatro runas orbitando un núcleo */
+.ac{position:relative;width:28px;height:28px;flex:0 0 auto;margin:0 4px}
+.ac .lose{position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(#b996ff calc(var(--lp,0)*360deg),#ffffff10 0);-webkit-mask:radial-gradient(circle,#0000 62%,#000 64%);mask:radial-gradient(circle,#0000 62%,#000 64%)}
+.ac .core{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle,#fff,#b996ff 50%,#3e2f66);opacity:.35;transition:opacity .2s}
+.rune{position:absolute;width:10px;height:10px;margin:-5px;transform:rotate(45deg);border:1.5px solid #5a4890;background:#130e22;transition:all .2s}
+.rune.on{background:#e7dbff;border-color:#fff;box-shadow:0 0 8px #b996ff}
+.rune.r0{left:50%;top:0}.rune.r1{left:100%;top:50%}.rune.r2{left:50%;top:100%}.rune.r3{left:0;top:50%}
+.gz-cargas.full .ac .core{opacity:1}
+.gz-cargas.discharge .rune{left:50%!important;top:50%!important;opacity:0;transition:all .35s ease-in}
+.ac-txt{font:600 12px Inter;color:#cfbaff;white-space:nowrap}
+.ac-txt b{color:#fff}
+.ac-res{font:700 10.5px Inter;color:#0d0b10;background:#cfbaff;border-radius:4px;padding:0 5px;display:none}
+.gz-cargas.res .ac-res{display:inline}
+
+/* 7 · CONCENTRACIÓN — retícula que se cierra */
+.rt{position:relative;width:28px;height:28px;flex:0 0 auto;margin:0 5px;--o:5px}
+.rt svg{position:absolute;inset:0;width:100%;height:100%}
+.rt .br{position:absolute;width:9px;height:9px;border:2.5px solid #ead86e;transition:transform .1s linear}
+.rt .b0{left:0;top:0;border-right:0;border-bottom:0;transform:translate(calc(var(--o)*-1),calc(var(--o)*-1))}
+.rt .b1{right:0;top:0;border-left:0;border-bottom:0;transform:translate(var(--o),calc(var(--o)*-1))}
+.rt .b2{right:0;bottom:0;border-left:0;border-top:0;transform:translate(var(--o),var(--o))}
+.rt .b3{left:0;bottom:0;border-right:0;border-top:0;transform:translate(calc(var(--o)*-1),var(--o))}
+.rt .dot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#6b6230}
+.gz-concentracion.full .rt .dot,.gz-concentracion[data-state=active] .rt .dot{background:#ff3b2e;box-shadow:0 0 8px #ff3b2e}
+.gz-concentracion.moving .rt{animation:jit .18s steps(2) infinite}
+@keyframes jit{50%{transform:translate(1px,-1px)}}
+.rt-bar{position:relative;flex:1;height:8px;border-radius:4px;background:#16140b;border:1px solid #4d4520;overflow:hidden}
+.rt-bar i{position:absolute;inset:0;transform-origin:0 50%;transform:scaleX(0);transition:transform .1s linear;background:linear-gradient(90deg,#8a7a2a,#ead86e)}
+.rt-txt{font:600 12px Inter;color:#f2e39a;white-space:nowrap}
+.rt-mv{font:700 10px Inter;letter-spacing:1px;color:#ff9a7a;opacity:0}
+.gz-concentracion.moving .rt-mv{opacity:1}
+
+/* 8 · COTO DE CAZA — cepos armados + medallón de Presa */
+.traps{display:flex;gap:6px}
+.trap{position:relative;width:32px;height:30px;border-radius:6px;border:1.5px dashed #2d4a28;background:#0f170d;display:grid;place-items:center}
+.trap svg{width:24px;height:20px;fill:none;stroke:#2d4a28;stroke-width:2}
+.trap.on{border:1.5px solid #86d47a;background:radial-gradient(circle,#1c3318,#0f170d)}
+.trap.on svg{stroke:#c9f5bd;filter:drop-shadow(0 0 3px #86d47a)}
+.trap.cd::after{content:'';position:absolute;inset:0;border-radius:5px;background:conic-gradient(#86d47a44 calc(var(--f,0)*360deg),#0000 0)}
+.trap.extra{opacity:.0}.gz-coto.max4 .trap.extra{opacity:1}
+.prey{display:flex;align-items:center;gap:6px;margin-left:8px;padding:2px 10px 2px 3px;border-radius:14px;border:1px solid #2d4a28;opacity:.35;font:600 11.5px Inter;color:#a9e59d;white-space:nowrap}
+.prey i{width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,#2f4a2a,#0f170d);border:1.5px solid #86d47a;display:grid;place-items:center;font-style:normal;font-size:13px}
+.gz-coto[data-state=prey] .prey{opacity:1;border-color:#86d47a;background:#0f170dcc}
+
+/* 9 · IMPULSO — chevrones de viento que fluyen */
+.chevs{position:relative;flex:1;display:flex;gap:2px;height:28px;align-items:center}
+.chev{width:30px;height:24px;color:#1f4a45;transition:color .15s}
+.chev svg{width:100%;height:100%;fill:currentColor}
+.chev.on{color:#66d7c7}.chev.half{color:#2f8a80}
+.gz-impulso.moving .chev.on{animation:flow .6s ease-in-out infinite}
+.chev:nth-child(2){animation-delay:.08s!important}.chev:nth-child(3){animation-delay:.16s!important}.chev:nth-child(4){animation-delay:.24s!important}.chev:nth-child(5){animation-delay:.32s!important}
+@keyframes flow{50%{transform:translateX(4px);filter:brightness(1.5)}}
+.stop{font:700 10px Inter;letter-spacing:1px;color:#94e8dc;opacity:0;white-space:nowrap}
+.gz-impulso.still .stop{opacity:.85}
+.gz-impulso[data-state=active] .chevs::after{content:'';position:absolute;left:0;top:2px;bottom:2px;width:70px;border-radius:12px;background:linear-gradient(90deg,#0000,#c8fff455,#0000);animation:gust .7s linear infinite;pointer-events:none}
+@keyframes gust{from{transform:translateX(-70px)}to{transform:translateX(200px)}}
+.gz-impulso[data-state=active] .chev{color:#c8fff4}
+
+/* tooltip (marco ui_tooltip) */
+.tip{position:absolute;z-index:40;width:360px;padding:10px 14px;--f9:url('file:///D:/Proyectos/IntentoRPG-assets/web/chrome/ui_tooltip.webp');background:#120e15f4;border-radius:6px;font-size:12.5px;color:#e6dccb;box-shadow:0 10px 30px #000c}
+.tip h4{margin:0 0 4px;font:700 14px Cinzel,serif;color:var(--c)}
+.tip p{margin:3px 0}.tip b{color:var(--c)}
+.tip .now{margin-top:6px;padding-top:6px;border-top:1px solid #ffffff18;color:#c9bfae}
+.tip .k{color:var(--dim);font-size:11px;margin-top:6px}
+
+/* ======================= GALERÍA + PANEL DE TALENTOS ======================= */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(500px,1fr));gap:16px}
+.card{position:relative;padding:14px 16px 12px;border-radius:14px;background:#120f16;border:1px solid var(--bd,#2c2433)}
+.card h3{display:flex;align-items:center;gap:10px;margin:0 0 10px;font:700 16px Cinzel,serif;color:var(--c)}
+.card h3 img{width:34px;height:34px;border-radius:7px}
+.card h3 small{font:500 12px Inter;color:var(--dim);margin-left:auto}
+.stage{position:relative;width:440px;height:48px;margin:4px 0 10px}
+.cap{min-height:38px;font-size:13px;color:#e6dccb}
+.nodes{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.nd{display:flex;align-items:center;gap:5px;padding:2px 8px 2px 2px;border-radius:12px;border:1px solid #3a3040;font-size:11.5px;color:#a99f90;transition:all .2s}
+.nd img{width:22px;height:22px;border-radius:50%}
+.nd.hi{border-color:var(--c);color:#fff;background:color-mix(in srgb,var(--c) 18%,#120f16);box-shadow:0 0 10px color-mix(in srgb,var(--c) 40%,transparent)}
+.tp-mech{max-width:560px;padding:18px 20px;border-radius:16px;background:var(--mbg,#0b161d);border:1px solid var(--bd,#22445a);display:flex;flex-direction:column;gap:10px}
+.tp-top{display:flex;justify-content:space-between;font:700 12px Inter;letter-spacing:2px;color:var(--c)}
+.tp-top span:last-child{letter-spacing:0;font-weight:500;color:var(--dim)}
+.tp-text{margin:0;font-size:14px;line-height:1.5}
+.tp-text b{color:var(--c)}
+.tp-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12.5px}
+.tp-cols span{display:block;font:700 11.5px Inter;color:var(--c);letter-spacing:1px}
+.tp-ctl{display:flex;gap:8px}
+.tp-ctl button{background:#1c1622;color:var(--ink);border:1px solid #3a2f45;border-radius:6px;padding:4px 10px;font:600 12px Inter}
+.tp-ctl button.on{border-color:var(--c);color:var(--c)}
+.cb{filter:url(#deuter)}
+.reduce *{animation:none!important;transition:none!important}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gShield" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe3ff"/><stop offset=".5" stop-color="#7fb0e8"/><stop offset="1" stop-color="#2b4566"/></linearGradient>
+    <filter id="deuter"><feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0"/></filter>
+  </defs>
+</svg>
+
+<div class="ctl">
+  <h1>HUD PC · Paso 2d.2</h1>
+  <label>Resolución <select id="selRes"><option value="1920">1920 × 1080</option><option value="1366">1366 × 768</option></select></label>
+  <label>Especialización <select id="selSpec"></select></label>
+  <label>Estado <select id="selState">
+    <option value="demo">Demostración (bucle)</option><option value="idle">Vacío</option><option value="building">Llenando</option>
+    <option value="full">Umbral / lleno</option><option value="active">Activo / descarga</option><option value="decay">Enfriamiento / pérdida</option></select></label>
+  <label><input type="checkbox" id="chkCb"> Deuteranopía</label>
+  <label><input type="checkbox" id="chkRm"> Movimiento reducido</label>
+  <label><input type="checkbox" id="chkGuide" checked> Zona de mecánica</label>
+</div>
+
+<section class="sect" id="secScreen">
+  <h2>1 · HUD de PC (pantalla completa)</h2>
+  <p class="lead">Todo anclado a esquinas y escalado por <code>--s</code> (1 a 1920×1080, 0,8 a 1366×768). Sin joystick, sin botones táctiles, sin menú hamburguesa. Pasa el ratón por la barra de mecánica para ver su tooltip.</p>
+  <div id="fitbox"><div id="fit"><div id="screen">
+    <!-- escena -->
+    <div id="scene"></div>
+    <!-- arriba-izquierda -->
+    <div class="cl tl">
+      <div class="plate"><img id="plEmb" alt=""><div><b id="plName">Nv 42 · Crionte</b><small id="plSub">Maga · Tormento III</small></div></div>
+      <div class="party">Grupo (cooperativo, futuro)</div>
+    </div>
+    <!-- arriba-centro -->
+    <div class="cl tc">
+      <div class="target frame9">
+        <div class="tg-name"><span>Señor del Osario</span><small>JEFE · NV 44</small></div>
+        <div class="tg-hp"><i style="transform:scaleX(.63)"></i><span>412 880 / 655 000 · 63 %</span></div>
+        <div class="tg-st"><i id="tgSt" style="transform:scaleX(.42)"></i></div>
+        <div class="tg-row"><span>Aturdimiento 42 % · a 100: Quebrantado</span>
+          <div class="chips"><span class="chip"><img src="file:///D:/Proyectos/IntentoRPG-assets/web/ui/st_escarcha.webp">Aterido</span><span class="chip"><img src="file:///D:/Proyectos/IntentoRPG-assets/web/ui/st_ralentizado.webp">Ralentizado</span><span class="chip"><img src="file:///D:/Proyectos/IntentoRPG-assets/web/ui/st_debilidad.webp">Vulnerable</span></div></div>
+      </div>
+      <div class="banner">¡El Señor del Osario prepara Lamento Sepulcral!</div>
+    </div>
+    <!-- arriba-derecha -->
+    <div class="cl tr">
+      <div class="mm"><div class="map">
+        <img src="file:///D:/Proyectos/IntentoRPG-assets/web/map/mk_jugador.webp" style="left:50%;top:50%">
+        <img src="file:///D:/Proyectos/IntentoRPG-assets/web/map/mk_jefe.webp" style="left:70%;top:30%">
+        <img src="file:///D:/Proyectos/IntentoRPG-assets/web/map/mk_portal.webp" style="left:28%;top:66%">
+        <img src="file:///D:/Proyectos/IntentoRPG-assets/web/map/mk_cofre.webp" style="left:50%;top:20%">
+        <img src="file:///D:/Proyectos/IntentoRPG-assets/web/map/mk_mision.webp" style="left:80%;top:60%">
+      </div><img class="frm" src="file:///D:/Proyectos/IntentoRPG-assets/web/chrome/ui_marco_minimapa.webp" alt=""></div>
+      <div class="zone">Cripta de Hueso · Piso 12<small>Tormento III · 08:41 · <kbd>M</kbd> mapa</small></div>
+      <div class="quest"><b>Misión</b><div>Destruye los osarios <em>2/3</em></div><div>Derrota al Señor del Osario</div></div>
+    </div>
+    <!-- derecha: botín -->
+    <div class="cl rr"><div class="loot">
+      <div class="old" style="color:#cdd6e6">+ Anillo de Plata</div>
+      <div class="old" style="color:#6f8cff">+ Botas del Viajero (Mágico)</div>
+      <div style="color:#c8a2ff">+1 240 XP</div>
+      <div style="color:#ffd24a">+ Báculo Glacial (Raro)</div>
+      <div style="color:#f1d97a">+412 oro</div>
+    </div></div>
+    <!-- abajo-izquierda: sistema -->
+    <div class="cl bl"><div class="sys">
+      <div class="old">Has entrado en <b>Cripta de Hueso</b>.</div>
+      <div class="old">Contrato completado: <b>Purga de esqueletos</b> (+2 fragmentos)</div>
+      <div>Nueva activa de talento: <b>Lanza de Hielo</b> (ranura 3) · <kbd>N</kbd></div>
+    </div></div>
+    <!-- abajo-derecha -->
+    <div class="cl br">
+      <div class="gold"><span><img src="file:///D:/Proyectos/IntentoRPG-assets/web/ui/mat_oro.webp"> 12 340</span><span><img src="file:///D:/Proyectos/IntentoRPG-assets/web/ui/mat_fragmento.webp"> 37</span></div>
+      <div class="micro" id="micro"></div>
+    </div>
+    <!-- abajo-centro: dock -->
+    <div class="cl bc">
+      <div class="dock" id="dock">
+        <div class="wing l" id="wingL"></div><div class="wing r" id="wingR"></div>
+        <div class="orb hp"><div class="liq"><i style="transform:scaleY(.78)"></i></div><img class="frm" src="file:///D:/Proyectos/IntentoRPG-assets/web/chrome/ui_marco_minimapa.webp" alt=""><div class="val"><div>2 184<small>VIDA</small></div></div></div>
+        <div class="centercol">
+          <div class="prompt"><kbd>F</kbd> Recoger · <span class="rar">Báculo Glacial</span> (Raro)</div>
+          <div class="mechzone guide" id="hudMech"></div>
+          <div class="bar" id="bar"></div>
+          <div class="xp"><i></i></div>
+        </div>
+        <div class="orb res"><div class="liq"><i id="resLiq" style="transform:scaleY(.64)"></i></div><img class="frm" src="file:///D:/Proyectos/IntentoRPG-assets/web/chrome/ui_marco_minimapa.webp" alt=""><img class="resi" id="resIco" alt=""><div class="val"><div id="resTxt">412<small>MANÁ</small></div></div></div>
+      </div>
+    </div>
+    <div class="tip frame9" id="tip" style="display:none"></div>
+  </div></div></div>
+</section>
+
+<section class="sect" id="secGallery">
+  <h2>2 · Las 9 barras de mecánica (modo demostración)</h2>
+  <p class="lead">Mismo widget que el HUD, alimentado por la línea de tiempo <code>demo</code> de cada renderizador (10 Hz). Las píldoras son los nodos de talento que esa fase usa: se encienden en sincronía con la demostración.</p>
+  <div class="grid" id="grid"></div>
+</section>
+
+<section class="sect" id="secTalent">
+  <h2>3 · Bloque «Mecánica única» del panel de talentos</h2>
+  <p class="lead">El panel monta el MISMO renderizador en modo demostración; al pasar el ratón por una píldora se salta a la fase que la explica y el nodo se resalta en el árbol.</p>
+  <div class="tp-mech" id="tpMech"></div>
+</section>
+
+<script>
+const A = 'file:///D:/Proyectos/IntentoRPG-assets/web/';
+const $ = (s, r = document) => r.querySelector(s);
+const Q = new URLSearchParams(location.search);
+
+// ---------------- especializaciones (paleta de STYLE.md) ----------------
+const SPECS = {
+  berserker:     { cls: 'guerrero', name: 'Berserker', g: 'sed', c: '#e8634a', bg: '#1c0f0e', bd: '#5a2620', res: ['furia', 'FURIA', '#c22a1a', 72], k: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'torbellino', k4: 'g_u_furia' } },
+  guardian:      { cls: 'guerrero', name: 'Guardián', g: 'bastion', c: '#7fb0e8', bg: '#0f1520', bd: '#2b4566', res: ['furia', 'FURIA', '#c22a1a', 48], k: { lmb: 'g_embate', rmb: 'g_martillo', k1: 'embestida', k2: 'g_piel', k4: 'g_u_estandarte' } },
+  cruzado:       { cls: 'guerrero', name: 'Cruzado', g: 'fervor', c: '#ecc760', bg: '#1a160c', bd: '#5a4a1e', res: ['furia', 'FURIA', '#c22a1a', 60], k: { lmb: 'g_mandoble', rmb: 'g_martillo', k1: 'g_salto', k2: 'grito_guerra', k4: 'g_u_cataclismo' } },
+  piromante:     { cls: 'maga', name: 'Piromante', g: 'calor', c: '#ff8a3d', bg: '#1a120d', bd: '#5a3a22', res: ['mana', 'MANÁ', '#2a55c8', 64], k: { lmb: 'm_ascua', rmb: 'bola_fuego', k1: 'm_estela_ignea', k2: 'meteoro', k4: 'm_u_supernova' } },
+  crionte:       { cls: 'maga', name: 'Crionte', g: 'escarcha', c: '#74cdf2', bg: '#0b161d', bd: '#22445a', res: ['mana', 'MANÁ', '#2a55c8', 64], k: { lmb: 'm_toque', rmb: 'nova_hielo', k1: 'm_paso_escarcha', k2: 'm_armadura', k4: 'm_u_tormenta' } },
+  arcanista:     { cls: 'maga', name: 'Arcanista', g: 'cargas', c: '#b996ff', bg: '#130e22', bd: '#3e2f66', res: ['mana', 'MANÁ', '#2a55c8', 64], k: { lmb: 'm_dardo', rmb: 'rayo', k1: 'm_paso_escarcha', k2: 'm_onda', k4: 'm_u_desgarro' } },
+  francotiradora:{ cls: 'arquera', name: 'Francotiradora', g: 'concentracion', c: '#ead86e', bg: '#16140b', bd: '#4d4520', res: ['energia', 'ENERGÍA', '#b8a21c', 80], k: { lmb: 'a_disparo', rmb: 'flecha_perforante', k1: 'a_paso', k2: 'a_red', k4: 'a_u_celeste' } },
+  montaraz:      { cls: 'arquera', name: 'Montaraz', g: 'coto', c: '#86d47a', bg: '#0f170d', bd: '#2d4a28', res: ['energia', 'ENERGÍA', '#b8a21c', 80], k: { lmb: 'a_cicuta', rmb: 'lluvia_flechas', k1: 'a_paso', k2: 'a_humo', k4: 'a_u_zarzas' } },
+  tiradora:      { cls: 'arquera', name: 'Tiradora', g: 'impulso', c: '#66d7c7', bg: '#0c1716', bd: '#1f4a45', res: ['energia', 'ENERGÍA', '#b8a21c', 80], k: { lmb: 'a_disparo', rmb: 'flecha_multiple', k1: 'agilidad', k2: 'lluvia_flechas', k4: 'a_u_diluvio' } },
+};
+const CLS_NAME = { guerrero: 'Guerrero', maga: 'Maga', arquera: 'Arquera' };
+const nodeIcon = (sp, n) => `${A}talents/${SPECS[sp].cls}-${sp}-${n}.webp`;
+
+// ---------------- explicación (2-3 líneas; en el juego sale de gaugeTuning()) ----------------
+const EXPLAIN = {
+  sed:      { t: 'Perder vida y desangrar enemigos llena tu <b>Sed</b>. A 100: <b>Sed Saciada</b> 6 s (+25 % de daño aunque tengas la vida alta) y vuelve a 0.', cols: [['Generar', '+1 por 1 % de vida perdida · +2 por tic de Sangrado (máx. 10/s)'], ['Descargar', 'Automática a 100: Sed Saciada 6 s'], ['Pérdida', '−8/s tras 4 s fuera de combate']] },
+  bastion:  { t: 'Cada bloqueo te da una carga de <b>Bastión</b> (máx. 5). <b>Muro de Escudos</b> las gasta todas: −10 % de daño recibido por carga durante 8 s.', cols: [['Generar', 'Bloqueo +1 · Grito Desafiante +2 (s4)'], ['Descargar', 'Muro de Escudos (s9)'], ['Pérdida', '−1 carga cada 6 s sin ganar ninguna']] },
+  fervor:   { t: 'Cada muerte (Juicio) y cada 3 impactos de Martillo de Guerra dan 1 de <b>Fervor</b> (máx. 3). <b>Veredicto Final</b> gasta 3.', cols: [['Generar', 'Muerte +1 · 3 impactos de Martillo +1'], ['Descargar', 'Veredicto Final: 300 % y cura al grupo'], ['Ventana', 'Ascensión (x3): 10 s sin gastar Fervor']] },
+  calor:    { t: 'Cada golpe de Fuego suma 5 de <b>Calor</b>. A 100: <b>Ignición Total</b>, la siguiente Bola de Fuego o Meteoro cuesta 0 y es crítico seguro.', cols: [['Generar', '+5 por golpe de Fuego · Llamarada +25 (s4)'], ['Descargar', 'Se consume al lanzar Bola de Fuego o Meteoro'], ['Pérdida', '−10/s tras 3 s sin golpes de Fuego']] },
+  escarcha: { t: 'Cada golpe de Escarcha suma una capa al <b>enemigo</b>. A 5 capas queda <b>Congelado</b> 1,5 s; un jefe queda <b>Aterido</b> 4 s y recibe 25 de aturdimiento.', cols: [['Generar', '+1 por golpe · Nova +2 (+1/rango de s11)'], ['Descargar', 'Automática a 5: Congelado / Aterido'], ['Pérdida', '−1 capa cada 2 s']] },
+  cargas:   { t: 'Dardo Arcano suma <b>Cargas Arcanas</b> (máx. 4). <b>Rayo</b> las consume todas: +35 % de daño por carga y +5 de maná por carga.', cols: [['Generar', 'Dardo +1 · Orbe +1 por enemigo (s4, máx. 2)'], ['Descargar', 'Rayo consume todas'], ['Pérdida', 'Todas a los 6 s sin ganar (salvo Resonancia)']] },
+  concentracion: { t: 'Quieta ganas <b>Concentración</b> (+20/s) y moviéndote la pierdes (−25/s). Cada punto da +0,15 % de crítico (+15 % a 100).', cols: [['Generar', 'Quieta +20/s (+20 %/rango de s2)'], ['Descargar', 'A 100 con s4: Disparo Apuntado instantáneo (gasta 50)'], ['Pérdida', 'Moverte −25/s']] },
+  coto:     { t: 'El valor son tus <b>trampas armadas</b> (máx. 3). El primer élite o jefe que golpeas es tu <b>Presa</b> 15 s: cuenta como élite para tus bonificaciones.', cols: [['Armar', 'Trampa de Cepo: 1 carga, 8 s por carga'], ['Presa', 'Primer élite o jefe golpeado, 15 s'], ['Ampliar', 'Coto Cerrado (s14): hasta 4 trampas']] },
+  impulso:  { t: 'Cada disparo hecho <b>en movimiento</b> suma 3 de Impulso. A 100: <b>Vendaval</b> 6 s, +25 % de velocidad de ataque y +1 proyectil a Flecha Múltiple.', cols: [['Generar', '+3 por disparo en movimiento · Andanada +20 (s4)'], ['Descargar', 'Automática a 100: Vendaval 6 s'], ['Freno', 'Quieta no ganas nada']] },
+};
+const GNAME = { sed: 'SED', bastion: 'BASTIÓN', fervor: 'FERVOR', calor: 'CALOR', escarcha: 'ESCARCHA', cargas: 'CARGAS ARCANAS', concentracion: 'CONCENTRACIÓN', coto: 'COTO DE CAZA', impulso: 'IMPULSO' };
+
+// ---------------- líneas de tiempo de demostración (contrato `demo` de defineGaugeView) ----------------
+// cada fotograma: t (s), vista parcial (se fusiona), cap (subtítulo), nodes (nodos que la explican),
+// tag (estado representativo para capturas), ease (interpola value/t/decayIn hasta el siguiente)
+const DEMO = {
+  sed: [
+    { t: 0, value: 0, state: 'idle', cap: 'Fuera de combate la Sed está vacía.', tag: 'idle', nodes: [] },
+    { t: 1, value: 0, state: 'building', ease: 1, cap: 'Recibes golpes: +1 de Sed por cada 1 % de vida perdida.', nodes: ['s0'] },
+    { t: 3, value: 46, ease: 1, cap: 'Desangrar enemigos: +2 por tic de Sangrado (máx. 10/s).', nodes: ['s0'], tag: 'building', x: { low: 1 } },
+    { t: 4.5, value: 80, ease: 1, cap: 'Remolino Sediento: +4 por enemigo golpeado (máx. 20 por uso).', nodes: ['s4'] },
+    { t: 5.5, value: 100, state: 'active', label: 'Sed Saciada', t2: 6, tMax: 6, ease: 1, fire: 'full', cap: '¡Sed Saciada! 6 s de +25 % de daño aunque tengas la vida alta.', nodes: ['s0'], tag: 'active', x: { low: 0 } },
+    { t: 7.5, t2: 4, ease: 1, label: 'Desenfreno', x: { frenzy: 1 }, cap: 'Con Sangre Hirviente: Desenfreno 8 s (+30 % vel. de ataque, cada golpe cura).', nodes: ['s14'] },
+    { t: 11.5, value: 0, state: 'idle', label: '', t2: null, x: { frenzy: 0 }, cap: 'Al terminar vuelve a 0.', nodes: [] },
+    { t: 12.5, end: 1 },
+  ],
+  bastion: [
+    { t: 0, value: 0, state: 'idle', cap: 'Sin cargas de Bastión.', tag: 'idle', nodes: [] },
+    { t: 1, value: 1, state: 'building', fire: 'gain', cap: 'Bloqueas un golpe: +1 carga (15 % de bloqueo innato con escudo).', nodes: ['s0'] },
+    { t: 2, value: 2, fire: 'gain', cap: 'Otro bloqueo: +1.', nodes: ['s0'], tag: 'building' },
+    { t: 3, value: 4, fire: 'gain', cap: 'Grito Desafiante con Desafío Firme: +2 cargas.', nodes: ['s4'] },
+    { t: 4, value: 5, state: 'full', fire: 'full', decayIn: 6, ease: 1, cap: '5 cargas: con Muralla Viviente, −2 % de daño recibido por carga.', nodes: ['s17'], tag: 'full' },
+    { t: 7, decayIn: 0.4, cap: 'Sin ganar cargas en 6 s se pierde una: la grieta avisa.', nodes: [], tag: 'decay' },
+    { t: 7.6, value: 4, state: 'building', decayIn: null, cap: 'Se pierde 1 carga.', nodes: [] },
+    { t: 8.6, value: 0, state: 'active', label: 'Muro de Escudos', t2: 8, tMax: 8, ease: 1, fire: 'spent', x: { wall: 40 }, cap: 'Muro de Escudos gasta las 4: −40 % de daño recibido 8 s.', nodes: ['s9'], tag: 'active' },
+    { t: 12.6, t2: 4, state: 'idle', label: '', x: { wall: 0 }, cap: '', nodes: [] },
+    { t: 13, end: 1 },
+  ],
+  fervor: [
+    { t: 0, value: 0, state: 'idle', x: { hammer: 0 }, cap: 'Sin Fervor.', tag: 'idle', nodes: [] },
+    { t: 0.8, x: { hammer: 1 }, state: 'building', cap: 'Martillo de Guerra: cada 3 impactos, +1 Fervor.', nodes: [] },
+    { t: 1.4, x: { hammer: 2 } },
+    { t: 2, value: 1, x: { hammer: 0 }, fire: 'gain', cap: '3.º impacto: +1 Fervor.', nodes: [], tag: 'building' },
+    { t: 3.2, value: 2, fire: 'gain', cap: 'Juicio: cada muerte da +1 Fervor.', nodes: ['s0'] },
+    { t: 4.4, value: 3, state: 'full', fire: 'full', ready: ['k2'], cap: '3 de Fervor: Veredicto Final listo (su ranura brilla).', nodes: ['s9'], tag: 'full' },
+    { t: 7, value: 0, state: 'idle', ready: null, fire: 'spent', cap: 'Veredicto Final gasta 3: 300 % del arma en cono y cura al grupo.', nodes: ['s9'] },
+    { t: 8.4, value: 3, state: 'active', label: 'Ascensión', t2: 10, tMax: 10, ease: 1, cap: 'Ascensión (Apex III): 10 s en los que el Fervor no se gasta.', nodes: ['x3'], tag: 'active' },
+    { t: 12.4, t2: 6 },
+    { t: 12.5, state: 'idle', value: 0, label: '', t2: null, cap: '', nodes: [] },
+    { t: 13, end: 1 },
+  ],
+  calor: [
+    { t: 0, value: 0, state: 'idle', cap: 'La parrilla está fría.', tag: 'idle', nodes: [] },
+    { t: 0.5, value: 0, state: 'building', ease: 1, cap: '+5 de Calor por golpe de Fuego (una vez por instante).', nodes: ['s0'] },
+    { t: 3, value: 40, cap: 'Llamarada Avivada: +25 de golpe.', nodes: ['s4'], tag: 'building' },
+    { t: 3.5, value: 65, ease: 1 },
+    { t: 4.5, value: 85, coolIn: 3, ease: 1, cap: 'Si dejas de golpear con Fuego…', nodes: [] },
+    { t: 6, coolIn: 0, ease: 1, x: { cooling: 1 }, cap: '…tras 3 s se enfría: −10/s.', nodes: [], tag: 'decay' },
+    { t: 7, value: 75, x: { cooling: 0 }, coolIn: null },
+    { t: 7.2, value: 75, ease: 1 },
+    { t: 8, value: 100, state: 'active', label: 'Ignición Total', fire: 'full', ready: ['rmb', 'k2'], cap: 'A 100: Ignición Total. La siguiente Bola de Fuego o Meteoro cuesta 0 y es crítico seguro.', nodes: ['s0'], tag: 'active' },
+    { t: 10.5, value: 0, state: 'idle', label: '', ready: null, fire: 'spent', cap: 'Se consume al lanzarla.', nodes: [] },
+    { t: 11.2, value: 10, state: 'building', x: { comb: 1 }, label: 'Combustión', t2: 10, tMax: 10, ease: 1, cap: 'Combustión: tus hechizos de Fuego son críticos y el Calor se duplica 10 s.', nodes: ['s9'] },
+    { t: 13, value: 60, t2: 8.2, x: { comb: 0 } },
+    { t: 13.4, end: 1 },
+  ],
+  escarcha: [
+    { t: 0, value: 0, state: 'idle', x: { enemy: '—', boss: 0, layered: 0, frozen: 0 }, cap: 'Ningún enemigo tiene capas.', tag: 'idle', nodes: [] },
+    { t: 1, value: 1, state: 'building', fire: 'gain', x: { enemy: 'Necrófago', layered: 3 }, cap: '+1 capa por golpe de Escarcha. Se muestra el enemigo bajo el cursor (o el más escarchado).', nodes: ['s0'] },
+    { t: 2, value: 3, fire: 'gain', x: { layered: 6 }, cap: 'Nova de Hielo: +2 capas a todos (+1 por rango de Escarcha Contagiosa).', nodes: ['s11'], tag: 'building' },
+    { t: 2.8, value: 4, fire: 'gain' },
+    { t: 3.4, value: 5, state: 'full', fire: 'full', x: { frozen: 1 }, cap: '¡5 capas: Congelado 1,5 s! (Lanza de Hielo lo astilla).', nodes: ['s0', 's9'], tag: 'full' },
+    { t: 4.4, value: 2, state: 'building', x: { enemy: 'Esqueleto', frozen: 0 }, cap: 'El siguiente enemigo más escarchado.', nodes: [] },
+    { t: 5.6, value: 5, state: 'active', label: 'Aterido', t2: 4, tMax: 4, ease: 1, fire: 'full', x: { enemy: 'Señor del Osario', boss: 1 }, cap: 'Los jefes no se congelan: quedan Ateridos 4 s y reciben 25 de aturdimiento.', nodes: ['s17'], tag: 'active' },
+    { t: 9.6, value: 4, state: 'building', label: '', t2: null, decayIn: 2, ease: 1, cap: 'Las capas caen 1 cada 2 s.', nodes: [], tag: 'decay' },
+    { t: 11.6, value: 3, decayIn: 2, ease: 1 },
+    { t: 13, end: 1 },
+  ],
+  cargas: [
+    { t: 0, value: 0, state: 'idle', cap: 'Sin Cargas Arcanas.', tag: 'idle', nodes: [] },
+    { t: 1, value: 1, state: 'building', loseIn: 6, fire: 'gain', cap: 'Dardo Arcano: +1 Carga por impacto.', nodes: ['s0'] },
+    { t: 2, value: 2, loseIn: 6, fire: 'gain', tag: 'building' },
+    { t: 3, value: 3, loseIn: 6, fire: 'gain', cap: 'Orbe Resonante: +1 por enemigo golpeado (máx. 2).', nodes: ['s4'] },
+    { t: 4, value: 4, state: 'full', loseIn: 6, ease: 1, fire: 'full', ready: ['rmb'], cap: '4 Cargas: tu próximo Rayo hace +140 % de daño.', nodes: ['s0'], tag: 'full' },
+    { t: 7.5, loseIn: 2.5, cap: 'Se pierden todas 6 s después de la última ganancia (el anillo avisa).', nodes: [], tag: 'decay' },
+    { t: 8, value: 0, state: 'idle', loseIn: null, ready: null, fire: 'spent', cap: 'Rayo las consume: +35 % de daño y +5 de maná por carga.', nodes: [] },
+    { t: 9.5, value: 4, state: 'full', x: { res: 1 }, fire: 'full', cap: 'Resonancia: con 4 Cargas no se desvanecen y +15 % de crítico Arcano.', nodes: ['s14'], tag: 'active' },
+    { t: 12, end: 1 },
+  ],
+  concentracion: [
+    { t: 0, value: 0, state: 'idle', x: { moving: 1 }, cap: 'Moviéndote no hay Concentración.', tag: 'idle', nodes: [] },
+    { t: 1, value: 0, state: 'building', x: { moving: 0 }, ease: 1, cap: 'Quieta: +20 por segundo (+20 % por rango de Aliento Contenido).', nodes: ['s2'] },
+    { t: 3, value: 40, ease: 1, tag: 'building' },
+    { t: 4.6, value: 100, state: 'full', fire: 'full', ready: ['rmb'], cap: '100: +15 % de crítico; con Aliento del Cazador, Disparo Apuntado sale al instante.', nodes: ['s4'], tag: 'full' },
+    { t: 6.4, value: 100, state: 'building', ready: null, x: { moving: 1 }, ease: 1, cap: 'Moverte la vacía: −25/s.', nodes: [], tag: 'decay' },
+    { t: 8.4, value: 50, ease: 0 },
+    { t: 8.8, value: 50, state: 'active', label: 'Visión Certera', t2: 12, tMax: 12, ease: 1, cap: 'Visión Certera: 12 s moviéndote sin perderla.', nodes: ['s9'], tag: 'active' },
+    { t: 12.8, t2: 8, state: 'idle', value: 0, label: '' },
+    { t: 13.2, end: 1 },
+  ],
+  coto: [
+    { t: 0, value: 0, state: 'idle', x: { cd: 0, prey: '', max4: 0 }, cap: 'Coto de Caza: tus trampas armadas en el suelo.', tag: 'idle', nodes: [] },
+    { t: 1, value: 1, state: 'building', fire: 'gain', x: { cd: 0 }, ease: 1, cap: 'Trampa de Cepo arma una trampa (8 s por carga).', nodes: ['s0'] },
+    { t: 3, value: 1, x: { cd: 0.9 }, cap: 'La siguiente carga se recarga.', tag: 'building' },
+    { t: 3.4, value: 2, fire: 'gain', x: { cd: 0 } },
+    { t: 4, value: 3, state: 'full', fire: 'full', cap: '3 trampas armadas (4 con Coto Cerrado).', nodes: ['s4', 's14'], tag: 'full' },
+    { t: 5.5, state: 'prey', label: 'Presa · Bestia Alfa', t2: 15, tMax: 15, ease: 1, x: { prey: 'Bestia Alfa' }, cap: 'El primer élite o jefe que golpeas es tu Presa 15 s (Cazadora Paciente: +daño).', nodes: ['s0', 's15'], tag: 'active' },
+    { t: 7.5, value: 2, fire: 'spent', cap: 'La Presa pisa una trampa: inmovilizada.', nodes: [] },
+    { t: 12, t2: 8.5, x: { max4: 1 }, cap: 'Con Coto Cerrado aparece la 4.ª ranura.', nodes: ['s14'] },
+    { t: 13, end: 1 },
+  ],
+  impulso: [
+    { t: 0, value: 0, state: 'idle', x: { moving: 0 }, cap: 'Quieta no ganas Impulso.', tag: 'idle', nodes: [] },
+    { t: 1, value: 0, state: 'building', x: { moving: 1 }, ease: 1, cap: '+3 por disparo hecho en movimiento.', nodes: ['s0'] },
+    { t: 3.5, value: 55, x: { moving: 0 }, cap: 'Si te detienes, deja de subir.', nodes: [], tag: 'building' },
+    { t: 4.5, value: 75, x: { moving: 1 }, fire: 'gain', ease: 1, cap: 'Andanada Impulsiva: +20.', nodes: ['s4'] },
+    { t: 5.5, value: 100, state: 'active', label: 'Vendaval', t2: 6, tMax: 6, ease: 1, fire: 'full', ready: ['rmb'], cap: 'A 100: Vendaval 6 s, +25 % de vel. de ataque y +1 proyectil a Flecha Múltiple.', nodes: ['s0'], tag: 'active' },
+    { t: 8.5, t2: 3, ease: 1, cap: 'Vendaval Perpetuo: cada enemigo abatido lo alarga 0,5 s.', nodes: ['s14'] },
+    { t: 11.5, value: 0, state: 'idle', label: '', t2: null, ready: null, cap: '' },
+    { t: 12.2, end: 1 },
+  ],
+};
+// estado representativo «enfriamiento» que falte → usa el de llenado
+function frameAt(id, T) {
+  const fr = DEMO[id], end = fr[fr.length - 1].t;
+  T = ((T % end) + end) % end;
+  let v = { id, value: 0, max: id === 'bastion' ? 5 : id === 'fervor' ? 3 : id === 'escarcha' ? 5 : id === 'cargas' ? 4 : id === 'coto' ? 3 : 100, state: 'idle', x: {}, seq: { gain: 0, full: 0, spent: 0 } };
+  let a = null, b = null;
+  for (let i = 0; i < fr.length; i++) {
+    const f = fr[i];
+    if (f.end) break;
+    if (f.t <= T) {
+      a = f; b = fr[i + 1];
+      for (const k in f) if (!['t', 'cap', 'nodes', 'tag', 'ease', 'fire', 'x', 'end'].includes(k)) v[k] = f[k];
+      if (f.x) v.x = { ...v.x, ...f.x };
+      if (f.fire) v.seq = { ...v.seq, [f.fire]: v.seq[f.fire] + 1 };
+    }
+  }
+  if (a && a.ease && b && !b.end) {
+    const k = (T - a.t) / (b.t - a.t);
+    for (const key of ['value', 't2', 'decayIn', 'loseIn', 'coolIn']) if (a[key] != null || v[key] != null) {
+      const from = v[key] ?? 0, to = b[key] != null ? b[key] : from;
+      v[key] = from + (to - from) * k;
+    }
+    if (a.x && b.x) for (const key of ['cd']) if (b.x[key] != null) v.x[key] = (v.x[key] || 0) + (b.x[key] - (v.x[key] || 0)) * k;
+  }
+  if (v.x.max4) v.max = 4;
+  if (v.t2 != null) { v.t = Math.max(0, v.t2); }
+  return { view: v, cap: a?.cap ?? '', nodes: a?.nodes || [] };
+}
+function frameByTag(id, tag) {
+  const fr = DEMO[id];
+  let f = fr.find(x => x.tag === tag) || (tag === 'decay' ? fr.find(x => x.tag === 'building') : null) || (tag === 'full' ? fr.find(x => x.tag === 'active') : null) || fr[0];
+  return frameAt(id, f.t + 0.35);
+}
+
+// ---------------- renderizadores (contrato mount/update de defineGaugeView) ----------------
+const SVG = {
+  heart: '<svg viewBox="0 0 24 24"><path d="M12 21s-8-5.4-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.6-8 11-8 11z"/></svg>',
+  shield: '<svg viewBox="0 0 20 24"><path d="M10 1.2 18.8 4.2v7.2c0 5.8-3.8 9.6-8.8 11.4C5 21 1.2 17.2 1.2 11.4V4.2z"/></svg>',
+  trap: '<svg viewBox="0 0 24 20"><path d="M2 12h20M4 12l2-8 2 8 2-8 2 8 2-8 2 8 2-8 2 8M4 12c0 4 4 6 8 6s8-2 8-6"/></svg>',
+  chev: '<svg viewBox="0 0 30 24"><path d="M2 2h10l12 10-12 10H2l12-10z"/></svg>',
+};
+const R = {
+  sed: {
+    mount: el => `<div class="sed-heart">${SVG.heart}</div><div class="sed-tube"><div class="sed-fill"></div><div class="sed-veins"></div><div class="sed-pulse"></div><i class="drip d1"></i><i class="drip d2"></i><i class="drip d3"></i></div>`,
+    update(el, v) {
+      $('.sed-fill', el).style.transform = `scaleX(${v.value / v.max})`;
+      const b = v.value <= 0 ? 0 : v.value < 34 ? 1 : v.value < 67 ? 2 : 3;
+      el.classList.remove('b1', 'b2', 'b3'); if (b && v.state !== 'active') el.classList.add('b' + b);
+      el.classList.toggle('low', !!v.x.low); el.classList.toggle('frenzy', !!v.x.frenzy);
+      return Math.round(v.value);
+    },
+  },
+  bastion: {
+    mount: (el, v) => `<div class="bs-row">${Array.from({ length: 5 }, (_, i) => `<div class="sh">${SVG.shield}<i class="crack"></i></div>`).join('')}</div><span class="bs-dr"></span>`,
+    update(el, v, prev) {
+      const shs = el.querySelectorAll('.sh'), n = Math.floor(v.value), wall = !!v.x.wall;
+      shs.forEach((s, i) => {
+        const on = i < n; if (on && !s.classList.contains('on') && prev) { s.classList.remove('in'); void s.offsetWidth; s.classList.add('in'); }
+        s.classList.toggle('on', on || wall);
+        s.querySelector('.crack').style.opacity = (!wall && i === n - 1 && v.decayIn != null) ? (1 - v.decayIn / 6).toFixed(2) : 0;
+      });
+      el.classList.toggle('wall', wall);
+      $('.bs-dr', el).textContent = wall ? `−${v.x.wall} % daño` : n ? `−${n * 2} % (Muralla)` : '';
+      return wall ? '' : `${n}/${v.max}`;
+    },
+  },
+  fervor: {
+    mount: () => `<div class="fv"><div class="rays"></div><svg class="arc" viewBox="0 0 170 33" preserveAspectRatio="none"><path d="M10 30 Q85 -18 160 30"/></svg><i class="jw j0"></i><i class="jw j1"></i><i class="jw j2"></i></div><div class="hm"><i></i><i></i><i></i></div><span class="fv-txt"></span>`,
+    update(el, v) {
+      el.querySelectorAll('.jw').forEach((j, i) => j.classList.toggle('on', i < v.value));
+      el.querySelectorAll('.hm i').forEach((j, i) => j.classList.toggle('on', i < (v.x.hammer || 0)));
+      $('.fv-txt', el).textContent = v.state === 'full' ? 'Veredicto Final listo' : v.state === 'active' ? 'no se gasta' : '';
+      return `${Math.floor(v.value)}/${v.max}`;
+    },
+  },
+  calor: {
+    mount: () => `<div class="ign"></div><div class="grate">${'<i></i>'.repeat(10)}<div class="fl"></div></div><span class="x2">×2</span>`,
+    update(el, v) {
+      el.querySelectorAll('.grate i').forEach((b, i) => {
+        const h = Math.max(0, Math.min(1, (v.value - i * 10) / 10));
+        b.className = v.state === 'active' ? 'h4' : h <= 0 ? '' : h < .34 ? 'h1' : h < .67 ? 'h2' : 'h3';
+      });
+      el.classList.toggle('hot', v.value >= 70); el.classList.toggle('cooling', !!v.x.cooling);
+      el.classList.toggle('comb', !!v.x.comb);
+      return Math.round(v.value);
+    },
+  },
+  escarcha: {
+    mount: () => `<span class="fr-tag"><span class="crown">♛</span><span class="nm"></span></span><div class="hexes">${'<i class="hex"></i>'.repeat(5)}</div><span class="fr-cnt"></span>`,
+    update(el, v, prev) {
+      $('.nm', el).textContent = v.x.enemy || '—';
+      el.classList.toggle('boss', !!v.x.boss);
+      el.querySelectorAll('.hex').forEach((h, i) => h.classList.toggle('on', i < v.value));
+      if (prev && v.seq.full > prev.seq.full) pulse(el, 'shatter', 600);
+      $('.fr-cnt', el).textContent = v.x.frozen ? `❄ ${v.x.frozen} congelado${v.x.frozen > 1 ? 's' : ''}` : v.x.layered ? `${v.x.layered} con capas` : '';
+      return `${Math.floor(v.value)}/${v.max}`;
+    },
+  },
+  cargas: {
+    mount: () => `<div class="ac"><div class="lose"></div><div class="core"></div><i class="rune r0"></i><i class="rune r1"></i><i class="rune r2"></i><i class="rune r3"></i></div><span class="ac-txt"></span><span class="ac-res">RESONANCIA</span>`,
+    update(el, v, prev) {
+      const n = Math.floor(v.value);
+      el.querySelectorAll('.rune').forEach((r, i) => r.classList.toggle('on', i < n));
+      el.classList.toggle('full', n >= v.max); el.classList.toggle('res', !!v.x.res);
+      $('.ac', el).style.setProperty('--lp', v.loseIn != null ? (v.loseIn / 6).toFixed(3) : (v.x.res ? 1 : 0));
+      if (prev && v.seq.spent > prev.seq.spent) pulse(el, 'discharge', 450);
+      $('.ac-txt', el).innerHTML = n ? `Rayo <b>+${n * 35} %</b> · +${n * 5} maná` : 'Dardo Arcano: +1 Carga';
+      return `${n}/${v.max}`;
+    },
+  },
+  concentracion: {
+    mount: () => `<div class="rt"><i class="br b0"></i><i class="br b1"></i><i class="br b2"></i><i class="br b3"></i><i class="dot"></i></div><div class="rt-bar"><i></i></div><span class="rt-txt"></span><span class="rt-mv">MOVIÉNDOTE</span>`,
+    update(el, v) {
+      $('.rt', el).style.setProperty('--o', ((1 - v.value / 100) * 5).toFixed(1) + 'px');
+      $('.rt-bar i', el).style.transform = `scaleX(${v.value / 100})`;
+      el.classList.toggle('moving', !!v.x.moving && v.state !== 'active'); el.classList.toggle('full', v.value >= 100);
+      $('.rt-txt', el).textContent = `+${(v.value * 0.15).toFixed(1).replace('.', ',')} % crít`;
+      return Math.round(v.value);
+    },
+  },
+  coto: {
+    mount: () => `<div class="traps">${[0, 1, 2, 3].map(i => `<div class="trap${i === 3 ? ' extra' : ''}">${SVG.trap}</div>`).join('')}</div><div class="prey"><i>🦌</i><span class="pn">sin Presa</span></div>`,
+    update(el, v) {
+      const n = Math.floor(v.value);
+      el.classList.toggle('max4', v.max >= 4);
+      el.querySelectorAll('.trap').forEach((t, i) => {
+        t.classList.toggle('on', i < n);
+        const cd = i === n && i < v.max && v.x.cd > 0; t.classList.toggle('cd', cd); t.style.setProperty('--f', cd ? v.x.cd : 0);
+      });
+      $('.pn', el).textContent = v.x.prey || 'sin Presa';
+      return `${n}/${v.max}`;
+    },
+  },
+  impulso: {
+    mount: () => `<div class="chevs">${('<i class="chev">' + SVG.chev + '</i>').repeat(5)}</div><span class="stop">¡MUÉVETE!</span>`,
+    update(el, v) {
+      el.querySelectorAll('.chev').forEach((c, i) => {
+        const f = Math.max(0, Math.min(1, (v.value - i * 20) / 20));
+        c.classList.toggle('on', f >= 1 || v.state === 'active'); c.classList.toggle('half', f > 0 && f < 1);
+      });
+      el.classList.toggle('moving', !!v.x.moving || v.state === 'active');
+      el.classList.toggle('still', !v.x.moving && v.state !== 'active');
+      return Math.round(v.value);
+    },
+  },
+};
+function pulse(el, cls, ms) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); }
+
+// createGaugeHud(host) → { update(view), destroy() } (el mismo para HUD, galería y talentos)
+function createGauge(host, spec) {
+  const S = SPECS[spec], id = S.g, r = R[id];
+  const el = document.createElement('div');
+  el.className = `gz gz-${id}`; el.style.setProperty('--c', S.c);
+  el.innerHTML = `<div class="gz-lbl">${GNAME[id]} · ${S.name.toUpperCase()}<span class="sub"></span></div><div class="gz-body">${r.mount(el)}</div><div class="gz-end"><span class="gz-num"></span><span class="gz-ring"></span></div>`;
+  host.appendChild(el);
+  let prev = null;
+  return {
+    el, spec,
+    update(v) {
+      if (el.dataset.state !== v.state) {
+        if (prev && (v.state === 'full' || v.state === 'active' || v.state === 'prey')) pulse(el, 'flash', 600);
+        el.dataset.state = v.state;
+      }
+      const num = r.update(el, v, prev);
+      $('.gz-num', el).textContent = num;
+      const hasT = v.t != null && v.tMax;
+      el.classList.toggle('has-t', !!hasT);
+      if (hasT) $('.gz-ring', el).style.setProperty('--p', (v.t / v.tMax).toFixed(3));
+      $('.sub', el).textContent = v.label ? `${v.label}${hasT ? ' · ' + v.t.toFixed(1).replace('.', ',') + ' s' : ''}` : '';
+      prev = JSON.parse(JSON.stringify(v));
+    },
+  };
+}
+
+// ---------------- HUD ----------------
+const SLOTS = [['k1', '1'], ['k2', '2'], ['k3', '3'], ['k4', '4'], ['sep'], ['lmb', 'L'], ['rmb', 'R']];
+let hud = null;
+function buildHUD(spec) {
+  const S = SPECS[spec];
+  document.documentElement.style.setProperty('--c', S.c);
+  $('#plEmb').src = `${A}emblems/${spec}.webp`;
+  $('#plName').textContent = `Nv 42 · ${S.name}`;
+  $('#plSub').textContent = `${CLS_NAME[S.cls]} · Tormento III`;
+  const [rid, rname, rcol, rpct] = S.res;
+  $('#resLiq').style.background = `radial-gradient(circle at 38% 26%, color-mix(in srgb, ${rcol} 55%, #fff), ${rcol} 70%)`;
+  $('#resLiq').style.transform = `scaleY(${rpct / 100})`;
+  $('#resIco').src = `${A}ui/res_${rid}.webp`;
+  $('#resTxt').innerHTML = `${rid === 'mana' ? 412 : rpct}<small>${rname}</small>`;
+  const icon = (slot) => slot === 'k3' ? nodeIcon(spec, 's0') : `${A}icons/${S.k[slot]}.webp`;
+  const POT = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6a1 1 0 1 1 0 2h-.5v3.1l3.8 8.3A4 4 0 0 1 14.7 21H9.3a4 4 0 0 1-3.6-5.6l3.8-8.3V4H9a1 1 0 0 1 0-2Z"/></svg>';
+  let h = `<div class="slot small" data-s="pq" style="background:radial-gradient(circle,#5a1410,#1a0606);color:#ff8a7a">${POT}<kbd>Q</kbd><span class="pc">3</span></div><div class="sep"></div>`;
+  for (const [s, k] of SLOTS) {
+    if (s === 'sep') { h += '<div class="sep"></div>'; continue; }
+    const key = s === 'lmb' ? '<span class="mouse l"><i></i></span>' : s === 'rmb' ? '<span class="mouse r"><i></i></span>' : `<kbd>${k}</kbd>`;
+    const cost = s === 'lmb' ? '<span class="cost gen">+5</span>' : s === 'k4' ? '' : `<span class="cost">${s === 'k3' ? 25 : 30}</span>`;
+    const cd = s === 'k4' ? '<span class="cd" style="--cd:250deg">38</span>' : s === 'k1' ? '<span class="cd" style="--cd:90deg">3</span>' : '';
+    h += `<div class="slot" data-s="${s}"><img src="${icon(s)}" alt="">${cost}${cd}${key}</div>`;
+  }
+  h += `<div class="sep"></div><div class="slot small" data-s="dodge" title="Esquiva"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7h9a1 1 0 1 1 0 2H3a1 1 0 0 1 0-2Zm14.3-3.7 4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L18.6 9H8a1 1 0 0 1 0-2h10.6l-2.7-2.3a1 1 0 1 1 1.4-1.4ZM3 13h7a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2Zm0 4h11a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2Z"/></svg><kbd>⇧</kbd></div>`;
+  h += `<div class="slot small" data-s="pe" style="background:radial-gradient(circle,color-mix(in srgb, ${rcol} 60%, #000),#06060c);color:color-mix(in srgb, ${rcol} 50%, #fff)">${POT}<kbd>E</kbd><span class="pc">2</span></div>`;
+  $('#bar').innerHTML = h;
+  // alas: beneficios (izq.) y perjuicios (der.) con anillo de tiempo
+  const b = (src, deg, t, de) => `<div class="buff${de ? ' de' : ''}" style="--bd:${deg}deg"><img src="${src}" alt=""><span>${t}</span></div>`;
+  $('#wingL').innerHTML = b(`${A}icons/${S.k.k2}.webp`, 300, '12') + b(`${A}ui/st_escudo.webp`, 200, '340') + b(nodeIcon(spec, 's9'), 120, '6');
+  $('#wingR').innerHTML = b(`${A}ui/st_quemadura.webp`, 90, '3', 1) + b(`${A}ui/st_ralentizado.webp`, 220, '5', 1);
+  // micromenú
+  const M = [['estadisticas', 'C', 'Personaje'], ['inventario', 'I', 'Inventario'], ['habilidades', 'T', 'Habilidades'], ['talentos', 'N', 'Talentos', 1], ['paragon', 'P', 'Paragon'], ['mapa', 'M', 'Mapa'], ['misiones', 'J', 'Misiones'], ['coleccion', 'K', 'Colección'], ['guia', 'H', 'Guía'], ['ajustes', 'Esc', 'Opciones']];
+  $('#micro').innerHTML = M.map(([f, k, t, bd]) => `<div class="mb" title="${t} [${k}]"><img src="${A}ui/menu_${f}.webp" alt="">${bd ? '<i class="bd"></i>' : ''}<kbd>${k}</kbd></div>`).join('');
+  // escena: enemigos (las capas de Escarcha sobre élites/jefe; la Presa con anillo)
+  const W = $('#screen').offsetWidth, H = $('#screen').offsetHeight, sc = W / 1920;
+  const mobs = [[.40, .40, ''], [.44, .47, ''], [.37, .53, 'elite'], [.58, .36, 'boss'], [.62, .52, ''], [.55, .60, ''], [.47, .33, '']];
+  $('#scene').innerHTML = `<div class="ent hero" style="left:50%;top:50%"></div>` + mobs.map(([x, y, k], i) => {
+    const ov = spec === 'crionte' && (k === 'elite' || k === 'boss') ? `<div class="ov">${[0, 1, 2, 3, 4].map(j => `<i class="${j < (k === 'boss' ? 5 : 3) ? 'on' : ''}"></i>`).join('')}</div>` : '';
+    const pr = spec === 'montaraz' && k === 'elite' ? '<div class="preyring"></div>' : '';
+    return `<div class="ent mob ${k}" style="left:${x * 100}%;top:${y * 100}%;transform:translate(-50%,-50%) scale(${sc})">${ov}${pr}<div class="hpb"><i style="width:${60 + i * 5}%"></i></div></div>`;
+  }).join('') + `<div class="cursor" style="left:56.5%;top:39%"></div><div class="wlabel" style="left:46%;top:58%">Báculo Glacial</div>`;
+  $('#hudMech').innerHTML = '';
+  hud = createGauge($('#hudMech'), spec);
+  $('#hudMech').onmouseenter = () => showTip(spec); $('#hudMech').onmouseleave = () => { $('#tip').style.display = 'none'; };
+}
+function showTip(spec) {
+  const S = SPECS[spec], id = S.g, E = EXPLAIN[id], tip = $('#tip');
+  const v = curView || { value: 0, max: 1 };
+  tip.innerHTML = `<h4>${GNAME[id][0] + GNAME[id].slice(1).toLowerCase()} · ${S.name}</h4><p>${E.t}</p>${E.cols.slice(0, 2).map(([a, b]) => `<p><b>${a}:</b> ${b}</p>`).join('')}<p class="now">Ahora: ${Math.floor(v.value)} / ${v.max}${v.label ? ' · ' + v.label : ''}</p><p class="k">Más detalle en Talentos <kbd>N</kbd></p>`;
+  const z = $('#hudMech').getBoundingClientRect(), sc = $('#screen').getBoundingClientRect();
+  const k = sc.width / $('#screen').offsetWidth;
+  tip.style.display = 'block';
+  tip.style.left = ((z.left - sc.left) / k + 40) + 'px';
+  tip.style.top = ((z.top - sc.top) / k - tip.offsetHeight - 14) + 'px';
+}
+let curView = null;
+function setReady(slots) {
+  document.querySelectorAll('#bar .slot').forEach(s => s.classList.toggle('ready', !!slots && slots.includes(s.dataset.s)));
+}
+
+// ---------------- galería + panel de talentos ----------------
+const cards = [];
+function buildGallery() {
+  const g = $('#grid'); g.innerHTML = '';
+  for (const sp of Object.keys(SPECS)) {
+    const S = SPECS[sp], id = S.g;
+    const card = document.createElement('div');
+    card.className = 'card'; card.style.setProperty('--c', S.c); card.style.setProperty('--bd', S.bd);
+    const nodes = [...new Set(DEMO[id].flatMap(f => f.nodes || []))];
+    card.innerHTML = `<h3><img src="${A}emblems/${sp}.webp" alt="">${S.name}<small>${CLS_NAME[S.cls]} · ${GNAME[id]}</small></h3><div class="stage"></div><div class="cap"></div><div class="nodes">${nodes.map(n => `<span class="nd" data-n="${n}"><img src="${nodeIcon(sp, n)}" alt="">${n}</span>`).join('')}</div>`;
+    g.appendChild(card);
+    cards.push({ sp, id, card, w: createGauge($('.stage', card), sp) });
+  }
+}
+let tp = null, tpOffset = 0;
+function buildTalent(spec) {
+  const S = SPECS[spec], id = S.g, E = EXPLAIN[id], box = $('#tpMech');
+  box.style.setProperty('--c', S.c); box.style.setProperty('--mbg', S.bg); box.style.setProperty('--bd', S.bd);
+  const nodes = [...new Set(DEMO[id].flatMap(f => f.nodes || []))];
+  box.innerHTML = `<div class="tp-top"><span>MECÁNICA ÚNICA · ${GNAME[id]}</span><span>Solo ${S.name}</span></div><p class="tp-text">${E.t}</p><div class="stage"></div><div class="cap"></div><div class="nodes">${nodes.map(n => `<span class="nd" data-n="${n}"><img src="${nodeIcon(spec, n)}" alt="">${n}</span>`).join('')}</div><div class="tp-cols">${E.cols.map(([a, b]) => `<div><span>${a.toUpperCase()}</span>${b}</div>`).join('')}</div><div class="tp-ctl"><button class="on">▶ Demostración</button><button>◉ Mi estado</button><button>↺ Repetir</button></div>`;
+  tp = { id, box, w: createGauge($('.stage', box), spec) };
+  box.querySelectorAll('.nd').forEach(n => n.onmouseenter = () => {
+    const f = DEMO[id].find(fr => (fr.nodes || []).includes(n.dataset.n));
+    if (f) tpOffset = f.t + 0.3 - (performance.now() / 1000 - t0);
+  });
+}
+
+// ---------------- bucle a 10 Hz ----------------
+let t0 = performance.now() / 1000;
+function tick() {
+  const T = performance.now() / 1000 - t0;
+  const st = $('#selState').value, spec = $('#selSpec').value, id = SPECS[spec].g;
+  const pick = (gid, off = 0) => st === 'demo' ? frameAt(gid, T + off) : frameByTag(gid, st);
+  const f = pick(id); curView = f.view; hud.update(f.view); setReady(f.view.ready);
+  for (const c of cards) {
+    const fr = pick(c.id); c.w.update(fr.view);
+    $('.cap', c.card).textContent = fr.cap;
+    c.card.querySelectorAll('.nd').forEach(n => n.classList.toggle('hi', fr.nodes.includes(n.dataset.n)));
+  }
+  if (tp) {
+    const fr = pick(tp.id, tpOffset); tp.w.update(fr.view);
+    $('.cap', tp.box).textContent = fr.cap;
+    tp.box.querySelectorAll('.nd').forEach(n => n.classList.toggle('hi', fr.nodes.includes(n.dataset.n)));
+  }
+}
+
+// ---------------- encaje y controles ----------------
+function fit() {
+  const scr = $('#screen'), W = scr.offsetWidth, H = scr.offsetHeight;
+  const k = Math.min(1, (document.documentElement.clientWidth - 48) / W);
+  $('#fit').style.transform = `scale(${k})`; $('#fitbox').style.height = (H * k + 4) + 'px';
+}
+function apply() {
+  $('#screen').classList.toggle('r768', $('#selRes').value === '1366');
+  document.body.classList.toggle('cb', $('#chkCb').checked);
+  document.body.classList.toggle('reduce', $('#chkRm').checked);
+  $('#hudMech').classList.toggle('guide', $('#chkGuide').checked);
+  buildHUD($('#selSpec').value); buildTalent($('#selSpec').value); fit(); tick();
+}
+$('#selSpec').innerHTML = Object.entries(SPECS).map(([k, s]) => `<option value="${k}">${CLS_NAME[s.cls]} · ${s.name}</option>`).join('');
+$('#selSpec').value = Q.get('spec') || 'crionte';
+$('#selRes').value = Q.get('res') || '1920';
+$('#selState').value = Q.get('state') || 'demo';
+$('#chkCb').checked = Q.get('cb') === '1';
+if (Q.get('guide') === '0') $('#chkGuide').checked = false;
+const only = Q.get('only');
+if (only) for (const [k, sel] of [['screen', '#secScreen'], ['gallery', '#secGallery'], ['talent', '#secTalent']]) if (k !== only) $(sel).style.display = 'none';
+if (only) $('.ctl').style.display = 'none';
+for (const s of ['#selRes', '#selSpec', '#selState', '#chkCb', '#chkRm', '#chkGuide']) $(s).onchange = apply;
+addEventListener('resize', fit);
+buildGallery(); apply();
+setInterval(tick, 100);
+
+// ?measure=1 → vuelca en <pre id="measure"> las cajas (px de pantalla) y los solapes entre bloques.
+// Es el mismo chequeo que propone el criterio de aceptación A2 (Chrome headless --dump-dom).
+function measure() {
+  const scr = $('#screen'), k = scr.getBoundingClientRect().width / scr.offsetWidth, o = scr.getBoundingClientRect();
+  const sel = { placa: '.tl .plate', objetivo: '.target', minimapa: '.mm', mision: '.quest', botin: '.loot', sistema: '.sys', micromenu: '.micro', oro: '.gold', orbeVida: '.orb.hp', orbeRecurso: '.orb.res', barra: '#bar', mecanica: '#hudMech', aviso: '.prompt', alaBenef: '#wingL', alaPerj: '#wingR', banner: '.banner' };
+  const box = {};
+  for (const [n, q] of Object.entries(sel)) { const r = $(q).getBoundingClientRect(); box[n] = [Math.round((r.left - o.left) / k), Math.round((r.top - o.top) / k), Math.round(r.width / k), Math.round(r.height / k)]; }
+  const ov = [], names = Object.keys(box);
+  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+    const [ax, ay, aw, ah] = box[names[i]], [bx, by, bw, bh] = box[names[j]];
+    if (ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah) ov.push(names[i] + '×' + names[j]);
+  }
+  let pre = $('#measure'); if (!pre) { pre = document.createElement('pre'); pre.id = 'measure'; document.body.appendChild(pre); }
+  pre.textContent = JSON.stringify({ res: scr.offsetWidth + 'x' + scr.offsetHeight, box, solapes: ov });
+}
+if (Q.get('measure') === '1') setTimeout(measure, 200);
+if (Q.get('tip') === '1') setTimeout(() => showTip($('#selSpec').value), 300);
+</script>
+</body>
+</html>
