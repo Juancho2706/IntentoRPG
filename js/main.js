@@ -23,7 +23,7 @@ import { talentMethods } from './game-talents.js';
 import { LOAD_NOTICES } from './save-schema.js';
 import { eraMethods } from './game-eras.js';
 // Paso 2b.0: canal de lanzamiento de habilidades, entidades de suelo y registro de poderes
-import { skillMethods } from './game-skills.js';
+import { skillMethods, killStatus } from './game-skills.js';
 import { fieldMethods } from './field-entities.js';
 import { firePower } from './powers.js';
 import { Music } from './music.js';
@@ -82,9 +82,9 @@ class Game {
     // opciones persistentes (sonido, vibración, sacudida de cámara)
     let opts = {};
     try { opts = JSON.parse(localStorage.getItem('intentorpg_opts') || '{}'); } catch { /* sin opciones */ }
-    this.settings = { sound: true, music: true, shake: true, haptics: true, brightness: 1, autoq: true, lootFilter: 'normal',
+    this.settings = { sound: true, music: true, shake: true, brightness: 1, autoq: true, lootFilter: 'normal',
       reduceMotion: false, bigText: false, colorblind: false, postfx: true, ao: true, outline: true,
-      quality: 'auto', perfHud: false, cleanHud: false, joystickRight: false, hudScale: 1, bindings: null,
+      quality: 'auto', perfHud: false, cleanHud: false, hudScale: 1, bindings: null, // hudScale: «Escala del HUD» (× --s)
       controlScheme: 'wasd', // 'wasd' (WASD+ratón, D4) | 'click' (clic-mover, D2)
       dmgNumbers: true, // mostrar números de daño flotantes
       renderScale: 1, shadows: 'auto', // opciones de vídeo: escala de resolución y sombras
@@ -188,6 +188,7 @@ class Game {
     this.raycaster = new THREE.Raycaster();
     this.ui = new UI(this);
     this.input = new Input(this);
+    this.ui.refreshKeyLabels?.(); // teclas visibles del HUD según los atajos remapeados
     this.clock = new THREE.Clock();
 
     // migración: el guardado único antiguo pasa al hueco 1
@@ -206,21 +207,19 @@ class Game {
     this.renderer.setAnimationLoop(() => this.tick());
   }
 
-  // Estima la gama del dispositivo (0 alta … 3 mínima) a partir de núcleos,
-  // memoria, tipo de puntero y densidad de píxeles. Heurística conservadora:
+  // Estima la gama del PC (0 alta … 3 mínima) a partir de núcleos, memoria y
+  // densidad de píxeles. Heurística conservadora:
   // ante la duda, mejor empezar fluido y dejar que la calidad auto suba.
   detectDeviceTier() {
     const cores = navigator.hardwareConcurrency || 4;
     const mem = navigator.deviceMemory || 4;            // GB (solo Chromium)
-    const coarse = !!window.matchMedia?.('(pointer: coarse)')?.matches;
     const dpr = window.devicePixelRatio || 1;
     let score = 0;
     if (cores <= 4) score++;
     if (cores <= 2) score++;
     if (mem <= 4) score++;
     if (mem <= 2) score++;
-    if (coarse) score++;                                 // móvil / tablet
-    if (coarse && dpr >= 2.5) score++;                   // hiDPI = mucho relleno
+    if (dpr >= 2.5) score++;                             // hiDPI = mucho relleno
     if (score >= 5) return 3;
     if (score >= 3) return 2;
     if (score >= 1) return 1;
@@ -364,10 +363,9 @@ class Game {
     document.getElementById('hud').classList.remove('hidden');
     // garantiza que no quede ningún panel abierto al entrar (lo añade la UI)
     this.ui.closeAllPanels?.();
-    const touch = window.matchMedia('(pointer: coarse)').matches;
-    this.tip('mover', touch
-      ? 'Mantén el pulgar en la mitad izquierda para moverte con el joystick; toca un enemigo para atacarlo'
-      : 'Haz clic en el suelo para moverte (o WASD) y clic en un enemigo para atacarlo');
+    this.tip('mover', (this.settings.controlScheme || 'wasd') === 'click'
+      ? 'Haz clic en el suelo para moverte y clic en un enemigo para atacarlo'
+      : 'Muévete con WASD y apunta con el ratón: clic izquierdo y derecho lanzan tus habilidades');
   }
 
   save() {
@@ -624,7 +622,6 @@ class Game {
     // jugador
     this.player.pos.copy(w.spawn);
     this.player.moveTarget = this.player.attackTarget = this.player.pickTarget = null;
-    this.input.joyDir = null;
     this.currentInteract = null;
     if (w.type === 'dungeon' && !w.daily) this.player.records.maxFloor = Math.max(this.player.records.maxFloor, w.floor);
     this.checkTormentUnlock();
@@ -668,15 +665,9 @@ class Game {
     b.classList.toggle('big-text', !!this.settings.bigText);
     b.classList.toggle('cb', !!this.settings.colorblind);
     b.classList.toggle('hud-clean', !!this.settings.cleanHud);
-    b.classList.toggle('joy-right', !!this.settings.joystickRight);
-    // detección de dispositivo TÁCTIL (móvil/tablet): muestra UI móvil (joystick
-    // + botones) y oculta lo de PC (selector WASD/clic). Más fiable que solo el
-    // media query (algunos móviles/híbridos reportan 'pointer: fine').
-    this.isTouch = !!(window.matchMedia?.('(pointer: coarse)')?.matches || (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window);
-    b.classList.toggle('touch', this.isTouch);
-    // escala de los controles/HUD táctil (variable CSS)
-    const scale = Math.max(0.7, Math.min(1.5, this.settings.hudScale || 1));
-    b.style.setProperty('--hud-scale', scale);
+    // Paso 2d.2: el juego es solo PC; «Escala del HUD» multiplica --s (ui.applyHudScale)
+    this.settings.hudScale = Math.max(0.7, Math.min(1.5, this.settings.hudScale || 1));
+    this.ui?.applyHudScale?.();
     this.saveSettings();
   }
 
@@ -805,8 +796,9 @@ class Game {
     this.trauma = Math.min(1, this.trauma + amp * 0.9 + dur * 0.4);
   }
 
+  // solo PC: sin vibración (se conserva la llamada para no tocar a quien la usa)
   vibrate(pattern) {
-    if (this.settings.haptics && navigator.vibrate) navigator.vibrate(pattern);
+    void pattern;
   }
 
   // estela de la esquiva: cápsula translúcida que se desvanece donde estuvo el héroe
@@ -1123,7 +1115,10 @@ class Game {
       this.ui.spawnText(enemy.pos.clone().setY((enemy.def.scale || 1) + 0.5), '¡Inmune!', 'txt-heal');
       return;
     }
-    p.gainXP(Math.round(enemy.def.xp * (1 + (this.world.pact?.xp || 0) / 100)));
+    const xpGain = Math.round(enemy.def.xp * (1 + (this.world.pact?.xp || 0) / 100));
+    const xp0 = p.xp, lv0 = p.level;
+    p.gainXP(xpGain);
+    this.ui.logLoot?.({ kind: 'xp', amount: p.level === lv0 ? p.xp - xp0 : xpGain });
     // Guardián de Bastión derrotado → reclama la región como refugio
     if (enemy.def.stronghold) this.claimStronghold(enemy.def.stronghold);
     p.records.kills++;
@@ -1195,15 +1190,14 @@ class Game {
     }
 
     // ⑥ PODERES al matar (registro data-driven, js/powers.js). KillInfo con el
-    // estado TOMADO ANTES de limpiar DoT/control. `nested`: la muerte ocurre
-    // mientras se resuelve la de otro enemigo (explosiones al matar) → los
-    // estallidos no vuelven a estallar (generaliza la guarda _killBurst del Paso 1A).
+    // estado TOMADO ANTES de limpiar DoT/control (killStatus de game-skills.js, el
+    // mismo que usa el arnés de tests). `nested`: la muerte ocurre mientras se
+    // resuelve la de otro enemigo (explosiones al matar) → los estallidos no vuelven
+    // a estallar (generaliza la guarda _killBurst del Paso 1A).
     const kill = {
       skill: enemy._lastSkill || null, tags: enemy._lastTags || new Set(), crit: !!enemy._lastCrit, overkill: Math.max(0, -enemy.hp),
       nested: !!this._killBurst, loot: { goldMul: 1 },
-      status: { frozen: enemy.frozenT > 0, bleeding: !!enemy._dots && Object.keys(enemy._dots).some(k => k.includes('bleed')),
-        burning: !!enemy._dots && Object.keys(enemy._dots).some(k => k.includes('burn')), poisoned: !!enemy._dots && Object.keys(enemy._dots).some(k => k.includes('poison')),
-        slowed: enemy.slowT > 0, rooted: enemy.rootT > 0, prey: !!enemy.prey, weakened: (enemy.weaknessPct?.() || 0) > 0 || enemy.vulnT > 0 },
+      status: killStatus(enemy),
     };
     const wasNested = !!this._killBurst;
     this._killBurst = true;
@@ -1400,11 +1394,13 @@ class Game {
       const amt = Math.round(it.amount * (1 + (p.stats.goldPct || 0) / 100) * eraMul);
       p.gold += amt; p.records.goldEarned += amt;
       this.ui.spawnText(p.pos, `+${amt} 🪙`, 'txt-gold'); this.sfx('gold');
+      this.ui.logLoot?.({ kind: 'gold', amount: amt });
     }
     else if (it.kind === 'potion') {
       if (p.potions[it.pot] >= 99) return;
       p.potions[it.pot]++;
       this.sfx('potion');
+      this.ui.logLoot?.(it);
     } else if (it.kind === 'support') {
       // se aprende al recogerlo (queda disponible para asignar en el árbol)
       if (!p.knownSupports.includes(it.supportId)) {
@@ -1417,7 +1413,7 @@ class Game {
       // gemas/runas idénticas apilan; llaves/fragmentos/glifos nunca se bloquean
       if (!canAddMaterial(p.materials, it)) { this.ui.message('Bolsa de materiales llena'); return; }
       p.materials.push(it);
-      this.ui.message(`Obtienes: ${it.name}`, 1800);
+      this.ui.logLoot?.(it);
       this.sfx('pickup');
     } else {
       if (p.inventory.length >= 32) { this.ui.message('Inventario lleno'); return; }
@@ -1427,14 +1423,15 @@ class Game {
       if (it.rarity === 'conjunto') {
         p.records.setPieces = (p.records.setPieces || 0) + 1;
         this.ui.message(`🟢 ¡Pieza de conjunto! ${it.name}`, 2500);
+        this.ui.logLoot?.(it);
         this.sfx('levelup');
         this.vibrate([40, 30, 40]);
       } else {
         if (it.rarity === 'legendario') { this.vibrate([40, 30, 40]); this.ui.flourishLegendary?.(it.mythic ? `✦ ${it.name}` : it.name); }
-        this.ui.message(`Obtienes: ${it.name}`, 1800);
+        this.ui.logLoot?.(it);
         this.sfx('pickup');
       }
-      this.tip('equipar', 'Abre el inventario (I / 🎒) y toca el objeto para equiparlo o compararlo');
+      this.tip('equipar', 'Abre el inventario (I) y haz clic en el objeto para equiparlo o compararlo');
     }
     this.lootGroup.remove(gi.mesh);
     gi.mesh.geometry.dispose(); gi.mesh.material.dispose();
@@ -1662,7 +1659,7 @@ class Game {
         // recogida automática al pasar por encima: oro/pociones/soportes siempre;
         // el resto (objetos, gemas, runas, llaves, fragmentos, glifos) si hay
         // hueco en la mochila y supera el filtro de loot. Así, caminar hasta el
-        // botín lo recoge aunque uses el joystick (que cancela el "ir a por él").
+        // botín lo recoge aunque te muevas con WASD (que cancela el "ir a por él").
         const isMaterial = k === 'gem' || k === 'rune' || k === 'riftkey' || k === 'fragment' || k === 'glyph';
         const hasRoom = isMaterial ? canAddMaterial(p.materials, gi.item) : p.inventory.length < 32;
         const needsBag = k === 'item' || isMaterial;
@@ -1900,7 +1897,7 @@ class Game {
         break;
       case 'enchanter':
         this.ui.togglePanel('inv');
-        this.ui.message('🔮 «Toca un objeto con afijos y reforjaré uno de ellos... por un precio»', 3500);
+        this.ui.message('🔮 «Elige un objeto con afijos y reforjaré uno de ellos... por un precio»', 3500);
         break;
       case 'portal_town':
         // desde una mazmorra entrada por una zona → vuelves a esa zona; en otro

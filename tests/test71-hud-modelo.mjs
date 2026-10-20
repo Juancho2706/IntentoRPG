@@ -175,7 +175,8 @@ assert.match(sw, /ART_RE = .*talents\|specs\|emblems\|ui256/);
 // cada panel de index.html tiene icono de menú
 const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 for (const [, id] of html.matchAll(/id="panel-([a-z]+)"/g)) assert.ok(HM.MENU_ICON[id], 'panel sin icono de menú: ' + id);
-for (const id of ['spec-gauge', 'boss-frame', 'spec-prompt', 'btn-talents', 'minimap-frame', 'orb-mp-res']) assert.ok(html.includes(`id="${id}"`), 'index.html sin #' + id);
+// Paso 2d.2: el marco del jefe es #target-frame (amplía #boss-frame) y Talentos está en el micromenú (#mb-talents)
+for (const id of ['spec-gauge', 'target-frame', 'spec-prompt', 'mb-talents', 'minimap-frame', 'orb-mp-res']) assert.ok(html.includes(`id="${id}"`), 'index.html sin #' + id);
 assert.ok(html.includes('href="css/talents.css"'), 'index.html enlaza css/talents.css');
 console.log(`Assets: ${need.size} ficheros de ui/, map/ y chrome/ existen y los precarga sw.js; paneles con icono ✓`);
 
