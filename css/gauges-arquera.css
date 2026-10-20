@@ -1,0 +1,178 @@
+/* ============================================================
+   BARRAS DE MECÁNICA · Arquera (Paso 2d.2 · E1, docs/paso2d2-hud-pc.md §3.7–§3.9)
+   ============================================================
+   7 Concentración (retícula que se cierra) · 8 Coto de Caza (cepos y medallón de Presa) ·
+   9 Impulso (rosa de los vientos). Formas del mockup docs/mockups/hud-pc.html; el arte de
+   assets/gauges/gz_{conc,coto,impulso}_*.webp es la PIEL: al cargar, la raíz gana .art-<nombre>
+   y se oculta la reserva CSS; si falla (.no-art) queda la forma CSS.
+   A8: @keyframes y transition SOLO de transform y opacity. Todo selector empieza por .gz-<id>. */
+
+/* ------------------------------------------------------------
+   7 · CONCENTRACIÓN — retícula que se cierra
+   ------------------------------------------------------------ */
+.gz-concentracion { --cz: #ead86e; --cz-dim: #6b6230; --cz-red: #ff3b2e; --cz-mv: #ff9a7a; }
+.gz-concentracion .cz-rt { position: relative; flex: 0 0 auto; width: 52px; height: 52px; margin-left: 2px; --o: 9px; }
+/* anillo de mira (latón) + cruz fina */
+.gz-concentracion .cz-ring { position: absolute; inset: 7px; border-radius: 50%; border: 1.5px solid var(--cz-dim); transition: opacity .2s linear; }
+.gz-concentracion .cz-ring-art { position: absolute; left: 6px; top: 6px; width: 40px; height: 40px; }
+.gz-concentracion.art-gz_conc_anillo .cz-ring { opacity: 0; }
+.gz-concentracion .cz-cross { position: absolute; inset: 15px; opacity: .55;
+  background: linear-gradient(var(--cz-dim), var(--cz-dim)) 50% 0 / 1px 7px no-repeat, linear-gradient(var(--cz-dim), var(--cz-dim)) 50% 100% / 1px 7px no-repeat,
+              linear-gradient(var(--cz-dim), var(--cz-dim)) 0 50% / 7px 1px no-repeat, linear-gradient(var(--cz-dim), var(--cz-dim)) 100% 50% / 7px 1px no-repeat; }
+/* punto central: rojo en Tiro Fijado */
+.gz-concentracion .cz-dot { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%; background: var(--cz-dim); z-index: 2; }
+.gz-concentracion.cz-locked .cz-dot,
+.gz-concentracion[data-state="active"] .cz-dot { background: var(--cz-red); box-shadow: 0 0 0 2px #ff3b2e44, 0 0 8px #ff3b2e; }
+.gz-concentracion.cz-locked .cz-dot { animation: gz-concentracion-lock 1.1s ease-in-out infinite; }
+@keyframes gz-concentracion-lock { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.35); } }
+/* esquineras: convergen al centro con el valor (--o: 9 px → 0) */
+.gz-concentracion .cz-br { position: absolute; width: 15px; height: 15px; z-index: 1; transition: transform .1s linear; }
+.gz-concentracion .cz-b0 { left: 9px; top: 9px; transform: translate(calc(var(--o) * -1), calc(var(--o) * -1)); }
+.gz-concentracion .cz-b1 { right: 9px; top: 9px; transform: translate(var(--o), calc(var(--o) * -1)); }
+.gz-concentracion .cz-b2 { right: 9px; bottom: 9px; transform: translate(var(--o), var(--o)); }
+.gz-concentracion .cz-b3 { left: 9px; bottom: 9px; transform: translate(calc(var(--o) * -1), var(--o)); }
+.gz-concentracion .cz-brf { position: absolute; inset: 0; border: 2.5px solid var(--cz); border-right: 0; border-bottom: 0; transition: opacity .2s linear; }
+.gz-concentracion .cz-br-art { position: absolute; inset: -1px; width: 17px; height: 17px; }
+.gz-concentracion .cz-b1 .cz-brf, .gz-concentracion .cz-b1 .cz-br-art { transform: rotate(90deg); }
+.gz-concentracion .cz-b2 .cz-brf, .gz-concentracion .cz-b2 .cz-br-art { transform: rotate(180deg); }
+.gz-concentracion .cz-b3 .cz-brf, .gz-concentracion .cz-b3 .cz-br-art { transform: rotate(270deg); }
+.gz-concentracion.art-gz_conc_esquinera .cz-brf { opacity: 0; }
+/* moviéndote: la retícula tiembla (2 px, steps) y se lee «MOVIÉNDOTE» */
+.gz-concentracion.cz-moving .cz-rt { animation: gz-concentracion-jit .18s steps(2) infinite; }
+@keyframes gz-concentracion-jit { 50% { transform: translate(2px, -1px); } }
+
+/* hilos de la mira: convergen desde los dos extremos hacia el centro (no de izquierda a derecha) */
+.gz-concentracion .cz-wire { position: relative; flex: 1 1 auto; min-width: 60px; height: 14px; }
+.gz-concentracion .cz-wire::before { content: ''; position: absolute; left: 0; right: 0; top: 6px; height: 2px; background: #2a2614; border-radius: 1px; }
+.gz-concentracion .cz-wl, .gz-concentracion .cz-wr { position: absolute; top: 5px; width: calc(50% - 4px); height: 4px; border-radius: 2px;
+  transform: scaleX(0); transition: transform .1s linear; }
+.gz-concentracion .cz-wl { left: 0; transform-origin: 0 50%; background: linear-gradient(90deg, #6b6230, var(--cz)); }
+.gz-concentracion .cz-wr { right: 0; transform-origin: 100% 50%; background: linear-gradient(270deg, #6b6230, var(--cz)); }
+.gz-concentracion .cz-tick { position: absolute; left: 50%; top: 1px; width: 2px; height: 12px; margin-left: -1px; background: var(--cz-dim); }
+.gz-concentracion.cz-locked .cz-tick { background: var(--cz-red); }
+/* perdiendo: hilos discontinuos (patrón de forma, no solo color) */
+.gz-concentracion.cz-losing .cz-wl,
+.gz-concentracion.cz-losing .cz-wr { background: repeating-linear-gradient(90deg, var(--cz-mv) 0 5px, #0000 5px 9px); }
+
+/* texto: crítico actual + línea de estado / MOVIÉNDOTE */
+.gz-concentracion .cz-txt { flex: 0 0 auto; width: 150px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gz-concentracion .cz-crit { font: 700 13.5px/1.1 Inter, system-ui, sans-serif; color: #f2e39a; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gz-concentracion .cz-line { position: relative; height: 15px; }
+.gz-concentracion .cz-hint { position: absolute; left: 0; top: 0; font: 600 11.5px/15px Inter, system-ui, sans-serif; color: #d9cfc0; white-space: nowrap; transition: opacity .15s linear; }
+.gz-concentracion .cz-mv { position: absolute; left: 0; top: 0; padding: 0 6px; border-radius: 3px; border: 1px dashed var(--cz-mv); opacity: 0;
+  font: 800 10px/13px Inter, system-ui, sans-serif; letter-spacing: 1.2px; color: var(--cz-mv); white-space: nowrap; transition: opacity .15s linear; }
+.gz-concentracion.cz-moving .cz-mv { opacity: 1; }
+.gz-concentracion.cz-moving .cz-hint { opacity: 0; }
+.gz-concentracion.cz-losing .cz-crit { color: #e7c9a0; }
+
+/* ojo de halcón: Tiro Fijado / Visión Certera */
+.gz-concentracion .cz-eye { position: relative; flex: 0 0 auto; width: 36px; height: 38px; opacity: .18; transform: scale(.82); transition: opacity .2s linear, transform .2s ease-out; }
+.gz-concentracion.cz-eyeon .cz-eye { opacity: 1; transform: none; }
+.gz-concentracion .cz-eyef { position: absolute; inset: 6px 3px; border-radius: 50% / 60%; border: 2px solid var(--cz); background: radial-gradient(circle, var(--cz-red) 0 3px, #1c180b 4px); transition: opacity .2s linear; }
+.gz-concentracion .cz-eye-art { position: absolute; inset: 0; width: 36px; height: 38px; }
+.gz-concentracion.art-gz_conc_fijado .cz-eyef { opacity: 0; }
+
+/* ------------------------------------------------------------
+   8 · COTO DE CAZA — cepos armados + medallón de Presa
+   ------------------------------------------------------------ */
+.gz-coto { --ct: #86d47a; --ct-dim: #2d4a28; --ct-bg: #0f170d; }
+.gz-coto .ct-traps { display: flex; gap: 6px; flex: 0 0 auto; }
+.gz-coto .ct-trap { position: relative; width: 44px; height: 42px; border-radius: 8px; border: 1.5px dashed var(--ct-dim); background: var(--ct-bg); }
+.gz-coto .ct-trap.ct-hide { display: none; }
+.gz-coto .ct-trap.on { border-style: solid; border-color: var(--ct); background: radial-gradient(circle, #1c3318, var(--ct-bg)); }
+.gz-coto .ct-trap.ready { border-color: #86d47a99; }
+/* reserva CSS: el cepo dibujado (vacío = huella tallada, armado = fauces claras) */
+.gz-coto .ct-svg { position: absolute; left: 7px; top: 9px; width: 30px; height: 24px; fill: none; stroke: var(--ct-dim); stroke-width: 2; transition: opacity .2s linear; }
+.gz-coto .ct-trap.on .ct-svg { stroke: #c9f5bd; }
+.gz-coto.art-gz_coto_cepo.art-gz_coto_cepo_vacio .ct-svg { opacity: 0; }
+/* piel: el hueco tallado siempre; el cepo armado entra con escala 0.8 → 1 */
+.gz-coto .ct-empty-art, .gz-coto .ct-armed-art { position: absolute; left: 3px; top: 3px; width: 38px; height: 35px; }
+.gz-coto .ct-empty-art.is-loaded { opacity: .62; }
+.gz-coto .ct-trap.on .ct-empty-art { opacity: 0; }
+.gz-coto .ct-armed-art { transform: scale(.8); transition: opacity .15s linear, transform .15s ease-out; }
+.gz-coto .ct-armed-art.is-loaded { opacity: 0; }
+.gz-coto .ct-trap.on .ct-armed-art.is-loaded { opacity: 1; transform: none; }
+/* barrido de recarga de Trampa de Cepo (primera ranura libre) */
+.gz-coto .ct-cd { position: absolute; inset: 0; border-radius: 6px; opacity: 0; background: conic-gradient(#86d47a55 calc(var(--f, 0) * 360deg), #0000 0); }
+.gz-coto .ct-trap.cd .ct-cd { opacity: 1; }
+.gz-coto .ct-trap.cd { border-style: dotted; border-color: #86d47a88; }
+/* una trampa se dispara: sacudida de 150 ms (dos nombres alternos para reiniciarla) */
+.gz-coto .ct-traps.ct-shk1 { animation: gz-coto-shk1 .15s linear; }
+.gz-coto .ct-traps.ct-shk2 { animation: gz-coto-shk2 .15s linear; }
+@keyframes gz-coto-shk1 { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+@keyframes gz-coto-shk2 { 25% { transform: translateX(3px); } 75% { transform: translateX(-3px); } }
+
+/* medallón de Presa: aro = vida de la Presa; nombre; ATRAPADA */
+.gz-coto .ct-prey { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 10px 0 3px;
+  border-radius: 24px; border: 1px solid var(--ct-dim); background: #0f170d99; opacity: .4; transition: opacity .2s linear; }
+.gz-coto[data-state="prey"] .ct-prey { opacity: 1; border-color: var(--ct); background: #0f170dd9; }
+.gz-coto .ct-med { position: relative; flex: 0 0 auto; width: 42px; height: 42px; }
+.gz-coto .ct-hp { position: absolute; inset: 0; border-radius: 50%; opacity: 0;
+  background: conic-gradient(var(--ct) calc(var(--hp, 0) * 360deg), #ffffff14 0);
+  -webkit-mask: radial-gradient(circle, #0000 62%, #000 64%); mask: radial-gradient(circle, #0000 62%, #000 64%); }
+.gz-coto[data-state="prey"] .ct-hp { opacity: 1; }
+.gz-coto .ct-medf { position: absolute; inset: 5px; border-radius: 50%; display: grid; place-items: center; font: normal 17px/1 Georgia, serif; color: var(--ct);
+  background: radial-gradient(circle, #2f4a2a, var(--ct-bg)); border: 1.5px solid var(--ct); transition: opacity .2s linear; }
+.gz-coto .ct-med-art { position: absolute; left: 4px; top: 3px; width: 34px; height: 35px; }
+.gz-coto.art-gz_coto_presa .ct-medf { opacity: 0; }
+.gz-coto .ct-pinfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gz-coto .ct-pn { font: 700 12.5px/1.15 Inter, system-ui, sans-serif; color: #c9f5bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .2s linear; }
+.gz-coto:not([data-state="prey"]) .ct-pn { color: #a9c9a0; font-weight: 600; }
+.gz-coto .ct-pl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gz-coto .ct-info { font: 600 11px/14px Inter, system-ui, sans-serif; color: #a9c9a0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gz-coto .ct-tag { display: none; padding: 0 5px; border-radius: 3px; background: var(--ct); color: #0d0b10; font: 800 9.5px/13px Inter, system-ui, sans-serif; letter-spacing: .8px; font-style: normal; }
+.gz-coto.ct-trapped .ct-tag { display: inline-block; }
+/* la Presa caduca (< 3 s): nombre en gris y medallón que parpadea */
+.gz-coto.ct-expiring .ct-pn { color: #8a8f86; text-decoration: line-through #8a8f8688; }
+.gz-coto.ct-expiring .ct-med { animation: gz-coto-expire .5s steps(2) infinite; }
+@keyframes gz-coto-expire { 50% { opacity: .35; } }
+
+/* ------------------------------------------------------------
+   9 · IMPULSO — rosa de los vientos que gira y se llena de plumas
+   ------------------------------------------------------------ */
+.gz-impulso { --im: #66d7c7; --im-dim: #1f4a45; }
+.gz-impulso .im-rose { position: relative; flex: 0 0 auto; width: 56px; height: 56px; margin-left: 2px; }
+.gz-impulso .im-spin { position: absolute; inset: 0; animation: gz-impulso-spin 3s linear infinite; animation-play-state: paused; }
+.gz-impulso.im-moving .im-spin { animation-play-state: running; }
+.gz-impulso.im-sp2 .im-spin { animation-duration: 1.6s; }
+.gz-impulso.im-sp3 .im-spin { animation-duration: .8s; }
+.gz-impulso.im-sp4 .im-spin,
+.gz-impulso[data-state="active"] .im-spin { animation-duration: .4s; }
+@keyframes gz-impulso-spin { to { transform: rotate(360deg); } }
+/* reserva CSS/SVG (plumas a 72°, estrella de 4 puntas y gema) */
+.gz-impulso .im-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.gz-impulso .im-svg .star { fill: var(--im-dim); stroke: var(--im); stroke-width: .8; transition: opacity .2s linear; }
+.gz-impulso .im-svg .gem { fill: #c8fff4; transition: opacity .2s linear; }
+.gz-impulso .im-svg .fe { fill: #13302c; stroke: #2f8a80; stroke-width: .8; }
+.gz-impulso .im-svg .fe.half { fill: #2f8a80; }
+.gz-impulso .im-svg .fe.on { fill: var(--im); stroke: #c8fff4; }
+.gz-impulso[data-state="active"] .im-svg .fe { fill: #e6fffb; stroke: #ffffff; }
+.gz-impulso.art-gz_impulso_rosa .im-svg .star,
+.gz-impulso.art-gz_impulso_rosa .im-svg .gem { opacity: 0; }
+/* piel: rosa de bronce + 5 plumas pintadas (la base de cada una en el centro) */
+.gz-impulso .im-rose-art { position: absolute; left: 13px; top: 13px; width: 30px; height: 30px; }
+.gz-impulso .im-fe { position: absolute; left: 22px; top: 2px; width: 12px; height: 26px; transform-origin: 50% 100%; }
+.gz-impulso .im-f1 { transform: rotate(72deg); }
+.gz-impulso .im-f2 { transform: rotate(144deg); }
+.gz-impulso .im-f3 { transform: rotate(216deg); }
+.gz-impulso .im-f4 { transform: rotate(288deg); }
+.gz-impulso .im-fe-art { position: absolute; left: 1.5px; top: 0; width: 9px; height: 25px; }
+.gz-impulso .im-fe-art.is-loaded { opacity: .16; transition: opacity .15s linear; }
+.gz-impulso .im-fe.half .im-fe-art.is-loaded { opacity: .55; }
+.gz-impulso .im-fe.on .im-fe-art.is-loaded { opacity: 1; }
+/* con la piel cargada, las plumas SVG quedan como silueta oscura de fondo (la ranura vacía) */
+.gz-impulso.art-gz_impulso_pluma .im-svg .fe { fill: #0f2421; stroke: #1f4a45; }
+/* Vendaval: plumas blancas (pluma pintada aclarada) y remolino que gira al revés */
+.gz-impulso[data-state="active"] .im-fe-art.is-loaded { filter: brightness(1.7) saturate(.25); }
+.gz-impulso .im-gust { position: absolute; inset: 1px; border-radius: 50%; border: 2px dashed #94e8dc; opacity: 0; transition: opacity .2s linear; }
+.gz-impulso .im-gust-art { position: absolute; left: -3px; top: -3px; width: 56px; height: 56px; }
+.gz-impulso.art-gz_impulso_vendaval .im-gust { border-color: #0000; }
+.gz-impulso[data-state="active"] .im-gust { opacity: .95; animation: gz-impulso-spin 1.2s linear infinite reverse; }
+/* texto: plumas / Vendaval + ¡MUÉVETE! al quedarte quieta */
+.gz-impulso .im-txt { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.gz-impulso .im-txt b { font: 700 13px/1.15 Inter, system-ui, sans-serif; color: #94e8dc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gz-impulso .im-txt span { font: 600 11.5px/1.2 Inter, system-ui, sans-serif; color: #d9cfc0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gz-impulso[data-state="active"] .im-txt b { color: #e6fffb; }
+.gz-impulso .im-stop { flex: 0 0 auto; padding: 1px 7px; border-radius: 3px; border: 1px solid #ffb09a; opacity: 0;
+  font: 800 10.5px/14px Inter, system-ui, sans-serif; letter-spacing: 1px; color: #ffb09a; white-space: nowrap; transition: opacity .15s linear; }
+.gz-impulso.im-still .im-stop { opacity: 1; }
