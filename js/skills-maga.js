@@ -212,8 +212,10 @@ export const MAGA_SKILL_BEHAVIORS = {
       g.spawnRing?.(center, rad, color);                       // telegrafía
       if (ctx.fx?.trail) { const at = center.clone(); at.y = 4.5; g.emitFx?.(ctx.fx.trail, at); }
       const pulses = Math.max(1, sk.pulses || 1);
-      // quemadura: 6 WD a rango 1, escala con el rango igual que el golpe (ctx.coef)
-      const burnTotal = p.avgHit(ctx.coef * ((sk.burn || 0) / (sk.coef || 1)), prof.addPct);
+      // quemadura: 6 WD a rango 1, escala con el rango igual que el golpe (ctx.coef);
+      // s16 Supernova Abrasadora (Piromante, tv.supernovaBurn): un X % más fuerte al crearla
+      const burnTotal = p.avgHit(ctx.coef * ((sk.burn || 0) / (sk.coef || 1)), prof.addPct)
+        * Math.max(0, 1 + (p.tv?.supernovaBurn || 0) / 100);
       const burnT = sk.burnT || 6;
       let n = 0;
       const pulse = () => {

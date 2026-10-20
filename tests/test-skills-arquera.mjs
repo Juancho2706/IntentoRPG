@@ -66,10 +66,11 @@ for (const s of skills) {
   if (s.cat === 'ultimate') { assert.equal(s.cost, 0, `${s.id}: sin coste`); assert.ok(s.cd >= 50, `${s.id}: enfriamiento ≥ 50 s`); }
 }
 // números de §3.3 recalibrados con el banco (Paso 2b.2): Disparo Rápido 1,0→1,15,
-// Perforante 2,2/20→2,1/26, Lluvia 3,0→2,4 WD en total, Diluvio 20→17,6 WD
+// Perforante 2,2/20→2,1/26, Lluvia 3,0→2,4 WD en total, Diluvio 20→17,6 WD;
+// Paso 2c.2 (banco con talentos): Lluvia 2,4→2,08 WD, Diluvio 17,6→15,6 WD
 assert.deepEqual([S('a_disparo').coef, S('flecha_perforante').coef, S('flecha_perforante').cost, S('flecha_multiple').coef, S('flecha_multiple').count], [1.15, 2.1, 26, 0.7, 5], 'números de §3.3 (2b.2)');
-assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.4, 'Lluvia: 2,4 WD en total');
-assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 17.6, 'Diluvio: 17,6 WD por objetivo');
+assert.equal(+(S('lluvia_flechas').coef * S('lluvia_flechas').waves).toFixed(2), 2.08, 'Lluvia: 2,08 WD en total');
+assert.equal(+(S('a_u_diluvio').coef * S('a_u_diluvio').waves).toFixed(2), 15.6, 'Diluvio: 15,6 WD por objetivo');
 assert.equal(S('a_u_celeste').coef * S('a_u_celeste').shots, 21, 'Tiro Celestial: 3 × 7,0');
 console.log('Energía: básicos +5, gastadoras sin enfriamiento (Lluvia 4 s), definitivas gratis ✓');
 

@@ -129,6 +129,134 @@ export const GUERRERO_FX_PRESETS = {
     size: { start: [0.3, 0.5], end: 0.0 },
     color: { start: '#fff6d6', end: '#f0a23a' }, alpha: { start: 1, end: 0 },
   },
+
+  // ---------------- activas de talento y poderes (Paso 2c.1) ----------------
+  // Segundo Aliento: pulso rojo de curación que sube del héroe
+  secondWind: {
+    name: 'Segundo Aliento', texture: 'glow', blending: 'additive',
+    count: 36, burst: true, lifetime: [0.5, 0.9],
+    shape: 'ring', shapeRadius: 0.6, speed: [0.6, 1.6], gravity: -3.5, drag: 0.5,
+    size: { start: [0.3, 0.55], end: 0.0 },
+    color: { start: '#ffd0c8', end: '#d8302a' }, alpha: { start: 0.9, end: 0 }, spin: 40,
+  },
+  // Intervención: domo azul al caer junto al aliado
+  interveneDome: {
+    name: 'Intervención domo', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.45, 0.55],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.6, 0.7], end: 3.4 },
+    color: { start: '#e0f0ff', end: '#5a8ad8' }, alpha: { start: 0.75, end: 0 },
+  },
+  // Bramido de Guerra: onda roja amplia
+  warHorn: {
+    name: 'Bramido', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.5, 0.6],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.8, 0.9], end: 8.0 },
+    color: { start: '#ffd0b0', end: '#c83a22' }, alpha: { start: 0.7, end: 0 },
+  },
+  // Remolino Sangriento: giro rojo + gotas de sangre en cada golpe
+  bloodWhirl: {
+    name: 'Remolino Sangriento', texture: 'spark', blending: 'additive',
+    count: 54, burst: true, lifetime: [0.25, 0.5],
+    shape: 'ring', shapeRadius: 1.6, speed: [3, 6], gravity: 0, drag: 0.4,
+    size: { start: [0.22, 0.45], end: 0.0 },
+    color: { start: '#ffb0a0', end: '#b0101c' }, alpha: { start: 1, end: 0 }, spin: 260,
+  },
+  bloodDrops: {
+    name: 'Remolino gotas', texture: 'disc', blending: 'normal',
+    count: 10, burst: true, lifetime: [0.3, 0.6],
+    shape: 'ring', shapeRadius: 1.4, speed: [2, 4], gravity: 11, drag: 0.3,
+    size: { start: [0.1, 0.2], end: 0.04 },
+    color: { start: '#b0101c', end: '#5a0008' }, alpha: { start: 0.9, end: 0 },
+  },
+  // Temeridad (y Sangre Hirviente / Negación): aura carmesí
+  recklessAura: {
+    name: 'Temeridad', texture: 'glow', blending: 'additive',
+    count: 40, burst: true, lifetime: [0.5, 0.9],
+    shape: 'sphere', shapeRadius: 0.7, speed: [0.5, 1.5], gravity: -2.5, drag: 0.5,
+    size: { start: [0.3, 0.55], end: 0.0 },
+    color: { start: '#ff9a7a', end: '#a00a12' }, alpha: { start: 0.9, end: 0 }, spin: 60,
+  },
+  // Ira Ciega: destellos rojos a la altura de los ojos
+  blindRage: {
+    name: 'Ira Ciega', texture: 'star', blending: 'additive',
+    count: 18, burst: true, lifetime: [0.4, 0.7],
+    shape: 'sphere', shapeRadius: 0.3, speed: [0.4, 1.2], gravity: -1, drag: 0.5,
+    size: { start: [0.3, 0.5], end: 0.0 },
+    color: { start: '#ffffff', end: '#ff2200' }, alpha: { start: 1, end: 0 },
+  },
+  // Grito Desafiante: onda azul
+  defiantShout: {
+    name: 'Grito Desafiante', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.45, 0.55],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.6, 0.7], end: 7.0 },
+    color: { start: '#d8e8ff', end: '#3a6ad8' }, alpha: { start: 0.75, end: 0 },
+  },
+  // Muro de Escudos (y Bastión Eterno): domo de placas azul acero
+  shieldWall: {
+    name: 'Muro de Escudos', texture: 'star', blending: 'additive',
+    count: 34, burst: true, lifetime: [0.5, 0.9],
+    shape: 'sphere', shapeRadius: 1.0, speed: [0.2, 0.8], gravity: -0.6, drag: 0.6,
+    size: { start: [0.3, 0.5], end: 0.0 },
+    color: { start: '#ffffff', end: '#7fb0e8' }, alpha: { start: 1, end: 0 }, spin: 50,
+  },
+  // Venganza Acumulada: onda de choque al terminar el Muro
+  vengeanceWave: {
+    name: 'Venganza', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.35, 0.45],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.6, 0.7], end: 6.0 },
+    color: { start: '#e8f2ff', end: '#4a7ac8' }, alpha: { start: 0.85, end: 0 },
+  },
+  // Carga de Escudo: estela azul
+  shieldChargeTrail: {
+    name: 'Carga de Escudo', texture: 'spark', blending: 'additive',
+    count: 12, burst: true, lifetime: [0.2, 0.4],
+    shape: 'disc', shapeRadius: 0.4, speed: [0.5, 1.5], gravity: 0, drag: 0.6,
+    size: { start: [0.2, 0.4], end: 0.0 },
+    color: { start: '#e0ecff', end: '#4a6ad8' }, alpha: { start: 0.9, end: 0 },
+  },
+  // Aura de Devoción (y Ascensión): círculo sagrado + motas doradas
+  devotionCircle: {
+    name: 'Aura de Devoción', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.7, 0.8],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [1.0, 1.1], end: 14.0 },
+    color: { start: '#fff6d0', end: '#e8b840' }, alpha: { start: 0.55, end: 0 },
+  },
+  devotionMotes: {
+    name: 'Devoción motas', texture: 'star', blending: 'additive',
+    count: 24, burst: true, lifetime: [0.7, 1.2],
+    shape: 'ring', shapeRadius: 1.0, speed: [0.4, 1.2], gravity: -2, drag: 0.4,
+    size: { start: [0.25, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffd060' }, alpha: { start: 1, end: 0 },
+  },
+  // Veredicto Final: martillo de luz en cono
+  verdictStrike: {
+    name: 'Veredicto Final', texture: 'star', blending: 'additive',
+    count: 64, burst: true, lifetime: [0.25, 0.55],
+    shape: 'cone', shapeRadius: 0.3, coneAngle: 90, speed: [7, 14], gravity: 2, drag: 0.5,
+    size: { start: [0.3, 0.6], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffd060' }, alpha: { start: 1, end: 0 },
+  },
+  // Martillo de Justicia: estela dorada del martillo arrojado
+  justiceHammer: {
+    name: 'Martillo de Justicia', texture: 'glow', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.2, 0.35],
+    shape: 'point', shapeRadius: 0.15, speed: [0.5, 1.5], gravity: 0, drag: 0.5,
+    size: { start: [0.35, 0.5], end: 0.0 },
+    color: { start: '#fff6d6', end: '#e8a83a' }, alpha: { start: 1, end: 0 },
+  },
+  // Martillos Benditos (poder del Cruzado x1): chispa sagrada en cada golpe
+  justiceSpark: {
+    name: 'Martillo Bendito chispa', texture: 'spark', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.15, 0.3],
+    shape: 'sphere', shapeRadius: 0.2, speed: [2, 5], gravity: 3, drag: 0.5,
+    size: { start: [0.15, 0.3], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffd060' }, alpha: { start: 1, end: 0 },
+  },
 };
 
 export const GUERRERO_FX = {
@@ -153,4 +281,17 @@ export const GUERRERO_FX = {
   g_u_furia:     { aura: 'furyAura', extra: 'warCryRing', color: 0xff5a3c, sfx: 'hurt' },
   g_u_cataclismo:{ trail: 'holyFall', impact: 'holyImpact', aura: 'brutalStrikeWave', color: 0xffe7a0, sfx: 'holy' },
   g_u_estandarte:{ aura: 'bannerAura', extra: 'bannerSparks', color: 0xd8a040, sfx: 'levelup' },
+  // activas de talento (Paso 2c.1; comportamientos en js/powers-guerrero.js)
+  g_t_aliento:      { aura: 'secondWind', color: 0xff5a4a, sfx: 'potion' },
+  g_t_intervencion: { trail: 'chargeTrail', impact: 'interveneDome', color: 0x88bbff, sfx: 'dash' },
+  g_t_bramido:      { aura: 'warHorn', extra: 'warCryRing', color: 0xff6644, sfx: 'levelup' },
+  g_t_remolino:     { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash' },
+  g_t_temeridad:    { aura: 'recklessAura', color: 0xff3322, sfx: 'crit' },
+  g_t_ira_ciega:    { aura: 'blindRage', extra: 'recklessAura', color: 0xff2200, sfx: 'hurt' },
+  g_t_desafio:      { aura: 'defiantShout', impact: 'tauntMark', color: 0x5599ff, sfx: 'levelup' },
+  g_t_muro:         { aura: 'shieldWall', color: 0x7fb0e8, sfx: 'equip' },
+  g_t_carga:        { trail: 'shieldChargeTrail', impact: 'chargeImpact', color: 0x6699ff, sfx: 'dash' },
+  g_t_devocion:     { aura: 'devotionCircle', extra: 'devotionMotes', color: 0xffdd77, sfx: 'holy' },
+  g_t_veredicto:    { impact: 'verdictStrike', aura: 'holyImpact', color: 0xffe08a, sfx: 'crit' },
+  g_t_justicia:     { trail: 'justiceHammer', impact: 'holyImpact', color: 0xffd36b, sfx: 'hit' },
 };

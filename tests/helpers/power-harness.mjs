@@ -19,10 +19,13 @@
 //   h.gauge('sed', 100);        // fija el indicador (dispara onGauge 'gain'/'full' y su descarga)
 //   h.gaugeValue('sed');  h.gaugeView();
 //   powers/tv extra (sin nodos): p.talentExtra (lo suma Player.recompute).
+// Paso 2c.2: aliados del cooperativo con el contrato del núcleo
+//   const a = h.ally(3, 0, 1000);   // en g.party; a.takeDamage(n) → g.damageAlly (⑫)
+//   KillInfo.status con killStatus(e) de game-skills.js (bleeding/burning/poisoned reales)
 import * as THREE from 'three';
 import { Player, Enemy, Projectile } from '../../js/entities.js';
 import { TickScheduler } from '../../js/timers.js';
-import { skillMethods } from '../../js/game-skills.js';
+import { skillMethods, killStatus } from '../../js/game-skills.js';
 import { fieldMethods } from '../../js/field-entities.js';
 import { firePower } from '../../js/powers.js';
 import { createRng } from '../../js/rng.js';
@@ -68,7 +71,7 @@ export function makeGame({ seed = 7 } = {}) {
       const p = this.player;
       const kill = { skill: e._lastSkill || null, tags: e._lastTags || new Set(), crit: !!e._lastCrit, overkill: Math.max(0, -e.hp),
         nested: !!this._killBurst, loot: { goldMul: 1 },
-        status: { frozen: e.frozenT > 0, slowed: e.slowT > 0, rooted: e.rootT > 0, bleeding: false, burning: false, poisoned: false, prey: !!e.prey, weakened: e.vulnT > 0 } };
+        status: killStatus(e) };
       this.kills.push({ e, kill });
       const was = !!this._killBurst;
       this._killBurst = true;
@@ -132,6 +135,23 @@ export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed
     cast(slot) { return g.castSkillSlot(slot); },
     aim(x, z) { g.input.mouseWorld = new THREE.Vector3(x, 0, z); },
     addPowers(...ids) { for (const id of ids) p.talentExtra.powers.add(id); p.recompute(); },
+    // aliado del cooperativo (contrato de g.allies, §6): entra en g.party; su daño va por
+    // g.damageAlly (⑫ onAllyDamaged / onAllyLethal) como el de un jugador remoto
+    ally(x = 3, z = 0, maxHP = 1000, extra = {}) {
+      const a = {
+        pos: new THREE.Vector3(x, 0, z), alive: true, hp: maxHP, stats: { maxHP, healPct: 0 }, buffs: [], shields: [], healed: 0,
+        addBuff(id, stats, dur) { this.buffs = this.buffs.filter(b => b.id !== id); this.buffs.push({ id, stats, t: dur, dur }); },
+        healSkill(n) { const b = this.hp; this.hp = Math.min(this.stats.maxHP, this.hp + n); this.healed += this.hp - b; return this.hp - b; },
+        sustain(n) { return this.healSkill(n); },
+        addShield(n, dur, src) { this.shields.push({ amt: n, t: dur, src }); return n; },
+        setHp(v) { this.hp = Math.max(0, Math.min(this.stats.maxHP, v)); return this.hp; },
+        grantInvuln(s) { this.invulnT = s; },
+        takeDamage(n, al, opts) { return g.damageAlly(this, n, opts); },
+        ...extra,
+      };
+      (g.party || (g.party = [])).push(a);
+      return a;
+    },
     sustained() { return p._sustained || 0; },
     messages() { return g.ui.messages; },
     // indicador de especialización (spec-mechanics): fija el valor por gainGauge/drainGauge

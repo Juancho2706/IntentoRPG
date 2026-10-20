@@ -20,6 +20,14 @@
 //   setGauge(p, id, v, e?)               fija el valor (tests / arnés: h.gauge(id, n))
 //   touchGauge(p, id, e?)                renueva el reloj de pérdida sin ganar nada
 //   gaugeValue(p, id, e?) · gaugeMax(p, id) · gaugeState(p, id, e?) (estado extra del indicador)
+//   Paso 2c.2 — modificadores por STAT (de poderes `stats` o de buffs, sin escribir st.v):
+//     'gaugeMax:<id>'  +máximo (Coto Cerrado)
+//     'gaugeGain:<id>' +% de lo que se GANA (Temeridad: Sed ×2 = +100; Combustión: Calor ×2)
+//     'gaugeLoss:<id>' +% de lo que se PIERDE con el tiempo/al moverte (Paso del
+//                      Acechador −15; Visión Certera −100 = moverte no vacía la Concentración)
+//     gaugeStat(p, key) · gaugeGainMult(p, id) · gaugeLossMult(p, id)
+//   claves tv que consume aquí el núcleo: frostLayers (Escarcha), focusRate y focusEnergy
+//   (Concentración), galeHeal y galeEnergy (Impulso), fervorChance (Fervor)
 //   activeMechanic(p) → id | null        el de la especialización ACTIVA (p.talentAgg.mechanic)
 //   gaugeView(p) → { id, name, value, max, color, state, label?, t? } | null   (HUD, 2d)
 //   gaugeDefs() · gaugeIds()
@@ -123,6 +131,13 @@ function baseGauges() {
         if (hit?.proc || hit?.dot || hit?.skill !== 'g_martillo') return;
         if (++st.hammerHits >= T.fervor.hammerHits) { st.hammerHits = 0; gainGauge(p, 'fervor', 1); }
       },
+      // Fervor Creciente (tv.fervorChance, Paso 2c.2): un Martillo que golpea tiene X % de dar 1 más
+      afterCast(g, p, cast, res) {
+        const ch = p.tv?.fervorChance || 0;
+        if (!(ch > 0) || cast?.sk?.id !== 'g_martillo' || !(res?.hits > 0)) return;
+        const r = typeof p.combatRng === 'function' ? p.combatRng() : 0.5;
+        if (r * 100 < ch) gainGauge(p, 'fervor', 1);
+      },
     },
     // Piromante: +5 por golpe de Fuego (su nodo clave hace que todos quemen; una
     // vez por instante: un área no da +25); baja −10/s tras 3 s. A 100 → IGNICIÓN
@@ -197,9 +212,11 @@ function baseGauges() {
     concentracion: {
       name: 'Concentración', color: '#e9d27a', max: 100,
       onTick(g, p, dt) {
-        if (p.moving) drainGauge(p, 'concentracion', T.concentracion.losePerSec * dt);
+        if (p.moving) drainGauge(p, 'concentracion', T.concentracion.losePerSec * dt * gaugeLossMult(p, 'concentracion'));
         else gainGauge(p, 'concentracion', T.concentracion.gainPerSec * dt * Math.max(0, 1 + (p.tv?.focusRate || 0) / 100));
       },
+      // Respiración Profunda (tv.focusEnergy): al llenarla, +X de Energía
+      onFull(g, p) { const n = p.tv?.focusEnergy || 0; if (n > 0) gainResource(p, n); },
       condCrit(p, e, hit, st) { return st.v * T.concentracion.critPerPoint; },
     },
     // Montaraz: el valor son las TRAMPAS ARMADAS (campos 'trampa' del héroe o con
@@ -244,6 +261,10 @@ function baseGauges() {
         p.addBuff?.('t_vendaval', { aspdPct: T.impulso.galeAspd }, T.impulso.galeT,
           { name: 'Vendaval', icon: '🌬️', desc: `+${T.impulso.galeAspd}% vel. de ataque y +1 proyectil a Flecha Múltiple` });
         invalidate(p);
+        // Segundo Aliento (tv.galeHeal % de vida —curación de habilidad— y tv.galeEnergy de Energía)
+        const heal = p.tv?.galeHeal || 0, en = p.tv?.galeEnergy || 0;
+        if (heal > 0) { if (g?.heal) g.heal(p.stats.maxHP * heal / 100, { target: 'self', src: 'galeHeal' }); else p.healSkill?.(p.stats.maxHP * heal / 100, 'galeHeal'); }
+        if (en > 0) gainResource(p, en);
       },
       modifyResolve(p, sk, prof, st) { if (st.galeT > 0 && sk.id === 'flecha_multiple') prof.proj = (prof.proj || 0) + 1; },
       onTick(g, p, dt, st) {
@@ -299,11 +320,20 @@ export function gaugeState(p, id, e = null) {
   const all = host.gauges || (host.gauges = {});
   return all[id] || (all[id] = { v: 0, last: -99, _acc: 0, ...(def.state ? def.state() : {}) });
 }
+// stat propia de los indicadores: la suma de p.powerStats[key] (poderes `stats`) y de
+// los buffs activos que la declaran (addBuff(id, { 'gaugeGain:sed': 100 }, …))
+export function gaugeStat(p, key) {
+  let v = p?.powerStats?.[key] || 0;
+  for (const b of p?.buffs || []) if (b && b.t > 0 && Number.isFinite(b.stats?.[key])) v += b.stats[key];
+  return v;
+}
+export function gaugeGainMult(p, id) { return Math.max(0, 1 + gaugeStat(p, `gaugeGain:${id}`) / 100); }
+export function gaugeLossMult(p, id) { return Math.max(0, 1 + gaugeStat(p, `gaugeLoss:${id}`) / 100); }
 export function gaugeMax(p, id) {
   const def = gaugeDefs()[id];
   if (!def) return 0;
   const base = typeof def.max === 'function' ? def.max(p) : def.max;
-  return Math.max(1, base + (p?.powerStats?.[`gaugeMax:${id}`] || 0));
+  return Math.max(1, base + gaugeStat(p, `gaugeMax:${id}`));
 }
 export function gaugeValue(p, id, e = null) {
   const def = gaugeDefs()[id];
@@ -317,13 +347,16 @@ function fireGauge(p, id, ev, n, e) {
   if (p?.hookIndex?.onGauge) firePower('onGauge', p, p.game, p, id, ev, n, e || null);
 }
 
-export function gainGauge(p, id, n, e = null) {
+// opts.raw: sin el multiplicador 'gaugeGain:<id>' (setGauge / arnés)
+export function gainGauge(p, id, n, e = null, opts = null) {
   if (!(n > 0) || !p) return 0;
   const def = gaugeDefs()[id];
   if (!def || activeMechanic(p) !== id) return 0;
   if (def.perEnemy && !e?.alive) return 0;
   const st = gaugeState(p, id, e);
   if (!st || (def.canGain && !def.canGain(p, st, e))) return 0;
+  if (!opts?.raw) n *= gaugeGainMult(p, id);
+  if (!(n > 0)) return 0;
   const max = gaugeMax(p, id);
   const before = st.v;
   st.v = Math.min(max, st.v + n);
@@ -358,7 +391,7 @@ export function drainGauge(p, id, n, e = null) {
 export function setGauge(p, id, v, e = null) {
   const st = gaugeState(p, id, e);
   if (!st) return 0;
-  if (v > st.v) gainGauge(p, id, v - st.v, e);
+  if (v > st.v) gainGauge(p, id, v - st.v, e, { raw: true });
   else if (v < st.v) drainGauge(p, id, st.v - v, e);
   return st.v;
 }
@@ -379,7 +412,7 @@ function tickDecay(p, def, st, dt, e = null) {
     while (st._acc >= d.every && st.v > 0) { st._acc -= d.every; drainGauge(p, def.id, d.n || 1, e); }
     return;
   }
-  drainGauge(p, def.id, (d.rate || 0) * dt, e);
+  drainGauge(p, def.id, (d.rate || 0) * dt * gaugeLossMult(p, def.id), e);
 }
 
 // el poder gauge_<id> que engancha el indicador a los puntos de despacho

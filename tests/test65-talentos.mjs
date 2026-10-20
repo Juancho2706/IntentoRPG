@@ -19,6 +19,7 @@ import { definePower, POWER_HOOKS, firePower } from '../js/powers.js';
 import { multiplierProduct } from '../js/combat-math.js';
 import { BASE_GAUGE_IDS, gaugeIds, gainGauge, spendGauge, gaugeValue, gaugeMax, gaugeView, defineGauge, activeMechanic } from '../js/spec-mechanics.js';
 import { makeHarness } from './helpers/power-harness.mjs';
+import { skillCastable } from '../js/game-skills.js';
 
 const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 const sk = (cid, id) => CLASSES[cid].skills.find(s => s.id === id);
@@ -192,13 +193,17 @@ console.log('Innatas: bloqueo solo con escudo, amenaza ×3, +10 % de vida, curac
   assert.ok(!p.skills.g_t_remolino && p.skills.g_t_desafio > 0);
   g.switchSpec('berserker');
   assert.equal(p.talents.sp.berserker.s1, 1, 'la build de Berserker sigue ahí');
-  // una activa de talento sin comportamiento todavía (2c.1) no se lanza ni cobra
+  // Paso 2c.2: la insignia del Berserker YA tiene comportamiento (2c.1): se lanza, cobra
+  // sus 30 de Furia y pone el enfriamiento; la esquiva corta el giro
   const ins = sk('guerrero', 'g_t_remolino');
-  assert.ok(ins.behavior && !ins.type, 'la insignia del Berserker depende de su comportamiento (2c.1)');
+  assert.ok(ins.behavior && !ins.type, 'la insignia del Berserker depende de su comportamiento');
   p.mp = 100;
-  assert.equal(h.cast('k3'), false, 'sin comportamiento registrado: no se lanza');
-  assert.equal(p.mp, 100, 'ni cobra Furia');
-  assert.ok(!(p.cds.g_t_remolino > 0), 'ni pone enfriamiento');
+  assert.equal(h.cast('k3'), true, 'con comportamiento registrado: se lanza');
+  assert.equal(p.mp, 70, 'y cobra 30 de Furia');
+  assert.ok(p.cds.g_t_remolino > 0, 'y pone el enfriamiento');
+  assert.equal(g.cancelCast('dodge'), true, 'la esquiva corta la canalización del Remolino');
+  // una activa de talento cuyo comportamiento NO existe (ni tipo genérico) no se lanza ni cobra
+  assert.equal(skillCastable({ kind: 'talent', behavior: 't_x' }), false, 'sin comportamiento registrado: no se lanza');
   // código de build por el mixin
   g.applyTalentPreset('all');
   const code = g.exportTalentCode();

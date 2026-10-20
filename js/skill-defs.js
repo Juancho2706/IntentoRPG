@@ -189,12 +189,15 @@ export function supportFits(sup, sk) {
 //   gen(+recurso) lifesteal(+% robo) buff(+% potencia) dur(+% duración) durS(+s)
 //   execute(%) zone(1) zoneDur(s: duración de la zona; sin ella 4 s) cdhit(n) echo(bool) coldblood(bool) haste(s) cleanse(bool)
 //   critCdr(s por crítico)
+//   rootAdd(+s) slowPctAdd(+%)  Paso 2c.2: root/slowPct toman el MÁXIMO entre fuentes (una
+//   rama y un talento no se apilan); los «+N s» / «+N %» de un talento SOBRE el valor de la
+//   habilidad van en rootAdd/slowPctAdd, que se SUMAN (Cepo de Hierro, Raíces Profundas)
 const MOD_MAX = ['slow', 'vuln', 'stun', 'root', 'execute', 'chain', 'zone', 'cdhit', 'haste', 'slowPct'];
 const MOD_BOOL = ['pierce', 'echo', 'coldblood', 'cleanse'];
 export function emptyMods() {
   return { dmg: 0, proj: 0, pierce: false, radius: 0, range: 0, slow: 0, slowPct: 0, crit: 0, dot: null, buff: 0, dur: 0, durS: 0,
     cdr: 0, cost: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0, root: 0, execute: 0, chain: 0, zone: 0, zoneDur: 0,
-    cdhit: 0, echo: false, coldblood: false, haste: 0, cleanse: false, critCdr: 0 };
+    cdhit: 0, echo: false, coldblood: false, haste: 0, cleanse: false, critCdr: 0, rootAdd: 0, slowPctAdd: 0 };
 }
 // fusiona un objeto de efectos sobre `out` (mismas reglas que talents.mergeSkillMods)
 export function mergeMods(out, add) {

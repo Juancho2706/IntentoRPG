@@ -105,7 +105,8 @@ export function enemiesInField(g, f) {
 
 // ------------------------------------------------------------
 // ESTELA (rama de Transformación `zone`): daña a los enemigos dentro cada
-// `interval` s. data = { dps, color, skill }
+// `interval` s. data = { dps, color, skill, slow?, slowPct? } — Paso 2c.2: si la
+// habilidad ralentiza (prof.slow), su Estela también (suelo helado de Nova Perpetua)
 // ------------------------------------------------------------
 defineField('estela', {
   name: 'Estela',
@@ -115,8 +116,10 @@ defineField('estela', {
     if (f.acc < f.data.interval) return;
     f.acc = 0;
     const per = Math.max(1, Math.round((f.data.dps || 0) * f.data.interval));
-    for (const e of enemiesInField(g, f))
+    for (const e of enemiesInField(g, f)) {
       e.takeDamage(per, false, { dot: true, source: 'field:estela', skill: f.data.skill || null, tags: new Set(['zone']) });
+      if (f.data.slow > 0 && e.alive) e.applyCC?.('slow', Math.max(f.data.interval + 0.2, 0.5), { pct: f.data.slowPct || 30, src: f.owner });
+    }
     g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius * (0.7 + 0.3 * Math.random()), f.data.color);
   },
   render(g, f) {
