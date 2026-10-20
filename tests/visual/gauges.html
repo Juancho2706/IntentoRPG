@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barras de mecánica · arnés visual</title>
+<!-- Arnés visual del Paso 2d.2 (docs/paso2d2-hud-pc.md §7.1). Sirve la raíz del repo
+     (`npx http-server -p 8094`) y abre /tests/visual/gauges.html con:
+       ?spec=<especialización|mecánica>   crionte, berserker… o escarcha, sed… (por defecto crionte)
+       &state=demo|idle|building|full|active|decay   (vistas falsas por estado; demo = bucle)
+       &all=1      contacto 9 especializaciones × 5 estados (A5)
+       &gray=1     escala de grises (A5) · &cb=1 deuteranopía (A6) · &reduce=1 movimiento reducido
+       &art=0      sin assets (reserva CSS) · &tip=1 tooltip · &bare=1 sin barra de controles
+       &measure=1  vuelca en <pre id="measure"> (JSON): solapesWidget (A2b, 5 estados), a7
+                   (1000 update con la vista igual: ms medios y mutaciones del DOM), a10
+                   (animaciones vivas 1 s después de activar body.reduce-motion)
+       &three=local  three.js desde node_modules (por defecto el CDN del juego)
+     Capturas: chrome --headless=new --disable-gpu --hide-scrollbars --virtual-time-budget=5000
+       --window-size=W,H --screenshot=out.png "<url>"   ·   --dump-dom y grep de "measure" -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap">
+<script>
+  // importmap dinámico (antes de cualquier módulo): three del CDN del juego o de node_modules
+  (function () {
+    const local = new URLSearchParams(location.search).get('three') === 'local';
+    const base = local ? '../../node_modules/three/' : 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
+    const im = document.createElement('script');
+    im.type = 'importmap';
+    im.textContent = JSON.stringify({ imports: { three: base + 'build/three.module.js', 'three/addons/': base + 'examples/jsm/' } });
+    document.currentScript.after(im);
+  })();
+</script>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 18px 22px; background: radial-gradient(ellipse at 50% 40%, #2a2420 0%, #141012 60%, #09080b 100%); background-color: #0d0b10;
+    color: #ede6d6; font: 13px/1.4 Inter, system-ui, sans-serif; min-height: 100vh; }
+  body.gray { filter: grayscale(1); }
+  body.cb { filter: url(#deuter); }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; color: #9a917f; }
+  .bar b { color: #e8c06a; font: 700 15px Cinzel, serif; margin-right: 6px; }
+  .bar select, .bar label { font: inherit; color: #ede6d6; }
+  .bar select { background: #1c1622; border: 1px solid #3a2f45; border-radius: 6px; padding: 3px 6px; }
+  .one { display: flex; flex-direction: column; gap: 10px; }
+  .stage { position: relative; width: 520px; height: 72px; }
+  .cap { min-height: 20px; color: #c9bfae; max-width: 520px; }
+  .slots { display: flex; gap: 6px; }
+  .slots i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; background: #1a1520; border: 1px solid #3a2f45; font: 600 10px Inter; color: #9a917f; font-style: normal; }
+  .grid { display: grid; grid-template-columns: 120px repeat(5, 520px); gap: 14px 18px; align-items: center; }
+  .grid .h { font: 700 12px Inter; letter-spacing: 1.5px; color: #9a917f; text-transform: uppercase; }
+  .grid .r { font: 700 13px Cinzel, serif; color: var(--c, #e8c06a); }
+  pre#measure { white-space: pre-wrap; word-break: break-all; font: 11px/1.35 ui-monospace, Consolas, monospace; color: #9a917f; max-width: 1100px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="deuter"><feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0"/></filter>
+</defs></svg>
+<div class="bar" id="bar"></div>
+<main id="main"></main>
+<script type="module">
+import { createGaugeHud, gaugeViewFor, gaugeViewErrors, demoFrameByTag, gaugeSpecOf } from '../../js/ui-gauges.js';
+import { gaugeDefs, BASE_GAUGE_IDS } from '../../js/spec-mechanics.js';
+
+const Q = new URLSearchParams(location.search);
+const $ = (s, r = document) => r.querySelector(s);
+const STATES = ['idle', 'building', 'full', 'active', 'decay'];
+const SPEC_MECH = {};
+for (const id of BASE_GAUGE_IDS) SPEC_MECH[gaugeSpecOf(id).specId] = id;
+const toMech = s => (BASE_GAUGE_IDS.includes(s) ? s : SPEC_MECH[s]) || 'escarcha';
+const mech = toMech(Q.get('spec') || 'crionte');
+const state = Q.get('state') || 'demo';
+const art = Q.get('art') !== '0';
+document.body.classList.toggle('gray', Q.get('gray') === '1');
+document.body.classList.toggle('cb', Q.get('cb') === '1');
+document.body.classList.toggle('reduce-motion', Q.get('reduce') === '1');
+
+// ---------- barra de controles (recarga con los parámetros)
+if (Q.get('bare') !== '1') {
+  const opt = (v, t, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`;
+  $('#bar').innerHTML = `<b>Barras de mecánica</b>
+    <select id="sSpec">${BASE_GAUGE_IDS.map(id => opt(gaugeSpecOf(id).specId, `${gaugeSpecOf(id).specName} · ${gaugeDefs()[id].name}`, gaugeSpecOf(mech).specId)).join('')}</select>
+    <select id="sState">${['demo', ...STATES].map(s => opt(s, s, state)).join('')}</select>
+    ${['all', 'gray', 'cb', 'reduce', 'tip'].map(k => `<label><input type="checkbox" data-k="${k}"${Q.get(k) === '1' ? ' checked' : ''}> ${k}</label>`).join('')}
+    <label><input type="checkbox" data-k="art0"${art ? '' : ' checked'}> sin arte</label>
+    <span>renderizador: ${gaugeViewFor(mech).generic ? 'genérico (E1 pendiente)' : 'propio'}</span>`;
+  const go = () => {
+    const p = new URLSearchParams(location.search);
+    p.set('spec', $('#sSpec').value); p.set('state', $('#sState').value);
+    document.querySelectorAll('[data-k]').forEach(c => { const k = c.dataset.k === 'art0' ? 'art' : c.dataset.k; if (c.dataset.k === 'art0') { c.checked ? p.set('art', '0') : p.delete('art'); } else c.checked ? p.set(k, '1') : p.delete(k); });
+    location.search = p.toString();
+  };
+  document.querySelectorAll('#bar select, #bar input').forEach(el => el.onchange = go);
+}
+
+// ---------- vistas falsas por estado (de la demo del renderizador; el genérico tiene la suya)
+function baseOf(id) {
+  const gd = gaugeDefs()[id];
+  return { id, name: gd.name, color: gd.color, max: typeof gd.max === 'number' ? gd.max : 100, specName: gaugeSpecOf(id).specName };
+}
+function fakeView(id, st) { return demoFrameByTag(gaugeViewFor(id).demo, st, baseOf(id)); }
+
+const widgets = [];
+const readyLog = [];
+function mount(host, id, st, opts = {}) {
+  const w = createGaugeHud(host, { mode: st === 'demo' ? 'demo' : 'live', id, art, onReady: ids => readyLog.push(ids.join(',')), ...opts });
+  if (st !== 'demo') w.update(fakeView(id, st).view);
+  widgets.push({ w, id, st, host });
+  return w;
+}
+
+if (Q.get('all') === '1') {
+  const g = document.createElement('div');
+  g.className = 'grid';
+  g.innerHTML = '<span></span>' + STATES.map(s => `<span class="h">${s}</span>`).join('');
+  $('#main').appendChild(g);
+  for (const id of BASE_GAUGE_IDS) {
+    const lab = document.createElement('span');
+    lab.className = 'r'; lab.style.setProperty('--c', gaugeDefs()[id].color);
+    lab.textContent = gaugeSpecOf(id).specName;
+    g.appendChild(lab);
+    for (const st of STATES) { const s = document.createElement('div'); s.className = 'stage'; g.appendChild(s); mount(s, id, st); }
+  }
+} else {
+  const one = document.createElement('div');
+  one.className = 'one';
+  one.innerHTML = '<div class="stage" id="stage"></div><div class="cap" id="cap"></div><div class="slots" id="slots"></div>';
+  $('#main').appendChild(one);
+  const w = mount($('#stage'), mech, state, {
+    onFrame: f => { $('#cap').textContent = f.cap || ''; },
+    onReady: ids => { $('#slots').innerHTML = ids.map(s => `<i class="gz-ready-slot" style="--gz-ready:${gaugeDefs()[mech].color}">${s.slice(0, 6)}</i>`).join(''); },
+  });
+  if (state !== 'demo') $('#cap').textContent = fakeView(mech, state).cap || '';
+  if (Q.get('tip') === '1') { w.setAltHeld(true); setTimeout(() => w.showTip(), 50); }
+}
+
+// ---------- mediciones (A2b, A7, A10)
+const rectOf = (el, o) => { const r = el.getBoundingClientRect(); return [r.left - o.left, r.top - o.top, r.width, r.height]; };
+const hit = (a, b, t = 0.5) => a[0] + t < b[0] + b[2] && b[0] + t < a[0] + a[2] && a[1] + t < b[1] + b[3] && b[1] + t < a[1] + a[3];
+const inside = (a, b, t = 0.5) => a[0] >= b[0] - t && a[1] >= b[1] - t && a[0] + a[2] <= b[0] + b[2] + t && a[1] + a[3] <= b[1] + b[3] + t;
+function widgetIssues(host, name) {
+  const gz = $('.gz', host), o = gz.getBoundingClientRect(), out = [];
+  const R0 = [0, 0, o.width, o.height], lbl = rectOf($('.gz-lbl', gz), o), end = rectOf($('.gz-end', gz), o);
+  if (Math.round(o.width) !== 520 || Math.round(o.height) !== 72) out.push(`${name}: huella ${Math.round(o.width)}×${Math.round(o.height)} (≠ 520×72)`);
+  for (const el of $('.gz-body', gz).querySelectorAll('*')) {
+    const r = rectOf(el, o);
+    if (r[2] < 1 || r[3] < 1 || getComputedStyle(el).display === 'none') continue;
+    const tag = (el.getAttribute('class') || el.tagName).split(' ')[0];
+    if (!inside(r, R0)) out.push(`${name}:${tag} se sale`);
+    else if (hit(r, lbl)) out.push(`${name}:${tag} pisa la etiqueta`);
+    else if (hit(r, end)) out.push(`${name}:${tag} pisa el número`);
+  }
+  return [...new Set(out)];
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function measure() {
+  const res = { spec: gaugeSpecOf(mech).specId, id: mech, renderer: gaugeViewFor(mech).generic ? 'generico' : 'propio', errors: gaugeViewErrors() };
+  // A2b: los 5 estados con las animaciones paradas
+  const hadReduce = document.body.classList.contains('reduce-motion');
+  document.body.classList.add('reduce-motion');
+  const wi = [];
+  const ids = Q.get('all') === '1' ? BASE_GAUGE_IDS : [mech];
+  const probe = document.createElement('div'); probe.className = 'stage'; probe.style.position = 'absolute'; probe.style.left = '-2000px';
+  document.body.appendChild(probe);
+  for (const id of ids) {
+    const w = createGaugeHud(probe, { mode: 'live', art });
+    for (const st of STATES) { w.update(fakeView(id, st).view); wi.push(...widgetIssues(probe, `${gaugeSpecOf(id).specId}/${st}`)); }
+    w.destroy();
+  }
+  probe.remove();
+  if (!hadReduce) document.body.classList.remove('reduce-motion');
+  res.solapesWidget = wi;
+  // A7: 1000 update con la MISMA vista (objeto nuevo cada vez) → tiempo medio y mutaciones
+  const host = document.createElement('div'); host.className = 'stage'; document.body.appendChild(host);
+  const w = createGaugeHud(host, { mode: 'live', art });
+  const v = fakeView(mech, 'building').view;
+  w.update(v);
+  await sleep(50);
+  const copy = () => ({ ...v, x: { ...v.x }, seq: { ...v.seq }, ready: [...(v.ready || [])] });
+  const views = Array.from({ length: 1000 }, copy);
+  const mo = new MutationObserver(() => {});
+  mo.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+  let t = performance.now();
+  for (const x of views) w.update(x);
+  const sameMs = (performance.now() - t) / 1000;
+  const mutations = mo.takeRecords().length;
+  mo.disconnect();
+  // informativo: 1000 update con la vista CAMBIANDO (valor y tiempo)
+  const vary = Array.from({ length: 1000 }, (_, i) => ({ ...copy(), value: (i % 50) / 50 * v.max, t: v.t != null ? Math.max(0, (v.t || 0) - i * 0.01) : undefined }));
+  t = performance.now();
+  for (const x of vary) w.update(x);
+  const varyMs = (performance.now() - t) / 1000;
+  res.a7 = { updates: 1000, avgMs: +sameMs.toFixed(4), mutations, avgMsChanging: +varyMs.toFixed(4), ok: sameMs < 0.15 && mutations === 0 };
+  // A10: movimiento reducido → 0 animaciones del widget tras 1 s (incluido un destello)
+  const ww = createGaugeHud(host, { mode: 'demo', id: mech, art });
+  await sleep(1200);
+  const animsOf = h => document.getAnimations().filter(a => h.contains(a.effect?.target)).length;
+  const before = animsOf(host);
+  document.body.classList.add('reduce-motion');
+  const fv = fakeView(mech, 'full').view;
+  ww.setMode('live');
+  ww.update({ ...fv, seq: { ...fv.seq, full: (fv.seq?.full || 0) + 1 } });
+  ww.update({ ...fv, seq: { ...fv.seq, full: (fv.seq?.full || 0) + 2 } });
+  await sleep(1000);
+  res.a10 = { animationsBefore: before, animations: animsOf(host), ok: animsOf(host) === 0 };
+  if (!hadReduce) document.body.classList.remove('reduce-motion');
+  ww.destroy(); host.remove();
+  res.readyLog = readyLog.slice(0, 8);
+  let pre = $('#measure');
+  if (!pre) { pre = document.createElement('pre'); pre.id = 'measure'; document.body.appendChild(pre); }
+  pre.textContent = JSON.stringify(res);
+}
+if (Q.get('measure') === '1') setTimeout(() => measure().catch(e => {
+  const pre = document.createElement('pre'); pre.id = 'measure'; pre.textContent = JSON.stringify({ error: String(e?.stack || e) }); document.body.appendChild(pre);
+}), 300);
+window.__gauges = { widgets, fakeView, measure };
+</script>
+</body>
+</html>
