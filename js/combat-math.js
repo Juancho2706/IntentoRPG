@@ -77,9 +77,24 @@ export function enemyDmgScale(al) { return ENEMY_CURVE.dmgBase * Math.pow(G(al),
 export function enemyXpScale(al) { return 1 + ENEMY_CURVE.xpLin * Math.max(0, (al || 1) - 1); }
 
 // multiplicadores por rango / tipo de enemigo (sobre la vida ya escalada)
-export const RANK_HP = { campeon: 3.0, elite: 6.5 };
+export const RANK_HP = { campeon: 3.0, elite: 6.1 }; // elite = valor en AL 1 (ver eliteHpMult)
 export const RANK_DMG = { campeon: 1.25, elite: 1.45 };
-export const BOSS_HP_MULT = 11.0;   // jefes de piso/mundo
+export const BOSS_HP_MULT = 11.0;   // jefes de piso/mundo (tope de la rampa, ver bossHpMult)
+export const BOSS_HP_MULT_MIN = 4.5; // primer jefe (AL 1): ~30–60 s solo con el ataque básico
+export const BOSS_RAMP_AL = 9;       // la rampa llega a BOSS_HP_MULT en AL 9 (héroe ~Nv10)
+// Vida de jefe por nivel de área: rampa lineal ×4,5 (AL1) → ×11 (AL ≥ 9). Al
+// principio el héroe solo tiene el básico (sin ráfaga): un jefe ×11 duraba >2 min.
+export function bossHpMult(al) {
+  const t = Math.max(0, Math.min(1, ((al || 1) - 1) / (BOSS_RAMP_AL - 1)));
+  return BOSS_HP_MULT_MIN + (BOSS_HP_MULT - BOSS_HP_MULT_MIN) * t;
+}
+// Vida de élite por nivel de área: ×6,1 + 0,002·(AL−1)² (×6,2 en AL9, ×7 en AL22,
+// ×8,55 en AL36). Con el nivel las clases ganan ráfaga (más habilidades y rangos)
+// y los élites se derretían en <4 s; en niveles bajos ×6,5 era demasiado lento.
+export function eliteHpMult(al) {
+  const a = Math.max(0, (al || 1) - 1);
+  return RANK_HP.elite + 0.002 * a * a;
+}
 export const UBER_HP_MULT = 1.0;   // pináculo: su base (900) ya es ~2× la de un jefe
 
 // Daño de peligros del entorno (charcos de fuego, aura ardiente…) por nivel de área

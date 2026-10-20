@@ -147,7 +147,7 @@ export function refEnemies(al, torment = 0) {
   const boss = scaleEnemy(bossForFloor(al), al);
   return {
     common: hp,
-    elite: hp * ENEMY_RANKS.elite.hp * eliteMod,
+    elite: hp * CM.eliteHpMult(al) * eliteMod,
     boss: boss.hp * tm.hp,
     commonDps: dps, champDps: dps * ENEMY_RANKS.campeon.dmg,
   };
@@ -246,7 +246,7 @@ export function ttdPack(p, ref, al) {
 }
 
 // ---------------- ejecución ----------------
-export function runBench({ classes = ['guerrero', 'maga', 'arquera'], levels = [1, 10, 25, 50], torment = [[50, 10]] } = {}) {
+export function runBench({ classes = ['guerrero', 'maga', 'arquera'], levels = [1, 5, 10, 25, 50], torment = [[50, 10]] } = {}) {
   const rows = [];
   const cases = [...levels.map(L => ({ L, T: 0 })), ...torment.map(([L, T]) => ({ L, T }))];
   for (const c of classes) for (const { L, T } of cases) {
@@ -282,13 +282,16 @@ export function printRows(rows) {
 // OBJETIVOS (héroe típico, T0). Dos niveles de exigencia:
 //  - DISEÑO: la MEDIA de las 3 clases dentro del objetivo del Paso 1A
 //    (común 0,6–1,5 s · élite 5–10 · jefe 45–90 · TTD 6–10), con un margen pequeño;
-//  - CLASE: cada clase por separado con tolerancia (hasta el rework de clases
-//    hay diferencias de rol: la Maga/Arquera revientan antes, el Guerrero aguanta).
-// El Nv1 solo tiene el ataque básico (sin ráfaga): su jefe tiene tope propio.
+//  - CLASE: cada clase por separado. Élite (4,5–10,5 s) y TTD (≥ 6 s) se exigen
+//    POR CLASE en todos los niveles; común y jefe con algo de tolerancia (hasta
+//    el rework de clases hay diferencias de rol: la Maga revienta antes).
+// Jefe por nivel: la vida de jefe sube en rampa (combat-math.bossHpMult) → Nv1
+// (solo el básico) 30–60 s, Nv5 30–90 s, y desde Nv10 el rango normal.
 export const TARGETS = {
   mean: { ttkN: [0.6, 1.5], ttkE: [4.5, 10.5], ttkB: [45, 90], ttd: [6, 10] },
-  cls: { ttkN: [0.45, 1.8], ttkE: [3.5, 13], ttkB: [35, 100], ttd: [5, 12] },
-  bossNv1: [35, 150],
+  cls: { ttkN: [0.45, 1.8], ttkE: [4.5, 10.5], ttkB: [35, 100], ttd: [6, 13] },
+  bossNv1: [30, 60],
+  bossRamp: [30, 90],      // Nv 2–9 (rampa)
   ratio: [1.3, 15],        // DPS óptimo / típico (Nv ≥ 10)
   classSpread: 2.5,        // jefe: clase más lenta / más rápida (Nv ≥ 10)
   maxHitBoss: 0.25,        // un golpe del óptimo ≤ 25 % de la vida del jefe
@@ -307,7 +310,7 @@ if (isMain) {
       const t = r.tipico, C = TARGETS.cls;
       chk(inR(t.ttkN, C.ttkN), `${id}: TTK común ${f1(t.ttkN)}s fuera de ${C.ttkN}`);
       chk(inR(t.ttkE, C.ttkE), `${id}: TTK élite ${f1(t.ttkE)}s fuera de ${C.ttkE}`);
-      const bw = r.L === 1 ? TARGETS.bossNv1 : C.ttkB;
+      const bw = r.L === 1 ? TARGETS.bossNv1 : r.L < 10 ? TARGETS.bossRamp : C.ttkB;
       chk(inR(t.ttkB, bw), `${id}: TTK jefe ${f1(t.ttkB)}s fuera de ${bw}`);
       chk(inR(t.ttd, C.ttd), `${id}: TTD manada ${f1(t.ttd)}s fuera de ${C.ttd}`);
       if (r.L >= 10) chk(inR(r.ratio, TARGETS.ratio), `${id}: óptimo/típico ×${r.ratio.toFixed(1)} fuera de ${TARGETS.ratio}`);

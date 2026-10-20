@@ -14,7 +14,7 @@
 ## 1. Convenciones de desarrollo (IMPORTANTES)
 
 - **`npm test` debe quedar en verde** siempre antes de commitear.
-- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v91**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
+- **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v92**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
 - **Git author**: `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita commits "Unverified").
 - **Push a AMBAS ramas**: `claude/isometric-rpg-game-xmer7p` y `main` (fast‑forward `origin <branch>:main`).
 - **No tocar archivos que esté escribiendo un agente en background** (p. ej. informes).
@@ -207,7 +207,7 @@ Habilitan multijugador/ladder y guardado robusto. **Sin cambios de balance ni de
 3. **Efectos de tiempo sin setTimeout en combate** (`js/timers.js`, puro): `TickScheduler` (`schedule(delay, fn)`, `cancel`, `tick(dt)`, `clear()`; orden determinista por instante+alta). `Game.timers` avanza en `tick` con el **dt de la simulación** (se congela con la pausa/paneles y respeta el hit‑stop) y se limpia en `loadWorld`. Migrados: `applyDoT` (→ `applyDoTInstance`), Eco (`castSkillSlot` +0.5 s) y el impacto diferido de `aoe_target` (230 ms; era solo FX/shake, el daño ya era inmediato). La Estela ya iba por tick (`groundZones`). Los `setTimeout` de `ui.js`/`music.js` (UI/audio) se quedan. `test59` vigila que no vuelvan `setTimeout` a main/entities/mixins de combate.
    - **DoT**: UNA instancia por (fuente, objetivo) en `enemy._dots[source]` (fuentes: `${skill}:${tipo}` para soportes/variantes, `rama:${tipo}` para ramas del básico). Al reaplicar se **refresca** e integra el daño pendiente → **mismo daño total** que el apilado anterior (sin cambio de balance), pero temporizadores acotados. Se detiene al morir el objetivo. Cómo deben apilar los DoT (pandemic, tope de stacks…) queda para el **paso de fórmulas (combat‑math)**.
 
-### ✅ Paso 1A — fórmulas de combate con topes reales + banco de balance (HECHO 2026‑10‑20, sw v91, save v2, tests `balance-bench` + `test60`)
+### ✅ Paso 1A — fórmulas de combate con topes reales + banco de balance (HECHO 2026‑10‑20, sw v91→v92 con ajustes, save v2, tests `balance-bench` + `test60`)
 Inspiración (oct‑2026): D4 desde Season of Blood (crítico/vulnerable con multiplicador base fijo y su extra al saco aditivo; resistencias aditivas con tope 70 %; armadura solo física), PoE2 ("increased" suma, "more" multiplica; resistencias con tope) y Last Epoch (orden plano → increased → more → mitigación; armadura `arm/(arm+K)`).
 1. **`js/combat-math.js` (puro) = fuente ÚNICA de fórmulas.** No importa nada del juego (data.js/items.js lo importan a él).
    - **Golpe:** `daño = arma × coef × (1 + Σ ADITIVO/100) × (1 + atributo·0,01) × CRIT × VULN × Π[×]` (`hitDamage`). `Player.rollDamage(coef, critBonus, addPct)` tira arma+crítico; Vulnerable y Π[×] los aplica `Enemy.takeDamage` al IMPACTAR (`opts.proc` = espinas/explosiones: sin Π).
@@ -224,26 +224,35 @@ Inspiración (oct‑2026): D4 desde Season of Blood (crítico/vulnerable con mul
    - **Volátil:** 50 % del golpe medio del héroe (`volatileDamage`), NO de la vida del muerto; Juicio/Conflagración igual (60/70 %). Guarda `_killBurst` en `onEnemyKilled`: una muerte por explosión no dispara otra (antes: cadena recursiva de toda la manada). Son procs (sin Π).
    - **Defensa en capas** (`mitigate`): bloqueo → armadura (solo físico, `arm/(arm+60·G(AL))`, tope 75 %) → resistencia por elemento (`resFire/resCold/resLightning/resPoison`, 0 por defecto, tope 70 %) → reducción % (`dr`, tope 50 %). `Player.takeDamage(amount, AL, {element, melee, source})`. Fuego: aura ardiente y charcos (`hazardDamage`). **Espinas solo cuerpo a cuerpo** (`melee:true` en golpe melee y embestida; refleja al atacante).
    - **Recurso:** regen de Maná/Energía `resourceRegen = base × (1 + Energía·0,02)` (antes 0,05: la Maga tenía recurso casi infinito).
-2. **Curva única de nivel de área** `G(AL) = 1,065^(AL−1)` (×2 cada ~11 AL). Enemigos (`scaleEnemy`): vida `base·G^1,38`, daño `base·1,5·G^0,85`, XP lineal (sin cambio). Rangos: campeón vida ×3/daño ×1,25, élite ×6,5/×1,45; jefes ×11 vida (`BOSS_HP_MULT`; Guardián de bastión ×1,3 extra, antes ×1,8). Objetos: arma `3·G(ilvl)`, armadura `2·G(ilvl)`, afijos planos ×G, **atributos** ×(1+0,12·(ilvl−1)) (lineal: multiplican el daño). `ILVL_MAX = 40` (generateItem/rollDrops/sets/reliquias acotan).
+2. **Curva única de nivel de área** `G(AL) = 1,065^(AL−1)` (×2 cada ~11 AL). Enemigos (`scaleEnemy`): vida `base·G^1,38`, daño `base·1,5·G^0,85`, XP lineal (sin cambio). Rangos: campeón vida ×3/daño ×1,25, élite ×(6,1 + 0,002·(AL−1)²)/×1,45 (`eliteHpMult`: ×6,2 en AL9, ×7 en AL22, ×8,55 en AL36); jefes en rampa ×4,5 (AL1) → ×11 (AL≥9) (`bossHpMult`; Guardián de bastión ×1,3 extra, antes ×1,8). Objetos: arma `3·G(ilvl)`, armadura `2·G(ilvl)`, afijos planos ×G, **atributos** ×(1+0,12·(ilvl−1)) (lineal: multiplican el daño). `ILVL_MAX = 40` (generateItem/rollDrops/sets/reliquias acotan).
 3. **Tormento** (`tormentMods(T)`): ya NO sube el nivel de área (`scaleFloor` sin +T). Multiplicadores por escalón aplicados en `buffByPact` a TODO enemigo: vida ×(1+0,4T), daño ×(1+0,15T), XP ×(1+0,1T); botín: MF 12T, cantidad 8T y **calidad pre‑forjada ⌊T/2⌋** (`rollDrops({quality})`), con el ilvl del área. T10 con el equipo de T10 es ~3× más lento y ~2× más letal que T0 (antes era MÁS FÁCIL).
-4. **Datos ajustados por el banco:** Furia del Tajo 11→13, Torbellino CD 4→3, Martillo CD 5→4, Bola de Fuego CD 0,9→1,5; descripciones de Furia/Sed de Batalla/Tiro Mortal/Cacería/Volátil/Sangre Fría corregidas.
+4. **Datos ajustados por el banco:** Furia del Tajo 11→13, Torbellino CD 4→3, Martillo CD 5→4, Bola de Fuego CD 0,9→1,5; vida por nivel por clase (`hpPerLevel`: Guerrero 4, Maga 6, Arquera 6) y vida base Maga 32→70, Arquera 38→65 (TTD ≥ 6 s por clase); descripciones de Furia/Sed de Batalla/Tiro Mortal/Cacería/Volátil/Sangre Fría corregidas.
 5. **Guardado v2** (`MIGRATIONS[1]`): `rescaleItemToCurrent` (items.js) pasa equipo/mochila/cubo de la escala lineal vieja a G (arma ×weaponBase/legacy, armadura, afijos no planos) y acota ilvl; idempotente con `item.sv = 2`. El alijo se reescala en `Game.loadStash`.
 6. **UI:** crítico "×1,5 · tope 60 %", armadura con % de reducción física vs el nivel de área actual, línea "Vel. de ataque" (ataques/s y +%), topes en tooltips de CDR/velocidad, Tormento con sus multiplicadores; `_charDPS` usa `CRIT_MULT`.
-7. **Banco de balance** (`tests/balance-bench.mjs`, `--report` solo imprime): héroes reales (Player/generateItem/maestría/paragon/bendiciones/soportes/mods) de las 3 clases, típico (raros, sin soportes/mods) vs óptimo (legendarios calidad 5 con Furia/Volátil/Vendaval, Amplificado+Sobrecarga, Brutal+Frenético+transformación, glifos r10, bendiciones), Nv 1/10/25/50 + Nv50 T10, `rng.js` con semilla fija. Simula rotación (prioridad: buff inactivo → habilidad lista de mayor coef → básico; 1 acción/0,3 s; recurso/CD reales; Eco/DoT/Estela/Vulnerable) contra cadenas de 24 comunes / 6 élites / 2 jefes; TTD = manada (campeón + 4 comunes) pegando sin pausa, sin mitigación activa. Supuestos: objetivo único (AoE/rebotes/multiproyectil no suman), sin Cero Absoluto. Afirma: por clase común 0,45–1,8 s · élite 3,5–13 · jefe 35–100 (Nv1: 35–150, solo básico) · TTD 5–12; **media de clases** común 0,6–1,5 · élite 4,5–10,5 · jefe 45–90 · TTD 6–10; óptimo/típico 1,3–15×; dispersión de jefe entre clases ≤2,5×; ningún golpe óptimo >25 % de la vida del jefe; T10 > ×1,5 TTK y < ×0,8 TTD que T0.
+7. **Banco de balance** (`tests/balance-bench.mjs`, `--report` solo imprime): héroes reales (Player/generateItem/maestría/paragon/bendiciones/soportes/mods) de las 3 clases, típico (raros, sin soportes/mods) vs óptimo (legendarios calidad 5 con Furia/Volátil/Vendaval, Amplificado+Sobrecarga, Brutal+Frenético+transformación, glifos r10, bendiciones), Nv 1/5/10/25/50 + Nv50 T10, `rng.js` con semilla fija. Simula rotación (prioridad: buff inactivo → habilidad lista de mayor coef → básico; 1 acción/0,3 s; recurso/CD reales; Eco/DoT/Estela/Vulnerable) contra cadenas de 24 comunes / 6 élites / 2 jefes; TTD = manada (campeón + 4 comunes) pegando sin pausa, sin mitigación activa. Supuestos: objetivo único (AoE/rebotes/multiproyectil no suman), sin Cero Absoluto. Afirma: **por clase** élite 4,5–10,5 s y TTD 6–13 s en todos los niveles, común 0,45–1,8 s, jefe 35–100 s (Nv1, solo básico: 30–60; Nv5, rampa: 30–90); **media de clases** común 0,6–1,5 · élite 4,5–10,5 · jefe 45–90 · TTD 6–10; óptimo/típico 1,3–15×; dispersión de jefe entre clases ≤2,5×; ningún golpe óptimo >25 % de la vida del jefe; T10 > ×1,5 TTK y < ×0,8 TTD que T0.
    - Resultados (típico; TTK común/élite/jefe · TTD, s):
      | | ANTES (HEAD) | DESPUÉS |
      |---|---|---|
-     | Guerrero Nv10 | 0,95 / 3,2 / 4,0 · 6,2 | 1,46 / 10,6 / 86 · 10,0 |
-     | Guerrero Nv50 | 0,35 / 0,8 / 1,1 · 5,5 | 0,96 / 6,0 / 68 · 6,2 |
-     | Maga Nv10 | 0,34 / 1,0 / 1,1 · 3,3 | 0,61 / 4,9 / 40 · 5,1 |
-     | Maga Nv50 | 0,34 / 0,5 / 0,6 · 2,9 | 0,56 / 3,9 / 57 · 6,1 |
-     | Arquera Nv10 | 0,68 / 1,9 / 3,1 · 6,6 | 1,10 / 8,6 / 66 · 5,6 |
-     | Arquera Nv50 | 0,35 / 0,6 / 0,4 · 4,1 | 0,57 / 4,7 / 54 · 5,7 |
-     | Nv50 T10 (G/M/A) jefe · TTD | 2,5/0,9/0,6 · 6,2/5,2/5,4 (¡más fácil que T0!) | 209/235/405 · 3,4/2,8/3,8 (óptimo: 37/60/61 · 6,4/6,1/7,6) |
+     | Guerrero Nv1 | 0,89 / 3,1 / 7,1 · 13,4 | 1,50 / 10,3 / 57 · 7,4 |
+     | Guerrero Nv5 | — | 1,15 / 7,9 / 44 · 6,7 |
+     | Guerrero Nv10 | 0,95 / 3,2 / 4,0 · 6,2 | 1,46 / 10,3 / 86 · 10,0 |
+     | Guerrero Nv25 | 0,57 / 1,1 / 3,0 · 6,3 | 1,12 / 8,5 / 80 · 7,4 |
+     | Guerrero Nv50 | 0,35 / 0,8 / 1,1 · 5,5 | 0,96 / 8,6 / 68 · 6,2 |
+     | Maga Nv1 | 0,89 / 3,1 / 7,6 · 7,7 | 1,34 / 9,4 / 49 · 8,3 |
+     | Maga Nv5 | — | 0,77 / 5,8 / 31 · 8,5 |
+     | Maga Nv10 | 0,34 / 1,0 / 1,1 · 3,3 | 0,61 / 4,7 / 40 · 6,2 |
+     | Maga Nv25 | 0,34 / 0,6 / 0,6 · 4,7 | 0,64 / 4,9 / 58 · 6,9 |
+     | Maga Nv50 | 0,34 / 0,5 / 0,6 · 2,9 | 0,56 / 5,4 / 57 · 6,6 |
+     | Arquera Nv1 | 1,37 / 4,3 / 10,3 · 9,3 | 1,20 / 8,3 / 43 · 9,8 |
+     | Arquera Nv5 | — | 1,34 / 8,4 / 49 · 12,3 |
+     | Arquera Nv10 | 0,68 / 1,9 / 3,1 · 6,6 | 1,10 / 8,2 / 66 · 6,5 |
+     | Arquera Nv25 | 0,38 / 1,1 / 1,6 · 5,1 | 1,05 / 8,6 / 86 · 7,3 |
+     | Arquera Nv50 | 0,35 / 0,6 / 0,4 · 4,1 | 0,57 / 6,2 / 54 · 6,3 |
+     | Nv50 T10 (G/M/A) jefe · TTD | 2,5/0,9/0,6 · 6,2/5,2/5,4 (¡más fácil que T0!) | 209/235/405 · 3,4/3,0/4,1 (óptimo: 37/60/61 · 6,4/6,3/7,9) |
      | óptimo/típico DPS | ×2–38 (saturado: el jefe moría de 1 golpe) | ×3,1–13,5 |
      | golpe máx. óptimo / vida jefe | 70 %–1757 % | 2–13,5 % |
    - `balance-regression.mjs` ahora vigila **ritmo** (XP/nivel, TTK del básico, golpes aguantados) con las fórmulas de combat-math; `test38` comprueba que cada escalón de Tormento (con la calidad que da) sube el TTK y baja el aguante.
-8. **Riesgos/pendientes:** (a) diferencias por clase (Maga/Arquera revientan comunes antes; Guerrero Nv10 más lento) → rework de clases/talentos con el banco; (b) a T10 el equipo típico muere en ~3 s ante manadas: T10 es para builds optimizadas; (c) objetos viejos reescalados (ilvl alto pierde ~3× de daño de arma, igual que los enemigos nuevos); (d) azar de combate: `player.combatRng` opcional (si no, Math.random) — base para el ladder; (e) el banco no modela AoE, movimiento ni mecánicas de jefe; (f) apilado de DoT (pandemic/tope) sigue pendiente; (g) fuentes de `block`/`dr`/resistencias aún no existen en el botín (preparadas).
+8. **Riesgos/pendientes:** (a) diferencias por clase (la Maga revienta comunes antes; Guerrero Nv10 más lento contra jefes; márgenes justos: élite Maga Nv10 4,7 s, TTD Guerrero Nv50 6,2 s) → rework de clases/talentos con el banco; (b) a T10 el equipo típico muere en ~3 s ante manadas: T10 es para builds optimizadas; (c) objetos viejos reescalados (ilvl alto pierde ~3× de daño de arma, igual que los enemigos nuevos); (d) azar de combate: `player.combatRng` opcional (si no, Math.random) — base para el ladder; (e) el banco no modela AoE, movimiento ni mecánicas de jefe; (f) apilado de DoT (pandemic/tope) sigue pendiente; (g) fuentes de `block`/`dr`/resistencias aún no existen en el botín (preparadas).
 
 - `recompute()` **ignora objetos sin identificar** (no dan stats) — clave en tests de gemas (ver `test9`, ya endurecido).
 - El motor de partículas necesita `document` (canvas) → guardado con try/catch para tests headless (`game.psys?`).

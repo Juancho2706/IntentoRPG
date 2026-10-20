@@ -2,7 +2,7 @@
 // Datos del juego: clases, habilidades, enemigos, constantes
 // ============================================================
 
-import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, BOSS_HP_MULT, UBER_HP_MULT } from './combat-math.js';
+import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, UBER_HP_MULT, bossHpMult, eliteHpMult } from './combat-math.js';
 
 export const TIER_LEVELS = [1, 6, 12]; // nivel de personaje para desbloquear cada tier
 
@@ -22,7 +22,7 @@ export const CLASSES = {
     desc: 'Maestro del combate cuerpo a cuerpo. Fuerte, resistente y letal de cerca.',
     base: { fue: 18, des: 10, vit: 16, ene: 6 },
     mainStat: 'fue',
-    baseHP: 45, baseMP: 40, hpPerVit: 4, mpPerEne: 1.5,
+    baseHP: 45, baseMP: 40, hpPerVit: 4, hpPerLevel: 4, mpPerEne: 1.5,
     atkRange: 2.1, atkTime: 1.0, ranged: false, atk: 'cleave',
     fists: [3, 6],
     resource: { id: 'furia', name: 'Furia', icon: '🔥', color: 0xff5a3c, regen: 0, decay: 8, start: 0, gen: 13 },
@@ -86,7 +86,7 @@ export const CLASSES = {
     desc: 'Domina los elementos a distancia. Frágil pero con un poder inmenso.',
     base: { fue: 8, des: 10, vit: 10, ene: 22 },
     mainStat: 'ene',
-    baseHP: 32, baseMP: 28, hpPerVit: 3, mpPerEne: 2.2,
+    baseHP: 70, baseMP: 28, hpPerVit: 3, hpPerLevel: 6, mpPerEne: 2.2,
     atkRange: 7, atkTime: 1.1, ranged: true, atk: 'bolt',
     fists: [2, 5],
     resource: { id: 'mana', name: 'Maná', icon: '🔵', color: 0x4a8cff, regen: 1, decay: 0, start: 1, gen: 7 },
@@ -123,7 +123,7 @@ export const CLASSES = {
     desc: 'Rápida y precisa. Acaba con sus enemigos antes de que se acerquen.',
     base: { fue: 10, des: 20, vit: 12, ene: 8 },
     mainStat: 'des',
-    baseHP: 38, baseMP: 22, hpPerVit: 3.5, mpPerEne: 1.8,
+    baseHP: 65, baseMP: 22, hpPerVit: 3.5, hpPerLevel: 6, mpPerEne: 1.8,
     atkRange: 8.5, atkTime: 0.9, ranged: true, atk: 'arrow',
     fists: [2, 5],
     resource: { id: 'energia', name: 'Energía', icon: '🟢', color: 0x6ad06a, regen: 1.5, decay: 0, start: 1, gen: 8 },
@@ -294,10 +294,11 @@ export const GOBLIN = {
 
 // Escalado de enemigos por nivel de área (= piso). Fórmulas en combat-math:
 // vida ∝ G(AL)^ENEMY_CURVE.hpExp, daño ∝ G(AL)^dmgExp, XP lineal. Los jefes multiplican su vida
-// (BOSS_HP_MULT) para combates de ~1 min con el equipo típico (banco de balance).
+// con una rampa por nivel de área (bossHpMult: ×4,5 en AL1 → ×11 en AL≥9) para
+// combates de ~30–60 s al principio y ~1 min después (banco de balance).
 export function scaleEnemy(def, floor) {
   const al = Math.max(1, floor || 1);
-  const bossMul = (def.boss ? BOSS_HP_MULT : 1) * (def.uber ? UBER_HP_MULT : 1);
+  const bossMul = (def.boss ? bossHpMult(al) : 1) * (def.uber ? UBER_HP_MULT : 1);
   return {
     ...def,
     hp: Math.max(1, Math.round(def.hp * enemyHpScale(al) * bossMul)),
@@ -357,7 +358,8 @@ export function rollEnemyRank(def, floor, rng = Math.random) {
 
   const out = {
     ...def, rank: rank.id, glow: rank.glow, labelCls: rank.labelCls,
-    hp: Math.round(def.hp * rank.hp), dmg: Math.round(def.dmg * rank.dmg),
+    // élite: vida según el nivel de área (combat-math.eliteHpMult); campeón fijo
+    hp: Math.round(def.hp * (rank.id === 'elite' ? eliteHpMult(floor) : rank.hp)), dmg: Math.round(def.dmg * rank.dmg),
     xp: Math.round(def.xp * rank.xp), scale: (def.scale || 1) * rank.scale,
     rankLabel: `${rank.icon} ${def.name} ${rank.name}`,
   };

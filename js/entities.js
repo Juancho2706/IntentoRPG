@@ -689,7 +689,7 @@ export class Player {
 
     this.stats = {
       ...a,
-      maxHP: Math.round(c.baseHP + a.vit * c.hpPerVit + item.hp + (this.level - 1) * 4),
+      maxHP: Math.round(c.baseHP + a.vit * c.hpPerVit + item.hp + (this.level - 1) * (c.hpPerLevel ?? 4)), // vida por nivel según clase (Paso 1A)
       maxMP: Math.round(c.baseMP + a.ene * c.mpPerEne + item.mp + (this.level - 1) * 2),
       // daño de hoja (arma × atributo × saco aditivo de equipo): lo que ve la UI
       dmgMin: Math.max(1, Math.round(sheet(wDmg[0]))),
