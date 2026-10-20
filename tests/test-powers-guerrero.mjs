@@ -374,12 +374,8 @@ const G = (spec = {}, extra = {}) => H({ spec: 'guardian', talents: { spec, ...e
   const h = G({ s7: 1, s8: 2 });
   const p = h.p;
   assert.ok(p.powers.has('g_martillo_pesado') && !p.powers.has('g_desafio_firme') && p.powers.has('nucleo_tv'), 's7 lleva g_martillo_pesado; s8, la clave del núcleo');
-  // 2e: el Martillo de la clase es la onda ligera (0,34, el constructor de Fervor del Cruzado);
-  // con Martillo Pesado pasa a un golpe de 2,0 (× rango de la habilidad)
-  const mp = resolveSkill(p, SK('g_martillo'));
-  assert.ok(approx(mp.coef, 2.0 * (1 + 0.1 * (mp.rank - 1)), 1e-9), `Martillo Pesado: coef 2,0 × rango (${mp.coef})`);
-  const mp0 = resolveSkill(G().p, SK('g_martillo'));
-  assert.ok(approx(mp0.coef, 0.34 * (1 + 0.1 * (mp0.rank - 1)), 1e-9), `sin s7: la onda ligera 0,34 (${mp0.coef})`);
+  // 2e: Martillo Pesado +50 %/rango de daño de Martillo (saco aditivo de la habilidad)
+  assert.equal(resolveSkill(p, SK('g_martillo')).addPct - resolveSkill(G().p, SK('g_martillo')).addPct, 50, 'Martillo Pesado: +50 % con 1 rango');
   h.setSlot('rmb', 'g_martillo');
   for (const z of [-0.6, 0, 0.6]) h.enemy({ hp: 1e6, pos: [2.5, 0, z] });
   h.aim(2.5, 0); p.mp = 100;

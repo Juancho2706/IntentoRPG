@@ -76,7 +76,7 @@
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { gainGauge, spendGauge, gaugeValue, gaugeMax } from './spec-mechanics.js';
-import { dotProfile, rankCoef } from './combat-math.js';
+import { dotProfile } from './combat-math.js';
 import { spendResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 // (importados: úsalos solo dentro de los ganchos)
@@ -97,7 +97,7 @@ function tun() {
     eternal: 2,                        // x3 Matanza Eterna: +2 s de Desenfreno por remate
     frenzy: { aspdPct: 30, dur: 8, healPct: 1 },                            // s14 Desenfreno
     negacion: { icd: 120 },
-    desafioFirme: 2, martilloPesado: { hits: 3, n: 1, coef: 2.0 },          // Guardián s4 / s7 (coef: Paso 2e)
+    desafioFirme: 2, martilloPesado: { hits: 3, n: 1 },                     // Guardián s4 / s7
     reto: { pct: 20, dur: 8 },                                              // Guardián s6B
     juramento: 10,                     // s13A: Muro Inquebrantable 30 → 20 s
     vinculo: { pct: 20, radius: 10 },                                       // s14
@@ -330,15 +330,10 @@ export function guerreroPowers() {
         if (cast?.sk?.id === 'g_t_desafio' && res?.hits > 0) gainGauge(p, 'bastion', T.desafioFirme);
       },
     },
-    // s7 Martillo Pesado (+15 %/rango de daño de Martillo: mod del nodo): el Martillo de
-    // Guerra pasa de la onda ligera de la clase (coef 0,34, el constructor de Fervor del
-    // Cruzado) a un golpe pesado de coef T.martilloPesado.coef (escala con el rango de la
-    // habilidad, Paso 2e); si golpea a 3 o más, +1 carga de Bastión
+    // s7 Martillo Pesado (+X %/rango de daño de Martillo: mod del nodo): si Martillo de
+    // Guerra golpea a 3 o más, +1 carga de Bastión
     g_martillo_pesado: {
-      name: 'Martillo Pesado', desc: 'Martillo de Guerra golpea con el 200 % del arma; si golpea a 3 o más enemigos, suma 1 carga de Bastión.',
-      modifyResolve(p, sk, prof) {
-        if (sk.id === 'g_martillo') prof.coef = Math.max(prof.coef, T.martilloPesado.coef * rankCoef(prof.rank));
-      },
+      name: 'Martillo Pesado', desc: 'Si Martillo de Guerra golpea a 3 o más enemigos, suma 1 carga de Bastión.',
       afterCast(g, p, cast, res) {
         if (cast?.sk?.id === 'g_martillo' && res?.hits >= T.martilloPesado.hits) gainGauge(p, 'bastion', T.martilloPesado.n);
       },

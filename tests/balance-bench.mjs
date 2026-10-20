@@ -894,8 +894,10 @@ export const TARGETS = {
   },
   bestBy: 1.10,
   // intercambio de la ranura 2 (salvo el Guardián): ofensiva +12–25 % de UNI sobre la
-  // defensiva y defensiva ≥ +30 % de TTD+ sobre la ofensiva
-  k2Tradeoff: { uni: [0.12, 0.25], ttdp: 0.30, except: ['guardian'] },
+  // defensiva y defensiva ≥ +30 % de TTD+ sobre la ofensiva. noUniCap (decisión del jefe,
+  // 2e): el Cruzado es APOYO; su ofensiva (Martillo de Guerra, motor del Fervor) puede dar
+  // más de +25 % de UNI: su métrica de rol es APOYO y su defensiva se juzga por TTD+
+  k2Tradeoff: { uni: [0.12, 0.25], ttdp: 0.30, except: ['guardian'], noUniCap: ['cruzado'] },
 };
 
 export function checkRows(rows) {
@@ -1012,7 +1014,8 @@ export function checkSpecs(rows, { margin = 0 } = {}) {
     const K = TARGETS.k2Tradeoff;
     if (!K.except.includes(r.spec)) {
       const u = r.uniOff.dps / Math.max(1e-9, r.uniDef.dps) - 1, t = r.ttdp / Math.max(1e-9, r.ttdpOff) - 1;
-      chk(inR(u, K.uni), `${id}: ranura 2 ofensiva ${sgn(u)} de UNI sobre la defensiva (objetivo +12–25 %)`);
+      const uOk = K.noUniCap.includes(r.spec) ? u >= up(K.uni[0]) : inR(u, K.uni);
+      chk(uOk, `${id}: ranura 2 ofensiva ${sgn(u)} de UNI sobre la defensiva (objetivo +12–25 %${K.noUniCap.includes(r.spec) ? ', sin tope: apoyo' : ''})`);
       chk(t >= up(K.ttdp), `${id}: ranura 2 defensiva ${sgn(t)} de TTD+ sobre la ofensiva (objetivo ≥ +30 %)`);
     }
   }

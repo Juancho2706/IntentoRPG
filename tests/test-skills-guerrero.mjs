@@ -28,7 +28,7 @@ const EXPECT = {
   g_embate:       { st: 'R', cat: 'basic',    req: 8,  coef: 0.6, cost: 0,  cd: 0,  gen: 7 },    // básico C (Nv8)
   torbellino:     { st: 'R', cat: 'spender',  req: 2,  coef: 1.5, cost: 25, cd: 0 },   // 1,6 → 1,5 (2e: con Torbellino de Acero)
   g_hendidura:    { st: 'R', cat: 'spender',  req: 8,  coef: 2.9, cost: 27, cd: 0 },   // 2,6/30 → 2,9/27 (banco 2b.2)
-  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 0.34, cost: 30, cd: 0 },  // 2,4 → 1,8 → 0,34 (2e: constructor de Fervor; el Guardián lo hace pesado con s7)
+  g_martillo:     { st: 'R', cat: 'spender',  req: 8,  coef: 1.5, cost: 30, cd: 0 },   // 2,4 → 1,8 → 1,5 (banco de roles 2e: área del Cruzado y UNI del Berserker)
   terremoto:      { st: 'R', cat: 'spender',  req: 14, coef: 3.1, cost: 26, cd: 4 },   // 3,0/35/6 → 3,1/26/4 (banco 2b.2)
   g_lanza:        { st: 'C', cat: 'spender',  req: 14, coef: 1.9, cost: 20, cd: 0 },
   embestida:      { st: 'C', cat: 'movement', req: 4,  coef: 1.2, cost: 0,  cd: 8 },

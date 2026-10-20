@@ -160,7 +160,7 @@ Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una 
 | `g_embate` | Embate | R | lmb | basic melee area | **+7** (+2/extra, máx. 15) | cadencia ×1,1 | 0,6 × todos en r 2,5 | — | 0 | hordas; c5B | anillo / `hit` |
 | `torbellino` | Torbellino | R | rmb/k2 | spender melee area | 25 | — | **1,6** × todos r 2,9 | Giro instantáneo | 0 / 0,3 s | Berserker (s3, s10, s16), c9 | aura de giro / `dash` |
 | `g_hendidura` | Hendidura | R | rmb/k2 | spender melee cone | 30 | — | **2,6** cono 120° 4,5 m | Golpe frontal pesado (ya no es otro Torbellino) | **120 ms** | Berserker (s3, s10) | arco rojo / `hit` |
-| `g_martillo` | Martillo de Guerra | R | rmb/k2 | spender melee area | 30 | — | **2,4** r 3 delante (alcance 2,5) | Genera Fervor (1 cada 3 impactos) o Bastión (s7). **Paso 2e:** la onda base es ligera (0,34, el constructor de Fervor del Cruzado); Martillo Pesado (Guardián s7) la convierte en un golpe de 2,0 | **150 ms** | Guardián, Cruzado | onda + polvo / `hit` grave |
+| `g_martillo` | Martillo de Guerra | R | rmb/k2 | spender melee area | 30 | — | **2,4** r 3 delante (alcance 2,5) | Genera Fervor (1 cada 3 impactos) o Bastión (s7). **Paso 2e:** 1,8 → 1,5; Martillo Pesado (Guardián s7) +50 %/rango | **150 ms** | Guardián, Cruzado | onda + polvo / `hit` grave |
 | `terremoto` | Terremoto | R | rmb/k2 | spender line cc | 35 | 6 s | **3,0** en línea 8×2 m | Aturde **0,75 s** a los no jefes; en jefes suma 20 de stagger | **150 ms** | Guardián (s10) | grieta en el suelo / temblor |
 | `g_lanza` | Lanza Arrojadiza | C | rmb/k2 | spender proj | 20 | — | **1,9** perforante | Opción a distancia para voladores o lanzadores | 0 / 0,3 s | todas | `shoot` |
 | `embestida` | Embestida | C | k1 | movement melee area | gen **+12** si golpea | 8 s | 1,2 r 1,9 al llegar | Embiste 7 m | 0 / 0,25 s | Berserker, c11 | estela / `dash` |
@@ -686,10 +686,11 @@ Reglas transversales:
 - La definitiva aporta el **12–22 %** del daño en UNI. Fuera de ese rango, o es una trampa (como hoy, 0,15 WD/s) o es obligatoria.
 - **Básico frente a gastadoras**: en UNI, el DPS de «solo básico» ≤ **0,6×** el de la rotación. La auditoría encontró básicos que superaban a todas las gastadoras.
 - Ningún golpe ≥ 25 % de la vida del jefe (se mantiene).
-- **Intercambio de la ranura `2`**, para cada especialización salvo el Guardián:
+- **Intercambio de la ranura `2`**, para cada especialización salvo el Guardián (y, en el tope, el Cruzado; ver abajo):
   - la variante ofensiva da **+12–25 %** de UNI sobre la defensiva;
   - la defensiva da **≥ +30 %** de TTD+ sobre la ofensiva.
   Fuera de esos rangos, una de las dos opciones es una trampa y se ajusta.
+  - **Cruzado (Paso 2e, decisión del jefe): exento del tope de +25 %.** Es APOYO: su métrica de rol es APOYO y su ranura 2 defensiva (Bramido) se juzga por TTD+, no por UNI. Su ofensiva lleva el Martillo de Guerra, el motor de su Fervor, y la defensiva no lleva ninguna gastadora de Furia, así que la ofensiva gana siempre mucho UNI (+50–70 %). Ajustarlo exigía un Martillo de trampa (0,34) que castigaba a todo el Guerrero (Nv8–9 sin especialización, el Guardián antes de Martillo Pesado). Mantiene el suelo (+12 %), la exigencia de la defensiva (≥ +30 % de TTD+) y sus objetivos de APOYO, TTD+ y UNI. En el banco: `TARGETS.k2Tradeoff.noUniCap`.
 - Los objetivos de rol de §7.2 (TTD+ ≥ 2,0·M del Guardián, suelos de TTD+) se calculan con la **variante defensiva** de todas las especializaciones. Así el tanque se compara con los demás en igualdad, porque todos llevan una defensa.
 - `--report` imprime una matriz de 9 especializaciones × 5 escenarios, con UNI y TTD+ desdoblados por variante.
 
