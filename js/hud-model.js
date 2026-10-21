@@ -34,7 +34,7 @@ export const mapIcon = (name) => (name ? `${MAP_BASE}${name}.webp` : null);
 // D14: las etiquetas visibles salen de CAT_LABELS (skill-defs.js); la clave interna no cambia
 export const BOOK_SECTIONS = Object.freeze([
   { id: 'basic', label: CAT_LABELS.basic, hint: 'Genera recurso · clic izquierdo', cats: ['basic'], icon: 'cat_basico', slots: ['lmb'] },
-  { id: 'spender', label: CAT_LABELS.spender, hint: 'Gasta recurso · clic derecho o ranura 2', cats: ['spender'], icon: 'cat_gastadora', slots: ['rmb', 'k2'] },
+  { id: 'spender', label: CAT_LABELS.spender, hint: 'Gasta recurso · clic derecho o ranura 2', cats: ['spender'], icon: 'cat_principal', slots: ['rmb', 'k2'] },
   { id: 'movement', label: CAT_LABELS.movement, hint: 'Ranura 1 · fuera del enfriamiento global', cats: ['movement'], icon: 'cat_movilidad', slots: ['k1'] },
   { id: 'defense', label: `${CAT_LABELS.defense} · ${CAT_LABELS.utility.toLowerCase()}`, hint: 'Ranura 2 (flexible)', cats: ['defense', 'utility'], icon: 'cat_defensa', slots: ['k2'] },
   { id: 'spec', label: CAT_LABELS.spec, hint: 'Ranura 3 · la otorga tu especialización', cats: ['spec'], icon: 'cat_especializacion', slots: ['k3'] },
@@ -66,7 +66,7 @@ export function bookSections(skills, opts = {}) {
 // ranura 2 flexible: las dos pestañas del selector (§1.1, §1.4)
 export const K2_TABS = Object.freeze([
   { id: 'defense', label: `${CAT_LABELS.defense}/${CAT_LABELS.utility.toLowerCase()}`, cats: ['defense', 'utility'], icon: 'cat_defensa' },
-  { id: 'spender', label: CAT_LABELS.spender, cats: ['spender'], icon: 'cat_gastadora' },
+  { id: 'spender', label: CAT_LABELS.spender, cats: ['spender'], icon: 'cat_principal' },
 ]);
 // candidatas de cada pestaña (fits = fitsSlot de skill-resolve; known = isKnown)
 export function k2Tabs(skills, { fits, known } = {}) {

@@ -56,16 +56,6 @@
       "stage": "E2",
       "por": "p.cds escrito fuera del motor: skills-arquera.js (301, 308 y 309), powers-arquera.js (281, 806, 851 y 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
     },
-    "test76-talentos-mecanica.mjs": {
-      "owner": "U1",
-      "stage": "E3",
-      "por": "importa SPEC_INFO/mechInfo/TALENT_LAYOUTS de ui-talents.js (panel v1) y cita nodos v1 (s0) que no existen en los árboles v2"
-    },
-    "test71-hud-modelo.mjs": {
-      "owner": "U2",
-      "stage": "E3 (tras KA1)",
-      "por": "el libro espera una sección de especialización y la insignia por s0: el kit de especialización llega al catálogo con KA1 (D7); además slotView y libro de 2f"
-    },
     "balance-bench.mjs": {
       "owner": "B1",
       "stage": "E4",

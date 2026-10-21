@@ -110,7 +110,7 @@ const UI_ASSETS = [
   './assets/ui/cat_defensa.webp',
   './assets/ui/cat_definitiva.webp',
   './assets/ui/cat_especializacion.webp',
-  './assets/ui/cat_gastadora.webp',
+  './assets/ui/cat_principal.webp',
   './assets/ui/cat_movilidad.webp',
   './assets/ui/eq_amuleto.webp',
   './assets/ui/eq_anillo.webp',

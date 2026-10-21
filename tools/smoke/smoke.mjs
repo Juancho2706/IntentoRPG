@@ -225,13 +225,26 @@ const canvasPoint = page => page.evaluate(() => {
     const x = Math.round(w * fx), y = Math.round(h * fy);
     if (document.elementFromPoint(x, y) === cv) return { x, y };
   }
-  return null;
+  // qué capa tapa el centro (para el detalle del fallo)
+  const el = document.elementFromPoint(Math.round(w * 0.5), Math.round(h * 0.42));
+  const path = [];
+  for (let n = el; n && n !== document.body && path.length < 4; n = n.parentElement) path.push(n.tagName.toLowerCase() + (n.id ? '#' + n.id : '') + (n.classList.length ? '.' + [...n.classList].join('.') : ''));
+  return { blocked: path.join(' < ') || String(el), panel: window.__game.ui?.activePanel || null };
 });
+
+// el aviso de Nv10 puede abrir el selector de especialización (pantalla completa) entre
+// setLevel y chooseSpec, y el panel sigue abierto tras elegir: se cierra antes del ratón real
+// y se espera al frame que quita la pausa (con la partida en pausa no arranca ninguna carga)
+async function closePanels(page) {
+  await page.evaluate('window.__game.ui?.closePanel?.()');
+  await page.waitFor(() => !window.__game._paused, null, { timeout: 5000 });
+}
 
 async function chordStep(page, cls, info) {
   return step(`${cls} · botones acordes con eventos reales (🖱️Izq y luego 🖱️Der, §3.6.1)`, async () => {
+    await closePanels(page);
     const pt = await canvasPoint(page);
-    check(pt, 'ningún punto de la zona de combate deja el ratón al lienzo (¿una capa lo tapa?)');
+    check(pt && !pt.blocked, 'ningún punto de la zona de combate deja el ratón al lienzo (¿una capa lo tapa?)', pt);
     const held = () => page.evaluate('({ ...window.__game.input.mouseHeld })');
     await mouse(page, 'mouseMoved', pt.x, pt.y);
     await mouse(page, 'mousePressed', pt.x, pt.y, 'left', 1);
@@ -699,8 +712,9 @@ async function verbSteps(page, origin, cls) {
       const slot = sk.fits.includes('rmb') ? 'rmb' : sk.fits.find(x => KEYS[x]);
       check(slot, `${sk.id} no cabe en ninguna ranura`, sk.fits);
       await L(page, 'putInSlot', sk.id, slot);
+      await closePanels(page);
       const pt = await canvasPoint(page);
-      check(pt, 'ningún punto de la zona de combate deja el ratón al lienzo');
+      check(pt && !pt.blocked, 'ningún punto de la zona de combate deja el ratón al lienzo', pt);
       const press = async () => {
         if (slot === 'rmb') { await mouse(page, 'mouseMoved', pt.x, pt.y); await mouse(page, 'mousePressed', pt.x, pt.y, 'left', 1); await mouse(page, 'mousePressed', pt.x, pt.y, 'right', 3); }
         else await key(page, KEYS[slot], 'down');

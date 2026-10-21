@@ -232,7 +232,7 @@ function barHTML(h) {
     if (!sk) return `<button class="skill-btn slot-${slot} hb-empty" data-slot="${slot}"><span class="sk-icon dim">+</span>${key}</button>`;
     return `<button class="skill-btn slot-${slot} cat-${sk.cat}" data-slot="${slot}" data-skill="${sk.id}">` +
       `<span class="sk-icon has-art"><img class="sk-art" src="${artOf(sk.id)}" alt="" draggable="false"></span>` +
-      `<img class="sk-cat" src="../../assets/ui/${{ basic: 'cat_basico', spender: 'cat_gastadora', movement: 'cat_movilidad', defense: 'cat_defensa', utility: 'cat_defensa', spec: 'cat_especializacion', ultimate: 'cat_definitiva' }[sk.cat]}.webp" alt="">` +
+      `<img class="sk-cat" src="../../assets/ui/${{ basic: 'cat_basico', spender: 'cat_principal', movement: 'cat_movilidad', defense: 'cat_defensa', utility: 'cat_defensa', spec: 'cat_especializacion', ultimate: 'cat_definitiva' }[sk.cat]}.webp" alt="">` +
       key + (sk.cost ? `<span class="sk-cost">${sk.cost}</span>` : '') + '<div class="gcd-overlay"></div><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span></button>';
   }).join('');
 }
