@@ -1031,6 +1031,18 @@ const FIRE = { skill: 'bola_fuego', elem: 'fire', tags: new Set(['fire']) };
   ok(d && d.ticks === 4 && Math.abs(d.total - 600) <= 1, `s0: quemadura del 60 % del golpe en 4 s (${d?.total}/${d?.ticks})`);
   h.tick(4.2);
   ok(e.hp < 1e7 - 590, 's0: la quemadura hace su daño');
+  // el suelo de Fuego (Estela Ígnea) también quema; los tics de una quemadura, no
+  const t = h.enemy({ hp: 1e7, pos: [3, 0, 0] });
+  h.aim(6, 0);
+  cast(h, 'k1', 'm_estela_ignea', 0.6);
+  ok(burnsOf(h, t).length === 1, 's0: la Estela Ígnea (suelo de Fuego) quema a quien la pisa');
+  const d0 = h.enemy({ hp: 1e7, pos: [-4, 0, 0] });
+  h.hit(d0, { elem: 'fire', skill: 'bola_fuego', dealt: 1000 });
+  const src = burnsOf(h, d0).map(x => x.source).join();
+  h.tick(2.3);
+  eq(burnsOf(h, d0).map(x => x.source).join(), src, 's0: los tics de la quemadura no la renuevan');
+  ok(burnLeft(h, d0) < 600 - 250, `s0: se va gastando (${burnLeft(h, d0)})`);
+  h.p.pos.set(0, 0, 0);
   // una quemadura más débil no pisa a una más fuerte (una por enemigo)
   h.hit(e, { elem: 'fire', skill: 'meteoro', dealt: 4000 });
   h.hit(e, { elem: 'fire', skill: 'bola_fuego', dealt: 100 });

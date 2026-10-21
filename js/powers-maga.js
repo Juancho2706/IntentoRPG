@@ -1358,13 +1358,17 @@ export function magaPowers() {
 
     // ---------------------------------------------------- PIROMANTE 2g (§5.0 y Anexo A.7)
     // s0 Ignición (clave): tus golpes de Fuego queman (60 % del golpe en 4 s) y la explosión de la
-    // Bola de Fuego pasa del 100 % al 350 % (su innata: con otra especialización vuelve al 100 %)
+    // Bola de Fuego pasa del 100 % al 350 % (su innata: con otra especialización vuelve al 100 %).
+    // Cuenta también el suelo de Fuego (los tics de un campo con la etiqueta fire: la Estela Ígnea,
+    // la Pira); no los tics de una quemadura ni el daño de poder
     p_ignicion: {
       name: 'Ignición', desc: 'Tus golpes de Fuego queman (un 60 % extra del golpe en 4 s) y la Bola de Fuego explota al 350 %.',
+      procs: true,
       modifyResolve(p, sk, prof) { if (sk.id === 'bola_fuego' && prof.splash > 0) prof.splash *= T.bolaPiro; },
       onHit(g, p, e, hit) {
-        if (hit?.proc || hit?.dot || hit?.elem !== 'fire' || !e?.alive) return;
-        ignite(g, p, e, hit.raw || hit.dealt || 0);
+        if (!hit || hit.proc || !e?.alive) return;
+        const fire = hit.dot ? String(hit.source || '').startsWith('field:') && !!hit.tags?.has?.('fire') : hit.elem === 'fire';
+        if (fire) ignite(g, p, e, hit.raw || hit.dealt || 0);
       },
     },
     // s5 Chispas: un crítico sobre un enemigo que YA se quemaba reinicia sus quemaduras y da Calor
