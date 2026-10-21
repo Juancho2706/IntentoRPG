@@ -66,8 +66,8 @@ export function mechInfo(spec) {
 }
 
 // envoltorio `ops` (§3.4) sobre un Game con el mixin game-talents.js: las llamadas del panel van
-// con _talentQuiet (el panel enseña sus avisos; el mixin sigue avisando de la apertura y la pausa
-// del Paragon) y restore pasa por _talentMutate (combate, recompute, barra y guardado)
+// con _talentQuiet (el panel enseña sus avisos, también la apertura y la pausa del Paragon: el mixin
+// ya no los manda al banner) y restore pasa por _talentMutate (combate, recompute, barra y guardado)
 export function gameTalentOps(g) {
   const LOCAL = createTalentOps(Talents);
   const quiet = fn => (...a) => {

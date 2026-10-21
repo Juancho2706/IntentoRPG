@@ -424,7 +424,7 @@ Se eliminan `featCount`, `TALENT_CAP_LEVEL`, `TALENT_START_LEVEL` (pasa a `TALEN
 | `resetTalentTree(which \| 'all')`, `exportTalentCode()`, `importTalentCode(code)` | — |
 | `talentPointsInfo()` | `{ cls, spec, hero, board, heroOpen, heroPaused }`, cada uno `{ earned, spent, left }` |
 
-`reason ∈ 'combat' \| 'points' \| 'gate' \| 'req' \| 'max' \| 'hero-closed' \| 'no-spec' \| 'choice' \| 'code-version' \| 'code-class' \| 'code-check' \| 'code-illegal'`. Los textos los pone la UI. `_talentMutate` muestra el aviso suave de pausa (2g §7.1) y el de apertura **aunque** la llamada venga del panel con `_talentQuiet` (los devuelve en la respuesta para que el panel anime la revelación).
+`reason ∈ 'combat' \| 'points' \| 'gate' \| 'req' \| 'max' \| 'hero-closed' \| 'no-spec' \| 'choice' \| 'code-version' \| 'code-class' \| 'code-check' \| 'code-illegal'`. Los textos los pone la UI. `_talentMutate` manda al banner del HUD el aviso suave de pausa (2g §7.1) y el de apertura; con `_talentQuiet` (llamada del panel) no: los devuelve en la respuesta (`heroOpened`, `heroPaused`, `missing`) y el panel los enseña en su aviso y anima la revelación (cola W2c, `paso2-claves-w2.md` §8.3).
 
 **`ops` para el panel** (envoltorio de `ui.js`): los métodos anteriores más `snapshot(p) → string` y `restore(p, s)` (la pila de deshacer vive en la UI y no se guarda).
 
@@ -501,7 +501,7 @@ export const GUERRERO_CATALOG_V = 2;
 | **Teclas** | `keyup` → acción por `codeToAction` → `releaseSkillSlot('k1'…'k4')`. `Space` (`primary`) no carga: ataca al más cercano como hoy |
 | **Cuándo se mide la suelta** | El tiempo de carga avanza con el `dt` de simulación (el *hit-stop* lo congela igual para la barra y la lógica). La suelta se resuelve en el tick siguiente sumando lo transcurrido desde el último tick, para no perder un frame (a 30 fps un frame son 33 ms de una ventana de 200 ms) |
 | **Qué bloquea una carga** | Mientras `_charging`: las demás ranuras **no** se lanzan, salvo la esquiva y la movilidad (`1`), que la **cancelan sin coste**, y una postura con `swapGcd: 0`, que se alterna sin cortarla. El básico mantenido no dispara |
-| **Interrupciones** | Fin de la carga con `reason ∈ release \| auto \| dodge \| interrupt \| cc \| cancel \| panel`. Control duro (aturdir, congelar) o un golpe > 10 % de la vida = `interrupt`/`cc` **sin coste**, como el canal. `blur`, `visibilitychange`, abrir un panel o pausar = `cancel`/`panel` sin coste (`g.cancelHeld(reason)`) |
+| **Interrupciones** | Fin de la carga con `reason ∈ release \| auto \| dodge \| interrupt \| cc \| cancel \| panel`. Control duro (aturdir, congelar) o un golpe > 10 % de la vida = `interrupt`/`cc` **sin coste**, como el canal. `blur`, `visibilitychange`, abrir un panel o pausar = `cancel`/`panel` sin coste (`g.cancelHeld(reason)`) Cada fin queda además en `g._chargeEnd = { key, id, reason, perfect, frac, t, instant }` para la UI, también con `reason: 'reset'` (`resetCastState`: cambio de mundo o muerte, **sin** ⑭); contrato en `paso2-claves-w2.md` §8.1 (cola W2c) |
 | **Básico tensable** (Cuerda Tensa) | `charge.repeat: true` (por defecto en `cat:'basic'`): mantener 🖱️Izq tensa, suelta sola al máximo y vuelve a tensar (fuego continuo). Un toque dispara al mínimo. Las demás ranuras usan `_needsRelease` |
 | **Esquema clic-mover** | 🖱️Izq mantenido sobre un enemigo tensa el básico tensable; los ataques automáticos a `attackTarget` salen sin tensar |
 | **`holdMode: 'toggle'`** | Solo para `charge` y `channel` con `hold`: la 1.ª pulsación empieza y la 2.ª suelta; la ranura muestra el estado enganchado. Un relanzamiento (`recast`) conserva su pulsación |
@@ -613,7 +613,7 @@ createVerbHud(root,     { game })                                          // �
 
 | Verbo | Ranura (DOM) | Junto al cursor (DOM) | Mundo (`world-marks.js` o `fx-skills.js`) | Sonido (`sfx.js`, lo emite la simulación) |
 |---|---|---|---|---|
-| Cargar y soltar | Barra que se llena en la ranura | Barra de 64 × 6 px a 24 px del cursor, **dentro de la pantalla**; la ventana es un tramo dorado **con muescas** (no solo color); con Calma Absoluta, dorada desde media carga (chargeRelease: perfecta desde frac 0,5) | Destello en el arma al entrar en la ventana | `verb_win` al entrar · `verb_perfect` + «¡Perfecto!» (`spawnText`) al acertar · `verb_miss` al soltar fuera (reinicia la racha) |
+| Cargar y soltar | Barra que se llena en la ranura | Barra de 64 × 6 px a 24 px del cursor, **dentro de la pantalla**; la ventana es un tramo dorado **con muescas** (no solo color); con Calma Absoluta, dorada desde media carga (chargeRelease: perfecta desde frac 0,5) | Destello en el arma al entrar en la ventana | `verb_win` al entrar · `verb_perfect` + «¡Perfecto!» (`spawnText`) al acertar · `verb_miss` al soltar fuera (reinicia la racha) · acierto, fallo o cancelación según `g._chargeEnd` (misma ranura, mismo id y `t ≥ t0`; sin él, la racha de perfectos): `paso2-claves-w2.md` §8.1 |
 | Relanzar | Aro que se vacía y número de usos; dorado en los últimos `perfectLast` s | — | — | `verb_tick` al entrar en el tiempo justo |
 | Combo / secuencia | 3 pips; el que toca brilla | — | — | `verb_pip` en el 3.º |
 | Canal | Aro que se consume; late si es sin fin | — | Estela (Carrera) | — |

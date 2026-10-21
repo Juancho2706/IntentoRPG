@@ -257,7 +257,7 @@ export function createVerbHud(root, opts = {}) {
   }
 
   // la carga que se veía terminó: ¿perfecta, fallida o cancelada? Manda g._chargeEnd
-  // ({ key, id, reason, perfect, t }: lo escribe el motor al terminar CADA carga, cola W2) si es
+  // ({ key, id, reason, perfect, frac, t, instant }: una suelta instantánea no es un fallo; lo escribe el motor al terminar CADA carga, cola W2) si es
   // de ESTA carga (misma ranura y escrito después de empezarla); si no, la racha de perfectos:
   // sube → perfecta, baja a 0 → fallo (la esquiva, un panel o un golpe cancelan sin tocarla)
   function finishCharge(pl) {
@@ -267,7 +267,7 @@ export function createVerbHud(root, opts = {}) {
       && Number.isFinite(end.t) && end.t >= charge.t0 - 1e-9;
     const streak = pl?.perfectStreak || 0;
     const perfect = fresh ? !!end.perfect : streak > charge.streak;
-    const missed = fresh ? !end.perfect && (end.reason === 'release' || end.reason === 'auto') : charge.streak > 0 && streak === 0;
+    const missed = fresh ? !end.perfect && !end.instant && (end.reason === 'release' || end.reason === 'auto') : charge.streak > 0 && streak === 0;
     if (perfect) { if (st) pulse(st.flash, 'perfect'); pulse(glow, 'perfect'); }
     else if (missed) pulse(glow, 'miss');
     setA(cur, 'data-state', perfect ? 'perfect' : missed ? 'miss' : 'end');

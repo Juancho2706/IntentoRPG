@@ -392,20 +392,21 @@ console.log('Libro y verbos en PC: sin táctil, motion solo transform/opacity y 
     assert.ok(frames > 10 && inside > 0 && left === 1, `dt ${dt.toFixed(4)}: entra y sale de la ventana (${inside} frames dentro)`);
     h.release('rmb'); h.step(0.3, 1 / 60); hud.update(0.3);
   }
-  // resultado de la suelta. Sin g._chargeEnd (hoy el motor no lo escribe): la racha manda
+  // resultado de la suelta. El motor escribe g._chargeEnd en cada suelta (cola W2c): para probar el
+  // respaldo, el registro se pisa tras la simulación y antes de pintar. Sin él, la racha manda
   const state = () => cursor.getAttribute('data-state');
   const glow = charge.find('vc-glow'), flash = slotL.find('verb-flash');
   const toWindow = () => { g.resetCooldowns(p); p.mp = 999; h.press('rmb'); for (let i = 0; i < 90 && !g._charging?.inWindow; i++) { h.step(1 / 60, 1 / 60); hud.update(1 / 60); } };
-  p.perfectStreak = 0; g._chargeEnd = null;
+  p.perfectStreak = 0;
   toWindow();
-  h.release('rmb'); h.step(1 / 60, 1 / 60); hud.update(1 / 60);
+  h.release('rmb'); h.step(1 / 60, 1 / 60); g._chargeEnd = null; hud.update(1 / 60);
   assert.ok(p.perfectStreak === 1 && state() === 'perfect' && /^perfect-/.test(glow.getAttribute('data-flash')) && /^perfect-/.test(flash.getAttribute('data-flash')), 'suelta en la ventana → destello de perfecto (racha)');
   h.step(0.5, 1 / 60); hud.update(0.5);
   // un g._chargeEnd VIEJO (de antes de esta carga) no se cree: fuera de la ventana con racha 1 → fallo
-  g._chargeEnd = { key: 'rmb', id: 'vx_martillo', reason: 'release', perfect: true, t: p.simT - 5 };
+  const stale = { key: 'rmb', id: 'vx_martillo', reason: 'release', perfect: true, t: p.simT - 5 };
   g.resetCooldowns(p); p.mp = 999; h.press('rmb'); h.step(0.25, 1 / 60); hud.update(1 / 60);
   assert.ok(g._charging && !g._charging.inWindow, 'carga corta, antes de la ventana');
-  h.release('rmb'); h.step(1 / 60, 1 / 60); hud.update(1 / 60);
+  h.release('rmb'); h.step(1 / 60, 1 / 60); g._chargeEnd = stale; hud.update(1 / 60);
   assert.ok(p.perfectStreak === 0 && state() === 'miss' && /^miss-/.test(glow.getAttribute('data-flash')), 'un _chargeEnd viejo no cuenta: la racha cae a 0 → fallo');
   h.step(0.5, 1 / 60); hud.update(0.5);
   // con g._chargeEnd FRESCO (cola W2) manda el motor: una cancelación (esquiva) no es un fallo

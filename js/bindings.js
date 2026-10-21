@@ -56,7 +56,7 @@ export const BINDABLE_ACTIONS = [
   { id: 'skills',    label: 'Habilidades',    group: 'Paneles' },
   { id: 'character', label: 'Personaje',      group: 'Paneles' },
   { id: 'talents',   label: 'Talentos',       group: 'Paneles' },
-  { id: 'paragon',   label: 'Paragon',        group: 'Paneles' },
+  { id: 'paragon',   label: 'Tablero de glifos',        group: 'Paneles' },
   { id: 'quests',    label: 'Misiones',       group: 'Paneles' },
   { id: 'collection',label: 'Colección',      group: 'Paneles' },
   { id: 'guide',     label: 'Guía de sistemas', group: 'Paneles' },

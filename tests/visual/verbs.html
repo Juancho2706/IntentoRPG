@@ -129,8 +129,8 @@ const charge = (h, u, { calm = false, toggle = false, slot = 'rmb', id = 'vx_mar
   if (!c || c.key !== slot || c.id !== id) c = h.g._charging = { key: slot, id, sk, prof, ch, t0: p.simT || 0, window: ch.perfect, min: ch.min, max: ch.max, release: null };
   Object.assign(c, { u, t: u, frac: Math.max(0, (u - ch.min) / (ch.max - ch.min)), inWindow: u >= a - 1e-9 && u <= b + 1e-9, toggle });
 };
-// la suelta como la deja el motor: la carga se va y g._chargeEnd dice cómo acabó (cola W2: hoy
-// el motor aún no lo escribe; sin él, la UI lo deduce de la racha de perfectos)
+// la suelta como la deja el motor: la carga se va y g._chargeEnd dice cómo acabó (lo escribe
+// el motor al terminar cada carga, cola W2c; sin él, la UI lo deduce de la racha)
 const release = (h, perfect) => {
   const c = h.g._charging;
   h.g._charging = null;

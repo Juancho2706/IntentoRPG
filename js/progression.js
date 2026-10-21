@@ -61,7 +61,7 @@ export function levelUpText(p, L = p.level) {
     ? `🌟 Nivel ${L}: +1 punto de Paragon (N)`
     : `🌟 Nivel ${L}: +1 punto de Paragon. Gasta tus ${TALENT_RULES.pts.spec} puntos de especialización para abrirlo (N)`;
   if (kind === 'board') return L === PARAGON_OPEN_LEVEL
-    ? `🔷 Nivel ${L}: ¡tablero de glifos abierto! ${TALENT_RULES.pts.board} puntos hasta el nivel ${LEVEL_MAX} (C)`
+    ? `🔷 Nivel ${L}: ¡tablero de glifos abierto! ${TALENT_RULES.pts.board} puntos hasta el nivel ${LEVEL_MAX} (P)`
     : `🔷 Nivel ${L}: +1 punto del tablero de glifos (${earnedAt('board', L)}/${TALENT_RULES.pts.board})`;
   return null;
 }
