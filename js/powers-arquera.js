@@ -1,59 +1,57 @@
 // ============================================================
-// PODERES de la ARQUERA (Francotiradora · Montaraz · Tiradora) — Paso 2c.1 · 2c.2
+// PODERES de la ARQUERA — Paso 2g (árbol de clase y árboles héroe) · Paso 2c (especializaciones)
 // ============================================================
-// Dueño: el trabajador de la clase en el Paso 2c.1 (docs/paso2-diseno.md §9.1.6).
-// Solo se tocan ESTE archivo, js/talents-arquera.js, js/fx-skills-arquera.js y
-// tests/test-powers-arquera.mjs. js/powers.js importa y registra al cargar los cuatro
-// mapas que devuelven las funciones de abajo.
+// Dueño: KT-arquera (docs/paso2-implementacion.md §2 E2). js/powers.js importa y registra al
+// cargar los cuatro mapas que devuelven las funciones de abajo.
 // Son FUNCIONES (no constantes) a propósito: powers.js ↔ powers-arquera.js forman un
 // ciclo de módulos y una función declarada se puede llamar aunque este módulo aún
 // no se haya evaluado (p. ej. si un test lo importa el primero). Por eso TODOS los
-// helpers de este archivo son `function` (elevadas) y las tablas son `var` perezosas.
+// helpers de este archivo son `function` (elevadas), las tablas son `var` perezosas y lo
+// importado solo se usa dentro de los ganchos.
 //
 //  arqueraPowers()          { id: PowerDef }  → definePower (claves de POWER_KEYS en powers.js:
 //                        stats modifyResolve condAdd condCrit onCast afterCast onHit onKill
-//                        condDr onDamaged onLethal onTick onGauge · icd priority procs state
-//                        name desc tags). Ningún poder de este archivo declara `mult`.
-//  arqueraSkillBehaviors() { skillId: { cast?(g,p,prof,cast), tick?, end? } } → defineSkillBehavior
+//                        condDr onDamaged onLethal onTick onGauge onSkillEnd · icd priority procs
+//                        state name desc tags). Ningún poder de este archivo declara `mult`.
+//  arqueraSkillBehaviors() { skillId: { cast?(g,p,prof,cast), tick?, end?, params? } } → defineSkillBehavior
 //  arqueraFields()          { kind: { init, tick, onEnter?, onExit?, onExpire?, render? } } → defineField
 //  arqueraGauges()          {} (la Arquera no añade indicadores: potencia concentracion/coto/impulso)
 //
 // REGLAS: nada de `powers.has(` (aquí: hasPower), ni setTimeout (g.timers.schedule), ni
-// Math.random en la simulación (solo en el dibujo de los campos). Daño de un poder:
-// dealProcDamage. Control: e.applyCC. Curas: p.sustain / g.heal / g.shield. Amenaza:
-// g.forceTarget. Aliados: g.allies(pos, r) (en solitario = solo tú).
+// Math.random en la simulación (solo en el dibujo de los campos), ni escribir p.cds (D2:
+// g.reduceCooldown). Daño de un poder: dealProcDamage. Control: e.applyCC. Curas: p.sustain /
+// g.heal / g.shield (las que la Arquera se da a sí misma, por la cubeta selfHeal). Aliados:
+// g.allies(pos, r). Un onCast que devuelve `false` CANCELA el lanzamiento: los poderes con
+// onCast llevan su propio enfriamiento interno (takeCd), nunca `icd`.
 //
-// ── Paso 2c.2: un poder (o una clave tv del núcleo) POR NODO ─────────────────────
-// Se retiraron los «poderes anfitriones» de 2c.1 (HOSTS/ownOn/picked): cada nodo con
-// efecto propio lleva SU poder o una clave tv que consume el núcleo. Un poder solo lee
-// el rango de SU nodo (nodeRank) cuando su texto escala con él.
-//   Clase   c5B Paso Ligero ...... a_tailwind (solo su +12 % de movimiento)
-//           c12B Camuflaje ....... a_camuflaje (crítico seguro por ⑦ onCast: cast.forceCrit) +
-//                                  a_t_camuflaje (invisibilidad REAL: p.goInvisible)
-//           c7 Cuero Curtido ..... tv.dmgReduc + tv.drAfterRoll (lo lee la Voltereta)
-//   Franco. s6B Herida Abierta ... f_herida_abierta      · s14 Sobrepenetración ... f_overpen
-//           s8 Posición Elevada .. tv.dmgReduc + tv.drFocus (núcleo: nucleo_tv.condDr)
-//           s11 Respiración Prof.  tv.focusEnergy (núcleo: al llenar la Concentración)
-//           s15 Paso del Acechador f_acechador ('gaugeLoss:concentracion' −15)
-//           s9 Visión Certera .... su buff lleva 'gaugeLoss:concentracion' −100
-//   Mont.   s3 Abrojos ........... m_abrojos             · x1 Red de Espinas ...... m_thornweb
-//           s6A Cepo de Hierro ... m_cepo_hierro (prof.bossSlowPct) + mod.rootAdd
-//           s6B Mina de Espinas .. m_mina (prof.mine)    · s16 Raíces Profundas .. mod.rootAdd
-//           s8 Pellejo de Oso .... tv.drVsSlowed (núcleo) · s13B Guardabosques ... m_warden
-//           s10 Lazo Corredizo ... m_lazo                · s4 Cepo Doble .......... m_cepo_doble
-//           s11 Ponzoña Lenta .... m_ponzona + tv.dotDur · s15 Cazadora Paciente .. tv.preyDmg
-//           s17 Espinas Venenosas  tv.rootedWeak (núcleo) · x3 Gran Cacería ....... m_greathunt
-//   Tirad.  s5 Viento de Cola .... t_viento_cola + mod.agilidad.durS
-//           s6B Corona de Flechas  t_corona              · s4 Andanada Impulsiva .. t_andanada_impulsiva
-//           s8 Esquiva Felina .... tv.drMoving (núcleo)  · s13B Estela de Viento .. t_slipstream
-//           s11 Segundo Aliento .. tv.galeHeal + tv.galeEnergy (núcleo) · s14 ..... t_galechain
-//           x1 Ráfaga Infinita ... t_infinite (cuenta el básico de arma por ⑦ onCast: cast.weapon)
+// ── Paso 2g: árbol de clase (docs/paso2g-arquera.md §6) ─────────────────────────
+// Un poder por nodo con efecto propio (los finales leen su rango con powerRank):
+//   c5 a_punteria_fija · a_saqueo   c6 a_bocajarro · a_tiro_lejano   c9B a_punta_diamante
+//   c10 a_flecha_roma · a_silbante  c11 a_camuflaje (+ activa) · a_instinto   c14 a_paso_abrojos · a_rodada_cura
+//   c15 a_adrenalina · a_calma_letal   c16 a_presion · a_barrido   c17B a_huida   c19 a_tiro_niebla
+//   c20 a_lluvia_retirada   c23 a_recarga_marcha   c25 a_emboscada   c26 a_compas   c27 a_tras_rodada
+//   c28 a_manto   c29 a_danza_arco   c30 a_sombra
+// «Tus flechas» = las habilidades del grupo `flechas` de los datos (ARQUERA_TALENTS.groups).
+// ── Paso 2g: árboles héroe (§9) ─────────────────────────────────────────────────
+// Cada árbol es UN poder (su nodo clave) que sus nodos modifican con claves tv propias
+// (ARQUERA_TV_KEYS en talents-arquera.js), más el poder de su final:
+//   Errante del Viento  q_rafagas (wind*) · q_rosa      Carcaj Encantado  w_puntas (tip*) · w_lluvia_encantada
+//   Halconera           y_halcon (hawk*) · y_cielo
+// Las flechas de viento y los picados son golpes reales con `echo` (los poderes de la clase
+// no los cuentan como flechas); las puntas encantadas, procs. Ninguno genera otro eco.
+// Las activas de árbol héroe (a_h_torbellino, a_h_puntas, a_h_halcon) son del catálogo (KA):
+// estos poderes reaccionan a su lanzamiento por id (afterCast).
+//
+// ── Paso 2c: especializaciones (v1) ─────────────────────────────────────────────
+// Los poderes de las especializaciones de 2c siguen aquí hasta los trabajos 2 y 3 de KT
+// (ningún nodo 2g los lleva); el documento los retira o los sustituye (§11.1).
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { gainGauge, spendGauge, gaugeValue, gaugeState } from './spec-mechanics.js';
 import { projFanOffset } from './skill-defs.js';
 import { rankCoef } from './combat-math.js';
 import { enemiesInField } from './field-entities.js';
+import { ARQUERA_TALENTS } from './talents-arquera.js';
 
 // ------------------------------------------------------------
 // constantes (un solo sitio; reflejan el texto de cada nodo)
@@ -63,13 +61,57 @@ var TUNE;
 function tune() {
   return TUNE || (TUNE = Object.freeze({
     frame: 1e-3,                                     // «cada tick» del planificador
-    tailwind: { quiet: 3, spdPct: 12 },              // c5B
-    halcon: { radius: 15, crit: 5, spdPct: 6, pulse: 0.5 },   // c15
-    cuero: { dur: 2 },                               // c7: tv.drAfterRoll 2 s tras la Voltereta
-    freeShot: { window: 10 },                        // c2: ventana del disparo gratis
+    // ---- árbol de clase (§6)
+    cls: Object.freeze({
+      punteria: { every: 4 },                                    // c5A: cada 4.º Disparo Rápido al mismo enemigo
+      saqueo: { energy: 8 },                                     // c5B
+      bocajarro: { near: 5, pct: 15, knock: 1 },                 // c6A
+      lejano: { far: 10, pct: 20 },                              // c6B
+      diamante: { pct: 40 },                                     // c9B
+      roma: { slowPct: 50, slowT: 4 },                           // c10A (icd 8 s)
+      silbante: { silence: 3 },                                  // c10B (icd 10 s)
+      abrojos: { radius: 2.5, dur: 3, slowPct: 50, slowT: 0.7, color: 0x9a8a5a },   // c14A
+      rodada: { pct: 6, every: 12 },                             // c14B
+      adrenalina: { below: 0.5, energy: 30, dr: 20, dur: 4 },    // c15A (icd 30 s)
+      calma: { over: 40, pct: 10 },                              // c15B
+      presion: { pct: 4, max: 5 },                               // c16A
+      barrido: { win: 2, pct: 3, max: 5 },                       // c16B
+      huida: { below: 0.3, spdPct: 40, dr: 20, dur: 4 },         // c17B (icd 60 s)
+      niebla: { energy: 3, ext: 0.3, max: 2 },                   // c19
+      retirada: { mult: 0.3, delay: 0.05 },                      // c20
+      marcha: { perRank: 0.3 },                                  // c23
+      compas: { max: 5, perRank: 2, keep: 3 },                   // c26
+      tras: { perRank: 10 },                                     // c27
+      manto: { dr: 25, healPerRank: 0.25 },                      // c28
+      danza: { perRank: 20 },                                    // c29
+      sombra: { dur: 3, base: 0.15, perRank: 0.15, delay: 0.3 }, // c30
+    }),
+    // cubeta de autocuración (ronda 3, §20): lo que la Arquera se cura a sí misma con sus
+    // nodos suma como mucho 1 % de la vida por segundo (depósito que se llena a ese ritmo)
+    cubeta: { perSec: 1, cap: 6 },
+    // ---- Errante del Viento (§9.2)
+    wind: Object.freeze({
+      every: 4, max: 3, coef: 0.6, range: 12, width: 1, fan: 0.26, slowT: 2, torbellino: 3, color: 0xcfeff0,
+      rosa: { every: 25, dur: 6, gustEvery: 1, pct: 50 },
+    }),
+    // ---- Carcaj Encantado (§9.3)
+    tip: Object.freeze({
+      every: 6, oncePer: 1, shareWin: 0.4, healEvery: 6, placeWin: 10,
+      burn: { coef: 2.0, dur: 4 }, frost: { slowPct: 40, dur: 3 }, bolt: { coef: 0.8, jumps: 3, radius: 6 },
+      bite: { dur: 4 }, braid: { radius: 4 }, desborde: { shots: 4, mult: 0.5 },
+      affinity: { impulso: 8, cepo: 1 }, rain: { every: 30, dur: 6, mult: 0.3 },
+      colors: { fire: 0xff7a2a, frost: 0x8fd8ff, lightning: 0xd8c8ff },
+    }),
+    // ---- Halconera (§9.4)
+    hawk: Object.freeze({
+      every: 6, coef: 1, mark: 6, markPct: 10, range: 15, recent: 5, near: 12, sweep: { len: 8, width: 1.5 },
+      deepStagger: 15, flock: { n: 2, radius: 8 }, feathers: { radius: 5, coef: 0.4 }, loyal: { radius: 12 },
+      assault: { dur: 6, every: 0.5, coef: 0.4, blind: 30, stagger: 30 }, guard: { below: 0.4, dur: 4, every: 60 },
+      sky: { every: 30, dur: 4, gap: 1 }, color: 0xb98a55,
+    }),
+    // ---- especializaciones (v1 de 2c; trabajos 2 y 3)
     aliento: { spend: 50 },                          // F s4
     acechador: { lossPct: -15 },                     // F s15: 'gaugeLoss:concentracion'
-    vision: { lossPct: -100 },                       // F s9: moverte no vacía la Concentración
     patience: { perSec: 2, max: 20 },                // F s13B
     overpen: { perEnemy: 15 },                       // F s14
     herida: { pct: 50, dur: 6 },                     // F s6B
@@ -87,6 +129,7 @@ function tune() {
     slip: { spdPct: 15, every: 0.6, dur: 2.5, radius: 1.6 },  // T s13B
     infinite: { every: 10, storm: 5 },               // T x1 / x3
     rebote: { first: 1.8, jumps: 5 },                // T s6A (Paso 2e)
+    bengala: { weakPct: 15, weakenPct: 15 },         // c22A (si la definición no los trae)
   }));
 }
 
@@ -99,214 +142,281 @@ function now(p) { return p?.simT || 0; }
 function v3(x, z, y = 0) { return new THREE.Vector3(x, y, z); }
 function invalidate(p) { if (p) p.resolved = {}; }
 function focus(p) { return gaugeValue(p, 'concentracion'); }
-
-// rango de un nodo: árbol 'cls' o id de especialización (solo la ACTIVA); s0 = 1.
-// Paso 2c.2: un poder solo lo usa para leer el rango de SU PROPIO nodo.
-function nodeRank(p, tree, id) {
-  const T = p?.talents;
-  if (!T) return 0;
-  if (tree === 'cls') return T.cls?.[id] | 0;
-  if (p.talentAgg?.spec !== tree) return 0;
-  if (id === 's0') return 1;
-  return T.sp?.[tree]?.[id] | 0;
-}
-// renueva (o crea) un buff corto a un aliado (auras/campos)
-function refreshBuff(a, id, stats, keep, meta = {}) {
-  const b = a?.buffs?.find?.(x => x.id === id);
-  if (b) { b.t = Math.max(b.t, keep); b.dur = Math.max(b.dur || 0, keep); return; }
-  a?.addBuff?.(id, { ...stats }, keep, meta);
-}
-// los aliados SIN el héroe (poderes «de grupo»: en solitario no hacen nada)
-function partyOf(g, p, pos = null, r = Infinity) {
-  return (g?.allies ? g.allies(pos, r) : []).filter(a => a && a !== p);
-}
-
-// dirección del héroe hacia `target` (o su orientación)
-function aimDir(p, target) {
-  let dx = (target?.x ?? p.pos.x) - p.pos.x, dz = (target?.z ?? p.pos.z) - p.pos.z;
-  const l = Math.hypot(dx, dz);
-  if (l < 0.05) { dx = Math.sin(p.group?.rotation?.y || 0); dz = Math.cos(p.group?.rotation?.y || 0); }
-  else { dx /= l; dz /= l; }
-  return { x: dx, z: dz };
-}
-// destino «hacia atrás» (contrario a la mira), recortado a lo transitable
-function backDest(g, p, target, dist) {
-  const d = aimDir(p, target);
-  const want = p.pos.clone(); want.x -= d.x * dist; want.z -= d.z * dist; want.y = 0;
-  return g.clampWalkable ? g.clampWalkable(p.pos, want, dist) : want;
-}
-// desplazamiento por pasos del planificador (como Paso Veloz): sin invulnerabilidad
-function slide(g, p, dest, dur, { trail = null, onDone = null } = {}) {
-  const from = p.pos.clone();
-  const steps = 6, dt = Math.max(0.02, dur) / steps;
-  let i = 0;
-  const step = () => {
-    if (!p.alive) { onDone?.(); return; }
-    i++;
-    const k = i / steps;
-    p.pos.x = from.x + (dest.x - from.x) * k;
-    p.pos.z = from.z + (dest.z - from.z) * k;
-    if (trail && i % 2) g.emitFx?.(trail, p.pos.clone().setY(0.4));
-    if (i < steps) g.timers.schedule(dt, step);
-    else onDone?.();
-  };
-  g.timers.schedule(dt, step);
-}
-// abanico de proyectiles del perfil (g.fireProjectile: crítico, ctx.hit, robo…).
-// Devuelve el tiempo de vuelo (para cerrar el lanzamiento con cast.done).
-function shootFan(g, p, prof, cast, { ctx = cast.ctx, n = null, spread = 0, angle = null, range = null, size = 0.1, onEnemy = null, beam = false } = {}) {
-  const sk = cast.sk;
-  const tgt = cast.target || p.pos;
-  const base = angle ?? Math.atan2(tgt.x - p.pos.x, tgt.z - p.pos.z);
-  const count = Math.max(1, n ?? ((prof.count || 1) + (prof.proj || 0)));
-  const castHits = count > 1 && (sk.count || 1) <= 1 ? new Set() : null;   // sin escopetazo
-  const R = range ?? (prof.range || sk.range || 10);
-  p.faceToward?.(v3(p.pos.x + Math.sin(base), p.pos.z + Math.cos(base)));
-  p.swing = 1;
-  const muzzle = p.pos.clone().setY(1.0);
-  muzzle.x += Math.sin(base) * 0.5; muzzle.z += Math.cos(base) * 0.5;
-  if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, muzzle);
-  else if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, muzzle);
-  for (let i = 0; i < count; i++)
-    g.fireProjectile(ctx, { angle: base + projFanOffset(i, count, spread), range: R, size, castHits, onEnemy });
-  if (beam) {
-    const end = p.pos.clone().setY(1.0);
-    end.x += Math.sin(base) * R; end.z += Math.cos(base) * R;
-    g.spawnBeam?.(muzzle, end, ctx.color || sk.color || 0xffee66, 0.3);
-  }
-  ctx.lifestealDone = true;
-  return R / Math.max(1, prof.speed || 14) + 0.05;
-}
-// total y tics de un DoT con el perfil de talentos (dotPct + <tipo>Pct, dotDur añade tics)
-function dotOf(p, kind, base, dur) {
-  const tv = p?.tv || {};
-  const pct = (tv.dotPct || 0) + (tv[kind + 'Pct'] || 0);
-  const ticks = Math.max(1, Math.round(dur + (tv.dotDur || 0)));
-  return { total: base * Math.max(0, 1 + pct / 100) * ticks / dur, ticks };
-}
-// distancia² de un punto a un segmento (red de espinas)
-function segDist2(px, pz, a, b) {
-  const dx = b.x - a.x, dz = b.z - a.z;
-  const L = dx * dx + dz * dz || 1;
-  const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / L));
-  const qx = a.x + dx * t - px, qz = a.z + dz * t - pz;
-  return qx * qx + qz * qz;
-}
-// decal de suelo de un campo (anillo o disco); libera al morir
-function groundDecal(g, f, { inner = 0.6, opacity = 0.45, color = 0xffffff, disc = false, segs = 32 } = {}) {
-  if (f.dead) {
-    if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; }
-    return null;
-  }
-  if (!f.decal) {
-    const geo = disc ? new THREE.CircleGeometry(f.radius, segs) : new THREE.RingGeometry(f.radius * inner, f.radius, segs);
-    const decal = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-    decal.rotation.x = -Math.PI / 2;
-    decal.position.set(f.pos.x, 0.06, f.pos.z);
-    g.fxGroup.add(decal);
-    f.decal = decal;
-  }
-  return f.decal;
-}
-
-// ---------- Trampa de Cepo: cargas, trampas armadas ----------
-// cada uno es el poder de SU nodo (s4 / s14 / s13B); el comportamiento y el campo lo leen
-function cepoDoble(p) { return hasPower(p, 'm_cepo_doble'); }
-function extraTrap(p) { return hasPower(p, 'm_extratrap'); }
-function wardenOn(p) { return hasPower(p, 'm_warden'); }
-function armedTraps(g, p) {
-  return (g?.fields || []).filter(f => !f.dead && !f.sprung && f.owner === p && f.kind === 'a_cepo');
-}
-// cargas por marca de tiempo (sobrevive a timers.clear del cambio de mundo)
-function trapCharges(p, cd) {
-  const st = powerState(p, 'a_t_cepo');
-  const max = 1 + (cepoDoble(p) ? 1 : 0);
-  if (st.charges == null) { st.charges = max; st.max = max; st.nextAt = 0; }
-  if (st.max !== max) {
-    st.charges = Math.max(0, Math.min(max, st.charges + (max - st.max)));
-    st.max = max;
-    if (st.charges < max && !(st.nextAt > 0)) st.nextAt = now(p) + cd;
-  }
-  while (st.charges < max && st.nextAt > 0 && now(p) + 1e-6 >= st.nextAt) {
-    st.charges++;
-    st.nextAt = st.charges < max ? st.nextAt + cd : 0;
-  }
-  if (st.charges >= max) st.nextAt = 0;
-  return st;
-}
-// salta la trampa: inmoviliza (o estalla si es Mina), envenena y desaparece
-function springTrap(g, f, e) {
-  const p = f.owner, d = f.data;
-  f.sprung = true;
-  d.trap = false;                      // ya no cuenta como armada (Coto de Caza)
-  const at = v3(f.pos.x, f.pos.z);
-  if (d.mine) {
-    g.dealArea?.(at, d.blastR, d.blastCoef, d.areaOpts);
-    g.addShake?.(0.15);
-    g.emitFx?.('arqThornBurst', at.clone().setY(0.4));
-  } else if (e?.alive) {
-    e.applyCC?.('root', d.root, { src: p });
-    // Cepo de Hierro (prof.bossSlowPct): a los jefes los ralentiza un 50 % (applyCC aplica
-    // ×0,5 a la ralentización de los jefes, de ahí el ×2)
-    if (d.bossSlow && isBoss(e)) e.applyCC?.('slow', d.root, { pct: 2 * d.bossSlow, src: p });
-  }
-  if (e?.alive && d.poison?.total > 0) g.applyDoT?.(e, d.poison.total, d.poison.ticks, 1, 'txt', `${d.skill}:poison`);
-  g.spawnRing?.(at, f.radius, d.color);
-  g.emitFx?.('arqTrapSnap', at.clone().setY(0.3));
-  g.sfx?.('trap');
-  f.t = 0;
-}
-
-// ---------- Camuflaje (c12B) ----------
-// a_t_camuflaje te hace invisible DE VERDAD (p.goInvisible: Enemy.update pierde el objetivo
-// y no adquiere uno nuevo); el poder a_camuflaje guarda { active, crit }: al acabar sola la
-// invisibilidad queda «cebado» el crítico; un ataque con daño (también el básico de arma)
-// la rompe (p.reveal) y es crítico seguro (cast.forceCrit).
-function endCamo(p, st, primed) {
-  st.active = false;
-  st.crit = !!primed;
-  if (p.buffs?.some(b => b.id === 'a_t_camuflaje')) p.buffs = p.buffs.filter(b => b.id !== 'a_t_camuflaje');
-}
-
-// ---------- Punto Débil ----------
-function weak(p, e) { return !!e && (e._weakspotUntil || 0) > now(p); }
-
-// ---------- Gran Cacería ----------
-function greatHunt(g, p, e) {
-  const st = powerState(p, 'm_greathunt');
-  if (st.prey === e) return false;                   // una vez por Presa
-  st.prey = e;
-  const cs = powerState(p, 'a_t_cepo');
-  if (cs.max) { cs.charges = cs.max; cs.nextAt = 0; }
-  if (p.cds) p.cds.a_t_cepo = 0;
-  const T = tune().greathunt;
-  for (const a of g.allies ? g.allies() : [p])
-    a.addBuff?.('m_greathunt', { dmgPct: T.dmgPct }, T.dur, { name: 'Gran Cacería', icon: '🏹', desc: `+${T.dmgPct}% de daño` });
-  g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 1), '¡GRAN CACERÍA!', 'txt-crit');
-  g.sfx?.('levelup');
+function dist2(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return dx * dx + dz * dz; }
+function dist(a, b) { return Math.sqrt(dist2(a, b)); }
+// rango del nodo que concede un poder: lo mismo que talents.powerRank sobre el agregado de
+// recompute (importar talents.js aquí cerraría el ciclo resources → powers → talents → data → resources)
+function powerRank(p, id) { return p?.talentAgg?.powerRank?.[id] | 0; }
+// enfriamiento interno de un poder (las claves de `st`): true si toca y lo arranca
+function takeCd(st, key, every, p) {
+  const t = now(p);
+  if ((st[key] ?? -Infinity) > t + 1e-9) return false;
+  st[key] = t + every;
   return true;
 }
 
-// ---------- Ráfaga Infinita ----------
-function infiniteShot(g, p, wasInfinite) {
-  const st = powerState(p, 't_infinite');
-  const T = tune().infinite;
-  if (wasInfinite && st.ready) {
-    st.ready = false;
-    invalidate(p);
-    const n = 2 * (p.tv?.infiniteDmg || 0);     // Huracán (x2): +10 de Impulso/rango (el doble del % de daño, 2e)
-    if (n > 0) gainGauge(p, 'impulso', n);
-    return;
+// ---------- «tus flechas» (grupo `flechas` de los datos de talentos) ----------
+// eslint-disable-next-line no-var
+var ARROWS;
+function arrowIds() { return ARROWS || (ARROWS = new Set(ARQUERA_TALENTS.groups?.flechas?.ids || [])); }
+// impacto real de una flecha tuya (sin procs ni tics de DoT o de campo)
+function arrowHit(hit) { return !!hit && !hit.proc && !hit.dot && arrowIds().has(hit.skill); }
+// tirada (③ condAdd/condCrit reciben el HitInfo del lanzamiento: skill, tags, elem)
+function arrowRoll(hit) { return !!hit && arrowIds().has(hit.skill); }
+// lanzamiento de una flecha (el básico de arma también: cast.weapon)
+function arrowCast(cast) { return !!cast && (!!cast.weapon || arrowIds().has(cast.sk?.id)); }
+function catOf(p, id) { return p?.cls?.skills?.find(s => s.id === id)?.cat || null; }
+// insignia de la especialización activa (categoría 'spec' del kit)
+function insigniaOf(p) {
+  const spec = p?.talents?.spec || null;
+  return (p?.cls?.skills || []).find(s => s.cat === 'spec' && (!s.spec || s.spec === spec)) || null;
+}
+
+// enemigos vivos a `r` m de `pos` (sin `except`), del más cercano al más lejano
+function foesNear(g, pos, r, except = null) {
+  return (g?.enemies || []).filter(e => e.alive && e !== except && dist2(e.pos, pos) <= r * r)
+    .sort((a, b) => dist2(a.pos, pos) - dist2(b.pos, pos));
+}
+function dirTo(from, to) {
+  const dx = to.x - from.x, dz = to.z - from.z, l = Math.hypot(dx, dz);
+  return l > 1e-4 ? { x: dx / l, z: dz / l } : { x: 0, z: 1 };
+}
+// enemigos en la recta from→dir (ancho `width`); `first` va delante y el resto por distancia
+function lineFoes(g, from, dir, len, width, first = null) {
+  const out = [];
+  for (const e of g?.enemies || []) {
+    if (!e.alive || e === first) continue;
+    const dx = e.pos.x - from.x, dz = e.pos.z - from.z;
+    const along = dx * dir.x + dz * dir.z;
+    if (along < -0.5 || along > len + 0.5) continue;
+    if (Math.abs(dx * dir.z - dz * dir.x) > width / 2 + 0.5 * (e.def?.scale || 1)) continue;
+    out.push([along, e]);
   }
-  st.shots = (st.shots || 0) + 1;
-  const gale = (gaugeState(p, 'impulso')?.galeT || 0) > 0;
-  const every = hasPower(p, 't_eyestorm') && gale ? T.storm : T.every;
-  if (st.shots >= every) {
-    st.shots = 0;
-    st.ready = true;
-    invalidate(p);
-    g?.ui?.spawnText?.(p.pos, '¡RÁFAGA INFINITA!', 'txt-crit');
+  out.sort((a, b) => a[0] - b[0]);
+  const list = out.map(x => x[1]);
+  return first?.alive ? [first, ...list.filter(e => dist2(e.pos, from) > dist2(first.pos, from))] : list;
+}
+// golpe REAL de un poder héroe (flecha de viento, picado): tirada con crítico, Debilidad y [×];
+// lleva `echo` (no cuenta como flecha ni genera otro eco)
+function strike(g, p, e, coef, addPct, skill, tags) {
+  if (!e?.alive || !(coef > 0)) return { dealt: 0, crit: false };
+  const hitInfo = { skill, tags, elem: 'physical' };
+  const { dmg, crit } = p.rollDamage(coef, 0, addPct, e, hitInfo);
+  const dealt = e.takeDamage(dmg, crit, { skill, tags, elem: 'physical', echo: true }) || 0;
+  p.onDealHit?.();
+  return { dealt, crit };
+}
+
+// CUBETA DE AUTOCURACIÓN (ronda 3, §20): Paso Sanador, Punta Curativa (y el escudo de Nervios de
+// Acero) suman como mucho 1 % de la vida por segundo: un depósito de `cap` % que se rellena a
+// `perSec` % por segundo. Devuelve lo curado.
+function selfHeal(g, p, pct, src) {
+  const T = tune().cubeta;
+  const st = powerState(p, 'arq_cubeta');
+  const t = now(p);
+  if (st.at == null) { st.at = t; st.v = T.cap; }
+  st.v = Math.min(T.cap, st.v + Math.max(0, t - st.at) * T.perSec);
+  st.at = t;
+  const take = Math.min(pct, st.v);
+  if (!(take > 0)) return 0;
+  st.v -= take;
+  const amount = (p.stats?.maxHP || 0) * take / 100;
+  return g?.heal ? g.heal(amount, { target: 'self', src }) : (p.healSkill?.(amount, src) || 0);
+}
+
+// REPETICIÓN GRATIS de una habilidad, también si no está en la barra (Lluvia en Retirada,
+// Instinto de Supervivencia): eco del canal ⑦ desde una ranura temporal y, con `at`, apuntado a
+// ese punto (la mira se restaura al momento). El tope de repeticiones del motor cuenta por
+// lanzamiento ORIGINAL de la habilidad; aquí el original es otro (la rodada, el golpe letal), así
+// que cada uso abre su cuenta. Con g.castEcho (petición a la cola W2) lo hace el motor.
+const ECHO_SLOT = 'arq_eco';
+function castEchoOf(g, p, id, mult, at = null) {
+  if (typeof g?.castEcho === 'function') return g.castEcho(p, id, mult, { at });
+  if (!g?.castSkillSlot || !p?.cls?.skills?.some(s => s.id === id)) return false;
+  const hb = p.hotbar || (p.hotbar = {});
+  const inp = g.input || null;
+  const aim = inp ? inp.mouseWorld : null;
+  const sst = (p.skState || (p.skState = {}))[id] || (p.skState[id] = {});
+  sst.echo = { seq: (sst.echo?.seq || 0) + 1, n: 0 };
+  hb[ECHO_SLOT] = id;
+  if (at && inp) inp.mouseWorld = v3(at.x, at.z);
+  try { return g.castSkillSlot(ECHO_SLOT, mult); } finally {
+    delete hb[ECHO_SLOT];
+    if (inp) inp.mouseWorld = aim;
   }
+}
+
+// ---------- Bomba de Humo (campos que deja a_humo: la zona y la ceguera) ----------
+function isSmoke(f) { return !f.dead && (f.data?.skill === 'a_humo' || f.kind === 'a_humo_ciego'); }
+function smokesOf(g, p) { return (g?.fields || []).filter(f => f.owner === p && isSmoke(f)); }
+function smokesHere(g, p) { return (g?.fieldsAt ? g.fieldsAt(p.pos) : []).filter(f => f.owner === p && isSmoke(f)); }
+
+// ---------- Errante del Viento: Ráfagas ----------
+function gustMax(p) { return tune().wind.max + (p?.tv?.windMax || 0); }
+function addGust(p, k) {
+  const st = powerState(p, 'q_rafagas');
+  st.n = Math.min(gustMax(p), (st.n || 0) + k);
+  return st.n;
+}
+function rosaStorm(p) { return hasPower(p, 'q_rosa') && (powerState(p, 'q_rosa').storm || 0) > 0; }
+// suelta `n` flechas de viento (60 %): buscan a los enemigos más cercanos a la mira (Ojo de la
+// Racha: al de más vida; Abanico de Aire: en abanico hacia la mira) y atraviesan los que digan
+// sus nodos. Devuelve los impactos.
+function windVolley(g, p, n, cast) {
+  const T = tune().wind, tv = p.tv || {};
+  const foes = foesNear(g, p.pos, T.range);
+  if (!(n > 0) || !foes.length) return 0;
+  const aim = cast?.target || cast?.enemy?.pos || foes[0].pos;
+  const addPct = (tv.windDmg || 0) + (rosaStorm(p) ? T.rosa.pct : 0);
+  const through = Math.max(tv.windPierce || 0, tv.windFan || 0);       // enemigos que atraviesa cada flecha
+  const tags = new Set(['proj', 'physical']);
+  const byAim = foes.slice().sort((a, b) => dist2(a.pos, aim) - dist2(b.pos, aim));
+  const heavy = tv.windSeek > 0 ? foes.reduce((a, b) => (b.hp > a.hp ? b : a)) : null;
+  const base = Math.atan2(aim.x - p.pos.x, aim.z - p.pos.z);
+  let hits = 0, crit = false;
+  for (let i = 0; i < n; i++) {
+    let first = null, dir;
+    if (heavy) first = heavy;
+    else if (tv.windFan > 0) { const a = base + projFanOffset(i, n, T.fan); dir = { x: Math.sin(a), z: Math.cos(a) }; }
+    else first = byAim[i % byAim.length];
+    if (first) dir = dirTo(p.pos, first.pos);
+    const list = lineFoes(g, p.pos, dir, T.range, T.width, first).slice(0, 1 + through);
+    for (const e of list) {
+      const r = strike(g, p, e, T.coef, addPct + (tv.windSeek > 0 && isEliteish(e) ? tv.windSeek : 0), 'q_rafagas', tags);
+      hits++;
+      if (r.crit) crit = true;
+      if (tv.windSlow > 0 && e.alive) e.applyCC?.('slow', T.slowT, { pct: tv.windSlow, src: p });
+    }
+    const end = list.length ? list[list.length - 1].pos : { x: p.pos.x + dir.x * T.range, z: p.pos.z + dir.z * T.range };
+    g.spawnBeam?.(p.pos.clone().setY(1.0), v3(end.x, end.z, 1.0), T.color, 0.18);
+  }
+  if (hits) g.emitFx?.('arqDanceSwirl', p.pos.clone().setY(1.0));
+  // Silbido: un crítico devuelve una Ráfaga (una vez por lanzamiento)
+  if (crit && tv.windCrit > 0) addGust(p, tv.windCrit);
+  return hits;
+}
+
+// ---------- Carcaj Encantado: puntas ----------
+const TIPS = ['fire', 'frost', 'lightning'];
+function tipEvery(p) { return Math.max(0.5, tune().tip.every - (p?.tv?.tipEvery || 0)); }
+function tipReady(p) { return now(p) + 1e-9 >= (powerState(p, 'w_puntas').readyAt || 0); }
+// consume la punta del ciclo (rota Fuego → Hielo → Rayo) y arma la Trenza al cerrar las tres
+function takeTip(p) {
+  const st = powerState(p, 'w_puntas');
+  const elem = TIPS[(st.idx || 0) % 3];
+  st.idx = ((st.idx || 0) + 1) % 3;
+  st.readyAt = now(p) + tipEvery(p);
+  st.seq = [...(st.seq || []), elem].slice(-3);
+  if (st.seq.join() === TIPS.join()) { st.braid = true; st.seq = []; }
+  return elem;
+}
+// ¿puede llevar punta este enemigo? (una por enemigo cada 1 s)
+function tipOpen(p, e) {
+  const st = powerState(p, 'w_puntas');
+  return (st.last?.get(e) ?? -Infinity) <= now(p) - tune().tip.oncePer + 1e-9;
+}
+// aplica UNA punta (o, con `elems`, varias que cuentan como una: Desborde) al enemigo
+function applyTip(g, p, e, elems, mult, { main = false } = {}) {
+  if (!e?.alive || !tipOpen(p, e)) return false;
+  const st = powerState(p, 'w_puntas'), T = tune().tip, tv = p.tv || {};
+  if (!st.last) st.last = new WeakMap();
+  st.last.set(e, now(p));
+  const durMul = tv.tipMajor > 0 ? 2 : 1;                         // Punta Mayor: su efecto dura el doble
+  const k = mult * (1 + ((tv.tipMajor || 0) + (tv.tipDmg || 0)) / 100);
+  for (const elem of [].concat(elems)) {
+    if (elem === 'fire') {
+      const d = dotOf(p, 'burn', p.avgHit(T.burn.coef) * k * (1 + (tv.tipBurn || 0) / 100), T.burn.dur * durMul);
+      g.replaceDoT?.(e, d.total, d.ticks, 1, 'w_puntas:burn');      // la quemadura se renueva, no se suma
+    } else if (elem === 'frost') {
+      e.applyCC?.('slow', T.frost.dur * durMul, { pct: T.frost.slowPct, src: p });
+      if (tv.tipRoot > 0 && !isEliteish(e)) e.applyCC?.('root', tv.tipRoot, { src: p });
+      if (tv.tipBite > 0) (st.bite || (st.bite = new WeakMap())).set(e, now(p) + T.bite.dur * durMul);
+    } else {
+      const n = p.avgHit(T.bolt.coef) * k;
+      dealProcDamage(g, e, n, { source: 'power:w_puntas', skill: 'w_puntas' });
+      for (const o of foesNear(g, e.pos, T.bolt.radius, e).slice(0, T.bolt.jumps + (tv.tipChain || 0))) {
+        dealProcDamage(g, o, n, { source: 'power:w_puntas', skill: 'w_puntas' });
+        g.spawnBeam?.(e.pos.clone().setY(1.0), o.pos.clone().setY(1.0), T.colors.lightning, 0.15);
+      }
+    }
+    g.spawnRing?.(e.pos, 0.9, T.colors[elem] || 0xffffff);
+  }
+  // Punta Curativa: por la cubeta de autocuración, como mucho una vez cada 6 s
+  if (tv.tipHeal > 0 && takeCd(st, 'healAt', T.healEvery, p)) selfHeal(g, p, tv.tipHeal, 'w_puntas');
+  // Puntas Afines: cada punta del ciclo da Impulso (Tiradora) o recarga Trampa de Cepo (Montaraz)
+  if (main && tv.tipAffinity > 0) {
+    const m = p.talentAgg?.mechanic;
+    if (m === 'impulso') gainGauge(p, 'impulso', T.affinity.impulso);
+    else if (m === 'coto') g.reduceCooldown?.(p, 'a_t_cepo', T.affinity.cepo);
+  }
+  return true;
+}
+// ¿esta habilidad «coloca» algo que daña? (trampas, zonas y lluvias: Trampa Encantada)
+function placesTip(cast) {
+  const sk = cast?.sk;
+  if (!sk || !(cast.prof?.coef > 0)) return false;
+  const tags = cast.prof?.tags;
+  return sk.type === 'trap' || sk.type === 'zone' || !!tags?.has?.('trap') || !!tags?.has?.('zone')
+    || sk.behavior === 'a_lluvia' || sk.behavior === 'a_diluvio';
+}
+
+// ---------- Halconera: halcón y marca ----------
+function skyStorm(p) { return hasPower(p, 'y_cielo') && (powerState(p, 'y_cielo').storm || 0) > 0; }
+function hawkMarked(p, e) {
+  const until = powerState(p, 'y_halcon').marks?.get(e);
+  return !!e?.alive && until != null && until > now(p);
+}
+// tu blanco: el último enemigo que golpeaste con una flecha (hace ≤ 5 s y a 15 m) o el más cercano
+function hawkTarget(g, p) {
+  const st = powerState(p, 'y_halcon'), T = tune().hawk;
+  const e = st.target;
+  if (e?.alive && now(p) - (st.targetAt ?? -99) <= T.recent && dist2(e.pos, p.pos) <= T.range * T.range) return e;
+  return foesNear(g, p.pos, T.near)[0] || null;
+}
+// Cielo de Halcones: cada picado busca a OTRO enemigo (el más cercano sin marca)
+function skyTarget(g, p) {
+  const st = powerState(p, 'y_halcon');
+  const list = foesNear(g, p.pos, tune().hawk.near);
+  return list.find(e => e !== st.lastDive && !hawkMarked(p, e)) || list.find(e => e !== st.lastDive) || list[0] || null;
+}
+// el marcado recibe +10 % de tus flechas 6 s (Ojo Compartido: 12 s y varios a la vez);
+// Presa Señalada (Montaraz): cuenta como tu Presa
+function hawkMark(p, e) {
+  const st = powerState(p, 'y_halcon'), tv = p.tv || {};
+  if (!st.marks) st.marks = new Map();
+  if (!(tv.hawkShared > 0)) for (const o of [...st.marks.keys()]) if (o !== e) hawkUnmark(p, o);
+  st.marks.set(e, now(p) + (tv.hawkShared > 0 ? tv.hawkShared : tune().hawk.mark));
+  if (tv.hawkPrey > 0 && p.talentAgg?.mechanic === 'coto') e.prey = true;
+}
+function hawkUnmark(p, e) {
+  const st = powerState(p, 'y_halcon');
+  st.marks?.delete(e);
+  if (p.tv?.hawkPrey > 0 && e && gaugeState(p, 'coto')?.prey !== e) e.prey = false;
+}
+// PICADO del halcón sobre `e` (100 %): marca y aplica lo que digan sus nodos
+function hawkDive(g, p, e) {
+  if (!e?.alive) return false;
+  const T = tune().hawk, tv = p.tv || {};
+  const tags = new Set(['physical']);
+  const claws = tv.hawkDmg || 0;                                    // Garras Afiladas: todo el daño del halcón
+  const diveAdd = o => claws + (tv.hawkDeep || 0) + (isEliteish(o) ? (tv.hawkElite || 0) : 0);
+  if (tv.hawkSweep > 0) {
+    // Vuelo Rasante: barre una línea de 8 m que pasa por el blanco y golpea a todos
+    const dir = dirTo(p.pos, e.pos), half = T.sweep.len / 2;
+    const from = { x: e.pos.x - dir.x * half, z: e.pos.z - dir.z * half };
+    for (const o of lineFoes(g, from, dir, T.sweep.len, T.sweep.width)) strike(g, p, o, tv.hawkSweep / 100, diveAdd(o), 'y_halcon', tags);
+    g.spawnBeam?.(v3(from.x, from.z, 1.2), v3(from.x + dir.x * T.sweep.len, from.z + dir.z * T.sweep.len, 1.2), T.color, 0.2);
+  } else strike(g, p, e, T.coef, diveAdd(e), 'y_halcon', tags);
+  if (tv.hawkDeep > 0 && e.alive) e.addStagger?.(T.deepStagger, p);        // Picado Hondo: Quebranto al jefe
+  if (tv.hawkSilence > 0 && e.alive) e.applyCC?.('interrupt', tv.hawkSilence, { src: p });   // Grito del Halcón
+  if (e.alive) hawkMark(p, e);
+  // Bandada: dos halcones pequeños sobre otros enemigos · Plumas Cortantes: plumas a los de al lado
+  if (tv.hawkFlock > 0) for (const o of foesNear(g, e.pos, T.flock.radius, e).slice(0, T.flock.n)) strike(g, p, o, tv.hawkFlock / 100, claws, 'y_halcon', tags);
+  if (tv.hawkFeathers > 0) for (const o of foesNear(g, e.pos, T.feathers.radius, e).slice(0, tv.hawkFeathers)) strike(g, p, o, T.feathers.coef, claws, 'y_halcon', tags);
+  powerState(p, 'y_halcon').lastDive = e;
+  g.spawnBeam?.(v3(e.pos.x, e.pos.z, 6), e.pos.clone().setY(1.0), T.color, 0.2);
+  g.emitFx?.('arqStunPop', e.pos.clone().setY(1.2));
+  return true;
 }
 
 // ============================================================
@@ -314,26 +424,97 @@ function infiniteShot(g, p, wasInfinite) {
 // ============================================================
 export function arqueraPowers() {
   return {
-    // ---------------- árbol de clase ----------------
-    // c5B Paso Ligero: +12 % de velocidad de movimiento si no recibes daño en 3 s.
-    a_tailwind: {
-      name: 'Paso Ligero', desc: '+12 % de velocidad de movimiento si no recibes daño durante 3 s.',
-      state: () => ({ hitAt: -99, on: false }),
-      stats(p) { return powerState(p, 'a_tailwind').on ? { spdPct: tune().tailwind.spdPct } : {}; },
-      onDamaged(g, p, info) {
-        if (!(info?.raw > 0)) return;
-        const st = powerState(p, 'a_tailwind');
-        st.hitAt = now(p);
-        if (st.on) { st.on = false; p.recompute(); }
+    // ================ árbol de clase (§6) ================
+    // c5A Puntería Fija: el crítico se decide al TIRAR el golpe (las flechas tiran al impactar,
+    // con el enemigo real). condCrit cuenta los Disparos Rápidos que llegan a cada enemigo y, en
+    // el 4.º, fuerza el crítico de ESA tirada; condAdd (va antes en la siguiente tirada) lo
+    // devuelve, así no se contagia a las demás flechas del disparo.
+    a_punteria_fija: {
+      name: 'Puntería Fija', desc: 'Cada 4.º Disparo Rápido al mismo enemigo es crítico seguro.',
+      state: () => ({ count: new WeakMap(), forced: null, was: false }),
+      condAdd(p) {
+        const st = powerState(p, 'a_punteria_fija');
+        if (st.forced) { st.forced.forceCrit = st.was; st.forced = null; }
+        return 0;
       },
-      onTick(g, p) {
-        const st = powerState(p, 'a_tailwind');
-        const want = now(p) - st.hitAt >= tune().tailwind.quiet;
-        if (want !== st.on) { st.on = want; p.recompute(); }
+      condCrit(p, e, hit) {
+        if (!e || hit?.skill !== 'a_disparo') return 0;
+        const st = powerState(p, 'a_punteria_fija');
+        const n = (st.count.get(e) || 0) + 1;
+        st.count.set(e, n);
+        if (n % tune().cls.punteria.every === 0 && !hit.forceCrit) { st.forced = hit; st.was = false; hit.forceCrit = true; }
+        return 0;
       },
     },
-    // c12B Camuflaje: el primer ataque con daño desde la invisibilidad (la rompe) o al
-    // salir de ella es crítico seguro (⑦ onCast → cast.forceCrit: TODOS sus proyectiles).
+    // c5B Flecha Saqueadora: si Disparo Rápido mata, +8 de Energía (una vez por disparo)
+    a_saqueo: {
+      name: 'Flecha Saqueadora', desc: 'Si Disparo Rápido mata, recuperas 8 de Energía (como mucho una vez por disparo).',
+      state: () => ({ shot: 0, paid: -1 }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'a_disparo') powerState(p, 'a_saqueo').shot++; },
+      onKill(g, p, e, kill) {
+        if (kill?.skill !== 'a_disparo') return;
+        const st = powerState(p, 'a_saqueo');
+        if (st.paid === st.shot) return;
+        st.paid = st.shot;
+        g.gainResource?.(p, tune().cls.saqueo.energy);
+      },
+    },
+    // c6A A Bocajarro: a menos de 5 m, tus flechas +15 % y empujan 1 m (a un jefe, Quebranto)
+    a_bocajarro: {
+      name: 'A Bocajarro', desc: 'A menos de 5 m, tus flechas hacen +15 % de daño y empujan 1 m al enemigo.',
+      condAdd(p, e, hit) {
+        const T = tune().cls.bocajarro;
+        return e && arrowRoll(hit) && dist(p.pos, e.pos) < T.near ? T.pct : 0;
+      },
+      onHit(g, p, e, hit) {
+        const T = tune().cls.bocajarro;
+        if (!e?.alive || !arrowHit(hit) || dist(p.pos, e.pos) >= T.near) return;
+        e.displace?.(p.pos, T.knock, { src: p });
+      },
+    },
+    // c6B Tiro Lejano: a más de 10 m, tus flechas +20 %
+    a_tiro_lejano: {
+      name: 'Tiro Lejano', desc: 'A más de 10 m, tus flechas hacen +20 % de daño.',
+      condAdd(p, e, hit) {
+        const T = tune().cls.lejano;
+        return e && arrowRoll(hit) && dist(p.pos, e.pos) > T.far ? T.pct : 0;
+      },
+    },
+    // c9B Punta de Diamante: Flecha Perforante +40 % al PRIMER enemigo que toca (el HitInfo es
+    // del lanzamiento: la primera tirada lo marca)
+    a_punta_diamante: {
+      name: 'Punta de Diamante', desc: 'Flecha Perforante hace +40 % al primer enemigo que toca.',
+      condAdd(p, e, hit) {
+        if (!e || hit?.skill !== 'flecha_perforante' || hit._arqDiamond) return 0;
+        hit._arqDiamond = true;
+        return tune().cls.diamante.pct;
+      },
+    },
+    // c10A Flecha Roma: cada 8 s, tu siguiente flecha ralentiza un 50 % 4 s
+    a_flecha_roma: {
+      name: 'Flecha Roma', desc: 'Cada 8 s, tu siguiente disparo ralentiza un 50 % durante 4 s.',
+      icd: 8,
+      onHit(g, p, e, hit) {
+        if (!e?.alive || !arrowHit(hit)) return false;               // false: no gasta el icd
+        const T = tune().cls.roma;
+        e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
+        g.emitFx?.('arqStunPop', e.pos.clone().setY(1.0));
+      },
+    },
+    // c10B Flecha Silbante: cada 10 s, tu siguiente flecha corta el hechizo y deja mudo 3 s
+    // (interrumpir llena 20 de Quebranto a un jefe: Enemy.applyCC)
+    a_silbante: {
+      name: 'Flecha Silbante', desc: 'Cada 10 s, tu siguiente disparo corta el hechizo del enemigo y lo deja mudo 3 s.',
+      icd: 10,
+      onHit(g, p, e, hit) {
+        if (!e?.alive || !arrowHit(hit)) return false;
+        e.applyCC?.('interrupt', tune().cls.silbante.silence, { src: p });
+        g.emitFx?.('arqSilenceMark', e.pos.clone().setY(1.6));
+      },
+    },
+    // c11A Camuflaje: el primer ataque con daño desde la invisibilidad (la rompe) o al salir de
+    // ella es crítico seguro (⑦ onCast → cast.forceCrit: TODOS sus proyectiles). La activa
+    // a_t_camuflaje (comportamiento, abajo) te hace invisible y recarga Paso Veloz.
     a_camuflaje: {
       name: 'Camuflaje', desc: 'Tu primer ataque desde la invisibilidad (o al salir de ella) es crítico seguro.',
       state: () => ({ active: false, crit: false }),
@@ -352,22 +533,508 @@ export function arqueraPowers() {
         if (st.active && !p.isInvisible?.()) endCamo(p, st, true);
       },
     },
-    // c15 Espíritu del Halcón: tú y los aliados a 15 m, +5 % de crítico y +6 % de movimiento
-    a_aura_halcon: {
-      name: 'Espíritu del Halcón', desc: 'Aura: tú y los aliados a 15 m ganáis +5 % de crítico y +6 % de velocidad de movimiento.', tags: ['aura'],
-      state: () => ({ acc: 0 }),
-      stats() { const T = tune().halcon; return { crit: T.crit, spdPct: T.spdPct }; },
+    // c11B Instinto de Supervivencia: un golpe letal te deja con 1 de vida y suelta una Bomba
+    // de Humo gratis a tus pies (una vez cada 180 s)
+    a_instinto: {
+      name: 'Instinto de Supervivencia', desc: 'Un golpe que te mataría te deja con 1 de vida y suelta una Bomba de Humo gratis. Una vez cada 180 s.',
+      icd: 180,
+      onLethal(g, p) {
+        const at = p.pos.clone();
+        g.timers?.schedule?.(tune().frame, () => { if (p.alive) castEchoOf(g, p, 'a_humo', 1, at); });
+        g.ui?.spawnText?.(p.pos, '¡Instinto!', 'txt-crit');
+        return true;                                                 // el núcleo te deja con 1 de vida
+      },
+    },
+    // c14A Paso de Abrojos: donde empieza Paso Veloz quedan abrojos 3 s que ralentizan un 50 %
+    a_paso_abrojos: {
+      name: 'Paso de Abrojos', desc: 'Donde empieza tu Paso Veloz quedan abrojos 3 s que ralentizan un 50 %.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_paso') return;
+        const T = tune().cls.abrojos;
+        g.spawnField?.('zona', { pos: p.pos.clone().setY(0), radius: T.radius, dur: T.dur, owner: p,
+          data: { dps: 0, slow: T.slowT, slowPct: T.slowPct, color: T.color, skill: 'a_paso_abrojos' } });
+      },
+    },
+    // c14B Paso Sanador: Paso Veloz te cura un 6 % (cubeta de autocuración; una vez cada 12 s)
+    a_rodada_cura: {
+      name: 'Paso Sanador', desc: 'Paso Veloz te cura un 6 % de la vida (como mucho una vez cada 12 s).',
+      state: () => ({ at: -Infinity }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_paso') return;
+        const T = tune().cls.rodada;
+        if (takeCd(powerState(p, 'a_rodada_cura'), 'at', T.every, p)) selfHeal(g, p, T.pct, 'a_rodada_cura');
+      },
+    },
+    // c15A Adrenalina: al bajar del 50 % de vida, +30 de Energía y −20 % de daño 4 s (cada 30 s)
+    a_adrenalina: {
+      name: 'Adrenalina', desc: 'Al bajar del 50 % de vida recuperas 30 de Energía y recibes un 20 % menos 4 s. Una vez cada 30 s.',
+      icd: 30,
+      onDamaged(g, p, info) {
+        const T = tune().cls.adrenalina, max = p.stats?.maxHP || 1;
+        if (!(p.hp >= max * T.below && p.hp - (info?.amount || 0) < max * T.below)) return false;
+        g.gainResource?.(p, T.energy);
+        p.addBuff?.('a_adrenalina', { dr: T.dr }, T.dur, { name: 'Adrenalina', icon: '💢', desc: `−${T.dr}% de daño recibido` });
+      },
+    },
+    // c15B Calma Letal: con más de 40 de Energía, +10 % de daño (umbral absoluto: la clave
+    // tv.highManaDmg del núcleo mira el 70 % del máximo)
+    a_calma_letal: {
+      name: 'Calma Letal', desc: 'Con más de 40 de Energía, haces +10 % de daño.',
+      condAdd(p) { const T = tune().cls.calma; return (p.mp || 0) > T.over ? T.pct : 0; },
+    },
+    // c16A Presión Constante: cada flecha al mismo enemigo +4 % contra él (hasta +20 %); se
+    // pierde al cambiar de blanco
+    a_presion: {
+      name: 'Presión Constante', desc: 'Cada disparo al mismo enemigo te da +4 % de daño contra él (hasta +20 %); se pierde al cambiar de blanco.',
+      state: () => ({ target: null, n: 0 }),
+      condAdd(p, e, hit) {
+        const st = powerState(p, 'a_presion');
+        return e && e === st.target && arrowRoll(hit) ? tune().cls.presion.pct * st.n : 0;
+      },
+      onHit(g, p, e, hit) {
+        if (!e || !arrowHit(hit)) return;
+        const st = powerState(p, 'a_presion');
+        if (st.target === e) st.n = Math.min(tune().cls.presion.max, st.n + 1);
+        else { st.target = e; st.n = 1; }
+      },
+    },
+    // c16B Barrido de Caza: cada enemigo distinto golpeado en 2 s, +3 % de velocidad de ataque (hasta +15 %)
+    a_barrido: {
+      name: 'Barrido de Caza', desc: 'Cada enemigo distinto que golpeas en 2 s te da +3 % de velocidad de ataque (hasta +15 %).',
+      state: () => ({ seen: new Map(), n: 0 }),
+      onHit(g, p, e, hit) {
+        if (!e || hit?.proc || hit?.dot) return;
+        powerState(p, 'a_barrido').seen.set(e, now(p));
+        sweepRefresh(p, true);
+      },
+      onTick(g, p) { sweepRefresh(p, false); },
+    },
+    // c17B Huida Desesperada: al bajar del 30 % de vida, +40 % de velocidad y −20 % de daño 4 s (cada 60 s)
+    a_huida: {
+      name: 'Huida Desesperada', desc: 'Al bajar del 30 % de vida: +40 % de velocidad y un 20 % menos de daño 4 s. Una vez cada 60 s.',
+      icd: 60,
+      onDamaged(g, p, info) {
+        const T = tune().cls.huida, max = p.stats?.maxHP || 1;
+        if (!(p.hp >= max * T.below && p.hp - (info?.amount || 0) < max * T.below)) return false;
+        p.addBuff?.('a_huida', { spdPct: T.spdPct, dr: T.dr }, T.dur, { name: 'Huida Desesperada', icon: '💨', desc: `+${T.spdPct}% de velocidad y −${T.dr}% de daño recibido` });
+      },
+    },
+    // c19 Tiro desde la Niebla: dentro de tu Bomba de Humo, cada Disparo Rápido da 3 de Energía
+    // y alarga el humo 0,3 s (hasta +2 s por humo)
+    a_tiro_niebla: {
+      name: 'Tiro desde la Niebla', desc: 'Dentro de tu Bomba de Humo, cada Disparo Rápido te da 3 de Energía y alarga el humo 0,3 s (hasta +2 s).',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_disparo') return;
+        const here = smokesHere(g, p);
+        if (!here.length) return;
+        const T = tune().cls.niebla;
+        g.gainResource?.(p, T.energy);
+        for (const f of smokesOf(g, p)) {
+          if (!here.includes(f) && !here.some(h => h.pos.x === f.pos.x && h.pos.z === f.pos.z)) continue;   // la ceguera va con su zona
+          const ext = Math.min(T.ext, T.max - (f._arqNiebla || 0));
+          if (ext > 0) { f.t += ext; f.dur = (f.dur || 0) + ext; f._arqNiebla = (f._arqNiebla || 0) + ext; }
+        }
+      },
+    },
+    // c20 Lluvia en Retirada: Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde
+    // empezaste a rodar (con su variante de la forja: es la misma habilidad, repetida)
+    a_lluvia_retirada: {
+      name: 'Lluvia en Retirada', desc: 'Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde empezaste a rodar.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_paso') return;
+        const T = tune().cls.retirada, at = p.pos.clone();
+        g.timers?.schedule?.(T.delay, () => { if (p.alive) castEchoOf(g, p, 'lluvia_flechas', T.mult, at); });
+      },
+    },
+    // c23 Recarga en Marcha: cada principal recarga 0,3 s/rango de Paso Veloz y de la Bomba de Humo
+    a_recarga_marcha: {
+      name: 'Recarga en Marcha', desc: 'Cada habilidad principal que lanzas recarga Paso Veloz y la Bomba de Humo.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.cat !== 'spender') return;
+        const s = tune().cls.marcha.perRank * powerRank(p, 'a_recarga_marcha');
+        if (!(s > 0)) return;
+        g.reduceCooldown?.(p, 'a_paso', s);
+        g.reduceCooldown?.(p, 'a_humo', s);
+      },
+    },
+    // c25 Emboscada: al salir de tu Bomba de Humo (o al acabarse), tus rango+1 siguientes
+    // disparos son críticos seguros
+    a_emboscada: {
+      name: 'Emboscada', desc: 'Al salir de tu Bomba de Humo o al acabarse, tus siguientes disparos son críticos seguros.',
+      state: () => ({ inside: false, n: 0 }),
+      onTick(g, p) {
+        const st = powerState(p, 'a_emboscada');
+        const inside = smokesHere(g, p).length > 0;
+        if (st.inside && !inside) st.n = powerRank(p, 'a_emboscada') + 1;
+        st.inside = inside;
+      },
+      onCast(g, p, cast) {
+        const st = powerState(p, 'a_emboscada');
+        if (!(st.n > 0) || !arrowCast(cast)) return;
+        st.n--;
+        cast.forceCrit = true;
+      },
+    },
+    // c26 Compás: alternar básica y principal da un Compás (hasta 5): +2 % de daño por rango
+    // cada uno; se pierden 3 s después del último
+    a_compas: {
+      name: 'Compás', desc: 'Alternar básica y principal te da Compases (hasta 5): +% de daño cada uno. Se pierden a los 3 s.',
+      state: () => ({ n: 0, last: null, until: 0 }),
+      onCast(g, p, cast) {
+        const kind = cast?.weapon || cast?.sk?.cat === 'basic' ? 'basic' : cast?.sk?.cat === 'spender' ? 'spender' : null;
+        if (!kind) return;
+        const st = powerState(p, 'a_compas'), T = tune().cls.compas, t = now(p);
+        if (st.n > 0 && t > st.until) { st.n = 0; invalidate(p); }
+        if (st.last && st.last !== kind && st.n < T.max) {
+          st.n++;
+          st.until = t + T.keep;
+          if (st.n >= T.max) invalidate(p);                         // Danza del Arco lee los 5 Compases al resolver
+        } else if (st.last && st.last !== kind) st.until = t + T.keep;
+        st.last = kind;
+      },
+      onTick(g, p) {
+        const st = powerState(p, 'a_compas');
+        if (st.n > 0 && now(p) > st.until) { st.n = 0; invalidate(p); }
+      },
+      condAdd(p) {
+        const st = powerState(p, 'a_compas');
+        if (!(st.n > 0) || now(p) > st.until) return 0;
+        return st.n * tune().cls.compas.perRank * powerRank(p, 'a_compas');
+      },
+    },
+    // c27 Tras la Rodada: tras Paso Veloz, tu siguiente principal no cuesta Energía y hace +10 %/rango.
+    // El perfil está cacheado: armar o gastar el efecto lo invalida (modifyResolve lo vuelve a leer).
+    a_tras_rodada: {
+      name: 'Tras la Rodada', desc: 'Tras Paso Veloz, tu siguiente habilidad principal no cuesta Energía y hace más daño.',
+      state: () => ({ armed: false }),
+      modifyResolve(p, sk, prof) {
+        if (prof.cat !== 'spender' || !powerState(p, 'a_tras_rodada').armed) return;
+        prof.cost = 0;
+        prof.addPct += tune().cls.tras.perRank * powerRank(p, 'a_tras_rodada');
+        prof.trasRodada = true;
+      },
+      onCast(g, p, cast) {
+        const st = powerState(p, 'a_tras_rodada');
+        if (cast?.sk?.id === 'a_paso') { if (!st.armed) { st.armed = true; invalidate(p); } return; }
+        if (st.armed && cast?.prof?.trasRodada) { st.armed = false; invalidate(p); }
+      },
+    },
+    // c28 Manto de Niebla (final): tu Bomba de Humo te sigue; dentro recibes un 25 % menos (antes
+    // 50 %) y cura a tus ALIADOS (no a ti) 0,25 % de vida por segundo y rango. Cada humo nuevo
+    // (también el gratis de Instinto) se ajusta en el primer tic; su ceguera no se suma a la de
+    // otro humo (weakenOutgoing con un solo id).
+    a_manto: {
+      name: 'Manto de Niebla', desc: 'Tu Bomba de Humo te sigue; dentro recibes un 25 % menos y cura a tus aliados.',
       onTick(g, p, dt) {
-        const st = powerState(p, 'a_aura_halcon');
-        st.acc += dt;
-        const T = tune().halcon;
-        if (st.acc < T.pulse - 1e-9) return;
-        st.acc = 0;
-        for (const a of partyOf(g, p, p.pos, T.radius))
-          refreshBuff(a, 'a_aura_halcon', { crit: T.crit, spdPct: T.spdPct }, T.pulse + 0.25, { name: 'Espíritu del Halcón', icon: '🦅' });
+        const T = tune().cls.manto, r = powerRank(p, 'a_manto');
+        for (const f of smokesOf(g, p)) {
+          if (!f._arqManto) {
+            f._arqManto = true;
+            f.follow = 'owner';
+            if (f.kind !== 'a_humo_ciego' && (f.data.allyDr || 0) > T.dr) f.data.allyDr = T.dr;
+          }
+          if (f.kind === 'a_humo_ciego' || !(r > 0)) continue;
+          const pct = T.healPerRank * r;
+          const at = v3(f.pos.x, f.pos.z);
+          const inside = new Set((g.allies ? g.allies() : []).filter(a => a !== p && dist2(a.pos, f.pos) <= f.radius * f.radius));
+          if (inside.size) g.heal?.(a => (inside.has(a) ? (a.stats?.maxHP || 0) * pct / 100 * dt : 0), { target: 'all', pos: at, radius: f.radius, src: 'a_manto' });
+        }
+      },
+    },
+    // c29 Danza del Arco (final): con 5 Compases, tu siguiente principal es gratis, crítica y
+    // +20 %/rango; los Compases vuelven a 0 (después de que Compás cuente este lanzamiento)
+    a_danza_arco: {
+      name: 'Danza del Arco', desc: 'Con 5 Compases, tu siguiente principal es gratis, crítica y hace más daño.',
+      priority: -1,
+      modifyResolve(p, sk, prof) {
+        if (prof.cat !== 'spender') return;
+        const c = powerState(p, 'a_compas');
+        if (!(c.n >= tune().cls.compas.max && now(p) <= c.until)) return;
+        prof.cost = 0;
+        prof.forceCrit = true;
+        prof.addPct += tune().cls.danza.perRank * powerRank(p, 'a_danza_arco');
+        prof.danzaArco = true;
+      },
+      onCast(g, p, cast) {
+        if (!cast?.prof?.danzaArco) return;
+        const c = powerState(p, 'a_compas');
+        c.n = 0;
+        invalidate(p);
+        g.ui?.spawnText?.(p.pos, '¡Danza del Arco!', 'txt-crit');
+      },
+    },
+    // c30 Sombra Gemela (final): Paso Veloz deja una sombra 3 s (una a la vez) que repite tus
+    // principales al 30/45/60 % (repeticiones del canal: no cuestan ni generan otras)
+    a_sombra: {
+      name: 'Sombra Gemela', desc: 'Paso Veloz deja una sombra tuya 3 s que repite tus habilidades principales.',
+      state: () => ({ until: -1 }),
+      onCast(g, p, cast) {
+        const st = powerState(p, 'a_sombra'), T = tune().cls.sombra, sk = cast?.sk;
+        if (sk?.id === 'a_paso') {
+          st.until = now(p) + T.dur;
+          g.emitFx?.('arqCamoLeaves', p.pos.clone().setY(1.0));
+          return;
+        }
+        if (sk?.cat !== 'spender' || now(p) > st.until || !cast.slot) return;
+        const mult = T.base + T.perRank * powerRank(p, 'a_sombra');
+        const slot = cast.slot, id = sk.id;
+        g.timers?.schedule?.(T.delay, () => { if (p.alive && p.hotbar?.[slot] === id) g.castSkillSlot?.(slot, mult); });
       },
     },
 
+    // ================ Errante del Viento (§9.2) ================
+    // q0 Ráfagas: una cada 4 s (hasta 3); tu siguiente principal o insignia suelta una flecha de
+    // viento por Ráfaga. Sus nodos (claves wind*): Brisa Constante (cada 3 s), Viento a Favor
+    // (cada 15 m recorridos, rodando y saltando también), Aire Quieto (quieta, cada 2 s), Plumas
+    // de Aire (atraviesan), Corriente Protectora (−15 % de daño con 3), Aire Afilado (+30 %),
+    // Empuje del Aire (gastar 3: +15 de tu mecánica), Rachas (gastar 3: recarga la insignia),
+    // Ojo de la Racha / Abanico de Aire, Aire Pesado (ralentizan), Tormenta Guardada (hasta 5) y
+    // Silbido (un crítico devuelve una Ráfaga). Torbellino (activa) da 3 Ráfagas.
+    q_rafagas: {
+      name: 'Ráfagas', desc: 'Guardas Ráfagas con el tiempo; tu siguiente principal o insignia suelta una flecha de viento por cada una.',
+      state: () => ({ n: 0, acc: 0, walk: 0, at: null }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'q_rafagas'), T = tune().wind, tv = p.tv || {};
+        let every = Math.max(0.5, T.every - (tv.windEvery || 0));
+        if (tv.windStill > 0 && !p.moving) every = Math.min(every, tv.windStill);
+        if (rosaStorm(p)) every = Math.min(every, T.rosa.gustEvery);
+        st.acc += dt;
+        while (st.acc >= every - 1e-9) { st.acc -= every; addGust(p, 1); }
+        if (tv.windMove > 0) {
+          if (st.at) st.walk += Math.hypot(p.pos.x - st.at.x, p.pos.z - st.at.z);
+          st.at = { x: p.pos.x, z: p.pos.z };
+          while (st.walk >= tv.windMove) { st.walk -= tv.windMove; addGust(p, 1); }
+        }
+      },
+      afterCast(g, p, cast) {
+        const sk = cast?.sk;
+        if (!sk) return;
+        if (sk.id === 'a_h_torbellino') { addGust(p, tune().wind.torbellino); return; }
+        if (sk.cat !== 'spender' && sk.cat !== 'spec') return;
+        const st = powerState(p, 'q_rafagas'), tv = p.tv || {};
+        const n = st.n || 0;
+        if (!(n > 0)) return;
+        st.n = 0;
+        windVolley(g, p, n, cast);
+        if (n < 3) return;
+        // gastar 3 Ráfagas a la vez
+        const m = p.talentAgg?.mechanic;
+        if (tv.windGauge > 0 && (m === 'impulso' || m === 'concentracion')) gainGauge(p, m, tv.windGauge);
+        const ins = tv.windRush > 0 ? insigniaOf(p) : null;
+        if (ins) g.reduceCooldown?.(p, ins.id, tv.windRush);
+      },
+      condDr(p) {
+        const tv = p.tv || {};
+        return tv.windGuard > 0 && (powerState(p, 'q_rafagas').n || 0) >= 3 ? tv.windGuard : 0;
+      },
+    },
+    // q12 Rosa de los Vientos (final): cada 25 s el viento ruge 6 s: una Ráfaga por segundo y
+    // las flechas de viento +50 % (lo leen q_rafagas y windVolley)
+    q_rosa: {
+      name: 'Rosa de los Vientos', desc: 'Cada 25 s, el viento ruge 6 s: ganas una Ráfaga por segundo y las flechas de viento hacen +50 %.',
+      state: () => ({ cycle: 0, storm: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'q_rosa'), T = tune().wind.rosa;
+        if (st.storm > 0) st.storm = Math.max(0, st.storm - dt);
+        st.cycle += dt;
+        if (st.cycle + 1e-9 < T.every) return;
+        st.cycle -= T.every;
+        st.storm = T.dur;
+        g.ui?.spawnText?.(p.pos, '¡Rosa de los Vientos!', 'txt-crit');
+      },
+    },
+
+    // ================ Carcaj Encantado (§9.3) ================
+    // w0 Puntas Encantadas: cada 6 s tu siguiente flecha lleva una punta que rota (Fuego quema
+    // 200 %, Hielo frena un 40 %, Rayo 80 % y salta a 3); una punta por enemigo cada 1 s y la
+    // quemadura se renueva. Sus nodos (claves tip*): Encantamiento Rápido (cada 4 s), Punta Mayor
+    // / Punta Repartida, Trampa Encantada (trampas, zonas y lluvias toman la punta al colocarlas),
+    // Punta Curativa, Fuego Prendido, Hielo Hondo, Trenza de Puntas, Chispa Saltarina / Hielo
+    // Mordiente, Puntas Afines, Encantamiento Hondo y Punta Viva. Desborde de Puntas (activa):
+    // tus 4 siguientes disparos llevan las tres puntas al 50 % (cuentan como una por enemigo).
+    w_puntas: {
+      name: 'Puntas Encantadas', desc: 'Cada 6 s tu siguiente flecha lleva una punta encantada que rota: Fuego, Hielo o Rayo.',
+      priority: 1,                                                  // antes que Lluvia Encantada (30 %)
+      procs: true,                                                   // los tics de una zona que lleva la punta
+      state: () => ({ readyAt: 0, idx: 0, seq: [], braid: false, last: new WeakMap(), bite: new WeakMap(),
+        share: null, desborde: 0, desb: null, placed: new Map(), quickAt: -Infinity, healAt: -Infinity }),
+      onCast(g, p, cast) {
+        const st = powerState(p, 'w_puntas'), sk = cast?.sk, t = now(p);
+        if (!sk) return;
+        if (st.desborde > 0 && arrowCast(cast)) { st.desborde--; st.desb = { skill: sk.id, until: t + tune().tip.shareWin, done: new Set() }; }
+        // Trampa Encantada: lo que colocas toma la punta lista (y la gasta)
+        if (p.tv?.tipPlace > 0 && placesTip(cast) && tipReady(p)) {
+          const dur = cast.prof?.dur > 0 ? cast.prof.dur : tune().tip.placeWin;
+          st.placed.set(sk.id, { elem: takeTip(p), until: t + dur + 1 });
+        }
+      },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id === 'a_h_puntas') powerState(p, 'w_puntas').desborde = tune().tip.desborde.shots;
+      },
+      onHit(g, p, e, hit) {
+        if (!e || hit?.proc) return;
+        const st = powerState(p, 'w_puntas'), T = tune().tip, tv = p.tv || {}, t = now(p);
+        // lo colocado con la punta (trampa, zona o lluvia): sus golpes y sus tics
+        const pl = st.placed.get(hit.skill);
+        if (pl) {
+          if (t > pl.until) st.placed.delete(hit.skill);
+          else if (e.alive) applyTip(g, p, e, pl.elem, 1);
+        }
+        if (hit.dot || !e.alive) return;
+        // Desborde de Puntas: las tres al 50 % (no avanzan la Trenza ni las reparte Punta Repartida)
+        const d = st.desb;
+        if (d && d.skill === hit.skill && t <= d.until && !d.done.has(e)) { d.done.add(e); applyTip(g, p, e, TIPS, T.desborde.mult); }
+        if (!arrowHit(hit)) return;
+        // Trenza de Puntas: tras Fuego, Hielo y Rayo seguidos, esta flecha estalla en 4 m
+        if (st.braid && tv.tipBraid > 0) {
+          st.braid = false;
+          g.dealArea?.(e.pos.clone().setY(0), T.braid.radius, tv.tipBraid / 100,
+            { hitInfo: { skill: 'w_puntas', tags: new Set(['area']), elem: null }, hitExtra: { echo: true }, from: e.pos });
+          g.emitFx?.('arqBlastPop', e.pos.clone().setY(0.6));
+        }
+        // la punta del ciclo, si está lista y este enemigo la admite
+        if (tipReady(p) && tipOpen(p, e)) {
+          const elem = takeTip(p);
+          applyTip(g, p, e, elem, 1, { main: true });
+          if (tv.tipShare > 0) st.share = { skill: hit.skill, elem, until: t + T.shareWin, done: new Set([e]) };
+          return;
+        }
+        // Punta Repartida: las demás flechas de ese disparo llevan la punta al 30 % (una por enemigo)
+        const sh = st.share;
+        if (sh && tv.tipShare > 0 && sh.skill === hit.skill && t <= sh.until && !sh.done.has(e)) {
+          sh.done.add(e);
+          applyTip(g, p, e, sh.elem, tv.tipShare / 100);
+        }
+      },
+      // Hielo Mordiente: los que llevan la punta de Hielo reciben +15 % de tus flechas 4 s (8 con Punta Mayor)
+      condAdd(p, e, hit) {
+        const tv = p.tv || {};
+        if (!e || !(tv.tipBite > 0) || !arrowRoll(hit)) return 0;
+        return (powerState(p, 'w_puntas').bite?.get(e) || 0) > now(p) ? tv.tipBite : 0;
+      },
+      // Punta Viva: si una punta mata, la siguiente llega al instante (una vez cada 3 s)
+      onKill(g, p, e, kill) {
+        const tv = p.tv || {};
+        if (!(tv.tipQuick > 0) || kill?.skill !== 'w_puntas') return;
+        const st = powerState(p, 'w_puntas');
+        if (takeCd(st, 'quickAt', tv.tipQuick, p)) st.readyAt = now(p);
+      },
+    },
+    // w12 Lluvia Encantada (final): cada 30 s, durante 6 s, tus flechas llevan una punta (al 30 %;
+    // una por enemigo cada 1 s), rotando aparte del ciclo de w_puntas
+    w_lluvia_encantada: {
+      name: 'Lluvia Encantada', desc: 'Cada 30 s, durante 6 s, tus flechas llevan una punta encantada (al 30 %).',
+      state: () => ({ cycle: 0, storm: 0, idx: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'w_lluvia_encantada'), T = tune().tip.rain;
+        if (st.storm > 0) st.storm = Math.max(0, st.storm - dt);
+        st.cycle += dt;
+        if (st.cycle + 1e-9 < T.every) return;
+        st.cycle -= T.every;
+        st.storm = T.dur;
+        g.ui?.spawnText?.(p.pos, '¡Lluvia Encantada!', 'txt-crit');
+      },
+      onHit(g, p, e, hit) {
+        const st = powerState(p, 'w_lluvia_encantada');
+        if (!(st.storm > 0) || !e?.alive || !arrowHit(hit) || !tipOpen(p, e)) return;
+        applyTip(g, p, e, TIPS[st.idx++ % 3], tune().tip.rain.mult);
+      },
+    },
+
+    // ================ Halconera (§9.4) ================
+    // y0 Halcón Cazador: cada 6 s cae en picado sobre tu blanco (100 %) y lo marca 6 s: recibe
+    // +10 % de tus flechas. Sus nodos (claves hawk*): Alas Rápidas (cada 5 s), Picado Hondo /
+    // Vuelo Rasante, Presa Señalada, Alas Protectoras, Garras Afiladas, Grito del Halcón,
+    // Cetrería, Bandada / Halcón Peregrino, Plumas Cortantes, Ojo Compartido y Halcón Fiel.
+    // Llamada del Halcón (activa): 6 s de ataques (40 % cada 0,5 s), ceguera y 30 de Quebranto.
+    y_halcon: {
+      name: 'Halcón Cazador', desc: 'Un halcón cae en picado cada 6 s sobre tu blanco y lo marca: recibe +10 % de tus flechas.',
+      state: () => ({ acc: 0, target: null, targetAt: -99, marks: new Map(), assault: null, callAt: -Infinity, guardAt: -Infinity, lastDive: null }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'y_halcon'), T = tune().hawk, tv = p.tv || {}, t = now(p);
+        // marcas que caducan (o mueren); Presa Señalada: el marcado sigue contando como tu Presa
+        for (const [e, until] of [...st.marks]) {
+          if (!e.alive || until <= t) hawkUnmark(p, e);
+          else if (tv.hawkPrey > 0 && p.talentAgg?.mechanic === 'coto') e.prey = true;
+        }
+        // Llamada del Halcón: ataques cada 0,5 s durante 6 s (si el blanco cae, busca otro)
+        const a = st.assault;
+        if (a) {
+          if (t > a.until) st.assault = null;
+          else if (t + 1e-9 >= a.next) {
+            if (!a.e?.alive) a.e = hawkTarget(g, p);
+            const e = a.e;
+            if (e?.alive) {
+              strike(g, p, e, T.assault.coef, tv.hawkDmg || 0, 'y_halcon', new Set(['physical']));
+              if (a.first && e.alive) {
+                a.first = false;
+                e.weakenOutgoing?.('y_ceguera', T.assault.blind, T.assault.dur);
+                e.addStagger?.(T.assault.stagger, p);
+              }
+            }
+            a.next += T.assault.every;
+          }
+        }
+        // picado periódico (Cielo de Halcones: cada segundo y sobre otro enemigo)
+        const sky = skyStorm(p);
+        const every = sky ? T.sky.gap : Math.max(1, T.every - (tv.hawkEvery || 0));
+        st.acc += dt;
+        if (st.acc + 1e-9 < every) return;
+        const e = sky ? skyTarget(g, p) : hawkTarget(g, p);
+        if (!e) { st.acc = every; return; }                          // espera a tener blanco
+        st.acc = 0;
+        hawkDive(g, p, e);
+      },
+      onHit(g, p, e, hit) {
+        if (!e?.alive || !arrowHit(hit)) return;
+        const st = powerState(p, 'y_halcon'), tv = p.tv || {};
+        st.target = e;
+        st.targetAt = now(p);
+        // Cetrería: tu principal o tu insignia sobre el marcado hace caer al halcón (cada 10 s)
+        if (tv.hawkCall > 0 && hawkMarked(p, e)) {
+          const cat = catOf(p, hit.skill);
+          if ((cat === 'spender' || cat === 'spec') && takeCd(st, 'callAt', tv.hawkCall, p)) hawkDive(g, p, e);
+        }
+      },
+      condAdd(p, e, hit) { return e && arrowRoll(hit) && hawkMarked(p, e) ? tune().hawk.markPct : 0; },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_h_halcon') return;
+        const e = hawkTarget(g, p);
+        if (e) powerState(p, 'y_halcon').assault = { e, until: now(p) + tune().hawk.assault.dur, next: now(p), first: true };
+      },
+      // Halcón Fiel: si el marcado muere, el halcón marca al siguiente y cae en picado gratis
+      onKill(g, p, e) {
+        const st = powerState(p, 'y_halcon');
+        if (!(p.tv?.hawkLoyal > 0) || !st.marks.has(e)) return;
+        hawkUnmark(p, e);
+        const next = foesNear(g, e.pos, tune().hawk.loyal.radius, e)[0];
+        if (next) hawkDive(g, p, next);
+      },
+      // Alas Protectoras: al bajar del 40 % de vida, −30 % de daño 4 s (una vez cada 60 s)
+      onDamaged(g, p, info) {
+        const tv = p.tv || {}, T = tune().hawk.guard, max = p.stats?.maxHP || 1;
+        if (!(tv.hawkGuard > 0) || !(p.hp >= max * T.below && p.hp - (info?.amount || 0) < max * T.below)) return;
+        if (!takeCd(powerState(p, 'y_halcon'), 'guardAt', T.every, p)) return;
+        p.addBuff?.('y_alas', { dr: tv.hawkGuard }, T.dur, { name: 'Alas Protectoras', icon: '🦅', desc: `−${tv.hawkGuard}% de daño recibido` });
+      },
+    },
+    // y12 Cielo de Halcones (final): cada 30 s, durante 4 s, el halcón cae en picado cada segundo
+    // y cada picado marca a otro enemigo (lo leen y_halcon y skyTarget)
+    y_cielo: {
+      name: 'Cielo de Halcones', desc: 'Cada 30 s, durante 4 s, el halcón cae en picado cada segundo sobre otro enemigo.',
+      state: () => ({ cycle: 0, storm: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'y_cielo'), T = tune().hawk.sky;
+        if (st.storm > 0) st.storm = Math.max(0, st.storm - dt);
+        st.cycle += dt;
+        if (st.cycle + 1e-9 < T.every) return;
+        st.cycle -= T.every;
+        st.storm = T.dur;
+        g.ui?.spawnText?.(p.pos, '¡Cielo de Halcones!', 'txt-crit');
+      },
+    },
+
+    // ================ especializaciones (v1 de 2c: trabajos 2 y 3 de KT) ================
     // ---------------- Francotiradora ----------------
     // s4 Aliento del Cazador: con Concentración 100, Disparo Apuntado sale sin carga y gasta 50.
     // (s11 Respiración Profunda es tv.focusEnergy: la Energía al llenar la da el núcleo)
@@ -679,78 +1346,235 @@ export function arqueraPowers() {
   };
 }
 
+// ---------- Barrido de Caza (c16B) ----------
+// enemigos distintos golpeados en los últimos 2 s → +3 % de velocidad de ataque cada uno (hasta 5);
+// el buff solo se rehace (recompute) cuando cambia la cuenta
+function sweepRefresh(p, fromHit) {
+  const st = powerState(p, 'a_barrido'), T = tune().cls.barrido, t = now(p);
+  for (const [e, at] of [...st.seen]) if (t - at > T.win + 1e-9 || !e.alive) st.seen.delete(e);
+  const n = Math.min(T.max, st.seen.size);
+  if (n === st.n) {
+    const b = fromHit && n > 0 ? p.buffs?.find(x => x.id === 'a_barrido') : null;
+    if (b) b.t = Math.max(b.t, T.win);
+    return;
+  }
+  st.n = n;
+  if (n > 0) p.addBuff?.('a_barrido', { aspdPct: T.pct * n }, T.win, { name: 'Barrido de Caza', icon: '🏹', desc: `+${T.pct * n}% de velocidad de ataque` });
+  else if (p.buffs?.some(b => b.id === 'a_barrido')) { p.buffs = p.buffs.filter(b => b.id !== 'a_barrido'); p.recompute?.(); }
+}
+
+// ---------- Camuflaje (c11A) ----------
+// a_t_camuflaje te hace invisible DE VERDAD (p.goInvisible: Enemy.update pierde el objetivo
+// y no adquiere uno nuevo); el poder a_camuflaje guarda { active, crit }: al acabar sola la
+// invisibilidad queda «cebado» el crítico; un ataque con daño (también el básico de arma)
+// la rompe (p.reveal) y es crítico seguro (cast.forceCrit).
+function endCamo(p, st, primed) {
+  st.active = false;
+  st.crit = !!primed;
+  if (p.buffs?.some(b => b.id === 'a_t_camuflaje')) p.buffs = p.buffs.filter(b => b.id !== 'a_t_camuflaje');
+}
+
+// ------------------------------------------------------------
+// helpers de las especializaciones (v1 de 2c; los rehacen los trabajos 2 y 3)
+// ------------------------------------------------------------
+// rango de un nodo v1: árbol 'cls' o id de especialización (solo la ACTIVA)
+function nodeRank(p, tree, id) {
+  const T = p?.talents;
+  if (!T) return 0;
+  if (tree === 'cls') return T.cls?.[id] | 0;
+  if (p.talentAgg?.spec !== tree) return 0;
+  if (id === 's0') return 1;
+  return T.sp?.[tree]?.[id] | 0;
+}
+// renueva (o crea) un buff corto a un aliado (auras/campos)
+function refreshBuff(a, id, stats, keep, meta = {}) {
+  const b = a?.buffs?.find?.(x => x.id === id);
+  if (b) { b.t = Math.max(b.t, keep); b.dur = Math.max(b.dur || 0, keep); return; }
+  a?.addBuff?.(id, { ...stats }, keep, meta);
+}
+// los aliados SIN el héroe (poderes «de grupo»: en solitario no hacen nada)
+function partyOf(g, p, pos = null, r = Infinity) {
+  return (g?.allies ? g.allies(pos, r) : []).filter(a => a && a !== p);
+}
+// dirección del héroe hacia `target` (o su orientación)
+function aimDir(p, target) {
+  let dx = (target?.x ?? p.pos.x) - p.pos.x, dz = (target?.z ?? p.pos.z) - p.pos.z;
+  const l = Math.hypot(dx, dz);
+  if (l < 0.05) { dx = Math.sin(p.group?.rotation?.y || 0); dz = Math.cos(p.group?.rotation?.y || 0); }
+  else { dx /= l; dz /= l; }
+  return { x: dx, z: dz };
+}
+// destino «hacia atrás» (contrario a la mira), recortado a lo transitable
+function backDest(g, p, target, dist) {
+  const d = aimDir(p, target);
+  const want = p.pos.clone(); want.x -= d.x * dist; want.z -= d.z * dist; want.y = 0;
+  return g.clampWalkable ? g.clampWalkable(p.pos, want, dist) : want;
+}
+// desplazamiento por pasos del planificador (como Paso Veloz): sin invulnerabilidad
+function slide(g, p, dest, dur, { trail = null, onDone = null } = {}) {
+  const from = p.pos.clone();
+  const steps = 6, dt = Math.max(0.02, dur) / steps;
+  let i = 0;
+  const step = () => {
+    if (!p.alive) { onDone?.(); return; }
+    i++;
+    const k = i / steps;
+    p.pos.x = from.x + (dest.x - from.x) * k;
+    p.pos.z = from.z + (dest.z - from.z) * k;
+    if (trail && i % 2) g.emitFx?.(trail, p.pos.clone().setY(0.4));
+    if (i < steps) g.timers.schedule(dt, step);
+    else onDone?.();
+  };
+  g.timers.schedule(dt, step);
+}
+// abanico de proyectiles del perfil (g.fireProjectile: crítico, ctx.hit, robo…).
+// Devuelve el tiempo de vuelo (para cerrar el lanzamiento con cast.done).
+function shootFan(g, p, prof, cast, { ctx = cast.ctx, n = null, spread = 0, angle = null, range = null, size = 0.1, onEnemy = null, beam = false } = {}) {
+  const sk = cast.sk;
+  const tgt = cast.target || p.pos;
+  const base = angle ?? Math.atan2(tgt.x - p.pos.x, tgt.z - p.pos.z);
+  const count = Math.max(1, n ?? ((prof.count || 1) + (prof.proj || 0)));
+  const castHits = count > 1 && (sk.count || 1) <= 1 ? new Set() : null;   // sin escopetazo
+  const R = range ?? (prof.range || sk.range || 10);
+  p.faceToward?.(v3(p.pos.x + Math.sin(base), p.pos.z + Math.cos(base)));
+  p.swing = 1;
+  const muzzle = p.pos.clone().setY(1.0);
+  muzzle.x += Math.sin(base) * 0.5; muzzle.z += Math.cos(base) * 0.5;
+  if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, muzzle);
+  else if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, muzzle);
+  for (let i = 0; i < count; i++)
+    g.fireProjectile(ctx, { angle: base + projFanOffset(i, count, spread), range: R, size, castHits, onEnemy });
+  if (beam) {
+    const end = p.pos.clone().setY(1.0);
+    end.x += Math.sin(base) * R; end.z += Math.cos(base) * R;
+    g.spawnBeam?.(muzzle, end, ctx.color || sk.color || 0xffee66, 0.3);
+  }
+  ctx.lifestealDone = true;
+  return R / Math.max(1, prof.speed || 14) + 0.05;
+}
+// total y tics de un DoT con el perfil de talentos (dotPct + <tipo>Pct, dotDur añade tics)
+function dotOf(p, kind, base, dur) {
+  const tv = p?.tv || {};
+  const pct = (tv.dotPct || 0) + (tv[kind + 'Pct'] || 0);
+  const ticks = Math.max(1, Math.round(dur + (tv.dotDur || 0)));
+  return { total: base * Math.max(0, 1 + pct / 100) * ticks / dur, ticks };
+}
+// distancia² de un punto a un segmento (red de espinas)
+function segDist2(px, pz, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const L = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / L));
+  const qx = a.x + dx * t - px, qz = a.z + dz * t - pz;
+  return qx * qx + qz * qz;
+}
+// decal de suelo de un campo (anillo o disco); libera al morir
+function groundDecal(g, f, { inner = 0.6, opacity = 0.45, color = 0xffffff, disc = false, segs = 32 } = {}) {
+  if (f.dead) {
+    if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; }
+    return null;
+  }
+  if (!f.decal) {
+    const geo = disc ? new THREE.CircleGeometry(f.radius, segs) : new THREE.RingGeometry(f.radius * inner, f.radius, segs);
+    const decal = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    decal.rotation.x = -Math.PI / 2;
+    decal.position.set(f.pos.x, 0.06, f.pos.z);
+    g.fxGroup.add(decal);
+    f.decal = decal;
+  }
+  return f.decal;
+}
+// ---------- Trampa de Cepo v1: trampas armadas (las cargas son del motor: D2) ----------
+function extraTrap(p) { return hasPower(p, 'm_extratrap'); }
+function wardenOn(p) { return hasPower(p, 'm_warden'); }
+function armedTraps(g, p) {
+  return (g?.fields || []).filter(f => !f.dead && !f.sprung && f.owner === p && f.kind === 'a_cepo');
+}
+// salta la trampa: inmoviliza (o estalla si es Mina), envenena y desaparece
+function springTrap(g, f, e) {
+  const p = f.owner, d = f.data;
+  f.sprung = true;
+  d.trap = false;                      // ya no cuenta como armada (Coto de Caza)
+  const at = v3(f.pos.x, f.pos.z);
+  if (d.mine) {
+    g.dealArea?.(at, d.blastR, d.blastCoef, d.areaOpts);
+    g.addShake?.(0.15);
+    g.emitFx?.('arqThornBurst', at.clone().setY(0.4));
+  } else if (e?.alive) {
+    e.applyCC?.('root', d.root, { src: p });
+    // Cepo de Hierro (prof.bossSlowPct): a los jefes los ralentiza un 50 % (applyCC aplica
+    // ×0,5 a la ralentización de los jefes, de ahí el ×2)
+    if (d.bossSlow && isBoss(e)) e.applyCC?.('slow', d.root, { pct: 2 * d.bossSlow, src: p });
+  }
+  if (e?.alive && d.poison?.total > 0) g.applyDoT?.(e, d.poison.total, d.poison.ticks, 1, 'txt', `${d.skill}:poison`);
+  g.spawnRing?.(at, f.radius, d.color);
+  g.emitFx?.('arqTrapSnap', at.clone().setY(0.3));
+  g.sfx?.('trap');
+  f.t = 0;
+}
+// ---------- Punto Débil v1 ----------
+function weak(p, e) { return !!e && (e._weakspotUntil || 0) > now(p); }
+// ---------- Gran Cacería v1 ----------
+function greatHunt(g, p, e) {
+  const st = powerState(p, 'm_greathunt');
+  if (st.prey === e) return false;                   // una vez por Presa
+  st.prey = e;
+  g.reduceCooldown?.(p, 'a_t_cepo', Infinity);      // D2: todas las trampas listas
+  const T = tune().greathunt;
+  for (const a of g.allies ? g.allies() : [p])
+    a.addBuff?.('m_greathunt', { dmgPct: T.dmgPct }, T.dur, { name: 'Gran Cacería', icon: '🏹', desc: `+${T.dmgPct}% de daño` });
+  g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 1), '¡GRAN CACERÍA!', 'txt-crit');
+  g.sfx?.('levelup');
+  return true;
+}
+// ---------- Ráfaga Infinita v1 ----------
+function infiniteShot(g, p, wasInfinite) {
+  const st = powerState(p, 't_infinite');
+  const T = tune().infinite;
+  if (wasInfinite && st.ready) {
+    st.ready = false;
+    invalidate(p);
+    const n = 2 * (p.tv?.infiniteDmg || 0);     // Huracán (x2): +10 de Impulso/rango (el doble del % de daño, 2e)
+    if (n > 0) gainGauge(p, 'impulso', n);
+    return;
+  }
+  st.shots = (st.shots || 0) + 1;
+  const gale = (gaugeState(p, 'impulso')?.galeT || 0) > 0;
+  const every = hasPower(p, 't_eyestorm') && gale ? T.storm : T.every;
+  if (st.shots >= every) {
+    st.shots = 0;
+    st.ready = true;
+    invalidate(p);
+    g?.ui?.spawnText?.(p.pos, '¡RÁFAGA INFINITA!', 'txt-crit');
+  }
+}
+
 // ============================================================
-// COMPORTAMIENTOS de las activas de talento
+// COMPORTAMIENTOS de las activas de talento y del kit v1
 // ============================================================
 export function arqueraSkillBehaviors() {
   return {
-    // c2 Voltereta: ruedas 6 m hacia atrás; el próximo disparo no cuesta Energía (se devuelve
-    // lo que gaste, ventana de 10 s). Cuero Curtido (c7, tv.drAfterRoll): su reducción de daño
-    // se duplica 2 s (buff dr = tv.drAfterRoll; el incondicional es su tv.dmgReduc).
-    a_t_voltereta: {
-      name: 'Voltereta',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const dest = backDest(g, p, cast.target, prof.range || sk.range || 6);
-        const roll = p.tv?.drAfterRoll || 0;
-        if (roll > 0) p.addBuff('a_cuero_curtido', { dr: roll }, tune().cuero.dur, { name: 'Cuero Curtido', icon: '🛡️', desc: `−${roll}% de daño recibido` });
-        const st = powerState(p, 'a_t_voltereta');
-        st.until = now(p) + tune().freeShot.window;
-        st.lastMp = p.mp;
-        st.lastAt = g.timers.now;
-        const id = st.id = (st.id || 0) + 1;
-        const poll = () => {
-          if (st.id !== id || !p.alive || now(p) > st.until) return;
-          const drop = st.lastMp - p.mp;
-          if (drop > 0.5) {
-            const regen = (6 + (p.stats?.energyRegen || 0)) * Math.max(0, g.timers.now - st.lastAt);
-            g.gainResource?.(p, drop + regen);
-            st.until = 0;
-            g.ui?.spawnText?.(p.pos, 'Disparo gratis', 'txt-mana');
-            return;
-          }
-          st.lastMp = p.mp; st.lastAt = g.timers.now;
-          g.timers.schedule(tune().frame, poll);
-        };
-        g.timers.schedule(tune().frame, poll);
-        if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, p.pos.clone().setY(0.4));
-        slide(g, p, dest, sk.lockT || 0.25, { trail: ctx.fx?.trail, onDone: () => cast.done(ctx.res) });
-        return undefined;
-      },
-    },
-    // c5A Flecha Silenciadora: interrumpe y silencia 3 s (a los jefes, +20 de stagger del interrumpir)
-    a_t_silencio: {
-      name: 'Flecha Silenciadora',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const fly = shootFan(g, p, prof, cast, { size: 0.12, onEnemy: (e) => {
-          if (!e?.alive) return;
-          e.applyCC?.('interrupt', sk.silence || 3, { src: p });
-          if (ctx.fx?.extra) g.emitFx?.(ctx.fx.extra, e.pos.clone().setY(1.6));
-        } });
-        g.timers.schedule(fly, () => cast.done(ctx.res));
-        return undefined;
-      },
-    },
-    // c12A Flecha Bengala: campo de 10 m 8 s; dentro el grupo hace +8 % de daño (aditivo)
+    // c22A Flecha Bengala: bengala de 10 m 10 s: los enemigos dentro reciben +15 % de daño de
+    // todo el grupo (Debilidad) y pegan un 15 % menos; también revela a los invisibles
     a_t_bengala: {
       name: 'Flecha Bengala',
+      params: ['weakPct', 'weakenPct', 'reveal'],
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
+        const T = tune().bengala;
         const at = (cast.target || p.pos).clone(); at.y = 0;
         p.faceToward?.(at);
         g.spawnBeam?.(p.pos.clone().setY(1.0), at.clone().setY(2.5), ctx.color || 0xffcc55, 0.3);
-        const f = g.spawnField?.('a_bengala', { pos: at, radius: prof.radius || sk.radius || 10, dur: prof.dur || sk.dur || 8, owner: p,
-          data: { dmgPct: sk.dmgPct || 8, color: sk.color || 0xffcc55, name: sk.name, icon: sk.icon } });
+        const f = g.spawnField?.('a_bengala', { pos: at, radius: prof.radius || sk.radius || 10, dur: prof.dur || sk.dur || 10, owner: p,
+          data: { weakPct: sk.weakPct ?? T.weakPct, weakenPct: sk.weakenPct ?? T.weakenPct, color: sk.color || 0xffcc55 } });
         if (f) arqueraFieldsCache().a_bengala.tick(g, f, 0);   // primer pulso al instante
         if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, at.clone().setY(2.5));
         ctx.zoneCenter = at; ctx.zoneRad = prof.radius || 10;
         return ctx.res;
       },
     },
-    // c12B Camuflaje: invisible 4 s DE VERDAD (p.goInvisible: los enemigos pierden el objetivo
-    // y no adquieren uno nuevo). El crítico del primer ataque (desde la invisibilidad o al
-    // salir) lo pone el poder a_camuflaje por ⑦ onCast; aquí solo se marca el estado.
+    // c11A Camuflaje: invisible 4 s DE VERDAD (p.goInvisible: los enemigos pierden el objetivo
+    // y no adquieren uno nuevo) y Paso Veloz se recarga. El crítico del primer ataque (desde la
+    // invisibilidad o al salir) lo pone el poder a_camuflaje por ⑦ onCast.
     a_t_camuflaje: {
       name: 'Camuflaje',
       cast(g, p, prof, cast) {
@@ -760,11 +1584,13 @@ export function arqueraSkillBehaviors() {
         const st = powerState(p, 'a_camuflaje');
         st.active = true;
         st.crit = false;
+        g.reduceCooldown?.(p, 'a_paso', Infinity);
         p.addBuff(sk.id, {}, dur, { name: sk.name, icon: sk.icon, desc: 'Invisible: los enemigos te pierden; tu primer disparo será crítico' });
         if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, p.pos.clone().setY(1.0));
         return ctx.res;
       },
     },
+    // ---- kit de especialización v1 (los rehace KA1 con los verbos genéricos de §3.6) ----
     // F s0 Disparo Apuntado: saeta perforante (la carga de 1 s es el windup del núcleo).
     // Disparo Imposible (x3): con cast.impossible sale una segunda saeta de crítico seguro.
     a_t_apuntado: {
@@ -786,74 +1612,16 @@ export function arqueraSkillBehaviors() {
         return undefined;
       },
     },
-    // F s9 Visión Certera: 12 s de +25 % de vel. de ataque; moverte no vacía la Concentración
-    // (su buff lleva 'gaugeLoss:concentracion' −100) y Disparo Apuntado se recarga un 50 % más
-    // rápido (planificador, cada tick)
-    a_t_vision: {
-      name: 'Visión Certera',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const dur = prof.dur || sk.dur || 12;
-        p.addBuff(sk.id, { ...prof.buff, 'gaugeLoss:concentracion': tune().vision.lossPct }, dur, { name: sk.name, icon: sk.icon, desc: sk.desc });
-        const st = powerState(p, 'a_t_vision');
-        st.until = now(p) + dur;
-        let last = g.timers.now;
-        const id = st.id = (st.id || 0) + 1;
-        const faster = (sk.aimedCdr || 50) / 100;
-        const tick = () => {
-          if (st.id !== id || !p.alive || now(p) >= st.until) return;
-          const dt = Math.max(0, g.timers.now - last); last = g.timers.now;
-          if ((p.cds?.a_t_apuntado || 0) > 0) p.cds.a_t_apuntado = Math.max(0, p.cds.a_t_apuntado - dt * faster);
-          g.timers.schedule(tune().frame, tick);
-        };
-        g.timers.schedule(tune().frame, tick);
-        g.spawnRing?.(p.pos, 1.4, ctx.color || 0xffd966);
-        if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, p.pos.clone().setY(1.6));
-        return ctx.res;
-      },
-    },
-    // F s13A Disparo Disuasorio: 120 % del arma a quemarropa, aturde 1 s (stun del perfil) y
-    // el retroceso te lanza 8 m hacia atrás
-    a_t_disuasorio: {
-      name: 'Disparo Disuasorio',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const range = prof.range || sk.range || 8;
-        let e = ctx.enemy;
-        if (!e?.alive || e.pos.distanceTo(p.pos) > range + 0.6) e = g.nearestEnemy?.(range) || null;
-        const aim = e ? e.pos.clone() : (cast.target || p.pos).clone();
-        p.faceToward?.(aim);
-        p.swing = 1;
-        if (e) {
-          const { dmg, crit } = p.rollDamage(ctx.coef, prof.critBonus, prof.addPct, e, ctx.hitInfo);
-          ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
-          p.onDealHit?.();
-          if (ctx.fx?.impact) g.emitFx?.(ctx.fx.impact, e.pos.clone().setY(1.0));
-        }
-        g.spawnBeam?.(p.pos.clone().setY(1.0), aim.clone().setY(1.0), ctx.color || 0xe8d27a, 0.15);
-        g.addShake?.(0.2);
-        const dest = backDest(g, p, aim, sk.selfKnock || 8);
-        slide(g, p, dest, 0.3, { trail: ctx.fx?.trail, onDone: () => cast.done(ctx.res) });
-        return undefined;
-      },
-    },
-    // M s0 Trampa de Cepo: cargas (1, 2 con Cepo Doble; 8 s por carga), hasta 3 armadas
-    // (4 con Coto Cerrado, +30 % de radio). Inmoviliza prof.root (2 s + los mod.rootAdd de
-    // Cepo de Hierro y Raíces Profundas) y envenena 150 % en 5 s. prof.bossSlowPct (Cepo de
-    // Hierro): ralentiza a los jefes. prof.mine (Mina de Espinas): estalla 120 % en 3 m, sin inmovilizar.
+    // M s0 Trampa de Cepo: hasta 3 armadas (4 con Coto Cerrado, +30 % de radio). Inmoviliza
+    // prof.root (2 s + los mod.rootAdd de Cepo de Hierro y Raíces Profundas) y envenena 150 % en
+    // 5 s. prof.bossSlowPct (Cepo de Hierro): ralentiza a los jefes. prof.mine (Mina de Espinas):
+    // estalla 120 % en 3 m, sin inmovilizar. D2: las cargas son del motor (`charges` en la
+    // definición y p.skCharges): este comportamiento solo arma la trampa.
     a_t_cepo: {
       name: 'Trampa de Cepo',
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
         const T = tune().cepo;
-        const cd = prof.cd || sk.cd || 8;
-        const st = trapCharges(p, cd);
-        if (st.charges <= 0) { p.cds[sk.id] = Math.max(0, st.nextAt - now(p)); return ctx.res; }
-        const wasFull = st.charges >= st.max;
-        st.charges--;
-        if (wasFull) st.nextAt = now(p) + cd;
-        p.cds[sk.id] = st.charges > 0 ? 0 : Math.max(0, st.nextAt - now(p));
-        if (p.cdMax) p.cdMax[sk.id] = cd;
         // trampas armadas: al pasar del máximo cae la más vieja
         const maxArmed = T.maxArmed + (extraTrap(p) ? 1 : 0);
         const armed = armedTraps(g, p);
@@ -879,44 +1647,6 @@ export function arqueraSkillBehaviors() {
         return ctx.res;
       },
     },
-    // M s9 Arpón: 120 % del arma, ralentiza 60 % 3 s (perfil) y atrae 6 m hacia tu trampa
-    // armada más cercana al objetivo (sin trampas, hacia ti). Jefes: el empuje suma stagger.
-    a_t_arpon: {
-      name: 'Arpón',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const fly = shootFan(g, p, prof, cast, { size: 0.14, onEnemy: (e) => {
-          if (!e?.alive) return;
-          let anchor = null, bd = Infinity;
-          for (const f of armedTraps(g, p)) {
-            const d = Math.hypot(f.pos.x - e.pos.x, f.pos.z - e.pos.z);
-            if (d < bd) { bd = d; anchor = f.pos; }
-          }
-          if (!anchor) { anchor = p.pos; bd = e.pos.distanceTo(p.pos); }
-          const dist = Math.min(sk.pull || 6, bd - 0.3);
-          g.spawnBeam?.(p.pos.clone().setY(1.0), e.pos.clone().setY(1.0), ctx.color || 0xa0a0a0, 0.25);
-          if (dist > 0.2) e.applyCC?.('knock', dist, { src: p, from: { x: 2 * e.pos.x - anchor.x, z: 2 * e.pos.z - anchor.z } });
-        } });
-        g.timers.schedule(fly, () => cast.done(ctx.res));
-        return undefined;
-      },
-    },
-    // M s13A Señuelo de Paja: provoca 5 s a los enemigos a 8 m y luego estalla (200 % en 3 m)
-    a_t_senuelo: {
-      name: 'Señuelo de Paja',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const at = (cast.target || p.pos).clone(); at.y = 0;
-        const decoy = { pos: at.clone(), alive: true, decoy: true, hp: 1, stats: { maxHP: 1 }, takeDamage() { return 0; }, applySlow() { return false; } };
-        const f = g.spawnField?.('a_senuelo', { pos: at, radius: prof.radius || sk.radius || 8, dur: prof.dur || sk.dur || 5, owner: p,
-          data: { decoy, burstR: (sk.burstRadius || 3) * (prof.radiusMul || 1), coef: ctx.coef, color: ctx.color || sk.color || 0xc9a86a,
-            areaOpts: { addPct: prof.addPct, critBonus: prof.critBonus, color: ctx.color, hitInfo: ctx.hitInfo, onHit: ctx.hit } } });
-        if (f) arqueraFieldsCache().a_senuelo.tick(g, f, 0);
-        if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, at.clone().setY(0.6));
-        ctx.zoneCenter = at; ctx.zoneRad = sk.burstRadius || 3;
-        return ctx.res;
-      },
-    },
     // T s0 Andanada: 12 flechas en 120° (60 % cada una) mientras retrocedes 3 m
     a_t_andanada: {
       name: 'Andanada',
@@ -926,54 +1656,6 @@ export function arqueraSkillBehaviors() {
         const dest = backDest(g, p, cast.target, sk.backstep || 3);
         slide(g, p, dest, sk.lockT || 0.35, { trail: ctx.fx?.trail });
         g.timers.schedule(Math.max(fly, sk.lockT || 0.35), () => cast.done(ctx.res));
-        return undefined;
-      },
-    },
-    // T s9 Danza de Flechas: 16 flechas en espiral en 4 s (50 % cada una) sin dejar de correr,
-    // inmune a las ralentizaciones (no ralentiza ni frena el movimiento)
-    a_t_danza: {
-      name: 'Danza de Flechas',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const dur = sk.channelT || 4;
-        const n = Math.max(1, sk.ticks || 16);
-        const gap = dur / n;
-        const range = Math.max(3, prof.radius || sk.radius || 4);
-        p.grantSlowImmune?.(dur);
-        p.castLock = Math.max(p.castLock || 0, dur);
-        const base = Math.atan2((cast.target?.x ?? p.pos.x + 1) - p.pos.x, (cast.target?.z ?? p.pos.z) - p.pos.z);
-        const turn = Math.PI * 2 / Math.max(1, n / 2);   // dos vueltas de espiral
-        let i = 0;
-        const shoot = () => {
-          if (!p.alive) { cast.done(ctx.res); return; }
-          g.fireProjectile(ctx, { angle: base + i * turn, range, size: 0.09 });
-          if (ctx.fx?.aura && i % 4 === 0) g.emitFx?.(ctx.fx.aura, p.pos.clone().setY(1.0));
-          i++;
-          if (i < n) g.timers.schedule(gap, shoot);
-          else g.timers.schedule(range / Math.max(1, prof.speed || 14) + 0.05, () => cast.done(ctx.res));
-        };
-        shoot();
-        return undefined;
-      },
-    },
-    // T s13A Salto de Retirada: saltas 7 m hacia atrás (en el aire eres intocable) y al
-    // aterrizar disparas 5 flechas (60 %); +30 de Impulso al lanzarlo
-    a_t_salto: {
-      name: 'Salto de Retirada',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const to = backDest(g, p, cast.target, prof.range || sk.range || 7);
-        gainGauge(p, 'impulso', sk.gaugeGain || 30);
-        if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, p.pos.clone().setY(0.3));
-        p.leap = {
-          from: p.pos.clone(), to, t: 0, dur: sk.airT || 0.4,
-          onLand: () => {
-            const e = g.nearestEnemy?.(12) || null;
-            const aim = e ? e.pos.clone() : (cast.target || p.pos).clone();
-            const fly = shootFan(g, p, prof, { ...cast, target: aim }, { n: (prof.count || 5) + (prof.proj || 0), spread: 0.26, size: 0.09 });
-            g.timers.schedule(fly, () => cast.done(ctx.res));
-          },
-        };
         return undefined;
       },
     },
@@ -990,6 +1672,26 @@ export function arqueraFields() { return arqueraFieldsCache(); }
 
 function buildFields() {
   return {
+    // Flecha Bengala (c22A): los enemigos dentro reciben +weakPct % de daño de todo el grupo
+    // (Debilidad), pegan un weakenPct % menos y quedan revelados (se renueva cada 0,5 s)
+    a_bengala: {
+      name: 'Flecha Bengala',
+      init(f) { f.acc = 0; },
+      tick(g, f, dt) {
+        f.acc += dt;
+        if (dt > 0 && f.acc < 0.5 - 1e-9) return;
+        f.acc = 0;
+        for (const e of enemiesInField(g, f)) {
+          e.applyWeakness?.('a_t_bengala', f.data.weakPct, 0.65);
+          e.weakenOutgoing?.('a_t_bengala', f.data.weakenPct, 0.65);
+          e.revealedT = 0.6;
+        }
+      },
+      render(g, f) {
+        const d = groundDecal(g, f, { inner: 0.94, opacity: 0.35, color: f.data.color });
+        if (d) d.material.opacity = 0.25 + 0.12 * Math.abs(Math.sin(f.t * 4));
+      },
+    },
     // Bomba de Humo (Paso 2e): ciega a los enemigos dentro: −pct % de daño mientras estén en el humo
     a_humo_ciego: {
       name: 'Humo cegador',
@@ -1035,47 +1737,6 @@ function buildFields() {
         for (const e of enemiesInField(g, f)) e.applyCC?.('slow', 0.7, { pct: f.data.slowPct || 30, src: f.owner });
       },
       render(g, f) { groundDecal(g, f, { disc: true, opacity: 0.18, color: 0x9a8a5a }); },
-    },
-    // Flecha Bengala: renueva +8 % de daño a los aliados dentro y marca a los enemigos revelados
-    a_bengala: {
-      name: 'Flecha Bengala',
-      init(f) { f.acc = 0; },
-      tick(g, f, dt) {
-        f.acc += dt;
-        if (dt > 0 && f.acc < 0.5 - 1e-9) return;
-        f.acc = 0;
-        const at = v3(f.pos.x, f.pos.z);
-        for (const a of g.allies ? g.allies(at, f.radius) : [])
-          refreshBuff(a, 'a_t_bengala', { dmgPct: f.data.dmgPct }, 0.65, { name: f.data.name || 'Bengala', icon: f.data.icon || '🎆', desc: `+${f.data.dmgPct}% de daño` });
-        for (const e of enemiesInField(g, f)) e.revealedT = 0.6;
-      },
-      render(g, f) {
-        const d = groundDecal(g, f, { inner: 0.94, opacity: 0.35, color: f.data.color });
-        if (d) d.material.opacity = 0.25 + 0.12 * Math.abs(Math.sin(f.t * 4));
-      },
-    },
-    // Señuelo de Paja: provoca a los enemigos en el radio; al caducar estalla en espinas
-    a_senuelo: {
-      name: 'Señuelo de Paja',
-      init(f) { f.acc = 0; },
-      tick(g, f, dt) {
-        f.acc += dt;
-        if (dt > 0 && f.acc < 0.5 - 1e-9) return;
-        f.acc = 0;
-        const t = Math.min(f.t, 0.7);
-        if (!(t > 0)) return;
-        for (const e of enemiesInField(g, f)) g.forceTarget?.(e, f.data.decoy, t);
-      },
-      onExpire(g, f) {
-        const d = f.data;
-        if (d.decoy) d.decoy.alive = false;
-        const at = v3(f.pos.x, f.pos.z);
-        g.dealArea?.(at, d.burstR, d.coef, d.areaOpts);
-        g.spawnRing?.(at, d.burstR, d.color);
-        g.emitFx?.('arqThornBurst', at.clone().setY(0.5));
-        g.sfx?.('hit');
-      },
-      render(g, f) { groundDecal(g, f, { inner: 0.96, opacity: 0.25, color: f.data.color }); },
     },
     // Estela de Viento (Tiradora s13B): +15 % de velocidad a los ALIADOS dentro (no al dueño)
     a_estela_viento: {

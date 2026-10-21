@@ -1,10 +1,12 @@
 // ============================================================
-// TALENTOS v2 de la clase Arquera — esqueleto (clase 30 + especialización 3×29 + héroe 3×13)
+// TALENTOS v2 de la clase Arquera (clase 30 + especialización 3×29 + héroe 3×13)
 // ============================================================
 // Generado por tools/convert-v2/convert.mjs (--write talents, E1.5) desde docs/mockups/data/talents-v2-arquera.js (sha1 76ae75357a1e, estado «diseño»).
 // Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup
 // (los compara tests/test-v2-paridad.mjs: una divergencia deliberada va en tools/convert-v2/divergencias.json).
-// `fx: {}` + `todo` = el `impl` del mockup: E2 (KT) los escribe y borra `todo`. Importa SOLO hero y talent-text.
+// `fx` (E2, KT-arquera): escrito a mano desde el `impl` del mockup y docs/paso2g-arquera.md §6 y §9. Los poderes
+// viven en js/powers-arquera.js; las claves tv que solo lee un poder de la clase, en ARQUERA_TV_KEYS.
+// `fx: {}` + `todo` = aún por escribir (especializaciones: trabajos 2 y 3 de KT). Importa SOLO hero y talent-text.
 import { ARQUERA_HERO } from './hero-arquera.js';
 import { n1 } from './talent-text.js';
 
@@ -13,89 +15,100 @@ import { n1 } from './talent-text.js';
 // (agilidad: hoy es una habilidad base del catálogo; KA1 la convierte en activa de talento.)
 export const ARQUERA_TALENT_SKILLS = ['a_t_camuflaje', 'agilidad', 'a_t_bengala', 'a_h_torbellino', 'a_h_puntas', 'a_h_halcon'];
 
+// Claves tv que consume un poder de la Arquera (no el núcleo); tests/test78 las acepta en los datos.
+//   wind* → q_rafagas (Errante del Viento) · tip* → w_puntas (Carcaj Encantado) · hawk* → y_halcon (Halconera)
+export const ARQUERA_TV_KEYS = [
+  'windEvery', 'windMove', 'windStill', 'windPierce', 'windGuard', 'windDmg', 'windGauge', 'windRush', 'windSeek', 'windFan',
+  'windSlow', 'windMax', 'windCrit',
+  'tipEvery', 'tipMajor', 'tipShare', 'tipPlace', 'tipHeal', 'tipBurn', 'tipRoot', 'tipBraid', 'tipChain', 'tipBite', 'tipAffinity',
+  'tipDmg', 'tipQuick',
+  'hawkEvery', 'hawkDeep', 'hawkSweep', 'hawkPrey', 'hawkGuard', 'hawkDmg', 'hawkSilence', 'hawkCall', 'hawkFlock', 'hawkElite',
+  'hawkFeathers', 'hawkShared', 'hawkLoyal',
+];
+
 /** @deprecated D29 (puente de E1.5 hasta KA1): definición de las activas de talento que YA existen en el juego,
  *  mientras ARQUERA_CATALOG_V = 1 (data.js las fusiona en CLASSES como antes). Con el catálogo 2g
  *  (ARQUERA_CATALOG_V = 2) viven en skills-arquera.js y data.js deja de leer esta lista; se borra en E5 (C1). */
 export const ARQUERA_TALENT_SKILL_DEFS = [
   // juego v1: { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical', behavior: 'a_t_camuflaje', req: 10, cd: 30, dur: 4, color: 9420666, desc: 'Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s.' }
-  { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical', req: 21, cd: 20, behavior: 'a_t_camuflaje', dur: 4, color: 9420666, grantBy: 'c11', line: 'Te vuelves invisible 4 s, los enemigos te pierden y Paso Veloz se recarga; tu primer disparo al salir es crítico.', desc: 'Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s.', art: 'talents/arquera-clase-c12.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
+  { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical', req: 21, cd: 20, behavior: 'a_t_camuflaje', dur: 4, color: 9420666, grantBy: 'c11', line: 'Te vuelves invisible 4 s, los enemigos te pierden y Paso Veloz se recarga; tu primer disparo al salir es crítico.', desc: 'Te vuelves invisible 4 s: los enemigos te pierden y Paso Veloz se recarga. Tu primer disparo al salir es crítico seguro. Enfriamiento 20 s.', art: 'talents/arquera-clase-c12.webp' },
   // juego v1: { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical', behavior: 'a_t_bengala', at: 'target', req: 10, cd: 30, radius: 10, dur: 8, range: 12, dmgPct: 8, reveal: true, color: 16763989, desc: 'Una bengala revela a los enemigos invisibles en 10 m durante 8 s; dentro, el grupo hace +8 % de daño. Enfriamiento 30 s.' }
-  { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical', req: 31, cd: 20, behavior: 'a_t_bengala', at: 'target', radius: 10, dur: 8, range: 12, dmgPct: 8, reveal: true, color: 16763989, grantBy: 'c22', line: 'Una bengala de 10 m durante 10 s: dentro, los enemigos reciben un 15 % más de daño del grupo y pegan un 15 % menos.', desc: 'Una bengala revela a los enemigos invisibles en 10 m durante 8 s; dentro, el grupo hace +8 % de daño. Enfriamiento 30 s.', art: 'talents/arquera-clase-c15.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
+  { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical', req: 31, cd: 20, behavior: 'a_t_bengala', at: 'target', radius: 10, dur: 10, range: 12, weakPct: 15, weakenPct: 15, reveal: true, color: 16763989, grantBy: 'c22', line: 'Una bengala de 10 m durante 10 s: dentro, los enemigos reciben un 15 % más de daño del grupo y pegan un 15 % menos.', desc: 'Una bengala de 10 m durante 10 s: los enemigos dentro reciben un 15 % más de daño de todo el grupo y pegan un 15 % menos. Enfriamiento 20 s.', art: 'talents/arquera-clase-c15.webp' },
 ];
 
 export const ARQUERA_TALENTS = {
   v: 2,
   cls: { name: 'Arquera', emblem: 'ui/res_energia.webp', art: 'specs/tiradora.webp', nodes: [
-    { id: 'c1', name: 'Carcaj Profundo', t: 'p', tag: 'num', r: 0, c: 1, max: 2, d: r=>`+${10*r} de Energía máxima (antes 60)`, icon: 'talents/arquera-clase-c6.webp', fx: {}, todo: 'stats.mp · existe' },
-    { id: 'c2', name: 'Pulso Firme', t: 'p', tag: 'num', r: 0, c: 3, max: 2, d: r=>`Todas tus flechas hacen +${6*r} % de daño`, touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-clase-c1.webp', fx: {}, todo: 'stats.dmgPct · existe' },
-    { id: 'c3', name: 'Paso de Gacela', t: 'p', tag: 'num', r: 0, c: 5, max: 2, d: r=>`Paso Veloz se recarga en ${n1(9-1.5*r)} s (antes 9 s)`, touch: ['a_paso'], icon: 'talents/arquera-clase-c11.webp', fx: {}, todo: 'mod a_paso cdr · existe' },
-    { id: 'c4', name: 'Bomba Rápida', t: 'p', tag: 'num', r: 1, c: 0, max: 3, req: ['c1'], d: r=>`La Bomba de Humo se recarga en ${16-2*r} s (antes 16 s)`, touch: ['a_humo'], icon: 'skills256/a_humo.webp', fx: {}, todo: 'mod a_humo cdr · existe' },
+    { id: 'c1', name: 'Carcaj Profundo', t: 'p', tag: 'num', r: 0, c: 1, max: 2, d: r=>`+${10*r} de Energía máxima (antes 60)`, icon: 'talents/arquera-clase-c6.webp', fx: { stats: { mp: 10 } } },
+    { id: 'c2', name: 'Pulso Firme', t: 'p', tag: 'num', r: 0, c: 3, max: 2, d: r=>`Todas tus flechas hacen +${6*r} % de daño`, touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-clase-c1.webp', fx: { stats: { dmgPct: 6 } } },
+    { id: 'c3', name: 'Paso de Gacela', t: 'p', tag: 'num', r: 0, c: 5, max: 2, d: r=>`Paso Veloz se recarga en ${n1(9-1.5*r)} s (antes 9 s)`, touch: ['a_paso'], icon: 'talents/arquera-clase-c11.webp', fx: { mod: { a_paso: { cdr: [100 / 6, 100 / 3] } } } },
+    { id: 'c4', name: 'Bomba Rápida', t: 'p', tag: 'num', r: 1, c: 0, max: 3, req: ['c1'], d: r=>`La Bomba de Humo se recarga en ${16-2*r} s (antes 16 s)`, touch: ['a_humo'], icon: 'skills256/a_humo.webp', fx: { mod: { a_humo: { cdr: 12.5 } } } },
     { id: 'c5', name: 'Disparo: Fijo o Saqueo', t: 'c', tag: 'mec', r: 1, c: 2, max: 1, req: ['c1', 'c2'], touch: ['a_disparo'], icon: 'skills256/a_disparo.webp', opts: [
-        { k: 'A', name: 'Puntería Fija', desc: 'Cada 4.º Disparo Rápido al mismo enemigo es crítico seguro', role: 'UNI', fx: {}, todo: 'power a_punteria_fija · NUEVO (onCast cast.forceCrit, cuenta por objetivo)' },
-        { k: 'B', name: 'Flecha Saqueadora', desc: 'Si Disparo Rápido mata, recuperas 8 de Energía (como mucho una vez por disparo)', role: 'AREA', fx: {}, todo: 'power a_saqueo · NUEVO (onKill + g.gainResource; una vez por lanzamiento)' },
+        { k: 'A', name: 'Puntería Fija', desc: 'Cada 4.º Disparo Rápido al mismo enemigo es crítico seguro', role: 'UNI', fx: { power: 'a_punteria_fija' } },
+        { k: 'B', name: 'Flecha Saqueadora', desc: 'Si Disparo Rápido mata, recuperas 8 de Energía (como mucho una vez por disparo)', role: 'AREA', fx: { power: 'a_saqueo' } },
       ],
       win: 'A, contra jefes: un crítico seguro cada ~3 s. B, contra grupos: como mueren muchos, ≈ una habilidad principal extra cada 3 muertes' },
     { id: 'c6', name: 'Distancia: Bocajarro o Lejos', t: 'c', tag: 'mec', r: 1, c: 4, max: 1, req: ['c2', 'c3'], touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-francotiradora-s8.webp', opts: [
-        { k: 'A', name: 'A Bocajarro', desc: 'A menos de 5 m, tus flechas hacen +15 % de daño y empujan 1 m al enemigo', role: 'AREA', fx: {}, todo: 'power a_bocajarro · NUEVO (condAdd por distancia + knock)' },
-        { k: 'B', name: 'Tiro Lejano', desc: 'A más de 10 m, tus flechas hacen +20 % de daño', role: 'UNI', fx: {}, todo: 'power a_tiro_lejano · NUEVO (condAdd por distancia)' },
+        { k: 'A', name: 'A Bocajarro', desc: 'A menos de 5 m, tus flechas hacen +15 % de daño y empujan 1 m al enemigo', role: 'AREA', fx: { power: 'a_bocajarro' } },
+        { k: 'B', name: 'Tiro Lejano', desc: 'A más de 10 m, tus flechas hacen +20 % de daño', role: 'UNI', fx: { power: 'a_tiro_lejano' } },
       ],
       win: 'A, contra grupos que te alcanzan: el empuje te da aire para seguir kiteando. B, contra jefes, si sabes mantener la distancia. Sirve igual a las tres' },
-    { id: 'c7', name: 'Paso Limpio', t: 'p', tag: 'mec', r: 1, c: 6, max: 1, req: ['c3'], d: ()=>'Paso Veloz te quita las ralentizaciones y las inmovilizaciones', touch: ['a_paso'], icon: 'talents/arquera-clase-c2.webp', fx: {}, todo: 'mod a_paso cleanse · clave existente (prof.cleanse)' },
-    { id: 'c8', name: 'Difícil de Alcanzar', t: 'p', tag: 'num', r: 2, c: 1, max: 2, req: ['c4', 'c5'], d: r=>`Mientras te mueves, recibes un ${6*r} % menos de daño`, icon: 'talents/arquera-clase-c7.webp', fx: {}, todo: 'tv.drMoving · existe' },
+    { id: 'c7', name: 'Paso Limpio', t: 'p', tag: 'mec', r: 1, c: 6, max: 1, req: ['c3'], d: ()=>'Paso Veloz te quita las ralentizaciones y las inmovilizaciones', touch: ['a_paso'], icon: 'talents/arquera-clase-c2.webp', fx: { mod: { a_paso: { cleanse: true } } } },
+    { id: 'c8', name: 'Difícil de Alcanzar', t: 'p', tag: 'num', r: 2, c: 1, max: 2, req: ['c4', 'c5'], d: r=>`Mientras te mueves, recibes un ${6*r} % menos de daño`, icon: 'talents/arquera-clase-c7.webp', fx: { tv: { drMoving: 6 } } },
     { id: 'c9', name: 'Perforante: Lastrada o Diamante', t: 'c', tag: 'mec', r: 2, c: 3, max: 1, req: ['c5', 'c6'], touch: ['flecha_perforante'], icon: 'skills256/flecha_perforante.webp', opts: [
-        { k: 'A', name: 'Flecha Lastrada', desc: 'Flecha Perforante ralentiza un 40 % durante 3 s a todos los que atraviesa', role: 'CTRL', fx: {}, todo: 'mod flecha_perforante slow/slowPct · claves existentes' },
-        { k: 'B', name: 'Punta de Diamante', desc: 'Flecha Perforante hace +40 % al primer enemigo que toca', role: 'UNI', fx: {}, todo: 'power a_punta_diamante · NUEVO (condAdd al primer impacto)' },
+        { k: 'A', name: 'Flecha Lastrada', desc: 'Flecha Perforante ralentiza un 40 % durante 3 s a todos los que atraviesa', role: 'CTRL', fx: { mod: { flecha_perforante: { slow: 3, slowPct: 40 } } } },
+        { k: 'B', name: 'Punta de Diamante', desc: 'Flecha Perforante hace +40 % al primer enemigo que toca', role: 'UNI', fx: { power: 'a_punta_diamante' } },
       ],
       win: 'A, para controlar grupos en fila y escapar de ellos. B, contra jefes y élites' },
     { id: 'c10', name: 'Roma o Silbante', t: 'c', tag: 'mec', r: 2, c: 5, max: 1, req: ['c6', 'c7'], icon: 'talents/arquera-clase-c3.webp', opts: [
-        { k: 'A', name: 'Flecha Roma', desc: 'Cada 8 s, tu siguiente disparo ralentiza un 50 % durante 4 s', role: 'CTRL', fx: {}, todo: 'power a_flecha_roma · NUEVO (lógica de a_t_conmocion; onHit + applyCC slow)' },
-        { k: 'B', name: 'Flecha Silbante', desc: 'Cada 10 s, tu siguiente disparo corta el hechizo del enemigo y lo deja mudo 3 s', role: 'UNI', fx: {}, todo: 'power a_silbante · NUEVO (lógica de a_t_silencio; applyCC interrupt = 20 de Quebranto a jefes)' },
+        { k: 'A', name: 'Flecha Roma', desc: 'Cada 8 s, tu siguiente disparo ralentiza un 50 % durante 4 s', role: 'CTRL', fx: { power: 'a_flecha_roma' } },
+        { k: 'B', name: 'Flecha Silbante', desc: 'Cada 10 s, tu siguiente disparo corta el hechizo del enemigo y lo deja mudo 3 s', role: 'UNI', fx: { power: 'a_silbante' } },
       ],
       win: 'A, contra grupos que te persiguen. B, contra jefes y élites que lanzan hechizos (además les llena 20 de Quebranto)' },
     { id: 'c11', name: 'Camuflaje o Instinto', t: 'c', tag: 'mec', r: 3, c: 0, max: 1, req: ['c8'], icon: 'talents/arquera-clase-c12.webp', opts: [
-        { k: 'A', name: 'Camuflaje', desc: 'Habilidad (ranura 2): invisible 4 s; te pierden, Paso Veloz se recarga y tu primer disparo es crítico. 20 s', role: 'AGU', fx: { grant: 'a_t_camuflaje' }, todo: 'activa a_t_camuflaje · existe (+ power a_camuflaje: cds a_paso = 0)' },
-        { k: 'B', name: 'Instinto de Supervivencia', desc: 'Un golpe que te mataría te deja con 1 de vida y suelta una Bomba de Humo gratis. Una vez cada 180 s', role: 'AGU', fx: {}, todo: 'power a_instinto · NUEVO (onLethal + lanza a_humo como eco)' },
+        { k: 'A', name: 'Camuflaje', desc: 'Habilidad (ranura 2): invisible 4 s; te pierden, Paso Veloz se recarga y tu primer disparo es crítico. 20 s', role: 'AGU', fx: { grant: 'a_t_camuflaje', power: 'a_camuflaje' } },
+        { k: 'B', name: 'Instinto de Supervivencia', desc: 'Un golpe que te mataría te deja con 1 de vida y suelta una Bomba de Humo gratis. Una vez cada 180 s', role: 'AGU', fx: { power: 'a_instinto' } },
       ],
       win: 'A, contra golpes de jefe que se ven venir: esquivas y vuelves a rodar (ocupa la ranura 2). B, un seguro cada 3 minutos sin ocupar ranura' },
-    { id: 'c12', name: 'Respiración Pausada', t: 'p', tag: 'num', r: 3, c: 2, max: 2, req: ['c8', 'c9'], d: r=>`Recuperas Energía un ${15*r} % más rápido`, icon: 'talents/arquera-clase-c10.webp', fx: {}, todo: 'stats.regenPct (Energía) · existe' },
-    { id: 'c13', name: 'Ojo de Halcón', t: 'p', tag: 'num', r: 3, c: 4, max: 2, req: ['c9', 'c10'], d: r=>`+${5*r} % de probabilidad de crítico`, icon: 'talents/arquera-clase-c4.webp', fx: {}, todo: 'stats.crit · existe' },
+    { id: 'c12', name: 'Respiración Pausada', t: 'p', tag: 'num', r: 3, c: 2, max: 2, req: ['c8', 'c9'], d: r=>`Recuperas Energía un ${15*r} % más rápido`, icon: 'talents/arquera-clase-c10.webp', fx: { stats: { regenPct: 15 } } },
+    { id: 'c13', name: 'Ojo de Halcón', t: 'p', tag: 'num', r: 3, c: 4, max: 2, req: ['c9', 'c10'], d: r=>`+${5*r} % de probabilidad de crítico`, icon: 'talents/arquera-clase-c4.webp', fx: { stats: { crit: 5 } } },
     { id: 'c14', name: 'Paso: Abrojos o Sanador', t: 'c', tag: 'mec', r: 3, c: 6, max: 1, req: ['c10'], touch: ['a_paso'], icon: 'talents/arquera-montaraz-s3.webp', opts: [
-        { k: 'A', name: 'Paso de Abrojos', desc: 'Donde empieza tu Paso Veloz quedan abrojos 3 s que ralentizan un 50 %', role: 'CTRL', fx: {}, todo: 'power a_paso_abrojos · NUEVO (spawnField zona)' },
-        { k: 'B', name: 'Paso Sanador', desc: 'Paso Veloz te cura un 6 % de la vida (como mucho una vez cada 12 s)', role: 'AGU', fx: {}, todo: 'power a_rodada_cura · NUEVO (g.heal self; icd 12; ronda 3: por la cubeta de autocuración de la Arquera, 1 %/s)' },
+        { k: 'A', name: 'Paso de Abrojos', desc: 'Donde empieza tu Paso Veloz quedan abrojos 3 s que ralentizan un 50 %', role: 'CTRL', fx: { power: 'a_paso_abrojos' } },
+        { k: 'B', name: 'Paso Sanador', desc: 'Paso Veloz te cura un 6 % de la vida (como mucho una vez cada 12 s)', role: 'AGU', fx: { power: 'a_rodada_cura' } },
       ],
       win: 'A, para escapar de enemigos cuerpo a cuerpo. B, para aguantar peleas largas' },
     { id: 'c15', name: 'Adrenalina o Calma Letal', t: 'c', tag: 'mec', r: 4, c: 1, max: 1, req: ['c11', 'c12'], icon: 'talents/arquera-tiradora-s11.webp', opts: [
-        { k: 'A', name: 'Adrenalina', desc: 'Al bajar del 50 % de vida recuperas 30 de Energía y recibes un 20 % menos 4 s. Una vez cada 30 s', role: 'AGU', fx: {}, todo: 'power a_adrenalina · NUEVO (④ onDamaged + addBuff dr)' },
-        { k: 'B', name: 'Calma Letal', desc: 'Con más de 40 de Energía, haces +10 % de daño', role: 'UNI', fx: {}, todo: 'tv.highManaDmg (umbral 40 de Energía) · existe' },
+        { k: 'A', name: 'Adrenalina', desc: 'Al bajar del 50 % de vida recuperas 30 de Energía y recibes un 20 % menos 4 s. Una vez cada 30 s', role: 'AGU', fx: { power: 'a_adrenalina' } },
+        { k: 'B', name: 'Calma Letal', desc: 'Con más de 40 de Energía, haces +10 % de daño', role: 'UNI', fx: { power: 'a_calma_letal' } },
       ],
       win: 'A, para sobrevivir a golpes fuertes (+12–15 % de aguante). B, para hacer daño (+6–8 %)' },
     { id: 'c16', name: 'Presión o Barrido', t: 'c', tag: 'mec', r: 4, c: 3, max: 1, req: ['c12', 'c13'], touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-clase-c13.webp', opts: [
-        { k: 'A', name: 'Presión Constante', desc: 'Cada disparo al mismo enemigo te da +4 % de daño contra él (hasta +20 %); se pierde al cambiar de blanco', role: 'UNI', fx: {}, todo: 'power a_presion · NUEVO (condAdd con contador por objetivo)' },
-        { k: 'B', name: 'Barrido de Caza', desc: 'Cada enemigo distinto que golpeas en 2 s te da +3 % de velocidad de ataque (hasta +15 %)', role: 'AREA', fx: {}, todo: 'power a_barrido · NUEVO (onHit + addBuff)' },
+        { k: 'A', name: 'Presión Constante', desc: 'Cada disparo al mismo enemigo te da +4 % de daño contra él (hasta +20 %); se pierde al cambiar de blanco', role: 'UNI', fx: { power: 'a_presion' } },
+        { k: 'B', name: 'Barrido de Caza', desc: 'Cada enemigo distinto que golpeas en 2 s te da +3 % de velocidad de ataque (hasta +15 %)', role: 'AREA', fx: { power: 'a_barrido' } },
       ],
       win: 'A, contra jefes: +20 % casi siempre. B, contra grupos: +15 % de velocidad de ataque con 5 enemigos a tiro' },
     { id: 'c17', name: 'Agilidad o Huida', t: 'c', tag: 'mec', r: 4, c: 5, max: 1, req: ['c13', 'c14'], icon: 'skills256/agilidad.webp', opts: [
-        { k: 'A', name: 'Agilidad', desc: 'Habilidad (ranura 2): 6 s con +30 % de velocidad, +15 % de ataque e inmune a ralentizaciones. Se recarga en 16 s', role: 'AGU', fx: {}, todo: 'activa agilidad · existe (buff genérico con slowImmune)' },
-        { k: 'B', name: 'Huida Desesperada', desc: 'Al bajar del 30 % de vida: +40 % de velocidad y un 20 % menos de daño 4 s. Una vez cada 60 s', role: 'AGU', fx: {}, todo: 'power a_huida · NUEVO (onDamaged)' },
+        { k: 'A', name: 'Agilidad', desc: 'Habilidad (ranura 2): 6 s con +30 % de velocidad, +15 % de ataque e inmune a ralentizaciones. Se recarga en 16 s', role: 'AGU', fx: {}, todo: 'grant: lo escribe KA1 al crear la activa en el catálogo (D29, punto 16 del plan)' },
+        { k: 'B', name: 'Huida Desesperada', desc: 'Al bajar del 30 % de vida: +40 % de velocidad y un 20 % menos de daño 4 s. Una vez cada 60 s', role: 'AGU', fx: { power: 'a_huida' } },
       ],
       win: 'A, para escapar o perseguir a voluntad (ocupa la ranura 2). B, contra el daño constante de un grupo, sin ocupar ranura' },
-    { id: 'c18', name: 'Humo Denso', t: 'p', tag: 'num', r: 5, c: 0, max: 2, req: ['c15'], d: r=>`La Bomba de Humo dura ${8+r} s (antes 8 s)`, touch: ['a_humo'], icon: 'skills256/a_humo.webp', fx: {}, todo: 'mod a_humo durS · existe' },
-    { id: 'c19', name: 'Tiro desde la Niebla', t: 'p', tag: 'mec', r: 5, c: 2, max: 1, req: ['c15', 'c16'], d: ()=>'Dentro de tu Bomba de Humo, cada Disparo Rápido te da 3 de Energía y alarga el humo 0,3 s (hasta +2 s)', touch: ['a_humo', 'a_disparo'], hyb: 'Defensa + Básica', icon: 'talents/arquera-tiradora-s7.webp', fx: {}, todo: 'power a_tiro_niebla · NUEVO (onHit + campo zona)' },
-    { id: 'c20', name: 'Lluvia en Retirada', t: 'p', tag: 'mec', r: 5, c: 4, max: 1, req: ['c16', 'c17'], d: ()=>'Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde empezaste a rodar', touch: ['a_paso', 'lluvia_flechas'], hyb: 'Movilidad + Principal', icon: 'skills256/lluvia_flechas.webp', fx: {}, todo: 'power a_lluvia_retirada · NUEVO (afterCast + eco de lluvia_flechas ×0,3)' },
-    { id: 'c21', name: 'Piernas de Corredora', t: 'p', tag: 'num', r: 5, c: 6, max: 1, req: ['c17'], d: ()=>'Te mueves un 10 % más rápido', icon: 'talents/arquera-tiradora-s2.webp', fx: {}, todo: 'stats.spdPct · existe' },
+    { id: 'c18', name: 'Humo Denso', t: 'p', tag: 'num', r: 5, c: 0, max: 2, req: ['c15'], d: r=>`La Bomba de Humo dura ${8+r} s (antes 8 s)`, touch: ['a_humo'], icon: 'skills256/a_humo.webp', fx: { mod: { a_humo: { durS: 1 } } } },
+    { id: 'c19', name: 'Tiro desde la Niebla', t: 'p', tag: 'mec', r: 5, c: 2, max: 1, req: ['c15', 'c16'], d: ()=>'Dentro de tu Bomba de Humo, cada Disparo Rápido te da 3 de Energía y alarga el humo 0,3 s (hasta +2 s)', touch: ['a_humo', 'a_disparo'], hyb: 'Defensa + Básica', icon: 'talents/arquera-tiradora-s7.webp', fx: { power: 'a_tiro_niebla' } },
+    { id: 'c20', name: 'Lluvia en Retirada', t: 'p', tag: 'mec', r: 5, c: 4, max: 1, req: ['c16', 'c17'], d: ()=>'Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde empezaste a rodar', touch: ['a_paso', 'lluvia_flechas'], hyb: 'Movilidad + Principal', icon: 'skills256/lluvia_flechas.webp', fx: { power: 'a_lluvia_retirada' } },
+    { id: 'c21', name: 'Piernas de Corredora', t: 'p', tag: 'num', r: 5, c: 6, max: 1, req: ['c17'], d: ()=>'Te mueves un 10 % más rápido', icon: 'talents/arquera-tiradora-s2.webp', fx: { stats: { spdPct: 10 } } },
     { id: 'c22', name: 'Bengala o Economía', t: 'c', tag: 'mec', r: 6, c: 1, max: 1, req: ['c18', 'c19'], icon: 'talents/arquera-clase-c14.webp', opts: [
-        { k: 'A', name: 'Flecha Bengala', desc: 'Habilidad (ranura 2): bengala de 10 m 10 s; dentro reciben +15 % de daño y pegan un 15 % menos. 20 s', role: 'AREA', fx: { grant: 'a_t_bengala' }, todo: 'activa a_t_bengala · existe (applyWeakness 15 + weakenOutgoing 15)' },
-        { k: 'B', name: 'Economía Letal', desc: 'Las habilidades que cuestan más de 20 de Energía cuestan un 20 % menos', role: 'UNI', fx: {}, todo: 'tv.costRedBig {pct:20, over:20} · existe' },
+        { k: 'A', name: 'Flecha Bengala', desc: 'Habilidad (ranura 2): bengala de 10 m 10 s; dentro reciben +15 % de daño y pegan un 15 % menos. 20 s', role: 'AREA', fx: { grant: 'a_t_bengala' } },
+        { k: 'B', name: 'Economía Letal', desc: 'Las habilidades que cuestan más de 20 de Energía cuestan un 20 % menos', role: 'UNI', fx: { tv: { costRedBig: { pct: 20, over: 20 } } } },
       ],
       win: 'A, en grupo: todos pegan +15 % dentro y recibes menos (ocupa la ranura 2). B, para hacer daño en solitario (+5–7 %)' },
-    { id: 'c23', name: 'Recarga en Marcha', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada habilidad principal que lanzas recarga ${n1(0.3*r)} s de Paso Veloz y de la Bomba de Humo`, touch: ['a_paso', 'a_humo'], icon: 'talents/arquera-tiradora-s1.webp', fx: {}, todo: 'power a_recarga_marcha · NUEVO (afterCast de cat spender)' },
-    { id: 'c24', name: 'Cadencia', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Disparas un ${7*r} % más rápido`, icon: 'talents/arquera-clase-c8.webp', fx: {}, todo: 'stats.aspdPct · existe' },
-    { id: 'c25', name: 'Emboscada', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Al salir de tu Bomba de Humo o al acabarse, tus ${r+1} siguientes disparos son críticos seguros`, touch: ['a_humo'], icon: 'talents/arquera-francotiradora-s15.webp', fx: {}, todo: 'power a_emboscada · NUEVO (onTick: dentro→fuera; onCast forceCrit)' },
-    { id: 'c26', name: 'Compás', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Alternar básica y principal te da un Compás (hasta 5): +${2*r} % de daño cada uno. Se pierden a los 3 s`, icon: 'talents/arquera-francotiradora-s2.webp', fx: {}, todo: 'power a_compas · NUEVO (⑦ onCast: alterna basic/spender; stacks)' },
-    { id: 'c27', name: 'Tras la Rodada', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['c24'], d: r=>`Tras Paso Veloz, tu siguiente habilidad principal no cuesta Energía y hace +${10*r} %`, touch: ['a_paso'], icon: 'talents/arquera-tiradora-s8.webp', fx: {}, todo: 'power a_tras_rodada · NUEVO (afterCast + modifyResolve)' },
-    { id: 'c28', name: 'Manto de Niebla', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['c25'], d: r=>`Tu Bomba de Humo te sigue; dentro recibes un 25 % menos (antes 50 %) y cura a tus aliados un ${n1(0.25*r)} % de vida por segundo`, touch: ['a_humo'], final: 'Defensa', icon: 'talents/arquera-montaraz-s13.webp', fx: {}, todo: 'power a_manto · NUEVO (campo que sigue al dueño: dr 25; su ceguera no se suma a la de otro humo; g.heal a los aliados dentro, no a la dueña: ronda 3)' },
-    { id: 'c29', name: 'Danza del Arco', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['c26'], d: r=>`Con 5 Compases, tu siguiente principal es gratis, crítica y hace +${20*r} %; los Compases vuelven a 0`, final: 'Ritmo', icon: 'talents/arquera-clase-c15.webp', fx: {}, todo: 'power a_danza_arco · NUEVO (lee a_compas)' },
-    { id: 'c30', name: 'Sombra Gemela', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['c27'], d: r=>`Paso Veloz deja una sombra tuya 3 s que repite tus habilidades principales al ${15+15*r} %`, touch: ['a_paso'], final: 'Movilidad', icon: 'talents/arquera-tiradora-x2.webp', fx: {}, todo: 'power a_sombra · NUEVO (aliado sin vida que copia las principales como eco ×0,3–0,6)' },
+    { id: 'c23', name: 'Recarga en Marcha', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada habilidad principal que lanzas recarga ${n1(0.3*r)} s de Paso Veloz y de la Bomba de Humo`, touch: ['a_paso', 'a_humo'], icon: 'talents/arquera-tiradora-s1.webp', fx: { power: 'a_recarga_marcha' } },
+    { id: 'c24', name: 'Cadencia', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Disparas un ${7*r} % más rápido`, icon: 'talents/arquera-clase-c8.webp', fx: { stats: { aspdPct: 7 } } },
+    { id: 'c25', name: 'Emboscada', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Al salir de tu Bomba de Humo o al acabarse, tus ${r+1} siguientes disparos son críticos seguros`, touch: ['a_humo'], icon: 'talents/arquera-francotiradora-s15.webp', fx: { power: 'a_emboscada' } },
+    { id: 'c26', name: 'Compás', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Alternar básica y principal te da un Compás (hasta 5): +${2*r} % de daño cada uno. Se pierden a los 3 s`, icon: 'talents/arquera-francotiradora-s2.webp', fx: { power: 'a_compas' } },
+    { id: 'c27', name: 'Tras la Rodada', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['c24'], d: r=>`Tras Paso Veloz, tu siguiente habilidad principal no cuesta Energía y hace +${10*r} %`, touch: ['a_paso'], icon: 'talents/arquera-tiradora-s8.webp', fx: { power: 'a_tras_rodada' } },
+    { id: 'c28', name: 'Manto de Niebla', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['c25'], d: r=>`Tu Bomba de Humo te sigue; dentro recibes un 25 % menos (antes 50 %) y cura a tus aliados un ${n1(0.25*r)} % de vida por segundo`, touch: ['a_humo'], final: 'Defensa', icon: 'talents/arquera-montaraz-s13.webp', fx: { power: 'a_manto' } },
+    { id: 'c29', name: 'Danza del Arco', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['c26'], d: r=>`Con 5 Compases, tu siguiente principal es gratis, crítica y hace +${20*r} %; los Compases vuelven a 0`, final: 'Ritmo', icon: 'talents/arquera-clase-c15.webp', fx: { power: 'a_danza_arco' } },
+    { id: 'c30', name: 'Sombra Gemela', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['c27'], d: r=>`Paso Veloz deja una sombra tuya 3 s que repite tus habilidades principales al ${15+15*r} %`, touch: ['a_paso'], final: 'Movilidad', icon: 'talents/arquera-tiradora-x2.webp', fx: { power: 'a_sombra' } },
   ] },
   specs: [
     {

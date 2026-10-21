@@ -303,7 +303,7 @@ const PREFIX = { maga: 'MAGA', guerrero: 'GUERRERO', arquera: 'ARQUERA' };
 
 // ------------------------------------------------ 1) clases del juego en v2
 // avisos que FALLAN en las clases del juego (E2: añadir 'G8b' a la Arquera, §8; y 'todo' a todas al cerrar E2)
-const STRICT = { maga: new Set(), guerrero: new Set(), arquera: new Set() };
+const STRICT = { maga: new Set(), guerrero: new Set(), arquera: new Set(['G8b']) };
 const realPowers = new Map();
 let real = 0;
 // desde E1.5 las tres clases del juego están en v2: una que vuelva a v1 es un error (no se salta en silencio)
