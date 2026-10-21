@@ -3,33 +3,19 @@
   "suites": {
     "test-skills-maga.mjs": {
       "owner": "KA-maga",
-      "stage": "E2·integración (tras fusionar maga y guerrero) · medir la quemadura por su fuente (la Ignición s0 añade otra)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "por": "catálogo v1: MAGA_SKILL_MODS, insignias por s0 y activas v1 (p_llamarada, k_prision…) que con D29 salen de MAGA_TALENT_SKILLS y pasan al kit de skills-maga.js"
     },
     "test-skills-arquera.mjs": {
       "owner": "KA-arquera",
-      "stage": "E2 (KA1)",
-      "por": "catálogo v1: ARQUERA_SKILL_MODS, insignias por s0 y activas v1 (a_t_cepo, a_t_apuntado…) que con D29 salen de ARQUERA_TALENT_SKILLS y pasan al kit de skills-arquera.js"
-    },
-    "test-powers-arquera.mjs": {
-      "owner": "KT-arquera",
-      "stage": "E2",
-      "por": "nodos v1 (c1…, s* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "por": "catálogo v1: ARQUERA_SKILL_MODS, insignias por s0 y activas v1 (a_t_cepo, a_t_apuntado…) que con D29 salen de ARQUERA_TALENT_SKILLS y pasan al kit de skills-arquera.js",
+      "why": "«ceguera dentro (×1)» de la Bomba de Humo con los talentos de KT"
     },
     "test-gauges-arquera.mjs": {
       "owner": "KT-arquera",
-      "stage": "E2",
-      "por": "A3: ui-gauges-arquera.js y mech-arquera.js citan nodos v1 (s0, s4, s9, s14), a_t_vision y a_t_cepo; los árboles v2 usan v*, f* y m*. Al final, los casos de Concentración, Coto e Impulso movidos de test75 (E1.5)"
-    },
-    "test67b-poderes-clave-talentos.mjs": {
-      "owner": "KT-guerrero · KT-maga · KT-arquera (Orq ajusta la lista)",
-      "stage": "E2",
-      "por": "partida de test67 §2 en E1.5: m_berserk, m_aegis y m_judgment (Guerrero), m_conflag, m_shatter y m_overload (Maga), m_deadeye, m_hunt y multidisparo (Arquera) deben seguir en un nodo de talento de su clase; con fx vacío ningún nodo los lleva. KT los pone en su nodo 2g o los retira (lista de cada doc)"
-    },
-    "test87-sin-cds.mjs": {
-      "owner": "KA-arquera · KT-guerrero · KT-maga · KT-arquera",
-      "stage": "E2",
-      "por": "p.cds escrito fuera del motor: skills-arquera.js (301, 308 y 309), powers-arquera.js (281, 806, 851 y 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "why": "«perfecto de Disparo Apuntado: +15» con la forja de KA2"
     },
     "balance-bench.mjs": {
       "owner": "B1",
@@ -38,73 +24,93 @@
     },
     "test-talentos-maga.mjs": {
       "owner": "KT-maga",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "la Barrera caducó: la suite de KT se escribió sin la forja de KA2"
     },
     "test64-gcd-impacto.mjs": {
       "owner": "W2",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "usa habilidades v1 (Meteoro sin especialización) · y ids v1 del guerrero (torbellino, g_martillo v1, g_provocacion, g_embate)"
     },
     "test69-nucleo-2b2.mjs": {
       "owner": "W2",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "usa m_ascua (retirada en 2g) · y ids v1 del guerrero (torbellino, g_martillo v1, g_provocacion, g_embate)"
     },
     "test72-nucleo-2c2.mjs": {
       "owner": "W2",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "la Mejora Escarcha Profunda suma 10 al ralentizar a Nv30"
     },
     "test80-guardado-v5.mjs": {
       "owner": "W1",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "tabla de prueba con m_armadura/m_onda (retiradas)"
     },
     "test76-talentos-mecanica.mjs": {
       "owner": "U1",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "suponía catálogo sin `spec`; ya lo trae KA"
     },
     "test61-migracion-paso2.mjs": {
       "owner": "W1",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "usa torbellino (retirado en 2g)"
     },
     "test62-resolve-skill.mjs": {
       "owner": "W2",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "usa torbellino (retirado en 2g)"
     },
     "test65-talentos.mjs": {
       "owner": "W1",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
-      "why": "espera g_mandoble/torbellino en SPEC_BAR y g_u_estandarte"
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "why": "espera g_mandoble/torbellino en SPEC_BAR y g_u_estandarte · y Concentración de la Francotiradora (+15/s; a 100 salta la Calma Absoluta)"
     },
     "test77-talentos-v2.mjs": {
       "owner": "W1",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "usa defs.torbellino"
     },
     "test78-talentos-datos-v2.mjs": {
       "owner": "W1",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "POWER_PREFIX.guerrero no acepta m_berserk (que test67b exige en b0)"
     },
     "test-talentos-guerrero.mjs": {
       "owner": "KT-guerrero",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "t11, z5, z6, z12, z25 y z26 probados sin la forja de KA2 (la Mejora del Martillo cambia la suelta)"
     },
     "test-forge-guerrero.mjs": {
       "owner": "KA-guerrero",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "«sin la variante: ni cura ni escudo»: con los talentos de KT ya hay cura o escudo de base"
     },
     "test86-libro-forja-vista.mjs": {
       "owner": "U2",
-      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "espera ids del fixture (vx_ins_ber) y ve el catálogo real (g_remolino)"
+    },
+    "test-forge-arquera.mjs": {
+      "owner": "KA-arquera",
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "why": "«Nv8: 4 m»: la forja se probó sin los talentos de KT"
+    },
+    "test-talentos-arquera.mjs": {
+      "owner": "KT-arquera",
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "why": "c25 r1 (2 disparos críticos al salir) probado sin la forja de KA2"
+    },
+    "test81-forja-nucleo.mjs": {
+      "owner": "W2",
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "why": "F7 debe comparar la definición forjada sin la marca forged (4 falsos no-op de la arquera)"
+    },
+    "test88-cola-w2b.mjs": {
+      "owner": "KA-arquera · W2",
+      "stage": "E2·integración (tras fusionar las tres clases)",
+      "why": "Bomba de Humo: el a_humo de KA1 deja una sola zona"
     }
   }
 }

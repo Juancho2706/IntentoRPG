@@ -259,6 +259,7 @@ export const RETIRED_KEYS = Object.freeze({
 export const SKILL_KEYS = new Set([
   // base y catálogo
   'id', 'name', 'icon', 'desc', 'line', 'cat', 'slots', 'tags', 'elem', 'type', 'behavior', 'req', 'spec', 'kind', 'max',
+  'art', 'innate', 'forged', // 2g: arte existente, innata por especialización y marca de la definición forjada
   'color', 'shake', 'size', 'beam', 'airT',
   // perfil de daño y de recurso
   'coef', 'cost', 'cd', 'gen', 'genMax', 'genOnHit', 'genPerExtra', 'cadence', 'critBonus', 'addPct', 'dmgDirect',

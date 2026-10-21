@@ -19,7 +19,7 @@
 .gz-concentracion .cz-cross { position: absolute; inset: 15px; opacity: .55;
   background: linear-gradient(var(--cz-dim), var(--cz-dim)) 50% 0 / 1px 7px no-repeat, linear-gradient(var(--cz-dim), var(--cz-dim)) 50% 100% / 1px 7px no-repeat,
               linear-gradient(var(--cz-dim), var(--cz-dim)) 0 50% / 7px 1px no-repeat, linear-gradient(var(--cz-dim), var(--cz-dim)) 100% 50% / 7px 1px no-repeat; }
-/* punto central: rojo en Tiro Fijado */
+/* punto central: rojo a 100 y en la Calma Absoluta */
 .gz-concentracion .cz-dot { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%; background: var(--cz-dim); z-index: 2; }
 .gz-concentracion.cz-locked .cz-dot,
 .gz-concentracion[data-state="active"] .cz-dot { background: var(--cz-red); box-shadow: 0 0 0 2px #ff3b2e44, 0 0 8px #ff3b2e; }
@@ -63,9 +63,17 @@
   font: 800 10px/13px Inter, system-ui, sans-serif; letter-spacing: 1.2px; color: var(--cz-mv); white-space: nowrap; transition: opacity .15s linear; }
 .gz-concentracion.cz-moving .cz-mv { opacity: 1; }
 .gz-concentracion.cz-moving .cz-hint { opacity: 0; }
+/* de rodillas (Rodilla en Tierra): candado sobre la barra, moverte no la vacía */
+.gz-concentracion .cz-kn { position: absolute; left: 0; top: 0; padding: 0 6px; border-radius: 3px; border: 1px solid var(--cz); opacity: 0;
+  font: 800 10px/13px Inter, system-ui, sans-serif; letter-spacing: 1.2px; color: var(--cz); white-space: nowrap; transition: opacity .15s linear; }
+.gz-concentracion.cz-kneel .cz-kn { opacity: 1; }
+.gz-concentracion.cz-kneel .cz-hint { opacity: 0; }
+/* Respiro tras la Calma: la retícula se apaga (no sube) */
+.gz-concentracion.cz-rest .cz-rt,
+.gz-concentracion.cz-rest .cz-wire { opacity: .45; transition: opacity .2s linear; }
 .gz-concentracion.cz-losing .cz-crit { color: #e7c9a0; }
 
-/* ojo de halcón: Tiro Fijado / Visión Certera */
+/* ojo de halcón: a 100 y en la Calma Absoluta */
 .gz-concentracion .cz-eye { position: relative; flex: 0 0 auto; width: 36px; height: 38px; opacity: .18; transform: scale(.82); transition: opacity .2s linear, transform .2s ease-out; }
 .gz-concentracion.cz-eyeon .cz-eye { opacity: 1; transform: none; }
 .gz-concentracion .cz-eyef { position: absolute; inset: 6px 3px; border-radius: 50% / 60%; border: 2px solid var(--cz); background: radial-gradient(circle, var(--cz-red) 0 3px, #1c180b 4px); transition: opacity .2s linear; }
@@ -120,6 +128,13 @@
 .gz-coto:not([data-state="prey"]) .ct-pn { color: #a9c9a0; font-weight: 600; }
 .gz-coto .ct-pl { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .gz-coto .ct-info { font: 600 11px/14px Inter, system-ui, sans-serif; color: #a9c9a0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gz-coto .ct-bt { display: none; padding: 0 5px; border-radius: 3px; background: #e8c06a; color: #0d0b10; font: 800 9.5px/13px Inter, system-ui, sans-serif; letter-spacing: .8px; font-style: normal; }
+.gz-coto.ct-batida .ct-bt { display: inline-block; }
+/* Batida: el medallón late y el aro marca su tiempo */
+.gz-coto.ct-batida .ct-prey { opacity: 1; border-color: #e8c06a; }
+.gz-coto.ct-batida .ct-med { animation: gz-coto-batida .6s ease-in-out infinite; }
+@keyframes gz-coto-batida { 50% { transform: scale(1.08); } }
+.gz-coto.ct-hasprey .ct-hp { opacity: 1; }
 .gz-coto .ct-tag { display: none; padding: 0 5px; border-radius: 3px; background: var(--ct); color: #0d0b10; font: 800 9.5px/13px Inter, system-ui, sans-serif; letter-spacing: .8px; font-style: normal; }
 .gz-coto.ct-trapped .ct-tag { display: inline-block; }
 /* la Presa caduca (< 3 s): nombre en gris y medallón que parpadea */
@@ -176,3 +191,6 @@
 .gz-impulso .im-stop { flex: 0 0 auto; padding: 1px 7px; border-radius: 3px; border: 1px solid #ffb09a; opacity: 0;
   font: 800 10.5px/14px Inter, system-ui, sans-serif; letter-spacing: 1px; color: #ffb09a; white-space: nowrap; transition: opacity .15s linear; }
 .gz-impulso.im-still .im-stop { opacity: 1; }
+/* quieta más de 2 s: pierde (las plumas parpadean) */
+.gz-impulso.im-losing .im-spin { animation: gz-impulso-spin 3s linear infinite paused, gz-impulso-lose .5s steps(2) infinite; }
+@keyframes gz-impulso-lose { 50% { opacity: .55; } }

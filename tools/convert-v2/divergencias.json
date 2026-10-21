@@ -77,6 +77,24 @@
       "ruta": "forja.a_u_zarzas.vars.i.line",
       "motivo": "A1 (líneas de forja ≤ 70): 71 → 64 caracteres. Mockup: «Se cierra sobre un enemigo: 3 m, no puede salir y el veneno hace +30 %.» · juego: «Se cierra sobre un enemigo: 3 m, no sale y el veneno hace +30 %.».",
       "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "builds.cruzado.bar",
+      "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.2 (G8b se mide contra build.bar; el mockup no trae barras por build).",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "builds.vigia.bar",
+      "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.6 «Atalaya Eterna» (G8b se mide contra build.bar; el mockup no trae barras por build).",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "builds.caceria.bar",
+      "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.7 «Gran Cacería» (G8b se mide contra build.bar; el mockup no trae barras por build).",
+      "aprobada": false
     }
   ]
 }

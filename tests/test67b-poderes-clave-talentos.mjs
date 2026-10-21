@@ -8,12 +8,15 @@ import { POWER_HOOKS } from '../js/powers.js';
 import { TALENT_TREES } from '../js/talents.js';
 
 // poder clave → clase que lo lleva
+// Arquera (E2, KT-arquera): ninguno sigue en un nodo 2g. m_deadeye (Tiro Mortal) y m_hunt (Cacería)
+// salen con las maestrías (docs/paso2g-arquera.md §11.1, «Se retiran»); multidisparo solo queda como
+// poder de legendario (items.js; lo vigilan test16 y loot-regression), no de talento.
 const KEY_POWERS = {
   // Guerrero (docs/paso2g-guerrero.md §11.3): m_aegis y m_judgment salen; m_berserk sigue en b0
   m_berserk: 'guerrero',
   // Maga (KT-maga, E2): Conflagración, Sobrecarga y el astillamiento v1 salen en 2g (docs/paso2g-maga-coherencia.md:
   // Cero Absoluto es k_cero y la mecánica de Cargas, a_cargas); m_shatter sigue registrado (lo cubre test-powers-maga)
-  m_deadeye: 'arquera', m_hunt: 'arquera', multidisparo: 'arquera',
+  // Arquera (KT-arquera, E2, docs/paso2g-arquera.md §11.1): m_deadeye, m_hunt y multidisparo salen en 2g
 };
 
 const powersOf = cid => {
