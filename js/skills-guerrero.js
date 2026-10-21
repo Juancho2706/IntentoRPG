@@ -241,7 +241,7 @@ export const GUERRERO_SKILL_BEHAVIORS = {
       if (pl?.taunt > 0) {
         // primer pulso al clavarte; los demás, cada `every` s mientras el aura siga en pie
         for (const e of g.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= (pl.radius || 10)) e.applyCC?.('taunt', pl.taunt, { src: p });
-        g._startPulses?.(ctx, () => p.pos, () => !!f && !f.dead);
+        g.startPulses(ctx, () => p.pos, () => !!f && !f.dead);
       }
       g.spawnRing?.(pos, ctx.prof.radius || 6, ctx.color || 0x7fb0e8);
       emit(g, ctx.fx?.aura, p.pos.clone().setY(1.0));
@@ -378,10 +378,10 @@ export const GUERRERO_SKILL_FORGE = {
     vars: [
       { id: 'g_remolino_i', name: 'Remolino Anclado', role: 'UNI', icon: F('g_remolino_i'), line: 'Giras sin moverte: radio 2 m y +60 % de daño.',
         set: { moveMul: 0, radius: 2 }, mod: { dmg: 60 } },
-      // atrae 1 m a 5 m en cada giro y no a los jefes (v_ciclon); el radio del daño no cambia. Sin
-      // `pull` del canal genérico: su golpe atrae otra vez a los del radio del daño (petición a W2)
+      // atrae 1 m a 5 m en cada giro y no a los jefes (pull del canal genérico); el radio del daño
+      // no cambia
       { id: 'g_remolino_ii', name: 'Ciclón', role: 'CTRL', icon: F('g_remolino_ii'), line: 'Cada giro atrae 1 m a los enemigos a 5 m; −15 % de daño.',
-        mod: { dmg: -15 }, power: 'v_ciclon', tags: { add: ['cc'] } },
+        set: { pull: { dist: 1, radius: 5, boss: false } }, mod: { dmg: -15 }, tags: { add: ['cc'] } },
     ],
   },
   g_salto: {

@@ -7,10 +7,10 @@
 // Recompute añade el poder solo si la pieza de forja que lo declara está activa (Mejora a Nv
 // req+3, variante elegida a req+6) y la habilidad se conoce.
 // Ids únicos entre clases (D28; definePower lanza con uno repetido): los del mockup (v_rompefilas,
-// v_temple, v_espinas, v_sed_voraz, v_empalizada, v_escolta_luz) y tres propios de esta clase
-// (v_ciclon, v_guardia_compartida, v_guardia_opresiva), anotados en tools/convert-v2/out/guerrero/
-// pendientes-guerrero.md §4 (Forja). v_carnero no hace falta: el arrastre es `drag`. Giro Firme ya
-// no es un poder: el canal genérico da `slowImmune` en cada giro.
+// v_temple, v_espinas, v_sed_voraz, v_empalizada, v_escolta_luz) y dos propios de esta clase
+// (v_guardia_compartida, v_guardia_opresiva), anotados en tools/convert-v2/out/guerrero/
+// pendientes-guerrero.md §4 (Forja). v_carnero no hace falta: el arrastre es `drag`. Giro Firme y el
+// Ciclón ya no son poderes: el canal genérico da `slowImmune` y `pull` en cada giro.
 //   guerreroForgePowers() → { v_<id>: PowerDef }
 import { dealProcDamage, powerState } from './powers.js';
 
@@ -23,7 +23,6 @@ export function guerreroForgeTuning() {
     sedVoraz: { leechPct: 8 },                                    // Furia Inmortal I
     empalizada: { coef: 0.6, icd: 1 },                            // Ciudadela II
     escolta: { shieldPct: 12, dur: 6, icd: 6, reach: 1.5 },       // Sendero de Luz I
-    ciclon: { radius: 5, pull: 1 },                               // Remolino II
     compartida: { radius: 6, share: 0.5, every: 0.25 },           // Cambio de Guardia I
     opresiva: { radius: 5, weakPct: 10, slowPct: 20, keep: 0.35 }, // Cambio de Guardia II
   };
@@ -131,31 +130,6 @@ export function guerreroForgePowers() {
           st.until.set(ally, now(p) + T.escolta.icd);
           ally.addShield?.(p.stats.maxHP * T.escolta.shieldPct / 100, T.escolta.dur, 'v_escolta_luz');
         }
-      },
-    },
-
-    // Remolino II · Ciclón: en cada giro (tic del canal) atrae 1 m a los enemigos a 5 m. A los jefes
-    // no: el tirón les llenaría Quebranto, y llenarlo es cosa del Guardián. Es un poder y no el `pull`
-    // del canal genérico porque este también atrae al golpear (ctx.hit): dentro del radio del daño
-    // serían 2 m por giro. Con el arreglo de W2 vuelve a `set: { pull: { dist: 1, radius: 5,
-    // boss: false } }` (pendientes-guerrero.md §7). Lee el canal con g.channelInfo() (10 Hz)
-    v_ciclon: {
-      name: 'Ciclón', desc: 'Cada giro del Remolino Sangriento atrae 1 m a los enemigos a 5 m',
-      state: () => ({ t0: -1, ticks: 0 }),
-      onTick(g, p) {
-        const ch = g.channelInfo?.();
-        if (!ch || ch.p !== p || ch.id !== 'g_remolino') return;
-        const st = powerState(p, 'v_ciclon');
-        const t0 = (g.timers?.now || 0) - ch.t;                   // cuándo empezó este Remolino (otro: cuenta de cero)
-        if (Math.abs(t0 - st.t0) > 1e-6) { st.t0 = t0; st.ticks = 0; }
-        const n = ch.ticks - st.ticks;                             // giros desde la última mirada
-        if (!(n > 0)) return;
-        st.ticks = ch.ticks;
-        const r = T.ciclon.radius;
-        for (const e of g.enemies || []) {
-          if (e.alive && !isBoss(e) && e.pos.distanceTo(p.pos) <= r) e.displace?.(p.pos, T.ciclon.pull * n, { toward: true, src: p });
-        }
-        if (ch.ticks % 2 === 1) g.spawnRing?.(p.pos, r, 0xcfd6e0);  // el alcance del tirón
       },
     },
 

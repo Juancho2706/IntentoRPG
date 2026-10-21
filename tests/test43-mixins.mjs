@@ -114,7 +114,7 @@ const SKILLS_EXPECTED = [
   'releaseSkillSlot', '_endCharge', '_releaseWith', 'heldSlotBusy', 'pumpHeldSlots', 'tickSkillVerbs', 'keepsPlanted',
   '_skillEnd', 'cancelHeld',
   // cola W2d (parte A): APIs públicas del canal de lanzamiento
-  'castEcho', 'startCooldown', 'channelInfo', 'extendMark',
+  'castEcho', 'startCooldown', 'channelInfo', 'extendMark', 'startPulses',
 ];
 const skKeys = Object.keys(skillMethods);
 for (const m of SKILLS_EXPECTED) if (typeof skillMethods[m] !== 'function') throw new Error('falta método de skills o no es función: ' + m);

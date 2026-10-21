@@ -1413,8 +1413,9 @@ export const skillMethods = {
       ctx.res.hits++;
       ctx.res.dealt += dealt || 0;
       if (e) ctx.hitSet.add(e);
-      // pull.boss:false también al golpear (Arpón): al jefe no se lo atrae; lo demás, igual
-      const pr = ctx.prof.pullBoss === false && ctx.prof.pull > 0 && isBossEnemy(e) ? { ...ctx.prof, pull: 0 } : ctx.prof;
+      // pull.boss:false también al golpear (Arpón): al jefe no se lo atrae; lo demás, igual. El
+      // golpe del canal en curso no atrae: ya atrae su tic (si no, 2 tirones por giro)
+      const pr = ctx.prof.pull > 0 && (this._channel?.ctx === ctx || (ctx.prof.pullBoss === false && isBossEnemy(e))) ? { ...ctx.prof, pull: 0 } : ctx.prof;
       applyHitEffects(this, p, e, pr, ctx.avgHit, { from });
       if (e && !e.alive) ctx.res.killed++;
     };
@@ -1590,6 +1591,8 @@ export const skillMethods = {
     }
   },
 
+  // pulsos de un buff o aura (Ciudadela) para los comportamientos (vía pública de _startPulses)
+  startPulses(ctx, posFn, alive) { return this._startPulses(ctx, posFn, alive); },
   // pulsos de un buff o aura (Ciudadela): cada `every` s mientras `alive()`; provoca a los
   // enemigos del radio y/o los golpea con coef
   _startPulses(ctx, posFn, alive) {

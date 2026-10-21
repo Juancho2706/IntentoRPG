@@ -21,16 +21,6 @@
       "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "la Barrera caducó: la suite de KT se escribió sin la forja de KA2"
     },
-    "test-talentos-guerrero.mjs": {
-      "owner": "KT-guerrero",
-      "stage": "E2·integración (tras fusionar las tres clases)",
-      "why": "t11, z5, z6, z12, z25 y z26 probados sin la forja de KA2 (la Mejora del Martillo cambia la suelta) · W2d-B: el miedo ya es control real (applyCC('fear')), l8A y u8A deben mirar fearT o avanzar la IA; quitar el mod g_piel de d0 (ya va en la innata)"
-    },
-    "test-forge-guerrero.mjs": {
-      "owner": "KA-guerrero",
-      "stage": "E2·integración (tras fusionar las tres clases)",
-      "why": "«sin la variante: ni cura ni escudo»: con los talentos de KT ya hay cura o escudo de base"
-    },
     "test-talentos-arquera.mjs": {
       "owner": "KT-arquera",
       "stage": "E2·integración (tras fusionar las tres clases)",

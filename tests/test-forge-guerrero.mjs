@@ -167,9 +167,8 @@ console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna 
   const b = makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker' });
   b.p.skillForge = { g_u_furia: 'i' }; b.p.recompute();
   assert.ok(b.p.powers.has('v_sed_voraz'), 'con la especialización, sí');
-  // Giro Firme es una clave del canal genérico (slowImmune), no un poder. El Ciclón sigue siendo
-  // v_ciclon hasta que el golpe del canal deje de atraer otra vez (petición a W2)
-  assert.ok(!POWER_HOOKS.v_giro_firme, 'v_giro_firme retirado');
+  // Giro Firme y el Ciclón son claves del canal genérico (slowImmune, pull), no poderes
+  assert.ok(!POWER_HOOKS.v_giro_firme && !POWER_HOOKS.v_ciclon, 'v_giro_firme y v_ciclon retirados');
 }
 console.log(`A9 y D28: ${Object.keys(guerreroForgePowers()).length} poderes v_* registrados, usados y sin choques entre clases ✓`);
 

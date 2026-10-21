@@ -2383,9 +2383,8 @@
         "g_z_luz_protectora", "g_z_marca_indeleble", "g_z_martillo_celestial", "g_z_martillo_piadoso",
         "g_z_milagro", "g_z_peregrino", "g_z_racha", "g_z_refugio", "g_z_sello_martillo", "g_z_senda_ardiente",
         "g_z_sendero_veloz", "g_z_tierra_bendita", "g_z_tierra_santa", "g_z_tribunal", "g_z_velo",
-        "g_z_veredicto_generoso", "g_z_veredicto_pesado", "g_z_vigilia", "v_ciclon", "v_empalizada",
-        "v_escolta_luz", "v_espinas", "v_giro_firme", "v_guardia_compartida", "v_guardia_opresiva",
-        "v_rompefilas", "v_sed_voraz", "v_temple"
+        "g_z_veredicto_generoso", "g_z_veredicto_pesado", "g_z_vigilia", "v_empalizada", "v_escolta_luz",
+        "v_espinas", "v_guardia_compartida", "v_guardia_opresiva", "v_rompefilas", "v_sed_voraz", "v_temple"
       ],
       "arquera": [
         "a_adrenalina", "a_barrido", "a_bocajarro", "a_calma_letal", "a_camuflaje", "a_compas", "a_danza_arco",
@@ -2416,8 +2415,7 @@
         "m_u_tormenta", "orbe_arcano", "prision_hielo", "v_parpadeo_onda"
       ],
       "guerrero": [
-        "g_h_bramido", "g_h_desafio", "g_t_aliento", "g_t_intervencion", "g_u_cataclismo", "g_u_ciudadela",
-        "v_onda_sagrada"
+        "g_h_bramido", "g_h_desafio", "g_t_aliento", "g_t_intervencion", "g_u_cataclismo", "g_u_ciudadela"
       ],
       "arquera": [
         "a_andanada", "a_bengala", "a_diluvio", "a_halcon", "a_humo", "a_lluvia", "a_paso", "a_t_camuflaje",
@@ -2436,7 +2434,7 @@
         "g_pendon"
       ],
       "arquera": [
-        "m_cerco", "m_zarzal"
+        "a_humo_ciego", "m_cerco", "m_zarzal"
       ]
     },
     "indicadores": {
