@@ -453,10 +453,11 @@ function purchaseOrder(obj) {
 export function normBuild(b) {
   if (!b || typeof b !== 'object') return null;
   if (b._norm) return b;
-  const c = b.clsOrder ? { ranks: { ...(b.cls || {}) }, order: b.clsOrder.map(([id, t]) => [id, t]) } : purchaseOrder(b.cls);
-  const s = b.specOrder ? { ranks: { ...(b.spec || {}) }, order: b.specOrder.map(([id, t]) => [id, t]) } : purchaseOrder(b.spec);
+  // Array.from: copias de este reino aunque la build venga de otro (el mockup carga en node:vm)
+  const c = b.clsOrder ? { ranks: { ...(b.cls || {}) }, order: Array.from(b.clsOrder, ([id, t]) => [id, t]) } : purchaseOrder(b.cls);
+  const s = b.specOrder ? { ranks: { ...(b.spec || {}) }, order: Array.from(b.specOrder, ([id, t]) => [id, t]) } : purchaseOrder(b.spec);
   const out = { ...b, cls: c.ranks, clsOrder: c.order, spec: s.ranks, specOrder: s.order,
-    heroNodes: [...(b.heroNodes || [])], clsCh: { ...(b.clsCh || {}) }, specCh: { ...(b.specCh || {}) }, heroCh: { ...(b.heroCh || {}) } };
+    heroNodes: Array.from(b.heroNodes || []), clsCh: { ...(b.clsCh || {}) }, specCh: { ...(b.specCh || {}) }, heroCh: { ...(b.heroCh || {}) } };
   Object.defineProperty(out, '_norm', { value: true });
   return out;
 }
