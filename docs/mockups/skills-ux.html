@@ -23,7 +23,11 @@
      reglas del libro (nodo = icono + nombre corto + rango; todo el texto en el tooltip; Alt = detalle).
      Parámetros 2g: &lvl=5|18|50 &view=talents &chooser=1 (selector de especialización) &tipnode=cls:c3|spec:s9
                     &hl=<skillId> (resalta en los dos árboles los nodos que la tocan) &tipskill=<id>
-     Guerrero y Arquera quedan como estaban (cinta «Pendiente de rehacer»). -->
+     MULTICLASE (plantilla §17): los datos de talentos v2 viven en data/talents-v2-<clase>.js (uno por clase, se
+     registran en window.TALENTS_V2_CLASSES); reglas comunes y rejillas en data/talents-v2-comun.js; contrato en
+     data/README-talents-v2.md; validador: node data/validar-talentos.mjs <clase>. ?cls=maga|guerrero|arquera elige la
+     clase; el selector de clase está en «Cambiar» (fila «Clase») y en «En diseño». Sin archivo de datos, el panel
+     muestra «En diseño». &legacy=1 abre el panel real del juego (talentos actuales) para auditar. -->
 <link rel="stylesheet" href="../../css/talents.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -676,11 +680,53 @@ body.rm .hbeam,body.rm .t3col.hero.fx-unveil .hveil .hlk{display:none}
 body.rm .t3col.hero.fx-unveil .hveil{animation:veil .2s ease-out both}
 @media (prefers-reduced-motion: reduce){.hbeam{display:none}.t3col.hero.fx-unveil .hveil{animation:veil .2s ease-out both}}
 
+
+/* ===================== MULTICLASE: selector de clase, «En diseño», rejilla fantasma y marcador de icono ===================== */
+.t2choose.wcls{grid-template-rows:auto minmax(0,1fr)}
+.t2cls{grid-column:1/-1;display:flex;align-items:center;gap:10px}
+.t2cls .lb{color:var(--dim);font:600 11px Inter;letter-spacing:1.4px;text-transform:uppercase;margin-right:2px}
+#TV2 .t2cls .hbtn{height:40px}
+.t2cls .hbtn small{padding:0 7px;border-radius:8px;background:#2a2232;border:1px solid #4a3e54;color:#cfc4b0;font:700 10px/16px Inter;letter-spacing:.4px;text-transform:uppercase}
+.t2cls .hbtn.cur{border-color:var(--gold);color:var(--gold2);box-shadow:0 0 0 1px rgba(232,192,106,.25),0 0 14px rgba(232,192,106,.12)}
+.t2cls .hint{margin-left:auto;color:var(--dim2);font-size:12px}
+.t2cls code,.t2wip code{font:12px ui-monospace,Consolas,monospace;color:#d8c9a8}
+.t2wip{grid-column:1/-1;position:relative;display:grid;grid-template-rows:240px 1fr;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.t2wip .wart{position:relative;display:grid;grid-template-columns:repeat(3,1fr)}
+.t2wip .wart i{background:#0d0b10 center 22%/cover no-repeat;filter:grayscale(.55) brightness(.62)}
+.t2wip .wart::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 35%,#15111a)}
+.t2wip .wbody{display:flex;flex-direction:column;gap:14px;padding:6px 34px 24px}
+.t2wip .wtag{align-self:flex-start;padding:3px 12px;border-radius:12px;background:#2a1d14;border:1px solid #8a5a2a;color:#ffcf9a;font:700 11.5px Inter;letter-spacing:1.6px}
+.t2wip h3{margin:0;display:flex;align-items:center;gap:12px;font:700 34px Cinzel,serif;color:var(--gold2);font-variant:small-caps}
+.t2wip h3 img{width:42px;height:42px}
+.t2wip p{margin:0;max-width:1100px;color:var(--ink);font-size:15px;line-height:1.45}
+.t2wip .wspecs{display:flex;gap:14px;flex-wrap:wrap}
+.t2wip .wsp{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;padding:8px 16px 8px 8px;border-radius:10px;background:#1a151f;border:1px solid #3a3045}
+.t2wip .wsp img{width:44px;height:44px}
+.t2wip .wsp b{display:block;font:700 15px Cinzel,serif;color:var(--ink)} .t2wip .wsp small{display:block;color:var(--dim);font-size:12px}
+.t2wip .wnote{color:var(--dim2);font-size:12.5px}
+.gn3{position:absolute;z-index:3;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:none;opacity:.7}
+.gn3 svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.gn3 svg *{fill:rgba(13,11,16,.8);stroke:#5d4f6a;stroke-width:2;stroke-dasharray:4 3}
+.gn3.t-c{width:50px;height:46px;margin:-23px 0 0 -25px}
+.gn3.t-k,.gn3.t-f{width:54px;height:54px;margin:-27px 0 0 -27px}
+.gn3.t-k svg *,.gn3.t-f svg *{stroke:#8a6f38}
+.gn3.t-x{width:58px;height:58px;margin:-29px 0 0 -29px}
+.gn3.t-x svg *{stroke:#8a4a22}
+.gn3 .rk{position:absolute;right:-12px;bottom:-9px;min-width:28px;height:17px;padding:0 4px;border-radius:9px;background:#0d0b10;border:1.5px dashed #4a3e54;color:#6f667a;font:800 10px/14px Inter;text-align:center}
+.t3can line.ghost{stroke:#3a3045;stroke-dasharray:5 5}
+.gwip{position:absolute;left:50%;top:50%;z-index:6;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 26px;border-radius:12px;background:rgba(22,18,27,.94);border:1px solid #6b5631;box-shadow:0 10px 30px #000a;text-align:center;white-space:nowrap;pointer-events:none}
+.gwip b{font:700 20px Cinzel,serif;color:var(--gold2)} .gwip span{color:var(--ink);font-size:13px} .gwip small{color:var(--dim2);font-size:11.5px}
+#TV2 .p-head.tight h2{font-size:20px}
+#TV2 .p-head.tight .sub{font-size:12.5px}
+#TV2 .p-head.tight .t3lo select{width:200px}
+.kit3.many{gap:4px} .kit3.many .skl{width:30px;height:30px}
+.noart{background-image:none!important;background-color:#1d1724!important}
+.noart::after{content:attr(data-ph);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a493b8;font:800 10px/1 Inter;letter-spacing:.3px;text-transform:uppercase;pointer-events:none}
 </style>
 </head>
 <body>
 <div class="ctl">
-  <h1>Libro y talentos · mockup 2f + 2g (Maga)</h1>
+  <h1>Libro y talentos · mockup 2f + 2g (multiclase)</h1>
   <label>Clase <select id="cCls"><option value="guerrero">Guerrero</option><option value="maga" selected>Maga</option><option value="arquera">Arquera</option></select></label>
   <label>Nivel <select id="cLvl"><option value="5">5 · sin especialización</option><option value="10">10 · especialización</option><option value="18">18</option><option value="40">40</option><option value="60">60</option><option value="69">69 · Paragon en gris</option><option value="70">70 · especialización al máximo</option><option value="80">80</option><option value="100" selected>100</option></select></label>
   <label><input type="checkbox" id="cRm"> Reducir movimiento</label>
@@ -815,12 +861,24 @@ body.rm .t3col.hero.fx-unveil .hveil{animation:veil .2s ease-out both}
           <span class="tp-grant-tag">${M.learned?"Aprendida":"Sin aprender"} \xB7 ${W(w(M))}</span></span>
       </div>`).join(""):'<div class="tp-empty">Este \xE1rbol no concede habilidades activas.</div>',x.classList.toggle("is-scroll",x.scrollHeight>x.clientHeight+2)}function pe(f){let x=l.refs.code;x&&(m.classList.toggle("tp-importing",l.importing),l.importing||(x.readOnly=!0,x.value=o.exportCode(f),x.placeholder=""),l.refs.codeErr.textContent=l.importErr||"")}function Me(f){l.importing=f,l.importErr="";let x=l.refs.code;if(!x)return;f&&(x.readOnly=!1,x.value="",x.placeholder="Pega aqu\xED un c\xF3digo IRPG1-\u2026");let h=n();h&&pe(h),f&&x.focus()}function Ae(){let f=n();if(!f)return;let x=s(f);if(x){l.importErr=x,pe(f);return}let h=l.refs.code.value,A=o.importCode(f,h);if(!A.ok){l.importErr=A.error,pe(f);return}l.importing=!1,l.importErr="";try{r(f)}catch(w){console.error("[talentos] onChange",w)}se(),z("Build importada","ok")}function We(){let f=l.refs.code;if(!f)return;let x=f.value,h=()=>z("C\xF3digo copiado","ok");try{if(u.navigator?.clipboard?.writeText){u.navigator.clipboard.writeText(x).then(h,()=>{f.select(),c.execCommand?.("copy"),h()});return}}catch{}f.select();try{c.execCommand("copy")}catch{}h()}function se(){if(d.classList.contains("hidden")){l.open&&(l.open=!1,u.removeEventListener("resize",xe)),k(),l.key=null;return}if(!l.open)return;let f=n();if(!f){m.innerHTML='<div class="tp-empty">Sin personaje.</div>',l.key=null;return}o.ensure(f),l.layout||O();let x=t.findSpec(f.classId,f.talents.spec),h=!x||l.view==="choose"?"choose":"trees",A=[f.classId,x?.id||"-",h,l.layout.name].join("|");A!==l.key&&(l.key=A,_e(f,x,h));let w=Po(x),M=I(f),N=M.n?`${M.n} haza\xF1a${M.n>1?"s":""} (${M.st} ${M.st===1?"basti\xF3n":"bastiones"}, ${M.bo} jefe${M.bo===1?"":"s"} \xFAnico${M.bo===1?"":"s"})`:"sin haza\xF1as",y=qo[f.classId]||f.classId;h==="choose"?(l.refs.title.textContent=`Especializaci\xF3n \xB7 ${y}`,l.refs.sub.textContent=(f.level|0)<t.TALENT_START_LEVEL?`Nivel ${f.level|0} \xB7 las especializaciones se desbloquean en el nivel ${t.TALENT_START_LEVEL} (te faltan ${t.TALENT_START_LEVEL-(f.level|0)})`:`Nivel ${f.level|0} \xB7 elige tu camino: su nodo clave es gratis \xB7 cada especializaci\xF3n guarda sus talentos \xB7 cambiar es gratis fuera de combate`):(l.refs.title.textContent=`Talentos \xB7 ${y} ${x.name}`,l.refs.sub.textContent=`Nivel ${f.level|0} \xB7 ${w.role} \xB7 ${N} \xB7 cambiar especializaci\xF3n: gratis fuera de combate`,me(f,"cls"),me(f,"spec"),Re(f),Te(f),pe(f));let D=s(f);l.refs.lock.textContent=D||"",m.classList.toggle("tp-locked",!!D);let R=m.querySelector('[data-act="reset"]');R&&(R.textContent=l.resetArmed?"\xBFSeguro? Reiniciar":"Reiniciar")}function $e(f){let x=f.target.closest?.(".tp-node");return x&&m.contains(x)?{which:x.dataset.tree,id:x.dataset.id,el:x}:null}function Oe(f,x){let h=l.trees[f]?.nodes.get(x);h&&(h.el.classList.remove("tp-burst-a","tp-burst-b"),h.el.offsetWidth,h.el.classList.add(l.flip?"tp-burst-a":"tp-burst-b"),l.flip=!l.flip)}d.addEventListener("click",f=>{if(f.target===d){p();return}let x=$e(f);if(x){let w=n();if(!w)return;let M=l.trees[x.which]?.tree,N=M&&t.nodeById(M,x.id);if(l.hover={which:x.which,id:x.id},N?.t==="c"&&(t.ranksOf(w,x.which)[N.id]|0)>0){q(y=>o.toggleChoice(y,x.which,x.id));return}q(y=>o.addRank(y,x.which,x.id))&&Oe(x.which,x.id);return}let h=f.target.closest?.("[data-act]");if(!h||!m.contains(h)||h.disabled)return;let A=h.dataset.act;if(A==="close")p();else if(A==="spec")l.view="choose",se();else if(A==="back")l.view="trees",se();else if(A==="choose"){let w=h.dataset.spec;q(M=>o.chooseSpec(M,w))&&(l.view="trees",l.hover=null,se(),z(`Especializaci\xF3n: ${t.findSpec(n().classId,w)?.name||w}`,"ok"))}else A==="preset"?q(w=>o.applyPresetAll(w),"Build recomendada aplicada"):A==="reset"?l.resetArmed?(l.resetArmed=!1,clearTimeout(l.resetT),q(w=>o.resetAll(w),"Talentos reiniciados")):(l.resetArmed=!0,se(),clearTimeout(l.resetT),l.resetT=setTimeout(()=>{l.resetArmed=!1,se()},3e3)):A==="opt"?q(w=>o.setChoice(w,h.dataset.which,h.dataset.id,h.dataset.k)):A==="mech-demo"?T("demo"):A==="mech-live"?T("live"):A==="mech-replay"?(T("demo"),l.gz?.seek(0)):A==="copy"?We():A==="import"?Me(!0):A==="import-cancel"?Me(!1):A==="import-apply"&&Ae()}),d.addEventListener("contextmenu",f=>{f.preventDefault();let x=$e(f);x&&(l.hover={which:x.which,id:x.id},q(h=>o.removeRank(h,x.which,x.id)))});let Ye=(f,x)=>{if(l.hover&&l.hover.which===f&&l.hover.id===x)return;l.hover={which:f,id:x};let h=n();h&&Re(h)};d.addEventListener("mouseover",f=>{let x=$e(f);if(x){Ye(x.which,x.id),$(x.which==="spec"?x.id:null);return}let h=f.target.closest?.("[data-mech-node]");if(h&&m.contains(h)){Ye("spec",h.dataset.mechNode),$(h.dataset.mechNode);return}let A=f.target.closest?.("[data-hover-id]");A&&m.contains(A)&&Ye(A.dataset.hoverWhich,A.dataset.hoverId)}),d.addEventListener("mouseout",f=>{let x=f.target.closest?.(".tp-node, [data-mech-node]");if(!x)return;f.relatedTarget?.closest?.(".tp-node, [data-mech-node]")!==x&&$(null)}),d.addEventListener("focusin",f=>{let x=$e(f);x&&Ye(x.which,x.id)});let Qe={el:d,isOpen:()=>l.open,open(){l.open||(l.open=!0,u.addEventListener("resize",xe)),d.classList.remove("hidden"),l.view="trees",l.importing=!1,l.importErr="",O(),se()},close(){l.open&&(l.open=!1,u.removeEventListener("resize",xe)),d.classList.add("hidden"),k(),l.key=null,l.resetArmed=!1,clearTimeout(l.resetT)},render(){!l.open&&!d.classList.contains("hidden")&&(l.open=!0,u.addEventListener("resize",xe),O()),se()},showSpecChoice(){Qe.open(),l.view="choose",se()},destroy(){Qe.close(),d.remove()},mech:()=>({info:l.mech,gauge:l.gz,mode:l.gzMode,hint:[...l.mechHint],cards:l.cardGz.length}),mechFocus:$,ops:o};return Qe}window.TP={createGauge:So,Talents:ho,createTalentPanel:Zr,createTalentOps:ft,CLASSES:Ra,gaugeDefs:fe};})();
 </script>
+<!-- Talentos v2 por clase (scripts clásicos: funcionan por file:///). Si falta el archivo de una clase, su panel muestra «En diseño». -->
+<script src="data/talents-v2-comun.js"></script>
+<script src="data/talents-v2-maga.js"></script>
+<script src="data/talents-v2-guerrero.js"></script>
+<script src="data/talents-v2-arquera.js"></script>
 <script>
 const A = 'file:///D:/Proyectos/IntentoRPG-assets/web/';
 const DATA = {"CATALOG":{"guerrero":[{"id":"g_tajo","n":"Tajo","cat":"basic","req":1,"elem":"physical","coef":1,"gen":10,"s":"Corta al objetivo y salpica a los pegados a él.","M":{"n":"Filo Ancho","s":"Salpicadura 50 → 65 % y alcance 2 → 2,5 m.","k":"★add{cleave:+.15, cleaveR:+.5}"},"A":{"n":"Desgarro","r":"UNI","s":"El objetivo sangra 60 % en 4 s; salpicadura 30 %.","k":"hitDot bleed .6/4s · ★add{cleave:−.2}","m":"espada curva que abre un tajo del que brotan gotas de sangre carmesí"},"B":{"n":"Siega","r":"AREA","s":"Barrido de 3 m a todos al 75 %; el principal 85 %.","k":"★set{cleave:.75, cleaveR:3} · dmg −15","m":"arco ancho de acero como una guadaña barriendo polvo y chispas en semicírculo"}},{"id":"g_mandoble","n":"Mandoble","cat":"basic","req":3,"elem":"physical","coef":1.5,"gen":14,"s":"Golpe único y pesado, más lento.","M":{"n":"Contundente","s":"+4 Furia al acertar y +50 % de stagger a jefes.","k":"gen +4 · ★add{stagger:+.5}"},"A":{"n":"Verdugo","r":"UNI","s":"+40 % de daño a enemigos bajo el 40 % de vida.","k":"★power v_verdugo (condAdd)","m":"hoja de mandoble descendiendo sobre un cráneo agrietado con brillo rojo"},"B":{"n":"Media Luna","r":"AREA","s":"Arco de 180° y 3 m al 110 %.","k":"★set{type:cone, angle:180, radius:3, coef:1.1}","m":"media luna de acero incandescente trazada por un mandoble"}},{"id":"g_embate","n":"Embate","cat":"basic","req":8,"elem":"physical","coef":0.6,"gen":7,"s":"Barrido circular a todos a 2,5 m.","M":{"n":"Inercia","s":"10 % más rápido (cadencia 1,1 → 1,0).","k":"★set{cadence:1.0}"},"A":{"n":"Ojo del Huracán","r":"CTRL","s":"Atrae 1,5 m hacia ti a los golpeados.","k":"★pull 1.5","m":"remolino de polvo y acero que succiona hacia un centro luminoso"},"B":{"n":"Coraza de Polvo","r":"AGU","s":"Cada golpeado: −1 % de daño recibido 3 s (máx. 10 %).","k":"★power v_coraza_polvo","m":"torso de armadura envuelto en un anillo de polvo y piedras girando"}},{"id":"torbellino","n":"Torbellino","cat":"spender","req":2,"elem":"physical","coef":1.6,"cost":25,"s":"Giro instantáneo que golpea a todos a 2,9 m.","M":{"n":"Giro Firme","s":"−3 de coste (25 → 22) e inmune a ralentizaciones al girar.","k":"cost −12 · ★set{slowImmune:true}"},"A":{"n":"Vendaval de Acero","r":"AREA","s":"Mantén para girar y moverte: 90 % cada 0,5 s, 12 Furia por giro.","k":"★set{type:channel, ticks, move:.7} · behavior v_torbellino_canal","m":"guerrero girando dentro de un tornado de hojas de acero, vista cenital"},"B":{"n":"Ciclón","r":"CTRL","s":"Atrae 2 m y ralentiza 30 % 2 s; −15 % de daño.","k":"★pull 2 · slow 2 · slowPct 30 · dmg −15","m":"espiral de viento gris que arrastra siluetas de enemigos hacia dentro"}},{"id":"g_hendidura","n":"Hendidura","cat":"spender","req":8,"elem":"physical","coef":2.9,"cost":27,"s":"Tajo frontal pesado en cono de 120°.","M":{"n":"Arco Amplio","s":"Cono 120 → 150°.","k":"★set{angle:150}"},"A":{"n":"Rompefilas","r":"UNI","s":"+45 % de daño si golpea a un único enemigo.","k":"★power v_rompefilas (condAdd)","m":"hacha que parte en dos un escudo de torre con estallido de astillas"},"B":{"n":"Grieta","r":"AREA","s":"Deja una grieta 2 s (40 %/s); solo 1 activa.","k":"zone · zoneDur 2 · ★add{zoneMax:1}","m":"tajo de hacha que abre una grieta brillante en el suelo de piedra"}},{"id":"g_martillo","n":"Martillo de Guerra","cat":"spender","req":8,"elem":"physical","coef":2.4,"cost":30,"s":"Onda de 3 m al golpear el suelo delante.","M":{"n":"Impacto Hondo","s":"Alcance 2,5 → 3,5 m y +25 % de stagger.","k":"range +40 · ★add{stagger:+.25}"},"A":{"n":"Martillo Arrojadizo","r":"UNI","s":"Lo lanzas a 9 m (200 %) y vuelve a tu mano.","k":"★set{type:proj, range:9, coef:2.0} · behavior v_martillo_vuelta","m":"martillo de guerra girando en el aire dejando una estela dorada en arco"},"B":{"n":"Temblor","r":"CTRL","s":"La onda aturde 0,75 s; −10 % de daño.","k":"stun .75 · dmg −10","m":"martillo clavado en el suelo con anillos concéntricos de roca levantándose"}},{"id":"terremoto","n":"Terremoto","cat":"spender","req":14,"elem":"physical","coef":3.1,"cost":26,"cd":4,"s":"Grieta de 8 m que aturde 0,75 s.","M":{"n":"Falla","s":"Longitud 8 → 11 m.","k":"range +37"},"A":{"n":"Grieta Abierta","r":"AREA","s":"La grieta arde 3 s más (40 %/s).","k":"zone · zoneDur 3","m":"falla en la tierra con magma tenue y polvo flotando"},"B":{"n":"Sacudida Circular","r":"CTRL","s":"Anillo de 4 m a tu alrededor: aturde 1 s, 80 % del daño.","k":"★set{type:area, at:self, radius:4} · stun 1 · dmg −20","m":"anillo de rocas alzándose en círculo alrededor de un punto central"}},{"id":"g_lanza","n":"Lanza Arrojadiza","cat":"spender","req":14,"elem":"physical","coef":1.9,"cost":20,"s":"Lanza que atraviesa en línea 11 m.","M":{"n":"Punta de Arpón","s":"Los golpeados se ralentizan 30 % 2 s.","k":"slow 2 · slowPct 30"},"A":{"n":"Arpón","r":"CTRL","s":"El primero golpeado es arrastrado 4 m hacia ti (+30 %).","k":"★pull 4 · ★set{pierce:false} · dmg +30","m":"arpón con cadena tensa arrastrando hacia el espectador"},"B":{"n":"Jabalinas","r":"AREA","s":"3 lanzas en abanico al 70 %.","k":"★set{count:3, spread:.25} · dmg −30","m":"tres jabalinas en abanico cortando el aire con estelas blancas"}},{"id":"embestida","n":"Embestida","cat":"movement","req":4,"elem":"physical","coef":1.2,"cd":8,"s":"Embistes 7 m y golpeas al llegar.","M":{"n":"Carga Fiera","s":"Alcance 7 → 9 m y +4 Furia si golpea.","k":"range +28 · ★add{genOnHit:4}"},"A":{"n":"Carnero","r":"CTRL","s":"Arrastras a los del camino y los aturdes 0,5 s.","k":"★power v_carnero · stun .5","m":"hombrera con cuernos de carnero embistiendo entre polvo"},"B":{"n":"Doble Carga","r":"MOV","s":"2 cargas (8 s cada una).","k":"★charges 2","m":"dos siluetas de carga superpuestas con estelas paralelas"}},{"id":"g_salto","n":"Salto Devastador","cat":"movement","req":12,"elem":"physical","coef":1.8,"cd":12,"s":"Saltas 8 m y ralentizas al caer.","M":{"n":"Caída Pesada","s":"Radio 3,2 → 4 m.","k":"radius +25"},"A":{"n":"Impacto Sísmico","r":"CTRL","s":"Al caer atraes 2 m y aturdes 0,75 s.","k":"★pull 2 · stun .75","m":"botas cayendo sobre un cráter con escombros succionados al centro"},"B":{"n":"Asalto Aéreo","r":"MOV","s":"−4 s de enfriamiento; se reinicia si matas al caer.","k":"cdr 33 · ★killReset","m":"figura en pleno salto con alas de polvo y un reloj de arena roto"}},{"id":"g_piel","n":"Piel de Hierro","cat":"defense","req":6,"elem":"physical","cd":25,"s":"−30 % de daño recibido 6 s.","M":{"n":"Acero Templado","s":"Al activarla te curas el 8 % de la vida.","k":"★power v_temple (onCast g.heal)"},"A":{"n":"Espinas","r":"AREA","s":"Devuelve el 40 % del daño cuerpo a cuerpo recibido.","k":"★power v_espinas (onDamaged)","m":"brazo acorazado cubierto de púas de hierro con chispas de rebote"},"B":{"n":"Bastión","r":"AGU","s":"Dura 8 s y te vuelve imparable; +5 s de enfriamiento.","k":"durS 2 · ★set{unstoppable:true} · cdr −20","m":"yelmo de hierro macizo con un aura azul acero inamovible"}},{"id":"g_provocacion","n":"Provocación","cat":"utility","req":16,"elem":"physical","cd":8,"s":"Un enemigo te ataca 4 s y pega −15 %.","M":{"n":"Voz Ronca","s":"Alcance 15 → 20 m y +5 Furia.","k":"range +33 · gen +5"},"A":{"n":"Desafío","r":"APO","s":"Provoca a todos a 6 m a la vez.","k":"★set{radius:6} · behavior v_provoca_area","m":"guerrero rugiendo con ondas rojas en círculo y ojos enemigos girándose"},"B":{"n":"Humillar","r":"UNI","s":"El provocado recibe +20 % de daño 4 s (no se debilita).","k":"vuln 4 · ★set{weakenPct:0}","m":"guantelete señalando a un enemigo marcado con una diana rota"}},{"id":"grito_guerra","n":"Grito de Guerra","cat":"utility","req":12,"elem":"physical","cd":20,"s":"+30 Furia y +10 % de daño al grupo 8 s.","M":{"n":"Eco del Grito","s":"Dura 8 → 10 s.","k":"durS 2"},"A":{"n":"Grito de Batalla","r":"UNI","s":"+18 % de daño, pero solo para ti.","k":"buff +80 · ★set{allyRadius:0}","m":"boca abierta de un casco con fuego rojo saliendo como rugido"},"B":{"n":"Grito Intimidante","r":"AGU","s":"Los enemigos a 8 m pegan −20 % 5 s.","k":"★power v_intimidar (weakenOutgoing)","m":"ondas de sonido oscuras que hacen retroceder sombras con garras"}},{"id":"g_u_furia","n":"Furia Inmortal","cat":"ultimate","req":15,"elem":"physical","cd":60,"s":"10 s: principales gratis, +30 % vel. de ataque, imparable.","M":{"n":"Sin Freno","s":"Dura 10 → 12 s.","k":"durS 2"},"A":{"n":"Sed de Batalla","r":"AGU","s":"Mientras dura, robas el 8 % del daño como vida.","k":"★power v_sed_batalla (sustain)","m":"corazón de hierro rodeado de llamas rojas que absorbe hilos de sangre"},"B":{"n":"Frenesí","r":"UNI","s":"+50 % de velocidad de ataque, pero ya no eres imparable.","k":"buff +67 · ★set{unstoppable:false}","m":"dos hachas cruzadas vibrando con estelas rojas múltiples"}},{"id":"g_u_cataclismo","n":"Cataclismo","cat":"ultimate","req":15,"elem":"holy","coef":3.4,"cd":50,"s":"8 meteoros de luz caen en 5 s.","M":{"n":"Aviso Breve","s":"Aviso 0,4 → 0,25 s y +1 impacto (9).","k":"★add{impacts:1} · ★set{teleT:.25}"},"A":{"n":"Juicio","r":"UNI","s":"Todos caen en el mismo punto: radio 2 m, +25 % de daño.","k":"★set{scatter:0} · radius −33 · dmg +25","m":"una sola columna de luz dorada perforando el suelo desde el cielo"},"B":{"n":"Lluvia Sagrada","r":"AREA","s":"12 impactos al 70 % en un círculo de 7 m.","k":"★set{impacts:12, scatter:4} · dmg −30","m":"decenas de pequeñas estrellas doradas cayendo en un círculo amplio"}},{"id":"g_u_estandarte","n":"Estandarte de Guerra","cat":"ultimate","req":15,"elem":"physical","cd":55,"s":"Aura 12 s: +20 % daño, −15 % daño recibido.","M":{"n":"Asta Firme","s":"Radio 8 → 10 m.","k":"radius +25"},"A":{"n":"Pendón Carmesí","r":"UNI","s":"+30 % de daño, sin reducción de daño.","k":"buff +50 · ★set{buff.dr:0}","m":"estandarte rojo sangre ondeando con un filo dorado"},"B":{"n":"Baluarte","r":"AGU","s":"−30 % de daño recibido y 2 %/s de cura; sin bonus de daño.","k":"★set{buff:{dr:30}} · ★power v_baluarte (heal)","m":"estandarte azul acero clavado en un muro de escudos"}}],"maga":[{"id":"m_dardo","n":"Dardo Arcano","cat":"basic","req":1,"elem":"arcane","coef":1.05,"gen":3,"s":"Dardo arcano a distancia; recupera Maná al impactar.","M":{"n":"Dardo Veloz","s":"+40 % de velocidad del proyectil y +1 Maná al acertar.","k":"★add{speed:+40%} · gen +1"},"A":{"n":"Saeta Ígnea","r":"AREA","s":"Se vuelve de Fuego: quema 40 % en 3 s.","k":"★elem fire · hitDot burn .4/3s","m":"dardo de fuego naranja con estela de brasas"},"B":{"n":"Saeta Gélida","r":"CTRL","s":"Se vuelve de Hielo: ralentiza 20 % 1,5 s; −10 % daño.","k":"★elem frost · slow 1.5 · slowPct 20 · dmg −10","m":"dardo de hielo cristalino con escarcha blanca"}},{"id":"m_ascua","n":"Ascua","cat":"basic","req":3,"elem":"fire","coef":0.75,"gen":3,"s":"Ascua que estalla a 1,5 m al impactar.","M":{"n":"Brasa Viva","s":"Estallido 1,5 → 2 m.","k":"radius +33"},"A":{"n":"Ascua Saltarina","r":"AREA","s":"Rebota a 2 enemigos cercanos al 60 %.","k":"chain 2","m":"brasa rebotando en zigzag dejando chispas"},"B":{"n":"Carbón Encendido","r":"UNI","s":"El objetivo arde 60 % en 4 s; estallido 15 %.","k":"hitDot burn .6/4s · ★add{splash:−.15}","m":"carbón al rojo vivo con grietas incandescentes"}},{"id":"m_toque","n":"Toque Gélido","cat":"basic","req":8,"elem":"frost","coef":0.7,"gen":4,"s":"Cono helado de 70° que ralentiza.","M":{"n":"Aliento Ártico","s":"Cono 70 → 90°.","k":"★set{angle:90}"},"A":{"n":"Congelación","r":"CTRL","s":"3 toques al mismo enemigo lo congelan 1 s.","k":"★power v_congelar (applyCC)","m":"mano que congela una silueta en un bloque de hielo"},"B":{"n":"Mordisco Glacial","r":"UNI","s":"+100 de prob. crítica contra ralentizados.","k":"coldblood","m":"fauces de hielo con colmillos cristalinos"}},{"id":"bola_fuego","n":"Bola de Fuego","cat":"spender","req":2,"elem":"fire","coef":2.2,"cost":18,"cd":1.5,"s":"Esfera ardiente que explota a 2 m.","M":{"n":"Núcleo Inestable","s":"Explosión 2 → 2,6 m.","k":"radius +30"},"A":{"n":"Pirodardo","r":"UNI","s":"Sin preparación y muy rápida; explosión 40 %.","k":"★set{windup:0, speed:22} · ★add{splash:−.6}","m":"flecha de fuego comprimida y veloz, estela fina y blanca en el núcleo"},"B":{"n":"Racimo","r":"AREA","s":"Al explotar suelta 3 brasas que estallan (40 % c/u).","k":"★power v_racimo (onHit)","m":"bola de fuego partiéndose en tres brasas menores"}},{"id":"rayo","n":"Rayo","cat":"spender","req":8,"elem":"arcane","coef":2.8,"cost":20,"cd":2.2,"s":"Rayo que atraviesa a todos en línea.","M":{"n":"Sobrecarga","s":"Alcance 13 → 15 m y +10 % de prob. crítica.","k":"range +15 · crit +10"},"A":{"n":"Rayo en Cadena","r":"AREA","s":"No perfora: salta a 4 enemigos (−20 % por salto).","k":"★set{pierce:false} · chain 4","m":"rayo violeta saltando entre cuatro puntos"},"B":{"n":"Haz Concentrado","r":"UNI","s":"Canaliza 1,5 s: 4 pulsos de 100 %.","k":"★set{type:channel, ticks:4, channelT:1.5, coef:1.0}","m":"haz recto de energía arcana muy concentrado con anillos"}},{"id":"nova_hielo","n":"Nova de Hielo","cat":"spender","req":14,"elem":"frost","coef":1.4,"cost":25,"cd":4,"s":"Onda gélida de 3,3 m que ralentiza.","M":{"n":"Escarcha Profunda","s":"Ralentiza 30 → 40 %.","k":"slowPct 40"},"A":{"n":"Corazón de Hielo","r":"AGU","s":"Escudo del 3 % de vida por golpeado (máx. 15 %).","k":"★shieldGain 3/15","m":"corazón de cristal de hielo dentro de una coraza helada"},"B":{"n":"Nova Fracturante","r":"UNI","s":"+40 % de daño a enemigos ya ralentizados.","k":"★power v_fractura (condAdd)","m":"onda de hielo agrietando una silueta congelada"}},{"id":"meteoro","n":"Meteoro","cat":"spender","req":14,"elem":"fire","coef":4.1,"cost":40,"cd":6,"s":"Meteoro que cae a los 0,6 s en 3 m.","M":{"n":"Puntería Ígnea","s":"Cae a los 0,45 s.","k":"★set{impactDelay:.45}"},"A":{"n":"Lluvia de Meteoritos","r":"AREA","s":"3 meteoritos (55 % c/u, 2,2 m) en un área de 5 m.","k":"★set{impacts:3, scatter:2.5} · behavior v_meteoritos","m":"tres meteoritos pequeños cayendo en diagonal"},"B":{"n":"Meteoro Ancestral","r":"UNI","s":"+60 % de daño y aturde 1 s; enfriamiento 6 → 9 s.","k":"dmg +60 · stun 1 · cdr −50","m":"meteoro colosal de roca negra con núcleo de lava"}},{"id":"m_paso_escarcha","n":"Paso de Escarcha","cat":"movement","req":4,"elem":"frost","cd":10,"s":"Te deslizas 6 m dejando hielo que ralentiza.","M":{"n":"Paso Ligero","s":"Enfriamiento 10 → 8 s.","k":"cdr 20"},"A":{"n":"Paso Doble","r":"MOV","s":"2 cargas (10 s cada una).","k":"★charges 2","m":"dos huellas de escarcha luminosas consecutivas"},"B":{"n":"Prisión Fugaz","r":"CTRL","s":"Quien pisa el hielo queda inmovilizado 1 s.","k":"root 1","m":"pies atrapados por cristales de hielo que brotan del suelo"}},{"id":"m_estela_ignea","n":"Estela Ígnea","cat":"movement","req":12,"elem":"fire","coef":0.4,"cd":10,"s":"Te deslizas 6 m dejando fuego 3 s.","M":{"n":"Rastro Ardiente","s":"El fuego dura 3 → 4 s.","k":"durS 1"},"A":{"n":"Senda de Llamas","r":"AREA","s":"Rastro el doble de ancho (3 m) y 55 %/s.","k":"radius +100 · dmg +37","m":"camino ancho de llamas altas en perspectiva"},"B":{"n":"Fénix","r":"AGU","s":"Te cura el 10 % y te libra de ralentizaciones.","k":"cleanse · ★power v_fenix (heal)","m":"ave de fuego naciendo de las cenizas"}},{"id":"m_armadura","n":"Armadura de Hielo","cat":"defense","req":6,"elem":"frost","cd":20,"s":"Escudo del 20 % de vida 6 s.","M":{"n":"Hielo Grueso","s":"Escudo 20 → 25 %.","k":"buff +25"},"A":{"n":"Armadura Reactiva","r":"CTRL","s":"Al romperse congela 1,5 s a los cercanos (3 m).","k":"★power v_reactiva (onShieldBreak)","m":"coraza de hielo estallando en esquirlas hacia fuera"},"B":{"n":"Coraza Arcana","r":"UNI","s":"Mientras aguanta, +15 % de daño de hechizos.","k":"★power v_coraza_arcana (cond)","m":"coraza de hielo con runas violeta brillando"}},{"id":"m_onda","n":"Onda Repulsora","cat":"utility","req":12,"elem":"arcane","coef":0.8,"cost":15,"cd":12,"s":"Empuja 5 m y aturde 0,5 s.","M":{"n":"Onda Amplia","s":"Radio 4 → 5 m.","k":"radius +25"},"A":{"n":"Implosión","r":"CTRL","s":"Atrae 4 m en vez de empujar.","k":"★set{knock:0} · ★pull 4","m":"esfera arcana que succiona fragmentos hacia su centro"},"B":{"n":"Escudo Repulsor","r":"AGU","s":"Tras empujar, −25 % de daño recibido 3 s.","k":"★power v_repulsor (addBuff dr)","m":"burbuja arcana violeta repeliendo garras"}},{"id":"m_u_supernova","n":"Supernova","cat":"ultimate","req":15,"elem":"fire","coef":4.7,"cd":50,"s":"Estrella que estalla en 3 ondas y quema.","M":{"n":"Gravedad Solar","s":"Atrae 2 m antes de estallar.","k":"★pull 2"},"A":{"n":"Sol Errante","r":"AREA","s":"La estrella te sigue 4 s y estalla 4 veces (380 %).","k":"★set{follow:true, pulses:4} · behavior","m":"pequeño sol orbitando sobre la cabeza de una maga"},"B":{"n":"Colapso","r":"UNI","s":"Una sola onda de 1300 % en 3 m.","k":"★set{pulses:1, radius:3} · ★set{coef:13}","m":"estrella implosionando en un punto blanco cegador"}},{"id":"m_u_tormenta","n":"Tormenta Glacial","cat":"ultimate","req":15,"elem":"frost","coef":0.6,"cd":55,"s":"Ventisca que te sigue 8 s y congela.","M":{"n":"Ojo de la Tormenta","s":"Radio 6 → 7 m.","k":"radius +17"},"A":{"n":"Ventisca Anclada","r":"CTRL","s":"Fija en el punto elegido, 8 m; congela a los 4 golpes.","k":"★set{follow:false, radius:8, freezeAt:4}","m":"remolino de nieve anclado a un cristal clavado en el suelo"},"B":{"n":"Granizo","r":"UNI","s":"+50 % de daño, radio 6 → 4 m.","k":"dmg +50 · radius −33","m":"piedras de granizo afiladas cayendo en columna"}},{"id":"m_u_desgarro","n":"Desgarro Arcano","cat":"ultimate","req":15,"elem":"arcane","coef":3.25,"cd":45,"s":"Canaliza 3 s un rayo arcano gigante.","M":{"n":"Desgarro Estable","s":"Dura 3 → 3,5 s.","k":"★add{channelT:.5, ticks:1}"},"A":{"n":"Brecha","r":"AREA","s":"Perfora en línea a todos; −25 % de daño.","k":"pierce · dmg −25","m":"grieta dimensional violeta abriéndose en línea recta"},"B":{"n":"Singularidad","r":"UNI","s":"+10 % de daño y +100 % de stagger: quiebra jefes.","k":"dmg +10 · ★add{stagger:+1}","m":"agujero negro violeta con anillo de acreción"}}],"arquera":[{"id":"a_disparo","n":"Disparo Rápido","cat":"basic","req":1,"elem":"physical","coef":1.15,"gen":5,"s":"Flecha veloz; +5 Energía al acertar.","M":{"n":"Mano Rápida","s":"10 % más rápido.","k":"★set{cadence:.9}"},"A":{"n":"Ojo Fijo","r":"UNI","s":"Cada acierto seguido al mismo objetivo: +5 % crítico (máx. 25 %).","k":"★power v_ojo_fijo (stacks)","m":"ojo de halcón con una retícula dorada superpuesta"},"B":{"n":"Flecha Partida","r":"AREA","s":"Al impactar se parte en 2 astillas perforantes (40 %).","k":"★power v_partida (onHit)","m":"flecha que se divide en dos al chocar"}},{"id":"a_disperso","n":"Disparo Disperso","cat":"basic","req":3,"elem":"physical","coef":0.45,"gen":5,"s":"3 flechas en abanico de 25°.","M":{"n":"Abanico","s":"3 → 4 flechas.","k":"★add{count:1}"},"A":{"n":"Ráfaga Cerrada","r":"UNI","s":"Abanico de 8°: todas al mismo objetivo.","k":"★set{spread:.07}","m":"tres flechas paralelas muy juntas apuntando al centro"},"B":{"n":"Metralla","r":"CTRL","s":"Empuja 1 m y ralentiza 20 % 1 s.","k":"★knock 1 · slow 1 · slowPct 20","m":"flechas romas estallando en esquirlas de madera"}},{"id":"a_cicuta","n":"Flecha de Cicuta","cat":"basic","req":8,"elem":"nature","coef":0.7,"gen":5,"s":"Flecha con veneno que se acumula.","M":{"n":"Cicuta Concentrada","s":"Veneno 50 → 70 %.","k":"★add{hitDot.coef:+.2}"},"A":{"n":"Contagio","r":"AREA","s":"Al morir un envenenado, el veneno salta a 2 cercanos.","k":"★power v_contagio (onKill)","m":"calavera verde soltando esporas hacia dos lados"},"B":{"n":"Parálisis","r":"CTRL","s":"3 capas inmovilizan 1 s (a jefes: stagger).","k":"★power v_paralisis (applyCC root)","m":"serpiente verde enroscada alrededor de una pierna"}},{"id":"flecha_perforante","n":"Flecha Perforante","cat":"spender","req":2,"elem":"physical","coef":2.1,"cost":26,"s":"Flecha pesada que atraviesa a todos.","M":{"n":"Astil de Fresno","s":"+2 m de alcance y +20 % de velocidad.","k":"range +15 · ★add{speed:+20%}"},"A":{"n":"Flecha Explosiva","r":"AREA","s":"No perfora: explota en 3 m al 80 %.","k":"★set{pierce:false} · ★set{splash:.8, radius:3}","m":"punta de flecha con carga de pólvora estallando"},"B":{"n":"Tiro de Precisión","r":"UNI","s":"Prepara 0,35 s: +45 % de daño.","k":"★set{windup:.35} · dmg +45","m":"arco tensado al máximo con la flecha brillando en la punta"}},{"id":"flecha_multiple","n":"Flecha Múltiple","cat":"spender","req":8,"elem":"physical","coef":0.7,"cost":22,"s":"5 flechas en abanico de 50°.","M":{"n":"Plumas Equilibradas","s":"−3 de coste (22 → 19).","k":"cost −14"},"A":{"n":"Lluvia Arqueada","r":"AREA","s":"Caen en un círculo de 4 m delante (todas al área).","k":"★set{type:area, at:target, radius:4} · behavior","m":"flechas en arco parabólico cayendo sobre un círculo"},"B":{"n":"Puntas de Espino","r":"UNI","s":"Se vuelven de Naturaleza: cada una envenena 30 % en 3 s.","k":"★elem nature · hitDot poison .3/3s","m":"flechas con puntas de espino verde goteando veneno"}},{"id":"lluvia_flechas","n":"Lluvia de Flechas","cat":"spender","req":14,"elem":"physical","coef":0.52,"cost":30,"cd":4,"s":"4 oleadas de flechas sobre 3 m.","M":{"n":"Cielo Plomizo","s":"4 → 5 oleadas.","k":"★add{waves:1}"},"A":{"n":"Aguacero","r":"UNI","s":"Radio 2 m, en 0,8 s y +40 % de daño.","k":"radius −33 · ★set{span:.8} · dmg +40","m":"columna densa de flechas cayendo en un punto"},"B":{"n":"Cortina","r":"AGU","s":"Dentro, los enemigos pegan −15 % y fallan la mitad de proyectiles.","k":"★set{allyDr:15, projMissPct:50} (zona)","m":"muro de flechas clavadas formando una barrera"}},{"id":"a_paso","n":"Paso Veloz","cat":"movement","req":4,"elem":"physical","cd":9,"s":"Ruedas 6 m y +20 % de vel. de ataque 3 s.","M":{"n":"Ágil","s":"El bonus dura 3 → 4 s.","k":"durS 1"},"A":{"n":"Rodar y Disparar","r":"UNI","s":"Al rodar disparas un Disparo Rápido gratis al 150 %.","k":"★power v_rodar (afterCast)","m":"arquera rodando mientras dispara una flecha"},"B":{"n":"Voltereta Trampa","r":"CTRL","s":"Dejas un abrojo que inmoviliza 1,5 s.","k":"★power v_abrojo (spawnField)","m":"abrojo de hierro con púas sobre hojas secas"}},{"id":"agilidad","n":"Agilidad","cat":"movement","req":12,"elem":"physical","cd":16,"s":"6 s: +30 % velocidad, +15 % vel. de ataque.","M":{"n":"Viento a Favor","s":"Dura 6 → 7 s.","k":"durS 1"},"A":{"n":"Ojo de Halcón","r":"UNI","s":"En vez de velocidad: +15 % de prob. crítica.","k":"★set{buff:{crit:15, aspdPct:15}}","m":"cabeza de halcón con ojo dorado brillante"},"B":{"n":"Bruma","r":"AGU","s":"Además, el 30 % de los proyectiles enemigos te fallan.","k":"★power v_bruma (projMiss)","m":"silueta difuminada entre jirones de niebla"}},{"id":"a_red","n":"Red de Caza","cat":"utility","req":6,"elem":"physical","cost":10,"cd":14,"s":"Red que inmoviliza 2 s en 2,5 m.","M":{"n":"Red Lastrada","s":"Radio 2,5 → 3 m.","k":"radius +20"},"A":{"n":"Red de Púas","r":"UNI","s":"Los atrapados reciben +20 % de daño 4 s.","k":"vuln 4","m":"red de cuerda con púas metálicas y gotas de sangre"},"B":{"n":"Red de Arrastre","r":"CTRL","s":"Junta a los atrapados en el centro y dura 3 s.","k":"★pull 2 · rootAdd 1","m":"red cerrándose como un saco sobre varias siluetas"}},{"id":"a_humo","n":"Bomba de Humo","cat":"defense","req":12,"elem":"physical","cd":22,"s":"Nube 4 s: −40 % de daño recibido dentro.","M":{"n":"Humo Denso","s":"Dura 4 → 5 s.","k":"durS 1"},"A":{"n":"Humo Venenoso","r":"AREA","s":"Dentro, los enemigos sufren veneno 40 %/s.","k":"dot poison · ★set{coef:.4}","m":"nube de humo verde tóxico con burbujas"},"B":{"n":"Desvanecer","r":"AGU","s":"Te vuelves invisible 2 s al lanzarla.","k":"★power v_desvanecer (goInvisible)","m":"capa que se disuelve en humo dejando solo la silueta"}},{"id":"a_u_diluvio","n":"Diluvio de Saetas","cat":"ultimate","req":15,"elem":"physical","coef":1.95,"cd":50,"s":"8 oleadas de saetas en 5 m durante 4 s.","M":{"n":"Diluvio Cerrado","s":"Aviso 0,4 → 0,25 s.","k":"★set{impactDelay:.25}"},"A":{"n":"Diluvio Itinerante","r":"AREA","s":"La zona sigue a la mira mientras dura.","k":"★set{follow:\"aim\"} · behavior","m":"nube de saetas desplazándose sobre el campo"},"B":{"n":"Andanada Final","r":"UNI","s":"4 oleadas de 420 % en 3 m.","k":"★set{waves:4, radius:3, coef:4.2}","m":"cuatro saetas enormes cayendo en paralelo"}},{"id":"a_u_celeste","n":"Tiro Celestial","cat":"ultimate","req":15,"elem":"physical","coef":7,"cd":50,"s":"Hasta 3 haces perforantes de 700 %.","M":{"n":"Recarga Celeste","s":"Ventana 8 → 10 s.","k":"★add{window:2}"},"A":{"n":"Constelación","r":"AREA","s":"5 haces de 450 %.","k":"★set{shots:5, coef:4.5}","m":"cinco haces de luz azul en abanico como constelación"},"B":{"n":"Disparo Estelar","r":"UNI","s":"2 haces de 1100 %; carga 0,5 s.","k":"★set{shots:2, coef:11, windup:.5}","m":"un haz de luz blanca y azul gigantesco con anillo estelar"}},{"id":"a_u_zarzas","n":"Cerco de Zarzas","cat":"ultimate","req":15,"elem":"nature","coef":1,"cd":55,"s":"Anillo de 7 m 8 s: veneno e inmoviliza al cruzar.","M":{"n":"Espinas Largas","s":"Dura 8 → 10 s.","k":"durS 2"},"A":{"n":"Jardín Espinoso","r":"AREA","s":"9 m, +30 % de veneno; ya no inmoviliza.","k":"radius +28 · dmg +30 · ★set{crossRoot:0}","m":"campo amplio de zarzas con flores venenosas"},"B":{"n":"Jaula","r":"CTRL","s":"4,5 m: cruzar inmoviliza 3 s y dentro +25 % de daño recibido.","k":"radius −35 · ★set{crossRoot:3, weakPct:25}","m":"jaula de raíces y espinas cerrándose"}}]},"CLASS_META":{"guerrero":{"name":"Guerrero","res":"Furia","resIcon":"res_furia","lvl":18,"color":"#e8634a","spec":"berserker","specName":"Berserker","talent":[{"n":"Remolino Sangriento","s":"Activa de Berserker (talento).","icon":"talents/guerrero-berserker-x1.webp"}]},"maga":{"name":"Maga","res":"Maná","resIcon":"res_mana","lvl":18,"color":"#ff8a3d","spec":"piromante","specName":"Piromante","talent":[{"n":"Ignición","s":"Activa de Piromante (talento).","icon":"talents/maga-piromante-x1.webp"}]},"arquera":{"name":"Arquera","res":"Energía","resIcon":"res_energia","lvl":18,"color":"#ead86e","spec":"francotiradora","specName":"Francotiradora","talent":[{"n":"Visión Certera","s":"Activa de Francotiradora (talento).","icon":"talents/arquera-francotiradora-x1.webp"}]}},"MEJORA_AT":3,"VAR_AT":6};
 const { CATALOG, CLASS_META, MEJORA_AT, VAR_AT } = DATA;
 const Q = new URLSearchParams(location.search);
 const $ = s => document.querySelector(s);
+// ===== talentos v2 MULTICLASE: reglas comunes (data/talents-v2-comun.js) + un archivo por clase (data/talents-v2-<clase>.js) =====
+const TV2 = window.TV2, V2 = window.TALENTS_V2_CLASSES || {};
+const LEGACY = Q.has('legacy');                         // &legacy=1: libro 2f + panel real del juego (para auditar la clase actual)
+const V2C = (cls = S?.cls) => V2[cls] || null;           // datos v2 de la clase (null = sin archivo → «En diseño»)
+const isV2 = (cls = S?.cls) => !LEGACY && !!V2C(cls);
+const CLS_IDS = TV2.CLASES_ORDEN;                       // clases del selector
+const loKey = (cls = S?.cls) => cls === 'maga' ? 'irpg_mock_loadouts' : `irpg_mock_loadouts_${cls}`; // configuraciones guardadas por clase
 const CATS = [
   { id:'basic', label:'Básica', icon:'cat_basico', slots:['lmb'] },
   { id:'movement', label:'Movilidad', icon:'cat_movilidad', slots:['k1'] },
@@ -871,13 +929,16 @@ const DEFAULTS = {
 };
 let S; // estado
 function reset(cls) {
-  const d = DEFAULTS[cls];
-  S = { cls, lvl: cls === 'maga' ? +$('#cLvl').value : CLASS_META[cls].lvl, bar: { ...d.bar }, forge: { ...d.forge }, sup: JSON.parse(JSON.stringify(d.sup)), sel: Q.get('sel') || d.sel,
+  const v2 = isV2(cls), C = V2C(cls);
+  if (v2 && CUR_CLS !== cls) useClass(cls); // activa los datos v2 de la clase (árboles, builds, kit…)
+  const d = v2 ? { bar: {}, forge: {}, sup: C.sup || {}, sel: null } : DEFAULTS[cls];
+  S = { cls, lvl: !LEGACY ? +$('#cLvl').value : CLASS_META[cls].lvl, bar: { ...d.bar }, forge: { ...d.forge }, sup: JSON.parse(JSON.stringify(d.sup)), sel: Q.get('sel') || d.sel,
     combat: $('#cCombat').checked, alt: $('#cAlt').checked, seen: new Set(), view: 'book', reco: null };
-  if (S.bar.k3 === '@talent') S.bar.k3 = insigniaId();
-  if (cls === 'maga') { const sb = SPEC_BAR[MSPEC]; S.bar = { ...sb.bar }; S.forge = { ...sb.forge }; S.sel = Q.get('sel') || sb.sel; fixBar(); t2applyPreset(); }
+  if (S.bar.k3 === '@talent') S.bar.k3 = LEGACY ? insigniaId() : null;
+  if (v2) { const sb = SPEC_BAR[MSPEC] || { bar: {}, forge: {} }; S.bar = { ...sb.bar }; S.forge = { ...sb.forge }; S.sel = Q.get('sel') || sb.sel; fixBar(); t2applyPreset(); }
 }
-const skills = () => CATALOG[S.cls];
+// catálogo del libro: el de data/talents-v2-<clase>.js; si aún está vacío, el catálogo 2f de la clase (referencia)
+const skills = () => isV2() && V2C().catalog?.length ? V2C().catalog : CATALOG[S.cls];
 // ===== datos REALES de talentos (bundle de js/talents.js + talents-<clase>.js) =====
 const TPX = window.TP || null, TA = TPX?.Talents;
 const SPEC_OF = { guerrero:'berserker', maga:'piromante', arquera:'francotiradora' };
@@ -886,9 +947,6 @@ const RECO = {
   berserker: { g_tajo:'A', torbellino:'A', g_hendidura:'A', g_mandoble:'A', g_u_furia:'B' },
   guardian: { g_piel:'B', g_martillo:'B', terremoto:'B', g_provocacion:'A', g_u_estandarte:'B' },
   cruzado: { g_martillo:'A', grito_guerra:'B', g_u_estandarte:'A', g_u_cataclismo:'B', g_provocacion:'A' },
-  piromante: { m_dardo:'A', bola_fuego:'B', meteoro:'A', m_u_supernova:'A', p_llamarada:'B' },
-  crionte: { m_dardo:'B', nova_hielo:'B', m_toque:'A', m_u_tormenta:'A', m_paso_escarcha:'B' },
-  arcanista: { rayo:'B', m_u_desgarro:'B', m_onda:'A', m_armadura:'B' },
   francotiradora: { flecha_perforante:'B', a_disparo:'A', a_u_celeste:'B', agilidad:'A' },
   montaraz: { a_red:'B', a_cicuta:'B', flecha_multiple:'B', a_u_zarzas:'B', a_paso:'B' },
   tiradora: { flecha_multiple:'A', a_disperso:'B', a_u_diluvio:'A', a_u_celeste:'A' },
@@ -903,7 +961,7 @@ function tplayer(cls = S.cls) {
   for (const w of ['cls', 'spec']) for (const [id, , k] of TA.presetList(p, w)) if (k) p.talents.choice[id] = k;
   return (TPL[cls] = p);
 }
-const curSpec = () => S?.cls === 'maga' ? (S.lvl >= 10 ? M_SPECS[MSPEC] : null) : (TA ? TA.activeSpec(tplayer()) : null);
+const curSpec = () => isV2() ? (S.lvl >= 10 ? M_SPECS[MSPEC] || null : null) : (LEGACY && TA ? TA.activeSpec(tplayer()) : null);
 const treesNow = (p = tplayer()) => { const t = TA.talentTreesFor(p.classId); const sp = TA.activeSpec(p); return [['cls', t.cls.nodes], ...(sp ? [['spec', sp.nodes]] : [])]; };
 const rankIn = (p, which, n) => n.free ? 1 : (TA.ranksOf(p, which)?.[n.id] || 0);
 // icono de una activa de talento = el del nodo que la concede (como skillArt del juego)
@@ -930,12 +988,13 @@ function talentSkill(id) {
   return { id: '@t:' + id, gid: id, n: def.name, s: line, cat: def.cat, req: 10, talent: true, icon: g?.n.icon || '', elem: def.elem || 'physical',
     coef: def.coef || 0, cost: def.cost || 0, cd: def.cd || 0, insignia: !!g?.n.free };
 }
-const talentSkills = () => S.cls === 'maga' ? [] : TA ? grantedNow().map(talentSkill).filter(Boolean) : []; // 2g: la Maga ya no tiene activas de talento
+const talentSkills = () => !LEGACY ? [] : TA ? grantedNow().map(talentSkill).filter(Boolean) : []; // 2g: las activas de talento están en el catálogo de la clase
 const insigniaId = () => { const sp = curSpec(); return sp ? '@t:' + TA.specInsignia(S.cls, sp.id) : null; };
 const find = id => id?.startsWith('@t:') ? talentSkill(id.slice(3)) : skills().find(s => s.id === id);
 // nodos de talento (clase + especialización activa) que modifican una habilidad
 function nodesFor(skillId) {
-  if (S.cls === 'maga') return t2nodesFor(skillId);
+  if (isV2()) return t2nodesFor(skillId);
+  if (!LEGACY) return [];
   const p = tplayer(); if (!TA || !p) return [];
   const out = [];
   for (const [w, nodes] of treesNow(p)) for (const n of nodes) {
@@ -956,14 +1015,14 @@ function skillsOfNode(n) {
 }
 const iconUrl = sk => sk.icon ? A + sk.icon : `${A}icons256/${sk.id}.webp`;
 const nodeIco = n => `${A}${n.icon}`;
-const known = sk => S.lvl >= sk.req && (!sk.spec || curSpec()?.id === sk.spec) && (!sk.grantBy || (S.cls === 'maga' && t3granted(sk.id))); // 2g: kit de especialización solo con ella; activas de clase solo si las elegiste
+const known = sk => S.lvl >= sk.req && (!sk.spec || curSpec()?.id === sk.spec) && (!sk.grantBy || (isV2() && t3granted(sk.id))); // 2g: kit de especialización solo con ella; activas de clase solo si las elegiste
 const mejOn = sk => !sk.talent && !sk.sketch && known(sk) && S.lvl >= sk.req + MEJORA_AT;
 const varOn = sk => !sk.talent && !sk.sketch && known(sk) && S.lvl >= sk.req + VAR_AT;
 const isNew = sk => mejOn(sk) && S.lvl === sk.req + MEJORA_AT || varOn(sk) && S.lvl === sk.req + VAR_AT;
 const rankOf = (sk, lvl = S.lvl) => Math.max(1, Math.min(5, 1 + Math.floor((lvl - sk.req) / 8)));
 const pct = (sk, r) => Math.round(sk.coef * 100 * (1 + 0.1 * (r - 1)));
 const onBar = id => Object.entries(S.bar).find(([, v]) => v === id)?.[0] || null;
-const ico = (sk, cls = '', extra = '') => `<div class="ico ${cls}" style="background-image:url('${iconUrl(sk)}');${extra}"></div>`;
+const ico = (sk, cls = '', extra = '') => `<div class="ico ${cls}" style="background-image:url('${iconUrl(sk)}');${extra}" data-art="${iconUrl(sk)}" data-ph="${sk.id}"></div>`;
 // icono de variante: arte de Codex (web/forge/v_<id>_i|ii.webp) si existe; si no, RESERVA legible:
 // icono base virado al color de su papel (II en espejo) + glifo grande del papel
 const varIco = (sk, w, size = '') => { const o = sk[w], c = ROLE[o.r].c;
@@ -973,7 +1032,7 @@ const roleChip = r => `<span class="role" style="color:${ROLE[r].c}">${RG[r]}${R
 
 // ===================== LIBRO =====================
 function renderBook() {
-  if (S.cls === 'maga') return renderBookMaga();
+  if (isV2()) return renderBookMaga();
   const all = [...skills(), ...talentSkills()];
   const book = $('#book'); book.innerHTML = '';
   let kn = 0;
@@ -1001,7 +1060,7 @@ function tileEl(sk) {
   const rv = S.reco?.[sk.id];
   if (rv && S.forge[sk.id] !== rv) pips += `<span class="reco" title="Recomendada para ${curSpec()?.name}">★</span>`;
   t.innerHTML = (slot ? `<span class="keycap">${SLOT_LBL[slot]}</span>` : '') + (isNew(sk) ? '<span class="newdot"></span>' : '') +
-    `<div style="position:relative;width:66px;margin:0 auto">${ico(sk, 'cat-' + sk.cat)}${kn ? '' : `<div class="lockb">${sk.spec && curSpec()?.id !== sk.spec ? `<img src="${A}emblems/${sk.spec}.webp" alt="">` : LOCK}Nv ${sk.req}</div>`}${pips}${sk.talent ? `<span class="ttag">${sk.hero ? 'PARAGON' : 'TALENTO'}</span>` : ''}${S.cls === 'maga' ? `<span class="catb" style="background-image:url('${A}ui/${CAT_ICON[sk.cat]}.webp')"></span>` : ''}</div>` +
+    `<div style="position:relative;width:66px;margin:0 auto">${ico(sk, 'cat-' + sk.cat)}${kn ? '' : `<div class="lockb">${sk.spec && curSpec()?.id !== sk.spec ? `<img src="${A}emblems/${sk.spec}.webp" alt="">` : LOCK}Nv ${sk.req}</div>`}${pips}${sk.talent ? `<span class="ttag">${sk.hero ? 'PARAGON' : 'TALENTO'}</span>` : ''}${isV2() ? `<span class="catb" style="background-image:url('${A}ui/${CAT_ICON[sk.cat]}.webp')"></span>` : ''}</div>` +
     `<div class="nm">${sk.n}</div>`;
   t.addEventListener('mouseenter', e => showTip(e, () => tipSkill(sk)));
   t.addEventListener('mousemove', moveTip);
@@ -1016,10 +1075,11 @@ let hovered = null;
 document.addEventListener('mouseover', e => { const t = e.target.closest?.('.tile'); hovered = t ? find(t.dataset.id) : null; });
 
 // ===================== FORJA =====================
-function select(id) { const sk = find(id); if (sk?.spec && !known(sk)) return flash(sk.sketch ? `${sk.n}: kit del ${M_SPECS[sk.spec].name} (esbozo, se detalla tras aprobar el Piromante)` : `${sk.n} se aprende al nivel ${sk.req} con ${M_SPECS[sk.spec].name}`, sk);
+function select(id) { const sk = find(id); if (sk?.spec && !known(sk)) return flash(sk.sketch ? `${sk.n}: kit del ${M_SPECS[sk.spec].name} (esbozo, en diseño)` : `${sk.n} se aprende al nivel ${sk.req} con ${M_SPECS[sk.spec].name}`, sk);
   S.sel = id; S.seen.add(id); renderBook(); renderForge(); }
 function renderForge() {
   const sk = find(S.sel); const f = $('#forge');
+  if (!sk) { f.innerHTML = '<div class="tree" style="display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:15px;text-align:center;grid-row:1/-1">Sin habilidad elegida: el catálogo de esta clase está en diseño.</div>'; return; }
   const r = sk.talent ? 1 : rankOf(sk);
   const slots = SLOT_OF[sk.cat].map(s => `<kbd>${SLOT_LBL[s]}</kbd>`).join(' o ');
   const chips = [];
@@ -1091,7 +1151,7 @@ function renderBar() {
   for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
     const sk = S.bar[s] ? find(S.bar[s]) : null;
     const d = document.createElement('div'); d.className = 'slot' + (sk ? '' : ' empty') + (s === 'k2' ? ' flex' : ''); d.dataset.slot = s;
-    if (S.cls === 'maga' && S.lvl < SLOT_AT[s]) { // 2g: ranura aún cerrada (3 = especialización Nv10, 4 = definitiva Nv15)
+    if (isV2() && S.lvl < SLOT_AT[s]) { // 2g: ranura aún cerrada (3 = especialización Nv10, 4 = definitiva Nv15)
       d.className = 'slot locked'; d.innerHTML = `<span class="k">${SLOT_LBL[s]}</span><span class="lk">${s === 'k3' ? `<img src="${A}ui/cat_especializacion.webp" alt="">` : LOCK}Nv ${SLOT_AT[s]}</span>`;
       d.addEventListener('mouseenter', e => showTip(e, () => `<div class="tn">Ranura ${SLOT_LBL[s]}</div><div class="tl">${s === 'k3' ? 'Se abre al elegir especialización (nivel 10): su habilidad insignia.' : s === 'k4' ? 'Se abre al nivel 15 con la definitiva de tu especialización.' : `Se abre al nivel ${SLOT_AT[s]}.`}</div>`));
       d.addEventListener('mousemove', moveTip); d.addEventListener('mouseleave', hideTip); el.appendChild(d); continue;
@@ -1160,7 +1220,7 @@ function endDragVisual() { document.body.classList.remove('dragging'); $('#ghost
 
 // ===================== TOOLTIP =====================
 let tipFn = null, lastEv = null, tipTimer = 0, tipAnchor = null;
-function showTip(e, fn, anchor = null) { tipFn = fn; lastEv = e; tipAnchor = anchor; clearTimeout(tipTimer); tipTimer = setTimeout(() => { $('#tip').innerHTML = fn(); $('#tip').classList.add('on'); placeTip(e); }, Q.get('tip') || Q.get('shot') ? 0 : 160); }
+function showTip(e, fn, anchor = null) { tipFn = fn; lastEv = e; tipAnchor = anchor; clearTimeout(tipTimer); tipTimer = setTimeout(() => { $('#tip').innerHTML = fn(); probeArt($('#tip')); $('#tip').classList.add('on'); placeTip(e); }, Q.get('tip') || Q.get('shot') ? 0 : 160); }
 function moveTip(e) { lastEv = e; if ($('#tip').classList.contains('on')) placeTip(e); }
 function hideTip() { clearTimeout(tipTimer); tipFn = null; $('#tip').classList.remove('on'); }
 function refreshTip() { if (tipFn && $('#tip').classList.contains('on')) { $('#tip').innerHTML = tipFn(); placeTip(lastEv); } }
@@ -1197,7 +1257,7 @@ function tipSkill(sk) {
   const st = !known(sk) ? `<div class="st lk">Se aprende al nivel ${sk.req}</div>` :
     varOn(sk) && !v ? '<div class="st g">¡Elige una variante!</div>' : v ? `<div class="st ok">Variante ${v === 'A' ? 'I' : 'II'}: ${sk[v].n}</div>` : '';
   const inn = sk.innate?.[curSpec()?.id];
-  return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">${sk.spec ? `${M_SPECS[sk.spec].name} · ` : S.cls === 'maga' ? 'Kit base · ' : ''}${CAT_NAME[sk.cat]} · ${SLOT_OF[sk.cat].map(s => SLOT_LBL[s]).join(' o ')} · Rango ${r}</div></div></div>` +
+  return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">${sk.spec ? `${M_SPECS[sk.spec].name} · ` : isV2() ? 'Kit base · ' : ''}${CAT_NAME[sk.cat]} · ${SLOT_OF[sk.cat].map(s => SLOT_LBL[s]).join(' o ')} · Rango ${r}</div></div></div>` +
     `<div class="tl">${sk.s}</div>${inn ? `<div class="tnx" style="color:#ffb27a">${inn}</div>` : ''}<table>${rows.join('')}</table>${r < 5 && known(sk) ? `<div class="tk" style="margin-top:2px">Rango ${r + 1} al nivel ${nxtLv}</div>` : ''}${st}` +
     (S.alt ? `<div class="tg">${tagList(sk).map(t => `<i>${t}</i>`).join('')}</div><div class="adv">Daño = arma × ${(sk.coef * (1 + 0.1 * (r - 1))).toFixed(2)} × (1 + Σ aditivos) × atributo × crítico</div>` : '') +
     talentRow(sk.id) +
@@ -1314,7 +1374,7 @@ function tipNode(n, which) {
     (sks.length ? `<div class="tnodes"><span class="lb">Habilidades que toca</span>${sks.map(sk => `<span class="tn1"><i style="background-image:url('${iconUrl(sk)}')"></i>${sk.n}</span>`).join('')}</div>` : '');
 }
 function openTalents() {
-  if (S.cls === 'maga') return openTV2();
+  if (!LEGACY) return openTV2(); // v2 (o «En diseño» si la clase no tiene archivo)
   closeTV2();
   if (!talentPanel()) return;
   hideTip(); S.view = 'talents'; $('#P').style.display = 'none'; $('#toast').hidden = true;
@@ -1366,124 +1426,17 @@ function applyReco() {
   S.reco = null; all(); flash(n ? `${n} variantes recomendadas para ${curSpec()?.name}` : 'Ya tienes las variantes recomendadas');
 }
 
-// ===================== PASO 2g · MAGA REHECHA: kit base + kit Piromante (docs/paso2g-maga-coherencia.md) =====================
-// Reglas: el LIBRO tiene todas las activas (kit base de la clase + kit de cada especialización); los TALENTOS
-// son solo pasivas (ningún nodo concede activas). El árbol de clase toca el kit base arcano (Dardo, Parpadeo,
-// Barrera) y lo general; el de la especialización, su kit y la habilidad base de su elemento (Bola de Fuego).
-// La forja TRANSFORMA (forma, elemento, ritmo); el talento AÑADE o MULTIPLICA (números, sinergias, mecánica).
-const M_SPECS = {
-  piromante: { id:'piromante', name:'Piromante', role:'Daño en área', mech:'Calor', mechIco:'ui/st_quemadura.webp', line:'Todo arde: la Quemadura se propaga y estalla.', innate:'Bola de Fuego: explosión 100 → 350 %', gauge:'calor' },
-  crionte:   { id:'crionte', name:'Crionte', role:'Control', mech:'Escarcha', mechIco:'ui/st_escarcha.webp', line:'Congela, ralentiza y astilla.', innate:'Llenas un 25 % más rápido el Quebranto de los jefes', gauge:'escarcha' },
-  arcanista: { id:'arcanista', name:'Arcanista', role:'Un objetivo', mech:'Cargas Arcanas', mechIco:'ui/res_mana.webp', line:'Maná, críticos y cadenas.', innate:'Dardo Arcano: 1 Carga por impacto (máx. 4)', gauge:'cargas' },
-};
-const SPEC_IDS = ['piromante', 'crionte', 'arcanista'];
-let MSPEC = SPEC_IDS.includes(Q.get('spec')) ? Q.get('spec') : 'piromante'; // especialización elegida (la Maga del mockup)
-// barra, forja y selección recomendadas de cada especialización (las aplica el cambio de especialización)
-const SPEC_BAR = {
-  piromante: { bar:{ lmb:'m_dardo', rmb:'bola_fuego', k1:'m_estela_ignea', k2:'meteoro', k3:'p_llamarada', k4:'m_u_supernova' }, forge:{ m_dardo:'A', bola_fuego:'B', m_parpadeo:'A' }, sel:'bola_fuego' },
-  crionte:   { bar:{ lmb:'m_dardo', rmb:'k_lanza', k1:'m_paso_escarcha', k2:'nova_hielo', k3:'k_prision', k4:'m_u_tormenta' }, forge:{ m_dardo:'B', nova_hielo:'B' }, sel:'k_lanza' },
-  arcanista: { bar:{ lmb:'m_dardo', rmb:'rayo', k1:'m_parpadeo', k2:'a_sello', k3:'a_orbe', k4:'m_u_desgarro' }, forge:{ m_parpadeo:'A', m_barrera:'B' }, sel:'rayo' },
-};
-// la mecánica de cada especialización (textos del tooltip; números de js/spec-mechanics.js)
-const MECH_TXT = {
-  piromante: { n:'Calor', range:'0–100', ico:'ui/st_quemadura.webp', gen:'+5 por golpe de Fuego (1 por instante)', out:'A 100: Ignición Total. La siguiente Bola de Fuego o Meteoro, gratis y crítica', loss:'−10 por segundo tras 3 s sin ganar', feed:['m_dardo', 'bola_fuego', 'p_llamarada', 'meteoro'], alt:'calor · perFireHit 5 · decayAfter 3 · decayRate 10' },
-  crionte:   { n:'Escarcha', range:'0–5 capas por enemigo', ico:'ui/st_escarcha.webp', gen:'+1 capa por golpe de Hielo; la Nova, +2', out:'A 5 capas: Congelado 1 s. Un jefe queda Aterido 4 s (−30 % de movimiento, −15 % de ataque) y suma 25 de Quebranto', loss:'1 capa cada 2 s sin golpearlo', feed:['m_dardo', 'nova_hielo', 'k_prision', 'k_lanza', 'm_u_tormenta'], alt:'escarcha · max 5 · nova 2 · freezeT 1 · numbT 4 · decayEvery 2' },
-  arcanista: { n:'Cargas Arcanas', range:'0–4', ico:'ui/res_mana.webp', gen:'+1 por impacto del Dardo Arcano', out:'El Rayo las gasta todas: +35 % de daño y 5 de maná por Carga', loss:'Todas, 6 s después de la última que ganaste', feed:['m_dardo', 'rayo'], alt:'cargas · max 4 · perDart 1 · dmgPerCharge 35 · manaPerCharge 5 · loseAfter 6' },
-};
-const SPEC_INNATE_TXT = {
-  piromante: { sk:'bola_fuego', n:'Bola de Fuego del Piromante', l:'La explosión pasa del 100 % al 350 % a 2 m.', f:'Con otra especialización vuelve al 100 %' },
-  crionte:   { sk:'nova_hielo', n:'Frío que quiebra', l:'Llenas un 25 % más rápido la barra de Quebranto de los jefes.', f:'Se suma al Quebranto de la Prisión y del Congelado' },
-  arcanista: { sk:'m_dardo', n:'Dardo del Arcanista', l:'Cada impacto del Dardo Arcano te da 1 Carga Arcana (máx. 4).', f:'Sin Arcanista, el Dardo no genera Cargas' },
-};
+// ===================== PASO 2g · datos de la CLASE ACTIVA (data/talents-v2-<clase>.js; los activa useClass) =====================
+// Reglas comunes (ritmo, presupuesto, puertas, rejillas): data/talents-v2-comun.js · contrato: data/README-talents-v2.md
+let M_SPECS = {}, SPEC_IDS = [], MSPEC = null, SPEC_BAR = {}, MECH_TXT = {}, SPEC_INNATE_TXT = {};
 const CAT_ICON = { basic:'cat_basico', spender:'cat_gastadora', movement:'cat_movilidad', defense:'cat_defensa', utility:'cat_defensa', spec:'cat_especializacion', ultimate:'cat_definitiva' };
 const CAT_ORD = { basic:0, spender:1, movement:2, defense:3, utility:3, spec:4, ultimate:5 };
 const SLOT_AT = { lmb:1, rmb:2, k1:4, k2:6, k3:10, k4:15 };
 const byCat = (a, b) => CAT_ORD[a.cat] - CAT_ORD[b.cat] || a.req - b.req;
 const byReq = (a, b) => a.req - b.req || CAT_ORD[a.cat] - CAT_ORD[b.cat];
-CATALOG.maga = [
-  // — KIT BASE (toda Maga, Nv1–8): un hechizo por elemento + utilidad arcana —
-  { id:'m_dardo', n:'Dardo Arcano', cat:'basic', req:1, elem:'arcane', coef:1.05, gen:3, s:'Dispara un dardo a 20 m. Cada impacto te devuelve 3 de maná.',
-    M:{ n:'Dardo Veloz', s:'+40 % de velocidad del proyectil y +2 m de alcance.', k:'★add{speed:+40%} · range +20' },
-    A:{ n:'Saeta Ígnea', r:'AREA', s:'Se vuelve de Fuego y estalla a 1,5 m (30 %).', k:'★elem fire · ★set{splash:.3, radius:1.5} (absorbe a Ascua)' },
-    B:{ n:'Saeta Gélida', r:'CTRL', s:'Se vuelve de Hielo: ralentiza 20 % 1,5 s; −10 % daño.', k:'★elem frost · slow 1.5 · slowPct 20 · dmg −10 (absorbe a Toque Gélido)' } },
-  { id:'bola_fuego', n:'Bola de Fuego', cat:'spender', req:2, elem:'fire', coef:2.2, cost:18, cd:1.5, s:'Lanza una bola que golpea y explota a 2 m a su alrededor.', innate:{ piromante:'Piromante: explosión 100 → 350 %' },
-    M:{ n:'Núcleo Inestable', s:'Explosión 2 → 2,6 m.', k:'radius +30' },
-    A:{ n:'Pirodardo', r:'UNI', s:'Sin preparación y muy rápida; explosión 40 %.', k:'★set{windup:0, speed:22} · ★add{splash:−.6}' },
-    B:{ n:'Racimo', r:'AREA', s:'Al explotar suelta 3 brasas que estallan (40 % c/u).', k:'★power v_racimo (onHit)' } },
-  { id:'nova_hielo', n:'Nova de Hielo', cat:'spender', req:8, elem:'frost', coef:1.4, cost:25, cd:4, s:'Onda de hielo a tu alrededor (3,3 m): daña y ralentiza un 30 % 3 s.',
-    M:{ n:'Escarcha Profunda', s:'Ralentiza 30 → 40 %.', k:'slowPct 40' },
-    A:{ n:'Corazón de Hielo', r:'AGU', s:'Escudo del 3 % de vida por golpeado (máx. 15 %).', k:'★shieldGain 3/15' },
-    B:{ n:'Nova Fracturante', r:'UNI', s:'+40 % de daño a enemigos ya ralentizados.', k:'★power v_fractura (condAdd)' } },
-  { id:'m_parpadeo', n:'Parpadeo', cat:'movement', req:4, elem:'arcane', cd:12, icon:'talents/maga-clase-c3.webp', s:'Te teletransportas 8 m hacia el cursor, atravesando enemigos.',
-    M:{ n:'Salto Largo', s:'Alcance 8 → 10 m.', k:'range +25' },
-    A:{ n:'Doble Parpadeo', r:'MOV', s:'2 cargas (12 s cada una).', k:'★charges 2' },
-    B:{ n:'Parpadeo Disruptor', r:'CTRL', s:'Al llegar empujas 3 m y aturdes 0,5 s (80 %).', k:'★behavior v_parpadeo_onda (lo de m_onda) · coef .8 (absorbe a Onda Repulsora)' } },
-  { id:'m_barrera', n:'Barrera de Maná', cat:'defense', req:6, elem:'arcane', cd:20, icon:'talents/maga-clase-c2.webp', s:'Escudo que absorbe daño igual al 60 % de tu maná máximo; dura 8 s.',
-    M:{ n:'Burbuja Estable', s:'Dura 8 → 10 s.', k:'durS 2' },
-    A:{ n:'Barrera Gélida', r:'CTRL', s:'Se vuelve de Hielo: al romperse congela 1,5 s a 3 m.', k:'★elem frost · ★power v_reactiva (absorbe a Armadura de Hielo)' },
-    B:{ n:'Coraza Arcana', r:'UNI', s:'Mientras aguanta, +15 % de daño de hechizos.', k:'★power v_coraza_arcana' } },
-  // — activas de clase que se eligen en un nodo de elección del árbol de clase (ranura 2) —
-  { id:'m_t_bloque', n:'Bloque de Hielo', cat:'defense', req:21, talent:true, grantBy:'c11', elem:'frost', cd:90, icon:'talents/maga-clase-c12.webp', s:'Te encierras en hielo 4 s: no recibes daño, pero no te mueves.' },
-  { id:'m_t_inversion', n:'Inversión del Tiempo', cat:'defense', req:27, talent:true, grantBy:'c17', elem:'arcane', cd:60, icon:'talents/maga-clase-c12.webp', s:'Vuelves a la vida y al lugar que tenías hace 5 s.' },
-  { id:'m_t_contrahechizo', n:'Contrahechizo', cat:'utility', req:31, talent:true, grantBy:'c22', elem:'arcane', cd:18, icon:'talents/maga-clase-c5.webp', s:'Corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s.' },
-  { id:'m_h_detener', n:'Detener el Tiempo', cat:'utility', req:72, talent:true, grantBy:'t4', hero:true, elem:'arcane', cd:75, icon:'talents/maga-arcanista-s9.webp', s:'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.' },
-  { id:'m_h_palabra', n:'Palabra de Poder', cat:'utility', req:72, talent:true, grantBy:'e4', hero:true, elem:'arcane', cd:40, icon:'talents/maga-arcanista-s9.webp', s:'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.' },
-  { id:'m_h_constructo', n:'Llamar Constructo', cat:'defense', req:74, talent:true, grantBy:'f8', hero:true, elem:'arcane', cd:45, icon:'talents/maga-clase-c15.webp', s:'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.' },
-  // — KIT DEL PIROMANTE (solo con la especialización; Nv10–15) —
-  { id:'p_llamarada', n:'Llamarada', cat:'spec', req:10, spec:'piromante', elem:'fire', coef:1.5, cost:25, cd:8, icon:'talents/maga-piromante-s0.webp', s:'Cono de fuego de 7 m; hace estallar las quemaduras (60 % de lo que les queda).',
-    M:{ n:'Llama Ancha', s:'Cono 70 → 90°.', k:'★set{angle:90}' },
-    A:{ n:'Lanza de Llamas', r:'UNI', s:'Cono de 25° y 10 m; +50 % de daño.', k:'★set{angle:25, radius:10} · dmg +50' },
-    B:{ n:'Erupción', r:'AREA', s:'Anillo de 5 m a tu alrededor; −15 % de daño.', k:'★set{type:area, at:self, radius:5} · dmg −15' } },
-  { id:'m_estela_ignea', n:'Estela Ígnea', cat:'movement', req:12, spec:'piromante', elem:'fire', coef:0.4, cd:10, s:'Te deslizas 6 m y dejas el suelo ardiendo 3 s.',
-    M:{ n:'Rastro Ardiente', s:'El fuego dura 3 → 4 s.', k:'durS 1' },
-    A:{ n:'Senda de Llamas', r:'AREA', s:'Rastro el doble de ancho (3 m) y 55 %/s.', k:'radius +100 · dmg +37' },
-    B:{ n:'Muro de Llamas', r:'CTRL', s:'El rastro corta el paso 3 s (no a jefes); −50 % daño.', k:'★set{blocks:true} · dmg −50 · campo p_muro_fuego (absorbe a Muro de Fuego)' } },
-  { id:'meteoro', n:'Meteoro', cat:'spender', req:14, spec:'piromante', elem:'fire', coef:3.7, cost:40, cd:6, s:'Un meteoro cae donde apuntas a los 0,6 s y golpea en 3 m.',
-    M:{ n:'Puntería Ígnea', s:'Cae a los 0,45 s.', k:'★set{impactDelay:.45}' },
-    A:{ n:'Lluvia de Meteoritos', r:'AREA', s:'3 meteoritos (55 % c/u, 2,2 m) en un área de 5 m.', k:'★set{impacts:3, scatter:2.5} · behavior v_meteoritos' },
-    B:{ n:'Meteoro Ancestral', r:'UNI', s:'+60 % de daño y aturde 1 s; enfriamiento 6 → 9 s.', k:'dmg +60 · stun 1 · cdr −50' } },
-  { id:'m_u_supernova', n:'Supernova', cat:'ultimate', req:15, spec:'piromante', elem:'fire', coef:4.7, cd:50, s:'Creas una estrella que estalla 3 veces a tu alrededor y deja a todos quemándose.',
-    M:{ n:'Gravedad Solar', s:'Atrae 2 m antes de estallar.', k:'★pull 2' },
-    A:{ n:'Sol Errante', r:'AREA', s:'La estrella te sigue 4 s y estalla 4 veces (380 %).', k:'★set{follow:true, pulses:4} · behavior' },
-    B:{ n:'Colapso', r:'UNI', s:'Una sola onda de 1300 % en 3 m.', k:'★set{pulses:1, radius:3, coef:13}' } },
-  // — KIT DEL CRIONTE (solo con la especialización; Nv10–15) —
-  { id:'k_prision', n:'Prisión de Hielo', cat:'spec', req:10, spec:'crionte', elem:'frost', coef:0.8, cost:25, cd:12, icon:'talents/maga-crionte-s0.webp', s:'Encierras en hielo 2 s a los enemigos a 4 m y les pones 2 capas de Escarcha.',
-    M:{ n:'Celda Amplia', s:'Radio 4 → 5 m.', k:'radius +25' },
-    A:{ n:'Celda Lejana', r:'UNI', s:'La lanzas a 15 m sobre un solo enemigo: lo encierra 3 s.', k:'★set{at:target, range:15, radius:1.5} · stun 3' },
-    B:{ n:'Muralla de Hielo', r:'CTRL', s:'Un muro de hielo de 8 m corta el paso 3 s y da 1 capa al tocarlo.', k:'★set{type:wall, length:8} · campo k_muralla' } },
-  { id:'m_paso_escarcha', n:'Paso de Escarcha', cat:'movement', req:12, spec:'crionte', elem:'frost', coef:0.3, cd:10, s:'Te deslizas 6 m dejando hielo 3 s que ralentiza un 40 % y pone 1 capa por segundo.',
-    M:{ n:'Hielo Duradero', s:'El hielo dura 3 → 4 s.', k:'durS 1' },
-    A:{ n:'Paso Doble', r:'MOV', s:'2 cargas (10 s cada una).', k:'★charges 2' },
-    B:{ n:'Prisión Fugaz', r:'CTRL', s:'Al llegar, congelas 1 s a los que están a 2 m.', k:'★power v_prision_fugaz' } },
-  { id:'k_lanza', n:'Lanza de Hielo', cat:'spender', req:14, spec:'crionte', elem:'frost', coef:2.6, cost:30, cd:4, icon:'talents/maga-crionte-s9.webp', s:'Lanza que atraviesa en línea 12 m; a los Congelados les hace el triple.',
-    M:{ n:'Punta Afilada', s:'+2 m de alcance y +15 % de daño.', k:'range +17 · dmg +15' },
-    A:{ n:'Lanza Pesada', r:'UNI', s:'No atraviesa; +60 % de daño y deja 2 capas.', k:'★set{pierce:0} · dmg +60 · layers 2' },
-    B:{ n:'Abanico Gélido', r:'AREA', s:'3 lanzas en abanico; 50 % cada una.', k:'★set{count:3, spread:30} · dmg −50' } },
-  { id:'m_u_tormenta', n:'Tormenta Glacial', cat:'ultimate', req:15, spec:'crionte', elem:'frost', coef:0.9, cd:50, s:'Una ventisca te sigue 8 s: daña cada 0,5 s a 4 m y pone 1 capa por golpe.',
-    M:{ n:'Ojo Tranquilo', s:'Dentro, tú recibes un 10 % menos de daño.', k:'★power v_ojo' },
-    A:{ n:'Ventisca Anclada', r:'AREA', s:'Se queda fija donde la lanzas, 6 m de radio.', k:'★set{follow:false, radius:6}' },
-    B:{ n:'Granizo', r:'UNI', s:'Un solo pedrisco de 1100 % sobre el objetivo; congela 2 s.', k:'★set{pulses:1, radius:2.5, coef:11} · freeze 2' } },
-  // — KIT DEL ARCANISTA (solo con la especialización; Nv10–15) —
-  { id:'a_orbe', n:'Orbe Arcano', cat:'spec', req:10, spec:'arcanista', elem:'arcane', coef:1.6, cost:20, cd:8, icon:'talents/maga-arcanista-s0.webp', s:'Lanzas un orbe lento que atraviesa y rebota 2 veces entre enemigos.',
-    M:{ n:'Orbe Grande', s:'+30 % de tamaño.', k:'radius +30' },
-    A:{ n:'Orbe Veloz', r:'UNI', s:'El doble de rápido; +40 % de daño y sin rebotes.', k:'★set{speed:2x, bounce:0} · dmg +40' },
-    B:{ n:'Orbe Gemelo', r:'AREA', s:'Lanzas 2 orbes en V; 60 % cada uno.', k:'★set{count:2, spread:25} · dmg −40' } },
-  { id:'a_sello', n:'Sello del Archimago', cat:'utility', req:12, spec:'arcanista', elem:'arcane', cd:20, icon:'talents/maga-arcanista-s9.webp', s:'Círculo de 4 m durante 8 s: dentro, tus hechizos cuestan un 30 % menos y ganas 1 Carga cada 2 s.',
-    M:{ n:'Sello Firme', s:'Dura 8 → 10 s.', k:'durS 2' },
-    A:{ n:'Sello Ofensivo', r:'UNI', s:'Dentro, tus críticos hacen +25 %; ya no abarata.', k:'★power v_sello_ofensivo' },
-    B:{ n:'Sello de Contención', r:'CTRL', s:'Los enemigos que entran quedan ralentizados un 40 %.', k:'★set{slowPct:40}' } },
-  { id:'rayo', n:'Rayo', cat:'spender', req:14, spec:'arcanista', elem:'arcane', coef:2.4, cost:22, cd:2, s:'Rayo de 15 m que atraviesa en línea y gasta tus Cargas: +35 % de daño y 5 de maná por Carga.',
-    M:{ n:'Rayo Largo', s:'Alcance 15 → 18 m.', k:'range +20' },
-    A:{ n:'Rayo en Cadena', r:'AREA', s:'Salta a 3 enemigos cercanos (70 % cada salto).', k:'★set{chain:3} · chainPct 70' },
-    B:{ n:'Haz Concentrado', r:'UNI', s:'Lo canalizas 1,5 s: +80 % al primero que toca.', k:'★set{type:channel, dur:1.5} · dmg +80' } },
-  { id:'m_u_desgarro', n:'Desgarro Arcano', cat:'ultimate', req:15, spec:'arcanista', elem:'arcane', coef:1.2, cd:50, s:'Canalizas 3 s un rayo gigante; te da 1 Carga cada medio segundo.',
-    M:{ n:'Desgarro Estable', s:'Puedes moverte despacio mientras lo canalizas.', k:'★set{moveWhileChannel:0.4}' },
-    A:{ n:'Brecha', r:'AREA', s:'Abre una grieta en el suelo 5 s que daña a todos a 3 m.', k:'★set{type:field, dur:5, radius:3}' },
-    B:{ n:'Quiebre', r:'UNI', s:'Un solo pulso de 900 % al final; no se canaliza.', k:'★set{pulses:1, coef:9}' } },
-];
 // barra válida para el nivel: lo que aún no se conoce cae al kit base de su ranura (o se vacía)
 function fixBar() {
-  const FALL = { lmb:'m_dardo', rmb:'bola_fuego', k1:'m_parpadeo', k2:'m_barrera', k3:null, k4:null };
+  const FALL = V2C()?.fallbackBar || {}; // data/talents-v2-<clase>.js
   for (const k of Object.keys(S.bar)) {
     const sk = S.bar[k] && find(S.bar[k]);
     if (S.lvl < SLOT_AT[k]) { S.bar[k] = null; continue; }
@@ -1491,7 +1444,7 @@ function fixBar() {
   }
   for (const id of Object.keys(S.forge)) { const sk = find(id); if (!sk || !varOn(sk)) delete S.forge[id]; }
   for (const id of Object.keys(S.sup)) if (!known(find(id) || {})) delete S.sup[id];
-  if (!known(find(S.sel) || {})) S.sel = 'm_dardo';
+  if (!known(find(S.sel) || {})) S.sel = FALL.lmb || skills().find(known)?.id || null;
 }
 
 // ---------- LIBRO de la Maga por origen ----------
@@ -1500,15 +1453,16 @@ function renderBookMaga() {
   const all = skills(), sp = curSpec();
   const add = (cls, html) => { const d = document.createElement('div'); d.className = 'sec full osec ' + cls; d.innerHTML = html; book.appendChild(d); return d; };
   const base = all.filter(s => !s.spec && (!s.grantBy || known(s))).sort(byCat);
-  const s1 = add('base', `<div class="sec-h"><img src="${A}ui/res_mana.webp" alt="">Kit base · Maga<span class="n">${base.filter(known).length}/${base.length} · fuego, hielo y arcano</span></div><div class="tiles"></div>`);
+  const C = V2C(), ref = !C.catalog?.length; // sin catálogo propio: el catálogo 2f de la clase, como referencia
+  const s1 = add('base', `<div class="sec-h"><img src="${A}${C.book?.baseIcon || C.emblem}" alt="">${ref ? `Kit actual (2f) · ${C.name}` : `Kit base · ${C.name}`}<span class="n">${base.filter(known).length}/${base.length} · ${ref ? 'referencia: se rehace en el diseño' : C.book?.baseNote || ''}</span></div><div class="tiles"></div>`);
   base.forEach(sk => s1.querySelector('.tiles').appendChild(tileEl(sk)));
   let kn = base.filter(known).length, tot = base.length;
   if (sp) {
     const kit = all.filter(s => s.spec === sp.id).sort(byReq);
     kn += kit.filter(known).length; tot += kit.length;
-    const s2 = add('spec', `<div class="sec-h"><img class="emb" src="${A}emblems/${sp.id}.webp" alt="">${sp.name}<span class="n">${kit.filter(known).length}/${kit.length} · tu especialización</span></div><div class="tiles"></div>` +
+    const s2 = add('spec', `<div class="sec-h"><img class="emb" src="${A}emblems/${sp.id}.webp" alt="">${sp.name}<span class="n">${kit.filter(known).length}/${kit.length} · tu especialización${kit.length ? '' : ' · kit en diseño'}</span></div><div class="tiles"></div>` +
       `<div class="gains"><span class="gchip" data-g="mech"><i style="background-image:url('${A}${sp.mechIco}')"></i>Mecánica: <b>${sp.mech}</b></span>` +
-      `<span class="gchip" data-g="innate"><i style="background-image:url('${iconUrl(find(SPEC_INNATE_TXT[sp.id].sk))}')"></i>Pasiva: <b>${sp.innate}</b></span></div><div class="gzbook" id="gzBook"></div>`);
+      `<span class="gchip" data-g="innate"><i style="background-image:url('${find(SPEC_INNATE_TXT[sp.id]?.sk) ? iconUrl(find(SPEC_INNATE_TXT[sp.id].sk)) : `${A}emblems/${sp.id}.webp`}')"></i>Pasiva: <b>${sp.innate}</b></span></div><div class="gzbook" id="gzBook"></div>`);
     try { if (TPX?.createGauge) { T2V.gzb?.destroy?.(); T2V.gzb = TPX.createGauge(s2.querySelector('#gzBook'), { mode:'demo', id: sp.gauge }); } } catch (e) { console.warn('gauge', e); }
     kit.forEach(sk => s2.querySelector('.tiles').appendChild(tileEl(sk)));
     s2.querySelectorAll('.gchip').forEach(g => { g.addEventListener('mouseenter', e => showTip(e, () => g.dataset.g === 'mech' ? tipMech2() : tipInnate())); g.addEventListener('mousemove', moveTip); g.addEventListener('mouseleave', hideTip); });
@@ -1538,7 +1492,7 @@ function tipLocked(sk) {
   const m = M_SPECS[sk.spec];
   const why = S.lvl < 10 ? `Se aprende al nivel ${sk.req} si eliges ${m.name} (nivel 10)` : curSpec()?.id === sk.spec ? `Se aprende al nivel ${sk.req}` : `Cambia a ${m.name} en Talentos (N) para usarla`;
   return `<div class="th">${ico(sk)}<div><div class="tn">${sk.n}</div><div class="tk">Kit del ${m.name} · ${CAT_NAME[sk.cat]} · ${SLOT_OF[sk.cat].map(s => SLOT_LBL[s]).join(' o ')}</div></div></div>` +
-    `<div class="tl">${sk.s}</div><div class="st lk">${why}</div>` + (m.sketch ? '<div class="tk" style="margin-top:6px">Esbozo: se detalla cuando se apruebe el Piromante</div>' : '');
+    `<div class="tl">${sk.s}</div><div class="st lk">${why}</div>` + (m.sketch ? '<div class="tk" style="margin-top:6px">Esbozo: se detalla en el diseño de la clase</div>' : '');
 }
 function tipSpec(id) {
   const m = M_SPECS[id], kit = skills().filter(s => s.spec === id).sort(byReq);
@@ -1547,374 +1501,64 @@ function tipSpec(id) {
     `<div class="tf"><span>Pasiva: ${m.innate}</span></div>`;
 }
 function tipMech2() {
-  const m = MECH_TXT[MSPEC];
+  const m = MECH_TXT[MSPEC]; if (!m) return `<div class="tn">${M_SPECS[MSPEC]?.mech || 'Mecánica'}</div><div class="tl">Por diseñar</div>`;
   return `<div class="th"><div class="ico" style="background-image:url('${A}${m.ico}');border-radius:50%"></div><div><div class="tn">${m.n}</div><div class="tk">Mecánica del ${M_SPECS[MSPEC].name} · ${m.range}</div></div></div>` +
     `<div class="mcols"><div><b>GENERAR</b>${m.gen}</div><div><b>DESCARGAR</b>${m.out}</div><div><b>PÉRDIDA</b>${m.loss}</div></div>` +
-    `<div class="tnodes"><span class="lb">La alimentan</span>${m.feed.map(id => find(id)).filter(Boolean).map(sk => `<span class="tn1"><i style="background-image:url('${iconUrl(sk)}')"></i>${sk.id === 'm_dardo' && MSPEC === 'piromante' ? 'Saeta Ígnea' : sk.id === 'm_dardo' && MSPEC === 'crionte' ? 'Saeta Gélida' : sk.n}</span>`).join('')}</div>` +
+    `<div class="tnodes"><span class="lb">La alimentan</span>${(m.feed || []).map(id => find(id)).filter(Boolean).map(sk => `<span class="tn1"><i style="background-image:url('${iconUrl(sk)}')"></i>${m.feedNames?.[sk.id] || sk.n}</span>`).join('')}</div>` +
     (S.alt ? `<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> spec-mechanics.js ${m.alt}</div>` : '');
 }
 function tipInnate() {
-  const t = SPEC_INNATE_TXT[MSPEC];
-  return `<div class="th">${ico(find(t.sk))}<div><div class="tn">${t.n}</div><div class="tk">Pasiva de la especialización (no es un nodo)</div></div></div>` +
+  const t = SPEC_INNATE_TXT[MSPEC]; if (!t) return `<div class="tn">Pasiva</div><div class="tl">Por diseñar</div>`;
+  const tsk = find(t.sk);
+  return `<div class="th">${tsk ? ico(tsk) : `<div class="ico" style="background-image:url('${A}emblems/${MSPEC}.webp')"></div>`}<div><div class="tn">${t.n}</div><div class="tk">Pasiva de la especialización (no es un nodo)</div></div></div>` +
     `<div class="tl">${t.l}</div><div class="tf"><span>${t.f}</span></div>`;
 }
 
-// ===== Paso 2g v3 · Talentos de la Maga estilo WoW (fuente única: mockup + tablas del doc) =====
-// Nodo: { id, n (nombre), t: p|c|k|f|x (pasiva|elección|clave|final|ápice), tag: 'num'|'mec', r, c, max, req[],
-//         d(r) → efecto en el rango r, opts:[{k,n,d,role,act,impl}], win (qué gana cada opción, en palabras),
-//         touch:[skillIds], fire:true (todo el Fuego), impl, icon, arch (arquetipo del Piromante) }
-// Forma del icono: CÍRCULO = pasivo · CUADRADO = activo (concede una habilidad) · HEXÁGONO = elección A/B.
-// Ritmo (nivel máximo 100): especialización en los niveles pares 10–70 (31) · clase en los impares 11–69 (30) y 85/90/95/100 (+4 = 34)
-//   · Paragon (árbol héroe) 71–80 (10) solo con la especialización «al máximo» (31/31 ganados y gastados) · tablero de glifos 81–100 salvo 85/90/95/100 (16).
-// Puertas (puntos gastados en las filas de ARRIBA): clase 8 → fila 4 y 24 → fila 7 · especialización 8 → fila 4, 20 → fila 7, 25 → ápice.
-const I = id => `talents/maga-${id}.webp`;
-const n1 = v => String(+(+v).toFixed(2)).replace('.', ',');
-const TALENTS_V2 = {
-  pts: { cls: 34, spec: 31, hero: 10, board: 16 },
-  gates: { cls: [{ row: 4, need: 8 }, { row: 7, need: 24 }], spec: [{ row: 4, need: 8 }, { row: 7, need: 20 }, { row: 9, need: 25, apex: true }] },
-  // ---------------------------------------------------------------- CLASE
-  cls: [
-    { id:'c1', n:'Reservas Profundas', t:'p', tag:'num', r:0, c:1, max:2, d:r=>`+${15*r} % de maná máximo`, icon:I('clase-c6'), impl:'stats.mpPct · existe' },
-    { id:'c2', n:'Intelecto Arcano', t:'p', tag:'num', r:0, c:3, max:2, d:r=>`Todos tus hechizos hacen +${6*r} % de daño`, icon:I('clase-c1'), impl:'mod @all dmg · existe' },
-    { id:'c3', n:'Reflejos Arcanos', t:'p', tag:'num', r:0, c:5, max:2, d:r=>`Parpadeo se recarga en ${12-2*r} s (antes 12 s)`, touch:['m_parpadeo'], icon:I('clase-c3'), impl:'mod m_parpadeo cdr · existe' },
-    { id:'c4', n:'Escudo Prismático', t:'p', tag:'num', r:1, c:0, max:3, req:['c1'], d:r=>`Mientras tengas la Barrera de Maná, recibes un ${8*r} % menos de daño`, touch:['m_barrera'], icon:I('clase-c7'), impl:'tv.barrierDr · existe' },
-    { id:'c5', n:'Dardo: Certero o Sifón', t:'c', tag:'mec', r:1, c:2, max:1, req:['c1','c2'], touch:['m_dardo'], icon:I('clase-c4'), opts:[
-      { k:'A', n:'Dardo Certero', d:'Cada 4.º Dardo Arcano es crítico seguro', role:'UNI', impl:'power m_dardo_certero · NUEVO' },
-      { k:'B', n:'Dardo Sifón', d:'Si el Dardo mata, ganas 6 de maná y tus habilidades principales se recargan 1 s antes', role:'AREA', impl:'power m_dardo_sifon · NUEVO' } ],
-      win:'A, contra jefes: un crítico seguro cada ~4 s. B, contra grupos: como mueren muchos, ≈1 habilidad principal extra cada 8 s' },
-    { id:'c6', n:'Principal: Núcleo u Onda', t:'c', tag:'num', r:1, c:4, max:1, req:['c2','c3'], touch:['bola_fuego','nova_hielo','meteoro','k_lanza','rayo'], icon:I('clase-c8'), opts:[
-      { k:'A', n:'Núcleo Denso', d:'El golpe directo de tus habilidades principales hace +25 %', role:'UNI', impl:'mod @spender dmgDirect · NUEVO (clave)' },
-      { k:'B', n:'Onda Expansiva', d:'Las explosiones y áreas de tus habilidades principales hacen +30 %', role:'AREA', impl:'mod @spender splashPct · NUEVO (clave)' } ],
-      win:'A, contra jefes (un solo blanco recibe el golpe). B, contra grupos (el área golpea a todos). Sirve igual con Fuego, Hielo o Arcano' },
-    { id:'c7', n:'Paso Fugaz', t:'p', tag:'mec', r:1, c:6, max:1, req:['c3'], d:()=>'Después de Parpadeo corres un 30 % más rápido durante 3 s', touch:['m_parpadeo'], icon:I('clase-c11'), impl:'power m_paso_fugaz · NUEVO (afterCast + addBuff)' },
-    { id:'c8', n:'Piel de Maná', t:'p', tag:'num', r:2, c:1, max:2, req:['c4','c5'], d:r=>`Con más de la mitad del maná, recibes un ${8*r} % menos de daño`, icon:I('clase-c2'), impl:'tv.drHighMana · existe' },
-    { id:'c9', n:'Nova: Congelante o Cortante', t:'c', tag:'mec', r:2, c:3, max:1, req:['c5','c6'], touch:['nova_hielo'], icon:I('crionte-s2'), opts:[
-      { k:'A', n:'Nova Congelante', d:'La Nova de Hielo congela 1 s (no a jefes); como mucho una vez cada 8 s', role:'CTRL', impl:'power m_nova_congelante · NUEVO (applyCC freeze)' },
-      { k:'B', n:'Nova Cortante', d:'La Nova de Hielo hace +40 % de daño, pero ralentiza 1 s menos', role:'AREA', impl:'mod nova_hielo dmg/slow · claves existentes' } ],
-      win:'A, para controlar y sobrevivir: congelas al grupo un 8–12 % del tiempo. B, para matar grupos más rápido' },
-    { id:'c10', n:'Ralentizar o Disrupción', t:'c', tag:'mec', r:2, c:5, max:1, req:['c6','c7'], icon:I('clase-c5'), opts:[
-      { k:'A', n:'Ralentizar', d:'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s', role:'CTRL', impl:'power m_ralentizar · existe' },
-      { k:'B', n:'Disrupción', d:'Cada 10 s, tu siguiente Dardo corta el hechizo del enemigo y lo deja mudo 3 s', role:'UNI', touch:['m_dardo'], impl:'power m_disrupcion · NUEVO (lógica de m_t_contrahechizo; +20 de Quebranto a jefes)' } ],
-      win:'A, contra grupos que te rodean. B, contra jefes y élites que lanzan hechizos (además llena su barra de Quebranto)' },
-    { id:'c11', n:'Bloque de Hielo o Aguante', t:'c', tag:'mec', r:3, c:0, max:1, req:['c8'], icon:I('clase-c12'), opts:[
-      { k:'A', n:'Bloque de Hielo', d:'Habilidad (ranura 2): te encierras en hielo 4 s; no recibes daño ni te mueves. Se recarga en 90 s', role:'AGU', act:'m_t_bloque', impl:'activa m_t_bloque · existe' },
-      { k:'B', n:'Aguante Arcano', d:'Un golpe que te mataría te deja con 1 de vida y una Barrera gratis. Una vez cada 120 s', role:'AGU', impl:'power m_aguante · NUEVO (onLethal)' } ],
-      win:'A, contra golpes de jefe que se ven venir (ocupa la ranura 2). B, siempre activo y sin ocupar ranura' },
-    { id:'c12', n:'Flujo de Maná', t:'p', tag:'num', r:3, c:2, max:2, req:['c8','c9'], d:r=>`Cada golpe te devuelve ${2*r} de maná`, icon:I('clase-c10'), impl:'stats.mph · existe' },
-    { id:'c13', n:'Mente Afilada', t:'p', tag:'num', r:3, c:4, max:2, req:['c9','c10'], d:r=>`+${5*r} % de probabilidad de crítico`, icon:I('clase-c4'), impl:'stats.crit · existe' },
-    { id:'c14', n:'Parpadeo: Runa o Reparo', t:'c', tag:'mec', r:3, c:6, max:1, req:['c10'], touch:['m_parpadeo'], icon:I('clase-c3'), opts:[
-      { k:'A', n:'Runa de Escarcha', d:'Donde empieza tu Parpadeo queda una runa que ralentiza un 50 % durante 3 s', role:'CTRL', impl:'power m_runa · NUEVO (spawnField zona)' },
-      { k:'B', n:'Parpadeo Reparador', d:'Parpadeo te cura un 8 % de la vida y te quita las ralentizaciones', role:'AGU', impl:'power m_parpadeo_cura · NUEVO (g.heal)' } ],
-      win:'A, para escapar de enemigos cuerpo a cuerpo. B, para aguantar peleas largas' },
-    { id:'c15', n:'Escudo de Maná o Mente Clara', t:'c', tag:'mec', r:4, c:1, max:1, req:['c11','c12'], icon:I('arcanista-s8'), opts:[
-      { k:'A', n:'Escudo de Maná', d:'El 20 % del daño que recibes lo pagas con maná en vez de vida', role:'AGU', impl:'power m_escudo_mana · NUEVO (④ onDamaged)' },
-      { k:'B', n:'Mente Clara', d:'Recuperas maná un 30 % más rápido; con el maná lleno, haces +10 % de daño', role:'UNI', impl:'stats regen + tv.highManaDmg · existe' } ],
-      win:'A, para sobrevivir (+15–20 % de aguante). B, para hacer daño (+6–8 %: lanzas más habilidades principales)' },
-    { id:'c16', n:'Armonía o Pureza Elemental', t:'c', tag:'mec', r:4, c:3, max:1, req:['c12','c13'], icon:I('clase-c9'), opts:[
-      { k:'A', n:'Armonía Elemental', d:'Cada vez que cambias de elemento: +8 % de daño 5 s (se suma hasta 3 veces)', role:'UNI', impl:'power m_armonia · NUEVO' },
-      { k:'B', n:'Pureza Elemental', d:'3 hechizos seguidos del mismo elemento: +15 % de daño de ese elemento durante 6 s', role:'AREA', impl:'power m_pureza · NUEVO' } ],
-      win:'A, si mezclas elementos (Dardo Arcano + Fuego + Nova): hasta +24 %. B, si todo es del mismo elemento (todo Fuego, todo Hielo o todo Arcano): +15 % casi siempre. Es la pieza que une el árbol con la forja' },
-    { id:'c17', n:'Inversión o Anclaje', t:'c', tag:'mec', r:4, c:5, max:1, req:['c13','c14'], icon:I('clase-c12'), opts:[
-      { k:'A', n:'Inversión del Tiempo', d:'Habilidad (ranura 2): vuelves a la vida y al lugar que tenías hace 5 s. Se recarga en 60 s', role:'AGU', act:'m_t_inversion', impl:'activa m_t_inversion · existe' },
-      { k:'B', n:'Anclaje Temporal', d:'Al bajar del 30 % de vida: −30 % de daño recibido y +50 % de velocidad 4 s. Una vez cada 60 s', role:'AGU', impl:'power m_anclaje · NUEVO (onDamaged)' } ],
-      win:'A, contra un golpe enorme de jefe (ocupa la ranura 2). B, contra el daño constante de un grupo, sin ocupar ranura' },
-    { id:'c18', n:'Barrera Reforzada', t:'p', tag:'num', r:5, c:0, max:2, req:['c15'], d:r=>`La Barrera de Maná absorbe un ${25*r} % más`, touch:['m_barrera'], icon:I('clase-c2'), impl:'mod m_barrera shieldManaPct · claves' },
-    { id:'c19', n:'Barrera Resonante', t:'p', tag:'mec', r:5, c:2, max:1, req:['c15','c16'], d:()=>'Con la Barrera puesta, cada Dardo te da 2 de maná y la recarga un 2 % de tu vida', touch:['m_barrera','m_dardo'], icon:I('arcanista-s3'), hyb:'Defensa + Arcano', impl:'power m_barrera_resonante · NUEVO' },
-    { id:'c20', n:'Escarcha Arcana', t:'p', tag:'mec', r:5, c:4, max:1, req:['c16','c17'], d:()=>'Tus críticos ralentizan un 30 % 2 s; contra enemigos ralentizados, el Dardo tiene +15 % de crítico', touch:['m_dardo'], icon:I('crionte-s5'), hyb:'Arcano + Control', impl:'power m_escarcha_arcana · NUEVO' },
-    { id:'c21', n:'Escarcha Tenaz', t:'p', tag:'num', r:5, c:6, max:1, req:['c17'], d:()=>'Todas tus ralentizaciones duran 2 s más', icon:I('crionte-s3'), impl:'mod @all slow +2 · claves' },
-    { id:'c22', n:'Contrahechizo o Canalizador', t:'c', tag:'mec', r:6, c:1, max:1, req:['c18','c19'], icon:I('clase-c5'), opts:[
-      { k:'A', n:'Contrahechizo', d:'Habilidad (ranura 2): corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s. Se recarga en 18 s', role:'CTRL', act:'m_t_contrahechizo', impl:'activa m_t_contrahechizo · existe' },
-      { k:'B', n:'Canalizador', d:'Los hechizos que cuestan más de 20 de maná cuestan un 20 % menos', role:'UNI', impl:'tv.costRedBig · existe' } ],
-      win:'A, en grupo y contra enemigos que lanzan hechizos. B, para hacer daño (+5–7 %)' },
-    { id:'c23', n:'Ritmo Arcano', t:'p', tag:'mec', r:6, c:3, max:2, req:['c19','c20'], d:r=>`Cada crítico del Dardo recarga ${n1(0.5*r)} s de Parpadeo y de la Barrera`, touch:['m_dardo','m_parpadeo','m_barrera'], icon:I('clase-c9'), impl:'tv.dartCritCdr · NUEVO' },
-    { id:'c24', n:'Celeridad', t:'p', tag:'num', r:6, c:5, max:2, req:['c20','c21'], d:r=>`Lanzas hechizos un ${7*r} % más rápido`, icon:I('clase-c11'), impl:'stats.aspdPct · existe' },
-    // penúltimos (fila 7): potentes por sí solos
-    { id:'c25', n:'Cristal de Barrera', t:'p', tag:'mec', r:7, c:0, max:3, req:['c22'], d:r=>`Cuando se rompe la Barrera, estalla: empuja 3 m, ralentiza un 40 % 2 s y te devuelve el ${10*r} % del maná`, touch:['m_barrera'], icon:I('clase-c7'), impl:'power m_cristal · NUEVO (onShieldBreak)' },
-    { id:'c26', n:'Torrente de Maná', t:'p', tag:'mec', r:7, c:3, max:3, req:['c23'], d:r=>`Si gastas 60 de maná en 3 s, entras en Sobrecarga: +${4+8*r} % de daño durante 4 s`, icon:I('clase-c14'), impl:'power m_torrente · NUEVO (⑪ onResource)' },
-    { id:'c27', n:'Imagen Arcana', t:'p', tag:'mec', r:7, c:6, max:3, req:['c24'], d:r=>`Parpadeo deja una copia tuya ${2+r} s; los enemigos a 6 m la atacan a ella`, touch:['m_parpadeo'], icon:I('arcanista-s14'), impl:'power m_imagen · NUEVO (g.forceTarget)' },
-    // finales (fila 8): el presupuesto alcanza para UNO
-    { id:'c28', n:'Bastión Arcano', t:'f', tag:'mec', r:8, c:0, max:3, req:['c25'], d:r=>`La Barrera ya no caduca: dura hasta que la rompen y vuelve a los 20 s. Con ella, tus hechizos cuestan un ${10*r} % menos`, touch:['m_barrera'], icon:I('clase-c15'), impl:'power m_bastion · NUEVO', final:'Defensa' },
-    { id:'c29', n:'Archimaga', t:'f', tag:'mec', r:8, c:3, max:3, req:['c26'], d:r=>`Cada 4.ª habilidad principal se lanza dos veces: la copia es gratis y hace el ${20+20*r} %`, icon:I('clase-c1'), impl:'power m_archimaga · NUEVO (echo del canal)', final:'Arcano' },
-    { id:'c30', n:'Paso del Vacío', t:'f', tag:'mec', r:8, c:6, max:3, req:['c27'], d:r=>`Tras Parpadeo, tu siguiente habilidad principal no se recarga y hace +${15*r} %`, touch:['m_parpadeo'], icon:I('arcanista-x3'), impl:'power m_vacio · NUEVO', final:'Movilidad' },
-  ],
-  // ---------------------------------------------------------------- PIROMANTE
-  spec: [
-    { id:'s0', n:'Ignición', t:'k', tag:'mec', r:0, c:3, max:1, free:true, d:()=>'Tus golpes de Fuego queman (un 60 % extra del golpe en 4 s) y la Bola de Fuego explota al 350 % (antes 100 %)', fire:true, icon:I('piromante-s0'), impl:'power p_ignicion · existe (+ modifyResolve de la Bola)' },
-    { id:'s1', n:'Brasas', t:'p', tag:'num', r:1, c:1, max:3, req:['s0'], d:r=>`Las quemaduras duran ${4+r} s (antes 4 s)`, arch:'brasa', icon:I('piromante-s3'), impl:'tv.burnDur · existe' },
-    { id:'s2', n:'Calor Abrasador', t:'p', tag:'num', r:1, c:3, max:3, req:['s0'], d:r=>`+${5*r} % de crítico contra enemigos que se queman`, arch:'ignicion', icon:I('piromante-s5'), impl:'tv.burningCrit · existe' },
-    { id:'s3', n:'Mecha Corta', t:'p', tag:'num', r:1, c:5, max:3, req:['s0'], d:r=>`La Bola de Fuego se recarga en ${n1(1.5*(1-0.1*r))} s (antes 1,5 s)`, touch:['bola_fuego'], arch:'cataclismo', icon:I('piromante-s2'), impl:'mod bola_fuego cdr · existe' },
-    { id:'s4', n:'Llama Persistente', t:'p', tag:'num', r:2, c:0, max:2, req:['s1'], d:r=>`Las quemaduras hacen +${15*r} % de daño`, arch:'brasa', icon:I('piromante-s11'), impl:'tv.burnPct · existe' },
-    { id:'s5', n:'Chispas', t:'p', tag:'mec', r:2, c:2, max:1, req:['s1','s2'], d:()=>'Un crítico sobre un enemigo que se quema reinicia su quemadura y te da 5 de Calor', arch:'brasa+ignicion', hyb:'Brasa + Ignición', icon:I('piromante-s12'), impl:'power p_chispas · NUEVO' },
-    { id:'s6', n:'Combustible Volátil', t:'p', tag:'mec', r:2, c:4, max:1, req:['s2','s3'], d:()=>'Con Ignición Total, la Bola explota en 4 m (antes 2 m) y el Meteoro cae al instante', touch:['bola_fuego','meteoro'], arch:'ignicion+cataclismo', hyb:'Ignición + Cataclismo', icon:I('piromante-s10'), impl:'power p_volatil · NUEVO (modifyResolve con prof.ignition)' },
-    { id:'s7', n:'Pira', t:'p', tag:'mec', r:2, c:6, max:2, req:['s3'], d:r=>`El Meteoro deja el suelo ardiendo ${1+r} s (40 % por segundo)`, touch:['meteoro'], arch:'cataclismo', icon:I('piromante-s7'), impl:'mod meteoro zone · existe' },
-    { id:'s8', n:'Propagación o Brasa Profunda', t:'c', tag:'mec', r:3, c:1, max:1, req:['s4','s5'], arch:'brasa', icon:I('piromante-s6'), opts:[
-      { k:'A', n:'Propagación', d:'Cuando muere un enemigo que se quema, su quemadura pasa a 2 enemigos cercanos', role:'AREA', impl:'power p_propagacion · existe' },
-      { k:'B', n:'Brasa Profunda', d:'Puedes poner hasta 3 quemaduras a la vez en el mismo enemigo', role:'UNI', impl:'power p_acumular · existe' } ],
-      win:'A, contra grupos: cada muerte enciende a los siguientes. B, contra jefes: ×2,2 de daño de quemadura. Decide qué Brasa juegas' },
-    { id:'s9', n:'Llamarada: Avivada o Voraz', t:'c', tag:'mec', r:3, c:3, max:1, req:['s5','s6'], touch:['p_llamarada'], arch:'ignicion', icon:I('piromante-s4'), opts:[
-      { k:'A', n:'Llamarada Avivada', d:'Llamarada hace estallar el 100 % de las quemaduras (antes 60 %) y te da 25 de Calor', role:'UNI', impl:'power p_llamarada_avivada · existe' },
-      { k:'B', n:'Llamarada Voraz', d:'Si Llamarada hace estallar 3 o más quemaduras: se recarga 4 s antes y ganas 8 de Calor por enemigo', role:'AREA', impl:'power p_llamarada_voraz · NUEVO' } ],
-      win:'A, contra jefes: una Ignición Total extra cada ~25 s. B, contra grupos: Llamarada cada 4 s y el Calor lleno en 2 usos' },
-    { id:'s10', n:'Meteoro: Gemelo o Concentrado', t:'c', tag:'mec', r:3, c:5, max:1, req:['s6','s7'], touch:['meteoro'], arch:'cataclismo', icon:I('piromante-s10'), opts:[
-      { k:'A', n:'Meteoro Gemelo', d:'Cada 3.er Meteoro cae dos veces en el mismo sitio', role:'AREA', impl:'power p_meteoro_gemelo · NUEVO (echo del canal)' },
-      { k:'B', n:'Meteoro Concentrado', d:'El Meteoro hace +50 % al enemigo más cercano al centro', role:'UNI', impl:'power p_meteoro_conc · NUEVO (condAdd)' } ],
-      win:'A, contra grupos: un 33 % más de Meteoros. B, contra jefes. Decide qué Cataclismo juegas: barrido o martillo' },
-    { id:'s11', n:'Fuego Interior', t:'p', tag:'num', r:4, c:0, max:2, req:['s8'], d:r=>`Cuando matas a un enemigo que se quema, te curas un ${2*r} % y ganas ${3*r} de maná`, arch:'brasa', icon:I('piromante-s8'), impl:'tv.burnKillHeal + burnKillMana · existen' },
-    { id:'s12', n:'Pirotecnia', t:'p', tag:'mec', r:4, c:2, max:2, req:['s8','s9'], d:r=>`Cada crítico de Fuego recarga ${n1(0.5*r)} s de todas tus habilidades de Fuego`, fire:true, arch:'ignicion', icon:I('piromante-s12'), impl:'tv.critFireCdr · existe' },
-    { id:'s13', n:'Ceniza Ardiente', t:'p', tag:'num', r:4, c:4, max:2, req:['s9','s10'], d:r=>`Meteoro y Supernova hacen +${15*r} % de daño`, touch:['meteoro','m_u_supernova'], arch:'cataclismo', icon:I('piromante-s10'), impl:'mod meteoro/supernova dmg · existe' },
-    { id:'s14', n:'Impacto Sísmico', t:'p', tag:'mec', r:4, c:6, max:1, req:['s10'], d:()=>'Quien sobrevive al Meteoro queda ralentizado un 50 % 3 s; a los jefes les llena 20 de Quebranto', touch:['meteoro'], arch:'cataclismo', icon:I('piromante-s14'), impl:'mod meteoro slow + stagger · claves' },
-    { id:'s15', n:'Fénix o Escudo de Llamas', t:'c', tag:'mec', r:5, c:1, max:1, req:['s11','s12'], icon:I('piromante-s13'), opts:[
-      { k:'A', n:'Fénix', d:'Si mueres, renaces con la mitad de la vida. Una vez cada 2 min', role:'AGU', impl:'power p_fenix · existe' },
-      { k:'B', n:'Escudo de Llamas', d:'Recibes un 10 % menos de daño y quien te golpea cuerpo a cuerpo se quema', role:'AGU', impl:'power p_escudo_llamas · NUEVO' } ],
-      win:'A, donde morir cuesta caro (Hardcore, jefes Pináculo). B, contra grupos: +12–15 % de aguante siempre' },
-    { id:'s16', n:'Brasero', t:'p', tag:'mec', r:5, c:3, max:2, req:['s12','s13'], d:r=>`Con más de 50 de Calor: quemaduras +${15+10*r} % y Meteoro +${10+5*r} %`, arch:'brasa+ignicion+cataclismo', hyb:'Los tres estilos (por el Calor)', icon:I('piromante-s1'), impl:'power p_brasero · NUEVO (cond con gaugeValue)' },
-    { id:'s17', n:'Estrellas Fugaces', t:'p', tag:'mec', r:5, c:5, max:2, req:['s13','s14'], d:r=>`Supernova suelta además ${1+2*r} meteoros pequeños (40 % cada uno) en 3 s`, touch:['m_u_supernova','meteoro'], arch:'cataclismo', icon:I('piromante-s16'), impl:'power p_estrellas_fugaces · NUEVO' },
-    { id:'s18', n:'Brasa Errante', t:'p', tag:'mec', r:6, c:0, max:2, req:['s15'], d:r=>`Las quemaduras que pasan a otro enemigo no pierden daño ni tiempo, y pasan a ${r} enemigo${r > 1 ? 's' : ''} más`, arch:'brasa', icon:I('piromante-s6'), impl:'power p_brasa_errante · NUEVO' },
-    { id:'s19', n:'Ignición Rápida', t:'p', tag:'mec', r:6, c:2, max:2, req:['s15','s16'], d:r=>`Cada golpe de Fuego te da ${5+2*r} de Calor (antes 5)`, arch:'ignicion', icon:I('piromante-s5'), impl:'stat gaugeGain:calor · existe' },
-    { id:'s20', n:'Ola de Calor', t:'p', tag:'num', r:6, c:4, max:2, req:['s16','s17'], d:r=>`Todas tus explosiones y áreas de Fuego son un ${15*r} % más grandes`, fire:true, icon:I('piromante-s17'), impl:'mod @fire radius · existe' },
-    { id:'s21', n:'Estela Meteórica', t:'p', tag:'mec', r:6, c:6, max:1, req:['s17'], d:()=>'Al terminar la Estela Ígnea, tu siguiente Meteoro cae allí al instante', touch:['m_estela_ignea','meteoro'], arch:'cataclismo', icon:I('piromante-s1'), impl:'power p_estela_meteorica · NUEVO' },
-    { id:'s22', n:'Brasa Viva', t:'p', tag:'mec', r:7, c:0, max:3, req:['s18'], d:r=>`Los enemigos que se queman contagian: cada segundo, el ${10+10*r} % de su quemadura pasa a otro enemigo a 2 m`, arch:'brasa', icon:I('piromante-s11'), impl:'power p_brasa_viva · NUEVO (onTick)' },
-    { id:'s23', n:'Combustión', t:'p', tag:'mec', r:7, c:3, max:3, req:['s19'], d:r=>`Al usar Ignición Total, durante ${n1(1.5+r)} s todo tu Fuego es crítico`, touch:['bola_fuego','meteoro'], arch:'ignicion', icon:I('piromante-s9'), impl:'power p_combustion · existe (+ afterCast con prof.ignition)' },
-    { id:'s24', n:'Cráter', t:'p', tag:'mec', r:7, c:6, max:3, req:['s21'], d:r=>`El Meteoro deja un cráter 4 s: dentro, los enemigos reciben +${10+5*r} % de Fuego y tu Bola de Fuego explota dos veces`, touch:['meteoro','bola_fuego'], arch:'cataclismo', icon:I('piromante-s14'), impl:'power p_crater · NUEVO (campo)' },
-    { id:'s25', n:'Incendio Forestal', t:'f', tag:'mec', r:8, c:0, max:3, req:['s22'], d:r=>`Un enemigo aguanta hasta 5 quemaduras tuyas. Cuando muere, todas pasan a cada enemigo a 4 m${r > 1 ? `. Quemaduras +${20*(r-1)} %` : ''}`, arch:'brasa', icon:I('piromante-x1'), impl:'power p_incendio · NUEVO', final:'Brasa' },
-    { id:'s26', n:'Combustión Perpetua', t:'f', tag:'mec', r:8, c:3, max:3, req:['s23'], d:r=>`En Combustión, cada crítico da 4 de Calor; a 100, dura 3 s más y lanza una Bola gratis${r > 1 ? `. Críticos +${15*(r-1)} %` : ''}`, touch:['bola_fuego'], arch:'ignicion', icon:I('piromante-x2'), impl:'power p_perpetua · NUEVO', final:'Ignición' },
-    { id:'s27', n:'Lluvia de Fuego', t:'f', tag:'mec', r:8, c:6, max:3, req:['s24'], d:r=>`Con Ignición Total, el Meteoro cae 3 veces (100/60/60 %); si golpea a 3 o más, se recarga al instante${r > 1 ? `. Meteoro +${15*(r-1)} %` : ''}`, touch:['meteoro'], arch:'cataclismo', icon:I('piromante-x3'), impl:'power p_lluvia_fuego · NUEVO', final:'Cataclismo' },
-    { id:'s28', n:'Corazón del Sol', t:'x', tag:'mec', r:9, c:3, max:4, req:['s25','s26','s27'], d:r=>['1) Ignición Total hace estallar las quemaduras a 8 m (50 % de lo que les queda).', '2) Matar a un élite te da 25 de Calor.', '3) Ignición Total salta a 80 de Calor (antes 100).', '4) Cada 20 explosiones, Supernova se lanza sola y gratis.'].slice(0, r).join(' '), fire:true, icon:I('piromante-x1'), impl:'power p_corazon_sol (rangos) · NUEVO sobre el existente' },
-  ],
-  // ---------------------------------------------------------------- PARAGON = árboles héroe (temas de la CLASE, no de un elemento)
-  // 13 nodos y 10 puntos (Nv71–80): nunca se completa. Cada árbol lo comparten dos especializaciones.
-  hero: [
-    { id:'crono', n:'Cronomante', specs:['piromante','arcanista'], art:'ui256/menu_viajes.webp', line:'Marcas del Tiempo: el daño que haces vuelve a golpear', key:'Tu primer golpe marca al enemigo 4 s; al acabar, la marca repite el 30 % del daño que le hiciste', nodes:[
-      { id:'t0', n:'Marca del Tiempo', t:'k', tag:'mec', r:0, c:1, max:1, free:true, d:()=>'Tu primer golpe marca al enemigo 4 s. Al acabar, la Marca repite el 30 % del daño que le hiciste en ese tiempo', icon:I('clase-c12') },
-      { id:'t1', n:'Reloj de Arena', t:'p', tag:'num', r:1, c:0, max:1, req:['t0'], d:()=>'La Marca dura 6 s (antes 4 s)', icon:I('clase-c13') },
-      { id:'t2', n:'Eco Mayor o Contagio', t:'c', tag:'mec', r:1, c:1, max:1, req:['t0'], icon:I('arcanista-s1'), opts:[
-        { k:'A', n:'Eco Mayor', d:'La Marca repite el 45 % (antes 30 %)', role:'UNI' }, { k:'B', n:'Marca Contagiosa', d:'Al terminar, la Marca pasa a 2 enemigos cercanos', role:'AREA' } ], win:'A, contra jefes. B, contra grupos' },
-      { id:'t3', n:'Prisa Temporal', t:'p', tag:'mec', r:1, c:2, max:1, req:['t0'], d:()=>'Cada Marca que termina te hace lanzar un 10 % más rápido durante 3 s', icon:I('clase-c11') },
-      { id:'t4', n:'Detener o Retroceder', t:'c', tag:'mec', r:2, c:0, max:1, req:['t1','t2'], icon:I('arcanista-s9'), opts:[
-        { k:'A', n:'Detener el Tiempo', d:'Habilidad (ranura 2): paras el tiempo 3 s a 8 m; las Marcas guardan el doble. Se recarga en 75 s', role:'CTRL', act:'m_h_detener' },
-        { k:'B', n:'Retroceso', d:'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s', role:'AGU' } ], win:'A, para controlar grupos y preparar un golpe enorme (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
-      { id:'t5', n:'Segundos Robados', t:'p', tag:'num', r:2, c:1, max:1, req:['t2'], d:()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch:['m_u_supernova'], icon:I('arcanista-s3') },
-      { id:'t6', n:'Paradoja', t:'p', tag:'mec', r:2, c:2, max:1, req:['t2','t3'], d:()=>'Si el enemigo marcado muere antes de tiempo, la Marca pasa al más cercano con lo que llevaba', icon:I('arcanista-s7') },
-      { id:'t7', n:'Bucle', t:'p', tag:'mec', r:3, c:0, max:1, req:['t4','t5'], d:()=>'Cada 4.ª Marca que termina se repite una segunda vez', icon:I('arcanista-x1') },
-      { id:'t8', n:'Presagio o Memoria', t:'c', tag:'mec', r:3, c:1, max:1, req:['t5'], icon:I('arcanista-s12'), opts:[
-        { k:'A', n:'Presagio', d:'El golpe que pone la Marca ya cuenta el doble para ella', role:'UNI' }, { k:'B', n:'Memoria', d:'Al terminar una Marca, te curas el 3 % del daño que repitió', role:'AGU' } ], win:'A, contra jefes. B, para aguantar en grupos' },
-      { id:'t9', n:'Grieta Temporal', t:'p', tag:'mec', r:3, c:2, max:1, req:['t5','t6'], d:()=>'Si 3 Marcas terminan a la vez, abren una grieta 3 s que ralentiza un 30 %', icon:I('arcanista-s14') },
-      { id:'t10', n:'Aceleración', t:'p', tag:'num', r:4, c:0.5, max:1, req:['t7','t8'], d:()=>'Con 3 o más Marcas puestas, lanzas un 12 % más rápido', icon:I('clase-c11') },
-      { id:'t11', n:'Momento Exacto', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['t8','t9'], d:()=>'Tus críticos alargan la Marca 1 s (hasta 3 s más)', icon:I('clase-c4') },
-      { id:'t12', n:'Señora del Tiempo', t:'f', tag:'mec', r:5, c:1, max:1, req:['t10','t11'], d:()=>'Cada 30 s, tu siguiente principal para el reloj 5 s: las Marcas no terminan y luego repiten el 100 % de lo guardado', icon:I('arcanista-x3') },
-    ] },
-    { id:'invoca', n:'Invocadora', specs:['piromante','crionte'], art:'ui256/menu_mascota.webp', line:'Un constructo de maná pelea a tu lado con tu elemento', key:'Un Familiar dispara cada 1,5 s con el elemento de tu último hechizo', nodes:[
-      { id:'f0', n:'Familiar Arcano', t:'k', tag:'mec', r:0, c:1, max:1, free:true, d:()=>'Un Familiar de maná dispara cada 1,5 s (50 % del arma) con tu último elemento: Fuego quema, Hielo frena, Arcano da maná', icon:I('arcanista-s0') },
-      { id:'f1', n:'Vínculo', t:'p', tag:'num', r:1, c:0, max:1, req:['f0'], d:()=>'El Familiar tiene +50 % de vida y cada disparo te da 2 de maná', icon:I('clase-c6') },
-      { id:'f2', n:'Uno o Muchos', t:'c', tag:'mec', r:1, c:1, max:1, req:['f0'], icon:I('arcanista-s5'), opts:[
-        { k:'A', n:'Gran Constructo', d:'Un solo Familiar, +80 % de daño; cada 5.º disparo aturde 0,5 s', role:'UNI' }, { k:'B', n:'Enjambre', d:'Tres Familiares pequeños; cada uno hace el 40 %', role:'AREA' } ], win:'A, contra jefes. B, contra grupos (tres blancos a la vez)' },
-      { id:'f3', n:'Imitación', t:'p', tag:'mec', r:1, c:2, max:1, req:['f0'], d:()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch:['m_u_supernova'], icon:I('arcanista-s16') },
-      { id:'f4', n:'Guardián o Cazador', t:'c', tag:'mec', r:2, c:0, max:1, req:['f1','f2'], icon:I('arcanista-s8'), opts:[
-        { k:'A', n:'Guardián', d:'El Familiar se interpone: recibe el 15 % del daño que te hacen', role:'AGU' }, { k:'B', n:'Cazador', d:'El Familiar persigue al enemigo con más vida; ese enemigo recibe +10 % de daño', role:'UNI' } ], win:'A, para sobrevivir. B, contra jefes' },
-      { id:'f5', n:'Sobrecarga', t:'p', tag:'num', r:2, c:1, max:1, req:['f2'], d:()=>'Cada habilidad principal tuya acelera los disparos del Familiar un 30 % durante 3 s', icon:I('clase-c14') },
-      { id:'f6', n:'Detonar Constructo', t:'p', tag:'mec', r:2, c:2, max:1, req:['f2','f3'], d:()=>'Si el Familiar cae, estalla (200 % del arma, 4 m) y vuelve a los 5 s', icon:I('arcanista-x2') },
-      { id:'f7', n:'Aprendiz', t:'p', tag:'mec', r:3, c:0, max:1, req:['f4','f5'], d:()=>'El Familiar copia la variante de forja de tu Dardo (por ejemplo, con Saeta Ígnea sus disparos explotan)', touch:['m_dardo'], icon:I('clase-c4') },
-      { id:'f8', n:'Constructo o Fragua', t:'c', tag:'mec', r:3, c:1, max:1, req:['f5'], icon:I('clase-c15'), opts:[
-        { k:'A', n:'Llamar Constructo', d:'Habilidad (ranura 2): un Constructo grande aparece 10 s y obliga a los enemigos a 8 m a atacarlo. Se recarga en 45 s', role:'AGU', act:'m_h_constructo' },
-        { k:'B', n:'Fragua Rúnica', d:'El Familiar hace +5 % por cada habilidad distinta que usaste en 8 s (hasta +25 %)', role:'UNI' } ], win:'A, para aguantar grupos grandes (ocupa la ranura 2). B, para hacer daño sin ocupar ranura' },
-      { id:'f9', n:'Eco Elemental', t:'p', tag:'mec', r:3, c:2, max:1, req:['f5','f6'], d:()=>'Los disparos del Familiar alimentan tu mecánica: 3 de Calor (Piromante) o 1 capa de Escarcha (Crionte)', icon:I('piromante-s5') },
-      { id:'f10', n:'Constructo Templado', t:'p', tag:'num', r:4, c:0.5, max:1, req:['f7','f8'], d:()=>'El Familiar hace +20 % de daño', icon:I('clase-c1') },
-      { id:'f11', n:'Hilo de Maná', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['f8','f9'], d:()=>'Un hilo de maná te une al Familiar y daña a quien lo cruza (60 % por segundo)', icon:I('arcanista-s14') },
-      { id:'f12', n:'Legión', t:'f', tag:'mec', r:5, c:1, max:1, req:['f10','f11'], d:()=>'Cada 25 s, tu Familiar se divide en 3 durante 8 s y todos copian tu siguiente principal al 50 %', icon:I('arcanista-x3') },
-    ] },
-    { id:'escriba', n:'Escriba Rúnica', specs:['crionte','arcanista'], art:'ui/mat_runa.webp', line:'Tus hechizos escriben runas; tres juntas forman un Sello', nodes:[] },
-  ],
-};
-// BUILDS del Piromante (rangos por nodo EN ORDEN DE COMPRA; elecciones en *Ch). Nv100: clase 34 · Piromante 31 · Paragon 10 de 13.
-const BUILDS_V2 = {
-  brasa: { n:'Incendio', arch:'Brasa', hero:'invoca', heroCh:{ f2:'B', f4:'A', f8:'B' }, heroNodes:['f2','f3','f6','f5','f9','f8','f11','f12','f4','f1'],
-    cls: { c1:2, c4:3, c5:1, c8:2, c11:1, c15:1, c19:1, c22:1, c2:2, c12:2, c9:1, c16:1, c18:2, c13:2, c6:1, c10:1, c25:3, c28:3, c3:2, c7:1, c14:1 },
-    clsCh: { c5:'B', c6:'B', c9:'B', c10:'A', c11:'B', c14:'A', c15:'A', c16:'B', c22:'B' },
-    spec: { s1:3, s4:2, s5:1, s8:1, s11:2, s15:1, s18:2, s22:3, s25:3, s28:4, s2:3, s9:1, s12:2, s16:2, s3:1 },
-    specCh: { s8:'A', s9:'B', s15:'B' } },
-  cataclismo: { n:'Lluvia de Fuego', arch:'Cataclismo', hero:'crono', heroCh:{ t2:'B', t4:'B', t8:'A' }, heroNodes:['t2','t3','t6','t5','t9','t8','t11','t12','t4','t1'],
-    cls: { c2:2, c3:2, c6:1, c7:1, c10:1, c14:1, c17:1, c20:1, c24:2, c1:2, c5:1, c9:1, c12:2, c13:2, c16:1, c21:1, c23:2, c27:3, c30:3, c8:2, c4:2 },
-    clsCh: { c5:'B', c6:'B', c9:'B', c10:'A', c14:'A', c16:'B', c17:'B' },
-    spec: { s3:3, s7:2, s6:1, s10:1, s13:2, s14:1, s17:2, s21:1, s24:3, s27:3, s28:4, s2:3, s9:1, s16:2, s20:2 },
-    specCh: { s9:'B', s10:'A' } },
-  ignicion: { n:'Combustión Perpetua', arch:'Ignición', hero:'crono', heroCh:{ t2:'A', t4:'B', t8:'A' }, heroNodes:['t2','t1','t3','t5','t8','t4','t7','t10','t12','t11'],
-    cls: { c1:2, c2:2, c5:1, c6:1, c9:1, c12:2, c13:2, c16:1, c19:1, c23:2, c10:1, c17:1, c20:1, c4:1, c8:2, c15:1, c3:2, c26:3, c29:3, c24:2, c4_:2 },
-    clsCh: { c5:'A', c6:'A', c9:'B', c10:'B', c15:'B', c16:'A', c17:'A' },
-    spec: { s2:3, s5:1, s9:1, s12:2, s16:2, s19:2, s23:3, s26:3, s28:4, s1:3, s4:1, s8:1, s15:1, s3:3, s6:1 },
-    specCh: { s8:'B', s9:'A', s15:'A' } },
-  hibrido: { n:'Brasa Ardiente', arch:'Híbrido Brasa-Ignición', hero:'invoca', heroCh:{ f2:'A', f4:'A', f8:'A' }, heroNodes:['f2','f1','f4','f5','f8','f3','f7','f10','f12','f11'],
-    cls: { c1:2, c2:2, c5:1, c6:1, c9:1, c12:2, c13:2, c16:1, c19:1, c23:2, c10:1, c17:1, c20:1, c4:1, c8:2, c15:1, c3:2, c26:3, c29:3, c24:2, c7:1, c4_:1 },
-    clsCh: { c5:'A', c6:'B', c9:'B', c10:'A', c15:'A', c16:'B', c17:'B' },
-    spec: { s1:3, s2:3, s4:2, s5:1, s8:1, s9:1, s11:2, s12:2, s15:1, s16:2, s18:2, s19:2, s22:3, s23:3, s3:1, s20:2 },
-    specCh: { s8:'A', s9:'A', s15:'B' } },
-};
-// «id_» = rango extra del mismo nodo comprado más tarde (Nv85+): se normaliza al cargar.
-for (const b of Object.values(BUILDS_V2)) { const o = {}; b.clsOrder = []; for (const [k, v] of Object.entries(b.cls)) { const id = k.replace(/_$/, ''); o[id] = (o[id] || 0) + v; b.clsOrder.push([id, o[id]]); } b.cls = o; }
-// ===== Paso 2g v4 · Crionte y Arcanista (misma rejilla que el Piromante: mismas filas, columnas, rangos, requisitos y puertas) =====
-// Columna izquierda = arquetipo A · centro = B · derecha = C. Híbridos en (2,2) A+B, (2,4) B+C y (5,3) los tres.
-const CRIONTE_TREE = [
-  { id:'i0', n:'Escarcha', t:'k', tag:'mec', r:0, c:3, max:1, free:true, d:()=>'Tus golpes de Hielo ponen 1 capa de Escarcha (la Nova, 2). A 5 capas se congela 1 s; un jefe queda Aterido 4 s', frost:true, icon:I('crionte-s0'), impl:'mecánica escarcha · existe' },
-  { id:'i1', n:'Frío Penetrante', t:'p', tag:'num', r:1, c:1, max:3, req:['i0'], d:r=>`Congelado dura ${n1(1+0.2*r)} s (antes 1 s)`, arch:'glaciar', icon:I('crionte-s3'), impl:'tv.freezeDur · NUEVO (clave)' },
-  { id:'i2', n:'Filo Helado', t:'p', tag:'num', r:1, c:3, max:3, req:['i0'], d:r=>`+${5*r} % de crítico contra enemigos con 3 o más capas`, arch:'fractura', icon:I('crionte-s5'), impl:'tv.frostCrit · NUEVO (clave)' },
-  { id:'i3', n:'Viento Cortante', t:'p', tag:'num', r:1, c:5, max:3, req:['i0'], d:r=>`La Nova de Hielo se recarga en ${n1(4-0.5*r)} s (antes 4 s)`, touch:['nova_hielo'], arch:'tormenta', icon:I('crionte-s2'), impl:'mod nova_hielo cdr · existe' },
-  { id:'i4', n:'Escarcha Densa', t:'p', tag:'num', r:2, c:0, max:2, req:['i1'], d:r=>`Las capas caen cada ${2+r} s (antes cada 2 s)`, arch:'glaciar', icon:I('crionte-s4'), impl:'tuning escarcha.decayEvery · tv' },
-  { id:'i5', n:'Hielo Quebradizo', t:'p', tag:'mec', r:2, c:2, max:1, req:['i1','i2'], d:()=>'Los enemigos Congelados reciben +20 % de daño de todo', hyb:'Glaciar + Fractura', icon:I('crionte-s9'), impl:'power k_quebradizo · NUEVO (condAdd)' },
-  { id:'i6', n:'Polvo de Diamante', t:'p', tag:'mec', r:2, c:4, max:1, req:['i2','i3'], d:()=>'Al congelar a un enemigo, tu siguiente Lanza de Hielo o Nova no cuesta maná', touch:['k_lanza','nova_hielo'], hyb:'Fractura + Tormenta', icon:I('crionte-s7'), impl:'power k_polvo · NUEVO' },
-  { id:'i7', n:'Tormenta Creciente', t:'p', tag:'mec', r:2, c:6, max:2, req:['i3'], d:r=>`La Tormenta Glacial dura ${8+r} s (antes 8 s) y crece un 10 % cada segundo`, touch:['m_u_tormenta'], arch:'tormenta', icon:I('crionte-s6'), impl:'mod m_u_tormenta durS + power k_crece' },
-  { id:'i8', n:'Prisión: Amplia o Profunda', t:'c', tag:'mec', r:3, c:1, max:1, req:['i4','i5'], touch:['k_prision'], arch:'glaciar', icon:I('crionte-s0'), opts:[
-    { k:'A', n:'Prisión Amplia', d:'La Prisión de Hielo atrapa a todos a 6 m (antes 4 m)', role:'AREA', impl:'mod k_prision radius · claves' },
-    { k:'B', n:'Prisión Profunda', d:'La Prisión de Hielo atrapa a un solo enemigo 3 s y le hace +80 %', role:'UNI', impl:'power k_prision_profunda · NUEVO' } ],
-    win:'A, contra grupos: congelas a toda la manada a la vez. B, contra jefes y élites. Decide qué Glaciar juegas' },
-  { id:'i9', n:'Lanza: Larga o del Invierno', t:'c', tag:'mec', r:3, c:3, max:1, req:['i5','i6'], touch:['k_lanza'], arch:'fractura', icon:I('crionte-s10'), opts:[
-    { k:'A', n:'Lanza Larga', d:'La Lanza de Hielo llega a 18 m (antes 12 m) y ralentiza un 30 % a todos los que atraviesa', role:'AREA', impl:'mod k_lanza range + slow · claves' },
-    { k:'B', n:'Lanza del Invierno', d:'Contra Congelados o Ateridos, la Lanza hace el cuádruple (antes el triple)', role:'UNI', impl:'power k_lanza_invierno · NUEVO (condAdd)' } ],
-    win:'A, contra grupos en fila. B, contra jefes: el golpe grande de la Fractura' },
-  { id:'i10', n:'Tormenta: Viva o Fría', t:'c', tag:'mec', r:3, c:5, max:1, req:['i6','i7'], touch:['m_u_tormenta','nova_hielo'], arch:'tormenta', icon:I('crionte-s14'), opts:[
-    { k:'A', n:'Ventisca Viva', d:'Mientras dura, la Tormenta Glacial suelta una Nova de Hielo cada 2 s', role:'AREA', impl:'power k_ventisca_viva · NUEVO (onTick)' },
-    { k:'B', n:'Frío Sostenido', d:'La Tormenta hace +60 % al enemigo con más capas', role:'UNI', impl:'power k_frio_sostenido · NUEVO (condAdd)' } ],
-    win:'A, contra grupos: capas para todos. B, contra jefes. Decide qué Tormenta juegas' },
-  { id:'i11', n:'Sangre Fría', t:'p', tag:'num', r:4, c:0, max:2, req:['i8'], d:r=>`Matar a un Congelado te cura un ${2*r} % y te da ${3*r} de maná`, arch:'glaciar', icon:I('crionte-s8'), impl:'tv.frozenKillHeal · NUEVO (clave)' },
-  { id:'i12', n:'Astillas', t:'p', tag:'mec', r:4, c:2, max:2, req:['i8','i9'], d:r=>`Cada crítico de Hielo recarga ${n1(0.5*r)} s de la Lanza y de la Prisión`, touch:['k_lanza','k_prision'], arch:'fractura', icon:I('crionte-s12'), impl:'tv.critFrostCdr · NUEVO (copia de critFireCdr)' },
-  { id:'i13', n:'Frío Intenso', t:'p', tag:'num', r:4, c:4, max:2, req:['i9','i10'], d:r=>`La Tormenta Glacial y la Nova hacen +${15*r} % de daño`, touch:['m_u_tormenta','nova_hielo'], arch:'tormenta', icon:I('crionte-s11'), impl:'mod dmg · claves' },
-  { id:'i14', n:'Suelo Helado', t:'p', tag:'mec', r:4, c:6, max:1, req:['i10'], d:()=>'La Prisión de Hielo deja el suelo helado 4 s: ralentiza un 40 % y pone 1 capa por segundo', touch:['k_prision'], arch:'tormenta', icon:I('crionte-s13'), impl:'campo k_suelo · NUEVO' },
-  { id:'i15', n:'Piel o Cristal', t:'c', tag:'mec', r:5, c:1, max:1, req:['i11','i12'], icon:I('crionte-s15'), opts:[
-    { k:'A', n:'Piel de Invierno', d:'Recibes un 15 % menos de daño de enemigos con capas', role:'AGU', impl:'tv.drVsLayered · NUEVO' },
-    { k:'B', n:'Cristal Protector', d:'Congelar a un enemigo a 4 m te da un escudo del 5 % de tu vida (una vez cada 3 s)', role:'AGU', impl:'power k_cristal · NUEVO (g.shield)' } ],
-    win:'A, contra grupos que te rodean. B, contra élites que pegan fuerte' },
-  { id:'i16', n:'Invierno Profundo', t:'p', tag:'mec', r:5, c:3, max:2, req:['i12','i13'], d:r=>`Por cada enemigo Congelado a 10 m, tu Hielo hace +${5*r} % (hasta 5 enemigos)`, hyb:'Los tres estilos (por las congelaciones)', icon:I('crionte-s16'), impl:'power k_invierno · NUEVO (condAdd)' },
-  { id:'i17', n:'Remolino', t:'p', tag:'mec', r:5, c:5, max:2, req:['i13','i14'], d:r=>`Al terminar el Paso de Escarcha, sueltas una Nova de Hielo al ${50*r} %`, touch:['m_paso_escarcha','nova_hielo'], arch:'tormenta', icon:I('crionte-s17'), impl:'power k_remolino · NUEVO (afterCast)' },
-  { id:'i18', n:'Congelación en Cadena', t:'p', tag:'mec', r:6, c:0, max:2, req:['i15'], d:r=>`Cuando muere un Congelado, se congela${r > 1 ? 'n' : ''} ${r} enemigo${r > 1 ? 's' : ''} a 4 m`, arch:'glaciar', icon:I('crionte-s9'), impl:'power k_cadena · NUEVO (onKill)' },
-  { id:'i19', n:'Ruptura', t:'p', tag:'mec', r:6, c:2, max:2, req:['i15','i16'], d:r=>`La Lanza hace añicos a un Congelado: +${25*r} % de daño, le quita la congelación y le deja 3 capas`, touch:['k_lanza'], arch:'fractura', icon:I('crionte-s10'), impl:'power k_ruptura · NUEVO' },
-  { id:'i20', n:'Expansión Glacial', t:'p', tag:'num', r:6, c:4, max:2, req:['i16','i17'], d:r=>`Todas tus áreas de Hielo son un ${15*r} % más grandes`, frost:true, icon:I('crionte-s11'), impl:'mod @frost radius · claves' },
-  { id:'i21', n:'Ojo Frío', t:'p', tag:'mec', r:6, c:6, max:1, req:['i17'], d:()=>'Al acabar, la Tormenta Glacial estalla (200 %) y congela a todos los que tengan 3 o más capas', touch:['m_u_tormenta'], arch:'tormenta', icon:I('crionte-s14'), impl:'power k_ojo_frio · NUEVO' },
-  { id:'i22', n:'Glaciar', t:'p', tag:'mec', r:7, c:0, max:3, req:['i18'], d:r=>`Al congelar a un enemigo, los que están a 3 m ganan ${r} capa${r > 1 ? 's' : ''}`, arch:'glaciar', icon:I('crionte-x1'), impl:'power k_glaciar · NUEVO' },
-  { id:'i23', n:'Esquirlas', t:'p', tag:'mec', r:7, c:3, max:3, req:['i19'], d:r=>`Hacer añicos a un enemigo suelta 4 esquirlas que hacen el ${20+10*r} % a los cercanos`, touch:['k_lanza'], arch:'fractura', icon:I('crionte-s12'), impl:'power k_esquirlas · NUEVO' },
-  { id:'i24', n:'Tormenta Perpetua', t:'p', tag:'mec', r:7, c:6, max:3, req:['i21'], d:r=>`Cada enemigo que congelas dentro de la Tormenta la alarga ${n1(0.5*r)} s (hasta +6 s)`, touch:['m_u_tormenta'], arch:'tormenta', icon:I('crionte-s6'), impl:'power k_perpetua · NUEVO' },
-  { id:'i25', n:'Era Glacial', t:'f', tag:'mec', r:8, c:0, max:3, req:['i22'], d:r=>`Al congelar a un enemigo, se congelan todos los que tengan capas a 5 m (una vez cada 6 s)${r > 1 ? `. Congelado +${n1(0.5*(r-1))} s` : ''}`, arch:'glaciar', icon:I('crionte-x1'), impl:'power k_era_glacial · NUEVO', final:'Glaciar' },
-  { id:'i26', n:'Cero Absoluto', t:'f', tag:'mec', r:8, c:3, max:3, req:['i23'], d:r=>`Hacer añicos a un Congelado hace un 300 % extra y recarga la Lanza al instante${r > 1 ? `. Críticos de Hielo +${15*(r-1)} %` : ''}`, touch:['k_lanza'], arch:'fractura', icon:I('crionte-x2'), impl:'power k_cero · NUEVO', final:'Fractura' },
-  { id:'i27', n:'Invierno Eterno', t:'f', tag:'mec', r:8, c:6, max:3, req:['i24'], d:r=>`La Tormenta Glacial no se acaba mientras haya un Congelado dentro (hasta 20 s)${r > 1 ? `. Tormenta +${15*(r-1)} %` : ''}`, touch:['m_u_tormenta'], arch:'tormenta', icon:I('crionte-x3'), impl:'power k_eterno · NUEVO', final:'Tormenta' },
-  { id:'i28', n:'Corazón del Invierno', t:'x', tag:'mec', r:9, c:3, max:4, req:['i25','i26','i27'], d:r=>['1) Congelar a un jefe le llena 20 de Quebranto.', '2) Matar a un Congelado te da 10 de maná.', '3) Bastan 4 capas para congelar (antes 5).', '4) Cada 15 congelaciones, la Tormenta Glacial se lanza sola y gratis.'].slice(0, r).join(' '), frost:true, icon:I('crionte-x3'), impl:'power k_corazon_invierno (rangos) · NUEVO' },
-];
-const ARCANISTA_TREE = [
-  { id:'a0', n:'Cargas Arcanas', t:'k', tag:'mec', r:0, c:3, max:1, free:true, d:()=>'El Dardo te da 1 Carga por impacto (máx. 4; duran 6 s). El Rayo las gasta: +35 % de daño y 5 de maná por Carga', arcane:true, icon:I('arcanista-s0'), impl:'mecánica cargas · existe' },
-  { id:'a1', n:'Memoria Arcana', t:'p', tag:'num', r:1, c:1, max:3, req:['a0'], d:r=>`Las Cargas duran ${6+2*r} s (antes 6 s)`, arch:'rayo', icon:I('arcanista-s1'), impl:'tuning cargas.loseAfter · tv' },
-  { id:'a2', n:'Mente Brillante', t:'p', tag:'num', r:1, c:3, max:3, req:['a0'], d:r=>`+${5*r} % de crítico con 2 o más Cargas`, arch:'orbe', icon:I('arcanista-s2'), impl:'tv.chargeCrit · NUEVO (clave)' },
-  { id:'a3', n:'Flujo Constante', t:'p', tag:'num', r:1, c:5, max:3, req:['a0'], d:r=>`El Desgarro Arcano se recarga en ${50-5*r} s (antes 50 s)`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s3'), impl:'mod m_u_desgarro cdr · claves' },
-  { id:'a4', n:'Potencia Acumulada', t:'p', tag:'num', r:2, c:0, max:2, req:['a1'], d:r=>`Cada Carga da +${35+5*r} % al Rayo (antes +35 %)`, touch:['rayo'], arch:'rayo', icon:I('arcanista-s4'), impl:'tuning cargas.dmgPerCharge · tv' },
-  { id:'a5', n:'Rebote Cargado', t:'p', tag:'mec', r:2, c:2, max:1, req:['a1','a2'], d:()=>'Cada enemigo que toca el Orbe Arcano te da 1 Carga', touch:['a_orbe'], hyb:'Rayo + Orbe', icon:I('arcanista-s5'), impl:'power a_rebote_cargado · NUEVO (onHit)' },
-  { id:'a6', n:'Sello Cargado', t:'p', tag:'mec', r:2, c:4, max:1, req:['a2','a3'], d:()=>'Dentro de tu Sello del Archimago, el Orbe y el Desgarro te dan 1 Carga por golpe', touch:['a_sello','a_orbe','m_u_desgarro'], hyb:'Orbe + Grieta', icon:I('arcanista-s9'), impl:'power a_sello_cargado · NUEVO' },
-  { id:'a7', n:'Grieta Abierta', t:'p', tag:'mec', r:2, c:6, max:2, req:['a3'], d:r=>`Al terminar el Desgarro, la grieta queda ${1+r} s y daña un 40 % por segundo`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s7'), impl:'campo a_grieta · NUEVO' },
-  { id:'a8', n:'Rayo: Doble o Recargado', t:'c', tag:'mec', r:3, c:1, max:1, req:['a4','a5'], touch:['rayo'], arch:'rayo', icon:I('arcanista-s6'), opts:[
-    { k:'A', n:'Rayo Doble', d:'Un Rayo con 4 Cargas se lanza dos veces; la copia hace el 50 %', role:'UNI', impl:'power a_rayo_doble · NUEVO (echo del canal)' },
-    { k:'B', n:'Rayo Recargado', d:'Cada enemigo que atraviesa el Rayo te devuelve 1 Carga (hasta 2)', role:'AREA', impl:'power a_rayo_recargado · NUEVO (afterCast)' } ],
-    win:'A, contra jefes: el golpe grande sale dos veces. B, contra grupos en fila. Decide qué Rayo juegas' },
-  { id:'a9', n:'Orbe: Cargado o Atrayente', t:'c', tag:'mec', r:3, c:3, max:1, req:['a5','a6'], touch:['a_orbe'], arch:'orbe', icon:I('arcanista-s4'), opts:[
-    { k:'A', n:'Orbe Cargado', d:'El Orbe hace +20 % por cada Carga que tienes, sin gastarlas', role:'UNI', impl:'power a_orbe_cargado · NUEVO (condAdd)' },
-    { k:'B', n:'Orbe Atrayente', d:'El Orbe arrastra hacia su camino a los enemigos a 3 m', role:'AREA', impl:'power a_orbe_atrae · NUEVO (pull)' } ],
-    win:'A, contra jefes. B, contra grupos: los junta para el Rayo. Decide qué Orbe juegas' },
-  { id:'a10', n:'Desgarro: Fijo o Voraz', t:'c', tag:'mec', r:3, c:5, max:1, req:['a6','a7'], touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s14'), opts:[
-    { k:'A', n:'Desgarro Fijo', d:'Si no te mueves, el Desgarro hace +8 % cada medio segundo (hasta +48 %)', role:'UNI', impl:'power a_desgarro_fijo · NUEVO' },
-    { k:'B', n:'Desgarro Voraz', d:'Cada enemigo que toca el Desgarro te da 3 de maná, y ganas 1 Carga por segundo', role:'AREA', impl:'power a_desgarro_voraz · NUEVO' } ],
-    win:'A, contra jefes quietos. B, contra grupos: sostiene tu maná. Decide qué Grieta juegas' },
-  { id:'a11', n:'Precisión Arcana', t:'p', tag:'num', r:4, c:0, max:2, req:['a8'], d:r=>`El Rayo tiene +${10*r} % de crítico`, touch:['rayo'], arch:'rayo', icon:I('arcanista-s11'), impl:'mod rayo crit · claves' },
-  { id:'a12', n:'Inercia', t:'p', tag:'mec', r:4, c:2, max:2, req:['a8','a9'], d:r=>`Cada rebote del Orbe recarga ${n1(0.5*r)} s del Rayo`, touch:['a_orbe','rayo'], arch:'orbe', icon:I('arcanista-s12'), impl:'power a_inercia · NUEVO' },
-  { id:'a13', n:'Torrente Arcano', t:'p', tag:'num', r:4, c:4, max:2, req:['a9','a10'], d:r=>`El Desgarro Arcano y el Orbe hacen +${15*r} % de daño`, touch:['m_u_desgarro','a_orbe'], arch:'grieta', icon:I('arcanista-s13'), impl:'mod dmg · claves' },
-  { id:'a14', n:'Maná Inagotable', t:'p', tag:'mec', r:4, c:6, max:1, req:['a10'], d:()=>'Mientras canalizas el Desgarro no gastas maná y recuperas un 2 % por segundo', touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s3'), impl:'power a_mana_inagotable · NUEVO' },
-  { id:'a15', n:'Desplazamiento o Velo', t:'c', tag:'mec', r:5, c:1, max:1, req:['a11','a12'], icon:I('arcanista-s8'), opts:[
-    { k:'A', n:'Desplazamiento', d:'Un golpe de más del 20 % de tu vida te teletransporta 5 m y no te hace daño. Una vez cada 30 s', role:'AGU', impl:'power a_desplazamiento · NUEVO (onDamaged)' },
-    { k:'B', n:'Velo Arcano', d:'Con 3 o más Cargas, recibes un 12 % menos de daño', role:'AGU', impl:'tv.drCharges · NUEVO' } ],
-    win:'A, contra golpes grandes de jefe. B, siempre activo contra grupos' },
-  { id:'a16', n:'Resonancia', t:'p', tag:'mec', r:5, c:3, max:2, req:['a12','a13'], d:r=>`Con 4 Cargas, no se pierden y tienes +${6*r} % de crítico`, hyb:'Los tres estilos (por las Cargas)', icon:I('arcanista-s16'), impl:'power a_resonance · existe (rangos)' },
-  { id:'a17', n:'Sello Viviente', t:'p', tag:'mec', r:5, c:5, max:2, req:['a13','a14'], d:r=>`El Sello del Archimago dura ${8+2*r} s (antes 8 s) y te sigue`, touch:['a_sello'], arch:'grieta', icon:I('arcanista-s9'), impl:'mod a_sello durS + power a_sello_sigue' },
-  { id:'a18', n:'Carga Final', t:'p', tag:'mec', r:6, c:0, max:2, req:['a15'], d:r=>`Un Rayo con 4 Cargas te devuelve ${r} Carga${r > 1 ? 's' : ''}`, touch:['rayo'], arch:'rayo', icon:I('arcanista-s6'), impl:'power a_carga_final · NUEVO (afterCast)' },
-  { id:'a19', n:'Satélite', t:'p', tag:'mec', r:6, c:2, max:2, req:['a15','a16'], d:r=>`Cada 3.er Orbe deja un orbe pequeño girando a tu alrededor 6 s (${20*r} % por golpe)`, touch:['a_orbe'], arch:'orbe', icon:I('arcanista-s5'), impl:'power a_satelite · NUEVO' },
-  { id:'a20', n:'Agudeza', t:'p', tag:'num', r:6, c:4, max:2, req:['a16','a17'], d:r=>`Con 3 o más Cargas, lanzas un ${7*r} % más rápido`, arcane:true, icon:I('arcanista-s2'), impl:'tv.aspdCharges · NUEVO' },
-  { id:'a21', n:'Doble Grieta', t:'p', tag:'mec', r:6, c:6, max:1, req:['a17'], d:()=>'Si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %', touch:['rayo','m_u_desgarro'], arch:'grieta', icon:I('arcanista-s14'), impl:'power a_doble_grieta · NUEVO' },
-  { id:'a22', n:'Cargas Desbordadas', t:'p', tag:'mec', r:7, c:0, max:3, req:['a18'], d:r=>`Puedes guardar hasta ${4+r} Cargas (antes 4); las que pasan de 4 dan el doble al Rayo`, touch:['rayo'], arch:'rayo', icon:I('arcanista-x1'), impl:'tuning cargas.max + condAdd' },
-  { id:'a23', n:'Orbe Múltiple', t:'p', tag:'mec', r:7, c:3, max:3, req:['a19'], d:r=>`Cada 3.er Orbe sale con ${r} orbe${r > 1 ? 's' : ''} más pequeño${r > 1 ? 's' : ''} (40 % cada uno)`, touch:['a_orbe'], arch:'orbe', icon:I('arcanista-s4'), impl:'power a_orbe_multiple · NUEVO (echo)' },
-  { id:'a24', n:'Fuente de Maná', t:'p', tag:'mec', r:7, c:6, max:3, req:['a21'], d:r=>`Mientras canalizas, cada segundo te da 1 Carga y +${5*r} % de daño (hasta 3 veces)`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s13'), impl:'power a_fuente · NUEVO' },
-  { id:'a25', n:'Tormenta de Cargas', t:'f', tag:'mec', r:8, c:0, max:3, req:['a22'], d:r=>`Al gastar 4 o más Cargas, el Rayo se lanza 3 veces en 1,5 s (100/50/50 %)${r > 1 ? `. Rayo +${15*(r-1)} %` : ''}`, touch:['rayo'], arch:'rayo', icon:I('arcanista-x1'), impl:'power a_tormenta_cargas · NUEVO', final:'Rayo' },
-  { id:'a26', n:'Constelación', t:'f', tag:'mec', r:8, c:3, max:3, req:['a23'], d:r=>`Tus Orbes no desaparecen: se quedan 8 s girando a tu alrededor (hasta 3) y disparan al más cercano${r > 1 ? `. Orbe +${15*(r-1)} %` : ''}`, touch:['a_orbe'], arch:'orbe', icon:I('arcanista-x2'), impl:'power a_constelacion · NUEVO', final:'Orbe' },
-  { id:'a27', n:'Grieta Eterna', t:'f', tag:'mec', r:8, c:6, max:3, req:['a24'], d:r=>`El Desgarro dura mientras tengas maná (gasta un 3 % por segundo)${r > 1 ? `. Desgarro +${15*(r-1)} %` : ''}`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-x3'), impl:'power a_grieta_eterna · NUEVO', final:'Grieta' },
-  { id:'a28', n:'Singularidad', t:'x', tag:'mec', r:9, c:3, max:4, req:['a25','a26','a27'], d:r=>['1) Un Rayo con 4 Cargas abre una grieta 3 s en el objetivo (50 % por segundo).', '2) Matar a un élite te da 4 Cargas.', '3) Las Cargas ya no se pierden.', '4) Cada 20 Cargas gastadas, el Desgarro se lanza solo 2 s, gratis.'].slice(0, r).join(' '), arcane:true, icon:I('arcanista-x3'), impl:'power a_singularidad (rangos) · NUEVO' },
-];
-// Escriba Rúnica (Crionte · Arcanista): misma rejilla que los otros árboles héroe
-const ESCRIBA_NODES = [
-  { id:'e0', n:'Runas', t:'k', tag:'mec', r:0, c:1, max:1, free:true, d:()=>'Cada 3.er hechizo escribe una runa (8 s). Tres runas cerca forman un Sello: dentro haces +15 % y recibes −10 % de daño', icon:I('arcanista-s9') },
-  { id:'e1', n:'Tinta Duradera', t:'p', tag:'num', r:1, c:0, max:1, req:['e0'], d:()=>'Las runas duran 12 s (antes 8 s)', icon:I('clase-c13') },
-  { id:'e2', n:'Poder o Estallido', t:'c', tag:'mec', r:1, c:1, max:1, req:['e0'], icon:I('arcanista-s16'), opts:[
-    { k:'A', n:'Runa de Poder', d:'Dentro del Sello haces +25 % de daño (antes +15 %)', role:'UNI' }, { k:'B', n:'Sello Explosivo', d:'Al formarse, el Sello estalla en su área (150 % del arma)', role:'AREA' } ], win:'A, contra jefes. B, contra grupos' },
-  { id:'e3', n:'Tinta de Maná', t:'p', tag:'mec', r:1, c:2, max:1, req:['e0'], d:()=>'Pisar una runa tuya te da 5 de maná (una vez por runa)', icon:I('clase-c10') },
-  { id:'e4', n:'Palabra o Guarda', t:'c', tag:'mec', r:2, c:0, max:1, req:['e1','e2'], icon:I('arcanista-s8'), opts:[
-    { k:'A', n:'Palabra de Poder', d:'Habilidad (ranura 2): escribes al instante 3 runas a tu alrededor. Se recarga en 40 s', role:'UNI', act:'m_h_palabra' },
-    { k:'B', n:'Runa Guardiana', d:'Dentro del Sello recibes −20 % de daño (antes −10 %)', role:'AGU' } ], win:'A, para tener el Sello donde y cuando quieres (ocupa la ranura 2). B, para aguantar sin ocupar ranura' },
-  { id:'e5', n:'Caligrafía Rápida', t:'p', tag:'num', r:2, c:1, max:1, req:['e2'], d:()=>'Escribes una runa cada 2 hechizos (antes cada 3)', icon:I('clase-c11') },
-  { id:'e6', n:'Tinta Elemental', t:'p', tag:'mec', r:2, c:2, max:1, req:['e2','e3'], d:()=>'Las runas toman el elemento del hechizo: Hielo ralentiza 30 %, Arcano da 1 Carga, Fuego quema', icon:I('crionte-s5') },
-  { id:'e7', n:'Inspiración', t:'p', tag:'mec', r:3, c:0, max:1, req:['e4','e5'], d:()=>'Al formarse un Sello, todos tus enfriamientos bajan 2 s', icon:I('clase-c14') },
-  { id:'e8', n:'Glosa o Círculo', t:'c', tag:'mec', r:3, c:1, max:1, req:['e5'], icon:I('arcanista-s12'), opts:[
-    { k:'A', n:'Glosa', d:'Los enemigos dentro del Sello reciben +10 % de daño', role:'UNI' }, { k:'B', n:'Círculo Protector', d:'Tú y tus aliados dentro del Sello recuperáis un 1 % de vida por segundo', role:'AGU' } ], win:'A, para hacer daño. B, para aguantar y para el grupo' },
-  { id:'e9', n:'Doble Sello', t:'p', tag:'mec', r:3, c:2, max:1, req:['e5','e6'], d:()=>'Puedes tener 2 Sellos a la vez', icon:I('arcanista-x1') },
-  { id:'e10', n:'Concentración', t:'p', tag:'num', r:4, c:0.5, max:1, req:['e7','e8'], d:()=>'Dentro del Sello lanzas un 10 % más rápido', icon:I('clase-c11') },
-  { id:'e11', n:'Palimpsesto', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['e8','e9'], d:()=>'Al acabar, el Sello deja 3 runas nuevas: si sigues ahí, vuelve a formarse', icon:I('arcanista-s7') },
-  { id:'e12', n:'Gran Grimorio', t:'f', tag:'mec', r:5, c:1, max:1, req:['e10','e11'], d:()=>'Cada 30 s, tu siguiente Sello es un Grimorio 10 s: dentro, cada hechizo se lanza dos veces (la copia al 40 %)', icon:I('arcanista-x3') },
-];
+// ===== Paso 2g · talentos v2 de la clase ACTIVA: árboles, builds y kit vienen de data/talents-v2-<clase>.js (useClass) =====
+// Nodo: { id, n, t: p|c|k|f|x, tag: 'num'|'mec', r, c, max, req[], d(r), opts:[{k,n,d,role,act,touch,icon,impl}], win, touch, hyb, final, arch, icon, impl }
+let TALENTS_V2 = null, BUILDS_V2 = {}, SPEC_DEFAULT_BUILD = {}, SPEC_HERO = {}, ELEM_GROUPS = {}, CUR_CLS = null;
 
-// especializaciones: árbol por id y builds del Crionte y del Arcanista. Las tres comparten rejilla (mismas filas,
-// columnas, rangos, requisitos y puertas), así que una build legal en un árbol lo es en los otros con sus ids.
-// En cada build: .sp = especialización · .spec = rangos del árbol de especialización · .cls/.clsOrder = clase.
-TALENTS_V2.specs = { piromante: TALENTS_V2.spec, crionte: CRIONTE_TREE, arcanista: ARCANISTA_TREE };
-{ const esc = TALENTS_V2.hero.find(h => h.id === 'escriba'); esc.nodes = ESCRIBA_NODES; delete esc.sketch;
-  Object.assign(esc, { key:'Cada 3.er hechizo escribe una runa; tres runas cerca forman un Sello que te potencia', art:'ui256/menu_codice.webp' }); }
-for (const k of ['brasa', 'cataclismo', 'ignicion', 'hibrido']) BUILDS_V2[k].sp = 'piromante';
-{
-  const P = BUILDS_V2, re = (o, pre) => Object.fromEntries(Object.entries(o).map(([k, v]) => [pre + k.slice(1), v]));
-  const mk = (sp, from, pre, n, arch, specCh, cls, hero, heroCh, heroNodes) => ({ sp, n, arch, hero, heroCh, heroNodes,
-    cls: { ...P[cls].cls }, clsOrder: P[cls].clsOrder.map(x => [...x]), clsCh: { ...P[cls].clsCh }, spec: re(P[from].spec, pre), specCh });
-  Object.assign(P, {
-    glaciar:  mk('crionte', 'brasa', 'i', 'Era Glacial', 'Glaciar', { i8:'A', i9:'A', i15:'A' }, 'brasa', 'escriba', { e2:'B', e4:'B', e8:'B' }, ['e2','e3','e6','e5','e9','e8','e11','e12','e4','e1']),
-    tormenta: mk('crionte', 'cataclismo', 'i', 'Invierno Eterno', 'Tormenta', { i9:'A', i10:'A' }, 'cataclismo', 'invoca', { f2:'B', f4:'A', f8:'B' }, ['f2','f3','f6','f5','f9','f8','f11','f12','f4','f1']),
-    fractura: mk('crionte', 'ignicion', 'i', 'Cero Absoluto', 'Fractura', { i8:'B', i9:'B', i15:'B' }, 'ignicion', 'escriba', { e2:'A', e4:'B', e8:'A' }, ['e2','e1','e3','e5','e8','e4','e7','e10','e12','e11']),
-    hibcrio:  mk('crionte', 'hibrido', 'i', 'Escarcha Quebradiza', 'Híbrido Glaciar-Fractura', { i8:'A', i9:'B', i15:'A' }, 'hibrido', 'invoca', { f2:'A', f4:'B', f8:'B' }, ['f2','f1','f4','f5','f8','f3','f7','f10','f12','f11']),
-    rayo:     mk('arcanista', 'brasa', 'a', 'Tormenta de Cargas', 'Rayo', { a8:'A', a9:'A', a15:'B' }, 'ignicion', 'crono', { t2:'A', t4:'B', t8:'A' }, ['t2','t1','t3','t5','t8','t4','t7','t10','t12','t11']),
-    orbe:     mk('arcanista', 'ignicion', 'a', 'Constelación', 'Orbe', { a8:'B', a9:'B', a15:'A' }, 'cataclismo', 'escriba', { e2:'B', e4:'B', e8:'A' }, ['e2','e3','e6','e5','e9','e8','e11','e12','e4','e1']),
-    grieta:   mk('arcanista', 'cataclismo', 'a', 'Grieta Eterna', 'Grieta', { a9:'A', a10:'A' }, 'brasa', 'crono', { t2:'A', t4:'A', t8:'A' }, ['t2','t3','t6','t5','t9','t8','t11','t12','t4','t1']),
-    hibarca:  mk('arcanista', 'hibrido', 'a', 'Rayo Orbital', 'Híbrido Rayo-Orbe', { a8:'A', a9:'B', a15:'B' }, 'hibrido', 'escriba', { e2:'A', e4:'B', e8:'A' }, ['e2','e1','e3','e5','e8','e4','e7','e10','e12','e11']),
-  });
-}
-const SPEC_DEFAULT_BUILD = { piromante:'brasa', crionte:'glaciar', arcanista:'rayo' };
-const SPEC_HERO = { piromante:['crono', 'invoca'], crionte:['invoca', 'escriba'], arcanista:['crono', 'escriba'] };
-
-// Ritmo de puntos por nivel (nivel máximo 100)
-const T3_CLS_LATE = [85, 90, 95, 100];
-function t3earnedAt(w, L) {
-  if (w === 'spec') return L < 10 ? 0 : Math.min(31, Math.floor((Math.min(L, 70) - 10) / 2) + 1);
-  if (w === 'cls') return (L < 11 ? 0 : Math.floor((Math.min(L, 69) - 11) / 2) + 1) + T3_CLS_LATE.filter(x => x <= L).length;
-  if (w === 'hero') return Math.max(0, Math.min(10, L - 70));
-  if (w === 'board') { let n = 0; for (let l = 81; l <= L; l++) if (!T3_CLS_LATE.includes(l)) n++; return n; }
-  return 0;
-}
+// Ritmo de puntos por nivel (nivel máximo 100): data/talents-v2-comun.js (TV2.earnedAt)
+const t3earnedAt = TV2.earnedAt;
 
 
 // ---------- TALENTOS de la Maga · v2 estilo WoW (docs/paso2g-maga-coherencia.md v2) ----------
 // Tres columnas: árbol de CLASE (31 puntos, Nv10–40) · PARAGON / árbol héroe (13, Nv41–53) · PIROMANTE (31, Nv10–40).
 // Datos: TALENTS_V2 / BUILDS_V2 (bloque de arriba, fuente única con las tablas del doc).
-const TV = TALENTS_V2;
+let TV = null; // = TALENTS_V2 de la clase activa: { pts, gates (comunes), cls, specs, hero }
 const KIND3 = { p:'Pasiva', c:'Elección A/B', k:'Nodo clave (pasiva)', f:'FINAL de rama (pasiva)', x:'Ápice (pasiva)' };
 const ROLE3 = { UNI:'Un objetivo', AREA:'Área', CTRL:'Control', AGU:'Aguante' };
-const ELEM_IDS = { fire:['m_dardo', 'bola_fuego', 'p_llamarada', 'm_estela_ignea', 'meteoro', 'm_u_supernova'], frost:['m_dardo', 'nova_hielo', 'k_prision', 'm_paso_escarcha', 'k_lanza', 'm_u_tormenta'], arcane:['m_dardo', 'rayo', 'a_orbe', 'a_sello', 'm_u_desgarro'] };
 let T2 = { cls:{}, spec:{}, hero:{}, ch:{}, heroTree:'sol' };
-const T2V = { undo:[], loadout:'brasa', hl:null, chooser:false, gz:null, saved:[] };
-const HERO_AT = 71; // primer punto de Paragon (además exige la especialización al máximo)
-const SPEC_LAST = 70; // nivel del último punto de especialización
-const heroTreesOf = () => SPEC_HERO[MSPEC].map(id => TV.hero.find(h => h.id === id));
-const heroTreeOf = id => TV.hero.find(h => h.id === (id || (SPEC_HERO[MSPEC].includes(T2.heroTree) ? T2.heroTree : SPEC_HERO[MSPEC][0])));
-const t3nodes = w => w === 'hero' ? heroTreeOf().nodes : w === 'spec' ? TV.specs[MSPEC] : TV[w];
+const T2V = { undo:[], loadout:null, hl:null, chooser:false, gz:null, saved:[] };
+const HERO_AT = TV2.REGLAS.heroAt; // primer punto de Paragon (además exige la especialización al máximo)
+const SPEC_LAST = TV2.REGLAS.specLast; // nivel del último punto de especialización
+// activa los datos v2 de una clase (data/talents-v2-<clase>.js): kit, especializaciones, árboles y builds
+function useClass(cls) {
+  const C = V2[cls]; CUR_CLS = cls;
+  M_SPECS = C.specs || {}; SPEC_IDS = C.specOrder || Object.keys(M_SPECS); SPEC_BAR = C.specBar || {}; MECH_TXT = C.mech || {}; SPEC_INNATE_TXT = C.innate || {};
+  TALENTS_V2 = TV = { pts: TV2.REGLAS.pts, gates: TV2.REGLAS.gates, cls: C.tree?.cls || [], specs: C.tree?.spec || {}, hero: C.tree?.hero || [] };
+  BUILDS_V2 = C.builds || {}; Object.values(BUILDS_V2).forEach(TV2.normBuild);
+  SPEC_DEFAULT_BUILD = C.defaultBuild || {}; SPEC_HERO = TV2.specHeroDe(C); ELEM_GROUPS = C.groups || {};
+  CLASS_META[cls] = { ...(CLASS_META[cls] || { lvl: 18, talent: [] }), ...(C.name ? { name: C.name } : {}), ...(C.res ? { res: C.res } : {}), ...(C.resIcon ? { resIcon: C.resIcon } : {}) };
+  MSPEC = SPEC_IDS.includes(Q.get('spec')) ? Q.get('spec') : C.defaultSpec || SPEC_IDS[0] || null;
+  T2 = { cls:{}, spec:{}, hero:{}, ch:{}, heroTree:'sol' };
+  Object.assign(T2V, { undo: [], loadout: SPEC_DEFAULT_BUILD[MSPEC] || null, chooser: false, specCache: undefined });
+  try { T2V.saved = JSON.parse(localStorage.getItem(loKey(cls)) || '[]'); } catch { T2V.saved = []; }
+}
+for (const C of Object.values(V2)) Object.assign(RECO, C.reco || {}); // variantes recomendadas (ids de especialización únicos entre clases)
+const NO_HERO = { id:'', n:'', nodes:[], art:'', key:'', line:'', specs:[] }; // clase sin árboles héroe todavía
+const heroIds = () => SPEC_HERO[MSPEC] || [];
+const heroTreesOf = () => heroIds().map(id => TV.hero.find(h => h.id === id)).filter(Boolean);
+const heroTreeOf = id => TV.hero.find(h => h.id === (id || (heroIds().includes(T2.heroTree) ? T2.heroTree : heroIds()[0]))) || NO_HERO;
+const t3nodes = w => (w === 'hero' ? heroTreeOf().nodes : w === 'spec' ? TV.specs[MSPEC] : TV[w]) || [];
+// icono de un nodo: el suyo o, si no trae, talents/<clase>-<clase|spec|héroe>-<id>.webp (sin imagen se ve un marcador con el id)
+const nodeIcon = (w, n) => n.icon || TV2.iconoNodo(S.cls, w === 'cls' ? 'clase' : w === 'spec' ? MSPEC : heroTreeOf().id, n.id);
 const t3node = (w, id) => t3nodes(w).find(n => n.id === id);
 const t3rank = (w, n) => n.free ? ((w === 'hero' ? heroOpen() : curSpec()) ? 1 : 0) : (T2[w][n.id] || 0);
 const t3earned = w => t3earnedAt(w, S.lvl);
 // el Paragon se abre cuando ya ganaste TODOS los puntos de especialización y los gastaste todos
 const heroOpen = () => t3earned('spec') >= TV.pts.spec && t3spentSpec() >= TV.pts.spec;
-const t3spentSpec = () => TV.specs[MSPEC].reduce((a, n) => a + (n.free ? 0 : (T2.spec[n.id] || 0)), 0);
+const t3spentSpec = () => (TV.specs[MSPEC] || []).reduce((a, n) => a + (n.free ? 0 : (T2.spec[n.id] || 0)), 0);
 const t3spent = (w, below = 99) => t3nodes(w).reduce((a, n) => a + (n.free || n.r >= below ? 0 : (T2[w][n.id] || 0)), 0);
 const t3left = w => w === 'hero' && !heroOpen() ? 0 : t3earned(w) - t3spent(w);
 const t3gates = w => TV.gates[w] || [];
@@ -1926,8 +1570,8 @@ function t3gate(w, n) {
 }
 function t3req(w, n) {
   if (!n.req?.length) return null;
-  if (n.req.some(id => { const p = t3node(w, id); return p.free || (T2[w][id] || 0) >= p.max; })) return null;
-  return 'Requiere ' + n.req.map(id => t3node(w, id).n).join(' o ') + ' al máximo';
+  if (n.req.some(id => { const p = t3node(w, id); return p && (p.free || (T2[w][id] || 0) >= p.max); })) return null;
+  return 'Requiere ' + n.req.map(id => t3node(w, id)?.n || id).join(' o ') + ' al máximo';
 }
 function t3state(w, n) {
   const r = t3rank(w, n), blk = n.free ? null : (t3gate(w, n) || t3req(w, n));
@@ -1943,53 +1587,55 @@ function t2applyPreset(key = null) {
   T2 = { cls:{}, spec:{}, hero:{}, ch:{ ...b.clsCh, ...b.specCh, ...b.heroCh }, heroTree: b.hero };
   for (const w of ['cls', 'spec']) {
     if (w === 'spec' && !curSpec()) continue;
-    const order = w === 'cls' ? b.clsOrder : Object.entries(b.spec);
+    const order = w === 'cls' ? b.clsOrder || [] : Object.entries(b.spec || {});
     while (t3left(w) > 0) {
       const hit = order.find(([id, t]) => { if ((T2[w][id] || 0) >= t) return false; T2[w][id] = (T2[w][id] || 0) + 1; const ok = t3valid(w); if (--T2[w][id] <= 0) delete T2[w][id]; return ok; });
       if (!hit) break; T2[w][hit[0]] = (T2[w][hit[0]] || 0) + 1;
     }
   }
-  if (heroOpen()) for (const id of b.heroNodes) { if (t3left('hero') <= 0) break; const n = t3node('hero', id); if (!t3req('hero', n)) T2.hero[id] = 1; }
+  if (heroOpen()) for (const id of b.heroNodes || []) { if (t3left('hero') <= 0) break; const n = t3node('hero', id); if (n && !t3req('hero', n)) T2.hero[id] = 1; }
   T2V.loadout = key;
 }
 function touchesOf(n, k = null) {
   const ids = new Set([...(n.touch || [])]);
   for (const o of n.opts || []) if (!k || o.k === k) { for (const t of o.touch || []) ids.add(t); if (o.act) ids.add(o.act); }
-  for (const e of ['fire', 'frost', 'arcane']) if (n[e]) ELEM_IDS[e].forEach(id => ids.add(id));
+  for (const [e, gd] of Object.entries(ELEM_GROUPS)) if (n[e]) (gd.ids || []).forEach(id => ids.add(id)); // «todo tu Fuego»… (groups de la clase)
   return [...ids].filter(id => find(id));
 }
 function t2nodesFor(skillId) { // para el tooltip del libro: talentos que tocan la habilidad
   const out = [];
   for (const w of ['cls', 'spec', 'hero']) { if (w !== 'cls' && !curSpec()) continue;
-    for (const n of t3nodes(w)) if (touchesOf(n).includes(skillId)) out.push({ n: { ...n, name: n.n, icon: n.icon }, w, r: t3rank(w, n) }); }
+    for (const n of t3nodes(w)) if (touchesOf(n).includes(skillId)) out.push({ n: { ...n, name: n.n, icon: nodeIcon(w, n) }, w, r: t3rank(w, n) }); }
   return out;
 }
 // activas que concede el árbol de CLASE como opción de un nodo de elección (van a la ranura 2)
-const t3granted = id => TV.cls.some(n => (n.opts || []).some(o => o.act === id && T2.ch[n.id] === o.k && (T2.cls[n.id] || 0) > 0))
+const t3granted = id => (TV.cls || []).some(n => (n.opts || []).some(o => o.act === id && T2.ch[n.id] === o.k && (T2.cls[n.id] || 0) > 0))
   || (heroOpen() && heroTreeOf().nodes.some(n => (n.opts || []).some(o => o.act === id && T2.ch[n.id] === o.k && (T2.hero[n.id] || 0) > 0)));
 
 // ---------------------------------------------------------------- vista
 function openTV2() { hideTip(); S.view = 'talents'; $('#P').style.display = 'none'; $('#toast').hidden = true; $('#TV2').style.display = ''; renderTV2(); }
 function closeTV2() { try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null; $('#TV2').style.display = 'none'; }
-const artOf = w => w === 'spec' ? `${A}specs/${MSPEC}.webp` : w === 'hero' ? `${A}${heroTreeOf().art}` : `${A}specs/arcanista.webp`;
+const artOf = w => w === 'spec' ? `${A}specs/${MSPEC}.webp` : w === 'hero' ? `${A}${heroTreeOf().art}` : `${A}${V2C().clsArt}`;
 function colHead(w) {
   const sp = curSpec(), ht = heroTreeOf();
-  const name = w === 'cls' ? 'Maga' : w === 'spec' ? (sp?.name || 'Especialización') : 'Paragon';
+  const name = w === 'cls' ? V2C().name : w === 'spec' ? (sp?.name || 'Especialización') : 'Paragon';
   const req = w === 'hero' ? 'especialización al máximo' : w === 'spec' ? 10 : 11;
-  const emb = w === 'spec' ? `<img class="emb" src="${A}emblems/${MSPEC}.webp" alt="">` : w === 'hero' ? `<span class="hring" style="background-image:url('${A}${ht.art}')"></span>` : `<img class="emb" src="${A}ui/res_mana.webp" alt="">`;
+  const emb = w === 'spec' ? `<img class="emb" src="${A}emblems/${MSPEC}.webp" alt="">` : w === 'hero' ? `<span class="hring" style="background-image:url('${A}${ht.art}')"></span>` : `<img class="emb" src="${A}${V2C().emblem}" alt="">`;
   const left = t3left(w);
   return `<header class="t3h">${emb}<div><h3>${name}${w === 'hero' ? ` <small>· ${ht.n}</small>` : ''}</h3><div class="t3m"><span>Gastados <b>${t3spent(w)}</b> / ${TV.pts[w]}</span>${left > 0 ? `<span class="lf">${left} libre${left > 1 ? 's' : ''}</span>` : ''}${w === 'hero' ? (heroOpen() ? (S.lvl < HERO_AT ? `<span class="rq">1.er punto al Nv${HERO_AT}</span>` : '') : `<span class="rq">Espec. ${t3spentSpec()}/${TV.pts.spec}</span>`) : `<span class="rq">Nv req. ${req}</span>`}${w === 'hero' && t3earned('board') ? `<span class="rq">Tablero ${t3earned('board')}/16</span>` : ''}</div></div></header>`;
 }
 function renderTV2() {
   const el = $('#TV2'), sp = curSpec();
   try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null;
+  if (!isV2()) return renderTV2Pending(el); // la clase aún no tiene data/talents-v2-<clase>.js
   const opts = Object.entries(BUILDS_V2).filter(([k, b]) => b.sp === MSPEC).map(([k, b]) => `<option value="${k}"${T2V.loadout === k ? ' selected' : ''}>${b.arch} · ${b.n}</option>`).join('') +
     T2V.saved.map((s, i) => `<option value="saved:${i}"${T2V.loadout === 'saved:' + i ? ' selected' : ''}>★ ${s.n}</option>`).join('') +
-    (T2V.loadout === 'custom' ? '<option value="custom" selected>Personalizada (sin guardar)</option>' : '');
+    (T2V.loadout === 'custom' ? '<option value="custom" selected>Personalizada (sin guardar)</option>' : '') ||
+    '<option value="" selected disabled>Sin builds todavía</option>';
   const head = `<div class="p-head"><div class="emb" style="background-image:url('${A}${sp ? `emblems/${sp.id}.webp` : 'ui256/menu_talentos.webp'}')"></div>` +
-    `<div><h2>Talentos · Maga${sp ? ' ' + sp.name : ''}</h2><div class="sub">Nivel <b>${S.lvl}</b> · ${sp ? 'gratis fuera de combate · se aplica al instante' : 'se abren al nivel 10'}</div></div><div class="sp"></div>` +
+    `<div><h2>Talentos · ${V2C().name}${sp ? ' ' + sp.name : ''}</h2><div class="sub">Nivel <b>${S.lvl}</b> · ${sp ? 'gratis fuera de combate · se aplica al instante' : 'se abren al nivel 10'}</div></div><div class="sp"></div>` +
     `<button class="hbtn" data-a="book"><img src="${A}ui/menu_habilidades.webp" alt="">Habilidades <kbd>T</kbd></button>` +
-    (sp ? `<button class="hbtn${T2V.chooser ? ' on' : ''}" data-a="spec" title="Cambiar de especialización (gratis fuera de combate)"><img src="${A}emblems/${sp.id}.webp" alt="">${T2V.chooser ? 'Volver' : 'Cambiar'}</button>` : '') +
+    (sp ? `<button class="hbtn${T2V.chooser ? ' on' : ''}" data-a="spec" title="Cambiar de especialización (gratis fuera de combate) o de clase (fila «Clase» del selector)"><img src="${A}emblems/${sp.id}.webp" alt="">${T2V.chooser ? 'Volver' : 'Cambiar'}</button>` : '') +
     (sp ? `<label class="t3lo"><span>Configuración</span><select data-a="loadout">${opts}</select></label>` +
       `<button class="hbtn" data-a="save" title="Guardar como configuración">Guardar</button><button class="hbtn" data-a="code">Código</button>` +
       `<button class="hbtn" data-a="reco" title="Aplica la build recomendada de la configuración elegida">Recomendado</button>` +
@@ -2002,30 +1648,88 @@ function renderTV2() {
     `<section class="t3col spec"><div class="t3art" style="background-image:url('${artOf('spec')}')"></div>${colHead('spec')}<div class="t3can" data-w="spec"></div></section></div>`;
   const kit = skills().filter(sk => known(sk) && !sk.sketch);
   const foot = !sp ? `<div class="t2foot"><span>Cada especialización trae <b style="color:var(--ink)">su kit al libro</b>, su mecánica y su árbol</span><span class="keys"><kbd>T</kbd> habilidades</span></div>` :
-    `<div class="t3foot"><span class="kl">Tu kit</span><span class="kit3">${kit.map(sk => `<span class="skl" data-sk="${sk.id}" style="background-image:url('${iconUrl(sk)}')"></span>`).join('')}</span>` +
+    `<div class="t3foot"><span class="kl">Tu kit</span><span class="kit3${kit.length > 12 ? ' many' : ''}">${kit.map(sk => `<span class="skl" data-sk="${sk.id}" style="background-image:url('${iconUrl(sk)}')"></span>`).join('')}</span>` +
     `<span class="sep"></span><span class="lgd"><i class="lg p"></i>Pasiva <i class="lg a"></i>Activa <i class="lg c"></i>Elección A/B <i class="lg f"></i>Final <i class="lg x"></i>Ápice <i class="tg mec">M</i>mecánica <i class="tg num">N</i>número</span>` +
     `<span class="keys">Clic +1 · Clic der. −1 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Alt</kbd> detalle</span></div>`;
   el.innerHTML = head + body + foot + '<div class="t3pop" id="t3pop" hidden></div>';
+  fitHead(el); // antes de dibujar los árboles: el ancho de las columnas depende de la cabecera
   if (sp && !T2V.chooser) { drawTree3('cls'); drawTree3('spec'); drawHero(); if (T2V.hl) t3hl(T2V.hl); }
-  wireTV3(el);
+  wireTV3(el); probeArt(el);
+}
+// nombres largos (p. ej. «Arquera Tiradora Veloz»): si la cabecera no cabe en el panel, título más pequeño (si cabe, no cambia nada)
+function fitHead(el) { const h = el.querySelector('.p-head'); if (h && (h.scrollWidth > h.clientWidth + 1 || el.scrollWidth > el.clientWidth + 1)) h.classList.add('tight'); }
+// clase sin archivo de datos v2: estado vacío «En diseño» con el selector de clase
+function renderTV2Pending(el) {
+  const R = TV2.CLASES[S.cls] || { name: CLASS_META[S.cls]?.name || S.cls, icon: 'ui256/menu_talentos.webp', specs: [], specNames: {}, roles: {} };
+  const G = TV2.REJILLA, rk = g => g.reduce((s, n) => s + (n.t === 'k' ? 0 : n.max), 0);
+  el.innerHTML = `<div class="p-head"><div class="emb" style="background-image:url('${A}ui256/menu_talentos.webp')"></div>` +
+    `<div><h2>Talentos · ${R.name}</h2><div class="sub">Nivel <b>${S.lvl}</b> · en diseño: aún no hay datos de talentos v2</div></div><div class="sp"></div>` +
+    `<button class="hbtn" data-a="book"><img src="${A}ui/menu_habilidades.webp" alt="">Habilidades <kbd>T</kbd></button>` +
+    `<button class="hbtn x" data-a="book" title="Cerrar (N / Esc)">✕</button></div>` +
+    `<div class="t2choose wcls">${classStrip()}<article class="t2wip"><div class="wart">${R.specs.map(id => `<i style="background-image:url('${A}specs/${id}.webp')"></i>`).join('')}</div>` +
+    `<div class="wbody"><span class="wtag">EN DISEÑO</span><h3><img src="${A}${R.icon}" alt="">${R.name}</h3>` +
+    `<p>Sus talentos v2 (clase · Paragon · especialización) todavía no tienen archivo de datos. Cuando exista <code>docs/mockups/data/talents-v2-${S.cls}.js</code>, este panel los muestra con el mismo motor que la Maga.</p>` +
+    `<div class="wspecs">${R.specs.map(id => `<div class="wsp"><img src="${A}emblems/${id}.webp" alt=""><div><b>${R.specNames[id] || id}</b><small>${R.roles?.[id] || ''} · árbol de ${G.spec.length} nodos</small></div></div>`).join('')}</div>` +
+    `<small class="wnote">Rejillas obligatorias: clase ${G.cls.length} nodos · ${rk(G.cls)} rangos · especialización ${G.spec.length} · ${rk(G.spec)} · héroe ${G.hero.length}. Contrato: <code>data/README-talents-v2.md</code> · validador: <code>node data/validar-talentos.mjs ${S.cls}</code></small></div></article></div>` +
+    `<div class="t2foot"><span>Cada clase carga su archivo <b style="color:var(--ink)">data/talents-v2-&lt;clase&gt;.js</b>; las reglas comunes están en <b style="color:var(--ink)">talents-v2-comun.js</b></span><span class="keys"><kbd>T</kbd> habilidades</span></div>` +
+    '<div class="t3pop" id="t3pop" hidden></div>';
+  wireTV3(el); probeArt(el); fitHead(el);
+}
+// selector de clase (mismo estilo que «Cambiar»): fila superior del selector de especialización y del estado «En diseño»
+function classStrip() {
+  return `<div class="t2cls"><span class="lb">Clase</span>${CLS_IDS.map(id => { const R = TV2.CLASES[id], C = V2[id], cur = id === S.cls;
+    const est = !C ? 'sin datos' : C.estado === 'aprobado' ? '' : C.estado === 'esqueleto' ? 'esqueleto' : 'en diseño';
+    return `<button class="hbtn${cur ? ' cur' : ''}" data-cls="${id}" title="${cur ? 'Clase actual' : `Ver los talentos de ${C?.name || R.name}`}"><img src="${A}${C?.emblem || R.icon}" alt="">${C?.name || R.name}${est ? `<small>${est}</small>` : ''}</button>`; }).join('')}` +
+    `<span class="hint">Mockup: cada clase carga <code>data/talents-v2-&lt;clase&gt;.js</code></span></div>`;
+}
+// cambia de clase (selector de clase o desplegable de la barra de control): datos, libro y talentos de la nueva clase
+function switchClass(cls) {
+  if (!CLS_IDS.includes(cls)) return;
+  const v = S.view; $('#cCls').value = cls; hideTip(); closeTV2(); TPN?.close(); $('#P').style.display = ''; T2V.chooser = false;
+  reset(cls); snapSpec(); all(); welcomeToast();
+  if (v === 'talents') { S.view = 'book'; openTalents(); TPN?.render(); }
+}
+// rejilla fantasma: árbol todavía vacío en el archivo de la clase (se ve la rejilla obligatoria de data/talents-v2-comun.js)
+function ghostHTML(w, can) {
+  const G = TV2.REJILLA[w], L = layout(w, can, G), by = q => G.find(x => x.n === q);
+  let svg = `<svg viewBox="0 0 ${L.Wd} ${L.H}">`;
+  for (const n of G) for (const q of n.req) { const p = by(q), x1 = L.X(p.c), y1 = L.Y(p.r), x2 = L.X(n.c), y2 = L.Y(n.r), k = 26 / Math.hypot(x2 - x1, y2 - y1);
+    svg += `<line class="ghost" x1="${x1 + (x2 - x1) * k}" y1="${y1 + (y2 - y1) * k}" x2="${x2 - (x2 - x1) * k}" y2="${y2 - (y2 - y1) * k}"/>`; }
+  const shape = t => t === 'c' ? '<polygon points="11,2 33,2 43,22 33,42 11,42 1,22"/>' : t === 'x' ? '<polygon points="22,3 41,22 22,41 3,22"/>' : '<circle cx="22" cy="22" r="19"/>';
+  return svg + '</svg>' + G.map(n => `<div class="gn3 t-${n.t}" style="left:${L.X(n.c)}px;top:${L.Y(n.r)}px"><svg viewBox="0 0 44 44">${shape(n.t)}</svg>${n.t === 'k' ? '' : `<span class="rk">0/${n.max}</span>`}</div>`).join('') +
+    `<div class="gwip"><b>En diseño</b><span>${G.length} nodos · ${G.reduce((s, n) => s + (n.t === 'k' ? 0 : n.max), 0)} rangos${w === 'hero' ? ' · 1 clave gratis' : ''}</span><small>rejilla obligatoria · data/talents-v2-comun.js</small></div>`;
+}
+// marcador de icono: si la imagen no existe (p. ej. un nodo nuevo sin arte de Codex), se ve el id en su lugar
+const ART = new Map(); // url → true (carga) | false (falta) | null (comprobando)
+function probeArt(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-art]').forEach(el => {
+    const u = el.dataset.art, st = ART.get(u);
+    if (st === false) { el.classList.add('noart'); return; }
+    if (st !== undefined) return;
+    ART.set(u, null); const im = new Image();
+    im.onload = () => ART.set(u, true);
+    im.onerror = () => { ART.set(u, false); document.querySelectorAll('[data-art]').forEach(x => { if (x.dataset.art === u) x.classList.add('noart'); }); };
+    im.src = u;
+  });
 }
 const OCT = 'polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)';
 function nodeHTML(w, n, x, y) {
-  const st = t3state(w, n), ch = choiceOf(n), on = st.r > 0;
+  const st = t3state(w, n), ch = choiceOf(n), on = st.r > 0, nic = nodeIcon(w, n);
   const cls = `${on ? 'on' : ''}${st.full ? ' full' : ''}${st.can ? ' can' : ''}${!on && !st.can ? ' lock' : ''}${n.free ? ' free' : ''}${n.hyb ? ' hyb' : ''}`;
   let face;
   if (n.opts) {
-    const a = n.opts[0], b = n.opts[1], icA = n.opts[0].icon || n.icon, icB = n.opts[1].icon || n.icon;
+    const a = n.opts[0], b = n.opts[1], icA = n.opts[0].icon || nic, icB = n.opts[1].icon || nic;
     const och = n.opts.find(o => o.k === ch);
-    face = on && ch ? `<div class="ni"><i class="${och?.act ? 'sq' : ''}" style="background-image:url('${A}${och?.icon || n.icon}')${ch === 'B' && !och?.icon ? ';transform:scaleX(-1)' : ''}"></i></div><span class="ab">${ch}</span>`
-      : `<div class="ni split"><i class="ha" style="background-image:url('${A}${icA}')"></i><i class="hb" style="background-image:url('${A}${icB}')"></i></div>`;
-  } else face = `<div class="ni"><i style="background-image:url('${A}${n.icon}')"></i></div>`;
+    face = on && ch ? `<div class="ni"><i class="${och?.act ? 'sq' : ''}" style="background-image:url('${A}${och?.icon || nic}')${ch === 'B' && !och?.icon ? ';transform:scaleX(-1)' : ''}" data-art="${A}${och?.icon || nic}" data-ph="${n.id}"></i></div><span class="ab">${ch}</span>`
+      : `<div class="ni split"><i class="ha" style="background-image:url('${A}${icA}')" data-art="${A}${icA}" data-ph="${n.id}"></i><i class="hb" style="background-image:url('${A}${icB}')" data-art="${A}${icB}" data-ph="${n.id}"></i></div>`;
+  } else face = `<div class="ni"><i style="background-image:url('${A}${nic}')" data-art="${A}${nic}" data-ph="${n.id}"></i></div>`;
   const pips = n.t === 'x' ? `<span class="pips4">${[1, 2, 3, 4].map(i => `<i class="${i <= st.r ? 'on' : ''}"></i>`).join('')}</span>` : (n.free ? '' : `<span class="rk">${st.r}/${n.max}</span>`);
   const actOpt = (n.opts || []).some(o => o.act) ? ' hasact' : '';
   return `<div class="tn3 t-${n.t} ${cls}${actOpt}" data-w="${w}" data-id="${n.id}" style="left:${x}px;top:${y}px">${face}${pips}<span class="tg ${n.tag}">${n.tag === 'mec' ? 'M' : 'N'}</span><span class="burst"></span></div>`;
 }
-function layout(w, can) {
-  const nodes = t3nodes(w), Wd = can.clientWidth, H = can.clientHeight;
+function layout(w, can, nodes = t3nodes(w)) {
+  const Wd = can.clientWidth, H = can.clientHeight;
   const maxR = Math.max(...nodes.map(n => n.r)), maxC = Math.max(...nodes.map(n => n.c));
   const padX = w === 'hero' ? 54 : 34, top = w === 'hero' ? 96 : 30, bot = w === 'hero' ? 54 : 44;
   return { X: c => padX + c * (Wd - 2 * padX) / maxC, Y: r => top + r * (H - top - bot) / maxR, dy: (H - top - bot) / maxR, Wd, H };
@@ -2033,7 +1737,7 @@ function layout(w, can) {
 function edgesSVG(w, L) {
   let svg = `<svg viewBox="0 0 ${L.Wd} ${L.H}"><defs><marker id="ar-${w}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="currentColor"/></marker></defs>`;
   for (const n of t3nodes(w)) for (const id of n.req || []) {
-    const p = t3node(w, id), on = t3rank(w, p) >= p.max, live = on && t3rank(w, n) > 0;
+    const p = t3node(w, id); if (!p) continue; const on = t3rank(w, p) >= p.max, live = on && t3rank(w, n) > 0;
     const x1 = L.X(p.c), y1 = L.Y(p.r), x2 = L.X(n.c), y2 = L.Y(n.r), d = Math.hypot(x2 - x1, y2 - y1), k = 26 / d;
     svg += `<line pathLength="1" data-from="${p.id}" data-to="${n.id}" x1="${x1 + (x2 - x1) * k}" y1="${y1 + (y2 - y1) * k}" x2="${x2 - (x2 - x1) * k}" y2="${y2 - (y2 - y1) * k}" class="${live ? 'live' : on ? 'on' : ''}" marker-end="url(#ar-${w})"/>`;
   }
@@ -2041,6 +1745,7 @@ function edgesSVG(w, L) {
 }
 function drawTree3(w) {
   const can = document.querySelector(`.t3can[data-w="${w}"]`); if (!can) return;
+  if (!t3nodes(w).length) { can.innerHTML = ghostHTML(w, can); return; } // árbol aún vacío: rejilla fantasma «En diseño»
   const L = layout(w, can); let html = edgesSVG(w, L);
   for (const g of t3gates(w)) { const y = L.Y(g.row) - L.dy * 0.5, h = t3spent(w, g.row), ok = h >= g.need && (!g.level || S.lvl >= g.level);
     if (g.apex || g.level) html += `<div class="t3apex" style="top:${y}px"></div>`;
@@ -2053,9 +1758,10 @@ function drawTree3(w) {
 }
 function drawHero() {
   const can = document.querySelector('.t3can[data-w="hero"]'); if (!can) return;
-  const trees = heroTreesOf(), other = TV.hero.find(h => !SPEC_HERO[MSPEC].includes(h.id));
+  const trees = heroTreesOf(), other = TV.hero.find(h => !heroIds().includes(h.id));
   const tabs = `<div class="htabs">${trees.map(h => `<button class="htab${h.id === T2.heroTree ? ' on' : ''}" data-ht="${h.id}" style="background-image:url('${A}${h.art}')" title="${h.n}"></button>`).join('')}` +
-    `<span class="htab off" style="background-image:url('${A}${other.art}')" title="${other.n}: ${other.specs.map(x => M_SPECS[x].name).join(' y ')}"></span></div>`;
+    (other ? `<span class="htab off" style="background-image:url('${A}${other.art}')" title="${other.n}: ${(other.specs || []).map(x => M_SPECS[x]?.name || x).join(' y ')}"></span>` : '') + '</div>';
+  if (!t3nodes('hero').length) { can.innerHTML = tabs + ghostHTML('hero', can) + (heroOpen() ? '' : heroVeil(trees)); return; } // árbol héroe aún vacío
   if (!heroOpen()) {
     const L = layout('hero', can); let html = tabs + edgesSVG('hero', L);
     for (const n of t3nodes('hero')) html += nodeHTML('hero', n, L.X(n.c), L.Y(n.r));
@@ -2098,7 +1804,7 @@ function setSpec(id) {
   flash(`Especialización: ${M_SPECS[id].name} · kit, barra y árbol cambiados (gratis fuera de combate)`);
 }
 function chooserHTML() {
-  return `<div class="t2choose">${SPEC_IDS.map(id => {
+  return `<div class="t2choose wcls">${classStrip()}${SPEC_IDS.map(id => {
     const m = M_SPECS[id], kit = skills().filter(s => s.spec === id).sort((a, b) => a.req - b.req);
     return `<article class="scard${m.sketch ? ' sk' : ''}${S.lvl >= 10 && id === MSPEC ? ' cur' : ''}">${m.sketch ? '<span class="sketch">ESBOZO</span>' : ''}<div class="sart" style="background-image:url('${A}specs/${id}.webp')"><img class="semb" src="${A}emblems/${id}.webp" alt=""></div>` +
       `<div class="sbody"><div class="srole">${m.role.toUpperCase()}</div><h3>${m.name}</h3><div class="sline">${m.line}</div>` +
@@ -2110,7 +1816,7 @@ function chooserHTML() {
 
 // ---------------------------------------------------------------- tooltip
 function tipNode3(w, n) {
-  const st = t3state(w, n), tree = w === 'cls' ? 'Maga' : w === 'spec' ? M_SPECS[MSPEC].name : `Paragon · ${heroTreeOf().n}`;
+  const st = t3state(w, n), tree = w === 'cls' ? V2C().name : w === 'spec' ? M_SPECS[MSPEC].name : `Paragon · ${heroTreeOf().n}`;
   let body;
   if (n.opts) {
     const ch = st.r ? choiceOf(n) : null;
@@ -2119,11 +1825,11 @@ function tipNode3(w, n) {
   } else body = `<div class="tl">${st.r ? 'Ahora: ' : ''}${n.d(Math.max(1, st.r))}</div>` + (st.r && st.r < n.max ? `<div class="tnx">→ Rango ${st.r + 1}: ${n.d(st.r + 1)}</div>` : '');
   const tch = touchesOf(n), stx = n.free ? ['g', 'Gratis con la especialización'] : st.full ? ['g', 'Al máximo · clic derecho para quitar'] : st.blk ? ['lk', st.blk] : t3left(w) <= 0 ? ['lk', 'Sin puntos libres en este árbol'] : ['ok', n.opts && !st.r ? 'Pasa el ratón: elige A o B con un clic' : 'Disponible: clic para aprender'];
   const tag = `<span class="tagc ${n.tag}">${n.tag === 'mec' ? 'Mecánica' : 'Número'}</span>`;
-  return `<div class="th"><div class="ico ${n.opts ? 'hex' : 'ci'}" style="background-image:url('${A}${n.icon}')"></div><div><div class="tn">${n.n}</div>` +
+  return `<div class="th"><div class="ico ${n.opts ? 'hex' : 'ci'}" style="background-image:url('${A}${nodeIcon(w, n)}')" data-art="${A}${nodeIcon(w, n)}" data-ph="${n.id}"></div><div><div class="tn">${n.n}</div>` +
     `<div class="tk">${KIND3[n.t]} · ${tree} · ${n.free ? 'gratis' : `rango ${st.r}/${n.max}`} ${tag}</div></div></div>` +
     (n.final ? `<div class="fin">Final de la rama «${n.final}». Cuesta ${w === 'cls' ? '30 puntos de clase (Nv69)' : '26 puntos de especialización (Nv60)'}: alcanzas uno; dos solo a rango 1, dejando casi todo lo demás</div>` : '') +
     (n.hyb ? `<div class="hy">Híbrido · ${n.hyb}</div>` : '') + body +
-    (tch.length ? `<div class="tnodes"><span class="lb">${n.fire ? 'Toca todo tu Fuego' : n.frost ? 'Toca todo tu Hielo' : n.arcane ? 'Toca todo tu Arcano' : 'Habilidades que toca'}</span>${tch.map(find).map(sk => `<span class="tn1"><i style="background-image:url('${iconUrl(sk)}')"></i>${sk.n}</span>`).join('')}</div>` : '') +
+    (tch.length ? `<div class="tnodes"><span class="lb">${Object.entries(ELEM_GROUPS).find(([g]) => n[g])?.[1].label || 'Habilidades que toca'}</span>${tch.map(find).map(sk => `<span class="tn1"><i style="background-image:url('${iconUrl(sk)}')"></i>${sk.n}</span>`).join('')}</div>` : '') +
     `<div class="st ${stx[0]}">${stx[1]}</div>` +
     (S.alt ? `<div class="adv"><b style="color:var(--dim)">Detalle (Alt):</b> ${n.id} · ${n.impl || (n.opts || []).map(o => `${o.k}: ${o.impl || '—'}`).join(' · ') || 'árbol héroe'}</div>` : '');
 }
@@ -2193,13 +1899,13 @@ function fxReveal(full = false) {
   c.insertAdjacentHTML('beforeend', '<div class="hbeam"></div>');
   document.querySelector('.t3col.spec .t3m')?.classList.add('fx-maxspec');
 }
-function fxSwap(prev = 'crionte') { const c = document.querySelector('.t3col.spec'); if (!c) return; c.classList.remove('fx-swap'); void c.offsetWidth; c.classList.add('fx-swap');
+function fxSwap(prev = SPEC_IDS[1] || MSPEC) { const c = document.querySelector('.t3col.spec'); if (!c) return; c.classList.remove('fx-swap'); void c.offsetWidth; c.classList.add('fx-swap');
   c.querySelectorAll('.tn3').forEach(n => n.style.setProperty('--d', `${200 + (+n.style.left.replace('px', '')) * 0.6}ms`));
   const art = c.querySelector('.t3art'); const old = art.cloneNode(); old.classList.add('t3art-old'); old.style.backgroundImage = `url('${A}specs/${prev}.webp')`; art.after(old); }
 // selector A/B al pasar el ratón: las dos mitades se abren lado a lado, un clic elige
 function openChoice(w, n, el) {
   const pop = $('#t3pop'), sc = $('#screen'), b = el.getBoundingClientRect(), st = t3state(w, n), ch = st.r ? choiceOf(n) : null;
-  pop.innerHTML = n.opts.map(o => `<button class="half h${o.k}${o.act ? ' act' : ''}${ch === o.k ? ' on' : ''}${!st.r && !st.can ? ' dis' : ''}" data-k="${o.k}"><i style="background-image:url('${A}${o.icon || n.icon}')${o.k === 'B' && !o.icon ? ';transform:scaleX(-1)' : ''}"></i><b>${o.k}</b><span>${o.n}</span></button>`).join('');
+  pop.innerHTML = n.opts.map(o => `<button class="half h${o.k}${o.act ? ' act' : ''}${ch === o.k ? ' on' : ''}${!st.r && !st.can ? ' dis' : ''}" data-k="${o.k}"><i style="background-image:url('${A}${o.icon || nodeIcon(w, n)}')${o.k === 'B' && !o.icon ? ';transform:scaleX(-1)' : ''}"></i><b>${o.k}</b><span>${o.n}</span></button>`).join('');
   pop.hidden = false; pop.className = 't3pop open'; pop.dataset.w = w; pop.dataset.id = n.id;
   const s = parseFloat(getComputedStyle(sc).getPropertyValue('--s')), op = pop.offsetParent || sc, r = op.getBoundingClientRect(), k = r.width / op.offsetWidth; // relativo al contenedor real del flotante
   pop.style.left = ((b.left + b.width / 2 - r.left) / k) + 'px'; pop.style.top = ((b.top - r.top) / k - 2) + 'px'; // borde superior del nodo: el flotante crece hacia arriba pop.style.setProperty('--ps', s);
@@ -2220,7 +1926,7 @@ function t3hl(id) {
 function hlKitFor(n) { const ids = n ? touchesOf(n) : []; document.querySelectorAll('.kit3 .skl').forEach(s => s.classList.toggle('lit', ids.includes(s.dataset.sk))); }
 function codeOf() {
   const enc = w => t3nodes(w).map(n => (T2[w][n.id] || 0) + (T2.ch[n.id] === 'B' ? 'b' : '')).join('');
-  return `IRPG2-maga-${MSPEC}-${enc('cls')}-${enc('spec')}-${T2.heroTree}${enc('hero')}`;
+  return `IRPG2-${S.cls}-${MSPEC}-${enc('cls')}-${enc('spec')}-${T2.heroTree}${enc('hero')}`;
 }
 function wireTV3(el) {
   el.querySelectorAll('[data-a]').forEach(b => {
@@ -2232,14 +1938,16 @@ function wireTV3(el) {
       else if (a === 'undo') t3undo();
       else if (a === 'spec') { T2V.chooser = !T2V.chooser; rerender(); }
       else if (a === 'reset') { pushUndo(); T2 = { cls:{}, spec:{}, hero:{}, ch:{}, heroTree: T2.heroTree }; rerender(); flash('Talentos reiniciados (gratis) · Ctrl+Z para deshacer'); }
-      else if (a === 'reco') { pushUndo(); const k = BUILDS_V2[T2V.loadout]?.sp === MSPEC ? T2V.loadout : SPEC_DEFAULT_BUILD[MSPEC]; t2applyPreset(k); rerender(); flash(`Recomendado aplicado: ${BUILDS_V2[k].arch} · ${BUILDS_V2[k].n}`); }
-      else if (a === 'save') { T2V.saved.push({ n: `Mi build ${T2V.saved.length + 1}`, s: JSON.stringify(T2) }); try { localStorage.setItem('irpg_mock_loadouts', JSON.stringify(T2V.saved)); } catch {} T2V.loadout = 'saved:' + (T2V.saved.length - 1); rerender(); flash('Configuración guardada'); }
+      else if (a === 'reco') { if (!Object.values(BUILDS_V2).some(b => b.sp === MSPEC)) return flash(`${M_SPECS[MSPEC]?.name || 'Esta especialización'} aún no tiene builds`);
+        pushUndo(); const k = BUILDS_V2[T2V.loadout]?.sp === MSPEC ? T2V.loadout : SPEC_DEFAULT_BUILD[MSPEC]; if (!BUILDS_V2[k]) return flash('Falta defaultBuild de esta especialización'); t2applyPreset(k); rerender(); flash(`Recomendado aplicado: ${BUILDS_V2[k].arch} · ${BUILDS_V2[k].n}`); }
+      else if (a === 'save') { T2V.saved.push({ n: `Mi build ${T2V.saved.length + 1}`, s: JSON.stringify(T2) }); try { localStorage.setItem(loKey(), JSON.stringify(T2V.saved)); } catch {} T2V.loadout = 'saved:' + (T2V.saved.length - 1); rerender(); flash('Configuración guardada'); }
       else if (a === 'code') { const p = $('#t3pop'); p.hidden = false; p.className = 't3pop code'; p.style.left = ''; p.style.top = '';
         p.innerHTML = `<b>Código para compartir</b><input readonly value="${codeOf()}"><div><button class="hbtn">Copiar</button><button class="hbtn">Importar…</button></div><small>Se pega en el juego o en un enlace; avisa si la build es de otra versión.</small>`; }
       else if (a === 'reveal') { demoReveal(); }
     });
   });
   el.querySelectorAll('.scard .pick').forEach(b => b.addEventListener('click', () => setSpec(b.dataset.spec)));
+  el.querySelectorAll('.t2cls [data-cls]').forEach(b => b.addEventListener('click', () => { if (b.dataset.cls !== S.cls) switchClass(b.dataset.cls); }));
   el.querySelectorAll('.htab[data-ht]').forEach(t => t.addEventListener('click', () => { if (t.dataset.ht === T2.heroTree) return; pushUndo(); T2.heroTree = t.dataset.ht; T2.hero = {}; rerender(); if (heroOpen()) fxReveal(); }));
   el.querySelectorAll('.tn3').forEach(nd => {
     const w = nd.dataset.w, n = t3node(w, nd.dataset.id);
@@ -2257,27 +1965,28 @@ function wireTV3(el) {
     g.addEventListener('mouseenter', e => showTip(e, () => `<div class="tn">${G.apex || G.level ? 'Ápice' : `Puerta de la fila ${row + 1}`}</div><div class="tl">Gasta ${G.need} puntos en las filas de arriba${G.level ? ` y llega al nivel ${G.level}` : ''}.</div><div class="st ${h >= G.need ? 'ok' : 'lk'}">${h >= G.need ? '✓ Abierta' : `Llevas ${h}/${G.need}`}</div>`)); g.addEventListener('mousemove', moveTip); g.addEventListener('mouseleave', hideTip); });
   el.querySelectorAll('.kit').forEach(k => { const sk = find(k.dataset.id); k.addEventListener('mouseenter', e => showTip(e, () => tipLocked(sk))); k.addEventListener('mousemove', moveTip); k.addEventListener('mouseleave', hideTip); });
 }
-document.addEventListener('keydown', e => { if (S?.view === 'talents' && S.cls === 'maga' && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); t3undo(); } });
-try { T2V.saved = JSON.parse(localStorage.getItem('irpg_mock_loadouts') || '[]'); } catch { T2V.saved = []; }
+document.addEventListener('keydown', e => { if (S?.view === 'talents' && isV2() && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); t3undo(); } });
+// las configuraciones guardadas se leen al activar la clase (useClass), con una clave por clase (loKey)
 // demos de motion para las capturas (&demo=…&t=ms congela todas las animaciones en ese instante)
 // demo: Nv70 con 30/31 gastados; se gasta el último punto del Piromante y se abre el Paragon
 function demoReveal() {
   S.lvl = SPEC_LAST; $('#cLvl').value = String(SPEC_LAST);
   t2applyPreset(BUILDS_V2[T2V.loadout]?.sp === MSPEC ? T2V.loadout : SPEC_DEFAULT_BUILD[MSPEC]);
   const last = Object.keys(T2.spec).reverse().find(id => { const n = t3node('spec', id); T2.spec[id]--; const ok = t3valid('spec'); T2.spec[id]++; return !n.free && ok; });
+  if (!last) return flash('Esta especialización aún no tiene build para simular la revelación');
   T2.spec[last]--; if (!T2.spec[last]) delete T2.spec[last]; T2.hero = {}; rerender();
   t3spend('spec', t3node('spec', last), T2.ch[last]);
 }
 function runDemo(kind) {
-  const W = kind === 'gate' ? 'cls' : 'spec';
-  const take = (w, id, k) => { const n = t3node(w, id); T2[w][id] = Math.max(0, (T2[w][id] || 0) - 1); if (!T2[w][id]) delete T2[w][id]; rerender(); t3spend(w, n, k); };
-  if (kind === 'spend') take('spec', 's16');
-  else if (kind === 'gate') { // quita 1 punto de arriba para cerrar la puerta de la fila 4 y lo vuelve a gastar
-    T2.cls = { c2:2, c1:2, c3:2, c6:1 }; T2.ch.c6 = 'B'; rerender(); t3spend('cls', t3node('cls', 'c5'), 'A'); }
-  else if (kind === 'choice') { rerender(); t3spend('spec', t3node('spec', 's9'), T2.ch.s9 === 'A' ? 'B' : 'A'); }
-  else if (kind === 'hover') { const n = t3node('spec', 's9'), el = nodeEl('spec', 's9'); openChoice('spec', n, el); const b = el.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3('spec', n), $('#t3pop')); }
-  else if (kind === 'hoveract') { const n = t3node('hero', 't4'), el = nodeEl('hero', 't4'); if (n && el) { openChoice('hero', n, el); const b = el.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3('hero', n), $('#t3pop')); } }
-  else if (kind === 'rclick' || kind === 'pick') { const w = 'spec', id = kind === 'rclick' ? 's9' : 's8', n = t3node(w, id), el = nodeEl(w, id); openChoice(w, n, el);
+  const W = kind === 'gate' ? 'cls' : 'spec', D = V2C()?.demo || {}; // ids de las demos: demo:{…} en data/talents-v2-<clase>.js
+  const take = (w, id, k) => { const n = t3node(w, id); if (!n) return; T2[w][id] = Math.max(0, (T2[w][id] || 0) - 1); if (!T2[w][id]) delete T2[w][id]; rerender(); t3spend(w, n, k); };
+  if (kind === 'spend') take('spec', D.spend);
+  else if (kind === 'gate') { if (!D.gate || !t3node('cls', D.gate.buy[0])) return; // quita 1 punto de arriba para cerrar la puerta de la fila 4 y lo vuelve a gastar
+    T2.cls = { ...D.gate.ranks }; Object.assign(T2.ch, D.gate.ch); rerender(); t3spend('cls', t3node('cls', D.gate.buy[0]), D.gate.buy[1]); }
+  else if (kind === 'choice') { if (!t3node('spec', D.choice)) return; rerender(); t3spend('spec', t3node('spec', D.choice), T2.ch[D.choice] === 'A' ? 'B' : 'A'); }
+  else if (kind === 'hover') { const n = t3node('spec', D.hover), el = nodeEl('spec', D.hover); if (!n || !el) return; openChoice('spec', n, el); const b = el.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3('spec', n), $('#t3pop')); }
+  else if (kind === 'hoveract') { const n = t3node('hero', D.hoveract), el = nodeEl('hero', D.hoveract); if (n && el) { openChoice('hero', n, el); const b = el.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3('hero', n), $('#t3pop')); } }
+  else if (kind === 'rclick' || kind === 'pick') { const w = 'spec', id = kind === 'rclick' ? D.rclick : D.pick, n = t3node(w, id), el = nodeEl(w, id); if (!n || !el) return; openChoice(w, n, el);
     const b = el.getBoundingClientRect(); let target;
     if (kind === 'rclick') { target = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); target?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); }
     else { const before = T2.ch[id], other = before === 'A' ? 'B' : 'A'; // espera a que las mitades terminen de abrirse (180 ms)
@@ -2285,12 +1994,12 @@ function runDemo(kind) {
         document.body.dataset.ch = `${before}->${T2.ch[id]}`; flash(`Prueba (clic en la mitad ${other}): el clic cayó en «${tg?.closest('.half') ? 'mitad ' + tg.closest('.half').dataset.k : 'otro'}» · ${n.n.split(':')[0]}: ${before} → ${T2.ch[id]}`); }, 260); }
     document.body.dataset.hit = target ? (target.closest('.tn3') ? 'nodo' : target.closest('.half') ? 'mitad' : target.className) : 'nada';
     flash(`Prueba (clic derecho en el centro del icono): el clic cayó en «${document.body.dataset.hit}» y quitó el punto`); }
-  else if (kind === 'spec') { T2V.chooser = true; rerender(); }
-  else if (kind === 'specswap') setSpec(Q.get('to') || 'crionte');
-  else if (kind === 'undo') { const n = t3node('spec', 's23'); t3remove('spec', n); }
+  else if (kind === 'spec' || kind === 'cls') { T2V.chooser = true; rerender(); } // selector de especialización (con la fila «Clase»)
+  else if (kind === 'specswap') setSpec(Q.get('to') || D.swapTo || SPEC_IDS[1]);
+  else if (kind === 'undo') { const n = t3node('spec', D.undo); if (n) t3remove('spec', n); }
   else if (kind === 'reveal') demoReveal();
   else if (kind === 'swap') fxSwap();
-  else if (kind === 'hl') t3hl('meteoro');
+  else if (kind === 'hl') t3hl(D.hl);
   else if (kind === 'code') document.querySelector('[data-a="code"]')?.click();
 }
 
@@ -2303,13 +2012,13 @@ function boot2g() {
     if (Q.get('view') === 'talents') openTalents();
     setTimeout(() => {
       const tn = Q.get('tipnode');
-      if (tn && S.view === 'talents') { const [w, id] = tn.split(':'); const el = nodeEl(w, id), n = t3node(w, id);
+      if (tn && S.view === 'talents' && isV2()) { const [w, id] = tn.split(':'); const el = nodeEl(w, id), n = t3node(w, id);
         if (el && n) { const b = el.getBoundingClientRect(); if (n.opts && (t3state(w, n).can || t3state(w, n).r)) { openChoice(w, n, el); showTip({ clientX: b.right, clientY: b.top }, () => tipNode3(w, n), $('#t3pop')); } else showTip({ clientX: b.right, clientY: b.top }, () => tipNode3(w, n), el); } }
       const ts = Q.get('tipskill');
       if (ts) { const el = S.view === 'talents' ? document.querySelector(`#TV2 .kit3 .skl[data-sk="${ts}"], #TV2 .kit[data-id="${ts}"]`) : document.querySelector(`.tile[data-id="${ts}"], .mt[data-id="${ts}"]`); const sk = find(ts);
         if (el && sk) { const b = el.getBoundingClientRect(); if (S.view === 'talents') t3hl(ts); showTip({ clientX: b.left + b.width * .6, clientY: b.top + b.height * .5 }, () => known(sk) ? tipSkill(sk) : tipLocked(sk)); } }
       const dm = Q.get('demo');
-      if (dm && S.view === 'talents') {
+      if (dm && S.view === 'talents' && (isV2() || dm === 'cls')) {
         runDemo(dm);
         const t = Q.get('t');
         if (t != null) requestAnimationFrame(() => document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = +t; } catch {} }));
@@ -2324,7 +2033,7 @@ function renderHead() {
   $('#hEmb').style.backgroundImage = `url('${A}ui256/menu_habilidades.webp')`;
   $('#hTitle').textContent = `Habilidades · ${m.name}`;
   const pend = skills().filter(s => varOn(s) && !S.forge[s.id]).length;
-  $('#hSub').innerHTML = `Nivel <b>${S.lvl}</b> · ${curSpec()?.name || (S.cls === 'maga' ? 'sin especialización (se elige al nivel 10)' : m.specName)} · <img src="${A}ui/${m.resIcon}.webp" style="width:16px;height:16px;vertical-align:-3px" alt=""> ${m.res}` +
+  $('#hSub').innerHTML = `Nivel <b>${S.lvl}</b> · ${curSpec()?.name || (isV2() ? 'sin especialización (se elige al nivel 10)' : m.specName)} · <img src="${A}ui/${m.resIcon}.webp" style="width:16px;height:16px;vertical-align:-3px" alt=""> ${m.res}` +
     (pend ? ` · <b style="color:var(--gold)">${pend} variante${pend > 1 ? 's' : ''} por elegir</b>` : '');
   $('#bTal img').src = `${A}ui/menu_talentos.webp`;
 }
@@ -2333,16 +2042,23 @@ function fit() {
   const avail = window.innerWidth; const k = Math.min(1, avail / sc.offsetWidth);
   sc.style.transform = `scale(${k})`; sc.style.transformOrigin = '0 0'; $('#fitbox').style.height = sc.offsetHeight * k + 'px';
 }
-function all() { renderHead(); renderBook(); renderForge(); renderBar(); $('#pend').hidden = S.cls === 'maga'; }
+function all() { renderHead(); renderBook(); renderForge(); renderBar(); pendRibbon(); probeArt($('#P')); }
+// cinta de estado (arriba a la derecha): se oculta con la clase «aprobado»; si no, dice en qué punto está la clase
+function pendRibbon() {
+  const p = $('#pend'), C = V2C(), est = LEGACY ? 'legacy' : !C ? 'falta' : C.estado || 'diseño';
+  p.hidden = est === 'aprobado' || (LEGACY && S.cls === 'maga');
+  p.textContent = est === 'legacy' ? 'Talentos actuales del juego (legacy) · pendiente de rehacer' : est === 'falta' ? `En diseño · falta data/talents-v2-${S.cls}.js`
+    : `${est === 'esqueleto' ? 'Esqueleto' : 'En diseño'} · talentos v2 de ${C.name}`;
+}
 function boot() {
   if (Q.get('shot')) document.body.classList.add('shot');
-  if (Q.get('cls')) $('#cCls').value = Q.get('cls');
+  if (CLS_IDS.includes(Q.get('cls'))) $('#cCls').value = Q.get('cls');
   if (Q.get('lvl')) $('#cLvl').value = Q.get('lvl');
   if (Q.get('res')) $('#cRes').value = Q.get('res');
   if (Q.get('combat')) $('#cCombat').checked = true;
   if (Q.get('alt')) $('#cAlt').checked = true;
   reset($('#cCls').value); snapSpec(); fit(); all(); welcomeToast();
-  if (S.cls === 'maga') boot2g();
+  if (!LEGACY) boot2g();
   else if (Q.get('view') === 'talents' || Q.get('swap')) requestAnimationFrame(() => {
     openTalents();
     const sw = Q.get('swap');
@@ -2369,8 +2085,8 @@ function boot() {
     moveGhost(tgt.left + tgt.width * 0.7, tgt.top - 4);
   });
 }
-$('#cCls').onchange = () => { const v = S.view; closeTV2(); TPN?.close(); $('#P').style.display = ''; reset($('#cCls').value); snapSpec(); all(); welcomeToast(); if (v === 'talents') { S.view = 'book'; openTalents(); TPN?.render(); } };
-$('#cLvl').onchange = () => { const v = S.view; if (S.cls !== 'maga') return; reset('maga'); if (BUILDS_V2[T2V.loadout]) t2applyPreset(T2V.loadout); snapSpec(); all(); if (v === 'talents') { S.view = 'book'; $('#P').style.display = ''; openTalents(); } };
+$('#cCls').onchange = () => switchClass($('#cCls').value);
+$('#cLvl').onchange = () => { const v = S.view; if (LEGACY) return; reset(S.cls); if (isV2() && BUILDS_V2[T2V.loadout]) t2applyPreset(T2V.loadout); snapSpec(); all(); if (v === 'talents') { S.view = 'book'; $('#P').style.display = ''; openTalents(); } };
 $('#cRes').onchange = () => { fit(); all(); };
 $('#cCombat').onchange = () => { S.combat = $('#cCombat').checked; renderForge(); };
 $('#cAlt').onchange = () => { S.alt = $('#cAlt').checked; document.body.classList.toggle('alt', S.alt); refreshTip(); };
