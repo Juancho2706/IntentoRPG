@@ -2,15 +2,19 @@
 // PUROS de js/hud-model.js que pintan js/ui-skills.js (tecla T) y js/ui-verbs.js (cada frame)
 // (docs/paso2-implementacion.md §3.12 · docs/paso2f-habilidades-ux.md §3 y §7.1):
 //  1) bookView por ORIGEN con los catálogos reales (y los borradores 2g si están): grupos,
-//     orden por categoría, CAT_LABELS, conocidas, kit de cada especialización, arte que existe
+//     orden por categoría, CAT_LABELS, conocidas, kit de cada especialización, arte que existe,
+//     candados con su nivel, especialización por elegir, libro compacto y nombres con guiones
 //  2) forgeView + chooseForge: Mejora y variantes (bloqueada/abierta/elegida), tags tachados y
 //     añadidos, elemento, papeles, bloqueo en combate; bookTile (sello, «por elegir»); recoPlan
 //  3) engarces: supportOptions (ok/incompatible/unknown/used) y supportsAfter
 //  4) nodeSkills y talentLinks («Talentos que la tocan») sin mutar al jugador
 //  5) specSnapshot + specSwapSummary (la tira al cambiar de especialización)
-//  6) levelUpNews (aprendidas, Mejora a req+3, variantes a req+6, ranuras, puntos; aviso agrupado)
+//  6) levelUpNews (aprendidas, Mejora a req+3, variantes a req+6, ranuras, puntos; aviso agrupado;
+//     sin novedades, sin tarjeta)
 //  7) slotVerbs / slotView / verbView con el MOTOR REAL: cargas, relanzar, combo, secuencia,
 //     postura, plantado, trampas, canal y la carga con G17 (inWindow del mismo frame) y Calma
+//     contra chargeRelease (la regla con que el motor resuelve la suelta). El G17 en el DOM
+//     (createVerbHud) está en test73
 //  8) los módulos de UI se importan sin DOM y devuelven su API vacía sin raíz
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -18,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as HM from '../js/hud-model.js';
 import { CLASSES, SUPPORTS } from '../js/data.js';
+import { chargeRelease } from '../js/combat-math.js';
 import { CAT_LABELS, SLOT_UNLOCK, normalizeSkillDef, supportFits } from '../js/skill-defs.js';
 import { isKnown, forgedDef } from '../js/skill-resolve.js';
 import { talentTreesFor, findSpec, pointKindAt, TALENT_RULES } from '../js/talents.js';
@@ -76,7 +81,9 @@ function checkBook(p, tag, { art = true } = {}) {
     assert.ok(t.catIcon && has(t.catIcon), `${tag}/${t.id}: icono de categoría ${t.catIcon}`);
     assert.equal(t.known, isKnown(p, sk), `${tag}/${t.id}: aprendida`);
     if (t.talent) assert.ok(t.known && ['TALENTO', 'PARAGON'].includes(t.tag), `${tag}/${t.id}: activa de talento solo si la tienes, con su etiqueta`);
-    assert.equal(t.lockLv, !t.known && !sk.spec && sk.kind !== 'talent' ? (sk.req || 1) : null, `${tag}/${t.id}: candado con su nivel`);
+    const lv = sk.spec ? Math.max(sk.req || 1, TALENT_RULES.specAt) : (sk.req || 1);
+    assert.equal(t.lockLv, t.known || sk.kind === 'talent' ? null : lv, `${tag}/${t.id}: candado con su nivel (también el kit de tu especialización)`);
+    if (!t.known && sk.kind !== 'talent') assert.ok(t.lockLv > (p.level || 1), `${tag}/${t.id}: el candado dice un nivel por llegar`);
     assert.equal(t.slotLabel, t.slot ? HM.SLOT_LABEL[t.slot] : null);
     if (t.todo) assert.ok(t.known && t.forge && !t.variant, `${tag}/${t.id}: «por elegir» solo con variantes abiertas sin elegir`);
     if (art) assert.ok(t.art && has(t.art), `${tag}/${t.id}: falta el arte assets/${t.art}`);
@@ -90,8 +97,11 @@ function checkBook(p, tag, { art = true } = {}) {
   }
   const rows = v.groups.at(-1).rows;
   assert.deepEqual(rows.map(r => r.id), spec ? specs.filter(s => s !== spec) : specs, `${tag}: filas de especialización`);
+  const early = (p.level || 1) < TALENT_RULES.specAt;
+  assert.equal(v.specAt, TALENT_RULES.specAt);
   for (const r of rows) {
-    assert.equal(r.lockLv, spec ? null : TALENT_RULES.specAt, `${tag}/${r.id}: candado al nivel ${TALENT_RULES.specAt} antes de elegir`);
+    assert.equal(r.lockLv, !spec && early ? TALENT_RULES.specAt : null, `${tag}/${r.id}: candado al nivel ${TALENT_RULES.specAt} solo antes de poder elegir`);
+    assert.equal(r.choose, !spec && !early, `${tag}/${r.id}: pasado el nivel ${TALENT_RULES.specAt} sin especialización, «elige»`);
     assert.ok(r.name && r.mechName, `${tag}/${r.id}: nombre y mecánica`);
     if (art) assert.ok(has(r.emblem), `${tag}/${r.id}: falta el emblema ${r.emblem}`);
     if (art) for (const k of r.kit) assert.ok(k.art && has(k.art), `${tag}/${r.id}/${k.id}: falta el arte ${k.art}`);
@@ -104,12 +114,17 @@ function checkBook(p, tag, { art = true } = {}) {
   assert.equal(v.known, tiles.filter(t => t.known).length);
   assert.equal(v.total, tiles.length);
   assert.equal(v.pending, tiles.filter(t => t.todo).length, `${tag}: «N variantes por elegir»`);
+  const rowsN = v.groups.reduce((n, gr) => n + Math.ceil((gr.tiles?.length || 0) / HM.BOOK_ROW), 0);
+  assert.equal(v.rows, rowsN); assert.equal(v.dense, rowsN >= 3, `${tag}: compacto con 3 filas de casillas o más`);
   return v;
 }
 let books = 0;
 for (const cid of Object.keys(CLASSES)) {
   const specs = talentTreesFor(cid).specs.map(s => s.id);
   checkBook(makeHarness({ classId: cid, level: 5 }).p, `${cid} Nv 5`); books++;
+  // pasado el nivel de elegir, sin especialización: las filas invitan a elegir (sin candado)
+  const sin = checkBook(makeHarness({ classId: cid, level: 12 }).p, `${cid} Nv 12 sin especialización`); books++;
+  assert.ok(sin.groups.at(-1).rows.every(r => r.choose && !r.lockLv), `${cid} Nv 12: «elige» en cada especialización`);
   for (const spec of specs) { checkBook(makeHarness({ classId: cid, level: 30, spec }).p, `${cid} Nv 30 ${spec}`); books++; }
   if (DRAFTS[cid]) {
     const pre = checkBook(withDraft(makeHarness({ classId: cid, level: 5 }).p, cid), `${cid} 2g Nv 5`, { art: false });
@@ -118,13 +133,43 @@ for (const cid of Object.keys(CLASSES)) {
       const v = checkBook(withDraft(makeHarness({ classId: cid, level: 60, spec }).p, cid), `${cid} 2g Nv 60 ${spec}`, { art: false });
       assert.ok(v.groups[1].tiles.length >= 3, `${cid} 2g ${spec}: kit de especialización en el libro`);
       assert.ok(v.pending > 0 && v.groups[0].tiles.some(t => t.forge), `${cid} 2g ${spec}: forja con variantes por elegir (D3)`);
+      assert.equal(v.dense, false, `${cid} 2g ${spec}: sin activas de talento, el libro normal`);
       books++;
     }
+    // el kit de TU especialización aún sin aprender lleva candado con su nivel (Nv 11: aún no)
+    const k11 = checkBook(withDraft(makeHarness({ classId: cid, level: 11, spec: specs[0] }).p, cid), `${cid} 2g Nv 11 ${specs[0]}`, { art: false });
+    assert.ok(k11.groups[1].tiles.some(t => !t.known && t.lockLv > 11), `${cid} 2g Nv 11: kit propio con candado y nivel`);
+    // con las 6 activas de talento el kit base pasa a 2 filas: libro compacto
+    const p6 = withDraft(makeHarness({ classId: cid, level: 100, spec: specs[1] }).p, cid);
+    for (const sk of p6.cls.skills.filter(x => x.kind === 'talent')) p6.talentExtra.grants.add(sk.id);
+    p6.recompute();
+    const v6 = checkBook(p6, `${cid} 2g Nv 100 con 6 activas`, { art: false });
+    assert.ok(v6.groups[0].tiles.filter(t => t.talent).length === 6 && v6.rows === 3 && v6.dense, `${cid}: 6 activas de talento → 3 filas, compacto`);
+    books += 2;
   }
 }
 assert.equal(HM.catLabel('spender'), CAT_LABELS.spender);
 assert.ok(HM.K2_TABS.every(t => !/gastadora/i.test(t.label)), 'D14: sin «Gastadora» en lo que se lee');
-console.log(`bookView: ${books} libros (${Object.keys(DRAFTS).length ? 'catálogos reales y 2g' : 'catálogos reales'}) por origen, por categoría, sin repetir, completos, con su arte ✓`);
+console.log(`bookView: ${books} libros (${Object.keys(DRAFTS).length ? 'catálogos reales y 2g' : 'catálogos reales'}) por origen, por categoría, sin repetir, completos, con su arte, candados con nivel y compacto con 3 filas ✓`);
+
+// nombres largos: guiones suaves por sílabas, solo en palabras largas (las cortas nunca se parten)
+{
+  const H = t => HM.hyphenEs(t).replace(/\u00ad/g, '-');
+  assert.equal(H('Contrahechizo'), 'Con-tra-he-chi-zo');
+  assert.equal(H('Francotiradora'), 'Fran-co-ti-ra-do-ra');
+  assert.equal(H('Desmembramiento'), 'Des-mem-bra-mien-to');
+  assert.equal(H('Inquebrantable'), 'In-que-bran-ta-ble', 'qu + vocal y el grupo br');
+  assert.equal(H('Salto Devastador'), 'Salto Devastador', 'las palabras que caben enteras no se tocan');
+  assert.equal(HM.hyphenEs('Guerrero', 1).replace(/\u00ad/g, '-'), 'Gue-rre-ro', 'rr no se separa');
+  assert.equal(HM.hyphenEs('Abrazo', 1).replace(/\u00ad/g, '-'), 'Abra-zo', 'nunca una sola letra a un lado');
+  assert.equal(HM.hyphenEs(''), '');
+  for (const cid of Object.keys(DRAFTS)) for (const sk of DRAFTS[cid].skills) {
+    const out = HM.hyphenEs(sk.name);
+    assert.equal(out.replace(/\u00ad/g, ''), sk.name, `${sk.id}: los guiones suaves no cambian el texto`);
+    for (const w of out.split(/\s+/)) for (const part of w.split('\u00ad')) assert.ok(part.replace(/[^\p{L}]/gu, '').length >= 2 || !w.includes('\u00ad'), `${sk.id}: trozo «${part}» demasiado corto`);
+  }
+  console.log('hyphenEs: «Con-tra-he-chi-zo», grupos inseparables, ch/ll/rr, solo palabras largas ✓');
+}
 
 // bookScale: el escenario de 1560 × 930 cabe en la pantalla
 assert.equal(HM.bookScale(1920, 1080), 1);
@@ -164,6 +209,7 @@ console.log('bookScale: 1 a 1920×1080, 0,8 a 1366×768 y el libro cabe en cada 
   assert.equal(fv.vars[0].elem, null);
   assert.deepEqual(fv.verbs, ['charge']);
   assert.equal(fv.slots, 'DER o 2');
+  assert.equal(fv.learnAt, sk0.req || 1, 'learnAt de una habilidad base = su req');
   // Nv 4: Mejora activa; Nv 7: variantes abiertas, nunca elegida → «por elegir»
   assert.equal(HM.forgeView(at(4).p, sk).mejora.state, 'abierta');
   h = at(30); p = h.p; sk = HM.skillOf(p, 'vx_martillo');
@@ -219,6 +265,9 @@ console.log('bookScale: 1 a 1920×1080, 0,8 a 1366×768 y el libro cabe en cada 
   p.supports = { vx_martillo: [okSup[0].id] };
   const st = Object.fromEntries(HM.supportOptions(p, sk, 1).map(o => [o.id, o.state]));
   assert.equal(st[okSup[0].id], 'used', 'en el otro engarce');
+  const usedO = HM.supportOptions(p, sk, 1).find(o => o.id === okSup[0].id);
+  assert.equal(usedO.usedIn, 0, 'usedIn: el índice del otro engarce (la cuadrícula pinta «1»)');
+  assert.ok(HM.supportOptions(p, sk, 1).filter(o => o.state !== 'used').every(o => o.usedIn === -1));
   assert.equal(st[okSup[1].id], 'ok');
   assert.equal(st[bad.id], 'incompatible');
   assert.equal(st[okSup[2].id], 'unknown', 'aún no lo tienes');
@@ -316,7 +365,16 @@ console.log('bookScale: 1 a 1920×1080, 0,8 a 1366×768 y el libro cabe en cada 
     if (n.count > 1) assert.equal(n.title, `Nivel ${b}: ${n.count} novedades`, 'varias → UNA tarjeta agrupada');
     if (n.count === 1) assert.ok(n.title.startsWith(`Nivel ${b} · `));
   }
-  assert.equal(HM.levelUpNews(p, 7, 7).count, 0, 'sin subir, nada');
+  const none = HM.levelUpNews(p, 7, 7);
+  assert.deepEqual([none.count, none.title, none.sub, none.first], [0, 'Nivel 7', '', null], 'sin subir, nada (sin «0 novedades»)');
+  // un nivel real sin novedades (Maga, catálogo del juego): «Nivel N» a secas, sin tarjeta
+  const pm = makeHarness({ classId: 'maga', level: 30 }).p;
+  const quiet = Array.from({ length: 29 }, (_, i) => i + 2).filter(L => HM.levelUpNews(pm, L - 1, L).count === 0);
+  assert.ok(quiet.length > 0, 'hay niveles sin novedades');
+  for (const L of quiet) {
+    const n0 = HM.levelUpNews(pm, L - 1, L);
+    assert.ok(n0.title === `Nivel ${L}` && n0.sub === '' && n0.first === null && !/novedad/.test(n0.title), `Nivel ${L}: sin «0 novedades»`);
+  }
   console.log('levelUpNews: aprendidas, Mejora (req+3), variantes (req+6), ranuras y puntos; aviso agrupado ✓');
 }
 
@@ -431,13 +489,29 @@ console.log('bookScale: 1 a 1920×1080, 0,8 a 1366×768 y el libro cabe en cada 
     assert.ok(frames > 10 && inside > 0 && first > 0, `dt ${dt.toFixed(4)}: la carga pasa por la ventana (${inside} frames)`);
     h.release('rmb'); h.step(0.3);
   }
-  // Calma Absoluta: perfecta desde media carga (toda la barra dorada)
+  // Calma Absoluta: la barra dice «perfecto» EXACTAMENTE donde el motor resuelve una suelta perfecta
+  // (chargeRelease, combat-math), en todo el recorrido de la carga; sin Calma, solo en la ventana
   const h = verbHarness('guerrero', { level: 40 });
   h.p.hotbar.rmb = 'vx_martillo'; h.p.talentExtra.stats = { perfectAlways: 1 }; h.p.recompute(); h.p.mp = 999;
   h.press('rmb'); h.step(0.75, 1 / 60);
   const cv = HM.verbView(h.g).charge;
   assert.ok(cv.calm && cv.perfectNow && !cv.inWindow, 'Calma: soltar a media carga es perfecto');
-  assert.ok(Math.abs(cv.calmLo - (cv.min + 0.5 * (cv.max - cv.min)) / cv.max) < 1e-9);
+  const ch = h.g._charging.ch;
+  let flips = 0;
+  for (const calm of [true, false]) {
+    h.p.talentExtra.stats = calm ? { perfectAlways: 1 } : {}; h.p.recompute();
+    let prev = null;
+    for (let u = 0; u <= ch.max + 1e-9; u += ch.max / 240) {
+      const c = { ...h.g._charging, u, inWindow: u >= ch.perfect[0] - 1e-9 && u <= ch.perfect[1] + 1e-9 };
+      const view = HM.chargeView(h.p, c).perfectNow;
+      assert.equal(view, chargeRelease(ch, u, { perfectAlways: calm }).perfect, `${calm ? 'con' : 'sin'} Calma, u = ${u.toFixed(3)}: la barra y el motor coinciden`);
+      if (prev != null && prev !== view) flips++;
+      prev = view;
+    }
+  }
+  assert.equal(flips, 1 + 2, 'con Calma, un cambio (desde media carga); sin ella, entra y sale de la ventana');
+  // el dorado de la Calma empieza en calmLo, el punto en que el motor la da por perfecta
+  assert.ok(chargeRelease(ch, cv.calmLo * cv.max, { perfectAlways: true }).perfect && !chargeRelease(ch, cv.calmLo * cv.max - 0.01, { perfectAlways: true }).perfect);
   h.release('rmb');
   // la barra junto al cursor: encima, debajo si no cabe y siempre dentro
   assert.deepEqual(HM.cursorBarPos(500, 400, 1920, 1080), { x: 468, y: 370 });

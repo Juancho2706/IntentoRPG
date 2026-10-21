@@ -6,6 +6,9 @@
 //     splitBuffs, plateView
 //  4) el esqueleto del HUD (index.html) tiene los bloques de §2.2 y los assets de assets/hud
 //  5) bindings: atajos del micromenú libres (P J K H Z) y remapeables
+//  6) Paso 2 (U2): libro y verbos en PC, marcas de mundo de los verbos y createVerbHud sobre un DOM
+//     mínimo simulado con el MOTOR real: G17 en el DOM (la marca el mismo update), atributos por
+//     presencia, resultado de la suelta (g._chargeEnd fresco o la racha) y 0 escrituras en reposo
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -232,7 +235,7 @@ assert.ok(/codeToAction/.test(us) && /keyLabel/.test(us), 'ui-skills.js usa los 
 assert.ok(!/e\.code === 'Key[TN]'/.test(us), 'sin T/N fijas en el libro');
 console.log('Libro y verbos en PC: sin táctil, motion solo transform/opacity y «reducir movimiento», sin leer el layout por frame, barra del cursor dentro, atajos del jugador ✓');
 
-// marcas de mundo de los verbos: pool fijo, datos a 10 Hz y el destello de la carga el MISMO frame
+// marcas de mundo de los verbos: pool fijo, datos a 10 Hz; el destello de la carga es del motor
 {
   const { WorldMarks, verbMarksPlan, THREAD_MAX } = await import('../js/world-marks.js');
   const { verbHarness } = await import('./fixtures/skills-verbs-sample.mjs');
@@ -263,29 +266,176 @@ console.log('Libro y verbos en PC: sin táctil, motion solo transform/opacity y 
   assert.equal(verbMarksPlan(g).threads.length, 1);
   assert.ok(wm.verb.threads[0].visible && wm.verb.threads.slice(1).every(m => !m.visible), 'un hilo del enemigo a su cebo');
   assert.equal(wm.verb.threads.length, THREAD_MAX);
-  // Batida: 3 estallidos en 1 s → el anillo se abre una vez
+  // Batida: sin el Coto, 3 estallidos seguidos NO son una Batida (el Guerrero no tiene)
   p.trapBursts = [p.simT - 0.6, p.simT - 0.3, p.simT];
   step(0.12);
-  assert.ok(wm.huntT >= 0 && wm.verb.hunt.visible, 'Batida → anillo que se abre');
+  assert.ok(!verbMarksPlan(g).hunt && !wm.verb.hunt.visible && wm.huntT < 0, 'sin Coto, sin anillo de Batida');
+  // con el evento del motor (g._huntAt = { t, x, z }) el anillo se abre UNA vez donde fue
+  g._huntAt = { t: p.simT, x: 3, z: -2 };
+  step(0.12);
+  assert.ok(wm.huntT >= 0 && wm.verb.hunt.visible, 'Batida (evento del motor) → anillo que se abre');
+  assert.ok(Math.abs(wm.verb.hunt.position.x - 3) < 1e-6 && Math.abs(wm.verb.hunt.position.z + 2) < 1e-6, 'en el sitio de la Batida');
   step(0.8);
   assert.ok(!wm.verb.hunt.visible && wm.huntT < 0, 'el anillo de la Batida se apaga');
   step(0.3);
-  assert.ok(wm.huntT < 0, 'la misma Batida no se repite');
-  // carga: destello en el MISMO frame en que el motor entra en la ventana
+  assert.ok(wm.huntT < 0 && !verbMarksPlan(g).hunt, 'la misma Batida no se repite (y caduca)');
+  g._huntAt = null;
+  // carga: el destello del arma lo lanza el MOTOR en el mismo tick en que entra en la ventana
+  // (emitFx(verbWindow) + verb_win); WorldMarks no pinta otro encima
+  const fx = [];
+  const emit0 = g.emitFx;
+  g.emitFx = (f, pos) => { fx.push({ name: f?.name || f, t: p.simT, y: pos?.y }); return emit0?.call(g, f, pos); };
   p.hotbar.rmb = 'vx_martillo'; p.recompute(); p.mp = 999; g.resetCooldowns(p);
+  const n1 = wm.objectCount();
   h.press('rmb');
-  let edge = -1, flash = -1;
+  let edge = -1, fxAt = -1;
   for (let i = 0; i < 80 && g._charging; i++) {
+    const before = fx.length;
     h.step(1 / 60, 1 / 60); wm.update(g, 1 / 60);
     if (g._charging?.inWindow && edge < 0) edge = i;
-    if (wm.verb.flash.visible && flash < 0) flash = i;
+    if (fxAt < 0 && fx.slice(before).some(f => f.name === 'Ventana perfecta')) fxAt = i;
   }
-  assert.ok(edge > 0 && edge === flash, `destello del arma el mismo frame que inWindow (${edge} / ${flash})`);
+  g.emitFx = emit0;
+  assert.ok(edge > 0 && edge === fxAt, `destello del arma (motor) el mismo frame que inWindow (${edge} / ${fxAt})`);
+  assert.equal(fx.filter(f => f.name === 'Ventana perfecta').length, 1, 'un solo destello por carga');
+  assert.equal(wm.objectCount(), n1, 'WorldMarks no añade un segundo destello');
   h.release('rmb'); step(0.5);
   assert.equal(wm.objectCount(), n0, 'pool fijo: nada se crea por frame');
   wm.clear();
   assert.ok(!wm.verb.planted.visible && !wm.verb.stance.visible && !wm.verb.hunt.visible && wm.verb.threads.every(m => !m.visible), 'clear() apaga las marcas de verbo');
-  console.log('Marcas de mundo de los verbos: plantado, postura, hilos del cebo, Batida y destello de la carga (mismo frame) con pool fijo ✓');
+  // respaldo de la Batida (sin evento del motor) SOLO con el Coto activo (Montaraz)
+  const ha = verbHarness('arquera', { level: 40, spec: 'montaraz' });
+  assert.equal(ha.p.talentAgg?.mechanic, 'coto', 'la Montaraz lleva el Coto');
+  ha.p.trapBursts = [ha.p.simT - 1.5, ha.p.simT - 0.2, ha.p.simT];
+  assert.equal(verbMarksPlan(ha.g).hunt, null, 'Coto: 2 estallidos en 1 s no son Batida');
+  ha.p.trapBursts.push(ha.p.simT);
+  assert.ok(verbMarksPlan(ha.g).hunt, 'Coto: 3 estallidos en 1 s → Batida (respaldo)');
+  ha.g._huntAt = { t: ha.p.simT - 5, x: 0, z: 0 };
+  assert.equal(verbMarksPlan(ha.g).hunt, null, 'con evento del motor manda el motor (uno viejo no dibuja nada)');
+  console.log('Marcas de mundo de los verbos: plantado, postura, hilos del cebo, Batida (evento del motor; respaldo solo con Coto) y un solo destello de carga (el del motor, mismo frame) con pool fijo ✓');
+}
+
+// ---------- 6b. createVerbHud sobre un DOM mínimo simulado, con el motor real ----------
+// El DOM falso solo tiene lo que usa ui-verbs.js (createElement, atributos, dataset, style,
+// hijos, isConnected) y cuenta cada escritura: así se prueba en npm test lo que el humo mira
+// (.verb-charge[data-in-window] por presencia, en el mismo frame) y el reposo sin escrituras.
+{
+  const { createVerbHud } = await import('../js/ui-verbs.js');
+  const { verbHarness } = await import('./fixtures/skills-verbs-sample.mjs');
+  let writes = 0;
+  const kebab = k => k.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+  class El {
+    constructor(doc, tag) {
+      this.ownerDocument = doc; this.tagName = tag.toUpperCase(); this.attrs = new Map(); this.children = []; this.parentNode = null;
+      this._cls = ''; this._txt = ''; this._html = ''; this.title = '';
+      const props = {};
+      this.style = { setProperty: (k, v) => { writes++; props[k] = v; }, getPropertyValue: k => props[k] ?? '' };
+      for (const k of ['transform', 'opacity']) Object.defineProperty(this.style, k, { get: () => props[k] ?? '', set: v => { writes++; props[k] = v; } });
+      this.dataset = new Proxy({}, {
+        get: (_, k) => this.getAttribute('data-' + kebab(String(k))) ?? undefined,
+        set: (_, k, v) => { this.setAttribute('data-' + kebab(String(k)), v); return true; },
+      });
+    }
+    get className() { return this._cls; }
+    set className(v) { writes++; this._cls = v; }
+    get textContent() { return this._txt; }
+    set textContent(v) { writes++; this._txt = String(v); }
+    set innerHTML(v) { writes++; this._html = String(v); }
+    get innerHTML() { return this._html; }
+    setAttribute(k, v) { writes++; this.attrs.set(k, String(v)); }
+    getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; }
+    hasAttribute(k) { return this.attrs.has(k); }
+    removeAttribute(k) { if (this.attrs.has(k)) writes++; this.attrs.delete(k); }
+    appendChild(c) { writes++; c.parentNode?.children.splice(c.parentNode.children.indexOf(c), 1); this.children.push(c); c.parentNode = this; return c; }
+    append(...cs) { for (const c of cs) this.appendChild(c); }
+    remove() { if (this.parentNode) { writes++; this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); this.parentNode = null; } }
+    get isConnected() { let n = this; while (n.parentNode) n = n.parentNode; return !!n._root; }
+    get classList() { return { contains: c => this._cls.split(/\s+/).includes(c) }; }
+    find(cls) { for (const c of this.children) { if (c.classList.contains(cls)) return c; const r = c.find(cls); if (r) return r; } return null; }
+  }
+  const win = { innerWidth: 1366, innerHeight: 768, addEventListener() {}, removeEventListener() {} };
+  const doc = { defaultView: win, createElement: tag => new El(doc, tag), querySelector: () => null };
+  const body = new El(doc, 'body'); body._root = true;
+  const root = body.appendChild(new El(doc, 'div'));
+  const bar = body.appendChild(new El(doc, 'div'));
+  const btn = {};
+  for (const s of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) { btn[s] = bar.appendChild(new El(doc, 'button')); btn[s].className = 'skill-btn'; btn[s].dataset.slot = s; }
+
+  const h = verbHarness('guerrero', { level: 40 });
+  const { p, g } = h;
+  p.hotbar = { lmb: p.hotbar.lmb, rmb: 'vx_martillo', k1: 'vx_paso', k2: 'vx_guardia', k3: null, k4: null };
+  p.recompute(); p.mp = 999;
+  g.input.mouseScreen = { x: 600, y: 400 };
+  const hud = createVerbHud(root, { game: g, slotEl: s => btn[s] });
+  hud.update(1 / 60);
+  const charge = hud.bar, slotL = hud.slotLayer('rmb');
+  assert.ok(charge.classList.contains('verb-charge') && slotL.parentNode === btn.rmb, 'barra del cursor en la raíz y capa colgada en su ranura');
+  assert.equal(charge.getAttribute('data-in-window'), null, 'sin carga: sin data-in-window (presencia, no «0»)');
+  // G17 en el DOM: carga real del Martillo; cada frame, simulación y luego pintura
+  const cursor = charge.parentNode;
+  for (const dt of [1 / 60, 1 / 144, 1 / 30]) {
+    p.mp = 999; g._needsRelease = {}; g.resetCooldowns(p);
+    h.press('rmb');
+    let frames = 0, inside = 0, left = 0, was = false;
+    for (let i = 0; i < Math.ceil(1.15 / dt); i++) {
+      h.step(dt, dt); hud.update(dt);
+      const c = g._charging;
+      if (!c) break;
+      frames++;
+      assert.equal(charge.hasAttribute('data-in-window'), !!c.inWindow, `dt ${dt.toFixed(4)} · frame ${i}: .verb-charge[data-in-window] en el MISMO frame que el motor`);
+      assert.equal(charge.getAttribute('data-in-window'), c.inWindow ? '' : null, 'por presencia: "" dentro, sin atributo fuera');
+      assert.equal(slotL.hasAttribute('data-win'), !!c.inWindow, 'la ranura, igual');
+      if (c.inWindow) inside++;
+      if (was && !c.inWindow) left++;
+      was = !!c.inWindow;
+    }
+    assert.ok(frames > 10 && inside > 0 && left === 1, `dt ${dt.toFixed(4)}: entra y sale de la ventana (${inside} frames dentro)`);
+    h.release('rmb'); h.step(0.3, 1 / 60); hud.update(0.3);
+  }
+  // resultado de la suelta. Sin g._chargeEnd (hoy el motor no lo escribe): la racha manda
+  const state = () => cursor.getAttribute('data-state');
+  const glow = charge.find('vc-glow'), flash = slotL.find('verb-flash');
+  const toWindow = () => { g.resetCooldowns(p); p.mp = 999; h.press('rmb'); for (let i = 0; i < 90 && !g._charging?.inWindow; i++) { h.step(1 / 60, 1 / 60); hud.update(1 / 60); } };
+  p.perfectStreak = 0; g._chargeEnd = null;
+  toWindow();
+  h.release('rmb'); h.step(1 / 60, 1 / 60); hud.update(1 / 60);
+  assert.ok(p.perfectStreak === 1 && state() === 'perfect' && /^perfect-/.test(glow.getAttribute('data-flash')) && /^perfect-/.test(flash.getAttribute('data-flash')), 'suelta en la ventana → destello de perfecto (racha)');
+  h.step(0.5, 1 / 60); hud.update(0.5);
+  // un g._chargeEnd VIEJO (de antes de esta carga) no se cree: fuera de la ventana con racha 1 → fallo
+  g._chargeEnd = { key: 'rmb', id: 'vx_martillo', reason: 'release', perfect: true, t: p.simT - 5 };
+  g.resetCooldowns(p); p.mp = 999; h.press('rmb'); h.step(0.25, 1 / 60); hud.update(1 / 60);
+  assert.ok(g._charging && !g._charging.inWindow, 'carga corta, antes de la ventana');
+  h.release('rmb'); h.step(1 / 60, 1 / 60); hud.update(1 / 60);
+  assert.ok(p.perfectStreak === 0 && state() === 'miss' && /^miss-/.test(glow.getAttribute('data-flash')), 'un _chargeEnd viejo no cuenta: la racha cae a 0 → fallo');
+  h.step(0.5, 1 / 60); hud.update(0.5);
+  // con g._chargeEnd FRESCO (cola W2) manda el motor: una cancelación (esquiva) no es un fallo
+  g.resetCooldowns(p); p.mp = 999; h.press('rmb'); h.step(0.3, 1 / 60); hud.update(1 / 60);
+  const flashBefore = glow.getAttribute('data-flash');
+  g.cancelCast('dodge');
+  g._chargeEnd = { key: 'rmb', id: 'vx_martillo', reason: 'dodge', perfect: false, t: p.simT };
+  hud.update(1 / 60);
+  assert.ok(state() === 'end' && glow.getAttribute('data-flash') === flashBefore, 'cancelar (esquiva) con _chargeEnd fresco: sin destello');
+  g.resetCooldowns(p); p.mp = 999; p.perfectStreak = 3; h.press('rmb'); h.step(0.3, 1 / 60); hud.update(1 / 60);
+  h.release('rmb'); h.step(1 / 60, 1 / 60);
+  g._chargeEnd = { key: 'rmb', id: 'vx_martillo', reason: 'release', perfect: false, t: p.simT };
+  hud.update(1 / 60);
+  assert.ok(state() === 'miss', '_chargeEnd fresco de una suelta fuera → fallo');
+  h.step(0.5, 1 / 60); hud.update(0.5); g._chargeEnd = null;
+  // postura: data-mode solo con una postura activa (presencia) y el icono da la vuelta en el 2.º modo
+  const stance = hud.slotLayer('k2').find('verb-stance');
+  assert.equal(stance.getAttribute('data-mode'), null, 'sin postura: sin data-mode');
+  h.cast('k2'); h.step(0.1); hud.update(1 / 60);
+  assert.ok(stance.getAttribute('data-mode') === 'escudo' && !btn.k2.hasAttribute('data-verb-flip'), 'postura 1: data-mode="escudo"');
+  h.tick(1.2); h.cast('k2'); h.step(0.1); hud.update(1 / 60);
+  assert.ok(stance.getAttribute('data-mode') === 'espada' && btn.k2.getAttribute('data-verb-flip') === '', 'postura 2: data-mode="espada" y el icono se da la vuelta');
+  // reposo: con todo quieto (y la barra del cursor ya apagada tras su RESULT_MS), ni una escritura
+  for (let i = 0; i < 60; i++) hud.update(1 / 60);
+  const w0 = writes;
+  for (let i = 0; i < 300; i++) hud.update(1 / 60);
+  assert.equal(writes - w0, 0, 'reposo: 0 escrituras en 300 frames');
+  hud.destroy();
+  assert.ok(!cursor.parentNode && !slotL.parentNode && !btn.k2.hasAttribute('data-verb-flip'), 'destroy() lo quita todo');
+  console.log('createVerbHud (DOM simulado, motor real): data-in-window por presencia el MISMO frame a 60/144/30 Hz, suelta perfecta/fallo/cancelada (_chargeEnd fresco o racha), postura y 0 escrituras en reposo ✓');
 }
 
 console.log('\n✅ HUD DE PC (Paso 2d.2) OK');

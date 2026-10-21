@@ -97,7 +97,8 @@ const Q = new URLSearchParams(location.search);
 const $ = (s, r = document) => r.querySelector(s);
 document.body.classList.toggle('reduce-motion', Q.get('reduce') === '1');
 document.body.classList.toggle('bare', Q.get('bare') === '1');
-document.body.classList.toggle('hold', Q.get('hold') === '1');
+const HOLD = Q.get('hold') === '1';
+document.body.classList.toggle('hold', HOLD);
 
 // arte real del juego para las habilidades sintéticas (assets/skills/<id>.webp)
 const ART = {
@@ -114,12 +115,23 @@ const BAR_COMBO = { lmb: 'g_tajo', rmb: 'vx_combo', k1: 'embestida', k2: 'vx_ter
 const BAR_CANAL = { lmb: 'g_tajo', rmb: 'vx_rayo', k1: 'embestida', k2: 'vx_carrera', k3: 'vx_andanada', k4: 'g_u_cataclismo' };
 const BAR_POST = { lmb: 'g_tajo', rmb: 'vx_martillo', k1: 'embestida', k2: 'vx_guardia', k3: 'vx_rodilla', k4: 'g_u_cataclismo' };
 const BAR_PLANT = { lmb: 'g_tajo', rmb: 'vx_terremoto', k1: 'vx_paso', k2: 'vx_cepo', k3: 'vx_mina', k4: 'g_u_cataclismo' };
+// la carga en curso como la deja el motor (game-skills._beginCharge + tickSkillVerbs): UN objeto
+// por carga (la UI resuelve el resultado cuando cambia) que avanza su `u` frame a frame
 const charge = (h, u, { calm = false, toggle = false, slot = 'rmb', id = 'vx_martillo' } = {}) => {
   const p = h.p, sk = p.cls.skills.find(s => s.id === id), prof = resolveSkill(p, sk), ch = prof.charge;
   p.stats.perfectAlways = calm ? 1 : 0;
   const [a, b] = ch.perfect;
-  h.g._charging = { key: slot, id, sk, prof, ch, u, t: u, frac: Math.max(0, (u - ch.min) / (ch.max - ch.min)), window: ch.perfect,
-    min: ch.min, max: ch.max, inWindow: u >= a - 1e-9 && u <= b + 1e-9, toggle, release: null };
+  let c = h.g._charging;
+  if (!c || c.key !== slot || c.id !== id) c = h.g._charging = { key: slot, id, sk, prof, ch, t0: p.simT || 0, window: ch.perfect, min: ch.min, max: ch.max, release: null };
+  Object.assign(c, { u, t: u, frac: Math.max(0, (u - ch.min) / (ch.max - ch.min)), inWindow: u >= a - 1e-9 && u <= b + 1e-9, toggle });
+};
+// la suelta como la deja el motor: la carga se va y g._chargeEnd dice cómo acabó (cola W2: hoy
+// el motor aún no lo escribe; sin él, la UI lo deduce de la racha de perfectos)
+const release = (h, perfect) => {
+  const c = h.g._charging;
+  h.g._charging = null;
+  h.p.perfectStreak = perfect ? (h.p.perfectStreak || 0) + 1 : 0;
+  h.g._chargeEnd = { key: c?.key || 'rmb', id: c?.id || null, reason: 'release', perfect, t: h.p.simT || 0 };
 };
 const STATES = [
   { id: 'carga', name: 'Cargar y soltar · antes de la ventana', bar: BAR_CARGA, dur: 2,
@@ -131,14 +143,17 @@ const STATES = [
   { id: 'carga-fuera', name: 'Cargar y soltar · fuera de la ventana', bar: BAR_CARGA, dur: 2,
     txt: 'Pasada la ventana (sin suelta automática) el relleno vuelve a marfil: soltar ahora no es perfecto.',
     set: (h, t) => { charge(h, 1.17); h.g._charging.u = 1.18; h.g._charging.inWindow = false; } },
+  // suelta: la rampa llega a un ÚLTIMO frame fijo (u = 1,0 dentro de la ventana [0,9, 1,1]; u = 0,6
+  // antes de ella) que se pinta siempre antes de soltar, sea cual sea el ritmo de frames; con
+  // &hold=1 el tiempo se para tras la suelta (ctx.freeze) para capturar el resultado
   { id: 'perfecto', name: 'Suelta perfecta', bar: BAR_CARGA, dur: 1.2,
     txt: 'Soltar dentro de la ventana: destello en la ranura y en la barra; la simulación pone «¡Perfecto!» y su tono.',
-    set: (h, t, ctx) => { if (t < 0.5) { ctx.done = 0; charge(h, 0.55 + t); } else if (!ctx.done) { h.g._charging = null; h.p.perfectStreak = (h.p.perfectStreak || 0) + 1; h.g._chargeEnd = { reason: 'release', perfect: true }; ctx.done = 1; ctx.text('¡Perfecto!'); } } },
+    set: (h, t, ctx) => suelta(h, t, ctx, 1.0, true, u => 0.55 + 0.9 * u) },
   { id: 'fallo', name: 'Suelta fuera de la ventana', bar: BAR_CARGA, dur: 1.2,
-    txt: 'Soltar antes o después: destello rojo junto al cursor (y su tono); la racha de perfectos vuelve a 0.',
-    set: (h, t, ctx) => { if (t < 0.5) { ctx.done = 0; charge(h, 0.3 + t * 0.6); } else if (!ctx.done) { h.g._charging = null; h.p.perfectStreak = 0; h.g._chargeEnd = { reason: 'release', perfect: false }; ctx.done = 1; } } },
+    txt: 'Soltar antes de la ventana: destello rojo junto al cursor (y su tono); la racha de perfectos vuelve a 0. En el juego, con g._chargeEnd (cola W2) o si había racha.',
+    set: (h, t, ctx) => suelta(h, t, ctx, 0.6, false, u => 0.3 + 0.6 * u) },
   { id: 'calma', name: 'Calma Absoluta', bar: BAR_CARGA, dur: 2,
-    txt: 'Con Calma Absoluta toda suelta desde media carga es perfecta: la barra entera es dorada.',
+    txt: 'Con Calma Absoluta toda suelta desde media carga es perfecta: la barra es dorada desde la mitad.',
     set: (h, t) => charge(h, 0.75 + 0.3 * (t % 1), { calm: true }) },
   { id: 'toggle', name: 'Modo alternar · carga enganchada', bar: BAR_CARGA, dur: 2,
     txt: 'Con «mantener» en modo alternar, la carga queda enganchada: candado en la ranura y junto a la barra.',
@@ -180,6 +195,14 @@ const STATES = [
     txt: 'Pips verdes con las trampas armadas de cada habilidad (2 y 3); las cargas, en número (ranura 1).',
     set: (h, t) => { traps(h, 'vx_cepo', 2); traps(h, 'vx_mina', 1 + Math.floor((t % 2) * 1.5)); h.p.skCharges.vx_paso = { n: 2, max: 3, nextAt: h.p.simT + 3 }; } },
 ];
+function suelta(h, t, ctx, uLast, perfect, ramp) {
+  if (t < 0.5) { ctx.done = 0; ctx.pre = 0; ctx.freeze = false; charge(h, Math.min(uLast, ramp(t))); return; }
+  if (!ctx.pre) { ctx.pre = 1; charge(h, uLast); return; }          // el último frame antes de soltar
+  if (ctx.done) return;
+  release(h, perfect);
+  ctx.done = 1; ctx.freeze = true;
+  if (perfect) ctx.text('¡Perfecto!');
+}
 function traps(h, skill, n) {
   const p = h.p;
   h.g.fields = (h.g.fields || []).filter(f => f.data?.skill !== skill);
@@ -243,14 +266,15 @@ function single(state, tFix = null) {
     el.className = 'ftxt'; el.textContent = s;
     el.style.left = Math.round(vw * 0.5) + 'px'; el.style.top = Math.round(vh * 0.38) + 'px';
     document.body.appendChild(el); texts.push(el);
-    setTimeout(() => el.remove(), 1400);
+    if (!HOLD) setTimeout(() => el.remove(), 1400);
   };
   mount(state);
   let last = performance.now(), alive = true;
   const demo = !Q.get('state') && Q.get('measure') !== '1';
   const frame = now => {
     if (!alive) return;
-    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    // &hold=1: tras la suelta el tiempo de la interfaz se para (la barra del cursor no se apaga)
+    const dt = HOLD && ctx.freeze ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
     let t = (now - t0) / 1000;
     if (demo && t > cur.dur * 1.5) { mount(STATES[(STATES.indexOf(cur) + 1) % STATES.length]); t0 = now; t = 0; }
     const tt = tFix != null ? tFix : (demo ? t : t % cur.dur);
@@ -301,7 +325,7 @@ function sheet() {
     const frame = now => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       const t = (now - t0) / 1000;
-      for (const s of scenes) { const tt = Q.get('t') != null ? +Q.get('t') : (s.st.id === 'perfecto' || s.st.id === 'fallo' ? Math.min(t, 0.62) : t % s.st.dur); s.st.set(s.h, tt, s.ctx); s.hud.update(dt); }
+      for (const s of scenes) { const tt = Q.get('t') != null ? +Q.get('t') : (s.st.id === 'perfecto' || s.st.id === 'fallo' ? Math.min(t, 0.62) : t % s.st.dur); s.st.set(s.h, tt, s.ctx); s.hud.update(HOLD && s.ctx.freeze ? 0 : dt); }
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -338,8 +362,9 @@ async function measure() {
         const c = h.g._charging;
         if (!c) break;
         frames++;
-        const dom = hud.bar.getAttribute('data-in-window') === '1';
-        const sl = sb.querySelector('.skill-btn[data-slot="rmb"] .verb-slot')?.getAttribute('data-win') === '1';
+        // por PRESENCIA (§3.12): el atributo está solo dentro de la ventana
+        const dom = hud.bar.hasAttribute('data-in-window');
+        const sl = !!sb.querySelector('.skill-btn[data-slot="rmb"] .verb-slot')?.hasAttribute('data-win');
         if (dom !== !!c.inWindow) mism++;
         if (sl !== !!c.inWindow) slotMism++;
         if (dt === runs[0] && c.inWindow && firstEngine < 0) firstEngine = i;

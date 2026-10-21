@@ -4,7 +4,8 @@
    Paso 2 (docs/paso2-implementacion.md §3.12 «Feedback de los verbos», D26). Una capa
    .verb-slot dentro de cada ranura (#skillbar .skill-btn) y la barra .verb-charge junto al
    cursor. Por frame solo cambian transform y opacity; lo demás (atributos data-*) cambia en
-   los bordes (entrar en la ventana, cambiar de postura…). Con «reducir movimiento» no hay
+   los bordes (entrar en la ventana, cambiar de postura…). Los atributos de sí/no van por
+   PRESENCIA ([data-in-window], [data-calm], [data-gold]…), como pide §3.12. Con «reducir movimiento» no hay
    pulsos ni giros ni sacudidas: mismo color y misma forma. Sin sonido todo se entiende por
    la vista: la ventana perfecta es un tramo dorado CON MUESCAS (forma, no solo color). */
 :root {
@@ -29,20 +30,20 @@
   background: var(--vb-gold); box-shadow: 0 0 0 1px #2a1c08, 0 0 4px rgba(255, 215, 106, 0.8); }
 .vb-npb .vb-notch { left: -1px; }
 /* dentro de la ventana: el relleno se vuelve oro, la pista engorda y brilla */
-[data-in-window="1"] > .vb-track { box-shadow: 0 0 0 1px var(--vb-gold), 0 0 10px rgba(255, 215, 106, 0.85); }
-[data-in-window="1"] .vb-fill { background: linear-gradient(90deg, #e8b84a, #fff1b8); opacity: 1; }
+[data-in-window] > .vb-track { box-shadow: 0 0 0 1px var(--vb-gold), 0 0 10px rgba(255, 215, 106, 0.85); }
+[data-in-window] .vb-fill { background: linear-gradient(90deg, #e8b84a, #fff1b8); opacity: 1; }
 /* Calma Absoluta: toda dorada (perfecta desde media carga) */
-[data-calm="1"] > .vb-track { box-shadow: 0 0 0 1px var(--vb-gold), 0 0 8px rgba(255, 215, 106, 0.6); }
-[data-calm="1"] .vb-calm { opacity: 1; }
-[data-calm="1"] .vb-win { opacity: 0; }
-[data-calm="1"] .vb-fill { background: linear-gradient(90deg, #f0c45a, #fff1b8); }
+[data-calm] > .vb-track { box-shadow: 0 0 0 1px var(--vb-gold), 0 0 8px rgba(255, 215, 106, 0.6); }
+[data-calm] .vb-calm { opacity: 1; }
+[data-calm] .vb-win { opacity: 0; }
+[data-calm] .vb-fill { background: linear-gradient(90deg, #f0c45a, #fff1b8); }
 
 /* ---------- junto al cursor: 64 × 6 px a 24 px del cursor (siempre en pantalla) ---------- */
 .verb-cursor { position: fixed; left: 0; top: 0; z-index: 60; width: 64px; pointer-events: none; opacity: 0;
   will-change: transform, opacity; }
 .verb-charge { position: relative; width: 64px; }
 .verb-charge > .vb-track { transition: transform 0.08s ease-out; }
-.verb-charge[data-in-window="1"] > .vb-track { transform: scaleY(1.5); }
+.verb-charge[data-in-window] > .vb-track { transform: scaleY(1.5); }
 .vc-latch { position: absolute; right: -17px; top: 50%; width: 13px; height: 13px; margin-top: -7px; opacity: 0;
   color: var(--vb-gold); filter: drop-shadow(0 1px 1px #000); }
 .vc-latch svg, .verb-latch svg, .verb-plant svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -55,7 +56,7 @@
 
 /* ---------- capa de cada ranura ---------- */
 .verb-slot { position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: 8px; opacity: 0; }
-.verb-slot[data-win="1"] { box-shadow: inset 0 0 0 2px var(--vb-gold), 0 0 12px rgba(255, 215, 106, 0.75); }
+.verb-slot[data-win] { box-shadow: inset 0 0 0 2px var(--vb-gold), 0 0 12px rgba(255, 215, 106, 0.75); }
 /* reparto de la ranura (56 × 56): arriba a la izq. la categoría y arriba a la dcha. el coste
    (js/ui.js); abajo a la izq. la tecla. Lo de los verbos va abajo a la derecha (barra de carga y
    pips), arriba a la derecha (el número, que tapa el coste mientras se ve) y en el centro (aro) */
@@ -74,23 +75,23 @@
 .vr-r .vr-arc { clip-path: inset(0 50% 0 0); }
 .vr-l .vr-arc { clip-path: inset(0 0 0 50%); }
 .verb-ring[data-kind="recast"] { --vr-c: var(--vb-ivory); }
-.verb-ring[data-kind="recast"][data-gold="1"] { --vr-c: var(--vb-gold); filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 5px rgba(255, 215, 106, 0.9)); }
+.verb-ring[data-kind="recast"][data-gold] { --vr-c: var(--vb-gold); filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 5px rgba(255, 215, 106, 0.9)); }
 .verb-ring[data-kind="channel"] { --vr-c: var(--vb-cool); }
-.verb-ring[data-endless="1"] { animation: verbBeat 0.9s ease-in-out infinite; }
+.verb-ring[data-endless] { animation: verbBeat 0.9s ease-in-out infinite; }
 
 /* pips: combo de 3 y secuencia (brilla el siguiente) · trampas armadas (verdes) */
 .verb-pips { position: absolute; left: 20px; right: 3px; bottom: 4px; display: flex; justify-content: center; gap: 2px; transition: transform 0.12s; }
 .verb-pips[data-n="0"] { display: none; }
-.verb-pips[data-up="1"] { transform: translateY(-9px); }
+.verb-pips[data-up] { transform: translateY(-9px); }
 .verb-pips i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: rgba(8, 6, 10, 0.88); box-shadow: inset 0 0 0 1.5px #8a7350, 0 0 0 1px #000a; }
 .verb-pips[data-n="5"] i { width: 6px; height: 6px; }
 .verb-pips i[data-s="off"] { display: none; }
 .verb-pips i[data-s="done"] { background: var(--vb-ivory); box-shadow: inset 0 0 0 1.5px #f8f0dc, 0 0 2px #000; }
 .verb-pips i[data-s="next"] { background: var(--vb-gold); box-shadow: 0 0 0 1px #2a1c08, 0 0 7px rgba(255, 215, 106, 0.95); transform: scale(1.25); }
-.verb-pips[data-live="1"] i[data-s="next"] { animation: verbPip 1s ease-in-out infinite; }
+.verb-pips[data-live] i[data-s="next"] { animation: verbPip 1s ease-in-out infinite; }
 /* el último pip de un combo o de una secuencia es el golpe especial: rombo */
-.verb-pips i[data-last="1"] { border-radius: 2px; transform: rotate(45deg) scale(0.9); }
-.verb-pips i[data-last="1"][data-s="next"] { transform: rotate(45deg) scale(1.15); }
+.verb-pips i[data-last] { border-radius: 2px; transform: rotate(45deg) scale(0.9); }
+.verb-pips i[data-last][data-s="next"] { transform: rotate(45deg) scale(1.15); }
 .verb-pips[data-kind="trap"] i[data-s="done"] { background: var(--vb-ok); box-shadow: inset 0 0 0 1.5px #c6f0b8, 0 0 5px rgba(134, 212, 122, 0.8); }
 
 /* número: usos de relanzar (oro), cargas (marfil; sin cargas, apagado) y trampas (verde) */
@@ -98,7 +99,7 @@
   background: #211a0e; border: 1px solid #8a6f38; font: 800 11px/15px Inter, system-ui, sans-serif; color: var(--vb-ivory); text-align: center;
   box-shadow: 0 1px 3px #000c; opacity: 0; }
 /* mientras se ve el número, el coste de la esquina se aparta (un relanzamiento es gratis) */
-.skill-btn:has(.verb-count[data-kind]:not([data-kind=""])) .sk-cost { visibility: hidden; }
+.skill-btn:has(.verb-count[data-kind]) .sk-cost { visibility: hidden; }
 .verb-count[data-kind="recast"] { color: #1a120a; background: linear-gradient(#f6dd9c, #c89a3e); border-color: #ffe7a8; }
 .verb-count[data-kind="charges-0"] { color: #a39a88; border-color: #4a3e54; }
 .verb-count[data-kind="trap"] { color: #d8f5c8; border-color: #4f8a48; }
@@ -108,15 +109,15 @@
   background: #1d1710; box-shadow: 0 0 0 1px #8a6f38, 0 1px 3px #000; color: var(--vb-gold); }
 .verb-plant { position: absolute; right: 2px; top: 21px; width: 14px; height: 14px; padding: 1px; border-radius: 4px; opacity: 0;
   background: rgba(13, 10, 16, 0.82); color: #a39a88; }
-.verb-plant[data-on="1"] { color: #f3e2b5; box-shadow: 0 0 0 1px #c8a050, 0 0 6px rgba(232, 192, 106, 0.6); }
+.verb-plant[data-on] { color: #f3e2b5; box-shadow: 0 0 0 1px #c8a050, 0 0 6px rgba(232, 192, 106, 0.6); }
 
 /* postura: marco del color del modo; las dos a la vez (Guardia Total), marco doble */
 .verb-stance { position: absolute; inset: -3px; border-radius: 10px; opacity: 0; --vs-c: #7fb0e8;
   box-shadow: 0 0 0 2px var(--vs-c), 0 0 10px color-mix(in srgb, var(--vs-c) 75%, transparent); }
-.verb-stance[data-both="1"] { box-shadow: 0 0 0 2px var(--vs-c), 0 0 0 4px var(--vb-gold), 0 0 14px rgba(255, 215, 106, 0.7); }
+.verb-stance[data-both] { box-shadow: 0 0 0 2px var(--vs-c), 0 0 0 4px var(--vb-gold), 0 0 14px rgba(255, 215, 106, 0.7); }
 /* el icono se da la vuelta en el 2.º modo (la capa vive en la ranura de js/ui.js) */
 .skill-btn .sk-icon { transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.skill-btn[data-verb-flip="1"] .sk-icon { transform: rotateY(180deg); }
+.skill-btn[data-verb-flip] .sk-icon { transform: rotateY(180deg); }
 
 /* destello de la suelta perfecta en la ranura */
 .verb-flash { position: absolute; inset: -4px; border-radius: 12px; opacity: 0;
@@ -129,15 +130,14 @@
 @keyframes verbBeat { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.94); } }
 @keyframes verbPip { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-/* ---------- reducir movimiento: mismo color y forma, sin pulsos, giros ni sacudidas ---------- */
+/* ---------- reducir movimiento: mismo color y forma, sin pulsos, giros ni sacudidas ----------
+   (la pista sigue engordando dentro de la ventana: es forma, no movimiento; solo pierde la transición) */
 @media (prefers-reduced-motion: reduce) {
-  .verb-ring[data-endless="1"], .verb-pips[data-live] i[data-s="next"] { animation: none; }
+  .verb-ring[data-endless], .verb-pips[data-live] i[data-s="next"] { animation: none; }
   .skill-btn .sk-icon, .verb-pips, .verb-charge > .vb-track { transition: none; }
-  .verb-charge[data-in-window="1"] > .vb-track { transform: none; }
   .verb-flash[data-flash], .vc-glow[data-flash] { animation-name: verbFlashStill; animation-timing-function: steps(1, end); }
 }
-body.reduce-motion .verb-ring[data-endless="1"], body.reduce-motion .verb-pips[data-live] i[data-s="next"] { animation: none; }
+body.reduce-motion .verb-ring[data-endless], body.reduce-motion .verb-pips[data-live] i[data-s="next"] { animation: none; }
 body.reduce-motion .skill-btn .sk-icon, body.reduce-motion .verb-pips, body.reduce-motion .verb-charge > .vb-track { transition: none; }
-body.reduce-motion .verb-charge[data-in-window="1"] > .vb-track { transform: none; }
 body.reduce-motion .verb-flash[data-flash], body.reduce-motion .vc-glow[data-flash] { animation-name: verbFlashStill; animation-timing-function: steps(1, end); }
 @keyframes verbFlashStill { 0% { opacity: 0.85; } 100% { opacity: 0; } }

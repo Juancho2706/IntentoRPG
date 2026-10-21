@@ -18,16 +18,18 @@
 // 1366 × 768), así que las medidas son fijas y nada lee el layout para colocar la forja.
 // DOM estable (§3.12, humo y ?skillscheck=1): #skills-book[data-open], .sb-tile[data-skill],
 // .sb-var[data-var][data-state], .sb-mejora; check() deja window.__uicheck = { panel, overlaps, offscreen }.
+// #skills-book[data-open] va por PRESENCIA (como #talents-panel de U1): data-open="" con el libro
+// abierto y sin el atributo cerrado; el humo y los arneses lo leen con hasAttribute.
 // Iconos que no existen → <span class="ico-missing" data-id="…"> (no se piden imágenes que no
 // están: los iconos de variante de la forja aún no existen, §7 del plan).
 // Se importa sin DOM (los tests corren en Node): nada usa `document` al cargar el módulo.
 import { bookView, forgeView, talentLinks, supportOptions, supportsAfter, recoPlan, bookScale, skillOf, slotOfSkill,
-  SLOT_ORDER, SLOT_LABEL, ROLE_INFO, ROLE_ROW, VERB_LABEL, catLabel, resIcon, specCard, skillArtPath } from './hud-model.js';
+  SLOT_ORDER, SLOT_LABEL, ROLE_INFO, ROLE_ROW, VERB_LABEL, catLabel, resIcon, specCard, skillArtPath, hyphenEs } from './hud-model.js';
 import { createGaugeHud, gaugeViewFor } from './ui-gauges.js';
 import { gaugeTuning } from './spec-mechanics.js';
 import { fitsSlot } from './skill-resolve.js';
 import { SLOT_UNLOCK } from './skill-defs.js';
-import { talentTreesFor } from './talents.js';
+import { talentTreesFor, TALENT_RULES } from './talents.js';
 import { mergeBindings, buildCodeMap, keyLabel } from './bindings.js';
 
 // iconos de VARIANTE ya pintados (assets/forge/v_<id>.webp): vacío hasta la tanda de arte
@@ -50,7 +52,12 @@ const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
   .replace(/(\d) (?=%|s\b|m\b)/g, '$1\u00a0');
 const fmt = v => String(Math.round((+v || 0) * 10) / 10).replace('.', ',');
+const fmt2 = v => String(Math.round((+v || 0) * 100) / 100).replace('.', ',');       // coeficientes (Alt)
+const SPEC_AT = TALENT_RULES.specAt;          // nivel en que se elige especialización (y se abre la ranura 3)
 const VAR_NUM = { i: 'I', ii: 'II' };
+// textos largos (catálogo v1 sin `line`, líneas de variante de más de 90 letras): una línea más con
+// letra algo menor en vez de cortarlos (el texto entero sigue en el tooltip)
+const LONG_LINE = 110, LONG_VAR = 90;
 
 export function createSkillBook(root, opts = {}) {
   const game = opts.game || null;
@@ -71,8 +78,7 @@ export function createSkillBook(root, opts = {}) {
 
   // ---------------------------------------------------------------- esqueleto (una vez)
   const layer = doc.createElement('div');
-  layer.id = 'skills-book';
-  layer.dataset.open = '0';
+  layer.id = 'skills-book';                  // cerrado: sin data-open
   layer.setAttribute('role', 'dialog');
   layer.setAttribute('aria-label', 'Libro de habilidades');
   layer.innerHTML = `
@@ -119,7 +125,7 @@ export function createSkillBook(root, opts = {}) {
   };
   // icono: <img> si hay ruta (si no carga, marcador); sin ruta, el marcador directamente
   function icoHTML(path, id, emoji = '✦', cls = 'sb-ico', extra = '') {
-    if (!path) return `<span class="${cls} ico-missing" data-id="${esc(id)}"${extra}><b>${esc(emoji)}</b><i>${esc(id)}</i></span>`;
+    if (!path) return `<span class="${cls} ico-missing" data-id="${esc(id)}" title="${esc(id)}"${extra}><b>${esc(emoji)}</b><i>${esc(id)}</i></span>`;
     return `<span class="${cls}"${extra}><img src="${esc(A(path))}" alt="" draggable="false" data-id="${esc(id)}"></span>`;
   }
   // los <img> que fallan se cambian por el marcador (2f §3.12)
@@ -130,6 +136,7 @@ export function createSkillBook(root, opts = {}) {
     if (!box) return;
     box.classList.add('ico-missing');
     box.dataset.id = img.dataset.id;
+    box.title = img.dataset.id;
     img.remove();
     if (!box.querySelector('i')) box.insertAdjacentHTML('beforeend', `<i>${esc(box.dataset.id)}</i>`);
   }, true);
@@ -157,13 +164,13 @@ export function createSkillBook(root, opts = {}) {
   function tileHTML(t) {
     const mark = t.variant ? `<span class="sb-seal">${VAR_NUM[t.variant]}</span>` : '';
     const reco = t.reco ? `<span class="sb-reco" title="Recomendada para tu especialización">★</span>` : '';
-    const lock = t.known ? '' : `<span class="sb-lock">${LOCK}Nv ${t.lockLv || ''}</span>`;
+    const lock = t.known ? '' : `<span class="sb-lock">${LOCK}${t.lockLv ? `Nv ${t.lockLv}` : ''}</span>`;
     const isNew = t.isNew && !S.seen.has(t.id) ? '<span class="sb-new" title="Novedad"></span>' : '';
     return `<div class="sb-tile${t.known ? '' : ' locked'}${S.sel === t.id ? ' sel' : ''}${t.todo ? ' todo' : ''}${t.talent ? ' talent' : ''}${t.spec ? ' spk' : ''}" ` +
       `data-skill="${esc(t.id)}" tabindex="0" role="button" aria-label="${esc(t.name)} · ${esc(t.catLabel)}${t.slotLabel ? ' · ranura ' + t.slotLabel : ''}">` +
       (t.slotLabel ? `<span class="sb-key">${t.slotLabel}</span>` : '') + isNew +
       `<span class="sb-icowrap">${icoHTML(t.art, t.id, t.emoji)}${lock}${mark}${reco}<img class="sb-catb" src="${esc(A(t.catIcon) || '')}" alt="" title="${esc(t.catLabel)}"></span>` +
-      (t.tag ? `<span class="sb-ttag">${t.tag}</span>` : '') + `<span class="sb-nm">${esc(t.name)}</span></div>`;
+      (t.tag ? `<span class="sb-ttag">${t.tag}</span>` : '') + `<span class="sb-nm">${esc(hyphenEs(t.name))}</span></div>`;
   }
   function renderBook(v) {
     const p = P();
@@ -184,18 +191,20 @@ export function createSkillBook(root, opts = {}) {
           `<div class="sb-gz" data-gauge></div></section>`);
       } else {
         const pre = g.id === 'pre';
+        const note = !pre ? `se cambian gratis en Talentos <kbd>${K('talents')}</kbd>`
+          : v.level < SPEC_AT ? `eliges una al nivel ${SPEC_AT} · cada una trae su kit` : `elige una en Talentos <kbd>${K('talents')}</kbd> · cada una trae su kit`;
         out.push(`<section class="sb-sec sb-others${pre ? ' pre' : ''}"><div class="sb-sec-h">${pre ? `<img src="${esc(A('ui/cat_especializacion.webp'))}" alt="">Especialización` : 'Otras especializaciones'}` +
-          `<span class="n">${pre ? 'eliges una al nivel 10 · cada una trae su kit' : `se cambian gratis en Talentos <kbd>${K('talents')}</kbd>`}</span></div>` +
+          `<span class="n">${note}</span></div>` +
           g.rows.map(r => `<div class="sb-srow" data-spec="${esc(r.id)}"><img class="se" src="${esc(A(r.emblem))}" alt="" data-tipspec="${esc(r.id)}">` +
             `<div class="sb-sname"><b>${esc(r.name)}</b><small>${esc(r.roleLabel)}${r.mechName ? ' · ' + esc(r.mechName) : ''}</small></div>` +
             `<div class="sb-mini">${r.kit.map(k => `<span class="sb-mt" data-mini="${esc(k.id)}">${icoHTML(k.art, k.id, k.emoji, 'sb-ico')}<img class="sb-catb" src="${esc(A(k.catIcon) || '')}" alt=""></span>`).join('')}</div>` +
-            `<span class="lv">${r.lockLv ? `${LOCK}Nv ${r.lockLv}` : ''}</span></div>`).join('') + '</section>');
+            (r.choose ? `<button class="sb-choose" type="button" data-act="talents" title="Elige tu especialización en Talentos">Elegir <kbd>${K('talents')}</kbd></button>`
+              : `<span class="lv">${r.lockLv ? `${LOCK}Nv ${r.lockLv}` : ''}</span>`) + '</div>').join('') + '</section>');
       }
     }
     // la barra de mecánica en demo vive fuera del innerHTML (no se reinicia en cada repintado)
-    const gzHost = S.gauge?.el?.parentNode === R.book ? null : S.gauge?.el;
-    void gzHost;
     if (S.gauge) S.gauge.el.remove();
+    R.book.classList.toggle('dense', !!v.dense);       // 3 filas de casillas o más: libro compacto
     R.book.innerHTML = out.join('');
     mountGauge(v.spec);
   }
@@ -229,7 +238,7 @@ export function createSkillBook(root, opts = {}) {
     if (fv.spec) chips.push(`<span class="sb-chip spec"><img src="${esc(A(fv.spec.emblem))}" alt="">${esc(fv.spec.name)}</span>`);
     if (fv.innate) chips.push(`<span class="sb-chip gold">${esc(fv.innate)}</span>`);
     const dots = Array.from({ length: fv.rankMax }, (_, i) => `<i class="${i < fv.rank ? 'on' : ''}"></i>`).join('');
-    let html = `<div class="sb-fh">${icoHTML(fv.art, fv.id, fv.emoji, 'sb-ico big')}<div class="sb-fhx"><h4>${esc(fv.name)}</h4><div class="sb-line">${esc(fv.line)}</div><div class="sb-chips">${chips.join('')}</div></div>` +
+    let html = `<div class="sb-fh">${icoHTML(fv.art, fv.id, fv.emoji, 'sb-ico big')}<div class="sb-fhx"><h4>${esc(fv.name)}</h4><div class="sb-line${fv.line.length > LONG_LINE * 1.7 ? ' long xlong' : fv.line.length > LONG_LINE ? ' long' : ''}">${esc(fv.line)}</div><div class="sb-chips">${chips.join('')}</div></div>` +
       (fv.talent ? '' : `<div class="sb-rank"><span>Rango</span><b>${fv.rank}</b><div class="dots">${dots}</div><span>sube con el nivel</span></div>`) + '</div>';
     if (fv.talent) {
       html += `<div class="sb-tree sb-tree-msg"><div>Activa de ${fv.hero ? 'Paragon' : 'talento'}: sus cambios están en el árbol que la concede.` +
@@ -256,7 +265,7 @@ export function createSkillBook(root, opts = {}) {
       const pill = v.state === 'bloqueada' ? `<span class="sb-lockpill">${LOCK}Nv ${v.level}</span>` : v.state === 'elegida' ? '<span class="sb-sealb">ELEGIDA</span>' : '';
       html += `<div class="sb-var ${st}${fv.combat ? ' combat' : ''}" data-var="${v.key}" data-state="${v.state}" style="left:${TREE.vx}px;top:${v.key === 'i' ? 25 : 75}%" tabindex="0" role="button" aria-label="Variante ${v.num}: ${esc(v.name)} · ${esc(v.roleLabel)}">` +
         `<span class="num">${v.num}</span>${pill}${v.reco ? `<span class="sb-recochip">★ ${esc(v.recoSpec)}</span>` : ''}` +
-        `${varIco(fv, v)}<div class="sb-vtx"><div class="vn">${esc(v.name)}</div><div class="vs">${esc(v.line)}</div>${roleChip(v.role)}</div></div>`;
+        `${varIco(fv, v)}<div class="sb-vtx"><div class="vn">${esc(v.name)}</div><div class="vs${v.line.length > LONG_VAR ? ' long' : ''}">${esc(v.line)}</div>${roleChip(v.role)}</div></div>`;
     }
     html += '</div>';
     R.forge.innerHTML = html + footHTML(fv);
@@ -349,13 +358,13 @@ export function createSkillBook(root, opts = {}) {
       fv.gen && ['Genera', `${fv.gen} ${esc(res)}`],
     ];
     const v = fv.vars.find(x => x.key === fv.chosen);
-    const st = !fv.known ? `<div class="st lk">Se aprende al nivel ${fv.req}</div>` : fv.pending ? '<div class="st g">¡Elige una variante!</div>'
+    const st = !fv.known ? `<div class="st lk">Se aprende al nivel ${fv.learnAt}</div>` : fv.pending ? '<div class="st g">¡Elige una variante!</div>'
       : v && v.state === 'elegida' ? `<div class="st ok">Variante ${v.num}: ${esc(v.name)}</div>` : '';
     const verbs = fv.verbs.length ? `<div class="tg">${fv.verbs.map(x => `<i class="vb">${esc(VERB_LABEL[x] || x)}</i>`).join('')}</div>` : '';
     return `<div class="th">${icoHTML(fv.art, fv.id, fv.emoji, 'sb-ico md')}<div><div class="tn">${esc(fv.name)}</div><div class="tk">${kind}</div></div></div>` +
       `<div class="tl">${esc(fv.line)}</div>${fv.innate ? `<div class="tnx">${esc(fv.innate)}</div>` : ''}${verbs}${rows(tr)}` +
       (fv.nextRankLv && fv.known ? `<div class="tk">Rango ${fv.rank + 1} al nivel ${fv.nextRankLv}</div>` : '') + st +
-      (S.alt ? `<div class="tg">${fv.tags.map(t => `<i>${esc(t)}</i>`).join('')}</div><div class="adv"><b>Detalle (Alt):</b> daño = arma × ${fmt(fv.coef)} × (1 + Σ aditivos) × atributo × crítico</div>` : '') +
+      (S.alt ? `<div class="tg">${fv.tags.map(t => `<i>${esc(t)}</i>`).join('')}</div><div class="adv"><b>Detalle (Alt):</b> daño = arma × ${fmt2(fv.coef)} × (1 + Σ aditivos) × atributo × crítico</div>` : '') +
       linksHTML(id) + '<div class="tf"><span>Clic: forja</span><span>Arrastra a la barra</span><span><kbd>Alt</kbd> detalle</span></div>';
   }
   function tipMejora() {
@@ -385,7 +394,7 @@ export function createSkillBook(root, opts = {}) {
     const p = P();
     const lv = SLOT_UNLOCK[slot] || 1;
     const flex = slot === 'k2' ? '<div class="tl flex">Ranura flexible: una defensa o utilidad <b>o</b> una segunda principal.</div>' : '';
-    if ((p?.level || 1) < lv) return `<div class="tn">Ranura ${SLOT_LABEL[slot]}</div><div class="tl">${slot === 'k3' ? 'Se abre al elegir especialización (nivel 10): su habilidad insignia.' : `Se abre al nivel ${lv}.`}</div>`;
+    if ((p?.level || 1) < lv) return `<div class="tn">Ranura ${SLOT_LABEL[slot]}</div><div class="tl">${slot === 'k3' ? `Se abre al elegir especialización (nivel ${SPEC_AT}): su habilidad insignia.` : `Se abre al nivel ${lv}.`}</div>`;
     const id = p?.hotbar?.[slot];
     if (!id) return `<div class="tn">Ranura ${SLOT_LABEL[slot]}</div>${flex}<div class="tl">Vacía: arrastra aquí una habilidad.</div>`;
     return tipSkill(id).replace('<div class="tf">', flex + '<div class="tf">');
@@ -421,9 +430,13 @@ export function createSkillBook(root, opts = {}) {
     const p = P(), sk = skillOf(p, id);
     if (!sk) return '';
     const c = specCard(p?.classId, sk.spec);
-    const why = (p?.level || 1) < 10 ? `Se aprende al nivel ${sk.req} si eliges ${esc(c?.name)} (nivel 10)` : `Cambia a ${esc(c?.name)} en Talentos (N) para usarla`;
+    const lv = Math.max(sk.req || 1, SPEC_AT);
+    const why = (p?.level || 1) < SPEC_AT ? `Se aprende al nivel ${lv} si eliges ${esc(c?.name)} (nivel ${SPEC_AT})`
+      : specIdNow() ? `Cambia a ${esc(c?.name)} en Talentos (${K('talents')}) para usarla` : `Elige ${esc(c?.name)} en Talentos (${K('talents')}) para usarla`;
     return `<div class="tn">${esc(sk.name)}</div><div class="tk">Kit de ${esc(c?.name || '')} · ${esc(catLabel(sk.cat))}</div><div class="tl">${esc(sk.line || sk.desc || '')}</div><div class="st lk">${why}</div>`;
   }
+
+  const specIdNow = () => S.view?.spec?.id || null;
 
   // ---------------------------------------------------------------- acciones
   function select(id, { focus = false } = {}) {
@@ -476,7 +489,8 @@ export function createSkillBook(root, opts = {}) {
     S.popFor = { i, id: sk.id };
     R.pop.innerHTML = `<div class="pt">Engarce ${i + 1} · ${esc(sk.name)}</div><div class="g">` +
       `<button class="gm none" type="button" data-sup="" title="Quitar">✕</button>` +
-      opts2.map(o => `<button class="gm ${o.state}${o.current ? ' cur' : ''}" type="button" data-sup="${esc(o.id)}" ${o.state === 'ok' || o.current ? '' : 'aria-disabled="true"'}>${esc(o.icon)}</button>`).join('') + '</div>';
+      opts2.map(o => `<button class="gm ${o.state}${o.current ? ' cur' : ''}" type="button" data-sup="${esc(o.id)}" ${o.state === 'ok' || o.current ? '' : 'aria-disabled="true"'}` +
+        ` aria-label="${esc(o.name)}${o.state === 'ok' ? '' : ` · ${SUP_STATE[o.state]}`}">${esc(o.icon)}${supMark(o)}</button>`).join('') + '</div>';
     R.pop.classList.add('on');
     const r = btn.getBoundingClientRect(), s = S.s;
     const ph = R.pop.offsetHeight * s, pw = R.pop.offsetWidth * s;
@@ -485,6 +499,15 @@ export function createSkillBook(root, opts = {}) {
     R.pop.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${s})`;
   }
   function closePop() { R.pop.classList.remove('on'); S.popFor = null; }
+  // marca de forma de cada estado de la cuadrícula: candado (aún no lo tienes), aspa (no encaja)
+  // o el número del otro engarce (ya está allí)
+  const SUP_STATE = { unknown: 'aún no lo tienes', incompatible: 'no encaja', used: 'ya está en el otro engarce' };
+  function supMark(o) {
+    if (o.current || o.state === 'ok') return '';
+    if (o.state === 'unknown') return `<span class="mk lk">${LOCK}</span>`;
+    if (o.state === 'incompatible') return '<span class="mk no">✕</span>';
+    return `<span class="mk us">${o.usedIn + 1}</span>`;
+  }
   function setSupport(supId) {
     const pf = S.popFor, p = P(), sk = skillOf(p, pf?.id);
     if (!sk) return;
@@ -560,7 +583,10 @@ export function createSkillBook(root, opts = {}) {
     const slot = e.target.closest('.sb-slot');
     if (slot && !slot.classList.contains('locked')) { const id = P()?.hotbar?.[slot.dataset.slot]; if (id) select(id); return; }
     const mini = e.target.closest('[data-mini]');
-    if (mini) { const sk = skillOf(P(), mini.dataset.mini); if (sk) message(`${esc(sk.name)}: ${(P()?.level || 1) < 10 ? 'elige especialización al nivel 10' : `cambia de especialización en Talentos (N)`}`); }
+    if (mini) {
+      const sk = skillOf(P(), mini.dataset.mini);
+      if (sk) message(`${esc(sk.name)}: ${(P()?.level || 1) < SPEC_AT ? `elige especialización al nivel ${SPEC_AT}` : `${specIdNow() ? 'cambia de' : 'elige'} especialización en Talentos (${K('talents')})`}`);
+    }
   });
   layer.addEventListener('contextmenu', e => {
     const tile = e.target.closest('.sb-tile');
@@ -575,7 +601,9 @@ export function createSkillBook(root, opts = {}) {
     if (S.drag?.moved) return;
     const t = e.target;
     const tile = t.closest?.('.sb-tile');
-    if (tile) { S.hover = tile.dataset.skill; return tipShow(e, () => tipSkill(tile.dataset.skill)); }
+    // las teclas 1–4 asignan la casilla bajo el ratón: fuera de una casilla, ninguna
+    S.hover = tile ? tile.dataset.skill : null;
+    if (tile) return tipShow(e, () => tipSkill(tile.dataset.skill));
     const v = t.closest?.('.sb-var');
     if (v) return tipShow(e, () => tipVar(v.dataset.var), v);
     if (t.closest?.('.sb-mejora')) return tipShow(e, tipMejora);
@@ -596,7 +624,7 @@ export function createSkillBook(root, opts = {}) {
     if (sp) return tipShow(e, () => tipSpec(sp.dataset.tipspec));
     const mini = t.closest?.('[data-mini]');
     if (mini) return tipShow(e, () => tipMini(mini.dataset.mini));
-    if (!t.closest?.('.sb-tip')) { S.hover = null; tipHide(); }
+    if (!t.closest?.('.sb-tip')) tipHide();
   });
   layer.addEventListener('mousemove', e => { S.lastEv = e; if (R.tip.classList.contains('on') && !S.tipAnchor) tipPlace(); });
   layer.addEventListener('mouseleave', () => { S.hover = null; tipHide(); });
@@ -671,7 +699,7 @@ export function createSkillBook(root, opts = {}) {
     open() {
       if (S.open) { api.refresh(); return; }
       S.open = true;
-      layer.dataset.open = '1';
+      layer.setAttribute('data-open', '');
       applyScale();
       for (const k of layer.querySelectorAll('kbd[data-key]')) k.textContent = keyLabel(binds()[k.dataset.key]?.[0]) || k.textContent;
       doc.addEventListener('keydown', onKey, true);
@@ -683,7 +711,7 @@ export function createSkillBook(root, opts = {}) {
     close() {
       if (!S.open) return;
       S.open = false;
-      layer.dataset.open = '0';
+      layer.removeAttribute('data-open');
       tipHide(); closePop();
       doc.removeEventListener('keydown', onKey, true);
       doc.removeEventListener('keyup', onKeyUp, true);
@@ -745,8 +773,16 @@ export function createSkillBook(root, opts = {}) {
         else if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) out.offscreen.push(name(el));
         else if (el !== R.stage && stage && (r.left < stage.left - 1 || r.right > stage.right + 1 || r.top < stage.top - 1 || r.bottom > stage.bottom + 1)) out.offscreen.push(`${name(el)} (fuera del libro)`);
       }
-      // textos cortados con puntos suspensivos (nombres de variante, de especialización…)
-      for (const el of layer.querySelectorAll('.sb-var .vn, .sb-fh h4, .sb-sname b, .sb-gchip')) if (el.scrollWidth > el.clientWidth + 1) out.offscreen.push(`${name(el.closest('[data-var], [data-spec], .sb-fh, .sb-gchip') || el)} (texto cortado)`);
+      // textos cortados: con puntos suspensivos (nombres de variante, de especialización…), los que
+      // pasan de sus líneas (line-clamp) y las palabras que no caben en su caja
+      // (en una línea solo se mira el ancho: los glifos de Cinzel asoman por abajo sin cortarse)
+      const wide = el => el.scrollWidth > el.clientWidth + 1;
+      const tall = el => el.matches('.sb-line, .sb-var .vs, .sb-nm') && el.scrollHeight > el.clientHeight + 1;
+      for (const el of layer.querySelectorAll('.sb-var .vn, .sb-var .vs, .sb-fh h4, .sb-line, .sb-sname b, .sb-sname small, .sb-gchip, .sb-nm')) {
+        if (!wide(el) && !tall(el)) continue;
+        const host = el.closest('[data-skill], [data-var], [data-spec], .sb-gchip');
+        out.offscreen.push(`${R.forge.contains(el) ? `forja de ${S.sel} · ` : ''}${host ? name(host) + ' ' : ''}${el.className ? '.' + el.className.split(' ')[0] : el.tagName.toLowerCase()} (texto cortado)`);
+      }
       if (R.tip.classList.contains('on')) { const r = box(R.tip); if (r && (r.left < 0 || r.top < 0 || r.right > vw || r.bottom > vh)) out.offscreen.push('tooltip'); }
       win.__uicheck = out;
       return out;

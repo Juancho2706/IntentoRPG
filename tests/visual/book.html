@@ -8,17 +8,20 @@
      Monta el libro REAL (createSkillBook de js/ui-skills.js, css/skills.css) sobre un héroe real
      (tests/helpers/power-harness.mjs). Por defecto con el catálogo 2g de la clase (los borradores de
      tools/convert-v2/out/<clase>/: arte, forja, barra y recomendadas, lo que traerán KA1/KA2);
-     &draft=0 usa el catálogo del juego tal cual.
+     &draft=0 usa el catálogo del juego tal cual (y es lo que se usa solo si los borradores ya no están:
+     E2 los sustituye por los catálogos reales).
      Sirve la raíz del repo y abre /tests/visual/book.html con:
        ?cls=maga|guerrero|arquera  &lv=<nivel>  &spec=<id>  &sel=<habilidad>  &combat=1
        &forge=spec|none            variantes de la barra de la especialización (por defecto) o ninguna
+       &talents=<n>                activas de talento compradas (por defecto 1 desde el Nv 21; 6 = todas)
        &hover=<selector CSS>       tooltip sobre ese elemento · &alt=1 con Alt mantenido
        &pop=<n>                    abre el engarce n · &drag=<habilidad>:<ranura> arrastre a medias
        &swap=<spec>                tira «qué cambia» al cambiar a esa especialización (libro cerrado)
        ?shot=<id>                  una escena con nombre (lista SHOTS abajo)
        ?selftest=1                 ratón y teclado: ←/→, 1–4 bajo el ratón, clic derecho, arrastre, variantes,
                                    Intro, «Recomendado», Alt, engarces, N, combate, T/Esc → <pre id="measure">
-       ?measure=1                  A5/A4 de todas las clases × niveles × especializaciones y de cada
+       ?measure=1                  A5/A4 de todas las clases × niveles × especializaciones (también sin
+                                   especialización pasado el Nv 10 y con las 6 activas de talento) y de cada
                                    forja (window.__uicheck de check()) → <pre id="measure">
        &bare=1 sin barra de controles · &reduce=1 reducir movimiento · &three=local three.js local
      Capturas: node tests/visual/chrome.mjs "<url>" --shot=out.png --size=1366,768 --wait=1500 -->
@@ -78,9 +81,6 @@ import { isKnown } from '../../js/skill-resolve.js';
 import { talentTreesFor } from '../../js/talents.js';
 import { createSkillBook } from '../../js/ui-skills.js';
 import { specSnapshot, specSwapSummary, recoPlan as HMrecoPlan } from '../../js/hud-model.js';
-import * as DM from '../../tools/convert-v2/out/maga/skills-maga.draft.js';
-import * as DG from '../../tools/convert-v2/out/guerrero/skills-guerrero.draft.js';
-import * as DA from '../../tools/convert-v2/out/arquera/skills-arquera.draft.js';
 
 const Q = new URLSearchParams(location.search);
 if (Q.get('bare') === '1') document.body.classList.add('bare');
@@ -88,27 +88,35 @@ if (Q.get('reduce') === '1') document.body.classList.add('reduce-motion');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const frame = () => new Promise(r => requestAnimationFrame(() => r()));
 
-// catálogo 2g de cada clase (borradores de KA): habilidades, forja, barra por especialización y recomendadas
-const DRAFT = Object.fromEntries([['maga', DM, 'MAGA'], ['guerrero', DG, 'GUERRERO'], ['arquera', DA, 'ARQUERA']].map(([id, D, K]) => [id, {
-  skills: D[`${K}_SKILLS`], forge: D[`${K}_SKILL_FORGE`], bar: D[`${K}_SPEC_BAR`], reco: D[`${K}_FORGE_RECO`], fallback: D[`${K}_FALLBACK_BAR`],
-}]));
+// catálogo 2g de cada clase (borradores de KA): habilidades, forja, barra por especialización y
+// recomendadas. Import DINÁMICO: si E2 ya los quitó, el arnés sigue con el catálogo del juego
+const DRAFT = {};
+for (const [id, K] of [['maga', 'MAGA'], ['guerrero', 'GUERRERO'], ['arquera', 'ARQUERA']]) {
+  try {
+    const D = await import(`../../tools/convert-v2/out/${id}/skills-${id}.draft.js`);
+    if (D[`${K}_SKILLS`]) DRAFT[id] = { skills: D[`${K}_SKILLS`], forge: D[`${K}_SKILL_FORGE`], bar: D[`${K}_SPEC_BAR`], reco: D[`${K}_FORGE_RECO`], fallback: D[`${K}_FALLBACK_BAR`] };
+  } catch (e) { console.warn(`[arnés] sin borrador 2g de ${id}: catálogo del juego`, e.message); }
+}
 const norm = s => normalizeSkillDef(s.talent && !s.kind ? { ...s, kind: 'talent' } : s);
 
 // un héroe de la clase al nivel lv (con su especialización desde el 10) y el juego falso que usa el libro
-function hero({ cls = 'maga', lv = 60, spec = null, draft = true, combat = false, forge = 'spec' } = {}) {
+function hero({ cls = 'maga', lv = 60, spec = null, draft = true, combat = false, forge = 'spec', talents = null, nospec = false } = {}) {
   const T = talentTreesFor(cls);
-  spec = lv >= 10 ? (spec || T.specs[0].id) : null;
+  spec = lv >= 10 && !nospec ? (spec || T.specs[0].id) : null;
   const h = makeHarness({ classId: cls, level: lv, spec, build: spec ? true : null });
   const p = h.p;
+  draft = draft && !!DRAFT[cls];
   if (draft) {
     const D = DRAFT[cls];
     p.cls = { ...CLASSES[cls], skills: D.skills.map(norm), forge: D.forge, forgeReco: D.reco, catalogV: 2 };
     p.hotbar = { ...D.fallback };
     if (spec) Object.assign(p.hotbar, D.bar[spec]?.bar || {});
     p.skillForge = spec && forge === 'spec' ? { ...(D.bar[spec]?.forge || {}) } : {};
-    // una activa de talento comprada (etiqueta TALENTO en el kit base) desde el nivel 21
-    const tal = p.cls.skills.find(s => s.kind === 'talent' && !s.hero);
-    if (lv >= 21 && tal) p.talentExtra.grants.add(tal.id);
+    // activas de talento compradas (etiqueta TALENTO/PARAGON en el kit base): por defecto una desde
+    // el nivel 21; &talents=6, todas (las de clase primero)
+    const n = talents ?? (lv >= 21 ? 1 : 0);
+    const tal = p.cls.skills.filter(s => s.kind === 'talent').sort((a, b) => !!a.hero - !!b.hero).slice(0, n);
+    for (const s of tal) p.talentExtra.grants.add(s.id);
   }
   // la barra solo lleva habilidades que conoces (como el juego)
   p.recompute();
@@ -160,6 +168,13 @@ const SHOTS = {
   'maga60-var': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', hover: '.sb-var[data-var="i"]' },
   'maga60-alt': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', hover: '.sb-tile[data-skill="m_dardo"]', alt: true },
   'maga60-pop': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', pop: 1 },
+  'maga60-3t': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', talents: 3 },
+  'maga100-6t': { cls: 'maga', lv: 100, spec: 'crionte', sel: 'm_t_contrahechizo', talents: 6 },
+  'guerrero100-6t': { cls: 'guerrero', lv: 100, spec: 'cruzado', talents: 6 },
+  'arquera100-6t': { cls: 'arquera', lv: 100, spec: 'montaraz', talents: 6 },
+  'guerrero11-ber': { cls: 'guerrero', lv: 11, spec: 'berserker', forge: 'none' },
+  'arquera12-sinspec': { cls: 'arquera', lv: 12, nospec: true },
+  'guerrero40-v1': { cls: 'guerrero', lv: 40, spec: 'guardian', draft: false },
   'guerrero18': { cls: 'guerrero', lv: 18, spec: 'berserker', sel: 'g_hendidura', forge: 'none' },
   'guerrero18-mech': { cls: 'guerrero', lv: 18, spec: 'berserker', sel: 'g_hendidura', forge: 'none', hover: '.sb-gchip[data-g="mech"]' },
   'guerrero40-drag': { cls: 'guerrero', lv: 40, spec: 'guardian', drag: 'g_lanza:k2' },
@@ -178,7 +193,7 @@ async function scene(o) {
     const before = specSnapshot(p);
     p.talents = { ...p.talents, spec: o.swap };
     const D = DRAFT[o.cls];
-    if (o.draft !== false && D.bar[o.swap]) { Object.assign(p.hotbar, D.bar[o.swap].bar); p.skillForge = { ...D.bar[o.swap].forge }; }
+    if (o.draft !== false && D?.bar?.[o.swap]) { Object.assign(p.hotbar, D.bar[o.swap].bar); p.skillForge = { ...D.bar[o.swap].forge }; }
     p.recompute();
     c.book.showSpecSwap(specSwapSummary(before, p), { ms: 60000 });
     window.__ready = true;
@@ -223,8 +238,9 @@ async function measure() {
   for (const cls of ['maga', 'guerrero', 'arquera']) {
     const specs = talentTreesFor(cls).specs.map(s => s.id);
     combos.push({ cls, lv: 1 }, { cls, lv: 5 });
-    for (const spec of specs) combos.push({ cls, lv: 18, spec, forge: 'none' }, { cls, lv: 60, spec });
-    combos.push({ cls, lv: 30, spec: specs[0], combat: true }, { cls, lv: 40, spec: specs[1], draft: false });
+    for (const spec of specs) combos.push({ cls, lv: 18, spec, forge: 'none' }, { cls, lv: 60, spec }, { cls, lv: 100, spec, talents: 6 });
+    combos.push({ cls, lv: 12, nospec: true }, { cls, lv: 30, spec: specs[0], combat: true }, { cls, lv: 60, spec: specs[2], talents: 3 });
+    for (const spec of specs) combos.push({ cls, lv: 40, spec, draft: false });
   }
   for (const o of combos) {
     try {
@@ -234,7 +250,7 @@ async function measure() {
       out.ms.push(performance.now() - t0);
       await frame();
       out.runs++;
-      const tag = `${o.cls}${o.lv}${o.spec ? '/' + o.spec : ''}${o.draft === false ? '/v1' : ''}`;
+      const tag = `${o.cls}${o.lv}${o.spec ? '/' + o.spec : o.nospec ? '/sin especialización' : ''}${o.talents ? `/${o.talents} activas` : ''}${o.draft === false ? '/v1' : ''}`;
       const take = r => { for (const x of r.overlaps) out.overlaps.push(`${tag}: ${x}`); for (const x of r.offscreen) out.offscreen.push(`${tag}: ${x}`); };
       take(c.book.check());
       // la forja de cada habilidad del libro
@@ -266,8 +282,9 @@ async function selftest() {
   c.book.close(); c.book.el.remove();
   const book = createSkillBook(document.body, { game: c.h.g, tipDelay: 0, onClose: () => closed++, onOpenTalents: () => talents++ });
   const p = c.h.p;
+  ok(!book.el.hasAttribute('data-open') && !document.querySelector('#skills-book[data-open]'), 'cerrado: sin data-open (el humo lo lee por presencia)');
   book.open(); await frame();
-  ok(book.el.dataset.open === '1', 'abre (#skills-book[data-open="1"])');
+  ok(book.el.hasAttribute('data-open') && book.el.matches('#skills-book[data-open]'), 'abre (#skills-book[data-open], por presencia)');
   const order = [...document.querySelectorAll('.sb-tile')].map(t => t.dataset.skill);
   book.select(order[0]);
   key('ArrowRight');
@@ -281,6 +298,12 @@ async function selftest() {
   ok(p.hotbar.k2 === 'nova_hielo', '2 con el ratón encima asigna la ranura 2');
   key('Digit1', '1');
   ok(p.hotbar.k1 !== 'nova_hielo', 'una principal no entra en la ranura 1 (aviso)');
+  // fuera de una casilla ya no hay «bajo el ratón»: 2 no asigna la última casilla que se pisó
+  const k2was = p.hotbar.k2 = null;
+  const slotEl = document.querySelector('.sb-slot[data-slot="k4"]'), sq4 = center(slotEl);
+  fire(nova, 'mouseover', q.x, q.y); fire(slotEl, 'mouseover', sq4.x, sq4.y);
+  key('Digit2', '2');
+  ok(p.hotbar.k2 !== 'nova_hielo' && k2was === null, 'tras salir de la casilla, 2 no asigna la casilla anterior');
   // clic derecho: a su ranura natural
   const bar = tile('m_barrera'), b = center(bar);
   fire(bar, 'contextmenu', b.x, b.y);
@@ -324,6 +347,15 @@ async function selftest() {
     const id = gm?.dataset.sup;
     if (gm) { const gq = center(gm); fire(gm, 'click', gq.x, gq.y); }
     ok(!!id && p.supports.bola_fuego?.includes(id), 'engarce elegido en la cuadrícula');
+    // cada estado que no es «ok» lleva su marca de forma (no solo atenuado): candado, aspa o el otro engarce
+    const s0 = document.querySelector('.sb-sock[data-sock="0"]'), s0q = center(s0);
+    fire(s0, 'pointerdown', s0q.x, s0q.y); fire(s0, 'click', s0q.x, s0q.y);
+    const marks = [...document.querySelectorAll('.sb-pop .gm')].filter(g => !g.classList.contains('none') && !g.classList.contains('cur'));
+    const want = { unknown: '.mk.lk svg', incompatible: '.mk.no', used: '.mk.us' };
+    const badMk = marks.filter(g => { const st = Object.keys(want).find(k => g.classList.contains(k)); return st ? !g.querySelector(want[st]) : !!g.querySelector('.mk'); });
+    const usedMk = document.querySelector(`.sb-pop .gm.used[data-sup="${id}"] .mk.us`)?.textContent;
+    ok(!badMk.length && marks.some(g => g.classList.contains('unknown')) && usedMk === '2', `engarces: candado / aspa / «2» del otro engarce (${badMk.length} sin marca)`);
+    document.querySelector('.sb-x').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
   }
   // N abre Talentos; combate bloquea la forja; T y Esc cierran
   key('KeyN', 'n');
@@ -334,14 +366,46 @@ async function selftest() {
   ok(p.skillForge.bola_fuego === 'ii' && document.querySelector('.sb-note.lock'), 'en combate no cambia (aviso en el pie)');
   c.h.g.combatFree = true;
   key('KeyT', 't');
-  ok(book.el.dataset.open === '0' && closed === 1, 'T cierra');
+  ok(!book.el.hasAttribute('data-open') && !document.querySelector('#skills-book[data-open]') && closed === 1, 'T cierra (sin data-open)');
   book.open(); key('Escape');
-  ok(book.el.dataset.open === '0' && closed === 2, 'Esc cierra');
+  ok(!book.el.hasAttribute('data-open') && closed === 2, 'Esc cierra');
   // ?skillscheck=1 deja window.__uicheck
   book.open(); await frame();
   const chk = book.check();
   ok(window.__uicheck === chk && chk.panel === 'skills' && !chk.overlaps.length && !chk.offscreen.length, 'check() → window.__uicheck sin solapes ni fuera de pantalla');
   book.close();
+  // kit de TU especialización aún sin aprender: candado con su nivel (nunca «Nv» a secas)
+  {
+    const g = mount({ cls: 'guerrero', lv: 11, spec: 'berserker', forge: 'none' });
+    g.book.open(); await frame();
+    const locks = [...document.querySelectorAll('.sb-spec .sb-tile.locked .sb-lock')].map(l => l.textContent.trim());
+    ok(locks.length > 0 && locks.every(t => /^Nv \d+$/.test(t) && +t.slice(3) > 11), `kit propio sin aprender: candado con nivel (${locks.join(', ')})`);
+    g.book.close();
+  }
+  // nivel ≥ 10 sin especialización: «Elegir» en cada fila (abre Talentos), sin candado de nivel
+  {
+    let opened = 0;
+    const g = mount({ cls: 'arquera', lv: 12, nospec: true });
+    g.book.close(); g.book.el.remove();
+    const b2 = createSkillBook(document.body, { game: g.h.g, tipDelay: 0, onOpenTalents: () => opened++ });
+    b2.open(); await frame();
+    const rowsN = document.querySelectorAll('.sb-others.pre .sb-srow').length;
+    const choose = [...document.querySelectorAll('.sb-others.pre .sb-choose[data-act="talents"]')];
+    const head = document.querySelector('.sb-others.pre .sb-sec-h .n')?.textContent || '';
+    choose[0]?.click();
+    ok(rowsN === 3 && choose.length === 3 && !document.querySelector('.sb-others.pre .lv svg') && /Talentos/.test(head) && opened === 1, `sin especialización a Nv 12: «Elegir» en las 3 filas y abre Talentos («${head}»)`);
+    b2.close(); b2.el.remove();
+  }
+  // nombres largos: «Contrahechizo» se parte con guion y cabe (check() mira .sb-nm)
+  {
+    const g = mount({ cls: 'maga', lv: 100, spec: 'crionte', talents: 6 });
+    g.book.open(); await frame();
+    const nm = document.querySelector('.sb-tile[data-skill="m_t_contrahechizo"] .sb-nm');
+    const r = g.book.check();
+    ok(nm && nm.textContent.includes('\u00ad') && nm.scrollWidth <= nm.clientWidth + 1 && document.querySelector('.sb-book.dense') && !r.overlaps.length && !r.offscreen.length,
+      `6 activas de talento: libro compacto sin nada fuera y «Contrahechizo» entero (${r.offscreen.join(' · ')})`);
+    g.book.close();
+  }
   const bad = res.filter(r => r.startsWith('MAL'));
   window.__selftest = { ok: !bad.length, res };
   document.getElementById('measure').textContent = JSON.stringify(window.__selftest, null, 1);
@@ -364,6 +428,7 @@ const o = named ? { ...named } : {
   cls: Q.get('cls') || 'maga', lv: +(Q.get('lv') || 60), spec: Q.get('spec') || null, sel: Q.get('sel') || null,
   combat: Q.get('combat') === '1', draft: Q.get('draft') !== '0', forge: Q.get('forge') || 'spec',
   hover: Q.get('hover') || null, alt: Q.get('alt') === '1', pop: Q.get('pop'), drag: Q.get('drag'), swap: Q.get('swap'),
+  talents: Q.get('talents') != null ? +Q.get('talents') : null, nospec: Q.get('nospec') === '1',
 };
 $('c-cls').value = o.cls; fillSpecs(); $('c-lv').value = String(o.lv);
 if (o.spec) $('c-spec').value = o.spec;

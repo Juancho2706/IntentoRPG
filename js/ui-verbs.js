@@ -5,24 +5,32 @@
 // ninguno, Guerrero §18.6), D26 y D27. Lo que dibuja cada verbo:
 //   · cargar y soltar: barra que se llena DENTRO de la ranura y barra de 64 × 6 px a 24 px del
 //     cursor (siempre en pantalla) con la ventana perfecta como tramo dorado CON MUESCAS; con
-//     Calma Absoluta, toda dorada; enganchada (holdMode 'toggle'): candado en la ranura y junto
-//     al cursor; «¡Perfecto!» lo pone la simulación (spawnText) y aquí destella la ranura
+//     Calma Absoluta, dorada desde media carga; enganchada (holdMode 'toggle'): candado en la
+//     ranura y junto al cursor; «¡Perfecto!» lo pone la simulación (spawnText) y aquí destella
 //   · relanzar: aro que se vacía + usos que quedan; dorado en los últimos `perfectLast` s
 //   · combo y secuencia: pips (brilla el siguiente) · trampas: pips de trampas armadas
 //   · canal: aro que se consume (late si es sin fin) · postura: marco del color del modo y el
 //     icono se da la vuelta · plantado: icono de estado · cargas: número de cargas
 // Lo calcula hud-model.verbView(game) (PURO); este módulo solo pinta.
 //
-// createVerbHud(root, { game, slotEl? }) → { update(realDt), el, destroy() }
+// createVerbHud(root, { game, slotEl? }) → { update(realDt), el, bar, slotLayer(slot), destroy() }
 //   root   capa fija de la interfaz (U3): aquí vive la barra junto al cursor
 //   slotEl (slot) → elemento de la ranura en la barra; por defecto
 //          #skillbar .skill-btn[data-slot="<slot>"] (js/ui.js). Cada ranura recibe UNA capa
 //          `.verb-slot` creada una vez; si la barra se rehace (refreshHotbar), se vuelve a colgar.
 // update(realDt) lo llama ui.updateFloats CADA FRAME (D26): solo transform/opacity sobre nodos
 // creados una vez, sin leer el layout; los textos y atributos cambian solo cuando cambia el valor.
+//
 // DOM estable (§3.12, humo): .verb-charge[data-in-window], .verb-pips[data-slot],
 // .verb-ring[data-slot], .verb-stance[data-slot][data-mode].
-// Se importa sin DOM (los tests corren en Node): nada usa `document` al cargar el módulo.
+// Convención (la misma que #skills-book[data-open] y #talents-panel[data-open]): los atributos
+// de estado sí/no van por PRESENCIA: están (valor '') cuando es verdad y no están cuando no.
+//   · .verb-charge[data-in-window]: soltar ahora sería perfecto (la ventana del motor el mismo
+//     frame, G17; con Calma Absoluta, desde media carga). Igual .verb-slot[data-win].
+//   · .verb-stance[data-mode="<modo>"]: solo con una postura activa.
+// Se importa sin DOM (los tests corren en Node): nada usa `document` al cargar el módulo, y los
+// nodos se crean con createElement (sin innerHTML que haya que releer), así que un DOM mínimo
+// simulado basta para probarlo (tests/test73).
 import { verbView, cursorBarPos, SLOT_ORDER } from './hud-model.js';
 
 export const CURSOR_BAR = Object.freeze({ w: 64, h: 6, gap: 24 });
@@ -36,19 +44,28 @@ const PLANT_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4v
 function setT(el, s) { if (el._vt !== s) { el._vt = s; el.style.transform = s; } }
 function setO(el, o) { const s = o >= 1 ? '1' : o <= 0 ? '0' : o.toFixed(3); if (el._vo !== s) { el._vo = s; el.style.opacity = s; } }
 function setA(el, k, v) { const s = v == null ? null : String(v); if (el['_va_' + k] !== s) { el['_va_' + k] = s; if (s == null) el.removeAttribute(k); else el.setAttribute(k, s); } }
+// atributo sí/no por presencia
+const setB = (el, k, on) => setA(el, k, on ? '' : null);
 function setTxt(el, s) { if (el._vx !== s) { el._vx = s; el.textContent = s; } }
 function setVar(el, k, v) { if (el['_vv' + k] !== v) { el['_vv' + k] = v; el.style.setProperty(k, v); } }
 const deg = v => Math.round(v * 2) / 2;          // medio grado: nada de escrituras por ruido
 const frac3 = v => Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000;
 
+// un nodo con su clase y sus hijos
+function mk(doc, tag, cls, ...kids) {
+  const el = doc.createElement(tag);
+  if (cls) el.className = cls;
+  for (const k of kids) el.appendChild(k);
+  return el;
+}
+
 // aro de progreso SOLO con transform: dos mitades recortadas (clip-path fijo) y un arco
 // que gira dentro de cada una (0–180° y 180–360°)
 function ringNode(doc) {
-  const ring = doc.createElement('div');
-  ring.className = 'verb-ring';
-  ring.innerHTML = '<div class="vr-h vr-r"><i class="vr-arc"></i></div><div class="vr-h vr-l"><i class="vr-arc"></i></div>';
-  ring._arcR = ring.querySelector('.vr-r .vr-arc');
-  ring._arcL = ring.querySelector('.vr-l .vr-arc');
+  const arcR = mk(doc, 'i', 'vr-arc'), arcL = mk(doc, 'i', 'vr-arc');
+  const ring = mk(doc, 'div', 'verb-ring', mk(doc, 'div', 'vr-h vr-r', arcR), mk(doc, 'div', 'vr-h vr-l', arcL));
+  ring._arcR = arcR;
+  ring._arcL = arcL;
   return ring;
 }
 function setRing(ring, f) {
@@ -58,14 +75,17 @@ function setRing(ring, f) {
 }
 // barra de carga (la de la ranura y la del cursor): relleno, ventana, muescas y mínimo
 function chargeTrack(doc, cls) {
-  const t = doc.createElement('div');
-  t.className = cls;
-  t.innerHTML = '<div class="vb-track"><div class="vb-pos vb-calmpos"><i class="vb-calm"></i></div><div class="vb-pos vb-winpos"><i class="vb-win"></i></div>' +
-    '<i class="vb-fill"></i><div class="vb-pos vb-minpos"><i class="vb-min"></i></div></div>' +
-    '<div class="vb-pos vb-np vb-npa"><i class="vb-notch"></i></div><div class="vb-pos vb-np vb-npb"><i class="vb-notch"></i></div>';
-  const q = s => t.querySelector(s);
-  t._r = { fill: q('.vb-fill'), winpos: q('.vb-winpos'), win: q('.vb-win'), calmpos: q('.vb-calmpos'), calm: q('.vb-calm'),
-    minpos: q('.vb-minpos'), npa: q('.vb-npa'), npb: q('.vb-npb') };
+  const r = {
+    calm: mk(doc, 'i', 'vb-calm'), win: mk(doc, 'i', 'vb-win'), fill: mk(doc, 'i', 'vb-fill'),
+    min: mk(doc, 'i', 'vb-min'),
+  };
+  r.calmpos = mk(doc, 'div', 'vb-pos vb-calmpos', r.calm);
+  r.winpos = mk(doc, 'div', 'vb-pos vb-winpos', r.win);
+  r.minpos = mk(doc, 'div', 'vb-pos vb-minpos', r.min);
+  r.npa = mk(doc, 'div', 'vb-pos vb-np vb-npa', mk(doc, 'i', 'vb-notch'));
+  r.npb = mk(doc, 'div', 'vb-pos vb-np vb-npb', mk(doc, 'i', 'vb-notch'));
+  const t = mk(doc, 'div', cls, mk(doc, 'div', 'vb-track', r.calmpos, r.winpos, r.fill, r.minpos), r.npa, r.npb);
+  t._r = r;
   return t;
 }
 function setTrack(t, c) {
@@ -82,65 +102,53 @@ function setTrack(t, c) {
   setT(r.minpos, `translateX(${(frac3(c.minFrac) * 100).toFixed(1)}%)`);
   setT(r.calmpos, `translateX(${(frac3(c.calmLo) * 100).toFixed(1)}%)`);
   setT(r.calm, `scaleX(${frac3(1 - c.calmLo)})`);
-  setA(t, 'data-in-window', c.perfectNow ? '1' : '0');
-  setA(t, 'data-calm', c.calm ? '1' : '0');
-  setA(t, 'data-toggle', c.toggle ? '1' : '0');
+  setB(t, 'data-in-window', c.perfectNow);
+  setB(t, 'data-calm', c.calm);
+  setB(t, 'data-toggle', c.toggle);
+}
+// icono decorativo (SVG fijo: lo único que entra por innerHTML, y nunca se relee)
+function icon(doc, cls, svg, title = '') {
+  const el = mk(doc, 'span', cls);
+  if (title) el.title = title;
+  el.innerHTML = svg;
+  return el;
 }
 
 function slotLayer(doc, slot) {
-  const L = doc.createElement('div');
-  L.className = 'verb-slot';
-  L.dataset.slot = slot;
-  L.setAttribute('aria-hidden', 'true');
-  const stance = doc.createElement('div');
-  stance.className = 'verb-stance';
+  const stance = mk(doc, 'div', 'verb-stance');
   stance.dataset.slot = slot;
-  stance.dataset.mode = '';
   const ring = ringNode(doc);
   ring.dataset.slot = slot;
   const bar = chargeTrack(doc, 'verb-slotbar');
-  const pips = doc.createElement('div');
-  pips.className = 'verb-pips';
+  const pipEls = Array.from({ length: PIPS_MAX }, () => mk(doc, 'i', ''));
+  const pips = mk(doc, 'div', 'verb-pips', ...pipEls);
   pips.dataset.slot = slot;
   pips.dataset.n = '0';
-  pips.innerHTML = '<i></i>'.repeat(PIPS_MAX);
-  const count = doc.createElement('span');
-  count.className = 'verb-count';
-  const latch = doc.createElement('span');
-  latch.className = 'verb-latch';
-  latch.title = 'Enganchada: vuelve a pulsar para soltar';
-  latch.innerHTML = LOCK_SVG;
-  const plant = doc.createElement('span');
-  plant.className = 'verb-plant';
-  plant.title = 'Plantado: 1 s quieto';
-  plant.innerHTML = PLANT_SVG;
-  const flash = doc.createElement('i');
-  flash.className = 'verb-flash';
-  L.append(stance, ring, bar, pips, count, latch, plant, flash);
-  return { L, stance, ring, bar, pips, pipEls: [...pips.children], count, latch, plant, flash, host: null, flip: null, chOff: null, chShown: 1 };
+  const count = mk(doc, 'span', 'verb-count');
+  const latch = icon(doc, 'verb-latch', LOCK_SVG, 'Enganchada: vuelve a pulsar para soltar');
+  const plant = icon(doc, 'verb-plant', PLANT_SVG, 'Plantado: 1 s quieto');
+  const flash = mk(doc, 'i', 'verb-flash');
+  const L = mk(doc, 'div', 'verb-slot', stance, ring, bar, pips, count, latch, plant, flash);
+  L.dataset.slot = slot;
+  L.setAttribute('aria-hidden', 'true');
+  return { L, stance, ring, bar, pips, pipEls, count, latch, plant, flash, host: null, flip: null, chOff: null, chShown: 1 };
 }
 
 export function createVerbHud(root, opts = {}) {
   const game = opts.game || null;
   const doc = root?.ownerDocument || null;
-  if (!root || !doc) return { el: root || null, update() {}, destroy() {}, stats: () => ({ writes: 0 }) };
+  if (!root || !doc) return { el: root || null, bar: null, update() {}, slotLayer: () => null, destroy() {} };
   const win = doc.defaultView || globalThis;
   const findSlot = typeof opts.slotEl === 'function' ? opts.slotEl
     : (slot => doc.querySelector(`#skillbar .skill-btn[data-slot="${slot}"]`));
 
   // barra junto al cursor (una, en la capa raíz)
-  const cur = doc.createElement('div');
-  cur.className = 'verb-cursor';
-  cur.setAttribute('aria-hidden', 'true');
   const bar = chargeTrack(doc, 'verb-charge');
-  bar.dataset.inWindow = '0';
-  const latch = doc.createElement('span');
-  latch.className = 'vc-latch';
-  latch.innerHTML = LOCK_SVG;
-  const glow = doc.createElement('i');
-  glow.className = 'vc-glow';
+  const latch = icon(doc, 'vc-latch', LOCK_SVG);
+  const glow = mk(doc, 'i', 'vc-glow');
   bar.append(latch, glow);
-  cur.appendChild(bar);
+  const cur = mk(doc, 'div', 'verb-cursor', bar);
+  cur.setAttribute('aria-hidden', 'true');
   root.appendChild(cur);
   setO(cur, 0);
 
@@ -149,10 +157,10 @@ export function createVerbHud(root, opts = {}) {
   let vw = win.innerWidth || 1920, vh = win.innerHeight || 1080;
   const onResize = () => { vw = win.innerWidth || vw; vh = win.innerHeight || vh; };
   win.addEventListener?.('resize', onResize);
-  let missAt = {};                     // último intento de buscar una ranura que no está
+  const missAt = {};                   // último intento de buscar una ranura que no está
   let clock = 0;
   let curT = 0;                        // s que la barra del cursor sigue viva tras soltar
-  let charge = null;                   // { slot, streak } de la carga que se ve
+  let charge = null;                   // la carga que se ve: { slot, ref, id, t0, streak }
   let lastPos = { x: -1, y: -1 };
   let destroyed = false;
   const p = () => game?.player || null;
@@ -182,13 +190,17 @@ export function createVerbHud(root, opts = {}) {
     const st = slots[slot];
     const host = attach(slot, st);
     if (!host) return;
-    if (!v) { setO(st.L, 0); setA(host, 'data-verb-flip', null); return; }
+    if (!v) {
+      setO(st.L, 0);
+      if (st.flip !== null) { st.flip = null; setA(host, 'data-verb-flip', null); }
+      return;
+    }
     setO(st.L, 1);
     // ---- carga dentro de la ranura
     const c = v.charge;
     setO(st.bar, c ? 1 : 0);
     if (c) setTrack(st.bar, c);
-    setA(st.L, 'data-win', c?.perfectNow ? '1' : '0');
+    setB(st.L, 'data-win', !!c?.perfectNow);
     // ---- aro: canal > relanzar > postura con duración
     let ring = null, kind = '';
     if (v.channel) {
@@ -203,9 +215,9 @@ export function createVerbHud(root, opts = {}) {
     if (ring == null && v.recast) { kind = 'recast'; ring = v.recast.frac; }
     if (ring == null && v.stance?.timed) { kind = 'stance'; ring = v.stance.frac; }
     setO(st.ring, ring == null ? 0 : 1);
-    setA(st.ring, 'data-kind', kind);
-    setA(st.ring, 'data-gold', v.recast?.perfect && kind === 'recast' ? '1' : '0');
-    setA(st.ring, 'data-endless', v.channel?.endless ? '1' : '0');
+    setA(st.ring, 'data-kind', kind || null);
+    setB(st.ring, 'data-gold', kind === 'recast' && !!v.recast?.perfect);
+    setB(st.ring, 'data-endless', !!v.channel?.endless);
     if (kind === 'stance') setVar(st.ring, '--vr-c', v.stance.color);
     if (ring != null) setRing(st.ring, ring);
     // ---- pips: combo, secuencia o trampas armadas
@@ -214,14 +226,14 @@ export function createVerbHud(root, opts = {}) {
     else if (v.seq) { n = Math.min(PIPS_MAX, v.seq.every); done = v.seq.count; lit = v.seq.ready ? n - 1 : -1; pk = 'seq'; }
     else if (v.traps?.max) { n = Math.min(PIPS_MAX, v.traps.max); done = v.traps.n; pk = 'trap'; }
     setA(st.pips, 'data-n', n);
-    setA(st.pips, 'data-kind', pk);
+    setA(st.pips, 'data-kind', pk || null);
     // el pip del paso siguiente solo late con el combo en marcha o el especial listo (en reposo, quieto)
-    setA(st.pips, 'data-live', (v.combo && v.combo.idx > 0) || v.seq?.ready ? '1' : '0');
-    setA(st.pips, 'data-up', c && n ? '1' : '0');
+    setB(st.pips, 'data-live', (v.combo && v.combo.idx > 0) || !!v.seq?.ready);
+    setB(st.pips, 'data-up', !!c && n > 0);
     const special = pk === 'seq' || pk.startsWith('combo');      // el último es el golpe especial
     for (let i = 0; i < PIPS_MAX; i++) {
       setA(st.pipEls[i], 'data-s', i >= n ? 'off' : i === lit ? 'next' : i < done ? 'done' : 'todo');
-      setA(st.pipEls[i], 'data-last', special && i === n - 1 ? '1' : null);
+      setB(st.pipEls[i], 'data-last', special && i === n - 1);
     }
     // ---- número: usos de relanzar > trampas sin tope > cargas
     let txt = '', ck = '';
@@ -229,46 +241,53 @@ export function createVerbHud(root, opts = {}) {
     else if (v.traps && !v.traps.max) { txt = String(v.traps.n); ck = 'trap'; }
     else if (v.charges) { txt = String(v.charges.n); ck = v.charges.n > 0 ? 'charges' : 'charges-0'; }
     setTxt(st.count, txt);
-    setA(st.count, 'data-kind', ck);
+    setA(st.count, 'data-kind', ck || null);
     setO(st.count, txt ? 1 : 0);
     // ---- enganchada (holdMode 'toggle'), plantado y postura
     setO(st.latch, (c?.toggle || v.channel?.toggle) ? 1 : 0);
     setO(st.plant, v.planted == null ? 0 : v.planted ? 1 : 0.38);
-    setA(st.plant, 'data-on', v.planted ? '1' : '0');
-    setA(st.stance, 'data-mode', v.stance?.mode || '');
-    setA(st.stance, 'data-both', v.stance?.both ? '1' : '0');
+    setB(st.plant, 'data-on', !!v.planted);
+    setA(st.stance, 'data-mode', v.stance?.mode || null);
+    setB(st.stance, 'data-both', !!v.stance?.both);
     if (v.stance) setVar(st.stance, '--vs-c', v.stance.color);
     setO(st.stance, v.stance ? 1 : 0);
     // el icono se da la vuelta en el 2.º modo de una postura de dos
-    const flip = v.stance && v.stance.n > 1 && v.stance.idx % 2 === 1 ? '1' : null;
-    if (st.flip !== flip) { st.flip = flip; setA(host, 'data-verb-flip', flip); }
+    const flip = !!(v.stance && v.stance.n > 1 && v.stance.idx % 2 === 1);
+    if (st.flip !== flip) { st.flip = flip; setB(host, 'data-verb-flip', flip); }
+  }
+
+  // la carga que se veía terminó: ¿perfecta, fallida o cancelada? Manda g._chargeEnd
+  // ({ key, id, reason, perfect, t }: lo escribe el motor al terminar CADA carga, cola W2) si es
+  // de ESTA carga (misma ranura y escrito después de empezarla); si no, la racha de perfectos:
+  // sube → perfecta, baja a 0 → fallo (la esquiva, un panel o un golpe cancelan sin tocarla)
+  function finishCharge(pl) {
+    const st = slots[charge.slot];
+    const end = game?._chargeEnd || null;
+    const fresh = !!end && end.key === charge.slot && (end.id == null || charge.id == null || end.id === charge.id)
+      && Number.isFinite(end.t) && end.t >= charge.t0 - 1e-9;
+    const streak = pl?.perfectStreak || 0;
+    const perfect = fresh ? !!end.perfect : streak > charge.streak;
+    const missed = fresh ? !end.perfect && (end.reason === 'release' || end.reason === 'auto') : charge.streak > 0 && streak === 0;
+    if (perfect) { if (st) pulse(st.flash, 'perfect'); pulse(glow, 'perfect'); }
+    else if (missed) pulse(glow, 'miss');
+    setA(cur, 'data-state', perfect ? 'perfect' : missed ? 'miss' : 'end');
+    charge = null;
   }
 
   function paintCursor(v, dt) {
     const pl = p();
     const c = v.charge;
+    const ref = game?._charging || null;
+    // terminó (o la sustituyó otra en el mismo frame: se resuelve la vieja antes de pintar la nueva)
+    if (charge && (!c || charge.ref !== ref)) finishCharge(pl);
     if (c) {
-      if (!charge || charge.slot !== c.slot) charge = { slot: c.slot, streak: pl?.perfectStreak || 0 };
-      charge.last = c;
+      if (!charge) charge = { slot: c.slot, ref, id: ref?.id ?? null, t0: Number.isFinite(ref?.t0) ? ref.t0 : (pl?.simT || 0), streak: pl?.perfectStreak || 0 };
       curT = RESULT_MS / 1000;
       setTrack(bar, c);
       setO(latch, c.toggle ? 1 : 0);
       setO(cur, 1);
       setA(cur, 'data-state', 'on');
-    } else if (charge) {
-      // la carga acabó. ¿Perfecta? La racha de perfectos sube (o lo dice g._chargeEnd si el
-      // motor lo deja: { reason, perfect }). Fallo = suelta fuera de la ventana; la esquiva, un
-      // panel o un golpe la cancelan sin coste y solo se apaga
-      const st = slots[charge.slot];
-      const end = game?._chargeEnd || null;
-      const perfect = end ? !!end.perfect : (pl?.perfectStreak || 0) > charge.streak;
-      const missed = !perfect && !!end && (end.reason === 'release' || end.reason === 'auto');
-      if (perfect) { if (st) pulse(st.flash, 'perfect'); pulse(glow, 'perfect'); }
-      else if (missed) pulse(glow, 'miss');
-      setA(cur, 'data-state', perfect ? 'perfect' : missed ? 'miss' : 'end');
-      charge = null;
-    }
-    if (!c) {
+    } else {
       curT = Math.max(0, curT - dt);
       setO(cur, curT > 0 ? Math.min(1, curT / (RESULT_MS / 1000) * 1.6) : 0);
       if (curT <= 0) return;

@@ -21,7 +21,7 @@ import { GCD_CATS, CAT_LABELS, CATS, SLOT_UNLOCK, skillVerbs, forgeDef, forgeVar
 import { isKnown, forgeState, forgedDef, resolveSkill, fitsSlot, rankBase } from './skill-resolve.js';
 import { SUPPORTS, FORGE_RECO, CLASSES } from './data.js';
 import { talentTreesFor, findSpec, activeHeroTree, heroOpen, pointKindAt, TALENT_RULES } from './talents.js';
-import { rankCoef } from './combat-math.js';
+import { rankCoef, chargeRelease } from './combat-math.js';
 import { gaugeDefs } from './spec-mechanics.js';
 
 export const UI_BASE = 'assets/ui/';
@@ -633,8 +633,9 @@ export function slotVerbs(p, sk, prof = null, ctx = null) {
 }
 // la carga en curso (g._charging) para la barra: fracciones sobre el máximo de la carga
 //   frac (relleno) · lo/hi (ventana perfecta) · minFrac (un toque suelta aquí) · inWindow (la
-//   del motor, el MISMO frame en que entra: G17) · calm (Calma Absoluta: perfecta desde media
-//   carga, como chargeRelease) · perfectNow (soltar ahora sería perfecto) · toggle (enganchada)
+//   del motor, el MISMO frame en que entra: G17) · calm (Calma Absoluta) · calmLo (desde dónde es
+//   perfecta con ella) · perfectNow (soltar ahora sería perfecto: la ventana del motor o, con
+//   Calma, la MISMA regla con que el motor resuelve la suelta, chargeRelease) · toggle (enganchada)
 export function chargeView(p, c) {
   if (!c) return null;
   const max = Math.max(0.05, c.max || c.ch?.max || 1);
@@ -644,8 +645,9 @@ export function chargeView(p, c) {
   const calm = ((p?.stats?.perfectAlways || 0) + (p?.powerStats?.perfectAlways || 0)) > 0;
   const calmFrom = min + 0.5 * (max - min);
   const inWindow = typeof c.inWindow === 'boolean' ? c.inWindow : (u >= a - 1e-9 && u <= b + 1e-9);
+  const calmNow = calm && chargeRelease({ min, max, perfect: [a, b] }, u, { perfectAlways: true }).perfect;
   return { u, min, max, frac: u / max, lo: clamp01(a / max), hi: clamp01(b / max), minFrac: min / max, calmLo: calmFrom / max,
-    inWindow, calm, perfectNow: inWindow || (calm && u >= calmFrom - 1e-9), toggle: !!c.toggle, releasing: !!c.release };
+    inWindow, calm, perfectNow: inWindow || calmNow, toggle: !!c.toggle, releasing: !!c.release };
 }
 // el canal en curso (g._channel): frac = tics que quedan sobre el total (hechos + los que
 // quedan: también vale si extendChannel lo alarga) · t = segundos que quedan
@@ -722,22 +724,31 @@ export function bookTile(p, sk, { reco = null, trees = null } = {}) {
   const isNew = known && (L === (sk.req || 1) || (!!fst.entry?.mejora && L === fst.levels.mejora) || (!!fst.entry && L === fst.levels.vars));
   return {
     id: sk.id, name: sk.name, emoji: sk.icon || '✦', art: skillArtPath(sk, trees), cat: sk.cat, catLabel: catLabel(sk.cat), catIcon: catIcon(sk.cat),
-    known, lockLv: !known && !sk.spec && sk.kind !== 'talent' ? (sk.req || 1) : null, spec: sk.spec || null,
+    // candado con el nivel en que se aprende (el kit de la especialización, nunca antes de elegirla)
+    known, lockLv: known || sk.kind === 'talent' ? null : sk.spec ? Math.max(sk.req || 1, TALENT_RULES.specAt) : (sk.req || 1), spec: sk.spec || null,
     slot, slotLabel: slot ? SLOT_LABEL[slot] : null, variant, todo: varsOpen && chosen === undefined,
     reco: varsOpen && r && chosen === undefined ? r : null, isNew, talent: sk.kind === 'talent',
     tag: sk.kind === 'talent' ? (sk.hero ? 'PARAGON' : 'TALENTO') : null, verbs: skillVerbs(def), forge: !!fst.entry,
   };
 }
-// fila de otra especialización: emblema, rol · mecánica y su kit en miniatura (bloqueado)
+// fila de otra especialización: emblema, rol · mecánica y su kit en miniatura (bloqueado).
+// Sin especialización (pre): candado al nivel en que se elige; desde ese nivel, `choose` (la
+// fila invita a elegirla en Talentos)
 function specRow(p, specId, trees, pre) {
   const card = specCard(p.classId, specId);
   const kit = specKit(p, specId).sort(byCatReq).map(sk => ({ id: sk.id, name: sk.name, emoji: sk.icon || '✦', art: skillArtPath(sk, trees),
     cat: sk.cat, catLabel: catLabel(sk.cat), catIcon: catIcon(sk.cat), req: sk.req || 1 }));
-  return { ...card, kit, lockLv: pre ? TALENT_RULES.specAt : null };
+  const early = (p.level || 1) < TALENT_RULES.specAt;
+  return { ...card, kit, lockLv: pre && early ? TALENT_RULES.specAt : null, choose: pre && !early };
 }
+// casillas por fila del libro (css/skills.css: 7 × 84 px en la tarjeta de 660 px)
+export const BOOK_ROW = 7;
 // el libro entero por ORIGEN (kit base · kit de tu especialización · las otras), cada grupo
-// ordenado por categoría (con CAT_LABELS en cada casilla) → { cls, level, spec, groups, known,
-// total, pending, order }. Las activas de talento solo salen si las tienes (con su etiqueta)
+// ordenado por categoría (con CAT_LABELS en cada casilla) → { cls, level, specAt, spec, groups,
+// known, total, pending, order, rows, dense }. Las activas de talento solo salen si las tienes
+// (con su etiqueta). rows = filas de casillas (base + especialización); con 3 o más (las activas
+// de talento o el catálogo v1 bajan el kit base a una 2.ª fila) el libro va COMPACTO (dense)
+// para que todo quepa sin desplazarse (A5)
 export function bookView(p) {
   const cls = p?.cls || CLASSES[p?.classId];
   if (!p || !cls) return null;
@@ -758,14 +769,57 @@ export function bookView(p) {
     groups.push({ id: 'pre', rows: specs.map(s => specRow(p, s.id, trees, true)) });
   }
   const tiles = groups.flatMap(gr => gr.tiles || []);
+  const rows = groups.reduce((n, gr) => n + Math.ceil((gr.tiles?.length || 0) / BOOK_ROW), 0);
   return {
-    cls: { id: p.classId, name: cls.name, res: cls.resource || null }, level: p.level || 1,
-    spec: specId ? specCard(p.classId, specId) : null, groups,
+    cls: { id: p.classId, name: cls.name, res: cls.resource || null }, level: p.level || 1, specAt: TALENT_RULES.specAt,
+    spec: specId ? specCard(p.classId, specId) : null, groups, rows, dense: rows >= 3,
     known: tiles.filter(t => t.known).length, total: tiles.length,
     pending: tiles.filter(t => t.todo).length,            // «N variantes por elegir» (cabecera)
     order: tiles.map(t => t.id),                          // ←/→ del teclado (2f §3.7)
   };
 }
+// guiones suaves (U+00AD) en las palabras de `minLen` letras o más, por sílabas del español: el
+// nombre de una casilla (80 px, 2 líneas) parte «Contra-hechizo» en vez de cortarlo. Solo en
+// palabras largas: las que caben enteras en una línea nunca se parten.
+//   V-CV · VC-CV · grupos inseparables (bl, br, cl, cr, dr, fl, fr, gl, gr, kl, kr, pl, pr, tr) y
+//   ch, ll, rr como una consonante; las vocales seguidas no se separan; ≥ 2 letras a cada lado
+const HY_V = /[aeiouáéíóúü]/i;
+const HY_ONSET = new Set(['bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'kl', 'kr', 'pl', 'pr', 'tr']);
+const HY_DIG = new Set(['ch', 'll', 'rr']);
+function hyphenWord(w) {
+  const lw = w.toLowerCase();
+  const units = [];                                    // [{ at, len, v }]
+  for (let i = 0; i < w.length;) {
+    const two = lw.slice(i, i + 2);
+    if (HY_DIG.has(two)) { units.push({ at: i, len: 2, v: false }); i += 2; continue; }
+    units.push({ at: i, len: 1, v: HY_V.test(w[i]) || (lw[i] === 'y' && i === w.length - 1) });
+    i++;
+  }
+  const cuts = [];
+  let k = units.findIndex(u => u.v);
+  while (k >= 0) {
+    while (k < units.length && units[k].v) k++;          // fin del grupo de vocales
+    const e = k;
+    while (k < units.length && !units[k].v) k++;         // consonantes hasta la siguiente vocal
+    if (k >= units.length) break;
+    const c = units.slice(e, k), n = c.length;
+    const pair = (a, b) => lw.substr(a.at, a.len) + lw.substr(b.at, b.len);
+    const cut = n === 1 ? e : n === 2 ? (HY_ONSET.has(pair(c[0], c[1])) ? e : e + 1)
+      : n === 3 ? (HY_ONSET.has(pair(c[1], c[2])) ? e + 1 : e + 2) : e + 2;
+    if (n) cuts.push(units[cut].at);
+  }
+  let out = '', last = 0;
+  for (const at of cuts) {
+    if (at < 2 || w.length - at < 2) continue;
+    out += w.slice(last, at) + '­';
+    last = at;
+  }
+  return out + w.slice(last);
+}
+export function hyphenEs(text, minLen = 12) {
+  return String(text ?? '').replace(/[\p{L}]+/gu, w => (w.length >= minLen ? hyphenWord(w) : w));
+}
+
 // escala del libro (diseño 1560 × 930 a escala 1, 2f §3.2): 1 a 1920 × 1080, 0,8 a 1366 × 768
 export const BOOK_SIZE = Object.freeze({ w: 1560, h: 930 });
 export function bookScale(vw, vh) {
@@ -850,6 +904,7 @@ export function forgeView(p, sk, { combat = false } = {}) {
   return {
     id: sk.id, name: sk.name, line: sk.line || sk.desc || '', emoji: sk.icon || '✦', art: skillArtPath(sk, trees),
     cat: sk.cat, catLabel: catLabel(sk.cat), catIcon: catIcon(sk.cat), slots: slotsLabel(sk), known, req: sk.req || 1,
+    learnAt: sk.spec ? Math.max(sk.req || 1, TALENT_RULES.specAt) : (sk.req || 1),     // nivel en que se aprende
     talent: sk.kind === 'talent', hero: !!sk.hero, spec: sk.spec ? specCard(p.classId, sk.spec) : null,
     innate: specId && sk.innate?.[specId] ? sk.innate[specId] : '', elem: def.elem || null, elemLabel: ELEM_LABEL[def.elem] || '',
     rank, rankMax: RANK_MAX, nextRankLv: baseRank < RANK_MAX ? (sk.req || 1) + 8 * baseRank : null,
@@ -875,7 +930,8 @@ export function recoPlan(p) {
   return out;
 }
 // la cuadrícula del engarce i de una habilidad: cada soporte con su estado
-//   ok · incompatible (con la forma forjada) · unknown (aún no lo tienes) · used (en el otro engarce)
+//   ok · incompatible (con la forma forjada) · unknown (aún no lo tienes) · used (en el otro
+//   engarce: usedIn = su índice; −1 si no está en otro)
 export function supportOptions(p, sk, i = 0) {
   if (!p || !sk) return [];
   const def = isKnown(p, sk) ? forgedDef(p, sk) : sk;
@@ -883,7 +939,7 @@ export function supportOptions(p, sk, i = 0) {
   const known = new Set(p.knownSupports || []);
   return SUPPORTS.map(s => ({
     id: s.id, name: s.name, icon: s.icon, effect: s.effect || s.desc || '', trade: s.trade || '', fits: s.fits || '',
-    current: cur[i] === s.id,
+    current: cur[i] === s.id, usedIn: cur.findIndex((x, j) => j !== i && x === s.id),
     state: !known.has(s.id) ? 'unknown' : !supportFits(s, def) ? 'incompatible' : cur.some((x, j) => j !== i && x === s.id) ? 'used' : 'ok',
   }));
 }
@@ -980,7 +1036,8 @@ export function specSwapSummary(prev, next) {
 const POINT_LABEL = { cls: 'punto de talento de clase', spec: 'punto de talento de especialización', hero: 'punto de Paragon', board: 'punto del tablero de glifos' };
 // novedades al pasar de nvAntes a nvDespués: habilidades aprendidas, Mejoras (req+3),
 // variantes (req+6), ranuras de la barra y puntos por sistema. Varias → UNA tarjeta
-// («Nivel 8: 3 novedades») que abre el libro en la primera (2f §7.1).
+// («Nivel 8: 3 novedades») que abre el libro en la primera (2f §7.1). Sin novedades: count 0,
+// title «Nivel N», sub '' y first null (la UI deja su aviso normal de nivel, sin tarjeta).
 //   → { level, items: [{ kind, id?, name?, text, line?, art? }], count, title, sub, first }
 export function levelUpNews(p, before, after) {
   const cls = p?.cls || CLASSES[p?.classId];
@@ -1007,10 +1064,10 @@ export function levelUpNews(p, before, after) {
     if (kind) items.push({ kind: 'points', system: kind, text: `+1 ${POINT_LABEL[kind] || 'punto'}` });
   }
   const first = items.find(i => i.id) || null;
-  const one = items.length === 1;
+  const n = items.length;
   return {
-    level: to, items, count: items.length, first: first?.id || null,
-    title: one ? `Nivel ${to} · ${items[0].text}` : `Nivel ${to}: ${items.length} novedad${items.length === 1 ? '' : 'es'}`,
-    sub: one ? (items[0].line || '') : items.slice(0, 3).map(i => i.text).join(' · '),
+    level: to, items, count: n, first: first?.id || null,
+    title: !n ? `Nivel ${to}` : n === 1 ? `Nivel ${to} · ${items[0].text}` : `Nivel ${to}: ${n} novedades`,
+    sub: !n ? '' : n === 1 ? (items[0].line || '') : items.slice(0, 3).map(i => i.text).join(' · '),
   };
 }
