@@ -9,11 +9,17 @@
 //  2) estallidos de trampa: owner.trapBursts guarda { t, x, z } con el centro del campo que
 //     estalla (pisada y detonación); trapBurstsWithin cuenta los dos formatos; el anillo de la
 //     Batida (respaldo del Coto en world-marks) sale en el centro de los estallidos
+//  3) avisos del Paragon (apertura y pausa): con _talentQuiet (la llamada viene del panel, que
+//     los enseña en su aviso) no van además a ui.message; sin _talentQuiet, igual que antes
 import assert from 'node:assert/strict';
 import './helpers/use-talents-fixture.mjs';
+const T = await import('../js/talents.js');
 const { definePower } = await import('../js/powers.js');
+const { talentMethods } = await import('../js/game-talents.js');
+const { gameTalentOps } = await import('../js/ui-talents.js');
 const { verbMarksPlan } = await import('../js/world-marks.js');
 const { createVerbHud } = await import('../js/ui-verbs.js');
+const { makeHarness } = await import('./helpers/power-harness.mjs');
 const { verbHarness } = await import('./fixtures/skills-verbs-sample.mjs');
 
 const DT = 1 / 60;
@@ -271,4 +277,60 @@ definePower('vx_instant89', { name: 'carga instantánea', onCast(g, p, cast) { i
   console.log('Estallidos de trampa: { t, x, z } al pisar y al detonar, trapBurstsWithin con los dos formatos y anillo de la Batida en su sitio ✓');
 }
 
-console.log('\n✅ COLA W2c (_chargeEnd · estallidos con sitio) OK');
+// ------------------------------------------------ 3) avisos del Paragon con y sin _talentQuiet
+{
+  const h = makeHarness({ classId: 'guerrero', level: 100 });
+  Object.assign(h.g, talentMethods);
+  h.g.canRespecFree = () => !h.g._inCombat;
+  const g = h.g, p = h.p;
+  const since = n => h.messages().slice(n);
+  const OPEN = /Paragon abierto/, PAUSE = /Paragon en pausa/;
+  assert.equal(g.chooseSpec('berserker').ok, true);
+  // desde el panel (_talentQuiet): la apertura vuelve en la respuesta, pero no al banner
+  let n = h.messages().length;
+  g._talentQuiet = true;
+  const b = g.applyTalentBuild('brasa');
+  g._talentQuiet = false;
+  assert.ok(b.ok && b.heroOpened, 'la build abre el Paragon (r.heroOpened)');
+  assert.ok(!since(n).some(m => OPEN.test(m)), 'con _talentQuiet la apertura no va a ui.message');
+  assert.ok(!since(n).some(m => /Recomendado aplicado/.test(m)), 'ni el aviso de éxito (como antes)');
+  // la pausa, igual
+  const leaf = () => T.treeOf(p, 'spec').nodes.find(x => !x.free && (p.talents.sp.berserker[x.id] | 0) > 0 && T.canRemoveRank(p, 'spec', x.id));
+  const l = leaf();
+  assert.ok(l, 'un nodo de especialización que se puede quitar');
+  n = h.messages().length;
+  g._talentQuiet = true;
+  const r = g.removeTalentRank('spec', l.id);
+  g._talentQuiet = false;
+  assert.ok(r.ok && r.heroPaused && r.missing === 1, 'quitar un punto pausa el Paragon (r.heroPaused, missing 1)');
+  assert.ok(!since(n).some(m => PAUSE.test(m)), 'con _talentQuiet la pausa no va a ui.message');
+  // sin _talentQuiet (HUD, atajos): los dos avisos al banner, como antes
+  n = h.messages().length;
+  assert.equal(g.addTalentRank('spec', l.id).heroOpened, true);
+  assert.ok(since(n).some(m => m === '🌟 ¡Paragon abierto! Su nodo clave ya funciona: gasta tus puntos en el árbol héroe (N)'), 'sin _talentQuiet: apertura al banner');
+  n = h.messages().length;
+  assert.equal(g.removeTalentRank('spec', l.id).heroPaused, true);
+  assert.ok(since(n).some(m => m === 'Paragon en pausa: te falta gastar 1 punto de especialización. Tus nodos del Paragon se guardan.'), 'sin _talentQuiet: pausa al banner');
+  // por el envoltorio REAL del panel (ui-talents.gameTalentOps): silencio y _talentQuiet restaurado
+  const ops = gameTalentOps(g);
+  const q0 = g._talentQuiet;
+  n = h.messages().length;
+  const ro = ops.addTalentRank('spec', l.id);
+  assert.ok(ro.ok && ro.heroOpened, 'panel: la apertura vuelve en la respuesta (el panel la enseña en su aviso)');
+  assert.ok(!since(n).some(m => OPEN.test(m) || PAUSE.test(m)), 'panel: sin avisos del Paragon en el banner');
+  const rp = ops.removeTalentRank('spec', l.id);
+  assert.ok(rp.ok && rp.heroPaused, 'panel: la pausa vuelve en la respuesta');
+  assert.ok(!since(n).some(m => OPEN.test(m) || PAUSE.test(m)), 'panel: tampoco la pausa');
+  assert.equal(g._talentQuiet, q0, 'el envoltorio deja _talentQuiet como estaba');
+  // con _talentQuiet los rechazos tampoco van al banner (igual que antes); sin él, sí
+  g._inCombat = true;
+  n = h.messages().length;
+  assert.equal(ops.addTalentRank('spec', l.id).reason, 'combat');
+  assert.equal(since(n).length, 0, 'panel en combate: el motivo vuelve en la respuesta, sin banner');
+  assert.equal(g.addTalentRank('spec', l.id).reason, 'combat');
+  assert.equal(since(n).length, 1, 'fuera del panel: el motivo al banner');
+  g._inCombat = false;
+  console.log('Paragon: con _talentQuiet (panel) apertura y pausa solo en la respuesta; sin él, al banner como antes ✓');
+}
+
+console.log('\n✅ COLA W2c (_chargeEnd · estallidos con sitio · avisos del Paragon) OK');

@@ -74,10 +74,11 @@ export const talentMethods = {
     const r = fn(p) || { ok: false };
     if (!r.ok) { if (r.text || r.reason) say(r.text || r.reason, 2500); return r; }
     this.onTalentsChanged(before, specBefore);
-    // apertura y pausa del Paragon: el aviso sale SIEMPRE (también desde el panel, que
-    // además anima la revelación con r.heroOpened)
-    if (r.heroOpened) this.ui?.message?.('🌟 ¡Paragon abierto! Su nodo clave ya funciona: gasta tus puntos en el árbol héroe (N)', 4000);
-    if (r.heroPaused) this.ui?.message?.(`Paragon en pausa: te falta gastar ${r.missing || 1} punto${(r.missing || 1) > 1 ? 's' : ''} de especialización. Tus nodos del Paragon se guardan.`, 4000);
+    // apertura y pausa del Paragon: en el banner del HUD; desde el panel (_talentQuiet) no, porque
+    // el panel tapa el banner y ya los enseña en su aviso con r.heroOpened / r.heroPaused (y anima
+    // la revelación)
+    if (r.heroOpened) say('🌟 ¡Paragon abierto! Su nodo clave ya funciona: gasta tus puntos en el árbol héroe (N)', 4000);
+    if (r.heroPaused) say(`Paragon en pausa: te falta gastar ${r.missing || 1} punto${(r.missing || 1) > 1 ? 's' : ''} de especialización. Tus nodos del Paragon se guardan.`, 4000);
     if (okMsg) say(okMsg, 2500);
     return r;
   },
