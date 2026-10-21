@@ -55,7 +55,7 @@
 .gz-calor.art-gz_calor_llama_blanca .brz-col-css { opacity: 0; }
 .gz-calor .brz[data-ign="1"] .fl:nth-child(5), .gz-calor .brz[data-ign="1"] .fl:nth-child(6) { opacity: 0; }
 
-/* lado: icono de Ignición (meta, apagado hasta 100) e insignia ×2 de Combustión */
+/* lado: icono de Ignición (meta, apagado hasta 100) e insignia «Crítico» de Combustión */
 .gz-calor .brz-side { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .gz-calor .brz-ign { position: relative; width: 36px; height: 48px; opacity: .3; transform: scale(.82); transition: opacity .2s linear, transform .2s ease-out; }
 .gz-calor[data-state="active"] .brz-ign { opacity: 1; transform: none; }

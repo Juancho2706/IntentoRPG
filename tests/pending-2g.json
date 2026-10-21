@@ -3,7 +3,7 @@
   "suites": {
     "test-skills-maga.mjs": {
       "owner": "KA-maga",
-      "stage": "E2 (KA1)",
+      "stage": "E2·integración (tras fusionar maga y guerrero) · medir la quemadura por su fuente (la Ignición s0 añade otra)",
       "por": "catálogo v1: MAGA_SKILL_MODS, insignias por s0 y activas v1 (p_llamarada, k_prision…) que con D29 salen de MAGA_TALENT_SKILLS y pasan al kit de skills-maga.js"
     },
     "test-skills-guerrero.mjs": {
@@ -16,11 +16,6 @@
       "stage": "E2 (KA1)",
       "por": "catálogo v1: ARQUERA_SKILL_MODS, insignias por s0 y activas v1 (a_t_cepo, a_t_apuntado…) que con D29 salen de ARQUERA_TALENT_SKILLS y pasan al kit de skills-arquera.js"
     },
-    "test-powers-maga.mjs": {
-      "owner": "KT-maga",
-      "stage": "E2",
-      "por": "nodos v1 (s*, k*, a* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
-    },
     "test-powers-guerrero.mjs": {
       "owner": "KT-guerrero",
       "stage": "E2",
@@ -30,11 +25,6 @@
       "owner": "KT-arquera",
       "stage": "E2",
       "por": "nodos v1 (c1…, s* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
-    },
-    "test-gauges-maga.mjs": {
-      "owner": "KT-maga",
-      "stage": "E2",
-      "por": "A3: los `nodes` de ui-gauges-maga.js y mech-maga.js citan nodos v1 (s0, s4, s9, s14) y p_combustion. OJO: la Piromante v2 también usa el prefijo s (s0…s28 existen con OTRO contenido), así que los de Calor pasan A3 en silencio y hay que revisarlos uno a uno; los de Escarcha (i*) y Cargas (a*) fallan. Al final, los casos de Calor, Escarcha y Cargas movidos de test75 (E1.5)"
     },
     "test-gauges-guerrero.mjs": {
       "owner": "KT-guerrero",
@@ -60,6 +50,36 @@
       "owner": "B1",
       "stage": "E4",
       "por": "presetRanks/presetList (stubs D23), SKILL_MODS, ramas y nivel 50: importa y corre sin excepción de módulo, pero sus objetivos son del 2e con datos v1"
+    },
+    "test-talentos-maga.mjs": {
+      "owner": "KT-maga",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "la Barrera caducó: la suite de KT se escribió sin la forja de KA2"
+    },
+    "test64-gcd-impacto.mjs": {
+      "owner": "W2",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "usa habilidades v1 (Meteoro sin especialización)"
+    },
+    "test69-nucleo-2b2.mjs": {
+      "owner": "W2",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "usa m_ascua (retirada en 2g)"
+    },
+    "test72-nucleo-2c2.mjs": {
+      "owner": "W2",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "la Mejora Escarcha Profunda suma 10 al ralentizar a Nv30"
+    },
+    "test80-guardado-v5.mjs": {
+      "owner": "W1",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "tabla de prueba con m_armadura/m_onda (retiradas)"
+    },
+    "test76-talentos-mecanica.mjs": {
+      "owner": "U1",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "suponía catálogo sin `spec`; ya lo trae KA"
     }
   }
 }
