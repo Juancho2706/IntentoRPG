@@ -184,7 +184,6 @@ function tune() {
       cercoPresa: { dur: 4 },                                    // m6
       racimo: { mul: 0.35, gap: 1.3 },                           // m8A
       reforzado: { n: 3, coef: 0.2, every: 0.3, radius: 2.25 },  // m8B
-      manada: { max: 3 },                                        // m9A (1 élite + 2 que pisan)
       herida: { weak: 10, stagger: 25 },                         // m9B
       creciente: { perSec: 1, max: 12 },                         // m10A
       asfixia: { perSec: 15, max: 90 },                          // m10B

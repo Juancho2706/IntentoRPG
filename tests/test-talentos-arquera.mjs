@@ -248,7 +248,7 @@ section('clase: Puntería Fija, Saqueo, Bocajarro, Tiro Lejano y Punta de Diaman
     };
     const a = run({ c6: 1 }, { c6: 'A' }, 3), b = run({}, {}, 3);
     near(a.n / b.n, addRatio(a.p, 15), 'c6A: +15 % a 3 m');
-    ok(a.x - b.x > 0.7, `c6A: empujado ~1 m (${a.x.toFixed(2)} vs ${b.x.toFixed(2)})`);
+    ok(Math.abs(a.x - b.x - 1) <= 0.05, `c6A: empujado 1 m (${a.x.toFixed(2)} vs ${b.x.toFixed(2)})`);
     const fa = run({ c6: 1 }, { c6: 'A' }, 7), fb = run({}, {}, 7);
     eq(fa.n, fb.n, 'c6A: a 7 m, sin bono');
   }
@@ -2610,6 +2610,271 @@ section('G19: coeficientes', () => {
     const r = mon({ m8: 1 }, { m8: 'B' }), el = r.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] }), lr = spy(el);
     trap(r, 5, 0, 1.5);
     near(by(lr, 'm_cepo_reforzado')[0].n / trapRollAs(r, el, 'm_cepo_reforzado'), 0.2, 'm8B: cada estallido al 20 %');
+  }
+});
+
+section('G19: números por nodo (clase, héroe y especializaciones)', () => {
+  // ---- clase
+  // c10A Flecha Roma (4 s) y c10B Flecha Silbante (3 s): lo que queda justo tras el impacto
+  {
+    const r = cls({ c10: 1 }, { c10: 'A' }), e = r.enemy({ hp: 1e7, pos: [3, 0, 0] });
+    shoot(r, e, 0.2);
+    ok(e.slowT > 3.7 && e.slowT <= 4, `c10A: ralentiza 4 s (${e.slowT.toFixed(2)})`);
+    const s = cls({ c10: 1 }, { c10: 'B' }), f = s.enemy({ hp: 1e7, pos: [3, 0, 0] });
+    shoot(s, f, 0.2);
+    ok(f.silenceT > 2.7 && f.silenceT <= 3, `c10B: mudo 3 s (${f.silenceT.toFixed(2)})`);
+  }
+  // c17B Huida Desesperada: +40 % de velocidad y −20 % de daño 4 s
+  {
+    const h = cls({ c17: 1 }, { c17: 'B' }), p = h.p;
+    p.hp = p.stats.maxHP * 0.3 + 5;
+    p.takeDamage(p.stats.maxHP * 0.1, 1);
+    const b = p.buffs.find(x => x.id === 'a_huida');
+    ok(b && b.stats.spdPct === 40 && b.stats.dr === 20 && Math.abs(b.t - 4) < 0.05, 'c17B: +40 % de velocidad y −20 % de daño, 4 s');
+  }
+  // c26 Compás: se pierden 3 s después del último
+  {
+    const h = cls({ c26: 3 }), b = cls();
+    const e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), f = b.enemy({ hp: 1e7, pos: [4, 0, 0] });
+    shoot(h, e, 0.8);
+    cast(h, 'rmb', 'flecha_perforante', 4, 0, 0.05);
+    h.tick(2.7);
+    ok(roll(h, e) > roll(b, f), 'c26: a los 2,7 s sigue el Compás');
+    h.tick(0.5);
+    eq(roll(h, e), roll(b, f), 'c26: a los 3,2 s se perdió');
+  }
+  // c29 Danza del Arco: +20 % por rango
+  {
+    const five = ranks => { const h = cls(ranks), e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }); for (let i = 0; i < 3; i++) { shoot(h, e, 0.8); cast(h, 'rmb', 'flecha_perforante', 4, 0, 0.8); } return resolveSkill(h.p, SK('flecha_perforante')).addPct; };
+    eq(five({ c26: 1, c29: 2 }) - five({ c26: 1 }), 40, 'c29 r2: +40 %');
+  }
+  // c30 Sombra Gemela: dura 3 s
+  {
+    const h = cls({ c30: 1 }), e = h.enemy({ hp: 1e7, pos: [4, 0, 4] }), log = spy(e);
+    cast(h, 'k1', 'a_paso', -3, 0, 0.1);
+    const t0 = h.p.simT;
+    h.tick(2.4 - (h.p.simT - t0));
+    h.p.mp = 100;
+    cast(h, 'rmb', 'flecha_perforante', e.pos.x, e.pos.z, 0.05);
+    const at1 = h.p.simT - t0;
+    h.step(1.2);
+    eq(by(log, 'flecha_perforante').length, 2, `c30: a los ${at1.toFixed(1)} s la sombra repite`);
+    h.tick(Math.max(0, 3.2 - (h.p.simT - t0)));
+    h.p.mp = 100;
+    cast(h, 'rmb', 'flecha_perforante', e.pos.x, e.pos.z, 1.2);
+    eq(by(log, 'flecha_perforante').length, 3, 'c30: pasados 3 s, ya no');
+  }
+  // ---- Errante del Viento
+  {
+    const h = hero('h1'), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    h.tick(4.05);
+    near(volley(h, e)[0].n / roll(h, e, 'q_rafagas'), 0.6, 'q0: flecha de viento al 60 %');
+    const t = hero('h1', { q10: 1 }, {}, { inject: { skills: [TORBELLINO] } });
+    cast(t, 'k2', 'a_h_torbellino', 0, 0, 0.1);
+    eq(gusts(t), 3, 'Torbellino: 3 Ráfagas (con hueco para 5)');
+    const r = hero('h1', { q10: 1, q12: 1 }), re = r.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    r.tick(25.05);
+    volley(r, re);
+    const g0 = gusts(r);
+    ok(g0 <= 2, `pocas Ráfagas al medir (${g0})`);
+    r.tick(3);
+    eq(gusts(r) - g0, 3, 'q12: durante la Rosa, una Ráfaga por segundo');
+    r.tick(3);
+    eq(powerState(r.p, 'q_rosa').storm, 0, 'q12: la Rosa dura 6 s');
+  }
+  // ---- Carcaj Encantado
+  {
+    const h = hero('h2'), e = h.enemy({ hp: 1e7 }), others = [1, 2, 3].map(i => h.enemy({ hp: 1e7, pos: [0, 0, i * 1.5] })), le = spy(e);
+    void others;
+    tipHit(h, e);
+    near(burnLeft(h, e) / h.p.avgHit(1), 2, 'w0: Fuego quema el 200 %');
+    h.tick(4.1);
+    eq(burnLeft(h, e) || 0, 0, 'w0: la quemadura dura 4 s');
+    h.tick(2);
+    tipHit(h, e);
+    ok(Math.abs(e.slowT - 3) < 0.01, `w0: Hielo 3 s (${e.slowT})`);
+    h.tick(6.05);
+    tipHit(h, e);
+    near(by(le, 'w_puntas').filter(x => x.proc && !x.dot)[0].n / h.p.avgHit(1), 0.8, 'w0: Rayo al 80 %');
+    // una punta por enemigo cada 1 s
+    const q = hero('h2', {}, {}, { tv: { tipEvery: 5.5 } }), qe = q.enemy({ hp: 1e7 });
+    tipHit(q, qe);
+    q.tick(0.6);
+    tipHit(q, qe);
+    eq(qe.slowT || 0, 0, 'w0: a los 0,6 s el mismo enemigo no lleva otra punta');
+    q.tick(0.5);
+    tipHit(q, qe);
+    ok(qe.slowT > 2, 'w0: pasado 1 s, sí');
+  }
+  // ---- Halconera
+  {
+    const physRoll = (h, e) => h.p.rollDamage(1, 0, 0, e, { skill: 'y_halcon', tags: new Set(['physical']), elem: 'physical' }).dmg;
+    const h = hero('h3'), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] }), l = spy(e);
+    h.tick(6.05);
+    near(dives(l)[0].n / physRoll(h, e), 1, 'y0: picado al 100 %');
+    const f = hero('h3', { y9: 1 }), fe = f.enemy({ hp: 1e7, pos: [5, 0, 0] }), side = f.enemy({ hp: 1e7, pos: [5, 0, 1.5] }), ls = spy(side);
+    f.tick(6.05);
+    near(dives(ls)[0].n / physRoll(f, side), 0.4, 'y9: plumas al 40 %');
+    void fe;
+    // Llamada del Halcón: 40 % cada 0,5 s durante 6 s, 30 de Quebranto
+    const LLAMADA = { ...TORBELLINO, id: 'a_h_halcon', name: 'Llamada del Halcón' };
+    const c = hero('h3', {}, {}, { inject: { skills: [LLAMADA] } }), boss = c.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] }), lb = spy(boss);
+    const s0 = boss.stagger || 0;
+    cast(c, 'k2', 'a_h_halcon', 5, 0, 0.15);
+    ok((boss.stagger || 0) - s0 >= 30 && (boss.stagger || 0) - s0 < 31, `Llamada: 30 de Quebranto (${((boss.stagger || 0) - s0).toFixed(2)})`);
+    near(dives(lb)[0].n / physRoll(c, boss), 0.4, 'Llamada: ataques al 40 %');
+    // los ataques de la Llamada (40 %), aparte de los picados periódicos (100 %)
+    const ref = physRoll(c, boss), assault = () => dives(lb).filter(x => Math.abs(x.n / ref - 0.4) < 0.02).length;
+    c.tick(6.5);
+    const n = assault();
+    ok(n >= 12 && n <= 13, `Llamada: un ataque cada 0,5 s durante 6 s (${n})`);
+    c.tick(2);
+    eq(assault(), n, 'Llamada: después, ninguno más');
+  }
+  // y12 Cielo de Halcones: 4 s de picados, uno por segundo
+  {
+    const run = nodes => {
+      const h = hero('h3', nodes), es = [0, 1, 2, 3, 4, 5].map(i => h.enemy({ hp: 1e7, pos: [4, 0, i * 1.5] })), logs = es.map(spy);
+      h.tick(29.95);
+      const before = logs.reduce((s, l) => s + dives(l).length, 0);
+      h.tick(5.6);
+      return logs.reduce((s, l) => s + dives(l).length, 0) - before;
+    };
+    eq(run({ y12: 1 }) - run({}), 4, 'y12: 4 picados más (4 s, uno por segundo)');
+  }
+  // w4A Desborde de Puntas: 4 disparos, las tres puntas al 50 % · w9 Puntas Afines (Montaraz): 1 s de Trampa de Cepo
+  // · w12 Lluvia Encantada: 6 s
+  {
+    const DESBORDE = { ...TORBELLINO, id: 'a_h_puntas', name: 'Desborde de Puntas' };
+    const h = hero('h2', {}, {}, { inject: { skills: [DESBORDE] } });
+    const ref = h.enemy({ hp: 1e7, pos: [0, 0, 6] });
+    tipHit(h, ref);                                                       // la punta del ciclo (Fuego al 100 %)
+    const full = burnLeft(h, ref);
+    cast(h, 'k2', 'a_h_puntas', 0, 0, 0.1);
+    const es = [0, 1, 2, 3, 4].map(i => h.enemy({ hp: 1e7, pos: [Math.cos(i * 1.2) * 5, 0, -Math.sin(i * 1.2) * 5 - 1] }));
+    const burns = es.map(e => { shoot(h, e, 0.35); return burnLeft(h, e) || 0; });   // recién llegada la flecha (sin tics aún)
+    assert.deepEqual(burns.map(x => x > 0), [true, true, true, true, false], 'Desborde: 4 disparos'); checks++;
+    near(burns[0] / full, 0.5, 'Desborde: las puntas al 50 %', 0.03);
+    const cd = nodes => {
+      const x = hero('h2', nodes, {}, { spec: 'montaraz' }), e = x.enemy({ hp: 1e7, pos: [0, 0, 6] });
+      trap(x, -6, 0, 0.1); trap(x, -6, 3, 0.1);
+      const c = x.p.cds.a_t_cepo;
+      tipHit(x, e);
+      return c - x.p.cds.a_t_cepo;
+    };
+    near(cd({ w9: 1 }) - cd({}), 1, 'w9 (Montaraz): cada punta recarga 1 s de Trampa de Cepo', 0.01);
+    const r = hero('h2', { w12: 1 });
+    r.tick(30.05 + 5.8);
+    ok(powerState(r.p, 'w_lluvia_encantada').storm > 0, 'w12: a los 5,8 s sigue');
+    r.tick(0.4);
+    eq(powerState(r.p, 'w_lluvia_encantada').storm, 0, 'w12: la Lluvia Encantada dura 6 s');
+  }
+  // y4B Alas Protectoras: 4 s, una vez cada 60 s
+  {
+    const h = hero('h3', { y4: 1 }, { y4: 'B' }), p = h.p;
+    const drop = () => { p.hp = p.stats.maxHP * 0.45; p.takeDamage(p.stats.maxHP * 0.1, 1); return p.buffs.find(b => b.id === 'y_alas'); };
+    const b = drop();
+    ok(b && Math.abs(b.t - 4) < 0.05, 'y4B: 4 s');
+    h.tick(30);
+    ok(!drop(), 'y4B: no otra vez a los 30 s');
+    h.tick(30.2);
+    ok(!!drop(), 'y4B: a los 60 s, otra');
+  }
+  // ---- especializaciones
+  // v8B Triple Clavado: el triple +20 % (y crítico)
+  {
+    const h = tir({ v8: 1 }, { v8: 'B' }), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e);
+    for (let i = 0; i < 3; i++) shoot(h, e);
+    const d = by(l, 'a_disparo'), info = { skill: 'a_disparo', tags: rp(h, 'a_disparo').tags, elem: 'physical' };
+    const critRef = h.p.rollDamage(1, 0, 0, e, { ...info, forceCrit: true }).dmg, plainRef = h.p.rollDamage(1, 0, 0, e, info).dmg;
+    near(d[2].n / d[0].n, critRef / plainRef * addRatio(h.p, 20), 'v8B: el triple, crítico y +20 %');
+  }
+  // v9A Último Instante: la ventana es el último medio segundo (relanzar a 1,4 s, sin premio)
+  {
+    const a = volleyChain(tir({ v9: 1 }, { v9: 'A' }), [1.4]), b = volleyChain(tir(), [1.4]);
+    near(top(a.uses[1]) / top(b.uses[1]), 1, 'v9A: a 1,4 s, sin premio');
+  }
+  // v14 Vacío de Aire: 15 de Quebranto al jefe
+  {
+    const go = nodes => { const h = tir(nodes), boss = h.enemy({ hp: 1e7, boss: true, pos: [3, 0, 0] }); const s0 = boss.stagger || 0; run(h, 0.6, -6, 0); return (boss.stagger || 0) - s0; };
+    near(go({ v14: 1 }) - go({}), 15, 'v14: 15 de Quebranto', 0.01);
+  }
+  // v22 Ráfaga Creciente: la cuenta se pierde pasados 3 s
+  {
+    const h = tir({ v22: 1 });
+    const n = () => { h.p.mp = h.p.stats.maxMP; return shots(h, () => cast(h, 'rmb', 'flecha_multiple', 6, 0, 0.3)).length; };
+    n(); n();
+    h.tick(2.2);
+    eq(n(), 7, 'v22: a menos de 3 s, sigue creciendo');
+    h.tick(3.3);
+    eq(n(), 5, 'v22: pasados 3 s, vuelve a 5');
+  }
+  // v24 Ciclones: cada 0,5 s, al 28 %, duran 4 s
+  {
+    const h = tir({ v24: 1 }), list = [];
+    const sf = h.g.spawnField.bind(h.g);
+    h.g.spawnField = (k, o) => { if (o?.data?.skill === 't_ciclones') list.push({ dur: o.dur, every: o.data.every, coef: o.data.coef, max: o.maxPerSkill }); return sf(k, o); };
+    run(h, 2.2);
+    assert.deepEqual(list[0], { dur: 4, every: 0.5, coef: 0.28, max: 3 }, 'v24: ciclón de 4 s, disparo cada 0,5 s al 28 %, 3 vivos'); checks++;
+    const made = r => { const x = tir({ v24: r }), n = countFields(x, 'emisor', 't_ciclones'); run(x, 3.9); return n.length; };
+    assert.deepEqual([made(1), made(2)], [1, 2], 'v24: uno cada 2,5 − 0,5·rango s (r1: 2 s; r2: 1,5 s)'); checks++;
+  }
+  // v28 r3 y f28 r3: el Vendaval y la Calma saltan a 80 (no a 75)
+  {
+    const t = tir({ v28: 3 }), f = fra({ f28: 3 });
+    t.gauge('impulso', 75); f.gauge('concentracion', 75);
+    ok(!(t.gaugeState('impulso').galeT > 0) && !(f.gaugeState('concentracion').calmT > 0), 'v28/f28 r3: a 75, todavía no');
+  }
+  // f26 Disparo Imposible: 20 de Quebranto (no más)
+  {
+    const h = fra({ f26: 1 }), e = h.enemy({ hp: 1e7, boss: true, pos: [6, 0, 0] });
+    track(h, e);
+    const s0 = e.stagger || 0;
+    aimedHit(h, e); h.step(0.4);
+    near((e.stagger || 0) - s0, 20, 'f26: 20 de Quebranto', 0.01);
+  }
+  // f15B Nervios de Acero: el escudo dura 6 s
+  {
+    const h = fra({ f15: 1 }, { f15: 'B' }), log = selfLog(h), sh = h.g.shield.bind(h.g), durs = [];
+    h.g.shield = (n, o = {}) => { if (o.src === 'f_nervios') durs.push(o.dur); return sh(n, o); };
+    hitWhileTensing(h);
+    void log;
+    assert.deepEqual(durs, [6], 'f15B: escudo de 6 s'); checks++;
+  }
+  // m8B Cepo Reforzado: 3 estallidos (no más, aunque se espere)
+  {
+    const h = mon({ m8: 1 }, { m8: 'B' }), el = h.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] }), l = spy(el);
+    trap(h, 5, 0, 3);
+    eq(by(l, 'm_cepo_reforzado').length, 3, 'm8B: 3 estallidos');
+  }
+  // m12 Acoso: al élite, 30 % durante 3 s
+  {
+    const h = mon({ m12: 1 }), el = h.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] });
+    makePrey(h, el);
+    putTrap(h, 9, 9);
+    const f = putTrap(h, -9, 9);
+    trapHit(h, el, f.uid, { spring: true });
+    ok(el.slowPct === 30 && Math.abs(el.slowT - 3) < 0.01, `m12: 30 % durante 3 s (${el.slowT})`);
+  }
+  // m15A Cepo de Huida: 3 s a los de 4 m
+  {
+    const h = mon({ m15: 1 }, { m15: 'A' }), p = h.p;
+    const inR = h.enemy({ hp: 1e7, pos: [3.8, 0, 0] }), outR = h.enemy({ hp: 1e7, pos: [0, 0, 4.4] });
+    p.hp = p.stats.maxHP * 0.55; p.takeDamage(100, 100);
+    ok(Math.abs(inR.rootT - 3) < 0.01 && !(outR.rootT > 0), `m15A: 3 s a 3,8 m; a 4,4 m, nada (${inR.rootT})`);
+  }
+  // m24 Siembra de Espinas: 6 zarzales vivos como mucho
+  {
+    const h = mon({ m24: 3 }), en = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    for (let i = 0; i < 8; i++) trapHit(h, en, 9000 + i);
+    eq(zarzales(h).length, 6, 'zarzales: como mucho 6 vivos');
+  }
+  // m28 r1: a 3 m
+  {
+    const h = mon({ m28: 1 }), a = h.enemy({ hp: 1e7, pos: [5, 0, 2.9] }), b = h.enemy({ hp: 1e7, pos: [5, 0, -3.2] });
+    putTrap(h, 5, 0);
+    h.tick(0.2);
+    ok(a.slowT > 0 && !(b.slowT > 0), 'm28 r1: ralentiza a 2,9 m; a 3,2 m, no');
   }
 });
 
