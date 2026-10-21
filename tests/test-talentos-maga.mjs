@@ -1131,6 +1131,10 @@ const FIRE = { skill: 'bola_fuego', elem: 'fire', tags: new Set(['fire']) };
 {
   const h = sp('piromante'), b = cls({});
   near(prof(h, 'bola_fuego').splash / prof(b, 'bola_fuego').splash, 3.5, 1e-9, 's0: explosión de la Bola 100 → 350 %');
+  // también la explosión FORJADA: Pirodardo (forja I, 40 %) pasa a 140 %
+  const pd = sp('piromante'), cd = cls({});
+  for (const x of [pd, cd]) { x.p.skillForge = { bola_fuego: 'i' }; x.p.recompute(); }
+  near(prof(pd, 'bola_fuego').splash / prof(cd, 'bola_fuego').splash, 3.5, 1e-9, 's0: también la explosión forjada (Pirodardo 40 → 140 %)');
   const e = h.enemy({ hp: 1e7 });
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', dealt: 1000 });
   h.hit(e, { elem: 'fire', skill: 'bola_fuego', dealt: 1000, proc: true });
