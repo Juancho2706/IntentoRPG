@@ -913,10 +913,16 @@ E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inve
     - Claves decididas para la Maga: `shieldManaPct` (c18) = `mod buff` en `m_barrera`; `layers` (`k_lanza`) = `set: { layers: 2 }`, y la Escarcha de `mech-maga.js` lee `prof.def.layers`; `blocks` (`m_estela_ignea`) = `blocks` del campo `p_muro_fuego` que deja la estela.
     - Ojo para KT-maga: `s0`, `s4`, `s9` y `s14` que citan `ui-gauges-maga.js` y `mech-maga.js` existen en la Piromante v2 con otro contenido; A3 no lo detecta.
 
-    **Cola W2 lanzada en paralelo con E2** (trabajador W2b, se fusiona en `paso2-impl` en cuanto pase; KA2 y KT2-3 la traen con `git merge paso2-impl`):
+    **Cola W2 (W2b), fusionada en `paso2-impl` en 0e89592** (KA2 y KT2-3 la traen con `git merge paso2-impl`). Cómo se escribe cada nodo y qué tiene que hacer KA está en `docs/paso2-claves-w2.md` §7; lo esencial:
+    - f15A Quietud: `fx: { tv: { drStill: 15 } }`. Lee `p.stillT` (temporizador propio de quietud, umbral 1 s), no el plantado.
+    - m20 Ojo de Trampera: `fx: { tv: { fieldDur: 25 } }` por rango. Alarga las trampas (`isTrap`) y SOLO los campos marcados `data.fieldDur: true`; `data.fieldDur: false` excluye. **KA-arquera:** si marca un zarzal (`a_u_zarzas`, `m_zarzal`), su comportamiento termina con el campo devuelto (`const f = g.spawnField(…); const end = f?.dur ?? dur`) o con `f.dead`, nunca con la `dur` local; `a_humo` no se marca. `test88 §2b` lo vigila con las habilidades reales.
+    - d1 Escudo Alzado: `fx: { stats: { blockPower: 10 } }` por rango. Aguante de Roca es **d15·B** (no d16B): buff por eventos (⑩ `gain` con 5 cargas → buff largo; `spent` o comprobación barata en `onTick` → quitarlo), nunca renovado en cada tick. `blockPower` también vale en `STANCE_STATS`.
+    - `drStill` y `fieldDur` son del núcleo (`NUCLEO_TV_KEYS`): no van en `<CLASE>_TV_KEYS`.
+
+    Encargo original de la cola:
     - `tv.drStill` (Arquera f15A): en `nucleo_tv.condDr`, espejo de `drMoving` con `p.planted`.
     - `tv.fieldDur` (Arquera m20): +% de duración de las trampas y zonas propias en `spawnField`.
-    - `stats.blockPower` (Guerrero d1, d16B): `BLOCK_REDUCTION + blockPower/100`, tope 90, en `combat-math.js` y el saco de `recompute`.
+    - `stats.blockPower` (Guerrero d1, d15B): `BLOCK_REDUCTION + blockPower/100`, tope 90, en `combat-math.js` y el saco de `recompute`.
     - (`KeyZ` con Ctrl o con un panel abierto ya lo ignora `input.js:56` desde W2: U3 no tiene que pedirlo.)
 
 ### Pendientes de decisión (texto original de la crítica)

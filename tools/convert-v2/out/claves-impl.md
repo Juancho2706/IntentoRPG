@@ -5,7 +5,7 @@
 > de `docs/paso2-claves-w2.md`) y vocabulario del juego: el vivo (`skill-defs.js`: `SKILL_KEYS`, `RETIRED_KEYS`) y el de la foto v1
 > (`tools/convert-v2/juego-v1.json`, de antes de E1.5). «SIN TRADUCCIÓN» para al orquestador antes de E2.
 
-**Resumen:** 38 alias con traducción · **0 SIN TRADUCCIÓN** · 17 canónicas nuevas de W2 · claves tv: 11 de clase, 2 para la cola W2, **0 sin decidir** · stats: 1 para la cola W2, **0 sin decidir** · 0 claves de definición para la cola W2 · 2 parámetros de definición de la clase · 12 ajustes de mecánica o aura · 4 campos nombrados · 40 canónicas de §3.5/§3.6 · 72 que ya existen en el juego.
+**Resumen:** 38 alias con traducción · **0 SIN TRADUCCIÓN** · 20 canónicas nuevas de W2 · claves tv: 11 de clase, 0 para la cola W2, **0 sin decidir** · stats: 0 para la cola W2, **0 sin decidir** · 0 claves de definición para la cola W2 · 2 parámetros de definición de la clase · 12 ajustes de mecánica o aura · 4 campos nombrados · 40 canónicas de §3.5/§3.6 · 72 que ya existen en el juego.
 
 ## 1. Alias del mockup → clave canónica
 
@@ -69,9 +69,7 @@ clase: KT la declara en `<CLASE>_TV_KEYS` (`talents-<clase>.js`). Cola W2 = el m
 | `tv.batidaPreyStagger` | de la clase (KT-arquera) | tv.batidaPreyStagger (ARQUERA_TV_KEYS) · mech-arquera.js (coto: Batida) | test-gauges-arquera | arquera:m23 |
 | `tv.chargeCrit` | de la clase (KT-maga) | tv.chargeCrit (MAGA_TV_KEYS) · mech-maga.js | test-gauges-maga | maga:a2 |
 | `tv.drCharges` | de la clase (KT-maga) | tv.drCharges (MAGA_TV_KEYS) · mech-maga.js | test-gauges-maga | maga:a15B |
-| `tv.drStill` | **cola W2** (pendiente) | tv.drStill (espejo de drMoving: DR estando plantada, p.planted) · nucleo_tv.condDr (cola W2) | test84 §6 (cola W2) | arquera:f15A |
 | `tv.drVsLayered` | de la clase (KT-maga) | tv.drVsLayered (MAGA_TV_KEYS) · mech-maga.js (condDr con gaugeState) | test-gauges-maga | maga:i15A |
-| `tv.fieldDur` | **cola W2** (pendiente) | tv.fieldDur (+% duración de tus trampas y zonas) en spawnField, o KT con mod dur sobre a_t_cepo/a_u_zarzas · field-entities.spawnField (cola W2) | test83 (cola W2) | arquera:m20 |
 | `tv.frostCrit` | de la clase (KT-maga) | tv.frostCrit (MAGA_TV_KEYS) · mech-maga.js (condCrit con gaugeState) | test-gauges-maga | maga:i2 |
 | `tv.galeT` | de la clase (KT-arquera) | tv.galeT (ARQUERA_TV_KEYS) · mech-arquera.js (impulso.galeT + tv) | test-gauges-arquera | arquera:v2 |
 | `tv.rivalKillHeal` | de la clase (KT-guerrero) | tv.rivalKillHeal (GUERRERO_TV_KEYS) · powers-guerrero.js (árbol héroe: Rival, por p.sustain) | test-powers-guerrero | guerrero:l1 |
@@ -83,6 +81,8 @@ clase: KT la declara en `<CLASE>_TV_KEYS` (`talents-<clase>.js`). Cola W2 = el m
 | `tv.critCdrAll` | núcleo (W2, CORE_TV_KEYS) | tv.critCdrAll · nucleo_tv.onHit (tabla CRIT_CDR_KEYS) | test84 §6 | guerrero:b12 |
 | `tv.critFrostCdr` | núcleo (W2, CORE_TV_KEYS) | tv.critFrostCdr · nucleo_tv.onHit (tabla CRIT_CDR_KEYS) | test84 §6 | maga:i12 |
 | `tv.drLowHp` | núcleo (W2, CORE_TV_KEYS) | tv.drLowHp (vida < 40 %) · nucleo_tv.condDr | test84 §6 | guerrero:b15B |
+| `tv.drStill` | núcleo (W2, CORE_TV_KEYS) | tv.drStill (% de DR quieta ≥ 1 s: p.stillT, sin desplazarte por ningún medio; espejo de drMoving) · nucleo_tv.condDr (+ Player.stillT) | test88 §1 | arquera:f15A |
+| `tv.fieldDur` | núcleo (W2, CORE_TV_KEYS) | tv.fieldDur (+% de duración de tus trampas y zarzales: las trampas y los campos con data.fieldDur: true; el comportamiento termina con f.dur) · field-entities.spawnField (combat-math.fieldDurationWithTalents) | test88 §2 y §2b | arquera:m20 |
 | `tv.freezeDur` | núcleo (W2, CORE_TV_KEYS) | tv.freezeDur (+s al Congelado) · combat-math.ccDurationWithTalents | test84 §6 | maga:i1 |
 | `tv.frozenKillHeal` | núcleo (W2, CORE_TV_KEYS) | tv.frozenKillHeal · nucleo_tv.onKill | test84 §6 | maga:i11 |
 | `tv.perfectCdrAll` | núcleo (W2, CORE_TV_KEYS) | tv.perfectCdrAll (suelta perfecta, cada 2 s como mucho) · nucleo_tv.afterCast | test84 §6 | guerrero:z12 |
@@ -91,7 +91,7 @@ clase: KT la declara en `<CLASE>_TV_KEYS` (`talents-<clase>.js`). Cola W2 = el m
 
 | Clave | Decisión | Qué y dónde vive | Prueba | Dónde |
 |---|---|---|---|---|
-| `stats.blockPower` | **cola W2** (pendiente) | stats.blockPower (bloqueo para BLOCK_REDUCTION + blockPower/100, tope 90) · combat-math + recompute (cola W2) | test60 (cola W2) | guerrero:d1 |
+| `stats.blockPower` | canónica (W2) | stats.blockPower (un bloqueo para 50 + blockPower %, tope 90; fx.stats, buff o postura) · combat-math.blockReduction (mitigate, expectedMitigation) + recompute (+ STANCE_STATS) | test88 §3 | guerrero:d1 |
 | `stats.regenPct` | canónica (W2) | stats.regenPct (+% regeneración de Maná y Energía) · resources.resourceRegenRate | test84 §6 | arquera:c12 |
 | `stats.resGainPct` | canónica (W2) | stats.resGainPct (+% al recurso generado) · resources.gainResource | test84 §6 | guerrero:c12 |
 
