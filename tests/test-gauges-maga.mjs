@@ -236,3 +236,123 @@ const mk = spec => makeHarness({ classId: 'maga', spec, level: 40 });
 }
 
 console.log('✅ Barras de la Maga (2d.2 E1): registro, A3, A4, A8, modelos por estado y world.overhead OK');
+
+// ============================================================
+// gaugeView v2 de la Maga (docs/paso2d2-hud-pc.md §3.10). Movido de test75 en el Paso 2 (E1.5):
+// usa ids de nodo y habilidades de la clase, así que su dueño es KT de la clase (E2).
+// (bloque propio: sus nombres tapan los de arriba sin chocar)
+// ============================================================
+{
+  const { makeHarness } = await import('./helpers/power-harness.mjs');
+  const { gaugeTuning, gaugeSeq, gainGauge, spendGauge, pickGaugeEnemy } = await import('../js/spec-mechanics.js');
+  const { TALENT_TREES } = await import('../js/talents.js');
+  const { POWER_HOOKS, powerState } = await import('../js/powers.js');
+  const approx = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+  const mk = (classId, spec, level = 30, extra = {}) => makeHarness({ classId, spec, level, ...extra });
+  const T = gaugeTuning();
+  // seq: contadores MONÓTONOS por indicador, no se rebobinan con resetGauges
+  function seqDelta(h, id, fn) {
+    const a = { ...gaugeSeq(h.p, id) };
+    fn();
+    const b = h.gaugeView().seq;
+    return { gain: b.gain - a.gain, full: b.full - a.full, spent: b.spent - a.spent, empty: b.empty - a.empty };
+  }
+
+  // ---------------------------------------------------------------- Calor
+  {
+    const h = mk('maga', 'piromante', 40);
+    const p = h.p;
+    const e = h.enemy({ hp: 1e6 });
+    let d = seqDelta(h, 'calor', () => h.hit(e, { elem: 'fire', skill: 'bola_fuego' }));
+    assert.equal(d.gain, 1, 'Calor: gain por golpe de Fuego');
+    let v = h.gaugeView();
+    assert.ok(approx(v.decayIn, T.calor.decayAfter) && v.x.cooling === false, `Calor: decayIn = 3 s (coolIn) (${v.decayIn})`);
+    assert.equal(v.x.mult, 1);
+    h.tick(3.2);
+    v = h.gaugeView();
+    assert.ok(v.decaying === true && v.x.cooling === true && v.decayIn === 0, 'Calor: se enfría (x.cooling)');
+    d = seqDelta(h, 'calor', () => h.gauge('calor', 100));
+    assert.equal(d.full, 1, 'Calor: full');
+    v = h.gaugeView();
+    assert.ok(v.state === 'active' && v.hold === true && v.decayIn === null, 'Ignición Total: hold');
+    assert.deepEqual(v.ready, T.calor.skills, 'Ignición: Bola de Fuego y Meteoro listos');
+    h.aim(4, 0); h.setSlot('rmb', 'bola_fuego');
+    d = seqDelta(h, 'calor', () => h.cast('rmb'));
+    assert.ok(d.spent === 1 && d.empty === 1, 'Calor: spent + empty al lanzar con Ignición');
+    p.addBuff('p_combustion', { 'gaugeGain:calor': 100 }, T.calor.combustion.t, { name: 'Combustión' });
+    v = h.gaugeView();
+    assert.ok(v.x.combT === 10 && v.x.combMax === 10 && v.x.mult === T.calor.combustion.mult, 'Calor: Combustión (x.combT/combMax/mult)');
+    assert.ok(v.label === 'Combustión' && v.tMax === 10 && v.t === 10, 'Calor: anillo de Combustión');
+  }
+
+  // ---------------------------------------------------------------- Escarcha (por enemigo + objetivo)
+  {
+    const h = mk('maga', 'crionte', 40);
+    const p = h.p;
+    const a = h.enemy({ hp: 1e6 }), b = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
+    a.def = { ...a.def, name: 'Necrófago' }; b.def = { ...b.def, name: 'Esqueleto' };
+    for (let i = 0; i < 3; i++) h.hit(a, { elem: 'frost', skill: 'm_toque' });
+    h.hit(b, { elem: 'frost', skill: 'm_toque' });
+    let v = h.gaugeView();
+    assert.ok(v.enemy === a && v.value === 3 && v.x.enemyName === 'Necrófago', 'Escarcha: sin cursor ni jefe → el más escarchado');
+    assert.equal(v.x.layered, 2, 'Escarcha: x.layered = enemigos con ≥ 1 capa');
+    v = h.gaugeView({ target: b });
+    assert.ok(v.enemy === b && v.value === 1 && v.x.enemyName === 'Esqueleto', 'Escarcha: el enemigo bajo el cursor manda');
+    const c = h.enemy({ hp: 1e6, pos: [-3, 0, 0] });
+    v = h.gaugeView({ target: c });
+    assert.ok(v.enemy === c && v.value === 0 && v.state === 'idle', 'Escarcha: cursor sobre uno sin capas = 0 (no engaña)');
+    assert.equal(c.gauges, undefined, 'la vista no crea estado en el enemigo');
+    assert.ok(approx(h.gaugeView().decayIn, T.escarcha.decayEvery), 'Escarcha: decayIn del objetivo (2 s por escalón)');
+    let d = seqDelta(h, 'escarcha', () => { h.hit(a, { elem: 'frost', skill: 'm_toque' }); h.hit(a, { elem: 'frost', skill: 'm_toque' }); });
+    assert.ok(d.gain === 2 && d.full === 1 && d.empty === 1, `Escarcha: gain ×2, full (congelación) y empty (${JSON.stringify(d)})`);
+    v = h.gaugeView({ target: a });
+    assert.equal(v.x.frozen, 1, 'Escarcha: x.frozen = congelados ahora');
+    assert.equal(v.x.targetFrozen, true, 'Escarcha: x.targetFrozen = el objetivo está Congelado');
+    assert.equal(h.gaugeView({ target: b }).x.targetFrozen, false, 'Escarcha: x.targetFrozen falso si el objetivo no está Congelado');
+    const boss = h.enemy({ hp: 1e6, boss: true, pos: [0, 0, 3] });
+    boss.def = { ...boss.def, name: 'Señor del Osario' };
+    h.hit(boss, { elem: 'frost', skill: 'm_toque' });
+    v = h.gaugeView();
+    assert.ok(v.enemy === boss && v.x.boss === true && v.x.enemyName === 'Señor del Osario', 'Escarcha: el jefe en combate antes que el más escarchado');
+    for (let i = 0; i < 4; i++) h.hit(boss, { elem: 'frost', skill: 'm_toque' });
+    v = h.gaugeView();
+    assert.ok(v.enemy === boss && v.state === 'active' && v.label === 'Aterido' && v.x.numbT > 3.9 && v.tMax === T.escarcha.numbT, 'Escarcha: jefe Aterido (x.numbT, tMax 4)');
+    assert.equal(pickGaugeEnemy(p, 'escarcha', null), boss);
+    assert.equal(h.gaugeView({ target: b }).enemy, b, 'el cursor gana incluso al jefe');
+  }
+
+  // ---------------------------------------------------------------- Cargas Arcanas
+  {
+    const h = mk('maga', 'arcanista', 40);
+    const p = h.p;
+    const e = h.enemy({ hp: 1e6 });
+    let d = seqDelta(h, 'cargas', () => { for (let i = 0; i < 4; i++) h.hit(e, { skill: 'm_dardo', elem: 'arcane' }); });
+    assert.ok(d.gain === 4 && d.full === 1, 'Cargas: gain ×4 y full');
+    let v = h.gaugeView();
+    assert.ok(v.x.loseAfter === T.cargas.loseAfter && v.x.bonusPct === 140 && v.x.manaBack === 20 && v.x.resonance === false, 'Cargas: x.loseAfter/bonusPct/manaBack');
+    assert.ok(approx(v.decayIn, T.cargas.loseAfter), 'Cargas: decayIn = 6 s (loseIn)');
+    assert.deepEqual(v.ready, ['rayo'], 'Cargas: Rayo potenciado');
+    h.tick(2);
+    assert.ok(approx(h.gaugeView().decayIn, 4, 1e-6), 'Cargas: el arco de caducidad baja');
+    h.addPowers('a_resonance');
+    v = h.gaugeView();
+    assert.ok(v.x.resonance === true && v.decayIn === null && v.hold === true, 'Cargas: Resonancia con 4 (no caducan)');
+    assert.ok(v.state === 'active' && v.label === 'Resonancia', 'Cargas: Resonancia = estado active');
+    d = seqDelta(h, 'cargas', () => spendGauge(p, 'cargas', 4));
+    assert.ok(d.spent === 1 && d.empty === 1, 'Cargas: spent + empty');
+    assert.deepEqual(h.gaugeView().ready, []);
+  }
+
+  // ---------------------------------------------------------------- gaugeTuning: única fuente
+  // lo que gaugeTuning copia de un poder (powers-<clase>.js) debe coincidir con el texto del nodo
+  function nodeText(cls, spec, id) {
+    const n = TALENT_TREES[cls].specs.find(s => s.id === spec).nodes.find(x => x.id === id);
+    return typeof n.d === 'function' ? n.d(1) : n.d;
+  }
+  const has = (txt, ...bits) => bits.every(b => txt.includes(b));
+  assert.ok(has(nodeText('maga', 'piromante', 's4'), `${T.calor.llamarada} de Calor`), 'Llamarada Avivada');
+  assert.ok(has(nodeText('maga', 'piromante', 's9'), `${T.calor.combustion.t} s`), 'Combustión');
+  assert.ok(has(nodeText('maga', 'arcanista', 's14'), `${T.cargas.resonanceCrit}%`), 'Resonancia');
+  assert.ok(has(nodeText('maga', 'arcanista', 's4'), `máx. ${T.cargas.orbMax}`), 'Orbe Resonante');
+  console.log('✅ gaugeView v2 de la Maga (movido de test75): x, seq y gaugeTuning contra el texto de los nodos OK');
+}

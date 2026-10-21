@@ -1,105 +1,90 @@
 {
-  "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Inventario de E0.1: suites que se van a romper, con su dueño y etapa. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9).",
+  "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Revisada en E1.5 (integrador I) tras pasar los talentos de las tres clases a v2 esqueleto (fx vacío + todo, CATALOG_V = 1). Cada suite: dueño, etapa y por qué falla HOY. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9); test66 y test68 pasan hoy con el esqueleto, pero dependen del kit (KA-guerrero, KA-maga) y de m_aegis (KT-guerrero).",
   "suites": {
-    "test68-sustento-debilidad.mjs": {
-      "owner": "KT-guerrero",
-      "stage": "E2",
-      "por": "m_aegis (sale en el Guerrero); la parte de Festín (W1) ya está"
+    "test-skills-maga.mjs": {
+      "owner": "KA-maga",
+      "stage": "E2 (KA1)",
+      "por": "catálogo v1: MAGA_SKILL_MODS, insignias por s0 y activas v1 (p_llamarada, k_prision…) que con D29 salen de MAGA_TALENT_SKILLS y pasan al kit de skills-maga.js"
+    },
+    "test-skills-guerrero.mjs": {
+      "owner": "KA-guerrero",
+      "stage": "E2 (KA1)",
+      "por": "catálogo v1: GUERRERO_SKILL_MODS, insignias por s0 y activas v1 (g_t_muro, g_t_veredicto…) que con D29 salen de GUERRERO_TALENT_SKILLS y pasan al kit de skills-guerrero.js"
+    },
+    "test-skills-arquera.mjs": {
+      "owner": "KA-arquera",
+      "stage": "E2 (KA1)",
+      "por": "catálogo v1: ARQUERA_SKILL_MODS, insignias por s0 y activas v1 (a_t_cepo, a_t_apuntado…) que con D29 salen de ARQUERA_TALENT_SKILLS y pasan al kit de skills-arquera.js"
     },
     "test55-recurso-clases.mjs": {
-      "owner": "KA",
-      "stage": "E2",
-      "por": "recurso por clase con los catálogos v2 (la parte de W2, p.skillPoints, ya está)"
+      "owner": "KA-guerrero · KA-maga · KA-arquera",
+      "stage": "E2 (KA1)",
+      "por": "estructura del catálogo: exige activas de talento con req 10 y las 2g usan el req del catálogo (21/27/31/72); el recurso por clase ya pasa"
     },
-    "test66-roles-primitivas.mjs": {
-      "owner": "KA-guerrero · KA-maga",
-      "stage": "E2",
-      "por": "arnés Nv20 con guardian/crionte"
+    "test72-nucleo-2c2.mjs": {
+      "owner": "KA-arquera",
+      "stage": "E2 (KA1)",
+      "por": "§2 (rootAdd/slowPctAdd) resuelve a_t_cepo, activa v1 que sale de los talentos y vuelve como insignia de Montaraz en el catálogo; el resto de la suite pasa"
     },
-    "test75-gaugeview-v2.mjs": {
-      "owner": "I · KT",
-      "stage": "E1.5/E2",
-      "por": "ids viejos de las tres clases"
+    "test-powers-maga.mjs": {
+      "owner": "KT-maga",
+      "stage": "E2",
+      "por": "nodos v1 (s*, k*, a* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
+    },
+    "test-powers-guerrero.mjs": {
+      "owner": "KT-guerrero",
+      "stage": "E2",
+      "por": "nodos v1 (c1…, s* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
+    },
+    "test-powers-arquera.mjs": {
+      "owner": "KT-arquera",
+      "stage": "E2",
+      "por": "nodos v1 (c1…, s* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
+    },
+    "test-gauges-maga.mjs": {
+      "owner": "KT-maga",
+      "stage": "E2",
+      "por": "ui-gauges-maga.js y mech-maga.js citan nodos v1 (s0, s4, s9, s14) y p_combustion; al final, los casos de Calor, Escarcha y Cargas movidos de test75 (E1.5)"
+    },
+    "test-gauges-guerrero.mjs": {
+      "owner": "KT-guerrero",
+      "stage": "E2",
+      "por": "ui-gauges-guerrero.js y mech-guerrero.js citan nodos v1 (s0, s4, s9, s17, x3), g_t_muro y g_t_veredicto; al final, los casos de Sed, Bastión y Fervor movidos de test75 (E1.5)"
+    },
+    "test-gauges-arquera.mjs": {
+      "owner": "KT-arquera",
+      "stage": "E2",
+      "por": "ui-gauges-arquera.js y mech-arquera.js citan nodos v1 (s0, s4, s9, s14), a_t_vision y a_t_cepo; al final, los casos de Concentración, Coto e Impulso movidos de test75 (E1.5)"
+    },
+    "test74-gauges-registro.mjs": {
+      "owner": "KT-guerrero · KT-maga · KT-arquera",
+      "stage": "E2",
+      "por": "A3: los `nodes` de cada ui-gauges-<clase>.js citan ids v1 (s0…) que no existen en los árboles v2 (b*, d*, z*, p*, i*, a*, t*, f*, m*); el registro genérico pasa"
+    },
+    "test67-sin-powers-has.mjs": {
+      "owner": "KT-guerrero · KT-maga · KT-arquera (Orq ajusta la lista)",
+      "stage": "E2",
+      "por": "parte 2: exige que m_berserk, m_aegis, m_judgment, m_conflag, m_shatter, m_overload, m_deadeye, m_hunt y multidisparo sigan en un nodo de talento; con fx vacío ningún nodo los lleva. KT los pone en su nodo 2g o los retira (lista de cada doc). Las partes 1 y 3–5 (powers.has, definePower, mult) pasan: conviene partirla para no perderlas en cuarentena"
+    },
+    "test87-sin-cds.mjs": {
+      "owner": "KA-arquera · KT-guerrero · KT-maga · KT-arquera",
+      "stage": "E2",
+      "por": "p.cds escrito fuera del motor: skills-arquera.js:301, powers-arquera.js (281, 806, 851, 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
     },
     "test76-talentos-mecanica.mjs": {
       "owner": "U1",
       "stage": "E3",
-      "por": "importa SPEC_INFO/mechInfo/TALENT_LAYOUTS de ui-talents.js"
+      "por": "importa SPEC_INFO/mechInfo/TALENT_LAYOUTS de ui-talents.js (panel v1) y cita nodos v1 (s0) que no existen en los árboles v2"
     },
     "test71-hud-modelo.mjs": {
       "owner": "U2",
-      "stage": "E3",
-      "por": "libro, slotView, sw.js, index.html"
-    },
-    "test73-hud-pc.mjs": {
-      "owner": "U2",
-      "stage": "E3",
-      "por": "libro, slotView, sw.js, index.html"
-    },
-    "test-skills-guerrero.mjs": {
-      "owner": "KA",
-      "stage": "E2",
-      "por": "catálogo, <CLASE>_SKILL_MODS, insignias por s0"
-    },
-    "test-skills-maga.mjs": {
-      "owner": "KA",
-      "stage": "E2",
-      "por": "catálogo, <CLASE>_SKILL_MODS, insignias por s0"
-    },
-    "test-skills-arquera.mjs": {
-      "owner": "KA",
-      "stage": "E2",
-      "por": "catálogo, <CLASE>_SKILL_MODS, insignias por s0"
-    },
-    "test-powers-guerrero.mjs": {
-      "owner": "KT",
-      "stage": "E2",
-      "por": "poderes que salen, ids de nodo, textos de barra"
-    },
-    "test-powers-maga.mjs": {
-      "owner": "KT",
-      "stage": "E2",
-      "por": "poderes que salen, ids de nodo, textos de barra"
-    },
-    "test-powers-arquera.mjs": {
-      "owner": "KT",
-      "stage": "E2",
-      "por": "poderes que salen, ids de nodo, textos de barra"
-    },
-    "test-gauges-guerrero.mjs": {
-      "owner": "KT",
-      "stage": "E2",
-      "por": "poderes que salen, ids de nodo, textos de barra"
-    },
-    "test-gauges-maga.mjs": {
-      "owner": "KT",
-      "stage": "E2",
-      "por": "poderes que salen, ids de nodo, textos de barra"
-    },
-    "test-gauges-arquera.mjs": {
-      "owner": "KT",
-      "stage": "E2",
-      "por": "poderes que salen, ids de nodo, textos de barra"
+      "stage": "E3 (tras KA1)",
+      "por": "el libro espera una sección de especialización y la insignia por s0: el kit de especialización llega al catálogo con KA1 (D7); además slotView y libro de 2f"
     },
     "balance-bench.mjs": {
       "owner": "B1",
       "stage": "E4",
-      "por": "presetRanks, SKILL_MODS, ramas, nivel 50"
-    },
-    "balance-regression.mjs": {
-      "owner": "B1",
-      "stage": "E4",
-      "por": "presetRanks, SKILL_MODS, ramas, nivel 50"
-    },
-    "test87-sin-cds.mjs": {
-      "owner": "KA-arquera · KT×3",
-      "stage": "E2",
-      "por": "p.cds escrito en skills-arquera.js (301, 308, 309), powers-arquera.js (281, 806, 851, 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
-    },
-    "test84-movimiento-cc.mjs": {
-      "owner": "I",
-      "stage": "E1.5",
-      "por": "integración W1×W2: el bloque del riesgo 11 usa presetRanks (stub v1 de W1); pasar a buildRanks con datos v2"
+      "por": "presetRanks/presetList (stubs D23), SKILL_MODS, ramas y nivel 50: importa y corre sin excepción de módulo, pero sus objetivos son del 2e con datos v1"
     }
   }
 }

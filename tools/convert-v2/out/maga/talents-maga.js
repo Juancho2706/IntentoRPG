@@ -8,17 +8,8 @@
 import { MAGA_HERO } from './hero-maga.js';
 import { n1 } from './talent-text.js';
 
-export const MAGA_TALENT_SKILLS = [
-  // juego actual: { id: 'm_t_bloque', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost', behavior: 'm_t_bloque', req: 10, cd: 90, dur: 4, color: 10478591, desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s.' }
-  { id: 'm_t_bloque', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost', req: 21, cd: 90, behavior: 'm_t_bloque', dur: 4, color: 10478591, grantBy: 'c11', line: 'Te encierras en hielo 4 s: no recibes daño, pero no te mueves.', desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s.', art: 'talents/maga-clase-c12.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
-  // juego actual: { id: 'm_t_inversion', name: 'Inversión del Tiempo', icon: '⏳', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', behavior: 'm_t_inversion', req: 10, cd: 60, rewind: 5, color: 14140159, desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo se graba desde que conoces esta activa). Enfriamiento 60 s.' }
-  { id: 'm_t_inversion', name: 'Inversión del Tiempo', icon: '⏳', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', req: 27, cd: 60, behavior: 'm_t_inversion', rewind: 5, color: 14140159, grantBy: 'c17', line: 'Vuelves a la vida y al lugar que tenías hace 5 s.', desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo se graba desde que conoces esta activa). Enfriamiento 60 s.', art: 'talents/maga-clase-c12.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
-  // juego actual: { id: 'm_t_contrahechizo', name: 'Contrahechizo', icon: '🚫', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'interrupt', 'arcane'], elem: 'arcane', behavior: 'm_t_contrahechizo', req: 10, cd: 18, range: 12, silence: 3, stagger: 20, color: 13404415, desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.' }
-  { id: 'm_t_contrahechizo', name: 'Contrahechizo', icon: '🚫', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'interrupt', 'arcane'], elem: 'arcane', req: 31, cd: 18, behavior: 'm_t_contrahechizo', range: 12, silence: 3, stagger: 20, color: 13404415, grantBy: 'c22', line: 'Corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s.', desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.', art: 'talents/maga-clase-c5.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
-  { id: 'm_h_detener', name: 'Detener el Tiempo', icon: '✦', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'arcane'], elem: 'arcane', req: 72, cd: 75, grantBy: 't4', hero: true, line: 'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.', desc: 'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.', art: 'talents/maga-arcanista-s9.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
-  { id: 'm_h_palabra', name: 'Palabra de Poder', icon: '✦', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'arcane'], elem: 'arcane', req: 72, cd: 40, grantBy: 'e4', hero: true, line: 'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.', desc: 'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.', art: 'talents/maga-arcanista-s9.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
-  { id: 'm_h_constructo', name: 'Llamar Constructo', icon: '✦', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', req: 74, cd: 45, grantBy: 'f8', hero: true, line: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.', desc: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.', art: 'talents/maga-clase-c15.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
-];
+// D29: las 6 activas de talento de la clase (los nodos las conceden con `grant`); su definición vive en el catálogo.
+export const MAGA_TALENT_SKILLS = ['m_t_bloque', 'm_t_inversion', 'm_t_contrahechizo', 'm_h_detener', 'm_h_palabra', 'm_h_constructo'];
 
 export const MAGA_TALENTS = {
   v: 2,
@@ -450,5 +441,4 @@ export const MAGA_TALENTS = {
     frost: { label: 'Toca todo tu Hielo', ids: ['m_dardo', 'nova_hielo', 'k_prision', 'm_paso_escarcha', 'k_lanza', 'm_u_tormenta'] },
     arcane: { label: 'Toca todo tu Arcano', ids: ['m_dardo', 'rayo', 'a_orbe', 'a_sello', 'm_u_desgarro'] },
   },
-  skills: MAGA_TALENT_SKILLS,
 };

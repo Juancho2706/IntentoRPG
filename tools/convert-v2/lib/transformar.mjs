@@ -170,7 +170,12 @@ function forjaDe(s) {
 export function convertirClase({ cls, C, TV2, helpers, juego, grantSoloSiExiste = false, traducir = null }) {
   const ctx = nuevoCtx(cls, traducir);
   const catJuego = juego?.catalogo || new Map();
-  const grantSi = id => !grantSoloSiExiste || catJuego.has(id);
+  // una activa 2g «ya existe» si HOY es una activa de talento del juego (kind 'talent', la concede un nodo).
+  // Una habilidad base del catálogo con el mismo id (p. ej. grito_guerra, agilidad) no cuenta: KA1 la
+  // convierte en activa; hasta entonces su nodo queda sin grant y su definición no entra en el puente
+  const activasJuego = new Set((juego?.talentSkills || []).filter(s => s && typeof s === 'object').map(s => s.id));
+  const existeActiva = id => activasJuego.has(id);
+  const grantSi = id => !grantSoloSiExiste || existeActiva(id);
   const comun = { C, TV2, helpers, grantSi };
   const specs = C.specOrder || [];
   const catalog = C.catalog || [];
@@ -205,8 +210,11 @@ export function convertirClase({ cls, C, TV2, helpers, juego, grantSoloSiExiste 
   // ---- catálogo
   // en --write (E1.5) solo entran las activas que ya existen: una definición sin tipo rompería validateSkillDef al
   // entrar en CLASSES; las nuevas quedan anotadas (las escribe KA1) y su nodo, sin grant
-  const talentSkills = catalog.filter(s => s.talent && (!grantSoloSiExiste || catJuego.has(s.id))).map(s => activaTalento(ctx, s, catJuego.get(s.id)));
-  ctx.activasPendientes = catalog.filter(s => s.talent && grantSoloSiExiste && !catJuego.has(s.id)).map(s => s.id);
+  const talentSkills = catalog.filter(s => s.talent && (!grantSoloSiExiste || existeActiva(s.id))).map(s => activaTalento(ctx, s, catJuego.get(s.id)));
+  // D29: <CLASE>_TALENT_SKILLS = ids de las 6 activas (su definición vive en el catálogo desde KA1)
+  const talentSkillIds = catalog.filter(s => s.talent).map(s => s.id);
+  ctx.activasPendientes = catalog.filter(s => s.talent && grantSoloSiExiste && !existeActiva(s.id)).map(s => s.id);
+  ctx.activasEnCatalogo = ctx.activasPendientes.filter(id => catJuego.has(id));   // hoy son habilidades base
   // activas de talento del juego actual que ya no son activas de talento en 2g (pasan al kit o se retiran)
   const ids2g = new Set(catalog.filter(s => s.talent).map(s => s.id));
   ctx.activasV1Fuera = (juego?.talentSkills || []).map(s => s.id).filter(id => !ids2g.has(id));
@@ -226,7 +234,7 @@ export function convertirClase({ cls, C, TV2, helpers, juego, grantSoloSiExiste 
 
   const talents = { v: 2, cls: { name: C.name, emblem: icono(ctx, C.emblem, `${cls}:clase`), art: icono(ctx, C.clsArt, `${cls}:clase`), nodes: clsNodes },
     specs: specList, hero, builds, defaultBuild: clon(C.defaultBuild || {}), groups: clon(C.groups || {}), skills: talentSkills };
-  return { talents, hero, talentSkills, skills, forge, specBar, forgeReco, fallbackBar: clon(C.fallbackBar || {}), ctx };
+  return { talents, hero, talentSkills, talentSkillIds, skills, forge, specBar, forgeReco, fallbackBar: clon(C.fallbackBar || {}), ctx };
 }
 
 // verificación de n1 (talent-text.js) contra TV2.n1 del mockup

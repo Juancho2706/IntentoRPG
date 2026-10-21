@@ -228,3 +228,123 @@ assert.ok(!/\b(document|window)\./.test(src), 'sin document/window en el módulo
 assert.ok(!/offsetWidth|getBoundingClientRect|offsetHeight/.test(src), 'update sin lecturas de layout');
 
 console.log('✅ Barras del Guerrero (2d.2 E1): registro, A3, A4, model() con vistas reales, A8 y assets OK');
+
+// ============================================================
+// gaugeView v2 del Guerrero (docs/paso2d2-hud-pc.md §3.10). Movido de test75 en el Paso 2 (E1.5):
+// usa ids de nodo y habilidades de la clase, así que su dueño es KT de la clase (E2).
+// (bloque propio: sus nombres tapan los de arriba sin chocar)
+// ============================================================
+{
+  const { makeHarness } = await import('./helpers/power-harness.mjs');
+  const { gaugeTuning, gaugeSeq, gainGauge, spendGauge, pickGaugeEnemy } = await import('../js/spec-mechanics.js');
+  const { TALENT_TREES } = await import('../js/talents.js');
+  const { POWER_HOOKS, powerState } = await import('../js/powers.js');
+  const approx = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+  const mk = (classId, spec, level = 30, extra = {}) => makeHarness({ classId, spec, level, ...extra });
+  const T = gaugeTuning();
+  // seq: contadores MONÓTONOS por indicador, no se rebobinan con resetGauges
+  function seqDelta(h, id, fn) {
+    const a = { ...gaugeSeq(h.p, id) };
+    fn();
+    const b = h.gaugeView().seq;
+    return { gain: b.gain - a.gain, full: b.full - a.full, spent: b.spent - a.spent, empty: b.empty - a.empty };
+  }
+
+  // ---------------------------------------------------------------- Sed
+  {
+    const h = mk('guerrero', 'berserker');
+    const p = h.p;
+    let d = seqDelta(h, 'sed', () => { p.takeDamage(p.stats.maxHP * 0.7, 1, {}); });
+    assert.equal(d.gain, 1, 'Sed: seq.gain al perder vida');
+    let v = h.gaugeView();
+    assert.equal(v.x.low, true, 'Sed: x.low con vida < 40 %');
+    assert.equal(v.state, 'building');
+    p.sinceCombat = 1;
+    v = h.gaugeView();
+    assert.ok(approx(v.decayIn, T.sed.decayAfter - 1, 1e-6) && v.decaying === false, `Sed: decayIn = after − sinceCombat (${v.decayIn})`);
+    p.sinceCombat = 5;
+    v = h.gaugeView();
+    assert.ok(v.decayIn === 0 && v.decaying === true, 'Sed: perdiendo fuera de combate');
+    p.hp = p.stats.maxHP;
+    d = seqDelta(h, 'sed', () => h.gauge('sed', 100));
+    assert.ok(d.full === 1, 'Sed: seq.full al saciarse');
+    v = h.gaugeView();
+    assert.ok(v.state === 'active' && v.label === 'Sed Saciada' && v.tMax === T.sed.satedT && v.t > 5.9, 'Sed Saciada: t/tMax');
+    assert.ok(v.hold === true && v.decayIn === null && v.x.low === false, 'Sed Saciada: hold, sin pérdida, vida alta');
+    assert.equal(v.x.frenzyT, 0);
+    p.addBuff('g_desenfreno', { aspdPct: 30 }, T.sed.frenzy.t, { name: 'Desenfreno' });
+    v = h.gaugeView();
+    assert.ok(v.x.frenzyT === T.sed.frenzy.t && v.x.frenzyMax === T.sed.frenzy.t, 'Sed: x.frenzyT/frenzyMax del buff g_desenfreno');
+    d = seqDelta(h, 'sed', () => h.tick(6.2));
+    assert.equal(d.empty, 1, 'Sed: seq.empty al terminar la Sed Saciada');
+    // resetGauges (cambio de especialización) no rebobina seq
+    const before = { ...gaugeSeq(p, 'sed') };
+    p.gauges = {};
+    assert.deepEqual(h.gaugeView().seq, before, 'seq sobrevive a resetGauges');
+  }
+
+  // ---------------------------------------------------------------- Bastión
+  {
+    const h = mk('guerrero', 'guardian', 40);
+    const p = h.p;
+    let d = seqDelta(h, 'bastion', () => { gainGauge(p, 'bastion', 5); });
+    assert.ok(d.gain === 1 && d.full === 1, 'Bastión: gain + full');
+    let v = h.gaugeView();
+    assert.equal(v.x.decayEvery, T.bastion.decayEvery);
+    assert.ok(approx(v.decayIn, T.bastion.decayEvery), `Bastión: decayIn = 6 recién ganado (${v.decayIn})`);
+    h.tick(2);
+    v = h.gaugeView();
+    assert.ok(approx(v.decayIn, T.bastion.decayEvery - 2, 1e-6), `Bastión: decayIn baja con el tiempo (${v.decayIn})`);
+    assert.equal(v.x.drPct, 0, 'sin Muralla Viviente: drPct 0');
+    p.talents.sp.guardian = { ...(p.talents.sp.guardian || {}), s17: 2 };
+    h.addPowers('g_muralla_viva');
+    v = h.gaugeView();
+    assert.equal(v.x.drPct, T.bastion.murallaPerRank * 2 * 5, `Bastión: x.drPct = 2 × rango × cargas (${v.x.drPct})`);
+    assert.equal(v.x.drPct, POWER_HOOKS.g_muralla_viva.condDr(p), 'drPct sale del condDr real del poder');
+    d = seqDelta(h, 'bastion', () => { spendGauge(p, 'bastion', 5); });
+    assert.ok(d.spent === 1 && d.empty === 1, 'Bastión: spent + empty');
+    p.addBuff('g_t_muro', { dr: 50 }, T.bastion.wall.t, { name: 'Muro de Escudos' });
+    v = h.gaugeView();
+    assert.ok(v.state === 'active' && v.label === 'Muro de Escudos' && v.x.wallT === 8 && v.x.wallMax === 8 && v.x.wallDr === 50 && v.tMax === 8, 'Bastión: Muro de Escudos (x.wall*)');
+  }
+
+  // ---------------------------------------------------------------- Fervor
+  {
+    const h = mk('guerrero', 'cruzado', 40);
+    const p = h.p;
+    const f = h.enemy({ hp: 1e6 });
+    h.hit(f, { skill: 'g_martillo' }); h.hit(f, { skill: 'g_martillo' });
+    let v = h.gaugeView();
+    assert.ok(v.x.hammerHits === 2 && v.x.hammerNeed === T.fervor.hammerHits, 'Fervor: x.hammerHits / hammerNeed');
+    let d = seqDelta(h, 'fervor', () => h.hit(f, { skill: 'g_martillo' }));
+    assert.equal(d.gain, 1, 'Fervor: 3.er Martillo → gain');
+    assert.equal(h.gaugeView().x.hammerHits, 0);
+    assert.deepEqual(h.gaugeView().ready, [], 'Fervor: con 1 no está listo');
+    d = seqDelta(h, 'fervor', () => gainGauge(p, 'fervor', 2));
+    assert.equal(d.full, 1, 'Fervor: full a 3');
+    assert.deepEqual(h.gaugeView().ready, ['g_t_veredicto'], 'Fervor: Veredicto listo');
+    d = seqDelta(h, 'fervor', () => spendGauge(p, 'fervor', 3));
+    assert.ok(d.spent === 1 && d.empty === 1, 'Fervor: spent + empty');
+    p.addBuff('g_ascension', {}, T.fervor.ascension.t, { name: 'Ascensión' });
+    v = h.gaugeView();
+    assert.ok(v.state === 'active' && v.label === 'Ascensión' && v.x.ascT === 10 && v.x.ascMax === 10 && v.tMax === 10, 'Fervor: Ascensión (x.ascT/ascMax)');
+    assert.deepEqual(v.ready, ['g_t_veredicto'], 'en Ascensión el Veredicto no gasta: listo');
+    assert.equal(v.decayIn, null, 'Fervor no pierde');
+  }
+
+  // ---------------------------------------------------------------- gaugeTuning: única fuente
+  // lo que gaugeTuning copia de un poder (powers-<clase>.js) debe coincidir con el texto del nodo
+  function nodeText(cls, spec, id) {
+    const n = TALENT_TREES[cls].specs.find(s => s.id === spec).nodes.find(x => x.id === id);
+    return typeof n.d === 'function' ? n.d(1) : n.d;
+  }
+  const has = (txt, ...bits) => bits.every(b => txt.includes(b));
+  assert.ok(has(nodeText('guerrero', 'berserker', 's14'), `${T.sed.frenzy.t} s`, `${T.sed.frenzy.aspdPct}%`), 'Desenfreno: 8 s / +30 %');
+  assert.ok(has(nodeText('guerrero', 'berserker', 's4'), `${T.sed.remolino.perHit} de Sed`, `máx. ${T.sed.remolino.max}`), 'Remolino Sediento');
+  assert.ok(has(nodeText('guerrero', 'guardian', 's4'), `${T.bastion.shout} cargas`), 'Desafío Firme');
+  assert.ok(has(nodeText('guerrero', 'guardian', 's17'), `${T.bastion.murallaPerRank}%`), 'Muralla Viviente');
+  assert.ok(has(nodeText('guerrero', 'guardian', 's9'), `${T.bastion.wall.drPerCharge}%`, `${T.bastion.wall.t} s`), 'Muro de Escudos');
+  assert.ok(has(nodeText('guerrero', 'cruzado', 's9'), `${T.fervor.verdict.cost} de Fervor`, `${T.fervor.verdict.coefPct}%`), 'Veredicto Final');
+  assert.ok(has(nodeText('guerrero', 'cruzado', 'x3'), `${T.fervor.ascension.need} Veredictos`, `${T.fervor.ascension.t} s`), 'Ascensión');
+  console.log('✅ gaugeView v2 del Guerrero (movido de test75): x, seq y gaugeTuning contra el texto de los nodos OK');
+}

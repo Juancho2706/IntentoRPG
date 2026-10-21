@@ -1,320 +1,455 @@
 // ============================================================
-// TALENTOS de la ARQUERA — árbol de clase + 3 especializaciones (Paso 2c.1, SOLO DATOS)
+// TALENTOS v2 de la clase Arquera — esqueleto (clase 30 + especialización 3×29 + héroe 3×13)
 // ============================================================
-// Transcripción LITERAL de los mockups aprobados (D:\Proyectos\IntentoRPG-assets\mockups\):
-//   Spec-Francotiradora / Spec-Montaraz / Spec-Tiradora.dc.html (árbol de clase idéntico en los 3)
-// id, name, t, r, c, max, req, free, fx, opts y d de TREES.cls/spec, con los ajustes
-// de forma de docs/paso2-diseno.md §5.1 (d → d(r) cuando el texto depende del rango;
-// opts[].d → opts[].desc) y los de contenido de §5.2. El formato de NODO y de fx está en la
-// cabecera de js/talents.js, que importa este archivo.
-//  · Iconos: talents/<clase>-<spec|clase>-<id>.webp · retrato specs/<spec>.webp · emblema
-//    emblems/<spec>.webp (rutas relativas a assets/; arte en IntentoRPG-assets/web/).
-//  · preset = RECOMMENDED del mockup como lista ordenada [id, rangos] (filas de arriba abajo,
-//    que es el orden que necesita presetRanks); en las elecciones, 3.er elemento = opción.
-//    cls.preset es el de la 1.ª especialización; cada spec trae además clsPreset (el
-//    RECOMMENDED.cls de su propio mockup) por si 2c.0 quiere usar el de la spec activa.
-//  · spec.role ∈ dps|tank|support|control (Main.dc.html) · spec.mechanic = id del indicador
-//    de §2 (spec-mechanics.js) · spec.innate = pasivas de línea base de §5.2.5 (no son nodos).
-//  · `power` y `tv` son SOLO datos (nombres de §5.3); su efecto es de powers-<clase>.js (2c.1).
-//
-// AJUSTES Y DESVIACIONES respecto del mockup:
-//  · s0 de cada especialización otorga la insignia (fx.grant) y su texto la describe; s4 pasa a
-//    potenciarla (t:'p', 1 rango): Aliento del Cazador / Cepo Doble / Andanada Impulsiva (§5.2.1).
-//  · Francotiradora s0 «+50 %» → «+30 %» (m_deadeye ×1,30); Montaraz s0 «+25 %» → «+20 %» (m_hunt
-//    ×1,20) y fuera el tv.slowedDmg 25 duplicado (§5.2.2).
-//  · Vocabulario (§5.2.3): Francotiradora s10 cdhit→critCdr, s12 a_p_punteria→a_t_apuntado (y el
-//    texto); Montaraz s3 {zone:1, zoneDur:2, slowPct:[30,30]}, s5 {slowPct:10, slow:[3,3,3]},
-//    s6A/s16 stun→root, s6B radius 3→100, s17 mod.vuln→tv.rootedWeak; c11 / Tiradora s5
-//    agilidad.dur→durS; c14 costRed→costRedBig {pct:15, over:15}.
-//    Los valores que NO crecen con el rango van en array ([30,30], [3,3,3]) porque talents.js
-//    multiplica por el rango todo número suelto.
-//  · DESVIACIÓN (fuera de §5.2): Montaraz s10 «Lazo Corredizo» también stun→root: su texto dice
-//    «inmoviliza» y aplica el mismo motivo que s6A/s16.
-//  · a_t_arpon lleva el tag 'utility' y a_t_senuelo el tag 'spec' para que defaultSlots les abra
-//    k2 y k3 (§3.3 pide k3/k2); a_t_silencio suma el tag 'proj' (es una flecha).
-//
-//
-// AJUSTES DEL PASO 2c.1 (para que cada nodo haga lo que dice su texto; efectos en
-// js/powers-arquera.js):
-//  · a_t_silencio: fuera `stagger: 20` (applyCC('interrupt') ya suma 20 a los jefes: con
-//    los dos eran 40, el texto dice 20).
-//  · F s6B Herida Abierta: fuera mod.dot 'bleed' + tv.bleedPct 80 (sangraba con CADA impacto y
-//    subía todo sangrado ajeno); ahora solo los críticos sangran el 80 % del golpe en 6 s.
-//  · F x3: fuera mod.echo (el Eco del núcleo repetía SIEMPRE al 60 % a los 0,5 s); el doble
-//    disparo (2.º crítico seguro) solo con Concentración 100, en el comportamiento.
-//  · M s10 Lazo: fuera mod.root (inmovilizaba a TODOS los atravesados; el texto: al primero).
-//
-// PASO 2c.2 (sin «anfitriones»: cada nodo lleva SU poder o una clave tv del núcleo; tabla
-// completa en la cabecera de js/powers-arquera.js):
-//  · Poderes propios nuevos: c12B a_camuflaje · F s6B f_herida_abierta, s15 f_acechador ·
-//    M s3 m_abrojos, s6A m_cepo_hierro, s6B m_mina, s10 m_lazo, s11 m_ponzona ·
-//    T s5 t_viento_cola, s6B t_corona. Retirado f_perch (s8 es ya tv del núcleo).
-//  · Claves tv del núcleo: c7 drAfterRoll · F s8 drFocus, s11 focusEnergy · M s8 drVsSlowed
-//    (sin dmgReduc: solo contra ralentizados), s15 preyDmg (antes eliteDmg corregido), s17
-//    rootedWeak · T s8 drMoving (sin dmgReduc: solo en movimiento), s11 galeHeal + galeEnergy.
-//  · M s6A / s16: mod.root → mod.rootAdd (+1 s / +0,5 s que SE SUMAN a los 2 s base).
-//  · M s6B: fuera mod.dmg 120 (no era un bono aditivo: la explosión del 120 % la da el
-//    comportamiento con su coeficiente).
-//  · T s5: fuera mod.agilidad.buff 5 (era un +5 % RELATIVO del buff, ≈ +0,75 de vel. de ataque
-//    y +1,5 de movimiento por rango, que el texto no dice); queda solo el +5 %/rango de vel. de
-//    ataque del texto (t_viento_cola). Pequeña corrección a la baja, a propósito.
-// CHOQUES con el mockup que se quedan como están (núcleo):
-//  · T s6A «rebota con el 50 %»: el Encadenado del núcleo rebota al 75 % y −25 % por salto
-//    (Paso 2e: el nodo pasa a ser el poder t_rebote; ver RECALIBRACIÓN 2e).
-//  · T s2 «Disparar ya no te frena»: disparar no frena en este juego (se cumple solo).
-//  · M s2 «Ves el rastro de tu Presa» y la parte «revela invisibles» de la Bengala: no hay
-//    enemigos invisibles todavía (la Bengala deja e.revealedT para cuando los haya).
-//  · Cepo de Hierro: 50 % a los jefes con pct 100 (applyCC divide a la mitad la de los jefes).
-// PENDIENTE_2C1: (vacío)
-// RECALIBRACIÓN 2c.2 (banco, típico Nv50 Francotiradora: élite 4,11 → 5,09 s, jefe 35,7 →
-// 45,2 s). El crítico ya topa (60 %) y la Energía sobra a Nv50 (recurso al golpear topado
-// a 2), así que el exceso estaba en los nodos que solo llegan a Nv50. Texto y valor
-// cambian JUNTOS (ningún poder por debajo de su texto):
-//  · s7 Letalidad: +15 %/rango de daño crítico → +4 %/rango.
-//  · c13 Conocer a la Presa: +5 %/rango contra élites y jefes → +2 %/rango.
-//  · c8 Cadencia: +4 %/rango de velocidad de ataque → +2 %/rango.
-//  · c14 Economía Letal: −15 % de coste (más de 15 de Energía) → −10 %.
-//  · s12 Puntas de Acero Negro: +1 nivel/rango solo a Disparo Apuntado (la insignia; antes
-//    también a Flecha Perforante).
-//  · skills-arquera.js: Lluvia de Flechas 0,6 → 0,52 por oleada (2,08 WD) y Diluvio de
-//    Saetas 2,2 → 1,95 por oleada (15,6 WD; su parte de UNI a Nv50 llegaba a 21 %).
-// RECALIBRACIÓN 2e (banco de roles, §7.2; texto y valor JUNTOS):
-//  · Francotiradora (un objetivo, la mejor de la clase por ≥ 10 %): Disparo Apuntado 380 →
-//    320 % (la insignia entra en la rotación de §7.1 y ponía al jefe en 30 s < 36), s0 Tiro
-//    Mortal ×1,30 → ×1,20 (powers-common.js), s1 Ojo de Águila +3 % de crítico → +4 % de daño
-//    crítico por rango (el crítico ya topaba al 60 %: el nodo no hacía nada), s7 Letalidad
-//    4 → 2, s17 Tiro Limpio 12 → 9, x2 Herida Expuesta 12 → 6 y s6B Herida Abierta 80 → 50 %
-//    (powers-arquera.js). Bomba de Humo (skills-arquera.js) 4 s/−40 %/22 s → 6 s/−50 %/13 s:
-//    TTD+ 0,43 → 0,97·M (§7.2: ≥ 0,85).
-//  · Tiradora (área ≥ 1,2·M; antes 0,63): s6A Flechas Rebotadoras: de «la PRIMERA flecha de
-//    cada lanzamiento rebota a 2» (mod.chain del núcleo) a «CADA flecha rebota a 5, la primera
-//    con el 180 %» (poder t_rebote; el rebote del núcleo pierde un 25 % por salto); Flecha
-//    Múltiple 70 → 35 % por flecha (skills-arquera.js; el abanico de 5 a un jefe grande era un
-//    escopetazo de 150 %), s10 Lluvia Torrencial +10 → +50 % de daño/rango; s0 +15 → +8 % y
-//    s1 4 → 2 %/rango de velocidad de ataque, s7 −10 → −5 %/rango de coste, s17 6 → 2 %/rango
-//    de Físico y x2 Huracán +10 → +5 % de daño/rango (el Impulso sigue en +10/rango: ahora es
-//    el doble de infiniteDmg en powers-arquera.js). x1 Ráfaga Infinita: abanico el doble de
-//    ancho (contra un jefe no es un escopetazo doble).
-//  · Montaraz (control): s0 Cacería ×1,20 → ×1,10 (powers-common.js; contra un jefe ralentizado
-//    todo el combate era UNI pura y le quitaba a la Francotiradora ser la mejor de la clase),
-//    s1 5 → 2 %/rango, s5 Flecha Lastrada 10/20/30 % → 30/35/40 % de ralentización (§7.2:
-//    ≥ 40 % del tiempo inmovilizados o ralentizados; antes 19 %), Trampa de Cepo 150 → 60 %.
-//    Red de Caza (skills-arquera.js) inmoviliza 2 → 1,5 s.
-//  · Clase: c9 Flechas Templadas: +1 nivel a Múltiple y Perforante → a Múltiple y +2 a Lluvia;
-//    c14 Economía Letal −10 → −5 %. skills-arquera.js: Disparo Rápido 1,15 → 1,0 («solo
-//    básico» Nv10 ×0,63 > 0,6) y Lluvia de Flechas 0,52 → 0,7 por oleada (2,8 WD).
-// RECALIBRACIÓN 2e — cierre (TTD+ al 50 % contra 3 élites + 4 comunes, ÁREA×5 con la manada
-// caminando desde 8 m, equipo por percentil común, medianas de 5 semillas; ver
-// talents-guerrero.js):
-//  · Francotiradora: con el equipo igual para las 3 clases su UNI quedaba en ×1,06·M (< 1,15):
-//    Flecha Perforante (skills-arquera.js) 2,1 → 2,4, s1 Ojo de Águila +4 → +12 % de daño
-//    crítico/rango y s7 Letalidad +2 → +5 %/rango → ×1,22. Bomba de Humo 6 s/13 s → 8 s/16 s y
-//    CEGUERA: los enemigos dentro hacen −30 % de daño (comportamiento a_humo + campo
-//    a_humo_ciego): contra élites el −50 % de reducción topaba y perdía la mitad de la vida en
-//    9 s (TTD+ 0,87 → 0,91·M; Tiradora igual).
-//  · Montaraz (área ≥ 0,9·M; antes 0,71 con la manada que camina): s0 Cacería ×1,10 → ×1,30
-//    contra ralentizados o inmovilizados SALVO JEFES (powers-common.js; así no vuelve a ser UNI
-//    pura contra un jefe), s1 Puntas de Cicuta: +2 %/rango de Naturaleza y Veneno (su daño es
-//    Físico: no hacía nada) → +9 %/rango contra ralentizados, x2 Zarzal 20 → 520 % de un golpe
-//    de arma por segundo a quien pisa la red (la red entre trampas es su área contra una
-//    manada que llega). La ranura 2 ofensiva daba +29 %: Lluvia de Flechas 0,7 → 0,6 por
-//    oleada (2,4 WD). Red de Caza 1,5 → 2,5 s: la defensiva daba +23 % de TTD+ (≥ +30 %).
-//  · Tiradora: s10 Lluvia Torrencial +50 → +65 %/rango (compensa la Lluvia más baja; su UNI
-//    ×0,89 → ×0,90 y la ofensiva +13 %) y Flecha Múltiple 0,35 → 0,39 por flecha.
-//  · Diluvio de Saetas 1,95 → 2,73 por oleada (21,8 WD): la definitiva aportaba el 11–12 % del
-//    UNI (12–22 %).
-// Este archivo no importa nada (talents.js lo importa; evita ciclos con data/powers).
+// Generado por tools/convert-v2/convert.mjs (--write talents, E1.5) desde docs/mockups/data/talents-v2-arquera.js (sha1 76ae75357a1e, estado «diseño»).
+// Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup
+// (los compara tests/test-v2-paridad.mjs: una divergencia deliberada va en tools/convert-v2/divergencias.json).
+// `fx: {}` + `todo` = el `impl` del mockup: E2 (KT) los escribe y borra `todo`. Importa SOLO hero y talent-text.
+import { ARQUERA_HERO } from './hero-arquera.js';
+import { n1 } from './talent-text.js';
 
-// valor de un efecto en el rango r (para los textos d(r)) y plural simple
-const x = (v, r) => +(v * r).toFixed(2);
-const pl = (r, one, many) => (r > 1 ? many : one);
+// D29: las 6 activas de talento de la clase (los nodos las conceden con `grant`); su definición vive en el catálogo.
+// Aún no son activas de talento en el juego (las escribe KA1 en el catálogo; su nodo queda sin grant): agilidad, a_h_torbellino, a_h_puntas, a_h_halcon.
+// (agilidad: hoy es una habilidad base del catálogo; KA1 la convierte en activa de talento.)
+export const ARQUERA_TALENT_SKILLS = ['a_t_camuflaje', 'agilidad', 'a_t_bengala', 'a_h_torbellino', 'a_h_puntas', 'a_h_halcon'];
 
-// Activas `grant` de la Arquera (§3.3, estado T). Formato de MEMORIA.md §7; todas
-// kind 'talent' y req 10 (TALENT_SKILL_REQ). `type` = tipo genérico de
-// game-skills.js; `behavior` = comportamiento propio (js/powers-arquera.js,
-// arqueraSkillBehaviors: manda sobre el `type` genérico).
-export const ARQUERA_TALENT_SKILLS = [
-  // — árbol de clase —
-  { id: 'a_t_voltereta', name: 'Voltereta', icon: '🤸', kind: 'talent', cat: 'movement', slots: ['k1'], tags: ['movement', 'physical'], elem: 'physical',
-    behavior: 'a_t_voltereta', req: 10, cd: 12, range: 6, lockT: 0.25, freeShot: true, color: 0xd8c49a,
-    desc: 'Ruedas 6 m hacia atrás y tu próximo disparo no cuesta Energía. Enfriamiento 12 s.' },
-  { id: 'a_t_conmocion', name: 'Disparo Conmocionante', icon: '🎯', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'proj', 'cc', 'physical'], elem: 'physical',
-    type: 'proj', req: 10, coef: 1.0, cost: 10, cd: 6, speed: 18, range: 12, slow: 4, slowPct: 50, color: 0xc8b48a,
-    desc: 'Una flecha roma: 100 % del arma y ralentiza un 50 % durante 4 s. Cuesta 10 de Energía; enfriamiento 6 s.' },
-  { id: 'a_t_silencio', name: 'Flecha Silenciadora', icon: '🤫', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'interrupt', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', behavior: 'a_t_silencio', req: 10, coef: 0.8, cd: 18, speed: 22, range: 14, silence: 3, color: 0xb98cff,
-    desc: 'Una flecha que interrumpe al lanzador enemigo y lo silencia 3 s (80 % del arma); a los jefes les suma 20 de stagger. Enfriamiento 18 s.' },
-  { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical',
-    behavior: 'a_t_bengala', at: 'target', req: 10, cd: 30, radius: 10, dur: 8, range: 12, dmgPct: 8, reveal: true, color: 0xffcc55,
-    desc: 'Una bengala revela a los enemigos invisibles en 10 m durante 8 s; dentro, el grupo hace +8 % de daño. Enfriamiento 30 s.' },
-  { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical',
-    behavior: 'a_t_camuflaje', req: 10, cd: 30, dur: 4, color: 0x8fbf7a,
-    desc: 'Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s.' },
-  // — Francotiradora —
-  { id: 'a_t_apuntado', name: 'Disparo Apuntado', icon: '🏹', kind: 'talent', cat: 'spec', slots: ['rmb', 'k2', 'k3'], tags: ['spec', 'spender', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', behavior: 'a_t_apuntado', req: 10, coef: 3.2, cost: 30, cd: 6, windup: 1.0, speed: 30, range: 16, pierce: true, beam: true, color: 0xfff1a8,
-    desc: 'Insignia de la Francotiradora: cargas 1 s (la esquiva lo cancela) y disparas una saeta que atraviesa toda la línea con el 320 % del arma. Cuesta 30 de Energía; enfriamiento 6 s.' },
-  { id: 'a_t_vision', name: 'Visión Certera', icon: '👁️', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'buff', 'physical'], elem: 'physical',
-    type: 'buff', behavior: 'a_t_vision', req: 10, cd: 90, dur: 12, buff: { aspdPct: 25 }, keepFocus: true, aimedCdr: 50, color: 0xffd966,
-    desc: 'Durante 12 s moverte no vacía la Concentración, ganas +25 % de velocidad de ataque y Disparo Apuntado se recarga un 50 % más rápido. Enfriamiento 90 s.' },
-  { id: 'a_t_disuasorio', name: 'Disparo Disuasorio', icon: '💥', kind: 'talent', cat: 'movement', slots: ['k1'], tags: ['movement', 'proj', 'cc', 'physical'], elem: 'physical',
-    behavior: 'a_t_disuasorio', req: 10, coef: 1.2, cd: 12, range: 8, selfKnock: 8, stun: 1, color: 0xe8d27a,
-    desc: 'Un disparo a quemarropa: 120 % del arma, aturde 1 s al objetivo y el retroceso te lanza 8 m hacia atrás. Enfriamiento 12 s.' },
-  // — Montaraz —
-  { id: 'a_t_cepo', name: 'Trampa de Cepo', icon: '🪤', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'trap', 'cc', 'nature'], elem: 'nature',
-    type: 'trap', behavior: 'a_t_cepo', req: 10, coef: 0.6, cost: 10, cd: 8, charges: 1, maxArmed: 3, radius: 1.5, root: 2, armT: 30, range: 9, dotKind: 'poison', dotDur: 5, color: 0x86d47a,
-    desc: 'Insignia del Montaraz: armas una trampa (hasta 3 a la vez) que inmoviliza 2 s a quien la pisa y lo envenena con el 60 % del arma en 5 s. 1 carga (8 s por carga); cuesta 10 de Energía.' },
-  // tag 'utility' para que admita la ranura 2 (k3/k2 en §3.3; defaultSlots lo exige)
-  { id: 'a_t_arpon', name: 'Arpón', icon: '🪝', kind: 'talent', cat: 'spec', slots: ['k2', 'k3'], tags: ['spec', 'proj', 'cc', 'utility', 'physical'], elem: 'physical',
-    type: 'proj', behavior: 'a_t_arpon', req: 10, coef: 1.2, cost: 15, cd: 10, speed: 22, range: 12, slow: 3, slowPct: 60, pull: 6, color: 0xa0a0a0,
-    desc: 'Un arpón con cadena: 120 % del arma, atrae al objetivo 6 m hacia tu trampa más cercana y lo ralentiza un 60 % durante 3 s. Cuesta 15 de Energía; enfriamiento 10 s.' },
-  { id: 'a_t_senuelo', name: 'Señuelo de Paja', icon: '🎎', kind: 'talent', cat: 'utility', slots: ['k2', 'k3'], tags: ['utility', 'spec', 'summon', 'taunt', 'nature'], elem: 'nature',
-    behavior: 'a_t_senuelo', at: 'target', req: 10, coef: 2.0, cd: 25, dur: 5, radius: 8, burstRadius: 3, range: 10, color: 0xc9a86a,
-    desc: 'Plantas un muñeco de paja que provoca a los enemigos a 8 m durante 5 s y luego estalla en espinas (200 % del arma en 3 m). Enfriamiento 25 s.' },
-  // — Tiradora Veloz —
-  { id: 'a_t_andanada', name: 'Andanada', icon: '🎇', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'proj', 'area', 'movement', 'physical'], elem: 'physical',
-    type: 'proj', behavior: 'a_t_andanada', req: 10, coef: 0.6, cost: 25, cd: 6, count: 12, spread: 1.047, speed: 18, range: 10, lockT: 0.35, backstep: 3, color: 0x66d7c7,
-    desc: 'Insignia de la Tiradora: barres un arco de 120° con 12 flechas (60 % del arma cada una) mientras retrocedes 3 m. Cuesta 25 de Energía; enfriamiento 6 s.' },
-  { id: 'a_t_danza', name: 'Danza de Flechas', icon: '🌀', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'area', 'channel', 'movement', 'physical'], elem: 'physical',
-    behavior: 'a_t_danza', req: 10, coef: 0.5, cost: 20, cd: 25, channelT: 4, ticks: 16, radius: 4, moveFree: true, slowImmune: true, color: 0x7fe8d8,
-    desc: 'Durante 4 s disparas 16 flechas en espiral a tu alrededor (50 % del arma cada una) sin dejar de correr, inmune a las ralentizaciones. Cuesta 20 de Energía; enfriamiento 25 s.' },
-  { id: 'a_t_salto', name: 'Salto de Retirada', icon: '🦘', kind: 'talent', cat: 'movement', slots: ['k1'], tags: ['movement', 'proj', 'physical'], elem: 'physical',
-    behavior: 'a_t_salto', req: 10, coef: 0.6, cd: 12, range: 7, airT: 0.4, lockT: 0.4, count: 5, gaugeGain: 30, color: 0x9fe0d6,
-    desc: 'Saltas 7 m hacia atrás y al aterrizar disparas 5 flechas (60 % del arma cada una); ganas 30 de Impulso. Enfriamiento 12 s.' },
+/** @deprecated D29 (puente de E1.5 hasta KA1): definición de las activas de talento que YA existen en el juego,
+ *  mientras ARQUERA_CATALOG_V = 1 (data.js las fusiona en CLASSES como antes). Con el catálogo 2g
+ *  (ARQUERA_CATALOG_V = 2) viven en skills-arquera.js y data.js deja de leer esta lista; se borra en E5 (C1). */
+export const ARQUERA_TALENT_SKILL_DEFS = [
+  // juego actual: { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical', behavior: 'a_t_camuflaje', req: 10, cd: 30, dur: 4, color: 9420666, desc: 'Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s.' }
+  { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical', req: 21, cd: 20, behavior: 'a_t_camuflaje', dur: 4, color: 9420666, grantBy: 'c11', line: 'Te vuelves invisible 4 s, los enemigos te pierden y Paso Veloz se recarga; tu primer disparo al salir es crítico.', desc: 'Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s.', art: 'talents/arquera-clase-c12.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
+  // juego actual: { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical', behavior: 'a_t_bengala', at: 'target', req: 10, cd: 30, radius: 10, dur: 8, range: 12, dmgPct: 8, reveal: true, color: 16763989, desc: 'Una bengala revela a los enemigos invisibles en 10 m durante 8 s; dentro, el grupo hace +8 % de daño. Enfriamiento 30 s.' }
+  { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical', req: 31, cd: 20, behavior: 'a_t_bengala', at: 'target', radius: 10, dur: 8, range: 12, dmgPct: 8, reveal: true, color: 16763989, grantBy: 'c22', line: 'Una bengala de 10 m durante 10 s: dentro, los enemigos reciben un 15 % más de daño del grupo y pegan un 15 % menos.', desc: 'Una bengala revela a los enemigos invisibles en 10 m durante 8 s; dentro, el grupo hace +8 % de daño. Enfriamiento 30 s.', art: 'talents/arquera-clase-c15.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
 ];
 
 export const ARQUERA_TALENTS = {
-  cls: {
-    name: 'Arquera',
-    nodes: [
-      { id: 'c1', name: 'Pulso Firme', icon: 'talents/arquera-clase-c1.webp', t: 'p', r: 0, c: 1.5, max: 2, d: r => `+${x(4, r)}% de daño con arco.`, fx: { stats: { dmgPct: 4 } } },
-      { id: 'c2', name: 'Voltereta', icon: 'talents/arquera-clase-c2.webp', t: 'a', r: 1, c: 0.5, max: 1, req: ['c1'], d: 'Activa nueva: ruedas 6 m hacia atrás y tu próximo disparo no cuesta Energía. Enfriamiento 12 s.', fx: { grant: 'a_t_voltereta' } },
-      { id: 'c3', name: 'Disparo Conmocionante', icon: 'talents/arquera-clase-c3.webp', t: 'a', r: 1, c: 2.5, max: 1, req: ['c1'], d: 'Activa nueva: una flecha roma que ralentiza un 50% durante 4 s. 10 de Energía, enfriamiento 6 s.', fx: { grant: 'a_t_conmocion' } },
-      { id: 'c4', name: 'Ojo de Halcón', icon: 'talents/arquera-clase-c4.webp', t: 'p', r: 2, c: 0, max: 3, req: ['c2'], d: r => `+${x(2, r)}% de probabilidad de crítico.`, fx: { stats: { crit: 2 } } },
-      { id: 'c5', name: 'Silencio o Paso Ligero', icon: 'talents/arquera-clase-c5.webp', t: 'c', r: 2, c: 1.5, max: 1, req: ['c2', 'c3'], opts: [
-        { k: 'A', name: 'Flecha Silenciadora', desc: 'Activa: interrumpe al lanzador enemigo y lo silencia 3 s. Ideal en grupo.', active: true, fx: { grant: 'a_t_silencio' } },
-        { k: 'B', name: 'Paso Ligero', desc: '+12% de velocidad de movimiento si no recibes daño durante 3 s.', fx: { power: 'a_tailwind' } } ] },
-      { id: 'c6', name: 'Carcaj Profundo', icon: 'talents/arquera-clase-c6.webp', t: 'p', r: 2, c: 3, max: 2, req: ['c3'], d: r => `+${x(6, r)} de Energía máxima.`, fx: { stats: { mp: 6 } } },
-      { id: 'c7', name: 'Cuero Curtido', icon: 'talents/arquera-clase-c7.webp', t: 'p', r: 3, c: 0.5, max: 2, req: ['c4', 'c5'], d: r => `−${x(4, r)}% de daño recibido; el doble durante 2 s tras una Voltereta.`, fx: { tv: { dmgReduc: 4, drAfterRoll: 4 } } },
-      { id: 'c8', name: 'Cadencia', icon: 'talents/arquera-clase-c8.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['c5', 'c6'], d: r => `+${x(2, r)}% de velocidad de ataque.`, fx: { stats: { aspdPct: 2 } } },
-      { id: 'c9', name: 'Flechas Templadas', icon: 'talents/arquera-clase-c9.webp', t: 'p', r: 4, c: 0, max: 2, req: ['c7'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} a Flecha Múltiple y +${x(2, r)} a Lluvia de Flechas.`, fx: { skillLv: { flecha_multiple: 1, lluvia_flechas: 2 } } },
-      { id: 'c10', name: 'Instinto de Cazadora', icon: 'talents/arquera-clase-c10.webp', t: 'p', r: 4, c: 1.5, max: 3, req: ['c7', 'c8'], d: r => `+${x(1, r)} de Energía al golpear.`, fx: { stats: { mph: 1 } } },
-      { id: 'c11', name: 'Paso de Viento', icon: 'talents/arquera-clase-c11.webp', t: 'p', r: 4, c: 3, max: 2, req: ['c8'], d: r => `+${x(4, r)}% de velocidad de movimiento y +${x(1, r)} s de duración de Agilidad.`, fx: { stats: { spdPct: 4 }, mod: { agilidad: { durS: 1 } } } },
-      { id: 'c12', name: 'Bengala o Camuflaje', icon: 'talents/arquera-clase-c12.webp', t: 'c', r: 5, c: 0.5, max: 1, req: ['c9', 'c10'], opts: [
-        { k: 'A', name: 'Flecha Bengala', desc: 'Activa: revela a los invisibles en 10 m durante 8 s; dentro, el grupo hace +8% de daño.', active: true, fx: { grant: 'a_t_bengala' } },
-        { k: 'B', name: 'Camuflaje', desc: 'Activa: invisible 4 s; tu primer disparo al salir es crítico seguro.', active: true, fx: { grant: 'a_t_camuflaje', power: 'a_camuflaje' } } ] },
-      { id: 'c13', name: 'Conocer a la Presa', icon: 'talents/arquera-clase-c13.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['c10', 'c11'], d: r => `+${x(2, r)}% de daño contra élites y jefes.`, fx: { tv: { eliteDmg: 2 } } },
-      { id: 'c14', name: 'Economía Letal', icon: 'talents/arquera-clase-c14.webp', t: 'p', r: 6, c: 1.5, max: 1, req: ['c12', 'c13'], d: 'Las habilidades que cuestan más de 15 de Energía cuestan un 5% menos.', fx: { tv: { costRedBig: { pct: 5, over: 15 } } } },
-      { id: 'c15', name: 'Espíritu del Halcón', icon: 'talents/arquera-clase-c15.webp', t: 'k', r: 7, c: 1.5, max: 1, req: ['c14'], d: 'Grupo: tú y los aliados a 15 m ganan +5% de probabilidad de crítico y +6% de velocidad de movimiento.', fx: { power: 'a_aura_halcon' } },
-    ],
-    preset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 3], ['c5', 1, 'A'], ['c7', 1], ['c8', 2], ['c10', 3], ['c13', 2], ['c14', 1], ['c15', 1]],
-  },
+  v: 2,
+  cls: { name: 'Arquera', emblem: 'ui/res_energia.webp', art: 'specs/tiradora.webp', nodes: [
+    { id: 'c1', name: 'Carcaj Profundo', t: 'p', tag: 'num', r: 0, c: 1, max: 2, d: r=>`+${10*r} de Energía máxima (antes 60)`, icon: 'talents/arquera-clase-c6.webp', fx: {}, todo: 'stats.mp · existe' },
+    { id: 'c2', name: 'Pulso Firme', t: 'p', tag: 'num', r: 0, c: 3, max: 2, d: r=>`Todas tus flechas hacen +${6*r} % de daño`, touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-clase-c1.webp', fx: {}, todo: 'stats.dmgPct · existe' },
+    { id: 'c3', name: 'Paso de Gacela', t: 'p', tag: 'num', r: 0, c: 5, max: 2, d: r=>`Paso Veloz se recarga en ${n1(9-1.5*r)} s (antes 9 s)`, touch: ['a_paso'], icon: 'talents/arquera-clase-c11.webp', fx: {}, todo: 'mod a_paso cdr · existe' },
+    { id: 'c4', name: 'Bomba Rápida', t: 'p', tag: 'num', r: 1, c: 0, max: 3, req: ['c1'], d: r=>`La Bomba de Humo se recarga en ${16-2*r} s (antes 16 s)`, touch: ['a_humo'], icon: 'skills256/a_humo.webp', fx: {}, todo: 'mod a_humo cdr · existe' },
+    { id: 'c5', name: 'Disparo: Fijo o Saqueo', t: 'c', tag: 'mec', r: 1, c: 2, max: 1, req: ['c1', 'c2'], touch: ['a_disparo'], icon: 'skills256/a_disparo.webp', opts: [
+        { k: 'A', name: 'Puntería Fija', desc: 'Cada 4.º Disparo Rápido al mismo enemigo es crítico seguro', role: 'UNI', fx: {}, todo: 'power a_punteria_fija · NUEVO (onCast cast.forceCrit, cuenta por objetivo)' },
+        { k: 'B', name: 'Flecha Saqueadora', desc: 'Si Disparo Rápido mata, recuperas 8 de Energía (como mucho una vez por disparo)', role: 'AREA', fx: {}, todo: 'power a_saqueo · NUEVO (onKill + g.gainResource; una vez por lanzamiento)' },
+      ],
+      win: 'A, contra jefes: un crítico seguro cada ~3 s. B, contra grupos: como mueren muchos, ≈ una habilidad principal extra cada 3 muertes' },
+    { id: 'c6', name: 'Distancia: Bocajarro o Lejos', t: 'c', tag: 'mec', r: 1, c: 4, max: 1, req: ['c2', 'c3'], touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-francotiradora-s8.webp', opts: [
+        { k: 'A', name: 'A Bocajarro', desc: 'A menos de 5 m, tus flechas hacen +15 % de daño y empujan 1 m al enemigo', role: 'AREA', fx: {}, todo: 'power a_bocajarro · NUEVO (condAdd por distancia + knock)' },
+        { k: 'B', name: 'Tiro Lejano', desc: 'A más de 10 m, tus flechas hacen +20 % de daño', role: 'UNI', fx: {}, todo: 'power a_tiro_lejano · NUEVO (condAdd por distancia)' },
+      ],
+      win: 'A, contra grupos que te alcanzan: el empuje te da aire para seguir kiteando. B, contra jefes, si sabes mantener la distancia. Sirve igual a las tres' },
+    { id: 'c7', name: 'Paso Limpio', t: 'p', tag: 'mec', r: 1, c: 6, max: 1, req: ['c3'], d: ()=>'Paso Veloz te quita las ralentizaciones y las inmovilizaciones', touch: ['a_paso'], icon: 'talents/arquera-clase-c2.webp', fx: {}, todo: 'mod a_paso cleanse · clave existente (prof.cleanse)' },
+    { id: 'c8', name: 'Difícil de Alcanzar', t: 'p', tag: 'num', r: 2, c: 1, max: 2, req: ['c4', 'c5'], d: r=>`Mientras te mueves, recibes un ${6*r} % menos de daño`, icon: 'talents/arquera-clase-c7.webp', fx: {}, todo: 'tv.drMoving · existe' },
+    { id: 'c9', name: 'Perforante: Lastrada o Diamante', t: 'c', tag: 'mec', r: 2, c: 3, max: 1, req: ['c5', 'c6'], touch: ['flecha_perforante'], icon: 'skills256/flecha_perforante.webp', opts: [
+        { k: 'A', name: 'Flecha Lastrada', desc: 'Flecha Perforante ralentiza un 40 % durante 3 s a todos los que atraviesa', role: 'CTRL', fx: {}, todo: 'mod flecha_perforante slow/slowPct · claves existentes' },
+        { k: 'B', name: 'Punta de Diamante', desc: 'Flecha Perforante hace +40 % al primer enemigo que toca', role: 'UNI', fx: {}, todo: 'power a_punta_diamante · NUEVO (condAdd al primer impacto)' },
+      ],
+      win: 'A, para controlar grupos en fila y escapar de ellos. B, contra jefes y élites' },
+    { id: 'c10', name: 'Roma o Silbante', t: 'c', tag: 'mec', r: 2, c: 5, max: 1, req: ['c6', 'c7'], icon: 'talents/arquera-clase-c3.webp', opts: [
+        { k: 'A', name: 'Flecha Roma', desc: 'Cada 8 s, tu siguiente disparo ralentiza un 50 % durante 4 s', role: 'CTRL', fx: {}, todo: 'power a_flecha_roma · NUEVO (lógica de a_t_conmocion; onHit + applyCC slow)' },
+        { k: 'B', name: 'Flecha Silbante', desc: 'Cada 10 s, tu siguiente disparo corta el hechizo del enemigo y lo deja mudo 3 s', role: 'UNI', fx: {}, todo: 'power a_silbante · NUEVO (lógica de a_t_silencio; applyCC interrupt = 20 de Quebranto a jefes)' },
+      ],
+      win: 'A, contra grupos que te persiguen. B, contra jefes y élites que lanzan hechizos (además les llena 20 de Quebranto)' },
+    { id: 'c11', name: 'Camuflaje o Instinto', t: 'c', tag: 'mec', r: 3, c: 0, max: 1, req: ['c8'], icon: 'talents/arquera-clase-c12.webp', opts: [
+        { k: 'A', name: 'Camuflaje', desc: 'Habilidad (ranura 2): invisible 4 s; te pierden, Paso Veloz se recarga y tu primer disparo es crítico. 20 s', role: 'AGU', fx: { grant: 'a_t_camuflaje' }, todo: 'activa a_t_camuflaje · existe (+ power a_camuflaje: cds a_paso = 0)' },
+        { k: 'B', name: 'Instinto de Supervivencia', desc: 'Un golpe que te mataría te deja con 1 de vida y suelta una Bomba de Humo gratis. Una vez cada 180 s', role: 'AGU', fx: {}, todo: 'power a_instinto · NUEVO (onLethal + lanza a_humo como eco)' },
+      ],
+      win: 'A, contra golpes de jefe que se ven venir: esquivas y vuelves a rodar (ocupa la ranura 2). B, un seguro cada 3 minutos sin ocupar ranura' },
+    { id: 'c12', name: 'Respiración Pausada', t: 'p', tag: 'num', r: 3, c: 2, max: 2, req: ['c8', 'c9'], d: r=>`Recuperas Energía un ${15*r} % más rápido`, icon: 'talents/arquera-clase-c10.webp', fx: {}, todo: 'stats.regenPct (Energía) · existe' },
+    { id: 'c13', name: 'Ojo de Halcón', t: 'p', tag: 'num', r: 3, c: 4, max: 2, req: ['c9', 'c10'], d: r=>`+${5*r} % de probabilidad de crítico`, icon: 'talents/arquera-clase-c4.webp', fx: {}, todo: 'stats.crit · existe' },
+    { id: 'c14', name: 'Paso: Abrojos o Sanador', t: 'c', tag: 'mec', r: 3, c: 6, max: 1, req: ['c10'], touch: ['a_paso'], icon: 'talents/arquera-montaraz-s3.webp', opts: [
+        { k: 'A', name: 'Paso de Abrojos', desc: 'Donde empieza tu Paso Veloz quedan abrojos 3 s que ralentizan un 50 %', role: 'CTRL', fx: {}, todo: 'power a_paso_abrojos · NUEVO (spawnField zona)' },
+        { k: 'B', name: 'Paso Sanador', desc: 'Paso Veloz te cura un 6 % de la vida (como mucho una vez cada 12 s)', role: 'AGU', fx: {}, todo: 'power a_rodada_cura · NUEVO (g.heal self; icd 12; ronda 3: por la cubeta de autocuración de la Arquera, 1 %/s)' },
+      ],
+      win: 'A, para escapar de enemigos cuerpo a cuerpo. B, para aguantar peleas largas' },
+    { id: 'c15', name: 'Adrenalina o Calma Letal', t: 'c', tag: 'mec', r: 4, c: 1, max: 1, req: ['c11', 'c12'], icon: 'talents/arquera-tiradora-s11.webp', opts: [
+        { k: 'A', name: 'Adrenalina', desc: 'Al bajar del 50 % de vida recuperas 30 de Energía y recibes un 20 % menos 4 s. Una vez cada 30 s', role: 'AGU', fx: {}, todo: 'power a_adrenalina · NUEVO (④ onDamaged + addBuff dr)' },
+        { k: 'B', name: 'Calma Letal', desc: 'Con más de 40 de Energía, haces +10 % de daño', role: 'UNI', fx: {}, todo: 'tv.highManaDmg (umbral 40 de Energía) · existe' },
+      ],
+      win: 'A, para sobrevivir a golpes fuertes (+12–15 % de aguante). B, para hacer daño (+6–8 %)' },
+    { id: 'c16', name: 'Presión o Barrido', t: 'c', tag: 'mec', r: 4, c: 3, max: 1, req: ['c12', 'c13'], touch: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'], icon: 'talents/arquera-clase-c13.webp', opts: [
+        { k: 'A', name: 'Presión Constante', desc: 'Cada disparo al mismo enemigo te da +4 % de daño contra él (hasta +20 %); se pierde al cambiar de blanco', role: 'UNI', fx: {}, todo: 'power a_presion · NUEVO (condAdd con contador por objetivo)' },
+        { k: 'B', name: 'Barrido de Caza', desc: 'Cada enemigo distinto que golpeas en 2 s te da +3 % de velocidad de ataque (hasta +15 %)', role: 'AREA', fx: {}, todo: 'power a_barrido · NUEVO (onHit + addBuff)' },
+      ],
+      win: 'A, contra jefes: +20 % casi siempre. B, contra grupos: +15 % de velocidad de ataque con 5 enemigos a tiro' },
+    { id: 'c17', name: 'Agilidad o Huida', t: 'c', tag: 'mec', r: 4, c: 5, max: 1, req: ['c13', 'c14'], icon: 'skills256/agilidad.webp', opts: [
+        { k: 'A', name: 'Agilidad', desc: 'Habilidad (ranura 2): 6 s con +30 % de velocidad, +15 % de ataque e inmune a ralentizaciones. Se recarga en 16 s', role: 'AGU', fx: {}, todo: 'activa agilidad · existe (buff genérico con slowImmune)' },
+        { k: 'B', name: 'Huida Desesperada', desc: 'Al bajar del 30 % de vida: +40 % de velocidad y un 20 % menos de daño 4 s. Una vez cada 60 s', role: 'AGU', fx: {}, todo: 'power a_huida · NUEVO (onDamaged)' },
+      ],
+      win: 'A, para escapar o perseguir a voluntad (ocupa la ranura 2). B, contra el daño constante de un grupo, sin ocupar ranura' },
+    { id: 'c18', name: 'Humo Denso', t: 'p', tag: 'num', r: 5, c: 0, max: 2, req: ['c15'], d: r=>`La Bomba de Humo dura ${8+r} s (antes 8 s)`, touch: ['a_humo'], icon: 'skills256/a_humo.webp', fx: {}, todo: 'mod a_humo durS · existe' },
+    { id: 'c19', name: 'Tiro desde la Niebla', t: 'p', tag: 'mec', r: 5, c: 2, max: 1, req: ['c15', 'c16'], d: ()=>'Dentro de tu Bomba de Humo, cada Disparo Rápido te da 3 de Energía y alarga el humo 0,3 s (hasta +2 s)', touch: ['a_humo', 'a_disparo'], hyb: 'Defensa + Básica', icon: 'talents/arquera-tiradora-s7.webp', fx: {}, todo: 'power a_tiro_niebla · NUEVO (onHit + campo zona)' },
+    { id: 'c20', name: 'Lluvia en Retirada', t: 'p', tag: 'mec', r: 5, c: 4, max: 1, req: ['c16', 'c17'], d: ()=>'Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde empezaste a rodar', touch: ['a_paso', 'lluvia_flechas'], hyb: 'Movilidad + Principal', icon: 'skills256/lluvia_flechas.webp', fx: {}, todo: 'power a_lluvia_retirada · NUEVO (afterCast + eco de lluvia_flechas ×0,3)' },
+    { id: 'c21', name: 'Piernas de Corredora', t: 'p', tag: 'num', r: 5, c: 6, max: 1, req: ['c17'], d: ()=>'Te mueves un 10 % más rápido', icon: 'talents/arquera-tiradora-s2.webp', fx: {}, todo: 'stats.spdPct · existe' },
+    { id: 'c22', name: 'Bengala o Economía', t: 'c', tag: 'mec', r: 6, c: 1, max: 1, req: ['c18', 'c19'], icon: 'talents/arquera-clase-c14.webp', opts: [
+        { k: 'A', name: 'Flecha Bengala', desc: 'Habilidad (ranura 2): bengala de 10 m 10 s; dentro reciben +15 % de daño y pegan un 15 % menos. 20 s', role: 'AREA', fx: { grant: 'a_t_bengala' }, todo: 'activa a_t_bengala · existe (applyWeakness 15 + weakenOutgoing 15)' },
+        { k: 'B', name: 'Economía Letal', desc: 'Las habilidades que cuestan más de 20 de Energía cuestan un 20 % menos', role: 'UNI', fx: {}, todo: 'tv.costRedBig {pct:20, over:20} · existe' },
+      ],
+      win: 'A, en grupo: todos pegan +15 % dentro y recibes menos (ocupa la ranura 2). B, para hacer daño en solitario (+5–7 %)' },
+    { id: 'c23', name: 'Recarga en Marcha', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada habilidad principal que lanzas recarga ${n1(0.3*r)} s de Paso Veloz y de la Bomba de Humo`, touch: ['a_paso', 'a_humo'], icon: 'talents/arquera-tiradora-s1.webp', fx: {}, todo: 'power a_recarga_marcha · NUEVO (afterCast de cat spender)' },
+    { id: 'c24', name: 'Cadencia', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Disparas un ${7*r} % más rápido`, icon: 'talents/arquera-clase-c8.webp', fx: {}, todo: 'stats.aspdPct · existe' },
+    { id: 'c25', name: 'Emboscada', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Al salir de tu Bomba de Humo o al acabarse, tus ${r+1} siguientes disparos son críticos seguros`, touch: ['a_humo'], icon: 'talents/arquera-francotiradora-s15.webp', fx: {}, todo: 'power a_emboscada · NUEVO (onTick: dentro→fuera; onCast forceCrit)' },
+    { id: 'c26', name: 'Compás', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Alternar básica y principal te da un Compás (hasta 5): +${2*r} % de daño cada uno. Se pierden a los 3 s`, icon: 'talents/arquera-francotiradora-s2.webp', fx: {}, todo: 'power a_compas · NUEVO (⑦ onCast: alterna basic/spender; stacks)' },
+    { id: 'c27', name: 'Tras la Rodada', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['c24'], d: r=>`Tras Paso Veloz, tu siguiente habilidad principal no cuesta Energía y hace +${10*r} %`, touch: ['a_paso'], icon: 'talents/arquera-tiradora-s8.webp', fx: {}, todo: 'power a_tras_rodada · NUEVO (afterCast + modifyResolve)' },
+    { id: 'c28', name: 'Manto de Niebla', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['c25'], d: r=>`Tu Bomba de Humo te sigue; dentro recibes un 25 % menos (antes 50 %) y cura a tus aliados un ${n1(0.25*r)} % de vida por segundo`, touch: ['a_humo'], final: 'Defensa', icon: 'talents/arquera-montaraz-s13.webp', fx: {}, todo: 'power a_manto · NUEVO (campo que sigue al dueño: dr 25; su ceguera no se suma a la de otro humo; g.heal a los aliados dentro, no a la dueña: ronda 3)' },
+    { id: 'c29', name: 'Danza del Arco', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['c26'], d: r=>`Con 5 Compases, tu siguiente principal es gratis, crítica y hace +${20*r} %; los Compases vuelven a 0`, final: 'Ritmo', icon: 'talents/arquera-clase-c15.webp', fx: {}, todo: 'power a_danza_arco · NUEVO (lee a_compas)' },
+    { id: 'c30', name: 'Sombra Gemela', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['c27'], d: r=>`Paso Veloz deja una sombra tuya 3 s que repite tus habilidades principales al ${15+15*r} %`, touch: ['a_paso'], final: 'Movilidad', icon: 'talents/arquera-tiradora-x2.webp', fx: {}, todo: 'power a_sombra · NUEVO (aliado sin vida que copia las principales como eco ×0,3–0,6)' },
+  ] },
   specs: [
     {
-      id: 'francotiradora', name: 'Francotiradora', role: 'dps', icon: 'specs/francotiradora.webp', emblem: 'emblems/francotiradora.webp',
-      mechanic: 'concentracion', innate: {},
-      desc: 'Un disparo, una baja: críticos devastadores desde lejos.',
-      // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
-      clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 3], ['c5', 1, 'A'], ['c7', 1], ['c8', 2], ['c10', 3], ['c13', 2], ['c14', 1], ['c15', 1]],
+      id: 'tiradora',
+      name: 'Tiradora Veloz',
+      role: 'dps',
+      roleLabel: 'Daño en área',
+      icon: 'specs/tiradora.webp',
+      emblem: 'emblems/tiradora.webp',
+      mechanic: 'impulso',
+      elem: 'physical',
+      prefix: 'v',
+      innate: {},
+      innateText: 'Cada 3.er Disparo Rápido sale triple',
+      line: 'Nunca se detiene: dispara corriendo, salta atrás y vuelve a disparar.',
+      desc: 'Nunca se detiene: dispara corriendo, salta atrás y vuelve a disparar.',
+      innateName: 'Tercera Flecha',
+      innateDesc: 'Cada 3.er Disparo Rápido lanza 2 flechas más en abanico de 30° (60 % cada una).',
+      innateNote: 'Con otra especialización, Disparo Rápido vuelve a ser una sola flecha',
+      innateSkill: 'a_disparo',
+      todo: 'innate (fx) desde el texto: «Cada 3.er Disparo Rápido lanza 2 flechas más en abanico de 30° (60 % cada una).»',
       nodes: [
-        { id: 's0', name: 'Tiro Mortal', icon: 'talents/arquera-francotiradora-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): tus críticos contra enemigos con más del 60% de vida hacen +20% de daño. Quedarte quieta genera Concentración. Otorga la activa Disparo Apuntado: cargas 1 s y disparas una saeta que atraviesa toda la línea con el 320% de daño.', fx: { power: 'm_deadeye', grant: 'a_t_apuntado' } },
-        { id: 's1', name: 'Ojo de Águila', icon: 'talents/arquera-francotiradora-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(12, r)}% de daño crítico.`, fx: { tv: { critDmg: 12 } } },
-        { id: 's2', name: 'Aliento Contenido', icon: 'talents/arquera-francotiradora-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `La Concentración sube un ${x(20, r)}% más rápido.`, fx: { tv: { focusRate: 20 } } },
-        { id: 's3', name: 'Calibre Pesado', icon: 'talents/arquera-francotiradora-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `+${x(10, r)}% de daño de Flecha Perforante.`, fx: { mod: { flecha_perforante: { dmg: 10 } } } },
-        { id: 's4', name: 'Aliento del Cazador', icon: 'talents/arquera-francotiradora-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Con la Concentración al 100%, Disparo Apuntado sale al instante (sin carga) y gasta 50 de Concentración.', fx: { power: 'f_aliento_cazador' } },
-        { id: 's5', name: 'Primera Sangre', icon: 'talents/arquera-francotiradora-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `+${x(6, r)}% de daño contra enemigos con más del 60% de vida.`, fx: { tv: { highHpDmg: 6 } } },
-        { id: 's6', name: 'Remate o Herida Abierta', icon: 'talents/arquera-francotiradora-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
-          { k: 'A', name: 'Golpe de Gracia', desc: 'Disparo Apuntado remata a enemigos por debajo del 15% de vida (no jefes).', fx: { mod: { a_t_apuntado: { execute: 15 } } } },
-          { k: 'B', name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 50% extra en 6 s. Mejor contra jefes.', fx: { power: 'f_herida_abierta' } } ] },
-        { id: 's7', name: 'Letalidad', icon: 'talents/arquera-francotiradora-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(5, r)}% de daño de crítico.`, fx: { tv: { critDmg: 5 } } },
-        { id: 's8', name: 'Posición Elevada', icon: 'talents/arquera-francotiradora-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `−${x(3, r)}% de daño recibido; el doble con la Concentración por encima de 50.`, fx: { tv: { dmgReduc: 3, drFocus: 3 } } },
-        { id: 's9', name: 'Visión Certera', icon: 'talents/arquera-francotiradora-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 12 s moverte no vacía la Concentración, +25% de velocidad de ataque y Disparo Apuntado se recarga un 50% más rápido. Enfriamiento 90 s.', fx: { grant: 'a_t_vision' } },
-        { id: 's10', name: 'Recarga Táctica', icon: 'talents/arquera-francotiradora-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `Cada crítico reduce ${x(0.4, r)} s el enfriamiento de Disparo Apuntado.`, fx: { mod: { a_t_apuntado: { critCdr: 0.4 } } } },
-        { id: 's11', name: 'Respiración Profunda', icon: 'talents/arquera-francotiradora-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `Al llenar la Concentración recuperas ${x(8, r)} de Energía.`, fx: { tv: { focusEnergy: 8 } } },
-        { id: 's12', name: 'Puntas de Acero Negro', icon: 'talents/arquera-francotiradora-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} a Disparo Apuntado.`, fx: { skillLv: { a_t_apuntado: 1 } } },
-        { id: 's13', name: 'Disuasión o Paciencia', icon: 'talents/arquera-francotiradora-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
-          { k: 'A', name: 'Disparo Disuasorio', desc: 'Activa: disparo a quemarropa que te empuja 8 m atrás y aturde 1 s al objetivo.', active: true, fx: { grant: 'a_t_disuasorio' } },
-          { k: 'B', name: 'Paciencia del Depredador', desc: 'Quieta, ganas +2% de daño por segundo, hasta +20%. Se pierde al moverte.', fx: { power: 'f_patience' } } ] },
-        { id: 's14', name: 'Sobrepenetración', icon: 'talents/arquera-francotiradora-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Cada enemigo que atraviesa Disparo Apuntado aumenta un 15% su daño contra el siguiente.', fx: { mod: { a_t_apuntado: { pierce: true } }, power: 'f_overpen' } },
-        { id: 's15', name: 'Paso del Acechador', icon: 'talents/arquera-francotiradora-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(5, r)}% de velocidad de movimiento; moverte vacía un 15% menos de Concentración.`, fx: { stats: { spdPct: 5 }, power: 'f_acechador' } },
-        { id: 's16', name: 'Cazamayores', icon: 'talents/arquera-francotiradora-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `+${x(8, r)}% de daño contra élites y jefes.`, fx: { tv: { eliteDmg: 8 } } },
-        { id: 's17', name: 'Tiro Limpio', icon: 'talents/arquera-francotiradora-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(9, r)}% de daño de Disparo Apuntado.`, fx: { mod: { a_t_apuntado: { dmg: 9 } } } },
-        { id: 'x1', name: 'Punto Débil', icon: 'talents/arquera-francotiradora-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: Disparo Apuntado marca a élites y jefes 8 s; tú y tu grupo tienen +15% de probabilidad de crítico contra ellos.', fx: { power: 'f_weakspot' } },
-        { id: 'x2', name: 'Herida Expuesta', icon: 'talents/arquera-francotiradora-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: el grupo hace +${x(6, r)}% de daño de crítico contra objetivos con Punto Débil.`, fx: { tv: { weakCritDmg: 6 } } },
-        { id: 'x3', name: 'Disparo Imposible', icon: 'talents/arquera-francotiradora-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): con Concentración al 100%, Disparo Apuntado se dispara dos veces y el segundo es crítico seguro.', fx: { power: 'f_impossible' } },
+        { id: 'v0', name: 'Impulso', t: 'k', tag: 'mec', r: 0, c: 3, max: 1, free: true, d: ()=>'Cada acierto en movimiento te da 3 de Impulso. A 100: Vendaval 6 s, +25 % de velocidad de ataque y +1 flecha a Múltiple', touch: ['flecha_multiple'], icon: 'talents/arquera-tiradora-s0.webp', fx: {}, todo: 'mecánica impulso · existe (+ pérdida quieta NUEVA) · pasiva Tercera Flecha: power t_tercera · NUEVO (seq del básico)' },
+        { id: 'v1', name: 'Astiles Ligeros', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['v0'], d: r=>`Flecha Múltiple cuesta ${22-2*r} de Energía (antes 22)`, touch: ['flecha_multiple'], arch: 'abanico', icon: 'talents/arquera-tiradora-s7.webp', fx: {}, todo: 'mod flecha_multiple cost · existe' },
+        { id: 'v2', name: 'Vendaval Largo', t: 'p', tag: 'num', r: 1, c: 3, max: 3, req: ['v0'], d: r=>`El Vendaval dura ${6+r} s (antes 6 s)`, arch: 'vaiven', icon: 'talents/arquera-tiradora-s14.webp', fx: {}, todo: 'tv.galeT · NUEVO (clave; gaugeTuning impulso.galeT + tv) ⟶ traducir: tv.galeT: clave de la clase (KT-arquera, <CLASE>_TV_KEYS)' },
+        { id: 'v3', name: 'Aire Fresco', t: 'p', tag: 'num', r: 1, c: 5, max: 3, req: ['v0'], d: r=>`Carrera del Viento se recarga en ${10-r} s (antes 10 s)`, touch: ['a_v_carrera'], arch: 'galerna', icon: 'talents/arquera-tiradora-s5.webp', fx: {}, todo: 'mod a_v_carrera cdr · claves' },
+        { id: 'v4', name: 'Puntas Templadas', t: 'p', tag: 'num', r: 2, c: 0, max: 2, req: ['v1'], d: r=>`Flecha Múltiple y tu disparo triple hacen +${20*r} % de daño`, touch: ['flecha_multiple', 'a_disparo'], arch: 'abanico', icon: 'talents/arquera-clase-c9.webp', fx: {}, todo: 'mod flecha_multiple dmg + power t_tercera (rango) · claves' },
+        { id: 'v5', name: 'Remate Triple', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['v1', 'v2'], d: ()=>'Tras una Andanada, tu siguiente Disparo Rápido sale triple sin esperar al 3.º (una vez cada 4 s)', touch: ['a_t_andanada', 'a_disparo'], arch: 'abanico+vaiven', hyb: 'Abanico + Vaivén', icon: 'talents/arquera-tiradora-s4.webp', fx: {}, todo: 'power t_remate_triple · NUEVO (afterCast pone el contador de seq a 2)' },
+        { id: 'v6', name: 'Soltar y Disparar', t: 'p', tag: 'mec', r: 2, c: 4, max: 1, req: ['v2', 'v3'], d: ()=>'Al soltar o acabar Carrera del Viento disparas una Andanada gratis al 60 %, sin saltar', touch: ['a_v_carrera', 'a_t_andanada'], arch: 'vaiven+galerna', hyb: 'Vaivén + Galerna', icon: 'talents/arquera-tiradora-s16.webp', fx: {}, todo: 'power t_soltar · NUEVO (onRelease del canal + eco de a_t_andanada ×0,6 sin desplazamiento)' },
+        { id: 'v7', name: 'Fondo de Corredora', t: 'p', tag: 'mec', r: 2, c: 6, max: 2, req: ['v3'], d: r=>`Carrera del Viento dura hasta ${4+r} s (antes 4 s) y te hace inmune a las ralentizaciones`, touch: ['a_v_carrera'], arch: 'galerna', icon: 'talents/arquera-tiradora-s2.webp', fx: {}, todo: 'mod a_v_carrera channelT + slowImmune · claves' },
+        { id: 'v8', name: 'Triple: Abierto o Clavado', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['v4', 'v5'], touch: ['a_disparo'], arch: 'abanico', icon: 'talents/arquera-tiradora-s3.webp', opts: [
+            { k: 'A', name: 'Triple Abierto', desc: 'Tu disparo triple lanza 4 flechas extra (antes 2) en un abanico de 60°', role: 'AREA', fx: {}, todo: 'power t_tercera · opción (seq.onNth count 5)' },
+            { k: 'B', name: 'Triple Clavado', desc: 'Tu disparo triple es crítico seguro y hace +20 % de daño', role: 'UNI', fx: {}, todo: 'power t_triple_clavado · NUEVO (onCast forceCrit en el 3.º)' },
+          ],
+          win: 'A, contra grupos: el doble de flechas extra cada 3 disparos. B, contra jefes: un crítico seguro cada 3 disparos. Decide qué Abanico juegas' },
+        { id: 'v9', name: 'Andanada: Último Instante o Ida y Vuelta', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['v5', 'v6'], touch: ['a_t_andanada'], arch: 'vaiven', icon: 'talents/arquera-tiradora-x1.webp', opts: [
+            { k: 'A', name: 'Último Instante', desc: 'Si relanzas Andanada en su último medio segundo, la segunda hace +40 % y te da 20 de Impulso', role: 'UNI', fx: {}, todo: 'power t_ultimo_instante · NUEVO (lee recast.left del canal)' },
+            { k: 'B', name: 'Ida y Vuelta', desc: 'Puedes relanzar Andanada dos veces (antes una): atrás, adelante y atrás de nuevo; la tercera al 70 %', role: 'AREA', fx: {}, todo: 'mod a_t_andanada recast.max +1 · clave NUEVA (tipo genérico recast) ⟶ traducir: recast.max → recast.n (mod recastAdd)' },
+          ],
+          win: 'A, contra jefes: si aciertas el momento, +20 % de media y el Vendaval antes. B, contra grupos: barres tres sitios por uso. Decide qué Vaivén juegas' },
+        { id: 'v10', name: 'Carrera: Rueda o Blanco Fijo', t: 'c', tag: 'mec', r: 3, c: 5, max: 1, req: ['v6', 'v7'], touch: ['a_v_carrera'], arch: 'galerna', icon: 'talents/arquera-tiradora-s9.webp', opts: [
+            { k: 'A', name: 'Rueda de Flechas', desc: 'Mientras corres con Carrera, cada segundo sueltas un anillo de 8 flechas a tu alrededor (60 % cada una)', role: 'AREA', fx: {}, todo: 'power t_rueda · NUEVO (tick del canal; ronda 2: 50 %, antes 40 %; ronda 3: 60 %, por el suelo del Diluvio)' },
+            { k: 'B', name: 'Blanco Fijo', desc: 'Si Carrera dispara al mismo enemigo, cada flecha seguida hace +10 % (hasta +60 %)', role: 'UNI', fx: {}, todo: 'power t_blanco_fijo · NUEVO (condAdd por objetivo)' },
+          ],
+          win: 'A, contra grupos que te persiguen. B, contra jefes: a los 2,4 s de carrera ya pega +60 %. Decide qué Galerna juegas' },
+        { id: 'v11', name: 'Mano Llena', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['v8'], d: r=>`Flecha Múltiple dispara ${5+r} flechas (antes 5)`, touch: ['flecha_multiple'], arch: 'abanico', icon: 'talents/arquera-tiradora-s12.webp', fx: {}, todo: 'mod flecha_multiple proj · existe' },
+        { id: 'v12', name: 'Salto Impulsivo', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['v8', 'v9'], d: r=>`Cada salto de Andanada te da ${8*r} de Impulso`, touch: ['a_t_andanada'], arch: 'vaiven', icon: 'talents/arquera-tiradora-s13.webp', fx: {}, todo: 'power t_salto_impulsivo · NUEVO (sustituye a t_andanada_impulsiva)' },
+        { id: 'v13', name: 'Saetas Afiladas', t: 'p', tag: 'num', r: 4, c: 4, max: 2, req: ['v9', 'v10'], d: r=>`Carrera del Viento y Diluvio de Saetas hacen +${15*r} % de daño`, touch: ['a_v_carrera', 'a_u_diluvio'], arch: 'galerna', icon: 'talents/arquera-tiradora-s17.webp', fx: {}, todo: 'mod dmg · claves' },
+        { id: 'v14', name: 'Vacío de Aire', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['v10'], d: ()=>'Al soltar o acabar Carrera del Viento, atraes 2 m a los enemigos a 5 m; a los jefes les llena 15 de Quebranto', touch: ['a_v_carrera'], arch: 'galerna', icon: 'talents/arquera-tiradora-s15.webp', fx: {}, todo: 'power t_vacio_aire · NUEVO (onRelease del canal: atraer + addStagger)' },
+        { id: 'v15', name: 'Piel de Brisa o Retirada', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['v11', 'v12'], icon: 'talents/arquera-tiradora-s8.webp', opts: [
+            { k: 'A', name: 'Piel de Brisa', desc: 'Durante el Vendaval recibes un 20 % menos de daño', role: 'AGU', fx: {}, todo: 'power t_piel_brisa · NUEVO (condDr con gaugeState impulso.galeT)' },
+            { k: 'B', name: 'Retirada Instintiva', desc: 'Si te golpean cuerpo a cuerpo, saltas 4 m atrás y ganas 15 de Impulso. Una vez cada 8 s', role: 'AGU', fx: {}, todo: 'power t_retirada · NUEVO (④ onDamaged; lógica de a_t_salto)' },
+          ],
+          win: 'A, contra grupos: el Vendaval está puesto casi la mitad del tiempo. B, contra élites cuerpo a cuerpo que te alcanzan' },
+        { id: 'v16', name: 'Viento en las Plumas', t: 'p', tag: 'mec', r: 5, c: 3, max: 2, req: ['v12', 'v13'], d: r=>`Con 50 o más de Impulso: Múltiple y Andanada +${10*r} %, y Carrera dispara un ${15*r} % más rápido`, touch: ['flecha_multiple', 'a_t_andanada', 'a_v_carrera'], hyb: 'Los tres estilos (por el Impulso)', icon: 'talents/arquera-tiradora-s1.webp', fx: {}, todo: 'power t_viento_plumas · NUEVO (condAdd con gaugeValue)' },
+        { id: 'v17', name: 'Nube de Paso', t: 'p', tag: 'mec', r: 5, c: 5, max: 2, req: ['v13', 'v14'], d: r=>`En los 6 primeros segundos de Carrera del Viento, cada segundo recarga ${n1(0.4*r)} s del Diluvio (no baja de 35 s)`, touch: ['a_v_carrera', 'a_u_diluvio'], arch: 'galerna', icon: 'talents/arquera-tiradora-s16.webp', fx: {}, todo: 'power t_nube_paso · NUEVO (tick del canal; solo los 6 primeros s de cada Carrera; ronda 3: 0,4 s por rango, antes 0,5; cdReduce sobre @ultimate: respeta el suelo de las definitivas, 35 s)' },
+        { id: 'v18', name: 'Flechas Perdidas', t: 'p', tag: 'mec', r: 6, c: 0, max: 2, req: ['v15'], d: r=>`Si Flecha Múltiple mata, suelta ${r+1} flechas hacia enemigos cercanos (50 % cada una)`, touch: ['flecha_multiple'], arch: 'abanico', icon: 'talents/arquera-tiradora-s6.webp', fx: {}, todo: 'power t_flechas_perdidas · NUEVO (onKill + fireProjectile)' },
+        { id: 'v19', name: 'Vendaval Encadenado', t: 'p', tag: 'mec', r: 6, c: 2, max: 2, req: ['v15', 'v16'], d: r=>`Cada relanzamiento de Andanada alarga el Vendaval ${n1(0.5*r)} s (hasta +4 s)`, touch: ['a_t_andanada'], arch: 'vaiven', icon: 'talents/arquera-tiradora-s14.webp', fx: {}, todo: 'power t_vendaval_encadenado · NUEVO (sustituye a t_galechain)' },
+        { id: 'v20', name: 'Pies Ligeros', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['v16', 'v17'], d: r=>`Te mueves un ${8*r} % más rápido`, icon: 'talents/arquera-tiradora-s5.webp', fx: {}, todo: 'stats.spdPct · existe' },
+        { id: 'v21', name: 'Nube Fiel', t: 'p', tag: 'mec', r: 6, c: 6, max: 1, req: ['v17'], d: ()=>'En los 6 primeros segundos de Carrera del Viento, el Diluvio de Saetas descarga cada 0,4 s (antes 0,5 s)', touch: ['a_v_carrera', 'a_u_diluvio'], arch: 'galerna', icon: 'skills256/a_u_diluvio.webp', fx: {}, todo: 'power t_nube_fiel · NUEVO (modifyResolve del intervalo; no cuenta la prórroga de Galerna Infinita)' },
+        { id: 'v22', name: 'Ráfaga Creciente', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['v18'], d: r=>`Cada Flecha Múltiple a menos de 3 s de otra dispara 1 flecha más (hasta +${r+1})`, touch: ['flecha_multiple'], arch: 'abanico', icon: 'talents/arquera-tiradora-s3.webp', fx: {}, todo: 'power t_rafaga_creciente · NUEVO (modifyResolve proj con contador)' },
+        { id: 'v23', name: 'Golpe de Apertura', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['v19'], d: r=>`Al empezar el Vendaval, tus ${r+1} siguientes Andanadas o Flechas Múltiples son críticas seguras`, touch: ['a_t_andanada', 'flecha_multiple'], arch: 'vaiven', icon: 'talents/arquera-tiradora-x1.webp', fx: {}, todo: 'power t_apertura · NUEVO (⑩ onGauge full + onCast forceCrit)' },
+        { id: 'v24', name: 'Ciclones', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['v21'], d: r=>`Mientras corres con Carrera, cada ${n1(2.5-0.5*r)} s dejas un ciclón 4 s que dispara cada 0,5 s al más cercano (28 %; 3 vivos)`, touch: ['a_v_carrera'], arch: 'galerna', icon: 'talents/arquera-tiradora-x2.webp', fx: {}, todo: 'power t_ciclones · NUEVO (campo t_ciclon que dispara; ronda 2: 28 %, antes 35 %)' },
+        { id: 'v25', name: 'Tormenta de Plumas', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['v22'], d: r=>`Cada 3.ª Flecha Múltiple sale además en círculo: ${3+3*r} flechas más al 60 % (hasta 3 caen sobre su blanco)`, touch: ['flecha_multiple'], arch: 'abanico', final: 'Abanico', icon: 'skills256/flecha_multiple.webp', fx: {}, todo: 'power t_tormenta_plumas · NUEVO (afterCast cada 3.ª: anillo de proyectiles; ronda 2: hasta 3 buscan al blanco de la Múltiple, con su propio tope de 3)' },
+        { id: 'v26', name: 'Vaivén Eterno', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['v23'], d: r=>`Durante el Vendaval, al cerrar su ventana Andanada vuelve sin recarga y a mitad de coste (${['1 vez', '2 veces', 'sin límite'][r-1]})`, touch: ['a_t_andanada'], arch: 'vaiven', final: 'Vaivén', icon: 'talents/arquera-tiradora-x2.webp', fx: {}, todo: 'power t_vaiven · NUEVO (al cerrar la ventana de recast, cds = 0 y coste ×0,5 si galeT > 0; usos por Vendaval 1/2/∞)' },
+        { id: 'v27', name: 'Galerna Infinita', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['v24'], d: r=>`Carrera del Viento dura ${['2 s más', '4 s más', 'lo que la mantengas'][r-1]}; el tiempo extra gasta 10 de Energía por segundo y sube 3 cada segundo`, touch: ['a_v_carrera'], arch: 'galerna', final: 'Galerna', icon: 'talents/arquera-tiradora-x3.webp', fx: {}, todo: 'power t_galerna · NUEVO (prórroga del canal 2/4/∞ s; coste 10 + 3·t por s: ~6,5 s con 80 de Energía)' },
+        { id: 'v28', name: 'Ojo del Huracán', t: 'x', tag: 'mec', r: 9, c: 3, max: 4, req: ['v25', 'v26', 'v27'], d: r=>['1) El Vendaval también te da +20 % de velocidad de movimiento.', '2) Matar a un élite te da 50 de Impulso.', '3) El Vendaval salta a 80 de Impulso (antes 100).', '4) Cada Vendaval recarga 4 s del Diluvio de Saetas (no baja de 35 s).'].slice(0, r).join(' '), icon: 'talents/arquera-tiradora-x3.webp', fx: {}, todo: 'power t_ojo_huracan (rangos) · NUEVO (sustituye a t_eyestorm; rango 4: cdReduce sobre @ultimate, cuenta para el suelo de las definitivas)' },
       ],
-      preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s6', 1, 'B'], ['s7', 2], ['s9', 1], ['s10', 2], ['s12', 2], ['s14', 1], ['s17', 2], ['x1', 1], ['x2', 1]],
     },
     {
-      id: 'montaraz', name: 'Montaraz', role: 'control', icon: 'specs/montaraz.webp', emblem: 'emblems/montaraz.webp',
-      mechanic: 'coto', innate: { staggerPct: 25 },
-      desc: 'Trampas y terreno: la presa nunca escapa de tu coto de caza.',
-      // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
-      clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c4', 1], ['c5', 1, 'A'], ['c7', 2], ['c8', 2], ['c9', 2], ['c10', 3], ['c12', 1, 'A'], ['c14', 1], ['c15', 1]],
+      id: 'francotiradora',
+      name: 'Francotiradora',
+      role: 'dps',
+      roleLabel: 'Un objetivo',
+      icon: 'specs/francotiradora.webp',
+      emblem: 'emblems/francotiradora.webp',
+      mechanic: 'concentracion',
+      elem: 'physical',
+      prefix: 'f',
+      innate: {},
+      innateText: 'Disparo Rápido se puede tensar',
+      line: 'Plantada, tensa y suelta en el instante justo: un disparo, una baja.',
+      desc: 'Plantada, tensa y suelta en el instante justo: un disparo, una baja.',
+      innateName: 'Cuerda Tensa',
+      innateDesc: 'Mantén Disparo Rápido para tensarlo hasta 1 s: hasta +60 %. Su último 0,2 s es perfecto: crítico seguro.',
+      innateNote: 'Con otra especialización, Disparo Rápido no se puede tensar',
+      innateSkill: 'a_disparo',
+      todo: 'innate (fx) desde el texto: «Mantén Disparo Rápido para tensarlo hasta 1 s: hasta +60 %. Su último 0,2 s es perfecto: crítico seguro.»',
       nodes: [
-        { id: 's0', name: 'Cacería', icon: 'talents/arquera-montaraz-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): +30% de daño contra enemigos ralentizados o inmovilizados (salvo jefes). El primer élite que golpeas se convierte en tu Presa. Otorga la activa Trampa de Cepo: armas una trampa (hasta 3) que inmoviliza 2 s y envenena con el 60% de daño en 5 s. 1 carga.', fx: { power: 'm_hunt', grant: 'a_t_cepo' } },
-        { id: 's1', name: 'Puntas de Cicuta', icon: 'talents/arquera-montaraz-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(9, r)}% de daño contra enemigos ralentizados.`, fx: { tv: { slowedDmg: 9 } } },
-        { id: 's2', name: 'Paso del Rastreador', icon: 'talents/arquera-montaraz-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `+${x(4, r)}% de velocidad de movimiento. Ves el rastro de tu Presa.`, fx: { stats: { spdPct: 4 } } },
-        { id: 's3', name: 'Abrojos', icon: 'talents/arquera-montaraz-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `Lluvia de Flechas deja abrojos durante ${x(2, r)} s que ralentizan un 30%.`, fx: { mod: { lluvia_flechas: { zone: 1, zoneDur: 2, slowPct: [30, 30] } }, power: 'm_abrojos' } },
-        { id: 's4', name: 'Cepo Doble', icon: 'talents/arquera-montaraz-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Trampa de Cepo gana una 2.ª carga.', fx: { power: 'm_cepo_doble' } },
-        { id: 's5', name: 'Flecha Lastrada', icon: 'talents/arquera-montaraz-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `Flecha Múltiple ralentiza un ${[30, 35, 40][r - 1]}% durante 3 s.`, fx: { mod: { flecha_multiple: { slowPct: [30, 35, 40], slow: [3, 3, 3] } } } },
-        { id: 's6', name: 'Cepo o Mina', icon: 'talents/arquera-montaraz-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
-          { k: 'A', name: 'Cepo de Hierro', desc: 'La trampa inmoviliza 1 s más y a los jefes los ralentiza un 50%.', fx: { mod: { a_t_cepo: { rootAdd: 1 } }, power: 'm_cepo_hierro' } },
-          { k: 'B', name: 'Mina de Espinas', desc: 'La trampa estalla en 3 m con el 120% de daño, pero no inmoviliza.', fx: { mod: { a_t_cepo: { radius: 100 } }, power: 'm_mina' } } ] },
-        { id: 's7', name: 'Veneno de Mantícora', icon: 'talents/arquera-montaraz-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `+${x(20, r)}% de daño de Veneno.`, fx: { tv: { poisonPct: 20 } } },
-        { id: 's8', name: 'Pellejo de Oso', icon: 'talents/arquera-montaraz-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `−${x(5, r)}% de daño recibido contra enemigos ralentizados.`, fx: { tv: { drVsSlowed: 5 } } },
-        { id: 's9', name: 'Arpón', icon: 'talents/arquera-montaraz-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: un arpón con cadena atrae al objetivo 6 m hacia tu trampa más cercana y lo ralentiza un 60% durante 3 s. Enfriamiento 10 s.', fx: { grant: 'a_t_arpon' } },
-        { id: 's10', name: 'Lazo Corredizo', icon: 'talents/arquera-montaraz-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `Flecha Perforante inmoviliza ${x(0.5, r)} s al primer enemigo que toca.`, fx: { power: 'm_lazo' } },
-        { id: 's11', name: 'Ponzoña Lenta', icon: 'talents/arquera-montaraz-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `El Veneno dura +${x(1.5, r)} s y ralentiza un 10%.`, fx: { tv: { dotDur: 1.5 }, power: 'm_ponzona' } },
-        { id: 's12', name: 'Rearme Rápido', icon: 'talents/arquera-montaraz-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `−${x(15, r)}% de enfriamiento de Trampa de Cepo y Arpón.`, fx: { mod: { a_t_cepo: { cdr: 15 }, a_t_arpon: { cdr: 15 } } } },
-        { id: 's13', name: 'Señuelo o Guardabosques', icon: 'talents/arquera-montaraz-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
-          { k: 'A', name: 'Señuelo de Paja', desc: 'Activa: un muñeco provoca a los enemigos cercanos 5 s y luego estalla en espinas.', active: true, fx: { grant: 'a_t_senuelo' } },
-          { k: 'B', name: 'Guardabosques', desc: 'Tus trampas armadas curan un 3% de vida por segundo a los aliados encima.', fx: { power: 'm_warden' } } ] },
-        { id: 's14', name: 'Coto Cerrado', icon: 'talents/arquera-montaraz-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Puedes armar 1 trampa más (hasta 4) y su radio de activación crece un 30%.', fx: { power: 'm_extratrap' } },
-        { id: 's15', name: 'Cazadora Paciente', icon: 'talents/arquera-montaraz-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(10, r)}% de daño contra tu Presa.`, fx: { tv: { preyDmg: 10 } } },
-        { id: 's16', name: 'Raíces Profundas', icon: 'talents/arquera-montaraz-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `La inmovilización de tus trampas dura +${x(0.5, r)} s.`, fx: { mod: { a_t_cepo: { rootAdd: 0.5 } } } },
-        { id: 's17', name: 'Espinas Venenosas', icon: 'talents/arquera-montaraz-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `Los enemigos inmovilizados reciben +${x(10, r)}% de daño de todo el grupo.`, fx: { tv: { rootedWeak: 10 } } },
-        { id: 'x1', name: 'Red de Espinas', icon: 'talents/arquera-montaraz-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: las trampas armadas a menos de 10 m se unen con una red de espinas; quien la cruza queda ralentizado un 50% y sangra.', fx: { power: 'm_thornweb' } },
-        { id: 'x2', name: 'Zarzal', icon: 'talents/arquera-montaraz-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: la red inflige el ${x(520, r)}% de tu daño por segundo.`, fx: { tv: { webDmg: 520 } } },
-        { id: 'x3', name: 'Gran Cacería', icon: 'talents/arquera-montaraz-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): si tu Presa queda atrapada en la red, todas las trampas se rearman y el grupo gana +15% de daño durante 6 s.', fx: { power: 'm_greathunt' } },
+        { id: 'f0', name: 'Mira Serena', t: 'k', tag: 'mec', r: 0, c: 3, max: 1, free: true, d: ()=>'Quieta, +15 de Concentración por segundo; cada perfecto de Disparo Apuntado o de un haz, +15. A 100: Calma Absoluta 5 s', touch: ['a_t_apuntado', 'a_disparo'], icon: 'talents/arquera-francotiradora-s0.webp', fx: {}, todo: 'mecánica concentracion · existe (gainPerSec 15; perfectGain 15/3, Calma Absoluta y Respiro NUEVOS) · pasiva Cuerda Tensa: tipo genérico charge en a_disparo · NUEVO' },
+        { id: 'f1', name: 'Punta de Barrena', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['f0'], d: r=>`Disparo Apuntado hace +${10*r} % de daño y llega ${2*r} m más lejos`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s3.webp', fx: {}, todo: 'mod a_t_apuntado dmg + range · claves' },
+        { id: 'f2', name: 'Ojo Paciente', t: 'p', tag: 'num', r: 1, c: 3, max: 3, req: ['f0'], d: r=>`Un soltado perfecto de Disparo Apuntado o de un haz hace +${50+5*r} % de daño (antes +50 %)`, touch: ['a_t_apuntado', 'a_u_celeste'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-s1.webp', fx: {}, todo: 'tv.perfectMul · NUEVO (clave del tipo charge) ⟶ traducir: tv.perfectMul → perfectPct (×1,5 → 50, saco aditivo)' },
+        { id: 'f3', name: 'Cuerda Ligera', t: 'p', tag: 'num', r: 1, c: 5, max: 3, req: ['f0'], d: r=>`Disparo Apuntado y los haces de Tiro Celestial se tensan un ${8*r} % más rápido`, touch: ['a_t_apuntado', 'a_u_celeste'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s10.webp', fx: {}, todo: 'tv.chargeSpeed · NUEVO (clave del tipo charge)' },
+        { id: 'f4', name: 'Sobrepenetración', t: 'p', tag: 'mec', r: 2, c: 0, max: 2, req: ['f1'], d: r=>`Disparo Apuntado hace +${10*r} % más por cada enemigo que ya atravesó (hasta 4)`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s14.webp', fx: {}, todo: 'power f_sobrepenetracion · NUEVO (sustituye a f_overpen)' },
+        { id: 'f5', name: 'Línea de Mira', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['f1', 'f2'], d: ()=>'Un soltado perfecto que atraviesa deja un Punto Débil de 4 s en cada enemigo que toca', touch: ['a_t_apuntado', 'a_f_rastreador'], arch: 'perforacion+puntodebil', hyb: 'Perforación + Punto Débil', icon: 'talents/arquera-francotiradora-s7.webp', fx: {}, todo: 'power f_linea_mira · NUEVO (onHit si cast.perfect: marca f_punto_debil 4 s)' },
+        { id: 'f6', name: 'Pulso Quieto', t: 'p', tag: 'mec', r: 2, c: 4, max: 1, req: ['f2', 'f3'], d: ()=>'En Rodilla en Tierra, la ventana dorada de tus disparos tensados es un 50 % más ancha', touch: ['a_f_rodilla', 'a_t_apuntado'], arch: 'puntodebil+vigia', hyb: 'Punto Débil + Vigía', icon: 'talents/arquera-francotiradora-s2.webp', fx: {}, todo: 'power f_pulso_quieto · NUEVO (modifyResolve charge.perfect ×1,5 con la postura)' },
+        { id: 'f7', name: 'Guardia Larga', t: 'p', tag: 'num', r: 2, c: 6, max: 2, req: ['f3'], d: r=>`Rodilla en Tierra dura ${8+2*r} s (antes 8 s)`, touch: ['a_f_rodilla'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s8.webp', fx: {}, todo: 'mod a_f_rodilla dur · claves' },
+        { id: 'f8', name: 'Saeta: Estela o Doble Impacto', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['f4', 'f5'], touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s6.webp', opts: [
+            { k: 'A', name: 'Estela Explosiva', desc: 'Un soltado perfecto de Disparo Apuntado deja su línea cargada: estalla a los 0,5 s (30 %)', role: 'AREA', fx: {}, todo: 'power f_estela · NUEVO (campo en línea con retardo)' },
+            { k: 'B', name: 'Doble Impacto', desc: 'Si Disparo Apuntado no atraviesa a nadie más, rebota en el blanco y lo golpea otra vez al 30 %', role: 'UNI', fx: {}, todo: 'power f_doble_impacto · NUEVO (un solo impacto → eco ×0,6)' },
+          ],
+          win: 'A, contra grupos en fila: cada soltado perfecto barre la línea dos veces. B, contra jefes solos: un 30 % más si no hay nadie detrás. Decide qué Perforación juegas' },
+        { id: 'f9', name: 'Marca: Saltarina o Vital', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['f5', 'f6'], touch: ['a_f_rastreador'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-x1.webp', opts: [
+            { k: 'A', name: 'Marca Saltarina', desc: 'Si el marcado muere, el Punto Débil salta al enemigo más cercano con el tiempo que le quedaba', role: 'AREA', fx: {}, todo: 'power f_marca_saltarina · NUEVO (onKill)' },
+            { k: 'B', name: 'Punto Vital', desc: 'Contra tu Punto Débil, el soltado perfecto hace +35 % más y le llena 15 de Quebranto', role: 'UNI', fx: {}, todo: 'power f_punto_vital · NUEVO (condAdd + addStagger)' },
+          ],
+          win: 'A, contra grupos de élites: la marca no se pierde al matar. B, contra jefes: más premio y Quebranto. Decide qué Punto Débil juegas' },
+        { id: 'f10', name: 'Vigía: Salva o Paciencia', t: 'c', tag: 'mec', r: 3, c: 5, max: 1, req: ['f6', 'f7'], touch: ['a_f_rodilla'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s9.webp', opts: [
+            { k: 'A', name: 'Salva de Vigía', desc: 'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más a enemigos cercanos (25 % cada una)', role: 'AREA', fx: {}, todo: 'power f_salva · NUEVO (afterCast con la postura; ronda 2: 25 %, antes 40 %)' },
+            { k: 'B', name: 'Paciencia de Vigía', desc: 'En Rodilla en Tierra, cada Disparo Apuntado seguido al mismo enemigo hace +15 % (hasta +45 %)', role: 'UNI', fx: {}, todo: 'power f_paciencia · NUEVO (sustituye a f_patience; ronda 3: solo Disparo Apuntado, ni el básico tensado ni los haces; +15 % hasta +45 %)' },
+          ],
+          win: 'A, contra grupos que se acercan. B, contra jefes: +45 % desde el 3.er Disparo Apuntado seguido. Decide qué Vigía juegas' },
+        { id: 'f11', name: 'Fila Rota', t: 'p', tag: 'mec', r: 4, c: 0, max: 2, req: ['f8'], d: r=>`Cada enemigo que mata Disparo Apuntado te devuelve ${4*r} de Energía y ${5*r} de Concentración`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s16.webp', fx: {}, todo: 'power f_fila_rota · NUEVO (onKill + gainResource + gainGauge)' },
+        { id: 'f12', name: 'Lectura del Blanco', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['f8', 'f9'], d: r=>`Contra tu Punto Débil, la ventana dorada dura un ${25*r} % más`, touch: ['a_f_rastreador', 'a_t_apuntado'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-s5.webp', fx: {}, todo: 'power f_lectura · NUEVO (modifyResolve charge.perfect contra el marcado)' },
+        { id: 'f13', name: 'Puntería de Vigía', t: 'p', tag: 'num', r: 4, c: 4, max: 2, req: ['f9', 'f10'], d: r=>`En Rodilla en Tierra, tus disparos tensados hacen +${15*r} % de daño`, touch: ['a_f_rodilla'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s12.webp', fx: {}, todo: 'power f_punteria_vigia · NUEVO (condAdd con la postura)' },
+        { id: 'f14', name: 'Estrella Fija', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['f10'], d: ()=>'En la Calma Absoluta, cada soltado perfecto de Disparo Apuntado recarga 1,5 s de Tiro Celestial (no baja de 35 s)', touch: ['a_u_celeste', 'a_t_apuntado'], arch: 'vigia', icon: 'skills256/a_u_celeste.webp', fx: {}, todo: 'power f_estrella_fija · NUEVO (onCast de a_t_apuntado si cast.perfect y la Calma Absoluta está activa: ronda 3; el básico y los haces no cuentan; cdReduce sobre @ultimate: respeta el suelo de las definitivas)' },
+        { id: 'f15', name: 'Quietud o Nervios', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['f11', 'f12'], icon: 'talents/arquera-francotiradora-s13.webp', opts: [
+            { k: 'A', name: 'Quietud', desc: 'Quieta más de 1 s, recibes un 15 % menos de daño', role: 'AGU', fx: {}, todo: 'tv.drStill · NUEVO (clave, espejo de drMoving) ⟶ traducir: tv.drStill: pendiente de la cola W2 (nucleo_tv.condDr (cola W2))' },
+            { k: 'B', name: 'Nervios de Acero', desc: 'Si te golpean mientras tensas, ganas un escudo del 8 % de tu vida. Una vez cada 6 s', role: 'AGU', fx: {}, todo: 'power f_nervios · NUEVO (④ onDamaged + g.shield; ronda 3: por la cubeta de autocuración de la Arquera, 1 %/s)' },
+          ],
+          win: 'A, contra grupos que disparan de lejos, si sabes quedarte quieta. B, contra élites cuerpo a cuerpo que te golpean mientras tensas' },
+        { id: 'f16', name: 'Serenidad', t: 'p', tag: 'mec', r: 5, c: 3, max: 2, req: ['f12', 'f13'], d: r=>`Con 50 o más de Concentración, Disparo Apuntado y los haces se tensan un ${10*r} % más rápido y hacen +${10*r} %`, touch: ['a_t_apuntado', 'a_u_celeste'], hyb: 'Los tres estilos (por la Concentración)', icon: 'talents/arquera-francotiradora-s11.webp', fx: {}, todo: 'power f_serenidad · NUEVO (condAdd con gaugeValue)' },
+        { id: 'f17', name: 'Haces Gemelos', t: 'p', tag: 'mec', r: 5, c: 5, max: 2, req: ['f13', 'f14'], d: r=>`Cada haz de Tiro Celestial dispara otro detrás, al ${35*r} %`, touch: ['a_u_celeste'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s17.webp', fx: {}, todo: 'power f_haces_gemelos · NUEVO (eco del haz; un eco no repite; ronda 3: 35/70 %, antes 15/30 %: con el suelo de las definitivas la recarga ya no hace bucle)' },
+        { id: 'f18', name: 'Rebote Certero', t: 'p', tag: 'mec', r: 6, c: 0, max: 2, req: ['f15'], d: r=>`Disparo Apuntado rebota en el primer muro y vuelve por su línea al ${10*r} %`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s4.webp', fx: {}, todo: 'power f_rebote · NUEVO (proyectil que vuelve; el eco no rebota)' },
+        { id: 'f19', name: 'Herida Expuesta', t: 'p', tag: 'mec', r: 6, c: 2, max: 2, req: ['f15', 'f16'], d: r=>`Mientras tiene tu Punto Débil, el enemigo recibe +${6*r} % de daño de todo el grupo`, touch: ['a_f_rastreador'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-x2.webp', fx: {}, todo: 'power f_herida_expuesta · NUEVO (applyWeakness mientras dura la marca)' },
+        { id: 'f20', name: 'Vista Larga', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['f16', 'f17'], d: r=>`Tus disparos tensados alcanzan ${2*r} m más y hacen +${6*r} % a más de 10 m`, touch: ['a_t_apuntado', 'a_disparo', 'a_u_celeste'], icon: 'talents/arquera-francotiradora-s15.webp', fx: {}, todo: 'mod range + condAdd por distancia · claves' },
+        { id: 'f21', name: 'Firmamento', t: 'p', tag: 'mec', r: 6, c: 6, max: 1, req: ['f17'], d: ()=>'En Rodilla en Tierra, Tiro Celestial se recarga un 20 % más rápido (no baja de 35 s)', touch: ['a_u_celeste', 'a_f_rodilla'], arch: 'vigia', icon: 'skills256/a_u_celeste.webp', fx: {}, todo: 'power f_firmamento · NUEVO (cdRate ×1,2 con la postura; ronda 2: ×1,4; ronda 3: ×1,2 y suelo de las definitivas, 35 s)' },
+        { id: 'f22', name: 'Saetas Paralelas', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['f18'], d: r=>`Cada soltado perfecto de Disparo Apuntado suelta ${r} saeta${r > 1 ? 's' : ''} más en paralelo, a 1 m (20 %)`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'skills256/flecha_perforante.webp', fx: {}, todo: 'power f_paralelas · NUEVO (afterCast si cast.perfect)' },
+        { id: 'f23', name: 'Herida sobre Herida', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['f19'], d: r=>`Cada soltado perfecto a tu Punto Débil le deja una Herida (hasta 5): tus tensados le hacen +${2*r} % por cada una`, touch: ['a_f_rastreador', 'a_t_apuntado'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-s6.webp', fx: {}, todo: 'power f_heridas · NUEVO (stacks por objetivo; condAdd)' },
+        { id: 'f24', name: 'Ojo Entrenado', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['f21'], d: r=>`Cada ${7-r} s en Rodilla en Tierra, tu siguiente Disparo Apuntado sale al instante y a carga completa`, touch: ['a_f_rodilla', 'a_t_apuntado'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s0.webp', fx: {}, todo: 'power f_ojo_entrenado · NUEVO (onTick con la postura; charge.instant)' },
+        { id: 'f25', name: 'Línea Mortal', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['f22'], d: r=>`A carga completa, Disparo Apuntado (o su saeta central) es un haz de 30 m que estalla en toda su línea (${5+5*r} %)`, touch: ['a_t_apuntado'], arch: 'perforacion', final: 'Perforación', icon: 'icons256/a_p_punteria.webp', fx: {}, todo: 'power f_linea_mortal · NUEVO (charge.full → haz + estallido en línea)' },
+        { id: 'f26', name: 'Disparo Imposible', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['f23'], d: r=>`Un soltado perfecto de Disparo Apuntado a tu Punto Débil sale dos veces: la 2.ª al ${5+10*r} %, crítica y con 20 de Quebranto`, touch: ['a_f_rastreador', 'a_t_apuntado'], arch: 'puntodebil', final: 'Punto Débil', icon: 'talents/arquera-francotiradora-x3.webp', fx: {}, todo: 'power f_disparo_imposible · NUEVO (sustituye a f_impossible; como mucho un doble por segundo; la 2.ª no da Herida ni Concentración)' },
+        { id: 'f27', name: 'Atalaya Eterna', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['f24'], d: r=>`Rodilla en Tierra dura ${['20 s', '30 s', 'hasta que te levantes'][r-1]}; cada 5 s en ella, un haz celeste gratis sobre tu blanco (200 %)`, touch: ['a_f_rodilla', 'a_u_celeste'], arch: 'vigia', final: 'Vigía', icon: 'talents/arquera-francotiradora-s9.webp', fx: {}, todo: 'power f_atalaya · NUEVO (postura de 20/30/∞ s + eco de un haz de a_u_celeste ×0,5 que cae sobre el blanco y no atraviesa; ronda 3: 200 %, antes 160 %)' },
+        { id: 'f28', name: 'Ojo Inmóvil', t: 'x', tag: 'mec', r: 9, c: 3, max: 4, req: ['f25', 'f26', 'f27'], d: r=>['1) La Calma Absoluta dura 8 s (antes 5 s).', '2) Matar a un élite te da 50 de Concentración.', '3) La Calma Absoluta salta a 80 de Concentración (antes 100).', '4) Cada Calma Absoluta recarga 5 s de Tiro Celestial (no baja de 35 s).'].slice(0, r).join(' '), icon: 'talents/arquera-francotiradora-x2.webp', fx: {}, todo: 'power f_ojo_inmovil (rangos) · NUEVO (sustituye a f_weakspot; rango 4: cdReduce sobre @ultimate, cuenta para el suelo de las definitivas)' },
       ],
-      preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s5', 1], ['s6', 1, 'A'], ['s8', 2], ['s9', 1], ['s11', 2], ['s13', 1, 'A'], ['s14', 1], ['s16', 2], ['x1', 1], ['x2', 1]],
     },
     {
-      id: 'tiradora', name: 'Tiradora Veloz', role: 'dps', icon: 'specs/tiradora.webp', emblem: 'emblems/tiradora.webp',
-      mechanic: 'impulso', innate: {},
-      desc: 'Cadencia y multiproyectil: una tormenta de flechas sin pausa.',
-      // preset de clase propio de esta especialización (RECOMMENDED.cls del mockup)
-      clsPreset: [['c1', 2], ['c2', 1], ['c3', 1], ['c6', 2], ['c8', 2], ['c10', 3], ['c11', 2], ['c12', 1, 'B'], ['c13', 2], ['c14', 1], ['c15', 1]],
+      id: 'montaraz',
+      name: 'Montaraz',
+      role: 'control',
+      roleLabel: 'Control',
+      icon: 'specs/montaraz.webp',
+      emblem: 'emblems/montaraz.webp',
+      mechanic: 'coto',
+      elem: 'nature',
+      prefix: 'm',
+      innate: { staggerPct: 25 },
+      innateText: 'Tus trampas atraen a los enemigos',
+      line: 'Prepara el terreno: coloca cepos, atrae a la presa y hazlo estallar todo.',
+      desc: 'Prepara el terreno: coloca cepos, atrae a la presa y hazlo estallar todo.',
+      innateName: 'Cebo de Caza',
+      innateDesc: 'Tus trampas armadas atraen: los enemigos a 6 m caminan hacia ellas (los élites, a 3 m; los jefes, no).',
+      innateNote: 'Sin el Montaraz no tienes trampas',
+      innateSkill: 'a_t_cepo',
+      todo: 'innate (fx) desde el texto: «Tus trampas armadas atraen: los enemigos a 6 m caminan hacia ellas (los élites, a 3 m; los jefes, no).»',
       nodes: [
-        { id: 's0', name: 'Tormenta de Flechas', icon: 'talents/arquera-tiradora-s0.webp', t: 'k', r: 0, c: 1.5, max: 1, free: true, d: 'Nodo clave (gratis): +1 proyectil y +8% de velocidad de ataque. Disparar mientras te mueves genera Impulso. Otorga la activa Andanada: barres un arco de 120° con 12 flechas (60% de daño cada una) mientras retrocedes 3 m.', fx: { power: 'multidisparo', stats: { aspdPct: 8 }, grant: 'a_t_andanada' } },
-        { id: 's1', name: 'Dedos Ligeros', icon: 'talents/arquera-tiradora-s1.webp', t: 'p', r: 1, c: 0.5, max: 3, req: ['s0'], d: r => `+${x(2, r)}% de velocidad de ataque.`, fx: { stats: { aspdPct: 2 } } },
-        { id: 's2', name: 'Correr y Disparar', icon: 'talents/arquera-tiradora-s2.webp', t: 'p', r: 1, c: 2.5, max: 2, req: ['s0'], d: r => `+${x(4, r)}% de velocidad de movimiento. Disparar ya no te frena.`, fx: { stats: { spdPct: 4 } } },
-        { id: 's3', name: 'Abanico Amplio', icon: 'talents/arquera-tiradora-s3.webp', t: 'p', r: 2, c: 0, max: 2, req: ['s1'], d: r => `Flecha Múltiple dispara +${x(1, r)} ${pl(r, 'flecha', 'flechas')}.`, fx: { mod: { flecha_multiple: { proj: 1 } } } },
-        { id: 's4', name: 'Andanada Impulsiva', icon: 'talents/arquera-tiradora-s4.webp', t: 'p', r: 2, c: 1.5, max: 1, req: ['s1', 's2'], d: 'Andanada te da 20 de Impulso.', fx: { power: 't_andanada_impulsiva' } },
-        { id: 's5', name: 'Viento de Cola', icon: 'talents/arquera-tiradora-s5.webp', t: 'p', r: 2, c: 3, max: 3, req: ['s2'], d: r => `Agilidad dura +${x(1, r)} s y da +${x(5, r)}% de velocidad de ataque adicional.`, fx: { mod: { agilidad: { durS: 1 } }, power: 't_viento_cola' } },
-        { id: 's6', name: 'Rebote o Corona', icon: 'talents/arquera-tiradora-s6.webp', t: 'c', r: 3, c: 0.5, max: 1, req: ['s3', 's4'], opts: [
-          { k: 'A', name: 'Flechas Rebotadoras', desc: 'Cada flecha de Flecha Múltiple que impacta rebota a 5 enemigos cercanos (la primera con el 180% de daño).', fx: { power: 't_rebote' } },
-          { k: 'B', name: 'Corona de Flechas', desc: 'Flecha Múltiple sale en 360° con −30% de daño. Ideal si te rodean.', fx: { mod: { flecha_multiple: { proj: 4, dmg: -30 } }, power: 't_corona' } } ] },
-        { id: 's7', name: 'Puntas Ligeras', icon: 'talents/arquera-tiradora-s7.webp', t: 'p', r: 3, c: 2.5, max: 2, req: ['s4', 's5'], d: r => `−${x(5, r)}% de coste de Energía de Flecha Múltiple y Andanada.`, fx: { mod: { flecha_multiple: { cost: -5 }, a_t_andanada: { cost: -5 } } } },
-        { id: 's8', name: 'Esquiva Felina', icon: 'talents/arquera-tiradora-s8.webp', t: 'p', r: 4, c: 0, max: 2, req: ['s6'], d: r => `−${x(4, r)}% de daño recibido mientras te mueves.`, fx: { tv: { drMoving: 4 } } },
-        { id: 's9', name: 'Danza de Flechas', icon: 'talents/arquera-tiradora-s9.webp', t: 'a', r: 4, c: 1.5, max: 1, req: ['s6', 's7'], d: 'Activa nueva: durante 4 s disparas flechas en espiral a tu alrededor sin dejar de correr, inmune a ralentizaciones. Enfriamiento 25 s.', fx: { grant: 'a_t_danza' } },
-        { id: 's10', name: 'Lluvia Torrencial', icon: 'talents/arquera-tiradora-s10.webp', t: 'p', r: 4, c: 3, max: 2, req: ['s7'], d: r => `+${x(15, r)}% de radio y +${x(75, r)}% de daño de Lluvia de Flechas.`, fx: { mod: { lluvia_flechas: { radius: 15, dmg: 75 } } } },
-        { id: 's11', name: 'Segundo Aliento', icon: 'talents/arquera-tiradora-s11.webp', t: 'p', r: 5, c: 0.5, max: 2, req: ['s8', 's9'], d: r => `Al llenar el Impulso recuperas un ${x(4, r)}% de vida y ${x(10, r)} de Energía.`, fx: { tv: { galeHeal: 4, galeEnergy: 10 } } },
-        { id: 's12', name: 'Carcaj Sin Fondo', icon: 'talents/arquera-tiradora-s12.webp', t: 'p', r: 5, c: 2.5, max: 2, req: ['s9', 's10'], d: r => `+${x(1, r)} ${pl(r, 'nivel', 'niveles')} a Flecha Múltiple y Lluvia de Flechas.`, fx: { skillLv: { flecha_multiple: 1, lluvia_flechas: 1 } } },
-        { id: 's13', name: 'Salto o Estela', icon: 'talents/arquera-tiradora-s13.webp', t: 'c', r: 6, c: 0, max: 1, req: ['s11'], opts: [
-          { k: 'A', name: 'Salto de Retirada', desc: 'Activa: saltas 7 m atrás y disparas 5 flechas al aterrizar. +30 de Impulso.', active: true, fx: { grant: 'a_t_salto' } },
-          { k: 'B', name: 'Estela de Viento', desc: 'Durante el Vendaval dejas una estela que acelera un 15% a los aliados.', fx: { power: 't_slipstream' } } ] },
-        { id: 's14', name: 'Vendaval Perpetuo', icon: 'talents/arquera-tiradora-s14.webp', t: 'k', r: 6, c: 1.5, max: 1, req: ['s11', 's12'], d: 'Durante el Vendaval, cada enemigo abatido alarga su duración 0.5 s (hasta +6 s).', fx: { power: 't_galechain' } },
-        { id: 's15', name: 'Ojo de Tormenta', icon: 'talents/arquera-tiradora-s15.webp', t: 'p', r: 6, c: 3, max: 2, req: ['s12'], d: r => `+${x(3, r)}% de crítico a Flecha Múltiple y Andanada.`, fx: { mod: { flecha_multiple: { crit: 3 }, a_t_andanada: { crit: 3 } } } },
-        { id: 's16', name: 'Diluvio Constante', icon: 'talents/arquera-tiradora-s16.webp', t: 'p', r: 7, c: 1, max: 2, req: ['s13', 's14'], d: r => `−${x(15, r)}% de enfriamiento de Diluvio de Saetas.`, fx: { mod: { a_u_diluvio: { cdr: 15 } } } },
-        { id: 's17', name: 'Filo del Viento', icon: 'talents/arquera-tiradora-s17.webp', t: 'p', r: 7, c: 2, max: 2, req: ['s14', 's15'], d: r => `+${x(2, r)}% de daño Físico a todas tus flechas.`, fx: { elem: { physical: 2 } } },
-        { id: 'x1', name: 'Ráfaga Infinita', icon: 'talents/arquera-tiradora-x1.webp', t: 'x', r: 8, c: 0.5, max: 1, req: ['s16', 's17'], d: 'Apex I: cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles en un abanico el doble de ancho.', fx: { power: 't_infinite' } },
-        { id: 'x2', name: 'Huracán', icon: 'talents/arquera-tiradora-x2.webp', t: 'x', r: 8, c: 1.5, max: 2, req: ['x1'], d: r => `Apex II: los disparos de Ráfaga Infinita hacen +${x(5, r)}% de daño y dan +${x(10, r)} de Impulso.`, fx: { tv: { infiniteDmg: 5 } } },
-        { id: 'x3', name: 'Ojo del Huracán', icon: 'talents/arquera-tiradora-x3.webp', t: 'x', r: 8, c: 2.5, max: 1, req: ['x2'], d: 'Apex III (cúspide): durante el Vendaval, Ráfaga Infinita se activa cada 5 disparos en lugar de 10.', fx: { power: 't_eyestorm' } },
+        { id: 'm0', name: 'Coto de Caza', t: 'k', tag: 'mec', r: 0, c: 3, max: 1, free: true, d: ()=>'Cada trampa armada suma 1 al Coto (hasta 3). Si estallan 3 a la vez, Batida: +15 % de daño recibido 6 s (cada 12 s)', touch: ['a_t_cepo', 'a_m_detonante'], icon: 'talents/arquera-montaraz-s14.webp', fx: {}, todo: 'mecánica coto · existe (+ Batida NUEVA) · pasiva Cebo de Caza: power m_cebo · NUEVO (sustituye al +25 % de Quebranto)' },
+        { id: 'm1', name: 'Muelles Ligeros', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['m0'], d: r=>`Trampa de Cepo recupera una carga en ${8-r} s (antes 8 s)`, touch: ['a_t_cepo'], arch: 'campo', icon: 'talents/arquera-montaraz-s12.webp', fx: {}, todo: 'mod a_t_cepo cdr · existe' },
+        { id: 'm2', name: 'Olfato de Presa', t: 'p', tag: 'num', r: 1, c: 3, max: 3, req: ['m0'], d: r=>`Haces +${4*r} % de daño a tu Presa`, arch: 'presa', icon: 'talents/arquera-montaraz-s15.webp', fx: {}, todo: 'tv.preyDmg · existe' },
+        { id: 'm3', name: 'Raíz Rápida', t: 'p', tag: 'num', r: 1, c: 5, max: 3, req: ['m0'], d: r=>`Cerco de Zarzas se recarga en ${45-3*r} s (antes 45 s)`, touch: ['a_u_zarzas'], arch: 'zarzal', icon: 'talents/arquera-montaraz-s16.webp', fx: {}, todo: 'mod a_u_zarzas cdr · claves' },
+        { id: 'm4', name: 'Pólvora Negra', t: 'p', tag: 'num', r: 2, c: 0, max: 2, req: ['m1'], d: r=>`Tus trampas y Flecha Detonante hacen +${15*r} % de daño`, touch: ['a_t_cepo', 'a_m_detonante'], arch: 'campo', icon: 'talents/arquera-montaraz-s5.webp', fx: {}, todo: 'mod dmg · claves' },
+        { id: 'm5', name: 'Presa Atrapada', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['m1', 'm2'], d: ()=>'Una trampa que atrapa a tu Presa estalla (60 %) y te devuelve una carga de Trampa de Cepo (una vez cada 10 s)', touch: ['a_t_cepo'], arch: 'campo+presa', hyb: 'Campo Minado + Presa', icon: 'talents/arquera-montaraz-s4.webp', fx: {}, todo: 'power m_presa_atrapada · NUEVO (icd 10 s para el estallido y la carga; las trampas que salta Gran Cacería no la activan)' },
+        { id: 'm6', name: 'Cerco a la Presa', t: 'p', tag: 'mec', r: 2, c: 4, max: 1, req: ['m2', 'm3'], d: ()=>'Flecha Detonante sobre tu Presa le deja debajo un zarzal de 2 m 4 s que la ralentiza un 40 %', touch: ['a_m_detonante'], arch: 'presa+zarzal', hyb: 'Presa + Zarzal', icon: 'talents/arquera-montaraz-x1.webp', fx: {}, todo: 'power m_cerco_presa · NUEVO (campo m_zarzal)' },
+        { id: 'm7', name: 'Raíces Profundas', t: 'p', tag: 'num', r: 2, c: 6, max: 2, req: ['m3'], d: r=>`Cruzar el Cerco de Zarzas inmoviliza ${n1(1.5+0.5*r)} s (antes 1,5 s)`, touch: ['a_u_zarzas'], arch: 'zarzal', icon: 'skills256/a_u_zarzas.webp', fx: {}, todo: 'mod a_u_zarzas crossRoot · claves' },
+        { id: 'm8', name: 'Cepo: Racimo o Reforzado', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['m4', 'm5'], touch: ['a_t_cepo'], arch: 'campo', icon: 'talents/arquera-montaraz-s6.webp', opts: [
+            { k: 'A', name: 'Racimo de Cepos', desc: 'Trampa de Cepo coloca 3 cepos en triángulo (35 % cada uno); en el Coto cuentan como una trampa', role: 'AREA', fx: {}, todo: 'power m_racimo · NUEVO (afterCast: 2 cepos más ×0,35; coto cuenta 1)' },
+            { k: 'B', name: 'Cepo Reforzado', desc: 'Si atrapa a un élite o a un jefe, el cepo estalla 3 veces (20 % cada una)', role: 'UNI', fx: {}, todo: 'power m_cepo_reforzado · NUEVO (rejuicio: 3 × 20 %, antes 3 × 30 %)' },
+          ],
+          win: 'A, contra grupos: tres cepos por carga para cubrir el suelo. B, contra jefes: cada cepo pega tres veces. Decide qué Campo Minado juegas' },
+        { id: 'm9', name: 'Presa: Manada o Herida', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['m5', 'm6'], arch: 'presa', icon: 'talents/arquera-montaraz-s0.webp', opts: [
+            { k: 'A', name: 'Presas en Manada', desc: 'Tienes hasta 3 Presas: tu primer élite y los 2 primeros enemigos que pisen una trampa', role: 'AREA', fx: {}, todo: 'power m_manada · NUEVO (coto.preyMax 3)' },
+            { k: 'B', name: 'Presa Herida', desc: 'Tu Presa recibe +10 % de daño de todo el grupo y cada trampa que pisa le llena 25 de Quebranto', role: 'UNI', fx: {}, todo: 'power m_presa_herida · NUEVO (applyWeakness 10 + addStagger)' },
+          ],
+          win: 'A, contra grupos con varios élites. B, contra jefes: +10 % para todo el grupo y Quebranto. Decide qué Presa juegas' },
+        { id: 'm10', name: 'Zarzal: Creciente o Asfixiante', t: 'c', tag: 'mec', r: 3, c: 5, max: 1, req: ['m6', 'm7'], touch: ['a_u_zarzas'], arch: 'zarzal', icon: 'talents/arquera-montaraz-x2.webp', opts: [
+            { k: 'A', name: 'Zarzal Creciente', desc: 'Cerco de Zarzas crece 1 m por segundo (hasta 12 m) y atrapa a los que alcanza', role: 'AREA', fx: {}, todo: 'power m_creciente · NUEVO (radio por tic)' },
+            { k: 'B', name: 'Zarzal Asfixiante', desc: 'Dentro del Cerco, el veneno al enemigo con más vida sube un 15 % cada segundo (hasta +90 %)', role: 'UNI', fx: {}, todo: 'power m_asfixiante · NUEVO (stacks por objetivo)' },
+          ],
+          win: 'A, contra grupos que llegan desde lejos. B, contra jefes que se quedan dentro. Decide qué Zarzal juegas' },
+        { id: 'm11', name: 'Metralla', t: 'p', tag: 'mec', r: 4, c: 0, max: 2, req: ['m8'], d: r=>`Cada cepo de Trampa de Cepo que estalla suelta ${2*r} púas a enemigos cercanos (20 % cada una)`, touch: ['a_t_cepo'], arch: 'campo', icon: 'talents/arquera-montaraz-s17.webp', fx: {}, todo: 'power m_metralla · NUEVO (fireProjectile ×N; ni los cepos sembrados ni los pequeños sueltan)' },
+        { id: 'm12', name: 'Acoso', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['m8', 'm9'], d: r=>`Cada trampa que pisa tu Presa le llena ${15*r} de Quebranto (si es un élite, la ralentiza un 30 % 3 s)`, touch: ['a_t_cepo'], arch: 'presa', icon: 'talents/arquera-montaraz-s10.webp', fx: {}, todo: 'power m_acoso · NUEVO (addStagger; applyCC slow a élites; ya no da Debilidad)' },
+        { id: 'm13', name: 'Espino Venenoso', t: 'p', tag: 'num', r: 4, c: 4, max: 2, req: ['m9', 'm10'], d: r=>`El veneno de tus zarzas y de tus cepos hace +${15*r} %`, touch: ['a_u_zarzas', 'a_t_cepo'], arch: 'zarzal', icon: 'talents/arquera-montaraz-s7.webp', fx: {}, todo: 'tv.poisonPct · existe' },
+        { id: 'm14', name: 'Semillas de Zarza', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['m10'], d: ()=>'Flecha Detonante deja un zarzal de 2 m durante 4 s donde estalla: ralentiza un 40 %', touch: ['a_m_detonante'], arch: 'zarzal', icon: 'talents/arquera-montaraz-s3.webp', fx: {}, todo: 'power m_semillas · NUEVO (campo m_zarzal)' },
+        { id: 'm15', name: 'Huida o Guarida', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['m11', 'm12'], icon: 'talents/arquera-montaraz-s13.webp', opts: [
+            { k: 'A', name: 'Cepo de Huida', desc: 'Al bajar del 50 % de vida, sueltas a tus pies un cepo gratis que inmoviliza 3 s a todos a 4 m. Una vez cada 30 s', role: 'AGU', fx: {}, todo: 'power m_cepo_huida · NUEVO (④ onDamaged)' },
+            { k: 'B', name: 'Guarida', desc: 'A 4 m de tus trampas armadas, recibes un 15 % menos de daño', role: 'AGU', fx: {}, todo: 'power m_guarida · NUEVO (condDr)' },
+          ],
+          win: 'A, contra grupos cuerpo a cuerpo que te alcanzan. B, para pelear junto a tus trampas sin moverte' },
+        { id: 'm16', name: 'Coto Cerrado', t: 'p', tag: 'mec', r: 5, c: 3, max: 2, req: ['m12', 'm13'], d: r=>`Con 2 o más trampas armadas, haces +${6*r} % de daño y tus zarzales duran ${r} s más`, touch: ['a_t_cepo'], hyb: 'Los tres estilos (por el Coto)', icon: 'talents/arquera-montaraz-s8.webp', fx: {}, todo: 'power m_coto_cerrado · NUEVO (condAdd con gaugeValue)' },
+        { id: 'm17', name: 'Zarzas Trepadoras', t: 'p', tag: 'mec', r: 5, c: 5, max: 2, req: ['m13', 'm14'], d: r=>`Cada enemigo que inmoviliza el Cerco de Zarzas lo alarga ${n1(0.5*r)} s (hasta +4 s)`, touch: ['a_u_zarzas'], arch: 'zarzal', icon: 'talents/arquera-montaraz-s11.webp', fx: {}, todo: 'power m_trepadoras · NUEVO' },
+        { id: 'm18', name: 'Rearme Rápido', t: 'p', tag: 'mec', r: 6, c: 0, max: 2, req: ['m15'], d: r=>`Cada detonación que hace estallar un cepo tuyo recarga ${r} s del Cepo y del Salto de Acecho (este no baja de 5 s)`, touch: ['a_t_cepo', 'a_m_acecho'], arch: 'campo', icon: 'talents/arquera-montaraz-s12.webp', fx: {}, todo: 'power m_rearme · NUEVO (por detonación, no por trampa; los cepos pequeños y sembrados no cuentan; Salto ≥ 5 s)' },
+        { id: 'm19', name: 'Rastro Fresco', t: 'p', tag: 'mec', r: 6, c: 2, max: 2, req: ['m15', 'm16'], d: r=>`Al morir tu Presa, el enemigo más fuerte a 10 m pasa a ser tu Presa y ganas ${10*r} de Energía`, arch: 'presa', icon: 'talents/arquera-montaraz-s9.webp', fx: {}, todo: 'power m_rastro · NUEVO (onKill)' },
+        { id: 'm20', name: 'Ojo de Trampera', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['m16', 'm17'], d: r=>`Tus trampas y zarzales duran un ${25*r} % más`, touch: ['a_t_cepo', 'a_u_zarzas'], icon: 'talents/arquera-montaraz-s1.webp', fx: {}, todo: 'tv.fieldDur · claves ⟶ traducir: tv.fieldDur: pendiente de la cola W2 (field-entities.spawnField (cola W2))' },
+        { id: 'm21', name: 'Rebrote', t: 'p', tag: 'mec', r: 6, c: 6, max: 1, req: ['m17'], d: ()=>'Al acabarse, el Cerco de Zarzas deja 3 zarzales de 2 m durante 6 s que ralentizan un 40 %', touch: ['a_u_zarzas'], arch: 'zarzal', icon: 'talents/arquera-montaraz-s16.webp', fx: {}, todo: 'power m_rebrote · NUEVO (campo m_zarzal ×3)' },
+        { id: 'm22', name: 'Campo Sembrado', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['m18'], d: r=>`Flecha Detonante deja ${r} cepo${r > 1 ? 's' : ''} armado${r > 1 ? 's' : ''} donde cae (al 35 %; no gasta cargas)`, touch: ['a_m_detonante', 'a_t_cepo'], arch: 'campo', icon: 'talents/arquera-montaraz-s4.webp', fx: {}, todo: 'power m_campo_sembrado · NUEVO (afterCast)' },
+        { id: 'm23', name: 'Batida Mayor', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['m19'], d: r=>`La Batida dura ${6+r} s (antes 6 s) y a tu Presa le llena ${10*r} de Quebranto`, arch: 'presa', icon: 'talents/arquera-montaraz-x3.webp', fx: {}, todo: 'tv.batidaDur + tv.batidaPreyStagger · NUEVO (claves de la mecánica coto; ya no sube la Debilidad) ⟶ traducir: tv.batidaDur: clave de la clase (KT-arquera, <CLASE>_TV_KEYS); tv.batidaPreyStagger: clave de la clase (KT-arquera, <CLASE>_TV_KEYS)' },
+        { id: 'm24', name: 'Siembra de Espinas', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['m21'], d: r=>`Cada cepo que atrapa o estalla deja un zarzal de 2 m durante ${2+2*r} s que ralentiza un 40 %`, touch: ['a_t_cepo'], arch: 'zarzal', icon: 'talents/arquera-montaraz-s17.webp', fx: {}, todo: 'power m_siembra · NUEVO (campo m_zarzal)' },
+        { id: 'm25', name: 'Tierra Arrasada', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['m22'], d: r=>`Cada cepo de Trampa de Cepo que estalla siembra ${r} cepo${r > 1 ? 's' : ''} pequeño${r > 1 ? 's' : ''} a 3 m (30 %; esos no siembran; hasta 6)`, touch: ['a_t_cepo'], arch: 'campo', final: 'Campo Minado', icon: 'talents/arquera-montaraz-x1.webp', fx: {}, todo: 'power m_tierra_arrasada · NUEVO (solo siembran los cepos de carga; 6 pequeños vivos como mucho)' },
+        { id: 'm26', name: 'Gran Cacería', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['m23'], d: r=>`Si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor y se rearman a mitad de daño (una vez cada ${[12, 9, 6][r-1]} s)`, touch: ['a_t_cepo'], arch: 'presa', final: 'Presa', icon: 'talents/arquera-montaraz-x3.webp', fx: {}, todo: 'power m_gran_caceria · NUEVO (sustituye a m_greathunt; rejuicio: las trampas que saltan hacen el 50 % y cuentan para el tope de 2 estallidos; ronda 2: no activan Presa Atrapada, m5; ronda 3: ni cuentan para Corazón del Bosque 4)' },
+        { id: 'm27', name: 'Bosque Vivo', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['m24'], d: r=>`Si 3 zarzales tuyos se tocan, forman un Cerco de Zarzas gratis de ${r+1} s, sin veneno ni estallido (una vez cada 8 s)`, touch: ['a_u_zarzas'], arch: 'zarzal', final: 'Zarzal', icon: 'talents/arquera-montaraz-x2.webp', fx: {}, todo: 'power m_bosque_vivo · NUEVO (eco de a_u_zarzas de 2/3/4 s; uno vivo; ronda 2: solo controla, coef 0 y sin el estallido al cerrarse)' },
+        { id: 'm28', name: 'Corazón del Bosque', t: 'x', tag: 'mec', r: 9, c: 3, max: 4, req: ['m25', 'm26', 'm27'], d: r=>['1) Tus trampas armadas ralentizan un 30 % a 3 m.', '2) Matar a un élite coloca un cepo gratis donde cae.', '3) La Batida salta con 2 trampas (antes 3).', '4) Cada 12 cepos de Trampa de Cepo que haces estallar, Cerco de Zarzas se lanza solo y gratis (una vez cada 90 s).'].slice(0, r).join(' '), icon: 'talents/arquera-montaraz-s0.webp', fx: {}, todo: 'power m_corazon_bosque (rangos) · NUEVO (sustituye a m_thornweb; ronda 3, rango 4: cuenta los cepos de carga que estallan por Flecha Detonante, Salto de Acecho o Detonación en Cadena —un Racimo cuenta 1; no cuentan los pequeños, los sembrados, el cepo gratis del rango 2, las minas pisadas ni los que salta Gran Cacería—; icd 90; el Cerco gratis va aparte del suelo de las definitivas)' },
       ],
-      preset: [['s1', 3], ['s2', 2], ['s4', 1], ['s6', 1, 'A'], ['s7', 2], ['s9', 1], ['s10', 2], ['s12', 2], ['s14', 1], ['s17', 2], ['x1', 1], ['x2', 1]],
     },
   ],
-  skills: ARQUERA_TALENT_SKILLS,
+  hero: ARQUERA_HERO,
+  builds: {
+    plumas: {
+      sp: 'tiradora',
+      n: 'Tormenta de Plumas',
+      arch: 'Abanico',
+      hero: 'h2',
+      heroCh: { w2: 'B', w4: 'B', w8: 'A' },
+      heroNodes: ['w2', 'w3', 'w6', 'w5', 'w9', 'w8', 'w11', 'w12', 'w4', 'w1'],
+      cls: { c1: 2, c2: 2, c5: 1, c6: 1, c10: 1, c13: 2, c8: 2, c12: 2, c11: 1, c16: 1, c19: 1, c23: 2, c17: 1, c21: 1, c4: 1, c15: 1, c18: 2, c26: 3, c29: 3, c24: 2, c4_: 2 },
+      clsCh: { c5: 'B', c6: 'A', c10: 'A', c11: 'B', c15: 'B', c16: 'B', c17: 'B' },
+      spec: { v1: 3, v4: 2, v5: 1, v8: 1, v11: 2, v15: 1, v18: 2, v22: 3, v25: 3, v28: 4, v2: 3, v9: 1, v12: 2, v16: 2, v3: 1 },
+      specCh: { v8: 'A', v9: 'B', v15: 'A' },
+    },
+    vaiven: {
+      sp: 'tiradora',
+      n: 'Vaivén Eterno',
+      arch: 'Vaivén',
+      hero: 'h1',
+      heroCh: { q2: 'A', q4: 'B', q8: 'A' },
+      heroNodes: ['q2', 'q1', 'q3', 'q5', 'q8', 'q4', 'q7', 'q10', 'q12', 'q11'],
+      cls: { c1: 2, c2: 2, c5: 1, c6: 1, c10: 1, c13: 2, c8: 2, c12: 2, c11: 1, c16: 1, c19: 1, c23: 2, c17: 1, c21: 1, c4: 1, c15: 1, c18: 2, c26: 3, c29: 3, c24: 2, c4_: 2 },
+      clsCh: { c5: 'A', c6: 'A', c10: 'B', c11: 'B', c15: 'B', c16: 'A', c17: 'B' },
+      spec: { v2: 3, v5: 1, v9: 1, v12: 2, v16: 2, v19: 2, v23: 3, v26: 3, v28: 4, v1: 3, v4: 1, v8: 1, v15: 1, v3: 3, v6: 1 },
+      specCh: { v8: 'B', v9: 'A', v15: 'A' },
+    },
+    galerna: {
+      sp: 'tiradora',
+      n: 'Galerna Infinita',
+      arch: 'Galerna',
+      hero: 'h2',
+      heroCh: { w2: 'B', w4: 'B', w8: 'A' },
+      heroNodes: ['w2', 'w1', 'w3', 'w5', 'w8', 'w4', 'w7', 'w10', 'w12', 'w11'],
+      cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c6: 1, c10: 1, c16: 1, c18: 2, c13: 2, c17: 1, c25: 3, c28: 3, c21: 1, c24: 2, c23: 1 },
+      clsCh: { c5: 'B', c6: 'A', c10: 'A', c11: 'B', c15: 'A', c16: 'B', c17: 'B', c22: 'B' },
+      spec: { v3: 3, v7: 2, v6: 1, v10: 1, v13: 2, v14: 1, v17: 2, v21: 1, v24: 3, v27: 3, v28: 4, v2: 3, v9: 1, v16: 2, v20: 2 },
+      specCh: { v9: 'B', v10: 'A' },
+    },
+    cruzado: {
+      sp: 'tiradora',
+      n: 'Viento Cruzado',
+      arch: 'Híbrido Abanico-Vaivén',
+      hero: 'h1',
+      heroCh: { q2: 'A', q4: 'B', q8: 'A' },
+      heroNodes: ['q2', 'q3', 'q6', 'q5', 'q9', 'q8', 'q11', 'q12', 'q4', 'q1'],
+      cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c5: 1, c8: 2, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c1: 1, c27: 3, c30: 3, c1_: 1, c11: 1, c15: 1, c26: 1 },
+      clsCh: { c5: 'A', c6: 'A', c10: 'B', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'A' },
+      spec: { v1: 3, v2: 3, v4: 2, v5: 1, v8: 1, v9: 1, v11: 2, v12: 2, v15: 1, v16: 2, v18: 2, v19: 2, v22: 3, v23: 3, v13: 1, v20: 2 },
+      specCh: { v8: 'A', v9: 'A', v15: 'B' },
+    },
+    perforacion: {
+      sp: 'francotiradora',
+      n: 'Línea Mortal',
+      arch: 'Perforación',
+      hero: 'h1',
+      heroCh: { q2: 'B', q4: 'A', q8: 'B' },
+      heroNodes: ['q2', 'q3', 'q6', 'q5', 'q9', 'q8', 'q11', 'q12', 'q4', 'q1'],
+      cls: { c1: 2, c2: 2, c5: 1, c6: 1, c10: 1, c13: 2, c8: 2, c12: 2, c11: 1, c16: 1, c3: 2, c7: 1, c14: 1, c17: 1, c20: 1, c23: 2, c15: 1, c26: 3, c29: 3, c21: 1, c24: 2, c27: 1 },
+      clsCh: { c5: 'A', c6: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'B', c16: 'B', c17: 'B' },
+      spec: { f1: 3, f4: 2, f5: 1, f8: 1, f11: 2, f15: 1, f18: 2, f22: 3, f25: 3, f28: 4, f2: 3, f9: 1, f12: 2, f16: 2, f3: 1 },
+      specCh: { f8: 'A', f9: 'A', f15: 'A' },
+    },
+    puntodebil: {
+      sp: 'francotiradora',
+      n: 'Disparo Imposible',
+      arch: 'Punto Débil',
+      hero: 'h3',
+      heroCh: { y2: 'A', y4: 'B', y8: 'B' },
+      heroNodes: ['y2', 'y1', 'y3', 'y5', 'y8', 'y4', 'y7', 'y10', 'y12', 'y11'],
+      cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c21: 1, c24: 2, c1: 2, c5: 1, c8: 2, c12: 2, c13: 2, c16: 1, c15: 1, c11: 1, c27: 3, c30: 3, c20: 1, c23: 2, c26: 1 },
+      clsCh: { c5: 'A', c6: 'B', c10: 'B', c11: 'B', c14: 'B', c15: 'B', c16: 'A', c17: 'B' },
+      spec: { f2: 3, f5: 1, f9: 1, f12: 2, f16: 2, f19: 2, f23: 3, f26: 3, f28: 4, f1: 3, f4: 1, f8: 1, f15: 1, f3: 3, f6: 1 },
+      specCh: { f8: 'B', f9: 'B', f15: 'B' },
+    },
+    vigia: {
+      sp: 'francotiradora',
+      n: 'Atalaya Eterna',
+      arch: 'Vigía',
+      hero: 'h1',
+      heroCh: { q2: 'B', q4: 'B', q8: 'A' },
+      heroNodes: ['q2', 'q1', 'q3', 'q5', 'q8', 'q4', 'q7', 'q10', 'q12', 'q11'],
+      cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c10: 1, c17: 1, c20: 1, c23: 2, c8: 2, c15: 1, c3: 2, c11: 1, c7: 1, c26: 3, c29: 3, c14: 1, c21: 1, c24: 2 },
+      clsCh: { c5: 'A', c6: 'B', c9: 'B', c10: 'B', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'B' },
+      spec: { f3: 3, f7: 2, f6: 1, f10: 1, f13: 2, f14: 1, f17: 2, f21: 1, f24: 3, f27: 3, f28: 4, f2: 3, f5: 1, f16: 2, f20: 2 },
+      specCh: { f10: 'A' },
+    },
+    pulso: {
+      sp: 'francotiradora',
+      n: 'Pulso de Hierro',
+      arch: 'Híbrido Perforación-Punto Débil',
+      hero: 'h3',
+      heroCh: { y2: 'A', y4: 'B', y8: 'B' },
+      heroNodes: ['y2', 'y3', 'y6', 'y5', 'y9', 'y8', 'y11', 'y12', 'y4', 'y1'],
+      cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c21: 1, c24: 2, c1: 2, c5: 1, c8: 2, c12: 2, c13: 2, c16: 1, c15: 1, c11: 1, c27: 3, c30: 3, c20: 1, c23: 2, c26: 1 },
+      clsCh: { c5: 'A', c6: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'B' },
+      spec: { f1: 3, f2: 3, f4: 2, f5: 1, f8: 1, f9: 1, f11: 2, f12: 2, f15: 1, f16: 2, f18: 2, f19: 2, f22: 3, f23: 3, f3: 1, f20: 2 },
+      specCh: { f8: 'B', f9: 'B', f15: 'B' },
+    },
+    campo: {
+      sp: 'montaraz',
+      n: 'Tierra Arrasada',
+      arch: 'Campo Minado',
+      hero: 'h2',
+      heroCh: { w2: 'B', w4: 'B', w8: 'A' },
+      heroNodes: ['w2', 'w3', 'w6', 'w5', 'w9', 'w8', 'w11', 'w12', 'w4', 'w1'],
+      cls: { c1: 2, c2: 2, c5: 1, c6: 1, c10: 1, c13: 2, c8: 2, c12: 2, c11: 1, c16: 1, c19: 1, c23: 2, c17: 1, c21: 1, c4: 1, c15: 1, c18: 2, c26: 3, c29: 3, c24: 2, c4_: 2 },
+      clsCh: { c5: 'B', c6: 'A', c10: 'A', c11: 'B', c15: 'A', c16: 'B', c17: 'B' },
+      spec: { m1: 3, m4: 2, m5: 1, m8: 1, m11: 2, m15: 1, m18: 2, m22: 3, m25: 3, m28: 4, m2: 3, m9: 1, m12: 2, m16: 2, m3: 1 },
+      specCh: { m8: 'A', m9: 'A', m15: 'A' },
+    },
+    caceria: {
+      sp: 'montaraz',
+      n: 'Gran Cacería',
+      arch: 'Presa',
+      hero: 'h3',
+      heroCh: { y2: 'A', y4: 'A', y8: 'B' },
+      heroNodes: ['y2', 'y1', 'y3', 'y5', 'y8', 'y4', 'y7', 'y10', 'y12', 'y11'],
+      cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c21: 1, c24: 2, c1: 2, c5: 1, c8: 2, c12: 2, c13: 2, c16: 1, c15: 1, c11: 1, c27: 3, c30: 3, c20: 1, c23: 2, c26: 1 },
+      clsCh: { c5: 'A', c6: 'A', c10: 'B', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'B' },
+      spec: { m2: 3, m5: 1, m9: 1, m12: 2, m16: 2, m19: 2, m23: 3, m26: 3, m28: 4, m1: 3, m4: 1, m8: 1, m15: 1, m3: 3, m6: 1 },
+      specCh: { m8: 'B', m9: 'B', m15: 'B' },
+    },
+    zarzal: {
+      sp: 'montaraz',
+      n: 'Bosque Vivo',
+      arch: 'Zarzal',
+      hero: 'h2',
+      heroCh: { w2: 'A', w4: 'B', w8: 'B' },
+      heroNodes: ['w2', 'w1', 'w3', 'w5', 'w8', 'w4', 'w7', 'w9', 'w11', 'w12'],
+      cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c6: 1, c10: 1, c16: 1, c18: 2, c13: 2, c17: 1, c25: 3, c28: 3, c21: 1, c24: 2, c23: 1 },
+      clsCh: { c5: 'B', c6: 'A', c10: 'A', c11: 'B', c15: 'A', c16: 'A', c17: 'B', c22: 'B' },
+      spec: { m3: 3, m7: 2, m6: 1, m10: 1, m13: 2, m14: 1, m17: 2, m21: 1, m24: 3, m27: 3, m28: 4, m2: 3, m9: 1, m16: 2, m20: 2 },
+      specCh: { m9: 'A', m10: 'A' },
+    },
+    espinas: {
+      sp: 'montaraz',
+      n: 'Espinas de Caza',
+      arch: 'Híbrido Presa-Zarzal',
+      hero: 'h3',
+      heroCh: { y2: 'A', y4: 'B', y8: 'B' },
+      heroNodes: ['y2', 'y3', 'y6', 'y5', 'y9', 'y8', 'y11', 'y12', 'y4', 'y1'],
+      cls: { c1: 2, c2: 2, c5: 1, c6: 1, c10: 1, c13: 2, c8: 2, c12: 2, c11: 1, c16: 1, c19: 1, c23: 2, c17: 1, c21: 1, c4: 1, c15: 1, c18: 2, c26: 3, c29: 3, c24: 2, c4_: 2 },
+      clsCh: { c5: 'A', c6: 'A', c10: 'B', c11: 'B', c15: 'B', c16: 'A', c17: 'B' },
+      spec: { m2: 3, m3: 3, m6: 1, m7: 2, m9: 1, m10: 1, m12: 2, m13: 2, m16: 2, m17: 2, m19: 2, m21: 1, m23: 3, m24: 3, m14: 1, m20: 2 },
+      specCh: { m9: 'B', m10: 'B' },
+    },
+  },
+  defaultBuild: { tiradora: 'plumas', francotiradora: 'puntodebil', montaraz: 'zarzal' },
+  groups: {
+    flechas: { label: 'Toca todas tus flechas', ids: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'] },
+  },
+  skills: ARQUERA_TALENT_SKILL_DEFS,   // puente D29 (ver arriba)
 };

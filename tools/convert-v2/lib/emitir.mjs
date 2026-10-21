@@ -60,7 +60,10 @@ export function textoHero({ cls, conv, helpers, fuente }) {
     `export const ${P}_HERO = [\n${arboles.join('\n')}\n];\n`;
 }
 
-export function textoTalents({ cls, conv, helpers, fuente }) {
+// escribirJs: true en --write (E1.5, js/): las definiciones de las activas que YA existen quedan en un puente
+// @deprecated (<CLASE>_TALENT_SKILL_DEFS = <CLASE>_TALENTS.skills) que data.js fusiona mientras <CLASE>_CATALOG_V = 1.
+// En --draft las definiciones van al borrador del catálogo (skills-<clase>.draft.js), como manda D29.
+export function textoTalents({ cls, conv, helpers, fuente, escribirJs = false }) {
   const P = PREFIJO[cls], t = conv.talents;
   const usados = helpersUsados([t.cls.nodes, ...t.specs.map(s => s.nodes)], helpers);
   const specs = t.specs.map(s => {
@@ -69,10 +72,20 @@ export function textoTalents({ cls, conv, helpers, fuente }) {
   });
   const { nodes: clsNodes, ...clsMeta } = t.cls;
   const pend = conv.ctx.activasPendientes || [];
-  const cuerpo = [
-    ...(pend.length ? [`// Activas de talento 2g que aún no existen en el juego (las escribe KA1; su nodo queda sin grant): ${pend.join(', ')}.`] : []),
-    `export const ${P}_TALENT_SKILLS = ${ser(conv.talentSkills, '', { modo: r => (r.length === 0 ? 'multi' : 'inline') })};`,
+  const puente = escribirJs ? [
+    `/** @deprecated D29 (puente de E1.5 hasta KA1): definición de las activas de talento que YA existen en el juego,`,
+    ` *  mientras ${P}_CATALOG_V = 1 (data.js las fusiona en CLASSES como antes). Con el catálogo 2g`,
+    ` *  (${P}_CATALOG_V = 2) viven en skills-${cls}.js y data.js deja de leer esta lista; se borra en E5 (C1). */`,
+    `export const ${P}_TALENT_SKILL_DEFS = ${ser(conv.talentSkills, '', { modo: r => (r.length === 0 ? 'multi' : 'inline') })};`,
     '',
+  ] : [];
+  const cuerpo = [
+    '// D29: las 6 activas de talento de la clase (los nodos las conceden con `grant`); su definición vive en el catálogo.',
+    ...(pend.length ? [`// Aún no son activas de talento en el juego (las escribe KA1 en el catálogo; su nodo queda sin grant): ${pend.join(', ')}.`] : []),
+    ...((conv.ctx.activasEnCatalogo || []).length ? [`// (${conv.ctx.activasEnCatalogo.join(', ')}: hoy es una habilidad base del catálogo; KA1 la convierte en activa de talento.)`] : []),
+    `export const ${P}_TALENT_SKILLS = ${inline(conv.talentSkillIds || conv.talentSkills.map(s => s.id))};`,
+    '',
+    ...puente,
     `export const ${P}_TALENTS = {`,
     '  v: 2,',
     `  cls: { ${Object.entries(clsMeta).map(kv).join(', ')}, nodes: ${serNodos(clsNodes, '  ')} },`,
@@ -81,7 +94,7 @@ export function textoTalents({ cls, conv, helpers, fuente }) {
     `  builds: ${ser(t.builds, '  ', { modo: r => (r.length <= 1 ? 'multi' : 'inline') })},`,
     `  defaultBuild: ${inline(t.defaultBuild)},`,
     `  groups: ${ser(t.groups, '  ', { modo: r => (r.length === 0 ? 'multi' : 'inline') })},`,
-    `  skills: ${P}_TALENT_SKILLS,`,
+    ...(escribirJs ? [`  skills: ${P}_TALENT_SKILL_DEFS,   // puente D29 (ver arriba)`] : []),
     '};',
     '',
   ];
@@ -100,9 +113,10 @@ export function textoSkillsDraft({ cls, conv, fuente }) {
     'Formato: docs/paso2-implementacion.md §3.5 (forja de 2f §2.3). Ids, cat, req, spec, elem, nombres, líneas y papeles',
     'exactos (los compara tests/test-v2-paridad.mjs cuando <CLASE>_CATALOG_V = 2). Los efectos se escriben a mano desde',
     'el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existe, su definición actual.',
-    `Las ${conv.talentSkills.length} activas de talento viven en talents-${cls}.js (${P}_TALENT_SKILLS): ${conv.talentSkills.map(s => s.id).join(', ') || '—'}.`] }) +
+    `D29: las ${conv.talentSkills.length} activas de talento (kind 'talent', slots ['k2']) van en este catálogo, al final de ${P}_SKILLS;`,
+    `en talents-${cls}.js, ${P}_TALENT_SKILLS es solo la lista de ids: ${conv.talentSkills.map(s => s.id).join(', ') || '—'}.`] }) +
     [
-      `export const ${P}_SKILLS = ${ser(conv.skills, '', { modo: r => (r.length === 0 ? 'multi' : 'inline') })};`,
+      `export const ${P}_SKILLS = ${ser([...conv.skills, ...conv.talentSkills], '', { modo: r => (r.length === 0 ? 'multi' : 'inline') })};`,
       '',
       '// Forja: ids estables <id>_i / <id>_ii; papeles UNI · AREA · CTRL · AGU · APO · MOV; Mejora a Nv req+3, variantes a req+6',
       `export const ${P}_SKILL_FORGE = ${ser(conv.forge, '', { modo: modoForja })};`,

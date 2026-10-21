@@ -178,18 +178,31 @@ const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 }
 {
   // riesgo 11: recompute corre en cada addBuff; con un héroe Nv100 con especialización, los
-  // talentos de su build y forja elegida, la media de 1000 llamadas queda por debajo de 0,5 ms
+  // talentos de su build (clase, especialización y árbol héroe, datos v2 reales) y forja elegida,
+  // la media de 1000 llamadas queda por debajo de 0,5 ms
   const forge = { vx_corazon: { mejora: { name: 'x', line: 'x', add: { radius: 1 } }, vars: [
     { id: 'vx_corazon_i', name: 'a', role: 'UNI', line: 'x', mul: { coef: 1.2 } }, { id: 'vx_corazon_ii', name: 'b', role: 'AREA', line: 'x', add: { radius: 1 } }] } };
-  const h = verbHarness('guerrero', { level: 100, spec: 'berserker', forge });
-  if (typeof T.presetRanks === 'function') {
-    h.p.talents.cls = T.presetRanks(h.p, 'cls') || {};
-    h.p.talents.sp = { ...h.p.talents.sp, berserker: T.presetRanks(h.p, 'spec') || {} };
-    assert.ok(Object.keys(h.p.talents.cls).length + Object.keys(h.p.talents.sp.berserker).length > 10, 'con los talentos de la build');
-  }
+  const key = T.defaultBuildKey('guerrero', 'berserker');
+  const build = T.buildsFor('guerrero', 'berserker').find(b => b.key === key)?.build;
+  assert.ok(build, `berserker: la build recomendada «${key}» está en los datos v2`);
+  // el arnés monta la build punto a punto (makeHarness({ build })) igual que buildRanks
+  const h = verbHarness('guerrero', { level: 100, spec: 'berserker', build: key, forge });
+  const want = T.buildRanks(h.p, build, { level: 100 });
+  assert.deepEqual(h.p.talents.cls, want.cls, 'build: rangos de clase');
+  assert.deepEqual(h.p.talents.sp.berserker, want.sp.berserker, 'build: rangos de especialización');
+  assert.equal(T.spentIn(T.findSpec('guerrero', 'berserker'), want.sp.berserker), T.TALENT_RULES.pts.spec, 'Nv100: 31/31 en la especialización');
+  const tree = want.hero?.tree, heroRanks = want.hero?.nodes?.[tree] || {};
+  assert.equal(Object.keys(heroRanks).length, T.TALENT_RULES.pts.hero, `Nv100: los ${T.TALENT_RULES.pts.hero} nodos del árbol héroe «${tree}»`);
+  assert.deepEqual(h.p.talents.hero.berserker.nodes[tree], heroRanks, 'build: árbol héroe');
   h.p.skillForge = { vx_corazon: 'i' };
   h.p.recompute();
-  assert.equal(h.p.talentAgg.spec, 'berserker');
+  const agg = h.p.talentAgg;
+  assert.equal(agg.spec, 'berserker');
+  assert.ok(agg.heroOpen && agg.hero === tree, `Paragon abierto con el árbol héroe de la build (${agg.hero})`);
+  // el agregado recorre los tres árboles: rangos comprados + nodos clave gratis (especialización y héroe)
+  const free = [T.findSpec('guerrero', 'berserker'), T.findHero('guerrero', tree)].flatMap(t => t.nodes.filter(n => n.free)).length;
+  assert.equal(Object.keys(agg.ranks).length, Object.keys(want.cls).length + Object.keys(want.sp.berserker).length + Object.keys(heroRanks).length + free,
+    'agregado = clase + especialización + héroe + nodos clave');
   const t0 = performance.now();
   for (let i = 0; i < 1000; i++) h.p.recompute();
   const ms = (performance.now() - t0) / 1000;

@@ -13,9 +13,15 @@
 //   h.tick(1.0);                                         // 10 ticks de 0,1 s (onTick a 10 Hz)
 //   h.setSlot('rmb', 'torbellino'); h.cast('rmb'); h.step(0.5);
 //   h.sustained();                                       // vida curada por la cubeta de sustento
-// Paso 2c.0: talentos REALES y su indicador
+// Talentos REALES (formato v2, docs/paso2-implementacion.md §3.2) y su indicador
 //   const h = makeHarness({ classId: 'guerrero', spec: 'berserker', level: 50,
-//                           talents: { spec: { s14: 1 }, cls: { c1: 2 }, choice: { c5: 'B' } } });
+//                           talents: { cls: { c1: 2 }, sp: { berserker: { b4: 1 } }, choice: { c5: 'B' },
+//                                      hero: { berserker: { tree: 'h1', nodes: { h1: { t1: 1 } }, choice: {} } } } });
+//   (`talents.spec` = rangos de la especialización activa: atajo de `sp: { [spec]: … }`)
+//   Una build de los datos, llenada punto a punto al nivel con buildRanks (clase, especialización y
+//   árbol héroe si el Paragon se abre): build = clave de <CLASE>_TALENTS.builds, el objeto build o
+//   true (= defaultBuild de la especialización). `talents` se suma encima (rangos y elecciones).
+//   const h = makeHarness({ classId: 'maga', spec: 'piromante', level: 100, build: true });
 //   h.gauge('sed', 100);        // fija el indicador (dispara onGauge 'gain'/'full' y su descarga)
 //   h.gaugeValue('sed');  h.gaugeView();
 //   powers/tv extra (sin nodos): p.talentExtra (lo suma Player.recompute).
@@ -36,7 +42,7 @@ import { skillMethods, killStatus } from '../../js/game-skills.js';
 import { fieldMethods } from '../../js/field-entities.js';
 import { firePower } from '../../js/powers.js';
 import { createRng } from '../../js/rng.js';
-import { normalizeTalents } from '../../js/talents.js';
+import { normalizeTalents, buildRanks, defaultBuildKey, talentTreesFor } from '../../js/talents.js';
 import { setGauge, gaugeValue, gaugeView, gaugeState } from '../../js/spec-mechanics.js';
 import { ENEMIES, scaleEnemy, ENEMY_RANKS, CLASSES } from '../../js/data.js';
 import { normalizeSkillDef } from '../../js/skill-defs.js';
@@ -115,18 +121,39 @@ function injectClass(classId, inject) {
 }
 const SLOT_ACTION = { k1: 'skill1', k2: 'skill2', k3: 'skill3', k4: 'skill4' };
 
-export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed = 7, tv = null, spec = null, talents = null, inject = null } = {}) {
+// estado v2 de talentos para el arnés: build (buildRanks al nivel) + talents encima
+function harnessTalents(classId, level, spec, build, talents) {
+  const t = talents || {};
+  const out = { v: 2, spec: spec || null, cls: {}, sp: {}, choice: {}, hero: {} };
+  if (build) {
+    const key = build === true ? defaultBuildKey(classId, spec) : build;
+    const b = typeof key === 'string' ? talentTreesFor(classId)?.builds?.[key] : key;
+    if (!b || typeof b !== 'object') throw new Error(`makeHarness: la build «${key}» no existe en ${classId}`);
+    if (spec && b.sp !== spec) throw new Error(`makeHarness: la build «${key}» es de ${b.sp}, no de ${spec}`);
+    out.spec = b.sp;
+    const r = buildRanks({ classId, level, talents: { v: 2, spec: b.sp } }, b, { level });
+    Object.assign(out, { cls: r.cls, sp: r.sp, choice: r.choice, hero: r.hero ? { [b.sp]: r.hero } : {} });
+  }
+  const sp = out.spec;
+  Object.assign(out.cls, t.cls || {});
+  for (const [id, ranks] of Object.entries(t.sp || {})) out.sp[id] = { ...(out.sp[id] || {}), ...ranks };
+  if (sp && t.spec) out.sp[sp] = { ...(out.sp[sp] || {}), ...t.spec };
+  Object.assign(out.choice, t.choice || {});
+  Object.assign(out.hero, t.hero || {});
+  return out;
+}
+
+export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed = 7, tv = null, spec = null, build = null, talents = null, inject = null } = {}) {
   const g = makeGame({ seed });
   const p = new Player(g, classId);
   if (inject) p.cls = injectClass(classId, inject);
   g.player = p;
   p.combatRng = createRng(seed).fork('combate');
   p.level = level;
-  // talentos REALES (especialización + rangos) y poderes/tv extra (p.talentExtra)
-  if (spec || talents) {
-    const raw = { spec, cls: talents?.cls || {}, sp: spec ? { [spec]: talents?.spec || {} } : {}, choice: talents?.choice || {} };
-    p.talents = normalizeTalents(raw, classId);
-  }
+  // talentos REALES (v2: especialización, rangos, elecciones y árbol héroe) y poderes/tv extra
+  // (p.talentExtra). Sin nivel en normalizeTalents: un test puede montar rangos a mano que el
+  // nivel no daría (la build sí sale legal punto a punto)
+  if (spec || talents || build) p.talents = normalizeTalents(harnessTalents(classId, level, spec, build, talents), classId);
   p.talentExtra = { powers: new Set(powers), tv: tv || {}, mods: {}, skillLv: {}, grants: new Set() };
   p.recompute();
   p.hp = p.stats.maxHP;

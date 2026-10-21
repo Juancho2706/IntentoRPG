@@ -70,7 +70,9 @@ function classResource(id, skills) {
 // 'talent'; se conocen solo si talentAgg.grants las concede (skill-resolve.isKnown).
 // D29 (Paso 2): con el catálogo 2g (CATALOG_V = 2) las 6 activas de talento viven en el
 // PROPIO catálogo (skills-<clase>.js, `kind:'talent'`) y <CLASE>_TALENT_SKILLS es solo una
-// lista de ids: no se fusiona nada de los talentos. `forge` = forja de la clase (§3.5).
+// lista de ids: no se fusiona nada de los talentos. Con el catálogo v1 (E1.5 → KA1),
+// TALENTS.skills es el puente @deprecated <CLASE>_TALENT_SKILL_DEFS: las activas 2g que ya
+// existían como activas de talento. `forge` = forja de la clase (§3.5).
 function makeClass(base, prefix, rawSkills, { talents = null, catalogV = 1, forge = {} } = {}) {
   let list = rawSkills;
   if (catalogV !== 2) {

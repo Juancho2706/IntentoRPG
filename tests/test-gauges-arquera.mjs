@@ -258,3 +258,127 @@ const src = readFileSync(join(root, 'js', 'ui-gauges-arquera.js'), 'utf8');
 assert.ok(!/\bdocument\./.test(src) && !/\bwindow\./.test(src), 'ui-gauges-arquera.js: sin document/window');
 
 console.log('✅ Barras de mecánica de la Arquera (2d.2 E1): registro, A3, A4, model() por estado, world.ground y A8 OK');
+
+// ============================================================
+// gaugeView v2 de la Arquera (docs/paso2d2-hud-pc.md §3.10). Movido de test75 en el Paso 2 (E1.5):
+// usa ids de nodo y habilidades de la clase, así que su dueño es KT de la clase (E2).
+// (bloque propio: sus nombres tapan los de arriba sin chocar)
+// ============================================================
+{
+  const { makeHarness } = await import('./helpers/power-harness.mjs');
+  const { gaugeTuning, gaugeSeq, gainGauge, spendGauge, pickGaugeEnemy } = await import('../js/spec-mechanics.js');
+  const { TALENT_TREES } = await import('../js/talents.js');
+  const { POWER_HOOKS, powerState } = await import('../js/powers.js');
+  const approx = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+  const mk = (classId, spec, level = 30, extra = {}) => makeHarness({ classId, spec, level, ...extra });
+  const T = gaugeTuning();
+  // seq: contadores MONÓTONOS por indicador, no se rebobinan con resetGauges
+  function seqDelta(h, id, fn) {
+    const a = { ...gaugeSeq(h.p, id) };
+    fn();
+    const b = h.gaugeView().seq;
+    return { gain: b.gain - a.gain, full: b.full - a.full, spent: b.spent - a.spent, empty: b.empty - a.empty };
+  }
+
+  // ---------------------------------------------------------------- Concentración
+  {
+    const h = mk('arquera', 'francotiradora', 40);
+    const p = h.p;
+    let d = seqDelta(h, 'concentracion', () => h.tick(1));
+    assert.ok(d.gain >= 1, 'Concentración: gain quieta');
+    let v = h.gaugeView();
+    assert.ok(approx(v.x.critPct, v.value * T.concentracion.critPerPoint, 0.01) && v.x.moving === false && v.decaying === false, 'Concentración: x.critPct / quieta');
+    d = seqDelta(h, 'concentracion', () => h.gauge('concentracion', 100));
+    assert.equal(d.full, 1, 'Concentración: full a 100');
+    assert.deepEqual(h.gaugeView().ready, [], 'sin Aliento del Cazador no hay ranura enlazada');
+    h.addPowers('f_aliento_cazador');
+    assert.deepEqual(h.gaugeView().ready, ['a_t_apuntado'], 'Aliento del Cazador: Disparo Apuntado listo a 100');
+    p.moving = true;
+    v = h.gaugeView();
+    assert.ok(v.x.moving === true && v.decaying === true, 'Concentración: moverte la vacía (decaying)');
+    d = seqDelta(h, 'concentracion', () => { for (let i = 0; i < 50; i++) { p.moving = true; h.g.step(0.1); } });
+    assert.equal(d.empty, 1, 'Concentración: empty al vaciarse moviéndote');
+    h.gauge('concentracion', 40);
+    d = seqDelta(h, 'concentracion', () => spendGauge(p, 'concentracion', 30));
+    assert.equal(d.spent, 1, 'Concentración: spent (Aliento gasta 50)');
+    p.addBuff('a_t_vision', { 'gaugeLoss:concentracion': -100 }, T.concentracion.vision.t, { name: 'Visión Certera' });
+    p.moving = true;
+    v = h.gaugeView();
+    assert.ok(v.state === 'active' && v.label === 'Visión Certera' && v.x.visionT === 12 && v.x.visionMax === 12 && v.tMax === 12, 'Concentración: Visión Certera (x.visionT/visionMax)');
+    assert.equal(v.decaying, false, 'con Visión Certera moverte no la vacía');
+  }
+
+  // ---------------------------------------------------------------- Coto de Caza
+  {
+    const h = mk('arquera', 'montaraz', 40);
+    const p = h.p;
+    assert.ok((p.skills.a_t_cepo || 0) > 0, 'Montaraz conoce Trampa de Cepo (s0)');
+    let v = h.gaugeView();
+    assert.ok(v.x.trapCharges === T.coto.trap.charges && v.x.trapChargesMax === T.coto.trap.charges && v.x.trapCdFrac === 0, 'Coto: cargas de Trampa de Cepo listas');
+    const spawn = (x) => h.g.spawnField('trampa', { pos: { x, z: 0 }, radius: 1.5, dur: 20, owner: p, data: { dmg: 1 } });
+    let d = seqDelta(h, 'coto', () => { spawn(3); h.tick(0.1); });
+    assert.equal(d.gain, 1, 'Coto (derivado): gain al armar una trampa');
+    d = seqDelta(h, 'coto', () => { spawn(5); spawn(7); h.tick(0.1); });
+    assert.ok(d.gain === 1 && d.full === 1, `Coto: gain + full con 3 armadas (${JSON.stringify(d)})`);
+    d = seqDelta(h, 'coto', () => { for (const f of h.g.fields) f.dead = true; h.tick(0.1); });
+    assert.ok(d.spent === 1 && d.empty === 1, 'Coto: spent + empty al dispararse/caer');
+    // cargas: una gastada con recarga en curso (estado del comportamiento a_t_cepo)
+    p.powerState.a_t_cepo = { charges: 0, max: 1, nextAt: p.simT + 6 };
+    p.cdMax = { ...(p.cdMax || {}), a_t_cepo: 8 };
+    v = h.gaugeView();
+    assert.ok(v.x.trapCharges === 0 && approx(v.x.trapCdFrac, 0.25, 0.01), `Coto: x.trapCdFrac = progreso de la recarga (${v.x.trapCdFrac})`);
+    p.simT += 6.1;
+    assert.equal(h.gaugeView().x.trapCharges, 1, 'Coto: la recarga cumplida cuenta sin mutar el estado');
+    assert.equal(p.powerState.a_t_cepo.charges, 0, 'la vista no muta el estado del comportamiento');
+    // Presa
+    const el = h.enemy({ hp: 1000, rank: 'elite', pos: [0, 0, 4] });
+    el.def = { ...el.def, name: 'Bestia Alfa' };
+    h.hit(el, {});
+    el.hp = 600;
+    v = h.gaugeView();
+    assert.ok(v.state === 'prey' && v.x.preyName === 'Bestia Alfa' && v.x.preyHpPct === 60 && v.tMax === T.coto.preyT, 'Coto: Presa (x.preyName/preyHpPct, tMax 15)');
+    assert.equal(v.x.preyTrapped, false);
+    el.rootT = 2;
+    assert.equal(h.gaugeView().x.preyTrapped, true, 'Coto: x.preyTrapped con la Presa inmovilizada');
+  }
+
+  // ---------------------------------------------------------------- Impulso
+  {
+    const h = mk('arquera', 'tiradora', 40);
+    const p = h.p;
+    const e = h.enemy({ hp: 1e6 });
+    let v = h.gaugeView();
+    assert.equal(v.x.moving, false);
+    let d = seqDelta(h, 'impulso', () => { p.moving = true; h.hit(e, { tags: ['proj'], skill: 'a_disparo' }); });
+    assert.equal(d.gain, 1, 'Impulso: gain por disparo en movimiento');
+    assert.equal(h.gaugeView().x.moving, true, 'Impulso: x.moving');
+    d = seqDelta(h, 'impulso', () => h.gauge('impulso', 100));
+    assert.equal(d.full, 1, 'Impulso: full → Vendaval');
+    v = h.gaugeView();
+    assert.ok(v.state === 'active' && v.tMax === T.impulso.galeT && v.hold === true, 'Vendaval: tMax 6');
+    assert.deepEqual(v.ready, ['flecha_multiple'], 'Vendaval: Flecha Múltiple potenciada');
+    assert.equal(v.x.galeExt, 0);
+    h.addPowers('t_galechain');
+    powerState(p, 't_galechain').ext = 1.5;
+    p.gauges.impulso.galeT += 1.5;
+    v = h.gaugeView();
+    assert.ok(v.x.galeExt === 1.5 && v.tMax === T.impulso.galeT + 1.5, 'Impulso: x.galeExt alarga tMax (Vendaval Perpetuo)');
+    d = seqDelta(h, 'impulso', () => h.tick(8));
+    assert.equal(d.empty, 1, 'Impulso: empty al terminar el Vendaval');
+    assert.deepEqual(h.gaugeView().ready, []);
+  }
+
+  // ---------------------------------------------------------------- gaugeTuning: única fuente
+  // lo que gaugeTuning copia de un poder (powers-<clase>.js) debe coincidir con el texto del nodo
+  function nodeText(cls, spec, id) {
+    const n = TALENT_TREES[cls].specs.find(s => s.id === spec).nodes.find(x => x.id === id);
+    return typeof n.d === 'function' ? n.d(1) : n.d;
+  }
+  const has = (txt, ...bits) => bits.every(b => txt.includes(b));
+  assert.ok(has(nodeText('arquera', 'francotiradora', 's4'), `${T.concentracion.alientoSpend} de Concentración`), 'Aliento del Cazador');
+  assert.ok(has(nodeText('arquera', 'francotiradora', 's9'), `${T.concentracion.vision.t} s`), 'Visión Certera');
+  assert.ok(has(nodeText('arquera', 'montaraz', 's14'), `hasta ${T.coto.maxArmed + T.coto.maxArmedExtra}`), 'Coto Cerrado');
+  assert.ok(has(nodeText('arquera', 'tiradora', 's4'), `${T.impulso.andanada} de Impulso`), 'Andanada Impulsiva');
+  assert.ok(has(nodeText('arquera', 'tiradora', 's14'), `${T.impulso.galechain.perKill} s`, `+${T.impulso.galechain.max} s`), 'Vendaval Perpetuo');
+  console.log('✅ gaugeView v2 de la Arquera (movido de test75): x, seq y gaugeTuning contra el texto de los nodos OK');
+}

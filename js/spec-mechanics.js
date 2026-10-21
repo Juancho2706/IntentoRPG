@@ -56,6 +56,10 @@
 import * as TAL_G from './talents-guerrero.js';
 import * as TAL_M from './talents-maga.js';
 import * as TAL_A from './talents-arquera.js';
+// D29: la definición de las activas vive en el catálogo de la clase (hojas: solo importan skill-defs.js)
+import * as SK_G from './skills-guerrero.js';
+import * as SK_M from './skills-maga.js';
+import * as SK_A from './skills-arquera.js';
 // Paso 2 (E0.3): números y definiciones de los indicadores por clase (hojas sin imports;
 // también ANTES de powers.js por la misma razón)
 import * as MECH_G from './mech-guerrero.js';
@@ -83,12 +87,17 @@ function buffOf(p, id) { return (p?.buffs || []).find(b => b && b.id === id && b
 // estado de un poder SIN crearlo (la vista no muta nada del héroe)
 function peekPower(p, id) { return p?.powerState?.[id] || null; }
 function r2(n) { return Math.round(n * 100) / 100; }
+// definición de una activa por id (D29): el catálogo de la clase (skills-<clase>.js; desde KA1 trae
+// las activas de talento con kind 'talent') y, mientras el catálogo siga en v1, el puente
+// <CLASE>_TALENTS.skills. <CLASE>_TALENT_SKILLS es solo una lista de ids. Sin definición, {} y
+// el indicador usa sus valores por defecto.
 function talentSkill(id) {
   // (try: si un orden de carga raro llegara antes que las hojas, quedan los valores por defecto)
-  for (const get of [() => TAL_G.GUERRERO_TALENT_SKILLS, () => TAL_M.MAGA_TALENT_SKILLS, () => TAL_A.ARQUERA_TALENT_SKILLS]) {
+  for (const get of [() => SK_G.GUERRERO_SKILLS, () => SK_M.MAGA_SKILLS, () => SK_A.ARQUERA_SKILLS,
+    () => TAL_G.GUERRERO_TALENTS?.skills, () => TAL_M.MAGA_TALENTS?.skills, () => TAL_A.ARQUERA_TALENTS?.skills]) {
     let L = null;
     try { L = get(); } catch { L = null; }
-    const s = (L || []).find(x => x.id === id);
+    const s = (L || []).find(x => x && typeof x === 'object' && x.id === id);
     if (s) return s;
   }
   return {};

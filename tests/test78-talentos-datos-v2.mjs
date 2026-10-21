@@ -43,7 +43,9 @@ const { ELEMS, CATS } = SD;
 const ELEM_KEYS = new Set([...ELEMS, 'phys']);
 // claves de un nodo (§3.1) y de una opción de elección
 const NODE_KEYS = new Set(['id', 'name', 't', 'tag', 'r', 'c', 'max', 'req', 'free', 'fx', 'opts', 'd', 'win', 'touch', 'icon', 'arch', 'final', 'hyb', 'todo']);
-const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx']);
+// `todo` (la nota `impl` del esqueleto de E1.5) también va en cada opción: aviso, como en el nodo.
+// `touch` e `icon` por opción son del contrato del mockup (README-talents-v2: lo que ilumina cada opción)
+const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx', 'todo', 'touch', 'icon']);
 // stats que SUMA recompute: el saco `item` de Player.recompute (js/entities.js) y los atributos.
 // addStats descarta en silencio cualquier otra clave: un nodo con una errata no haría nada
 const ENTITIES_SRC = readFileSync(new URL('../js/entities.js', import.meta.url), 'utf8');
@@ -171,9 +173,10 @@ export function checkClassData(cid, data, ctx) {
         if (typeof n.win !== 'string' || !n.win.trim()) err('win', `${where}: falta win («cuál conviene»)`); else if (JARGON.test(n.win)) err('jerga', `${where}: win «${n.win}»`);
         for (const o of n.opts) {
           for (const k of Object.keys(o)) if (!OPT_KEYS.has(k)) err('nodo', `${where}${o.k}: clave de opción desconocida «${k}»`);
+          if ('todo' in o) warn('todo', `${where}${o.k}: aún tiene «todo» (${String(o.todo).slice(0, 60)})`);
           text(`${where}${o.k}`, o.desc);
           if (JARGON.test(o.name || '')) err('jerga', `${where}${o.k}: nombre «${o.name}»`);
-          fxs.push([o.fx || {}, `${where}${o.k}`, o.k]);
+          fxs.push([o.fx || {}, `${where}${o.k}`, o.k, o.touch]);
         }
       } else {
         if (!isFn(n.d)) err('textos', `${where}: d(r) debe ser una función`);
@@ -183,7 +186,7 @@ export function checkClassData(cid, data, ctx) {
         }
         fxs.push([n.fx || {}, where, null]);
       }
-      for (const [fx, at, k] of fxs) {
+      for (const [fx, at, k, optTouch] of fxs) {
         for (const key of Object.keys(fx)) if (!FX_KEYS.has(key)) err('fx', `${at}: clave de fx desconocida «${key}»`);
         for (const e of Object.keys(fx.elem || {})) if (!ELEM_KEYS.has(e)) err('fx', `${at}: elem «${e}»`);
         // vocabulario: stats que suma recompute, claves de mod, destinos y listas por rango
@@ -202,7 +205,7 @@ export function checkClassData(cid, data, ctx) {
         }
         // G1: la clase no toca el kit de especialización
         if (isCls) {
-          const sels = [...Object.keys(fx.mod || {}), ...Object.keys(fx.skillLv || {}), ...(n.touch || [])];
+          const sels = [...Object.keys(fx.mod || {}), ...Object.keys(fx.skillLv || {}), ...(n.touch || []), ...(optTouch || [])];
           for (const sel of sels) if (sel === '@spec' || sel === '@insignia' || sel === '@cat:spec' || kitIds.has(sel)) err('G1', `${at}: la clase toca «${sel}» (kit de especialización)`);
         }
         if (fx.grant) {
@@ -305,7 +308,10 @@ for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
     warnings: [], strict: STRICT[cid] };
   const errs = checkClassData(cid, data, ctx);
   assert.deepEqual(errs, [], `${cid}: datos v2 con errores:\n${errs.join('\n')}`);
-  for (const w of ctx.warnings) console.warn(`  ⚠ ${w}`);
+  // los `todo` del esqueleto se cuentan (son cientos); los demás avisos van uno a uno
+  const todos = ctx.warnings.filter(w => w.startsWith('[todo]'));
+  for (const w of ctx.warnings) if (!w.startsWith('[todo]')) console.warn(`  ⚠ ${w}`);
+  if (todos.length) console.warn(`  ⚠ [todo] ${cid}: ${todos.length} nodos u opciones con «todo» (esqueleto de E1.5: KT los cierra en E2; STRICT los vuelve error)`);
   real++;
   console.log(`✓ ${cid}: datos del juego v2 en regla`);
 }
@@ -379,6 +385,7 @@ expectFail('elemento inválido', d => { spec0(d).elem = 'phys'; }, 'elem');
 expectFail('mecánica inexistente', d => { d.specs[1].mechanic = 'furia'; }, 'mecánica');
 expectFail('@spec en la clase (G1)', d => { node(d.cls.nodes, 'c2').fx = { mod: { '@spec': { dmg: 5 } } }; }, 'G1');
 expectFail('la clase nombra el kit (G1)', d => { node(d.cls.nodes, 'c7').touch = ['fx_crionte_k2']; }, 'G1');
+expectFail('una opción de la clase nombra el kit (G1)', d => { node(d.cls.nodes, 'c6').opts[1].touch = ['fx_crionte_k2']; }, 'G1');
 expectFail('build ilegal punto a punto (G8)', d => { const b = d.builds.brasa; delete b.cls.c1; }, 'builds');
 expectFail('elección de build inválida', d => { d.builds.rayo.specCh.a8 = 'C'; }, 'builds');
 expectFail('tres builds en una especialización', d => { delete d.builds.hibcrio; }, 'builds');
@@ -420,6 +427,7 @@ expectFail('clave de opción desconocida', d => { node(d.cls.nodes, 'c6').opts[0
 expectWarn('build.bar sin la principal (G8b)', d => { const [k1, k2, , k4] = FIX.FIXTURE_KITS.piromante; d.builds.brasa.bar = { lmb: 'fx_basico', rmb: null, k1: k2, k2: null, k3: k1, k4 }; }, 'G8b');
 expectWarn('barra de la build sin la definitiva (G8b)', d => { for (const k of ['brasa', 'cataclismo', 'ignicion', 'hibrido']) d.builds[k].bar = { ...fixBar('piromante'), k4: null }; }, 'G8b');
 expectWarn('nodo con «todo»', d => { node(spec0(d).nodes, 's7').todo = 'falta el efecto'; }, 'todo');
+expectWarn('opción con «todo»', d => { node(d.cls.nodes, 'c6').opts[0].todo = 'falta el efecto'; }, 'todo');
 console.log(`✓ ${mutations} mutaciones sembradas: cada regla detecta su error (y los avisos solo fallan con strict)`);
 
 console.log(`\n✅ DATOS DE TALENTOS v2 (test78): ${real} clase(s) del juego en v2 y el fixture en regla`);

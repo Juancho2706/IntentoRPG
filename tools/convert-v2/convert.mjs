@@ -111,7 +111,7 @@ async function draft({ escribirJs = false } = {}) {
     const dir = escribirJs ? DEST : join(OUT, cls);
     const archivos = { talents: join(dir, `talents-${cls}.js`), hero: join(dir, `hero-${cls}.js`), skills: escribirJs ? null : join(dir, `skills-${cls}.draft.js`) };
     escribir(archivos.hero, textoHero({ cls, conv, helpers, fuente }));
-    escribir(archivos.talents, textoTalents({ cls, conv, helpers, fuente }));
+    escribir(archivos.talents, textoTalents({ cls, conv, helpers, fuente, escribirJs }));
     if (!escribirJs) {
       escribir(archivos.skills, textoSkillsDraft({ cls, conv, fuente }));
       escribir(join(dir, 'talent-text.js'), textoShim(dir, join(ROOT, 'js')));
