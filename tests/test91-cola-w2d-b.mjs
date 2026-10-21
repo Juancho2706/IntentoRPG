@@ -175,12 +175,13 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   const a2 = none.enemy({ hp: 1e6, pos: [0, 0, 5] }), nb2 = none.enemy({ hp: 1e6, pos: [1.2, 0, 5.4] });
   none.p.basicAttack(a2); none.step(0.6);
   assert.equal(of(nb2).length, 0, 'sin splash en el perfil, no salpica');
-  // Saeta Ígnea real (su poder aún estalla, tanda 2): la salpicadura nativa no se le suma
+  // Saeta Ígnea real (sin poder desde la tanda 2: el estallido es la salpicadura nativa)
   const si = hero('maga', 30); forge(si, { m_dardo: 'i' });
   const a3 = si.enemy({ hp: 1e7, pos: [0, 0, 5] }), nb3 = si.enemy({ hp: 1e7, pos: [1.2, 0, 5.4] });
   si.p.basicAttack(a3); si.step(0.6);
   const got = of(nb3, x => x.skill === 'm_dardo');
   assert.equal(got.length, 1, `Saeta Ígnea: un solo estallido al vecino (${got.map(x => x.source)})`);
+  assert.deepEqual(got.map(x => x.source), ['splash'], 'Saeta Ígnea: el estallido es la salpicadura nativa');
   console.log('Básico de arma: salpicadura nativa (splash/radius del perfil, source splash, sin repetir) ✓');
 }
 

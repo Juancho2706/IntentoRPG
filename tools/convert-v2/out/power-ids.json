@@ -2354,7 +2354,7 @@
         "p_corazon_sol", "p_crater", "p_escudo_llamas", "p_estela_meteorica", "p_estrellas_fugaces", "p_fenix",
         "p_ignicion", "p_incendio", "p_llamarada_avivada", "p_llamarada_voraz", "p_lluvia_fuego",
         "p_meteoro_conc", "p_meteoro_gemelo", "p_perpetua", "p_pira", "p_propagacion", "p_sismico", "p_volatil",
-        "v_coraza_arcana", "v_fractura", "v_ojo", "v_prision_fugaz", "v_racimo", "v_reactiva", "v_saeta_ignea",
+        "v_coraza_arcana", "v_fractura", "v_ojo", "v_prision_fugaz", "v_racimo", "v_reactiva",
         "v_sello_contencion"
       ],
       "guerrero": [
