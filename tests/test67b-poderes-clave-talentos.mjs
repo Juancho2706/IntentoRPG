@@ -9,7 +9,8 @@ import { TALENT_TREES } from '../js/talents.js';
 
 // poder clave → clase que lo lleva
 const KEY_POWERS = {
-  m_berserk: 'guerrero', m_aegis: 'guerrero', m_judgment: 'guerrero',
+  // Guerrero (docs/paso2g-guerrero.md §11.3): m_aegis y m_judgment salen; m_berserk sigue en b0
+  m_berserk: 'guerrero',
   m_conflag: 'maga', m_shatter: 'maga', m_overload: 'maga',
   m_deadeye: 'arquera', m_hunt: 'arquera', multidisparo: 'arquera',
 };
