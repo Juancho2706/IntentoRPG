@@ -12,6 +12,24 @@
       "ruta": "reco",
       "motivo": "ARQUERA_FORGE_RECO es de KA2 (E2) y queda vacío hasta entonces. Se retira al fusionar KA2.",
       "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "builds.cruzado.bar",
+      "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.2 (G8b se mide contra build.bar; el mockup no trae barras por build).",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "builds.vigia.bar",
+      "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.6 «Atalaya Eterna» (G8b se mide contra build.bar; el mockup no trae barras por build).",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "builds.caceria.bar",
+      "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.7 «Gran Cacería» (G8b se mide contra build.bar; el mockup no trae barras por build).",
+      "aprobada": false
     }
   ]
 }

@@ -47,10 +47,11 @@
 // (ningún nodo 2g los lleva); el documento los retira o los sustituye (§11.1).
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
-import { gainGauge, spendGauge, gaugeValue, gaugeState } from './spec-mechanics.js';
+import { gainGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
 import { projFanOffset } from './skill-defs.js';
-import { rankCoef } from './combat-math.js';
-import { enemiesInField } from './field-entities.js';
+import { enemiesInField, fieldArmed, insideField } from './field-entities.js';
+import { spendResource } from './resources.js';
+import { cotoAddPrey, cotoPreys } from './mech-arquera.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
 
 // ------------------------------------------------------------
@@ -109,27 +110,92 @@ function tune() {
       assault: { dur: 6, every: 0.5, coef: 0.4, blind: 30, stagger: 30 }, guard: { below: 0.4, dur: 4, every: 60 },
       sky: { every: 30, dur: 4, gap: 1 }, color: 0xb98a55,
     }),
-    // ---- especializaciones (v1 de 2c; trabajos 2 y 3)
-    aliento: { spend: 50 },                          // F s4
-    acechador: { lossPct: -15 },                     // F s15: 'gaugeLoss:concentracion'
-    patience: { perSec: 2, max: 20 },                // F s13B
-    overpen: { perEnemy: 15 },                       // F s14
-    herida: { pct: 50, dur: 6 },                     // F s6B
-    weakspot: { dur: 8, crit: 15 },                  // F x1
-    impossible: { gap: 0.25 },                       // F x3
-    cepo: { maxArmed: 3, extraR: 0.3, mineCoef: 1.2, poisonDur: 5, ironBossSlow: 50 },
-    warden: { pctPerSec: 3, pulse: 0.5 },            // M s13B
-    lazo: { rootPerRank: 0.5 },                      // M s10
-    ponzona: { slowPct: 10, slowT: 1.2 },            // M s11
-    web: { link: 10, width: 0.6, slowPct: 50, slowT: 0.6, pulse: 0.2, bleedCoef: 1.0, vfx: 0.5 },
-    greathunt: { dmgPct: 15, dur: 6 },               // M x3
-    vientoCola: { aspdPerRank: 5 },                  // T s5
-    andanada: { impulso: 20 },                       // T s4
-    galechain: { perKill: 0.5, max: 6 },             // T s14
-    slip: { spdPct: 15, every: 0.6, dur: 2.5, radius: 1.6 },  // T s13B
-    infinite: { every: 10, storm: 5 },               // T x1 / x3
-    rebote: { first: 1.8, jumps: 5 },                // T s6A (Paso 2e)
-    bengala: { weakPct: 15, weakenPct: 15 },         // c22A (si la definición no los trae)
+    // ---- Tiradora Veloz (§7.0)
+    tir: Object.freeze({
+      triple: { every: 3, count: 2, spread: 0.262, wideCount: 4, wideSpread: 0.524, coef: 0.6 },   // v0 (30°) · v8A (60°)
+      remate: { icd: 4 },                                        // v5
+      soltar: { mult: 0.6 },                                     // v6
+      clavado: { pct: 20 },                                      // v8B
+      instante: { win: 0.5, pct: 40, impulso: 20 },              // v9A
+      idaVuelta: { third: 0.7 },                                 // v9B
+      rueda: { every: 1, n: 8, coef: 0.6 },                      // v10A
+      blanco: { pct: 10, max: 6 },                               // v10B
+      salto: { perRank: 8 },                                     // v12
+      vacio: { radius: 5, pull: 2, stagger: 15 },                // v14
+      brisa: { dr: 20 },                                         // v15A
+      retirada: { icd: 8, jump: 4, airT: 0.3, impulso: 15 },     // v15B
+      plumas: { over: 50, pctPerRank: 10, ratePerRank: 15 },     // v16
+      nube: { first: 6, perRank: 0.4 },                          // v17 (s de Diluvio por segundo de Carrera)
+      perdidas: { coef: 0.5, range: 10 },                        // v18
+      encadenado: { perRank: 0.5, max: 4 },                      // v19
+      fiel: { first: 6, step: 0.4, base: 0.5 },                  // v21
+      rafaga: { win: 3 },                                        // v22
+      ciclon: { base: 2.5, perRank: 0.5, dur: 4, every: 0.5, coef: 0.28, range: 8, max: 3 },   // v24
+      tormenta: { every: 3, base: 3, perRank: 3, coef: 0.6, seek: 3, range: 12 },             // v25
+      vaiven: { uses: [1, 2, Infinity], costMul: 0.5 },          // v26
+      galerna: { extra: [2, 4, Infinity], cost: 10, ramp: 3 },   // v27 (Energía/s: 10 + 3 por segundo extra)
+      ojo: { spdPct: 20, eliteImpulso: 50, max: -20, diluvio: 4 },                            // v28
+    }),
+    // ---- Francotiradora (§7.1)
+    fra: Object.freeze({
+      cuerda: { max: 1, perfect: [0.8, 1], addPct: 60, moveMul: 0.6, tensedAt: 0.3, farAt: 10 },  // f0 · f20 (más de 10 m)
+      weakDur: 8,                                                // Punto Débil (marca de Tiro Rastreador)
+      sobre: { perRank: 10, max: 4 },                            // f4
+      mira: { dur: 4 },                                          // f5
+      pulso: { widen: 1.5 },                                     // f6
+      estela: { delay: 0.5, coef: 0.3, width: 1.5 },             // f8A
+      doble: { mult: 0.3 },                                      // f8B
+      saltarina: { range: 10 },                                  // f9A
+      vital: { pct: 35, stagger: 15 },                           // f9B
+      salva: { n: 2, coef: 0.25, range: 12 },                    // f10A
+      paciencia: { pct: 15, max: 3 },                            // f10B
+      fila: { energy: 4, focus: 5 },                             // f11 (por rango)
+      lectura: { perRank: 25 },                                  // f12
+      vigia: { perRank: 15 },                                    // f13
+      estrella: { cdr: 1.5 },                                    // f14
+      nervios: { pct: 8, icd: 6, dur: 6 },                       // f15B
+      serenidad: { over: 50, perRank: 10 },                      // f16
+      gemelos: { perRank: 0.35 },                                // f17
+      rebote: { perRank: 0.1, step: 0.25 },                      // f18
+      expuesta: { perRank: 6 },                                  // f19
+      firmamento: { rate: 0.2 },                                 // f21
+      paralelas: { gap: 1, coef: 0.2 },                          // f22
+      heridas: { max: 5, perRank: 2 },                           // f23
+      entrenado: { base: 7 },                                    // f24 (cada 7 − rango s)
+      mortal: { range: 30, base: 5, perRank: 5, width: 1.5 },    // f25
+      imposible: { base: 5, perRank: 10, stagger: 20, delay: 0.15 },   // f26 (icd 1 s)
+      atalaya: { dur: [20, 30, Infinity], every: 5, coef: 2, range: 16 },   // f27
+      inmovil: { eliteFocus: 50, max: -20, celeste: 5 },         // f28
+    }),
+    // ---- Montaraz (§7.2)
+    mon: Object.freeze({
+      cebo: { radius: 6, eliteRadius: 3, boss: false, speedMul: 0.8 },   // m0 (el mismo cebo que Trampa de Cepo)
+      atrapada: { icd: 10, coef: 0.6, radius: 2.25 },            // m5
+      zarzal: { radius: 2, slowPct: 40, max: 6, color: 0x5f8f3a },        // m6, m14, m21, m24
+      cercoPresa: { dur: 4 },                                    // m6
+      racimo: { mul: 0.35, gap: 1.3 },                           // m8A
+      reforzado: { n: 3, coef: 0.2, every: 0.3, radius: 2.25 },  // m8B
+      manada: { max: 3 },                                        // m9A (1 élite + 2 que pisan)
+      herida: { weak: 10, stagger: 25 },                         // m9B
+      creciente: { perSec: 1, max: 12 },                         // m10A
+      asfixia: { perSec: 15, max: 90 },                          // m10B
+      metralla: { perRank: 2, coef: 0.2, range: 8 },             // m11
+      acoso: { perRank: 15, slowPct: 30, slowT: 3 },             // m12
+      semillas: { dur: 4 },                                      // m14
+      huida: { below: 0.5, radius: 4, root: 3, icd: 30 },        // m15A
+      guarida: { radius: 4, dr: 15 },                            // m15B
+      cerrado: { min: 2, perRank: 6 },                           // m16 (+rango s a los zarzales)
+      trepadoras: { perRank: 0.5, max: 4, band: 1.2 },           // m17
+      rearme: { perRank: 1, gap: 0.3 },                          // m18
+      rastro: { range: 10, energy: 10 },                         // m19
+      rebrote: { n: 3, dur: 6 },                                 // m21
+      sembrado: { mul: 0.35, gap: 1.1, max: 6 },                 // m22
+      siembra: { base: 2, perRank: 2 },                          // m24
+      arrasada: { mul: 0.3, dist: 3, max: 6 },                   // m25
+      caceria: { icd: [12, 9, 6], ring: 2.2, mul: 0.5 },         // m26
+      bosque: { icd: 8, base: 1, radius: 7 },                    // m27 (Cerco de rango + 1 s)
+      corazon: { slowR: 3, slowPct: 30, every: 12, icd: 90 },    // m28
+    }),
   }));
 }
 
@@ -210,7 +276,7 @@ function strike(g, p, e, coef, addPct, skill, tags) {
 // CUBETA DE AUTOCURACIÓN (ronda 3, §20): Paso Sanador, Punta Curativa (y el escudo de Nervios de
 // Acero) suman como mucho 1 % de la vida por segundo: un depósito de `cap` % que se rellena a
 // `perSec` % por segundo. Devuelve lo curado.
-function selfHeal(g, p, pct, src) {
+function takeCubeta(p, pct) {
   const T = tune().cubeta;
   const st = powerState(p, 'arq_cubeta');
   const t = now(p);
@@ -220,8 +286,20 @@ function selfHeal(g, p, pct, src) {
   const take = Math.min(pct, st.v);
   if (!(take > 0)) return 0;
   st.v -= take;
+  return take;
+}
+function selfHeal(g, p, pct, src) {
+  const take = takeCubeta(p, pct);
+  if (!(take > 0)) return 0;
   const amount = (p.stats?.maxHP || 0) * take / 100;
   return g?.heal ? g.heal(amount, { target: 'self', src }) : (p.healSkill?.(amount, src) || 0);
+}
+// escudo a ti misma por la misma cubeta (Nervios de Acero)
+function selfShield(g, p, pct, dur, src) {
+  const take = takeCubeta(p, pct);
+  if (!(take > 0)) return 0;
+  const amount = (p.stats?.maxHP || 0) * take / 100;
+  return g?.shield ? g.shield(amount, { target: 'self', dur, src }) : (p.addShield?.(amount, dur, src) || 0);
 }
 
 // REPETICIÓN GRATIS de una habilidad, también si no está en la barra (Lluvia en Retirada,
@@ -247,7 +325,7 @@ function castEchoOf(g, p, id, mult, at = null) {
 }
 
 // ---------- Bomba de Humo (campos que deja a_humo: la zona y la ceguera) ----------
-function isSmoke(f) { return !f.dead && (f.data?.skill === 'a_humo' || f.kind === 'a_humo_ciego'); }
+function isSmoke(f) { return !f.dead && f.data?.skill === 'a_humo'; }
 function smokesOf(g, p) { return (g?.fields || []).filter(f => f.owner === p && isSmoke(f)); }
 function smokesHere(g, p) { return (g?.fieldsAt ? g.fieldsAt(p.pos) : []).filter(f => f.owner === p && isSmoke(f)); }
 
@@ -654,12 +732,20 @@ export function arqueraPowers() {
     // c23 Recarga en Marcha: cada principal recarga 0,3 s/rango de Paso Veloz y de la Bomba de Humo
     a_recarga_marcha: {
       name: 'Recarga en Marcha', desc: 'Cada habilidad principal que lanzas recarga Paso Veloz y la Bomba de Humo.',
+      state: () => ({ pend: 0 }),
       afterCast(g, p, cast) {
         if (cast?.sk?.cat !== 'spender') return;
         const s = tune().cls.marcha.perRank * powerRank(p, 'a_recarga_marcha');
         if (!(s > 0)) return;
         g.reduceCooldown?.(p, 'a_paso', s);
-        g.reduceCooldown?.(p, 'a_humo', s);
+        // la Bomba de Humo se recarga al disiparse (cdOnEnd): lo de mientras dura queda pendiente
+        if (!((g.reduceCooldown?.(p, 'a_humo', s) || 0) > 0) && (p.cds?.a_humo || 0) > 0) powerState(p, 'a_recarga_marcha').pend += s;
+      },
+      onTick(g, p) {
+        const st = powerState(p, 'a_recarga_marcha');
+        if (!(st.pend > 0)) return;
+        if (!((p.cds?.a_humo || 0) > 0)) { st.pend = 0; return; }
+        if ((g.reduceCooldown?.(p, 'a_humo', st.pend) || 0) > 0) st.pend = 0;
       },
     },
     // c25 Emboscada: al salir de tu Bomba de Humo (o al acabarse), tus rango+1 siguientes
@@ -736,9 +822,9 @@ export function arqueraPowers() {
           if (!f._arqManto) {
             f._arqManto = true;
             f.follow = 'owner';
-            if (f.kind !== 'a_humo_ciego' && (f.data.allyDr || 0) > T.dr) f.data.allyDr = T.dr;
+            if ((f.data.allyDr || 0) > T.dr) f.data.allyDr = T.dr;
           }
-          if (f.kind === 'a_humo_ciego' || !(r > 0)) continue;
+          if (!(r > 0)) continue;
           const pct = T.healPerRank * r;
           const at = v3(f.pos.x, f.pos.z);
           const inside = new Set((g.allies ? g.allies() : []).filter(a => a !== p && dist2(a.pos, f.pos) <= f.radius * f.radius));
@@ -1040,315 +1126,10 @@ export function arqueraPowers() {
       },
     },
 
-    // ================ especializaciones (v1 de 2c: trabajos 2 y 3 de KT) ================
-    // ---------------- Francotiradora ----------------
-    // s4 Aliento del Cazador: con Concentración 100, Disparo Apuntado sale sin carga y gasta 50.
-    // (s11 Respiración Profunda es tv.focusEnergy: la Energía al llenar la da el núcleo)
-    f_aliento_cazador: {
-      name: 'Aliento del Cazador', desc: 'Con la Concentración al 100 %, Disparo Apuntado sale al instante y gasta 50 de Concentración.',
-      modifyResolve(p, sk, prof) {
-        if (sk.id !== 'a_t_apuntado') return;
-        if (focus(p) >= 100 - 1e-6) { prof.windup = 0; prof.aliento = true; }
-      },
-      // el perfil está cacheado: se corrige con la Concentración de ESTE instante
-      onCast(g, p, cast) {
-        if (cast?.sk?.id !== 'a_t_apuntado') return;
-        const full = focus(p) >= 100 - 1e-6;
-        if (full !== !!cast.prof.aliento) {
-          cast.prof.windup = full ? 0 : (cast.sk.windup || 0);
-          cast.prof.aliento = full;
-          if (p.resolved) delete p.resolved[cast.sk.id];
-        }
-        if (full) spendGauge(p, 'concentracion', tune().aliento.spend);
-      },
-      onGauge(g, p, id, ev) {
-        if (id === 'concentracion' && ev === 'full' && p.resolved) delete p.resolved.a_t_apuntado;
-      },
-    },
-    // s15 Paso del Acechador: moverte vacía un 15 % menos de Concentración (el +5 %/rango
-    // de movimiento es el stats del nodo)
-    f_acechador: {
-      name: 'Paso del Acechador', desc: 'Moverte vacía un 15 % menos de Concentración.',
-      stats: () => ({ 'gaugeLoss:concentracion': tune().acechador.lossPct }),
-    },
-    // s13B Paciencia del Depredador: quieta, +2 % de daño por segundo (máx. +20 %)
-    f_patience: {
-      name: 'Paciencia del Depredador', desc: 'Quieta, ganas +2 % de daño por segundo, hasta +20 %. Se pierde al moverte.',
-      state: () => ({ t: 0 }),
-      onTick(g, p, dt) { const st = powerState(p, 'f_patience'); st.t = p.moving ? 0 : st.t + dt; },
-      condAdd(p) {
-        if (p.moving) return 0;
-        const T = tune().patience;
-        return Math.min(T.max, T.perSec * powerState(p, 'f_patience').t);
-      },
-    },
-    // s14 Sobrepenetración: cada enemigo atravesado da +15 % (aditivo) contra el siguiente.
-    f_overpen: {
-      name: 'Sobrepenetración', desc: 'Cada enemigo que atraviesa Disparo Apuntado aumenta un 15 % su daño contra el siguiente.',
-      // hit = hitInfo del disparo (uno por disparo): cuenta los enemigos ya atravesados
-      condAdd(p, e, hit) {
-        if (hit?.skill !== 'a_t_apuntado' || hit.proc || hit.dot) return 0;
-        const n = hit._overpen | 0;
-        hit._overpen = n + 1;
-        return tune().overpen.perEnemy * n;
-      },
-    },
-    // s6B Herida Abierta: los críticos de Disparo Apuntado sangran un 80 % extra en 6 s.
-    f_herida_abierta: {
-      name: 'Herida Abierta', desc: 'Los críticos de Disparo Apuntado sangran un 50 % extra en 6 s.',
-      onHit(g, p, e, hit) {
-        if (hit?.skill !== 'a_t_apuntado' || !hit.crit || hit.proc || hit.dot || !e?.alive) return;
-        const T = tune().herida;
-        const tv = p.tv || {};
-        const total = hit.raw * T.pct / 100 * Math.max(0, 1 + ((tv.dotPct || 0) + (tv.bleedPct || 0)) / 100);
-        g.applyDoT?.(e, total, T.dur, 1, 'txt', 'a_t_apuntado:bleed');
-      },
-    },
-    // x1 Punto Débil: Disparo Apuntado marca a élites y jefes 8 s (+15 % de crítico contra ellos).
-    // x2 Herida Expuesta (tv.weakCritDmg): +X puntos de daño crítico (saco aditivo) contra el marcado.
-    f_weakspot: {
-      name: 'Punto Débil', desc: 'Disparo Apuntado marca a élites y jefes 8 s: +15 % de probabilidad de crítico contra ellos.',
-      onHit(g, p, e, hit) {
-        if (!e || hit?.proc || hit?.dot) return;
-        if (hit.skill === 'a_t_apuntado' && e.alive && isEliteish(e)) {
-          const fresh = !weak(p, e);
-          e._weakspotUntil = now(p) + tune().weakspot.dur;
-          e.weakspotBy = p;                              // el grupo (cooperativo) lo lee del enemigo
-          if (fresh) g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 0.9), '¡PUNTO DÉBIL!', 'txt-crit');
-        }
-        // Herida Expuesta: el crítico ya salió; se suma la parte de +X puntos del saco aditivo
-        const w = p.tv?.weakCritDmg || 0;
-        if (w > 0 && hit.crit && weak(p, e) && e.alive && hit.raw > 0) {
-          const A = 100 + (p.stats?.dmgPct || 0) + (p.stats?.critDmg || 0);
-          dealProcDamage(g, e, hit.raw * w / A, { source: 'power:f_weakspot' });
-        }
-      },
-      condCrit(p, e) { return weak(p, e) ? tune().weakspot.crit : 0; },
-    },
-    // x3 Disparo Imposible: con Concentración 100, Disparo Apuntado sale dos veces y el
-    // segundo es crítico seguro (lo dispara el comportamiento; aquí se decide al lanzar)
-    f_impossible: {
-      name: 'Disparo Imposible', desc: 'Con la Concentración al 100 %, Disparo Apuntado se dispara dos veces y el segundo es crítico seguro.',
-      priority: 5,                                     // antes de que Aliento del Cazador gaste 50
-      onCast(g, p, cast) {
-        if (cast?.sk?.id === 'a_t_apuntado' && focus(p) >= 100 - 1e-6) cast.impossible = true;
-      },
-    },
-
-    // ---------------- Montaraz ----------------
-    // s4 Cepo Doble: Trampa de Cepo gana una 2.ª carga (la lee el comportamiento: trapCharges).
-    m_cepo_doble: {
-      name: 'Cepo Doble', desc: 'Trampa de Cepo gana una 2.ª carga.',
-    },
-    // s10 Lazo Corredizo: Flecha Perforante inmoviliza 0,5 s/rango al PRIMER enemigo que toca.
-    m_lazo: {
-      name: 'Lazo Corredizo', desc: 'Flecha Perforante inmoviliza al primer enemigo que toca.',
-      state: () => ({ armed: false }),
-      onCast(g, p, cast) {
-        if (cast?.sk?.id === 'flecha_perforante') powerState(p, 'm_lazo').armed = true;
-      },
-      onHit(g, p, e, hit) {
-        if (hit?.skill !== 'flecha_perforante' || hit.proc || hit.dot) return;
-        const st = powerState(p, 'm_lazo');
-        if (!st.armed) return;
-        st.armed = false;
-        const r = Math.max(1, nodeRank(p, 'montaraz', 's10'));
-        if (e?.alive) e.applyCC?.('root', tune().lazo.rootPerRank * r, { src: p });
-      },
-    },
-    // s6A Cepo de Hierro: a los jefes los ralentiza un 50 % (el «+1 s» es su mod.rootAdd)
-    m_cepo_hierro: {
-      name: 'Cepo de Hierro', desc: 'Trampa de Cepo ralentiza un 50 % a los jefes.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'a_t_cepo') prof.bossSlowPct = tune().cepo.ironBossSlow; },
-    },
-    // s6B Mina de Espinas: la trampa estalla en 3 m (su mod.radius +100 %) con el 120 % del
-    // arma y no inmoviliza (el coeficiente de la explosión lo pone el comportamiento a_t_cepo)
-    m_mina: {
-      name: 'Mina de Espinas', desc: 'Trampa de Cepo estalla en 3 m con el 120 % del arma, pero no inmoviliza.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'a_t_cepo') prof.mine = true; },
-    },
-    // s13B Guardabosques: las trampas armadas curan un 3 %/s a los aliados encima (campo a_cepo).
-    m_warden: {
-      name: 'Guardabosques', desc: 'Tus trampas armadas curan un 3 % de vida por segundo a los aliados que estén encima.',
-    },
-    // s14 Coto Cerrado: 1 trampa armada más (4) y +30 % de radio de activación.
-    m_extratrap: {
-      name: 'Coto Cerrado', desc: 'Puedes armar 1 trampa más (hasta 4) y su radio de activación crece un 30 %.',
-      stats: () => ({ 'gaugeMax:coto': 1 }),
-    },
-    // s3 Abrojos: la Lluvia de Flechas deja abrojos (2 s/rango) que ralentizan un 30 %.
-    // La Estela que el núcleo crea por mod.zone daña y no ralentiza: se sustituye por a_abrojos.
-    m_abrojos: {
-      name: 'Abrojos', desc: 'Lluvia de Flechas deja abrojos que ralentizan un 30 %.',
-      afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'lluvia_flechas' || !cast.target) return;
-        const prof = cast.prof;
-        for (const f of g.fields || [])
-          if (!f.dead && f.kind === 'estela' && f.owner === p && f.data?.skill === 'lluvia_flechas' && f.t > (f.dur || 0) - 0.05) {
-            if (g._expireField) g._expireField(f); else f.t = 0;
-          }
-        g.spawnField?.('a_abrojos', { pos: cast.target.clone ? cast.target.clone() : cast.target, radius: prof.radius || 3,
-          dur: prof.zoneDur || 2, owner: p, data: { slowPct: prof.slowPct || 30 } });
-      },
-    },
-    // s11 Ponzoña Lenta: el Veneno ralentiza un 10 % (el «+1,5 s» es su tv.dotDur)
-    m_ponzona: {
-      name: 'Ponzoña Lenta', desc: 'Tu Veneno ralentiza un 10 %.',
-      procs: true,                                     // reacciona a los tics de Veneno
-      onHit(g, p, e, hit) {
-        if (!hit?.dot || !e?.alive || !/:poison$/.test(hit.source || '')) return;
-        const T = tune().ponzona;
-        e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
-      },
-    },
-    // x1 Red de Espinas: las trampas armadas a ≤ 10 m se unen; quien cruza la red queda
-    // ralentizado un 50 % y sangra. x2 Zarzal (tv.webDmg): X % de tu golpe medio por segundo.
-    m_thornweb: {
-      name: 'Red de Espinas', desc: 'Tus trampas armadas a menos de 10 m se unen con una red de espinas que ralentiza un 50 % y hace sangrar.',
-      state: () => ({ acc: 0, vfx: 0 }),
-      onTick(g, p, dt) {
-        const st = powerState(p, 'm_thornweb');
-        const T = tune().web;
-        st.acc += dt; st.vfx += dt;
-        if (st.acc < T.pulse - 1e-9) return;
-        st.acc = 0;
-        const traps = armedTraps(g, p);
-        if (traps.length < 2) return;
-        const segs = [];
-        for (let i = 0; i < traps.length; i++) for (let j = i + 1; j < traps.length; j++) {
-          const a = traps[i].pos, b = traps[j].pos;
-          if (Math.hypot(a.x - b.x, a.z - b.z) <= T.link) segs.push([a, b]);
-        }
-        if (!segs.length) return;
-        if (st.vfx >= T.vfx) {
-          st.vfx = 0;
-          for (const [a, b] of segs) g.spawnBeam?.(v3(a.x, a.z, 0.3), v3(b.x, b.z, 0.3), 0x7a9a3a, T.vfx);
-        }
-        const webDmg = p.tv?.webDmg || 0;
-        const great = hasPower(p, 'm_greathunt');
-        const preyE = gaugeState(p, 'coto')?.prey || null;
-        for (const e of g.enemies || []) {
-          if (!e.alive) continue;
-          const r = T.width + 0.3 * (e.def?.scale || 1);
-          if (!segs.some(([a, b]) => segDist2(e.pos.x, e.pos.z, a, b) <= r * r)) continue;
-          e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
-          if (!g.hasDoT?.(e, 'm_thornweb:bleed')) {
-            const d = dotOf(p, 'bleed', p.avgHit(T.bleedCoef) * 0.6, 3);
-            g.applyDoT?.(e, d.total, d.ticks, 1, 'txt', 'm_thornweb:bleed');
-          }
-          if (webDmg > 0 && now(p) - (e._webAt ?? -9) >= 1 - 1e-6) {
-            e._webAt = now(p);
-            dealProcDamage(g, e, p.avgHit(1) * webDmg / 100, { source: 'power:m_thornweb' });
-          }
-          if (great && e.alive && e === preyE && e.prey) greatHunt(g, p, e);
-        }
-      },
-    },
-    // x3 Gran Cacería: si la Presa queda atrapada en la red, todas las trampas se rearman y el
-    // grupo gana +15 % de daño 6 s (una vez por Presa; lo dispara m_thornweb).
-    m_greathunt: {
-      name: 'Gran Cacería', desc: 'Si tu Presa queda atrapada en la red, todas las trampas se rearman y el grupo gana +15 % de daño durante 6 s.',
-    },
-
-    // ---------------- Tiradora Veloz ----------------
-    // s4 Andanada Impulsiva: Andanada da 20 de Impulso.
-    t_andanada_impulsiva: {
-      name: 'Andanada Impulsiva', desc: 'Andanada te da 20 de Impulso.',
-      onCast(g, p, cast) {
-        if (cast?.sk?.id === 'a_t_andanada') gainGauge(p, 'impulso', tune().andanada.impulso);
-      },
-    },
-    // s6A Flechas Rebotadoras (Paso 2e; antes mod.chain: solo rebotaba la PRIMERA flecha de cada
-    // lanzamiento): cada flecha de Flecha Múltiple que impacta rebota a 5 enemigos cercanos, la
-    // primera con el 180 % de su golpe (el rebote del núcleo pierde un 25 % por salto)
-    t_rebote: {
-      name: 'Flechas Rebotadoras', desc: 'Cada flecha de Flecha Múltiple que impacta rebota a 5 enemigos cercanos (la primera con el 180 %).',
-      onHit(g, p, e, hit) {
-        if (hit?.skill !== 'flecha_multiple' || hit.proc || hit.dot || !e || !(hit.dealt > 0)) return;
-        const R = tune().rebote;
-        g.spawnChainBounce?.(e, Math.round(hit.dealt * R.first / 0.75), R.jumps, [], 0x66d7c7);
-      },
-    },
-    // s6B Corona de Flechas: Flecha Múltiple sale en 360° (las +4 flechas y el −30 % son su mod)
-    t_corona: {
-      name: 'Corona de Flechas', desc: 'Flecha Múltiple sale en 360°.',
-      priority: -10,                                   // modifyResolve: después de sumar proyectiles
-      modifyResolve(p, sk, prof) {
-        if (sk.id !== 'flecha_multiple') return;
-        const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
-        prof.spread = Math.PI * (n - 1) / n;            // n flechas repartidas en la vuelta entera
-      },
-    },
-    // s5 Viento de Cola: +5 %/rango de vel. de ataque mientras dura Agilidad (el +1 s/rango
-    // es su mod.agilidad.durS)
-    t_viento_cola: {
-      name: 'Viento de Cola', desc: 'Mientras dura Agilidad, ganas +5 % de velocidad de ataque por rango.',
-      stats(p) {
-        if (!p.buffs?.some(b => b.id === 'agilidad')) return {};
-        return { aspdPct: tune().vientoCola.aspdPerRank * Math.max(1, nodeRank(p, 'tiradora', 's5')) };
-      },
-    },
-    // s13B Estela de Viento: durante el Vendaval dejas una estela que acelera un 15 % a los aliados.
-    t_slipstream: {
-      name: 'Estela de Viento', desc: 'Durante el Vendaval dejas una estela que acelera un 15 % a los aliados.',
-      state: () => ({ acc: 9 }),
-      onTick(g, p, dt) {
-        const st = powerState(p, 't_slipstream');
-        const T = tune().slip;
-        st.acc += dt;
-        if (!((gaugeState(p, 'impulso')?.galeT || 0) > 0) || !partyOf(g, p).length) return;
-        if (st.acc < T.every - 1e-9) return;
-        st.acc = 0;
-        g.spawnField?.('a_estela_viento', { pos: p.pos.clone().setY(0), radius: T.radius, dur: T.dur, owner: p, data: { spdPct: T.spdPct } });
-      },
-    },
-    // s14 Vendaval Perpetuo: durante el Vendaval cada muerte lo alarga 0,5 s (hasta +6 s).
-    // (s11 Segundo Aliento es tv.galeHeal + tv.galeEnergy: lo aplica el núcleo al llenar el Impulso)
-    t_galechain: {
-      name: 'Vendaval Perpetuo', desc: 'Durante el Vendaval, cada enemigo abatido alarga su duración 0,5 s (hasta +6 s).',
-      state: () => ({ ext: 0 }),
-      onGauge(g, p, id, ev) {
-        if (id === 'impulso' && ev === 'full') powerState(p, 't_galechain').ext = 0;
-      },
-      onKill(g, p) {
-        const gs = gaugeState(p, 'impulso');
-        const st = powerState(p, 't_galechain');
-        const T = tune().galechain;
-        if (!(gs?.galeT > 0) || st.ext >= T.max - 1e-9) return;
-        const add = Math.min(T.perKill, T.max - st.ext);
-        gs.galeT += add;
-        st.ext += add;
-        const b = p.buffs?.find(x => x.id === 't_vendaval');
-        if (b) { b.t += add; b.dur += add; }
-      },
-    },
-    // x1 Ráfaga Infinita: cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de
-    // proyectiles. x2 Huracán (tv.infiniteDmg): +X % de daño y +2X de Impulso en ese disparo.
-    t_infinite: {
-      name: 'Ráfaga Infinita', desc: 'Cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles en un abanico el doble de ancho.',
-      priority: -5,                                    // después de multidisparo/Vendaval, antes de la Corona
-      state: () => ({ shots: 0, ready: false }),
-      modifyResolve(p, sk, prof) {
-        const st = powerState(p, 't_infinite');
-        if (!st.ready || !prof.tags?.has?.('proj')) return;
-        const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
-        prof.proj = (prof.proj || 0) + n;               // el doble de proyectiles
-        if (prof.spread > 0) prof.spread *= 2;           // Paso 2e: en un abanico el doble de ancho (contra un jefe no es un escopetazo)
-        prof.cost = 0;
-        prof.addPct = (prof.addPct || 0) + (p.tv?.infiniteDmg || 0);
-        prof.infinite = true;
-      },
-      // ⑦ las habilidades de proyectil y el básico de ARMA (cast.weapon: cuenta siempre y,
-      // si la Ráfaga está lista, ese disparo la consume, como en 2c.1)
-      onCast(g, p, cast) {
-        if (cast?.weapon) infiniteShot(g, p, powerState(p, 't_infinite').ready);
-        else if (cast?.prof?.tags?.has?.('proj')) infiniteShot(g, p, !!cast.prof.infinite);
-      },
-    },
-    // x3 Ojo del Huracán: durante el Vendaval, Ráfaga Infinita cada 5 disparos (la lee t_infinite)
-    t_eyestorm: {
-      name: 'Ojo del Huracán', desc: 'Durante el Vendaval, Ráfaga Infinita se activa cada 5 disparos en lugar de 10.',
-    },
+    // ================ especializaciones (§7): ver más abajo ================
+    ...tiradoraPowers(),
+    ...francotiradoraPowers(),
+    ...montarazPowers(),
   };
 }
 
@@ -1381,26 +1162,13 @@ function endCamo(p, st, primed) {
 }
 
 // ------------------------------------------------------------
-// helpers de las especializaciones (v1 de 2c; los rehacen los trabajos 2 y 3)
+// helpers generales
 // ------------------------------------------------------------
-// rango de un nodo v1: árbol 'cls' o id de especialización (solo la ACTIVA)
-function nodeRank(p, tree, id) {
-  const T = p?.talents;
-  if (!T) return 0;
-  if (tree === 'cls') return T.cls?.[id] | 0;
-  if (p.talentAgg?.spec !== tree) return 0;
-  if (id === 's0') return 1;
-  return T.sp?.[tree]?.[id] | 0;
-}
-// renueva (o crea) un buff corto a un aliado (auras/campos)
+// renueva (o crea) un buff corto (sin recompute si ya estaba)
 function refreshBuff(a, id, stats, keep, meta = {}) {
   const b = a?.buffs?.find?.(x => x.id === id);
   if (b) { b.t = Math.max(b.t, keep); b.dur = Math.max(b.dur || 0, keep); return; }
   a?.addBuff?.(id, { ...stats }, keep, meta);
-}
-// los aliados SIN el héroe (poderes «de grupo»: en solitario no hacen nada)
-function partyOf(g, p, pos = null, r = Infinity) {
-  return (g?.allies ? g.allies(pos, r) : []).filter(a => a && a !== p);
 }
 // dirección del héroe hacia `target` (o su orientación)
 function aimDir(p, target) {
@@ -1410,54 +1178,6 @@ function aimDir(p, target) {
   else { dx /= l; dz /= l; }
   return { x: dx, z: dz };
 }
-// destino «hacia atrás» (contrario a la mira), recortado a lo transitable
-function backDest(g, p, target, dist) {
-  const d = aimDir(p, target);
-  const want = p.pos.clone(); want.x -= d.x * dist; want.z -= d.z * dist; want.y = 0;
-  return g.clampWalkable ? g.clampWalkable(p.pos, want, dist) : want;
-}
-// desplazamiento por pasos del planificador (como Paso Veloz): sin invulnerabilidad
-function slide(g, p, dest, dur, { trail = null, onDone = null } = {}) {
-  const from = p.pos.clone();
-  const steps = 6, dt = Math.max(0.02, dur) / steps;
-  let i = 0;
-  const step = () => {
-    if (!p.alive) { onDone?.(); return; }
-    i++;
-    const k = i / steps;
-    p.pos.x = from.x + (dest.x - from.x) * k;
-    p.pos.z = from.z + (dest.z - from.z) * k;
-    if (trail && i % 2) g.emitFx?.(trail, p.pos.clone().setY(0.4));
-    if (i < steps) g.timers.schedule(dt, step);
-    else onDone?.();
-  };
-  g.timers.schedule(dt, step);
-}
-// abanico de proyectiles del perfil (g.fireProjectile: crítico, ctx.hit, robo…).
-// Devuelve el tiempo de vuelo (para cerrar el lanzamiento con cast.done).
-function shootFan(g, p, prof, cast, { ctx = cast.ctx, n = null, spread = 0, angle = null, range = null, size = 0.1, onEnemy = null, beam = false } = {}) {
-  const sk = cast.sk;
-  const tgt = cast.target || p.pos;
-  const base = angle ?? Math.atan2(tgt.x - p.pos.x, tgt.z - p.pos.z);
-  const count = Math.max(1, n ?? ((prof.count || 1) + (prof.proj || 0)));
-  const castHits = count > 1 && (sk.count || 1) <= 1 ? new Set() : null;   // sin escopetazo
-  const R = range ?? (prof.range || sk.range || 10);
-  p.faceToward?.(v3(p.pos.x + Math.sin(base), p.pos.z + Math.cos(base)));
-  p.swing = 1;
-  const muzzle = p.pos.clone().setY(1.0);
-  muzzle.x += Math.sin(base) * 0.5; muzzle.z += Math.cos(base) * 0.5;
-  if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, muzzle);
-  else if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, muzzle);
-  for (let i = 0; i < count; i++)
-    g.fireProjectile(ctx, { angle: base + projFanOffset(i, count, spread), range: R, size, castHits, onEnemy });
-  if (beam) {
-    const end = p.pos.clone().setY(1.0);
-    end.x += Math.sin(base) * R; end.z += Math.cos(base) * R;
-    g.spawnBeam?.(muzzle, end, ctx.color || sk.color || 0xffee66, 0.3);
-  }
-  ctx.lifestealDone = true;
-  return R / Math.max(1, prof.speed || 14) + 0.05;
-}
 // total y tics de un DoT con el perfil de talentos (dotPct + <tipo>Pct, dotDur añade tics)
 function dotOf(p, kind, base, dur) {
   const tv = p?.tv || {};
@@ -1465,15 +1185,7 @@ function dotOf(p, kind, base, dur) {
   const ticks = Math.max(1, Math.round(dur + (tv.dotDur || 0)));
   return { total: base * Math.max(0, 1 + pct / 100) * ticks / dur, ticks };
 }
-// distancia² de un punto a un segmento (red de espinas)
-function segDist2(px, pz, a, b) {
-  const dx = b.x - a.x, dz = b.z - a.z;
-  const L = dx * dx + dz * dz || 1;
-  const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / L));
-  const qx = a.x + dx * t - px, qz = a.z + dz * t - pz;
-  return qx * qx + qz * qz;
-}
-// decal de suelo de un campo (anillo o disco); libera al morir
+// decal de suelo de un campo (anillo o disco); se mueve con el campo y se libera al morir
 function groundDecal(g, f, { inner = 0.6, opacity = 0.45, color = 0xffffff, disc = false, segs = 32 } = {}) {
   if (f.dead) {
     if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; }
@@ -1483,101 +1195,1435 @@ function groundDecal(g, f, { inner = 0.6, opacity = 0.45, color = 0xffffff, disc
     const geo = disc ? new THREE.CircleGeometry(f.radius, segs) : new THREE.RingGeometry(f.radius * inner, f.radius, segs);
     const decal = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
     decal.rotation.x = -Math.PI / 2;
-    decal.position.set(f.pos.x, 0.06, f.pos.z);
     g.fxGroup.add(decal);
     f.decal = decal;
   }
+  f.decal.position.set(f.pos.x, 0.06, f.pos.z);
   return f.decal;
 }
-// ---------- Trampa de Cepo v1: trampas armadas (las cargas son del motor: D2) ----------
-function extraTrap(p) { return hasPower(p, 'm_extratrap'); }
-function wardenOn(p) { return hasPower(p, 'm_warden'); }
-function armedTraps(g, p) {
-  return (g?.fields || []).filter(f => !f.dead && !f.sprung && f.owner === p && f.kind === 'a_cepo');
+
+// ------------------------------------------------------------
+// helpers de las especializaciones (§7)
+// ------------------------------------------------------------
+// El perfil de un lanzamiento está cacheado (p.resolved): lo que un onCast cambie en cast.prof
+// (coste, daño, carga, proyectiles) vale SOLO para este lanzamiento si antes se suelta de la caché.
+function ownProf(p, cast) {
+  const id = cast?.sk?.id;
+  if (id && p?.resolved?.[id] === cast.prof) delete p.resolved[id];
+  return cast?.prof || null;
 }
-// salta la trampa: inmoviliza (o estalla si es Mina), envenena y desaparece
-function springTrap(g, f, e) {
-  const p = f.owner, d = f.data;
-  f.sprung = true;
-  d.trap = false;                      // ya no cuenta como armada (Coto de Caza)
-  const at = v3(f.pos.x, f.pos.z);
-  if (d.mine) {
-    g.dealArea?.(at, d.blastR, d.blastCoef, d.areaOpts);
-    g.addShake?.(0.15);
-    g.emitFx?.('arqThornBurst', at.clone().setY(0.4));
-  } else if (e?.alive) {
-    e.applyCC?.('root', d.root, { src: p });
-    // Cepo de Hierro (prof.bossSlowPct): a los jefes los ralentiza un 50 % (applyCC aplica
-    // ×0,5 a la ralentización de los jefes, de ahí el ×2)
-    if (d.bossSlow && isBoss(e)) e.applyCC?.('slow', d.root, { pct: 2 * d.bossSlow, src: p });
+// suelta de la caché los perfiles de esas habilidades (un umbral que cambia lo que resuelven)
+function forget(p, ...ids) { if (p?.resolved) for (const id of ids) delete p.resolved[id]; }
+// canal en curso de la habilidad `id` del héroe (Carrera del Viento)
+function channelOf(g, p, id) {
+  const c = g?._channel;
+  return c && c.ctx?.p === p && c.ctx?.sk?.id === id ? c : null;
+}
+// enemigo al que va un lanzamiento (el mismo criterio que la suelta de una carga)
+function targetOf(g, cast) {
+  return (cast?.target && g?.nearestEnemy?.(3, cast.target)) || (cast?.enemy?.alive ? cast.enemy : null);
+}
+// ¿un abanico de enemigos? el i-ésimo, repartido entre los que haya
+function nth(list, i) { return list.length ? list[i % list.length] : null; }
+// flecha de un PODER: golpe real al impactar (crítico, Debilidad, [×]) con `echo` (no es otra
+// «flecha tuya» ni genera repeticiones). o = { from, to | angle, coef, addPct, skill, tags, pierce,
+// range, speed, color, size, castHits, perTarget }
+function shootArrow(g, p, o) {
+  if (!g?.spawnProjectile || !(o.coef > 0)) return;
+  const from = v3(o.from.x, o.from.z, 1.0);
+  const to = o.to ? v3(o.to.x, o.to.z, 1.0) : v3(from.x + Math.sin(o.angle || 0) * 5, from.z + Math.cos(o.angle || 0) * 5, 1.0);
+  const tags = o.tags || PROJ_TAGS;
+  const hitInfo = { skill: o.skill, tags, elem: 'physical' };
+  g.spawnProjectile({
+    from, to, speed: o.speed || 20, range: o.range || 12, friendly: true, pierce: !!o.pierce,
+    color: o.color ?? 0xe8d8a0, size: o.size || 0.08, castHits: o.castHits || null, perTarget: o.perTarget || 1,
+    rollAt: e => p.rollDamage(o.coef, 0, o.addPct || 0, e, hitInfo),
+    skill: o.skill, tags, elem: 'physical', hitOpts: { echo: true },
+  });
+}
+const PROJ_TAGS = new Set(['proj', 'physical']);
+const TRAP_TAGS = new Set(['trap', 'nature']);
+
+// ---------- Tiradora: Carrera del Viento y Vendaval ----------
+// la Carrera en curso: s desde que empezó (−1 si no corre) y su duración propia (sin prórroga)
+function runT(g, p) {
+  if (!channelOf(g, p, 'a_v_carrera')) return -1;
+  return now(p) - (powerState(p, 'arq_carrera').at ?? now(p));
+}
+function runBase(p) { return powerState(p, 'arq_carrera').dur || 4; }
+function galeOn(p) { return (gaugeState(p, 'impulso')?.galeT || 0) > 0; }
+// alarga el Vendaval en curso `s` segundos (y su buff de velocidad de ataque)
+function extendGale(p, s) {
+  const st = gaugeState(p, 'impulso');
+  if (!(st?.galeT > 0) || !(s > 0)) return 0;
+  st.galeT += s;
+  st.galeMax = (st.galeMax || st.galeT) + s;
+  const b = p.buffs?.find(x => x.id === 't_vendaval');
+  if (b) { b.t += s; b.dur = (b.dur || 0) + s; }
+  return s;
+}
+
+// ---------- Francotiradora: tensados y Punto Débil ----------
+function isCharged(id) { return id === 'a_t_apuntado' || id === 'a_u_celeste'; }
+// golpe de un disparo tensado: Disparo Apuntado, un haz o el básico tensado (etiqueta de Cuerda Tensa)
+function tensedHit(hit) { return !!hit && (isCharged(hit.skill) || !!hit.tags?.has?.('tensado')); }
+function kneeling(p) { return !!p?.game?.stanceOf?.(p, 'a_f_rodilla'); }
+function calmOn(p) { return (gaugeState(p, 'concentracion')?.calmT || 0) > 0; }
+// la ventana dorada × mul (por los dos lados; si choca con el tope, crece hacia atrás)
+function widenWindow(ch, mul) {
+  const [a, b] = ch.perfect || [ch.max, ch.max];
+  const c = (a + b) / 2, h = (b - a) / 2 * mul;
+  let lo = c - h, hi = c + h;
+  if (hi > ch.max) { lo -= hi - ch.max; hi = ch.max; }
+  ch.perfect = [Math.max(ch.min || 0, lo), hi];
+  return ch;
+}
+// coeficiente del disparo con la carga `frac` (escala de la carga del perfil)
+function shotCoef(prof, frac) {
+  const s = prof?.charge?.scale?.coef, base = prof?.def?.coef || 0;
+  if (!Array.isArray(s) || typeof s[0] !== 'number' || !(base > 0)) return prof?.coef || 0;
+  const v = s[0] + (s[s.length - 1] - s[0]) * Math.max(0, Math.min(1, frac || 0));
+  return (prof.coef || 0) * v / base;
+}
+// PUNTO DÉBIL: la marca del motor (a_punto_debil, se gasta con el primer tensado) o el seguimiento
+// propio (Tiro Rastreador, Línea de Mira, Marca Saltarina): segundos que le quedan
+function weakMap(p) { const st = powerState(p, 'arq_debil'); return st.m || (st.m = new Map()); }
+function weakLeft(p, e) {
+  if (!e?.alive) return 0;
+  const m = e.marks?.a_punto_debil;
+  const own = m && m.t > 0 && (!m.by || m.by === p) ? m.t : 0;
+  return Math.max(own, (weakMap(p).get(e) || 0) - now(p), 0);
+}
+function isWeak(p, e) { return weakLeft(p, e) > 0; }
+function markWeak(p, e, dur) {
+  if (!e?.alive || !(dur > 0)) return;
+  const m = weakMap(p);
+  m.set(e, Math.max(m.get(e) || 0, now(p) + dur));
+}
+function pruneWeak(p) {
+  const m = weakMap(p), t = now(p);
+  for (const [e, until] of m) if (!e.alive || until <= t) m.delete(e);
+}
+// primera pared en la recta (paso de 0,25 m): { d, pos } o null
+function firstWall(g, from, dir, len, step = 0.25) {
+  const grid = g?.world?.grid;
+  if (!grid?.walkable) return null;
+  for (let d = 0.5; d <= len + 1e-9; d += step) {
+    const x = from.x + dir.x * d, z = from.z + dir.z * d;
+    if (!grid.walkable(x, z, 0.05)) return { d, pos: { x: x - dir.x * 0.3, z: z - dir.z * 0.3 } };
   }
-  if (e?.alive && d.poison?.total > 0) g.applyDoT?.(e, d.poison.total, d.poison.ticks, 1, 'txt', `${d.skill}:poison`);
-  g.spawnRing?.(at, f.radius, d.color);
-  g.emitFx?.('arqTrapSnap', at.clone().setY(0.3));
-  g.sfx?.('trap');
-  f.t = 0;
+  return null;
 }
-// ---------- Punto Débil v1 ----------
-function weak(p, e) { return !!e && (e._weakspotUntil || 0) > now(p); }
-// ---------- Gran Cacería v1 ----------
-function greatHunt(g, p, e) {
-  const st = powerState(p, 'm_greathunt');
-  if (st.prey === e) return false;                   // una vez por Presa
-  st.prey = e;
-  g.reduceCooldown?.(p, 'a_t_cepo', Infinity);      // D2: todas las trampas listas
-  const T = tune().greathunt;
-  for (const a of g.allies ? g.allies() : [p])
-    a.addBuff?.('m_greathunt', { dmgPct: T.dmgPct }, T.dur, { name: 'Gran Cacería', icon: '🏹', desc: `+${T.dmgPct}% de daño` });
-  g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 1), '¡GRAN CACERÍA!', 'txt-crit');
-  g.sfx?.('levelup');
+
+// ---------- Montaraz: trampas, zarzales, Presa y Cerco ----------
+// golpe del SALTO de una trampa (la pisan) o de su ESTALLIDO (detonación)
+function isSpring(hit) { return !!hit?.trap && hit.source === 'field:trampa'; }
+function isBurst(hit) { return !!hit?.trap && hit.source !== 'field:trampa'; }
+// cepos «de Trampa de Cepo» (los de carga y los del Racimo); los sembrados, pequeños y gratis no
+const CHARGE_CEPOS = new Set(['a_t_cepo', 'm_racimo']);
+function fieldByUid(g, uid) { return (g?.fields || []).find(f => f.uid === uid) || null; }
+function ownTraps(g, p) { return (g?.fields || []).filter(f => !f.dead && !f.sprung && f.owner === p && (f.kind === 'trampa' || f.data?.trap)); }
+function armedTraps(g, p) { return ownTraps(g, p).filter(f => fieldArmed(f)); }
+// trampa más nueva de una habilidad (la que acaba de colocar Trampa de Cepo)
+function newestTrap(g, p, skill) {
+  const list = (g?.fieldsOf?.(p, { kind: 'trampa', skill }) || []).filter(f => !f.sprung);
+  return list.length ? list[list.length - 1] : null;
+}
+// el daño de un cepo × mul (el estallido lo escala el núcleo con data.burstMul: petición a la cola W2)
+function scaleTrap(f, mul) {
+  const d = f.data;
+  if (d.baseDmg == null) d.baseDmg = d.dmg;
+  d.dmg = (d.dmg || 0) * mul;
+  d.burstMul = (d.burstMul || 1) * mul;
+}
+// datos de un cepo como el de Trampa de Cepo (el último colocado; si no hay, el de la definición)
+function cepoData(p) {
+  const tpl = powerState(p, 'arq_cepo').tpl;
+  if (tpl) return { data: { ...tpl.data, tags: tpl.data.tags }, radius: tpl.radius, life: tpl.life };
+  const def = p?.cls?.skills?.find(s => s.id === 'a_t_cepo') || {};
+  const t = def.trap || {};
+  const add = p?.talentAgg?.mods?.a_t_cepo?.dmg || 0;
+  return {
+    data: { dmg: p.avgHit ? p.avgHit(def.coef || 0.6, add) : 0, coef: def.coef || 0.6, root: def.root || 0, color: def.color, skill: 'a_t_cepo',
+      tags: new Set([...(def.tags || []), 'trap']), elem: def.elem || 'nature', armT: t.armT ?? 0.5, burst: t.burst || null,
+      consume: t.consume !== false, lure: t.lure || null, hitDot: def.hitDot || null },
+    radius: t.radius || 1.5, life: def.dur || 30,
+  };
+}
+// coloca un cepo GENÉRICO (campo 'trampa' del núcleo: detonable, cuenta para el Coto y Salto de
+// Acecho lo encuentra) con `mul` de su daño y una habilidad propia (su tope no pisa el de Trampa de Cepo)
+function spawnCepo(g, p, pos, { mul = 1, skill = 'a_t_cepo', max = 6, cluster = null, armT = null } = {}) {
+  const c = cepoData(p);
+  const base = c.data.baseDmg ?? c.data.dmg;
+  const data = { ...c.data, baseDmg: base, dmg: base * mul, burstMul: mul, skill, greatHunt: false };
+  if (cluster != null) data.cluster = cluster; else delete data.cluster;
+  if (armT != null) data.armT = armT;
+  if (!data.lure && hasPower(p, 'm_cebo')) data.lure = { ...tune().mon.cebo };
+  return g?.spawnField?.('trampa', { pos: v3(pos.x, pos.z), radius: c.radius, dur: c.life, owner: p, maxPerSkill: max, data }) || null;
+}
+// zarzal de 2 m que ralentiza (lo alarga Ojo de Trampera: data.fieldDur; Coto Cerrado: +rango s)
+function spawnZarzal(g, p, pos, dur, src) {
+  const T = tune().mon;
+  let d = dur;
+  if (hasPower(p, 'm_coto_cerrado') && gaugeValue(p, 'coto') >= T.cerrado.min) d += powerRank(p, 'm_coto_cerrado');
+  return g?.spawnField?.('m_zarzal', { pos: v3(pos.x, pos.z), radius: T.zarzal.radius, dur: d, owner: p, maxPerSkill: T.zarzal.max,
+    data: { skill: 'm_zarzal', src, slowPct: T.zarzal.slowPct, fieldDur: true, color: T.zarzal.color } }) || null;
+}
+// Presa (mecánica coto): la lista y añadir una (Presas en Manada, Rastro Fresco)
+function preyList(p) { return cotoPreys(gaugeState(p, 'coto')); }
+function addPrey(g, p, e, kind) {
+  const st = gaugeState(p, 'coto');
+  const T = gaugeTuning().coto;
+  const ok = cotoAddPrey(st, e, kind, T.preyT, kind === 'trap' ? (hasPower(p, 'm_manada') ? T.manada.trap : 0) : T.manada.elite, now(p));
+  if (ok) g?.ui?.spawnText?.(e.pos?.clone ? e.pos.clone().setY((e.def?.scale || 1) + 0.8) : e.pos, '¡PRESA!', 'txt-crit');
+  return ok;
+}
+// el Cerco de Zarzas en curso (campo `zona` de a_u_zarzas): { f, c, r0, at, root } o null
+function cercoOf(g, p) {
+  const list = g?.fieldsOf?.(p, { kind: 'zona', skill: 'a_u_zarzas' }) || [];
+  const f = list[list.length - 1];
+  if (!f) return null;
+  if (f._r0 == null) { f._r0 = f.radius; f._at = now(p); }
+  return { f, c: f.pos, r0: f._r0, at: f._at, root: cercoRoot(p) };
+}
+// inmovilizar del Cerco: su perfil resuelto o la definición + los «+N s» de talento
+function cercoRoot(p) {
+  const pr = p?.resolved?.a_u_zarzas;
+  if (pr?.root > 0) return pr.root;
+  const def = p?.cls?.skills?.find(s => s.id === 'a_u_zarzas');
+  return (def?.root || 1.5) + (p?.talentAgg?.mods?.a_u_zarzas?.rootAdd || 0);
+}
+// un enemigo inmovilizado por un Cerco (el de la definitiva o el de Bosque Vivo): Zarzas Trepadoras lo alarga
+function cercoRooted(g, p, f) {
+  if (!hasPower(p, 'm_trepadoras') || !f || f.dead) return;
+  const T = tune().mon.trepadoras;
+  const add = Math.min(T.perRank * powerRank(p, 'm_trepadoras'), T.max - (f._climb || 0));
+  if (!(add > 0)) return;
+  f._climb = (f._climb || 0) + add;
+  f.t += add;
+}
+// fin de la cadena del Salto para Caída Sangrienta (b21): el último salto desangra a los que golpeó
+// (el 100 % de su golpe en 3 s; Heridas Abiertas y Sangre Espesa cuentan, como en todo Sangrado)
+function caidaSangrienta(g, p) {
+  const st = powerState(p, 'g_b_caida_sangrienta');
+  const last = st.last;
+  st.last = null;
+  const frac = tun().caidaSangrienta / 100 / DOT_PROFILES.bleed.frac;
+  for (const { e, dealt } of last?.hits || []) {
+    if (!e.alive || !(dealt > 0)) continue;
+    const d = dotProfile('bleed', dealt, { dotMul: frac, tv: p.tv });
+    if (d) g.applyDoT(e, d.total, d.ticks, d.interval, undefined, 'g_salto:bleed');
+  }
+}
+// fin de la cadena del Salto para Estampida Sin Fin (b27): con 3 o más golpeados en el último
+// salto, recorte (o reinicio) si no van ya 2 recargas seguidas recortadas
+function estampida(g, p) {
+  const st = powerState(p, 'g_b_estampida');
+  const last = st.last;
+  st.last = null;
+  const E = tun().estampida;
+  if (!last || last.hits.length < E.need || (saltoRow(p).row || 0) >= E.row) return;
+  const s = E.refund[Math.min(E.refund.length, rankOf(p, 'g_b_estampida')) - 1];
+  if (cutCd(g, p, 'g_salto', s) > 0) g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡ESTAMPIDA!', 'txt-crit');
+}
+// Milagro (z15A): `a` (tú o un aliado) queda con un 20 % de vida; una vez cada 2 min entre todos
+function milagro(g, p, a) {
+  const M = tun().milagro;
+  const st = powerState(p, 'g_z_milagro');
+  if (!a || now(p) - st.at < M.icd - 1e-9) return false;
+  st.at = now(p);
+  const hp = Math.max(1, Math.round((a.stats?.maxHP || 0) * M.hpPct / 100));
+  if (a.setHp) a.setHp(hp, 'g_z_milagro'); else a.hp = hp;
+  g.ui?.spawnText?.(a.pos, '¡MILAGRO!', 'txt-heal');
   return true;
-}
-// ---------- Ráfaga Infinita v1 ----------
-function infiniteShot(g, p, wasInfinite) {
-  const st = powerState(p, 't_infinite');
-  const T = tune().infinite;
-  if (wasInfinite && st.ready) {
-    st.ready = false;
-    invalidate(p);
-    const n = 2 * (p.tv?.infiniteDmg || 0);     // Huracán (x2): +10 de Impulso/rango (el doble del % de daño, 2e)
-    if (n > 0) gainGauge(p, 'impulso', n);
-    return;
-  }
-  st.shots = (st.shots || 0) + 1;
-  const gale = (gaugeState(p, 'impulso')?.galeT || 0) > 0;
-  const every = hasPower(p, 't_eyestorm') && gale ? T.storm : T.every;
-  if (st.shots >= every) {
-    st.shots = 0;
-    st.ready = true;
-    invalidate(p);
-    g?.ui?.spawnText?.(p.pos, '¡RÁFAGA INFINITA!', 'txt-crit');
-  }
 }
 
 // ============================================================
-// COMPORTAMIENTOS de las activas de talento y del kit v1
+// TIRADORA VELOZ (§7.0): Impulso, Tercera Flecha y sus tres estilos (Abanico, Vaivén, Galerna)
+// ============================================================
+function tiradoraPowers() {
+  const T = tune().tir;
+  return {
+    // v0 Impulso (la barra vive en js/mech-arquera.js) + pasiva TERCERA FLECHA: cada 3.er Disparo
+    // Rápido lanza 2 flechas más en abanico de 30° al 60 % (secuencia `seq` del básico). Lee Triple
+    // Abierto (tv.tripleWide: 4 en 60°) y Puntas Templadas (tv.tripleDmg: +% al disparo triple).
+    // Anota además el comienzo de cada Carrera del Viento (lo leen Nube de Paso, Nube Fiel y Galerna).
+    t_tercera: {
+      name: 'Tercera Flecha', desc: 'Cada 3.er Disparo Rápido lanza 2 flechas más en abanico (60 % cada una).',
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'a_disparo') return;
+        const x = T.triple, wide = (p.tv?.tripleWide || 0) > 0;
+        prof.def = { ...prof.def, seq: { every: x.every, extra: { count: wide ? x.wideCount : x.count, spread: wide ? x.wideSpread : x.spread, coef: x.coef } } };
+      },
+      onCast(g, p, cast) {
+        if (cast?.sk?.id === 'a_v_carrera') {
+          const st = powerState(p, 'arq_carrera');
+          st.at = now(p);
+          st.dur = cast.prof?.dur || cast.sk.dur || 4;
+          return;
+        }
+        const add = p.tv?.tripleDmg || 0;
+        if (cast?.weapon && cast.seqNth && add > 0) ownProf(p, cast).addPct += add;
+      },
+    },
+    // v5 Remate Triple: tras una Andanada, el siguiente Disparo Rápido sale triple (una vez cada 4 s)
+    t_remate_triple: {
+      name: 'Remate Triple', desc: 'Tras una Andanada, tu siguiente Disparo Rápido sale triple.',
+      icd: T.remate.icd,
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_andanada') return false;
+        g.setSeqCount?.(p, 'a_disparo', T.triple.every - 1);
+        return true;
+      },
+    },
+    // v6 Soltar y Disparar: al soltar o acabar Carrera del Viento, una Andanada gratis al 60 % (repetición: no salta)
+    t_soltar: {
+      name: 'Soltar y Disparar', desc: 'Al soltar o acabar Carrera del Viento disparas una Andanada gratis al 60 %.',
+      onSkillEnd(g, p, sk, end) {
+        if (sk?.id !== 'a_v_carrera' || end?.kind !== 'channel' || !(end.reason === 'release' || end.reason === 'done')) return;
+        castEchoOf(g, p, 'a_t_andanada', T.soltar.mult);
+      },
+    },
+    // v7 Fondo de Corredora (con su mod durS): mientras corres con la Carrera, inmune a ralentizaciones
+    t_fondo_corredora: {
+      name: 'Fondo de Corredora', desc: 'Carrera del Viento te hace inmune a las ralentizaciones.',
+      onTick(g, p) { if (channelOf(g, p, 'a_v_carrera')) p.grantSlowImmune?.(0.25); },
+    },
+    // v8B Triple Clavado: el disparo triple es crítico seguro y +20 %
+    t_triple_clavado: {
+      name: 'Triple Clavado', desc: 'Tu disparo triple es crítico seguro y hace +20 % de daño.',
+      onCast(g, p, cast) {
+        if (!cast?.weapon || !cast.seqNth) return;
+        cast.forceCrit = true;
+        ownProf(p, cast).addPct += T.clavado.pct;
+      },
+    },
+    // v9A Último Instante: los relanzamientos de Andanada en su último medio segundo hacen +40 % y dan 20 de Impulso
+    t_ultimo_instante: {
+      name: 'Último Instante', desc: 'Relanzar Andanada en su último medio segundo: +40 % y 20 de Impulso.',
+      modifyResolve(p, sk, prof) {
+        if (sk.id === 'a_t_andanada' && prof.recast) prof.recast.perfectLast = Math.max(prof.recast.perfectLast || 0, T.instante.win);
+      },
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_andanada' || !cast.recast?.perfect) return;
+        ownProf(p, cast).addPct += T.instante.pct;
+        gainGauge(p, 'impulso', T.instante.impulso);
+        g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡Último instante!', 'txt-crit');
+      },
+    },
+    // v9B Ida y Vuelta (con su mod recastAdd): la tercera Andanada de la cadena sale al 70 %
+    t_ida_vuelta: {
+      name: 'Ida y Vuelta', desc: 'Puedes relanzar Andanada dos veces; la tercera sale al 70 %.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_andanada' || !((cast.recast?.idx || 1) >= 3)) return;
+        ownProf(p, cast).coef *= T.idaVuelta.third;
+      },
+    },
+    // v10A Rueda de Flechas: con la Carrera, cada segundo un anillo de 8 flechas al 60 % (golpes de la Carrera)
+    t_rueda: {
+      name: 'Rueda de Flechas', desc: 'Mientras corres con Carrera, cada segundo sueltas un anillo de 8 flechas.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const ch = channelOf(g, p, 'a_v_carrera'), st = powerState(p, 't_rueda');
+        if (!ch) { st.acc = 0; return; }
+        st.acc += dt;
+        if (st.acc + 1e-9 < T.rueda.every) return;
+        st.acc -= T.rueda.every;
+        const hits = new Set();
+        for (let i = 0; i < T.rueda.n; i++) g.fireProjectile?.(ch.ctx, { angle: i * 2 * Math.PI / T.rueda.n, coef: T.rueda.coef, castHits: hits, size: 0.08 });
+        g.emitFx?.('arqDanceSwirl', p.pos.clone().setY(1.0));
+      },
+    },
+    // v10B Blanco Fijo: cada disparo seguido de la Carrera al mismo enemigo +10 % (hasta +60 %)
+    t_blanco_fijo: {
+      name: 'Blanco Fijo', desc: 'Si Carrera dispara al mismo enemigo, cada flecha seguida hace +10 % (hasta +60 %).',
+      state: () => ({ last: null, n: 0 }),
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'a_v_carrera') return 0;
+        const st = powerState(p, 't_blanco_fijo');
+        return st.last === e ? T.blanco.pct * Math.min(T.blanco.max, st.n) : 0;
+      },
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'a_v_carrera' || hit.echo) return;
+        const st = powerState(p, 't_blanco_fijo');
+        if (st.last === e) st.n++; else { st.last = e; st.n = 1; }
+      },
+      onSkillEnd(g, p, sk, end) {
+        if (sk?.id !== 'a_v_carrera' || end?.kind !== 'channel') return;
+        Object.assign(powerState(p, 't_blanco_fijo'), { last: null, n: 0 });
+      },
+    },
+    // v12 Salto Impulsivo: cada salto de Andanada da 8 de Impulso por rango
+    t_salto_impulsivo: {
+      name: 'Salto Impulsivo', desc: 'Cada salto de Andanada te da Impulso.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id === 'a_t_andanada') gainGauge(p, 'impulso', T.salto.perRank * powerRank(p, 't_salto_impulsivo'));
+      },
+    },
+    // v14 Vacío de Aire: al soltar o acabar la Carrera atraes 2 m a los de 5 m; a los jefes, 15 de Quebranto
+    t_vacio_aire: {
+      name: 'Vacío de Aire', desc: 'Al soltar o acabar Carrera del Viento, atraes 2 m a los enemigos cercanos.',
+      onSkillEnd(g, p, sk, end) {
+        if (sk?.id !== 'a_v_carrera' || end?.kind !== 'channel' || !(end.reason === 'release' || end.reason === 'done')) return;
+        for (const e of foesNear(g, p.pos, T.vacio.radius)) {
+          if (isBoss(e)) e.addStagger?.(T.vacio.stagger, p);
+          else e.displace?.(p.pos, T.vacio.pull, { toward: true, src: p });
+        }
+        g.spawnRing?.(p.pos.clone().setY(0.1), T.vacio.radius, 0x9fe8ff);
+      },
+    },
+    // v15A Piel de Brisa: durante el Vendaval recibes un 20 % menos
+    t_piel_brisa: {
+      name: 'Piel de Brisa', desc: 'Durante el Vendaval recibes un 20 % menos de daño.',
+      condDr(p) { return galeOn(p) ? T.brisa.dr : 0; },
+    },
+    // v15B Retirada Instintiva: un golpe cuerpo a cuerpo te hace saltar 4 m atrás y da 15 de Impulso (cada 8 s)
+    t_retirada: {
+      name: 'Retirada Instintiva', desc: 'Si te golpean cuerpo a cuerpo, saltas 4 m atrás y ganas Impulso.',
+      state: () => ({}),
+      onDamaged(g, p, info) {
+        if (!info?.melee || p.leap || !p.alive) return;
+        if (!takeCd(powerState(p, 't_retirada'), 'cd', T.retirada.icd, p)) return;
+        const src = info.src?.pos || g.nearestEnemy?.(3)?.pos || null;
+        const dir = src ? dirTo(src, p.pos) : (() => { const d = aimDir(p, g.input?.mouseWorld); return { x: -d.x, z: -d.z }; })();
+        const want = v3(p.pos.x + dir.x * T.retirada.jump, p.pos.z + dir.z * T.retirada.jump);
+        const to = g.clampWalkable ? g.clampWalkable(p.pos, want, T.retirada.jump) : want;
+        p.leap = { from: p.pos.clone(), to, t: 0, dur: T.retirada.airT, plant: false };
+        gainGauge(p, 'impulso', T.retirada.impulso);
+      },
+    },
+    // v16 Viento en las Plumas: con 50+ de Impulso, Múltiple y Andanada +10 %/rango y la Carrera dispara un 15 %/rango más rápido
+    t_viento_plumas: {
+      name: 'Viento en las Plumas', desc: 'Con 50 o más de Impulso, Múltiple y Andanada pegan más y Carrera dispara más rápido.',
+      state: () => ({ above: false }),
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'flecha_multiple' && hit?.skill !== 'a_t_andanada') return 0;
+        return gaugeValue(p, 'impulso') >= T.plumas.over ? T.plumas.pctPerRank * powerRank(p, 't_viento_plumas') : 0;
+      },
+      modifyResolve(p, sk, prof) {
+        const a = prof.def?.autoShot;
+        if (sk.id !== 'a_v_carrera' || !a || !(gaugeValue(p, 'impulso') >= T.plumas.over)) return;
+        const k = 1 + T.plumas.ratePerRank * powerRank(p, 't_viento_plumas') / 100;
+        prof.def = { ...prof.def, autoShot: { ...a, every: a.every / k } };
+      },
+      onTick(g, p) {
+        const st = powerState(p, 't_viento_plumas'), above = gaugeValue(p, 'impulso') >= T.plumas.over;
+        if (above !== st.above) { st.above = above; forget(p, 'a_v_carrera'); }
+      },
+    },
+    // v17 Nube de Paso: en los 6 primeros s de cada Carrera, cada segundo recarga 0,4 s/rango del Diluvio (suelo de la definitiva)
+    t_nube_paso: {
+      name: 'Nube de Paso', desc: 'Al principio de cada Carrera del Viento, el Diluvio de Saetas se recarga más rápido.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const t = runT(g, p), st = powerState(p, 't_nube_paso');
+        if (t < 0 || t > T.nube.first + 1e-9) { st.acc = 0; return; }
+        st.acc += dt;
+        if (st.acc + 1e-9 < 1) return;
+        st.acc -= 1;
+        g.reduceCooldown?.(p, 'a_u_diluvio', T.nube.perRank * powerRank(p, 't_nube_paso'));
+      },
+    },
+    // v18 Flechas Perdidas: si Flecha Múltiple mata, suelta rango + 1 flechas al 50 % hacia los cercanos
+    t_flechas_perdidas: {
+      name: 'Flechas Perdidas', desc: 'Si Flecha Múltiple mata, suelta flechas hacia enemigos cercanos.',
+      onKill(g, p, e, kill) {
+        if (kill?.skill !== 'flecha_multiple') return;
+        const foes = foesNear(g, e.pos, T.perdidas.range, e);
+        const n = 1 + powerRank(p, 't_flechas_perdidas');
+        for (let i = 0; i < n && foes.length; i++)
+          shootArrow(g, p, { from: e.pos, to: nth(foes, i).pos, coef: T.perdidas.coef, skill: 't_flechas_perdidas', range: T.perdidas.range + 2 });
+      },
+    },
+    // v19 Vendaval Encadenado: cada relanzamiento de Andanada alarga el Vendaval 0,5 s/rango (hasta +4 s)
+    t_vendaval_encadenado: {
+      name: 'Vendaval Encadenado', desc: 'Cada relanzamiento de Andanada alarga el Vendaval.',
+      state: () => ({ ext: 0 }),
+      onGauge(g, p, id, ev) { if (id === 'impulso' && ev === 'full') powerState(p, 't_vendaval_encadenado').ext = 0; },
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_andanada' || !cast.recast || !galeOn(p)) return;
+        const st = powerState(p, 't_vendaval_encadenado');
+        const add = Math.min(T.encadenado.perRank * powerRank(p, 't_vendaval_encadenado'), T.encadenado.max - st.ext);
+        st.ext += extendGale(p, add);
+      },
+    },
+    // v21 Nube Fiel: en los 6 primeros s de cada Carrera, el Diluvio descarga cada 0,4 s (antes 0,5 s):
+    // las oleadas que faltan para ese ritmo caen aparte, con el perfil del Diluvio en curso
+    t_nube_fiel: {
+      name: 'Nube Fiel', desc: 'Al principio de cada Carrera del Viento, el Diluvio de Saetas descarga más a menudo.',
+      state: () => ({ rain: null, acc: 0 }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_u_diluvio') return;
+        const pr = cast.prof || {}, sk = cast.sk;
+        const waves = pr.waves ?? sk.waves ?? 1, span = pr.span ?? sk.span ?? 0;
+        const st = powerState(p, 't_nube_fiel');
+        st.acc = 0;
+        st.rain = waves >= 6 ? { prof: pr, sk, start: now(p) + (pr.impactDelay || 0), end: now(p) + (pr.impactDelay || 0) + span,
+          at: cast.target ? { x: cast.target.x, z: cast.target.z } : { x: p.pos.x, z: p.pos.z } } : null;
+      },
+      onTick(g, p, dt) {
+        const st = powerState(p, 't_nube_fiel'), r = st.rain;
+        if (!r || now(p) > r.end + 1e-9) { st.rain = null; st.acc = 0; return; }
+        const t = runT(g, p);
+        if (now(p) < r.start || t < 0 || t > T.fiel.first + 1e-9) return;
+        st.acc += dt * (1 / T.fiel.step - 1 / T.fiel.base);
+        if (st.acc + 1e-9 < 1) return;
+        st.acc -= 1;
+        const follow = r.prof.follow ?? r.sk.follow ?? null;
+        const c = follow === 'owner' ? p.pos : follow === 'aim' && g.input?.mouseWorld ? g.input.mouseWorld : (r.sk.at === 'self' ? p.pos : r.at);
+        const at = v3(c.x, c.z), rad = r.prof.radius || r.sk.radius || 4;
+        g.dealArea?.(at, rad, r.prof.coef, { hitInfo: { skill: 'a_u_diluvio', tags: r.prof.tags, elem: r.prof.elem },
+          addPct: r.prof.addPct || 0, critBonus: r.prof.critBonus || 0, from: at });
+        g.spawnRing?.(at, rad, r.sk.color || 0xbfffbf);
+      },
+    },
+    // v22 Ráfaga Creciente: cada Múltiple a menos de 3 s de otra, 1 flecha más (hasta rango + 1)
+    t_rafaga_creciente: {
+      name: 'Ráfaga Creciente', desc: 'Cada Flecha Múltiple seguida dispara una flecha más.',
+      state: () => ({ n: 0, last: -9 }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'flecha_multiple') return;
+        const st = powerState(p, 't_rafaga_creciente'), t = now(p);
+        st.n = t - st.last <= T.rafaga.win + 1e-9 ? Math.min(1 + powerRank(p, 't_rafaga_creciente'), st.n + 1) : 0;
+        st.last = t;
+        if (st.n > 0) ownProf(p, cast).proj += st.n;
+      },
+    },
+    // v23 Golpe de Apertura: al empezar el Vendaval, las rango + 1 siguientes Andanadas o Múltiples son críticas
+    t_apertura: {
+      name: 'Golpe de Apertura', desc: 'Al empezar el Vendaval, tus siguientes Andanadas o Flechas Múltiples son críticas seguras.',
+      state: () => ({ left: 0 }),
+      onGauge(g, p, id, ev) { if (id === 'impulso' && ev === 'full') powerState(p, 't_apertura').left = 1 + powerRank(p, 't_apertura'); },
+      onCast(g, p, cast) {
+        const id = cast?.sk?.id, st = powerState(p, 't_apertura');
+        if ((id !== 'a_t_andanada' && id !== 'flecha_multiple') || !(st.left > 0)) return;
+        st.left--;
+        cast.forceCrit = true;
+      },
+    },
+    // v24 Ciclones: con la Carrera, cada 2,5 − 0,5·rango s un ciclón 4 s que dispara cada 0,5 s al
+    // más cercano (28 %, 3 vivos). Su golpe es de la Carrera (sus mods) con su propio nombre y `echo`.
+    t_ciclones: {
+      name: 'Ciclones', desc: 'Mientras corres con Carrera dejas ciclones que disparan al enemigo más cercano.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const ch = channelOf(g, p, 'a_v_carrera'), st = powerState(p, 't_ciclones');
+        if (!ch) { st.acc = 0; return; }
+        const every = T.ciclon.base - T.ciclon.perRank * powerRank(p, 't_ciclones');
+        st.acc += dt;
+        if (st.acc + 1e-9 < every) return;
+        st.acc -= every;
+        const c = ch.ctx;
+        const ctx = { ...c, hitInfo: { ...c.hitInfo, skill: 't_ciclones' }, dmgOpts: { ...c.dmgOpts, skill: 't_ciclones', echo: true },
+          hitExtra: { ...(c.hitExtra || {}), echo: true } };
+        g.spawnField?.('emisor', { pos: v3(p.pos.x, p.pos.z), radius: 1, dur: T.ciclon.dur, owner: p, maxPerSkill: T.ciclon.max,
+          data: { every: T.ciclon.every, coef: T.ciclon.coef, range: T.ciclon.range, ctx, skill: 't_ciclones', color: 0xbfefff } });
+      },
+    },
+    // v25 Tormenta de Plumas (final): cada 3.ª Múltiple, además un círculo de 3 + 3·rango flechas al 60 %;
+    // hasta 3 de ellas caen sobre el blanco de la Múltiple (con su propio tope de 3 por enemigo)
+    t_tormenta_plumas: {
+      name: 'Tormenta de Plumas', desc: 'Cada 3.ª Flecha Múltiple sale además en círculo.',
+      state: () => ({ n: 0 }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'flecha_multiple') return;
+        const st = powerState(p, 't_tormenta_plumas'), X = T.tormenta;
+        st.n = (st.n + 1) % X.every;
+        if (st.n !== 0) return;
+        const n = X.base + X.perRank * powerRank(p, 't_tormenta_plumas');
+        const tgt = targetOf(g, cast);
+        const seek = tgt ? Math.min(X.seek, n) : 0;
+        const onTarget = new Map(), ring = new Set();
+        for (let i = 0; i < seek; i++)
+          shootArrow(g, p, { from: p.pos, to: tgt.pos, coef: X.coef, skill: 't_tormenta_plumas', castHits: onTarget, perTarget: X.seek, range: X.range });
+        for (let i = 0; i < n - seek; i++)
+          shootArrow(g, p, { from: p.pos, angle: i * 2 * Math.PI / (n - seek), coef: X.coef, skill: 't_tormenta_plumas', castHits: ring, range: X.range });
+        g.emitFx?.('arqDanceSwirl', p.pos.clone().setY(1.0));
+      },
+    },
+    // v26 Vaivén Eterno (final): en el Vendaval, al cerrar su ventana Andanada vuelve sin recarga y a
+    // mitad de coste (1, 2 o sin límite de veces por Vendaval)
+    t_vaiven: {
+      name: 'Vaivén Eterno', desc: 'Durante el Vendaval, Andanada vuelve sin recarga y a mitad de coste.',
+      state: () => ({ used: 0, half: false }),
+      onGauge(g, p, id, ev) { if (id === 'impulso' && ev === 'full') powerState(p, 't_vaiven').used = 0; },
+      onSkillEnd(g, p, sk, end) {
+        if (sk?.id !== 'a_t_andanada' || end?.kind !== 'recast' || !galeOn(p)) return;
+        const st = powerState(p, 't_vaiven');
+        const cap = T.vaiven.uses[Math.max(1, powerRank(p, 't_vaiven')) - 1] ?? T.vaiven.uses[0];
+        if (st.used >= cap) return;
+        st.used++;
+        st.half = true;
+        g.reduceCooldown?.(p, 'a_t_andanada', Infinity);
+        forget(p, 'a_t_andanada');
+      },
+      modifyResolve(p, sk, prof) { if (sk.id === 'a_t_andanada' && powerState(p, 't_vaiven').half) prof.cost *= T.vaiven.costMul; },
+      onCast(g, p, cast) {
+        const st = powerState(p, 't_vaiven');
+        if (cast?.sk?.id !== 'a_t_andanada' || cast.recast || !st.half) return;
+        st.half = false;
+        ownProf(p, cast);             // la mitad de coste vale para ESTE lanzamiento; el siguiente se rehace
+      },
+    },
+    // v27 Galerna Infinita (final): mantenida, la Carrera dura 2 s, 4 s o lo que aguantes de más; el tiempo
+    // extra gasta 10 de Energía por segundo y 3 más cada segundo (sin Energía, se acaba)
+    t_galerna: {
+      name: 'Galerna Infinita', desc: 'Carrera del Viento dura más mientras la mantengas, gastando Energía.',
+      onTick(g, p, dt) {
+        const ch = channelOf(g, p, 'a_v_carrera');
+        if (!ch || ch.endless) return;
+        const t = runT(g, p), base = runBase(p);
+        const cap = T.galerna.extra[Math.max(1, powerRank(p, 't_galerna')) - 1] ?? T.galerna.extra[0];
+        if (t >= base - 1e-9) {
+          const extra = t - base;
+          if (extra >= cap - 1e-9) return;
+          if (!spendResource(p, (T.galerna.cost + T.galerna.ramp * Math.floor(extra + 1e-9)) * dt)) return;
+        }
+        // en el último tic (base o prórroga pagada), un tic más mientras quede tope
+        if (ch.left * ch.interval <= 0.15 && t + ch.left * ch.interval < base + cap - 1e-9) g.extendChannel?.(p, ch.interval);
+      },
+    },
+    // v28 Ojo del Huracán (ápice): 1) el Vendaval da +20 % de velocidad · 2) matar a un élite, 50 de
+    // Impulso · 3) el Vendaval salta a 80 · 4) cada Vendaval recarga 4 s del Diluvio (suelo de la definitiva)
+    t_ojo_huracan: {
+      name: 'Ojo del Huracán', desc: 'El Vendaval te acelera, salta antes y recarga el Diluvio.',
+      stats(p) { return powerRank(p, 't_ojo_huracan') >= 3 ? { 'gaugeMax:impulso': T.ojo.max } : {}; },
+      onGauge(g, p, id, ev) {
+        if (id === 'impulso' && ev === 'full' && powerRank(p, 't_ojo_huracan') >= 4) g.reduceCooldown?.(p, 'a_u_diluvio', T.ojo.diluvio);
+      },
+      onKill(g, p, e) { if (powerRank(p, 't_ojo_huracan') >= 2 && isEliteish(e)) gainGauge(p, 'impulso', T.ojo.eliteImpulso); },
+      onTick(g, p) {
+        if (galeOn(p)) refreshBuff(p, 't_ojo_huracan', { spdPct: T.ojo.spdPct }, 0.25, { name: 'Ojo del Huracán', icon: '🌀', desc: `+${T.ojo.spdPct}% de velocidad de movimiento` });
+      },
+    },
+  };
+}
+
+// ============================================================
+// FRANCOTIRADORA (§7.1): Concentración, Cuerda Tensa y sus tres estilos (Perforación, Punto Débil, Vigía)
+// ============================================================
+// «Tensados» = Disparo Apuntado, los haces de Tiro Celestial y el Disparo Rápido mantenido (Cuerda
+// Tensa le pone la etiqueta `tensado`). El premio del perfecto va al disparo, no a lo que deja.
+function francotiradoraPowers() {
+  const T = tune().fra;
+  // onSkillEnd de una suelta de Disparo Apuntado que disparó (perfecta si `perfect`)
+  const aimedRelease = (sk, end, perfect = false) => sk?.id === 'a_t_apuntado' && end?.kind === 'charge' && end.casts > 0 && (!perfect || end.perfect);
+  // mira y perfil del último Disparo Apuntado (al empezar a tensar; la suelta sale hacia ahí)
+  const aimOf = (p) => powerState(p, 'arq_apuntado');
+  return {
+    // f0 Mira Serena (la barra vive en js/mech-arquera.js) + pasiva CUERDA TENSA: Disparo Rápido se
+    // tensa hasta 1 s (hasta +60 %, repartido entre sus flechas) y su último 0,2 s es perfecto (crítico
+    // seguro, sin +50 %). Marca los básicos tensados (`tensado`), lleva el Punto Débil de Tiro Rastreador,
+    // la mira de Disparo Apuntado y Vista Larga (tv.farTense: +% a los tensados a más de 10 m).
+    f_cuerda_tensa: {
+      name: 'Cuerda Tensa', desc: 'Mantén Disparo Rápido para tensarlo: hasta +60 %; su último 0,2 s es perfecto.',
+      priority: 2,
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'a_disparo' || prof.charge) return;
+        const C = T.cuerda, def = prof.def || sk;
+        const n = Math.max(1, Math.floor(def.count || 1)), c0 = def.coef || 1;
+        prof.charge = { min: 0, max: C.max, perfect: [...C.perfect], perfectPct: 0, perfectCrit: true,
+          scale: { coef: [c0, c0 * (1 + C.addPct / 100 / n)] }, moveMul: C.moveMul, autoRelease: true, instant: false,
+          repeat: true, perfectGauge: null, full: null, speed: 1 };
+      },
+      onCast(g, p, cast) {
+        if (cast?.sk?.id === 'a_t_apuntado') {
+          Object.assign(aimOf(p), { aim: cast.target ? { x: cast.target.x, z: cast.target.z } : null, prof: cast.prof });
+          return;
+        }
+        if (!cast?.weapon || !(cast.charge?.t >= T.cuerda.tensedAt - 1e-9)) return;
+        const prof = ownProf(p, cast);
+        if (prof) prof.tags = new Set([...(prof.tags || []), 'tensado']);
+      },
+      condAdd(p, e, hit) {
+        const far = p.tv?.farTense || 0;
+        if (!(far > 0) || !e || !tensedHit(hit)) return 0;
+        return dist2(e.pos, p.pos) > T.cuerda.farAt * T.cuerda.farAt ? far : 0;
+      },
+      onHit(g, p, e, hit) {
+        if (hit?.skill === 'a_f_rastreador' && e?.alive) markWeak(p, e, p.resolved?.a_f_rastreador?.mark?.dur || T.weakDur);
+      },
+      onTick(g, p) {
+        const st = powerState(p, 'arq_debil');
+        st.acc = (st.acc || 0) + 1;
+        if (st.acc % 10 === 0) pruneWeak(p);
+      },
+    },
+    // f4 Sobrepenetración: +10 %/rango por cada enemigo que ya atravesó la saeta (hasta 4)
+    f_sobrepenetracion: {
+      name: 'Sobrepenetración', desc: 'Disparo Apuntado hace más daño por cada enemigo que ya atravesó.',
+      state: () => ({ n: 0 }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'a_t_apuntado') powerState(p, 'f_sobrepenetracion').n = 0; },
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'a_t_apuntado') return 0;
+        return T.sobre.perRank * powerRank(p, 'f_sobrepenetracion') * Math.min(T.sobre.max, powerState(p, 'f_sobrepenetracion').n);
+      },
+      onHit(g, p, e, hit) { if (hit?.skill === 'a_t_apuntado' && !hit.echo) powerState(p, 'f_sobrepenetracion').n++; },
+    },
+    // f5 Línea de Mira: un soltado perfecto que atraviesa deja un Punto Débil de 4 s en cada enemigo que toca
+    f_linea_mira: {
+      name: 'Línea de Mira', desc: 'Un soltado perfecto que atraviesa deja un Punto Débil en cada enemigo que toca.',
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'a_t_apuntado' || !hit.perfect || hit.echo || !e?.alive) return;
+        if (aimOf(p).prof?.pierce === false) return;
+        markWeak(p, e, T.mira.dur);
+      },
+    },
+    // f6 Pulso Quieto: de rodillas, la ventana dorada de los tensados es un 50 % más ancha
+    f_pulso_quieto: {
+      name: 'Pulso Quieto', desc: 'En Rodilla en Tierra, la ventana dorada de tus disparos tensados es más ancha.',
+      priority: 1,
+      state: () => ({ kneel: false }),
+      modifyResolve(p, sk, prof) { if (prof.charge && kneeling(p)) widenWindow(prof.charge, T.pulso.widen); },
+      onTick(g, p) {
+        const st = powerState(p, 'f_pulso_quieto'), k = kneeling(p);
+        if (k !== st.kneel) { st.kneel = k; invalidate(p); }
+      },
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'a_f_rodilla') { powerState(p, 'f_pulso_quieto').kneel = kneeling(p); invalidate(p); } },
+      onSkillEnd(g, p, sk, end) { if (end?.kind === 'stance') { powerState(p, 'f_pulso_quieto').kneel = false; invalidate(p); } },
+    },
+    // f8A Estela Explosiva: un soltado perfecto de Disparo Apuntado deja su línea cargada: estalla a los 0,5 s (30 %)
+    f_estela: {
+      name: 'Estela Explosiva', desc: 'Un soltado perfecto de Disparo Apuntado deja su línea cargada: estalla poco después.',
+      onSkillEnd(g, p, sk, end) {
+        if (!aimedRelease(sk, end, true)) return;
+        const st = aimOf(p), from = { x: p.pos.x, z: p.pos.z }, dir = aimDir(p, st.aim);
+        const len = st.prof?.range || 16;
+        g.timers?.schedule?.(T.estela.delay, () => {
+          if (!p.alive) return;
+          for (const e of lineFoes(g, from, dir, len, T.estela.width)) strike(g, p, e, T.estela.coef, 0, 'f_estela', PROJ_TAGS);
+          g.spawnBeam?.(v3(from.x, from.z, 0.6), v3(from.x + dir.x * len, from.z + dir.z * len, 0.6), 0xffb060, 0.25);
+        });
+      },
+    },
+    // f8B Doble Impacto: si Disparo Apuntado no atraviesa a nadie más, golpea otra vez a su blanco al 30 %
+    f_doble_impacto: {
+      name: 'Doble Impacto', desc: 'Si Disparo Apuntado no atraviesa a nadie más, golpea otra vez al blanco.',
+      state: () => ({ last: null, raw: 0, crit: false, tags: null }),
+      onHit(g, p, e, hit) {
+        if (hit?.skill === 'a_t_apuntado' && !hit.echo) Object.assign(powerState(p, 'f_doble_impacto'), { last: e, raw: hit.raw, crit: hit.crit, tags: hit.tags });
+      },
+      afterCast(g, p, cast, res) {
+        const st = powerState(p, 'f_doble_impacto');
+        const e = st.last;
+        st.last = null;
+        if (cast?.sk?.id !== 'a_t_apuntado' || res?.hits !== 1 || !e?.alive || !(st.raw > 0)) return;
+        e.takeDamage(Math.max(1, Math.round(st.raw * T.doble.mult)), st.crit, { skill: 'a_t_apuntado', tags: st.tags || PROJ_TAGS, elem: 'physical', echo: true });
+        g.emitFx?.('arqStunPop', e.pos.clone().setY(1.2));
+      },
+    },
+    // f9A Marca Saltarina: si el marcado muere, el Punto Débil salta al más cercano con el tiempo que le quedaba
+    f_marca_saltarina: {
+      name: 'Marca Saltarina', desc: 'Si el marcado muere, el Punto Débil salta al enemigo más cercano.',
+      onKill(g, p, e) {
+        const left = weakLeft(p, e);
+        if (!(left > 0)) return;
+        const to = foesNear(g, e.pos, T.saltarina.range, e)[0];
+        weakMap(p).delete(e);
+        if (!to) return;
+        markWeak(p, to, left);
+        const m = e.marks?.a_punto_debil;
+        if (m && m.t > 0 && (!m.by || m.by === p)) (to.marks || (to.marks = {})).a_punto_debil = { ...m };
+        g.spawnBeam?.(e.pos.clone().setY(1.2), to.pos.clone().setY(1.2), 0xff9a4a, 0.25);
+      },
+    },
+    // f9B Punto Vital: contra tu Punto Débil, el soltado perfecto +35 % y 15 de Quebranto
+    f_punto_vital: {
+      name: 'Punto Vital', desc: 'Contra tu Punto Débil, el soltado perfecto hace más daño y llena Quebranto.',
+      state: () => ({ seq: 0, done: -1 }),
+      onCast(g, p, cast) {
+        const st = powerState(p, 'f_punto_vital');
+        st.seq++;
+        const tgt = targetOf(g, cast);
+        if (cast?.weapon) {                           // básico tensado: el perfecto ya se sabe al disparar
+          if (cast.perfect && isWeak(p, tgt)) ownProf(p, cast).addPct += T.vital.pct;
+          return;
+        }
+        if (!isCharged(cast?.sk?.id) || !cast.prof?.charge || !isWeak(p, tgt)) return;
+        const prof = ownProf(p, cast);
+        prof.charge = { ...prof.charge, perfectPct: (prof.charge.perfectPct || 0) + T.vital.pct };
+      },
+      onHit(g, p, e, hit) {
+        if (!hit?.perfect || hit.echo || !isBoss(e) || !isWeak(p, e)) return;
+        const st = powerState(p, 'f_punto_vital');
+        if (st.done === st.seq) return;               // una vez por disparo
+        st.done = st.seq;
+        e.addStagger?.(T.vital.stagger, p);
+      },
+    },
+    // f10A Salva de Vigía: de rodillas, cada soltado a carga completa dispara 2 saetas más al 25 %
+    f_salva: {
+      name: 'Salva de Vigía', desc: 'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más.',
+      onSkillEnd(g, p, sk, end) {
+        if (end?.kind !== 'charge' || !(end.casts > 0) || !(end.frac >= 1 - 1e-9) || !kneeling(p)) return;
+        const foes = foesNear(g, p.pos, T.salva.range);
+        for (let i = 0; i < T.salva.n && foes.length; i++)
+          shootArrow(g, p, { from: p.pos, to: nth(foes, i).pos, coef: T.salva.coef, skill: 'f_salva', speed: 26, range: T.salva.range + 2 });
+      },
+    },
+    // f10B Paciencia de Vigía: de rodillas, cada Disparo Apuntado seguido al mismo enemigo +15 % (hasta +45 %)
+    f_paciencia: {
+      name: 'Paciencia de Vigía', desc: 'En Rodilla en Tierra, cada Disparo Apuntado seguido al mismo enemigo hace más daño.',
+      state: () => ({ last: null, n: 0 }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_apuntado') return;
+        const st = powerState(p, 'f_paciencia'), tgt = targetOf(g, cast);
+        if (!kneeling(p) || !tgt) { st.last = null; st.n = 0; return; }
+        st.n = st.last === tgt ? st.n + 1 : 1;
+        st.last = tgt;
+        ownProf(p, cast).addPct += T.paciencia.pct * Math.min(T.paciencia.max, st.n);
+      },
+    },
+    // f11 Fila Rota: cada enemigo que mata Disparo Apuntado devuelve 4 de Energía y 5 de Concentración por rango
+    f_fila_rota: {
+      name: 'Fila Rota', desc: 'Cada enemigo que mata Disparo Apuntado te devuelve Energía y Concentración.',
+      onKill(g, p, e, kill) {
+        if (kill?.skill !== 'a_t_apuntado') return;
+        const r = powerRank(p, 'f_fila_rota');
+        g.gainResource?.(p, T.fila.energy * r);
+        gainGauge(p, 'concentracion', T.fila.focus * r);
+      },
+    },
+    // f12 Lectura del Blanco: contra tu Punto Débil, la ventana dorada dura un 25 %/rango más
+    f_lectura: {
+      name: 'Lectura del Blanco', desc: 'Contra tu Punto Débil, la ventana dorada dura más.',
+      onCast(g, p, cast) {
+        if (!isCharged(cast?.sk?.id) || !cast.prof?.charge || !isWeak(p, targetOf(g, cast))) return;
+        const prof = ownProf(p, cast);
+        prof.charge = widenWindow({ ...prof.charge }, 1 + T.lectura.perRank * powerRank(p, 'f_lectura') / 100);
+      },
+    },
+    // f13 Puntería de Vigía: de rodillas, los tensados +15 %/rango
+    f_punteria_vigia: {
+      name: 'Puntería de Vigía', desc: 'En Rodilla en Tierra, tus disparos tensados hacen más daño.',
+      condAdd(p, e, hit) { return kneeling(p) && tensedHit(hit) ? T.vigia.perRank * powerRank(p, 'f_punteria_vigia') : 0; },
+    },
+    // f14 Estrella Fija: en la Calma Absoluta, cada perfecto de Disparo Apuntado recarga 1,5 s de Tiro Celestial
+    f_estrella_fija: {
+      name: 'Estrella Fija', desc: 'En la Calma Absoluta, cada soltado perfecto de Disparo Apuntado recarga Tiro Celestial.',
+      onSkillEnd(g, p, sk, end) {
+        if (aimedRelease(sk, end, true) && calmOn(p)) g.reduceCooldown?.(p, 'a_u_celeste', T.estrella.cdr);
+      },
+    },
+    // f15B Nervios de Acero: un golpe mientras tensas da un escudo del 8 % de la vida (cada 6 s; cubeta de autocuración)
+    f_nervios: {
+      name: 'Nervios de Acero', desc: 'Si te golpean mientras tensas, ganas un escudo.',
+      state: () => ({}),
+      onDamaged(g, p, info) {
+        if (!g?._charging || !(info?.amount > 0)) return;
+        if (!takeCd(powerState(p, 'f_nervios'), 'cd', T.nervios.icd, p)) return;
+        selfShield(g, p, T.nervios.pct, T.nervios.dur, 'f_nervios');
+      },
+    },
+    // f16 Serenidad: con 50+ de Concentración, Apuntado y los haces se tensan un 10 %/rango más rápido y +10 %/rango
+    f_serenidad: {
+      name: 'Serenidad', desc: 'Con 50 o más de Concentración, Disparo Apuntado y los haces se tensan más rápido y pegan más.',
+      state: () => ({ above: false }),
+      condAdd(p, e, hit) {
+        return isCharged(hit?.skill) && gaugeValue(p, 'concentracion') >= T.serenidad.over ? T.serenidad.perRank * powerRank(p, 'f_serenidad') : 0;
+      },
+      modifyResolve(p, sk, prof) {
+        if (!isCharged(sk.id) || !prof.charge || !(gaugeValue(p, 'concentracion') >= T.serenidad.over)) return;
+        prof.charge.speed *= 1 + T.serenidad.perRank * powerRank(p, 'f_serenidad') / 100;
+      },
+      onTick(g, p) {
+        const st = powerState(p, 'f_serenidad'), above = gaugeValue(p, 'concentracion') >= T.serenidad.over;
+        if (above !== st.above) { st.above = above; forget(p, 'a_t_apuntado', 'a_u_celeste'); }
+      },
+    },
+    // f17 Haces Gemelos: cada haz de Tiro Celestial dispara otro detrás, al 35 %/rango (repetición: no repite)
+    f_haces_gemelos: {
+      name: 'Haces Gemelos', desc: 'Cada haz de Tiro Celestial dispara otro detrás.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_u_celeste') return;
+        const mult = T.gemelos.perRank * powerRank(p, 'f_haces_gemelos'), at = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
+        g.timers?.schedule?.(0.15, () => { if (p.alive) castEchoOf(g, p, 'a_u_celeste', mult, at); });
+      },
+    },
+    // f18 Rebote Certero: Disparo Apuntado rebota en el primer muro y vuelve por su línea al 10 %/rango del disparo
+    f_rebote: {
+      name: 'Rebote Certero', desc: 'Disparo Apuntado rebota en el primer muro y vuelve por su línea.',
+      onSkillEnd(g, p, sk, end) {
+        if (!aimedRelease(sk, end)) return;
+        const st = aimOf(p), pr = st.prof;
+        const from = { x: p.pos.x, z: p.pos.z }, dir = aimDir(p, st.aim), len = pr?.range || 16;
+        const wall = firstWall(g, from, dir, len, T.rebote.step);
+        if (!wall) return;
+        const coef = shotCoef(pr, end.frac) * T.rebote.perRank * powerRank(p, 'f_rebote');
+        const speed = pr?.speed || 30;
+        g.timers?.schedule?.(wall.d / speed, () => {
+          if (p.alive) shootArrow(g, p, { from: wall.pos, to: from, coef, skill: 'f_rebote', pierce: true, range: wall.d + 1, speed });
+        });
+      },
+    },
+    // f19 Herida Expuesta: mientras tiene tu Punto Débil, el enemigo recibe +6 %/rango de todo el grupo
+    f_herida_expuesta: {
+      name: 'Herida Expuesta', desc: 'Mientras tiene tu Punto Débil, el enemigo recibe más daño de todo el grupo.',
+      onTick(g, p) {
+        const pct = T.expuesta.perRank * powerRank(p, 'f_herida_expuesta');
+        for (const e of g.enemies || []) if (e.alive && isWeak(p, e)) e.applyWeakness?.('f_herida_expuesta', pct, 0.25);
+      },
+    },
+    // f21 Firmamento: de rodillas, Tiro Celestial se recarga un 20 % más rápido (suelo de la definitiva)
+    f_firmamento: {
+      name: 'Firmamento', desc: 'En Rodilla en Tierra, Tiro Celestial se recarga más rápido.',
+      onTick(g, p, dt) {
+        if (kneeling(p) && (p.cds?.a_u_celeste || 0) > 0) g.reduceCooldown?.(p, 'a_u_celeste', T.firmamento.rate * dt);
+      },
+    },
+    // f22 Saetas Paralelas: cada perfecto de Disparo Apuntado suelta rango saetas en paralelo a 1 m (20 %)
+    f_paralelas: {
+      name: 'Saetas Paralelas', desc: 'Cada soltado perfecto de Disparo Apuntado suelta saetas en paralelo.',
+      onSkillEnd(g, p, sk, end) {
+        if (!aimedRelease(sk, end, true)) return;
+        const st = aimOf(p), dir = aimDir(p, st.aim), len = st.prof?.range || 16;
+        const side = { x: dir.z, z: -dir.x };
+        const offs = [1, -1, 2, -2, 3, -3].slice(0, powerRank(p, 'f_paralelas'));
+        for (const o of offs) {
+          const from = { x: p.pos.x + side.x * o * T.paralelas.gap, z: p.pos.z + side.z * o * T.paralelas.gap };
+          shootArrow(g, p, { from, to: { x: from.x + dir.x * len, z: from.z + dir.z * len }, coef: T.paralelas.coef, skill: 'f_paralelas',
+            pierce: true, range: len, speed: st.prof?.speed || 30, color: 0xfff1a8 });
+        }
+      },
+    },
+    // f23 Herida sobre Herida: cada perfecto a tu Punto Débil le deja una Herida (hasta 5): tus tensados +2 %/rango por cada una
+    f_heridas: {
+      name: 'Herida sobre Herida', desc: 'Cada soltado perfecto a tu Punto Débil le deja una Herida que suma daño.',
+      state: () => ({ n: new WeakMap() }),
+      onHit(g, p, e, hit) {
+        if (!hit?.perfect || hit.echo || !tensedHit(hit) || !isWeak(p, e)) return;
+        const m = powerState(p, 'f_heridas').n;
+        m.set(e, Math.min(T.heridas.max, (m.get(e) || 0) + 1));
+      },
+      condAdd(p, e, hit) {
+        if (!e || !tensedHit(hit)) return 0;
+        return (powerState(p, 'f_heridas').n.get(e) || 0) * T.heridas.perRank * powerRank(p, 'f_heridas');
+      },
+    },
+    // f24 Ojo Entrenado: cada 7 − rango s de rodillas, el siguiente Disparo Apuntado sale al instante y a carga completa
+    f_ojo_entrenado: {
+      name: 'Ojo Entrenado', desc: 'De rodillas, cada pocos segundos tu siguiente Disparo Apuntado sale al instante.',
+      state: () => ({ acc: 0, ready: false }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'f_ojo_entrenado');
+        if (!kneeling(p)) { st.acc = 0; return; }
+        if (st.ready) return;
+        st.acc += dt;
+        if (st.acc + 1e-9 < T.entrenado.base - powerRank(p, 'f_ojo_entrenado')) return;
+        st.acc = 0;
+        st.ready = true;
+        g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡Listo!', 'txt-crit');
+      },
+      onCast(g, p, cast) {
+        const st = powerState(p, 'f_ojo_entrenado');
+        if (cast?.sk?.id !== 'a_t_apuntado' || !st.ready) return;
+        st.ready = false;
+        cast.instant = true;
+      },
+    },
+    // f25 Línea Mortal (final): a carga completa, Disparo Apuntado llega a 30 m y su línea estalla (5 + 5·rango %)
+    f_linea_mortal: {
+      name: 'Línea Mortal', desc: 'A carga completa, Disparo Apuntado es un haz de 30 m que estalla en toda su línea.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_apuntado' || !cast.prof?.charge) return;
+        const prof = ownProf(p, cast), ch = prof.charge, def = prof.def || cast.sk;
+        const d = def.range || 16, R = prof.range || d;
+        // escala de alcance por tramos: el de siempre hasta el final, 30 m a carga completa (rangeMul = v / def.range)
+        prof.charge = { ...ch, scale: { ...(ch.scale || {}), range: [[ch.min, d], [ch.max - 1e-3, d], [ch.max, T.mortal.range * d / R]] } };
+      },
+      onSkillEnd(g, p, sk, end) {
+        if (!aimedRelease(sk, end) || !(end.frac >= 1 - 1e-9)) return;
+        const st = aimOf(p), from = { x: p.pos.x, z: p.pos.z }, dir = aimDir(p, st.aim);
+        const coef = (T.mortal.base + T.mortal.perRank * powerRank(p, 'f_linea_mortal')) / 100;
+        g.timers?.schedule?.(0.3, () => {
+          if (!p.alive) return;
+          for (const e of lineFoes(g, from, dir, T.mortal.range, T.mortal.width)) strike(g, p, e, coef, 0, 'f_linea_mortal', PROJ_TAGS);
+          g.spawnBeam?.(v3(from.x, from.z, 1.0), v3(from.x + dir.x * T.mortal.range, from.z + dir.z * T.mortal.range, 1.0), 0xfff1a8, 0.35);
+        });
+      },
+    },
+    // f26 Disparo Imposible (final): un perfecto de Disparo Apuntado a tu Punto Débil sale dos veces: la 2.ª
+    // al 5 + 10·rango % del disparo, crítica y con 20 de Quebranto (una vez por segundo; no da Herida ni Concentración)
+    f_disparo_imposible: {
+      name: 'Disparo Imposible', desc: 'Un soltado perfecto a tu Punto Débil sale dos veces.',
+      icd: 1,
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'a_t_apuntado' || !hit.perfect || hit.echo || !e?.alive || !isWeak(p, e)) return false;
+        const pct = (T.imposible.base + T.imposible.perRank * powerRank(p, 'f_disparo_imposible')) / 100;
+        const raw = hit.raw, tags = hit.tags;
+        g.timers?.schedule?.(T.imposible.delay, () => {
+          if (!e.alive) return;
+          e.takeDamage(Math.max(1, Math.round(raw * pct)), true, { skill: 'a_t_apuntado', tags, elem: 'physical', echo: true });
+          e.addStagger?.(T.imposible.stagger, p);
+          g.emitFx?.('arqStunPop', e.pos.clone().setY(1.2));
+        });
+        return true;
+      },
+    },
+    // f27 Atalaya Eterna (final): Rodilla en Tierra dura 20 s, 30 s o hasta que te levantes; cada 5 s en ella,
+    // un haz celeste gratis sobre tu blanco (200 %, no atraviesa)
+    f_atalaya: {
+      name: 'Atalaya Eterna', desc: 'Rodilla en Tierra dura más y, de rodillas, cae un haz celeste sobre tu blanco.',
+      state: () => ({ acc: 0, target: null }),
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'a_f_rodilla') return;
+        const d = T.atalaya.dur[Math.max(1, powerRank(p, 'f_atalaya')) - 1] ?? T.atalaya.dur[0];
+        prof.dur = Math.max(prof.dur || 0, d);
+      },
+      onHit(g, p, e, hit) { if (tensedHit(hit) && !hit.echo) powerState(p, 'f_atalaya').target = e; },
+      onTick(g, p, dt) {
+        const st = powerState(p, 'f_atalaya');
+        if (!kneeling(p)) { st.acc = 0; return; }
+        st.acc += dt;
+        if (st.acc + 1e-9 < T.atalaya.every) return;
+        st.acc -= T.atalaya.every;
+        const R = T.atalaya.range;
+        const e = st.target?.alive && dist2(st.target.pos, p.pos) <= R * R ? st.target : foesNear(g, p.pos, R)[0];
+        if (!e) return;
+        strike(g, p, e, T.atalaya.coef, 0, 'a_u_celeste', PROJ_TAGS);
+        g.spawnBeam?.(v3(e.pos.x, e.pos.z, 8), e.pos.clone().setY(1.0), 0x9fd8ff, 0.3);
+      },
+    },
+    // f28 Ojo Inmóvil (ápice): 1) la Calma dura 8 s (la lee la mecánica) · 2) matar a un élite, 50 de
+    // Concentración · 3) la Calma salta a 80 · 4) cada Calma recarga 5 s de Tiro Celestial
+    f_ojo_inmovil: {
+      name: 'Ojo Inmóvil', desc: 'La Calma Absoluta dura más, salta antes y recarga Tiro Celestial.',
+      stats(p) { return powerRank(p, 'f_ojo_inmovil') >= 3 ? { 'gaugeMax:concentracion': T.inmovil.max } : {}; },
+      onKill(g, p, e) { if (powerRank(p, 'f_ojo_inmovil') >= 2 && isEliteish(e)) gainGauge(p, 'concentracion', T.inmovil.eliteFocus); },
+      onGauge(g, p, id, ev) {
+        if (id === 'concentracion' && ev === 'full' && powerRank(p, 'f_ojo_inmovil') >= 4) g.reduceCooldown?.(p, 'a_u_celeste', T.inmovil.celeste);
+      },
+    },
+  };
+}
+
+// ============================================================
+// MONTARAZ (§7.2): Coto de Caza, Cebo de Caza y sus tres estilos (Campo Minado, Presa, Zarzal)
+// ============================================================
+// Los cepos son campos 'trampa' del núcleo (detonables, cuentan para el Coto y Salto de Acecho los
+// encuentra). «Cepos de Trampa de Cepo» = los de carga y los del Racimo; los sembrados (Campo
+// Sembrado), los pequeños (Tierra Arrasada) y el gratis del ápice llevan su propia habilidad.
+// Golpe de una trampa: `isSpring` (alguien la pisa) o `isBurst` (la hace estallar una detonación).
+function montarazPowers() {
+  const T = tune().mon;
+  // una vez por trampa (uid) en un poder: { seen:Set } acotado
+  const once = (st, uid) => {
+    const s = st.seen || (st.seen = new Set());
+    if (s.has(uid)) return false;
+    s.add(uid);
+    if (s.size > 96) s.delete(s.values().next().value);
+    return true;
+  };
+  // por lanzamiento de Flecha Detonante: el primer golpe (centro de su estallido)
+  const detCast = (p, id, cast) => { if (cast?.sk?.id === 'a_m_detonante') { const st = powerState(p, id); st.seq = (st.seq || 0) + 1; st.at = null; } };
+  const detFirst = (p, id, hit) => {
+    if (hit?.skill !== 'a_m_detonante' || hit.echo || hit.trap) return false;
+    const st = powerState(p, id);
+    if (st.done === st.seq) return false;
+    st.done = st.seq;
+    return true;
+  };
+  return {
+    // m0 Coto de Caza (la barra vive en js/mech-arquera.js) + pasiva CEBO DE CAZA: todas tus trampas
+    // armadas atraen (a 6 m; los élites a 3 m; los jefes no), también las que colocan tus talentos.
+    // Guarda el molde del último cepo (spawnCepo) y lee Pólvora Negra (tv.trapBurstPct: +% a los
+    // estallidos de trampa) y Espino Venenoso (tv.thornPoison: +% al veneno del Cerco de Zarzas).
+    m_cebo: {
+      name: 'Cebo de Caza', desc: 'Tus trampas armadas atraen a los enemigos cercanos.',
+      priority: 2, procs: true,
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_cepo') return;
+        const f = newestTrap(g, p, 'a_t_cepo');
+        if (!f) return;
+        if (f.data.baseDmg == null) f.data.baseDmg = f.data.dmg;
+        powerState(p, 'arq_cepo').tpl = { data: { ...f.data, cluster: undefined, greatHunt: false }, radius: f.radius, life: f.dur };
+      },
+      onTick(g, p) {
+        let changed = false;
+        for (const f of ownTraps(g, p)) if (!f.data.lure) { f.data.lure = { ...T.cebo }; changed = true; }
+        if (changed) g._recountMoveFields?.();
+      },
+      condAdd(p, e, hit) {
+        const n = p.tv?.trapBurstPct || 0;
+        return n > 0 && hit?.tags?.has?.('trap') ? n : 0;
+      },
+      onHit(g, p, e, hit) {
+        const n = p.tv?.thornPoison || 0;
+        if (!(n > 0) || !hit?.dot || hit.skill !== 'a_u_zarzas' || !String(hit.source || '').startsWith('field:') || !(hit.raw > 0)) return;
+        dealProcDamage(g, e, hit.raw * n / 100, { skill: 'm_cebo', source: 'power' });
+      },
+    },
+    // m5 Presa Atrapada: una trampa que atrapa a tu Presa estalla (60 %) y devuelve una carga de Trampa
+    // de Cepo (una vez cada 10 s; las que hizo saltar Gran Cacería no cuentan)
+    m_presa_atrapada: {
+      name: 'Presa Atrapada', desc: 'Una trampa que atrapa a tu Presa estalla y te devuelve una carga de Trampa de Cepo.',
+      icd: T.atrapada.icd,
+      onHit(g, p, e, hit) {
+        if (!isSpring(hit) || !e?.prey) return false;
+        const f = fieldByUid(g, hit.trap.uid);
+        if (f?.data?.greatHunt) return false;
+        const at = v3(f ? f.pos.x : e.pos.x, f ? f.pos.z : e.pos.z);
+        g.dealArea?.(at, T.atrapada.radius, T.atrapada.coef, { hitInfo: { skill: 'm_presa_atrapada', tags: TRAP_TAGS, elem: 'nature' }, from: at });
+        g.reduceCooldown?.(p, 'a_t_cepo', Infinity);
+        g.spawnRing?.(at, T.atrapada.radius, 0x86d47a);
+        return true;
+      },
+    },
+    // m6 Cerco a la Presa: Flecha Detonante sobre tu Presa le deja debajo un zarzal de 2 m 4 s
+    m_cerco_presa: {
+      name: 'Cerco a la Presa', desc: 'Flecha Detonante sobre tu Presa le deja debajo un zarzal que la ralentiza.',
+      onCast(g, p, cast) { detCast(p, 'm_cerco_presa', cast); },
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'a_m_detonante' || hit.echo || hit.trap || !e?.prey) return;
+        const st = powerState(p, 'm_cerco_presa');
+        if (st.done === st.seq) return;
+        st.done = st.seq;
+        spawnZarzal(g, p, e.pos, T.cercoPresa.dur, 'm_cerco_presa');
+      },
+    },
+    // m8A Racimo de Cepos: Trampa de Cepo coloca 3 cepos en triángulo (35 % cada uno); el Coto los cuenta como uno
+    m_racimo: {
+      name: 'Racimo de Cepos', desc: 'Trampa de Cepo coloca 3 cepos en triángulo.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_t_cepo') return;
+        const main = newestTrap(g, p, 'a_t_cepo');
+        if (!main || main.data.cluster != null) return;
+        main.data.cluster = main.uid;
+        scaleTrap(main, T.racimo.mul);
+        const d = aimDir(p, main.pos), base = Math.atan2(d.x, d.z);
+        for (const a of [2 * Math.PI / 3, -2 * Math.PI / 3]) {
+          const pos = { x: main.pos.x + Math.sin(base + a) * T.racimo.gap, z: main.pos.z + Math.cos(base + a) * T.racimo.gap };
+          spawnCepo(g, p, pos, { mul: T.racimo.mul, skill: 'm_racimo', max: 6, cluster: main.uid });
+        }
+      },
+    },
+    // m8B Cepo Reforzado: si atrapa a un élite o a un jefe, el cepo estalla 3 veces (20 % cada una)
+    m_cepo_reforzado: {
+      name: 'Cepo Reforzado', desc: 'Si atrapa a un élite o a un jefe, el cepo estalla tres veces.',
+      onHit(g, p, e, hit) {
+        if (!isSpring(hit) || !isEliteish(e)) return;
+        const f = fieldByUid(g, hit.trap.uid);
+        const at = v3(f ? f.pos.x : e.pos.x, f ? f.pos.z : e.pos.z), X = T.reforzado;
+        for (let i = 1; i <= X.n; i++) g.timers?.schedule?.(X.every * i, () => {
+          if (!p.alive) return;
+          g.dealArea?.(at, X.radius, X.coef, { hitInfo: { skill: 'm_cepo_reforzado', tags: TRAP_TAGS, elem: 'nature' }, from: at });
+          g.spawnRing?.(at, X.radius, 0xc8a050);
+        });
+      },
+    },
+    // m9A Presas en Manada: hasta 3 Presas: tu primer élite y los 2 primeros enemigos que pisen una trampa
+    m_manada: {
+      name: 'Presas en Manada', desc: 'Tienes hasta 3 Presas: tu primer élite y los 2 primeros que pisen una trampa.',
+      onHit(g, p, e, hit) { if (isSpring(hit) && e?.alive && !e.prey) addPrey(g, p, e, 'trap'); },
+    },
+    // m9B Presa Herida: tu Presa recibe +10 % de todo el grupo y cada trampa que pisa le llena 25 de Quebranto
+    m_presa_herida: {
+      name: 'Presa Herida', desc: 'Tu Presa recibe más daño de todo el grupo y sus trampas le llenan Quebranto.',
+      onTick(g, p) { for (const e of preyList(p)) e.applyWeakness?.('m_presa_herida', T.herida.weak, 0.3); },
+      onHit(g, p, e, hit) { if (isSpring(hit) && e?.prey && isBoss(e)) e.addStagger?.(T.herida.stagger, p); },
+    },
+    // m10A Zarzal Creciente: el Cerco crece 1 m/s (hasta 12 m) e inmoviliza a los que alcanza
+    m_creciente: {
+      name: 'Zarzal Creciente', desc: 'Cerco de Zarzas crece y atrapa a los que alcanza.',
+      onTick(g, p) {
+        const c = cercoOf(g, p);
+        if (!c) return;
+        const f = c.f, r = Math.min(T.creciente.max, c.r0 + T.creciente.perSec * Math.max(0, now(p) - c.at));
+        if (!(r > f.radius + 1e-6)) return;
+        const before = f.radius;
+        f.radius = r;
+        const reached = f._reached || (f._reached = new WeakSet());
+        for (const e of g.enemies || []) {
+          if (!e.alive || reached.has(e)) continue;
+          const d = dist(e.pos, f.pos);
+          if (d > before && d <= r) {
+            reached.add(e);
+            if (e.applyCC?.('root', c.root, { src: p }) > 0) cercoRooted(g, p, f);
+          }
+        }
+      },
+    },
+    // m10B Zarzal Asfixiante: dentro del Cerco, el veneno al enemigo con más vida sube un 15 % cada segundo (hasta +90 %)
+    m_asfixiante: {
+      name: 'Zarzal Asfixiante', desc: 'Dentro del Cerco, el veneno al enemigo con más vida sube cada segundo.',
+      procs: true,
+      state: () => ({ target: null, n: 0, acc: 0, f: null }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'm_asfixiante'), c = cercoOf(g, p);
+        if (!c) { Object.assign(st, { target: null, n: 0, acc: 0, f: null }); return; }
+        let top = null;
+        for (const e of g.enemies || []) if (e.alive && insideField(c.f, e.pos) && (!top || e.hp > top.hp)) top = e;
+        if (top !== st.target || c.f !== st.f) Object.assign(st, { target: top, n: 0, acc: 0, f: c.f });
+        if (!top) return;
+        st.acc += dt;
+        if (st.acc + 1e-9 < 1) return;
+        st.acc -= 1;
+        st.n = Math.min(T.asfixia.max / T.asfixia.perSec, st.n + 1);
+      },
+      onHit(g, p, e, hit) {
+        const st = powerState(p, 'm_asfixiante');
+        if (!hit?.dot || hit.skill !== 'a_u_zarzas' || e !== st.target || !(st.n > 0) || !(hit.raw > 0)) return;
+        dealProcDamage(g, e, hit.raw * T.asfixia.perSec * st.n / 100, { skill: 'm_asfixiante', source: 'power' });
+      },
+    },
+    // m11 Metralla: cada cepo de Trampa de Cepo que estalla suelta 2 púas/rango a los cercanos (20 %)
+    m_metralla: {
+      name: 'Metralla', desc: 'Cada cepo de Trampa de Cepo que estalla suelta púas a enemigos cercanos.',
+      state: () => ({}),
+      onHit(g, p, e, hit) {
+        if (!isBurst(hit) || !CHARGE_CEPOS.has(hit.trap.skill) || !once(powerState(p, 'm_metralla'), hit.trap.uid)) return;
+        const f = fieldByUid(g, hit.trap.uid), at = f ? f.pos : e.pos;
+        const foes = foesNear(g, at, T.metralla.range);
+        const n = T.metralla.perRank * powerRank(p, 'm_metralla');
+        for (let i = 0; i < n && foes.length; i++)
+          shootArrow(g, p, { from: at, to: nth(foes, i).pos, coef: T.metralla.coef, skill: 'm_metralla', size: 0.06, color: 0xc8a050, range: T.metralla.range + 2 });
+      },
+    },
+    // m12 Acoso: cada trampa que pisa tu Presa le llena 15 de Quebranto/rango (a un élite, lo ralentiza 30 % 3 s)
+    m_acoso: {
+      name: 'Acoso', desc: 'Cada trampa que pisa tu Presa le llena Quebranto o la ralentiza.',
+      onHit(g, p, e, hit) {
+        if (!isSpring(hit) || !e?.prey || !e.alive) return;
+        if (isBoss(e)) e.addStagger?.(T.acoso.perRank * powerRank(p, 'm_acoso'), p);
+        else if (e.def?.rank) e.applyCC?.('slow', T.acoso.slowT, { pct: T.acoso.slowPct, src: p });
+      },
+    },
+    // m14 Semillas de Zarza: Flecha Detonante deja un zarzal de 2 m durante 4 s donde estalla
+    m_semillas: {
+      name: 'Semillas de Zarza', desc: 'Flecha Detonante deja un zarzal donde estalla.',
+      onCast(g, p, cast) { detCast(p, 'm_semillas', cast); },
+      onHit(g, p, e, hit) { if (detFirst(p, 'm_semillas', hit)) spawnZarzal(g, p, e.pos, T.semillas.dur, 'm_semillas'); },
+    },
+    // m15A Cepo de Huida: al bajar del 50 % de vida, un cepo a tus pies inmoviliza 3 s a todos a 4 m (cada 30 s)
+    m_cepo_huida: {
+      name: 'Cepo de Huida', desc: 'Al bajar del 50 % de vida, inmovilizas a los enemigos cercanos.',
+      state: () => ({}),
+      onDamaged(g, p, info) {
+        const max = p.stats?.maxHP || 1, line = max * T.huida.below;
+        if (!(p.hp >= line) || !(p.hp - (info?.amount || 0) < line)) return;
+        if (!takeCd(powerState(p, 'm_cepo_huida'), 'cd', T.huida.icd, p)) return;
+        for (const e of foesNear(g, p.pos, T.huida.radius)) e.applyCC?.('root', T.huida.root, { src: p });
+        g.spawnRing?.(p.pos.clone().setY(0.1), T.huida.radius, 0x86d47a);
+        g.sfx?.('trap');
+      },
+    },
+    // m15B Guarida: a 4 m de tus trampas armadas recibes un 15 % menos
+    m_guarida: {
+      name: 'Guarida', desc: 'Cerca de tus trampas armadas recibes menos daño.',
+      condDr(p) {
+        const R2 = T.guarida.radius * T.guarida.radius;
+        return armedTraps(p.game, p).some(f => dist2(f.pos, p.pos) <= R2) ? T.guarida.dr : 0;
+      },
+    },
+    // m16 Coto Cerrado: con 2+ trampas armadas, +6 %/rango de daño (y los zarzales +rango s: spawnZarzal)
+    m_coto_cerrado: {
+      name: 'Coto Cerrado', desc: 'Con 2 o más trampas armadas haces más daño y tus zarzales duran más.',
+      condAdd(p) { return gaugeValue(p, 'coto') >= T.cerrado.min ? T.cerrado.perRank * powerRank(p, 'm_coto_cerrado') : 0; },
+    },
+    // m17 Zarzas Trepadoras: cada enemigo que inmoviliza el Cerco lo alarga 0,5 s/rango (hasta +4 s).
+    // Cruces del anillo seguidos de inmovilización (la pone el Cerco: a_zarzas); Creciente y Bosque Vivo avisan solos.
+    m_trepadoras: {
+      name: 'Zarzas Trepadoras', desc: 'Cada enemigo que inmoviliza el Cerco de Zarzas lo alarga.',
+      state: () => ({ f: null, side: new Map(), rt: new Map(), pend: [] }),
+      onTick(g, p) {
+        const st = powerState(p, 'm_trepadoras'), c = cercoOf(g, p);
+        if (!c) { st.f = null; st.side.clear(); st.pend = []; return; }
+        if (st.f !== c.f) { st.f = c.f; st.side.clear(); st.pend = []; }
+        const t = now(p), rose = new Set();
+        for (const e of g.enemies || []) {
+          if (!e.alive) { st.side.delete(e); st.rt.delete(e); continue; }
+          // inmovilizado desde el tic anterior (la inmovilización decae: solo sube con una nueva)
+          const r = e.rootT || 0, prev = st.rt.get(e) ?? r;
+          st.rt.set(e, r);
+          if (r > prev + 1e-6) rose.add(e);
+          const inside = dist2(e.pos, c.c) <= c.r0 * c.r0, was = st.side.get(e);
+          if (was !== undefined && was !== inside) st.pend.push({ e, at: t });
+          st.side.set(e, inside);
+        }
+        st.pend = st.pend.filter(x => {
+          if (!x.e.alive || t - x.at > 0.35) return false;
+          if (!rose.has(x.e)) return true;
+          cercoRooted(g, p, c.f);
+          return false;
+        });
+      },
+    },
+    // m18 Rearme Rápido: cada detonación que hace estallar un cepo tuyo de carga recarga rango s del Cepo y del Salto
+    m_rearme: {
+      name: 'Rearme Rápido', desc: 'Cada detonación que hace estallar un cepo tuyo recarga el Cepo y el Salto de Acecho.',
+      state: () => ({ last: -9 }),
+      onHit(g, p, e, hit) {
+        if (!isBurst(hit) || !CHARGE_CEPOS.has(hit.trap.skill)) return;
+        const st = powerState(p, 'm_rearme'), t = now(p);
+        if (t - st.last <= T.rearme.gap + 1e-9) return;
+        st.last = t;
+        const s = T.rearme.perRank * powerRank(p, 'm_rearme');
+        g.reduceCooldown?.(p, 'a_t_cepo', s);
+        g.reduceCooldown?.(p, 'a_m_acecho', s);
+      },
+    },
+    // m19 Rastro Fresco: al morir tu Presa, el más fuerte a 10 m pasa a ser tu Presa y ganas 10 de Energía/rango
+    m_rastro: {
+      name: 'Rastro Fresco', desc: 'Al morir tu Presa, el enemigo más fuerte cercano pasa a ser tu Presa.',
+      onKill(g, p, e, kill) {
+        if (!kill?.status?.prey) return;
+        const strong = o => (isBoss(o) ? 2 : o.def?.rank ? 1 : 0);
+        const next = foesNear(g, e.pos, T.rastro.range, e).sort((a, b) => strong(b) - strong(a) || (b.maxHP || 0) - (a.maxHP || 0))[0];
+        if (!next) return;
+        addPrey(g, p, next, 'elite');
+        g.gainResource?.(p, T.rastro.energy * powerRank(p, 'm_rastro'));
+      },
+    },
+    // m21 Rebrote: al acabarse, el Cerco de Zarzas deja 3 zarzales de 2 m durante 6 s
+    m_rebrote: {
+      name: 'Rebrote', desc: 'Al acabarse, el Cerco de Zarzas deja zarzales.',
+      state: () => ({ f: null, c: null, r0: 0 }),
+      onTick(g, p) {
+        const st = powerState(p, 'm_rebrote'), c = cercoOf(g, p);
+        if (c) { Object.assign(st, { f: c.f, c: { x: c.c.x, z: c.c.z }, r0: c.r0 }); return; }
+        if (!st.f) return;
+        const { c: at, r0 } = st;
+        st.f = null;
+        for (let i = 0; i < T.rebrote.n; i++) {
+          const a = i * 2 * Math.PI / T.rebrote.n;
+          spawnZarzal(g, p, { x: at.x + Math.sin(a) * r0 * 0.6, z: at.z + Math.cos(a) * r0 * 0.6 }, T.rebrote.dur, 'm_rebrote');
+        }
+      },
+    },
+    // m22 Campo Sembrado: Flecha Detonante deja rango cepos armados donde cae (35 %; no gasta cargas)
+    m_campo_sembrado: {
+      name: 'Campo Sembrado', desc: 'Flecha Detonante deja cepos armados donde cae.',
+      state: () => ({}),
+      onCast(g, p, cast) { detCast(p, 'm_campo_sembrado', cast); },
+      onHit(g, p, e, hit) { if (detFirst(p, 'm_campo_sembrado', hit)) powerState(p, 'm_campo_sembrado').at = { x: e.pos.x, z: e.pos.z }; },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_m_detonante') return;
+        const st = powerState(p, 'm_campo_sembrado');
+        let at = st.at;
+        if (!at) {                                      // sin blanco: donde acaba su vuelo
+          const d = aimDir(p, cast.target), R = cast.prof?.range || cast.sk.range || 12;
+          const want = v3(p.pos.x + d.x * R, p.pos.z + d.z * R);
+          const end = g.clampWalkable ? g.clampWalkable(p.pos, want, R) : want;
+          at = { x: end.x, z: end.z };
+        }
+        st.at = null;
+        const n = powerRank(p, 'm_campo_sembrado');
+        // tras el estallido de la flecha (que detona tus trampas en su radio)
+        g.timers?.schedule?.(0.15, () => {
+          if (!p.alive) return;
+          for (let i = 0; i < n; i++) {
+            const a = i * 2 * Math.PI / n, r = n > 1 ? T.sembrado.gap : 0;
+            spawnCepo(g, p, { x: at.x + Math.sin(a) * r, z: at.z + Math.cos(a) * r }, { mul: T.sembrado.mul, skill: 'm_campo_sembrado', max: T.sembrado.max, armT: 0 });
+          }
+        });
+      },
+    },
+    // m24 Siembra de Espinas: cada cepo que atrapa o estalla deja un zarzal de 2 m durante 2 + 2·rango s
+    m_siembra: {
+      name: 'Siembra de Espinas', desc: 'Cada cepo que atrapa o estalla deja un zarzal.',
+      state: () => ({}),
+      onHit(g, p, e, hit) {
+        if (!hit?.trap || !once(powerState(p, 'm_siembra'), hit.trap.uid)) return;
+        const f = fieldByUid(g, hit.trap.uid);
+        spawnZarzal(g, p, f ? f.pos : e.pos, T.siembra.base + T.siembra.perRank * powerRank(p, 'm_siembra'), 'm_siembra');
+      },
+    },
+    // m25 Tierra Arrasada (final): cada cepo de Trampa de Cepo que estalla siembra rango cepos pequeños a 3 m
+    // (30 %; esos no siembran; 6 vivos como mucho)
+    m_tierra_arrasada: {
+      name: 'Tierra Arrasada', desc: 'Cada cepo de Trampa de Cepo que estalla siembra cepos pequeños.',
+      state: () => ({}),
+      onHit(g, p, e, hit) {
+        if (!isBurst(hit) || !CHARGE_CEPOS.has(hit.trap.skill) || !once(powerState(p, 'm_tierra_arrasada'), hit.trap.uid)) return;
+        const f = fieldByUid(g, hit.trap.uid), at = { x: f ? f.pos.x : e.pos.x, z: f ? f.pos.z : e.pos.z };
+        const n = powerRank(p, 'm_tierra_arrasada'), a0 = (hit.trap.uid % 7) * 0.9;
+        g.timers?.schedule?.(0.15, () => {
+          if (!p.alive) return;
+          for (let i = 0; i < n; i++) {
+            const a = a0 + i * 2 * Math.PI / n;
+            spawnCepo(g, p, { x: at.x + Math.sin(a) * T.arrasada.dist, z: at.z + Math.cos(a) * T.arrasada.dist }, { mul: T.arrasada.mul, skill: 'm_tierra_arrasada', max: T.arrasada.max });
+          }
+        });
+      },
+    },
+    // m26 Gran Cacería (final): si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor y se
+    // rearman a mitad de daño (una vez cada 12/9/6 s; esas no cuentan para Presa Atrapada ni para el ápice 4)
+    m_gran_caceria: {
+      name: 'Gran Cacería', desc: 'Si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor.',
+      state: () => ({}),
+      onHit(g, p, e, hit) {
+        if (!isSpring(hit) || !e?.prey || !e.alive) return;
+        const traps = ownTraps(g, p).filter(f => f.uid !== hit.trap.uid);
+        if (!traps.length) return;
+        const icd = T.caceria.icd[Math.max(1, powerRank(p, 'm_gran_caceria')) - 1] ?? T.caceria.icd[0];
+        if (!takeCd(powerState(p, 'm_gran_caceria'), 'cd', icd, p)) return;
+        traps.forEach((f, i) => {
+          const a = i * 2 * Math.PI / traps.length;
+          f.pos.x = e.pos.x + Math.sin(a) * T.caceria.ring;
+          f.pos.z = e.pos.z + Math.cos(a) * T.caceria.ring;
+          f.armAt = (f.age || 0) + Math.max(0, f.data.armT ?? 0.5);
+          if (!f.data.greatHunt) { f.data.greatHunt = true; scaleTrap(f, T.caceria.mul); }
+        });
+        g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 1), '¡Gran Cacería!', 'txt-crit');
+      },
+    },
+    // m27 Bosque Vivo (final): si 3 zarzales tuyos se tocan, forman un Cerco gratis de rango + 1 s que solo
+    // inmoviliza (sin veneno ni estallido; uno vivo; una vez cada 8 s)
+    m_bosque_vivo: {
+      name: 'Bosque Vivo', desc: 'Si tres zarzales tuyos se tocan, forman un Cerco de Zarzas gratis.',
+      state: () => ({ alive: null }),
+      onTick(g, p) {
+        const st = powerState(p, 'm_bosque_vivo');
+        if (st.alive && !st.alive.dead) return;
+        const zs = g.fieldsOf?.(p, { kind: 'm_zarzal' }) || [];
+        const touch = (a, b) => dist2(a.pos, b.pos) <= (a.radius + b.radius) ** 2 + 1e-9;
+        let tri = null;
+        for (let i = 0; i < zs.length && !tri; i++)
+          for (let j = i + 1; j < zs.length && !tri; j++)
+            if (touch(zs[i], zs[j])) for (let k = j + 1; k < zs.length; k++) if (touch(zs[i], zs[k]) && touch(zs[j], zs[k])) { tri = [zs[i], zs[j], zs[k]]; break; }
+        if (!tri || !takeCd(st, 'cd', T.bosque.icd, p)) return;
+        const c = { x: (tri[0].pos.x + tri[1].pos.x + tri[2].pos.x) / 3, z: (tri[0].pos.z + tri[1].pos.z + tri[2].pos.z) / 3 };
+        const def = p.cls?.skills?.find(s => s.id === 'a_u_zarzas');
+        st.alive = g.spawnField?.('m_cerco', { pos: v3(c.x, c.z), radius: p.resolved?.a_u_zarzas?.radius || def?.radius || T.bosque.radius,
+          dur: T.bosque.base + powerRank(p, 'm_bosque_vivo'), owner: p, data: { root: cercoRoot(p), skill: 'm_bosque_vivo', color: def?.color ?? 0x5a8a3a } }) || null;
+        g.sfx?.('trap');
+      },
+    },
+    // m28 Corazón del Bosque (ápice): 1) tus trampas armadas ralentizan un 30 % a 3 m · 2) matar a un élite
+    // coloca un cepo gratis donde cae · 3) la Batida salta con 2 trampas (la lee la mecánica) · 4) cada 12
+    // cepos de Trampa de Cepo que haces estallar (un Racimo cuenta 1), Cerco de Zarzas gratis (cada 90 s)
+    m_corazon_bosque: {
+      name: 'Corazón del Bosque', desc: 'Tus trampas ralentizan, los élites dejan cepos y las detonaciones llaman al Cerco.',
+      state: () => ({ n: 0 }),
+      onTick(g, p) {
+        if (powerRank(p, 'm_corazon_bosque') < 1) return;
+        const R2 = T.corazon.slowR * T.corazon.slowR;
+        for (const f of armedTraps(g, p))
+          for (const e of g.enemies || []) if (e.alive && dist2(e.pos, f.pos) <= R2) e.applyCC?.('slow', 0.3, { pct: T.corazon.slowPct, src: p });
+      },
+      onKill(g, p, e) {
+        if (powerRank(p, 'm_corazon_bosque') >= 2 && isEliteish(e)) spawnCepo(g, p, e.pos, { skill: 'm_corazon_bosque', max: 2 });
+      },
+      onHit(g, p, e, hit) {
+        if (powerRank(p, 'm_corazon_bosque') < 4 || !isBurst(hit) || !CHARGE_CEPOS.has(hit.trap.skill)) return;
+        const f = fieldByUid(g, hit.trap.uid);
+        if (f?.data?.greatHunt) return;
+        const st = powerState(p, 'm_corazon_bosque');
+        if (!once(st, f?.data?.cluster ?? hit.trap.uid)) return;
+        st.n = Math.min(T.corazon.every, st.n + 1);
+        if (st.n < T.corazon.every || !takeCd(st, 'cd', T.corazon.icd, p)) return;
+        st.n = 0;
+        castEchoOf(g, p, 'a_u_zarzas', 1, { x: e.pos.x, z: e.pos.z });
+      },
+    },
+  };
+}
+
+// ============================================================
+// COMPORTAMIENTOS de las activas de talento (las del kit son del catálogo: skills-arquera.js)
 // ============================================================
 export function arqueraSkillBehaviors() {
   return {
-    // c22A Flecha Bengala: bengala de 10 m 10 s: los enemigos dentro reciben +15 % de daño de
-    // todo el grupo (Debilidad) y pegan un 15 % menos; también revela a los invisibles
-    a_t_bengala: {
-      name: 'Flecha Bengala',
-      params: ['weakPct', 'weakenPct', 'reveal'],
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const T = tune().bengala;
-        const at = (cast.target || p.pos).clone(); at.y = 0;
-        p.faceToward?.(at);
-        g.spawnBeam?.(p.pos.clone().setY(1.0), at.clone().setY(2.5), ctx.color || 0xffcc55, 0.3);
-        const f = g.spawnField?.('a_bengala', { pos: at, radius: prof.radius || sk.radius || 10, dur: prof.dur || sk.dur || 10, owner: p,
-          data: { weakPct: sk.weakPct ?? T.weakPct, weakenPct: sk.weakenPct ?? T.weakenPct, color: sk.color || 0xffcc55 } });
-        if (f) arqueraFieldsCache().a_bengala.tick(g, f, 0);   // primer pulso al instante
-        if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, at.clone().setY(2.5));
-        ctx.zoneCenter = at; ctx.zoneRad = prof.radius || 10;
-        return ctx.res;
-      },
-    },
     // c11A Camuflaje: invisible 4 s DE VERDAD (p.goInvisible: los enemigos pierden el objetivo
     // y no adquieren uno nuevo) y Paso Veloz se recarga. El crítico del primer ataque (desde la
     // invisibilidad o al salir) lo pone el poder a_camuflaje por ⑦ onCast.
@@ -1596,75 +2642,6 @@ export function arqueraSkillBehaviors() {
         return ctx.res;
       },
     },
-    // ---- kit de especialización v1 (los rehace KA1 con los verbos genéricos de §3.6) ----
-    // F s0 Disparo Apuntado: saeta perforante (la carga de 1 s es el windup del núcleo).
-    // Disparo Imposible (x3): con cast.impossible sale una segunda saeta de crítico seguro.
-    a_t_apuntado: {
-      name: 'Disparo Apuntado',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        let wait = shootFan(g, p, prof, cast, { size: 0.16, beam: !!sk.beam });
-        if (cast.impossible) {
-          const c2 = { ...ctx, hitInfo: { ...ctx.hitInfo, forceCrit: true }, _chained: false };
-          const gap = tune().impossible.gap;
-          g.timers.schedule(gap, () => {
-            if (!p.alive) return;
-            shootFan(g, p, prof, cast, { ctx: c2, size: 0.18, beam: true });
-            g.ui?.spawnText?.(p.pos, '¡DISPARO IMPOSIBLE!', 'txt-crit');
-          });
-          wait += gap;
-        }
-        g.timers.schedule(wait, () => cast.done(ctx.res));
-        return undefined;
-      },
-    },
-    // M s0 Trampa de Cepo: hasta 3 armadas (4 con Coto Cerrado, +30 % de radio). Inmoviliza
-    // prof.root (2 s + los mod.rootAdd de Cepo de Hierro y Raíces Profundas) y envenena 150 % en
-    // 5 s. prof.bossSlowPct (Cepo de Hierro): ralentiza a los jefes. prof.mine (Mina de Espinas):
-    // estalla 120 % en 3 m, sin inmovilizar. D2: las cargas son del motor (`charges` en la
-    // definición y p.skCharges): este comportamiento solo arma la trampa.
-    a_t_cepo: {
-      name: 'Trampa de Cepo',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const T = tune().cepo;
-        // trampas armadas: al pasar del máximo cae la más vieja
-        const maxArmed = T.maxArmed + (extraTrap(p) ? 1 : 0);
-        const armed = armedTraps(g, p);
-        while (armed.length >= maxArmed) {
-          const old = armed.shift();
-          if (g._expireField) g._expireField(old); else old.t = 0;
-        }
-        const mine = !!prof.mine;
-        const baseMul = mine ? Math.max(0.2, (prof.radiusMul || 2) - 1) : (prof.radiusMul || 1);   // Mina: radius +100 = solo la explosión
-        const trigR = (sk.radius || 1.5) * baseMul * (extraTrap(p) ? 1 + T.extraR : 1);
-        const root = (prof.root || sk.root || 2) * (prof.durMul || 1);
-        const poison = dotOf(p, 'poison', ctx.avgHit, sk.dotDur || T.poisonDur);
-        const at = (cast.target || p.pos).clone(); at.y = 0;
-        const color = ctx.color || sk.color || 0x86d47a;
-        g.spawnField?.('a_cepo', { pos: at, radius: trigR, dur: sk.armT || 30, owner: p,
-          data: { trap: true, skill: sk.id, color, root, mine, bossSlow: prof.bossSlowPct || 0, poison,
-            blastR: prof.radius || 3, blastCoef: T.mineCoef * rankCoef(prof.rank),
-            areaOpts: { addPct: prof.addPct, critBonus: prof.critBonus, color, hitInfo: ctx.hitInfo } } });
-        p.faceToward?.(at);
-        if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, at.clone().setY(0.3));
-        g.spawnRing?.(at, trigR, color);
-        ctx.zoneCenter = at; ctx.zoneRad = trigR;
-        return ctx.res;
-      },
-    },
-    // T s0 Andanada: 12 flechas en 120° (60 % cada una) mientras retrocedes 3 m
-    a_t_andanada: {
-      name: 'Andanada',
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const fly = shootFan(g, p, prof, cast, { spread: prof.spread || sk.spread || 1.047, size: 0.09 });
-        const dest = backDest(g, p, cast.target, sk.backstep || 3);
-        slide(g, p, dest, sk.lockT || 0.35, { trail: ctx.fx?.trail });
-        g.timers.schedule(Math.max(fly, sk.lockT || 0.35), () => cast.done(ctx.res));
-        return undefined;
-      },
-    },
   };
 }
 
@@ -1678,84 +2655,31 @@ export function arqueraFields() { return arqueraFieldsCache(); }
 
 function buildFields() {
   return {
-    // Flecha Bengala (c22A): los enemigos dentro reciben +weakPct % de daño de todo el grupo
-    // (Debilidad), pegan un weakenPct % menos y quedan revelados (se renueva cada 0,5 s)
-    a_bengala: {
-      name: 'Flecha Bengala',
-      init(f) { f.acc = 0; },
-      tick(g, f, dt) {
-        f.acc += dt;
-        if (dt > 0 && f.acc < 0.5 - 1e-9) return;
-        f.acc = 0;
-        for (const e of enemiesInField(g, f)) {
-          e.applyWeakness?.('a_t_bengala', f.data.weakPct, 0.65);
-          e.weakenOutgoing?.('a_t_bengala', f.data.weakenPct, 0.65);
-          e.revealedT = 0.6;
-        }
-      },
-      render(g, f) {
-        const d = groundDecal(g, f, { inner: 0.94, opacity: 0.35, color: f.data.color });
-        if (d) d.material.opacity = 0.25 + 0.12 * Math.abs(Math.sin(f.t * 4));
-      },
-    },
-    // Bomba de Humo (Paso 2e): ciega a los enemigos dentro: −pct % de daño mientras estén en el humo
-    a_humo_ciego: {
-      name: 'Humo cegador',
+    // Zarzal (m6, m14, m21, m24; tres que se tocan forman el Cerco de Bosque Vivo): ralentiza un 40 %
+    m_zarzal: {
+      name: 'Zarzal',
       init(f) { f.acc = 0.25; },
       tick(g, f, dt) {
         f.acc += dt;
         if (f.acc < 0.25 - 1e-9) return;
         f.acc = 0;
-        for (const e of enemiesInField(g, f)) e.weakenOutgoing?.('a_humo', f.data.pct, 0.4);
+        for (const e of enemiesInField(g, f)) e.applyCC?.('slow', 0.5, { pct: f.data.slowPct || 40, src: f.owner });
       },
+      render(g, f) { groundDecal(g, f, { disc: true, opacity: 0.22, color: f.data.color ?? 0x5f8f3a }); },
     },
-    // Trampa de Cepo armada (data.trap: cuenta para el Coto de Caza). Salta con el primer
-    // enemigo; con Guardabosques cura un 3 %/s a los aliados encima.
-    a_cepo: {
-      name: 'Trampa de Cepo',
-      init(f) { f.acc = 0; f.data.color = f.data.color ?? 0x86d47a; },
-      onEnter(g, f, e) { if (!f.dead && !f.sprung) springTrap(g, f, e); },
-      tick(g, f, dt) {
-        if (f.sprung) return;
-        f.acc += dt;
-        const T = tune().warden;
-        if (f.acc < T.pulse - 1e-9) return;
-        const step = f.acc; f.acc = 0;
-        const p = f.owner;
-        if (!p || !wardenOn(p)) return;
-        // 3 %/s de la vida de CADA aliado encima de la trampa (curación de habilidad)
-        g.heal?.(a => (a.stats?.maxHP || 0) * T.pctPerSec / 100 * step,
-          { target: 'all', pos: v3(f.pos.x, f.pos.z), radius: f.radius, src: 'm_warden' });
+    // Cerco vivo (m27 Bosque Vivo): anillo que inmoviliza al cruzarlo, sin veneno ni estallido
+    m_cerco: {
+      name: 'Cerco vivo',
+      init(f) { f.side = new Map(); },
+      tick(g, f) {
+        for (const e of g.enemies || []) {
+          if (!e.alive) { f.side.delete(e); continue; }
+          const inside = insideField(f, e.pos), was = f.side.get(e);
+          if (was !== undefined && was !== inside && (e.applyCC?.('root', f.data.root || 1.5, { src: f.owner }) || 0) > 0) cercoRooted(g, f.owner, f);
+          f.side.set(e, inside);
+        }
       },
-      render(g, f) {
-        const d = groundDecal(g, f, { inner: 0.55, opacity: 0.55, color: f.data.color });
-        if (d) d.material.opacity = 0.4 + 0.15 * Math.abs(Math.sin(f.t * 3));
-      },
-    },
-    // Abrojos (Montaraz s3): ralentizan un 30 % a quien esté dentro
-    a_abrojos: {
-      name: 'Abrojos',
-      init(f) { f.acc = 0.5; },
-      tick(g, f, dt) {
-        f.acc += dt;
-        if (f.acc < 0.5 - 1e-9) return;
-        f.acc = 0;
-        for (const e of enemiesInField(g, f)) e.applyCC?.('slow', 0.7, { pct: f.data.slowPct || 30, src: f.owner });
-      },
-      render(g, f) { groundDecal(g, f, { disc: true, opacity: 0.18, color: 0x9a8a5a }); },
-    },
-    // Estela de Viento (Tiradora s13B): +15 % de velocidad a los ALIADOS dentro (no al dueño)
-    a_estela_viento: {
-      name: 'Estela de Viento',
-      init(f) { f.acc = 0.5; },
-      tick(g, f, dt) {
-        f.acc += dt;
-        if (f.acc < 0.5 - 1e-9) return;
-        f.acc = 0;
-        for (const a of partyOf(g, f.owner, v3(f.pos.x, f.pos.z), f.radius))
-          refreshBuff(a, 't_slipstream', { spdPct: f.data.spdPct || 15 }, 0.7, { name: 'Estela de Viento', icon: '🌬️' });
-      },
-      render(g, f) { groundDecal(g, f, { disc: true, opacity: 0.12, color: 0x7fe8d8 }); },
+      render(g, f) { groundDecal(g, f, { inner: 0.9, opacity: 0.4, color: f.data.color ?? 0x5a8a3a }); },
     },
   };
 }

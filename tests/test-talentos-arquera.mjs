@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeHarness } from './helpers/power-harness.mjs';
-import { TALENT_TREES } from '../js/talents.js';
+import { TALENT_TREES, CORE_TV_KEYS } from '../js/talents.js';
 import { ARQUERA_TV_KEYS } from '../js/talents-arquera.js';
 import { POWER_HOOKS, powerState, definePower } from '../js/powers.js';
 import { arqueraPowers } from '../js/powers-arquera.js';
@@ -14,6 +14,7 @@ import { CLASSES } from '../js/data.js';
 
 const TREES = TALENT_TREES.arquera;
 const SRC = readFileSync(new URL('../js/powers-arquera.js', import.meta.url), 'utf8');
+const MECH = readFileSync(new URL('../js/mech-arquera.js', import.meta.url), 'utf8');
 const SK = id => CLASSES.arquera.skills.find(s => s.id === id);
 let checks = 0;
 const ok = (c, m) => { assert.ok(c, m); checks++; };
@@ -113,10 +114,15 @@ section('datos: fx, poderes y claves tv', () => {
     }
   };
   walk('', TREES.cls.nodes);
+  for (const s of TREES.specs) walk(`${s.id}.`, s.nodes);
   for (const t of TREES.hero) walk(`${t.id}.`, t.nodes);
-  // solo quedan las activas que escribe KA1 (D29): Agilidad (c17A) y las de los árboles héroe
-  assert.deepEqual(todos.sort(), ['c17A', 'h1.q4A', 'h2.w4A', 'h3.y4A']); checks++;
-  assert.deepEqual(empty, [], 'nodos sin todo con fx vacío'); checks++;
+  // E2 cerrado: ningún nodo, opción ni especialización con «todo»; la pasiva es el poder del nodo clave
+  assert.deepEqual(todos, [], 'nodos con todo'); checks++;
+  assert.deepEqual(empty, [], 'nodos con fx vacío'); checks++;
+  for (const s of TREES.specs) {
+    ok(!('todo' in s) && Object.keys(s.innate || {}).length === 0, `${s.id}: sin todo e innate vacío`);
+    ok(s.nodes.find(n => n.free)?.fx?.power, `${s.id}: el nodo clave lleva la pasiva (poder)`);
+  }
   const own = arqueraPowers();
   for (const id of powers) {
     ok(POWER_HOOKS[id], `poder ${id} registrado`);
@@ -124,9 +130,12 @@ section('datos: fx, poderes y claves tv', () => {
   }
   ok(Object.values(own).every(d => !('mult' in d)), 'ningún poder de la Arquera declara mult');
   // claves tv propias: las de los nodos están en ARQUERA_TV_KEYS y cada una la lee un poder propio
-  const core = new Set(['drMoving', 'costRedBig']);
+  const core = new Set(CORE_TV_KEYS);
   for (const k of tvKeys) ok(core.has(k) || ARQUERA_TV_KEYS.includes(k), `clave tv ${k} declarada`);
-  for (const k of ARQUERA_TV_KEYS) ok(new RegExp(`\\btv\\??\\.${k}\\b`).test(SRC), `clave tv ${k} leída en powers-arquera.js`);
+  for (const k of ARQUERA_TV_KEYS) {
+    ok(new RegExp(`\\btv\\??\\.${k}\\b`).test(SRC + MECH), `clave tv ${k} leída en powers-arquera.js o mech-arquera.js`);
+    ok(tvKeys.has(k), `clave tv ${k}: la lleva algún nodo`);
+  }
   eq(new Set(ARQUERA_TV_KEYS).size, ARQUERA_TV_KEYS.length, 'ARQUERA_TV_KEYS sin repetidos');
   // activas concedidas por la clase: del catálogo, de talento y lanzables
   for (const id of ['a_t_camuflaje', 'a_t_bengala']) {
@@ -172,7 +181,7 @@ section('clase: nodos numéricos (stats, mods y tv)', () => {
     const p = cls({ c22: 1 }, { c22: 'B' }).p;
     near(resolveSkill(p, SK('flecha_perforante')).cost, 26 * 0.8, 'c22B: Flecha Perforante 26 → 20,8');
     near(resolveSkill(p, SK('lluvia_flechas')).cost, 30 * 0.8, 'c22B: Lluvia 30 → 24');
-    eq(resolveSkill(p, SK('a_red')).cost, 10, 'c22B: Red de Caza (10) no cambia');
+    eq(resolveSkill(p, SK('a_t_cepo')).cost, 10, 'c22B: Trampa de Cepo (10) no cambia');
     eq(resolveSkill(b.p, SK('flecha_perforante')).cost, 26, 'sin c22B: 26');
   }
   // c8 Difícil de Alcanzar: −6 % de daño recibido por rango mientras te mueves
@@ -539,11 +548,14 @@ section('clase: Recarga en Marcha, Compás, Tras la Rodada, Danza del Arco y Som
       cast(h, 'k1', 'a_paso', -3, 0, 0.4);
       cast(h, 'k2', 'a_humo', 0, 0, 0.4);
       cast(h, 'rmb', 'flecha_perforante', e.pos.x, e.pos.z, 1.2);
-      return h.p.cds;
+      const paso = h.p.cds.a_paso, humo = h.p.cds.a_humo;
+      h.tick(8);                                   // la Bomba de Humo se recarga al disiparse
+      return { paso, humo, after: h.p.cds.a_humo };
     };
     const a = run({ c23: 2 }), b = run({});
-    near(b.a_paso - a.a_paso, 0.6, 'c23 r2: −0,6 s a Paso Veloz', 0.001);
-    near(b.a_humo - a.a_humo, 0.6, 'c23 r2: −0,6 s a la Bomba de Humo', 0.001);
+    near(b.paso - a.paso, 0.6, 'c23 r2: −0,6 s a Paso Veloz', 0.001);
+    near(b.humo - a.humo, 0, 'c23: mientras dura el humo su recarga no corre', 0.001);
+    near(b.after - a.after, 0.6, 'c23 r2: −0,6 s a la Bomba de Humo (al disiparse)', 0.001);
   }
   // c26 Compás: alternar básica y principal da Compases (+2 %/rango cada uno; se pierden a los 3 s)
   {
@@ -618,7 +630,6 @@ section('clase: Recarga en Marcha, Compás, Tras la Rodada, Danza del Arco y Som
 
 // ============================================================ Errante del Viento (h1)
 const TORBELLINO = { id: 'a_h_torbellino', name: 'Torbellino', cat: 'utility', slots: ['k2'], tags: ['utility', 'physical'], type: 'buff', cd: 20, dur: 1, buff: { aspdPct: 1 } };
-const INSIGNIA = { id: 'a_x_insignia', name: 'Insignia', cat: 'spec', spec: 'tiradora', slots: ['k3'], tags: ['spec', 'physical'], type: 'buff', cd: 20, dur: 1, buff: { aspdPct: 1 } };
 const gusts = h => powerState(h.p, 'q_rafagas').n || 0;
 // gasta las Ráfagas con una Flecha Perforante y devuelve los golpes de viento
 function volley(h, e, at = e) {
@@ -690,26 +701,32 @@ section('héroe Errante del Viento: Ráfagas y sus nodos', () => {
     const [a, p] = run({ q5: 1 }), [b] = run({});
     near(a / b, addRatio(p, 30), 'q5: +30 %');
   }
-  // q6 Empuje del Aire: gastar 3 Ráfagas da +15 de tu mecánica (Impulso)
+  // q6 Empuje del Aire: gastar 3 Ráfagas da +15 de tu mecánica (Impulso). Sin la pérdida quieta del
+  // Impulso (stat gaugeLoss) para medir solo lo que da el nodo
   {
-    const run = nodes => { const h = hero('h1', nodes), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] }); h.tick(12.1); const g0 = h.gaugeValue('impulso'); volley(h, e); return h.gaugeValue('impulso') - g0; };
+    const still = h => { h.p.addBuff('test_sin_perdida', { 'gaugeLoss:impulso': -100 }, 999); return h; };
+    const run = nodes => { const h = still(hero('h1', nodes)), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] }); h.tick(12.1); const g0 = h.gaugeValue('impulso'); volley(h, e); return h.gaugeValue('impulso') - g0; };
     near(run({ q6: 1 }) - run({}), 15, 'q6: +15 de Impulso', 0.01);
-    const two = hero('h1', { q6: 1 }), e = two.enemy({ hp: 1e7, pos: [5, 0, 0] }), b2 = hero('h1'), f = b2.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    const two = still(hero('h1', { q6: 1 })), e = two.enemy({ hp: 1e7, pos: [5, 0, 0] }), b2 = still(hero('h1')), f = b2.enemy({ hp: 1e7, pos: [5, 0, 0] });
     two.tick(8.1); b2.tick(8.1);
     const g0 = two.gaugeValue('impulso'), f0 = b2.gaugeValue('impulso');
     volley(two, e); volley(b2, f);
     near(two.gaugeValue('impulso') - g0, b2.gaugeValue('impulso') - f0, 'q6: con 2 Ráfagas, nada', 0.01);
   }
-  // q7 Rachas: gastar 3 Ráfagas recarga 2 s la insignia
+  // q7 Rachas: gastar 3 Ráfagas recarga 2 s la insignia (Andanada, la de la Tiradora). El Torbellino
+  // da las 3 Ráfagas sin esperar a que la insignia se recargue sola
   {
     const run = nodes => {
-      const h = hero('h1', nodes, {}, { inject: { skills: [INSIGNIA] } }), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
-      cast(h, 'k3', 'a_x_insignia', 5, 0, 0.1);
-      h.tick(12.1);
+      const h = hero('h1', nodes, {}, { inject: { skills: [TORBELLINO] } }), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
+      cast(h, 'k3', 'a_t_andanada', 5, 0, 0.1);
+      const cd0 = h.p.cds.a_t_andanada || 0;
+      cast(h, 'k2', 'a_h_torbellino', 0, 0, 0.1);
       volley(h, e);
-      return h.p.cds.a_x_insignia;
+      return [h.p.cds.a_t_andanada || 0, cd0];
     };
-    near(run({}) - run({ q7: 1 }), 2, 'q7: −2 s a la insignia', 0.001);
+    const [a, cd0] = run({ q7: 1 }), [b] = run({});
+    ok(cd0 > 4, 'la Andanada queda en recarga');
+    near(b - a, 2, 'q7: −2 s a la insignia', 0.001);
   }
   // q8A Ojo de la Racha: buscan al de más vida y +25 % a élites
   {
