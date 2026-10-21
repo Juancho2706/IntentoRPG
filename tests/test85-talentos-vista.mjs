@@ -316,13 +316,17 @@ console.log(`Motivos: ${TALENT_REASONS.length} códigos con texto (puerta y cód
     for (const pr of props) assert.ok(ALLOWED.has(pr), `@keyframes ${name}: «${pr}» no es transform/opacity/clip-path/stroke-dashoffset`);
   }
   for (const m of css.matchAll(/transition\s*:\s*([^;}]+)/g)) {
-    for (const part of m[1].split(/,(?![^(]*\))/)) assert.ok(ALLOWED.has(part.trim().split(/\s+/)[0]), `transition: «${part.trim()}»`);
+    // «none» (reducir movimiento) apaga la transición: vale
+    for (const part of m[1].split(/,(?![^(]*\))/)) assert.ok(ALLOWED.has(part.trim().split(/\s+/)[0]) || part.trim() === 'none', `transition: «${part.trim()}»`);
   }
   assert.ok(!/transition\s*:\s*all/.test(css), 'sin transition: all');
   const rm = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
   assert.ok(css.includes('@media (prefers-reduced-motion: reduce)') && css.includes('body.reduce-motion #talents-panel'), 'reducir movimiento: preferencia del sistema y opción del juego');
   for (const sel of ['.tn-burst', '.tn.fx-spend::before', '.tn.fx-max .tn-face::before', '.tp-beam']) assert.ok(rm.includes(sel), `reducir movimiento oculta ${sel}`);
   assert.ok(/animation-name:\s*tpFadeIn\s*!important/.test(rm), 'reducir movimiento: solo fundidos');
+  // el flotante no se desliza con reducir movimiento (solo se funde), en los dos bloques
+  for (const pre of ['#talents-panel .tp-tip', 'body.reduce-motion #talents-panel .tp-tip'])
+    assert.ok(new RegExp(`${pre.replace(/[.#]/g, '\\$&')}\\s*\\{\\s*transform:\\s*none;\\s*transition:\\s*opacity`).test(rm), `reducir movimiento: ${pre} sin desplazamiento`);
   for (const n of ['tpPulse', 'tpRing', 'tpSpark', 'tpDeny', 'tpFlip', 'tpShine', 'tpSealL', 'tpBeam', 'tpVeil', 'tpIris', 'tpRise', 'tpReflow', 'tpDraw', 'halfA'])
     assert.ok(frames.some(f => f[1] === n), `motion de 2g §10: ${n}`);
   console.log(`G10: ${frames.length} keyframes solo con transform/opacity/clip-path/stroke-dashoffset; reducir movimiento ✓`);

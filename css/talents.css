@@ -61,7 +61,9 @@
 .tp-hbtn.tp-x { width: 44px; justify-content: center; padding: 0; font-size: 20px; }
 .tp-hbtn.is-on { border-color: var(--gold); color: var(--gold2); }
 .tp-lo { display: flex; flex-direction: column; gap: 2px; color: var(--dim); font: 600 10.5px Inter, sans-serif; letter-spacing: 1px; text-transform: uppercase; flex: none; }
-.tp-lo select { height: 30px; width: 236px; background: #1c1622; color: var(--ink); border: 1px solid #4a3c2a; border-radius: 7px; font: 600 13px Inter, sans-serif; padding: 0 8px; cursor: pointer; }
+.tp-lo select { height: 30px; width: 236px; background: #1c1622; color: var(--ink); border: 1px solid #4a3c2a; border-radius: 7px; font: 600 13px Inter, sans-serif; padding: 0 8px; cursor: pointer;
+  /* nombre largo: puntos suspensivos (el completo va en `title`) */
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .tp-head.is-tight .tp-title { font-size: 20px; }
 .tp-head.is-tight .tp-sub { font-size: 12.5px; }
 .tp-head.is-tight .tp-lo select { width: 200px; }
@@ -249,6 +251,7 @@
 .tp-card h3 { margin: -8px 0 0; font: 700 28px Cinzel, Georgia, serif; color: var(--gold2); font-variant: small-caps; }
 .tp-card .tp-cline { color: var(--ink); font-size: 15px; }
 .tp-card .tp-ckit { display: flex; gap: 12px; flex-wrap: wrap; }
+.tp-card .tp-cklab { margin-bottom: -6px; font: 700 11px Inter, sans-serif; letter-spacing: 1.4px; color: var(--dim); text-transform: uppercase; }
 .tp-card .tp-ck { width: 78px; text-align: center; cursor: help; }
 .tp-card .tp-ck i { position: relative; display: block; width: 62px; height: 62px; margin: 0 auto; border-radius: 10px; background: #0d0b10 center / cover no-repeat;
   box-shadow: inset 0 0 0 2px #3b3044, 0 2px 6px rgba(0, 0, 0, 0.5); overflow: hidden; }
@@ -412,6 +415,9 @@
   #talents-panel .tp-gate.fx-open .tp-seal { opacity: 0; }
   #talents-panel .tp-hero.fx-unveil .tp-veil.is-out { animation: tpVeil 0.2s ease-out both !important; }
   #talents-panel .tn:hover .tn-face { transform: none; }
+  /* el flotante solo se funde (sin deslizarse) y el kit no se levanta con transición */
+  #talents-panel .tp-tip { transform: none; transition: opacity 0.12s; }
+  #talents-panel .tp-skl { transition: none; }
 }
 body.reduce-motion #talents-panel .tn *, body.reduce-motion #talents-panel .tn::before, body.reduce-motion #talents-panel .tn::after,
 body.reduce-motion #talents-panel .tp-gate *, body.reduce-motion #talents-panel .tp-gate::after, body.reduce-motion #talents-panel .tp-col *,
@@ -423,4 +429,6 @@ body.reduce-motion #talents-panel .tp-edges line.fx-lit { stroke-dasharray: none
 body.reduce-motion #talents-panel .tp-gate.fx-open .tp-seal { opacity: 0; }
 body.reduce-motion #talents-panel .tp-hero.fx-unveil .tp-veil.is-out { animation: tpVeil 0.2s ease-out both !important; }
 body.reduce-motion #talents-panel .tn:hover .tn-face { transform: none; }
+body.reduce-motion #talents-panel .tp-tip { transform: none; transition: opacity 0.12s; }
+body.reduce-motion #talents-panel .tp-skl { transition: none; }
 @keyframes tpFadeIn { from { opacity: 0.6; } to { opacity: 1; } }

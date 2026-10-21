@@ -3,8 +3,9 @@
 //  1) el panel no tiene textos de mecánica propios: SPEC_INFO solo trae presentación (color e icono del chip)
 //     y mechInfo(spec) sale de explain(gaugeTuning()) del renderizador de cada mecánica (sin las
 //     afirmaciones falsas del panel antiguo, Anexo A)
-//  2) el selector de especialización (chooserView) enseña rol, línea, mecánica y pasiva de las 9, con el
-//     icono del chip en assets/; bloqueado antes del Nv10 y con la actual marcada después
+//  2) el selector de especialización (chooserView) enseña rol, línea, mecánica, pasiva y kit de las 9, con
+//     el icono del chip en assets/; bloqueado antes del Nv10 y con la actual marcada después. El kit son
+//     las habilidades con `spec` del catálogo o, mientras no lo tengan, las que más mejora su árbol
 //  3) marcas de mundo (js/world-marks.js): Escarcha sobre notables o el cursor, Presa con anillo
 //     aditivo, pool fijo y datos a 10 Hz
 // Los nodos que citan las demos de cada barra (A3) son de KT: los vigila test-gauges-<clase>.
@@ -14,6 +15,7 @@ import * as THREE from 'three';
 import { SPEC_INFO, mechInfo } from '../js/ui-talents.js';
 import { chooserView, talentsView } from '../js/talents-view.js';
 import { TALENT_TREES } from '../js/talents.js';
+import { CLASSES } from '../js/data.js';
 import { gaugeViewFor } from '../js/ui-gauges.js';
 import { gaugeTuning, gaugeDefs } from '../js/spec-mechanics.js';
 import { WorldMarks, worldMarksPlan, OVERHEAD_MAX, MARK_HZ } from '../js/world-marks.js';
@@ -69,8 +71,34 @@ for (const [cls, tree] of Object.entries(TALENT_TREES)) {
   assert.equal(talentsView(h.p, { chooser: true }).view, 'choose');
   assert.equal(talentsView(h.p).view, 'trees');
   assert.equal(talentsView(makeHarness({ classId: cls, level: 9 }).p).view, 'choose');
+  // kit de la tarjeta: sin `spec` en el catálogo, las habilidades que más mejora su árbol (rotulado «Mejora»)
+  const catalog = CLASSES[cls].skills;
+  for (const c of cur) {
+    const s = tree.specs.find(x => x.id === c.id);
+    const touched = new Set(s.nodes.flatMap(nd => [...(nd.touch || []), ...(nd.opts || []).flatMap(o => o.touch || [])]));
+    if (catalog.some(sk => sk.spec === c.id)) continue;     // ya con kit propio: lo cubre el bloque de abajo
+    assert.equal(c.kitFrom, 'touch', `${c.id}: kit sacado de los nodos`);
+    assert.ok(c.kit.length >= 1 && c.kit.length <= 4, `${c.id}: entre 1 y 4 habilidades (${c.kit.length})`);
+    for (const k of c.kit) {
+      const sk = catalog.find(x => x.id === k.id);
+      assert.ok(sk && touched.has(k.id) && sk.cat !== 'basic', `${c.id}: ${k.id} la toca su árbol y no es el básico`);
+    }
+    assert.deepEqual(c.kit.map(k => k.req), [...c.kit.map(k => k.req)].sort((a, b) => a - b), `${c.id}: por nivel`);
+  }
 }
-console.log('Selector de especialización: 3 tarjetas por clase con rol, mecánica y pasiva; bloqueo y actual ✓');
+// con el campo `spec` en el catálogo (lo trae KA), la tarjeta enseña SUS habilidades sin rótulo
+{
+  const sk = CLASSES.maga.skills.find(x => x.id === 'meteoro') || CLASSES.maga.skills.find(x => x.cat === 'spender');
+  const prev = sk.spec;
+  sk.spec = 'crionte';
+  try {
+    const c = chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte');
+    assert.equal(c.kitFrom, 'spec');
+    assert.deepEqual(c.kit.map(k => k.id), [sk.id], 'solo la habilidad con spec: crionte');
+  } finally { if (prev === undefined) delete sk.spec; else sk.spec = prev; }
+  assert.equal(chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte').kitFrom, 'touch');
+}
+console.log('Selector de especialización: 3 tarjetas por clase con rol, mecánica, pasiva y kit; bloqueo y actual ✓');
 
 // ---------- 3. marcas de mundo ----------
 const mkEnemy = (x, def = {}, extra = {}) => {

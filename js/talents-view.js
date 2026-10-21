@@ -364,14 +364,37 @@ export function chooserView(p) {
   const t = Talents.talentTreesFor(p?.classId);
   const cur = p?.talents?.spec || null;
   const locked = (p?.level | 0) < R.specAt;
-  return (t?.specs || []).map(s => ({
-    id: s.id, name: s.name, role: s.roleLabel || '', line: s.line || s.desc || '', icon: s.icon || `specs/${s.id}.webp`,
-    emblem: s.emblem || `emblems/${s.id}.webp`, mechanic: s.mechanic || null, innate: s.innateText || '',
-    innateName: s.innateName || '', innateDesc: s.innateDesc || '',
-    kit: skillCatalog(p.classId).filter(sk => sk.spec === s.id).sort((a, b) => (a.req || 1) - (b.req || 1))
-      .map(sk => ({ id: sk.id, name: sk.name, icon: skillIconPath(p.classId, sk), req: sk.req || 1, cat: sk.cat })),
-    current: !locked && s.id === cur, locked,
-  }));
+  return (t?.specs || []).map(s => {
+    const kit = specKit(p.classId, s);
+    return {
+      id: s.id, name: s.name, role: s.roleLabel || '', line: s.line || s.desc || '', icon: s.icon || `specs/${s.id}.webp`,
+      emblem: s.emblem || `emblems/${s.id}.webp`, mechanic: s.mechanic || null, innate: s.innateText || '',
+      innateName: s.innateName || '', innateDesc: s.innateDesc || '',
+      kit: kit.list.map(sk => ({ id: sk.id, name: sk.name, icon: skillIconPath(p.classId, sk), req: sk.req || 1, cat: sk.cat })),
+      kitFrom: kit.from,
+      current: !locked && s.id === cur, locked,
+    };
+  });
+}
+// Kit de la tarjeta: las habilidades propias de la especialización (campo `spec` del catálogo). Mientras el
+// catálogo no las tenga, las que MÁS mejora su árbol (campo `touch` de sus nodos y opciones), sin el
+// básico y como mucho 4; la tarjeta lo rotula «Mejora» para no prometer habilidades que no da.
+const KIT_MAX = 4;
+export function specKit(classId, spec) {
+  const cat = skillCatalog(classId);
+  const byReq = (a, b) => (a.req || 1) - (b.req || 1) || String(a.id).localeCompare(String(b.id));
+  const own = cat.filter(sk => sk.spec === spec.id);
+  if (own.length) return { from: 'spec', list: own.sort(byReq) };
+  const byId = new Map(cat.map(sk => [sk.id, sk]));
+  const count = new Map();
+  for (const n of spec.nodes || []) {
+    for (const id of [...(n.touch || []), ...(n.opts || []).flatMap(o => o.touch || [])]) {
+      const sk = byId.get(id);
+      if (sk && sk.cat !== 'basic') count.set(id, (count.get(id) || 0) + 1);
+    }
+  }
+  const list = [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, KIT_MAX).map(([id]) => byId.get(id)).sort(byReq);
+  return { from: list.length ? 'touch' : 'none', list };
 }
 // opciones del desplegable «Configuración»: builds de la especialización + guardadas (+ «Personalizada»)
 export function loadoutOptions(p, sel = 'custom') {

@@ -196,6 +196,8 @@ export function createTalentPanel(host, opts = {}) {
   // ---------- iconos: marcador si la imagen no existe (§3.12) ----------
   function markMissing(el) {
     const hostEl = el.closest('.tn-face') || el;
+    // sin la URL rota: el navegador no la vuelve a pedir en cada redibujado
+    el.style.backgroundImage = 'none';
     if (hostEl.querySelector(':scope > .ico-missing')) return;
     const m = doc.createElement('span');
     m.className = 'ico-missing';
@@ -427,6 +429,7 @@ export function createTalentPanel(host, opts = {}) {
       return `<article class="tp-card${c.current ? ' is-cur' : ''}" data-spec="${esc(c.id)}">
         <div class="tp-cart" style="background-image:url('${esc(src(c.icon))}')"><img class="tp-cemb2" alt="" src="${esc(src(c.emblem))}"></div>
         <div class="tp-cbody"><div class="tp-crole">${esc(c.role)}</div><h3>${esc(c.name)}</h3><div class="tp-cline">${esc(c.line)}</div>
+          ${c.kit.length && c.kitFrom === 'touch' ? '<div class="tp-cklab">Mejora</div>' : ''}
           ${c.kit.length ? `<div class="tp-ckit">${c.kit.map(k => `<div class="tp-ck" data-ck="${esc(k.id)}" data-spec="${esc(c.id)}"><i ${artAttr(k.icon, k.id)}></i><span>${esc(k.name)}</span></div>`).join('')}</div>` : ''}
           ${M ? `<span class="tp-gchip" data-mech="${esc(c.id)}"><i style="background-image:url('${esc(src(info.gaugeIcon || c.emblem))}')"></i>Mecánica: <b>${esc(M.name)}</b></span>` : ''}
           ${c.innate ? `<span class="tp-gchip" data-innate="${esc(c.id)}">Pasiva: <b>${esc(c.innate)}</b></span>` : ''}

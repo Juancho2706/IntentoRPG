@@ -170,9 +170,24 @@ async function measure() {
     const popR = pop.hidden ? null : pop.getBoundingClientRect(), nr = el.getBoundingClientRect();
     g14.push({ id: el.dataset.node, under, popEncima: !!popR && popR.bottom <= nr.top + 1, ok: under === el.dataset.node && !!popR && popR.bottom <= nr.top + 1 });
   }
-  // clic derecho con el flotante abierto (en un hexágono con rango): quita el punto
-  const owned = hexes.find(el => el.dataset.state === 'max' && !el.closest('[data-tree="hero"]'));
-  let rclick = null;
+  // clic derecho con el flotante abierto (en un hexágono con rango que el motor deja quitar): quita el punto.
+  // Uno que otro nodo necesita (requisito) NO se quita y el flotante dice por qué.
+  const treeOfEl = el => el.closest('[data-tree]').dataset.tree;
+  const ownedHex = hexes.filter(el => el.dataset.state === 'max' && !el.closest('[data-tree="hero"]'));
+  const owned = ownedHex.find(el => Talents.canRemoveRank(p, treeOfEl(el), el.dataset.node));
+  const blocked = ownedHex.find(el => !Talents.canRemoveRank(p, treeOfEl(el), el.dataset.node));
+  let rclick = null, rblock = null;
+  if (blocked) {
+    const at = center(blocked);
+    fire(blocked, 'mouseover', at);
+    await sleep(220);
+    const before = spentAll();
+    fire(document.elementFromPoint(at.x, at.y), 'contextmenu', at, { button: 2 });
+    await sleep(100);
+    const tipTxt = document.querySelector('#talents-panel .tp-tip')?.textContent || '';
+    rblock = { id: blocked.dataset.node, quito: spentAll() < before, dice: /No puedes quitar/.test(tipTxt) };
+    rblock.ok = !rblock.quito && rblock.dice;
+  }
   if (owned) {
     const at = center(owned);
     fire(owned, 'mouseover', at);
@@ -210,7 +225,8 @@ async function measure() {
     }
   }
   panel.unhover();
-  out.G14 = { flotante: g14, clicDerecho: rclick, mitad: pick, ok: g14.every(x => x.ok) && (!rclick || (rclick.quito && rclick.deshacer)) && (!pick || pick.ok) };
+  out.G14 = { flotante: g14, clicDerecho: rclick, bloqueado: rblock, mitad: pick,
+    ok: g14.length > 0 && g14.every(x => x.ok) && !!rclick && rclick.quito && rclick.deshacer && (!rblock || rblock.ok) && (!pick || pick.ok) };
   // G10: con «reducir movimiento», gastar un punto no deja pulsos, chispas ni sacudidas (solo fundidos
   // cortos). Se quita un punto (clic derecho) y se vuelve a gastar con reducir movimiento
   await sleep(700);
