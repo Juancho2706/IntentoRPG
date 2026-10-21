@@ -1,16 +1,25 @@
-// Paso 2d.2 · E2 (docs/paso2d2-hud-pc.md §4, §3.5, §3.8, Anexo A):
-//  · el panel de talentos ya no tiene textos de mecánica propios: salen de explain(gaugeTuning())
-//    del renderizador (mechInfo), con píldoras = nodos de la demo que existen en el árbol;
-//  · el widget cabe en la columna central (1 en completo, 0,8 en compacto) y en las tarjetas;
-//  · marcas de mundo (js/world-marks.js): plan puro (Escarcha sobre notables/cursor, Presa en el
-//    suelo), pool fijo sin crear objetos por frame y datos a ≤ 10 Hz.
+// Paso 2 · E3 (U1) — la mecánica de cada especialización en el panel de talentos v2 y las marcas de mundo
+// (docs/paso2-implementacion.md §3.12; docs/paso2d2-hud-pc.md §4 y Anexo A; 2g §9.3)
+//  1) el panel no tiene textos de mecánica propios: SPEC_INFO solo trae presentación (color e icono del chip)
+//     y mechInfo(spec) sale de explain(gaugeTuning()) del renderizador de cada mecánica (sin las
+//     afirmaciones falsas del panel antiguo, Anexo A)
+//  2) el selector de especialización (chooserView) enseña rol, línea, mecánica, pasiva y kit de las 9, con
+//     el icono del chip en assets/; bloqueado antes del Nv10 y con la actual marcada después. El kit son
+//     las habilidades con `spec` del catálogo o, mientras no lo tengan, las que más mejora su árbol
+//  3) marcas de mundo (js/world-marks.js): Escarcha sobre notables o el cursor, Presa con anillo
+//     aditivo, pool fijo y datos a 10 Hz
+// Los nodos que citan las demos de cada barra (A3) son de KT: los vigila test-gauges-<clase>.
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import * as THREE from 'three';
-import { SPEC_INFO, mechInfo, TALENT_LAYOUTS } from '../js/ui-talents.js';
+import { SPEC_INFO, mechInfo } from '../js/ui-talents.js';
+import { chooserView, talentsView } from '../js/talents-view.js';
 import { TALENT_TREES } from '../js/talents.js';
+import { CLASSES } from '../js/data.js';
 import { gaugeViewFor } from '../js/ui-gauges.js';
-import { gaugeTuning } from '../js/spec-mechanics.js';
+import { gaugeTuning, gaugeDefs } from '../js/spec-mechanics.js';
 import { WorldMarks, worldMarksPlan, OVERHEAD_MAX, MARK_HZ } from '../js/world-marks.js';
+import { makeHarness } from './helpers/power-harness.mjs';
 
 // ---------- 1. SPEC_INFO sin textos de mecánica; mechInfo desde explain() ----------
 const T = gaugeTuning();
@@ -20,38 +29,76 @@ for (const [cls, tree] of Object.entries(TALENT_TREES)) {
     n++;
     const info = SPEC_INFO[spec.id];
     assert.ok(info, `SPEC_INFO.${spec.id}`);
-    for (const k of ['mech', 'text', 'cols']) assert.ok(!(k in info), `SPEC_INFO.${spec.id} no debe tener "${k}" (sale de explain)`);
+    for (const k of ['mech', 'text', 'cols', 'desc', 'role']) assert.ok(!(k in info), `SPEC_INFO.${spec.id} no debe tener "${k}" (sale de los datos o de explain)`);
+    assert.match(info.color, /^#[0-9a-f]{6}$/i, `${spec.id}: color`);
+    assert.ok(existsSync(new URL(`../assets/${info.gaugeIcon}`, import.meta.url)), `${spec.id}: icono del chip assets/${info.gaugeIcon}`);
     const M = mechInfo(spec);
-    assert.ok(M && M.id === spec.mechanic, `${spec.id}: mecánica ${spec.mechanic}`);
+    assert.ok(M && M.id === spec.mechanic, `${cls}/${spec.id}: mecánica ${spec.mechanic}`);
+    assert.equal(M.name, gaugeDefs()[spec.mechanic].name, `${spec.id}: nombre de spec-mechanics`);
     const E = gaugeViewFor(spec.mechanic).explain(T);
     assert.equal(M.text, E.text, `${spec.id}: texto = explain().text`);
     assert.deepEqual(M.cols, E.cols, `${spec.id}: columnas = explain().cols`);
-    assert.ok(M.demoNodes.length >= 1, `${spec.id}: la demo menciona nodos (píldoras)`);
-    for (const id of [...M.demoNodes, ...Object.keys(M.nodes)])
-      assert.ok(spec.nodes.some(x => x.id === id), `${spec.id}: el nodo ${id} existe en el árbol`);
+    assert.ok(M.text.length > 20 && M.cols.length === 3, `${spec.id}: texto y columnas Generar/Descargar/Pérdida`);
   }
 }
 assert.equal(n, 9, '9 especializaciones');
+assert.equal(Object.keys(SPEC_INFO).length, 9, 'SPEC_INFO: solo las 9');
+assert.equal(mechInfo({}), null, 'sin mecánica no hay bloque');
 // Anexo A: ninguna de las afirmaciones falsas del panel antiguo
 const all = Object.values(TALENT_TREES).flatMap(t => t.specs).map(s => mechInfo(s)).map(M => M.text + JSON.stringify(M.cols)).join(' ');
 for (const bad of ['Combustión Espontánea', 'implosionan', '+12%', 'abanico de 3', 'espinas se duplican', 'Meteoro es instantáneo'])
   assert.ok(!all.includes(bad), `texto de mecánica sin «${bad}» (Anexo A)`);
-console.log('Mecánica única: 9 especializaciones con texto y columnas de explain(gaugeTuning()); píldoras y nodos en el árbol ✓');
+console.log('Mecánica: 9 especializaciones con nombre, texto y columnas de explain(gaugeTuning()); SPEC_INFO solo presentación ✓');
 
-// ---------- 2. escala del widget (520×72) por diseño ----------
-const { full: F, compact: C } = TALENT_LAYOUTS;
-assert.equal(F.gzK, 1, 'completo: el widget a escala 1');
-assert.equal(C.gzK, 0.8, 'compacto: el widget al 0,8 (nunca oculto)');
-for (const L of [F, C]) {
-  assert.ok(520 * L.gzK <= L.midW - 2 - 2 * L.mechPadX, `${L.name}: cabe en la columna central`);
-  assert.ok(L.cardGzK >= 0.7 && 520 * L.cardGzK <= (L.W - 2 * L.padX - 2 * L.gap) / 3 - 2 - 2 * L.cardPadX - 24, `${L.name}: cabe en la tarjeta (${L.cardGzK})`);
-  assert.equal(L.clsW + L.specW + L.midW + 2 * L.gap + 2 * L.padX, L.W, `${L.name}: las tres columnas llenan el ancho`);
-  for (const [which, w] of [['cls', L.clsW], ['spec', L.specW]]) {
-    const G = L[which], last = G.cx0 + 3 * G.dx;            // 4 columnas (c = 0…3)
-    assert.ok(G.cx0 - L.big / 2 >= 8 && last + L.big / 2 + 14 <= w, `${L.name}/${which}: los nodos caben en el árbol`);
+// ---------- 2. selector de especialización ----------
+for (const [cls, tree] of Object.entries(TALENT_TREES)) {
+  const low = chooserView(makeHarness({ classId: cls, level: 9 }).p);
+  assert.deepEqual(low.map(c => c.id), tree.specs.map(s => s.id), `${cls}: las 3 tarjetas en el orden de los datos`);
+  assert.ok(low.every(c => c.locked && !c.current), `${cls} Nv9: bloqueadas`);
+  for (const c of low) {
+    const s = tree.specs.find(x => x.id === c.id);
+    assert.equal(c.mechanic, s.mechanic);
+    assert.equal(c.innate, s.innateText, `${c.id}: la pasiva de los datos`);
+    assert.ok(c.role && c.line && c.icon && c.emblem, `${c.id}: rol, línea y arte`);
+    assert.ok(existsSync(new URL(`../assets/${c.emblem}`, import.meta.url)), `${c.id}: emblema`);
+  }
+  const spec = tree.specs[1].id;
+  const h = makeHarness({ classId: cls, spec, level: 30, build: true });
+  const cur = chooserView(h.p);
+  assert.deepEqual(cur.filter(c => c.current).map(c => c.id), [spec], `${cls}: la actual marcada`);
+  assert.ok(cur.every(c => !c.locked));
+  // «Cambiar» abre el selector sobre los árboles (opts.chooser) y el Nv<10 cae en él solo
+  assert.equal(talentsView(h.p, { chooser: true }).view, 'choose');
+  assert.equal(talentsView(h.p).view, 'trees');
+  assert.equal(talentsView(makeHarness({ classId: cls, level: 9 }).p).view, 'choose');
+  // kit de la tarjeta: sin `spec` en el catálogo, las habilidades que más mejora su árbol (rotulado «Mejora»)
+  const catalog = CLASSES[cls].skills;
+  for (const c of cur) {
+    const s = tree.specs.find(x => x.id === c.id);
+    const touched = new Set(s.nodes.flatMap(nd => [...(nd.touch || []), ...(nd.opts || []).flatMap(o => o.touch || [])]));
+    if (catalog.some(sk => sk.spec === c.id)) continue;     // ya con kit propio: lo cubre el bloque de abajo
+    assert.equal(c.kitFrom, 'touch', `${c.id}: kit sacado de los nodos`);
+    assert.ok(c.kit.length >= 1 && c.kit.length <= 4, `${c.id}: entre 1 y 4 habilidades (${c.kit.length})`);
+    for (const k of c.kit) {
+      const sk = catalog.find(x => x.id === k.id);
+      assert.ok(sk && touched.has(k.id) && sk.cat !== 'basic', `${c.id}: ${k.id} la toca su árbol y no es el básico`);
+    }
+    assert.deepEqual(c.kit.map(k => k.req), [...c.kit.map(k => k.req)].sort((a, b) => a - b), `${c.id}: por nivel`);
   }
 }
-console.log(`Escala: completo ${F.gzK} (tarjetas ${F.cardGzK}), compacto ${C.gzK} (tarjetas ${C.cardGzK}) ✓`);
+// con el campo `spec` en el catálogo (lo trae KA), la tarjeta enseña SUS habilidades sin rótulo
+{
+  const sk = CLASSES.maga.skills.find(x => x.id === 'meteoro') || CLASSES.maga.skills.find(x => x.cat === 'spender');
+  const prev = sk.spec;
+  sk.spec = 'crionte';
+  try {
+    const c = chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte');
+    assert.equal(c.kitFrom, 'spec');
+    assert.deepEqual(c.kit.map(k => k.id), [sk.id], 'solo la habilidad con spec: crionte');
+  } finally { if (prev === undefined) delete sk.spec; else sk.spec = prev; }
+  assert.equal(chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte').kitFrom, 'touch');
+}
+console.log('Selector de especialización: 3 tarjetas por clase con rol, mecánica, pasiva y kit; bloqueo y actual ✓');
 
 // ---------- 3. marcas de mundo ----------
 const mkEnemy = (x, def = {}, extra = {}) => {
@@ -131,4 +178,4 @@ wm.clear();
 assert.ok(wm.strips.every(s => !s.e && !s.g.visible), 'clear() libera todo (cambio de mundo)');
 console.log('Marcas de mundo: Escarcha sobre notables/cursor, Presa con anillo aditivo, pool fijo y datos a 10 Hz ✓');
 
-console.log('\n✅ PANEL DE TALENTOS Y MARCAS DE MUNDO (Paso 2d.2 · E2) OK');
+console.log('\n✅ MECÁNICA EN EL PANEL DE TALENTOS v2 Y MARCAS DE MUNDO (Paso 2 · E3) OK');
