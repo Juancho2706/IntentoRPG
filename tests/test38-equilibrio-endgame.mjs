@@ -4,6 +4,8 @@
 import { Player } from '../js/entities.js';
 import { generateItem, rollDrops, GLYPH_TYPES } from '../js/items.js';
 import { scaleEnemy, ENEMIES, bossForFloor, PARAGON_BOARD } from '../js/data.js';
+import { paragonPathCost } from '../js/paragon-board.js';
+import { earnedAt } from '../js/talents.js';
 import { buildDungeon } from '../js/world.js';
 import { CRIT_MULT, expectedMitigation, tormentMods } from '../js/combat-math.js';
 import { createRng, hashSeed } from '../js/rng.js';
@@ -77,20 +79,45 @@ if (l0.setPct > 8) { console.log('❌ conjuntos demasiado comunes a MF base'); f
 if (l10.setPct > 12) { console.log('❌ Tormento convierte los conjuntos en rutina'); fail = true; }
 if (l10.bossLegPct > 65) { console.log('❌ el jefe garantiza legendario casi siempre'); fail = true; }
 
-// 3) Power budget del endgame: tablero completo + glifos no debe multiplicar x3+
+// 3) Power budget del tablero de glifos (Paso 2g): 16 puntos al Nv100 = un legendario con su
+//    zócalo (9) + 7 nodos; nunca dos legendarios (18). La MEJOR asignación legal de 16 (un
+//    legendario + el camino a otra casilla cualquiera, con glifos r10 de su familia en los
+//    zócalos que toque) acota el poder.
 console.log('== Power budget ==');
-// (con semilla: con Math.random el equipo variaba y el ratio rozaba el tope ×2,8 de vez en cuando)
+const BUDGET = earnedAt('board', 100);
+if (BUDGET !== 16) { console.log(`❌ el tablero da ${BUDGET} puntos al Nv100 (deben ser 16)`); fail = true; }
+const legIds = PARAGON_BOARD.filter(n => n.type === 'legendary').map(n => n.id);
+for (const a of legIds) for (const b of legIds) if (a < b && paragonPathCost(PARAGON_BOARD, [a, b]) <= BUDGET) { console.log(`❌ ${a} y ${b} caben juntos`); fail = true; }
+// caminos de cada brazo desde el Inicio (orden de compra), por BFS sobre el árbol
+const startN = PARAGON_BOARD.find(n => n.type === 'start');
+const prevOf = new Map([[startN.id, null]]);
+for (const q = [startN]; q.length;) { const n = q.shift(); for (const o of PARAGON_BOARD) if (!prevOf.has(o.id) && Math.abs(o.x - n.x) + Math.abs(o.y - n.y) === 1) { prevOf.set(o.id, n.id); q.push(o); } }
+const pathTo = id => { const out = []; for (let c = id; c && c !== startN.id; c = prevOf.get(c)) out.unshift(c); return out; };
+const sockets = PARAGON_BOARD.filter(n => n.type === 'socket').map(n => n.id);
+// (con semilla: con Math.random el equipo variaba y el ratio rozaba los topes)
 const p = buildHero(20, 1);
 const idx = () => { const s = p.stats; const dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + s.crit / 100 * 0.8) / s.atkTime; return dps * s.maxHP * (1 + s.arm / 100); };
 const base = idx();
-for (const n of PARAGON_BOARD) if (n.type !== 'start') p.paragon.nodes[n.id] = true;
-const gd = GLYPH_TYPES.find(g => g.id === 'g_dmg');
-for (const n of PARAGON_BOARD.filter(x => x.type === 'socket')) p.paragon.glyphs[n.id] = { stat: gd.stat, per: gd.per, adj: gd.adj, rank: 10, baseName: 'g' };
-p.recompute();
-const ratio = idx() / base;
-console.log(`endgame completo (tablero + glifos r10) = ×${ratio.toFixed(2)} del poder base`);
-if (ratio > 2.8) { console.log('❌ el endgame infla el poder demasiado (eclipsa al equipo)'); fail = true; }
-if (ratio < 1.3) { console.log('❌ el endgame aporta muy poco'); fail = true; }
+let best = { ratio: 0 }, tried = 0;
+for (const leg of legIds) for (const x of PARAGON_BOARD) {
+  const nodes = new Set([...pathTo(leg), ...pathTo(x.id)]);
+  if (nodes.size !== BUDGET) continue;
+  if (paragonPathCost(PARAGON_BOARD, [...nodes]) !== BUDGET) { console.log(`❌ asignación no conexa ${[...nodes]}`); fail = true; continue; }
+  tried++;
+  p.paragon = { nodes: Object.fromEntries([...nodes].map(id => [id, true])), glyphs: {} };
+  for (const s of sockets.filter(s => nodes.has(s))) {
+    const sockFam = PARAGON_BOARD.find(n => n.id === pathTo(s)[0]).cat;
+    const gt = GLYPH_TYPES.find(g => g.fam === sockFam) || GLYPH_TYPES[0];
+    p.paragon.glyphs[s] = { stat: gt.stat, per: gt.per, adj: gt.adj, fam: gt.fam, famAdj: gt.famAdj, rank: 10, baseName: 'g' };
+  }
+  p.recompute();
+  const ratio = idx() / base;
+  if (ratio > best.ratio) best = { ratio, leg, to: x.id, glyphs: Object.keys(p.paragon.glyphs).length };
+}
+console.log(`mejor de ${tried} tableros legales de 16 puntos (legendario ${best.leg} + camino a ${best.to}, ${best.glyphs} glifos r10) = ×${best.ratio.toFixed(2)} del poder base`);
+if (tried < 8) { console.log('❌ deberían probarse varias asignaciones'); fail = true; }
+if (best.ratio > 2.0) { console.log('❌ el tablero infla el poder demasiado (eclipsa al equipo)'); fail = true; }
+if (best.ratio < 1.15) { console.log('❌ el tablero aporta muy poco'); fail = true; }
 
 if (fail) { console.error('❌ EQUILIBRIO DEL ENDGAME FUERA DE RANGO'); process.exit(1); }
 console.log('✅ EQUILIBRIO DEL ENDGAME OK');

@@ -36,36 +36,39 @@ const mk = () => ({
 
 // ---------------------------------------------------------------- 1) guardado
 {
-  // Paso 2b.0 (guardado v3): `skills` se DERIVA del nivel (no se guarda);
-  // skillSystemV/skillBranches/hotbar/skillPoints siguen persistiendo.
+  // Paso 2g (guardado v5): `skills` se DERIVA del nivel; persisten skillSystemV, hotbar,
+  // skillForge (variante por habilidad) y talentos. Fuera skillPoints/skillBranches/skillMods.
   const G = CLASSES.guerrero;
   const core = G.skills.find(s => s.cat === 'spender');
   const p = new Player(mk(), 'guerrero');
-  p.level = 10; p.recompute(); p.skillPoints = 4;
-  p.skillBranches = { [core.id]: { [`${core.id}_o`]: true } };
+  p.level = 10; p.recompute();
+  p.skillForge = { [core.id]: 'ii', g_tajo: null };
   p.hotbar = p.normalizeHotbar({ lmb: 'g_tajo', rmb: core.id, k1: null, k2: null, k3: null, k4: null });
-  const snap = JSON.stringify({ s: p.skills, b: p.skillBranches, h: p.hotbar, pts: p.skillPoints });
+  const snap = JSON.stringify({ s: p.skills, f: p.skillForge, h: p.hotbar, t: p.talents });
   // dos recargas seguidas: el estado NO debe cambiar (antes: reembolso infinito)
   let cur = p;
   for (let i = 0; i < 2; i++) {
     const saved = JSON.parse(JSON.stringify(cur.toSaveData()));
+    assert(saved.saveVersion === 5, 'guardado v5');
     assert(saved.skillSystemV === 5, 'el guardado debe incluir skillSystemV (5)');
     assert(saved.skills === undefined, 'los rangos de habilidad ya no se guardan (se derivan del nivel)');
-    assert(saved.skillBranches && saved.hotbar, 'el guardado debe incluir skillBranches y hotbar');
+    for (const k of ['skillPoints', 'skillBranches', 'skillMods']) assert(!(k in saved), `${k} ya no se guarda`);
+    assert(saved.hotbar && saved.skillForge, 'el guardado debe incluir hotbar y skillForge');
+    assert(saved.skillForge[core.id] === 'ii' && saved.skillForge.g_tajo === null, 'la forja se guarda tal cual (null = decidido sin variante)');
     cur = new Player(mk(), saved.classId, saved);
-    const now = JSON.stringify({ s: cur.skills, b: cur.skillBranches, h: cur.hotbar, pts: cur.skillPoints });
+    const now = JSON.stringify({ s: cur.skills, f: cur.skillForge, h: cur.hotbar, t: cur.talents });
     assert(now === snap, `recarga ${i + 1}: la build cambió\n antes ${snap}\n ahora ${now}`);
   }
-  console.log('Guardado: habilidades derivadas/ramas/hotbar/puntos idénticos tras 2 recargas ✓');
+  console.log('Guardado: habilidades derivadas, forja, barra y talentos idénticos tras 2 recargas ✓');
 
-  // save legado (sin skillSystemV): los puntos se recalculan UNA vez desde el nivel
-  // (Nv10 → 9 puntos ganados, sin ramas) y la migración es idempotente
+  // save legado (v0, sin skillSystemV): migra hasta v5 una sola vez (sin puntos de habilidad)
   const legacy = { classId: 'guerrero', level: 10, skills: { g_tajo: 1, [core.id]: 2 }, skillPoints: 3 };
   const a = new Player(mk(), 'guerrero', legacy);
-  assert(a.skillPoints === 9, `migración legada: esperaba 9 puntos (Nv2–10), dio ${a.skillPoints}`);
-  const b = new Player(mk(), 'guerrero', JSON.parse(JSON.stringify(a.toSaveData())));
-  assert(b.skillPoints === 9, `la migración no es idempotente: ${b.skillPoints}`);
-  console.log('Migración v4→v3 de guardado: puntos recalculados una sola vez e idempotente ✓');
+  const sa = JSON.parse(JSON.stringify(a.toSaveData()));
+  assert(!('skillPoints' in sa) && sa.talents?.v === 2 && sa.hotbar?.lmb, 'v0 → v5: sin puntos, talentos v2 y lmb');
+  const b = new Player(mk(), 'guerrero', sa);
+  assert(JSON.stringify(b.toSaveData()) === JSON.stringify(sa), 'la migración no es idempotente');
+  console.log('Migración v0 → v5 del guardado: una sola vez e idempotente ✓');
 }
 
 // ---------------------------------------------------------------- 2) uids

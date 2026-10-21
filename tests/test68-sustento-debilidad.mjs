@@ -9,6 +9,9 @@
 import assert from 'node:assert/strict';
 import * as CM from '../js/combat-math.js';
 import { makeHarness } from './helpers/power-harness.mjs';
+import { POWER_HOOKS } from '../js/powers.js';
+import { LEGENDARY_POWERS } from '../js/items.js';
+import { PARAGON_BOARDS } from '../js/paragon-board.js';
 
 const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 
@@ -36,6 +39,11 @@ assert.equal(CM.WEAKNESS_CAP, 1.5);
 }
 
 // ------------------------------------------------ 2) cubeta de sustento compartida
+// Paso 2g: Festín ya no sale del tablero de glifos (sus legendarios solo dan estadísticas);
+// sigue registrado porque lo dan el equipo (afijo legendario y el Núcleo del Rey Gélido)
+assert.ok(POWER_HOOKS.festin, 'festin sigue registrado');
+assert.ok(LEGENDARY_POWERS.some(x => x.id === 'festin'), 'festin sigue siendo un poder de equipo');
+for (const [cid, board] of Object.entries(PARAGON_BOARDS)) assert.ok(board.every(n => !n.power), `${cid}: ningún nodo del tablero concede poderes`);
 {
   const h = makeHarness({ classId: 'guerrero', level: 30, powers: ['festin'] });
   const p = h.p, max = p.stats.maxHP, cap = CM.SUSTAIN_CAP_PER_SEC * max;
