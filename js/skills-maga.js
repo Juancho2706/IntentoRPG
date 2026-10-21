@@ -296,7 +296,7 @@ export const MAGA_SKILL_BEHAVIORS = {
       for (const e of list) {
         const rem = g.consumeDoT?.(e, 'burn') || 0;
         if (rem > 0 && pct > 0) {
-          g.dealProcDamage(e, rem * pct / 100, { source: 'skill:p_llamarada', skill: sk.id, elem: 'fire', tags: prof.tags });
+          g.dealProcDamage(e, rem * pct / 100, { source: `skill:${sk.id}`, skill: sk.id, elem: 'fire', tags: prof.tags });
           fxAt(g, 'fireballBlast', e.pos, 0.8);
         }
       }
@@ -436,7 +436,7 @@ export const MAGA_SKILL_BEHAVIORS = {
         ownProjectile(g, ctx, { from, to, castHits, peek: e => (e.frozenT || 0) > 0 && !isBoss(e),
           onHit: (e, dealt, wasFrozen) => {
             if (!wasFrozen || !(dealt > 0) || mult <= 1 || !e.alive) return;
-            g.dealProcDamage(e, dealt * (mult - 1), { source: 'skill:k_lanza', skill: sk.id, elem: 'frost', tags: prof.tags });
+            g.dealProcDamage(e, dealt * (mult - 1), { source: `skill:${sk.id}`, skill: sk.id, elem: 'frost', tags: prof.tags });
             fxAt(g, ctx.fx?.extra, e.pos, 0.8);
           } });
       }
@@ -575,7 +575,8 @@ export const MAGA_SKILL_BEHAVIORS = {
         },
         applySlow() {},
       };
-      const until = (g.timers.now || 0) + dur;
+      const t0 = g.timers.now || 0, until = t0 + dur;
+      let k = 0;
       const end = (broken) => {
         if (!C.alive) return;
         C.alive = false;
@@ -588,7 +589,8 @@ export const MAGA_SKILL_BEHAVIORS = {
         if (!p.alive || g.player !== p || (g.timers.now || 0) >= until - 1e-9) { end(false); return; }
         for (const e of g.enemies || []) if (e.alive && inRadius(e, C.pos, rad)) e.applyCC('taunt', 1.2, { src: C });
         fxAt(g, ctx.fx?.extra, C.pos, 1.4);
-        g.timers.schedule(1, taunt);
+        k++;
+        g.timers.schedule(Math.max(0, t0 + k - (g.timers.now || 0)), taunt);   // cada segundo, sin deriva
       };
       taunt();
       ctx.res.hits = (g.enemies || []).filter(e => e.alive && e.tauntSrc === C).length;
