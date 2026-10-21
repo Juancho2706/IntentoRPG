@@ -95,6 +95,66 @@
       "ruta": "builds.caceria.bar",
       "motivo": "KT-arquera (E2): la build lleva la barra de docs/paso2g-arquera.md §8.7 «Gran Cacería» (G8b se mide contra build.bar; el mockup no trae barras por build).",
       "aprobada": false
+    },
+    {
+      "clase": "guerrero",
+      "ruta": "clase.c6.touch",
+      "motivo": "Conversor (tanda 1) · G1 de test78 (D19: la clase no toca el kit de especialización): el mockup nombra g_hendidura, g_lanza, g_rajar, terremoto y g_martillo (kits y base) en un nodo de clase; el juego usa '@spender' (tus principales). Es la misma solución que el c6 de la Maga. El punto 17 aprueba el cambio para c2/c6/c16 de la Arquera, no lo nombra para el Guerrero (aprobada: false hasta que el orquestador lo confirme)",
+      "aprobada": false
+    },
+    {
+      "clase": "guerrero",
+      "ruta": "clase.c9.touch",
+      "motivo": "Conversor (tanda 1) · G1 de test78 (D19): el mockup nombra g_hendidura, g_rajar, terremoto, g_juicio, g_martillo y g_u_cataclismo (kits y base); el juego usa los selectores '@windup' y '@charge' (tus habilidades con preparación o con carga, que son las que el nodo cambia). Misma situación de aprobación que c6",
+      "aprobada": false
+    },
+    {
+      "clase": "guerrero",
+      "ruta": "clase.c23.touch",
+      "motivo": "Conversor (tanda 1) · G1 de test78 (D19): el mockup nombra embestida, g_salto, g_carga_escudo y g_sendero (la movilidad de la base y la de cada kit) más g_tajo y g_piel; el juego usa '@movement' (tu movilidad) en lugar de las cuatro y conserva g_tajo y g_piel. Misma situación de aprobación que c6",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "clase.c2.touch",
+      "motivo": "Conversor (tanda 1) · G1 de test78 (D19) y decisión 10: la bandera «flechas» del mockup (Toca todas tus flechas) se expande a 11 ids, 8 de ellos del kit de especialización (a_t_andanada, a_v_carrera, flecha_multiple, a_u_diluvio, a_t_apuntado, a_f_rastreador, a_u_celeste, a_m_detonante); el juego deja solo las tres flechas de la base (a_disparo, flecha_perforante, lluvia_flechas). Punto 17: «los touch de c2/c6/c16 con ids del kit pasan a selectores (KT-arquera)»",
+      "aprobada": true
+    },
+    {
+      "clase": "arquera",
+      "ruta": "clase.c6.touch",
+      "motivo": "Conversor (tanda 1) · G1 de test78 (D19) y decisión 10: igual que c2 (la bandera «flechas» se queda en las tres flechas de la base). Punto 17: aprobado para c2/c6/c16",
+      "aprobada": true
+    },
+    {
+      "clase": "arquera",
+      "ruta": "clase.c16.touch",
+      "motivo": "Conversor (tanda 1) · G1 de test78 (D19) y decisión 10: igual que c2 (la bandera «flechas» se queda en las tres flechas de la base). Punto 17: aprobado para c2/c6/c16",
+      "aprobada": true
+    },
+    {
+      "clase": "arquera",
+      "ruta": "spec.tiradora.v28.touch",
+      "motivo": "Conversor (tanda 1) · KT-arquera: el mockup congelado no trae touch en Ojo del Huracán; el juego pone 'a_u_diluvio' porque su rango 4 recarga el Diluvio de Saetas cada Vendaval (lo dice el texto del nodo). El punto 17 solo declara la excepción de G17 para a_u_diluvio (2 nodos mecánicos); este touch es una decisión de KT-arquera que nadie ha aprobado todavía",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "spec.montaraz.m11.touch",
+      "motivo": "Conversor (tanda 1) · KT-arquera: el mockup congelado toca solo a_t_cepo; el juego suma 'a_m_acecho' (Salto de Acecho). El punto 17 declara la excepción de G17 para a_m_acecho (1 nodo mecánico por el diseño congelado, D18); el touch añadido es una decisión de KT-arquera sin aprobar. OJO: los poderes de Metralla (m_metralla) solo leen los cepos de a_t_cepo y m_racimo (CHARGE_CEPOS), no los del Salto de Acecho",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "spec.montaraz.m25.touch",
+      "motivo": "Conversor (tanda 1) · KT-arquera: igual que m11 (+ 'a_m_acecho' sobre el a_t_cepo del mockup). Tierra Arrasada (m_tierra_arrasada) solo lee los cepos de a_t_cepo y m_racimo",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "spec.montaraz.m28.touch",
+      "motivo": "Conversor (tanda 1) · KT-arquera: el mockup congelado no trae touch en Corazón del Bosque; el juego pone 'a_t_cepo', 'a_m_acecho' y 'a_u_zarzas' (el rango 4 lanza Cerco de Zarzas; el 1 ralentiza con tus trampas armadas). Sin aprobar; la excepción de G17 del punto 17 cubre el mínimo de a_m_acecho, no este touch",
+      "aprobada": false
     }
   ]
 }

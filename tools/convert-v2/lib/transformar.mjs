@@ -71,14 +71,22 @@ function copiarD(ctx, d, max, helpers, donde) {
   return conFuente(f, src);
 }
 
-function touchDe(ctx, n, C, donde) {
-  const out = [...(n.touch || [])];
-  for (const g of Object.keys(C.groups || {})) {
+// touch de un nodo del mockup tal como lo escribe el conversor: su `touch` más las banderas «toca todo tu X» (C.groups) pasadas
+// a selector (SEL_BANDERA) o, si no tienen, a los ids de su grupo → { touch: [únicos] | undefined, sinSelector: [grupo] }
+// Pura: la usa la paridad (tools/convert-v2/paridad.mjs) para comparar el `touch` del juego con el del mockup
+export function touchNodoMockup(n, groups) {
+  const out = [...(n.touch || [])], sinSelector = [];
+  for (const g of Object.keys(groups || {})) {
     if (n[g] !== true) continue;
     if (SEL_BANDERA[g]) out.push(SEL_BANDERA[g]);
-    else { out.push(...(C.groups[g].ids || [])); ctx.avisos.push(`${donde}: la bandera «${g}» (${C.groups[g].label}) no tiene selector (§3.8): se expande a sus ids`); }
+    else { out.push(...(groups[g].ids || [])); sinSelector.push(g); }
   }
-  return out.length ? [...new Set(out)] : undefined;
+  return { touch: out.length ? [...new Set(out)] : undefined, sinSelector };
+}
+function touchDe(ctx, n, C, donde) {
+  const { touch, sinSelector } = touchNodoMockup(n, C.groups);
+  for (const g of sinSelector) ctx.avisos.push(`${donde}: la bandera «${g}» (${C.groups[g].label}) no tiene selector (§3.8): se expande a sus ids`);
+  return touch;
 }
 
 function nodoJuego(ctx, n, { C, TV2, helpers, arbolIcono, grantSi }) {

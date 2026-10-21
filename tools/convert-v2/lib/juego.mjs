@@ -58,29 +58,44 @@ export async function juegoDeClase(cls) {
     catalogV: skillsMod?.[`${P}_CATALOG_V`] ?? null, errores };
 }
 
-// poderes y comportamientos registrados hoy, con la clase que los define
-// → { poderes: Map(id → 'maga'|'guerrero'|'arquera'|'comun'|'?'), comportamientos: Map(id → clase), error }
+// Lo que registra el juego VIVO hoy, con la clase que lo define (D28: ids únicos entre clases). Se lee del registro, no a mano:
+// powers.js (POWER_HOOKS, SKILL_BEHAVIORS), field-entities.js (FIELD_DEFS) y spec-mechanics.js (indicadores). La clase sale de
+// las funciones que alimentan cada registro: commonPowers/commonBehaviors, <clase>Powers/SkillBehaviors/Fields/Gauges
+// (powers-<clase>.js), <clase>ForgePowers (powers-forge-<clase>.js) y <CLASE>_SKILL_BEHAVIORS (skills-<clase>.js).
+// 'comun' = no es de ninguna clase: powers-common.js, los 9 indicadores base (y su poder gauge_<id>) y los campos que define
+// field-entities.js. Lo que ninguna fuente reclama queda como '?' (informePoderes lo avisa).
+// → { poderes, comportamientos, campos, indicadores: Map(id → 'maga'|'guerrero'|'arquera'|'comun'|'?'), error }
 export async function registroJuego() {
-  const poderes = new Map(), comportamientos = new Map();
-  let error = null;
-  try {
-    const pw = await import(url('powers.js'));
+  const poderes = new Map(), comportamientos = new Map(), campos = new Map(), indicadores = new Map();
+  const errores = [];
+  const leer = async (f, fn) => { try { await fn(await import(url(f))); } catch (e) { errores.push(`js/${f} no carga: ${e.message}`); } };
+  await leer('powers.js', pw => {
     for (const id of Object.keys(pw.POWER_HOOKS || {})) poderes.set(id, '?');
     for (const id of Object.keys(pw.SKILL_BEHAVIORS || {})) comportamientos.set(id, '?');
-  } catch (e) { error = `js/powers.js no carga: ${e.message}`; }
-  const fuentes = [['comun', 'powers-common.js', ['commonPowers'], ['commonBehaviors']]];
-  for (const cls of Object.keys(PREFIJO)) fuentes.push([cls, `powers-${cls}.js`, [`${cls}Powers`, `${cls}Gauges`], [`${cls}SkillBehaviors`]]);
-  for (const [cls, f, fp, fb] of fuentes) {
-    const m = await importar(f);
-    if (!m || m.__error) continue;
-    for (const fn of fp) { try { for (const id of Object.keys(m[fn]?.() || {})) poderes.set(id, cls); } catch { /* firma distinta */ } }
-    for (const fn of fb) { try { for (const id of Object.keys(m[fn]?.() || {})) comportamientos.set(id, cls); } catch { /* idem */ } }
-  }
+  });
+  await leer('field-entities.js', fe => { for (const kind of Object.keys(fe.FIELD_DEFS || {})) campos.set(kind, '?'); });
+  let indicadoresBase = [];
+  await leer('spec-mechanics.js', sm => { indicadoresBase = sm.BASE_GAUGE_IDS || []; for (const id of sm.gaugeIds?.() || []) indicadores.set(id, '?'); });
+  // fábrica de un módulo → ids que registra (una fábrica que cambia de firma no tumba el conversor)
+  const ids = (m, fn) => { try { return Object.keys(m?.[fn]?.() || {}); } catch { return []; } };
+  const reclamar = (mapa, lista, cls) => { for (const id of lista) if (mapa.has(id)) mapa.set(id, cls); };
+  const comun = await importar('powers-common.js');
+  reclamar(poderes, ids(comun, 'commonPowers'), 'comun');
+  reclamar(comportamientos, ids(comun, 'commonBehaviors'), 'comun');
   for (const cls of Object.keys(PREFIJO)) {
-    const m = await importar(`skills-${cls}.js`);
-    for (const id of Object.keys(m?.[`${PREFIJO[cls]}_SKILL_BEHAVIORS`] || {})) comportamientos.set(id, cls);
+    const m = await importar(`powers-${cls}.js`), forja = await importar(`powers-forge-${cls}.js`), sk = await importar(`skills-${cls}.js`);
+    reclamar(poderes, ids(m, `${cls}Powers`), cls);
+    reclamar(poderes, ids(forja, `${cls}ForgePowers`), cls);
+    reclamar(comportamientos, ids(m, `${cls}SkillBehaviors`), cls);
+    reclamar(comportamientos, Object.keys(sk?.[`${PREFIJO[cls]}_SKILL_BEHAVIORS`] || {}), cls);
+    reclamar(campos, ids(m, `${cls}Fields`), cls);
+    reclamar(indicadores, ids(m, `${cls}Gauges`), cls);
   }
-  return { poderes, comportamientos, error };
+  // lo que sigue sin clase: los campos de field-entities.js y los indicadores base son 'comun'; cada indicador tiene su poder gauge_<id>
+  for (const [k, v] of campos) if (v === '?') campos.set(k, 'comun');
+  for (const id of indicadoresBase) if (indicadores.get(id) === '?') indicadores.set(id, 'comun');
+  for (const [id, cls] of indicadores) if (cls !== '?') reclamar(poderes, [`gauge_${id}`], cls);
+  return { poderes, comportamientos, campos, indicadores, error: errores.join(' · ') || null };
 }
 
 // vocabulario de claves que ya existen en el juego (vivo) o existían en el juego v1 (foto)
