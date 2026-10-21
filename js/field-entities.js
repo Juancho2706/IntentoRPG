@@ -36,6 +36,12 @@ const FIELD_KEYS = new Set(['init', 'tick', 'onEnter', 'onExit', 'onExpire', 'on
 export const TRAP_FLASH_T = 0.1;
 // el cebo no mueve a quien ya pelea cuerpo a cuerpo contigo (m)
 const LURE_MELEE_R = 2.5;
+// registro de estallidos (owner.trapBursts): { t, x, z } (x, z: centro del campo que estalla);
+// el formato viejo era el instante suelto y se sigue aceptando al leer. Una entrada sin instante
+// numérico (null, { x, z } sin t, t nulo o en texto) no cuenta; antes un null contaba como t = 0
+// (nadie escribe entradas así)
+const TRAP_LOG_MAX = 12;
+const burstAt = b => (typeof b === 'number' ? b : typeof b?.t === 'number' ? b.t : NaN);
 
 export function defineField(kind, def) {
   if (!kind || FIELD_DEFS[kind]) throw new Error(`defineField: kind inválido o repetido "${kind}"`);
@@ -214,7 +220,7 @@ export const fieldMethods = {
         if (def.onDetonate) def.onDetonate(this, f, opts);
         else this._trapBurst(f, opts);
       } catch (err) { console.warn(`[campo ${f.kind}] onDetonate`, err); }
-      this._logTrapBurst(f.owner);
+      this._logTrapBurst(f.owner, f.pos);
       // detonación en cadena: las trampas propias a `chain` m también estallan
       if (opts.chain > 0 && f.owner) {
         const done = opts.done || (opts.done = new Set());
@@ -266,16 +272,20 @@ export const fieldMethods = {
     f.sprung = true;
     this._expireField(f);
   },
-  // registro de estallidos de trampas (la Batida del Coto: 3 en 1 s)
-  _logTrapBurst(owner) {
+  // registro de estallidos de trampas (la Batida del Coto: 3 en 1 s): { t, x, z } con el sitio
+  // del estallido (pos = centro del campo; world-marks pone ahí el anillo de la Batida)
+  _logTrapBurst(owner, pos = null) {
     if (!owner) return;
     const log = owner.trapBursts || (owner.trapBursts = []);
-    log.push(owner.simT || 0);
-    if (log.length > 12) log.splice(0, log.length - 12);
+    const b = { t: owner.simT || 0 };
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.z)) { b.x = pos.x; b.z = pos.z; }
+    log.push(b);
+    if (log.length > TRAP_LOG_MAX) log.splice(0, log.length - TRAP_LOG_MAX);
   },
+  // → cuántos estallidos hubo en los últimos `s` s (acepta { t, x, z } y el instante suelto)
   trapBurstsWithin(owner, s = 1) {
     const now = owner?.simT || 0;
-    return (owner?.trapBursts || []).filter(t => now - t <= s + 1e-9).length;
+    return (owner?.trapBursts || []).filter(b => now - burstAt(b) <= s + 1e-9).length;
   },
 
   // ---------------- movimiento enemigo (§3.6) ----------------
@@ -479,7 +489,7 @@ defineField('trampa', {
     if (d.dmg > 0) hit.takeDamage(Math.max(1, Math.round(d.dmg)), false, { source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: { uid: f.uid, skill: d.skill || null } });
     if (d.root && hit.alive) hit.applyCC?.('root', d.root, { src: f.owner });
     g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius, d.color);
-    g._logTrapBurst(f.owner);
+    g._logTrapBurst(f.owner, f.pos);
     if (d.burst) g._trapBurst(f, { coef: d.burst.coef, radius: d.burst.radius, skill: d.skill });
     else { g.sfx?.('hit'); g._spendTrap(f); }
   },
