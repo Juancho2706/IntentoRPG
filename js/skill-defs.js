@@ -113,7 +113,12 @@ export const NUCLEO_TV_KEYS = Object.freeze([
   'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus',
   // Paso 2 (docs/paso2-claves-w2.md §2; dartCritCdr = alias de basicCritCdr)
   'perfectCdrAll', 'critFrostCdr', 'critCdrAll', 'basicCritCdr', 'dartCritCdr', 'drLowHp', 'frozenKillHeal', 'frozenKillMana',
+  // cola W2 (paso2-claves-w2.md §7): drStill (Quietud, condDr) y fieldDur (Ojo de Trampera)
+  'drStill', 'fieldDur',
 ]);
+// las de la lista que NO aplica nucleo_tv sino su punto natural: no activan el poder (usesCoreTv)
+//   fieldDur → field-entities.spawnField (combat-math.fieldDurationWithTalents)
+export const NUCLEO_TV_OUTSIDE = Object.freeze(['fieldDur']);
 
 // Ángulo (rad, relativo a la mira) del proyectil i de n. Con abanico propio
 // (sk.spread = semiapertura) se reparte en él. Sin él (1 proyectil + Multiproyectil,
@@ -234,7 +239,7 @@ export const VERB_DOC = Object.freeze({
   other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
-export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
+export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'blockPower', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
 // alias de los documentos que DESAPARECEN (§3.6): en un catálogo v2 son error
 export const RETIRED_KEYS = Object.freeze({
   windupMult: 'windupMul (mod)', windupMove: 'moveMul', moveFree: 'moveMul', moveWhileChannel: 'moveMul',
