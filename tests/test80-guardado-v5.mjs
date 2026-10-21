@@ -37,7 +37,9 @@ assert.equal(S.SAVE_VERSION, 5);
 assert.equal(typeof S.MIGRATIONS[4], 'function');
 assert.equal(T.TALENT_TREES.maga.v, 2, 'el gancho carga el fixture v2');
 
-// kit de especialización de prueba (el catálogo v4 no tiene habilidades con `spec`)
+// kit de especialización de prueba (ids propios, junto al kit 2g real). Catálogo 2g de la Maga para
+// las tablas de prueba: base m_dardo, bola_fuego, m_parpadeo (k1), m_barrera (k2), nova_hielo; el kit
+// de cada especialización solo lo conoce ella (m_estela_ignea y meteoro: Piromante; m_paso_escarcha: Crionte)
 const KIT = [
   { id: 'fx_piromante_k3', cat: 'spec', elem: 'fire', spec: 'piromante', req: 10, slots: ['k3'] },
   { id: 'fx_crionte_k3', cat: 'spec', elem: 'frost', spec: 'crionte', req: 10, slots: ['k3'] },
@@ -57,7 +59,7 @@ const LEG = {
       nova_hielo: { to: 'bola_fuego', forge: 'i' },
       m_onda: { to: null },
       rayo: { to: 'm_dardo' },                                                      // básico: no cabe en rmb
-      m_estela_ignea: { to: { k2: 'm_armadura', piromante: 'm_paso_escarcha', '*': 'm_estela_ignea' } },
+      m_estela_ignea: { to: { k2: 'bola_fuego', piromante: 'm_parpadeo', '*': 'm_paso_escarcha' } },
       p_llamarada: { to: { piromante: 'fx_piromante_k3', '*': 'fx_crionte_k3' } },
       m_t_barrera: { to: 'm_t_inversion' },
       m_u_tormenta: { to: 'bola_fuego' },                                           // gastadora: no cabe en k4
@@ -77,14 +79,14 @@ const LEG = {
   arquera: { bar: {}, forge: {}, removed: [], notice: '' },
 };
 const SPEC_BAR = {
-  piromante: { bar: { lmb: 'm_dardo', rmb: 'fx_piromante_k2', k1: 'm_paso_escarcha', k2: 'm_armadura', k3: 'fx_piromante_k3', k4: 'm_u_supernova' } },
-  crionte: { bar: { lmb: 'm_dardo', rmb: 'nova_hielo', k1: 'm_paso_escarcha', k2: 'm_onda', k3: 'fx_crionte_k3', k4: 'm_u_tormenta' } },
-  arcanista: { bar: { lmb: 'm_dardo', rmb: 'rayo', k1: 'm_paso_escarcha', k2: 'm_t_inversion', k3: 'fx_arcanista_k3', k4: 'm_u_desgarro' } },
+  piromante: { bar: { lmb: 'm_dardo', rmb: 'fx_piromante_k2', k1: 'm_estela_ignea', k2: 'm_barrera', k3: 'fx_piromante_k3', k4: 'm_u_supernova' } },
+  crionte: { bar: { lmb: 'm_dardo', rmb: 'nova_hielo', k1: 'm_parpadeo', k2: 'bola_fuego', k3: 'fx_crionte_k3', k4: 'm_u_tormenta' } },
+  arcanista: { bar: { lmb: 'm_dardo', rmb: 'rayo', k1: 'm_parpadeo', k2: 'm_t_inversion', k3: 'fx_arcanista_k3', k4: 'm_u_desgarro' } },
 };
 const FALLBACK = {
-  maga: { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_paso_escarcha', k2: 'm_armadura', k3: null, k4: 'm_u_supernova' },
-  guerrero: { lmb: 'g_tajo', rmb: 'torbellino', k1: 'embestida', k2: 'g_piel', k3: null, k4: null },
-  arquera: { lmb: 'a_disparo', rmb: 'flecha_perforante', k1: 'a_paso', k2: 'a_red', k3: null, k4: null },
+  maga: { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'm_barrera', k3: null, k4: 'm_u_supernova' },
+  guerrero: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: null, k4: null },
+  arquera: { lmb: 'a_disparo', rmb: 'flecha_perforante', k1: 'a_paso', k2: 'a_humo', k3: null, k4: null },
 };
 const CTX = { legacy: LEG, specBar: SPEC_BAR, fallbackBar: FALLBACK };
 const mig = (save, over = {}) => S.migrateV4toV5(json(save), { ...CTX, ...over });
@@ -308,8 +310,10 @@ const isValidBar = (d, what) => {
 {
   const bar = (hotbar, o = {}) => { const d = mig(v4({ hotbar, ...o })); isValidBar(d, JSON.stringify(hotbar)); return d.hotbar; };
   // id directo; vacía sigue vacía; lo que vale se queda
-  assert.deepEqual(bar({ lmb: 'm_toque', rmb: 'bola_fuego', k1: 'm_paso_escarcha', k2: null, k3: null, k4: null }),
-    { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_paso_escarcha', k2: null, k3: null, k4: null });
+  assert.deepEqual(bar({ lmb: 'm_toque', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: null, k3: null, k4: null }),
+    { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: null, k3: null, k4: null });
+  // un id v4 que sigue en el catálogo pero es del kit de OTRA especialización → SPEC_BAR
+  assert.equal(bar({ lmb: 'm_dardo', k1: 'm_paso_escarcha' }).k1, 'm_estela_ignea', 'kit de la Crionte en una Piromante → SPEC_BAR');
   // to: null vacía la ranura (sin reserva)
   assert.equal(bar({ lmb: 'm_dardo', k2: 'm_onda' }).k2, null);
   // en lmb, to: null no la deja vacía
@@ -326,12 +330,12 @@ const isValidBar = (d, what) => {
   assert.equal(bar({ lmb: 'm_dardo', k4: 'm_u_desgarro' }).k4, null, "{ k4: null, '*': … } en k4 → vacía");
   // objeto sin clave aplicable = inválido → SPEC_BAR (ni se conserva ni se vacía)
   const crio2 = v4({ talents: { v: 1, spec: 'crionte', cls: {}, sp: {}, choice: {} } });
-  assert.equal(mig({ ...crio2, hotbar: { lmb: 'm_dardo', k2: 'm_armadura' } }).hotbar.k2, 'm_onda', 'sin clave para k2 → SPEC_BAR de la Crionte');
-  // por ranura, luego por especialización, luego '*'
-  assert.equal(bar({ lmb: 'm_dardo', k2: 'm_estela_ignea' }).k2, 'm_armadura', 'por ranura');
-  assert.equal(bar({ lmb: 'm_dardo', k1: 'm_estela_ignea' }).k1, 'm_paso_escarcha', 'por especialización');
+  assert.equal(mig({ ...crio2, hotbar: { lmb: 'm_dardo', k2: 'm_armadura' } }).hotbar.k2, 'bola_fuego', 'sin clave para k2 → SPEC_BAR de la Crionte');
+  // por ranura, luego por especialización, luego '*' (cada destino distinto de la SPEC_BAR de reserva)
+  assert.equal(bar({ lmb: 'm_dardo', k2: 'm_estela_ignea' }).k2, 'bola_fuego', 'por ranura');
+  assert.equal(bar({ lmb: 'm_dardo', k1: 'm_estela_ignea' }).k1, 'm_parpadeo', 'por especialización');
   const crio = v4({ talents: { v: 1, spec: 'crionte', cls: {}, sp: {}, choice: {} } });
-  assert.equal(mig({ ...crio, hotbar: { lmb: 'm_dardo', k1: 'm_estela_ignea' } }).hotbar.k1, 'm_estela_ignea', "'*' de reserva");
+  assert.equal(mig({ ...crio, hotbar: { lmb: 'm_dardo', k1: 'm_estela_ignea' } }).hotbar.k1, 'm_paso_escarcha', "'*' de reserva");
   // la insignia v4 → kit de SU especialización; otra especialización → SPEC_BAR
   assert.equal(bar({ lmb: 'm_dardo', k3: 'p_llamarada' }).k3, 'fx_piromante_k3');
   assert.equal(mig({ ...crio, hotbar: { lmb: 'm_dardo', k3: 'p_llamarada' } }).hotbar.k3, 'fx_crionte_k3');
@@ -339,18 +343,18 @@ const isValidBar = (d, what) => {
   assert.equal(mig({ ...arca, hotbar: { lmb: 'm_dardo', k3: 'p_llamarada' } }).hotbar.k3, 'fx_arcanista_k3', 'kit de otra especialización → SPEC_BAR');
   // duplicados: la primera ranura se lo queda; la otra cae a SPEC_BAR
   const dup = bar({ lmb: 'm_dardo', rmb: 'nova_hielo', k2: 'meteoro' });
-  assert.equal(dup.rmb, 'bola_fuego'); assert.equal(dup.k2, 'm_armadura');
+  assert.equal(dup.rmb, 'bola_fuego'); assert.equal(dup.k2, 'm_barrera');
   // id desconocido → SPEC_BAR; nivel bajo para SPEC_BAR → FALLBACK_BAR; ninguno → vacía
   assert.equal(bar({ lmb: 'm_dardo', rmb: 'zzz_vieja' }).rmb, 'fx_piromante_k2');
   assert.equal(bar({ lmb: 'm_dardo', rmb: 'zzz_vieja' }, { level: 11 }).rmb, 'bola_fuego', 'fx_piromante_k2 pide Nv12 → FALLBACK_BAR');
   assert.equal(bar({ lmb: 'm_dardo', k4: 'zzz_vieja' }, { level: 12 }).k4, null, 'ninguna definitiva conocida al Nv12');
   // sin especialización (Nv5): FALLBACK_BAR
   const low = mig(v4({ level: 5, hotbar: { lmb: 'zzz', rmb: 'zzz', k1: 'zzz' } }));
-  assert.deepEqual([low.hotbar.lmb, low.hotbar.rmb, low.hotbar.k1], ['m_dardo', 'bola_fuego', 'm_paso_escarcha']);
+  assert.deepEqual([low.hotbar.lmb, low.hotbar.rmb, low.hotbar.k1], ['m_dardo', 'bola_fuego', 'm_parpadeo']);
   // activas de talento: salen salvo que el Recomendado las conceda
   const grants = d => { const h = { classId: d.classId, level: d.level, talents: d.talents }; return T.aggregateTalents(h).grants; };
   const piro60 = mig(v4({ level: 60, hotbar: { lmb: 'm_dardo', k2: 'm_t_barrera' } }));
-  assert.ok(!grants(piro60).has('m_t_inversion')); assert.equal(piro60.hotbar.k2, 'm_armadura', 'no concedida → SPEC_BAR');
+  assert.ok(!grants(piro60).has('m_t_inversion')); assert.equal(piro60.hotbar.k2, 'm_barrera', 'no concedida → SPEC_BAR');
   const arca60 = mig({ ...arca, hotbar: { lmb: 'm_dardo', k2: 'm_t_barrera' } });
   assert.ok(grants(arca60).has('m_t_inversion'), 'el Recomendado de la Arcanista concede m_t_inversion al Nv60');
   assert.equal(arca60.hotbar.k2, 'm_t_inversion', 'concedida → se queda');
@@ -380,14 +384,14 @@ console.log('✓ barra: destinos, to:null, fitsSlot, duplicados, conocidas, espe
 // ------------------------------------------------ 6) soportes
 {
   const fits = (sk, ids) => { const out = []; for (const id of ids) { const sup = D.SUPPORTS.find(s => s.id === id); if (sup && supportFits(sup, sk) && !out.includes(id) && out.length < supportSockets(sk)) out.push(id); } return out; };
-  const bola = skill('maga', 'bola_fuego'), arm = skill('maga', 'm_armadura'), dardo = skill('maga', 'm_dardo');
+  const bola = skill('maga', 'bola_fuego'), arm = skill('maga', 'm_barrera'), dardo = skill('maga', 'm_dardo');
   const fitB = D.SUPPORTS.filter(s => supportFits(s, bola)).map(s => s.id);
   const notArm = D.SUPPORTS.filter(s => !supportFits(s, arm)).map(s => s.id);
   const fitD = D.SUPPORTS.filter(s => supportFits(s, dardo)).map(s => s.id);
   assert.ok(fitB.length >= 3 && notArm.length >= 1 && fitD.length >= 2, 'el catálogo de soportes da casos de prueba');
   const supports = {
     bola_fuego: [fitB[0], fitB[0], fitB[1], fitB[2]],   // duplicado y uno de más (2 engarces)
-    m_armadura: [notArm[0]],                             // no encaja
+    m_barrera: [notArm[0]],                              // no encaja
     m_dardo: [fitD[0], fitD[1]],                         // básico: 1 engarce
     m_ascua: ['amplify'],                                // habilidad retirada
     zzz_vieja: ['wide'],                                 // habilidad desconocida
@@ -395,17 +399,17 @@ console.log('✓ barra: destinos, to:null, fitsSlot, duplicados, conocidas, espe
   const d = mig(v4({ supports, knownSupports: ['echo', fitB[0]] }));
   assert.deepEqual(d.supports.bola_fuego, fits(bola, supports.bola_fuego));
   assert.deepEqual(d.supports.bola_fuego, [fitB[0], fitB[1]]);
-  assert.ok(!('m_armadura' in d.supports), 'lo que no encaja sale');
+  assert.ok(!('m_barrera' in d.supports), 'lo que no encaja sale');
   assert.deepEqual(d.supports.m_dardo, [fitD[0]], 'un básico tiene un engarce');
   assert.ok(!('m_ascua' in d.supports) && !('zzz_vieja' in d.supports), 'habilidades retiradas o desconocidas pierden sus soportes');
   for (const id of ['echo', ...Object.values(supports).flat()]) assert.ok(d.knownSupports.includes(id), `${id} sigue en knownSupports`);
   assert.equal(new Set(d.knownSupports).size, d.knownSupports.length, 'knownSupports sin duplicados');
   // se reencajan sobre la definición FORJADA (forgedDef recibe el héroe con su forja)
   let seen = null;
-  const forgedDef = (h, sk) => { if (sk.id !== 'm_armadura') return null; seen = h.skillForge; return { ...sk, tags: [...sk.tags, 'proj', 'area'], cat: 'spender' }; };
-  const forged = mig(v4({ supports: { m_armadura: ['multi', 'wide'] }, skillMods: { bola_fuego: { bola_fuego_v: 'bola_fuego_v2' } } }), { forgedDef });
-  assert.ok(!fits(arm, ['multi']).length, 'sin forja, multi no encaja en la armadura');
-  assert.deepEqual(forged.supports.m_armadura, ['multi', 'wide'], 'con la definición forjada, sí');
+  const forgedDef = (h, sk) => { if (sk.id !== 'm_barrera') return null; seen = h.skillForge; return { ...sk, tags: [...sk.tags, 'proj', 'area'], cat: 'spender' }; };
+  const forged = mig(v4({ supports: { m_barrera: ['multi', 'wide'] }, skillMods: { bola_fuego: { bola_fuego_v: 'bola_fuego_v2' } } }), { forgedDef });
+  assert.ok(!fits(arm, ['multi']).length, 'sin forja, multi no encaja en la Barrera');
+  assert.deepEqual(forged.supports.m_barrera, ['multi', 'wide'], 'con la definición forjada, sí');
   assert.deepEqual(seen, { bola_fuego: 'ii' }, 'forgedDef ve la forja ya migrada');
 }
 console.log('✓ soportes: reencaje sobre la definición forjada; el resto vuelve a knownSupports');
@@ -438,9 +442,10 @@ for (const [i, s] of synth.entries()) {
 }
 {
   // segunda pasada (sin los campos v4): legacy.bar no se vuelve a aplicar a los ids nuevos
-  const first = mig(v4({ hotbar: { lmb: 'm_dardo', k2: 'm_onda' } }));
-  assert.equal(first.hotbar.k2, null, 'primera pasada: m_onda → to: null');
-  assert.equal(S.migrateV4toV5({ ...json(first), hotbar: { ...first.hotbar, k2: 'm_onda' } }, CTX).hotbar.k2, 'm_onda', 'segunda pasada: m_onda es un id nuevo válido');
+  // (nova_hielo: id v4 con entrada en la tabla de prueba que sigue en el catálogo 2g)
+  const first = mig(v4({ hotbar: { lmb: 'm_dardo', k2: 'nova_hielo' } }));
+  assert.equal(first.hotbar.k2, 'bola_fuego', 'primera pasada: nova_hielo → bola_fuego');
+  assert.equal(S.migrateV4toV5({ ...json(first), hotbar: { ...first.hotbar, k2: 'nova_hielo' } }, CTX).hotbar.k2, 'nova_hielo', 'segunda pasada: nova_hielo es un id nuevo válido');
   // migrateSave no muta la entrada
   const copy = json(v4({ level: 60 })), before = json(copy);
   S.migrateSave(copy);

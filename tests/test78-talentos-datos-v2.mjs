@@ -10,9 +10,9 @@
 //  · spec.elem y spec.mechanic válidos
 //  · G1: la clase no usa @spec/@insignia ni ids del kit de especialización
 //  · G8: 4 builds por especialización (una híbrida) legales punto a punto (34/31/1 + 10); defaultBuild
-//  · G17: ≥ 3 nodos mecánicos que tocan cada habilidad del kit
+//  · G17: ≥ 3 nodos mecánicos que tocan cada habilidad del kit (o la excepción exacta de G17_EXCEPTION)
 //  · G18: 3 árboles héroe, cada especialización en 2, 10 nodos por build
-//  · poderes registrados, con el prefijo de su clase, uno por nodo y sin repetirse entre clases (D28)
+//  · poderes registrados, con el prefijo de su clase (o comunes de powers-common.js), uno por nodo y sin repetirse entre clases (D28)
 //  · claves tv del núcleo (CORE_TV_KEYS) o de la clase (<CLASE>_TV_KEYS); claves de fx conocidas
 //  · vocabulario (lo que test65a miraba): claves de nodo y de opción; stats e innatas que suma
 //    recompute (el saco `item` de js/entities.js y los atributos); claves de mod de mergeMods
@@ -26,7 +26,7 @@ import { cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
 import * as T from '../js/talents.js';
 import * as SD from '../js/skill-defs.js';
 import { POWER_HOOKS } from '../js/powers.js';
-import { CRIT_CDR_TV_KEYS, usesCoreTv } from '../js/powers-common.js';
+import { CRIT_CDR_TV_KEYS, usesCoreTv, commonPowers } from '../js/powers-common.js';
 import { CLASSES, SPEC_BAR, specKitOf } from '../js/data.js';
 import * as TM from '../js/talents-maga.js';
 import * as TG from '../js/talents-guerrero.js';
@@ -37,6 +37,14 @@ const { TV2 } = cargarMockup('maga');
 const GRID = TV2.REJILLA, RULES = TV2.REGLAS, GAUGES = new Set(TV2.GAUGES);
 // prefijos de poder por clase (decisión 9 del orquestador tras E0): árboles de clase, especialización y héroe
 export const POWER_PREFIX = { maga: /^[mpka]_[a-z0-9_]+$/, guerrero: /^g_[a-z0-9_]+$/, arquera: /^[afmtqwy]_[a-z0-9_]+$/ };
+// los poderes COMUNES (js/powers-common.js) no son de ninguna clase: un nodo puede llevarlos con su id
+// (punto 17: m_berserk en b0 del Berserker, que exige test67b)
+export const COMMON_POWER_IDS = new Set(Object.keys(commonPowers()));
+assert.ok(COMMON_POWER_IDS.has('m_berserk') && COMMON_POWER_IDS.has('nucleo_tv'), 'test78: poderes comunes leídos de powers-common.js');
+// G17 de nodos: excepciones del diseño congelado (D18) = nodos mecánicos que de verdad tocan la habilidad,
+// por clase ({ <clase>: { <id>: n } }). Vacía: las del punto 17 (a_u_diluvio 2, a_m_acecho 1) ya cumplen
+// con los datos de KT-arquera y una excepción que sobra es un error
+export const G17_EXCEPTION = {};
 const JARGON = /\bUNI\b|ÁREA×5|\bTTD\b|stagger|\bprocs?\b|astadora/i;
 const FX_KEYS = new Set(['stats', 'elem', 'skillLv', 'mod', 'tv', 'power', 'grant']);
 const { ELEMS, CATS } = SD;
@@ -61,7 +69,10 @@ export const STAT_KEYS = new Set([...RECOMPUTE_STATS, ...ATTR_KEYS]);
 export const MOD_KEYS = new Set([...Object.keys(SD.emptyMods()),
   'windupAdd', 'windupMul', 'moveMulAdd', 'moveMulMin', 'charges', 'recastAdd', 'recastWin', 'comboWin', 'chargeSpeed',
   'perfectWin', 'perfectEarly', 'perfectPct', 'zoneMax', 'pull', 'knock', 'killReset', 'shieldGain', 'dmgDirect', 'splashPct',
-  'repeatAdd', ...(SD.MOD_KEYS || [])]);
+  'repeatAdd',
+  // las que lee resolveSkill desde E2 (punto 17): +s de provocación y de marca, ancho del arrastre,
+  // coeficiente y cura de la estela (trail), plantado durante el lanzamiento y Quebranto propio por golpe
+  'taunt', 'markDur', 'dragWidth', 'zoneCoef', 'zoneHeal', 'keepPlanted', 'stagger', ...(SD.MOD_KEYS || [])]);
 // valores válidos de '@cat:' y '@tag:' (tags del catálogo + los de verbo de §3.6; cat y elem también son tags)
 const TAG_VALUES = new Set([...(SD.TAGS || []), 'charge', 'combo', 'recast', 'stance', ...CATS, ...ELEMS]);
 const CAT_VALUES = new Set(CATS);
@@ -217,7 +228,7 @@ export function checkClassData(cid, data, ctx) {
           else if (sk.kind !== 'talent' || (sk.slots || []).join() !== 'k2') err('G2', `${at}: «${fx.grant}» debe ser kind 'talent' con slots ['k2']`);
         }
         if (fx.power) {
-          if (!ctx.prefix.test(fx.power)) err('prefijo', `${at}: poder «${fx.power}» sin el prefijo de la clase`);
+          if (!ctx.prefix.test(fx.power) && !ctx.common?.has(fx.power)) err('prefijo', `${at}: poder «${fx.power}» sin el prefijo de la clase`);
           if (!ctx.isRegistered(fx.power)) err('registro', `${at}: poder «${fx.power}» sin registrar`);
           if (powerAt.has(fx.power)) err('poder', `${at}: «${fx.power}» ya lo lleva ${powerAt.get(fx.power)} (un poder por nodo)`);
           powerAt.set(fx.power, at);
@@ -231,12 +242,16 @@ export function checkClassData(cid, data, ctx) {
     if (!isCls && !isSpec && treeGrants > 1) err('G2', `${w}: ${treeGrants} activas (máx. 1 por árbol héroe)`);
   }
   if (clsGrants > 3) err('G2', `clase: ${clsGrants} activas (máx. 3)`);
-  // G17: ≥ 3 nodos mecánicos que tocan cada habilidad del kit (si el catálogo ya tiene kits)
+  // G17: ≥ 3 nodos mecánicos que tocan cada habilidad del kit (si el catálogo ya tiene kits); una
+  // excepción declarada (ctx.g17) debe coincidir con lo que hay y desaparece en cuanto se cumple
   for (const s of specs) {
     const kit = ctx.kitOf(s.id) || [];
     for (const id of kit) {
       const k = (s.nodes || []).filter(n => n.tag === 'mec' && (n.touch || []).includes(id)).length;
-      if (k < 3) err('G17', `${s.id}: ${k} nodos mecánicos tocan «${id}» (mínimo 3)`);
+      const ex = ctx.g17?.[id];
+      if (ex != null && k >= 3) err('G17', `${s.id}: «${id}» ya cumple G17 (${k} nodos): quita su excepción`);
+      else if (ex != null && k !== ex) err('G17', `${s.id}: ${k} nodos mecánicos tocan «${id}» y la excepción declarada dice ${ex}`);
+      else if (ex == null && k < 3) err('G17', `${s.id}: ${k} nodos mecánicos tocan «${id}» (mínimo 3)`);
     }
   }
   // builds (G8, G18)
@@ -311,10 +326,10 @@ assert.deepEqual(Object.keys(T.TALENT_TREES).sort(), Object.keys(CLASS_MODS).sor
 for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
   assert.equal(data?.v, 2, `${cid}: js/talents-${cid}.js debe estar en v2 desde E1.5 (las reglas no se pueden saltar)`);
   const mod = CLASS_MODS[cid];
-  const ctx = { prefix: POWER_PREFIX[cid], isRegistered: id => !!POWER_HOOKS[id], powerClass: realPowers,
+  const ctx = { prefix: POWER_PREFIX[cid], common: COMMON_POWER_IDS, isRegistered: id => !!POWER_HOOKS[id], powerClass: realPowers,
     tvKeys: new Set([...T.CORE_TV_KEYS, ...(mod[`${PREFIX[cid]}_TV_KEYS`] || [])]), kitOf: spec => specKitOf(cid, spec),
     skillOf: id => CLASSES[cid].skills.find(s => s.id === id) || null, specBar: spec => SPEC_BAR?.[spec]?.bar || null,
-    warnings: [], strict: STRICT[cid] };
+    g17: G17_EXCEPTION[cid] || null, warnings: [], strict: STRICT[cid] };
   const errs = checkClassData(cid, data, ctx);
   assert.deepEqual(errs, [], `${cid}: datos v2 con errores:\n${errs.join('\n')}`);
   // los `todo` del esqueleto se cuentan (son cientos); los demás avisos van uno a uno
@@ -336,7 +351,7 @@ const fixSkills = cid => new Map([...FIX.FIXTURE_TREES[cid].skills.map(s => [s.i
 const fixBar = spec => { const [k1, k2, k3, k4] = FIX.FIXTURE_KITS[spec] || []; return { lmb: 'fx_basico', rmb: k3, k1: k2, k2: null, k3: k1, k4 }; };
 function fixCtx(cid, powerClass = new Map()) {
   const skills = fixSkills(cid);
-  return { prefix: POWER_PREFIX[cid], isRegistered: id => FIX.FIXTURE_POWERS.has(id), powerClass,
+  return { prefix: POWER_PREFIX[cid], common: COMMON_POWER_IDS, isRegistered: id => FIX.FIXTURE_POWERS.has(id), powerClass,
     tvKeys: new Set([...T.CORE_TV_KEYS, ...FIX_TV[cid]]), kitOf: spec => FIX.FIXTURE_KITS[spec] || [], skillOf: id => skills.get(id) || null,
     specBar: fixBar, warnings: [], strict: new Set() };
 }
@@ -411,6 +426,28 @@ expectFail('poder repetido entre clases (D28)', () => {}, 'D28', { cid: 'arquera
 expectFail('clave tv sin declarar', d => { node(spec0(d).nodes, 's7').fx = { tv: { tvInventada: 3 } }; }, 'tv');
 expectFail('clave de fx desconocida', d => { node(d.cls.nodes, 'c1').fx = { statz: { hp: 1 } }; }, 'fx');
 expectFail('menos de 3 nodos mecánicos por habilidad del kit (G17)', d => { for (const n of spec0(d).nodes) if (n.touch) n.touch = n.touch.filter(id => id !== 'fx_piromante_k4'); }, 'G17');
+// la excepción de G17 vale solo con el número exacto, y sobra en cuanto la habilidad cumple
+{
+  const mecOf = (d, id) => spec0(d).nodes.filter(n => n.tag === 'mec' && (n.touch || []).includes(id));
+  const drop = (d, id, keep) => { for (const n of mecOf(d, id).slice(keep)) n.touch = n.touch.filter(x => x !== id); };
+  const d = clone(FIX.FIXTURE_TREES.maga);
+  drop(d, 'fx_piromante_k4', 1);
+  assert.equal(mecOf(d, 'fx_piromante_k4').length, 1);
+  const ok = { ...fixCtx('maga'), g17: { fx_piromante_k4: 1 } };
+  assert.deepEqual(checkClassData('maga', d, ok), [], 'G17: la excepción declarada (1) coincide');
+  assert.ok(checkClassData('maga', d, { ...fixCtx('maga'), g17: { fx_piromante_k4: 2 } }).some(e => e.startsWith('[G17]')), 'G17: una excepción que no coincide falla');
+  assert.ok(checkClassData('maga', clone(FIX.FIXTURE_TREES.maga), ok).some(e => /ya cumple G17/.test(e)), 'G17: una excepción que ya no hace falta falla');
+  mutations++;
+}
+// un poder COMÚN (powers-common.js) en un nodo no pide el prefijo de la clase; uno ajeno sí
+{
+  const d = clone(FIX.FIXTURE_TREES.guerrero);
+  node(d.cls.nodes, 'c7').fx = { power: 'm_berserk' };
+  const errs = checkClassData('guerrero', d, fixCtx('guerrero'));
+  assert.ok(!errs.some(e => e.startsWith('[prefijo]')), `poder común sin [prefijo]:\n${errs.join('\n')}`);
+  assert.ok(checkClassData('guerrero', d, { ...fixCtx('guerrero'), common: new Set() }).some(e => e.startsWith('[prefijo]')), 'sin la lista de comunes, m_berserk no es del guerrero');
+  mutations++;
+}
 // vocabulario (lo que miraba test65a): stats, innatas, claves de mod, destinos, listas por rango, claves de nodo
 expectFail('stat con errata', d => { node(d.cls.nodes, 'c1').fx = { stats: { dmgPtc: 5 } }; }, 'stats');
 expectFail('innata que recompute no suma', d => { spec0(d).innate = { fuerza: 3 }; }, 'stats');

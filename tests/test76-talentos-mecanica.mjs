@@ -71,32 +71,36 @@ for (const [cls, tree] of Object.entries(TALENT_TREES)) {
   assert.equal(talentsView(h.p, { chooser: true }).view, 'choose');
   assert.equal(talentsView(h.p).view, 'trees');
   assert.equal(talentsView(makeHarness({ classId: cls, level: 9 }).p).view, 'choose');
-  // kit de la tarjeta: sin `spec` en el catálogo, las habilidades que más mejora su árbol (rotulado «Mejora»)
+  // kit de la tarjeta: el catálogo 2g trae `spec` (4 habilidades por especialización): enseña las SUYAS, sin
+  // rótulo, por nivel
   const catalog = CLASSES[cls].skills;
   for (const c of cur) {
-    const s = tree.specs.find(x => x.id === c.id);
-    const touched = new Set(s.nodes.flatMap(nd => [...(nd.touch || []), ...(nd.opts || []).flatMap(o => o.touch || [])]));
-    if (catalog.some(sk => sk.spec === c.id)) continue;     // ya con kit propio: lo cubre el bloque de abajo
-    assert.equal(c.kitFrom, 'touch', `${c.id}: kit sacado de los nodos`);
-    assert.ok(c.kit.length >= 1 && c.kit.length <= 4, `${c.id}: entre 1 y 4 habilidades (${c.kit.length})`);
-    for (const k of c.kit) {
-      const sk = catalog.find(x => x.id === k.id);
-      assert.ok(sk && touched.has(k.id) && sk.cat !== 'basic', `${c.id}: ${k.id} la toca su árbol y no es el básico`);
-    }
+    const own = catalog.filter(sk => sk.spec === c.id);
+    assert.equal(own.length, 4, `${c.id}: kit 2g de 4 en el catálogo`);
+    assert.equal(c.kitFrom, 'spec', `${c.id}: kit del catálogo`);
+    assert.deepEqual(c.kit.map(k => k.id).sort(), own.map(sk => sk.id).sort(), `${c.id}: su kit y solo el suyo`);
     assert.deepEqual(c.kit.map(k => k.req), [...c.kit.map(k => k.req)].sort((a, b) => a - b), `${c.id}: por nivel`);
   }
 }
-// con el campo `spec` en el catálogo (lo trae KA), la tarjeta enseña SUS habilidades sin rótulo
+// sin `spec` en el catálogo (una clase a medio convertir), las habilidades que más mejora su árbol (rotulado «Mejora»)
 {
-  const sk = CLASSES.maga.skills.find(x => x.id === 'meteoro') || CLASSES.maga.skills.find(x => x.cat === 'spender');
-  const prev = sk.spec;
-  sk.spec = 'crionte';
+  const kit = CLASSES.maga.skills.filter(x => x.spec === 'crionte');
+  const tree = TALENT_TREES.maga.specs.find(s => s.id === 'crionte');
+  const touched = new Set(tree.nodes.flatMap(nd => [...(nd.touch || []), ...(nd.opts || []).flatMap(o => o.touch || [])]));
+  for (const sk of kit) delete sk.spec;
   try {
     const c = chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte');
-    assert.equal(c.kitFrom, 'spec');
-    assert.deepEqual(c.kit.map(k => k.id), [sk.id], 'solo la habilidad con spec: crionte');
-  } finally { if (prev === undefined) delete sk.spec; else sk.spec = prev; }
-  assert.equal(chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte').kitFrom, 'touch');
+    assert.equal(c.kitFrom, 'touch', 'crionte: kit sacado de los nodos');
+    assert.ok(c.kit.length >= 1 && c.kit.length <= 4, `crionte: entre 1 y 4 habilidades (${c.kit.length})`);
+    for (const k of c.kit) {
+      const sk = CLASSES.maga.skills.find(x => x.id === k.id);
+      assert.ok(sk && touched.has(k.id) && sk.cat !== 'basic', `crionte: ${k.id} la toca su árbol y no es el básico`);
+    }
+    assert.deepEqual(c.kit.map(k => k.req), [...c.kit.map(k => k.req)].sort((a, b) => a - b), 'crionte: por nivel');
+  } finally { for (const sk of kit) sk.spec = 'crionte'; }
+  const back = chooserView(makeHarness({ classId: 'maga', level: 30 }).p).find(x => x.id === 'crionte');
+  assert.equal(back.kitFrom, 'spec');
+  assert.deepEqual(back.kit.map(k => k.id).sort(), kit.map(sk => sk.id).sort(), 'con `spec`, de nuevo su kit');
 }
 console.log('Selector de especialización: 3 tarjetas por clase con rol, mecánica, pasiva y kit; bloqueo y actual ✓');
 

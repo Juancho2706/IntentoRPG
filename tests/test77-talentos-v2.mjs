@@ -386,15 +386,15 @@ console.log(`buildRanks = simularBuild + t2applyPreset en ${compared} comparacio
 {
   const ctxList = CLASSES.guerrero.skills.filter(s => s.kind !== 'passive');
   const defs = Object.fromEntries(ctxList.map(s => [s.id, s]));
-  const forged = { ...defs, torbellino: { ...defs.torbellino, windup: 0.6, tags: [...defs.torbellino.tags, 'charge'] },
+  const forged = { ...defs, g_lanza: { ...defs.g_lanza, windup: 0.6, tags: [...defs.g_lanza.tags, 'charge'] },
     g_u_cataclismo: { ...defs.g_u_cataclismo, tags: [...defs.g_u_cataclismo.tags, 'zone'] } };
   const ctx = { list: ctxList, def: id => forged[id], elemOf: id => forged[id]?.elem, kitOf: () => ['zz_kit'], tagsOf: id => new Set([...(forged[id]?.tags || []), forged[id]?.cat]) };
   const E = k => T.expandSelector(k, ctx, { id: 'berserker' }).sort();
   const live = pred => ctxList.filter(pred).map(s => s.id);
   const plus = (arr, id) => [...new Set([...arr, id])].sort();
-  assert.ok(!(defs.torbellino.windup > 0) && !defs.torbellino.tags.includes('charge'), 'torbellino base: sin preparación ni carga');
-  assert.deepEqual(E('@windup'), plus(live(s => s.windup > 0), 'torbellino'), '@windup: la definición FORJADA');
-  assert.deepEqual(E('@charge'), plus(live(s => s.tags.includes('charge')), 'torbellino'));
+  assert.ok(!(defs.g_lanza.windup > 0) && !defs.g_lanza.tags.includes('charge'), 'g_lanza base: sin preparación ni carga');
+  assert.deepEqual(E('@windup'), plus(live(s => s.windup > 0), 'g_lanza'), '@windup: la definición FORJADA');
+  assert.deepEqual(E('@charge'), plus(live(s => s.tags.includes('charge')), 'g_lanza'));
   assert.deepEqual(E('@tag:charge'), E('@charge'));
   assert.deepEqual(E('@holyZone'), plus(live(s => s.tags.includes('zone') && s.elem === 'holy'), 'g_u_cataclismo'));
   assert.deepEqual(E('@spender'), ctxList.filter(s => s.cat === 'spender').map(s => s.id).sort());

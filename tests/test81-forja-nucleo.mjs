@@ -201,20 +201,30 @@ function forgeAudit(classId, cls, forge) {
       h.p.skillForge = { [sk.id]: state.variant };
       h.p.recompute();
       const pr = resolveSkill(h.p, sk);
-      // el perfil EFECTIVO: sin la propia etiqueta de la forja (variant/mejora) ni la definición…
+      // el perfil EFECTIVO: sin la propia etiqueta de la forja (variant/mejora)…
       const { def, mods, sups, onHitPowers, variant, mejora, ...rest } = pr;
       void mods; void sups; void onHitPowers; void variant; void mejora;
-      // …salvo con un comportamiento con cast propio: lee la definición forjada (cast.sk)
-      if (pr.behavior && SKILL_BEHAVIORS[pr.behavior]?.cast) { const { forged, ...d } = def; void forged; rest.def = d; }
-      return JSON.stringify(rest, (k, x) => (x instanceof Set ? [...x].sort() : x));
+      // …más la definición forjada SIN su marca `forged`: los comportamientos (cast.sk) y los tipos
+      // genéricos leen claves de la definición que el perfil no copia (trap.armT, stance.modes,
+      // detonate.chain, steps.2…)
+      const { forged, ...d } = def || {}; void forged; rest.def = d;
+      // una clave que nadie lee (ni SKILL_KEYS ni los params del comportamiento) también cambiaría la
+      // definición: se cuentan para que no pase por una pieza que hace algo
+      const w = []; validateSkillDef(def, { v2: true, behaviors: SKILL_BEHAVIORS, warnings: w });
+      return { s: JSON.stringify(rest, (k, x) => (x instanceof Set ? [...x].sort() : x)), unk: w.filter(x => /clave desconocida/.test(x)) };
     };
     const plain = sig({ mejora: false, variant: null });
     const withM = sig({ mejora: true, variant: null });
-    if (entry.mejora && withM === plain && !entry.mejora.power && !entry.mejora.behavior) out.noops.push(`${sk.id}_m`);
+    const unknownKeys = (s, prev, id) => { for (const x of s.unk) if (!prev.unk.includes(x)) out.errors.push(`${id}: ${x} en la definición forjada`); };
+    if (entry.mejora) unknownKeys(withM, plain, `${sk.id}_m`);
+    if (entry.mejora && withM.s === plain.s && !entry.mejora.power && !entry.mejora.behavior) out.noops.push(`${sk.id}_m`);
     for (const k of ['i', 'ii']) {
       const piece = entry.vars?.[k === 'i' ? 0 : 1];
-      if (!piece || piece.power || piece.behavior) continue;
-      if (sig({ mejora: true, variant: k }) === withM) out.noops.push(piece.id);
+      if (!piece) continue;
+      const sv = sig({ mejora: true, variant: k });
+      unknownKeys(sv, withM, piece.id);
+      if (piece.power || piece.behavior) continue;
+      if (sv.s === withM.s) out.noops.push(piece.id);
     }
   }
   return out;
@@ -230,6 +240,18 @@ function forgeAudit(classId, cls, forge) {
   const b = forgeAudit('guerrero', { ...cls, skills: cls.skills.slice(0, 1) }, { vx_verdugo: { ...forge.vx_verdugo, mejora: { name: 'Vacía', line, mod: { dmg: 0 } } } });
   assert.deepEqual(b.noops, ['vx_verdugo_m', 'vx_verdugo_i'], 'F7: también una Mejora vacía');
   assert.ok(a.errors.includes('vx_corazon: sin forja'), 'A1: detecta la habilidad sin forja');
+  // F7 cuenta la definición forjada (sin `forged`): una clave anidada que lee el tipo genérico (trap.armT
+  // del cepo) no es un no-op aunque el perfil no la copie; una clave que nadie lee es un error
+  const cepo = { ...CLASSES.arquera, skills: [normalizeSkillDef(verbSkill('vx_cepo'))] };
+  const fc = { vx_cepo: { mejora: { name: 'Rápido', line, set: { 'trap.armT': 0.2 } }, vars: [
+    { id: 'vx_cepo_i', name: 'Inventada', role: 'UNI', line, set: { claveInventada: 2 } },
+    { id: 'vx_cepo_ii', name: 'Larga', role: 'CTRL', line, add: { dur: 4 } }] } };
+  const c = forgeAudit('arquera', cepo, fc);
+  assert.ok(!c.noops.includes('vx_cepo_m'), `F7: trap.armT cambia la definición forjada (${c.noops})`);
+  assert.ok(c.errors.some(e => e.startsWith('vx_cepo_i:') && /claveInventada/.test(e)), `F7: clave que nadie lee (${c.errors})`);
+  assert.ok(!c.noops.includes('vx_cepo_ii') && !c.errors.some(e => e.startsWith('vx_cepo_ii')), 'F7: la variante que alarga la trampa vale');
+  const sinArm = forgeAudit('arquera', cepo, { vx_cepo: { ...fc.vx_cepo, mejora: { name: 'Igual', line, set: { 'trap.armT': verbSkill('vx_cepo').trap.armT } } } });
+  assert.ok(sinArm.noops.includes('vx_cepo_m'), 'F7: la Mejora que deja trap.armT igual sí es un no-op');
   // y sobre los catálogos reales con CATALOG_V = 2
   const v2 = Object.entries(CATALOG_V).filter(([, v]) => v === 2).map(([id]) => id);
   for (const cid of v2) {
@@ -282,7 +304,10 @@ function forgeAudit(classId, cls, forge) {
   assert.ok(d.charge && d.tags.includes('charge'), "defOf: la definición FORJADA (la variante añade charge: entra en '@charge')");
   assert.equal(acc.elemOf('vx_tercera'), 'fire', 'elemOf: el elemento forjado');
   assert.equal(acc.defOf('no_existe'), null);
-  assert.deepEqual(acc.kitOf('francotiradora'), ['vx_kit81'], 'kitOf: el kit de la especialización');
+  // kitOf: el kit 2g del catálogo (4 habilidades con spec) y el inyectado; nada de otra especialización
+  const kitF = CLASSES.arquera.skills.filter(s => s.spec === 'francotiradora').map(s => s.id);
+  assert.equal(kitF.length, 4, 'catálogo 2g: kit de 4 de la Francotiradora');
+  assert.deepEqual([...acc.kitOf('francotiradora')].sort(), [...kitF, 'vx_kit81'].sort(), 'kitOf: el kit de la especialización');
   assert.deepEqual(acc.kitOf(null), []);
   const src = readFileSync(new URL('../js/entities.js', import.meta.url), 'utf8');
   assert.ok(src.includes('aggregateTalents(this, this.talentAccessors())'), 'recompute pasa elemOf, kitOf y defOf a aggregateTalents');
