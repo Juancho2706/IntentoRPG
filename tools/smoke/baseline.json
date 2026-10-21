@@ -1,0 +1,509 @@
+{
+  "nota": "Línea base del humo (docs/paso2-implementacion.md §6, E0.5): coste del tick de SIMULACIÓN (sin render; interfaz y efectos cosméticos mudos), motor de ticks manual con dt fijo, en Chrome sin ventana con aislamiento entre orígenes (performance.now a 5 µs). simNorm = simMs.tmean (media sin el 1 % de ticks más caros) / calibMs.tmean (trabajo fijo de JS intercalado con cada tick: compensa la carga de la máquina). Por clase, la corrida mediana por simNorm de 7. El nivel full exige simNorm ≤ 1,25 × este valor por clase; los ms sin normalizar y conUi (10 s con la interfaz viva) son informativos. Rehacer solo con el juego de referencia: npm run smoke -- --level bench --write-baseline",
+  "fecha": "2026-10-21T06:04:20.903Z",
+  "commit": "ccce3d9",
+  "chrome": "Chrome/155.0.8059.85",
+  "node": "v24.12.0",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-13400F",
+  "nucleos": 16,
+  "so": "win32 10.0.26200",
+  "angle": "swiftshader",
+  "umbral": 1.25,
+  "escenario": {
+    "seconds": 60,
+    "warmup": 2,
+    "dt": "1/60",
+    "enemies": 30,
+    "level": 10,
+    "floor": 3,
+    "seed": 424242,
+    "slots": [
+      "lmb",
+      "rmb",
+      "k2",
+      "k3",
+      "k4"
+    ],
+    "roster": [
+      "zombi",
+      "esqueleto",
+      "esqueleto",
+      "brujo",
+      "demonio"
+    ],
+    "runs": 7,
+    "mundo": "mazmorra piso 3 con semilla 424242",
+    "heroe": "héroe nuevo a Nv10 con la 1.ª especialización; ranuras lmb, rmb, k2, k3, k4 en ciclo de mantener/soltar",
+    "enemigos": "30 inmortales (vida 1e9) agresivos alrededor del héroe; vida del héroe rellenada cada tick"
+  },
+  "clases": {
+    "guerrero": {
+      "spec": "berserker",
+      "iso": true,
+      "simNorm": 1.1967,
+      "simMs": {
+        "mean": 0.1092,
+        "tmean": 0.0949,
+        "p50": 0.085,
+        "p95": 0.225,
+        "p99": 0.41,
+        "max": 25.855
+      },
+      "calibMs": {
+        "mean": 0.1587,
+        "tmean": 0.0793,
+        "p50": 0.085,
+        "p95": 0.11,
+        "p99": 0.16,
+        "max": 149.64
+      },
+      "ticks": 3600,
+      "enemies": {
+        "min": 30,
+        "max": 30,
+        "avg": 30
+      },
+      "casts": {
+        "lmb": 3102,
+        "rmb": 66,
+        "k2": 3,
+        "k3": 1,
+        "k4": 0
+      },
+      "deaths": 0,
+      "panelAlEmpezar": null,
+      "corridas": [
+        {
+          "simNorm": 1.1814,
+          "simTmean": 0.0801,
+          "calibTmean": 0.0678,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 68,
+            "k2": 3,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.2428,
+          "simTmean": 0.0952,
+          "calibTmean": 0.0766,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 64,
+            "k2": 3,
+            "k3": 2,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.1967,
+          "simTmean": 0.0949,
+          "calibTmean": 0.0793,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 66,
+            "k2": 3,
+            "k3": 1,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.251,
+          "simTmean": 0.0962,
+          "calibTmean": 0.0769,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 64,
+            "k2": 3,
+            "k3": 2,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.2669,
+          "simTmean": 0.0973,
+          "calibTmean": 0.0768,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 66,
+            "k2": 3,
+            "k3": 1,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.1018,
+          "simTmean": 0.0942,
+          "calibTmean": 0.0855,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 66,
+            "k2": 3,
+            "k3": 1,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.1005,
+          "simTmean": 0.092,
+          "calibTmean": 0.0836,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 68,
+            "k2": 3,
+            "k3": 0,
+            "k4": 0
+          }
+        }
+      ],
+      "conUi": {
+        "frameMs": {
+          "mean": 0.6146,
+          "tmean": 0.5755,
+          "p50": 0.285,
+          "p95": 2.135,
+          "p99": 3.755,
+          "max": 5.375
+        },
+        "uiMs": {
+          "mean": 0.3948,
+          "tmean": 0.36,
+          "p50": 0.07,
+          "p95": 2.205,
+          "p99": 3.505,
+          "max": 4.115
+        },
+        "fxMs": {
+          "mean": 0.0606,
+          "tmean": 0.0568,
+          "p50": 0.03,
+          "p95": 0.2,
+          "p99": 0.355,
+          "max": 0.64
+        },
+        "simMs": {
+          "mean": 0.1592,
+          "tmean": 0.1497,
+          "p50": 0.115,
+          "p95": 0.63,
+          "p99": 0.975,
+          "max": 1.29
+        }
+      }
+    },
+    "maga": {
+      "spec": "piromante",
+      "iso": true,
+      "simNorm": 1.3703,
+      "simMs": {
+        "mean": 0.1276,
+        "tmean": 0.1173,
+        "p50": 0.1,
+        "p95": 0.27,
+        "p99": 0.6,
+        "max": 2.955
+      },
+      "calibMs": {
+        "mean": 0.0937,
+        "tmean": 0.0856,
+        "p50": 0.095,
+        "p95": 0.115,
+        "p99": 0.185,
+        "max": 20.185
+      },
+      "ticks": 3600,
+      "enemies": {
+        "min": 30,
+        "max": 30,
+        "avg": 30
+      },
+      "casts": {
+        "lmb": 3102,
+        "rmb": 27,
+        "k2": 6,
+        "k3": 3,
+        "k4": 0
+      },
+      "deaths": 0,
+      "panelAlEmpezar": null,
+      "corridas": [
+        {
+          "simNorm": 1.2783,
+          "simTmean": 0.079,
+          "calibTmean": 0.0618,
+          "lanzados": {
+            "lmb": 3101,
+            "rmb": 26,
+            "k2": 6,
+            "k3": 3,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.3256,
+          "simTmean": 0.1091,
+          "calibTmean": 0.0823,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 27,
+            "k2": 6,
+            "k3": 3,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.4441,
+          "simTmean": 0.1239,
+          "calibTmean": 0.0858,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 27,
+            "k2": 6,
+            "k3": 3,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.3241,
+          "simTmean": 0.1103,
+          "calibTmean": 0.0833,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 27,
+            "k2": 5,
+            "k3": 3,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.4776,
+          "simTmean": 0.1321,
+          "calibTmean": 0.0894,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 27,
+            "k2": 5,
+            "k3": 3,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.3703,
+          "simTmean": 0.1173,
+          "calibTmean": 0.0856,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 27,
+            "k2": 6,
+            "k3": 3,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.4199,
+          "simTmean": 0.117,
+          "calibTmean": 0.0824,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 27,
+            "k2": 5,
+            "k3": 3,
+            "k4": 0
+          }
+        }
+      ],
+      "conUi": {
+        "frameMs": {
+          "mean": 0.7136,
+          "tmean": 0.6678,
+          "p50": 0.325,
+          "p95": 2.495,
+          "p99": 4.525,
+          "max": 6.12
+        },
+        "uiMs": {
+          "mean": 0.4386,
+          "tmean": 0.3909,
+          "p50": 0.085,
+          "p95": 2.525,
+          "p99": 4.54,
+          "max": 6.425
+        },
+        "fxMs": {
+          "mean": 0.0755,
+          "tmean": 0.0678,
+          "p50": 0.035,
+          "p95": 0.255,
+          "p99": 0.49,
+          "max": 1.855
+        },
+        "simMs": {
+          "mean": 0.1995,
+          "tmean": 0.1758,
+          "p50": 0.145,
+          "p95": 0.74,
+          "p99": 1.51,
+          "max": 4.265
+        }
+      }
+    },
+    "arquera": {
+      "spec": "francotiradora",
+      "iso": true,
+      "simNorm": 1.372,
+      "simMs": {
+        "mean": 0.1214,
+        "tmean": 0.1077,
+        "p50": 0.095,
+        "p95": 0.255,
+        "p99": 0.76,
+        "max": 2.915
+      },
+      "calibMs": {
+        "mean": 0.082,
+        "tmean": 0.0785,
+        "p50": 0.085,
+        "p95": 0.105,
+        "p99": 0.175,
+        "max": 2.34
+      },
+      "ticks": 3600,
+      "enemies": {
+        "min": 30,
+        "max": 30,
+        "avg": 30
+      },
+      "casts": {
+        "lmb": 3102,
+        "rmb": 28,
+        "k2": 4,
+        "k3": 0,
+        "k4": 0
+      },
+      "deaths": 0,
+      "panelAlEmpezar": null,
+      "corridas": [
+        {
+          "simNorm": 1.4976,
+          "simTmean": 0.1225,
+          "calibTmean": 0.0818,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.379,
+          "simTmean": 0.1197,
+          "calibTmean": 0.0868,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.3612,
+          "simTmean": 0.1138,
+          "calibTmean": 0.0836,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.3532,
+          "simTmean": 0.1088,
+          "calibTmean": 0.0804,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.4108,
+          "simTmean": 0.1178,
+          "calibTmean": 0.0835,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.2484,
+          "simTmean": 0.096,
+          "calibTmean": 0.0769,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        },
+        {
+          "simNorm": 1.372,
+          "simTmean": 0.1077,
+          "calibTmean": 0.0785,
+          "lanzados": {
+            "lmb": 3102,
+            "rmb": 28,
+            "k2": 4,
+            "k3": 0,
+            "k4": 0
+          }
+        }
+      ],
+      "conUi": {
+        "frameMs": {
+          "mean": 0.5637,
+          "tmean": 0.5294,
+          "p50": 0.285,
+          "p95": 1.985,
+          "p99": 3.35,
+          "max": 4.68
+        },
+        "uiMs": {
+          "mean": 0.3576,
+          "tmean": 0.3201,
+          "p50": 0.065,
+          "p95": 2.16,
+          "p99": 3.64,
+          "max": 4.72
+        },
+        "fxMs": {
+          "mean": 0.0638,
+          "tmean": 0.0594,
+          "p50": 0.03,
+          "p95": 0.185,
+          "p99": 0.395,
+          "max": 0.735
+        },
+        "simMs": {
+          "mean": 0.1423,
+          "tmean": 0.1312,
+          "p50": 0.125,
+          "p95": 0.54,
+          "p99": 0.96,
+          "max": 1.645
+        }
+      }
+    }
+  }
+}
