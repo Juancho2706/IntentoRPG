@@ -216,32 +216,32 @@
 
 ## Activas de talento (ranura 2, sin forja)
 
-- [ ] **m_t_bloque** Bloque de Hielo · defense · Nv21 · concede c11 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **m_t_inversion** Inversión del Tiempo · defense · Nv27 · concede c17 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **m_t_contrahechizo** Contrahechizo · utility · Nv31 · concede c22 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **m_h_detener** Detener el Tiempo · utility · Nv72 · concede t4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
-- [ ] **m_h_palabra** Palabra de Poder · utility · Nv72 · concede e4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
-- [ ] **m_h_constructo** Llamar Constructo · defense · Nv74 · concede f8 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
+- [x] **m_t_bloque** Bloque de Hielo · defense · Nv21 · concede c11 — catálogo (KA1) · comportamiento `m_t_bloque` de KT (powers-maga.js)
+- [x] **m_t_inversion** Inversión del Tiempo · defense · Nv27 · concede c17 — catálogo (KA1) · comportamiento `m_t_inversion` de KT (sin `rewind` en el catálogo: KT lee `sk.rewind || T.rewindT`)
+- [x] **m_t_contrahechizo** Contrahechizo · utility · Nv31 · concede c22 — catálogo (KA1) · comportamiento `m_t_contrahechizo` de KT (sin `silence`: KT lee `sk.silence || 3`)
+- [x] **m_h_detener** Detener el Tiempo · utility · Nv72 · concede t4 (héroe) — comportamiento propio `m_h_detener` (applyCC stun `dur` s a `radius` m; jefes → Quebranto). Las Marcas que guardan el doble: KT (③ afterCast)
+- [x] **m_h_palabra** Palabra de Poder · utility · Nv72 · concede e4 (héroe) — comportamiento propio `m_h_palabra` (params `runes`): deja `cast.runeSpots` (3 puntos a 1,8 m); las runas las escribe el poder de las Runas (e0, KT) en ③ afterCast
+- [x] **m_h_constructo** Llamar Constructo · defense · Nv74 · concede f8 (héroe) — comportamiento propio `m_h_constructo` (params `hpPct`): señuelo con vida que provoca cada 1 s a 8 m (applyCC taunt, src = el Constructo); deja `cast.construct`
 
 ## Kit (KA1): habilidades base y de especialización
 
-- [ ] **m_dardo** Dardo Arcano · basic · Nv1 · arcane
-- [ ] **bola_fuego** Bola de Fuego · spender · Nv2 · fire
-- [ ] **nova_hielo** Nova de Hielo · spender · Nv8 · frost
-- [ ] **m_parpadeo** Parpadeo · movement · Nv4 · arcane
-- [ ] **m_barrera** Barrera de Maná · defense · Nv6 · arcane
-- [ ] **p_llamarada** Llamarada · spec · Nv10 · piromante · fire
-- [ ] **m_estela_ignea** Estela Ígnea · movement · Nv12 · piromante · fire
-- [ ] **meteoro** Meteoro · spender · Nv14 · piromante · fire
-- [ ] **m_u_supernova** Supernova · ultimate · Nv15 · piromante · fire
-- [ ] **k_prision** Prisión de Hielo · spec · Nv10 · crionte · frost
-- [ ] **m_paso_escarcha** Paso de Escarcha · movement · Nv12 · crionte · frost
-- [ ] **k_lanza** Lanza de Hielo · spender · Nv14 · crionte · frost
-- [ ] **m_u_tormenta** Tormenta Glacial · ultimate · Nv15 · crionte · frost
-- [ ] **a_orbe** Orbe Arcano · spec · Nv10 · arcanista · arcane
-- [ ] **a_sello** Sello del Archimago · utility · Nv12 · arcanista · arcane
-- [ ] **rayo** Rayo · spender · Nv14 · arcanista · arcane
-- [ ] **m_u_desgarro** Desgarro Arcano · ultimate · Nv15 · arcanista · arcane
+- [x] **m_dardo** Dardo Arcano · basic · Nv1 · arcane — tipo `weapon` (alcance del básico de arma: 9 m; el mockup dice 20 m → duda/petición W2)
+- [x] **bola_fuego** Bola de Fuego · spender · Nv2 · fire — `proj` genérico, explosión 100 % a 2 m (la pasiva del Piromante la sube a 350 %)
+- [x] **nova_hielo** Nova de Hielo · spender · Nv8 · frost — `area` genérico
+- [x] **m_parpadeo** Parpadeo · movement · Nv4 · arcane — `blink` genérico
+- [x] **m_barrera** Barrera de Maná · defense · Nv6 · arcane — comportamiento propio `m_barrera` (params `shieldManaPct`; × prof.buffMul → c18 por `mod buff`; c4 por `tv.barrierDr`; escudo `src 'm_barrera'`)
+- [x] **p_llamarada** Llamarada · spec · Nv10 · piromante · fire — comportamiento propio `llamarada` (params `detonatePct`; consume quemaduras con g.consumeDoT y luego golpea el cono; lee `prof.detonatePct` de Llamarada Avivada; con la forja `type 'area' at 'self'` hace anillo)
+- [x] **m_estela_ignea** Estela Ígnea · movement · Nv12 · piromante · fire — comportamiento propio `m_estela_ignea` (desliz + campo `zona` en línea; Muro de Llamas = KA2)
+- [x] **meteoro** Meteoro · spender · Nv14 · piromante · fire — `area` genérico at target
+- [x] **m_u_supernova** Supernova · ultimate · Nv15 · piromante · fire — comportamiento propio `m_u_supernova` (params `pulses, pulseGap, burn, burnT`; at self; `follow 'owner'` para Sol Errante)
+- [x] **k_prision** Prisión de Hielo · spec · Nv10 · crionte · frost — comportamiento propio `prision_hielo` (params `freeze, layers`; las 2 capas: indicador de KT leyendo `prof.def.layers`)
+- [x] **m_paso_escarcha** Paso de Escarcha · movement · Nv12 · crionte · frost — comportamiento propio `m_paso_escarcha` (camino `zona` que ralentiza + 1 golpe de Hielo por segundo → 1 capa)
+- [x] **k_lanza** Lanza de Hielo · spender · Nv14 · crionte · frost — comportamiento propio `lanza_hielo` (params `frozenMult, layers`; ×3 a Congelados mirado ANTES del golpe; lee `prof.frozenMult` de Lanza del Invierno)
+- [x] **m_u_tormenta** Tormenta Glacial · ultimate · Nv15 · crionte · frost — comportamiento propio `m_u_tormenta` (params `interval, pulses`; `follow 'owner'`; exporta `magaStorm(p)` para los poderes de KT)
+- [x] **a_orbe** Orbe Arcano · spec · Nv10 · arcanista · arcane — comportamiento propio `orbe_arcano` (params `bounces`; g.fireProjectile por tramo)
+- [x] **a_sello** Sello del Archimago · utility · Nv12 · arcanista · arcane — `aura` genérica con `buff { spenderCostPct: −30 }` (solo principales: petición W2 para todo coste); la Carga cada 2 s: indicador de KT
+- [x] **rayo** Rayo · spender · Nv14 · arcanista · arcane — `line` genérico (las Cargas: indicador de KT)
+- [x] **m_u_desgarro** Desgarro Arcano · ultimate · Nv15 · arcanista · arcane — `channel` genérico, imparable, `moveMul 0` (la Mejora lo deja en 0,4); 1 Carga por golpe: indicador de KT
 
 ## Forja (KA2): Mejora (Nv req+3) y variantes I/II (Nv req+6)
 
@@ -351,6 +351,8 @@
 
 Referencias a ids que no están en el catálogo 2g (KA: corregir o declarar): `reco.crionte.m_toque`, `reco.arcanista.m_onda`, `reco.arcanista.m_armadura`.
 
+KA1-maga: `MAGA_SPEC_BAR` y `MAGA_FALLBACK_BAR` escritas (iguales al mockup); `MAGA_FORGE_RECO` y `MAGA_SKILL_FORGE` son de KA2 (divergencias temporales `forja` y `reco` en divergencias.json, aprobada: false).
+
 Activas de talento NUEVAS (en `--write` no entran en `MAGA_TALENT_SKILLS` hasta que existan): `m_h_detener`, `m_h_palabra`, `m_h_constructo`.
 
 Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skills-maga.js` o se retiran; lista de cada doc): `m_t_barrera`, `m_t_parpadeo`, `p_llamarada`, `p_combustion`, `p_muro_fuego`, `k_prision`, `k_lanza`, `k_ventisca`, `k_aliento`, `a_orbe`, `a_misiles`, `a_sello`, `a_evocacion`.
@@ -364,3 +366,9 @@ Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skill
 - **piromante · Calor** (0–100) — generar: +5 por golpe de Fuego (1 por instante) · descargar: A 100: Ignición Total. La siguiente Bola de Fuego o Meteoro, gratis y crítica · pérdida: −10 por segundo tras 3 s sin ganar · `calor · perFireHit 5 · decayAfter 3 · decayRate 10`
 - **crionte · Escarcha** (0–5 capas por enemigo) — generar: +1 capa por golpe de Hielo; la Nova, +2 · descargar: A 5 capas: Congelado 1 s. Un jefe queda Aterido 4 s (−30 % de movimiento, −15 % de ataque) y suma 25 de Quebranto · pérdida: 1 capa cada 2 s sin golpearlo · `escarcha · max 5 · nova 2 · freezeT 1 · numbT 4 · decayEvery 2`
 - **arcanista · Cargas Arcanas** (0–4) — generar: +1 por impacto del Dardo Arcano · descargar: El Rayo las gasta todas: +35 % de daño y 5 de maná por Carga · pérdida: Todas, 6 s después de la última que ganaste · `cargas · max 4 · perDart 1 · dmgPerCharge 35 · manaPerCharge 5 · loseAfter 6`
+
+## KA1-maga · peticiones (por id)
+
+- **KT-maga**: retirar los comportamientos muertos `m_t_barrera`, `p_llamarada`, `p_combustion`, `k_prision`, `k_lanza`, `k_ventisca`, `k_aliento`, `a_orbe`, `a_misiles`, `a_sello`, `a_evocacion` (el catálogo usa `m_barrera`, `llamarada`, `prision_hielo`, `lanza_hielo`, `orbe_arcano` y la `aura` genérica) y los campos `k_ventisca`, `k_tumba`, `k_campo_helado` si nadie los usa; conservar el campo `p_muro_fuego` si KA2 lo usa para Muro de Llamas.
+- **KT-maga**: Escarcha pone `prof.def.layers` capas (Prisión 2) en vez de 1 en ese golpe; Cargas +1 por golpe de `m_u_desgarro` y +1 cada 2 s dentro del propio `a_sello`; c4/c19/c25/c28 identifican el escudo por `src 'm_barrera'`; i7/i10/i24/i27 usan `magaStorm(p)` (`left`, `radius`, `center()`); e0 escribe las runas de `cast.runeSpots`; t4·A «las Marcas guardan el doble» en ③ afterCast de `m_h_detener`; f8 usa `cast.construct`.
+- **W2**: stat de coste para TODAS las habilidades con coste (el Sello abarata «tus hechizos»; hoy `spenderCostPct` solo toca principales y no al Orbe); alcance propio del básico de arma (`range` del Dardo: 20 m en el mockup, 9 m en el motor).
