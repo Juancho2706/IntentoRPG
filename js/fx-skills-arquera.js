@@ -347,8 +347,10 @@ export const ARQUERA_FX_PRESETS = {
 // (flecha, salto) y el básico de arma, cuando el motor lo haga (petición a la cola W2). Las
 // trampas cambian de color con la definición forjada (`color` de la variante).
 export const ARQUERA_FX = {
-  // kit base (el básico de arma: la flecha de siempre; sus variantes, abanico o cicuta)
-  a_disparo:         { aura: 'basicArrow', color: 0xe8d8a0, sfx: 'shoot',
+  // kit base (el básico de arma: la flecha de siempre; sus variantes, abanico o cicuta). Sin
+  // `color` en la base: Player.basicAttack antepone el del VFX al de la definición y taparía el verde
+  // de la Cicuta cuando lea la definición forjada (cola W2); sin él sale la flecha beige de siempre
+  a_disparo:         { aura: 'basicArrow', sfx: 'shoot',
     vars: { i: { aura: 'arqScatter' }, ii: { aura: 'arqHemlockTrail', impact: 'arqHemlockSplash', color: 0x86d47a } } },
   flecha_perforante: { trail: 'piercingTrail', impact: 'arrowSpark', color: 0xffffcc, sfx: 'shoot',
     vars: { i: { aura: 'arqDetonBlast', extra: 'arqBlastPop' }, ii: { trail: 'arqAimedTrail', impact: 'arqAimedImpact' } } },

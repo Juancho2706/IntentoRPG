@@ -254,13 +254,15 @@
 
 ## Forja (KA2): Mejora (Nv req+3) y variantes I/II (Nv req+6)
 
-`ARQUERA_SKILL_FORGE` y `ARQUERA_FORGE_RECO` en `js/skills-arquera.js`; poderes `v_*` en `js/powers-forge-arquera.js`; VFX de las variantes en `ARQUERA_FX[id].vars.i|ii` (`js/fx-skills-arquera.js`); pruebas en `tests/test-forge-arquera.mjs` (A1, A2/F7, A9, las 51 piezas en el arnés, ★ y VFX). Donde la Mejora y una variante fijan el mismo parámetro, la Mejora usa `set` y la variante lo pisa (Diluvio Anclado: 6 m, no 6 × 1,25).
+`ARQUERA_SKILL_FORGE` y `ARQUERA_FORGE_RECO` en `js/skills-arquera.js`; poderes `v_*` en `js/powers-forge-arquera.js`; VFX de las variantes en `ARQUERA_FX[id].vars.i|ii` (`js/fx-skills-arquera.js`); pruebas en `tests/test-forge-arquera.mjs` (A1, A2/F7 con la lista de claves que puede cambiar cada pieza, A9, las 51 piezas en el arnés, ★ y VFX). Donde la Mejora y una variante fijan el mismo parámetro, la Mejora usa `set` y la variante lo pisa (Diluvio Anclado: 6 m, no 6 × 1,25; Tiro Pesado: 2,5 s, no el 1,3 s de Tensado Rápido).
+
+`[~]` = la pieza está en los datos y su prueba de juego existe, pero el efecto completo espera al motor (cola W2). En `tests/test-forge-arquera.mjs` esas piezas están en `PEND_W2`: su afirmación de juego vale el valor de hoy o el correcto, y la suite avisa cuando el motor ya da el correcto (entonces se saca de la lista y queda estricta).
 
 ### a_disparo · Disparo Rápido
 
-- [x] **Mejora · Mano Rápida** — `set { cadence: 0.9 }`. El perfil la lleva, pero `Player.basicAttack` aún no la lee para el básico de arma (petición W2 n.º 2)
+- [~] **Mejora · Mano Rápida** — `set { cadence: 0.9 }`. El perfil la lleva, pero **en juego no hace nada todavía**: `Player.basicAttack` pone `atkCd = stats.atkTime` sin leer `prof.cadence` (medido: el siguiente disparo espera 1 × atkTime a Nv4, Nv20 Tiradora y Nv20 Montaraz). Petición W2 n.º 2; `PEND_W2.a_disparo_m`
 - [x] **I (AREA) · Disparo Disperso** — `set { count: 3, spread: 0.218, coef: 0.45 }` (un impacto por enemigo)
-- [x] **II (UNI) · Flecha de Cicuta** — `elem nature`, `set { coef: 0.7, hitDot { poison, 0.5, 4 s } }`, tag `dot`; el veneno se suma (applyDoT). El color de la flecha (`color` de la definición y `vars.ii` de los VFX) no lo lee aún el básico de arma (petición W2 n.º 3)
+- [x] **II (UNI) · Flecha de Cicuta** — `elem nature`, `set { coef: 0.7, hitDot { poison, 0.5, 4 s } }`, tag `dot`; el veneno se suma (applyDoT). El color de la flecha (`color` de la definición y `vars.ii` de los VFX) no lo lee aún el básico de arma (petición W2 n.º 3; la entrada base de `ARQUERA_FX.a_disparo` ya no lleva `color` para no taparlo)
 
 ### flecha_perforante · Flecha Perforante
 
@@ -312,7 +314,7 @@
 
 ### a_t_apuntado · Disparo Apuntado
 
-- [x] **Mejora · Tensado Rápido** — `mod { chargeSpeed: 15 }` (no `charge.max`: así la ventana dorada se escala con la velocidad; carga completa en 1,3 s)
+- [x] **Mejora · Tensado Rápido** — `set { 'charge.max': 1.3, 'charge.perfect': [1.0, 1.17] }` (el ★set del k, con la ventana dorada escalada a mano ×1,3/1,5). Es `set`, no un mod de velocidad: Tiro Pesado lo pisa (carga completa a 2,5 s, no a ~2,17 s como con el `chargeSpeed 15` de la primera entrega) y Tres Saetas lo hereda
 - [x] **I (AREA) · Tres Saetas** — `set { 'charge.full': { count: 3, spread: 0.1745, coefMul: 0.4 } }`; línea acortada («al 40 %» del disparo cargado, el ×0,4 del k)
 - [x] **II (UNI) · Tiro Pesado** — `set { 'charge.max': 2.5, 'charge.perfect': [2.15, 2.35], 'charge.scale.coef': [0.8, 3], pierce: false }`
 
@@ -326,7 +328,7 @@
 
 - [x] **Mejora · Marca Duradera** — `set { 'mark.dur': 12 }`
 - [x] **I (AREA) · Rastreo Múltiple** — `set { 'mark.count': 3, 'mark.radius': 4, 'mark.dur': 6 }`
-- [x] **II (CTRL) · Grillete** — `mod { slow: 12, slowPct: 50, stagger: 20 }` (12 s = lo que dura la marca con la Mejora, que a Nv20 siempre está; el k decía 8)
+- [x] **II (CTRL) · Grillete** — `mod { slow: 8, slowPct: 50, stagger: 20 }` (los 8 s del k). **Aviso a E4 / orquestador:** a un jefe, la ralentización ≥ 30 % también llena Quebranto (`staggerFromCC`: 4 por segundo = 32), así que cada impacto da 52 (20 del mod + 32). Tiro Rastreador no tiene recarga y cuesta 20 de Energía: dos impactos quiebran a un jefe (`STAGGER_MAX` 100), por encima del Quebranto de una especialización de control. Lo mismo vale para cualquier marca reaplicable sin recarga con ralentización ≥ 30 %; el arreglo es de reglas (rendimientos decrecientes del Quebranto por ralentización reaplicada, o que el mod la excluya), no de este dato
 
 ### a_u_celeste · Tiro Celestial
 
@@ -337,13 +339,13 @@
 ### a_t_cepo · Trampa de Cepo
 
 - [x] **Mejora · Muelles Firmes** — `set { 'trap.armT': 0.2 }`
-- [x] **I (AREA) · Mina de Espinas** — `set { root: 0, 'trap.burst': { radius: 3, coef: 1 } }`
-- [x] **II (CTRL) · Red de Caza** — `set { root: 2.5, radius: 3 }` + poder `v_red_caza` (⑤ al saltar el cepo —`hit.trap` y `source 'field:trampa'`, no en un estallido—, una red por trampa: inmoviliza a los demás a `radius` m); línea acortada
+- [~] **I (AREA) · Mina de Espinas** — `set { root: 0, 'trap.burst': { radius: 3, coef: 1 } }`. Al vecino le llega el 100 % a rango 1, pero **quien la pisa recibe el golpe directo de la trampa más el estallido** (a Nv30, ~86 + 120 frente al «estalla (100 %)» del texto) y `trap.burst.coef` va en crudo, sin escalar con el rango (a rango 3 sigue al 100 % cuando el cepo ya va al ×1,2). Peticiones W2 n.º 7 y KA1 n.º 1; `PEND_W2.a_t_cepo_i`
+- [x] **II (CTRL) · Red de Caza** — `set { root: 2.5, radius: 3 }` + poder `v_red_caza` (⑤ al saltar el cepo —`hit.trap` y `source 'field:trampa'`, no en un estallido—, una red por trampa: inmoviliza a los demás a `radius` m). El radio sale de la definición forjada (`p.talentAccessors().defOf`, que la calcula aunque la caché esté vacía) y la raíz, de la trampa (`data.root`, con `rootAdd`); sin constantes de reserva. Depende del golpe ⑤ de la trampa: ver la petición W2 n.º 7; línea acortada
 
 ### a_m_acecho · Salto de Acecho
 
 - [x] **Mejora · Acecho Lejano** — `set { range: 20 }`
-- [~] **I (CTRL) · Acecho Enredador** — `set { 'detonate.consume': false, root: 1.5, radius: 3 }` + poder `v_acecho_enredador` (③ afterCast al caer: raíz a `radius` m). **Falta** que la detonación no gaste la trampa: `detonate.consume` está en VERB_DOC, pero `detonateAt` y `_trapBurst` no lo leen (petición W2 n.º 4)
+- [~] **I (CTRL) · Acecho Enredador** — `set { 'detonate.consume': false, root: 1.5, radius: 3 }` + poder `v_acecho_enredador` (③ afterCast al caer: raíz a `radius` m). **Falta** que la detonación no gaste la trampa: `detonate.consume` está en VERB_DOC, pero `detonateAt` y `_trapBurst` no lo leen (petición W2 n.º 4; `PEND_W2.a_m_acecho_i`)
 - [x] **II (MOV) · Doble Acecho** — `mod { charges: 1 }`, `set { 'detonate.coef': 0.7 }` (el estallido no usa el saco aditivo del salto)
 
 ### a_m_detonante · Flecha Detonante
@@ -364,13 +366,17 @@
 - ★ (`ARQUERA_FORGE_RECO`) = la del mockup. Ninguna apaga la barra de su especialización (2f §7.7): la Tiradora conserva los disparos (`proj`); la Francotiradora, el tensado, la postura que guarda la Concentración y el Punto Débil; el Montaraz, las trampas, las detonaciones y el salto a la trampa. Lo vigila tests/test-forge-arquera.mjs §5 y, en vivo, el Impulso, el perfecto de Tiro Pesado y el Coto.
 - Divergencias: las 9 líneas de forja de más de 70 caracteres, acortadas y declaradas (`aprobada: false`); fuera las de KA1 `forja` y `reco`.
 - Peticiones a la cola W2 (motor):
-  1. test81 F7: el comparador quita `def` del perfil salvo con comportamiento propio; los tipos genéricos leen la definición forjada (`trap.armT`, `stance.modes`, `detonate.chain`) y salen 4 falsos no-ops (`a_f_rodilla_m`, `a_f_rodilla_ii`, `a_t_cepo_m`, `a_m_detonante_i`). Incluir `def` sin la marca `forged` en la firma (como hace test-forge-arquera §2).
-  2. `Player.basicAttack`: `atkCd = stats.atkTime × prof.cadence` (Mano Rápida; hoy solo el canal no-arma la usa).
-  3. `Player.basicAttack`: color de la flecha desde la definición forjada (`prof.def.color`) y los VFX de la variante (`SKILL_FX[id].vars[variant]`); lo mismo en `_makeCtx` para los tipos genéricos (`ctx.fx` = la entrada con `vars[prof.variant]` fusionada). Los comportamientos de la clase ya lo hacen con `fxOf`.
+  1. test81 F7: el comparador quita `def` del perfil salvo con comportamiento propio; los tipos genéricos leen la definición forjada (`trap.armT`, `stance.modes`, `detonate.chain`) y salen 4 falsos no-ops (`a_f_rodilla_m`, `a_f_rodilla_ii`, `a_t_cepo_m`, `a_m_detonante_i`). Incluir `def` sin la marca `forged` en la firma (como hace test-forge-arquera §2). Mientras tanto, test81 tiene que entrar en la cuarentena con dueño W2 (lo decide el orquestador: KA no edita `pending-2g.json`).
+  2. `Player.basicAttack`: `atkCd = stats.atkTime × prof.cadence` (Mano Rápida; hoy solo la lee `_commitCast` para los básicos que no son de arma). Medido: con la Mejora, el siguiente disparo sigue esperando 1 × atkTime.
+  3. `Player.basicAttack`: color de la flecha con este orden: `vars[variant].color` del VFX → `color` de la definición FORJADA (`prof.def.color`) → `color` del VFX base → el de la clase. Hoy es `fx.color ?? wb.color` con `wb` = el catálogo, así que ni la definición forjada ni la variante cuentan. VFX de la variante: `SKILL_FX[id].vars[variant]` fusionado sobre la entrada, también en `_makeCtx` para los tipos genéricos (`ctx.fx`); los comportamientos de la clase ya lo hacen con `fxOf`. **Para el orquestador:** la Arquera indexa `vars` por `i|ii` y KA2-guerrero por id de variante; hay que fijar una sola convención antes de que W2 lo implemente.
   4. `detonate.consume: false` en `detonateAt`, `detonateField` y `_trapBurst` (la trampa estalla y se rearma: Acecho Enredador).
   5. `SKILL_KEYS`: añadir `forged` (la marca de forgeDef) para que validateSkillDef no avise en una definición forjada.
   6. Las de KA1 siguen abiertas (hitDot de la trampa, Punto Débil por enemigo, soltar antes de `min`, `detonate.coef` por rango, detonar al final del alcance, deriva de los tics del canal).
+  7. Trampa genérica con `burst` (Mina de Espinas): (a) el estallido escala con el rango como el resto de la habilidad (`trap.burst.coef × rankCoef`, igual que pide la n.º 4 de KA1 para `detonate.coef`), en `_trapBurst` y en el salto de la trampa; (b) con `burst`, quien la pisa no recibe además el golpe directo `dmg`: el estallido ya le alcanza (con la n.º 1 de KA1, el golpe directo pasa a ser el `hitDot`). **Ojo:** `v_red_caza` se dispara con el ⑤ de ese golpe directo (`hit.trap` y `source 'field:trampa'`); si la n.º 1 de KA1 lo quita, la trampa tiene que seguir emitiendo un ⑤ al saltar (golpe de 0 con `hit.trap`) o dar otro gancho, y Red de Caza se adapta.
 - Arte (U2 / E3): los iconos `forge/v_<id>_i|ii` de las 34 variantes no existen todavía (marcador por papel, 2f §5).
+- Arte del kit (U2 / E3): `hud-model.baseSkillIcon` pide `skills/<id>.webp` y `skills256/<id>.webp` a toda habilidad que no es de talento, y a 8 del kit les faltan los dos: `a_t_andanada`, `a_v_carrera`, `a_t_apuntado`, `a_f_rodilla`, `a_f_rastreador`, `a_t_cepo`, `a_m_acecho` y `a_m_detonante` (el humo boot cae en rojo por esos 404 en cuanto llega a las insignias de Nv10; en juego, a Nv12 y Nv14, la barra de `SPEC_BAR` y el libro piden 5 más). Petición a U2: respaldo en `baseSkillIcon` al arte del nodo que usa el mockup (`I('<spec>-sN')` → `talents/arquera-<spec>-sN.webp`) o al marcador, sin pedir el archivo que no existe. Petición a E3 (arte): los 8 iconos en 128 y 256 px.
+- Para E4 / orquestador: Quebranto por ralentización reaplicada (ver Grillete) y el mínimo de G17 de la Arquera (ver abajo).
+- `test78` (dueño de la decisión: orquestador; datos: KT-arquera). Falla desde que el catálogo 2g trae el kit de especialización (`CATALOG_V = 2`; en `paso2-impl` pasa porque el kit aún no existía): G1, porque `c2`, `c6` (A y B) y `c16` (A y B) llevan en `touch` los 8 ids del kit que el conversor saca del grupo `flechas` del mockup congelado (decisión 10); G17, porque el propio diseño solo tiene 2 nodos mecánicos que tocan `a_u_diluvio` y 1 que toca `a_m_acecho` (§10 solo cita m18). Ni KA ni KT pueden arreglarlo solos: (a) que el conversor expanda `flechas` solo al kit base o que G1 lo exima; (b) fijar el mínimo de G17 para la Arquera o meter test78 en cuarentena (dueño Orq / KT-arquera).
 
 ## Barra y recomendaciones
 

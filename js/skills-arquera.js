@@ -528,6 +528,7 @@ export const ARQUERA_SKILL_BEHAVIORS = {
 const FORGE_ICON = id => `forge/v_${id}`;
 export const ARQUERA_SKILL_FORGE = {
   a_disparo: {
+    // cadencia del básico ×0,9: el perfil la lleva, pero Player.basicAttack aún no la lee (cola W2)
     mejora: { id: 'a_disparo_m', name: 'Mano Rápida', icon: 'forge/mejora', line: 'Disparas un 10 % más rápido.', set: { cadence: 0.9 } },
     vars: [
       { id: 'a_disparo_i', name: 'Disparo Disperso', role: 'AREA', icon: FORGE_ICON('a_disparo_i'), line: '3 flechas en abanico de 25° (45 % cada una).',
@@ -612,8 +613,10 @@ export const ARQUERA_SKILL_FORGE = {
     ],
   },
   a_t_apuntado: {
-    // un 15 % más rápido: la ventana dorada se escala con la velocidad (carga completa en 1,3 s)
-    mejora: { id: 'a_t_apuntado_m', name: 'Tensado Rápido', icon: 'forge/mejora', line: 'Tensas un 15 % más rápido (carga completa en 1,3 s).', mod: { chargeSpeed: 15 } },
+    // carga completa en 1,3 s (★set charge.max del k) y la ventana dorada escalada igual (×1,3/1,5).
+    // Es `set`, no un mod de velocidad: Tiro Pesado lo pisa con su tensado de 2,5 s y Tres Saetas lo hereda
+    mejora: { id: 'a_t_apuntado_m', name: 'Tensado Rápido', icon: 'forge/mejora', line: 'Tensas un 15 % más rápido (carga completa en 1,3 s).',
+      set: { 'charge.max': 1.3, 'charge.perfect': [1.0, 1.17] } },
     vars: [
       // a carga completa, 3 saetas al 40 % del disparo cargado (full.coefMul) en 20° (semiapertura 10°)
       { id: 'a_t_apuntado_i', name: 'Tres Saetas', role: 'AREA', icon: FORGE_ICON('a_t_apuntado_i'), line: 'A carga completa, 3 saetas en 20° que atraviesan, al 40 % cada una.',
@@ -626,9 +629,9 @@ export const ARQUERA_SKILL_FORGE = {
     mejora: { id: 'a_f_rodilla_m', name: 'Rodilla Firme', icon: 'forge/mejora', line: 'Disparo Apuntado y haces: tensado un 50 % más rápido (antes 40 %).',
       set: { 'stance.modes.0.chargeSpeed': 50 } },
     vars: [
-      { id: 'a_f_rodilla_i', name: 'Puesto Fijo', role: 'UNI', icon: FORGE_ICON('a_f_rodilla_i'), line: 'No te mueves: Disparo Apuntado y haces, el doble de rápido y +15 %.',
+      { id: 'a_f_rodilla_i', name: 'Puesto Fijo', role: 'UNI', icon: FORGE_ICON('a_f_rodilla_i'), line: 'Inmóvil: Disparo Apuntado y haces se tensan el doble y hacen +15 %.',
         set: { 'stance.modes.0.moveMul': 0, 'stance.modes.0.chargeSpeed': 100 }, power: 'v_puesto_fijo' },
-      { id: 'a_f_rodilla_ii', name: 'Parapeto', role: 'AGU', icon: FORGE_ICON('a_f_rodilla_ii'), line: 'De rodillas recibes un 30 % menos y la mitad de disparos te fallan.',
+      { id: 'a_f_rodilla_ii', name: 'Parapeto', role: 'AGU', icon: FORGE_ICON('a_f_rodilla_ii'), line: 'De rodillas recibes un 30 % menos; la mitad de los disparos te fallan.',
         set: { 'stance.modes.0.stats': { dr: 30, projMissPct: 50 } } },
     ],
   },
@@ -637,9 +640,10 @@ export const ARQUERA_SKILL_FORGE = {
     vars: [
       { id: 'a_f_rastreador_i', name: 'Rastreo Múltiple', role: 'AREA', icon: FORGE_ICON('a_f_rastreador_i'), line: 'Abre el Punto Débil en 3 enemigos a 4 m del blanco; dura 6 s.',
         set: { 'mark.count': 3, 'mark.radius': 4, 'mark.dur': 6 } },
-      // el marcado va lento lo que dura la marca (12 s con la Mejora, siempre activa a este nivel)
+      // la ralentización del k (8 s). A un jefe, el −50 % también llena Quebranto (staggerFromCC: 4 por
+      // segundo, 32) además de los 20 del mod: 52 por impacto (aviso a E4 en pendientes-arquera.md)
       { id: 'a_f_rastreador_ii', name: 'Grillete', role: 'CTRL', icon: FORGE_ICON('a_f_rastreador_ii'), line: 'El marcado va un 50 % más lento; a un jefe le llena 20 de Quebranto.',
-        mod: { slow: 12, slowPct: 50, stagger: 20 } },
+        mod: { slow: 8, slowPct: 50, stagger: 20 } },
     ],
   },
   a_u_celeste: {
@@ -655,6 +659,7 @@ export const ARQUERA_SKILL_FORGE = {
   a_t_cepo: {
     mejora: { id: 'a_t_cepo_m', name: 'Muelles Firmes', icon: 'forge/mejora', line: 'Se arma en 0,2 s (antes 0,5 s).', set: { 'trap.armT': 0.2 } },
     vars: [
+      // el estallido aún no escala con el rango y se suma al golpe directo de la trampa (cola W2)
       { id: 'a_t_cepo_i', name: 'Mina de Espinas', role: 'AREA', icon: FORGE_ICON('a_t_cepo_i'), line: 'No inmoviliza: al pisarla estalla en 3 m (100 %).',
         set: { root: 0, 'trap.burst': { radius: 3, coef: 1 }, color: 0xc0783c } },
       // la red (radio y raíz de la definición) la lanza su poder al saltar el cepo

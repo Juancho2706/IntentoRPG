@@ -17,9 +17,10 @@ import { powerState } from './powers.js';
 // Puesto Fijo: bonificación de los tensados de rodillas (el texto de la variante dice +15 %)
 const PUESTO_FIJO_DMG = 15;
 const CHARGED_SHOTS = new Set(['a_t_apuntado', 'a_u_celeste']);
-// Red de Caza: radio y raíz si el perfil del cepo ya no está en caché (los de la variante)
-const NET_R = 3, NET_ROOT = 2.5;
 const ESQUIVA = 'v_carrera_esquiva';
+// definición FORJADA de una habilidad de la heroína (accesor público de Player, §3.3: la calcula
+// si la caché está vacía). Sin importar skill-resolve.js: este módulo está en el ciclo de powers.js
+const defOf = (p, id) => p?.talentAccessors?.().defOf(id) || null;
 
 // ¿`e` está a `r` m de (x, z)? (su tamaño cuenta, como dealArea)
 const near = (e, x, z, r) => {
@@ -101,7 +102,8 @@ export function arqueraForgePowers() {
 
     // Red de Caza: cuando un cepo de Trampa de Cepo SALTA al pisarlo (⑤ con hit.trap y la fuente
     // del campo; no en un estallido por detonación), inmoviliza también a los demás enemigos a
-    // `radius` m de la trampa. Raíz = la del cepo (con rootAdd); una red por trampa.
+    // `radius` m de la trampa (el de la definición forjada). Raíz = la del cepo (con rootAdd,
+    // guardada en la trampa al colocarla); una red por trampa.
     v_red_caza: {
       name: 'Red de Caza', desc: 'Al pisar tu cepo, una red inmoviliza a todos los que atrapa.',
       onHit(g, p, e, hit) {
@@ -110,8 +112,9 @@ export function arqueraForgePowers() {
         if (st.uid === hit.trap.uid) return;
         st.uid = hit.trap.uid;
         const trap = (g.fields || []).find(f => f.uid === hit.trap.uid);
-        const r = p.forged?.a_t_cepo?.def?.radius || NET_R;
-        const root = trap?.data?.root || p.resolved?.a_t_cepo?.root || NET_ROOT;
+        const r = defOf(p, 'a_t_cepo')?.radius || 0;
+        const root = trap?.data?.root || 0;
+        if (!(r > 0) || !(root > 0)) return;
         const x = trap ? trap.pos.x : hit.pos.x, z = trap ? trap.pos.z : hit.pos.z;
         rootAround(g, p, x, z, r, root, e);
         g.spawnRing?.({ x, y: 0.05, z }, r, trap?.data?.color ?? 0xd8c08a);
@@ -125,8 +128,8 @@ export function arqueraForgePowers() {
       name: 'Acecho Enredador', desc: 'Al caer del Salto de Acecho inmovilizas a los enemigos cercanos.',
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_m_acecho' || cast.echo || !p?.alive) return;
-        const r = cast.prof?.radius || NET_R, root = cast.prof?.root || 0;
-        if (!(root > 0)) return;
+        const r = cast.prof?.radius || 0, root = cast.prof?.root || 0;
+        if (!(r > 0) || !(root > 0)) return;
         rootAround(g, p, p.pos.x, p.pos.z, r, root);
         g.emitFx?.('arqNetBurst', { x: p.pos.x, y: 0.4, z: p.pos.z });
       },

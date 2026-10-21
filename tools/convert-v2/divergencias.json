@@ -34,13 +34,13 @@
     {
       "clase": "arquera",
       "ruta": "forja.a_f_rodilla.vars.i.line",
-      "motivo": "A1 (líneas de forja ≤ 70): 86 → 67 caracteres. Mockup: «No te mueves: Disparo Apuntado y los haces se tensan el doble de rápido y hacen +15 %.» · juego: «No te mueves: Disparo Apuntado y haces, el doble de rápido y +15 %.».",
+      "motivo": "A1 (líneas de forja ≤ 70): 86 → 67 caracteres. Mockup: «No te mueves: Disparo Apuntado y los haces se tensan el doble de rápido y hacen +15 %.» · juego: «Inmóvil: Disparo Apuntado y haces se tensan el doble y hacen +15 %.».",
       "aprobada": false
     },
     {
       "clase": "arquera",
       "ruta": "forja.a_f_rodilla.vars.ii.line",
-      "motivo": "A1 (líneas de forja ≤ 70): 82 → 67 caracteres. Mockup: «De rodillas recibes un 30 % menos de daño y la mitad de los proyectiles te fallan.» · juego: «De rodillas recibes un 30 % menos y la mitad de disparos te fallan.».",
+      "motivo": "A1 (líneas de forja ≤ 70): 82 → 70 caracteres. Mockup: «De rodillas recibes un 30 % menos de daño y la mitad de los proyectiles te fallan.» · juego: «De rodillas recibes un 30 % menos; la mitad de los disparos te fallan.».",
       "aprobada": false
     },
     {

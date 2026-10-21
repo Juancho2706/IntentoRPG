@@ -2,11 +2,13 @@
 // formato de docs/paso2-implementacion.md §3.5
 //  1) A1: las 17 habilidades del libro (no las activas de talento) con Mejora + 2 variantes; ids
 //     estables, nombres y papeles del mockup, líneas ≤ 70 (las acortadas, declaradas en divergencias.json)
-//  2) A2/F7 estricto: cada definición forjada es válida (validateSkillDef v2: 0 errores y 0 avisos)
-//     y cada pieza cambia el perfil o la definición que lee el motor, o declara un poder registrado
+//  2) A2/F7 estricto: cada definición forjada es válida (validateSkillDef v2: 0 errores y 0 avisos),
+//     cada pieza cambia el perfil o la definición que lee el motor (o declara un poder registrado)
+//     y solo cambia lo suyo (lista de claves por pieza: nada de recargas, costes o alcances colados)
 //  3) A9 y D28: poderes v_* registrados, todos usados, sin `mult` e ids únicos entre clases
 //  4) cada Mejora y cada variante en el arnés con el canal REAL, comparada con la habilidad sin
-//     esa pieza (la Mejora, contra el nivel anterior; la variante, contra solo la Mejora)
+//     esa pieza (la Mejora, contra el nivel anterior; la variante, contra solo la Mejora). Lo que
+//     espera al motor (cola W2) se mide igual y vale el valor de hoy o el correcto (PEND_W2)
 //  5) FORGE_RECO: la ★ del libro, la aplica chooseSpec (D3) y nunca apaga la barra de su
 //     especialización (2f §7.7)
 //  6) VFX de las variantes que cambian de forma (ARQUERA_FX[id].vars)
@@ -15,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { CLASSES, SKILL_FORGE, FORGE_RECO, SPEC_BAR } from '../js/data.js';
 import { forgeDef, validateForge, validateSkillDef, FORGE_ROLES, FORGE_LINE_WARN } from '../js/skill-defs.js';
 import { resolveSkill } from '../js/skill-resolve.js';
+import { staggerFromCC } from '../js/combat-math.js';
 import { POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
 import { ARQUERA_SKILL_FORGE, ARQUERA_FORGE_RECO, ARQUERA_SPEC_BAR } from '../js/skills-arquera.js';
 import { arqueraForgePowers } from '../js/powers-forge-arquera.js';
@@ -100,7 +103,7 @@ console.log('A1: 17 habilidades con Mejora + 2 variantes, nombres y papeles del 
 // ------------------------------------------------ 2) A2/F7: definiciones forjadas válidas y sin no-ops
 // firma de lo que el motor lee: el perfil de resolveSkill y la definición forjada (sin la etiqueta
 // `forged`): los tipos genéricos leen de ella trap, stance, detonate, autoShot, lure…
-function sigOf(h, sk, entry, variant, withMejora = true) {
+function sigParts(h, sk, entry, variant, withMejora = true) {
   h.p.cls = { ...h.p.cls, forge: { ...SKILL_FORGE, [sk.id]: withMejora ? entry : { ...entry, mejora: null } } };
   h.p.skillForge = { [sk.id]: variant };
   h.p.recompute();
@@ -108,8 +111,44 @@ function sigOf(h, sk, entry, variant, withMejora = true) {
   const { def, mods, sups, onHitPowers, variant: v, mejora, ...rest } = pr;
   void mods; void sups; void onHitPowers; void v; void mejora;
   const { forged, ...d } = def; void forged;
-  return JSON.stringify({ rest, d }, (k, x) => (x instanceof Set ? [...x].sort() : x));
+  return JSON.parse(JSON.stringify({ prof: rest, def: d }, (k, x) => (x instanceof Set ? [...x].sort() : x)));
 }
+const sigOf = (...a) => JSON.stringify(sigParts(...a));
+// rutas (sin «prof.» ni «def.») cuyo valor cambia entre dos firmas; listas y objetos, hoja a hoja
+function changedPaths(a, b) {
+  const flat = (o, pre, out) => {
+    if (o && typeof o === 'object' && Object.keys(o).length) for (const [k, v] of Object.entries(o)) flat(v, pre ? `${pre}.${k}` : k, out);
+    else out[pre] = JSON.stringify(o);
+    return out;
+  };
+  const fa = flat(a, '', {}), fb = flat(b, '', {});
+  const all = new Set([...Object.keys(fa), ...Object.keys(fb)].filter(k => fa[k] !== fb[k]).map(k => k.replace(/^(prof|def)\./, '')));
+  return [...all].sort();
+}
+// lo que puede cambiar cada pieza (prefijos de ruta): su `k` y lo que el motor deriva de él
+// (durS → dur, dmg → addPct, recast null → tags). Cualquier otra ruta es un cambio colado
+const OWN_KEYS = {
+  a_disparo_m: ['cadence'], a_disparo_i: ['count', 'spread', 'coef'], a_disparo_ii: ['coef', 'elem', 'hitDot', 'color', 'tags'],
+  flecha_perforante_m: ['range', 'speed'], flecha_perforante_i: ['pierce', 'splash', 'radius', 'tags'], flecha_perforante_ii: ['windup', 'addPct'],
+  a_paso_m: ['dur', 'durS'], a_paso_i: ['rollShot'], a_paso_ii: ['charges', 'buff'],
+  a_humo_m: ['radius'], a_humo_i: ['coef', 'tags'], a_humo_ii: ['knock', 'slow', 'slowPct'],
+  lluvia_flechas_m: ['waves'], lluvia_flechas_i: ['radius', 'span', 'addPct'], lluvia_flechas_ii: ['allyDr', 'projMissPct'],
+  a_t_andanada_m: ['spread'], a_t_andanada_i: ['spread', 'perTarget', 'range'], a_t_andanada_ii: ['knock', 'slow', 'slowPct', 'addPct'],
+  a_v_carrera_m: ['moveMul'], a_v_carrera_i: ['autoShot.every', 'autoShot.target', 'addPct'], a_v_carrera_ii: ['projMissPct', 'addPct'],
+  flecha_multiple_m: ['range'], flecha_multiple_i: ['count', 'spread', 'coef'], flecha_multiple_ii: ['count', 'spread', 'pierce', 'coef'],
+  a_u_diluvio_m: ['radius'], a_u_diluvio_i: ['follow', 'at', 'radius', 'range'], a_u_diluvio_ii: ['follow', 'at', 'waves', 'span', 'radius', 'coef', 'range'],
+  a_t_apuntado_m: ['charge.max', 'charge.perfect'], a_t_apuntado_i: ['charge.full'],
+  a_t_apuntado_ii: ['charge.max', 'charge.perfect', 'charge.scale.coef', 'pierce'],
+  a_f_rodilla_m: ['stance.modes.0.chargeSpeed'], a_f_rodilla_i: ['stance.modes.0.moveMul', 'stance.modes.0.chargeSpeed'], a_f_rodilla_ii: ['stance.modes.0.stats'],
+  a_f_rastreador_m: ['mark.dur'], a_f_rastreador_i: ['mark.count', 'mark.radius', 'mark.dur'], a_f_rastreador_ii: ['slow', 'slowPct', 'stagger'],
+  a_u_celeste_m: ['recast.win'], a_u_celeste_i: ['type', 'at', 'radius', 'coef', 'pierce', 'impactDelay', 'charge.scale.coef', 'tags'],
+  a_u_celeste_ii: ['recast', 'charge.max', 'charge.perfect', 'charge.scale.coef', 'tags'],
+  a_t_cepo_m: ['trap.armT'], a_t_cepo_i: ['root', 'trap.burst', 'color'], a_t_cepo_ii: ['root', 'radius', 'color'],
+  a_m_acecho_m: ['range'], a_m_acecho_i: ['detonate.consume', 'root', 'radius'], a_m_acecho_ii: ['charges', 'detonate.coef'],
+  a_m_detonante_m: ['radius', 'detonate.radius'], a_m_detonante_i: ['detonate.chain'], a_m_detonante_ii: ['splash', 'detonate', 'pull', 'pullTo', 'tags'],
+  a_u_zarzas_m: ['dur', 'durS'], a_u_zarzas_i: ['at', 'radius', 'contain', 'venomPct'], a_u_zarzas_ii: ['lure'],
+};
+const stray = (id, paths) => paths.filter(k => !(OWN_KEYS[id] || []).some(a => k === a || k.startsWith(`${a}.`)));
 {
   const h = makeHarness({ classId: 'arquera', level: 100 });
   const noops = [];
@@ -128,13 +167,33 @@ function sigOf(h, sk, entry, variant, withMejora = true) {
     for (const [i, k] of [[0, 'i'], [1, 'ii']]) if (sigOf(h, sk, entry, k, true) === m && !entry.vars[i].power) noops.push(entry.vars[i].id);
   }
   assert.deepEqual(noops, [], `F7: piezas que no cambian nada: ${noops.join(' · ')}`);
+  // y solo lo suyo: la Mejora contra la habilidad sin ella; cada variante contra solo la Mejora
+  const colados = [];
+  for (const sk of BOOK) {
+    const entry = ARQUERA_SKILL_FORGE[sk.id];
+    const base = sigParts(h, sk, entry, null, false), m = sigParts(h, sk, entry, null, true);
+    for (const [id, a, b] of [[`${sk.id}_m`, base, m], [entry.vars[0].id, m, sigParts(h, sk, entry, 'i')], [entry.vars[1].id, m, sigParts(h, sk, entry, 'ii')]]) {
+      const extra = stray(id, changedPaths(a, b));
+      if (extra.length) colados.push(`${id}: ${extra.join(', ')}`);
+    }
+  }
+  assert.deepEqual(colados, [], `cada pieza cambia solo lo suyo: ${colados.join(' · ')}`);
+  assert.equal(Object.keys(OWN_KEYS).length, 51, 'OWN_KEYS: las 51 piezas');
+  for (const sk of BOOK) for (const [, piece] of piecesOf(ARQUERA_SKILL_FORGE[sk.id])) assert.ok(OWN_KEYS[piece.id || `${sk.id}_m`], `${sk.id}: OWN_KEYS de ${piece.name}`);
+  // el comprobador muerde: Tiro Pesado con la recarga a 1 s, Cortina con 3 oleadas
+  const tp = SK('a_t_apuntado'), te = ARQUERA_SKILL_FORGE.a_t_apuntado;
+  const tpBad = { ...te, vars: [te.vars[0], { ...te.vars[1], set: { ...te.vars[1].set, cd: 1 } }] };
+  assert.deepEqual(stray('a_t_apuntado_ii', changedPaths(sigParts(h, tp, tpBad, null), sigParts(h, tp, tpBad, 'ii'))), ['cd', 'cdBase'], 'una recarga colada en Tiro Pesado se ve');
+  const lf = SK('lluvia_flechas'), le = ARQUERA_SKILL_FORGE.lluvia_flechas;
+  const lfBad = { ...le, vars: [le.vars[0], { ...le.vars[1], set: { ...le.vars[1].set, waves: 3 } }] };
+  assert.deepEqual(stray('lluvia_flechas_ii', changedPaths(sigParts(h, lf, lfBad, null), sigParts(h, lf, lfBad, 'ii'))), ['waves'], 'oleadas coladas en Cortina se ven');
   // el comprobador muerde: una variante vacía no cambia la firma; cambiar solo la postura, sí
   const sk = SK('a_f_rodilla'), e = ARQUERA_SKILL_FORGE.a_f_rodilla;
   const fake = { ...e, vars: [{ ...e.vars[0], set: {}, power: null }, { ...e.vars[1], set: { 'stance.modes.0.stats': { dr: 5 } } }] };
   assert.equal(sigOf(h, sk, fake, 'i'), sigOf(h, sk, fake, null), 'F7: una variante vacía no cambia la firma');
   assert.notEqual(sigOf(h, sk, fake, 'ii'), sigOf(h, sk, fake, null), 'F7: cambiar solo la postura sí la cambia');
 }
-console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna pieza es un no-op ✓');
+console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna pieza es un no-op ni cambia lo ajeno ✓');
 
 // ------------------------------------------------ 3) A9 y D28: poderes de la forja
 {
@@ -213,12 +272,37 @@ const fanSpan = h => { const a = h.g.projectiles.map(pr => Math.atan2(pr.vel.x, 
 const shoot = (h, slot, id, [x, z], sec = 1) => { h.aim(x, z); h.setSlot(slot, id); const ok = h.cast(slot); h.step(sec); return ok; };
 // tensar `hold` s y soltar (Disparo Apuntado, haces)
 const tense = (h, slot, id, [x, z], hold, after = 0.6) => { h.aim(x, z); h.setSlot(slot, id); const ok = h.press(slot); h.step(hold); h.release(slot); h.step(after); return ok; };
+// Piezas que esperan al motor (cola W2, tools/convert-v2/out/arquera/pendientes-arquera.md). Su
+// afirmación de juego se mide igual: mientras siga aquí vale el valor de HOY o el CORRECTO (cualquier
+// otro falla); cuando el motor dé el correcto, la suite lo avisa para sacarla de la lista
+const PEND_W2 = {
+  a_disparo_m: 'W2 n.º 2: Player.basicAttack no lee prof.cadence',
+  a_t_cepo_i: 'W2 n.º 7 y KA1 n.º 1: la mina suma el golpe directo y su estallido no escala con el rango',
+  a_m_acecho_i: 'W2 n.º 4: detonate.consume:false; hoy la trampa se gasta',
+};
+const pendSeen = new Map();
+function pending(id, { ok, today, msg }) {
+  if (!PEND_W2[id]) { assert.ok(ok, msg); return; }
+  assert.ok(ok || today, `${msg}: ni el valor de hoy ni el correcto (pendiente ${PEND_W2[id]})`);
+  if (pendSeen.get(id) !== false) pendSeen.set(id, !!ok);
+}
 
 // ———————— kit base ————————
-{ // Disparo Rápido · Mejora (Mano Rápida): cadencia ×0,9 del básico (el perfil; Player.basicAttack
-  // aún no la lee para el básico de arma: petición a la cola W2)
+{ // Disparo Rápido · Mejora (Mano Rápida): cadencia ×0,9 del básico
   const cad = L => resolveSkill(hero(L).p, SK('a_disparo')).cadence;
-  assert.ok(approx(cad(3), 1) && approx(cad(4), 0.9), 'Mano Rápida: cadencia 1 → 0,9 (un 10 % más rápido)');
+  assert.ok(approx(cad(3), 1) && approx(cad(4), 0.9), 'Mano Rápida: cadencia 1 → 0,9 en el perfil');
+  // en juego: lo que espera el siguiente Disparo Rápido, en múltiplos de atkTime
+  const gap = (L, spec = null) => {
+    const h = hero(L, { spec }); foe(h, 0, 5); h.aim(0, 5); h.setSlot('lmb', 'a_disparo');
+    h.cast('lmb');
+    return h.p.atkCd / h.p.stats.atkTime;
+  };
+  assert.ok(approx(gap(3), 1, 1e-9), `sin Mano Rápida (Nv3): un disparo cada atkTime (${gap(3).toFixed(3)})`);
+  for (const [L, spec] of [[4, null], [20, 'tiradora'], [20, 'montaraz']]) {
+    const r = gap(L, spec);
+    pending('a_disparo_m', { ok: approx(r, 0.9, 1e-9), today: approx(r, 1, 1e-9),
+      msg: `Mano Rápida en juego (Nv${L}${spec ? ` ${spec}` : ''}): el siguiente disparo a 0,9 × atkTime (${r.toFixed(3)})` });
+  }
 }
 { // Disparo Rápido · I (Disparo Disperso): 3 flechas en 25° al 45 %
   const run = forge => { const h = hero(7, { forge }); const a = foe(h, 0, 5); shoot(h, 'lmb', 'a_disparo', [0, 5], 0); const n = h.g.projectiles.length, span = fanSpan(h); h.step(0.8); return { n, span, a }; };
@@ -423,6 +507,11 @@ function gallop(forge) {
   const m = run({}), a = run({ a_u_diluvio: 'i' });
   assert.ok(m.mine.t.n > 0 && a.mine.t.n === 0, 'Diluvio Anclado: ya no cae sobre ti');
   assert.ok(m.there.t.n === 0 && a.there.t.n >= 6, `Diluvio Anclado: cae donde apuntas, 6 m (${a.there.t.n})`);
+  // a 12 m como mucho: apuntando a 20 m, la nube se queda a 12
+  const h = hero(21, { spec: 'tiradora', forge: { a_u_diluvio: 'i' } });
+  const at12 = foe(h, 12, 0), at19 = foe(h, 19, 0);
+  h.aim(20, 0); h.setSlot('k4', 'a_u_diluvio'); h.cast('k4'); h.step(2);
+  assert.ok(at12.t.n > 0 && at19.t.n === 0, `Diluvio Anclado: alcance de 12 m (${at12.t.n} a 12 m, ${at19.t.n} a 19 m)`);
 }
 { // Diluvio de Saetas · II (Saetas Pesadas): 4 saetas de 700 % sobre tu objetivo en 2 s, aunque se mueva
   const h = hero(21, { spec: 'tiradora', forge: { a_u_diluvio: 'ii' } }), ref = hero(21, { spec: 'tiradora' });
@@ -435,9 +524,14 @@ function gallop(forge) {
 }
 
 // ———————— Francotiradora ————————
-{ // Disparo Apuntado · Mejora (Tensado Rápido): un 15 % más rápido (1,05 s ya es la ventana dorada)
-  const run = L => { const h = hero(L, { spec: 'francotiradora' }); foe(h, 0, 6); tense(h, 'k3', 'a_t_apuntado', [0, 6], 1.05); return h.sfxCount('verb_perfect'); };
-  assert.ok(run(12) === 0 && run(13) === 1, 'Tensado Rápido: 1,05 s es perfecto');
+{ // Disparo Apuntado · Mejora (Tensado Rápido): carga completa en 1,3 s (antes 1,5) y la ventana dorada antes
+  const run = (L, hold) => { const h = hero(L, { spec: 'francotiradora' }); const a = foe(h, 0, 6); tense(h, 'k3', 'a_t_apuntado', [0, 6], hold); return { a, perfect: h.sfxCount('verb_perfect') }; };
+  assert.ok(run(12, 1.05).perfect === 0 && run(13, 1.05).perfect === 1, 'Tensado Rápido: 1,05 s es perfecto');
+  // sin perfecto (fuera de la ventana): a 1,3 s, el 250 % que antes pedía 1,5 s; a 1,2 s, aún no
+  const full = run(13, 1.3), early = run(13, 1.2), old = run(12, 1.5);
+  assert.ok(full.perfect === 0 && early.perfect === 0 && old.perfect === 0, 'Tensado Rápido: 1,2, 1,3 y 1,5 s quedan fuera de la ventana');
+  assert.ok(approx(full.a.t.direct / old.a.t.direct, 1, 0.002), `Tensado Rápido: carga completa a 1,3 s (${(full.a.t.direct / old.a.t.direct).toFixed(3)})`);
+  assert.ok(early.a.t.direct < full.a.t.direct * 0.97, `Tensado Rápido: a 1,2 s aún no está completa (${(early.a.t.direct / full.a.t.direct).toFixed(3)})`);
 }
 { // Disparo Apuntado · I (Tres Saetas): a carga completa, 3 saetas en 20° que atraviesan, al 40 %
   const run = (forge, hold) => { const h = hero(16, { spec: 'francotiradora', forge }); const a = foe(h, 0, 6), b = foe(h, 0, 10); h.aim(0, 6); h.setSlot('k3', 'a_t_apuntado'); h.press('k3'); h.step(hold); h.release('k3'); h.step(0.02); const n = h.g.projectiles.length, span = n > 1 ? fanSpan(h) : 0; h.step(0.6); return { n, span, a, b }; };
@@ -451,9 +545,15 @@ function gallop(forge) {
   const run = (forge, hold) => { const h = hero(16, { spec: 'francotiradora', forge }); const a = foe(h, 0, 6), b = foe(h, 0, 10); tense(h, 'k3', 'a_t_apuntado', [0, 6], hold); return { h, a, b }; };
   const m = run({}, 2.5), p = run({ a_t_apuntado: 'ii' }, 2.5);
   assert.ok(m.b.t.n === 1 && p.b.t.n === 0, 'Tiro Pesado: no atraviesa');
+  assert.ok(m.h.sfxCount('verb_perfect') === 0 && p.h.sfxCount('verb_perfect') === 0, 'a 2,5 s, fuera de la ventana');
   assert.ok(approx(p.a.t.direct / m.a.t.direct, 3 / 2.5, 0.01), `Tiro Pesado: carga completa = 300 % (frente a 250 %: ${(p.a.t.direct / m.a.t.direct).toFixed(3)})`);
-  // la ventana dorada pasa a 2,15–2,35 s de carga (con el tensado un 15 % más rápido: ~1,95 s)
-  assert.ok(run({ a_t_apuntado: 'ii' }, 1.95).h.sfxCount('verb_perfect') === 1 && run({ a_t_apuntado: 'ii' }, 1.05).h.sfxCount('verb_perfect') === 0, 'Tiro Pesado: la ventana dorada, al final del tensado largo');
+  // pisa el 1,3 s de Tensado Rápido: la carga sigue subiendo hasta los 2,5 s (a 2,4 s, ~290 %) y no más
+  const early = run({ a_t_apuntado: 'ii' }, 2.4), late = run({ a_t_apuntado: 'ii' }, 2.8);
+  assert.ok(early.a.t.direct < p.a.t.direct * 0.98, `Tiro Pesado: a 2,4 s aún no está completa (${(early.a.t.direct / p.a.t.direct).toFixed(3)})`);
+  assert.ok(approx(late.a.t.direct / p.a.t.direct, 1, 0.002), 'Tiro Pesado: completa a 2,5 s (más tensado no suma)');
+  // ventana dorada a 2,15–2,35 s de tensado
+  const perfectAt = hold => run({ a_t_apuntado: 'ii' }, hold).h.sfxCount('verb_perfect');
+  assert.deepEqual([1.05, 1.95, 2.25, 2.4].map(perfectAt), [0, 0, 1, 0], 'Tiro Pesado: perfecto solo a 2,15–2,35 s');
 }
 // tensado de Disparo Apuntado de rodillas: ¿perfecto? (y el daño)
 function kneelShot(level, forge, hold) {
@@ -503,12 +603,22 @@ function kneelShot(level, forge, hold) {
   assert.ok(r[0] > 0 && r[4] === 0, 'Rastreo Múltiple: el blanco y cercanos (a 6 m del blanco, no)');
   assert.ok(r.every(t => t <= 6), 'Rastreo Múltiple: 6 s');
 }
-{ // Tiro Rastreador · II (Grillete): el marcado va un 50 % más lento; a un jefe, 20 de Quebranto
-  const run = (forge, extra = {}) => { const h = hero(20, { spec: 'francotiradora', forge }); const a = foe(h, 0, 6, extra); shoot(h, 'rmb', 'a_f_rastreador', [0, 6], 0.6); return a; };
+{ // Tiro Rastreador · II (Grillete): el marcado va un 50 % más lento (8 s, el k); a un jefe, 20 de Quebranto
+  const run = (forge, extra = {}, entry = null) => {
+    const h = hero(20, { spec: 'francotiradora', forge });
+    if (entry) { h.p.cls = { ...h.p.cls, forge: { ...SKILL_FORGE, a_f_rastreador: entry } }; h.p.forged = {}; h.p.resolved = {}; h.p.recompute(); }
+    const a = foe(h, 0, 6, extra); shoot(h, 'rmb', 'a_f_rastreador', [0, 6], 0.6); return a;
+  };
   const m = run({}), g = run({ a_f_rastreador: 'ii' });
-  assert.ok(!(m.slowT > 0) && g.slowPct === 50 && g.slowT > 11, `Grillete: −50 % mientras dura la marca (${g.slowT?.toFixed(1)} s)`);
-  const bm = run({}, { boss: true }), bg = run({ a_f_rastreador: 'ii' }, { boss: true });
-  assert.ok((bg.stagger || 0) - (bm.stagger || 0) >= 20, `Grillete: +20 de Quebranto al jefe (${(bm.stagger || 0).toFixed(1)} → ${(bg.stagger || 0).toFixed(1)})`);
+  assert.ok(!(m.slowT > 0) && g.slowPct === 50 && g.slowT > 7 && g.slowT <= 8, `Grillete: −50 % durante 8 s (quedan ${g.slowT?.toFixed(2)} s)`);
+  // Quebranto: el del mod (exactamente 20, frente a la misma ralentización sin él) y el total por impacto
+  const e = ARQUERA_SKILL_FORGE.a_f_rastreador;
+  const sinMod = { ...e, vars: [e.vars[0], { ...e.vars[1], mod: { ...e.vars[1].mod, stagger: 0 } }] };
+  const bm = run({}, { boss: true }), bg = run({ a_f_rastreador: 'ii' }, { boss: true }), bs = run({ a_f_rastreador: 'ii' }, { boss: true }, sinMod);
+  const st = x => x.stagger || 0;
+  assert.ok(approx(st(bg) - st(bs), 20, 1e-6), `Grillete: el mod llena 20 de Quebranto (${st(bs).toFixed(2)} → ${st(bg).toFixed(2)})`);
+  const want = 20 + staggerFromCC('slow', 8, { pct: 50 });
+  assert.ok(approx(st(bg) - st(bm), want, 1e-6), `Grillete: ${want} de Quebranto por impacto (20 + la ralentización de 8 s; ${(st(bg) - st(bm)).toFixed(2)})`);
 }
 { // Tiro Celestial · Mejora (Cielo Abierto): 10 s para los haces (antes 8 s)
   const run = L => { const h = hero(L, { spec: 'francotiradora' }); foe(h, 0, 6); tense(h, 'k4', 'a_u_celeste', [0, 6], 0.6, 8.8); return h.press('k4'); };
@@ -550,6 +660,24 @@ function kneelShot(level, forge, hold) {
   const wd = x.h.p.rollDamage(1, 0, resolveSkill(x.h.p, SK('a_t_cepo')).addPct, x.b, { skill: 'a_t_cepo' }).dmg;
   assert.ok(approx(x.b.t.direct, wd, wd * 0.02), `Mina de Espinas: al 100 % del arma (${x.b.t.direct} ≈ ${wd})`);
   assert.equal(fieldsOf(x.h, 'trampa').length, 0, 'Mina de Espinas: se gasta');
+  // quien la pisa recibe solo el estallido (el veneno del cepo aparte); hoy, el golpe directo del cepo
+  // y además el estallido
+  const pr = resolveSkill(x.h.p, SK('a_t_cepo'));
+  const direct = x.h.p.rollDamage(pr.coef, 0, pr.addPct, x.a, { skill: 'a_t_cepo' }).dmg;
+  const wdA = x.h.p.rollDamage(1, 0, pr.addPct, x.a, { skill: 'a_t_cepo' }).dmg;
+  pending('a_t_cepo_i', { ok: x.a.t.n === 1 && approx(x.a.t.direct, wdA, wdA * 0.02),
+    today: x.a.t.n === 2 && approx(x.a.t.direct, wdA + direct, (wdA + direct) * 0.02),
+    msg: `Mina de Espinas: quien la pisa, solo el estallido del 100 % (${x.a.t.n} golpes, ${x.a.t.direct} frente a ${wdA})` });
+  // a rango 3 (Nv26) el estallido escala como el resto de la habilidad (100 % × rango)
+  const h3 = hero(26, { spec: 'montaraz', forge: { a_t_cepo: 'i' } });
+  const s3 = foe(h3, 0, 6), n3 = foe(h3, 2.6, 6);
+  shoot(h3, 'k3', 'a_t_cepo', [0, 6], 0.5);
+  const p3 = resolveSkill(h3.p, SK('a_t_cepo')), rk = p3.coef / SK('a_t_cepo').coef;
+  assert.ok(rk > 1.1, `Nv26: el cepo ya escala con el rango (×${rk.toFixed(2)})`);
+  const at1 = h3.p.rollDamage(1, 0, p3.addPct, n3, { skill: 'a_t_cepo' }).dmg, atR = h3.p.rollDamage(rk, 0, p3.addPct, n3, { skill: 'a_t_cepo' }).dmg;
+  pending('a_t_cepo_i', { ok: n3.t.n === 1 && approx(n3.t.direct, atR, atR * 0.02), today: n3.t.n === 1 && approx(n3.t.direct, at1, at1 * 0.02),
+    msg: `Mina de Espinas a rango 3: el estallido al 100 % × ${rk.toFixed(2)} (${n3.t.direct} frente a ${atR})` });
+  assert.ok(s3.t.n >= 1, 'Nv26: la mina salta al pisarla');
 }
 { // Trampa de Cepo · II (Red de Caza): al pisarla, una red de 3 m inmoviliza 2,5 s a todos
   const run = forge => { const h = hero(16, { spec: 'montaraz', forge }); const a = foe(h, 0, 6), b = foe(h, 2.4, 6.5), c = foe(h, -4, 6); shoot(h, 'k3', 'a_t_cepo', [0, 6], 0.6); return { a, b, c }; };
@@ -558,6 +686,14 @@ function kneelShot(level, forge, hold) {
   assert.ok(r.a.rootT > 2 && r.a.rootT <= 2.5, `Red de Caza: el que la pisa, 2,5 s (${r.a.rootT.toFixed(2)})`);
   assert.ok(r.b.rootT > 2 && r.b.rootT <= 2.5, `Red de Caza: la red atrapa a los de 3 m (${(r.b.rootT || 0).toFixed(2)})`);
   assert.ok(!(r.c.rootT > 0), 'Red de Caza: a 4 m, no');
+  // el radio sale de la definición forjada (con otro radio en la variante, la red llega a 4 m)
+  const e = ARQUERA_SKILL_FORGE.a_t_cepo;
+  const wide = { ...e, vars: [e.vars[0], { ...e.vars[1], set: { ...e.vars[1].set, radius: 4.5 } }] };
+  const h = hero(16, { spec: 'montaraz', forge: { a_t_cepo: 'ii' } });
+  h.p.cls = { ...h.p.cls, forge: { ...SKILL_FORGE, a_t_cepo: wide } }; h.p.forged = {}; h.p.resolved = {}; h.p.recompute();
+  const a = foe(h, 0, 6), c = foe(h, -4, 6);
+  shoot(h, 'k3', 'a_t_cepo', [0, 6], 0.6);
+  assert.ok(a.rootT > 2 && c.rootT > 2, `Red de Caza: con 4,5 m en la variante, atrapa a 4 m (${(c.rootT || 0).toFixed(2)})`);
 }
 // trampa en (x, z) ya armada (Trampa de Cepo; para el salto y la flecha)
 function trapAt(h, x, z) { h.aim(x, z); h.setSlot('k3', 'a_t_cepo'); h.g.reduceCooldown(h.p, 'a_t_cepo', Infinity); h.p.gcdT = 0; assert.equal(h.cast('k3'), true, `trampa en (${x}, ${z})`); h.step(0.6); }
@@ -566,14 +702,16 @@ function trapAt(h, x, z) { h.aim(x, z); h.setSlot('k3', 'a_t_cepo'); h.g.reduceC
   const b = run(14), m = run(15);
   assert.ok(approx(b, -3, 1e-6) && approx(m, 9, 1e-6), `Acecho Lejano: a 18 m salta a la trampa (${b.toFixed(2)} → ${m.toFixed(2)})`);
 }
-{ // Salto de Acecho · I (Acecho Enredador): al caer, inmovilizas 1,5 s a todos a 3 m (que la trampa no se
-  // gaste, detonate.consume:false, espera al motor: petición a la cola W2)
+{ // Salto de Acecho · I (Acecho Enredador): al caer, inmovilizas 1,5 s a todos a 3 m y no gastas la trampa
   const run = forge => { const h = hero(18, { spec: 'montaraz', forge }); trapAt(h, 8, 0); const a = foe(h, 8, 2.6), out = foe(h, 8, -3.8); h.aim(8, 0); h.setSlot('k1', 'a_m_acecho'); h.cast('k1'); h.step(0.6); return { h, a, out }; };
   const m = run({}), e = run({ a_m_acecho: 'i' });
   assert.ok(!(m.a.rootT > 0), 'sin Acecho Enredador: no inmoviliza');
   assert.ok(e.a.rootT > 1.2 && e.a.rootT <= 1.5, `Acecho Enredador: 1,5 s a 3 m (${(e.a.rootT || 0).toFixed(2)})`);
   assert.ok(!(e.out.rootT > 0), 'Acecho Enredador: a 3,8 m, no');
   assert.ok(approx(e.h.p.pos.x, 8, 1e-6), 'Acecho Enredador: saltas a tu trampa');
+  assert.equal(fieldsOf(m.h, 'trampa').length, 0, 'sin Acecho Enredador: la trampa estalla y se gasta');
+  const left = fieldsOf(e.h, 'trampa').length;
+  pending('a_m_acecho_i', { ok: left === 1, today: left === 0, msg: `Acecho Enredador: la trampa sigue puesta tras el salto (${left})` });
 }
 { // Salto de Acecho · II (Doble Acecho): 2 cargas; el estallido, −30 %
   const run = forge => {
@@ -663,6 +801,9 @@ function briar(level, forge, spots = [[0, 8]]) {
   for (let i = 0; i < 30; i++) { s.h.g.lureStep(near, 1 / 30); s.h.g.lureStep(far, 1 / 30); }
   assert.ok(near.pos.z < 17.4 && approx(far.pos.z, 19), `Señuelo de Zarzas: atrae a 10 m, no a 11 (z=${near.pos.z.toFixed(2)})`);
 }
+// cada pendiente de PEND_W2 se midió; las que ya cumple el motor se avisan para sacarlas de la lista
+assert.deepEqual([...pendSeen.keys()].sort(), Object.keys(PEND_W2).sort(), 'PEND_W2: cada pieza pendiente tiene su afirmación de juego');
+for (const [id, ok] of pendSeen) console.log(ok ? `  ⚠ ${id}: el motor ya lo cumple; sácala de PEND_W2 (queda estricta)` : `  · ${id}: pendiente (${PEND_W2[id]})`);
 console.log('En el arnés: las 51 piezas (Mejoras y variantes) del kit base, Tiradora, Francotiradora y Montaraz ✓');
 
 // ------------------------------------------------ 5) FORGE_RECO (★ del libro) y la barra de su especialización
@@ -743,7 +884,7 @@ function gaugeLoss(sp, reco, forge = ARQUERA_SKILL_FORGE) {
   // Francotiradora: Tiro Pesado perfecto; de rodillas (Puesto Fijo) la Concentración sigue subiendo
   const f = hero(30, { spec: 'francotiradora', forge: ARQUERA_FORGE_RECO.francotiradora });
   foe(f, 0, 6);
-  tense(f, 'k3', 'a_t_apuntado', [0, 6], 1.95);
+  tense(f, 'k3', 'a_t_apuntado', [0, 6], 2.25);
   assert.equal(f.sfxCount('verb_perfect'), 1, 'francotiradora ★: Tiro Pesado perfecto');
   f.setSlot('k2', 'a_f_rodilla'); f.cast('k2');
   const c0 = f.gaugeValue('concentracion');
