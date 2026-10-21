@@ -410,6 +410,7 @@ KA2-maga: usados `v_racimo`, `v_fractura`, `v_reactiva`, `v_coraza_arcana`, `v_p
 - [x] **c15B Mente Clara:** el texto dice «con el maná lleno, +10 %», pero `tv.highManaDmg` (núcleo) se aplica por encima del 70 %. Orquestador: corregir el texto o usar un umbral del 100 % para esta opción. — **Tanda 2:** Hecho en la tanda 2: texto «con más del 70 % de maná» (punto 17; divergencia clase.c15.opts.B.desc), probado al 80 % y al 60 %.
 - [x] **Orq · D28:** ids de la Maga que faltan en `out/power-ids.json`: poderes `m_nova_cortante`, `m_escarcha_tenaz`, `m_ritmo_arcano`, `m_marca_tiempo`, `m_retroceso`, `m_senora_tiempo`, `m_familiar`, `m_legion`, `m_runas`, `m_gran_grimorio`, `p_pira`, `p_sismico`, `k_filo_helado`, `k_astillas`, `k_suelo`, `k_piel_invierno`, `a_grieta`, `a_desbordadas`; campos `m_runa_escarcha`, `m_grieta`, `m_runa_escrita`, `m_sello`, `p_muro_fuego`, `k_suelo`, `a_grieta`. Hoy no chocan con la Arquera (prefijos `m_` y `a_` compartidos). — **Tanda 2:** Hecho (todos en `registrados` de power-ids.json desde la tanda 1).
 - [x] **Orq · paridad de `touch`:** `test-v2-paridad` no compara `touch`; las 8 rutas de `touch` declaradas (G1/G17) salen como «declaradas que ya no divergen» hasta que la compare. — **Tanda 2:** Hecho (test-v2-paridad compara `touch` desde la tanda 1).
+
 ## Abierto tras la tanda 2 (KAT-maga)
 
 Nada de esto es de la cola W2d ni lo arregla un cambio barato en los archivos de la Maga: queda listado con su dueño.
