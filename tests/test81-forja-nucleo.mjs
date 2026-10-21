@@ -186,6 +186,11 @@ definePower('vx_v_garfio', { name: 'variante de prueba' });
 // ------------------------------------------------ 6) A1 / F7 genéricos (clases con CATALOG_V = 2)
 // A1: cada habilidad base (no de talento) tiene Mejora + 2 variantes válidas.
 // F7: ninguna pieza es un no-op: cambia el perfil de resolveSkill o declara poder/comportamiento.
+// Claves de SKILL_KEYS que no cuentan como efecto: el texto y el arte nunca; lo visual (size = radio
+// de la bola del proyectil, beam = el haz dibujado, shake = temblor de cámara, color) solo en los
+// tipos genéricos: un comportamiento con cast propio puede leerlo (el Orbe Arcano choca con su size)
+const TEXT_KEYS = ['id', 'name', 'icon', 'desc', 'line', 'art'];
+const VISUAL_KEYS = ['color', 'shake', 'size', 'beam'];
 function forgeAudit(classId, cls, forge) {
   const out = { errors: [], warnings: [], noops: [] };
   const h = verbHarness(classId, { level: 100, forge });
@@ -206,8 +211,12 @@ function forgeAudit(classId, cls, forge) {
       void mods; void sups; void onHitPowers; void variant; void mejora;
       // …más la definición forjada SIN su marca `forged`: los comportamientos (cast.sk) y los tipos
       // genéricos leen claves de la definición que el perfil no copia (trap.armT, stance.modes,
-      // detonate.chain, steps.2…)
-      const { forged, ...d } = def || {}; void forged; rest.def = d;
+      // detonate.chain, steps.2…). Sin las claves cosméticas ni en la definición ni en el perfil (que
+      // copia el nombre): una pieza que solo cambia cómo se ve sigue siendo un no-op
+      const { forged, ...d } = def || {}; void forged;
+      const ownCast = !!(pr.behavior && SKILL_BEHAVIORS[pr.behavior]?.cast);
+      for (const k of ownCast ? TEXT_KEYS : [...TEXT_KEYS, ...VISUAL_KEYS]) { delete d[k]; delete rest[k]; }
+      rest.def = d;
       // una clave que nadie lee (ni SKILL_KEYS ni los params del comportamiento) también cambiaría la
       // definición: se cuentan para que no pase por una pieza que hace algo
       const w = []; validateSkillDef(def, { v2: true, behaviors: SKILL_BEHAVIORS, warnings: w });
@@ -252,6 +261,12 @@ function forgeAudit(classId, cls, forge) {
   assert.ok(!c.noops.includes('vx_cepo_ii') && !c.errors.some(e => e.startsWith('vx_cepo_ii')), 'F7: la variante que alarga la trampa vale');
   const sinArm = forgeAudit('arquera', cepo, { vx_cepo: { ...fc.vx_cepo, mejora: { name: 'Igual', line, set: { 'trap.armT': verbSkill('vx_cepo').trap.armT } } } });
   assert.ok(sinArm.noops.includes('vx_cepo_m'), 'F7: la Mejora que deja trap.armT igual sí es un no-op');
+  // una variante que solo cambia lo que se ve (claves conocidas de SKILL_KEYS) también es un no-op
+  const cosm = forgeAudit('arquera', cepo, { vx_cepo: { ...fc.vx_cepo, vars: [
+    { id: 'vx_cepo_i', name: 'Pintada', role: 'UNI', line, set: { color: 1, shake: 0.9 } },
+    { id: 'vx_cepo_ii', name: 'Rebautizada', role: 'CTRL', line, set: { name: 'Otra', icon: '🪤', size: 0.5, beam: true } }] } });
+  assert.deepEqual(cosm.noops, ['vx_cepo_i', 'vx_cepo_ii'], `F7: color, temblor, nombre, icono, tamaño y haz no son efecto (${cosm.noops})`);
+  assert.deepEqual(cosm.errors, [], 'F7: las claves cosméticas son conocidas (no son un error)');
   // y sobre los catálogos reales con CATALOG_V = 2
   const v2 = Object.entries(CATALOG_V).filter(([, v]) => v === 2).map(([id]) => id);
   for (const cid of v2) {
@@ -285,6 +300,10 @@ function forgeAudit(classId, cls, forge) {
   const b = forgeAudit('guerrero', { ...CLASSES.guerrero, skills: [normalizeSkillDef(bsk)] },
     { vx_alcance: { ...bforge.vx_alcance, vars: [{ ...bforge.vx_alcance.vars[0], set: { reach: 6 } }, bforge.vx_alcance.vars[1]] } });
   assert.deepEqual(b.noops, ['vx_alcance_i'], 'y sí detecta la que deja la definición igual');
+  // con cast propio lo visual cuenta (el comportamiento puede leer size, como el Orbe Arcano); el texto no
+  const c = forgeAudit('guerrero', { ...CLASSES.guerrero, skills: [normalizeSkillDef(bsk)] },
+    { vx_alcance: { ...bforge.vx_alcance, vars: [{ ...bforge.vx_alcance.vars[0], set: { size: 0.5 } }, { ...bforge.vx_alcance.vars[1], mod: {}, set: { name: 'Otro', desc: 'y' } }] } });
+  assert.deepEqual(c.noops, ['vx_alcance_ii'], `F7 con cast propio: size cuenta, el nombre no (${c.noops})`);
   console.log('Comportamientos: cast.sk forjada; F7 cuenta la definición que leen ✓');
 }
 

@@ -112,6 +112,16 @@ g.equipment.helm = null;
   pe = resolveSkill(q, emb);
   assert.ok(approx(pe.cd, emb.cd * (1 - CAPS.cdr / 100)), 'CDR tope 50 (stat + soportes)');
   assert.ok(approx(cooldownWithMassacre({ ...pe, cdrPts: 20 }), emb.cd * (1 - 45 / 100)), 'Masacre suma 25 puntos de CDR');
+  // forja: una Mejora de prueba con +20 % de enfriamiento (cdr −20) y, con Raudo, un solo número de CDR
+  q.equipment.helm = null; q.supports = {};
+  q.cls = { ...q.cls, forge: { embestida: { mejora: { name: 'Lenta', line, mod: { cdr: -20 } }, vars: [
+    { id: 'embestida_i', name: 'a', role: 'UNI', line, mod: { gen: 5 } },
+    { id: 'embestida_ii', name: 'b', role: 'AREA', line, mod: { dmg: 10 } }] } } };
+  q.skillForge = {}; q.recompute();
+  pe = resolveSkill(q, emb);
+  assert.ok(pe.mejora && approx(pe.cd, emb.cd * 1.2), `Mejora: +20 % de enfriamiento (${pe.cd})`);
+  q.supports = { embestida: ['swift'] }; q.recompute();
+  assert.ok(approx(resolveSkill(q, emb).cd, emb.cd * (1 - (30 - 20) / 100)), 'Raudo y la forja suman al mismo número');
 }
 // talentos: mod de la habilidad + costRed / costRedBig
 g.supports = {}; g.skillForge = {}; g.cls = CLASSES.guerrero;

@@ -353,6 +353,9 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev) { EV.push
 {
   const h = mk('arquera', 20, { spec: 'francotiradora' });
   const p = h.p, C = gaugeTuning().concentracion;
+  // los números del diseño 2g (docs/paso2g-arquera.md §7): fijados aquí mientras test-gauges-arquera
+  // siga en cuarentena
+  assert.ok(C.gainPerSec === 15 && C.losePerSec === 25 && C.critPerPoint === 0.15, 'Concentración: +15/s, −25/s, +0,15 % por punto');
   h.tick(1.0);
   assert.ok(approx(h.gaugeValue('concentracion'), C.gainPerSec), `+${C.gainPerSec}/s quieta`);
   h.gauge('concentracion', 80);

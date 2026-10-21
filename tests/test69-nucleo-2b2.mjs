@@ -162,7 +162,16 @@ addSkill('guerrero', { id: 't_embate', name: 'Embate v1', cat: 'basic', tags: ['
   assert.equal(resolveSkill(h.p, SK('guerrero', 't_mandoble')).cadence, 1.5);
   assert.equal(resolveSkill(h.p, SK('guerrero', 't_embate')).cadence, 1.1);
   assert.equal(resolveSkill(h.p, SK('guerrero', 'g_hendidura')).cadence, 1, 'solo los básicos');
-  // ningún básico del catálogo necesita un comportamiento para su cadencia (la lee el canal)
+  // el canal la aplica: tras el golpe, atkCd = tiempo de ataque × cadencia (sin preparación que descontar)
+  const cd = id => {
+    const k = makeHarness({ classId: 'guerrero', level: 20 });
+    k.enemy({ hp: 1e9, pos: [1.6, 0, 0] }); k.aim(1.6, 0); k.setSlot('lmb', id);
+    assert.equal(k.cast('lmb'), true, `${id} sale`);
+    return k.p.atkCd / k.p.stats.atkTime;
+  };
+  assert.ok(Math.abs(cd('t_embate') - 1.1) < 1e-9 && Math.abs(cd('g_tajo') - 1) < 1e-9, `Embate ×1,1 y Tajo ×1 en el canal (${cd('t_embate')}, ${cd('g_tajo')})`);
+  // guarda a futuro: ningún básico 2g trae cadence (solo los sintéticos de arriba), pero si alguno la
+  // trae no necesita un comportamiento para ella (la lee el canal)
   for (const c of Object.values(CLASSES)) for (const s of c.skills)
     if (s.cat === 'basic' && s.cadence) assert.ok(!s.behavior && !SKILL_BEHAVIORS[s.id], `${s.id}: sin comportamiento redundante`);
   console.log('A8 sk.cadence en el canal (Mandoble ×1,5 · Embate ×1,1) ✓');
@@ -347,12 +356,24 @@ addSkill('guerrero', { id: 't_embate', name: 'Embate v1', cat: 'basic', tags: ['
     };
     const rot = simulateUni(mk(), ref), btn = simulateUni(pb, ref, 60, { buttons: true, onFrame });
     assert.equal(btn.sameFrameCasts, 0, `${c}: sin dos acciones en el mismo frame`);
+    // el envoltorio de takeDamage se instaló y vio golpear a los dos (si no, lo de abajo no prueba nada)
+    assert.ok(hitAt[lmb].size > 3 && hitAt[rmb].size > 3, `${c}: impactos anotados (${hitAt[lmb].size} de ${lmb}, ${hitAt[rmb].size} de ${rmb})`);
     for (const id of [lmb, rmb]) if (SK(c, id).tags.includes('proj')) assert.ok(launch[id].length > 3, `${c}: lanzamientos de ${id} anotados`);
     const both = launch[lmb].filter(f => launch[rmb].includes(f));
     assert.deepEqual(both, [], `${c}: sin dos proyectiles (básico y gastadora) lanzados en el mismo frame`);
+    // el bloqueo de acción de la principal de proyectil incluye su vuelo hasta la mira (MEMORIA §2b.2):
+    // entre su lanzamiento y su primer impacto no sale ningún básico
+    let inflight = 0;
+    const rmbHits = [...hitAt[rmb]].sort((x, y) => x - y);
+    for (const ls of launch[rmb]) {
+      const h = rmbHits.find(f => f > ls);
+      if (h == null) { assert.equal(ls, launch[rmb].at(-1), `${c}: solo la última principal puede seguir en vuelo al acabar`); continue; }
+      inflight += launch[lmb].filter(f => f > ls && f < h).length;
+    }
+    assert.equal(inflight, 0, `${c}: el básico espera el vuelo de la principal`);
     // impactos de los dos en el mismo frame: con golpes instantáneos serían dos acciones a la vez; con
     // dos proyectiles, solo vale la principal lanzada DESPUÉS del básico (le cede como mucho un frame
-    // y puede llegar antes); un básico lanzado durante el vuelo de la principal rompe su bloqueo
+    // y puede llegar antes)
     const same = [...hitAt[lmb]].filter(f => hitAt[rmb].has(f));
     assert.equal(same.length, btn.sameFrameHits, `${c}: los impactos anotados son los del banco`);
     const last = (list, f) => list.filter(x => x <= f).pop() ?? null;

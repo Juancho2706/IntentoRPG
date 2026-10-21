@@ -191,8 +191,9 @@ for (const [cid, f] of Object.entries(FIX)) {
   // el héroe carga y guarda lo mismo dos veces
   const hero = new Player(mk(), cid, json(v2));
   assert.equal(hero.talents.spec, f.mastery, 'la especialización llega al héroe');
-  // la principal de 🖱️Der es la que dejó la migración (Torbellino → Hendidura en 2g)
-  assert.ok(hero.hotbar.rmb && hero.skills[hero.hotbar.rmb] > 0 && hero.skills[weapon] > 0, 'habilidades conocidas por nivel');
+  // la principal de 🖱️Der es la que dejó la migración (Torbellino → Hendidura en 2g; las otras dos se quedan)
+  assert.equal(hero.hotbar.rmb, cid === 'guerrero' ? 'g_hendidura' : f.sp1, `${cid}: principal migrada`);
+  assert.ok(hero.skills[hero.hotbar.rmb] > 0 && hero.skills[weapon] > 0, 'habilidades conocidas por nivel');
   const s1 = json(hero.toSaveData());
   assert.deepEqual(json(new Player(mk(), cid, json(s1)).toSaveData()), s1, `${cid}: recargar dos veces da el mismo guardado`);
   console.log(`${CLASSES[cid].name}: v0/v1/v2/Paso 0 → v3 → v4 congeladas (catálogo v4) → v5 ✓`);
