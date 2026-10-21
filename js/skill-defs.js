@@ -113,7 +113,12 @@ export const NUCLEO_TV_KEYS = Object.freeze([
   'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus',
   // Paso 2 (docs/paso2-claves-w2.md §2; dartCritCdr = alias de basicCritCdr)
   'perfectCdrAll', 'critFrostCdr', 'critCdrAll', 'basicCritCdr', 'dartCritCdr', 'drLowHp', 'frozenKillHeal', 'frozenKillMana',
+  // cola W2 (paso2-claves-w2.md §7): drStill (Quietud, condDr) y fieldDur (Ojo de Trampera)
+  'drStill', 'fieldDur',
 ]);
+// las de la lista que NO aplica nucleo_tv sino su punto natural: no activan el poder (usesCoreTv)
+//   fieldDur → field-entities.spawnField (combat-math.fieldDurationWithTalents)
+export const NUCLEO_TV_OUTSIDE = Object.freeze(['fieldDur']);
 
 // Ángulo (rad, relativo a la mira) del proyectil i de n. Con abanico propio
 // (sk.spread = semiapertura) se reparte en él. Sin él (1 proyectil + Multiproyectil,

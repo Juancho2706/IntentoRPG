@@ -722,7 +722,10 @@ export class Player {
                    // recurso (Maná/Energía) y +% del recurso GENERADO (Furia Creciente)
                    regenPct: 0, resGainPct: 0,
                    // Paso 2 (§3.6): suelta perfecta desde media carga (buff Calma Absoluta)
-                   perfectAlways: 0 };
+                   perfectAlways: 0,
+                   // Paso 2 (cola W2): puntos que suma lo que PARA un bloqueo (Escudo Alzado;
+                   // combat-math.blockReduction: 50 + blockPower, tope 90)
+                   blockPower: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -893,6 +896,7 @@ export class Player {
       dmgTakenPct: item.dmgTakenPct,
       regenPct: item.regenPct, resGainPct: item.resGainPct,
       perfectAlways: item.perfectAlways,
+      blockPower: item.blockPower,               // el tope lo pone combat-math (blockReduction)
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};

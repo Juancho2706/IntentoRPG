@@ -117,3 +117,25 @@ como mucho, no definitivas ni `cdOnEnd`).
   un lanzamiento enemigo en curso termina antes de que lo atraiga.
 - **Fórmulas en `combat-math.js`:** `ELITE_DISPLACE_MUL` (0,6), `displaceDist(dist, dr, elite)` y
   `ccDurationWithTalents(kind, dur, tv)` (`ccDurPct`, `freezeDur`).
+
+## 7. Cola W2 resuelta en paralelo con E2 (punto 16 del plan, W2b)
+
+Las tres filas que `claves-w2.mjs` tenía como `cola` pasan a `canonica`. Las dos `tv` están en `NUCLEO_TV_KEYS`
+(`skill-defs.js`), y por ella en `CORE_TV_KEYS`; KT las escribe en el `fx` del nodo sin declararlas en
+`<CLASE>_TV_KEYS`.
+
+| Clave | Decisión | Dónde vive | Prueba |
+|---|---|---|---|
+| `tv.drStill` | Canónica (⑧, % como `drMoving`): reducción de daño **quieta ≥ 1 s** = `p.planted && !p.moving`. El plantado es el de D20 (`VERB_DEFAULTS.plantedAfter` = 1 s sin caminar ni usar movilidad); caminar plantada con `keepPlanted` no cuenta como quieta. Nunca se suma a la vez que `drMoving` | `nucleo_tv.condDr` | `test88` §1 |
+| `tv.fieldDur` | Canónica (% como las demás): `dur × (1 + fieldDur/100)` en tus **trampas** (la genérica, un campo con `onDetonate` o con `data.trap`) y **zonas** (`zona`, `estela` o un campo de clase con `data.zone`). Solo si el dueño es un héroe (`g.player` o `g.party`), nunca un enemigo. Muros, auras, señuelos y emisores no cambian. No activa `nucleo_tv` (`NUCLEO_TV_OUTSIDE`) | `field-entities.spawnField` (`combat-math.fieldDurationWithTalents`) | `test88` §2 |
+| `stats.blockPower` | Canónica (puntos %): un bloqueo para `BLOCK_REDUCTION + blockPower/100`, con tope `BLOCK_REDUCTION_MAX` (0,9: nunca todo el golpe), en el golpe con azar (`mitigate`) y en el esperado (`expectedMitigation`). Se suma en el saco de `recompute` (`fx.stats`, buffs, poderes con `stats`); el tope solo en `combat-math.blockReduction` | `combat-math.blockReduction` + `recompute` | `test88` §3 |
+
+Cómo se escribe cada nodo:
+
+- Arquera f15A Quietud: `fx: { tv: { drStill: 15 } }`.
+- Arquera m20 Ojo de Trampera: `fx: { tv: { fieldDur: 25 } }` por rango (r2 = 50). La trampa de Cepo y el Cerco de Zarzas
+  cuentan si se crean como `trampa`/`zona`, o como campo de clase con `data.trap` o `data.zone`.
+- Guerrero d1 Escudo Alzado: `fx: { stats: { blockPower: 10 } }` por rango (r3 = 80 %).
+- Guerrero d15B Aguante de Roca: su poder `g_d_roca` suma `blockPower: 10` solo con 5 cargas de Bastión. Lo puede hacer con
+  un buff corto que renueva mientras dure la condición (`addBuff(id, { blockPower: 10 }, dur)`), porque `recompute`
+  no se repite en cada golpe.

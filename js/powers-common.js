@@ -14,7 +14,7 @@ import { volatileDamage } from './combat-math.js';
 import { dealProcDamage, powerState } from './powers.js';
 import { gaugeValue } from './spec-mechanics.js';
 import { gainResource } from './resources.js';
-import { NUCLEO_TV_KEYS } from './skill-defs.js';   // módulo sin imports: no forma ciclo
+import { NUCLEO_TV_KEYS, NUCLEO_TV_OUTSIDE } from './skill-defs.js';   // módulo sin imports: no forma ciclo
 // definición FORJADA de una habilidad (elemento real tras la forja): la caché que deja
 // resolveSkill (p.forged / p.resolved). Sin importar skill-resolve.js: resources.js →
 // powers.js → aquí → skill-resolve → data.js formaría un ciclo con RESOURCE_DEFS sin iniciar.
@@ -46,6 +46,8 @@ const forgedDef = (p, sk) => p.forged?.[sk.id]?.def || p.resolved?.[sk.id]?.def 
 //                   Concentración > 50). El tv.dmgReduc de recompute es la incondicional.
 //                   drHighMana vale para cualquier recurso (> 50 %: Determinación = drHighFury)
 //   drLowHp         ⑧ Paso 2: reducción de daño con menos del 40 % de vida (Umbral del Dolor)
+//   drStill         ⑧ Paso 2: reducción de daño QUIETA (Quietud): plantada (p.planted, D20:
+//                   1 s sin caminar ni usar movilidad) y sin moverse este frame; espejo de drMoving
 //   perfectCdrAll   ③ Paso 2 (Liturgia): cada suelta PERFECTA acorta X s tus enfriamientos
 //                   salvo las definitivas y las de recarga al acabar (cdOnEnd); como mucho
 //                   una vez cada 2 s. Todo enfriamiento se resta con g.reduceCooldown (D2).
@@ -53,6 +55,7 @@ const forgedDef = (p, sk) => p.forged?.[sk.id]?.def || p.resolved?.[sk.id]?.def 
 // (eliteDmg, slowedDmg, preyDmg, explodedDmg, burningCrit…), spec-mechanics (frostLayers,
 // focusRate, focusEnergy, galeHeal, galeEnergy, fervorChance), resolveSkill (costRed…),
 // dotProfile (bleedPct, dotDur…) o la activa que las usa (barrierDr, verdictHeal…).
+// fieldDur está en NUCLEO_TV_KEYS (para CORE_TV_KEYS) pero la lee spawnField: no activa el poder.
 export const CORE_TV_POWER = 'nucleo_tv';
 // la lista de claves es NUCLEO_TV_KEYS (skill-defs.js, fuente única que comparte talents.CORE_TV_KEYS)
 // umbral de vida de tv.drLowHp
@@ -72,7 +75,7 @@ function hasTag(hit, t) {
 }
 export function usesCoreTv(tv) {
   if (!tv) return false;
-  for (const k of NUCLEO_TV_KEYS) if (tv[k]) return true;
+  for (const k of NUCLEO_TV_KEYS) if (tv[k] && !NUCLEO_TV_OUTSIDE.includes(k)) return true;
   return false;
 }
 // ¿murió REMATADO? (normal ejecutado por Ejecutar, o élite/jefe golpeado bajo el umbral)
@@ -222,7 +225,8 @@ export function commonPowers() {
         if (!(w > 0)) return;
         for (const e of g?.enemies || []) if (e.alive && e.rootT > 0) e.applyWeakness?.('m_espinas_venenosas', w, e.rootT);
       },
-      // reducción de daño condicional (Piel de Maná, Pellejo de Oso, Esquiva Felina, Posición Elevada)
+      // reducción de daño condicional (Piel de Maná, Pellejo de Oso, Esquiva Felina, Posición Elevada,
+      // Quietud)
       condDr(p, dmg) {
         const tv = p.tv || {};
         let dr = 0;
@@ -230,6 +234,8 @@ export function commonPowers() {
         const src = dmg?.src;
         if (tv.drVsSlowed && src && ((src.slowT || 0) > 0 || (src.frozenT || 0) > 0)) dr += tv.drVsSlowed;
         if (tv.drMoving && p.moving) dr += tv.drMoving;
+        // quieta ≥ 1 s: plantada y sin moverse (keepPlanted deja caminar plantado: eso no es quieta)
+        if (tv.drStill && p.planted && !p.moving) dr += tv.drStill;
         if (tv.drFocus && gaugeValue(p, 'concentracion') > 50) dr += tv.drFocus;
         if (tv.drLowHp && (p.stats?.maxHP || 0) > 0 && p.hp / p.stats.maxHP < DR_LOW_HP_FRAC) dr += tv.drLowHp;
         return dr;
