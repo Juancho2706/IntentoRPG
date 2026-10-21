@@ -15,7 +15,7 @@ export const GUERRERO_HERO = [
       win: 'A, contra grupos: cada Golpe de Titán alcanza y frena a la manada. B, contra jefes: un golpe enorme que les rompe la guardia' },
     { id: 't3', name: 'Aplomo', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['t0'], d: ()=>'Tras un Golpe de Titán, nada te derriba, aturde ni ralentiza durante 3 s', icon: 'talents/guerrero-clase-c7.webp', fx: {}, todo: 'power g_ti_aplomo · NUEVO (buff imparable 3 s)' },
     { id: 't4', name: 'Bramido o Piel de Montaña', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['t1', 't2'], icon: 'skills256/grito_guerra.webp', opts: [
-        { k: 'A', name: 'Bramido de Titán', desc: 'Habilidad (ranura 2): aturdes 1,5 s a los enemigos a 6 m y tu siguiente principal es de Titán. Se recarga en 30 s', role: 'CTRL', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Bramido de Titán', desc: 'Habilidad (ranura 2): aturdes 1,5 s a los enemigos a 6 m y tu siguiente principal es de Titán. Se recarga en 30 s', role: 'CTRL', fx: { grant: 'g_h_bramido' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Piel de Montaña', desc: 'Cada Golpe de Titán te da un escudo del 8 % de tu vida durante 5 s', role: 'AGU', fx: {}, todo: 'power g_ti_piel_montana · NUEVO (g.shield)' },
       ],
       win: 'A, para controlar grupos y adelantar el golpe grande (ocupa la ranura 2). B, para aguantar sin ocupar ranura' },
@@ -42,7 +42,7 @@ export const GUERRERO_HERO = [
       win: 'A, contra grupos: tres blancos marcados a la vez. B, contra jefes y élites: el duelo largo paga el doble' },
     { id: 'l3', name: 'Tiro de Arena', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['l0'], d: ()=>'Al nombrar un Rival, le arrojas gratis una Lanza Arrojadiza que lo ralentiza un 40 % 3 s (una vez cada 4 s)', touch: ['g_lanza'], icon: 'skills256/g_lanza.webp', fx: {}, todo: 'power g_gl_tiro_arena · NUEVO (al nombrar Rival: eco de g_lanza gratis contra él + slow; icd 4: una Lanza que mata ya no encadena otra; no hace falta la Lanza en la barra)' },
     { id: 'l4', name: 'Desafío o Contraataque', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['l1', 'l2'], icon: 'skills256/g_provocacion.webp', opts: [
-        { k: 'A', name: 'Desafío de Arena', desc: 'Habilidad (ranura 2): encierras a tu Rival contigo en un círculo de 6 m 8 s; le haces +20 %. Se recarga en 40 s', role: 'UNI', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Desafío de Arena', desc: 'Habilidad (ranura 2): encierras a tu Rival contigo en un círculo de 6 m 8 s; le haces +20 %. Se recarga en 40 s', role: 'UNI', fx: { grant: 'g_h_desafio' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Contraataque', desc: 'Tras esquivar, tu siguiente golpe en 2 s hace +60 % y te cura un 5 %', role: 'AGU', fx: {}, todo: 'power g_gl_contraataque · NUEVO (tras la esquiva)' },
       ],
       win: 'A, contra jefes y élites que huyen o llaman ayuda (ocupa la ranura 2). B, para jugar con la esquiva sin ocupar ranura' },
@@ -69,7 +69,7 @@ export const GUERRERO_HERO = [
       win: 'A, para hacer daño (sobre todo en ráfagas contra jefes). B, para aguantar contra grupos y golpes fuertes' },
     { id: 'u3', name: 'Arenga', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['u0'], d: ()=>'Al clavar un Pendón, tú y tus aliados a 8 m recuperan un 5 % de la vida', icon: 'skills256/grito_guerra.webp', fx: {}, todo: 'power g_cau_arenga · NUEVO (g.heal sobre g.allies())' },
     { id: 'u4', name: 'Estandarte o Abanderado', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['u1', 'u2'], icon: 'skills256/g_u_estandarte.webp', opts: [
-        { k: 'A', name: 'Estandarte de Guerra', desc: 'Habilidad (ranura 2): clavas al instante un Pendón en la mira (a 15 m), aparte del automático. Se recarga en 30 s', role: 'UNI', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Estandarte de Guerra', desc: 'Habilidad (ranura 2): clavas al instante un Pendón en la mira (a 15 m), aparte del automático. Se recarga en 30 s', role: 'UNI', fx: { grant: 'g_h_estandarte' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Abanderado', desc: 'Llevas el Pendón a la espalda: te sigue y siempre estás dentro', role: 'AGU', fx: {}, todo: 'power g_cau_abanderado · NUEVO (el campo sigue al jugador)' },
       ],
       win: 'A, para poner el Pendón donde pelea el grupo (ocupa la ranura 2). B, si te mueves mucho y no quieres ocupar ranura' },
