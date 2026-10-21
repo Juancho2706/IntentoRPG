@@ -18,7 +18,7 @@ import { firePower, powerState, POWER_HOOKS } from '../js/powers.js';
 import { CLASSES } from '../js/data.js';
 import * as THREE from 'three';
 import { dotProfile, healScaled, multiplierProduct, blockReduction } from '../js/combat-math.js';
-import { gaugeMax } from '../js/spec-mechanics.js';
+import { gaugeMax, gainGauge } from '../js/spec-mechanics.js';
 
 const TT = TALENT_TREES.guerrero;
 const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
@@ -400,20 +400,31 @@ check('c23', () => {
     const e = h.enemy({ hp: 1e6 });
     h.g._startCooldown(h.p, 'g_piel', prof(h, 'g_piel'));
     h.tick(prof(h, 'g_piel').dur + 0.2);                // la Piel se recarga al acabar su efecto
-    for (const id of ['embestida', 'grito_guerra']) h.g._startCooldown(h.p, id, prof(h, id));
-    assert.ok(h.p.cds.g_piel > 5 && h.p.cds.embestida > 1, 'c23: las recargas corren');
+    for (const id of ['embestida', 'grito_guerra', 'g_t_aliento']) h.g._startCooldown(h.p, id, prof(h, id));
+    assert.ok(h.p.cds.g_piel > 5 && h.p.cds.embestida > 1 && h.p.cds.g_t_aliento > 1, 'c23: las recargas corren');
     const before = { ...h.p.cds };
     hitWith(h, e, 'g_tajo', { crit: false });
     hitWith(h, e, 'g_lanza', { crit: true });
     const mid = { ...h.p.cds };
     hitWith(h, e, 'g_tajo', { crit: true });
+    hitWith(h, e, 'g_tajo', { crit: true });                 // mismo instante: no cuenta dos veces
     const cut = id => before[id] - h.p.cds[id];
     assert.ok(approx(mid.embestida, before.embestida), 'c23: ni golpes normales ni críticos de otras habilidades');
-    return { mov: cut('embestida'), piel: cut('g_piel'), otra: cut('grito_guerra') };
+    return { mov: cut('embestida'), piel: cut('g_piel'), otra: cut('grito_guerra'), aliento: cut('g_t_aliento') };
   };
-  assert.deepEqual(run(0), { mov: 0, piel: 0, otra: 0 }, 'sin c23 no recarga');
+  assert.deepEqual(run(0), { mov: 0, piel: 0, otra: 0, aliento: 0 }, 'sin c23 no recarga');
   const r2 = run(2);
-  assert.ok(approx(r2.mov, 1) && approx(r2.piel, 1) && r2.otra === 0, `c23 r2: −1 s a la movilidad y a la Piel, nada al resto (${JSON.stringify(r2)})`);
+  assert.ok(approx(r2.mov, 1) && approx(r2.piel, 1) && r2.otra === 0, `c23 r2: −1 s a la movilidad y a la Piel, una vez por instante (${JSON.stringify(r2)})`);
+  assert.equal(r2.aliento, 0, 'c23: Segundo Aliento (otra defensa) no se recarga: solo la movilidad y la Piel');
+  // el Sendero de Luz nunca baja de 4 s (Luz Veloz 3: 7 s; 6 críticos le quitarían 6 s)
+  const h = spec('cruzado', { z3: 3 }, {}, { cls: { c23: 2 } });
+  const e = h.enemy({ hp: 1e9, pos: [1.2, 0, 0] });
+  cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.05 });
+  const t0 = powerState(h.p, 'g_ult_suelo').start?.g_sendero;
+  assert.ok(t0 != null && approx(h.p.cdMax.g_sendero, 7, 0.01), 'c23: el Sendero se recarga en 7 s y se anota su inicio');
+  for (let i = 0; i < 6; i++) { hitWith(h, e, 'g_tajo', { crit: true }); h.tick(0.05); }
+  const eff = h.p.simT - t0 + h.p.cds.g_sendero;
+  assert.ok(h.p.cds.g_sendero > 0 && approx(eff, 4, 0.06), `c23: el Sendero nunca baja de 4 s (${eff.toFixed(2)} s)`);
 });
 check('c24', () => {
   const a = cls(), b = cls({ c24: 2 });
@@ -1116,14 +1127,36 @@ check('b8A', () => {
   assert.ok(approx(b, 300, 1) && approx(c, 300, 1) && far === 0, `b8A: lo que le quedaba pasa a 2 enemigos a 3 m (${b}, ${c}, ${far})`);
 });
 check('b8B', () => {
+  // la regla del Berserker (la Sed): el Sangrado de golpe SUSTITUYE al que esa habilidad ya había
+  // dejado (⑤ lo quita y el núcleo pone el nuevo); las copias y los golpes que no desangran no lo
+  // tocan, y el de los giros (Remolino) se acumula
+  {
+    const h = spec('berserker'), e = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    h.g.applyDoT(e, 300, 3, 1, undefined, 'g_rajar:bleed');
+    h.g.applyDoT(e, 300, 6, 0.5, undefined, 'g_remolino:bleed');
+    fire(h, e, { skill: 'g_rajar', step: 3, echo: true });
+    fire(h, e, { skill: 'g_rajar', step: 1 });
+    fire(h, e, { skill: 'g_remolino' });
+    assert.ok(approx(h.g.dotRemaining(e, 'g_rajar:bleed'), 300, 3) && approx(h.g.dotRemaining(e, 'g_remolino:bleed'), 300, 3), 'copias, golpes sin Sangrado y giros no quitan nada');
+    fire(h, e, { skill: 'g_rajar', step: 3 });
+    assert.equal(h.g.dotRemaining(e, 'g_rajar:bleed'), 0, 'el 3.er golpe de Rajar quita el viejo: el núcleo pone el nuevo');
+  }
+  // contra un jefe, con Heridas Abiertas 3 (6 s): un 3.er golpe de Rajar cada 2,5 s durante 15 s
   const run = on => {
-    const h = on ? spec('berserker', { b8: 1 }, { b8: 'B' }) : spec('berserker');
-    const e = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
-    rajar3(h); rajar3(h); rajar3(h); rajar3(h);
-    return dotsOf(h, e).length;
+    const h = spec('berserker', { b1: 3, ...(on ? { b8: 1 } : {}) }, on ? { b8: 'B' } : {});
+    const e = h.enemy({ hp: 1e9, boss: true, pos: [2, 0, 0] });
+    const log = spyHits(h);
+    let most = 0;
+    for (let i = 0; i < 6; i++) { rajar3(h, [2, 0], 0.35); most = Math.max(most, dotsOf(h, e).length); h.step(2.15); }
+    const bleed = log.filter(x => x.e === e && x.dot && /^dot:g_rajar[#:]/.test(x.source)).reduce((a, x) => a + x.dealt, 0);
+    const per = log.find(x => x.e === e && x.dot && x.source === 'dot:g_rajar:bleed')?.dealt || 0;
+    return { most, bleed, ticks: bleed / per };
   };
-  assert.equal(run(false), 1, 'sin b8B un solo Sangrado de Rajar');
-  assert.equal(run(true), 3, 'b8B: hasta 3 Sangrados a la vez en el mismo enemigo');
+  const a = run(false), b = run(true);
+  assert.equal(a.most, 1, 'sin b8B un solo Sangrado de Rajar');
+  assert.equal(b.most, 3, 'b8B: hasta 3 Sangrados a la vez en el mismo enemigo');
+  assert.ok(a.ticks > 10 && a.ticks < 14, `sin b8B cada Sangrado nuevo corta el anterior (${a.ticks.toFixed(1)} tics en 15 s)`);
+  assert.ok(b.bleed / a.bleed > 2, `b8B: más del doble de daño de Sangrado contra el jefe (${a.bleed} → ${b.bleed})`);
 });
 check('b9A', () => {
   const run = on => {
@@ -1399,6 +1432,30 @@ check('b28', () => {
   h.gauge('sed', 100);
   const f = buff(h.p, 'g_u_furia');
   assert.ok(f && approx(f.t, 5) && !(h.p.cds.g_u_furia > 0), 'b28 r4: a la 3.ª, Furia Inmortal 5 s, gratis');
+  // r4: como mucho cada 90 s (otras 3 Sed Saciadas en ~28 s no la lanzan; la de después de 90 s, sí)
+  h.tick(9.2);
+  for (let i = 0; i < 2; i++) { h.gauge('sed', 100); h.tick(9.2); }
+  h.gauge('sed', 100);
+  assert.ok(!buff(h.p, 'g_u_furia'), 'b28 r4: 3 Sed Saciadas más antes de 90 s: aún no');
+  h.tick(9.2); h.tick(55);
+  h.gauge('sed', 100);
+  assert.ok(buff(h.p, 'g_u_furia'), 'b28 r4: pasados 90 s, la siguiente Sed Saciada la lanza');
+  // r3: una salvación cada 60 s, aunque la Sed siga Saciada
+  {
+    const s = spec('berserker', { b28: 3 });
+    s.gauge('sed', 100);
+    s.p.hp = 5; s.p.takeDamage(1e7, 1, {});
+    assert.ok(s.p.alive && s.p.hp === 1, 'b28 r3: la primera te salva');
+    s.tick(1);
+    assert.ok(s.gaugeState('sed').satedT > 0, 'la Sed sigue Saciada');
+    s.p.takeDamage(1e7, 1, {});
+    assert.ok(!s.p.alive, 'b28 r3: otro golpe letal dentro de 60 s, no');
+    const t = spec('berserker', { b28: 3 });
+    t.gauge('sed', 100); t.p.hp = 5; t.p.takeDamage(1e7, 1, {});
+    t.tick(60.2);
+    t.gauge('sed', 100); t.p.hp = 5; t.p.takeDamage(1e7, 1, {});
+    assert.ok(t.p.alive && t.p.hp === 1, 'b28 r3: pasados 60 s, vuelve a salvarte');
+  }
   const r2 = spec('berserker', { b28: 2 });
   r2.gauge('sed', 100); r2.p.hp = 5; r2.p.takeDamage(1e7, 1, {});
   assert.ok(!r2.p.alive, 'b28 r2: sin el rango 3 no salva');
@@ -1486,6 +1543,17 @@ check('d8A', () => {
   const a = run(false), b = run(true);
   assert.ok(a.dmg === 0 && a.taunt === 0, 'sin d8A nada');
   assert.ok(b.dmg > 0 && b.taunt > 1.9 && b.far === 0, `d8A: golpe de escudo a 4 m y provoca 2 s (${JSON.stringify(b)})`);
+  // una vez cada 3 s: otro cambio enseguida (con la recarga del cambio devuelta) no golpea
+  const h = spec('guardian', { d8: 1 }, { d8: 'A' });
+  const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
+  cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+  const hp1 = e.hp;
+  h.tick(1); h.g.reduceCooldown(h.p, 'g_guardia', Infinity);
+  const ok = cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+  assert.ok(ok && h.p.cds.g_guardia > 0 && e.hp === hp1, 'd8A: un 2.º cambio dentro de 3 s no golpea');
+  h.tick(2.1); h.g.reduceCooldown(h.p, 'g_guardia', Infinity);
+  cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+  assert.ok(e.hp < hp1, 'd8A: pasados 3 s, sí');
 });
 check('d8B', () => {
   const run = on => {
@@ -1775,6 +1843,18 @@ check('d26', () => {
   const a = run(false), b = run(true);
   assert.ok(a.main === 3 && b.main === 4, `d26: el 3.er Terremoto plantado se repite (${a.main} → ${b.main})`);
   assert.ok(b.stunAtRep > 0 && !(a.stunAtRep > 0), 'd26: sus réplicas aturden');
+  // la repetición sale al 50/75/100 % según el rango (el multiplicador con el que se relanza)
+  const muls = r => {
+    const h = spec('guardian', { d26: r });
+    h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    const got = [], orig = h.g.castSkillSlot.bind(h.g);
+    h.g.castSkillSlot = (slot, m) => { if (m != null) got.push(m); return orig(slot, m); };
+    h.tick(1.2);
+    for (let i = 0; i < 3; i++) cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: i < 2 ? 1.2 : 0.45 });
+    h.step(0.5);
+    return got;
+  };
+  assert.deepEqual([muls(1), muls(2), muls(3)], [[0.5], [0.75], [1]], 'd26: la repetición al 50/75/100 % por rango');
 });
 check('d27', () => {
   const run = on => {
@@ -1787,9 +1867,19 @@ check('d27', () => {
   assert.ok(b.planted && !a.planted, 'd27: al acabar la Carga te plantas');
   assert.ok(b.bastion === 2 && a.bastion === 0, 'd27 r1: +2 cargas de Bastión');
   assert.ok(b.taunt > 3.5 && a.taunt === 0, 'd27: los enemigos a 8 m te atacan 4 s');
-  b.h.tick(3);
-  cast(b.h, 'k1', 'g_carga_escudo', { aim: [0, 0], sec: 1.3 });
-  assert.ok(b.h.gaugeValue('bastion') <= 3, 'd27: las cargas, una vez cada 10 s');
+  // las cargas, una vez cada 10 s: una 2.ª Carga a los 3 s (con la recarga devuelta) no las da
+  const h = b.h;
+  h.tick(3);
+  h.g.reduceCooldown(h.p, 'g_carga_escudo', Infinity);
+  const x0 = h.p.pos.x, bas0 = h.gaugeValue('bastion');
+  cast(h, 'k1', 'g_carga_escudo', { aim: [0, 0], sec: 1.3 });
+  assert.ok(x0 - h.p.pos.x > 5, `d27: la 2.ª Carga sale (${x0} → ${h.p.pos.x})`);
+  assert.ok(h.gaugeValue('bastion') - bas0 < 2, `d27: dentro de 10 s no da cargas (${bas0} → ${h.gaugeValue('bastion')})`);
+  h.tick(10);
+  h.g.reduceCooldown(h.p, 'g_carga_escudo', Infinity);
+  h.gauge('bastion', 0);
+  cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+  assert.ok(h.gaugeValue('bastion') >= 2, 'd27: pasados 10 s, otra vez +2');
 });
 check('d28', () => {
   const h = spec('guardian', { d28: 4 });
@@ -1803,6 +1893,13 @@ check('d28', () => {
   for (let i = 0; i < 2; i++) { h.tick(5.1); h.gauge('bastion', 7); cast(h, 'k3', 'g_guardia', { sec: 0.05 }); }
   const f = (h.g.fields || []).find(x => !x.dead && x.kind === 'aura' && x.data?.buffId === 'g_u_ciudadela');
   assert.ok(f && f.data.free && approx(f.dur, 4), 'd28 r4: a la 3.ª descarga, la Ciudadela 4 s gratis');
+  // r4: como mucho cada 45 s (otras 3 descargas en ~15 s no la lanzan; la de después de 45 s, sí)
+  const free = () => (h.g.fields || []).filter(x => !x.dead && x.kind === 'aura' && x.data?.buffId === 'g_u_ciudadela' && x.data.free);
+  for (let i = 0; i < 3; i++) { h.tick(5.1); h.gauge('bastion', 7); cast(h, 'k3', 'g_guardia', { sec: 0.05 }); }
+  assert.ok(h.gaugeValue('bastion') === 0 && free().length === 0, 'd28 r4: 3 descargas más antes de 45 s: sin Ciudadela');
+  h.tick(30);
+  h.gauge('bastion', 7); cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+  assert.equal(free().length, 1, 'd28 r4: pasados 45 s, la siguiente descarga la lanza');
   const n = spec('guardian', { d28: 1 });
   assert.equal(gaugeMax(n.p, 'bastion'), 5, 'd28 r1: 5 cargas');
 });
@@ -1887,6 +1984,22 @@ check('z8A', () => {
   const a = run(false), b = run(true);
   assert.ok(a.det && a.burst.length === 0, 'sin z8A no estalla');
   assert.ok(b.burst.length === 1 && b.burst[0].e !== b.det.e && approx(b.burst[0].dealt, b.det.dealt * 0.5, b.det.dealt * 0.05), `z8A: estalla el 50 % a los de 3 m, uno por enemigo (${b.burst.length})`);
+  // con la manada marcada y junta, cada enemigo recibe UN estallido por lanzamiento (no uno por marca)
+  const h = spec('cruzado', { z8: 1 }, { z8: 'A' });
+  const pack = [[2.5, 0], [2.5, 1], [3.5, 0.5], [3, -0.8]].map(([x, z]) => h.enemy({ hp: 1e9, pos: [x, 0, z] }));
+  for (const e of pack) markJ(h, e);
+  const log = spyHits(h);
+  hammer(h, [3, 0.2], 0.3);
+  const dets = log.filter(x => x.detonated && pack.includes(x.e)).length;
+  const per = pack.map(e => log.filter(x => x.e === e && x.source === 'power:g_z_estallido_luz').length);
+  assert.ok(dets === 4 && per.every(n => n === 1), `z8A: 4 marcas detonadas y un estallido por enemigo (${dets}; ${per})`);
+  // y ese estallido es el 50 % de la MAYOR detonación vecina, no la suma de todas
+  const detOf = e => log.find(x => x.e === e && x.detonated)?.dealt || 0;
+  const burstOf = e => log.find(x => x.e === e && x.source === 'power:g_z_estallido_luz')?.dealt || 0;
+  for (const e of pack) {
+    const best = Math.max(...pack.filter(o => o !== e).map(detOf));
+    assert.ok(burstOf(e) > 0 && burstOf(e) <= best * 0.5 * 1.05 + 1, `z8A: no se suman (${burstOf(e)} frente al 50 % de ${best})`);
+  }
 });
 check('z8B', () => {
   const h = spec('cruzado', { z8: 1 }, { z8: 'B' });
@@ -1914,6 +2027,30 @@ check('z9A', () => {
   const a = run(false), b = run(true);
   assert.ok(a.far === 0 && b.far > 0, 'z9A: el Veredicto golpea a 8 m');
   assert.ok(approx(a.lowV, 60, 0.01) && approx(b.lowV, 60, 0.01) && b.low === 0 && a.other === 0 && approx(b.other, 30, 1), `z9A: cura un 3 % al resto del grupo a 8 m (${JSON.stringify(a)} ${JSON.stringify(b)})`);
+  // la caché del resolvedor sigue al Fervor: el Martillo resuelto ANTES de llenarlo (por el camino
+  // real, gainGauge) sale a 8 m como Veredicto y el siguiente, normal, vuelve a 5 m
+  {
+    const h = spec('cruzado', { z9: 1 }, { z9: 'A' });
+    h.setSlot('rmb', 'g_martillo');
+    const r0 = prof(h, 'g_martillo').radius;
+    assert.ok(h.p.resolved.g_martillo, 'el perfil del Martillo está en la caché');
+    const far = h.enemy({ hp: 1e9, pos: [2.5, 0, 6.5] });
+    h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+    gainGauge(h.p, 'fervor', 3);
+    assert.ok(approx(prof(h, 'g_martillo').radius / r0, 8 / 5), 'a 3 de Fervor, el perfil del Veredicto (8 m)');
+    hammer(h, [2.5, 0], 0.05);
+    const v = 1e9 - far.hp;
+    assert.ok(v > 0 && h.gaugeValue('fervor') === 0, `z9A: el Veredicto alcanza al de 6,5 m aunque el perfil estuviera en la caché (${v})`);
+    assert.ok(approx(prof(h, 'g_martillo').radius, r0), 'gastado el Fervor, el perfil vuelve a 5 m');
+    h.tick(0.3);
+    hammer(h, [2.5, 0], 1.25);
+    assert.equal(1e9 - far.hp, v, 'z9A: el Martillo normal siguiente (carga completa, 5 m) no lo alcanza');
+    // perder el Fervor fuera de combate también lo devuelve a 5 m
+    gainGauge(h.p, 'fervor', 3);
+    assert.ok(approx(prof(h, 'g_martillo').radius / r0, 8 / 5), 'otra vez a 3: 8 m');
+    for (let t = 0; t < 12; t += 0.5) { h.p.sinceCombat = 30; h.tick(0.5); }
+    assert.ok(h.gaugeValue('fervor') < 3 && approx(prof(h, 'g_martillo').radius, r0), `al perder Fervor, 5 m (${h.gaugeValue('fervor')})`);
+  }
 });
 check('z9B', () => {
   const run = on => {
@@ -1961,12 +2098,31 @@ check('z12', () => {
   const run = on => {
     const h = on ? spec('cruzado', { z12: 2 }) : spec('cruzado');
     h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
-    h.g._startCooldown(h.p, 'g_juicio', prof(h, 'g_juicio'));
-    const b = h.p.cds.g_juicio;
+    pielRecharging(h);
+    for (const id of ['g_juicio', 'g_u_cataclismo']) h.g._startCooldown(h.p, id, prof(h, id));
+    const b = { ...h.p.cds };
     hammer(h, [2.5, 0], 1.0);
-    return b - h.p.cds.g_juicio;
+    const one = { ...h.p.cds };
+    hammer(h, [2.5, 0], 1.0);                              // otra perfecta 1 s después
+    return { juicio: b.g_juicio - one.g_juicio, piel: b.g_piel - one.g_piel, ult: b.g_u_cataclismo - one.g_u_cataclismo, second: one.g_juicio - h.p.cds.g_juicio };
   };
-  assert.ok(approx(run(true) - run(false), 1, 0.02), 'z12 r2: cada suelta perfecta acorta 1 s tus recargas');
+  const a = run(false), b = run(true);
+  assert.ok(approx(b.juicio - a.juicio, 1, 0.02), `z12 r2: cada suelta perfecta acorta 1 s tus recargas (${JSON.stringify(b)})`);
+  assert.ok(approx(b.piel, a.piel, 0.02) && approx(b.ult, a.ult, 0.02), 'z12: ni Piel de Hierro ni la definitiva');
+  assert.ok(approx(b.second, a.second, 0.02), 'z12: como mucho cada 2 s');
+  // el Sendero de Luz nunca baja de 4 s: Ritmo de Combate (c23) ya lo dejó en su suelo y la suelta
+  // perfecta no lo baja más
+  const h = spec('cruzado', { z12: 2, z3: 3 }, {}, { cls: { c23: 2 } });
+  const e = h.enemy({ hp: 1e9, pos: [1.2, 0, 0] });
+  cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.05 });
+  for (let i = 0; i < 4; i++) { hitWith(h, e, 'g_tajo', { crit: true }); h.tick(0.05); }
+  const t0 = powerState(h.p, 'g_ult_suelo').start?.g_sendero;
+  const eff = () => h.p.simT - t0 + h.p.cds.g_sendero;
+  assert.ok(approx(eff(), 4, 0.06), `el Sendero ya está en 4 s (${eff().toFixed(2)})`);
+  const juicio0 = (h.g._startCooldown(h.p, 'g_juicio', prof(h, 'g_juicio')), h.p.cds.g_juicio);
+  hammer(h, [h.p.pos.x + 2, h.p.pos.z], 1.0);
+  assert.ok(juicio0 - h.p.cds.g_juicio > 1.9, 'z12: la suelta perfecta recortó (Juicio)');
+  assert.ok(h.p.cds.g_sendero > 0 && approx(eff(), 4, 0.06), `z12: el Sendero nunca baja de 4 s (${eff().toFixed(2)} s)`);
 });
 check('z13', () => {
   const h = spec('cruzado', { z13: 2 }), n = spec('cruzado');
@@ -2113,6 +2269,13 @@ check('z25', () => {
   h.tick(0.3); hammer(h, [2.5, 0], 0.3);
   assert.ok(dets[1] === 40 && !a.marks?.juicio, `z25 r1: la 2.ª al 40 % (${dets})`);
   assert.ok(b.marks?.juicio && c.marks?.juicio && b.marks.juicio.uses === 1, 'z25: la última salta a 2 enemigos');
+  // las saltadas aguantan una sola detonación y no vuelven a saltar (sin cadena infinita)
+  const d = h.enemy({ hp: 1e9, pos: [9.5, 0, 0] });
+  h.p.pos.x = 4.5;                                           // al lado de las saltadas
+  h.tick(0.3); hammer(h, [6, 0.5], 0.3);
+  assert.ok(!b.marks?.juicio && !c.marks?.juicio, 'z25: la detonación gasta las saltadas');
+  h.tick(0.3); hammer(h, [6, 0.5], 0.3);
+  assert.ok(!d.marks?.juicio && !a.marks?.juicio, 'z25: y no saltan a nadie más');
 });
 check('z26', () => {
   const run = (r, hold) => {
@@ -2159,6 +2322,14 @@ check('z28', () => {
   h.step(0.6);
   const cat = log.filter(x => x.e === boss && x.skill === 'g_u_cataclismo' && !x.dot);
   assert.ok(cat.length === 1 && cat[0].echo && h.gaugeValue('fervor') === 0 && !(h.p.cds.g_u_cataclismo > 0), `z28 r4: al 8.º Veredicto, un Cataclismo gratis (no da Fervor) (${cat.length}, ${h.gaugeValue('fervor')}, ${h.p.cds.g_u_cataclismo})`);
+  // r4: como mucho cada 30 s (otros 8 Veredictos en ~6 s no lo lanzan; el de después de 30 s, sí)
+  const cats = () => log.filter(x => x.e === boss && x.skill === 'g_u_cataclismo' && !x.dot && x.echo).length;
+  for (let i = 0; i < 8; i++) { h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(0.6); }
+  h.step(0.6);
+  assert.equal(cats(), 1, 'z28 r4: otros 8 Veredictos antes de 30 s: ningún Cataclismo más');
+  h.tick(25);
+  h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(1.2);
+  assert.equal(cats(), 2, 'z28 r4: pasados 30 s, el siguiente Veredicto lo lanza');
 });
 
 // ================================================================ cobertura
@@ -2182,6 +2353,49 @@ for (const [key, fn] of Object.entries(CHECKS)) {
 }
 if (failed.length) { console.error(failed.join('\n')); assert.fail(`${failed.length} nodos sin su efecto`); }
 console.log(`✓ ${Object.keys(CHECKS).length} nodos u opciones (clase, especializaciones y héroe) con efecto observable`);
+
+// ================================================================ reglas transversales
+// suelos: el inicio de la recarga lo anota el PRIMER poder del lanzamiento (antes de recortar); otro
+// poder del mismo lanzamiento que lo anota después de un recorte no lo mueve (Vigilia y Gracia del
+// Cielo anotan los dos el Sendero: Luz Veloz 3, 7 s; el suelo de 4 s aguanta)
+{
+  const h = spec('cruzado', { z3: 3, z20: 1, z21: 1 });
+  const sk = h.p.cls.skills.find(s => s.id === 'g_sendero');
+  h.g._startCooldown(h.p, 'g_sendero', prof(h, 'g_sendero'));
+  const c = { sk, prof: prof(h, 'g_sendero') };
+  holy(h, h.p.pos.x, h.p.pos.z, { dps: 0, dur: 30, r: 3 });
+  POWER_HOOKS.g_z_vigilia.afterCast(h.g, h.p, c);
+  POWER_HOOKS.g_z_vigilia.onTick(h.g, h.p, 2);                // en la zona: 2 s más (el doble de rápido)
+  assert.ok(approx(h.p.cds.g_sendero, 5, 0.01), 'Vigilia recorta 2 s');
+  POWER_HOOKS.g_z_gracia.afterCast(h.g, h.p, c);               // el mismo lanzamiento: no vuelve a anotar
+  POWER_HOOKS.g_z_vigilia.onTick(h.g, h.p, 10);
+  assert.ok(approx(h.p.cds.g_sendero, 4, 0.01), `suelo de 4 s con dos poderes que anotan el mismo lanzamiento (${h.p.cds.g_sendero})`);
+  // una recarga nueva (vuelve a subir) se anota de nuevo: el inicio de la anterior no vale
+  h.tick(4.1);
+  h.g._startCooldown(h.p, 'g_sendero', prof(h, 'g_sendero'));
+  POWER_HOOKS.g_z_vigilia.onTick(h.g, h.p, 10);
+  assert.ok(approx(h.p.cds.g_sendero, 4, 0.01), `recarga nueva sin anotar: el suelo también aguanta (${h.p.cds.g_sendero})`);
+}
+console.log('✓ suelos de recarga: el primer poder anota el inicio y una recarga nueva se anota de nuevo');
+
+// G13: el Paragon en pausa apaga el árbol héroe de verdad (Caudillo con Asta Alta)
+{
+  const h = hero('cruzado', 'h3', { u1: 1 });
+  const sp = h.p.talents.sp.cruzado;
+  const leaf = Object.keys(sp).find(id => sp[id] >= 2);
+  assert.ok(leaf && hasPw(h, 'g_cau_pendon') && h.p.tv.pendonRadius === 4, 'Paragon abierto: el Pendón y Asta Alta');
+  sp[leaf]--; h.p.recompute();
+  assert.ok(h.p.talentAgg.heroPaused && !h.p.talentAgg.heroOpen, 'G13: con un punto menos en la especialización, en pausa');
+  assert.ok(!hasPw(h, 'g_cau_pendon') && !(h.p.tv.pendonRadius > 0), 'G13: en pausa, ni sus poderes ni sus claves');
+  h.enemy({ hp: 1e6, pos: [5, 0, 0] });
+  h.tick(0.5);
+  assert.equal(pendons(h).length, 0, 'G13: en pausa no clava Pendones');
+  sp[leaf]++; h.p.recompute();
+  assert.ok(h.p.talentAgg.heroOpen && !h.p.talentAgg.heroPaused && hasPw(h, 'g_cau_pendon') && h.p.tv.pendonRadius === 4, 'G13: devuelto el punto, vuelve');
+  h.tick(0.5);
+  assert.ok(pendons(h).length === 1 && pendons(h)[0].radius === 12, 'G13: y clava su Pendón (12 m)');
+}
+console.log('✓ G13: el Paragon en pausa apaga el árbol héroe y vuelve al devolver el punto');
 
 // las claves tv propias las lee un poder del Guerrero
 for (const k of GUERRERO_TV_KEYS) assert.ok(new RegExp(`\\btv\\??\\.${k}\\b`).test(SRC), `GUERRERO_TV_KEYS: «${k}» no la lee js/powers-guerrero.js`);

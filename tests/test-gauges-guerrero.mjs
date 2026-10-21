@@ -25,6 +25,7 @@ const { TALENT_TREES } = await import('../js/talents.js');
 const { CLASSES } = await import('../js/data.js');
 const { firePower } = await import('../js/powers.js');
 const { resolveSkill } = await import('../js/skill-resolve.js');
+const { multiplierProduct } = await import('../js/combat-math.js');
 const { makeHarness } = await import('./helpers/power-harness.mjs');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -140,6 +141,13 @@ has('fervor', `${T.fervor.basicHits} Tajos`, `+${T.fervor.verdict.dmgPct} %`, `$
   inc(dOf(nodeOf('berserker', 'b19')), `${T.sed.ultimoTrago} de Sed`);
   inc(nodeOf('berserker', 'b15').opts.find(o => o.k === 'A').desc, `Sed en ${T.sed.negacion}`);
   inc(dOf(nodeOf('berserker', 'b28'), 2), `${T.sed.eliteKill} de Sed`, `dura ${T.sed.apexSatedT} s (antes ${T.sed.satedT} s)`);
+  inc(dOf(nodeOf('berserker', 'b16'), 1), `más de ${T.sed.boilAt} de Sed`);
+  inc(dOf(nodeOf('guardian', 'd5')), `${T.bastion.raices} carga de Bastión (${T.bastion.raicesBigN} si golpea a ${T.bastion.raicesBig} o más)`);
+  assert.ok(T.bastion.guarnicion === 1 && dOf(nodeOf('guardian', 'd20'), 1).includes('1 carga de Bastión por segundo'), 'd20: 1 carga por segundo');
+  // la barra cita esos números de T (Sangre Hirviente, Echar Raíces y Guarnición)
+  inc(VIEWS.sed.nodes.b16, `más de ${T.sed.boilAt} de Sed`);
+  inc(VIEWS.bastion.nodes.d5, `${T.bastion.raices} carga (${T.bastion.raicesBigN} si golpea a ${T.bastion.raicesBig} o más)`);
+  inc(VIEWS.bastion.nodes.d20, `cada ${T.bastion.guarnicion} s`);
   inc(dOf(nodeOf('guardian', 'd0')), `(${T.bastion.max} cargas)`, `un ${T.bastion.drPerCharge} %`);
   inc(dOf(nodeOf('guardian', 'd28'), 2), `guarda ${T.bastion.apexMax} cargas (antes ${T.bastion.max})`);
   inc(nodeOf('guardian', 'd15').opts.find(o => o.k === 'B').desc, `Con ${T.bastion.burstAt} cargas`);
@@ -205,10 +213,14 @@ has('fervor', `${T.fervor.basicHits} Tajos`, `+${T.fervor.verdict.dmgPct} %`, `$
   assert.ok(v.hold === true && v.decayIn === null && v.x.low === false, 'sed Saciada: no se drena y no cuenta como vida baja');
   assert.ok(m.sated && m.drip && m.dash === 0 && m.hs === 1.08 && !m.low && m.num === '100', `sed active: ${JSON.stringify(m)}`);
   assert.ok(m.sub.startsWith('Sed Saciada · ') && m.sub.includes(' s'), `sed active: subtítulo (${m.sub})`);
+  // Sed Saciada: el ×1,25 de Al borde (m_berserk) aunque tengas la vida llena (lo que test65 no cubre)
+  const satedMul = 1 + T.sed.satedDmgPct / 100;
+  assert.ok(p.hp === p.stats.maxHP && approx(multiplierProduct(p.powers, { hpFrac: 1, p }), satedMul), `sed Saciada: ×${satedMul} con la vida llena`);
   gainGauge(p, 'sed', 10);
   assert.equal(h.gaugeValue('sed'), 100, 'sed Saciada: no gana más');
   d = seqDelta(h, 'sed', () => h.tick(T.sed.satedT + 0.2));
   assert.ok(d.empty === 1 && h.gaugeValue('sed') === 0, 'sed: al terminar vuelve a 0 (seq.empty)');
+  assert.equal(multiplierProduct(p.powers, { hpFrac: 1, p }), 1, 'sed: acabada la Sed Saciada, con la vida llena ×1');
   const before = { ...gaugeSeq(p, 'sed') };
   p.gauges = {};
   assert.deepEqual(h.gaugeView().seq, before, 'seq sobrevive a resetGauges');

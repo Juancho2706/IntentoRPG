@@ -80,7 +80,13 @@ for (const id of RETIRED) {
   assert.ok(!OWN[id] && !POWER_HOOKS[id] && !SKILL_BEHAVIORS[id], `${id}: retirado`);
   assert.ok(!new RegExp(`'${id}'`).test(SRC), `${id}: ya no lo cita powers-guerrero.js`);
 }
-console.log(`(e) ${RETIRED.length} poderes v1 retirados ✓`);
+// m_aegis (Muro Inquebrantable) y m_judgment también salen (§11.3): ningún nodo los lleva. Siguen
+// registrados en js/powers-common.js (no es de KT) hasta que la cola W2 los quite
+for (const id of ['m_aegis', 'm_judgment']) {
+  assert.ok(!refs.powers.has(id), `${id}: ningún nodo del Guerrero lo lleva`);
+  assert.ok(!new RegExp(`'${id}'`).test(SRC), `${id}: no lo cita powers-guerrero.js`);
+}
+console.log(`(e) ${RETIRED.length} poderes v1 retirados (y m_aegis, m_judgment sin nodo) ✓`);
 
 // ------------------------------------------------ (f) reglas transversales
 // sin p.cds escrito a mano (D2: g.reduceCooldown); sin powers.has; sin setTimeout ni Math.random
@@ -105,14 +111,36 @@ console.log(`(e) ${RETIRED.length} poderes v1 retirados ✓`);
   const eff = h.p.simT - t0 + h.p.cds.g_u_cataclismo;
   assert.ok(h.p.cds.g_u_cataclismo > 0 && approx(eff, base * 0.7, 0.05), `Cataclismo: nunca baja del 70 % (${eff.toFixed(2)} s de ${base} s)`);
 }
-// innatas: el Guardián bloquea un 15 % más (con escudo) y genera el triple de amenaza; las otras, sin stats
+// el suelo es del 70 % de la recarga BASE del catálogo (nota 13 del plan), no de la ya reducida: con
+// −20 % de enfriamiento (48 s) el suelo fraccionario del núcleo (cdFloor 0,7 → 33,6 s) no basta;
+// lo pone el poder (42 s)
+{
+  const h = mk('cruzado', { z20: 3 });
+  h.p.talentExtra = { stats: { cdr: 20 } };
+  h.p.recompute();
+  h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+  const t0 = h.p.simT;
+  h.g._startCooldown(h.p, 'g_u_cataclismo', prof(h, 'g_u_cataclismo'));
+  const base = h.p.cds.g_u_cataclismo, catalog = h.p.cls.skills.find(s => s.id === 'g_u_cataclismo').cd;
+  assert.ok(approx(base, catalog * 0.8, 0.01), `con −20 % de enfriamiento, ${base} s`);
+  for (let i = 0; i < 10; i++) {
+    h.gauge('fervor', 3);
+    h.setSlot('rmb', 'g_martillo'); h.aim(2.5, 0); h.p.mp = 100;
+    h.press('rmb'); h.step(0.05); h.release('rmb'); h.step(0.6);
+  }
+  const eff = h.p.simT - t0 + h.p.cds.g_u_cataclismo;
+  assert.ok(h.p.cds.g_u_cataclismo > 0 && approx(eff, catalog * 0.7, 0.05), `Cataclismo: nunca baja del 70 % de su base (${eff.toFixed(2)} s de ${catalog} s)`);
+}
+// innatas: el Guardián bloquea un 15 % más (con escudo), genera el triple de amenaza y tiene +5 % de
+// vida (§11.2); las otras, sin stats (el healPct 30 del Cruzado v1 no está en el diseño: pendientes §4.3)
 {
   const b = mk('berserker'), d = mk('guardian'), z = mk('cruzado');
   assert.equal(d.p.stats.block, b.p.stats.block, 'Guardián: sin escudo, sin bloqueo');
   for (const x of [b, d]) { x.p.equipment.offhand = { slot: 'offhand', icon: '🛡️', name: 'Escudo de prueba', stats: {} }; x.p.recompute(); }
   assert.equal(d.p.stats.block - b.p.stats.block, 15, 'Guardián: con escudo, +15 % de bloqueo');
   assert.ok(d.p.stats.threatMult === 3 && b.p.stats.threatMult === 1 && z.p.stats.threatMult === 1, 'Guardián: amenaza ×3');
-  assert.ok(b.p.stats.healPct === z.p.stats.healPct && b.p.stats.hpPct === d.p.stats.hpPct, 'sin stats innatas fuera del diseño');
+  assert.equal(d.p.stats.hpPct - b.p.stats.hpPct, 5, 'Guardián: +5 % de vida');
+  assert.ok(b.p.stats.healPct === z.p.stats.healPct && b.p.stats.hpPct === z.p.stats.hpPct, 'Berserker y Cruzado sin stats innatas');
 }
 // Cruzado solo: el Martillo Piadoso te cura a ti (eres el aliado con menos vida)
 {

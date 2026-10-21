@@ -49,6 +49,7 @@ import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 import { insideField } from './field-entities.js';
 import { n1 } from './talent-text.js';
+import { strikeBleedSource } from './mech-guerrero.js';
 // (importados: úsalos solo dentro de los ganchos). Sin talents.js ni skill-resolve.js: los dos
 // llegan a data.js y, si el primer módulo cargado es resources.js, el ciclo resources → powers →
 // aquí → data dejaría RESOURCE_DEFS sin iniciar (la misma razón que en powers-common.js)
@@ -80,6 +81,7 @@ function tun() {
     temple: { fury: 3, ext: 0.25, maxExt: 3 },            // c19
     desequilibrio: { slowPct: 30, dur: 2, crit: 10 },     // c20
     persecucion: 50,                                      // c21
+    ritmoCombate: 0.5,                                    // c23: s por crítico del Tajo, × rango
     rencor: { radius: 4, pctPerRank: 10 },                // c25
     desenfreno: { need: 80, window: 4, dur: 4, base: 4, perRank: 8 },   // c26
     rugido: { radius: 5, pctPerRank: 8, dur: 4 },         // c27
@@ -98,7 +100,7 @@ function tun() {
     aplastante: { per: 40, max: 120 },                    // b10B
     ritmo: { perRank: 0.5, icd: 1.5 },                    // b12
     impacto: { stun: 0.5, stagger: 15, icd: 4 },          // b14
-    hirviente: { over: 50, perRank: 8 },                  // b16
+    hirviente: { perRank: 8 },                            // b16 (el umbral, en gaugeTuning().sed.boilAt)
     avidez: 2,                                            // b18: Furia por enemigo, × rango
     caidaSangrienta: 100,                                 // b21: % del golpe en Sangrado
     estallido: { radius: 4, base: 20, perRank: 15 },      // b22
@@ -110,7 +112,6 @@ function tun() {
     corazon: { icd3: 60, every: 3, dur: 5, icd4: 90 },                // b28 (Sed por élite y 9 s: la mecánica)
     // Guardián
     contragolpe: { perRank: 40, icd: 1, reach: 3 },       // d4
-    raices: { big: 3 },                                   // d5: 2 cargas si golpea a 3 o más
     mirada: 1,                                            // d7: +s de provocación por rango
     barrido: { radius: 4, coef: 1.2, taunt: 2, icd: 3 },  // d8A
     certero: { pct: 30, win: 1.5 },                       // d8B
@@ -127,7 +128,7 @@ function tun() {
     avalancha: 1,                                         // d17: s por arrastrado (tope r s)
     vinculo: { pct: 10, radius: 8 },                      // d18: % por rango
     tierraViva: { every: 3, radius: 5, coef: 0.3 },       // d19: coef × rango
-    guarnicion: { perRank: 5, every: 1 },                 // d20
+    guarnicion: { perRank: 5 },                           // d20 (1 carga cada gaugeTuning().bastion.guarnicion s)
     guardiaViva: { perRank: 3, max: 3, dur: 8, heal: 1 }, // d22
     replicaHonda: 10,                                     // d23: % por rango (×2 contra Quebrantados)
     escolta: { perRank: 4, radius: 6, dur: 6, icd: 10 },  // d24
@@ -147,6 +148,7 @@ function tun() {
     pesado: { pct: 80, stagger: 25 },                     // z9B
     sendaArdiente: { coef: 0.3, slow: 1, slowPct: 30 },   // z10A
     refugio: { pct: 10, dur: 6, icd: 6 },                 // z10B
+    liturgia: { perRank: 0.5, icd: 2 },                   // z12: s por suelta perfecta, × rango
     tierraBendita: { radiusPerRank: 15, durPerRank: 1 },  // z13
     altar: { radius: 4, dur: 6, dmgPct: 10 },             // z14
     milagro: { hpPct: 20, icd: 120 },                     // z15A
@@ -302,30 +304,53 @@ function moveCut(g, p, s) {
 }
 // ---- suelo de las definitivas (rejuicio §20; nota 13 del plan: absoluto, 70 % de sk.cd) ----
 // Entre todos los talentos, la recarga EFECTIVA de una definitiva (lo que ya pasó desde que
-// empezó + lo que le falta) no baja del 70 % de su base del catálogo. Lo recortado por otros
-// cuenta porque se mide lo que falta de verdad. El inicio lo anota noteStart (③ afterCast de los
-// poderes que recortan; también el de la movilidad, para su suelo de 4 s): lo que la recarga ya
-// corrió al anotarla; sin anotación se supone que nadie la recortó (cdMax − lo que falta).
+// empezó + lo que le falta) no baja del 70 % de su base del catálogo; la de la movilidad con
+// suelo, de 4 s. Lo recortado por otros cuenta porque se mide lo que falta de verdad. El inicio de
+// cada recarga lo anota noteStart (③ afterCast de los poderes que recortan) o, si nadie lo hizo, el
+// primer recorte que la ve (suponiendo que nadie la recortó antes). Una recarga que SUBE es otra
+// nueva: su inicio se vuelve a anotar (así no vale el de la recarga anterior)
 const ULT_STATE = 'g_ult_suelo';
+function cdTrack(p) {
+  const st = powerState(p, ULT_STATE);
+  if (!st.start) st.start = {};
+  if (!st.seen) st.seen = {};
+  return st;
+}
+// anota el inicio de la recarga en curso de `id`: lo que ya corrió (cdMax − lo que falta)
+function markStart(p, id) {
+  const st = cdTrack(p), left = p.cds?.[id] || 0;
+  st.start[id] = now(p) - (left > 0 ? Math.max(0, (p.cdMax?.[id] || left) - left) : 0);
+  st.seen[id] = { left, at: now(p) };
+}
 function noteStart(p, cast) {
   const cat = cast?.sk?.cat || cast?.prof?.cat;
   if (!cast || cast.echo || cast.recast || (cat !== 'ultimate' && cat !== 'movement')) return;
-  const id = cast.sk.id, left = p.cds?.[id] || 0;
-  const st = powerState(p, ULT_STATE);
+  const id = cast.sk.id;
+  const st = cdTrack(p);
   // una vez por lanzamiento: el primer poder que lo anota (antes de recortar nada) manda
   const by = st.by || (st.by = {});
   if (by[id] === cast) return;
   by[id] = cast;
-  (st.start || (st.start = {}))[id] = now(p) - (left > 0 ? Math.max(0, (p.cdMax?.[id] || left) - left) : 0);
+  markStart(p, id);
 }
+// lo que ya corrió de la recarga en curso de `id` (los recortes no cuentan como tiempo pasado)
+function cdElapsed(p, id) {
+  const st = cdTrack(p), t = now(p), left = p.cds?.[id] || 0, s = st.seen[id];
+  // sin inicio, o la recarga subió desde la última vez que se vio (empezó otra): se anota ahora
+  if (st.start[id] == null || st.start[id] > t || !s || left > s.left - (t - s.at) + 1e-6) markStart(p, id);
+  return t - st.start[id];
+}
+// tras un recorte: lo que falta ahora (la referencia para ver si la recarga vuelve a subir)
+function cdSeen(p, id) { cdTrack(p).seen[id] = { left: p.cds?.[id] || 0, at: now(p) }; }
 function ultCutOne(g, p, sk, s) {
   const left = p.cds?.[sk.id] || 0;
   if (!(s > 0) || !(left > 0)) return 0;
-  const t0 = powerState(p, ULT_STATE).start?.[sk.id];
-  const elapsed = t0 != null && t0 <= now(p) ? now(p) - t0 : Math.max(0, (p.cdMax?.[sk.id] || left) - left);
+  const elapsed = cdElapsed(p, sk.id);
   const room = Math.max(0, left - Math.max(0, (sk.cd || 0) * tun().ultFloor - elapsed));
   const cut = Math.min(s, room);
-  return cut > 1e-9 ? (g.reduceCooldown?.(p, sk.id, cut) || 0) : 0;
+  const got = cut > 1e-9 ? (g.reduceCooldown?.(p, sk.id, cut) || 0) : 0;
+  cdSeen(p, sk.id);
+  return got;
 }
 function ultCut(g, p, s) {
   let total = 0;
@@ -597,12 +622,11 @@ function cutCd(g, p, id, s) {
   let cut = s;
   const fl = moveFloor(p, id);
   if (fl > 0) {
-    const t0 = powerState(p, ULT_STATE).start?.[id];
-    const elapsed = t0 != null && t0 <= now(p) ? now(p) - t0 : Math.max(0, (p.cdMax?.[id] || left) - left);
-    cut = Math.min(s, Math.max(0, elapsed + left - fl));
+    cut = Math.min(s, Math.max(0, cdElapsed(p, id) + left - fl));
     if (!(cut > 1e-9)) return 0;
   }
   const got = g?.reduceCooldown?.(p, id, cut) || 0;
+  if (fl > 0) cdSeen(p, id);
   if (got > 0 && id === 'g_salto') {
     const r = saltoRow(p);
     if (!r.cut) { r.row = (r.row || 0) + 1; r.cut = true; }
@@ -611,15 +635,8 @@ function cutCd(g, p, id, s) {
 }
 
 // ---- Berserker ----
-// fuente del Sangrado que ESTE golpe directo deja (la del núcleo: `<habilidad>:bleed`) o null:
-// el DoT del paso del combo, el de la habilidad o su hitDot
-function bleedSourceOf(p, hit) {
-  if (!direct(hit) || !hit.skill) return null;
-  const prof = p?.resolved?.[hit.skill];
-  if (!prof) return null;
-  const dot = hit.step > 0 ? (prof.def?.steps?.[hit.step - 1]?.dot || prof.dot) : prof.dot;
-  return dot === 'bleed' || prof.hitDot?.kind === 'bleed' ? `${hit.skill}:bleed` : null;
-}
+// (la fuente del Sangrado de golpe, strikeBleedSource, vive en js/mech-guerrero.js: la Sed la usa
+// para que el nuevo sustituya al viejo y Desangrar para apartarlo)
 // intervalo de los tics de un Sangrado de la clase: el hitDot va a 0,5 s; el perfil central, a 1 s
 function bleedInterval(p, source) {
   const id = String(source || '').split(/[#:]/)[0];
@@ -1007,8 +1024,7 @@ export function guerreroPowers() {
         if (!(dmg.amount > 0) || !(max > 0) || !((p.mp || 0) > 0)) return;
         const perFury = max * T.protectora.hpPctPerFury / 100;
         const fury = Math.min(p.mp, dmg.amount * T.protectora.share / 100 / perFury);
-        if (!(fury > 0)) return;
-        p.mp -= fury;
+        if (!(fury > 0) || !spendResource(p, fury)) return;
         dmg.amount -= fury * perFury;
       },
     },
@@ -1125,6 +1141,23 @@ export function guerreroPowers() {
       onResource(g, p, n) {
         const near = powerState(p, 'g_aura_hermandad').near;
         if (near > 0 && n > 0) g.gainResource(p, n * T.brother.furyPct / 100 * near, { silent: true });
+      },
+    },
+    // c23 Ritmo de Combate (rango r): cada crítico del Tajo recarga 0,5·r s de tu movilidad y de
+    // Piel de Hierro (una vez por instante). Por cutCd: el suelo de 4 s del Sendero y de la Carga
+    // con Avalancha, y las «seguidas» del Salto. noteStart: el inicio de la recarga de la movilidad
+    g_ritmo_combate: {
+      name: 'Ritmo de Combate', desc: 'Cada crítico del Tajo recarga tu movilidad y Piel de Hierro.',
+      state: () => ({ at: -1 }),
+      afterCast(g, p, cast) { noteStart(p, cast); },
+      onHit(g, p, e, hit) {
+        if (!hit?.crit || !direct(hit) || !tagsHave(hit, 'basic')) return;
+        const st = powerState(p, 'g_ritmo_combate');
+        if (st.at === now(p)) return;
+        st.at = now(p);
+        const s = T.ritmoCombate * rankOf(p, 'g_ritmo_combate');
+        moveCut(g, p, s);
+        cutCd(g, p, 'g_piel', s);
       },
     },
     // c25 Rencor (rango r): al acabar Piel de Hierro, devuelves el 10·r % del daño que evitó a
@@ -1685,24 +1718,27 @@ export function guerreroPowers() {
         g.spawnRing?.(e.pos, T.contagio.radius, 0xb3180e);
       },
     },
-    // b8B Desangrar: hasta 3 Sangrados a la vez en el mismo enemigo. El núcleo junta cada Sangrado
-    // nuevo con lo que le quedaba al de la misma fuente; con Desangrar, el que había sigue aparte
-    // (ranuras `<habilidad>#2:bleed` y `#3`) y no espera al nuevo
+    // b8B Desangrar: hasta 3 Sangrados a la vez en el mismo enemigo. Sin él, el Sangrado de golpe
+    // nuevo sustituye al viejo (la Sed, mech-guerrero.js); con él, el viejo sigue en otra ranura
+    // (`<habilidad>#2:bleed`, `#3`) con lo que le quedaba. Con las 3 llenas se pierde el más débil
     g_b_desangrar: {
       name: 'Desangrar', desc: 'Puedes poner hasta 3 Sangrados a la vez en el mismo enemigo.',
       onHit(g, p, e, hit) {
-        const src = bleedSourceOf(p, hit);
+        const src = strikeBleedSource(p, hit);
         if (!src || !e?.alive) return;
         const cur = g.dotsOf(e, src)[0];
         if (!cur) return;
         const base = src.slice(0, -':bleed'.length);
-        for (let k = 2; k <= T.desangrar; k++) {
-          const slot = `${base}#${k}:bleed`;
-          if (g.dotsOf(e, slot).length) continue;
-          const rem = g.consumeDoT(e, src);
-          if (rem > 0) g.applyDoT(e, rem, cur.left, bleedInterval(p, src), undefined, slot);
-          return;
-        }
+        const slots = [];
+        for (let k = 2; k <= T.desangrar; k++) slots.push(`${base}#${k}:bleed`);
+        const every = DOT_PROFILES.bleed.interval;
+        const free = slots.find(s => !g.dotsOf(e, s).length);
+        const rem = g.consumeDoT(e, src);
+        if (!(rem > 0)) return;
+        if (free) { g.applyDoT(e, rem, cur.left, every, undefined, free); return; }
+        let weak = null, wv = rem;
+        for (const s of slots) { const v = g.dotRemaining(e, s); if (v < wv) { wv = v; weak = s; } }
+        if (weak) g.replaceDoT(e, rem, cur.left, every, weak);
       },
     },
     // b9A Onda de Choque: el 3.er golpe de Rajar suelta una onda del 60 % de ese golpe a 4 m
@@ -1806,12 +1842,12 @@ export function guerreroPowers() {
         return true;
       },
     },
-    // b16 Sangre Hirviente (rango r): con más de 50 de Sed, atacas un 8·r % más rápido (los giros y
-    // los saltos van con la velocidad del núcleo: cola W2)
+    // b16 Sangre Hirviente (rango r): con más de 50 de Sed (gaugeTuning().sed.boilAt), atacas un 8·r %
+    // más rápido (los giros y los saltos van con la velocidad del núcleo: cola W2)
     g_b_sangre_hirviente: {
       name: 'Sangre Hirviente', desc: 'Con más de 50 de Sed, tus golpes van más rápido.',
       onTick(g, p) {
-        if (!(gaugeValue(p, 'sed') > T.hirviente.over)) return;
+        if (!(gaugeValue(p, 'sed') > gaugeTuning().sed.boilAt)) return;
         const pct = T.hirviente.perRank * rankOf(p, 'g_b_sangre_hirviente');
         keepBuff(p, 'g_b_sangre_hirviente', { aspdPct: pct }, 0.25, { name: 'Sangre Hirviente', icon: '🩸', desc: `+${pct}% de velocidad de ataque` });
       },
@@ -2010,12 +2046,14 @@ export function guerreroPowers() {
         g.spawnBeam?.(p.pos, e.pos, 0x9fc4ff, 0.15);
       },
     },
-    // d5 Echar Raíces: en Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más)
+    // d5 Echar Raíces: en Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más;
+    // los números, en gaugeTuning().bastion: la barra los cita)
     g_d_raices: {
       name: 'Echar Raíces', desc: 'En Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más).',
       afterCast(g, p, cast, res) {
         if (cast?.sk?.id !== 'terremoto' || cast.echo || !inMuralla(g, p)) return;
-        gainGauge(p, 'bastion', (res?.hits || 0) >= T.raices.big ? 2 : 1);
+        const B = gaugeTuning().bastion;
+        gainGauge(p, 'bastion', (res?.hits || 0) >= B.raicesBig ? B.raicesBigN : B.raices);
       },
     },
     // d6 Pisotón: tras la Carga de Escudo, tu siguiente Terremoto no se prepara y cuenta como
@@ -2289,7 +2327,7 @@ export function guerreroPowers() {
         for (const a of others(g, p, Infinity)) if (dist2D(a.pos, pos) <= f.radius) keepBuff(a, 'g_d_guarnicion', { dmgPct: pct }, 0.3, { name: 'Guarnición', icon: '🏰', desc: `+${pct}% de daño` });
         if (f.data.free || dist2D(p.pos, pos) > f.radius) { st.acc = 0; return; }
         st.acc += dt;
-        if (st.acc >= T.guarnicion.every - 1e-9) { st.acc = 0; gainGauge(p, 'bastion', 1); }
+        if (st.acc >= gaugeTuning().bastion.guarnicion - 1e-9) { st.acc = 0; gainGauge(p, 'bastion', 1); }
       },
     },
     // d21 Proa Blindada: durante la Carga de Escudo bloqueas seguro lo que viene de frente (cada
@@ -2563,11 +2601,12 @@ export function guerreroPowers() {
       onHit(g, p, e, hit) { if (hit?.detonated && direct(hit) && isBoss(e)) e.addStagger?.(T.condena, p); },
     },
     // z9A Veredicto Generoso: el Veredicto golpea a 8 m (antes 5 m) y cura un 3 % a tus otros aliados
-    // a 8 m (el más herido sigue con la cura de la mecánica)
+    // a 8 m (el más herido sigue con la cura de la mecánica). El radio va en el perfil: la mecánica
+    // vacía la caché del resolvedor cada vez que el Fervor entra en 3 o sale de 3
     g_z_veredicto_generoso: {
       name: 'Veredicto Generoso', desc: 'El Veredicto golpea a 8 m y cura un 3 % a tus otros aliados a 8 m.',
       modifyResolve(p, sk, prof) {
-        if (sk.id !== 'g_martillo' || gaugeValue(p, 'fervor') < gaugeMax(p, 'fervor')) return;
+        if (sk.id !== 'g_martillo' || gaugeValue(p, 'fervor') < gaugeTuning().fervor.verdict.cost - 1e-9) return;
         prof.radius = (prof.radius || 3) * T.generoso.radius / T.generoso.mainRadius;
       },
       afterCast(g, p, cast) {
@@ -2613,6 +2652,25 @@ export function guerreroPowers() {
         if (!best) return;
         st.at = now(p);
         best.addShield?.(p.stats.maxHP * T.refugio.pct / 100, T.refugio.dur, 'g_z_refugio');
+      },
+    },
+    // z12 Liturgia (rango r): cada suelta perfecta acorta 0,5·r s tus recargas, salvo la definitiva y
+    // Piel de Hierro (como mucho cada 2 s). Por cutCd: el Sendero nunca baja de 4 s
+    g_z_liturgia: {
+      name: 'Liturgia', desc: 'Cada suelta perfecta acorta tus recargas, salvo la definitiva y Piel de Hierro.',
+      state: () => ({ at: -99 }),
+      afterCast(g, p, cast) {
+        noteStart(p, cast);
+        if (!cast?.perfect || cast.echo) return;
+        const st = powerState(p, 'g_z_liturgia');
+        if (now(p) - st.at < T.liturgia.icd - 1e-9) return;
+        st.at = now(p);
+        const s = T.liturgia.perRank * rankOf(p, 'g_z_liturgia');
+        for (const sk of p.cls?.skills || []) {
+          const def = defOf(p, sk.id);
+          if (def.cat === 'ultimate' || def.cdOnEnd || sk.id === 'g_piel' || !((p.cds?.[sk.id] || 0) > 0)) continue;
+          cutCd(g, p, sk.id, s);
+        }
       },
     },
     // z13 Tierra Bendita (rango r): tus zonas sagradas son un 15·r % más grandes y duran r s más (adoptHoly)
@@ -2729,7 +2787,7 @@ export function guerreroPowers() {
         const st = powerState(p, 'g_z_tribunal');
         const i = Math.min(3, rankOf(p, 'g_z_tribunal')) - 1;
         const m = e.marks?.juicio;
-        if (m && m.by === p && !m.tribunal && !m.noJump) {
+        if (m && m.by === p && !m.tribunal) {
           m.tribunal = true;
           m.detonate = { ...(m.detonate || {}), pct: (m.detonate?.pct || 100) * T.tribunal.pct[i] / 100 };
           st.track.set(e, m);
@@ -2741,11 +2799,11 @@ export function guerreroPowers() {
         if (!e.alive && !e.pos) return;
         const prof = juicioProf(p);
         if (!prof) return;
+        // las saltadas son de UN uso: su detonación las gasta, no se siguen y no vuelven a saltar
         const one = { ...prof, mark: { ...prof.mark, uses: 1, detonate: { ...(old.detonate || prof.mark.detonate) } } };
         for (const o of nearestEnemies(g, e.pos, T.tribunal.radius, T.tribunal.jump, e)) {
           if (o.marks?.juicio?.t > 0) continue;
-          const nm = g.applyMark(o, one, p);
-          if (nm) nm.noJump = true;
+          g.applyMark(o, one, p);
         }
       },
     },

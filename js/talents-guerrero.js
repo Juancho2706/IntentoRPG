@@ -101,7 +101,7 @@ export const GUERRERO_TALENTS = {
         { k: 'B', name: 'Hermandad de Armas', desc: 'Tú y tus aliados a 15 m ganan +5 % de daño y +8 % de vida; generas un 5 % más de Furia por aliado', role: 'AGU', fx: { power: 'g_aura_hermandad' } },
       ],
       win: 'A: en la ranura 2 saltas a proteger a un aliado; sin ponerla, cada Piel de Hierro da un escudo del 8 % a ti y al aliado más cercano. B, siempre activo y sin ocupar ranura' },
-    { id: 'c23', name: 'Ritmo de Combate', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada crítico del Tajo recarga ${n1(0.5*r)} s de tu movilidad y de Piel de Hierro`, touch: ['g_tajo', '@movement', 'g_piel'], icon: 'talents/guerrero-clase-c6.webp', fx: { tv: { basicCritCdr: 0.5 } } },
+    { id: 'c23', name: 'Ritmo de Combate', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada crítico del Tajo recarga ${n1(0.5*r)} s de tu movilidad y de Piel de Hierro`, touch: ['g_tajo', '@movement', 'g_piel'], icon: 'talents/guerrero-clase-c6.webp', fx: { power: 'g_ritmo_combate' } },
     { id: 'c24', name: 'Brazo Veloz', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Atacas un ${7*r} % más rápido`, icon: 'skills256/g_tajo.webp', fx: { stats: { aspdPct: 7 } } },
     { id: 'c25', name: 'Rencor', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Al acabar Piel de Hierro, devuelves el ${10*r} % del daño que evitó a los enemigos a 4 m`, touch: ['g_piel'], icon: 'ui/st_escudo.webp', fx: { power: 'g_rencor' } },
     { id: 'c26', name: 'Desenfreno', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Si gastas 80 de Furia en 4 s, haces +${4+8*r} % de daño durante 4 s`, icon: 'talents/guerrero-clase-c14.webp', fx: { power: 'g_ira_gasto' } },
@@ -187,7 +187,9 @@ export const GUERRERO_TALENTS = {
       mechanic: 'bastion',
       elem: 'physical',
       prefix: 'd',
-      innate: { block: 15, threatMult: 3 },
+      // §11.2: la base que se conserva ({ block, threatMult, hpPct }); drCapAdd/blockCapAdd (topes
+      // 65 y 50 %) esperan a la cola W2 (tools/convert-v2/out/pendientes-guerrero.md §4.5)
+      innate: { block: 15, threatMult: 3, hpPct: 5 },
       innateText: 'Piel de Hierro: 12 s y −50 %; topes 65 y 50 %',
       line: 'Muralla viviente: te plantas, alternas posturas, provocas y proteges al grupo.',
       desc: 'Muralla viviente: te plantas, alternas posturas, provocas y proteges al grupo.',
@@ -286,7 +288,7 @@ export const GUERRERO_TALENTS = {
           ],
           win: 'A, contra grupos: el sendero quema y frena a la manada. B, en grupo o contra jefes que pegan fuerte: proteges al más herido. Decide qué Santuario juegas' },
         { id: 'z11', name: 'Juicio Presto', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['z8'], d: r=>`Juicio se recarga en ${8-r} s (antes 8 s)`, touch: ['g_juicio'], arch: 'sentencia', icon: 'talents/guerrero-cruzado-s5.webp', fx: { mod: { g_juicio: { cdr: 12.5 } } } },
-        { id: 'z12', name: 'Liturgia', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['z8', 'z9'], d: r=>`Cada suelta perfecta acorta ${n1(0.5*r)} s tus recargas, salvo la definitiva y Piel de Hierro (como mucho cada 2 s)`, touch: ['g_martillo'], arch: 'veredicto', icon: 'talents/guerrero-cruzado-s12.webp', fx: { tv: { perfectCdrAll: 0.5 } } },
+        { id: 'z12', name: 'Liturgia', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['z8', 'z9'], d: r=>`Cada suelta perfecta acorta ${n1(0.5*r)} s tus recargas, salvo la definitiva y Piel de Hierro (como mucho cada 2 s)`, touch: ['g_martillo'], arch: 'veredicto', icon: 'talents/guerrero-cruzado-s12.webp', fx: { power: 'g_z_liturgia' } },
         { id: 'z13', name: 'Tierra Bendita', t: 'p', tag: 'num', r: 4, c: 4, max: 2, req: ['z9', 'z10'], d: r=>`Tus zonas sagradas son un ${15*r} % más grandes y duran ${r} s más`, touch: ['g_sendero', 'g_u_cataclismo'], arch: 'santuario', icon: 'talents/guerrero-cruzado-s15.webp', fx: { power: 'g_z_tierra_bendita' } },
         { id: 'z14', name: 'Altar de Campaña', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['z10'], d: ()=>'Al llegar con el Sendero de Luz, levantas un altar 6 s: tus aliados a 4 m hacen +10 % de daño (no se suma)', touch: ['g_sendero'], arch: 'santuario', icon: 'talents/guerrero-cruzado-s15.webp', fx: { power: 'g_z_altar' } },
         { id: 'z15', name: 'Milagro o Luz Protectora', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['z11', 'z12'], touch: ['g_martillo'], icon: 'talents/guerrero-cruzado-s13.webp', opts: [

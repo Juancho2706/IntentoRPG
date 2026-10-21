@@ -11,6 +11,7 @@
 // dentro del ciclo powers.js ↔ spec-mechanics.js, antes de evaluar este archivo.
 //   gaugeTuning(H) → { <id>: números }       ÚNICA fuente de los números (explain(T) de la UI)
 //   baseGauges(T, H) → { <id>: definición }  T = gaugeTuning() COMPLETO (las tres clases)
+//   strikeBleedSource(p, hit)                 la regla del Sangrado de golpe (también la usa Desangrar)
 // El orden de las claves importa (gaugeDefs/gaugeIds lo conservan): guerrero → maga → arquera.
 
 export function gaugeTuning() {
@@ -23,6 +24,7 @@ export function gaugeTuning() {
       reabrir: 3,                 // b5 Reabrir: por golpe de Rajar a un enemigo que sangra
       ultimoTrago: 5,             // b19 Último Trago: × rango (el doble contra élites y jefes)
       negacion: 50,               // b15A Negación de la Muerte: deja la Sed en 50
+      boilAt: 50,                 // b16 Sangre Hirviente: con más de 50 de Sed
       eliteKill: 30,              // b28 Corazón Indomable 1: matar a un élite
       apexSatedT: 9 },            // b28 Corazón Indomable 2: Sed Saciada 9 s
     // Bastión (rehecho): +1 por bloqueo y +1 cada 2 s plantado en combate; −4 % de daño recibido por
@@ -32,7 +34,9 @@ export function gaugeTuning() {
     bastion: { max: 5, perBlock: 1, plantedEvery: 2, combatT: 5, moveLossEvery: 2, drPerCharge: 4,
       burstAt: 5, lockAfterBurst: 5,
       burst: { shieldPct: 20, shieldDur: 6, coef: 3, radius: 5, stagger: 30, allyRadius: 15 },
-      apexMax: 7 },               // d28 Inexpugnable 2: 7 cargas
+      apexMax: 7,                 // d28 Inexpugnable 2: 7 cargas
+      raices: 1, raicesBig: 3, raicesBigN: 2,   // d5 Echar Raíces: 1 carga por Terremoto (2 si golpea a 3 o más)
+      guarnicion: 1 },            // d20 Guarnición: 1 carga cada 1 s dentro de tu Ciudadela
     // Fervor (rehecho): +1 por suelta perfecta o detonación de Juicio (como mucho 1 por lanzamiento;
     // la suelta perfecta la suma el catálogo: perfectGauge del Martillo 1 y del Cataclismo 3) y +1
     // cada 3 Tajos. A 3, el siguiente Martillo sale al instante como Veredicto (+50 % y cura un 6 %
@@ -43,8 +47,16 @@ export function gaugeTuning() {
 }
 
 export function baseGauges(T, H) {
-  const { gainGauge, spendGauge, drainGauge, buffOf, now, isBasicHit, isBoss } = H;
+  const { gainGauge, spendGauge, drainGauge, buffOf, now, isBasicHit, isBoss, hasPower, invalidate } = H;
   const rank = (p, id) => p?.talentAgg?.powerRank?.[id] | 0;
+  // el Veredicto cambia el perfil del Martillo (Veredicto Generoso, z9A): la caché del resolvedor
+  // se vacía cada vez que el Fervor entra en 3 o sale de 3 (al llenarse, al gastarlo y al perderlo)
+  const syncVerdict = (p, st) => {
+    const ready = (st?.v || 0) >= T.fervor.verdict.cost - 1e-9;
+    if (ready === !!st.ready) return;
+    st.ready = ready;
+    invalidate(p);
+  };
   return {
     // ---------------- SED (Berserker) ----------------
     sed: {
@@ -59,7 +71,16 @@ export function baseGauges(T, H) {
         if (lost > 0 && max > 0) gainGauge(p, 'sed', lost / max * 100 * T.sed.perHpPct);
       },
       onHit(g, p, e, hit, st) {
-        if (!hit?.dot || !/:bleed$/.test(hit.source || '')) return;
+        // Sangrado de golpe: el nuevo SUSTITUYE al que esa habilidad ya había dejado (lo que le
+        // quedaba se pierde, como la Ignición de la Maga). ⑤ llega antes que los efectos al golpear:
+        // aquí se quita el viejo y el núcleo pone el nuevo. Con Desangrar (b8B) su poder lo aparta a
+        // otra ranura en vez de perderlo
+        if (!hit?.dot) {
+          const src = strikeBleedSource(p, hit);
+          if (src && e?.alive && !hasPower(p, 'g_b_desangrar')) g?.consumeDoT?.(e, src);
+          return;
+        }
+        if (!/:bleed$/.test(hit.source || '')) return;
         if (now(p) - st.bleedT >= 1) { st.bleedT = now(p); st.bleedN = 0; }
         const n = Math.min(T.sed.perBleedTick, T.sed.bleedPerSec - st.bleedN);
         if (n > 0) { st.bleedN += n; gainGauge(p, 'sed', n); }
@@ -152,7 +173,9 @@ export function baseGauges(T, H) {
     fervor: {
       name: 'Fervor', color: '#ecc760', max: T.fervor.max, integer: true,
       decay: { after: T.fervor.decayOOC, every: T.fervor.decayOOC, n: 1, ooc: true },
-      state: () => ({ basicAt: -1, basicN: 0, det: false, verdictCast: null, verdictLive: false, verdictTarget: null, verdictHealed: null }),
+      state: () => ({ basicAt: -1, basicN: 0, det: false, verdictCast: null, verdictLive: false, verdictTarget: null, verdictHealed: null, ready: false }),
+      onFull(g, p, st) { syncVerdict(p, st); },
+      onTick(g, p, dt, st) { syncVerdict(p, st); },
       // a 3 de Fervor, el Martillo sale al instante (Veredicto: cast.instant, carga completa sin perfecto)
       onCast(g, p, cast, st) {
         st.det = false;
@@ -195,6 +218,7 @@ export function baseGauges(T, H) {
             else low.healSkill?.(low.stats.maxHP * pct / 100, 'veredicto');
           }
           spendGauge(p, 'fervor', st.v);
+          syncVerdict(p, st);
           g?.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡VEREDICTO!', 'txt-crit');
           return;
         }
@@ -210,4 +234,18 @@ export function baseGauges(T, H) {
       },
     },
   };
+}
+
+// fuente del Sangrado que ESTE golpe directo deja con el perfil central del núcleo (el `dot` de la
+// habilidad o de su paso de combo: el 3.er golpe de Rajar, un Desgarro) o null. No cuentan las
+// copias (echo: se suman) ni el Sangrado de los giros (hitDot del Remolino: se acumula a propósito).
+// Lo usan la Sed (sustituir) y Desangrar (b8B, js/powers-guerrero.js)
+export function strikeBleedSource(p, hit) {
+  if (!hit?.skill || hit.proc || hit.dot || hit.echo) return null;
+  const prof = p?.resolved?.[hit.skill];
+  const def = prof?.def || p?.forged?.[hit.skill]?.def || (p?.cls?.skills || []).find(s => s.id === hit.skill);
+  if (!def) return null;
+  const top = prof?.dot || def.dot;
+  const dot = hit.step > 0 ? (def.steps?.[hit.step - 1]?.dot || top) : top;
+  return dot === 'bleed' ? `${hit.skill}:bleed` : null;
 }
