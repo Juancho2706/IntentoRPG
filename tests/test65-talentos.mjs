@@ -1,241 +1,228 @@
-// Paso 2c.0 — núcleo de talentos (docs/paso2-diseno.md §5, §9.2 «2c.0»)
-//  1) puntos por nivel y hazañas (spec pares 10–50 + ⌈h/2⌉, clase impares + ⌊h/2⌋)
-//  2) puertas y requisitos con los datos reales; el nodo clave gratis nunca se guarda
-//  3) presets: el de clase es el clsPreset de la especialización ACTIVA
-//  4) agregación: '@spec', costRedBig (objeto), root/slowPct (máximo), durS, critCdr,
-//     innatas (bloqueo solo con escudo, amenaza ×3, +10 % de vida, curación, stagger),
-//     hpPct/mpPct/xpPct en recompute
-//  5) grant: elegir especialización (Nv ≥ 10, fuera de combate) pone la insignia en 3;
-//     comprar un nodo `grant` la mete en el libro y en la barra según fitsSlot; quitarlo
-//     o cambiar de especialización la desengarza; una activa sin comportamiento no se lanza
-//  6) indicadores de especialización (spec-mechanics.js): mecánica base de los 9 y ⑩ onGauge
+// Paso 2g · E1 (W1) — el mixin de talentos v2 (js/game-talents.js) sobre el juego falso del arnés
+// y los datos del fixture v2 (tests/fixtures/talents-sample.mjs)
+//  1) contrato: los 20 métodos del mixin; talentPointsInfo por sistema y nivel
+//  2) fuera de combate gratis; en combate 'combat' (salvo exportar y las configuraciones)
+//  3) especialización: Nv10, conserva rangos, reinicia indicadores, forja recomendada solo en
+//     lo nunca elegido (D3) y su barra (SPEC_BAR) solo en ranuras vacías, del kit anterior o
+//     con habilidades que ya no se conocen
+//  4) activas de talento: al libro y a la ranura 2 si está libre; fuera al dejar de concederse
+//  5) recompute: stats, skillLv, tv, mecánica e indicador de la especialización
+//  6) Paragon por el mixin: avisos de apertura y pausa (siempre, también desde el panel)
+//  7) build recomendada, configuraciones, reinicio y código IRPG2 por el mixin
+//  8) indicadores de especialización: cada especialización activa el suyo; ⑩ onGauge y la
+//     mecánica base de los 9 (el detalle por clase vive en test-gauges-<clase>)
 import assert from 'node:assert/strict';
-import { CLASSES } from '../js/data.js';
-import * as T from '../js/talents.js';
-import { talentMethods, TALENT_OPS } from '../js/game-talents.js';
-import { resolveSkill, rankBase } from '../js/skill-resolve.js';
-import { mergeMods } from '../js/skill-defs.js';
-import { definePower, POWER_HOOKS, firePower } from '../js/powers.js';
-import { multiplierProduct } from '../js/combat-math.js';
-import { BASE_GAUGE_IDS, gaugeIds, gainGauge, spendGauge, gaugeValue, gaugeMax, gaugeView, defineGauge, activeMechanic } from '../js/spec-mechanics.js';
-import { makeHarness } from './helpers/power-harness.mjs';
-import { skillCastable } from '../js/game-skills.js';
+import './helpers/use-talents-fixture.mjs';
+const T = await import('../js/talents.js');
+const { talentMethods, TALENT_OPS } = await import('../js/game-talents.js');
+const { CLASSES, SPEC_BAR, FORGE_RECO } = await import('../js/data.js');
+const { normalizeSkillDef } = await import('../js/skill-defs.js');
+const { resolveSkill, rankBase } = await import('../js/skill-resolve.js');
+const { definePower, POWER_HOOKS, firePower } = await import('../js/powers.js');
+const { BASE_GAUGE_IDS, gaugeIds, gainGauge, spendGauge, gaugeMax, gaugeView, defineGauge, activeMechanic } = await import('../js/spec-mechanics.js');
+const { makeHarness } = await import('./helpers/power-harness.mjs');
 
 const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 const sk = (cid, id) => CLASSES[cid].skills.find(s => s.id === id);
-// arnés con el mixin de talentos REAL sobre el juego falso
+assert.equal(T.TALENT_TREES.guerrero.v, 2, 'el gancho carga el fixture v2');
+// arnés con el mixin REAL sobre el juego falso; _inCombat simula canRespecFree
 function mk(classId, level, opts = {}) {
   const h = makeHarness({ classId, level, ...opts });
   Object.assign(h.g, talentMethods);
   h.g.canRespecFree = () => !h.g._inCombat;
   return h;
 }
+const last = h => h.messages()[h.messages().length - 1] || '';
 
-// ------------------------------------------------ 1) puntos
+// kit de especialización de prueba (el catálogo v4 no tiene habilidades con `spec`)
+for (const [id, spec] of [['fx_berserker_k3', 'berserker'], ['fx_guardian_k3', 'guardian'], ['fx_cruzado_k3', 'cruzado']])
+  CLASSES.guerrero.skills.push(normalizeSkillDef({ id, name: id, icon: '·', desc: '·', cat: 'spec', elem: 'physical', spec, req: 10, slots: ['k3'], type: 'nova', coef: 1 }));
+SPEC_BAR.berserker = { bar: { lmb: 'g_tajo', rmb: 'torbellino', k1: 'embestida', k2: 'g_piel', k3: 'fx_berserker_k3', k4: 'g_u_furia' } };
+SPEC_BAR.guardian = { bar: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: 'fx_guardian_k3', k4: 'g_u_estandarte' } };
+FORGE_RECO.guardian = { g_hendidura: 'ii', torbellino: 'i', g_tajo: 'ii' };
+
+// ------------------------------------------------ 1) contrato
+assert.deepEqual(Object.keys(talentMethods).sort(), ['_talentMutate', 'addTalentRank', 'applyTalentBuild', 'applyTalentLoadout', 'applyTalentPreset',
+  'canEditTalents', 'chooseHeroTree', 'chooseSpec', 'chooseTalentOption', 'deleteTalentLoadout', 'exportTalentCode', 'importTalentCode',
+  'onTalentsChanged', 'removeTalentRank', 'renameTalentLoadout', 'resetTalentTree', 'saveTalentLoadout', 'switchSpec', 'talentPointsInfo',
+  'toggleTalentChoice'], 'métodos del mixin (test43 vigila las colisiones)');
+assert.equal(typeof TALENT_OPS.addRank, 'function');
 {
-  const p = { classId: 'guerrero', level: 9, talents: T.normalizeTalents(null, 'guerrero'), strongholdsCleared: [], records: {} };
-  assert.equal(T.talentPointsEarned(p, 'spec'), 0); assert.equal(T.talentPointsEarned(p, 'cls'), 0);
-  p.level = 10; assert.equal(T.talentPointsEarned(p, 'spec'), 1); assert.equal(T.talentPointsEarned(p, 'cls'), 0);
-  p.level = 11; assert.equal(T.talentPointsEarned(p, 'cls'), 1);
-  p.level = 50; assert.equal(T.talentPointsEarned(p, 'spec'), 21); assert.equal(T.talentPointsEarned(p, 'cls'), 20);
-  p.level = 60; assert.equal(T.talentPointsEarned(p, 'spec') + T.talentPointsEarned(p, 'cls'), 41, '1 punto por nivel de Nv10 a Nv50 (41)');
-  p.strongholdsCleared = ['a', 'b', 'c']; p.records.bossKills = 99;   // hazañas: 2 bastiones + 4 tandas = 6
-  assert.equal(T.featCount(p), 6);
-  assert.equal(T.talentPointsEarned(p, 'spec'), 24); assert.equal(T.talentPointsEarned(p, 'cls'), 23);
+  const h = mk('guerrero', 9);
+  const info = L => { h.p.level = L; return h.g.talentPointsInfo(); };
+  assert.deepEqual(info(9), { cls: { earned: 0, spent: 0, left: 0 }, spec: { earned: 0, spent: 0, left: 0 }, hero: { earned: 0, spent: 0, left: 0 }, board: { earned: 0, spent: 0, left: 0 }, heroOpen: false, heroPaused: false });
+  assert.equal(info(10).spec.earned, 1); assert.equal(info(11).cls.earned, 1);
+  const i100 = info(100);
+  assert.deepEqual([i100.cls.earned, i100.spec.earned, i100.hero.earned, i100.board.earned], [34, 31, 0, 16], 'el héroe da 0 mientras el Paragon está cerrado');
+  assert.equal(i100.board.earned, T.paragonPointsEarned(h.p));
 }
-console.log('Puntos: spec 21 + clase 20 a Nv50, +6 por hazañas ✓');
+console.log('Contrato del mixin y puntos por sistema ✓');
 
-// ------------------------------------------------ 2) puertas, requisitos y nodo gratis
-{
-  const h = mk('guerrero', 50);
-  const g = h.g, p = h.p;
-  assert.equal(g.chooseSpec('berserker').ok, true);
-  assert.deepEqual(p.talents.sp.berserker, {}, 'el nodo clave gratis no se guarda');
-  assert.equal(g.addTalentRank('spec', 's1').ok, true, 's1 (req s0 gratis) se aprende');
-  assert.equal(g.addTalentRank('spec', 's0').ok, false, 's0 no se compra');
-  assert.equal(g.addTalentRank('cls', 'c2').ok, false, 'c2 exige c1 al máximo');
-  g.addTalentRank('cls', 'c1'); g.addTalentRank('cls', 'c1');
-  assert.equal(g.addTalentRank('cls', 'c2').ok, true);
-  const r = g.removeTalentRank('cls', 'c1');
-  assert.equal(r.ok, false, 'no se puede quitar un padre del que cuelga otro'); assert.match(r.reason, /depende/);
-  // fila 3 de la especialización: 6 puntos en filas superiores
-  const s6 = g.addTalentRank('spec', 's6');
-  assert.equal(s6.ok, false); assert.match(s6.reason, /Requiere|Gasta/);
-  // un save viejo con s0 guardado: talentPointsLeft no lo cuenta y normalizeTalents lo purga
-  const legacy = { classId: 'guerrero', level: 10, talents: { v: 1, spec: 'berserker', cls: {}, sp: { berserker: { s0: 1 } }, choice: {} }, strongholdsCleared: [], records: {} };
-  assert.equal(T.talentPointsLeft(legacy, 'spec'), 1, 'los nodos gratis no cuestan');
-  assert.deepEqual(T.normalizeTalents(legacy.talents, 'guerrero').sp.berserker, {}, 'normalizeTalents purga los gratis');
-  // en combate: no se puede editar
-  g._inCombat = true;
-  const blocked = g.addTalentRank('spec', 's2');
-  assert.equal(blocked.ok, false); assert.match(blocked.reason, /combate/);
-  assert.equal(g.chooseSpec('guardian').ok, false, 'cambiar de especialización en combate: no');
-  g._inCombat = false;
-  // por debajo de Nv10 no hay especialización
-  const lo = mk('maga', 9);
-  assert.equal(lo.g.chooseSpec('piromante').ok, false);
-}
-console.log('Puertas, requisitos, nodo gratis y bloqueo en combate ✓');
-
-// ------------------------------------------------ 3) presets (clsPreset de la especialización activa)
-{
-  const h = mk('guerrero', 50);
-  const g = h.g, p = h.p;
-  g.chooseSpec('guardian');
-  assert.equal(g.applyTalentPreset('all').ok, true);
-  const gd = T.findSpec('guerrero', 'guardian');
-  assert.notDeepEqual(gd.clsPreset, T.TALENT_TREES.guerrero.cls.preset, 'el Guardián trae su propio preset de clase');
-  const want = {};
-  for (const [id, n] of gd.clsPreset) want[id] = (want[id] || 0) + n;
-  assert.deepEqual(p.talents.cls, want, 'preset de clase = clsPreset del Guardián');
-  for (const [id, , k] of gd.clsPreset) if (k) assert.equal(p.talents.choice[id], k, `elección ${id}=${k}`);
-  assert.deepEqual(T.presetList(p, 'cls'), gd.clsPreset);
-  assert.ok(T.spentIn(T.treeOf(p, 'spec'), p.talents.sp.guardian) <= T.talentPointsEarned(p, 'spec'));
-  assert.ok(!('s0' in p.talents.sp.guardian), 'el preset tampoco guarda el nodo gratis');
-  // al cambiar a Berserker, el preset de clase pasa a ser el suyo
-  g.chooseSpec('berserker'); g.applyTalentPreset('cls');
-  const want2 = {};
-  for (const [id, n] of T.findSpec('guerrero', 'berserker').clsPreset) want2[id] = (want2[id] || 0) + n;
-  assert.deepEqual(p.talents.cls, want2);
-  // recortado por nivel: Nv14 no se pasa de puntos ni rompe reglas
-  const q = mk('arquera', 14); q.g.chooseSpec('montaraz'); q.g.applyTalentPreset('all');
-  for (const w of ['cls', 'spec']) {
-    const tree = T.treeOf(q.p, w), ranks = T.ranksOf(q.p, w);
-    assert.ok(T.spentIn(tree, ranks) <= T.talentPointsEarned(q.p, w));
-    for (const n of tree.nodes) if ((ranks[n.id] | 0) > 0) assert.ok(!T.gateFail(tree, ranks, n, 14) && !T.reqFail(tree, ranks, n), n.id);
-  }
-}
-console.log('Presets: el de clase es el clsPreset de la especialización activa, recortado por nivel ✓');
-
-// ------------------------------------------------ 4) agregación y recompute
-{
-  // fusión de mods: root/slowPct se quedan con el máximo; durS/critCdr suman
-  const m = mergeMods({}, { root: 1, slowPct: 30, durS: 1, critCdr: 0.4 });
-  T.mergeSkillMods(m, { root: 0.5, slowPct: 10, durS: 1, critCdr: 0.4 });
-  assert.equal(m.root, 1); assert.equal(m.slowPct, 30); assert.equal(m.durS, 2); assert.ok(approx(m.critCdr, 0.8));
-  // Maga: @spec (c9), costRedBig (c14) y mpPct (c6)
-  const h = mk('maga', 50);
-  const g = h.g, p = h.p;
-  g.chooseSpec('piromante');
-  const mp0 = p.stats.maxMP;
-  p.talents.cls = { c1: 2, c2: 1, c3: 1, c4: 3, c6: 2, c7: 2, c9: 2, c10: 3, c12: 1, c13: 2, c14: 1 };
-  p.talents.choice.c12 = 'A';
-  p.recompute();
-  const agg = p.talentAgg;
-  assert.deepEqual(agg.tv.costRedBig, { pct: 15, over: 20 }, 'costRedBig queda como objeto');
-  assert.ok(agg.skillLv.bola_fuego === 2 && agg.skillLv.meteoro === 2 && agg.skillLv.p_llamarada === 2, '@spec: habilidades de Fuego de la Piromante +2');
-  assert.ok(!agg.skillLv.rayo, '@spec: no a las de otro elemento');
-  assert.ok(p.stats.maxMP > mp0 * 1.1, `mpPct sube el maná máximo (${mp0} → ${p.stats.maxMP})`);
-  assert.equal(p.stats.mpPct, 16);
-  const met = resolveSkill(p, sk('maga', 'meteoro')), bf = resolveSkill(p, sk('maga', 'bola_fuego'));
-  assert.equal(met.cost, Math.round(40 * (1 - 15 / 100)), 'Meteoro (40 > 20): −15 %');
-  assert.equal(bf.cost, 18, 'Bola de Fuego (18 ≤ 20): sin rebaja');
-  assert.equal(met.rank, rankBase(50, sk('maga', 'meteoro').req) + 2, '@spec: +2 rangos a Meteoro');
-  // xpPct (Maga c13: +6 %/rango)
-  assert.equal(p.stats.xpPct, 12);
-  const xp0 = p.xp; p.gainXP(100); assert.equal(p.xp - xp0, 112, '+12 % de experiencia');
-  // durS (Arquera c11) y critCdr (Francotiradora s10) llegan al perfil
-  const a = mk('arquera', 50); a.g.chooseSpec('francotiradora');
-  a.p.talents.cls = { c1: 2, c2: 1, c3: 1, c4: 3, c5: 1, c7: 2, c8: 2, c11: 2 }; a.p.talents.choice.c5 = 'A';
-  a.p.talents.sp.francotiradora = { s1: 3, s2: 2, s4: 1, s5: 3, s6: 1, s7: 2, s10: 2 };
-  a.p.recompute();
-  assert.equal(resolveSkill(a.p, sk('arquera', 'agilidad')).durS, 2, 'durS: +2 s de Agilidad');
-  assert.ok(approx(resolveSkill(a.p, sk('arquera', 'a_t_apuntado')).critCdr, 0.8), 'critCdr: 0,8 s por crítico');
-}
-console.log('Agregación: @spec, costRedBig, root/slowPct (máx.), durS, critCdr, mpPct, xpPct ✓');
-
-// innatas de especialización (§5.2.5)
-{
-  const h = mk('guerrero', 20);
-  const p = h.p;
-  const hp0 = p.stats.maxHP, block0 = p.stats.block;
-  h.g.chooseSpec('guardian');
-  assert.equal(p.stats.block, block0, 'sin escudo, la innata de bloqueo no cuenta');
-  assert.equal(p.stats.threatMult, 3, 'Guardián: amenaza ×3');
-  assert.ok(approx(p.stats.maxHP, Math.round(hp0 * 1.05), 1), `Guardián: +5 % de vida (2e: era +10 %; ${hp0} → ${p.stats.maxHP})`);
-  p.equipment.offhand = { kind: 'item', slot: 'offhand', icon: '🛡️', baseName: 'Escudo de Hierro', affixes: {}, arm: 5, quality: 0 };
-  p.recompute();
-  assert.equal(p.stats.block, block0 + 15, 'con escudo: +15 de bloqueo');
-  p.equipment.offhand.icon = '🔮'; p.equipment.offhand.baseName = 'Orbe Arcano'; p.recompute();
-  assert.equal(p.stats.block, block0, 'un orbe no es escudo');
-  h.g.chooseSpec('cruzado');
-  assert.equal(p.stats.healPct, 30, 'Cruzado: +30 % de curación (2e: era +15 %)');
-  assert.equal(p.stats.threatMult, 1);
-  const c = mk('maga', 20); c.g.chooseSpec('crionte');
-  assert.equal(c.p.stats.staggerPct, 25, 'Crionte: +25 % de stagger');
-  const mt = mk('arquera', 20); mt.g.chooseSpec('montaraz');
-  assert.equal(mt.p.stats.staggerPct, 25, 'Montaraz: +25 % de stagger');
-}
-console.log('Innatas: bloqueo solo con escudo, amenaza ×3, +10 % de vida, curación +15, stagger +25 ✓');
-
-// ------------------------------------------------ 5) grant: libro y barra
+// ------------------------------------------------ 2) combate, 3) especialización
 {
   const h = mk('guerrero', 30);
   const g = h.g, p = h.p;
-  p.hotbar = { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: null, k3: null, k4: null };
-  assert.ok(!p.skills.g_t_remolino, 'sin especialización no conoce la insignia');
-  g.chooseSpec('berserker');
-  assert.ok(p.skills.g_t_remolino > 0, 'la insignia se aprende con el nodo clave');
-  assert.equal(p.hotbar.k3, 'g_t_remolino', 'y entra en la ranura 3');
-  // Segundo Aliento (c2, defensa → k2) al comprar su nodo
-  g.addTalentRank('cls', 'c1'); g.addTalentRank('cls', 'c1');
-  g.addTalentRank('cls', 'c2');
-  assert.ok(p.skills.g_t_aliento > 0, 'grant: entra en el libro');
-  assert.equal(p.hotbar.k2, 'g_t_aliento', 'grant: entra en su ranura libre según fitsSlot');
-  assert.ok(h.messages().some(m => /Nueva habilidad de talento/.test(m)));
-  g.removeTalentRank('cls', 'c2');
-  assert.ok(!p.skills.g_t_aliento, 'quitar el nodo la olvida');
-  assert.equal(p.hotbar.k2, null, 'y la desengarza de la barra');
-  // cambiar de especialización cambia la insignia (los rangos de cada una se conservan)
-  g.addTalentRank('spec', 's1');
-  g.chooseSpec('guardian');
-  assert.equal(p.hotbar.k3, 'g_t_desafio', 'nueva insignia en 3');
-  assert.ok(!p.skills.g_t_remolino && p.skills.g_t_desafio > 0);
-  g.switchSpec('berserker');
-  assert.equal(p.talents.sp.berserker.s1, 1, 'la build de Berserker sigue ahí');
-  // Paso 2c.2: la insignia del Berserker YA tiene comportamiento (2c.1): se lanza, cobra
-  // sus 30 de Furia y pone el enfriamiento; la esquiva corta el giro
-  const ins = sk('guerrero', 'g_t_remolino');
-  assert.ok(ins.behavior && !ins.type, 'la insignia del Berserker depende de su comportamiento');
-  p.mp = 100;
-  assert.equal(h.cast('k3'), true, 'con comportamiento registrado: se lanza');
-  assert.equal(p.mp, 70, 'y cobra 30 de Furia');
-  assert.ok(p.cds.g_t_remolino > 0, 'y pone el enfriamiento');
-  assert.equal(g.cancelCast('dodge'), true, 'la esquiva corta la canalización del Remolino');
-  // una activa de talento cuyo comportamiento NO existe (ni tipo genérico) no se lanza ni cobra
-  assert.equal(skillCastable({ kind: 'talent', behavior: 't_x' }), false, 'sin comportamiento registrado: no se lanza');
-  // código de build por el mixin
-  g.applyTalentPreset('all');
-  const code = g.exportTalentCode();
-  const q = mk('guerrero', 30);
-  assert.equal(q.g.importTalentCode(code).ok, true);
-  assert.deepEqual(q.p.talents.sp.berserker, p.talents.sp.berserker);
-  assert.ok(q.p.hotbar.k3 === 'g_t_remolino', 'importar con especialización también coloca la insignia');
+  assert.equal(g.chooseSpec('pirata').ok, false);
+  const lo = mk('guerrero', 9);
+  const r9 = lo.g.chooseSpec('berserker');
+  assert.equal(r9.reason, 'level'); assert.match(last(lo), /nivel 10/);
+  g._inCombat = true;
+  const c = g.chooseSpec('berserker');
+  assert.equal(c.ok, false); assert.equal(c.reason, 'combat'); assert.match(last(h), /fuera de combate/);
+  assert.equal(p.talents.spec, null, 'en combate no cambia nada');
+  assert.match(g.canEditTalents(), /fuera de combate/);
+  g._inCombat = false;
+  assert.equal(g.canEditTalents(), null);
+  // barra: lmb propia, rmb vacía, k1 desconocida, k3 vacía
+  p.hotbar = { lmb: 'g_mandoble', rmb: null, k1: 'zzz', k2: null, k3: null, k4: null };
+  p.skillForge = { torbellino: null, g_tajo: 'i' };
+  assert.equal(g.chooseSpec('berserker').ok, true);
+  assert.match(last(h), /Especialización: Berserker/);
+  assert.equal(g.chooseSpec('berserker').same, true);
+  assert.equal(p.talents.spec, 'berserker');
+  assert.deepEqual(p.hotbar, { lmb: 'g_mandoble', rmb: 'torbellino', k1: 'embestida', k2: 'g_piel', k3: 'fx_berserker_k3', k4: 'g_u_furia' },
+    'SPEC_BAR solo en ranuras vacías o con habilidades desconocidas (lmb propia se queda)');
+  assert.equal(activeMechanic(p), 'sed'); assert.ok(p.powers.has('gauge_sed'));
+  h.gauge('sed', 40);
+  // rangos de Berserker y cambio a Guardián
+  g.addTalentRank('spec', 'b1'); g.addTalentRank('spec', 'b1');
+  p.hotbar.rmb = 'g_martillo';                                   // elección del jugador
+  assert.equal(g.switchSpec('guardian').ok, true);
+  assert.equal(p.hotbar.k3, 'fx_guardian_k3', 'la ranura del kit anterior pasa al kit nuevo');
+  assert.equal(p.hotbar.rmb, 'g_martillo', 'una habilidad conocida que no es del kit se respeta');
+  assert.equal(p.hotbar.lmb, 'g_mandoble');
+  assert.equal(h.gaugeValue('sed'), 0, 'cambiar de especialización reinicia los indicadores');
+  assert.equal(activeMechanic(p), 'bastion');
+  assert.deepEqual(p.skillForge, { torbellino: null, g_tajo: 'i', g_hendidura: 'ii' }, 'forja recomendada solo en lo nunca elegido (null = elegido sin variante)');
+  assert.equal(g.chooseSpec('berserker').ok, true);
+  assert.deepEqual(p.talents.sp.berserker, { b1: 2 }, 'cada especialización conserva sus rangos');
+  assert.equal(p.hotbar.k3, 'fx_berserker_k3');
 }
-console.log('Grant: insignia en 3, nodos grant al libro y a su ranura, desengarce al retirarlos, cambio de especialización ✓');
+console.log('Combate, especialización, indicadores, forja recomendada y barra de la especialización ✓');
 
-// ------------------------------------------------ 6) indicadores de especialización
+// ------------------------------------------------ 4) activas de talento, 5) recompute
+{
+  const h = mk('guerrero', 40);
+  const g = h.g, p = h.p;
+  g.chooseSpec('cruzado');
+  p.hotbar.k2 = null;
+  for (const id of ['c1', 'c1', 'c5', 'c8', 'c8']) assert.equal(g.addTalentRank('cls', id).ok, true, id);
+  const hp0 = p.stats.maxHP;
+  assert.equal(g.addTalentRank('cls', 'c11', 'A').ok, true);
+  assert.ok(p.talentAgg.grants.has('g_t_aliento') && p.skills.g_t_aliento > 0, 'c11 A concede Aliento');
+  assert.equal(p.hotbar.k2, 'g_t_aliento', 'a la ranura 2 libre');
+  assert.match(h.messages().find(m => /Nueva habilidad de talento/.test(m)) || '', /\(ranura 2\)/);
+  assert.equal(g.chooseTalentOption('c11', 'B').ok, true);
+  assert.ok(!p.talentAgg.grants.has('g_t_aliento'));
+  assert.equal(p.hotbar.k2, null, 'opción B: la activa sale de la barra');
+  assert.equal(g.toggleTalentChoice('cls', 'c11').ok, true);
+  assert.equal(p.hotbar.k2, 'g_t_aliento', 'vuelve a la A: vuelve a la ranura libre');
+  p.hotbar.k2 = 'g_piel';
+  g.chooseTalentOption('c11', 'B'); g.chooseTalentOption('c11', 'A');
+  assert.equal(p.hotbar.k2, 'g_piel', 'con la ranura 2 ocupada la activa va solo al libro');
+  assert.match(last(h), /\(en el libro\)/);
+  assert.equal(g.chooseTalentOption('zz', 'A').reason, 'unknown');
+  // c15 A: +60 de vida; c15 B: tv killHeal
+  for (const id of ['c2', 'c2']) g.addTalentRank('cls', id);
+  assert.equal(g.addTalentRank('cls', 'c15', 'A').ok, true);
+  assert.equal(p.stats.maxHP, hp0 + 60, 'stats del nodo en recompute');
+  g.chooseTalentOption('c15', 'B');
+  assert.equal(p.stats.maxHP, hp0); assert.equal(p.talentAgg.tv.killHeal, 2, 'tv del nodo');
+  // c16 B: +1 rango a las gastadoras
+  for (const id of ['c12', 'c12']) assert.equal(g.addTalentRank('cls', id).ok, true, id);
+  const r0 = resolveSkill(p, sk('guerrero', 'torbellino')).rank;
+  assert.equal(g.addTalentRank('cls', 'c16', 'B').ok, true);
+  assert.equal(resolveSkill(p, sk('guerrero', 'torbellino')).rank, r0 + 1, '@spender +1 rango (por encima del de nivel)');
+  assert.equal(r0, rankBase(40, sk('guerrero', 'torbellino').req));
+  // quitar el nodo la olvida y la desengarza
+  g.removeTalentRank('cls', 'c16'); g.removeTalentRank('cls', 'c15');
+  p.hotbar.k2 = 'g_t_aliento';
+  assert.equal(g.removeTalentRank('cls', 'c11').ok, true);
+  assert.equal(p.hotbar.k2, null); assert.ok(!p.skills.g_t_aliento);
+}
+console.log('Activas de talento (libro y ranura 2), stats, tv y skillLv en recompute ✓');
+
+// ------------------------------------------------ 6) Paragon, 7) build, configuraciones, código
+{
+  const h = mk('guerrero', 100);
+  const g = h.g, p = h.p;
+  g.chooseSpec('berserker');
+  g._talentQuiet = true;                                          // el panel muestra sus avisos…
+  const n0 = h.messages().length;
+  const b = g.applyTalentBuild('brasa');
+  assert.equal(b.ok, true); assert.equal(b.heroOpened, true);
+  const opened = h.messages().slice(n0);
+  assert.ok(opened.some(m => /Paragon abierto/.test(m)), '…pero la apertura del Paragon se avisa siempre');
+  assert.ok(!opened.some(m => /Recomendado aplicado/.test(m)), 'el resto no');
+  g._talentQuiet = false;
+  const tree = T.talentTreesFor('guerrero').builds.brasa.hero;
+  assert.equal(T.activeHeroTree(p).id, tree);
+  const heroGrant = [...p.talentAgg.grants].find(id => /^g_h_/.test(id));
+  assert.ok(heroGrant && p.skills[heroGrant] > 0, 'la activa del árbol héroe se conoce');
+  const info = g.talentPointsInfo();
+  assert.deepEqual([info.cls.left, info.spec.left, info.hero.left, info.hero.earned, info.heroOpen], [0, 0, 0, 10, true]);
+  // pausa
+  const leaf = T.treeOf(p, 'spec').nodes.find(n => !n.free && (p.talents.sp.berserker[n.id] | 0) > 0 && T.canRemoveRank(p, 'spec', n.id));
+  p.hotbar.k2 = heroGrant;
+  g._talentQuiet = true;
+  const r = g.removeTalentRank('spec', leaf.id);
+  g._talentQuiet = false;
+  assert.equal(r.heroPaused, true);
+  assert.match(last(h), /Paragon en pausa: te falta gastar 1 punto de especialización/);
+  assert.equal(p.hotbar.k2, null, 'en pausa la activa del héroe sale de la barra');
+  assert.equal(g.talentPointsInfo().heroPaused, true);
+  assert.equal(g.addTalentRank('spec', leaf.id).heroOpened, true);
+  // árbol héroe por el mixin
+  const other = T.heroTreesFor('guerrero', 'berserker').find(x => x.id !== tree).id;
+  assert.equal(g.chooseHeroTree(other).ok, true); assert.equal(T.activeHeroTree(p).id, other);
+  assert.ok(!p.talentAgg.grants.has(heroGrant), 'otro árbol: otra activa');
+  g.chooseHeroTree(tree);
+  // configuraciones: guardar/renombrar/borrar también en combate; aplicar no
+  g._inCombat = true;
+  assert.equal(g.saveTalentLoadout('Mía').ok, true);
+  assert.equal(g.renameTalentLoadout(0, 'Mía 2').ok, true);
+  assert.equal(g.applyTalentLoadout(0).reason, 'combat');
+  assert.equal(g.resetTalentTree('all').reason, 'combat');
+  const code = g.exportTalentCode();
+  assert.ok(code.startsWith('IRPG2-guerrero-berserker-'), 'exportar no exige estar fuera de combate');
+  assert.equal(g.importTalentCode(code).reason, 'combat');
+  g._inCombat = false;
+  // reinicio y vuelta por la configuración
+  assert.equal(g.resetTalentTree('cls').ok, true); assert.deepEqual(p.talents.cls, {});
+  assert.equal(g.resetTalentTree('all').ok, true); assert.deepEqual(p.talents.sp.berserker, {});
+  assert.match(last(h), /Talentos reiniciados/);
+  assert.equal(g.applyTalentLoadout(0).ok, true);
+  assert.equal(g.exportTalentCode(), code, 'la configuración devuelve la build');
+  assert.equal(g.deleteTalentLoadout(0).ok, true); assert.deepEqual(p.talents.loadouts.berserker, []);
+  // código en otro héroe
+  const q = mk('guerrero', 100);
+  const imp = q.g.importTalentCode(code);
+  assert.equal(imp.ok, true); assert.equal(imp.heroOpened, true);
+  assert.equal(q.p.talents.spec, 'berserker'); assert.equal(q.g.exportTalentCode(), code);
+  assert.ok(q.p.talentAgg.grants.has(heroGrant));
+  const old = q.g.importTalentCode('IRPG1-guerrero-berserker-0011-22');
+  assert.equal(old.reason, 'code-version'); assert.match(last(q), /versión anterior/);
+  // alias del panel de 2d
+  assert.equal(q.g.applyTalentPreset().ok, true);
+  assert.equal(q.g.exportTalentCode(), (() => { const z = mk('guerrero', 100); z.g.chooseSpec('berserker'); z.g.applyTalentBuild(); return z.g.exportTalentCode(); })(), 'applyTalentPreset = Recomendado de la especialización activa');
+}
+console.log('Paragon (avisos de apertura y pausa), build, configuraciones, reinicio y código por el mixin ✓');
+
+// ------------------------------------------------ 8) indicadores de especialización
 assert.deepEqual([...BASE_GAUGE_IDS].sort(), ['bastion', 'calor', 'cargas', 'concentracion', 'coto', 'escarcha', 'fervor', 'impulso', 'sed']);
 for (const id of BASE_GAUGE_IDS) assert.ok(POWER_HOOKS[`gauge_${id}`] && gaugeIds().includes(id), `gauge_${id} registrado`);
-// cada especialización activa SU indicador
-for (const [cid, list] of Object.entries({ guerrero: ['berserker', 'guardian', 'cruzado'], maga: ['piromante', 'crionte', 'arcanista'], arquera: ['francotiradora', 'montaraz', 'tiradora'] })) {
-  for (const s of list) {
-    const h = mk(cid, 12, { spec: s });
-    const mech = T.findSpec(cid, s).mechanic;
-    assert.equal(activeMechanic(h.p), mech, `${s} → ${mech}`);
-    assert.ok(h.p.powers.has(`gauge_${mech}`));
-    const v = gaugeView(h.p);
-    assert.ok(v && v.id === mech && v.max > 0 && typeof v.name === 'string' && /^#/.test(v.color) && v.state === 'idle', `${s}: gaugeView`);
-  }
+for (const [cid, t] of Object.entries(T.TALENT_TREES)) for (const s of t.specs) {
+  const h = mk(cid, 12, { spec: s.id });
+  assert.equal(activeMechanic(h.p), s.mechanic, `${s.id} → ${s.mechanic}`);
+  assert.ok(h.p.powers.has(`gauge_${s.mechanic}`));
+  const v = gaugeView(h.p);
+  assert.ok(v && v.id === s.mechanic && v.max > 0 && typeof v.name === 'string' && /^#/.test(v.color) && v.state === 'idle', `${s.id}: gaugeView`);
 }
 assert.equal(gaugeView(mk('guerrero', 9).p), null, 'sin especialización no hay indicador');
 assert.throws(() => defineGauge('sed', { max: 1 }), /repetido/);
 assert.throws(() => defineGauge('t_raro', { max: 1, foo: 1 }), /clave desconocida/);
-
-// ⑩ onGauge: gain / full / spent / empty
 const EV = [];
-definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.push(`${id}:${ev}`); } });
-
+definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev) { EV.push(`${id}:${ev}`); } });
 // Sed (Berserker)
 {
   const h = mk('guerrero', 20, { spec: 'berserker' });
@@ -245,33 +232,27 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.p
   p.takeDamage(p.stats.maxHP * 0.5, 1, {});
   const lost = (p.stats.maxHP - p.hp) / p.stats.maxHP * 100;
   assert.ok(approx(h.gaugeValue('sed'), lost, 1.2), `Sed: +1 por 1 % de vida perdida (${h.gaugeValue('sed').toFixed(1)} vs ${lost.toFixed(1)})`);
-  // tics de Sangrado: +2 cada uno, máx. 10/s
   const e = h.enemy({ hp: 1e6 });
   const before = h.gaugeValue('sed');
-  // un tic real de Sangrado llega como dot:<habilidad>:bleed (timers.applyDoTInstance)
   for (let i = 0; i < 8; i++) h.g.onPlayerHit(e, { dealt: 5, raw: 5, crit: false, skill: 'torbellino', tags: new Set(), elem: null, proc: false, dot: true, source: 'dot:torbellino:bleed' });
   assert.ok(approx(h.gaugeValue('sed') - before, 10), 'Sangrado: +2 por tic, tope 10 por segundo');
   h.gauge('sed', 100);
   assert.ok(EV.includes('sed:full'), '⑩ onGauge(full)');
   assert.ok(p.gauges.sed.satedT > 0, 'Sed Saciada');
-  p.hp = p.stats.maxHP;
-  assert.ok(approx(multiplierProduct(p.powers, { hpFrac: 1, p }), 1.25), 'Sed Saciada activa Sed de Batalla ×1,25 con la vida llena');
   assert.equal(gaugeView(p).state, 'active');
   h.tick(6.2);
-  assert.equal(h.gaugeValue('sed'), 0, 'al terminar la Sed Saciada vuelve a 0');
-  assert.ok(EV.includes('sed:empty'));
-  assert.ok(approx(multiplierProduct(p.powers, { hpFrac: 1, p }), 1));
-  // pérdida: −8/s tras 4 s fuera de combate
+  assert.equal(h.gaugeValue('sed'), 0); assert.ok(EV.includes('sed:empty'));
   h.gauge('sed', 50); p.sinceCombat = 0;
   h.tick(4); const at4 = h.gaugeValue('sed');
-  h.tick(1); assert.ok(approx(at4 - h.gaugeValue('sed'), 8, 1.2), `−8/s fuera de combate (${at4} → ${h.gaugeValue('sed')})`);
+  h.tick(1); assert.ok(approx(at4 - h.gaugeValue('sed'), 8, 1.2), '−8/s fuera de combate');
 }
 // Bastión (Guardián): +1 por bloqueo, −1 cada 6 s sin ganar
 {
   const h = mk('guerrero', 20, { spec: 'guardian' });
   const p = h.p;
-  p.equipment.offhand = { kind: 'item', slot: 'offhand', icon: '🛡️', baseName: 'Escudo', affixes: {}, arm: 5, quality: 0 };
+  p.equipment.offhand = { kind: 'item', slot: 'offhand', icon: '🛡️', baseName: 'Escudo', affixes: { block: 30 }, arm: 5, quality: 0 };
   p.recompute();
+  assert.ok(p.stats.block > 0, 'con escudo hay bloqueo');
   p.combatRng = () => 0;                         // todo golpe se bloquea
   for (let i = 0; i < 7; i++) p.takeDamage(10, 1, { melee: true });
   assert.equal(h.gaugeValue('bastion'), 5, 'Bastión: +1 por bloqueo, tope 5');
@@ -279,43 +260,36 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.p
   assert.ok(spendGauge(p, 'bastion', 3)); assert.equal(h.gaugeValue('bastion'), 1);
   assert.equal(spendGauge(p, 'bastion', 2), false, 'no gasta lo que no tiene');
 }
-// Fervor (Cruzado): +1 por muerte (Juicio) y +1 cada 3 impactos de Martillo
+// Fervor (Cruzado)
 {
   const h = mk('guerrero', 20, { spec: 'cruzado' });
-  const e = h.enemy({ hp: 10 });
-  e.takeDamage(999, false, {});
+  h.enemy({ hp: 10 }).takeDamage(999, false, {});
   assert.equal(h.gaugeValue('fervor'), 1, '+1 por muerte');
   const f = h.enemy({ hp: 1e6 });
   for (let i = 0; i < 6; i++) h.hit(f, { skill: 'g_martillo' });
   assert.equal(h.gaugeValue('fervor'), 3, '+1 cada 3 impactos de Martillo, tope 3');
 }
-// Calor (Piromante): +5 por golpe de Fuego; a 100 Ignición Total (siguiente Bola/Meteoro gratis y crítica)
+// Calor (Piromante)
 {
   const h = mk('maga', 20, { spec: 'piromante' });
-  const p = h.p;
-  const e = h.enemy({ hp: 1e6 });
+  const p = h.p, e = h.enemy({ hp: 1e6 });
   for (let i = 0; i < 4; i++) { h.hit(e, { elem: 'fire', skill: 'bola_fuego' }); p.simT += 0.1; }
-  h.hit(e, { elem: 'fire', skill: 'bola_fuego' }); h.hit(e, { elem: 'fire', skill: 'bola_fuego' });   // mismo instante: una vez
+  h.hit(e, { elem: 'fire', skill: 'bola_fuego' }); h.hit(e, { elem: 'fire', skill: 'bola_fuego' });
   assert.equal(h.gaugeValue('calor'), 25, '+5 por golpe de Fuego (un área cuenta una vez por instante)');
   h.hit(e, { elem: 'arcane', skill: 'rayo' }); p.simT += 0.1;
   assert.equal(h.gaugeValue('calor'), 25, 'otros elementos no dan Calor');
   h.gauge('calor', 100);
   const bf = resolveSkill(p, sk('maga', 'bola_fuego'));
   assert.ok(bf.cost === 0 && bf.forceCrit, 'Ignición Total: Bola de Fuego gratis y crítica');
-  assert.equal(gaugeView(p).state, 'active');
   h.aim(4, 0); h.setSlot('rmb', 'bola_fuego');
   const mp = p.mp;
-  assert.equal(h.cast('rmb'), true);
-  assert.equal(p.mp, mp, 'no cobró maná');
+  assert.equal(h.cast('rmb'), true); assert.equal(p.mp, mp, 'no cobró maná');
   assert.equal(h.gaugeValue('calor'), 0, 'se consume al lanzarla');
-  assert.equal(resolveSkill(p, sk('maga', 'bola_fuego')).cost, 18, 'la siguiente vuelve a costar');
-  const r = p.rollDamage(1, 0, 0, e, { forceCrit: true });
-  assert.equal(r.crit, true, 'forceCrit = crítico seguro');
   h.gauge('calor', 40); p.sinceCombat = 0;
   h.tick(3.0); const c3 = h.gaugeValue('calor'); h.tick(1);
   assert.ok(approx(c3 - h.gaugeValue('calor'), 10, 1.1), 'baja −10/s tras 3 s');
 }
-// Escarcha (Crionte, POR ENEMIGO): 5 capas → Congelado; jefe → Aterido + stagger
+// Escarcha (Crionte, POR ENEMIGO)
 {
   const h = mk('maga', 20, { spec: 'crionte' });
   const p = h.p;
@@ -324,62 +298,47 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.p
   assert.equal(h.gaugeValue('escarcha', e), 4); assert.equal(h.gaugeValue('escarcha', o), 0, 'las capas son por enemigo');
   assert.equal(gaugeView(p).value, 4);
   h.hit(e, { elem: 'frost', skill: 'm_toque' });
-  assert.ok(e.frozenT > 0.9 && e.stunT > 0.9 && e.frozenT <= 1.0 + 1e-9, 'a 5 capas: Congelado 1 s (2e: era 1,5 s)');
-  assert.equal(h.gaugeValue('escarcha', e), 0, 'y las capas vuelven a 0');
+  assert.ok(e.frozenT > 0.9 && e.stunT > 0.9 && e.frozenT <= 1.0 + 1e-9, 'a 5 capas: Congelado 1 s');
+  assert.equal(h.gaugeValue('escarcha', e), 0);
   h.hit(o, { elem: 'frost', skill: 'nova_hielo' });
   assert.equal(h.gaugeValue('escarcha', o), 2, 'Nova de Hielo +2');
   h.tick(2.05); assert.equal(h.gaugeValue('escarcha', o), 1, 'cae 1 capa cada 2 s');
   const b = h.enemy({ hp: 1e6, boss: true, pos: [0, 0, 3] });
   for (let i = 0; i < 5; i++) h.hit(b, { elem: 'frost', skill: 'm_toque' });
   assert.ok(b.numbT > 3.9 && b.stunT === 0, 'jefe: Aterido 4 s (no se congela)');
-  assert.ok(approx(b.stagger, 25 * 1.25), `jefe: +25 de stagger × innata +25 % (${b.stagger})`);
-  // Cero Absoluto (m_shatter): astilla a los Congelados por debajo del 38 % (2e: era 15 %),
-  // salvo jefes y élites (2e)
-  const w = h.enemy({ hp: 100, pos: [0, 0, -3] });
-  w.hp = 37; w.frozenT = 1;
-  h.hit(w, { elem: 'frost', skill: 'm_toque', dealt: 1 });
-  assert.ok(!w.alive, 'Congelado < 38 %: astillado');
-  const we = h.enemy({ hp: 100, rank: 'elite', pos: [0, 0, -4] });
-  we.hp = 10; we.frozenT = 1;
-  h.hit(we, { elem: 'frost', skill: 'm_toque', dealt: 1 });
-  assert.ok(we.alive, 'un élite no se astilla (2e)');
+  assert.ok(b.stagger >= 25, `jefe: +25 de stagger (${b.stagger})`);
 }
-// Cargas Arcanas (Arcanista): Dardo +1 (máx. 4); Rayo las descarga (+35 %/carga, +5 de maná/carga)
+// Cargas Arcanas (Arcanista)
 {
   const h = mk('maga', 20, { spec: 'arcanista' });
-  const p = h.p;
-  const e = h.enemy({ hp: 1e6 });
+  const p = h.p, e = h.enemy({ hp: 1e6 });
   for (let i = 0; i < 6; i++) h.hit(e, { skill: 'm_dardo', elem: 'arcane' });
   assert.equal(h.gaugeValue('cargas'), 4, 'Dardo +1 por impacto, tope 4');
   assert.equal(firePower('condAdd', p, p, e, { skill: 'rayo' }), 140, 'Rayo: +35 % aditivo por carga');
-  assert.equal(firePower('condAdd', p, p, e, { skill: 'm_dardo' }), 0);
   p.mp = 10;
   firePower('afterCast', p, h.g, p, { sk: sk('maga', 'rayo') }, { hits: 1 });
-  assert.equal(h.gaugeValue('cargas'), 0, 'Rayo las consume todas');
-  assert.equal(p.mp, 30, '+5 de maná por carga');
+  assert.equal(h.gaugeValue('cargas'), 0, 'Rayo las consume todas'); assert.equal(p.mp, 30, '+5 de maná por carga');
   h.gauge('cargas', 3); h.tick(6.1);
   assert.equal(h.gaugeValue('cargas'), 0, 'se pierden 6 s después de la última ganancia');
 }
-// Concentración (Francotiradora): +20/s quieta, −25/s moviéndote; +0,15 % de crítico por punto
+// Concentración (Francotiradora)
 {
   const h = mk('arquera', 20, { spec: 'francotiradora' });
   const p = h.p;
   h.tick(1.0);
-  assert.ok(approx(h.gaugeValue('concentracion'), 20, 1e-6), '+20/s quieta');
+  assert.ok(approx(h.gaugeValue('concentracion'), 20), '+20/s quieta');
   h.gauge('concentracion', 100);
   assert.ok(approx(firePower('condCrit', p, p, null, {}), 15), '+15 % de crítico a 100');
-  p.moving = true;
-  firePower('onTick', p, h.g, p, 1.0);
+  p.moving = true; firePower('onTick', p, h.g, p, 1.0);
   assert.ok(approx(h.gaugeValue('concentracion'), 75), '−25/s en movimiento');
 }
-// Coto de Caza (Montaraz): trampas armadas + Presa
+// Coto de Caza (Montaraz)
 {
   const h = mk('arquera', 20, { spec: 'montaraz' });
   const p = h.p;
   h.g.spawnField('trampa', { pos: { x: 3, z: 0 }, radius: 1.5, dur: 20, owner: p, data: { dmg: 1 } });
   h.g.spawnField('trampa', { pos: { x: 5, z: 0 }, radius: 1.5, dur: 20, owner: p, data: { dmg: 1 } });
-  assert.equal(h.gaugeValue('coto'), 2, 'valor = trampas armadas');
-  assert.equal(gaugeMax(p, 'coto'), 3);
+  assert.equal(h.gaugeValue('coto'), 2, 'valor = trampas armadas'); assert.equal(gaugeMax(p, 'coto'), 3);
   const c = h.enemy({ hp: 1e6 }), el = h.enemy({ hp: 1e6, rank: 'elite', pos: [0, 0, 4] }), el2 = h.enemy({ hp: 1e6, rank: 'elite', pos: [0, 0, -4] });
   h.hit(c, {}); assert.ok(!c.prey, 'un común no es Presa');
   h.hit(el, {}); assert.ok(el.prey, 'el primer élite golpeado es la Presa');
@@ -387,32 +346,27 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev, n) { EV.p
   assert.equal(gaugeView(p).state, 'prey');
   h.tick(15.1); assert.ok(!el.prey, 'la Presa dura 15 s');
 }
-// Impulso (Tiradora): +3 por disparo en movimiento; a 100 Vendaval 6 s
+// Impulso (Tiradora)
 {
   const h = mk('arquera', 20, { spec: 'tiradora' });
-  const p = h.p;
-  const e = h.enemy({ hp: 1e6 });
+  const p = h.p, e = h.enemy({ hp: 1e6 });
   h.hit(e, { tags: ['proj'], skill: 'a_disparo' });
   assert.equal(h.gaugeValue('impulso'), 0, 'quieta no genera');
   for (let i = 0; i < 3; i++) { p.moving = true; h.hit(e, { tags: ['proj'], skill: 'a_disparo' }); p.simT += 0.2; }
   assert.equal(h.gaugeValue('impulso'), 9, '+3 por disparo en movimiento');
-  const proj0 = resolveSkill(p, sk('arquera', 'flecha_multiple')).proj;
-  const aspd0 = p.stats.aspdPct;
+  const proj0 = resolveSkill(p, sk('arquera', 'flecha_multiple')).proj, aspd0 = p.stats.aspdPct;
   h.gauge('impulso', 100);
   assert.ok(p.buffs.some(b => b.id === 't_vendaval') && p.stats.aspdPct === aspd0 + 25, 'Vendaval: +25 % de vel. de ataque');
   assert.equal(resolveSkill(p, sk('arquera', 'flecha_multiple')).proj, proj0 + 1, '+1 proyectil a Flecha Múltiple');
   h.tick(6.1);
-  assert.equal(h.gaugeValue('impulso'), 0, 'después vuelve a 0');
-  assert.equal(resolveSkill(p, sk('arquera', 'flecha_multiple')).proj, proj0);
+  assert.equal(h.gaugeValue('impulso'), 0);
 }
-assert.ok(EV.includes('sed:gain') && EV.includes('sed:full') && EV.includes('sed:empty'), '⑩ onGauge recibe gain/full/empty');
 {
   const h = mk('guerrero', 20, { spec: 'guardian' });
   h.addPowers('t_oye_indicador');
   EV.length = 0; gainGauge(h.p, 'bastion', 2); spendGauge(h.p, 'bastion', 2);
   assert.deepEqual(EV, ['bastion:gain', 'bastion:spent', 'bastion:empty'], '⑩ gain → spent → empty');
 }
-console.log('Indicadores: los 9 de §2 con su llenado/descarga base, por enemigo (Escarcha), HUD y ⑩ onGauge ✓');
+console.log('Indicadores: cada especialización activa el suyo; mecánica base de los 9 y ⑩ onGauge ✓');
 
-console.log('\n✅ NÚCLEO DE TALENTOS (Paso 2c.0) OK');
-void TALENT_OPS; void gaugeValue;
+console.log('\n✅ MIXIN DE TALENTOS v2 + INDICADORES (test65) OK');
