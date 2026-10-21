@@ -119,9 +119,11 @@
 .skill-btn .sk-icon { transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .skill-btn[data-verb-flip] .sk-icon { transform: rotateY(180deg); }
 
-/* destello de la suelta perfecta en la ranura */
+/* destello de la suelta perfecta en la ranura: aro dorado que se abre (se lee también sobre un
+   icono claro) y brillo en el centro */
 .verb-flash { position: absolute; inset: -4px; border-radius: 12px; opacity: 0;
-  background: radial-gradient(closest-side, rgba(255, 236, 160, 0.9), rgba(255, 215, 106, 0)); }
+  background: radial-gradient(closest-side, rgba(255, 236, 160, 0.75), rgba(255, 215, 106, 0));
+  box-shadow: inset 0 0 0 3px #fff0c0, 0 0 0 2px rgba(42, 28, 8, 0.9), 0 0 18px 5px rgba(255, 215, 106, 0.85); }
 .verb-flash[data-flash$="-a"] { animation: verbFlashA 0.42s ease-out; }
 .verb-flash[data-flash$="-b"] { animation: verbFlashB 0.42s ease-out; }
 
