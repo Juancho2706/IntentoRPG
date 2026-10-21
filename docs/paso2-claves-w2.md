@@ -90,7 +90,30 @@ como mucho, no definitivas ni `cdOnEnd`).
   `g.stanceOf`, `g.setStanceBoth`, `g.setComboStep`, `g.setSeqCount`, `g.applyMark`, `g.marksOf`,
   `g.detonateMark`, `g.fieldsOf`, `g.nearestOwnField`, `g.detonateField`, `g.detonateAt`,
   `g.trapBurstsWithin` (la Batida del Coto: 3 estallidos en 1 s), `g.lureStep`, `g.constrainMove`.
-- **HitInfo:** `perfect`, `step`, `repeat`, `echo`, `detonated`, `trap`. **CastInfo:** `charge { t, frac }`,
+- **HitInfo:** `perfect`, `step`, `repeat`, `echo`, `detonated`, `trap = { uid, skill }` (estallido o golpe de una
+  trampa; `null` si no lo es). **CastInfo:** `sk` = definición **forjada** (`prof.def`: Mejora y variante ya aplicadas,
+  mismo id que la del catálogo; los comportamientos la reciben igual), `charge { t, frac }`,
   `perfect`, `forcePerfect` (lo pone un poder en ⑦), `recast { idx, left, perfect }`, `step`, `seqNth`,
   `seqIdx`, `echo`, `stance`, `stanceFrom`, `endReason`, `released`. **⑭ `onSkillEnd`:**
   `{ kind, reason, casts, hits, released, frac, perfect }`.
+
+## 6. Ampliaciones de contrato de la ronda de corrección (E1)
+
+- **Vocabulario cerrado de la definición** (`SKILL_KEYS` en `skill-defs.js`): con `v2`, `validateSkillDef` **avisa**
+  (no es error) de una clave fuera de la lista: la errata `chrage` o `recats` sale en `errs.warnings` (no
+  enumerable) y en `opts.warnings`. Las claves propias de un comportamiento se declaran en su `params`
+  (`defineSkillBehavior(id, { cast, params: ['reach'] })`; `params` entra en `BEHAVIOR_KEYS`). Lo prueba `test82` §1.
+- **Accesores de talentos** (§3.3, §3.8): `Player.talentAccessors()` → `{ elemOf, kitOf, defOf }`, todos sobre la
+  definición **forjada**; `recompute` llama `aggregateTalents(this, this.talentAccessors())`, así `'@tag:'`,
+  `'@charge'`… y `'@windup'` ven lo que añade la forja. Lo prueba `test81` §8.
+- **Constructor:** `normalizeTalents(this.talents, classId, this.level)`; si `talents.js` v2 deja árboles en
+  `talentsTrimmed(p.talents)`, se añade a `p.notices` `TALENTS_TRIMMED_NOTICE` (`'talentos-recortados'`). La
+  parte de comportamiento de `test81` §8 se activa sola cuando `talents.js` exporta `talentsTrimmed` (E1.5).
+- **Bucle de botones mantenidos:** `g.pumpHeldSlots()` y `g.heldSlotBusy(slot)` en `game-skills.js`; `Game.tick`
+  y el arnés llaman al mismo. `test43` debe contar estos dos métodos nuevos de `skillMethods`.
+- **Pausa:** soltar la tecla o el botón de una carga con `g._paused` la **cancela** sin coste (`reason: 'panel'`).
+- **Stat `perfectAlways`** en `p.stats` (buff de Calma Absoluta): perfecta desde media carga.
+- **Cebo:** sustituye solo el movimiento y la decisión del enemigo (`Enemy._updateAI` tras sus temporizadores);
+  un lanzamiento enemigo en curso termina antes de que lo atraiga.
+- **Fórmulas en `combat-math.js`:** `ELITE_DISPLACE_MUL` (0,6), `displaceDist(dist, dr, elite)` y
+  `ccDurationWithTalents(kind, dur, tv)` (`ccDurPct`, `freezeDur`).
