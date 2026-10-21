@@ -114,12 +114,14 @@ function dotMatch(source, inst, which) {
   if (typeof which === 'function') return !!which(inst, source);
   return source === which || dotKindOf(source) === which;
 }
-// instancias VIVAS: [{ source, kind, per, left, ticks, total, remaining }]
+// instancias VIVAS: [{ source, kind, per, left, ticks, total, remaining, interval }]
+// (interval: s entre tics; left × interval = lo que le queda, cola W2d)
 export function dotsOf(enemy, which = null) {
   const out = [];
   for (const [source, inst] of Object.entries(enemy?._dots || {})) {
     if (!inst || !(inst.left > 0) || !dotMatch(source, inst, which)) continue;
-    out.push({ source, kind: dotKindOf(source), per: inst.per, left: inst.left, ticks: inst.ticks || inst.left, total: inst.total || inst.per * inst.left, remaining: inst.per * inst.left });
+    out.push({ source, kind: dotKindOf(source), per: inst.per, left: inst.left, ticks: inst.ticks || inst.left, total: inst.total || inst.per * inst.left,
+      remaining: inst.per * inst.left, interval: inst.interval || 1 });
   }
   return out;
 }

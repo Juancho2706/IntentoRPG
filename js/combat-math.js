@@ -27,11 +27,11 @@
 //             (3) mayores activos a la vez.
 //
 // DEFENSA (en capas, todas multiplicativas entre sí):
-//   1) bloqueo (opcional): prob. topada en CAPS.block; para BLOCK_REDUCTION + blockPower/100
-//      del golpe, con tope BLOCK_REDUCTION_MAX (blockReduction)
+//   1) bloqueo (opcional): prob. topada en CAPS.block (+ blockCapAdd del héroe); para
+//      BLOCK_REDUCTION + blockPower/100 del golpe, con tope BLOCK_REDUCTION_MAX (blockReduction)
 //   2) armadura: solo daño físico; arm/(arm + K(AL)); tope CAPS.armor (75 %)
 //   3) resistencia elemental (fuego/frío/rayo/veneno): tope CAPS.res (70 %), 0 por defecto
-//   4) reducción de daño % (saco escaso): Π(1−r) de las fuentes, tope CAPS.dr
+//   4) reducción de daño % (saco escaso): Π(1−r) de las fuentes, tope CAPS.dr (+ drCapAdd)
 //   Espinas: solo contra atacantes CUERPO A CUERPO.
 //
 // CURVA ÚNICA DE NIVEL DE ÁREA: G(AL) = AREA_GROWTH^(AL−1) (1,065 → ×2 cada ~11
@@ -56,6 +56,11 @@ export const CAPS = {
   // partir de Nv25 los rares típicos daban +50–125 por golpe (recurso infinito)
   mph: 2,
 };
+// Topes PROPIOS de un héroe (cola W2d): la innata del Guardián sube el de reducción de daño
+// (drCapAdd 15 → 65 %) y el de bloqueo (blockCapAdd 10 → 50 %). Nunca pasan de CAPS_HARD.
+export const CAPS_HARD = Object.freeze({ dr: 75, block: 75 });
+export function drCapOf(stats) { return Math.min(CAPS_HARD.dr, CAPS.dr + Math.max(0, stats?.drCapAdd || 0)); }
+export function blockCapOf(stats) { return Math.min(CAPS_HARD.block, CAPS.block + Math.max(0, stats?.blockCapAdd || 0)); }
 
 export const CRIT_MULT = 1.5;          // daño crítico base (el extra va al saco aditivo)
 // Saco DEBILIDAD (Paso 2b.0, §5.3): Vulnerable (bandera, +20) + debilitamientos
@@ -327,11 +332,15 @@ export function chargeRelease(ch, u, { def = null, forcePerfect = false, perfect
 // inmune con ≥ 0,9 (como el control duro, pero más suaves: un giro que atrae cada tic).
 export const DISPLACE_DR = Object.freeze({ add: 0.1, decay: 0.25 });
 // a los jefes no se les mueve: el desplazamiento llena Quebranto (5 por metro = un empuje de 2 m
-// lo mismo que STAGGER_CC.knock)
+// lo mismo que STAGGER_CC.knock). `dr` = resistencia del jefe a ese Quebranto (abajo)
 export const STAGGER_PER_DISPLACE_M = 5;
-export function staggerFromDisplace(dist, staggerPct = 0) {
-  return Math.max(0, dist || 0) * STAGGER_PER_DISPLACE_M * Math.max(0, 1 + (staggerPct || 0) / 100);
+export function staggerFromDisplace(dist, staggerPct = 0, dr = 0) {
+  return Math.max(0, dist || 0) * STAGGER_PER_DISPLACE_M * Math.max(0, 1 + (staggerPct || 0) / 100) * Math.max(0, 1 - (dr || 0));
 }
+// Quebranto por desplazamiento REAPLICADO al mismo jefe (cola W2d): cada tirón o empuje rinde
+// × (1 − dr) y sube dr en `add` (tope 1); dr baja `decay` por segundo. Un tirón cada 5 s rinde
+// entero; una lanza con Arpón por segundo da 20, 12, 4, 2, 2… en vez de 20 cada vez
+export const STAGGER_DISPLACE_DR = Object.freeze({ add: 0.5, decay: 0.1 });
 // a campeones y élites se les mueve menos (×0,6 de la distancia)
 export const ELITE_DISPLACE_MUL = 0.6;
 export function displaceDist(dist, dr = 0, elite = false) {
@@ -364,23 +373,33 @@ export function condCritPct(tv = {}, c = {}) {
 // suma stagger. A 100 → QUEBRANTADO STAGGER_BREAK_T s (aturdimiento real que
 // ignora la resistencia + Vulnerable) y después STAGGER_LOCK_T s bloqueada (gris).
 // Por aplicación: aturdir 30 por s nominal · congelar 25 · inmovilizar 15 por s ·
-// empujar 10 · interrumpir 20 · ralentizar (≥30 %) 4 por s; y los GOLPES suman
-// STAGGER_PER_HP_PCT por cada 1 % de la vida máx. infligido. × (1 + staggerPct/100)
-// del héroe (innata de Crionte y Montaraz +25).
+// asustar 15 por s · empujar 10 · interrumpir 20 · ralentizar (≥30 %) 4 por s; y los
+// GOLPES suman STAGGER_PER_HP_PCT por cada 1 % de la vida máx. infligido.
+// × (1 + staggerPct/100) del héroe (innata de Crionte y Montaraz +25).
 export const STAGGER_MAX = 100;
 export const STAGGER_BREAK_T = 4;
 export const STAGGER_LOCK_T = 15;
 export const STAGGER_PER_HP_PCT = 0.5;
-export const STAGGER_CC = Object.freeze({ stun: 30, freeze: 25, root: 15, knock: 10, interrupt: 20, slow: 4 });
+export const STAGGER_CC = Object.freeze({ stun: 30, freeze: 25, root: 15, fear: 15, knock: 10, interrupt: 20, slow: 4 });
 export const STAGGER_SLOW_MIN_PCT = 30;
 export function staggerFromCC(kind, dur = 0, { pct = 0, staggerPct = 0 } = {}) {
   const k = STAGGER_CC[kind] || 0;
   let n = 0;
-  if (kind === 'stun' || kind === 'root') n = k * Math.max(0, dur || 0);
+  if (kind === 'stun' || kind === 'root' || kind === 'fear') n = k * Math.max(0, dur || 0);
   else if (kind === 'slow') n = (pct || 0) >= STAGGER_SLOW_MIN_PCT ? k * Math.max(0, dur || 0) : 0;
   else n = k;
   return n * Math.max(0, 1 + (staggerPct || 0) / 100);
 }
+// Quebranto por ralentización REAPLICADA al mismo jefe (cola W2d): solo cuentan los segundos
+// NUEVOS de ralentización (≥ STAGGER_SLOW_MIN_PCT), los que alargan lo ya cubierto
+// (`covered`: s que le quedan de una que ya llenó Quebranto). Así un jefe ralentizado sin
+// pausa llena 4 por segundo aunque lo vuelvan a ralentizar en cada impacto.
+export function slowStaggerSecs(dur, covered = 0) {
+  return Math.max(0, (dur || 0) - Math.max(0, covered || 0));
+}
+// Punto Débil (mark.firstCharged): su premio se concede como mucho una vez por enemigo cada
+// FIRST_CHARGED_ICD s aunque se remarque (mark.firstIcd lo cambia por marca)
+export const FIRST_CHARGED_ICD = 8;
 export function staggerFromDamage(dealt, maxHP, staggerPct = 0) {
   if (!(dealt > 0) || !(maxHP > 0)) return 0;
   return dealt / maxHP * 100 * STAGGER_PER_HP_PCT * Math.max(0, 1 + (staggerPct || 0) / 100);
@@ -447,8 +466,8 @@ export function resistance(stats, element) {
   return k ? Math.max(-100, Math.min(CAPS.res, stats?.[k] || 0)) / 100 : 0;
 }
 // Reducción de daño genérica (saco escaso): se guarda como % sumado en stats.dr
-// (cada fuente debería ser pequeña); tope CAPS.dr.
-export function damageReduction(stats) { return Math.max(0, Math.min(CAPS.dr, stats?.dr || 0)) / 100; }
+// (cada fuente debería ser pequeña); tope CAPS.dr (o el propio del héroe: drCapOf).
+export function damageReduction(stats) { return Math.max(0, Math.min(drCapOf(stats), stats?.dr || 0)) / 100; }
 // Lo que PARA un bloqueo (fracción del golpe): BLOCK_REDUCTION + blockPower/100 (Escudo
 // Alzado, Aguante de Roca), con tope BLOCK_REDUCTION_MAX
 export function blockReduction(stats) {
@@ -462,7 +481,7 @@ export function mitigate(amount, stats, opts = {}) {
   const rng = opts.rng || Math.random;
   let d = Math.max(0, amount || 0);
   let blocked = false;
-  const blockCh = Math.max(0, Math.min(CAPS.block, stats?.block || 0));
+  const blockCh = Math.max(0, Math.min(blockCapOf(stats), stats?.block || 0));
   if (blockCh > 0 && rng() * 100 < blockCh) { d *= 1 - blockReduction(stats); blocked = true; }
   const armorPct = el === 'phys' ? armorReduction(stats?.arm || 0, opts.al || 1) : 0;
   const resPct = el === 'phys' ? 0 : resistance(stats, el);
@@ -473,7 +492,7 @@ export function mitigate(amount, stats, opts = {}) {
 export function takenMult(stats) { return Math.max(0, 1 + (stats?.dmgTakenPct || 0) / 100); }
 // Daño esperado (sin azar de bloqueo) — para el banco y la UI
 export function expectedMitigation(stats, al, element = 'phys') {
-  const blockCh = Math.max(0, Math.min(CAPS.block, stats?.block || 0)) / 100;
+  const blockCh = Math.max(0, Math.min(blockCapOf(stats), stats?.block || 0)) / 100;
   const armorPct = element === 'phys' ? armorReduction(stats?.arm || 0, al) : 0;
   const resPct = element === 'phys' ? 0 : resistance(stats, element);
   return (1 - blockCh * blockReduction(stats)) * (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats)) * takenMult(stats);

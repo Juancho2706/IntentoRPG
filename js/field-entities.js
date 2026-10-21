@@ -26,8 +26,15 @@
 // (spawnField). Cuentan las trampas (isTrap) y los campos marcados `data.fieldDur: true` (un
 // zarzal); `data.fieldDur: false` deja fuera hasta una trampa. Una zona sin marca no cambia:
 // el comportamiento que la marca toma su final del campo devuelto (f.dur), no de su `dur` local.
+// Cola W2d: la trampa genérica aplica su data.hitDot al saltar (renueva) en vez del golpe directo
+// y, con estallido, quien la pisa no recibe además ese golpe (sigue el ⑤ con hit.trap); el estallido
+// (trap.burst.coef) y la detonación (detonate.coef) escalan con el RANGO (× rankCoef: data.rankMul o
+// el rango de data.skill del dueño; detonateAt, el de la habilidad que detona) y con data.burstMul;
+// detonate.consume: false estalla sin gastar la trampa; el registro de estallidos guarda la clave
+// de la trampa (un Racimo = una) y trapBurstsWithin(owner, s, { distinct: true }) cuenta trampas.
+// g.expireField(f) (público) y g.stopDash(p) (Player.stopDash: detener un avance lento).
 import * as THREE from 'three';
-import { fieldDurationWithTalents } from './combat-math.js';
+import { fieldDurationWithTalents, rankCoef } from './combat-math.js';
 
 export const FIELD_DEFS = {};
 export const FIELD_CAP_PER_OWNER = 12;
@@ -83,6 +90,37 @@ const isTrap = f => f.kind === 'trampa' || !!FIELD_DEFS[f.kind]?.onDetonate || !
 const stretchesWithFieldDur = f => f.data?.fieldDur === true || (f.data?.fieldDur !== false && isTrap(f));
 // ¿el dueño es un héroe? (el jugador o uno del grupo; nunca un enemigo)
 const isHeroOwner = (g, o) => !!o && (o === g.player || (g.party || []).includes(o));
+// × rango de una habilidad del héroe (rankCoef, como el coef del perfil); 1 si no la conoce
+function skillRankMul(owner, skill) {
+  const r = skill ? (owner?.resolved?.[skill]?.rank ?? owner?.skills?.[skill]) : 0;
+  return r > 0 ? rankCoef(r) : 1;
+}
+// × rango de una trampa: data.rankMul (lo pone quien la coloca) o el rango de data.skill del dueño
+const trapRankMul = f => f.data?.rankMul ?? skillRankMul(f.owner, f.data?.skill);
+// instante de una entrada del registro de estallidos (número de antes o { t, x, z, key })
+const burstT = b => (typeof b === 'number' ? b : (b?.t ?? -Infinity));
+
+// ⑤ SIN daño al saltar una trampa que no golpea directo (con hitDot o estallido): HitInfo con
+// hit.trap y source 'field:trampa', como el golpe de antes (Red de Caza, el Coto lo escuchan)
+function springHit(g, f, e, hitOpts) {
+  e.aggroed = true;
+  if (!g.player || !g.onPlayerHit) return;
+  g.onPlayerHit(e, { dealt: 0, raw: 0, crit: false, skill: hitOpts.skill, tags: hitOpts.tags, elem: null, proc: false, dot: false,
+    source: hitOpts.source, pos: { x: e.pos.x, z: e.pos.z }, perfect: false, step: 0, repeat: 0, echo: false, detonated: false, trap: hitOpts.trap });
+}
+// DoT propio de la trampa (data.hitDot { kind, coef, dur }) a quien la pisa: total = golpe de la
+// trampa × hitDot.coef / coef (como applyHitEffects), en tics de 0,5 s; SUSTITUYE al de la misma
+// trampa (`<skill>:<kind>`): se renueva, no se suma
+function trapDot(g, f, e) {
+  const d = f.data, hd = d.hitDot;
+  if (!hd || !e?.alive || !(hd.coef > 0)) return;
+  const total = d.coef > 0 && d.dmg > 0 ? d.dmg * hd.coef / d.coef : (f.owner?.avgHit?.(hd.coef, 0) || 0);
+  if (!(total > 0)) return;
+  const ticks = Math.max(1, Math.round((hd.dur || 4) / 0.5));
+  const src = `${d.skill || 'trampa'}:${hd.kind || 'poison'}`;
+  if (g.replaceDoT) g.replaceDoT(e, total, ticks, 0.5, src);
+  else g.applyDoT?.(e, total, ticks, 0.5, undefined, src);
+}
 
 export const fieldMethods = {
   // crea un campo de suelo; devuelve el campo o null si el kind no existe
@@ -175,6 +213,16 @@ export const fieldMethods = {
     this._moveFields = 0;
   },
 
+  // API pública (cola W2d): hace caducar un campo ya (onExpire, recuento de muros y cebos, dibujo).
+  // → true si seguía vivo. Lo usan los poderes en lugar de _expireField
+  expireField(f) {
+    if (!f || f._expired || f.dead) return false;
+    this._expireField(f);
+    return true;
+  },
+  // detiene el avance lento de `p` (Player.stopDash; Choque Frontal). → true si avanzaba
+  stopDash(p) { return !!(p || this.player)?.stopDash?.(); },
+
   _expireField(f) {
     if (!f || f._expired) return;
     f._expired = true;
@@ -199,8 +247,9 @@ export const fieldMethods = {
 
   // ---------------- detonar (§3.6) ----------------
   // DETONA un campo: su `onDetonate` (trampas de clase) o el estallido de la trampa genérica.
-  // Parpadea TRAP_FLASH_T s y estalla (opts.delay = 0: al instante). opts = { coef, radius,
-  // perTarget: { map, max }, skill, chain (m), done:Set }. → true si va a estallar.
+  // Parpadea TRAP_FLASH_T s y estalla (opts.delay = 0: al instante). opts = { coef (ya × rango de
+  // quien detona), radius, perTarget: { map, max }, skill, chain (m), done:Set, consume (false:
+  // estalla y se rearma) }. → true si va a estallar.
   detonateField(f, opts = {}) {
     if (!f || f.dead || f._detonating) return false;
     const def = FIELD_DEFS[f.kind];
@@ -214,7 +263,7 @@ export const fieldMethods = {
         if (def.onDetonate) def.onDetonate(this, f, opts);
         else this._trapBurst(f, opts);
       } catch (err) { console.warn(`[campo ${f.kind}] onDetonate`, err); }
-      this._logTrapBurst(f.owner);
+      this._logTrapBurst(f.owner, f);
       // detonación en cadena: las trampas propias a `chain` m también estallan
       if (opts.chain > 0 && f.owner) {
         const done = opts.done || (opts.done = new Set());
@@ -230,13 +279,16 @@ export const fieldMethods = {
     if (delay > 0 && this.timers) this.timers.schedule(delay, go); else go();
     return true;
   },
-  // DETONAR en un punto (clave `detonate: { radius, coef, chain, perTarget }` de un impacto o
+  // DETONAR en un punto (clave `detonate: { radius, coef, chain, perTarget, consume }` de un impacto o
   // de una llegada): estalla las trampas propias cuyo centro cae en el radio; cada enemigo
-  // recibe como mucho perTarget estallidos (2 por defecto). → nº de trampas detonadas
-  detonateAt(owner, pos, det = {}, { skill = null } = {}) {
+  // recibe como mucho perTarget estallidos (2 por defecto). `det` va CRUDO (el de la definición):
+  // coef × el rango de `skill` del dueño (o rankMul); consume: false no gasta las trampas.
+  // → nº de trampas detonadas
+  detonateAt(owner, pos, det = {}, { skill = null, rankMul = null } = {}) {
     if (!owner || !pos) return 0;
     const r = det.radius || 3;
-    const opts = { coef: det.coef ?? 1, chain: det.chain || 0, skill, perTarget: { map: new Map(), max: Math.max(1, det.perTarget ?? 2) }, done: new Set() };
+    const opts = { coef: (det.coef ?? 1) * (rankMul ?? skillRankMul(owner, skill)), chain: det.chain || 0, skill,
+      perTarget: { map: new Map(), max: Math.max(1, det.perTarget ?? 2) }, done: new Set(), consume: det.consume };
     let n = 0;
     for (const f of this.fieldsOf(owner)) {
       if (!isTrap(f) || Math.hypot(f.pos.x - pos.x, f.pos.z - pos.z) > r + 1e-6) continue;
@@ -246,36 +298,47 @@ export const fieldMethods = {
     return n;
   },
   // estallido de la trampa genérica: área en su radio de estallido con el golpe del dueño
-  // (golpe real: crítico, ⑤ onHit con hit.trap) y se consume (o se rearma si consume:false)
+  // (golpe real: crítico, ⑤ onHit con hit.trap) y se consume (o se rearma con data.consume u
+  // opts.consume false). coef: el de la detonación (opts.coef) o su estallido × el rango de la
+  // trampa; los dos × data.burstMul (cepos pequeños)
   _trapBurst(f, opts = {}) {
     const d = f.data || {};
     const owner = f.owner;
     const at = new THREE.Vector3(f.pos.x, 0, f.pos.z);
     const rad = opts.radius ?? d.burst?.radius ?? Math.max(2, f.radius * 1.5);
-    const coef = opts.coef ?? d.burst?.coef ?? d.coef ?? 1;
+    const coef = (opts.coef ?? (d.burst ? (d.burst.coef ?? 1) * trapRankMul(f) : d.coef ?? 1)) * (d.burstMul ?? 1);
     if (owner && owner === this.player && coef > 0 && this.dealArea) {
       this.dealArea(at, rad, coef, { hitInfo: { skill: opts.skill || d.skill || null, tags: d.tags || new Set(['trap']), elem: d.elem || null },
         hitExtra: { trap: { uid: f.uid, skill: d.skill || null } }, perTarget: opts.perTarget || null, from: at });
     }
     this.spawnRing?.(at, rad, d.color ?? 0xc8a050);
     this.sfx?.('trap');
-    this._spendTrap(f);
+    this._spendTrap(f, opts.consume);
   },
-  _spendTrap(f) {
-    if (f.data?.consume === false) { f.sprung = false; f.armAt = (f.age || 0) + Math.max(0, f.data.armT || 0); return; }
+  // gasta la trampa o, con data.consume / `consume` false, la rearma (armT de nuevo)
+  _spendTrap(f, consume) {
+    if (f.data?.consume === false || consume === false) { f.sprung = false; f.armAt = (f.age || 0) + Math.max(0, f.data?.armT || 0); return; }
     f.sprung = true;
     this._expireField(f);
   },
-  // registro de estallidos de trampas (la Batida del Coto: 3 en 1 s)
-  _logTrapBurst(owner) {
+  // registro de estallidos de trampas (la Batida del Coto: 3 en 1 s): { t, x, z, key } con la
+  // clave de la trampa (data.cluster: los cepos de un Racimo son una; si no, su uid)
+  _logTrapBurst(owner, f = null) {
     if (!owner) return;
     const log = owner.trapBursts || (owner.trapBursts = []);
-    log.push(owner.simT || 0);
+    log.push({ t: owner.simT || 0, x: f?.pos?.x ?? owner.pos?.x ?? 0, z: f?.pos?.z ?? owner.pos?.z ?? 0, key: f ? (f.data?.cluster ?? f.uid) : null });
     if (log.length > 12) log.splice(0, log.length - 12);
   },
-  trapBurstsWithin(owner, s = 1) {
+  // estallidos en los últimos `s` s; distinct: trampas DISTINTAS (por clave; una entrada sin
+  // clave cuenta sola)
+  trapBurstsWithin(owner, s = 1, { distinct = false } = {}) {
     const now = owner?.simT || 0;
-    return (owner?.trapBursts || []).filter(t => now - t <= s + 1e-9).length;
+    const recent = (owner?.trapBursts || []).filter(b => now - burstT(b) <= s + 1e-9);
+    if (!distinct) return recent.length;
+    const keys = new Set();
+    let loose = 0;
+    for (const b of recent) { if (b?.key == null) loose++; else keys.add(b.key); }
+    return loose + keys.size;
   },
 
   // ---------------- movimiento enemigo (§3.6) ----------------
@@ -461,11 +524,13 @@ defineField('aura', {
 
 // ------------------------------------------------------------
 // TRAMPA genérica (tipo `trap`, §3.6): se ARMA en data.armT s y salta con el primer
-// enemigo dentro de su radio: golpe `dmg` (del dueño), inmoviliza `root` s y, con
-// `burst: { radius, coef }`, estalla en área. Se consume (consume:false: se rearma).
-// `lure` (cebo) atrae a los enemigos mientras está armada (g.lureStep). La detona
-// g.detonateField / g.detonateAt (estallido, con parpadeo previo).
-// data = { dmg, coef, root, color, skill, tags, elem, armT, burst, consume, lure }
+// enemigo dentro de su radio: golpe `dmg` (del dueño) o, si lleva `hitDot`, ese DoT (se
+// renueva); inmoviliza `root` s y, con `burst: { radius, coef }`, estalla en área (y entonces
+// quien la pisa no recibe además el golpe directo). Sin golpe directo, un ⑤ sin daño con
+// hit.trap. Se consume (consume:false: se rearma). `lure` (cebo) atrae a los enemigos mientras
+// está armada (g.lureStep). La detona g.detonateField / g.detonateAt (estallido, con parpadeo previo).
+// data = { dmg, coef, root, color, skill, tags, elem, armT, burst, consume, lure, hitDot,
+//          rankMul (× rango del estallido), burstMul (× estallido), cluster (clave del registro) }
 // ------------------------------------------------------------
 defineField('trampa', {
   name: 'Trampa',
@@ -476,11 +541,14 @@ defineField('trampa', {
     for (const e of g.enemies || []) if (e.alive && inside(f, e.pos)) { hit = e; break; }
     if (!hit) return;
     const d = f.data;
-    if (d.dmg > 0) hit.takeDamage(Math.max(1, Math.round(d.dmg)), false, { source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: { uid: f.uid, skill: d.skill || null } });
+    const hitOpts = { source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: { uid: f.uid, skill: d.skill || null } };
+    if (d.dmg > 0 && !d.hitDot && !d.burst) hit.takeDamage(Math.max(1, Math.round(d.dmg)), false, hitOpts);
+    else springHit(g, f, hit, hitOpts);
+    trapDot(g, f, hit);
     if (d.root && hit.alive) hit.applyCC?.('root', d.root, { src: f.owner });
     g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius, d.color);
-    g._logTrapBurst(f.owner);
-    if (d.burst) g._trapBurst(f, { coef: d.burst.coef, radius: d.burst.radius, skill: d.skill });
+    g._logTrapBurst(f.owner, f);
+    if (d.burst) g._trapBurst(f, { coef: (d.burst.coef ?? 1) * trapRankMul(f), radius: d.burst.radius, skill: d.skill });
     else { g.sfx?.('hit'); g._spendTrap(f); }
   },
   render(g, f) {

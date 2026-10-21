@@ -15,14 +15,15 @@ import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critCha
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
   condAddPct, condCritPct, dotProfile, healScaled,
   STAGGER_MAX, STAGGER_BREAK_T, STAGGER_LOCK_T, staggerFromCC, staggerFromDamage, staggerFromDisplace, DISPLACE_DR,
-  displaceDist, ccDurationWithTalents,
+  displaceDist, ccDurationWithTalents, drCapOf, blockCapOf, slowStaggerSecs, STAGGER_DISPLACE_DR, STAGGER_SLOW_MIN_PCT,
+  FIRST_CHARGED_ICD,
   THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage, chargeCoefAt } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef } from './skill-resolve.js';
 import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
 import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
 import { dotsOf } from './timers.js';
-import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
+import { SKILL_FX_PRESETS, skillFxFor } from './fx-skills.js';
 import { projFanOffset, forgePowers, STANCE_STATS, VERB_DEFAULTS } from './skill-defs.js';
 import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
   potionResourceAmount, touchCombat } from './resources.js';
@@ -85,7 +86,13 @@ export function applyHitEffects(g, p, e, prof, avgHit, opts = {}) {
     }
     if (prof.knock > 0) e.displace?.(from, prof.knock, { toward: false, src: p });
   }
-  if (e.alive && prof.mark && g?.applyMark) g.applyMark(e, prof, p);
+  if (e.alive && prof.mark && g?.applyMark) {
+    // Punto Débil (mark.firstCharged): remarcar refresca la marca, pero su premio llega como mucho
+    // una vez por enemigo cada FIRST_CHARGED_ICD s (Enemy.firstChargedOk)
+    const m = prof.mark;
+    const keep = !m.firstCharged || !e.firstChargedOk || e.firstChargedOk(p, m.id || prof.id, m.firstIcd);
+    g.applyMark(e, keep ? prof : { ...prof, mark: { ...m, firstCharged: null } }, p);
+  }
   // provocar a los golpeados (clave `taunt`, s): Carga de Escudo, Golpe de Escudo
   if (e.alive && prof.taunt > 0) e.applyCC?.('taunt', prof.taunt, { src: p });
 }
@@ -730,7 +737,12 @@ export class Player {
                    perfectAlways: 0,
                    // Paso 2 (cola W2): puntos que suma lo que PARA un bloqueo (Escudo Alzado;
                    // combat-math.blockReduction: 50 + blockPower, tope 90)
-                   blockPower: 0 };
+                   blockPower: 0,
+                   // Paso 2 (cola W2d): topes propios de reducción de daño y de bloqueo (innata
+                   // del Guardián: combat-math.drCapOf/blockCapOf), % de coste de TODAS las
+                   // habilidades con coste (Sello del Archimago) y % de velocidad de habilidades
+                   // (giros y saltos: Sangre Hirviente); los dos últimos los lee la cola W2d-A
+                   drCapAdd: 0, blockCapAdd: 0, costPct: 0, skillSpeedPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -891,7 +903,9 @@ export class Player {
       lph: item.lph, mph: Math.min(CAPS.mph, item.mph), thorns: item.thorns,   // recurso al golpear topado (§2)
       cdr: Math.min(CAPS.cdr, item.cdr), // tope de reducción de enfriamiento
       goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
-      dr: Math.min(CAPS.dr, item.dr), block: Math.min(CAPS.block, item.block),
+      // topes de reducción de daño y de bloqueo: los de CAPS o los propios (drCapAdd/blockCapAdd)
+      drCapAdd: item.drCapAdd, blockCapAdd: item.blockCapAdd,
+      dr: Math.min(drCapOf(item), item.dr), block: Math.min(blockCapOf(item), item.block),
       resFire: item.resFire, resCold: item.resCold, resLightning: item.resLightning, resPoison: item.resPoison,
       dodgeCdr: item.dodgeCdr, energyRegen: item.energyRegen, healPct: Math.min(CAPS.heal, item.healPct),
       spenderCostPct: Math.max(-100, item.spenderCostPct), projMissPct: Math.min(100, Math.max(0, item.projMissPct)),
@@ -902,6 +916,8 @@ export class Player {
       regenPct: item.regenPct, resGainPct: item.resGainPct,
       perfectAlways: item.perfectAlways,
       blockPower: item.blockPower,               // el tope lo pone combat-math (blockReduction)
+      // −100 = gratis; la velocidad de habilidades con el mismo tope que la de ataque
+      costPct: Math.max(-100, item.costPct), skillSpeedPct: Math.max(-50, Math.min(CAPS.aspd, item.skillSpeedPct)),
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
@@ -1406,7 +1422,7 @@ export class Player {
       if (!t.alive) { this.attackTarget = null; }
       else {
         const d = this.pos.distanceTo(t.pos);
-        if (d <= this.cls.atkRange) {
+        if (d <= this.basicReach()) {
           this.faceToward(t.pos);
           if (this.atkCd <= 0 && !g._charging) this.basicAttack(t);   // durante una carga no sale
         } else {
@@ -1560,7 +1576,36 @@ export class Player {
     }
   }
 
-  // opts.charge (Paso 2, básico tensable): { t, frac, perfect, coefMul, addPct } de la suelta
+  // DETIENE un avance lento en curso (p.dashMove; Choque Frontal): no avanza más y llega donde está
+  // (su llegada e impacto salen en el siguiente paso de los verbos, como al acabar). → true si había
+  stopDash() {
+    const d = this.dashMove;
+    if (!d) return false;
+    d.stopped = true;
+    d.step = () => true;
+    return true;
+  }
+
+  // ALCANCE del disparo del básico de arma (cola W2d): el de la definición forjada (def.range) o,
+  // sin él, atkRange + 2 (lo que siempre voló), × prof.rangeMul (Dardo Veloz +20 %). Con `t` (s de
+  // carga de un básico TENSADO) y charge.scale.range en el perfil, la escala da los metros (Vista Larga)
+  basicRange(t = null) {
+    const wb = weaponBasicOf(this.cls);
+    const prof = wb ? resolveSkill(this, wb) : null;
+    const def = prof?.def || wb;
+    let base = def?.range > 0 ? def.range : (this.cls?.atkRange || 2) + 2;
+    const ch = prof?.charge, sc = ch?.scale?.range;
+    if (t != null && sc) { const v = chargeCoefAt(sc, t, ch.min || 0, ch.max || 1); if (v > 0) base = v; }
+    return base * (prof?.rangeMul || 1);
+  }
+  // distancia a la que el básico se pone a disparar (clic-mover): atkRange y, a distancia, lo que el
+  // perfil alarga el disparo. Cuerpo a cuerpo, atkRange
+  basicReach() {
+    const r = this.cls?.atkRange || 2;
+    return this.cls?.ranged ? Math.max(r, this.basicRange() - 2) : r;
+  }
+
+  // opts.charge (Paso 2, básico tensable): { t, frac, perfect, coefMul, addPct, rangeMul? } de la suelta
   basicAttack(target, opts = {}) {
     const g = this.game;
     const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
@@ -1576,7 +1621,8 @@ export class Player {
     const cast = { sk: wb, prof, slot: 'lmb', target: target?.pos || null, enemy: target?.def ? target : null, weapon: true,
       seqNth: !!seq?.nth, seqIdx: seq?.idx || 0, charge: ch ? { t: ch.t, frac: ch.frac } : null, perfect: !!ch?.perfect };
     if (wb && prof && this.hookIndex?.onCast && firePower('onCast', this, g, this, cast) === false) return;
-    this.atkCd = this.stats.atkTime;
+    // cadencia del perfil (Mano Rápida ×0,9), como los básicos que no son de arma
+    this.atkCd = this.stats.atkTime * (prof?.cadence || 1);
     this.swing = 1;
     const coef = (prof ? prof.coef : 1) * (ch?.coefMul || 1);
     const bAdd = (prof?.addPct || 0) + (ch?.addPct || 0);
@@ -1586,8 +1632,10 @@ export class Player {
       forceCrit: !!(prof?.forceCrit || cast.forceCrit || (ch?.perfect && prof?.charge?.perfectCrit)) };
     const dmgOpts = { skill: hitInfo.skill, tags: hitInfo.tags, elem: hitInfo.elem, perfect: !!ch?.perfect };
     const avgHit = this.avgHit(coef, bAdd);
-    // VFX/SFX del básico de la clase (fx-skills-<clase>.js): el Dardo suena `bolt`
-    const fx = (wb && SKILL_FX[wb.id]) || null;
+    // VFX/SFX del básico de la clase (fx-skills-<clase>.js) con los de su variante encima: el Dardo
+    // suena `bolt`, la Cicuta deja su estela verde
+    const fxBase = wb ? skillFxFor(wb.id) : null;
+    const fx = wb ? skillFxFor(wb.id, def?.forged) : null;
     const fxp = x => (typeof x === 'string' ? (SKILL_FX_PRESETS[x] || x) : x);
     // recurso: SOLO al acertar (una vez por ataque, aunque haya multidisparo)
     let genGiven = false;
@@ -1643,9 +1691,36 @@ export class Player {
     // Maga (proyectil arcano) y Arquera (flecha): a distancia; el daño se TIRA AL
     // IMPACTAR (rollAt), con los bonos condicionados al objetivo real
     const arrow = atk === 'arrow';
-    const color = fx?.color ?? wb?.color ?? (arrow ? 0xe8d8a0 : 0xcc66ff);
+    // color: el del VFX de la variante → el de la definición FORJADA (Saeta Ígnea, Cicuta) → el del
+    // VFX base → el de la clase
+    const varColor = fx !== fxBase && fx?.color != null && fx.color !== fxBase?.color ? fx.color : null;
+    const color = varColor ?? def?.color ?? fxBase?.color ?? (arrow ? 0xe8d8a0 : 0xcc66ff);
     const speed = arrow ? 18 : 13;
     const size = arrow ? 0.09 : 0.17;
+    // alcance del perfil (basicRange) y, en un básico tensado, el de su carga
+    let range = this.basicRange(ch && prof?.charge?.scale?.range ? (ch.t ?? 0) : null);
+    if (ch?.rangeMul > 0 && !prof?.charge?.scale?.range) range *= ch.rangeMul;
+    // SALPICADURA nativa (clave `splash` del perfil, en prof.radius alrededor del impacto): golpes de
+    // la habilidad con source 'splash', sin el objetivo directo ni quien ya recibió esta habilidad en
+    // este instante (otra flecha del disparo o el estallido de un poder: no se repite ni encadena)
+    const splashR = prof?.splash > 0 && prof.radius > 0 ? prof.radius : 0;
+    const splashAt = (e, c) => {
+      if (!splashR || !e) return;
+      const at = e.pos.clone().setY(0), now = this.simT;
+      const sc = prof.splash * (prof.coef > 0 ? c / prof.coef : 1);
+      let hits = 0;
+      for (const o of g.enemies.slice()) {
+        if (o === e || !o.alive || o._hitAt?.[hitInfo.skill] === now) continue;
+        const r = splashR + 0.5 * (o.def?.scale || 1);
+        if (o.pos.distanceToSquared(at) > r * r) continue;
+        const { dmg, crit } = this.rollDamage(sc, bCrit, bAdd, o, hitInfo);
+        o.takeDamage(dmg, crit, { ...dmgOpts, color, source: 'splash' });
+        onHit(o);
+        hits++;
+      }
+      if (hits) this.onDealHit();
+      g.spawnRing?.(at, splashR, color);
+    };
     // proyectiles de la definición forjada (Disparo Disperso: count/spread) + multidisparo
     // (poder) + aspecto «Doble»/«Enjambre»; la secuencia (seq) añade los suyos al N-ésimo
     const count = Math.max(1, Math.floor(def?.count || 1)) + (prof?.proj || 0);
@@ -1660,12 +1735,12 @@ export class Player {
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed: def?.speed || speed, range: this.cls.atkRange + 2, friendly: true, color, size, pierce, castHits,
+        speed: def?.speed || speed, range, friendly: true, color, size, pierce, castHits,
         rollAt: e => this.rollDamage(c, bCrit, bAdd + direct, e, hitInfo), ...dmgOpts, hitOpts: ch?.perfect ? { perfect: true } : null,
         ...(fx?.impact ? { impactPreset: fxp(fx.impact) } : {}),
         // recurso, efectos de forja/soporte y robo de vida: al IMPACTAR (no al disparar).
         // Así también funcionan apuntando a un punto vacío ({pos: aim} en WASD).
-        onHit: (e, dealt) => { grantGen(1); onHit(e); lifeHeal(dealt); },
+        onHit: (e, dealt) => { grantGen(1); onHit(e); lifeHeal(dealt); splashAt(e, c); },
       });
     };
     for (let i = 0; i < count; i++) shoot(baseAngle + projFanOffset(i, count, spread), coef, !!prof?.pierce);
@@ -1768,13 +1843,14 @@ export class Enemy {
   //  - slow: no acumula (gana el más fuerte), tope 70 % (jefes ×0,5)
   //  - interrupt: sin rendimientos; 6 s de inmunidad tras silenciar
   //  - taunt: objetivo forzado (los jefes sí se pueden provocar)
-  // opts = { src, pct (slow), from (knock: origen del empuje), stagger (extra) }.
+  //  - fear (cola W2d): huye de `from` (o de quien lo aplica) sin atacar; canal duro
+  // opts = { src, pct (slow), from (knock/fear: origen), stagger (extra) }.
   // Devuelve lo aplicado (0 = nada).
-  // Paso 2c.0 (§6) — JEFES (boss/uber/jefe de mundo): el control duro e inmovilizar
-  // NO los afectan: suman STAGGER (combat-math.staggerFromCC × staggerPct del héroe);
-  // al llenarse la barra quedan QUEBRANTADOS (addStagger). Ralentizar sí se aplica
-  // (×0,5) y además suma stagger si es ≥ 30 %; interrumpir corta su lanzamiento y
-  // suma 20; la provocación funciona igual (sin rendimientos decrecientes).
+  // Paso 2c.0 (§6) — JEFES (boss/uber/jefe de mundo): el control duro, inmovilizar y
+  // asustar NO los afectan: suman STAGGER (combat-math.staggerFromCC × staggerPct del
+  // héroe); al llenarse la barra quedan QUEBRANTADOS (addStagger). Ralentizar sí se aplica
+  // (×0,5) y además suma stagger si es ≥ 30 % (solo los segundos nuevos: slowStaggerSecs);
+  // interrumpir corta su lanzamiento y suma 20; la provocación funciona igual.
   applyCC(kind, dur, opts = {}) {
     if (!(dur > 0) || !this.alive) return 0;
     // claves de talento del héroe que lo aplica (ccDurPct, freezeDur: combat-math), en un
@@ -1784,10 +1860,15 @@ export class Enemy {
     if (boss) {
       const sp = opts.src?.stats?.staggerPct || 0;
       if (opts.stagger > 0) this.addStagger(opts.stagger, opts.src);
-      if (kind === 'stun' || kind === 'freeze' || kind === 'root' || kind === 'knock') {
+      if (kind === 'stun' || kind === 'freeze' || kind === 'root' || kind === 'knock' || kind === 'fear') {
         return this.addStagger(staggerFromCC(kind, dur, { staggerPct: sp }), opts.src, { raw: true });
       }
-      if (kind === 'slow') this.addStagger(staggerFromCC('slow', dur, { pct: opts.pct ?? 50, staggerPct: sp }), opts.src, { raw: true });
+      if (kind === 'slow' && (opts.pct ?? 50) >= STAGGER_SLOW_MIN_PCT) {
+        // ralentización reaplicada: solo los segundos que alargan la que ya llenó Quebranto
+        const secs = slowStaggerSecs(dur, this.slowStagT);
+        this.slowStagT = Math.max(this.slowStagT || 0, dur);
+        if (secs > 0) this.addStagger(staggerFromCC('slow', secs, { pct: opts.pct ?? 50, staggerPct: sp }), opts.src, { raw: true });
+      }
       if (kind === 'interrupt') this.addStagger(staggerFromCC('interrupt', dur, { staggerPct: sp }), opts.src, { raw: true });
     }
     switch (kind) {
@@ -1844,8 +1925,62 @@ export class Enemy {
         this.forceTarget(opts.src || this.game.player, dur);
         return dur;
       }
+      case 'fear': {                                               // huye (canal duro, como aturdir)
+        const dr = this.stunDR || 0;
+        if (dr >= 0.9) return 0;
+        const d = dur * (1 - dr);
+        if (d < 0.05 || d <= (this.fearT || 0)) return 0;
+        const from = opts.from || opts.src?.pos || this.game.player?.pos;
+        if (!from) return 0;
+        this.fearT = d;
+        this.fearFrom = { x: from.x, z: from.z };
+        this.stunDR = Math.min(1, dr + 0.35);
+        this.interruptCast();                                      // corta un lanzamiento interrumpible
+        return d;
+      }
     }
     return 0;
+  }
+
+  // QUITA un control (cola W2d). 'freeze': la congelación y SOLO el aturdimiento que venía del hielo
+  // (uno más largo de otra fuente sigue entero: Ruptura) · 'stun': aturdido y congelado · 'root',
+  // 'slow', 'fear', 'silence'. No toca los rendimientos decrecientes. → true si quitó algo
+  clearCC(kind) {
+    const active = () => [this.stunT, this.frozenT, this.rootT, this.slowT, this.fearT, this.silenceT].filter(v => v > 0).length;
+    const before = active();
+    switch (kind) {
+      case 'freeze':
+        if (!(this.frozenT > 0)) return false;
+        if ((this.stunT || 0) <= this.frozenT + 1e-6) this.stunT = 0;
+        this.frozenT = 0;
+        break;
+      case 'stun': this.stunT = 0; this.frozenT = 0; break;
+      case 'root': this.rootT = 0; break;
+      case 'slow': this.slowT = 0; this.slowPct = 0; break;
+      case 'fear': this.fearT = 0; this.fearFrom = null; break;
+      case 'silence': this.silenceT = 0; break;
+      default: return false;
+    }
+    return active() < before;
+  }
+
+  // Punto Débil (mark.firstCharged, cola W2d): ¿esta marca de `p` puede llevar su premio? Una marca
+  // viva que aún lo guarda es la misma concesión; si no, como mucho una vez cada `icd` s (8 por
+  // defecto) aunque se remarque. Si lo concede, lo apunta (preguntar otra vez en el mismo instante
+  // da lo mismo: applyHitEffects y g.applyMark pueden preguntar los dos)
+  firstChargedOk(p, id, icd = FIRST_CHARGED_ICD) {
+    const live = this.marks?.[id];
+    if (live && live.t > 0 && live.by === p && live.firstCharged) return true;
+    const now = p?.simT || 0;
+    const rec = this._firstAt || (this._firstAt = {});
+    const at = rec[id];
+    if (at && at.by === p) {
+      const since = now - at.t;
+      if (since <= 1e-9) return true;
+      if (since < (icd ?? FIRST_CHARGED_ICD) - 1e-9) return false;
+    }
+    rec[id] = { by: p, t: now };
+    return true;
   }
 
   // ---------- STAGGER (Paso 2c.0, §6) ----------
@@ -2000,6 +2135,7 @@ export class Enemy {
     if (this.rootT > 0) this.rootT -= dt;
     if (this.rootDR > 0) this.rootDR = Math.max(0, this.rootDR - dt * 0.12);
     if (this.frozenT > 0) this.frozenT -= dt;
+    if (this.fearT > 0) { this.fearT -= dt; if (this.fearT <= 0) this.fearFrom = null; }
     if (this.silenceT > 0) this.silenceT -= dt;
     if (this.silenceImmuneT > 0) this.silenceImmuneT -= dt;
     if (this.tauntT > 0) { this.tauntT -= dt; if (this.tauntT <= 0) this.tauntSrc = null; }
@@ -2008,21 +2144,27 @@ export class Enemy {
     if (this.numbT > 0) this.numbT -= dt;
     for (const k in this.debuffs) { const d = this.debuffs[k]; d.t -= dt; if (d.t <= 0) delete this.debuffs[k]; }
     for (const k in this.outWeak) { const d = this.outWeak[k]; d.t -= dt; if (d.t <= 0) delete this.outWeak[k]; }
-    // Paso 2: resistencia a los DESPLAZAMIENTOS y caducidad de las marcas (§3.6)
+    // Paso 2: resistencia a los DESPLAZAMIENTOS y caducidad de las marcas (§3.6); en jefes, lo
+    // que queda cubierto de ralentización y la resistencia al Quebranto por desplazar (cola W2d)
     if (this.dispDR > 0) this.dispDR = Math.max(0, this.dispDR - dt * DISPLACE_DR.decay);
+    if (this.slowStagT > 0) this.slowStagT = Math.max(0, this.slowStagT - dt);
+    if (this.dispStagDR > 0) this.dispStagDR = Math.max(0, this.dispStagDR - dt * STAGGER_DISPLACE_DR.decay);
     if (this.marks) for (const k in this.marks) { const m = this.marks[k]; if (m && Number.isFinite(m.t)) { m.t -= dt; if (m.t <= 0) delete this.marks[k]; } }
   }
 
   // DESPLAZAR (§3.6, §3.7): mueve `dist` m alejándolo de `from` (o hacia él con toward,
   // sin pasarse: se queda a 0,8 m). Rendimientos decrecientes propios (dispDR) y, a los
-  // JEFES, ningún movimiento: suma Quebranto (combat-math.staggerFromDisplace). Devuelve
+  // JEFES, ningún movimiento: suma Quebranto (combat-math.staggerFromDisplace) con su propia
+  // resistencia a desplazamientos reaplicados (dispStagDR, STAGGER_DISPLACE_DR). Devuelve
   // los metros recorridos (0 = nada).
   displace(from, dist, { toward = false, src = null } = {}) {
     if (!this.alive || !from || !(dist > 0)) return 0;
     const g = this.game;
     if (isBossDef(this.def)) {
       const sp = src?.stats?.staggerPct || 0;
-      this.addStagger(staggerFromDisplace(dist, sp), src, { raw: true });
+      const dr = this.dispStagDR || 0;
+      this.dispStagDR = Math.min(1, dr + STAGGER_DISPLACE_DR.add);
+      this.addStagger(staggerFromDisplace(dist, sp, dr), src, { raw: true });
       return 0;
     }
     const dr = this.dispDR || 0;
@@ -2074,6 +2216,9 @@ export class Enemy {
     const dealt = Math.max(0, Math.min(amount, this.hp));
     // último golpe recibido (KillInfo de ⑥ onKill)
     if (opts.skill) { this._lastSkill = opts.skill; this._lastTags = opts.tags || EMPTY_TAGS; }
+    // instante del último golpe (no tic) de cada habilidad: la salpicadura del básico no repite en
+    // quien ya la recibió en ese instante
+    if (opts.skill && !opts.dot && pl) (this._hitAt || (this._hitAt = {}))[opts.skill] = pl.simT;
     this._lastCrit = !!crit;
     this.hp -= amount;
     // Paso 2c.0: amenaza (× threatMult del héroe) y stagger por daño (jefes)
@@ -2199,6 +2344,30 @@ export class Enemy {
     return r;
   }
 
+  // velocidad de movimiento con su control: ralentizado ×0,45, aura de mando ×1,2, inmovilizado 0
+  // y Aterido (Escarcha en jefes) −30 %
+  _moveSpd() {
+    return this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1) * (this.rootT > 0 ? 0 : 1) * (this.numbT > 0 ? 0.7 : 1);
+  }
+  // un paso de HUIDA (miedo, cola W2d): se aleja de fearFrom; contra un muro, lo rodea en perpendicular
+  _fleeStep(dt) {
+    if (this.slowT > 0) this.slowT -= dt;
+    const f = this.fearFrom, spd = this._moveSpd();
+    if (!f || !(spd > 0)) return;
+    let ux = this.pos.x - f.x, uz = this.pos.z - f.z;
+    const l = Math.hypot(ux, uz);
+    if (l < 1e-4) { ux = 0; uz = 1; } else { ux /= l; uz /= l; }
+    const grid = this.game.world?.grid;
+    const step = (x, z) => {
+      if (grid) moveWithCollision(grid, this.pos, x * spd * dt, z * spd * dt, 0.3);
+      else { this.pos.x += x * spd * dt; this.pos.z += z * spd * dt; }
+    };
+    const bx = this.pos.x, bz = this.pos.z;
+    step(ux, uz);
+    if ((this.pos.x - bx) ** 2 + (this.pos.z - bz) ** 2 < 1e-10) { step(-uz, ux); this.group.rotation.y = Math.atan2(-uz, ux); }
+    else this.group.rotation.y = Math.atan2(ux, uz);
+  }
+
   _updateAI(dt) {
     const g = this.game;
     // afijo Escudado: si un golpe lo "mató" durante la ventana de inmunidad,
@@ -2246,6 +2415,8 @@ export class Enemy {
     const pl = g.player;
     if (!pl || this.group.position.distanceToSquared(pl.pos) < 30 * 30) this.animate(dt);
 
+    // MIEDO (applyCC 'fear'): huye de su origen sin atacar ni lanzar (aturdido, ni eso). Manda sobre el cebo
+    if (this.fearT > 0) { if (!(this.stunT > 0)) this._fleeStep(dt); return false; }
     // CEBO (§3.6): un cebo armado lo atrae en lugar de moverse y decidir; los temporizadores
     // de arriba (Vulnerable, control, marcas, destello) siguen corriendo y un lanzamiento en
     // curso termina antes
@@ -2544,8 +2715,7 @@ export class Enemy {
       }
     }
 
-    const spd = this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1) * (this.rootT > 0 ? 0 : 1) // inmovilizado: no se mueve
-      * (this.numbT > 0 ? 0.7 : 1);                                                                                     // Aterido: −30 %
+    const spd = this._moveSpd();
 
     // cobardes: con poca vida huyen de ti, pero EN RÁFAGAS — corren ~1.5s y
     // luego se cansan ~1.5s (se ralentizan y se dan la vuelta), dando una
