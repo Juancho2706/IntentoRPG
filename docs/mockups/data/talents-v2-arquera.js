@@ -11,6 +11,12 @@
  * las builds «Vaivén Eterno» y «Galerna Infinita» de la Tiradora y el Paragon (heroNodes) de las 12 builds.
  * CORRECCIÓN DE LA ETAPA 2 (juicio de 3 jueces, 2026-10-21): bucles de Concentración, Galerna, Rearme y humo cerrados;
  * números recalibrados con el modelo de %WD/s del documento (§12.1); finales que escalan por rango; activas mejoradas.
+ * REJUICIO (decisiones del orquestador, 2026-10-21; doc §17.3): Gran Cacería (m26) a mitad de daño y Cepo Reforzado (m8B)
+ * 3 × 20 % (contra un jefe, ~0,80 de la Francotiradora); Espinas de Caza toma Halcón Peregrino (y8B). Ningún id cambió.
+ * REJUICIO DE BALANCE, RONDA 2 (juez independiente; doc §19): Punta Curativa (w4B) con techo; Presa Atrapada (m5) una vez cada
+ * 10 s; veneno del cepo que se renueva; Cerco gratis de Bosque Vivo (m27) sin veneno ni estallido; Atalaya (f10A, f21, f27) y
+ * Ciclones (v24) a la baja; Rueda de Flechas (v10A) al 50 %; Tormenta de Plumas (v25) contra jefes; activas c11A, c22A y w4A a
+ * 20 s; topes en c5B y w11; Saetas Pesadas 700 %; marca del halcón +10 %; Bosque Vivo con Puntas Afines (w9). Ningún id cambió.
  * Prefijos de id: clase c1…c30 · Tiradora v0…v28 · Francotiradora f0…f28 · Montaraz m0…m28 ·
  * héroes q0…q12 (h1 Errante del Viento), w0…w12 (h2 Carcaj Encantado), y0…y12 (h3 Halconera).
  * ===================================================================================================== */
@@ -48,9 +54,9 @@ const CATALOG = [
     A:{ n:'Aguacero', r:'UNI', s:'Radio 2 m, cae en 0,8 s y hace +40 % de daño.', k:'radius −33 · ★set{span:.8} · dmg +40' },
     B:{ n:'Cortina', r:'AGU', s:'Dentro, los enemigos pegan un 15 % menos y fallan la mitad de sus proyectiles.', k:'★set{allyDr:15, projMissPct:50} (zona)' } },
   // — activas de clase que se eligen en un nodo de elección del árbol de clase (ranura 2) —
-  { id:'a_t_camuflaje', n:'Camuflaje', cat:'defense', req:21, talent:true, grantBy:'c11', elem:'physical', cd:30, icon:I('clase-c12'), s:'Te vuelves invisible 4 s, los enemigos te pierden y Paso Veloz se recarga; tu primer disparo al salir es crítico.' },
+  { id:'a_t_camuflaje', n:'Camuflaje', cat:'defense', req:21, talent:true, grantBy:'c11', elem:'physical', cd:20, icon:I('clase-c12'), s:'Te vuelves invisible 4 s, los enemigos te pierden y Paso Veloz se recarga; tu primer disparo al salir es crítico.' },
   { id:'agilidad', n:'Agilidad', cat:'utility', req:27, talent:true, grantBy:'c17', elem:'physical', cd:16, s:'Durante 6 s: +30 % de velocidad, +15 % de velocidad de ataque e inmunidad a las ralentizaciones.' },
-  { id:'a_t_bengala', n:'Flecha Bengala', cat:'utility', req:31, talent:true, grantBy:'c22', elem:'physical', cd:30, icon:I('clase-c15'), s:'Una bengala de 10 m durante 8 s: dentro, los enemigos reciben un 15 % más de daño del grupo y pegan un 15 % menos.' },
+  { id:'a_t_bengala', n:'Flecha Bengala', cat:'utility', req:31, talent:true, grantBy:'c22', elem:'physical', cd:20, icon:I('clase-c15'), s:'Una bengala de 10 m durante 10 s: dentro, los enemigos reciben un 15 % más de daño del grupo y pegan un 15 % menos.' },
   // — KIT DE LA TIRADORA (solo con la especialización; Nv10–15) —
   { id:'a_t_andanada', n:'Andanada', cat:'spec', req:10, spec:'tiradora', elem:'physical', coef:0.45, cost:25, cd:8, icon:I('tiradora-s4'), s:'Saltas 4 m atrás y disparas 10 flechas en 120° (45 % cada una). En 2 s, pulsa otra vez: saltas adelante y repites.',
     M:{ n:'Arco Ancho', s:'Abanico 120 → 150°.', k:'★set{spread:150°}' },
@@ -67,7 +73,7 @@ const CATALOG = [
   { id:'a_u_diluvio', n:'Diluvio de Saetas', cat:'ultimate', req:15, spec:'tiradora', elem:'physical', coef:1.7, cd:50, s:'Una nube de saetas te sigue 6 s y cada 0,5 s descarga en 4 m a tu alrededor (170 % por oleada).',
     M:{ n:'Nube Ancha', s:'Radio 4 → 5 m.', k:'radius +25' },
     A:{ n:'Diluvio Anclado', r:'AREA', s:'Queda fijo donde apuntas, con 6 m de radio.', k:'★set{follow:false, at:target, radius:6}' },
-    B:{ n:'Saetas Pesadas', r:'UNI', s:'4 saetas de 600 % caen sobre tu objetivo en 2 s.', k:'★set{waves:4, span:2, radius:1.5, coef:6}' } },
+    B:{ n:'Saetas Pesadas', r:'UNI', s:'4 saetas de 700 % caen sobre tu objetivo en 2 s.', k:'★set{waves:4, span:2, radius:1.5, coef:7}' } },
   // — KIT DE LA FRANCOTIRADORA (solo con la especialización; Nv10–15). Verbo principal: CARGAR Y SOLTAR, plantada —
   { id:'a_t_apuntado', n:'Disparo Apuntado', cat:'spec', req:10, spec:'francotiradora', elem:'physical', coef:2.5, cost:30, cd:4, icon:S('a_p_punteria'),
     s:'Mantén para tensar hasta 1,5 s y suelta: de 80 a 250 % y atraviesa. En la ventana dorada, +50 % y crítico.',
@@ -91,7 +97,7 @@ const CATALOG = [
     B:{ n:'Haz Único', r:'UNI', s:'Un solo haz que tensas hasta 3 s: hasta 1000 %.', k:'★set{shots:1, charge.max:3, charge.coefMax:10}' } },
   // — KIT DEL MONTARAZ (solo con la especialización; Nv10–15). Verbo principal: COLOCAR Y DETONAR trampas y zonas —
   { id:'a_t_cepo', n:'Trampa de Cepo', cat:'spec', req:10, spec:'montaraz', elem:'nature', coef:0.6, cost:10, cd:8, icon:I('montaraz-s0'),
-    s:'Colocas un cepo (hasta 3; se arma en 0,5 s): inmoviliza 2 s y envenena (60 % en 5 s). 2 cargas.',
+    s:'Colocas un cepo (hasta 3; se arma en 0,5 s): inmoviliza 2 s y envenena (60 % en 5 s; se renueva, no se suma). 2 cargas.',
     M:{ n:'Muelles Firmes', s:'Se arma en 0,2 s (antes 0,5 s).', k:'armT .2' },
     A:{ n:'Mina de Espinas', r:'AREA', s:'No inmoviliza: al pisarla estalla en 3 m (100 %).', k:'★set{root:0, burst:{radius:3, coef:1}}' },
     B:{ n:'Red de Caza', r:'CTRL', s:'Al pisarla lanza una red de 3 m que inmoviliza 2,5 s a todos los que atrapa.', k:'★set{radius:3, root:2.5} · absorbe a Red de Caza (a_red)' } },
@@ -112,7 +118,7 @@ const CATALOG = [
     B:{ n:'Señuelo de Zarzas', r:'AGU', s:'En el centro, un señuelo de paja atrae 6 s a los enemigos a 10 m.', k:'★set{decoy:{dur:6, radius:10}} · absorbe al Señuelo de Paja (a_t_senuelo)' } },
   // — activas de ÁRBOL HÉROE (opción A de una elección del Paragon; ranura 2; sin forja) —
   { id:'a_h_torbellino', n:'Torbellino', cat:'utility', req:72, talent:true, grantBy:'q4', hero:true, elem:'physical', cd:40, icon:I('tiradora-s15'), s:'Un torbellino de 4 m levanta 1,5 s a los enemigos y te da 3 Ráfagas.' },
-  { id:'a_h_puntas', n:'Desborde de Puntas', cat:'utility', req:72, talent:true, grantBy:'w4', hero:true, elem:'physical', cd:30, icon:I('clase-c9'), s:'Tus 6 siguientes disparos llevan las tres puntas encantadas a la vez.' },
+  { id:'a_h_puntas', n:'Desborde de Puntas', cat:'utility', req:72, talent:true, grantBy:'w4', hero:true, elem:'physical', cd:20, icon:I('clase-c9'), s:'Tus 8 siguientes disparos llevan las tres puntas encantadas a la vez.' },
   { id:'a_h_halcon', n:'Llamada del Halcón', cat:'utility', req:72, talent:true, grantBy:'y4', hero:true, elem:'physical', cd:30, icon:I('clase-c4'), s:'El halcón ataca a tu blanco 6 s sin parar (40 % cada 0,5 s), lo deja ciego y le llena 30 de Quebranto.' },
 ];
 
@@ -170,7 +176,7 @@ const CLS = [
   { id:'c4', n:'Bomba Rápida', t:'p', tag:'num', r:1, c:0, max:3, req:['c1'], d:r=>`La Bomba de Humo se recarga en ${16-2*r} s (antes 16 s)`, touch:['a_humo'], icon:S('a_humo'), impl:'mod a_humo cdr · existe' },
   { id:'c5', n:'Disparo: Fijo o Saqueo', t:'c', tag:'mec', r:1, c:2, max:1, req:['c1','c2'], touch:['a_disparo'], icon:S('a_disparo'), opts:[
     { k:'A', n:'Puntería Fija', d:'Cada 4.º Disparo Rápido al mismo enemigo es crítico seguro', role:'UNI', impl:'power a_punteria_fija · NUEVO (onCast cast.forceCrit, cuenta por objetivo)' },
-    { k:'B', n:'Flecha Saqueadora', d:'Si Disparo Rápido mata, recuperas 8 de Energía', role:'AREA', impl:'power a_saqueo · NUEVO (onKill + g.gainResource)' } ],
+    { k:'B', n:'Flecha Saqueadora', d:'Si Disparo Rápido mata, recuperas 8 de Energía (como mucho una vez por disparo)', role:'AREA', impl:'power a_saqueo · NUEVO (onKill + g.gainResource; una vez por lanzamiento)' } ],
     win:'A, contra jefes: un crítico seguro cada ~3 s. B, contra grupos: como mueren muchos, ≈ una habilidad principal extra cada 3 muertes' },
   { id:'c6', n:'Distancia: Bocajarro o Lejos', t:'c', tag:'mec', r:1, c:4, max:1, req:['c2','c3'], flechas:true, icon:I('francotiradora-s8'), opts:[
     { k:'A', n:'A Bocajarro', d:'A menos de 5 m, tus flechas hacen +15 % de daño y empujan 1 m al enemigo', role:'AREA', impl:'power a_bocajarro · NUEVO (condAdd por distancia + knock)' },
@@ -187,7 +193,7 @@ const CLS = [
     { k:'B', n:'Flecha Silbante', d:'Cada 10 s, tu siguiente disparo corta el hechizo del enemigo y lo deja mudo 3 s', role:'UNI', impl:'power a_silbante · NUEVO (lógica de a_t_silencio; applyCC interrupt = 20 de Quebranto a jefes)' } ],
     win:'A, contra grupos que te persiguen. B, contra jefes y élites que lanzan hechizos (además les llena 20 de Quebranto)' },
   { id:'c11', n:'Camuflaje o Instinto', t:'c', tag:'mec', r:3, c:0, max:1, req:['c8'], icon:I('clase-c12'), opts:[
-    { k:'A', n:'Camuflaje', d:'Habilidad (ranura 2): invisible 4 s; te pierden, Paso Veloz se recarga y tu primer disparo es crítico. 30 s', role:'AGU', act:'a_t_camuflaje', impl:'activa a_t_camuflaje · existe (+ power a_camuflaje: cds a_paso = 0)' },
+    { k:'A', n:'Camuflaje', d:'Habilidad (ranura 2): invisible 4 s; te pierden, Paso Veloz se recarga y tu primer disparo es crítico. 20 s', role:'AGU', act:'a_t_camuflaje', impl:'activa a_t_camuflaje · existe (+ power a_camuflaje: cds a_paso = 0)' },
     { k:'B', n:'Instinto de Supervivencia', d:'Un golpe que te mataría te deja con 1 de vida y suelta una Bomba de Humo gratis. Una vez cada 180 s', role:'AGU', impl:'power a_instinto · NUEVO (onLethal + lanza a_humo como eco)' } ],
     win:'A, contra golpes de jefe que se ven venir: esquivas y vuelves a rodar (ocupa la ranura 2). B, un seguro cada 3 minutos sin ocupar ranura' },
   { id:'c12', n:'Respiración Pausada', t:'p', tag:'num', r:3, c:2, max:2, req:['c8','c9'], d:r=>`Recuperas Energía un ${15*r} % más rápido`, icon:I('clase-c10'), impl:'stats.regenPct (Energía) · existe' },
@@ -213,7 +219,7 @@ const CLS = [
   { id:'c20', n:'Lluvia en Retirada', t:'p', tag:'mec', r:5, c:4, max:1, req:['c16','c17'], d:()=>'Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde empezaste a rodar', touch:['a_paso','lluvia_flechas'], hyb:'Movilidad + Principal', icon:S('lluvia_flechas'), impl:'power a_lluvia_retirada · NUEVO (afterCast + eco de lluvia_flechas ×0,3)' },
   { id:'c21', n:'Piernas de Corredora', t:'p', tag:'num', r:5, c:6, max:1, req:['c17'], d:()=>'Te mueves un 10 % más rápido', icon:I('tiradora-s2'), impl:'stats.spdPct · existe' },
   { id:'c22', n:'Bengala o Economía', t:'c', tag:'mec', r:6, c:1, max:1, req:['c18','c19'], icon:I('clase-c14'), opts:[
-    { k:'A', n:'Flecha Bengala', d:'Habilidad (ranura 2): bengala de 10 m 8 s; dentro reciben +15 % de daño y pegan un 15 % menos. 30 s', role:'AREA', act:'a_t_bengala', impl:'activa a_t_bengala · existe (applyWeakness 15 + weakenOutgoing 15)' },
+    { k:'A', n:'Flecha Bengala', d:'Habilidad (ranura 2): bengala de 10 m 10 s; dentro reciben +15 % de daño y pegan un 15 % menos. 20 s', role:'AREA', act:'a_t_bengala', impl:'activa a_t_bengala · existe (applyWeakness 15 + weakenOutgoing 15)' },
     { k:'B', n:'Economía Letal', d:'Las habilidades que cuestan más de 20 de Energía cuestan un 20 % menos', role:'UNI', impl:'tv.costRedBig {pct:20, over:20} · existe' } ],
     win:'A, en grupo: todos pegan +15 % dentro y recibes menos (ocupa la ranura 2). B, para hacer daño en solitario (+5–7 %)' },
   { id:'c23', n:'Recarga en Marcha', t:'p', tag:'mec', r:6, c:3, max:2, req:['c19','c20'], d:r=>`Cada habilidad principal que lanzas recarga ${n1(0.3*r)} s de Paso Veloz y de la Bomba de Humo`, touch:['a_paso','a_humo'], icon:I('tiradora-s1'), impl:'power a_recarga_marcha · NUEVO (afterCast de cat spender)' },
@@ -249,7 +255,7 @@ const TIRADORA = [
     { k:'B', n:'Ida y Vuelta', d:'Puedes relanzar Andanada dos veces (antes una): atrás, adelante y atrás de nuevo; la tercera al 70 %', role:'AREA', impl:'mod a_t_andanada recast.max +1 · clave NUEVA (tipo genérico recast)' } ],
     win:'A, contra jefes: si aciertas el momento, +20 % de media y el Vendaval antes. B, contra grupos: barres tres sitios por uso. Decide qué Vaivén juegas' },
   { id:'v10', n:'Carrera: Rueda o Blanco Fijo', t:'c', tag:'mec', r:3, c:5, max:1, req:['v6','v7'], touch:['a_v_carrera'], arch:'galerna', icon:I('tiradora-s9'), opts:[
-    { k:'A', n:'Rueda de Flechas', d:'Mientras corres con Carrera, cada segundo sueltas un anillo de 8 flechas a tu alrededor (40 % cada una)', role:'AREA', impl:'power t_rueda · NUEVO (tick del canal)' },
+    { k:'A', n:'Rueda de Flechas', d:'Mientras corres con Carrera, cada segundo sueltas un anillo de 8 flechas a tu alrededor (50 % cada una)', role:'AREA', impl:'power t_rueda · NUEVO (tick del canal; ronda 2: 50 %, antes 40 %)' },
     { k:'B', n:'Blanco Fijo', d:'Si Carrera dispara al mismo enemigo, cada flecha seguida hace +10 % (hasta +60 %)', role:'UNI', impl:'power t_blanco_fijo · NUEVO (condAdd por objetivo)' } ],
     win:'A, contra grupos que te persiguen. B, contra jefes: a los 2,4 s de carrera ya pega +60 %. Decide qué Galerna juegas' },
   { id:'v11', n:'Mano Llena', t:'p', tag:'num', r:4, c:0, max:2, req:['v8'], d:r=>`Flecha Múltiple dispara ${5+r} flechas (antes 5)`, touch:['flecha_multiple'], arch:'abanico', icon:I('tiradora-s12'), impl:'mod flecha_multiple proj · existe' },
@@ -268,8 +274,8 @@ const TIRADORA = [
   { id:'v21', n:'Nube Fiel', t:'p', tag:'mec', r:6, c:6, max:1, req:['v17'], d:()=>'En los 6 primeros segundos de Carrera del Viento, el Diluvio de Saetas descarga cada 0,4 s (antes 0,5 s)', touch:['a_v_carrera','a_u_diluvio'], arch:'galerna', icon:S('a_u_diluvio'), impl:'power t_nube_fiel · NUEVO (modifyResolve del intervalo; no cuenta la prórroga de Galerna Infinita)' },
   { id:'v22', n:'Ráfaga Creciente', t:'p', tag:'mec', r:7, c:0, max:3, req:['v18'], d:r=>`Cada Flecha Múltiple a menos de 3 s de otra dispara 1 flecha más (hasta +${r+1})`, touch:['flecha_multiple'], arch:'abanico', icon:I('tiradora-s3'), impl:'power t_rafaga_creciente · NUEVO (modifyResolve proj con contador)' },
   { id:'v23', n:'Golpe de Apertura', t:'p', tag:'mec', r:7, c:3, max:3, req:['v19'], d:r=>`Al empezar el Vendaval, tus ${r+1} siguientes Andanadas o Flechas Múltiples son críticas seguras`, touch:['a_t_andanada','flecha_multiple'], arch:'vaiven', icon:I('tiradora-x1'), impl:'power t_apertura · NUEVO (⑩ onGauge full + onCast forceCrit)' },
-  { id:'v24', n:'Ciclones', t:'p', tag:'mec', r:7, c:6, max:3, req:['v21'], d:r=>`Mientras corres con Carrera, cada ${n1(2.5-0.5*r)} s dejas un ciclón 4 s que dispara cada 0,5 s al más cercano (35 %; 3 vivos)`, touch:['a_v_carrera'], arch:'galerna', icon:I('tiradora-x2'), impl:'power t_ciclones · NUEVO (campo t_ciclon que dispara)' },
-  { id:'v25', n:'Tormenta de Plumas', t:'f', tag:'mec', r:8, c:0, max:3, req:['v22'], d:r=>`Cada 3.ª Flecha Múltiple sale además en círculo: ${3+3*r} flechas más al 60 %`, touch:['flecha_multiple'], arch:'abanico', icon:S('flecha_multiple'), impl:'power t_tormenta_plumas · NUEVO (afterCast cada 3.ª: anillo de proyectiles)', final:'Abanico' },
+  { id:'v24', n:'Ciclones', t:'p', tag:'mec', r:7, c:6, max:3, req:['v21'], d:r=>`Mientras corres con Carrera, cada ${n1(2.5-0.5*r)} s dejas un ciclón 4 s que dispara cada 0,5 s al más cercano (28 %; 3 vivos)`, touch:['a_v_carrera'], arch:'galerna', icon:I('tiradora-x2'), impl:'power t_ciclones · NUEVO (campo t_ciclon que dispara; ronda 2: 28 %, antes 35 %)' },
+  { id:'v25', n:'Tormenta de Plumas', t:'f', tag:'mec', r:8, c:0, max:3, req:['v22'], d:r=>`Cada 3.ª Flecha Múltiple sale además en círculo: ${3+3*r} flechas más al 60 % (hasta 3 caen sobre su blanco)`, touch:['flecha_multiple'], arch:'abanico', icon:S('flecha_multiple'), impl:'power t_tormenta_plumas · NUEVO (afterCast cada 3.ª: anillo de proyectiles; ronda 2: hasta 3 buscan al blanco de la Múltiple, con su propio tope de 3)', final:'Abanico' },
   { id:'v26', n:'Vaivén Eterno', t:'f', tag:'mec', r:8, c:3, max:3, req:['v23'], d:r=>`Durante el Vendaval, al cerrar su ventana Andanada vuelve sin recarga y a mitad de coste (${['1 vez', '2 veces', 'sin límite'][r-1]})`, touch:['a_t_andanada'], arch:'vaiven', icon:I('tiradora-x2'), impl:'power t_vaiven · NUEVO (al cerrar la ventana de recast, cds = 0 y coste ×0,5 si galeT > 0; usos por Vendaval 1/2/∞)', final:'Vaivén' },
   { id:'v27', n:'Galerna Infinita', t:'f', tag:'mec', r:8, c:6, max:3, req:['v24'], d:r=>`Carrera del Viento dura ${['2 s más', '4 s más', 'lo que la mantengas'][r-1]}; el tiempo extra gasta 10 de Energía por segundo y sube 3 cada segundo`, touch:['a_v_carrera'], arch:'galerna', icon:I('tiradora-x3'), impl:'power t_galerna · NUEVO (prórroga del canal 2/4/∞ s; coste 10 + 3·t por s: ~6,5 s con 80 de Energía)', final:'Galerna' },
   { id:'v28', n:'Ojo del Huracán', t:'x', tag:'mec', r:9, c:3, max:4, req:['v25','v26','v27'], d:r=>['1) El Vendaval también te da +20 % de velocidad de movimiento.', '2) Matar a un élite te da 50 de Impulso.', '3) El Vendaval salta a 80 de Impulso (antes 100).', '4) Cada Vendaval recarga 4 s del Diluvio de Saetas.'].slice(0, r).join(' '), icon:I('tiradora-x3'), impl:'power t_ojo_huracan (rangos) · NUEVO (sustituye a t_eyestorm)' },
@@ -297,7 +303,7 @@ const FRANCO = [
     { k:'B', n:'Punto Vital', d:'Contra tu Punto Débil, el soltado perfecto hace +35 % más y le llena 15 de Quebranto', role:'UNI', impl:'power f_punto_vital · NUEVO (condAdd + addStagger)' } ],
     win:'A, contra grupos de élites: la marca no se pierde al matar. B, contra jefes: más premio y Quebranto. Decide qué Punto Débil juegas' },
   { id:'f10', n:'Vigía: Salva o Paciencia', t:'c', tag:'mec', r:3, c:5, max:1, req:['f6','f7'], touch:['a_f_rodilla'], arch:'vigia', icon:I('francotiradora-s9'), opts:[
-    { k:'A', n:'Salva de Vigía', d:'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más a enemigos cercanos (40 % cada una)', role:'AREA', impl:'power f_salva · NUEVO (afterCast con la postura)' },
+    { k:'A', n:'Salva de Vigía', d:'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más a enemigos cercanos (25 % cada una)', role:'AREA', impl:'power f_salva · NUEVO (afterCast con la postura; ronda 2: 25 %, antes 40 %)' },
     { k:'B', n:'Paciencia de Vigía', d:'En Rodilla en Tierra, cada disparo tensado seguido al mismo enemigo hace +10 % (hasta +50 %)', role:'UNI', impl:'power f_paciencia · NUEVO (sustituye a f_patience)' } ],
     win:'A, contra grupos que se acercan. B, contra jefes: +50 % desde el 5.º disparo seguido. Decide qué Vigía juegas' },
   { id:'f11', n:'Fila Rota', t:'p', tag:'mec', r:4, c:0, max:2, req:['f8'], d:r=>`Cada enemigo que mata Disparo Apuntado te devuelve ${4*r} de Energía y ${5*r} de Concentración`, touch:['a_t_apuntado'], arch:'perforacion', icon:I('francotiradora-s16'), impl:'power f_fila_rota · NUEVO (onKill + gainResource + gainGauge)' },
@@ -313,13 +319,13 @@ const FRANCO = [
   { id:'f18', n:'Rebote Certero', t:'p', tag:'mec', r:6, c:0, max:2, req:['f15'], d:r=>`Disparo Apuntado rebota en el primer muro y vuelve por su línea al ${10*r} %`, touch:['a_t_apuntado'], arch:'perforacion', icon:I('francotiradora-s4'), impl:'power f_rebote · NUEVO (proyectil que vuelve; el eco no rebota)' },
   { id:'f19', n:'Herida Expuesta', t:'p', tag:'mec', r:6, c:2, max:2, req:['f15','f16'], d:r=>`Mientras tiene tu Punto Débil, el enemigo recibe +${6*r} % de daño de todo el grupo`, touch:['a_f_rastreador'], arch:'puntodebil', icon:I('francotiradora-x2'), impl:'power f_herida_expuesta · NUEVO (applyWeakness mientras dura la marca)' },
   { id:'f20', n:'Vista Larga', t:'p', tag:'num', r:6, c:4, max:2, req:['f16','f17'], d:r=>`Tus disparos tensados alcanzan ${2*r} m más y hacen +${6*r} % a más de 10 m`, touch:['a_t_apuntado','a_disparo','a_u_celeste'], icon:I('francotiradora-s15'), impl:'mod range + condAdd por distancia · claves' },
-  { id:'f21', n:'Firmamento', t:'p', tag:'mec', r:6, c:6, max:1, req:['f17'], d:()=>'En Rodilla en Tierra, Tiro Celestial se recarga un 50 % más rápido', touch:['a_u_celeste','a_f_rodilla'], arch:'vigia', icon:S('a_u_celeste'), impl:'power f_firmamento · NUEVO (cdRate ×1,5 con la postura)' },
+  { id:'f21', n:'Firmamento', t:'p', tag:'mec', r:6, c:6, max:1, req:['f17'], d:()=>'En Rodilla en Tierra, Tiro Celestial se recarga un 40 % más rápido', touch:['a_u_celeste','a_f_rodilla'], arch:'vigia', icon:S('a_u_celeste'), impl:'power f_firmamento · NUEVO (cdRate ×1,4 con la postura; ronda 2, antes ×1,5)' },
   { id:'f22', n:'Saetas Paralelas', t:'p', tag:'mec', r:7, c:0, max:3, req:['f18'], d:r=>`Cada soltado perfecto de Disparo Apuntado suelta ${r} saeta${r > 1 ? 's' : ''} más en paralelo, a 1 m (20 %)`, touch:['a_t_apuntado'], arch:'perforacion', icon:S('flecha_perforante'), impl:'power f_paralelas · NUEVO (afterCast si cast.perfect)' },
   { id:'f23', n:'Herida sobre Herida', t:'p', tag:'mec', r:7, c:3, max:3, req:['f19'], d:r=>`Cada soltado perfecto a tu Punto Débil le deja una Herida (hasta 5): tus tensados le hacen +${2*r} % por cada una`, touch:['a_f_rastreador','a_t_apuntado'], arch:'puntodebil', icon:I('francotiradora-s6'), impl:'power f_heridas · NUEVO (stacks por objetivo; condAdd)' },
   { id:'f24', n:'Ojo Entrenado', t:'p', tag:'mec', r:7, c:6, max:3, req:['f21'], d:r=>`Cada ${7-r} s en Rodilla en Tierra, tu siguiente Disparo Apuntado sale al instante y a carga completa`, touch:['a_f_rodilla','a_t_apuntado'], arch:'vigia', icon:I('francotiradora-s0'), impl:'power f_ojo_entrenado · NUEVO (onTick con la postura; charge.instant)' },
   { id:'f25', n:'Línea Mortal', t:'f', tag:'mec', r:8, c:0, max:3, req:['f22'], d:r=>`A carga completa, Disparo Apuntado (o su saeta central) es un haz de 30 m que estalla en toda su línea (${5+5*r} %)`, touch:['a_t_apuntado'], arch:'perforacion', icon:S('a_p_punteria'), impl:'power f_linea_mortal · NUEVO (charge.full → haz + estallido en línea)', final:'Perforación' },
   { id:'f26', n:'Disparo Imposible', t:'f', tag:'mec', r:8, c:3, max:3, req:['f23'], d:r=>`Un soltado perfecto de Disparo Apuntado a tu Punto Débil sale dos veces: la 2.ª al ${5+10*r} %, crítica y con 20 de Quebranto`, touch:['a_f_rastreador','a_t_apuntado'], arch:'puntodebil', icon:I('francotiradora-x3'), impl:'power f_disparo_imposible · NUEVO (sustituye a f_impossible; como mucho un doble por segundo; la 2.ª no da Herida ni Concentración)', final:'Punto Débil' },
-  { id:'f27', n:'Atalaya Eterna', t:'f', tag:'mec', r:8, c:6, max:3, req:['f24'], d:r=>`Rodilla en Tierra dura ${['20 s', '30 s', 'hasta que te levantes'][r-1]}; cada 5 s en ella, un haz celeste gratis (200 %)`, touch:['a_f_rodilla','a_u_celeste'], arch:'vigia', icon:I('francotiradora-s9'), impl:'power f_atalaya · NUEVO (postura de 20/30/∞ s + eco de un haz de a_u_celeste ×0,5)', final:'Vigía' },
+  { id:'f27', n:'Atalaya Eterna', t:'f', tag:'mec', r:8, c:6, max:3, req:['f24'], d:r=>`Rodilla en Tierra dura ${['20 s', '30 s', 'hasta que te levantes'][r-1]}; cada 5 s en ella, un haz celeste gratis sobre tu blanco (160 %)`, touch:['a_f_rodilla','a_u_celeste'], arch:'vigia', icon:I('francotiradora-s9'), impl:'power f_atalaya · NUEVO (postura de 20/30/∞ s + eco de un haz de a_u_celeste ×0,4 que cae sobre el blanco y no atraviesa)', final:'Vigía' },
   { id:'f28', n:'Ojo Inmóvil', t:'x', tag:'mec', r:9, c:3, max:4, req:['f25','f26','f27'], d:r=>['1) La Calma Absoluta dura 8 s (antes 5 s).', '2) Matar a un élite te da 50 de Concentración.', '3) La Calma Absoluta salta a 80 de Concentración (antes 100).', '4) Cada Calma Absoluta recarga 5 s de Tiro Celestial.'].slice(0, r).join(' '), icon:I('francotiradora-x2'), impl:'power f_ojo_inmovil (rangos) · NUEVO (sustituye a f_weakspot)' },
 ];
 
@@ -333,12 +339,12 @@ const MONTARAZ = [
   { id:'m2', n:'Olfato de Presa', t:'p', tag:'num', r:1, c:3, max:3, req:['m0'], d:r=>`Haces +${4*r} % de daño a tu Presa`, arch:'presa', icon:I('montaraz-s15'), impl:'tv.preyDmg · existe' },
   { id:'m3', n:'Raíz Rápida', t:'p', tag:'num', r:1, c:5, max:3, req:['m0'], d:r=>`Cerco de Zarzas se recarga en ${45-3*r} s (antes 45 s)`, touch:['a_u_zarzas'], arch:'zarzal', icon:I('montaraz-s16'), impl:'mod a_u_zarzas cdr · claves' },
   { id:'m4', n:'Pólvora Negra', t:'p', tag:'num', r:2, c:0, max:2, req:['m1'], d:r=>`Tus trampas y Flecha Detonante hacen +${15*r} % de daño`, touch:['a_t_cepo','a_m_detonante'], arch:'campo', icon:I('montaraz-s5'), impl:'mod dmg · claves' },
-  { id:'m5', n:'Presa Atrapada', t:'p', tag:'mec', r:2, c:2, max:1, req:['m1','m2'], d:()=>'Una trampa que atrapa a tu Presa estalla también (60 %) y te devuelve una carga de Trampa de Cepo', touch:['a_t_cepo'], arch:'campo+presa', hyb:'Campo Minado + Presa', icon:I('montaraz-s4'), impl:'power m_presa_atrapada · NUEVO' },
+  { id:'m5', n:'Presa Atrapada', t:'p', tag:'mec', r:2, c:2, max:1, req:['m1','m2'], d:()=>'Una trampa que atrapa a tu Presa estalla (60 %) y te devuelve una carga de Trampa de Cepo (una vez cada 10 s)', touch:['a_t_cepo'], arch:'campo+presa', hyb:'Campo Minado + Presa', icon:I('montaraz-s4'), impl:'power m_presa_atrapada · NUEVO (icd 10 s para el estallido y la carga; las trampas que salta Gran Cacería no la activan)' },
   { id:'m6', n:'Cerco a la Presa', t:'p', tag:'mec', r:2, c:4, max:1, req:['m2','m3'], d:()=>'Flecha Detonante sobre tu Presa le deja debajo un zarzal de 2 m 4 s que la ralentiza un 40 %', touch:['a_m_detonante'], arch:'presa+zarzal', hyb:'Presa + Zarzal', icon:I('montaraz-x1'), impl:'power m_cerco_presa · NUEVO (campo m_zarzal)' },
   { id:'m7', n:'Raíces Profundas', t:'p', tag:'num', r:2, c:6, max:2, req:['m3'], d:r=>`Cruzar el Cerco de Zarzas inmoviliza ${n1(1.5+0.5*r)} s (antes 1,5 s)`, touch:['a_u_zarzas'], arch:'zarzal', icon:S('a_u_zarzas'), impl:'mod a_u_zarzas crossRoot · claves' },
   { id:'m8', n:'Cepo: Racimo o Reforzado', t:'c', tag:'mec', r:3, c:1, max:1, req:['m4','m5'], touch:['a_t_cepo'], arch:'campo', icon:I('montaraz-s6'), opts:[
     { k:'A', n:'Racimo de Cepos', d:'Trampa de Cepo coloca 3 cepos en triángulo (35 % cada uno); en el Coto cuentan como una trampa', role:'AREA', impl:'power m_racimo · NUEVO (afterCast: 2 cepos más ×0,35; coto cuenta 1)' },
-    { k:'B', n:'Cepo Reforzado', d:'Si atrapa a un élite o a un jefe, el cepo estalla 3 veces (30 % cada una)', role:'UNI', impl:'power m_cepo_reforzado · NUEVO' } ],
+    { k:'B', n:'Cepo Reforzado', d:'Si atrapa a un élite o a un jefe, el cepo estalla 3 veces (20 % cada una)', role:'UNI', impl:'power m_cepo_reforzado · NUEVO (rejuicio: 3 × 20 %, antes 3 × 30 %)' } ],
     win:'A, contra grupos: tres cepos por carga para cubrir el suelo. B, contra jefes: cada cepo pega tres veces. Decide qué Campo Minado juegas' },
   { id:'m9', n:'Presa: Manada o Herida', t:'c', tag:'mec', r:3, c:3, max:1, req:['m5','m6'], arch:'presa', icon:I('montaraz-s0'), opts:[
     { k:'A', n:'Presas en Manada', d:'Tienes hasta 3 Presas: tu primer élite y los 2 primeros enemigos que pisen una trampa', role:'AREA', impl:'power m_manada · NUEVO (coto.preyMax 3)' },
@@ -366,8 +372,8 @@ const MONTARAZ = [
   { id:'m23', n:'Batida Mayor', t:'p', tag:'mec', r:7, c:3, max:3, req:['m19'], d:r=>`La Batida dura ${6+r} s (antes 6 s) y a tu Presa le llena ${10*r} de Quebranto`, arch:'presa', icon:I('montaraz-x3'), impl:'tv.batidaDur + tv.batidaPreyStagger · NUEVO (claves de la mecánica coto; ya no sube la Debilidad)' },
   { id:'m24', n:'Siembra de Espinas', t:'p', tag:'mec', r:7, c:6, max:3, req:['m21'], d:r=>`Cada cepo que atrapa o estalla deja un zarzal de 2 m durante ${2+2*r} s que ralentiza un 40 %`, touch:['a_t_cepo'], arch:'zarzal', icon:I('montaraz-s17'), impl:'power m_siembra · NUEVO (campo m_zarzal)' },
   { id:'m25', n:'Tierra Arrasada', t:'f', tag:'mec', r:8, c:0, max:3, req:['m22'], d:r=>`Cada cepo de Trampa de Cepo que estalla siembra ${r} cepo${r > 1 ? 's' : ''} pequeño${r > 1 ? 's' : ''} a 3 m (30 %; esos no siembran; hasta 6)`, touch:['a_t_cepo'], arch:'campo', icon:I('montaraz-x1'), impl:'power m_tierra_arrasada · NUEVO (solo siembran los cepos de carga; 6 pequeños vivos como mucho)', final:'Campo Minado' },
-  { id:'m26', n:'Gran Cacería', t:'f', tag:'mec', r:8, c:3, max:3, req:['m23'], d:r=>`Si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor y se rearman (una vez cada ${[12, 9, 6][r-1]} s)`, touch:['a_t_cepo'], arch:'presa', icon:I('montaraz-x3'), impl:'power m_gran_caceria · NUEVO (sustituye a m_greathunt)', final:'Presa' },
-  { id:'m27', n:'Bosque Vivo', t:'f', tag:'mec', r:8, c:6, max:3, req:['m24'], d:r=>`Si 3 zarzales tuyos se tocan, forman un Cerco de Zarzas gratis de ${r+1} s (una vez cada 8 s)`, touch:['a_u_zarzas'], arch:'zarzal', icon:I('montaraz-x2'), impl:'power m_bosque_vivo · NUEVO (eco de a_u_zarzas de 2/3/4 s; uno vivo)', final:'Zarzal' },
+  { id:'m26', n:'Gran Cacería', t:'f', tag:'mec', r:8, c:3, max:3, req:['m23'], d:r=>`Si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor y se rearman a mitad de daño (una vez cada ${[12, 9, 6][r-1]} s)`, touch:['a_t_cepo'], arch:'presa', icon:I('montaraz-x3'), impl:'power m_gran_caceria · NUEVO (sustituye a m_greathunt; rejuicio: las trampas que saltan hacen el 50 % y cuentan para el tope de 2 estallidos; ronda 2: no activan Presa Atrapada, m5)', final:'Presa' },
+  { id:'m27', n:'Bosque Vivo', t:'f', tag:'mec', r:8, c:6, max:3, req:['m24'], d:r=>`Si 3 zarzales tuyos se tocan, forman un Cerco de Zarzas gratis de ${r+1} s, sin veneno ni estallido (una vez cada 8 s)`, touch:['a_u_zarzas'], arch:'zarzal', icon:I('montaraz-x2'), impl:'power m_bosque_vivo · NUEVO (eco de a_u_zarzas de 2/3/4 s; uno vivo; ronda 2: solo controla, coef 0 y sin el estallido al cerrarse)', final:'Zarzal' },
   { id:'m28', n:'Corazón del Bosque', t:'x', tag:'mec', r:9, c:3, max:4, req:['m25','m26','m27'], d:r=>['1) Tus trampas armadas ralentizan un 30 % a 3 m.', '2) Matar a un élite coloca un cepo gratis donde cae.', '3) La Batida salta con 2 trampas (antes 3).', '4) Cada 12 trampas que estallan, Cerco de Zarzas se lanza solo y gratis.'].slice(0, r).join(' '), icon:I('montaraz-s0'), impl:'power m_corazon_bosque (rangos) · NUEVO (sustituye a m_thornweb)' },
 ];
 
@@ -410,8 +416,8 @@ const HERO = [
       win:'A, contra jefes. B, contra grupos: en un disparo de varias flechas, todas la llevan' },
     { id:'w3', n:'Trampa Encantada', t:'p', tag:'mec', r:1, c:2, max:1, req:['w0'], d:()=>'Tus trampas, zonas y lluvias también toman la punta encantada al colocarlas', icon:I('montaraz-s4') },
     { id:'w4', n:'Desborde o Bálsamo', t:'c', tag:'mec', r:2, c:0, max:1, req:['w1','w2'], icon:I('clase-c9'), opts:[
-      { k:'A', n:'Desborde de Puntas', d:'Habilidad (ranura 2): tus 6 siguientes disparos llevan las tres puntas a la vez. Se recarga en 30 s', role:'AREA', act:'a_h_puntas' },
-      { k:'B', n:'Punta Curativa', d:'Cada punta encantada que golpea te cura un 2 % de la vida', role:'AGU' } ],
+      { k:'A', n:'Desborde de Puntas', d:'Habilidad (ranura 2): tus 8 siguientes disparos llevan las tres puntas a la vez. Se recarga en 20 s', role:'AREA', act:'a_h_puntas' },
+      { k:'B', n:'Punta Curativa', d:'Cada punta encantada que golpea te cura un 2 % de la vida (como mucho una vez cada 6 s)', role:'AGU' } ],
       win:'A, para un estallido de daño a voluntad (ocupa la ranura 2). B, para aguantar sin ocupar ranura' },
     { id:'w5', n:'Fuego Prendido', t:'p', tag:'num', r:2, c:1, max:1, req:['w2'], d:()=>'La punta de Fuego quema un 50 % más', icon:I('clase-c13') },
     { id:'w6', n:'Hielo Hondo', t:'p', tag:'mec', r:2, c:2, max:1, req:['w2','w3'], d:()=>'La punta de Hielo inmoviliza 1 s a los enemigos normales', icon:I('clase-c3') },
@@ -422,12 +428,12 @@ const HERO = [
       win:'A, contra grupos. B, contra jefes' },
     { id:'w9', n:'Puntas Afines', t:'p', tag:'mec', r:3, c:2, max:1, req:['w5','w6'], d:()=>'Cada punta encantada te da 8 de Impulso (Tiradora) o recarga 1 s de Trampa de Cepo (Montaraz)', icon:I('clase-c5') },
     { id:'w10', n:'Encantamiento Hondo', t:'p', tag:'num', r:4, c:0.5, max:1, req:['w7','w8'], d:()=>'Las puntas encantadas hacen +25 % de daño', icon:I('clase-c2') },
-    { id:'w11', n:'Punta Viva', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['w8','w9'], d:()=>'Si una punta encantada mata, la siguiente llega al instante', icon:I('clase-c7') },
+    { id:'w11', n:'Punta Viva', t:'p', tag:'mec', r:4, c:1.5, max:1, req:['w8','w9'], d:()=>'Si una punta encantada mata, la siguiente llega al instante (una vez cada 3 s)', icon:I('clase-c7') },
     { id:'w12', n:'Lluvia Encantada', t:'f', tag:'mec', r:5, c:1, max:1, req:['w10','w11'], d:()=>'Cada 30 s, durante 6 s, tus flechas llevan una punta encantada (al 30 %; una por enemigo cada 1 s)', icon:S('lluvia_flechas') },
   ] },
   { id:'h3', n:'Halconera', specs:['francotiradora','montaraz'], art:'ui256/menu_mascota.webp',
-    line:'Un halcón caza contigo: marca a la presa y cae en picado sobre ella', key:'Un halcón cae en picado cada 6 s sobre tu blanco (100 %) y lo marca: recibe +8 % de tus flechas', nodes:[
-    { id:'y0', n:'Halcón Cazador', t:'k', tag:'mec', r:0, c:1, max:1, free:true, d:()=>'Un halcón cae en picado cada 6 s sobre tu blanco (100 %) y lo marca 6 s: recibe +8 % de tus flechas', icon:I('clase-c4'), impl:'power y_halcon · NUEVO (aliado sin vida; picado = eco con marca)' },
+    line:'Un halcón caza contigo: marca a la presa y cae en picado sobre ella', key:'Un halcón cae en picado cada 6 s sobre tu blanco (100 %) y lo marca: recibe +10 % de tus flechas', nodes:[
+    { id:'y0', n:'Halcón Cazador', t:'k', tag:'mec', r:0, c:1, max:1, free:true, d:()=>'Un halcón cae en picado cada 6 s sobre tu blanco (100 %) y lo marca 6 s: recibe +10 % de tus flechas', icon:I('clase-c4'), impl:'power y_halcon · NUEVO (aliado sin vida; picado = eco con marca)' },
     { id:'y1', n:'Alas Rápidas', t:'p', tag:'num', r:1, c:0, max:1, req:['y0'], d:()=>'El halcón cae en picado cada 5 s (antes 6 s)', icon:I('clase-c11') },
     { id:'y2', n:'Picado: Hondo o Rasante', t:'c', tag:'mec', r:1, c:1, max:1, req:['y0'], icon:I('francotiradora-s16'), opts:[
       { k:'A', n:'Picado Hondo', d:'El picado hace +40 % y a un jefe le llena 15 de Quebranto', role:'UNI' },
@@ -515,12 +521,12 @@ const BUILDS = {
     clsCh: { c5:'A', c6:'A', c10:'B', c11:'B', c14:'A', c15:'B', c16:'A', c17:'B' },
     spec: { m2:3, m5:1, m9:1, m12:2, m16:2, m19:2, m23:3, m26:3, m28:4, m1:3, m4:1, m8:1, m15:1, m3:3, m6:1 },
     specCh: { m8:'B', m9:'B', m15:'B' } },
-  zarzal: { sp:'montaraz', n:'Bosque Vivo', arch:'Zarzal', hero:'h2', heroCh:{ w2:'A', w4:'B', w8:'B' }, heroNodes:['w2','w1','w3','w5','w8','w4','w7','w10','w12','w11'],
+  zarzal: { sp:'montaraz', n:'Bosque Vivo', arch:'Zarzal', hero:'h2', heroCh:{ w2:'A', w4:'B', w8:'B' }, heroNodes:['w2','w1','w3','w5','w8','w4','w7','w9','w11','w12'],   // ronda 2: Puntas Afines (w9) en lugar de Encantamiento Hondo (w10)
     cls: { ...CLS_MANTO },
     clsCh: { c5:'B', c6:'A', c10:'A', c11:'B', c15:'A', c16:'A', c17:'B', c22:'B' },
     spec: { m3:3, m7:2, m6:1, m10:1, m13:2, m14:1, m17:2, m21:1, m24:3, m27:3, m28:4, m2:3, m9:1, m16:2, m20:2 },
     specCh: { m9:'A', m10:'A' } },
-  espinas: { sp:'montaraz', n:'Espinas de Caza', arch:'Híbrido Presa-Zarzal', hero:'h3', heroCh:{ y2:'A', y4:'B', y8:'A' }, heroNodes:['y2','y3','y6','y5','y9','y8','y11','y12','y4','y1'],
+  espinas: { sp:'montaraz', n:'Espinas de Caza', arch:'Híbrido Presa-Zarzal', hero:'h3', heroCh:{ y2:'A', y4:'B', y8:'B' }, heroNodes:['y2','y3','y6','y5','y9','y8','y11','y12','y4','y1'],
     cls: { ...CLS_DANZA_HUMO },
     clsCh: { c5:'A', c6:'A', c10:'B', c11:'B', c15:'B', c16:'A', c17:'B' },
     spec: { m2:3, m3:3, m6:1, m7:2, m9:1, m10:1, m12:2, m13:2, m16:2, m17:2, m19:2, m21:1, m23:3, m24:3, m14:1, m20:2 },
