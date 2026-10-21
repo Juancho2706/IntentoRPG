@@ -46,8 +46,9 @@ function at(v, y = 0) { const o = v.clone(); o.y = y; return o; }
 function fx(g, varId, key, pos, y) { const name = MAGA_FORGE_FX[varId]?.[key]; if (name && pos) g.emitFx?.(name, at(pos, y)); }
 // ¿la Barrera de Maná aguanta? (su escudo se reconoce por la fuente, como c4/c19/c25/c28)
 function hasBarrier(p) { return !!p?.shields?.some(s => s.src === 'm_barrera' && s.amt > 0 && s.t > 0); }
-// golpe directo de una habilidad (no un tic, un proc ni un estallido de poder)
-function direct(hit, id) { return hit?.skill === id && !hit.proc && !hit.dot; }
+// golpe directo de una habilidad (no un tic, un proc ni un estallido de poder: los de estos poderes
+// llevan source 'power:<id>', así los indicadores pueden distinguirlos del impacto)
+function direct(hit, id) { return hit?.skill === id && !hit.proc && !hit.dot && (hit.source || 'hit') === 'hit'; }
 // perfil del último lanzamiento de la habilidad (⑦ onCast) o el que dejó resolveSkill
 function profOf(p, st, id) { return st.prof || p?.resolved?.[id] || null; }
 
@@ -55,7 +56,8 @@ export function magaForgePowers() {
   return {
     // Saeta Ígnea: el Dardo de Fuego estalla donde impacta. La salpicadura y su radio son los de
     // la definición forjada (perfil: rango, talentos y soportes); el objetivo directo no la recibe.
-    // Los estallidos son golpes de la habilidad (Calor, Quemadura) y no vuelven a estallar
+    // Los estallidos son golpes de la habilidad (Calor, Quemadura) con source 'power:v_saeta_ignea'
+    // (no son impactos del Dardo: no dan Cargas) y no vuelven a estallar
     v_saeta_ignea: {
       name: 'Saeta Ígnea', desc: 'El Dardo Arcano se vuelve de Fuego y estalla al impactar.',
       state: () => ({ prof: null, busy: false }),
@@ -69,7 +71,7 @@ export function magaForgePowers() {
         st.busy = true;
         try {
           g.dealArea(c, prof.radius, prof.splash, { addPct: prof.addPct, critBonus: prof.critBonus, exclude: e, from: c,
-            hitInfo: { skill: 'm_dardo', tags: prof.tags, elem: prof.elem } });
+            hitInfo: { skill: 'm_dardo', tags: prof.tags, elem: prof.elem }, hitExtra: { source: 'power:v_saeta_ignea' } });
         } finally { st.busy = false; }
         g.spawnRing?.(c, prof.radius, 0xff7a22);
         fx(g, 'm_dardo_i', 'impact', c, 0.6);
@@ -105,7 +107,8 @@ export function magaForgePowers() {
             for (let i = 0; i < T.emberN; i++) {
               const a = base + i * Math.PI * 2 / T.emberN;
               const s = at(c); s.x += Math.sin(a) * T.emberRing; s.z += Math.cos(a) * T.emberRing;
-              g.dealArea(s, T.emberR, coef, { addPct: prof.addPct, critBonus: prof.critBonus, perTarget: cap, from: s, hitInfo });
+              g.dealArea(s, T.emberR, coef, { addPct: prof.addPct, critBonus: prof.critBonus, perTarget: cap, from: s, hitInfo,
+                hitExtra: { source: 'power:v_racimo' } });
               g.spawnRing?.(s, T.emberR, 0xff6622);
               fx(g, 'bola_fuego_ii', 'extra', s, 0.4);
             }

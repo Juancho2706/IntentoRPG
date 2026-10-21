@@ -250,14 +250,14 @@ KA2-maga: `MAGA_SKILL_FORGE` (17 entradas, nombres/líneas/roles del borrador; t
 ### m_dardo · Dardo Arcano
 
 - [x] **Mejora · Dardo Veloz** — `mul{speed:1.4} · mod{range:20}` (el Dardo declara `speed 13`). El +20 % de alcance queda en el perfil: el básico de arma aún no lee `prof.rangeMul` (petición W2)
-- [x] **I (AREA) · Saeta Ígnea** — `elem fire · set{splash:.3, radius:1.5, color}` + poder **`v_saeta_ignea`** (nuevo, onHit: estallido de 1,5 m al 30 % que no repite en el objetivo ni encadena). Divergencia: el básico de arma no hace `splash` nativo (petición W2; con él se retira el poder)
+- [x] **I (AREA) · Saeta Ígnea** — `elem fire · set{splash:.3, radius:1.5, color}` + poder **`v_saeta_ignea`** (nuevo, onHit: estallido de 1,5 m al 30 % que no repite en el objetivo ni encadena; sus golpes llevan `source 'power:v_saeta_ignea'`: no son impactos del Dardo). Divergencia: el básico de arma no hace `splash` nativo (petición W2; con él se retira el poder)
 - [x] **II (CTRL) · Saeta Gélida** — `elem frost · set{color} · mod{slow:1.5, slowPct:20, dmg:−10}`
 
 ### bola_fuego · Bola de Fuego
 
 - [x] **Mejora · Núcleo Inestable** — `mod{radius:30}` (2 → 2,6 m)
 - [x] **I (UNI) · Pirodardo** — `set{windup:0, speed:22} · add{splash:−0.6}` (explosión 100 → 40 %)
-- [x] **II (AREA) · Racimo** — poder `v_racimo` (onHit del primer impacto: tras 0,3 s, 3 brasas en anillo de 2 m, radio 1,2, 40 % cada una; no encadena)
+- [x] **II (AREA) · Racimo** — poder `v_racimo` (onHit del primer impacto: tras 0,3 s, 3 brasas en anillo de 2 m, radio 1,2, 40 % cada una; no encadena; las brasas llevan `source 'power:v_racimo'`)
 
 ### nova_hielo · Nova de Hielo
 
@@ -269,7 +269,7 @@ KA2-maga: `MAGA_SKILL_FORGE` (17 entradas, nombres/líneas/roles del borrador; t
 
 - [x] **Mejora · Salto Largo** — `mod{range:25}` (8 → 10 m)
 - [x] **I (MOV) · Doble Parpadeo** — `set{charges:2}` (cargas genéricas)
-- [x] **II (CTRL) · Parpadeo Disruptor** — comportamiento **`v_parpadeo_onda`** (teletransporte + onda de 4 m al 80 %) · `mod{knock:3, stun:0.5}` (a jefes: Quebranto)
+- [x] **II (CTRL) · Parpadeo Disruptor** — comportamiento **`v_parpadeo_onda`** (teletransporte + onda de 4 m al 80 %) · `mod{knock:3, stun:0.5}` (a jefes: Quebranto). Destino y llegada como el `blink` genérico: `ctx.fieldDest`/`ctx.destRange` y `g._arrive` (plantado, provocación, detonación y estela que un talento o la forja le pongan al Parpadeo)
 
 ### m_barrera · Barrera de Maná
 
@@ -327,7 +327,7 @@ KA2-maga: `MAGA_SKILL_FORGE` (17 entradas, nombres/líneas/roles del borrador; t
 
 ### a_orbe · Orbe Arcano
 
-- [x] **Mejora · Orbe Grande** — `mul{size:1.3}` (el Orbe es un proyectil: «radio +30 %» = tamaño; roza 0,1 m más a cada lado)
+- [x] **Mejora · Orbe Grande** — `mul{size:1.3}` (el Orbe es un proyectil: «radio +30 %» = tamaño). El radio de choque (0,55 m a escala 1, `Projectile.update`) crece en la misma proporción: dos carriles a ±0,165 m que comparten los impactos (a escala 1, exactamente +30 %; a escala 2, +15 %)
 - [x] **I (UNI) · Orbe Veloz** — `mul{speed:2} · set{bounces:0} · mod{dmg:40}`
 - [x] **II (AREA) · Orbe Gemelo** — `set{count:2, spread:0.22} · mod{dmg:−40}` (un impacto por enemigo y lanzamiento)
 
@@ -382,5 +382,16 @@ KA2-maga: usados `v_racimo`, `v_fractura`, `v_reactiva`, `v_coraza_arcana`, `v_p
 - **W2**: `Player.basicAttack` (básico de arma) — leer `prof.rangeMul`/`def.range` (Dardo Veloz +20 %; el mockup da 20 m al Dardo), el `color` de la definición forjada antes que el de `SKILL_FX` (Saeta Ígnea/Gélida salen con el color arcano) y `splash` nativo (con él se retira `v_saeta_ignea`).
 - **W2**: `spawnChainBounce` — cada salto es un proyectil que nace sobre el enemigo del que sale y lo golpea a él (el último de la cadena nunca recibe) y sale sin `skill` (no cuenta para indicadores ni poderes). Afecta a Rayo en Cadena y a toda cadena. Arreglo sugerido: `castHits`/`hitSet` sembrado con el origen y el `skill` del lanzamiento.
 - **W2**: stat de coste para TODAS las habilidades con coste (el Sello abarata «tus hechizos»; `spenderCostPct` solo toca principales).
-- **KT-maga**: conservar el campo `p_muro_fuego` (lo usa Muro de Llamas con `data.blocks`); las Cargas, solo por impactos ARCANOS directos del Dardo (hoy las Saetas Ígnea/Gélida y el estallido también dan); Escarcha con `prof.def.layers` (Prisión 2, Lanza Pesada 2, Muralla 1); c21 Escarcha Tenaz no alarga la ralentización de `v_sello_contencion`; el 350 % innato de la Bola debería escalar el `splash` forjado (Pirodardo, Racimo).
+- **KT-maga**: conservar el campo `p_muro_fuego` (lo usa Muro de Llamas con `data.blocks`); las Cargas, +1 por impacto DIRECTO del Dardo de cualquier elemento (`hit.source === 'hit'`): que no las den los estallidos de la Saeta Ígnea, que llevan `source 'power:v_saeta_ignea'` (las variantes no se excluyen: un Arcanista que viene de otra especialización conserva su Saeta y la recomendada no la toca, D3 y 2f §7.7); Escarcha con `prof.def.layers` (Prisión 2, Lanza Pesada 2, Muralla 1: test-forge-maga lo deja PENDIENTE y lo exige en cuanto llegue); c21 Escarcha Tenaz no alarga la ralentización de `v_sello_contencion`; el 350 % innato de la Bola debería escalar el `splash` forjado (Pirodardo, Racimo).
 - **B1**: Lluvia de Meteoritos (3 × 55 % que caen todos al centro = 165 %) frente al Ancestral (160 % + aturdir); Haz Concentrado (3 × 0,8 × 1,8); Abanico Gélido y Orbe Gemelo, un impacto por enemigo.
+
+## KA2-maga · ronda de corrección (revisión adversarial)
+
+- **G17 (plan §8: ≥ 3 verbos por especialización y verbo principal distinto)**: la Maga no lo cumple. Medido con `skillVerbs` sobre la base, la Mejora y las dos variantes del kit: Piromante `follow` (Sol Errante), Crionte `follow` (Tormenta Glacial), Arcanista `hold` (Desgarro y Haz Concentrado). El diseño de la Maga (2g §13 llega hasta G16) es anterior a los verbos. test-skills-maga declara la excepción con lo medido (`G17_EXCEPTION`, falla si el kit cambia sin cambiarla). **Orquestador**: aprobar la excepción para la Maga o encargar el rediseño de los kits.
+- **Mejoras que dejan de hacer algo con una variante** (vienen del mockup; **B1** y el dueño): Llama Ancha (ángulo 90) la pisan Lanza de Llamas (25°) y Erupción (anillo); Desgarro Estable (`moveMul` del canal) no sirve con Brecha ni con Quiebre, que no canalizan; Ojo Tranquilo no hace nada con Granizo (la tormenta dura un golpe); Celda Amplia no cambia nada con Celda Lejana si hay objetivo. Desde Nv req+6 esas Mejoras valen 0 con esa variante y F3 pide +5…+15 %. Propuesta: que la Mejora escale relativo (p. ej., ángulo × 90/70 sobre el de la variante) o aceptarlo de forma explícita.
+- **Arte de las habilidades (U2 y cola W2)**: `baseSkillIcon` pide `assets/skills/<id>.webp` y 7 habilidades de la Maga no lo tienen (`m_parpadeo`, `m_barrera`, `p_llamarada`, `k_prision`, `a_orbe`, `k_lanza`, `a_sello`): 404 en el humo boot. El mockup congelado ya les da arte que existe (`talents/maga-clase-c3`, `-c2`, `maga-piromante-s0`, `maga-crionte-s0`, `maga-arcanista-s0`, `maga-crionte-s9`, `maga-arcanista-s9`). Pedido: una clave de catálogo para la ruta del arte (p. ej. `art`, en `SKILL_KEYS` por W2) que `baseSkillIcon` use antes que `skills/<id>.webp`, o el marcador de §3.12 sin pedido de red. Hasta entonces, el humo boot de la Maga no puede salir verde.
+- **D28 (`out/power-ids.json`)**: el registro sale del mockup y no tiene `v_saeta_ignea` ni `v_sello_contencion` (sí `v_sello_ofensivo` y `v_meteoritos`, que no se crean). test-forge-maga cruza los `v_*` con los poderes vivos de la forja del Guerrero y la Arquera; pedido al dueño del conversor: ampliar el registro con los `v_*` del juego.
+- **VFX de la forja**: los cambios de forma ya no traen presets propios: `variantOf` (fx-skills-maga.js) los saca de presets existentes con otro color y escala (Racimo usa `fireStepBurst` tal cual; Lanza de Llamas, además, el cono de 25° de la variante).
+- **Líneas del catálogo**: `catalogo.m_dardo.line` («a distancia», no «a 20 m») y `catalogo.a_sello.line` («tus principales», no «tus hechizos») declaradas en divergencias.json (aprobada: false). test-v2-paridad no compara las líneas del catálogo y las marca como que ya no divergen; test-skills-maga sí las compara. Pedido al dueño de la paridad: comparar `line` ↔ `s` del catálogo.
+- **Cuarentena (Orquestador; KA no edita pending-2g.json)**: entran test64 y test69 (dueño W2: el meteoro ya no es base y `m_ascua` se retira), test72 (W2: a Nv30 la Mejora Escarcha Profunda da 40 + 10 = 50; usar Nv10 o esperar 50), test80 (W1: la tabla de prueba usa `m_armadura`, debe usar `m_barrera`) y test78 (KT-maga: G1 de cls/c6 y G17 de nodos); sale test-skills-maga (ya pasa).
+

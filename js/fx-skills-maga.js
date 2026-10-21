@@ -290,77 +290,36 @@ export const MAGA_FX_PRESETS = {
     size: { start: [0.6, 0.8], end: 5.0 },
     color: { start: '#e6dcff', end: '#6a48d8' }, alpha: { start: 0.5, end: 0 },
   },
-  // ============ variantes de la forja (KA2) ============
-  // ---- Saeta Ígnea: el dardo de fuego estalla pequeño (1,5 m) ----
-  saetaBurst: {
-    name: 'Saeta Ígnea estallido', texture: 'glow', blending: 'additive',
-    count: 18, burst: true, lifetime: [0.2, 0.4],
-    shape: 'sphere', shapeRadius: 0.15, speed: [2.5, 5.5], gravity: -1.5, drag: 1.2,
-    size: { start: [0.2, 0.4], end: 0.0 },
-    color: { start: '#fff0b0', end: '#ff5a14' }, alpha: { start: 1, end: 0 },
-  },
-  // ---- Racimo: cada brasa revienta en chispas ----
-  emberPop: {
-    name: 'Racimo brasa', texture: 'spark', blending: 'additive',
-    count: 16, burst: true, lifetime: [0.2, 0.45],
-    shape: 'sphere', shapeRadius: 0.2, speed: [2, 5], gravity: 3, drag: 0.8,
-    size: { start: [0.14, 0.28], end: 0.0 },
-    color: { start: '#ffe6a8', end: '#ff3c0a' }, alpha: { start: 1, end: 0 },
-  },
-  // ---- Llamarada: Lanza de Llamas (cono estrecho y largo) y Erupción (anillo a tus pies) ----
-  flameLance: {
-    name: 'Lanza de Llamas', texture: 'glow', blending: 'additive',
-    count: 50, burst: true, lifetime: [0.25, 0.5],
-    shape: 'cone', shapeRadius: 0.15, coneAngle: 25, speed: [12, 20], gravity: -0.5, drag: 0.9,
-    size: { start: [0.35, 0.7], end: 0.0 },
-    color: { start: '#fff6c8', end: '#e8460c' }, alpha: { start: 1, end: 0 },
-  },
-  flameRing: {
-    name: 'Erupción', texture: 'glow', blending: 'additive',
-    count: 70, burst: true, lifetime: [0.3, 0.6],
-    shape: 'ring', shapeRadius: 1.0, speed: [6, 10], gravity: -2.5, drag: 0.9,
-    size: { start: [0.4, 0.8], end: 0.0 },
-    color: { start: '#fff2b0', end: '#d8380a' }, alpha: { start: 1, end: 0 },
-  },
-  // ---- Coraza Arcana: chispas doradas sobre la burbuja ----
-  cuirassMotes: {
-    name: 'Coraza Arcana', texture: 'star', blending: 'additive',
-    count: 26, burst: true, lifetime: [0.4, 0.8],
-    shape: 'sphere', shapeRadius: 1.1, speed: [-1.2, -0.3], gravity: 0, drag: 0.4,
-    size: { start: [0.16, 0.32], end: 0.0 },
-    color: { start: '#fff6d8', end: '#c08cff' }, alpha: { start: 0.95, end: 0 }, spin: 180,
-  },
-  // ---- Celda Lejana / Prisión Fugaz: celda de hielo pequeña sobre un enemigo ----
-  iceCell: {
-    name: 'Celda de hielo', texture: 'disc', blending: 'additive',
-    count: 1, burst: true, lifetime: [0.35, 0.4],
-    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
-    size: { start: [3.0, 3.2], end: 1.2 },
-    color: { start: '#ffffff', end: '#5cb6ff' }, alpha: { start: 0.75, end: 0 },
-  },
-  // ---- Colapso: la estrella se hunde en un solo estallido ----
-  collapseCore: {
-    name: 'Colapso', texture: 'glow', blending: 'additive',
-    count: 1, burst: true, lifetime: [0.3, 0.35],
-    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
-    size: { start: [5.0, 5.4], end: 0.0 },
-    color: { start: '#ffffff', end: '#ff9a2a' }, alpha: { start: 1, end: 0 },
-  },
-  // ---- Granizo: un pedrisco que cae y revienta ----
-  hailStone: {
-    name: 'Granizo', texture: 'star', blending: 'additive',
-    count: 40, burst: true, lifetime: [0.3, 0.6],
-    shape: 'sphere', shapeRadius: 0.4, speed: [4, 9], gravity: 6, drag: 0.5,
-    size: { start: [0.25, 0.5], end: 0.0 },
-    color: { start: '#ffffff', end: '#8fdcff' }, alpha: { start: 1, end: 0 }, spin: 240,
-  },
 };
+
+// ============ variantes de la forja (KA2) ============
+// Cada cambio de forma REUTILIZA un preset que ya existe con otro color final y otra escala
+// (radio, tamaño y velocidad), como verbFx de fx-skills.js (plan, E2 · KA: «reutilizando los
+// existentes … color por elemento, escala»)
+function variantOf(base, color = null, scale = 1, extra = null) {
+  const mul = v => (Array.isArray(v) ? v.map(x => x * scale) : typeof v === 'number' ? v * scale : v);
+  return { ...base, shapeRadius: mul(base.shapeRadius), speed: mul(base.speed),
+    size: { start: mul(base.size?.start), end: mul(base.size?.end) },
+    color: color ? { start: base.color?.start || '#ffffff', end: color } : base.color, ...extra };
+}
+{
+  const P = MAGA_FX_PRESETS;
+  Object.assign(P, {
+    saetaBurst: variantOf(P.riftImpact, '#ff5a14', 0.8, { name: 'Saeta Ígnea estallido' }),           // estallido pequeño de fuego
+    flameLance: variantOf(P.flameCone, null, 1.2, { name: 'Lanza de Llamas', coneAngle: 25 }),        // el cono de la variante: 25°
+    flameRing: variantOf(P.fireStepBurst, '#d8380a', 2.5, { name: 'Erupción' }),                      // anillo a tus pies
+    cuirassMotes: variantOf(P.manaBubbleMotes, '#ffc24a', 1.1, { name: 'Coraza Arcana' }),            // chispas doradas
+    iceCell: variantOf(P.iceDome, null, 0.4, { name: 'Celda de hielo' }),                             // cúpula de un solo enemigo
+    collapseCore: variantOf(P.supernovaCore, '#ff9a2a', 1.5, { name: 'Colapso' }),                    // un solo núcleo, más grande
+    hailStone: variantOf(P.iceLanceShatter, null, 1.3, { name: 'Granizo' }),                          // un pedrisco que revienta
+  });
+}
 
 // VFX de las variantes de la forja (por id de variante). Solo las claves que lee su consumidor:
 // los comportamientos (aura/impact/extra/trail) y los poderes (impact o extra de su estallido)
 export const MAGA_FORGE_FX = {
   m_dardo_i:          { impact: 'saetaBurst' },                                         // v_saeta_ignea
-  bola_fuego_ii:      { extra: 'emberPop' },                                            // v_racimo
+  bola_fuego_ii:      { extra: 'fireStepBurst' },                                       // v_racimo: cada brasa
   m_parpadeo_ii:      { impact: 'blinkFlash', aura: 'repulseWave', extra: 'repulseRunes' },
   m_barrera_i:        { aura: 'frostArmor', extra: 'frostArmorRing', impact: 'iceDomeShards' },   // impact: v_reactiva
   m_barrera_ii:       { extra: 'cuirassMotes' },

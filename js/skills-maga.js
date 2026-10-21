@@ -274,7 +274,7 @@ function ownProjectile(g, ctx, { from, to, peek = null, onHit = null, castHits =
 }
 // segmento del Orbe (g.fireProjectile del núcleo): atraviesa y, al acabar su recorrido, rebota
 // al enemigo vivo más cercano (o vuelve si no hay ninguno); `left` = rebotes que quedan.
-// `lane` (Orbe Grande): el orbe es más grande y roza a los enemigos hasta `lane` m más a cada
+// `lane` (Orbe Grande): el orbe es más grande y choca con los enemigos hasta `lane` m más a cada
 // lado de su recorrido (dos carriles paralelos que comparten los impactos: uno por enemigo)
 function orbSegment(g, ctx, from, toward, left, done, castHits = null, lane = 0) {
   const { p, prof, sk } = ctx;
@@ -297,10 +297,12 @@ function orbSegment(g, ctx, from, toward, left, done, castHits = null, lane = 0)
     orbSegment(g, ctx, stop, back, left - 1, done, null, lane);
   });
 }
-// carril extra del Orbe forjado: lo que su tamaño pasa del del catálogo (Orbe Grande ×1,3)
+// carril extra del Orbe forjado: «+30 % de tamaño» (Orbe Grande, size ×1,3) agranda en la misma
+// proporción el radio de choque de un proyectil (0,55 m a escala 1, Projectile.update)
+const PROJ_HIT_R = 0.55;
 function orbLane(sk) {
   const base = MAGA_SKILLS.find(s => s.id === 'a_orbe')?.size || sk.size || 0;
-  return Math.max(0, (sk.size || base) - base);
+  return base > 0 ? Math.max(0, (sk.size || base) / base - 1) * PROJ_HIT_R : 0;
 }
 // segmento del Muro: centro, eje y extremos (perpendicular a la mira, como el tipo genérico wall)
 function wallLine(p, center, len) {
@@ -603,14 +605,18 @@ export const MAGA_SKILL_BEHAVIORS = {
   // ---- FORJA (≤ 3 comportamientos nuevos por clase, 2f §7.2): solo el Parpadeo Disruptor ----
   // Parpadeo Disruptor (variante II del Parpadeo, absorbe a la Onda Repulsora): te teletransporta
   // como el Parpadeo y, al llegar, una onda de `radius` m golpea (coef), empuja (mod knock, desde
-  // donde llegas) y aturde (mod stun; a los jefes, Quebranto)
+  // donde llegas) y aturde (mod stun; a los jefes, Quebranto). Destino y llegada como el tipo
+  // genérico blink: campo propio (fieldDest) o alcance, y g._arrive (plantado, provocación,
+  // detonación y estela que un talento o la forja le pongan al Parpadeo)
   v_parpadeo_onda: {
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
       const fx = fxOf(cast);
       const color = ctx.color ?? sk.color;
       const aim = cast.target || p.pos;
-      const to = g.clampWalkable ? g.clampWalkable(p.pos, aim, prof.range || 8) : ground(aim);
+      const from = p.pos.clone();
+      const to = ctx.fieldDest ? ctx.fieldDest.clone()
+        : g.clampWalkable ? g.clampWalkable(p.pos, aim, ctx.destRange || prof.range || 8) : ground(aim);
       g.spawnRing?.(p.pos, 1.0, color);
       fxAt(g, fx?.impact, p.pos, 1.0);
       p.faceToward?.(to);
@@ -623,6 +629,7 @@ export const MAGA_SKILL_BEHAVIORS = {
       fxAt(g, fx?.aura, c, 0.4);
       fxAt(g, fx?.extra, c, 0.8);
       g.addShake?.(0.2);
+      g._arrive?.(ctx, from);
       return ctx.res;
     },
   },

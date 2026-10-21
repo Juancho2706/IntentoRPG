@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CLASSES, SPEC_BAR, FALLBACK_BAR, CATALOG_V, specKitOf } from '../js/data.js';
-import { validateSkillDef, CAT_SLOTS, SLOT_KEYS } from '../js/skill-defs.js';
+import { validateSkillDef, CAT_SLOTS, SLOT_KEYS, skillVerbs, forgeDef } from '../js/skill-defs.js';
 import { SKILL_BEHAVIORS, definePower, POWER_HOOKS } from '../js/powers.js';
 import { resolveSkill, fitsSlot, isKnown } from '../js/skill-resolve.js';
 import * as SK from '../js/skills-maga.js';
@@ -19,6 +19,7 @@ import { TALENT_TREES } from '../js/talents.js';
 import { talentMethods } from '../js/game-talents.js';
 import * as S from '../js/save-schema.js';
 import { MAGA_LEGACY } from '../js/save-legacy-maga.js';
+import { cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
 import { makeHarness } from './helpers/power-harness.mjs';
 
 const json = o => JSON.parse(JSON.stringify(o));
@@ -82,6 +83,19 @@ for (const id of Object.keys(SK.MAGA_SKILL_BEHAVIORS)) assert.ok(usedBeh.has(id)
 for (const s of SK.MAGA_SKILLS.filter(x => x.cat === 'spender' || x.cat === 'spec')) assert.ok(s.cd > 0 && s.cost > 0, `${s.id}: coste y enfriamiento`);
 for (const s of SK.MAGA_SKILLS.filter(x => x.cat === 'ultimate')) assert.ok(!s.cost && s.cd >= 45, `${s.id}: definitiva sin coste`);
 assert.equal(byId('m_dardo').gen, 3);
+// líneas del libro = las del mockup congelado (D18), salvo las divergencias declaradas en
+// tools/convert-v2/divergencias.json con ruta catalogo.<id>.line (test-v2-paridad no compara líneas)
+{
+  const { C } = cargarMockup('maga');
+  const divs = JSON.parse(readFileSync(new URL('../tools/convert-v2/divergencias.json', import.meta.url), 'utf8')).divergencias;
+  const declared = new Set(divs.filter(d => d.clase === 'maga' && /^catalogo\.\w+\.line$/.test(d.ruta)).map(d => d.ruta.split('.')[1]));
+  assert.equal(C.catalog.length, SK.MAGA_SKILLS.length);
+  for (const m of C.catalog) {
+    const line = SK.MAGA_SKILLS.find(s => s.id === m.id)?.line;
+    if (declared.has(m.id)) assert.notEqual(line, m.s, `${m.id}: divergencia de línea declarada que ya no diverge`);
+    else assert.equal(line, m.s, `${m.id}: la línea del mockup (o declara catalogo.${m.id}.line)`);
+  }
+}
 // VFX: una entrada por habilidad y ninguna más; presets que existen y sonidos válidos
 assert.deepEqual(Object.keys(MAGA_FX).sort(), Object.keys(EXPECTED).sort(), 'MAGA_FX = catálogo');
 const usedPresets = new Set();
@@ -178,6 +192,32 @@ for (const sp of SPECS) {
 }
 console.log('Barras: SPEC_BAR de cada especialización y reserva válidas; ranuras 3 y 4 llenas a Nv15 ✓');
 
+// ------------------------------------------------ G17 (plan §8, E2): verbos por especialización
+// ≥ 3 verbos en su kit (skillVerbs de la definición base, con la Mejora y con cada variante) y al
+// menos uno que no use otra especialización (su verbo principal). El diseño de la Maga (2g §13
+// llega hasta G16) es anterior a los verbos y NO lo cumple: la excepción queda declarada con lo
+// medido hasta que el Orquestador decida (excepción aprobada o rediseño del kit). Si el kit cambia,
+// la declaración cambia con él; si una especialización pasa a cumplir, se quita su excepción
+const G17_EXCEPTION = { piromante: ['follow'], crionte: ['follow'], arcanista: ['hold'] };
+{
+  const verbsOf = sp => {
+    const out = new Set();
+    for (const id of specKitOf('maga', sp)) {
+      const sk = byId(id), e = SK.MAGA_SKILL_FORGE[id];
+      const defs = [sk, ...[null, 'i', 'ii'].map(variant => forgeDef(sk, e, { mejora: true, variant }))];
+      for (const d of defs) for (const v of skillVerbs(d)) out.add(v);
+    }
+    return [...out].sort();
+  };
+  const V = Object.fromEntries(SPECS.map(sp => [sp, verbsOf(sp)]));
+  for (const sp of SPECS) {
+    const own = V[sp].filter(v => SPECS.every(o => o === sp || !V[o].includes(v)));
+    if (V[sp].length >= 3 && own.length) { assert.ok(!G17_EXCEPTION[sp], `${sp}: ya cumple G17, quita su excepción`); continue; }
+    assert.deepEqual(V[sp], G17_EXCEPTION[sp], `${sp}: no cumple G17 (verbos ${V[sp].join(', ') || 'ninguno'}) y la excepción declarada no coincide`);
+    console.log(`⚠ G17 ${sp}: ${V[sp].length} verbo(s) (${V[sp].join(', ') || 'ninguno'})${own.length ? '' : ', ninguno propio'}: excepción pendiente del Orquestador`);
+  }
+}
+
 // ------------------------------------------------ 4) tablas legadas (§3.11)
 const CAT4 = JSON.parse(readFileSync(new URL('./fixtures/catalog-v4.json', import.meta.url), 'utf8')).classes.maga;
 const v4Ids = new Set([...CAT4.skills.map(s => s.id), ...(CAT4.classGrants || []), ...Object.values(CAT4.specs).flatMap(s => s.grants || [])]);
@@ -208,6 +248,35 @@ for (const [id, e] of Object.entries(L.forge)) {
 }
 const removedWant = [...v4Ids].filter(id => !byId(id)).sort();
 assert.deepEqual([...L.removed].sort(), removedWant, 'removed = todo lo v4 que ya no existe');
+// barra, entrada por entrada (2g A.6)
+assert.deepEqual(json(L.bar), {
+  m_t_parpadeo: { to: 'm_parpadeo' },
+  m_t_barrera: { to: 'm_barrera' }, m_armadura: { to: 'm_barrera' }, m_onda: { to: 'm_barrera' },
+  m_ascua: { to: 'm_dardo', forge: 'i' }, m_toque: { to: 'm_dardo', forge: 'ii' },
+  p_combustion: { to: 'p_llamarada' }, p_muro_fuego: { to: { k2: 'm_barrera', k3: 'p_llamarada' } },
+}, 'barra = A.6');
+// forja, entrada por entrada: cada opción de la 3.ª rama v4 va a la variante de SU papel en la
+// habilidad destino (criterio de 2f §6: DoT/zona/radio y cadena → ÁREA; Vulnerable/ejecutar → UNI;
+// ralentizar/aturdir → CONTROL; velocidad → MOVILIDAD; Invierno Eterno, +3 s de zona → ÁREA;
+// Purga, sin papel). Sin variante de su papel no se escribe (le llega la recomendada, D3)
+{
+  const ROLE_OF = { Calcinar: 'AREA', Estela: 'AREA', Rebote: 'AREA', 'Invierno Eterno': 'AREA', Quebrantar: 'UNI', Decapitar: 'UNI',
+    Tullir: 'CTRL', Conmocionar: 'CTRL', Impulso: 'MOV', Purga: null };
+  const want = {};
+  for (const [id, mods] of Object.entries(CAT4.mods || {})) {
+    const opts = mods?.[2]?.opts || [];
+    const to = byId(id) ? id : L.bar[id]?.to;                 // absorbida: el destino de su barra (A.6)
+    assert.ok(typeof to === 'string' && SK.MAGA_SKILL_FORGE[to], `${id}: destino con forja`);
+    const map = {};
+    for (const o of opts) {
+      assert.ok(o.name in ROLE_OF, `${id}: opción v4 «${o.name}» sin papel decidido`);
+      const k = SK.MAGA_SKILL_FORGE[to].vars.findIndex(v => v.role === ROLE_OF[o.name]);
+      if (ROLE_OF[o.name] && k >= 0) map[o.id] = k === 0 ? 'i' : 'ii';
+    }
+    if (Object.keys(map).length) want[id] = to === id ? map : { to, map };
+  }
+  assert.deepEqual(json(L.forge), want, 'forja: cada opción v4, a la variante de su papel');
+}
 // migración de muestra con las tablas y barras reales
 {
   const v4 = o => ({

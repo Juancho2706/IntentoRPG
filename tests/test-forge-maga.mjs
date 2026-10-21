@@ -20,6 +20,8 @@ import { SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { FIELD_DEFS } from '../js/field-entities.js';
 import { TALENT_TREES } from '../js/talents.js';
 import { talentMethods } from '../js/game-talents.js';
+import { cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
+import { varDe } from '../tools/convert-v2/lib/transformar.mjs';
 import { makeHarness } from './helpers/power-harness.mjs';
 
 const SKILLS = CLASSES.maga.skills;
@@ -33,11 +35,11 @@ const warnings = [];
 const warn0 = console.warn;
 console.warn = (...a) => { warnings.push(a.map(String).join(' ')); warn0(...a); };
 const noWarnings = what => { assert.deepEqual(warnings, [], `${what}: sin errores en el canal ni en los poderes`); warnings.length = 0; };
-// golpes que recibe un enemigo: { amt, skill, elem, proc, dot }
+// golpes que recibe un enemigo: { amt, skill, elem, proc, dot, source }
 function spy(e) {
   const log = [];
   const orig = e.takeDamage.bind(e);
-  e.takeDamage = (a, c, o = {}) => { const r = orig(a, c, o); log.push({ amt: r || 0, skill: o.skill || null, elem: o.elem || null, proc: !!o.proc, dot: !!o.dot }); return r; };
+  e.takeDamage = (a, c, o = {}) => { const r = orig(a, c, o); log.push({ amt: r || 0, skill: o.skill || null, elem: o.elem || null, proc: !!o.proc, dot: !!o.dot, source: o.source || null }); return r; };
   return log;
 }
 const hitsOf = (log, skill) => log.filter(x => x.skill === skill && !x.dot && !x.proc);
@@ -52,6 +54,12 @@ function hz({ spec = null, level = 30, forge = {}, powers = [] } = {}) {
 }
 const profOf = (h, id) => resolveSkill(h.p, byId(id));
 const pieces = e => [['m', e.mejora], ['i', e.vars[0]], ['ii', e.vars[1]]];
+// arma fija y grande (sin variación ni redondeo apreciable): daños comparables golpe a golpe
+const flat = h => { h.p.stats.wMin = h.p.stats.wMax = 1000; return h; };
+// efectos que dependen de otro dueño (petición abierta): mientras no llegan, se avisa como
+// PENDIENTE; en cuanto el efecto aparece, se exige su valor exacto (ni verde sin efecto ni otro valor)
+const PENDING = [];
+const pendingOr = (arrived, check, what) => { if (arrived) check(); else PENDING.push(what); };
 
 // ------------------------------------------------ 1) datos (A1, A9, D28)
 const withForge = SKILLS.filter(s => s.kind !== 'talent');
@@ -116,6 +124,23 @@ console.log('Forja de la Maga: 17 entradas válidas, definiciones forjadas v2, p
 // ------------------------------------------------ 2) forja recomendada (2f §7.7)
 const RETIRED = ['m_ascua', 'm_toque', 'm_armadura', 'm_onda'];
 assert.deepEqual(Object.keys(SK.MAGA_FORGE_RECO).sort(), [...SPECS].sort());
+// = la del mockup congelado (A → i, B → ii) con SOLO las 3 sustituciones de la divergencia «reco»
+// (tools/convert-v2/divergencias.json): fuera crionte.m_toque; arcanista m_onda → m_parpadeo i y
+// m_armadura → m_barrera ii (la forja que el mockup pone en la barra del Arcanista)
+{
+  const { C } = cargarMockup('maga');
+  const want = Object.fromEntries(Object.entries(C.reco).map(([sp, r]) => [sp, Object.fromEntries(Object.entries(r).map(([id, v]) => [id, varDe(v)]))]));
+  assert.equal(want.crionte.m_toque, 'i', 'el mockup recomienda Toque Gélido I');
+  delete want.crionte.m_toque;
+  const arc = want.arcanista;
+  assert.deepEqual([arc.m_onda, arc.m_armadura], ['i', 'ii'], 'el mockup recomienda Onda I y Armadura II');
+  delete arc.m_onda; delete arc.m_armadura;
+  Object.assign(arc, SK.MAGA_SPEC_BAR.arcanista.forge);
+  assert.deepEqual(SK.MAGA_SPEC_BAR.arcanista.forge, { m_parpadeo: 'i', m_barrera: 'ii' });
+  assert.deepEqual(SK.MAGA_FORGE_RECO, want, 'la del mockup con las 3 sustituciones declaradas, nada más');
+  // Piromante: la de A.7 (Dardo I, Bola II, Llamarada II, Meteoro I y Supernova I)
+  assert.deepEqual(SK.MAGA_FORGE_RECO.piromante, { m_dardo: 'i', bola_fuego: 'ii', p_llamarada: 'ii', meteoro: 'i', m_u_supernova: 'i' });
+}
 const specOf = sp => TALENT_TREES.maga.specs.find(s => s.id === sp);
 for (const sp of SPECS) {
   const reco = SK.MAGA_FORGE_RECO[sp];
@@ -177,11 +202,14 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
     h.step(0.5);
     return { h, shots, a, b, la, lb, lf };
   };
-  // Mejora: +40 % de velocidad (y +20 % de alcance en el perfil, que el básico de arma aún no lee)
+  // Mejora: +40 % de velocidad y +20 % de alcance (en el perfil; el básico de arma aún no lo lee)
   const m0 = shoot(3), m1 = shoot(4);
   assert.equal(m0.shots[0].speed, 13);
   assert.ok(near(m1.shots[0].speed, 13 * 1.4), `Dardo Veloz: ${m1.shots[0].speed}`);
   assert.ok(profOf(m0.h, 'm_dardo').rangeMul === 1 && near(profOf(m1.h, 'm_dardo').rangeMul, 1.2));
+  pendingOr(m1.shots[0].range !== m0.shots[0].range,
+    () => assert.ok(near(m1.shots[0].range / m0.shots[0].range, 1.2, 0.01), `Dardo Veloz: alcance ${m0.shots[0].range} → ${m1.shots[0].range}`),
+    'W2 · Dardo Veloz: el básico de arma no lee prof.rangeMul (alcance del dardo sin el +20 %)');
   // I · Saeta Ígnea: de Fuego y estalla a 1,5 m (30 %); el objetivo no recibe su propio estallido
   const base = shoot(30, { m_dardo: null }), fire = shoot(30, { m_dardo: 'i' });
   assert.ok(base.la.length === 1 && base.lb.length === 0, 'sin variante no estalla');
@@ -189,6 +217,7 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.equal(fire.la[0].elem, 'fire', 'el Dardo es de Fuego');
   assert.equal(hitsOf(fire.lb, 'm_dardo').length, 1, 'el vecino a 1,3 m recibe un estallido (un golpe, no una cadena)');
   assert.equal(fire.lb[0].elem, 'fire');
+  assert.ok(fire.lb[0].source === 'power:v_saeta_ignea' && fire.la[0].source === null, 'el estallido no es un impacto del Dardo (source del poder)');
   assert.equal(fire.lf.length, 0, 'a 3 m, nada');
   const ratio = fire.lb[0].amt / fire.la[0].amt;
   assert.ok(ratio > 0.15 && ratio < 0.5, `estallido ≈ 30/105 del impacto (${ratio.toFixed(2)})`);
@@ -196,7 +225,7 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   // II · Saeta Gélida: de Hielo, ralentiza 20 % 1,5 s y −10 % de daño
   const ice = shoot(30, { m_dardo: 'ii' });
   assert.equal(ice.la[0].elem, 'frost');
-  assert.ok(ice.a.slowT > 1.0 && ice.a.slowPct === 20, `ralentiza 20 % (${ice.a.slowT?.toFixed(2)} s, ${ice.a.slowPct} %)`);
+  assert.ok(ice.a.slowT > 1.0 && ice.a.slowT <= 1.5 + 1e-6 && ice.a.slowPct === 20, `ralentiza 20 % 1,5 s (${ice.a.slowT?.toFixed(2)} s, ${ice.a.slowPct} %)`);
   assert.ok(!(base.a.slowT > 0), 'sin variante no ralentiza');
   assert.equal(profOf(ice.h, 'm_dardo').addPct, profOf(base.h, 'm_dardo').addPct - 10);
   noWarnings('Dardo');
@@ -239,6 +268,19 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.equal(hitsOf(rac.lt, 'bola_fuego').length, 1, 'el objetivo: solo el impacto');
   const ember = rac.lb[0].amt, direct = rac.lt[0].amt;
   assert.ok(ember / direct > 0.1 && ember / direct < 0.35, `brasa ≈ 40/220 del impacto (${(ember / direct).toFixed(2)})`);
+  // las 3 brasas caen en anillo a 2 m del impacto, cada 120° (la primera detrás): un enemigo junto
+  // a cada una (a 3,2 m del impacto, fuera de la explosión) recibe UNA brasa
+  {
+    const h = hz({ forge: { bola_fuego: 'ii' } });
+    h.enemy({ hp: 1e7, pos: [0, 0, 6] });
+    const ring = [0, 1, 2].map(i => { const a = i * Math.PI * 2 / 3; return h.enemy({ hp: 1e7, pos: [3.2 * Math.sin(a), 0, 6 + 3.2 * Math.cos(a)] }); });
+    const logs = ring.map(spy);
+    h.aim(0, 6); h.setSlot('rmb', 'bola_fuego');
+    assert.equal(h.cast('rmb'), true);
+    h.step(2);
+    assert.deepEqual(logs.map(l => hitsOf(l, 'bola_fuego').length), [1, 1, 1], 'tres brasas, una a cada uno');
+    assert.ok(logs.every(l => l[0].source === 'power:v_racimo'), 'las brasas, con el source del poder');
+  }
   noWarnings('Bola de Fuego');
   console.log('Bola de Fuego: Núcleo Inestable, Pirodardo (sin preparación, 40 %) y Racimo (3 brasas) ✓');
 }
@@ -266,11 +308,20 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
     const e = h.enemy({ hp: 1e7, pos: [1, 0, 6.5] });
     const boss = h.enemy({ hp: 1e7, pos: [-1.5, 0, 6], boss: true });
     const far = h.enemy({ hp: 1e7, pos: [0, 0, 13] });
+    // la llegada pasa por g._arrive (plantado, provocación, detonación y estela de talentos o forja)
+    const arrivals = [];
+    const arrive0 = h.g._arrive.bind(h.g);
+    h.g._arrive = (ctx, from) => { arrivals.push({ skill: ctx.sk.id, from: from.clone(), at: h.p.pos.clone() }); return arrive0(ctx, from); };
     assert.equal(h.cast('k1'), true);
-    return { h, e, boss, far };
+    return { h, e, boss, far, arrivals };
   };
   const plain = run({ m_parpadeo: null }), wave = run({ m_parpadeo: 'ii' });
   assert.ok(near(plain.h.p.pos.z, wave.h.p.pos.z, 0.01) && wave.h.p.pos.z > 5.5, 'se teletransporta igual');
+  for (const x of [plain, wave]) {
+    assert.equal(x.arrivals.length, 1, 'una llegada');
+    const [a] = x.arrivals;
+    assert.ok(a.skill === 'm_parpadeo' && a.from.length() < 1e-6 && near(a.at.z, x.h.p.pos.z), 'desde donde salió hasta donde llega');
+  }
   assert.ok(lost(plain.e) === 0 && !(plain.e.stunT > 0), 'el Parpadeo no golpea');
   const arrive = wave.h.p.pos;
   assert.ok(lost(wave.e) > 0 && wave.e.stunT > 0.4, `golpea y aturde (${wave.e.stunT?.toFixed(2)} s)`);
@@ -427,6 +478,17 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.ok(old.e.stunT > 0.5 && !(base.e.stunT > 0), `Ancestral aturde (${old.e.stunT?.toFixed(2)} s)`);
   assert.ok(near(old.h.p.cdMax.meteoro, 9) && near(base.h.p.cdMax.meteoro, 6), 'enfriamiento 6 → 9 s');
   assert.equal(profOf(old.h, 'meteoro').addPct, profOf(base.h, 'meteoro').addPct + 60);
+  // la Lluvia reparte: los 3 caen en anillo a 1,5 m del centro (scatter 2,5 × 0,6), el primero más
+  // allá del centro. Un enemigo a 3,7 m (fuera de los 3 m del Meteoro) recibe solo ese
+  const edge = forge => {
+    const h = hz({ spec: 'piromante', forge });
+    const log = spy(h.enemy({ hp: 1e8, pos: [9.7, 0, 0] }));
+    h.aim(6, 0); h.setSlot('rmb', 'meteoro');
+    assert.equal(h.cast('rmb'), true);
+    h.step(1);
+    return hitsOf(log, 'meteoro').length;
+  };
+  assert.deepEqual([edge({ meteoro: null }), edge({ meteoro: 'i' })], [0, 1], 'Lluvia: al borde le cae un meteorito; al Meteoro solo, no llega');
   noWarnings('Meteoro');
   console.log('Meteoro: Puntería Ígnea, Lluvia de Meteoritos (3 impactos) y Meteoro Ancestral (aturde) ✓');
 }
@@ -480,6 +542,14 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   const a12 = c12.enemy({ hp: 1e7, pos: [4.6, 0, 0] }), a13 = c13.enemy({ hp: 1e7, pos: [4.6, 0, 0] });
   c12.cast('k3'); c13.cast('k3'); c12.step(0.2); c13.step(0.2);
   assert.ok(!(a12.frozenT > 0) && a13.frozenT > 1.5, 'Celda Amplia: 4 → 5 m');
+  // la Prisión pone 2 capas de Escarcha (las pone el indicador con prof.def.layers: petición a KT)
+  {
+    const h = pri(12);
+    const e = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
+    h.cast('k3'); h.step(0.2);
+    const n = h.gaugeValue('escarcha', e);
+    pendingOr(n !== 1, () => assert.equal(n, 2, 'Prisión: 2 capas'), 'KT · Prisión de Hielo: el indicador pone 1 capa, no las 2 de prof.def.layers');
+  }
   // I · Celda Lejana: a 15 m sobre UN enemigo, 3 s
   const run = forge => {
     const h = pri(30, forge);
@@ -510,6 +580,7 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   w.step(1);
   assert.equal(hitsOf(lt, 'k_prision').length, 1, 'el que lo roza: un golpe');
   assert.equal(lt[0].elem, 'frost');
+  assert.equal(w.gaugeValue('escarcha', touch), 1, 'y 1 capa de Escarcha');
   assert.ok(!(touch.frozenT > 0), 'la muralla no congela');
   assert.equal(ll.length, 0, 'lejos del muro, nada');
   later.pos.z = 6.4;
@@ -561,7 +632,7 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
     h.aim(0, 6); h.setSlot('rmb', 'k_lanza');
     assert.equal(h.cast('rmb'), true);
     h.step(1);
-    return { h, shots, hits: logs.map(l => hitsOf(l, 'k_lanza').length) };
+    return { h, es, shots, hits: logs.map(l => hitsOf(l, 'k_lanza').length) };
   };
   assert.deepEqual([lance(16, {}, [[0, 13.4]]).hits[0], lance(17, {}, [[0, 13.4]]).hits[0]], [0, 1], 'Punta Afilada: +2 m');
   // I · Lanza Pesada: no atraviesa, +60 % y 2 capas · II · Abanico Gélido: 3 lanzas (50 %), una por enemigo
@@ -575,6 +646,10 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   const pa = x => profOf(x.h, 'k_lanza').addPct;
   assert.ok(pa(heavy) === pa(b) + 60 && pa(fan) === pa(b) - 50);
   assert.ok(profOf(heavy.h, 'k_lanza').def.layers === 2 && !profOf(heavy.h, 'k_lanza').pierce, '2 capas (las pone el indicador con prof.def.layers)');
+  // efecto: capas de Escarcha en el primero (el de 1 m; la base pone 1 por golpe de Hielo)
+  const nb = b.h.gaugeValue('escarcha', b.es[3]), nh = heavy.h.gaugeValue('escarcha', heavy.es[3]);
+  assert.equal(nb, 1, 'Lanza: 1 capa al golpear');
+  pendingOr(nh !== 1, () => assert.equal(nh, 2, 'Lanza Pesada: 2 capas'), 'KT · Lanza Pesada: el indicador pone 1 capa, no las 2 de prof.def.layers');
   noWarnings('Lanza de Hielo');
   console.log('Lanza de Hielo: Punta Afilada, Lanza Pesada (no atraviesa) y Abanico Gélido (3 lanzas) ✓');
 }
@@ -600,7 +675,12 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.equal(anc.cast('k4'), true);
   const s = SK.magaStorm(anc.p);
   assert.ok(s && near(s.center().x, 8) && near(s.radius, 6), 'centrada en la mira, radio 6');
+  // Ojo Tranquilo (la Mejora va con la variante): solo DENTRO de la tormenta
+  assert.equal(dr(anc), 0, 'a 8 m de la Ventisca Anclada: sin reducción');
+  anc.p.pos.set(7, 0, 1);
+  assert.equal(dr(anc), 10, 'dentro: −10 %');
   anc.p.pos.set(30, 0, 0);
+  assert.equal(dr(anc), 0, 'fuera otra vez: nada');
   const b = anc.enemy({ hp: 1e8, pos: [31, 0, 0] });
   const lb = spy(b);
   anc.step(2);
@@ -635,10 +715,13 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
     h.step(1);
     return { h, segs, hits: () => logs.map(l => hitsOf(l, 'a_orbe').length) };
   };
-  // Mejora: +30 % de tamaño = roza 0,1 m más a cada lado (el que pasaba rozando sin tocar)
-  const graze = 0.55 * 0.65 + 0.05;
-  const o12 = orb(12, {}, [[graze, 4]]), o13 = orb(13, {}, [[graze, 4]]);
-  assert.deepEqual([o12.hits()[0], o13.hits()[0]], [0, 1], 'Orbe Grande: más ancho');
+  // Mejora: +30 % de tamaño = el radio de choque (0,55 m a escala 1) crece un 30 %: choca hasta
+  // 0,165 m más a cada lado. Uno que pasaba rozando entra; uno algo más allá, no
+  const r = 0.55 * (makeHarness({ classId: 'maga' }).enemy().def.scale || 1), lane = 0.3 * 0.55;
+  const SPOTS = [[r + 0.03, 3], [r + lane - 0.03, 5], [r + lane + 0.03, 7]];
+  const o12 = orb(12, {}, SPOTS), o13 = orb(13, {}, SPOTS);
+  assert.deepEqual(o12.hits(), [0, 0, 0], 'Nv12: el orbe pasa de largo');
+  assert.deepEqual(o13.hits(), [1, 1, 0], 'Orbe Grande: choca hasta +0,165 m');
   assert.ok(near(o13.segs[0].size, 0.34 * 1.3), 'y más grande');
   // I · Orbe Veloz: el doble de rápido, sin rebotes (+40 %) · II · Orbe Gemelo: 2 en V (60 %), una vez por enemigo
   const v = [5 * Math.sin(0.22), 5 * Math.cos(0.22)];
@@ -714,9 +797,12 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.ok(cb.every(q => q.dmg === cb[0].dmg), 'cada salto el mismo daño (no decae)');
   const r = cb[0].dmg / hitsOf(lc, 'rayo')[0].amt;
   assert.ok(r > 0.5 && r < 0.95, `cada salto ≈ 70 % del golpe (${r.toFixed(2)})`);
-  // II · Haz Concentrado: canalizado 1,5 s (3 pulsos) al primero que toca, +80 %
+  // II · Haz Concentrado: canalizado 1,5 s (3 pulsos de 80 %) al primero que toca, +80 %: en total,
+  // 3 × 0,8 × 1,8 = 1,8 veces el Rayo (240 %)
   const beam = bolt(30, { rayo: 'ii' }, [[0, 5], [0, 9]]);
-  const l0 = spy(beam.es[0]), l1 = spy(beam.es[1]);
+  const one = bolt(30, { rayo: null }, [[0, 5]]);
+  flat(beam.h); flat(one.h);
+  const l0 = spy(beam.es[0]), l1 = spy(beam.es[1]), lo = spy(one.es[0]);
   assert.equal(beam.h.press('rmb'), true);
   assert.ok(beam.h.g._channel, 'canaliza');
   beam.h.step(1.7);
@@ -724,6 +810,11 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.ok(hitsOf(l0, 'rayo').length === 3 && l1.length === 0, `3 pulsos al primero (${hitsOf(l0, 'rayo').length})`);
   assert.equal(profOf(beam.h, 'rayo').addPct, profOf(base.h, 'rayo').addPct + 80);
   assert.ok(!beam.h.g._channel, 'al soltar, termina');
+  assert.equal(one.h.cast('rmb'), true);
+  const sum = l => hitsOf(l, 'rayo').reduce((a, x) => a + x.amt, 0);
+  assert.equal(hitsOf(lo, 'rayo').length, 1);
+  const k = sum(l0) / sum(lo);
+  assert.ok(Math.abs(k - 1.8) < 0.03, `Haz: ${k.toFixed(3)} veces el Rayo`);
   noWarnings('Rayo');
   console.log('Rayo: Rayo Largo, Rayo en Cadena (3 saltos al 70 %) y Haz Concentrado (canalizado) ✓');
 }
@@ -771,4 +862,5 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   console.log('Desgarro Arcano: Desgarro Estable (moverse), Brecha (grieta 5 s) y Quiebre (un golpe) ✓');
 }
 
+for (const w of PENDING) console.log(`⚠ PENDIENTE ${w}`);
 console.log('\n✅ FORJA DE LA MAGA (17 habilidades × Mejora y 2 variantes) OK');
