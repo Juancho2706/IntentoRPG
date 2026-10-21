@@ -51,6 +51,9 @@ export class Input {
       this.keys.add(e.code);
       this.updateKeyDir();
       const action = this.codeToAction[e.code];
+      // decisión 12 del plan: Ctrl/⌘ + tecla (Ctrl+Z…) no es una acción del juego, y el HUD limpio
+      // no se alterna con un panel abierto
+      if (action === 'cleanHud' && (e.ctrlKey || e.metaKey || this.game.ui?.activePanel)) return;
       // las acciones de movimiento se leen "mantenidas" (updateKeyDir), no aquí
       if (action && !MOVE_ACTIONS.has(action)) this.doAction(action, e);
     });
@@ -82,9 +85,10 @@ export class Input {
   // solo 🖱️Der; 🖱️Izq ataca/mueve en onPointerDown), flanco de bajada → g.releaseSkillSlot.
   syncButtons(e, { fromDown = false } = {}) {
     const g = this.game;
-    if (typeof e.buttons !== 'number') return;
-    if (!this._canvasPress && !(fromDown && e.buttons)) return;
-    const l = !!(e.buttons & 1), r = !!(e.buttons & 2);
+    // algunos punteros (lápiz, eventos sintéticos) dan buttons = 0 en pointerdown: se deriva de e.button
+    const mask = typeof e.buttons === 'number' && e.buttons ? e.buttons : (fromDown ? (e.button === 2 ? 2 : 1) : (e.buttons || 0));
+    if (!this._canvasPress && !(fromDown && mask)) return;
+    const l = !!(mask & 1), r = !!(mask & 2);
     const was = { l: this.mouseHeld.l, r: this.mouseHeld.r };
     this.mouseHeld.l = l; this.mouseHeld.r = r;
     const play = g.player?.alive && g.state === 'play';
@@ -93,7 +97,7 @@ export class Input {
     if (was.r && !r) g.releaseSkillSlot?.('rmb');
     if (play && r && !was.r) g.castSkillSlot('rmb');
     if (play && l && !was.l && scheme !== 'click') g.castSkillSlot('lmb');
-    if (!e.buttons) this._canvasPress = false;
+    if (!mask) this._canvasPress = false;
   }
 
   // Alt mantenido → ui.altHeld (y el widget de mecánica, si expone setAltHeld)

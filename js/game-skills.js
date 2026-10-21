@@ -992,7 +992,8 @@ export const skillMethods = {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play' || this._paused || p.atkCd > 0 || p.castLock > 0 || p.leap || this._windup) return;
     if (!opts.charge && this._charging) return;                 // el básico mantenido no dispara durante una carga
-    if (p.actionLockT > 0 || this._spenderWaiting()) return;   // la principal en curso / pedida manda
+    // la principal en curso / pedida manda (la suelta de una carga ya tensada sale siempre)
+    if (!opts.charge && (p.actionLockT > 0 || this._spenderWaiting())) return;
     const aim = this.input?.mouseWorld || null;
     const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
     const scheme = this.settings?.controlScheme || 'wasd';

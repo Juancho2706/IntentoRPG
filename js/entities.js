@@ -1200,7 +1200,8 @@ export class Player {
 
   // esquiva: impulso rápido con invulnerabilidad breve
   dodge() {
-    if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0) return;
+    // durante un avance lento (dashT, imparable) no se esquiva: el avance manda
+    if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0 || this.dashMove) return;
     const g = this.game;
     const dir = g.input.keyDir;
     let dx, dz;
