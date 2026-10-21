@@ -10,8 +10,9 @@
 // Los presets ajenos (fx-skills.js: whirlwind, brutalStrike, quakeDust, warCry…) se
 // citan por NOMBRE: importarlos formaría un ciclo. GUERRERO_FX: una entrada por habilidad del
 // catálogo 2g (los kits reutilizan los presets de 2b; los verbos —carga, postura, perfecto— los
-// dibuja el canal con los presets verb* de fx-skills.js). Los presets sin uso en GUERRERO_FX
-// se conservan: los citan los poderes de la clase.
+// dibuja el canal con los presets verb* de fx-skills.js) y, para las variantes de forja que
+// cambian de forma, otra con el id de la variante (`<id>_i` / `<id>_ii`). Los presets sin uso
+// en GUERRERO_FX se conservan: los citan los poderes de la clase.
 // Estética (fx-skills.js): físico = blanco/ámbar, sangre/furia = rojo, sagrado =
 // dorado pálido; counts moderados, vidas cortas.
 
@@ -260,6 +261,24 @@ export const GUERRERO_FX_PRESETS = {
     size: { start: [0.15, 0.3], end: 0.0 },
     color: { start: '#ffffff', end: '#ffd060' }, alpha: { start: 1, end: 0 },
   },
+
+  // ---------------- forja (Paso 2, KA2): cambios de forma ----------------
+  // Rayo del Cielo: columna estrecha de luz blanca (sube desde el impacto)
+  holyBeam: {
+    name: 'Rayo del Cielo', texture: 'glow', blending: 'additive',
+    count: 26, burst: true, lifetime: [0.25, 0.45],
+    shape: 'disc', shapeRadius: 0.5, speed: [4, 9], gravity: -12, drag: 0.2,
+    size: { start: [0.35, 0.6], end: 0.0 },
+    color: { start: '#ffffff', end: '#fff0b8' }, alpha: { start: 1, end: 0 },
+  },
+  // Amanecer: motas doradas suaves que suben sobre el grupo (cura y escudo)
+  dawnLight: {
+    name: 'Amanecer', texture: 'star', blending: 'additive',
+    count: 30, burst: true, lifetime: [0.7, 1.2],
+    shape: 'disc', shapeRadius: 3.5, speed: [0.4, 1.2], gravity: -2.2, drag: 0.4,
+    size: { start: [0.25, 0.45], end: 0.0 },
+    color: { start: '#fffbe8', end: '#ffc860' }, alpha: { start: 0.9, end: 0 }, spin: 40,
+  },
 };
 
 export const GUERRERO_FX = {
@@ -291,4 +310,23 @@ export const GUERRERO_FX = {
   g_h_bramido:      { aura: 'warHorn', extra: 'warCryRing', color: 0xff6644, sfx: 'levelup' },
   g_h_desafio:      { aura: 'bannerAura', impact: 'tauntMark', color: 0xe0a040, sfx: 'levelup' },
   g_h_estandarte:   { aura: 'bannerAura', extra: 'bannerSparks', color: 0xd8a040, sfx: 'levelup' },
+
+  // ---------------- forja: VFX de las variantes que CAMBIAN DE FORMA ----------------
+  // Clave = id de la variante (`<id>_i` / `<id>_ii`): sustituyen a los de su habilidad cuando la
+  // variante está elegida (prof.def.forged.varId). Reutilizan presets existentes: el mismo campo
+  // (trail/impact/aura/extra) que lee el tipo genérico de la forma nueva.
+  g_tajo_ii:         { impact: 'sweepRing', color: 0xffcc77, sfx: 'hit' },                                       // Siega: barrido
+  g_remolino_i:      { aura: 'whirlwindInner', extra: 'bloodDrops', color: 0xb0101c, sfx: 'hit' },              // Anclado: giro corto
+  g_remolino_ii:     { aura: 'whirlwind', extra: 'bloodDrops', color: 0xcfd6e0, sfx: 'dash' },                  // Ciclón: remolino de viento
+  g_salto_i:         { impact: 'quakeWave', color: 0xd8b070, sfx: 'hit' },                                      // Caída Atronadora: onda
+  g_salto_ii:        { impact: 'chargeImpact', color: 0xffcc66, sfx: 'dash' },                                  // Salto Rasante
+  g_rajar_i:         { impact: 'heavySwing', aura: 'bloodDrops', extra: 'cleaveBlood', color: 0xb0101c, sfx: 'hit' },  // Estocada en línea
+  g_rajar_ii:        { impact: 'sweepRing', aura: 'bloodWhirl', color: 0xb0101c, sfx: 'hit' },                  // Molino: giros a tu alrededor
+  g_carga_escudo_ii: { trail: 'chargeTrail', impact: 'chargeImpact', color: 0x9ab8ff, sfx: 'dash' },            // Carga Veloz
+  terremoto_i:       { impact: 'brutalStrike', aura: 'quakeWave', extra: 'quakeRocks', auraY: 0.2, color: 0x9a8c6e, sfx: 'hit' },  // Martinete
+  terremoto_ii:      { impact: 'quakeFissure', color: 0x9a8c6e, sfx: 'hit' },                                   // Falla en línea
+  g_juicio_i:        { trail: 'justiceHammer', impact: 'justiceSpark', color: 0xffd36b, sfx: 'holy' },          // Sentencia: sin área
+  g_martillo_i:      { trail: 'justiceHammer', impact: 'holyImpact', color: 0xffe08a, sfx: 'holy' },            // Martillo Arrojado
+  g_u_cataclismo_i:  { trail: 'holyFall', impact: 'holyBeam', aura: 'justiceSpark', extra: 'devotionCircle', color: 0xfff6d8, sfx: 'holy' },  // Rayo del Cielo
+  g_u_cataclismo_ii: { trail: 'holyFall', impact: 'holyImpact', aura: 'dawnLight', extra: 'devotionCircle', color: 0xffe7a0, sfx: 'holy' },  // Amanecer
 };

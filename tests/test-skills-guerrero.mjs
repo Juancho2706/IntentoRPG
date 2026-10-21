@@ -6,7 +6,8 @@
 //  3) G17: ≥ 3 verbos por especialización y el principal de cada una es suyo
 //  4) barras: SPEC_BAR y FALLBACK_BAR caben y se conocen; el kit, solo con su especialización
 //  5) cada habilidad en el arnés con el canal REAL: kit base, Berserker, Guardián, Cruzado y
-//     activas de talento (los comportamientos propios incluidos)
+//     activas de talento (los comportamientos propios incluidos), SIN forja: a un nivel por
+//     debajo de su Mejora (req+3); la forja la prueba tests/test-forge-guerrero.mjs
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { CLASSES } from '../js/data.js';
@@ -15,7 +16,7 @@ import { SKILL_BEHAVIORS } from '../js/powers.js';
 import { resolveSkill, fitsSlot, rankBase, isKnown } from '../js/skill-resolve.js';
 import { talentTreesFor } from '../js/talents.js';
 import { staggerFromCC } from '../js/combat-math.js';
-import { GUERRERO_SKILLS, GUERRERO_SKILL_BEHAVIORS, GUERRERO_SPEC_BAR, GUERRERO_FALLBACK_BAR, GUERRERO_CATALOG_V } from '../js/skills-guerrero.js';
+import { GUERRERO_SKILLS, GUERRERO_SKILL_BEHAVIORS, GUERRERO_SPEC_BAR, GUERRERO_FALLBACK_BAR, GUERRERO_CATALOG_V, GUERRERO_SKILL_FORGE } from '../js/skills-guerrero.js';
 import { GUERRERO_FX } from '../js/fx-skills-guerrero.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { SFX_TONES } from '../js/sfx.js';
@@ -90,7 +91,9 @@ for (const raw of GUERRERO_SKILLS) {
   assert.ok(SFX_TONES[fx.sfx], `${s.id}: sonido «${fx.sfx}»`);
   for (const k of ['trail', 'impact', 'aura', 'extra']) if (typeof fx[k] === 'string') assert.ok(SKILL_FX_PRESETS[fx[k]] || ['basicCleave', 'meleeHit'].includes(fx[k]), `${s.id}: preset ${fx[k]}`);
 }
-assert.deepEqual(Object.keys(GUERRERO_FX).sort(), Object.keys(EXPECT).sort(), 'VFX: una entrada por habilidad del catálogo, ninguna retirada');
+// (aparte, las entradas de las variantes que cambian de forma: las prueba test-forge-guerrero)
+const VAR_IDS = new Set(Object.values(GUERRERO_SKILL_FORGE).flatMap(f => f.vars.map(v => v.id)));
+assert.deepEqual(Object.keys(GUERRERO_FX).filter(id => !VAR_IDS.has(id)).sort(), Object.keys(EXPECT).sort(), 'VFX: una entrada por habilidad del catálogo, ninguna retirada');
 // cada comportamiento propio lo usa una habilidad del catálogo (y nadie más lo define)
 for (const id of Object.keys(GUERRERO_SKILL_BEHAVIORS)) {
   assert.ok(GUERRERO_SKILLS.some(s => s.behavior === id), `${id}: lo usa una habilidad`);
@@ -213,13 +216,13 @@ h.p.basicAttack(ring[0]);
 assert.equal(h.p.mp, 16, 'Tajo: la Furia por extra tiene tope 16');
 
 // Hendidura: preparación 0,25 s; cono de 120° y 4,5 m; 27 de Furia
-h = mk(20); e = h.enemy({ hp: 1e6, pos: [4, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [-2, 0, 0] });
+h = mk(4); e = h.enemy({ hp: 1e6, pos: [4, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [-2, 0, 0] });
 h.aim(5, 0); h.setSlot('rmb', 'g_hendidura'); assert.equal(h.cast('rmb'), true);
 h.step(0.2); assert.ok(e.hp === 1e6 && h.p.mp === 100, 'Hendidura: aún preparando (ni daño ni coste)');
 h.step(0.1); assert.ok(e.hp < 1e6 && e2.hp === 1e6 && h.p.mp === 73, 'Hendidura: delante sí, detrás no; cuesta 27');
 
 // Embestida: 7 m hacia la mira, golpe al llegar y +12 de Furia solo si golpea
-h = makeHarness({ classId: 'guerrero', level: 20 });
+h = makeHarness({ classId: 'guerrero', level: 6 });
 e = h.enemy({ hp: 1e6, pos: [7.5, 0, 0] });
 h.aim(10, 0); h.setSlot('k1', 'embestida'); assert.equal(h.cast('k1'), true);
 assert.ok(approx(h.p.pos.x, 7, 0.05) && e.hp < 1e6 && h.p.mp === 12 && h.p.cds.embestida === 8, 'Embestida: 7 m, golpea y +12');
@@ -238,13 +241,13 @@ assert.ok(!hasBuff(h.p, 'g_piel') && approx(h.p.cds.g_piel, 19, 0.05), `Piel: al
 assert.equal(h.g.reduceCooldown(h.p, 'g_piel', 5), 5, 'Piel: ya en recarga, las reducciones cuentan');
 
 // Lanza: atraviesa a todos en línea; 20 de Furia
-h = mk(20); e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [8, 0, 0] }); e3 = h.enemy({ hp: 1e6, pos: [14, 0, 0] });
+h = mk(10); e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [8, 0, 0] }); e3 = h.enemy({ hp: 1e6, pos: [14, 0, 0] });
 h.aim(10, 0); h.setSlot('rmb', 'g_lanza'); assert.equal(h.cast('rmb'), true); h.step(1.2);
 assert.ok(e.hp < 1e6 && e2.hp < 1e6 && e3.hp === 1e6 && h.p.mp === 80, 'Lanza: atraviesa a los dos de los 11 m; el de 14 m, no; cuesta 20');
 
 // ---- Berserker ----
 // Remolino Sangriento: mantener = girar (4 golpes/s a 2,9 m) en marcha, desangra; soltar lo corta
-h = mk(20, 'berserker'); e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+h = mk(12, 'berserker'); e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
 let n = counter(e);
 h.setSlot('k3', 'g_remolino');
 assert.equal(h.press('k3'), true);
@@ -261,7 +264,7 @@ assert.ok(!h.g._channel && n.hits === after, 'Remolino: soltar corta el giro');
 assert.ok(h.p.cdMax.g_remolino === 6 && h.p.cds.g_remolino > 4, `Remolino: recarga 6 s (${h.p.cds.g_remolino?.toFixed(2)})`);
 
 // Salto Devastador: si golpea, relanzar hasta 3 saltos (sin recarga entre ellos); al vacío cierra
-h = mk(20, 'berserker'); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+h = mk(14, 'berserker'); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
 h.aim(6, 0); h.setSlot('k1', 'g_salto');
 assert.equal(h.cast('k1'), true); h.step(0.6);
 assert.ok(approx(h.p.pos.x, 6, 0.1) && e.hp < 1e6, 'Salto: cae en la mira y golpea');
@@ -271,13 +274,13 @@ h.aim(6.5, 0.5); h.step(0.4); assert.equal(h.cast('k1'), true, 'Salto: relanzar 
 assert.ok(e.hp < hp1 && h.p.skState.g_salto.recast?.left === 1, 'Salto: 2.º salto');
 h.aim(5.5, 0); h.step(0.4); assert.equal(h.cast('k1'), true); h.step(0.6);
 assert.ok(!h.p.skState.g_salto.recast?.left && h.p.cds.g_salto > 9, 'Salto: tras el 3.º, recarga');
-h = mk(20, 'berserker'); h.aim(6, 0); h.setSlot('k1', 'g_salto');
+h = mk(14, 'berserker'); h.aim(6, 0); h.setSlot('k1', 'g_salto');
 assert.equal(h.cast('k1'), true); h.step(0.6);
 assert.ok(!h.p.skState.g_salto?.recast?.left, 'Salto al vacío: no hay relanzamiento');
 h.step(0.4); assert.equal(h.cast('k1'), false, 'Salto al vacío: recargando');
 
 // Rajar: combo de 3 (tajo, revés, descendente con preparación 0,3 s que desangra); 2,5 s sin pulsar → 1.º
-h = mk(20, 'berserker'); e = h.enemy({ hp: 1e6, pos: [1.8, 0, 0] });
+h = mk(16, 'berserker'); e = h.enemy({ hp: 1e6, pos: [1.8, 0, 0] });
 h.aim(1.8, 0); h.setSlot('rmb', 'g_rajar');
 const hitsRajar = [];
 for (let i = 0; i < 3; i++) {
@@ -297,7 +300,7 @@ h.tick(2.7); h.cast('rmb'); h.step(0.35);
 assert.equal(h.p.skState.g_rajar.combo.idx, 1, 'Rajar: 2,5 s sin pulsar → el combo empieza de nuevo');
 
 // Furia Inmortal: imparable, vida mínima 1 %, principales gratis; al acabar te curas un 20 %
-h = mk(20, 'berserker'); e = h.enemy({ hp: 1e6, pos: [1.8, 0, 0] });
+h = mk(17, 'berserker'); e = h.enemy({ hp: 1e6, pos: [1.8, 0, 0] });
 h.setSlot('k4', 'g_u_furia'); assert.equal(h.cast('k4'), true);
 assert.ok(h.p.unstoppableT > 9 && hasBuff(h.p, 'g_u_furia'), 'Furia Inmortal: imparable 10 s');
 assert.equal(resolveSkill(h.p, SK('g_rajar')).cost, 0, 'Furia Inmortal: las principales no cuestan');
@@ -313,7 +316,7 @@ assert.equal(resolveSkill(h.p, SK('g_rajar')).cost, 15, 'al terminar, el coste v
 
 // ---- Guardián ----
 // Cambio de Guardia: Muralla ↔ Ariete; sin tiempo global; cambiar se recarga en 3 s
-h = mk(20, 'guardian'); h.setSlot('k3', 'g_guardia');
+h = mk(12, 'guardian'); h.setSlot('k3', 'g_guardia');
 assert.equal(h.cast('k3'), true);
 assert.equal(h.g.stanceOf(h.p, 'g_guardia'), 'muralla');
 assert.deepEqual(h.p.verbStats(), { dr: 15, block: 10 }, 'Muralla: −15 % y +10 % de bloqueo');
@@ -325,7 +328,7 @@ assert.deepEqual(h.p.verbStats(), { dmgPct: 15 }, 'Ariete: +15 % de daño');
 assert.ok(approx(h.p.cds.g_guardia, 3, 0.01), 'el cambio deja 3 s');
 
 // Carga de Escudo: 8 m en 1 s, imparable; arrastra a los que encuentra y al llegar provoca 3 s
-h = mk(20, 'guardian'); e = h.enemy({ hp: 1e6, pos: [3, 0, 0.5] }); e2 = h.enemy({ hp: 1e6, pos: [3, 0, 6] });
+h = mk(14, 'guardian'); e = h.enemy({ hp: 1e6, pos: [3, 0, 0.5] }); e2 = h.enemy({ hp: 1e6, pos: [3, 0, 6] });
 h.aim(10, 0); h.setSlot('k1', 'g_carga_escudo'); assert.equal(h.cast('k1'), true);
 h.step(0.5);
 assert.ok(h.p.dashMove && h.p.pos.x > 3 && h.p.pos.x < 5.5 && h.p.unstoppableT > 0, `Carga de Escudo: avance lento e imparable (x=${h.p.pos.x.toFixed(2)})`);
@@ -336,7 +339,7 @@ assert.ok(e2.pos.x === 3 && e2.hp === 1e6 && !(e2.tauntT > 0), 'Carga de Escudo:
 
 // Terremoto: preparación 0,4 s; plantado (1 s quieto) suelta 2 réplicas al 50 %; en marcha, no
 for (const planted of [true, false]) {
-  h = mk(20, 'guardian'); e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+  h = mk(16, 'guardian'); e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
   n = counter(e);
   if (planted) h.stand(1.1); else h.walk({ x: 0, z: 1 }, 0.3);
   assert.equal(h.p.planted, planted, `Terremoto: ${planted ? 'plantado' : 'en marcha'}`);
@@ -348,7 +351,7 @@ for (const planted of [true, false]) {
 }
 
 // Ciudadela: te clavas 8 s (no te mueves), −40 % a ti y a tus aliados a 6 m, provocas a 10 m cada segundo
-h = mk(20, 'guardian'); e = h.enemy({ hp: 1e6, pos: [8, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [14, 0, 0] });
+h = mk(17, 'guardian'); e = h.enemy({ hp: 1e6, pos: [8, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [14, 0, 0] });
 const near = h.ally(4, 0), far = h.ally(12, 0);
 h.setSlot('k4', 'g_u_ciudadela'); assert.equal(h.cast('k4'), true);
 assert.ok(e.tauntT > 1 && !(e2.tauntT > 0), 'Ciudadela: provoca a 10 m al clavarte');
@@ -367,7 +370,7 @@ assert.ok(h.p.cdMax.g_u_ciudadela === 90, 'Ciudadela: recarga 90 s');
 // ---- Cruzado ----
 // Juicio: se prepara 0,3 s; martillo de luz que marca 8 s (también a los de 3 m); tu siguiente
 // principal detona la marca (+100 % a ese enemigo) y la consume
-h = mk(20, 'cruzado'); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [7.5, 0, 1] }); e3 = h.enemy({ hp: 1e6, pos: [6, 0, 6] });
+h = mk(12, 'cruzado'); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [7.5, 0, 1] }); e3 = h.enemy({ hp: 1e6, pos: [6, 0, 6] });
 h.aim(6, 0); h.setSlot('k3', 'g_juicio'); assert.equal(h.cast('k3'), true);
 h.step(0.25); assert.equal(e.hp, 1e6, 'Juicio: se prepara');
 h.step(0.6);
@@ -376,13 +379,13 @@ assert.ok(e.marks?.juicio?.t > 7 && e2.marks?.juicio && !e3.marks?.juicio, 'Juic
 assert.equal(h.p.mp, 80, 'Juicio: 20 de Furia');
 const dets = []; const md = h.g.markDetonation.bind(h.g);
 h.g.markDetonation = (en, hit) => { const r = md(en, hit); if (r) dets.push({ en, skill: hit.skill, r }); return r; };
-h.p.pos.set(4, 0, 0); h.aim(6, 0); h.setSlot('rmb', 'g_martillo'); h.tick(0.3);
-assert.equal(h.press('rmb'), true); h.step(0.1); h.release('rmb'); h.step(0.1);
-assert.ok(dets.some(d => d.en === e && d.skill === 'g_martillo' && d.r === 100), 'Juicio: el Martillo (principal) la detona: +100 %');
+h.p.pos.set(4, 0, 0); h.aim(6, 0); h.setSlot('rmb', 'g_hendidura'); h.tick(0.3);
+assert.equal(h.cast('rmb'), true); h.step(0.4);
+assert.ok(dets.some(d => d.en === e && d.skill === 'g_hendidura' && d.r === 100), 'Juicio: la siguiente principal (Hendidura) la detona: +100 %');
 assert.ok(!e.marks?.juicio, 'Juicio: la marca se consume');
 
 // Sendero de Luz: destello de 8 m que deja 4 s un sendero: daña al enemigo y cura a tu aliado
-h = mk(20, 'cruzado'); e = h.enemy({ hp: 1e6, pos: [4, 0, 0.5] });
+h = mk(14, 'cruzado'); e = h.enemy({ hp: 1e6, pos: [4, 0, 0.5] });
 const ally = h.ally(5, 0, 1000); ally.hp = 500;
 h.aim(10, 0); h.setSlot('k1', 'g_sendero'); assert.equal(h.cast('k1'), true);
 assert.ok(h.p.pos.x > 7.5 && h.p.pos.x <= 8, `Sendero: destello de 8 m (${h.p.pos.x.toFixed(2)})`);
@@ -395,7 +398,7 @@ assert.equal(h.g.fieldsOf(h.p, { kind: 'zona', skill: 'g_sendero' }).length, 0, 
 
 // Martillo de Guerra: cargar y soltar; la carga sube daño y radio; la ventana perfecta da +25 % y 1 de Fervor
 const hammer = hold => {
-  const hh = mk(20, 'cruzado');
+  const hh = mk(16, 'cruzado');
   const a = hh.enemy({ hp: 1e7, pos: [2.5, 0, 0] }), b = hh.enemy({ hp: 1e7, pos: [6.8, 0, 0] });
   hh.aim(10, 0); hh.setSlot('rmb', 'g_martillo');
   assert.equal(hh.press('rmb'), true);
@@ -414,14 +417,14 @@ assert.equal(tap.hh.sfxCount('verb_perfect'), 0);
 assert.equal(perfect.hh.gaugeValue('fervor'), 1, 'Martillo perfecto: +1 de Fervor');
 assert.equal(tap.hh.gaugeValue('fervor'), 0);
 { // caminas al 50 % mientras cargas
-  const hh = mk(20, 'cruzado'); hh.aim(10, 0); hh.setSlot('rmb', 'g_martillo');
+  const hh = mk(16, 'cruzado'); hh.aim(10, 0); hh.setSlot('rmb', 'g_martillo');
   hh.walk({ x: 0, z: 1 }, 0.5); const free = hh.p.pos.z; hh.p.pos.set(0, 0, 0);
   hh.press('rmb'); hh.walk({ x: 0, z: 1 }, 0.5);
   assert.ok(approx(hh.p.pos.z / free, 0.5, 0.06), `Martillo: caminas al 50 % mientras cargas (${(hh.p.pos.z / free).toFixed(2)})`);
 }
 
 // Cataclismo: carga hasta 2 s; cae DONDE APUNTAS AL SOLTAR 0,3 s después y consagra el suelo 6 s
-h = mk(20, 'cruzado'); e = h.enemy({ hp: 1e7, pos: [-8, 0, 0] }); e2 = h.enemy({ hp: 1e7, pos: [8, 0, 0] });
+h = mk(17, 'cruzado'); e = h.enemy({ hp: 1e7, pos: [-8, 0, 0] }); e2 = h.enemy({ hp: 1e7, pos: [8, 0, 0] });
 n = counter(e2);
 h.aim(8, 0); h.setSlot('k4', 'g_u_cataclismo');
 assert.equal(h.press('k4'), true);

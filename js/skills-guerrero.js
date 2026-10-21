@@ -300,9 +300,203 @@ export const GUERRERO_SKILL_BEHAVIORS = {
 // Paso 2 (2f + 2g) · barra, forja y versión del catálogo (docs/paso2-implementacion.md §3.5,
 // D3, D6). data.js los fusiona (SKILL_FORGE, SPEC_BAR, FORGE_RECO, FALLBACK_BAR, CATALOG_V).
 // ------------------------------------------------------------
-// skillId → { mejora: { name, icon, line, mod }, vars: [{ id: '<id>_i', name, role, icon, line, … }, { id: '<id>_ii', … }] }
-// (la escribe KA2)
-export const GUERRERO_SKILL_FORGE = {};
+// FORJA (KA2; docs/paso2g-guerrero.md §4, §7 y §10; 2f §2.3): Mejora a Nv req+3 y dos variantes a
+// Nv req+6. Nombres, líneas y papeles del mockup (las líneas de más de 70 caracteres, acortadas y
+// anotadas en tools/convert-v2/divergencias.json); los efectos, desde su `k` y el documento:
+//  · set/add/mul sobre la DEFINICIÓN (rutas con punto); una variante se aplica DESPUÉS de la
+//    Mejora (que ya está activa cuando se abren las variantes): sus `set` pisan lo de la Mejora.
+//  · mod = mods del perfil (2f §2.3, §3.5); power = poder v_* de js/powers-forge-guerrero.js.
+// Lo que difiere del `k` del mockup (y por qué) está en tools/convert-v2/out/pendientes-guerrero.md §4.
+const F = id => `forge/v_${id}`;
+export const GUERRERO_SKILL_FORGE = {
+  // ———— kit base ————
+  // la salpicadura del Tajo es cleave × (1 + splashPct/100): Mejora 50 → 65 %, Desgarro → 30 %, Siega → 75 %
+  g_tajo: {
+    mejora: { id: 'g_tajo_m', name: 'Filo Ancho', icon: 'forge/mejora', line: 'Salpicadura 50 → 65 % y alcance 2 → 2,5 m.',
+      mod: { splashPct: 30 }, add: { cleaveR: 0.5 } },
+    vars: [
+      { id: 'g_tajo_i', name: 'Desgarro', role: 'UNI', icon: F('g_tajo_i'), line: 'El objetivo sangra el 60 % del golpe en 3 s; salpicadura 30 %.',
+        set: { hitDot: { kind: 'bleed', coef: 0.6, dur: 3 } }, mod: { splashPct: -70 }, tags: { add: ['dot'] } },
+      // el principal al 85 % (golpe directo) y el barrido al 75 % a 3 m
+      { id: 'g_tajo_ii', name: 'Siega', role: 'AREA', icon: F('g_tajo_ii'), line: 'Barrido de 3 m a todos al 75 %; el principal, al 85 %.',
+        mod: { splashPct: 20, dmgDirect: -15 }, add: { cleaveR: 0.5 } },
+    ],
+  },
+  g_hendidura: {
+    mejora: { id: 'g_hendidura_m', name: 'Arco Amplio', icon: 'forge/mejora', line: 'Cono 120 → 150°.', set: { angle: 150 } },
+    vars: [
+      { id: 'g_hendidura_i', name: 'Rompefilas', role: 'UNI', icon: F('g_hendidura_i'), line: '+45 % de daño si golpea a un único enemigo.',
+        power: 'v_rompefilas' },
+      // la Estela genérica (zone): 2 s, una a la vez
+      { id: 'g_hendidura_ii', name: 'Grieta', role: 'AREA', icon: F('g_hendidura_ii'), line: 'Deja una grieta 2 s que hace el 40 % por segundo; solo 1 a la vez.',
+        mod: { zone: 1, zoneDur: 2, zoneMax: 1 } },
+    ],
+  },
+  embestida: {
+    mejora: { id: 'embestida_m', name: 'Carga Fiera', icon: 'forge/mejora', line: 'Alcance 7 → 9 m y +4 de Furia si golpea.',
+      add: { range: 2, genOnHit: 4 } },
+    vars: [
+      // arrastrar = `drag` del avance (no hace falta el poder v_carnero del mockup); franja de 1 m a
+      // cada lado: los arrastrados llegan dentro del golpe de 1,9 m (con 1,5 m quedaban fuera)
+      { id: 'embestida_i', name: 'Carnero', role: 'CTRL', icon: F('embestida_i'), line: 'Arrastras a los que encuentras y los aturdes 0,5 s.',
+        set: { drag: true, dragWidth: 1 }, mod: { stun: 0.5 }, tags: { add: ['cc'] } },
+      { id: 'embestida_ii', name: 'Doble Carga', role: 'MOV', icon: F('embestida_ii'), line: '2 cargas (8 s cada una).',
+        set: { charges: 2 } },
+    ],
+  },
+  g_piel: {
+    mejora: { id: 'g_piel_m', name: 'Acero Templado', icon: 'forge/mejora', line: 'Al activarla te curas el 8 % de la vida.', power: 'v_temple' },
+    vars: [
+      { id: 'g_piel_i', name: 'Espinas', role: 'AREA', icon: F('g_piel_i'), line: 'Mientras dura, devuelves el 40 % del daño cuerpo a cuerpo que recibes.',
+        power: 'v_espinas' },
+      // 10 s; la recarga (20 → 25 s) sigue empezando al acabar
+      { id: 'g_piel_ii', name: 'Inamovible', role: 'AGU', icon: F('g_piel_ii'), line: 'Dura 10 s y te vuelve imparable; se recarga en 25 s.',
+        set: { unstoppable: true }, mod: { durS: 2, cdr: -25 } },
+    ],
+  },
+  g_lanza: {
+    mejora: { id: 'g_lanza_m', name: 'Punta de Arpón', icon: 'forge/mejora', line: 'Los golpeados se ralentizan un 30 % durante 2 s.',
+      mod: { slow: 2, slowPct: 30 } },
+    vars: [
+      { id: 'g_lanza_i', name: 'Arpón', role: 'CTRL', icon: F('g_lanza_i'), line: 'El primero que golpea es arrastrado 4 m hacia ti (+30 %).',
+        set: { pierce: false }, mod: { pull: 4, dmg: 30 } },
+      { id: 'g_lanza_ii', name: 'Jabalinas', role: 'AREA', icon: F('g_lanza_ii'), line: '3 lanzas en abanico al 70 %.',
+        set: { count: 3, spread: 0.25 }, mod: { dmg: -30 } },
+    ],
+  },
+
+  // ———— kit del Berserker ————
+  g_remolino: {
+    // el canal no da inmunidad por sí solo: v_giro_firme la mantiene mientras giras
+    mejora: { id: 'g_remolino_m', name: 'Giro Firme', icon: 'forge/mejora', line: 'Mientras giras no te pueden ralentizar.',
+      set: { slowImmune: true }, power: 'v_giro_firme' },
+    vars: [
+      { id: 'g_remolino_i', name: 'Remolino Anclado', role: 'UNI', icon: F('g_remolino_i'), line: 'Giras sin moverte: radio 2 m y +60 % de daño.',
+        set: { moveMul: 0, radius: 2 }, mod: { dmg: 60 } },
+      // atrae a 5 m en cada giro (v_ciclon); el radio del daño no cambia
+      { id: 'g_remolino_ii', name: 'Ciclón', role: 'CTRL', icon: F('g_remolino_ii'), line: 'Cada giro atrae 1 m a los enemigos a 5 m; −15 % de daño.',
+        mod: { dmg: -15 }, power: 'v_ciclon', tags: { add: ['cc'] } },
+    ],
+  },
+  g_salto: {
+    mejora: { id: 'g_salto_m', name: 'Caída Pesada', icon: 'forge/mejora', line: 'Radio de la caída 3 → 4 m.', add: { radius: 1 } },
+    vars: [
+      // sin relanzar: renuncias a la cadena a cambio de control (§10)
+      { id: 'g_salto_i', name: 'Caída Atronadora', role: 'CTRL', icon: F('g_salto_i'), line: 'Un solo salto: al caer atraes 2 m y aturdes 0,75 s a todos.',
+        set: { recast: null }, mod: { pull: 2, stun: 0.75 }, tags: { add: ['cc'] } },
+      { id: 'g_salto_ii', name: 'Salto Rasante', role: 'MOV', icon: F('g_salto_ii'), line: 'Saltas 12 m, bajo y rápido (0,25 s en el aire); −20 % de daño.',
+        set: { range: 12, airT: 0.25 }, mod: { dmg: -20 } },
+    ],
+  },
+  g_rajar: {
+    mejora: { id: 'g_rajar_m', name: 'Filo Encadenado', icon: 'forge/mejora', line: 'El combo espera 4 s (antes 2,5 s).', set: { comboWin: 4 } },
+    vars: [
+      // el 3.er paso pasa a estocada en línea (conserva la preparación y el sangrado): ×1,4 = 448 %
+      { id: 'g_rajar_i', name: 'Estocada Final', role: 'UNI', icon: F('g_rajar_i'), line: 'El 3.er golpe es una estocada de 5 m en línea: +40 % y sin área.',
+        set: { 'steps.2': { type: 'line', range: 5, width: 1 } }, mul: { 'steps.2.coef': 1.4 }, tags: { add: ['line'] } },
+      { id: 'g_rajar_ii', name: 'Molino', role: 'AREA', icon: F('g_rajar_ii'), line: 'Los tres golpes son giros de 2,5 m a tu alrededor; −20 % de daño.',
+        set: { 'steps.*': { type: 'area', at: 'self', radius: 2.5 } }, mod: { dmg: -20 }, tags: { add: ['area'] } },
+    ],
+  },
+  g_u_furia: {
+    mejora: { id: 'g_u_furia_m', name: 'Sin Freno', icon: 'forge/mejora', line: 'Dura 10 → 12 s.', mod: { durS: 2 } },
+    vars: [
+      { id: 'g_u_furia_i', name: 'Sed Voraz', role: 'AGU', icon: F('g_u_furia_i'), line: 'Mientras dura, robas el 8 % del daño como vida; al acabar no te curas.',
+        set: { 'buff.endHealPct': 0 }, power: 'v_sed_voraz' },
+      // quita la inmortalidad (§10)
+      { id: 'g_u_furia_ii', name: 'Frenesí', role: 'UNI', icon: F('g_u_furia_ii'), line: '+40 % de velocidad de ataque, pero tu vida sí puede bajar del 1 %.',
+        set: { 'buff.minHpPct': 0 }, add: { 'buff.aspdPct': 40 } },
+    ],
+  },
+
+  // ———— kit del Guardián ————
+  g_guardia: {
+    // el cambio usa stance.swapCd (no el CDR del perfil)
+    mejora: { id: 'g_guardia_m', name: 'Guardia Ligera', icon: 'forge/mejora', line: 'Cambiar de postura se recarga en 1,5 s (antes 3 s).',
+      set: { cd: 1.5, 'stance.swapCd': 1.5 } },
+    vars: [
+      // la forja decide A QUIÉN llega la postura (§10): aliados o enemigos
+      { id: 'g_guardia_i', name: 'Guardia Compartida', role: 'APO', icon: F('g_guardia_i'), line: 'Aliados a 6 m: media postura (−8 % de daño recibido o +8 % de daño).',
+        power: 'v_guardia_compartida' },
+      { id: 'g_guardia_ii', name: 'Guardia Opresiva', role: 'CTRL', icon: F('g_guardia_ii'), line: 'Enemigos a 5 m: −10 % de daño en Muralla; frenados un 20 % en Ariete.',
+        power: 'v_guardia_opresiva' },
+    ],
+  },
+  g_carga_escudo: {
+    mejora: { id: 'g_carga_escudo_m', name: 'Avance Largo', icon: 'forge/mejora', line: 'Avanzas 10 m (antes 8 m) en el mismo tiempo.', add: { range: 2 } },
+    vars: [
+      // derribar = aturdir 1 s; a los jefes no: solo los 20 de Quebranto (bossStun 0)
+      { id: 'g_carga_escudo_i', name: 'Arrollador', role: 'CTRL', icon: F('g_carga_escudo_i'), line: 'Al llegar derribas 1 s a los arrastrados (jefes: 20 de Quebranto).',
+        set: { bossStun: 0 }, mod: { stun: 1, stagger: 20 }, tags: { add: ['cc'] } },
+      // renuncia a la Vanguardia: ni arrastra ni provoca (§10)
+      { id: 'g_carga_escudo_ii', name: 'Carga Veloz', role: 'MOV', icon: F('g_carga_escudo_ii'), line: 'Rápida: 12 m en 0,3 s, sin arrastrar ni provocar.',
+        set: { range: 12, dashT: 0.3, drag: false, taunt: 0 }, tags: { remove: ['taunt'] } },
+    ],
+  },
+  terremoto: {
+    mejora: { id: 'terremoto_m', name: 'Suelo Partido', icon: 'forge/mejora', line: 'Radio 5 → 6 m.', add: { radius: 1 } },
+    vars: [
+      { id: 'terremoto_i', name: 'Martinete', role: 'UNI', icon: F('terremoto_i'), line: 'Un solo punto a 3 m: radio 2,5 m, +60 % y 20 de Quebranto a jefes.',
+        set: { at: 'target', range: 3, radius: 2.5 }, mod: { dmg: 60, stagger: 20 } },
+      { id: 'terremoto_ii', name: 'Falla', role: 'AREA', icon: F('terremoto_ii'), line: 'El suelo se abre en línea 10 m: −20 % de daño; frena un 40 % 2 s.',
+        set: { type: 'line', range: 10, width: 2 }, mod: { dmg: -20, slow: 2, slowPct: 40 } },
+    ],
+  },
+  g_u_ciudadela: {
+    mejora: { id: 'g_u_ciudadela_m', name: 'Muros Altos', icon: 'forge/mejora', line: 'Dura 10 s (antes 8 s).', mod: { durS: 2 } },
+    vars: [
+      // deja de estar plantada: caminas al 50 % y el aura va contigo (§10)
+      { id: 'g_u_ciudadela_i', name: 'Ciudadela Andante', role: 'MOV', icon: F('g_u_ciudadela_i'), line: 'Te mueves al 50 % y te sigue; la reducción baja de −40 % a −25 %.',
+        set: { moveMul: 0.5, plant: false, follow: 'owner', 'buff.dr': 25 } },
+      { id: 'g_u_ciudadela_ii', name: 'Empalizada', role: 'AREA', icon: F('g_u_ciudadela_ii'), line: 'Quien te golpea recibe el 60 % de tu arma (una vez por segundo).',
+        power: 'v_empalizada' },
+    ],
+  },
+
+  // ———— kit del Cruzado ————
+  g_juicio: {
+    mejora: { id: 'g_juicio_m', name: 'Juicio Amplio', icon: 'forge/mejora', line: 'Radio 3 → 4 m.', add: { radius: 1 } },
+    vars: [
+      // sin salpicadura: solo el golpeado lleva la marca (12 s) y su Debilidad
+      { id: 'g_juicio_i', name: 'Sentencia', role: 'UNI', icon: F('g_juicio_i'), line: 'Marca a un solo enemigo 12 s: recibe +15 % de daño de todo el grupo.',
+        set: { radius: 0, splash: 0, 'mark.dur': 12, 'mark.weakPct': 15 } },
+      { id: 'g_juicio_ii', name: 'Tres Juicios', role: 'AREA', icon: F('g_juicio_ii'), line: 'Arrojas 3 martillos en abanico al 60 %; cada uno marca.',
+        set: { count: 3, spread: 0.3 }, mod: { dmg: -40 } },
+    ],
+  },
+  g_sendero: {
+    mejora: { id: 'g_sendero_m', name: 'Huella de Luz', icon: 'forge/mejora', line: 'El sendero dura 6 s (antes 4 s).', add: { 'trail.dur': 2 } },
+    vars: [
+      { id: 'g_sendero_i', name: 'Escolta de Luz', role: 'APO', icon: F('g_sendero_i'), line: 'Al atravesar a un aliado, escudo del 12 % de tu vida 6 s (cada 6 s).',
+        power: 'v_escolta_luz' },
+      { id: 'g_sendero_ii', name: 'Destello Doble', role: 'MOV', icon: F('g_sendero_ii'), line: '2 cargas (10 s cada una); el sendero dura 2 s.',
+        set: { charges: 2, 'trail.dur': 2 } },
+    ],
+  },
+  g_martillo: {
+    // la ventana perfecta conserva su ancho (0,25 s) y acaba 0,05 s antes del tope
+    mejora: { id: 'g_martillo_m', name: 'Mano Ágil', icon: 'forge/mejora', line: 'Carga completa en 0,9 s (antes 1,2 s); la ventana se adelanta igual.',
+      set: { 'charge.max': 0.9, 'charge.perfect': [0.6, 0.85] } },
+    vars: [
+      // se sigue cargando y soltando: lo que sale es un proyectil de un solo objetivo
+      { id: 'g_martillo_i', name: 'Martillo Arrojado', role: 'UNI', icon: F('g_martillo_i'), line: 'Al soltar, lo lanzas a 12 m contra uno solo: +40 % y sin área.',
+        set: { type: 'proj', range: 12, radius: 0, speed: 18, size: 0.3 }, mod: { dmg: 40 }, tags: { remove: ['melee'] } },
+      // onda en línea desde el impacto hacia la mira (wave del motor)
+      { id: 'g_martillo_ii', name: 'Onda Sagrada', role: 'AREA', icon: F('g_martillo_ii'), line: 'Al soltar, el golpe sigue en una onda de 8 m hacia delante (60 %).',
+        set: { wave: { range: 8, coef: 0.6 } }, tags: { add: ['line'] } },
+    ],
+  },
+  g_u_cataclismo: {
+    mejora: { id: 'g_u_cataclismo_m', name: 'Columna Ancha', icon: 'forge/mejora', line: 'Radio 6 → 7,5 m.', add: { radius: 1.5 } },
+    vars: [
+      { id: 'g_u_cataclismo_i', name: 'Rayo del Cielo', role: 'UNI', icon: F('g_u_cataclismo_i'), line: 'Un rayo estrecho de 2 m: +80 % y 40 de Quebranto a los jefes.',
+        set: { radius: 2, color: 0xfff6d8 }, mod: { dmg: 80, stagger: 40 } },
+      // cura y escudo a los aliados a 8 m del impacto (heal/shield del motor)
+      { id: 'g_u_cataclismo_ii', name: 'Amanecer', role: 'APO', icon: F('g_u_cataclismo_ii'), line: '−40 % de daño; cura un 30 % y da un escudo del 10 % a aliados a 8 m.',
+        set: { heal: { pct: 30, radius: 8 }, shield: { pct: 10, radius: 8 } }, mod: { dmg: -40 }, tags: { add: ['heal'] } },
+    ],
+  },
+};
 // specId → { bar: { lmb, rmb, k1, k2, k3, k4 }, forge, sel }   (barra por especialización, D6;
 // `forge` = variantes que propone el mockup con esa barra, 'i' | 'ii')
 export const GUERRERO_SPEC_BAR = {
@@ -313,8 +507,14 @@ export const GUERRERO_SPEC_BAR = {
   cruzado: { bar: { lmb: 'g_tajo', rmb: 'g_martillo', k1: 'g_sendero', k2: 'g_piel', k3: 'g_juicio', k4: 'g_u_cataclismo' },
     forge: { g_juicio: 'ii', g_sendero: 'i' }, sel: 'g_martillo' },
 };
-// specId → { skillId: 'i' | 'ii' }   (forja recomendada, D3; la escribe KA2)
-export const GUERRERO_FORGE_RECO = {};
+// specId → { skillId: 'i' | 'ii' }   (forja recomendada, D3; ★ del libro, §7). Ninguna apaga la
+// barra de su especialización (2f §7.7): conserva el sangrado (Sed), las posturas y el plantado
+// (Bastión) y la carga y la marca (Fervor)
+export const GUERRERO_FORGE_RECO = {
+  berserker: { g_tajo: 'i', g_remolino: 'ii', g_u_furia: 'i' },
+  guardian: { g_tajo: 'ii', g_piel: 'ii', g_guardia: 'i', g_carga_escudo: 'i', g_u_ciudadela: 'ii' },
+  cruzado: { g_juicio: 'ii', g_sendero: 'i', g_martillo: 'ii', g_u_cataclismo: 'i' },
+};
 // barra de reserva de la migración (§3.11): solo el kit base
 export const GUERRERO_FALLBACK_BAR = { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: null, k4: null };
 // 1 = catálogo v4 · 2 = catálogo 2g
