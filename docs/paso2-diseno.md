@@ -8,12 +8,12 @@
 
 ## 0. Resumen ejecutivo
 
-1. **Kit de 6 ranuras con categoría**: 🖱️Izq básico · 🖱️Der gastadora · `1` movilidad · **`2` flexible (defensa, utilidad o segunda gastadora)** · `3` especialización · `4` definitiva, más la esquiva común (`Mayús`). Cada ranura solo acepta sus categorías.
-   *Por qué:* la auditoría mostró que con barra libre nadie elegía movilidad ni defensa y que Maga/Arquera llenaban 5 ranuras con 5 habilidades: no había decisiones. Con categorías, la decisión pasa a ser *qué* movilidad usar y, en la ranura `2`, **supervivencia frente a daño**: es la decisión de build más visible del kit y la que permite a la Maga gestionar dos enfriamientos de gastadora.
-2. **Recursos con identidad**: Furia (100, sin regeneración, se gana golpeando **y recibiendo daño**), Maná (pozo grande ≈150–450, regeneración lenta, gastadoras con enfriamiento; es el único recurso que escala con el atributo Energía) y Energía (pozo fijo de 60, regeneración **plana** de 6/s, gastadoras sin enfriamiento).
-3. **Catálogo**: 14 habilidades base por clase (3 básicos, 4–5 gastadoras, 2 movilidades, 2–3 defensas o utilidades y 3 definitivas) y **42 habilidades otorgadas por talento** que salen de los mockups. Se eliminan las 5 pasivas compradas y las sinergias. Se rehacen Mandoble, Embate, Torbellino, Hendidura, Salto Devastador, Provocación, Grito de Guerra, Agilidad y las 3 definitivas de cada clase.
+1. **Kit de 6 ranuras con categoría**: 🖱️Izq básico · 🖱️Der principal · `1` movilidad · **`2` flexible (defensa, utilidad o segunda principal)** · `3` especialización · `4` definitiva, más la esquiva común (`Mayús`). Cada ranura solo acepta sus categorías.
+   *Por qué:* la auditoría mostró que con barra libre nadie elegía movilidad ni defensa y que Maga/Arquera llenaban 5 ranuras con 5 habilidades: no había decisiones. Con categorías, la decisión pasa a ser *qué* movilidad usar y, en la ranura `2`, **supervivencia frente a daño**: es la decisión de build más visible del kit y la que permite a la Maga gestionar dos enfriamientos de principal.
+2. **Recursos con identidad**: Furia (100, sin regeneración, se gana golpeando **y recibiendo daño**), Maná (pozo grande ≈150–450, regeneración lenta, principales con enfriamiento; es el único recurso que escala con el atributo Energía) y Energía (pozo fijo de 60, regeneración **plana** de 6/s, principales sin enfriamiento).
+3. **Catálogo**: 14 habilidades base por clase (3 básicos, 4–5 principales, 2 movilidades, 2–3 defensas o utilidades y 3 definitivas) y **42 habilidades otorgadas por talento** que salen de los mockups. Se eliminan las 5 pasivas compradas y las sinergias. Se rehacen Mandoble, Embate, Torbellino, Hendidura, Salto Devastador, Provocación, Grito de Guerra, Agilidad y las 3 definitivas de cada clase.
 4. **Fin de los rangos comprados**: el rango de una habilidad sale del **nivel del héroe**, de los **talentos** (`skillLv`) y, más adelante, del **equipo**. Los 19 puntos de habilidad (Nv2–20) pasan a **desbloquear ramas** (1 punto por mini‑rama). Las habilidades se aprenden solas al llegar a su nivel.
-5. **Un único resolvedor puro** `resolveSkill(p, sk)` (`js/skill-resolve.js`) fusiona rango, ramas, soportes por **tags**, talentos (`mod`, `skillLv`, `tv.costRed…`) y produce coeficiente, coste, enfriamiento, radio y efectos. Lo usan el lanzamiento, el banco y los tooltips. Habrá **GCD de 0,2 s** entre gastadoras, *windup* de 80–150 ms en los golpes pesados y **daño sincronizado con el impacto**.
+5. **Un único resolvedor puro** `resolveSkill(p, sk)` (`js/skill-resolve.js`) fusiona rango, ramas, soportes por **tags**, talentos (`mod`, `skillLv`, `tv.costRed…`) y produce coeficiente, coste, enfriamiento, radio y efectos. Lo usan el lanzamiento, el banco y los tooltips. Habrá **GCD de 0,2 s** entre principales, *windup* de 80–150 ms en los golpes pesados y **daño sincronizado con el impacto**.
 6. **Talentos**: los árboles de los mockups se transcriben a `js/talents-{guerrero,maga,arquera}.js`; `game-mastery.js` se sustituye por `game-talents.js`. El cambio estructural es **uno solo**: el nodo clave gratuito (s0) **otorga la habilidad insignia** de la especialización (ranura 3) desde Nv10, y el nodo s4, que antes la otorgaba, pasa a potenciarla.
 7. **Primitivas de rol**: amenaza y provocación, alcance de buffs `self/party/aura`, curas y escudos al «aliado con menos vida», **barra de aturdimiento acumulado (stagger) en jefes** y control con rendimientos decrecientes por categoría.
 8. **Banco por rol**: escenarios de un objetivo, área ×5, aguante con defensas activas, aporte de apoyo y tiempo de control. Cada especialización debe ser la mejor de su clase en su métrica de rol, con al menos un 10 % de margen.
@@ -30,9 +30,9 @@
 | Ranura | Tecla (por defecto) | Categoría (`sk.cat`) | Desbloqueo | Notas |
 |---|---|---|---|---|
 | `lmb` | Clic izquierdo | `basic` (generador) | Nv1 | Mantener pulsado = repetir (ya existe en `tick`). Sin GCD; lo marca la cadencia. |
-| `rmb` | Clic derecho | `spender` (gastadora principal) | Nv2 | GCD 0,2 s. Admite también las gastadoras de especialización (Veredicto Final, Lanza de Hielo, Misiles Arcanos, Disparo Apuntado). |
+| `rmb` | Clic derecho | `spender` (principal principal) | Nv2 | GCD 0,2 s. Admite también las principales de especialización (Veredicto Final, Lanza de Hielo, Misiles Arcanos, Disparo Apuntado). |
 | `k1` | `1` | `movement` | Nv4 | **Fuera del GCD**: escapar siempre es posible. |
-| `k2` | `2` | **flexible**: `defense` / `utility` / `spender` | Nv6 (la opción gastadora, desde Nv8 con la Gastadora B) | GCD 0,2 s. **Decisión de build: supervivencia frente a daño.** No admite la misma habilidad que `rmb`. |
+| `k2` | `2` | **flexible**: `defense` / `utility` / `spender` | Nv6 (la opción principal, desde Nv8 con la Principal B) | GCD 0,2 s. **Decisión de build: supervivencia frente a daño.** No admite la misma habilidad que `rmb`. |
 | `k3` | `3` | `spec` | Nv10 (al elegir especialización) | Admite cualquier activa otorgada por el árbol de la especialización activa. Por defecto, la insignia. |
 | `k4` | `4` | `ultimate` | Nv15 | GCD 0,2 s. Sin coste de recurso; solo enfriamiento de 45–60 s. |
 | esquiva | `Mayús` | común | Nv1 | Recarga 3 s (1,8 s con el poder Ágil) e invulnerable 0,26 s. **Cancela** el *windup* y la canalización en curso. |
@@ -40,16 +40,16 @@
 - `js/bindings.js` **no cambia de teclas**: `skill1..4` = `Digit1..4`, `dodge` = `Shift` y `primary` = `Espacio` (atacar al más cercano o interactuar). Solo se añade la acción `talents: ['KeyN']` (convención de WoW) y su etiqueta en `BINDABLE_ACTIONS`.
 - `assignHotbar(slot, id)` valida que `sk.slots.includes(slot)` y que la habilidad no esté ya en otra ranura. Cada habilidad declara sus ranuras válidas en `slots`, que se derivan de su categoría (`CAT_SLOTS`):
   - básico → `['lmb']`;
-  - gastadora → `['rmb','k2']`;
-  - gastadora de especialización → `['rmb','k2','k3']`;
+  - principal → `['rmb','k2']`;
+  - principal de especialización → `['rmb','k2','k3']`;
   - defensa o utilidad → `['k2']` (las de especialización, `['k2','k3']`);
   - movilidad → `['k1']`;
   - especialización → `['k3']`;
   - definitiva → `['k4']`.
 - *Por qué hay categorías:* con 4 teclas más 2 botones, el jugador de PC lee el kit de un vistazo (modelo Lost Ark / WoW). Toda build tiene una movilidad, y el diseño de enemigos puede contar con ello (p. ej. telegrafías que exigen desplazarse).
-- *Por qué `k2` es flexible:* con una sola ranura de gastadora, la identidad de la Maga («gestionar enfriamientos») era imposible. Una build de Meteoro, con 7 s de enfriamiento, pasaba ~80 % del tiempo en el básico. La flexibilidad convierte la ranura en la **decisión de build más visible**:
+- *Por qué `k2` es flexible:* con una sola ranura de principal, la identidad de la Maga («gestionar enfriamientos») era imposible. Una build de Meteoro, con 7 s de enfriamiento, pasaba ~80 % del tiempo en el básico. La flexibilidad convierte la ranura en la **decisión de build más visible**:
   - con una defensa: aguante (tanques, contenido difícil, Hardcore);
-  - con una segunda gastadora: +15–25 % de daño a cambio de depender de la esquiva y la movilidad.
+  - con una segunda principal: +15–25 % de daño a cambio de depender de la esquiva y la movilidad.
   El banco mide ambas variantes (§7) para que la decisión sea real y no una trampa.
 
 ### 1.2 Calendario de desbloqueo (todas las clases)
@@ -57,14 +57,14 @@
 | Nv | Qué se desbloquea |
 |---|---|
 | 1 | Básico A (el actual de arma) |
-| 2 | Gastadora A |
+| 2 | Principal A |
 | 3 | Básico B |
 | 4 | Movilidad A |
 | 6 | Defensa/utilidad A |
-| 8 | Gastadora B (primera vez que `2` puede ser gastadora) y Básico C |
+| 8 | Principal B (primera vez que `2` puede ser principal) y Básico C |
 | 10 | **Especialización** (habilidad insignia en `3`) y árbol de talentos |
 | 12 | Movilidad B y Defensa/utilidad B |
-| 14 | Gastadora C (y D) |
+| 14 | Principal C (y D) |
 | 15 | Las 3 definitivas (eliges una) |
 | 16 | Defensa/utilidad C (si la clase la tiene) |
 | 11–50 | Activas de talento (árbol de clase y de especialización) según los puntos gastados |
@@ -76,23 +76,23 @@
 | Categoría | Guerrero | Maga | Arquera |
 |---|---|---|---|
 | Básico | Tajo · Mandoble · Embate | Dardo Arcano · Ascua · Toque Gélido | Disparo Rápido · Disparo Disperso · Flecha de Cicuta |
-| Gastadora | Torbellino · Hendidura · Martillo de Guerra · Terremoto · Lanza Arrojadiza (+ Veredicto Final) | Bola de Fuego · Rayo · Nova de Hielo · Meteoro (+ Lanza de Hielo, Misiles Arcanos) | Flecha Perforante · Flecha Múltiple · Lluvia de Flechas (+ Disparo Apuntado) |
+| Principal | Torbellino · Hendidura · Martillo de Guerra · Terremoto · Lanza Arrojadiza (+ Veredicto Final) | Bola de Fuego · Rayo · Nova de Hielo · Meteoro (+ Lanza de Hielo, Misiles Arcanos) | Flecha Perforante · Flecha Múltiple · Lluvia de Flechas (+ Disparo Apuntado) |
 | Movilidad | Embestida · Salto Devastador · Intervención† · Carga de Escudo† | Paso de Escarcha · Estela Ígnea · Parpadeo† | Paso Veloz · Agilidad · Voltereta† · Salto de Retirada† · Disparo Disuasorio† |
 | Defensa/utilidad | Piel de Hierro · Provocación · Grito de Guerra · Segundo Aliento† · Bramido de Guerra† · Martillo de Justicia† | Armadura de Hielo · Onda Repulsora · Barrera de Maná† · Contrahechizo† · Inversión del Tiempo† · Bloque de Hielo† · Muro de Fuego† · Aliento Boreal† | Red de Caza · Bomba de Humo · Disparo Conmocionante† · Flecha Silenciadora† · Flecha Bengala† · Camuflaje† · Señuelo de Paja† · Arpón† |
 | Especialización | Remolino Sangriento / Temeridad / Ira Ciega (Berserker) · Grito Desafiante / Muro de Escudos (Guardián) · Aura de Devoción / Veredicto Final (Cruzado) | Llamarada / Combustión (Piromante) · Prisión de Hielo / Ventisca / Lanza de Hielo (Crionte) · Orbe Arcano / Sello del Archimago / Misiles / Evocación (Arcanista) | Disparo Apuntado / Visión Certera (Francotiradora) · Trampa de Cepo / Arpón (Montaraz) · Andanada / Danza de Flechas (Tiradora) |
 | Definitiva | Furia Inmortal · Cataclismo · Estandarte de Guerra | Supernova · Tormenta Glacial · Desgarro Arcano | Diluvio de Saetas · Tiro Celestial · Cerco de Zarzas |
 
-† = la otorga un talento (árbol de clase o de especialización). Las activas de talento ocupan su categoría natural; las del árbol de especialización pueden ir también en `3`. Todas las gastadoras de la fila «Gastadora» pueden ir en `rmb` **o** en `2`.
+† = la otorga un talento (árbol de clase o de especialización). Las activas de talento ocupan su categoría natural; las del árbol de especialización pueden ir también en `3`. Todas las principales de la fila «Principal» pueden ir en `rmb` **o** en `2`.
 
 ### 1.4 Qué gana cada clase con la ranura `2` flexible
 
-| Clase | Combinación ofensiva (gastadora en `2`) | Combinación defensiva | Por qué es una decisión real |
+| Clase | Combinación ofensiva (principal en `2`) | Combinación defensiva | Por qué es una decisión real |
 |---|---|---|---|
-| **Maga** | **Piromante**: Bola de Fuego (`rmb`, 1,5 s) + **Meteoro** (`2`, 7 s) + Llamarada (`3`, 8 s): tres enfriamientos que entrelazar con el Calor (Ignición Total abarata el Meteoro). **Crionte**: Nova de Hielo + Lanza de Hielo; congelar y astillar. **Arcanista**: Rayo + Misiles Arcanos (`2`) con Orbe en `3`; la ráfaga entera de Cargas | Armadura de Hielo, Barrera de Maná o Inversión del Tiempo | La Maga es la clase más frágil: llevar dos gastadoras significa vivir de la esquiva y de Parpadeo. Es la build de quien juega bien |
+| **Maga** | **Piromante**: Bola de Fuego (`rmb`, 1,5 s) + **Meteoro** (`2`, 7 s) + Llamarada (`3`, 8 s): tres enfriamientos que entrelazar con el Calor (Ignición Total abarata el Meteoro). **Crionte**: Nova de Hielo + Lanza de Hielo; congelar y astillar. **Arcanista**: Rayo + Misiles Arcanos (`2`) con Orbe en `3`; la ráfaga entera de Cargas | Armadura de Hielo, Barrera de Maná o Inversión del Tiempo | La Maga es la clase más frágil: llevar dos principales significa vivir de la esquiva y de Parpadeo. Es la build de quien juega bien |
 | **Guerrero** | **Berserker**: Hendidura (`rmb`) + Torbellino (`2`); un golpe frontal y un giro, sin defensivo, lo que encaja con Sed (perder vida llena el indicador). **Cruzado**: Veredicto Final (`rmb`) + Martillo de Guerra (`2`), que genera Fervor sin esperar muertes. **Guardián**: Martillo + Terremoto (control), solo para quien juega solo en dificultad baja | Piel de Hierro, Segundo Aliento, Bramido o Provocación | La Furia por daño recibido premia al que se expone: la combinación ofensiva del Berserker es su fantasía, y la del Guardián es una trampa intencionada (su métrica de rol se mide con defensa) |
-| **Arquera** | **Tiradora**: Flecha Múltiple (`rmb`) + Lluvia de Flechas (`2`); hordas a dos niveles. **Francotiradora**: Flecha Perforante (`rmb`) + Disparo Apuntado (`2`), y deja `3` para Visión Certera. **Montaraz**: Lluvia de Flechas con Abrojos en `2` + Trampa en `3` | Bomba de Humo, Red de Caza, Camuflaje o Disparo Conmocionante | La Energía no da para gastar dos gastadoras sin pausa, así que la ofensiva exige más ritmo. La Francotiradora libera `3` para su buff de 90 s, otra forma de ráfaga |
+| **Arquera** | **Tiradora**: Flecha Múltiple (`rmb`) + Lluvia de Flechas (`2`); hordas a dos niveles. **Francotiradora**: Flecha Perforante (`rmb`) + Disparo Apuntado (`2`), y deja `3` para Visión Certera. **Montaraz**: Lluvia de Flechas con Abrojos en `2` + Trampa en `3` | Bomba de Humo, Red de Caza, Camuflaje o Disparo Conmocionante | La Energía no da para gastar dos principales sin pausa, así que la ofensiva exige más ritmo. La Francotiradora libera `3` para su buff de 90 s, otra forma de ráfaga |
 
-Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una conserva su enfriamiento. **No hay una tercera gastadora**: `k3` solo admite las gastadoras de *especialización*.
+Reglas del lanzamiento: las dos principales comparten el GCD de 0,2 s y cada una conserva su enfriamiento. **No hay una tercera principal**: `k3` solo admite las principales de *especialización*.
 *Por qué:* así la ranura de especialización sigue siendo identitaria.
 
 ---
@@ -107,19 +107,19 @@ Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una 
 | Generación por básico | Tajo **+10** (+2 por objetivo extra, máx. +16) · Mandoble **+14** · Embate **+7** (+2/extra, máx. +15). Solo al acertar | **+3** (Toque Gélido +4). «Casi no genera» | **+5** al acertar |
 | Generación por daño recibido | **+1 por cada 2 % de vida máx. perdida** (tras mitigar), tope 12/s | — | — |
 | Pérdida | tras **4 s** sin golpear ni recibir daño: **−12/s** | — | — |
-| Coste típico de gastadora | 20–35 (sin enfriamiento) | 18–40 **con enfriamiento** de 1,5–7 s | 20–30 (sin enfriamiento; Lluvia de Flechas con 4 s) |
+| Coste típico de principal | 20–35 (sin enfriamiento) | 18–40 **con enfriamiento** de 1,5–7 s | 20–30 (sin enfriamiento; Lluvia de Flechas con 4 s) |
 | Coste de utilidad o especialización | 0–30 | 20–35 | 10–25 |
 | Definitivas | 0 (solo enfriamiento) | 0 | 0 |
 | Poción de recurso (`E`) | +40 Furia | +45 % del maná | +100 % de la Energía |
 
 **Por qué cada uno:**
 - *Furia*: el guerrero se gana el combate en primera línea. Que el daño recibido genere recurso hace que el tanque tenga más recurso cuanto más le pegan (fantasía de Guardián) y castiga el «kiteo» melee. La pérdida fuera de combate impide almacenarla.
-- *Maná*: ahora es un **pozo de ráfaga**. La Maga abre con 6–8 hechizos y luego administra. El límite real lo ponen los enfriamientos cortos de sus gastadoras (gestionar enfriamientos es su identidad), no esperar a que se rellene una barra. Que el básico casi no genere evita el bucle «dardo, bola, dardo» de hoy.
+- *Maná*: ahora es un **pozo de ráfaga**. La Maga abre con 6–8 hechizos y luego administra. El límite real lo ponen los enfriamientos cortos de sus principales (gestionar enfriamientos es su identidad), no esperar a que se rellene una barra. Que el básico casi no genere evita el bucle «dardo, bola, dardo» de hoy.
 - *Energía*: un **pozo chico que vuelve rápido** da ritmo de ráfagas cortas (gastar 3, respirar 2 s). Regeneración plana y máximo fijo: ni el máximo ni la regeneración leen el atributo Energía. Así se deshace la confusión de nombres y la equivalencia Maná ≈ Energía que señaló la auditoría.
 - **Atributo Energía**: **solo** tiene efecto de recurso en la Maga (máximo y regeneración de Maná). `resources.js` llama `resourceRegen(base, ene)` con `ene` solo si `res.id === 'mana'`; si no, con 0. Para el Guerrero y la Arquera el atributo no aporta recurso, y la ficha lo indica con una nota gris («sin efecto en tu clase»). Darle un uso a ese atributo en esas clases queda para el paso de itemización y atributos.
   *Por qué:* es coherente y simple. Hoy un punto de Energía da recurso a las tres clases y eso, justamente, igualaba Maná y Energía.
 
-**Objetivo de sostenido** (rotación base sin especialización, contra un objetivo): **1,7–2,0 WD/s en las tres clases (±10 %)**. Fracción de acciones que son gastadoras: Guerrero ≈ 20–30 % (sube si recibe daño), Maga ≈ 45 % los primeros 18 s y ≈ 30 % después, Arquera ≈ 25–30 %. Con una segunda gastadora en `2`, el objetivo es **+15–25 %** sobre esa cifra (la Maga, más cerca del +25 %, porque su límite eran los enfriamientos y no el recurso). El banco lo verifica (§7).
+**Objetivo de sostenido** (rotación base sin especialización, contra un objetivo): **1,7–2,0 WD/s en las tres clases (±10 %)**. Fracción de acciones que son principales: Guerrero ≈ 20–30 % (sube si recibe daño), Maga ≈ 45 % los primeros 18 s y ≈ 30 % después, Arquera ≈ 25–30 %. Con una segunda principal en `2`, el objetivo es **+15–25 %** sobre esa cifra (la Maga, más cerca del +25 %, porque su límite eran los enfriamientos y no el recurso). El banco lo verifica (§7).
 
 **Mecánicas propias de cada especialización** (indicador secundario sobre la barra de habilidades, como `CALOR · PIROMANTE` en el mockup del HUD). Viven en `js/spec-mechanics.js` (puro):
 
@@ -148,7 +148,7 @@ Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una 
 - **Tags** (vocabulario cerrado): de categoría `basic spender movement defense utility spec ultimate`; de entrega `melee proj area cone line channel aura zone trap mark summon shout buff shield heal`; de alcance `ally`; de control `cc taunt interrupt`; de elemento `physical fire frost arcane holy nature`; extra `dot`. El elemento sustituye a `SKILL_ELEM` de `talents.js` (pasa a vivir en `sk.elem`).
 - **Windup** = tiempo previo al impacto, cancelable con la esquiva. **Bloqueo** = tiempo de animación en que no se puede lanzar otra cosa (la esquiva sí).
 - **CC**: la duración es nominal (antes de rendimientos decrecientes); «Int.» indica si la habilidad del **jugador** se interrumpe al recibir un golpe de más del 10 % de la vida máxima.
-- **Presupuesto**: básico ≈1 WD/s · gastadora ≈2,2–3 WD por uso · insignia de especialización ≈4–6 WD por uso · **definitiva ≈20–22 WD por uso (≈10× una gastadora)**. Las habilidades de área reparten ≈65–75 % por objetivo respecto a su equivalente de un objetivo.
+- **Presupuesto**: básico ≈1 WD/s · principal ≈2,2–3 WD por uso · insignia de especialización ≈4–6 WD por uso · **definitiva ≈20–22 WD por uso (≈10× una principal)**. Las habilidades de área reparten ≈65–75 % por objetivo respecto a su equivalente de un objetivo.
 - Estado: **C** se conserva · **R** se rehace · **N** es nueva · **T** la otorga un talento (es nueva).
 
 ### 3.1 GUERRERO (Furia, `physical` salvo indicación)
@@ -180,7 +180,7 @@ Reglas del lanzamiento: las dos gastadoras comparten el GCD de 0,2 s y cada una 
 | `g_t_devocion` | Aura de Devoción | T (**s0** Cruzado) | k3 | spec aura heal ally holy | — | 30 s | — | Grupo a 15 m durante 8 s: **2 % de vida/s** y +30 de armadura; +1 Fervor (s4) | 0 | **Cruzado (insignia)** | círculo sagrado / campana (nuevo `holy`) |
 | `g_t_veredicto` | Veredicto Final | T (s9) | rmb/k2/k3 | spec spender cone holy heal | **3 Fervor** | — | **3,0** cono 6 m | Cura al grupo el 25 % del daño hecho (+10 %/rango de Gracia) | **120 ms** | Cruzado | martillo de luz / `crit` |
 | `g_t_justicia` | Martillo de Justicia | T (s13B) | k2 | utility proj cc holy | — | 15 s | 1,2 | Aturde 3 s (jefes: 1,5 s **y** +30 de stagger) | 0 | Cruzado | martillo arrojado / `hit` |
-| `g_u_furia` | Furia Inmortal | R | k4 | ultimate buff | — | **60 s** | ≈ **12–14 WD** equivalentes | 10 s: gastadoras a coste 0, +30 % de velocidad de ataque, imparable | 0 | Berserker | aura de fuego / rugido |
+| `g_u_furia` | Furia Inmortal | R | k4 | ultimate buff | — | **60 s** | ≈ **12–14 WD** equivalentes | 10 s: principales a coste 0, +30 % de velocidad de ataque, imparable | 0 | Berserker | aura de fuego / rugido |
 | `g_u_cataclismo` | Cataclismo | R | k4 | ultimate area holy | — | **50 s** | 6 impactos × **3,5** en 3 s, r 3 (**21 WD** en el centro) | Telegrafía de 0,4 s por impacto | 150 ms | Cruzado (s16) | meteoros de luz / `fire` grave |
 | `g_u_estandarte` | Estandarte de Guerra | R | k4 | ultimate aura ally | — | **55 s** | ≈ 8 WD solo + defensa | Estandarte r 8 durante 12 s: grupo +20 % de daño (aditivo), `dr` +15, +5 Furia/s | 0 | Guardián, Cruzado (s10) | estandarte / `levelup` |
 
@@ -320,13 +320,13 @@ Se sustituye `types:[…]` por `requires` y `forbids` sobre tags:
 | Amplificado, Sobrecarga, Certero, Gélido, Sangre Fría | daño (coef > 0) | `ultimate` (Sobrecarga también `basic`) | aditivo / crítico |
 | Multiproyectil, Perforante, Encadenado | `proj` | `channel` | |
 | Expansivo, Concentrado | `area` \| `cone` \| `zone` | | |
-| Eco | daño | `channel` `ultimate` `movement` | un Meteoro con eco era el mejor DPS: se mantiene en gastadoras |
+| Eco | daño | `channel` `ultimate` `movement` | un Meteoro con eco era el mejor DPS: se mantiene en principales |
 | Sed de Sangre, Veneno | daño y (`melee` \| `proj` \| `area`) | | |
 | Persistente | `buff` \| `dot` \| `aura` \| `zone` \| `shield` | | |
 | Eficiente | coste > 0 | | |
 | Raudo | enfriamiento > 0 | `ultimate` | |
 
-Huecos de engarce: `lmb` 1; `rmb`, `k1`, `k2` y `k3` 2; `k4` 1. Los soportes van **con la habilidad**, no con la ranura: una gastadora movida de `rmb` a `2` conserva los suyos. Al migrar, un soporte que deja de ser compatible se **desengarza** (sigue en `knownSupports`).
+Huecos de engarce: `lmb` 1; `rmb`, `k1`, `k2` y `k3` 2; `k4` 1. Los soportes van **con la habilidad**, no con la ranura: una principal movida de `rmb` a `2` conserva los suyos. Al migrar, un soporte que deja de ser compatible se **desengarza** (sigue en `knownSupports`).
 *Por qué tags:* es el modelo de PoE2. El soporte declara qué necesita y cualquier habilidad nueva (las 42 de talento) es compatible sin tocar la lista de soportes.
 
 ### 4.4 GCD, windup e impacto sincronizado
@@ -651,8 +651,8 @@ Builds: héroe **típico** Nv50 (raros, sin soportes) **por especialización**, 
 1. Defensa en `2` si la vida < 50 % (variante defensiva).
 2. Gasto del indicador lleno (Veredicto, Ignición Total, Muro con 5 Bastión…).
 3. Insignia de especialización.
-4. Gastadora de `2` con enfriamiento (variante ofensiva).
-5. Gastadora de `rmb`.
+4. Principal de `2` con enfriamiento (variante ofensiva).
+5. Principal de `rmb`.
 6. Básico.
 
 La definitiva se usa al enfriarse.
@@ -684,13 +684,13 @@ Reglas transversales:
 - Se **mantienen los objetivos del Paso 1A** (media de clases: común 0,6–1,5 s, élite 4,5–10,5, jefe 45–90, TTD 6–10). Esos mismos rangos aplican ahora a cada especialización por separado con ±20 %.
 - Jefe: la especialización más lenta ≤ **2,0×** la más rápida (hoy se pide ≤2,5× por clase).
 - La definitiva aporta el **12–22 %** del daño en UNI. Fuera de ese rango, o es una trampa (como hoy, 0,15 WD/s) o es obligatoria.
-- **Básico frente a gastadoras**: en UNI, el DPS de «solo básico» ≤ **0,6×** el de la rotación. La auditoría encontró básicos que superaban a todas las gastadoras.
+- **Básico frente a principales**: en UNI, el DPS de «solo básico» ≤ **0,6×** el de la rotación. La auditoría encontró básicos que superaban a todas las principales.
 - Ningún golpe ≥ 25 % de la vida del jefe (se mantiene).
 - **Intercambio de la ranura `2`**, para cada especialización salvo el Guardián (y, en el tope, el Cruzado; ver abajo):
   - la variante ofensiva da **+12–25 %** de UNI sobre la defensiva;
   - la defensiva da **≥ +30 %** de TTD+ sobre la ofensiva.
   Fuera de esos rangos, una de las dos opciones es una trampa y se ajusta.
-  - **Cruzado (Paso 2e, decisión del jefe): exento del tope de +25 %.** Es APOYO: su métrica de rol es APOYO y su ranura 2 defensiva (Bramido) se juzga por TTD+, no por UNI. Su ofensiva lleva el Martillo de Guerra, el motor de su Fervor, y la defensiva no lleva ninguna gastadora de Furia, así que la ofensiva gana siempre mucho UNI (+50–70 %). Ajustarlo exigía un Martillo de trampa (0,34) que castigaba a todo el Guerrero (Nv8–9 sin especialización, el Guardián antes de Martillo Pesado). Mantiene el suelo (+12 %), la exigencia de la defensiva (≥ +30 % de TTD+) y sus objetivos de APOYO, TTD+ y UNI. En el banco: `TARGETS.k2Tradeoff.noUniCap`.
+  - **Cruzado (Paso 2e, decisión del jefe): exento del tope de +25 %.** Es APOYO: su métrica de rol es APOYO y su ranura 2 defensiva (Bramido) se juzga por TTD+, no por UNI. Su ofensiva lleva el Martillo de Guerra, el motor de su Fervor, y la defensiva no lleva ninguna principal de Furia, así que la ofensiva gana siempre mucho UNI (+50–70 %). Ajustarlo exigía un Martillo de trampa (0,34) que castigaba a todo el Guerrero (Nv8–9 sin especialización, el Guardián antes de Martillo Pesado). Mantiene el suelo (+12 %), la exigencia de la defensiva (≥ +30 % de TTD+) y sus objetivos de APOYO, TTD+ y UNI. En el banco: `TARGETS.k2Tradeoff.noUniCap`.
 - Los objetivos de rol de §7.2 (TTD+ ≥ 2,0·M del Guardián, suelos de TTD+) se calculan con la **variante defensiva** de todas las especializaciones. Así el tanque se compara con los demás en igualdad, porque todos llevan una defensa.
 - `--report` imprime una matriz de 9 especializaciones × 5 escenarios, con UNI y TTD+ desdoblados por variante.
 
@@ -710,9 +710,9 @@ Son dos versiones, una por etapa. Cada una es idempotente y opera sobre una copi
    *Por qué es justo:* devuelve exactamente lo que se gastó en rangos (que ya no existen) y conserva lo que sigue teniendo sentido.
 3. `hotbar` → ranuras con categoría:
    - `lmb`: el básico que hubiera si es `basic`; si no, el de arma.
-   - `rmb`: la primera gastadora que hubiera en la barra vieja; si no, la gastadora A.
+   - `rmb`: la primera principal que hubiera en la barra vieja; si no, la principal A.
    - `k1`: Embestida, Salto Devastador o Agilidad si estaban; si no, la movilidad A (Nv ≥ 4).
-   - `k2`: Provocación o Grito si estaban; si no, la **segunda gastadora** de la barra vieja (respeta a quien jugaba con dos); si no, la defensa A (Nv ≥ 6).
+   - `k2`: Provocación o Grito si estaban; si no, la **segunda principal** de la barra vieja (respeta a quien jugaba con dos); si no, la defensa A (Nv ≥ 6).
    - `k4`: la definitiva vieja si estaba; si no, nada.
    - `k3`: nada hasta elegir especialización.
 4. `supports`: se desengarzan los incompatibles por tags o de habilidades eliminadas (siguen en `knownSupports`).
@@ -918,7 +918,7 @@ Cada etapa cierra con `npm test` en verde, subida de versión de `sw.js` y la ac
   - Pantalla de elección de especialización en Nv10.
 - **Jefe** (`ui.js`, `index.html`, `css/style.css`):
   - Libro de habilidades: lista por categoría + foco radial de ramas (`renderSkillFocus`).
-  - **Barra de 6 ranuras** con icono de categoría; la ranura `2` muestra un selector de dos pestañas, «Defensa/utilidad» y «Gastadora».
+  - **Barra de 6 ranuras** con icono de categoría; la ranura `2` muestra un selector de dos pestañas, «Defensa/utilidad» y «Principal».
   - Sombra de GCD, indicador de especialización sobre la barra (mockup HUD) y barra de stagger de los jefes.
 - **Assets**: copiar de `D:\Proyectos\IntentoRPG-assets\web\` a `assets/`, con caché en tiempo de ejecución por clase (no se precargan los 234 iconos). Las 16 habilidades base nuevas usan temporalmente el sprite del nodo más afín.
 - **Tests**: `test49-guia`, `test47-remapeo`.
