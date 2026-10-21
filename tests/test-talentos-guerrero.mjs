@@ -166,11 +166,30 @@ check('c9A', () => {
   const nb = a.enemy({ hp: 1e6, boss: true, pos: [2, 0, 0] });
   prof(a, 'g_hendidura'); hitWith(a, nb, 'g_hendidura');
   assert.equal(nb.stagger || 0, 0, 'sin c9A no hay Quebranto');
+  // y el 3.er golpe de Rajar (paso de combo con preparación: '<id>@windup' lo produce skill-resolve)
+  const r = rajarStep3(true, 'A'), r0 = rajarStep3(false);
+  // (+40 % al saco aditivo: con el resto del saco, algo menos de ×1,4)
+  assert.ok(approx(r.windup - r0.windup, 0.3, 0.02) && r.wm?.dmg === 40 && r.dealt / r0.dealt > 1.3 && r.dealt / r0.dealt <= 1.41,
+    `c9A: el 3.er golpe de Rajar se prepara 0,3 s más y hace +40 % (${JSON.stringify(r)} / ${JSON.stringify(r0)})`);
 });
+// 3.er golpe de Rajar con o sin c9 (opción `ch`): cuánto tarda desde el lanzamiento y cuánto hace
+function rajarStep3(on, ch) {
+  const h = on ? spec('berserker', {}, { c9: ch }, { cls: { c9: 1 } }) : spec('berserker');
+  h.p.combatRng = () => 0.999;
+  const e = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+  const t0 = h.p.simT;
+  let at = null, dealt = 0;
+  const orig = h.g.onPlayerHit.bind(h.g);
+  h.g.onPlayerHit = (en, hit) => { if (en === e && hit.step === 3 && !hit.dot && !hit.proc && at == null) { at = h.p.simT; dealt = hit.dealt; } return orig(en, hit); };
+  rajar3(h, [2, 0], 0.9);
+  return { windup: at == null ? null : at - t0, dealt, wm: prof(h, 'g_rajar').windupMods };
+}
 // c9B Sin Pausa: la mitad de preparación, sin frenar, y prepararse no rompe el plantado
 check('c9B', () => {
   const a = cls(), b = cls({ c9: 1 }, { c9: 'B' });
   assert.ok(approx(prof(b, 'g_hendidura').windup, prof(a, 'g_hendidura').windup * 0.5), 'c9B: la mitad de preparación');
+  const r = rajarStep3(true, 'B'), r0 = rajarStep3(false);
+  assert.ok(approx(r.windup - r0.windup, -0.15, 0.02), `c9B: el 3.er golpe de Rajar, también la mitad (${r.windup} / ${r0.windup})`);
   assert.ok(prof(b, 'g_hendidura').moveMul >= 1, 'c9B: te mueves a velocidad normal');
   assert.ok(prof(b, 'g_hendidura').keepPlanted && !prof(a, 'g_hendidura').keepPlanted, 'c9B: preparar no rompe el plantado');
   assert.ok(!prof(b, 'g_lanza').keepPlanted, 'c9B: solo lo que se prepara o se carga');
@@ -220,6 +239,9 @@ check('c11A', () => {
   };
   const off = run(false);
   assert.ok(approx(off.h.p.mp, 30, 1e-6), `c11A: gasta la mitad de la Furia (${off.h.p.mp})`);
+  // su recarga REAL (g.startCooldown): la ranura la enseña si la pones
+  const cdA = prof(off.h, 'g_t_aliento').cd;
+  assert.ok(off.h.p.cdMax.g_t_aliento === cdA && approx(off.h.p.cds.g_t_aliento, cdA, 0.15), `c11A: pone la recarga de Segundo Aliento (${off.h.p.cds.g_t_aliento} / ${cdA})`);
   assert.ok(off.healed >= off.h.p.stats.maxHP * 0.1 - 1, `c11A: cura 1 % por cada 3 gastados (${off.healed})`);
   const on = run(true);
   assert.equal(on.h.p.mp, 60, 'c11A: en la barra no sale con la Piel');
@@ -310,6 +332,11 @@ check('c17A', () => {
   assert.ok(approx(h.p.mp, 15), `c17A: +15 de Furia (${h.p.mp})`);
   const full = prof(h, 'grito_guerra').buff.dmgPct;
   assert.ok(full >= 10 && buff(h.p, 'grito_guerra')?.stats?.dmgPct === Math.round(full * 0.5), `c17A: la mitad del daño del Grito (${full})`);
+  const cdG = prof(h, 'grito_guerra').cd;
+  assert.ok(h.p.cdMax.grito_guerra === cdG && approx(h.p.cds.grito_guerra, cdG, 0.15), `c17A: pone la recarga del Grito (${h.p.cds.grito_guerra} / ${cdG})`);
+  h.step(1); h.g.reduceCooldown(h.p, 'g_piel', Infinity); h.p.mp = 0;
+  cast(h, 'k2', 'g_piel', { sec: 0.1 });
+  assert.equal(h.p.mp, 0, 'c17A: respeta su recarga');
   const g2 = cls({ c17: 1 }, { c17: 'A' });
   g2.setSlot('k3', 'grito_guerra'); g2.p.mp = 0;
   cast(g2, 'k2', 'g_piel', { sec: 0.1 });
@@ -382,6 +409,11 @@ check('c22A', () => {
   const want = Math.round(healScaled(h.p.stats.maxHP * 0.08 * (prof(h, 'g_t_intervencion').buffMul || 1), h.p.stats.healPct));
   assert.ok(mine && approx(mine.amt, want, 1), `c22A: escudo del 8 % para ti (${mine?.amt} / ${want})`);
   assert.ok(ally.shields.length === 1 && ally.shields[0].src === 'g_piel_intervencion', 'c22A: y para el aliado más cercano');
+  const cdI = prof(h, 'g_t_intervencion').cd;
+  assert.ok(h.p.cdMax.g_t_intervencion === cdI && approx(h.p.cds.g_t_intervencion, cdI, 0.15), `c22A: pone la recarga de Intervención (${h.p.cds.g_t_intervencion} / ${cdI})`);
+  h.step(1); h.g.reduceCooldown(h.p, 'g_piel', Infinity);
+  cast(h, 'k2', 'g_piel', { sec: 0.1 });
+  assert.equal(ally.shields.length, 1, 'c22A: respeta su recarga');
   const n = cls(); const al2 = n.ally(4, 0, 1000);
   cast(n, 'k2', 'g_piel', { sec: 0.1 });
   assert.ok(!(n.p.shields || []).length && !al2.shields.length, 'sin c22A la Piel no escuda');
@@ -485,6 +517,8 @@ check('c28', () => {
   let n = 0;
   while (buff(h.p, 'g_piel') && n++ < 200) { h.p.hp = h.p.stats.maxHP; h.p.takeDamage(h.p.stats.maxHP * 0.05, 1); }
   assert.ok(!buff(h.p, 'g_piel') && n > 2, `c28: se rompe al evitar daño (${n} golpes)`);
+  // g.startCooldown: la ranura enseña la recarga de 15 s entera (p.cds y p.cdMax)
+  assert.ok(approx(h.p.cds.g_piel, 15, 0.01) && h.p.cdMax.g_piel === 15, `c28: la ranura enseña la recarga real de 15 s (${h.p.cds.g_piel} / ${h.p.cdMax.g_piel})`);
   assert.equal(h.cast('k2'), false, 'c28: no vuelve enseguida');
   h.tick(15.2);
   assert.ok(h.cast('k2') && buff(h.p, 'g_piel'), 'c28: vuelve a los 15 s');
@@ -667,7 +701,10 @@ check('t11', () => {
   const t0 = h.p.simT;
   cast(h, 'k4', 'g_u_furia', { sec: 0.1 });
   assert.ok(h.p.cds[ult.id] > 0, 'la definitiva se recarga');
-  h.tick(ult.dur + 0.5);        // con Furia Inmortal las principales no cuestan: no cargan el Titán
+  // con Furia Inmortal las principales no cuestan: no cargan el Titán. Su duración, la del perfil
+  // REAL (a Nv100 la Mejora Sin Freno la lleva de 10 a 12 s)
+  h.tick(prof(h, ult.id).dur + 0.5);
+  assert.ok(!buff(h.p, 'g_u_furia'), 'Furia Inmortal ya acabó');
   chargeTitan(h);
   const left = h.p.cds[ult.id];
   cast(h, 'rmb', 'g_hendidura', { aim: [1.5, 0], mp: 100, sec: 0.5 });
@@ -803,14 +840,32 @@ check('l7', () => {
   for (const h of [a, b]) { const e = h.enemy({ hp: 1000, pos: [2, 0, 0] }); hitWith(h, e, 'g_tajo'); e.hp = 350; hitWith(h, e, 'g_tajo'); }
   assert.equal(b.p.stats.critDmg - a.p.stats.critDmg, 15, 'l7: +5 % de daño de crítico por Gloria (3)');
 });
+// miedo real (Enemy.applyCC('fear')): asustado (`dur` s, si se da) desde `from`; en su IA
+// (e.update) se aleja de ahí durante 1 s. → cuánto se alejó
+function flees(e, from, dur = null) {
+  assert.ok(e.fearT > 0 && (dur == null || approx(e.fearT, dur, 1e-6)) && approx(e.fearFrom?.x, from.x) && approx(e.fearFrom?.z, from.z),
+    `asustado${dur == null ? '' : ` ${dur} s`} desde (${from.x}, ${from.z}): ${e.fearT}`);
+  const d0 = Math.hypot(e.pos.x - from.x, e.pos.z - from.z);
+  for (let t = 0; t < 1 - 1e-9; t += 1 / 60) e.update(1 / 60);
+  return Math.hypot(e.pos.x - from.x, e.pos.z - from.z) - d0;
+}
 check('l8A', () => {
-  const h = hero('berserker', 'h2', { l8: 1 }, { l8: 'A' });
-  const r = h.enemy({ hp: 1000, pos: [2, 0, 0] }), near = h.enemy({ hp: 1e6, pos: [3, 0, 0] }), boss = h.enemy({ hp: 1e7, boss: true, pos: [2, 0, 2] });
-  hitWith(h, r, 'g_tajo');
-  const d0 = near.pos.distanceTo(r.pos);
-  r.takeDamage(1e6, false, {});
-  assert.ok(near.pos.distanceTo(r.pos) > d0 + 1, 'l8A: los cercanos huyen');
-  assert.ok((boss.stagger || 0) >= 20, 'l8A: a los jefes, 20 de Quebranto');
+  const run = on => {
+    const h = on ? hero('berserker', 'h2', { l8: 1 }, { l8: 'A' }) : hero('berserker', 'h2');
+    const r = h.enemy({ hp: 1000, pos: [2, 0, 0] }), near = h.enemy({ hp: 1e6, pos: [3, 0, 0] }), boss = h.enemy({ hp: 1e7, boss: true, pos: [2, 0, 2] });
+    // inmune al miedo por los rendimientos decrecientes del control duro (applyCC devuelve 0)
+    const imm = h.enemy({ hp: 1e6, pos: [3, 0, -1] });
+    imm.stunDR = 0.95;
+    hitWith(h, r, 'g_tajo');
+    const at = { x: r.pos.x, z: r.pos.z };
+    r.takeDamage(1e6, false, {});
+    return { h, near, boss, at, imm };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(!(a.near.fearT > 0) && !(a.boss.stagger > 0), 'sin l8A nadie huye');
+  assert.ok(flees(b.near, b.at, 2) > 1, 'l8A: los cercanos huyen 2 s del Rival caído');
+  assert.ok(!(b.boss.fearT > 0) && (b.boss.stagger || 0) >= 20, 'l8A: a los jefes no los asusta: 20 de Quebranto');
+  assert.ok(!(b.imm.fearT > 0) && b.imm.pos.x === 3 && b.imm.pos.z === -1, `l8A: al inmune al miedo no se lo empuja en su lugar (${b.imm.pos.x}, ${b.imm.pos.z})`);
 });
 check('l8B', () => {
   const h = hero('berserker', 'h2', { l8: 1 }, { l8: 'B' });
@@ -948,11 +1003,22 @@ check('u7', () => {
   assert.ok(approx(e.outDmgMul(), 0.9), 'u7: los enemigos dentro hacen un 10 % menos');
 });
 check('u8A', () => {
-  const h = hero('cruzado', 'h3', { u8: 1 }, { u8: 'A' });
-  const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }), boss = h.enemy({ hp: 1e7, boss: true, pos: [0, 0, 3] });
-  h.tick(0.3);
-  assert.ok(e.pos.distanceTo(h.p.pos) > 3.5, 'u8A: los enemigos a 8 m huyen');
-  assert.ok((boss.stagger || 0) >= 20, 'u8A: a los jefes, 20 de Quebranto');
+  const run = on => {
+    const h = on ? hero('cruzado', 'h3', { u8: 1 }, { u8: 'A' }) : hero('cruzado', 'h3');
+    const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }), far = h.enemy({ hp: 1e6, pos: [9.5, 0, 0] }), boss = h.enemy({ hp: 1e7, boss: true, pos: [0, 0, 3] });
+    const imm = h.enemy({ hp: 1e6, pos: [0, 0, -3] });
+    imm.stunDR = 0.95;                                     // inmune al miedo (rendimientos decrecientes)
+    h.tick(0.3);
+    return { h, e, far, boss, imm, f: pendons(h)[0] };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.f && b.f && !(a.e.fearT > 0) && !(a.boss.stagger > 0), 'sin u8A, el Pendón no asusta');
+  assert.ok(!(b.far.fearT > 0), 'u8A: a más de 8 m, no');
+  assert.ok(!(b.imm.fearT > 0) && b.imm.pos.x === 0 && b.imm.pos.z === -3, `u8A: al inmune al miedo no se lo empuja en su lugar (${b.imm.pos.x}, ${b.imm.pos.z})`);
+  // el Pendón asusta al clavarse: lo que le queda de miedo + la edad del Pendón = 2 s
+  assert.ok(approx(b.e.fearT + b.f.age, 2, 0.02), `u8A: huyen 2 s (${b.e.fearT} + ${b.f.age})`);
+  assert.ok(flees(b.e, b.f.pos) > 1, 'u8A: los enemigos a 8 m huyen del Pendón');
+  assert.ok(!(b.boss.fearT > 0) && (b.boss.stagger || 0) >= 20, 'u8A: a los jefes no los asusta: 20 de Quebranto');
 });
 check('u8B', () => {
   const h = hero('cruzado', 'h3', { u8: 1 }, { u8: 'B' });
@@ -1049,6 +1115,19 @@ function pielRecharging(h) {
   assert.ok(h.p.cds.g_piel > 5, 'la Piel de Hierro se está recargando');
 }
 
+// el Sangrado que deja DE VERDAD un giro del Remolino (el primer tic del canal, a los 0,25 s). Con
+// un arma fuerte: el tic de un DoT se redondea a un entero (con el puño, 1 por tic y no se ve el %)
+function spinBleed(h) {
+  h.p.equipment.weapon = { kind: 'item', slot: 'weapon', name: 'Hacha de prueba', dmg: [3000, 3000], affixes: {}, quality: 0 };
+  h.p.recompute();
+  const e = h.enemy({ hp: 1e9, pos: [1.5, 0, 0] });
+  h.setSlot('k3', 'g_remolino'); h.p.mp = 100;
+  h.press('k3'); h.step(0.27);
+  const d = h.g.dotsOf(e, 'g_remolino:bleed');
+  assert.equal(d.length, 1, `un giro deja su Sangrado (${JSON.stringify(h.g.dotsOf(e))})`);
+  return d[0];
+}
+
 // ---------------- BERSERKER (b*) ----------------
 check('b0', () => {
   const b = spec('berserker'), d = spec('guardian');
@@ -1065,6 +1144,12 @@ check('b1', () => {
   const t = r => dotProfile('bleed', 100, { tv: (r ? spec('berserker', { b1: r }) : spec('berserker')).p.tv }).ticks;
   assert.equal(t(0), 3);
   assert.equal(t(3), 6, 'b1 r3: los Sangrados duran 6 s');
+  // también el de los giros del Remolino (hitDot: mismo daño por segundo, el doble de largo)
+  const hd = r => prof(r ? spec('berserker', { b1: r }) : spec('berserker'), 'g_remolino').hitDot;
+  assert.ok(hd(3).dur === 6 && hd(0).dur === 3 && approx(hd(3).coef / hd(0).coef, 2), `b1 r3: el Sangrado del Remolino dura 6 s (${JSON.stringify(hd(3))})`);
+  const a = spinBleed(spec('berserker')), b = spinBleed(spec('berserker', { b1: 3 }));
+  assert.ok(a.ticks * a.interval === 3 && b.ticks * b.interval === 6 && a.per > 50 && approx(b.per / a.per, 1, 0.01),
+    `b1 r3: el giro deja un Sangrado de 6 s con el mismo daño por segundo (${a.ticks}×${a.per.toFixed(2)} → ${b.ticks}×${b.per.toFixed(2)})`);
 });
 check('b2', () => {
   assert.equal(prof(spec('berserker', { b2: 3 }), 'g_rajar').critBonus - prof(spec('berserker'), 'g_rajar').critBonus, 15, 'b2 r3: Rajar +15 % de crítico');
@@ -1077,6 +1162,10 @@ check('b3', () => {
 check('b4', () => {
   const a = dotProfile('bleed', 100, { tv: spec('berserker').p.tv }).total, b = dotProfile('bleed', 100, { tv: spec('berserker', { b4: 2 }).p.tv }).total;
   assert.ok(approx(b / a, 1.3), 'b4 r2: Sangrados +30 %');
+  const hd = h => prof(h, 'g_remolino').hitDot;
+  assert.ok(approx(hd(spec('berserker', { b4: 2 })).coef / hd(spec('berserker')).coef, 1.3), 'b4 r2: también el Sangrado de los giros del Remolino');
+  const sa = spinBleed(spec('berserker')), sb = spinBleed(spec('berserker', { b4: 2 }));
+  assert.ok(sa.ticks === sb.ticks && sa.per > 50 && approx(sb.total / sa.total, 1.3, 0.01), `b4 r2: el giro deja un Sangrado un 30 % mayor (${sa.total.toFixed(1)} → ${sb.total.toFixed(1)})`);
 });
 check('b5', () => {
   const run = on => {
@@ -1269,8 +1358,14 @@ check('b16', () => {
   assert.equal(h.p.stats.aspdPct - base, 16, 'b16 r2: con más de 50 de Sed, +16 % de velocidad');
   n.gauge('sed', 60); n.tick(0.2);
   assert.equal(n.p.stats.aspdPct, base, 'sin b16 nada');
+  // giros y saltos: la stat skillSpeedPct del núcleo (tic del canal del Remolino y vuelo del Salto)
+  assert.equal(h.p.stats.skillSpeedPct, 16, 'b16 r2: +16 % de velocidad de habilidades');
+  assert.ok(approx(prof(h, 'g_remolino').skillSpeed, 1.16) && approx(prof(n, 'g_remolino').skillSpeed, 1), 'b16: el perfil la lleva');
+  const spin = x => { x.setSlot('k3', 'g_remolino'); x.p.mp = 100; x.press('k3'); x.step(0.05); const i = x.g.channelInfo(); x.release('k3'); x.step(0.3); return i; };
+  const si = spin(h), sn = spin(n);
+  assert.ok(si && sn && approx(sn.interval / si.interval, 1.16, 1e-6), `b16: el Remolino gira un 16 % más rápido (${sn?.interval} → ${si?.interval} s por giro)`);
   h.gauge('sed', 30); h.tick(0.4);
-  assert.equal(h.p.stats.aspdPct, base, 'b16: al bajar de 50 se va');
+  assert.ok(h.p.stats.aspdPct === base && !(h.p.stats.skillSpeedPct > 0), 'b16: al bajar de 50 se va');
 });
 check('b17', () => {
   const h = spec('berserker', { b17: 2 });
@@ -1464,11 +1559,15 @@ check('b28', () => {
 });
 
 // ---------------- GUARDIÁN (d*) ----------------
+// d0 es la clave gratis sin fx (su efecto es la mecánica): la Piel de Hierro de 12 s y −50 % es de la
+// innata del Guardián (test-powers-guerrero (f)), y d0 no la repite
 check('d0', () => {
   const d = spec('guardian'), b = spec('berserker');
   assert.equal(d.p.talentAgg.mechanic, 'bastion', 'd0: la mecánica es el Bastión');
-  assert.ok(approx(prof(d, 'g_piel').dur - prof(b, 'g_piel').dur, 4) && approx(prof(b, 'g_piel').dur, 8), 'd0: Piel de Hierro 12 s (antes 8 s)');
-  assert.ok(approx(prof(d, 'g_piel').buff.dr / prof(b, 'g_piel').buff.dr, 1.25, 0.02), 'd0: y quita un 50 % (antes 40 %)');
+  const d0 = TT.specs.find(s => s.id === 'guardian').nodes.find(n => n.id === 'd0');
+  assert.ok(d0.free && !Object.keys(d0.fx || {}).length, 'd0: sin fx propio');
+  assert.ok(approx(prof(d, 'g_piel').dur - prof(b, 'g_piel').dur, 4) && approx(prof(b, 'g_piel').dur, 8), 'Guardián: Piel de Hierro 12 s (antes 8 s), una sola vez');
+  assert.ok(approx(prof(d, 'g_piel').buff.dr / prof(b, 'g_piel').buff.dr, 1.25, 0.02), 'Guardián: y quita un 50 % (antes 40 %)');
 });
 check('d1', () => {
   const h = spec('guardian', { d1: 3 }), n = spec('guardian');
@@ -1908,9 +2007,12 @@ check('d28', () => {
 // zona sagrada propia (como el sendero) para las pruebas de las zonas
 const holy = (h, x, z, { dps = 100, heal = 0, r = 3, dur = 4, skill = 'g_sendero' } = {}) =>
   h.g.spawnField('zona', { pos: v3t(x, z), radius: r, dur, owner: h.p, data: { dps, healPct: heal, color: 1, skill, tags: new Set(['movement', 'zone', 'holy']) } });
-// carga y suelta del Martillo (perfecta con 1,0 s)
-function hammer(h, at = [2.5, 0], hold = 1.0) {
+// carga y suelta del Martillo. PERFECTA = el centro de la ventana del perfil REAL (catálogo y forja:
+// a Nv100 la Mejora Mano Ágil la deja en 0,6–0,85 s y la carga completa en 0,9 s)
+const PERFECTA = 'perfecta';
+function hammer(h, at = [2.5, 0], hold = PERFECTA) {
   h.setSlot('rmb', 'g_martillo'); h.aim(at[0], at[1]); h.p.mp = 100;
+  if (hold === PERFECTA) { const w = prof(h, 'g_martillo').charge.perfect; hold = (w[0] + w[1]) / 2; }
   h.press('rmb'); h.step(hold); h.release('rmb'); h.step(0.05);
 }
 const markJ = (h, e) => h.g.applyMark(e, prof(h, 'g_juicio'), h.p);
@@ -1947,8 +2049,8 @@ check('z4', () => {
 });
 check('z5', () => {
   const run = (on, hold) => { const h = on ? spec('cruzado', { z5: 1 }) : spec('cruzado'); const e = h.enemy({ hp: 1e9, pos: [2.5, 0, 0] }); hammer(h, [2.5, 0], hold); return !!e.marks?.juicio; };
-  assert.equal(run(false, 1.0), false, 'sin z5 no marca');
-  assert.equal(run(true, 1.0), true, 'z5: la suelta perfecta marca con Juicio');
+  assert.equal(run(false, PERFECTA), false, 'sin z5 no marca');
+  assert.equal(run(true, PERFECTA), true, 'z5: la suelta perfecta marca con Juicio');
   assert.equal(run(true, 0.3), false, 'z5: fuera de la ventana, no');
 });
 check('z6', () => {
@@ -1957,10 +2059,10 @@ check('z6', () => {
   hammer(h, [2.5, 0], 0.3);
   const floors = () => (h.g.fields || []).filter(f => !f.dead && f.kind === 'zona' && f.data.skill === 'g_martillo');
   assert.equal(floors().length, 0, 'z6: sin suelta perfecta, nada');
-  for (let i = 0; i < 3; i++) { h.tick(0.3); hammer(h, [2.5, 0], 1.0); }
+  for (let i = 0; i < 3; i++) { h.tick(0.3); hammer(h, [2.5, 0], PERFECTA); }
   const f = floors();
   assert.ok(f.length === 2 && f.every(x => x.data._holy && approx(x.dur, 4)), `z6: suelo consagrado 4 s, 2 a la vez (${f.length})`);
-  const n = spec('cruzado'); n.enemy({ hp: 1e9, pos: [2.5, 0, 0] }); hammer(n, [2.5, 0], 1.0);
+  const n = spec('cruzado'); n.enemy({ hp: 1e9, pos: [2.5, 0, 0] }); hammer(n, [2.5, 0], PERFECTA);
   assert.equal((n.g.fields || []).filter(f2 => !f2.dead && f2.data?.skill === 'g_martillo').length, 0, 'sin z6 nada');
 });
 check('z7', () => {
@@ -2011,6 +2113,13 @@ check('z8B', () => {
   assert.ok(approx(boss.stagger || 0, 15), 'z8B: al detonar, 15 de Quebranto a los jefes');
   const n = spec('cruzado'); const el2 = n.enemy({ hp: 1e9, rank: 'elite' }); markJ(n, el2); n.tick(0.15);
   assert.ok(el2.marks.juicio.t < 8, 'sin z8B, 8 s');
+  // g.extendMark: la Debilidad de la marca (Sentencia, forja I del Juicio: 12 s y +15 %) dura lo mismo que ella
+  const s = spec('cruzado', { z8: 1 }, { z8: 'B' });
+  s.p.skillForge = { g_juicio: 'i' }; s.p.recompute();
+  const el3 = s.enemy({ hp: 1e9, rank: 'elite' });
+  markJ(s, el3); s.tick(0.15);
+  const wk = el3.debuffs['mark:juicio'];
+  assert.ok(el3.marks.juicio.t > 23 && wk?.pct === 15 && approx(wk.t, el3.marks.juicio.t, 0.11), `z8B: con Sentencia, marca y Debilidad 24 s (${el3.marks.juicio.t}, ${wk?.t})`);
 });
 check('z9A', () => {
   const run = on => {
@@ -2095,21 +2204,33 @@ check('z10B', () => {
 });
 check('z11', () => { assert.ok(approx(prof(spec('cruzado', { z11: 2 }), 'g_juicio').cd, 6), 'z11 r2: Juicio se recarga en 6 s'); });
 check('z12', () => {
+  // tres sueltas perfectas: la 1.ª recorta; la 2.ª (~1,2 s después, pasado el GCD) no, porque es
+  // como mucho cada 2 s; la 3.ª (más de 2 s después de la 1.ª) recorta otra vez. Contra el Cruzado
+  // sin el nodo: el tiempo que pasa es el mismo, así que la diferencia es solo el recorte
   const run = on => {
     const h = on ? spec('cruzado', { z12: 2 }) : spec('cruzado');
     h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
     pielRecharging(h);
     for (const id of ['g_juicio', 'g_u_cataclismo']) h.g._startCooldown(h.p, id, prof(h, id));
-    const b = { ...h.p.cds };
-    hammer(h, [2.5, 0], 1.0);
-    const one = { ...h.p.cds };
-    hammer(h, [2.5, 0], 1.0);                              // otra perfecta 1 s después
-    return { juicio: b.g_juicio - one.g_juicio, piel: b.g_piel - one.g_piel, ult: b.g_u_cataclismo - one.g_u_cataclismo, second: one.g_juicio - h.p.cds.g_juicio };
+    const cds = [{ ...h.p.cds }], at = [];
+    for (const wait of [0, 0.4, 0.5]) {
+      h.step(wait);
+      hammer(h, [2.5, 0], PERFECTA);
+      const end = h.g._chargeEnd;                          // la suelta que acaba de pasar (ui-verbs)
+      assert.ok(end?.id === 'g_martillo' && end.perfect, `z12: la suelta es perfecta (${JSON.stringify(end)})`);
+      at.push(end.t); cds.push({ ...h.p.cds });
+    }
+    assert.ok(h.p.cds.g_juicio > 0.5, `z12: el Juicio sigue recargándose (${h.p.cds.g_juicio})`);
+    const cut = (i, id) => cds[i][id] - cds[i + 1][id];
+    return { at, juicio: [0, 1, 2].map(i => cut(i, 'g_juicio')), piel: cut(0, 'g_piel'), ult: cut(0, 'g_u_cataclismo') };
   };
   const a = run(false), b = run(true);
-  assert.ok(approx(b.juicio - a.juicio, 1, 0.02), `z12 r2: cada suelta perfecta acorta 1 s tus recargas (${JSON.stringify(b)})`);
+  const gap1 = b.at[1] - b.at[0], gap2 = b.at[2] - b.at[0];
+  assert.ok(gap1 > 1 && gap1 < 1.6 && gap2 > 2.2, `z12: perfectas a ${gap1.toFixed(2)} s y a ${gap2.toFixed(2)} s de la primera`);
+  assert.ok(approx(b.juicio[0] - a.juicio[0], 1, 0.02), `z12 r2: cada suelta perfecta acorta 1 s tus recargas (${JSON.stringify(b)})`);
   assert.ok(approx(b.piel, a.piel, 0.02) && approx(b.ult, a.ult, 0.02), 'z12: ni Piel de Hierro ni la definitiva');
-  assert.ok(approx(b.second, a.second, 0.02), 'z12: como mucho cada 2 s');
+  assert.ok(approx(b.juicio[1], a.juicio[1], 0.02), `z12: como mucho cada 2 s: la de ${gap1.toFixed(2)} s no recorta (${b.juicio[1].toFixed(2)} frente a ${a.juicio[1].toFixed(2)})`);
+  assert.ok(approx(b.juicio[2] - a.juicio[2], 1, 0.02), `z12: pasados 2 s de la que recortó, otra perfecta recorta 1 s (${b.juicio[2].toFixed(2)} frente a ${a.juicio[2].toFixed(2)})`);
   // el Sendero de Luz nunca baja de 4 s: Ritmo de Combate (c23) ya lo dejó en su suelo y la suelta
   // perfecta no lo baja más
   const h = spec('cruzado', { z12: 2, z3: 3 }, {}, { cls: { c23: 2 } });
@@ -2119,9 +2240,10 @@ check('z12', () => {
   const t0 = powerState(h.p, 'g_ult_suelo').start?.g_sendero;
   const eff = () => h.p.simT - t0 + h.p.cds.g_sendero;
   assert.ok(approx(eff(), 4, 0.06), `el Sendero ya está en 4 s (${eff().toFixed(2)})`);
-  const juicio0 = (h.g._startCooldown(h.p, 'g_juicio', prof(h, 'g_juicio')), h.p.cds.g_juicio);
-  hammer(h, [h.p.pos.x + 2, h.p.pos.z], 1.0);
-  assert.ok(juicio0 - h.p.cds.g_juicio > 1.9, 'z12: la suelta perfecta recortó (Juicio)');
+  const juicio0 = (h.g._startCooldown(h.p, 'g_juicio', prof(h, 'g_juicio')), h.p.cds.g_juicio), tj = h.p.simT;
+  hammer(h, [h.p.pos.x + 2, h.p.pos.z], PERFECTA);
+  const cut = juicio0 - h.p.cds.g_juicio - (h.p.simT - tj);   // lo recortado, aparte del tiempo que pasó
+  assert.ok(approx(cut, 1, 0.02), `z12: la suelta perfecta recortó 1 s el Juicio (${cut.toFixed(2)})`);
   assert.ok(h.p.cds.g_sendero > 0 && approx(eff(), 4, 0.06), `z12: el Sendero nunca baja de 4 s (${eff().toFixed(2)} s)`);
 });
 check('z13', () => {
@@ -2266,9 +2388,40 @@ check('z25', () => {
   h.g.markDetonation = (en, ht) => { const r = md(en, ht); if (r && en === a) dets.push(r); return r; };
   hammer(h, [2.5, 0], 0.3);
   assert.ok(a.marks.juicio && dets[0] === 100, 'z25: la 1.ª detonación no la gasta');
+  const log = spyHits(h);
   h.tick(0.3); hammer(h, [2.5, 0], 0.3);
   assert.ok(dets[1] === 40 && !a.marks?.juicio, `z25 r1: la 2.ª al 40 % (${dets})`);
   assert.ok(b.marks?.juicio && c.marks?.juicio && b.marks.juicio.uses === 1, 'z25: la última salta a 2 enemigos');
+  // con la carga de la Mejora (Mano Ágil), b está dentro de ese golpe: la marca que le salta no la
+  // detona el mismo golpe (salta al acabarlo, sea cual sea el orden de los impactos)
+  assert.ok(log.some(x => x.e === b && x.skill === 'g_martillo' && !x.detonated), 'z25: el golpe que la hace saltar no la detona en el nuevo');
+  // dos marcas que se detonan por última vez en el MISMO golpe no saltan la una a la otra: van a los de fuera
+  {
+    const k = spec('cruzado', { z25: 1 });
+    const pack = [k.enemy({ hp: 1e9, pos: [2.5, 0, 0] }), k.enemy({ hp: 1e9, pos: [2.5, 0, 1] })];
+    const out = [k.enemy({ hp: 1e9, pos: [7.5, 0, 0] }), k.enemy({ hp: 1e9, pos: [7.5, 0, 1.5] })];
+    for (const e of pack) markJ(k, e);
+    hammer(k, [2.5, 0.5], 0.3); k.tick(0.3); hammer(k, [2.5, 0.5], 0.3);
+    assert.ok(pack.every(e => !e.marks?.juicio) && out.every(e => e.marks?.juicio?.uses === 1), 'z25: las detonadas en el mismo golpe no se marcan entre sí');
+  }
+  // un salto que el planificador perdió (cambio de mundo: timers.clear) no se cuela en un golpe posterior
+  {
+    const k = spec('cruzado', { z25: 1 });
+    const a2 = k.enemy({ hp: 1e9, pos: [2.5, 0, 0] }), near2 = k.enemy({ hp: 1e9, pos: [2.5, 0, 5] });
+    markJ(k, a2);
+    hammer(k, [2.5, 0], 0.3); k.tick(0.3);
+    const sched = k.g.timers.schedule;                             // el planificador pierde el salto (solo ese)
+    k.g.timers.schedule = (d, fn) => (String(fn).includes('tribunalJump') ? 0 : sched.call(k.g.timers, d, fn));
+    hammer(k, [2.5, 0], 0.3);                                      // 2.ª detonación: el salto queda pendiente
+    k.g.timers.schedule = sched;
+    assert.ok(!a2.marks?.juicio && !near2.marks?.juicio, 'z25: sin planificador, el salto no se hizo');
+    k.tick(1);
+    const x = k.enemy({ hp: 1e9, pos: [20, 0, 0] }), xn = k.enemy({ hp: 1e9, pos: [20, 0, 3] });
+    k.p.pos.set(18, 0, 0); markJ(k, x);
+    k.gauge('fervor', 0);                                          // sin Veredicto (sale al pulsar: otro golpe)
+    hammer(k, [20, 0], 0.3); k.tick(0.3); hammer(k, [20, 0], 0.3);
+    assert.ok(xn.marks?.juicio && !near2.marks?.juicio, 'z25: el golpe nuevo salta lo suyo y no el salto viejo');
+  }
   // las saltadas aguantan una sola detonación y no vuelven a saltar (sin cadena infinita)
   const d = h.enemy({ hp: 1e9, pos: [9.5, 0, 0] });
   h.p.pos.x = 4.5;                                           // al lado de las saltadas
@@ -2286,7 +2439,7 @@ check('z26', () => {
     const hs = log.filter(x => x.e === e && x.skill === 'g_martillo' && !x.proc && !x.dot);
     return { n: hs.length, echo: hs.find(x => x.echo), main: hs.find(x => !x.echo), add: prof(h, 'g_martillo').addPct };
   };
-  const a = run(0, 1.0), b = run(1, 1.0), c = run(1, 0.3), d = run(3, 1.0);
+  const a = run(0, PERFECTA), b = run(1, PERFECTA), c = run(1, 0.3), d = run(3, PERFECTA);
   assert.ok(a.n === 1 && c.n === 1, 'z26: sin el nodo o sin suelta perfecta, un golpe');
   assert.ok(b.n === 2 && b.echo && approx(b.echo.dealt / b.main.dealt, 0.3, 0.12), `z26 r1: martillo del cielo al 30 % (${b.echo?.dealt} / ${b.main?.dealt})`);
   assert.equal(d.add - a.add, 30, 'z26 r3: Martillo +30 %');
@@ -2344,15 +2497,17 @@ for (const [key, o] of ALL) {
 for (const sp of TT.specs) assert.ok(!('todo' in sp), `${sp.id}: la especialización sin «todo»`);
 for (const key of Object.keys(CHECKS)) assert.ok(ALL.some(([k]) => k === key), `prueba ${key} sin nodo`);
 const failed = [], ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+let ran = 0;
 for (const [key, fn] of Object.entries(CHECKS)) {
   if (ONLY.length && !ONLY.includes(key)) continue;
+  ran++;
   try { fn(); } catch (e) {
     const got = /equal/i.test(e.operator || '') ? ` (sale ${JSON.stringify(e.actual)})` : e instanceof assert.AssertionError ? '' : ` ${e.stack.split('\n')[1].trim()}`;
     failed.push(`[${key}] ${e.message.split('\n')[0]}${got}`);
   }
 }
 if (failed.length) { console.error(failed.join('\n')); assert.fail(`${failed.length} nodos sin su efecto`); }
-console.log(`✓ ${Object.keys(CHECKS).length} nodos u opciones (clase, especializaciones y héroe) con efecto observable`);
+console.log(`✓ ${ran} de ${Object.keys(CHECKS).length} nodos u opciones (clase, especializaciones y héroe) con efecto observable: 0 sin efecto`);
 
 // ================================================================ reglas transversales
 // suelos: el inicio de la recarga lo anota el PRIMER poder del lanzamiento (antes de recortar); otro

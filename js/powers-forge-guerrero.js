@@ -7,9 +7,10 @@
 // Recompute añade el poder solo si la pieza de forja que lo declara está activa (Mejora a Nv
 // req+3, variante elegida a req+6) y la habilidad se conoce.
 // Ids únicos entre clases (D28; definePower lanza con uno repetido): los del mockup (v_rompefilas,
-// v_temple, v_espinas, v_sed_voraz, v_empalizada, v_escolta_luz) y cuatro propios de esta clase
-// (v_giro_firme, v_ciclon, v_guardia_compartida, v_guardia_opresiva), anotados en
-// tools/convert-v2/out/pendientes-guerrero.md. v_carnero no hace falta: el arrastre es `drag`.
+// v_temple, v_espinas, v_sed_voraz, v_empalizada, v_escolta_luz) y tres propios de esta clase
+// (v_ciclon, v_guardia_compartida, v_guardia_opresiva), anotados en tools/convert-v2/out/guerrero/
+// pendientes-guerrero.md §4 (Forja). v_carnero no hace falta: el arrastre es `drag`. Giro Firme ya
+// no es un poder: el canal genérico da `slowImmune` en cada giro.
 //   guerreroForgePowers() → { v_<id>: PowerDef }
 import { dealProcDamage, powerState } from './powers.js';
 
@@ -22,7 +23,6 @@ export function guerreroForgeTuning() {
     sedVoraz: { leechPct: 8 },                                    // Furia Inmortal I
     empalizada: { coef: 0.6, icd: 1 },                            // Ciudadela II
     escolta: { shieldPct: 12, dur: 6, icd: 6, reach: 1.5 },       // Sendero de Luz I
-    giroFirme: { keep: 0.25 },                                    // Remolino (Mejora)
     ciclon: { radius: 5, pull: 1 },                               // Remolino II
     compartida: { radius: 6, share: 0.5, every: 0.25 },           // Cambio de Guardia I
     opresiva: { radius: 5, weakPct: 10, slowPct: 20, keep: 0.35 }, // Cambio de Guardia II
@@ -42,11 +42,6 @@ function distToSeg(q, a, b) {
   const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((q.x - a.x) * abx + (q.z - a.z) * abz) / l2)) : 0;
   return Math.hypot(q.x - (a.x + abx * t), q.z - (a.z + abz * t));
 }
-// canal en curso de una habilidad del héroe (Remolino Sangriento)
-const channelOf = (g, p, id) => {
-  const ch = g?._channel;
-  return ch && ch.ctx?.p === p && ch.ctx.sk?.id === id ? ch : null;
-};
 // suma de una stat en las posturas activas (Muralla, Ariete o las dos con Guardia Total)
 const stanceSum = (modes, k) => modes.reduce((s, m) => s + (Number.isFinite(m?.stats?.[k]) ? m.stats[k] : 0), 0);
 
@@ -139,37 +134,28 @@ export function guerreroForgePowers() {
       },
     },
 
-    // Remolino (Mejora) · Giro Firme: mientras canalizas con un perfil slowImmune, no te ralentizan
-    // (el canal genérico no lo aplica; el tipo `buff` sí)
-    v_giro_firme: {
-      name: 'Giro Firme', desc: 'Mientras giras con el Remolino Sangriento no te pueden ralentizar',
-      onCast(g, p, cast) {
-        if (cast?.sk?.id === 'g_remolino' && cast.prof?.slowImmune) p.grantSlowImmune?.(T.giroFirme.keep);
-      },
-      onTick(g, p) {
-        const ch = channelOf(g, p, 'g_remolino');
-        if (ch?.ctx.prof?.slowImmune) p.grantSlowImmune?.(T.giroFirme.keep);
-      },
-    },
-
-    // Remolino II · Ciclón: en cada giro (tic del canal) atrae 1 m a los enemigos a 5 m. A los
-    // jefes no los toca: Enemy.displace les sumaría 5 de Quebranto por tirón (unos 55 en un giro de 3 s),
-    // y llenar el Quebranto es cosa del Guardián, no del control de manadas del Berserker
+    // Remolino II · Ciclón: en cada giro (tic del canal) atrae 1 m a los enemigos a 5 m. A los jefes
+    // no: el tirón les llenaría Quebranto, y llenarlo es cosa del Guardián. Es un poder y no el `pull`
+    // del canal genérico porque este también atrae al golpear (ctx.hit): dentro del radio del daño
+    // serían 2 m por giro. Con el arreglo de W2 vuelve a `set: { pull: { dist: 1, radius: 5,
+    // boss: false } }` (pendientes-guerrero.md §7). Lee el canal con g.channelInfo() (10 Hz)
     v_ciclon: {
       name: 'Ciclón', desc: 'Cada giro del Remolino Sangriento atrae 1 m a los enemigos a 5 m',
-      state: () => ({ inst: null, tick: 0 }),
+      state: () => ({ t0: -1, ticks: 0 }),
       onTick(g, p) {
-        const ch = channelOf(g, p, 'g_remolino');
-        if (!ch) return;
+        const ch = g.channelInfo?.();
+        if (!ch || ch.p !== p || ch.id !== 'g_remolino') return;
         const st = powerState(p, 'v_ciclon');
-        if (st.inst === ch && st.tick === ch.tickN) return;
-        st.inst = ch; st.tick = ch.tickN;
-        if (!(ch.tickN > 0)) return;
+        const t0 = (g.timers?.now || 0) - ch.t;                   // cuándo empezó este Remolino (otro: cuenta de cero)
+        if (Math.abs(t0 - st.t0) > 1e-6) { st.t0 = t0; st.ticks = 0; }
+        const n = ch.ticks - st.ticks;                             // giros desde la última mirada
+        if (!(n > 0)) return;
+        st.ticks = ch.ticks;
         const r = T.ciclon.radius;
         for (const e of g.enemies || []) {
-          if (e.alive && !isBoss(e) && e.pos.distanceTo(p.pos) <= r) e.displace?.(p.pos, T.ciclon.pull, { toward: true, src: p });
+          if (e.alive && !isBoss(e) && e.pos.distanceTo(p.pos) <= r) e.displace?.(p.pos, T.ciclon.pull * n, { toward: true, src: p });
         }
-        if (ch.tickN % 2 === 1) g.spawnRing?.(p.pos, r, 0xcfd6e0);                 // el alcance del tirón
+        if (ch.ticks % 2 === 1) g.spawnRing?.(p.pos, r, 0xcfd6e0);  // el alcance del tirón
       },
     },
 

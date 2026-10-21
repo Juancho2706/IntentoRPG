@@ -39,8 +39,8 @@
 //   Estampida Sin Fin (cutCd).
 // · Copias y repeticiones (echo): no cuentan como lanzamiento ni como suelta perfecta.
 // · Las pasivas de especialización que no son stats van en su nodo clave (gratis): Al borde
-//   (m_berserk, b0), Piel de Hierro 12 s y −50 % (mod de d0) y Martillo Piadoso (g_z_martillo_piadoso,
-//   z0, con la regla de las zonas sagradas del Cruzado: no se suman).
+//   (m_berserk, b0) y Martillo Piadoso (g_z_martillo_piadoso, z0, con la regla de las zonas sagradas
+//   del Cruzado: no se suman). La Piel de Hierro de 12 s y −50 % del Guardián es su innate.mod.
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower, POWER_HOOKS } from './powers.js';
 import { gainGauge, gaugeValue, gaugeMax, gaugeState, gaugeTuning, setGauge } from './spec-mechanics.js';
@@ -48,7 +48,6 @@ import { dotProfile, damageReduction, takenMult, chargeRelease, rankCoef, rankBu
 import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 import { insideField } from './field-entities.js';
-import { n1 } from './talent-text.js';
 import { strikeBleedSource } from './mech-guerrero.js';
 // (importados: úsalos solo dentro de los ganchos). Sin talents.js ni skill-resolve.js: los dos
 // llegan a data.js y, si el primer módulo cargado es resources.js, el ciclo resources → powers →
@@ -143,7 +142,7 @@ function tun() {
     consagrado: { coef: 0.4, dur: 4, max: 2 },            // z6
     senderoBendito: { heal: 0.5, spd: 10 },               // z7: por rango
     estallidoLuz: { pct: 50, radius: 3 },                 // z8A
-    condena: 15,                                          // z8B
+    condena: 15, condenaMul: 2,                           // z8B: Quebranto al detonar y × la duración de la marca
     generoso: { radius: 8, heal: 3, mainRadius: 5 },      // z9A
     pesado: { pct: 80, stagger: 25 },                     // z9B
     sendaArdiente: { coef: 0.3, slow: 1, slowPct: 30 },   // z10A
@@ -181,12 +180,12 @@ function tun() {
     contraataque: { win: 2, pct: 60, healPct: 5 },
     gloria: { max: 5, step: 0.2, pct: 4, idle: 8 },
     retirada: { pct: 30, icd: 6 },
-    sangreArena: 5, clamor: { radius: 6, dur: 2, stagger: 20, push: 3 }, pulgar: { below: 0.3, pct: 40 },
+    sangreArena: 5, clamor: { radius: 6, dur: 2, stagger: 20 }, pulgar: { below: 0.3, pct: 40 },
     finta: { radius: 3, s: 2 }, campeon: 10, vitores: { s: 6, icd: 15 },
     triunfo: { dur: 10, max: 15, dmgPct: 25, costPct: -50, icd: 35, perKill: 1 },
     // Caudillo: un Pendón cada 15 s donde estás (si hay enemigos a `combat` m), 12 s, 8 m, +8 % / −8 %
     pendon: { every: 15, dur: 12, radius: 8, dmgPct: 8, dr: 8, interval: 0.5, combat: 12 },
-    arenga: { pct: 5, radius: 8 }, clarin: 20, desbandada: { radius: 8, dur: 2, stagger: 20, push: 3 },
+    arenga: { pct: 5, radius: 8 }, clarin: 20, desbandada: { radius: 8, dur: 2, stagger: 20 },
     orden: { radius: 15, pct: 15, dur: 10 }, relevo: { pct: 10, radius: 8, dur: 6 },
     granEstandarte: { icd: 40, dur: 15, mul: 2 }, estandarteRange: 15,
   };
@@ -373,15 +372,14 @@ function pielPrevented(p, amount) {
   const withB = mult(st), without = mult({ ...st, dr: (st.dr || 0) - dr, dmgTakenPct: (st.dmgTakenPct || 0) - taken });
   return withB > 1e-6 ? Math.max(0, amount * (without / withB - 1)) : 0;
 }
-// miedo (Clamor del Público, Desbandada): «huyen 2 s». Sin control de miedo en el núcleo (cola
-// W2: applyCC('fear')), se aleja a los enemigos `push` m (desplazar, con sus rendimientos
-// decrecientes). A los jefes no: les llena Quebranto.
-function scare(g, p, center, radius, { dur, stagger, push }) {
+// miedo (Clamor del Público, Desbandada): «huyen 2 s». Control real del núcleo (applyCC('fear'),
+// cola W2d): huyen de `center` en su IA, con los rendimientos decrecientes del control duro. A los
+// jefes no los asusta: les llena `stagger` de Quebranto. → cuántos huyen o se quiebran
+function scare(g, p, center, radius, { dur, stagger }) {
   let n = 0;
   for (const e of enemiesNear(g, center, radius)) {
     if (isBoss(e)) { if (e.addStagger?.(stagger, p) > 0) n++; continue; }
-    const got = e.applyCC?.('fear', dur, { src: p, from: center }) || 0;
-    if (got > 0 || (e.displace?.(center, push, { toward: false, src: p }) || 0) > 0) n++;
+    if ((e.applyCC?.('fear', dur, { src: p, from: center }) || 0) > 0) n++;
   }
   return n;
 }
@@ -837,6 +835,24 @@ function juicioProf(p) {
   for (const id of ['g_z_marca_indeleble', 'g_z_tribunal']) if (hasPower(p, id)) POWER_HOOKS[id]?.modifyResolve?.(p, sk, prof);
   return prof;
 }
+// Tribunal (z25): los saltos pendientes del golpe que acaba de terminar. Cada última detonación
+// salta a los 2 enemigos más cercanos a 6 m que no llevan Juicio ni lo detonaron en ese golpe, como
+// marca de UN uso: su detonación la gasta y ya no salta. Un salto viejo (el planificador se vació al
+// cambiar de mundo) se descarta
+function tribunalJump(g, p, st) {
+  const T = tun();
+  const list = st.jumps.filter(j => now(p) - j.at < 0.5);
+  st.jumps = [];
+  if (!list.length) return;
+  const prof = juicioProf(p);
+  if (!prof) return;
+  for (const j of list) {
+    const one = { ...prof, mark: { ...prof.mark, uses: 1, detonate: { ...(j.detonate || prof.mark.detonate) } } };
+    const free = enemiesNear(g, j.pos, T.tribunal.radius).filter(o => o !== j.from && !st.struck.has(o) && !(o.marks?.juicio?.t > 0));
+    free.sort((a, b) => dist2D(a.pos, j.pos) - dist2D(b.pos, j.pos));
+    for (const o of free.slice(0, T.tribunal.jump)) g.applyMark(o, one, p);
+  }
+}
 // ¿el lanzamiento es un Veredicto? (lo anota la mecánica del Fervor al lanzar el Martillo)
 const verdictOf = (p, cast) => !!cast && gaugeState(p, 'fervor')?.verdictCast === cast;
 // Milagro (z15A): `a` (tú o un aliado) queda con un 20 % de vida; una vez cada 2 min entre todos
@@ -959,23 +975,21 @@ export function guerreroPowers() {
       },
     },
     // c11A Segundo Aliento (concede la activa): si no está en la barra, cada Piel de Hierro la
-    // lanza al 50 %: gasta la mitad de tu Furia y cura 1 % por cada 3 gastados (su recarga de 30 s;
-    // esa Furia no cuenta como gastada)
+    // lanza al 50 %: gasta la mitad de tu Furia y cura 1 % por cada 3 gastados (pone su recarga de
+    // 30 s con g.startCooldown, la misma que si la lanzaras; esa Furia no cuenta como gastada)
     g_piel_aliento: {
       name: 'Segundo Aliento', desc: 'Si Segundo Aliento no está en la barra, sale con Piel de Hierro al 50 %.',
-      state: () => ({ readyAt: 0 }),
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_piel' || cast.echo || onBar(p, 'g_t_aliento')) return;
         const sk = skillOf(p, 'g_t_aliento');
-        const st = powerState(p, 'g_piel_aliento');
-        if (!sk || now(p) < st.readyAt - 1e-9 || (p.cds?.[sk.id] || 0) > 0) return;
+        if (!sk || (p.cds?.[sk.id] || 0) > 0) return;
         const per = sk.furyPerPct || 3;
         const fury = (p.mp || 0) * T.pielHalf;
         if (fury < per * T.pielHalf) return;
         spendResource(p, fury);
         const prof = profOf(g, p, sk.id);
         g.heal(p.stats.maxHP * (fury / per) / 100 * (prof.buffMul || 1), { target: 'self', src: 'g_piel_aliento' });
-        st.readyAt = now(p) + (prof.cd || sk.cd || 30);
+        g.startCooldown(p, sk.id, prof.cd || sk.cd || 30);
       },
     },
     // c11B Coraza de Hierro: al bajar del 30 % de vida, −30 % de daño recibido 5 s (cada 60 s)
@@ -1034,22 +1048,21 @@ export function guerreroPowers() {
       condAdd(p) { return (p.mp || 0) > T.desbordante.over ? T.desbordante.dmgPct : 0; },
     },
     // c17A Grito de Guerra (la activa la concede el nodo): si no está en la barra, cada Piel de
-    // Hierro lo lanza al 50 %: +15 de Furia y +5 % de daño al grupo a 15 m 8 s (su recarga de 20 s)
+    // Hierro lo lanza al 50 %: +15 de Furia y +5 % de daño al grupo a 15 m 8 s (pone su recarga de
+    // 20 s con g.startCooldown)
     g_piel_grito: {
       name: 'Grito de Guerra', desc: 'Si Grito de Guerra no está en la barra, sale con Piel de Hierro al 50 %.',
-      state: () => ({ readyAt: 0 }),
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_piel' || cast.echo || onBar(p, 'grito_guerra')) return;
         const sk = skillOf(p, 'grito_guerra');
-        const st = powerState(p, 'g_piel_grito');
-        if (!sk || now(p) < st.readyAt - 1e-9 || (p.cds?.[sk.id] || 0) > 0) return;
+        if (!sk || (p.cds?.[sk.id] || 0) > 0) return;
         const prof = profOf(g, p, sk.id);
         g.gainResource(p, (prof.gen || sk.gen || 30) * T.pielHalf);
         const buff = {};
         for (const [k, v] of Object.entries(prof.buff || sk.buff || {})) buff[k] = Math.round(v * T.pielHalf);
         const meta = { name: sk.name, icon: sk.icon, desc: `+${buff.dmgPct || 0}% de daño` };
         for (const a of g.allies ? g.allies(p.pos, sk.allyRadius || 15) : [p]) a.addBuff?.(sk.id, { ...buff }, prof.dur || sk.dur || 8, meta);
-        st.readyAt = now(p) + (prof.cd || sk.cd || 20);
+        g.startCooldown(p, sk.id, prof.cd || sk.cd || 20);
       },
     },
     // c17B Ira Contenida: cada 20 s, tu siguiente principal no cuesta Furia y hace +20 % (buff que
@@ -1101,15 +1114,14 @@ export function guerreroPowers() {
       },
     },
     // c22A Intervención (concede la activa): si no está en la barra, cada Piel de Hierro da, sin
-    // salto, un escudo del 8 % de tu vida a ti y al aliado más cercano (su recarga de 20 s)
+    // salto, un escudo del 8 % de tu vida a ti y al aliado más cercano (pone su recarga de 20 s con
+    // g.startCooldown)
     g_piel_intervencion: {
       name: 'Intervención', desc: 'Si Intervención no está en la barra, sale con Piel de Hierro al 50 %, sin salto.',
-      state: () => ({ readyAt: 0 }),
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_piel' || cast.echo || onBar(p, 'g_t_intervencion')) return;
         const sk = skillOf(p, 'g_t_intervencion');
-        const st = powerState(p, 'g_piel_intervencion');
-        if (!sk || now(p) < st.readyAt - 1e-9 || (p.cds?.[sk.id] || 0) > 0) return;
+        if (!sk || (p.cds?.[sk.id] || 0) > 0) return;
         const prof = profOf(g, p, sk.id);
         const amt = Math.round((sk.shieldPct || 15) * T.pielHalf) / 100 * p.stats.maxHP * (prof.buffMul || 1);
         const dur = prof.dur || sk.dur || 6;
@@ -1117,7 +1129,7 @@ export function guerreroPowers() {
         let ally = null, bd = Infinity;
         for (const a of others(g, p, Infinity)) { const d = a.pos.distanceTo(p.pos); if (d < bd) { bd = d; ally = a; } }
         ally?.addShield?.(amt, dur, 'g_piel_intervencion');
-        st.readyAt = now(p) + (prof.cd || sk.cd || 20);
+        g.startCooldown(p, sk.id, prof.cd || sk.cd || 20);
       },
     },
     // c22B Hermandad de Armas: +5 % de daño y +8 % de vida a ti y a los aliados a 15 m; +5 % de
@@ -1211,17 +1223,14 @@ export function guerreroPowers() {
       },
     },
     // c28 Inquebrantable (final, rango r): Piel de Hierro no caduca por tiempo: dura hasta evitar
-    // daño por un (25 + 15·r) % de tu vida y vuelve 15 s después de romperse; con ella, generas un
-    // 10·r % más de Furia. Sin una vía del núcleo para poner una recarga (cola W2: startCooldown),
-    // al romperse la recarga se deja lista y la Piel no se puede lanzar hasta pasados los 15 s
+    // daño por un (25 + 15·r) % de tu vida y vuelve 15 s después de romperse (g.startCooldown: la
+    // ranura enseña esa recarga); con ella, generas un 10·r % más de Furia
     g_inquebrantable: {
       name: 'Inquebrantable', desc: 'Piel de Hierro dura hasta evitar daño por una parte de tu vida; vuelve 15 s después y te da más Furia.',
-      state: () => ({ buff: null, prevented: 0, readyAt: 0 }),
+      state: () => ({ buff: null, prevented: 0 }),
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_piel') return;
-        const st = powerState(p, 'g_inquebrantable');
         if (buffOf(p, 'g_piel')) { g.ui?.message?.('Piel de Hierro ya está puesta'); return false; }
-        if (now(p) < st.readyAt - 1e-9) { g.ui?.message?.(`Piel de Hierro vuelve en ${n1(Math.ceil((st.readyAt - now(p)) * 10) / 10)} s`); return false; }
       },
       onTick(g, p) {
         const b = buffOf(p, 'g_piel');
@@ -1240,9 +1249,7 @@ export function guerreroPowers() {
         if (st.prevented < p.stats.maxHP * (T.inquebrantable.base + T.inquebrantable.perRank * r) / 100 - 1e-9) return;
         st.buff = null; st.prevented = 0;
         dropBuff(p, 'g_piel');
-        const cd = T.inquebrantable.cd;
-        if (typeof g.startCooldown === 'function') g.startCooldown(p, 'g_piel', cd);
-        else { g.reduceCooldown?.(p, 'g_piel', Infinity); st.readyAt = now(p) + cd; }
+        g.startCooldown(p, 'g_piel', T.inquebrantable.cd);
         g.ui?.spawnText?.(p.pos, 'Piel rota', 'txt-dmg-player');
       },
       onResource(g, p, n) {
@@ -1661,7 +1668,7 @@ export function guerreroPowers() {
         // mismo sitio (con los ajustes del Caudillo), sin dos auras a la vez
         const aura = (g.fields || []).find(f => !f.dead && f.owner === p && f.kind === 'aura' && f.data?.buffId === 'g_h_estandarte');
         let at = aura ? v3(aura.pos.x, 0, aura.pos.z) : null;
-        if (aura) g._expireField?.(aura);
+        if (aura) g.expireField(aura);
         for (const a of g.allies ? g.allies() : [p]) if (buffOf(a, 'g_h_estandarte')) dropBuff(a, 'g_h_estandarte');
         if (!at && cast.target) {
           const to = cast.target.clone().sub(p.pos).setY(0);
@@ -1842,14 +1849,15 @@ export function guerreroPowers() {
         return true;
       },
     },
-    // b16 Sangre Hirviente (rango r): con más de 50 de Sed (gaugeTuning().sed.boilAt), atacas un 8·r %
-    // más rápido (los giros y los saltos van con la velocidad del núcleo: cola W2)
+    // b16 Sangre Hirviente (rango r): con más de 50 de Sed (gaugeTuning().sed.boilAt), tus golpes
+    // (velocidad de ataque) y tus giros y saltos (stat skillSpeedPct del núcleo: preparación, tic del
+    // canal y vuelo del salto; no toca recargas) van un 8·r % más rápido
     g_b_sangre_hirviente: {
-      name: 'Sangre Hirviente', desc: 'Con más de 50 de Sed, tus golpes van más rápido.',
+      name: 'Sangre Hirviente', desc: 'Con más de 50 de Sed, tus golpes, giros y saltos van más rápido.',
       onTick(g, p) {
         if (!(gaugeValue(p, 'sed') > gaugeTuning().sed.boilAt)) return;
         const pct = T.hirviente.perRank * rankOf(p, 'g_b_sangre_hirviente');
-        keepBuff(p, 'g_b_sangre_hirviente', { aspdPct: pct }, 0.25, { name: 'Sangre Hirviente', icon: '🩸', desc: `+${pct}% de velocidad de ataque` });
+        keepBuff(p, 'g_b_sangre_hirviente', { aspdPct: pct, skillSpeedPct: pct }, 0.25, { name: 'Sangre Hirviente', icon: '🩸', desc: `+${pct}% de velocidad de ataque y de tus giros y saltos` });
       },
     },
     // b17 Sin Suelo (rango r): durante Furia Inmortal el Salto no se recarga y encadena r saltos más;
@@ -1941,28 +1949,22 @@ export function guerreroPowers() {
     },
     // b25 Danza Carmesí (final, rango r): el Remolino sigue mientras toques a alguien que sangra,
     // hasta 6/10/20 s, a 8 de Furia por segundo pasados los 3 s (ese drenaje no cuenta como Furia
-    // gastada). Sangrados +15·(r−1) %: clave tv del nodo
+    // gastada). Sangrados +15·(r−1) %: clave tv del nodo. Lee el canal con g.channelInfo()
+    // (t = s desde que empezó el giro, left = s que le quedan); el radio, el del perfil al lanzarlo
     g_b_danza_carmesi: {
       name: 'Danza Carmesí', desc: 'El Remolino sigue mientras toques a alguien que sangra.',
-      state: () => ({ t0: -1, cast: null }),
-      onCast(g, p, cast) {
-        if (cast?.sk?.id !== 'g_remolino') return;
-        const st = powerState(p, 'g_b_danza_carmesi');
-        st.t0 = now(p); st.cast = cast;
-      },
+      state: () => ({ radius: 0 }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'g_remolino') powerState(p, 'g_b_danza_carmesi').radius = cast.prof?.radius || 0; },
       onTick(g, p, dt) {
-        const inst = g._channel;
-        const st = powerState(p, 'g_b_danza_carmesi');
-        if (!inst || inst.ctx?.p !== p || inst.ctx?.cast !== st.cast || (inst.ctx?.sk?.id || inst.ctx?.cast?.sk?.id) !== 'g_remolino') return;
+        const ch = g.channelInfo?.();
+        if (!ch || ch.p !== p || ch.id !== 'g_remolino') return;
         const D = T.danza;
-        const elapsed = now(p) - st.t0;
-        if (elapsed < D.after - inst.interval - 1e-9) return;              // aún en el giro normal
+        if (ch.t < D.after - ch.interval - 1e-9) return;                   // aún en el giro normal
         const cap = D.cap[Math.min(D.cap.length, rankOf(p, 'g_b_danza_carmesi')) - 1];
-        const rad = (inst.ctx.prof?.radius || 2.9) + 0.5;
-        if (elapsed >= cap - 1e-9 || !enemiesNear(g, p.pos, rad).some(e => g.hasDoT(e, 'bleed'))) return;
-        if (elapsed >= D.after - 1e-9 && !drainResource(p, D.furyPerSec, dt)) return;
-        const left = inst.left * inst.interval;
-        if (left < D.step + 0.05 && elapsed + left < cap - 1e-9) g.extendChannel(p, Math.min(D.step, cap - elapsed - left));
+        const rad = (powerState(p, 'g_b_danza_carmesi').radius || 2.9) + 0.5;
+        if (ch.t >= cap - 1e-9 || !enemiesNear(g, p.pos, rad).some(e => g.hasDoT(e, 'bleed'))) return;
+        if (ch.t >= D.after - 1e-9 && !drainResource(p, D.furyPerSec, dt)) return;
+        if (ch.left < D.step + 0.05 && ch.t + ch.left < cap - 1e-9) g.extendChannel(p, Math.min(D.step, cap - ch.t - ch.left));
       },
     },
     // b26 Golpe de Gracia (final, rango r): el 3.er golpe de Rajar golpea dos veces: el 2.º (0,15 s
@@ -2194,7 +2196,7 @@ export function guerreroPowers() {
           const dx = e.pos.x - p.pos.x, dz = e.pos.z - p.pos.z;
           if (dx * st.dir.x + dz * st.dir.z < -0.3) continue;            // detrás: ya lo pasaste
           st.target = e;
-          p.dashMove.step = () => true;                                  // cola W2: g.stopDash(p)
+          g.stopDash(p);                                                 // te paras ahí
           g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 0.6), '¡CHOQUE!', 'txt-crit');
           return;
         }
@@ -2595,7 +2597,7 @@ export function guerreroPowers() {
           const m = e.alive && isEliteOrBoss(e) ? e.marks?.juicio : null;
           if (!m || m.by !== p || m.condena || !(m.t > 0)) continue;
           m.condena = true;
-          m.t *= 2;
+          g.extendMark(e, 'juicio', { mul: T.condenaMul });     // también su Debilidad (Sentencia)
         }
       },
       onHit(g, p, e, hit) { if (hit?.detonated && direct(hit) && isBoss(e)) e.addStagger?.(T.condena, p); },
@@ -2774,10 +2776,12 @@ export function guerreroPowers() {
       condDr(p) { return inHolyZone(p.game, p, p.pos) ? T.peregrino.dr * rankOf(p, 'g_z_peregrino') : 0; },
     },
     // z25 Tribunal (final, rango r): la marca aguanta 2/2/3 detonaciones (las siguientes al 40/60/80 %)
-    // y la última salta a 2 enemigos (a 6 m) como marca de un uso que ya no salta
+    // y la última salta a 2 enemigos (a 6 m) como marca de un uso que ya no salta. Salta al ACABAR el
+    // golpe (planificador, 0 s): un golpe de área no detona la marca que acaba de saltar (antes
+    // dependía del orden de sus impactos) y no salta a quien detonó Juicio en ese mismo golpe
     g_z_tribunal: {
       name: 'Tribunal', desc: 'Detonar una marca no la gasta: se detona más veces y la última salta a 2 enemigos.',
-      state: () => ({ track: new WeakMap() }),
+      state: () => ({ track: new WeakMap(), at: -1, struck: new WeakSet(), jumps: [] }),
       modifyResolve(p, sk, prof) {
         if (sk.id !== 'g_juicio' || !prof.mark) return;
         prof.mark = { ...prof.mark, uses: T.tribunal.uses[Math.min(3, rankOf(p, 'g_z_tribunal')) - 1] };
@@ -2785,6 +2789,8 @@ export function guerreroPowers() {
       onHit(g, p, e, hit) {
         if (!hit?.detonated || !direct(hit)) return;
         const st = powerState(p, 'g_z_tribunal');
+        if (st.at !== now(p)) { st.at = now(p); st.struck = new WeakSet(); }
+        st.struck.add(e);
         const i = Math.min(3, rankOf(p, 'g_z_tribunal')) - 1;
         const m = e.marks?.juicio;
         if (m && m.by === p && !m.tribunal) {
@@ -2796,15 +2802,9 @@ export function guerreroPowers() {
         const old = st.track.get(e);
         if (m || !old) return;
         st.track.delete(e);
-        if (!e.alive && !e.pos) return;
-        const prof = juicioProf(p);
-        if (!prof) return;
-        // las saltadas son de UN uso: su detonación las gasta, no se siguen y no vuelven a saltar
-        const one = { ...prof, mark: { ...prof.mark, uses: 1, detonate: { ...(old.detonate || prof.mark.detonate) } } };
-        for (const o of nearestEnemies(g, e.pos, T.tribunal.radius, T.tribunal.jump, e)) {
-          if (o.marks?.juicio?.t > 0) continue;
-          g.applyMark(o, one, p);
-        }
+        if (!e.pos) return;
+        st.jumps.push({ from: e, pos: e.pos.clone(), detonate: old.detonate, at: now(p) });
+        g.timers?.schedule(0, () => tribunalJump(g, p, st));      // el primero hace todos los del golpe
       },
     },
     // z26 Martillo Celestial (final, rango r): cada suelta perfecta llama 0,3 s después un martillo

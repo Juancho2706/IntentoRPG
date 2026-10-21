@@ -366,23 +366,26 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   // innate.mod: los mods de la especialización (Piel de Hierro del Guardián: 12 s y −50 %)
   const spec = talentTreesFor('guerrero').specs.find(s => s.id === 'guardian');
   const inn = spec.innate;
+  // la innata real ya trae la Piel de Hierro (tanda 2, KAT-guerrero): «antes» es la innata sin mod
+  const { mod: innMod, ...innBase } = inn;
+  void innMod;
   const piel = (h2) => resolveSkill(h2.p, h2.p.cls.skills.find(s => s.id === 'g_piel'));
-  const before = piel(makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }));
   const ber0 = piel(makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker' }));
   try {
-    spec.innate = { ...inn, mod: { g_piel: { durS: 4, buff: 25 }, '@defense': { cdr: 10 } } };
+    spec.innate = innBase;
+    const before = piel(makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }));
+    spec.innate = { ...innBase, mod: { g_piel: { durS: 4, buff: 25 }, '@defense': { cdr: 10 } } };
     const after = piel(makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }));
     near(after.dur, before.dur + 4, 'Piel de Hierro: +4 s');
-    // (hoy el nodo clave d0 ya lleva este mismo mod: la innata se SUMA al de los nodos)
     near((after.mods.buff || 0) - (before.mods.buff || 0), 25, 'Piel de Hierro: +25 % de buff');
     near(after.buffMul / before.buffMul, (1 + after.mods.buff / 100) / (1 + (before.mods.buff || 0) / 100), 'y el perfil lo aplica');
     assert.equal((after.mods.cdr || 0) - (before.mods.cdr || 0), 10, 'selector @defense');
     // y no toca el saco de recompute (las stats del Guardián son las mismas con y sin innate.mod)
     const withMod = makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }).p.stats;
-    spec.innate = inn;
+    spec.innate = innBase;
     const noMod = makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }).p.stats;
     assert.deepEqual(withMod, noMod, 'innate.mod no cambia ninguna stat (hpPct, block…)');
-    spec.innate = { ...inn, mod: { g_piel: { durS: 4, buff: 25 }, '@defense': { cdr: 10 } } };
+    spec.innate = { ...innBase, mod: { g_piel: { durS: 4, buff: 25 }, '@defense': { cdr: 10 } } };
     const other = piel(makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker' }));
     assert.ok(other.dur === ber0.dur && (other.mods.buff || 0) === (ber0.mods.buff || 0), 'con otra especialización, nada');
   } finally { spec.innate = inn; }

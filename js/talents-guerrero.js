@@ -8,8 +8,8 @@
 // SOLO hero y talent-text.
 // E2 (KT-guerrero): árbol de clase, las tres especializaciones y los árboles héroe con su `fx` (poderes en
 // js/powers-guerrero.js; la mecánica de cada especialización en js/mech-guerrero.js). Las pasivas que no son
-// stats van en el nodo clave gratis: Al borde (m_berserk, b0), Piel de Hierro 12 s y −50 % (d0) y Martillo
-// Piadoso (z0). Los topes propios del Guardián (drCapAdd, blockCapAdd) esperan al núcleo (cola W2).
+// stats van en el nodo clave gratis: Al borde (m_berserk, b0) y Martillo Piadoso (z0). La del Guardián
+// (Piel de Hierro 12 s y −50 %, topes 65 y 50 %) va en su `innate` (mod y drCapAdd/blockCapAdd).
 import { GUERRERO_HERO } from './hero-guerrero.js';
 import { n1 } from './talent-text.js';
 
@@ -187,9 +187,12 @@ export const GUERRERO_TALENTS = {
       mechanic: 'bastion',
       elem: 'physical',
       prefix: 'd',
-      // §11.2: la base que se conserva ({ block, threatMult, hpPct }); drCapAdd/blockCapAdd (topes
-      // 65 y 50 %) esperan a la cola W2 (tools/convert-v2/out/pendientes-guerrero.md §4.5)
-      innate: { block: 15, threatMult: 3, hpPct: 5 },
+      // §11.2: la base que se conserva ({ block, threatMult, hpPct }), los topes propios de reducción
+      // de daño y de bloqueo (65 y 50 %: drCapAdd/blockCapAdd, solo de la innata) y la Piel de Hierro
+      // de 12 s y −50 % (innate.mod, punto 17 opción a: 8 → 12 s; 40 × 1,25 = 50 %, que escala con el
+      // rango como el resto del buff). Ningún nodo lo repite (d0 no lleva fx: la sumaría dos veces).
+      // tools/convert-v2/out/guerrero/pendientes-guerrero.md §4.1 y §4.5
+      innate: { block: 15, threatMult: 3, hpPct: 5, drCapAdd: 15, blockCapAdd: 10, mod: { g_piel: { durS: 4, buff: 25 } } },
       innateText: 'Piel de Hierro: 12 s y −50 %; topes 65 y 50 %',
       line: 'Muralla viviente: te plantas, alternas posturas, provocas y proteges al grupo.',
       desc: 'Muralla viviente: te plantas, alternas posturas, provocas y proteges al grupo.',
@@ -198,7 +201,7 @@ export const GUERRERO_TALENTS = {
       innateNote: '+15 % de bloqueo con escudo y triple amenaza. Con otra especialización, los topes vuelven a 50 y 40 %',
       innateSkill: 'g_piel',
       nodes: [
-        { id: 'd0', name: 'Pie Firme', t: 'k', tag: 'mec', r: 0, c: 3, max: 1, free: true, d: ()=>'Bloquear y quedarte plantado llenan tu Bastión (5 cargas): cada carga te quita un 4 % del daño que recibes', icon: 'talents/guerrero-guardian-s0.webp', fx: { mod: { g_piel: { durS: 4, buff: 25 } } } },
+        { id: 'd0', name: 'Pie Firme', t: 'k', tag: 'mec', r: 0, c: 3, max: 1, free: true, d: ()=>'Bloquear y quedarte plantado llenan tu Bastión (5 cargas): cada carga te quita un 4 % del daño que recibes', icon: 'talents/guerrero-guardian-s0.webp', fx: {} },
         { id: 'd1', name: 'Escudo Alzado', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['d0'], d: r=>`Tus bloqueos paran un ${50+10*r} % del golpe (antes 50 %)`, arch: 'guardia', icon: 'talents/guerrero-guardian-s9.webp', fx: { stats: { blockPower: 10 } } },
         { id: 'd2', name: 'Puño Telúrico', t: 'p', tag: 'num', r: 1, c: 3, max: 3, req: ['d0'], d: r=>`El Terremoto hace +${10*r} % de daño`, touch: ['terremoto'], arch: 'sismo', icon: 'talents/guerrero-guardian-s7.webp', fx: { mod: { terremoto: { dmg: 10 } } } },
         { id: 'd3', name: 'Paso Pesado', t: 'p', tag: 'num', r: 1, c: 5, max: 3, req: ['d0'], d: r=>`La Carga de Escudo se recarga en ${10-r} s (antes 10 s)`, touch: ['g_carga_escudo'], arch: 'vanguardia', icon: 'talents/guerrero-guardian-s13.webp', fx: { mod: { g_carga_escudo: { cdr: 10 } } } },
