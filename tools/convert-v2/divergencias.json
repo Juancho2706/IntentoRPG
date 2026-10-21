@@ -141,7 +141,7 @@
     {
       "clase": "arquera",
       "ruta": "spec.montaraz.m28.touch",
-      "motivo": "Conversor (tanda 1) · KT-arquera: el mockup congelado no trae touch en Corazón del Bosque; el juego pone 'a_t_cepo' y 'a_u_zarzas', las dos que nombra su texto (1: tus trampas armadas ralentizan; 2: un cepo gratis; 4: cada 12 cepos de Trampa de Cepo, Cerco de Zarzas gratis) y §10 del diseño (Cerco de Zarzas: m28). Tanda 2 (KAT-arquera): fuera 'a_m_acecho', que el texto no nombra (lo mismo en m11 y m25, que vuelven al touch del mockup); los cepos que hace estallar el Salto de Acecho ya cuentan para Metralla, Tierra Arrasada y el rango 4 (CHARGE_CEPOS mira la trampa, no quién la detona). Con eso el Salto de Acecho queda con 1 nodo mecánico (m18), como el diseño congelado: la excepción de G17 vuelve a test78 (petición al orquestador)",
+      "motivo": "Conversor (tanda 1) · KT-arquera: el mockup congelado no trae touch en Corazón del Bosque; el juego pone 'a_t_cepo' y 'a_u_zarzas', las dos que nombra su texto (1: tus trampas armadas ralentizan; 2: un cepo gratis; 4: cada 12 cepos de Trampa de Cepo, Cerco de Zarzas gratis) y §10 del diseño (Cerco de Zarzas: m28). Tanda 2 (KAT-arquera): fuera 'a_m_acecho', que el texto no nombra (lo mismo en m11 y m25, que vuelven al touch del mockup); los cepos que hace estallar el Salto de Acecho ya cuentan para Metralla, Tierra Arrasada y el rango 4 (CHARGE_CEPOS mira la trampa, no quién la detona). Con eso el Salto de Acecho queda con 1 nodo mecánico (m18), como el diseño congelado: test78 vuelve a tener la excepción de G17 del punto 17 (a_m_acecho: 1), y test-talentos-arquera prueba que el cepo del Salto cuenta para m11, m25 y m28 r4",
       "aprobada": false
     }
   ]

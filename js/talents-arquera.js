@@ -17,7 +17,7 @@ export const ARQUERA_TALENT_SKILLS = ['a_t_camuflaje', 'agilidad', 'a_t_bengala'
 
 // Claves tv que consume un poder de la Arquera (no el núcleo); tests/test78 las acepta en los datos.
 //   wind* → q_rafagas (Errante del Viento) · tip* → w_puntas (Carcaj Encantado) · hawk* → y_halcon (Halconera)
-//   galeT → mecánica impulso (v2) · tripleDmg, tripleWide → t_tercera (v4, v8A) · farTense → f_cuerda_tensa (f20)
+//   galeT → mecánica impulso (v2) · tripleDmg, tripleWide → t_tercera (v4, v8A) · farTense, tenseRange → f_cuerda_tensa (f20)
 //   trapBurstPct, thornPoison → m_cebo (m4, m13) · batidaDur, batidaPreyStagger → mecánica coto (m23)
 export const ARQUERA_TV_KEYS = [
   'windEvery', 'windMove', 'windStill', 'windPierce', 'windGuard', 'windDmg', 'windGauge', 'windRush', 'windSeek', 'windFan',
@@ -26,7 +26,7 @@ export const ARQUERA_TV_KEYS = [
   'tipDmg', 'tipQuick',
   'hawkEvery', 'hawkDeep', 'hawkSweep', 'hawkPrey', 'hawkGuard', 'hawkDmg', 'hawkSilence', 'hawkCall', 'hawkFlock', 'hawkElite',
   'hawkFeathers', 'hawkShared', 'hawkLoyal',
-  'galeT', 'tripleDmg', 'tripleWide', 'farTense', 'trapBurstPct', 'thornPoison', 'batidaDur', 'batidaPreyStagger',
+  'galeT', 'tripleDmg', 'tripleWide', 'farTense', 'tenseRange', 'trapBurstPct', 'thornPoison', 'batidaDur', 'batidaPreyStagger',
 ];
 
 /** @deprecated D29: puente de E1.5 (las activas de talento cuando el catálogo era v1). Con el catálogo 2g
@@ -229,7 +229,7 @@ export const ARQUERA_TALENTS = {
         { id: 'f17', name: 'Haces Gemelos', t: 'p', tag: 'mec', r: 5, c: 5, max: 2, req: ['f13', 'f14'], d: r=>`Cada haz de Tiro Celestial dispara otro detrás, al ${35*r} %`, touch: ['a_u_celeste'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s17.webp', fx: { power: 'f_haces_gemelos' } },
         { id: 'f18', name: 'Rebote Certero', t: 'p', tag: 'mec', r: 6, c: 0, max: 2, req: ['f15'], d: r=>`Disparo Apuntado rebota en el primer muro y vuelve por su línea al ${10*r} %`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s4.webp', fx: { power: 'f_rebote' } },
         { id: 'f19', name: 'Herida Expuesta', t: 'p', tag: 'mec', r: 6, c: 2, max: 2, req: ['f15', 'f16'], d: r=>`Mientras tiene tu Punto Débil, el enemigo recibe +${6*r} % de daño de todo el grupo`, touch: ['a_f_rastreador'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-x2.webp', fx: { power: 'f_herida_expuesta' } },
-        { id: 'f20', name: 'Vista Larga', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['f16', 'f17'], d: r=>`Tus disparos tensados alcanzan ${2*r} m más y hacen +${6*r} % a más de 10 m`, touch: ['a_t_apuntado', 'a_disparo', 'a_u_celeste'], icon: 'talents/arquera-francotiradora-s15.webp', fx: { mod: { a_t_apuntado: { range: 12.5 }, a_u_celeste: { range: 12.5 } }, tv: { farTense: 6 } } },
+        { id: 'f20', name: 'Vista Larga', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['f16', 'f17'], d: r=>`Tus disparos tensados alcanzan ${2*r} m más y hacen +${6*r} % a más de 10 m`, touch: ['a_t_apuntado', 'a_disparo', 'a_u_celeste'], icon: 'talents/arquera-francotiradora-s15.webp', fx: { mod: { a_t_apuntado: { range: 12.5 }, a_u_celeste: { range: 12.5 } }, tv: { farTense: 6, tenseRange: 2 } } },
         { id: 'f21', name: 'Firmamento', t: 'p', tag: 'mec', r: 6, c: 6, max: 1, req: ['f17'], d: ()=>'En Rodilla en Tierra, Tiro Celestial se recarga un 20 % más rápido (no baja de 35 s)', touch: ['a_u_celeste', 'a_f_rodilla'], arch: 'vigia', icon: 'skills256/a_u_celeste.webp', fx: { power: 'f_firmamento' } },
         { id: 'f22', name: 'Saetas Paralelas', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['f18'], d: r=>`Cada soltado perfecto de Disparo Apuntado suelta ${r} saeta${r > 1 ? 's' : ''} más en paralelo, a 1 m (20 %)`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'skills256/flecha_perforante.webp', fx: { power: 'f_paralelas' } },
         { id: 'f23', name: 'Herida sobre Herida', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['f19'], d: r=>`Cada soltado perfecto a tu Punto Débil le deja una Herida (hasta 5): tus tensados le hacen +${2*r} % por cada una`, touch: ['a_f_rastreador', 'a_t_apuntado'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-s6.webp', fx: { power: 'f_heridas' } },

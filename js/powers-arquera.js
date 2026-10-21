@@ -147,7 +147,7 @@ function tune() {
     }),
     // ---- Francotiradora (§7.1)
     fra: Object.freeze({
-      cuerda: { max: 1, perfect: [0.8, 1], addPct: 60, moveMul: 0.6, tensedAt: 0.3, farAt: 10, farRange: 2 },  // f0 · f20 (más de 10 m; +2 m por rango)
+      cuerda: { max: 1, perfect: [0.8, 1], addPct: 60, moveMul: 0.6, tensedAt: 0.3, farAt: 10 },  // f0 · f20 (más de 10 m)
       weakDur: 8,                                                // Punto Débil (marca de Tiro Rastreador)
       sobre: { perRank: 10, max: 4 },                            // f4
       mira: { dur: 4 },                                          // f5
@@ -1787,16 +1787,16 @@ function francotiradoraPowers() {
       name: 'Cuerda Tensa', desc: 'Mantén Disparo Rápido para tensarlo: hasta +60 %; su último 0,2 s es perfecto.',
       priority: 2,
       // markMin: un toque (menos de 0,3 s) ni gasta ni fuerza el Punto Débil de Tiro Rastreador (lo lee
-      // el motor). Vista Larga (f20): el básico TENSADO (desde 0,3 s) llega 2 m más lejos por rango
-      // (charge.scale.rangeAdd: el motor los suma en Player.basicRange; aquí no se llama a basicRange,
-      // que resuelve este mismo perfil)
+      // el motor). Vista Larga (f20, tv.tenseRange: 2 m por rango): el básico TENSADO (desde 0,3 s) llega
+      // más lejos (charge.scale.rangeAdd: el motor lo suma en Player.basicRange; aquí no se llama a
+      // basicRange, que resuelve este mismo perfil)
       modifyResolve(p, sk, prof) {
         if (sk.id !== 'a_disparo' || prof.charge) return;
         const C = T.cuerda, def = prof.def || sk;
         const n = Math.max(1, Math.floor(def.count || 1)), c0 = def.coef || 1;
         const scale = { coef: [c0, c0 * (1 + C.addPct / 100 / n)] };
-        const far = p.talentAgg?.ranks?.f20 | 0;
-        if (far > 0) scale.rangeAdd = [[C.tensedAt - 0.01, 0], [C.tensedAt, C.farRange * far]];
+        const far = p.tv?.tenseRange || 0;
+        if (far > 0) scale.rangeAdd = [[C.tensedAt - 0.01, 0], [C.tensedAt, far]];
         prof.charge = { min: 0, max: C.max, perfect: [...C.perfect], perfectPct: 0, perfectCrit: true,
           scale, moveMul: C.moveMul, autoRelease: true, instant: false,
           repeat: true, perfectGauge: null, full: null, speed: 1, markMin: C.tensedAt };

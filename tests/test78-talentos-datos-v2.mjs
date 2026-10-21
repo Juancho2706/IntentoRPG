@@ -42,9 +42,10 @@ export const POWER_PREFIX = { maga: /^[mpka]_[a-z0-9_]+$/, guerrero: /^g_[a-z0-9
 export const COMMON_POWER_IDS = new Set(Object.keys(commonPowers()));
 assert.ok(COMMON_POWER_IDS.has('m_berserk') && COMMON_POWER_IDS.has('nucleo_tv'), 'test78: poderes comunes leídos de powers-common.js');
 // G17 de nodos: excepciones del diseño congelado (D18) = nodos mecánicos que de verdad tocan la habilidad,
-// por clase ({ <clase>: { <id>: n } }). Vacía: las del punto 17 (a_u_diluvio 2, a_m_acecho 1) ya cumplen
-// con los datos de KT-arquera y una excepción que sobra es un error
-export const G17_EXCEPTION = {};
+// por clase ({ <clase>: { <id>: n } }); una excepción que sobra es un error. Del punto 17: el Salto de
+// Acecho tiene 1 (m18, §10 del diseño; KAT-arquera quitó en la tanda 2 el touch de m11, m25 y m28, cuyo
+// texto no lo nombra). a_u_diluvio (2 en el punto 17) ya cumple con los datos de KT-arquera
+export const G17_EXCEPTION = { arquera: { a_m_acecho: 1 } };
 const JARGON = /\bUNI\b|ÁREA×5|\bTTD\b|stagger|\bprocs?\b|astadora/i;
 const FX_KEYS = new Set(['stats', 'elem', 'skillLv', 'mod', 'tv', 'power', 'grant']);
 const { ELEMS, CATS } = SD;

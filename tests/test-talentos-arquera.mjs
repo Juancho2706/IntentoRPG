@@ -10,9 +10,9 @@ import { TALENT_TREES, CORE_TV_KEYS } from '../js/talents.js';
 import { ARQUERA_TV_KEYS } from '../js/talents-arquera.js';
 import { POWER_HOOKS, powerState, definePower } from '../js/powers.js';
 import { arqueraPowers } from '../js/powers-arquera.js';
-import { resolveSkill, isKnown } from '../js/skill-resolve.js';
+import { resolveSkill, isKnown, skillRank } from '../js/skill-resolve.js';
 import { CLASSES } from '../js/data.js';
-import { staggerFromCC } from '../js/combat-math.js';
+import { staggerFromCC, rankBuff } from '../js/combat-math.js';
 
 const TREES = TALENT_TREES.arquera;
 const SRC = readFileSync(new URL('../js/powers-arquera.js', import.meta.url), 'utf8');
@@ -150,6 +150,8 @@ section('datos: fx, poderes y claves tv', () => {
     ok(!!SK(id)?.behavior, `${id} tiene comportamiento`);
   }
 });
+// la cobertura del final no cuenta estos mensajes: dicen que el dato existe, no que haga algo
+const DATA_CHECKS = PASSED.length;
 
 // ============================================================ árbol de clase: números
 section('clase: nodos numéricos (stats, mods y tv)', () => {
@@ -471,7 +473,11 @@ section('clase: Adrenalina, Calma Letal, Presión, Barrido y Huida', () => {
     const spd = p.stats.spdPct, aspd = p.stats.aspdPct, buff = rp(h, 'agilidad').buff;
     same(SK('agilidad').buff, { spdPct: 30, aspdPct: 15 }, 'c17A: +30 % de velocidad y +15 % de velocidad de ataque (rango 1)');
     ok(cast(h, 'k2', 'agilidad', 0, 0, 0.1), 'Agilidad se lanza');
-    ok(p.stats.spdPct - spd === buff.spdPct && p.stats.aspdPct - aspd === buff.aspdPct && buff.spdPct >= 30, `c17A: el buff de su perfil (${JSON.stringify(buff)})`);
+    // el buff crece con el rango de la habilidad (rankBuff, +6 %/rango como todo buff): a Nv60 (rango 5),
+    // +37 % y +19 % frente al +30 % y +15 % del texto (rango 1); la calibración es de E4/B1 (pendientes-arquera.md)
+    const rk = skillRank(p, SK('agilidad'));
+    same(buff, { spdPct: Math.round(30 * rankBuff(rk)), aspdPct: Math.round(15 * rankBuff(rk)) }, `c17A: +30 % y +15 % × rankBuff(${rk}) (${JSON.stringify(buff)})`);
+    ok(p.stats.spdPct - spd === buff.spdPct && p.stats.aspdPct - aspd === buff.aspdPct, `c17A: el buff de su perfil (${JSON.stringify(buff)})`);
     ok(!p.applySlow(2) && !(p.slowT > 0), 'c17A: inmune a las ralentizaciones');
     h.tick(6.2);
     ok(p.stats.spdPct === spd && p.applySlow(2), 'c17A: dura 6 s');
@@ -1766,6 +1772,12 @@ section('Francotiradora: Vigía (Rodilla en Tierra), Tiro Celestial y ápice', (
     ok(d.length === 2 && d[1].echo, 'f17: el haz gemelo');
     near(d[1].n / d[0].n, 0.7, 'f17 r2: al 70 %', 0.03);
     eq(go({}).length, 1, 'sin f17: un haz');
+    // el gemelo sale hacia donde apuntó el haz original aunque la mira se mueva (sale al acabar el vuelo
+    // del original, + 0,15 s)
+    const moved = nodes => { const h = fra(nodes), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e); celeste(h, e, 0.4, 2 / 60); h.aim(-6, 0); h.step(1.2); return by(l, 'a_u_celeste'); };
+    const m = moved({ f17: 2 });
+    ok(m.length === 2 && m[1].echo, 'f17: el haz gemelo va al punto del original aunque muevas la mira');
+    eq(moved({}).length, 1, 'sin f17: con la mira movida, un haz');
   }
   // f21 Firmamento: de rodillas, Tiro Celestial se recarga un 20 % más rápido
   {
@@ -1980,6 +1992,26 @@ section('Montaraz: Campo Minado (cepos, detonaciones, Batida)', () => {
     const b = mon();
     trap(b, 5, 0);
     near(s[0].data.dmg / traps(b)[0].data.dmg, 0.3, 'm25: al 30 %');
+  }
+  // el cepo que hace estallar el Salto de Acecho al caer cuenta para Metralla, Tierra Arrasada y Corazón
+  // del Bosque 4 (CHARGE_CEPOS mira la trampa, no quién la detona): por eso su texto no nombra el Salto
+  // y a_m_acecho no va en su touch (divergencias.json, m28)
+  {
+    const go = nodes => {
+      const h = mon(nodes), a = h.enemy({ hp: 1e7, pos: [5, 0, 2.4] }), log = spyAll([a]);
+      trap(h, 5, 0);
+      const armed = traps(h, 'a_t_cepo').length;
+      cast(h, 'k1', 'a_m_acecho', 5, 0, 0.8);
+      return { armed, left: traps(h, 'a_t_cepo').length, leap: by(log(), 'a_m_acecho').length, spikes: by(log(), 'm_metralla').length,
+        seeded: traps(h, 'm_tierra_arrasada').length, heart: powerState(h.p, 'm_corazon_bosque').n || 0 };
+    };
+    const w = go({ m11: 2, m25: 2, m28: 4 }), w0 = go({});
+    ok(w.armed === 1 && w.left === 0 && w.leap > 0, `Salto de Acecho: cae sobre el cepo y lo hace estallar (${JSON.stringify(w)})`);
+    eq(w.spikes, 4, 'm11 r2: el cepo del Salto de Acecho suelta 4 púas');
+    eq(w.seeded, 2, 'm25 r2: el cepo del Salto de Acecho siembra 2 cepos pequeños');
+    eq(w.heart, 1, 'm28 r4: el cepo del Salto de Acecho cuenta 1 de 12');
+    ok(w0.armed === 1 && w0.left === 0 && w0.leap > 0, 'sin m11, m25 ni m28: el Salto también hace estallar el cepo');
+    same([w0.spikes, w0.seeded, w0.heart], [0, 0, 0], 'sin m11, m25 ni m28: ni púas, ni sembrados, ni cuenta');
   }
   // Batida: 3 estallidos de trampa en 1 s → +15 % de daño recibido 6 s; m23 Batida Larga: +1 s y 10 de Quebranto a la Presa por rango
   {
@@ -2204,6 +2236,15 @@ section('Montaraz: Zarzal (Semillas, Huida, Guarida, Coto Cerrado, Cerco y Bosqu
       return !!cerco(x);
     };
     ok(go(4) && !go(3), 'm28 r4: 12 estallidos, Cerco de Zarzas gratis');
+    // el Cerco gratis se centra en el enemigo del estallido número 12, no en la mira
+    {
+      const x = mon({ m28: 4 }), en = x.enemy({ hp: 1e7, pos: [5, 0, 3] });
+      x.aim(-6, -2);
+      for (let i = 1; i <= 12; i++) x.g.onPlayerHit(en, { dealt: 10, raw: 10, skill: 'a_m_detonante', tags: new Set(['trap']), source: 'trap', trap: { uid: 7000 + i, skill: 'a_t_cepo' }, pos: { x: 5, z: 3 } });
+      x.step(0.1);
+      const c = cerco(x);
+      ok(c && Math.hypot(c.pos.x - 5, c.pos.z - 3) < 0.01, `m28 r4: el Cerco gratis cae sobre el enemigo (${c?.pos.x.toFixed(2)}, ${c?.pos.z.toFixed(2)})`);
+    }
   }
 });
 
@@ -3005,12 +3046,14 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
 
 // ============================================================ cobertura
 // cada nodo u opción (clase, especializaciones y héroe) tiene al menos una comprobación que PASÓ y lo
-// nombra (no cuenta un «sin <id>»: esa es la de control); el nodo clave, también por su poder
+// nombra por su id (no cuenta un «sin <id>»: esa es la de control). No valen el nombre del poder ni
+// los mensajes de la sección de datos («poder <id> registrado»): pasan aunque el efecto no exista
 {
-  const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => [`${n.id}${o.k}`, o, n]) : [[n.id, n, n]]));
+  const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => `${n.id}${o.k}`) : [n.id]));
   const ALL = [...keysOf(TREES.cls.nodes), ...TREES.specs.flatMap(s => keysOf(s.nodes)), ...TREES.hero.flatMap(t => keysOf(t.nodes))];
-  const named = (key, alt = null) => PASSED.some(m => typeof m === 'string' && [key, alt].filter(Boolean).some(k => new RegExp(`(^|[^\\w])(?<!sin )${k}(?![\\w])`).test(m)));
-  const missing = ALL.filter(([key, , n]) => !named(key, n.t === 'c' ? null : n.fx?.power)).map(([key]) => key);
+  const BEHAVIOR = PASSED.slice(DATA_CHECKS).filter(m => typeof m === 'string');
+  const named = key => BEHAVIOR.some(m => new RegExp(`(^|[^\\w])(?<!sin )${key}(?![\\w])`).test(m));
+  const missing = ALL.filter(key => !named(key));
   same(missing, [], `nodos u opciones sin una comprobación de su efecto: ${missing.join(', ')}`);
   console.log(`  ✓ ${ALL.length} nodos u opciones (clase, especializaciones y héroe) con efecto comprobado: ${missing.length} sin efecto`);
 }

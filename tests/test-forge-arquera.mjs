@@ -696,8 +696,8 @@ function trapAt(h, x, z) { h.aim(x, z); h.setSlot('k3', 'a_t_cepo'); h.g.reduceC
   assert.equal(fieldsOf(m.h, 'trampa').length, 0, 'sin Acecho Enredador: la trampa estalla y se gasta');
   // detonate.consume: false (cola W2d-B): la trampa estalla y se rearma
   const left = fieldsOf(e.h, 'trampa');
-  assert.ok(left.length === 1 && e.h.p.trapBursts?.length >= 1, `Acecho Enredador: la trampa estalla y sigue puesta tras el salto (${left.length})`);
-  assert.ok(!(m.h.p.trapBursts?.length > 1), 'sin Acecho Enredador: un estallido');
+  assert.ok(left.length === 1 && e.h.p.trapBursts?.length === 1, `Acecho Enredador: la trampa estalla una vez y sigue puesta tras el salto (${left.length}, ${e.h.p.trapBursts?.length})`);
+  assert.equal(m.h.p.trapBursts?.length, 1, 'sin Acecho Enredador: un estallido');
 }
 { // Salto de Acecho · II (Doble Acecho): 2 cargas; el estallido, −30 %
   const run = forge => {
