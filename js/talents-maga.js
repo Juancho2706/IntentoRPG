@@ -99,7 +99,7 @@ export const MAGA_TALENTS = {
       win: 'A, para escapar de enemigos cuerpo a cuerpo. B, para aguantar peleas largas' },
     { id: 'c15', name: 'Escudo de Maná o Mente Clara', t: 'c', tag: 'mec', r: 4, c: 1, max: 1, req: ['c11', 'c12'], icon: 'talents/maga-arcanista-s8.webp', opts: [
         { k: 'A', name: 'Escudo de Maná', desc: 'El 20 % del daño que recibes lo pagas con maná en vez de vida', role: 'AGU', fx: { power: 'm_escudo_mana' } },
-        { k: 'B', name: 'Mente Clara', desc: 'Recuperas maná un 30 % más rápido; con el maná lleno, haces +10 % de daño', role: 'UNI', fx: { stats: { regenPct: 30 }, tv: { highManaDmg: 10 } } },
+        { k: 'B', name: 'Mente Clara', desc: 'Recuperas maná un 30 % más rápido; con más del 70 % de maná, haces +10 % de daño', role: 'UNI', fx: { stats: { regenPct: 30 }, tv: { highManaDmg: 10 } } },
       ],
       win: 'A, para sobrevivir (+15–20 % de aguante). B, para hacer daño (+6–8 %: lanzas más habilidades principales)' },
     { id: 'c16', name: 'Armonía o Pureza Elemental', t: 'c', tag: 'mec', r: 4, c: 3, max: 1, req: ['c12', 'c13'], icon: 'talents/maga-clase-c9.webp', opts: [
@@ -308,7 +308,7 @@ export const MAGA_TALENTS = {
         { id: 'a11', name: 'Precisión Arcana', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['a8'], d: r=>`El Rayo tiene +${10*r} % de crítico`, touch: ['rayo'], arch: 'rayo', icon: 'talents/maga-arcanista-s11.webp', fx: { mod: { rayo: { crit: 10 } } } },
         { id: 'a12', name: 'Inercia', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['a8', 'a9'], d: r=>`Cada rebote del Orbe recarga ${n1(0.5*r)} s del Rayo`, touch: ['a_orbe', 'rayo'], arch: 'orbe', icon: 'talents/maga-arcanista-s12.webp', fx: { power: 'a_inercia' } },
         { id: 'a13', name: 'Torrente Arcano', t: 'p', tag: 'num', r: 4, c: 4, max: 2, req: ['a9', 'a10'], d: r=>`El Desgarro Arcano y el Orbe hacen +${15*r} % de daño`, touch: ['m_u_desgarro', 'a_orbe'], arch: 'grieta', icon: 'talents/maga-arcanista-s13.webp', fx: { mod: { m_u_desgarro: { dmg: 15 }, a_orbe: { dmg: 15 } } } },
-        { id: 'a14', name: 'Maná Inagotable', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['a10'], d: ()=>'Mientras canalizas el Desgarro no gastas maná y recuperas un 2 % por segundo', touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s3.webp', fx: { power: 'a_mana_inagotable' } },
+        { id: 'a14', name: 'Maná Inagotable', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['a10'], d: ()=>'Mientras canalizas el Desgarro recuperas un 2 % de maná por segundo', touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s3.webp', fx: { power: 'a_mana_inagotable' } },
         { id: 'a15', name: 'Desplazamiento o Velo', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['a11', 'a12'], icon: 'talents/maga-arcanista-s8.webp', opts: [
             { k: 'A', name: 'Desplazamiento', desc: 'Un golpe de más del 20 % de tu vida te teletransporta 5 m y no te hace daño. Una vez cada 30 s', role: 'AGU', fx: { power: 'a_desplazamiento' } },
             { k: 'B', name: 'Velo Arcano', desc: 'Con 3 o más Cargas, recibes un 12 % menos de daño', role: 'AGU', fx: { tv: { drCharges: 12 } } },

@@ -86,18 +86,24 @@
 //  · Congelar (Crionte): un enemigo que pasa a Congelado desde el último sondeo (10 Hz, todas las
 //    fuentes). Los jefes no se congelan: llenar sus capas es «congelar a un jefe» (Aterido).
 //  · «Hacer añicos» (Ruptura, Esquirlas, Cero Absoluto) = la Lanza de Hielo golpea a un Congelado
-//    (no jefe) con Ruptura: le quita la congelación y deja 3 capas. Quitar la congelación escribe
-//    stunT/frozenT a mano (thaw): excepción pedida hasta Enemy.clearCC('freeze') de W2.
+//    (no jefe) con Ruptura: le quita la congelación (Enemy.clearCC('freeze')) y deja 3 capas.
 //  · Astillas (i12) es un poder y no tv.critFrostCdr: el nodo nombra solo la Lanza y la Prisión.
 //    Igual Ritmo Arcano (c23, m_ritmo_arcano): solo Parpadeo y Barrera, no tv.basicCritCdr.
 //  · Ignición (s0) quema también con los tics de tu suelo de Fuego (decisión pendiente de aprobar).
 //  · Grieta Eterna (a27) gasta su 3 %/s también con Maná Inagotable (doc 2g §12; calibra B1).
-//  · Prisión Profunda (i8B): la Prisión no atrapa en su área; atrapa 3 s al enemigo de la mira (o al
-//    más cercano a 8 m) con un golpe real de la Prisión al 180 %.
-//  · Ventisca Viva y Remolino lanzan la Nova de Hielo real como repetición (a tus pies), con su
-//    propia serie de repeticiones: la de tu última Nova no se gasta ni se reinicia.
-//  · Doble Grieta (a21): el motor no deja lanzar mientras canalizas; el poder está listo para cuando
-//    la cola W2 lo permita (tools/convert-v2/out/maga/pendientes-maga.md, sección KT-maga).
+//  · Prisión Profunda (i8B): la Prisión no atrapa en su área (prof.single, que lee prision_hielo);
+//    atrapa 3 s al enemigo de la mira (o al más cercano a 8 m) con un golpe real de la Prisión al 180 %.
+//  · Ventisca Viva y Remolino lanzan la Nova de Hielo real como repetición (g.castEcho, con su
+//    propia serie: la de tu última Nova no se gasta ni se reinicia). La de Ventisca Viva sale del
+//    centro de la Tormenta (origin); la de Remolino, de donde acaba el Paso de Escarcha.
+//  · Doble Grieta (a21): el Rayo (principal instantánea) sale durante el canal del Desgarro (una
+//    definitiva imparable) sin cortarlo (cola W2d); su ⑦ onCast abre la grieta. Con Haz Concentrado
+//    (rayo_ii) el Rayo es otro canal y no sale (lo decide el motor). La grieta hace el 50 % del daño
+//    por segundo de ESE canal (su golpe con rango entre su intervalo).
+//  · Repeticiones (Archimaga, Imitación, Legión, Gran Grimorio, Meteoro Gemelo, Lluvia de Fuego, Rayo
+//    Doble, Orbe Múltiple, Tormenta de Cargas): g.castEcho en la serie del original, apuntando a donde
+//    apuntaba, esté o no en la barra. La copia de una CANALIZACIÓN (castEcho no las repite) es un haz
+//    propio con los mismos tics que no ata a la heroína (echoChannel); la del Rayo, con sus Cargas.
 //  · Inercia (a12) cuenta los rebotes por el ritmo del Orbe del catálogo (un tramo = alcance / velocidad).
 //  · «Críticos de Hielo +X %» (Cero Absoluto) va al saco de crítico (stats.critDmg): el saco no
 //    distingue elemento y la Crionte golpea casi todo con Hielo.
@@ -108,7 +114,7 @@
 // Enfriamientos: solo g.reduceCooldown (Infinity = reinicio).
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
-import { rankBuff } from './combat-math.js';
+import { rankBuff, rankCoef } from './combat-math.js';
 import { gainGauge, setGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
 import { drainResource, spendResource } from './resources.js';
 import { magaStorm } from './skills-maga.js';
@@ -258,34 +264,17 @@ function densest(g, r = 4) {
   }
   return best;
 }
-// lanza una habilidad «sola y gratis» por el canal real como REPETICIÓN (mult × su potencia, sin
-// coste, sin enfriamiento, sin preparación) hacia `pos`. Si no está en la barra, toma prestada su
-// ranura un instante. Una repetición no dispara ⑦ ni genera otra repetición. No repite un
-// lanzamiento tuyo: va en una serie de repeticiones APARTE y la de tu último lanzamiento queda
-// como estaba (ni la gasta ni la reinicia: el tope echoCap de tus repeticiones sigue valiendo).
-// Mientras no haya API del motor para esto (cola W2), se aparta y se devuelve su `echo`
-function autoCast(g, p, skillId, pos, mult = 1) {
-  const sk = p?.cls?.skills?.find(s => s.id === skillId);
-  if (!sk || !g?.castSkillSlot || !p.hotbar) return false;
-  const ss = p.skState?.[skillId];
-  const series = ss ? ss.echo : undefined;
-  if (ss) ss.echo = null;
-  let slot = Object.keys(p.hotbar).find(k => p.hotbar[k] === skillId);
-  let borrowed = false, prev = null;
-  if (!slot) { slot = (sk.slots || []).find(s => s !== 'lmb') || 'k4'; prev = p.hotbar[slot]; p.hotbar[slot] = skillId; borrowed = true; }
-  const inp = g.input;
-  const mw = inp ? inp.mouseWorld : null;
-  if (inp && pos) inp.mouseWorld = at(p.pos, pos.x, pos.z, 0);
-  let ok = false;
-  try { ok = !!g.castSkillSlot(slot, mult); }
-  catch (err) { try { console.warn(`[maga] autoCast ${skillId}`, err); } catch { /* */ } }
-  finally {
-    if (borrowed) p.hotbar[slot] = prev;
-    if (inp && pos) inp.mouseWorld = mw;
-    const after = p.skState?.[skillId];
-    if (after) after.echo = series;
-  }
-  return ok;
+// lanza una habilidad «sola y gratis» como REPETICIÓN del motor (g.castEcho, cola W2d): × mult de
+// su potencia, sin coste, enfriamiento, GCD, preparación ni carga, esté o no en la barra. Va en su
+// PROPIA serie de repeticiones: la de tu último lanzamiento queda como estaba (ni se gasta ni se
+// reinicia). aim = {x, z}: la mira; origin = {x, z}: de dónde sale (una habilidad at 'self', como la
+// Nova, se centra ahí). Una canalización no se repite (castEcho → null) y una movilidad movería a
+// la heroína: ninguna de las de aquí lo es. → el CastInfo o null
+function autoCast(g, p, skillId, { aim = null, origin = null, mult = 1 } = {}) {
+  if (!g?.castEcho) return null;
+  const xz = v => (v ? { x: v.x, z: v.z } : null);
+  try { return g.castEcho(p, skillId, { mult, at: xz(aim), origin: xz(origin) }); }
+  catch (err) { try { console.warn(`[maga] autoCast ${skillId}`, err); } catch { /* */ } return null; }
 }
 // la definitiva o habilidad que se lanza «sola» un instante después, sobre el grupo más numeroso
 function scheduleAutoCast(g, p, skillId, fallbackPos, label) {
@@ -293,21 +282,64 @@ function scheduleAutoCast(g, p, skillId, fallbackPos, label) {
     if (!p.alive || g.player !== p) return;
     const e = densest(g) || null;
     const pos = e ? e.pos : fallbackPos;
-    if (pos && autoCast(g, p, skillId, pos) && label) text(g, e || p, label);
+    if (pos && autoCast(g, p, skillId, { aim: pos }) && label) text(g, e || p, label);
   });
 }
-// repite el lanzamiento `cast` (su ranura) tras `delay` s, apuntando a `pos` si se da (mismo sitio)
-function echoAt(g, p, cast, mult, delay, pos = null) {
-  const slot = cast?.slot, id = cast?.sk?.id;
-  if (!slot || !id || !(mult > 0) || !g?.timers) return;
-  const aim = pos ? { x: pos.x, z: pos.z } : null;
+// serie de repeticiones del lanzamiento ORIGINAL `cast`: todas sus copias (Archimaga, Legión,
+// Meteoro Gemelo, Lluvia de Fuego, Orbe Múltiple…) comparten el tope echoCap del motor
+function seriesOf(cast) { return cast._mgEcho || (cast._mgEcho = { seq: -1, n: 0 }); }
+// repite el lanzamiento `cast` tras `delay` s como REPETICIÓN del motor (g.castEcho): × mult de su
+// potencia, sin coste ni recarga, esté o no aún en la barra, en la serie del original y apuntando a
+// `pos` (por defecto, a donde apuntaba el original). n: las Cargas del original (el Rayo: su golpe
+// lee echoN del indicador mientras dura la llamada). Una CANALIZACIÓN no la repite castEcho: su
+// copia es un haz propio que no ata a la heroína (echoChannel)
+function echoCast(g, p, cast, mult, delay, { pos = null, n = null } = {}) {
+  const id = cast?.sk?.id;
+  if (!id || !(mult > 0) || !g?.timers) return;
+  if (cast.sk.type === 'channel') { echoChannel(g, p, cast, mult, delay, n); return; }
+  const aim = pos || cast.target;
+  const at0 = aim ? { x: aim.x, z: aim.z } : null;
+  const series = seriesOf(cast);
   g.timers.schedule(delay, () => {
-    if (!p.alive || g.player !== p || p.hotbar?.[slot] !== id) return;
-    const inp = g.input, mw = inp ? inp.mouseWorld : null;
-    if (inp && aim) inp.mouseWorld = at(p.pos, aim.x, aim.z, 0);
-    try { g.castSkillSlot?.(slot, mult); }
-    finally { if (inp && aim) inp.mouseWorld = mw; }
+    if (!p.alive || g.player !== p) return;
+    const st = n != null ? gaugeState(p, 'cargas') : null;
+    if (st) st.echoN = n;
+    try { g.castEcho?.(p, id, { mult, at: at0, series }); }
+    finally { if (st) st.echoN = null; }
   });
+}
+// copia de una CANALIZACIÓN (el Rayo con Haz Concentrado, el Desgarro): el canal es de la heroína
+// (su ranura mantenida, castLock y freno), así que la copia es un haz propio que NO la ata: los tics
+// del original (su intervalo y su perfil: coef con rango × mult, saco aditivo y crítico) a un
+// objetivo pegajoso a su alcance, el más cercano a donde apuntaba. Golpes reales de la habilidad
+// marcados como repetición (echo); n: las Cargas del original (el Rayo), en cada tic
+function echoChannel(g, p, cast, mult, delay, n = null) {
+  const pr = cast.prof, def = cast.sk;
+  if (!pr) return;
+  const dur = def.channelT || pr.dur || 2;
+  const ticks0 = Math.max(1, Math.round(def.ticks || dur / 0.33));
+  const speed = Math.max(0.1, pr.skillSpeed || 1);
+  const gap = dur / ticks0 / speed;
+  const ticks = speed === 1 ? ticks0 : Math.max(1, Math.round(dur / gap));
+  const range = Math.max(2, pr.range || 8);
+  const aim = cast.target?.clone?.() || null;
+  const info = { skill: def.id, tags: pr.tags, elem: pr.elem };
+  let tgt = null;
+  for (let i = 1; i <= ticks; i++) {
+    g.timers.schedule(delay + gap * i, () => {
+      if (!p.alive || g.player !== p) return;
+      if (!tgt?.alive || !insideR(tgt.pos, p.pos, range + 1)) tgt = (aim && g.nearestEnemy?.(range, aim)) || g.nearestEnemy?.(range) || null;
+      if (!tgt) return;
+      const st = n != null ? gaugeState(p, 'cargas') : null;
+      if (st) st.echoN = n;
+      let roll;
+      try { roll = p.rollDamage(pr.coef * mult, pr.critBonus || 0, pr.addPct || 0, tgt, info); }
+      finally { if (st) st.echoN = null; }
+      tgt.takeDamage(roll.dmg, roll.crit, { ...info, color: def.color, echo: true });
+      p.onDealHit?.();
+      beam(g, p.pos, tgt.pos, def.color || 0xc8a0ff, gap);
+    });
+  }
 }
 
 // ---- Inversión del Tiempo: historial de vida/posición ----
@@ -423,17 +455,9 @@ function freezesNow(g, p) {
 function layersOf(p, e) { return e?.alive ? gaugeValue(p, 'escarcha', e) : 0; }
 function frozen(e) { return !!e?.alive && (e.frozenT || 0) > 0; }
 function freezeBase() { return TG().escarcha.freezeT; }
-// quita la congelación (Ruptura): solo el hielo. El aturdimiento es un único reloj (applyCC): si
-// otra fuente lo dejó más largo que el hielo, se queda entero; si mandaba el hielo, se acaba.
-// EXCEPCIÓN a «nunca stunT a mano» (CLAUDE.md): el núcleo no tiene cómo quitar un control. Pedida
-// Enemy.clearCC('freeze') a la cola W2 y la excepción al orquestador (pendientes-maga.md); con la
-// primitiva, esta función pasa a ser e.clearCC('freeze')
-function thaw(e) {
-  const f = e?.frozenT || 0;
-  if (!(f > 0)) return;
-  if ((e.stunT || 0) <= f + 1e-6) e.stunT = 0;
-  e.frozenT = 0;
-}
+// quita la congelación (Ruptura): solo el hielo (Enemy.clearCC, cola W2d). Si otra fuente dejó un
+// aturdimiento más largo que el hielo, se queda entero; si mandaba el hielo, se acaba
+function thaw(e) { e?.clearCC?.('freeze'); }
 // Corazón del Invierno (rango 4): cada 15 congelaciones, la Tormenta Glacial sola y gratis
 function countFreezes(g, p, k) {
   if (!(k > 0) || rankOf(p, 'k_corazon_invierno') < 4) return;
@@ -457,46 +481,50 @@ function charges(p) { return Math.floor(gaugeValue(p, 'cargas')); }
 // ¿dentro de tu Sello del Archimago? (aura genérica del catálogo: buffId = id de la habilidad)
 function sealOf(g, p) { return (g?.fieldsOf?.(p, { kind: 'aura' }) || []).filter(f => f.data?.buffId === 'a_sello' && f.t > 0); }
 function inOwnSeal(g, p) { return sealOf(g, p).some(f => insideR(p.pos, f.pos, f.radius)); }
-// canalización en curso del héroe (y de qué habilidad)
+// canalización en curso del héroe, de la habilidad `id` si se da (g.channelInfo, cola W2d:
+// { id, t, dur, left (s que le quedan), interval, ticks… })
 function channelOf(g, p, id = null) {
-  const c = g?._channel;
-  if (!c || c.ctx?.p !== p) return null;
-  return !id || c.ctx?.sk?.id === id ? c : null;
+  const c = g?.channelInfo?.();
+  if (!c || c.p !== p) return null;
+  return !id || c.id === id ? c : null;
 }
-// grieta arcana en el suelo (Grieta Abierta, Doble Grieta, Singularidad): `coef` del arma por segundo
-function openRift(g, p, pos, dur, coef) {
+// perfil del Desgarro Arcano (grietas y Singularidad): el primero de `cands` que haya (el de su
+// lanzamiento, ⑦ onCast, que es el que pegan los tics de ese canal; el de la caché de resolveSkill)
+// o, sin ninguno (recompute la vacía y aún no lo lanzaste), el del catálogo forjado con el rango del
+// héroe y el +% de sus mods de talento
+function desgarroProf(p, ...cands) {
+  const pr = cands.find(Boolean);
+  if (pr) return pr;
+  const def = forgedOf(p, 'm_u_desgarro');
+  return { def, type: def?.type, coef: (def?.coef || 0) * rankCoef(p?.skills?.m_u_desgarro || 1),
+    addPct: p?.talentAgg?.mods?.m_u_desgarro?.dmg || 0, range: def?.range || 10 };
+}
+// grieta arcana en el suelo (Grieta Abierta, Doble Grieta, Singularidad): `coef` del arma por
+// segundo con el saco aditivo del Desgarro (`pr`: su perfil)
+function openRift(g, p, pos, dur, coef, pr = desgarroProf(p, p.resolved?.m_u_desgarro)) {
   if (!pos || !(dur > 0)) return null;
   return g.spawnField?.('a_grieta', { pos, radius: magaTuning().grietaRad, dur, owner: p,
-    data: { dps: p.avgHit(coef, p.resolved?.m_u_desgarro?.addPct || 0), skill: 'm_u_desgarro' } }) || null;
+    data: { dps: p.avgHit(coef, pr.addPct || 0), skill: 'm_u_desgarro' } }) || null;
 }
 // Cargas que gastó el último Rayo (las anota el indicador, js/mech-maga.js, en su ③ afterCast: los
 // poderes que leen esto van con prioridad −1, después de él)
 function spentCharges(p) { return gaugeState(p, 'cargas')?.spent || 0; }
-// repetición del Rayo con las Cargas del original (Rayo Doble, Tormenta de Cargas): el Rayo es
-// instantáneo, así que su golpe lee echoN (indicador) mientras dura la llamada
-function rayoEcho(g, p, cast, mult, delay, n) {
-  const slot = cast?.slot;
-  if (!slot || !(mult > 0) || !g?.timers) return;
-  g.timers.schedule(delay, () => {
-    if (!p.alive || g.player !== p || p.hotbar?.[slot] !== 'rayo') return;
-    const st = gaugeState(p, 'cargas');
-    if (st) st.echoN = n;
-    try { g.castSkillSlot?.(slot, mult); } finally { if (st) st.echoN = null; }
-  });
-}
-// Singularidad (rango 4): un Desgarro propio de 2 s (4 golpes reales al objetivo más cercano)
+// Singularidad (rango 4): un Desgarro propio de 2 s (4 golpes reales al objetivo más cercano). Cada
+// golpe, el del canal con su rango: el del perfil si el Desgarro se canaliza; con Brecha o Quiebre,
+// que no canalizan, el del catálogo (1,2 × rango), con el saco aditivo del perfil
 function singularBeam(g, p) {
   const T = magaTuning();
-  const def = forgedOf(p, 'm_u_desgarro');
-  const range = def?.range || 10, gap = T.singT / T.singTicks;
+  const pr = desgarroProf(p, p.resolved?.m_u_desgarro, powerState(p, 'a_singularidad').prof);
+  const coef = pr.type === 'channel' ? pr.coef : (skillOf(p, 'm_u_desgarro')?.coef || 1.2) * rankCoef(p?.skills?.m_u_desgarro || 1);
+  const range = pr.range || 10, gap = T.singT / T.singTicks, color = pr.def?.color || 0xd28cff;
   let tgt = null;
   for (let i = 1; i <= T.singTicks; i++) {
     g.timers.schedule(gap * i, () => {
       if (!p.alive || g.player !== p) return;
       if (!tgt?.alive || !insideR(tgt.pos, p.pos, range + 1)) tgt = alivesNear(g, p.pos, range).sort(byDist(p.pos))[0] || null;
       if (!tgt) return;
-      strikeAs(p, tgt, 'm_u_desgarro', def?.coef || 1.2, p.resolved?.m_u_desgarro?.addPct || 0);
-      beam(g, p.pos, tgt.pos, def?.color || 0xd28cff, gap);
+      strikeAs(p, tgt, 'm_u_desgarro', coef, pr.addPct || 0);
+      beam(g, p.pos, tgt.pos, color, gap);
     });
   }
   text(g, p, '¡Singularidad!');
@@ -542,16 +570,6 @@ function cdrWhere(g, p, s, pred) {
     if (!((p.cds?.[sk.id] || 0) > 0)) continue;
     if (pred(forgedOf(p, sk.id))) g?.reduceCooldown?.(p, sk.id, s);
   }
-}
-// repite un lanzamiento como ECO (sin coste ni recarga; una repetición no genera otra) si la
-// ranura sigue con esa habilidad
-function echoCast(g, p, cast, mult, delay) {
-  const slot = cast?.slot, id = cast?.sk?.id;
-  if (!slot || !id || !(mult > 0) || !g?.timers) return;
-  g.timers.schedule(delay, () => {
-    if (!p.alive || g.player !== p || p.hotbar?.[slot] !== id) return;
-    g.castSkillSlot?.(slot, mult);
-  });
 }
 function insideR(pos, center, r) { return dist2(pos, center) <= r * r; }
 function enemiesIn(g, center, r) {
@@ -1478,7 +1496,7 @@ export function magaPowers() {
         const st = powerState(p, 'p_meteoro_gemelo');
         if (++st.n < T.gemeloEvery) return;
         st.n = 0;
-        echoAt(g, p, cast, 1, 0.25, cast.target);
+        echoCast(g, p, cast, 1, 0.25);
       },
     },
     // s10B Meteoro Concentrado: +50 % al enemigo más cercano al centro del impacto
@@ -1680,7 +1698,7 @@ export function magaPowers() {
       name: 'Lluvia de Fuego', desc: 'Con Ignición Total, el Meteoro cae tres veces; si golpea a 3 o más, se recarga al instante.',
       afterCast(g, p, cast, res) {
         if (cast?.sk?.id !== 'meteoro' || !cast.prof?.ignition) return;
-        for (let i = 1; i < T.lluviaHits; i++) echoAt(g, p, cast, T.lluviaEcho, T.lluviaGap * i, cast.target);
+        for (let i = 1; i < T.lluviaHits; i++) echoCast(g, p, cast, T.lluviaEcho, T.lluviaGap * i);
         if ((res?.hits || 0) >= T.lluviaHits) g.reduceCooldown?.(p, 'meteoro', Infinity);
       },
     },
@@ -1760,10 +1778,13 @@ export function magaPowers() {
     // cercano a 8 m) con un golpe real de la Prisión con +80 %
     k_prision_profunda: {
       name: 'Prisión Profunda', desc: 'La Prisión de Hielo atrapa a un solo enemigo 3 s y le hace +80 %.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') prof.radius = 1e-3; },
+      // prof.single: la Prisión del catálogo no atrapa en área (prision_hielo); aquí, a uno solo
+      modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') prof.single = true; },
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'k_prision') return;
-        const pick = cast.enemy?.alive && insideR(cast.enemy.pos, p.pos, T.profundaR) ? cast.enemy : alivesNear(g, p.pos, T.profundaR).sort(byDist(p.pos))[0];
+        // el de la mira a 8 m (o a su alcance con Celda Lejana) o, si no, el más cercano a 8 m
+        const reach = Math.max(T.profundaR, cast.sk?.at === 'enemy' ? (cast.prof?.range || 0) : 0);
+        const pick = cast.enemy?.alive && insideR(cast.enemy.pos, p.pos, reach) ? cast.enemy : alivesNear(g, p.pos, T.profundaR).sort(byDist(p.pos))[0];
         if (!pick) return;
         pick.applyCC('freeze', T.profundaFreeze, { src: p });
         const pr = cast.prof || {};
@@ -1785,7 +1806,8 @@ export function magaPowers() {
         dealProcDamage(g, e, (hit.dealt || 0) * (T.lanzaInvierno - 1), { source: 'power:k_lanza_invierno', skill: 'k_lanza', elem: 'frost', tags: new Set(['frost']) });
       },
     },
-    // i10A Ventisca Viva: mientras dura la Tormenta Glacial, una Nova de Hielo cada 2 s
+    // i10A Ventisca Viva: mientras dura la Tormenta Glacial, una Nova de Hielo cada 2 s desde el
+    // centro de la Tormenta (contigo si te sigue; donde la anclaste con la Ventisca Anclada)
     k_ventisca_viva: {
       name: 'Ventisca Viva', desc: 'Mientras dura, la Tormenta Glacial suelta una Nova de Hielo cada 2 s.',
       state: () => ({ acc: 0 }),
@@ -1796,7 +1818,7 @@ export function magaPowers() {
         st.acc += dt;
         if (st.acc < T.ventiscaEvery - 1e-9) return;
         st.acc = 0;
-        autoCast(g, p, 'nova_hielo', null, 1);
+        autoCast(g, p, 'nova_hielo', { origin: s.center() });
       },
     },
     // i10B Frío Sostenido: la Tormenta hace +60 % al enemigo con más capas dentro de ella
@@ -1876,7 +1898,7 @@ export function magaPowers() {
       name: 'Remolino', desc: 'Al terminar el Paso de Escarcha, sueltas una Nova de Hielo.',
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'm_paso_escarcha') return;
-        autoCast(g, p, 'nova_hielo', null, T.remolinoPct * rankOf(p, 'k_remolino') / 100);
+        autoCast(g, p, 'nova_hielo', { mult: T.remolinoPct * rankOf(p, 'k_remolino') / 100 });
       },
     },
     // i18 Congelación en Cadena: cuando muere un Congelado, se congelan 1–2 enemigos a 4 m
@@ -2067,7 +2089,7 @@ export function magaPowers() {
       priority: -1,
       afterCast(g, p, cast) {
         const n = spentCharges(p);
-        if (cast?.sk?.id === 'rayo' && n >= T.dobleNeed) rayoEcho(g, p, cast, T.dobleCopy, 0.25, n);
+        if (cast?.sk?.id === 'rayo' && n >= T.dobleNeed) echoCast(g, p, cast, T.dobleCopy, 0.25, { n });
       },
     },
     // a8B Rayo Recargado: cada enemigo que atraviesa el Rayo devuelve 1 Carga (hasta 2), tras gastarlas
@@ -2226,17 +2248,22 @@ export function magaPowers() {
       },
     },
     // a21 Doble Grieta: si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %
-    // donde apuntas mientras dure el canal (el motor aún no deja lanzar canalizando: cola W2)
+    // donde apuntas mientras dure el canal (el Rayo sale sobre el canal sin cortarlo: cola W2d). El
+    // 50 % es del daño por segundo del canal en curso: el golpe de SU perfil (con rango, anotado en
+    // su ⑦ onCast) entre su intervalo
     a_doble_grieta: {
       name: 'Doble Grieta', desc: 'Si lanzas el Rayo durante el Desgarro Arcano, se abre una segunda grieta.',
+      state: () => ({ prof: null }),
       onCast(g, p, cast) {
+        const st = powerState(p, 'a_doble_grieta');
+        if (cast?.sk?.id === 'm_u_desgarro') { st.prof = cast.prof || null; return; }
         const ch = channelOf(g, p, 'm_u_desgarro');
         if (cast?.sk?.id !== 'rayo' || !ch) return;
         const at0 = cast.enemy?.alive ? cast.enemy.pos : cast.target;
         if (!at0) return;
-        const left = Math.max(0.5, (ch.left || 0) * (ch.interval || 0.5));
-        const coef = (forgedOf(p, 'm_u_desgarro')?.coef || 1.2) / (ch.interval || 0.5) * T.dobleCopy;
-        openRift(g, p, at0, left, coef);
+        const left = Math.max(0.5, ch.left || 0);
+        const pr = desgarroProf(p, st.prof, p.resolved?.m_u_desgarro);
+        openRift(g, p, at0, left, pr.coef / (ch.interval || 0.5) * T.dobleCopy, pr);
       },
     },
     // a22 Cargas Desbordadas: guardas 1 Carga más por rango (las que pasan de 4 dan el doble: el indicador)
@@ -2258,7 +2285,7 @@ export function magaPowers() {
         const k = rankOf(p, 'a_orbe_multiple');
         for (let i = 1; i <= k; i++) {
           const a = base + T.multipleSpread * Math.ceil(i / 2) * (i % 2 ? 1 : -1);
-          echoAt(g, p, cast, T.multipleCopy, 0.05 * i, { x: p.pos.x + Math.sin(a) * d, z: p.pos.z + Math.cos(a) * d });
+          echoCast(g, p, cast, T.multipleCopy, 0.05 * i, { pos: { x: p.pos.x + Math.sin(a) * d, z: p.pos.z + Math.cos(a) * d } });
         }
       },
     },
@@ -2286,7 +2313,7 @@ export function magaPowers() {
       afterCast(g, p, cast) {
         const n = spentCharges(p);
         if (cast?.sk?.id !== 'rayo' || n < T.tormentaNeed) return;
-        for (let i = 1; i <= 2; i++) rayoEcho(g, p, cast, T.tormentaCopy, T.tormentaGap * i, n);
+        for (let i = 1; i <= 2; i++) echoCast(g, p, cast, T.tormentaCopy, T.tormentaGap * i, { n });
       },
     },
     // a26 Constelación (final): tus Orbes se quedan 8 s girando a tu alrededor (hasta 3) y disparan al
@@ -2328,7 +2355,9 @@ export function magaPowers() {
         const ch = channelOf(g, p, 'm_u_desgarro');
         if (!ch) return;
         if (!drainResource(p, (p.stats?.maxMP || 0) * T.eternaDrain / 100, dt)) return;
-        if ((ch.left || 0) <= 2 && p.mp > 0) g.extendChannel?.(p, ch.interval || 0.5);
+        // con dos golpes o menos por delante, uno más (mientras quede maná)
+        const gap = ch.interval || 0.5;
+        if ((ch.left || 0) <= 2 * gap + 1e-9 && p.mp > 0) g.extendChannel?.(p, gap);
       },
     },
     // a28 Singularidad (ápice, 4 rangos): 1) un Rayo con 4 Cargas abre una grieta 3 s en el objetivo
@@ -2336,8 +2365,10 @@ export function magaPowers() {
     // mech-maga.js) · 4) cada 20 Cargas gastadas, un Desgarro propio de 2 s (golpes reales)
     a_singularidad: {
       name: 'Singularidad', desc: 'El Rayo cargado abre grietas; los élites dan Cargas; no se pierden; el Desgarro se lanza solo.',
-      state: () => ({ spent: 0 }),
+      state: () => ({ spent: 0, prof: null }),
       priority: -1,
+      // perfil del último Desgarro (singularBeam, si la caché de resolveSkill está vacía)
+      onCast(g, p, cast) { if (cast?.sk?.id === 'm_u_desgarro') powerState(p, 'a_singularidad').prof = cast.prof || null; },
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'rayo') return;
         const n = spentCharges(p);

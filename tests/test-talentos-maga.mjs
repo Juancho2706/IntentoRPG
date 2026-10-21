@@ -23,9 +23,12 @@ import { missingFor } from './helpers/talent-coverage.mjs';
 import { magaStorm } from '../js/skills-maga.js';
 
 let checks = 0;
-const ok = (c, msg) => { assert.ok(c, msg); checks++; };
-const eq = (a, b, msg) => { assert.equal(a, b, msg); checks++; };
-const near = (a, b, tol, msg) => { assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} ≉ ${b} (±${tol})`); checks++; };
+// mensajes de las comprobaciones que ya pasaron: la cobertura del final busca en ellos cada nodo
+const PASSED = [];
+const ok = (c, msg) => { assert.ok(c, msg); checks++; PASSED.push(msg); };
+const eq = (a, b, msg) => { assert.equal(a, b, msg); checks++; PASSED.push(msg); };
+const same = (a, b, msg) => { assert.deepEqual(a, b, msg); checks++; PASSED.push(msg); };
+const near = (a, b, tol, msg) => { assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} ≉ ${b} (±${tol})`); checks++; PASSED.push(msg); };
 
 // ------------------------------------------------------------ arnés
 function H(opts = {}) {
@@ -58,11 +61,16 @@ function spy(h) {
 }
 const from = (log, skill, e = null) => log.filter(x => x.skill === skill && (!e || x.e === e));
 const sum = list => list.reduce((a, x) => a + (x.dealt || 0), 0);
-// lanzamientos que repiten (ecos): castSkillSlot(slot, mult) con mult > 0
-function spyEchoes(h) {
+// repeticiones y lanzamientos «solos y gratis» (g.castEcho, cola W2d): id, potencia, mira, origen y
+// si salió. Las copias de una canalización no pasan por aquí (echoChannel: golpes con echo)
+function spyFree(h) {
   const out = [];
-  const orig = h.g.castSkillSlot.bind(h.g);
-  h.g.castSkillSlot = (slot, mult = 0) => { if (mult > 0) out.push({ slot, mult, t: h.p.simT }); return orig(slot, mult); };
+  const orig = h.g.castEcho.bind(h.g);
+  h.g.castEcho = (p, id, opts = {}, legacy) => {
+    const r = orig(p, id, opts, legacy);
+    out.push({ id, mult: opts?.mult ?? 1, at: opts?.at || null, origin: opts?.origin || null, ok: !!r, t: h.p.simT });
+    return r;
+  };
   return out;
 }
 const sk = (h, id) => h.p.cls.skills.find(s => s.id === id);
@@ -99,14 +107,16 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
     }
   }
   for (const s of MAGA_TALENTS.specs) ok(!('todo' in s) && s.mechanic && s.elem, `${s.id}: sin todo, con mecánica y elemento`);
-  assert.deepEqual(missingFor('maga'), { powers: [], behaviors: [], skills: [] }, 'talent-coverage: todo poder y activa existen'); checks++;
+  same(missingFor('maga'), { powers: [], behaviors: [], skills: [] }, 'talent-coverage: todo poder y activa existen');
   // cada clave tv propia la lee un poder de la Maga o su indicador (y ninguna sobra)
   const src = ['../js/powers-maga.js', '../js/mech-maga.js'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n').replace(/\/\/.*$/gm, '');
   for (const k of MAGA_TV_KEYS) ok(new RegExp(`\\.${k}\\b`).test(src), `MAGA_TV_KEYS: «${k}» la lee js/powers-maga.js o js/mech-maga.js`);
   const used = new Set(ALL_NODES.flatMap(n => (n.t === 'c' ? n.opts : [n]).flatMap(o => Object.keys(o.fx?.tv || {}))));
   for (const k of MAGA_TV_KEYS) ok(used.has(k), `MAGA_TV_KEYS: «${k}» la usa algún nodo`);
-  console.log(`✓ cobertura: ${parts} nodos u opciones con efecto y sin todo (clase, 3 especializaciones y Paragon)`);
+  console.log(`✓ datos: ${parts} nodos u opciones con efecto y sin todo (clase, 3 especializaciones y Paragon)`);
 }
+// la cobertura del final no cuenta estos mensajes: dicen que el dato existe, no que haga algo
+const DATA_CHECKS = PASSED.length;
 
 // ------------------------------------------------------------ 2) árbol de CLASE
 // c1 Reservas Profundas · c12 Flujo de Maná · c13 Mente Afilada · c24 Celeridad (stats)
@@ -130,6 +140,18 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   eq(cort.slow, nova.slow - 1, 'c9B: ralentiza 1 s menos');
   eq(prof(cls({ c21: 1 }), 'nova_hielo').slow, nova.slow + 2, 'c21: +2 s a la ralentización de la Nova');
   eq(prof(cls({ c21: 1, c9: 1 }, { c9: 'B' }), 'nova_hielo').slow, nova.slow + 1, 'c21 + c9B: +2 − 1');
+  // también la del Sello de Contención (forja II del Sello del Archimago): quien sale del círculo
+  // sigue ralentizado 0,6 + 2 s (sin el nodo, 0,6 s)
+  for (const ranks of [{ c21: 1 }, {}]) {
+    const h = H({ spec: 'arcanista', talents: { cls: ranks } });
+    h.p.skillForge = { a_sello: 'ii' }; h.p.recompute();
+    const e = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    cast(h, 'k2', 'a_sello', 0.6);
+    ok(e.slowT > 0 && e.slowPct === 40, 'el Sello de Contención ralentiza un 40 % dentro');
+    e.pos.set(20, 0, 0); h.tick(1.5);
+    if (ranks.c21) ok(e.slowT > 0.5, `c21: alarga 2 s la ralentización del Sello de Contención (${e.slowT.toFixed(2)} s tras salir)`);
+    else ok(!(e.slowT > 0), 'sin c21, al salir del Sello se acaba en 0,6 s');
+  }
   eq(prof(cls({ c22: 1 }, { c22: 'B' }), 'nova_hielo').cost, Math.round(nova.cost * 0.8), 'c22B: −20 % a los hechizos de más de 20 de maná');
   eq(prof(cls({ c22: 1 }, { c22: 'B' }), 'bola_fuego').cost, prof(b, 'bola_fuego').cost, 'c22B: la Bola (18) no llega al umbral');
 }
@@ -180,8 +202,7 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   };
   const base = run({}), cert = run({ c5: 1 });
   eq(base.length, 8, 'ocho Dardos impactan');
-  assert.deepEqual(cert, base.map((c, i) => c || i % 4 === 3), 'c5A: el 4.º y el 8.º son críticos; el resto como sin el nodo');
-  checks++;
+  same(cert, base.map((c, i) => c || i % 4 === 3), 'c5A: el 4.º y el 8.º son críticos; el resto como sin el nodo');
   ok(base.filter((c, i) => i % 4 === 3).some(c => !c), 'sin el nodo, algún 4.º Dardo no es crítico (la prueba distingue)');
 }
 // c5B Dardo Sifón: si el Dardo mata, +6 de maná y las principales −1 s
@@ -262,11 +283,13 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   near(b.mp - em.mp, b.lost * 0.2, 1, 'c15A: … y cuesta ese maná');
   const dry = loss({ c15: 1 }, { c15: 'A' }, 0);
   eq(dry.lost, b.lost, 'c15A: sin maná, todo a la vida');
-  // c15B Mente Clara: +30 % de regeneración y +10 % con el maná lleno (núcleo: highManaDmg)
+  // c15B Mente Clara: +30 % de regeneración y +10 % con más del 70 % de maná (núcleo: highManaDmg;
+  // texto del punto 17)
   const regen = ranks => { const h = cls(ranks, { c15: 'B' }); h.p.mp = 0; h.step(1, 0.1); return h.p.mp; };
   near(regen({ c15: 1 }) / regen({}), 1.3, 0.01, 'c15B: recuperas maná un 30 % más rápido');
   const roll = (ranks, mpFrac) => { const h = cls(ranks, { c15: 'B' }); h.p.mp = h.p.stats.maxMP * mpFrac; const e = h.enemy({ hp: 1e6 }); return h.p.rollDamage(100, -100, 0, e, {}).dmg; };
-  ok(roll({ c15: 1 }, 1) > roll({ c15: 1 }, 0.2) && roll({}, 1) === roll({}, 0.2), 'c15B: +daño solo con el maná lleno');
+  ok(roll({ c15: 1 }, 0.8) > roll({ c15: 1 }, 0.6) && roll({ c15: 1 }, 0.8) === roll({ c15: 1 }, 1) && roll({}, 1) === roll({}, 0.2), 'c15B: +daño con más del 70 % de maná (al 80 %, igual que lleno; al 60 %, nada)');
+  ok(/más del 70 % de maná/.test(MAGA_TALENTS.cls.nodes.find(n => n.id === 'c15').opts.find(o => o.k === 'B').desc), 'c15B: el texto dice el umbral que aplica (70 %)');
   const an = cls({ c17: 1 }, { c17: 'B' });
   an.p.takeDamage(an.p.stats.maxHP * 0.64, 1, { element: 'fire', unavoidable: true });
   ok(an.p.hp > an.p.stats.maxHP * 0.3 && an.p.hp < an.p.stats.maxHP * 0.4, 'el golpe deja entre el 30 y el 40 %');
@@ -429,8 +452,19 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   h.p.takeDamage(h.p.stats.maxMP * 2, 1, { element: 'fire' });
   near(h.p.mp, h.p.stats.maxMP * 0.3, 1, 'c25 r3: devuelve el 30 % del maná');
   ok(e.pos.x > x0 + 1 && e.slowT > 0 && e.slowPct === 40, 'c25: empuja y ralentiza un 40 %');
-  // si caduca (8 s) no estalla: el maná es el mismo que sin el nodo (solo la regeneración)
-  const expire = ranks => { const c = cls(ranks); cast(c, 'k2', 'm_barrera', 0.1); c.p.mp = 0; c.tick(9); ok(!c.p.shields.length, 'la Barrera caducó'); return c.p.mp; };
+  // si caduca no estalla: el maná es el mismo que sin el nodo (solo la regeneración). A Nv70 la
+  // Barrera lleva su Mejora de la forja (Burbuja Estable, 8 → 10 s)
+  const expire = ranks => {
+    const c = cls(ranks);
+    const dur = prof(c, 'm_barrera').dur;
+    eq(dur, 10, 'la Barrera con Burbuja Estable dura 10 s');
+    cast(c, 'k2', 'm_barrera', 0.1); c.p.mp = 0;
+    c.tick(dur - 0.5);
+    ok(c.p.shields.some(s => s.src === 'm_barrera'), 'la Barrera aguanta hasta su final');
+    c.tick(1);
+    ok(!c.p.shields.length, 'la Barrera caducó');
+    return c.p.mp;
+  };
   near(expire({ c25: 1 }), expire({}), 1e-6, 'c25: si caduca no estalla');
 }
 // c26 Torrente de Maná: 60 de maná en 3 s → Sobrecarga (+4 + 8 × rango %)
@@ -472,21 +506,20 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   eq(prof(r1, 'nova_hielo').cost, Math.round(nova0 * 0.9), 'c28 r1: −10 %');
   const b = cls({});
   cast(b, 'k2', 'm_barrera', 0.2);
-  ok(b.p.shields[0].t <= 8, 'sin c28 la Barrera caduca');
+  ok(b.p.shields[0].t <= prof(b, 'm_barrera').dur, 'sin c28 la Barrera caduca (10 s con la Mejora)');
 }
 // c29 Archimaga (final): cada 4.ª principal se repite gratis al 20 + 20 × rango %
 {
   for (const rank of [1, 3]) {
     const h = cls({ c29: rank });
-    const echoes = spyEchoes(h);
+    const echoes = spyFree(h);
     h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
     for (let i = 0; i < 4; i++) { cast(h, 'rmb', 'nova_hielo', 0.1); h.p.cds.nova_hielo = 0; h.p.mp = h.p.stats.maxMP; }
     h.step(0.4);
-    assert.deepEqual(echoes.map(x => [x.slot, x.mult]), [['rmb', (20 + 20 * rank) / 100]], `c29 r${rank}: una copia de la 4.ª al ${20 + 20 * rank} %`);
-    checks++;
+    same(echoes.map(x => [x.id, x.mult, x.ok]), [['nova_hielo', (20 + 20 * rank) / 100, true]], `c29 r${rank}: una copia de la 4.ª al ${20 + 20 * rank} %`);
   }
   const b = cls({ c29: 1 });
-  const echoes = spyEchoes(b);
+  const echoes = spyFree(b);
   for (let i = 0; i < 4; i++) cast(b, 'k1', 'm_parpadeo', 0.1), b.p.cds.m_parpadeo = 0;
   b.step(0.4);
   eq(echoes.length, 0, 'c29: solo las habilidades principales');
@@ -539,12 +572,12 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
     return { h, e, rep: from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').map(x => x.dealt) };
   };
   const base = mark({}, {}, [100, 100], 4.2);
-  assert.deepEqual(base.rep, [60], 't0: al acabar (4 s), repite el 30 % de lo que le hiciste'); checks++;
+  same(base.rep, [60], 't0: al acabar (4 s), repite el 30 % de lo que le hiciste');
   eq(mark({}, {}, [100, 100], 3.8).rep.length, 0, 't0: antes de 4 s, nada');
   eq(mark({ t1: 1 }, {}, [100, 100], 5.8).rep.length, 0, 't1: la Marca dura 6 s');
-  assert.deepEqual(mark({ t1: 1 }, {}, [100, 100], 6.2).rep, [60], 't1: … y repite a los 6 s'); checks++;
-  assert.deepEqual(mark({ t2: 1 }, { t2: 'A' }, [100, 100], 4.2).rep, [90], 't2A: repite el 45 %'); checks++;
-  assert.deepEqual(mark({ t8: 1 }, { t8: 'A' }, [100, 100], 4.2).rep, [90], 't8A: el golpe que la pone cuenta doble'); checks++;
+  same(mark({ t1: 1 }, {}, [100, 100], 6.2).rep, [60], 't1: … y repite a los 6 s');
+  same(mark({ t2: 1 }, { t2: 'A' }, [100, 100], 4.2).rep, [90], 't2A: repite el 45 %');
+  same(mark({ t8: 1 }, { t8: 'A' }, [100, 100], 4.2).rep, [90], 't8A: el golpe que la pone cuenta doble');
   // la Marca no cuenta el daño de otra Marca; sí procs y DoT de otros poderes
   const h = hero('crono');
   const log = spy(h);
@@ -552,7 +585,7 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   h.hit(e, { skill: 'bola_fuego', dealt: 100 });
   h.hit(e, { skill: null, dealt: 50, proc: true });
   h.tick(4.2);
-  assert.deepEqual(from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').map(x => x.dealt), [45], 't0: cuenta los procs (150 × 30 %)'); checks++;
+  same(from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').map(x => x.dealt), [45], 't0: cuenta los procs (150 × 30 %)');
   h.hit(e, { skill: null, dealt: 80, proc: true });
   h.tick(4.2);
   eq(from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').length, 1, 't0: un proc no pone la Marca (la pone un golpe directo)');
@@ -747,11 +780,11 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
 // f3 Imitación · f4A Guardián · f6 Detonar · f4B Cazador · f5 Sobrecarga · f8B Fragua · f9 Eco · f11 Hilo
 {
   const im = hero('invoca', { f3: 1 });
-  const echoes = spyEchoes(im);
+  const echoes = spyFree(im);
   const ult = im.p.cls.skills.find(s => s.cat === 'ultimate' && isKnown(im.p, s));
   im.enemy({ hp: 1e7, pos: [3, 0, 0] }); im.aim(3, 0); im.tick(0.1);
   cast(im, 'k4', ult.id, 2);                         // la Supernova acaba al estallar (~1,2 s)
-  ok(echoes.some(x => x.slot === 'k4' && x.mult === 0.25), 'f3: al usar la definitiva, el Familiar lanza una copia al 25 %');
+  ok(echoes.some(x => x.id === ult.id && x.mult === 0.25 && x.ok), 'f3: al usar la definitiva, el Familiar lanza una copia al 25 %');
   const gd = hero('invoca', { f4: 1, f6: 1 }, { f4: 'A' });
   const lg = spy(gd);
   gd.tick(0.1);
@@ -806,7 +839,7 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   nso.tick(0.1);
   cast(nso, 'rmb', 'nova_hielo', 0);
   nso.tick(2.4);
-  assert.deepEqual([from(ls, 'm_familiar').length, from(ln, 'm_familiar').length], [2, 1], 'f5: tras una principal, el Familiar dispara un 30 % más rápido'); checks++;
+  same([from(ls, 'm_familiar').length, from(ln, 'm_familiar').length], [2, 1], 'f5: tras una principal, el Familiar dispara un 30 % más rápido');
   const fr = hero('invoca', { f8: 1 }, { f8: 'B' });
   const lf = spy(fr);
   fr.enemy({ hp: 1e7, pos: [4, 0, 0] }); fr.aim(4, 0);
@@ -834,6 +867,16 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   const f0 = forgeN(0), f4 = forgeN(4), f5 = forgeN(5), f6 = forgeN(6);
   near(f5 / f0 - 1, (f4 / f0 - 1) * 5 / 4, 0.005, `f8B: cada habilidad distinta suma lo mismo (${f0} → ${f4} → ${f5})`);
   eq(f6, f5, 'f8B: hasta +25 % (la 6.ª ya no suma)');
+  // f8A Llamar Constructo (activa de KA1, Nv74): la concede el nodo y, lanzada por el canal real,
+  // los enemigos a 8 m del Constructo lo atacan a él
+  const co = hero('invoca', { f8: 1 }, { f8: 'A' }, { level: 74 });
+  ok(co.p.talentAgg.grants.has('m_h_constructo') && isKnown(co.p, sk(co, 'm_h_constructo')), 'f8A: conoces Llamar Constructo');
+  const cfoe = co.enemy({ hp: 1e7, pos: [6, 0, 0] });
+  co.aim(4, 0);
+  cast(co, 'k2', 'm_h_constructo', 0.1);
+  ok(cfoe.tauntSrc?.construct && cfoe.combatTarget(co.p) === cfoe.tauntSrc, 'f8A: el Constructo atrae a los enemigos a 8 m');
+  const nco = hero('invoca', { f8: 1 }, { f8: 'B' }, { level: 74 });
+  ok(!nco.p.talentAgg.grants.has('m_h_constructo') && !isKnown(nco.p, sk(nco, 'm_h_constructo')), 'sin f8A (con Fragua) no conoces Llamar Constructo');
   const ec = hero('invoca', { f9: 1 });
   const ee = ec.enemy({ hp: 1e7, pos: [4, 0, 0] });
   ec.tick(1.6);
@@ -879,18 +922,28 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
 // f12 Legión (final): cada 25 s se divide en 3 durante 8 s y copian la siguiente principal al 50 %
 {
   const h = hero('invoca', { f12: 1 });
-  const echoes = spyEchoes(h);
+  const echoes = spyFree(h);
   h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
   h.tick(0.3);
   eq(powerState(h.p, 'm_familiar').fams.length, 3, 'f12: se divide en 3');
   cast(h, 'rmb', 'nova_hielo', 0.8);
-  assert.deepEqual(echoes.map(x => x.mult), [0.5, 0.5, 0.5], 'f12: todos copian la siguiente principal al 50 %'); checks++;
+  same(echoes.map(x => [x.id, x.mult, x.ok]), Array(3).fill(['nova_hielo', 0.5, true]), 'f12: todos copian la siguiente principal al 50 %');
   h.p.cds.nova_hielo = 0; cast(h, 'rmb', 'nova_hielo', 0.8);
   eq(echoes.length, 3, 'f12: solo la siguiente');
   h.tick(7.5);
   eq(powerState(h.p, 'm_familiar').fams.length, 1, 'f12: dura 8 s');
   h.tick(17);
   eq(powerState(h.p, 'm_familiar').fams.length, 3, 'f12: cada 25 s');
+  // todas las copias de un lanzamiento van en SU serie: con Archimaga (c29) en la misma Nova, 3 de
+  // Legión + 1 de Archimaga = 4 piden salir y el tope del motor (echoCap 3) deja 3
+  const x = hero('invoca', { f12: 1 });
+  x.p.talents.cls = { c29: 1 }; x.p.recompute(); x.p.mp = x.p.stats.maxMP;
+  const xe = spyFree(x);
+  x.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+  x.tick(0.3);
+  powerState(x.p, 'm_archimaga').n = 3;            // la siguiente principal es la 4.ª
+  cast(x, 'rmb', 'nova_hielo', 0.8);
+  ok(xe.length === 4 && xe.filter(y => y.ok).length === 3, `c29 + f12: como mucho 3 copias por lanzamiento (${xe.map(y => `${y.mult}${y.ok ? '' : '✗'}`)})`);
 }
 // Escriba Rúnica · e0 runas y Sello (+15 % dentro, −10 % de daño recibido)
 {
@@ -1015,14 +1068,14 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
 // e12 Gran Grimorio (final): cada 30 s el siguiente Sello es un Grimorio de 10 s; dentro, copia al 40 %
 {
   const h = hero('escriba', { e12: 1 });
-  const echoes = spyEchoes(h);
+  const echoes = spyFree(h);
   const t0 = h.p.simT;
   firePower('afterCast', h.p, h.g, h.p, { sk: { id: 'm_h_palabra' }, prof: { elem: 'arcane' }, slot: 'k2' }, {});
   const g1 = h.g.fields.find(f => f.kind === 'm_sello');
   ok(g1.data.grimoire && g1.dur === 10, 'e12: el Sello es un Grimorio de 10 s');
   h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
   cast(h, 'rmb', 'nova_hielo', 0.4);
-  assert.deepEqual(echoes.map(x => x.mult), [0.4], 'e12: dentro, cada hechizo se copia al 40 %'); checks++;
+  same(echoes.map(x => [x.id, x.mult, x.ok]), [['nova_hielo', 0.4, true]], 'e12: dentro, cada hechizo se copia al 40 %');
   h.p.pos.set(20, 0, 0); h.p.cds.nova_hielo = 0; cast(h, 'rmb', 'nova_hielo', 0.4);
   eq(echoes.length, 1, 'e12: fuera, no');
   h.p.pos.set(0, 0, 0);
@@ -1065,6 +1118,27 @@ function sp(spec, ranks = {}, choice = {}, opts = {}) {
   return h;
 }
 const TT = gaugeTuning();
+// texto de un nodo de especialización (con su rango) o de una opción (s6, i8A…)
+function nodeText(id, r = 1) {
+  const [, nid, k] = id.match(/^([a-z]\d+)([AB]?)$/);
+  const n = MAGA_TALENTS.specs.flatMap(x => x.nodes).find(x => x.id === nid);
+  return k ? n.opts.find(o => o.k === k).desc : n.d(r);
+}
+// B1 / dueño (pendientes-maga.md, «Abierto tras la tanda 2»): estos nodos dicen un número absoluto
+// sin la Mejora de la forja, que a Nv70 ya está puesta y suma. Hasta que el orquestador decida (texto
+// relativo o efecto sin la Mejora), lo MEDIDO a Nv70 y el número del texto quedan fijados aquí: si
+// cambia uno sin cambiar esta tabla (es decir, sin decidirlo), la comprobación falla
+const ABS_NV70 = {
+  s6: { got: 5.2, text: /explota en 4 m \(antes 2 m\)/ },          // radio de la Bola con Ignición Total
+  i8A: { got: 7, text: /a 6 m \(antes 4 m\)/ },                     // radio de la Prisión
+  i9A: { got: 20.04, text: /a 18 m \(antes 12 m\)/ },                  // alcance de la Lanza
+  a17: { got: 14, text: /dura 12 s \(antes 8 s\)/, r: 2 },          // duración del Sello (rango 2)
+};
+function absPending(id, measured) {
+  const A = ABS_NV70[id];
+  near(measured, A.got, 1e-6, `${id}: a Nv70 mide ${A.got} (con la Mejora; pendiente de B1, ABS_NV70)`);
+  ok(A.text.test(nodeText(id, A.r || 1)), `${id}: el texto aún dice el número sin la Mejora (si cambia, decide y actualiza ABS_NV70)`);
+}
 const burnsOf = (h, e) => h.g.dotsOf(e, 'burn');
 const burnLeft = (h, e) => h.g.dotRemaining(e, 'burn');
 const procs = (log, source) => log.filter(x => x.proc && x.source === source);
@@ -1082,6 +1156,10 @@ const FIRE = { skill: 'bola_fuego', elem: 'fire', tags: new Set(['fire']) };
 {
   const h = sp('piromante'), b = cls({});
   near(prof(h, 'bola_fuego').splash / prof(b, 'bola_fuego').splash, 3.5, 1e-9, 's0: explosión de la Bola 100 → 350 %');
+  // también la explosión FORJADA: Pirodardo (forja I, 40 %) pasa a 140 %
+  const pd = sp('piromante'), cd = cls({});
+  for (const x of [pd, cd]) { x.p.skillForge = { bola_fuego: 'i' }; x.p.recompute(); }
+  near(prof(pd, 'bola_fuego').splash / prof(cd, 'bola_fuego').splash, 3.5, 1e-9, 's0: también la explosión forjada (Pirodardo 40 → 140 %)');
   const e = h.enemy({ hp: 1e7 });
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', dealt: 1000 });
   h.hit(e, { elem: 'fire', skill: 'bola_fuego', dealt: 1000, proc: true });
@@ -1145,10 +1223,16 @@ for (const on of [false, true]) {
 }
 // s6 Combustible Volátil: con Ignición Total, Bola a 4 m y Meteoro al instante
 {
+  // a Nv70 la Bola lleva su Mejora de la forja (Núcleo Inestable: 2 → 2,6 m); el nodo dobla el radio
+  // que tenga (2 → 4 m sin la Mejora, como dice el texto; 2,6 → 5,2 m con ella)
   const h = sp('piromante', { s6: 1 });
-  eq(prof(h, 'bola_fuego').radius, 2, 's6: sin Ignición, la Bola explota a 2 m');
+  near(prof(h, 'bola_fuego').radius, 2.6, 1e-9, 's6: sin Ignición, la Bola explota a 2,6 m (con la Mejora)');
   h.gauge('calor', 100);
-  eq(prof(h, 'bola_fuego').radius, 4, 's6: con Ignición, 4 m');
+  near(prof(h, 'bola_fuego').radius, 5.2, 1e-9, 's6: con Ignición, al doble');
+  absPending('s6', prof(h, 'bola_fuego').radius);
+  const n = sp('piromante');
+  n.gauge('calor', 100);
+  near(prof(n, 'bola_fuego').radius, 2.6, 1e-9, 'sin s6, la Ignición Total no agranda la explosión');
   eq(prof(h, 'meteoro').impactDelay, 0, 's6: y el Meteoro cae al instante');
   ok(prof(sp('piromante'), 'meteoro').impactDelay > 0, 'sin s6 el Meteoro tarda');
 }
@@ -1213,10 +1297,20 @@ for (const on of [false, true]) {
 {
   const h = sp('piromante', { s10: 1 }, { s10: 'A' });
   h.enemy({ hp: 1e9, pos: [5, 0, 0] }); h.aim(5, 0);
-  const ech = spyEchoes(h);
+  const ech = spyFree(h);
   for (let i = 0; i < 3; i++) cast(h, 'rmb', 'meteoro', 0.8);
   h.step(0.6);
-  assert.deepEqual(ech.map(x => x.mult), [1], 's10A: el 3.er Meteoro cae otra vez'); checks++;
+  same(ech.map(x => x.mult), [1], 's10A: el 3.er Meteoro cae otra vez');
+  // en el mismo sitio aunque muevas la mira, y aunque quites el Meteoro de la barra (g.castEcho)
+  const m = sp('piromante', { s10: 1 }, { s10: 'A' });
+  m.enemy({ hp: 1e9, pos: [5, 0, 0] }); m.aim(5, 0);
+  const me = spyFree(m);
+  for (let i = 0; i < 2; i++) cast(m, 'rmb', 'meteoro', 0.8);
+  m.p.cds.meteoro = 0; m.p.gcdT = 0; m.p.castLock = 0; m.p.actionLockT = 0;
+  ok(m.cast('rmb'), 's10A: el 3.er Meteoro sale');
+  m.setSlot('rmb', 'bola_fuego'); m.aim(-6, 3);
+  m.step(1);                                         // cae a los 0,6 s; la copia, 0,25 s después
+  ok(me.length === 1 && me[0].id === 'meteoro' && me[0].ok && Math.hypot(me[0].at.x - 5, me[0].at.z) < 1e-6, `s10A: la copia cae donde el original (${me[0]?.at?.x}, ${me[0]?.at?.z}) aunque ya no esté en la barra`);
   const c = sp('piromante', { s10: 1 }, { s10: 'B' });
   const mid = c.enemy({ hp: 1e9, pos: [5, 0, 0] }), side = c.enemy({ hp: 1e9, pos: [6.5, 0, 0] });
   firePower('onCast', c.p, c.g, c.p, { sk: { id: 'meteoro' }, target: { x: 5, z: 0 } });
@@ -1310,7 +1404,8 @@ for (const r of [1, 2]) {
 {
   const b = sp('piromante'), h = sp('piromante', { s20: 2 });
   near(prof(h, 'meteoro').radius / prof(b, 'meteoro').radius, 1.3, 1e-9, 's20 r2: Meteoro +30 % de radio');
-  near(prof(h, 'bola_fuego').radius / prof(b, 'bola_fuego').radius, 1.3, 1e-9, 's20 r2: Bola +30 % de radio');
+  // la Bola ya lleva su Mejora (Núcleo Inestable, mod radius 30): los «+X %» del radio se suman
+  near((prof(h, 'bola_fuego').radius - prof(b, 'bola_fuego').radius) / sk(h, 'bola_fuego').radius, 0.3, 1e-9, 's20 r2: Bola +30 % de radio (sobre los 2 m base, sumado a la Mejora)');
   eq(prof(h, 'm_dardo').radius, prof(b, 'm_dardo').radius, 's20: el Dardo (Arcano) no cambia');
 }
 // s21 Estela Meteórica: al terminar la Estela Ígnea, el siguiente Meteoro cae allí al instante
@@ -1393,20 +1488,29 @@ for (const r of [1, 2]) {
   const h = sp('piromante', { s26: 3 }), b = sp('piromante');
   eq(h.p.stats.critDmg - b.p.stats.critDmg, 30, 's26 r3: críticos +30 %');
   const e = h.enemy({ hp: 1e9, pos: [4, 0, 0] });
+  const group = [[-5, 6], [-6, 7], [-4.5, 7.5]].map(([x, z]) => h.enemy({ hp: 1e9, pos: [x, 0, z] }));
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', crit: true });
   eq(h.gaugeValue('calor'), 0, 's26: fuera de Combustión, nada');
   h.p.addBuff('p_combustion', {}, 2.5, { name: 'Combustión' });
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', crit: true });
   eq(h.gaugeValue('calor'), TT.calor.perpetua, 's26: +4 de Calor por crítico');
-  h.setSlot('rmb', 'bola_fuego');
-  const ech = spyEchoes(h);
+  // la Bola sale aunque no esté en la barra, sin coste ni enfriamiento (g.castEcho)
+  const bar0 = { ...h.p.hotbar };
+  ok(!Object.values(bar0).includes('bola_fuego'), 'la Bola no está en la barra');
+  const ech = spyFree(h), shots = [];
+  const sp0 = h.g.spawnProjectile.bind(h.g);
+  h.g.spawnProjectile = o => { if (o.skill === 'bola_fuego') shots.push(o); return sp0(o); };
   h.gauge('calor', 99);
   h.p.simT += 0.1;
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', crit: true });
   const bf = h.p.buffs.find(x => x.id === 'p_combustion');
   ok(bf && bf.t > 5, `s26: a tope, la Combustión dura 3 s más (${bf?.t})`);
+  const mp0 = h.p.mp;
   h.step(0.2);
-  ok(ech.length === 1 && h.p.hotbar[ech[0].slot] === 'bola_fuego', 's26: y lanza una Bola gratis');
+  ok(ech.length === 1 && ech[0].id === 'bola_fuego' && ech[0].mult === 1 && ech[0].ok && shots.length === 1, 's26: y lanza una Bola gratis');
+  ok(group.some(o => Math.hypot(ech[0].at.x - o.pos.x, ech[0].at.z - o.pos.z) < 1e-6), `s26: la Bola gratis apunta al grupo más numeroso (${ech[0].at?.x}, ${ech[0].at?.z}), no al enemigo suelto`);
+  ok(h.p.mp >= mp0 && !(h.p.cds.bola_fuego > 0), 's26: sin coste ni enfriamiento');
+  same(h.p.hotbar, bar0, 's26: la barra queda como estaba');
 }
 // s27 Lluvia de Fuego (final): con Ignición, el Meteoro cae 3 veces (100/60/60 %); con 3+ golpeados, se recarga
 {
@@ -1414,13 +1518,13 @@ for (const r of [1, 2]) {
   eq(prof(h, 'meteoro').addPct - prof(b, 'meteoro').addPct, 30, 's27 r3: Meteoro +30 %');
   for (const x of [5, 5.5, 6]) h.enemy({ hp: 1e9, pos: [x, 0, 0] });
   h.aim(5.5, 0);
-  const ech = spyEchoes(h);
+  const ech = spyFree(h);
   cast(h, 'rmb', 'meteoro', 0.8);
   eq(ech.length, 0, 's27: sin Ignición, cae una vez');
   ok(h.p.cds.meteoro > 4, 's27: sin Ignición no se recarga');
   h.p.cds.meteoro = 0; h.gauge('calor', 100);
   cast(h, 'rmb', 'meteoro', 1.6);
-  assert.deepEqual(ech.map(x => x.mult), [0.6, 0.6], 's27: con Ignición cae dos veces más al 60 %'); checks++;
+  same(ech.map(x => [x.id, x.mult, x.ok]), [['meteoro', 0.6, true], ['meteoro', 0.6, true]], 's27: con Ignición cae dos veces más al 60 %');
   eq(h.p.cds.meteoro || 0, 0, 's27: golpeó a 3: se recarga al instante');
 }
 // s28 Corazón del Sol (ápice, 4 rangos)
@@ -1448,24 +1552,21 @@ for (const r of [1, 2]) {
   eq(h3.gaugeView().state, 'active', 's28.3: Ignición Total a 80 de Calor');
   // 4) cada 20 explosiones, Supernova sola y gratis
   const h4 = sp('piromante', { s28: 4 }), t = h4.enemy({ hp: 1e9, pos: [3, 0, 0] });
-  const ech = spyEchoes(h4);
+  const ech = spyFree(h4);
   for (let i = 0; i < 19; i++) { h4.hit(t, { elem: 'fire', skill: 'bola_fuego' }); h4.hit(t, { elem: 'fire', skill: 'bola_fuego' }); h4.p.simT += 0.1; }
   h4.step(0.2);
   eq(ech.length, 0, 's28.4: 19 explosiones, aún no');
   h4.hit(t, { elem: 'fire', skill: 'meteoro' });
   h4.step(0.2);
-  ok(ech.length === 1 && ech[0].mult === 1, 's28.4: la 20.ª lanza Supernova sola');
+  ok(ech.length === 1 && ech[0].id === 'm_u_supernova' && ech[0].mult === 1 && ech[0].ok, 's28.4: la 20.ª lanza Supernova sola');
+  const tl = spy(h4);
+  h4.step(1.5);
+  ok(from(tl, 'm_u_supernova', t).length >= 1, 's28.4: y la Supernova estalla');
 }
 console.log('✓ Piromante: cada nodo con su efecto (quemaduras, Calor, Meteoro y finales por rango)');
 
 // ---------------- CRIONTE (escarcha · frost)
 // repeticiones con el id de la habilidad que salió (la ranura prestada se devuelve después)
-function spyEchoIds(h) {
-  const out = [];
-  const orig = h.g.castSkillSlot.bind(h.g);
-  h.g.castSkillSlot = (slot, mult = 0) => { if (mult > 0) out.push({ id: h.p.hotbar[slot], mult, t: h.p.simT }); return orig(slot, mult); };
-  return out;
-}
 const FROST = (skill = 'k_test') => ({ elem: 'frost', skill });
 const layers = (h, e) => h.gaugeValue('escarcha', e);
 const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
@@ -1511,7 +1612,8 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   near(prof(h, 'nova_hielo').cd, 2.5, 1e-9, 'i3 r3: la Nova se recarga en 2,5 s');
   eq(prof(h, 'nova_hielo').addPct - prof(b, 'nova_hielo').addPct, 30, 'i13 r2: Nova +30 %');
   eq(prof(h, 'm_u_tormenta').addPct - prof(b, 'm_u_tormenta').addPct, 30, 'i13 r2: Tormenta +30 %');
-  for (const id of ['nova_hielo', 'k_prision', 'm_u_tormenta']) near(prof(h, id).radius / prof(b, id).radius, 1.3, 1e-9, `i20 r2: ${id} +30 % de radio`);
+  // +30 % del radio base, que se suma al de la Mejora de la forja (Celda Amplia de la Prisión: +25 %)
+  for (const id of ['nova_hielo', 'k_prision', 'm_u_tormenta']) near((prof(h, id).radius - prof(b, id).radius) / sk(h, id).radius, 0.3, 1e-9, `i20 r2: ${id} +30 % de radio`);
 }
 // i4 Escarcha Densa: las capas caen cada 2 + rango s
 {
@@ -1559,14 +1661,19 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 }
 // i8A Prisión Amplia (6 m) · i8B Prisión Profunda (un solo enemigo, 3 s, +80 %)
 {
-  near(prof(sp('crionte', { i8: 1 }, { i8: 'A' }), 'k_prision').radius, 6, 1e-9, 'i8A: la Prisión atrapa a 6 m');
+  // 4 → 6 m sobre la Prisión base; a Nv70 se suma a la Mejora (Celda Amplia, +25 %): 5 → 7 m
+  near(prof(sp('crionte', { i8: 1 }, { i8: 'A' }), 'k_prision').radius - prof(sp('crionte'), 'k_prision').radius, 2, 1e-9, 'i8A: la Prisión atrapa 2 m más lejos (4 → 6 m)');
+  absPending('i8A', prof(sp('crionte', { i8: 1 }, { i8: 'A' }), 'k_prision').radius);
   const h = sp('crionte', { i8: 1 }, { i8: 'B' });
   h.p.stats.critRaw = -1000;                     // sin críticos: la proporción es la del +80 %
   const a = h.enemy({ hp: 1e9, pos: [2, 0, 0] }), o = h.enemy({ hp: 1e9, pos: [0, 0, 2.5] });
+  const glued = h.enemy({ hp: 1e9, pos: [0, 0, -0.3] });   // pegado a ti: tampoco cae en un área
   const log = spy(h);
   h.aim(2, 0);
   cast(h, 'k3', 'k_prision', 0.2);
   ok(a.frozenT > 2.5 && !(o.frozenT > 0), `i8B: atrapa a uno solo 3 s (${a.frozenT}, ${o.frozenT})`);
+  ok(!(glued.frozenT > 0) && !from(log, 'k_prision', glued).length, 'i8B: ni al que está pegado a ti (sin área)');
+  eq(from(log, 'k_prision', a).length, 1, 'i8B: un solo golpe al atrapado (el del poder, no además el del área)');
   const b = sp('crionte'), ab = b.enemy({ hp: 1e9, pos: [2, 0, 0] });
   b.p.stats.critRaw = -1000;
   const lb = spy(b); b.aim(2, 0); cast(b, 'k3', 'k_prision', 0.2);
@@ -1574,11 +1681,23 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   const add = prof(b, 'k_prision').addPct;
   ok(hit && hb && Math.abs(hit.raw / hb.raw - (100 + add + 80) / (100 + add)) <= 0.02, `i8B: +80 % al atrapado (${hit?.raw} frente a ${hb?.raw})`);
   eq(layers(h, a), 2, 'i8B: el golpe de la Prisión pone sus capas');
+  // con Celda Lejana (la Prisión a 15 m sobre el enemigo de la mira) atrapa al de la mira aunque
+  // pase de 8 m, no al más cercano
+  const c = sp('crionte', { i8: 1 }, { i8: 'B' });
+  c.p.skillForge = { k_prision: 'i' }; c.p.recompute(); c.p.mp = c.p.stats.maxMP;
+  const far = c.enemy({ hp: 1e9, pos: [12, 0, 0] }), close = c.enemy({ hp: 1e9, pos: [0, 0, 5] });
+  const lc = spy(c);
+  c.aim(12, 0);
+  cast(c, 'k3', 'k_prision', 0.2);
+  ok(far.frozenT > 2.5 && from(lc, 'k_prision', far).length === 1, `i8B con Celda Lejana: atrapa y golpea al de la mira a 12 m (${far.frozenT})`);
+  ok(!(close.frozenT > 0) && !from(lc, 'k_prision', close).length, 'i8B con Celda Lejana: no al más cercano');
 }
 // i9A Lanza Larga (18 m; ralentiza 30 %) · i9B Lanza del Invierno (×4 a Congelados y Ateridos)
 {
-  const a = prof(sp('crionte', { i9: 1 }, { i9: 'A' }), 'k_lanza');
-  ok(a.range === 18 && a.slow > 0 && a.slowPct === 30, 'i9A: la Lanza llega a 18 m y ralentiza un 30 %');
+  // 12 → 18 m sobre la Lanza base; a Nv70 se suma a la Mejora (Punta Afilada, +17 %): 14 → 20 m
+  const a = prof(sp('crionte', { i9: 1 }, { i9: 'A' }), 'k_lanza'), a0 = prof(sp('crionte'), 'k_lanza');
+  ok(Math.abs(a.range - a0.range - 6) < 1e-6 && a.slow > 0 && a.slowPct === 30 && !(a0.slowPct > 0), 'i9A: la Lanza llega 6 m más lejos (12 → 18 m) y ralentiza un 30 %');
+  absPending('i9A', a.range);
   const h = sp('crionte', { i9: 1 }, { i9: 'B' });
   eq(prof(h, 'k_lanza').frozenMult, 4, 'i9B: ×4 a los Congelados (antes ×3)');
   const boss = h.enemy({ hp: 1e9, boss: true });
@@ -1593,12 +1712,25 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 // i10A Ventisca Viva (una Nova cada 2 s) · i10B Frío Sostenido (+60 % al de más capas)
 {
   const h = sp('crionte', { i10: 1 }, { i10: 'A' });
-  const ech = spyEchoIds(h);
+  const ech = spyFree(h);
   cast(h, 'k4', 'm_u_tormenta', 0.05);
   h.tick(8.5);
   const novas = ech.filter(x => x.id === 'nova_hielo');
   eq(novas.length, 3, 'i10A: una Nova cada 2 s mientras dura (a los 2, 4 y 6 s)');
-  ok(novas.every(x => x.mult === 1), 'i10A: Novas enteras');
+  ok(novas.every(x => x.mult === 1 && x.ok), 'i10A: Novas enteras');
+  // la Nova sale del CENTRO de la Tormenta (origin): con la Ventisca Anclada (forja I), donde la
+  // anclaste, no a tus pies
+  const an = sp('crionte', { i10: 1 }, { i10: 'A' });
+  an.p.skillForge = { m_u_tormenta: 'i' }; an.p.recompute(); an.p.mp = an.p.stats.maxMP;
+  const ea = spyFree(an), la = spy(an);
+  const there = an.enemy({ hp: 1e9, pos: [10, 0, 0] }), here = an.enemy({ hp: 1e9, pos: [-1, 0, 0] });
+  an.aim(10, 0);
+  cast(an, 'k4', 'm_u_tormenta', 0.05);
+  ok(Math.hypot(magaStorm(an.p).center().x - 10, magaStorm(an.p).center().z) < 1e-6, 'la Ventisca Anclada se queda a 10 m');
+  an.tick(2.1);
+  const nv = ea.filter(x => x.id === 'nova_hielo');
+  ok(nv.length === 1 && nv[0].ok && nv[0].origin && Math.hypot(nv[0].origin.x - 10, nv[0].origin.z) < 1e-6, 'i10A: con la Ventisca Anclada, la Nova sale del centro de la Tormenta');
+  ok(from(la, 'nova_hielo', there).length === 1 && !from(la, 'nova_hielo', here).length, 'i10A: la Nova golpea allí y no a tus pies');
   const c = sp('crionte', { i10: 1 }, { i10: 'B' });
   const a = c.enemy({ hp: 1e9, pos: [1, 0, 0] }), o = c.enemy({ hp: 1e9, pos: [-1, 0, 0] });
   for (let i = 0; i < 3; i++) c.hit(a, FROST()); c.hit(o, FROST());
@@ -1692,13 +1824,16 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 }
 // i17 Remolino: al terminar el Paso de Escarcha, una Nova al 50 % por rango
 {
+  // la Nova sale donde acaba el desliz (6 m): golpea al de allí, no al del punto de partida
   const h = sp('crionte', { i17: 2 });
-  const ech = spyEchoIds(h);
+  const ech = spyFree(h), lg = spy(h);
+  const end = h.enemy({ hp: 1e9, pos: [7, 0, 1.5] }), start = h.enemy({ hp: 1e9, pos: [-1.5, 0, 1.5] });
   h.aim(6, 0); cast(h, 'k1', 'm_paso_escarcha', 0.1);
-  ok(ech.length === 1 && ech[0].id === 'nova_hielo' && ech[0].mult === 1, 'i17 r2: una Nova al 100 %');
-  const r1 = sp('crionte', { i17: 1 }), e1 = spyEchoIds(r1);
+  ok(ech.length === 1 && ech[0].id === 'nova_hielo' && ech[0].mult === 1 && ech[0].ok, 'i17 r2: una Nova al 100 %');
+  ok(from(lg, 'nova_hielo', end).length === 1 && !from(lg, 'nova_hielo', start).length, 'i17: la Nova sale donde terminas el Paso');
+  const r1 = sp('crionte', { i17: 1 }), e1 = spyFree(r1);
   r1.aim(6, 0); cast(r1, 'k1', 'm_paso_escarcha', 0.1);
-  ok(e1.length === 1 && e1[0].mult === 0.5, 'i17 r1: al 50 %');
+  ok(e1.length === 1 && e1[0].mult === 0.5 && e1[0].ok, 'i17 r1: al 50 %');
 }
 // i18 Congelación en Cadena: muere un Congelado → se congelan 1 por rango a 4 m
 {
@@ -1716,6 +1851,10 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   eq(h.p.stats.critDmg - b.p.stats.critDmg, 30, 'i26 r3: críticos +30 %');
   const e = h.enemy({ hp: 1e9, pos: [0, 0, 0] }), o1 = h.enemy({ hp: 1e9, pos: [2, 0, 0] }), o2 = h.enemy({ hp: 1e9, pos: [0, 0, 2] });
   const log = spy(h);
+  // el perfil de la Lanza en la caché, como tras lanzarla (esquirlas y Cero Absoluto leen su +% de
+  // daño: con la Mejora de la forja, Punta Afilada, +15 %)
+  const lanza = prof(h, 'k_lanza');
+  ok(lanza.addPct >= 15, 'la Lanza con su Mejora (+15 % de daño)');
   h.hit(e, { ...FROST('k_lanza'), dealt: 1000 });
   eq(procs(log, 'power:k_ruptura').length, 0, 'i19: si no está Congelado, no hay añicos');
   freezeNow(h, e, 2);
@@ -1726,9 +1865,9 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   ok(r.length === 1 && r[0].dealt === 500, 'i19 r2: añicos +50 % del golpe');
   ok(!(e.frozenT > 0) && layers(h, e) === 3, 'i19: le quita la congelación y le deja 3 capas');
   const sh = procs(log, 'power:k_esquirlas');
-  ok(sh.length === 2 && sh.every(x => x.e !== e) && Math.abs(sh[0].dealt - h.p.avgHit(0.5, prof(h, 'k_lanza').addPct)) <= 2, 'i23 r3: esquirlas al 50 % a los cercanos');
+  ok(sh.length === 2 && sh.every(x => x.e !== e) && Math.abs(sh[0].dealt - h.p.avgHit(0.5, lanza.addPct)) <= 2, 'i23 r3: esquirlas al 50 % a los cercanos');
   const z = procs(log, 'power:k_cero');
-  ok(z.length === 1 && Math.abs(z[0].dealt - h.p.avgHit(3, prof(h, 'k_lanza').addPct)) <= 2, 'i26: +300 % del arma');
+  ok(z.length === 1 && Math.abs(z[0].dealt - h.p.avgHit(3, lanza.addPct)) <= 2, 'i26: +300 % del arma');
   eq(h.p.cds.k_lanza || 0, 0, 'i26: y recarga la Lanza');
   const boss = h.enemy({ hp: 1e9, boss: true, pos: [5, 0, 5] });
   boss.frozenT = 0; h.p.simT += 0.1;
@@ -1842,12 +1981,12 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   ok(e3.frozenT > 0, 'i28.3: se congela con 4 capas');
   // 4) cada 15 congelaciones, la Tormenta sola
   const h4 = sp('crionte', { i28: 4 });
-  const ech = spyEchoIds(h4);
+  const ech = spyFree(h4);
   for (let i = 0; i < 14; i++) { const o = h4.enemy({ hp: 1e9, pos: [i % 5, 0, Math.floor(i / 5)] }); freezeNow(h4, o); h4.tick(0.1); }
   h4.step(0.1);
   eq(ech.length, 0, 'i28.4: 14 congelaciones, aún no');
   freezeNow(h4, h4.enemy({ hp: 1e9, pos: [7, 0, 7] })); h4.tick(0.1); h4.step(0.1);
-  ok(ech.length === 1 && ech[0].id === 'm_u_tormenta', 'i28.4: la 15.ª lanza la Tormenta Glacial');
+  ok(ech.length === 1 && ech[0].id === 'm_u_tormenta' && ech[0].ok, 'i28.4: la 15.ª lanza la Tormenta Glacial');
   ok(magaStorm(h4.p), 'i28.4: la Tormenta está activa');
 }
 console.log('✓ Crionte: cada nodo con su efecto (capas, congelación, Lanza, Tormenta y finales por rango)');
@@ -1875,6 +2014,21 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   s.p.pos.set(20, 0, 0); s.tick(4.05);
   eq(charges(s), 2, 'a0: fuera del Sello, no');
   eq(MAGA_TALENTS.specs[2].nodes[0].touch.includes('a_sello'), true, 'a0 toca el Sello del Archimago');
+  // solo el impacto DIRECTO (HitInfo.source 'hit'): ni la salpicadura de la Saeta Ígnea ('splash',
+  // con el canal real) ni un salto de cadena ('chain'), aunque lleven la habilidad del Dardo
+  const sa = sp('arcanista');
+  sa.p.skillForge = { m_dardo: 'i' }; sa.p.recompute(); sa.p.mp = sa.p.stats.maxMP;
+  sa.enemy({ hp: 1e9, pos: [0, 0, 5] });
+  const nb = sa.enemy({ hp: 1e9, pos: [1.2, 0, 5.4] });
+  const ls = spy(sa);
+  sa.aim(0, 5); cast(sa, 'lmb', 'm_dardo', 0.8);
+  ok(ls.some(x => x.e === nb && x.skill === 'm_dardo' && x.source === 'splash'), 'la Saeta Ígnea salpica al vecino con un golpe del Dardo');
+  eq(charges(sa), 1, 'a0: la salpicadura de la Saeta Ígnea no da Carga (solo el impacto)');
+  const cj = sp('arcanista'), ce = cj.enemy({ hp: 1e9, pos: [3, 0, 0] });
+  for (const source of ['chain', 'splash']) cj.g.onPlayerHit(ce, { dealt: 10, raw: 10, crit: false, skill: 'm_dardo', tags: new Set(['arcane']), elem: 'arcane', proc: false, dot: false, source, pos: { x: 3, z: 0 } });
+  eq(charges(cj), 0, 'a0: un salto de cadena o una salpicadura del Dardo no dan Carga');
+  cj.hit(ce, DART);
+  eq(charges(cj), 1, 'a0: el impacto directo, sí');
 }
 // a1 Memoria Arcana (+2 s por rango) · a2 Mente Brillante (+5 % de crítico con 2+) · a4 Potencia Acumulada (+5 % por Carga y rango)
 {
@@ -1929,12 +2083,28 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   const log = spy(h); h.tick(1.05);
   ok(log.some(x => x.e === e && x.source === 'field:a_grieta' && x.dot), 'a7: la grieta daña');
 }
+// Rayo con Haz Concentrado (rayo_ii, la forja recomendada del Arcanista: un canal de 1,5 s, 3 tics):
+// sus repeticiones (a8A, a25) no son otro canal (g.castEcho no repite canales y un canal es de la
+// heroína) sino un haz propio con los mismos tics, que no te ata y lleva las Cargas del original
+function hazRun(ranks, choice = {}) {
+  const h = sp('arcanista', ranks, choice);
+  h.p.skillForge = { rayo: 'ii' }; h.p.recompute(); h.p.mp = h.p.stats.maxMP;
+  h.p.stats.critRaw = -1000;
+  const e = h.enemy({ hp: 1e12, pos: [4, 0, 0] });
+  const log = spy(h);
+  h.gauge('cargas', 4); h.aim(4, 0);
+  h.setHeld('rmb', true);                           // el canal es mantenido: sin el botón, se suelta
+  cast(h, 'rmb', 'rayo', 1.6);                      // 3 tics (0,5 · 1 · 1,5 s) con 4 Cargas; al acabar, las gasta
+  h.setHeld('rmb', false);
+  const own = from(log, 'rayo', e).filter(x => !x.echo);
+  return { h, e, log, own };
+}
 // a8A Rayo Doble (con 4 Cargas, se repite al 50 % con las mismas Cargas) · a8B Rayo Recargado (1 Carga por enemigo, hasta 2)
 {
   const h = sp('arcanista', { a8: 1 }, { a8: 'A' });
   const e = h.enemy({ hp: 1e9, pos: [4, 0, 0] });
   h.p.stats.critRaw = -1000;                         // sin críticos: la copia vale la mitad exacta
-  const ech = spyEchoIds(h), log = spy(h);
+  const ech = spyFree(h), log = spy(h);
   h.gauge('cargas', 3); h.aim(4, 0); cast(h, 'rmb', 'rayo', 0.5);
   eq(ech.length, 0, 'a8A: con 3 Cargas, una vez');
   h.gauge('cargas', 4); h.p.cds.rayo = 0;
@@ -1947,6 +2117,18 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   for (const x of [3, 4, 5]) r.enemy({ hp: 1e9, pos: [x, 0, 0] });
   r.gauge('cargas', 4); r.aim(5, 0); cast(r, 'rmb', 'rayo', 0.05);
   eq(charges(r), 2, 'a8B: atraviesa a 3 → te devuelve 2 (tras gastarlas)');
+  // con Haz Concentrado: la copia sale a los 0,25 s del final del canal (1,75 s) y no te ata: a los
+  // 1,9 s no canalizas ni estás bloqueada, vuelves a lanzar el Rayo y la copia no lo corta
+  const z = hazRun({ a8: 1 }, { a8: 'A' });
+  ok(z.own.length === 3 && charges(z.h) === 0, `Haz Concentrado: 3 tics con las 4 Cargas y las gasta al acabar (${z.own.length})`);
+  z.h.step(0.3);
+  ok(!z.h.g.channelInfo() && !(z.h.p.castLock > 0), 'a8A con Haz Concentrado: la copia no es otro canal (no te ata)');
+  z.h.p.cds.rayo = 0; z.h.p.gcdT = 0; z.h.p.actionLockT = 0;
+  ok(z.h.press('rmb') && z.h.g.channelInfo()?.id === 'rayo', 'a8A con Haz Concentrado: vuelves a canalizar el Rayo mientras la copia golpea');
+  z.h.step(1.6);
+  const copy = from(z.log, 'rayo', z.e).filter(x => x.echo), mine = from(z.log, 'rayo', z.e).filter(x => !x.echo);
+  ok(copy.length === 3 && copy.every(x => Math.abs(x.raw / z.own[0].raw - 0.5) <= 0.01), `a8A con Haz Concentrado: la copia da 3 tics al 50 % con las 4 Cargas (${copy.map(x => x.raw)} / ${z.own[0].raw})`);
+  eq(mine.length, 6, 'a8A con Haz Concentrado: tu segundo canal da sus 3 tics (la copia no lo corta ni lo sustituye)');
 }
 // a9A Orbe Cargado (+20 % por Carga) · a9B Orbe Atrayente (arrastra a su camino a los de 3 m)
 {
@@ -2000,6 +2182,9 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   for (const x of [h, b]) { x.enemy({ hp: 1e9, pos: [4, 0, 0] }); x.aim(4, 0); x.p.mp = 0; }
   cast(h, 'k4', 'm_u_desgarro', 3.2); cast(b, 'k4', 'm_u_desgarro', 3.2);
   near(h.p.mp - b.p.mp, h.p.stats.maxMP * 0.02 * 3, h.p.stats.maxMP * 0.01, 'a14: +2 %/s mientras canaliza');
+  // texto aprobado en el punto 17 (divergencia spec.arcanista.a14.d): el Desgarro no cuesta maná y
+  // Grieta Eterna sigue gastando su 3 %/s, así que «no gastas maná» no describía nada
+  ok(nodeText('a14') === 'Mientras canalizas el Desgarro recuperas un 2 % de maná por segundo', 'a14: el texto dice lo que hace (recuperas un 2 %/s; no «no gastas maná»)');
 }
 // a15A Desplazamiento (golpe > 20 %: te teletransporta 5 m sin daño; cada 30 s) · a15B Velo Arcano (−12 % con 3+)
 {
@@ -2037,8 +2222,10 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
 }
 // a17 Sello Viviente: el Sello dura 8 + 2 × rango s y te sigue
 {
+  // 8 → 12 s sobre el Sello base; a Nv70 se suma a la Mejora (Sello Firme, +2 s): 10 → 14 s
   const h = sp('arcanista', { a17: 2 });
-  eq(prof(h, 'a_sello').dur, 12, 'a17 r2: 12 s');
+  eq(prof(h, 'a_sello').dur - prof(sp('arcanista'), 'a_sello').dur, 4, 'a17 r2: +4 s (8 → 12 s)');
+  absPending('a17', prof(h, 'a_sello').dur);
   cast(h, 'k2', 'a_sello', 0.05);
   h.p.pos.set(6, 0, 0); h.tick(0.2);
   const f = h.g.fields.find(x => x.kind === 'aura' && x.data.buffId === 'a_sello');
@@ -2080,16 +2267,40 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   h.gauge('cargas', 2); h.tick(0.6);
   ok(!h.p.buffs.some(b => b.id === 'a_agudeza') && Math.abs(h.p.stats.atkTime - t0) < 1e-9, 'a20: con 2, se va');
 }
-// a21 Doble Grieta: el Rayo durante el Desgarro abre otra grieta al 50 % (el motor aún no deja lanzar canalizando)
+// a21 Doble Grieta: el Rayo lanzado DURANTE el Desgarro (una principal instantánea sale sobre el
+// canal de una definitiva imparable sin cortarlo, cola W2d) abre otra grieta al 50 % donde apuntas
+// el resto del canal. Con el canal real. El 50 % es del daño por segundo del canal: su golpe CON
+// RANGO (Nv70: rango 5) entre su intervalo; a Nv20 (rango 1), el del catálogo
 {
-  const h = sp('arcanista', { a21: 1 });
-  firePower('onCast', h.p, h.g, h.p, { sk: { id: 'rayo' }, target: { x: 4, z: 0 } });
-  eq(h.g.fields.filter(f => f.kind === 'a_grieta').length, 0, 'a21: sin canalizar, nada');
-  h.g._channel = { ctx: { p: h.p, sk: { id: 'm_u_desgarro' } }, left: 4, interval: 0.5 };
-  firePower('onCast', h.p, h.g, h.p, { sk: { id: 'rayo' }, target: { x: 4, z: 0 } });
-  const f = h.g.fields.find(x => x.kind === 'a_grieta');
-  ok(f && f.dur === 2 && Math.abs(f.data.dps - h.p.avgHit(1.2, 0)) <= 2, 'a21: grieta al 50 % el resto del canal');
-  h.g._channel = null;
+  const run = (ranks, level = 70) => {
+    const h = sp('arcanista', ranks, {}, { level });
+    const e = h.enemy({ hp: 1e9, pos: [6, 0, 0] });
+    h.aim(6, 0);
+    cast(h, 'rmb', 'rayo', 0.3);
+    const before = h.g.fields.filter(f => f.kind === 'a_grieta').length;
+    cast(h, 'k4', 'm_u_desgarro', 1.2);                // entre dos golpes: le quedan 1,8 s (4 golpes)
+    const ch = h.g.channelInfo();
+    ok(ch?.id === 'm_u_desgarro' && ch.unstoppable && ch.left > 1, 'canalizas el Desgarro (imparable)');
+    h.p.cds.rayo = 0; h.p.gcdT = 0; h.p.atkCd = 0; h.p.mp = h.p.stats.maxMP;
+    const log = spy(h);
+    const at0 = { x: e.pos.x, z: e.pos.z };          // los golpes del Desgarro lo van apartando
+    const fired = h.cast('rmb');
+    return { h, e, at0, before, ch, fired, log, after: h.g.channelInfo(), rift: h.g.fields.find(x => x.kind === 'a_grieta' && !x.dead) };
+  };
+  const r = run({ a21: 1, a13: 2 });                // a13: el Desgarro +30 % (saco aditivo de la grieta)
+  eq(r.before, 0, 'a21: el Rayo sin canalizar no abre grieta');
+  ok(r.fired && from(r.log, 'rayo', r.e).length === 1, 'a21: el Rayo sale y golpea durante el Desgarro');
+  ok(r.after?.id === 'm_u_desgarro' && Math.abs(r.after.left - r.ch.left) < 1e-6, 'a21: sin cortar el canal');
+  ok(r.rift && Math.hypot(r.rift.pos.x - r.at0.x, r.rift.pos.z - r.at0.z) < 0.05, 'a21: la segunda grieta se abre sobre el enemigo de la mira');
+  near(r.rift?.dur, r.ch.left, 1e-6, 'a21: dura lo que le queda al canal');
+  const dp = prof(r.h, 'm_u_desgarro');
+  ok(dp.rank === 5 && dp.coef > 1.2 * 1.3 && dp.addPct === 30, `a21: a Nv70 el Desgarro está en rango 5 (${dp.coef} por golpe, +${dp.addPct} %)`);
+  near(r.rift?.data.dps, r.h.p.avgHit(dp.coef / r.ch.interval * 0.5, dp.addPct), 2, 'a21: al 50 % del Desgarro (su golpe con rango cada 0,5 s)');
+  const lo = run({ a21: 1 }, 20), dl = prof(lo.h, 'm_u_desgarro');
+  ok(dl.rank === 1 && dl.coef === 1.2, 'a21: a Nv20 el Desgarro está en rango 1 (1,2 por golpe)');
+  near(lo.rift?.data.dps, lo.h.p.avgHit(1.2 / 0.5 * 0.5, dl.addPct), 2, 'a21 a Nv20: al 50 % del Desgarro (1,2 cada 0,5 s)');
+  const n = run({});
+  ok(n.fired && !n.rift, 'sin a21, el Rayo sale durante el Desgarro pero no abre grieta');
 }
 // a22 Cargas Desbordadas: máximo 4 + rango; las que pasan de 4 dan el doble al Rayo
 {
@@ -2102,11 +2313,14 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
 {
   const h = sp('arcanista', { a23: 2 });
   h.enemy({ hp: 1e9, pos: [4, 0, 0] }); h.aim(4, 0);
-  const ech = spyEchoIds(h);
+  const ech = spyFree(h);
   for (let i = 0; i < 2; i++) cast(h, 'k3', 'a_orbe', 0.2);
   eq(ech.length, 0, 'a23: los dos primeros, solos');
   cast(h, 'k3', 'a_orbe', 0.3);
-  ok(ech.length === 2 && ech.every(x => x.id === 'a_orbe' && x.mult === 0.4), 'a23 r2: el 3.º sale con 2 orbes al 40 %');
+  ok(ech.length === 2 && ech.every(x => x.id === 'a_orbe' && x.mult === 0.4 && x.ok), 'a23 r2: el 3.º sale con 2 orbes al 40 %');
+  // en abanico: a la misma distancia que la mira (4 m), uno a cada lado (±0,35 rad)
+  const ang = ech.map(x => Math.atan2(x.at.x - h.p.pos.x, x.at.z - h.p.pos.z) - Math.atan2(4 - h.p.pos.x, -h.p.pos.z));
+  ok(ech.every(x => Math.abs(Math.hypot(x.at.x - h.p.pos.x, x.at.z - h.p.pos.z) - 4) < 1e-6) && Math.abs(Math.abs(ang[0]) - 0.35) < 1e-6 && Math.abs(ang[0] + ang[1]) < 1e-6, `a23: los orbes extra salen en abanico, uno a cada lado (${ang.map(a => a.toFixed(2))} rad)`);
 }
 // a24 Fuente de Maná: canalizando, cada segundo 1 Carga y +5 % por rango (hasta 3 veces)
 {
@@ -2127,9 +2341,16 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   const h = sp('arcanista', { a25: 3 }), b = sp('arcanista');
   eq(prof(h, 'rayo').addPct - prof(b, 'rayo').addPct, 30, 'a25 r3: Rayo +30 %');
   h.enemy({ hp: 1e9, pos: [4, 0, 0] }); h.aim(4, 0);
-  const ech = spyEchoIds(h);
+  const ech = spyFree(h);
   h.gauge('cargas', 4); cast(h, 'rmb', 'rayo', 1.7);
-  ok(ech.length === 2 && ech.every(x => x.id === 'rayo' && x.mult === 0.5) && Math.abs(ech[1].t - ech[0].t - 0.75) < 0.05, 'a25: dos repeticiones al 50 % (0,75 y 1,5 s)');
+  ok(ech.length === 2 && ech.every(x => x.id === 'rayo' && x.mult === 0.5 && x.ok) && Math.abs(ech[1].t - ech[0].t - 0.75) < 0.05, 'a25: dos repeticiones al 50 % (0,75 y 1,5 s)');
+  // con Haz Concentrado: dos copias de 3 tics al 50 % con las 4 Cargas, sin canal (no te atan)
+  const z = hazRun({ a25: 1 });
+  z.h.step(1);
+  ok(!z.h.g.channelInfo() && !(z.h.p.castLock > 0), 'a25 con Haz Concentrado: las copias no son otro canal');
+  z.h.step(2.2);
+  const copy = from(z.log, 'rayo', z.e).filter(x => x.echo);
+  ok(copy.length === 6 && copy.every(x => Math.abs(x.raw / z.own[0].raw - 0.5) <= 0.01), `a25 con Haz Concentrado: 2 copias × 3 tics al 50 % con las 4 Cargas (${copy.length})`);
 }
 // a26 Constelación (final): tus Orbes se quedan 8 s girando (hasta 3) y disparan al más cercano (40 %)
 {
@@ -2156,6 +2377,16 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   ok(h.g._channel && !b.g._channel, 'a27: a los 5 s sigue canalizando (sin él, acaba a los 3 s)');
   h.p.mp = 0; h.step(1.5);
   ok(!h.g._channel, 'a27: sin maná, se acaba');
+  // la prórroga empieza con dos golpes o menos por delante: a 1,85 s (le quedan 1,15 s, 3 golpes) el
+  // canal aún dura 3 s; a 2,1 s (pasó por 1 s: 2 golpes) ya dura uno más
+  const u = sp('arcanista', { a27: 1 });
+  u.enemy({ hp: 1e12, pos: [4, 0, 0] }); u.aim(4, 0);
+  cast(u, 'k4', 'm_u_desgarro', 1.85);
+  const c1 = u.g.channelInfo();
+  u.step(0.25);
+  const c2 = u.g.channelInfo();
+  ok(c1 && Math.abs(c1.dur - 3) < 1e-6 && c2 && Math.abs(c2.dur - 3.5) < 1e-6, `a27: alarga un golpe cuando le quedan dos o menos (${c1?.dur} → ${c2?.dur} s)`);
+  u.g.cancelCast('dodge');
   // con Maná Inagotable el 3 % se sigue gastando: a14 solo devuelve su 2 %/s (doc 2g §12)
   const f = sp('arcanista', { a27: 1, a14: 1 }), m = sp('arcanista', { a14: 1 });
   for (const x of [f, m]) { x.enemy({ hp: 1e12, pos: [4, 0, 0] }); x.aim(4, 0); x.p.mp = x.p.stats.maxMP / 2; }
@@ -2195,6 +2426,39 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   h4.step(2.2);
   const beams = from(log, 'm_u_desgarro', t).filter(x => !x.proc && !x.dot);
   eq(beams.length, 4, 'a28.4: 20 Cargas gastadas → 4 golpes de Desgarro en 2 s');
+  // cada golpe, el del canal CON RANGO (Nv70: rango 5); con Quiebre (no canaliza: un pulso de 900 %),
+  // el del catálogo con su rango (1,2 × 1,4), no el del pulso
+  // cached: con el perfil en la caché de resolveSkill (como en partida, donde la barra lo resuelve)
+  const strike = (forge = null, cached = false) => {
+    const x = sp('arcanista', { a28: 4 }), e = x.enemy({ hp: 1e12, pos: [4, 0, 0] });
+    if (forge) { x.p.skillForge = { m_u_desgarro: forge }; x.p.recompute(); x.p.mp = x.p.stats.maxMP; }
+    x.p.stats.critRaw = -1000; x.aim(4, 0);
+    const lx = spy(x);
+    for (let i = 0; i < 5; i++) { if (cached) resolveSkill(x.p, sk(x, 'm_u_desgarro')); x.gauge('cargas', 4); x.p.cds.rayo = 0; cast(x, 'rmb', 'rayo', 0.1); }
+    x.step(2.2);
+    const got = from(lx, 'm_u_desgarro', e).filter(y => !y.proc && !y.dot);
+    const dp = prof(x, 'm_u_desgarro');
+    const want = x.p.rollDamage(1.2 * 1.4, 0, dp.addPct, e, { skill: 'm_u_desgarro', tags: new Set(['arcane']), elem: 'arcane' }).dmg;
+    return { got, dp, want };
+  };
+  const base = strike(), qb = strike('ii', true);
+  ok(base.dp.coef === 1.2 * 1.4 && base.got.length === 4 && base.got.every(y => Math.abs(y.raw - base.want) <= 1), `a28.4: cada golpe, el del Desgarro con rango (${base.got.map(y => y.raw)} ≈ ${base.want})`);
+  ok(qb.dp.coef > 9 && qb.got.length === 4 && qb.got.every(y => Math.abs(y.raw - qb.want) <= 1), `a28.4 con Quiebre: el golpe del canal (1,2 × rango), no el del pulso (${qb.got.map(y => y.raw)} ≈ ${qb.want})`);
 }
 console.log('✓ Arcanista: cada nodo con su efecto (Cargas, Rayo, Orbe, Desgarro y finales por rango)');
+
+// ------------------------------------------------------------ 5) cobertura
+// cada nodo u opción (clase, especializaciones y Paragon) tiene al menos una comprobación que PASÓ y
+// lo nombra por su id (no cuenta un «sin <id>»: esa es la de control). No valen el nombre del poder
+// ni los mensajes de la sección de datos («con efecto», «poder registrado»): pasan aunque el efecto
+// no exista
+{
+  const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => `${n.id}${o.k}`) : [n.id]));
+  const ALL = [...keysOf(MAGA_TALENTS.cls.nodes), ...MAGA_TALENTS.specs.flatMap(s => keysOf(s.nodes)), ...MAGA_TALENTS.hero.flatMap(t => keysOf(t.nodes))];
+  const BEHAVIOR = PASSED.slice(DATA_CHECKS).filter(m => typeof m === 'string');
+  const named = key => BEHAVIOR.some(m => new RegExp(`(^|[^\\w])(?<!sin )${key}(?![\\w])`).test(m));
+  const missing = ALL.filter(key => !named(key));
+  same(missing, [], `nodos u opciones sin una comprobación de su efecto: ${missing.join(', ')}`);
+  console.log(`✓ cobertura: ${ALL.length} nodos u opciones (clase, especializaciones y Paragon) con efecto comprobado: ${missing.length} sin efecto`);
+}
 console.log(`\n✅ TALENTOS 2g DE LA MAGA (clase, especializaciones y Paragon): ${checks} comprobaciones`);
