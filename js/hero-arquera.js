@@ -15,7 +15,7 @@ export const ARQUERA_HERO = [
       win: 'A, si juegas en movimiento, contra grupos. B, si juegas plantada, contra jefes' },
     { id: 'q3', name: 'Plumas de Aire', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['q0'], d: ()=>'Las flechas de viento atraviesan a 2 enemigos', icon: 'talents/arquera-tiradora-s6.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'q4', name: 'Torbellino o Corriente', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['q1', 'q2'], icon: 'talents/arquera-tiradora-s15.webp', opts: [
-        { k: 'A', name: 'Torbellino', desc: 'Habilidad (ranura 2): un torbellino de 4 m levanta 1,5 s a los enemigos y te da 3 Ráfagas. Se recarga en 40 s', role: 'CTRL', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Torbellino', desc: 'Habilidad (ranura 2): un torbellino de 4 m levanta 1,5 s a los enemigos y te da 3 Ráfagas. Se recarga en 40 s', role: 'CTRL', fx: { grant: 'a_h_torbellino' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Corriente Protectora', desc: 'Con 3 Ráfagas guardadas, recibes un 15 % menos de daño', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, para controlar grupos y tener Ráfagas a voluntad (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
@@ -42,7 +42,7 @@ export const ARQUERA_HERO = [
       win: 'A, contra jefes. B, contra grupos: en un disparo de varias flechas, todas la llevan' },
     { id: 'w3', name: 'Trampa Encantada', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['w0'], d: ()=>'Tus trampas, zonas y lluvias también toman la punta encantada al colocarlas', icon: 'talents/arquera-montaraz-s4.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'w4', name: 'Desborde o Bálsamo', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['w1', 'w2'], icon: 'talents/arquera-clase-c9.webp', opts: [
-        { k: 'A', name: 'Desborde de Puntas', desc: 'Habilidad (ranura 2): tus 4 siguientes disparos llevan las tres puntas al 50 % (sin Trenza ni Repartida). 20 s', role: 'AREA', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Desborde de Puntas', desc: 'Habilidad (ranura 2): tus 4 siguientes disparos llevan las tres puntas al 50 % (sin Trenza ni Repartida). 20 s', role: 'AREA', fx: { grant: 'a_h_puntas' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Punta Curativa', desc: 'Cada punta encantada que golpea te cura un 2 % de la vida (como mucho una vez cada 6 s)', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, para un estallido de daño a voluntad (ocupa la ranura 2). B, para aguantar sin ocupar ranura' },
@@ -69,7 +69,7 @@ export const ARQUERA_HERO = [
       win: 'A, contra jefes. B, contra grupos' },
     { id: 'y3', name: 'Presa Señalada', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['y0'], d: ()=>'La marca del halcón cuenta como tu Punto Débil (sin el perfecto gratis) o como tu Presa (Montaraz)', icon: 'talents/arquera-francotiradora-x1.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'y4', name: 'Llamada o Alas', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['y1', 'y2'], icon: 'talents/arquera-clase-c4.webp', opts: [
-        { k: 'A', name: 'Llamada del Halcón', desc: 'Habilidad (ranura 2): el halcón ataca a tu blanco 6 s (40 % cada 0,5 s), lo ciega y le llena 30 de Quebranto. 30 s', role: 'UNI', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Llamada del Halcón', desc: 'Habilidad (ranura 2): el halcón ataca a tu blanco 6 s (40 % cada 0,5 s), lo ciega y le llena 30 de Quebranto. 30 s', role: 'UNI', fx: { grant: 'a_h_halcon' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Alas Protectoras', desc: 'Al bajar del 40 % de vida, el halcón te cubre: recibes un 30 % menos de daño 4 s. Una vez cada 60 s', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, contra jefes: daño, ceguera y Quebranto a voluntad (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },

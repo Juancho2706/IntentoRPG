@@ -43,9 +43,11 @@ function addSkill(cid, def) {
   assert.equal(h.p.applySlow(2), true, 'al terminar, vuelve a poder ralentizarse');
   h.p.slowT = 0; h.p.unstoppableT = 1;
   assert.equal(h.p.applySlow(2), false, 'imparable: tampoco');
-  // Agilidad (buff genérico con slowImmune)
-  h.p.unstoppableT = 0; h.setSlot('k1', 'agilidad');
-  assert.equal(h.cast('k1'), true);
+  // Agilidad (buff genérico con slowImmune; catálogo 2g: activa de talento de la ranura 2, la concede c17A)
+  h.p.unstoppableT = 0;
+  h.p.talentExtra.grants.add('agilidad'); h.p.recompute();
+  h.setSlot('k2', 'agilidad');
+  assert.equal(h.cast('k2'), true);
   assert.ok(h.p.slowImmuneT > 5.9, 'Agilidad: 6 s de inmunidad');
   console.log('A1 slowImmuneT/applySlow (Agilidad, Piel de Hierro, Furia Inmortal) ✓');
 }
@@ -125,7 +127,7 @@ function addSkill(cid, def) {
   const c0 = resolveSkill(h.p, fp).cost;
   h.p.addBuff('t_gratis', { spenderCostPct: -50 }, 2);
   assert.equal(resolveSkill(h.p, fp).cost, Math.round(c0 * 0.5), 'spenderCostPct −50 → mitad de coste');
-  assert.equal(resolveSkill(h.p, SK('arquera', 'a_red')).cost, 10, 'no afecta a las utilidades');
+  assert.equal(resolveSkill(h.p, SK('arquera', 'a_t_cepo')).cost, 10, 'no afecta a lo que no es principal (Trampa de Cepo)');
   h.tick(2.1);
   assert.equal(resolveSkill(h.p, fp).cost, c0, 'al caducar el buff, coste normal');
   console.log('A6 coste por buff en resolveSkill (Furia Inmortal = spenderCostPct −100) ✓');
@@ -249,8 +251,11 @@ function addSkill(cid, def) {
   const seen = [];
   const o3 = v.takeDamage.bind(v);
   v.takeDamage = (a, c, o = {}) => { seen.push(o); return o3(a, c, o); };
-  h3.aim(0, 4); h3.setSlot('lmb', 'a_cicuta'); h3.cast('lmb'); h3.step(2);
-  assert.ok(seen.some(o => o.dot && o.skill === 'a_cicuta'), 'tic de Veneno: dot:true, skill a_cicuta');
+  // (catálogo 2g: Flecha de Cicuta es una variante de la forja; aquí, un básico sintético con su hitDot)
+  addSkill('arquera', { id: 't_cicuta', name: 'Cicuta de prueba', cat: 'basic', tags: ['basic', 'proj', 'nature', 'dot'], elem: 'nature',
+    type: 'proj', coef: 0.7, gen: 5, hitDot: { kind: 'poison', coef: 0.5, dur: 4 }, speed: 17, range: 9.5 });
+  h3.aim(0, 4); h3.setSlot('lmb', 't_cicuta'); h3.cast('lmb'); h3.step(2);
+  assert.ok(seen.some(o => o.dot && o.skill === 't_cicuta'), 'tic de Veneno: dot:true, skill t_cicuta');
   console.log('Sin escopetazo · primer proyectil recto · tope de recurso al golpear · tics de DoT atribuidos ✓');
 }
 

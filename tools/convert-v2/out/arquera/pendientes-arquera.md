@@ -216,136 +216,167 @@
 
 ## Activas de talento (ranura 2, sin forja)
 
-- [ ] **a_t_camuflaje** Camuflaje · defense · Nv21 · concede c11 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **agilidad** Agilidad · utility · Nv27 · concede c17 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **a_t_bengala** Flecha Bengala · utility · Nv31 · concede c22 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **a_h_torbellino** Torbellino · utility · Nv72 · concede q4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
-- [ ] **a_h_puntas** Desborde de Puntas · utility · Nv72 · concede w4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
-- [ ] **a_h_halcon** Llamada del Halcón · utility · Nv72 · concede y4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
+- [x] **a_t_camuflaje** Camuflaje · defense · Nv21 · concede c11 — KA1: catálogo 2g (20 s, 4 s). Comportamiento `a_t_camuflaje` y crítico al salir: del árbol (powers-arquera.js, KT); «Paso Veloz se recarga» lo pone el poder del nodo (g.reduceCooldown, no p.cds)
+- [x] **agilidad** Agilidad · utility · Nv27 · concede c17 — KA1: buff genérico (slowImmune); deja la ranura 1; grant en c17A
+- [x] **a_t_bengala** Flecha Bengala · utility · Nv31 · concede c22 — KA1: comportamiento propio `a_bengala` (campo `zona` + pulso de 0,25 s con applyWeakness 15 y weakenOutgoing 15, 10 m, 10 s). Deja sin uso el `a_t_bengala` y el campo `a_bengala` de powers-arquera.js (KT los retira)
+- [x] **a_h_torbellino** Torbellino · utility · Nv72 · concede q4 (héroe) — KA1: comportamiento propio `a_torbellino` (golpe sin daño en 4 m que aplica `stun 1.5`; a un jefe, Quebranto). Las 3 Ráfagas: poder del árbol (KT)
+- [x] **a_h_puntas** Desborde de Puntas · utility · Nv72 · concede w4 (héroe) — KA1: buff genérico vacío de 10 s (`count: 4`); los 4 disparos con las tres puntas los cuenta el poder `w_puntas` (KT). La duración de 10 s es propuesta de KA1 (el doc no la da)
+- [x] **a_h_halcon** Llamada del Halcón · utility · Nv72 · concede y4 (héroe) — KA1: comportamiento propio `a_halcon` (12 ataques de 40 % cada 0,5 s; ceguera −30 % el resto de la llamada; 30 de Quebranto al primer jefe; si el blanco muere o se aleja, el más cercano)
 
 ## Kit (KA1): habilidades base y de especialización
 
-- [ ] **a_disparo** Disparo Rápido · basic · Nv1 · physical
-- [ ] **flecha_perforante** Flecha Perforante · spender · Nv2 · physical
-- [ ] **a_paso** Paso Veloz · movement · Nv4 · physical
-- [ ] **a_humo** Bomba de Humo · defense · Nv6 · physical
-- [ ] **lluvia_flechas** Lluvia de Flechas · spender · Nv8 · physical
-- [ ] **a_t_andanada** Andanada · spec · Nv10 · tiradora · physical
-- [ ] **a_v_carrera** Carrera del Viento · movement · Nv12 · tiradora · physical
-- [ ] **flecha_multiple** Flecha Múltiple · spender · Nv14 · tiradora · physical
-- [ ] **a_u_diluvio** Diluvio de Saetas · ultimate · Nv15 · tiradora · physical
-- [ ] **a_t_apuntado** Disparo Apuntado · spec · Nv10 · francotiradora · physical
-- [ ] **a_f_rodilla** Rodilla en Tierra · utility · Nv12 · francotiradora · physical
-- [ ] **a_f_rastreador** Tiro Rastreador · spender · Nv14 · francotiradora · physical
-- [ ] **a_u_celeste** Tiro Celestial · ultimate · Nv15 · francotiradora · physical
-- [ ] **a_t_cepo** Trampa de Cepo · spec · Nv10 · montaraz · nature
-- [ ] **a_m_acecho** Salto de Acecho · movement · Nv12 · montaraz · physical
-- [ ] **a_m_detonante** Flecha Detonante · spender · Nv14 · montaraz · physical
-- [ ] **a_u_zarzas** Cerco de Zarzas · ultimate · Nv15 · montaraz · nature
+- [x] **a_disparo** Disparo Rápido · basic · Nv1 · physical — `weapon` genérico. Tercera Flecha (`seq`) y Cuerda Tensa (`charge`) son pasivas de especialización (KT, modifyResolve)
+- [x] **flecha_perforante** Flecha Perforante · spender · Nv2 · physical — `proj` genérico
+- [x] **a_paso** Paso Veloz · movement · Nv4 · physical — comportamiento `a_paso` (existía; params `rollT`); sin buff (Doble Rodada) no pone el bonus
+- [x] **a_humo** Bomba de Humo · defense · Nv6 · physical — comportamiento `a_humo` (existía): zona + campo de ceguera `a_humo_ciego` de KT con la misma vida (KA2: vuelve a usarlo, test88 §2b); `cdOnEnd`; `dps` si la forja le da coef; lee `prof.follow` (Manto de Niebla)
+- [x] **lluvia_flechas** Lluvia de Flechas · spender · Nv8 · physical — comportamiento `a_lluvia` (existía; params `waves`, `span`): VFX por oleada. `repeat` genérico no repite el VFX de cada oleada
+- [x] **a_t_andanada** Andanada · spec · Nv10 · tiradora · physical — comportamiento NUEVO `a_andanada` (params `jump`): abanico de `count` flechas + salto de 4 m (`p.leap`, atrás en los usos impares, adelante en el relanzamiento); `recast` del motor `{ n: 2, win: 2, cdFrom: 'first' }`; `perTarget` (Andanada Cerrada) con Map por lanzamiento. Ningún tipo genérico dispara un abanico Y salta
+- [x] **a_v_carrera** Carrera del Viento · movement · Nv12 · tiradora · physical — `channel` genérico: `hold`, `moveMul 1.4`, `autoShot { every 0.4, coef 0.45, nearest, 10 m }`, `dur 4` (así `durS` la alarga), `ticks 20`
+- [x] **flecha_multiple** Flecha Múltiple · spender · Nv14 · tiradora · physical — `proj` genérico (5 en 50°, 45 %)
+- [x] **a_u_diluvio** Diluvio de Saetas · ultimate · Nv15 · tiradora · physical — comportamiento `a_diluvio` (lluvia con `follow: 'owner'`: 12 oleadas cada 0,5 s), `cdFloor 0.7`
+- [x] **a_t_apuntado** Disparo Apuntado · spec · Nv10 · francotiradora · physical — `proj` genérico + `charge { min 0.3, max 1.5, perfect [1.15, 1.35], perfectPct 50, perfectCrit, scale.coef [0.8, 2.5], moveMul 0.6 }`
+- [x] **a_f_rodilla** Rodilla en Tierra · utility · Nv12 · francotiradora · physical — `stance` genérico de un modo (`moveMul 0.5`, `chargeSpeed 40`, `keepGauge 'concentracion'`), `dur 8`, `endOnDodge`, `recastEnds`
+- [x] **a_f_rastreador** Tiro Rastreador · spender · Nv14 · francotiradora · physical — `proj` genérico + `mark { id 'a_punto_debil', dur 8, uses 1, firstCharged 30 }`
+- [x] **a_u_celeste** Tiro Celestial · ultimate · Nv15 · francotiradora · physical — `proj` genérico + `recast { n 3, win 8, cdFrom 'first' }` + `charge { min 0.3, max 0.8, perfect [0.5, 0.75], scale.coef [2, 4] }`; fuera el comportamiento `a_celeste` (escribía p.cds). El 200 % a carga mínima es propuesta de KA1 (el doc da 400 % a 0,8 s)
+- [x] **a_t_cepo** Trampa de Cepo · spec · Nv10 · montaraz · nature — `trap` genérico: `charges 2` (D2; fuera el powerState), `dur 30` (vida), `root 2` (para `rootAdd`), `trap { armT 0.5, maxArmed 3, radius 1.5, lure { 6 m, élite 3 m, jefes no, ×0,8 } }`, `hitDot` declarado (ver peticiones W2)
+- [x] **a_m_acecho** Salto de Acecho · movement · Nv12 · montaraz · physical — `leap` genérico con `at: 'ownField'`, `fieldKind 'trampa'`, `fallbackRange 6`, `detonate { radius 2, coef 1, perTarget 2 }`, `cdFloor 0.5` (Rearme Rápido: nunca menos de 5 s); sin daño propio al caer (coef 0)
+- [x] **a_m_detonante** Flecha Detonante · spender · Nv14 · montaraz · physical — `proj` genérico con `splash 0.8` en 3 m y `detonate { radius 3, coef 1, perTarget 2 }`
+- [x] **a_u_zarzas** Cerco de Zarzas · ultimate · Nv15 · montaraz · nature — comportamiento `a_zarzas` reescrito (params `endMul`): donde apuntas (`at: 'target'`; `'enemy'` para la Jaula), cruzar = golpe sin daño que aplica `root 1.5` (+ `rootAdd`), veneno del campo `zona`, estallido de 300 % al cerrarse, `contain` si la forja lo pone; dura lo que su campo
+
+### Notas de KA1 (E2)
+
+- Comportamientos propios (ningún tipo genérico basta): `a_andanada`, `a_bengala`, `a_torbellino`, `a_halcon` (nuevos) y `a_paso`, `a_humo`, `a_lluvia`, `a_diluvio`, `a_zarzas` (existían). Ids distintos de los de powers-arquera.js (se registran antes y un id repetido rompe la carga).
+- Ganchos para KT: la lluvia lee `prof.waves`, `prof.span` y `prof.follow` antes que la definición (Nube Fiel, Nube de Paso); el humo lee `prof.follow` (Manto de Niebla); Desborde de Puntas expone `count: 4`.
+- Peticiones W2 (motor): (1) la trampa genérica debería aplicar su `hitDot` al saltar (sustituyendo, «se renueva, no se suma») en vez del golpe directo `dmg`: hoy el cepo hace el 60 % de golpe; (2) Punto Débil: «uno por enemigo cada 8 s aunque lo vuelvas a marcar» (hoy cada impacto rehace la marca con un uso); (3) soltar una carga antes de `min` no debería disparar (hoy dispara a `min`); (4) `detonate.coef` no escala con el rango; (5) un proyectil con `detonate` solo detona al impactar en un enemigo (no al llegar al final del alcance); (6) los tics de `startChannel` derivan un fotograma por tic (una Carrera de 4 s dura ~4,3 s a 60 fps).
+- Tablas legadas (save-legacy-arquera.js): §11.3.2 salvo Red de Caza en la Francotiradora, que cae a Rodilla en Tierra (su barra) en vez de a la Bomba de Humo, para que la variante II quede en el cepo sin forjar el humo.
+- Divergencias declaradas (KA2 las retira): `forja` y `reco` (retiradas en KA2).
+- Arte (U2 / E3): las 8 habilidades del kit sin icono en `assets/skills/` (`a_t_andanada`, `a_v_carrera`, `a_t_apuntado`, `a_f_rodilla`, `a_f_rastreador`, `a_t_cepo`, `a_m_acecho`, `a_m_detonante`) dan 404 en el humo (`hud-model.baseSkillIcon` pide `skills/<id>.webp` a todo lo que no es activa de talento; antes las insignias usaban el sprite de su nodo). Arte de partida del borrador: `talents/arquera-tiradora-s4`, `-s9`, `icons256/a_p_punteria` (no existe), `talents/arquera-francotiradora-s8`, `-x1`, `talents/arquera-montaraz-s0`, `-s2`, `-s6`. Las 3 activas de héroe (kind 'talent') no tienen nodo en los árboles de clase ni de especialización: `talentSkillArt` no las encuentra (marcador).
 
 ## Forja (KA2): Mejora (Nv req+3) y variantes I/II (Nv req+6)
 
+`ARQUERA_SKILL_FORGE` y `ARQUERA_FORGE_RECO` en `js/skills-arquera.js`; poderes `v_*` en `js/powers-forge-arquera.js`; VFX de las variantes en `ARQUERA_FX[id].vars.i|ii` (`js/fx-skills-arquera.js`); pruebas en `tests/test-forge-arquera.mjs` (A1, A2/F7 con la lista de claves que puede cambiar cada pieza, A9, las 51 piezas en el arnés, ★ y VFX). Donde la Mejora y una variante fijan el mismo parámetro, la Mejora usa `set` y la variante lo pisa (Diluvio Anclado: 6 m, no 6 × 1,25; Tiro Pesado: 2,5 s, no el 1,3 s de Tensado Rápido).
+
+`[~]` = la pieza está en los datos y su prueba de juego existe, pero el efecto completo espera al motor (cola W2). En `tests/test-forge-arquera.mjs` esas piezas están en `PEND_W2`: su afirmación de juego vale el valor de hoy o el correcto, y la suite avisa cuando el motor ya da el correcto (entonces se saca de la lista y queda estricta).
+
 ### a_disparo · Disparo Rápido
 
-- [ ] **Mejora · Mano Rápida** — NUEVO · `★set{cadence:.9}`
-- [ ] **I (AREA) · Disparo Disperso** — NUEVO · `★set{count:3, spread:.218, coef:.45} (absorbe a Disparo Disperso)`
-- [ ] **II (UNI) · Flecha de Cicuta** — NUEVO · `★elem nature · coef .7 · hitDot poison .5/4 s (absorbe a Flecha de Cicuta)`
+- [~] **Mejora · Mano Rápida** — `set { cadence: 0.9 }`. El perfil la lleva, pero **en juego no hace nada todavía**: `Player.basicAttack` pone `atkCd = stats.atkTime` sin leer `prof.cadence` (medido: el siguiente disparo espera 1 × atkTime a Nv4, Nv20 Tiradora y Nv20 Montaraz). Petición W2 n.º 2; `PEND_W2.a_disparo_m`
+- [x] **I (AREA) · Disparo Disperso** — `set { count: 3, spread: 0.218, coef: 0.45 }` (un impacto por enemigo)
+- [x] **II (UNI) · Flecha de Cicuta** — `elem nature`, `set { coef: 0.7, hitDot { poison, 0.5, 4 s } }`, tag `dot`; el veneno se suma (applyDoT). El color de la flecha (`color` de la definición y `vars.ii` de los VFX) no lo lee aún el básico de arma (petición W2 n.º 3; la entrada base de `ARQUERA_FX.a_disparo` ya no lleva `color` para no taparlo)
 
 ### flecha_perforante · Flecha Perforante
 
-- [ ] **Mejora · Astil de Fresno** — NUEVO · `range +15 · ★add{speed:+20%}`
-- [ ] **I (AREA) · Flecha Explosiva** — NUEVO · `★set{pierce:false} · ★set{splash:.8, radius:3}`
-- [ ] **II (UNI) · Tiro de Precisión** — NUEVO · `★set{windup:.35} · dmg +45`
+- [x] **Mejora · Astil de Fresno** — `set { range: 15 }`, `mul { speed: 1.2 }`
+- [x] **I (AREA) · Flecha Explosiva** — `set { pierce: false, splash: 0.8, radius: 3 }`, tag `area`
+- [x] **II (UNI) · Tiro de Precisión** — `set { windup: 0.35 }` (la esquiva lo cancela), `mod { dmg: 45 }`
 
 ### a_paso · Paso Veloz
 
-- [ ] **Mejora · Ágil** — existe · `durS 1`
-- [ ] **I (UNI) · Rodar y Disparar** — NUEVO · `★power v_rodar (afterCast)`
-- [ ] **II (MOV) · Doble Rodada** — NUEVO · `★charges 2 · buff 0`
+- [x] **Mejora · Ágil** — `mod { durS: 1 }`
+- [x] **I (UNI) · Rodar y Disparar** — `set { rollShot: 1.5 }` + poder `v_rodar` (③ afterCast: un `Player.basicAttack` real al 150 % al enemigo de la mira, al más cercano a tiro o a la mira; no toca `atkCd`)
+- [x] **II (MOV) · Doble Rodada** — `mod { charges: 1 }`, `set { buff: null }` (el comportamiento no pone el bonus)
 
 ### a_humo · Bomba de Humo
 
-- [ ] **Mejora · Humo Espeso** — existe · `radius +25`
-- [ ] **I (AREA) · Humo Venenoso** — NUEVO · `dot poison · ★set{coef:.4}`
-- [ ] **II (CTRL) · Estallido de Humo** — NUEVO · `★knock 3 · slow 2 · slowPct 40`
+- [x] **Mejora · Humo Espeso** — `set { radius: 5 }` (la nube y la ceguera)
+- [x] **I (AREA) · Humo Venenoso** — `set { coef: 0.4 }`, tag `dot`: el veneno es el daño por segundo de la zona (como el del Cerco)
+- [x] **II (CTRL) · Estallido de Humo** — `mod { knock: 3, slow: 2, slowPct: 40 }`: al lanzarla, golpe sin daño a los del radio (empuje desde el centro)
 
 ### lluvia_flechas · Lluvia de Flechas
 
-- [ ] **Mejora · Cielo Plomizo** — NUEVO · `★add{waves:1}`
-- [ ] **I (UNI) · Aguacero** — NUEVO · `radius −33 · ★set{span:.8} · dmg +40`
-- [ ] **II (AGU) · Cortina** — NUEVO · `★set{allyDr:15, projMissPct:50} (zona)` · línea de 78 > 70 (aviso A1: acortar o divergencias.json)
+- [x] **Mejora · Cielo Plomizo** — `add { waves: 1 }`
+- [x] **I (UNI) · Aguacero** — `set { radius: 2, span: 0.8 }`, `mod { dmg: 40 }`
+- [x] **II (AGU) · Cortina** — `set { allyDr: 15, projMissPct: 50 }`: mientras llueve, una zona de defensa para los aliados de dentro (la del k). Línea acortada a «Dentro recibes…» (divergencias.json; ver las dudas del informe)
 
 ### a_t_andanada · Andanada
 
-- [ ] **Mejora · Arco Ancho** — NUEVO · `★set{spread:150°}`
-- [ ] **I (UNI) · Andanada Cerrada** — NUEVO · `★set{spread:30°, perTarget:3} · range +3 (tope por salto)` · línea de 85 > 70 (aviso A1: acortar o divergencias.json)
-- [ ] **II (CTRL) · Andanada Repulsora** — NUEVO · `★knock 2 · slow 2 · slowPct 30 · dmg −15`
+- [x] **Mejora · Arco Ancho** — `set { spread: 1.309 }` (150°)
+- [x] **I (UNI) · Andanada Cerrada** — `set { spread: 0.2618, perTarget: 3 }`, `add { range: 3 }`; línea acortada
+- [x] **II (CTRL) · Andanada Repulsora** — `mod { knock: 2, slow: 2, slowPct: 30, dmg: -15 }`
 
 ### a_v_carrera · Carrera del Viento
 
-- [ ] **Mejora · Galope** — NUEVO · `★set{moveMul:1.55}`
-- [ ] **I (UNI) · Carrera Certera** — NUEVO · `★set{autoShot.every:.6, autoShot.target:maxHp} · dmg +70`
-- [ ] **II (AGU) · Carrera Esquiva** — NUEVO · `★set{projMissPct:40} · dmg −30` · línea de 78 > 70 (aviso A1: acortar o divergencias.json)
+- [x] **Mejora · Galope** — `set { moveMul: 1.55 }`
+- [x] **I (UNI) · Carrera Certera** — `set { 'autoShot.every': 0.6, 'autoShot.target': 'maxHp' }`, `mod { dmg: 70 }`
+- [x] **II (AGU) · Carrera Esquiva** — `set { projMissPct: 40 }`, `mod { dmg: -30 }` + poder `v_carrera_esquiva` (buff mientras dura el canal; sale con ⑭ o, si el canal desaparece, en la comprobación a 10 Hz); línea acortada
 
 ### flecha_multiple · Flecha Múltiple
 
-- [ ] **Mejora · Alcance Largo** — existe · `range +30`
-- [ ] **I (AREA) · Abanico Abierto** — NUEVO · `★set{count:7, spread:90°, coef:.38}`
-- [ ] **II (UNI) · Haz Cerrado** — NUEVO · `★set{count:3, spread:10°, pierce:true, coef:.55}`
+- [x] **Mejora · Alcance Largo** — `set { range: 13 }`
+- [x] **I (AREA) · Abanico Abierto** — `set { count: 7, spread: 0.785, coef: 0.38 }`
+- [x] **II (UNI) · Haz Cerrado** — `set { count: 3, spread: 0.0873, pierce: true, coef: 0.55 }`: las 3 flechas dan al mismo enemigo (165 %)
 
 ### a_u_diluvio · Diluvio de Saetas
 
-- [ ] **Mejora · Nube Ancha** — existe · `radius +25`
-- [ ] **I (AREA) · Diluvio Anclado** — NUEVO · `★set{follow:false, at:target, radius:6}`
-- [ ] **II (UNI) · Saetas Pesadas** — NUEVO · `★set{waves:4, span:2, radius:1.5, coef:7}`
+- [x] **Mejora · Nube Ancha** — `set { radius: 5 }`
+- [x] **I (AREA) · Diluvio Anclado** — `set { follow: false, at: 'target', radius: 6, range: 12 }`
+- [x] **II (UNI) · Saetas Pesadas** — `set { follow: false, at: 'enemy', waves: 4, span: 2, radius: 1.5, coef: 7, range: 12 }`: la lluvia sigue a tu objetivo (si muere, queda donde cayó)
 
 ### a_t_apuntado · Disparo Apuntado
 
-- [ ] **Mejora · Tensado Rápido** — NUEVO · `★set{charge.max:1.3}`
-- [ ] **I (AREA) · Tres Saetas** — NUEVO · `★set{charge.fullCount:3, spread:20°, coef ×0,4}` · traducir: `charge.fullCount → charge.full.count (+ full.spread, full.coefMul)` · línea de 83 > 70 (aviso A1: acortar o divergencias.json)
-- [ ] **II (UNI) · Tiro Pesado** — NUEVO · `★set{charge.max:2.5, charge.coefMax:3, pierce:false}` · traducir: `charge.coefMax → set: { 'charge.scale.coef.1': v } (coeficiente a carga completa de scale.coef [aMin, aMax])`
+- [x] **Mejora · Tensado Rápido** — `set { 'charge.max': 1.3, 'charge.perfect': [1.0, 1.17] }` (el ★set del k, con la ventana dorada escalada a mano ×1,3/1,5). Es `set`, no un mod de velocidad: Tiro Pesado lo pisa (carga completa a 2,5 s, no a ~2,17 s como con el `chargeSpeed 15` de la primera entrega) y Tres Saetas lo hereda
+- [x] **I (AREA) · Tres Saetas** — `set { 'charge.full': { count: 3, spread: 0.1745, coefMul: 0.4 } }`; línea acortada («al 40 %» del disparo cargado, el ×0,4 del k)
+- [x] **II (UNI) · Tiro Pesado** — `set { 'charge.max': 2.5, 'charge.perfect': [2.15, 2.35], 'charge.scale.coef': [0.8, 3], pierce: false }`
 
 ### a_f_rodilla · Rodilla en Tierra
 
-- [ ] **Mejora · Rodilla Firme** — NUEVO · `★set{chargeMul:1.5}` · traducir: `chargeMul → chargeSpeed (%)` · línea de 71 > 70 (aviso A1: acortar o divergencias.json)
-- [ ] **I (UNI) · Puesto Fijo** — NUEVO · `★set{moveMul:0, chargeMul:2} · dmg +15 (Apuntado y haces)` · traducir: `chargeMul → chargeSpeed (%)` · línea de 86 > 70 (aviso A1: acortar o divergencias.json)
-- [ ] **II (AGU) · Parapeto** — NUEVO · `★set{dr:30, projMissPct:50}` · traducir: `dr → set: { 'buff.dr': v } (DR del buff; en una postura, stance.modes[i].stats.dr)` · línea de 82 > 70 (aviso A1: acortar o divergencias.json)
+- [x] **Mejora · Rodilla Firme** — `set { 'stance.modes.0.chargeSpeed': 50 }`; línea acortada
+- [x] **I (UNI) · Puesto Fijo** — `set { 'stance.modes.0.moveMul': 0, 'stance.modes.0.chargeSpeed': 100 }` + poder `v_puesto_fijo` (③ condAdd +15 a Disparo Apuntado y Tiro Celestial de rodillas); línea acortada
+- [x] **II (AGU) · Parapeto** — `set { 'stance.modes.0.stats': { dr: 30, projMissPct: 50 } }`; línea acortada
 
 ### a_f_rastreador · Tiro Rastreador
 
-- [ ] **Mejora · Marca Duradera** — existe · `mark.dur 12`
-- [ ] **I (AREA) · Rastreo Múltiple** — NUEVO · `★set{markCount:3, markRadius:4, mark.dur:6}` · traducir: `markCount → mark.count`; `markRadius → mark.radius`
-- [ ] **II (CTRL) · Grillete** — existe · `slow 8 · slowPct 50 · stagger 20 (jefes)`
+- [x] **Mejora · Marca Duradera** — `set { 'mark.dur': 12 }`
+- [x] **I (AREA) · Rastreo Múltiple** — `set { 'mark.count': 3, 'mark.radius': 4, 'mark.dur': 6 }`
+- [x] **II (CTRL) · Grillete** — `mod { slow: 8, slowPct: 50, stagger: 20 }` (los 8 s del k). **Aviso a E4 / orquestador:** a un jefe, la ralentización ≥ 30 % también llena Quebranto (`staggerFromCC`: 4 por segundo = 32), así que cada impacto da 52 (20 del mod + 32). Tiro Rastreador no tiene recarga y cuesta 20 de Energía: dos impactos quiebran a un jefe (`STAGGER_MAX` 100), por encima del Quebranto de una especialización de control. Lo mismo vale para cualquier marca reaplicable sin recarga con ralentización ≥ 30 %; el arreglo es de reglas (rendimientos decrecientes del Quebranto por ralentización reaplicada, o que el mod la excluya), no de este dato
 
 ### a_u_celeste · Tiro Celestial
 
-- [ ] **Mejora · Cielo Abierto** — existe · `window 10` · traducir: `window → recast.win`
-- [ ] **I (AREA) · Lluvia Estelar** — NUEVO · `★set{at:target, radius:4, coef:1.5, pierce:false}`
-- [ ] **II (UNI) · Haz Único** — NUEVO · `★set{shots:1, charge.max:3, charge.coefMax:10}` · traducir: `charge.coefMax → set: { 'charge.scale.coef.1': v } (coeficiente a carga completa de scale.coef [aMin, aMax])`
+- [x] **Mejora · Cielo Abierto** — `mod { recastWin: 2 }`
+- [x] **I (AREA) · Lluvia Estelar** — `set { type: 'area', at: 'target', radius: 4, coef: 1.5, pierce: false, impactDelay: 0.25, 'charge.scale.coef': [0.75, 1.5] }` (siguen los 3 haces y el tensado)
+- [x] **II (UNI) · Haz Único** — `set { recast: null, 'charge.max': 3, 'charge.perfect': [2.7, 2.95], 'charge.scale.coef': [2, 10] }`
 
 ### a_t_cepo · Trampa de Cepo
 
-- [ ] **Mejora · Muelles Firmes** — existe · `armT .2`
-- [ ] **I (AREA) · Mina de Espinas** — NUEVO · `★set{root:0, burst:{radius:3, coef:1}}`
-- [ ] **II (CTRL) · Red de Caza** — NUEVO · `★set{radius:3, root:2.5} · absorbe a Red de Caza (a_red)` · línea de 76 > 70 (aviso A1: acortar o divergencias.json)
+- [x] **Mejora · Muelles Firmes** — `set { 'trap.armT': 0.2 }`
+- [~] **I (AREA) · Mina de Espinas** — `set { root: 0, 'trap.burst': { radius: 3, coef: 1 } }`. Al vecino le llega el 100 % a rango 1, pero **quien la pisa recibe el golpe directo de la trampa más el estallido** (a Nv30, ~86 + 120 frente al «estalla (100 %)» del texto) y `trap.burst.coef` va en crudo, sin escalar con el rango (a rango 3 sigue al 100 % cuando el cepo ya va al ×1,2). Peticiones W2 n.º 7 y KA1 n.º 1; `PEND_W2.a_t_cepo_i`
+- [x] **II (CTRL) · Red de Caza** — `set { root: 2.5, radius: 3 }` + poder `v_red_caza` (⑤ al saltar el cepo —`hit.trap` y `source 'field:trampa'`, no en un estallido—, una red por trampa: inmoviliza a los demás a `radius` m). El radio sale de la definición forjada (`p.talentAccessors().defOf`, que la calcula aunque la caché esté vacía) y la raíz, de la trampa (`data.root`, con `rootAdd`); sin constantes de reserva. Depende del golpe ⑤ de la trampa: ver la petición W2 n.º 7; línea acortada
 
 ### a_m_acecho · Salto de Acecho
 
-- [ ] **Mejora · Acecho Lejano** — existe · `range 20`
-- [ ] **I (CTRL) · Acecho Enredador** — NUEVO · `★set{consume:false, root:1.5, radius:3}`
-- [ ] **II (MOV) · Doble Acecho** — NUEVO · `★charges 2 · dmg −30`
+- [x] **Mejora · Acecho Lejano** — `set { range: 20 }`
+- [~] **I (CTRL) · Acecho Enredador** — `set { 'detonate.consume': false, root: 1.5, radius: 3 }` + poder `v_acecho_enredador` (③ afterCast al caer: raíz a `radius` m). **Falta** que la detonación no gaste la trampa: `detonate.consume` está en VERB_DOC, pero `detonateAt` y `_trapBurst` no lo leen (petición W2 n.º 4; `PEND_W2.a_m_acecho_i`)
+- [x] **II (MOV) · Doble Acecho** — `mod { charges: 1 }`, `set { 'detonate.coef': 0.7 }` (el estallido no usa el saco aditivo del salto)
 
 ### a_m_detonante · Flecha Detonante
 
-- [ ] **Mejora · Pólvora Fina** — existe · `radius +33`
-- [ ] **I (AREA) · Detonación en Cadena** — NUEVO · `★set{chain:6}`
-- [ ] **II (CTRL) · Flecha de Garfio** — NUEVO · `★set{splash:0, pull:{to:trap, dist:6}} · absorbe al Arpón (a_t_arpon)`
+- [x] **Mejora · Pólvora Fina** — `set { radius: 4, 'detonate.radius': 4 }`
+- [x] **I (AREA) · Detonación en Cadena** — `set { 'detonate.chain': 6 }`
+- [x] **II (CTRL) · Flecha de Garfio** — `set { splash: 0, detonate: null, pull: { dist: 6, to: 'trap' } }`, quita el tag `area`
 
 ### a_u_zarzas · Cerco de Zarzas
 
-- [ ] **Mejora · Espinas Duraderas** — existe · `dur 10`
-- [ ] **I (UNI) · Jaula de Espinas** — NUEVO · `★set{radius:3, target:one, trapIn:true} · dmg +30 (ronda 3; antes +60)` · traducir: `target → at: "enemy"`; `trapIn → contain (campo)` · línea de 71 > 70 (aviso A1: acortar o divergencias.json)
-- [ ] **II (AGU) · Señuelo de Zarzas** — NUEVO · `★set{decoy:{dur:6, radius:10}} · absorbe al Señuelo de Paja (a_t_senuelo)` · traducir: `decoy → lure { radius, dur }`
+- [x] **Mejora · Espinas Duraderas** — `mod { durS: 2 }`
+- [x] **I (UNI) · Jaula de Espinas** — `set { radius: 3, at: 'enemy', contain: true, venomPct: 30 }`: el +30 % va solo al veneno (param `venomPct` del comportamiento), no al estallido; línea acortada
+- [x] **II (AGU) · Señuelo de Zarzas** — `set { lure: { radius: 10, dur: 6 } }`: el canal planta el señuelo (`senuelo`) en el centro del anillo al cerrar el lanzamiento
+
+### Notas de KA2 (E2)
+
+- La Bomba de Humo vuelve a usar el campo `a_humo_ciego` de powers-arquera.js para la ceguera (lo pide test88 §2b; la nota de KA1 de arriba ya está corregida): KT lo conserva.
+- ★ (`ARQUERA_FORGE_RECO`) = la del mockup. Ninguna apaga la barra de su especialización (2f §7.7): la Tiradora conserva los disparos (`proj`); la Francotiradora, el tensado, la postura que guarda la Concentración y el Punto Débil; el Montaraz, las trampas, las detonaciones y el salto a la trampa. Lo vigila tests/test-forge-arquera.mjs §5 y, en vivo, el Impulso, el perfecto de Tiro Pesado y el Coto.
+- Divergencias: las 9 líneas de forja de más de 70 caracteres, acortadas y declaradas (`aprobada: false`); fuera las de KA1 `forja` y `reco`.
+- Peticiones a la cola W2 (motor):
+  1. test81 F7: el comparador quita `def` del perfil salvo con comportamiento propio; los tipos genéricos leen la definición forjada (`trap.armT`, `stance.modes`, `detonate.chain`) y salen 4 falsos no-ops (`a_f_rodilla_m`, `a_f_rodilla_ii`, `a_t_cepo_m`, `a_m_detonante_i`). Incluir `def` sin la marca `forged` en la firma (como hace test-forge-arquera §2). Mientras tanto, test81 tiene que entrar en la cuarentena con dueño W2 (lo decide el orquestador: KA no edita `pending-2g.json`).
+  2. `Player.basicAttack`: `atkCd = stats.atkTime × prof.cadence` (Mano Rápida; hoy solo la lee `_commitCast` para los básicos que no son de arma). Medido: con la Mejora, el siguiente disparo sigue esperando 1 × atkTime.
+  3. `Player.basicAttack`: color de la flecha con este orden: `vars[variant].color` del VFX → `color` de la definición FORJADA (`prof.def.color`) → `color` del VFX base → el de la clase. Hoy es `fx.color ?? wb.color` con `wb` = el catálogo, así que ni la definición forjada ni la variante cuentan. VFX de la variante: `SKILL_FX[id].vars[variant]` fusionado sobre la entrada, también en `_makeCtx` para los tipos genéricos (`ctx.fx`); los comportamientos de la clase ya lo hacen con `fxOf`. **Para el orquestador:** la Arquera indexa `vars` por `i|ii` y KA2-guerrero por id de variante; hay que fijar una sola convención antes de que W2 lo implemente.
+  4. `detonate.consume: false` en `detonateAt`, `detonateField` y `_trapBurst` (la trampa estalla y se rearma: Acecho Enredador).
+  5. `SKILL_KEYS`: añadir `forged` (la marca de forgeDef) para que validateSkillDef no avise en una definición forjada.
+  6. Las de KA1 siguen abiertas (hitDot de la trampa, Punto Débil por enemigo, soltar antes de `min`, `detonate.coef` por rango, detonar al final del alcance, deriva de los tics del canal).
+  7. Trampa genérica con `burst` (Mina de Espinas): (a) el estallido escala con el rango como el resto de la habilidad (`trap.burst.coef × rankCoef`, igual que pide la n.º 4 de KA1 para `detonate.coef`), en `_trapBurst` y en el salto de la trampa; (b) con `burst`, quien la pisa no recibe además el golpe directo `dmg`: el estallido ya le alcanza (con la n.º 1 de KA1, el golpe directo pasa a ser el `hitDot`). **Ojo:** `v_red_caza` se dispara con el ⑤ de ese golpe directo (`hit.trap` y `source 'field:trampa'`); si la n.º 1 de KA1 lo quita, la trampa tiene que seguir emitiendo un ⑤ al saltar (golpe de 0 con `hit.trap`) o dar otro gancho, y Red de Caza se adapta.
+- Arte (U2 / E3): los iconos `forge/v_<id>_i|ii` de las 34 variantes no existen todavía (marcador por papel, 2f §5).
+- Arte del kit (U2 / E3): `hud-model.baseSkillIcon` pide `skills/<id>.webp` y `skills256/<id>.webp` a toda habilidad que no es de talento, y a 8 del kit les faltan los dos: `a_t_andanada`, `a_v_carrera`, `a_t_apuntado`, `a_f_rodilla`, `a_f_rastreador`, `a_t_cepo`, `a_m_acecho` y `a_m_detonante` (el humo boot cae en rojo por esos 404 en cuanto llega a las insignias de Nv10; en juego, a Nv12 y Nv14, la barra de `SPEC_BAR` y el libro piden 5 más). Petición a U2: respaldo en `baseSkillIcon` al arte del nodo que usa el mockup (`I('<spec>-sN')` → `talents/arquera-<spec>-sN.webp`) o al marcador, sin pedir el archivo que no existe. Petición a E3 (arte): los 8 iconos en 128 y 256 px.
+- Para E4 / orquestador: Quebranto por ralentización reaplicada (ver Grillete) y el mínimo de G17 de la Arquera (ver abajo).
+- `test78` (dueño de la decisión: orquestador; datos: KT-arquera). Falla desde que el catálogo 2g trae el kit de especialización (`CATALOG_V = 2`; en `paso2-impl` pasa porque el kit aún no existía): G1, porque `c2`, `c6` (A y B) y `c16` (A y B) llevan en `touch` los 8 ids del kit que el conversor saca del grupo `flechas` del mockup congelado (decisión 10); G17, porque el propio diseño solo tiene 2 nodos mecánicos que tocan `a_u_diluvio` y 1 que toca `a_m_acecho` (§10 solo cita m18). Ni KA ni KT pueden arreglarlo solos: (a) que el conversor expanda `flechas` solo al kit base o que G1 lo exima; (b) fijar el mínimo de G17 para la Arquera o meter test78 en cuarentena (dueño Orq / KT-arquera).
 
 ## Barra y recomendaciones
 

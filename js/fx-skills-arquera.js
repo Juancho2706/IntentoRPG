@@ -1,15 +1,18 @@
 // ============================================================
-// VFX/SFX de las habilidades de la clase ARQUERA — dueño: trabajador de la clase (2b.1)
+// VFX/SFX de las habilidades de la clase ARQUERA — dueño: KA-arquera (catálogo 2g)
 // ============================================================
 // js/fx-skills.js FUSIONA estos mapas en SKILL_FX / SKILL_FX_PRESETS (este mapa
 // va DESPUÉS del base, así que redefine las entradas viejas de la Arquera).
-//  - ARQUERA_FX: { idHabilidad: { trail?, impact?, aura?, extra?, auraY?, color?, sfx? } }
+//  - ARQUERA_FX: { idHabilidad: { trail?, impact?, aura?, extra?, auraY?, color?, sfx?, vars? } }
+//    (vars = { i?, ii? }: lo que cambia cada variante de la forja, con las mismas claves)
 //    cada campo es un preset de partículas (objeto parcial, ver js/particles.js) o el
 //    NOMBRE de uno existente (string). `sfx` es un nombre de js/sfx.js.
 //  - ARQUERA_FX_PRESETS: presets nuevos con nombre (se citan por string).
 // No importa nada: los presets de fx-skills.js se citan por NOMBRE
 // ('basicArrow', 'arrowSpark', 'multiShotBurst', 'piercingTrail', 'agility',
 // 'agilityMotes', 'arrowRain', 'arrowRainDust', 'critFlash', 'critRing').
+// Los de los verbos (verbWindow, verbPerfect, verbRecast, verbStance, verbDetonate) los
+// emite el canal de lanzamiento en el borde: el tensado, el relanzar y la postura no los repiten.
 // Paleta: madera/verde de la Arquera; cicuta y zarzas en verdes ácidos; humo
 // gris frío; el Tiro Celestial en azul cielo (lectura clara de definitiva).
 
@@ -232,39 +235,155 @@ export const ARQUERA_FX_PRESETS = {
     size: { start: [0.16, 0.3], end: 0.0 },
     color: { start: '#e8fffb', end: '#7fe8d8' }, alpha: { start: 0.9, end: 0 }, spin: 200,
   },
+  // ---- Catálogo 2g (Paso 2, KA1) ----
+  // Carrera del Viento — ráfagas de viento a la espalda al arrancar
+  arqWindRun: {
+    name: 'Carrera del Viento', texture: 'glow', blending: 'additive',
+    count: 18, burst: true, lifetime: [0.25, 0.5],
+    shape: 'cone', shapeRadius: 0.3, coneAngle: 50, speed: [3, 6], gravity: 0, drag: 0.9,
+    size: { start: [0.2, 0.36], end: 0.0 },
+    color: { start: '#f0fdff', end: '#9fe8ff' }, alpha: { start: 0.8, end: 0 },
+  },
+  // Rodilla en Tierra — polvo dorado al hincar la rodilla
+  arqKneel: {
+    name: 'Rodilla en Tierra', texture: 'smoke', blending: 'normal',
+    count: 12, burst: true, lifetime: [0.4, 0.8],
+    shape: 'ring', shapeRadius: 0.6, speed: [0.4, 1.2], gravity: -0.2, drag: 0.8,
+    size: { start: [0.3, 0.5], end: 0.9 },
+    color: { start: '#fff0b8', end: '#b8963a' }, alpha: { start: 0.5, end: 0 },
+  },
+  // Tiro Rastreador — estela ámbar y sello del Punto Débil
+  arqTrackerTrail: {
+    name: 'Tiro Rastreador estela', texture: 'glow', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.15, 0.3],
+    shape: 'point', shapeRadius: 0.06, speed: [0.3, 1.0], gravity: 0, drag: 0.8,
+    size: { start: [0.14, 0.26], end: 0.0 },
+    color: { start: '#fff1dc', end: '#ff9a4a' }, alpha: { start: 0.9, end: 0 },
+  },
+  arqTrackerMark: {
+    name: 'Punto Débil', texture: 'star', blending: 'additive',
+    count: 8, burst: true, lifetime: [0.4, 0.7],
+    shape: 'ring', shapeRadius: 0.5, speed: [0.2, 0.6], gravity: -0.6, drag: 0.7,
+    size: { start: [0.22, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#ff8a2a' }, alpha: { start: 1, end: 0 }, spin: 120,
+  },
+  // Flecha Detonante — chispas de pólvora y estallido naranja
+  arqDetonTrail: {
+    name: 'Flecha Detonante estela', texture: 'spark', blending: 'additive',
+    count: 12, burst: true, lifetime: [0.15, 0.35],
+    shape: 'point', shapeRadius: 0.06, speed: [0.5, 1.6], gravity: 1, drag: 0.7,
+    size: { start: [0.1, 0.2], end: 0.0 },
+    color: { start: '#fff0c0', end: '#ff7a1a' }, alpha: { start: 1, end: 0 },
+  },
+  arqDetonBlast: {
+    name: 'Flecha Detonante estallido', texture: 'glow', blending: 'additive',
+    count: 30, burst: true, lifetime: [0.2, 0.45],
+    shape: 'sphere', shapeRadius: 0.4, speed: [3, 7], gravity: 1, drag: 0.8,
+    size: { start: [0.35, 0.7], end: 0.0 },
+    color: { start: '#fff2c0', end: '#ff6a1a' }, alpha: { start: 1, end: 0 },
+  },
+  // Torbellino — anillo de viento que levanta
+  arqWhirlwind: {
+    name: 'Torbellino', texture: 'glow', blending: 'additive',
+    count: 40, burst: true, lifetime: [0.4, 0.8],
+    shape: 'ring', shapeRadius: 3.6, speed: [1, 2.5], gravity: -2.5, drag: 0.6,
+    size: { start: [0.2, 0.4], end: 0.0 },
+    color: { start: '#f4fcff', end: '#bfe8ff' }, alpha: { start: 0.85, end: 0 }, spin: 240,
+  },
+  // Desborde de Puntas — tres colores de punta encantada
+  arqTripleTips: {
+    name: 'Desborde de Puntas', texture: 'star', blending: 'additive',
+    count: 24, burst: true, lifetime: [0.3, 0.6],
+    shape: 'sphere', shapeRadius: 0.5, speed: [1, 2.5], gravity: -1, drag: 0.7,
+    size: { start: [0.18, 0.34], end: 0.0 },
+    color: { start: '#ffe9a8', end: '#7fd0ff' }, alpha: { start: 1, end: 0 }, spin: 180,
+  },
+  // Llamada del Halcón — plumas al llamar y picado sobre el blanco
+  arqHawkCall: {
+    name: 'Llamada del Halcón', texture: 'spark', blending: 'normal',
+    count: 14, burst: true, lifetime: [0.5, 1.0],
+    shape: 'sphere', shapeRadius: 0.5, speed: [0.8, 2.0], gravity: 1.5, drag: 0.7,
+    size: { start: [0.18, 0.3], end: 0.08 },
+    color: { start: '#f2e2c0', end: '#8a6a3a' }, alpha: { start: 0.9, end: 0 }, spin: 90,
+  },
+  arqHawkStrike: {
+    name: 'Halcón picado', texture: 'spark', blending: 'additive',
+    count: 16, burst: true, lifetime: [0.15, 0.35],
+    shape: 'cone', shapeRadius: 0.2, coneAngle: 70, speed: [3, 6], gravity: 2, drag: 0.6,
+    size: { start: [0.14, 0.28], end: 0.0 },
+    color: { start: '#ffffff', end: '#d8b070' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Forja 2g (Paso 2, KA2): cambios de forma ----
+  // Humo Venenoso — la nube se tiñe de verde cicuta
+  arqVenomCloud: {
+    name: 'Humo Venenoso', texture: 'smoke', blending: 'normal',
+    count: 60, burst: true, lifetime: [1.8, 3.6],
+    shape: 'disc', shapeRadius: 3.6, speed: [0.3, 1.2], gravity: -0.15, drag: 0.9,
+    size: { start: [1.2, 2.2], end: 3.4 },
+    color: { start: '#cfe8a8', end: '#4e7a32' }, alpha: { start: 0.6, end: 0 }, spin: 20,
+  },
+  // Jaula de Espinas — el anillo de zarzas, cerrado a 3 m
+  arqBriarCage: {
+    name: 'Jaula de Espinas', texture: 'spark', blending: 'normal',
+    count: 50, burst: true, lifetime: [0.8, 1.6],
+    shape: 'ring', shapeRadius: 2.9, speed: [0.4, 1.4], gravity: -1.4, drag: 0.8,
+    size: { start: [0.25, 0.5], end: 0.1 },
+    color: { start: '#b8e070', end: '#3e5e22' }, alpha: { start: 0.95, end: 0 }, spin: 40,
+  },
+  // Lluvia Estelar — el haz cae del cielo antes del impacto
+  arqCelestialFall: {
+    name: 'Lluvia Estelar caída', texture: 'star', blending: 'additive',
+    count: 18, burst: true, lifetime: [0.2, 0.35],
+    shape: 'disc', shapeRadius: 0.6, speed: [8, 12], gravity: 26, drag: 0.1,
+    size: { start: [0.3, 0.55], end: 0.06 },
+    color: { start: '#ffffff', end: '#7fc4ff' }, alpha: { start: 1, end: 0.2 }, spin: 120,
+  },
 };
 
+// Por habilidad del catálogo 2g. Los presets de las habilidades retiradas se conservan para las
+// variantes de la forja que las absorben (Disperso, Cicuta, Red de Caza, Garfio, Señuelo).
+// `vars.i|ii` (Paso 2, forja): lo que cambia el VFX de esa variante (mismas claves; se fusiona
+// sobre la entrada). Los comportamientos de skills-arquera.js ya lo leen; los tipos genéricos
+// (flecha, salto) y el básico de arma, cuando el motor lo haga (petición a la cola W2). Las
+// trampas cambian de color con la definición forjada (`color` de la variante).
 export const ARQUERA_FX = {
-  // básicos
-  a_disperso:        { aura: 'arqScatter', impact: 'arrowSpark', color: 0xe8d8a0, sfx: 'shoot' },
-  a_cicuta:          { trail: 'arqHemlockTrail', impact: 'arqHemlockSplash', color: 0x8fe05a, sfx: 'shoot' },
-  // gastadoras
-  flecha_perforante: { trail: 'piercingTrail', impact: 'arrowSpark', color: 0xffffcc, sfx: 'shoot' },
-  flecha_multiple:   { aura: 'multiShotBurst', impact: 'arrowSpark', color: 0xccddaa, sfx: 'shoot' },
-  lluvia_flechas:    { aura: 'arrowRain', extra: 'arrowRainDust', color: 0xaaffaa, sfx: 'shoot' },
-  // movilidad
+  // kit base (el básico de arma: la flecha de siempre; sus variantes, abanico o cicuta). Sin
+  // `color` en la base: Player.basicAttack antepone el del VFX al de la definición y taparía el verde
+  // de la Cicuta cuando lea la definición forjada (cola W2); sin él sale la flecha beige de siempre
+  a_disparo:         { aura: 'basicArrow', sfx: 'shoot',
+    vars: { i: { aura: 'arqScatter' }, ii: { aura: 'arqHemlockTrail', impact: 'arqHemlockSplash', color: 0x86d47a } } },
+  flecha_perforante: { trail: 'piercingTrail', impact: 'arrowSpark', color: 0xffffcc, sfx: 'shoot',
+    vars: { i: { aura: 'arqDetonBlast', extra: 'arqBlastPop' }, ii: { trail: 'arqAimedTrail', impact: 'arqAimedImpact' } } },
   a_paso:            { trail: 'arqRollDust', impact: 'arqRollDust', color: 0xe2d8bc, sfx: 'dash' },
-  agilidad:          { aura: 'agility', extra: 'agilityMotes', color: 0x9af06a, sfx: 'dash' },
-  // defensa / utilidad
-  a_red:             { trail: 'arqNetToss', impact: 'arqNetBurst', color: 0xd8c49a, sfx: 'shoot' },
-  a_humo:            { aura: 'arqSmokeCloud', extra: 'arqSmokePuff', color: 0x9aa0a8, sfx: 'dash' },
-  // definitivas
-  a_u_diluvio:       { trail: 'arqDelugeFall', aura: 'arqDeluge', extra: 'arrowRainDust', color: 0xbfffbf, sfx: 'shoot' },
-  a_u_celeste:       { aura: 'arqCelestialMuzzle', impact: 'arqCelestialImpact', extra: 'critRing', color: 0x9fd8ff, sfx: 'crit' },
-  a_u_zarzas:        { aura: 'arqBriarRing', impact: 'arqBriarSnag', color: 0x5a8a3a, sfx: 'trap' },
-  // activas de talento (Paso 2c.1; comportamientos en js/powers-arquera.js)
-  a_t_voltereta:     { trail: 'arqRollDust', aura: 'arqRollDust', color: 0xd8c49a, sfx: 'dash' },
-  a_t_conmocion:     { trail: 'piercingTrail', impact: 'arqStunPop', color: 0xc8b48a, sfx: 'hit' },
-  a_t_silencio:      { trail: 'arqSilenceTrail', impact: 'arrowSpark', extra: 'arqSilenceMark', color: 0xb98cff, sfx: 'shoot' },
-  a_t_bengala:       { aura: 'arqFlareBurst', color: 0xffcc55, sfx: 'shoot' },
-  a_t_camuflaje:     { aura: 'arqCamoLeaves', color: 0x8fbf7a, sfx: 'portal' },
+  a_humo:            { aura: 'arqSmokeCloud', extra: 'arqSmokePuff', color: 0x9aa0a8, sfx: 'dash',
+    vars: { i: { aura: 'arqVenomCloud', extra: 'arqHemlockSplash' }, ii: { impact: 'arqStunPop' } } },
+  lluvia_flechas:    { aura: 'arrowRain', extra: 'arrowRainDust', color: 0xaaffaa, sfx: 'shoot',
+    vars: { ii: { extra: 'arqSmokePuff' } } },
+  // Tiradora
+  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot',
+    vars: { ii: { impact: 'arqStunPop' } } },
+  a_v_carrera:       { aura: 'arqWindRun', impact: 'arrowSpark', color: 0x9fe8ff, sfx: 'dash' },
+  flecha_multiple:   { aura: 'multiShotBurst', impact: 'arrowSpark', color: 0xccddaa, sfx: 'shoot' },
+  a_u_diluvio:       { trail: 'arqDelugeFall', aura: 'arqDeluge', extra: 'arrowRainDust', color: 0xbfffbf, sfx: 'shoot',
+    vars: { ii: { aura: 'arqAimedImpact', extra: 'critRing' } } },
+  // Francotiradora
   a_t_apuntado:      { trail: 'arqAimedTrail', impact: 'arqAimedImpact', color: 0xfff1a8, sfx: 'crit' },
-  a_t_vision:        { aura: 'arqVisionEye', color: 0xffd966, sfx: 'crit' },
-  a_t_disuasorio:    { trail: 'arqRollDust', impact: 'arqBlastPop', color: 0xe8d27a, sfx: 'hit' },
+  a_f_rodilla:       { aura: 'arqKneel', color: 0xffd966, sfx: 'skill' },
+  a_f_rastreador:    { trail: 'arqTrackerTrail', impact: 'arqTrackerMark', color: 0xff9a4a, sfx: 'shoot' },
+  a_u_celeste:       { aura: 'arqCelestialMuzzle', impact: 'arqCelestialImpact', extra: 'critRing', color: 0x9fd8ff, sfx: 'crit',
+    vars: { i: { trail: 'arqCelestialFall' } } },
+  // Montaraz (la red y el salto enredador los pinta su poder: arqNetBurst)
   a_t_cepo:          { aura: 'arqTrapSnap', color: 0x86d47a, sfx: 'trap' },
-  a_t_arpon:         { trail: 'arqChainTrail', impact: 'arrowSpark', color: 0xa0a0a0, sfx: 'hit' },
-  a_t_senuelo:       { aura: 'arqStrawPuff', color: 0xc9a86a, sfx: 'trap' },
-  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot' },
-  a_t_danza:         { aura: 'arqDanceSwirl', impact: 'arrowSpark', color: 0x7fe8d8, sfx: 'shoot' },
-  a_t_salto:         { trail: 'arqRollDust', aura: 'multiShotBurst', impact: 'arrowSpark', color: 0x9fe0d6, sfx: 'shoot' },
+  a_m_acecho:        { trail: 'arqRollDust', impact: 'arqThornBurst', color: 0xb6e07a, sfx: 'dash' },
+  a_m_detonante:     { trail: 'arqDetonTrail', impact: 'arqBlastPop', aura: 'arqDetonBlast', color: 0xffa040, sfx: 'shoot',
+    vars: { ii: { trail: 'arqChainTrail', impact: 'arqChainTrail' } } },
+  a_u_zarzas:        { aura: 'arqBriarRing', impact: 'arqBriarSnag', color: 0x5a8a3a, sfx: 'trap',
+    vars: { i: { aura: 'arqBriarCage' }, ii: { extra: 'arqStrawPuff' } } },
+  // activas de talento
+  a_t_camuflaje:     { aura: 'arqCamoLeaves', color: 0x8fbf7a, sfx: 'portal' },
+  agilidad:          { aura: 'agility', extra: 'agilityMotes', color: 0x9af06a, sfx: 'dash' },
+  a_t_bengala:       { aura: 'arqFlareBurst', color: 0xffcc55, sfx: 'shoot' },
+  a_h_torbellino:    { aura: 'arqWhirlwind', color: 0xbfe8ff, sfx: 'dash' },
+  a_h_puntas:        { aura: 'arqTripleTips', color: 0xffd27a, sfx: 'skill' },
+  a_h_halcon:        { aura: 'arqHawkCall', impact: 'arqHawkStrike', color: 0xd8b070, sfx: 'shoot' },
 };
