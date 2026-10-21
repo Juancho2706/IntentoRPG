@@ -590,7 +590,49 @@ async function panelsClass(page, origin, cls) {
       for (const res of RES) shots.push({ cls, spec, lvl, res });
     }
   }
+  await boardSteps(page, cls);
   return shots;
+}
+
+// tablero de glifos (P, Nv81–100; U3 · E3): cabe sin scroll, sin solapes y dentro de la pantalla a
+// cada resolución, con el marco del jefe a la vista o sin él; la ficha del nodo (#paragon-info)
+// va junto a la rejilla
+async function boardSteps(page, cls) {
+  for (const res of RES) {
+    await step(`${cls} · tablero de glifos ${res.label}: sin scroll, solapes ni fuera de pantalla`, async () => {
+      await setRes(page, res);
+      const lv = await L(page, 'setLevel', 100);
+      check(lv.level === 100, `nivel ${lv.level}`);
+      const out = await page.evaluate(async () => {
+        const ui = window.__game.ui, tf = document.getElementById('target-frame');
+        const ov = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+        const runs = [];
+        for (const boss of [false, true]) {
+          tf.classList.toggle('hidden', !boss);
+          ui.closeAllPanels(); ui.openParagon();
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const pc = document.getElementById('panel-paragon'), P = pc.getBoundingClientRect();
+          const parts = [...pc.querySelectorAll('#paragon-grid, #paragon-points, #pg-alert, #paragon-info, .pg-legend, #paragon-respec')]
+            .map(el => [el.id || el.className, el.getBoundingClientRect()]).filter(([, b]) => b.width >= 1 && b.height >= 1);
+          const outside = parts.filter(([, b]) => b.top < P.top - 0.5 || b.bottom > P.bottom + 0.5 || b.left < P.left - 0.5 || b.right > P.right + 0.5).map(([n]) => n);
+          const overlaps = [];
+          for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) if (ov(parts[i][1], parts[j][1]) > 1) overlaps.push(`${parts[i][0]} × ${parts[j][0]}`);
+          runs.push({ boss, scroll: pc.scrollHeight > pc.clientHeight + 1, offscreen: P.top < 0 || P.left < 0 || P.bottom > innerHeight || P.right > innerWidth, outside, overlaps,
+            panel: [P.left, P.top, P.right, P.bottom].map(Math.round) });
+        }
+        tf.classList.add('hidden');
+        ui.closeAllPanels();
+        return runs;
+      });
+      for (const r of out) {
+        const tag = r.boss ? 'con jefe' : 'sin jefe';
+        check(!r.scroll, `${tag}: el tablero necesita scroll`, r);
+        check(!r.offscreen, `${tag}: el tablero sale de la pantalla`, r);
+        check(!r.outside.length && !r.overlaps.length, `${tag}: piezas fuera del panel o solapadas`, r);
+      }
+      return { panel: out[0].panel };
+    });
+  }
 }
 
 // --compare: captura el mockup y deja cada par juego/mockup lado a lado en out/compare/
@@ -734,6 +776,17 @@ async function verbSteps(page, origin, cls) {
         const late = seen.filter(v => v.inWindowModel === true && v.inWindowDom !== true).length;
         check(late === 0, `.verb-charge[data-in-window] llegó tarde en ${late} frame(s)`);
         check(!after[after.length - 1].charging, 'soltar no terminó la carga');
+        // T a media carga (botón aún pulsado): el libro abre, la carga se cancela y su barra junto
+        // al cursor (z 60) se apaga ya; con la partida en pausa nadie más la repintaría (U3 · E3)
+        await press();
+        await page.evaluate('window.__smokeLib.step(20, 1/60, true)');
+        await key(page, 'KeyT');
+        const panel = await page.evaluate(() => ({ active: window.__game.ui.activePanel, charging: !!window.__game._charging,
+          cursor: +getComputedStyle(document.querySelector('.verb-cursor')).opacity }));
+        await release();
+        await key(page, 'Escape');
+        check(panel.active === 'skills' && !panel.charging, 'T a media carga: no abrió el libro o no canceló la carga', panel);
+        check(!(panel.cursor > 0.05), '.verb-cursor sigue encima del libro tras T a media carga', panel);
         return { habilidad: sk.id, ranura: slot, framesEnVentana: seen.filter(v => v.inWindowModel).length };
       }
       if (verb === 'recast') {

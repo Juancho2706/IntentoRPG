@@ -2,20 +2,25 @@
 // Interfaz: HUD, inventario, árbol de habilidades, paneles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, ELITE_MODS, SUPPORTS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
+import { CLASSES, STAT_NAMES, STAT_DESC, TIER_LEVELS, PACTS, ENEMIES, ELITE_MODS, ZONE_LIST, xpForLevel, POTION_PRICES, PET_PRICE, PET_KINDS, PET_UPGRADES, PET_COLLARS, paragonBoardFor, PARAGON_CATS, PARAGON_BOARD_SIZE } from './data.js';
 // Paso 2b.0: números finales de las habilidades (coste/CD/soportes) desde el resolvedor único
-import { resolveSkill, supportFits, supportSockets, fitsSlot, profileSummary, isKnown, RANK_MAX, GCD } from './skill-resolve.js';
+import { resolveSkill, fitsSlot, profileSummary, isKnown, GCD } from './skill-resolve.js';
 import { RARITIES, SLOT_NAMES, SETS, LEGENDARY_POWERS, RUNES, RUNEWORDS, itemStatLines, statText, glyphValue } from './items.js';
 import { BINDABLE_ACTIONS, keyLabel } from './bindings.js';
 import { materialStackKey } from './entities.js';
-import { SYSTEMS_GUIDE, SKILL_MODS } from './data.js';
+import { SYSTEMS_GUIDE } from './data.js';
 import { CAPS, CRIT_MULT, armorReduction, tormentMods, areaLevelForHero } from './combat-math.js';
 // Paso 2d: panel de talentos (módulo propio), indicador de especialización y modelo puro del HUD
 import * as Talents from './talents.js';
-import { createTalentPanel } from './ui-talents.js';
+import { createTalentPanel, gameTalentOps } from './ui-talents.js';
+import { reasonText, TALENT_REASONS } from './talents-view.js';
 import { gaugeView } from './spec-mechanics.js';
 import { createGaugeHud } from './ui-gauges.js';
 import * as HM from './hud-model.js';
+// Paso 2 (E3 · U3): libro con forja (T), feedback de los verbos por frame y avisos de la migración
+import { createSkillBook } from './ui-skills.js';
+import { createVerbHud } from './ui-verbs.js';
+import { LOAD_NOTICES } from './save-schema.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -66,6 +71,23 @@ const SLOT_ICON = {
 };
 const HOVER_TOOLTIP = true; // solo PC: la ficha de objeto sale al pasar el ratón
 
+// Paso 2 (E3 · U3) ---------------------------------------------------------------
+const SPEC_AT = Talents.TALENT_RULES.specAt;            // nivel en que se elige especialización
+const BOARD_PTS = Talents.TALENT_RULES.pts.board;       // puntos del tablero de glifos (Nv81–100)
+// motivos de las respuestas del mixin de talentos (TALENT_REASONS): si llega el código pelado
+// a ui.message (una llamada fuera del panel sin `text`), se traduce con el texto del panel
+const TALENT_REASON_SET = new Set(TALENT_REASONS);
+// textos de los avisos de carga (migración de la partida): van a su tarjeta, no al banner
+const NOTICE_TEXTS = new Set(Object.values(LOAD_NOTICES).filter(Boolean));
+// avisos que emite la subida de nivel (progression.levelUpAward y Player.onSkillsLearned): con la
+// tarjeta de novedades (2f §7.1) quedan solo en el registro de sistema
+const LEVEL_MSG_RE = /^(?:⭐|🌿|🌟|🔷)\s*(?:¡?Nivel\s+\d+|¡Especializaciones)|^📖 Nueva habilidad:/u;
+// títulos del micromenú que cambian con el Paso 2 (el «Paragon» es ahora la columna del árbol
+// héroe de los talentos; P abre el tablero de glifos)
+const MICRO_TITLE = { paragon: 'Tablero de glifos' };
+const NEWS_MS = 8000;
+const pl = (n, uno, varios) => (n === 1 ? uno : varios);
+
 // contexto de cada estadística derivada (qué hace) — se muestra como tooltip
 // en la hoja de personaje para que el jugador entienda su build.
 const DERIVED_DESC = {
@@ -105,6 +127,11 @@ export class UI {
     if (/[?&]hudcheck=1(&|$)/.test(location.search)) setTimeout(() => this.hudCheck(), 600);
     // Paso 2d
     this.initTalentPanel();
+    // Paso 2 (E3 · U3): libro con forja (T) y feedback de los verbos (cada frame, D26). El libro
+    // va DESPUÉS del panel de talentos: su tira «qué cambia» (cambio de especialización) queda encima
+    this.initBook();
+    this.initVerbHud();
+    this.bindNewsCards();
     this.preloadMapSprites();
     this.decoratePanels();
   }
@@ -112,32 +139,83 @@ export class UI {
   // ============================================================
   // Paso 2d · talentos, iconos pintados y marcos
   // ============================================================
-  // Panel de talentos (js/ui-talents.js). Las mutaciones van por el mixin
-  // game-talents.js (recompute + barra ↔ activas concedidas + guardado); el panel
-  // solo comprueba canEdit antes y repinta después.
+  // Panel de talentos v2 (js/ui-talents.js, E3 · U1). Las mutaciones van por el mixin
+  // game-talents.js con el envoltorio gameTalentOps (§3.4: recompute, barra, guardado y avisos
+  // de apertura y pausa del Paragon); el panel las llama directamente y se repinta solo.
+  // Aquí solo se envuelven las que pueden cambiar de especialización, para enseñar la tira
+  // «qué cambia» del libro (2f §3.8.1): foto ANTES y resumen DESPUÉS.
   initTalentPanel() {
     const g = this.game;
-    const quiet = (fn) => (...a) => { g._talentQuiet = true; try { return fn(...a) || { ok: false }; } finally { g._talentQuiet = false; } };
-    const ops = {
-      addRank: quiet((p, which, id) => g.addTalentRank(which, id)),
-      removeRank: quiet((p, which, id) => g.removeTalentRank(which, id)),
-      setChoice: quiet((p, which, id, k) => g.chooseTalentOption(id, k)),
-      toggleChoice: quiet((p, which, id) => g.toggleTalentChoice(which, id)),
-      chooseSpec: quiet((p, specId) => g.chooseSpec(specId)),
-      applyPresetAll: quiet(() => g.applyTalentPreset('all')),
-      resetAll: quiet(() => g.resetTalentTree('all')),
-      importCode: quiet((p, code) => g.importTalentCode(code)),
-    };
     try {
+      const ops = gameTalentOps(g);
+      const swap = (fn) => (...a) => {
+        const prev = g.player ? HM.specSnapshot(g.player) : null;
+        const r = fn(...a);
+        if (r?.ok && prev && (g.player?.talents?.spec || null) !== (prev.spec || null)) this.showSpecSwap(prev);
+        return r;
+      };
+      for (const k of ['chooseSpec', 'restore', 'importTalentCode', 'applyTalentLoadout']) ops[k] = swap(ops[k]);
       this.talentPanel = createTalentPanel(document.body, {
-        api: Talents, ops, assetBase: 'assets/',
+        ops, assetBase: 'assets/',
         getPlayer: () => g.player,
+        getGame: () => g,
         onClose: () => this.closePanel(),
-        canEdit: () => g.canEditTalents?.() || null,
-        // el mixin ya hizo recompute + guardado; aquí solo se refresca el HUD
-        onChange: () => { this.refreshHotbar(); this.updateHUD(); },
+        onOpenBook: () => { this.closePanel(); this.togglePanel('skills'); },
       });
     } catch (e) { console.error('[talentos] no se pudo crear el panel', e); this.talentPanel = null; }
+  }
+
+  // libro de habilidades con forja (js/ui-skills.js, E3 · U2): se abre con la acción 'skills' (T).
+  // Su ✕, T y Esc lo cierran él mismo y avisan por onClose; «Talentos N» pasa a los talentos
+  initBook() {
+    try {
+      this.book = createSkillBook(document.body, {
+        game: this.game,
+        onClose: () => { if (this.activePanel === 'skills') this.activePanel = null; },
+        onOpenTalents: () => this.openTalents(),
+      });
+      // clic en el fondo oscuro (fuera del escenario): cierra, como el panel de talentos
+      this.book?.el?.addEventListener('pointerdown', (e) => { if (e.target === this.book.el) this.closePanel(); });
+    } catch (e) { console.error('[libro] no se pudo crear', e); this.book = null; }
+  }
+  // feedback de los verbos en la barra y junto al cursor: UNA capa fija; update(realDt) desde
+  // updateFloats en cada frame (D26), nunca desde updateHUD (10 Hz)
+  initVerbHud() {
+    try { this.verbHud = createVerbHud(document.body, { game: this.game }); }
+    catch (e) { console.error('[verbos] no se pudo crear', e); this.verbHud = null; }
+  }
+  // tira «qué cambia» al cambiar de especialización (2f §3.8: insignia, activas, ★ y mecánica). El
+  // cambio se hace casi siempre en el panel de talentos, y no hay hueco en él que no tape el pie
+  // (kit y leyenda) o el árbol nuevo; en el libro, a 1366, pisaría la fila de la barra. Los dos ya
+  // muestran la especialización nueva (el panel confirma con su aviso), así que la tira espera a
+  // que vuelvas a la partida y sale bajo el banner (#hud-swap), nunca encima de la barra de acciones
+  showSpecSwap(prev) {
+    const p = this.game.player;
+    if (!p || !this.book) return;
+    try { this._swap = HM.specSwapSummary(prev, p); } catch (e) { console.warn('[libro] tira de especialización', e); this._swap = null; }
+    this._flushSpecSwap();
+  }
+  _flushSpecSwap() {
+    const sum = this._swap, host = $('hud-swap');
+    if (!sum || !this.book || !host) return;
+    if (this.activePanel || this.game.state !== 'play') return;     // con un panel abierto, espera
+    try { this.book.showSpecSwap(sum, { host }); } catch (e) { console.warn('[libro] tira de especialización', e); this._swap = null; return; }
+    this.updateTopBand();
+    // sin sitio sobre la zona de combate (marco del objetivo + banner de 2 renglones a 1366): sigue
+    // pendiente y se reintenta a 10 Hz, así sus 7 s no corren mientras espera
+    if (host.classList.contains('tc-wait')) { host.classList.remove('on', 'tc-wait'); return; }
+    this._swap = null;
+    // con el kit 2g pasa a 2–3 filas: el separador que queda al final de una fila sobra
+    for (const s of host.querySelectorAll('.row > .sep')) {
+      const a = s.previousElementSibling, b = s.nextElementSibling;
+      const mid = el => el.offsetTop + el.offsetHeight / 2;
+      s.style.visibility = a && b && Math.abs(mid(a) - mid(b)) < 10 ? '' : 'hidden';
+    }
+  }
+  // apaga la tira y lo pendiente: arranque, muerte, cambio de héroe (closeAllPanels)
+  hideSpecSwap() {
+    this._swap = null;
+    $('hud-swap')?.classList.remove('on');
   }
 
   // N: abre el panel de talentos (o la elección de especialización si aún no hay)
@@ -145,27 +223,37 @@ export class UI {
     if (!this.talentPanel) return;
     if (this.activePanel === 'talents') { this.closePanel(); return; }
     const p = this.game.player;
-    if (p && p.level >= Talents.TALENT_START_LEVEL && !Talents.activeSpec(p)) { this.openSpecChoice(); return; }
+    if (p && p.level >= SPEC_AT && !Talents.activeSpec(p)) { this.openSpecChoice(); return; }
     this.togglePanel('talents');
   }
   openSpecChoice() {
     if (!this.talentPanel) return;
     this.closePanel();
-    this.activePanel = 'talents';
-    this.markJustOpened();
+    this._setPanel('talents');
     this.talentPanel.showSpecChoice();
   }
 
   // aviso de especialización pendiente (Nv10): banner fijo + apertura automática de
-  // la pantalla de elección la primera vez que estás fuera de combate y sin paneles
+  // la pantalla de elección la primera vez que estás fuera de combate y sin paneles (cuando
+  // ya se apagó el rótulo «¡Nivel N!», que si no queda encima del selector)
   updateSpecPrompt(p) {
     const el = $('spec-prompt'); if (!el) return;
-    const need = !!p && p.level >= Talents.TALENT_START_LEVEL && !Talents.activeSpec(p);
-    el.classList.toggle('hidden', !need || this.activePanel === 'talents');
+    const need = !!p && p.level >= SPEC_AT && !Talents.activeSpec(p);
+    // la ranura 3 invita a elegir (hb-spec, clic → selector) solo si refreshHotbar la pinta así: al
+    // llegar al Nv10 por XP (onSkillsLearned no coloca nada) o al elegir, se rehace la barra
+    if (need !== this._specNeed) {
+      this._specNeed = need;
+      this.refreshHotbar();
+      if (!need && this._news?.spec) this.hideLevelNews();   // la tarjeta del Nv10 decía «Elige tu especialización»
+    }
+    // la tarjeta de novedades de la subida de nivel ocupa su sitio mientras se ve
+    el.classList.toggle('hidden', !need || this.activePanel === 'talents' || this._newsOn);
     if (!need) { this._specAutoShown = false; return; }
-    if (!this._specAutoShown && this.game.state === 'play' && !this.activePanel && !this.game.canEditTalents?.()) {
+    if (!this._specAutoShown && this.game.state === 'play' && !this.activePanel && !this.game.canEditTalents?.()
+      && performance.now() >= (this._luShowUntil || 0)) {
       this._specAutoShown = true;
-      this.message('🌿 ¡Nivel 10! Elige tu especialización: define tu rol, abre su árbol de talentos y te da su habilidad insignia (ranura 3).', 5000);
+      // un renglón del banner (≤ 760 px); el resto lo cuenta el propio selector
+      this.message(`🌿 ¡Nivel ${SPEC_AT}! Elige tu especialización: rol, árbol y kit de habilidades`, 5000);
       this.openSpecChoice();
     }
   }
@@ -359,7 +447,9 @@ export class UI {
       const btn = document.querySelector(`#hud-micro [data-micro="${m.id}"]`); if (!btn) continue;
       const k = lab(MAP[m.id], '');
       const kb = btn.querySelector('kbd'); if (kb && k) kb.textContent = k;
-      btn.title = `${m.label}${k ? ` [${k}]` : ''}`;
+      const label = MICRO_TITLE[m.id] || m.label;
+      btn.title = `${label}${k ? ` [${k}]` : ''}`;
+      btn.setAttribute('aria-label', label);
     }
     for (const kb of document.querySelectorAll('#hud-bar .hb-kbd[data-key]')) kb.textContent = lab(kb.dataset.key, kb.textContent);
     if (this.game.player) this.refreshHotbar();
@@ -395,6 +485,8 @@ export class UI {
     const t = e.target;
     if (t.closest && (
       t.closest('.panel') ||           // dentro de un panel
+      t.closest('#talents-panel') ||   // talentos v2 y libro: no llevan .panel y cierran solos
+      t.closest('#skills-book') ||     //   con su fondo oscuro, su ✕, su tecla o Esc
       t.closest('#item-popup') ||      // dentro del popup de objeto
       t.closest('#item-tooltip') ||    // tooltip de hover
       t.closest('#hud-micro')          // micromenú: abre/alterna paneles
@@ -411,6 +503,22 @@ export class UI {
     this._justOpened = true;
     clearTimeout(this._justOpenedT);
     this._justOpenedT = setTimeout(() => { this._justOpened = false; }, 350);
+  }
+  // un panel pasa a estar abierto: es el activo (pausa la partida) y cancela SIN coste la carga
+  // o el canal que se mantenía (§3.6.1). Todo panel se abre por aquí
+  _setPanel(name) {
+    this.activePanel = name;
+    this.game.cancelHeld?.('panel');
+    this._flushVerbs();
+    this.markJustOpened();
+    this.hideHudTip();
+  }
+  // con un panel abierto la partida queda en pausa y main.tick ya no llama a updateFloats: la carga
+  // que se acaba de cancelar dejaría su barra junto al cursor (z 60) congelada encima del panel.
+  // Se pinta ya el estado sin carga y se agota el rastro (RESULT_MS = 420 ms) en dos pasos de 0,25 s
+  _flushVerbs() {
+    if (!this.verbHud) return;
+    try { this.verbHud.update(0.25); this.verbHud.update(0.25); } catch (e) { console.warn('[verbos] al abrir un panel', e); }
   }
 
   // ---------- selección de héroe y clase ----------
@@ -556,6 +664,7 @@ export class UI {
     const p = this.game.player;
     if (!p) return;
     const g = this.game;
+    this._syncLevelSeen(p);
     // "Poder del héroe": feedback flotante cuando SUBE (equipar mejor, nivel,
     // paragon, talentos…). Un solo punto de detección, barato (10Hz).
     const pw = p.stats.power || 0;
@@ -622,12 +731,26 @@ export class UI {
     // aviso contextual («F Recoger · …», «Espacio Hablar · …»)
     this.updatePrompt(p);
     // insignias del micromenú (punto rojo si hay puntos por gastar) y panel activo
-    const dot = (id, n, what) => { const b = $(id); if (!b) return; b.classList.toggle('on', n > 0); b.parentElement.title = b.parentElement.title.replace(/ · \d+ .*$/, '') + (n > 0 ? ` · ${n} ${what}` : ''); };
-    dot('badge-stats', p.statPoints || 0, 'puntos de atributo');
-    dot('badge-paragon', p.paragon?.points || 0, 'puntos de Paragon');
-    dot('badge-skills', p.skillPoints || 0, 'puntos');
-    const tp = g.talentPointsInfo?.() || { cls: 0, spec: 0 };
-    dot('badge-talents', p.level >= Talents.TALENT_START_LEVEL ? (Talents.activeSpec(p) ? tp.cls + tp.spec : 1) : 0, 'puntos de talento');
+    // el texto se quita y se pone tras « · » (el título base lo pone refreshKeyLabels)
+    const dot = (id, n, what) => { const b = $(id); if (!b) return; b.classList.toggle('on', n > 0); b.parentElement.title = b.parentElement.title.replace(/ · .*$/, '') + (n > 0 ? ` · ${what}` : ''); };
+    dot('badge-stats', p.statPoints || 0, `${p.statPoints} puntos de atributo`);
+    // tablero de glifos: puntos libres (derivados del nivel, Nv81+) y glifos sueltos por recoger
+    const bi = g.paragonPointsInfo?.() || { left: 0 };
+    const loose = g.looseGlyphs?.().length || 0;
+    dot('badge-paragon', bi.left + loose, [bi.left ? `${bi.left} punto${bi.left > 1 ? 's' : ''} del tablero` : '', loose ? `${loose} glifo${loose > 1 ? 's' : ''} por recoger` : ''].filter(Boolean).join(' · '));
+    // libro: variantes por elegir (la forja no tiene puntos)
+    const pend = this._pendingVariants(p);
+    dot('badge-skills', pend, `${pend} variante${pend > 1 ? 's' : ''} por elegir`);
+    // talentos: puntos libres de clase, especialización y Paragon (si está abierto); sin
+    // especialización desde el Nv10, la insignia invita a elegirla; Paragon en pausa, avisa
+    const tp = g.talentPointsInfo?.();
+    const hasSpec = !!Talents.activeSpec(p);
+    const tLeft = tp ? tp.cls.left + tp.spec.left + (tp.heroOpen ? tp.hero.left : 0) : 0;
+    const tWhat = p.level < SPEC_AT ? '' : !hasSpec ? 'elige tu especialización'
+      : tp?.heroPaused ? 'Paragon en pausa: gasta tus puntos de especialización'
+        : `${tLeft} punto${tLeft > 1 ? 's' : ''} de talento`;
+    dot('badge-talents', p.level < SPEC_AT ? 0 : !hasSpec || tp?.heroPaused ? 1 : tLeft, tWhat);
+    $('badge-talents')?.classList.toggle('paused', !!tp?.heroPaused);
     if (this._microOn !== this.activePanel) {
       this._microOn = this.activePanel;
       document.querySelectorAll('#hud-micro .mb').forEach(b => b.classList.toggle('on', b.dataset.micro === this.activePanel));
@@ -639,6 +762,7 @@ export class UI {
     this.updateHotbarState(p);
     this.updateSpecGauge(p);
     this.updateTargetFrame(p);
+    if (this._swap) this._flushSpecSwap();      // tira «qué cambia» que esperaba a cerrar los talentos
     this.updateTopBand();
     this.updateSpecPrompt(p);
 
@@ -651,6 +775,16 @@ export class UI {
   }
   // escribe texto solo si cambia (evita mutaciones del DOM a 10 Hz)
   _txt(id, t) { const el = $(id); if (el && el.textContent !== t) el.textContent = t; }
+  // variantes de forja por elegir (insignia del libro): el modelo del libro solo se recalcula
+  // cuando cambia algo que lo mueve (nivel, especialización o forja), no a 10 Hz
+  _pendingVariants(p) {
+    const key = `${p.classId}|${p.level}|${p.talents?.spec || ''}|${JSON.stringify(p.skillForge || {})}`;
+    if (this._pendKey !== key) {
+      this._pendKey = key;
+      try { this._pendN = HM.bookView(p)?.pending || 0; } catch { this._pendN = 0; }
+    }
+    return this._pendN;
+  }
   _setOrb(id, pct) {
     const el = $(id); if (!el) return;
     const t = `translateY(${(100 - pct).toFixed(1)}%)`;
@@ -818,13 +952,30 @@ export class UI {
   // Los números flotantes no suben por encima (nunca tapan la vida del jefe)
   updateTopBand() {
     let band = 0;
-    for (const id of ['target-frame', 'hud-banner']) {
+    const newsIn = this._fitNews();
+    for (const id of ['target-frame', 'hud-banner', 'hud-news']) {
       const el = $(id);
+      if (id === 'hud-news' && !newsIn) continue;
       if (el && !el.classList.contains('hidden') && (id !== 'hud-banner' || el.childElementCount)) band = Math.max(band, el.getBoundingClientRect().bottom);
     }
+    const sw = $('hud-swap');
+    if (this._fitTop(sw, sw?.classList.contains('on'))) band = Math.max(band, sw.getBoundingClientRect().bottom);
+    const nt = $('hud-notice');
+    this._fitTop(nt, nt && !nt.classList.contains('hidden'));
     if (document.body.classList.contains('paused')) { const pi = $('pause-indic'); if (pi) band = Math.max(band, pi.getBoundingClientRect().bottom); }
     band = Math.max(40, Math.round(band)) + 8;
     if (band !== this._topBand) { this._topBand = band; document.documentElement.style.setProperty('--top-band', band + 'px'); }
+  }
+  // la tira «qué cambia» y la tarjeta de avisos de la migración, bajo el banner (que ahora puede
+  // ocupar dos renglones): si con el marco del objetivo pisarían la zona de combate, esperan
+  // invisibles en su hueco (para medir) y salen en cuanto caben, como la tarjeta de novedades
+  _fitTop(el, shown) {
+    if (!el) return false;
+    if (!shown) { el.classList.remove('tc-wait'); return false; }
+    const L = this.hudLayout || HM.hudLayout(window.innerWidth, window.innerHeight, this.game.settings?.hudScale || 1);
+    const fits = el.getBoundingClientRect().bottom <= L.combat[1] + 0.5;
+    el.classList.toggle('tc-wait', !fits);
+    return fits;
   }
   // aviso grande en el banner bajo el marco (p. ej. «¡QUEBRANTADO!» del aturdimiento de un jefe)
   announce(text, kind = '', ms = 1600) {
@@ -925,6 +1076,14 @@ export class UI {
       tf.querySelector('.bf-status').innerHTML = ['escarcha:Aterido', 'ralentizado:Ralentizado', 'debilidad:Vulnerable'].map(s => { const [id, l] = s.split(':'); return `<span class="st-chip"><img src="${HM.statusIcon(id)}" alt=""><em>${l}</em></span>`; }).join('');
     }
     fill('hud-banner', '<div class="ban">¡El Señor del Osario prepara Lamento Sepulcral!</div>');
+    // tarjeta de novedades de la subida de nivel (un renglón: peor caso con la línea larga)
+    const nw = $('hud-news');
+    if (nw?.classList.contains('hidden')) {
+      nw.classList.remove('hidden');
+      nw.innerHTML = `<span class="nw-ico"><img src="${HM.menuIcon('skills')}" alt=""></span><b>Nivel 18: 3 novedades</b><span class="nw-sub">Supernova: mejora Gravedad Solar · Bola de Fuego: elige una variante · +1 punto de talento de especialización</span><kbd>T</kbd>`;
+    }
+    // con jefe y banner a la vez puede no caber: entonces espera (como en partida) y no se mide
+    this._fitNews();
     // derecha: zona, misión y contratos
     fill('hud-zone', 'Cripta de Hueso · Piso 12<small>Tormento III · <kbd>M</kbd> mapa</small>');
     const qt = $('quest-tracker');
@@ -1025,7 +1184,11 @@ export class UI {
 
   // Destello de subida de nivel: anillo dorado expansivo + rótulo central.
   levelUpFlash(level) {
+    // marca la subida (gainXP): las novedades de este nivel salen agrupadas en una tarjeta
+    this._luFlash = true;
+    this._scheduleLevelNews();
     if (this.game.settings?.reduceMotion) return;
+    this._luShowUntil = performance.now() + 1500;   // la elección de especialización espera al rótulo
     let el = $('levelup-flash');
     if (!el) {
       el = document.createElement('div');
@@ -1153,11 +1316,12 @@ export class UI {
     for (const cell of [...wing.children]) if (!seen.has(cell.dataset.id)) cell.remove();
   }
 
-  // ---------- barra de 6 ranuras (Paso 2d, docs/paso2-diseno.md §1.1) ----------
-  // lmb básico · rmb gastadora · 1 movilidad (fuera del GCD) · 2 flexible
-  // (defensa/utilidad o 2.ª gastadora) · 3 especialización · 4 definitiva.
+  // ---------- barra de 6 ranuras (Paso 2d, docs/paso2-diseno.md §1.1; Paso 2 · U3) ----------
+  // lmb básica · rmb principal · 1 movilidad (fuera del GCD) · 2 flexible
+  // (defensa/utilidad o 2.ª principal) · 3 insignia · 4 definitiva.
   // Clic = lanzar; clic DERECHO = asignar (la 2 abre el selector de dos pestañas).
   // Se acepta soltar una habilidad arrastrada desde el libro (respeta fitsSlot).
+  // DOM estable que usan ui-verbs.js y css/verbs.css: #skillbar .skill-btn[data-slot] > .sk-icon / .sk-cost
   slotKeyLabel(slot) {
     if (slot === 'lmb') return 'IZQ';
     if (slot === 'rmb') return 'DER';
@@ -1165,30 +1329,44 @@ export class UI {
     const code = this.game.input?.bindings?.['skill' + n]?.[0];
     return code ? keyLabel(code) : String(n);
   }
-  // arte de una habilidad: las base tienen su icono pintado (assets/skills, 256 px
-  // en assets/skills256); las activas de talento, el sprite de su nodo. El emoji
-  // queda de respaldo si la imagen no carga.
+  // tecla (remapeable) de una acción del juego, para los textos («Talentos (N)»)
+  actionKey(action, fb = '') {
+    const c = this.game.input?.bindings?.[action]?.[0];
+    return c ? keyLabel(c) : fb;
+  }
+  // arte de una habilidad (ruta bajo assets/): el `art` del catálogo; si no, las activas de
+  // talento el sprite del nodo que las concede y las base su icono pintado (HM.skillArtPath,
+  // vale con el catálogo v1 y con el 2g). Si la imagen falta, el marcador .ico-missing con el
+  // emoji y el id (§3.12)
   skillArt(sk) {
     if (!sk) return null;
     const p = this.game.player;
     const key = (p?.classId || '') + ':' + sk.id;
     this._artCache = this._artCache || new Map();
-    if (!this._artCache.has(key)) {
-      const art = sk.kind === 'talent' ? HM.talentSkillArt(Talents.TALENT_TREES[p?.classId], sk.id)
-        : { icon: HM.baseSkillIcon(sk), big: HM.baseSkillIcon(sk, true) };
-      this._artCache.set(key, art);
-    }
+    if (!this._artCache.has(key)) this._artCache.set(key, HM.skillArtPath(sk, Talents.talentTreesFor(p?.classId)));
     return this._artCache.get(key);
   }
-  skillIconHTML(sk, cls = 'sk-icon', { big = false } = {}) {
-    const art = this.skillArt(sk);
-    const src = art && (big && art.big ? art.big : art.icon);
-    if (src) return `<span class="${cls} has-art" data-emoji="${sk.icon || '✦'}"><img class="sk-art" src="assets/${src}" alt="" draggable="false" onerror="const s=this.parentNode;s.classList.remove('has-art');s.textContent=s.dataset.emoji"></span>`;
-    return `<span class="${cls}">${sk.icon || '✦'}</span>`;
+  skillIconHTML(sk, cls = 'sk-icon') {
+    const src = this.skillArt(sk);
+    const emoji = sk.icon || '✦';
+    if (src) return `<span class="${cls} has-art" data-emoji="${emoji}" data-id="${sk.id}"><img class="sk-art" src="assets/${src}" alt="" draggable="false" onerror="const s=this.parentNode;s.classList.remove('has-art');s.classList.add('ico-missing');s.title=s.dataset.id;s.textContent=s.dataset.emoji"></span>`;
+    return `<span class="${cls} ico-missing" data-id="${sk.id}" title="${sk.id}">${emoji}</span>`;
   }
   catBadgeHTML(cat, cls = 'sk-cat') {
     const src = HM.catIcon(cat);
     return src ? `<img class="${cls}" src="${src}" alt="" title="${HM.catLabel(cat)}" draggable="false" onerror="this.remove()">` : '';
+  }
+  // por qué una habilidad de la barra no se puede usar ahora: «Solo con <especialización>» (kit de
+  // otra especialización), la activa de talento que no tienes o el nivel en que se aprende
+  lockText(sk) {
+    const p = this.game.player;
+    if (!sk || !p) return '';
+    if (sk.spec && sk.spec !== Talents.activeSpec(p)?.id) {
+      const s = Talents.findSpec(p.classId, sk.spec);
+      return `Solo con ${s?.name || 'su especialización'}`;
+    }
+    if (sk.kind === 'talent') return `Se concede con su talento (${this.actionKey('talents', 'N')})`;
+    return `Se aprende al nivel ${Math.max(sk.req || 1, sk.spec ? SPEC_AT : 1)}`;
   }
 
   refreshHotbar() {
@@ -1198,6 +1376,8 @@ export class UI {
     bar.innerHTML = '';
     this._readySig = null;
     const res = p.cls.resource;
+    // sin especialización desde el Nv10, la ranura 3 queda vacía y dice dónde se elige
+    const noSpec = p.level >= SPEC_AT && !Talents.activeSpec(p);
     // Paso 2d.2: orden de D4, 1 2 3 4 | IZQ DER (el ratón a la derecha, junto a la mano que lo usa)
     for (const slot of ['k1', 'k2', 'k3', 'k4', 'lmb', 'rmb']) {
       const label = this.slotKeyLabel(slot);
@@ -1217,27 +1397,31 @@ export class UI {
       if (!sk) {
         btn.classList.add('hb-empty');
         btn.innerHTML = `<span class="sk-icon dim">+</span><span class="sk-key">${label}</span>` + keyHTML + this.catBadgeHTML(slot === 'k2' ? 'defense' : sec?.cats[0]);
-        btn.title = `${label}: ranura vacía — clic derecho para asignar (o arrastra desde el libro de habilidades)`;
+        if (slot === 'k3' && noSpec) {
+          btn.classList.add('hb-spec');
+          btn.title = `${label}: elige tu especialización en Talentos (${this.actionKey('talents', 'N')}); su insignia va aquí`;
+          castFn = () => this.openSpecChoice();
+        } else btn.title = `${label}: ranura vacía. Clic derecho para asignar (o arrastra desde el libro de habilidades, ${this.actionKey('skills', 'T')})`;
       } else {
         btn.dataset.skill = sk.id;
         btn.classList.add('cat-' + sk.cat);
         if (sk.cat === 'basic') btn.classList.add('hb-basic');
         if (sk.kind === 'talent') btn.classList.add('hb-talent');
         if (!known) btn.classList.add('hb-locked');
-        const cost = prof?.cost || 0;
+        const v = HM.slotView(p, sk, prof, GCD, { g: this.game, slot });
         const costHTML = sk.cat === 'basic'
           ? `<span class="sk-cost gen" title="genera ${res?.name || 'recurso'}">+${prof?.gen ?? sk.gen ?? 0}</span>`
-          : (cost ? `<span class="sk-cost">${cost}</span>` : '');
+          : (v.cost ? `<span class="sk-cost">${v.cost}</span>` : '');
         btn.innerHTML = this.skillIconHTML(sk) + this.catBadgeHTML(sk.cat) + `<span class="sk-key">${label}</span>` + keyHTML + costHTML +
           `<div class="gcd-overlay"></div><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span>` +
           (sk.kind === 'talent' ? '<span class="sk-talent-tag">TALENTO</span>' : '');
         const catTxt = HM.catLabel(sk.cat);
-        btn.title = !known ? `${sk.name} (se aprende al nivel ${sk.req})`
-          : `${sk.name} · ${catTxt}${sk.cat === 'basic' ? ` · genera ${res?.name || 'recurso'}` : cost ? ` · ${cost} ${res?.name || ''}` : ''}${sk.kind === 'talent' ? ' · activa de talento' : ''}\nClic derecho: cambiar`;
+        btn.title = !known ? `${sk.name}: ${this.lockText(sk)}`
+          : `${sk.name} · ${catTxt}${sk.cat === 'basic' ? ` · genera ${res?.name || 'recurso'}` : v.cost ? ` · ${v.cost} ${res?.name || ''}` : ''}${sk.kind === 'talent' ? ' · activa de talento' : ''}\nClic derecho: cambiar`;
         castFn = () => {
-          if (!known) { this.message(`${sk.name}: se aprende al nivel ${sk.req}`); return; }
-          const v = HM.slotView(p, sk, resolveSkill(p, sk), GCD);
-          if (v.noRes && v.cdFrac === 0) this.flashNoMana(btn);
+          if (!known) { this.message(`${sk.name}: ${this.lockText(sk)}`); return; }
+          const w = HM.slotView(p, sk, resolveSkill(p, sk), GCD, { g: this.game, slot });
+          if (w.noRes && w.cdFrac === 0) this.flashNoMana(btn);
           this.game.castSkillSlot(slot);
         };
       }
@@ -1253,8 +1437,10 @@ export class UI {
     btn.addEventListener('click', e => { if (e.button === 0 && castFn) castFn(); });
   }
 
-  // estado en vivo de la barra (10 Hz desde updateHUD): enfriamiento radial,
-  // sombra del GCD (más tenue, en todas las ranuras que lo comparten), coste y recurso
+  // estado en vivo de la barra (10 Hz desde updateHUD): enfriamiento radial (con cargas, el de la
+  // siguiente carga; con la ventana de relanzar abierta, ninguno), sombra del GCD (más tenue, en
+  // todas las ranuras que lo comparten), coste y recurso. Los verbos (barra de carga, aro, pips,
+  // postura) los pinta ui-verbs.js por frame dentro de la misma ranura
   updateHotbarState(p) {
     const bar = $('skillbar'); if (!bar) return;
     for (const btn of bar.children) {
@@ -1262,7 +1448,7 @@ export class UI {
       if (!id) continue;
       const sk = p.cls.skills.find(s => s.id === id);
       if (!sk) continue;
-      const v = HM.slotView(p, sk, resolveSkill(p, sk), GCD);
+      const v = HM.slotView(p, sk, resolveSkill(p, sk), GCD, { g: this.game, slot: btn.dataset.slot });
       const ov = btn.querySelector('.cd-overlay');
       if (ov) { ov.style.setProperty('--cd-deg', Math.round(v.cdFrac * 360) + 'deg'); ov.classList.toggle('on', v.cdFrac > 0); }
       const gv = btn.querySelector('.gcd-overlay');
@@ -1282,7 +1468,7 @@ export class UI {
   }
 
   // popup: elige qué habilidad colocar en una ranura. La 2 es flexible: dos
-  // pestañas, «Defensa/utilidad» y «Gastadora» (fitsSlot valida cada candidata)
+  // pestañas, «Defensa/utilidad» y «Principal» (fitsSlot valida cada candidata)
   hotbarSlotChooser(slot, label = this.slotKeyLabel(slot), tab = null) {
     const g = this.game, p = g.player;
     if (!p) return;
@@ -1291,7 +1477,7 @@ export class UI {
     pop.style.left = pop.style.top = pop.style.transform = '';
     const cur = p.hotbar?.[slot] ? p.cls.skills.find(s => s.id === p.hotbar[slot]) : null;
     const known = (sk) => isKnown(p, sk);
-    const after = () => { pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); if (this.activePanel === 'skills') this.renderSkills(); };
+    const after = () => { pop.classList.add('hidden'); this.refreshHotbar(); this.updateHUD(); if (this.activePanel === 'skills') this.book?.refresh(); };
     let list, tabsHTML = '';
     if (slot === 'k2') {
       const tabs = HM.k2Tabs(p.cls.skills, { fits: fitsSlot, known });
@@ -1305,7 +1491,12 @@ export class UI {
     const headCat = cur?.cat || (slot === 'k2' ? 'defense' : HM.BOOK_SECTIONS.find(s => s.slots.includes(slot))?.cats[0]);
     pop.innerHTML = `<div class="popup-name">${this.catBadgeHTML(headCat, 'pop-cat')} Ranura ${label}</div>${tabsHTML}<div class="hb-pick"></div><div class="popup-btns"></div>`;
     const pick = pop.querySelector('.hb-pick');
-    if (!list.length) pick.innerHTML = `<div class="dim" style="padding:6px 2px">Aún no conoces habilidades para esta ranura: se aprenden solas al subir de nivel${slot === 'k3' ? ' y con tu especialización (Nv10)' : ''}.</div>`;
+    if (!list.length) {
+      const why = slot !== 'k3' ? ''
+        : p.level >= SPEC_AT && !Talents.activeSpec(p) ? ` Elige tu especialización en Talentos (${this.actionKey('talents', 'N')}): su insignia va aquí.`
+          : ` La insignia llega con tu especialización (Nv${SPEC_AT}).`;
+      pick.innerHTML = `<div class="dim" style="padding:6px 2px">Aún no conoces habilidades para esta ranura: se aprenden solas al subir de nivel.${why}</div>`;
+    }
     for (const sk of list) {
       const prof = resolveSkill(p, sk);
       const b = document.createElement('button');
@@ -1346,6 +1537,34 @@ export class UI {
   }
 
   message(text, ms = 2600) {
+    // un motivo de talentos sin texto (código de TALENT_REASONS) se traduce como en el panel
+    if (typeof text === 'string' && TALENT_REASON_SET.has(text)) text = reasonText({ ok: false, reason: text });
+    // avisos de carga (migración de la partida): a su tarjeta, que se queda hasta leerla
+    if (NOTICE_TEXTS.has(text)) { this.queueNotice(text); this.syslog(this._fixMessage(text), true); return; }
+    if (typeof text === 'string') text = this._fixMessage(text);
+    // subida de nivel en curso (el nivel ya subió y la tarjeta aún no salió): los avisos del
+    // mismo instante se agrupan en UNA tarjeta de novedades (2f §7.1; _flushLevelNews)
+    const p = this.game.player;
+    if (p && this._lvSeen != null && p.level > this._lvSeen) {
+      this._luBuf.push([text, ms]);
+      this._scheduleLevelNews();
+      return;
+    }
+    this._message(text, ms);
+  }
+  // textos de la simulación que la interfaz precisa: el tablero de glifos se abre con P (no con
+  // C, la hoja de personaje), y una habilidad de otra especialización dice cuál («Solo con
+  // Crionte», como la barra) en vez de «solo con su especialización»
+  _fixMessage(text) {
+    if (text.includes('tablero de glifos') && text.includes('(C)')) text = text.replace('(C)', `(${this.actionKey('paragon', 'P')})`);
+    const m = /^(.+): solo con su especialización$/u.exec(text);
+    if (m) {
+      const sk = this.game.player?.cls?.skills?.find(s => s.name === m[1] && s.spec);
+      if (sk) text = `${sk.name}: ${this.lockText(sk)}`;
+    }
+    return text;
+  }
+  _message(text, ms) {
     // detección de momentos clave para disparar flourishes (no invasiva: la UI
     // posee message(), así que reaccionamos aquí sin tocar la lógica de juego)
     this.detectFlourish(text);
@@ -1355,6 +1574,187 @@ export class UI {
     if (route === 'none') return;
     this.syslog(String(text), route === 'banner');
     if (route === 'banner') this.banner(String(text), Math.min(ms, 5000));
+  }
+
+  // ============================================================
+  // Paso 2 (E3 · U3) · tarjeta de novedades de la subida de nivel y avisos de la migración
+  // ============================================================
+  // Subir de nivel emite, en el mismo instante, el aviso del nivel, el del punto de cada sistema
+  // y los de las habilidades aprendidas (progression.js, Player.onSkillsLearned). Se recogen
+  // mientras el nivel va por delante de _lvSeen y se resuelven en una microtarea, ya con el
+  // nivel final: HM.levelUpNews(p, antes, después) con alguna novedad → UNA tarjeta («Nivel 8: 3
+  // novedades») que abre el libro en la primera, y esos avisos quedan solo en el registro; sin
+  // novedades → los avisos de siempre. Solo cuenta como subida la que pasó por levelUpFlash
+  // (gainXP); un salto de nivel a mano (depuración, humo) suelta los avisos tal cual.
+  _scheduleLevelNews() {
+    if (this._luPending) return;
+    this._luPending = true;
+    queueMicrotask(() => this._flushLevelNews());
+  }
+  _flushLevelNews() {
+    this._luPending = false;
+    const p = this.game.player;
+    const buf = this._luBuf; this._luBuf = [];
+    const flashed = this._luFlash; this._luFlash = false;
+    const from = this._lvSeen, to = p?.level ?? from;
+    this._lvSeen = to;
+    let news = null;
+    if (flashed && p && from != null && to > from) {
+      try { news = HM.levelUpNews(p, from, to); } catch (e) { console.warn('[novedades] levelUpNews', e); }
+    }
+    const card = !!news && news.count >= 1;
+    // lo que la tarjeta añade de esos avisos: los puntos de atributo (+5 por nivel hasta el 20) y,
+    // en el Nv10, la invitación a elegir especialización
+    const extra = { attrs: 0, spec: false };
+    for (const [t, ms] of buf) {
+      if (card && typeof t === 'string' && LEVEL_MSG_RE.test(t)) {
+        const m = /\+(\d+)\s+atributos/u.exec(t);
+        if (m) extra.attrs += +m[1];
+        if (/¡Especializaciones/u.test(t)) extra.spec = true;
+        this.detectFlourish(t); this.syslog(t); continue;
+      }
+      this._message(t, ms);
+    }
+    if (card) this.showLevelNews(news, { ...extra, spec: extra.spec && !Talents.activeSpec(p) });
+  }
+  // nivel de referencia de las novedades: se fija al entrar en la partida (o cambiar de héroe) y
+  // sigue al nivel cuando no hay una subida en curso (saltos a mano)
+  _syncLevelSeen(p) {
+    // otro héroe: lo pendiente sale como aviso normal (la microtarea ya no ve subida)
+    if (this._lvPlayer !== p) { this._lvPlayer = p; this._lvSeen = p?.level ?? null; this._luFlash = false; this.hideLevelNews(); return; }
+    if (!this._luPending && p) this._lvSeen = p.level;
+  }
+
+  // tarjetas del HUD (arriba en el centro): clic en la de novedades → libro en la primera (o
+  // talentos / tablero si solo trae puntos); botones de la de avisos → libro, talentos o cerrar
+  bindNewsCards() {
+    this._luBuf = [];
+    this._notices = [];
+    $('hud-news')?.addEventListener('click', () => this.openLevelNews());
+    $('hud-notice')?.addEventListener('click', (e) => {
+      const act = e.target.closest?.('[data-act]')?.dataset.act;
+      if (!act) return;
+      this.hideNotice();
+      if (act === 'book') this.togglePanel('skills');
+      else if (act === 'talents') this.openTalents();
+      else if (act === 'board') this.openParagon();
+    });
+  }
+  showLevelNews(news, extra = {}) {
+    const el = $('hud-news');
+    if (!el || !news) return;
+    const first = news.items.find(i => i.id) || null;
+    const pts = news.items.find(i => i.kind === 'points') || null;
+    // a dónde lleva: el libro en la primera novedad; si solo hay puntos, a su sistema. En el Nv10
+    // sin especialización, a elegirla (openTalents abre el selector)
+    const target = extra.spec ? 'talents' : first ? 'book' : pts?.system === 'board' ? 'board' : 'talents';
+    this._news = { first: first?.id || null, target, spec: !!extra.spec };
+    const key = target === 'book' ? this.actionKey('skills', 'T') : target === 'board' ? this.actionKey('paragon', 'P') : this.actionKey('talents', 'N');
+    const img = first?.art ? `assets/${first.art}` : HM.menuIcon(target === 'book' ? 'skills' : target === 'board' ? 'paragon' : 'talents');
+    el.innerHTML = '';
+    const ico = document.createElement('span'); ico.className = 'nw-ico';
+    const im = document.createElement('img'); im.alt = ''; im.draggable = false; im.src = img;
+    im.onerror = () => { ico.classList.add('ico-missing'); ico.dataset.id = first?.id || ''; ico.textContent = '✦'; };
+    ico.appendChild(im);
+    const b = document.createElement('b'); b.textContent = news.title;
+    el.append(ico, b);
+    const attrs = extra.attrs > 0 ? `+${extra.attrs} atributos (${this.actionKey('character', 'C')})` : '';
+    const sub = [extra.spec ? 'Elige tu especialización' : '', news.sub].filter(Boolean).join(' · ');
+    if (sub) { const s = document.createElement('span'); s.className = 'nw-sub'; s.textContent = sub; el.appendChild(s); }
+    // los atributos van aparte y no se recortan (el resumen sí, con «…», si no cabe a 1366)
+    if (attrs) { const a = document.createElement('span'); a.className = 'nw-attr'; a.textContent = attrs; el.appendChild(a); }
+    const k = document.createElement('kbd'); k.textContent = key; el.appendChild(k);
+    const lines = [extra.spec ? 'Elige tu especialización' : '', ...news.items.map(i => i.text), attrs].filter(Boolean);
+    el.title = `${lines.join(' · ')}\nClic: ${target === 'book' ? 'abrir el libro' : target === 'board' ? 'abrir el tablero de glifos' : extra.spec ? 'elegir tu especialización' : 'abrir los talentos'}`;
+    el.classList.remove('hidden', 'nw-in', 'nw-wait');
+    void el.offsetWidth;                  // reinicia la entrada
+    el.classList.add('nw-in');
+    this._newsOn = true;
+    this._newsWait = false;
+    $('spec-prompt')?.classList.add('hidden');
+    this._newsLeft = NEWS_MS;
+    this._armNews();
+    this.updateTopBand();
+  }
+  _armNews() {
+    clearTimeout(this._newsT);
+    this._newsT0 = performance.now();
+    this._newsT = setTimeout(() => this.hideLevelNews(), this._newsLeft);
+  }
+  // la tarjeta va bajo el marco del objetivo y el banner: si con los dos (jefe + aviso, a
+  // 1366 × 768) pisaría la zona de combate, espera invisible (ocupa su sitio para medirla) y
+  // su tiempo se para; sale en cuanto vuelve a caber (2f §7.1: no tapar el combate)
+  _fitNews() {
+    const el = $('hud-news');
+    if (!el || el.classList.contains('hidden')) return false;
+    const L = this.hudLayout || HM.hudLayout(window.innerWidth, window.innerHeight, this.game.settings?.hudScale || 1);
+    const fits = el.getBoundingClientRect().bottom <= L.combat[1] + 0.5;
+    if (fits === !!el.classList.contains('nw-wait')) {
+      el.classList.toggle('nw-wait', !fits);
+      if (this._newsOn) {
+        this._newsWait = !fits;
+        if (!fits) { clearTimeout(this._newsT); this._newsLeft = Math.max(2500, this._newsLeft - (performance.now() - this._newsT0)); }
+        else this._armNews();
+      }
+    }
+    return fits;
+  }
+  hideLevelNews() {
+    clearTimeout(this._newsT);
+    $('hud-news')?.classList.add('hidden');
+    $('hud-news')?.classList.remove('nw-wait');
+    this._newsOn = false;
+    this._newsWait = false;
+    this._news = null;
+  }
+  openLevelNews() {
+    const n = this._news;
+    this.hideLevelNews();
+    if (!n) return;
+    if (n.target === 'board') { if (this.activePanel !== 'paragon') this.openParagon(); return; }
+    if (n.target === 'talents') { if (this.activePanel !== 'talents') this.openTalents(); return; }
+    if (n.first) this.book?.select(n.first);
+    if (this.activePanel !== 'skills') this.togglePanel('skills');
+  }
+  // avisos de la migración de la partida (LOAD_NOTICES): todos en una tarjeta que se queda hasta
+  // pulsar «Entendido» o uno de sus botones (sin temporizador: quien carga y se aparta no la pierde;
+  // la copia del registro de sistema se apaga sola)
+  queueNotice(text) {
+    if (!this._notices.includes(text)) this._notices.push(text);
+    if (this._noticeQ) return;
+    this._noticeQ = true;
+    queueMicrotask(() => { this._noticeQ = false; this.showNotice(); });
+  }
+  showNotice() {
+    const el = $('hud-notice');
+    if (!el || !this._notices.length) return;
+    el.innerHTML = '';
+    const h = document.createElement('b'); h.className = 'nt-h'; h.textContent = 'Tu partida se actualizó';
+    const ul = document.createElement('ul');
+    // los glifos sueltos esperan en el tablero de glifos, que se abre con P (_fixMessage: el texto
+    // de la migración dice «(C)», la hoja de personaje de antes)
+    const LOOSE = LOAD_NOTICES['glifos-sueltos'];
+    const board = this.actionKey('paragon', 'P');
+    for (const t of this._notices) {
+      const li = document.createElement('li');
+      li.textContent = this._fixMessage(t);
+      ul.appendChild(li);
+    }
+    const row = document.createElement('div'); row.className = 'nt-btns';
+    const btn = (act, txt, key) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.textContent = txt; if (key) { const k = document.createElement('kbd'); k.textContent = key; b.appendChild(k); } return b; };
+    row.append(btn('book', 'Libro ', this.actionKey('skills', 'T')), btn('talents', 'Talentos ', this.actionKey('talents', 'N')));
+    if (LOOSE && this._notices.includes(LOOSE)) row.append(btn('board', 'Tablero ', board));
+    row.append(btn('ok', 'Entendido'));
+    // título y botones en el mismo renglón: la tarjeta queda baja (no baja hasta la zona de combate)
+    const top = document.createElement('div'); top.className = 'nt-top';
+    top.append(h, row);
+    el.append(top, ul);
+    el.classList.remove('hidden');
+    this.updateTopBand();
+  }
+  hideNotice() {
+    $('hud-notice')?.classList.add('hidden');
+    this._notices = [];
   }
 
   // dispara flourishes según el texto del mensaje (subir de nivel, legendario...)
@@ -1446,6 +1846,13 @@ export class UI {
   }
 
   updateFloats(dt) {
+    // D26: los verbos (carga, ventana perfecta, relanzar, pips, postura) se pintan CADA frame con el
+    // reloj real (el hit-stop congela `dt`); el estado lo leen del juego (g._charging…), que ya
+    // lleva el tiempo de simulación
+    const now = performance.now();
+    const realDt = this._vfT ? Math.min(0.25, (now - this._vfT) / 1000) : 0;
+    this._vfT = now;
+    this.verbHud?.update(realDt);
     for (let i = this.floats.length - 1; i >= 0; i--) {
       const f = this.floats[i];
       f.t += dt;
@@ -1493,38 +1900,57 @@ export class UI {
   }
 
   // ---------- paneles ----------
+  // Los paneles de siempre son #panel-<id>.panel; los talentos (#talents-panel, N) y el libro
+  // (#skills-book, T) son fábricas propias sin .panel (E3): se abren y cierran por su API. Toda
+  // apertura pasa por _setPanel (activePanel = pausa + cancelHeld) y todo cierre por closePanel
+  // o closeAllPanels, que cierran también talentos y libro: nunca queda uno visible con
+  // activePanel en null (el juego seguiría corriendo debajo)
   togglePanel(name) {
     if (this.activePanel === name) return this.closePanel();
     this.closePanel();
-    this.activePanel = name;
-    if (name === 'skills') { this._skGrew = false; this._focusSkill = null; } // re-anima la vid al abrir
-    if (name === 'talents') { this.talentPanel?.open(); this.markJustOpened(); return; }
-    $('panel-' + name).classList.remove('hidden');
-    this.markJustOpened();
+    if (name === 'talents') { if (!this.talentPanel) return; this._setPanel('talents'); this.talentPanel.open(); return; }
+    if (name === 'skills') {
+      if (!this.book) return;
+      this._setPanel('skills');
+      // con la tarjeta de novedades a la vista, el libro abre en la primera novedad
+      if (this._news?.first) { this.book.select(this._news.first); this.hideLevelNews(); }
+      this.book.open();
+      return;
+    }
+    const el = $('panel-' + name);
+    if (!el) return;
+    this._setPanel(name);
+    el.classList.remove('hidden');
     this.renderPanel();
   }
 
   closePanel() {
     $('item-popup').classList.add('hidden');
-    if (!this.activePanel) return;
-    if (this.activePanel === 'talents') this.talentPanel?.close();
-    const panel = $('panel-' + this.activePanel);
-    if (panel) panel.classList.add('hidden');
-    this.activePanel = null;
+    const cur = this.activePanel;
+    this.activePanel = null;           // antes de cerrar: el onClose del libro no repite el cierre
+    if (this.talentPanel?.isOpen?.()) this.talentPanel.close();
+    if (this.book?.isOpen?.()) this.book.close();
+    if (cur) $('panel-' + cur)?.classList.add('hidden');
   }
 
-  // cierra TODOS los paneles y el popup, dejando un estado limpio (arranque)
+  // cierra TODOS los paneles y el popup, dejando un estado limpio (arranque, muerte)
   closeAllPanels() {
+    this.activePanel = null;
     document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
     this.talentPanel?.close(); // #talents-panel no lleva .panel (E3·U1)
+    if (this.book?.isOpen?.()) this.book.close();
+    this.hideSpecSwap();
+    // en partida, la pantalla de selección no queda debajo (z 50, por encima de los paneles):
+    // startGame llama aquí sea cual sea el camino que la arrancó
+    if (this.game.state !== 'select') $('class-select')?.classList.add('hidden');
     $('item-popup').classList.add('hidden');
     $('item-tooltip').classList.add('hidden');
-    this.activePanel = null;
+    this.hideHudTip();
   }
 
   renderPanel() {
     if (this.activePanel === 'inv') this.renderInventory();
-    else if (this.activePanel === 'skills') this.renderSkills();
+    else if (this.activePanel === 'skills') this.book?.refresh();
     else if (this.activePanel === 'stats') this.renderStats();
     else if (this.activePanel === 'shop') this.renderShop();
     else if (this.activePanel === 'waypoints') this.renderWaypoints();
@@ -1542,9 +1968,8 @@ export class UI {
   openStash() {
     if (this.activePanel !== 'stash') {
       this.closePanel();
-      this.activePanel = 'stash';
+      this._setPanel('stash');
       $('panel-stash').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderStash();
   }
@@ -1619,6 +2044,11 @@ export class UI {
       { id: 'controles', icon: 'gear', label: 'Controles', items: [
         { t: 'select', key: 'controlScheme', icon: 'hand', label: 'Esquema de control (PC)', def: 'wasd',
           opts: [['wasd', 'WASD + ratón (apuntar; clic = habilidad)'], ['click', 'Clic para mover (estilo Diablo II)']] },
+        // §3.6.1: cargar y soltar y las canalizaciones de mantener; «alternar» engancha la carga con
+        // la 1.ª pulsación y la suelta con la 2.ª (la ranura lo enseña con un candado)
+        { t: 'select', key: 'holdMode', icon: 'hand', label: 'Cargar y canalizar', def: 'hold',
+          opts: [['hold', 'Mantener pulsado (soltar lanza)'], ['toggle', 'Alternar (una pulsación empieza, otra suelta)']],
+          onChange: (v) => { g.settings.holdMode = v === 'toggle' ? 'toggle' : 'hold'; g.saveSettings(); g.cancelHeld?.('cancel'); } },
         { t: 'keybinds' },
       ] },
       { id: 'interfaz', icon: 'eye', label: 'Interfaz', items: [
@@ -1767,7 +2197,8 @@ export class UI {
       const row = document.createElement('div'); row.className = 'keybind-row';
       const codes = input?.bindings?.[a.id] || [];
       const keysTxt = codes.length ? codes.map(keyLabel).join(' / ') : '—';
-      row.innerHTML = `<span class="keybind-act">${a.label}</span>`;
+      // mismo nombre que el micromenú (P = «Tablero de glifos»; el Paragon vive en Talentos)
+      row.innerHTML = `<span class="keybind-act">${MICRO_TITLE[a.id] || a.label}</span>`;
       const btn = document.createElement('button'); btn.className = 'keybind-key'; btn.textContent = keysTxt;
       btn.onclick = () => {
         btn.textContent = '… pulsa una tecla'; btn.classList.add('capturing');
@@ -1786,9 +2217,8 @@ export class UI {
   openQuest() {
     if (this.activePanel !== 'quest') {
       this.closePanel();
-      this.activePanel = 'quest';
+      this._setPanel('quest');
       $('panel-quest').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderQuest();
   }
@@ -1797,10 +2227,9 @@ export class UI {
   openPacts() {
     const g = this.game;
     this.closePanel();
-    this.activePanel = 'pacts';
+    this._setPanel('pacts');
     const panel = $('panel-pacts');
     panel.classList.remove('hidden');
-    this.markJustOpened();
     const body = $('pacts-body');
     body.innerHTML = '';
     for (const pact of PACTS) {
@@ -1826,9 +2255,8 @@ export class UI {
   openRecipes() {
     if (this.activePanel !== 'recipes') {
       this.closePanel();
-      this.activePanel = 'recipes';
+      this._setPanel('recipes');
       $('panel-recipes').classList.remove('hidden');
-      this.markJustOpened();
     }
     const runeName = (id) => (RUNES.find(r => r.id === id) || {}).name || id;
     const cube = [
@@ -1855,9 +2283,8 @@ export class UI {
   openCollection() {
     if (this.activePanel !== 'collection') {
       this.closePanel();
-      this.activePanel = 'collection';
+      this._setPanel('collection');
       $('panel-collection').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderCollection();
   }
@@ -1935,9 +2362,8 @@ export class UI {
   openWaypoints() {
     if (this.activePanel !== 'waypoints') {
       this.closePanel();
-      this.activePanel = 'waypoints';
+      this._setPanel('waypoints');
       $('panel-waypoints').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderWaypoints();
   }
@@ -2400,448 +2826,27 @@ export class UI {
     btns.appendChild(c);
   }
 
-  // pips de rango (●●●○○) para leer el nivel de un vistazo
-  skillPips(lvl, max) {
-    return `<span class="sk-pips">${'●'.repeat(lvl)}<span class="sk-pips-empty">${'○'.repeat(Math.max(0, max - lvl))}</span></span>`;
-  }
+  // el libro (js/ui-skills.js) se repinta solo; esto lo piden la forja (game-skills.chooseForge) y
+  // los cambios de soportes hechos fuera del libro
+  refreshSkillsView() { this.book?.refresh(); }
 
-  // valor principal de una skill a un nivel (para previsualizar la mejora)
-  skillMainAt(sk, lvl) {
-    const r = Math.max(1, lvl || 1);
-    if (sk.coef) return `Daño ${Math.round(sk.coef * (1 + 0.10 * (r - 1)) * 100)}%`;
-    if (sk.buff) return Object.entries(sk.buff).map(([k, v]) => `+${Math.round(v * (1 + 0.06 * (r - 1)))} ${STAT_NAMES[k] || k}`).join(', ');
-    if (sk.count > 1) return `${sk.count} proyectiles`;
-    return null;
-  }
-
-  // línea verde "actual → siguiente" para ver qué aporta el próximo punto
-  skillUpgradeLine(sk, lvl) {
-    const nxt = this.skillMainAt(sk, lvl + 1);
-    if (!nxt) return '';
-    if (lvl === 0) return `<small class="sk-next">Al aprender: <b>${nxt}</b></small>`;
-    const cur = this.skillMainAt(sk, lvl);
-    if (cur === nxt) return '';
-    return `<small class="sk-next">Siguiente: ${cur} <b>→ ${nxt}</b></small>`;
-  }
-
-  // ============================================================
-  // LIBRO DE HABILIDADES (Paso 2d): lista por categoría (básico, gastadora,
-  // movilidad, defensa/utilidad, especialización, definitiva) con su icono, el
-  // rango por nivel, las ramas y las activas de talento marcadas. Clic en una
-  // habilidad = foco radial de ramas (renderSkillFocus); arrastrarla a una ranura
-  // de la barra (la del libro o la del HUD) la asigna si encaja (fitsSlot).
-  // ============================================================
-  renderSkills() {
-    const p = this.game.player;
-    const nav = $('sk-build-nav');
-    if (nav) { nav.innerHTML = this.buildNavHTML('skills'); this.bindBuildNav(nav); }
-    const ptsEl = $('skill-points');
-    const res = p.cls.resource;
-    ptsEl.className = 'sk-summary' + (p.skillPoints > 0 ? ' has-points' : '');
-    const resImg = HM.resIcon(res?.id);
-    ptsEl.innerHTML = `<span class="sk-sum-cls">${p.cls.icon} ${p.cls.name} · ${resImg ? `<img class="sk-sum-res" src="${resImg}" alt="" draggable="false">` : res?.icon || ''} ${res?.name || ''}</span>` +
-      (p.skillPoints > 0
-        ? `<span class="sk-sum-pts">✦ ${p.skillPoints} punto${p.skillPoints > 1 ? 's' : ''} para ramas</span>`
-        : `<span class="sk-sum-pts dim">Sin puntos para ramas</span>`);
-    const cont = $('skill-tree');
-    cont.innerHTML = '';
-    // ---- barra (destino de arrastre) ----
-    cont.appendChild(this.renderBookBar());
-    // ---- libro ----
-    const viewport = document.createElement('div'); viewport.className = 'sk-viewport sk-book';
-    const scroll = document.createElement('div'); scroll.className = 'sk-book-scroll';
-    viewport.appendChild(scroll);
-    const spec = Talents.activeSpec(p);
-    const onBar = {};
-    for (const [slot, id] of Object.entries(p.hotbar || {})) if (id) onBar[id] = slot;
-    const sections = HM.bookSections(p.cls.skills, { known: (sk) => isKnown(p, sk) });
-    for (const sec of sections) {
-      const box = document.createElement('section'); box.className = 'sk-book-sec sec-' + sec.id;
-      const knownN = sec.skills.filter(sk => isKnown(p, sk)).length;
-      box.innerHTML = `<header class="sk-book-head"><img class="sk-book-cat" src="${HM.uiIcon(sec.icon)}" alt="" draggable="false" onerror="this.remove()">` +
-        `<span class="sk-book-title">${sec.label}</span><span class="sk-book-hint">${sec.hint}</span><span class="sk-book-count">${knownN}/${sec.skills.length}</span></header>`;
-      const list = document.createElement('div'); list.className = 'sk-book-list';
-      for (const sk of sec.skills) list.appendChild(this.skillBookCard(sk, { onBar: onBar[sk.id], spec }));
-      box.appendChild(list);
-      scroll.appendChild(box);
-    }
-    cont.appendChild(viewport);
-    if (this._bookScroll) scroll.scrollTop = this._bookScroll;
-    scroll.addEventListener('scroll', () => { this._bookScroll = scroll.scrollTop; }, { passive: true });
-    if (this._focusSkill) requestAnimationFrame(() => this.renderSkillFocus());
-
-    // ---- pie: ayuda + reinicio de ramas ----
-    const hint = document.createElement('div'); hint.className = 'sk-assign-hint';
-    hint.innerHTML = 'Arrastra una habilidad a una ranura de la barra · clic para ver sus ramas · clic derecho en una ranura del HUD para cambiarla. La ranura <b>2</b> admite defensa/utilidad <b>o</b> una segunda gastadora.';
-    cont.appendChild(hint);
-    if (Object.keys(p.skillBranches || {}).length || Object.keys(p.skillMods || {}).length) {
-      const free = this.game.canRespecFree?.() ?? true;
-      const rb = document.createElement('button');
-      rb.className = 'quest-btn sk-respec';
-      rb.innerHTML = `${icon('recycle')} Reiniciar ramas <span class="dim">(gratis fuera de combate)</span>`;
-      rb.disabled = !free;
-      rb.onclick = () => { this.game.respecSkills(); this.renderSkills(); this.updateHUD(); };
-      cont.appendChild(rb);
-    }
-  }
-
-  // barra de 6 ranuras dentro del libro (destino del arrastre; clic = selector)
-  renderBookBar() {
-    const p = this.game.player;
-    const wrap = document.createElement('div'); wrap.className = 'sk-book-bar';
-    wrap.innerHTML = '<span class="sk-book-bar-lbl">Barra</span>';
-    for (const slot of ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4']) {
-      const label = this.slotKeyLabel(slot);
-      const sk = p.hotbar?.[slot] ? p.cls.skills.find(s => s.id === p.hotbar[slot]) : null;
-      const sec = HM.BOOK_SECTIONS.find(s => s.slots.includes(slot));
-      const b = document.createElement('button');
-      b.className = 'sk-bb-slot' + (sk ? ' cat-' + sk.cat : ' empty') + (sk?.kind === 'talent' ? ' talent' : '');
-      b.dataset.hbSlot = slot;
-      b.innerHTML = (sk ? this.skillIconHTML(sk, 'sk-bb-ico') : '<span class="sk-bb-ico dim">+</span>') +
-        this.catBadgeHTML(sk?.cat || (slot === 'k2' ? 'defense' : sec?.cats[0]), 'sk-cat') + `<span class="sk-bb-key">${label}</span>`;
-      b.title = `${label}: ${sk ? sk.name : 'vacía'}${slot === 'k2' ? ' · flexible: defensa/utilidad o gastadora' : ''} — clic para cambiar`;
-      b.onclick = () => this.hotbarSlotChooser(slot, label);
-      wrap.appendChild(b);
-    }
-    return wrap;
-  }
-
-  // tarjeta de una habilidad en el libro
-  skillBookCard(sk, { onBar = null, spec = null } = {}) {
-    const p = this.game.player;
-    const known = isKnown(p, sk);
-    const lvl = p.skills[sk.id] || 0;
-    const prof = known ? resolveSkill(p, sk) : null;
-    const art = sk.kind === 'talent' ? this.skillArt(sk) : null;
-    const card = document.createElement('div');
-    card.className = `sk-card cat-${sk.cat}${sk.kind === 'talent' ? ' talent' : ''}${known ? '' : ' locked'}${onBar ? ' onbar' : ''}`;
-    card.dataset.skill = sk.id;
-    card.tabIndex = 0;
-    const branches = SKILL_MODS[sk.id] || [];
-    const brHTML = branches.length ? `<div class="sk-card-br">${branches.map(br => {
-      const unl = !!p.skillBranches?.[sk.id]?.[br.id];
-      const sel = (p.skillMods?.[sk.id] || {})[br.id];
-      const opt = sel && br.opts.find(o => o.id === sel);
-      return `<span class="sk-br${unl ? ' on' : ''}" title="${br.name}${opt ? ': ' + opt.name + ' — ' + opt.desc : unl ? '' : ' · se desbloquea con 1 punto'}">${unl ? '' : '🔒 '}${br.name}${opt ? ` · <b>${opt.name}</b>` : ''}</span>`;
-    }).join('')}</div>` : '';
-    let tag = '';
-    if (sk.kind === 'talent') {
-      const from = art?.tree === 'cls' ? 'árbol de clase' : art?.specName ? `${art.specName}` : 'talento';
-      tag = `<span class="sk-talent-tag inline" title="Activa concedida por un talento (${from})">TALENTO · ${from}</span>`;
-    }
-    const rankHTML = known
-      ? `<span class="sk-card-rank" title="Rango ${lvl}: sube solo con el nivel (cada 8 niveles desde que se aprende)">R${lvl} ${this.skillPips(Math.min(lvl, RANK_MAX), RANK_MAX)}</span>`
-      : `<span class="sk-card-rank lock">${icon('lock')} ${sk.kind === 'talent' ? 'Talento' : 'Nivel ' + sk.req}</span>`;
-    const barTag = onBar ? `<span class="sk-card-slot" title="Está en la ranura ${this.slotKeyLabel(onBar)}">${this.slotKeyLabel(onBar)}</span>` : '';
-    card.innerHTML = this.skillIconHTML(sk, 'sk-card-ico') +
-      `<div class="sk-card-main"><div class="sk-card-name"><b>${sk.name}</b>${tag}</div>` +
-      `<div class="sk-card-sub">${rankHTML}${prof ? `<span class="sk-card-nums">${profileSummary(prof) || ''}</span>` : ''}</div>` +
-      `<div class="sk-card-desc">${sk.desc || ''}</div>${brHTML}</div>` +
-      `<div class="sk-card-side">${barTag}${branches.length ? `<span class="sk-card-brn" title="Ramas desbloqueadas">${Object.values(p.skillBranches?.[sk.id] || {}).filter(Boolean).length}/${branches.length}</span>` : ''}</div>`;
-    card.title = known ? `${sk.name}: arrastra a la barra · clic para ver sus ramas` : `${sk.name}: ${sk.kind === 'talent' ? 'concédela con su talento (N)' : 'se aprende sola al nivel ' + sk.req}`;
-    card.addEventListener('pointerdown', (e) => this.skillDragStart(e, sk, card));
-    card.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.openSkillFocus(sk.id); });
-    return card;
-  }
-
-  // ---- arrastrar una habilidad del libro a la barra ----
-  skillDragStart(e, sk, card) {
-    if (e.button !== 0) return;
-    const d = { sk, card, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, id: e.pointerId };
-    const p = this.game.player;
-    const targets = () => document.querySelectorAll('[data-hb-slot]');
-    const move = (ev) => {
-      if (ev.pointerId !== d.id) return;
-      if (!d.moved && Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) > 7) {
-        if (!isKnown(p, sk)) return; // las que no conoces no se arrastran
-        d.moved = true;
-        const gh = document.createElement('div'); gh.className = 'drag-ghost sk-ghost';
-        gh.innerHTML = this.skillIconHTML(sk, 'sk-ghost-ico') + this.catBadgeHTML(sk.cat, 'sk-cat');
-        document.body.appendChild(gh); d.ghost = gh;
-        document.body.classList.add('sk-dragging');
-        for (const t of targets()) t.classList.add(fitsSlot(sk, t.dataset.hbSlot) ? 'drop-ok' : 'drop-no');
-      }
-      if (d.moved) {
-        d.ghost.style.left = ev.clientX + 'px'; d.ghost.style.top = ev.clientY + 'px';
-        const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-hb-slot]') || null;
-        if (el !== d.over) { d.over?.classList.remove('drop-hover'); d.over = el; el?.classList.add('drop-hover'); }
-      }
-    };
-    const up = (ev) => {
-      if (ev.pointerId !== d.id) return;
-      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
-      document.body.classList.remove('sk-dragging');
-      for (const t of targets()) t.classList.remove('drop-ok', 'drop-no', 'drop-hover');
-      d.ghost?.remove();
-      if (!d.moved) { if (ev.type === 'pointerup') this.openSkillFocus(sk.id); return; }
-      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-hb-slot]');
-      if (!el) return;
-      const slot = el.dataset.hbSlot;
-      if (!fitsSlot(sk, slot)) {
-        const where = HM.catSection(sk.cat)?.slots.map(s => this.slotKeyLabel(s)).join(' o ') || '';
-        this.message(`${sk.name} no va en la ranura ${this.slotKeyLabel(slot)}${where ? ` (va en ${where})` : ''}`);
-        this.game.sfx?.('error');
-        return;
-      }
-      if (this.game.assignHotbar(slot, sk.id)) { this.game.sfx?.('uiclick'); this.message(`${sk.name} → ranura ${this.slotKeyLabel(slot)}`, 1600); }
-      this.refreshHotbar(); this.updateHUD();
-      if (this.activePanel === 'skills') this.renderSkills();
-    };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
-  }
-
-  // símbolo (sin texto) que representa el efecto dominante de una opción de pasivo
-  optSym(o) {
-    if (o.dot === 'bleed') return '🩸'; if (o.dot === 'burn') return '🔥'; if (o.dot === 'poison') return '🧪';
-    if (o.execute) return '☠️'; if (o.chain) return '⛓️'; if (o.pierce) return '🏹';
-    if (o.stun) return '💫'; if (o.vuln) return '🎯'; if (o.slow) return '❄️';
-    if (o.proj) return '✺'; if (o.radius) return '🌀'; if (o.crit) return '✦';
-    if (o.lifesteal) return '🩹'; if (o.gen) return '⚡'; if (o.cdr > 0) return '⏱️';
-    if (o.buff) return '⬆️'; if (o.dur) return '⌛'; if (o.dmg) return '⚔️';
-    return '◆';
-  }
-  // refresca la vista de habilidades respetando si está abierto el FOCO
-  refreshSkillsView() { if (this._focusSkill) this.renderSkillFocus(); else if (this.activePanel === 'skills') this.renderSkills(); }
-
-  // ===== Vista FOCO (drill-down): especialización RADIAL de una habilidad =====
-  openSkillFocus(skId) { this._focusSkill = skId; this._modPending = null; this._focusZoom = 1; this.renderSkillFocus(); }
-  closeSkillFocus() {
-    this._focusSkill = null;
-    const ov = $('skill-tree')?.querySelector('.sk-focus');
-    if (ov) ov.remove();
-    this.renderSkills(); this.updateHUD();
-  }
-  // texto del inspector (abajo): opción enfocada o, por defecto, la habilidad
-  _focusInspect(html) { const el = document.getElementById('sk-focus-insp'); if (el) el.innerHTML = html; }
-
-  renderSkillFocus() {
-    const skId = this._focusSkill; if (!skId) return;
-    const g = this.game, p = g.player;
-    const sk = p.cls.skills.find(s => s.id === skId); if (!sk) return;
-    const node = (p.cls.tree || []).find(nd => nd.skills?.includes(skId)) || { req: 1, name: '' };
-    const vp = $('skill-tree')?.querySelector('.sk-viewport'); if (!vp) return;
-    let ov = vp.querySelector('.sk-focus');
-    if (!ov) {
-      ov = document.createElement('div'); ov.className = 'sk-focus';
-      // el foco captura sus propios gestos: no dejar que d3-zoom mueva el árbol de fondo
-      ov.addEventListener('pointerdown', e => e.stopPropagation());
-      ov.addEventListener('wheel', e => e.stopPropagation());
-      vp.appendChild(ov);
-    }
-    const W = vp.clientWidth, H = vp.clientHeight;
-    ov.innerHTML = '';
-    ov.onclick = e => { if (e.target === ov) this.closeSkillFocus(); };
-    const back = document.createElement('button'); back.className = 'sk-focus-back';
-    back.innerHTML = '← Volver al libro'; back.onclick = () => this.closeSkillFocus();
-    ov.appendChild(back);
-    const wheel = document.createElement('div'); wheel.className = 'sk-focus-wheel'; ov.appendChild(wheel);
-    // capa de zoom: todo el contenido radial va aquí para poder reducirlo
-    const zoomLayer = document.createElement('div'); zoomLayer.className = 'sk-focus-zoom'; wheel.appendChild(zoomLayer);
-    const cx = W / 2, cy = H * 0.47;
-    // radio que ENCAJA en el visor dejando margen para etiquetas y nodos
-    const R = Math.max(64, Math.min(W / 2 - 86, cy - 70, H - cy - 90));
-    this._focusZoom = this._focusZoom || 1;
-    zoomLayer.style.transformOrigin = `${cx}px ${cy}px`;
-    zoomLayer.style.transform = `scale(${this._focusZoom})`;
-    const applyFZoom = () => { zoomLayer.style.transform = `scale(${this._focusZoom})`; const l = ov.querySelector('.sk-fzoom-lbl'); if (l) l.textContent = Math.round(this._focusZoom * 100) + '%'; };
-    // controles de zoom de la rueda (rueda del ratón + botones)
-    ov.onwheel = e => { e.preventDefault(); this._focusZoom = Math.max(0.45, Math.min(1.4, Math.round((this._focusZoom + (e.deltaY < 0 ? 0.1 : -0.1)) * 20) / 20)); applyFZoom(); };
-    const fz = document.createElement('div'); fz.className = 'sk-zoom sk-fzoom';
-    fz.innerHTML = `<button class="sk-zoom-b" data-z="out">−</button><span class="sk-fzoom-lbl">${Math.round(this._focusZoom * 100)}%</span><button class="sk-zoom-b" data-z="in">+</button>`;
-    fz.querySelector('[data-z=out]').onclick = () => { this._focusZoom = Math.max(0.45, this._focusZoom - 0.1); applyFZoom(); };
-    fz.querySelector('[data-z=in]').onclick = () => { this._focusZoom = Math.min(1.4, this._focusZoom + 0.1); applyFZoom(); };
-    ov.appendChild(fz);
-
-    const lvl = p.skills[sk.id] || 0, maxed = lvl >= RANK_MAX;
-    const unlockedSkill = isKnown(p, sk);
-    const prof = resolveSkill(p, sk);
-    const cost = prof?.cost || 0;
-    const res = p.cls.resource;
-
-    // SVG de líneas radiales (rombo-habilidad → cada opción)
-    const SVGNS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'sk-focus-svg');
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
-    zoomLayer.appendChild(svg);
-    let lines = '';
-
-    const branches = SKILL_MODS[sk.id] || [];
-    const N = Math.max(1, branches.length);
-    branches.forEach((br, bi) => {
-      const baseAng = (-90 + bi * (360 / N)) * Math.PI / 180;
-      const unlocked = !!p.skillBranches?.[sk.id]?.[br.id];
-      const sel = (p.skillMods[sk.id] || {})[br.id] || null;
-      const M = br.opts.length;
-      br.opts.forEach((o, oi) => {
-        const ang = baseAng + (oi - (M - 1) / 2) * (26 * Math.PI / 180);
-        const x = cx + Math.cos(ang) * R, y = cy + Math.sin(ang) * R;
-        lines += `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="sk-focus-line${unlocked ? ' on' : ''}${sel === o.id ? ' sel' : ''}"/>`;
-        const on = sel === o.id;
-        const pending = !unlocked && g._modPending === (sk.id + '/' + br.id + '/' + o.id);
-        const b = document.createElement('button');
-        b.className = 'sk-focus-opt' + (on ? ' on' : '') + (unlocked ? '' : ' locked') + (pending ? ' pending' : '') + (br.name === 'Transformación' ? ' big' : '');
-        b.style.left = x + 'px'; b.style.top = y + 'px';
-        b.textContent = this.optSym(o);
-        const show = () => this._focusInspect(`<b>${o.name}</b><span>${o.desc}</span><em>${unlocked ? (on ? '✓ activa' : 'Haz clic para elegir (gratis)') : pending ? '⚠ Haz clic otra vez para desbloquear (1 punto)' : `🔒 Rama «${br.name}» — desbloquea por 1 punto`}</em>`);
-        b.onmouseenter = show; b.onfocus = show;
-        b.onclick = () => { show(); g.chooseSkillMod(sk.id, br.id, o.id); };
-        zoomLayer.appendChild(b);
-      });
-      // etiqueta de la rama
-      const lx = cx + Math.cos(baseAng) * (R + 52), ly = cy + Math.sin(baseAng) * (R + 52);
-      const lbl = document.createElement('div');
-      lbl.className = 'sk-focus-blabel' + (unlocked ? ' on' : '') + (br.name === 'Transformación' ? ' big' : '');
-      lbl.style.left = lx + 'px'; lbl.style.top = ly + 'px';
-      lbl.innerHTML = unlocked ? br.name : `🔒 ${br.name}<small>1 punto</small>`;
-      zoomLayer.appendChild(lbl);
-    });
-    svg.innerHTML = lines;
-
-    // centro: habilidad + rango + subir + soportes
-    const center = document.createElement('div'); center.className = 'sk-focus-center';
-    center.style.left = cx + 'px'; center.style.top = cy + 'px';
-    // Paso 2b.0: el rango sube SOLO con el nivel (y talentos/equipo); no se compra
-    const upHtml = !unlockedSkill
-      ? `<button class="sk-focus-up" disabled>🔒 Nivel ${sk.req}</button>`
-      : `<button class="sk-focus-up" disabled>${maxed ? '★ Rango máximo por nivel' : 'Sube con el nivel'}</button>`;
-    center.innerHTML = `${this.skillIconHTML(sk, 'sk-focus-ico', { big: true })}<div class="sk-focus-name">${sk.name}</div>` +
-      `<div class="sk-focus-rank">${this.skillPips(Math.min(lvl, RANK_MAX), RANK_MAX)} <em>R${lvl}</em></div>${upHtml}`;
-    zoomLayer.appendChild(center);
-    // soportes (engarces) bajo el centro, si la conoces y tiene huecos (básico/definitiva 1, resto 2)
-    if (unlockedSkill && supportSockets(sk) > 0) this.renderSupportSlots(center, sk, () => this.renderSkillFocus());
-
-    // inspector inferior
-    const insp = document.createElement('div'); insp.className = 'sk-focus-inspector'; insp.id = 'sk-focus-insp';
-    ov.appendChild(insp);
-    this._focusInspect(`<b>${this.skillIconHTML(sk, 'sk-inline-ico')} ${sk.name}</b><span>${sk.desc}</span><em>${profileSummary(prof)}${cost ? '' : ' · sin coste'} (${res?.name || ''}). Elige 1 opción por rama (la 1ª de cada rama cuesta 1 punto).</em>`);
-  }
-
-  // detalle de una habilidad (subir rango + engarces de soporte si aplica)
-  skillDetailPopup(sk, node) {
-    const g = this.game, p = g.player;
-    const pop = $('item-popup');
-    pop.style.left = pop.style.top = pop.style.transform = '';
-    const lvl = p.skills[sk.id] || 0;
-    const reqLvl = sk.req || node?.req || 1;
-    const unlocked = isKnown(p, sk);
-    const res = p.cls.resource;
-    const details = this.skillDetails(sk, Math.max(1, lvl));
-    pop.innerHTML = `
-      <div class="popup-name">${this.skillIconHTML(sk, 'sk-inline-ico')} ${sk.name} <span class="dim">${unlocked ? 'R' + lvl : 'Nv ' + reqLvl}</span></div>
-      <div class="popup-sub">${sk.desc}</div>
-      <div class="sk-detail-nums">${details} (${res?.name || ''})</div>
-      <div class="popup-btns codex-choose"></div>`;
-    const btns = pop.querySelector('.popup-btns');
-    const up = document.createElement('button');
-    up.className = 'btn-good';
-    up.disabled = true;
-    up.textContent = unlocked ? `Rango ${lvl} · sube con el nivel` : `🔒 Se aprende al nivel ${reqLvl}`;
-    btns.appendChild(up);
-    if (unlocked && supportSockets(sk) > 0) this.renderSupportSlots(pop, sk, () => this.skillDetailPopup(sk, node));
-    const c = document.createElement('button'); c.textContent = 'Cerrar';
-    c.onclick = () => pop.classList.add('hidden');
-    btns.appendChild(c);
-    pop.classList.remove('hidden');
-  }
-
-  // Multi-socket: hasta 2 soportes por habilidad. Muestra dos selectores con el
-  // efecto y la contrapartida de cada soporte; los incompatibles aparecen en gris.
-  renderSupportSlots(infoEl, sk, onChange) {
-    const p = this.game.player;
-    const MAX_SLOTS = supportSockets(sk); // huecos: básico/definitiva 1, resto 2 (§4.3)
-    // normaliza a array (retrocompat con saves viejos en string)
-    let cur = p.supports[sk.id];
-    if (typeof cur === 'string') cur = cur ? [cur] : [];
-    if (!Array.isArray(cur)) cur = [];
-    p.supports[sk.id] = cur;
-
-    // soportes conocidos compatibles con el tipo de esta habilidad
-    const compat = SUPPORTS.filter(s => supportFits(s, sk) && p.knownSupports.includes(s.id));
-    if (!compat.length && !cur.length) return;
-
-    const wrap = document.createElement('div');
-    wrap.className = 'sk-supports';
-    const head = document.createElement('div');
-    head.className = 'sk-supports-head';
-    head.innerHTML = `${icon('gem')} Engarces de soporte <span class="sk-eng-count">${cur.length}/${MAX_SLOTS}</span>`;
-    head.title = 'Engarza hasta 2 soportes para modificar esta habilidad. Cada uno tiene un efecto y, a veces, una contrapartida.';
-    wrap.appendChild(head);
-
-    const persist = () => {
-      // limpia vacíos y duplicados, recorta a MAX_SLOTS
-      const clean = [];
-      for (const id of p.supports[sk.id]) if (id && !clean.includes(id)) clean.push(id);
-      p.supports[sk.id] = clean.slice(0, MAX_SLOTS);
-      p.resolved = {};                 // el perfil de la habilidad cambia con sus soportes
-      this.game.save();
-      (onChange || (() => this.renderSkills()))();
-    };
-
-    for (let slot = 0; slot < MAX_SLOTS; slot++) {
-      const chosen = cur[slot] || '';
-      const sel = document.createElement('select');
-      sel.className = 'sk-support';
-      // opciones: vacío + compatibles conocidos. Los ya usados en el OTRO slot se marcan en gris/disabled.
-      const usedElsewhere = cur.filter((_, i) => i !== slot);
-      let opts = `<option value="">Engarce ${slot + 1}: vacío</option>`;
-      // los conocidos pero incompatibles con esta habilidad se listan deshabilitados (gris)
-      const known = SUPPORTS.filter(s => p.knownSupports.includes(s.id));
-      for (const s of known) {
-        const incompatible = !supportFits(s, sk);
-        const dup = usedElsewhere.includes(s.id);
-        const dis = incompatible || dup;
-        const label = `${s.icon} ${s.name}${s.trade ? ` (${s.effect}, ${s.trade})` : ` (${s.effect || ''})`}` +
-          (incompatible ? ' — incompatible' : dup ? ' — ya engarzado' : '');
-        opts += `<option value="${s.id}"${s.id === chosen ? ' selected' : ''}${dis && s.id !== chosen ? ' disabled' : ''}>${label}</option>`;
-      }
-      sel.innerHTML = opts;
-      sel.value = chosen;
-      sel.onchange = () => {
-        const arr = p.supports[sk.id].slice();
-        arr[slot] = sel.value;
-        p.supports[sk.id] = arr;
-        persist();
-      };
-      wrap.appendChild(sel);
-    }
-
-    // resumen del efecto combinado de los soportes engarzados
-    const active = cur.map(id => SUPPORTS.find(s => s.id === id)).filter(Boolean);
-    if (active.length) {
-      const sum = document.createElement('small');
-      sum.className = 'sk-support-sum';
-      sum.innerHTML = active.map(s =>
-        `${s.icon} <b>${s.effect || s.name}</b>${s.trade ? ` <span class="sk-trade">⚠ ${s.trade}</span>` : ''}`
-      ).join(' · ');
-      wrap.appendChild(sum);
-    }
-
-    infoEl.appendChild(wrap);
-  }
-
-  // números FINALES del lanzamiento (resolveSkill: rango, ramas, soportes, CDR…)
-  skillDetails(sk, lvl) {
-    void lvl;
-    return profileSummary(resolveSkill(this.game.player, sk)) || '—';
-  }
-
-  // nº de glifos que tienes en la mochila sin engarzar en el Tablero de Paragon
+  // nº de glifos que tienes en la mochila sin engarzar en el tablero de glifos
   unsocketedGlyphCount() {
     const p = this.game.player;
     return (p.materials || []).filter(it => it.kind === 'glyph').length;
   }
 
-  // Barra de navegación del "build" que conecta Personaje ↔ Habilidades ↔ Paragon.
-  // Se inserta en lo alto de los tres paneles para que se entienda que son partes
-  // del mismo sistema y para hacer EVIDENTE dónde están habilidades y glifos.
+  // Barra de navegación del "build" que conecta Personaje ↔ Habilidades ↔ Tablero de glifos.
+  // Se inserta en lo alto de la ficha y del tablero para que se entienda que son partes del
+  // mismo sistema. Habilidades abre el libro (T); su insignia, las variantes por elegir
   buildNavHTML(active) {
     const p = this.game.player;
-    const para = p.paragon || {};
-    const skillBadge = p.skillPoints > 0 ? `<span class="bnav-badge">${p.skillPoints}</span>` : '';
-    const pgPts = para.points || 0;
-    const freeGlyphs = this.unsocketedGlyphCount();
-    const pgBadge = (pgPts + freeGlyphs) > 0 ? `<span class="bnav-badge">${pgPts + freeGlyphs}</span>` : '';
-    const hasBoard = p.level >= 20 || pgPts > 0 || Object.keys(para.nodes || {}).length > 0;
+    const pend = this._pendingVariants(p);
+    const skillBadge = pend > 0 ? `<span class="bnav-badge" title="${pend} variante${pend > 1 ? 's' : ''} por elegir">${pend}</span>` : '';
+    const bi = this.game.paragonPointsInfo?.() || { left: 0, open: false, openLevel: Talents.PARAGON_OPEN_LEVEL };
+    const extra = bi.left + this.unsocketedGlyphCount() + (this.game.looseGlyphs?.().length || 0);
+    const pgBadge = bi.open && extra > 0 ? `<span class="bnav-badge">${extra}</span>` : '';
+    const hasBoard = bi.open || Object.keys(p.paragon?.nodes || {}).length > 0;
     // tab: si está bloqueado se muestra IGUAL (descubribilidad/aspiración) con
     // candado y el nivel requerido; al pulsarlo se abre una vista de preview.
     const tab = (key, ico, label, badge, on, lockLvl) =>
@@ -2849,7 +2854,7 @@ export class UI {
     return `<div class="build-nav">
         ${tab('stats', 'hero', 'Personaje', '', active === 'stats')}
         ${tab('skills', 'book', 'Habilidades', skillBadge, active === 'skills')}
-        ${tab('paragon', 'star', 'Paragon', pgBadge, active === 'paragon', hasBoard ? 0 : 20)}
+        ${tab('paragon', 'star', 'Tablero de glifos', pgBadge, active === 'paragon', hasBoard ? 0 : bi.openLevel)}
       </div>`;
   }
 
@@ -2871,7 +2876,7 @@ export class UI {
     const head = document.querySelector('#panel-stats .panel-head h2');
     if (head) head.textContent = `${p.cls.icon} ${p.heroName} · ${p.cls.name} Nv ${p.level}`;
 
-    // barra de navegación del build (Personaje ↔ Habilidades ↔ Paragon)
+    // barra de navegación del build (Personaje ↔ Habilidades ↔ tablero de glifos)
     const nav = $('cs-build-nav');
     if (nav) { nav.innerHTML = this.buildNavHTML('stats'); this.bindBuildNav(nav); }
 
@@ -2927,27 +2932,31 @@ export class UI {
       cont.appendChild(rb);
     }
 
-    // --- paragon (tablero de nodos, nivel 20+) ---
+    // --- tablero de glifos (se abre al Nv81: 16 puntos derivados del nivel, §3.9) ---
     const pgSection = $('paragon-section');
     const pg = $('paragon');
     const para = p.paragon || {};
-    const hasBoard = p.level >= 20 || para.points > 0 || Object.keys(para.nodes || {}).length > 0;
+    const bi = this.game.paragonPointsInfo?.() || { left: 0, open: false };
+    const loose = this.game.looseGlyphs?.().length || 0;
+    const hasBoard = bi.open || Object.keys(para.nodes || {}).length > 0 || loose > 0;
     const freeGlyphs = this.unsocketedGlyphCount();
     if (hasBoard) {
       pgSection.style.display = '';
-      // avisos: puntos sin gastar y/o glifos sin engarzar (descubribilidad)
+      // avisos: puntos sin gastar, glifos sin engarzar y glifos sueltos de la migración
       let alert = '';
-      if (para.points > 0) alert += `<div class="cs-build-alert">⚠️ Tienes <b>${para.points}</b> punto(s) de Paragon sin gastar.</div>`;
-      if (freeGlyphs > 0) alert += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) en la mochila sin engarzar.</div>`;
+      if (bi.left > 0) alert += `<div class="cs-build-alert">⚠️ Tienes <b>${bi.left}</b> ${pl(bi.left, 'punto', 'puntos')} del tablero sin gastar.</div>`;
+      if (freeGlyphs > 0) alert += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> ${pl(freeGlyphs, 'glifo', 'glifos')} en la mochila sin engarzar.</div>`;
+      if (loose > 0) alert += `<div class="cs-build-alert glyph">🔷 <b>${loose}</b> ${pl(loose, 'glifo te espera en el tablero: recógelo allí', 'glifos te esperan en el tablero: recógelos allí')}.</div>`;
       pg.innerHTML = `<div class="cs-section-head">
-          <span class="cs-section-title">🌟 Paragon y Glifos</span>
-          <span class="cs-points ${para.points > 0 ? 'cs-points-active' : ''}">${para.points > 0 ? `${para.points} pts sin gastar` : 'Nv 20+'}</span>
+          <span class="cs-section-title">🔷 Tablero de glifos</span>
+          <span class="cs-points ${bi.left > 0 ? 'cs-points-active' : ''}">${bi.open ? `${bi.spent}/${BOARD_PTS} puntos` : `Nv ${bi.openLevel || Talents.PARAGON_OPEN_LEVEL}+`}</span>
         </div>
         ${alert}
-        <p class="cs-build-help">Engarza glifos (🔷) en los nodos de engarce (◇) del tablero para potenciar tu build.</p>`;
+        <p class="cs-build-help">Activa nodos de estadísticas, llega a un legendario y engarza glifos (🔷) en los zócalos (◇) del camino.</p>`;
       const ob = document.createElement('button');
       ob.className = 'quest-btn cs-build-cta';
-      ob.innerHTML = `🌟 Abrir Tablero de Paragon / Glifos${(para.points + freeGlyphs) > 0 ? ` <span class="bnav-badge">${para.points + freeGlyphs}</span>` : ''}`;
+      const n = bi.left + freeGlyphs + loose;
+      ob.innerHTML = `🔷 Abrir el tablero de glifos${n > 0 ? ` <span class="bnav-badge">${n}</span>` : ''}`;
       ob.onclick = () => this.openParagon();
       pg.appendChild(ob);
     } else pgSection.style.display = 'none';
@@ -3088,6 +3097,9 @@ export class UI {
 
   showDeath(hardcore = false) {
     this.deathHardcore = hardcore;
+    // ningún panel (ni talentos ni libro) queda abierto encima de la pantalla de muerte
+    this.closeAllPanels();
+    this.hideLevelNews();
     $('death-text').textContent = hardcore
       ? '☠️ Modo Hardcore: tu héroe ha caído para siempre y su historia termina aquí.'
       : 'Las profundidades reclaman otra alma...';
@@ -3108,9 +3120,8 @@ export class UI {
   openMap() {
     if (this.activePanel !== 'map') {
       this.closePanel();
-      this.activePanel = 'map';
+      this._setPanel('map');
       $('panel-map').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderMap();
     this.renderWorldMap(); // el listado del mundo solo al abrir (no a 10Hz)
@@ -3405,9 +3416,8 @@ export class UI {
   openProgress() {
     if (this.activePanel !== 'progress') {
       this.closePanel();
-      this.activePanel = 'progress';
+      this._setPanel('progress');
       $('panel-progress').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderProgress();
   }
@@ -3475,9 +3485,8 @@ export class UI {
   openGuide() {
     if (this.activePanel !== 'guide') {
       this.closePanel();
-      this.activePanel = 'guide';
+      this._setPanel('guide');
       $('panel-guide').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderGuide();
   }
@@ -3508,9 +3517,8 @@ export class UI {
   openPet() {
     if (this.activePanel !== 'pet') {
       this.closePanel();
-      this.activePanel = 'pet';
+      this._setPanel('pet');
       $('panel-pet').classList.remove('hidden');
-      this.markJustOpened();
     }
     this.renderPet();
   }
@@ -3601,18 +3609,23 @@ export class UI {
       b.onclick = () => { g.switchPetKind(b.dataset.kind); });
   }
 
-  // ---------- Tablero de Paragon ----------
+  // ---------- Tablero de glifos (P; docs/paso2-implementacion.md §3.9, 2g §7.5) ----------
+  // Se abre al Nv81 con 16 puntos DERIVADOS del nivel (paragonPointsInfo: no se guardan); los
+  // legendarios dan estadísticas grandes (sin poderes) y reiniciarlo es gratis fuera de combate.
+  // Antes del Nv81 se ve como vista previa con candado
   openParagon() {
     if (this.activePanel !== 'paragon') {
       this.closePanel();
-      this.activePanel = 'paragon';
+      this._setPanel('paragon');
       $('panel-paragon').classList.remove('hidden');
-      this.markJustOpened();
+      this._pgSel = null;              // la ficha vuelve a la ayuda al abrir
     }
     this.renderParagon();
   }
 
   nodeStatsText(node) {
+    // el legendario trae su texto (los mismos números dichos en palabras): no se repiten
+    if (node.type === 'legendary' && node.desc) return node.desc;
     const parts = Object.entries(node.stats || {}).map(([k, v]) => statText(k, v));
     if (node.desc) parts.push(node.desc);
     return parts.join(' · ') || (node.type === 'start' ? 'Inicio' : '');
@@ -3620,29 +3633,46 @@ export class UI {
 
   renderParagon() {
     const g = this.game, p = g.player;
-    const para = p.paragon || { points: 0, nodes: {} };
+    const para = p.paragon || { nodes: {} };
     const N = PARAGON_BOARD_SIZE;
     const board = paragonBoardFor(p.classId);
-    const cost = g.respecParagonCost();
+    const bi = g.paragonPointsInfo?.() || { earned: 0, spent: 0, left: 0, open: false, openLevel: Talents.PARAGON_OPEN_LEVEL };
     const nav = $('pg-build-nav');
     if (nav) { nav.innerHTML = this.buildNavHTML('paragon'); this.bindBuildNav(nav); }
-    $('paragon-points').textContent = para.points > 0 ? `${para.points} puntos sin gastar` : 'Sin puntos · sube de nivel (20+)';
-    $('paragon-points').classList.toggle('cs-points-active', para.points > 0);
-    // avisos visibles: puntos sin gastar / glifos sin engarzar
+    $('paragon-points').textContent = bi.open
+      ? `${bi.left} punto${bi.left === 1 ? '' : 's'} libre${bi.left === 1 ? '' : 's'} · ${bi.spent}/${bi.earned} gastados · ${BOARD_PTS} en total del nivel ${bi.openLevel} al ${Talents.LEVEL_MAX}`
+      : `Se abre al nivel ${bi.openLevel}: ${BOARD_PTS} puntos, uno por nivel hasta el ${Talents.LEVEL_MAX}`;
+    $('paragon-points').classList.toggle('cs-points-active', bi.left > 0);
+    // avisos visibles: tablero cerrado, puntos sin gastar, glifos sueltos y glifos sin engarzar
     const alertEl = $('pg-alert');
     if (alertEl) {
       const freeGlyphs = this.unsocketedGlyphCount();
+      const loose = g.looseGlyphs?.() || [];
       const freeSockets = board.filter(n => n.type === 'socket' && para.nodes?.[n.id] && !para.glyphs?.[n.id]).length;
-      const lockedBoard = p.level < 20 && !para.points && !Object.keys(para.nodes || {}).length;
+      const lockedBoard = !bi.open && !Object.keys(para.nodes || {}).length;
       let html = '';
-      if (lockedBoard) html += `<div class="locked-banner">${icon('lock')} El Tablero de Paragon se desbloquea en el <b>nivel 20</b> (te faltan ${20 - p.level}). A partir de ahí cada nivel da 1 punto para gastar en este tablero. Esto es una vista previa de lo que te espera.</div>`;
-      if (para.points > 0) html += `<div class="cs-build-alert">⚠️ Tienes <b>${para.points}</b> punto(s) sin gastar.</div>`;
-      if (freeGlyphs > 0) html += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> glifo(s) sin engarzar${freeSockets > 0 ? ` y <b>${freeSockets}</b> engarce(s) ◇ libre(s)` : ''}. Haz clic en un engarce activo para colocarlos.</div>`;
+      if (lockedBoard) html += `<div class="locked-banner">${icon('lock')} El tablero de glifos se abre en el <b>nivel ${bi.openLevel}</b> (te faltan ${Math.max(0, bi.openLevel - p.level)}). Desde ahí, cada nivel da 1 punto (${BOARD_PTS} hasta el ${Talents.LEVEL_MAX}): llegas a un legendario con su zócalo, nunca a dos. Esto es una vista previa.</div>`;
+      if (bi.left > 0) html += `<div class="cs-build-alert">⚠️ Tienes <b>${bi.left}</b> ${pl(bi.left, 'punto', 'puntos')} sin gastar.</div>`;
+      if (loose.length) html += `<div class="cs-build-alert glyph pg-loose">🔷 <b>${loose.length}</b> ${pl(loose.length, 'glifo suelto', 'glifos sueltos')} de tu partida anterior: ${loose.map(gl => gl.baseName || gl.name || 'Glifo').join(', ')}. <button class="quest-btn pg-reclaim" type="button">Recoger en la bolsa</button></div>`;
+      if (freeGlyphs > 0) html += `<div class="cs-build-alert glyph">🔷 Tienes <b>${freeGlyphs}</b> ${pl(freeGlyphs, 'glifo', 'glifos')} sin engarzar${freeSockets > 0 ? ` y <b>${freeSockets}</b> ${pl(freeSockets, 'zócalo ◇ libre', 'zócalos ◇ libres')}` : ''}. Haz clic en un zócalo activo para ${pl(freeGlyphs, 'colocarlo', 'colocarlos')}.</div>`;
       alertEl.innerHTML = html;
+      const rb = alertEl.querySelector('.pg-reclaim');
+      if (rb) rb.onclick = () => { g.reclaimLooseGlyphs?.(); this.renderParagon(); this.updateHUD(); };
     }
     const grid = $('paragon-grid');
     grid.innerHTML = '';
     grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+    grid.classList.toggle('pg-locked', !bi.open);
+    // ficha del nodo junto a la rejilla: la del ratón mientras pasa por encima; al salir, la del
+    // último clic (o la ayuda). Así las estadísticas de un legendario se leen sin el title nativo
+    const info = $('paragon-info');
+    if (info && this._pgHelp == null) this._pgHelp = info.innerHTML;
+    const showInfo = (html) => { if (info && info.innerHTML !== html) info.innerHTML = html; };
+    const nodeInfo = (node, gl) => node.type === 'socket'
+      ? `🔷 ${gl ? `<b>${gl.name}</b>` : 'Zócalo vacío'}`
+      : `${node.type === 'legendary' ? '★ ' : ''}${node.name ? `<b>${node.name}</b> · ` : ''}${this.nodeStatsText(node)}`;
+    grid.onmouseleave = () => showInfo(this._pgSel || this._pgHelp || '');
+    showInfo(this._pgSel || this._pgHelp || '');
     const byPos = {};
     for (const n of board) byPos[n.x + ',' + n.y] = n;
     const glyph = { start: '◉', legendary: '★', rare: '◆', magic: '✦', minor: '•', socket: '◇' };
@@ -3651,37 +3681,38 @@ export class UI {
       cell.className = 'para-cell';
       const node = byPos[x + ',' + y];
       if (node) {
-        const on = node.type === 'start' || !!para.nodes[node.id];
-        const avail = !on && para.points > 0 && g.paragonNodeReachable(node.id);
+        const on = node.type === 'start' || !!para.nodes?.[node.id];
+        const avail = !on && bi.left > 0 && g.paragonNodeReachable(node.id);
         const gl = node.type === 'socket' ? para.glyphs?.[node.id] : null;
         cell.classList.add('para-node', 'pn-' + node.type);
         if (node.cat) cell.classList.add('cat-' + node.cat);
         if (on) cell.classList.add('on');
         if (avail) cell.classList.add('avail');
         if (gl) cell.classList.add('has-glyph');
-        // engarce activo y vacío: resáltalo para que se vea dónde poner glifos
+        // zócalo activo y vacío: resáltalo para que se vea dónde poner glifos
         const openSocket = node.type === 'socket' && on && !gl;
         if (openSocket) cell.classList.add('open-socket');
         cell.textContent = gl ? '🔷' : (glyph[node.type] || '•');
         cell.title = node.type === 'socket'
-          ? (gl ? `🔷 ${gl.name} (clic para cambiar/quitar)` : 'Engarce de glifo ◇' + (on ? ' — clic para engarzar un glifo' : ' (actívalo primero)'))
-          : (node.name ? node.name + ': ' : '') + this.nodeStatsText(node);
+          ? (gl ? `🔷 ${gl.name} (clic para cambiar o quitar)` : 'Zócalo de glifo ◇' + (on ? ': clic para engarzar un glifo' : ' (actívalo primero)'))
+          : `${node.type === 'legendary' ? '★ ' : ''}${node.name ? node.name + ': ' : ''}${this.nodeStatsText(node)}`;
+        cell.onmouseenter = () => showInfo(nodeInfo(node, gl));
         cell.onclick = () => {
-          if (node.type === 'socket') {
-            const txt = gl ? `<b>${gl.name}</b>` : 'Engarce vacío';
-            $('paragon-info').innerHTML = `🔷 ${txt}`;
-            if (on) { this.paragonGlyphChooser(node); return; }
-          } else {
-            $('paragon-info').innerHTML = `${node.name ? `<b>${node.name}</b> — ` : ''}${this.nodeStatsText(node)}`;
-          }
+          this._pgSel = nodeInfo(node, gl);
+          showInfo(this._pgSel);
+          if (node.type === 'socket' && on) { this.paragonGlyphChooser(node); return; }
           if (!on && avail) { g.allocateParagonNode(node.id); this.renderParagon(); this.updateHUD(); }
         };
       }
       grid.appendChild(cell);
     }
-    $('paragon-respec').textContent = `🔄 Reespecializar (${cost} 🪙)`;
-    $('paragon-respec').disabled = p.gold < cost || !Object.keys(para.nodes || {}).length;
-    $('paragon-respec').onclick = () => { g.respecParagon(); this.renderParagon(); this.updateHUD(); };
+    const spent = Object.keys(para.nodes || {}).length;
+    const free = g.canRespecFree?.() ?? true;
+    const rs = $('paragon-respec');
+    rs.textContent = free ? '🔄 Reiniciar el tablero (gratis)' : '🔄 Reiniciar el tablero (fuera de combate)';
+    rs.disabled = !spent || !free;
+    rs.title = !spent ? 'El tablero está vacío' : free ? 'Devuelve todos los puntos; los glifos se quedan en su zócalo' : 'Solo fuera de combate (5 s sin daño) o en un campamento';
+    rs.onclick = () => { g.respecParagon(); this.renderParagon(); this.updateHUD(); };
   }
 
   // engarzar/quitar un glifo en un nodo de engarce del tablero
@@ -3698,8 +3729,8 @@ export class UI {
     const adjFamCount = (fam) => adjNodes.filter(o => o.cat === fam).length;
     const famsHere = [...new Set(adjNodes.map(o => o.cat).filter(Boolean))].map(c => PARAGON_CATS[c] || c).join(', ') || 'ninguna activa';
     pop.innerHTML = `
-      <div class="popup-name">🔷 Engarce de Paragon</div>
-      <div class="popup-sub">${cur ? 'Engarzado: ' + cur.name : 'Engarce vacío'} · familias contiguas: ${famsHere}</div>
+      <div class="popup-name">🔷 Zócalo del tablero de glifos</div>
+      <div class="popup-sub">${cur ? 'Engarzado: ' + cur.name : 'Zócalo vacío'} · familias contiguas: ${famsHere}</div>
       <div class="popup-btns codex-choose"></div>`;
     const btns = pop.querySelector('.popup-btns');
     if (!glyphs.length && !cur) {
@@ -3752,8 +3783,7 @@ export class UI {
       <div class="rs-rewards">${rewards}</div>
       <button class="rs-continue">Continuar ▸</button>`;
     el.classList.remove('hidden');
-    this.activePanel = 'riftsummary';
-    this.markJustOpened();
+    this._setPanel('riftsummary');
     this.game.sfx?.('levelup');
     el.querySelector('.rs-continue').onclick = () => {
       el.classList.add('hidden');
@@ -3764,7 +3794,7 @@ export class UI {
 
   openBlessing(offers) {
     this.closePanel();
-    this.activePanel = 'blessing';
+    this._setPanel('blessing');
     $('panel-blessing').classList.remove('hidden');
     const p = this.game.player;
     const body = $('blessing-body');
