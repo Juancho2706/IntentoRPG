@@ -853,15 +853,19 @@ check('l8A', () => {
   const run = on => {
     const h = on ? hero('berserker', 'h2', { l8: 1 }, { l8: 'A' }) : hero('berserker', 'h2');
     const r = h.enemy({ hp: 1000, pos: [2, 0, 0] }), near = h.enemy({ hp: 1e6, pos: [3, 0, 0] }), boss = h.enemy({ hp: 1e7, boss: true, pos: [2, 0, 2] });
+    // inmune al miedo por los rendimientos decrecientes del control duro (applyCC devuelve 0)
+    const imm = h.enemy({ hp: 1e6, pos: [3, 0, -1] });
+    imm.stunDR = 0.95;
     hitWith(h, r, 'g_tajo');
     const at = { x: r.pos.x, z: r.pos.z };
     r.takeDamage(1e6, false, {});
-    return { h, near, boss, at };
+    return { h, near, boss, at, imm };
   };
   const a = run(false), b = run(true);
   assert.ok(!(a.near.fearT > 0) && !(a.boss.stagger > 0), 'sin l8A nadie huye');
   assert.ok(flees(b.near, b.at, 2) > 1, 'l8A: los cercanos huyen 2 s del Rival caído');
   assert.ok(!(b.boss.fearT > 0) && (b.boss.stagger || 0) >= 20, 'l8A: a los jefes no los asusta: 20 de Quebranto');
+  assert.ok(!(b.imm.fearT > 0) && b.imm.pos.x === 3 && b.imm.pos.z === -1, `l8A: al inmune al miedo no se lo empuja en su lugar (${b.imm.pos.x}, ${b.imm.pos.z})`);
 });
 check('l8B', () => {
   const h = hero('berserker', 'h2', { l8: 1 }, { l8: 'B' });
@@ -1002,12 +1006,15 @@ check('u8A', () => {
   const run = on => {
     const h = on ? hero('cruzado', 'h3', { u8: 1 }, { u8: 'A' }) : hero('cruzado', 'h3');
     const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }), far = h.enemy({ hp: 1e6, pos: [9.5, 0, 0] }), boss = h.enemy({ hp: 1e7, boss: true, pos: [0, 0, 3] });
+    const imm = h.enemy({ hp: 1e6, pos: [0, 0, -3] });
+    imm.stunDR = 0.95;                                     // inmune al miedo (rendimientos decrecientes)
     h.tick(0.3);
-    return { h, e, far, boss, f: pendons(h)[0] };
+    return { h, e, far, boss, imm, f: pendons(h)[0] };
   };
   const a = run(false), b = run(true);
   assert.ok(a.f && b.f && !(a.e.fearT > 0) && !(a.boss.stagger > 0), 'sin u8A, el Pendón no asusta');
   assert.ok(!(b.far.fearT > 0), 'u8A: a más de 8 m, no');
+  assert.ok(!(b.imm.fearT > 0) && b.imm.pos.x === 0 && b.imm.pos.z === -3, `u8A: al inmune al miedo no se lo empuja en su lugar (${b.imm.pos.x}, ${b.imm.pos.z})`);
   // el Pendón asusta al clavarse: lo que le queda de miedo + la edad del Pendón = 2 s
   assert.ok(approx(b.e.fearT + b.f.age, 2, 0.02), `u8A: huyen 2 s (${b.e.fearT} + ${b.f.age})`);
   assert.ok(flees(b.e, b.f.pos) > 1, 'u8A: los enemigos a 8 m huyen del Pendón');
@@ -1108,6 +1115,19 @@ function pielRecharging(h) {
   assert.ok(h.p.cds.g_piel > 5, 'la Piel de Hierro se está recargando');
 }
 
+// el Sangrado que deja DE VERDAD un giro del Remolino (el primer tic del canal, a los 0,25 s). Con
+// un arma fuerte: el tic de un DoT se redondea a un entero (con el puño, 1 por tic y no se ve el %)
+function spinBleed(h) {
+  h.p.equipment.weapon = { kind: 'item', slot: 'weapon', name: 'Hacha de prueba', dmg: [3000, 3000], affixes: {}, quality: 0 };
+  h.p.recompute();
+  const e = h.enemy({ hp: 1e9, pos: [1.5, 0, 0] });
+  h.setSlot('k3', 'g_remolino'); h.p.mp = 100;
+  h.press('k3'); h.step(0.27);
+  const d = h.g.dotsOf(e, 'g_remolino:bleed');
+  assert.equal(d.length, 1, `un giro deja su Sangrado (${JSON.stringify(h.g.dotsOf(e))})`);
+  return d[0];
+}
+
 // ---------------- BERSERKER (b*) ----------------
 check('b0', () => {
   const b = spec('berserker'), d = spec('guardian');
@@ -1127,6 +1147,9 @@ check('b1', () => {
   // también el de los giros del Remolino (hitDot: mismo daño por segundo, el doble de largo)
   const hd = r => prof(r ? spec('berserker', { b1: r }) : spec('berserker'), 'g_remolino').hitDot;
   assert.ok(hd(3).dur === 6 && hd(0).dur === 3 && approx(hd(3).coef / hd(0).coef, 2), `b1 r3: el Sangrado del Remolino dura 6 s (${JSON.stringify(hd(3))})`);
+  const a = spinBleed(spec('berserker')), b = spinBleed(spec('berserker', { b1: 3 }));
+  assert.ok(a.ticks * a.interval === 3 && b.ticks * b.interval === 6 && a.per > 50 && approx(b.per / a.per, 1, 0.01),
+    `b1 r3: el giro deja un Sangrado de 6 s con el mismo daño por segundo (${a.ticks}×${a.per.toFixed(2)} → ${b.ticks}×${b.per.toFixed(2)})`);
 });
 check('b2', () => {
   assert.equal(prof(spec('berserker', { b2: 3 }), 'g_rajar').critBonus - prof(spec('berserker'), 'g_rajar').critBonus, 15, 'b2 r3: Rajar +15 % de crítico');
@@ -1141,6 +1164,8 @@ check('b4', () => {
   assert.ok(approx(b / a, 1.3), 'b4 r2: Sangrados +30 %');
   const hd = h => prof(h, 'g_remolino').hitDot;
   assert.ok(approx(hd(spec('berserker', { b4: 2 })).coef / hd(spec('berserker')).coef, 1.3), 'b4 r2: también el Sangrado de los giros del Remolino');
+  const sa = spinBleed(spec('berserker')), sb = spinBleed(spec('berserker', { b4: 2 }));
+  assert.ok(sa.ticks === sb.ticks && sa.per > 50 && approx(sb.total / sa.total, 1.3, 0.01), `b4 r2: el giro deja un Sangrado un 30 % mayor (${sa.total.toFixed(1)} → ${sb.total.toFixed(1)})`);
 });
 check('b5', () => {
   const run = on => {
@@ -2179,21 +2204,33 @@ check('z10B', () => {
 });
 check('z11', () => { assert.ok(approx(prof(spec('cruzado', { z11: 2 }), 'g_juicio').cd, 6), 'z11 r2: Juicio se recarga en 6 s'); });
 check('z12', () => {
+  // tres sueltas perfectas: la 1.ª recorta; la 2.ª (~1,2 s después, pasado el GCD) no, porque es
+  // como mucho cada 2 s; la 3.ª (más de 2 s después de la 1.ª) recorta otra vez. Contra el Cruzado
+  // sin el nodo: el tiempo que pasa es el mismo, así que la diferencia es solo el recorte
   const run = on => {
     const h = on ? spec('cruzado', { z12: 2 }) : spec('cruzado');
     h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
     pielRecharging(h);
     for (const id of ['g_juicio', 'g_u_cataclismo']) h.g._startCooldown(h.p, id, prof(h, id));
-    const b = { ...h.p.cds };
-    hammer(h, [2.5, 0], PERFECTA);
-    const one = { ...h.p.cds };
-    hammer(h, [2.5, 0], PERFECTA);                         // otra perfecta menos de 1 s después
-    return { juicio: b.g_juicio - one.g_juicio, piel: b.g_piel - one.g_piel, ult: b.g_u_cataclismo - one.g_u_cataclismo, second: one.g_juicio - h.p.cds.g_juicio };
+    const cds = [{ ...h.p.cds }], at = [];
+    for (const wait of [0, 0.4, 0.5]) {
+      h.step(wait);
+      hammer(h, [2.5, 0], PERFECTA);
+      const end = h.g._chargeEnd;                          // la suelta que acaba de pasar (ui-verbs)
+      assert.ok(end?.id === 'g_martillo' && end.perfect, `z12: la suelta es perfecta (${JSON.stringify(end)})`);
+      at.push(end.t); cds.push({ ...h.p.cds });
+    }
+    assert.ok(h.p.cds.g_juicio > 0.5, `z12: el Juicio sigue recargándose (${h.p.cds.g_juicio})`);
+    const cut = (i, id) => cds[i][id] - cds[i + 1][id];
+    return { at, juicio: [0, 1, 2].map(i => cut(i, 'g_juicio')), piel: cut(0, 'g_piel'), ult: cut(0, 'g_u_cataclismo') };
   };
   const a = run(false), b = run(true);
-  assert.ok(approx(b.juicio - a.juicio, 1, 0.02), `z12 r2: cada suelta perfecta acorta 1 s tus recargas (${JSON.stringify(b)})`);
+  const gap1 = b.at[1] - b.at[0], gap2 = b.at[2] - b.at[0];
+  assert.ok(gap1 > 1 && gap1 < 1.6 && gap2 > 2.2, `z12: perfectas a ${gap1.toFixed(2)} s y a ${gap2.toFixed(2)} s de la primera`);
+  assert.ok(approx(b.juicio[0] - a.juicio[0], 1, 0.02), `z12 r2: cada suelta perfecta acorta 1 s tus recargas (${JSON.stringify(b)})`);
   assert.ok(approx(b.piel, a.piel, 0.02) && approx(b.ult, a.ult, 0.02), 'z12: ni Piel de Hierro ni la definitiva');
-  assert.ok(approx(b.second, a.second, 0.02), 'z12: como mucho cada 2 s');
+  assert.ok(approx(b.juicio[1], a.juicio[1], 0.02), `z12: como mucho cada 2 s: la de ${gap1.toFixed(2)} s no recorta (${b.juicio[1].toFixed(2)} frente a ${a.juicio[1].toFixed(2)})`);
+  assert.ok(approx(b.juicio[2] - a.juicio[2], 1, 0.02), `z12: pasados 2 s de la que recortó, otra perfecta recorta 1 s (${b.juicio[2].toFixed(2)} frente a ${a.juicio[2].toFixed(2)})`);
   // el Sendero de Luz nunca baja de 4 s: Ritmo de Combate (c23) ya lo dejó en su suelo y la suelta
   // perfecta no lo baja más
   const h = spec('cruzado', { z12: 2, z3: 3 }, {}, { cls: { c23: 2 } });

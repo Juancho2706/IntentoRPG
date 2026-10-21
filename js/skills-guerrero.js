@@ -311,7 +311,7 @@ export const GUERRERO_SKILL_BEHAVIORS = {
 //  · set/add/mul sobre la DEFINICIÓN (rutas con punto); una variante se aplica DESPUÉS de la
 //    Mejora (que ya está activa cuando se abren las variantes): sus `set` pisan lo de la Mejora.
 //  · mod = mods del perfil (2f §2.3, §3.5); power = poder v_* de js/powers-forge-guerrero.js.
-// Lo que difiere del `k` del mockup (y por qué) está en tools/convert-v2/out/guerrero/pendientes-guerrero.md §4.
+// Lo que difiere del `k` del mockup (y por qué) está en tools/convert-v2/out/guerrero/pendientes-guerrero.md §4 (Forja).
 const F = id => `forge/v_${id}`;
 export const GUERRERO_SKILL_FORGE = {
   // ———— kit base ————
@@ -378,10 +378,10 @@ export const GUERRERO_SKILL_FORGE = {
     vars: [
       { id: 'g_remolino_i', name: 'Remolino Anclado', role: 'UNI', icon: F('g_remolino_i'), line: 'Giras sin moverte: radio 2 m y +60 % de daño.',
         set: { moveMul: 0, radius: 2 }, mod: { dmg: 60 } },
-      // atrae 1 m a 5 m en cada giro (pull del canal genérico, con su radio propio); el radio del daño no
-      // cambia. A los jefes no (boss:false): el tirón les llenaría Quebranto, que es cosa del Guardián
+      // atrae 1 m a 5 m en cada giro y no a los jefes (v_ciclon); el radio del daño no cambia. Sin
+      // `pull` del canal genérico: su golpe atrae otra vez a los del radio del daño (petición a W2)
       { id: 'g_remolino_ii', name: 'Ciclón', role: 'CTRL', icon: F('g_remolino_ii'), line: 'Cada giro atrae 1 m a los enemigos a 5 m; −15 % de daño.',
-        set: { pull: { dist: 1, radius: 5, boss: false } }, mod: { dmg: -15 }, tags: { add: ['cc'] } },
+        mod: { dmg: -15 }, power: 'v_ciclon', tags: { add: ['cc'] } },
     ],
   },
   g_salto: {

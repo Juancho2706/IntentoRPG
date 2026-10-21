@@ -2781,7 +2781,7 @@ export function guerreroPowers() {
     // dependía del orden de sus impactos) y no salta a quien detonó Juicio en ese mismo golpe
     g_z_tribunal: {
       name: 'Tribunal', desc: 'Detonar una marca no la gasta: se detona más veces y la última salta a 2 enemigos.',
-      state: () => ({ track: new WeakMap(), at: -1, struck: new Set(), jumps: [] }),
+      state: () => ({ track: new WeakMap(), at: -1, struck: new WeakSet(), jumps: [] }),
       modifyResolve(p, sk, prof) {
         if (sk.id !== 'g_juicio' || !prof.mark) return;
         prof.mark = { ...prof.mark, uses: T.tribunal.uses[Math.min(3, rankOf(p, 'g_z_tribunal')) - 1] };
@@ -2789,7 +2789,7 @@ export function guerreroPowers() {
       onHit(g, p, e, hit) {
         if (!hit?.detonated || !direct(hit)) return;
         const st = powerState(p, 'g_z_tribunal');
-        if (st.at !== now(p)) { st.at = now(p); st.struck = new Set(); }
+        if (st.at !== now(p)) { st.at = now(p); st.struck = new WeakSet(); }
         st.struck.add(e);
         const i = Math.min(3, rankOf(p, 'g_z_tribunal')) - 1;
         const m = e.marks?.juicio;

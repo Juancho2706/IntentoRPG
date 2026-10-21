@@ -167,8 +167,9 @@ console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna 
   const b = makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker' });
   b.p.skillForge = { g_u_furia: 'i' }; b.p.recompute();
   assert.ok(b.p.powers.has('v_sed_voraz'), 'con la especialización, sí');
-  // Giro Firme y Ciclón son claves del canal genérico (slowImmune, pull), no poderes
-  assert.ok(!POWER_HOOKS.v_giro_firme && !POWER_HOOKS.v_ciclon, 'v_giro_firme y v_ciclon retirados');
+  // Giro Firme es una clave del canal genérico (slowImmune), no un poder. El Ciclón sigue siendo
+  // v_ciclon hasta que el golpe del canal deje de atraer otra vez (petición a W2)
+  assert.ok(!POWER_HOOKS.v_giro_firme, 'v_giro_firme retirado');
 }
 console.log(`A9 y D28: ${Object.keys(guerreroForgePowers()).length} poderes v_* registrados, usados y sin choques entre clases ✓`);
 
@@ -349,10 +350,24 @@ let h, e, e2, e3;
   const run = forge => { const hh = hero(16, { spec: 'berserker', forge }); const near = foe(hh, 1.6), far = foe(hh, 4.5); hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(0.8); return { near, far }; };
   const m = run({}), c = run({ g_remolino: 'ii' });
   assert.ok(approx(m.far.pos.x, 4.5) && c.far.pos.x < 3.6, `Ciclón: atrae a 5 m (4,5 → ${c.far.pos.x.toFixed(2)})`);
-  // un giro (el primer tic del canal: 3 s / 12) = 1 m, fuera del radio del daño (2,9 m)
-  const one = hero(16, { spec: 'berserker', forge: { g_remolino: 'ii' } }), out = foe(one, 4.5);
-  one.setSlot('k3', 'g_remolino'); one.press('k3'); one.stand(0.26);
-  assert.ok(approx(out.pos.x, 3.5, 0.01) && out.t.n === 0, `Ciclón: 1 m por giro (4,5 → ${out.pos.x.toFixed(2)})`);
+  // un giro (el primer tic del canal: 3 s / 12) = 1 m, fuera y dentro del radio del daño (2,9 m): el
+  // golpe del giro no vuelve a atraer al que alcanza (serían 2 m). Al que golpea, el giro ya lo
+  // mueve un poco sin la variante: se mide la diferencia entre los dos casos
+  // Luego, tres giros (0,8 s): un tirón de 1 m por giro, también cuando ya entra en el radio del daño
+  const spin = forge => {
+    const hh = hero(16, { spec: 'berserker', forge }); const out = foe(hh, 4.5), inR = foe(hh, 0, -2.5);
+    const pulls = [], disp = out.displace.bind(out);
+    out.displace = (from, d, o) => { pulls.push(d); return disp(from, d, o); };
+    hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(0.31);
+    const one = { out: out.pos.x, outN: out.t.n, inR: inR.pos.z, inN: inR.t.n };
+    hh.stand(0.5);
+    return { one, pulls };
+  };
+  const m1 = spin({}), c1 = spin({ g_remolino: 'ii' });
+  assert.ok(approx(c1.one.out, 3.5, 0.01) && c1.one.outN === 0, `Ciclón: 1 m por giro (4,5 → ${c1.one.out.toFixed(2)})`);
+  const pulled = c1.one.inR - m1.one.inR;
+  assert.ok(m1.one.inN === 1 && c1.one.inN === 1 && approx(pulled, 1, 0.01), `Ciclón: 1 m por giro también a quien golpea (${pulled.toFixed(2)} m)`);
+  assert.ok(m1.pulls.length === 0 && c1.pulls.length === 3 && c1.pulls.every(d => d === 1), `Ciclón: un tirón de 1 m por giro (${JSON.stringify(c1.pulls)})`);
   assert.ok(approx((c.near.t.direct / c.near.t.n) / (m.near.t.direct / m.near.t.n), 0.85, 0.01), 'Ciclón: −15 % de daño');
 }
 { // Remolino · II (Ciclón) junto a un jefe: los tirones no le llenan Quebranto (solo el del daño, −15 %)

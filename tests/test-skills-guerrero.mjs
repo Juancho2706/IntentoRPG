@@ -27,6 +27,7 @@ import { migrateV4toV5, LEGACY_TABLES } from '../js/save-schema.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { SFX_TONES } from '../js/sfx.js';
 import { makeHarness } from './helpers/power-harness.mjs';
+import { baseSkillIcon } from '../js/hud-model.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 const warns = [];
@@ -80,8 +81,13 @@ for (const raw of GUERRERO_SKILLS) {
   assert.deepEqual(errs, [], `${s.id}: validateSkillDef v2 sin errores`);
   const all = [...new Set([...warnings, ...(errs.warnings || [])])];
   assert.deepEqual(all, [], `${s.id}: validateSkillDef v2 sin avisos`);
-  // arte del mockup: existe en assets/ (el HUD lo pedirá en vez de skills/<id>.webp: petición a U2)
+  // arte del mockup: existe en assets/ y el HUD lo prefiere a skills/<id>.webp (hud-model.baseSkillIcon:
+  // el grande y su par pequeño de skills/; las activas de talento usan el sprite de su nodo)
   assert.ok(typeof s.art === 'string' && existsSync(new URL(`../assets/${s.art}`, import.meta.url)), `${s.id}: arte ${s.art} en assets/`);
+  if (s.kind !== 'talent') for (const big of [false, true]) {
+    const icon = baseSkillIcon(s, big);
+    assert.ok(icon && existsSync(new URL(`../assets/${icon}`, import.meta.url)), `${s.id}: el HUD pide ${icon}, que existe`);
+  }
   assert.equal(!!s.innate, s.id === 'g_piel', `${s.id}: solo Piel de Hierro trae chip de pasiva`);
   assert.equal(s.cat, cat, `${s.id}: categoría`);
   assert.equal(s.req, req, `${s.id}: req`);
