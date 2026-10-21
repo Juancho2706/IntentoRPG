@@ -1,0 +1,99 @@
+// Lo que el conversor necesita saber del JUEGO actual (solo lectura): catálogo de habilidades, datos de
+// talentos, poderes y comportamientos registrados y vocabulario de claves (mods, parámetros, tv, stats).
+// Todo con import dinámico y try/catch: durante el Paso 2 los módulos cambian de forma (E0.3, E1) y el
+// conversor tiene que seguir funcionando con lo que haya.
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { ROOT, PREFIJO } from './cargar.mjs';
+
+const JS = join(ROOT, 'js');
+const url = f => pathToFileURL(join(JS, f)).href;
+async function importar(f) {
+  if (!existsSync(join(JS, f))) return null;
+  try { return await import(url(f)); } catch (e) { return { __error: e.message }; }
+}
+
+// { talentsMod, skillsMod, talents (objeto <CLASE>_TALENTS), skills (lista), talentSkills (lista),
+//   catalogo: Map(id → def), specs: Map(id → spec), v (1 | 2), catalogV (número | null), errores }
+export async function juegoDeClase(cls) {
+  const P = PREFIJO[cls], errores = [];
+  const talentsMod = await importar(`talents-${cls}.js`);
+  const skillsMod = await importar(`skills-${cls}.js`);
+  if (talentsMod?.__error) errores.push(`js/talents-${cls}.js no carga: ${talentsMod.__error}`);
+  if (skillsMod?.__error) errores.push(`js/skills-${cls}.js no carga: ${skillsMod.__error}`);
+  const talents = talentsMod?.[`${P}_TALENTS`] || null;
+  const skills = skillsMod?.[`${P}_SKILLS`] || [];
+  const talentSkills = talents?.skills || talentsMod?.[`${P}_TALENT_SKILLS`] || [];
+  const catalogo = new Map();
+  for (const s of [...skills, ...talentSkills]) if (s?.id && !catalogo.has(s.id)) catalogo.set(s.id, s);
+  const specs = new Map((talents?.specs || []).map(s => [s.id, s]));
+  return { talentsMod, skillsMod, talents, skills, talentSkills, catalogo, specs, v: talents?.v === 2 ? 2 : 1,
+    catalogV: skillsMod?.[`${P}_CATALOG_V`] ?? null, errores };
+}
+
+// poderes y comportamientos registrados hoy, con la clase que los define
+// → { poderes: Map(id → 'maga'|'guerrero'|'arquera'|'comun'|'?'), comportamientos: Map(id → clase), error }
+export async function registroJuego() {
+  const poderes = new Map(), comportamientos = new Map();
+  let error = null;
+  try {
+    const pw = await import(url('powers.js'));
+    for (const id of Object.keys(pw.POWER_HOOKS || {})) poderes.set(id, '?');
+    for (const id of Object.keys(pw.SKILL_BEHAVIORS || {})) comportamientos.set(id, '?');
+  } catch (e) { error = `js/powers.js no carga: ${e.message}`; }
+  const fuentes = [['comun', 'powers-common.js', ['commonPowers'], ['commonBehaviors']]];
+  for (const cls of Object.keys(PREFIJO)) fuentes.push([cls, `powers-${cls}.js`, [`${cls}Powers`, `${cls}Gauges`], [`${cls}SkillBehaviors`]]);
+  for (const [cls, f, fp, fb] of fuentes) {
+    const m = await importar(f);
+    if (!m || m.__error) continue;
+    for (const fn of fp) { try { for (const id of Object.keys(m[fn]?.() || {})) poderes.set(id, cls); } catch { /* firma distinta */ } }
+    for (const fn of fb) { try { for (const id of Object.keys(m[fn]?.() || {})) comportamientos.set(id, cls); } catch { /* idem */ } }
+  }
+  for (const cls of Object.keys(PREFIJO)) {
+    const m = await importar(`skills-${cls}.js`);
+    for (const id of Object.keys(m?.[`${PREFIJO[cls]}_SKILL_BEHAVIORS`] || {})) comportamientos.set(id, cls);
+  }
+  return { poderes, comportamientos, error };
+}
+
+// vocabulario de claves que ya existen en el juego
+// → { mods:Set, params:Set (claves de las definiciones, también 'a.b'), tv:Set, stats:Set, tipos:Set (GENERIC_TYPES) }
+export async function vocabularioJuego() {
+  const mods = new Set(), params = new Set(), tv = new Set(), stats = new Set(), tipos = new Set();
+  try {
+    const sd = await import(url('skill-defs.js'));
+    for (const k of Object.keys(sd.emptyMods?.() || {})) mods.add(k);
+    for (const t of sd.GENERIC_TYPES || []) tipos.add(t);
+  } catch { /* sin skill-defs */ }
+  const recorrer = (o, pre = '') => {
+    for (const [k, v] of Object.entries(o || {})) {
+      params.add(pre + k);
+      if (v && typeof v === 'object' && !Array.isArray(v) && !pre) recorrer(v, k + '.');
+    }
+  };
+  for (const cls of Object.keys(PREFIJO)) {
+    const j = await juegoDeClase(cls);
+    for (const s of j.catalogo.values()) recorrer(s);
+    // claves tv y stats de los datos de talentos actuales (v1 o v2)
+    const nodos = [...(j.talents?.cls?.nodes || []), ...(j.talents?.specs || []).flatMap(s => s.nodes || [])];
+    for (const n of nodos) for (const fx of [n.fx, ...(n.opts || []).map(o => o.fx)]) {
+      for (const k of Object.keys(fx?.tv || {})) tv.add(k);
+      for (const k of Object.keys(fx?.stats || {})) stats.add(k);
+    }
+    for (const s of j.talents?.specs || []) for (const k of Object.keys(s.innate || {})) stats.add(k);
+  }
+  // claves tv que lee el código (tv.x)
+  for (const f of readdirSync(JS).filter(f => f.endsWith('.js'))) {
+    const txt = readFileSync(join(JS, f), 'utf8');
+    for (const [, k] of txt.matchAll(/\btv\??\.([A-Za-z_]\w*)/g)) tv.add(k);
+  }
+  // stats del saco de recompute() (entities.js: const item = { … }) y atributos
+  try {
+    const txt = readFileSync(join(JS, 'entities.js'), 'utf8');
+    const i = txt.indexOf('const item = {');
+    if (i >= 0) { const bloque = txt.slice(i, txt.indexOf('};', i)); for (const [, k] of bloque.matchAll(/([A-Za-z_]\w*):\s*0/g)) stats.add(k); }
+  } catch { /* sin entities */ }
+  for (const k of ['fue', 'des', 'vit', 'ene', 'gaugeGain', 'gaugeLoss']) stats.add(k);
+  return { mods, params, tv, stats, tipos };
+}
