@@ -903,6 +903,21 @@ E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inve
     - **B1 (E4):**
       - Pasar de `presetRanks`/`presetList` a `buildsFor`/`buildRanks` con el árbol héroe y el tablero.
       - Calibrar los legendarios del tablero: `test38` pide la mejor asignación legal de 16 puntos entre ×1,15 y ×2,0 (hoy ×1,63).
+16. **E1.5 cerrada** (fusionada en `paso2-impl` en 5f1a99b, 2026-10-21; npm test verde con 14 en cuarentena, humo boot verde, `--draft --todas` reproducible). Ampliaciones de contrato ratificadas:
+    - §3.1: las `opts[]` aceptan además `touch`, `icon` y `todo` (contrato del mockup). G8b suma el `touch` de la opción que elige la build.
+    - D29: puente `@deprecated` `<CLASE>_TALENT_SKILL_DEFS` (= `<CLASE>_TALENTS.skills`), que `data.js` fusiona mientras `CATALOG_V = 1`. Entra en la lista de D23: C1 lo borra en E5.
+    - El conversor parte de la foto `tools/convert-v2/juego-v1.json` (a3440a7), no del `js/` vivo; el vocabulario es la foto más el juego vivo. En `claves-w2.mjs` el tipo `clase` vale también para parámetros de definición que lee el código de la clase.
+    - `test-v2-paridad` exige `v: 2` en las tres clases y solo tolera un `grant` ausente si la activa no existe hoy en `CLASSES`. Por eso **KA, al añadir una activa de talento que hoy falta, escribe también la línea `grant:` de su nodo en `talents-<clase>.js`** (única excepción de propiedad sobre el archivo de KT; KT no toca esa línea). Activas que faltan: Maga `m_h_detener`, `m_h_palabra`, `m_h_constructo`; Guerrero `grito_guerra`, `g_h_bramido`, `g_h_desafio`, `g_h_estandarte`; Arquera `agilidad`, `a_h_torbellino`, `a_h_puntas`, `a_h_halcon`. `grito_guerra` y `agilidad` dejan de ser habilidades base: pasan a `kind:'talent'`, `slots:['k2']`, `req` 27.
+    - D7: manda el `req` del mockup congelado (`m_h_constructo` tiene 74, no 72). `test55` usa `req > 16` y el valor exacto lo vigila la paridad del catálogo.
+    - `test67` se partió: la parte por clase (los 9 poderes clave de las maestrías) vive en `test67b-poderes-clave-talentos.mjs`. Cada KT edita solo la fila de su clase (poner el poder en su nodo 2g o retirarlo según el doc).
+    - Claves decididas para la Maga: `shieldManaPct` (c18) = `mod buff` en `m_barrera`; `layers` (`k_lanza`) = `set: { layers: 2 }`, y la Escarcha de `mech-maga.js` lee `prof.def.layers`; `blocks` (`m_estela_ignea`) = `blocks` del campo `p_muro_fuego` que deja la estela.
+    - Ojo para KT-maga: `s0`, `s4`, `s9` y `s14` que citan `ui-gauges-maga.js` y `mech-maga.js` existen en la Piromante v2 con otro contenido; A3 no lo detecta.
+
+    **Cola W2 lanzada en paralelo con E2** (trabajador W2b, se fusiona en `paso2-impl` en cuanto pase; KA2 y KT2-3 la traen con `git merge paso2-impl`):
+    - `tv.drStill` (Arquera f15A): en `nucleo_tv.condDr`, espejo de `drMoving` con `p.planted`.
+    - `tv.fieldDur` (Arquera m20): +% de duración de las trampas y zonas propias en `spawnField`.
+    - `stats.blockPower` (Guerrero d1, d16B): `BLOCK_REDUCTION + blockPower/100`, tope 90, en `combat-math.js` y el saco de `recompute`.
+    - `input.js`: `KeyZ` (`cleanHud`) se ignora con Ctrl o con un panel abierto (adelanta la petición de U3).
 
 ### Pendientes de decisión (texto original de la crítica)
 
