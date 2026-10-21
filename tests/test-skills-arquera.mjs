@@ -558,6 +558,31 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   assert.equal(alive(h).filter(f => f.kind === 'trampa').length, 0, 'la trampa se gasta');
   console.log('Flecha Detonante: estallido de 3 m que detona tus trampas ✓');
 }
+// MONTARAZ · Flecha Detonante sin blanco: detona también al FINAL de su vuelo (12 m; cola W2d-A) las
+// trampas de su radio (3 m), no las de más allá
+{
+  const h = mk('montaraz');
+  const e = h.enemy({ hp: 1e7, pos: [1.9, 0, 13] });  // a 2,15 m de la trampa: no la pisa, el estallido sí le llega
+  h.setSlot('k3', 'a_t_cepo'); h.setSlot('rmb', 'a_m_detonante');
+  for (const x of [0, 4.5]) {                        // una al final del vuelo y otra a 4,5 m de él
+    h.p.pos.set(x, 0, 4); h.aim(x, 12);
+    h.g.reduceCooldown(h.p, 'a_t_cepo', Infinity); h.p.gcdT = 0; h.p.mp = h.p.stats.maxMP;
+    assert.equal(h.cast('k3'), true, `cepo en (${x}, 12)`);
+    h.step(0.8);
+  }
+  h.p.pos.set(0, 0, 0);
+  const [end, beyond] = alive(h).filter(f => f.kind === 'trampa').sort((a, b) => a.pos.x - b.pos.x);
+  assert.ok(Math.abs(end.pos.z - 12) < 1e-6 && Math.abs(beyond.pos.x - 4.5) < 1e-6, 'las dos trampas armadas');
+  const burst = track(e, o => !!o.trap), arrow = track(e, o => o.skill === 'a_m_detonante' && !o.trap);
+  h.aim(0, 12); h.p.gcdT = 0;
+  assert.equal(h.cast('rmb'), true);
+  h.step(0.4);
+  assert.ok(!end.dead && burst.n === 0, 'durante el vuelo, nada');
+  h.step(0.8);
+  assert.ok(end.dead && burst.n === 1 && arrow.n === 0, `al acabar su vuelo, sin tocar a nadie, la trampa de su radio estalla (${burst.n})`);
+  assert.ok(!beyond.dead, 'la de fuera del radio, no');
+  console.log('Flecha Detonante: sin blanco, detona al final de su vuelo ✓');
+}
 
 // MONTARAZ · Cerco de Zarzas: donde apuntas; cruzarlo inmoviliza, dentro veneno y al cerrarse estalla
 {

@@ -210,17 +210,28 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
   ok(h.gaugeValue('concentracion') >= vk && v.x.kneeling && m.kneeling && !m.losing && !v.decaying, 'de rodillas: moverte no la vacía');
   p.moving = false;
   // perfecto de Disparo Apuntado: +15 (uno por segundo); del básico: +3
-  // (sin la ganancia quieta: tv.focusRate −100, para medir solo los perfectos)
+  // (sin la ganancia quieta: tv.focusRate −100, para medir solo los perfectos). Con el catálogo y la
+  // forja REALES: a Nv100 va con la Mejora (Tensado Rápido), así que se suelta en el centro de SU
+  // ventana dorada; y por debajo de su mínimo (0,3 s) soltar cancela sin coste (W2d-A)
   const b = makeHarness({ classId: 'arquera', spec: 'francotiradora', level: 100, tv: { focusRate: -100 } }), e = b.enemy({ hp: 1e7, pos: [6, 0, 0] });
+  const ap = resolveSkill(b.p, SK('a_t_apuntado')).charge;
+  const win = (ap.perfect[0] + ap.perfect[1]) / 2 / ap.speed;
+  ok(ap.min === 0.3 && ap.perfect[1] < 1.25, `la ventana real de Disparo Apuntado (${ap.perfect.join('–')} s; la de antes de la forja acababa en 1,35)`);
   b.setSlot('k3', 'a_t_apuntado'); b.aim(6, 0);
-  b.hold('k3', 1.25); b.step(0.8);
+  b.hold('k3', 0.2); b.step(0.8);
+  ok(b.gaugeValue('concentracion') === 0 && b.g._chargeEnd?.reason === 'early' && !(b.p.cds.a_t_apuntado > 0) && b.p.mp === b.p.stats.maxMP,
+    'soltar antes del mínimo: ni dispara, ni gasta, ni recarga');
+  b.hold('k3', win); b.step(0.8);
   eq(b.gaugeValue('concentracion'), C.perfectGain, `perfecto de Disparo Apuntado: +${C.perfectGain}`);
   b.g.reduceCooldown(b.p, 'a_t_apuntado', Infinity);
-  b.hold('k3', 1.25); b.step(0.8);
+  b.hold('k3', win); b.step(0.8);
   eq(b.gaugeValue('concentracion'), 2 * C.perfectGain, 'otro perfecto (más de 1 s después): +15');
   b.g.reduceCooldown(b.p, 'a_t_apuntado', Infinity);
   b.hold('k3', 0.6); b.step(0.8);
   eq(b.gaugeValue('concentracion'), 2 * C.perfectGain, 'sin perfecto, nada');
+  b.g.reduceCooldown(b.p, 'a_t_apuntado', Infinity);
+  b.hold('k3', 1.25); b.step(0.8);
+  eq(b.gaugeValue('concentracion'), 2 * C.perfectGain, 'a 1,25 s (pasada la ventana real), nada');
   b.setSlot('lmb', 'a_disparo');
   b.hold('lmb', 0.9); b.step(0.5);
   eq(b.gaugeValue('concentracion'), 2 * C.perfectGain + C.basicPerfectGain, `perfecto del básico: +${C.basicPerfectGain}`);
@@ -268,11 +279,14 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
   let v = h.gaugeView(), m = V.coto.model(v, T);
   ok(m.n === 0 && m.max === K.maxArmed && m.slots[0].st === 'ready' && !m.prey && m.name === 'sin Presa' && m.num === '0/3', `idle: huellas vacías (${JSON.stringify(m.slots)})`);
   ok(v.x.trapCharges === K.trap.charges && v.x.trapChargesMax === K.trap.charges && v.x.trapCdFrac === 0, 'cargas de Trampa de Cepo listas');
-  // un cepo de verdad: gasta una carga y se arma a los 0,5 s
+  // un cepo de verdad: gasta una carga y se arma en su tiempo de armado (el de la forja real: a Nv100,
+  // Muelles Firmes, 0,2 s en lugar de 0,5 s)
+  const armT = resolveSkill(p, SK('a_t_cepo')).def.trap.armT;
+  ok(armT > 0 && armT < 0.5, `armado de la forja real (${armT} s)`);
   h.setSlot('k3', 'a_t_cepo'); h.aim(-4, 0); h.cast('k3');
-  h.step(0.2);
+  h.step(armT / 2);
   eq(h.gaugeValue('coto'), 0, 'el cepo aún no está armado');
-  h.step(0.4);
+  h.step(0.6 - armT / 2);
   v = h.gaugeView(); m = V.coto.model(v, T);
   ok(v.value === 1 && v.x.trapCharges === K.trap.charges - 1 && v.x.trapCdFrac > 0 && m.slots[0].st === 'armed', 'armado: 1 y la carga se recarga');
   h.tick(2);
