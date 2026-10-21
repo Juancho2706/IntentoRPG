@@ -312,8 +312,9 @@ export const GUERRERO_FX = {
   g_h_estandarte:   { aura: 'bannerAura', extra: 'bannerSparks', color: 0xd8a040, sfx: 'levelup' },
 
   // ---------------- forja: VFX de las variantes que CAMBIAN DE FORMA ----------------
-  // Clave = id de la variante (`<id>_i` / `<id>_ii`): sustituyen a los de su habilidad cuando la
-  // variante está elegida (prof.def.forged.varId). Reutilizan presets existentes: el mismo campo
+  // Clave = id de la variante (`<id>_i` / `<id>_ii`): sustituirán a los de su habilidad cuando el
+  // motor busque el VFX por variante (petición a W2: SKILL_FX[def.forged.varId]); hasta entonces la
+  // variante sale con el VFX de su habilidad. Reutilizan presets existentes: el mismo campo
   // (trail/impact/aura/extra) que lee el tipo genérico de la forma nueva.
   g_tajo_ii:         { impact: 'sweepRing', color: 0xffcc77, sfx: 'hit' },                                       // Siega: barrido
   g_remolino_i:      { aura: 'whirlwindInner', extra: 'bloodDrops', color: 0xb0101c, sfx: 'hit' },              // Anclado: giro corto

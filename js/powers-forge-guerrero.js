@@ -31,6 +31,8 @@ export function guerreroForgeTuning() {
 
 const now = p => p?.simT || 0;
 const buffOn = (p, id) => !!p?.buffs?.some(b => b.id === id && b.t > 0);
+// jefe (mismo criterio que entities.js: jefe, über o jefe de mundo)
+const isBoss = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
 // perfil de la habilidad (caché que deja resolveSkill al lanzar) o su definición forjada.
 // Sin importar skill-resolve.js: el ciclo powers.js → aquí → skill-resolve → data.js (como powers-common)
 const defOf = (p, id) => p?.forged?.[id]?.def || p?.resolved?.[id]?.def || p?.cls?.skills?.find(s => s.id === id) || null;
@@ -150,8 +152,9 @@ export function guerreroForgePowers() {
       },
     },
 
-    // Remolino II · Ciclón: en cada giro (tic del canal) atrae 1 m a los enemigos a 5 m. A los jefes
-    // no los mueve: les llena Quebranto (Enemy.displace)
+    // Remolino II · Ciclón: en cada giro (tic del canal) atrae 1 m a los enemigos a 5 m. A los
+    // jefes no los toca: Enemy.displace les sumaría 5 de Quebranto por tirón (unos 55 en un giro de 3 s),
+    // y llenar el Quebranto es cosa del Guardián, no del control de manadas del Berserker
     v_ciclon: {
       name: 'Ciclón', desc: 'Cada giro del Remolino Sangriento atrae 1 m a los enemigos a 5 m',
       state: () => ({ inst: null, tick: 0 }),
@@ -164,7 +167,7 @@ export function guerreroForgePowers() {
         if (!(ch.tickN > 0)) return;
         const r = T.ciclon.radius;
         for (const e of g.enemies || []) {
-          if (e.alive && e.pos.distanceTo(p.pos) <= r) e.displace?.(p.pos, T.ciclon.pull, { toward: true, src: p });
+          if (e.alive && !isBoss(e) && e.pos.distanceTo(p.pos) <= r) e.displace?.(p.pos, T.ciclon.pull, { toward: true, src: p });
         }
         if (ch.tickN % 2 === 1) g.spawnRing?.(p.pos, r, 0xcfd6e0);                 // el alcance del tirón
       },

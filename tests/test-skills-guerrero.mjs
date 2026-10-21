@@ -1,6 +1,7 @@
 // Paso 2 (2g) — catálogo del GUERRERO (docs/paso2g-guerrero.md §3–§9 y §11.1; formato §3.5–§3.7
 // de docs/paso2-implementacion.md)
-//  1) las 23 habilidades: válidas con el validador v2 (0 errores, 0 avisos), números de diseño,
+//  1) las 23 habilidades: válidas con el validador v2 (0 errores; solo los avisos de `art`/`innate`,
+//     claves pendientes de W2), arte del mockup en assets/, números de diseño,
 //     ranuras por categoría, textos y VFX/SFX; fuera las retiradas
 //  2) G2: las 6 activas de talento son kind 'talent', solo de la ranura 2 y las concede UN nodo
 //  3) G17: ≥ 3 verbos por especialización y el principal de cada una es suyo
@@ -8,16 +9,21 @@
 //  5) cada habilidad en el arnés con el canal REAL: kit base, Berserker, Guardián, Cruzado y
 //     activas de talento (los comportamientos propios incluidos), SIN forja: a un nivel por
 //     debajo de su Mejora (req+3); la forja la prueba tests/test-forge-guerrero.mjs
+//  6) tablas legadas (save-legacy-guerrero.js) con la migración real: barra de §11.6.3, forja
+//     desde la 3.ª rama de v4 y lista de retiradas
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { CLASSES } from '../js/data.js';
-import { validateSkillDef, SLOT_KEYS, CAT_SLOTS, skillVerbs } from '../js/skill-defs.js';
+import { validateSkillDef, SLOT_KEYS, CAT_SLOTS, skillVerbs, SKILL_KEYS } from '../js/skill-defs.js';
 import { SKILL_BEHAVIORS } from '../js/powers.js';
 import { resolveSkill, fitsSlot, rankBase, isKnown } from '../js/skill-resolve.js';
 import { talentTreesFor } from '../js/talents.js';
 import { staggerFromCC } from '../js/combat-math.js';
 import { GUERRERO_SKILLS, GUERRERO_SKILL_BEHAVIORS, GUERRERO_SPEC_BAR, GUERRERO_FALLBACK_BAR, GUERRERO_CATALOG_V, GUERRERO_SKILL_FORGE } from '../js/skills-guerrero.js';
 import { GUERRERO_FX } from '../js/fx-skills-guerrero.js';
+import { GUERRERO_LEGACY } from '../js/save-legacy-guerrero.js';
+import { migrateV4toV5, LEGACY_TABLES } from '../js/save-schema.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { SFX_TONES } from '../js/sfx.js';
 import { makeHarness } from './helpers/power-harness.mjs';
@@ -64,13 +70,21 @@ for (const id of ['g_mandoble', 'g_embate', 'torbellino', 'g_provocacion', 'g_u_
   'g_t_ira_ciega', 'g_t_desafio', 'g_t_muro', 'g_t_carga', 'g_t_devocion', 'g_t_veredicto', 'g_t_justicia'])
   assert.ok(!SK(id), `${id}: fuera del libro (§11.1)`);
 const JERGA = /\b(UNI|TTD|proc|stagger|GCD|DoT|AoE|CC)\b|ÁREA×|astadora|vosotros/i;
+// claves del mockup que el motor aún no declara (petición a W2: SKILL_KEYS): `art` en las 23 e
+// `innate` solo en Piel de Hierro. Cualquier otro aviso falla
+const PENDING_W2 = /: clave desconocida (art|innate)($| \()/;
 for (const raw of GUERRERO_SKILLS) {
   const s = SK(raw.id);
   const [cat, req, owner, coef, cost, cd] = EXPECT[s.id];
   const warnings = [];
   const errs = validateSkillDef(raw, { behaviors: SKILL_BEHAVIORS, v2: true, warnings });
   assert.deepEqual(errs, [], `${s.id}: validateSkillDef v2 sin errores`);
-  assert.deepEqual([...warnings, ...(errs.warnings || [])], [], `${s.id}: validateSkillDef v2 sin avisos`);
+  const all = [...new Set([...warnings, ...(errs.warnings || [])])];
+  assert.deepEqual(all.filter(w => !PENDING_W2.test(w)), [], `${s.id}: validateSkillDef v2 sin avisos`);
+  if (!SKILL_KEYS.has('art')) assert.ok(all.some(w => w.startsWith(`${s.id}: clave desconocida art`)), `${s.id}: el aviso de \`art\` es el único pendiente`);
+  // arte del mockup: existe en assets/ (el HUD lo pedirá en vez de skills/<id>.webp: petición a U2)
+  assert.ok(typeof s.art === 'string' && existsSync(new URL(`../assets/${s.art}`, import.meta.url)), `${s.id}: arte ${s.art} en assets/`);
+  assert.equal(!!s.innate, s.id === 'g_piel', `${s.id}: solo Piel de Hierro trae chip de pasiva`);
   assert.equal(s.cat, cat, `${s.id}: categoría`);
   assert.equal(s.req, req, `${s.id}: req`);
   assert.equal(s.spec || (s.kind === 'talent' ? 'talent' : null), owner, `${s.id}: kit / activa de talento`);
@@ -94,9 +108,12 @@ for (const raw of GUERRERO_SKILLS) {
 // (aparte, las entradas de las variantes que cambian de forma: las prueba test-forge-guerrero)
 const VAR_IDS = new Set(Object.values(GUERRERO_SKILL_FORGE).flatMap(f => f.vars.map(v => v.id)));
 assert.deepEqual(Object.keys(GUERRERO_FX).filter(id => !VAR_IDS.has(id)).sort(), Object.keys(EXPECT).sort(), 'VFX: una entrada por habilidad del catálogo, ninguna retirada');
-// cada comportamiento propio lo usa una habilidad del catálogo (y nadie más lo define)
+// cada comportamiento propio lo usa una habilidad del catálogo o una pieza de su forja (los de la
+// forja, `v_*` y como mucho 3 por clase: plan §3.5), y nadie más lo define
+const FORGE_BEH = Object.values(GUERRERO_SKILL_FORGE).flatMap(f => [f.mejora, ...f.vars]).filter(x => x.behavior).map(x => x.behavior);
+assert.ok(FORGE_BEH.length <= 3 && FORGE_BEH.every(id => /^v_/.test(id)), `forja: ≤ 3 comportamientos v_* (${FORGE_BEH})`);
 for (const id of Object.keys(GUERRERO_SKILL_BEHAVIORS)) {
-  assert.ok(GUERRERO_SKILLS.some(s => s.behavior === id), `${id}: lo usa una habilidad`);
+  assert.ok(GUERRERO_SKILLS.some(s => s.behavior === id) || FORGE_BEH.includes(id), `${id}: lo usa una habilidad o su forja`);
   assert.equal(SKILL_BEHAVIORS[id]?.cast, GUERRERO_SKILL_BEHAVIORS[id].cast, `${id}: registrado desde skills-guerrero.js`);
 }
 // rango por nivel: coef ×(1+0,10·(rango−1)) y buffs ×(1+0,06·(rango−1)); minHpPct/endHealPct no escalan
@@ -110,7 +127,7 @@ for (const L of [15, 40, 72]) {
   const fu = resolveSkill(h.p, SK('g_u_furia')), r = rankBase(L, 15);
   assert.equal(fu.buff.spenderCostPct, Math.round(-100 * (1 + 0.06 * (r - 1))), 'Furia Inmortal: el coste cero escala (y se recorta a 0)');
 }
-console.log('Catálogo 2g del Guerrero: 23 habilidades válidas (v2, sin avisos), números, ranuras, textos y VFX ✓');
+console.log('Catálogo 2g del Guerrero: 23 habilidades válidas (v2; avisos: solo art/innate, pendientes de W2), arte, números, ranuras, textos y VFX ✓');
 
 // ------------------------------------------------ 2) G2: activas de talento
 const TALENT_ACTIVES = { g_t_aliento: 'c11', grito_guerra: 'c17', g_t_intervencion: 'c22', g_h_bramido: 't4', g_h_desafio: 'l4', g_h_estandarte: 'u4' };
@@ -495,6 +512,59 @@ for (const id of ['g_t_aliento', 'g_t_intervencion']) {
 }
 
 assert.deepEqual(warns, [], 'ningún comportamiento lanzó errores');
-console.warn = origWarn;
 console.log('En el arnés: kit base, Berserker, Guardián, Cruzado y activas de talento ✓');
+
+// ------------------------------------------------ 6) tablas legadas con la migración REAL
+// js/save-legacy-guerrero.js pasado por migrateV4toV5 con saves v4 sintéticos: la barra de
+// docs/paso2g-guerrero.md §11.6.3 y la forja desde la 3.ª rama de v4 (plan §3.11: se escribe
+// desde v4 con el criterio de 2f §6.1; la mecánica igual primero)
+{
+  const CAT4 = JSON.parse(readFileSync(new URL('./fixtures/catalog-v4.json', import.meta.url), 'utf8')).classes.guerrero;
+  const v4Ids = new Set([...CAT4.skills.map(s => s.id), ...(CAT4.classGrants || []), ...Object.values(CAT4.specs).flatMap(s => s.grants || [])]);
+  // `removed` = exactamente los ids v4 que ya no están en el libro, y todos tienen destino en la barra
+  const gone = [...v4Ids].filter(id => !SK(id)).sort();
+  assert.deepEqual([...GUERRERO_LEGACY.removed].sort(), gone, 'removed: los ids v4 que desaparecen (sus soportes vuelven a la bolsa)');
+  for (const id of gone) assert.ok(GUERRERO_LEGACY.bar[id], `bar.${id}: una habilidad retirada tiene destino`);
+  assert.equal(LEGACY_TABLES.guerrero, GUERRERO_LEGACY, 'save-schema migra con esta tabla');
+  const migrate = (spec, hotbar, skillMods = {}, level = 20) => migrateV4toV5({
+    classId: 'guerrero', level, xp: 0, hotbar: { lmb: null, rmb: null, k1: null, k2: null, k3: null, k4: null, ...hotbar },
+    skillMods, skillBranches: {}, skillPoints: 0, talents: { spec }, paragon: {}, materials: [], supports: {}, knownSupports: [] });
+  // §11.6.3 · barra: básicos → Tajo; gastadoras del kit solo con su especialización (si no,
+  // Hendidura); movilidad, insignia y definitiva de su especialización; utilidades → Piel de Hierro
+  const BAR_CASES = [
+    ['berserker', { lmb: 'g_mandoble', rmb: 'torbellino', k1: 'g_salto', k2: 'g_t_ira_ciega', k3: 'g_t_remolino', k4: 'g_u_cataclismo' },
+      { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'g_salto', k2: 'g_piel', k3: 'g_remolino', k4: 'g_u_furia' }, { g_tajo: 'i' }],
+    ['guardian', { lmb: 'g_embate', rmb: 'terremoto', k1: 'g_salto', k2: 'g_t_muro', k3: 'g_t_desafio', k4: 'g_u_estandarte' },
+      { lmb: 'g_tajo', rmb: 'terremoto', k1: 'g_carga_escudo', k2: 'g_piel', k3: 'g_guardia', k4: 'g_u_ciudadela' }, { g_tajo: 'ii' }],
+    ['cruzado', { lmb: 'g_tajo', rmb: 'g_martillo', k1: 'g_salto', k2: 'g_provocacion', k3: 'g_t_devocion', k4: 'g_u_furia' },
+      { lmb: 'g_tajo', rmb: 'g_martillo', k1: 'g_sendero', k2: 'g_piel', k3: 'g_juicio', k4: 'g_u_cataclismo' }, {}],
+    ['berserker', { rmb: 'g_martillo', k3: 'g_t_veredicto' }, { lmb: 'g_tajo', rmb: 'g_hendidura', k1: null, k2: null, k3: 'g_remolino', k4: null }, {}],
+    ['cruzado', { rmb: 'terremoto', k2: 'g_t_justicia', k4: 'g_u_estandarte' }, { lmb: 'g_tajo', rmb: 'g_hendidura', k1: null, k2: 'g_piel', k3: null, k4: 'g_u_cataclismo' }, {}],
+  ];
+  for (const [spec, bar, want, forge] of BAR_CASES) {
+    const d = migrate(spec, bar);
+    assert.deepEqual(d.hotbar, want, `${spec} ${JSON.stringify(bar)}: barra de §11.6.3`);
+    assert.deepEqual(d.skillForge, forge, `${spec} ${JSON.stringify(bar)}: variante que fija la absorción`);
+  }
+  // forja: opción de la 3.ª rama de v4 → variante 2g
+  const FORGE_CASES = [
+    ['cruzado', { g_tajo: { v: 'g_tajo_v1' } }, { g_tajo: 'i' }],                            // Desangrar → Desgarro
+    ['cruzado', { g_tajo: { v: 'g_tajo_v3' } }, { g_tajo: 'ii' }],                           // Rebote → Siega
+    ['cruzado', { g_martillo: { v: 'g_martillo_v1' } }, { g_martillo: 'ii' }],               // Onda → Onda Sagrada
+    ['guardian', { terremoto: { v: 'terremoto_v3' } }, { terremoto: 'i' }],                  // Decapitar → Martinete
+    ['guardian', { terremoto: { v: 'terremoto_v1' } }, { terremoto: 'ii' }],                 // Estela → Falla
+    ['cruzado', { g_u_cataclismo: { v: 'g_u_cataclismo_v3' } }, { g_u_cataclismo: 'i' }],    // Decapitar → Rayo del Cielo
+    ['berserker', { torbellino: { v: 'torbellino_v1' } }, { g_hendidura: 'ii' }],            // Estela → Grieta (la barra lo lleva a Hendidura)
+    ['berserker', { g_piel: { v: 'g_piel_v3' } }, { g_piel: 'ii' }],                         // Purga → Inamovible
+    ['berserker', { g_lanza: { v: 'g_lanza_v1' } }, { g_lanza: null }],                      // Atravesar: sin variante («por elegir»)
+  ];
+  for (const [spec, mods, want] of FORGE_CASES) assert.deepEqual(migrate(spec, { lmb: 'g_tajo' }, mods).skillForge, want, `${spec} ${JSON.stringify(mods)}: forja legada`);
+  // la rama elegida gana a la absorción por defecto de la barra (Embate → Siega, pero Desangrar → Desgarro)
+  assert.deepEqual(migrate('guardian', { lmb: 'g_embate' }, { g_embate: { v: 'g_embate_v1' } }).skillForge, { g_tajo: 'i' }, 'Embate con Desangrar → Desgarro');
+  // idempotente: una segunda pasada no cambia nada
+  const once = migrate('cruzado', BAR_CASES[2][1], { g_martillo: { v: 'g_martillo_v1' } });
+  assert.deepEqual(migrateV4toV5(JSON.parse(JSON.stringify(once))).hotbar, once.hotbar, 'segunda pasada: misma barra');
+}
+console.log('Tablas legadas: barra de §11.6.3, forja desde la 3.ª rama de v4 y retiradas, con la migración real ✓');
+console.warn = origWarn;
 console.log('\n✅ HABILIDADES DEL GUERRERO (2g) OK');

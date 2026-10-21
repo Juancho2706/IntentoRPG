@@ -2,13 +2,14 @@
 // formato de docs/paso2-implementacion.md §3.5
 //  1) A1: las 17 habilidades del libro (no las activas de talento) con Mejora + 2 variantes; ids
 //     estables, papeles de §4/§7, líneas ≤ 70 (las acortadas, declaradas en divergencias.json)
-//  2) A2/F7 estricto: cada definición forjada es válida (validateSkillDef v2: 0 errores y 0 avisos)
+//  2) A2/F7 estricto: cada definición forjada es válida (validateSkillDef v2: 0 errores; avisos solo
+//     de `art`/`innate`, claves pendientes de W2)
 //     y cada pieza cambia el perfil o la definición que lee el motor, o declara un poder registrado
 //  3) A9 y D28: poderes v_* registrados, todos usados, sin `mult` e ids únicos entre clases
 //  4) cada Mejora y cada variante en el arnés con el canal REAL, comparada con la habilidad sin
 //     esa pieza (la Mejora, contra el nivel anterior; la variante, contra solo la Mejora)
 //  5) FORGE_RECO: la ★ del libro y nunca apaga la barra de su especialización (2f §7.7)
-//  6) VFX de las variantes que cambian de forma
+//  6) VFX de las variantes que cambian de forma: datos válidos; el uso en el juego, PENDIENTE de W2
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CLASSES, SKILL_FORGE, FORGE_RECO, SPEC_BAR } from '../js/data.js';
@@ -36,6 +37,8 @@ const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 const SK = id => CLASSES.guerrero.skills.find(s => s.id === id);
 const BOOK = CLASSES.guerrero.skills.filter(s => s.kind !== 'talent');
 const piecesOf = entry => [['m', entry.mejora], ['i', entry.vars[0]], ['ii', entry.vars[1]]];
+// claves del mockup que el motor aún no declara (W2: SKILL_KEYS); cualquier otro aviso falla
+const PENDING_W2 = /: clave desconocida (art|innate)($| \()/;
 
 // ------------------------------------------------ 1) A1: estructura
 // papeles de §4 (kit base) y §7 (kits de especialización)
@@ -113,7 +116,7 @@ function sigOf(h, sk, forge, variant, withMejora = true) {
       const warnings = [];
       const errs = validateSkillDef(d, { behaviors: SKILL_BEHAVIORS, v2: true, warnings });
       assert.deepEqual(errs, [], `${sk.id} ${JSON.stringify(st)}: definición forjada válida`);
-      assert.deepEqual(warnings, [], `${sk.id} ${JSON.stringify(st)}: sin claves desconocidas`);
+      assert.deepEqual(warnings.filter(w => !PENDING_W2.test(w)), [], `${sk.id} ${JSON.stringify(st)}: sin claves desconocidas`);
       assert.equal(d.id, sk.id, 'la forja conserva el id');
     }
     const base = sigOf(h, sk, entry, null, false), m = sigOf(h, sk, entry, null, true);
@@ -127,7 +130,7 @@ function sigOf(h, sk, forge, variant, withMejora = true) {
   assert.equal(sigOf(h, sk, fake, 'i'), sigOf(h, sk, fake, null), 'F7: una variante vacía no cambia la firma');
   assert.notEqual(sigOf(h, sk, fake, 'ii'), sigOf(h, sk, fake, null), 'F7: cambiar solo los pasos del combo sí la cambia');
 }
-console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna pieza es un no-op ✓');
+console.log('A2/F7: 51 definiciones forjadas válidas (v2; avisos solo de art/innate, pendientes de W2); ninguna pieza es un no-op ✓');
 
 // ------------------------------------------------ 3) A9 y D28: poderes de la forja
 {
@@ -206,6 +209,11 @@ let h, e, e2, e3;
   assert.ok(approx(d.hh.g.dotRemaining(d.t, 'bleed') / d.t.t.direct, 0.6, 0.02), 'Desgarro: sangra el 60 % del golpe');
   d.hh.tick(3.3);
   assert.ok(!d.hh.g.hasDoT(d.t, 'bleed') && d.t.t.dot > 0, 'Desgarro: en 3 s');
+  // a rango 5 (Nv33) el golpe sube ×1,4 y el sangrado con él (resolveSkill escala hitDot.coef)
+  const hi = hero(33, { forge: { g_tajo: 'i' } }), ht = foe(hi, 1.4);
+  hi.p.basicAttack(ht);
+  assert.ok(approx(ht.t.direct / d.t.t.direct, 1.4, 0.02) && approx(hi.g.dotRemaining(ht, 'bleed') / ht.t.direct, 0.6, 0.02),
+    `Desgarro a rango 5: sigue sangrando el 60 % del golpe (${(hi.g.dotRemaining(ht, 'bleed') / ht.t.direct).toFixed(3)})`);
 }
 { // Tajo · II (Siega): barrido de 3 m a todos al 75 %; el principal, al 85 %
   const run = forge => { const hh = hero(7, { forge }); const t = foe(hh, 1.4), near = foe(hh, 2.6), far = foe(hh, 4.2); hh.p.basicAttack(t); return { t, near, far }; };
@@ -334,6 +342,17 @@ let h, e, e2, e3;
   assert.ok(approx(m.far.pos.x, 4.5) && c.far.pos.x < 3.6, `Ciclón: atrae a 5 m (4,5 → ${c.far.pos.x.toFixed(2)})`);
   assert.ok(approx((c.near.t.direct / c.near.t.n) / (m.near.t.direct / m.near.t.n), 0.85, 0.01), 'Ciclón: −15 % de daño');
 }
+{ // Remolino · II (Ciclón) junto a un jefe: los tirones no le llenan Quebranto (solo el del daño, −15 %)
+  const run = forge => {
+    const hh = hero(16, { spec: 'berserker', forge }); const boss = foe(hh, 2, 0, { boss: true }), mob = foe(hh, 0, 4.5);
+    hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(3.2);
+    return { boss, mob, hits: boss.t.n };
+  };
+  const m = run({}), c = run({ g_remolino: 'ii' });
+  assert.ok(c.hits >= 10 && c.mob.pos.z < 3.6, `Ciclón: gira todo el canal y atrae al normal (${c.hits} giros; z=${c.mob.pos.z.toFixed(2)})`);
+  const extra = c.boss.stagger - m.boss.stagger * 0.85;
+  assert.ok(approx(extra, 0, 0.05), `Ciclón: ningún Quebranto por tirones al jefe (${extra.toFixed(2)} de más)`);
+}
 { // Salto · Mejora (Caída Pesada): radio de la caída 3 → 4 m
   const run = L => { const hh = hero(L, { spec: 'berserker' }); const a = foe(hh, 9.6); hh.aim(6, 0); hh.setSlot('k1', 'g_salto'); hh.cast('k1'); hh.step(0.6); return a.t.n; };
   assert.ok(run(14) === 0 && run(15) === 1, 'Caída Pesada: a 3,6 m de la caída solo con la Mejora');
@@ -402,12 +421,17 @@ function rajar(forge, spots) {
     hh.aim(2, 0); hh.setSlot('rmb', 'g_hendidura'); hh.step(0.25); hh.cast('rmb'); hh.step(0.35);
     const sustained = hh.sustained(), dealt = a.t.direct;
     hh.tick(11); const hp0 = hh.p.hp; hh.tick(1);
-    return { sustained, dealt, endHeal: hh.p.hp - hp0, hh };
+    const endHeal = hh.p.hp - hp0;
+    // ya sin la Furia Inmortal: otro golpe con la variante elegida
+    const s0 = hh.sustained(), d0 = a.t.direct;
+    hh.p.hp = hh.p.stats.maxHP / 2; hh.p.mp = hh.p.stats.maxMP; hh.cast('rmb'); hh.step(0.35);
+    return { sustained, dealt, endHeal, hh, after: hh.sustained() - s0, dealtAfter: a.t.direct - d0 };
   };
   const m = run({}), s = run({ g_u_furia: 'i' });
   assert.equal(m.sustained, 0, 'sin Sed Voraz: no robas vida');
   assert.ok(s.sustained > 0 && s.sustained <= s.dealt * TUN.sedVoraz.leechPct / 100 + 1, `Sed Voraz: roba hasta el 8 % (${Math.round(s.sustained)} de ${s.dealt})`);
   assert.ok(m.endHeal >= m.hh.p.stats.maxHP * 0.19 && s.endHeal < s.hh.p.stats.maxHP * 0.02, `Sed Voraz: al acabar no te curas (sin ella, un 20 %): ${Math.round(m.endHeal)} / ${Math.round(s.endHeal)}`);
+  assert.ok(s.dealtAfter > 0 && s.after === 0, `Sed Voraz: fuera de la Furia Inmortal no roba (${s.after} tras ${s.dealtAfter} de daño)`);
 }
 { // Furia Inmortal · II (Frenesí): +40 % de velocidad de ataque, pero la vida sí baja del 1 %
   const run = forge => { const hh = hero(21, { spec: 'berserker', forge }); const as0 = hh.p.stats.aspdPct; hh.setSlot('k4', 'g_u_furia'); hh.cast('k4'); const as = hh.p.stats.aspdPct - as0; hh.p.takeDamage(hh.p.stats.maxHP * 5, 1); return { as, alive: hh.p.alive }; };
@@ -592,10 +616,17 @@ function hammer(level, forge, spots, hold, aim = [2.5, 0]) {
   assert.ok(approx(hammer(20, { g_martillo: 'i' }, near, 0.3).es[0].t.direct / hammer(20, {}, near, 0.3).es[0].t.direct, 1.4, 0.01), 'Martillo Arrojado: +40 % con la misma carga');
 }
 { // Martillo · II (Onda Sagrada): al soltar, el golpe sigue en una onda de 8 m hacia delante (60 %)
-  const spots = [[2.5, 0], [9, 0]];
+  // (2,5; 0) = el del impacto · (5; 0) = dentro del golpe y en la línea · (9; 0) = solo la onda
+  const spots = [[2.5, 0], [5, 0], [9, 0]];
   const m = hammer(20, {}, spots, 0.3).es, o = hammer(20, { g_martillo: 'ii' }, spots, 0.3).es;
-  assert.ok(m[1].t.n === 0 && o[1].t.n === 1, 'Onda Sagrada: alcanza a 6,5 m del golpe, hacia la mira');
-  assert.ok(approx(o[1].t.direct / m[0].t.direct, 0.6, 0.02), 'Onda Sagrada: al 60 % del golpe');
+  assert.ok(m[2].t.n === 0 && o[2].t.n === 1, 'Onda Sagrada: alcanza a 6,5 m del golpe, hacia la mira');
+  assert.ok(approx(o[2].t.direct / m[0].t.direct, 0.6, 0.02), 'Onda Sagrada: al 60 % del golpe');
+  // la onda sigue al golpe, no lo repite: los que recibieron el impacto, un solo golpe y el mismo daño
+  for (const i of [0, 1]) assert.ok(o[i].t.n === 1 && approx(o[i].t.direct / m[i].t.direct, 1, 0.01), `Onda Sagrada: (${spots[i]}) recibe solo el golpe (${o[i].t.n} golpes, ×${(o[i].t.direct / m[i].t.direct).toFixed(2)})`);
+  // F1/F2 (2f §2): contra uno solo, la variante de un objetivo gana a la de área
+  const one = [[2.5, 0]];
+  const base = hammer(20, {}, one, 0.3).es[0].t.direct, uni = hammer(20, { g_martillo: 'i' }, one, 0.3).es[0].t.direct, area = hammer(20, { g_martillo: 'ii' }, one, 0.3).es[0].t.direct;
+  assert.ok(uni > area && approx(area / base, 1, 0.01), `contra uno solo: Arrojado ×${(uni / base).toFixed(2)} > Onda ×${(area / base).toFixed(2)}`);
 }
 // Cataclismo: carga `hold` s y suelta en (8, 0)
 function cata(level, forge, spots, allies = []) {
@@ -683,6 +714,11 @@ function gaugeLoss(spec, reco, forge = GUERRERO_SKILL_FORGE) {
 console.log('FORGE_RECO: la ★ de §7, dentro de la barra de su especialización, y nunca le apaga la barra (2f §7.7) ✓');
 
 // ------------------------------------------------ 6) VFX de las variantes que cambian de forma
+// Las entradas `<id>_i`/`<id>_ii` de GUERRERO_FX tienen que ser datos válidos, pero el juego solo
+// las usa cuando el motor busque el VFX por variante (petición a W2: SKILL_FX[def.forged.varId]);
+// hasta entonces la variante sale con el VFX de su habilidad. Se mide el uso REAL y, si el motor
+// aún no lo hace, la sección queda PENDIENTE (no se da por buena).
+let fxPending = false;
 {
   const varIds = new Map();
   for (const [id, entry] of Object.entries(GUERRERO_SKILL_FORGE)) for (const v of entry.vars) varIds.set(v.id, { id, v });
@@ -698,9 +734,21 @@ console.log('FORGE_RECO: la ★ de §7, dentro de la barra de su especializació
     const FORM = ['type', 'steps', 'at', 'radius', 'count', 'range', 'dashT', 'heal', 'cleaveR', 'moveMul', 'recast'];
     assert.ok(keys.some(x => FORM.includes(x)) || !!v.power, `${k}: cambia la forma de ${id}`);
   }
+  // uso real: Martinete (terremoto_i) emite su golpe (brutalStrike) o el de Terremoto (quakeFissure)
+  const hh = hero(20, { spec: 'guardian', forge: { terremoto: 'i' } });
+  foe(hh, 3, 0);
+  const seen = [];
+  hh.g.emitFx = pr => { seen.push(pr); };
+  hh.aim(3, 0); hh.setSlot('rmb', 'terremoto'); hh.cast('rmb'); hh.step(0.5);
+  const mine = SKILL_FX_PRESETS[GUERRERO_FX.terremoto_i.impact], base = SKILL_FX_PRESETS[GUERRERO_FX.terremoto.impact];
+  assert.ok(mine && base && mine !== base, 'la sonda distingue el VFX de la variante del de su habilidad');
+  assert.ok(seen.includes(mine) !== seen.includes(base), 'el Martinete emite uno de los dos golpes');
+  fxPending = !seen.includes(mine);
 }
-console.log('VFX: entradas propias para las variantes que cambian de forma, con presets y sonidos que existen ✓');
+console.log(fxPending
+  ? 'VFX: entradas de las variantes válidas (presets y sonidos que existen) · ⏳ PENDIENTE W2: el motor aún dibuja la variante con el VFX de su habilidad'
+  : 'VFX: entradas de las variantes válidas y en uso (el Martinete sale con su golpe) ✓');
 
 assert.deepEqual(warns, [], `ningún poder ni comportamiento lanzó errores: ${warns.join(' · ')}`);
 console.warn = origWarn;
-console.log('\n✅ FORJA DEL GUERRERO (A1 · A2/F7 · A9 · 51 piezas en el arnés · ★ · VFX) OK');
+console.log(`\n✅ FORJA DEL GUERRERO (A1 · A2/F7 · A9 · 51 piezas en el arnés · ★${fxPending ? '' : ' · VFX'}) OK${fxPending ? ' · VFX por variante pendiente (W2)' : ''}`);
