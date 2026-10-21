@@ -30,9 +30,11 @@ export function gaugeTuning(H) {
       voraz: 8, vorazN: 3,                          // s9B Llamarada Voraz (por enemigo, desde 3)
       combustion: { base: 1.5, perRank: 1 },        // s23 Combustión: 1,5 + rango s
       perpetua: 4, perpetuaExt: 3,                  // s26 Combustión Perpetua
-      eliteCalor: 25, ignitionAt: 80 },             // s28 Corazón del Sol (rangos 2 y 3)
+      eliteCalor: 25, ignitionAt: 80,               // s28 Corazón del Sol (rangos 2 y 3)
+      brasero: 50 },                                // s16 Brasero: más daño por encima de este Calor
     escarcha: { max: 5, perHit: 1, nova: 2, freezeT: 1.0, numbT: 4, decayEvery: 2,
-      bossStagger: STAGGER_CC.freeze, numbMovePct: 30, numbAspdPct: 15 },
+      bossStagger: STAGGER_CC.freeze, numbMovePct: 30, numbAspdPct: 15,
+      critLayers: 3 },                              // i2 Filo Helado: más crítico desde estas capas
     cargas: { max: 4, perDart: 1, dmgPerCharge: 35, manaPerCharge: 5, loseAfter: 6,
       sealEvery: 2,                                 // Sello del Archimago: 1 Carga cada 2 s dentro
       resonanceCrit: 6 },                           // a16 Resonancia (por rango)

@@ -28,7 +28,7 @@
 //          c11 activa m_t_bloque | m_aguante · c12 stats.mph · c13 stats.crit · c14 m_runa | m_parpadeo_cura ·
 //          c15 m_escudo_mana | stats.regenPct + tv.highManaDmg · c16 m_armonia | m_pureza · c17 activa
 //          m_t_inversion | m_anclaje · c18 mod m_barrera buff · c19 m_barrera_resonante · c20 m_escarcha_arcana ·
-//          c21 m_escarcha_tenaz · c22 activa m_t_contrahechizo | tv.costRedBig · c23 tv.basicCritCdr ·
+//          c21 m_escarcha_tenaz · c22 activa m_t_contrahechizo | tv.costRedBig · c23 m_ritmo_arcano ·
 //          c24 stats.aspdPct · c25 m_cristal · c26 m_torrente · c27 m_imagen · finales c28 m_bastion ·
 //          c29 m_archimaga · c30 m_vacio.
 //  Paragon Cronomante t0 m_marca_tiempo + claves tv chrono* (MAGA_TV_KEYS) · t4A activa m_h_detener ·
@@ -86,13 +86,18 @@
 //  · Congelar (Crionte): un enemigo que pasa a Congelado desde el último sondeo (10 Hz, todas las
 //    fuentes). Los jefes no se congelan: llenar sus capas es «congelar a un jefe» (Aterido).
 //  · «Hacer añicos» (Ruptura, Esquirlas, Cero Absoluto) = la Lanza de Hielo golpea a un Congelado
-//    (no jefe) con Ruptura: le quita la congelación y deja 3 capas.
+//    (no jefe) con Ruptura: le quita la congelación y deja 3 capas. Quitar la congelación escribe
+//    stunT/frozenT a mano (thaw): excepción pedida hasta Enemy.clearCC('freeze') de W2.
 //  · Astillas (i12) es un poder y no tv.critFrostCdr: el nodo nombra solo la Lanza y la Prisión.
+//    Igual Ritmo Arcano (c23, m_ritmo_arcano): solo Parpadeo y Barrera, no tv.basicCritCdr.
+//  · Ignición (s0) quema también con los tics de tu suelo de Fuego (decisión pendiente de aprobar).
+//  · Grieta Eterna (a27) gasta su 3 %/s también con Maná Inagotable (doc 2g §12; calibra B1).
 //  · Prisión Profunda (i8B): la Prisión no atrapa en su área; atrapa 3 s al enemigo de la mira (o al
 //    más cercano a 8 m) con un golpe real de la Prisión al 180 %.
-//  · Ventisca Viva y Remolino lanzan la Nova de Hielo real como repetición (a tus pies).
+//  · Ventisca Viva y Remolino lanzan la Nova de Hielo real como repetición (a tus pies), con su
+//    propia serie de repeticiones: la de tu última Nova no se gasta ni se reinicia.
 //  · Doble Grieta (a21): el motor no deja lanzar mientras canalizas; el poder está listo para cuando
-//    la cola W2 lo permita (petición en el informe de KT-maga).
+//    la cola W2 lo permita (tools/convert-v2/out/maga/pendientes-maga.md, sección KT-maga).
 //  · Inercia (a12) cuenta los rebotes por el ritmo del Orbe del catálogo (un tramo = alcance / velocidad).
 //  · «Críticos de Hielo +X %» (Cero Absoluto) va al saco de crítico (stats.critDmg): el saco no
 //    distingue elemento y la Crionte golpea casi todo con Hielo.
@@ -105,7 +110,7 @@ import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { rankBuff } from './combat-math.js';
 import { gainGauge, setGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
-import { drainResource } from './resources.js';
+import { drainResource, spendResource } from './resources.js';
 import { magaStorm } from './skills-maga.js';
 
 // ------------------------------------------------------------
@@ -135,6 +140,7 @@ export function magaTuning() {
     resonanteMana: 2, resonanteVida: 2,                  // c19 Barrera Resonante (maná · % de vida)
     escArcSlowPct: 30, escArcT: 2, escArcCrit: 15,       // c20 Escarcha Arcana
     tenazS: 2,                                           // c21 Escarcha Tenaz
+    ritmoCdr: 0.5,                                       // c23 Ritmo Arcano (s por rango)
     cristalR: 3, cristalKnock: 3, cristalSlowPct: 40, cristalSlowT: 2, cristalMana: 10,   // c25 (maná % por rango)
     torrenteMana: 60, torrenteWin: 3, torrenteBase: 4, torrenteRank: 8, torrenteT: 4,     // c26 Torrente de Maná
     imagenR: 6, imagenBase: 2,                           // c27 Imagen Arcana (s = base + rango)
@@ -168,7 +174,7 @@ export function magaTuning() {
     sismicoStagger: 20,                                  // s14 Impacto Sísmico (jefes)
     fenixCd: 120, fenixHp: 0.5, fenixInvuln: 1,          // s15A Fénix
     escudoLlamasDr: 10, escudoLlamasCoef: 1,             // s15B Escudo de Llamas (quemadura de un golpe del arma)
-    braseroCalor: 50, braseroBurn: 15, braseroBurnRank: 10, braseroMeteo: 10, braseroMeteoRank: 5,   // s16
+    braseroBurn: 15, braseroBurnRank: 10, braseroMeteo: 10, braseroMeteoRank: 5,   // s16 (el umbral: TG().calor.brasero)
     estrellasCoef: 0.4, estrellasT: 3, estrellasR: 1.5, estrellasArea: 8,   // s17 Estrellas Fugaces (1 + 2 × rango)
     vivaEvery: 1, vivaR: 2, vivaBase: 10, vivaRank: 10,  // s22 Brasa Viva
     craterT: 4, craterBase: 10, craterRank: 5,           // s24 Cráter
@@ -255,13 +261,15 @@ function densest(g, r = 4) {
 // lanza una habilidad «sola y gratis» por el canal real como REPETICIÓN (mult × su potencia, sin
 // coste, sin enfriamiento, sin preparación) hacia `pos`. Si no está en la barra, toma prestada su
 // ranura un instante. Una repetición no dispara ⑦ ni genera otra repetición. No repite un
-// lanzamiento tuyo: abre su PROPIA serie de repeticiones (el tope echoCap cuenta por lanzamiento
-// original; la Nova de la Ventisca cada 2 s no gasta el de tu última Nova)
+// lanzamiento tuyo: va en una serie de repeticiones APARTE y la de tu último lanzamiento queda
+// como estaba (ni la gasta ni la reinicia: el tope echoCap de tus repeticiones sigue valiendo).
+// Mientras no haya API del motor para esto (cola W2), se aparta y se devuelve su `echo`
 function autoCast(g, p, skillId, pos, mult = 1) {
   const sk = p?.cls?.skills?.find(s => s.id === skillId);
   if (!sk || !g?.castSkillSlot || !p.hotbar) return false;
   const ss = p.skState?.[skillId];
-  if (ss?.echo) ss.echo = { seq: (ss.echo.seq || 0) + 1, n: 0 };
+  const series = ss ? ss.echo : undefined;
+  if (ss) ss.echo = null;
   let slot = Object.keys(p.hotbar).find(k => p.hotbar[k] === skillId);
   let borrowed = false, prev = null;
   if (!slot) { slot = (sk.slots || []).find(s => s !== 'lmb') || 'k4'; prev = p.hotbar[slot]; p.hotbar[slot] = skillId; borrowed = true; }
@@ -274,6 +282,8 @@ function autoCast(g, p, skillId, pos, mult = 1) {
   finally {
     if (borrowed) p.hotbar[slot] = prev;
     if (inp && pos) inp.mouseWorld = mw;
+    const after = p.skState?.[skillId];
+    if (after) after.echo = series;
   }
   return ok;
 }
@@ -337,7 +347,7 @@ function burnKeys(p) {
 function burnBonus(p) {
   const T = magaTuning(), tv = p?.tv || {};
   let add = (tv.burnPct || 0) + (tv.dotPct || 0);
-  if (hasPower(p, 'p_brasero') && gaugeValue(p, 'calor') > T.braseroCalor) add += T.braseroBurn + T.braseroBurnRank * rankOf(p, 'p_brasero');
+  if (hasPower(p, 'p_brasero') && gaugeValue(p, 'calor') > TG().calor.brasero) add += T.braseroBurn + T.braseroBurnRank * rankOf(p, 'p_brasero');
   return add;
 }
 // Ignición (s0): 60 % del golpe en 4 s (+burnDur/dotDur s), con su bono
@@ -413,12 +423,15 @@ function freezesNow(g, p) {
 function layersOf(p, e) { return e?.alive ? gaugeValue(p, 'escarcha', e) : 0; }
 function frozen(e) { return !!e?.alive && (e.frozenT || 0) > 0; }
 function freezeBase() { return TG().escarcha.freezeT; }
-// quita la congelación (Ruptura): solo la parte del aturdimiento que era hielo. No hay primitiva
-// del núcleo para quitar un control (petición en la cola W2: Enemy.clearCC('freeze'))
+// quita la congelación (Ruptura): solo el hielo. El aturdimiento es un único reloj (applyCC): si
+// otra fuente lo dejó más largo que el hielo, se queda entero; si mandaba el hielo, se acaba.
+// EXCEPCIÓN a «nunca stunT a mano» (CLAUDE.md): el núcleo no tiene cómo quitar un control. Pedida
+// Enemy.clearCC('freeze') a la cola W2 y la excepción al orquestador (pendientes-maga.md); con la
+// primitiva, esta función pasa a ser e.clearCC('freeze')
 function thaw(e) {
   const f = e?.frozenT || 0;
   if (!(f > 0)) return;
-  e.stunT = Math.max(0, (e.stunT || 0) - f);
+  if ((e.stunT || 0) <= f + 1e-6) e.stunT = 0;
   e.frozenT = 0;
 }
 // Corazón del Invierno (rango 4): cada 15 congelaciones, la Tormenta Glacial sola y gratis
@@ -883,7 +896,9 @@ export function magaPowers() {
       name: 'Ralentizar', desc: 'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s a quien golpea.',
       state: () => ({ readyAt: 0, armed: null, armedAt: -9 }),
       onCast(g, p, cast) {
-        if (cast?.weapon) return;                 // el básico de ARMA (2c.2) no lo arma: como antes
+        // el Dardo (básico de arma) no lo gasta: es «contra grupos que te rodean» (win de la opción A)
+        // y, si lo gastara el básico que no paras de lanzar, nunca llegaría a la Nova ni a la Bola
+        if (cast?.weapon) return;
         const st = powerState(p, 'm_ralentizar');
         if (now(p) < st.readyAt || !(cast?.prof?.coef > 0)) return;
         if (st.armed && now(p) - st.armedAt < 3) return;
@@ -999,13 +1014,13 @@ export function magaPowers() {
         p.cleanse?.();
       },
     },
-    // c15A Escudo de Maná: el 20 % del daño que recibes lo pagas con maná (mientras te quede)
+    // c15A Escudo de Maná: el 20 % del daño que recibes lo pagas con maná (mientras te quede; el
+    // gasto pasa por resources.js como cualquier coste)
     m_escudo_mana: {
       name: 'Escudo de Maná', desc: 'El 20 % del daño que recibes lo pagas con maná en vez de vida.',
       onDamaged(g, p, dmg) {
         const take = Math.min((dmg?.amount || 0) * T.escudoManaPct / 100, p.mp || 0);
-        if (!(take > 0)) return;
-        p.mp -= take;
+        if (!(take > 0) || !spendResource(p, take)) return;
         dmg.amount -= take;
       },
     },
@@ -1089,6 +1104,22 @@ export function magaPowers() {
       name: 'Escarcha Tenaz', desc: 'Todas tus ralentizaciones duran 2 s más.',
       priority: 1,
       modifyResolve(p, sk, prof) { if (prof.slow > 0) prof.slow += T.tenazS; },
+    },
+    // c23 Ritmo Arcano: cada crítico directo del Dardo recarga 0,5 × rango s de Parpadeo y de la
+    // Barrera (una vez por instante). Solo esas dos: tv.basicCritCdr del núcleo recargaría también
+    // la movilidad y las defensas del kit (Estela Ígnea, Bloque de Hielo…), que el nodo no nombra
+    m_ritmo_arcano: {
+      name: 'Ritmo Arcano', desc: 'Cada crítico del Dardo Arcano recarga parte de Parpadeo y de la Barrera de Maná.',
+      state: () => ({ at: -1 }),
+      onHit(g, p, e, hit) {
+        if (!hit?.crit || hit.proc || hit.dot || hit.skill !== 'm_dardo') return;
+        const st = powerState(p, 'm_ritmo_arcano');
+        if (st.at === now(p)) return;
+        st.at = now(p);
+        const s = T.ritmoCdr * rankOf(p, 'm_ritmo_arcano');
+        g.reduceCooldown?.(p, 'm_parpadeo', s);
+        g.reduceCooldown?.(p, 'm_barrera', s);
+      },
     },
     // c25 Cristal de Barrera: al romperse la Barrera, estalla (empuja, ralentiza y devuelve maná)
     m_cristal: {
@@ -1360,7 +1391,8 @@ export function magaPowers() {
     // s0 Ignición (clave): tus golpes de Fuego queman (60 % del golpe en 4 s) y la explosión de la
     // Bola de Fuego pasa del 100 % al 350 % (su innata: con otra especialización vuelve al 100 %).
     // Cuenta también el suelo de Fuego (los tics de un campo con la etiqueta fire: la Estela Ígnea,
-    // la Pira); no los tics de una quemadura ni el daño de poder
+    // la Pira); no los tics de una quemadura ni el daño de poder. Decisión de KT-maga pendiente de
+    // aprobación (divergencias.json: spec.piromante.s0.touch); sin ella, solo golpes directos
     p_ignicion: {
       name: 'Ignición', desc: 'Tus golpes de Fuego queman (un 60 % extra del golpe en 4 s) y la Bola de Fuego explota al 350 %.',
       procs: true,
@@ -1502,7 +1534,7 @@ export function magaPowers() {
     p_brasero: {
       name: 'Brasero', desc: 'Con más de 50 de Calor, tus quemaduras y tu Meteoro hacen más daño.',
       condAdd(p, e, hit) {
-        if (hit?.skill !== 'meteoro' || !(gaugeValue(p, 'calor') > T.braseroCalor)) return 0;
+        if (hit?.skill !== 'meteoro' || !(gaugeValue(p, 'calor') > TG().calor.brasero)) return 0;
         return T.braseroMeteo + T.braseroMeteoRank * rankOf(p, 'p_brasero');
       },
     },
@@ -1688,7 +1720,7 @@ export function magaPowers() {
     // enemigo: el indicador no puede dar crítico, lo da este poder)
     k_filo_helado: {
       name: 'Filo Helado', desc: 'Más probabilidad de crítico contra enemigos con 3 o más capas de Escarcha.',
-      condCrit(p, e) { return e && layersOf(p, e) >= 3 ? T.filoCrit * rankOf(p, 'k_filo_helado') : 0; },
+      condCrit(p, e) { return e && layersOf(p, e) >= TG().escarcha.critLayers ? T.filoCrit * rankOf(p, 'k_filo_helado') : 0; },
     },
     // i5 Hielo Quebradizo: los Congelados reciben +20 % de daño de todo (saco Debilidad, mientras dure)
     k_quebradizo: {
@@ -1701,7 +1733,8 @@ export function magaPowers() {
       state: () => ({ free: false }),
       onTick(g, p) {
         const st = powerState(p, 'k_polvo');
-        if (st.free || !freezesNow(g, p).length) return;
+        const list = freezesNow(g, p);                // sondeo en cada tic: una congelación de antes no cuenta luego
+        if (st.free || !list.length) return;
         st.free = true;
         invalidate(p, 'k_lanza'); invalidate(p, 'nova_hielo');
       },
@@ -1799,12 +1832,14 @@ export function magaPowers() {
       },
     },
     // i14 Suelo Helado: la Prisión deja el suelo helado 4 s (ralentiza un 40 %, 1 capa por segundo)
+    // donde se cerró: a tus pies o, si su forma se lanza lejos (at ≠ 'self'), en la mira
     k_suelo: {
       name: 'Suelo Helado', desc: 'La Prisión de Hielo deja el suelo helado: ralentiza y pone capas.',
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'k_prision') return;
         const r = (cast.prof?.radius || 0) > 0.5 ? cast.prof.radius : (cast.sk.radius || 4);
-        g.spawnField?.('k_suelo', { pos: p.pos, radius: r, dur: T.sueloT, owner: p, data: { skill: 'k_prision' } });
+        const c = cast.sk.at === 'self' ? p.pos : (cast.target || p.pos);
+        g.spawnField?.('k_suelo', { pos: at(p.pos, c.x, c.z, 0), radius: r, dur: T.sueloT, owner: p, data: { skill: 'k_prision' } });
       },
     },
     // i15A Piel de Invierno: recibes un 15 % menos de daño de enemigos con capas
@@ -1920,11 +1955,12 @@ export function magaPowers() {
     k_perpetua: {
       name: 'Tormenta Perpetua', desc: 'Cada enemigo que congelas dentro de la Tormenta Glacial la alarga.',
       onTick(g, p) {
+        const list = freezesNow(g, p);                // sondeo también sin Tormenta (no cuenta congelaciones viejas)
         const s = stormTrack(p, 'k_perpetua');
         if (!s) return;
         const st = powerState(p, 'k_perpetua');
         const c = s.center();
-        for (const e of freezesNow(g, p)) {
+        for (const e of list) {
           if (!insideR(e.pos, c, s.radius + 0.5 * (e.def?.scale || 1))) continue;
           const add = Math.min(T.perpetuaStep * rankOf(p, 'k_perpetua'), T.perpetuaMax - st.ext);
           if (!(add > 1e-9)) return;
@@ -1942,9 +1978,8 @@ export function magaPowers() {
       state: () => ({ readyAt: 0 }),
       onTick(g, p) {
         const st = powerState(p, 'k_era_glacial');
-        if (now(p) < st.readyAt - 1e-9) return;
-        const e = freezesNow(g, p)[0];
-        if (!e) return;
+        const e = freezesNow(g, p)[0];               // sondeo en cada tic: lo congelado en la espera no cuenta luego
+        if (now(p) < st.readyAt - 1e-9 || !e) return;
         st.readyAt = now(p) + T.eraCd;
         for (const o of alivesNear(g, e.pos, T.eraR, e)) if (layersOf(p, o) >= 1) o.applyCC('freeze', freezeBase(), { src: p });
         ring(g, e.pos, T.eraR, 0xbfeaff);
@@ -2110,9 +2145,10 @@ export function magaPowers() {
         for (let i = 1; i <= n; i++) g.timers.schedule(leg * i + 0.01, () => { if (p.alive && g.player === p) g.reduceCooldown?.(p, 'rayo', s); });
       },
     },
-    // a14 Maná Inagotable: canalizando el Desgarro no gastas maná (Grieta Eterna) y recuperas un 2 %/s
+    // a14 Maná Inagotable: canalizando el Desgarro recuperas un 2 %/s. No anula el gasto de Grieta
+    // Eterna (doc 2g §12: ese 3 % se calibra para que la combinación dure 8–12 s)
     a_mana_inagotable: {
-      name: 'Maná Inagotable', desc: 'Mientras canalizas el Desgarro Arcano no gastas maná y lo recuperas.',
+      name: 'Maná Inagotable', desc: 'Mientras canalizas el Desgarro Arcano recuperas maná.',
       onTick(g, p, dt) { if (channelOf(g, p, 'm_u_desgarro')) g.gainResource?.(p, (p.stats?.maxMP || 0) * T.inagotablePct / 100 * dt); },
     },
     // a15A Desplazamiento: un golpe de más del 20 % de tu vida te teletransporta 5 m sin hacerte daño
@@ -2283,16 +2319,16 @@ export function magaPowers() {
         }
       },
     },
-    // a27 Grieta Eterna (final): el Desgarro dura mientras tengas maná (un 3 %/s; nada con Maná
-    // Inagotable); rangos 2–3: mod m_u_desgarro dmg del nodo
+    // a27 Grieta Eterna (final): el Desgarro dura mientras tengas maná: gasta un 3 %/s siempre,
+    // también con Maná Inagotable (que solo devuelve su 2 %/s); sin maná, el canal acaba a su hora.
+    // Rangos 2–3: mod m_u_desgarro dmg del nodo
     a_grieta_eterna: {
       name: 'Grieta Eterna', desc: 'El Desgarro Arcano dura mientras tengas maná.',
       onTick(g, p, dt) {
         const ch = channelOf(g, p, 'm_u_desgarro');
         if (!ch) return;
-        const free = hasPower(p, 'a_mana_inagotable');
-        if (!free && !drainResource(p, (p.stats?.maxMP || 0) * T.eternaDrain / 100, dt)) return;
-        if ((ch.left || 0) <= 2 && (free || p.mp > 0)) g.extendChannel?.(p, ch.interval || 0.5);
+        if (!drainResource(p, (p.stats?.maxMP || 0) * T.eternaDrain / 100, dt)) return;
+        if ((ch.left || 0) <= 2 && p.mp > 0) g.extendChannel?.(p, ch.interval || 0.5);
       },
     },
     // a28 Singularidad (ápice, 4 rangos): 1) un Rayo con 4 Cargas abre una grieta 3 s en el objetivo
@@ -2376,29 +2412,30 @@ export function magaSkillBehaviors() {
         return ctx.res;
       },
     },
-    // Bloque de Hielo: inmune 4 s, sin moverte ni atacar; la esquiva lo rompe antes
+    // Bloque de Hielo: inmune 4 s, sin moverte ni atacar; la esquiva lo rompe antes. Quieta por
+    // p.setMoveMul (§3.7: multiplicador 0 mientras dura), no clavando la posición
     m_t_bloque: {
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
         const dur = prof.dur || sk.dur || 4;
-        const hold = { x: p.pos.x, z: p.pos.z };
         const until = g.timers.now + dur;
         const Bk = { on: true };
         p._mgBlock = Bk;
         p.grantInvuln(dur);
         p.castLock = Math.max(p.castLock || 0, dur);
+        p.setMoveMul('m_t_bloque', 0, dur);
         p.moveTarget = p.attackTarget = null;
         const end = (broken) => {
           Bk.on = false;
           if (p._mgBlock === Bk) p._mgBlock = null;
           p.castLock = 0;
+          p.clearMoveMul('m_t_bloque');
           if (broken) { p.invulnT = 0; g.ui?.spawnText?.(p.pos, '¡Hielo roto!', 'txt-mana'); }
         };
         const step = () => {
           if (!Bk.on || p._mgBlock !== Bk) return;
           if (!p.alive || g.timers.now >= until - 1e-9) { end(false); return; }
           if (p.dodgeT > 0) { end(true); return; }
-          p.pos.x = hold.x; p.pos.z = hold.z;
           p.atkCd = Math.max(p.atkCd || 0, 0.1);
           p.castLock = Math.max(p.castLock || 0, 0.1);
           g.timers.schedule(0.05, step);

@@ -121,7 +121,7 @@ export const MAGA_TALENTS = {
         { k: 'B', name: 'Canalizador', desc: 'Los hechizos que cuestan más de 20 de maná cuestan un 20 % menos', role: 'UNI', fx: { tv: { costRedBig: { pct: 20, over: 20 } } } },
       ],
       win: 'A, en grupo y contra enemigos que lanzan hechizos. B, para hacer daño (+5–7 %)' },
-    { id: 'c23', name: 'Ritmo Arcano', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada crítico del Dardo recarga ${n1(0.5*r)} s de Parpadeo y de la Barrera`, touch: ['m_dardo', 'm_parpadeo', 'm_barrera'], icon: 'talents/maga-clase-c9.webp', fx: { tv: { basicCritCdr: 0.5 } } },
+    { id: 'c23', name: 'Ritmo Arcano', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada crítico del Dardo recarga ${n1(0.5*r)} s de Parpadeo y de la Barrera`, touch: ['m_dardo', 'm_parpadeo', 'm_barrera'], icon: 'talents/maga-clase-c9.webp', fx: { power: 'm_ritmo_arcano' } },
     { id: 'c24', name: 'Celeridad', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Lanzas hechizos un ${7*r} % más rápido`, icon: 'talents/maga-clase-c11.webp', fx: { stats: { aspdPct: 7 } } },
     { id: 'c25', name: 'Cristal de Barrera', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Cuando se rompe la Barrera, estalla: empuja 3 m, ralentiza un 40 % 2 s y te devuelve el ${10*r} % del maná`, touch: ['m_barrera'], icon: 'talents/maga-clase-c7.webp', fx: { power: 'm_cristal' } },
     { id: 'c26', name: 'Torrente de Maná', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Si gastas 60 de maná en 3 s, entras en Sobrecarga: +${4+8*r} % de daño durante 4 s`, icon: 'talents/maga-clase-c14.webp', fx: { power: 'm_torrente' } },

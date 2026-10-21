@@ -23,9 +23,11 @@
 // alternando el nombre del @keyframes (data-burst a/b), sin reflow. Arte pintado (R9): las
 // formas y animaciones son CSS; los assets assets/gauges/gz_{calor,escarcha,cargas}_*.webp son
 // la piel (ctx.art) y, si no cargan, queda la forma CSS del mockup (.no-art).
-// Paso 2g (E2 · KT-maga): textos, nodos y demos con los nodos 2g; los números, de gaugeTuning().
+// Paso 2g (E2 · KT-maga): textos, nodos y demos con los nodos 2g; los números, de gaugeTuning() (y
+// las capas de la Prisión, de su definición en el catálogo).
 // Nivel superior PURO: nada de document/window al importar.
 import { gaugeTuning } from './spec-mechanics.js';
+import { MAGA_SKILLS } from './skills-maga.js';
 
 // ------------------------------------------------------------
 // utilidades puras
@@ -129,15 +131,6 @@ const calor = {
       ],
     };
   },
-  nodes: {
-    s5: 'Chispas: un crítico sobre un enemigo que arde te da Calor',
-    s9: 'Llamarada: Avivada te da 25 de Calor; Voraz, 8 por enemigo',
-    s16: 'Brasero: con más de 50 de Calor, más daño',
-    s19: 'Ignición Rápida: más Calor por golpe de Fuego',
-    s23: 'Combustión: al usar Ignición Total, todo tu Fuego es crítico',
-    s26: 'Combustión Perpetua: en Combustión, tus críticos dan Calor',
-    s28: 'Corazón del Sol: Ignición Total a 80 y Calor por élite',
-  },
   sounds: { full: 'fire' },
 };
 
@@ -220,29 +213,20 @@ const escarcha = {
   },
   model: escarchaModel,
   explain(T) {
-    const E = T.escarcha;
+    const E = T.escarcha, prision = prisionLayers();
     return {
       text: `Cada golpe de Hielo suma una capa al <b>enemigo</b>. A ${E.max} capas queda <b>Congelado</b> ${fmtN(E.freezeT)} s; un jefe queda <b>Aterido</b> ${fmtN(E.numbT)} s y recibe ${E.bossStagger} de aturdimiento.`,
       cols: [
-        ['Generar', `+${E.perHit} por golpe de Hielo · Nova de Hielo y Prisión de Hielo +${E.nova}`],
+        ['Generar', `+${E.perHit} por golpe de Hielo · Nova de Hielo +${E.nova} · Prisión de Hielo +${prision}`],
         ['Descargar', `Automática a ${E.max}: Congelado ${fmtN(E.freezeT)} s / jefe Aterido ${fmtN(E.numbT)} s`],
         ['Pérdida', `Una capa cada ${fmtN(E.decayEvery)} s`],
       ],
       tip: [
         `<b>Qué es:</b> las capas de hielo del enemigo bajo el cursor (o del jefe, o del más escarchado). A ${E.max}: <b>Congelado</b> ${fmtN(E.freezeT)} s.`,
-        `<b>Gana:</b> +${E.perHit} por golpe de Hielo; la Nova y la Prisión, +${E.nova}. Un jefe queda <b>Aterido</b> ${fmtN(E.numbT)} s (−${E.numbMovePct} % de movimiento, −${E.numbAspdPct} % de velocidad de ataque).`,
+        `<b>Gana:</b> +${E.perHit} por golpe de Hielo; la Nova, +${E.nova}, y la Prisión, +${prision}. Un jefe queda <b>Aterido</b> ${fmtN(E.numbT)} s (−${E.numbMovePct} % de movimiento, −${E.numbAspdPct} % de velocidad de ataque).`,
         `<b>Pierde:</b> una capa cada ${fmtN(E.decayEvery)} s; el último cristal se escarcha antes de caer.`,
       ],
     };
-  },
-  nodes: {
-    i0: 'Escarcha: tus golpes de Hielo ponen capas; a 5, Congelado',
-    i1: 'Frío Penetrante: el Congelado dura más',
-    i2: 'Filo Helado: más crítico contra enemigos con 3 capas',
-    i4: 'Escarcha Densa: las capas caen más despacio',
-    i14: 'Suelo Helado: la Prisión deja suelo que pone capas',
-    i22: 'Glaciar: congelar da capas a los que están cerca',
-    i28: 'Corazón del Invierno: bastan 4 capas; congelar a un jefe lo quiebra',
   },
   sounds: { full: 'ice' },
   world: {
@@ -350,15 +334,6 @@ const cargas = {
       ],
     };
   },
-  nodes: {
-    a0: 'Cargas Arcanas: el Dardo las da y el Rayo las gasta',
-    a1: 'Memoria Arcana: las Cargas duran más',
-    a4: 'Potencia Acumulada: cada Carga da más al Rayo',
-    a5: 'Rebote Cargado: el Orbe te da Cargas',
-    a16: 'Resonancia: con 4 Cargas no se pierden',
-    a22: 'Cargas Desbordadas: guardas más Cargas',
-    a28: 'Singularidad: las Cargas ya no se pierden',
-  },
   sounds: { spent: 'bolt' },
 };
 
@@ -401,7 +376,7 @@ function escarchaDemo(T) {
       cap: `+${E.perHit} capa por golpe de Hielo. Se muestra el enemigo bajo el cursor (o el jefe, o el más escarchado).`, nodes: ['i0'] },
     { t: 2, value: E.perHit + E.nova, decayIn: every, fire: 'gain', x: { layered: 6 },
       cap: `Nova de Hielo: +${E.nova} capas a todos los que toca.`, nodes: ['i0'], tag: 'building' },
-    { t: 2.8, value: E.max - 1, decayIn: every, fire: 'gain', cap: 'Filo Helado: con 3 o más capas, tus críticos llegan antes.', nodes: ['i2'] },
+    { t: 2.8, value: E.max - 1, decayIn: every, fire: 'gain', cap: `Filo Helado: desde ${E.critLayers} capas, más probabilidad de crítico contra él.`, nodes: ['i2'] },
     { t: 3.4, value: E.max, state: 'full', decayIn: null, fire: 'full', x: { frozen: 1, targetFrozen: true },
       cap: `¡${E.max} capas: Congelado ${fmtN(E.freezeT)} s! (más con Frío Penetrante).`, nodes: ['i0', 'i1'], tag: 'full' },
     { t: 4.0, value: 0, state: 'idle', cap: '¡Congelado! Sus capas se gastan al congelarlo.', nodes: [] },
@@ -442,7 +417,53 @@ function cargasDemo(T) {
   ];
 }
 
+// nodos que potencian cada barra (A3: existen en el árbol de su especialización); los números, de T
+function calorNodes(T) {
+  const C = T.calor;
+  return {
+    s5: 'Chispas: un crítico sobre un enemigo que arde te da Calor',
+    s9: `Llamarada: Avivada te da ${C.llamarada} de Calor; Voraz, ${C.voraz} por enemigo`,
+    s16: `Brasero: con más de ${C.brasero} de Calor, más daño`,
+    s19: 'Ignición Rápida: más Calor por golpe de Fuego',
+    s23: 'Combustión: al usar Ignición Total, todo tu Fuego es crítico',
+    s26: 'Combustión Perpetua: en Combustión, tus críticos dan Calor',
+    s28: `Corazón del Sol: Ignición Total a ${C.ignitionAt} y Calor por élite`,
+  };
+}
+function escarchaNodes(T) {
+  const E = T.escarcha;
+  return {
+    i0: `Escarcha: tus golpes de Hielo ponen capas; a ${E.max}, Congelado`,
+    i1: 'Frío Penetrante: el Congelado dura más',
+    i2: `Filo Helado: más crítico contra enemigos con ${E.critLayers} capas`,
+    i4: 'Escarcha Densa: las capas caen más despacio',
+    i14: 'Suelo Helado: la Prisión deja suelo que pone capas',
+    i22: 'Glaciar: congelar da capas a los que están cerca',
+    i28: `Corazón del Invierno: bastan ${E.max - 1} capas; congelar a un jefe lo quiebra`,
+  };
+}
+function cargasNodes(T) {
+  const A = T.cargas;
+  return {
+    a0: 'Cargas Arcanas: el Dardo las da y el Rayo las gasta',
+    a1: 'Memoria Arcana: las Cargas duran más',
+    a4: 'Potencia Acumulada: cada Carga da más al Rayo',
+    a5: 'Rebote Cargado: el Orbe te da Cargas',
+    a16: `Resonancia: con ${A.max} Cargas no se pierden`,
+    a22: 'Cargas Desbordadas: guardas más Cargas',
+    a28: 'Singularidad: las Cargas ya no se pierden',
+  };
+}
+// capas que pone la Prisión de Hielo: las de su definición (`layers`, catálogo); si no, las de la Nova
+function prisionLayers() {
+  const L = MAGA_SKILLS.find(s => s.id === 'k_prision')?.layers;
+  return L > 0 ? L : gaugeTuning().escarcha.nova;
+}
+
 const TT = gaugeTuning();
+calor.nodes = calorNodes(TT);
+escarcha.nodes = escarchaNodes(TT);
+cargas.nodes = cargasNodes(TT);
 calor.demo = calorDemo(TT);
 escarcha.demo = escarchaDemo(TT);
 cargas.demo = cargasDemo(TT);

@@ -125,15 +125,18 @@ const castAt = (h, slot, id, x, z, sec = 0.5) => { h.setSlot(slot, id); h.aim(x,
   const hp = h.p.hp;
   h.p.takeDamage(500, 1, { source: e });
   eq(h.p.hp, hp, 'Bloque: no recibe daño');
-  h.p.pos.x = 3; h.step(0.1);
-  ok(Math.abs(h.p.pos.x) < 0.01, 'Bloque: no puede moverse');
+  const x0 = h.p.pos.x;
+  h.p.moveTarget = h.p.pos.clone().setX(x0 + 5); h.step(0.5);
+  ok(Math.abs(h.p.pos.x - x0) < 1e-6 && h.p.moveMulProduct() === 0, 'Bloque: no puede moverse (multiplicador de movimiento 0)');
   h.setSlot('rmb', 'bola_fuego'); h.aim(3, 0);
   eq(h.cast('rmb'), false, 'Bloque: no puede atacar');
-  h.step(4.1);
-  ok(!(h.p.castLock > 0), 'Bloque: al terminar vuelve a actuar');
+  h.step(3.6);
+  ok(!(h.p.castLock > 0) && h.p.moveMulProduct() === 1, 'Bloque: al terminar vuelve a actuar y a moverse');
+  h.p.moveTarget = h.p.pos.clone().setX(h.p.pos.x + 5); h.step(0.3);
+  ok(h.p.pos.x > x0 + 0.5, 'Bloque: después, camina');
   castAt(h, 'k2', 'm_t_bloque', 2, 0, 0.1);
   h.p.dodge(); h.step(0.1);
-  ok(!h.p._mgBlock && !(h.p.invulnT > 0), 'Bloque: la esquiva rompe el hielo antes');
+  ok(!h.p._mgBlock && !(h.p.invulnT > 0) && h.p.moveMulProduct() === 1, 'Bloque: la esquiva rompe el hielo antes (y te deja moverte)');
 }
 console.log('✓ activas de talento: Contrahechizo, Inversión del Tiempo y Bloque de Hielo');
 
@@ -156,16 +159,23 @@ console.log('✓ activas de talento: Contrahechizo, Inversión del Tiempo y Bloq
   eq(h.gaugeValue('escarcha', n), 1, 'congelar: Glaciar lo ve una vez (no en cada sondeo)');
   eq(h.p.shields.length, 1, 'congelar: el Cristal Protector, una vez');
 }
-{ // repetición «sola» (Ventisca Viva): abre su propia serie; no gasta las de tu último lanzamiento
+{ // repetición «sola» (Ventisca Viva): va en su propia serie; la de tu último lanzamiento queda igual
   const h = H({ spec: 'crionte', talents: { specRanks: { i10: 1, i7: 2 }, choice: { i10: 'A' } } });   // Tormenta de 10 s
   const out = [];
   const orig = h.g.castSkillSlot.bind(h.g);
   h.g.castSkillSlot = (slot, mult = 0) => { const r = orig(slot, mult); if (mult > 0) out.push({ id: h.p.hotbar[slot], r }); return r; };
+  // tu última Nova ya gastó 2 de sus 3 repeticiones (Archimaga, Gran Grimorio…)
+  h.p.skState.nova_hielo = { ...(h.p.skState.nova_hielo || {}), echo: { seq: 7, n: 2 } };
+  // sin la Nova en la barra: la toma prestada un instante y la devuelve
+  for (const k of Object.keys(h.p.hotbar)) if (h.p.hotbar[k] === 'nova_hielo') h.p.hotbar[k] = null;
+  const bar = { ...h.p.hotbar };
   castAt(h, 'k4', 'm_u_tormenta', 0, 0, 0.05);
   h.p.cds.m_u_tormenta = 0;
   h.tick(10.5);
   ok(out.filter(x => x.id === 'nova_hielo' && x.r).length === 4, 'Ventisca Viva: salen las 4 Novas (más que el tope de 3 repeticiones de un lanzamiento)');
   ok(!magaStorm(h.p), 'la Tormenta acabó');
+  assert.deepEqual(h.p.skState.nova_hielo.echo, { seq: 7, n: 2 }, 'Ventisca Viva: no reinicia ni gasta la serie de tu última Nova (el tope sigue valiendo)'); checks++;
+  assert.deepEqual(h.p.hotbar, { ...bar, k4: 'm_u_tormenta' }, 'Ventisca Viva: la barra queda como estaba'); checks++;
 }
 { // la Barrera se reconoce por la fuente de su escudo (m_barrera); Barrera Resonante anota su máximo
   const h = cls({ c19: 1 });

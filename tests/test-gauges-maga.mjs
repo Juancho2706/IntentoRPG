@@ -367,5 +367,18 @@ console.log('✅ Barras de la Maga (2d.2 E1): registro, A3, A4, A8, modelos por 
   assert.ok(has(nodeText('maga', 'arcanista', 'a0'), `máx. ${T.cargas.max}`, `duran ${T.cargas.loseAfter} s`, `+${T.cargas.dmgPerCharge} %`, `${T.cargas.manaPerCharge} de maná`), 'Cargas Arcanas');
   assert.ok(has(nodeText('maga', 'arcanista', 'a1'), `(antes ${T.cargas.loseAfter} s)`), 'Memoria Arcana');
   assert.ok(has(rankText('maga', 'arcanista', 'a16', 2), `+${2 * T.cargas.resonanceCrit} %`), 'Resonancia');
+  assert.ok(has(nodeText('maga', 'piromante', 's16'), `más de ${T.calor.brasero} de Calor`), 'Brasero');
+  assert.ok(has(nodeText('maga', 'crionte', 'i2'), `${T.escarcha.critLayers} o más capas`), 'Filo Helado');
+  // los rótulos de los nodos en la barra sacan sus números de T (no van escritos a mano)
+  const nodes = id => V[id].nodes;
+  assert.ok(has(nodes('calor').s9, `${T.calor.llamarada} de Calor`, `${T.calor.voraz} por enemigo`) && has(nodes('calor').s16, `${T.calor.brasero} de Calor`)
+    && has(nodes('calor').s28, `a ${T.calor.ignitionAt}`), 'nodos del Calor con los números de T');
+  assert.ok(has(nodes('escarcha').i0, `a ${T.escarcha.max},`) && has(nodes('escarcha').i2, `${T.escarcha.critLayers} capas`)
+    && has(nodes('escarcha').i28, `bastan ${T.escarcha.max - 1} capas`), 'nodos de la Escarcha con los números de T');
+  assert.ok(has(nodes('cargas').a16, `con ${T.cargas.max} Cargas`), 'nodos de las Cargas con los números de T');
+  // la Prisión pone las capas de su definición (catálogo: layers), no las de la Nova
+  const { MAGA_SKILLS } = await import('../js/skills-maga.js');
+  const prision = MAGA_SKILLS.find(s => s.id === 'k_prision').layers;
+  assert.ok(prision > 0 && has(V.escarcha.explain(T).cols[0][1], `Prisión de Hielo +${prision}`), 'explain: las capas de la Prisión salen de su definición');
   console.log('✅ gaugeView v2 de la Maga (movido de test75): x, seq y gaugeTuning contra el texto de los nodos OK');
 }
