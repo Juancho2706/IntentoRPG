@@ -353,7 +353,7 @@ Todas las referencias de barra y recomendaciones están en el catálogo.
 
 Activas de talento NUEVAS (en `--write` no entran en `ARQUERA_TALENT_SKILLS` hasta que existan): `a_h_torbellino`, `a_h_puntas`, `a_h_halcon`.
 
-Activas de talento del juego actual que dejan de serlo en 2g (pasan al kit de `skills-arquera.js` o se retiran; lista de cada doc): `a_t_voltereta`, `a_t_conmocion`, `a_t_silencio`, `a_t_apuntado`, `a_t_vision`, `a_t_disuasorio`, `a_t_cepo`, `a_t_arpon`, `a_t_senuelo`, `a_t_andanada`, `a_t_danza`, `a_t_salto`.
+Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skills-arquera.js` o se retiran; lista de cada doc): `a_t_voltereta`, `a_t_conmocion`, `a_t_silencio`, `a_t_apuntado`, `a_t_vision`, `a_t_disuasorio`, `a_t_cepo`, `a_t_arpon`, `a_t_senuelo`, `a_t_andanada`, `a_t_danza`, `a_t_salto`.
 
 ## Poderes nuevos citados (comprobar contra out/power-ids.json, D28)
 

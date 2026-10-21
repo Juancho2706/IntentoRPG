@@ -2,22 +2,26 @@
 //  0) tools/convert-v2/divergencias.json bien formado (divergencias deliberadas, con motivo)
 //  1) js/talent-text.js da el mismo texto que los helpers del mockup (n1, pl)
 //  2) reglas comunes: TALENT_RULES / LEVEL_MAX / earnedAt / puertas = TV2.REGLAS (cuando js/talents.js exporte TALENT_RULES)
-//  3) por clase, lo que el juego ya tenga en v2: talentos (<CLASE>_TALENTS.v === 2) y catálogo (<CLASE>_CATALOG_V === 2)
-//     contra docs/mockups/data/talents-v2-<clase>.js; las clases que siguen en v1 se saltan
+//  3) por clase: talentos (<CLASE>_TALENTS.v === 2 en las TRES desde E1.5: una clase en v1 es un error, no se salta) y
+//     catálogo (si <CLASE>_CATALOG_V === 2) contra docs/mockups/data/talents-v2-<clase>.js. El grant de una activa que
+//     ya existe en el juego (kind 'talent' en CLASSES) no puede faltar; solo las que aún no existen quedan pendientes
 //  4) autocomprobación (corre siempre): el conversor en memoria da 0 diferencias y la paridad detecta una diferencia
 //     sembrada en cada parte (nombre, d(r), opción, build, forja, barra), y una divergencia declarada la cubre
 //  5) identificadores libres de d(r) e ids de poder repetidos entre clases (D28) sobre datos sintéticos
+//  6) el conversor sobre los datos reales: 0 claves SIN TRADUCCIÓN y 0 tv/stats sin decidir (claves-impl.md), con la
+//     foto del juego v1 (tools/convert-v2/juego-v1.json) y el juego vivo
 // Si cambian los datos del mockup de Guerrero o Arquera (D18), este test se pone en rojo en cuanto su clase esté en v2:
 // se sincroniza con `node tools/convert-v2/convert.mjs --draft <clase>` + diff, o se declara la divergencia.
 import assert from 'node:assert/strict';
 import { CLASES, PREFIJO, cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
-import { juegoDeClase } from '../tools/convert-v2/lib/juego.mjs';
+import { juegoDeClase, juegoV1, fotoV1, vocabularioJuego } from '../tools/convert-v2/lib/juego.mjs';
 import { convertirClase, verificarN1 } from '../tools/convert-v2/lib/transformar.mjs';
 import { identificadoresLibres, verificarD } from '../tools/convert-v2/lib/funciones.mjs';
-import { informePoderes } from '../tools/convert-v2/lib/impl.mjs';
+import { informePoderes, informeClaves } from '../tools/convert-v2/lib/impl.mjs';
 import { compararClase, compararReglas, aplicarDivergencias, cargarDivergencias } from '../tools/convert-v2/paridad.mjs';
 import * as TT from '../js/talent-text.js';
 import * as CORE from '../js/talents.js';
+import { CLASSES } from '../js/data.js';
 
 const helpers = Object.fromEntries(Object.entries(TT).filter(([, v]) => typeof v === 'function'));
 const log = [];
@@ -49,13 +53,18 @@ for (const cls of CLASES) {
   const P = PREFIJO[cls];
   const cat = j.catalogV === 2 ? { skills: j.skills, talentSkills: j.talentSkills, forge: j.skillsMod[`${P}_SKILL_FORGE`], specBar: j.skillsMod[`${P}_SPEC_BAR`],
     forgeReco: j.skillsMod[`${P}_FORGE_RECO`], fallbackBar: j.skillsMod[`${P}_FALLBACK_BAR`] } : null;
-  if (j.v !== 2 && !cat) { log.push(`${cls}: el juego sigue en v1 (talentos y catálogo) → se salta`); continue; }
-  const R = compararClase({ cls, C: m.C, TV2: m.TV2, talents: j.v === 2 ? j.talents : null, cat });
+  assert.equal(j.v, 2, `${cls}: js/talents-${cls}.js debe estar en v2 desde E1.5 (una clase en v1 ya no se salta)`);
+  // activas de talento que el juego tiene HOY (puente de E1.5 o catálogo 2g): su grant no puede faltar
+  const activas = CLASSES[cls].skills.filter(s => s.kind === 'talent').map(s => s.id);
+  assert.ok(activas.length >= 2, `${cls}: el juego tiene sus activas de talento (${activas})`);
+  const R = compararClase({ cls, C: m.C, TV2: m.TV2, talents: j.talents, cat, activas });
+  for (const p of R.pendientes) assert.ok(!activas.some(id => p.includes(`concede ${id} `)), `${cls}: grant pendiente de una activa que ya existe: ${p}`);
   const { errores, cubiertas, obsoletas } = aplicarDivergencias(R, divs);
   assert.deepEqual(errores, [], `${cls}: el juego no coincide con el mockup (${m.rel}, sha1 ${m.hash}); sincroniza con ` +
     `\`node tools/convert-v2/convert.mjs --draft ${cls}\` o declara la divergencia en tools/convert-v2/divergencias.json:\n${errores.join('\n')}`);
-  log.push(`${cls}: ${j.v === 2 ? 'talentos v2' : 'talentos v1 (se saltan)'} · ${cat ? 'catálogo v2' : 'catálogo v1 (se salta)'} · paridad ✓` +
-    `${cubiertas.length ? ` · ${cubiertas.length} divergencias declaradas` : ''}${R.pendientes.length ? ` · ${R.pendientes.length} grants pendientes` : ''}` +
+  log.push(`${cls}: talentos v2 · ${cat ? 'catálogo v2' : 'catálogo v1 (se salta)'} · paridad ✓` +
+    `${cubiertas.length ? ` · ${cubiertas.length} divergencias declaradas` : ''}` +
+    `${R.pendientes.length ? ` · ${R.pendientes.length} grants pendientes (${R.pendientes.map(p => p.match(/concede (\S+)/)?.[1]).join(', ')})` : ''}` +
     `${obsoletas.length ? ` · ⚠ ${obsoletas.length} divergencias declaradas que ya no divergen` : ''}`);
 }
 
@@ -83,6 +92,17 @@ for (const cls of CLASES) {
   if (elec) siembra('un papel de opción cambiado', () => { const o = elec.opts[1], v = o.role; o.role = 'XX'; return () => { o.role = v; }; }, `clase.${elec.id}.opts.B.role`);
   const sp = conv.talents.specs.find(s => s.nodes.length);
   if (sp) siembra('un requisito cambiado', () => { const n = sp.nodes[1], v = n.req; n.req = ['zz']; return () => { n.req = v; }; }, `spec.${sp.id}.${sp.nodes[1].id}.req`);
+  // un grant que falta: con la activa en el juego es una diferencia; sin ella (y con todo), un pendiente
+  const conG = conv.talents.cls.nodes.find(n => n.t === 'c' && n.opts[0].fx?.grant);
+  if (conG) {
+    const o = conG.opts[0], act = o.fx.grant;
+    delete o.fx.grant; o.todo = 'esqueleto';
+    const conActiva = compararClase({ cls, C: m.C, TV2: m.TV2, talents: conv.talents, cat, activas: [act] });
+    assert.ok(conActiva.difs.some(d => d.ruta === `clase.${conG.id}.opts.A.grant`), `${cls}: la paridad no detecta el grant perdido de ${act} (la activa existe)`);
+    const sinActiva = compararClase({ cls, C: m.C, TV2: m.TV2, talents: conv.talents, cat, activas: [] });
+    assert.ok(!sinActiva.difs.length && sinActiva.pendientes.some(p => p.includes(`concede ${act} `)), `${cls}: sin la activa en el juego, el grant de ${act} queda pendiente`);
+    o.fx.grant = act; delete o.todo;
+  }
   const [bk, b] = Object.entries(conv.talents.builds)[0] || [];
   if (b && Object.keys(b.spec || {}).length > 1) siembra('el orden de compra de una build', () => {
     const v = b.spec, ks = Object.keys(v); b.spec = Object.fromEntries([ks[1], ks[0], ...ks.slice(2)].map(k => [k, v[k]])); return () => { b.spec = v; };
@@ -114,5 +134,21 @@ const inf = informePoderes({
 assert.equal(inf.ok, false);
 assert.deepEqual(inf.choques.map(c => c.id), ['a_rebote'], 'D28: un id en dos clases es un choque');
 assert.deepEqual(inf.dobleDeclaracion.map(c => c.id), ['m_y'], 'D28: un id declarado NUEVO en dos nodos de una clase');
+
+// ---------- 6) el conversor sobre los datos reales: claves sin traducir (claves-impl.md)
+{
+  const foto = fotoV1();
+  for (const cls of CLASES) {
+    const v1 = juegoV1(cls, foto);
+    assert.ok(v1.v === 1 && v1.talentSkills.length > 0 && v1.skills.length > 0, `${cls}: la foto del juego v1 tiene su catálogo y sus activas v1`);
+  }
+  const porClase = {}, fuentes = [];
+  for (const cls of CLASES) { const m = cargarMockup(cls); if (m.C) { porClase[cls] = { C: m.C }; fuentes.push({ cls, rel: m.rel, hash: m.hash, estado: m.C.estado }); } }
+  const claves = informeClaves(porClase, await vocabularioJuego({ foto }), fuentes);
+  const seccion = cab => { const i = claves.md.indexOf(cab); return i < 0 ? '' : claves.md.slice(i, claves.md.indexOf('\n## ', i + 1)); };
+  assert.equal(claves.sin, 0, `claves SIN TRADUCCIÓN (tools/convert-v2/claves-w2.mjs o cola W2):\n${seccion('## 2. SIN TRADUCCIÓN')}`);
+  assert.equal(claves.sinDecidir, 0, 'claves tv/stats sin decidir (núcleo, clase o cola W2)');
+  log.push(`claves de impl/k: 0 SIN TRADUCCIÓN · ${claves.alias} alias · ${claves.cola} peticiones a la cola W2`);
+}
 
 console.log(`test-v2-paridad ✓\n  · ${log.join('\n  · ')}`);

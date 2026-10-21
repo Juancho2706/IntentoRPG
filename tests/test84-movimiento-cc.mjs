@@ -194,6 +194,15 @@ const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
   const tree = want.hero?.tree, heroRanks = want.hero?.nodes?.[tree] || {};
   assert.equal(Object.keys(heroRanks).length, T.TALENT_RULES.pts.hero, `Nv100: los ${T.TALENT_RULES.pts.hero} nodos del árbol héroe «${tree}»`);
   assert.deepEqual(h.p.talents.hero.berserker.nodes[tree], heroRanks, 'build: árbol héroe');
+  // el arnés acepta el estado v2 tal cual (talents.spec = id de la especialización) y FUSIONA su árbol héroe
+  // con el de la build (antes lo sustituía entero)
+  const heroTree = T.findHero('guerrero', tree);
+  const extra = heroTree.nodes.find(n => !n.free && !heroRanks[n.id] && !(n.req || []).some(q => !heroRanks[q] && !heroTree.nodes.find(x => x.id === q)?.free));
+  assert.ok(extra, `${tree}: un nodo comprable fuera de la build`);
+  const h2 = verbHarness('guerrero', { level: 100, build: key, talents: { spec: 'berserker', hero: { berserker: { nodes: { [tree]: { [extra.id]: 1 } } } } } });
+  assert.equal(h2.p.talents.spec, 'berserker', 'talents.spec como cadena = la especialización');
+  assert.deepEqual(h2.p.talents.hero.berserker.nodes[tree], { ...heroRanks, [extra.id]: 1 }, 'talents.hero se suma a la build');
+  assert.throws(() => verbHarness('guerrero', { level: 100, spec: 'guardian', talents: { spec: 'berserker' } }), /no coinciden/);
   h.p.skillForge = { vx_corazon: 'i' };
   h.p.recompute();
   const agg = h.p.talentAgg;

@@ -1,0 +1,2494 @@
+{
+ "_meta": {
+  "nota": "Foto congelada del juego v1 (antes de la conmutación de E1.5) para tools/convert-v2: activas de talento v1, catálogo base, especializaciones y vocabulario de claves. La genera tools/convert-v2/foto-v1.mjs; no se edita a mano.",
+  "commit": "a3440a7",
+  "generado": "node tools/convert-v2/foto-v1.mjs --commit a3440a7"
+ },
+ "clases": {
+  "maga": {
+   "v": 1,
+   "catalogV": 1,
+   "skills": [
+    {
+     "id": "m_dardo",
+     "name": "Dardo Arcano",
+     "icon": "✨",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "proj",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "weapon",
+     "req": 1,
+     "coef": 1.05,
+     "gen": 3,
+     "color": 13395711,
+     "desc": "Lanza un dardo arcano a distancia (100 % del daño de arma) y recupera 3 de Maná al impactar."
+    },
+    {
+     "id": "m_ascua",
+     "name": "Ascua",
+     "icon": "🔸",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "proj",
+      "area",
+      "fire"
+     ],
+     "elem": "fire",
+     "type": "proj",
+     "req": 3,
+     "coef": 0.75,
+     "splash": 0.3,
+     "radius": 1.5,
+     "gen": 3,
+     "speed": 14,
+     "range": 9,
+     "size": 0.16,
+     "color": 16747059,
+     "desc": "Lanza una ascua que estalla al impactar: 75 % de daño al objetivo y 30 % a los enemigos a 1,5 m. Recupera 3 de Maná si acierta."
+    },
+    {
+     "id": "m_toque",
+     "name": "Toque Gélido",
+     "icon": "🌬️",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "cone",
+      "cc",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "cone",
+     "req": 8,
+     "coef": 0.7,
+     "radius": 4,
+     "angle": 70,
+     "range": 4,
+     "slow": 1.5,
+     "slowPct": 20,
+     "gen": 4,
+     "color": 10478591,
+     "desc": "Exhalas un vaho helado en un cono de 70° y 4 m: 70 % de daño a todos y los ralentiza un 20 % durante 1,5 s. Recupera 4 de Maná si acierta."
+    },
+    {
+     "id": "bola_fuego",
+     "name": "Bola de Fuego",
+     "icon": "🔥",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "proj",
+      "area",
+      "fire"
+     ],
+     "elem": "fire",
+     "type": "proj",
+     "req": 2,
+     "coef": 2.2,
+     "splash": 3.5,
+     "radius": 2,
+     "cost": 18,
+     "cd": 1.5,
+     "windup": 0.3,
+     "speed": 13,
+     "range": 12,
+     "size": 0.26,
+     "color": 16737826,
+     "desc": "Tras 0,3 s de lanzamiento, una esfera ardiente que explota al impactar: 220 % de daño al objetivo y 350 % a los enemigos a 2 m. Cuesta 18 de Maná; enfriamiento 1,5 s."
+    },
+    {
+     "id": "rayo",
+     "name": "Rayo",
+     "icon": "⚡",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "proj",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "proj",
+     "req": 8,
+     "coef": 2.3,
+     "cost": 20,
+     "cd": 2.2,
+     "lockT": 0.3,
+     "speed": 18,
+     "range": 13,
+     "pierce": true,
+     "beam": true,
+     "color": 16772710,
+     "desc": "Un rayo arcano que atraviesa a todos los enemigos en línea (230 % de daño). Cuesta 20 de Maná; enfriamiento 2,2 s."
+    },
+    {
+     "id": "nova_hielo",
+     "name": "Nova de Hielo",
+     "icon": "❄️",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "area",
+      "cc",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "area",
+     "at": "self",
+     "req": 14,
+     "coef": 1.4,
+     "cost": 25,
+     "cd": 4,
+     "radius": 3.3,
+     "slow": 3,
+     "slowPct": 30,
+     "color": 6737151,
+     "desc": "Una onda gélida a tu alrededor (3,3 m): 140 % de daño y ralentiza un 30 % durante 3 s. Cuesta 25 de Maná; enfriamiento 4 s."
+    },
+    {
+     "id": "meteoro",
+     "name": "Meteoro",
+     "icon": "☄️",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "area",
+      "fire"
+     ],
+     "elem": "fire",
+     "type": "area",
+     "at": "target",
+     "req": 14,
+     "coef": 3.7,
+     "cost": 40,
+     "cd": 6,
+     "radius": 3,
+     "range": 11,
+     "impactDelay": 0.6,
+     "shake": 0.5,
+     "color": 16729088,
+     "desc": "Invoca un meteoro que se estrella 0,6 s después en la zona elegida (3 m): 370 % de daño. Cuesta 40 de Maná; enfriamiento 6 s."
+    },
+    {
+     "id": "m_paso_escarcha",
+     "name": "Paso de Escarcha",
+     "icon": "🧊",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "frost"
+     ],
+     "elem": "frost",
+     "behavior": "m_paso_escarcha",
+     "req": 4,
+     "cd": 10,
+     "range": 6,
+     "lockT": 0.2,
+     "radius": 1.5,
+     "dur": 3,
+     "slow": 1,
+     "slowPct": 40,
+     "color": 10478591,
+     "desc": "Te deslizas 6 m hacia la mira y dejas una estela helada durante 3 s que ralentiza un 40 % a quien la pisa. Enfriamiento 10 s."
+    },
+    {
+     "id": "m_estela_ignea",
+     "name": "Estela Ígnea",
+     "icon": "♨️",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "zone",
+      "fire"
+     ],
+     "elem": "fire",
+     "behavior": "m_estela_ignea",
+     "req": 12,
+     "coef": 0.4,
+     "cd": 10,
+     "range": 6,
+     "lockT": 0.2,
+     "radius": 1.5,
+     "dur": 3,
+     "color": 16742195,
+     "desc": "Te deslizas 6 m hacia la mira dejando un rastro de fuego durante 3 s: 40 % de daño por segundo a quien lo pisa. Enfriamiento 10 s."
+    },
+    {
+     "id": "m_armadura",
+     "name": "Armadura de Hielo",
+     "icon": "🛡️",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "shield",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "shield",
+     "req": 6,
+     "cd": 12,
+     "shieldPct": 30,
+     "dur": 8,
+     "color": 8965375,
+     "desc": "Te envuelve una coraza de hielo: escudo del 30 % de tu vida máxima durante 8 s. Enfriamiento 12 s."
+    },
+    {
+     "id": "m_onda",
+     "name": "Onda Repulsora",
+     "icon": "🌀",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "area",
+      "cc",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "behavior": "m_onda",
+     "req": 12,
+     "coef": 0.8,
+     "cost": 15,
+     "cd": 12,
+     "radius": 4,
+     "knock": 5,
+     "stun": 0.5,
+     "color": 12160255,
+     "desc": "Una onda arcana a tu alrededor (4 m): 80 % de daño, empuja 5 m a los enemigos y los aturde 0,5 s. Cuesta 15 de Maná; enfriamiento 12 s."
+    },
+    {
+     "id": "m_u_supernova",
+     "name": "Supernova",
+     "icon": "🌟",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "area",
+      "fire"
+     ],
+     "elem": "fire",
+     "behavior": "m_u_supernova",
+     "req": 15,
+     "coef": 4.7,
+     "pulses": 3,
+     "pulseGap": 0.25,
+     "burn": 12,
+     "burnT": 6,
+     "cd": 50,
+     "radius": 5,
+     "range": 10,
+     "windup": 0.15,
+     "impactDelay": 0.5,
+     "shake": 0.6,
+     "color": 16763972,
+     "desc": "Definitiva: una estrella cae en la zona (5 m) y estalla 0,5 s después en tres ondas de 470 % de daño (1410 % en total) que dejan una quemadura de 1200 % en 6 s. Enfriamiento 50 s."
+    },
+    {
+     "id": "m_u_tormenta",
+     "name": "Tormenta Glacial",
+     "icon": "🌨️",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "zone",
+      "cc",
+      "frost"
+     ],
+     "elem": "frost",
+     "behavior": "m_u_tormenta",
+     "req": 15,
+     "coef": 0.6,
+     "cd": 55,
+     "radius": 6,
+     "dur": 8,
+     "interval": 0.5,
+     "slowPct": 40,
+     "freeze": 1.5,
+     "freezeAt": 5,
+     "color": 12577279,
+     "desc": "Definitiva: una ventisca te sigue durante 8 s (6 m): 60 % de daño cada 0,5 s (960 % en total), ralentiza un 40 % y congela 1,5 s a quien encadena 5 golpes (con rendimientos decrecientes). Enfriamiento 55 s."
+    },
+    {
+     "id": "m_u_desgarro",
+     "name": "Desgarro Arcano",
+     "icon": "🌌",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "channel",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "channel",
+     "unstoppable": true,
+     "req": 15,
+     "coef": 4.4,
+     "channelT": 3,
+     "ticks": 6,
+     "cd": 45,
+     "range": 10,
+     "color": 13798655,
+     "desc": "Definitiva: canalizas un rayo arcano gigante durante 3 s contra un objetivo (880 % de daño por segundo, 2640 % en total). Eres imparable mientras dura; mantén la tecla. Enfriamiento 45 s."
+    }
+   ],
+   "talentSkills": [
+    {
+     "id": "m_t_barrera",
+     "name": "Barrera de Maná",
+     "icon": "🔮",
+     "kind": "talent",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "shield",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "shield",
+     "behavior": "m_t_barrera",
+     "req": 10,
+     "cd": 20,
+     "dur": 8,
+     "shieldManaPct": 60,
+     "color": 12160255,
+     "desc": "Una burbuja de maná absorbe daño igual al 60 % de tu maná máximo durante 8 s. Enfriamiento 20 s."
+    },
+    {
+     "id": "m_t_parpadeo",
+     "name": "Parpadeo",
+     "icon": "💫",
+     "kind": "talent",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "blink",
+     "req": 10,
+     "cd": 15,
+     "range": 8,
+     "color": 10070783,
+     "desc": "Te teletransportas al instante 8 m hacia el cursor (atraviesas enemigos, no muros). Enfriamiento 15 s."
+    },
+    {
+     "id": "m_t_contrahechizo",
+     "name": "Contrahechizo",
+     "icon": "🚫",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "interrupt",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "behavior": "m_t_contrahechizo",
+     "req": 10,
+     "cd": 18,
+     "range": 12,
+     "silence": 3,
+     "stagger": 20,
+     "color": 13404415,
+     "desc": "Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s."
+    },
+    {
+     "id": "m_t_inversion",
+     "name": "Inversión del Tiempo",
+     "icon": "⏳",
+     "kind": "talent",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "behavior": "m_t_inversion",
+     "req": 10,
+     "cd": 60,
+     "rewind": 5,
+     "color": 14140159,
+     "desc": "Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo se graba desde que conoces esta activa). Enfriamiento 60 s."
+    },
+    {
+     "id": "m_t_bloque",
+     "name": "Bloque de Hielo",
+     "icon": "🧊",
+     "kind": "talent",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "frost"
+     ],
+     "elem": "frost",
+     "behavior": "m_t_bloque",
+     "req": 10,
+     "cd": 90,
+     "dur": 4,
+     "color": 10478591,
+     "desc": "Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s."
+    },
+    {
+     "id": "p_llamarada",
+     "name": "Llamarada",
+     "icon": "🔥",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "cone",
+      "fire"
+     ],
+     "elem": "fire",
+     "type": "cone",
+     "behavior": "p_llamarada",
+     "req": 10,
+     "coef": 1.5,
+     "cost": 25,
+     "cd": 8,
+     "radius": 7,
+     "angle": 70,
+     "windup": 0.1,
+     "detonatePct": 60,
+     "color": 16742946,
+     "desc": "Insignia del Piromante: un cono de fuego de 7 m (preparación de 0,1 s): 150 % del arma y detona las Quemaduras, que hacen al instante el 60 % de su daño restante. Cuesta 25 de Maná; enfriamiento 8 s."
+    },
+    {
+     "id": "p_combustion",
+     "name": "Combustión",
+     "icon": "☀️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "buff",
+      "fire"
+     ],
+     "elem": "fire",
+     "type": "buff",
+     "behavior": "p_combustion",
+     "req": 10,
+     "cd": 90,
+     "dur": 10,
+     "buff": {},
+     "fireAlwaysCrit": true,
+     "gaugeMult": 2,
+     "color": 16755251,
+     "desc": "Durante 10 s tus hechizos de Fuego son siempre críticos y el Calor se llena el doble de rápido. Enfriamiento 90 s."
+    },
+    {
+     "id": "p_muro_fuego",
+     "name": "Muro de Fuego",
+     "icon": "🧱",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "utility",
+      "spec",
+      "zone",
+      "fire"
+     ],
+     "elem": "fire",
+     "type": "zone",
+     "behavior": "p_muro_fuego",
+     "at": "target",
+     "req": 10,
+     "coef": 0.6,
+     "cost": 20,
+     "cd": 18,
+     "dur": 5,
+     "range": 10,
+     "radius": 2,
+     "length": 8,
+     "width": 1,
+     "blocks": true,
+     "color": 16733457,
+     "desc": "Levantas una línea de fuego de 8 m durante 5 s que quema (60 % del arma por segundo) y bloquea el paso a los enemigos que no son jefes. Cuesta 20 de Maná; enfriamiento 18 s."
+    },
+    {
+     "id": "k_prision",
+     "name": "Prisión de Hielo",
+     "icon": "🏔️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "area",
+      "cc",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "area",
+     "behavior": "k_prision",
+     "at": "target",
+     "req": 10,
+     "coef": 0.8,
+     "cost": 30,
+     "cd": 20,
+     "radius": 4,
+     "range": 10,
+     "windup": 0.12,
+     "layers": 5,
+     "freezeDur": 2,
+     "bossStagger": 20,
+     "color": 8969727,
+     "desc": "Insignia del Crionte: encierras en hielo a los enemigos en 4 m (preparación de 0,12 s): 80 % del arma y 5 capas de Escarcha, que los dejan Congelados 2 s; los jefes quedan Ateridos y suman 20 de stagger. Cuesta 30 de Maná; enfriamiento 20 s."
+    },
+    {
+     "id": "k_lanza",
+     "name": "Lanza de Hielo",
+     "icon": "🔱",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "rmb",
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "spender",
+      "proj",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "proj",
+     "behavior": "k_lanza",
+     "req": 10,
+     "coef": 2.5,
+     "cost": 22,
+     "cd": 6,
+     "speed": 20,
+     "range": 13,
+     "pierce": true,
+     "frozenMult": 3,
+     "burstRadius": 2,
+     "color": 11463423,
+     "desc": "Una lanza cristalina perforante: 250 % del arma; a los Congelados les hace el triple y los astilla en un estallido de 2 m. Cuesta 22 de Maná; enfriamiento 6 s."
+    },
+    {
+     "id": "k_ventisca",
+     "name": "Ventisca",
+     "icon": "🌨️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "zone",
+      "cc",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "zone",
+     "behavior": "k_ventisca",
+     "at": "target",
+     "req": 10,
+     "coef": 0.3,
+     "cost": 35,
+     "cd": 15,
+     "radius": 5,
+     "dur": 6,
+     "range": 10,
+     "layersPerSec": 1,
+     "color": 13627391,
+     "desc": "Una tormenta de 5 m durante 6 s: 30 % del arma por segundo y suma 1 capa de Escarcha por segundo a todo lo que está dentro. Cuesta 35 de Maná; enfriamiento 15 s."
+    },
+    {
+     "id": "k_aliento",
+     "name": "Aliento Boreal",
+     "icon": "🌬️",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "utility",
+      "spec",
+      "cone",
+      "cc",
+      "frost"
+     ],
+     "elem": "frost",
+     "type": "cone",
+     "behavior": "k_aliento",
+     "req": 10,
+     "coef": 1,
+     "cost": 20,
+     "cd": 12,
+     "radius": 6,
+     "angle": 70,
+     "knock": 4,
+     "layers": 3,
+     "color": 12577535,
+     "desc": "Exhalas un cono helado de 6 m: 100 % del arma, empuja 4 m y suma 3 capas de Escarcha. Cuesta 20 de Maná; enfriamiento 12 s."
+    },
+    {
+     "id": "a_orbe",
+     "name": "Orbe Arcano",
+     "icon": "🔵",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "proj",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "proj",
+     "behavior": "a_orbe",
+     "req": 10,
+     "coef": 2,
+     "cost": 20,
+     "cd": 8,
+     "speed": 6,
+     "range": 14,
+     "pierce": true,
+     "bounces": 2,
+     "color": 11766015,
+     "desc": "Insignia de la Arcanista: un orbe lento que atraviesa a los enemigos y rebota 2 veces (200 % del arma por impacto). Cuesta 20 de Maná; enfriamiento 8 s."
+    },
+    {
+     "id": "a_misiles",
+     "name": "Misiles Arcanos",
+     "icon": "✴️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "rmb",
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "spender",
+      "channel",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "channel",
+     "behavior": "a_misiles",
+     "req": 10,
+     "coef": 0.66,
+     "cost": 25,
+     "channelT": 1.2,
+     "ticks": 6,
+     "int": true,
+     "range": 10,
+     "manaPerTickPct": 1,
+     "color": 13798655,
+     "desc": "Canalizas 1,2 s seis misiles sobre un objetivo (66 % del arma cada uno); cada misil te devuelve un 1 % de maná y cada dos te dan 1 Carga Arcana. Los golpes fuertes te interrumpen. Cuesta 25 de Maná."
+    },
+    {
+     "id": "a_sello",
+     "name": "Sello del Archimago",
+     "icon": "🔯",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "mark",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "type": "mark",
+     "behavior": "a_sello",
+     "req": 10,
+     "cd": 45,
+     "dur": 8,
+     "range": 12,
+     "storePct": 25,
+     "charges": 4,
+     "color": 14725375,
+     "desc": "Marcas a un objetivo 8 s y ganas 4 Cargas Arcanas: el sello guarda el 25 % del daño que recibe y, al expirar, estalla con todo. Enfriamiento 45 s."
+    },
+    {
+     "id": "a_evocacion",
+     "name": "Evocación",
+     "icon": "🌀",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "utility",
+      "spec",
+      "channel",
+      "arcane"
+     ],
+     "elem": "arcane",
+     "behavior": "a_evocacion",
+     "req": 10,
+     "cd": 60,
+     "channelT": 3,
+     "ticks": 6,
+     "int": true,
+     "manaPct": 60,
+     "color": 10456319,
+     "desc": "Canalizas 3 s y recuperas el 60 % de tu maná. Los golpes fuertes te interrumpen. Enfriamiento 60 s."
+    }
+   ],
+   "specs": [
+    {
+     "id": "piromante",
+     "role": "dps",
+     "innate": {}
+    },
+    {
+     "id": "crionte",
+     "role": "control",
+     "innate": {
+      "staggerPct": 25
+     }
+    },
+    {
+     "id": "arcanista",
+     "role": "dps",
+     "innate": {}
+    }
+   ],
+   "tv": [
+    "arcChargePct",
+    "barrierDr",
+    "burnDur",
+    "burnKillHeal",
+    "burnKillMana",
+    "burnPct",
+    "burningCrit",
+    "clarityPct",
+    "costRedBig",
+    "critDmg",
+    "critFireCdr",
+    "dmgReduc",
+    "drHighMana",
+    "eliteDmg",
+    "explodedDmg",
+    "fieldVuln",
+    "frostLayers",
+    "highManaDmg",
+    "lowHpDmg",
+    "manaOnKill",
+    "shatterPct",
+    "slowedDmg",
+    "supernovaBurn"
+   ],
+   "stats": [
+    "aspdPct",
+    "cdr",
+    "crit",
+    "mpPct",
+    "mph",
+    "staggerPct",
+    "xpPct"
+   ]
+  },
+  "guerrero": {
+   "v": 1,
+   "catalogV": 1,
+   "skills": [
+    {
+     "id": "g_tajo",
+     "name": "Tajo",
+     "icon": "⚔️",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "melee",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "weapon",
+     "req": 1,
+     "coef": 1,
+     "gen": 10,
+     "genPerExtra": 2,
+     "genMax": 16,
+     "cleave": 0.5,
+     "cleaveR": 2,
+     "desc": "Corta al objetivo (100 % del arma) y a los enemigos pegados a él, a 2 m o menos (50 %). Genera 10 de Furia, +2 por cada enemigo extra (máx. 16)."
+    },
+    {
+     "id": "g_mandoble",
+     "name": "Mandoble",
+     "icon": "🗡️",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "melee",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "melee",
+     "req": 3,
+     "coef": 1.5,
+     "gen": 14,
+     "range": 2.4,
+     "windup": 0.12,
+     "cadence": 1.5,
+     "desc": "Un golpe único y pesado (150 % del arma, preparación de 0,12 s), pero un 50 % más lento que el Tajo. Genera 14 de Furia al acertar."
+    },
+    {
+     "id": "g_embate",
+     "name": "Embate",
+     "icon": "🌀",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "melee",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "area",
+     "at": "self",
+     "req": 8,
+     "coef": 0.6,
+     "gen": 7,
+     "genPerExtra": 2,
+     "genMax": 15,
+     "radius": 2.5,
+     "cadence": 1.1,
+     "desc": "Barrido circular que golpea a todos a 2,5 m (60 % del arma cada uno), un 10 % más lento que el Tajo. Genera 7 de Furia, +2 por cada enemigo extra (máx. 15)."
+    },
+    {
+     "id": "torbellino",
+     "name": "Torbellino",
+     "icon": "🌪️",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "melee",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "area",
+     "at": "self",
+     "req": 2,
+     "coef": 1.5,
+     "cost": 25,
+     "radius": 2.9,
+     "lockT": 0.3,
+     "desc": "Giro instantáneo con el arma: 150 % del arma a todos los enemigos a 2,9 m. Cuesta 25 de Furia."
+    },
+    {
+     "id": "g_hendidura",
+     "name": "Hendidura",
+     "icon": "🪓",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "melee",
+      "cone",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "cone",
+     "req": 8,
+     "coef": 2.9,
+     "cost": 27,
+     "radius": 4.5,
+     "angle": 120,
+     "windup": 0.12,
+     "desc": "Tajo frontal pesado (preparación de 0,12 s): 290 % del arma a todo lo que haya en un cono de 120° y 4,5 m. Cuesta 27 de Furia."
+    },
+    {
+     "id": "g_martillo",
+     "name": "Martillo de Guerra",
+     "icon": "🔨",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "melee",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "area",
+     "at": "target",
+     "req": 8,
+     "coef": 1.5,
+     "cost": 30,
+     "radius": 3,
+     "range": 2.5,
+     "windup": 0.15,
+     "impactDelay": 0.23,
+     "shake": 0.35,
+     "desc": "Descargas el martillo hasta 2,5 m delante (preparación de 0,15 s): la onda hace 150 % del arma a todos en 3 m al tocar el suelo. Cuesta 30 de Furia."
+    },
+    {
+     "id": "terremoto",
+     "name": "Terremoto",
+     "icon": "💥",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "line",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "line",
+     "req": 14,
+     "coef": 3.1,
+     "cost": 26,
+     "cd": 4,
+     "range": 8,
+     "width": 2,
+     "stun": 0.75,
+     "bossStun": false,
+     "windup": 0.15,
+     "desc": "Partes el suelo en una grieta de 8 × 2 m (preparación de 0,15 s): 310 % del arma y aturde 0,75 s a todo lo que alcanza salvo a los jefes. Cuesta 26 de Furia; enfriamiento 4 s."
+    },
+    {
+     "id": "g_lanza",
+     "name": "Lanza Arrojadiza",
+     "icon": "🎯",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "req": 14,
+     "coef": 1.9,
+     "cost": 20,
+     "speed": 16,
+     "range": 11,
+     "pierce": true,
+     "lockT": 0.3,
+     "desc": "Arrojas una lanza que atraviesa a todos los enemigos en 11 m: 190 % del arma a cada uno. Tu respuesta a voladores y lanzadores. Cuesta 20 de Furia."
+    },
+    {
+     "id": "embestida",
+     "name": "Embestida",
+     "icon": "💨",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "melee",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "dash",
+     "req": 4,
+     "coef": 1.2,
+     "cd": 8,
+     "range": 7,
+     "radius": 1.9,
+     "lockT": 0.25,
+     "genOnHit": 12,
+     "desc": "Embistes hasta 7 m hacia la mira: al llegar haces 120 % del arma a todos en 1,9 m y, si golpeas a alguno, ganas 12 de Furia. Enfriamiento 8 s."
+    },
+    {
+     "id": "g_salto",
+     "name": "Salto Devastador",
+     "icon": "🦶",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "area",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "leap",
+     "req": 12,
+     "coef": 1.8,
+     "cd": 12,
+     "radius": 3.2,
+     "range": 8,
+     "airT": 0.45,
+     "slow": 2,
+     "slowPct": 40,
+     "shake": 0.4,
+     "desc": "Saltas hasta 8 m al punto elegido (0,45 s en el aire, intocable) y al caer haces 180 % del arma en 3,2 m y ralentizas un 40 % durante 2 s. Enfriamiento 12 s."
+    },
+    {
+     "id": "g_piel",
+     "name": "Piel de Hierro",
+     "icon": "🛡️",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "buff",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "req": 6,
+     "cd": 20,
+     "dur": 12,
+     "buff": {
+      "dr": 50
+     },
+     "slowImmune": true,
+     "desc": "Tu piel se vuelve de acero 12 s: −50 % de daño recibido (reducción de daño, tope 50 %) e inmunidad a las ralentizaciones. Enfriamiento 20 s."
+    },
+    {
+     "id": "g_provocacion",
+     "name": "Provocación",
+     "icon": "😠",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "taunt",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "taunt",
+     "req": 16,
+     "cd": 8,
+     "range": 15,
+     "dur": 4,
+     "weakenPct": 15,
+     "genOnHit": 15,
+     "desc": "Provocas a un enemigo a 15 m o menos: te ataca a ti durante 4 s y te hace un 15 % menos de daño. Ganas 15 de Furia. Enfriamiento 8 s (no se gasta si no hay objetivo)."
+    },
+    {
+     "id": "grito_guerra",
+     "name": "Grito de Guerra",
+     "icon": "📢",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "shout",
+      "buff",
+      "ally",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "req": 12,
+     "cd": 20,
+     "dur": 8,
+     "buff": {
+      "dmgPct": 10
+     },
+     "allyRadius": 15,
+     "gen": 30,
+     "desc": "Rugido de batalla: ganas 30 de Furia al instante y tu grupo a 15 m gana +10 % de daño durante 8 s. Sin coste; enfriamiento 20 s."
+    },
+    {
+     "id": "g_u_furia",
+     "name": "Furia Inmortal",
+     "icon": "😤",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "buff",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "req": 15,
+     "cd": 60,
+     "dur": 10,
+     "buff": {
+      "aspdPct": 30,
+      "spenderCostPct": -100
+     },
+     "unstoppable": true,
+     "slowImmune": true,
+     "desc": "Definitiva: 10 s de furia sin límite: tus gastadoras no cuestan Furia, +30 % de velocidad de ataque y eres imparable (inmune a control e interrupciones). Enfriamiento 60 s."
+    },
+    {
+     "id": "g_u_cataclismo",
+     "name": "Cataclismo",
+     "icon": "☄️",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "area",
+      "holy"
+     ],
+     "elem": "holy",
+     "type": "area",
+     "at": "target",
+     "behavior": "g_u_cataclismo",
+     "req": 15,
+     "coef": 3.1,
+     "cd": 50,
+     "radius": 3,
+     "range": 9,
+     "windup": 0.15,
+     "impacts": 8,
+     "spanT": 5,
+     "teleT": 0.4,
+     "shake": 0.5,
+     "desc": "Definitiva: 8 meteoros de luz caen en 5 s sobre la zona (cada uno avisa 0,4 s antes): 310 % del arma por impacto en 3 m, hasta 2480 % en el centro. Enfriamiento 50 s."
+    },
+    {
+     "id": "g_u_estandarte",
+     "name": "Estandarte de Guerra",
+     "icon": "🚩",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "aura",
+      "buff",
+      "ally",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "aura",
+     "req": 15,
+     "cd": 55,
+     "dur": 12,
+     "radius": 8,
+     "buff": {
+      "dmgPct": 20,
+      "dr": 15
+     },
+     "resPerSec": 5,
+     "desc": "Definitiva: clavas tu estandarte 12 s. Tu grupo a 8 m o menos gana +20 % de daño, −15 % de daño recibido y 5 de Furia por segundo. Enfriamiento 55 s."
+    }
+   ],
+   "talentSkills": [
+    {
+     "id": "g_t_aliento",
+     "name": "Segundo Aliento",
+     "icon": "❤️‍🩹",
+     "kind": "talent",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "heal",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "g_t_aliento",
+     "req": 10,
+     "cd": 30,
+     "furyPerPct": 3,
+     "color": 16734794,
+     "desc": "Consumes toda tu Furia y te curas un 1 % de vida por cada 3 de Furia gastada (100 de Furia → 33 %). Enfriamiento 30 s."
+    },
+    {
+     "id": "g_t_intervencion",
+     "name": "Intervención",
+     "icon": "🛡️",
+     "kind": "talent",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "ally",
+      "shield",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "leap",
+     "behavior": "g_t_intervencion",
+     "req": 10,
+     "cd": 20,
+     "range": 8,
+     "airT": 0.4,
+     "lockT": 0.4,
+     "shieldPct": 15,
+     "dur": 6,
+     "color": 8961023,
+     "desc": "Saltas hasta un aliado (o 8 m hacia el cursor) y ambos ganan un escudo del 15 % de tu vida máxima durante 6 s. Enfriamiento 20 s."
+    },
+    {
+     "id": "g_t_bramido",
+     "name": "Bramido de Guerra",
+     "icon": "📯",
+     "kind": "talent",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "shout",
+      "buff",
+      "ally",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "behavior": "g_t_bramido",
+     "req": 10,
+     "cd": 28,
+     "dur": 10,
+     "buff": {
+      "hpPct": 30
+     },
+     "allyRadius": 15,
+     "healPct": 40,
+     "color": 16737860,
+     "desc": "Tú y los aliados a 15 m ganan +30 % de vida máxima durante 10 s y se curan un 40 % al instante. Enfriamiento 28 s."
+    },
+    {
+     "id": "g_t_remolino",
+     "name": "Remolino Sangriento",
+     "icon": "🌪️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "melee",
+      "area",
+      "dot",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "g_t_remolino",
+     "req": 10,
+     "coef": 0.57,
+     "cost": 30,
+     "cd": 6,
+     "channelT": 2,
+     "ticks": 10,
+     "radius": 2.9,
+     "dotKind": "bleed",
+     "moveFree": true,
+     "color": 13378082,
+     "desc": "Insignia del Berserker: giras 2 s a velocidad normal golpeando 10 veces a todo lo que hay a 2,9 m (57 % del arma por golpe, 570 % en total) y lo desangras. Cuesta 30 de Furia; enfriamiento 6 s."
+    },
+    {
+     "id": "g_t_temeridad",
+     "name": "Temeridad",
+     "icon": "💢",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "buff",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "behavior": "g_t_temeridad",
+     "req": 10,
+     "cd": 90,
+     "dur": 10,
+     "buff": {
+      "crit": 25
+     },
+     "gaugeMult": 2,
+     "dmgTakenPct": 10,
+     "color": 16724770,
+     "desc": "Durante 10 s ganas +25 % de probabilidad de crítico y tu Sed se llena el doble de rápido, pero recibes +10 % de daño. Enfriamiento 90 s."
+    },
+    {
+     "id": "g_t_ira_ciega",
+     "name": "Ira Ciega",
+     "icon": "👁️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "buff",
+      "utility",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "behavior": "g_t_ira_ciega",
+     "req": 10,
+     "cd": 60,
+     "dur": 6,
+     "buff": {
+      "dmgPct": 30
+     },
+     "hpCostPct": 10,
+     "unstoppable": true,
+     "color": 16720384,
+     "desc": "Pagas un 10 % de tu vida actual: durante 6 s haces +30 % de daño y eres imparable (inmune a control). Enfriamiento 60 s."
+    },
+    {
+     "id": "g_t_desafio",
+     "name": "Grito Desafiante",
+     "icon": "📢",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "shout",
+      "taunt",
+      "cc",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "taunt",
+     "behavior": "g_t_desafio",
+     "req": 10,
+     "cd": 12,
+     "radius": 10,
+     "dur": 6,
+     "weakenPct": 9,
+     "genOnUse": 20,
+     "color": 5609983,
+     "desc": "Insignia del Guardián: provocas a todos los enemigos a 10 m durante 6 s (te hacen −9 % de daño) y ganas 20 de Furia. Enfriamiento 12 s."
+    },
+    {
+     "id": "g_t_muro",
+     "name": "Muro de Escudos",
+     "icon": "🧱",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "defense",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "g_t_muro",
+     "req": 10,
+     "cd": 25,
+     "dur": 8,
+     "drPerCharge": 10,
+     "drMax": 50,
+     "color": 8368360,
+     "desc": "Gastas todas tus cargas de Bastión: −10 % de daño recibido por carga durante 8 s (máx. −50 %). Enfriamiento 25 s."
+    },
+    {
+     "id": "g_t_carga",
+     "name": "Carga de Escudo",
+     "icon": "🐂",
+     "kind": "talent",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "melee",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "dash",
+     "behavior": "g_t_carga",
+     "req": 10,
+     "coef": 1,
+     "cd": 14,
+     "range": 8,
+     "radius": 1.9,
+     "stun": 1.5,
+     "lockT": 0.35,
+     "drag": true,
+     "color": 6724095,
+     "desc": "Cargas 8 m arrastrando a los enemigos que encuentras; al llegar haces 100 % del arma y los aturdes 1,5 s. Enfriamiento 14 s."
+    },
+    {
+     "id": "g_t_devocion",
+     "name": "Aura de Devoción",
+     "icon": "✨",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "aura",
+      "heal",
+      "ally",
+      "holy"
+     ],
+     "elem": "holy",
+     "type": "buff",
+     "behavior": "g_t_devocion",
+     "req": 10,
+     "cd": 30,
+     "dur": 12,
+     "buff": {
+      "arm": 30
+     },
+     "allyRadius": 15,
+     "healPctPerSec": 3,
+     "color": 16768375,
+     "desc": "Insignia del Cruzado: durante 12 s, tú y los aliados a 15 m recuperan un 3 % de vida por segundo y ganan +30 de armadura. Enfriamiento 30 s."
+    },
+    {
+     "id": "g_t_veredicto",
+     "name": "Veredicto Final",
+     "icon": "⚖️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "rmb",
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "spender",
+      "cone",
+      "heal",
+      "holy"
+     ],
+     "elem": "holy",
+     "type": "cone",
+     "behavior": "g_t_veredicto",
+     "req": 10,
+     "coef": 2,
+     "radius": 6,
+     "angle": 40,
+     "windup": 0.12,
+     "gaugeCost": 3,
+     "healDealtPct": 25,
+     "color": 16769162,
+     "desc": "Gastas 3 de Fervor en un golpe sagrado en cono de 40° y 6 m (preparación de 0,12 s): 200 % del arma; el grupo se cura el 25 % del daño hecho."
+    },
+    {
+     "id": "g_t_justicia",
+     "name": "Martillo de Justicia",
+     "icon": "🔨",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "proj",
+      "cc",
+      "holy"
+     ],
+     "elem": "holy",
+     "type": "proj",
+     "req": 10,
+     "coef": 1.2,
+     "cd": 15,
+     "speed": 16,
+     "range": 12,
+     "stun": 3,
+     "bossStun": 1.5,
+     "stagger": 30,
+     "color": 16765803,
+     "desc": "Arrojas un martillo sagrado: 120 % del arma y aturde 3 s al objetivo (a los jefes, 1,5 s y +30 de stagger). Enfriamiento 15 s."
+    }
+   ],
+   "specs": [
+    {
+     "id": "berserker",
+     "role": "dps",
+     "innate": {}
+    },
+    {
+     "id": "guardian",
+     "role": "tank",
+     "innate": {
+      "block": 15,
+      "threatMult": 3,
+      "hpPct": 5
+     }
+    },
+    {
+     "id": "cruzado",
+     "role": "support",
+     "innate": {
+      "healPct": 30
+     }
+    }
+   ],
+   "tv": [
+    "bleedKillHeal",
+    "bleedKillMana",
+    "bleedPct",
+    "costRed",
+    "critDmg",
+    "dmgReduc",
+    "eliteDmg",
+    "executeDmg",
+    "executePct",
+    "fervorChance",
+    "killHeal",
+    "verdictHeal"
+   ],
+   "stats": [
+    "arm",
+    "aspdPct",
+    "block",
+    "cdr",
+    "crit",
+    "healPct",
+    "hp",
+    "hpPct",
+    "lph",
+    "spdPct",
+    "thorns",
+    "threatMult"
+   ]
+  },
+  "arquera": {
+   "v": 1,
+   "catalogV": 1,
+   "skills": [
+    {
+     "id": "a_disparo",
+     "name": "Disparo Rápido",
+     "icon": "🏹",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "weapon",
+     "req": 1,
+     "coef": 1,
+     "gen": 5,
+     "desc": "Dispara una flecha veloz (100 % del daño del arma). Al acertar recupera 5 de Energía."
+    },
+    {
+     "id": "a_disperso",
+     "name": "Disparo Disperso",
+     "icon": "🎇",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "proj",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "req": 3,
+     "coef": 0.45,
+     "gen": 5,
+     "count": 3,
+     "spread": 0.218,
+     "speed": 18,
+     "range": 9.5,
+     "size": 0.1,
+     "color": 15259808,
+     "desc": "Dispara 3 flechas en abanico de 25° (45 % del arma cada una). Al acertar recupera 5 de Energía."
+    },
+    {
+     "id": "a_cicuta",
+     "name": "Flecha de Cicuta",
+     "icon": "🌿",
+     "cat": "basic",
+     "slots": [
+      "lmb"
+     ],
+     "tags": [
+      "basic",
+      "proj",
+      "nature",
+      "dot"
+     ],
+     "elem": "nature",
+     "type": "proj",
+     "req": 8,
+     "coef": 0.7,
+     "gen": 5,
+     "hitDot": {
+      "kind": "poison",
+      "coef": 0.5,
+      "dur": 4
+     },
+     "speed": 17,
+     "range": 9.5,
+     "size": 0.1,
+     "color": 9429082,
+     "desc": "Una flecha untada en cicuta: 70 % del arma al impactar y Veneno de 50 % más durante 4 s (se acumula). Al acertar recupera 5 de Energía."
+    },
+    {
+     "id": "flecha_perforante",
+     "name": "Flecha Perforante",
+     "icon": "➶",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "req": 2,
+     "coef": 2.4,
+     "cost": 26,
+     "cd": 0,
+     "speed": 17,
+     "range": 13,
+     "pierce": true,
+     "lockT": 0.35,
+     "color": 16777164,
+     "desc": "Una flecha pesada (240 % del arma) que atraviesa a todos los enemigos en su camino. 26 de Energía, sin enfriamiento."
+    },
+    {
+     "id": "flecha_multiple",
+     "name": "Flecha Múltiple",
+     "icon": "🔱",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "proj",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "req": 8,
+     "coef": 0.39,
+     "cost": 22,
+     "cd": 0,
+     "speed": 15,
+     "range": 10,
+     "count": 5,
+     "spread": 0.436,
+     "lockT": 0.35,
+     "color": 13426090,
+     "desc": "Dispara 5 flechas en un abanico de 50° (39 % del arma cada una; ≈78 % a un objetivo pegado). 22 de Energía, sin enfriamiento."
+    },
+    {
+     "id": "lluvia_flechas",
+     "name": "Lluvia de Flechas",
+     "icon": "🌧️",
+     "cat": "spender",
+     "slots": [
+      "rmb",
+      "k2"
+     ],
+     "tags": [
+      "spender",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_lluvia",
+     "at": "target",
+     "req": 14,
+     "coef": 0.6,
+     "waves": 4,
+     "span": 1.2,
+     "cost": 30,
+     "cd": 4,
+     "radius": 3,
+     "range": 11,
+     "impactDelay": 0.3,
+     "color": 11206570,
+     "desc": "Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (60 % del arma cada una: 240 % en total). 30 de Energía, enfriamiento 4 s."
+    },
+    {
+     "id": "a_paso",
+     "name": "Paso Veloz",
+     "icon": "👣",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_paso",
+     "req": 4,
+     "cd": 9,
+     "range": 6,
+     "rollT": 0.2,
+     "lockT": 0.2,
+     "dur": 3,
+     "buff": {
+      "aspdPct": 20
+     },
+     "desc": "Ruedas 6 m en la dirección en que te mueves (o hacia el cursor) y ganas +20 % de velocidad de ataque durante 3 s. Enfriamiento 9 s."
+    },
+    {
+     "id": "agilidad",
+     "name": "Agilidad",
+     "icon": "🌪️",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "buff",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "req": 12,
+     "cd": 16,
+     "dur": 6,
+     "buff": {
+      "spdPct": 30,
+      "aspdPct": 15
+     },
+     "slowImmune": true,
+     "desc": "Durante 6 s: +30 % de velocidad de movimiento, +15 % de velocidad de ataque e inmunidad a las ralentizaciones. Enfriamiento 16 s."
+    },
+    {
+     "id": "a_red",
+     "name": "Red de Caza",
+     "icon": "🕸️",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_red",
+     "at": "target",
+     "req": 6,
+     "cost": 10,
+     "cd": 14,
+     "radius": 2.5,
+     "range": 9,
+     "root": 2.5,
+     "color": 14206106,
+     "desc": "Lanzas una red a hasta 9 m que inmoviliza 2,5 s a todo lo que atrapa en 2,5 m (los jefes, menos tiempo). 10 de Energía, enfriamiento 14 s."
+    },
+    {
+     "id": "a_humo",
+     "name": "Bomba de Humo",
+     "icon": "💨",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "zone",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "zone",
+     "behavior": "a_humo",
+     "at": "self",
+     "req": 12,
+     "cd": 16,
+     "radius": 4,
+     "dur": 8,
+     "allyDr": 50,
+     "projMissPct": 50,
+     "blindPct": 30,
+     "color": 10133672,
+     "desc": "Una nube de humo de 4 m a tus pies durante 8 s: dentro recibes −50 % de daño, la mitad de los proyectiles enemigos que la cruzan se pierden y los enemigos dentro, cegados, hacen −30 % de daño. Enfriamiento 16 s."
+    },
+    {
+     "id": "a_u_diluvio",
+     "name": "Diluvio de Saetas",
+     "icon": "🌠",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "area",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_diluvio",
+     "at": "target",
+     "req": 15,
+     "coef": 2.73,
+     "waves": 8,
+     "span": 3.6,
+     "cd": 50,
+     "radius": 5,
+     "range": 12,
+     "windup": 0.15,
+     "impactDelay": 0.4,
+     "shake": 0.18,
+     "color": 12582847,
+     "desc": "Definitiva: tras una telegrafía, 8 oleadas de saetas arrasan un círculo de 5 m durante 4 s (273 % del arma cada una: 2184 % por objetivo). Enfriamiento 50 s."
+    },
+    {
+     "id": "a_u_celeste",
+     "name": "Tiro Celestial",
+     "icon": "🌌",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_celeste",
+     "req": 15,
+     "coef": 7,
+     "shots": 3,
+     "window": 8,
+     "recastGap": 0.35,
+     "cd": 50,
+     "speed": 30,
+     "range": 16,
+     "pierce": true,
+     "beam": true,
+     "windup": 0.3,
+     "color": 10475775,
+     "desc": "Definitiva: hasta 3 haces celestes perforantes (700 % del arma cada uno) que disparas a voluntad pulsando otra vez la tecla durante 8 s; cada uno carga 0,3 s. Enfriamiento 50 s desde el primero."
+    },
+    {
+     "id": "a_u_zarzas",
+     "name": "Cerco de Zarzas",
+     "icon": "🌵",
+     "cat": "ultimate",
+     "slots": [
+      "k4"
+     ],
+     "tags": [
+      "ultimate",
+      "zone",
+      "cc",
+      "nature"
+     ],
+     "elem": "nature",
+     "behavior": "a_zarzas",
+     "at": "self",
+     "req": 15,
+     "coef": 1,
+     "cd": 55,
+     "radius": 7,
+     "dur": 8,
+     "crossRoot": 1.5,
+     "weakPct": 15,
+     "color": 5933626,
+     "desc": "Definitiva: un anillo de zarzas de 7 m a tu alrededor durante 8 s. Quien lo cruza queda inmovilizado 1,5 s; dentro, los enemigos sufren Veneno (100 % del arma por segundo: 800 % en total) y reciben +15 % de daño (Debilidad). Enfriamiento 55 s."
+    }
+   ],
+   "talentSkills": [
+    {
+     "id": "a_t_voltereta",
+     "name": "Voltereta",
+     "icon": "🤸",
+     "kind": "talent",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_t_voltereta",
+     "req": 10,
+     "cd": 12,
+     "range": 6,
+     "lockT": 0.25,
+     "freeShot": true,
+     "color": 14206106,
+     "desc": "Ruedas 6 m hacia atrás y tu próximo disparo no cuesta Energía. Enfriamiento 12 s."
+    },
+    {
+     "id": "a_t_conmocion",
+     "name": "Disparo Conmocionante",
+     "icon": "🎯",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "proj",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "req": 10,
+     "coef": 1,
+     "cost": 10,
+     "cd": 6,
+     "speed": 18,
+     "range": 12,
+     "slow": 4,
+     "slowPct": 50,
+     "color": 13153418,
+     "desc": "Una flecha roma: 100 % del arma y ralentiza un 50 % durante 4 s. Cuesta 10 de Energía; enfriamiento 6 s."
+    },
+    {
+     "id": "a_t_silencio",
+     "name": "Flecha Silenciadora",
+     "icon": "🤫",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "interrupt",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "behavior": "a_t_silencio",
+     "req": 10,
+     "coef": 0.8,
+     "cd": 18,
+     "speed": 22,
+     "range": 14,
+     "silence": 3,
+     "color": 12160255,
+     "desc": "Una flecha que interrumpe al lanzador enemigo y lo silencia 3 s (80 % del arma); a los jefes les suma 20 de stagger. Enfriamiento 18 s."
+    },
+    {
+     "id": "a_t_bengala",
+     "name": "Flecha Bengala",
+     "icon": "🎆",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "utility",
+      "zone",
+      "ally",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_t_bengala",
+     "at": "target",
+     "req": 10,
+     "cd": 30,
+     "radius": 10,
+     "dur": 8,
+     "range": 12,
+     "dmgPct": 8,
+     "reveal": true,
+     "color": 16763989,
+     "desc": "Una bengala revela a los enemigos invisibles en 10 m durante 8 s; dentro, el grupo hace +8 % de daño. Enfriamiento 30 s."
+    },
+    {
+     "id": "a_t_camuflaje",
+     "name": "Camuflaje",
+     "icon": "🍃",
+     "kind": "talent",
+     "cat": "defense",
+     "slots": [
+      "k2"
+     ],
+     "tags": [
+      "defense",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_t_camuflaje",
+     "req": 10,
+     "cd": 30,
+     "dur": 4,
+     "color": 9420666,
+     "desc": "Te vuelves invisible 4 s (los enemigos pierden el objetivo); tu primer disparo al salir es crítico seguro. Enfriamiento 30 s."
+    },
+    {
+     "id": "a_t_apuntado",
+     "name": "Disparo Apuntado",
+     "icon": "🏹",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "rmb",
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "spender",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "behavior": "a_t_apuntado",
+     "req": 10,
+     "coef": 3.2,
+     "cost": 30,
+     "cd": 6,
+     "windup": 1,
+     "speed": 30,
+     "range": 16,
+     "pierce": true,
+     "beam": true,
+     "color": 16773544,
+     "desc": "Insignia de la Francotiradora: cargas 1 s (la esquiva lo cancela) y disparas una saeta que atraviesa toda la línea con el 320 % del arma. Cuesta 30 de Energía; enfriamiento 6 s."
+    },
+    {
+     "id": "a_t_vision",
+     "name": "Visión Certera",
+     "icon": "👁️",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "buff",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "buff",
+     "behavior": "a_t_vision",
+     "req": 10,
+     "cd": 90,
+     "dur": 12,
+     "buff": {
+      "aspdPct": 25
+     },
+     "keepFocus": true,
+     "aimedCdr": 50,
+     "color": 16767334,
+     "desc": "Durante 12 s moverte no vacía la Concentración, ganas +25 % de velocidad de ataque y Disparo Apuntado se recarga un 50 % más rápido. Enfriamiento 90 s."
+    },
+    {
+     "id": "a_t_disuasorio",
+     "name": "Disparo Disuasorio",
+     "icon": "💥",
+     "kind": "talent",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "proj",
+      "cc",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_t_disuasorio",
+     "req": 10,
+     "coef": 1.2,
+     "cd": 12,
+     "range": 8,
+     "selfKnock": 8,
+     "stun": 1,
+     "color": 15258234,
+     "desc": "Un disparo a quemarropa: 120 % del arma, aturde 1 s al objetivo y el retroceso te lanza 8 m hacia atrás. Enfriamiento 12 s."
+    },
+    {
+     "id": "a_t_cepo",
+     "name": "Trampa de Cepo",
+     "icon": "🪤",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "trap",
+      "cc",
+      "nature"
+     ],
+     "elem": "nature",
+     "type": "trap",
+     "behavior": "a_t_cepo",
+     "req": 10,
+     "coef": 0.6,
+     "cost": 10,
+     "cd": 8,
+     "charges": 1,
+     "maxArmed": 3,
+     "radius": 1.5,
+     "root": 2,
+     "armT": 30,
+     "range": 9,
+     "dotKind": "poison",
+     "dotDur": 5,
+     "color": 8836218,
+     "desc": "Insignia del Montaraz: armas una trampa (hasta 3 a la vez) que inmoviliza 2 s a quien la pisa y lo envenena con el 60 % del arma en 5 s. 1 carga (8 s por carga); cuesta 10 de Energía."
+    },
+    {
+     "id": "a_t_arpon",
+     "name": "Arpón",
+     "icon": "🪝",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "proj",
+      "cc",
+      "utility",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "behavior": "a_t_arpon",
+     "req": 10,
+     "coef": 1.2,
+     "cost": 15,
+     "cd": 10,
+     "speed": 22,
+     "range": 12,
+     "slow": 3,
+     "slowPct": 60,
+     "pull": 6,
+     "color": 10526880,
+     "desc": "Un arpón con cadena: 120 % del arma, atrae al objetivo 6 m hacia tu trampa más cercana y lo ralentiza un 60 % durante 3 s. Cuesta 15 de Energía; enfriamiento 10 s."
+    },
+    {
+     "id": "a_t_senuelo",
+     "name": "Señuelo de Paja",
+     "icon": "🎎",
+     "kind": "talent",
+     "cat": "utility",
+     "slots": [
+      "k2",
+      "k3"
+     ],
+     "tags": [
+      "utility",
+      "spec",
+      "summon",
+      "taunt",
+      "nature"
+     ],
+     "elem": "nature",
+     "behavior": "a_t_senuelo",
+     "at": "target",
+     "req": 10,
+     "coef": 2,
+     "cd": 25,
+     "dur": 5,
+     "radius": 8,
+     "burstRadius": 3,
+     "range": 10,
+     "color": 13215850,
+     "desc": "Plantas un muñeco de paja que provoca a los enemigos a 8 m durante 5 s y luego estalla en espinas (200 % del arma en 3 m). Enfriamiento 25 s."
+    },
+    {
+     "id": "a_t_andanada",
+     "name": "Andanada",
+     "icon": "🎇",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "proj",
+      "area",
+      "movement",
+      "physical"
+     ],
+     "elem": "physical",
+     "type": "proj",
+     "behavior": "a_t_andanada",
+     "req": 10,
+     "coef": 0.6,
+     "cost": 25,
+     "cd": 6,
+     "count": 12,
+     "spread": 1.047,
+     "speed": 18,
+     "range": 10,
+     "lockT": 0.35,
+     "backstep": 3,
+     "color": 6739911,
+     "desc": "Insignia de la Tiradora: barres un arco de 120° con 12 flechas (60 % del arma cada una) mientras retrocedes 3 m. Cuesta 25 de Energía; enfriamiento 6 s."
+    },
+    {
+     "id": "a_t_danza",
+     "name": "Danza de Flechas",
+     "icon": "🌀",
+     "kind": "talent",
+     "cat": "spec",
+     "slots": [
+      "k3"
+     ],
+     "tags": [
+      "spec",
+      "area",
+      "channel",
+      "movement",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_t_danza",
+     "req": 10,
+     "coef": 0.5,
+     "cost": 20,
+     "cd": 25,
+     "channelT": 4,
+     "ticks": 16,
+     "radius": 4,
+     "moveFree": true,
+     "slowImmune": true,
+     "color": 8382680,
+     "desc": "Durante 4 s disparas 16 flechas en espiral a tu alrededor (50 % del arma cada una) sin dejar de correr, inmune a las ralentizaciones. Cuesta 20 de Energía; enfriamiento 25 s."
+    },
+    {
+     "id": "a_t_salto",
+     "name": "Salto de Retirada",
+     "icon": "🦘",
+     "kind": "talent",
+     "cat": "movement",
+     "slots": [
+      "k1"
+     ],
+     "tags": [
+      "movement",
+      "proj",
+      "physical"
+     ],
+     "elem": "physical",
+     "behavior": "a_t_salto",
+     "req": 10,
+     "coef": 0.6,
+     "cd": 12,
+     "range": 7,
+     "airT": 0.4,
+     "lockT": 0.4,
+     "count": 5,
+     "gaugeGain": 30,
+     "color": 10477782,
+     "desc": "Saltas 7 m hacia atrás y al aterrizar disparas 5 flechas (60 % del arma cada una); ganas 30 de Impulso. Enfriamiento 12 s."
+    }
+   ],
+   "specs": [
+    {
+     "id": "francotiradora",
+     "role": "dps",
+     "innate": {}
+    },
+    {
+     "id": "montaraz",
+     "role": "control",
+     "innate": {
+      "staggerPct": 25
+     }
+    },
+    {
+     "id": "tiradora",
+     "role": "dps",
+     "innate": {}
+    }
+   ],
+   "tv": [
+    "costRedBig",
+    "critDmg",
+    "dmgReduc",
+    "dotDur",
+    "drAfterRoll",
+    "drFocus",
+    "drMoving",
+    "drVsSlowed",
+    "eliteDmg",
+    "focusEnergy",
+    "focusRate",
+    "galeEnergy",
+    "galeHeal",
+    "highHpDmg",
+    "infiniteDmg",
+    "poisonPct",
+    "preyDmg",
+    "rootedWeak",
+    "slowedDmg",
+    "weakCritDmg",
+    "webDmg"
+   ],
+   "stats": [
+    "aspdPct",
+    "crit",
+    "dmgPct",
+    "mp",
+    "mph",
+    "spdPct",
+    "staggerPct"
+   ]
+  }
+ }
+}

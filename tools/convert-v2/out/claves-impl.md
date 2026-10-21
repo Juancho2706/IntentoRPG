@@ -2,9 +2,10 @@
 
 > Generado por `tools/convert-v2/convert.mjs` (E0.4; tabla de W2 volcada en E1.5). Fuentes: maga (`docs/mockups/data/talents-v2-maga.js`, sha1 7801561901ba, «aprobado») · guerrero (`docs/mockups/data/talents-v2-guerrero.js`, sha1 b0f282184d7d, «diseño») · arquera (`docs/mockups/data/talents-v2-arquera.js`, sha1 76ae75357a1e, «diseño»).
 > Las notas `impl`/`k` son texto libre: la lectura es heurística. Traducciones: tabla de alias de §3.6, tabla de W2 (`tools/convert-v2/claves-w2.mjs`,
-> de `docs/paso2-claves-w2.md`) y vocabulario vivo del juego (`skill-defs.js`: `SKILL_KEYS`, `RETIRED_KEYS`). «SIN TRADUCCIÓN» para al orquestador antes de E2.
+> de `docs/paso2-claves-w2.md`) y vocabulario del juego: el vivo (`skill-defs.js`: `SKILL_KEYS`, `RETIRED_KEYS`) y el de la foto v1
+> (`tools/convert-v2/juego-v1.json`, de antes de E1.5). «SIN TRADUCCIÓN» para al orquestador antes de E2.
 
-**Resumen:** 37 alias con traducción · **0 SIN TRADUCCIÓN** · 17 canónicas nuevas de W2 · claves tv: 11 de clase, 2 para la cola W2, **0 sin decidir** · stats: 1 para la cola W2, **0 sin decidir** · 0 claves de definición para la cola W2 · 12 ajustes de mecánica o aura · 4 campos nombrados · 40 canónicas de §3.5/§3.6 · 75 que ya existen en el juego.
+**Resumen:** 38 alias con traducción · **0 SIN TRADUCCIÓN** · 17 canónicas nuevas de W2 · claves tv: 11 de clase, 2 para la cola W2, **0 sin decidir** · stats: 1 para la cola W2, **0 sin decidir** · 0 claves de definición para la cola W2 · 2 parámetros de definición de la clase · 12 ajustes de mecánica o aura · 4 campos nombrados · 40 canónicas de §3.5/§3.6 · 72 que ya existen en el juego.
 
 ## 1. Alias del mockup → clave canónica
 
@@ -31,6 +32,7 @@
 | `moveWhileCharging` | charge.moveMul | §3.6 | guerrero:c9B |
 | `perfectDmg` | perfectPct | §3.6 | guerrero:c9A |
 | `recast.max` | recast.n (mod recastAdd) | §3.6 | arquera:v9B |
+| `shieldManaPct` | mod buff (+% de escudo: el comportamiento de la Barrera multiplica shieldManaPct por prof.buffMul) | W2 | maga:c18 |
 | `single` | radius 0 / splash 0 | juego (RETIRED_KEYS) | guerrero:g_juicio.A |
 | `stats.regen` | stats.regenPct | W2 | maga:c15B |
 | `stats.resMaxAdd` | stats.mp (recurso máximo plano) | W2 | guerrero:c15B |
@@ -93,11 +95,13 @@ clase: KT la declara en `<CLASE>_TV_KEYS` (`talents-<clase>.js`). Cola W2 = el m
 | `stats.regenPct` | canónica (W2) | stats.regenPct (+% regeneración de Maná y Energía) · resources.resourceRegenRate | test84 §6 | arquera:c12 |
 | `stats.resGainPct` | canónica (W2) | stats.resGainPct (+% al recurso generado) · resources.gainResource | test84 §6 | guerrero:c12 |
 
-## 4b. Claves de definición nuevas de W2 y peticiones a la cola W2
+## 4b. Claves de definición nuevas de W2, peticiones a la cola W2 y parámetros que lee el código de la clase
 
 | Clave | Decisión | Qué y dónde vive | Prueba | Dónde |
 |---|---|---|---|---|
+| `blocks` | de la clase (KA-maga) | blocks del campo p_muro_fuego (true = corta el paso, no a jefes; como wall.blocks de §3.6) · powers-maga.js (p_muro_fuego lee sk.blocks); la estela de m_estela_ignea_ii deja ese campo con un comportamiento | test-skills-maga | maga:m_estela_ignea.B |
 | `chainPct` | canónica (W2) | chainPct (cada salto hace ese % del golpe base) · skill-resolve (prof.chainPct), game-skills.spawnChainBounce | test82 §9 | maga:rayo.A |
+| `layers` | de la clase (KA-maga · KT-maga) | set: { layers: n } (capas de Escarcha que deja cada golpe; hoy lo leen k_prision y k_aliento) · powers-maga.js; para k_lanza, la Escarcha de mech-maga.js (prof.def.layers en el golpe) | test-skills-maga · test-gauges-maga | maga:k_lanza.A |
 | `pull.dist` | canónica (W2) | pull: { dist, to: 'self'/'center'/'trap' } · Enemy.displace | test84 §3 | arquera:a_m_detonante.B |
 | `pull.to` | canónica (W2) | pull: { dist, to: 'self'/'center'/'trap' } · Enemy.displace | test84 §3 | arquera:a_m_detonante.B |
 | `scatter` | canónica (W2) | impacts: n, scatter: m en un type:"area" · tipo genérico area | test82 §9 | maga:meteoro.A |
@@ -136,4 +140,4 @@ clase: KT la declara en `<CLASE>_TV_KEYS` (`talents-<clase>.js`). Cola W2 = el m
 ## 8. Claves canónicas (§3.5/§3.6) y existentes del juego (sin traducción necesaria)
 
 - Canónicas: `at`, `autoShot.every`, `autoShot.target`, `channelT`, `charge.max`, `charge.perfect`, `charges`, `comboWin`, `dashT`, `dmgDirect`, `drag`, `dragWidth`, `follow`, `heal`, `keepPlanted`, `knock`, `mark.dur`, `minHpPct`, `moveMul`, `perTarget`, `perfectWin`, `pull`, `recast`, `recastAdd`, `shield`, `shieldGain`, `splashPct`, `steps`, `taunt`, `trap.armT`, `trap.burst`, `trap.consume`, `type:area`, `type:channel`, `type:line`, `type:proj`, `wave`, `windup`, `windupAdd`, `zoneMax`
-- Existentes: `airT`, `allyDr`, `angle`, `blocks`, `buff`, `cadence`, `cdr`, `chain`, `cleanse`, `cleave`, `cleaveR`, `coef`, `cost`, `count`, `crit`, `crossRoot`, `dmg`, `dot`, `dur`, `durS`, `freeze`, `genOnHit`, `hitDot`, `impactDelay`, `impacts`, `layers`, `pierce`, `proj`, `projMissPct`, `pulses`, `radius`, `range`, `root`, `shieldManaPct`, `shots`, `slow`, `slowImmune`, `slowPct`, `span`, `speed`, `splash`, `spread`, `stagger`, `stats.aspdPct`, `stats.crit`, `stats.dmgPct`, `stats.gaugeGain`, `stats.hpPct`, `stats.mp`, `stats.mpPct`, `stats.mph`, `stats.spdPct`, `stun`, `tv.barrierDr`, `tv.bleedKillHeal`, `tv.bleedKillMana`, `tv.bleedPct`, `tv.burnDur`, `tv.burnKillHeal`, `tv.burnKillMana`, `tv.burnPct`, `tv.burningCrit`, `tv.chargeSpeed`, `tv.costRedBig`, `tv.critFireCdr`, `tv.drHighMana`, `tv.drMoving`, `tv.highManaDmg`, `tv.poisonPct`, `tv.preyDmg`, `unstoppable`, `waves`, `width`, `zone`, `zoneDur`
+- Existentes: `airT`, `allyDr`, `angle`, `buff`, `cadence`, `cdr`, `chain`, `cleanse`, `cleave`, `cleaveR`, `coef`, `cost`, `count`, `crit`, `crossRoot`, `dmg`, `dot`, `dur`, `durS`, `freeze`, `genOnHit`, `hitDot`, `impactDelay`, `impacts`, `pierce`, `proj`, `projMissPct`, `pulses`, `radius`, `range`, `root`, `shots`, `slow`, `slowImmune`, `slowPct`, `span`, `speed`, `splash`, `spread`, `stagger`, `stats.aspdPct`, `stats.crit`, `stats.dmgPct`, `stats.gaugeGain`, `stats.hpPct`, `stats.mp`, `stats.mpPct`, `stats.mph`, `stats.spdPct`, `stun`, `tv.barrierDr`, `tv.bleedKillHeal`, `tv.bleedKillMana`, `tv.bleedPct`, `tv.burnDur`, `tv.burnKillHeal`, `tv.burnKillMana`, `tv.burnPct`, `tv.burningCrit`, `tv.chargeSpeed`, `tv.costRedBig`, `tv.critFireCdr`, `tv.drHighMana`, `tv.drMoving`, `tv.highManaDmg`, `tv.poisonPct`, `tv.preyDmg`, `unstoppable`, `waves`, `width`, `zone`, `zoneDur`

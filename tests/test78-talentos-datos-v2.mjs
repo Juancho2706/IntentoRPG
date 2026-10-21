@@ -260,16 +260,23 @@ export function checkClassData(cid, data, ctx) {
         const n = [...data.cls.nodes, ...s.nodes].find(x => x.id === id);
         if (!n || n.t !== 'c' || !['A', 'B'].includes(k)) err('builds', `${key}: elección ${id}=${k} no válida`);
       }
-      // G8b (aviso): cada nodo comprado que nombra habilidades en `touch` toca alguna de SU barra
+      // G8b (aviso): cada nodo comprado que nombra habilidades en `touch` toca alguna de SU barra; en una elección,
+      // también la opción que ELIGE la build (su `touch` propio: lo que de verdad recibe esa build)
       const bar = b.bar || ctx.specBar?.(s.id) || null;
       if (bar) {
         const onBar = new Set(Object.values(bar).filter(Boolean));
         const hb = heroes.find(x => x.id === b.hero);
+        const chosen = { ...b.clsCh, ...b.specCh, ...b.heroCh };
         const bought = [...data.cls.nodes.filter(n => cls[n.id] > 0), ...s.nodes.filter(n => sp[n.id] > 0),
           ...(hb?.nodes || []).filter(n => b.heroNodes.includes(n.id))];
+        const offBar = (touch, at) => {
+          const ids = (touch || []).filter(x => typeof x === 'string' && x[0] !== '@');
+          if (ids.length && !ids.some(id => onBar.has(id))) warn('G8b', `${key}: ${at} toca ${ids.join(', ')}, fuera de su barra`);
+        };
         for (const n of bought) {
-          const ids = (n.touch || []).filter(x => typeof x === 'string' && x[0] !== '@');
-          if (ids.length && !ids.some(id => onBar.has(id))) warn('G8b', `${key}: ${n.id} toca ${ids.join(', ')}, fuera de su barra`);
+          offBar(n.touch, n.id);
+          const opt = n.t === 'c' ? (n.opts || []).find(o => o.k === chosen[n.id]) : null;
+          if (opt) offBar(opt.touch, `${n.id}${opt.k}`);
         }
       }
       const h = heroes.find(x => x.id === b.hero);
@@ -299,8 +306,10 @@ const PREFIX = { maga: 'MAGA', guerrero: 'GUERRERO', arquera: 'ARQUERA' };
 const STRICT = { maga: new Set(), guerrero: new Set(), arquera: new Set() };
 const realPowers = new Map();
 let real = 0;
+// desde E1.5 las tres clases del juego están en v2: una que vuelva a v1 es un error (no se salta en silencio)
+assert.deepEqual(Object.keys(T.TALENT_TREES).sort(), Object.keys(CLASS_MODS).sort(), 'TALENT_TREES = las tres clases');
 for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
-  if (data?.v !== 2) { console.log(`· ${cid}: los datos del juego siguen en v1 → se saltan (E1.5)`); continue; }
+  assert.equal(data?.v, 2, `${cid}: js/talents-${cid}.js debe estar en v2 desde E1.5 (las reglas no se pueden saltar)`);
   const mod = CLASS_MODS[cid];
   const ctx = { prefix: POWER_PREFIX[cid], isRegistered: id => !!POWER_HOOKS[id], powerClass: realPowers,
     tvKeys: new Set([...T.CORE_TV_KEYS, ...(mod[`${PREFIX[cid]}_TV_KEYS`] || [])]), kitOf: spec => specKitOf(cid, spec),
@@ -315,6 +324,7 @@ for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
   real++;
   console.log(`✓ ${cid}: datos del juego v2 en regla`);
 }
+assert.equal(real, 3, `test78: ${real} clases del juego comprobadas (deben ser las 3)`);
 
 // ------------------------------------------------ 2) el fixture v2 (las tres clases)
 const FIX_TV = { maga: FIX.MAGA_TV_KEYS, guerrero: FIX.GUERRERO_TV_KEYS, arquera: FIX.ARQUERA_TV_KEYS };
@@ -426,6 +436,17 @@ expectFail('clave de opción desconocida', d => { node(d.cls.nodes, 'c6').opts[0
 // avisos: G8b (la build compra nodos de habilidades que no lleva en la barra) y `todo`
 expectWarn('build.bar sin la principal (G8b)', d => { const [k1, k2, , k4] = FIX.FIXTURE_KITS.piromante; d.builds.brasa.bar = { lmb: 'fx_basico', rmb: null, k1: k2, k2: null, k3: k1, k4 }; }, 'G8b');
 expectWarn('barra de la build sin la definitiva (G8b)', d => { for (const k of ['brasa', 'cataclismo', 'ignicion', 'hibrido']) d.builds[k].bar = { ...fixBar('piromante'), k4: null }; }, 'G8b');
+expectWarn('opción elegida que toca fuera de su barra (G8b)', d => { node(spec0(d).nodes, 's9').opts[1].touch = ['fx_crionte_k2']; }, 'G8b');
+// … y solo en las builds que ELIGEN esa opción (s9 B: brasa y cataclismo; ignicion e hibrido eligen A)
+{
+  const d = clone(FIX.FIXTURE_TREES.maga);
+  node(spec0(d).nodes, 's9').opts[1].touch = ['fx_crionte_k2'];
+  const ctx = fixCtx('maga');
+  assert.deepEqual(checkClassData('maga', d, ctx), []);
+  const g8b = ctx.warnings.filter(w => w.startsWith('[G8b]')).map(w => w.match(/^\[G8b\] maga: (\w+):/)?.[1]);
+  assert.deepEqual(g8b.sort(), ['brasa', 'cataclismo'], `G8b: el touch de una opción cuenta solo en las builds que la eligen (${g8b})`);
+  mutations++;
+}
 expectWarn('nodo con «todo»', d => { node(spec0(d).nodes, 's7').todo = 'falta el efecto'; }, 'todo');
 expectWarn('opción con «todo»', d => { node(d.cls.nodes, 'c6').opts[0].todo = 'falta el efecto'; }, 'todo');
 console.log(`✓ ${mutations} mutaciones sembradas: cada regla detecta su error (y los avisos solo fallan con strict)`);

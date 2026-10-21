@@ -1,17 +1,43 @@
-// Lo que el conversor necesita saber del JUEGO actual (solo lectura): catálogo de habilidades, datos de
+// Lo que el conversor necesita saber del JUEGO (solo lectura): catálogo de habilidades, datos de
 // talentos, poderes y comportamientos registrados y vocabulario de claves (mods, parámetros, tv, stats).
-// Todo con import dinámico y try/catch: durante el Paso 2 los módulos cambian de forma (E0.3, E1) y el
-// conversor tiene que seguir funcionando con lo que haya.
+// Dos fuentes:
+//  · el juego VIVO (js/): import dinámico y try/catch, porque durante el Paso 2 los módulos cambian de forma;
+//  · la FOTO del juego v1 (tools/convert-v2/juego-v1.json, de foto-v1.mjs): lo que había antes de la
+//    conmutación de E1.5. La conversión (--draft y --write) parte de la foto, así sus salidas no cambian
+//    cuando KA/KT reescriben js/; el vocabulario es la unión de los dos.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, PREFIJO } from './cargar.mjs';
 
 const JS = join(ROOT, 'js');
+export const FOTO_V1 = join(ROOT, 'tools', 'convert-v2', 'juego-v1.json');
 const url = f => pathToFileURL(join(JS, f)).href;
 async function importar(f) {
   if (!existsSync(join(JS, f))) return null;
   try { return await import(url(f)); } catch (e) { return { __error: e.message }; }
+}
+
+// ---------------------------------------------------------------- foto del juego v1
+let fotoCache = null;
+export function fotoV1(ruta = FOTO_V1) {
+  if (ruta === FOTO_V1 && fotoCache) return fotoCache;
+  if (!existsSync(ruta)) throw new Error(`no existe la foto del juego v1 (${ruta}): node tools/convert-v2/foto-v1.mjs --commit <sha>`);
+  const j = JSON.parse(readFileSync(ruta, 'utf8'));
+  if (ruta === FOTO_V1) fotoCache = j;
+  return j;
+}
+const copia = v => JSON.parse(JSON.stringify(v));
+// la clase tal como estaba en el juego v1, con la forma de juegoDeClase (cada llamada da objetos nuevos)
+export function juegoV1(cls, foto = fotoV1()) {
+  const c = foto.clases?.[cls];
+  if (!c) throw new Error(`la foto del juego v1 no tiene la clase ${cls}`);
+  const skills = copia(c.skills), talentSkills = copia(c.talentSkills);
+  const catalogo = new Map();
+  for (const s of [...skills, ...talentSkills]) if (!catalogo.has(s.id)) catalogo.set(s.id, s);
+  const specs = new Map(copia(c.specs).map(s => [s.id, s]));
+  return { talentsMod: null, skillsMod: null, talents: { v: 1, specs: [...specs.values()], skills: talentSkills }, skills, talentSkills,
+    catalogo, specs, v: 1, catalogV: c.catalogV ?? null, errores: [], foto: foto._meta?.commit || true };
 }
 
 // { talentsMod, skillsMod, talents (objeto <CLASE>_TALENTS), skills (lista), talentSkills (lista),
@@ -57,10 +83,10 @@ export async function registroJuego() {
   return { poderes, comportamientos, error };
 }
 
-// vocabulario de claves que ya existen en el juego
+// vocabulario de claves que ya existen en el juego (vivo) o existían en el juego v1 (foto)
 // → { mods:Set, params:Set (claves de las definiciones, también 'a.b'), tv:Set, stats:Set, tipos:Set (GENERIC_TYPES),
 //     skillKeys:Set (SKILL_KEYS: claves que entiende el motor), retirados:Map (RETIRED_KEYS: alias → traducción) }
-export async function vocabularioJuego() {
+export async function vocabularioJuego({ foto = fotoV1() } = {}) {
   const mods = new Set(), params = new Set(), tv = new Set(), stats = new Set(), tipos = new Set(), skillKeys = new Set(), retirados = new Map();
   try {
     const sd = await import(url('skill-defs.js'));
@@ -88,8 +114,15 @@ export async function vocabularioJuego() {
     }
     for (const s of j.talents?.specs || []) for (const k of Object.keys(s.innate || {})) stats.add(k);
   }
-  // claves tv que lee el código (tv.x)
-  for (const f of readdirSync(JS).filter(f => f.endsWith('.js'))) {
+  // lo que había en el juego v1: parámetros de sus definiciones (las activas v1 salen de js/ en E1.5) y claves de sus talentos
+  for (const c of Object.values(foto?.clases || {})) {
+    for (const s of [...(c.skills || []), ...(c.talentSkills || [])]) recorrer(s);
+    for (const k of c.tv || []) tv.add(k);
+    for (const k of c.stats || []) stats.add(k);
+  }
+  // claves tv que lee el CÓDIGO (tv.x). Los datos de talentos y héroe no cuentan: desde E1.5 llevan las
+  // notas `todo` del mockup («tv.barrierDr · existe»…), que nombran claves que nadie lee todavía
+  for (const f of readdirSync(JS).filter(f => f.endsWith('.js') && !/^(talents|hero)-(maga|guerrero|arquera)\.js$/.test(f))) {
     const txt = readFileSync(join(JS, f), 'utf8');
     for (const [, k] of txt.matchAll(/\btv\??\.([A-Za-z_]\w*)/g)) tv.add(k);
   }

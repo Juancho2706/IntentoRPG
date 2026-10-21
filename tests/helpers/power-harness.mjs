@@ -17,10 +17,13 @@
 //   const h = makeHarness({ classId: 'guerrero', spec: 'berserker', level: 50,
 //                           talents: { cls: { c1: 2 }, sp: { berserker: { b4: 1 } }, choice: { c5: 'B' },
 //                                      hero: { berserker: { tree: 'h1', nodes: { h1: { t1: 1 } }, choice: {} } } } });
-//   (`talents.spec` = rangos de la especialización activa: atajo de `sp: { [spec]: … }`)
+//   (`talents.specRanks` = rangos de la especialización activa: atajo de `sp: { [spec]: … }`. `talents.spec`
+//   como OBJETO es el mismo atajo, @deprecated (los tests v1); como CADENA es el id de la especialización
+//   del estado v2, que se puede pasar tal cual: tiene que coincidir con `spec` si se dan los dos)
 //   Una build de los datos, llenada punto a punto al nivel con buildRanks (clase, especialización y
 //   árbol héroe si el Paragon se abre): build = clave de <CLASE>_TALENTS.builds, el objeto build o
-//   true (= defaultBuild de la especialización). `talents` se suma encima (rangos y elecciones).
+//   true (= defaultBuild de la especialización). `talents` se suma encima (rangos y elecciones; el árbol
+//   héroe se FUSIONA nodo a nodo con el de la build).
 //   const h = makeHarness({ classId: 'maga', spec: 'piromante', level: 100, build: true });
 //   h.gauge('sed', 100);        // fija el indicador (dispara onGauge 'gain'/'full' y su descarga)
 //   h.gaugeValue('sed');  h.gaugeView();
@@ -124,6 +127,14 @@ const SLOT_ACTION = { k1: 'skill1', k2: 'skill2', k3: 'skill3', k4: 'skill4' };
 // estado v2 de talentos para el arnés: build (buildRanks al nivel) + talents encima
 function harnessTalents(classId, level, spec, build, talents) {
   const t = talents || {};
+  // talents.spec: cadena = id de la especialización (estado v2); objeto = atajo de rangos (@deprecated, = specRanks)
+  if (typeof t.spec === 'string') {
+    if (spec && t.spec !== spec) throw new Error(`makeHarness: spec «${spec}» y talents.spec «${t.spec}» no coinciden`);
+    spec = t.spec;
+  } else if (t.spec != null && (typeof t.spec !== 'object' || Array.isArray(t.spec))) {
+    throw new Error('makeHarness: talents.spec es el id de la especialización (cadena) o, @deprecated, sus rangos (objeto): usa talents.specRanks');
+  }
+  const specRanks = t.specRanks || (t.spec && typeof t.spec === 'object' ? t.spec : null);
   const out = { v: 2, spec: spec || null, cls: {}, sp: {}, choice: {}, hero: {} };
   if (build) {
     const key = build === true ? defaultBuildKey(classId, spec) : build;
@@ -137,9 +148,19 @@ function harnessTalents(classId, level, spec, build, talents) {
   const sp = out.spec;
   Object.assign(out.cls, t.cls || {});
   for (const [id, ranks] of Object.entries(t.sp || {})) out.sp[id] = { ...(out.sp[id] || {}), ...ranks };
-  if (sp && t.spec) out.sp[sp] = { ...(out.sp[sp] || {}), ...t.spec };
+  if (specRanks && Object.keys(specRanks).length) {
+    if (!sp) throw new Error('makeHarness: talents.specRanks necesita una especialización (spec o build)');
+    out.sp[sp] = { ...(out.sp[sp] || {}), ...specRanks };
+  }
   Object.assign(out.choice, t.choice || {});
-  Object.assign(out.hero, t.hero || {});
+  // árbol héroe: se fusiona con el de la build (nodos y elecciones por árbol), no lo sustituye
+  for (const [s, h] of Object.entries(t.hero || {})) {
+    const base = out.hero[s] || {};
+    const nodes = { ...(base.nodes || {}) }, choice = { ...(base.choice || {}) };
+    for (const [tree, ranks] of Object.entries(h?.nodes || {})) nodes[tree] = { ...(nodes[tree] || {}), ...ranks };
+    for (const [tree, ch] of Object.entries(h?.choice || {})) choice[tree] = { ...(choice[tree] || {}), ...ch };
+    out.hero[s] = { ...base, ...h, nodes, choice };
+  }
   return out;
 }
 

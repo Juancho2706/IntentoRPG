@@ -34,7 +34,7 @@
 - [ ] **c16·B Pureza Elemental** — NUEVO · `power m_pureza · NUEVO`
 - [ ] **c17·A Inversión del Tiempo (concede m_t_inversion)** — existe · `activa m_t_inversion · existe`
 - [ ] **c17·B Anclaje Temporal** — NUEVO · `power m_anclaje · NUEVO (onDamaged)`
-- [ ] **c18 Barrera Reforzada** — existe · `mod m_barrera shieldManaPct · claves`
+- [ ] **c18 Barrera Reforzada** — existe · `mod m_barrera shieldManaPct · claves` · traducir: `shieldManaPct → mod buff (+% de escudo: el comportamiento de la Barrera multiplica shieldManaPct por prof.buffMul)`
 - [ ] **c19 Barrera Resonante** — NUEVO · `power m_barrera_resonante · NUEVO`
 - [ ] **c20 Escarcha Arcana** — NUEVO · `power m_escarcha_arcana · NUEVO`
 - [ ] **c21 Escarcha Tenaz** — existe · `mod @all slow +2 · claves`
@@ -285,7 +285,7 @@
 
 - [ ] **Mejora · Rastro Ardiente** — existe · `durS 1`
 - [ ] **I (AREA) · Senda de Llamas** — existe · `radius +100 · dmg +37`
-- [ ] **II (CTRL) · Muro de Llamas** — NUEVO · `★set{blocks:true} · dmg −50 · campo p_muro_fuego (absorbe a Muro de Fuego)`
+- [ ] **II (CTRL) · Muro de Llamas** — NUEVO · `★set{blocks:true} · dmg −50 · campo p_muro_fuego (absorbe a Muro de Fuego)` · traducir: `blocks: parámetro de la clase (KA-maga: blocks del campo p_muro_fuego (true = corta el paso, no a jefes; como wall.blocks de §3.6))`
 
 ### meteoro · Meteoro
 
@@ -314,7 +314,7 @@
 ### k_lanza · Lanza de Hielo
 
 - [ ] **Mejora · Punta Afilada** — existe · `range +17 · dmg +15`
-- [ ] **I (UNI) · Lanza Pesada** — NUEVO · `★set{pierce:0} · dmg +60 · layers 2`
+- [ ] **I (UNI) · Lanza Pesada** — NUEVO · `★set{pierce:0} · dmg +60 · layers 2` · traducir: `layers: parámetro de la clase (KA-maga · KT-maga: set: { layers: n } (capas de Escarcha que deja cada golpe; hoy lo leen k_prision y k_aliento))`
 - [ ] **II (AREA) · Abanico Gélido** — NUEVO · `★set{count:3, spread:30} · dmg −50`
 
 ### m_u_tormenta · Tormenta Glacial
@@ -353,7 +353,7 @@ Referencias a ids que no están en el catálogo 2g (KA: corregir o declarar): `r
 
 Activas de talento NUEVAS (en `--write` no entran en `MAGA_TALENT_SKILLS` hasta que existan): `m_h_detener`, `m_h_palabra`, `m_h_constructo`.
 
-Activas de talento del juego actual que dejan de serlo en 2g (pasan al kit de `skills-maga.js` o se retiran; lista de cada doc): `m_t_barrera`, `m_t_parpadeo`, `p_llamarada`, `p_combustion`, `p_muro_fuego`, `k_prision`, `k_lanza`, `k_ventisca`, `k_aliento`, `a_orbe`, `a_misiles`, `a_sello`, `a_evocacion`.
+Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skills-maga.js` o se retiran; lista de cada doc): `m_t_barrera`, `m_t_parpadeo`, `p_llamarada`, `p_combustion`, `p_muro_fuego`, `k_prision`, `k_lanza`, `k_ventisca`, `k_aliento`, `a_orbe`, `a_misiles`, `a_sello`, `a_evocacion`.
 
 ## Poderes nuevos citados (comprobar contra out/power-ids.json, D28)
 

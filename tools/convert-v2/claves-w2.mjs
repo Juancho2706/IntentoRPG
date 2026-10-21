@@ -9,7 +9,8 @@
 //   'alias'    el mockup la llama de otra forma: se escribe `a`
 //   'canonica' W2 la añadió al motor con ese mismo nombre
 //   'clase'    clave tv de UNA clase: la consume un poder o la mecánica de esa clase y se declara en
-//              <CLASE>_TV_KEYS (talents-<clase>.js); la escribe KT
+//              <CLASE>_TV_KEYS (talents-<clase>.js); la escribe KT. En una clave de definición: parámetro
+//              que lee el código de la clase (comportamiento, campo o mecánica), no el núcleo
 //   'cola'     el motor aún no la lee: petición a la cola W2 (núcleo) antes de que KT/KA la usen
 // Las filas «ronda 2–3» son claves que entraron en los datos con la congelación de D18 (commit 0fa03dc),
 // después de la tabla de W2: su decisión es del integrador de E1.5 (siguen la regla de §2.0: lo que lee el
@@ -64,6 +65,11 @@ export const CLAVES_W2 = Object.freeze({
   'tv.drStill': { tipo: 'cola', a: 'tv.drStill (espejo de drMoving: DR estando plantada, p.planted)', donde: 'nucleo_tv.condDr (cola W2)', prueba: 'test84 §6 (cola W2)' },
   'tv.fieldDur': { tipo: 'cola', a: 'tv.fieldDur (+% duración de tus trampas y zonas) en spawnField, o KT con mod dur sobre a_t_cepo/a_u_zarzas', donde: 'field-entities.spawnField (cola W2)', prueba: 'test83 (cola W2)' },
   'stats.blockPower': { tipo: 'cola', a: 'stats.blockPower (bloqueo para BLOCK_REDUCTION + blockPower/100, tope 90)', donde: 'combat-math + recompute (cola W2)', prueba: 'test60 (cola W2)' },
+  // ---- parámetros de una definición que leía una activa v1 de la Maga (salen de js/ con E1.5; revisión de E1.5)
+  //      tipo 'clase' en una clave de definición = la lee el código de la clase (comportamiento, campo o mecánica), no el núcleo
+  shieldManaPct: { tipo: 'alias', a: "mod buff (+% de escudo: el comportamiento de la Barrera multiplica shieldManaPct por prof.buffMul)", donde: 'powers-maga.js (comportamiento m_t_barrera → m_barrera)', prueba: 'test-powers-maga' },
+  layers: { tipo: 'clase', dueño: 'KA-maga · KT-maga', a: "set: { layers: n } (capas de Escarcha que deja cada golpe; hoy lo leen k_prision y k_aliento)", donde: 'powers-maga.js; para k_lanza, la Escarcha de mech-maga.js (prof.def.layers en el golpe)', prueba: 'test-skills-maga · test-gauges-maga' },
+  blocks: { tipo: 'clase', dueño: 'KA-maga', a: "blocks del campo p_muro_fuego (true = corta el paso, no a jefes; como wall.blocks de §3.6)", donde: 'powers-maga.js (p_muro_fuego lee sk.blocks); la estela de m_estela_ignea_ii deja ese campo con un comportamiento', prueba: 'test-skills-maga' },
 });
 
 // entrada de la tabla para una clave leída de una nota (ns ∈ tv | stats | mod | …; k; valor)

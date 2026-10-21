@@ -353,7 +353,7 @@ Todas las referencias de barra y recomendaciones están en el catálogo.
 
 Activas de talento NUEVAS (en `--write` no entran en `GUERRERO_TALENT_SKILLS` hasta que existan): `g_h_bramido`, `g_h_desafio`, `g_h_estandarte`.
 
-Activas de talento del juego actual que dejan de serlo en 2g (pasan al kit de `skills-guerrero.js` o se retiran; lista de cada doc): `g_t_bramido`, `g_t_remolino`, `g_t_temeridad`, `g_t_ira_ciega`, `g_t_desafio`, `g_t_muro`, `g_t_carga`, `g_t_devocion`, `g_t_veredicto`, `g_t_justicia`.
+Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skills-guerrero.js` o se retiran; lista de cada doc): `g_t_bramido`, `g_t_remolino`, `g_t_temeridad`, `g_t_ira_ciega`, `g_t_desafio`, `g_t_muro`, `g_t_carga`, `g_t_devocion`, `g_t_veredicto`, `g_t_justicia`.
 
 ## Poderes nuevos citados (comprobar contra out/power-ids.json, D28)
 

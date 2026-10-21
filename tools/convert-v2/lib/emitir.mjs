@@ -112,7 +112,7 @@ export function textoSkillsDraft({ cls, conv, fuente }) {
   return cabecera({ titulo: `CATÁLOGO 2g de la clase ${conv.talents.cls.name} — BORRADOR para KA (no lo carga el juego)`, ...fuente, extra: [
     'Formato: docs/paso2-implementacion.md §3.5 (forja de 2f §2.3). Ids, cat, req, spec, elem, nombres, líneas y papeles',
     'exactos (los compara tests/test-v2-paridad.mjs cuando <CLASE>_CATALOG_V = 2). Los efectos se escriben a mano desde',
-    'el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existe, su definición actual.',
+    'el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existía, su definición en el juego v1.',
     `D29: las ${conv.talentSkills.length} activas de talento (kind 'talent', slots ['k2']) van en este catálogo, al final de ${P}_SKILLS;`,
     `en talents-${cls}.js, ${P}_TALENT_SKILLS es solo la lista de ids: ${conv.talentSkills.map(s => s.id).join(', ') || '—'}.`] }) +
     [

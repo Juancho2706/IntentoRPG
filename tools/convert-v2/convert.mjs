@@ -18,14 +18,19 @@
 //   <clase>/talents-<clase>.js, <clase>/hero-<clase>.js   formato §3.1: estructura, textos, d(r), builds y defaultBuild exactos;
 //                                                          fx: {} + todo = el `impl` del mockup
 //   <clase>/skills-<clase>.draft.js                        catálogo, forja (k del mockup en comentario), SPEC_BAR (A/B → i/ii),
-//                                                          FORGE_RECO, FALLBACK_BAR; la definición actual del juego en comentario
+//                                                          FORGE_RECO, FALLBACK_BAR; la definición del juego v1 en comentario
 //   <clase>/talent-text.js                                 reexporta js/talent-text.js (para importar el borrador desde out/)
 //   <clase>/pendientes-<clase>.md                          lista de trabajo de KA/KT (NUEVO · existe · vacío)
 //   power-ids.json                                         ids de poder/comportamiento de las tres clases; FALLA si se repiten (D28)
 //   claves-impl.md                                         claves de impl/k fuera de §3.6: alias → traducción o «SIN TRADUCCIÓN»
 //   missing-icons.md                                       iconos citados que no están en assets/ (la UI pinta el marcador)
 // Comprobaciones que hacen fallar (código 1): d(r) con identificadores libres que no exporta js/talent-text.js, d(r) que
-// cambia de texto al copiarse, n1/pl distintos del mockup, choques de ids de poder (D28) y la paridad del propio borrador.
+// cambia de texto al copiarse, n1/pl distintos del mockup, choques de ids de poder (D28), claves SIN TRADUCCIÓN y la
+// paridad del propio borrador.
+// «El juego» de la conversión es la FOTO del juego v1 (tools/convert-v2/juego-v1.json, de foto-v1.mjs): activas de talento
+// v1 (su definición va en comentario como referencia de KA1), catálogo base y especializaciones de antes de E1.5. Por eso
+// --draft y --write dan lo mismo en cualquier commit del Paso 2 y --write se puede repetir. El vocabulario de claves es la
+// foto ∪ el juego vivo, y los poderes registrados (power-ids.json) salen del juego vivo.
 // =====================================================================================================
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve, relative, dirname } from 'node:path';
@@ -34,7 +39,7 @@ import { ROOT, MOCKUP_DIR, CLASES, PREFIJO, cargarMockup } from './lib/cargar.mj
 import { convertirClase, verificarN1 } from './lib/transformar.mjs';
 import { textoTalents, textoHero, textoSkillsDraft, textoShim } from './lib/emitir.mjs';
 import { extraerIds, informePoderes, informeClaves, informePendientes, traduccionesNota } from './lib/impl.mjs';
-import { juegoDeClase, registroJuego, vocabularioJuego } from './lib/juego.mjs';
+import { juegoDeClase, juegoV1, fotoV1, registroJuego, vocabularioJuego } from './lib/juego.mjs';
 import { compararClase } from './paridad.mjs';
 import { claseMockupDesdeJuego, validarConMockup } from './lib/inverso.mjs';
 
@@ -93,14 +98,16 @@ async function draft({ escribirJs = false } = {}) {
   const registro = await registroJuego();
   if (registro.error) avisos.push(registro.error);
   const poderes = informePoderes(ids, registro);
-  // vocabulario del juego ANTES de escribir nada en js/ (con --write los talentos pasan a v2 esqueleto)
-  const voc = await vocabularioJuego();
+  // la conversión parte de la FOTO del juego v1 (tools/convert-v2/juego-v1.json): activas de talento v1, catálogo
+  // base y especializaciones de antes de E1.5. Así --draft y --write dan lo mismo en cada commit del Paso 2
+  // (aunque KA/KT reescriban js/) y --write se puede repetir. Vocabulario = foto v1 ∪ juego vivo
+  const foto = fotoV1();
+  const voc = await vocabularioJuego({ foto });
 
   for (const cls of pedidas) {
     const m = cargados[cls];
     if (!m) { errores.push(`${cls}: no hay datos del mockup en ${relRoot(SRC)}`); continue; }
-    const juego = await juegoDeClase(cls);
-    avisos.push(...juego.errores);
+    const juego = juegoV1(cls, foto);
     const catalogo = new Set((m.C.catalog || []).map(s => s.id));
     const traducir = texto => traduccionesNota(texto, { catalogo, voc });
     const conv = convertirClase({ cls, C: m.C, TV2: m.TV2, helpers, juego, grantSoloSiExiste: escribirJs, traducir });

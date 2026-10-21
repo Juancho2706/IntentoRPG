@@ -112,7 +112,7 @@ function nodoJuego(ctx, n, { C, TV2, helpers, arbolIcono, grantSi }) {
   return out;
 }
 
-// la definición actual del juego en un comentario de una línea (recortado con «…» si es muy largo)
+// la definición del juego v1 (foto) en un comentario de una línea (recortado con «…» si es muy largo)
 const resumenDef = def => { const t = inline(def); return t.length > 700 ? t.slice(0, 699) + '…' : t; };
 // id parecido en el juego para una habilidad nueva (p. ej. m_parpadeo ← m_t_parpadeo, g_remolino ← g_t_remolino)
 function parecido(id, catJuego) {
@@ -121,7 +121,7 @@ function parecido(id, catJuego) {
   return cands.map(c => catJuego.get(c)).find(Boolean) || null;
 }
 
-// definición de una activa de talento: la actual del juego (si existe) con los campos 2g encima
+// definición de una activa de talento: la del juego v1 (si existía) con los campos 2g encima
 function activaTalento(ctx, s, actual) {
   const base = {};
   if (actual) for (const [k, v] of Object.entries(actual)) if (!['id', 'name', 'kind', 'cat', 'slots', 'req', 'desc', 'icon', 'tags', 'elem', 'cd', 'gen'].includes(k)) base[k] = clon(v);
@@ -137,7 +137,7 @@ function activaTalento(ctx, s, actual) {
   out.desc = actual?.desc || s.s;
   out.art = icono(ctx, s.icon || `icons256/${s.id}.webp`, `${ctx.cls}:${s.id}`);
   out.todo = actual ? 'existe en el juego: revisar texto y números contra la línea 2g' : 'NUEVA: tipo genérico o comportamiento (KA1)';
-  if (actual) comentar(out, [`juego actual: ${resumenDef(actual)}`]);
+  if (actual) comentar(out, [`juego v1: ${resumenDef(actual)}`]);
   return out;
 }
 
@@ -151,7 +151,7 @@ function habilidadKit(ctx, s, actual, catJuego) {
   out.art = icono(ctx, s.icon || `icons256/${s.id}.webp`, `${ctx.cls}:${s.id}`);
   out.todo = 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase';
   const par = actual ? null : parecido(s.id, catJuego);
-  comentar(out, actual ? [`juego actual: ${resumenDef(actual)}`]
+  comentar(out, actual ? [`juego v1: ${resumenDef(actual)}`]
     : par ? [`NUEVA en 2g con este id; en el juego hay una parecida: ${resumenDef(par)}`] : ['NUEVA en 2g (no existe en el juego)']);
   return out;
 }
@@ -215,7 +215,7 @@ export function convertirClase({ cls, C, TV2, helpers, juego, grantSoloSiExiste 
   const talentSkillIds = catalog.filter(s => s.talent).map(s => s.id);
   ctx.activasPendientes = catalog.filter(s => s.talent && grantSoloSiExiste && !existeActiva(s.id)).map(s => s.id);
   ctx.activasEnCatalogo = ctx.activasPendientes.filter(id => catJuego.has(id));   // hoy son habilidades base
-  // activas de talento del juego actual que ya no son activas de talento en 2g (pasan al kit o se retiran)
+  // activas de talento del juego v1 que ya no son activas de talento en 2g (pasan al kit o se retiran)
   const ids2g = new Set(catalog.filter(s => s.talent).map(s => s.id));
   ctx.activasV1Fuera = (juego?.talentSkills || []).map(s => s.id).filter(id => !ids2g.has(id));
   const skills = catalog.filter(s => !s.talent).map(s => habilidadKit(ctx, s, catJuego.get(s.id), catJuego));

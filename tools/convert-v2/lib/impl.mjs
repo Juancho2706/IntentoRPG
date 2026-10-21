@@ -244,8 +244,8 @@ export function clasificar(c, voc) {
   if (ns === 'tuning') return { cat: 'tuning', clave: k };
   if (ns === 'aura') return { cat: 'aura', clave: k };
   if (ns === 'campo') return { cat: 'campo', clave: k };
-  // mod / parámetros de la definición
-  if (w2) return deW2({ alias: 'alias', cola: 'cola' }[w2.tipo] || 'w2');
+  // mod / parámetros de la definición ('clase' = parámetro que lee el código de la clase, no el núcleo)
+  if (w2) return deW2({ alias: 'alias', cola: 'cola', clase: 'param-clase' }[w2.tipo] || 'w2');
   const v = String(c.valor || '').trim();
   if (k === 'type' && v) {
     if (ALIAS[`type:${v}`]) return { cat: 'alias', clave: `type:${v}`, trad: ALIAS[`type:${v}`], fuente: '§3.6' };
@@ -274,6 +274,7 @@ export function traduccionesNota(texto, { forja = false, catalogo = new Set(), v
     let t = null;
     if (r.cat === 'alias') t = `${r.clave} → ${r.trad}`;
     else if (r.cat === 'tv-clase') t = `${r.clave}: clave de la clase (${r.dueño}, <CLASE>_TV_KEYS)`;
+    else if (r.cat === 'param-clase') t = `${r.clave}: parámetro de la clase (${r.dueño}: ${r.trad})`;
     else if (r.cat === 'tv-cola' || r.cat === 'stats-cola' || r.cat === 'cola') t = `${r.clave}: pendiente de la cola W2 (${r.donde})`;
     else if (r.cat === 'sin' || r.cat === 'tv-nueva' || r.cat === 'stats-nueva') t = `${r.clave}: SIN DECIDIR`;
     if (t && !out.includes(t)) out.push(t);
@@ -310,11 +311,13 @@ export function informeClaves(porClase, voc, fuentes) {
     '',
     `> Generado por \`tools/convert-v2/convert.mjs\` (E0.4; tabla de W2 volcada en E1.5). Fuentes: ${fuentes.map(f => `${f.cls} (\`${f.rel}\`, sha1 ${f.hash}, «${f.estado}»)`).join(' · ')}.`,
     '> Las notas `impl`/`k` son texto libre: la lectura es heurística. Traducciones: tabla de alias de §3.6, tabla de W2 (`tools/convert-v2/claves-w2.mjs`,',
-    '> de `docs/paso2-claves-w2.md`) y vocabulario vivo del juego (`skill-defs.js`: `SKILL_KEYS`, `RETIRED_KEYS`). «SIN TRADUCCIÓN» para al orquestador antes de E2.',
+    '> de `docs/paso2-claves-w2.md`) y vocabulario del juego: el vivo (`skill-defs.js`: `SKILL_KEYS`, `RETIRED_KEYS`) y el de la foto v1',
+    '> (`tools/convert-v2/juego-v1.json`, de antes de E1.5). «SIN TRADUCCIÓN» para al orquestador antes de E2.',
     '',
     `**Resumen:** ${n('alias')} alias con traducción · **${n('sin')} SIN TRADUCCIÓN** · ${n('w2')} canónicas nuevas de W2 · ` +
       `claves tv: ${n('tv-clase')} de clase, ${n('tv-cola')} para la cola W2, **${n('tv-nueva')} sin decidir** · stats: ${n('stats-cola')} para la cola W2, **${n('stats-nueva')} sin decidir** · ` +
-      `${n('cola')} claves de definición para la cola W2 · ${n('tuning', 'aura')} ajustes de mecánica o aura · ${n('campo')} campos nombrados · ` +
+      `${n('cola')} claves de definición para la cola W2 · ${n('param-clase')} parámetros de definición de la clase · ` +
+      `${n('tuning', 'aura')} ajustes de mecánica o aura · ${n('campo')} campos nombrados · ` +
       `${n('canonica')} canónicas de §3.5/§3.6 · ${n('existente')} que ya existen en el juego.`,
     '',
     '## 1. Alias del mockup → clave canónica',
@@ -344,11 +347,11 @@ export function informeClaves(porClase, voc, fuentes) {
     ...filas(['stats-cola', 'stats-nueva'], (k, e, cat) => `| \`${k}\` | ${DECISION[cat]} | ${que(e)} | ${e.prueba || '—'} | ${lista(e.donde)} |`),
     ...filas('w2', (k, e) => (k.startsWith('stats.') ? `| \`${k}\` | canónica (W2) | ${que(e)} | ${e.prueba || '—'} | ${lista(e.donde)} |` : null)).filter(Boolean),
     '',
-    '## 4b. Claves de definición nuevas de W2 y peticiones a la cola W2',
+    '## 4b. Claves de definición nuevas de W2, peticiones a la cola W2 y parámetros que lee el código de la clase',
     '',
     '| Clave | Decisión | Qué y dónde vive | Prueba | Dónde |', '|---|---|---|---|---|',
-    ...filas(['w2', 'cola'], (k, e, cat) => (k.startsWith('tv.') || k.startsWith('stats.') ? null
-      : `| \`${k}\` | ${cat === 'cola' ? '**cola W2** (pendiente)' : 'canónica (W2)'} | ${que(e)} | ${e.prueba || '—'} | ${lista(e.donde)} |`)).filter(Boolean),
+    ...filas(['w2', 'cola', 'param-clase'], (k, e, cat) => (k.startsWith('tv.') || k.startsWith('stats.') ? null
+      : `| \`${k}\` | ${cat === 'cola' ? '**cola W2** (pendiente)' : cat === 'param-clase' ? `de la clase (${e.dueño})` : 'canónica (W2)'} | ${que(e)} | ${e.prueba || '—'} | ${lista(e.donde)} |`)).filter(Boolean),
     '',
     '## 5. Ajustes de mecánica (`tuning`) y auras (KT · `mech-<clase>.js`)',
     '',
@@ -432,7 +435,7 @@ export function informePendientes({ cls, C, conv, fuente, poderes, voc = null })
   const nuevas = (C.catalog || []).filter(s => s.talent && /NUEVA/.test(conv.talentSkills.find(t => t.id === s.id)?.todo || '')).map(s => s.id);
   if (nuevas.length) out.push(`Activas de talento NUEVAS (en \`--write\` no entran en \`${cls.toUpperCase()}_TALENT_SKILLS\` hasta que existan): ${nuevas.map(x => `\`${x}\``).join(', ')}.`, '');
   const v1Fuera = conv.ctx.activasV1Fuera || [];
-  if (v1Fuera.length) out.push(`Activas de talento del juego actual que dejan de serlo en 2g (pasan al kit de \`skills-${cls}.js\` o se retiran; lista de cada doc): ${v1Fuera.map(x => `\`${x}\``).join(', ')}.`, '');
+  if (v1Fuera.length) out.push(`Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de \`skills-${cls}.js\` o se retiran; lista de cada doc): ${v1Fuera.map(x => `\`${x}\``).join(', ')}.`, '');
   if (poderes) {
     const dec = Object.entries(poderes.poderes || {}).filter(([, d]) => d.estado.startsWith('NUEVO')).map(([id]) => id);
     out.push('## Poderes nuevos citados (comprobar contra out/power-ids.json, D28)', '', dec.length ? dec.map(id => `\`${id}\``).join(', ') : '—', '');

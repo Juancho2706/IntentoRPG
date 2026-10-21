@@ -79,8 +79,10 @@ function compararNodo(R, m, j, ruta) {
       R.eq(o.role, q.role, `${rr}.role`);
       R.eq(o.n, q.name, `${rr}.name`);
       R.eq(o.d, q.desc, `${rr}.desc`);
+      // un grant que falta solo es «pendiente» si el nodo aún es esqueleto (todo) y la activa NO existe hoy en el
+      // juego (R.activas: activas de talento de CLASSES); si existe, falta de verdad (la activa quedaría inalcanzable)
       const g = q.fx?.grant ?? null;
-      if (o.act && !g && (q.todo || j.todo)) R.pendientes.push(`${rr}: concede ${o.act} (sin grant todavía: la activa no existe en el juego)`);
+      if (o.act && !g && (q.todo || j.todo) && !R.activas?.has(o.act)) R.pendientes.push(`${rr}: concede ${o.act} (sin grant todavía: la activa no existe en el juego)`);
       else R.eq(o.act ?? null, g, `${rr}.grant`);
     }
   } else {
@@ -184,8 +186,11 @@ export function compararCatalogo(R, { C, cat }) {
 // ---------------------------------------------------------------- una clase
 // talents = <CLASE>_TALENTS del juego (o del borrador); cat = { skills, talentSkills, forge, specBar, forgeReco, fallbackBar }
 // Cada parte se compara solo si existe: talents?.v === 2 · cat (lo pasa quien llama si CATALOG_V === 2).
-export function compararClase({ cls, C, TV2, talents, cat }) {
+// activas = ids de las activas de talento que YA existen en el juego (kind 'talent' en CLASSES): el grant de una de
+// ellas no puede faltar aunque el nodo tenga `todo`. Sin la lista (borradores del conversor) se tolera como pendiente.
+export function compararClase({ cls, C, TV2, talents, cat, activas = null }) {
   const R = nuevoInforme(cls);
+  R.activas = activas ? new Set(activas) : null;
   if (talents?.v === 2) compararTalentos(R, { C, TV2, talents });
   else R.info.push(`talentos del juego en v${talents?.v || 1}: se saltan`);
   if (cat) compararCatalogo(R, { C, cat });
