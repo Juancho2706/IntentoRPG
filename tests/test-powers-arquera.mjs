@@ -35,7 +35,8 @@ const SK = id => CLASSES.arquera.skills.find(s => s.id === id);
 const OWN = arqueraPowers();
 const SRC = readFileSync(new URL('../js/powers-arquera.js', import.meta.url), 'utf8');
 const MECH = readFileSync(new URL('../js/mech-arquera.js', import.meta.url), 'utf8');
-const code = s => s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+// sin comentarios (también con finales de línea CRLF: el checkout de Windows con core.autocrlf)
+const code = s => s.replace(/\r\n?/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
 
 // ------------------------------------------------ (a) cobertura
 assert.deepEqual(missingFor('arquera'), { powers: [], behaviors: [], skills: [] }); checks++;
@@ -89,6 +90,7 @@ for (const s of CLASSES.arquera.skills.filter(x => x.kind === 'talent')) ok(SKIL
 
 // ------------------------------------------------ (d) reglas del código
 {
+  eq(code('a // powers.has(x)\r\nb /* p.cds = 1 */\r\n'), 'a \nb \n', 'code() quita los comentarios también con CRLF');
   const src = code(SRC), mech = code(MECH);
   ok(!/powers\.has\(/.test(src + mech), 'sin powers.has( (hasPower)');
   ok(!/\.cds\s*(\[[^\]]+\]|\.[A-Za-z_$][\w$]*)?\s*(?:[-+*/]?=)(?!=)/.test(src + mech), 'sin escribir p.cds (g.reduceCooldown)');

@@ -131,11 +131,12 @@ export function baseGauges(T, H) {
     // Montaraz: el valor son las TRAMPAS ARMADAS tuyas (campos 'trampa' o data.trap; un Racimo, data.cluster,
     // cuenta 1; hasta 3 + gaugeMax:coto). PRESA: el primer élite o jefe que golpeas (15 s sin golpearla;
     // con Presas en Manada, también 2 que pisen una trampa): cuenta como élite y KillInfo.status.prey.
-    // BATIDA: 3 estallidos de trampa en 1 s (2 con Corazón del Bosque 3) → Debilidad a los alcanzados y a
-    // la Presa (+tv.batidaDur s; tv.batidaPreyStagger de Quebranto a la Presa); una cada 12 s
+    // BATIDA: 3 trampas que estallan en 1 s (2 con Corazón del Bosque 3; «con 3 trampas de verdad»: un
+    // Racimo cuenta 1) → Debilidad a los alcanzados y a la Presa (+tv.batidaDur s; tv.batidaPreyStagger de
+    // Quebranto a la Presa); una cada 12 s
     coto: {
       name: 'Coto de Caza', color: '#86d47a', max: K.maxArmed, integer: true,
-      state: () => ({ prey: null, preyT: 0, preys: [], hits: new Map(), batidaT: 0, batidaMax: 0, batidaAt: -99, batidas: 0 }),
+      state: () => ({ prey: null, preyT: 0, preys: [], hits: new Map(), batidaT: 0, batidaMax: 0, batidaAt: -99, batidas: 0, live: new Map(), gone: [] }),
       value(p) {
         const seen = new Set();
         for (const f of p.game?.fields || []) {
@@ -163,8 +164,18 @@ export function baseGauges(T, H) {
         if (st.batidaT > 0) st.batidaT = Math.max(0, st.batidaT - dt);
         const t = now(p);
         for (const [e, at] of st.hits) if (!e.alive || t - at > 2) st.hits.delete(e);
+        // trampas tuyas que acaban de irse (por trampa del Coto: los cepos de un Racimo son una). El
+        // registro del núcleo (trapBurstsWithin) cuenta estallidos sueltos; los dos juntos dan las
+        // trampas distintas que estallaron (la que caduca o se cae por el tope no está en el registro)
+        const live = new Map();
+        for (const f of g?.fields || []) if (!f.dead && f.owner === p && (f.kind === 'trampa' || f.data?.trap)) live.set(f.uid, f.data?.cluster ?? f.uid);
+        for (const [uid, key] of st.live) if (!live.has(uid)) st.gone.push({ key, t });
+        st.live = live;
+        st.gone = st.gone.filter(x => t - x.t <= K.batida.win + 0.1 + 1e-9);
         const need = K.batida.n - ((p.talentAgg?.powerRank?.m_corazon_bosque | 0) >= 3 ? 1 : 0);
-        if (t - st.batidaAt < K.batida.icd - 1e-9 || (g?.trapBurstsWithin?.(p, K.batida.win) || 0) < need) return;
+        if (t - st.batidaAt < K.batida.icd - 1e-9) return;
+        const bursts = Math.min(g?.trapBurstsWithin?.(p, K.batida.win) || 0, new Set(st.gone.map(x => x.key)).size);
+        if (bursts < need) return;
         const targets = new Set(cotoPreys(st));
         for (const [e, at] of st.hits) if (e.alive && t - at <= K.batida.win + 1e-9) targets.add(e);
         if (!targets.size) return;

@@ -42,9 +42,13 @@
 // Las activas de árbol héroe (a_h_torbellino, a_h_puntas, a_h_halcon) son del catálogo (KA):
 // estos poderes reaccionan a su lanzamiento por id (afterCast).
 //
-// ── Paso 2c: especializaciones (v1) ─────────────────────────────────────────────
-// Los poderes de las especializaciones de 2c siguen aquí hasta los trabajos 2 y 3 de KT
-// (ningún nodo 2g los lleva); el documento los retira o los sustituye (§11.1).
+// ── Paso 2g: especializaciones (§7) ─────────────────────────────────────────────
+// Un poder por nodo con efecto propio; el del nodo clave lleva la pasiva y la barra vive en
+// js/mech-arquera.js (los v1 de 2c se retiraron, §11.1):
+//   Tiradora Veloz  t_*  (t_tercera: Tercera Flecha · Impulso y Vendaval)
+//   Francotiradora  f_*  (f_cuerda_tensa: Cuerda Tensa · Concentración, Calma Absoluta y Punto Débil)
+//   Montaraz        m_*  (m_cebo: Cebo de Caza · Coto, Presa y Batida)
+// Campos propios: m_zarzal (zarzales de m6, m14, m21, m24) y m_cerco (Cerco gratis de Bosque Vivo).
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { gainGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
@@ -72,7 +76,7 @@ function tune() {
       diamante: { pct: 40 },                                     // c9B
       roma: { slowPct: 50, slowT: 4 },                           // c10A (icd 8 s)
       silbante: { silence: 3 },                                  // c10B (icd 10 s)
-      abrojos: { radius: 2.5, dur: 3, slowPct: 50, slowT: 0.7, color: 0x9a8a5a },   // c14A
+      abrojos: { radius: 2.5, dur: 3, slowPct: 50, slowT: 0.6, color: 0x9a8a5a },   // c14A (pulsos de 0,5 s: sin huecos y sin cobrar Quebranto de más)
       rodada: { pct: 6, every: 12 },                             // c14B
       adrenalina: { below: 0.5, energy: 30, dr: 20, dur: 4 },    // c15A (icd 30 s)
       calma: { over: 40, pct: 10 },                              // c15B
@@ -91,6 +95,10 @@ function tune() {
     // cubeta de autocuración (ronda 3, §20): lo que la Arquera se cura a sí misma con sus
     // nodos suma como mucho 1 % de la vida por segundo (depósito que se llena a ese ritmo)
     cubeta: { perSec: 1, cap: 6 },
+    // ralentización mantenida (zarzal, Corazón del Bosque 1): dura 1,25 s y se renueva cuando le
+    // quedan menos de 0,2 s (un tic de 10 Hz más el fotograma en que se aplica: sin huecos), así el
+    // Quebranto a un jefe es ~1,1 veces el de una ralentización continua (holdSlow)
+    lento: { dur: 1.25, left: 0.2, every: 0.1 },
     // ---- Errante del Viento (§9.2)
     wind: Object.freeze({
       every: 4, max: 3, coef: 0.6, range: 12, width: 1, fan: 0.26, slowT: 2, torbellino: 3, color: 0xcfeff0,
@@ -295,6 +303,19 @@ function selfHeal(g, p, pct, src) {
   const amount = (p.stats?.maxHP || 0) * take / 100;
   return g?.heal ? g.heal(amount, { target: 'self', src }) : (p.healSkill?.(amount, src) || 0);
 }
+// RALENTIZACIÓN MANTENIDA de una zona (`key`: 'zarzal', 'corazon'): mientras el enemigo siga
+// dentro, se renueva solo cuando está por acabarse. Enemy.applyCC cobra a un jefe Quebranto por cada
+// segundo de ralentización que aplica: renovarla en cada tic (o una vez por cepo) lo cobraba varias veces.
+function holdSlow(p, key, e, pct) {
+  if (!e?.alive) return false;
+  const H = tune().lento, t = now(p);
+  const st = powerState(p, 'arq_lento');
+  const m = st[key] || (st[key] = new WeakMap());
+  if ((m.get(e) ?? -Infinity) - t >= H.left - 1e-9) return false;
+  e.applyCC?.('slow', H.dur, { pct, src: p });
+  m.set(e, t + H.dur);
+  return true;
+}
 // escudo a ti misma por la misma cubeta (Nervios de Acero)
 function selfShield(g, p, pct, dur, src) {
   const take = takeCubeta(p, pct);
@@ -463,7 +484,7 @@ function skyTarget(g, p) {
   return e;
 }
 // el marcado recibe +10 % de tus flechas 6 s (Ojo Compartido: 12 s y varios a la vez);
-// Presa Señalada (Montaraz): cuenta como tu Presa
+// Presa Señalada: cuenta como tu Presa (Montaraz) o como tu Punto Débil (Francotiradora: weakLeft)
 function hawkMark(p, e) {
   const st = powerState(p, 'y_halcon'), tv = p.tv || {};
   if (!st.marks) st.marks = new Map();
@@ -1286,15 +1307,18 @@ function shotCoef(prof, frac) {
   const v = s[0] + (s[s.length - 1] - s[0]) * Math.max(0, Math.min(1, frac || 0));
   return (prof.coef || 0) * v / base;
 }
-// PUNTO DÉBIL: la marca del motor (a_punto_debil, se gasta con el primer tensado) o el seguimiento
-// propio (Tiro Rastreador, Línea de Mira, Marca Saltarina): segundos que le quedan
+// PUNTO DÉBIL: la marca del motor (a_punto_debil, se gasta con el primer tensado), el seguimiento
+// propio (Tiro Rastreador, Línea de Mira, Marca Saltarina) o, con Presa Señalada (y3), la marca del
+// halcón: segundos que le quedan. El perfecto gratis es solo de la marca del motor (firstCharged).
 function weakMap(p) { const st = powerState(p, 'arq_debil'); return st.m || (st.m = new Map()); }
-// (dead: también de un enemigo que acaba de morir, para Marca Saltarina)
+// (dead: también de un enemigo que acaba de morir, para Marca Saltarina; la del halcón no salta)
 function weakLeft(p, e, dead = false) {
   if (!e || (!dead && !e.alive)) return 0;
   const m = e.marks?.a_punto_debil;
   const own = m && m.t > 0 && (!m.by || m.by === p) ? m.t : 0;
-  return Math.max(own, (weakMap(p).get(e) || 0) - now(p), 0);
+  const hawk = p.tv?.hawkPrey > 0 && p.talentAgg?.mechanic === 'concentracion' && hawkMarked(p, e)
+    ? powerState(p, 'y_halcon').marks.get(e) - now(p) : 0;
+  return Math.max(own, (weakMap(p).get(e) || 0) - now(p), hawk, 0);
 }
 function isWeak(p, e) { return weakLeft(p, e) > 0; }
 function markWeak(p, e, dur) {
@@ -1406,42 +1430,6 @@ function cercoRooted(g, p, f) {
   f._climb = (f._climb || 0) + add;
   f.t += add;
 }
-// fin de la cadena del Salto para Caída Sangrienta (b21): el último salto desangra a los que golpeó
-// (el 100 % de su golpe en 3 s; Heridas Abiertas y Sangre Espesa cuentan, como en todo Sangrado)
-function caidaSangrienta(g, p) {
-  const st = powerState(p, 'g_b_caida_sangrienta');
-  const last = st.last;
-  st.last = null;
-  const frac = tun().caidaSangrienta / 100 / DOT_PROFILES.bleed.frac;
-  for (const { e, dealt } of last?.hits || []) {
-    if (!e.alive || !(dealt > 0)) continue;
-    const d = dotProfile('bleed', dealt, { dotMul: frac, tv: p.tv });
-    if (d) g.applyDoT(e, d.total, d.ticks, d.interval, undefined, 'g_salto:bleed');
-  }
-}
-// fin de la cadena del Salto para Estampida Sin Fin (b27): con 3 o más golpeados en el último
-// salto, recorte (o reinicio) si no van ya 2 recargas seguidas recortadas
-function estampida(g, p) {
-  const st = powerState(p, 'g_b_estampida');
-  const last = st.last;
-  st.last = null;
-  const E = tun().estampida;
-  if (!last || last.hits.length < E.need || (saltoRow(p).row || 0) >= E.row) return;
-  const s = E.refund[Math.min(E.refund.length, rankOf(p, 'g_b_estampida')) - 1];
-  if (cutCd(g, p, 'g_salto', s) > 0) g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡ESTAMPIDA!', 'txt-crit');
-}
-// Milagro (z15A): `a` (tú o un aliado) queda con un 20 % de vida; una vez cada 2 min entre todos
-function milagro(g, p, a) {
-  const M = tun().milagro;
-  const st = powerState(p, 'g_z_milagro');
-  if (!a || now(p) - st.at < M.icd - 1e-9) return false;
-  st.at = now(p);
-  const hp = Math.max(1, Math.round((a.stats?.maxHP || 0) * M.hpPct / 100));
-  if (a.setHp) a.setHp(hp, 'g_z_milagro'); else a.hp = hp;
-  g.ui?.spawnText?.(a.pos, '¡MILAGRO!', 'txt-heal');
-  return true;
-}
-
 // ============================================================
 // TIRADORA VELOZ (§7.0): Impulso, Tercera Flecha y sus tres estilos (Abanico, Vaivén, Galerna)
 // ============================================================
@@ -1822,13 +1810,15 @@ function francotiradoraPowers() {
     f_cuerda_tensa: {
       name: 'Cuerda Tensa', desc: 'Mantén Disparo Rápido para tensarlo: hasta +60 %; su último 0,2 s es perfecto.',
       priority: 2,
+      // markMin: un toque (menos de 0,3 s) no gasta el Punto Débil de Tiro Rastreador (lo lee el motor:
+      // petición a la cola W2; hasta entonces el toque se lo lleva)
       modifyResolve(p, sk, prof) {
         if (sk.id !== 'a_disparo' || prof.charge) return;
         const C = T.cuerda, def = prof.def || sk;
         const n = Math.max(1, Math.floor(def.count || 1)), c0 = def.coef || 1;
         prof.charge = { min: 0, max: C.max, perfect: [...C.perfect], perfectPct: 0, perfectCrit: true,
           scale: { coef: [c0, c0 * (1 + C.addPct / 100 / n)] }, moveMul: C.moveMul, autoRelease: true, instant: false,
-          repeat: true, perfectGauge: null, full: null, speed: 1 };
+          repeat: true, perfectGauge: null, full: null, speed: 1, markMin: C.tensedAt };
       },
       onCast(g, p, cast) {
         if (cast?.sk?.id === 'a_t_apuntado') {
@@ -1955,11 +1945,12 @@ function francotiradoraPowers() {
         e.addStagger?.(T.vital.stagger, p);
       },
     },
-    // f10A Salva de Vigía: de rodillas, cada soltado a carga completa dispara 2 saetas más al 25 %
+    // f10A Salva de Vigía: de rodillas, cada soltado a carga completa (Disparo Apuntado o un haz; el
+    // básico tensado no, §19.1 hallazgo 4) dispara 2 saetas más al 25 %
     f_salva: {
       name: 'Salva de Vigía', desc: 'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más.',
       onSkillEnd(g, p, sk, end) {
-        if (end?.kind !== 'charge' || !(end.casts > 0) || !(end.frac >= 1 - 1e-9) || !kneeling(p)) return;
+        if (!isCharged(sk?.id) || end?.kind !== 'charge' || !(end.casts > 0) || !(end.frac >= 1 - 1e-9) || !kneeling(p)) return;
         const foes = foesNear(g, p.pos, T.salva.range);
         for (let i = 0; i < T.salva.n && foes.length; i++)
           shootArrow(g, p, { from: p.pos, to: nth(foes, i).pos, coef: T.salva.coef, skill: 'f_salva', speed: 26, range: T.salva.range + 2 });
@@ -2230,6 +2221,13 @@ function montarazPowers() {
     st.done = st.seq;
     return true;
   };
+  // donde acaba el vuelo de Flecha Detonante sin blanco (su alcance hacia la mira)
+  const detEnd = (g, p, cast) => {
+    const d = aimDir(p, cast.target), R = cast.prof?.range || cast.sk.range || 12;
+    const want = v3(p.pos.x + d.x * R, p.pos.z + d.z * R);
+    const end = g.clampWalkable ? g.clampWalkable(p.pos, want, R) : want;
+    return { x: end.x, z: end.z };
+  };
   return {
     // m0 Coto de Caza (la barra vive en js/mech-arquera.js) + pasiva CEBO DE CAZA: todas tus trampas
     // armadas atraen (a 6 m; los élites a 3 m; los jefes no), también las que colocan tus talentos.
@@ -2395,11 +2393,19 @@ function montarazPowers() {
         else if (e.def?.rank) e.applyCC?.('slow', T.acoso.slowT, { pct: T.acoso.slowPct, src: p });
       },
     },
-    // m14 Semillas de Zarza: Flecha Detonante deja un zarzal de 2 m durante 4 s donde estalla
+    // m14 Semillas de Zarza: Flecha Detonante deja un zarzal de 2 m durante 4 s donde estalla (sin
+    // blanco, donde acaba su vuelo; afterCast llega cuando la flecha termina)
     m_semillas: {
       name: 'Semillas de Zarza', desc: 'Flecha Detonante deja un zarzal donde estalla.',
+      state: () => ({}),
       onCast(g, p, cast) { detCast(p, 'm_semillas', cast); },
-      onHit(g, p, e, hit) { if (detFirst(p, 'm_semillas', hit)) spawnZarzal(g, p, e.pos, T.semillas.dur, 'm_semillas'); },
+      onHit(g, p, e, hit) { if (detFirst(p, 'm_semillas', hit)) powerState(p, 'm_semillas').at = { x: e.pos.x, z: e.pos.z }; },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_m_detonante') return;
+        const st = powerState(p, 'm_semillas'), at = st.at || detEnd(g, p, cast);
+        st.at = null;
+        spawnZarzal(g, p, at, T.semillas.dur, 'm_semillas');
+      },
     },
     // m15A Cepo de Huida: al bajar del 50 % de vida, un cepo a tus pies inmoviliza 3 s a todos a 4 m (cada 30 s)
     m_cepo_huida: {
@@ -2506,13 +2512,7 @@ function montarazPowers() {
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_m_detonante') return;
         const st = powerState(p, 'm_campo_sembrado');
-        let at = st.at;
-        if (!at) {                                      // sin blanco: donde acaba su vuelo
-          const d = aimDir(p, cast.target), R = cast.prof?.range || cast.sk.range || 12;
-          const want = v3(p.pos.x + d.x * R, p.pos.z + d.z * R);
-          const end = g.clampWalkable ? g.clampWalkable(p.pos, want, R) : want;
-          at = { x: end.x, z: end.z };
-        }
+        const at = st.at || detEnd(g, p, cast);          // sin blanco: donde acaba su vuelo
         st.at = null;
         const n = powerRank(p, 'm_campo_sembrado');
         // tras el estallido de la flecha (que detona tus trampas en su radio)
@@ -2604,9 +2604,10 @@ function montarazPowers() {
       state: () => ({ n: 0 }),
       onTick(g, p) {
         if (powerRank(p, 'm_corazon_bosque') < 1) return;
-        const R2 = T.corazon.slowR * T.corazon.slowR;
-        for (const f of armedTraps(g, p))
-          for (const e of g.enemies || []) if (e.alive && dist2(e.pos, f.pos) <= R2) e.applyCC?.('slow', 0.3, { pct: T.corazon.slowPct, src: p });
+        const R2 = T.corazon.slowR * T.corazon.slowR, traps = armedTraps(g, p);
+        if (!traps.length) return;
+        // una sola ralentización por enemigo, aunque tenga varias trampas cerca
+        for (const e of g.enemies || []) if (e.alive && traps.some(f => dist2(e.pos, f.pos) <= R2)) holdSlow(p, 'corazon', e, T.corazon.slowPct);
       },
       onKill(g, p, e) {
         if (powerRank(p, 'm_corazon_bosque') >= 2 && isEliteish(e)) spawnCepo(g, p, e.pos, { skill: 'm_corazon_bosque', max: 2 });
@@ -2665,12 +2666,15 @@ function buildFields() {
     // Zarzal (m6, m14, m21, m24; tres que se tocan forman el Cerco de Bosque Vivo): ralentiza un 40 %
     m_zarzal: {
       name: 'Zarzal',
-      init(f) { f.acc = 0.25; },
+      init(f) { f.acc = tune().lento.every; },
+      // mira cada 0,1 s quién está dentro; la ralentización se mantiene sin cobrar Quebranto de más (holdSlow)
       tick(g, f, dt) {
+        const every = tune().lento.every;
         f.acc += dt;
-        if (f.acc < 0.25 - 1e-9) return;
-        f.acc = 0;
-        for (const e of enemiesInField(g, f)) e.applyCC?.('slow', 0.5, { pct: f.data.slowPct || 40, src: f.owner });
+        if (f.acc < every - 1e-9) return;
+        f.acc = Math.min(every, f.acc - every);
+        if (!f.owner) return;
+        for (const e of enemiesInField(g, f)) holdSlow(f.owner, 'zarzal', e, f.data.slowPct || 40);
       },
       render(g, f) { groundDecal(g, f, { disc: true, opacity: 0.22, color: f.data.color ?? 0x5f8f3a }); },
     },

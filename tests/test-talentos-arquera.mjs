@@ -12,6 +12,7 @@ import { POWER_HOOKS, powerState, definePower } from '../js/powers.js';
 import { arqueraPowers } from '../js/powers-arquera.js';
 import { resolveSkill, isKnown } from '../js/skill-resolve.js';
 import { CLASSES } from '../js/data.js';
+import { staggerFromCC } from '../js/combat-math.js';
 
 const TREES = TALENT_TREES.arquera;
 const SRC = readFileSync(new URL('../js/powers-arquera.js', import.meta.url), 'utf8');
@@ -56,10 +57,11 @@ function specRanks(spec, pts = 31) {
 }
 const SPEC_OF = { h1: 'tiradora', h2: 'tiradora', h3: 'francotiradora' };
 const KEY_OF = { h1: 'q0', h2: 'w0', h3: 'y0' };
-// arquera de nivel 100 con el árbol héroe `tree` (su nodo clave es gratis) y `nodes`
-function hero(tree, nodes = {}, choice = {}, { open = true, spec = SPEC_OF[tree], inject = null, powers = [] } = {}) {
-  return steady(makeHarness({ classId: 'arquera', level: 100, seed: 11, spec, inject, powers,
-    talents: { specRanks: specRanks(spec, open ? 31 : 30), hero: { [spec]: { tree, nodes: { [tree]: nodes }, choice: { [tree]: choice } } } } }));
+// arquera de nivel 100 con el árbol héroe `tree` (su nodo clave es gratis) y `nodes`; specNodes
+// sustituye los 31 puntos por defecto de la especialización (specChoice: sus elecciones) y tv se suma
+function hero(tree, nodes = {}, choice = {}, { open = true, spec = SPEC_OF[tree], inject = null, powers = [], tv = null, specNodes = null, specChoice = {} } = {}) {
+  return steady(makeHarness({ classId: 'arquera', level: 100, seed: 11, spec, inject, powers, tv,
+    talents: { specRanks: specNodes || specRanks(spec, open ? 31 : 30), choice: specChoice, hero: { [spec]: { tree, nodes: { [tree]: nodes }, choice: { [tree]: choice } } } } }));
 }
 // espía del daño recibido por un enemigo (lo que llega a takeDamage, antes de la Debilidad)
 function spy(e) {
@@ -2108,6 +2110,506 @@ section('Montaraz: Zarzal (Semillas, Huida, Guarida, Coto Cerrado, Cerco y Bosqu
       return !!cerco(x);
     };
     ok(go(4) && !go(3), 'm28 r4: 12 estallidos, Cerco de Zarzas gratis');
+  }
+});
+
+// ============================================================ revisión: correcciones
+const v3t = (x, z) => new THREE.Vector3(x, 0, z);
+// golpe de trampa sintético por ⑤: la pisan (`spring`: source field:trampa) o estalla por una detonación
+const trapHit = (h, e, uid, { spring = false, skill = 'a_t_cepo' } = {}) => h.g.onPlayerHit(e, { dealt: 10, raw: 10, crit: false, skill,
+  tags: new Set(['trap']), source: spring ? 'field:trampa' : 'trap', trap: { uid, skill }, pos: { x: e.pos.x, z: e.pos.z } });
+// cepo propio armado al momento (fuera del alcance de los enemigos de la prueba: nadie lo pisa)
+const putTrap = (h, x, z, data = {}) => h.g.spawnField('trampa', { pos: v3t(x, z), radius: 1.5, dur: 120, owner: h.p, data: { dmg: 1, skill: 'a_t_cepo', armT: 0, ...data } });
+// golpe sintético de Disparo Apuntado por ⑤ (perfecto si `perfect`)
+const aimedHit = (h, e, perfect = true) => h.g.onPlayerHit(e, { dealt: 100, raw: 100, crit: false, skill: 'a_t_apuntado', tags: new Set(['proj', 'physical']),
+  perfect, source: 'hit', pos: { x: e.pos.x, z: e.pos.z } });
+// golpe de trampa (skill, etiquetas trap/nature) tirado por la vía real con coef 1
+const trapRollAs = (h, e, skill) => h.p.rollDamage(1, 0, 0, e, { skill, tags: new Set(['trap', 'nature']), elem: 'nature' }).dmg;
+// instantes en que se crean campos `kind` (con data.skill = `skill`, si se da)
+function countFields(h, kind, skill = null) {
+  const g = h.g, orig = g.spawnField.bind(g), list = [];
+  g.spawnField = (k, o) => { const f = orig(k, o); if (f && k === kind && (!skill || f.data?.skill === skill)) list.push(h.p.simT); return f; };
+  return list;
+}
+// curas y escudos que pide la arquera (g.heal / g.shield), con su fuente, cantidad e instante
+function selfLog(h) {
+  const g = h.g, heal = g.heal.bind(g), shield = g.shield.bind(g), log = [];
+  g.heal = (n, o = {}) => { if (typeof n === 'number') log.push({ kind: 'heal', n, src: o.src, t: h.p.simT }); return heal(n, o); };
+  g.shield = (n, o = {}) => { log.push({ kind: 'shield', n, src: o.src, t: h.p.simT }); return shield(n, o); };
+  return log;
+}
+// un golpe mientras tensa el básico (Cuerda Tensa): la carga está en curso
+function hitWhileTensing(h) {
+  ready(h);
+  h.setSlot('lmb', 'a_disparo');
+  h.aim(6, 0);
+  h.press('lmb');
+  h.step(0.1);
+  const on = !!h.g._charging;
+  h.p.takeDamage(50, 100);
+  h.release('lmb');
+  h.step(0.1);
+  return on;
+}
+// ¿el motor ya aplica charge.markMin (petición a la cola W2)? Hasta entonces el caso queda pendiente
+const ENGINE_MARKMIN = /\bmarkMin\b/.test(readFileSync(new URL('../js/game-skills.js', import.meta.url), 'utf8'));
+
+section('revisión: Presa Señalada (y3) es el Punto Débil de la Francotiradora', () => {
+  // 31 puntos que no tocan el tensado (ni Cuerda Ligera ni Serenidad) ni dan Punto Débil o Quebranto propios
+  const SNIPER = { f1: 3, f2: 3, f4: 2, f6: 1, f7: 2, f9: 1, f10: 1, f11: 2, f12: 2, f13: 2, f14: 1, f15: 1, f17: 2, f18: 2, f19: 2, f21: 1, f24: 3 };
+  eq(Object.values(SNIPER).reduce((a, b) => a + b, 0), 31, '31 puntos: Paragon abierto');
+  const go = (y3, sec) => {
+    const h = hero('h3', y3 ? { y3: 1 } : {}, {}, { specNodes: SNIPER, specChoice: { f9: 'B', f10: 'B', f15: 'A' }, tv: { focusRate: -100 } });
+    const boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] });
+    h.tick(6.05);
+    const isMarked = marked(h, boss);
+    h.tick(0.2);
+    const exposed = boss.debuffs?.f_herida_expuesta?.pct || 0;
+    const s0 = boss.stagger || 0;
+    aimed(h, boss, sec);
+    return { isMarked, exposed, st: (boss.stagger || 0) - s0 };
+  };
+  const a = go(true, PERFECT), b = go(false, PERFECT);
+  ok(a.isMarked && b.isMarked, 'el halcón marca al jefe');
+  eq(a.exposed, 12, 'y3: el marcado tiene tu Punto Débil (Herida Expuesta r2: +12 %)');
+  eq(b.exposed, 0, 'sin y3: la marca del halcón no es Punto Débil');
+  near(a.st - b.st, 15, 'y3: Punto Vital llena 15 de Quebranto al marcado', 0.03);
+  // sin el perfecto gratis: a media carga no es perfecto y Punto Vital no salta
+  const c = go(true, HALF), d = go(false, HALF);
+  ok(Math.abs(c.st - d.st) < 0.5, `y3: sin perfecto gratis (${(c.st - d.st).toFixed(2)})`);
+  // la Presa del Montaraz sigue igual (caso de la sección de la Halconera) y Marca Saltarina no salta la del halcón
+  {
+    const h = hero('h3', { y3: 1 }, {}, { specNodes: { ...SNIPER, f9: 1 }, specChoice: { f9: 'A', f10: 'B', f15: 'A' }, tv: { focusRate: -100 } });
+    const e = h.enemy({ hp: 1e7, pos: [5, 0, 0] }), o = h.enemy({ hp: 1e7, pos: [5, 0, 4] });
+    h.tick(6.05);
+    ok(marked(h, e), 'marcado por el halcón');
+    e.takeDamage(1e9, false, { skill: 'a_disparo' });
+    eq(weak(h, o), 0, 'f9A: la marca del halcón no salta como Punto Débil');
+  }
+});
+
+section('revisión: Salva de Vigía, toque del básico, Semillas sin blanco', () => {
+  // f10A: el básico tensado a carga completa (de rodillas) no suelta la Salva; Disparo Apuntado sí
+  {
+    const h = fra({ f10: 1 }, { f10: 'A' }), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e);
+    kneel(h);
+    tense(h, 'lmb', 'a_disparo', 1.05, 6, 0, 0.6);
+    ok(by(l, 'a_disparo').some(x => x.crit), 'el básico salió tensado a carga completa (perfecto)');
+    eq(by(l, 'f_salva').length, 0, 'f10A: el básico tensado no suelta la Salva');
+    aimed(h, e, 1.6);
+    eq(by(l, 'f_salva').length, 2, 'f10A: Disparo Apuntado a carga completa, sí');
+    near(by(l, 'f_salva')[0].n / roll(h, e, 'f_salva'), 0.25, 'f10A: saetas al 25 %');
+  }
+  // Cuerda Tensa: un toque (menos de 0,3 s) no gasta el Punto Débil de Tiro Rastreador (charge.markMin)
+  {
+    eq(rp(fra(), 'a_disparo').charge.markMin, 0.3, 'f0: el básico declara markMin 0,3 (un toque no es un tensado)');
+    const h = fra(), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
+    track(h, e, true);
+    ok(!!e.marks?.a_punto_debil, 'Tiro Rastreador abre el Punto Débil del motor');
+    tense(h, 'lmb', 'a_disparo', 0.05, 6, 0, 0.3);
+    if (ENGINE_MARKMIN) ok(!!e.marks?.a_punto_debil, 'f0: un toque no gasta el Punto Débil');
+    else console.log(`    · pendiente (cola W2, charge.markMin): hoy un toque ${e.marks?.a_punto_debil ? 'no gasta' : 'gasta'} el Punto Débil`);
+  }
+  // m14: sin blanco, el zarzal donde acaba el vuelo (12 m); con blanco, donde estalla
+  {
+    const h = mon({ m14: 1 });
+    det(h, { pos: { x: 8, z: 0 } }, 0.9);
+    const z = zarzales(h);
+    ok(z.length === 1 && Math.hypot(z[0].pos.x - 12, z[0].pos.z) < 0.3, `m14: sin blanco, a 12 m (${z.map(f => f.pos.x.toFixed(1))})`);
+    const w = mon({ m14: 1 }), e = w.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    det(w, e);
+    const zw = zarzales(w);
+    ok(zw.length === 1 && Math.hypot(zw[0].pos.x - 5, zw[0].pos.z) < 0.5, 'm14: con blanco, donde estalla');
+  }
+});
+
+section('revisión: la Batida cuenta un Racimo como una trampa', () => {
+  // cepos alrededor del jefe a 2,5 m (fuera de su radio: nadie los pisa) y Flecha Detonante sobre él
+  const go = (nodes, groups) => {
+    const h = mon(nodes), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] });
+    makePrey(h, boss);
+    let k = 0;
+    for (const [n, cluster] of groups) for (let i = 0; i < n; i++, k++) {
+      const a = k * Math.PI / 3;
+      putTrap(h, 5 + Math.sin(a) * 2.5, Math.cos(a) * 2.5, cluster != null ? { cluster } : {});
+    }
+    h.tick(0.2);
+    det(h, boss, 0.6);
+    return { batida: !!boss.debuffs?.coto_batida, bursts: h.g.trapBurstsWithin(h.p, 2) };
+  };
+  const a = go({}, [[3, 77]]);
+  ok(a.bursts === 3 && !a.batida, `un Racimo (3 cepos) que estalla: sin Batida (${a.bursts} estallidos)`);
+  const b = go({}, [[1, null], [1, null], [1, null]]);
+  ok(b.bursts === 3 && b.batida, 'tres trampas de verdad: Batida');
+  const c = go({}, [[3, 77], [1, null], [1, null]]);
+  ok(c.batida, 'un Racimo y dos cepos: tres trampas, Batida');
+  ok(go({ m28: 3 }, [[3, 77], [1, null]]).batida && !go({ m28: 3 }, [[3, 77]]).batida, 'm28 r3: un Racimo y un cepo bastan; un Racimo solo, no');
+});
+
+section('revisión: ralentizaciones mantenidas (el Quebranto de una ralentización continua)', () => {
+  // Quebranto por segundo de una ralentización continua del `pct` a un jefe (Enemy.applyCC → staggerFromCC)
+  const perSec = (h, pct) => staggerFromCC('slow', 1, { pct, staggerPct: h.p.stats.staggerPct || 0 });
+  const measure = (h, boss, sec = 20) => {
+    const s0 = boss.stagger || 0;
+    let gaps = 0;
+    for (let t = 0; t < sec - 1e-9; t += 1 / 60) { h.step(1 / 60); if (!(boss.slowT > 0)) gaps++; }
+    return { rate: ((boss.stagger || 0) - s0) / sec, gaps };
+  };
+  // m28 r1: un jefe a 2,5 m de uno o de tres cepos armados
+  for (const n of [1, 3]) {
+    const h = mon({ m28: 1 }), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 2.5] });
+    for (const [x, z] of [[5, 0], [5, 5], [7.4, 2.5]].slice(0, n)) putTrap(h, x, z);
+    h.tick(0.2);
+    const { rate, gaps } = measure(h, boss), ref = perSec(h, 30);
+    ok(ref > 0 && rate >= ref * 0.95 && rate <= ref * 1.25, `m28 r1, ${n} cepo(s): ${rate.toFixed(2)}/s ≈ ${ref}/s de una ralentización continua`);
+    eq(gaps, 0, `m28 r1, ${n} cepo(s): sin huecos`);
+  }
+  {
+    const h = mon(), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 2.5] });
+    putTrap(h, 5, 0);
+    h.tick(0.2);
+    eq(measure(h, boss, 2).rate, 0, 'sin m28: el cepo no ralentiza ni llena Quebranto');
+  }
+  // zarzal bajo un jefe (y dos que se solapan)
+  for (const n of [1, 2]) {
+    const h = mon(), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] });
+    for (let i = 0; i < n; i++) h.g.spawnField('m_zarzal', { pos: v3t(5 + i * 0.5, 0), radius: 2, dur: 30, owner: h.p, data: { skill: 'm_zarzal', slowPct: 40 } });
+    h.tick(0.2);
+    const { rate, gaps } = measure(h, boss), ref = perSec(h, 40);
+    ok(ref > 0 && rate >= ref * 0.95 && rate <= ref * 1.25, `zarzal ×${n}: ${rate.toFixed(2)}/s ≈ ${ref}/s`);
+    eq(gaps, 0, `zarzal ×${n}: sin huecos`);
+    eq(boss.slowPct, 20, 'el zarzal ralentiza al jefe (40 %, la mitad a un jefe)');
+  }
+});
+
+// ============================================================ G19: enfriamientos internos, topes y coeficientes
+// Los números del documento como LITERALES (no se leen de powers-arquera.js): cambiar un
+// coeficiente, un enfriamiento interno o un tope tiene que pasar por aquí.
+section('G19: enfriamientos internos', () => {
+  // m28 r4: un Cerco gratis cada 12 cepos de Trampa de Cepo que estallan, como mucho uno cada 90 s
+  {
+    const x = mon({ m28: 4 }), en = x.enemy({ hp: 1e7, pos: [5, 0, 0] }), made = countFields(x, 'zona', 'a_u_zarzas');
+    let uid = 5000;
+    const bursts = n => { for (let i = 0; i < n; i++) trapHit(x, en, uid++); x.step(0.1); };
+    bursts(12);
+    eq(made.length, 1, 'm28 r4: 12 estallidos, un Cerco');
+    x.tick(10); bursts(12);
+    eq(made.length, 1, 'm28 r4: otros 12 a los 10 s, nada');
+    x.tick(78.5); bursts(1);
+    eq(made.length, 1, 'm28 r4: a los 89 s, todavía no');
+    x.tick(1.3); bursts(1);
+    eq(made.length, 2, 'm28 r4: pasados 90 s, otro');
+    // los cepos que hizo saltar Gran Cacería no cuentan
+    const y = mon({ m28: 4 }), yn = y.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    const gh = putTrap(y, 9, 9, { greatHunt: true }), plain = putTrap(y, -9, 9);
+    trapHit(y, yn, gh.uid);
+    eq(powerState(y.p, 'm_corazon_bosque').n || 0, 0, 'm28 r4: un cepo de Gran Cacería no cuenta');
+    trapHit(y, yn, plain.uid);
+    eq(powerState(y.p, 'm_corazon_bosque').n, 1, 'm28 r4: uno normal, sí');
+  }
+  // m26 Gran Cacería: una vez cada 12 / 9 / 6 s
+  {
+    const go = (r, gap) => {
+      const x = mon({ m26: r }), prey = x.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] });
+      makePrey(x, prey);
+      const stepOn = putTrap(x, 9, 9), far = putTrap(x, -6, 0);
+      const jump = () => { far.pos.x = -6; far.pos.z = 0; trapHit(x, prey, stepOn.uid, { spring: true }); return Math.hypot(far.pos.x - 5, far.pos.z) < 3; };
+      const first = jump();
+      x.tick(gap);
+      makePrey(x, prey);
+      return [first, jump()];
+    };
+    for (const [r, cd] of [[1, 12], [2, 9], [3, 6]]) {
+      assert.deepEqual(go(r, cd - 0.4), [true, false], `m26 r${r}: no otra vez antes de ${cd} s`); checks++;
+      assert.deepEqual(go(r, cd + 0.2), [true, true], `m26 r${r}: a los ${cd} s, otra vez`); checks++;
+    }
+  }
+  // f26 Disparo Imposible: una vez por segundo
+  {
+    const go = gap => {
+      const h = fra({ f26: 1 }), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e);
+      track(h, e);
+      aimedHit(h, e); h.step(gap); aimedHit(h, e); h.step(0.4);
+      return by(l, 'a_t_apuntado').filter(x => x.echo).length;
+    };
+    eq(go(0.9), 1, 'f26: a los 0,9 s, no sale dos veces');
+    eq(go(1.1), 2, 'f26: pasado 1 s, sí');
+  }
+  // m5 Presa Atrapada: una vez cada 10 s; las trampas de Gran Cacería no la activan; estalla al 60 %
+  {
+    const go = (gap, greatHunt = false) => {
+      const x = mon({ m5: 1 }), prey = x.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] }), l = spy(prey);
+      makePrey(x, prey);
+      const f = putTrap(x, 5, 2, { greatHunt });
+      trapHit(x, prey, f.uid, { spring: true });
+      const n1 = by(l, 'm_presa_atrapada').length;
+      x.tick(gap);
+      makePrey(x, prey);
+      trapHit(x, prey, f.uid, { spring: true });
+      return { n: [n1, by(l, 'm_presa_atrapada').length], l, x, prey };
+    };
+    assert.deepEqual(go(9.5).n, [1, 1], 'm5: no otra vez antes de 10 s'); checks++;
+    const a = go(10.2);
+    assert.deepEqual(a.n, [1, 2], 'm5: a los 10 s, otra'); checks++;
+    near(by(a.l, 'm_presa_atrapada')[0].n / trapRollAs(a.x, a.prey, 'm_presa_atrapada'), 0.6, 'm5: estalla al 60 %');
+    assert.deepEqual(go(0.5, true).n, [0, 0], 'm5: una trampa de Gran Cacería no la activa'); checks++;
+  }
+  // f15B Nervios de Acero: un escudo cada 6 s; el 8 % lo limita el depósito de la cubeta (6 %)
+  {
+    const go = gap => {
+      const h = fra({ f15: 1 }, { f15: 'B' }), log = selfLog(h);
+      ok(hitWhileTensing(h), 'golpe mientras tensa');
+      h.tick(gap);
+      hitWhileTensing(h);
+      return log.filter(x => x.src === 'f_nervios').map(x => x.n / h.p.stats.maxHP);
+    };
+    const a = go(5.4);
+    eq(a.length, 1, 'f15B: no otro antes de 6 s');
+    near(a[0], 0.06, 'f15B: el depósito de la cubeta (6 %) limita el escudo del 8 %', 0.001);
+    eq(go(6.2).length, 2, 'f15B: a los 6 s, otro');
+  }
+  // cubeta de autocuración: 1 % de vida por segundo (Nervios de Acero vacía el depósito; Paso Sanador cura lo que se rellenó)
+  {
+    const h = steady(makeHarness({ classId: 'arquera', level: 100, seed: 11, spec: 'francotiradora', talents: { cls: { c14: 1 }, specRanks: { f15: 1 }, choice: { c14: 'B', f15: 'B' } } }));
+    const log = selfLog(h), p = h.p, max = p.stats.maxHP;
+    hitWhileTensing(h);
+    const sh = log.find(x => x.src === 'f_nervios');
+    h.tick(3);
+    p.hp = max * 0.5;
+    cast(h, 'k1', 'a_paso', -6, 0, 0.1);
+    const he = log.find(x => x.src === 'a_rodada_cura');
+    ok(sh && he && he.t - sh.t < 5, `escudo y cura (${sh?.t.toFixed(2)} → ${he?.t.toFixed(2)} s)`);
+    near(he.n / max, (he.t - sh.t) / 100, `cubeta: ${(he.t - sh.t).toFixed(2)} s después, cura ${(he.t - sh.t).toFixed(2)} % (1 %/s)`, 0.01);
+    const fresh = steady(makeHarness({ classId: 'arquera', level: 60, seed: 11, talents: { cls: { c14: 1 }, choice: { c14: 'B' } } })), fl = selfLog(fresh);
+    fresh.p.hp = fresh.p.stats.maxHP * 0.5;
+    cast(fresh, 'k1', 'a_paso', -6, 0, 0.1);
+    near(fl.find(x => x.src === 'a_rodada_cura').n / fresh.p.stats.maxHP, 0.06, 'c14B: con el depósito lleno, el 6 %', 0.001);
+  }
+  // w4B Punta Curativa: cura un 2 %, una vez cada 6 s
+  {
+    const h = hero('h2', { w4: 1 }, { w4: 'B' }, { tv: { tipEvery: 5.5 } }), es = [h.enemy({ hp: 1e7, pos: [5, 0, 0] }), h.enemy({ hp: 1e7, pos: [0, 0, 5] })];
+    const log = selfLog(h);
+    for (let i = 0; i < 16; i++) { h.hit(es[i % 2], { skill: 'a_disparo', tags: ['proj'] }); h.tick(0.5); }
+    const heals = log.filter(x => x.src === 'w_puntas');
+    eq(heals.length, 2, 'w4B: dos curas en 8 s (una cada 6 s)');
+    ok(heals[1].t - heals[0].t >= 6 - 0.01 && heals[1].t - heals[0].t <= 6.5 + 0.01, `w4B: la segunda a los 6 s (${(heals[1].t - heals[0].t).toFixed(2)})`);
+    near(heals[0].n / h.p.stats.maxHP, 0.02, 'w4B: cura un 2 %', 0.001);
+  }
+  // m27 Bosque Vivo: un Cerco gratis cada 8 s como mucho
+  {
+    const h = mon({ m27: 2 }), made = countFields(h, 'm_cerco');
+    for (const [x, z] of [[0, 0], [2, 0], [1, 1.6]]) h.g.spawnField('m_zarzal', { pos: v3t(x, z), radius: 2, dur: 30, owner: h.p, data: { skill: 'm_zarzal', slowPct: 40 } });
+    h.tick(0.2);
+    eq(made.length, 1, 'm27: el primer Cerco');
+    h.tick(7.4);
+    eq(made.length, 1, 'm27: no otro antes de 8 s (aunque el primero ya acabó)');
+    h.tick(0.8);
+    eq(made.length, 2, 'm27: a los 8 s, otro');
+  }
+  // v5 Remate Triple: una vez cada 4 s
+  {
+    const h = tir({ v5: 1 }), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), out = [];
+    const volleyThenShoot = () => { cdReset(h, 'a_t_andanada'); h.p.mp = h.p.stats.maxMP; ready(h); const t = h.p.simT; cast(h, 'k3', 'a_t_andanada', 6, 0, 0.8); out.push(shots(h, () => shoot(h, e, 0.3)).length); return t; };
+    const t0 = volleyThenShoot();
+    h.tick(0.5);
+    const t1 = volleyThenShoot();
+    ok(t1 - t0 < 4, `la segunda Andanada antes de 4 s (${(t1 - t0).toFixed(2)})`);
+    h.tick(Math.max(0, 4.2 - (h.p.simT - t0)));
+    volleyThenShoot();
+    assert.deepEqual(out, [3, 1, 3], 'v5: triple, sencillo antes de 4 s, triple otra vez'); checks++;
+  }
+  // m15A Cepo de Huida: una vez cada 30 s
+  {
+    const h = mon({ m15: 1 }, { m15: 'A' }), p = h.p;
+    const rooted = () => { const en = h.enemy({ hp: 1e7, pos: [2, 0, 0] }); p.hp = p.stats.maxHP * 0.55; p.takeDamage(100, 100); return en.rootT > 0; };
+    eq(rooted(), true, 'm15A: inmoviliza');
+    h.tick(29.5);
+    eq(rooted(), false, 'm15A: no otra vez antes de 30 s');
+    h.tick(0.7);
+    eq(rooted(), true, 'm15A: a los 30 s, otra');
+  }
+  // v15B Retirada Instintiva: una vez cada 8 s
+  {
+    const h = tir({ v15: 1 }, { v15: 'B' }), p = h.p, e = h.enemy({ hp: 1e7, pos: [1, 0, 0] });
+    const jump = () => { e.pos.set(p.pos.x + 1, 0, p.pos.z); const x0 = p.pos.x; p.takeDamage(50, 1, { melee: true, source: e }); h.step(0.4); return x0 - p.pos.x; };
+    near(jump(), 4, 'v15B: salta 4 m', 0.05);
+    h.tick(7.1);
+    near(jump(), 0, 'v15B: no otra vez antes de 8 s', 0.05);
+    h.tick(0.6);
+    near(jump(), 4, 'v15B: a los 8 s, otra', 0.05);
+  }
+});
+
+section('G19: topes de cantidad', () => {
+  // v19 Vendaval Encadenado: +0,5 s/rango por relanzamiento, +4 s como mucho por Vendaval
+  {
+    const h = tir({ v19: 2 });
+    h.gauge('impulso', 100);
+    for (let i = 0; i < 5; i++) {
+      ready(h);
+      cdReset(h, 'a_t_andanada');
+      h.p.mp = h.p.stats.maxMP;
+      h.setSlot('k3', 'a_t_andanada'); h.aim(6, 0);
+      h.cast('k3'); h.step(0.4);
+      h.p.mp = h.p.stats.maxMP;
+      h.cast('k3'); h.step(0.2);
+    }
+    near(h.gaugeState('impulso').galeMax, 10, 'v19 r2: 5 relanzamientos, +4 s (no +5): Vendaval de 10 s', 0.001);
+  }
+  // m17 Zarzas Trepadoras: +0,5 s/rango por inmovilizado, +4 s como mucho
+  {
+    const go = nodes => {
+      const h = mon(nodes, { m10: 'A' });
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; h.enemy({ hp: 1e7, pos: [Math.sin(a) * 8, 0, Math.cos(a) * 8] }); }
+      cast(h, 'k4', 'a_u_zarzas', 0, 0, 0.1);
+      h.tick(2);
+      return cerco(h).t;
+    };
+    near(go({ m10: 1, m17: 2 }) - go({ m10: 1 }), 4, 'm17 r2: 6 inmovilizados, +4 s (no +6)', 0.01);
+  }
+  // m10B Zarzal Asfixiante: +15 % por segundo, +90 % como mucho · m10A Zarzal Creciente: hasta 12 m
+  {
+    const h = mon({ m10: 1 }, { m10: 'B' }), big = h.enemy({ hp: 1e7, pos: [2, 0, 0] }), lb = spy(big);
+    cast(h, 'k4', 'a_u_zarzas', 0, 0, 0.1);
+    h.tick(7.95);
+    const ratios = [];
+    let dot = null;
+    for (const x of lb) { if (x.skill === 'a_u_zarzas' && x.dot) dot = x; else if (x.skill === 'm_asfixiante' && dot) ratios.push(x.n / dot.n); }
+    ok(ratios.length >= 7, `m10B: un extra por segundo (${ratios.length})`);
+    near(Math.max(...ratios), 0.9, 'm10B: tope de +90 %', 0.02);
+    near(ratios[ratios.length - 1], 0.9, 'm10B: se queda en +90 %', 0.02);
+    const c = mon({ m10: 1 }, { m10: 'A' });
+    cast(c, 'k4', 'a_u_zarzas', 0, 0, 0.1);
+    c.tick(7);
+    near(cerco(c).radius, 12, 'm10A: crece hasta 12 m (no 14)', 0.001);
+  }
+  // f23 Herida sobre Herida: 5 Heridas como mucho
+  {
+    const h = fra({ f23: 3 }), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
+    track(h, e);
+    const before = roll(h, e, 'a_t_apuntado');
+    for (let i = 0; i < 7; i++) aimedHit(h, e);
+    near(roll(h, e, 'a_t_apuntado') / before, addRatio(h.p, 30), 'f23 r3: 7 perfectos, 5 Heridas (+30 %, no +42 %)');
+  }
+  // v24 Ciclones: 3 vivos como mucho (r3: uno por segundo, duran 4 s; Carrera de 6 s)
+  {
+    const h = tir({ v24: 3, v7: 2 }), live = () => (h.g.fields || []).filter(f => !f.dead && f.data?.skill === 't_ciclones').length;
+    ready(h); h.setSlot('k1', 'a_v_carrera'); h.aim(6, 0); h.press('k1');
+    let top = 0;
+    for (let i = 0; i < 60; i++) { h.step(0.1); top = Math.max(top, live()); }
+    h.release('k1');
+    eq(top, 3, 'v24 r3: como mucho 3 ciclones a la vez');
+  }
+  // v25 Tormenta de Plumas: 3 de sus flechas caen sobre el blanco, al 60 % (a 45°: el círculo no lo toca)
+  {
+    const h = tir({ v25: 1 }), e = h.enemy({ hp: 1e7, pos: [3, 0, 3] }), l = spy(e);
+    for (let i = 0; i < 3; i++) { h.p.mp = h.p.stats.maxMP; cast(h, 'rmb', 'flecha_multiple', 3, 3, 0.6); }
+    const s = by(l, 't_tormenta_plumas');
+    eq(s.length, 3, 'v25: 3 flechas de la Tormenta sobre el blanco');
+    near(s[0].n / roll(h, e, 't_tormenta_plumas'), 0.6, 'v25: al 60 %');
+  }
+  // m22 Campo Sembrado y m25 Tierra Arrasada: 6 cepos vivos de cada uno como mucho
+  {
+    const h = mon({ m22: 3 });
+    for (let i = 0; i < 3; i++) det(h, { pos: { x: 8, z: 0 } }, 0.9);
+    eq(traps(h, 'm_campo_sembrado').length, 6, 'm22 r3: 9 sembrados, 6 vivos');
+    const t = mon({ m25: 3 }), en = t.enemy({ hp: 1e7, pos: [5, 0, 0] });
+    for (let i = 0; i < 3; i++) trapHit(t, en, 7000 + i);
+    t.step(0.3);
+    eq(traps(t, 'm_tierra_arrasada').length, 6, 'm25 r3: 9 pequeños, 6 vivos');
+  }
+  // f4 Sobrepenetración: 4 atravesados como mucho
+  {
+    const h = fra({ f4: 2 }), es = [2, 4, 6, 8, 10, 12].map(x => h.enemy({ hp: 1e7, pos: [x, 0, 0] })), ls = es.map(spy);
+    aimed(h, es[5], HALF);
+    const n = ls.map(lg => by(lg, 'a_t_apuntado')[0]?.n || 0);
+    ok(n.every(x => x > 0), 'atraviesa a los seis');
+    near(n[4] / n[0], addRatio(h.p, 80), 'f4 r2: el 5.º, +80 %');
+    near(n[5] / n[0], addRatio(h.p, 80), 'f4 r2: el 6.º también +80 % (tope de 4)');
+  }
+});
+
+section('G19: coeficientes', () => {
+  // f0 Cuerda Tensa: hasta 1 s, ventana dorada [0,8, 1] s y tensando te mueves al 60 %
+  {
+    const ch = rp(fra(), 'a_disparo').charge;
+    assert.deepEqual([ch.max, ch.perfect, ch.moveMul], [1, [0.8, 1], 0.6], 'f0: 1 s, ventana [0,8, 1] y moveMul 0,6'); checks++;
+    const crit = sec => { const h = fra(), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e); tense(h, 'lmb', 'a_disparo', sec, 6, 0, 0.5); return by(l, 'a_disparo')[0].crit; };
+    eq(crit(0.7), false, 'f0: a 0,7 s todavía no es perfecto');
+    eq(crit(0.85), true, 'f0: a 0,85 s, perfecto');
+    const h = fra();
+    ready(h); h.setSlot('lmb', 'a_disparo'); h.aim(6, 0); h.press('lmb'); h.step(0.2);
+    near(h.p.moveMulProduct(), 0.6, 'f0: tensando, te mueves al 60 %', 0.001);
+    h.release('lmb'); h.step(0.2);
+    near(h.p.moveMulProduct(), 1, 'f0: al soltar, vuelve', 0.001);
+  }
+  // v0 Tercera Flecha: las 2 flechas de más al 60 %
+  {
+    const h = tir(), es = wall(h, 3), log = spyAll(es);
+    for (let i = 0; i < 3; i++) shoot(h, es[5]);
+    const d = by(log(), 'a_disparo');
+    eq(d.length, 5, 'v0: 1 + 1 + 3 impactos');
+    const third = d.slice(2), main = Math.max(...third.map(x => x.n));
+    ok(third.filter(x => Math.abs(x.n / main - 0.6) <= 0.015).length === 2, `v0: las 2 de más al 60 % (${third.map(x => (x.n / main).toFixed(2))})`);
+  }
+  // v10A Rueda de Flechas: 8 flechas al 60 %
+  {
+    const h = tir({ v10: 1 }, { v10: 'A' }), coefs = [];
+    const fp = h.g.fireProjectile.bind(h.g);
+    h.g.fireProjectile = (ctx, o = {}) => { if (o.coef != null) coefs.push(o.coef); return fp(ctx, o); };
+    run(h, 1.1);
+    ok(coefs.length === 8 && coefs.every(c => c === 0.6), `v10A: un anillo de 8 al 60 % (${coefs})`);
+  }
+  // v18 Flechas Perdidas: al 50 %
+  {
+    const h = tir({ v18: 1 });
+    h.enemy({ hp: 1, pos: [4, 0, 0] });
+    const far = h.enemy({ hp: 1e7, pos: [4, 0, 6] }), l = spy(far);
+    cast(h, 'rmb', 'flecha_multiple', 4, 0, 1);
+    near(by(l, 't_flechas_perdidas')[0].n / roll(h, far, 't_flechas_perdidas'), 0.5, 'v18: al 50 %');
+  }
+  // v27 Galerna Infinita: el tiempo de más gasta 10 de Energía por segundo y 3 más cada segundo
+  {
+    const regen = (() => { const r = tir(); r.p.mp = r.p.stats.maxMP * 0.3; const q = r.p.mp; r.stand(1); return r.p.mp - q; })();
+    const h = tir({ v27: 2 });
+    ready(h); h.setSlot('k1', 'a_v_carrera'); h.aim(6, 0);
+    h.p.mp = h.p.stats.maxMP;
+    h.press('k1'); h.step(4.05);
+    const m0 = h.p.mp; h.step(1); const m1 = h.p.mp; h.step(1); const m2 = h.p.mp;
+    h.release('k1');
+    ok(m2 > 0, 'queda Energía');
+    near((m1 - m2) - (m0 - m1), 3, 'v27: cada segundo de más cuesta 3 más', 0.1);
+    near((m0 - m1) + regen, 10, 'v27: el primer segundo de más, 10 de Energía', 0.04);
+  }
+  // f8A Estela (30 %) · f22 Saetas Paralelas (20 %) · f25 Línea Mortal (5 + 5·rango %) · f27 Atalaya (200 %)
+  {
+    const h = fra({ f8: 1 }, { f8: 'A' }), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e);
+    aimed(h, e, PERFECT, 1);
+    near(by(l, 'f_estela')[0].n / roll(h, e, 'f_estela'), 0.3, 'f8A: la estela al 30 %');
+    const p = fra({ f22: 1 }), side = p.enemy({ hp: 1e7, pos: [6, 0, -1] }), ps = spy(side);
+    p.enemy({ hp: 1e7, pos: [6, 0, 0] });
+    aimed(p, { pos: { x: 6, z: 0 } }, PERFECT);
+    near(by(ps, 'f_paralelas')[0].n / roll(p, side, 'f_paralelas'), 0.2, 'f22: la saeta paralela al 20 %');
+    for (const [r, k] of [[1, 0.1], [3, 0.2]]) {
+      const m = fra({ f25: r }), t = m.enemy({ hp: 1e7, pos: [25, 0, 0] }), lm = spy(t);
+      aimed(m, t, 1.6, 1.5);
+      near(by(lm, 'f_linea_mortal')[0].n / roll(m, t, 'f_linea_mortal'), k, `f25 r${r}: la línea estalla al ${k * 100} %`);
+    }
+    const a = fra({ f27: 1 }), at = a.enemy({ hp: 1e7, pos: [6, 0, 0] }), la = spy(at);
+    kneel(a);
+    a.tick(5.1);
+    near(by(la, 'a_u_celeste')[0].n / roll(a, at, 'a_u_celeste'), 2, 'f27: el haz de Atalaya al 200 %');
+  }
+  // m11 Metralla (20 %) · m8B Cepo Reforzado (20 %)
+  {
+    const h = mon({ m11: 1 }), a = h.enemy({ hp: 1e7, pos: [5, 0, 2.4] }), b = h.enemy({ hp: 1e7, pos: [5, 0, 6] }), log = spyAll([a, b]);
+    trap(h, 5, 0);
+    det(h, a);
+    const m = by(log(), 'm_metralla')[0];
+    near(m.n / roll(h, m.e, 'm_metralla'), 0.2, 'm11: púas al 20 %');
+    const r = mon({ m8: 1 }, { m8: 'B' }), el = r.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] }), lr = spy(el);
+    trap(r, 5, 0, 1.5);
+    near(by(lr, 'm_cepo_reforzado')[0].n / trapRollAs(r, el, 'm_cepo_reforzado'), 0.2, 'm8B: cada estallido al 20 %');
   }
 });
 

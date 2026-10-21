@@ -22,6 +22,7 @@ assert.equal(typeof globalThis.document, 'undefined');
 const A = await import('../js/ui-gauges-arquera.js');
 const G = await import('../js/ui-gauges.js');
 const { gaugeTuning, gaugeDefs, gaugeSeq, spendGauge } = await import('../js/spec-mechanics.js');
+const { firePower } = await import('../js/powers.js');
 const { TALENT_TREES } = await import('../js/talents.js');
 const { CLASSES } = await import('../js/data.js');
 const { resolveSkill } = await import('../js/skill-resolve.js');
@@ -30,6 +31,14 @@ const THREE = await import('three');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const T = gaugeTuning();
+// NÚMEROS DEL DOCUMENTO (docs/paso2g-arquera.md §7.0–§7.2), como literales: la mecánica real se mide
+// contra ellos, no contra gaugeTuning() (si no, cambiar un número no rompería nada)
+const DOC = {
+  concentracion: { gainPerSec: 15, losePerSec: 25, critPerPoint: 0.15, max: 100, perfectGain: 15, basicPerfectGain: 3, gainGap: 1,
+    calmT: 5, calmLong: 8, calmChargeMul: 1.5, calmLock: 7 },
+  coto: { maxArmed: 3, preyT: 15, manada: { elite: 1, trap: 2 }, batida: { n: 3, win: 1, pct: 15, dur: 6, icd: 12 }, trap: { charges: 2, cd: 8, root: 2 } },
+  impulso: { perShot: 3, shotGap: 0.15, galeT: 6, galeAspd: 25, max: 100, galeProj: 1, idleAfter: 2, idleRate: 10 },
+};
 const V = A.ARQUERA_GAUGE_VIEWS;
 const IDS = ['concentracion', 'coto', 'impulso'];
 const SPEC = { concentracion: 'francotiradora', coto: 'montaraz', impulso: 'tiradora' };
@@ -40,6 +49,9 @@ let checks = 0;
 const ok = (c, m) => { assert.ok(c, m); checks++; };
 const eq = (a, b, m) => { assert.equal(a, b, m); checks++; };
 const mk = (spec, specRanks = {}, choice = {}) => makeHarness({ classId: 'arquera', spec, level: 100, talents: { specRanks, choice } });
+
+// ---------------------------------------------------------------- números congelados (gaugeTuning = documento)
+for (const id of IDS) { assert.deepEqual(T[id], DOC[id], `gaugeTuning().${id} = los números del documento`); checks++; }
 
 // ---------------------------------------------------------------- registro
 assert.deepEqual(Object.keys(V).sort(), [...IDS].sort(), 'ARQUERA_GAUGE_VIEWS = las 3 mecánicas de la Arquera');
@@ -169,7 +181,7 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
 
 // ---------------------------------------------------------------- mecánica real + model(): Concentración
 {
-  const C = T.concentracion;
+  const C = DOC.concentracion;
   const h = mk('francotiradora');
   const p = h.p;
   let v = h.gaugeView(), m = V.concentracion.model(v, T);
@@ -212,8 +224,17 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
   b.setSlot('lmb', 'a_disparo');
   b.hold('lmb', 0.9); b.step(0.5);
   eq(b.gaugeValue('concentracion'), 2 * C.perfectGain + C.basicPerfectGain, `perfecto del básico: +${C.basicPerfectGain}`);
-  b.hold('lmb', 0.9); b.step(0.1);
-  eq(b.gaugeValue('concentracion'), 2 * C.perfectGain + C.basicPerfectGain, `uno por segundo como mucho (${C.gainGap} s)`);
+  // una ganancia de perfecto por segundo como mucho: perfectos del básico (⑦ onCast) a 0, 0,5 y 1,1 s
+  {
+    const q = makeHarness({ classId: 'arquera', spec: 'francotiradora', level: 100, tv: { focusRate: -100 } });
+    const perfectBasic = () => firePower('onCast', q.p, q.g, q.p, { sk: SK('a_disparo'), weapon: true, perfect: true, charge: { t: 0.9, frac: 0.9 } });
+    perfectBasic();
+    eq(q.gaugeValue('concentracion'), 3, 'perfecto del básico: +3');
+    q.step(0.5); perfectBasic();
+    eq(q.gaugeValue('concentracion'), 3, 'otro a los 0,5 s: nada (uno por segundo)');
+    q.step(0.6); perfectBasic();
+    eq(q.gaugeValue('concentracion'), 6, 'a los 1,1 s: otra vez +3');
+  }
   // a 100: CALMA ABSOLUTA (5 s; perfecto desde media carga; Apuntado y haces ×1,5) y luego RESPIRO
   const sp0 = resolveSkill(h.p, SK('a_t_apuntado')).charge.speed;
   h.gauge('concentracion', 100);
@@ -241,7 +262,7 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
 
 // ---------------------------------------------------------------- Coto de Caza
 {
-  const K = T.coto, B = K.batida;
+  const K = DOC.coto, B = K.batida;
   const h = mk('montaraz');
   const p = h.p;
   let v = h.gaugeView(), m = V.coto.model(v, T);
@@ -315,7 +336,7 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
 
 // ---------------------------------------------------------------- Impulso
 {
-  const I = T.impulso;
+  const I = DOC.impulso;
   const h = mk('tiradora');
   const p = h.p, e = h.enemy({ hp: 1e7 });
   let v = h.gaugeView(), m = V.impulso.model(v, T);
@@ -432,7 +453,7 @@ ok(/\bverb_hunt\s*:/.test(sfxSrc), 'la Batida suena con verb_hunt (existe en sfx
     return typeof n.d === 'function' ? n.d(r) : n.d;
   };
   const has = (txt, ...bits) => bits.every(b => txt.includes(b));
-  const C = T.concentracion, K = T.coto, B = K.batida, I = T.impulso;
+  const C = DOC.concentracion, K = DOC.coto, B = K.batida, I = DOC.impulso;
   ok(has(text('tiradora', 'v0'), `${I.perShot} de Impulso`, `A ${I.max}`, `Vendaval ${I.galeT} s`, `+${I.galeAspd} %`, `+${I.galeProj} flecha`), 'v0 Impulso');
   ok(has(text('tiradora', 'v2'), `${I.galeT + 1} s (antes ${I.galeT} s)`), 'v2 Vendaval Largo');
   ok(has(text('tiradora', 'v28', 3), `${I.max - 20} de Impulso`), 'v28 r3: salta a 80');
