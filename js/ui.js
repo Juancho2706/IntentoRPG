@@ -1516,6 +1516,7 @@ export class UI {
   // cierra TODOS los paneles y el popup, dejando un estado limpio (arranque)
   closeAllPanels() {
     document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+    this.talentPanel?.close(); // #talents-panel no lleva .panel (E3·U1)
     $('item-popup').classList.add('hidden');
     $('item-tooltip').classList.add('hidden');
     this.activePanel = null;
