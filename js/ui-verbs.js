@@ -8,7 +8,7 @@
 //     Calma Absoluta, toda dorada; enganchada (holdMode 'toggle'): candado en la ranura y junto
 //     al cursor; «¡Perfecto!» lo pone la simulación (spawnText) y aquí destella la ranura
 //   · relanzar: aro que se vacía + usos que quedan; dorado en los últimos `perfectLast` s
-//   · combo y secuencia: pips (el que toca brilla) · trampas: pips de trampas armadas
+//   · combo y secuencia: pips (brilla el siguiente) · trampas: pips de trampas armadas
 //   · canal: aro que se consume (late si es sin fin) · postura: marco del color del modo y el
 //     icono se da la vuelta · plantado: icono de estado · cargas: número de cargas
 // Lo calcula hud-model.verbView(game) (PURO); este módulo solo pinta.
@@ -22,7 +22,7 @@
 // creados una vez, sin leer el layout; los textos y atributos cambian solo cuando cambia el valor.
 // DOM estable (§3.12, humo): .verb-charge[data-in-window], .verb-pips[data-slot],
 // .verb-ring[data-slot], .verb-stance[data-slot][data-mode].
-// Se importa sin DOM (los tests corren en Node): nada toca `document` al cargar el módulo.
+// Se importa sin DOM (los tests corren en Node): nada usa `document` al cargar el módulo.
 import { verbView, cursorBarPos, SLOT_ORDER } from './hud-model.js';
 
 export const CURSOR_BAR = Object.freeze({ w: 64, h: 6, gap: 24 });
@@ -215,7 +215,7 @@ export function createVerbHud(root, opts = {}) {
     else if (v.traps?.max) { n = Math.min(PIPS_MAX, v.traps.max); done = v.traps.n; pk = 'trap'; }
     setA(st.pips, 'data-n', n);
     setA(st.pips, 'data-kind', pk);
-    // el pip que toca solo late con el combo en marcha o el especial listo (en reposo, quieto)
+    // el pip del paso siguiente solo late con el combo en marcha o el especial listo (en reposo, quieto)
     setA(st.pips, 'data-live', (v.combo && v.combo.idx > 0) || v.seq?.ready ? '1' : '0');
     setA(st.pips, 'data-up', c && n ? '1' : '0');
     const special = pk === 'seq' || pk.startsWith('combo');      // el último es el golpe especial

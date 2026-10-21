@@ -194,4 +194,98 @@ const all = Object.values(DEFAULT_BINDINGS).flat();
 assert.equal(new Set(all).size, all.length, 'ningún código repetido entre acciones');
 console.log('Atajos P/J/K/H/Z libres y remapeables ✓');
 
+// ---------- 6. Paso 2 (U2): libro, verbos y marcas de mundo en PC ----------
+// A9 también en lo nuevo; motion solo con transform/opacity (G10) y sin él con «reducir movimiento»
+const NEW = ['js/ui-skills.js', 'js/ui-verbs.js', 'js/world-marks.js', 'css/skills.css', 'css/verbs.css'];
+for (const f of NEW) {
+  const src = read(f);
+  for (const [re, what] of [...BANNED, [/touchstart|touchend|pointerType\s*===?\s*['"]touch/, 'eventos táctiles']]) assert.ok(!re.test(src), `${f} contiene ${what}`);
+}
+for (const f of ['css/skills.css', 'css/verbs.css']) {
+  const src = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
+  // cada @keyframes anima solo transform y opacity
+  for (const [, name, body] of src.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g)) {
+    for (const [, decls] of body.matchAll(/\{([^{}]*)\}/g)) for (const d of decls.split(';').map(x => x.trim()).filter(Boolean))
+      assert.ok(/^(transform|opacity)\s*:/.test(d), `${f} @keyframes ${name}: anima «${d}» (solo transform/opacity)`);
+  }
+  // las transiciones, también
+  for (const [, v] of src.matchAll(/transition\s*:\s*([^;}]+)/g)) for (const part of v.split(/,(?![^(]*\))/).map(x => x.trim()))
+    assert.ok(/^(none|transform|opacity)\b/.test(part), `${f}: transición de «${part}» (solo transform/opacity)`);
+  assert.ok(/@media\s*\(prefers-reduced-motion:\s*reduce\)/.test(src) && /body\.reduce-motion/.test(src), `${f}: sin pulsos con «reducir movimiento»`);
+  assert.ok(!/backdrop-filter/.test(src), `${f}: sin backdrop-filter`);
+}
+// el pintor de los verbos (cada frame) no lee el layout
+const uv = read('js/ui-verbs.js');
+assert.ok(!/getBoundingClientRect|offset(Width|Height|Left|Top)|client(Width|Height)|getComputedStyle/.test(uv), 'ui-verbs.js no lee el layout');
+// la barra junto al cursor siempre dentro de la pantalla, encima del cursor si cabe
+for (const [w, h] of [[1920, 1080], [1366, 768]]) for (let x = 0; x <= w; x += w / 8) for (let y = 0; y <= h; y += h / 6) {
+  const q = HM.cursorBarPos(x, y, w, h);
+  assert.ok(q.x >= 8 && q.y >= 8 && q.x + 64 <= w - 8 && q.y + 6 <= h - 8, `${w}×${h} cursor (${x}, ${y}): barra fuera (${q.x}, ${q.y})`);
+  if (y - 24 - 6 >= 8) assert.equal(q.y, Math.round(y - 30), 'encima del cursor (no tapa al objetivo)');
+}
+// el libro (1560 × 930) cabe y escala como el HUD a 1080p y 768p
+assert.equal(HM.bookScale(1920, 1080), HM.hudLayout(1920, 1080).s);
+assert.equal(HM.bookScale(1366, 768), HM.hudLayout(1366, 768).s);
+// el libro respeta las teclas del jugador (bindings): no las escribe a mano
+const us = read('js/ui-skills.js');
+assert.ok(/codeToAction/.test(us) && /keyLabel/.test(us), 'ui-skills.js usa los atajos de bindings.js');
+assert.ok(!/e\.code === 'Key[TN]'/.test(us), 'sin T/N fijas en el libro');
+console.log('Libro y verbos en PC: sin táctil, motion solo transform/opacity y «reducir movimiento», sin leer el layout por frame, barra del cursor dentro, atajos del jugador ✓');
+
+// marcas de mundo de los verbos: pool fijo, datos a 10 Hz y el destello de la carga el MISMO frame
+{
+  const { WorldMarks, verbMarksPlan, THREAD_MAX } = await import('../js/world-marks.js');
+  const { verbHarness } = await import('./fixtures/skills-verbs-sample.mjs');
+  const h = verbHarness('guerrero', { level: 40 });
+  const { p, g } = h;
+  const wm = new WorldMarks(null);
+  const n0 = wm.objectCount();
+  const step = (sec, dt = 1 / 60) => { for (let t = 0; t < sec - 1e-9; t += dt) { h.step(dt, dt); wm.update(g, dt); } };
+  // plantado: anillo bajo los pies solo con una habilidad que lo use
+  p.hotbar.rmb = 'vx_terremoto'; p.recompute();
+  step(1.4);
+  assert.ok(p.planted && wm.verb.planted.visible, 'plantado → anillo bajo los pies');
+  assert.ok(Math.abs(wm.verb.planted.position.x - p.pos.x) < 1e-6, 'el anillo sigue al héroe');
+  p.hotbar.rmb = 'vx_tenso'; p.recompute(); step(0.2);
+  assert.ok(!wm.verb.planted.visible, 'sin habilidad que use el plantado, sin anillo');
+  // postura: aro del color del modo
+  p.hotbar.k2 = 'vx_guardia'; p.recompute();
+  h.cast('k2'); step(0.2);
+  assert.ok(wm.verb.stance.visible && '#' + wm.verb.stance.material.color.getHexString() === HM.STANCE_COLORS[0].toLowerCase(), 'postura → aro a los pies del color del modo');
+  // cebo: un hilo por enemigo atraído (pool de THREAD_MAX)
+  p.hotbar.k2 = 'vx_cepo'; p.recompute();
+  h.aim(4, 0); h.cast('k2'); step(0.7);
+  const e = h.enemy({ hp: 1e6, pos: [8, 0, 0] });
+  e.aggroed = false;
+  for (let i = 0; i < 30 && !e._lure; i++) { g.lureStep?.(e, 1 / 30); step(1 / 30); }
+  step(0.15);
+  assert.ok(e._lure, 'el cebo atrae al enemigo');
+  assert.equal(verbMarksPlan(g).threads.length, 1);
+  assert.ok(wm.verb.threads[0].visible && wm.verb.threads.slice(1).every(m => !m.visible), 'un hilo del enemigo a su cebo');
+  assert.equal(wm.verb.threads.length, THREAD_MAX);
+  // Batida: 3 estallidos en 1 s → el anillo se abre una vez
+  p.trapBursts = [p.simT - 0.6, p.simT - 0.3, p.simT];
+  step(0.12);
+  assert.ok(wm.huntT >= 0 && wm.verb.hunt.visible, 'Batida → anillo que se abre');
+  step(0.8);
+  assert.ok(!wm.verb.hunt.visible && wm.huntT < 0, 'el anillo de la Batida se apaga');
+  step(0.3);
+  assert.ok(wm.huntT < 0, 'la misma Batida no se repite');
+  // carga: destello en el MISMO frame en que el motor entra en la ventana
+  p.hotbar.rmb = 'vx_martillo'; p.recompute(); p.mp = 999; g.resetCooldowns(p);
+  h.press('rmb');
+  let edge = -1, flash = -1;
+  for (let i = 0; i < 80 && g._charging; i++) {
+    h.step(1 / 60, 1 / 60); wm.update(g, 1 / 60);
+    if (g._charging?.inWindow && edge < 0) edge = i;
+    if (wm.verb.flash.visible && flash < 0) flash = i;
+  }
+  assert.ok(edge > 0 && edge === flash, `destello del arma el mismo frame que inWindow (${edge} / ${flash})`);
+  h.release('rmb'); step(0.5);
+  assert.equal(wm.objectCount(), n0, 'pool fijo: nada se crea por frame');
+  wm.clear();
+  assert.ok(!wm.verb.planted.visible && !wm.verb.stance.visible && !wm.verb.hunt.visible && wm.verb.threads.every(m => !m.visible), 'clear() apaga las marcas de verbo');
+  console.log('Marcas de mundo de los verbos: plantado, postura, hilos del cebo, Batida y destello de la carga (mismo frame) con pool fijo ✓');
+}
+
 console.log('\n✅ HUD DE PC (Paso 2d.2) OK');

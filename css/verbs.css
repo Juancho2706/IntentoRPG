@@ -78,7 +78,7 @@
 .verb-ring[data-kind="channel"] { --vr-c: var(--vb-cool); }
 .verb-ring[data-endless="1"] { animation: verbBeat 0.9s ease-in-out infinite; }
 
-/* pips: combo de 3 y secuencia (el que toca brilla) · trampas armadas (verdes) */
+/* pips: combo de 3 y secuencia (brilla el siguiente) · trampas armadas (verdes) */
 .verb-pips { position: absolute; left: 20px; right: 3px; bottom: 4px; display: flex; justify-content: center; gap: 2px; transition: transform 0.12s; }
 .verb-pips[data-n="0"] { display: none; }
 .verb-pips[data-up="1"] { transform: translateY(-9px); }

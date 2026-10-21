@@ -10,7 +10,7 @@ import * as HM from '../js/hud-model.js';
 import { CLASSES } from '../js/data.js';
 import { SLOT_NAMES } from '../js/items.js';
 import { fitsSlot } from '../js/skill-resolve.js';
-import { CATS, GCD_CATS } from '../js/skill-defs.js';
+import { CATS, GCD_CATS, CAT_LABELS } from '../js/skill-defs.js';
 import { TALENT_TREES } from '../js/talents.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,9 +32,13 @@ for (const [cid, cls] of Object.entries(CLASSES)) {
     const firstTalent = s.skills.findIndex(sk => sk.kind === 'talent');
     if (firstTalent >= 0) assert.ok(s.skills.slice(firstTalent).every(sk => sk.kind === 'talent'), `${cid}/${s.id}: base primero`);
   }
-  assert.ok(secs.find(s => s.id === 'spec')?.skills.length, `${cid}: sección de especialización`);
 }
-console.log('Libro: 6 secciones en orden, cada habilidad una vez y en su categoría, base antes que talento ✓');
+// D14: lo que se lee sale de CAT_LABELS (la clave interna no cambia); el libro del Paso 2 agrupa
+// por origen y lo prueba tests/test86 (con el catálogo v1 y con el 2g)
+for (const s of HM.BOOK_SECTIONS) for (const c of s.cats) assert.ok(s.label.toLowerCase().includes(CAT_LABELS[c].toLowerCase()), `${s.id}: etiqueta de CAT_LABELS`);
+for (const t of HM.K2_TABS) for (const c of t.cats) assert.ok(t.label.toLowerCase().includes(CAT_LABELS[c].toLowerCase()), `${t.id}: etiqueta de CAT_LABELS`);
+for (const cat of CATS) assert.equal(HM.catLabel(cat), CAT_LABELS[cat]);
+console.log('Libro: 6 secciones en orden con las etiquetas de CAT_LABELS, cada habilidad una vez y en su categoría, base antes que talento ✓');
 
 // ---------- 2. estado de una ranura: enfriamiento, GCD, recurso ----------
 const p = { cds: { bola: 0.75, ult: 0 }, cdMax: { bola: 1.5 }, gcdT: 0.1, mp: 10 };
@@ -67,7 +71,7 @@ for (const [cid, cls] of Object.entries(CLASSES)) {
   assert.ok(!tabs.flatMap(t => t.skills).some(sk => ['basic', 'movement', 'ultimate'].includes(sk.cat)));
 }
 assert.equal(HM.k2TabFor({ cat: 'spender' }), 'spender'); assert.equal(HM.k2TabFor(null), 'defense');
-console.log('Ranura 2: pestañas «Defensa/utilidad» y «Gastadora» con fitsSlot ✓');
+console.log(`Ranura 2: pestañas «${HM.K2_TABS.map(t => t.label).join('» y «')}» con fitsSlot ✓`);
 
 // ---------- 4. sprites del mapa / minimapa ----------
 const ctx = { level: 10, quest: null, rift: 0 };
@@ -127,30 +131,35 @@ assert.equal(HM.pickBossTarget([far, near, { alive: true, def: {}, pos: { x: 1, 
 assert.equal(HM.pickBossTarget([far], pos, 30), null);
 console.log('Indicador de especialización (título, valor/máx, celdas, estado activo) y barra de stagger (Quebrantado) ✓');
 
-// ---------- 7. arte de las activas de talento ----------
-let arts = 0;
-for (const [cid, cls] of Object.entries(CLASSES)) for (const sk of cls.skills.filter(s => s.kind === 'talent')) {
-  const art = HM.talentSkillArt(TALENT_TREES[cid], sk.id);
-  assert.ok(art?.icon, `${cid}/${sk.id}: nodo que la concede`);
-  assert.ok(has('assets/' + art.icon), 'falta el sprite ' + art.icon);
-  arts++;
-}
-console.log(`Activas de talento: ${arts} con el sprite de su nodo ✓`);
-// habilidades BASE: icono pintado propio (128 px precargado; 256 px en tiempo de ejecución)
+// ---------- 7. arte de cada habilidad (catálogo v1 o 2g) ----------
+// skillArtPath: el `art` del catálogo (2g) o, sin él, el sprite del nodo que concede la activa de
+// talento y el icono pintado de la base. Lo que no está en assets/skills (128 px, precargado) va a
+// la caché de arte en tiempo de ejecución (ART_RE de sw.js)
 const swTxt = readFileSync(join(ROOT, 'sw.js'), 'utf8');
-let bases = 0;
-for (const [cid, cls] of Object.entries(CLASSES)) for (const sk of cls.skills.filter(s => s.kind !== 'talent')) {
-  const ic = HM.baseSkillIcon(sk), big = HM.baseSkillIcon(sk, true);
-  assert.equal(ic, `skills/${sk.id}.webp`);
-  assert.ok(has('assets/' + ic), `${cid}/${sk.id}: falta assets/${ic}`);
-  assert.ok(has('assets/' + big), `${cid}/${sk.id}: falta assets/${big}`);
-  assert.ok(swTxt.includes(`'./assets/${ic}'`), `sw.js no precarga assets/${ic}`);
-  bases++;
+const artRe = new RegExp((swTxt.match(/ART_RE = \/(.*)\/;/) || [])[1] || '$^');
+let arts = 0, bases = 0;
+for (const [cid, cls] of Object.entries(CLASSES)) for (const sk of cls.skills) {
+  const art = HM.skillArtPath(sk, TALENT_TREES[cid]);
+  assert.ok(art, `${cid}/${sk.id}: sin arte`);
+  assert.ok(has('assets/' + art), `${cid}/${sk.id}: falta assets/${art}`);
+  if (art.startsWith('skills/')) assert.ok(swTxt.includes(`'./assets/${art}'`), `sw.js no precarga assets/${art}`);
+  else assert.ok(artRe.test(`/assets/${art}`), `assets/${art} no entra en la caché de arte (ART_RE)`);
+  if (sk.kind === 'talent') {
+    arts++;
+    if (!sk.art) assert.equal(art, HM.talentSkillArt(TALENT_TREES[cid], sk.id)?.icon, `${cid}/${sk.id}: el sprite del nodo que la concede`);
+  } else {
+    bases++;
+    if (!sk.art) {
+      assert.equal(art, HM.baseSkillIcon(sk), `${cid}/${sk.id}: icono pintado propio`);
+      assert.ok(has('assets/' + HM.baseSkillIcon(sk, true)), `${cid}/${sk.id}: falta el icono de 256 px`);
+    }
+  }
 }
 assert.equal(HM.baseSkillIcon({ id: 'x', kind: 'talent' }), null, 'las activas de talento usan el sprite de su nodo');
+assert.equal(HM.skillArtPath({ id: 'x', art: 'skills256/x.webp' }), 'skills256/x.webp', 'el arte del catálogo manda');
 assert.ok(/ART_RE = .*skills256/.test(swTxt), 'skills256 va a la caché de arte en tiempo de ejecución');
 assert.ok(!swTxt.includes("'./assets/skills256/"), 'los iconos de 256 px no se precargan');
-console.log(`Habilidades base: ${bases} con icono pintado en assets/skills (precargado) y skills256 (en tiempo de ejecución) ✓`);
+console.log(`Arte: ${bases} habilidades base y ${arts} activas de talento con su arte (precargado o en la caché de arte) ✓`);
 
 // ---------- 8. assets referenciados (y precargados por el service worker) ----------
 const need = new Set();

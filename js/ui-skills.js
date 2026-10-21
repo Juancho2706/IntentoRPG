@@ -20,7 +20,7 @@
 // .sb-var[data-var][data-state], .sb-mejora; check() deja window.__uicheck = { panel, overlaps, offscreen }.
 // Iconos que no existen → <span class="ico-missing" data-id="…"> (no se piden imágenes que no
 // están: los iconos de variante de la forja aún no existen, §7 del plan).
-// Se importa sin DOM (los tests corren en Node): nada toca `document` al cargar el módulo.
+// Se importa sin DOM (los tests corren en Node): nada usa `document` al cargar el módulo.
 import { bookView, forgeView, talentLinks, supportOptions, supportsAfter, recoPlan, bookScale, skillOf, slotOfSkill,
   SLOT_ORDER, SLOT_LABEL, ROLE_INFO, ROLE_ROW, VERB_LABEL, catLabel, resIcon, specCard, skillArtPath } from './hud-model.js';
 import { createGaugeHud, gaugeViewFor } from './ui-gauges.js';
@@ -28,6 +28,7 @@ import { gaugeTuning } from './spec-mechanics.js';
 import { fitsSlot } from './skill-resolve.js';
 import { SLOT_UNLOCK } from './skill-defs.js';
 import { talentTreesFor } from './talents.js';
+import { mergeBindings, buildCodeMap, keyLabel } from './bindings.js';
 
 // iconos de VARIANTE ya pintados (assets/forge/v_<id>.webp): vacío hasta la tanda de arte
 // (2f §5; A8 diferido). Mientras, la reserva legible: icono base virado al color del papel
@@ -62,6 +63,11 @@ export function createSkillBook(root, opts = {}) {
   const ASSET = new URL('../assets/', import.meta.url).href;
   const A = p => (p ? ASSET + String(p).replace(/^assets\//, '').replace(/^\.\.\/assets\//, '') : null);
   const P = () => game?.player || null;
+  // atajos con las teclas que use el jugador (bindings.js; remapeables en Ajustes)
+  let defBinds = null, defMap = null;
+  const binds = () => game?.input?.bindings || (defBinds ||= mergeBindings());
+  const actionOf = code => (game?.input?.codeToAction || (defMap ||= buildCodeMap(binds())))[code] || null;
+  const K = act => esc(keyLabel(binds()[act]?.[0]) || '');
 
   // ---------------------------------------------------------------- esqueleto (una vez)
   const layer = doc.createElement('div');
@@ -75,7 +81,7 @@ export function createSkillBook(root, opts = {}) {
         <div class="sb-emb"><img src="${A('ui/menu_habilidades.webp')}" alt="" draggable="false"></div>
         <div class="sb-titles"><h2 class="sb-title" data-title>Habilidades</h2><div class="sb-sub" data-sub></div></div>
         <div class="sb-sp"></div>
-        <button class="sb-btn" type="button" data-act="talents"><img src="${A('ui/menu_talentos.webp')}" alt="" draggable="false">Talentos <kbd>N</kbd></button>
+        <button class="sb-btn" type="button" data-act="talents"><img src="${A('ui/menu_talentos.webp')}" alt="" draggable="false">Talentos <kbd data-key="talents">N</kbd></button>
         <button class="sb-btn" type="button" data-act="reco" title="Aplica las variantes recomendadas para tu especialización">Recomendado</button>
         <button class="sb-btn sb-x" type="button" data-act="close" title="Cerrar (T / Esc)" aria-label="Cerrar">✕</button>
       </header>
@@ -86,7 +92,7 @@ export function createSkillBook(root, opts = {}) {
       <footer class="sb-bar">
         <span class="t">Barra</span>
         <div class="sb-slots" data-slots></div>
-        <div class="sb-hints"><span>⇢ arrastra · <kbd>1</kbd>–<kbd>4</kbd> asigna · <kbd>Alt</kbd> detalle · <kbd>T</kbd> cerrar</span></div>
+        <div class="sb-hints"><span>⇢ arrastra · <kbd data-key="skill1">1</kbd>–<kbd data-key="skill4">4</kbd> asigna · <kbd>Alt</kbd> detalle · <kbd data-key="skills">T</kbd> cerrar</span></div>
       </footer>
     </div>
     <div class="sb-tip" role="tooltip"></div>
@@ -100,7 +106,7 @@ export function createSkillBook(root, opts = {}) {
     forge: $('[data-forge]'), slots: $('[data-slots]'), tip: $('.sb-tip'), toast: $('.sb-toast'), ghost: $('.sb-ghost'), pop: $('.sb-pop'),
     strip: $('.sb-strip') };
 
-  const S = { open: false, sel: null, hover: null, focusVar: null, alt: false, seen: new Set(), view: null, fv: null, s: 1,
+  const S = { open: false, sel: null, hover: null, alt: false, seen: new Set(), view: null, fv: null, s: 1,
     tipFn: null, tipAnchor: null, tipTimer: 0, lastEv: null, drag: null, popFor: null, gauge: null, gaugeId: null, toastT: 0, stripT: 0 };
 
   // ---------------------------------------------------------------- utilidades de pintura
@@ -179,7 +185,7 @@ export function createSkillBook(root, opts = {}) {
       } else {
         const pre = g.id === 'pre';
         out.push(`<section class="sb-sec sb-others${pre ? ' pre' : ''}"><div class="sb-sec-h">${pre ? `<img src="${esc(A('ui/cat_especializacion.webp'))}" alt="">Especialización` : 'Otras especializaciones'}` +
-          `<span class="n">${pre ? 'eliges una al nivel 10 · cada una trae su kit' : 'se cambian gratis en Talentos <kbd>N</kbd>'}</span></div>` +
+          `<span class="n">${pre ? 'eliges una al nivel 10 · cada una trae su kit' : `se cambian gratis en Talentos <kbd>${K('talents')}</kbd>`}</span></div>` +
           g.rows.map(r => `<div class="sb-srow" data-spec="${esc(r.id)}"><img class="se" src="${esc(A(r.emblem))}" alt="" data-tipspec="${esc(r.id)}">` +
             `<div class="sb-sname"><b>${esc(r.name)}</b><small>${esc(r.roleLabel)}${r.mechName ? ' · ' + esc(r.mechName) : ''}</small></div>` +
             `<div class="sb-mini">${r.kit.map(k => `<span class="sb-mt" data-mini="${esc(k.id)}">${icoHTML(k.art, k.id, k.emoji, 'sb-ico')}<img class="sb-catb" src="${esc(A(k.catIcon) || '')}" alt=""></span>`).join('')}</div>` +
@@ -227,7 +233,7 @@ export function createSkillBook(root, opts = {}) {
       (fv.talent ? '' : `<div class="sb-rank"><span>Rango</span><b>${fv.rank}</b><div class="dots">${dots}</div><span>sube con el nivel</span></div>`) + '</div>';
     if (fv.talent) {
       html += `<div class="sb-tree sb-tree-msg"><div>Activa de ${fv.hero ? 'Paragon' : 'talento'}: sus cambios están en el árbol que la concede.` +
-        `<button class="sb-btn" type="button" data-act="talents"><img src="${esc(A('ui/menu_talentos.webp'))}" alt="">Abrir Talentos <kbd>N</kbd></button></div></div>`;
+        `<button class="sb-btn" type="button" data-act="talents"><img src="${esc(A('ui/menu_talentos.webp'))}" alt="">Abrir Talentos <kbd>${K('talents')}</kbd></button></div></div>`;
       R.forge.innerHTML = html + footHTML(fv);
       return;
     }
@@ -333,7 +339,7 @@ export function createSkillBook(root, opts = {}) {
     const res = p?.cls?.resource?.name || 'recurso';
     if (fv.talent) {
       return `<div class="th">${icoHTML(fv.art, fv.id, fv.emoji, 'sb-ico md')}<div><div class="tn">${esc(fv.name)}</div><div class="tk">Activa de ${fv.hero ? 'Paragon' : 'talento'} · ${esc(fv.catLabel)} · ranura 2</div></div></div>` +
-        `<div class="tl">${esc(fv.line)}</div>${rows([fv.cd && ['Enfriamiento', `${fmt(fv.cd)} s`]])}${linksHTML(id)}<div class="tf"><span>Se modifica en <kbd>N</kbd> Talentos</span></div>`;
+        `<div class="tl">${esc(fv.line)}</div>${rows([fv.cd && ['Enfriamiento', `${fmt(fv.cd)} s`]])}${linksHTML(id)}<div class="tf"><span>Se modifica en <kbd>${K('talents')}</kbd> Talentos</span></div>`;
     }
     const kind = `${fv.spec ? esc(fv.spec.name) + ' · ' : fv.known ? 'Kit base · ' : ''}${esc(fv.catLabel)} · ${fv.slots} · Rango ${fv.rank}`;
     const tr = [
@@ -424,7 +430,7 @@ export function createSkillBook(root, opts = {}) {
     const p = P(), sk = skillOf(p, id);
     if (!sk) return;
     if (sk.spec && sk.spec !== S.view?.spec?.id) { message(`${esc(sk.name)}: kit de ${esc(specCard(p.classId, sk.spec)?.name || '')}`, null); return; }
-    S.sel = id; S.seen.add(id); S.focusVar = null;
+    S.sel = id; S.seen.add(id);
     renderAll();
     if (focus) R.book.querySelector(`.sb-tile[data-skill="${CSS.escape(id)}"]`)?.focus();
   }
@@ -597,39 +603,40 @@ export function createSkillBook(root, opts = {}) {
   layer.addEventListener('focusin', e => {
     const tile = e.target.closest?.('.sb-tile');
     if (tile) S.hover = tile.dataset.skill;
-    const v = e.target.closest?.('.sb-var');
-    S.focusVar = v ? v.dataset.var : null;
   });
 
-  // teclado (2f §3.3 y §3.7): ←/→ entre habilidades, Intro elige, 1–4 asignan la casilla bajo el
-  // ratón o enfocada, Esc/T cierran, N abre los talentos, Alt amplía el tooltip. Fase de captura:
-  // con el libro abierto, estas teclas no llegan al juego (js/input.js escucha en window)
-  const KEY_SLOT = { Digit1: 'k1', Digit2: 'k2', Digit3: 'k3', Digit4: 'k4', Numpad1: 'k1', Numpad2: 'k2', Numpad3: 'k3', Numpad4: 'k4' };
+  // teclado (2f §3.3 y §3.7): ←/→ entre habilidades, Intro elige, las teclas de habilidad 1–4
+  // asignan la casilla bajo el ratón o enfocada, Esc o la tecla del libro (T) cierran, la de
+  // Talentos (N) los abre, Alt amplía el tooltip. Con las teclas que tenga el jugador (bindings).
+  // Fase de captura: con el libro abierto, estas teclas no llegan al juego (input.js escucha en window)
+  const ACT_SLOT = { skill1: 'k1', skill2: 'k2', skill3: 'k3', skill4: 'k4' };
+  const NUMPAD = { Numpad1: 'k1', Numpad2: 'k2', Numpad3: 'k3', Numpad4: 'k4' };
   function onKey(e) {
     if (!S.open) return;
     if (e.target?.closest?.('input, textarea, [contenteditable="true"]')) return;
     if (e.key === 'Alt') { if (!S.alt) { S.alt = true; tipRefresh(); } return; }    // no se detiene: input.js lo usa
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
-    if (e.repeat && (e.code === 'KeyT' || e.code === 'Escape' || e.code === 'KeyN')) { stop(); return; }
-    if (e.code === 'Escape' || e.code === 'KeyT') { stop(); if (S.popFor) closePop(); else api.close(); return; }
-    if (e.code === 'KeyN') { stop(); opts.onOpenTalents?.(); return; }
-    if (KEY_SLOT[e.code]) { stop(); const id = S.hover || S.sel; if (id) assign(KEY_SLOT[e.code], id); return; }
+    const act = actionOf(e.code);
+    const close = e.code === 'Escape' || act === 'skills';
+    if (e.repeat && (close || act === 'talents')) { stop(); return; }
+    if (close) { stop(); if (S.popFor) closePop(); else api.close(); return; }
+    if (act === 'talents') { stop(); opts.onOpenTalents?.(); return; }
+    const slot = ACT_SLOT[act] || NUMPAD[e.code];
+    if (slot) { stop(); const id = S.hover || doc.activeElement?.closest?.('.sb-tile')?.dataset.skill || S.sel; if (id) assign(slot, id); return; }
     if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
       stop();
       const order = S.view?.order || [];
       if (!order.length) return;
-      let i = order.indexOf(S.sel);
-      for (let k = 0; k < order.length; k++) {
-        i = (i + (e.code === 'ArrowRight' ? 1 : -1) + order.length) % order.length;
-        if (bookTileOf(order[i])) break;
-      }
-      select(order[i], { focus: true });
+      const i = order.indexOf(S.sel);
+      select(order[(i + (e.code === 'ArrowRight' ? 1 : -1) + order.length) % order.length], { focus: true });
       return;
     }
     if (e.code === 'Enter' || e.code === 'NumpadEnter') {
       stop();
-      if (S.focusVar) { chooseVar(S.focusVar); return; }
-      const t = e.target?.closest?.('.sb-tile');
+      const f = doc.activeElement;
+      const fv = f?.closest?.('.sb-var');
+      if (fv && layer.contains(fv)) { chooseVar(fv.dataset.var); R.forge.querySelector(`.sb-var[data-var="${fv.dataset.var}"]`)?.focus(); return; }
+      const t = f?.closest?.('.sb-tile');
       if (t) select(t.dataset.skill, { focus: true });
       else if (S.fv?.vars?.length) R.forge.querySelector('.sb-var')?.focus();
     }
@@ -666,6 +673,7 @@ export function createSkillBook(root, opts = {}) {
       S.open = true;
       layer.dataset.open = '1';
       applyScale();
+      for (const k of layer.querySelectorAll('kbd[data-key]')) k.textContent = keyLabel(binds()[k.dataset.key]?.[0]) || k.textContent;
       doc.addEventListener('keydown', onKey, true);
       doc.addEventListener('keyup', onKeyUp, true);
       win.addEventListener('resize', onResize);
@@ -696,7 +704,7 @@ export function createSkillBook(root, opts = {}) {
       if (sum.grantsIn.length || sum.grantsOut.length) parts.push(`<span>${sum.grantsIn.map(g => `${io(g.art, g.id, g.emoji)}<em class="in">+${esc(g.name)}</em>`).join(' ')}${sum.grantsOut.map(g => `<em class="out">−${esc(g.name)}</em>`).join(' ')}</span>`);
       if (sum.reco.length) parts.push(`<span><b class="star">★</b>Recomendadas ${sum.reco.map(r => io(r.art, r.id, r.emoji)).join('')}</span>`);
       if (sum.mechanic?.name) parts.push(`<span>Mecánica: <b>${esc(sum.mechanic.name)}</b></span>`);
-      parts.push('<span><kbd>T</kbd> ver en el libro</span>');
+      parts.push(`<span><kbd>${K('skills')}</kbd> ver en el libro</span>`);
       const el = host || R.strip;
       el.innerHTML = `<div class="row">${parts.join('<i class="sep"></i>')}</div>`;
       if (!host) applyScale();

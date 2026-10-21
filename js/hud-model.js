@@ -647,13 +647,12 @@ export function chargeView(p, c) {
   return { u, min, max, frac: u / max, lo: clamp01(a / max), hi: clamp01(b / max), minFrac: min / max, calmLo: calmFrom / max,
     inWindow, calm, perfectNow: inWindow || (calm && u >= calmFrom - 1e-9), toggle: !!c.toggle, releasing: !!c.release };
 }
-// total de tics de cada canal (el motor solo guarda los que quedan; extendChannel los sube)
-const CH_TOTAL = new WeakMap();
+// el canal en curso (g._channel): frac = tics que quedan sobre el total (hechos + los que
+// quedan: también vale si extendChannel lo alarga) · t = segundos que quedan
 export function channelView(inst) {
   if (!inst) return null;
   const left = Math.max(0, inst.left || 0);
-  let total = inst.ticks || CH_TOTAL.get(inst) || 0;
-  if (left > total) { total = left; CH_TOTAL.set(inst, total); }
+  const total = left + Math.max(0, inst.tickN || 0);
   return { endless: !!inst.endless, toggle: !!inst.toggle, frac: inst.endless ? 1 : (total > 0 ? clamp01(left / total) : 1), t: left * (inst.interval || 0) };
 }
 // lo que dibuja js/ui-verbs.js cada frame: los verbos de las 6 ranuras y la carga en curso

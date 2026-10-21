@@ -16,6 +16,8 @@
        &pop=<n>                    abre el engarce n · &drag=<habilidad>:<ranura> arrastre a medias
        &swap=<spec>                tira «qué cambia» al cambiar a esa especialización (libro cerrado)
        ?shot=<id>                  una escena con nombre (lista SHOTS abajo)
+       ?selftest=1                 ratón y teclado: ←/→, 1–4 bajo el ratón, clic derecho, arrastre, variantes,
+                                   Intro, «Recomendado», Alt, engarces, N, combate, T/Esc → <pre id="measure">
        ?measure=1                  A5/A4 de todas las clases × niveles × especializaciones y de cada
                                    forja (window.__uicheck de check()) → <pre id="measure">
        &bare=1 sin barra de controles · &reduce=1 reducir movimiento · &three=local three.js local
@@ -70,7 +72,7 @@ import { normalizeSkillDef } from '../../js/skill-defs.js';
 import { isKnown } from '../../js/skill-resolve.js';
 import { talentTreesFor } from '../../js/talents.js';
 import { createSkillBook } from '../../js/ui-skills.js';
-import { specSnapshot, specSwapSummary } from '../../js/hud-model.js';
+import { specSnapshot, specSwapSummary, recoPlan as HMrecoPlan } from '../../js/hud-model.js';
 import * as DM from '../../tools/convert-v2/out/maga/skills-maga.draft.js';
 import * as DG from '../../tools/convert-v2/out/guerrero/skills-guerrero.draft.js';
 import * as DA from '../../tools/convert-v2/out/arquera/skills-arquera.draft.js';
@@ -247,6 +249,99 @@ async function measure() {
   document.getElementById('measure').textContent = JSON.stringify(res, null, 1);
 }
 
+// ?selftest=1: las interacciones del libro con el ratón y el teclado sobre el héroe real
+async function selftest() {
+  await document.fonts?.ready;
+  const res = [];
+  const ok = (cond, what) => res.push(`${cond ? 'OK ' : 'MAL'} ${what}`);
+  const key = (code, k = code, extra = {}) => document.dispatchEvent(new KeyboardEvent('keydown', { code, key: k, bubbles: true, cancelable: true, ...extra }));
+  const tile = id => document.querySelector(`.sb-tile[data-skill="${id}"]`);
+  let closed = 0, talents = 0;
+  const c = mount({ cls: 'maga', lv: 60, spec: 'piromante', forge: 'none' });
+  c.book.close(); c.book.el.remove();
+  const book = createSkillBook(document.body, { game: c.h.g, tipDelay: 0, onClose: () => closed++, onOpenTalents: () => talents++ });
+  const p = c.h.p;
+  book.open(); await frame();
+  ok(book.el.dataset.open === '1', 'abre (#skills-book[data-open="1"])');
+  const order = [...document.querySelectorAll('.sb-tile')].map(t => t.dataset.skill);
+  book.select(order[0]);
+  key('ArrowRight');
+  ok(document.querySelector('.sb-tile.sel')?.dataset.skill === order[1], '→ pasa a la siguiente');
+  key('ArrowLeft'); key('ArrowLeft');
+  ok(document.querySelector('.sb-tile.sel')?.dataset.skill === order.at(-1), '← desde la primera va a la última');
+  // 1–4 sobre la casilla bajo el ratón
+  const nova = tile('nova_hielo'), q = center(nova);
+  fire(nova, 'mouseover', q.x, q.y);
+  key('Digit2', '2');
+  ok(p.hotbar.k2 === 'nova_hielo', '2 con el ratón encima asigna la ranura 2');
+  key('Digit1', '1');
+  ok(p.hotbar.k1 !== 'nova_hielo', 'una principal no entra en la ranura 1 (aviso)');
+  // clic derecho: a su ranura natural
+  const bar = tile('m_barrera'), b = center(bar);
+  fire(bar, 'contextmenu', b.x, b.y);
+  ok(p.hotbar.k2 === 'm_barrera', 'clic derecho: a su ranura natural (2)');
+  // arrastre completo a la ranura DER
+  book.select('bola_fuego'); await frame();
+  const t = tile('meteoro'), a = center(t), s = center(document.querySelector('.sb-slot[data-slot="rmb"]'));
+  fire(t, 'pointerdown', a.x, a.y);
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: a.x + 30, clientY: a.y + 30 }));
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: s.x, clientY: s.y }));
+  window.dispatchEvent(new PointerEvent('pointerup', { clientX: s.x, clientY: s.y }));
+  ok(p.hotbar.rmb === 'meteoro', 'arrastre a DER');
+  // forja: clic en la variante, otra vez la quita; Intro sobre la enfocada
+  book.select('bola_fuego'); await frame();
+  let v = document.querySelector('.sb-var[data-var="i"]'), vq = center(v);
+  fire(v, 'click', vq.x, vq.y);
+  ok(p.skillForge.bola_fuego === 'i' && document.querySelector('.sb-var[data-var="i"]').dataset.state === 'elegida', 'clic elige la I (data-state="elegida")');
+  v = document.querySelector('.sb-var[data-var="i"]'); fire(v, 'click', vq.x, vq.y);
+  ok(p.skillForge.bola_fuego === null, 'otro clic la quita');
+  v = document.querySelector('.sb-var[data-var="ii"]'); v.focus(); key('Enter');
+  ok(p.skillForge.bola_fuego === 'ii', 'Intro sobre la II enfocada');
+  // «Recomendado»
+  document.querySelector('[data-act="reco"]').click();
+  ok(HMrecoPlan(p).length === 0, '«Recomendado» aplica las variantes recomendadas');
+  // Alt amplía el tooltip
+  const dq = center(tile('m_dardo'));
+  fire(tile('m_dardo'), 'mouseover', dq.x, dq.y); await sleep(20);
+  const before = document.querySelector('.sb-tip').innerHTML.includes('Detalle (Alt)');
+  key('AltLeft', 'Alt'); await sleep(5);
+  const after = document.querySelector('.sb-tip').innerHTML.includes('Detalle (Alt)');
+  document.dispatchEvent(new KeyboardEvent('keyup', { code: 'AltLeft', key: 'Alt', bubbles: true }));
+  ok(!before && after, 'Alt añade el detalle al tooltip');
+  ok(document.querySelector('.sb-tip').innerHTML.includes('Talentos que la tocan'), 'tooltip con «Talentos que la tocan»');
+  // engarces: abrir, elegir, quitar
+  const sock = document.querySelector('.sb-sock[data-sock="1"]');
+  if (sock) {
+    book.select('bola_fuego'); await frame();
+    const sk = document.querySelector('.sb-sock[data-sock="1"]'), sq = center(sk);
+    fire(sk, 'pointerdown', sq.x, sq.y); fire(sk, 'click', sq.x, sq.y);
+    const gm = document.querySelector('.sb-pop .gm.ok');
+    const id = gm?.dataset.sup;
+    if (gm) { const gq = center(gm); fire(gm, 'click', gq.x, gq.y); }
+    ok(!!id && p.supports.bola_fuego?.includes(id), 'engarce elegido en la cuadrícula');
+  }
+  // N abre Talentos; combate bloquea la forja; T y Esc cierran
+  key('KeyN', 'n');
+  ok(talents === 1, 'N abre Talentos');
+  c.h.g.combatFree = false; book.refresh(); await frame();
+  v = document.querySelector('.sb-var[data-var="i"]'); vq = center(v);
+  fire(v, 'click', vq.x, vq.y);
+  ok(p.skillForge.bola_fuego === 'ii' && document.querySelector('.sb-note.lock'), 'en combate no cambia (aviso en el pie)');
+  c.h.g.combatFree = true;
+  key('KeyT', 't');
+  ok(book.el.dataset.open === '0' && closed === 1, 'T cierra');
+  book.open(); key('Escape');
+  ok(book.el.dataset.open === '0' && closed === 2, 'Esc cierra');
+  // ?skillscheck=1 deja window.__uicheck
+  book.open(); await frame();
+  const chk = book.check();
+  ok(window.__uicheck === chk && chk.panel === 'skills' && !chk.overlaps.length && !chk.offscreen.length, 'check() → window.__uicheck sin solapes ni fuera de pantalla');
+  book.close();
+  const bad = res.filter(r => r.startsWith('MAL'));
+  window.__selftest = { ok: !bad.length, res };
+  document.getElementById('measure').textContent = JSON.stringify(window.__selftest, null, 1);
+}
+
 // controles
 const $ = id => document.getElementById(id);
 for (const lv of [1, 5, 10, 18, 30, 60, 100]) $('c-lv').insertAdjacentHTML('beforeend', `<option value="${lv}">Nv ${lv}</option>`);
@@ -268,7 +363,9 @@ const o = named ? { ...named } : {
 $('c-cls').value = o.cls; fillSpecs(); $('c-lv').value = String(o.lv);
 if (o.spec) $('c-spec').value = o.spec;
 $('c-combat').checked = !!o.combat; $('c-draft').checked = o.draft !== false;
-if (Q.get('measure') === '1') { document.body.classList.add('bare'); measure(); } else scene(o);
+if (Q.get('measure') === '1') { document.body.classList.add('bare'); measure(); }
+else if (Q.get('selftest') === '1') { document.body.classList.add('bare'); selftest(); }
+else scene(o);
 </script>
 </body>
 </html>
