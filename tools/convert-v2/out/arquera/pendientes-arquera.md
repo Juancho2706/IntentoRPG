@@ -105,7 +105,7 @@
 - [ ] **f12 Lectura del Blanco** — NUEVO · `power f_lectura · NUEVO (modifyResolve charge.perfect contra el marcado)`
 - [ ] **f13 Puntería de Vigía** — NUEVO · `power f_punteria_vigia · NUEVO (condAdd con la postura)`
 - [ ] **f14 Estrella Fija** — NUEVO · `power f_estrella_fija · NUEVO (onCast de a_t_apuntado si cast.perfect y la Calma Absoluta está activa: ronda 3; el básico y los haces no cuentan; cdReduce sobre @ultimate: respeta el suelo de las definitivas)`
-- [ ] **f15·A Quietud** — NUEVO · `tv.drStill · NUEVO (clave, espejo de drMoving)` · traducir: `tv.drStill: pendiente de la cola W2 (nucleo_tv.condDr (cola W2))`
+- [ ] **f15·A Quietud** — NUEVO · `tv.drStill · NUEVO (clave, espejo de drMoving)`
 - [ ] **f15·B Nervios de Acero** — NUEVO · `power f_nervios · NUEVO (④ onDamaged + g.shield; ronda 3: por la cubeta de autocuración de la Arquera, 1 %/s)`
 - [ ] **f16 Serenidad** — NUEVO · `power f_serenidad · NUEVO (condAdd con gaugeValue)`
 - [ ] **f17 Haces Gemelos** — NUEVO · `power f_haces_gemelos · NUEVO (eco del haz; un eco no repite; ronda 3: 35/70 %, antes 15/30 %: con el suelo de las definitivas la recarga ya no hace bucle)`
@@ -147,7 +147,7 @@
 - [ ] **m17 Zarzas Trepadoras** — NUEVO · `power m_trepadoras · NUEVO`
 - [ ] **m18 Rearme Rápido** — NUEVO · `power m_rearme · NUEVO (por detonación, no por trampa; los cepos pequeños y sembrados no cuentan; Salto ≥ 5 s)`
 - [ ] **m19 Rastro Fresco** — NUEVO · `power m_rastro · NUEVO (onKill)`
-- [ ] **m20 Ojo de Trampera** — existe · `tv.fieldDur · claves` · traducir: `tv.fieldDur: pendiente de la cola W2 (field-entities.spawnField (cola W2))`
+- [ ] **m20 Ojo de Trampera** — existe · `tv.fieldDur · claves`
 - [ ] **m21 Rebrote** — NUEVO · `power m_rebrote · NUEVO (campo m_zarzal ×3)`
 - [ ] **m22 Campo Sembrado** — NUEVO · `power m_campo_sembrado · NUEVO (afterCast)`
 - [ ] **m23 Batida Mayor** — NUEVO · `tv.batidaDur + tv.batidaPreyStagger · NUEVO (claves de la mecánica coto; ya no sube la Debilidad)` · traducir: `tv.batidaDur: clave de la clase (KT-arquera, <CLASE>_TV_KEYS)`; `tv.batidaPreyStagger: clave de la clase (KT-arquera, <CLASE>_TV_KEYS)`
@@ -216,32 +216,41 @@
 
 ## Activas de talento (ranura 2, sin forja)
 
-- [ ] **a_t_camuflaje** Camuflaje · defense · Nv21 · concede c11 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **agilidad** Agilidad · utility · Nv27 · concede c17 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **a_t_bengala** Flecha Bengala · utility · Nv31 · concede c22 — existe en el juego: revisar texto y números contra la línea 2g
-- [ ] **a_h_torbellino** Torbellino · utility · Nv72 · concede q4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
-- [ ] **a_h_puntas** Desborde de Puntas · utility · Nv72 · concede w4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
-- [ ] **a_h_halcon** Llamada del Halcón · utility · Nv72 · concede y4 (héroe) — NUEVA: tipo genérico o comportamiento (KA1)
+- [x] **a_t_camuflaje** Camuflaje · defense · Nv21 · concede c11 — KA1: catálogo 2g (20 s, 4 s). Comportamiento `a_t_camuflaje` y crítico al salir: del árbol (powers-arquera.js, KT); «Paso Veloz se recarga» lo pone el poder del nodo (g.reduceCooldown, no p.cds)
+- [x] **agilidad** Agilidad · utility · Nv27 · concede c17 — KA1: buff genérico (slowImmune); deja la ranura 1; grant en c17A
+- [x] **a_t_bengala** Flecha Bengala · utility · Nv31 · concede c22 — KA1: comportamiento propio `a_bengala` (campo `zona` + pulso de 0,25 s con applyWeakness 15 y weakenOutgoing 15, 10 m, 10 s). Deja sin uso el `a_t_bengala` y el campo `a_bengala` de powers-arquera.js (KT los retira)
+- [x] **a_h_torbellino** Torbellino · utility · Nv72 · concede q4 (héroe) — KA1: comportamiento propio `a_torbellino` (golpe sin daño en 4 m que aplica `stun 1.5`; a un jefe, Quebranto). Las 3 Ráfagas: poder del árbol (KT)
+- [x] **a_h_puntas** Desborde de Puntas · utility · Nv72 · concede w4 (héroe) — KA1: buff genérico vacío de 10 s (`count: 4`); los 4 disparos con las tres puntas los cuenta el poder `w_puntas` (KT). La duración de 10 s es propuesta de KA1 (el doc no la da)
+- [x] **a_h_halcon** Llamada del Halcón · utility · Nv72 · concede y4 (héroe) — KA1: comportamiento propio `a_halcon` (12 ataques de 40 % cada 0,5 s; ceguera −30 % el resto de la llamada; 30 de Quebranto al primer jefe; si el blanco muere o se aleja, el más cercano)
 
 ## Kit (KA1): habilidades base y de especialización
 
-- [ ] **a_disparo** Disparo Rápido · basic · Nv1 · physical
-- [ ] **flecha_perforante** Flecha Perforante · spender · Nv2 · physical
-- [ ] **a_paso** Paso Veloz · movement · Nv4 · physical
-- [ ] **a_humo** Bomba de Humo · defense · Nv6 · physical
-- [ ] **lluvia_flechas** Lluvia de Flechas · spender · Nv8 · physical
-- [ ] **a_t_andanada** Andanada · spec · Nv10 · tiradora · physical
-- [ ] **a_v_carrera** Carrera del Viento · movement · Nv12 · tiradora · physical
-- [ ] **flecha_multiple** Flecha Múltiple · spender · Nv14 · tiradora · physical
-- [ ] **a_u_diluvio** Diluvio de Saetas · ultimate · Nv15 · tiradora · physical
-- [ ] **a_t_apuntado** Disparo Apuntado · spec · Nv10 · francotiradora · physical
-- [ ] **a_f_rodilla** Rodilla en Tierra · utility · Nv12 · francotiradora · physical
-- [ ] **a_f_rastreador** Tiro Rastreador · spender · Nv14 · francotiradora · physical
-- [ ] **a_u_celeste** Tiro Celestial · ultimate · Nv15 · francotiradora · physical
-- [ ] **a_t_cepo** Trampa de Cepo · spec · Nv10 · montaraz · nature
-- [ ] **a_m_acecho** Salto de Acecho · movement · Nv12 · montaraz · physical
-- [ ] **a_m_detonante** Flecha Detonante · spender · Nv14 · montaraz · physical
-- [ ] **a_u_zarzas** Cerco de Zarzas · ultimate · Nv15 · montaraz · nature
+- [x] **a_disparo** Disparo Rápido · basic · Nv1 · physical — `weapon` genérico. Tercera Flecha (`seq`) y Cuerda Tensa (`charge`) son pasivas de especialización (KT, modifyResolve)
+- [x] **flecha_perforante** Flecha Perforante · spender · Nv2 · physical — `proj` genérico
+- [x] **a_paso** Paso Veloz · movement · Nv4 · physical — comportamiento `a_paso` (existía; params `rollT`); sin buff (Doble Rodada) no pone el bonus
+- [x] **a_humo** Bomba de Humo · defense · Nv6 · physical — comportamiento `a_humo` (existía): zona + ceguera propia por pulsos (ya no usa el campo `a_humo_ciego` de KT); `cdOnEnd`; `dps` si la forja le da coef; lee `prof.follow` (Manto de Niebla)
+- [x] **lluvia_flechas** Lluvia de Flechas · spender · Nv8 · physical — comportamiento `a_lluvia` (existía; params `waves`, `span`): VFX por oleada. `repeat` genérico no repite el VFX de cada oleada
+- [x] **a_t_andanada** Andanada · spec · Nv10 · tiradora · physical — comportamiento NUEVO `a_andanada` (params `jump`): abanico de `count` flechas + salto de 4 m (`p.leap`, atrás en los usos impares, adelante en el relanzamiento); `recast` del motor `{ n: 2, win: 2, cdFrom: 'first' }`; `perTarget` (Andanada Cerrada) con Map por lanzamiento. Ningún tipo genérico dispara un abanico Y salta
+- [x] **a_v_carrera** Carrera del Viento · movement · Nv12 · tiradora · physical — `channel` genérico: `hold`, `moveMul 1.4`, `autoShot { every 0.4, coef 0.45, nearest, 10 m }`, `dur 4` (así `durS` la alarga), `ticks 20`
+- [x] **flecha_multiple** Flecha Múltiple · spender · Nv14 · tiradora · physical — `proj` genérico (5 en 50°, 45 %)
+- [x] **a_u_diluvio** Diluvio de Saetas · ultimate · Nv15 · tiradora · physical — comportamiento `a_diluvio` (lluvia con `follow: 'owner'`: 12 oleadas cada 0,5 s), `cdFloor 0.7`
+- [x] **a_t_apuntado** Disparo Apuntado · spec · Nv10 · francotiradora · physical — `proj` genérico + `charge { min 0.3, max 1.5, perfect [1.15, 1.35], perfectPct 50, perfectCrit, scale.coef [0.8, 2.5], moveMul 0.6 }`
+- [x] **a_f_rodilla** Rodilla en Tierra · utility · Nv12 · francotiradora · physical — `stance` genérico de un modo (`moveMul 0.5`, `chargeSpeed 40`, `keepGauge 'concentracion'`), `dur 8`, `endOnDodge`, `recastEnds`
+- [x] **a_f_rastreador** Tiro Rastreador · spender · Nv14 · francotiradora · physical — `proj` genérico + `mark { id 'a_punto_debil', dur 8, uses 1, firstCharged 30 }`
+- [x] **a_u_celeste** Tiro Celestial · ultimate · Nv15 · francotiradora · physical — `proj` genérico + `recast { n 3, win 8, cdFrom 'first' }` + `charge { min 0.3, max 0.8, perfect [0.5, 0.75], scale.coef [2, 4] }`; fuera el comportamiento `a_celeste` (escribía p.cds). El 200 % a carga mínima es propuesta de KA1 (el doc da 400 % a 0,8 s)
+- [x] **a_t_cepo** Trampa de Cepo · spec · Nv10 · montaraz · nature — `trap` genérico: `charges 2` (D2; fuera el powerState), `dur 30` (vida), `root 2` (para `rootAdd`), `trap { armT 0.5, maxArmed 3, radius 1.5, lure { 6 m, élite 3 m, jefes no, ×0,8 } }`, `hitDot` declarado (ver peticiones W2)
+- [x] **a_m_acecho** Salto de Acecho · movement · Nv12 · montaraz · physical — `leap` genérico con `at: 'ownField'`, `fieldKind 'trampa'`, `fallbackRange 6`, `detonate { radius 2, coef 1, perTarget 2 }`, `cdFloor 0.5` (Rearme Rápido: nunca menos de 5 s); sin daño propio al caer (coef 0)
+- [x] **a_m_detonante** Flecha Detonante · spender · Nv14 · montaraz · physical — `proj` genérico con `splash 0.8` en 3 m y `detonate { radius 3, coef 1, perTarget 2 }`
+- [x] **a_u_zarzas** Cerco de Zarzas · ultimate · Nv15 · montaraz · nature — comportamiento `a_zarzas` reescrito (params `endMul`): donde apuntas (`at: 'target'`; `'enemy'` para la Jaula), cruzar = golpe sin daño que aplica `root 1.5` (+ `rootAdd`), veneno del campo `zona`, estallido de 300 % al cerrarse, `contain` si la forja lo pone; dura lo que su campo
+
+### Notas de KA1 (E2)
+
+- Comportamientos propios (ningún tipo genérico basta): `a_andanada`, `a_bengala`, `a_torbellino`, `a_halcon` (nuevos) y `a_paso`, `a_humo`, `a_lluvia`, `a_diluvio`, `a_zarzas` (existían). Ids distintos de los de powers-arquera.js (se registran antes y un id repetido rompe la carga).
+- Ganchos para KT: la lluvia lee `prof.waves`, `prof.span` y `prof.follow` antes que la definición (Nube Fiel, Nube de Paso); el humo lee `prof.follow` (Manto de Niebla); Desborde de Puntas expone `count: 4`.
+- Peticiones W2 (motor): (1) la trampa genérica debería aplicar su `hitDot` al saltar (sustituyendo, «se renueva, no se suma») en vez del golpe directo `dmg`: hoy el cepo hace el 60 % de golpe; (2) Punto Débil: «uno por enemigo cada 8 s aunque lo vuelvas a marcar» (hoy cada impacto rehace la marca con un uso); (3) soltar una carga antes de `min` no debería disparar (hoy dispara a `min`); (4) `detonate.coef` no escala con el rango; (5) un proyectil con `detonate` solo detona al impactar en un enemigo (no al llegar al final del alcance); (6) los tics de `startChannel` derivan un fotograma por tic (una Carrera de 4 s dura ~4,3 s a 60 fps).
+- Tablas legadas (save-legacy-arquera.js): §11.3.2 salvo Red de Caza en la Francotiradora, que cae a Rodilla en Tierra (su barra) en vez de a la Bomba de Humo, para que la variante II quede en el cepo sin forjar el humo.
+- Divergencias declaradas (KA2 las retira): `forja` y `reco`.
+- Arte (U2 / E3): las 8 habilidades del kit sin icono en `assets/skills/` (`a_t_andanada`, `a_v_carrera`, `a_t_apuntado`, `a_f_rodilla`, `a_f_rastreador`, `a_t_cepo`, `a_m_acecho`, `a_m_detonante`) dan 404 en el humo (`hud-model.baseSkillIcon` pide `skills/<id>.webp` a todo lo que no es activa de talento; antes las insignias usaban el sprite de su nodo). Arte de partida del borrador: `talents/arquera-tiradora-s4`, `-s9`, `icons256/a_p_punteria` (no existe), `talents/arquera-francotiradora-s8`, `-x1`, `talents/arquera-montaraz-s0`, `-s2`, `-s6`. Las 3 activas de héroe (kind 'talent') no tienen nodo en los árboles de clase ni de especialización: `talentSkillArt` no las encuentra (marcador).
 
 ## Forja (KA2): Mejora (Nv req+3) y variantes I/II (Nv req+6)
 
