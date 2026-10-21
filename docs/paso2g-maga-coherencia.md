@@ -835,10 +835,12 @@ Capturas en `C:\Users\juanm\AppData\Local\Temp\claude\D--Proyectos-IntentoRPG\6e
 
 **Ronda 3** (finales): sin problemas bloqueantes. Quedan menores: los iconos y el arte de variantes del Crionte y del Arcanista son de reemplazo (§7.6), y la barra de mecánica del libro se ve en su estado inicial (0/5, 0/4) porque el mockup no simula combate.
 
-## 16. Preguntas para el dueño
+## 16. Decisiones del dueño
 
-1. ¿Te sirve «Insignia» para la categoría de la habilidad propia de cada especialización, o prefieres otro nombre («Firma», «Sello»)?
-2. ¿El Sello del Archimago como zona de coste y Cargas (propuesta) o prefieres conservar su idea vieja de «guardar el daño y estallar» (que se parecía a la Marca del Cronomante)?
+Resueltas el 2026-10-20:
+
+1. **«Insignia»** queda como nombre de la categoría de la habilidad propia de cada especialización.
+2. **Sello del Archimago** = zona de coste y Cargas (la propuesta de la v4); se descarta la idea vieja de «guardar el daño y estallar».
 
 ## 17. Plantilla para otras clases (Guerrero y Arquera)
 
