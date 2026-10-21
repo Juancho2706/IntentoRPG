@@ -1,120 +1,20 @@
 {
   "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Inventario de E0.1: suites que se van a romper, con su dueño y etapa. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9).",
   "suites": {
-    "test12.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "paragon.points, respec con oro, PARAGON_BOARD, umbral Nv20"
-    },
-    "test35-paragon.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "paragon.points, respec con oro, PARAGON_BOARD, umbral Nv20"
-    },
-    "test37-glifos.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "paragon.points, respec con oro, PARAGON_BOARD, umbral Nv20"
-    },
-    "test38-equilibrio-endgame.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "paragon.points, respec con oro, PARAGON_BOARD, umbral Nv20"
-    },
-    "test54-paragon-clase.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "paragon.points, respec con oro, PARAGON_BOARD, umbral Nv20"
-    },
     "test56-hotfixes.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "paragon.points, respec con oro, PARAGON_BOARD, umbral Nv20"
-    },
-    "test57-guardado-versionado.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "SAVE_VERSION, skillPoints/skillMods, cadena v3 → v5"
-    },
-    "test61-migracion-paso2.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "SAVE_VERSION, skillPoints/skillMods, cadena v3 → v5"
-    },
-    "test65-talentos.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "featCount, presetList, ids v1, IRPG1"
-    },
-    "test70-talents-ops.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "featCount, presetList, ids v1, IRPG1"
-    },
-    "test65a-talentos-datos.mjs": {
-      "owner": "W1",
-      "stage": "E1",
-      "por": "datos v1 y lista blanca de tv (se retira: test78)"
+      "owner": "I",
+      "stage": "E1.5",
+      "por": "bloque «6/8/9) básico a distancia» (p.skillMods) a borrar: lo cubre test82 §11 sobre la forja"
     },
     "test68-sustento-debilidad.mjs": {
-      "owner": "W1 · KT-guerrero",
-      "stage": "E1/E2",
-      "por": "festin (tablero) y m_aegis (sale en el Guerrero)"
-    },
-    "test26-soportes.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test27-engarce.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test49-guia.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test53-skill-mods.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test62-resolve-skill.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test64-gcd-impacto.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test69-nucleo-2b2.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
-    },
-    "test72-nucleo-2c2.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "ramas, SKILL_MODS, soportes sobre la definición forjada, guía"
+      "owner": "KT-guerrero",
+      "stage": "E2",
+      "por": "m_aegis (sale en el Guerrero); la parte de Festín (W1) ya está"
     },
     "test55-recurso-clases.mjs": {
-      "owner": "W2 · KA",
-      "stage": "E1/E2",
-      "por": "p.skillPoints y estructura del catálogo"
-    },
-    "test63-recursos.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "arnés con datos sintéticos: deberían seguir verdes"
-    },
-    "test74-gauges-registro.mjs": {
-      "owner": "W2",
-      "stage": "E1",
-      "por": "arnés con datos sintéticos: deberían seguir verdes"
+      "owner": "KA",
+      "stage": "E2",
+      "por": "recurso por clase con los catálogos v2 (la parte de W2, p.skillPoints, ya está)"
     },
     "test66-roles-primitivas.mjs": {
       "owner": "KA-guerrero · KA-maga",
@@ -200,6 +100,21 @@
       "owner": "B1",
       "stage": "E4",
       "por": "presetRanks, SKILL_MODS, ramas, nivel 50"
+    },
+    "test87-sin-cds.mjs": {
+      "owner": "KA-arquera · KT×3",
+      "stage": "E2",
+      "por": "p.cds escrito en skills-arquera.js (301, 308, 309), powers-arquera.js (281, 806, 851, 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
+    },
+    "test78-talentos-datos-v2.mjs": {
+      "owner": "I",
+      "stage": "E1.5",
+      "por": "integración W1×W2: la comprobación «CORE_TV_KEYS se lee en un archivo común» no ve las claves que powers-common lee por tabla (CRIT_CDR_KEYS)"
+    },
+    "test84-movimiento-cc.mjs": {
+      "owner": "I",
+      "stage": "E1.5",
+      "por": "integración W1×W2: el bloque del riesgo 11 usa presetRanks (stub v1 de W1); pasar a buildRanks con datos v2"
     }
   }
 }
