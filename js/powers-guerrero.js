@@ -1,101 +1,53 @@
 // ============================================================
-// PODERES del GUERRERO (Berserker · Guardián · Cruzado) — Paso 2c.1
+// PODERES del GUERRERO (Berserker · Guardián · Cruzado) — Paso 2g
 // ============================================================
-// Dueño: el trabajador de la clase en el Paso 2c.1 (docs/paso2-diseno.md §9.1.6).
-// Solo se tocan ESTE archivo, js/talents-guerrero.js, js/fx-skills-guerrero.js y
-// tests/test-powers-guerrero.mjs. js/powers.js ya importa y registra al cargar los
-// cuatro mapas que devuelven las funciones de abajo.
-// Son FUNCIONES (no constantes) a propósito: powers.js ↔ powers-guerrero.js forman un
-// ciclo de módulos y una función declarada se puede llamar aunque este módulo aún
-// no se haya evaluado (p. ej. si un test lo importa el primero). Los helpers de este
-// archivo son también declaraciones de función (se elevan con el módulo); los
-// valores de diseño viven en tun() (función, no constante de módulo).
+// Dueño: KT-guerrero (docs/paso2-implementacion.md §2 E2; diseño en docs/paso2g-guerrero.md).
+// js/powers.js importa y registra al cargar los cuatro mapas que devuelven las funciones de abajo.
+// Son FUNCIONES (no constantes) a propósito: powers.js ↔ powers-guerrero.js forman un ciclo de
+// módulos y una función declarada se puede llamar aunque este módulo aún no se haya evaluado. Los
+// helpers son declaraciones de función (o const usadas solo dentro de ganchos); los valores de
+// diseño viven en tun() (función, no constante de módulo).
 //
-//  guerreroPowers()          { id: PowerDef }  → definePower (claves de POWER_KEYS en powers.js:
-//                        stats modifyResolve condAdd condCrit onCast afterCast onHit onKill
-//                        condDr onDamaged onLethal onTick onGauge · icd priority procs state
-//                        name desc tags). `mult` SOLO en los nodos clave ya registrados
-//                        (powers-common.js: m_berserk/m_deadeye/m_hunt): un poder nuevo con
-//                        mult lo rechaza test67.
-//  guerreroSkillBehaviors() { skillId: { cast?(g,p,prof,cast), tick?(g,p,inst,dt), end?(g,p,inst) } }
-//                        → defineSkillBehavior: el `behavior` de las activas de talento de
-//                        js/talents-guerrero.js (formato de MEMORIA.md §7 punto 3).
-//  guerreroFields()          { kind: { init, tick, onEnter?, onExit?, onExpire?, render? } } → defineField
-//  guerreroGauges()          { id: GaugeDef } → spec-mechanics.defineGauge (solo indicadores NUEVOS;
-//                        los 9 de §2 ya existen: potencia los tuyos con gainGauge/spendGauge
-//                        y el gancho onGauge(g, p, id, ev, n, e)).
+//  guerreroPowers()          { id: PowerDef }  → definePower (claves de POWER_KEYS en powers.js).
+//                        `mult` SOLO en los nodos clave ya registrados (m_berserk, en b0).
+//  guerreroSkillBehaviors() { skillId: { cast?(g,p,prof,cast), … } } → defineSkillBehavior: el
+//                        `behavior` de Segundo Aliento e Intervención (las demás activas del
+//                        catálogo tienen el suyo en js/skills-guerrero.js).
+//  guerreroFields()          { kind: FieldDef } → defineField (el Pendón del Caudillo).
+//  guerreroGauges()          {} (Sed, Bastión y Fervor viven en js/mech-guerrero.js).
 //
-// REGLAS: no uses nada importado en el nivel superior del módulo (ciclo powers.js ↔
-// powers-<clase>.js: los bindings importados solo se usan DENTRO de los ganchos). Nada de `powers.has(` fuera de js/powers*.js
-// (aquí sí se puede: hasPower(p, id)), ni setTimeout (g.timers.schedule), ni
-// Math.random en la simulación (g.simRng(stream) / p.combatRng). Daño de un poder:
-// dealProcDamage(g, e, n, { source: 'power:<id>' }). Control: e.applyCC(kind, dur, { src: p,
-// stagger? }). Curas: p.sustain (golpe/muerte) o g.heal / g.shield (habilidad). Amenaza:
-// g.forceTarget(e, p, t) / g.addThreat(e, p, n). Aliados: g.allies(pos, r).
+// REGLAS: nada importado en el nivel superior del módulo (solo dentro de los ganchos). Nada de
+// `powers.has(` fuera de js/powers*.js (aquí, hasPower(p, id)), ni setTimeout (g.timers.schedule),
+// ni Math.random en la simulación. Daño de un poder: dealProcDamage(g, e, n, { source }). Control:
+// e.applyCC(kind, dur, { src: p }). Curas: p.sustain (golpe/muerte) o g.heal / g.shield. Recargas:
+// SOLO g.reduceCooldown, y aquí siempre por cutCd (suelos de la clase). Aliados: g.allies(pos, r);
+// su daño entra por g.damageAlly (⑫).
 //
 // ------------------------------------------------------------
-// LO QUE HAY AQUÍ (2c.1 + 2c.2)
+// PASO 2g (docs/paso2g-guerrero.md §6, §7, §9, §11.3)
 // ------------------------------------------------------------
-// · 29 poderes de los árboles (clase, Berserker, Guardián, Cruzado), uno por nodo.
-// · 11 comportamientos de activas de talento: Segundo Aliento, Intervención, Bramido,
-//   Remolino Sangriento, Temeridad, Ira Ciega, Grito Desafiante, Muro de Escudos,
-//   Carga de Escudo, Aura de Devoción y Veredicto Final (Martillo de Justicia usa el
-//   tipo genérico `proj`: aturdir + bossStun + stagger ya los entiende el núcleo).
-// · 3 campos de suelo: g_devocion (aura que te sigue), g_consagracion (suelo sagrado
-//   que cura) y g_martillos (martillos orbitales del Martillo Bendito).
-// · Indicadores (spec-mechanics): Sed (Remolino Sediento +4/enemigo, Instinto Asesino
-//   +2/crítico, Temeridad ×2 por stat 'gaugeGain:sed', Negación la llena, Desenfreno al
-//   llenarse, Carnicero +15·r por remate), Bastión (Desafío Firme +2, Martillo Pesado +1,
-//   Muro de Escudos las gasta, Muralla Viva −2·r % por carga, Bastión Eterno con 5) y
-//   Fervor (Devoción Ferviente +1, Fervor Creciente del núcleo, Veredicto gasta 3, Luz
-//   del Alba alarga el Aura, Ascensión no gasta).
-//
-// PASO 2c.2 — sin portadores: cada nodo con efecto propio lleva SU poder o una clave tv
-// que consume el núcleo (poder común nucleo_tv / combat-math / spec-mechanics). Un poder
-// solo lee el rango de SU PROPIO nodo (ownRank).
-//   Berserker  s5 Instinto Asesino → g_instinto_asesino (+2 Sed por crítico)
-//              s8 Festín de Sangre → tv.bleedKillHeal · s15 Sed Insaciable → tv.bleedKillMana
-//              s9 Temeridad → sin poder: su buff lleva 'gaugeGain:sed' (+100) y dmgTakenPct (+10)
-//              x1 Ejecutar → tv.executePct (remate, +40 a élites/jefes, wasExecuted)
-//              x2 Carnicero → g_carnicero (onKill de un remate) · x3 → g_matanza_eterna
-//   Guardián   s4 → g_desafio_firme · s7 Martillo Pesado → g_martillo_pesado
-//              s8 Recuperación → tv.killHeal · s14 Vínculo → ⑫ onAllyDamaged
-//              x3 Bastión Eterno → ⑫ onAllyLethal (icd 60 s)
-//   Cruzado    s6A Consagración → g_consagracion (afterCast de Martillo: campo que cura)
-//              s8 Luz Sanadora → tv.killHeal (a ti) + g_luz_sanadora (a los aliados a 10 m)
-//              s12 Fervor Creciente → tv.fervorChance · s13A Intercesión → ⑫ onAllyLethal (icd 90 s)
-//   Clase      c15 Hermandad de Armas → ⑪ onResource (+5 % de la Furia ganada por aliado)
-//
-// GRUPO (cooperativo; en solitario no hacen nada): Hermandad de Armas (buff a aliados a
-// 15 m y +5 % de Furia por aliado), Bramido/Devoción/Intervención/Veredicto (aliados en
-// el radio), Mano Sanadora, Luz Sanadora, Martillo Bendito (curas a aliados), Vínculo del
-// Guardián (te pasas el 20 % del daño de los aliados a 10 m), Intercesión y Bastión Eterno
-// (un aliado que iba a caer queda a 1). El daño de los aliados entra por g.damageAlly (⑫).
-// Los aliados son las entidades de g.party (contrato de g.allies: { pos, alive, hp,
-// stats.maxHP, healSkill, addShield, addBuff?, sustain?, setHp?, grantInvuln? }).
-//
-// ------------------------------------------------------------
-// PASO 2g (docs/paso2g-guerrero.md §6, §9, §11.3; KT-guerrero, trabajo 1): árbol de clase
-// c1…c30 y árboles héroe Titán (t*), Gladiador (l*) y Caudillo (u*)
-// ------------------------------------------------------------
-// · Cada nodo lleva SU poder (`g_*`, `g_ti_*`, `g_gl_*`, `g_cau_*`) o claves tv/stats/mod.
-//   Los finales leen su rango con rankOf (= talents.powerRank). Los nodos de ajuste de un árbol
-//   héroe (Aplastar, Ira Acumulada, Asta Alta…) son claves tv de la clase (GUERRERO_TV_KEYS)
-//   que lee el poder de la mecánica (Golpe de Titán, Rival, Pendón).
+// · Cada nodo lleva SU poder (`g_*` de clase, `g_b_*` Berserker, `g_d_*` Guardián, `g_z_*` Cruzado,
+//   `g_ti_*`, `g_gl_*`, `g_cau_*` héroe) o claves tv/stats/mod. Los de varios rangos leen el suyo
+//   con rankOf (= talents.powerRank). Las claves tv propias (GUERRERO_TV_KEYS) las lee el poder
+//   de su mecánica (Golpe de Titán, Rival, Pendón).
 // · Furia GASTADA (Desenfreno, Señor de la Guerra, Golpe de Titán): solo el coste que cobra una
 //   habilidad (③ afterCast, furyPaid). No cuentan Furia Protectora, Segundo Aliento ni drenajes.
 // · «Tu movilidad» (c14, c27, c30): la cadena de un relanzamiento cuenta solo su primer uso.
-// · Suelo de las definitivas (rejuicio §20, nota 13 del plan): ninguna reducción de talento deja
-//   la recarga efectiva por debajo del 70 % de la base del catálogo (ultCut).
-// · Reacciones de una mecánica: el Golpe de Titán guarda su golpe (titanStrike) y los demás
-//   nodos reaccionan en su propio afterCast; el Rival guarda nombramientos, muertes y
-//   Quebrantos; el Pendón llama a sus nodos al clavarse y al acabar (lo leen por hasPower).
+// · Suelos (rejuicio §20, ronda 3 §21): ninguna reducción de talento deja la recarga efectiva de
+//   una definitiva por debajo del 70 % de su base, ni la del Sendero de Luz (o la de la Carga de
+//   Escudo con Avalancha) por debajo de 4 s; los recortes del Salto cuentan como «seguidas» de
+//   Estampida Sin Fin (cutCd).
+// · Copias y repeticiones (echo): no cuentan como lanzamiento ni como suelta perfecta.
+// · Las pasivas de especialización que no son stats van en su nodo clave (gratis): Al borde
+//   (m_berserk, b0), Piel de Hierro 12 s y −50 % (mod de d0) y Martillo Piadoso (g_z_martillo_piadoso,
+//   z0, con la regla de las zonas sagradas del Cruzado: no se suman).
 import * as THREE from 'three';
-import { dealProcDamage, powerState, hasPower } from './powers.js';
-import { gainGauge, spendGauge, gaugeValue, gaugeMax } from './spec-mechanics.js';
-import { dotProfile, damageReduction, takenMult, chargeRelease, rankCoef, rankBuff, CAPS } from './combat-math.js';
-import { spendResource } from './resources.js';
+import { dealProcDamage, powerState, hasPower, POWER_HOOKS } from './powers.js';
+import { gainGauge, gaugeValue, gaugeMax, gaugeState, gaugeTuning, setGauge } from './spec-mechanics.js';
+import { dotProfile, damageReduction, takenMult, chargeRelease, rankCoef, rankBuff, blockReduction, DOT_PROFILES, CAPS } from './combat-math.js';
+import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
+import { insideField } from './field-entities.js';
 import { n1 } from './talent-text.js';
 // (importados: úsalos solo dentro de los ganchos). Sin talents.js ni skill-resolve.js: los dos
 // llegan a data.js y, si el primer módulo cargado es resources.js, el ciclo resources → powers →
@@ -106,34 +58,9 @@ import { n1 } from './talent-text.js';
 // ------------------------------------------------------------
 function tun() {
   return {
-    brother: { dmgPct: 5, hpPct: 8, radius: 15, furyPct: 5, maxAllies: 3 },   // c15
-    coraza: { below: 0.3, dr: 30, dur: 5, icd: 60 },                        // c12B
-    remolinoSed: { perHit: 2, max: 20 },                                     // s4 Berserker
-    instintoSed: 2,                    // s5 Berserker: Sed por crítico
-    remolinoBleedMul: 0.3,             // Sangrado de Remolino por tic (× perfil de Sangrado)
-    carniceria: { jump: 4 },           // s6A: el Sangrado salta a cercanos a ≤ 4 m
-    butcher: { sedPerRank: 15, fury: 5 },                                  // x2 Carnicero
-    eternal: 2,                        // x3 Matanza Eterna: +2 s de Desenfreno por remate
-    frenzy: { aspdPct: 30, dur: 8, healPct: 1 },                            // s14 Desenfreno
-    negacion: { icd: 120 },
-    desafioFirme: 2, martilloPesado: { hits: 3, n: 1 },                     // Guardián s4 / s7
-    reto: { pct: 20, dur: 8 },                                              // Guardián s6B
-    juramento: 10,                     // s13A: Muro Inquebrantable 30 → 20 s
-    vinculo: { pct: 20, radius: 10 },                                       // s14
-    muralla: 1,                        // s17: −1 %/rango por carga de Bastión (Paso 2e: era 2)
-    represalia: 30,                    // x1: % del daño bloqueado o absorbido que reflejas
-    venganza: { pctPerRank: 20, radius: 6 },                                // x2
-    eterno: { radius: 10, icd: 60, invuln: 2 },                             // x3 Bastión Eterno
-    manoRadius: 10,                    // Cruzado s3
-    ferviente: { fervor: 1, heal: 10 },                                     // s4
-    sentencia: { pct: 20, dur: 4, radius: 2.9 },                            // s6B (radio de Juicio)
-    consagracion: { healPctPerSec: 2 },                                     // s6A
-    luzRadius: 10,                     // s8
-    banner: 15,                        // s10: radio del Estandarte
-    intercesion: { icd: 90, cost: 20, radius: 15 },                         // s13A
-    alba: { dmgPct: 25, selfDmgPct: 10, perFervor: 1 },                                     // s14
-    hammers: { n: 3, coef: 0.15, every: 1, reach: 2.6, healPct: 1, healRadius: 15, juicioPct: 15 },  // x1/x2
-    ascension: { need: 3, gap: 8, dur: 10, radius: 30, minCd: 1.5 },        // x3
+    brother: { dmgPct: 5, hpPct: 8, radius: 15, furyPct: 5, maxAllies: 3 },   // c22B
+    coraza: { below: 0.3, dr: 30, dur: 5, icd: 60 },                        // c11B
+    negacion: { icd: 120 },                                                  // b15A
 
     // ---- Paso 2g · árbol de clase (§6) ----
     tajoFirme: 5,                                         // c5A: 10 → 15 de Furia por Tajo contra élites y jefes
@@ -161,6 +88,82 @@ function tun() {
     asalto: { perRank: 15, dur: 6, refund: 0.5, icd: 6 }, // c30
     ultFloor: 0.7,                                        // suelo de las definitivas: 70 % de su base
 
+    // ---- Paso 2g · especializaciones (§7) ----
+    movFloor: 4,                                          // suelo de 4 s de la Carga (d17) y del Sendero de Luz
+    // Berserker
+    contagio: { radius: 3, n: 2 },                        // b8A
+    desangrar: 3,                                         // b8B: Sangrados a la vez en el mismo enemigo
+    onda: { radius: 4, pct: 60 },                         // b9A
+    remate: 15,                                           // b9B: Quebranto a los jefes
+    aplastante: { per: 40, max: 120 },                    // b10B
+    ritmo: { perRank: 0.5, icd: 1.5 },                    // b12
+    impacto: { stun: 0.5, stagger: 15, icd: 4 },          // b14
+    hirviente: { over: 50, perRank: 8 },                  // b16
+    avidez: 2,                                            // b18: Furia por enemigo, × rango
+    caidaSangrienta: 100,                                 // b21: % del golpe en Sangrado
+    estallido: { radius: 4, base: 20, perRank: 15 },      // b22
+    verdugo: 3,                                           // b23: % por cada 10 % de vida que falta, × rango
+    impetu: { perRank: 3, max: 5, dur: 8 },               // b24
+    danza: { after: 3, cap: [6, 10, 20], furyPerSec: 8, step: 0.25 },   // b25
+    gracia: { pct: [30, 45, 60], vuln: [1, 2.5, 4], delay: 0.15 },     // b26
+    estampida: { need: 3, refund: [4, 8, Infinity], row: 2 },          // b27
+    corazon: { icd3: 60, every: 3, dur: 5, icd4: 90 },                // b28 (Sed por élite y 9 s: la mecánica)
+    // Guardián
+    contragolpe: { perRank: 40, icd: 1, reach: 3 },       // d4
+    raices: { big: 3 },                                   // d5: 2 cargas si golpea a 3 o más
+    mirada: 1,                                            // d7: +s de provocación por rango
+    barrido: { radius: 4, coef: 1.2, taunt: 2, icd: 3 },  // d8A
+    certero: { pct: 30, win: 1.5 },                       // d8B
+    replicas: { reach: 8 },                               // d9A
+    epicentro: { radius: 2, pct: 50, stagger: 20 },       // d9B
+    arrastre: { width: 3, front: 1.2 },                   // d10A
+    choque: { reach: 2.2, pct: 60, stagger: 25 },         // d10B
+    tambor: 0.5,                                          // d12: s por enemigo × rango (tope r s)
+    delante: { perRank: 2, dur: 4 },                      // d13
+    guardiaRota: 3,                                       // d14
+    ultimaLinea: { hpPct: 10, dur: 3, icd: 120 },         // d15A
+    roca: { need: 5, blockPower: 10 },                    // d15B
+    fuerzaBastion: 2,                                     // d16: % por carga × rango
+    avalancha: 1,                                         // d17: s por arrastrado (tope r s)
+    vinculo: { pct: 10, radius: 8 },                      // d18: % por rango
+    tierraViva: { every: 3, radius: 5, coef: 0.3 },       // d19: coef × rango
+    guarnicion: { perRank: 5, every: 1 },                 // d20
+    guardiaViva: { perRank: 3, max: 3, dur: 8, heal: 1 }, // d22
+    replicaHonda: 10,                                     // d23: % por rango (×2 contra Quebrantados)
+    escolta: { perRank: 4, radius: 6, dur: 6, icd: 10 },  // d24
+    guardiaTotal: { need: 3, win: 8, dur: [3, 4.5, 6], icd: 15, bonus: 15 },   // d25
+    montana: { every: 3, mul: [0.5, 0.75, 1], stun: 0.5, delay: 0.3 },        // d26
+    cabeza: { charges: [2, 3, 5], icd: 10, radius: 8, taunt: 4 },             // d27
+    inexpugnable: { maxAdd: 2, piel: 6, every: 3, dur: 4, icd: 45 },          // d28
+    // Cruzado
+    piadoso: { pct: 10, radius: 15, cap: 1 },             // z0: 10 % del daño sagrado, ≤ 1 %/s por receptor
+    zonaCap: 4, zonaTick: 0.5,                            // cubeta de zona (sendero + Tierra Santa): %/s por receptor
+    marcaIndeleble: 4,                                    // z4: +s por rango
+    consagrado: { coef: 0.4, dur: 4, max: 2 },            // z6
+    senderoBendito: { heal: 0.5, spd: 10 },               // z7: por rango
+    estallidoLuz: { pct: 50, radius: 3 },                 // z8A
+    condena: 15,                                          // z8B
+    generoso: { radius: 8, heal: 3, mainRadius: 5 },      // z9A
+    pesado: { pct: 80, stagger: 25 },                     // z9B
+    sendaArdiente: { coef: 0.3, slow: 1, slowPct: 30 },   // z10A
+    refugio: { pct: 10, dur: 6, icd: 6 },                 // z10B
+    tierraBendita: { radiusPerRank: 15, durPerRank: 1 },  // z13
+    altar: { radius: 4, dur: 6, dmgPct: 10 },             // z14
+    milagro: { hpPct: 20, icd: 120 },                     // z15A
+    luzProtectora: { pct: 10, dur: 6 },                   // z15B
+    ardor: 4,                                             // z16: % por Fervor × rango
+    velo: 5,                                              // z17: % por rango
+    absolucion: 2,                                        // z18: s entre curas (cura r %)
+    graciaCielo: 2,                                       // z20: s por rango
+    vigilia: 2,                                           // z21: recarga ×2 dentro de tu zona
+    edicto: 5,                                            // z22: radio
+    racha: { perRank: 4, max: 5 },                        // z23
+    peregrino: { dmg: 4, dr: 3 },                         // z24: por rango
+    tribunal: { uses: [2, 2, 3], pct: [40, 60, 80], jump: 2, radius: 6 },  // z25
+    celestial: { pct: [30, 45, 60], delay: 0.3 },         // z26
+    tierraSanta: { cap: [8, 14, 20], heal: 1 },           // z27
+    aureola: { every: 8, mul: 0.5, icd: 30 },             // z28 (rango 2: la cura del Veredicto, en la mecánica)
+
     // ---- Paso 2g · árboles héroe (§9) ----
     // Titán: cada 60 de Furia pagada, la siguiente principal +40 % y sacude el suelo a 4 m (50 %);
     // `pending` = s sin afterCast tras los que un Golpe de Titán anulado (esquiva) vuelve a estar listo
@@ -170,7 +173,7 @@ function tun() {
     peso: 1, coloso: { icd: 30, dur: 8, mul: 0.5 },
     // Gladiador: Rival 10 s (+15 %); Muchos Rivales 3 a +10 %; Duelo a Muerte 1 a +30 % sin caducar;
     // al morir, +20 de Furia y pasa al más cercano a `pass` m; Desafío de Arena +20 % 8 s
-    rival: { dur: 10, pct: 15, fury: 20, pass: 12, many: 3, manyPct: 10, duelPct: 30, arenaPct: 20, arenaDur: 8, arenaReach: 6 },
+    rival: { dur: 10, pct: 15, fury: 20, pass: 12, many: 3, manyPct: 10, duelPct: 30, arenaReach: 6 },
     ovacion: { normalDiv: 5, icd: 2 },                    // tv.rivalKillHeal 10 → 2 % con un Rival normal
     tiroArena: { slowPct: 40, dur: 3, icd: 4 },
     contraataque: { win: 2, pct: 60, healPct: 5 },
@@ -192,15 +195,6 @@ function tun() {
 // ------------------------------------------------------------
 function isBoss(e) { return !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss); }
 function isEliteOrBoss(e) { return !!e?.def?.rank || isBoss(e); }
-function specOf(p) { return p?.talentAgg?.spec || null; }
-// rango REAL del PROPIO nodo del poder que lo pregunta (0 si no es esa especialización).
-// Solo para escalar el efecto de SU nodo (Mano Sanadora, Muralla, Carnicero, Venganza,
-// Martillos del Juicio): nunca para encender el efecto de otro nodo (Paso 2c.2).
-function ownRank(p, id, spec) {
-  const s = specOf(p);
-  if (!s || (spec && s !== spec)) return 0;
-  return (p.talents?.sp?.[s]?.[id] | 0);
-}
 function buffOf(a, id) { return (a?.buffs || []).find(b => b.id === id && b.t > 0) || null; }
 // renueva (sin recompute) o crea un buff de duración corta (auras)
 function keepBuff(a, id, stats, dur, meta) {
@@ -216,25 +210,11 @@ function skillHeal(g, p, a, amt, src) {
   if (a === p) return g.heal ? g.heal(amt, { target: 'self', src }) : p.healSkill(amt, src);
   return a.healSkill?.(amt, src) || 0;
 }
-// SUSTENTO de un aliado (su cubeta; un aliado sin cubeta lo recibe como curación)
-function allySustain(a, amt, src) {
-  if (!(amt > 0) || !a) return 0;
-  return a.sustain ? a.sustain(amt, src) : (a.healSkill?.(amt, src) || 0);
-}
 function fxAt(g, name, pos, y = 1) {
   if (!name || !pos || !g?.emitFx) return;
   g.emitFx(name, pos.clone ? pos.clone().setY(y) : { x: pos.x, y, z: pos.z });
 }
-function fieldOf(g, p, kind) { return (g?.fields || []).find(f => !f.dead && f.kind === kind && f.owner === p) || null; }
 function v3(x, y, z) { return new THREE.Vector3(x, y, z); }
-// Muro de Escudos: puntos de reducción de daño del buff y daño que evitó en un golpe
-function muroDr(p) { return buffOf(p, 'g_t_muro')?.stats?.dr || 0; }
-function muroPrevented(p, amount) {
-  const m = muroDr(p);
-  if (!(m > 0) || !(amount > 0)) return 0;
-  const t = Math.min(50, p.stats?.dr || 0), without = Math.max(0, t - m);
-  return amount * (t - without) / Math.max(1, 100 - t);
-}
 function nearAL(g, p) {
   let al = 0;
   for (const e of g?.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= 20) al = Math.max(al, e.def?.level || 0);
@@ -242,25 +222,6 @@ function nearAL(g, p) {
 }
 // ¿el aliado (de g.party, no tú) está a ≤ r m?
 function allyNear(p, a, r) { return !!a && a !== p && !!a.pos?.distanceTo && a.pos.distanceTo(p.pos) <= r; }
-// Sangrado de una activa (perfil central de DoT; fuente '<habilidad>:bleed' → Sed y KillInfo)
-function applyBleed(g, p, e, avgHit, mul, skill) {
-  if (!e?.alive) return;
-  const d = dotProfile('bleed', avgHit, { dotMul: mul, tv: p.tv });
-  if (d) g.applyDoT?.(e, d.total, d.ticks, d.interval, undefined, `${skill}:bleed`);
-}
-// buff de una activa (como el tipo genérico `buff`): a ti o, con tag ally, al grupo
-function castBuff(g, p, prof, sk, ctx, stats) {
-  const meta = { name: sk.name, icon: sk.icon, desc: sk.desc };
-  const targets = prof.tags.has('ally') ? g.allies(p.pos, sk.allyRadius || 15) : [p];
-  for (const a of targets) {
-    a.addBuff?.(sk.id, { ...(stats || prof.buff) }, prof.dur, meta);
-    if (prof.unstoppable) a.unstoppableT = Math.max(a.unstoppableT || 0, prof.dur);
-  }
-  g.spawnRing?.(p.pos, 1.4, ctx.color || 0x66ddff);
-  fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-  fxAt(g, ctx.fx?.extra, p.pos, 0.2);
-  return targets;
-}
 // sin objetivo o sin recurso propio: el enfriamiento no se gasta (D2: g.reduceCooldown, Infinity = lista)
 function refundCd(g, p, sk, msg) {
   g.reduceCooldown?.(p, sk.id, Infinity);
@@ -300,7 +261,7 @@ function dropBuff(p, id) {
   if (!n) return false;
   p.buffs = p.buffs.filter(b => b.id !== id);
   if (p.buffs.length === n) return false;
-  p.recompute();
+  p.recompute?.();
   return true;
 }
 // buff de aura que no se suma: si ya está, se queda con el mayor de cada stat y renueva
@@ -333,48 +294,47 @@ function myMovement(p) {
   if (k1?.cat === 'movement') return k1;
   return (p?.cls?.skills || []).find(s => s.cat === 'movement' && (p.cds?.[s.id] || 0) > 0) || null;
 }
-// recarga de tu movilidad recortada por un poder (Finta, Asalto Total). Los suelos propios de la
-// Carga de Escudo (d17) y del Sendero (z21) y la cuenta de «seguidas» de Estampida Sin Fin (b27)
-// se enganchan aquí con sus nodos (trabajos 2 y 3)
+// recarga de tu movilidad recortada por un poder (Finta, Asalto Total): pasa por cutCd (el suelo
+// de 4 s de la Carga con Avalancha y del Sendero, y la cuenta de «seguidas» del Salto)
 function moveCut(g, p, s) {
   const sk = myMovement(p);
-  if (!sk || !(s > 0) || !((p.cds?.[sk.id] || 0) > 0)) return 0;
-  return g.reduceCooldown?.(p, sk.id, s) || 0;
+  return sk ? cutCd(g, p, sk.id, s) : 0;
 }
 // ---- suelo de las definitivas (rejuicio §20; nota 13 del plan: absoluto, 70 % de sk.cd) ----
 // Entre todos los talentos, la recarga EFECTIVA de una definitiva (lo que ya pasó desde que
 // empezó + lo que le falta) no baja del 70 % de su base del catálogo. Lo recortado por otros
-// cuenta porque se mide lo que falta de verdad. El inicio lo anota noteUlt (③ afterCast de los
-// poderes que recortan); sin anotación se supone que nadie la recortó (cdMax − lo que falta).
+// cuenta porque se mide lo que falta de verdad. El inicio lo anota noteStart (③ afterCast de los
+// poderes que recortan; también el de la movilidad, para su suelo de 4 s): lo que la recarga ya
+// corrió al anotarla; sin anotación se supone que nadie la recortó (cdMax − lo que falta).
 const ULT_STATE = 'g_ult_suelo';
-function noteUlt(p, cast) {
-  if (!cast || cast.echo || (cast.sk?.cat || cast.prof?.cat) !== 'ultimate') return;
+function noteStart(p, cast) {
+  const cat = cast?.sk?.cat || cast?.prof?.cat;
+  if (!cast || cast.echo || cast.recast || (cat !== 'ultimate' && cat !== 'movement')) return;
+  const id = cast.sk.id, left = p.cds?.[id] || 0;
   const st = powerState(p, ULT_STATE);
-  (st.start || (st.start = {}))[cast.sk.id] = now(p);
+  // una vez por lanzamiento: el primer poder que lo anota (antes de recortar nada) manda
+  const by = st.by || (st.by = {});
+  if (by[id] === cast) return;
+  by[id] = cast;
+  (st.start || (st.start = {}))[id] = now(p) - (left > 0 ? Math.max(0, (p.cdMax?.[id] || left) - left) : 0);
+}
+function ultCutOne(g, p, sk, s) {
+  const left = p.cds?.[sk.id] || 0;
+  if (!(s > 0) || !(left > 0)) return 0;
+  const t0 = powerState(p, ULT_STATE).start?.[sk.id];
+  const elapsed = t0 != null && t0 <= now(p) ? now(p) - t0 : Math.max(0, (p.cdMax?.[sk.id] || left) - left);
+  const room = Math.max(0, left - Math.max(0, (sk.cd || 0) * tun().ultFloor - elapsed));
+  const cut = Math.min(s, room);
+  return cut > 1e-9 ? (g.reduceCooldown?.(p, sk.id, cut) || 0) : 0;
 }
 function ultCut(g, p, s) {
-  if (!(s > 0)) return 0;
-  const T = tun();
-  const st = powerState(p, ULT_STATE);
   let total = 0;
-  for (const sk of p?.cls?.skills || []) {
-    if (sk.cat !== 'ultimate') continue;
-    const left = p.cds?.[sk.id] || 0;
-    if (!(left > 0)) continue;
-    const t0 = st.start?.[sk.id];
-    const elapsed = t0 != null && t0 <= now(p) ? now(p) - t0 : Math.max(0, (p.cdMax?.[sk.id] || left) - left);
-    const room = Math.max(0, left - Math.max(0, (sk.cd || 0) * T.ultFloor - elapsed));
-    const cut = Math.min(s, room);
-    if (cut > 1e-9) total += g.reduceCooldown?.(p, sk.id, cut) || 0;
-  }
+  for (const sk of p?.cls?.skills || []) if (sk.cat === 'ultimate') total += ultCutOne(g, p, sk, s);
   return total;
 }
-// recorta TODAS tus recargas en `s` (las definitivas con su suelo): Disciplina del Pendón
+// recorta TODAS tus recargas en `s` (con sus suelos): Disciplina del Pendón
 function cutAll(g, p, s) {
-  for (const sk of p?.cls?.skills || []) {
-    if (!((p.cds?.[sk.id] || 0) > 0)) continue;
-    if (sk.cat === 'ultimate') ultCut(g, p, s); else g.reduceCooldown?.(p, sk.id, s);
-  }
+  for (const sk of p?.cls?.skills || []) if ((p.cds?.[sk.id] || 0) > 0) cutCd(g, p, sk.id, s);
 }
 // daño que EVITÓ la Piel de Hierro en un golpe que ya dejó pasar `amount` (su reducción y su
 // daño recibido extra, si lo trae, frente a los mismos stats sin ella)
@@ -590,6 +550,288 @@ function pendonPulse(g, f, step) {
   for (const a of g.allies ? g.allies(pos, f.radius) : [o]) auraBuff(a, 'g_cau_pendon', stats, d.interval + 0.15, meta);
   if (d.weak > 0) for (const e of enemiesNear(g, pos, f.radius)) e.weakenOutgoing?.('g_cau_linea', d.weak, d.interval + 0.15);
   if (d.cdr > 0 && step > 0 && o.pos.distanceTo(pos) <= f.radius) cutAll(g, o, step * d.cdr / 100);
+}
+
+// ------------------------------------------------------------ helpers de las especializaciones
+// (Paso 2g, §7; KT-guerrero, trabajos 2 y 3)
+const isHitOf = (hit, id) => hit?.skill === id && direct(hit);
+const isHolyHit = hit => hit?.elem === 'holy' || tagsHave(hit, 'holy');
+const dist2D = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+// los `n` enemigos vivos más cercanos a `pos` a ≤ r m (sin `skip`)
+function nearestEnemies(g, pos, r, n, skip = null) {
+  return enemiesNear(g, pos, r).filter(e => e !== skip).sort((a, b) => dist2D(a.pos, pos) - dist2D(b.pos, pos)).slice(0, n);
+}
+function nearestEnemy(g, pos, r) { return nearestEnemies(g, pos, r, 1)[0] || null; }
+// el aliado (o tú) con menos vida a ≤ r m de `pos`
+function lowestAlly(g, p, pos = p.pos, r = 15, skip = null) {
+  let best = null;
+  for (const a of g?.allies ? g.allies(pos, r) : [p]) {
+    if (a === skip || !(a.stats?.maxHP > 0)) continue;
+    if (!best || a.hp / a.stats.maxHP < best.hp / best.stats.maxHP) best = a;
+  }
+  return best;
+}
+// definición forjada de una habilidad de la clase (sin el resolvedor: ver la nota del ciclo)
+const defOf = (p, id) => p?.forged?.[id]?.def || skillOf(p, id);
+// ¿la postura activa es Muralla (o Guardia Total, las dos)?
+const inMuralla = (g, p) => !!g?.activeStanceModes?.(p).some(m => m.id === 'muralla');
+
+// ---- recortes de recarga con los suelos de la clase ----
+// suelo de 4 s de la movilidad (rejuicio §20, ronda 3 §21): el Sendero de Luz siempre; la Carga de
+// Escudo con Avalancha (d17). La recarga EFECTIVA (lo que ya pasó + lo que falta) no baja de 4 s
+function moveFloor(p, id) {
+  if (id === 'g_sendero') return tun().movFloor;
+  if (id === 'g_carga_escudo' && hasPower(p, 'g_d_avalancha')) return tun().movFloor;
+  return 0;
+}
+// «seguidas» del Salto Devastador (Estampida Sin Fin, b27): recargas seguidas que algún poder
+// recortó o reinició. row = cuántas; cut = la recarga en curso ya se recortó
+const saltoRow = p => powerState(p, 'g_b_estampida_fila');
+// ÚNICO recorte de recarga de este archivo: definitivas con su suelo del 70 %, movilidad con su
+// suelo de 4 s y la cuenta de «seguidas» del Salto. s = Infinity: lista ya (o hasta su suelo)
+function cutCd(g, p, id, s) {
+  const left = p?.cds?.[id] || 0;
+  if (!(s > 0) || !(left > 0)) return 0;
+  const sk = skillOf(p, id);
+  if (sk?.cat === 'ultimate') return ultCutOne(g, p, sk, s);
+  let cut = s;
+  const fl = moveFloor(p, id);
+  if (fl > 0) {
+    const t0 = powerState(p, ULT_STATE).start?.[id];
+    const elapsed = t0 != null && t0 <= now(p) ? now(p) - t0 : Math.max(0, (p.cdMax?.[id] || left) - left);
+    cut = Math.min(s, Math.max(0, elapsed + left - fl));
+    if (!(cut > 1e-9)) return 0;
+  }
+  const got = g?.reduceCooldown?.(p, id, cut) || 0;
+  if (got > 0 && id === 'g_salto') {
+    const r = saltoRow(p);
+    if (!r.cut) { r.row = (r.row || 0) + 1; r.cut = true; }
+  }
+  return got;
+}
+
+// ---- Berserker ----
+// fuente del Sangrado que ESTE golpe directo deja (la del núcleo: `<habilidad>:bleed`) o null:
+// el DoT del paso del combo, el de la habilidad o su hitDot
+function bleedSourceOf(p, hit) {
+  if (!direct(hit) || !hit.skill) return null;
+  const prof = p?.resolved?.[hit.skill];
+  if (!prof) return null;
+  const dot = hit.step > 0 ? (prof.def?.steps?.[hit.step - 1]?.dot || prof.dot) : prof.dot;
+  return dot === 'bleed' || prof.hitDot?.kind === 'bleed' ? `${hit.skill}:bleed` : null;
+}
+// intervalo de los tics de un Sangrado de la clase: el hitDot va a 0,5 s; el perfil central, a 1 s
+function bleedInterval(p, source) {
+  const id = String(source || '').split(/[#:]/)[0];
+  if (p?.resolved?.[id]?.hitDot || skillOf(p, id)?.hitDot) return 0.5;
+  return DOT_PROFILES.bleed.interval;
+}
+// registro de la cadena del Salto de UN poder: cada salto anota a quién golpeó y con cuánto
+function jumpOpen(p, id, cast) {
+  const st = powerState(p, id);
+  if (!cast.recast) st.jumps = 0;
+  st.jumps = (st.jumps || 0) + 1;
+  st.last = { hits: [] };
+}
+function jumpHit(p, id, e, dealt) { const l = powerState(p, id).last; if (l && !l.hits.some(h => h.e === e)) l.hits.push({ e, dealt: dealt || 0 }); }
+// ¿este salto cierra la cadena sin ⑭? (un solo salto: ni es relanzamiento ni abrió cadena)
+const soloJump = (p, cast) => !cast.recast && !p.skState?.g_salto?.recast;
+// fin de la cadena del Salto para Caída Sangrienta (b21): el último salto desangra a los que golpeó
+// (el 100 % de su golpe en 3 s; Heridas Abiertas y Sangre Espesa cuentan, como en todo Sangrado)
+function caidaSangrienta(g, p) {
+  const st = powerState(p, 'g_b_caida_sangrienta');
+  const last = st.last;
+  st.last = null;
+  const frac = tun().caidaSangrienta / 100 / DOT_PROFILES.bleed.frac;
+  for (const { e, dealt } of last?.hits || []) {
+    if (!e.alive || !(dealt > 0)) continue;
+    const d = dotProfile('bleed', dealt, { dotMul: frac, tv: p.tv });
+    if (d) g.applyDoT(e, d.total, d.ticks, d.interval, undefined, 'g_salto:bleed');
+  }
+}
+// fin de la cadena del Salto para Estampida Sin Fin (b27): con 3 o más golpeados en el último
+// salto, recorte (o reinicio) si no van ya 2 recargas seguidas recortadas
+function estampida(g, p) {
+  const st = powerState(p, 'g_b_estampida');
+  const last = st.last;
+  st.last = null;
+  const E = tun().estampida;
+  if (!last || last.hits.length < E.need || (saltoRow(p).row || 0) >= E.row) return;
+  const s = E.refund[Math.min(E.refund.length, rankOf(p, 'g_b_estampida')) - 1];
+  if (cutCd(g, p, 'g_salto', s) > 0) g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡ESTAMPIDA!', 'txt-crit');
+}
+// Furia Inmortal GRATIS (Corazón Indomable 4): el buff del catálogo `dur` s, sin coste ni recarga
+function freeFury(g, p, dur) {
+  const sk = skillOf(p, 'g_u_furia');
+  if (!sk || buffOf(p, 'g_u_furia')) return false;
+  const def = defOf(p, sk.id);
+  const stats = { ...(profOf(g, p, sk.id)?.buff || def.buff || {}) };
+  for (const k of ['minHpPct', 'endHealPct']) if (def.buff?.[k] != null) stats[k] = def.buff[k];
+  p.addBuff('g_u_furia', stats, dur, { name: def.name, icon: def.icon, desc: def.desc });
+  if (def.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dur);
+  if (def.slowImmune) p.grantSlowImmune?.(dur);
+  if (hasPower(p, 'g_b_sin_suelo')) cutCd(g, p, 'g_salto', Infinity);
+  g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡FURIA INMORTAL!', 'txt-crit');
+  return true;
+}
+
+// ---- Guardián ----
+// bloqueo SEGURO (Escudo por Delante, Proa Blindada): el golpe pierde lo que para un bloqueo
+// (blockReduction con el blockPower de la postura); fuera de CAPS.block. Cola W2: forcedBlocks
+function forceBlock(g, p, dmg) {
+  if (!dmg || dmg.blocked || !(dmg.amount > 0)) return false;
+  const vs = p.verbStats?.() || {};
+  dmg.amount *= 1 - blockReduction({ ...p.stats, blockPower: (p.stats?.blockPower || 0) + (vs.blockPower || 0) });
+  dmg.blocked = true;
+  g.ui?.spawnText?.(p.pos, '¡Bloqueo!', 'txt-heal');
+  return true;
+}
+// arrastrados por la Carga de Escudo: los enemigos (no jefes) que el avance pegó a ti (la misma
+// regla que el núcleo: a ≤ dragWidth + 0,6 m del héroe en algún paso), muestreados a 10 Hz
+const DRAG = 'g_d_arrastre';
+function dragStart(p, cast) {
+  if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return;
+  const st = powerState(p, DRAG);
+  if (st.cast === cast) return;
+  st.cast = cast; st.set = new Set(); st.at = -1;
+  st.w = cast.prof?.dragWidth || 0;
+  st.from = p.pos.clone().setY(0);
+}
+function dragSample(g, p) {
+  const st = powerState(p, DRAG);
+  if (!st.set) st.set = new Set();
+  if (!(st.w > 0) || !st.cast || st.at === now(p)) return st.set;
+  st.at = now(p);
+  for (const e of g?.enemies || []) if (e.alive && !isBoss(e) && dist2D(e.pos, p.pos) <= st.w + 0.75) st.set.add(e);
+  return st.set;
+}
+// arrastrados del lanzamiento que acaba de llegar (③ afterCast)
+function dragged(g, p, cast) {
+  const st = powerState(p, DRAG);
+  if (st.cast !== cast) return new Set();
+  st.at = -1;
+  return dragSample(g, p);
+}
+// ventana de las réplicas del Terremoto (Réplica Honda): el núcleo las programa en el mismo
+// instante; este contador abre su ventana justo antes y la cierra justo después (timers.js
+// ordena por instante). Cola W2: pasar hitExtra (repeat) al golpe de condAdd
+const REPL = 'g_d_replicas_ventana';
+const replicaOpen = p => (powerState(p, REPL).open || 0) > 0;
+function replicaBracket(g, p, times) {
+  const st = powerState(p, REPL);
+  for (const t of times) {
+    g.timers?.schedule(Math.max(0, t - 1e-6), () => { st.open = (st.open || 0) + 1; });
+    g.timers?.schedule(t + 1e-6, () => { st.open = Math.max(0, (st.open || 0) - 1); });
+  }
+}
+// réplica PROPIA (Tierra Viva, el anillo de Réplicas): golpe de Terremoto marcado como réplica
+function replicaHit(g, p, center, radius, mult, extra = {}) {
+  const prof = p.resolved?.terremoto || null;
+  const def = defOf(p, 'terremoto');
+  const st = powerState(p, REPL);
+  st.open = (st.open || 0) + 1;
+  try {
+    return g.dealArea(center, radius, mult, { addPct: prof?.addPct || 0, critBonus: prof?.critBonus || 0, from: center,
+      hitInfo: { skill: 'terremoto', tags: prof?.tags || new Set(def?.tags || ['spender', 'area', 'physical']), elem: 'physical' },
+      hitExtra: { repeat: 1, echo: true }, ...extra });
+  } finally { st.open = Math.max(0, st.open - 1); }
+}
+// Ciudadela GRATIS (Última Línea, Inexpugnable 4): la de la definitiva `dur` s, sin coste ni
+// recarga y marcada `free` (Guarnición no da cargas en ella)
+function freeCitadel(g, p, dur) {
+  const sk = skillOf(p, 'g_u_ciudadela');
+  if (!sk || !g?.spawnField) return null;
+  const def = defOf(p, sk.id);
+  const buff = { ...(profOf(g, p, sk.id)?.buff || def.buff || {}) };
+  const meta = { name: def.name, icon: def.icon, desc: def.desc };
+  const rad = p.resolved?.[sk.id]?.radius || def.radius || 6;
+  const pos = p.pos.clone().setY(0);
+  const f = g.spawnField('aura', { pos, radius: rad, dur, owner: p, data: { buff, buffId: def.id, meta, color: 0x7fb0e8, free: true } });
+  for (const a of g.allies ? g.allies(pos, rad) : [p]) a.addBuff?.(def.id, { ...buff }, 0.65, meta);
+  if ((def.moveMul ?? 1) !== 1) p.setMoveMul?.(def.id, def.moveMul, dur);
+  if (def.plant) p.plantNow?.();
+  const pl = def.pulse;
+  if (pl?.taunt > 0) {
+    const pulse = () => {
+      if (!f || f.dead || !p.alive) return;
+      for (const e of enemiesNear(g, p.pos, pl.radius || 10)) e.applyCC?.('taunt', pl.taunt, { src: p });
+      g.timers?.schedule(pl.every || 1, pulse);
+    };
+    pulse();
+  }
+  g.spawnRing?.(pos, rad, 0x7fb0e8);
+  g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡CIUDADELA!', 'txt-crit');
+  return f;
+}
+
+// ---- Cruzado ----
+// zonas sagradas PROPIAS (sendero, suelos de Golpe Consagrado y del Cataclismo: campos 'zona'
+// con la etiqueta holy). El poder de z0 las ADOPTA: su daño y su cura pasan a la regla de la
+// clase (no se suman: vale la más fuerte; cubeta de zona de 4 %/s por receptor)
+const isHolyField = f => !!f && !f.dead && f.kind === 'zona' && (!!f.data?._holy || tagsHave({ tags: f.data?.tags }, 'holy'));
+const holyZones = (g, p) => (g?.fields || []).filter(f => f.owner === p && isHolyField(f));
+const inHolyZone = (g, p, pos) => holyZones(g, p).some(f => insideField(f, pos));
+// adopta las zonas sagradas nuevas: Tierra Bendita (z13) las agranda y alarga al nacer; Senda
+// Ardiente (z10A) hace que el sendero ralentice
+function adoptHoly(g, p) {
+  const T = tun();
+  for (const f of g?.fields || []) {
+    if (f.owner !== p || f.dead || f.kind !== 'zona' || f.data?._holy || !tagsHave({ tags: f.data?.tags }, 'holy')) continue;
+    f.data._holy = { dps: f.data.dps || 0, heal: f.data.healPct || 0 };
+    f.data.dps = 0; f.data.healPct = 0;
+    if (hasPower(p, 'g_z_tierra_bendita')) {
+      const r = rankOf(p, 'g_z_tierra_bendita');
+      const mul = 1 + T.tierraBendita.radiusPerRank * r / 100;
+      if (f.shape === 'line') f.width *= mul; else f.radius *= mul;
+      f.t += T.tierraBendita.durPerRank * r; f.dur += T.tierraBendita.durPerRank * r;
+    }
+    if (f.data.skill === 'g_sendero' && hasPower(p, 'g_z_senda_ardiente')) { f.data.slow = T.sendaArdiente.slow; f.data.slowPct = T.sendaArdiente.slowPct; }
+  }
+}
+// cubetas de cura por receptor (§19.3, §20): `key` 'piadoso' (1 %/s) o 'zona' (4 %/s). Fichas que
+// se reponen a `pct` % de la vida por segundo (como mucho 1 s acumulado). Devuelve lo que cabe
+function healBucket(p, a, key, pct, want) {
+  if (!(want > 0) || !a) return 0;
+  const st = powerState(p, 'g_z_cubetas');
+  const map = st[key] || (st[key] = new WeakMap());
+  const cap = (a.stats?.maxHP || 0) * pct / 100;
+  const b = map.get(a) || { at: now(p), avail: cap };
+  b.avail = Math.min(cap, b.avail + cap * Math.max(0, now(p) - b.at));
+  b.at = now(p);
+  const take = Math.min(want, b.avail);
+  b.avail -= take;
+  map.set(a, b);
+  return take;
+}
+// cura de habilidad a un aliado dentro de una cubeta
+function bucketHeal(g, p, a, key, pct, want, src) {
+  const amt = healBucket(p, a, key, pct, want);
+  return amt > 0 ? skillHeal(g, p, a, amt, src) : 0;
+}
+// perfil de la marca de Juicio (Sello del Martillo, Edicto, Tribunal): el resuelto o el del
+// catálogo forjado con los modifyResolve de sus talentos (Marca Indeleble, Tribunal)
+function juicioProf(p) {
+  const r = p?.resolved?.g_juicio;
+  if (r?.mark) return r;
+  const sk = skillOf(p, 'g_juicio');
+  const def = defOf(p, 'g_juicio');
+  if (!sk || !def?.mark) return null;
+  const prof = { id: 'g_juicio', def, mark: { ...def.mark } };
+  for (const id of ['g_z_marca_indeleble', 'g_z_tribunal']) if (hasPower(p, id)) POWER_HOOKS[id]?.modifyResolve?.(p, sk, prof);
+  return prof;
+}
+// ¿el lanzamiento es un Veredicto? (lo anota la mecánica del Fervor al lanzar el Martillo)
+const verdictOf = (p, cast) => !!cast && gaugeState(p, 'fervor')?.verdictCast === cast;
+// Milagro (z15A): `a` (tú o un aliado) queda con un 20 % de vida; una vez cada 2 min entre todos
+function milagro(g, p, a) {
+  const M = tun().milagro;
+  const st = powerState(p, 'g_z_milagro');
+  if (!a || now(p) - st.at < M.icd - 1e-9) return false;
+  st.at = now(p);
+  const hp = Math.max(1, Math.round((a.stats?.maxHP || 0) * M.hpPct / 100));
+  if (a.setHp) a.setHp(hp, 'g_z_milagro'); else a.hp = hp;
+  g.ui?.spawnText?.(a.pos, '¡MILAGRO!', 'txt-heal');
+  return true;
 }
 
 // ============================================================
@@ -1011,10 +1253,12 @@ export function guerreroPowers() {
       name: 'Asalto Total', desc: 'Tras tu movilidad, la siguiente principal es gratis y hace más daño; si mata, tu movilidad recupera media recarga.',
       state: () => ({ refundAt: -99 }),
       condAdd(p, e, hit) {
+        if (hit?.skill === 'terremoto' && powerState(p, 'g_d_pisoton').cast) return 0;     // Pisotón (d6): gratis, sin su +%
         return tagsHave(hit, 'spender') && buffOf(p, 'g_asalto_total') ? T.asalto.perRank * rankOf(p, 'g_asalto_total') : 0;
       },
       afterCast(g, p, cast, res) {
         if (cast?.echo) return;
+        noteStart(p, cast);
         if (isMoveCast(cast) && !cast.recast) {
           p.addBuff('g_asalto_total', { spenderCostPct: -100 }, T.asalto.dur, { name: 'Asalto Total', icon: '🏇', desc: 'Tu siguiente principal es gratis y hace más daño' });
           return;
@@ -1134,7 +1378,7 @@ export function guerreroPowers() {
     g_ti_peso: {
       name: 'Peso Acumulado', desc: 'Cada Golpe de Titán acorta 1 s la recarga de tu definitiva.',
       afterCast(g, p, cast) {
-        noteUlt(p, cast);
+        noteStart(p, cast);
         if (titanStrike(p, cast)) ultCut(g, p, T.peso);
       },
     },
@@ -1166,18 +1410,14 @@ export function guerreroPowers() {
     g_gl_rival: {
       name: 'Rival', desc: 'Tu primer golpe nombra Rival al enemigo: le haces más daño y, si muere, ganas Furia.',
       priority: 3,
-      state: () => ({ rivals: [], events: [], seq: 0, death: null, arenaUntil: -99, healAt: -99 }),
+      state: () => ({ rivals: [], events: [], seq: 0, death: null, healAt: -99 }),
       onHit(g, p, e, hit) {
         if (!direct(hit) || !e?.alive) return;
         const st = rivalState(p);
         pruneRivals(p, st);
         if (!rivalOf(p, e) && st.rivals.length < rivalCap(p)) nameRival(g, p, st, e);
       },
-      condAdd(p, e) {
-        if (!isRival(p, e)) return 0;
-        const st = rivalState(p);
-        return rivalPct(p) + (now(p) < st.arenaUntil ? T.rival.arenaPct : 0);
-      },
+      condAdd(p, e) { return isRival(p, e) ? rivalPct(p) : 0; },
       onKill(g, p, e, kill) {
         const st = rivalState(p);
         const r = rivalOf(p, e);
@@ -1208,10 +1448,10 @@ export function guerreroPowers() {
           rivalHeal(g, p, st, true);
         }
       },
-      // Desafío de Arena (l4A): el lanzamiento nombra Rival al de la mira (si no tienes) y le
-      // sube el daño 8 s; noteUlt para el suelo de las definitivas (Vítores)
+      // Desafío de Arena (l4A): el lanzamiento nombra Rival al de la mira (si no tienes); su +20 %
+      // es la Debilidad de la marca del catálogo (no se suma otro aquí). noteStart: suelos de recarga
       afterCast(g, p, cast) {
-        noteUlt(p, cast);
+        noteStart(p, cast);
         if (cast?.sk?.id !== 'g_h_desafio' || cast.echo) return;
         const st = rivalState(p);
         pruneRivals(p, st);
@@ -1219,7 +1459,6 @@ export function guerreroPowers() {
           const e = cast.enemy?.alive ? cast.enemy : g.nearestEnemy?.(T.rival.arenaReach);
           if (e) nameRival(g, p, st, e);
         }
-        st.arenaUntil = now(p) + T.rival.arenaDur;
       },
     },
     // l2A Muchos Rivales y l2B Duelo a Muerte: cambian cuántos Rivales hay y cuánto pagan (lo lee
@@ -1341,7 +1580,7 @@ export function guerreroPowers() {
     g_gl_vitores: {
       name: 'Vítores', desc: 'Matar a un Rival élite o Quebrantar a tu Rival acorta 6 s la recarga de tu definitiva.',
       state: () => ({ at: -99 }),
-      afterCast(g, p, cast) { noteUlt(p, cast); },
+      afterCast(g, p, cast) { noteStart(p, cast); },
       onKill(g, p, e) { const d = rivalDeath(p, e); if (d?.elite) vitores(g, p); },
       onTick(g, p) { if (rivalEvents(p, powerState(p, 'g_gl_vitores'), 'broke').length) vitores(g, p); },
     },
@@ -1383,11 +1622,20 @@ export function guerreroPowers() {
         if (plantPendon(g, p, p.pos)) st.nextAt = now(p) + T.pendon.every;
       },
       afterCast(g, p, cast) {
-        noteUlt(p, cast);
-        if (cast?.sk?.id !== 'g_h_estandarte' || cast.echo || !cast.target) return;
-        const to = cast.target.clone().sub(p.pos).setY(0);
-        if (to.length() > T.estandarteRange) to.setLength(T.estandarteRange);
-        plantPendon(g, p, p.pos.clone().add(to), { auto: false });
+        noteStart(p, cast);
+        if (cast?.sk?.id !== 'g_h_estandarte' || cast.echo) return;
+        // el tipo `aura` del catálogo ya clavó su aura en la mira: se cambia por un Pendón en el
+        // mismo sitio (con los ajustes del Caudillo), sin dos auras a la vez
+        const aura = (g.fields || []).find(f => !f.dead && f.owner === p && f.kind === 'aura' && f.data?.buffId === 'g_h_estandarte');
+        let at = aura ? v3(aura.pos.x, 0, aura.pos.z) : null;
+        if (aura) g._expireField?.(aura);
+        for (const a of g.allies ? g.allies() : [p]) if (buffOf(a, 'g_h_estandarte')) dropBuff(a, 'g_h_estandarte');
+        if (!at && cast.target) {
+          const to = cast.target.clone().sub(p.pos).setY(0);
+          if (to.length() > T.estandarteRange) to.setLength(T.estandarteRange);
+          at = p.pos.clone().add(to);
+        }
+        if (at) plantPendon(g, p, at, { auto: false });
       },
     },
     // u3, u4B, u5, u8, u11, u12: los lee el Pendón al clavarse, al moverse o al acabar
@@ -1399,297 +1647,1166 @@ export function guerreroPowers() {
     g_cau_relevo: { name: 'Relevo', desc: 'Al acabar un Pendón, tú y tus aliados a 8 m ganan un escudo del 10 % de su vida.' },
     g_cau_gran_estandarte: { name: 'Gran Estandarte', desc: 'Cada 40 s, tu siguiente Pendón es un Gran Estandarte: el doble de grande y de efecto.' },
 
-    // ---------------- BERSERKER ----------------
-    // s4 Remolino Sediento: cada GOLPE de Remolino Sangriento suma 2 de Sed (máx. 20 por uso).
-    // Paso 2e: antes 4 por ENEMIGO golpeado: contra un jefe solo daba 4 por giro (la Sed del
-    // Berserker no se llenaba nunca en UNI) y con 5 enemigos ya llegaba al tope de 20
-    g_remolino_sediento: {
-      name: 'Remolino Sediento', desc: 'Cada golpe de Remolino Sangriento suma 2 de Sed (máx. 20 por uso).',
-      state: () => ({ got: 0 }),
+    // ================================================================
+    // ESPECIALIZACIONES (Paso 2g, §7; KT-guerrero, trabajos 2 y 3)
+    // ================================================================
+    // ---------------- BERSERKER (b*) ----------------
+    // b5 Reabrir: cada golpe de Rajar a un enemigo que sangra reinicia sus Sangrados (vuelven a su
+    // duración entera) y te da 3 de Sed (una vez por golpe)
+    g_b_reabrir: {
+      name: 'Reabrir', desc: 'Cada golpe de Rajar a un enemigo que sangra reinicia su Sangrado y te da 3 de Sed.',
+      state: () => ({ at: -1 }),
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_rajar') || hit.echo || !e?.alive) return;
+        const list = g.dotsOf(e, 'bleed');
+        if (!list.length) return;
+        for (const d of list) g.replaceDoT(e, d.per * d.ticks, d.ticks, bleedInterval(p, d.source), d.source);
+        const st = powerState(p, 'g_b_reabrir');
+        if (st.at === now(p)) return;
+        st.at = now(p);
+        gainGauge(p, 'sed', gaugeTuning().sed.reabrir);
+      },
+    },
+    // b6 Caída Brutal: al caer de un Salto Devastador, tu siguiente Rajar empieza por el 3.er golpe
+    g_b_caida_brutal: {
+      name: 'Caída Brutal', desc: 'Al caer de un Salto Devastador, tu siguiente Rajar empieza por el 3.er golpe.',
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'g_salto' && !cast.echo) g.setComboStep(p, 'g_rajar', 3); },
+    },
+    // b8A Contagio: cuando muere un enemigo que sangra, lo que le quedaba de Sangrado pasa a los 2
+    // enemigos más cercanos a 3 m (a cada uno, con la duración de tu Sangrado)
+    g_b_contagio: {
+      name: 'Contagio', desc: 'Cuando muere un enemigo que sangra, su Sangrado pasa a 2 enemigos a 3 m.',
+      onKill(g, p, e, kill) {
+        if (!kill?.status?.bleeding) return;
+        const rem = g.dotRemaining(e, 'bleed');
+        const prof = dotProfile('bleed', 1, { tv: p.tv });
+        if (!(rem > 0) || !prof) return;
+        for (const o of nearestEnemies(g, e.pos, T.contagio.radius, T.contagio.n, e)) g.applyDoT(o, rem, prof.ticks, prof.interval, undefined, 'g_b_contagio:bleed');
+        g.spawnRing?.(e.pos, T.contagio.radius, 0xb3180e);
+      },
+    },
+    // b8B Desangrar: hasta 3 Sangrados a la vez en el mismo enemigo. El núcleo junta cada Sangrado
+    // nuevo con lo que le quedaba al de la misma fuente; con Desangrar, el que había sigue aparte
+    // (ranuras `<habilidad>#2:bleed` y `#3`) y no espera al nuevo
+    g_b_desangrar: {
+      name: 'Desangrar', desc: 'Puedes poner hasta 3 Sangrados a la vez en el mismo enemigo.',
+      onHit(g, p, e, hit) {
+        const src = bleedSourceOf(p, hit);
+        if (!src || !e?.alive) return;
+        const cur = g.dotsOf(e, src)[0];
+        if (!cur) return;
+        const base = src.slice(0, -':bleed'.length);
+        for (let k = 2; k <= T.desangrar; k++) {
+          const slot = `${base}#${k}:bleed`;
+          if (g.dotsOf(e, slot).length) continue;
+          const rem = g.consumeDoT(e, src);
+          if (rem > 0) g.applyDoT(e, rem, cur.left, bleedInterval(p, src), undefined, slot);
+          return;
+        }
+      },
+    },
+    // b9A Onda de Choque: el 3.er golpe de Rajar suelta una onda del 60 % de ese golpe a 4 m
+    g_b_onda_choque: {
+      name: 'Onda de Choque', desc: 'El 3.er golpe de Rajar suelta una onda que hace el 60 % a todos a 4 m.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_rajar' || cast.step !== 3 || cast.echo || !cast.target) return;
+        const prof = cast.prof, step = (prof.def?.steps || [])[2] || {};
+        const c = cast.target.clone().setY(0);
+        g.dealArea(c, T.onda.radius, prof.coef * (step.coef ?? 1) * T.onda.pct / 100,
+          { addPct: prof.addPct, critBonus: prof.critBonus, from: c, hitInfo: { skill: 'g_rajar', tags: prof.tags, elem: prof.elem }, hitExtra: { step: 3, echo: true } });
+        g.spawnRing?.(c, T.onda.radius, 0xd84a2a);
+      },
+    },
+    // b9B Remate Certero: el 3.er golpe de Rajar es crítico seguro; a cada jefe, 15 de Quebranto
+    g_b_remate_certero: {
+      name: 'Remate Certero', desc: 'El 3.er golpe de Rajar es crítico seguro y a los jefes les llena 15 de Quebranto.',
+      state: () => ({ seen: new Set() }),
       onCast(g, p, cast) {
-        if (cast?.sk?.id !== 'g_t_remolino') return;
-        powerState(p, 'g_remolino_sediento').got = 0;
+        if (cast?.sk?.id !== 'g_rajar' || cast.step !== 3) return;
+        cast.forceCrit = true;
+        powerState(p, 'g_b_remate_certero').seen = new Set();
       },
       onHit(g, p, e, hit) {
-        if (hit?.skill !== 'g_t_remolino' || hit.dot || hit.proc) return;
-        const st = powerState(p, 'g_remolino_sediento');
-        if (st.got >= T.remolinoSed.max) return;
-        const n = Math.min(T.remolinoSed.perHit, T.remolinoSed.max - st.got);
-        st.got += n;
-        gainGauge(p, 'sed', n);
+        if (!isHitOf(hit, 'g_rajar') || hit.step !== 3 || hit.echo || !isBoss(e)) return;
+        const st = powerState(p, 'g_b_remate_certero');
+        if (st.seen.has(e)) return;
+        st.seen.add(e);
+        e.addStagger?.(T.remate, p);
       },
     },
-    // s5 Instinto Asesino (+3 %/rango de crítico: stats del nodo): cada crítico suma 2 de Sed
-    g_instinto_asesino: {
-      name: 'Instinto Asesino', desc: 'Cada crítico suma 2 de Sed.',
-      onHit(g, p, e, hit) { if (hit?.crit) gainGauge(p, 'sed', T.instintoSed); },
+    // b10B Salto Aplastante: cada salto SEGUIDO de la cadena sobre el mismo enemigo, +40 % (hasta +120 %)
+    g_b_salto_aplastante: {
+      name: 'Salto Aplastante', desc: 'Cada salto seguido sobre el mismo enemigo hace un 40 % más que el anterior (hasta +120 %).',
+      state: () => ({ chain: new Map(), now: new Set() }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_salto') return;
+        const st = powerState(p, 'g_b_salto_aplastante');
+        if (!cast.recast) st.chain = new Map();
+        st.now = new Set();
+      },
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'g_salto' || !e) return 0;
+        return Math.min(T.aplastante.max, T.aplastante.per * (powerState(p, 'g_b_salto_aplastante').chain.get(e) || 0));
+      },
+      onHit(g, p, e, hit) { if (isHitOf(hit, 'g_salto') && !hit.echo) powerState(p, 'g_b_salto_aplastante').now.add(e); },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_salto' || cast.echo) return;
+        const st = powerState(p, 'g_b_salto_aplastante');
+        const next = new Map();
+        for (const e of st.now) next.set(e, (st.chain.get(e) || 0) + 1);
+        st.chain = next;
+        st.now = new Set();
+      },
     },
-    // s13A Negación de la Muerte: cada 2 min, un golpe letal te deja a 1 de vida y con la Sed llena
+    // b12 Ritmo de Matanza (rango r): cada crítico de Rajar acorta 0,5·r s tus recargas, salvo
+    // las definitivas y Piel de Hierro (una vez cada 1,5 s)
+    g_b_ritmo_matanza: {
+      name: 'Ritmo de Matanza', desc: 'Cada crítico de Rajar acorta tus recargas, salvo la definitiva y Piel de Hierro (una vez cada 1,5 s).',
+      state: () => ({ at: -99 }),
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_rajar') || !hit.crit || hit.echo) return;
+        const st = powerState(p, 'g_b_ritmo_matanza');
+        if (now(p) - st.at < T.ritmo.icd - 1e-9) return;
+        st.at = now(p);
+        const s = T.ritmo.perRank * rankOf(p, 'g_b_ritmo_matanza');
+        for (const sk of p.cls?.skills || []) {
+          const def = defOf(p, sk.id);
+          if (def.cat === 'ultimate' || def.cdOnEnd || !((p.cds?.[sk.id] || 0) > 0)) continue;
+          cutCd(g, p, sk.id, s);
+        }
+      },
+    },
+    // b14 Impacto Aturdidor: quien sobrevive a la caída del Salto queda aturdido 0,5 s (cada
+    // enemigo, una vez cada 4 s); a los jefes, 15 de Quebranto
+    g_b_impacto: {
+      name: 'Impacto Aturdidor', desc: 'Quien sobrevive a la caída del Salto queda aturdido 0,5 s; a los jefes, 15 de Quebranto.',
+      state: () => ({ at: new WeakMap() }),
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_salto') || hit.echo || !e?.alive) return;
+        const st = powerState(p, 'g_b_impacto');
+        const t0 = st.at.get(e);
+        if (t0 != null && now(p) - t0 < T.impacto.icd - 1e-9) return;
+        st.at.set(e, now(p));
+        if (isBoss(e)) e.addStagger?.(T.impacto.stagger, p);
+        else e.applyCC?.('stun', T.impacto.stun, { src: p });
+      },
+    },
+    // b15A Negación de la Muerte: cada 2 min, un golpe letal te deja con 1 de vida y la Sed en 50
+    // (no la llena: no encadena con la salvación de Corazón Indomable 3)
     g_negacion: {
-      name: 'Negación de la Muerte', desc: 'Una vez cada 2 minutos, un golpe letal te deja con 1 de vida y la Sed llena.',
+      name: 'Negación de la Muerte', desc: 'Una vez cada 2 minutos, un golpe que te mataría te deja con 1 de vida y la Sed en 50.',
       icd: T.negacion.icd, priority: 1,
       onLethal(g, p) {
         p.setHp(1, 'g_negacion');                       // restauración (§6.1)
-        gainGauge(p, 'sed', gaugeMax(p, 'sed'));
-        g.ui?.message?.('🩸 ¡Negación de la Muerte! Sobrevives con la Sed llena', 3000);
+        setGauge(p, 'sed', gaugeTuning().sed.negacion);
+        g.ui?.message?.('🩸 ¡Negación de la Muerte! Sobrevives con 1 de vida', 3000);
         g.ui?.spawnText?.(p.pos, '¡NEGACIÓN!', 'txt-crit');
         fxAt(g, 'recklessAura', p.pos, 1.0);
         g.addShake?.(0.4, 0.4);
         return true;
       },
     },
-    // s14 Sangre Hirviente: con la Sed llena entras en Desenfreno 8 s (+30 % de vel. de ataque
-    // y cada golpe te cura un 1 % de vida: sustento, §6.1)
-    g_desenfreno: {
-      name: 'Sangre Hirviente', desc: 'Con la Sed llena: Desenfreno 8 s (+30 % de velocidad de ataque y cada golpe te cura un 1 % de vida).',
+    // b16 Sangre Hirviente (rango r): con más de 50 de Sed, atacas un 8·r % más rápido (los giros y
+    // los saltos van con la velocidad del núcleo: cola W2)
+    g_b_sangre_hirviente: {
+      name: 'Sangre Hirviente', desc: 'Con más de 50 de Sed, tus golpes van más rápido.',
+      onTick(g, p) {
+        if (!(gaugeValue(p, 'sed') > T.hirviente.over)) return;
+        const pct = T.hirviente.perRank * rankOf(p, 'g_b_sangre_hirviente');
+        keepBuff(p, 'g_b_sangre_hirviente', { aspdPct: pct }, 0.25, { name: 'Sangre Hirviente', icon: '🩸', desc: `+${pct}% de velocidad de ataque` });
+      },
+    },
+    // b17 Sin Suelo (rango r): durante Furia Inmortal el Salto no se recarga y encadena r saltos más;
+    // al lanzarla, el Salto queda listo
+    g_b_sin_suelo: {
+      name: 'Sin Suelo', desc: 'Durante Furia Inmortal, el Salto Devastador no se recarga y encadena más saltos.',
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'g_salto' || !buffOf(p, 'g_u_furia')) return;
+        prof.cd = 0;
+        if (prof.recast) prof.recast = { ...prof.recast, n: prof.recast.n + rankOf(p, 'g_b_sin_suelo') };
+      },
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'g_u_furia' && !cast.echo) cutCd(g, p, 'g_salto', Infinity); },
+    },
+    // b18 Avidez (rango r): mientras giras, cada enemigo que EMPIEZAS a desangrar te da 2·r de Furia
+    g_b_avidez: {
+      name: 'Avidez', desc: 'Mientras giras, cada enemigo que empiezas a desangrar te da Furia.',
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_remolino') || hit.echo || !e?.alive || g.hasDoT(e, 'bleed')) return;
+        g.gainResource(p, T.avidez * rankOf(p, 'g_b_avidez'));
+      },
+    },
+    // b19 Último Trago (rango r): el 3.er golpe de Rajar te da 5·r de Sed (el doble si golpea a un
+    // élite o a un jefe); una vez por golpe
+    g_b_ultimo_trago: {
+      name: 'Último Trago', desc: 'El 3.er golpe de Rajar te da Sed (el doble contra élites y jefes).',
+      state: () => ({ at: -1, got: 0 }),
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_rajar') || hit.step !== 3 || hit.echo) return;
+        const st = powerState(p, 'g_b_ultimo_trago');
+        if (st.at !== now(p)) { st.at = now(p); st.got = 0; }
+        const want = gaugeTuning().sed.ultimoTrago * rankOf(p, 'g_b_ultimo_trago') * (isEliteOrBoss(e) ? 2 : 1);
+        if (want <= st.got) return;
+        gainGauge(p, 'sed', want - st.got);
+        st.got = want;
+      },
+    },
+    // b21 Caída Sangrienta: el último salto de la cadena desangra a todos los que golpea (el 100 %
+    // de su golpe en 3 s, con tus bonos de Sangrado)
+    g_b_caida_sangrienta: {
+      name: 'Caída Sangrienta', desc: 'El último salto de la cadena desangra a todos los que golpea.',
+      onCast(g, p, cast) { if (cast?.sk?.id === 'g_salto') jumpOpen(p, 'g_b_caida_sangrienta', cast); },
+      onHit(g, p, e, hit) { if (isHitOf(hit, 'g_salto') && !hit.echo) jumpHit(p, 'g_b_caida_sangrienta', e, hit.dealt); },
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'g_salto' && !cast.echo && soloJump(p, cast)) caidaSangrienta(g, p); },
+      onSkillEnd(g, p, sk, end) { if (sk?.id === 'g_salto' && end?.kind === 'recast') caidaSangrienta(g, p); },
+    },
+    // b22 Estallido Rojo (rango r): al acabar el giro del Remolino (soltarlo, agotarlo o quedarte
+    // sin Furia), los Sangrados a 4 m estallan: hacen de golpe el (20 + 15·r) % de lo que les queda
+    g_b_estallido_rojo: {
+      name: 'Estallido Rojo', desc: 'Al soltar el Remolino, los Sangrados a 4 m estallan.',
+      onSkillEnd(g, p, sk, end) {
+        if (sk?.id !== 'g_remolino' || end?.kind !== 'channel' || !['release', 'done', 'drain'].includes(end.reason)) return;
+        const pct = T.estallido.base + T.estallido.perRank * rankOf(p, 'g_b_estallido_rojo');
+        const tags = new Set(['area', 'physical']);
+        let n = 0;
+        for (const e of enemiesNear(g, p.pos, T.estallido.radius)) {
+          const rem = g.consumeDoT(e, 'bleed');
+          if (rem > 0 && dealProcDamage(g, e, rem * pct / 100, { source: 'power:g_b_estallido_rojo', skill: 'g_remolino', tags }) > 0) n++;
+        }
+        if (n) { g.spawnRing?.(p.pos, T.estallido.radius, 0xff2a1a); g.addShake?.(0.3, 0.25); }
+      },
+    },
+    // b23 Verdugo (rango r): el 3.er golpe de Rajar hace +3·r % por cada 10 % de vida que le falta
+    // al objetivo (solo el golpe: ni la onda ni el 2.º golpe de Golpe de Gracia)
+    g_b_verdugo: {
+      name: 'Verdugo', desc: 'El 3.er golpe de Rajar hace más daño cuanta menos vida le queda al objetivo.',
+      priority: 5,
+      state: () => ({ step3: false }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'g_rajar') powerState(p, 'g_b_verdugo').step3 = cast.step === 3; },
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'g_rajar' || !e?.maxHP || !powerState(p, 'g_b_verdugo').step3) return 0;
+        const tenths = Math.floor(Math.max(0, 1 - e.hp / e.maxHP) * 10 + 1e-9);
+        return T.verdugo * rankOf(p, 'g_b_verdugo') * tenths;
+      },
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'g_rajar') powerState(p, 'g_b_verdugo').step3 = false; },
+    },
+    // b24 Ímpetu (rango r): cada salto de la cadena, +3·r % de daño 8 s (se suma hasta 5 veces)
+    g_b_impetu: {
+      name: 'Ímpetu', desc: 'Cada salto de la cadena te da daño durante 8 s (se suma hasta 5 veces).',
+      state: () => ({ n: 0, until: -1 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_salto' || cast.echo) return;
+        const st = powerState(p, 'g_b_impetu');
+        if (now(p) > st.until) st.n = 0;
+        st.n = Math.min(T.impetu.max, st.n + 1);
+        st.until = now(p) + T.impetu.dur;
+        const pct = T.impetu.perRank * rankOf(p, 'g_b_impetu') * st.n;
+        p.addBuff('g_b_impetu', { dmgPct: pct }, T.impetu.dur, { name: `Ímpetu ×${st.n}`, icon: '🐗', desc: `+${pct}% de daño` });
+      },
+    },
+    // b25 Danza Carmesí (final, rango r): el Remolino sigue mientras toques a alguien que sangra,
+    // hasta 6/10/20 s, a 8 de Furia por segundo pasados los 3 s (ese drenaje no cuenta como Furia
+    // gastada). Sangrados +15·(r−1) %: clave tv del nodo
+    g_b_danza_carmesi: {
+      name: 'Danza Carmesí', desc: 'El Remolino sigue mientras toques a alguien que sangra.',
+      state: () => ({ t0: -1, cast: null }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_remolino') return;
+        const st = powerState(p, 'g_b_danza_carmesi');
+        st.t0 = now(p); st.cast = cast;
+      },
+      onTick(g, p, dt) {
+        const inst = g._channel;
+        const st = powerState(p, 'g_b_danza_carmesi');
+        if (!inst || inst.ctx?.p !== p || inst.ctx?.cast !== st.cast || (inst.ctx?.sk?.id || inst.ctx?.cast?.sk?.id) !== 'g_remolino') return;
+        const D = T.danza;
+        const elapsed = now(p) - st.t0;
+        if (elapsed < D.after - inst.interval - 1e-9) return;              // aún en el giro normal
+        const cap = D.cap[Math.min(D.cap.length, rankOf(p, 'g_b_danza_carmesi')) - 1];
+        const rad = (inst.ctx.prof?.radius || 2.9) + 0.5;
+        if (elapsed >= cap - 1e-9 || !enemiesNear(g, p.pos, rad).some(e => g.hasDoT(e, 'bleed'))) return;
+        if (elapsed >= D.after - 1e-9 && !drainResource(p, D.furyPerSec, dt)) return;
+        const left = inst.left * inst.interval;
+        if (left < D.step + 0.05 && elapsed + left < cap - 1e-9) g.extendChannel(p, Math.min(D.step, cap - elapsed - left));
+      },
+    },
+    // b26 Golpe de Gracia (final, rango r): el 3.er golpe de Rajar golpea dos veces: el 2.º (0,15 s
+    // después, en la misma zona) al 30/45/60 % y deja al objetivo Vulnerable 1/2,5/4 s. Rajar
+    // +15·(r−1) %: mod del nodo
+    g_b_golpe_gracia: {
+      name: 'Golpe de Gracia', desc: 'El 3.er golpe de Rajar golpea dos veces y deja al objetivo Vulnerable.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_rajar' || cast.step !== 3 || cast.echo || !cast.target) return;
+        const i = Math.min(3, rankOf(p, 'g_b_golpe_gracia')) - 1;
+        const prof = cast.prof, step = (prof.def?.steps || [])[2] || {};
+        const c = cast.target.clone().setY(0), tgt = cast.enemy;
+        const rad = (step.radius ?? prof.radius ?? 2) * (prof.radiusMul || 1);
+        g.timers?.schedule(T.gracia.delay, () => {
+          if (!p.alive) return;
+          g.dealArea(c, rad, prof.coef * (step.coef ?? 1) * T.gracia.pct[i] / 100,
+            { addPct: prof.addPct, critBonus: prof.critBonus, from: c, hitInfo: { skill: 'g_rajar', tags: prof.tags, elem: prof.elem }, hitExtra: { step: 3, echo: true } });
+          if (tgt?.alive) tgt.vulnT = Math.max(tgt.vulnT || 0, T.gracia.vuln[i]);
+          g.spawnRing?.(c, rad, 0xff3a2a);
+        });
+      },
+    },
+    // b27 Estampida Sin Fin (final, rango r): si el último salto de la cadena golpea a 3 o más, el
+    // Salto recupera 4 s / 8 s / se recarga al instante; como mucho 2 recargas seguidas recortadas
+    // (cuentan las de otros poderes: Asalto Total). Salto +15·(r−1) %: mod del nodo
+    g_b_estampida: {
+      name: 'Estampida Sin Fin', desc: 'Si el último salto de la cadena golpea a 3 o más, el Salto recupera su recarga.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_salto') return;
+        if (!cast.recast) { const r = saltoRow(p); if (!r.cut) r.row = 0; r.cut = false; }
+        jumpOpen(p, 'g_b_estampida', cast);
+      },
+      onHit(g, p, e, hit) { if (isHitOf(hit, 'g_salto') && !hit.echo) jumpHit(p, 'g_b_estampida', e, hit.dealt); },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_salto' || cast.echo) return;
+        noteStart(p, cast);
+        if (soloJump(p, cast)) estampida(g, p);
+      },
+      onSkillEnd(g, p, sk, end) { if (sk?.id === 'g_salto' && end?.kind === 'recast') estampida(g, p); },
+    },
+    // b28 Corazón Indomable (ápice, rangos): 1) matar a un élite: +30 de Sed · 2) Sed Saciada 9 s (la
+    // mecánica) · 3) con la Sed Saciada, un golpe letal te deja con 1 de vida (cada 60 s) · 4) cada 3
+    // Sed Saciadas, Furia Inmortal sola 5 s, gratis (cada 90 s)
+    g_b_corazon_indomable: {
+      name: 'Corazón Indomable', desc: 'Matar élites da Sed, la Sed Saciada dura más, te salva de un golpe letal y lanza Furia Inmortal.',
+      priority: 2,
+      state: () => ({ sated: 0, lethalAt: -999, freeAt: -999 }),
+      onKill(g, p, e) { if (isEliteOrBoss(e)) gainGauge(p, 'sed', gaugeTuning().sed.eliteKill); },
+      onLethal(g, p) {
+        if (rankOf(p, 'g_b_corazon_indomable') < 3 || !((gaugeState(p, 'sed')?.satedT || 0) > 0)) return false;
+        const st = powerState(p, 'g_b_corazon_indomable');
+        if (now(p) - st.lethalAt < T.corazon.icd3 - 1e-9) return false;
+        st.lethalAt = now(p);
+        p.setHp(1, 'g_b_corazon_indomable');
+        g.ui?.spawnText?.(p.pos, '¡INDOMABLE!', 'txt-crit');
+        return true;
+      },
       onGauge(g, p, id, ev) {
-        if (id !== 'sed' || ev !== 'full') return;
-        p.addBuff('g_desenfreno', { aspdPct: T.frenzy.aspdPct }, T.frenzy.dur,
-          { name: 'Desenfreno', icon: '🩸', desc: `+${T.frenzy.aspdPct}% de velocidad de ataque y ${T.frenzy.healPct}% de vida por golpe` });
-        g.ui?.spawnText?.(p.pos, '¡DESENFRENO!', 'txt-crit');
-        fxAt(g, 'recklessAura', p.pos, 1.0);
-      },
-      onHit(g, p) { if (buffOf(p, 'g_desenfreno')) p.sustain(p.stats.maxHP * T.frenzy.healPct / 100, 'g_desenfreno'); },
-    },
-    // x2 Carnicero (rango r): cada REMATE (wasExecuted: normal rematado por Ejecutar —
-    // tv.executePct de x1, núcleo nucleo_tv— o élite/jefe que muere tras bajar del umbral)
-    // suma 15·r de Sed y te devuelve 10 de Furia
-    g_carnicero: {
-      name: 'Carnicero', desc: 'Cada remate suma 15 de Sed por rango y te devuelve 5 de Furia.',
-      onKill(g, p, e) {
-        const r = ownRank(p, 'x2', 'berserker');
-        if (!(r > 0) || !wasExecuted(e)) return;
-        gainGauge(p, 'sed', T.butcher.sedPerRank * r);
-        g.gainResource(p, T.butcher.fury);
-      },
-    },
-    // x3 Matanza Eterna: rematar durante el Desenfreno lo alarga 2 s, sin límite
-    g_matanza_eterna: {
-      name: 'Matanza Eterna', desc: 'Rematar durante el Desenfreno lo alarga 2 s, sin límite.',
-      onKill(g, p, e) {
-        const b = buffOf(p, 'g_desenfreno');
-        if (!b || !wasExecuted(e)) return;
-        b.t += T.eternal; b.dur = (b.dur || 0) + T.eternal;
-        g.ui?.spawnText?.(p.pos, `+${T.eternal}s`, 'txt-crit');
+        if (id !== 'sed' || ev !== 'full' || rankOf(p, 'g_b_corazon_indomable') < 4) return;
+        const st = powerState(p, 'g_b_corazon_indomable');
+        st.sated++;
+        if (st.sated < T.corazon.every || now(p) - st.freeAt < T.corazon.icd4 - 1e-9) return;
+        if (freeFury(g, p, T.corazon.dur)) { st.sated = 0; st.freeAt = now(p); }
       },
     },
 
-    // ---------------- GUARDIÁN ----------------
-    // s4 Desafío Firme: Grito Desafiante te da 2 cargas de Bastión (si provoca a alguien)
-    g_desafio_firme: {
-      name: 'Desafío Firme', desc: 'Grito Desafiante te da 2 cargas de Bastión.',
-      afterCast(g, p, cast, res) {
-        if (cast?.sk?.id === 'g_t_desafio' && res?.hits > 0) gainGauge(p, 'bastion', T.desafioFirme);
+    // ---------------- GUARDIÁN (d*) ----------------
+    // d4 Contragolpe (rango r): al bloquear, un golpe de escudo del 40·r % del arma a quien te
+    // golpeó (o al más cercano a 3 m), una vez por segundo
+    g_d_contragolpe: {
+      name: 'Contragolpe', desc: 'Al bloquear, devuelves un golpe de escudo (una vez por segundo).',
+      state: () => ({ at: -99 }),
+      onDamaged(g, p, dmg) {
+        if (!dmg?.blocked) return;
+        const st = powerState(p, 'g_d_contragolpe');
+        if (now(p) - st.at < T.contragolpe.icd - 1e-9) return;
+        const e = dmg.src?.alive && dist2D(dmg.src.pos, p.pos) <= T.contragolpe.reach + 1 ? dmg.src : nearestEnemy(g, p.pos, T.contragolpe.reach);
+        if (!e) return;
+        st.at = now(p);
+        dealProcDamage(g, e, p.avgHit(T.contragolpe.perRank * rankOf(p, 'g_d_contragolpe') / 100), { source: 'power:g_d_contragolpe', tags: new Set(['melee', 'physical']) });
+        g.spawnBeam?.(p.pos, e.pos, 0x9fc4ff, 0.15);
       },
     },
-    // s7 Martillo Pesado (+X %/rango de daño de Martillo: mod del nodo): si Martillo de
-    // Guerra golpea a 3 o más, +1 carga de Bastión
-    g_martillo_pesado: {
-      name: 'Martillo Pesado', desc: 'Si Martillo de Guerra golpea a 3 o más enemigos, suma 1 carga de Bastión.',
+    // d5 Echar Raíces: en Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más)
+    g_d_raices: {
+      name: 'Echar Raíces', desc: 'En Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más).',
       afterCast(g, p, cast, res) {
-        if (cast?.sk?.id === 'g_martillo' && res?.hits >= T.martilloPesado.hits) gainGauge(p, 'bastion', T.martilloPesado.n);
+        if (cast?.sk?.id !== 'terremoto' || cast.echo || !inMuralla(g, p)) return;
+        gainGauge(p, 'bastion', (res?.hits || 0) >= T.raices.big ? 2 : 1);
       },
     },
-    // s6B Reto Singular: Provocación marca a su objetivo: −20 % de daño a tu grupo 8 s
-    g_reto: {
-      name: 'Reto Singular', desc: 'Provocación marca a un enemigo: hace −20 % de daño a tu grupo durante 8 s.',
-      afterCast(g, p, cast, res) {
-        if (cast?.sk?.id !== 'g_provocacion' || !(res?.hits > 0)) return;
-        const range = cast.prof?.range || 15;
-        let e = cast.enemy;
-        if (!e?.alive || e.pos.distanceTo(p.pos) > range + 0.5) e = g.nearestEnemy?.(range) || null;
-        if (!e?.alive) return;
-        e.weakenOutgoing?.('g_reto', T.reto.pct, T.reto.dur);
-        (e.marks || (e.marks = {})).g_reto = { t: T.reto.dur, by: p };
-        g.spawnRing?.(e.pos, 1.3, 0x5599ff);
-        fxAt(g, 'tauntMark', e.pos, (e.def?.scale || 1) + 0.8);
+    // d6 Pisotón: tras la Carga de Escudo, tu siguiente Terremoto no se prepara y cuenta como
+    // plantado; si lleva Asalto Total sale gratis pero sin su +% (lo mira g_asalto_total)
+    g_d_pisoton: {
+      name: 'Pisotón', desc: 'Tras la Carga de Escudo, tu siguiente Terremoto no se prepara y cuenta como plantado.',
+      state: () => ({ armed: false, cast: null }),
+      modifyResolve(p, sk, prof) { if (sk.id === 'terremoto' && powerState(p, 'g_d_pisoton').armed) prof.windup = 0; },
+      onCast(g, p, cast) {
+        const st = powerState(p, 'g_d_pisoton');
+        if (cast?.sk?.id !== 'terremoto' || !st.armed) return;
+        st.armed = false; st.cast = cast;
+        p.plantNow?.();
+        p.resolved = {};                                  // el siguiente vuelve a prepararse
+      },
+      afterCast(g, p, cast) {
+        if (cast?.echo) return;
+        const st = powerState(p, 'g_d_pisoton');
+        if (cast?.sk?.id === 'g_carga_escudo') { st.armed = true; p.resolved = {}; }
+        else if (cast === st.cast) st.cast = null;
       },
     },
-    // s13A Juramento del Escudo: Muro Inquebrantable (m_aegis) se recarga en 20 s en vez de 30 s
-    g_juramento: {
-      name: 'Juramento del Escudo', desc: 'Muro Inquebrantable se recarga en 20 s en lugar de 30 s.',
-      state: () => ({ last: 0 }),
+    // d7 Mirada Desafiante (rango r): los que provoca la Carga de Escudo te atacan r s más
+    g_d_mirada: {
+      name: 'Mirada Desafiante', desc: 'Los que provoca la Carga de Escudo te atacan más tiempo.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'g_carga_escudo' && prof.taunt > 0) prof.taunt += T.mirada * rankOf(p, 'g_d_mirada'); },
+    },
+    // d8A Barrido de Escudo: al cambiar de postura, golpe de escudo del 120 % a todos a 4 m y los
+    // provocas 2 s (una vez cada 3 s)
+    g_d_barrido: {
+      name: 'Barrido de Escudo', desc: 'Al cambiar de postura, golpeas con el escudo a todos a 4 m y los provocas 2 s.',
+      state: () => ({ at: -99 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_guardia' || !cast.stance) return;
+        const st = powerState(p, 'g_d_barrido');
+        if (now(p) - st.at < T.barrido.icd - 1e-9) return;
+        st.at = now(p);
+        const c = p.pos.clone();
+        g.dealArea(c, T.barrido.radius, T.barrido.coef, { from: c, hitInfo: { skill: 'g_guardia', tags: new Set(['spec', 'area', 'physical']), elem: 'physical' },
+          onHit: e => { if (e.alive) e.applyCC?.('taunt', T.barrido.taunt, { src: p }); } });
+        g.spawnRing?.(c, T.barrido.radius, 0x7fb0e8);
+      },
+    },
+    // d8B Cambio Certero: al cambiar de postura, tu siguiente golpe es crítico seguro; contra un
+    // jefe Quebrantado, además +30 %
+    g_d_cambio_certero: {
+      name: 'Cambio Certero', desc: 'Al cambiar de postura, tu siguiente golpe es crítico seguro (+30 % contra un jefe Quebrantado).',
+      state: () => ({ armed: false, skill: null, until: -1 }),
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'g_guardia' && cast.stance) powerState(p, 'g_d_cambio_certero').armed = true; },
+      onCast(g, p, cast) {
+        const st = powerState(p, 'g_d_cambio_certero');
+        if (cast?.sk?.id === 'g_guardia') return;
+        st.skill = null;
+        if (!st.armed) return;
+        st.armed = false;
+        cast.forceCrit = true;
+        st.skill = cast.sk?.id || null; st.until = now(p) + T.certero.win;
+      },
+      condAdd(p, e, hit) {
+        const st = powerState(p, 'g_d_cambio_certero');
+        return st.skill && hit?.skill === st.skill && now(p) <= st.until && isBoss(e) && (e.staggerBrokenT || 0) > 0 ? T.certero.pct : 0;
+      },
+    },
+    // d9A Réplicas (las 2 réplicas más son mod del nodo): plantado, las réplicas se abren hasta 8 m
+    // (cada una llega más lejos; el anillo de fuera lo golpea este poder, como réplica)
+    g_d_replicas: {
+      name: 'Réplicas', desc: 'Plantado, las réplicas del Terremoto se abren hasta 8 m.',
+      afterCast(g, p, cast) {
+        const rp = cast?.prof?.repeat;
+        if (cast?.sk?.id !== 'terremoto' || cast.echo || !rp?.n || (rp.needPlanted && !p.planted)) return;
+        const c = p.pos.clone().setY(0), base = cast.prof.radius || 5;
+        for (let i = 1; i <= rp.n; i++) {
+          const rad = base + (T.replicas.reach - base) * i / rp.n;
+          g.timers?.schedule((rp.every || 0.5) * i + 2e-6, () => {
+            if (!p.alive) return;
+            const inner = enemiesNear(g, c, base);
+            replicaHit(g, p, c, rad, cast.prof.coef * (rp.coef ?? 0.5), { perTarget: { map: new Map(inner.map(e => [e, 1])), max: 1 } });
+            g.spawnRing?.(c, rad, 0xd8c49a);
+          });
+        }
+      },
+    },
+    // d9B Epicentro: plantado, el Terremoto hace +50 % en el centro (2 m) y llena 20 de Quebranto a
+    // los jefes que alcanza ahí (una vez por Terremoto)
+    g_d_epicentro: {
+      name: 'Epicentro', desc: 'Plantado, el Terremoto hace +50 % en el centro (2 m) y llena Quebranto a los jefes.',
+      state: () => ({ seen: new Set() }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'terremoto') powerState(p, 'g_d_epicentro').seen = new Set(); },
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'terremoto' || !e || !p.planted) return 0;
+        return dist2D(e.pos, p.pos) <= T.epicentro.radius + 0.5 * (e.def?.scale || 1) ? T.epicentro.pct : 0;
+      },
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'terremoto') || hit.repeat || hit.echo || !p.planted || !isBoss(e)) return;
+        if (dist2D(e.pos, p.pos) > T.epicentro.radius + 0.5 * (e.def?.scale || 1)) return;
+        const st = powerState(p, 'g_d_epicentro');
+        if (st.seen.has(e)) return;
+        st.seen.add(e);
+        e.addStagger?.(T.epicentro.stagger, p);
+      },
+    },
+    // d10A Gran Arrastre: la Carga de Escudo arrastra a todos a 3 m de tu camino y, al llegar, los
+    // junta delante de ti
+    g_d_gran_arrastre: {
+      name: 'Gran Arrastre', desc: 'La Carga de Escudo arrastra a todos a 3 m de tu camino y los junta delante de ti.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'g_carga_escudo' && (prof.dragWidth || 0) > 0) prof.dragWidth = Math.max(prof.dragWidth, T.arrastre.width); },
+      onCast(g, p, cast) { dragStart(p, cast); },
+      onTick(g, p) { if (p.dashMove) dragSample(g, p); },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return;
+        // dirección de la Carga (desde donde salió: al llegar ya estás en la mira)
+        const from = powerState(p, DRAG).from;
+        const fwd = cast.target && from ? cast.target.clone().setY(0).sub(from) : null;
+        if (!fwd || fwd.lengthSq() < 1e-6) return;
+        const front = p.pos.clone().addScaledVector(fwd.normalize(), T.arrastre.front);
+        for (const e of dragged(g, p, cast)) {
+          const d = dist2D(e.pos, front);
+          if (e.alive && d > 0.4) e.displace?.(front, d - 0.3, { toward: true, src: p });
+        }
+      },
+    },
+    // d10B Choque Frontal: si la Carga de Escudo choca con un élite o un jefe, te paras ahí, el golpe
+    // al llegar le hace +60 % y le llena 25 de Quebranto
+    g_d_choque: {
+      name: 'Choque Frontal', desc: 'Si la Carga de Escudo choca con un élite o un jefe, te paras, haces +60 % y le llenas Quebranto.',
+      state: () => ({ cast: null, dir: null, target: null }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo') return;
+        const st = powerState(p, 'g_d_choque');
+        const dir = cast.target ? cast.target.clone().sub(p.pos).setY(0) : null;
+        st.cast = cast; st.target = null; st.dir = dir && dir.lengthSq() > 1e-6 ? dir.normalize() : null;
+      },
       onTick(g, p) {
-        const aegis = powerState(p, 'm_aegis');
-        const st = powerState(p, 'g_juramento');
-        if ((aegis.cd || 0) > st.last + 1e-6) aegis.cd = Math.max(0, aegis.cd - T.juramento);   // acaba de saltar
-        st.last = aegis.cd || 0;
+        const st = powerState(p, 'g_d_choque');
+        if (!st.cast || !st.dir || st.target || !p.dashMove) return;
+        for (const e of enemiesNear(g, p.pos, T.choque.reach)) {
+          if (!isEliteOrBoss(e)) continue;
+          const dx = e.pos.x - p.pos.x, dz = e.pos.z - p.pos.z;
+          if (dx * st.dir.x + dz * st.dir.z < -0.3) continue;            // detrás: ya lo pasaste
+          st.target = e;
+          p.dashMove.step = () => true;                                  // cola W2: g.stopDash(p)
+          g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 0.6), '¡CHOQUE!', 'txt-crit');
+          return;
+        }
+      },
+      condAdd(p, e, hit) {
+        const st = powerState(p, 'g_d_choque');
+        return hit?.skill === 'g_carga_escudo' && e && st.target === e ? T.choque.pct : 0;
+      },
+      afterCast(g, p, cast) {
+        const st = powerState(p, 'g_d_choque');
+        if (cast?.sk?.id !== 'g_carga_escudo' || st.cast !== cast) return;
+        if (st.target?.alive) st.target.addStagger?.(T.choque.stagger, p);
+        st.cast = null; st.target = null;
       },
     },
-    // s14 Vínculo del Guardián (cooperativo): recibes tú el 20 % del daño que sufren los
-    // aliados a 10 m, reducido por tu armadura (⑫ onAllyDamaged: te quedas esa parte)
-    g_vinculo: {
-      name: 'Vínculo del Guardián', desc: 'Recibes tú el 20 % del daño que sufren los aliados a 10 m, reducido por tu armadura.',
+    // d12 Tambor de Guerra (rango r): cada enemigo que golpea el Terremoto acorta 0,5·r s la recarga
+    // de Piel de Hierro (hasta r s por Terremoto; solo mientras se recarga, que empieza al acabar)
+    g_d_tambor: {
+      name: 'Tambor de Guerra', desc: 'Cada enemigo que golpea el Terremoto acorta la recarga de Piel de Hierro.',
+      afterCast(g, p, cast, res) {
+        if (cast?.sk?.id !== 'terremoto' || cast.echo || !(res?.hits > 0)) return;
+        const r = rankOf(p, 'g_d_tambor');
+        cutCd(g, p, 'g_piel', Math.min(r, T.tambor * r * res.hits));
+      },
+    },
+    // d13 Escudo por Delante (rango r): al llegar con la Carga de Escudo, bloqueas seguro los 2·r
+    // golpes siguientes (durante 4 s)
+    g_d_escudo_delante: {
+      name: 'Escudo por Delante', desc: 'Al llegar con la Carga de Escudo, bloqueas seguro los golpes siguientes.',
+      priority: 4,
+      state: () => ({ n: 0, until: -1 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return;
+        const st = powerState(p, 'g_d_escudo_delante');
+        st.n = T.delante.perRank * rankOf(p, 'g_d_escudo_delante');
+        st.until = now(p) + T.delante.dur;
+      },
+      onDamaged(g, p, dmg) {
+        const st = powerState(p, 'g_d_escudo_delante');
+        if (!(st.n > 0) || now(p) > st.until || !forceBlock(g, p, dmg)) return;
+        st.n--;
+      },
+    },
+    // d14 Guardia Rota: los que arrastra la Carga de Escudo quedan Vulnerables 3 s
+    g_d_guardia_rota: {
+      name: 'Guardia Rota', desc: 'Los que arrastra la Carga de Escudo quedan Vulnerables 3 s.',
+      onCast(g, p, cast) { dragStart(p, cast); },
+      onTick(g, p) { if (p.dashMove) dragSample(g, p); },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return;
+        for (const e of dragged(g, p, cast)) if (e.alive) e.vulnT = Math.max(e.vulnT || 0, T.guardiaRota);
+      },
+    },
+    // d15A Última Línea: un golpe letal te deja con un 10 % de vida y lanza la Ciudadela 3 s, gratis
+    // (una vez cada 2 min)
+    g_d_ultima_linea: {
+      name: 'Última Línea', desc: 'Un golpe que te mataría te deja con un 10 % de vida y lanza la Ciudadela 3 s. Una vez cada 2 min.',
+      icd: T.ultimaLinea.icd, priority: 1,
+      onLethal(g, p) {
+        p.setHp(Math.max(1, Math.round(p.stats.maxHP * T.ultimaLinea.hpPct / 100)), 'g_d_ultima_linea');
+        freeCitadel(g, p, T.ultimaLinea.dur);
+        g.ui?.spawnText?.(p.pos, '¡ÚLTIMA LÍNEA!', 'txt-crit');
+        return true;
+      },
+    },
+    // d15B Aguante de Roca: con 5 cargas de Bastión, nada te derriba ni te aturde (imparable) y tus
+    // bloqueos paran un 10 % más (blockPower; tope del 90 % en combat-math)
+    g_d_roca: {
+      name: 'Aguante de Roca', desc: 'Con 5 cargas de Bastión, nada te derriba ni te aturde y tus bloqueos paran un 10 % más.',
+      onTick(g, p) {
+        if (gaugeValue(p, 'bastion') < T.roca.need) return;
+        keepBuff(p, 'g_d_roca', { blockPower: T.roca.blockPower }, 0.25, { name: 'Aguante de Roca', icon: '🪨', desc: `Imparable y +${T.roca.blockPower}% de bloqueo` });
+        p.unstoppableT = Math.max(p.unstoppableT || 0, 0.25);
+      },
+    },
+    // d16 Fuerza del Bastión (rango r): cada carga de Bastión, +2·r % de daño
+    g_d_fuerza_bastion: {
+      name: 'Fuerza del Bastión', desc: 'Cada carga de Bastión te da daño.',
+      condAdd(p) { return T.fuerzaBastion * rankOf(p, 'g_d_fuerza_bastion') * Math.floor(gaugeValue(p, 'bastion')); },
+    },
+    // d17 Avalancha (rango r): cada enemigo que arrastra la Carga le quita 1 s a su recarga (hasta
+    // r s); con Avalancha la Carga nunca baja de 4 s (moveFloor, también para los demás recortes)
+    g_d_avalancha: {
+      name: 'Avalancha', desc: 'Cada enemigo que arrastra la Carga de Escudo le quita recarga (nunca baja de 4 s).',
+      onCast(g, p, cast) { dragStart(p, cast); },
+      onTick(g, p) { if (p.dashMove) dragSample(g, p); },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return;
+        noteStart(p, cast);
+        const n = dragged(g, p, cast).size;
+        if (n > 0) cutCd(g, p, 'g_carga_escudo', Math.min(rankOf(p, 'g_d_avalancha'), T.avalancha * n));
+      },
+    },
+    // d18 Vínculo de Escudo (rango r): en Muralla, recibes tú el 10·r % del daño de tus aliados a 8 m
+    g_d_vinculo: {
+      name: 'Vínculo de Escudo', desc: 'En Muralla, recibes tú una parte del daño que sufren tus aliados a 8 m.',
       onAllyDamaged(g, p, ally, dmg) {
-        if (!p.alive || !(dmg?.amount > 0) || !allyNear(p, ally, T.vinculo.radius)) return;
-        const share = dmg.amount * T.vinculo.pct / 100;
+        if (!p.alive || !(dmg?.amount > 0) || !inMuralla(g, p) || !allyNear(p, ally, T.vinculo.radius)) return;
+        const share = dmg.amount * T.vinculo.pct * rankOf(p, 'g_d_vinculo') / 100;
         dmg.amount -= share;
         p.takeDamage(share, nearAL(g, p), { element: 'phys' });
       },
     },
-    // s17 Muralla Viviente: cada carga de Bastión te da −2 %/rango de daño recibido
-    g_muralla_viva: {
-      name: 'Muralla Viviente', desc: 'Cada carga de Bastión te da −1 % de daño recibido por rango.',
-      condDr(p) { return T.muralla * ownRank(p, 's17', 'guardian') * Math.floor(gaugeValue(p, 'bastion')); },
-    },
-    // x1 Represalia: tus espinas reflejan además el 30 % del daño que bloqueas o que absorbe
-    // Muro de Escudos (al atacante, como daño de poder)
-    g_represalia: {
-      name: 'Represalia', desc: 'Reflejas el 30 % del daño que bloqueas o absorbes con Muro de Escudos.',
-      onDamaged(g, p, dmg) {
-        let prevented = muroPrevented(p, dmg.amount);
-        if (dmg.blocked) prevented += dmg.amount;          // el bloqueo quitó lo mismo que dejó pasar (−50 %)
-        const src = dmg.src;
-        if (!(prevented > 0) || !src?.alive || typeof src.takeDamage !== 'function') return;
-        dealProcDamage(g, src, prevented * T.represalia / 100, { source: 'power:g_represalia' });
+    // d19 Tierra Viva (rango r): plantado y en combate, cada 3 s una réplica gratis a 5 m (30·r %)
+    g_d_tierra_viva: {
+      name: 'Tierra Viva', desc: 'Plantado, cada 3 s sueltas una réplica gratis a 5 m.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'g_d_tierra_viva');
+        if (!p.planted || !((p.sinceCombat ?? 99) < 5)) { st.acc = 0; return; }
+        st.acc += dt;
+        if (st.acc < T.tierraViva.every - 1e-9) return;
+        st.acc = 0;
+        const c = p.pos.clone().setY(0);
+        replicaHit(g, p, c, T.tierraViva.radius, T.tierraViva.coef * rankOf(p, 'g_d_tierra_viva'));
+        g.spawnRing?.(c, T.tierraViva.radius, 0xc8a070);
       },
     },
-    // x2 Venganza Acumulada: al terminar Muro de Escudos, una onda devuelve el 20 %/rango del
-    // daño absorbido (lo acumula aquí; la onda la lanza el comportamiento del Muro al acabar)
-    g_venganza: {
-      name: 'Venganza Acumulada', desc: 'Al terminar Muro de Escudos, una onda devuelve un 20 % por rango del daño absorbido.',
-      state: () => ({ absorbed: 0 }),
-      onDamaged(g, p, dmg) {
-        const n = muroPrevented(p, dmg.amount);
-        if (n > 0) powerState(p, 'g_venganza').absorbed += n;
+    // d20 Guarnición (rango r): dentro de tu Ciudadela tus aliados hacen +5·r % y tú ganas 1 carga
+    // de Bastión por segundo (no en la gratis; el bloqueo tras descargar lo respeta la mecánica)
+    g_d_guarnicion: {
+      name: 'Guarnición', desc: 'Dentro de tu Ciudadela, tus aliados hacen más daño y ganas Bastión.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'g_d_guarnicion');
+        const f = (g.fields || []).find(x => !x.dead && x.owner === p && x.kind === 'aura' && x.data?.buffId === 'g_u_ciudadela');
+        if (!f) { st.acc = 0; return; }
+        const pos = v3(f.pos.x, 0, f.pos.z);
+        const pct = T.guarnicion.perRank * rankOf(p, 'g_d_guarnicion');
+        for (const a of others(g, p, Infinity)) if (dist2D(a.pos, pos) <= f.radius) keepBuff(a, 'g_d_guarnicion', { dmgPct: pct }, 0.3, { name: 'Guarnición', icon: '🏰', desc: `+${pct}% de daño` });
+        if (f.data.free || dist2D(p.pos, pos) > f.radius) { st.acc = 0; return; }
+        st.acc += dt;
+        if (st.acc >= T.guarnicion.every - 1e-9) { st.acc = 0; gainGauge(p, 'bastion', 1); }
       },
     },
-    // x3 Bastión Eterno (cooperativo): con 5 cargas, Muro Inquebrantable protege también a
-    // los aliados a 10 m (⑫ onAllyLethal: queda a 1 de vida e inmune 2 s; icd 60 s, que
-    // solo se gasta si salva: return false no lo consume)
-    g_bastion_eterno: {
-      name: 'Bastión Eterno', desc: 'Con 5 cargas de Bastión, Muro Inquebrantable protege también a los aliados a 10 m (una vez cada 60 s).',
-      icd: T.eterno.icd,
-      onAllyLethal(g, p, ally) {
-        if (!p.alive || !allyNear(p, ally, T.eterno.radius) || gaugeValue(p, 'bastion') < gaugeMax(p, 'bastion')) return false;
-        ally.grantInvuln?.(T.eterno.invuln);
-        g.ui?.message?.('🛡️ ¡Bastión Eterno! Tu aliado sobrevive', 2500);
-        fxAt(g, 'shieldWall', ally.pos, 1.0);
-        return true;
+    // d21 Proa Blindada: durante la Carga de Escudo bloqueas seguro lo que viene de frente (cada
+    // bloqueo da su carga de Bastión por la mecánica)
+    g_d_proa: {
+      name: 'Proa Blindada', desc: 'Durante la Carga de Escudo bloqueas todo lo que viene de frente.',
+      priority: 4,
+      state: () => ({ cast: null, dir: null }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo') return;
+        const dir = cast.target ? cast.target.clone().sub(p.pos).setY(0) : null;
+        Object.assign(powerState(p, 'g_d_proa'), { cast, dir: dir && dir.lengthSq() > 1e-6 ? dir.normalize() : null });
+      },
+      afterCast(g, p, cast) { const st = powerState(p, 'g_d_proa'); if (st.cast === cast) st.cast = null; },
+      onDamaged(g, p, dmg) {
+        const st = powerState(p, 'g_d_proa');
+        const s = dmg?.src;
+        if (!st.cast || !st.dir || !p.dashMove || !s?.pos) return;
+        if ((s.pos.x - p.pos.x) * st.dir.x + (s.pos.z - p.pos.z) * st.dir.z <= 0) return;
+        forceBlock(g, p, dmg);
+      },
+    },
+    // d22 Guardia Viva (rango r): cada cambio de postura, +3·r % de daño 8 s (hasta 3 veces) y te
+    // cura un r % de la vida (sustento)
+    g_d_guardia_viva: {
+      name: 'Guardia Viva', desc: 'Cada cambio de postura te da daño 8 s (hasta 3 veces) y te cura.',
+      state: () => ({ n: 0, until: -1 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_guardia' || !cast.stance) return;
+        const st = powerState(p, 'g_d_guardia_viva');
+        const r = rankOf(p, 'g_d_guardia_viva');
+        if (now(p) > st.until) st.n = 0;
+        st.n = Math.min(T.guardiaViva.max, st.n + 1);
+        st.until = now(p) + T.guardiaViva.dur;
+        const pct = T.guardiaViva.perRank * r * st.n;
+        p.addBuff('g_d_guardia_viva', { dmgPct: pct }, T.guardiaViva.dur, { name: `Guardia Viva ×${st.n}`, icon: '🔰', desc: `+${pct}% de daño` });
+        p.sustain(p.stats.maxHP * T.guardiaViva.heal * r / 100, 'g_d_guardia_viva');
+      },
+    },
+    // d23 Réplica Honda (rango r): las réplicas del Terremoto hacen +10·r % (el doble contra jefes
+    // Quebrantados)
+    g_d_replica_honda: {
+      name: 'Réplica Honda', desc: 'Las réplicas del Terremoto hacen más daño (el doble contra jefes Quebrantados).',
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'terremoto' || !replicaOpen(p)) return 0;
+        const pct = T.replicaHonda * rankOf(p, 'g_d_replica_honda');
+        return isBoss(e) && (e.staggerBrokenT || 0) > 0 ? pct * 2 : pct;
+      },
+      afterCast(g, p, cast) {
+        const rp = cast?.prof?.repeat;
+        if (cast?.sk?.id !== 'terremoto' || cast.echo || !rp?.n || (rp.needPlanted && !p.planted)) return;
+        replicaBracket(g, p, Array.from({ length: rp.n }, (_, i) => (rp.every || 0.5) * (i + 1)));
+      },
+    },
+    // d24 Escolta (rango r): al llegar con la Carga, escudo del 4·r % de tu vida a ti y a tus aliados
+    // a 6 m (una vez cada 10 s)
+    g_d_escolta: {
+      name: 'Escolta', desc: 'Al llegar con la Carga de Escudo, das un escudo a ti y a tus aliados a 6 m (cada 10 s).',
+      icd: T.escolta.icd,
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return false;
+        g.shield(p.stats.maxHP * T.escolta.perRank * rankOf(p, 'g_d_escolta') / 100, { target: 'all', radius: T.escolta.radius, dur: T.escolta.dur, src: 'g_d_escolta' });
+        g.spawnRing?.(p.pos, T.escolta.radius, 0x9fc4ff);
+      },
+    },
+    // d25 Guardia Total (final, rango r): tras 3 cambios de postura en 8 s, Muralla y Ariete a la vez
+    // 3/4,5/6 s (vuelve a los 15 s; los cambios hechos durante ella no cuentan). Posturas +15·(r−1) %
+    g_d_guardia_total: {
+      name: 'Guardia Total', desc: 'Tras 3 cambios de postura en 8 s, tienes Muralla y Ariete a la vez.',
+      state: () => ({ log: [], until: -1, readyAt: 0, sig: '' }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_guardia' || !cast.stance) return;
+        const st = powerState(p, 'g_d_guardia_total');
+        const G = T.guardiaTotal;
+        if (now(p) < st.until) return;
+        st.log = st.log.filter(t => now(p) - t <= G.win + 1e-9);
+        st.log.push(now(p));
+        if (st.log.length < G.need || now(p) < st.readyAt - 1e-9) return;
+        const dur = G.dur[Math.min(3, rankOf(p, 'g_d_guardia_total')) - 1];
+        g.setStanceBoth(p, 'g_guardia', dur);
+        st.log = []; st.until = now(p) + dur; st.readyAt = now(p) + G.icd;
+        g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡GUARDIA TOTAL!', 'txt-crit');
+      },
+      // posturas +15·(r−1) %: un buff con esa parte de las stats de las posturas activas
+      onTick(g, p) {
+        const r = rankOf(p, 'g_d_guardia_total');
+        if (r < 2) return;
+        const k = T.guardiaTotal.bonus * (r - 1) / 100;
+        const stats = {};
+        for (const m of g.activeStanceModes?.(p) || []) for (const [s, v] of Object.entries(m.stats || {})) stats[s] = (stats[s] || 0) + Math.round(v * k * 10) / 10;
+        const st = powerState(p, 'g_d_guardia_total');
+        const sig = JSON.stringify(stats);
+        if (!Object.keys(stats).length) { if (st.sig) { st.sig = ''; dropBuff(p, 'g_d_posturas'); } return; }
+        if (sig !== st.sig || !buffOf(p, 'g_d_posturas')) { st.sig = sig; p.addBuff('g_d_posturas', stats, 0.35, { name: 'Posturas reforzadas', icon: '🔰' }); }
+        else keepBuff(p, 'g_d_posturas', stats, 0.35);
+      },
+    },
+    // d26 Montaña Viva (final, rango r): plantado, cada 3.er Terremoto se repite gratis al 50/75/100 %
+    // (repetición: no cuenta ni gasta nada) y sus réplicas aturden 0,5 s (los jefes no).
+    // Terremoto +15·(r−1) %: mod del nodo
+    g_d_montana_viva: {
+      name: 'Montaña Viva', desc: 'Plantado, cada 3.er Terremoto se repite gratis y sus réplicas aturden.',
+      state: () => ({ n: 0, stunUntil: -1 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'terremoto' || cast.echo || !p.planted) return;
+        const st = powerState(p, 'g_d_montana_viva');
+        if (++st.n % T.montana.every) return;
+        const rp = cast.prof?.repeat;
+        st.stunUntil = now(p) + (rp?.n ? (rp.every || 0.5) * rp.n : 0) + 0.05;
+        const mul = T.montana.mul[Math.min(3, rankOf(p, 'g_d_montana_viva')) - 1];
+        const slot = cast.slot;
+        g.timers?.schedule(T.montana.delay, () => { if (p.alive && p.hotbar?.[slot] === 'terremoto') g.castSkillSlot(slot, mul); });
+        g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡MONTAÑA VIVA!', 'txt-crit');
+      },
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'terremoto') || !hit.repeat || !e?.alive || isBoss(e)) return;
+        if (now(p) <= powerState(p, 'g_d_montana_viva').stunUntil) e.applyCC?.('stun', T.montana.stun, { src: p });
+      },
+    },
+    // d27 Cabeza de Puente (final, rango r): al acabar la Carga te plantas, ganas 2/3/5 cargas de
+    // Bastión (cada 10 s) y los enemigos a 8 m te atacan 4 s. Carga +15·(r−1) %: mod del nodo
+    g_d_cabeza_puente: {
+      name: 'Cabeza de Puente', desc: 'Al acabar la Carga te plantas, ganas Bastión y los enemigos a 8 m te atacan.',
+      state: () => ({ at: -99 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_carga_escudo' || cast.echo) return;
+        p.plantNow?.();
+        const st = powerState(p, 'g_d_cabeza_puente');
+        if (now(p) - st.at >= T.cabeza.icd - 1e-9) {
+          st.at = now(p);
+          gainGauge(p, 'bastion', T.cabeza.charges[Math.min(3, rankOf(p, 'g_d_cabeza_puente')) - 1]);
+        }
+        for (const e of enemiesNear(g, p.pos, T.cabeza.radius)) e.applyCC?.('taunt', T.cabeza.taunt, { src: p });
+        g.spawnRing?.(p.pos, T.cabeza.radius, 0x7fb0e8);
+      },
+    },
+    // d28 Inexpugnable (ápice, rangos): 1) matar a un élite llena el Bastión · 2) 7 cargas (stat de
+    // la mecánica) · 3) descargar acorta 6 s la recarga de Piel de Hierro · 4) cada 3 descargas, la
+    // Ciudadela sola 4 s, gratis (cada 45 s)
+    g_d_inexpugnable: {
+      name: 'Inexpugnable', desc: 'Matar élites llena el Bastión, guarda más cargas, la descarga recarga la Piel y lanza la Ciudadela.',
+      state: () => ({ bursts: 0, freeAt: -999 }),
+      stats: p => (rankOf(p, 'g_d_inexpugnable') >= 2 ? { 'gaugeMax:bastion': T.inexpugnable.maxAdd } : {}),
+      onKill(g, p, e) { if (isEliteOrBoss(e)) gainGauge(p, 'bastion', gaugeMax(p, 'bastion')); },
+      onGauge(g, p, id, ev) {
+        if (id !== 'bastion' || ev !== 'spent') return;
+        const r = rankOf(p, 'g_d_inexpugnable');
+        if (r >= 3) cutCd(g, p, 'g_piel', T.inexpugnable.piel);
+        if (r < 4) return;
+        const st = powerState(p, 'g_d_inexpugnable');
+        st.bursts++;
+        if (st.bursts < T.inexpugnable.every || now(p) - st.freeAt < T.inexpugnable.icd - 1e-9) return;
+        if (freeCitadel(g, p, T.inexpugnable.dur)) { st.bursts = 0; st.freeAt = now(p); }
       },
     },
 
-    // ---------------- CRUZADO ----------------
-    // s3 Mano Sanadora (+2/rango de vida al golpear: stats.lph): los aliados a 10 m reciben la mitad
-    g_mano_sanadora: {
-      name: 'Mano Sanadora', desc: 'Los aliados a 10 m reciben la mitad de la vida al golpear de Mano Sanadora.',
-      state: () => ({ at: -1 }),
-      onHit(g, p) {
-        const st = powerState(p, 'g_mano_sanadora');
-        if (st.at === p.simT) return;                       // una vez por impacto (como onDealHit)
-        st.at = p.simT;
-        const half = ownRank(p, 's3', 'cruzado');           // la mitad de 2·rango
-        if (half > 0) for (const a of others(g, p, T.manoRadius)) allySustain(a, half, 'g_mano_sanadora');
+    // ---------------- CRUZADO (z*) ----------------
+    // z0 Voto Sagrado lleva la pasiva del Cruzado (Martillo Piadoso: el 10 % de tu daño sagrado cura
+    // al aliado con menos vida a 15 m, hasta un 1 % de su vida por segundo) y la regla de sus zonas
+    // sagradas (§21): su daño y su cura no se suman (vale la más fuerte) y la cura de zona va a una
+    // cubeta de 4 %/s por receptor
+    g_z_martillo_piadoso: {
+      name: 'Martillo Piadoso', desc: 'El 10 % de tu daño sagrado cura al aliado con menos vida a 15 m (hasta un 1 % de su vida por segundo).',
+      procs: true,
+      state: () => ({ acc: 0 }),
+      onHit(g, p, e, hit) {
+        if (!(hit?.dealt > 0) || !isHolyHit(hit)) return;
+        const a = lowestAlly(g, p, p.pos, T.piadoso.radius);
+        if (a) bucketHeal(g, p, a, 'piadoso', T.piadoso.cap, hit.dealt * T.piadoso.pct / 100, 'g_z_martillo_piadoso');
       },
-    },
-    // s4 Devoción Ferviente: Aura de Devoción te da 1 de Fervor al lanzarla y cura un 10 % más
-    // (el +10 % lo lee el campo g_devocion)
-    g_devocion_ferviente: {
-      name: 'Devoción Ferviente', desc: 'Aura de Devoción te da 1 de Fervor al lanzarla y cura un 10 % más.',
-      afterCast(g, p, cast) { if (cast?.sk?.id === 'g_t_devocion') gainGauge(p, 'fervor', T.ferviente.fervor); },
-    },
-    // s6B Sentencia: Juicio marca a élites y jefes: +20 % de daño recibido de todo el grupo 4 s
-    // (saco Debilidad, §5.3)
-    g_sentencia: {
-      name: 'Sentencia', desc: 'Juicio marca a élites y jefes: reciben +20 % de daño de todo el grupo durante 4 s.',
-      onKill(g, p, e, kill) {
-        if (kill?.nested || !e?.pos) return;
-        for (const o of g.enemies || []) {
-          if (!o.alive || o === e || !isEliteOrBoss(o)) continue;
-          const r = T.sentencia.radius + 0.5 * (o.def?.scale || 1);
-          if (o.pos.distanceToSquared(e.pos) > r * r) continue;
-          o.applyWeakness?.('g_sentencia', T.sentencia.pct, T.sentencia.dur);
-          g.ui?.spawnText?.(o.pos.clone().setY((o.def?.scale || 1) + 0.7), 'SENTENCIA', 'txt-crit');
+      afterCast(g, p) { adoptHoly(g, p); },
+      onTick(g, p, dt) {
+        adoptHoly(g, p);
+        const st = powerState(p, 'g_z_martillo_piadoso');
+        st.acc += dt;
+        if (st.acc < T.zonaTick - 1e-9) return;
+        const step = st.acc;
+        st.acc = 0;
+        const zones = holyZones(g, p).filter(f => f.data._holy);
+        if (!zones.length) return;
+        // daño: a cada enemigo, solo el de la zona más fuerte que pisa
+        for (const e of g.enemies || []) {
+          if (!e.alive) continue;
+          let best = null;
+          for (const f of zones) if (f.data._holy.dps > (best?.data._holy.dps || 0) && insideField(f, e.pos, 0.5 * (e.def?.scale || 1))) best = f;
+          if (best) e.takeDamage(Math.max(1, Math.round(best.data._holy.dps * step)), false, { dot: true, source: 'field:zona', skill: best.data.skill || null, tags: best.data.tags || new Set(['zone', 'holy']) });
+        }
+        // cura: a cada aliado, la de la zona más curativa que pisa (cubeta de zona)
+        for (const a of g.allies ? g.allies() : [p]) {
+          let heal = 0;
+          for (const f of zones) if (f.data._holy.heal > heal && insideField(f, a.pos)) heal = f.data._holy.heal;
+          if (heal > 0) bucketHeal(g, p, a, 'zona', T.zonaCap, (a.stats?.maxHP || 0) * heal / 100 * step, 'g_z_zona');
         }
       },
     },
-    // s6A Consagración (mod.zone de Martillo: la zona que daña es del núcleo): el suelo
-    // sagrado también cura a los aliados que lo pisan (campo g_consagracion, 2 %/s).
-    // Paso 2e: la curación NO se apila (cada Martillo renueva el suelo que cura; antes, con
-    // un Martillo por segundo, 4 campos curaban 8 %/s y el Cruzado era inmortal en TTD+)
-    g_consagracion: {
-      name: 'Consagración', desc: 'El suelo sagrado de Martillo de Guerra también cura a los aliados que lo pisan (no se apila: cada Martillo lo renueva).',
+    // z4 Marca Indeleble (rango r): las marcas de Juicio duran 4·r s más
+    g_z_marca_indeleble: {
+      name: 'Marca Indeleble', desc: 'Las marcas de Juicio duran más.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'g_juicio' && prof.mark) prof.mark = { ...prof.mark, dur: (prof.mark.dur || 8) + T.marcaIndeleble * rankOf(p, 'g_z_marca_indeleble') }; },
+    },
+    // z5 Sello del Martillo: soltar el Martillo en la ventana perfecta marca con Juicio a los que golpea
+    g_z_sello_martillo: {
+      name: 'Sello del Martillo', desc: 'Soltar el Martillo de Guerra en la ventana perfecta marca con Juicio a todos los que golpea.',
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_martillo') || !hit.perfect || hit.echo || !e?.alive) return;
+        const prof = juicioProf(p);
+        if (prof) g.applyMark(e, prof, p);
+      },
+    },
+    // z6 Golpe Consagrado: la suelta perfecta consagra 4 s el suelo donde cae el Martillo (40 % por
+    // segundo; 2 a la vez: el 3.º quita el más viejo; no se suman: lo aplica la regla de z0)
+    g_z_golpe_consagrado: {
+      name: 'Golpe Consagrado', desc: 'Soltar en la ventana perfecta consagra 4 s el suelo donde cae el Martillo.',
       afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'g_martillo' || !cast.target || !g.spawnField) return;
-        const prof = cast.prof || {};
-        const old = fieldOf(g, p, 'g_consagracion');
-        if (old) old.t = 0;
-        g.spawnField('g_consagracion', { pos: cast.target.clone().setY(0), radius: Math.max(2, (prof.radius || 3) * 0.9),
-          dur: prof.zoneDur || 4, owner: p, data: { healPctPerSec: T.consagracion.healPctPerSec } });
+        if (cast?.sk?.id !== 'g_martillo' || !cast.perfect || cast.echo || !cast.target || !g.spawnField) return;
+        const prof = cast.prof;
+        const rel = prof.charge ? chargeRelease(prof.charge, cast.charge?.t ?? prof.charge.max, { def: prof.def || cast.sk }) : null;
+        const c = cast.target.clone().setY(0);
+        g.spawnField('zona', { pos: c, radius: (prof.radius || 3) * (rel?.radiusMul || 1), dur: T.consagrado.dur, owner: p, maxPerSkill: T.consagrado.max,
+          data: { dps: p.avgHit(T.consagrado.coef, prof.addPct), color: 0xffe7a0, skill: 'g_martillo', tags: prof.tags } });
+        adoptHoly(g, p);
       },
     },
-    // s8 Luz Sanadora (tv.killHeal: el núcleo te cura a TI al matar): los aliados a 10 m
-    // reciben el mismo % de SU vida (sustento de cada uno)
-    g_luz_sanadora: {
-      name: 'Luz Sanadora', desc: 'Al matar, los aliados a 10 m se curan el mismo % de vida que tú.',
-      onKill(g, p) {
-        const pct = p.tv?.killHeal || 0;
-        if (!(pct > 0)) return;
-        for (const a of others(g, p, T.luzRadius)) allySustain(a, (a.stats?.maxHP || 0) * pct / 100, 'g_luz_sanadora');
-      },
-    },
-    // s10 Estandarte Sagrado (+20 %/rango de duración: mod): su bonificación alcanza a los aliados a 15 m
-    g_estandarte_grupo: {
-      name: 'Estandarte Sagrado', desc: 'La bonificación de Estandarte de Guerra alcanza a los aliados a 15 m.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'g_u_estandarte') prof.radius = Math.max(prof.radius || 0, T.banner); },
-    },
-    // s13A Intercesión (cooperativo): cada 90 s, un aliado a 15 m que iba a morir queda a 1
-    // de vida y tú pierdes un 20 % de vida (⑫ onAllyLethal; icd 90 s, solo si salva)
-    g_intercesion: {
-      name: 'Intercesión', desc: 'Cada 90 s, un aliado que iba a morir queda a 1 de vida; tú pierdes un 20 % de vida.',
-      icd: T.intercesion.icd,
-      onAllyLethal(g, p, ally) {
-        if (!p.alive || !allyNear(p, ally, T.intercesion.radius)) return false;
-        p.setHp(Math.max(1, p.hp - p.stats.maxHP * T.intercesion.cost / 100), 'g_intercesion');
-        g.ui?.message?.('✨ ¡Intercesión! Tu aliado sobrevive', 2500);
-        return true;
-      },
-    },
-    // s14 Luz del Alba: Aura de Devoción da también +10 % de daño al grupo (lo aplica el campo)
-    // y cada Fervor gastado la alarga 1 s
-    g_luz_alba: {
-      name: 'Luz del Alba', desc: 'Aura de Devoción da +25 % de daño a tus aliados (+10 % a ti) y cada Fervor gastado la alarga 1 s.',
-      onGauge(g, p, id, ev, n) {
-        if (id !== 'fervor' || ev !== 'spent') return;
-        const f = fieldOf(g, p, 'g_devocion');
-        if (f) { f.t += n * T.alba.perFervor; f.dur += n * T.alba.perFervor; }
-      },
-    },
-    // x1 Martillo Bendito: 3 martillos sagrados orbitan a tu alrededor (campo g_martillos):
-    // cada segundo cada uno golpea al enemigo más cercano a ≤ 2,6 m (15 % del arma, Sagrado,
-    // + Fe Ardiente) y cada golpe cura un 1 % de vida a los aliados a 15 m (sustento)
-    g_martillo_bendito: {
-      name: 'Martillo Bendito', desc: '3 martillos sagrados orbitan a tu alrededor. Cada golpe cura un 1 % de vida a los aliados a 15 m.',
-      onTick(g, p) {
-        if (!g?.spawnField || !p.alive || fieldOf(g, p, 'g_martillos')) return;
-        g.spawnField('g_martillos', { pos: p.pos.clone(), radius: T.hammers.reach, dur: 3600, owner: p, data: {} });
-      },
-    },
-    // x2 Martillos del Juicio: +1 martillo y +15 % de daño de los Martillos Benditos por rango
-    // (lo lee el campo g_martillos; este poder solo marca el nodo)
-    g_martillos_juicio: {
-      name: 'Martillos del Juicio', desc: '+1 martillo y +15 % de daño de los Martillos Benditos por rango.',
-    },
-    // x3 Ascensión: tras 3 Veredictos seguidos (≤ 8 s entre ellos), 10 s de alas de luz: el
-    // Fervor no se gasta y el Aura cubre 30 m. Tope: Veredicto con 1,5 s de enfriamiento
-    // mientras dura (sin coste ni enfriamiento serían ≈150 WD en 10 s: desbocado)
-    g_ascension: {
-      name: 'Ascensión', desc: 'Tras 3 Veredictos seguidos, 10 s de alas de luz: el Fervor no se gasta y el Aura cubre 30 m.',
-      state: () => ({ n: 0, last: -99 }),
-      afterCast(g, p, cast, res) {
-        if (cast?.sk?.id !== 'g_t_veredicto' || !res?.verdict || buffOf(p, 'g_ascension')) return;
-        const st = powerState(p, 'g_ascension');
-        st.n = (p.simT || 0) - st.last <= T.ascension.gap ? st.n + 1 : 1;
-        st.last = p.simT || 0;
-        if (st.n < T.ascension.need) return;
-        st.n = 0;
-        p.addBuff('g_ascension', {}, T.ascension.dur, { name: 'Ascensión', icon: '🕊️', desc: 'El Fervor no se gasta y el Aura de Devoción cubre 30 m' });
-        g.ui?.spawnText?.(p.pos, '¡ASCENSIÓN!', 'txt-crit');
-        fxAt(g, 'devotionCircle', p.pos, 0.2);
-        fxAt(g, 'holyImpact', p.pos, 1.6);
-      },
+    // z7 Sendero Bendito (rango r): tu sendero cura +0,5·r % por segundo (no se suma: regla de z0) y
+    // tus aliados van un 10·r % más rápido dentro
+    g_z_sendero_veloz: {
+      name: 'Sendero Bendito', desc: 'Tu sendero cura más y tus aliados van más rápido dentro.',
       modifyResolve(p, sk, prof) {
-        if (sk.id === 'g_t_veredicto' && buffOf(p, 'g_ascension')) prof.cd = Math.max(prof.cd || 0, T.ascension.minCd);
+        if (sk.id === 'g_sendero' && prof.trail) prof.trail = { ...prof.trail, heal: (prof.trail.heal || 0) + T.senderoBendito.heal * rankOf(p, 'g_z_sendero_veloz') };
+      },
+      onTick(g, p) {
+        const trails = holyZones(g, p).filter(f => f.data?.skill === 'g_sendero');
+        if (!trails.length) return;
+        const pct = T.senderoBendito.spd * rankOf(p, 'g_z_sendero_veloz');
+        for (const a of g.allies ? g.allies() : [p]) if (trails.some(f => insideField(f, a.pos))) keepBuff(a, 'g_z_sendero_veloz', { spdPct: pct }, 0.3, { name: 'Sendero Bendito', icon: '✨', desc: `+${pct}% de velocidad` });
+      },
+    },
+    // z8A Estallido de Luz: detonar una marca hace estallar el 50 % de ese golpe a los demás a 3 m;
+    // cada enemigo recibe como mucho un estallido por lanzamiento (el más fuerte)
+    g_z_estallido_luz: {
+      name: 'Estallido de Luz', desc: 'Detonar una marca hace estallar el 50 % del golpe a todos a 3 m.',
+      state: () => ({ list: [] }),
+      onCast(g, p) { powerState(p, 'g_z_estallido_luz').list = []; },
+      onHit(g, p, e, hit) { if (hit?.detonated && direct(hit) && !hit.echo) powerState(p, 'g_z_estallido_luz').list.push({ e, pos: e.pos.clone(), dealt: hit.dealt || 0 }); },
+      afterCast(g, p, cast) {
+        const st = powerState(p, 'g_z_estallido_luz');
+        const list = st.list; st.list = [];
+        if (cast?.echo || !list.length) return;
+        const tags = new Set(['area', 'holy']);
+        for (const o of g.enemies || []) {
+          if (!o.alive) continue;
+          let best = 0;
+          for (const d of list) if (d.e !== o && dist2D(o.pos, d.pos) <= T.estallidoLuz.radius + 0.5 * (o.def?.scale || 1)) best = Math.max(best, d.dealt * T.estallidoLuz.pct / 100);
+          if (best > 0) dealProcDamage(g, o, best, { source: 'power:g_z_estallido_luz', skill: 'g_juicio', tags, elem: 'holy' });
+        }
+        for (const d of list) g.spawnRing?.(d.pos, T.estallidoLuz.radius, 0xffe680);
+      },
+    },
+    // z8B Condena: tus marcas en élites y jefes duran el doble y, al detonarlas, a los jefes les llenas
+    // 15 de Quebranto
+    g_z_condena: {
+      name: 'Condena', desc: 'Las marcas en élites y jefes duran el doble y, al detonarlas, les llenas Quebranto.',
+      onTick(g, p) {
+        for (const e of g.enemies || []) {
+          const m = e.alive && isEliteOrBoss(e) ? e.marks?.juicio : null;
+          if (!m || m.by !== p || m.condena || !(m.t > 0)) continue;
+          m.condena = true;
+          m.t *= 2;
+        }
+      },
+      onHit(g, p, e, hit) { if (hit?.detonated && direct(hit) && isBoss(e)) e.addStagger?.(T.condena, p); },
+    },
+    // z9A Veredicto Generoso: el Veredicto golpea a 8 m (antes 5 m) y cura un 3 % a tus otros aliados
+    // a 8 m (el más herido sigue con la cura de la mecánica)
+    g_z_veredicto_generoso: {
+      name: 'Veredicto Generoso', desc: 'El Veredicto golpea a 8 m y cura un 3 % a tus otros aliados a 8 m.',
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'g_martillo' || gaugeValue(p, 'fervor') < gaugeMax(p, 'fervor')) return;
+        prof.radius = (prof.radius || 3) * T.generoso.radius / T.generoso.mainRadius;
+      },
+      afterCast(g, p, cast) {
+        if (!verdictOf(p, cast)) return;
+        const low = gaugeState(p, 'fervor')?.verdictHealed || null;
+        const at = cast.target ? cast.target.clone().setY(0) : p.pos.clone();
+        g.heal(a => (a === low ? 0 : (a.stats?.maxHP || 0) * T.generoso.heal / 100), { target: 'all', radius: T.generoso.radius, pos: at, src: 'g_z_veredicto_generoso' });
+      },
+    },
+    // z9B Veredicto Pesado: el Veredicto hace +80 % al objetivo principal y a los jefes les llena 25
+    // de Quebranto
+    g_z_veredicto_pesado: {
+      name: 'Veredicto Pesado', desc: 'El Veredicto hace +80 % al objetivo principal y les llena Quebranto a los jefes.',
+      condAdd(p, e, hit) {
+        const st = gaugeState(p, 'fervor');
+        return hit?.skill === 'g_martillo' && st?.verdictLive && e && e === st.verdictTarget ? T.pesado.pct : 0;
+      },
+      onHit(g, p, e, hit) {
+        const st = gaugeState(p, 'fervor');
+        if (!isHitOf(hit, 'g_martillo') || hit.echo || !st?.verdictLive || e !== st.verdictTarget || !isBoss(e)) return;
+        e.addStagger?.(T.pesado.stagger, p);
+      },
+    },
+    // z10A Senda Ardiente: el sendero hace +30 % por segundo (no se suma) y ralentiza un 30 % (adoptHoly)
+    g_z_senda_ardiente: {
+      name: 'Senda Ardiente', desc: 'El sendero hace más daño y ralentiza a quien lo pisa.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'g_sendero' && prof.trail) prof.trail = { ...prof.trail, coef: (prof.trail.coef || 0) + T.sendaArdiente.coef }; },
+    },
+    // z10B Refugio: el aliado con menos vida en tu sendero gana un escudo del 10 % de tu vida (cada 6 s)
+    g_z_refugio: {
+      name: 'Refugio', desc: 'El aliado con menos vida en tu sendero gana un escudo (una vez cada 6 s).',
+      state: () => ({ at: -99 }),
+      onTick(g, p) {
+        const st = powerState(p, 'g_z_refugio');
+        if (now(p) - st.at < T.refugio.icd - 1e-9) return;
+        const trails = holyZones(g, p).filter(f => f.data?.skill === 'g_sendero');
+        if (!trails.length) return;
+        let best = null;
+        for (const a of g.allies ? g.allies() : [p]) {
+          if (!trails.some(f => insideField(f, a.pos)) || !(a.stats?.maxHP > 0)) continue;
+          if (!best || a.hp / a.stats.maxHP < best.hp / best.stats.maxHP) best = a;
+        }
+        if (!best) return;
+        st.at = now(p);
+        best.addShield?.(p.stats.maxHP * T.refugio.pct / 100, T.refugio.dur, 'g_z_refugio');
+      },
+    },
+    // z13 Tierra Bendita (rango r): tus zonas sagradas son un 15·r % más grandes y duran r s más (adoptHoly)
+    g_z_tierra_bendita: { name: 'Tierra Bendita', desc: 'Tus zonas sagradas son más grandes y duran más.' },
+    // z14 Altar de Campaña: al llegar con el Sendero de Luz, un altar 6 s: tus aliados a 4 m hacen +10 %
+    // (no se suma: el mismo buff)
+    g_z_altar: {
+      name: 'Altar de Campaña', desc: 'Al llegar con el Sendero de Luz, levantas un altar que da +10 % de daño a 4 m.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_sendero' || cast.echo || !g.spawnField) return;
+        const A = T.altar;
+        g.spawnField('aura', { pos: p.pos.clone().setY(0), radius: A.radius, dur: A.dur, owner: p,
+          data: { buff: { dmgPct: A.dmgPct }, buffId: 'g_z_altar', meta: { name: 'Altar de Campaña', icon: '⛪', desc: `+${A.dmgPct}% de daño` }, color: 0xffe7a0 } });
+      },
+    },
+    // z15A Milagro: un golpe que mataría a un aliado o a ti lo deja con un 20 % de vida (cada 2 min)
+    g_z_milagro: {
+      name: 'Milagro', desc: 'Un golpe que mataría a un aliado o a ti lo deja con un 20 % de vida. Una vez cada 2 min.',
+      priority: 1,
+      state: () => ({ at: -999 }),
+      onLethal(g, p) { return milagro(g, p, p); },
+      onAllyLethal(g, p, ally) { return milagro(g, p, ally); },
+    },
+    // z15B Luz Protectora: cada Veredicto te da un escudo del 10 % de tu vida 6 s
+    g_z_luz_protectora: {
+      name: 'Luz Protectora', desc: 'Cada Veredicto te da un escudo.',
+      onGauge(g, p, id, ev) {
+        if (id !== 'fervor' || ev !== 'spent') return;
+        g.shield(p.stats.maxHP * T.luzProtectora.pct / 100, { target: 'self', dur: T.luzProtectora.dur, src: 'g_z_luz_protectora' });
+      },
+    },
+    // z16 Ardor (rango r): tus golpes sagrados hacen +4·r % por cada punto de Fervor
+    g_z_ardor: {
+      name: 'Ardor', desc: 'Tus golpes sagrados hacen más daño por cada punto de Fervor.',
+      condAdd(p, e, hit) { return isHolyHit(hit) ? T.ardor * rankOf(p, 'g_z_ardor') * Math.floor(gaugeValue(p, 'fervor')) : 0; },
+    },
+    // z17 Velo Sagrado (rango r): tú y tus aliados dentro de tus zonas sagradas reciben un 5·r % menos
+    g_z_velo: {
+      name: 'Velo Sagrado', desc: 'Dentro de tus zonas sagradas, tú y tus aliados reciben menos daño.',
+      condDr(p) { return inHolyZone(p.game, p, p.pos) ? T.velo * rankOf(p, 'g_z_velo') : 0; },
+      onAllyDamaged(g, p, ally, dmg) {
+        if (ally === p || !(dmg?.amount > 0) || !inHolyZone(g, p, ally.pos)) return;
+        dmg.amount *= 1 - T.velo * rankOf(p, 'g_z_velo') / 100;
+      },
+    },
+    // z18 Absolución (rango r): cada detonación de Juicio cura al aliado con menos vida un r % (cada 2 s)
+    g_z_absolucion: {
+      name: 'Absolución', desc: 'Cada detonación de Juicio cura al aliado con menos vida (una vez cada 2 s).',
+      state: () => ({ at: -99 }),
+      onHit(g, p, e, hit) {
+        if (!hit?.detonated || !direct(hit)) return;
+        const st = powerState(p, 'g_z_absolucion');
+        if (now(p) - st.at < T.absolucion - 1e-9) return;
+        st.at = now(p);
+        const r = rankOf(p, 'g_z_absolucion');
+        g.heal(a => (a.stats?.maxHP || 0) * r / 100, { target: 'lowest', radius: 15, src: 'g_z_absolucion' });
+      },
+    },
+    // z20 Gracia del Cielo (rango r): cada Veredicto acorta 2·r s la recarga del Cataclismo (con el
+    // suelo de las definitivas: nunca baja de 42 s)
+    g_z_gracia: {
+      name: 'Gracia del Cielo', desc: 'Cada Veredicto acorta la recarga del Cataclismo.',
+      afterCast(g, p, cast) { noteStart(p, cast); },
+      onGauge(g, p, id, ev) { if (id === 'fervor' && ev === 'spent') cutCd(g, p, 'g_u_cataclismo', T.graciaCielo * rankOf(p, 'g_z_gracia')); },
+    },
+    // z21 Vigilia: en tu zona sagrada, el Sendero de Luz se recarga el doble de rápido (suelo de 4 s)
+    g_z_vigilia: {
+      name: 'Vigilia', desc: 'En tu zona sagrada, el Sendero de Luz se recarga el doble de rápido.',
+      afterCast(g, p, cast) { noteStart(p, cast); },
+      onTick(g, p, dt) { if ((p.cds?.g_sendero || 0) > 0 && inHolyZone(g, p, p.pos)) cutCd(g, p, 'g_sendero', dt * (T.vigilia - 1)); },
+    },
+    // z22 Edicto (rango r): al detonar una marca, marcas a r enemigos sin marca a 5 m de él
+    g_z_edicto: {
+      name: 'Edicto', desc: 'Al detonar una marca, marcas a enemigos cercanos.',
+      state: () => ({ list: [] }),
+      onCast(g, p) { powerState(p, 'g_z_edicto').list = []; },
+      onHit(g, p, e, hit) { if (hit?.detonated && direct(hit) && !hit.echo) powerState(p, 'g_z_edicto').list.push(e); },
+      afterCast(g, p, cast) {
+        const st = powerState(p, 'g_z_edicto');
+        const list = st.list; st.list = [];
+        const prof = list.length && !cast?.echo ? juicioProf(p) : null;
+        if (!prof) return;
+        const n = rankOf(p, 'g_z_edicto');
+        for (const d of list) {
+          const free = enemiesNear(g, d.pos, T.edicto).filter(o => o !== d && !(o.marks?.juicio?.t > 0))
+            .sort((a, b) => dist2D(a.pos, d.pos) - dist2D(b.pos, d.pos)).slice(0, n);
+          for (const o of free) g.applyMark(o, prof, p);
+        }
+      },
+    },
+    // z23 Racha de Fe (rango r): cada suelta perfecta seguida suma +4·r % al Martillo (hasta 5);
+    // fallar la ventana la reinicia (p.perfectStreak del núcleo)
+    g_z_racha: {
+      name: 'Racha de Fe', desc: 'Cada suelta perfecta seguida suma daño al Martillo (hasta 5 veces).',
+      condAdd(p, e, hit) { return hit?.skill === 'g_martillo' ? T.racha.perRank * rankOf(p, 'g_z_racha') * Math.min(T.racha.max, p.perfectStreak || 0) : 0; },
+    },
+    // z24 Peregrino (rango r): en tu zona sagrada haces +4·r % y recibes un 3·r % menos
+    g_z_peregrino: {
+      name: 'Peregrino', desc: 'En tu zona sagrada haces más daño y recibes menos.',
+      condAdd(p) { return inHolyZone(p.game, p, p.pos) ? T.peregrino.dmg * rankOf(p, 'g_z_peregrino') : 0; },
+      condDr(p) { return inHolyZone(p.game, p, p.pos) ? T.peregrino.dr * rankOf(p, 'g_z_peregrino') : 0; },
+    },
+    // z25 Tribunal (final, rango r): la marca aguanta 2/2/3 detonaciones (las siguientes al 40/60/80 %)
+    // y la última salta a 2 enemigos (a 6 m) como marca de un uso que ya no salta
+    g_z_tribunal: {
+      name: 'Tribunal', desc: 'Detonar una marca no la gasta: se detona más veces y la última salta a 2 enemigos.',
+      state: () => ({ track: new WeakMap() }),
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'g_juicio' || !prof.mark) return;
+        prof.mark = { ...prof.mark, uses: T.tribunal.uses[Math.min(3, rankOf(p, 'g_z_tribunal')) - 1] };
+      },
+      onHit(g, p, e, hit) {
+        if (!hit?.detonated || !direct(hit)) return;
+        const st = powerState(p, 'g_z_tribunal');
+        const i = Math.min(3, rankOf(p, 'g_z_tribunal')) - 1;
+        const m = e.marks?.juicio;
+        if (m && m.by === p && !m.tribunal && !m.noJump) {
+          m.tribunal = true;
+          m.detonate = { ...(m.detonate || {}), pct: (m.detonate?.pct || 100) * T.tribunal.pct[i] / 100 };
+          st.track.set(e, m);
+          return;
+        }
+        const old = st.track.get(e);
+        if (m || !old) return;
+        st.track.delete(e);
+        if (!e.alive && !e.pos) return;
+        const prof = juicioProf(p);
+        if (!prof) return;
+        const one = { ...prof, mark: { ...prof.mark, uses: 1, detonate: { ...(old.detonate || prof.mark.detonate) } } };
+        for (const o of nearestEnemies(g, e.pos, T.tribunal.radius, T.tribunal.jump, e)) {
+          if (o.marks?.juicio?.t > 0) continue;
+          const nm = g.applyMark(o, one, p);
+          if (nm) nm.noJump = true;
+        }
+      },
+    },
+    // z26 Martillo Celestial (final, rango r): cada suelta perfecta llama 0,3 s después un martillo
+    // del cielo que repite el 30/45/60 % del golpe (repetición). Martillo +15·(r−1) %: mod del nodo
+    g_z_martillo_celestial: {
+      name: 'Martillo Celestial', desc: 'Cada suelta perfecta llama un martillo del cielo que repite parte del golpe.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'g_martillo' || !cast.perfect || cast.echo || !cast.target) return;
+        const prof = cast.prof;
+        const rel = prof.charge ? chargeRelease(prof.charge, cast.charge?.t ?? prof.charge.max, { def: prof.def || cast.sk }) : { coefMul: 1, radiusMul: 1, addPct: 0 };
+        const pct = T.celestial.pct[Math.min(3, rankOf(p, 'g_z_martillo_celestial')) - 1];
+        const c = cast.target.clone().setY(0), rad = (prof.radius || 3) * (rel.radiusMul || 1);
+        g.timers?.schedule(T.celestial.delay, () => {
+          if (!p.alive) return;
+          g.dealArea(c, rad, prof.coef * (rel.coefMul || 1) * pct / 100,
+            { addPct: (prof.addPct || 0) + (rel.addPct || 0), critBonus: prof.critBonus, from: c, hitInfo: { skill: 'g_martillo', tags: prof.tags, elem: prof.elem }, hitExtra: { echo: true } });
+          g.spawnRing?.(c, rad, 0xfff0a0);
+          fxAt(g, 'holyImpact', c, 0.3);
+        });
+      },
+    },
+    // z27 Tierra Santa (final, rango r): tus zonas sagradas duran mientras estés dentro (hasta
+    // 8/14/20 s) y curan al más herido de dentro un 1 % por segundo (no se suma; cubeta de zona)
+    g_z_tierra_santa: {
+      name: 'Tierra Santa', desc: 'Tus zonas sagradas duran mientras estés dentro y curan al más herido.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const zones = holyZones(g, p);
+        if (!zones.length) return;
+        const cap = T.tierraSanta.cap[Math.min(3, rankOf(p, 'g_z_tierra_santa')) - 1];
+        for (const f of zones) if (insideField(f, p.pos) && (f.age || 0) < cap) f.t = Math.max(f.t, Math.min(cap - (f.age || 0), 0.25));
+        const st = powerState(p, 'g_z_tierra_santa');
+        st.acc += dt;
+        if (st.acc < T.zonaTick - 1e-9) return;
+        const step = st.acc;
+        st.acc = 0;
+        let low = null;
+        for (const a of g.allies ? g.allies() : [p]) {
+          if (!zones.some(f => insideField(f, a.pos)) || !(a.stats?.maxHP > 0) || a.hp >= a.stats.maxHP) continue;
+          if (!low || a.hp / a.stats.maxHP < low.hp / low.stats.maxHP) low = a;
+        }
+        if (low) bucketHeal(g, p, low, 'zona', T.zonaCap, low.stats.maxHP * T.tierraSanta.heal / 100 * step, 'g_z_tierra_santa');
+      },
+    },
+    // z28 Aureola (ápice, rangos): 1) matar a un élite llena el Fervor · 2) el Veredicto cura un 10 %
+    // (la mecánica) · 3) la ventana perfecta empieza 0,15 s antes (mod del nodo) · 4) cada 8
+    // Veredictos, un Cataclismo al 50 % sobre tu objetivo, gratis (repetición: no da Fervor; cada 30 s)
+    g_z_aureola: {
+      name: 'Aureola', desc: 'Matar élites llena el Fervor, el Veredicto cura más y cada 8 Veredictos cae un Cataclismo gratis.',
+      state: () => ({ n: 0, at: -999 }),
+      onKill(g, p, e) { if (isEliteOrBoss(e)) gainGauge(p, 'fervor', gaugeMax(p, 'fervor')); },
+      onGauge(g, p, id, ev) {
+        if (id !== 'fervor' || ev !== 'spent' || rankOf(p, 'g_z_aureola') < 4) return;
+        const st = powerState(p, 'g_z_aureola');
+        st.n++;
+        if (st.n < T.aureola.every || now(p) - st.at < T.aureola.icd - 1e-9) return;
+        const slot = Object.keys(p.hotbar || {}).find(k => p.hotbar[k] === 'g_u_cataclismo');
+        if (!slot) return;
+        st.n = 0; st.at = now(p);
+        g.timers?.schedule(0, () => { if (p.alive) g.castSkillSlot(slot, T.aureola.mul); });
       },
     },
   };
@@ -1752,242 +2869,7 @@ export function guerreroSkillBehaviors() {
         return undefined;   // diferido: termina al caer
       },
     },
-    // c12A Bramido de Guerra: tú y los aliados a 15 m ganan +15 % de vida máxima 10 s y se
-    // curan ese 15 % al instante (curación de habilidad)
-    g_t_bramido: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const targets = castBuff(g, p, prof, sk, ctx);
-        // (addBuff ya recalcula: la cura usa la vida máxima NUEVA)
-        const pct = (sk.healPct || 15) * (prof.buffMul || 1);
-        for (const a of targets) skillHeal(g, p, a, (a.stats?.maxHP || 0) * pct / 100, sk.id);
-        ctx.res.hits = targets.length;
-        return ctx.res;
-      },
-    },
-    // s0 Remolino Sangriento (insignia del Berserker): 2 s girando (te mueves a velocidad
-    // normal), 10 golpes a todo lo que hay a 2,9 m (57 % del arma cada uno) y Sangrado por
-    // golpe (30 % del perfil de Sangrado; los tics llenan la Sed). Carnicería (s6A): +10 % de
-    // radio y el Sangrado salta a 1 enemigo cercano por golpe. No exige mantener la tecla
-    // (canalización del núcleo con hold: false); la esquiva la corta.
-    g_t_remolino: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const rad = prof.radius || 2.9;
-        fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-        return g.startChannel(ctx, cast.done, {
-          hold: false, dur: sk.channelT || 3, ticks: sk.ticks || 10,
-          onTick: () => {
-            p.swing = 1;
-            const hitList = [];
-            g.dealArea(p.pos.clone(), rad, ctx.coef, {
-              ...ctx.areaOpts,
-              onHit: (e, dealt) => { ctx.hit(e, dealt); hitList.push(e); applyBleed(g, p, e, ctx.avgHit, T.remolinoBleedMul * (prof.dotMul || 1), sk.id); },
-            });
-            // Carnicería: el Sangrado salta a `chain` enemigos cercanos que el giro no tocó
-            if (prof.chain > 0 && hitList.length) {
-              const hitSet = new Set(hitList);
-              let left = prof.chain;
-              for (const o of g.enemies || []) {
-                if (left <= 0) break;
-                if (!o.alive || hitSet.has(o)) continue;
-                if (hitList.some(e => e.pos.distanceTo(o.pos) <= T.carniceria.jump)) {
-                  applyBleed(g, p, o, ctx.avgHit, T.remolinoBleedMul * (prof.dotMul || 1), sk.id);
-                  left--;
-                }
-              }
-            }
-            ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
-            fxAt(g, ctx.fx?.extra, p.pos, 0.8);
-          },
-        });
-      },
-    },
-    // s9 Temeridad: 10 s de +25 % de crítico (prof.buff, escala por rango); el MISMO buff
-    // lleva la Sed ×2 (stat del núcleo 'gaugeGain:sed' = +100 %) y el +10 % de daño
-    // recibido (stat dmgTakenPct, tras mitigar), sin escalar
-    g_t_temeridad: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        castBuff(g, p, prof, sk, ctx, {
-          ...prof.buff,
-          'gaugeGain:sed': ((sk.gaugeMult ?? 2) - 1) * 100,
-          dmgTakenPct: sk.dmgTakenPct ?? 10,
-        });
-        ctx.res.hits = 1;
-        return ctx.res;
-      },
-    },
-    // s13B Ira Ciega: pagas un 10 % de tu vida actual: 6 s de +30 % de daño (aditivo) e imparable
-    g_t_ira_ciega: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        p.setHp(Math.max(1, p.hp * (1 - (sk.hpCostPct || 10) / 100)), sk.id);
-        castBuff(g, p, prof, sk, ctx);
-        p.unstoppableT = Math.max(p.unstoppableT || 0, prof.dur);
-        ctx.res.hits = 1;
-        return ctx.res;
-      },
-    },
-    // s0 Grito Desafiante (insignia del Guardián): provoca a todos a 10 m durante 4 s y ganas
-    // 20 de Furia. Cerco (s6A): +50 % de radio y ralentiza 3 s. Sin nadie al alcance no se
-    // gasta el enfriamiento ni da Furia. Desafío Firme (s4): +2 Bastión (afterCast).
-    g_t_desafio: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const rad = prof.radius || 10, dur = prof.dur || 4;
-        const list = (g.enemies || []).filter(e => e.alive && e.pos.distanceTo(p.pos) <= rad);
-        if (!list.length) { refundCd(g, p, sk, 'Ningún enemigo al alcance'); return ctx.res; }
-        for (const e of list) {
-          if (e.applyCC('taunt', dur, { src: p })) ctx.res.hits++;
-          // Paso 2e: los provocados te hacen −weakenPct % de daño mientras dura (× potencia)
-          if (sk.weakenPct > 0) e.weakenOutgoing?.('g_t_desafio', Math.round(sk.weakenPct * (prof.buffMul || 1)), dur);
-          if (prof.slow > 0) e.applyCC('slow', prof.slow, { pct: prof.slowPct || 50, src: p });
-          fxAt(g, ctx.fx?.impact, e.pos, (e.def?.scale || 1) + 0.8);
-        }
-        g.gainResource(p, sk.genOnUse || 0);
-        g.spawnRing?.(p.pos, rad, ctx.color || 0x5599ff);
-        fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-        return ctx.res;
-      },
-    },
-    // s9 Muro de Escudos: gastas TODAS las cargas de Bastión: −10 % de daño recibido por carga
-    // 8 s (máx. −50 %, saco dr). Al terminar: Venganza Acumulada (x2) devuelve un % de lo absorbido.
-    g_t_muro: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const n = Math.floor(gaugeValue(p, 'bastion'));
-        if (n < 1) { refundCd(g, p, sk, 'Muro de Escudos: no tienes cargas de Bastión'); return ctx.res; }
-        spendGauge(p, 'bastion', n);
-        const dr = Math.min(sk.drMax || 50, Math.round((sk.drPerCharge || 10) * n * (prof.buffMul || 1)));
-        const dur = prof.dur || 8;
-        powerState(p, 'g_venganza').absorbed = 0;
-        p.addBuff(sk.id, { dr }, dur, { name: sk.name, icon: sk.icon, desc: `−${dr}% de daño recibido (${n} ${n > 1 ? 'cargas' : 'carga'})` });
-        g.spawnRing?.(p.pos, 1.6, ctx.color || 0x7fb0e8);
-        fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-        g.timers.schedule(dur, () => {
-          if (!hasPower(p, 'g_venganza') || !p.alive) return;
-          const st = powerState(p, 'g_venganza');
-          const total = st.absorbed * T.venganza.pctPerRank * Math.max(1, ownRank(p, 'x2', 'guardian')) / 100;
-          st.absorbed = 0;
-          if (!(total > 0)) return;
-          g.spawnRing?.(p.pos, T.venganza.radius, 0x9fc4ff);
-          fxAt(g, 'vengeanceWave', p.pos, 0.3);
-          for (const e of g.enemies || []) {
-            const r = T.venganza.radius + 0.5 * (e.def?.scale || 1);
-            if (e.alive && e.pos.distanceToSquared(p.pos) <= r * r) dealProcDamage(g, e, total, { source: 'power:g_venganza' });
-          }
-        });
-        ctx.res.hits = n;
-        return ctx.res;
-      },
-    },
-    // s13B Carga de Escudo: cargas hasta 8 m arrastrando a los enemigos (no jefes: se detiene
-    // contra ellos); al llegar, 100 % del arma a todo en 1,9 m y aturde 1,5 s (jefes: stagger)
-    g_t_carga: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const dir = cast.target.clone().sub(p.pos).setY(0);
-        const dist = Math.min(dir.length(), prof.range || sk.range || 8);
-        const dragged = new Set();
-        if (dist > 0.1) {
-          dir.normalize();
-          p.faceToward(p.pos.clone().add(dir));
-          let traveled = 0, n = 0;
-          while (traveled < dist) {
-            const step = Math.min(0.3, dist - traveled);
-            const nx = p.pos.x + dir.x * step, nz = p.pos.z + dir.z * step;
-            if (g.world?.grid && !g.world.grid.walkable(nx, nz)) break;
-            const wall = (g.enemies || []).find(e => e.alive && isBoss(e) && Math.hypot(e.pos.x - nx, e.pos.z - nz) <= 0.6 + 0.5 * (e.def?.scale || 1));
-            if (wall) break;                                       // un jefe para la carga
-            p.pos.x = nx; p.pos.z = nz; traveled += step;
-            for (const e of g.enemies || []) {
-              if (!e.alive || dragged.has(e) || isBoss(e)) continue;
-              const r = 1.1 + 0.5 * (e.def?.scale || 1);
-              if (e.pos.distanceToSquared(p.pos) <= r * r) dragged.add(e);
-            }
-            const fx = p.pos.x + dir.x * 0.9, fz = p.pos.z + dir.z * 0.9;
-            if (!g.world?.grid || g.world.grid.walkable(fx, fz)) for (const e of dragged) { e.pos.x = fx; e.pos.z = fz; }
-            if (ctx.fx?.trail && (n++ % 2 === 0)) fxAt(g, ctx.fx.trail, p.pos, 0.9);
-          }
-        }
-        const rad = prof.radius || 1.9;
-        g.spawnRing?.(p.pos, rad, ctx.color || 0x6699ff);
-        if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, ctx.areaOpts);
-        ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
-        p.swing = 1;
-        fxAt(g, ctx.fx?.impact, p.pos, 0.7);
-        g.addShake?.(0.3);
-        return ctx.res;
-      },
-    },
-    // s0 Aura de Devoción (insignia del Cruzado): 8 s, tú y los aliados a 15 m recuperan un 2 %
-    // de vida por segundo y ganan +30 de armadura (campo g_devocion que te sigue)
-    g_t_devocion: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const old = fieldOf(g, p, 'g_devocion');
-        if (old) old.t = 0;
-        const f = g.spawnField('g_devocion', { pos: p.pos.clone(), radius: sk.allyRadius || 15, dur: prof.dur || 8, owner: p,
-          data: { buff: { ...prof.buff }, buffMul: prof.buffMul || 1, healPctPerSec: sk.healPctPerSec || 2, radius: sk.allyRadius || 15,
-            meta: { name: sk.name, icon: sk.icon, desc: sk.desc }, color: ctx.color || 0xffdd77 } });
-        if (f) devotionPulse(g, f, 0);                       // +armadura al instante
-        g.spawnRing?.(p.pos, sk.allyRadius || 15, ctx.color || 0xffdd77);
-        fxAt(g, ctx.fx?.aura, p.pos, 0.2);
-        fxAt(g, ctx.fx?.extra, p.pos, 1.2);
-        ctx.res.hits = 1;
-        return ctx.res;
-      },
-    },
-    // s9 Veredicto Final: gasta 3 de Fervor (Ascensión: no se gasta): golpe sagrado en cono de
-    // 6 m (300 % del arma); cada aliado a 15 m se cura (sustento) el 25 % (+Gracia) del daño hecho
-    g_t_veredicto: {
-      cast(g, p, prof, cast) {
-        const { sk, ctx } = cast;
-        const need = sk.gaugeCost || 3;
-        if (!buffOf(p, 'g_ascension') && !spendGauge(p, 'fervor', need)) {
-          g.ui?.message?.(`Veredicto Final: necesitas ${need} de Fervor`);
-          return ctx.res;
-        }
-        const dir = cast.target.clone().sub(p.pos).setY(0);
-        if (dir.lengthSq() < 1e-6) dir.set(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
-        dir.normalize();
-        p.faceToward(p.pos.clone().add(dir));
-        p.swing = 1;
-        const list = g.enemiesInCone(p.pos, dir, prof.radius || 6, prof.angle || 90);
-        for (const e of list) {
-          const { dmg, crit } = p.rollDamage(ctx.coef, prof.critBonus, prof.addPct, e, ctx.hitInfo);
-          ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
-        }
-        if (list.length) p.onDealHit();
-        const pct = ((sk.healDealtPct || 25) + (p.tv?.verdictHeal || 0)) / 100;
-        if (ctx.res.dealt > 0) for (const a of g.allies(p.pos, 15)) allySustain(a, ctx.res.dealt * pct, sk.id);
-        const front = p.pos.clone().addScaledVector(dir, (prof.radius || 6) * 0.5);
-        ctx.zoneCenter = front; ctx.zoneRad = (prof.radius || 6) * 0.5;
-        g.spawnRing?.(front, (prof.radius || 6) * 0.5, ctx.color || 0xffe08a);
-        fxAt(g, ctx.fx?.impact, front, 1.0);
-        fxAt(g, ctx.fx?.aura, front, 0.3);
-        ctx.res.verdict = true;
-        return ctx.res;
-      },
-    },
   };
-}
-
-// pulso del Aura de Devoción: buff (armadura, +daño con Luz del Alba) a los aliados en el
-// radio y, si step > 0, 2 %/s de vida × step (curación de aura; +10 % con Devoción Ferviente)
-function devotionPulse(g, f, step) {
-  const o = f.owner;
-  if (!o?.alive) return;
-  const T = tun();
-  const buff = { ...f.data.buff };
-  const heal = (f.data.healPctPerSec || 2) * step * (f.data.buffMul || 1) * (hasPower(o, 'g_devocion_ferviente') ? 1 + T.ferviente.heal / 100 : 1);
-  for (const a of g.allies ? g.allies(v3(f.pos.x, 0, f.pos.z), f.radius) : [o]) {
-    // Luz del Alba (Paso 2e): +25 % de daño a los aliados y +10 % a ti
-    const b = hasPower(o, 'g_luz_alba') ? { ...buff, dmgPct: (buff.dmgPct || 0) + (a === o ? T.alba.selfDmgPct : T.alba.dmgPct) } : buff;
-    keepBuff(a, 'g_t_devocion', b, f.data.interval + 0.15, f.data.meta);
-    if (heal > 0) skillHeal(g, o, a, (a.stats?.maxHP || 0) * heal / 100, 'g_t_devocion');
-  }
 }
 
 // ============================================================
@@ -1995,116 +2877,6 @@ function devotionPulse(g, f, step) {
 // ============================================================
 export function guerreroFields() {
   return {
-    // Aura de Devoción: sigue al dueño; cada 0,5 s renueva el buff y cura. Con Ascensión
-    // cubre 30 m. Luz del Alba la alarga (f.t) al gastar Fervor.
-    g_devocion: {
-      name: 'Aura de Devoción',
-      init(f) { f.data.interval = f.data.interval || 0.5; f.acc = 0; f.ringAcc = 0; },
-      tick(g, f, dt) {
-        const o = f.owner;
-        if (!o?.alive) { f.t = 0; return; }
-        f.pos.x = o.pos.x; f.pos.z = o.pos.z;
-        f.radius = buffOf(o, 'g_ascension') ? tun().ascension.radius : f.data.radius;
-        f.acc += dt; f.ringAcc += dt;
-        if (f.ringAcc >= 1) { f.ringAcc = 0; g.spawnRing?.(v3(f.pos.x, 0.05, f.pos.z), f.radius, f.data.color); }
-        if (f.acc < f.data.interval - 1e-9) return;
-        const step = f.acc; f.acc = 0;
-        devotionPulse(g, f, step);
-      },
-      render(g, f) {
-        if (f.dead) { if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; } return; }
-        if (!f.decal || f.decalR !== f.radius) {
-          if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); }
-          const decal = new THREE.Mesh(new THREE.RingGeometry(f.radius * 0.94, f.radius, 56),
-            new THREE.MeshBasicMaterial({ color: f.data.color, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
-          decal.rotation.x = -Math.PI / 2;
-          g.fxGroup.add(decal);
-          f.decal = decal; f.decalR = f.radius;
-        }
-        f.decal.position.set(f.pos.x, 0.06, f.pos.z);
-        f.decal.material.opacity = 0.22 + 0.1 * Math.abs(Math.sin(f.t * 3));
-      },
-    },
-    // Consagración (Cruzado s6A): el suelo sagrado de Martillo de Guerra cura a los aliados
-    // dentro (curación de aura: 2 % de vida por segundo, cada 0,5 s). El daño es la zona del núcleo.
-    g_consagracion: {
-      name: 'Consagración',
-      init(f) { f.data.interval = 0.5; f.acc = 0; f.data.color = f.data.color ?? 0xffe39a; },
-      tick(g, f, dt) {
-        f.acc += dt;
-        if (f.acc < f.data.interval - 1e-9) return;
-        const step = f.acc; f.acc = 0;
-        const o = f.owner;
-        if (!o?.alive) return;
-        for (const a of g.allies ? g.allies(v3(f.pos.x, 0, f.pos.z), f.radius) : [])
-          skillHeal(g, o, a, (a.stats?.maxHP || 0) * (f.data.healPctPerSec || 2) * step / 100, 'g_consagracion');
-      },
-      render(g, f) {
-        if (f.dead) { if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; } return; }
-        if (!f.decal) {
-          const decal = new THREE.Mesh(new THREE.CircleGeometry(f.radius, 36),
-            new THREE.MeshBasicMaterial({ color: f.data.color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-          decal.rotation.x = -Math.PI / 2;
-          decal.position.set(f.pos.x, 0.055, f.pos.z);
-          g.fxGroup.add(decal);
-          f.decal = decal;
-        }
-        f.decal.material.opacity = 0.1 + 0.1 * Math.max(0, Math.min(1, f.t / (f.dur || 1)));
-      },
-    },
-    // Martillos Benditos (Cruzado x1/x2): orbitan al dueño mientras tenga el poder; cada
-    // segundo cada martillo golpea (proc Sagrado) al enemigo más cercano a su alcance y cada
-    // golpe cura un 1 % de vida (sustento) a los aliados a 15 m
-    g_martillos: {
-      name: 'Martillos Benditos',
-      init(f) { f.acc = 0; f.ang = 0; },
-      tick(g, f, dt) {
-        const o = f.owner;
-        if (!o?.alive || !hasPower(o, 'g_martillo_bendito')) { f.t = 0; return; }
-        f.t = f.dur;
-        f.pos.x = o.pos.x; f.pos.z = o.pos.z;
-        f.ang += dt * 3;
-        const H = tun().hammers;
-        f.acc += dt;
-        if (f.acc < H.every - 1e-9) return;
-        f.acc = 0;
-        const r = hasPower(o, 'g_martillos_juicio') ? Math.max(1, ownRank(o, 'x2', 'cruzado')) : 0;
-        const n = H.n + r;
-        const reach = H.reach;
-        const targets = (g.enemies || []).filter(e => e.alive && e.pos.distanceTo(o.pos) <= reach + 0.5 * (e.def?.scale || 1))
-          .sort((a, b) => a.pos.distanceToSquared(o.pos) - b.pos.distanceToSquared(o.pos));
-        if (!targets.length) return;
-        const holy = o.talentAgg?.mods?.g_t_devocion?.dmg || 0;            // Fe Ardiente (+% Sagrado)
-        const dmg = o.avgHit(H.coef, holy + H.juicioPct * r);
-        const tags = new Set(['holy']);
-        for (let i = 0; i < n; i++) {
-          const e = targets[i % targets.length];
-          if (!e.alive) continue;
-          if (dealProcDamage(g, e, dmg, { source: 'power:g_martillo_bendito', tags }) > 0)
-            for (const a of g.allies ? g.allies(o.pos, H.healRadius) : [o]) allySustain(a, (a.stats?.maxHP || 0) * H.healPct / 100, 'g_martillo_bendito');
-          fxAt(g, 'justiceSpark', e.pos, 1.0);
-        }
-      },
-      render(g, f) {
-        const list = f.meshes || [];
-        if (f.dead) { for (const m of list) { g.fxGroup.remove(m); m.geometry.dispose(); m.material.dispose(); } f.meshes = null; return; }
-        const o = f.owner;
-        const H = tun().hammers;
-        const n = H.n + (o && hasPower(o, 'g_martillos_juicio') ? Math.max(1, ownRank(o, 'x2', 'cruzado')) : 0);
-        while (list.length < n) {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.42, 0.18),
-            new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
-          g.fxGroup.add(m); list.push(m);
-        }
-        while (list.length > n) { const m = list.pop(); g.fxGroup.remove(m); m.geometry.dispose(); m.material.dispose(); }
-        f.meshes = list;
-        for (let i = 0; i < list.length; i++) {
-          const a = f.ang + i * Math.PI * 2 / list.length;
-          list[i].position.set(f.pos.x + Math.cos(a) * 1.6, 1.1 + 0.15 * Math.sin(f.ang * 2 + i), f.pos.z + Math.sin(a) * 1.6);
-          list[i].rotation.set(0, -a, 0.6);
-        }
-      },
-    },
     // Pendón del Caudillo (h3): un pulso al clavarse y otro cada 0,5 s (pendonPulse); con
     // Abanderado sigue al dueño (follow 'owner' del núcleo); al acabar, Relevo da un escudo del
     // 10 % de su vida a los aliados a 8 m

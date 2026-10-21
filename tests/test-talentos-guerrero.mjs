@@ -16,7 +16,9 @@ import { GUERRERO_TV_KEYS } from '../js/talents-guerrero.js';
 import { resolveSkill } from '../js/skill-resolve.js';
 import { firePower, powerState, POWER_HOOKS } from '../js/powers.js';
 import { CLASSES } from '../js/data.js';
-import { dotProfile, healScaled } from '../js/combat-math.js';
+import * as THREE from 'three';
+import { dotProfile, healScaled, multiplierProduct, blockReduction } from '../js/combat-math.js';
+import { gaugeMax } from '../js/spec-mechanics.js';
 
 const TT = TALENT_TREES.guerrero;
 const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
@@ -396,7 +398,10 @@ check('c23', () => {
   const run = r => {
     const h = r ? cls({ c23: r }) : cls();
     const e = h.enemy({ hp: 1e6 });
-    for (const id of ['embestida', 'g_piel', 'grito_guerra']) h.g._startCooldown(h.p, id, prof(h, id));
+    h.g._startCooldown(h.p, 'g_piel', prof(h, 'g_piel'));
+    h.tick(prof(h, 'g_piel').dur + 0.2);                // la Piel se recarga al acabar su efecto
+    for (const id of ['embestida', 'grito_guerra']) h.g._startCooldown(h.p, id, prof(h, id));
+    assert.ok(h.p.cds.g_piel > 5 && h.p.cds.embestida > 1, 'c23: las recargas corren');
     const before = { ...h.p.cds };
     hitWith(h, e, 'g_tajo', { crit: false });
     hitWith(h, e, 'g_lanza', { crit: true });
@@ -565,6 +570,19 @@ check('t3', () => {
   cast(h, 'rmb', 'g_hendidura', { aim: [1.5, 0], mp: 100, sec: 0.5 });
   assert.ok(h.p.unstoppableT > 2.4, `t3: imparable 3 s tras el Golpe de Titán (${h.p.unstoppableT})`);
 });
+// t4A Bramido de Titán: aturde a 6 m (a los jefes, Quebranto) y arma el Golpe de Titán
+check('t4A', () => {
+  const h = hero('berserker', 'h1', { t4: 1 }, { t4: 'A' });
+  assert.ok(!!h.p.skills.g_h_bramido, 't4A: concede el Bramido de Titán');
+  const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }), far = h.enemy({ hp: 1e6, pos: [9, 0, 0] }), boss = h.enemy({ hp: 1e9, boss: true, pos: [0, 0, 3] });
+  assert.ok(!buff(h.p, 'g_ti_golpe_titan'), 't4A: sin Golpe de Titán armado');
+  cast(h, 'k2', 'g_h_bramido', { sec: 0.2 });
+  assert.ok(e.stunT > 1 && !(far.stunT > 0), `t4A: aturde 1,5 s a los de 6 m (${e.stunT})`);
+  assert.ok(!(boss.stunT > 0) && boss.stagger > 0, 't4A: a los jefes, Quebranto');
+  assert.ok(buff(h.p, 'g_ti_golpe_titan'), 't4A: tu siguiente principal es un Golpe de Titán');
+  const n = hero('berserker', 'h1', { t4: 1 }, { t4: 'B' });
+  assert.ok(!!!n.p.skills.g_h_bramido, 't4B no concede el Bramido');
+});
 check('t4B', () => {
   const h = hero('berserker', 'h1', { t4: 1 }, { t4: 'B' });
   h.enemy({ hp: 1e6, pos: [1.5, 0, 0] });
@@ -601,9 +619,10 @@ check('t8A', () => {
     h.enemy({ hp: 1e6, pos: [3, 0, 3] });
     chargeTitan(h, [3, 3]);
     // la víctima dentro del cono y de la sacudida; el vecino fuera de ambos, a 3 m de ella
-    const victim = h.enemy({ hp: 1, pos: [3, 0, 0] }), nb = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+    // (la build del Berserker agranda el cono un 30 %: el vecino, a 3 m pero fuera de su alcance)
+    const victim = h.enemy({ hp: 1, pos: [4.8, 0, 0] }), nb = h.enemy({ hp: 1e6, pos: [7.8, 0, 0] });
     const hp0 = nb.hp;
-    cast(h, 'rmb', 'g_hendidura', { aim: [3, 0], mp: 100, sec: 0.5 });
+    cast(h, 'rmb', 'g_hendidura', { aim: [4.8, 0], mp: 100, sec: 0.5 });
     return { dead: !victim.alive, boom: nb.hp < hp0 };
   };
   assert.deepEqual(run(false), { dead: true, boom: false }, 'sin t8A no estalla');
@@ -719,6 +738,18 @@ check('l3', () => {
   h.tick(0.2);
   assert.ok(e.hp < hp0 && approx(e.slowPct, 40) && e.slowT > 0, 'l3: Lanza gratis al Rival que lo ralentiza un 40 %');
   assert.ok(behind.hp < b0 && off.hp === o0, 'l3: atraviesa la línea, no da a los de al lado');
+});
+// l4A Desafío de Arena: nombra Rival al de la mira, lo encierra contigo y le da Debilidad
+check('l4A', () => {
+  const h = hero('berserker', 'h2', { l4: 1 }, { l4: 'A' });
+  const e = h.enemy({ hp: 1e6, pos: [4, 0, 0] }), other = h.enemy({ hp: 1e6, pos: [-4, 0, 0] });
+  cast(h, 'k2', 'g_h_desafio', { aim: [4, 0], sec: 0.2 });
+  const z = (h.g.fields || []).find(f => !f.dead && f.kind === 'zona' && f.data?.skill === 'g_h_desafio');
+  assert.ok(z && z.data.contain && z.radius === 6, 'l4A: un círculo de 6 m que encierra');
+  assert.ok(e.marks?.g_h_desafio, 'l4A: le marca (Debilidad +20 %)');
+  assert.equal(condAdd(h, e, hit('g_tajo')) - condAdd(h, other, hit('g_tajo')), 15, 'l4A: es tu Rival (+15 %); el +20 % es la Debilidad de su marca (no se suma dos veces)');
+  const n = hero('berserker', 'h2', { l4: 1 }, { l4: 'B' });
+  assert.ok(!!!n.p.skills.g_h_desafio, 'l4B no concede el Desafío');
 });
 check('l4B', () => {
   const h = hero('berserker', 'h2', { l4: 1 }, { l4: 'B' });
@@ -878,6 +909,19 @@ check('u3', () => {
   assert.ok(a.ally === 0 && b.ally > 0 && b.me > a.me, `u3: al clavarlo, curas a todos a 8 m (${JSON.stringify(b)})`);
   assert.equal(b.far, 0, 'u3: no a los que están lejos');
 });
+// u4A Estandarte de Guerra: clava al instante un Pendón en la mira (no un aura aparte)
+check('u4A', () => {
+  const h = hero('cruzado', 'h3', { u4: 1 }, { u4: 'A' });
+  h.enemy({ hp: 1e6, pos: [40, 0, 0] });
+  h.tick(0.3);
+  assert.equal(pendons(h).length, 0, 'u4A: sin enemigos cerca no se clava el automático');
+  cast(h, 'k2', 'g_h_estandarte', { aim: [6, 0], sec: 0.2 });
+  const p = pendons(h);
+  assert.ok(p.length === 1 && approx(p[0].pos.x, 6, 0.01) && approx(p[0].pos.z, 0, 0.01), 'u4A: un Pendón en la mira');
+  assert.ok(!(h.g.fields || []).some(f => !f.dead && f.kind === 'aura' && f.data?.buffId === 'g_h_estandarte') && !buff(h.p, 'g_h_estandarte'), 'u4A: sin aura aparte');
+  const n = hero('cruzado', 'h3', { u4: 1 }, { u4: 'B' });
+  assert.ok(!!!n.p.skills.g_h_estandarte, 'u4B no concede el Estandarte');
+});
 check('u4B', () => {
   const h = hero('cruzado', 'h3', { u4: 1 }, { u4: 'B' });
   const f = planted(h);
@@ -943,35 +987,1207 @@ check('u12', () => {
   assert.ok(f2 && !f2.data.gran && f2.radius === 8, 'u12: el siguiente es normal (cada 40 s)');
 });
 
-// ================================================================ cobertura
-const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => [`${n.id}${o.k}`, o]) : n.free && !Object.keys(n.fx || {}).length ? [] : [[n.id, n]]));
-const ALL = [...keysOf(TT.cls.nodes), ...TT.hero.flatMap(h => keysOf(h.nodes))];
-// opciones cuya activa (y su grant) escribe KA1 (punto 16 del plan): hasta entonces conservan `todo`
-const PENDING_GRANT = { c17A: 'grito_guerra', t4A: 'g_h_bramido', l4A: 'g_h_desafio', u4A: 'g_h_estandarte' };
-let pend = 0;
-for (const [key, o] of ALL) {
-  if (PENDING_GRANT[key]) {
-    const id = PENDING_GRANT[key];
-    const act = CLASSES.guerrero.skills.find(s => s.id === id && s.kind === 'talent');
-    if (act) assert.equal(o.fx?.grant, id, `${key}: la activa ${id} ya existe: su opción la concede`);
-    else { assert.ok(o.todo, `${key}: sin la activa ${id}, la opción sigue pendiente (todo)`); pend++; }
-    continue;
+// ================================================================ ESPECIALIZACIONES (trabajos 2 y 3)
+// SOLO los nodos pedidos de la especialización (y su clave gratis), Nv100
+function spec(sp, ranks = {}, choice = {}, opts = {}) {
+  const h = makeHarness({ classId: 'guerrero', spec: sp, level: opts.level || 100, seed: opts.seed || 7, talents: { specRanks: ranks, choice, cls: opts.cls || {} } });
+  assert.equal(h.p.talentAgg.spec, sp, `${sp}: especialización activa`);
+  return h;
+}
+const hasPw = (h, id) => [...h.p.powers].includes(id);
+// impacto por ⑤ con los campos de HitInfo que h.hit no pasa (step, perfect, repeat, echo, detonated)
+function fire(h, e, extra = {}) {
+  const hit = { dealt: 100, raw: 100, crit: false, skill: null, elem: 'physical', proc: false, dot: false, source: 'hit', pos: { x: e.pos.x, z: e.pos.z }, ...extra };
+  hit.tags = new Set(extra.tags || CLASSES.guerrero.skills.find(s => s.id === hit.skill)?.tags || []);
+  h.g.onPlayerHit(e, hit);
+  return hit;
+}
+// registro de los impactos que pasan por ⑤ (copia de su HitInfo)
+function spyHits(h) {
+  const log = [];
+  const orig = h.g.onPlayerHit.bind(h.g);
+  h.g.onPlayerHit = (e, hit) => { log.push({ e, ...hit }); return orig(e, hit); };
+  return log;
+}
+// suma de condAdd de los poderes EN EL MOMENTO de cada tirada de daño
+function spyAdd(h) {
+  const log = [];
+  const orig = h.p.rollDamage.bind(h.p);
+  h.p.rollDamage = (coef, cb, add, e, info) => {
+    log.push({ e, skill: info?.skill, add: firePower('condAdd', h.p, h.p, e, info || {}), t: h.p.simT });
+    return orig(coef, cb, add, e, info);
+  };
+  return log;
+}
+const v3t = (x, z) => new THREE.Vector3(x, 0, z);
+// curas que recibe un aliado del arnés, por fuente
+function healsBy(a) {
+  const log = {}, orig = a.healSkill.bind(a);
+  a.healSkill = (n, src) => { const got = orig(n, src); log[src] = (log[src] || 0) + got; return got; };
+  return log;
+}
+const dotsOf = (h, e, k = 'bleed') => h.g.dotsOf(e, k);
+// combo de Rajar en su 3.er golpe
+function rajar3(h, aim = [2, 0], sec = 0.5) { h.g.setComboStep(h.p, 'g_rajar', 3); return cast(h, 'rmb', 'g_rajar', { aim, mp: 100, sec }); }
+// salto (o relanzamiento) del Salto Devastador
+const jump = (h, aim = [4, 0], sec = 0.9) => cast(h, 'k1', 'g_salto', { aim, sec });
+// gasta los segundos de una recarga «al acabar» (Piel de Hierro): pasa su efecto y deja la recarga corriendo
+function pielRecharging(h) {
+  h.g._startCooldown(h.p, 'g_piel', prof(h, 'g_piel'));
+  h.tick(prof(h, 'g_piel').dur + 0.2);
+  assert.ok(h.p.cds.g_piel > 5, 'la Piel de Hierro se está recargando');
+}
+
+// ---------------- BERSERKER (b*) ----------------
+check('b0', () => {
+  const b = spec('berserker'), d = spec('guardian');
+  assert.ok(hasPw(b, 'm_berserk') && !hasPw(d, 'm_berserk'), 'b0: Al borde (m_berserk) es del Berserker');
+  assert.equal(b.p.talentAgg.mechanic, 'sed', 'b0: la mecánica es la Sed');
+  assert.ok(approx(multiplierProduct(b.p.powers, { hpFrac: 0.3, p: b.p }), 1.25), 'b0: ×1,25 con menos del 40 % de vida');
+  assert.equal(multiplierProduct(b.p.powers, { hpFrac: 0.9, p: b.p }), 1, 'b0: con la vida alta, nada');
+  b.gauge('sed', 100);
+  assert.ok(b.gaugeState('sed').satedT > 5.9, 'b0: a 100, Sed Saciada 6 s');
+  assert.ok(approx(multiplierProduct(b.p.powers, { hpFrac: 0.9, p: b.p }), 1.25), 'b0: con la Sed Saciada, ×1,25 aunque la vida esté alta');
+  assert.equal(multiplierProduct(d.p.powers, { hpFrac: 0.3, p: d.p }), 1, 'b0: el Guardián no lo tiene');
+});
+check('b1', () => {
+  const t = r => dotProfile('bleed', 100, { tv: (r ? spec('berserker', { b1: r }) : spec('berserker')).p.tv }).ticks;
+  assert.equal(t(0), 3);
+  assert.equal(t(3), 6, 'b1 r3: los Sangrados duran 6 s');
+});
+check('b2', () => {
+  assert.equal(prof(spec('berserker', { b2: 3 }), 'g_rajar').critBonus - prof(spec('berserker'), 'g_rajar').critBonus, 15, 'b2 r3: Rajar +15 % de crítico');
+  assert.equal(prof(spec('berserker', { b2: 3 }), 'g_salto').critBonus, prof(spec('berserker'), 'g_salto').critBonus, 'b2: solo Rajar');
+});
+check('b3', () => {
+  assert.ok(approx(prof(spec('berserker', { b3: 3 }), 'g_salto').cd, 7.5), 'b3 r3: el Salto se recarga en 7,5 s');
+  assert.ok(approx(prof(spec('berserker'), 'g_salto').cd, 12));
+});
+check('b4', () => {
+  const a = dotProfile('bleed', 100, { tv: spec('berserker').p.tv }).total, b = dotProfile('bleed', 100, { tv: spec('berserker', { b4: 2 }).p.tv }).total;
+  assert.ok(approx(b / a, 1.3), 'b4 r2: Sangrados +30 %');
+});
+check('b5', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b5: 1 }) : spec('berserker');
+    const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] });
+    h.g.applyDoT(e, 300, 3, 1, undefined, 'g_tajo:bleed');
+    h.tick(2.05);
+    const sed0 = h.gaugeValue('sed');
+    fire(h, e, { skill: 'g_rajar', step: 1 });
+    fire(h, e, { skill: 'g_rajar', step: 1 });
+    return { left: dotsOf(h, e)[0]?.left, sed: h.gaugeValue('sed') - sed0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.left === 1 && a.sed === 0, `sin b5 no reinicia (${JSON.stringify(a)})`);
+  assert.ok(b.left === 3 && approx(b.sed, 3), `b5: reinicia el Sangrado y da 3 de Sed una vez por golpe (${JSON.stringify(b)})`);
+});
+check('b6', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b6: 1 }) : spec('berserker');
+    h.enemy({ hp: 1e6, pos: [4, 0, 0] });
+    jump(h);
+    return h.p.skState?.g_rajar?.combo?.idx || 0;
+  };
+  assert.equal(run(false), 0, 'sin b6 el combo empieza por el 1.º');
+  assert.equal(run(true), 2, 'b6: tras caer, el siguiente Rajar es el 3.er golpe');
+});
+check('b7', () => {
+  const run = r => {
+    const h = r ? spec('berserker', { b7: r }) : spec('berserker');
+    const e = h.enemy({ hp: 1e6, pos: [4, 0, 0] });
+    jump(h, [4, 0], 0.5);
+    return { t: e.slowT || 0, pct: e.slowPct || 0 };
+  };
+  assert.equal(run(0).t, 0, 'sin b7 la caída no ralentiza');
+  const r1 = run(1), r2 = run(2);
+  assert.ok(r1.pct === 25 && r2.pct === 50 && r2.t > 1.8 && r2.t <= 2, `b7: ralentiza 25/50 % durante 2 s (${JSON.stringify(r2)})`);
+});
+check('b8A', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b8: 1 }, { b8: 'A' }) : spec('berserker');
+    const a = h.enemy({ hp: 1000, pos: [3, 0, 0] }), b = h.enemy({ hp: 1e6, pos: [4.5, 0, 0] }), c = h.enemy({ hp: 1e6, pos: [3, 0, 2] }), far = h.enemy({ hp: 1e6, pos: [8, 0, 0] });
+    h.g.applyDoT(a, 300, 3, 1, undefined, 'g_tajo:bleed');
+    a.takeDamage(1e6, false, {});
+    return [b, c, far].map(e => h.g.dotRemaining(e, 'bleed'));
+  };
+  assert.deepEqual(run(false), [0, 0, 0], 'sin b8A no se contagia');
+  const [b, c, far] = run(true);
+  assert.ok(approx(b, 300, 1) && approx(c, 300, 1) && far === 0, `b8A: lo que le quedaba pasa a 2 enemigos a 3 m (${b}, ${c}, ${far})`);
+});
+check('b8B', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b8: 1 }, { b8: 'B' }) : spec('berserker');
+    const e = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
+    rajar3(h); rajar3(h); rajar3(h); rajar3(h);
+    return dotsOf(h, e).length;
+  };
+  assert.equal(run(false), 1, 'sin b8B un solo Sangrado de Rajar');
+  assert.equal(run(true), 3, 'b8B: hasta 3 Sangrados a la vez en el mismo enemigo');
+});
+check('b9A', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b9: 1 }, { b9: 'A' }) : spec('berserker');
+    h.enemy({ hp: 1e7, pos: [2, 0, 0] });
+    const side = h.enemy({ hp: 1e7, pos: [2, 0, 3.4] });
+    rajar3(h);
+    return 1e7 - side.hp;
+  };
+  assert.equal(run(false), 0, 'sin b9A el 3.er golpe no alcanza a 3,4 m');
+  assert.ok(run(true) > 0, 'b9A: la onda alcanza a todos a 4 m');
+});
+check('b9B', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b9: 1 }, { b9: 'B' }) : spec('berserker');
+    const boss = h.enemy({ hp: 1e8, boss: true, pos: [2, 0, 0] });
+    const log = spyHits(h);
+    for (let i = 0; i < 4; i++) rajar3(h, [2, 0], 0.6);
+    const s3 = log.filter(x => x.skill === 'g_rajar' && x.step === 3 && !x.proc && !x.dot);
+    return { crits: s3.filter(x => x.crit).length, n: s3.length, stagger: boss.stagger || 0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(b.n === 4 && b.crits === 4, `b9B: el 3.er golpe es crítico seguro (${JSON.stringify(b)})`);
+  assert.ok(a.crits < a.n && a.stagger < 1, `sin b9B ni crítico seguro ni Quebranto (${JSON.stringify(a)})`);
+  assert.ok(b.stagger >= 4 * 15 - 1e-6, `b9B: 15 de Quebranto por golpe (${b.stagger})`);
+});
+check('b10A', () => {
+  assert.equal(prof(spec('berserker', { b10: 1 }, { b10: 'A' }), 'g_salto').recast.n, 5, 'b10A: hasta 5 saltos');
+  assert.equal(prof(spec('berserker'), 'g_salto').recast.n, 3);
+});
+check('b10B', () => {
+  const h = spec('berserker', { b10: 1 }, { b10: 'B' });
+  const boss = h.enemy({ hp: 1e9, boss: true, pos: [4, 0, 0] });
+  const add = () => condAdd(h, boss, hit('g_salto'));
+  assert.equal(add(), 0);
+  jump(h); assert.equal(add(), 40, 'b10B: 2.º salto seguido +40 %');
+  jump(h); assert.equal(add(), 80, 'b10B: 3.º +80 %');
+  const n = spec('berserker');
+  const b2 = n.enemy({ hp: 1e9, boss: true, pos: [4, 0, 0] });
+  jump(n); assert.equal(condAdd(n, b2, hit('g_salto')), 0, 'sin b10B nada');
+  // la cadena nueva empieza de cero
+  h.tick(13);
+  h.p.cds.g_salto > 0 || jump(h);
+  assert.equal(powerState(h.p, 'g_b_salto_aplastante').chain.get(boss), 1, 'b10B: una cadena nueva empieza en el 1.er salto');
+});
+check('b11', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b11: 2 }) : spec('berserker');
+    const e = h.enemy({ hp: 1000, pos: [2, 0, 0] });
+    h.g.applyDoT(e, 300, 3, 1, undefined, 'g_tajo:bleed');
+    h.p.hp = h.p.stats.maxHP * 0.5; h.p.mp = 0;
+    e.takeDamage(1e6, false, {});
+    return { hp: h.p.hp / h.p.stats.maxHP - 0.5, mp: h.p.mp };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.hp === 0 && a.mp === 0, 'sin b11 nada');
+  assert.ok(approx(b.hp, 0.04, 1e-3) && approx(b.mp, 8), `b11 r2: matar a uno que sangra cura un 4 % y da 8 de Furia (${JSON.stringify(b)})`);
+});
+check('b12', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b12: 2 }) : spec('berserker');
+    const e = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
+    pielRecharging(h);
+    for (const id of ['g_salto', 'g_remolino', 'g_u_furia']) h.g._startCooldown(h.p, id, prof(h, id));
+    const before = { ...h.p.cds };
+    fire(h, e, { skill: 'g_rajar', crit: true });
+    fire(h, e, { skill: 'g_rajar', crit: true });
+    fire(h, e, { skill: 'g_hendidura', crit: true });
+    return Object.fromEntries(['g_salto', 'g_remolino', 'g_u_furia', 'g_piel'].map(id => [id, Math.round((before[id] - h.p.cds[id]) * 100) / 100]));
+  };
+  assert.deepEqual(run(false), { g_salto: 0, g_remolino: 0, g_u_furia: 0, g_piel: 0 }, 'sin b12 nada');
+  assert.deepEqual(run(true), { g_salto: 1, g_remolino: 1, g_u_furia: 0, g_piel: 0 }, 'b12 r2: −1 s salvo definitiva y Piel, una vez cada 1,5 s');
+});
+check('b13', () => { assert.equal(prof(spec('berserker', { b13: 2 }), 'g_salto').addPct - prof(spec('berserker'), 'g_salto').addPct, 40, 'b13 r2: Salto +40 %'); });
+check('b14', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b14: 1 }) : spec('berserker');
+    const e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), boss = h.enemy({ hp: 1e9, boss: true, pos: [4, 0, 1] });
+    jump(h, [4, 0], 0.5);
+    const first = e.stunT || 0;
+    h.tick(0.8);
+    jump(h, [4, 0], 0.5);
+    return { first, second: e.stunT || 0, stagger: boss.stagger || 0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.first === 0 && a.stagger < 1, `sin b14 la caída no aturde (${JSON.stringify(a)})`);
+  assert.ok(b.first > 0.4 && !(b.second > 0), `b14: aturde 0,5 s; el mismo enemigo, una vez cada 4 s (${JSON.stringify(b)})`);
+  assert.ok(approx(b.stagger - a.stagger, 15, 0.01), `b14: a los jefes, 15 de Quebranto (${b.stagger})`);
+});
+check('b15A', () => {
+  const h = spec('berserker', { b15: 1 }, { b15: 'A' });
+  h.p.hp = 5; h.p.takeDamage(1e7, 1, {});
+  assert.ok(h.p.alive && h.p.hp === 1 && approx(h.gaugeValue('sed'), 50) && !(h.gaugeState('sed').satedT > 0), 'b15A: te deja con 1 de vida y la Sed en 50');
+  h.tick(2); h.p.hp = 5; h.p.takeDamage(1e7, 1, {});
+  assert.ok(!h.p.alive, 'b15A: una vez cada 2 min');
+});
+check('b15B', () => {
+  const h = spec('berserker', { b15: 1 }, { b15: 'B' }), n = spec('berserker');
+  for (const x of [h, n]) x.p.hp = x.p.stats.maxHP * 0.3;
+  assert.equal(condDr(h) - condDr(n), 15, 'b15B: con menos del 40 % de vida, −15 % de daño recibido');
+  h.p.hp = h.p.stats.maxHP;
+  assert.equal(condDr(h), condDr(n), 'b15B: con la vida alta, nada');
+});
+check('b16', () => {
+  const h = spec('berserker', { b16: 2 }), n = spec('berserker');
+  const base = h.p.stats.aspdPct;
+  h.gauge('sed', 40); h.tick(0.2);
+  assert.equal(h.p.stats.aspdPct, base, 'b16: con 40 de Sed, nada');
+  h.gauge('sed', 60); h.tick(0.2);
+  assert.equal(h.p.stats.aspdPct - base, 16, 'b16 r2: con más de 50 de Sed, +16 % de velocidad');
+  n.gauge('sed', 60); n.tick(0.2);
+  assert.equal(n.p.stats.aspdPct, base, 'sin b16 nada');
+  h.gauge('sed', 30); h.tick(0.4);
+  assert.equal(h.p.stats.aspdPct, base, 'b16: al bajar de 50 se va');
+});
+check('b17', () => {
+  const h = spec('berserker', { b17: 2 });
+  assert.ok(prof(h, 'g_salto').cd > 0 && prof(h, 'g_salto').recast.n === 3);
+  h.g._startCooldown(h.p, 'g_salto', prof(h, 'g_salto'));
+  cast(h, 'k4', 'g_u_furia', { sec: 0.1 });
+  assert.ok(buff(h.p, 'g_u_furia') && !(h.p.cds.g_salto > 0), 'b17: al lanzar Furia Inmortal el Salto queda listo');
+  assert.ok(prof(h, 'g_salto').cd === 0 && prof(h, 'g_salto').recast.n === 5, 'b17 r2: no se recarga y encadena 2 saltos más');
+  const n = spec('berserker');
+  n.g._startCooldown(n.p, 'g_salto', prof(n, 'g_salto'));
+  cast(n, 'k4', 'g_u_furia', { sec: 0.1 });
+  assert.ok(n.p.cds.g_salto > 0 && prof(n, 'g_salto').cd > 0, 'sin b17 el Salto sigue su recarga');
+});
+check('b18', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b18: 2 }) : spec('berserker');
+    const fresh = h.enemy({ hp: 1e6, pos: [1, 0, 0] }), bleeding = h.enemy({ hp: 1e6, pos: [0, 0, 1] });
+    h.g.applyDoT(bleeding, 300, 3, 1, undefined, 'g_tajo:bleed');
+    h.p.mp = 0;
+    fire(h, fresh, { skill: 'g_remolino' });
+    const a = h.p.mp;
+    fire(h, bleeding, { skill: 'g_remolino' });
+    return [a, h.p.mp - a];
+  };
+  assert.deepEqual(run(false), [0, 0], 'sin b18 nada');
+  assert.deepEqual(run(true), [4, 0], 'b18 r2: +4 de Furia por enemigo que empiezas a desangrar (no si ya sangraba)');
+});
+check('b19', () => {
+  const run = (on, elite) => {
+    const h = on ? spec('berserker', { b19: 2 }) : spec('berserker');
+    const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }), el = h.enemy({ hp: 1e6, pos: [2, 0, 1], rank: 'elite' });
+    fire(h, e, { skill: 'g_rajar', step: 3 });
+    if (elite) fire(h, el, { skill: 'g_rajar', step: 3 });
+    fire(h, e, { skill: 'g_rajar', step: 2 });
+    return h.gaugeValue('sed');
+  };
+  assert.equal(run(false, true), 0, 'sin b19 nada');
+  assert.equal(run(true, false), 10, 'b19 r2: el 3.er golpe da 10 de Sed');
+  assert.equal(run(true, true), 20, 'b19: el doble si alcanza a un élite (una vez por golpe)');
+});
+check('b20', () => {
+  const a = spec('berserker'), b = spec('berserker', { b20: 2 });
+  assert.ok(approx(prof(b, 'g_rajar').radiusMul / prof(a, 'g_rajar').radiusMul, 1.3) && approx(prof(b, 'g_remolino').radius / prof(a, 'g_remolino').radius, 1.3), 'b20 r2: área cuerpo a cuerpo +30 %');
+  assert.equal(prof(b, 'g_salto').radiusMul, prof(a, 'g_salto').radiusMul, 'b20: el Salto (sin cuerpo a cuerpo) no');
+});
+check('b21', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b21: 1 }) : spec('berserker');
+    const e = h.enemy({ hp: 1e9, pos: [4, 0, 0] });
+    const log = spyHits(h);
+    jump(h);
+    h.tick(2.3);                                       // la cadena caduca: ese salto fue el último
+    const dealt = log.filter(x => x.skill === 'g_salto' && !x.dot && !x.proc).reduce((a, x) => a + x.dealt, 0);
+    return { bleed: dotsOf(h, e).filter(d => d.source === 'g_salto:bleed'), dealt };
+  };
+  assert.equal(run(false).bleed.length, 0, 'sin b21 no desangra');
+  const r = run(true);
+  assert.ok(r.bleed.length === 1 && r.bleed[0].ticks === 3 && approx(r.bleed[0].total, r.dealt, 2), `b21: el último salto desangra el 100 % de su golpe en 3 s (${r.bleed[0]?.total} ≈ ${r.dealt})`);
+});
+check('b22', () => {
+  const run = on => {
+    const h = on ? spec('berserker', { b22: 3 }) : spec('berserker');
+    const e = h.enemy({ hp: 1e6, pos: [3.7, 0, 0] });
+    h.g.applyDoT(e, 300, 3, 1, undefined, 'g_tajo:bleed');
+    h.setSlot('k3', 'g_remolino'); h.p.mp = 100;
+    h.press('k3'); h.step(0.6);
+    const hp0 = e.hp;
+    h.release('k3'); h.step(0.05);
+    return { dmg: hp0 - e.hp, bleed: h.g.dotRemaining(e, 'bleed') };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.dmg === 0 && a.bleed > 0, 'sin b22 el Sangrado sigue');
+  assert.ok(approx(b.dmg, 195, 2) && b.bleed === 0, `b22 r3: al soltar, estalla el 65 % de lo que quedaba (${JSON.stringify(b)})`);
+});
+check('b23', () => {
+  const h = spec('berserker', { b23: 3 }), n = spec('berserker');
+  for (const x of [h, n]) {
+    const e = x.enemy({ hp: 1000, pos: [2, 0, 0] });
+    e.hp = 400;
+    x.g.setComboStep(x.p, 'g_rajar', 3);
+    x.setSlot('rmb', 'g_rajar'); x.aim(2, 0); x.p.mp = 100;
+    assert.ok(x.cast('rmb'), 'b23: Rajar sale');        // en la preparación del 3.er golpe
+    x.add = condAdd(x, e, hit('g_rajar'));
+    x.step(0.5);
+    x.after = condAdd(x, e, hit('g_rajar'));
   }
+  assert.ok(h.add === 54 && h.after === 0, `b23 r3: +9 % por cada 10 % de vida que falta en el 3.er golpe (${h.add}, ${h.after})`);
+  assert.equal(n.add, 0, 'sin b23 nada');
+});
+check('b24', () => {
+  const h = spec('berserker', { b24: 3 });
+  h.enemy({ hp: 1e9, pos: [4, 0, 0] });
+  jump(h); assert.equal(buff(h.p, 'g_b_impetu')?.stats.dmgPct, 9, 'b24 r3: +9 % por salto');
+  jump(h); assert.equal(buff(h.p, 'g_b_impetu')?.stats.dmgPct, 18, 'b24: se suma');
+  h.tick(8.2);
+  assert.ok(!buff(h.p, 'g_b_impetu'), 'b24: 8 s');
+  const n = spec('berserker'); n.enemy({ hp: 1e9, pos: [4, 0, 0] }); jump(n);
+  assert.ok(!buff(n.p, 'g_b_impetu'), 'sin b24 nada');
+});
+check('b25', () => {
+  const run = r => {
+    const h = r ? spec('berserker', { b25: r }) : spec('berserker');
+    const e = h.enemy({ hp: 1e9, pos: [1.5, 0, 0] });
+    const hold = s => { for (let t = 0; t < s - 1e-9; t += 0.1) { e.pos.set(1.5, 0, 0); h.step(0.1); } };   // quieto al alcance
+    h.setSlot('k3', 'g_remolino'); h.p.mp = 100;
+    h.press('k3');
+    hold(4.5);
+    const mid = { on: !!h.g._channel, mp: h.p.mp };
+    hold(2.0);
+    const late = !!h.g._channel;
+    h.release('k3');
+    return { ...mid, late, bleedPct: h.p.tv.bleedPct || 0 };
+  };
+  const a = run(0), b = run(1), c = run(2);
+  assert.ok(!a.on, 'sin b25 el giro acaba a los 3 s');
+  assert.ok(b.on && !b.late, `b25 r1: sigue mientras toques a alguien que sangra, hasta 6 s (${JSON.stringify(b)})`);
+  assert.ok(approx(b.mp, 100 - 30 - 12, 1.5), `b25: 8 de Furia por segundo tras 3 s (${b.mp})`);
+  assert.ok(c.late && c.bleedPct === 15, `b25 r2: hasta 10 s y Sangrados +15 % (${JSON.stringify(c)})`);
+});
+check('b26', () => {
+  const run = r => {
+    const h = r ? spec('berserker', { b26: r }) : spec('berserker');
+    const e = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    const log = spyHits(h);
+    rajar3(h, [2, 0], 0.7);
+    return { hits: log.filter(x => x.e === e && x.skill === 'g_rajar' && x.step === 3 && !x.dot).length, vuln: e.vulnT || 0, add: prof(h, 'g_rajar').addPct };
+  };
+  const a = run(0), b = run(1), c = run(3);
+  assert.ok(a.hits === 1 && a.vuln === 0, 'sin b26 un solo golpe');
+  assert.ok(b.hits === 2 && b.vuln > 0.7 && b.vuln <= 1, `b26 r1: golpea dos veces y deja Vulnerable 1 s (${JSON.stringify(b)})`);
+  assert.ok(c.vuln > 3.7 && c.add - a.add === 30, `b26 r3: Vulnerable 4 s y Rajar +30 % (${JSON.stringify(c)})`);
+});
+check('b27', () => {
+  const chain = (h, n = 3) => { for (let i = 0; i < n; i++) jump(h); return h.p.cds.g_salto || 0; };
+  const pack = h => { for (const [x, z] of [[4, 0], [4, 1], [4.6, -0.6]]) h.enemy({ hp: 1e9, pos: [x, 0, z] }); };
+  const a = spec('berserker'); pack(a);
+  const b = spec('berserker', { b27: 1 }); pack(b);
+  const la = chain(a), lb = chain(b);
+  assert.ok(approx(la - lb, 4, 0.05), `b27 r1: el último salto golpea a 3: recupera 4 s (${la} → ${lb})`);
+  const one = spec('berserker', { b27: 1 }); one.enemy({ hp: 1e9, pos: [4, 0, 0] });
+  assert.ok(approx(chain(one), la, 0.05), 'b27: con un solo golpeado, nada');
+  const c = spec('berserker', { b27: 3 }); pack(c);
+  assert.equal(chain(c), 0, 'b27 r3: se recarga al instante');
+  assert.equal(chain(c), 0, 'b27: 2.ª seguida');
+  assert.ok(chain(c) > 9, 'b27: la 3.ª cadena espera la recarga normal');
+  assert.equal(prof(c, 'g_salto').addPct - prof(a, 'g_salto').addPct, 30, 'b27 r3: Salto +30 %');
+});
+check('b28', () => {
+  const h = spec('berserker', { b28: 4 });
+  h.enemy({ hp: 1, pos: [3, 0, 0], rank: 'elite' }).takeDamage(1e6, false, {});
+  assert.equal(h.gaugeValue('sed'), 30, 'b28 r1: matar a un élite da 30 de Sed');
+  h.gauge('sed', 100);
+  assert.ok(h.gaugeState('sed').satedT > 8.9, 'b28 r2: la Sed Saciada dura 9 s');
+  h.p.hp = 5; h.p.takeDamage(1e7, 1, {});
+  assert.ok(h.p.alive && h.p.hp === 1, 'b28 r3: con la Sed Saciada, el golpe letal te deja con 1');
+  h.tick(9.2);
+  h.gauge('sed', 100); h.tick(9.2);
+  assert.ok(!buff(h.p, 'g_u_furia'), 'b28 r4: con 2 Sed Saciadas, aún no');
+  h.gauge('sed', 100);
+  const f = buff(h.p, 'g_u_furia');
+  assert.ok(f && approx(f.t, 5) && !(h.p.cds.g_u_furia > 0), 'b28 r4: a la 3.ª, Furia Inmortal 5 s, gratis');
+  const r2 = spec('berserker', { b28: 2 });
+  r2.gauge('sed', 100); r2.p.hp = 5; r2.p.takeDamage(1e7, 1, {});
+  assert.ok(!r2.p.alive, 'b28 r2: sin el rango 3 no salva');
+  const n = spec('berserker'); n.gauge('sed', 100);
+  assert.ok(n.gaugeState('sed').satedT < 6.01, 'sin b28, 6 s');
+});
+
+// ---------------- GUARDIÁN (d*) ----------------
+check('d0', () => {
+  const d = spec('guardian'), b = spec('berserker');
+  assert.equal(d.p.talentAgg.mechanic, 'bastion', 'd0: la mecánica es el Bastión');
+  assert.ok(approx(prof(d, 'g_piel').dur - prof(b, 'g_piel').dur, 4) && approx(prof(b, 'g_piel').dur, 8), 'd0: Piel de Hierro 12 s (antes 8 s)');
+  assert.ok(approx(prof(d, 'g_piel').buff.dr / prof(b, 'g_piel').buff.dr, 1.25, 0.02), 'd0: y quita un 50 % (antes 40 %)');
+});
+check('d1', () => {
+  const h = spec('guardian', { d1: 3 }), n = spec('guardian');
+  assert.ok(approx(blockReduction(h.p.stats), 0.8) && approx(blockReduction(n.p.stats), 0.5), 'd1 r3: los bloqueos paran un 80 %');
+});
+check('d2', () => { assert.equal(prof(spec('guardian', { d2: 3 }), 'terremoto').addPct - prof(spec('guardian'), 'terremoto').addPct, 30, 'd2 r3: Terremoto +30 %'); });
+check('d3', () => { assert.ok(approx(prof(spec('guardian', { d3: 3 }), 'g_carga_escudo').cd, 7), 'd3 r3: la Carga se recarga en 7 s'); });
+check('d4', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d4: 2 }) : spec('guardian');
+    const e = h.enemy({ hp: 1e6, pos: [2, 0, 0] });
+    firePower('onDamaged', h.p, h.g, h.p, { amount: 50, blocked: true, src: e });
+    const a = 1e6 - e.hp;
+    firePower('onDamaged', h.p, h.g, h.p, { amount: 50, blocked: true, src: e });
+    const b = 1e6 - e.hp - a;
+    h.tick(1.05);
+    firePower('onDamaged', h.p, h.g, h.p, { amount: 50, blocked: false, src: e });
+    return { a, b, unblocked: 1e6 - e.hp - a - b, avg: h.p.avgHit(0.8) };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.a === 0, 'sin d4 nada');
+  assert.ok(approx(b.a, b.avg, 1) && b.b === 0 && b.unblocked === 0, `d4 r2: golpe de escudo del 80 % al bloquear, una vez por segundo (${JSON.stringify(b)})`);
+});
+check('d5', () => {
+  const run = (on, stance, n) => {
+    const h = on ? spec('guardian', { d5: 1 }) : spec('guardian');
+    for (let i = 0; i < n; i++) h.enemy({ hp: 1e7, pos: [2, 0, i - 1] });
+    cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+    if (stance === 'ariete') { h.tick(3.1); cast(h, 'k3', 'g_guardia', { sec: 0.05 }); }
+    h.gauge('bastion', 0);
+    cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: 0.5 });
+    return h.gaugeValue('bastion');
+  };
+  assert.equal(run(false, 'muralla', 3), 0, 'sin d5 nada');
+  assert.equal(run(true, 'muralla', 1), 1, 'd5: en Muralla, 1 carga por Terremoto');
+  assert.equal(run(true, 'muralla', 3), 2, 'd5: 2 si golpea a 3 o más');
+  assert.equal(run(true, 'ariete', 3), 0, 'd5: en Ariete, no');
+});
+check('d6', () => {
+  const run = (on, c30) => {
+    const h = on ? spec('guardian', { d6: 1 }, {}, { cls: c30 ? { c30: 1 } : {} }) : spec('guardian', {}, {}, { cls: c30 ? { c30: 1 } : {} });
+    const e = h.enemy({ hp: 1e9, pos: [9, 0, 0] });
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+    const adds = spyAdd(h);
+    const hp0 = e.hp;
+    h.setSlot('rmb', 'terremoto'); h.aim(9, 0); h.p.mp = 100;
+    h.cast('rmb');
+    const now = hp0 - e.hp;
+    h.step(1.1);
+    return { now, total: hp0 - e.hp, mainAdd: adds.find(x => x.skill === 'terremoto')?.add, planted: h.p.planted };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.now === 0, 'sin d6 el Terremoto se prepara');
+  assert.ok(b.now > 0, 'd6: tras la Carga, el Terremoto no se prepara');
+  assert.ok(b.total > b.now * 1.4, `d6: cuenta como plantado (réplicas) (${b.now} → ${b.total})`);
+  const c = run(true, true);
+  assert.equal(c.mainAdd, 0, 'd6: con Asalto Total sale gratis pero sin su +%');
+  const d = run(false, true);
+  assert.equal(d.mainAdd, 15, 'sin d6, Asalto Total sí suma su +15 %');
+});
+check('d7', () => {
+  assert.equal(prof(spec('guardian', { d7: 2 }), 'g_carga_escudo').taunt, 5, 'd7 r2: provoca 5 s');
+  assert.equal(prof(spec('guardian'), 'g_carga_escudo').taunt, 3);
+});
+check('d8A', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d8: 1 }, { d8: 'A' }) : spec('guardian');
+    const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] }), far = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+    cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+    return { dmg: 1e6 - e.hp, taunt: e.tauntT || 0, far: 1e6 - far.hp };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.dmg === 0 && a.taunt === 0, 'sin d8A nada');
+  assert.ok(b.dmg > 0 && b.taunt > 1.9 && b.far === 0, `d8A: golpe de escudo a 4 m y provoca 2 s (${JSON.stringify(b)})`);
+});
+check('d8B', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d8: 1 }, { d8: 'B' }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [1.5, 0, 0] });
+    const log = spyHits(h);
+    cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+    for (let i = 0; i < 4; i++) cast(h, 'rmb', 'g_hendidura', { aim: [1.5, 0], mp: 100, sec: 0.5 });
+    const boss = h.enemy({ hp: 1e9, boss: true, pos: [1.5, 0, 1] });
+    h.tick(3.1);
+    boss.staggerBrokenT = 3;
+    cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+    h.setSlot('rmb', 'g_hendidura'); h.p.mp = 100; h.aim(1.5, 0); h.cast('rmb');
+    const add = condAdd(h, boss, hit('g_hendidura'));
+    return { crits: log.filter(x => x.e === e && x.skill === 'g_hendidura').map(x => x.crit), add };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(b.crits[0] === true, 'd8B: el siguiente golpe tras cambiar es crítico seguro');
+  assert.ok(b.crits.slice(1).some(c => !c) || a.crits.some(c => !c), 'd8B: solo el siguiente');
+  assert.ok(b.add === 30 && a.add === 0, `d8B: +30 % contra un jefe Quebrantado (${b.add})`);
+});
+check('d9A', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d9: 1 }, { d9: 'A' }) : spec('guardian');
+    const out = h.enemy({ hp: 1e9, pos: [6.5, 0, 0] }), mid = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    h.tick(1.2);                                       // plantado
+    const log = spyHits(h);
+    cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: 2.6 });
+    return { reps: log.filter(x => x.e === mid && x.repeat).length, out: 1e9 - out.hp, n: prof(h, 'terremoto').repeat.n };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.reps === 2 && a.out === 0, `sin d9A 2 réplicas a 5 m (${JSON.stringify(a)})`);
+  assert.ok(b.n === 4 && b.reps === 4 && b.out > 0, `d9A: 4 réplicas que se abren hasta 8 m (${JSON.stringify(b)})`);
+});
+check('d9B', () => {
+  const h = spec('guardian', { d9: 1 }, { d9: 'B' });
+  const near = h.enemy({ hp: 1e9, pos: [1, 0, 0] }), far = h.enemy({ hp: 1e9, pos: [4, 0, 0] });
+  assert.equal(condAdd(h, near, hit('terremoto')), 0, 'd9B: sin plantar, nada');
+  h.tick(1.2);
+  assert.ok(condAdd(h, near, hit('terremoto')) === 50 && condAdd(h, far, hit('terremoto')) === 0, 'd9B: plantado, +50 % en el centro (2 m)');
+  const boss = h.enemy({ hp: 1e9, boss: true, pos: [0.5, 0, 0.5] });
+  cast(h, 'rmb', 'terremoto', { aim: [1, 0], mp: 100, sec: 1.4 });
+  assert.ok(approx(boss.stagger || 0, 20, 0.01), `d9B: 20 de Quebranto a los jefes del centro, una vez por Terremoto (${boss.stagger})`);
+  const n = spec('guardian'); const e2 = n.enemy({ hp: 1e9, pos: [1, 0, 0] }); n.tick(1.2);
+  assert.equal(condAdd(n, e2, hit('terremoto')), 0, 'sin d9B nada');
+});
+check('d10A', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d10: 1 }, { d10: 'A' }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [4, 0, 2.6] });
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.4 });
+    return { w: prof(h, 'g_carga_escudo').dragWidth, d: Math.hypot(e.pos.x - h.p.pos.x, e.pos.z - h.p.pos.z), ex: e.pos.x };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.w === 1.5 && a.ex < 4.5, `sin d10A no arrastra a 2,6 m del camino (${JSON.stringify(a)})`);
+  assert.ok(b.w === 3 && b.ex > 6 && b.d < 2.5, `d10A: arrastra a 3 m y lo junta delante (${JSON.stringify(b)})`);
+});
+check('d10B', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d10: 1 }, { d10: 'B' }) : spec('guardian');
+    const boss = h.enemy({ hp: 1e9, boss: true, pos: [5, 0, 0] });
+    const adds = spyAdd(h);
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.4 });
+    return { x: h.p.pos.x, stagger: boss.stagger || 0, add: adds.find(x => x.e === boss)?.add || 0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.x > 7.5 && a.stagger === 0, `sin d10B la Carga sigue (${JSON.stringify(a)})`);
+  assert.ok(b.x < 4.5 && approx(b.stagger, 25) && b.add === 60, `d10B: te paras, +60 % y 25 de Quebranto (${JSON.stringify(b)})`);
+});
+check('d11', () => { assert.equal(spec('guardian', { d11: 2 }).p.stats.hpPct - spec('guardian').p.stats.hpPct, 16, 'd11 r2: +16 % de vida'); });
+check('d12', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d12: 2 }) : spec('guardian');
+    for (let i = 0; i < 3; i++) h.enemy({ hp: 1e9, pos: [2, 0, i - 1] });
+    pielRecharging(h);
+    const before = h.p.cds.g_piel;
+    cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: 0.42 });
+    return before - h.p.cds.g_piel;
+  };
+  const a = run(false), b = run(true);
+  assert.ok(approx(b - a, 2, 0.05), `d12 r2: 3 golpeados acortan la Piel 2 s (tope r s) (${a} → ${b})`);
+});
+check('d13', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d13: 2 }) : spec('guardian');
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+    h.p.stats.block = 0;                                 // sin bloqueos al azar: solo los seguros
+    const losses = [];
+    for (let i = 0; i < 5; i++) { const hp = h.p.hp = h.p.stats.maxHP; h.p.takeDamage(400, 1, {}); losses.push(hp - h.p.hp); }
+    return losses;
+  };
+  const a = run(false), b = run(true);
+  // cada bloqueo da 1 carga de Bastión (−4 % de daño): bloqueado = la mitad o menos
+  for (let i = 0; i < 4; i++) assert.ok(b[i] / a[i] <= 0.51, `d13 r2: los 4 golpes siguientes, bloqueados (${b[i]} / ${a[i]})`);
+  assert.ok(b[4] / a[4] > 0.8, `d13: el 5.º ya no (${b[4]} / ${a[4]})`);
+});
+check('d14', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d14: 1 }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [3, 0, 0.5] }), off = h.enemy({ hp: 1e9, pos: [3, 0, 5] });
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.4 });
+    return [e.vulnT || 0, off.vulnT || 0];
+  };
+  assert.deepEqual(run(false), [0, 0], 'sin d14 nada');
+  const [v, o] = run(true);
+  assert.ok(v > 2.4 && v <= 3 && o === 0, `d14: los arrastrados quedan Vulnerables 3 s (${v}, ${o})`);
+});
+check('d15A', () => {
+  const h = spec('guardian', { d15: 1 }, { d15: 'A' });
+  h.p.hp = 5; h.p.takeDamage(1e7, 1, {});
+  const f = (h.g.fields || []).find(x => !x.dead && x.kind === 'aura' && x.data?.buffId === 'g_u_ciudadela');
+  assert.ok(h.p.alive && approx(h.p.hp / h.p.stats.maxHP, 0.1, 0.01), 'd15A: te deja con un 10 % de vida');
+  assert.ok(f && f.data.free && approx(f.dur, 3) && !(h.p.cds.g_u_ciudadela > 0), 'd15A: lanza la Ciudadela 3 s, gratis');
+  h.tick(0.6);
+  assert.ok(buff(h.p, 'g_u_ciudadela'), 'd15A: con su reducción de daño');
+  h.p.hp = 5; h.p.takeDamage(1e7, 1, {});
+  assert.ok(!h.p.alive, 'd15A: una vez cada 2 min');
+});
+check('d15B', () => {
+  const h = spec('guardian', { d15: 1 }, { d15: 'B' });
+  const bp = h.p.stats.blockPower || 0;
+  h.gauge('bastion', 4); h.tick(0.2);
+  assert.ok(!buff(h.p, 'g_d_roca') && !(h.p.unstoppableT > 0), 'd15B: con 4 cargas, nada');
+  h.gauge('bastion', 5); h.tick(0.2);
+  assert.ok(h.p.stats.blockPower - bp === 10 && h.p.unstoppableT > 0, 'd15B: con 5, imparable y bloqueos +10 %');
+  h.gauge('bastion', 3); h.tick(0.4);
+  assert.ok((h.p.stats.blockPower || 0) === bp && !(h.p.unstoppableT > 0), 'd15B: al perder la 5.ª se va');
+});
+check('d16', () => {
+  const h = spec('guardian', { d16: 2 }), n = spec('guardian');
+  const e = h.enemy({ hp: 1e6 }), e2 = n.enemy({ hp: 1e6 });
+  h.gauge('bastion', 3); n.gauge('bastion', 3);
+  assert.ok(condAdd(h, e, hit('g_tajo')) === 12 && condAdd(n, e2, hit('g_tajo')) === 0, 'd16 r2: +4 % de daño por carga');
+});
+check('d17', () => {
+  const run = (r, cls = {}, d3 = 0) => {
+    const ranks = { ...(r ? { d17: r } : {}), ...(d3 ? { d3 } : {}) };
+    const h = spec('guardian', ranks, {}, { cls });
+    for (const z of [0.3, -0.3, 0.8]) h.enemy({ hp: 1e9, pos: [3, 0, z] });
+    const killMe = h.enemy({ hp: 1, pos: [11.5, 0, 0] });          // fuera del golpe de la Carga
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+    const left = h.p.cds.g_carga_escudo;
+    return { h, left, killMe };
+  };
+  const a = run(0), b = run(2);
+  assert.ok(approx(a.left - b.left, 2, 0.05), `d17 r2: 3 arrastrados quitan 2 s (tope r s) (${a.left} → ${b.left})`);
+  // suelo de 4 s: Paso Pesado 3 (7 s) + Avalancha 2 + la media recarga de Asalto Total
+  const c = run(2, { c30: 1 }, 3);
+  assert.ok(c.killMe.alive, 'd17: la Carga no lo alcanza');
+  cast(c.h, 'rmb', 'g_hendidura', { aim: [11.5, 0], mp: 100, sec: 0.4 });
+  const t0 = powerState(c.h.p, 'g_ult_suelo').start?.g_carga_escudo;
+  assert.ok(!c.killMe.alive && t0 != null, 'd17: Asalto Total recorta tras matar');
+  assert.ok(approx(c.h.p.simT - t0 + c.h.p.cds.g_carga_escudo, 4, 0.06), `d17: la recarga nunca baja de 4 s (${c.h.p.cds.g_carga_escudo})`);
+});
+check('d18', () => {
+  const run = (on, stance) => {
+    const h = on ? spec('guardian', { d18: 2 }) : spec('guardian');
+    const ally = h.ally(5, 0, 1000);
+    cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+    if (stance === 'ariete') { h.tick(3.1); cast(h, 'k3', 'g_guardia', { sec: 0.05 }); }
+    const hp0 = h.p.hp;
+    h.g.damageAlly(ally, 100);
+    return { ally: 1000 - ally.hp, you: hp0 - h.p.hp };
+  };
+  const a = run(false, 'muralla'), b = run(true, 'muralla'), c = run(true, 'ariete');
+  assert.ok(a.ally === 100 && a.you === 0, 'sin d18 nada');
+  assert.ok(b.ally === 80 && b.you > 0, `d18 r2: en Muralla recibes tú el 20 % (${JSON.stringify(b)})`);
+  assert.ok(c.ally === 100 && c.you === 0, 'd18: en Ariete, no');
+});
+check('d19', () => {
+  const run = (on, walk) => {
+    const h = on ? spec('guardian', { d19: 2 }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [4, 0, 0] }), far = h.enemy({ hp: 1e9, pos: [8, 0, 0] });
+    h.p.sinceCombat = 0;
+    for (let t = 0; t < 4.6; t += 0.1) {                 // se planta al segundo; 3 s después, la réplica
+      e.pos.set(h.p.pos.x + 4, 0, h.p.pos.z); far.pos.set(h.p.pos.x + 8, 0, h.p.pos.z);
+      if (walk) h.walk({ x: 0, z: 1 }, 0.1); else h.tick(0.1);
+    }
+    return [1e9 - e.hp, 1e9 - far.hp];
+  };
+  assert.deepEqual(run(false, false), [0, 0], 'sin d19 nada');
+  const [n, f] = run(true, false);
+  assert.ok(n > 0 && f === 0, 'd19: plantado, réplica gratis a 5 m');
+  assert.deepEqual(run(true, true), [0, 0], 'd19: caminando, no');
+});
+check('d20', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d20: 2 }) : spec('guardian');
+    const ally = h.ally(3, 0, 1000);
+    h.p.sinceCombat = 0;
+    cast(h, 'k4', 'g_u_ciudadela', { sec: 2.05 });
+    return { bastion: h.gaugeValue('bastion'), allyDmg: ally.buffs.find(b => b.id === 'g_d_guarnicion')?.stats.dmgPct || 0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(b.allyDmg === 10 && a.allyDmg === 0, `d20 r2: tus aliados dentro hacen +10 % (${b.allyDmg})`);
+  assert.equal(b.bastion - a.bastion, 2, `d20: 1 carga por segundo dentro (${a.bastion} → ${b.bastion})`);
+  const free = spec('guardian', { d20: 2, d15: 1 }, { d15: 'A' });
+  free.p.sinceCombat = 0; free.p.hp = 5; free.p.takeDamage(1e7, 1, {});
+  const ref = spec('guardian', { d15: 1 }, { d15: 'A' });
+  ref.p.sinceCombat = 0; ref.p.hp = 5; ref.p.takeDamage(1e7, 1, {});
+  free.tick(2.05); ref.tick(2.05);
+  assert.equal(free.gaugeValue('bastion'), ref.gaugeValue('bastion'), 'd20: en la Ciudadela gratis no da cargas');
+});
+check('d21', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d21: 1 }) : spec('guardian');
+    const front = h.enemy({ hp: 1e9, boss: true, pos: [12, 0, 0] }), back = h.enemy({ hp: 1e9, boss: true, pos: [-12, 0, 0] });
+    h.setSlot('k1', 'g_carga_escudo'); h.aim(8, 0); h.cast('k1'); h.step(0.3);
+    h.p.stats.block = 0;                                 // sin bloqueos al azar: solo los seguros
+    const hit = src => { const hp = h.p.hp = h.p.stats.maxHP; h.p.takeDamage(400, 1, { source: src }); return hp - h.p.hp; };
+    const r = { front: hit(front), back: hit(back), bastion: h.gaugeValue('bastion') };
+    h.step(1.0);
+    r.after = hit(front);
+    return r;
+  };
+  const a = run(false), b = run(true);
+  assert.ok(approx(b.front / a.front, 0.5, 0.02) && b.bastion === 1 && a.bastion === 0, `d21: de frente durante la Carga, bloqueo seguro (+1 carga) (${JSON.stringify(b)})`);
+  // (la carga ganada quita un 4 %: no es un bloqueo)
+  assert.ok(b.back / a.back > 0.9 && b.after / a.after > 0.9, `d21: por detrás o tras la Carga, no (${JSON.stringify(a)} ${JSON.stringify(b)})`);
+});
+check('d22', () => {
+  const h = spec('guardian', { d22: 3 }), n = spec('guardian');
+  h.p.hp = n.p.hp = h.p.stats.maxHP * 0.5;
+  cast(h, 'k3', 'g_guardia', { sec: 0.05 }); cast(n, 'k3', 'g_guardia', { sec: 0.05 });
+  assert.ok(buff(h.p, 'g_d_guardia_viva')?.stats.dmgPct === 9 && !buff(n.p, 'g_d_guardia_viva'), 'd22 r3: +9 % de daño por cambio');
+  assert.ok(approx(h.p.hp - n.p.hp, h.p.stats.maxHP * 0.03, 2), 'd22 r3: te cura un 3 %');
+  h.tick(3.1); cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+  assert.equal(buff(h.p, 'g_d_guardia_viva').stats.dmgPct, 18, 'd22: se suma');
+});
+check('d23', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d23: 3 }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [2, 0, 0] }), boss = h.enemy({ hp: 1e9, boss: true, pos: [2, 0, 1] });
+    boss.staggerBrokenT = 5; boss.staggerLockT = 5;
+    h.tick(1.2);
+    const adds = spyAdd(h);
+    cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: 1.6 });
+    const t = adds.filter(x => x.skill === 'terremoto');
+    return { main: t.filter(x => x.e === e)[0]?.add, reps: t.filter(x => x.e === e).slice(1).map(x => x.add), boss: t.filter(x => x.e === boss).slice(1).map(x => x.add) };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.reps.length === 2 && a.reps.every(x => x === 0), 'sin d23 nada');
+  assert.ok(b.main === 0 && b.reps.length === 2 && b.reps.every(x => x === 30), `d23 r3: réplicas +30 % (${JSON.stringify(b)})`);
+  assert.ok(b.boss.every(x => x === 60), 'd23: el doble contra jefes Quebrantados');
+});
+check('d24', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d24: 3 }) : spec('guardian');
+    const near = h.ally(9, 1, 1000), far = h.ally(-6, 0, 1000);
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+    return { you: (h.p.shields || []).filter(s => s.src === 'g_d_escolta').length, near: near.shields.length, far: far.shields.length, h };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.you === 0 && a.near === 0, 'sin d24 nada');
+  assert.ok(b.you === 1 && b.near === 1 && b.far === 0, 'd24: escudo a ti y a tus aliados a 6 m');
+  assert.ok(approx(b.h.p.shields.find(s => s.src === 'g_d_escolta').amt, Math.round(healScaled(b.h.p.stats.maxHP * 0.12, b.h.p.stats.healPct)), 1), 'd24 r3: del 12 % de tu vida');
+  // una vez cada 10 s (con Paso Pesado 3 la Carga vuelve a los 7 s)
+  const c = spec('guardian', { d24: 3, d3: 3 }), al = c.ally(9, 1, 1000);
+  cast(c, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+  assert.equal(al.shields.length, 1);
+  c.tick(6); al.pos.set(1, 0, 1); al.shields.length = 0;
+  assert.ok(cast(c, 'k1', 'g_carga_escudo', { aim: [0, 0], sec: 1.3 }), 'd24: la 2.ª Carga sale');
+  assert.equal(al.shields.length, 0, 'd24: una vez cada 10 s');
+});
+check('d25', () => {
+  const swaps = (h, n) => { for (let i = 0; i < n; i++) { cast(h, 'k3', 'g_guardia', { sec: 0.05 }); if (i < n - 1) h.tick(3.05); } };
+  const h = spec('guardian', { d25: 1 }), n = spec('guardian');
+  swaps(h, 3); swaps(n, 3);
+  assert.ok(h.g.activeStanceModes(h.p).length === 2 && n.g.activeStanceModes(n.p).length === 1, 'd25: tras 3 cambios en 8 s, Muralla y Ariete a la vez');
+  h.tick(3.1);
+  assert.equal(h.g.activeStanceModes(h.p).length, 1, 'd25 r1: 3 s');
+  const r3 = spec('guardian', { d25: 3 });
+  cast(r3, 'k3', 'g_guardia', { sec: 0.05 }); r3.tick(0.2);
+  assert.ok(approx(buff(r3.p, 'g_d_posturas')?.stats.dr || 0, 4.5), 'd25 r3: posturas +30 % (Muralla −15 → −19,5 %)');
+});
+check('d26', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d26: 1 }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    const log = spyHits(h);
+    h.tick(1.2);
+    for (let i = 0; i < 3; i++) cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: i < 2 ? 1.2 : 0.45 });
+    const stun = e.stunT || 0;
+    h.step(1.2);
+    return { main: log.filter(x => x.e === e && x.skill === 'terremoto' && !x.repeat).length, stunAtRep: Math.max(stun, e.stunT || 0) };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.main === 3 && b.main === 4, `d26: el 3.er Terremoto plantado se repite (${a.main} → ${b.main})`);
+  assert.ok(b.stunAtRep > 0 && !(a.stunAtRep > 0), 'd26: sus réplicas aturden');
+});
+check('d27', () => {
+  const run = on => {
+    const h = on ? spec('guardian', { d27: 1 }) : spec('guardian');
+    const e = h.enemy({ hp: 1e9, pos: [14, 0, 0] });
+    cast(h, 'k1', 'g_carga_escudo', { aim: [8, 0], sec: 1.3 });
+    return { planted: h.p.planted, bastion: h.gaugeValue('bastion'), taunt: e.tauntT || 0, h };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(b.planted && !a.planted, 'd27: al acabar la Carga te plantas');
+  assert.ok(b.bastion === 2 && a.bastion === 0, 'd27 r1: +2 cargas de Bastión');
+  assert.ok(b.taunt > 3.5 && a.taunt === 0, 'd27: los enemigos a 8 m te atacan 4 s');
+  b.h.tick(3);
+  cast(b.h, 'k1', 'g_carga_escudo', { aim: [0, 0], sec: 1.3 });
+  assert.ok(b.h.gaugeValue('bastion') <= 3, 'd27: las cargas, una vez cada 10 s');
+});
+check('d28', () => {
+  const h = spec('guardian', { d28: 4 });
+  assert.equal(gaugeMax(h.p, 'bastion'), 7, 'd28 r2: el Bastión guarda 7 cargas');
+  h.enemy({ hp: 1, pos: [3, 0, 0], rank: 'elite' }).takeDamage(1e6, false, {});
+  assert.equal(h.gaugeValue('bastion'), 7, 'd28 r1: matar a un élite lo llena');
+  pielRecharging(h);
+  const piel = h.p.cds.g_piel;
+  cast(h, 'k3', 'g_guardia', { sec: 0.05 });
+  assert.ok(h.gaugeValue('bastion') === 0 && approx(piel - h.p.cds.g_piel, 6, 0.1), 'd28 r3: descargar acorta 6 s la Piel de Hierro');
+  for (let i = 0; i < 2; i++) { h.tick(5.1); h.gauge('bastion', 7); cast(h, 'k3', 'g_guardia', { sec: 0.05 }); }
+  const f = (h.g.fields || []).find(x => !x.dead && x.kind === 'aura' && x.data?.buffId === 'g_u_ciudadela');
+  assert.ok(f && f.data.free && approx(f.dur, 4), 'd28 r4: a la 3.ª descarga, la Ciudadela 4 s gratis');
+  const n = spec('guardian', { d28: 1 });
+  assert.equal(gaugeMax(n.p, 'bastion'), 5, 'd28 r1: 5 cargas');
+});
+
+// ---------------- CRUZADO (z*) ----------------
+// zona sagrada propia (como el sendero) para las pruebas de las zonas
+const holy = (h, x, z, { dps = 100, heal = 0, r = 3, dur = 4, skill = 'g_sendero' } = {}) =>
+  h.g.spawnField('zona', { pos: v3t(x, z), radius: r, dur, owner: h.p, data: { dps, healPct: heal, color: 1, skill, tags: new Set(['movement', 'zone', 'holy']) } });
+// carga y suelta del Martillo (perfecta con 1,0 s)
+function hammer(h, at = [2.5, 0], hold = 1.0) {
+  h.setSlot('rmb', 'g_martillo'); h.aim(at[0], at[1]); h.p.mp = 100;
+  h.press('rmb'); h.step(hold); h.release('rmb'); h.step(0.05);
+}
+const markJ = (h, e) => h.g.applyMark(e, prof(h, 'g_juicio'), h.p);
+check('z0', () => {
+  const z = spec('cruzado'), d = spec('guardian');
+  assert.equal(z.p.talentAgg.mechanic, 'fervor', 'z0: la mecánica es el Fervor');
+  const ally = z.ally(4, 0, 1000); ally.hp = 500;
+  const e = z.enemy({ hp: 1e6 });
+  fire(z, e, { skill: 'g_martillo', elem: 'holy', dealt: 1000 });
+  assert.ok(approx(ally.hp, 510), `z0: el 10 % del daño sagrado cura al más herido, hasta un 1 %/s (${ally.hp})`);
+  fire(z, e, { skill: 'g_martillo', elem: 'holy', dealt: 1000 });
+  fire(z, e, { skill: 'g_tajo', elem: 'physical', dealt: 1000 });
+  assert.ok(approx(ally.hp, 510), 'z0: el tope por segundo y solo daño sagrado');
+  z.tick(1); fire(z, e, { skill: 'g_martillo', elem: 'holy', dealt: 1000 });
+  assert.ok(approx(ally.hp, 520, 0.5), 'z0: al segundo, otro 1 %');
+  // las zonas sagradas no se suman: cada enemigo recibe solo la más fuerte
+  const run = h => { const t = h.enemy({ hp: 1e6, pos: [10, 0, 0] }); holy(h, 10, 0, { dps: 100 }); holy(h, 10, 0, { dps: 60, skill: 'g_martillo' }); h.tick(2.05); return 1e6 - t.hp; };
+  const zz = run(spec('cruzado')), dd = run(d);
+  assert.ok(approx(zz, 200, 2) && approx(dd, 320, 2), `z0: dos zonas sagradas no se suman (${zz} frente a ${dd})`);
+  // cubeta de zona: 4 %/s por receptor (con 1 s de reserva al entrar), aunque la zona cure un 10 %/s
+  const c = spec('cruzado'); const a2 = c.ally(10, 5, 1000); a2.hp = 100;
+  holy(c, 10, 5, { dps: 0, heal: 10, dur: 6 });
+  c.tick(2.05);
+  assert.ok(a2.hp - 100 <= 40 * 3.05 + 1 && a2.hp - 100 >= 80, `z0: la cura de zona, como mucho un 4 %/s (${a2.hp - 100})`);
+  c.tick(2);
+  assert.ok(approx(a2.hp - 100, 180, 2), `z0: luego, 40 por segundo (${a2.hp - 100})`);
+});
+check('z1', () => { assert.equal(spec('cruzado', { z1: 3 }).p.tv.detonateDmg, 45, 'z1 r3: detonar +45 %'); });
+check('z2', () => { assert.equal(prof(spec('cruzado', { z2: 3 }), 'g_martillo').addPct - prof(spec('cruzado'), 'g_martillo').addPct, 30, 'z2 r3: Martillo +30 %'); });
+check('z3', () => { assert.ok(approx(prof(spec('cruzado', { z3: 3 }), 'g_sendero').cd, 7), 'z3 r3: el Sendero se recarga en 7 s'); });
+check('z4', () => {
+  assert.equal(prof(spec('cruzado', { z4: 2 }), 'g_juicio').mark.dur, 16, 'z4 r2: las marcas duran 16 s');
+  assert.equal(prof(spec('cruzado'), 'g_juicio').mark.dur, 8);
+});
+check('z5', () => {
+  const run = (on, hold) => { const h = on ? spec('cruzado', { z5: 1 }) : spec('cruzado'); const e = h.enemy({ hp: 1e9, pos: [2.5, 0, 0] }); hammer(h, [2.5, 0], hold); return !!e.marks?.juicio; };
+  assert.equal(run(false, 1.0), false, 'sin z5 no marca');
+  assert.equal(run(true, 1.0), true, 'z5: la suelta perfecta marca con Juicio');
+  assert.equal(run(true, 0.3), false, 'z5: fuera de la ventana, no');
+});
+check('z6', () => {
+  const h = spec('cruzado', { z6: 1 });
+  h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+  hammer(h, [2.5, 0], 0.3);
+  const floors = () => (h.g.fields || []).filter(f => !f.dead && f.kind === 'zona' && f.data.skill === 'g_martillo');
+  assert.equal(floors().length, 0, 'z6: sin suelta perfecta, nada');
+  for (let i = 0; i < 3; i++) { h.tick(0.3); hammer(h, [2.5, 0], 1.0); }
+  const f = floors();
+  assert.ok(f.length === 2 && f.every(x => x.data._holy && approx(x.dur, 4)), `z6: suelo consagrado 4 s, 2 a la vez (${f.length})`);
+  const n = spec('cruzado'); n.enemy({ hp: 1e9, pos: [2.5, 0, 0] }); hammer(n, [2.5, 0], 1.0);
+  assert.equal((n.g.fields || []).filter(f2 => !f2.dead && f2.data?.skill === 'g_martillo').length, 0, 'sin z6 nada');
+});
+check('z7', () => {
+  const h = spec('cruzado', { z7: 2 }), n = spec('cruzado');
+  assert.ok(prof(h, 'g_sendero').trail.heal === 3 && prof(n, 'g_sendero').trail.heal === 2, 'z7 r2: el sendero cura un 3 % por segundo');
+  const ally = h.ally(4, 0, 1000);
+  cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.3 });
+  assert.equal(ally.buffs.find(b => b.id === 'g_z_sendero_veloz')?.stats.spdPct, 20, 'z7 r2: tus aliados en el sendero van un 20 % más rápido');
+});
+check('z8A', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z8: 1 }, { z8: 'A' }) : spec('cruzado');
+    const a = h.enemy({ hp: 1e9, pos: [2.5, 0, 0] }), b = h.enemy({ hp: 1e9, pos: [2.5, 0, 2.5] });
+    markJ(h, a);
+    const log = spyHits(h);
+    hammer(h, [2.5, 0], 0.3);
+    const det = log.find(x => x.e === a && x.detonated);
+    const burst = log.filter(x => x.source === 'power:g_z_estallido_luz');
+    return { det, burst };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.det && a.burst.length === 0, 'sin z8A no estalla');
+  assert.ok(b.burst.length === 1 && b.burst[0].e !== b.det.e && approx(b.burst[0].dealt, b.det.dealt * 0.5, b.det.dealt * 0.05), `z8A: estalla el 50 % a los de 3 m, uno por enemigo (${b.burst.length})`);
+});
+check('z8B', () => {
+  const h = spec('cruzado', { z8: 1 }, { z8: 'B' });
+  const el = h.enemy({ hp: 1e9, rank: 'elite', pos: [3, 0, 0] }), nm = h.enemy({ hp: 1e9, pos: [3, 0, 2] }), boss = h.enemy({ hp: 1e9, boss: true, pos: [2.5, 0, -1] });
+  for (const e of [el, nm, boss]) markJ(h, e);
+  h.tick(0.15);
+  assert.ok(el.marks.juicio.t > 15 && nm.marks.juicio.t < 8, 'z8B: las marcas en élites y jefes duran el doble');
+  fire(h, boss, { skill: 'g_martillo', detonated: true });
+  assert.ok(approx(boss.stagger || 0, 15), 'z8B: al detonar, 15 de Quebranto a los jefes');
+  const n = spec('cruzado'); const el2 = n.enemy({ hp: 1e9, rank: 'elite' }); markJ(n, el2); n.tick(0.15);
+  assert.ok(el2.marks.juicio.t < 8, 'sin z8B, 8 s');
+});
+check('z9A', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z9: 1 }, { z9: 'A' }) : spec('cruzado');
+    const far = h.enemy({ hp: 1e9, pos: [2.5, 0, 6.5] });
+    h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+    const low = h.ally(2, 1, 1000), other = h.ally(3, -1, 1000);
+    low.hp = 200; other.hp = 800;
+    const lh = healsBy(low), oh = healsBy(other);
+    h.gauge('fervor', 3);
+    hammer(h, [2.5, 0], 0.05);
+    return { far: 1e9 - far.hp, low: lh.g_z_veredicto_generoso || 0, lowV: lh.veredicto || 0, other: oh.g_z_veredicto_generoso || 0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.far === 0 && b.far > 0, 'z9A: el Veredicto golpea a 8 m');
+  assert.ok(approx(a.lowV, 60, 0.01) && approx(b.lowV, 60, 0.01) && b.low === 0 && a.other === 0 && approx(b.other, 30, 1), `z9A: cura un 3 % al resto del grupo a 8 m (${JSON.stringify(a)} ${JSON.stringify(b)})`);
+});
+check('z9B', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z9: 1 }, { z9: 'B' }) : spec('cruzado');
+    const boss = h.enemy({ hp: 1e9, boss: true, pos: [2.5, 0, 0] }), side = h.enemy({ hp: 1e9, pos: [2.5, 0, 1.5] });
+    h.gauge('fervor', 3);
+    const adds = spyAdd(h);
+    hammer(h, [2.5, 0], 0.05);
+    return { main: adds.find(x => x.e === boss)?.add, side: adds.find(x => x.e === side)?.add, stagger: boss.stagger || 0 };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(b.main - a.main === 80 && b.side === a.side, `z9B: +80 % al objetivo principal (${JSON.stringify(b)})`);
+  assert.ok(approx(b.stagger - a.stagger, 25, 0.01), `z9B: 25 de Quebranto a los jefes (${a.stagger} → ${b.stagger})`);
+});
+check('z10A', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z10: 1 }, { z10: 'A' }) : spec('cruzado');
+    const e = h.enemy({ hp: 1e9, pos: [4, 0, 0.3] });
+    cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.05 });
+    const hp0 = e.hp;
+    h.tick(2);
+    return { dmg: hp0 - e.hp, slow: e.slowPct || 0, coef: prof(h, 'g_sendero').trail.coef };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(approx(b.coef, 0.6) && approx(b.dmg / a.dmg, 2, 0.1), `z10A: el sendero hace el 60 % por segundo (${a.dmg} → ${b.dmg})`);
+  assert.ok(b.slow === 30 && !(a.slow > 0), 'z10A: y ralentiza un 30 %');
+});
+check('z10B', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z10: 1 }, { z10: 'B' }) : spec('cruzado');
+    const low = h.ally(4, 0.2, 1000), hi = h.ally(5, -0.2, 1000);
+    low.hp = 300; hi.hp = 900;
+    cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.3 });
+    h.tick(0.3);
+    return { low: low.shields.filter(s => s.src === 'g_z_refugio'), hi: hi.shields.length, h };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.low.length === 0, 'sin z10B nada');
+  assert.ok(b.low.length === 1 && b.hi === 0 && approx(b.low[0].amt, b.h.p.stats.maxHP * 0.1, 1), 'z10B: escudo del 10 % de tu vida al de menos vida en tu sendero');
+  b.h.tick(3);
+  assert.equal(b.low.length, 1, 'z10B: una vez cada 6 s');
+});
+check('z11', () => { assert.ok(approx(prof(spec('cruzado', { z11: 2 }), 'g_juicio').cd, 6), 'z11 r2: Juicio se recarga en 6 s'); });
+check('z12', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z12: 2 }) : spec('cruzado');
+    h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+    h.g._startCooldown(h.p, 'g_juicio', prof(h, 'g_juicio'));
+    const b = h.p.cds.g_juicio;
+    hammer(h, [2.5, 0], 1.0);
+    return b - h.p.cds.g_juicio;
+  };
+  assert.ok(approx(run(true) - run(false), 1, 0.02), 'z12 r2: cada suelta perfecta acorta 1 s tus recargas');
+});
+check('z13', () => {
+  const h = spec('cruzado', { z13: 2 }), n = spec('cruzado');
+  for (const x of [h, n]) cast(x, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.2 });
+  const t = x => (x.g.fields || []).find(f => !f.dead && f.data?.skill === 'g_sendero');
+  assert.ok(approx(t(h).width / t(n).width, 1.3) && approx(t(h).dur - t(n).dur, 2), 'z13 r2: zonas sagradas un 30 % más grandes y 2 s más');
+});
+check('z14', () => {
+  const h = spec('cruzado', { z14: 1 });
+  const ally = h.ally(9, 1, 1000);
+  cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.7 });
+  const alt = (h.g.fields || []).filter(f => !f.dead && f.kind === 'aura' && f.data?.buffId === 'g_z_altar');
+  assert.ok(alt.length === 1 && approx(alt[0].dur, 6), 'z14: altar 6 s al llegar');
+  assert.equal(ally.buffs.find(b => b.id === 'g_z_altar')?.stats.dmgPct, 10, 'z14: +10 % a los aliados a 4 m');
+  h.tick(10); cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.1 }); cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.7 });
+  assert.equal(ally.buffs.filter(b => b.id === 'g_z_altar').length, 1, 'z14: los altares no se suman');
+  const n = spec('cruzado'); cast(n, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.7 });
+  assert.equal((n.g.fields || []).filter(f => !f.dead && f.kind === 'aura').length, 0, 'sin z14 nada');
+});
+check('z15A', () => {
+  const h = spec('cruzado', { z15: 1 }, { z15: 'A' });
+  const ally = h.ally(3, 0, 1000);
+  h.g.damageAlly(ally, 5000);
+  assert.ok(ally.alive && approx(ally.hp, 200), 'z15A: el aliado que iba a caer queda con un 20 %');
+  h.p.hp = 5; h.p.takeDamage(1e7, 1, {});
+  assert.ok(!h.p.alive, 'z15A: una vez cada 2 min entre todos');
+  const s = spec('cruzado', { z15: 1 }, { z15: 'A' });
+  s.p.hp = 5; s.p.takeDamage(1e7, 1, {});
+  assert.ok(s.p.alive && approx(s.p.hp / s.p.stats.maxHP, 0.2, 0.01), 'z15A: también a ti');
+});
+check('z15B', () => {
+  const h = spec('cruzado', { z15: 1 }, { z15: 'B' });
+  h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+  h.gauge('fervor', 3);
+  hammer(h, [2.5, 0], 0.05);
+  const s = (h.p.shields || []).find(x => x.src === 'g_z_luz_protectora');
+  assert.ok(s && approx(s.amt, Math.round(healScaled(h.p.stats.maxHP * 0.1, h.p.stats.healPct)), 1), 'z15B: cada Veredicto, escudo del 10 % de tu vida');
+});
+check('z16', () => {
+  const h = spec('cruzado', { z16: 2 }), e = h.enemy({ hp: 1e6 });
+  h.gauge('fervor', 3);
+  assert.equal(condAdd(h, e, { ...hit('g_martillo'), elem: 'holy' }), 24, 'z16 r2: golpes sagrados +8 % por Fervor');
+  assert.equal(condAdd(h, e, hit('g_tajo')), 0, 'z16: los físicos no');
+});
+check('z17', () => {
+  const h = spec('cruzado', { z17: 2 }), n = spec('cruzado');
+  const ally = h.ally(0, 1, 1000);
+  const out = condDr(h);
+  holy(h, 0, 0); holy(n, 0, 0);
+  assert.equal(condDr(h) - out, 10, 'z17 r2: dentro de tu zona sagrada, −10 % de daño recibido');
+  assert.equal(condDr(n), out, 'sin z17 nada');
+  h.g.damageAlly(ally, 100);
+  assert.equal(1000 - ally.hp, 90, 'z17: también a tus aliados dentro');
+});
+check('z18', () => {
+  const h = spec('cruzado', { z18: 2 });
+  const ally = h.ally(3, 0, 1000); ally.hp = 300;
+  const e = h.enemy({ hp: 1e9 });
+  const log = healsBy(ally);
+  fire(h, e, { skill: 'g_martillo', detonated: true });
+  assert.equal(log.g_z_absolucion, 20, 'z18 r2: cada detonación cura un 2 % al de menos vida');
+  fire(h, e, { skill: 'g_martillo', detonated: true });
+  assert.equal(log.g_z_absolucion, 20, 'z18: una vez cada 2 s');
+  h.tick(2.05); fire(h, e, { skill: 'g_martillo', detonated: true });
+  assert.equal(log.g_z_absolucion, 40, 'z18: a los 2 s, otra');
+});
+check('z19', () => {
+  const w = h => { const c = prof(h, 'g_martillo').charge; return c.perfect[1] - c.perfect[0]; };
+  assert.ok(approx(w(spec('cruzado', { z19: 2 })), 0.45) && approx(w(spec('cruzado')), 0.25), 'z19 r2: la ventana perfecta dura 0,45 s');
+});
+check('z20', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z20: 2 }) : spec('cruzado');
+    h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+    h.g._startCooldown(h.p, 'g_u_cataclismo', prof(h, 'g_u_cataclismo'));
+    const b = h.p.cds.g_u_cataclismo;
+    h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05);
+    return b - h.p.cds.g_u_cataclismo;
+  };
+  assert.ok(approx(run(true) - run(false), 4, 0.1), 'z20 r2: cada Veredicto acorta 4 s el Cataclismo');
+});
+check('z21', () => {
+  const run = (on, inZone) => {
+    const h = on ? spec('cruzado', { z21: 1 }) : spec('cruzado');
+    cast(h, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.05 });
+    // el propio sendero es zona sagrada: fuera de ella = a un lado del camino
+    if (inZone) holy(h, h.p.pos.x, h.p.pos.z, { dps: 0, dur: 30, r: 3 }); else h.p.pos.z += 6;
+    const b = h.p.cds.g_sendero;
+    h.tick(1);
+    return { cut: b - h.p.cds.g_sendero, h };
+  };
+  assert.ok(approx(run(false, true).cut, 1, 0.02) && approx(run(true, false).cut, 1, 0.02), 'sin z21 o fuera de la zona, al ritmo normal');
+  const r = run(true, true);
+  assert.ok(approx(r.cut, 2, 0.05), `z21: en tu zona sagrada, el doble de rápido (${r.cut})`);
+  // con Luz Veloz 3 (7 s) al doble serían 3,5 s: el suelo la deja en 4 s
+  const f = spec('cruzado', { z21: 1, z3: 3 });
+  cast(f, 'k1', 'g_sendero', { aim: [8, 0], sec: 0.05 });
+  holy(f, f.p.pos.x, f.p.pos.z, { dps: 0, dur: 30, r: 3 });
+  f.tick(3.6);
+  const t0 = powerState(f.p, 'g_ult_suelo').start?.g_sendero;
+  assert.ok(t0 != null && f.p.cds.g_sendero > 0 && approx(f.p.simT - t0 + f.p.cds.g_sendero, 4, 0.06), `z21: nunca baja de 4 s (${f.p.cds.g_sendero})`);
+  f.tick(0.6);
+  assert.ok(!(f.p.cds.g_sendero > 0), 'z21: a los 4 s, lista');
+});
+check('z22', () => {
+  const run = on => {
+    const h = on ? spec('cruzado', { z22: 2 }) : spec('cruzado');
+    const a = h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+    const n1 = h.enemy({ hp: 1e9, pos: [6, 0, 0] }), n2 = h.enemy({ hp: 1e9, pos: [6, 0, 1] }), n3 = h.enemy({ hp: 1e9, pos: [6.5, 0, 1.6] });
+    markJ(h, a);
+    hammer(h, [2.5, 0], 0.3);
+    return [n1, n2, n3].filter(e => e.marks?.juicio).length;
+  };
+  assert.equal(run(false), 0, 'sin z22 nada');
+  assert.equal(run(true), 2, 'z22 r2: al detonar, marcas a 2 enemigos a 5 m');
+});
+check('z23', () => {
+  const h = spec('cruzado', { z23: 2 }), e = h.enemy({ hp: 1e6 });
+  h.p.perfectStreak = 3;
+  assert.equal(condAdd(h, e, hit('g_martillo')), 24, 'z23 r2: +8 % por suelta perfecta seguida');
+  h.p.perfectStreak = 9;
+  assert.equal(condAdd(h, e, hit('g_martillo')), 40, 'z23: hasta 5 veces');
+  h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+  hammer(h, [2.5, 0], 0.3);
+  assert.equal(condAdd(h, e, hit('g_martillo')), 0, 'z23: fallar la ventana la reinicia');
+});
+check('z24', () => {
+  const h = spec('cruzado', { z24: 3 }), e = h.enemy({ hp: 1e6 });
+  const dr0 = condDr(h);
+  assert.equal(condAdd(h, e, hit('g_tajo')), 0);
+  holy(h, 0, 0);
+  assert.ok(condAdd(h, e, hit('g_tajo')) === 12 && condDr(h) - dr0 === 9, 'z24 r3: en tu zona sagrada, +12 % de daño y −9 % de daño recibido');
+});
+check('z25', () => {
+  const h = spec('cruzado', { z25: 1 });
+  const a = h.enemy({ hp: 1e9, pos: [2.5, 0, 0] }), b = h.enemy({ hp: 1e9, pos: [6, 0, 0] }), c = h.enemy({ hp: 1e9, pos: [6, 0, 1.5] });
+  markJ(h, a);
+  assert.equal(a.marks.juicio.uses, 2, 'z25 r1: la marca aguanta 2 detonaciones');
+  const dets = [];
+  const md = h.g.markDetonation.bind(h.g);
+  h.g.markDetonation = (en, ht) => { const r = md(en, ht); if (r && en === a) dets.push(r); return r; };
+  hammer(h, [2.5, 0], 0.3);
+  assert.ok(a.marks.juicio && dets[0] === 100, 'z25: la 1.ª detonación no la gasta');
+  h.tick(0.3); hammer(h, [2.5, 0], 0.3);
+  assert.ok(dets[1] === 40 && !a.marks?.juicio, `z25 r1: la 2.ª al 40 % (${dets})`);
+  assert.ok(b.marks?.juicio && c.marks?.juicio && b.marks.juicio.uses === 1, 'z25: la última salta a 2 enemigos');
+});
+check('z26', () => {
+  const run = (r, hold) => {
+    const h = r ? spec('cruzado', { z26: r }) : spec('cruzado');
+    const e = h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+    const log = spyHits(h);
+    hammer(h, [2.5, 0], hold); h.step(0.4);
+    const hs = log.filter(x => x.e === e && x.skill === 'g_martillo' && !x.proc && !x.dot);
+    return { n: hs.length, echo: hs.find(x => x.echo), main: hs.find(x => !x.echo), add: prof(h, 'g_martillo').addPct };
+  };
+  const a = run(0, 1.0), b = run(1, 1.0), c = run(1, 0.3), d = run(3, 1.0);
+  assert.ok(a.n === 1 && c.n === 1, 'z26: sin el nodo o sin suelta perfecta, un golpe');
+  assert.ok(b.n === 2 && b.echo && approx(b.echo.dealt / b.main.dealt, 0.3, 0.12), `z26 r1: martillo del cielo al 30 % (${b.echo?.dealt} / ${b.main?.dealt})`);
+  assert.equal(d.add - a.add, 30, 'z26 r3: Martillo +30 %');
+});
+check('z27', () => {
+  const h = spec('cruzado', { z27: 1 });
+  const ally = h.ally(0.5, 0, 1000); ally.hp = 400;
+  const f = holy(h, 0, 0, { dps: 0, dur: 2 });
+  h.tick(5);
+  assert.ok(!f.dead, 'z27: la zona sigue mientras estás dentro');
+  h.tick(3.5);
+  assert.ok(f.dead, 'z27 r1: hasta 8 s');
+  assert.ok(ally.hp > 400 && ally.hp <= 400 + 80 + 1, `z27: cura al más herido un 1 % por segundo (${ally.hp})`);
+  const n = spec('cruzado'); const f2 = holy(n, 0, 0, { dps: 0, dur: 2 }); n.tick(2.5);
+  assert.ok(f2.dead, 'sin z27 dura lo suyo');
+});
+check('z28', () => {
+  const h = spec('cruzado', { z28: 4 });
+  h.enemy({ hp: 1, rank: 'elite', pos: [3, 0, 0] }).takeDamage(1e6, false, {});
+  assert.equal(h.gaugeValue('fervor'), 3, 'z28 r1: matar a un élite llena el Fervor');
+  const ally = h.ally(2, 1, 1000); ally.hp = 100;
+  const heals = healsBy(ally);
+  h.enemy({ hp: 1e9, pos: [2.5, 0, 0] });
+  hammer(h, [2.5, 0], 0.05);
+  assert.equal(heals.veredicto, 100, 'z28 r2: el Veredicto cura un 10 % al más herido');
+  const w = x => prof(x, 'g_martillo').charge.perfect[0];
+  assert.ok(approx(w(spec('cruzado')) - w(h), 0.15), 'z28 r3: la ventana perfecta empieza 0,15 s antes');
+  h.setSlot('k4', 'g_u_cataclismo');
+  const boss = h.enemy({ hp: 1e9, boss: true, pos: [2.5, 0, 0.5] });
+  const log = spyHits(h);
+  h.step(0.6);
+  for (let i = 0; i < 7; i++) { h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(0.6); }
+  h.step(0.6);
+  const cat = log.filter(x => x.e === boss && x.skill === 'g_u_cataclismo' && !x.dot);
+  assert.ok(cat.length === 1 && cat[0].echo && h.gaugeValue('fervor') === 0 && !(h.p.cds.g_u_cataclismo > 0), `z28 r4: al 8.º Veredicto, un Cataclismo gratis (no da Fervor) (${cat.length}, ${h.gaugeValue('fervor')}, ${h.p.cds.g_u_cataclismo})`);
+});
+
+// ================================================================ cobertura
+const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => [`${n.id}${o.k}`, o]) : [[n.id, n]]));
+const ALL = [...keysOf(TT.cls.nodes), ...TT.specs.flatMap(sp => keysOf(sp.nodes)), ...TT.hero.flatMap(h => keysOf(h.nodes))];
+for (const [key, o] of ALL) {
   assert.ok(!('todo' in o), `${key}: sin «todo»`);
+  if (o.free && !Object.keys(o.fx || {}).length) continue;     // clave gratis sin fx: su efecto es la mecánica
   assert.ok(Object.keys(o.fx || {}).length, `${key}: fx con efecto`);
   assert.ok(CHECKS[key], `${key}: falta su prueba de efecto observable`);
 }
+for (const sp of TT.specs) assert.ok(!('todo' in sp), `${sp.id}: la especialización sin «todo»`);
 for (const key of Object.keys(CHECKS)) assert.ok(ALL.some(([k]) => k === key), `prueba ${key} sin nodo`);
+const failed = [], ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 for (const [key, fn] of Object.entries(CHECKS)) {
-  try { fn(); } catch (e) { e.message = `[${key}] ${e.message}`; throw e; }
+  if (ONLY.length && !ONLY.includes(key)) continue;
+  try { fn(); } catch (e) {
+    const got = /equal/i.test(e.operator || '') ? ` (sale ${JSON.stringify(e.actual)})` : e instanceof assert.AssertionError ? '' : ` ${e.stack.split('\n')[1].trim()}`;
+    failed.push(`[${key}] ${e.message.split('\n')[0]}${got}`);
+  }
 }
-console.log(`✓ ${Object.keys(CHECKS).length} nodos u opciones de clase y héroe con efecto observable (${pend} pendientes del grant de KA1)`);
+if (failed.length) { console.error(failed.join('\n')); assert.fail(`${failed.length} nodos sin su efecto`); }
+console.log(`✓ ${Object.keys(CHECKS).length} nodos u opciones (clase, especializaciones y héroe) con efecto observable`);
 
 // las claves tv propias las lee un poder del Guerrero
 for (const k of GUERRERO_TV_KEYS) assert.ok(new RegExp(`\\btv\\??\\.${k}\\b`).test(SRC), `GUERRERO_TV_KEYS: «${k}» no la lee js/powers-guerrero.js`);
 assert.ok(!new RegExp('\\btv\\??\\.titanInventada\\b').test(SRC), 'la comprobación de lectura rechaza una clave que nadie lee');
 // los poderes de los nodos de clase y héroe usan el prefijo de la clase y están registrados
-for (const [key, o] of ALL) if (o.fx?.power) assert.ok(/^g_/.test(o.fx.power) && POWER_HOOKS[o.fx.power], `${key}: poder ${o.fx.power} registrado`);
+for (const [key, o] of ALL) if (o.fx?.power) assert.ok((/^g_/.test(o.fx.power) || o.fx.power === 'm_berserk') && POWER_HOOKS[o.fx.power], `${key}: poder ${o.fx.power} registrado`);
 console.log(`✓ ${GUERRERO_TV_KEYS.length} claves tv propias leídas por sus poderes`);
 
-console.log('\n✅ TALENTOS DEL GUERRERO (clase y héroe): cada nodo con su efecto');
+console.log('\n✅ TALENTOS DEL GUERRERO (clase, especializaciones y héroe): cada nodo con su efecto');

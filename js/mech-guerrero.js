@@ -1,8 +1,7 @@
 // ============================================================
 // MECÁNICAS DE ESPECIALIZACIÓN DEL GUERRERO: Sed (Berserker) · Bastión (Guardián) · Fervor (Cruzado)
 // ============================================================
-// Paso 2 (E0.3): sale de js/spec-mechanics.js SIN cambiar nada (puro movimiento). Dueño
-// desde E2: KT-guerrero (docs/paso2-implementacion.md §2 E2: ids de nodo citados, verbos nuevos).
+// Paso 2g (docs/paso2g-guerrero.md §7 y §11.5). Dueño: KT-guerrero.
 // Módulo HOJA (sin imports, y así debe quedar): el núcleo (js/spec-mechanics.js) compone
 // gaugeTuning()/baseGauges() de las tres clases e INYECTA sus helpers en `H` para no crear
 // un ciclo con powers.js. `H` trae: gainGauge, spendGauge, drainGauge, gaugeGainMult,
@@ -14,38 +13,50 @@
 //   baseGauges(T, H) → { <id>: definición }  T = gaugeTuning() COMPLETO (las tres clases)
 // El orden de las claves importa (gaugeDefs/gaugeIds lo conservan): guerrero → maga → arquera.
 
-export function gaugeTuning(H) {
-  const { talentSkill } = H;
-  const muro = talentSkill('g_t_muro'), ver = talentSkill('g_t_veredicto');
+export function gaugeTuning() {
   return {
-    sed:      { perHpPct: 1, perBleedTick: 2, bleedPerSec: 10, satedT: 6, decayAfter: 4, decayRate: 8,
-      max: 100, lowHpPct: 40, satedDmgPct: 25,                              // m_berserk ×1,25
-      remolino: { perHit: 2, max: 20 },                                      // s4 Remolino Sediento (2e: por golpe)
-      frenzy: { t: 8, aspdPct: 30, healPct: 1 } },                           // s14 Sangre Hirviente
-    bastion:  { max: 5, perBlock: 1, decayEvery: 6, blockPct: 15,
-      shout: 2,                                                              // s4 Desafío Firme
-      murallaPerRank: 1,                                                     // s17 Muralla Viviente (2e: era 2)
-      wall: { t: muro.dur ?? 8, drPerCharge: muro.drPerCharge ?? 10, drMax: muro.drMax ?? 50 } },
-    fervor:   { max: 3, perKill: 1, hammerHits: 3, basicHits: 3,             // 2e: también 1 cada 3 básicos
-      verdict: { cost: ver.gaugeCost ?? 3, coefPct: Math.round((ver.coef ?? 3) * 100), healPct: ver.healDealtPct ?? 25 },
-      ascension: { t: 10, need: 3 } },                                       // x3 Ascensión
+    // Sed: +1 por 1 % de vida perdida, +2 por golpe de Sangrado (≤ 10/s); a 100, Sed Saciada 6 s
+    // (m_berserk: +25 % de daño aunque tengas la vida alta) y vuelve a 0; −8/s tras 4 s fuera de
+    // combate. Los talentos que la alimentan citan aquí su número (la barra los explica)
+    sed: { perHpPct: 1, perBleedTick: 2, bleedPerSec: 10, satedT: 6, decayAfter: 4, decayRate: 8,
+      max: 100, lowHpPct: 40, satedDmgPct: 25,
+      reabrir: 3,                 // b5 Reabrir: por golpe de Rajar a un enemigo que sangra
+      ultimoTrago: 5,             // b19 Último Trago: × rango (el doble contra élites y jefes)
+      negacion: 50,               // b15A Negación de la Muerte: deja la Sed en 50
+      eliteKill: 30,              // b28 Corazón Indomable 1: matar a un élite
+      apexSatedT: 9 },            // b28 Corazón Indomable 2: Sed Saciada 9 s
+    // Bastión (rehecho): +1 por bloqueo y +1 cada 2 s plantado en combate; −4 % de daño recibido por
+    // carga; caminando pierdes 1 cada 2 s; con 5, cambiar de postura las descarga (Muralla: escudo
+    // del 20 % a ti y al aliado más herido · Ariete: onda del 300 % a 5 m, 30 de Quebranto a los
+    // jefes) y deja el Bastión 5 s sin llenarse
+    bastion: { max: 5, perBlock: 1, plantedEvery: 2, combatT: 5, moveLossEvery: 2, drPerCharge: 4,
+      burstAt: 5, lockAfterBurst: 5,
+      burst: { shieldPct: 20, shieldDur: 6, coef: 3, radius: 5, stagger: 30, allyRadius: 15 },
+      apexMax: 7 },               // d28 Inexpugnable 2: 7 cargas
+    // Fervor (rehecho): +1 por suelta perfecta o detonación de Juicio (como mucho 1 por lanzamiento;
+    // la suelta perfecta la suma el catálogo: perfectGauge del Martillo 1 y del Cataclismo 3) y +1
+    // cada 3 Tajos. A 3, el siguiente Martillo sale al instante como Veredicto (+50 % y cura un 6 %
+    // al más herido); el Veredicto no da Fervor ni es suelta perfecta. Fuera de combate, −1 cada 10 s
+    fervor: { max: 3, perPerfect: 1, perDetonate: 1, perCastMax: 1, perfectCataclysm: 3, basicHits: 3, decayOOC: 10,
+      verdict: { cost: 3, dmgPct: 50, healPct: 6, apexHealPct: 10, radius: 15 } },
   };
 }
 
 export function baseGauges(T, H) {
-  const { gainGauge, drainGauge, buffOf, now, isBasicHit, hasPower } = H;
+  const { gainGauge, spendGauge, drainGauge, buffOf, now, isBasicHit, isBoss } = H;
+  const rank = (p, id) => p?.talentAgg?.powerRank?.[id] | 0;
   return {
-    // Berserker: perder vida y desangrar llenan la Sed; a 100 → Sed Saciada 6 s
-    // (activa m_berserk ×1,25 aunque tengas la vida alta) y vuelve a 0.
+    // ---------------- SED (Berserker) ----------------
     sed: {
-      name: 'Sed', color: '#e8634a', max: 100, procs: true,
+      name: 'Sed', color: '#e8634a', max: T.sed.max, procs: true,
       decay: { after: T.sed.decayAfter, rate: T.sed.decayRate, ooc: true },
-      state: () => ({ satedT: 0, bleedT: -9, bleedN: 0 }),
+      state: () => ({ satedT: 0, satedMax: 0, bleedT: -9, bleedN: 0 }),
       canGain: (p, st) => !(st.satedT > 0),
       hold: st => st.satedT > 0,
+      // la vida que de verdad pierdes (un golpe letal no llena la Sed más allá de la que te quedaba)
       onDamaged(g, p, dmg) {
-        const max = p.stats?.maxHP || 0;
-        if (dmg?.amount > 0 && max > 0) gainGauge(p, 'sed', dmg.amount / max * 100 * T.sed.perHpPct);
+        const max = p.stats?.maxHP || 0, lost = Math.min(dmg?.amount || 0, Math.max(0, p.hp));
+        if (lost > 0 && max > 0) gainGauge(p, 'sed', lost / max * 100 * T.sed.perHpPct);
       },
       onHit(g, p, e, hit, st) {
         if (!hit?.dot || !/:bleed$/.test(hit.source || '')) return;
@@ -54,66 +65,148 @@ export function baseGauges(T, H) {
         if (n > 0) { st.bleedN += n; gainGauge(p, 'sed', n); }
       },
       onFull(g, p, st) {
-        st.satedT = T.sed.satedT;
+        st.satedT = st.satedMax = rank(p, 'g_b_corazon_indomable') >= 2 ? T.sed.apexSatedT : T.sed.satedT;
         g?.ui?.spawnText?.(p.pos, '¡SED SACIADA!', 'txt-crit');
       },
       onTick(g, p, dt, st) {
         if (st.satedT > 0) { st.satedT -= dt; if (st.satedT <= 0) { st.satedT = 0; drainGauge(p, 'sed', st.v); } }
       },
       view: st => (st.satedT > 0 ? { state: 'active', label: 'Sed Saciada', t: st.satedT } : null),
-      // v2: vida baja (m_berserk activo por vida) y Desenfreno (s14, buff g_desenfreno)
+      // vida baja (Al borde: m_berserk ya suma su +25 %) y Sangre Hirviente (b16, venas ámbar).
+      // frenzyT/frenzyMax: nombres del contrato §3.10 (tests/test75) para el buff de Sangre Hirviente
       viewX(p, st, e, out) {
-        const max = p.stats?.maxHP || 0, fr = buffOf(p, 'g_desenfreno');
-        out.x = { low: max > 0 && p.hp / max < T.sed.lowHpPct / 100, frenzyT: fr ? fr.t : 0, frenzyMax: fr ? (fr.dur || T.sed.frenzy.t) : 0 };
-        if (st.satedT > 0) out.tMax = T.sed.satedT;
+        const max = p.stats?.maxHP || 0;
+        const boil = buffOf(p, 'g_b_sangre_hirviente');
+        out.x = { low: max > 0 && p.hp / max < T.sed.lowHpPct / 100 && !(st.satedT > 0), boil: !!boil,
+          frenzyT: boil ? boil.t : 0, frenzyMax: boil ? (boil.dur || 0) : 0 };
+        if (st.satedT > 0) out.tMax = st.satedMax || T.sed.satedT;
       },
     },
-    // Guardián: +1 carga por bloqueo (innata: 15 % de bloqueo con escudo); se pierde
-    // 1 carga cada 6 s sin ganar ninguna. La gastan Muro de Escudos y los talentos.
+
+    // ---------------- BASTIÓN (Guardián) ----------------
     bastion: {
       name: 'Bastión', color: '#7fb0e8', max: T.bastion.max, integer: true,
-      decay: { after: 0, every: T.bastion.decayEvery, n: 1 },          // 1 carga cada 6 s sin ganar
+      state: () => ({ lockUntil: -99, plantAcc: 0, walkAcc: 0, burst: null }),
+      // tras descargar, 5 s sin llenarse
+      canGain: (p, st) => now(p) >= st.lockUntil - 1e-9,
       onDamaged(g, p, dmg) { if (dmg?.blocked) gainGauge(p, 'bastion', T.bastion.perBlock); },
-      // v2: Muralla Viviente (s17: su condDr real), Muro de Escudos (s9: buff g_t_muro)
+      condDr: (p, info, _x, st) => T.bastion.drPerCharge * Math.floor(st?.v || 0),
+      onTick(g, p, dt, st) {
+        const B = T.bastion;
+        const inCombat = (p.sinceCombat ?? 99) < B.combatT;
+        // plantado en combate: +1 cada 2 s
+        if (p.planted && inCombat) {
+          st.plantAcc += dt;
+          if (st.plantAcc >= B.plantedEvery - 1e-9) { st.plantAcc -= B.plantedEvery; gainGauge(p, 'bastion', 1); }
+        } else st.plantAcc = 0;
+        // caminando (no la Carga de Escudo ni un salto): −1 cada 2 s
+        const walking = !!p.moving && !p.planted && !p.dashMove && !p.leap;
+        if (walking && st.v > 0) {
+          st.walkAcc += dt;
+          if (st.walkAcc >= B.moveLossEvery - 1e-9) { st.walkAcc -= B.moveLossEvery; drainGauge(p, 'bastion', 1); }
+        } else if (!walking) st.walkAcc = 0;
+      },
+      // DESCARGA: con 5 cargas, el cambio de postura las gasta todas
+      afterCast(g, p, cast, res, st) {
+        const B = T.bastion;
+        if (cast?.sk?.id !== 'g_guardia' || !cast.stance || st.v < B.burstAt - 1e-9) return;
+        const n = st.v;
+        st.burst = { stance: cast.stance, n, t: now(p) };
+        st.lockUntil = now(p) + B.lockAfterBurst;
+        spendGauge(p, 'bastion', n);
+        if (cast.stance === 'muralla') {
+          const amt = (p.stats?.maxHP || 0) * B.burst.shieldPct / 100;
+          g?.shield?.(amt, { target: 'self', dur: B.burst.shieldDur, src: 'bastion' });
+          let ally = null;
+          for (const a of g?.allies ? g.allies(p.pos, B.burst.allyRadius) : []) {
+            if (a === p || !(a.stats?.maxHP > 0)) continue;
+            if (!ally || a.hp / a.stats.maxHP < ally.hp / ally.stats.maxHP) ally = a;
+          }
+          ally?.addShield?.(amt, B.burst.shieldDur, 'bastion');
+        } else {
+          const c = p.pos.clone();
+          g?.dealArea?.(c, B.burst.radius, B.burst.coef, { from: c, hitInfo: { skill: 'g_guardia', tags: new Set(['spec', 'area', 'physical']), elem: 'physical' },
+            onHit: e => { if (e.alive && isBoss(e)) e.addStagger?.(B.burst.stagger, p); } });
+          g?.spawnRing?.(c, B.burst.radius, 0xd83a2a);
+        }
+        g?.ui?.spawnText?.(p.pos, '¡BASTIÓN!', 'txt-crit');
+      },
+      // la postura (Muralla o Ariete), si estás plantado, la reducción de las cargas, la espera
+      // tras descargar (estado activo «Descarga») y si caminando pierdes cargas
       viewX(p, st, e, out) {
-        let drPct = 0;
-        if (hasPower(p, 'g_muralla_viva')) { try { drPct = +H.POWER_HOOKS.g_muralla_viva?.condDr?.(p) || 0; } catch { drPct = 0; } }
-        const wall = buffOf(p, 'g_t_muro');
-        out.x = { drPct, wallT: wall ? wall.t : 0, wallMax: wall ? (wall.dur || T.bastion.wall.t) : 0,
-          wallDr: wall ? (wall.stats?.dr || 0) : 0, decayEvery: T.bastion.decayEvery };
-        if (wall) { out.state = 'active'; out.label = 'Muro de Escudos'; out.t = wall.t; out.tMax = out.x.wallMax; }
+        const B = T.bastion;
+        const lockT = Math.max(0, (st.lockUntil ?? -99) - now(p));
+        const modes = p.game?.activeStanceModes?.(p) || [];
+        const stance = modes.length > 1 ? 'both' : (modes[0]?.id || null);
+        const walking = !!p.moving && !p.planted && !p.dashMove && !p.leap;
+        out.x = { stance, planted: !!p.planted, drPct: B.drPerCharge * Math.floor(out.value || 0), perCharge: B.drPerCharge,
+          lockT, lockMax: B.lockAfterBurst, walking, walkIn: walking && out.value > 0 ? Math.max(0, B.moveLossEvery - (st.walkAcc || 0)) : null,
+          // nombres del contrato §3.10 (tests/test75): la descarga ocupa el sitio del Muro de Escudos
+          wallT: lockT, wallMax: lockT > 0 ? B.lockAfterBurst : 0, wallDr: 0, decayEvery: B.moveLossEvery };
+        if (lockT > 0) { out.state = 'active'; out.label = 'Descarga'; out.t = lockT; out.tMax = B.lockAfterBurst; }
+        out.ready = out.value >= B.burstAt ? ['g_guardia'] : [];
       },
     },
-    // Cruzado: +1 por muerte (Juicio, su nodo clave), +1 cada 3 impactos de Martillo de
-    // Guerra y +1 cada 3 golpes del básico que aciertan (Paso 2e). Veredicto Final gasta 3.
+
+    // ---------------- FERVOR (Cruzado) ----------------
     fervor: {
       name: 'Fervor', color: '#ecc760', max: T.fervor.max, integer: true,
-      state: () => ({ hammerHits: 0, basicHits: 0 }),
-      onKill(g, p) { gainGauge(p, 'fervor', T.fervor.perKill); },
-      // Paso 2e: el básico que acierta también da Fervor (1 cada 3); sin Martillo en la barra
-      // (variante defensiva de §7.1) el Cruzado no ganaba Fervor contra un jefe
+      decay: { after: T.fervor.decayOOC, every: T.fervor.decayOOC, n: 1, ooc: true },
+      state: () => ({ basicAt: -1, basicN: 0, det: false, verdictCast: null, verdictLive: false, verdictTarget: null, verdictHealed: null }),
+      // a 3 de Fervor, el Martillo sale al instante (Veredicto: cast.instant, carga completa sin perfecto)
+      onCast(g, p, cast, st) {
+        st.det = false;
+        if (cast?.sk?.id !== 'g_martillo' || cast.echo) return;
+        if ((st.v || 0) >= T.fervor.verdict.cost - 1e-9) {
+          cast.instant = true;
+          st.verdictCast = cast; st.verdictLive = true; st.verdictTarget = cast.enemy || null; st.verdictHealed = null;
+        } else st.verdictLive = false;
+      },
       onHit(g, p, e, hit, st) {
         if (hit?.proc || hit?.dot) return;
-        if (hit?.skill === 'g_martillo') {
-          if (++st.hammerHits >= T.fervor.hammerHits) { st.hammerHits = 0; gainGauge(p, 'fervor', 1); }
-        } else if (isBasicHit(p, hit)) {
-          if (++st.basicHits >= T.fervor.basicHits) { st.basicHits = 0; gainGauge(p, 'fervor', 1); }
-          // Fervor Creciente (tv.fervorChance; Paso 2e: del Martillo pasa al básico): cada
-          // golpe del básico que acierta tiene X % de dar 1 más
+        if (hit?.detonated && !hit.echo) st.det = true;
+        // +1 cada 3 Tajos que aciertan (uno por golpe aunque alcance a varios)
+        if (isBasicHit(p, hit) && st.basicAt !== now(p)) {
+          st.basicAt = now(p);
+          if (++st.basicN >= T.fervor.basicHits) { st.basicN = 0; gainGauge(p, 'fervor', 1); }
+          // tv.fervorChance (contrato del núcleo, spec-mechanics.js; ningún nodo v2 la da): X % de 1 más
           const ch = p.tv?.fervorChance || 0;
-          if (ch > 0) {
-            const r = typeof p.combatRng === 'function' ? p.combatRng() : 0.5;
-            if (r * 100 < ch) gainGauge(p, 'fervor', 1);
-          }
+          if (ch > 0 && (typeof p.combatRng === 'function' ? p.combatRng() : 0.5) * 100 < ch) gainGauge(p, 'fervor', 1);
         }
       },
-      // v2: cuentas del Martillo, Ascensión (x3: buff g_ascension) y Veredicto listo
+      condAdd: (p, e, hit, st) => (hit?.skill === 'g_martillo' && st?.verdictLive ? T.fervor.verdict.dmgPct : 0),
+      afterCast(g, p, cast, res, st) {
+        if (!cast || cast.echo) return;
+        const det = st.det;
+        st.det = false;
+        if (st.verdictLive && st.verdictCast === cast) {
+          // VEREDICTO: cura al aliado más herido (Aureola 2: un 10 %) y gasta todo el Fervor
+          st.verdictLive = false;
+          const V = T.fervor.verdict;
+          const pct = rank(p, 'g_z_aureola') >= 2 ? V.apexHealPct : V.healPct;
+          let low = null;
+          for (const a of g?.allies ? g.allies(p.pos, V.radius) : [p]) {
+            if (!(a.stats?.maxHP > 0)) continue;
+            if (!low || a.hp / a.stats.maxHP < low.hp / low.stats.maxHP) low = a;
+          }
+          if (low) {
+            st.verdictHealed = low;
+            if (low === p && g?.heal) g.heal(p.stats.maxHP * pct / 100, { target: 'self', src: 'veredicto' });
+            else low.healSkill?.(low.stats.maxHP * pct / 100, 'veredicto');
+          }
+          spendGauge(p, 'fervor', st.v);
+          g?.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡VEREDICTO!', 'txt-crit');
+          return;
+        }
+        // detonar marcas: +1 (como mucho 1 por lanzamiento; una suelta perfecta ya dio el suyo)
+        if (det && !cast.perfect) gainGauge(p, 'fervor', T.fervor.perDetonate);
+      },
       viewX(p, st, e, out) {
-        const asc = buffOf(p, 'g_ascension');
-        out.x = { hammerHits: st.hammerHits || 0, hammerNeed: T.fervor.hammerHits,
-          ascT: asc ? asc.t : 0, ascMax: asc ? (asc.dur || T.fervor.ascension.t) : 0 };
-        if (asc) { out.state = 'active'; out.label = 'Ascensión'; out.t = asc.t; out.tMax = out.x.ascMax; }
-        out.ready = (asc || out.value >= T.fervor.verdict.cost) ? ['g_t_veredicto'] : [];
+        // hammerHits/hammerNeed/ascT/ascMax: nombres del contrato §3.10 (tests/test75); las cuentas
+        // son ahora los Tajos y ya no hay Ascensión
+        out.x = { basicHits: st.basicN || 0, basicNeed: T.fervor.basicHits, hammerHits: st.basicN || 0, hammerNeed: T.fervor.basicHits, ascT: 0, ascMax: 0 };
+        out.ready = out.value >= T.fervor.verdict.cost ? ['g_martillo'] : [];
+        if (out.ready.length) out.label = 'Veredicto';
       },
     },
   };
