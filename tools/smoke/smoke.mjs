@@ -232,6 +232,19 @@ const canvasPoint = page => page.evaluate(() => {
   return { blocked: path.join(' < ') || String(el), panel: window.__game.ui?.activePanel || null };
 });
 
+// punto de pantalla de un enemigo vivo a más de 3 m (el más cercano), si el lienzo recibe ahí el
+// ratón; null si no hay ninguno
+const enemyPoint = page => page.evaluate(() => {
+  const g = window.__game, p = g.player, cv = g.renderer.domElement, r = cv.getBoundingClientRect();
+  const es = (g.enemies || []).filter(e => e.alive && e.pos.distanceTo(p.pos) > 3).sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos));
+  for (const e of es) {
+    const v = e.pos.clone(); v.y = 0.5; v.project(g.camera);
+    const x = Math.round(r.left + (v.x + 1) / 2 * r.width), y = Math.round(r.top + (1 - v.y) / 2 * r.height);
+    if (document.elementFromPoint(x, y) === cv) return { x, y, d: +e.pos.distanceTo(p.pos).toFixed(1) };
+  }
+  return null;
+});
+
 // el aviso de Nv10 puede abrir el selector de especialización (pantalla completa) entre
 // setLevel y chooseSpec, y el panel sigue abierto tras elegir: se cierra antes del ratón real
 // y se espera al frame que quita la pausa (con la partida en pausa no arranca ninguna carga)
@@ -790,13 +803,19 @@ async function verbSteps(page, origin, cls) {
         return { habilidad: sk.id, ranura: slot, framesEnVentana: seen.filter(v => v.inWindowModel).length };
       }
       if (verb === 'recast') {
+        // el relanzar del catálogo 2g puede pedir acierto (recast.cond 'hit': Salto Devastador):
+        // el ratón apunta a un enemigo del anillo y se espera a que caiga (salto ~0,45 s)
+        const aim = await enemyPoint(page);
+        if (aim) await mouse(page, 'mouseMoved', aim.x, aim.y);
         await press(); await page.evaluate('window.__smokeLib.step(2)'); await release();
-        await page.evaluate('window.__smokeLib.step(12)');
+        await page.evaluate('window.__smokeLib.step(45)');
         const st = await page.evaluate(({ id, slot }) => ({ state: window.__game.player.skState?.[id]?.recast || null,
           ring: !!document.querySelector(`.verb-ring[data-slot="${slot}"]`) }), { id: sk.id, slot });
-        check(st.state, `${sk.id}: tras el 1.er uso no hay ventana de relanzar (p.skState[id].recast)`);
+        check(st.state, `${sk.id}: tras el 1.er uso no hay ventana de relanzar (p.skState[id].recast)`, aim);
+        const aim2 = await enemyPoint(page);
+        if (aim2) await mouse(page, 'mouseMoved', aim2.x, aim2.y);
         await press(); await page.evaluate('window.__smokeLib.step(2)'); await release();
-        await page.evaluate('window.__smokeLib.step(12)');
+        await page.evaluate('window.__smokeLib.step(45)');
         if (!st.ring) return { ...SKIP('sin .verb-ring[data-slot] (U2 · E3)'), dom: true };
         return { habilidad: sk.id, ranura: slot, estado: st.state };
       }

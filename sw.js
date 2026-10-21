@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v105';
+const VERSION = 'v106';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -92,6 +92,7 @@ const ASSETS = [
   './js/powers-forge-maga.js',
   './js/powers-forge-arquera.js',
   './js/talents-view.js',
+  './js/talent-art.js',
   './js/ui-skills.js',
   './js/ui-verbs.js',
   './css/skills.css',
@@ -103,7 +104,8 @@ const ASSETS = [
 ];
 
 // Paso 2d: interfaz pintada PEQUEÑA (iconos 128 px, habilidades base 128 px, marcadores 64 px, marcos): se
-// precarga (no atómico). Los 234 iconos de talentos, retratos, emblemas y ui256 NO:
+// precarga (no atómico). Los 234 iconos de talentos (y el arte 2g de nodos y forja: talents2g, forge),
+// retratos, emblemas y ui256 NO:
 // van a la caché de arte en tiempo de ejecución (ART_CACHE, ver fetch).
 const UI_ASSETS = [
   './assets/ui/cat_basico.webp',
@@ -301,7 +303,7 @@ const UI_ASSETS = [
   './assets/skills/torbellino.webp',
 ];
 const ART_CACHE = 'intentorpg-art-v1';
-const ART_RE = /\/assets\/(talents|specs|emblems|ui256|skills256|vfx)\//;
+const ART_RE = /\/assets\/(talents|specs|emblems|ui256|skills256|vfx|talents2g|forge)\//;
 
 // Addons de post-procesado (post-fx: bloom + viñeta + grading). Se precachean
 // aparte y de forma NO atómica: si alguno falla, el post-procesado se degrada

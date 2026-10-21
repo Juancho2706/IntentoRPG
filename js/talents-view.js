@@ -26,6 +26,7 @@ import { createTalentOps, TALENT_REASONS, LOADOUTS_MAX, LOADOUT_NAME_MAX } from 
 import { CLASSES } from './data.js';
 import { knownSkills } from './skill-resolve.js';
 import { CAT_LABELS, skillSlots } from './skill-defs.js';
+import { talentArtPath } from './talent-art.js';
 
 // operaciones puras (solo para CONSULTAR el estado de un nodo; las mutaciones van por ops)
 const OPS = createTalentOps(Talents);
@@ -150,11 +151,11 @@ export function reasonText(r) {
 export { TALENT_REASONS, LOADOUTS_MAX };
 
 // ------------------------------------------------------------ iconos y habilidades
-// ruta (relativa a assets/) del icono de un nodo: el suyo o talents/<clase>-<clase|spec|héroe>-<id>.webp
+// ruta (relativa a assets/) del icono de un nodo: el arte propio 2g (talent-art.js), el suyo o
+// talents/<clase>-<clase|spec|héroe>-<id>.webp
 export function nodeIconPath(classId, which, ownerId, node) {
-  if (node?.icon) return node.icon;
   const tree = which === 'cls' ? 'clase' : ownerId;
-  return `talents/${classId}-${tree}-${node?.id}.webp`;
+  return talentArtPath(classId, tree, node?.id) || node?.icon || `talents/${classId}-${tree}-${node?.id}.webp`;
 }
 const skillCatalog = classId => (CLASSES[classId]?.skills || []).filter(s => s.kind !== 'passive');
 const findSkill = (classId, id) => skillCatalog(classId).find(s => s.id === id) || null;

@@ -35,7 +35,24 @@ import { mergeBindings, buildCodeMap, keyLabel } from './bindings.js';
 // iconos de VARIANTE ya pintados (assets/forge/v_<id>.webp): vacío hasta la tanda de arte
 // (2f §5; A8 diferido). Mientras, la reserva legible: icono base virado al color del papel
 // (la II en espejo) con el glifo grande del papel (2f §4.1)
-export const FORGE_ART = new Set();
+export const FORGE_ART = new Set([
+  'a_disparo_i', 'a_disparo_ii', 'a_f_rastreador_i', 'a_f_rastreador_ii', 'a_f_rodilla_i', 'a_f_rodilla_ii',
+  'a_humo_i', 'a_humo_ii', 'a_m_acecho_i', 'a_m_acecho_ii', 'a_m_detonante_i', 'a_m_detonante_ii', 'a_orbe_i',
+  'a_orbe_ii', 'a_paso_i', 'a_paso_ii', 'a_sello_i', 'a_sello_ii', 'a_t_andanada_i', 'a_t_andanada_ii',
+  'a_t_apuntado_i', 'a_t_apuntado_ii', 'a_t_cepo_i', 'a_t_cepo_ii', 'a_u_celeste_i', 'a_u_celeste_ii',
+  'a_u_diluvio_i', 'a_u_diluvio_ii', 'a_u_zarzas_i', 'a_u_zarzas_ii', 'a_v_carrera_i', 'a_v_carrera_ii',
+  'bola_fuego_i', 'bola_fuego_ii', 'embestida_i', 'embestida_ii', 'flecha_multiple_i', 'flecha_multiple_ii',
+  'flecha_perforante_i', 'flecha_perforante_ii', 'g_carga_escudo_i', 'g_carga_escudo_ii', 'g_guardia_i',
+  'g_guardia_ii', 'g_hendidura_i', 'g_hendidura_ii', 'g_juicio_i', 'g_juicio_ii', 'g_lanza_i', 'g_lanza_ii',
+  'g_martillo_i', 'g_martillo_ii', 'g_piel_i', 'g_piel_ii', 'g_rajar_i', 'g_rajar_ii', 'g_remolino_i',
+  'g_remolino_ii', 'g_salto_i', 'g_salto_ii', 'g_sendero_i', 'g_sendero_ii', 'g_tajo_i', 'g_tajo_ii',
+  'g_u_cataclismo_i', 'g_u_cataclismo_ii', 'g_u_ciudadela_i', 'g_u_ciudadela_ii', 'g_u_furia_i', 'g_u_furia_ii',
+  'k_lanza_i', 'k_lanza_ii', 'k_prision_i', 'k_prision_ii', 'lluvia_flechas_i', 'lluvia_flechas_ii', 'm_barrera_i',
+  'm_barrera_ii', 'm_dardo_i', 'm_dardo_ii', 'm_estela_ignea_i', 'm_estela_ignea_ii', 'm_parpadeo_i',
+  'm_parpadeo_ii', 'm_paso_escarcha_i', 'm_paso_escarcha_ii', 'm_u_desgarro_i', 'm_u_desgarro_ii', 'm_u_supernova_i',
+  'm_u_supernova_ii', 'm_u_tormenta_i', 'm_u_tormenta_ii', 'meteoro_i', 'meteoro_ii', 'nova_hielo_i',
+  'nova_hielo_ii', 'p_llamarada_i', 'p_llamarada_ii', 'rayo_i', 'rayo_ii', 'terremoto_i', 'terremoto_ii'
+]);
 const TIP_DELAY = 160;                       // ms (2f §3.4)
 const DRAG_PX = 7;
 // glifos de papel (reserva hasta los iconos rol_*): un objetivo, área, control, aguante, apoyo, movilidad

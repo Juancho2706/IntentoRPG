@@ -23,6 +23,7 @@ import { SUPPORTS, FORGE_RECO, CLASSES } from './data.js';
 import { talentTreesFor, findSpec, activeHeroTree, heroOpen, pointKindAt, TALENT_RULES } from './talents.js';
 import { rankCoef, chargeRelease } from './combat-math.js';
 import { gaugeDefs } from './spec-mechanics.js';
+import { talentArtPath } from './talent-art.js';
 
 export const UI_BASE = 'assets/ui/';
 export const MAP_BASE = 'assets/map/';
@@ -997,7 +998,8 @@ export function talentLinks(p, skillId) {
     for (const n of nodes) {
       if (!nodeSkills(n).includes(skillId)) continue;
       const rank = n.free ? (on ? 1 : 0) : rankOf(n.id);
-      out.push({ id: n.id, name: n.name, icon: n.icon || null, which, rank, max: n.max || 1, bought: rank > 0 });
+      const tree = which === 'cls' ? 'clase' : which === 'spec' ? spec.id : hero.id;
+      out.push({ id: n.id, name: n.name, icon: talentArtPath(p.classId, tree, n.id) || n.icon || null, which, rank, max: n.max || 1, bought: rank > 0 });
     }
   }
   return out;
