@@ -462,9 +462,11 @@ const GENERIC = {
     const pos = ctx.target.clone().setY(0);
     const f = g.spawnField('trampa', { pos, radius: t.radius || prof.radius || 1.5, dur: prof.dur || sk.life || VERB_DEFAULTS.trapLife, owner: p,
       maxPerSkill: Math.max(t.maxArmed || 0, prof.zoneMax || 0),
+      // burst va en crudo (de la definición); rank, para que el estallido escale con el rango
+      // (× rankCoef(rank), lo aplica field-entities una vez); coef y hitDot ya llevan el rango
       data: { dmg: ctx.avgHit, coef: ctx.coef, root: Math.max(t.root || 0, prof.root || 0), color: ctx.color, skill: sk.id, tags: prof.tags, elem: prof.elem,
         armT: t.armT ?? VERB_DEFAULTS.trapArmT, burst: t.burst || null, consume: t.consume !== false,
-        lure: t.lure || null, hitDot: prof.hitDot } });
+        lure: t.lure || null, hitDot: prof.hitDot, rank: prof.rank } });
     if (f) { ctx.zoneCenter = pos; ctx.zoneRad = f.radius; }
     return ctx.res;
   },
