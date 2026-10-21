@@ -11,50 +11,15 @@
 //   frostArmor/frostArmorRing, meteorFall/Impact/Wave/Embers/Smoke.
 // Paleta por elemento (fx-skills.js): fuego naranja/rojo · escarcha cian/blanco ·
 // arcano violeta. Sonidos elementales de §4.4: fire / ice / bolt.
-// Paso 2c.1: entradas de las 16 activas de TALENTO (m_t_*, p_*, k_*, a_*) y sus presets;
-// los comportamientos (js/powers-maga.js) leen aura/impact/extra de su ctx.fx.
+// Paso 2g: una entrada por habilidad del catálogo (kit base, kits de especialización y las 6
+// activas de talento); los comportamientos leen aura/impact/extra/trail de su ctx.fx.
+// Forja (KA2): MAGA_FORGE_FX = VFX de las VARIANTES que cambian de forma, por id de variante
+// (`<id>_i` / `<id>_ii`); los comportamientos de skills-maga.js los ponen encima de los de la
+// habilidad y los poderes de powers-forge-maga.js los leen para sus estallidos. Las variantes de
+// tipo genérico cambian solo de color (el `color` de su definición forjada).
 // Este archivo no importa nada.
 
 export const MAGA_FX_PRESETS = {
-  // ---- Ascua (básico de fuego): brasa pequeña + chisporroteo al estallar ----
-  emberTrail: {
-    name: 'Ascua estela', texture: 'glow', blending: 'additive',
-    count: 10, burst: true, lifetime: [0.15, 0.3],
-    shape: 'sphere', shapeRadius: 0.1, speed: [0.3, 1.2], gravity: -0.6, drag: 0.6,
-    size: { start: [0.16, 0.3], end: 0.0 },
-    color: { start: '#ffe6a8', end: '#e0400c' }, alpha: { start: 0.9, end: 0 },
-  },
-  emberBurst: {
-    name: 'Ascua estallido', texture: 'spark', blending: 'additive',
-    count: 26, burst: true, lifetime: [0.18, 0.42],
-    shape: 'sphere', shapeRadius: 0.16, speed: [2.5, 6], gravity: 3, drag: 0.6,
-    size: { start: [0.12, 0.28], end: 0.0 },
-    color: { start: '#fff0c0', end: '#ff5a14' }, alpha: { start: 1, end: 0 },
-  },
-  emberRing: {
-    name: 'Ascua onda', texture: 'disc', blending: 'additive',
-    count: 1, burst: true, lifetime: [0.2, 0.26],
-    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
-    size: { start: [0.3, 0.4], end: 2.6 },
-    color: { start: '#ffd98a', end: '#c8300a' }, alpha: { start: 0.75, end: 0 },
-  },
-
-  // ---- Toque Gélido (básico de escarcha): vaho en cono + escarcha flotante ----
-  frostBreath: {
-    name: 'Toque Gélido vaho', texture: 'smoke', blending: 'additive',
-    count: 26, burst: true, lifetime: [0.3, 0.6],
-    shape: 'cone', shapeRadius: 0.12, coneAngle: 70, speed: [4, 8], gravity: -0.2, drag: 1.2,
-    size: { start: [0.3, 0.55], end: 1.3 },
-    color: { start: '#eaf7ff', end: '#5cb6ff' }, alpha: { start: 0.55, end: 0 },
-  },
-  frostBreathMotes: {
-    name: 'Toque Gélido escarcha', texture: 'star', blending: 'additive',
-    count: 14, burst: true, lifetime: [0.35, 0.7],
-    shape: 'disc', shapeRadius: 0.9, speed: [0.4, 1.4], gravity: -0.8, drag: 0.6,
-    size: { start: [0.12, 0.24], end: 0.0 },
-    color: { start: '#ffffff', end: '#9fe3ff' }, alpha: { start: 0.9, end: 0 }, spin: 160,
-  },
-
   // ---- Paso de Escarcha: polvo de hielo a ras de suelo + destello al llegar ----
   frostStepTrail: {
     name: 'Paso de Escarcha estela', texture: 'spark', blending: 'additive',
@@ -87,7 +52,7 @@ export const MAGA_FX_PRESETS = {
     color: { start: '#ffe6a8', end: '#ff4a10' }, alpha: { start: 1, end: 0 },
   },
 
-  // ---- Onda Repulsora: anillo arcano que se expande + runas que salen despedidas ----
+  // ---- Empuje arcano (Parpadeo Disruptor, variante de la forja): anillo + runas despedidas ----
   repulseWave: {
     name: 'Onda Repulsora anillo', texture: 'disc', blending: 'additive',
     count: 1, burst: true, lifetime: [0.3, 0.36],
@@ -158,7 +123,6 @@ export const MAGA_FX_PRESETS = {
     color: { start: '#ffffff', end: '#c070ff' }, alpha: { start: 1, end: 0 },
   },
 
-  // ============ Paso 2c.1: activas de TALENTO ============
   // ---- Barrera de Maná: burbuja violeta que se cierra sobre la Maga ----
   manaBubble: {
     name: 'Barrera de Maná', texture: 'disc', blending: 'additive',
@@ -220,15 +184,7 @@ export const MAGA_FX_PRESETS = {
     size: { start: [0.12, 0.26], end: 0.0 },
     color: { start: '#ffe6a8', end: '#ff4a10' }, alpha: { start: 1, end: 0 },
   },
-  // ---- Combustión: llamas que envuelven el cuerpo ----
-  combustionAura: {
-    name: 'Combustión aura', texture: 'glow', blending: 'additive',
-    count: 50, burst: true, lifetime: [0.4, 0.9],
-    shape: 'ring', shapeRadius: 0.7, speed: [0.6, 2.2], gravity: -4, drag: 0.5,
-    size: { start: [0.35, 0.7], end: 0.0 },
-    color: { start: '#fff6c0', end: '#ff6a10' }, alpha: { start: 1, end: 0 },
-  },
-  // ---- Muro de Fuego: lenguas de fuego a lo largo del muro ----
+  // ---- Muro de Llamas (variante de la Estela Ígnea): lenguas de fuego a lo largo del rastro ----
   fireWallFlames: {
     name: 'Muro de Fuego llamas', texture: 'glow', blending: 'additive',
     count: 8, burst: true, lifetime: [0.35, 0.7],
@@ -259,6 +215,13 @@ export const MAGA_FX_PRESETS = {
     size: { start: [0.14, 0.3], end: 0.0 },
     color: { start: '#ffffff', end: '#aeeaff' }, alpha: { start: 0.9, end: 0 },
   },
+  iceLanceHit: {
+    name: 'Lanza de Hielo impacto', texture: 'spark', blending: 'additive',
+    count: 18, burst: true, lifetime: [0.15, 0.35],
+    shape: 'sphere', shapeRadius: 0.15, speed: [2.5, 6], gravity: 1.5, drag: 0.8,
+    size: { start: [0.14, 0.3], end: 0.0 },
+    color: { start: '#ffffff', end: '#8fdcff' }, alpha: { start: 1, end: 0 },
+  },
   iceLanceShatter: {
     name: 'Lanza de Hielo astillado', texture: 'star', blending: 'additive',
     count: 46, burst: true, lifetime: [0.3, 0.7],
@@ -266,22 +229,7 @@ export const MAGA_FX_PRESETS = {
     size: { start: [0.2, 0.45], end: 0.0 },
     color: { start: '#ffffff', end: '#7accff' }, alpha: { start: 1, end: 0 }, spin: 300,
   },
-  // ---- Ventisca / Aliento Boreal ----
-  blizzard: {
-    name: 'Ventisca nieve', texture: 'star', blending: 'additive',
-    count: 26, burst: true, lifetime: [0.6, 1.1],
-    shape: 'disc', shapeRadius: 4.5, speed: [1.5, 3.5], gravity: 3, drag: 0.4,
-    size: { start: [0.14, 0.3], end: 0.0 },
-    color: { start: '#ffffff', end: '#cfefff' }, alpha: { start: 0.9, end: 0 }, spin: 280,
-  },
-  borealBreath: {
-    name: 'Aliento Boreal', texture: 'smoke', blending: 'additive',
-    count: 34, burst: true, lifetime: [0.35, 0.7],
-    shape: 'cone', shapeRadius: 0.15, coneAngle: 70, speed: [6, 11], gravity: -0.2, drag: 1.1,
-    size: { start: [0.4, 0.7], end: 1.6 },
-    color: { start: '#f2fbff', end: '#5cb6ff' }, alpha: { start: 0.6, end: 0 },
-  },
-  // ---- Orbe Arcano / Sello / Evocación ----
+  // ---- Orbe Arcano / Sello del Archimago ----
   arcaneOrbCast: {
     name: 'Orbe Arcano lanzamiento', texture: 'glow', blending: 'additive',
     count: 1, burst: true, lifetime: [0.25, 0.3],
@@ -303,54 +251,115 @@ export const MAGA_FX_PRESETS = {
     size: { start: [0.25, 0.55], end: 0.0 },
     color: { start: '#ffffff', end: '#c070ff' }, alpha: { start: 1, end: 0 }, spin: 200,
   },
-  evocationSpiral: {
-    name: 'Evocación espiral', texture: 'star', blending: 'additive',
-    count: 16, burst: true, lifetime: [0.4, 0.7],
-    shape: 'ring', shapeRadius: 1.6, speed: [-3, -1.5], gravity: -1.5, drag: 0.2,
-    size: { start: [0.14, 0.3], end: 0.0 },
-    color: { start: '#ffffff', end: '#9f8cff' }, alpha: { start: 0.95, end: 0 }, spin: 340,
+  // ============ activas de héroe (Paso 2g) ============
+  // ---- Detener el Tiempo: onda pálida que se expande y motas suspendidas en el aire ----
+  timeStopWave: {
+    name: 'Detener el Tiempo onda', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.5, 0.55],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.8, 1.0], end: 16.0 },
+    color: { start: '#ffffff', end: '#b59cff' }, alpha: { start: 0.7, end: 0 },
+  },
+  timeStopMotes: {
+    name: 'Detener el Tiempo motas', texture: 'star', blending: 'additive',
+    count: 60, burst: true, lifetime: [1.4, 2.2],
+    shape: 'disc', shapeRadius: 7.0, speed: [0.05, 0.2], gravity: 0, drag: 3.0,
+    size: { start: [0.12, 0.26], end: 0.0 },
+    color: { start: '#ffffff', end: '#d7c2ff' }, alpha: { start: 0.9, end: 0 }, spin: 20,
+  },
+  // ---- Palabra de Poder: cada runa estalla en chispas al escribirse ----
+  runeFlare: {
+    name: 'Palabra de Poder runa', texture: 'star', blending: 'additive',
+    count: 16, burst: true, lifetime: [0.3, 0.6],
+    shape: 'ring', shapeRadius: 0.4, speed: [0.8, 2.2], gravity: -1.6, drag: 0.8,
+    size: { start: [0.16, 0.32], end: 0.0 },
+    color: { start: '#ffffff', end: '#e0b0ff' }, alpha: { start: 1, end: 0 }, spin: 240,
+  },
+  // ---- Llamar Constructo: columna de maná que se alza y pulso de provocación ----
+  constructForm: {
+    name: 'Constructo forma', texture: 'glow', blending: 'additive',
+    count: 44, burst: true, lifetime: [0.5, 0.9],
+    shape: 'disc', shapeRadius: 0.8, speed: [0.6, 1.8], gravity: -4.5, drag: 0.4,
+    size: { start: [0.3, 0.6], end: 0.0 },
+    color: { start: '#f2e6ff', end: '#7a5cf0' }, alpha: { start: 0.95, end: 0 },
+  },
+  constructPulse: {
+    name: 'Constructo provocación', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.35, 0.4],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.6, 0.8], end: 5.0 },
+    color: { start: '#e6dcff', end: '#6a48d8' }, alpha: { start: 0.5, end: 0 },
   },
 };
 
+// ============ variantes de la forja (KA2) ============
+// Cada cambio de forma REUTILIZA un preset que ya existe con otro color final y otra escala
+// (radio, tamaño y velocidad), como verbFx de fx-skills.js (plan, E2 · KA: «reutilizando los
+// existentes … color por elemento, escala»)
+function variantOf(base, color = null, scale = 1, extra = null) {
+  const mul = v => (Array.isArray(v) ? v.map(x => x * scale) : typeof v === 'number' ? v * scale : v);
+  return { ...base, shapeRadius: mul(base.shapeRadius), speed: mul(base.speed),
+    size: { start: mul(base.size?.start), end: mul(base.size?.end) },
+    color: color ? { start: base.color?.start || '#ffffff', end: color } : base.color, ...extra };
+}
+{
+  const P = MAGA_FX_PRESETS;
+  Object.assign(P, {
+    saetaBurst: variantOf(P.riftImpact, '#ff5a14', 0.8, { name: 'Saeta Ígnea estallido' }),           // estallido pequeño de fuego
+    flameLance: variantOf(P.flameCone, null, 1.2, { name: 'Lanza de Llamas', coneAngle: 25 }),        // el cono de la variante: 25°
+    flameRing: variantOf(P.fireStepBurst, '#d8380a', 2.5, { name: 'Erupción' }),                      // anillo a tus pies
+    cuirassMotes: variantOf(P.manaBubbleMotes, '#ffc24a', 1.1, { name: 'Coraza Arcana' }),            // chispas doradas
+    iceCell: variantOf(P.iceDome, null, 0.4, { name: 'Celda de hielo' }),                             // cúpula de un solo enemigo
+    collapseCore: variantOf(P.supernovaCore, '#ff9a2a', 1.5, { name: 'Colapso' }),                    // un solo núcleo, más grande
+    hailStone: variantOf(P.iceLanceShatter, null, 1.3, { name: 'Granizo' }),                          // un pedrisco que revienta
+  });
+}
+
+// VFX de las variantes de la forja (por id de variante). Solo las claves que lee su consumidor:
+// los comportamientos (aura/impact/extra/trail) y los poderes (impact o extra de su estallido)
+export const MAGA_FORGE_FX = {
+  m_dardo_i:          { impact: 'saetaBurst' },                                         // v_saeta_ignea
+  bola_fuego_ii:      { extra: 'fireStepBurst' },                                       // v_racimo: cada brasa
+  m_parpadeo_ii:      { impact: 'blinkFlash', aura: 'repulseWave', extra: 'repulseRunes' },
+  m_barrera_i:        { aura: 'frostArmor', extra: 'frostArmorRing', impact: 'iceDomeShards' },   // impact: v_reactiva
+  m_barrera_ii:       { extra: 'cuirassMotes' },
+  p_llamarada_i:      { aura: 'flameLance' },
+  p_llamarada_ii:     { aura: 'flameRing' },
+  m_estela_ignea_ii:  { trail: 'fireWallFlames' },                                      // llamas del campo p_muro_fuego
+  m_u_supernova_ii:   { aura: 'collapseCore' },
+  k_prision_i:        { aura: 'iceCell' },
+  k_prision_ii:       { aura: 'iceDomeShards' },                                        // a lo largo del muro
+  m_paso_escarcha_ii: { extra: 'iceCell' },                                             // v_prision_fugaz
+  m_u_tormenta_ii:    { aura: 'hailStone', extra: 'iceLanceShatter' },
+};
+
 export const MAGA_FX = {
-  // básicos (el Dardo lo dibuja Player.basicAttack: 'basicBolt'; se deja su entrada
-  // para cuando el núcleo lea SKILL_FX también en el básico de arma)
+  // kit base (el Dardo lo dibuja Player.basicAttack con su impacto)
   m_dardo:         { impact: 'riftImpact', color: 0xcc66ff, sfx: 'bolt' },
-  m_ascua:         { trail: 'emberTrail', impact: 'emberBurst', aura: 'emberRing', color: 0xff8a33, sfx: 'fire' },
-  m_toque:         { impact: 'frostBreathMotes', aura: 'frostBreath', color: 0x9fe3ff, sfx: 'ice' },
-  // gastadoras
   bola_fuego:      { trail: 'fireballTrail', impact: 'fireballBlast', aura: 'fireballWave', extra: 'fireballSmoke', color: 0xff6622, sfx: 'fire' },
-  rayo:            { aura: 'boltFlash', impact: 'boltSpark', color: 0xffee66, sfx: 'bolt' },
+  m_parpadeo:      { impact: 'blinkFlash', color: 0x99aaff, sfx: 'portal' },
+  m_barrera:       { aura: 'manaBubble', extra: 'manaBubbleMotes', color: 0xb98cff, sfx: 'portal' },
   nova_hielo:      { aura: 'frostNova', extra: 'frostShards', impact: 'frostMist', auraY: 0.4, color: 0x66ccff, sfx: 'ice' },
-  meteoro:         { trail: 'meteorFall', impact: 'meteorImpact', aura: 'meteorWave', extra: 'meteorEmbers', color: 0xff4400, sfx: 'fire' },
-  // movilidad
-  m_paso_escarcha: { trail: 'frostStepTrail', impact: 'frostStepBurst', color: 0x9fe3ff, sfx: 'dash' },
-  m_estela_ignea:  { trail: 'fireStepTrail', impact: 'fireStepBurst', color: 0xff7733, sfx: 'dash' },
-  // defensa / utilidad
-  m_armadura:      { aura: 'frostArmor', extra: 'frostArmorRing', color: 0x88ccff, sfx: 'ice' },
-  m_onda:          { aura: 'repulseWave', extra: 'repulseRunes', color: 0xb98cff, sfx: 'portal' },
-  // definitivas
-  m_u_supernova:   { trail: 'supernovaFall', impact: 'supernovaCore', aura: 'supernovaFlare', extra: 'meteorEmbers', color: 0xffcc44, sfx: 'fire' },
-  m_u_tormenta:    { aura: 'glacialStorm', extra: 'glacialStormMist', color: 0xbfe9ff, sfx: 'ice' },
-  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt', tickSfx: 'bolt' },
-  // activas de TALENTO (Paso 2c.1) — clase
-  m_t_barrera:       { aura: 'manaBubble', extra: 'manaBubbleMotes', color: 0xb98cff, sfx: 'portal' },
-  m_t_parpadeo:      { impact: 'blinkFlash', color: 0x99aaff, sfx: 'portal' },
-  m_t_contrahechizo: { impact: 'counterRune', color: 0xcc88ff, sfx: 'bolt' },
-  m_t_inversion:     { aura: 'rewindSpiral', impact: 'blinkFlash', color: 0xd7c2ff, sfx: 'portal' },
-  m_t_bloque:        { aura: 'iceBlock', color: 0x9fe3ff, sfx: 'ice' },
   // Piromante
-  p_llamarada:       { aura: 'flameCone', impact: 'flameConeEmbers', color: 0xff7a22, sfx: 'fire' },
-  p_combustion:      { aura: 'combustionAura', extra: 'fireStepBurst', color: 0xffaa33, sfx: 'fire' },
-  p_muro_fuego:      { aura: 'fireStepBurst', extra: 'fireWallFlames', color: 0xff5511, sfx: 'fire' },
+  p_llamarada:     { aura: 'flameCone', impact: 'flameConeEmbers', color: 0xff7a22, sfx: 'fire' },
+  m_estela_ignea:  { trail: 'fireStepTrail', impact: 'fireStepBurst', color: 0xff7733, sfx: 'dash' },
+  meteoro:         { trail: 'meteorFall', impact: 'meteorImpact', aura: 'meteorWave', extra: 'meteorEmbers', color: 0xff4400, sfx: 'fire' },
+  m_u_supernova:   { trail: 'supernovaFall', impact: 'supernovaCore', aura: 'supernovaFlare', extra: 'meteorEmbers', color: 0xffcc44, sfx: 'fire' },
   // Crionte
-  k_prision:         { aura: 'iceDome', extra: 'iceDomeShards', color: 0x88ddff, sfx: 'ice' },
-  k_lanza:           { trail: 'iceLanceTrail', impact: 'frostShards', extra: 'iceLanceShatter', color: 0xaeeaff, sfx: 'ice' },
-  k_ventisca:        { aura: 'blizzard', extra: 'glacialStormMist', color: 0xcfefff, sfx: 'ice' },
-  k_aliento:         { aura: 'borealBreath', impact: 'frostBreathMotes', color: 0xbfeaff, sfx: 'ice' },
+  k_prision:       { aura: 'iceDome', extra: 'iceDomeShards', color: 0x88ddff, sfx: 'ice' },
+  m_paso_escarcha: { trail: 'frostStepTrail', impact: 'frostStepBurst', color: 0x9fe3ff, sfx: 'dash' },
+  k_lanza:         { trail: 'iceLanceTrail', impact: 'iceLanceHit', extra: 'iceLanceShatter', color: 0xaeeaff, sfx: 'ice' },
+  m_u_tormenta:    { aura: 'glacialStorm', extra: 'glacialStormMist', color: 0xbfe9ff, sfx: 'ice' },
   // Arcanista
-  a_orbe:            { aura: 'arcaneOrbCast', impact: 'riftImpact', color: 0xb388ff, sfx: 'bolt' },
-  a_misiles:         { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt', tickSfx: 'bolt' },
-  a_sello:           { aura: 'sealRune', impact: 'sealBlast', color: 0xe0b0ff, sfx: 'bolt' },
-  a_evocacion:       { aura: 'evocationSpiral', extra: 'manaBubbleMotes', color: 0x9f8cff, sfx: 'portal' },
+  a_orbe:          { aura: 'arcaneOrbCast', impact: 'riftImpact', color: 0xb388ff, sfx: 'bolt' },
+  a_sello:         { aura: 'sealRune', extra: 'manaBubbleMotes', impact: 'sealBlast', color: 0xe0b0ff, sfx: 'portal' },
+  rayo:            { aura: 'boltFlash', impact: 'boltSpark', color: 0xffee66, sfx: 'bolt' },
+  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt', tickSfx: 'bolt' },
+  // activas de talento (ranura 2)
+  m_t_bloque:        { aura: 'iceBlock', color: 0x9fe3ff, sfx: 'ice' },
+  m_t_inversion:     { aura: 'rewindSpiral', impact: 'blinkFlash', color: 0xd7c2ff, sfx: 'portal' },
+  m_t_contrahechizo: { impact: 'counterRune', color: 0xcc88ff, sfx: 'bolt' },
+  m_h_detener:       { aura: 'timeStopWave', extra: 'timeStopMotes', color: 0xd7c2ff, sfx: 'portal' },
+  m_h_palabra:       { aura: 'runeFlare', impact: 'sealRune', color: 0xe0b0ff, sfx: 'portal' },
+  m_h_constructo:    { aura: 'constructForm', extra: 'constructPulse', impact: 'sealBlast', color: 0x9f8cff, sfx: 'portal' },
 };

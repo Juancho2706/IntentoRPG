@@ -1,4 +1,8 @@
 {
   "nota": "Divergencias DELIBERADAS entre los datos del juego y los del mockup (docs/paso2-implementacion.md §4). Cada una: { clase, ruta, motivo, aprobada }. La ruta es la que imprime tests/test-v2-paridad.mjs (p. ej. 'forja.g_tajo.vars.i.line', 'spec.berserker.b3.d', 'catalogo.a_disparo.req', 'builds.brasa.cls') y cubre todo lo que cuelga de ella. 'aprobada' = el dueño ya dio el visto bueno (las líneas de forja acortadas de A1 empiezan en false). clase '*' = todas.",
-  "divergencias": []
+  "divergencias": [
+    { "clase": "maga", "ruta": "reco", "motivo": "El mockup recomienda tres habilidades que 2g retira (A.6). Crionte: m_toque A se quita (Toque Gélido ya es la Saeta Gélida, m_dardo ii, que la misma reco elige). Arcanista: m_onda A y m_armadura B pasan a la forja que el mockup pone en la barra del Arcanista (specBar.arcanista.forge): m_parpadeo i (Doble Parpadeo) y m_barrera ii (Coraza Arcana; A.6: Armadura ii → Barrera ii). Ninguna apaga el indicador de su especialización (2f §7.7)", "aprobada": false },
+    { "clase": "maga", "ruta": "catalogo.m_dardo.line", "motivo": "El mockup dice «a 20 m», pero el Dardo es el básico de arma y su alcance es el del motor (atkRange 7 + 2 = 9 m). La línea dice «a distancia» hasta que W2 dé alcance propio al básico de arma (petición de KA1 y KA2). test-v2-paridad aún no compara las líneas del catálogo (la marca como que ya no diverge); test-skills-maga sí", "aprobada": false },
+    { "clase": "maga", "ruta": "catalogo.a_sello.line", "motivo": "El mockup dice «tus hechizos cuestan un 30 % menos», pero el buff del aura (spenderCostPct) solo abarata las habilidades principales. La línea dice «tus principales» hasta que W2 dé un stat de coste para todas las habilidades con coste (petición de KA1 y KA2). test-v2-paridad aún no compara las líneas del catálogo (la marca como que ya no diverge); test-skills-maga sí", "aprobada": false }
+  ]
 }

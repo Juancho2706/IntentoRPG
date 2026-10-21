@@ -25,7 +25,8 @@ for (const c of Object.values(CLASSES)) {
   assert.equal(c.resource.id, RES[c.id], `${c.id}: recurso de §2`);
   // catálogo BASE + activas de talento (kind 'talent', desde talents-<clase>.js; Paso 2c.0) al final
   const base = c.skills.filter(s => s.kind !== 'talent');
-  assert.deepEqual(base.map(s => s.id), SRC[c.id].map(s => s.id), `${c.id}: el catálogo sale de js/skills-${c.id}.js`);
+  // catálogo 2g (CATALOG_V = 2, D29): las activas de talento también viven en js/skills-<clase>.js
+  assert.deepEqual(base.map(s => s.id), SRC[c.id].filter(s => s.kind !== 'talent').map(s => s.id), `${c.id}: el catálogo sale de js/skills-${c.id}.js`);
   assert.ok(c.skills.slice(base.length).every(s => s.kind === 'talent'), `${c.id}: las activas de talento van detrás del catálogo base`);
   const wb = c.skills.filter(s => s.cat === 'basic' && s.type === 'weapon');
   assert.equal(wb.length, 1, `${c.id}: un básico de arma`);
@@ -35,14 +36,18 @@ for (const c of Object.values(CLASSES)) {
   for (const s of c.skills.filter(x => x.cat === 'ultimate')) assert.equal(s.cost, 0, `${s.id}: la definitiva no cuesta recurso`);
   // vista derivada (UI previa al 2d): nodos por categoría con ids válidos
   const ids = new Set(c.skills.map(s => s.id));
-  assert.ok(c.tree.length >= 3 && c.tree[0].kind === 'basic' && c.tree.at(-1).kind === 'ultimate');
+  // 2g: las definitivas son del kit de cada especialización (un grupo por especialización al final)
+  if (c.catalogV === 2) assert.ok(c.tree.length >= 3 && c.tree[0].kind === 'basic' && c.tree.at(-1).spec && c.tree.filter(nd => nd.spec).every(nd => nd.skills.some(id => c.skills.find(s => s.id === id)?.cat === 'ultimate')), `${c.id}: árbol 2g`);
+  else assert.ok(c.tree.length >= 3 && c.tree[0].kind === 'basic' && c.tree.at(-1).kind === 'ultimate');
   for (const nd of c.tree) for (const sid of nd.skills) assert.ok(ids.has(sid), `${c.id}: ${sid} del árbol no existe`);
 }
 assert.deepEqual(Object.fromEntries(GUERRERO_SKILLS.map(s => [s.cat, 1])), { basic: 1, spender: 1, movement: 1, defense: 1, utility: 1, ultimate: 1 });
 // calendario §1.2 (todas las clases): básico B en Nv3, básico C en Nv8, kit base completo en Nv16
 for (const c of Object.values(CLASSES)) {
   const basics = c.skills.filter(s => s.cat === 'basic').map(s => s.req).sort((a, b) => a - b);
-  assert.deepEqual(basics, [1, 3, 8], `${c.id}: básicos A/B/C en Nv1/3/8`);
+  // 2g: un solo básico, el de arma (los otros se vuelven variantes de su forja)
+  if (c.catalogV === 2) assert.deepEqual(basics, [1], `${c.id}: un básico en Nv1 (2g)`);
+  else assert.deepEqual(basics, [1, 3, 8], `${c.id}: básicos A/B/C en Nv1/3/8`);
   assert.ok(c.skills.filter(s => s.kind !== 'talent').every(s => s.req <= 16), `${c.id}: el kit base se completa en Nv16`);
   // D7 (Paso 2g): las activas de talento son solo de la ranura 2, Defensa o Utilidad, y llegan con el req del
   // catálogo 2g (21/27/31 las de clase, 72+ las del héroe), después del kit base; en v1 todas usaban req 10
