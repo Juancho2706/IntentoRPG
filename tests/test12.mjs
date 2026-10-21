@@ -1,5 +1,6 @@
 import { RUNES, RUNEWORDS, makeRune, checkRuneword, rerollAffix, generateItem, rollDrops, itemStatLines } from '../js/items.js';
-import { BOSSES, bossForFloor, ENEMIES, pickEnemyDef, scaleEnemy } from '../js/data.js';
+import { BOSSES, bossForFloor, ENEMIES, pickEnemyDef, scaleEnemy, xpForLevel } from '../js/data.js';
+import { earnedAt, paragonPointsEarned, paragonPointsLeft } from '../js/talents.js';
 import { buildDungeon, buildRefuge } from '../js/world.js';
 import { Player } from '../js/entities.js';
 
@@ -36,21 +37,27 @@ const txt = rerollAffix(item);
 if (Object.keys(item.affixes).length !== antes || !txt || item.rerolls !== 1) throw new Error('reforja inválida');
 console.log(`Reforja OK: ${txt} (afijos: ${antes} → ${Object.keys(item.affixes).length})`);
 
-// paragon: nivel 21 da punto paragon, no atributos; stats aplican
+// tras el Nv20 no hay atributos; el tablero de glifos se abre al Nv81 con puntos derivados
+// del nivel (Paso 2g: no se guardan) y sus nodos aplican stats
 const world = buildDungeon(1);
 const fake = { ui: { spawnText(){}, message(){} }, sfx(){}, addShake(){}, vibrate(){}, tip(){}, spawnBurst(){}, input: { joyDir: null, keyDir: null }, world, enemies: [] };
 const p = new Player(fake, 'guerrero');
 p.level = 20; p.xp = 0;
 const sp = p.statPoints;
-p.gainXP(999999);
+p.gainXP(xpForLevel(60) * 3);
 if (p.level <= 20) throw new Error('no subió de 20');
 if (p.statPoints !== sp) throw new Error('dio atributos tras el 20');
-if (p.paragon.points < 1) throw new Error('sin puntos paragon');
+if (paragonPointsEarned(p) !== earnedAt('board', p.level)) throw new Error('puntos del tablero no derivados del nivel');
+if (p.level < 81 && paragonPointsEarned(p) !== 0) throw new Error('el tablero se abre en el Nv81');
+p.gainXP(1e12);
+if (p.level !== 100) throw new Error('el nivel máximo es 100: ' + p.level);
+if (paragonPointsEarned(p) !== 16) throw new Error('16 puntos del tablero al Nv100: ' + paragonPointsEarned(p));
 const hp0 = p.stats.maxHP;
-// tablero de paragon: activa un nodo de vida contiguo al inicio (+6 vida)
+// tablero: activa un nodo de vida contiguo al inicio (+6 vida)
 p.paragon.nodes['4_5'] = true; p.recompute();
-if (p.stats.maxHP !== hp0 + 6) throw new Error('nodo de paragon (vida) no aplica: ' + hp0 + '→' + p.stats.maxHP);
-console.log(`Paragon (tablero): nivel ${p.level}, ${p.paragon.points} pts, nodo +6 vida → maxHP ${hp0}→${p.stats.maxHP} ✓`);
+if (p.stats.maxHP !== hp0 + 6) throw new Error('nodo del tablero (vida) no aplica: ' + hp0 + '→' + p.stats.maxHP);
+if (paragonPointsLeft(p) !== 15) throw new Error('el nodo debe gastar un punto derivado');
+console.log(`Tablero: nivel ${p.level}, ${paragonPointsEarned(p)} pts, nodo +6 vida → maxHP ${hp0}→${p.stats.maxHP} ✓`);
 
 // runeword aplica al recompute
 let armaReal;

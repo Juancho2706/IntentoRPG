@@ -1,6 +1,6 @@
-// Fase 4 — Paragon temático por clase + glifos de familia
-import * as THREE from 'three';
-import { PARAGON_BOARDS, PARAGON_BOARD, paragonBoardFor, PARAGON_CATS } from '../js/data.js';
+// Fase 4 / Paso 2g — tablero de glifos temático por clase + glifos de familia
+import assert from 'node:assert/strict';
+import { PARAGON_BOARDS, PARAGON_BOARD, paragonBoardFor, PARAGON_CATS, PG_CFG } from '../js/data.js';
 import { makeGlyph, glyphValue } from '../js/items.js';
 import { Player } from '../js/entities.js';
 import { economyMethods } from '../js/economy.js';
@@ -8,67 +8,63 @@ import { buildDungeon } from '../js/world.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 
-// --- 1) hay un tablero por clase y el alias por defecto = guerrero ---
-for (const c of ['guerrero', 'maga', 'arquera']) {
-  if (!Array.isArray(PARAGON_BOARDS[c])) throw new Error('falta tablero de ' + c);
-}
-if (paragonBoardFor('guerrero') !== PARAGON_BOARD) throw new Error('PARAGON_BOARD debe ser el de guerrero (compat tests)');
-if (paragonBoardFor('clase_inexistente') !== PARAGON_BOARD) throw new Error('paragonBoardFor debe caer al tablero por defecto');
-console.log('Tableros por clase: guerrero/maga/arquera + alias por defecto ✓');
+// --- 1) un tablero por clase; alias por defecto = guerrero (D23) ---
+for (const c of ['guerrero', 'maga', 'arquera']) assert.ok(Array.isArray(PARAGON_BOARDS[c]), c);
+assert.equal(paragonBoardFor('guerrero'), PARAGON_BOARD);
+assert.equal(paragonBoardFor('clase_inexistente'), PARAGON_BOARD);
+console.log('Tableros por clase + alias por defecto ✓');
 
-// --- 2) geometría idéntica (mismos ids/posiciones) → saves y glifos estables ---
-const ids = (b) => b.map(n => n.id).sort().join(',');
-if (ids(PARAGON_BOARDS.guerrero) !== ids(PARAGON_BOARDS.maga) || ids(PARAGON_BOARDS.maga) !== ids(PARAGON_BOARDS.arquera))
-  throw new Error('la geometría (ids) debe ser idéntica entre clases');
-console.log('Geometría idéntica entre clases (ids estables para saves) ✓');
+// --- 2) geometría idéntica (mismos ids, tipos y familias): saves y glifos estables ---
+const shape = b => b.map(n => `${n.id}:${n.type}:${n.cat}`).sort().join(',');
+assert.equal(shape(PARAGON_BOARDS.guerrero), shape(PARAGON_BOARDS.maga));
+assert.equal(shape(PARAGON_BOARDS.maga), shape(PARAGON_BOARDS.arquera));
+console.log('Geometría idéntica entre clases ✓');
 
-// --- 3) cada nodo no-inicio/no-engarce tiene categoría (familia); engarces no ---
+// --- 3) familias: cada nodo de un brazo tiene la de su cuadrante; Inicio y zócalos, ninguna ---
 for (const n of PARAGON_BOARDS.guerrero) {
-  if (n.type === 'start' || n.type === 'socket') { if (n.cat) throw new Error('inicio/engarce no debe tener cat: ' + n.id); continue; }
-  if (!n.cat || !PARAGON_CATS[n.cat]) throw new Error('nodo sin familia válida: ' + n.id + ' (' + n.cat + ')');
+  if (n.type === 'start' || n.type === 'socket') { assert.ok(!n.cat, n.id); continue; }
+  assert.ok(PARAGON_CATS[n.cat], `${n.id}: familia ${n.cat}`);
 }
-console.log('Cada nodo lleva familia (cuadrante) válida; engarces neutrales ✓');
+const perCat = Object.fromEntries(Object.keys(PARAGON_CATS).map(c => [c, PARAGON_BOARDS.guerrero.filter(n => n.cat === c).length]));
+assert.deepEqual(perCat, { ofensiva: 10, sustento: 10, defensa: 10, utilidad: 10 }, '10 casillas con familia por brazo');
+console.log('Familias por cuadrante; Inicio y zócalos neutros ✓');
 
-// --- 4) los legendarios (build-defining) difieren por clase ---
-const legPowers = (c) => paragonBoardFor(c).filter(n => n.type === 'legendary').map(n => (n.power || '∅')).join(',');
-const gW = legPowers('guerrero'), mG = legPowers('maga'), aR = legPowers('arquera');
-if (gW === mG && mG === aR) throw new Error('los legendarios deberían diferir entre clases');
-// comprobación concreta del cuadrante de utilidad (8_4)
-if (paragonBoardFor('guerrero').find(n => n.id === '8_4').power !== 'volatil') throw new Error('guerrero 8_4 debe ser volatil');
-if (paragonBoardFor('maga').find(n => n.id === '8_4').power !== 'multidisparo') throw new Error('maga 8_4 debe ser multidisparo');
-console.log(`Legendarios temáticos por clase (guerrero≠maga≠arquera) ✓`);
+// --- 4) legendarios temáticos: difieren entre clases (nombre y estadísticas), sin poder ---
+const legs = c => paragonBoardFor(c).filter(n => n.type === 'legendary').map(n => `${n.id}=${n.name}:${JSON.stringify(n.stats)}`).join('|');
+assert.notEqual(legs('guerrero'), legs('maga')); assert.notEqual(legs('maga'), legs('arquera')); assert.notEqual(legs('guerrero'), legs('arquera'));
+for (const c of ['guerrero', 'maga', 'arquera']) {
+  assert.equal(paragonBoardFor(c).find(n => n.id === '7_8').name, PG_CFG[c].leg.uti.name, `${c}: legendario de utilidad en 7_8`);
+  for (const n of paragonBoardFor(c)) assert.ok(!n.power, `${c}/${n.id}: sin poder`);
+  // los raros llevan la configuración de su clase
+  assert.deepEqual(paragonBoardFor(c).find(n => n.id === '3_2').stats, PG_CFG[c].rares.off1);
+}
+console.log('Legendarios temáticos por clase (guerrero ≠ maga ≠ arquera), solo estadísticas ✓');
 
 // --- 5) glifos de familia: el bonus por familia escala aparte del genérico ---
-const gd = makeGlyph(1); gd.glyphId = 'g_dmg'; gd.stat = 'dmgPct'; gd.per = 2; gd.adj = 0.5; gd.fam = 'ofensiva'; gd.famAdj = 1.5; gd.rank = 2;
-const baseV = glyphValue(gd, 1, 0);          // 1 adyacente, 0 de familia
-const famV = glyphValue(gd, 1, 1);           // ese adyacente ES de su familia
-if (!(famV > baseV)) throw new Error('el bonus de familia no aplica en glyphValue');
-if (Math.abs((famV - baseV) - gd.famAdj) > 1e-9) throw new Error('el bonus de familia debe ser exactamente famAdj por nodo');
-console.log(`Glifo de familia: ${baseV} → ${famV} con un adyacente de su cuadrante (+${gd.famAdj}) ✓`);
+const gd = makeGlyph(1); Object.assign(gd, { glyphId: 'g_dmg', stat: 'dmgPct', per: 2, adj: 0.5, fam: 'ofensiva', famAdj: 1.5, rank: 2 });
+const baseV = glyphValue(gd, 1, 0), famV = glyphValue(gd, 1, 1);
+assert.ok(Math.abs((famV - baseV) - gd.famAdj) < 1e-9, 'famAdj por nodo de su familia');
+console.log(`Glifo de familia: ${baseV} → ${famV} con un adyacente de su cuadrante ✓`);
 
-// --- 6) integración en recompute: el MISMO glifo ofensivo rinde más colocado
-//        junto a un nodo de su familia (ofensiva) que junto a otra (defensa) ---
+// --- 6) en recompute: el mismo glifo ofensivo rinde más en el zócalo ofensivo (4_0, adyacente
+//        4_1 ofensivo) que en el de sustento (4_8, adyacente 4_7 de otra familia) ---
 const world = buildDungeon(1);
-const mkGame = () => { const g = { ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, world, enemies: [], input: { joyDir: null, keyDir: null }, save() {} }; Object.assign(g, economyMethods); return g; };
-// se mide el saco aditivo stats.dmgPct (Paso 1A: dmgMax redondea con puños)
-const mkGlyph = () => { const o = makeGlyph(2); o.glyphId = 'g_dmg'; o.stat = 'dmgPct'; o.per = 5; o.adj = 0.5; o.fam = 'ofensiva'; o.famAdj = 10; o.rank = 2; return o; };
+const mkGame = () => { const g = { ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, world, enemies: [], input: { joyDir: null, keyDir: null }, save() {} }; return Object.assign(g, economyMethods); };
+const mkGlyph = () => { const o = makeGlyph(2); return Object.assign(o, { glyphId: 'g_dmg', stat: 'dmgPct', per: 5, adj: 0.5, fam: 'ofensiva', famAdj: 10, rank: 2 }); };
+const contrib = (path, socket) => {
+  const g = mkGame(), p = new Player(g, 'maga'); g.player = p;
+  p.level = 100; p.paragon = { nodes: {}, glyphs: {} }; p.recompute();
+  for (const id of [...path, socket]) assert.equal(g.allocateParagonNode(id), true, id);
+  const before = p.stats.dmgPct;
+  p.materials = [mkGlyph()]; g.socketGlyph(socket, 0);
+  assert.ok(p.paragon.glyphs[socket]);
+  return p.stats.dmgPct - before;
+};
+const a = contrib(['4_3', '4_2', '4_1'], '4_0'), b = contrib(['4_5', '4_6', '4_7'], '4_8');
+const gl = mkGlyph();
+assert.equal(a, glyphValue(gl, 1, 1), 'zócalo ofensivo: 1 adyacente de su familia');
+assert.equal(b, glyphValue(gl, 1, 0), 'zócalo de sustento: 1 adyacente de otra familia');
+assert.ok(a > b);
+console.log(`Recompute: glifo ofensivo +${a}% junto a su familia vs +${b}% junto a otra ✓`);
 
-// Escenario A: socket 3_3 con su único adyacente activo OFENSIVO (4_3)
-const gA = mkGame(); const pA = new Player(gA, 'maga'); gA.player = pA; pA.paragon.points = 20;
-gA.allocateParagonNode('4_3'); gA.allocateParagonNode('3_3');
-if (!pA.paragon.nodes['3_3']) throw new Error('A: no se activó 3_3');
-const aNo = pA.stats.dmgPct; pA.materials = [mkGlyph()]; gA.socketGlyph('3_3', 0);
-const contribA = pA.stats.dmgPct - aNo; // adj=1, famAdj=1 (4_3 ofensiva)
-
-// Escenario B: socket 3_3 con su único adyacente activo de DEFENSA (3_4)
-const gB = mkGame(); const pB = new Player(gB, 'maga'); gB.player = pB; pB.paragon.points = 20;
-gB.allocateParagonNode('3_4'); gB.allocateParagonNode('3_3');
-if (!pB.paragon.nodes['3_3']) throw new Error('B: no se activó 3_3');
-const bNo = pB.stats.dmgPct; pB.materials = [mkGlyph()]; gB.socketGlyph('3_3', 0);
-const contribB = pB.stats.dmgPct - bNo; // adj=1, famAdj=0 (3_4 defensa)
-
-if (!(contribA > contribB)) throw new Error(`el bonus de familia no se refleja en recompute (A=${contribA} debe > B=${contribB})`);
-console.log(`Recompute: glifo ofensivo aporta +${contribA}% daño junto a familia vs +${contribB}% junto a otra familia ✓`);
-
-void THREE;
 console.log('\n✅ PARAGON TEMÁTICO + GLIFOS DE FAMILIA OK');

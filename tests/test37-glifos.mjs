@@ -1,57 +1,70 @@
-// Endgame: Glifos del Tablero de Paragon (engarce, escala con adyacentes)
-import * as THREE from 'three';
+// Endgame: glifos del tablero (Paso 2g): engarce en el zócalo de cada brazo (paso 4 del camino),
+// escala con adyacentes activos, se quita a la bolsa y no cuenta con el zócalo inactivo
+import assert from 'node:assert/strict';
 import { makeGlyph, glyphValue } from '../js/items.js';
-import { PARAGON_BOARD } from '../js/data.js';
+import { PARAGON_BOARDS, PARAGON_SOCKET_STEP, paragonPathCost } from '../js/paragon-board.js';
 import { Player } from '../js/entities.js';
 import { economyMethods } from '../js/economy.js';
 import { buildDungeon } from '../js/world.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 
-// el tablero tiene nodos de engarce
-const sockets = PARAGON_BOARD.filter(n => n.type === 'socket');
-if (sockets.length < 1) throw new Error('el tablero necesita nodos de engarce');
-console.log(`Engarces en el tablero: ${sockets.length} ✓`);
+// un zócalo por brazo, a 4 pasos del Inicio
+for (const [cid, board] of Object.entries(PARAGON_BOARDS)) {
+  const sockets = board.filter(n => n.type === 'socket');
+  assert.equal(sockets.length, 4, cid);
+  for (const s of sockets) assert.equal(paragonPathCost(board, [s.id]), PARAGON_SOCKET_STEP, `${cid}/${s.id}`);
+}
+console.log('Zócalos: uno por brazo, a 4 pasos del Inicio ✓');
 
-// glifo: valor escala con el rango y con nodos adyacentes activos
+// valor: rango × per + adyacentes × adj
 const gl = makeGlyph(3);
-if (glyphValue(gl, 0) !== gl.rank * gl.per) throw new Error('valor base de glifo incorrecto');
-if (!(glyphValue(gl, 2) > glyphValue(gl, 0))) throw new Error('el glifo no escala con adyacentes');
+assert.equal(glyphValue(gl, 0), gl.rank * gl.per);
+assert.ok(glyphValue(gl, 2) > glyphValue(gl, 0));
 console.log(`Glifo escala: base ${glyphValue(gl, 0)} < con 2 adyacentes ${glyphValue(gl, 2)} ✓`);
 
-// engarzar en un socket activo aplica su stat (recompute real)
 const world = buildDungeon(1);
 const g = { ui: { spawnText() {}, message() {}, flashDamage() {} }, sfx() {}, world, enemies: [], input: { joyDir: null, keyDir: null }, save() {} };
 Object.assign(g, economyMethods);
 const p = new Player(g, 'guerrero'); g.player = p;
-p.paragon.points = 10;
-// activa el brazo (4_3) y el engarce contiguo (3_3)
-g.allocateParagonNode('4_3');
-g.allocateParagonNode('3_3');
-if (!p.paragon.nodes['3_3']) throw new Error('no se activó el engarce 3_3');
-
-// un glifo de vida (per=10, adj=5) rango 2 → 20 + adyacentes×5
-const gv = makeGlyph(2); gv.glyphId = 'g_hp'; gv.stat = 'hp'; gv.per = 10; gv.adj = 5; gv.rank = 2;
-gv.baseName = 'Glifo de Vigor'; gv.name = 'Glifo de Vigor · rango 2';
+p.level = 100; p.paragon = { nodes: {}, glyphs: {} }; p.recompute();
+// brazo de sustento hasta su zócalo (4_8)
+for (const id of ['4_5', '4_6', '4_7']) assert.equal(g.allocateParagonNode(id), true, id);
+const gv = makeGlyph(2); Object.assign(gv, { glyphId: 'g_hp', stat: 'hp', per: 10, adj: 5, rank: 2, fam: null, baseName: 'Glifo de Vigor', name: 'Glifo de Vigor · rango 2' });
 p.materials = [gv];
+g.socketGlyph('4_8', 0);
+assert.equal(p.paragon.glyphs['4_8'], undefined, 'no se engarza en un zócalo inactivo');
+assert.equal(p.materials.length, 1);
+assert.equal(g.allocateParagonNode('4_8'), true);
+g.socketGlyph('4_7', 0);
+assert.equal(p.paragon.glyphs['4_7'], undefined, 'solo en zócalos');
 const hp0 = p.stats.maxHP;
-g.socketGlyph('3_3', 0);
-if (p.materials.length !== 0) throw new Error('el glifo no salió de la bolsa de materiales al engarzar');
-if (!p.paragon.glyphs['3_3']) throw new Error('el glifo no quedó engarzado');
-if (p.stats.maxHP <= hp0) throw new Error('el glifo engarzado no aplicó su stat');
-console.log(`Engarzar glifo: maxHP ${hp0}→${p.stats.maxHP} (rango+adyacentes) ✓`);
+g.socketGlyph('4_8', 0);
+assert.equal(p.materials.length, 0, 'sale de la bolsa');
+assert.equal(p.paragon.glyphs['4_8'], gv);
+assert.equal(p.stats.maxHP - hp0, glyphValue(gv, 1), 'rango + 1 adyacente activo (4_7)');
+console.log(`Engarzar glifo: maxHP ${hp0}→${p.stats.maxHP} ✓`);
 
-// activar un nodo adyacente más al engarce aumenta el bonus del glifo
+// un adyacente más (3_8, siguiente casilla del brazo) sube el glifo
 const hpA = p.stats.maxHP;
-g.allocateParagonNode('3_4'); // contiguo a 3_3 (brazo izquierdo)
-if (p.stats.maxHP <= hpA) throw new Error('el bonus del glifo no creció al activar un nodo adyacente');
+const node38 = PARAGON_BOARDS.guerrero.find(n => n.id === '3_8');
+assert.equal(g.allocateParagonNode('3_8'), true);
+assert.equal(p.stats.maxHP - hpA, (node38.stats.hp || 0) + glyphValue(gv, 2) - glyphValue(gv, 1), 'el glifo cuenta el nuevo adyacente');
 console.log(`Sinergia: nodo adyacente sube el glifo, maxHP ${hpA}→${p.stats.maxHP} ✓`);
 
-// quitar el glifo lo devuelve a la bolsa de materiales y revierte su stat
-g.unsocketGlyph('3_3');
-if (p.materials.length !== 1) throw new Error('el glifo no volvió a la bolsa de materiales');
-if (p.paragon.glyphs['3_3']) throw new Error('el glifo sigue engarzado');
+// un segundo glifo en el mismo zócalo devuelve el anterior a la bolsa
+const gw = makeGlyph(1); Object.assign(gw, { glyphId: 'g_arm', stat: 'arm', per: 4, adj: 1, rank: 1, baseName: 'Glifo de Égida' });
+p.materials = [gw];
+g.socketGlyph('4_8', 0);
+assert.equal(p.paragon.glyphs['4_8'], gw); assert.deepEqual(p.materials, [gv]);
+g.socketGlyph('4_8', 0);
+assert.equal(p.paragon.glyphs['4_8'], gv); assert.deepEqual(p.materials, [gw]);
+
+// quitarlo lo devuelve a la bolsa y revierte su stat
+const hpS = p.stats.maxHP;
+g.unsocketGlyph('4_8');
+assert.equal(p.materials.length, 2); assert.equal(p.paragon.glyphs['4_8'], undefined);
+assert.equal(hpS - p.stats.maxHP, glyphValue(gv, 2));
 console.log('Quitar glifo: vuelve a la bolsa de materiales ✓');
 
-void THREE;
 console.log('test37-glifos OK');

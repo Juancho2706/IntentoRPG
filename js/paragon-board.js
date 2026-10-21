@@ -11,7 +11,7 @@
 // Cada brazo es un camino de 9 nodos: menor, mágico, menor, ZÓCALO de glifo, menor,
 // mágico, menor, mágico y el LEGENDARIO (a 9 casillas del inicio, con el zócalo en el
 // camino), más dos raros a los lados. Con 16 puntos se llega a un legendario con su zócalo
-// (9) y 7 nodos más; dos legendarios cuestan 18: nunca los dos (lo afirman test54 y test38).
+// (9) y 7 nodos más; dos legendarios cuestan 18: nunca los dos (lo afirman test35 y test38).
 // Las casillas se activan si conectan (en ortogonal) con un nodo activo o con el Inicio.
 // Cada nodo lleva `cat` (cuadrante) para los GLIFOS DE FAMILIA (bonus por adyacente de la
 // misma familia); los zócalos no tienen familia.
