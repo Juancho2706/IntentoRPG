@@ -354,3 +354,19 @@ export const ARQUERA_SKILL_BEHAVIORS = {
     },
   },
 };
+
+// ------------------------------------------------------------
+// Paso 2 (2f + 2g) · stubs de contrato (E0.6; docs/paso2-implementacion.md §3.5, D3, D6 y D24).
+// data.js ya los fusiona (SKILL_FORGE, SPEC_BAR, FORGE_RECO, FALLBACK_BAR, CATALOG_V). Los llena
+// KA-arquera en E2: KA1 → SPEC_BAR, FALLBACK_BAR y CATALOG_V = 2; KA2 → SKILL_FORGE y FORGE_RECO.
+// ------------------------------------------------------------
+// skillId → { mejora: { name, icon, line, mod }, vars: [{ id: '<id>_i', name, role, icon, line, … }, { id: '<id>_ii', … }] }
+export const ARQUERA_SKILL_FORGE = {};
+// specId → { bar: { lmb, rmb, k1, k2, k3, k4 }, sel }   (barra por especialización, D6)
+export const ARQUERA_SPEC_BAR = {};
+// specId → { skillId: 'i' | 'ii' }                      (forja recomendada, D3)
+export const ARQUERA_FORGE_RECO = {};
+// { lmb, rmb, k1, k2, k3, k4 } | null                   (barra de reserva de la migración, §3.11)
+export const ARQUERA_FALLBACK_BAR = null;
+// 1 = catálogo v4 (el de hoy) · 2 = catálogo 2g (lo sube KA1)
+export const ARQUERA_CATALOG_V = 1;

@@ -6,9 +6,12 @@ import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, UBER_HP_M
 import { normalizeSkillDef, aggregateMods } from './skill-defs.js';
 import { RESOURCE_DEFS } from './resources.js';
 // catálogo por clase (cada archivo es de un trabajador; data.js solo lo fusiona)
-import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS } from './skills-guerrero.js';
-import { MAGA_SKILLS, MAGA_SKILL_MODS } from './skills-maga.js';
-import { ARQUERA_SKILLS, ARQUERA_SKILL_MODS } from './skills-arquera.js';
+import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS, GUERRERO_SKILL_FORGE, GUERRERO_SPEC_BAR, GUERRERO_FORGE_RECO,
+  GUERRERO_FALLBACK_BAR, GUERRERO_CATALOG_V } from './skills-guerrero.js';
+import { MAGA_SKILLS, MAGA_SKILL_MODS, MAGA_SKILL_FORGE, MAGA_SPEC_BAR, MAGA_FORGE_RECO,
+  MAGA_FALLBACK_BAR, MAGA_CATALOG_V } from './skills-maga.js';
+import { ARQUERA_SKILLS, ARQUERA_SKILL_MODS, ARQUERA_SKILL_FORGE, ARQUERA_SPEC_BAR, ARQUERA_FORGE_RECO,
+  ARQUERA_FALLBACK_BAR, ARQUERA_CATALOG_V } from './skills-arquera.js';
 // activas `grant` de los talentos (kind 'talent'; dueños: trabajadores de 2c.1).
 // Estos archivos no importan nada, así que no hay ciclo con talents.js.
 import { GUERRERO_TALENTS } from './talents-guerrero.js';
@@ -531,6 +534,28 @@ export const SKILL_MODS = { ...GUERRERO_SKILL_MODS, ...MAGA_SKILL_MODS, ...ARQUE
 // agrega los efectos de las OPCIONES elegidas (1 por rama). `chosen` = { ramaId: opcionId }
 export function aggregateSkillMods(skId, chosen) {
   return aggregateMods(SKILL_MODS[skId], chosen);
+}
+
+// ------------------------------------------------------------
+// Paso 2 (2f + 2g) · FORJA Y BARRAS (E0.6, stubs de contrato: docs/paso2-implementacion.md
+// §3.5, D3, D6 y D24). Cada clase los declara en js/skills-<clase>.js (vacíos hasta que KA los
+// llene en E2) y aquí solo se fusionan, como SKILL_MODS. Los ids de habilidad y de
+// especialización son únicos entre clases: SKILL_FORGE, SPEC_BAR y FORGE_RECO van planos.
+// ------------------------------------------------------------
+// skillId → { mejora, vars: [i, ii] }   (la forja de cada habilidad; §3.5)
+export const SKILL_FORGE = { ...GUERRERO_SKILL_FORGE, ...MAGA_SKILL_FORGE, ...ARQUERA_SKILL_FORGE };
+// specId → { bar: { lmb, rmb, k1, k2, k3, k4 }, sel }   (barra de la especialización; D6)
+export const SPEC_BAR = { ...GUERRERO_SPEC_BAR, ...MAGA_SPEC_BAR, ...ARQUERA_SPEC_BAR };
+// specId → { skillId: 'i' | 'ii' }   (forja recomendada al elegir especialización; D3)
+export const FORGE_RECO = { ...GUERRERO_FORGE_RECO, ...MAGA_FORGE_RECO, ...ARQUERA_FORGE_RECO };
+// classId → { lmb, rmb, k1, k2, k3, k4 } | null   (barra de reserva de la migración v4 → v5; §3.11)
+export const FALLBACK_BAR = { guerrero: GUERRERO_FALLBACK_BAR, maga: MAGA_FALLBACK_BAR, arquera: ARQUERA_FALLBACK_BAR };
+// classId → 1 (catálogo v4) | 2 (catálogo 2g; lo sube KA1 de cada clase)
+export const CATALOG_V = { guerrero: GUERRERO_CATALOG_V, maga: MAGA_CATALOG_V, arquera: ARQUERA_CATALOG_V };
+// kit de una especialización (D7: habilidades del catálogo con `spec: '<specId>'`) → [skillId].
+// Con el catálogo v4 (ninguna habilidad trae `spec`) devuelve []. Firma fijada en §2 (W2).
+export function specKitOf(classId, specId) {
+  return (CLASSES[classId]?.skills || []).filter(s => specId && s.spec === specId).map(s => s.id);
 }
 
 // Zonas abiertas (regiones): bioma, nivel de desbloqueo y piso base de dificultad
