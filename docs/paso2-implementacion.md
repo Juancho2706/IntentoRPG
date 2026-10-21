@@ -828,6 +828,29 @@ Revisión del plan contra 2f, la Maga (§11, §13, §14), el Guerrero y la Arque
    - Se acepta un máximo de 120 caracteres, con aviso si pasan de 70.
    - KA acorta las que pueda sin perder información y anota el resto en `divergencias.json` para el dueño.
 
+### Decisiones del orquestador tras E0 (2026-10-21)
+
+E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inventario de `pending-2g.json`). Lo que pidieron los trabajadores se resuelve así:
+
+6. **D29 · Dónde viven las 6 activas de talento.** La definición (verbos, forja si la tiene, `req`, `slots:['k2']`) vive en el **catálogo** `skills-<clase>.js` (dueño KA, KA1). En `talents-<clase>.js`, `<CLASE>_TALENT_SKILLS` queda solo como lista de ids (los nodos las conceden con `grant`). `data.js` (W2) toma las activas del catálogo si la clase tiene `CATALOG_V = 2`, y si no, de `TALENT_SKILLS` como hoy. Así se resuelve la contradicción entre las filas KA1 y KT.
+7. **Forma de las fusiones en `data.js` (P2):** se aceptan como contrato.
+   - `SKILL_FORGE`, `SPEC_BAR` y `FORGE_RECO` van planos, con ids únicos entre clases.
+   - `FALLBACK_BAR` y `CATALOG_V` van por `classId`.
+   - `specKitOf(classId, specId)` queda en `data.js`; W2 puede cambiar el cuerpo, pero no la firma.
+8. **Nombres de los stubs (P2):** quedan como están.
+   - `<clase>ForgePowers()` es una función, por el ciclo con `powers.js`, y W2 la registra con `registerPowers`.
+   - Los demás stubs: `createSkillBook`, `createVerbHud` y `talentsView`.
+9. **Prefijos de poder de la Arquera:** se amplían con `q_`, `w_` e `y_`, los de sus árboles héroe. `test78` acepta, por clase, los prefijos de sus árboles de clase, especialización y héroe. La unicidad entre clases la garantiza `power-ids.json` (D28). Los ids del mockup no se renombran.
+10. **Banderas «sangrado» y «flechas» (§3.8):** no se crea un selector nuevo. El conversor las expande a los ids de su grupo en `touch`, como ya hace.
+11. **Las 28 claves «SIN TRADUCCIÓN» de `claves-impl.md`:** las resuelve **W2 en E1**.
+    - A cada una le busca una clave existente (§3.6 o 2b) o la añade al vocabulario de `validateSkillDef`, con soporte en el motor si es mecánica.
+    - Entrega la tabla en `docs/paso2-claves-w2.md`.
+    - El integrador de E1.5 la vuelca en el conversor. KA no inventa claves: lo que falte va por la cola W2.
+12. **Avisos de P4 para E1 y E3:**
+    - D27 está confirmado con eventos reales: con 🖱️Izq pulsado, pulsar 🖱️Der deja `r:false`. Lo arregla W2.
+    - `Ctrl+Z` choca con `KeyZ = cleanHud`. Lo resuelven U1 y U3: `input.js` ignora `KeyZ` con Ctrl o con un panel abierto, y esa línea la pide U3 a la cola W2.
+    - El humo lee `p.skState[id].recast` y `g.stanceOf(p, id)`. W2 respeta esos nombres o avisa.
+
 ### Pendientes de decisión (texto original de la crítica)
 
 1. **Valores por defecto de §3.6.1** (bloqueos durante la carga, `charge.repeat` del básico, clic-mover, `toggle`): los propone esta revisión; el orquestador los confirma antes de lanzar E1.
