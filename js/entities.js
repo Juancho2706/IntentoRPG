@@ -2,9 +2,11 @@
 // Entidades: jugador, enemigos y proyectiles
 // ============================================================
 import * as THREE from 'three';
-import { CLASSES, xpForLevel, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
+import { CLASSES, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 // Paso 2c.0: talentos y especialización (sustituyen a las maestrías)
-import { aggregateTalents, normalizeTalents, TALENT_START_LEVEL, talentPointsEarned } from './talents.js';
+import { aggregateTalents, normalizeTalents } from './talents.js';
+// Paso 2 (E0.3): experiencia, subida de nivel y sus avisos (Player.gainXP delega)
+import { gainXP as progressionGainXP } from './progression.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 import { migrateSave, serializePlayer } from './save-schema.js';
@@ -1104,47 +1106,8 @@ export class Player {
     g.vibrate(20);
   }
 
-  gainXP(amount) {
-    const knownBefore = new Set(Object.keys(this.skills || {}));
-    if (this.xpBoostT > 0) amount = Math.round(amount * 1.5);
-    // mutador de Era (p. ej. Era de la Sabiduría: +50% XP)
-    const xpMul = this.game?.eraMutatorBonus?.()?.xpMul || 1;
-    if (xpMul !== 1) amount = Math.round(amount * xpMul);
-    // talentos: +% de experiencia (Maga c13…)
-    if (this.stats?.xpPct) amount = Math.round(amount * (1 + this.stats.xpPct / 100));
-    this.xp += amount;
-    this.records.totalXP = (this.records.totalXP || 0) + amount; // acumulado (resúmenes de corrida)
-    this.game.ui.spawnText(this.pos, `+${amount} XP`, 'txt-xp');
-    while (this.xp >= xpForLevel(this.level)) {
-      this.xp -= xpForLevel(this.level);
-      this.level++;
-      if (this.level > 20) {
-        // tras el nivel 20: puntos Paragon en lugar de atributos/habilidades
-        this.paragon.points++;
-        this.game.ui.message(`🌟 ¡Nivel ${this.level}! +1 punto Paragon (panel de Personaje)`);
-      } else {
-        this.statPoints += 5;
-        this.skillPoints += 1;
-        this.game.ui.message(`⭐ ¡Nivel ${this.level}! +5 atributos, +1 punto de habilidad`);
-      }
-      // talentos (Paso 2c.0): especialización en Nv10 y 1 punto por nivel hasta el 50
-      // (niveles pares → especialización, impares → clase; se CALCULAN, no se guardan)
-      if (this.level === TALENT_START_LEVEL)
-        this.game.ui.message('🌿 ¡Especializaciones desbloqueadas! Elige la tuya en Talentos (N)', 5000);
-      else if (this.level > TALENT_START_LEVEL && talentPointsEarned(this, this.level % 2 ? 'cls' : 'spec') > 0 && this.level <= 50)
-        this.game.ui.message(`🌿 +1 punto de talento de ${this.level % 2 ? 'clase' : 'especialización'} (N)`);
-      this.recompute();
-      this.hp = this.stats.maxHP;
-      // los recursos que se GENERAN (Furia) no se rellenan al subir de nivel
-      if (this.cls.resource?.start !== 0) this.mp = this.stats.maxMP;
-      this.game.sfx('levelup');
-      this.game.vibrate([50, 30, 70]);
-      this.game.spawnBurst(this.pos, 0xffd24a, 14);
-      this.game.ui.levelUpFlash?.(this.level);
-      this.game.tip('subir', 'Reparte tus puntos: Personaje (C / 🧍) y Habilidades (T / 📖)');
-    }
-    this.onSkillsLearned(knownBefore);
-  }
+  // experiencia y subida de nivel: js/progression.js (Paso 2, E0.3)
+  gainXP(amount) { progressionGainXP(this, amount); }
 
   // habilidades aprendidas solas al subir de nivel (§4.1): aviso y, si su ranura
   // natural está libre, se colocan en la barra.

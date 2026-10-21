@@ -6,9 +6,12 @@ import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, UBER_HP_M
 import { normalizeSkillDef, aggregateMods } from './skill-defs.js';
 import { RESOURCE_DEFS } from './resources.js';
 // catálogo por clase (cada archivo es de un trabajador; data.js solo lo fusiona)
-import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS } from './skills-guerrero.js';
-import { MAGA_SKILLS, MAGA_SKILL_MODS } from './skills-maga.js';
-import { ARQUERA_SKILLS, ARQUERA_SKILL_MODS } from './skills-arquera.js';
+import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS, GUERRERO_SKILL_FORGE, GUERRERO_SPEC_BAR, GUERRERO_FORGE_RECO,
+  GUERRERO_FALLBACK_BAR, GUERRERO_CATALOG_V } from './skills-guerrero.js';
+import { MAGA_SKILLS, MAGA_SKILL_MODS, MAGA_SKILL_FORGE, MAGA_SPEC_BAR, MAGA_FORGE_RECO,
+  MAGA_FALLBACK_BAR, MAGA_CATALOG_V } from './skills-maga.js';
+import { ARQUERA_SKILLS, ARQUERA_SKILL_MODS, ARQUERA_SKILL_FORGE, ARQUERA_SPEC_BAR, ARQUERA_FORGE_RECO,
+  ARQUERA_FALLBACK_BAR, ARQUERA_CATALOG_V } from './skills-arquera.js';
 // activas `grant` de los talentos (kind 'talent'; dueños: trabajadores de 2c.1).
 // Estos archivos no importan nada, así que no hay ciclo con talents.js.
 import { GUERRERO_TALENTS } from './talents-guerrero.js';
@@ -533,6 +536,28 @@ export function aggregateSkillMods(skId, chosen) {
   return aggregateMods(SKILL_MODS[skId], chosen);
 }
 
+// ------------------------------------------------------------
+// Paso 2 (2f + 2g) · FORJA Y BARRAS (E0.6, stubs de contrato: docs/paso2-implementacion.md
+// §3.5, D3, D6 y D24). Cada clase los declara en js/skills-<clase>.js (vacíos hasta que KA los
+// llene en E2) y aquí solo se fusionan, como SKILL_MODS. Los ids de habilidad y de
+// especialización son únicos entre clases: SKILL_FORGE, SPEC_BAR y FORGE_RECO van planos.
+// ------------------------------------------------------------
+// skillId → { mejora, vars: [i, ii] }   (la forja de cada habilidad; §3.5)
+export const SKILL_FORGE = { ...GUERRERO_SKILL_FORGE, ...MAGA_SKILL_FORGE, ...ARQUERA_SKILL_FORGE };
+// specId → { bar: { lmb, rmb, k1, k2, k3, k4 }, sel }   (barra de la especialización; D6)
+export const SPEC_BAR = { ...GUERRERO_SPEC_BAR, ...MAGA_SPEC_BAR, ...ARQUERA_SPEC_BAR };
+// specId → { skillId: 'i' | 'ii' }   (forja recomendada al elegir especialización; D3)
+export const FORGE_RECO = { ...GUERRERO_FORGE_RECO, ...MAGA_FORGE_RECO, ...ARQUERA_FORGE_RECO };
+// classId → { lmb, rmb, k1, k2, k3, k4 } | null   (barra de reserva de la migración v4 → v5; §3.11)
+export const FALLBACK_BAR = { guerrero: GUERRERO_FALLBACK_BAR, maga: MAGA_FALLBACK_BAR, arquera: ARQUERA_FALLBACK_BAR };
+// classId → 1 (catálogo v4) | 2 (catálogo 2g; lo sube KA1 de cada clase)
+export const CATALOG_V = { guerrero: GUERRERO_CATALOG_V, maga: MAGA_CATALOG_V, arquera: ARQUERA_CATALOG_V };
+// kit de una especialización (D7: habilidades del catálogo con `spec: '<specId>'`) → [skillId].
+// Con el catálogo v4 (ninguna habilidad trae `spec`) devuelve []. Firma fijada en §2 (W2).
+export function specKitOf(classId, specId) {
+  return (CLASSES[classId]?.skills || []).filter(s => specId && s.spec === specId).map(s => s.id);
+}
+
 // Zonas abiertas (regiones): bioma, nivel de desbloqueo y piso base de dificultad
 export const ZONE_LIST = [
   // `home`: la zona tiene campamento (punto de reaparición elegible).
@@ -576,102 +601,9 @@ export function blessingValue(b, tier) {
   return b.base + b.per * Math.max(0, tier | 0);
 }
 
-// Tablero de Paragon (estilo Diablo 4): nodos conectados en una rejilla 9×9.
-// Se activan gastando puntos Paragon, solo si conectan (ortogonalmente) con un
-// nodo ya activo o con el Inicio. Tipos: start, minor, magic, rare, legendary.
-// Los nodos legendarios (★) otorgan poderes únicos además de stats.
-//
-// FASE 4 — TABLERO TEMÁTICO POR CLASE: la geometría (Inicio en 4,4; 4 brazos;
-// 4 engarces) y el esqueleto de nodos menores/mágicos son idénticos en las 3
-// clases (así adyacencias, ids guardados y glifos son estables), pero los
-// nodos LEGENDARIOS (build-defining) y los raros llevan poderes/stats temáticos
-// de cada clase. Cada nodo lleva además `cat` (cuadrante: ofensiva/sustento/
-// defensa/utilidad), que alimenta los GLIFOS DE FAMILIA (bonus extra por nodo
-// adyacente de la misma familia).
-export const PARAGON_CATS = { ofensiva: 'Ofensiva', sustento: 'Sustento', defensa: 'Defensa', utilidad: 'Utilidad' };
-
-// configuración temática por clase: 4 legendarios (uno por brazo) + 8 raros.
-const PG_CFG = {
-  guerrero: {
-    leg: {
-      off: { name: 'Sed de Batalla',  stats: { dmgPct: 8 },          power: 'furia',        desc: 'poder de la Furia: daño ×1,15 con vida alta' },
-      sus: { name: 'Corazón Voraz',   stats: { hp: 40 },             power: 'festin',       desc: 'poder del Festín: cura al matar' },
-      def: { name: 'Muralla',         stats: { arm: 30, thorns: 12 },                       desc: '+30 armadura y +12 espinas' },
-      uti: { name: 'Cosecha Macabra', stats: { aspdPct: 8 },         power: 'volatil',      desc: 'poder Volátil: los cadáveres estallan' },
-    },
-    rares: { off1: { dmgPct: 3 }, off2: { crit: 2 }, sus1: { hp: 18 }, sus2: { vit: 4 }, def1: { arm: 8 }, def2: { hp: 14 }, uti1: { cdr: 4 }, uti2: { thorns: 10 } },
-  },
-  maga: {
-    leg: {
-      off: { name: 'Núcleo Ardiente',  stats: { dmgPct: 8, crit: 3 }, power: 'volatil',      desc: 'poder Volátil: los enemigos estallan al morir' },
-      sus: { name: 'Manantial Arcano', stats: { hp: 30, mph: 4 },                            desc: '+30 vida y +4 maná al golpear' },
-      def: { name: 'Égida de Escarcha',stats: { arm: 28, hp: 20 },                           desc: '+28 armadura y +20 vida' },
-      uti: { name: 'Vendaval Arcano',  stats: { aspdPct: 8 },         power: 'multidisparo',  desc: 'poder del Vendaval: +1 proyectil' },
-    },
-    rares: { off1: { dmgPct: 3 }, off2: { crit: 3 }, sus1: { hp: 16 }, sus2: { mph: 2 }, def1: { arm: 8 }, def2: { hp: 14 }, uti1: { cdr: 5 }, uti2: { mf: 10 } },
-  },
-  arquera: {
-    leg: {
-      off: { name: 'Ojo del Halcón',    stats: { crit: 6, dmgPct: 4 }, power: 'furia',        desc: 'poder de la Furia: daño ×1,15 con vida alta' },
-      sus: { name: 'Festín del Cazador',stats: { hp: 36, lph: 2 },     power: 'festin',       desc: 'poder del Festín: cura al matar' },
-      def: { name: 'Reflejos Felinos',  stats: { arm: 24, aspdPct: 4 },power: 'agil',         desc: 'poder Ágil: esquiva con recarga más rápida' },
-      uti: { name: 'Lluvia de Flechas', stats: { aspdPct: 8 },         power: 'multidisparo',  desc: 'poder del Vendaval: +1 proyectil' },
-    },
-    rares: { off1: { crit: 3 }, off2: { dmgPct: 3 }, sus1: { hp: 16 }, sus2: { lph: 1 }, def1: { arm: 8 }, def2: { hp: 14 }, uti1: { aspdPct: 3 }, uti2: { mf: 10 } },
-  },
-};
-
-function buildParagonBoard(cfg) {
-  const nodes = [];
-  const add = (x, y, type, stats, cat, extra = {}) => nodes.push({ id: `${x}_${y}`, x, y, type, stats, cat, ...extra });
-  add(4, 4, 'start', {}, null, { name: 'Inicio' });
-  // brazo SUPERIOR — ofensiva
-  add(4, 3, 'minor', { dmgPct: 1 }, 'ofensiva');
-  add(4, 2, 'magic', { dmgPct: 2, crit: 1 }, 'ofensiva');
-  add(4, 1, 'minor', { dmgPct: 1 }, 'ofensiva');
-  add(4, 0, 'legendary', cfg.leg.off.stats, 'ofensiva', { name: cfg.leg.off.name, power: cfg.leg.off.power, desc: cfg.leg.off.desc });
-  add(3, 2, 'rare', cfg.rares.off1, 'ofensiva');
-  add(5, 2, 'rare', cfg.rares.off2, 'ofensiva');
-  // brazo INFERIOR — sustento
-  add(4, 5, 'minor', { hp: 6 }, 'sustento');
-  add(4, 6, 'magic', { hp: 14 }, 'sustento');
-  add(4, 7, 'minor', { hp: 6 }, 'sustento');
-  add(4, 8, 'legendary', cfg.leg.sus.stats, 'sustento', { name: cfg.leg.sus.name, power: cfg.leg.sus.power, desc: cfg.leg.sus.desc });
-  add(3, 6, 'rare', cfg.rares.sus1, 'sustento');
-  add(5, 6, 'rare', cfg.rares.sus2, 'sustento');
-  // brazo IZQUIERDO — defensa
-  add(3, 4, 'minor', { arm: 4 }, 'defensa');
-  add(2, 4, 'magic', { arm: 10 }, 'defensa');
-  add(1, 4, 'minor', { arm: 4 }, 'defensa');
-  add(0, 4, 'legendary', cfg.leg.def.stats, 'defensa', { name: cfg.leg.def.name, power: cfg.leg.def.power, desc: cfg.leg.def.desc });
-  add(2, 3, 'rare', cfg.rares.def1, 'defensa');
-  add(2, 5, 'rare', cfg.rares.def2, 'defensa');
-  // brazo DERECHO — velocidad / utilidad
-  add(5, 4, 'minor', { aspdPct: 1 }, 'utilidad');
-  add(6, 4, 'magic', { aspdPct: 3 }, 'utilidad');
-  add(7, 4, 'minor', { aspdPct: 1 }, 'utilidad');
-  add(8, 4, 'legendary', cfg.leg.uti.stats, 'utilidad', { name: cfg.leg.uti.name, power: cfg.leg.uti.power, desc: cfg.leg.uti.desc });
-  add(6, 3, 'rare', cfg.rares.uti1, 'utilidad');
-  add(6, 5, 'rare', cfg.rares.uti2, 'utilidad');
-  // nodos de ENGARCE (sockets) para glifos — en la unión de dos cuadrantes, de
-  // modo que la familia del glifo que coloques aquí es una decisión real.
-  add(3, 3, 'socket', {}, null);
-  add(5, 3, 'socket', {}, null);
-  add(3, 5, 'socket', {}, null);
-  add(5, 5, 'socket', {}, null);
-  return nodes;
-}
-
-export const PARAGON_BOARDS = {
-  guerrero: buildParagonBoard(PG_CFG.guerrero),
-  maga: buildParagonBoard(PG_CFG.maga),
-  arquera: buildParagonBoard(PG_CFG.arquera),
-};
-// tablero por defecto / compatibilidad (la mayoría del código lo resuelve por
-// clase con paragonBoardFor; los tests headless importan este alias = guerrero).
-export const PARAGON_BOARD = PARAGON_BOARDS.guerrero;
-export function paragonBoardFor(classId) { return PARAGON_BOARDS[classId] || PARAGON_BOARD; }
-export const PARAGON_BOARD_SIZE = 9;
+// Tablero de Paragon (glifos): vive en js/paragon-board.js (Paso 2, E0.3; dueño W1 en E1).
+// Aquí solo se reexporta: los importadores de data.js no cambian.
+export { PARAGON_CATS, PG_CFG, buildParagonBoard, PARAGON_BOARDS, PARAGON_BOARD, paragonBoardFor, PARAGON_BOARD_SIZE } from './paragon-board.js';
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {
   fue: 'Aumenta el daño físico',

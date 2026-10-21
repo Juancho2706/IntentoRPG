@@ -7,7 +7,8 @@
 //   sed (Berserker) · bastion (Guardián) · fervor (Cruzado) · calor (Piromante) ·
 //   escarcha (Crionte, POR ENEMIGO) · cargas (Arcanista) · concentracion
 //   (Francotiradora) · coto (Montaraz: trampas armadas + Presa) · impulso (Tiradora)
-// Aquí vive la mecánica BASE de llenado y descarga de cada uno. Los talentos que
+// La mecánica BASE de llenado y descarga de cada uno vive en js/mech-<clase>.js (Paso 2,
+// E0.3) y este núcleo la compone y la registra. Los talentos que
 // la potencian (Remolino Sediento, Desafío Firme, Combustión…) son poderes de
 // js/powers-<clase>.js (2c.1) que llaman a gainGauge/spendGauge o reaccionan con
 // el gancho ⑩ `onGauge`.
@@ -55,6 +56,11 @@
 import * as TAL_G from './talents-guerrero.js';
 import * as TAL_M from './talents-maga.js';
 import * as TAL_A from './talents-arquera.js';
+// Paso 2 (E0.3): números y definiciones de los indicadores por clase (hojas sin imports;
+// también ANTES de powers.js por la misma razón)
+import * as MECH_G from './mech-guerrero.js';
+import * as MECH_M from './mech-maga.js';
+import * as MECH_A from './mech-arquera.js';
 import { STAGGER_CC } from './combat-math.js';
 import { firePower, definePower, POWER_HOOKS, hasPower } from './powers.js';
 import { gainResource } from './resources.js';
@@ -100,333 +106,42 @@ function isBasicHit(p, hit) {
 function invalidate(p) { if (p) p.resolved = {}; }
 
 // ------------------------------------------------------------
-// Los 9 indicadores BASE (§2). Constantes en un solo sitio:
+// Los 9 indicadores BASE (§2). Paso 2 (E0.3): los números y las definiciones de cada
+// clase viven en js/mech-<clase>.js (dueño KT-<clase> desde E2); aquí se COMPONEN en el
+// orden de siempre (guerrero → maga → arquera: sed, bastion, fervor, calor, escarcha,
+// cargas, concentracion, coto, impulso) y se les INYECTAN los helpers del núcleo (H).
 // ------------------------------------------------------------
 // eslint-disable-next-line no-var
 var TUNING;
-// Los números BASE los consume el núcleo (abajo). Los de los talentos que solo CITA la UI
+// eslint-disable-next-line no-var
+var MECH_H; // helpers inyectados a mech-<clase>.js (perezoso, como TUNING)
+// Los números BASE los consume el núcleo (mech-<clase>.js). Los de los talentos que solo CITA la UI
 // salen de la activa de talento (talents-<clase>.js) o, si viven en un poder
-// (powers-<clase>.js), se copian aquí y tests/test75-gaugeview-v2 comprueba que el texto
+// (powers-<clase>.js), se copian en mech-<clase>.js y tests/test75-gaugeview-v2 comprueba que el texto
 // del nodo dice lo mismo (sin desfase entre el juego y la explicación de la barra).
 export function gaugeTuning() {
   if (TUNING) return TUNING;
-  const muro = talentSkill('g_t_muro'), ver = talentSkill('g_t_veredicto'), comb = talentSkill('p_combustion');
-  const vis = talentSkill('a_t_vision'), cepo = talentSkill('a_t_cepo');
-  return (TUNING = Object.freeze({
-    sed:      { perHpPct: 1, perBleedTick: 2, bleedPerSec: 10, satedT: 6, decayAfter: 4, decayRate: 8,
-      max: 100, lowHpPct: 40, satedDmgPct: 25,                              // m_berserk ×1,25
-      remolino: { perHit: 2, max: 20 },                                      // s4 Remolino Sediento (2e: por golpe)
-      frenzy: { t: 8, aspdPct: 30, healPct: 1 } },                           // s14 Sangre Hirviente
-    bastion:  { max: 5, perBlock: 1, decayEvery: 6, blockPct: 15,
-      shout: 2,                                                              // s4 Desafío Firme
-      murallaPerRank: 1,                                                     // s17 Muralla Viviente (2e: era 2)
-      wall: { t: muro.dur ?? 8, drPerCharge: muro.drPerCharge ?? 10, drMax: muro.drMax ?? 50 } },
-    fervor:   { max: 3, perKill: 1, hammerHits: 3, basicHits: 3,             // 2e: también 1 cada 3 básicos
-      verdict: { cost: ver.gaugeCost ?? 3, coefPct: Math.round((ver.coef ?? 3) * 100), healPct: ver.healDealtPct ?? 25 },
-      ascension: { t: 10, need: 3 } },                                       // x3 Ascensión
-    calor:    { perFireHit: 5, decayAfter: 3, decayRate: 10, skills: ['bola_fuego', 'meteoro'],
-      max: 100, llamarada: 25,                                               // s4 Llamarada Avivada
-      combustion: { t: comb.dur ?? 10, mult: comb.gaugeMult ?? 2 } },
-    escarcha: { max: 5, perHit: 1, nova: 2, freezeT: 1.0, numbT: 4, decayEvery: 2,
-      bossStagger: STAGGER_CC.freeze, numbMovePct: 30, numbAspdPct: 15 },
-    cargas:   { max: 4, perDart: 1, dmgPerCharge: 35, manaPerCharge: 5, loseAfter: 6,
-      orbMax: 2,                                                             // s4 Orbe Resonante
-      resonanceCrit: 12 },                                                   // s14 Resonancia (2e: era 15)
-    concentracion: { gainPerSec: 20, losePerSec: 25, critPerPoint: 0.15, max: 100,
-      alientoSpend: 50,                                                      // s4 Aliento del Cazador
-      vision: { t: vis.dur ?? 12 } },
-    coto:     { maxArmed: 3, preyT: 15, maxArmedExtra: 1,                    // s14 Coto Cerrado
-      trap: { charges: cepo.charges ?? 1, cd: cepo.cd ?? 8, root: cepo.root ?? 2 } },
-    impulso:  { perShot: 3, shotGap: 0.15, galeT: 6, galeAspd: 25, max: 100, galeProj: 1,
-      andanada: 20,                                                          // s4 Andanada Impulsiva
-      galechain: { perKill: 0.5, max: 6 } },                                 // s14 Vendaval Perpetuo
-  }));
+  const H = mechHelpers();
+  return (TUNING = Object.freeze({ ...MECH_G.gaugeTuning(H), ...MECH_M.gaugeTuning(H), ...MECH_A.gaugeTuning(H) }));
 }
 
 function baseGauges() {
-  const T = gaugeTuning();
-  return {
-    // Berserker: perder vida y desangrar llenan la Sed; a 100 → Sed Saciada 6 s
-    // (activa m_berserk ×1,25 aunque tengas la vida alta) y vuelve a 0.
-    sed: {
-      name: 'Sed', color: '#e8634a', max: 100, procs: true,
-      decay: { after: T.sed.decayAfter, rate: T.sed.decayRate, ooc: true },
-      state: () => ({ satedT: 0, bleedT: -9, bleedN: 0 }),
-      canGain: (p, st) => !(st.satedT > 0),
-      hold: st => st.satedT > 0,
-      onDamaged(g, p, dmg) {
-        const max = p.stats?.maxHP || 0;
-        if (dmg?.amount > 0 && max > 0) gainGauge(p, 'sed', dmg.amount / max * 100 * T.sed.perHpPct);
-      },
-      onHit(g, p, e, hit, st) {
-        if (!hit?.dot || !/:bleed$/.test(hit.source || '')) return;
-        if (now(p) - st.bleedT >= 1) { st.bleedT = now(p); st.bleedN = 0; }
-        const n = Math.min(T.sed.perBleedTick, T.sed.bleedPerSec - st.bleedN);
-        if (n > 0) { st.bleedN += n; gainGauge(p, 'sed', n); }
-      },
-      onFull(g, p, st) {
-        st.satedT = T.sed.satedT;
-        g?.ui?.spawnText?.(p.pos, '¡SED SACIADA!', 'txt-crit');
-      },
-      onTick(g, p, dt, st) {
-        if (st.satedT > 0) { st.satedT -= dt; if (st.satedT <= 0) { st.satedT = 0; drainGauge(p, 'sed', st.v); } }
-      },
-      view: st => (st.satedT > 0 ? { state: 'active', label: 'Sed Saciada', t: st.satedT } : null),
-      // v2: vida baja (m_berserk activo por vida) y Desenfreno (s14, buff g_desenfreno)
-      viewX(p, st, e, out) {
-        const max = p.stats?.maxHP || 0, fr = buffOf(p, 'g_desenfreno');
-        out.x = { low: max > 0 && p.hp / max < T.sed.lowHpPct / 100, frenzyT: fr ? fr.t : 0, frenzyMax: fr ? (fr.dur || T.sed.frenzy.t) : 0 };
-        if (st.satedT > 0) out.tMax = T.sed.satedT;
-      },
-    },
-    // Guardián: +1 carga por bloqueo (innata: 15 % de bloqueo con escudo); se pierde
-    // 1 carga cada 6 s sin ganar ninguna. La gastan Muro de Escudos y los talentos.
-    bastion: {
-      name: 'Bastión', color: '#7fb0e8', max: T.bastion.max, integer: true,
-      decay: { after: 0, every: T.bastion.decayEvery, n: 1 },          // 1 carga cada 6 s sin ganar
-      onDamaged(g, p, dmg) { if (dmg?.blocked) gainGauge(p, 'bastion', T.bastion.perBlock); },
-      // v2: Muralla Viviente (s17: su condDr real), Muro de Escudos (s9: buff g_t_muro)
-      viewX(p, st, e, out) {
-        let drPct = 0;
-        if (hasPower(p, 'g_muralla_viva')) { try { drPct = +POWER_HOOKS.g_muralla_viva?.condDr?.(p) || 0; } catch { drPct = 0; } }
-        const wall = buffOf(p, 'g_t_muro');
-        out.x = { drPct, wallT: wall ? wall.t : 0, wallMax: wall ? (wall.dur || T.bastion.wall.t) : 0,
-          wallDr: wall ? (wall.stats?.dr || 0) : 0, decayEvery: T.bastion.decayEvery };
-        if (wall) { out.state = 'active'; out.label = 'Muro de Escudos'; out.t = wall.t; out.tMax = out.x.wallMax; }
-      },
-    },
-    // Cruzado: +1 por muerte (Juicio, su nodo clave), +1 cada 3 impactos de Martillo de
-    // Guerra y +1 cada 3 golpes del básico que aciertan (Paso 2e). Veredicto Final gasta 3.
-    fervor: {
-      name: 'Fervor', color: '#ecc760', max: T.fervor.max, integer: true,
-      state: () => ({ hammerHits: 0, basicHits: 0 }),
-      onKill(g, p) { gainGauge(p, 'fervor', T.fervor.perKill); },
-      // Paso 2e: el básico que acierta también da Fervor (1 cada 3); sin Martillo en la barra
-      // (variante defensiva de §7.1) el Cruzado no ganaba Fervor contra un jefe
-      onHit(g, p, e, hit, st) {
-        if (hit?.proc || hit?.dot) return;
-        if (hit?.skill === 'g_martillo') {
-          if (++st.hammerHits >= T.fervor.hammerHits) { st.hammerHits = 0; gainGauge(p, 'fervor', 1); }
-        } else if (isBasicHit(p, hit)) {
-          if (++st.basicHits >= T.fervor.basicHits) { st.basicHits = 0; gainGauge(p, 'fervor', 1); }
-          // Fervor Creciente (tv.fervorChance; Paso 2e: del Martillo pasa al básico): cada
-          // golpe del básico que acierta tiene X % de dar 1 más
-          const ch = p.tv?.fervorChance || 0;
-          if (ch > 0) {
-            const r = typeof p.combatRng === 'function' ? p.combatRng() : 0.5;
-            if (r * 100 < ch) gainGauge(p, 'fervor', 1);
-          }
-        }
-      },
-      // v2: cuentas del Martillo, Ascensión (x3: buff g_ascension) y Veredicto listo
-      viewX(p, st, e, out) {
-        const asc = buffOf(p, 'g_ascension');
-        out.x = { hammerHits: st.hammerHits || 0, hammerNeed: T.fervor.hammerHits,
-          ascT: asc ? asc.t : 0, ascMax: asc ? (asc.dur || T.fervor.ascension.t) : 0 };
-        if (asc) { out.state = 'active'; out.label = 'Ascensión'; out.t = asc.t; out.tMax = out.x.ascMax; }
-        out.ready = (asc || out.value >= T.fervor.verdict.cost) ? ['g_t_veredicto'] : [];
-      },
-    },
-    // Piromante: +5 por golpe de Fuego (su nodo clave hace que todos quemen; una
-    // vez por instante: un área no da +25); baja −10/s tras 3 s. A 100 → IGNICIÓN
-    // TOTAL: la siguiente Bola de Fuego o Meteoro cuesta 0 y es crítico seguro.
-    // Se consume al LANZARLA (⑦ onCast; si la esquiva cancela la preparación, se pierde).
-    calor: {
-      name: 'Calor', color: '#ff8a3d', max: 100,
-      decay: { after: T.calor.decayAfter, rate: T.calor.decayRate },
-      state: () => ({ ready: false, gainAt: -9 }),
-      canGain: (p, st) => !st.ready,
-      hold: st => st.ready,
-      onHit(g, p, e, hit, st) {
-        if (hit?.proc || hit?.dot || hit?.elem !== 'fire') return;
-        if (now(p) - st.gainAt < 0.05) return;
-        st.gainAt = now(p);
-        gainGauge(p, 'calor', T.calor.perFireHit);
-      },
-      onFull(g, p, st) {
-        st.ready = true;
-        invalidate(p);
-        g?.ui?.spawnText?.(p.pos, '¡IGNICIÓN TOTAL!', 'txt-crit');
-      },
-      modifyResolve(p, sk, prof, st) {
-        if (!st.ready || !T.calor.skills.includes(sk.id)) return;
-        prof.cost = 0;
-        prof.forceCrit = true;
-        prof.ignition = true;
-      },
-      onCast(g, p, cast, st) {
-        if (!st.ready || !cast?.prof?.ignition) return;
-        st.ready = false;
-        spendGauge(p, 'calor', st.v);
-        invalidate(p);
-      },
-      view: st => (st.ready ? { state: 'active', label: 'Ignición Total' } : null),
-      // v2: enfriándose, Combustión (s9: buff p_combustion, Calor x2) e Ignición -> ranuras
-      viewX(p, st, e, out) {
-        const comb = buffOf(p, 'p_combustion');
-        out.x = { cooling: !!out.decaying, combT: comb ? comb.t : 0, combMax: comb ? (comb.dur || T.calor.combustion.t) : 0,
-          mult: r2(gaugeGainMult(p, 'calor')) };
-        out.ready = st.ready ? [...T.calor.skills] : [];
-        if (!st.ready && comb) { out.label = 'Combustión'; out.t = comb.t; out.tMax = out.x.combMax; }
-      },
-    },
-    // Crionte (POR ENEMIGO): +1 capa por golpe de Escarcha (Nova +2, +tv.frostLayers);
-    // a 5 capas → Congelado 1,5 s (control duro con rendimientos decrecientes); un
-    // jefe queda ATERIDO 4 s (−30 % de movimiento, −15 % de velocidad de ataque) y
-    // suma 25 de stagger. Las capas caen 1 cada 2 s.
-    escarcha: {
-      name: 'Escarcha', color: '#74cdf2', max: T.escarcha.max, perEnemy: true, integer: true,
-      decay: { after: 0, every: T.escarcha.decayEvery, n: 1 },         // 1 capa cada 2 s sin ganar
-      onHit(g, p, e, hit) {
-        if (hit?.proc || hit?.dot || hit?.elem !== 'frost' || !e?.alive) return;
-        const n = hit.skill === 'nova_hielo' ? T.escarcha.nova + (p.tv?.frostLayers || 0) : T.escarcha.perHit;
-        gainGauge(p, 'escarcha', n, e);
-      },
-      onFull(g, p, st, e) {
-        if (!e?.alive) return;
-        if (isBoss(e)) e.numbT = Math.max(e.numbT || 0, T.escarcha.numbT);
-        e.applyCC?.('freeze', T.escarcha.freezeT, { src: p });
-        drainGauge(p, 'escarcha', st.v, e);
-      },
-      // v2: e = el objetivo que eligió gaugeView (cursor > jefe en combate > el más escarchado)
-      viewX(p, st, e, out) {
-        let layered = 0, frozen = 0;
-        for (const o of p.game?.enemies || []) {
-          if (!o?.alive) continue;
-          if ((o.gauges?.escarcha?.v || 0) >= 1) layered++;
-          if ((o.frozenT || 0) > 0) frozen++;
-        }
-        const boss = !!e && isBoss(e), numbT = e && e.numbT > 0 ? e.numbT : 0;
-        // targetFrozen: el objetivo de la vista está Congelado ahora (la UI no lee e.frozenT)
-        out.x = { enemyName: e ? (e.def?.name || e.name || '') : '', boss, layered, frozen, numbT, targetFrozen: !!e && (e.frozenT || 0) > 0 };
-        if (boss && numbT > 0) { out.state = 'active'; out.label = 'Aterido'; out.t = numbT; out.tMax = T.escarcha.numbT; }
-      },
-    },
-    // Arcanista: Dardo Arcano +1 Carga por impacto (máx. 4); Rayo las consume TODAS:
-    // +35 % de daño aditivo por carga y devuelve 5 de maná por carga. Se pierden 6 s
-    // después de la última ganancia (Resonancia: touchGauge).
-    cargas: {
-      name: 'Cargas Arcanas', color: '#b996ff', max: T.cargas.max, integer: true,
-      decay: { after: T.cargas.loseAfter, all: true },
-      onHit(g, p, e, hit) { if (!hit?.proc && !hit?.dot && hit?.skill === 'm_dardo') gainGauge(p, 'cargas', T.cargas.perDart); },
-      condAdd(p, e, hit, st) { return hit?.skill === 'rayo' ? T.cargas.dmgPerCharge * Math.floor(st.v) : 0; },
-      afterCast(g, p, cast, res, st) {
-        if (cast?.sk?.id !== 'rayo' || st.v < 1) return;
-        const n = Math.floor(st.v);
-        if (spendGauge(p, 'cargas', n)) gainResource(p, T.cargas.manaPerCharge * n);
-      },
-      // v2: previsión del próximo Rayo y Resonancia (s14: con 4 Cargas no caducan)
-      viewX(p, st, e, out) {
-        const n = Math.floor(out.value);
-        const resonance = hasPower(p, 'a_resonance') && n >= out.max;
-        out.x = { loseAfter: T.cargas.loseAfter, bonusPct: T.cargas.dmgPerCharge * n, manaBack: T.cargas.manaPerCharge * n, resonance };
-        // Resonancia es una ventana: estado 'active' (no caducan) con su rótulo
-        if (resonance) { out.decayIn = null; out.hold = true; out.state = 'active'; out.label = 'Resonancia'; }
-        out.ready = n >= 1 ? ['rayo'] : [];
-      },
-    },
-    // Francotiradora: +20/s quieta (× 1 + tv.focusRate/100), −25/s moviéndote;
-    // +0,15 % de crítico por punto (+15 % a 100).
-    concentracion: {
-      name: 'Concentración', color: '#ead86e', max: 100,
-      onTick(g, p, dt) {
-        if (p.moving) drainGauge(p, 'concentracion', T.concentracion.losePerSec * dt * gaugeLossMult(p, 'concentracion'));
-        else gainGauge(p, 'concentracion', T.concentracion.gainPerSec * dt * Math.max(0, 1 + (p.tv?.focusRate || 0) / 100));
-      },
-      // Respiración Profunda (tv.focusEnergy): al llenarla, +X de Energía
-      onFull(g, p) { const n = p.tv?.focusEnergy || 0; if (n > 0) gainResource(p, n); },
-      condCrit(p, e, hit, st) { return st.v * T.concentracion.critPerPoint; },
-      // v2: moverte la vacía (decaying), Visión Certera (s9: buff a_t_vision) y Aliento (s4)
-      viewX(p, st, e, out) {
-        const vis = buffOf(p, 'a_t_vision'), moving = !!p.moving;
-        out.x = { moving, critPct: r2(out.value * T.concentracion.critPerPoint), visionT: vis ? vis.t : 0,
-          visionMax: vis ? (vis.dur || T.concentracion.vision.t) : 0 };
-        out.decaying = moving && out.value > 0 && gaugeLossMult(p, 'concentracion') > 0;
-        if (vis) { out.state = 'active'; out.label = 'Visión Certera'; out.t = vis.t; out.tMax = out.x.visionMax; }
-        out.ready = hasPower(p, 'f_aliento_cazador') && out.value >= out.max ? ['a_t_apuntado'] : [];
-      },
-    },
-    // Montaraz: el valor son las TRAMPAS ARMADAS (campos 'trampa' del héroe o con
-    // data.trap; máx. 3, +gaugeMax:coto). PRESA = el primer élite o jefe que golpeas
-    // (15 s): cuenta como élite para eliteDmg y KillInfo.status.prey.
-    coto: {
-      name: 'Coto de Caza', color: '#86d47a', max: T.coto.maxArmed, integer: true,
-      state: () => ({ prey: null, preyT: 0 }),
-      value(p) {
-        const g = p.game;
-        return (g?.fields || []).filter(f => !f.dead && f.owner === p && (f.kind === 'trampa' || f.data?.trap)).length;
-      },
-      onHit(g, p, e, hit, st) {
-        if (hit?.proc || hit?.dot || !e?.alive) return;
-        if (st.prey?.alive && st.preyT > 0) return;
-        if (!(e.def?.rank || isBoss(e))) return;
-        st.prey = e; st.preyT = T.coto.preyT; e.prey = true;
-        g?.ui?.spawnText?.(e.pos?.clone ? e.pos.clone().setY((e.def?.scale || 1) + 0.8) : e.pos, '¡PRESA!', 'txt-crit');
-      },
-      onTick(g, p, dt, st) {
-        if (!st.prey) return;
-        st.preyT -= dt;
-        if (st.preyT <= 0 || !st.prey.alive) { st.prey.prey = false; st.prey = null; st.preyT = 0; }
-      },
-      view: st => (st.prey ? { state: 'prey', label: 'Presa', t: st.preyT } : null),
-      // v2: Presa (nombre, vida, atrapada) y cargas de Trampa de Cepo (sin mutar su estado:
-      // las recargas pendientes se cuentan aquí; las aplica el comportamiento al lanzar)
-      viewX(p, st, e, out) {
-        const prey = st.prey?.alive ? st.prey : null;
-        const knows = (p.skills?.a_t_cepo || 0) > 0;
-        const max = knows ? T.coto.trap.charges + (hasPower(p, 'm_cepo_doble') ? 1 : 0) : 0;
-        const cs = peekPower(p, 'a_t_cepo'), cd = p.cdMax?.a_t_cepo || T.coto.trap.cd;
-        let charges = max, frac = 0;
-        if (knows && cs && cs.charges != null) {
-          charges = Math.min(max, cs.charges);
-          let next = cs.nextAt || 0;
-          while (charges < max && next > 0 && now(p) + 1e-6 >= next) { charges++; next += cd; }
-          if (charges < max && next > 0) frac = Math.max(0, Math.min(1, 1 - (next - now(p)) / cd));
-        }
-        const gh = peekPower(p, 'm_greathunt');
-        out.x = { preyName: prey ? (prey.def?.name || prey.name || '') : '',
-          preyHpPct: prey ? Math.round(Math.max(0, prey.hp) / Math.max(1, prey.maxHP || 1) * 100) : 0,
-          trapCharges: charges, trapChargesMax: max, trapCdFrac: r2(frac),
-          preyTrapped: !!prey && ((prey.rootT || 0) > 0 || (hasPower(p, 'm_greathunt') && gh?.prey === prey)) };
-        if (prey) out.tMax = T.coto.preyT;
-      },
-    },
-    // Tiradora: +3 por disparo hecho EN MOVIMIENTO; a 100 → VENDAVAL 6 s (+25 % de
-    // velocidad de ataque, +1 proyectil a Flecha Múltiple) y vuelve a 0.
-    impulso: {
-      name: 'Impulso', color: '#66d7c7', max: 100,
-      state: () => ({ galeT: 0, shotAt: -9 }),
-      canGain: (p, st) => !(st.galeT > 0),
-      hold: st => st.galeT > 0,
-      onHit(g, p, e, hit, st) {
-        if (hit?.proc || hit?.dot || !p.moving || !hit?.tags?.has?.('proj')) return;
-        if (now(p) - st.shotAt < T.impulso.shotGap) return;
-        st.shotAt = now(p);
-        gainGauge(p, 'impulso', T.impulso.perShot);
-      },
-      onFull(g, p, st) {
-        st.galeT = T.impulso.galeT;
-        p.addBuff?.('t_vendaval', { aspdPct: T.impulso.galeAspd }, T.impulso.galeT,
-          { name: 'Vendaval', icon: '🌬️', desc: `+${T.impulso.galeAspd}% vel. de ataque y +1 proyectil a Flecha Múltiple` });
-        invalidate(p);
-        // Segundo Aliento (tv.galeHeal % de vida —curación de habilidad— y tv.galeEnergy de Energía)
-        const heal = p.tv?.galeHeal || 0, en = p.tv?.galeEnergy || 0;
-        if (heal > 0) { if (g?.heal) g.heal(p.stats.maxHP * heal / 100, { target: 'self', src: 'galeHeal' }); else p.healSkill?.(p.stats.maxHP * heal / 100, 'galeHeal'); }
-        if (en > 0) gainResource(p, en);
-      },
-      modifyResolve(p, sk, prof, st) { if (st.galeT > 0 && sk.id === 'flecha_multiple') prof.proj = (prof.proj || 0) + 1; },
-      onTick(g, p, dt, st) {
-        if (st.galeT > 0) { st.galeT -= dt; if (st.galeT <= 0) { st.galeT = 0; drainGauge(p, 'impulso', st.v); invalidate(p); } }
-      },
-      view: st => (st.galeT > 0 ? { state: 'active', label: 'Vendaval', t: st.galeT } : null),
-      // v2: en movimiento (gana) y Vendaval Perpetuo (s14: segundos extra acumulados)
-      viewX(p, st, e, out) {
-        const galeExt = hasPower(p, 't_galechain') ? (peekPower(p, 't_galechain')?.ext || 0) : 0;
-        out.x = { moving: !!p.moving, galeExt: r2(galeExt) };
-        if (st.galeT > 0) { out.tMax = T.impulso.galeT + galeExt; out.ready = ['flecha_multiple']; } else out.ready = [];
-      },
-    },
-  };
+  const T = gaugeTuning(), H = mechHelpers();
+  return { ...MECH_G.baseGauges(T, H), ...MECH_M.baseGauges(T, H), ...MECH_A.baseGauges(T, H) };
+}
+
+// `H`: lo que las mecánicas por clase usan del núcleo y de otros módulos. Inyectado, así
+// mech-<clase>.js no importa nada y no entra en el ciclo powers.js ↔ este módulo. Las
+// funciones son declaraciones (enlazadas antes de evaluar cualquier módulo); POWER_HOOKS y
+// STAGGER_CC son constantes y van como getters (se leen al usarlas, no al construir H).
+function mechHelpers() {
+  return MECH_H || (MECH_H = Object.freeze({
+    gainGauge, spendGauge, drainGauge, gaugeGainMult, gaugeLossMult,
+    isBoss, buffOf, peekPower, r2, now, isBasicHit, invalidate, talentSkill,
+    hasPower, gainResource,
+    get POWER_HOOKS() { return POWER_HOOKS; },
+    get STAGGER_CC() { return STAGGER_CC; },
+  }));
 }
 
 function freezeDef(id, def) {
