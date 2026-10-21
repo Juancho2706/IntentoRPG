@@ -158,7 +158,8 @@ assert.ok(POWER_HOOKS[CORE_TV_POWER], 'poder común nucleo_tv registrado');
   assert.equal(resolveSkill(h.p, cepo).root, 2.5, 'root toma el MÁXIMO (2 > 1) + rootAdd');
   h.p.talentExtra.mods = { t_cepo: { root: 3 } }; h.p.recompute();
   assert.equal(resolveSkill(h.p, cepo).root, 3, 'root del mod mayor que el de la habilidad: manda el mod');
-  const m = makeHarness({ classId: 'maga', level: 30 });
+  // la Nova a Nv10: su Mejora (Escarcha Profunda, Nv11) sube el ralentizar a 40
+  const m = makeHarness({ classId: 'maga', level: 10 });
   m.p.talentExtra.mods = { nova_hielo: { slowPctAdd: 10 } }; m.p.recompute();
   assert.equal(resolveSkill(m.p, SK('maga', 'nova_hielo')).slowPct, 40, 'slowPctAdd: 30 + 10');
   // Estela: con slow (la Nova ralentiza) también ralentiza; sin slow, solo daña
@@ -172,7 +173,7 @@ assert.ok(POWER_HOOKS[CORE_TV_POWER], 'poder común nucleo_tv registrado');
   k.step(0.6);
   assert.ok(!(e2.slowT > 0) && e2.hp < e2.maxHP, 'sin slow: daña y no ralentiza');
   // Nova con mod.zone → su Estela lleva slow (canal real)
-  const n = makeHarness({ classId: 'maga', level: 30 });
+  const n = makeHarness({ classId: 'maga', level: 10 });
   n.p.talentExtra.mods = { nova_hielo: { zone: 1 } }; n.p.recompute();
   n.enemy({ hp: 1e6, pos: [1, 0, 0] }); n.aim(1, 0); n.setSlot('rmb', 'nova_hielo'); n.p.mp = n.p.stats.maxMP;
   assert.equal(n.cast('rmb'), true);

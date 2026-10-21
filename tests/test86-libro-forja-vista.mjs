@@ -313,31 +313,27 @@ console.log('bookScale: 1 a 1920×1080, 0,8 a 1366×768 y el libro cabe en cada 
 
 // ------------------------------------------------ 5) cambio de especialización
 {
-  const S = d => ({ icon: '🧪', desc: 'prueba', req: 10, elem: 'physical', ...d });
-  const skills = [
-    S({ id: 'vx_ins_ber', name: 'Insignia Berserker', cat: 'spec', spec: 'berserker', tags: ['spec', 'buff', 'physical'], type: 'buff', cd: 10, dur: 3, buff: { dr: 5 } }),
-    S({ id: 'vx_ins_gua', name: 'Insignia Guardián', cat: 'spec', spec: 'guardian', tags: ['spec', 'buff', 'physical'], type: 'buff', cd: 10, dur: 3, buff: { dr: 5 } }),
-    S({ id: 'vx_t_viejo', name: 'Activa Vieja', kind: 'talent', cat: 'defense', tags: ['defense', 'buff', 'physical'], type: 'buff', cd: 10, dur: 3, buff: { dr: 5 } }),
-    S({ id: 'vx_t_nueva', name: 'Activa Nueva', kind: 'talent', cat: 'utility', tags: ['utility', 'buff', 'physical'], type: 'buff', cd: 10, dur: 3, buff: { dr: 5 } }),
-  ];
-  const h = verbHarness('guerrero', { level: 30, spec: 'berserker', skills });
+  // catálogo 2g real: la insignia de cada especialización es la habilidad `cat:'spec'` de su kit
+  // (Remolino del Berserker, Cambio de Guardia del Guardián) y las activas de talento, las de la clase
+  const h = verbHarness('guerrero', { level: 30, spec: 'berserker' });
   const p = h.p;
   p.cls.forgeReco = { guardian: { vx_martillo: 'ii' } };
-  p.talentExtra.grants.add('vx_t_viejo'); p.recompute();
-  p.hotbar.k3 = 'vx_ins_ber';
+  p.talentExtra.grants.add('g_t_aliento'); p.recompute();
+  p.hotbar.k3 = 'g_remolino';
   const prev = HM.specSnapshot(p);
-  assert.equal(prev.spec, 'berserker'); assert.ok(prev.grants.includes('vx_t_viejo'));
+  assert.equal(prev.spec, 'berserker'); assert.deepEqual(prev.grants, ['g_t_aliento']);
   p.talents = { ...p.talents, spec: 'guardian' };
-  p.talentExtra.grants.delete('vx_t_viejo'); p.talentExtra.grants.add('vx_t_nueva');
+  p.talentExtra.grants.delete('g_t_aliento'); p.talentExtra.grants.add('grito_guerra');
   p.recompute();
-  p.hotbar.k3 = 'vx_ins_gua';
+  p.hotbar.k3 = 'g_guardia';
   const sum = HM.specSwapSummary(prev, p);
   assert.equal(sum.spec.id, 'guardian'); assert.equal(sum.from.id, 'berserker');
-  assert.equal(sum.insignia.from.id, 'vx_ins_ber'); assert.equal(sum.insignia.to.id, 'vx_ins_gua');
-  assert.deepEqual(sum.grantsIn.map(g => g.id), ['vx_t_nueva']); assert.deepEqual(sum.grantsOut.map(g => g.id), ['vx_t_viejo']);
+  assert.equal(sum.insignia.from.id, 'g_remolino'); assert.equal(sum.insignia.to.id, 'g_guardia');
+  assert.ok(sum.insignia.from.name === CLASSES.guerrero.skills.find(s => s.id === 'g_remolino').name && has(sum.insignia.to.art), 'la insignia con su nombre y su arte');
+  assert.deepEqual(sum.grantsIn.map(g => g.id), ['grito_guerra']); assert.deepEqual(sum.grantsOut.map(g => g.id), ['g_t_aliento']);
   assert.deepEqual(sum.reco.map(r => [r.id, r.variant]), [['vx_martillo', 'ii']]);
   assert.equal(sum.mechanic.id, findSpec('guerrero', 'guardian').mechanic);
-  assert.equal(sum.bar.k3, 'vx_ins_gua');
+  assert.equal(sum.bar.k3, 'g_guardia');
   console.log('specSwapSummary: insignia vieja → nueva, activas que entran y salen, recomendadas, mecánica y barra ✓');
 }
 

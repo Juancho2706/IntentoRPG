@@ -25,6 +25,8 @@ addSkill('guerrero', { id: 't_provoca', name: 'Provoca', cat: 'utility', tags: [
 addSkill('guerrero', { id: 't_zona', name: 'Zona', cat: 'spender', tags: ['spender', 'zone', 'physical'], type: 'zone', at: 'target', coef: 1, cd: 5, radius: 3, dur: 2, range: 8 });
 addSkill('guerrero', { id: 't_cepo', name: 'Cepo', cat: 'utility', tags: ['utility', 'trap', 'cc', 'nature'], elem: 'nature', type: 'trap', coef: 1, cd: 5, radius: 1.5, root: 2, dur: 10, trap: { armT: 0.3 }, range: 8 });
 addSkill('guerrero', { id: 't_marca', name: 'Marca', cat: 'utility', tags: ['utility', 'mark', 'arcane'], elem: 'arcane', type: 'mark', cd: 5, dur: 8, weakPct: 20, range: 10 });
+// el Martillo de Guerra v1 (área en la mira con preparación e impacto diferido): el 2g es de cargar y soltar
+addSkill('guerrero', { id: 't_mazazo', name: 'Mazazo', cat: 'spender', tags: ['spender', 'melee', 'area', 'physical'], type: 'area', at: 'target', coef: 1.4, cost: 30, radius: 3, range: 2.5, windup: 0.15, impactDelay: 0.23 });
 addSkill('maga', { id: 't_canal', name: 'Canal', cat: 'spender', tags: ['spender', 'channel', 'arcane'], elem: 'arcane', type: 'channel', coef: 0.5, cost: 10, cd: 1, channelT: 1, ticks: 4, int: true, range: 10 });
 
 const fury = h => { h.p.mp = h.p.stats.maxMP; };
@@ -57,16 +59,16 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   fury(h);
   const e = h.enemy({ hp: 1e6, pos: [4, 0, 0] });
   h.aim(4, 0);
-  h.setSlot('rmb', 'g_martillo');  // windup 0,15 + impacto 0,23
-  const cost = resolveSkill(h.p, CLASSES.guerrero.skills.find(s => s.id === 'g_martillo')).cost;
-  assert.equal(cost, 30, 'Martillo de Guerra: coste 30 (§3.1)');
+  h.setSlot('rmb', 't_mazazo');    // windup 0,15 + impacto 0,23
+  const cost = resolveSkill(h.p, CLASSES.guerrero.skills.find(s => s.id === 't_mazazo')).cost;
+  assert.equal(cost, 30, 'Mazazo: coste 30');
   assert.equal(h.cast('rmb'), true);
   assert.equal(h.p.mp, 100, 'el coste NO se cobra durante el windup');
   h.p.dodge();                      // la esquiva cancela el windup
   h.step(0.6);
   assert.equal(e.hp, 1e6, 'golpe cancelado: sin daño');
   assert.equal(h.p.mp, 100, 'golpe cancelado: sin coste');
-  assert.equal(h.p.cds.g_martillo || 0, 0, 'golpe cancelado: sin enfriamiento');
+  assert.equal(h.p.cds.t_mazazo || 0, 0, 'golpe cancelado: sin enfriamiento');
   h.p.dodgeT = 0;
   assert.equal(h.cast('rmb'), true);
   h.step(0.1);
@@ -75,13 +77,14 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   assert.equal(h.p.mp, 100 - cost, 'al soltar el golpe se cobra el coste');
   assert.equal(e.hp, 1e6, '...pero el daño llega con el impacto (impactDelay 0,23 s)');
   h.step(0.3);
-  assert.ok(e.hp < 1e6, 'el martillo impacta');
+  assert.ok(e.hp < 1e6, 'el mazazo impacta');
   console.log('Windup: la esquiva lo cancela sin cobrar; coste al soltar, daño al impactar ✓');
 }
 
 // ------------------------------------------------ 3) Meteoro: impacto a 0,6 s
 {
-  const h = makeHarness({ classId: 'maga', level: 20 });
+  // el Meteoro es del kit de la Piromante (2g); Nv16, antes de su Mejora (Nv17: cae a los 0,45 s)
+  const h = makeHarness({ classId: 'maga', level: 16, spec: 'piromante' });
   const e = h.enemy({ hp: 1e6, pos: [5, 0, 0] });
   h.aim(5, 0);
   h.setSlot('rmb', 'meteoro');
@@ -165,12 +168,13 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
 
 // ------------------------------------------------ 6) tipos genéricos
 {
-  const h = makeHarness({ classId: 'guerrero', level: 20 });
+  // el Salto Devastador es del kit del Berserker (2g)
+  const h = makeHarness({ classId: 'guerrero', level: 20, spec: 'berserker' });
   fury(h);
-  // cone (Hendidura, windup 0,12): golpea delante, no detrás
+  // cone (Hendidura, windup 0,25): golpea delante, no detrás
   const front = h.enemy({ hp: 1e6, pos: [2, 0, 0] }), back = h.enemy({ hp: 1e6, pos: [-2, 0, 0] });
   h.aim(5, 0); h.setSlot('rmb', 'g_hendidura');
-  assert.equal(h.cast('rmb'), true); h.step(0.2);
+  assert.equal(h.cast('rmb'), true); h.step(0.3);
   assert.ok(front.hp < 1e6 && back.hp === 1e6, 'cono: delante sí, detrás no');
   front.alive = back.alive = false;
   // line
@@ -248,10 +252,10 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   h.aim(4, 0); h.setSlot('k2', 't_marca');
   assert.equal(h.cast('k2'), true);
   assert.equal(m.weaknessPct(), 20, 'la marca aplica Debilidad');
-  // buff
-  h.tick(0.5); h.setSlot('k2', 'grito_guerra');
+  // buff (Piel de Hierro; el Grito de Guerra es activa de talento desde 2g)
+  h.tick(0.5); h.setSlot('k2', 'g_piel');
   assert.equal(h.cast('k2'), true);
-  assert.ok(h.p.buffs.some(b => b.id === 'grito_guerra'), 'buff aplicado');
+  assert.ok(h.p.buffs.some(b => b.id === 'g_piel'), 'buff aplicado');
   console.log('Tipos genéricos: cone · line · leap · dash · blink · shield · taunt · zone · trap · mark · buff ✓');
 }
 
@@ -268,9 +272,9 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   assert.equal(h.cast('rmb'), false, 'onCast → false cancela');
   assert.equal(h.p.mp, 100, '...sin coste');
   assert.equal(h.p.gcdT, 0, '...y sin GCD');
-  h.setSlot('rmb', 'torbellino');
+  h.setSlot('rmb', 't_linea');
   assert.equal(h.cast('rmb'), true);
-  assert.deepEqual(seen, [['torbellino', 1]], 'afterCast recibe el CastResult (1 golpe)');
+  assert.deepEqual(seen, [['t_linea', 1]], 'afterCast recibe el CastResult (1 golpe)');
   console.log('⑦ onCast cancela sin coste; afterCast recibe el resultado ✓');
 }
 console.log('\n✅ CANAL DE LANZAMIENTO (GCD · windup · impacto · canalización · tipos genéricos) OK');

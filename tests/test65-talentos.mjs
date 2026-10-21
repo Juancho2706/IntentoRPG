@@ -20,7 +20,7 @@ const { CLASSES, SPEC_BAR, FORGE_RECO } = await import('../js/data.js');
 const { normalizeSkillDef } = await import('../js/skill-defs.js');
 const { resolveSkill, rankBase } = await import('../js/skill-resolve.js');
 const { definePower, POWER_HOOKS, firePower } = await import('../js/powers.js');
-const { BASE_GAUGE_IDS, gaugeIds, gainGauge, spendGauge, gaugeMax, gaugeView, defineGauge, activeMechanic } = await import('../js/spec-mechanics.js');
+const { BASE_GAUGE_IDS, gaugeIds, gainGauge, spendGauge, gaugeMax, gaugeView, defineGauge, activeMechanic, gaugeTuning } = await import('../js/spec-mechanics.js');
 const { makeHarness } = await import('./helpers/power-harness.mjs');
 
 const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
@@ -35,12 +35,21 @@ function mk(classId, level, opts = {}) {
 }
 const last = h => h.messages()[h.messages().length - 1] || '';
 
-// kit de especialización de prueba (el catálogo v4 no tiene habilidades con `spec`)
+// D29: con el catálogo 2g (CATALOG_V = 2) data.js ya no fusiona las activas de TALENTS.skills; las
+// del fixture que el catálogo real no trae (g_t_bramido, g_h_titan…) se añaden aquí, como las fusionaba
+for (const [cid, t] of Object.entries(T.TALENT_TREES)) {
+  const list = CLASSES[cid].skills;
+  for (const s of t.skills || []) if (!list.some(x => x.id === s.id)) list.push(normalizeSkillDef({ ...s, kind: 'talent' }));
+}
+// kit de especialización de prueba (ids propios: la barra de prueba no depende del kit real)
 for (const [id, spec] of [['fx_berserker_k3', 'berserker'], ['fx_guardian_k3', 'guardian'], ['fx_cruzado_k3', 'cruzado']])
   CLASSES.guerrero.skills.push(normalizeSkillDef({ id, name: id, icon: '·', desc: '·', cat: 'spec', elem: 'physical', spec, req: 10, slots: ['k3'], type: 'nova', coef: 1 }));
-SPEC_BAR.berserker = { bar: { lmb: 'g_tajo', rmb: 'torbellino', k1: 'embestida', k2: 'g_piel', k3: 'fx_berserker_k3', k4: 'g_u_furia' } };
-SPEC_BAR.guardian = { bar: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: 'fx_guardian_k3', k4: 'g_u_estandarte' } };
-FORGE_RECO.guardian = { g_hendidura: 'ii', torbellino: 'i', g_tajo: 'ii' };
+// un segundo básico (el Mandoble v1): el que el jugador eligió en 🖱️Izq se respeta
+CLASSES.guerrero.skills.push(normalizeSkillDef({ id: 'fx_basico', name: 'fx_basico', icon: '·', desc: '·', cat: 'basic', elem: 'physical', req: 3, slots: ['lmb'], type: 'melee', coef: 1.5, range: 2.4 }));
+SPEC_BAR.berserker = { bar: { lmb: 'g_tajo', rmb: 'g_lanza', k1: 'embestida', k2: 'g_piel', k3: 'fx_berserker_k3', k4: 'g_u_furia' } };
+SPEC_BAR.guardian = { bar: { lmb: 'g_tajo', rmb: 'g_lanza', k1: 'embestida', k2: 'g_piel', k3: 'fx_guardian_k3', k4: 'g_u_ciudadela' } };
+FORGE_RECO.berserker = { g_tajo: 'ii', g_remolino: 'ii' };
+FORGE_RECO.guardian = { g_hendidura: 'ii', g_lanza: 'i', g_tajo: 'ii' };
 
 // ------------------------------------------------ 1) contrato
 assert.deepEqual(Object.keys(talentMethods).sort(), ['_talentMutate', 'addTalentRank', 'applyTalentBuild', 'applyTalentLoadout', 'applyTalentPreset',
@@ -75,26 +84,28 @@ console.log('Contrato del mixin y puntos por sistema ✓');
   g._inCombat = false;
   assert.equal(g.canEditTalents(), null);
   // barra: lmb propia, rmb vacía, k1 desconocida, k3 vacía
-  p.hotbar = { lmb: 'g_mandoble', rmb: null, k1: 'zzz', k2: null, k3: null, k4: null };
-  p.skillForge = { torbellino: null, g_tajo: 'i' };
+  p.hotbar = { lmb: 'fx_basico', rmb: null, k1: 'zzz', k2: null, k3: null, k4: null };
+  p.skillForge = { g_lanza: null, g_tajo: 'i' };
   assert.equal(g.chooseSpec('berserker').ok, true);
   assert.match(last(h), /Especialización: Berserker/);
   assert.equal(g.chooseSpec('berserker').same, true);
   assert.equal(p.talents.spec, 'berserker');
-  assert.deepEqual(p.hotbar, { lmb: 'g_mandoble', rmb: 'torbellino', k1: 'embestida', k2: 'g_piel', k3: 'fx_berserker_k3', k4: 'g_u_furia' },
+  assert.deepEqual(p.hotbar, { lmb: 'fx_basico', rmb: 'g_lanza', k1: 'embestida', k2: 'g_piel', k3: 'fx_berserker_k3', k4: 'g_u_furia' },
     'SPEC_BAR solo en ranuras vacías o con habilidades desconocidas (lmb propia se queda)');
+  assert.deepEqual(p.skillForge, { g_lanza: null, g_tajo: 'i', g_remolino: 'ii' }, 'la forja recomendada no pisa el Tajo ya elegido');
   assert.equal(activeMechanic(p), 'sed'); assert.ok(p.powers.has('gauge_sed'));
   h.gauge('sed', 40);
   // rangos de Berserker y cambio a Guardián
   g.addTalentRank('spec', 'b1'); g.addTalentRank('spec', 'b1');
-  p.hotbar.rmb = 'g_martillo';                                   // elección del jugador
+  p.hotbar.rmb = 'g_hendidura';                                  // elección del jugador (la barra de prueba dice g_lanza)
   assert.equal(g.switchSpec('guardian').ok, true);
   assert.equal(p.hotbar.k3, 'fx_guardian_k3', 'la ranura del kit anterior pasa al kit nuevo');
-  assert.equal(p.hotbar.rmb, 'g_martillo', 'una habilidad conocida que no es del kit se respeta');
-  assert.equal(p.hotbar.lmb, 'g_mandoble');
+  assert.equal(p.hotbar.k4, 'g_u_ciudadela', 'también la definitiva del kit anterior (Furia Inmortal)');
+  assert.equal(p.hotbar.rmb, 'g_hendidura', 'una habilidad conocida que no es del kit se respeta');
+  assert.equal(p.hotbar.lmb, 'fx_basico');
   assert.equal(h.gaugeValue('sed'), 0, 'cambiar de especialización reinicia los indicadores');
   assert.equal(activeMechanic(p), 'bastion');
-  assert.deepEqual(p.skillForge, { torbellino: null, g_tajo: 'i', g_hendidura: 'ii' }, 'forja recomendada solo en lo nunca elegido (null = elegido sin variante)');
+  assert.deepEqual(p.skillForge, { g_lanza: null, g_tajo: 'i', g_remolino: 'ii', g_hendidura: 'ii' }, 'forja recomendada solo en lo nunca elegido (null = elegido sin variante)');
   assert.equal(g.chooseSpec('berserker').ok, true);
   assert.deepEqual(p.talents.sp.berserker, { b1: 2 }, 'cada especialización conserva sus rangos');
   assert.equal(p.hotbar.k3, 'fx_berserker_k3');
@@ -131,10 +142,10 @@ console.log('Combate, especialización, indicadores, forja recomendada y barra d
   assert.equal(p.stats.maxHP, hp0); assert.equal(p.talentAgg.tv.killHeal, 2, 'tv del nodo');
   // c16 B: +1 rango a las gastadoras
   for (const id of ['c12', 'c12']) assert.equal(g.addTalentRank('cls', id).ok, true, id);
-  const r0 = resolveSkill(p, sk('guerrero', 'torbellino')).rank;
+  const r0 = resolveSkill(p, sk('guerrero', 'g_lanza')).rank;
   assert.equal(g.addTalentRank('cls', 'c16', 'B').ok, true);
-  assert.equal(resolveSkill(p, sk('guerrero', 'torbellino')).rank, r0 + 1, '@spender +1 rango (por encima del de nivel)');
-  assert.equal(r0, rankBase(40, sk('guerrero', 'torbellino').req));
+  assert.equal(resolveSkill(p, sk('guerrero', 'g_lanza')).rank, r0 + 1, '@spender +1 rango (por encima del de nivel)');
+  assert.equal(r0, rankBase(40, sk('guerrero', 'g_lanza').req));
   // quitar el nodo la olvida y la desengarza
   g.removeTalentRank('cls', 'c16'); g.removeTalentRank('cls', 'c15');
   p.hotbar.k2 = 'g_t_aliento';
@@ -240,7 +251,7 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev) { EV.push
   assert.ok(approx(h.gaugeValue('sed'), lost, 1.2), `Sed: +1 por 1 % de vida perdida (${h.gaugeValue('sed').toFixed(1)} vs ${lost.toFixed(1)})`);
   const e = h.enemy({ hp: 1e6 });
   const before = h.gaugeValue('sed');
-  for (let i = 0; i < 8; i++) h.g.onPlayerHit(e, { dealt: 5, raw: 5, crit: false, skill: 'torbellino', tags: new Set(), elem: null, proc: false, dot: true, source: 'dot:torbellino:bleed' });
+  for (let i = 0; i < 8; i++) h.g.onPlayerHit(e, { dealt: 5, raw: 5, crit: false, skill: 'g_rajar', tags: new Set(), elem: null, proc: false, dot: true, source: 'dot:g_rajar:bleed' });
   assert.ok(approx(h.gaugeValue('sed') - before, 10), 'Sangrado: +2 por tic, tope 10 por segundo');
   h.gauge('sed', 100);
   assert.ok(EV.includes('sed:full'), '⑩ onGauge(full)');
@@ -252,28 +263,44 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev) { EV.push
   h.tick(4); const at4 = h.gaugeValue('sed');
   h.tick(1); assert.ok(approx(at4 - h.gaugeValue('sed'), 8, 1.2), '−8/s fuera de combate');
 }
-// Bastión (Guardián): +1 por bloqueo, −1 cada 6 s sin ganar
+// Bastión (Guardián, 2g): +1 por bloqueo (tope 5), −1 cada 2 s caminando y +1 cada 2 s plantado en combate
 {
   const h = mk('guerrero', 20, { spec: 'guardian' });
-  const p = h.p;
+  const p = h.p, B = gaugeTuning().bastion;
   p.equipment.offhand = { kind: 'item', slot: 'offhand', icon: '🛡️', baseName: 'Escudo', affixes: { block: 30 }, arm: 5, quality: 0 };
   p.recompute();
   assert.ok(p.stats.block > 0, 'con escudo hay bloqueo');
   p.combatRng = () => 0;                         // todo golpe se bloquea
   for (let i = 0; i < 7; i++) p.takeDamage(10, 1, { melee: true });
   assert.equal(h.gaugeValue('bastion'), 5, 'Bastión: +1 por bloqueo, tope 5');
-  h.tick(6.05); assert.equal(h.gaugeValue('bastion'), 4, 'pierde 1 cada 6 s sin ganar');
+  p.moving = true; p.planted = false;            // caminando (sin pasar por Player.update)
+  firePower('onTick', p, h.g, p, B.moveLossEvery - 0.1);
+  assert.equal(h.gaugeValue('bastion'), 5, 'caminando: aún no');
+  firePower('onTick', p, h.g, p, 0.1);
+  assert.equal(h.gaugeValue('bastion'), 4, `caminando pierde 1 cada ${B.moveLossEvery} s`);
+  p.moving = false;
   assert.ok(spendGauge(p, 'bastion', 3)); assert.equal(h.gaugeValue('bastion'), 1);
   assert.equal(spendGauge(p, 'bastion', 2), false, 'no gasta lo que no tiene');
+  // quieta: plantado a 1 s; en combate (el último golpe fue hace < 5 s), +1 cada 2 s plantado
+  h.tick(1 + B.plantedEvery + 0.2);
+  assert.ok(p.planted, 'plantado');
+  assert.equal(h.gaugeValue('bastion'), 2, `plantado en combate: +1 cada ${B.plantedEvery} s`);
 }
-// Fervor (Cruzado)
+// Fervor (Cruzado, 2g): +1 cada 3 Tajos que aciertan (uno por golpe aunque alcance a varios), tope 3;
+// la suelta perfecta y la detonación del Juicio las prueba test-gauges-guerrero
 {
   const h = mk('guerrero', 20, { spec: 'cruzado' });
-  h.enemy({ hp: 10 }).takeDamage(999, false, {});
-  assert.equal(h.gaugeValue('fervor'), 1, '+1 por muerte');
-  const f = h.enemy({ hp: 1e6 });
-  for (let i = 0; i < 6; i++) h.hit(f, { skill: 'g_martillo' });
-  assert.equal(h.gaugeValue('fervor'), 3, '+1 cada 3 impactos de Martillo, tope 3');
+  const p = h.p, F = gaugeTuning().fervor;
+  const f = h.enemy({ hp: 1e6 }), o = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
+  for (let i = 0; i < 3; i++) { h.hit(f, { skill: 'g_hendidura' }); p.simT += 0.1; }
+  assert.equal(h.gaugeValue('fervor'), 0, 'otros golpes no cuentan');
+  h.hit(f, { skill: 'g_tajo' }); h.hit(o, { skill: 'g_tajo' }); p.simT += 0.1;   // un Tajo que alcanza a dos
+  h.hit(f, { skill: 'g_tajo' }); p.simT += 0.1;
+  assert.equal(h.gaugeValue('fervor'), 0, 'un Tajo a dos enemigos cuenta una vez');
+  h.hit(f, { skill: 'g_tajo' }); p.simT += 0.1;
+  assert.equal(h.gaugeValue('fervor'), 1, `+1 cada ${F.basicHits} Tajos`);
+  for (let i = 0; i < 9; i++) { h.hit(f, { skill: 'g_tajo' }); p.simT += 0.1; }
+  assert.equal(h.gaugeValue('fervor'), F.max, `tope ${F.max}`);
 }
 // Calor (Piromante)
 {
@@ -327,16 +354,23 @@ definePower('t_oye_indicador', { name: 'prueba', onGauge(g, p, id, ev) { EV.push
   h.gauge('cargas', 3); h.tick(6.1);
   assert.equal(h.gaugeValue('cargas'), 0, 'se pierden 6 s después de la última ganancia');
 }
-// Concentración (Francotiradora)
+// Concentración (Francotiradora, 2g): +15/s quieta, −25/s moviéndote, +0,15 % de crítico por punto;
+// a 100 salta la Calma Absoluta (y ya no baja hasta que acaba), así que la pérdida se mira por debajo
 {
   const h = mk('arquera', 20, { spec: 'francotiradora' });
-  const p = h.p;
+  const p = h.p, C = gaugeTuning().concentracion;
+  // los números del diseño 2g (docs/paso2g-arquera.md §7): fijados aquí mientras test-gauges-arquera
+  // siga en cuarentena
+  assert.ok(C.gainPerSec === 15 && C.losePerSec === 25 && C.critPerPoint === 0.15, 'Concentración: +15/s, −25/s, +0,15 % por punto');
   h.tick(1.0);
-  assert.ok(approx(h.gaugeValue('concentracion'), 20), '+20/s quieta');
-  h.gauge('concentracion', 100);
-  assert.ok(approx(firePower('condCrit', p, p, null, {}), 15), '+15 % de crítico a 100');
+  assert.ok(approx(h.gaugeValue('concentracion'), C.gainPerSec), `+${C.gainPerSec}/s quieta`);
+  h.gauge('concentracion', 80);
+  assert.ok(approx(firePower('condCrit', p, p, null, {}), 80 * C.critPerPoint), `+${C.critPerPoint} % de crítico por punto`);
   p.moving = true; firePower('onTick', p, h.g, p, 1.0);
-  assert.ok(approx(h.gaugeValue('concentracion'), 75), '−25/s en movimiento');
+  assert.ok(approx(h.gaugeValue('concentracion'), 80 - C.losePerSec), `−${C.losePerSec}/s en movimiento`);
+  p.moving = false;
+  h.gauge('concentracion', 100);
+  assert.ok(p.buffs.some(b => b.id === 'f_calma') && gaugeView(p).state === 'active', 'a 100: Calma Absoluta');
 }
 // Coto de Caza (Montaraz)
 {

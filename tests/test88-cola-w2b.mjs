@@ -8,6 +8,7 @@
 //     REALES: Bomba de Humo no se alarga y el Cerco de Zarzas inmoviliza mientras viva su campo
 //  3) stats.blockPower (Guerrero d1 Escudo Alzado, d15B Aguante de Roca): un bloqueo para
 //     50 % + blockPower, con tope 90 %, en el golpe con azar y en el esperado (y desde una postura)
+//  2c) (al final) Bomba de Humo: la ceguera dura lo que el humo, con fieldDur y sin él
 import assert from 'node:assert/strict';
 import * as CM from '../js/combat-math.js';
 import { NUCLEO_TV_KEYS } from '../js/skill-defs.js';
@@ -164,11 +165,13 @@ assert.equal(usesCoreTv({ fieldDur: 25 }), false, 'fieldDur la lee spawnField: n
     h.step(0.5);
     return { h, fields: (h.g.fields || []).filter(f => !before.has(f) && f.owner === h.p && !f.dead) };
   };
-  // Bomba de Humo: ni trampa ni zarzal; su zona y su ceguera, a la par
+  // Bomba de Humo: ni trampa ni zarzal. Lo que deje (su zona y, si va aparte, la ceguera) no se
+  // alarga y dura lo mismo; que la ceguera dure lo que el humo lo mira §2c (al final)
   const humo0 = castFields({}, 'a_humo', 'k2'), humo = castFields({ fieldDur: 50 }, 'a_humo', 'k2');
-  assert.ok(humo.fields.length >= 2, `Bomba de Humo deja su zona y su ceguera (${humo.fields.map(f => f.kind)})`);
+  assert.ok(humo.fields.some(f => f.kind === 'zona' && f.data?.skill === 'a_humo'), `Bomba de Humo deja su zona (${humo.fields.map(f => f.kind)})`);
+  assert.equal(humo.fields.length, humo0.fields.length, 'los mismos campos con fieldDur y sin él');
   assert.deepEqual(humo.fields.map(f => f.dur), humo0.fields.map(f => f.dur), 'Bomba de Humo no se alarga');
-  assert.equal(new Set(humo.fields.map(f => f.dur)).size, 1, 'zona y ceguera duran lo mismo');
+  assert.equal(new Set(humo.fields.map(f => f.dur)).size, 1, 'sus campos duran lo mismo');
   // Cerco de Zarzas (lo toca m20): cruzarlo inmoviliza mientras viva su campo, se alargue o no
   const { h, fields } = castFields({ fieldDur: 50 }, 'a_u_zarzas', 'k4');
   const ring = fields.find(f => f.data?.skill === 'a_u_zarzas');
@@ -221,6 +224,30 @@ assert.equal(usesCoreTv({ fieldDur: 25 }), false, 'fieldDur la lee spawnField: n
   const s30 = taken(s, 200);
   assert.ok(near(s30 / s0, 0.2, 0.02), `en postura el bloqueo para el 80 % (${s30} / ${s0})`);
   console.log('stats.blockPower: 50 % → 80 % → tope 90 %, golpe y esperado, recompute, buffs y posturas ✓');
+}
+
+// ------------------------------------------------ 2c) Bomba de Humo: la ceguera dura lo que el humo
+// (docs/paso2g-arquera.md, a_humo: nube de 4 m y 8 s; dentro, −50 % de daño recibido; los enemigos,
+// cegados, pegan −blindPct %). Al final del archivo para que las demás secciones corran aunque falle
+{
+  for (const tv of [{}, { fieldDur: 50 }]) {
+    const h = mk('arquera', tv, { spec: 'montaraz' });
+    const sk = h.p.cls.skills.find(s => s.id === 'a_humo');
+    assert.ok(sk.blindPct > 0, 'la Bomba de Humo ciega (blindPct del catálogo)');
+    h.setSlot('k2', 'a_humo'); h.aim(0, 0);
+    assert.equal(h.press('k2'), true); h.release('k2');
+    const zone = (h.g.fields || []).find(f => !f.dead && f.kind === 'zona' && f.owner === h.p && f.data?.skill === 'a_humo');
+    assert.ok(zone, 'la zona del humo');
+    const e = h.enemy({ hp: 1e9, pos: [zone.pos.x + 1, 0, zone.pos.z] });
+    const blind = 1 - sk.blindPct / 100, at = JSON.stringify(tv);
+    h.step(0.5);
+    assert.ok(near(e.outDmgMul(), blind, 1e-3), `${at}: el enemigo dentro pega −${sk.blindPct} % (×${e.outDmgMul()})`);
+    h.step(Math.max(0, zone.t - 0.3));
+    assert.ok(!zone.dead && near(e.outDmgMul(), blind, 1e-3), `${at}: sigue ciego al final del humo (×${e.outDmgMul()}, quedan ${zone.t.toFixed(2)} s)`);
+    h.step(1.2);
+    assert.ok(zone.dead && e.outDmgMul() === 1, `${at}: disipado el humo, ya no (×${e.outDmgMul()})`);
+  }
+  console.log('Bomba de Humo: la ceguera (−blindPct %) dura lo que el humo, con fieldDur y sin él ✓');
 }
 
 console.log('\n✅ COLA W2 (drStill · fieldDur · blockPower) OK');

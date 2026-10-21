@@ -37,7 +37,7 @@ assert.deepEqual(CAT_SLOTS.movement, ['k1']); assert.deepEqual(CAT_SLOTS.ultimat
 assert.deepEqual(defaultSlots('spec', ['spec', 'spender']), ['rmb', 'k2', 'k3'], 'gastadora de especialización');
 assert.deepEqual(defaultSlots('spec', ['spec', 'utility']), ['k2', 'k3'], 'utilidad de especialización');
 assert.deepEqual(defaultSlots('spec', ['spec']), ['k3']);
-assert.ok(fitsSlot(sk('guerrero', 'torbellino'), 'k2') && fitsSlot(sk('guerrero', 'torbellino'), 'rmb') && !fitsSlot(sk('guerrero', 'torbellino'), 'k1'));
+assert.ok(fitsSlot(sk('guerrero', 'g_hendidura'), 'k2') && fitsSlot(sk('guerrero', 'g_hendidura'), 'rmb') && !fitsSlot(sk('guerrero', 'g_hendidura'), 'k1'));
 assert.ok(!fitsSlot(sk('guerrero', 'g_u_furia'), 'k1') && fitsSlot(sk('guerrero', 'g_u_furia'), 'k4'));
 assert.ok(GCD === 0.2 && GCD_CATS.has('spender') && !GCD_CATS.has('movement') && !GCD_CATS.has('basic'));
 console.log('Catálogo: formato nuevo válido, sin pasivas, CAT_SLOTS con k2 flexible ✓');
@@ -50,63 +50,88 @@ assert.equal(rankBase(1, 9), 1, 'nunca por debajo de 1');
 assert.equal(TALENT_SKILL_REQ, 10);
 const p = new Player(mk(), 'guerrero');
 assert.deepEqual(Object.keys(p.skills).sort(), ['g_tajo'], 'Nv1: solo el básico A (B en Nv3, C en Nv8)');
-assert.ok(!isKnown(p, sk('guerrero', 'torbellino')));
+assert.ok(!isKnown(p, sk('guerrero', 'g_hendidura')));
 p.level = 9; p.recompute();
-assert.ok(isKnown(p, sk('guerrero', 'torbellino')) && isKnown(p, sk('guerrero', 'g_hendidura')) && !isKnown(p, sk('guerrero', 'g_u_furia')));
-assert.equal(p.skills.torbellino, rankBase(9, 2));
+assert.ok(isKnown(p, sk('guerrero', 'g_hendidura')) && isKnown(p, sk('guerrero', 'g_lanza')) && !isKnown(p, sk('guerrero', 'g_u_furia')));
+assert.equal(p.skills.g_hendidura, rankBase(9, 2));
 assert.deepEqual(knownRankMap(p), p.skills, 'p.skills = mapa derivado de rangos');
-p.talentExtra = { powers: new Set(), mods: {}, skillLv: { torbellino: 2 }, grants: new Set(), tv: {} };
+p.talentExtra = { powers: new Set(), mods: {}, skillLv: { g_hendidura: 2 }, grants: new Set(), tv: {} };
 p.recompute();
-assert.equal(skillRank(p, sk('guerrero', 'torbellino')), rankBase(9, 2) + 2, 'talentos.skillLv suma rangos');
+assert.equal(skillRank(p, sk('guerrero', 'g_hendidura')), rankBase(9, 2) + 2, 'talentos.skillLv suma rangos');
 console.log('Rangos: clamp(1+⌊(Nv−req)/8⌋,1,5) + talentos; se aprenden solas por nivel ✓');
 
 // ------------------------------------------------ 3) fusión del perfil
 const g = new Player(mk(), 'guerrero');
 g.level = 20; g.recompute();
-const tb = sk('guerrero', 'torbellino');
+const tb = sk('guerrero', 'g_hendidura');
+const tbCd = tb.cd || 0;   // sin enfriamiento, como el Torbellino v1 (cd 0)
 let prof = resolveSkill(g, tb);
 const r = rankBase(20, 2);
 assert.equal(prof.rank, r);
 assert.ok(approx(prof.coef, tb.coef * (1 + 0.1 * (r - 1))), 'coef × (1 + 0,10·(rango−1))');
-assert.equal(prof.cost, tb.cost); assert.ok(approx(prof.cd, tb.cd)); assert.equal(prof.gcd, true);
-assert.ok(prof.tags.has('spender') && prof.tags.has('physical') && prof.tags.has('area'));
+assert.equal(prof.cost, tb.cost); assert.ok(approx(prof.cd, tbCd)); assert.equal(prof.gcd, true);
+assert.ok(prof.tags.has('spender') && prof.tags.has('physical') && prof.tags.has('cone'));
 assert.equal(resolveSkill(g, tb), prof, 'cacheado en p.resolved');
 // forja: Mejora (+45 daño, +20 % CD) y variante i (gen 16) sobre una copia de la clase
 const line = 'prueba';
-const FORGE_TB = { torbellino: { mejora: { name: 'Brutal', line, mod: { dmg: 45, cdr: -20 } }, vars: [
-  { id: 'torbellino_i', name: 'Furibundo', role: 'UNI', line, mod: { gen: 16 } },
-  { id: 'torbellino_ii', name: 'Amplio', role: 'AREA', line, mul: { radius: 1.5 } }] } };
+const FORGE_TB = { g_hendidura: { mejora: { name: 'Brutal', line, mod: { dmg: 45, cdr: -20 } }, vars: [
+  { id: 'g_hendidura_i', name: 'Furibundo', role: 'UNI', line, mod: { gen: 16 } },
+  { id: 'g_hendidura_ii', name: 'Amplio', role: 'AREA', line, mul: { radius: 1.5 } }] } };
 g.cls = { ...g.cls, forge: FORGE_TB };
-g.skillForge = { torbellino: 'i' };
+g.skillForge = { g_hendidura: 'i' };
 g.recompute();
 prof = resolveSkill(g, tb);
-assert.equal(prof.addPct, 45); assert.ok(approx(prof.cd, tb.cd * 1.2)); assert.equal(prof.gen, 16);
+assert.equal(prof.addPct, 45); assert.ok(approx(prof.cd, tbCd * 1.2)); assert.equal(prof.gen, 16);
 assert.ok(prof.mejora && prof.variant === 'i', 'perfil con el estado de la forja');
 // soportes por tags: Amplificado (+30 aditivo), Sobrecarga (+50, coste ×1,4); Multiproyectil NO encaja (no es proj)
-g.supports = { torbellino: ['multi', 'amplify', 'overcharge'] };
+g.supports = { g_hendidura: ['multi', 'amplify', 'overcharge'] };
 g.recompute();
 prof = resolveSkill(g, tb);
 assert.deepEqual(prof.sups, ['amplify', 'overcharge'], 'los incompatibles se ignoran; máx. 2 huecos');
 assert.equal(prof.addPct, 45 + 30 + 50, 'saco ADITIVO: forja + soportes');
 assert.equal(prof.cost, Math.round(tb.cost * 1.4));
-g.supports = { torbellino: ['efficient', 'swift'] }; g.recompute();
+g.supports = { g_hendidura: ['efficient', 'swift'] }; g.recompute();
 prof = resolveSkill(g, tb);
-assert.equal(prof.cost, Math.round(tb.cost * 0.65)); assert.ok(approx(prof.cd, tb.cd * (1 - (30 - 20) / 100)), 'Raudo suma CDR al número único');
+assert.equal(prof.cost, Math.round(tb.cost * 0.65)); assert.ok(approx(prof.cd, tbCd * (1 - (30 - 20) / 100)), 'Raudo suma CDR al número único');
 // CDR del héroe topada a 50 (stat + forja + soportes)
 g.equipment.helm = { kind: 'item', slot: 'helm', affixes: { cdr: 90 }, quality: 0 }; g.recompute();
 prof = resolveSkill(g, tb);
-assert.ok(approx(prof.cd, tb.cd * (1 - CAPS.cdr / 100)), 'CDR tope 50');
-assert.ok(approx(cooldownWithMassacre({ ...prof, cdrPts: 20 }), tb.cd * (1 - 45 / 100)), 'Masacre suma 25 puntos de CDR');
+assert.ok(approx(prof.cd, tbCd * (1 - CAPS.cdr / 100)), 'CDR tope 50');
+assert.ok(approx(cooldownWithMassacre({ ...prof, cdrPts: 20 }), tbCd * (1 - 45 / 100)), 'Masacre suma 25 puntos de CDR');
 g.equipment.helm = null;
+// la Hendidura no tiene enfriamiento: los números del CDR, con la Embestida (8 s)
+{
+  const q = new Player(mk(), 'guerrero'); q.level = 20; q.recompute();
+  const emb = sk('guerrero', 'embestida');
+  assert.ok(emb.cd > 0, 'la Embestida tiene enfriamiento');
+  q.supports = { embestida: ['swift'] }; q.recompute();
+  let pe = resolveSkill(q, emb);
+  assert.deepEqual(pe.sups, ['swift']);
+  assert.ok(approx(pe.cd, emb.cd * 0.7), `Raudo: −30 % de enfriamiento (${pe.cd})`);
+  q.equipment.helm = { kind: 'item', slot: 'helm', affixes: { cdr: 90 }, quality: 0 }; q.recompute();
+  pe = resolveSkill(q, emb);
+  assert.ok(approx(pe.cd, emb.cd * (1 - CAPS.cdr / 100)), 'CDR tope 50 (stat + soportes)');
+  assert.ok(approx(cooldownWithMassacre({ ...pe, cdrPts: 20 }), emb.cd * (1 - 45 / 100)), 'Masacre suma 25 puntos de CDR');
+  // forja: una Mejora de prueba con +20 % de enfriamiento (cdr −20) y, con Raudo, un solo número de CDR
+  q.equipment.helm = null; q.supports = {};
+  q.cls = { ...q.cls, forge: { embestida: { mejora: { name: 'Lenta', line, mod: { cdr: -20 } }, vars: [
+    { id: 'embestida_i', name: 'a', role: 'UNI', line, mod: { gen: 5 } },
+    { id: 'embestida_ii', name: 'b', role: 'AREA', line, mod: { dmg: 10 } }] } } };
+  q.skillForge = {}; q.recompute();
+  pe = resolveSkill(q, emb);
+  assert.ok(pe.mejora && approx(pe.cd, emb.cd * 1.2), `Mejora: +20 % de enfriamiento (${pe.cd})`);
+  q.supports = { embestida: ['swift'] }; q.recompute();
+  assert.ok(approx(resolveSkill(q, emb).cd, emb.cd * (1 - (30 - 20) / 100)), 'Raudo y la forja suman al mismo número');
+}
 // talentos: mod de la habilidad + costRed / costRedBig
 g.supports = {}; g.skillForge = {}; g.cls = CLASSES.guerrero;
-g.talentExtra = { powers: new Set(), mods: { torbellino: { dmg: 10, radius: 20 } }, skillLv: {}, grants: new Set(), tv: { costRed: 10, costRedBig: { pct: 15, over: 9 } } };
+g.talentExtra = { powers: new Set(), mods: { g_hendidura: { dmg: 10, radius: 20 } }, skillLv: {}, grants: new Set(), tv: { costRed: 10, costRedBig: { pct: 15, over: 9 } } };
 g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.addPct, 10); assert.ok(approx(prof.radius, tb.radius * 1.2));
 assert.equal(prof.cost, Math.round(tb.cost * (1 - 25 / 100)), 'costRed + costRedBig (coste > umbral)');
 // Eco (soporte) y DoT por soporte (veneno gana a sangrado)
-g.talentExtra = null; g.supports = { torbellino: ['echo', 'bleed'] }; g.recompute();
+g.talentExtra = null; g.supports = { g_hendidura: ['echo', 'bleed'] }; g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.echo, 0.5); assert.equal(prof.dot, 'bleed'); assert.equal(prof.cost, Math.round(tb.cost * 1.6));
 console.log('Fusión: rango → forja → talentos → soportes → CDR/costRed (aditivo por clave, topes) ✓');

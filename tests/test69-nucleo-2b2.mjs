@@ -28,6 +28,16 @@ function addSkill(cid, def) {
   const list = CLASSES[cid].skills;
   if (!list.some(s => s.id === def.id)) list.push(normalizeSkillDef({ icon: '🧪', desc: 'prueba 1', elem: 'arcane', req: 1, ...def }));
 }
+// habilidades v1 del Guerrero retiradas en 2g, copiadas como sintéticas (tools/convert-v2/juego-v1.json)
+// con su `req` de v1: buffMul y el coeficiente escalan con el rango, que depende de él
+addSkill('guerrero', { id: 't_provocacion', name: 'Provocación v1', cat: 'utility', tags: ['utility', 'taunt', 'cc', 'physical'], elem: 'physical',
+  type: 'taunt', req: 16, cd: 8, range: 15, dur: 4, weakenPct: 15, genOnHit: 15 });
+addSkill('guerrero', { id: 't_estandarte', name: 'Estandarte v1', cat: 'ultimate', tags: ['ultimate', 'aura', 'buff', 'ally', 'physical'], elem: 'physical',
+  type: 'aura', req: 15, cd: 55, dur: 12, radius: 8, buff: { dmgPct: 20, dr: 15 }, resPerSec: 5 });
+addSkill('guerrero', { id: 't_mandoble', name: 'Mandoble v1', cat: 'basic', tags: ['basic', 'melee', 'physical'], elem: 'physical',
+  type: 'melee', req: 3, coef: 1.5, gen: 14, range: 2.4, windup: 0.12, cadence: 1.5 });
+addSkill('guerrero', { id: 't_embate', name: 'Embate v1', cat: 'basic', tags: ['basic', 'melee', 'area', 'physical'], elem: 'physical',
+  type: 'area', at: 'self', req: 8, coef: 0.6, gen: 7, genPerExtra: 2, genMax: 15, radius: 2.5, cadence: 1.1 });
 
 // ------------------------------------------------ A1 inmunidad a ralentizaciones
 {
@@ -79,7 +89,7 @@ function addSkill(cid, def) {
     const h = makeHarness({ classId: 'maga', level: 10 });
     const e = h.enemy({ hp: 1e6, pos: [0, 0, 5] });
     h.p.mp = 0;
-    h.aim(hit ? 0 : -5, hit ? 5 : -5); h.setSlot('lmb', 'm_ascua');
+    h.aim(hit ? 0 : -5, hit ? 5 : -5); h.setSlot('lmb', 'm_dardo');   // (2g: el Ascua se retiró)
     assert.equal(h.cast('lmb'), true);
     const after = h.p.mp;
     h.step(1);
@@ -88,7 +98,7 @@ function addSkill(cid, def) {
   const a = run(true), b = run(false);
   assert.ok(a.cast < 1 && a.dmg > 0, 'al disparar no se gana nada');
   assert.ok(a.end - b.end >= 3 - 1e-6, `+3 de Maná solo al acertar (${a.end.toFixed(2)} vs ${b.end.toFixed(2)})`);
-  console.log('A3 básicos de proyectil genéricos: recurso AL IMPACTAR (Ascua, Disparo Disperso, Cicuta) ✓');
+  console.log('A3 básicos de proyectil: recurso AL IMPACTAR (Dardo Arcano) ✓');
 }
 
 // ------------------------------------------------ A4 gainResource, gen y genOnHit
@@ -97,8 +107,9 @@ function addSkill(cid, def) {
   assert.equal(h.g.gainResource(h.p, 17), 17, 'g.gainResource devuelve lo ganado');
   assert.equal(h.p.mp, 17);
   assert.equal(resolveSkill(h.p, SK('guerrero', 'grito_guerra')).gen, 30, 'sk.gen en una utilidad');
-  assert.equal(resolveSkill(h.p, SK('guerrero', 'embestida')).genOnHit, 12, 'genOnHit en la movilidad');
-  assert.equal(resolveSkill(h.p, SK('guerrero', 'g_provocacion')).genOnHit, 15, 'genOnHit en la provocación');
+  // Embestida a Nv6, antes de su Mejora (Carga Fiera, Nv7: +4)
+  assert.equal(resolveSkill(makeHarness({ classId: 'guerrero', level: 6 }).p, SK('guerrero', 'embestida')).genOnHit, 12, 'genOnHit en la movilidad');
+  assert.equal(resolveSkill(h.p, SK('guerrero', 't_provocacion')).genOnHit, 15, 'genOnHit en la provocación');
   console.log('A4 g.gainResource · sk.gen al lanzar · genOnHit si golpea ✓');
 }
 
@@ -110,7 +121,7 @@ function addSkill(cid, def) {
   const hit = () => { const hp0 = h.p.hp = h.p.stats.maxHP; h.p.takeDamage(100, 1, { melee: true, source: e }); return hp0 - h.p.hp; };
   const base = hit();
   const mpC = h.p.mp;
-  h.aim(8, 0); h.setSlot('k2', 'g_provocacion'); assert.equal(h.cast('k2'), true);
+  h.aim(8, 0); h.setSlot('k2', 't_provocacion'); assert.equal(h.cast('k2'), true);
   assert.equal(h.p.mp - mpC, 15, '+15 de Furia (genOnHit) al provocar');
   assert.ok(e.tauntT > 0 && Math.abs(e.outDmgMul() - 0.85) < 1e-9, 'Provocación: el provocado te hace −15 %');
   const weak = hit();
@@ -136,10 +147,10 @@ function addSkill(cid, def) {
 // ------------------------------------------------ A7 aura (Estandarte de Guerra)
 {
   const h = makeHarness({ classId: 'guerrero', level: 15 });
-  h.setSlot('k4', 'g_u_estandarte'); assert.equal(h.cast('k4'), true);
+  h.setSlot('k4', 't_estandarte'); assert.equal(h.cast('k4'), true);
   const f = (h.g.fields || []).find(x => x.kind === 'aura');
   assert.ok(f && f.radius === 8, 'campo aura de 8 m');
-  assert.ok(h.p.buffs.some(b => b.id === 'g_u_estandarte'), 'buff al instante');
+  assert.ok(h.p.buffs.some(b => b.id === 't_estandarte'), 'buff al instante');
   const mp0 = h.p.mp; h.tick(2);
   assert.ok(h.p.mp - mp0 >= 9 && h.p.mp - mp0 <= 11, `+5 de Furia/s dentro (${(h.p.mp - mp0).toFixed(1)})`);
   console.log('A7 campo aura: buff renovado a los aliados dentro + recurso/s ✓');
@@ -148,10 +159,21 @@ function addSkill(cid, def) {
 // ------------------------------------------------ A8 cadencia de los básicos
 {
   const h = makeHarness({ classId: 'guerrero', level: 20 });
-  assert.equal(resolveSkill(h.p, SK('guerrero', 'g_mandoble')).cadence, 1.5);
-  assert.equal(resolveSkill(h.p, SK('guerrero', 'g_embate')).cadence, 1.1);
-  assert.equal(resolveSkill(h.p, SK('guerrero', 'torbellino')).cadence, 1, 'solo los básicos');
-  assert.ok(!SKILL_BEHAVIORS.g_mandoble && !SKILL_BEHAVIORS.g_embate, 'sin comportamientos redundantes');
+  assert.equal(resolveSkill(h.p, SK('guerrero', 't_mandoble')).cadence, 1.5);
+  assert.equal(resolveSkill(h.p, SK('guerrero', 't_embate')).cadence, 1.1);
+  assert.equal(resolveSkill(h.p, SK('guerrero', 'g_hendidura')).cadence, 1, 'solo los básicos');
+  // el canal la aplica: tras el golpe, atkCd = tiempo de ataque × cadencia (sin preparación que descontar)
+  const cd = id => {
+    const k = makeHarness({ classId: 'guerrero', level: 20 });
+    k.enemy({ hp: 1e9, pos: [1.6, 0, 0] }); k.aim(1.6, 0); k.setSlot('lmb', id);
+    assert.equal(k.cast('lmb'), true, `${id} sale`);
+    return k.p.atkCd / k.p.stats.atkTime;
+  };
+  assert.ok(Math.abs(cd('t_embate') - 1.1) < 1e-9 && Math.abs(cd('g_tajo') - 1) < 1e-9, `Embate ×1,1 y Tajo ×1 en el canal (${cd('t_embate')}, ${cd('g_tajo')})`);
+  // guarda a futuro: ningún básico 2g trae cadence (solo los sintéticos de arriba), pero si alguno la
+  // trae no necesita un comportamiento para ella (la lee el canal)
+  for (const c of Object.values(CLASSES)) for (const s of c.skills)
+    if (s.cat === 'basic' && s.cadence) assert.ok(!s.behavior && !SKILL_BEHAVIORS[s.id], `${s.id}: sin comportamiento redundante`);
   console.log('A8 sk.cadence en el canal (Mandoble ×1,5 · Embate ×1,1) ✓');
 }
 
@@ -306,7 +328,7 @@ function addSkill(cid, def) {
   const m = makeHarness({ classId: 'guerrero', level: 20 });
   m.p.mp = m.p.stats.maxMP;
   m.enemy({ hp: 1e9, pos: [1.6, 0, 0] });
-  m.aim(1.6, 0); m.setSlot('lmb', 'g_mandoble'); m.setSlot('rmb', 'g_hendidura');
+  m.aim(1.6, 0); m.setSlot('lmb', 't_mandoble'); m.setSlot('rmb', 'g_hendidura');
   assert.equal(m.cast('lmb'), true); assert.ok(m.g._windup?.ctx.isBasic, 'Mandoble preparando');
   m.step(0.05);
   assert.equal(m.cast('rmb'), true, 'la gastadora corta el remate del básico');
@@ -318,9 +340,48 @@ function addSkill(cid, def) {
   for (const [c, L] of [['guerrero', 25], ['maga', 25], ['arquera', 25]]) {
     const ref = refEnemies(areaLevelForHero(L));
     const mk = () => { const p = buildHero(c, L, 'tipico'); p.hotbar.k2 = null; p.hotbar.k3 = null; p.hotbar.k4 = null; return p; };   // 2e: buildHero ya pone la insignia en 3
-    const rot = simulateUni(mk(), ref), btn = simulateUni(mk(), ref, 60, { buttons: true });
+    // los dos botones con cada lanzamiento de proyectil y cada impacto directo anotados por frame
+    // (el básico a distancia puede salir DENTRO del paso de simulación: sameFrameCasts no lo ve)
+    const pb = mk(), lmb = pb.hotbar.lmb, rmb = pb.hotbar.rmb;
+    let frame = 0;
+    const launch = { [lmb]: [], [rmb]: [] }, hitAt = { [lmb]: new Set(), [rmb]: new Set() };
+    const arr = pb.game.projectiles, push0 = arr.push;
+    arr.push = function (...xs) { for (const x of xs) launch[x.skill]?.push(frame); return push0.apply(this, xs); };
+    const onFrame = e => {
+      frame++;
+      if (e._t69) return;
+      e._t69 = true;
+      const o = e.takeDamage.bind(e);
+      e.takeDamage = (a, cr, opts = {}) => { if (!opts.dot && !opts.proc) hitAt[opts.skill]?.add(frame); return o(a, cr, opts); };
+    };
+    const rot = simulateUni(mk(), ref), btn = simulateUni(pb, ref, 60, { buttons: true, onFrame });
     assert.equal(btn.sameFrameCasts, 0, `${c}: sin dos acciones en el mismo frame`);
-    assert.equal(btn.sameFrameHits, 0, `${c}: sin impactos de básico y gastadora en el mismo frame`);
+    // el envoltorio de takeDamage se instaló y vio golpear a los dos (si no, lo de abajo no prueba nada)
+    assert.ok(hitAt[lmb].size > 3 && hitAt[rmb].size > 3, `${c}: impactos anotados (${hitAt[lmb].size} de ${lmb}, ${hitAt[rmb].size} de ${rmb})`);
+    for (const id of [lmb, rmb]) if (SK(c, id).tags.includes('proj')) assert.ok(launch[id].length > 3, `${c}: lanzamientos de ${id} anotados`);
+    const both = launch[lmb].filter(f => launch[rmb].includes(f));
+    assert.deepEqual(both, [], `${c}: sin dos proyectiles (básico y gastadora) lanzados en el mismo frame`);
+    // el bloqueo de acción de la principal de proyectil incluye su vuelo hasta la mira (MEMORIA §2b.2):
+    // entre su lanzamiento y su primer impacto no sale ningún básico
+    let inflight = 0;
+    const rmbHits = [...hitAt[rmb]].sort((x, y) => x - y);
+    for (const ls of launch[rmb]) {
+      const h = rmbHits.find(f => f > ls);
+      if (h == null) { assert.equal(ls, launch[rmb].at(-1), `${c}: solo la última principal puede seguir en vuelo al acabar`); continue; }
+      inflight += launch[lmb].filter(f => f > ls && f < h).length;
+    }
+    assert.equal(inflight, 0, `${c}: el básico espera el vuelo de la principal`);
+    // impactos de los dos en el mismo frame: con golpes instantáneos serían dos acciones a la vez; con
+    // dos proyectiles, solo vale la principal lanzada DESPUÉS del básico (le cede como mucho un frame
+    // y puede llegar antes)
+    const same = [...hitAt[lmb]].filter(f => hitAt[rmb].has(f));
+    assert.equal(same.length, btn.sameFrameHits, `${c}: los impactos anotados son los del banco`);
+    const last = (list, f) => list.filter(x => x <= f).pop() ?? null;
+    const bad = same.filter(f => {
+      const lb = last(launch[lmb], f), ls = last(launch[rmb], f);
+      return lb == null || ls == null || lb >= ls;
+    });
+    assert.deepEqual(bad, [], `${c}: sin impactos de básico y gastadora en el mismo frame (salvo la principal que adelanta al básico)`);
     assert.ok(Math.abs(btn.dps / rot.dps - 1) <= 0.10, `${c}: los dos botones ≈ la rotación (${btn.dps.toFixed(0)} vs ${rot.dps.toFixed(0)})`);
     const sid = mk().hotbar.rmb;
     assert.ok(Math.abs((btn.uses[sid] || 0) - (rot.uses[sid] || 0)) <= Math.max(2, 0.1 * (rot.uses[sid] || 0)), `${c}: la gastadora conserva su cadencia`);
