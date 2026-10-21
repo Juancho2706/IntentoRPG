@@ -195,8 +195,8 @@ console.log('Barras: SPEC_BAR de cada especialización y reserva válidas; ranur
 // ------------------------------------------------ G17 (plan §8, E2): verbos por especialización
 // ≥ 3 verbos en su kit (skillVerbs de la definición base, con la Mejora y con cada variante) y al
 // menos uno que no use otra especialización (su verbo principal). El diseño de la Maga (2g §13
-// llega hasta G16) es anterior a los verbos y NO lo cumple: la excepción queda declarada con lo
-// medido hasta que el Orquestador decida (excepción aprobada o rediseño del kit). Si el kit cambia,
+// llega hasta G16) es anterior a los verbos y NO lo cumple: excepción APROBADA por el Orquestador
+// (plan, punto 17) con lo medido. Si el kit cambia,
 // la declaración cambia con él; si una especialización pasa a cumplir, se quita su excepción
 const G17_EXCEPTION = { piromante: ['follow'], crionte: ['follow'], arcanista: ['hold'] };
 {
@@ -214,7 +214,7 @@ const G17_EXCEPTION = { piromante: ['follow'], crionte: ['follow'], arcanista: [
     const own = V[sp].filter(v => SPECS.every(o => o === sp || !V[o].includes(v)));
     if (V[sp].length >= 3 && own.length) { assert.ok(!G17_EXCEPTION[sp], `${sp}: ya cumple G17, quita su excepción`); continue; }
     assert.deepEqual(V[sp], G17_EXCEPTION[sp], `${sp}: no cumple G17 (verbos ${V[sp].join(', ') || 'ninguno'}) y la excepción declarada no coincide`);
-    console.log(`⚠ G17 ${sp}: ${V[sp].length} verbo(s) (${V[sp].join(', ') || 'ninguno'})${own.length ? '' : ', ninguno propio'}: excepción pendiente del Orquestador`);
+    console.log(`G17 ${sp}: ${V[sp].length} verbo(s) (${V[sp].join(', ') || 'ninguno'})${own.length ? '' : ', ninguno propio'}: excepción aprobada (punto 17) ✓`);
   }
 }
 
@@ -342,7 +342,11 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
     return { h, burnt, plain, back };
   };
   const a = run();
-  assert.equal(a.h.g.dotRemaining(a.burnt, 'burn'), 0, 'consume la quemadura');
+  // la quemadura de antes desaparece; la que queda es la Ignición (s0, gratis con el Piromante)
+  // que pone el golpe del cono, la misma que al enemigo que no se quemaba
+  assert.equal(a.h.g.dotRemaining(a.burnt, 'test:burn'), 0, 'consume la quemadura');
+  assert.deepEqual(a.h.g.dotsOf(a.burnt).map(d => d.source), ['p_ignicion:burn'], 'solo la Ignición del golpe');
+  assert.equal(a.h.g.dotRemaining(a.burnt, 'burn'), a.h.g.dotRemaining(a.plain, 'burn'), 'la misma Ignición que el que no se quemaba');
   assert.ok(lost(a.plain) > 0 && lost(a.back) === 0, 'golpea el cono delantero');
   const extra = lost(a.burnt) - lost(a.plain);
   assert.ok(extra > 600 * 0.85 && extra < 600 * 1.15, `estallido del 60 % de lo pendiente (${extra})`);
@@ -390,21 +394,27 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   const h = makeHarness({ classId: 'maga', level: 17, spec: 'piromante' }); noCrit(h);
   const e = h.enemy({ hp: 1e8, pos: [3, 0, 0] });
   const far = h.enemy({ hp: 1e8, pos: [9, 0, 0] });
-  let waves = 0;
+  // la Quemadura propia se mide por su fuente: las ondas de Fuego ponen además la Ignición (s0)
+  let waves = 0, burnDealt = 0;
   const orig = e.takeDamage.bind(e);
-  e.takeDamage = (a, c, o = {}) => { if (o.skill === 'm_u_supernova' && !o.dot) waves++; return orig(a, c, o); };
+  e.takeDamage = (a, c, o = {}) => {
+    if (o.skill === 'm_u_supernova' && !o.dot) waves++;
+    const r = orig(a, c, o);
+    if (o.dot && o.source === 'dot:m_u_supernova:burn') burnDealt += r || 0;
+    return r;
+  };
   h.aim(9, 0); h.setSlot('k4', 'm_u_supernova');
   assert.equal(h.cast('k4'), true);
   h.step(0.6); assert.equal(waves, 0, 'telegrafía: aún no estalla');
   h.step(0.7);
   assert.equal(waves, 3, `tres ondas (${waves})`);
   assert.equal(lost(far), 0, 'a tu alrededor, no donde apuntas');
-  assert.ok(h.g.dotRemaining(e, 'burn') > 0, 'deja Quemadura');
-  const before = lost(e);
+  assert.ok(h.g.dotRemaining(e, 'm_u_supernova:burn') > 0, 'deja Quemadura');
   h.step(6.5);
   const prof = resolveSkill(h.p, byId('m_u_supernova'));
   const want = h.p.avgHit(prof.coef * 12 / 4.7, prof.addPct);
-  assert.ok(Math.abs(lost(e) - before - want) < want * 0.2, `Quemadura ≈ 1200 % (${lost(e) - before} vs ${want.toFixed(0)})`);
+  assert.ok(Math.abs(burnDealt - want) < want * 0.2, `Quemadura ≈ 1200 % (${burnDealt} vs ${want.toFixed(0)})`);
+  assert.equal(h.g.dotRemaining(e, 'm_u_supernova:burn'), 0, 'en 6 s');
   assert.equal(h.p.cdMax.m_u_supernova, 50);
   noWarnings('Supernova');
   console.log('Supernova: tres ondas a tu alrededor (5 m) + Quemadura de 1200 % ✓');

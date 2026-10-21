@@ -23,9 +23,12 @@ import { missingFor } from './helpers/talent-coverage.mjs';
 import { magaStorm } from '../js/skills-maga.js';
 
 let checks = 0;
-const ok = (c, msg) => { assert.ok(c, msg); checks++; };
-const eq = (a, b, msg) => { assert.equal(a, b, msg); checks++; };
-const near = (a, b, tol, msg) => { assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} ≉ ${b} (±${tol})`); checks++; };
+// mensajes de las comprobaciones que ya pasaron: la cobertura del final busca en ellos cada nodo
+const PASSED = [];
+const ok = (c, msg) => { assert.ok(c, msg); checks++; PASSED.push(msg); };
+const eq = (a, b, msg) => { assert.equal(a, b, msg); checks++; PASSED.push(msg); };
+const same = (a, b, msg) => { assert.deepEqual(a, b, msg); checks++; PASSED.push(msg); };
+const near = (a, b, tol, msg) => { assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} ≉ ${b} (±${tol})`); checks++; PASSED.push(msg); };
 
 // ------------------------------------------------------------ arnés
 function H(opts = {}) {
@@ -99,14 +102,16 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
     }
   }
   for (const s of MAGA_TALENTS.specs) ok(!('todo' in s) && s.mechanic && s.elem, `${s.id}: sin todo, con mecánica y elemento`);
-  assert.deepEqual(missingFor('maga'), { powers: [], behaviors: [], skills: [] }, 'talent-coverage: todo poder y activa existen'); checks++;
+  same(missingFor('maga'), { powers: [], behaviors: [], skills: [] }, 'talent-coverage: todo poder y activa existen');
   // cada clave tv propia la lee un poder de la Maga o su indicador (y ninguna sobra)
   const src = ['../js/powers-maga.js', '../js/mech-maga.js'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n').replace(/\/\/.*$/gm, '');
   for (const k of MAGA_TV_KEYS) ok(new RegExp(`\\.${k}\\b`).test(src), `MAGA_TV_KEYS: «${k}» la lee js/powers-maga.js o js/mech-maga.js`);
   const used = new Set(ALL_NODES.flatMap(n => (n.t === 'c' ? n.opts : [n]).flatMap(o => Object.keys(o.fx?.tv || {}))));
   for (const k of MAGA_TV_KEYS) ok(used.has(k), `MAGA_TV_KEYS: «${k}» la usa algún nodo`);
-  console.log(`✓ cobertura: ${parts} nodos u opciones con efecto y sin todo (clase, 3 especializaciones y Paragon)`);
+  console.log(`✓ datos: ${parts} nodos u opciones con efecto y sin todo (clase, 3 especializaciones y Paragon)`);
 }
+// la cobertura del final no cuenta estos mensajes: dicen que el dato existe, no que haga algo
+const DATA_CHECKS = PASSED.length;
 
 // ------------------------------------------------------------ 2) árbol de CLASE
 // c1 Reservas Profundas · c12 Flujo de Maná · c13 Mente Afilada · c24 Celeridad (stats)
@@ -180,8 +185,7 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   };
   const base = run({}), cert = run({ c5: 1 });
   eq(base.length, 8, 'ocho Dardos impactan');
-  assert.deepEqual(cert, base.map((c, i) => c || i % 4 === 3), 'c5A: el 4.º y el 8.º son críticos; el resto como sin el nodo');
-  checks++;
+  same(cert, base.map((c, i) => c || i % 4 === 3), 'c5A: el 4.º y el 8.º son críticos; el resto como sin el nodo');
   ok(base.filter((c, i) => i % 4 === 3).some(c => !c), 'sin el nodo, algún 4.º Dardo no es crítico (la prueba distingue)');
 }
 // c5B Dardo Sifón: si el Dardo mata, +6 de maná y las principales −1 s
@@ -429,8 +433,19 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   h.p.takeDamage(h.p.stats.maxMP * 2, 1, { element: 'fire' });
   near(h.p.mp, h.p.stats.maxMP * 0.3, 1, 'c25 r3: devuelve el 30 % del maná');
   ok(e.pos.x > x0 + 1 && e.slowT > 0 && e.slowPct === 40, 'c25: empuja y ralentiza un 40 %');
-  // si caduca (8 s) no estalla: el maná es el mismo que sin el nodo (solo la regeneración)
-  const expire = ranks => { const c = cls(ranks); cast(c, 'k2', 'm_barrera', 0.1); c.p.mp = 0; c.tick(9); ok(!c.p.shields.length, 'la Barrera caducó'); return c.p.mp; };
+  // si caduca no estalla: el maná es el mismo que sin el nodo (solo la regeneración). A Nv70 la
+  // Barrera lleva su Mejora de la forja (Burbuja Estable, 8 → 10 s)
+  const expire = ranks => {
+    const c = cls(ranks);
+    const dur = prof(c, 'm_barrera').dur;
+    eq(dur, 10, 'la Barrera con Burbuja Estable dura 10 s');
+    cast(c, 'k2', 'm_barrera', 0.1); c.p.mp = 0;
+    c.tick(dur - 0.5);
+    ok(c.p.shields.some(s => s.src === 'm_barrera'), 'la Barrera aguanta hasta su final');
+    c.tick(1);
+    ok(!c.p.shields.length, 'la Barrera caducó');
+    return c.p.mp;
+  };
   near(expire({ c25: 1 }), expire({}), 1e-6, 'c25: si caduca no estalla');
 }
 // c26 Torrente de Maná: 60 de maná en 3 s → Sobrecarga (+4 + 8 × rango %)
@@ -472,7 +487,7 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
   eq(prof(r1, 'nova_hielo').cost, Math.round(nova0 * 0.9), 'c28 r1: −10 %');
   const b = cls({});
   cast(b, 'k2', 'm_barrera', 0.2);
-  ok(b.p.shields[0].t <= 8, 'sin c28 la Barrera caduca');
+  ok(b.p.shields[0].t <= prof(b, 'm_barrera').dur, 'sin c28 la Barrera caduca (10 s con la Mejora)');
 }
 // c29 Archimaga (final): cada 4.ª principal se repite gratis al 20 + 20 × rango %
 {
@@ -482,8 +497,7 @@ const ALL_NODES = [...MAGA_TALENTS.cls.nodes, ...MAGA_TALENTS.specs.flatMap(s =>
     h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
     for (let i = 0; i < 4; i++) { cast(h, 'rmb', 'nova_hielo', 0.1); h.p.cds.nova_hielo = 0; h.p.mp = h.p.stats.maxMP; }
     h.step(0.4);
-    assert.deepEqual(echoes.map(x => [x.slot, x.mult]), [['rmb', (20 + 20 * rank) / 100]], `c29 r${rank}: una copia de la 4.ª al ${20 + 20 * rank} %`);
-    checks++;
+    same(echoes.map(x => [x.slot, x.mult]), [['rmb', (20 + 20 * rank) / 100]], `c29 r${rank}: una copia de la 4.ª al ${20 + 20 * rank} %`);
   }
   const b = cls({ c29: 1 });
   const echoes = spyEchoes(b);
@@ -539,12 +553,12 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
     return { h, e, rep: from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').map(x => x.dealt) };
   };
   const base = mark({}, {}, [100, 100], 4.2);
-  assert.deepEqual(base.rep, [60], 't0: al acabar (4 s), repite el 30 % de lo que le hiciste'); checks++;
+  same(base.rep, [60], 't0: al acabar (4 s), repite el 30 % de lo que le hiciste');
   eq(mark({}, {}, [100, 100], 3.8).rep.length, 0, 't0: antes de 4 s, nada');
   eq(mark({ t1: 1 }, {}, [100, 100], 5.8).rep.length, 0, 't1: la Marca dura 6 s');
-  assert.deepEqual(mark({ t1: 1 }, {}, [100, 100], 6.2).rep, [60], 't1: … y repite a los 6 s'); checks++;
-  assert.deepEqual(mark({ t2: 1 }, { t2: 'A' }, [100, 100], 4.2).rep, [90], 't2A: repite el 45 %'); checks++;
-  assert.deepEqual(mark({ t8: 1 }, { t8: 'A' }, [100, 100], 4.2).rep, [90], 't8A: el golpe que la pone cuenta doble'); checks++;
+  same(mark({ t1: 1 }, {}, [100, 100], 6.2).rep, [60], 't1: … y repite a los 6 s');
+  same(mark({ t2: 1 }, { t2: 'A' }, [100, 100], 4.2).rep, [90], 't2A: repite el 45 %');
+  same(mark({ t8: 1 }, { t8: 'A' }, [100, 100], 4.2).rep, [90], 't8A: el golpe que la pone cuenta doble');
   // la Marca no cuenta el daño de otra Marca; sí procs y DoT de otros poderes
   const h = hero('crono');
   const log = spy(h);
@@ -552,7 +566,7 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   h.hit(e, { skill: 'bola_fuego', dealt: 100 });
   h.hit(e, { skill: null, dealt: 50, proc: true });
   h.tick(4.2);
-  assert.deepEqual(from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').map(x => x.dealt), [45], 't0: cuenta los procs (150 × 30 %)'); checks++;
+  same(from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').map(x => x.dealt), [45], 't0: cuenta los procs (150 × 30 %)');
   h.hit(e, { skill: null, dealt: 80, proc: true });
   h.tick(4.2);
   eq(from(log, null, e).filter(x => x.source === 'power:m_marca_tiempo').length, 1, 't0: un proc no pone la Marca (la pone un golpe directo)');
@@ -806,7 +820,7 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   nso.tick(0.1);
   cast(nso, 'rmb', 'nova_hielo', 0);
   nso.tick(2.4);
-  assert.deepEqual([from(ls, 'm_familiar').length, from(ln, 'm_familiar').length], [2, 1], 'f5: tras una principal, el Familiar dispara un 30 % más rápido'); checks++;
+  same([from(ls, 'm_familiar').length, from(ln, 'm_familiar').length], [2, 1], 'f5: tras una principal, el Familiar dispara un 30 % más rápido');
   const fr = hero('invoca', { f8: 1 }, { f8: 'B' });
   const lf = spy(fr);
   fr.enemy({ hp: 1e7, pos: [4, 0, 0] }); fr.aim(4, 0);
@@ -834,6 +848,16 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   const f0 = forgeN(0), f4 = forgeN(4), f5 = forgeN(5), f6 = forgeN(6);
   near(f5 / f0 - 1, (f4 / f0 - 1) * 5 / 4, 0.005, `f8B: cada habilidad distinta suma lo mismo (${f0} → ${f4} → ${f5})`);
   eq(f6, f5, 'f8B: hasta +25 % (la 6.ª ya no suma)');
+  // f8A Llamar Constructo (activa de KA1, Nv74): la concede el nodo y, lanzada por el canal real,
+  // los enemigos a 8 m del Constructo lo atacan a él
+  const co = hero('invoca', { f8: 1 }, { f8: 'A' }, { level: 74 });
+  ok(co.p.talentAgg.grants.has('m_h_constructo') && isKnown(co.p, sk(co, 'm_h_constructo')), 'f8A: conoces Llamar Constructo');
+  const cfoe = co.enemy({ hp: 1e7, pos: [6, 0, 0] });
+  co.aim(4, 0);
+  cast(co, 'k2', 'm_h_constructo', 0.1);
+  ok(cfoe.tauntSrc?.construct && cfoe.combatTarget(co.p) === cfoe.tauntSrc, 'f8A: el Constructo atrae a los enemigos a 8 m');
+  const nco = hero('invoca', { f8: 1 }, { f8: 'B' }, { level: 74 });
+  ok(!nco.p.talentAgg.grants.has('m_h_constructo') && !isKnown(nco.p, sk(nco, 'm_h_constructo')), 'sin f8A (con Fragua) no conoces Llamar Constructo');
   const ec = hero('invoca', { f9: 1 });
   const ee = ec.enemy({ hp: 1e7, pos: [4, 0, 0] });
   ec.tick(1.6);
@@ -884,7 +908,7 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   h.tick(0.3);
   eq(powerState(h.p, 'm_familiar').fams.length, 3, 'f12: se divide en 3');
   cast(h, 'rmb', 'nova_hielo', 0.8);
-  assert.deepEqual(echoes.map(x => x.mult), [0.5, 0.5, 0.5], 'f12: todos copian la siguiente principal al 50 %'); checks++;
+  same(echoes.map(x => x.mult), [0.5, 0.5, 0.5], 'f12: todos copian la siguiente principal al 50 %');
   h.p.cds.nova_hielo = 0; cast(h, 'rmb', 'nova_hielo', 0.8);
   eq(echoes.length, 3, 'f12: solo la siguiente');
   h.tick(7.5);
@@ -1022,7 +1046,7 @@ console.log('✓ árbol de clase: cada nodo con efecto propio');
   ok(g1.data.grimoire && g1.dur === 10, 'e12: el Sello es un Grimorio de 10 s');
   h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
   cast(h, 'rmb', 'nova_hielo', 0.4);
-  assert.deepEqual(echoes.map(x => x.mult), [0.4], 'e12: dentro, cada hechizo se copia al 40 %'); checks++;
+  same(echoes.map(x => x.mult), [0.4], 'e12: dentro, cada hechizo se copia al 40 %');
   h.p.pos.set(20, 0, 0); h.p.cds.nova_hielo = 0; cast(h, 'rmb', 'nova_hielo', 0.4);
   eq(echoes.length, 1, 'e12: fuera, no');
   h.p.pos.set(0, 0, 0);
@@ -1145,10 +1169,15 @@ for (const on of [false, true]) {
 }
 // s6 Combustible Volátil: con Ignición Total, Bola a 4 m y Meteoro al instante
 {
+  // a Nv70 la Bola lleva su Mejora de la forja (Núcleo Inestable: 2 → 2,6 m); el nodo dobla el radio
+  // que tenga (2 → 4 m sin la Mejora, como dice el texto; 2,6 → 5,2 m con ella)
   const h = sp('piromante', { s6: 1 });
-  eq(prof(h, 'bola_fuego').radius, 2, 's6: sin Ignición, la Bola explota a 2 m');
+  near(prof(h, 'bola_fuego').radius, 2.6, 1e-9, 's6: sin Ignición, la Bola explota a 2,6 m (con la Mejora)');
   h.gauge('calor', 100);
-  eq(prof(h, 'bola_fuego').radius, 4, 's6: con Ignición, 4 m');
+  near(prof(h, 'bola_fuego').radius, 5.2, 1e-9, 's6: con Ignición, al doble');
+  const n = sp('piromante');
+  n.gauge('calor', 100);
+  near(prof(n, 'bola_fuego').radius, 2.6, 1e-9, 'sin s6, la Ignición Total no agranda la explosión');
   eq(prof(h, 'meteoro').impactDelay, 0, 's6: y el Meteoro cae al instante');
   ok(prof(sp('piromante'), 'meteoro').impactDelay > 0, 'sin s6 el Meteoro tarda');
 }
@@ -1216,7 +1245,7 @@ for (const on of [false, true]) {
   const ech = spyEchoes(h);
   for (let i = 0; i < 3; i++) cast(h, 'rmb', 'meteoro', 0.8);
   h.step(0.6);
-  assert.deepEqual(ech.map(x => x.mult), [1], 's10A: el 3.er Meteoro cae otra vez'); checks++;
+  same(ech.map(x => x.mult), [1], 's10A: el 3.er Meteoro cae otra vez');
   const c = sp('piromante', { s10: 1 }, { s10: 'B' });
   const mid = c.enemy({ hp: 1e9, pos: [5, 0, 0] }), side = c.enemy({ hp: 1e9, pos: [6.5, 0, 0] });
   firePower('onCast', c.p, c.g, c.p, { sk: { id: 'meteoro' }, target: { x: 5, z: 0 } });
@@ -1310,7 +1339,8 @@ for (const r of [1, 2]) {
 {
   const b = sp('piromante'), h = sp('piromante', { s20: 2 });
   near(prof(h, 'meteoro').radius / prof(b, 'meteoro').radius, 1.3, 1e-9, 's20 r2: Meteoro +30 % de radio');
-  near(prof(h, 'bola_fuego').radius / prof(b, 'bola_fuego').radius, 1.3, 1e-9, 's20 r2: Bola +30 % de radio');
+  // la Bola ya lleva su Mejora (Núcleo Inestable, mod radius 30): los «+X %» del radio se suman
+  near((prof(h, 'bola_fuego').radius - prof(b, 'bola_fuego').radius) / sk(h, 'bola_fuego').radius, 0.3, 1e-9, 's20 r2: Bola +30 % de radio (sobre los 2 m base, sumado a la Mejora)');
   eq(prof(h, 'm_dardo').radius, prof(b, 'm_dardo').radius, 's20: el Dardo (Arcano) no cambia');
 }
 // s21 Estela Meteórica: al terminar la Estela Ígnea, el siguiente Meteoro cae allí al instante
@@ -1420,7 +1450,7 @@ for (const r of [1, 2]) {
   ok(h.p.cds.meteoro > 4, 's27: sin Ignición no se recarga');
   h.p.cds.meteoro = 0; h.gauge('calor', 100);
   cast(h, 'rmb', 'meteoro', 1.6);
-  assert.deepEqual(ech.map(x => x.mult), [0.6, 0.6], 's27: con Ignición cae dos veces más al 60 %'); checks++;
+  same(ech.map(x => x.mult), [0.6, 0.6], 's27: con Ignición cae dos veces más al 60 %');
   eq(h.p.cds.meteoro || 0, 0, 's27: golpeó a 3: se recarga al instante');
 }
 // s28 Corazón del Sol (ápice, 4 rangos)
@@ -1511,7 +1541,8 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   near(prof(h, 'nova_hielo').cd, 2.5, 1e-9, 'i3 r3: la Nova se recarga en 2,5 s');
   eq(prof(h, 'nova_hielo').addPct - prof(b, 'nova_hielo').addPct, 30, 'i13 r2: Nova +30 %');
   eq(prof(h, 'm_u_tormenta').addPct - prof(b, 'm_u_tormenta').addPct, 30, 'i13 r2: Tormenta +30 %');
-  for (const id of ['nova_hielo', 'k_prision', 'm_u_tormenta']) near(prof(h, id).radius / prof(b, id).radius, 1.3, 1e-9, `i20 r2: ${id} +30 % de radio`);
+  // +30 % del radio base, que se suma al de la Mejora de la forja (Celda Amplia de la Prisión: +25 %)
+  for (const id of ['nova_hielo', 'k_prision', 'm_u_tormenta']) near((prof(h, id).radius - prof(b, id).radius) / sk(h, id).radius, 0.3, 1e-9, `i20 r2: ${id} +30 % de radio`);
 }
 // i4 Escarcha Densa: las capas caen cada 2 + rango s
 {
@@ -1559,7 +1590,8 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 }
 // i8A Prisión Amplia (6 m) · i8B Prisión Profunda (un solo enemigo, 3 s, +80 %)
 {
-  near(prof(sp('crionte', { i8: 1 }, { i8: 'A' }), 'k_prision').radius, 6, 1e-9, 'i8A: la Prisión atrapa a 6 m');
+  // 4 → 6 m sobre la Prisión base; a Nv70 se suma a la Mejora (Celda Amplia, +25 %): 5 → 7 m
+  near(prof(sp('crionte', { i8: 1 }, { i8: 'A' }), 'k_prision').radius - prof(sp('crionte'), 'k_prision').radius, 2, 1e-9, 'i8A: la Prisión atrapa 2 m más lejos (4 → 6 m)');
   const h = sp('crionte', { i8: 1 }, { i8: 'B' });
   h.p.stats.critRaw = -1000;                     // sin críticos: la proporción es la del +80 %
   const a = h.enemy({ hp: 1e9, pos: [2, 0, 0] }), o = h.enemy({ hp: 1e9, pos: [0, 0, 2.5] });
@@ -1577,8 +1609,9 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 }
 // i9A Lanza Larga (18 m; ralentiza 30 %) · i9B Lanza del Invierno (×4 a Congelados y Ateridos)
 {
-  const a = prof(sp('crionte', { i9: 1 }, { i9: 'A' }), 'k_lanza');
-  ok(a.range === 18 && a.slow > 0 && a.slowPct === 30, 'i9A: la Lanza llega a 18 m y ralentiza un 30 %');
+  // 12 → 18 m sobre la Lanza base; a Nv70 se suma a la Mejora (Punta Afilada, +17 %): 14 → 20 m
+  const a = prof(sp('crionte', { i9: 1 }, { i9: 'A' }), 'k_lanza'), a0 = prof(sp('crionte'), 'k_lanza');
+  ok(Math.abs(a.range - a0.range - 6) < 1e-6 && a.slow > 0 && a.slowPct === 30 && !(a0.slowPct > 0), 'i9A: la Lanza llega 6 m más lejos (12 → 18 m) y ralentiza un 30 %');
   const h = sp('crionte', { i9: 1 }, { i9: 'B' });
   eq(prof(h, 'k_lanza').frozenMult, 4, 'i9B: ×4 a los Congelados (antes ×3)');
   const boss = h.enemy({ hp: 1e9, boss: true });
@@ -1716,6 +1749,10 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   eq(h.p.stats.critDmg - b.p.stats.critDmg, 30, 'i26 r3: críticos +30 %');
   const e = h.enemy({ hp: 1e9, pos: [0, 0, 0] }), o1 = h.enemy({ hp: 1e9, pos: [2, 0, 0] }), o2 = h.enemy({ hp: 1e9, pos: [0, 0, 2] });
   const log = spy(h);
+  // el perfil de la Lanza en la caché, como tras lanzarla (esquirlas y Cero Absoluto leen su +% de
+  // daño: con la Mejora de la forja, Punta Afilada, +15 %)
+  const lanza = prof(h, 'k_lanza');
+  ok(lanza.addPct >= 15, 'la Lanza con su Mejora (+15 % de daño)');
   h.hit(e, { ...FROST('k_lanza'), dealt: 1000 });
   eq(procs(log, 'power:k_ruptura').length, 0, 'i19: si no está Congelado, no hay añicos');
   freezeNow(h, e, 2);
@@ -1726,9 +1763,9 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   ok(r.length === 1 && r[0].dealt === 500, 'i19 r2: añicos +50 % del golpe');
   ok(!(e.frozenT > 0) && layers(h, e) === 3, 'i19: le quita la congelación y le deja 3 capas');
   const sh = procs(log, 'power:k_esquirlas');
-  ok(sh.length === 2 && sh.every(x => x.e !== e) && Math.abs(sh[0].dealt - h.p.avgHit(0.5, prof(h, 'k_lanza').addPct)) <= 2, 'i23 r3: esquirlas al 50 % a los cercanos');
+  ok(sh.length === 2 && sh.every(x => x.e !== e) && Math.abs(sh[0].dealt - h.p.avgHit(0.5, lanza.addPct)) <= 2, 'i23 r3: esquirlas al 50 % a los cercanos');
   const z = procs(log, 'power:k_cero');
-  ok(z.length === 1 && Math.abs(z[0].dealt - h.p.avgHit(3, prof(h, 'k_lanza').addPct)) <= 2, 'i26: +300 % del arma');
+  ok(z.length === 1 && Math.abs(z[0].dealt - h.p.avgHit(3, lanza.addPct)) <= 2, 'i26: +300 % del arma');
   eq(h.p.cds.k_lanza || 0, 0, 'i26: y recarga la Lanza');
   const boss = h.enemy({ hp: 1e9, boss: true, pos: [5, 0, 5] });
   boss.frozenT = 0; h.p.simT += 0.1;
@@ -2037,8 +2074,9 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
 }
 // a17 Sello Viviente: el Sello dura 8 + 2 × rango s y te sigue
 {
+  // 8 → 12 s sobre el Sello base; a Nv70 se suma a la Mejora (Sello Firme, +2 s): 10 → 14 s
   const h = sp('arcanista', { a17: 2 });
-  eq(prof(h, 'a_sello').dur, 12, 'a17 r2: 12 s');
+  eq(prof(h, 'a_sello').dur - prof(sp('arcanista'), 'a_sello').dur, 4, 'a17 r2: +4 s (8 → 12 s)');
   cast(h, 'k2', 'a_sello', 0.05);
   h.p.pos.set(6, 0, 0); h.tick(0.2);
   const f = h.g.fields.find(x => x.kind === 'aura' && x.data.buffId === 'a_sello');
@@ -2197,4 +2235,19 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   eq(beams.length, 4, 'a28.4: 20 Cargas gastadas → 4 golpes de Desgarro en 2 s');
 }
 console.log('✓ Arcanista: cada nodo con su efecto (Cargas, Rayo, Orbe, Desgarro y finales por rango)');
+
+// ------------------------------------------------------------ 5) cobertura
+// cada nodo u opción (clase, especializaciones y Paragon) tiene al menos una comprobación que PASÓ y
+// lo nombra por su id (no cuenta un «sin <id>»: esa es la de control). No valen el nombre del poder
+// ni los mensajes de la sección de datos («con efecto», «poder registrado»): pasan aunque el efecto
+// no exista
+{
+  const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => `${n.id}${o.k}`) : [n.id]));
+  const ALL = [...keysOf(MAGA_TALENTS.cls.nodes), ...MAGA_TALENTS.specs.flatMap(s => keysOf(s.nodes)), ...MAGA_TALENTS.hero.flatMap(t => keysOf(t.nodes))];
+  const BEHAVIOR = PASSED.slice(DATA_CHECKS).filter(m => typeof m === 'string');
+  const named = key => BEHAVIOR.some(m => new RegExp(`(^|[^\\w])(?<!sin )${key}(?![\\w])`).test(m));
+  const missing = ALL.filter(key => !named(key));
+  same(missing, [], `nodos u opciones sin una comprobación de su efecto: ${missing.join(', ')}`);
+  console.log(`✓ cobertura: ${ALL.length} nodos u opciones (clase, especializaciones y Paragon) con efecto comprobado: ${missing.length} sin efecto`);
+}
 console.log(`\n✅ TALENTOS 2g DE LA MAGA (clase, especializaciones y Paragon): ${checks} comprobaciones`);
