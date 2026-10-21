@@ -150,8 +150,9 @@ export function magaForgePowers() {
     },
 
     // Sello de Contención: el aura del Sello (campo 'aura' con buffId a_sello) queda marcada al
-    // lanzarla con la ralentización de su perfil; cada sealSlowEvery s, los enemigos dentro se
-    // ralentizan sealSlowT s (se renueva mientras sigan dentro)
+    // lanzarla con la ralentización de su perfil (slowPct y slow: Escarcha Tenaz, c21, la alarga por
+    // modifyResolve); cada sealSlowEvery s, los enemigos dentro se ralentizan (se renueva mientras
+    // sigan dentro)
     v_sello_contencion: {
       name: 'Sello de Contención', desc: 'El Sello del Archimago ralentiza a los enemigos que entran.',
       state: () => ({ acc: 0 }),
@@ -160,7 +161,7 @@ export function magaForgePowers() {
         const T = forgeTuning();
         const seals = (g.fieldsOf?.(p, { kind: 'aura' }) || []).filter(f => f.data?.buffId === 'a_sello');
         const f = seals[seals.length - 1];
-        if (f) f.data.sealSlow = { pct: cast.prof?.slowPct || cast.sk?.slowPct || T.sealSlowPct, t: T.sealSlowT };
+        if (f) f.data.sealSlow = { pct: cast.prof?.slowPct || cast.sk?.slowPct || T.sealSlowPct, t: cast.prof?.slow || cast.sk?.slow || T.sealSlowT };
       },
       onTick(g, p, dt) {
         const st = powerState(p, 'v_sello_contencion');

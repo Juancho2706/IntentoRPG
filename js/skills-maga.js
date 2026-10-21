@@ -454,7 +454,9 @@ export const MAGA_SKILL_BEHAVIORS = {
   // la lanza, en la mira) y después los golpea. Primero el hielo: la congelación larga gana a
   // la de 1 s del indicador (5 capas). A los jefes, Enemy.applyCC lo convierte en Quebranto.
   // Forja: at 'enemy' (Celda Lejana) = solo el enemigo de la mira; type 'wall' (Muralla de
-  // Hielo) = muro en línea que corta el paso `dur` s y golpea una vez a cada enemigo que lo roza
+  // Hielo) = muro en línea que corta el paso `dur` s y golpea una vez a cada enemigo que lo roza.
+  // prof.single (Prisión Profunda, i8B, por modifyResolve): no atrapa en área ni golpea; el poder
+  // atrapa a un solo enemigo en ③ afterCast (la Muralla, que es forma de la forja, sigue en pie)
   prision_hielo: {
     params: ['freeze', 'layers'],
     cast(g, p, prof, cast) {
@@ -466,6 +468,11 @@ export const MAGA_SKILL_BEHAVIORS = {
       const rad = prof.radius || 4;
       if (sk.at !== 'self') p.faceToward?.(center);
       else p.swing = 1;
+      if (prof.single) {
+        ctx.zoneCenter = center; ctx.zoneRad = 1.5;
+        fxAt(g, fx?.aura, center, 0.4);
+        return ctx.res;
+      }
       const freeze = sk.freeze || 2;
       const list = one ? [one] : (g.enemies || []).filter(e => e.alive && inRadius(e, center, rad));
       for (const e of list) e.applyCC('freeze', freeze, { src: p });
@@ -890,8 +897,9 @@ export const MAGA_SKILL_FORGE = {
       // el buff del aura (set lo FUSIONA con el de la base): daño de los críticos y coste a 0
       { id: 'a_sello_i', name: 'Sello Ofensivo', role: 'UNI', icon: 'forge/v_a_sello_i', line: 'Dentro, tus críticos hacen +25 %; ya no abarata.',
         set: { buff: { costPct: 0, critDmg: 25 }, color: 0xff8ad8 } },
+      // slow: lo que dura cada ralentización (se renueva cada 0,5 s dentro; Escarcha Tenaz la alarga)
       { id: 'a_sello_ii', name: 'Sello de Contención', role: 'CTRL', icon: 'forge/v_a_sello_ii', line: 'Los enemigos que entran quedan ralentizados un 40 %.',
-        set: { slowPct: 40, color: 0x9fd8ff }, power: 'v_sello_contencion' },
+        set: { slowPct: 40, slow: 0.6, color: 0x9fd8ff }, power: 'v_sello_contencion' },
     ],
   },
   rayo: {

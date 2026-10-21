@@ -146,6 +146,18 @@ const DATA_CHECKS = PASSED.length;
   eq(cort.slow, nova.slow - 1, 'c9B: ralentiza 1 s menos');
   eq(prof(cls({ c21: 1 }), 'nova_hielo').slow, nova.slow + 2, 'c21: +2 s a la ralentización de la Nova');
   eq(prof(cls({ c21: 1, c9: 1 }, { c9: 'B' }), 'nova_hielo').slow, nova.slow + 1, 'c21 + c9B: +2 − 1');
+  // también la del Sello de Contención (forja II del Sello del Archimago): quien sale del círculo
+  // sigue ralentizado 0,6 + 2 s (sin el nodo, 0,6 s)
+  for (const ranks of [{ c21: 1 }, {}]) {
+    const h = H({ spec: 'arcanista', talents: { cls: ranks } });
+    h.p.skillForge = { a_sello: 'ii' }; h.p.recompute();
+    const e = h.enemy({ hp: 1e9, pos: [2, 0, 0] });
+    cast(h, 'k2', 'a_sello', 0.6);
+    ok(e.slowT > 0 && e.slowPct === 40, 'el Sello de Contención ralentiza un 40 % dentro');
+    e.pos.set(20, 0, 0); h.tick(1.5);
+    if (ranks.c21) ok(e.slowT > 0.5, `c21: alarga 2 s la ralentización del Sello de Contención (${e.slowT.toFixed(2)} s tras salir)`);
+    else ok(!(e.slowT > 0), 'sin c21, al salir del Sello se acaba en 0,6 s');
+  }
   eq(prof(cls({ c22: 1 }, { c22: 'B' }), 'nova_hielo').cost, Math.round(nova.cost * 0.8), 'c22B: −20 % a los hechizos de más de 20 de maná');
   eq(prof(cls({ c22: 1 }, { c22: 'B' }), 'bola_fuego').cost, prof(b, 'bola_fuego').cost, 'c22B: la Bola (18) no llega al umbral');
 }
@@ -277,11 +289,13 @@ const DATA_CHECKS = PASSED.length;
   near(b.mp - em.mp, b.lost * 0.2, 1, 'c15A: … y cuesta ese maná');
   const dry = loss({ c15: 1 }, { c15: 'A' }, 0);
   eq(dry.lost, b.lost, 'c15A: sin maná, todo a la vida');
-  // c15B Mente Clara: +30 % de regeneración y +10 % con el maná lleno (núcleo: highManaDmg)
+  // c15B Mente Clara: +30 % de regeneración y +10 % con más del 70 % de maná (núcleo: highManaDmg;
+  // texto del punto 17)
   const regen = ranks => { const h = cls(ranks, { c15: 'B' }); h.p.mp = 0; h.step(1, 0.1); return h.p.mp; };
   near(regen({ c15: 1 }) / regen({}), 1.3, 0.01, 'c15B: recuperas maná un 30 % más rápido');
   const roll = (ranks, mpFrac) => { const h = cls(ranks, { c15: 'B' }); h.p.mp = h.p.stats.maxMP * mpFrac; const e = h.enemy({ hp: 1e6 }); return h.p.rollDamage(100, -100, 0, e, {}).dmg; };
-  ok(roll({ c15: 1 }, 1) > roll({ c15: 1 }, 0.2) && roll({}, 1) === roll({}, 0.2), 'c15B: +daño solo con el maná lleno');
+  ok(roll({ c15: 1 }, 0.8) > roll({ c15: 1 }, 0.6) && roll({ c15: 1 }, 0.8) === roll({ c15: 1 }, 1) && roll({}, 1) === roll({}, 0.2), 'c15B: +daño con más del 70 % de maná (al 80 %, igual que lleno; al 60 %, nada)');
+  ok(/más del 70 % de maná/.test(MAGA_TALENTS.cls.nodes.find(n => n.id === 'c15').opts.find(o => o.k === 'B').desc), 'c15B: el texto dice el umbral que aplica (70 %)');
   const an = cls({ c17: 1 }, { c17: 'B' });
   an.p.takeDamage(an.p.stats.maxHP * 0.64, 1, { element: 'fire', unavoidable: true });
   ok(an.p.hp > an.p.stats.maxHP * 0.3 && an.p.hp < an.p.stats.maxHP * 0.4, 'el golpe deja entre el 30 y el 40 %');
@@ -1616,10 +1630,13 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   const h = sp('crionte', { i8: 1 }, { i8: 'B' });
   h.p.stats.critRaw = -1000;                     // sin críticos: la proporción es la del +80 %
   const a = h.enemy({ hp: 1e9, pos: [2, 0, 0] }), o = h.enemy({ hp: 1e9, pos: [0, 0, 2.5] });
+  const glued = h.enemy({ hp: 1e9, pos: [0, 0, -0.3] });   // pegado a ti: tampoco cae en un área
   const log = spy(h);
   h.aim(2, 0);
   cast(h, 'k3', 'k_prision', 0.2);
   ok(a.frozenT > 2.5 && !(o.frozenT > 0), `i8B: atrapa a uno solo 3 s (${a.frozenT}, ${o.frozenT})`);
+  ok(!(glued.frozenT > 0) && !from(log, 'k_prision', glued).length, 'i8B: ni al que está pegado a ti (sin área)');
+  eq(from(log, 'k_prision', a).length, 1, 'i8B: un solo golpe al atrapado (el del poder, no además el del área)');
   const b = sp('crionte'), ab = b.enemy({ hp: 1e9, pos: [2, 0, 0] });
   b.p.stats.critRaw = -1000;
   const lb = spy(b); b.aim(2, 0); cast(b, 'k3', 'k_prision', 0.2);

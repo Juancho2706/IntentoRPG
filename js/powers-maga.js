@@ -91,8 +91,8 @@
 //    Igual Ritmo Arcano (c23, m_ritmo_arcano): solo Parpadeo y Barrera, no tv.basicCritCdr.
 //  · Ignición (s0) quema también con los tics de tu suelo de Fuego (decisión pendiente de aprobar).
 //  · Grieta Eterna (a27) gasta su 3 %/s también con Maná Inagotable (doc 2g §12; calibra B1).
-//  · Prisión Profunda (i8B): la Prisión no atrapa en su área; atrapa 3 s al enemigo de la mira (o al
-//    más cercano a 8 m) con un golpe real de la Prisión al 180 %.
+//  · Prisión Profunda (i8B): la Prisión no atrapa en su área (prof.single, que lee prision_hielo);
+//    atrapa 3 s al enemigo de la mira (o al más cercano a 8 m) con un golpe real de la Prisión al 180 %.
 //  · Ventisca Viva y Remolino lanzan la Nova de Hielo real como repetición (g.castEcho, con su
 //    propia serie: la de tu última Nova no se gasta ni se reinicia). La de Ventisca Viva sale del
 //    centro de la Tormenta (origin); la de Remolino, de donde acaba el Paso de Escarcha.
@@ -1737,10 +1737,13 @@ export function magaPowers() {
     // cercano a 8 m) con un golpe real de la Prisión con +80 %
     k_prision_profunda: {
       name: 'Prisión Profunda', desc: 'La Prisión de Hielo atrapa a un solo enemigo 3 s y le hace +80 %.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') prof.radius = 1e-3; },
+      // prof.single: la Prisión del catálogo no atrapa en área (prision_hielo); aquí, a uno solo
+      modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') prof.single = true; },
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'k_prision') return;
-        const pick = cast.enemy?.alive && insideR(cast.enemy.pos, p.pos, T.profundaR) ? cast.enemy : alivesNear(g, p.pos, T.profundaR).sort(byDist(p.pos))[0];
+        // el de la mira a 8 m (o a su alcance con Celda Lejana) o, si no, el más cercano a 8 m
+        const reach = Math.max(T.profundaR, cast.sk?.at === 'enemy' ? (cast.prof?.range || 0) : 0);
+        const pick = cast.enemy?.alive && insideR(cast.enemy.pos, p.pos, reach) ? cast.enemy : alivesNear(g, p.pos, T.profundaR).sort(byDist(p.pos))[0];
         if (!pick) return;
         pick.applyCC('freeze', T.profundaFreeze, { src: p });
         const pr = cast.prof || {};
