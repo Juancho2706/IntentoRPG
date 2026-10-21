@@ -15,7 +15,7 @@ export const MAGA_HERO = [
       win: 'A, contra jefes. B, contra grupos' },
     { id: 't3', name: 'Prisa Temporal', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['t0'], d: ()=>'Cada Marca que termina te hace lanzar un 10 % más rápido durante 3 s', icon: 'talents/maga-clase-c11.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 't4', name: 'Detener o Retroceder', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['t1', 't2'], icon: 'talents/maga-arcanista-s9.webp', opts: [
-        { k: 'A', name: 'Detener el Tiempo', desc: 'Habilidad (ranura 2): paras el tiempo 3 s a 8 m; las Marcas guardan el doble. Se recarga en 75 s', role: 'CTRL', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Detener el Tiempo', desc: 'Habilidad (ranura 2): paras el tiempo 3 s a 8 m; las Marcas guardan el doble. Se recarga en 75 s', role: 'CTRL', fx: { grant: 'm_h_detener' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Retroceso', desc: 'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, para controlar grupos y preparar un golpe enorme (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
@@ -50,7 +50,7 @@ export const MAGA_HERO = [
     { id: 'f6', name: 'Detonar Constructo', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['f2', 'f3'], d: ()=>'Si el Familiar cae, estalla (200 % del arma, 4 m) y vuelve a los 5 s', icon: 'talents/maga-arcanista-x2.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'f7', name: 'Aprendiz', t: 'p', tag: 'mec', r: 3, c: 0, max: 1, req: ['f4', 'f5'], d: ()=>'El Familiar copia la variante de forja de tu Dardo (por ejemplo, con Saeta Ígnea sus disparos explotan)', touch: ['m_dardo'], icon: 'talents/maga-clase-c4.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'f8', name: 'Constructo o Fragua', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['f5'], icon: 'talents/maga-clase-c15.webp', opts: [
-        { k: 'A', name: 'Llamar Constructo', desc: 'Habilidad (ranura 2): un Constructo grande aparece 10 s y obliga a los enemigos a 8 m a atacarlo. Se recarga en 45 s', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Llamar Constructo', desc: 'Habilidad (ranura 2): un Constructo grande aparece 10 s y obliga a los enemigos a 8 m a atacarlo. Se recarga en 45 s', role: 'AGU', fx: { grant: 'm_h_constructo' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Fragua Rúnica', desc: 'El Familiar hace +5 % por cada habilidad distinta que usaste en 8 s (hasta +25 %)', role: 'UNI', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, para aguantar grupos grandes (ocupa la ranura 2). B, para hacer daño sin ocupar ranura' },
@@ -69,7 +69,7 @@ export const MAGA_HERO = [
       win: 'A, contra jefes. B, contra grupos' },
     { id: 'e3', name: 'Tinta de Maná', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['e0'], d: ()=>'Pisar una runa tuya te da 5 de maná (una vez por runa)', icon: 'talents/maga-clase-c10.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'e4', name: 'Palabra o Guarda', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['e1', 'e2'], icon: 'talents/maga-arcanista-s8.webp', opts: [
-        { k: 'A', name: 'Palabra de Poder', desc: 'Habilidad (ranura 2): escribes al instante 3 runas a tu alrededor. Se recarga en 40 s', role: 'UNI', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+        { k: 'A', name: 'Palabra de Poder', desc: 'Habilidad (ranura 2): escribes al instante 3 runas a tu alrededor. Se recarga en 40 s', role: 'UNI', fx: { grant: 'm_h_palabra' }, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Runa Guardiana', desc: 'Dentro del Sello recibes −20 % de daño (antes −10 %)', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, para tener el Sello donde y cuando quieres (ocupa la ranura 2). B, para aguantar sin ocupar ranura' },
