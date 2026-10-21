@@ -386,6 +386,13 @@ function computeAgg(p, opts) {
     agg.spec = s.id;
     agg.mechanic = s.mechanic || null;
     agg.innate = { ...(s.innate || {}) };
+    // innate.mod (cola W2d, punto 17 opción a): mods de habilidad de la especialización, con los
+    // mismos selectores que fx.mod y sin rango (Piel de Hierro del Guardián: { g_piel: { durS: 4, buff: 25 } })
+    for (const [k, m] of Object.entries(s.innate?.mod || {})) {
+      const scaled = {};
+      for (const [mk, mv] of Object.entries(m || {})) scaled[mk] = scaleFx(mv, 1);
+      for (const id of expandSelector(k, ctx, s)) mergeMods(agg.mods[id] || (agg.mods[id] = {}), scaled);
+    }
     const ranks = T.sp?.[s.id] || {};
     for (const n of s.nodes) { const r = n.free ? 1 : Math.min(ranks[n.id] | 0, n.max); if (r > 0) apply(n, r, T.choice?.[n.id]); }
     // árbol héroe: solo aporta con el Paragon abierto (clave gratis + sus nodos)

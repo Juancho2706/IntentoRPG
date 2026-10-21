@@ -113,12 +113,14 @@ const SKILLS_EXPECTED = [
   'activeStanceModes', 'applyMark', 'marksOf', 'detonateMark', 'markDetonation', '_beginCharge', '_chargeSpeed',
   'releaseSkillSlot', '_endCharge', '_releaseWith', 'heldSlotBusy', 'pumpHeldSlots', 'tickSkillVerbs', 'keepsPlanted',
   '_skillEnd', 'cancelHeld',
+  // cola W2d (parte A): APIs públicas del canal de lanzamiento
+  'castEcho', 'startCooldown', 'channelInfo', 'extendMark',
 ];
 const skKeys = Object.keys(skillMethods);
 for (const m of SKILLS_EXPECTED) if (typeof skillMethods[m] !== 'function') throw new Error('falta método de skills o no es función: ' + m);
 if (skKeys.length !== SKILLS_EXPECTED.length) throw new Error(`skillMethods tiene ${skKeys.length} métodos, esperaba ${SKILLS_EXPECTED.length}: ${skKeys.join(', ')}`);
 console.log(`skillMethods exporta los ${SKILLS_EXPECTED.length} métodos esperados, todos funciones ✓`);
-const FIELDS_EXPECTED = ['spawnField', 'fieldsAt', 'updateFields', 'clearFields', '_expireField', '_renderField',
+const FIELDS_EXPECTED = ['spawnField', 'fieldsAt', 'updateFields', 'clearFields', 'expireField', 'stopDash', '_expireField', '_renderField',
   // Paso 2 (W2, §3.6): campos que siguen, trampas armadas con cebo y detonación, muros
   'fieldsOf', 'nearestOwnField', '_followField', '_recountMoveFields', 'detonateField', 'detonateAt', '_trapBurst',
   '_spendTrap', '_logTrapBurst', 'trapBurstsWithin', 'lureStep', '_pickLure', 'constrainMove'];

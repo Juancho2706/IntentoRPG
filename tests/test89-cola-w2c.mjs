@@ -295,8 +295,9 @@ definePower('vx_instant89', { name: 'carga instantánea', onCast(g, p, cast) { i
   const log = h.p.trapBursts;
   assert.equal(log.length, n0 + 1, 'un estallido registrado al pisarla');
   const b = log.at(-1);
-  assert.ok(b && typeof b === 'object', 'el registro es un objeto { t, x, z }');
-  assert.deepEqual(Object.keys(b).sort(), ['t', 'x', 'z']);
+  assert.ok(b && typeof b === 'object', 'el registro es un objeto { t, x, z, key }');
+  assert.deepEqual(Object.keys(b).sort(), ['key', 't', 'x', 'z']);
+  assert.equal(b.key, f.data?.cluster ?? f.uid, 'key = la clave de la trampa (cola W2d-B)');
   assert.equal(b.t, h.p.simT, 't = p.simT del estallido');
   assert.ok(near(b.x, 4) && near(b.z, -1), `x, z = centro de la trampa (${b.x}, ${b.z})`);
   assert.ok(Math.hypot(b.x - h.p.pos.x, b.z - h.p.pos.z) > 3, 'no son los pies de la cazadora');
