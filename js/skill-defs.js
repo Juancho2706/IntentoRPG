@@ -224,7 +224,7 @@ export function skillVerbs(def) {
 export const VERB_DOC = Object.freeze({
   windup: 'Preparación (s) · moveMul durante ella (1 = como hoy, 0 = quieto)',
   channel: 'channelT, ticks, hold: true|false|"toggle", moveMul, autoShot{every,coef,target,range}, drainPerSec, endless',
-  charge: 'charge{min,max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul}}',
+  charge: 'charge{min (declarado > 0: soltar antes no dispara, cancela sin coste; sin declarar o 0, un toque dispara al mínimo),max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul},markMin (en la unidad de min/max/perfect; por debajo, la suelta no gasta marcas firstCharged)}',
   recast: 'recast{n (usos totales),win,cond:null|"hit",perfectLast,cdFrom:"first"|"end",free,gap}',
   combo: 'type:"combo" · steps[{type,coef,radius,angle,range,width,at,windup,dot,moveMul}] · comboWin',
   seq: 'seq{every,extra{count,spread,coef,pierce}}',
@@ -232,11 +232,11 @@ export const VERB_DOC = Object.freeze({
   planted: 'needPlanted · plant:true (dash/salto)',
   mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct}}',
   trap: 'trap{armT,maxArmed,radius,root,burst{radius,coef},consume,lure{radius,eliteRadius,boss,speedMul}}',
-  detonate: 'detonate{radius,coef,chain,perTarget,consume}',
+  detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance',
   wall: 'type:"wall" · wall{len,width,blocks:true|"all",contain}',
   follow: 'follow:"owner"|"aim"',
-  displace: 'pull: m | {dist,to:"self"|"center"|"trap"} · knock: m · drag:true · dragWidth · dashT',
-  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
+  displace: 'pull: m | {dist,to:"self"|"center"|"trap",radius (atracción por tic de un canal),boss:false (no atrae a los jefes: tic del canal y golpe)} · knock: m · drag:true · dragWidth (solo si la definición arrastra) · dashT',
+  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
 export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'blockPower', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
@@ -274,6 +274,8 @@ export const SKILL_KEYS = new Set([
   'wall', 'follow', 'contain', 'zoneMax', 'pull', 'knock', 'drag', 'dragWidth', 'dashT', 'charges', 'killReset',
   'shieldGain', 'repeat', 'trail', 'fieldKind', 'fallbackRange', 'pulse', 'wave', 'lure', 'impacts', 'scatter',
   'cdOnEnd', 'cdFloor',
+  // cola W2d: daño por segundo de la Estela en % del arma
+  'zonePct',
 ]);
 const HOLD_VALUES = new Set([true, false, 'toggle']);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -296,6 +298,7 @@ function validateVerbs(def, id, err) {
       const sc = c.scale?.coef;
       if (sc != null && !(Array.isArray(sc) && sc.length >= 2 && (sc.every(isNum) || sc.every(x => Array.isArray(x) && x.length === 2 && x.every(isNum))))) err.push(`${id}: charge.scale.coef = [aMin, aMax] o [[t, v], …]`);
       if (c.full && !(c.full.count >= 1)) err.push(`${id}: charge.full.count ≥ 1`);
+      if (c.markMin != null && !(c.markMin >= 0 && c.markMin <= c.max)) err.push(`${id}: charge.markMin en [0, max]`);
     }
   }
   const r = def.recast;
@@ -326,7 +329,9 @@ function validateVerbs(def, id, err) {
   if (def.follow != null && def.follow !== false && def.follow !== 'owner' && def.follow !== 'aim') err.push(`${id}: follow "owner", "aim" o false`);
   if (def.charges != null && !(Number.isInteger(def.charges) && def.charges >= 1)) err.push(`${id}: charges entero ≥ 1`);
   if (def.repeat && !(def.repeat.n >= 1 && def.repeat.every > 0)) err.push(`${id}: repeat = { n ≥ 1, every > 0, coef }`);
-  if (def.pull != null && !(isNum(def.pull) ? def.pull > 0 : def.pull?.dist > 0)) err.push(`${id}: pull = m o { dist, to }`);
+  if (def.pull != null && !(isNum(def.pull) ? def.pull > 0 : def.pull?.dist > 0)) err.push(`${id}: pull = m o { dist, to, radius, boss }`);
+  if (isPlain(def.pull) && def.pull.radius != null && !(def.pull.radius > 0)) err.push(`${id}: pull.radius > 0`);
+  if (def.zonePct != null && !(isNum(def.zonePct) && def.zonePct >= 0)) err.push(`${id}: zonePct ≥ 0 (% del arma por segundo)`);
   if (def.at === 'ownField' && !def.fieldKind) err.push(`${id}: at "ownField" necesita fieldKind`);
   if (def.pulse && !(def.pulse.every > 0)) err.push(`${id}: pulse.every > 0`);
   if (def.shieldGain && !(Array.isArray(def.shieldGain) && def.shieldGain.length === 2)) err.push(`${id}: shieldGain = [pct, máx]`);
@@ -416,7 +421,7 @@ export function supportFits(sup, sk) {
 //   recastAdd(+usos) recastWin(+s) comboWin(+s) chargeSpeed(%) perfectWin(+s) perfectEarly(s)
 //   perfectPct(%) zoneMax(máx.) pull/knock(máx., m) killReset(bool) shieldGain([pct, máx])
 //   dmgDirect(%) splashPct(%) repeatAdd(+n) keepPlanted(bool) markDur(+s) taunt(+s)
-//   dragWidth(máx., m) zoneCoef(+coef/s) zoneHeal(+%/s)
+//   dragWidth(máx., m) zoneCoef(+coef/s) zoneHeal(+%/s) zonePct(+% del arma/s de la Estela)
 // Toda clave numérica nueva SUMA salvo las de MOD_MAX / MOD_BOOL.
 const MOD_MAX = ['slow', 'vuln', 'stun', 'root', 'execute', 'chain', 'zone', 'cdhit', 'haste', 'slowPct',
   'zoneMax', 'pull', 'knock', 'moveMulMin', 'dragWidth'];

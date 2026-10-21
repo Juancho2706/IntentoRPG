@@ -30,6 +30,10 @@
 //   Repeticiones (cast.echo > 0): no consumen cargas ni relanzamientos, no avanzan combo ni
 //   secuencia, una carga repetida sale con frac = 1, y una repetición no genera otra (tope 3).
 //   Los SONIDOS de los verbos (D26) se emiten aquí, en el instante del borde.
+// Cola W2d (parte A, punto 17 del plan): g.castEcho (repetición con su propia serie, at y
+//   origin), g.startCooldown, g.channelInfo, g.extendMark; tics de canal a instantes fijos;
+//   principal instantánea sobre el canal de una definitiva imparable; detonar al final del
+//   vuelo; encadenado que nace en el origen y lleva la habilidad; velocidad de habilidades.
 import * as THREE from 'three';
 import { resolveSkill, isKnown, fitsSlot, GCD, cooldownWithMassacre, forgeState, forgedDef, validSupports } from './skill-resolve.js';
 import { projFanOffset, forgeVar, VERB_DEFAULTS, supportFits } from './skill-defs.js';
@@ -37,13 +41,15 @@ import { FIELD_DEFS } from './field-entities.js';
 import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from './powers.js';
 import { applyHitEffects, weaponBasicOf } from './entities.js';
 import { canAfford, spendResource, gainResource, drainResource } from './resources.js';
-import { COLDBLOOD_CRIT, threatFromHeal, chargeRelease } from './combat-math.js';
+import { COLDBLOOD_CRIT, threatFromHeal, chargeRelease, rankCoef } from './combat-math.js';
 import { applyDoTInstance, dotsOf, dotRemaining, consumeDoTs, replaceDoTInstance, dotKindOf } from './timers.js';
 import { SUPPORTS } from './data.js';
-import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
+import { SKILL_FX_PRESETS, skillFxFor } from './fx-skills.js';
 import { gainGauge } from './spec-mechanics.js';
 
 const SLOT_ACTION = { k1: 'skill1', k2: 'skill2', k3: 'skill3', k4: 'skill4' };
+// tipos que NO salen sobre el canal de una definitiva (Doble Grieta): moverían o cortarían el canal
+const OVER_CHANNEL_TYPES_NO = new Set(['channel', 'leap', 'dash', 'blink', 'stance', 'weapon']);
 const DOT_COLORS = { poison: 0x7cff6a, burn: 0xff7722, bleed: 0xff4466 };
 const fxp = x => (typeof x === 'string' ? (SKILL_FX_PRESETS[x] || x) : x);
 const v3 = (x, z, y = 0) => new THREE.Vector3(x, y, z);
@@ -75,17 +81,24 @@ function matchSel(sel, hit) {
   if (sel[0] === '@') return tags.has(sel.slice(1)) || hit.elem === sel.slice(1);
   return hit.skill === sel;
 }
-// centro de una habilidad de área/zona según `at`: 'self' · 'enemy' (sobre el enemigo de la
-// mira, o la mira si no hay) · 'target' / por defecto (la mira, acotada al alcance)
+// de dónde SALE un lanzamiento: el héroe o, en una repetición con `origin` (g.castEcho), ese
+// punto (la Nova de Ventisca Viva sale del centro de la Tormenta)
+function srcPos(ctx) {
+  return ctx.origin ? v3(ctx.origin.x, ctx.origin.z) : ctx.p.pos.clone().setY(0);
+}
+// jefe (jefe de zona, über o de mundo): pull.boss:false no lo atrae
+const isBossEnemy = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
+// centro de una habilidad de área/zona según `at`: 'self' (de donde sale) · 'enemy' (sobre el
+// enemigo de la mira, o la mira si no hay) · 'target' / por defecto (la mira, acotada al alcance)
 function castCenter(ctx) {
   const at = ctx.sk.at;
-  if (at === 'self') return ctx.p.pos.clone().setY(0);
+  if (at === 'self') return srcPos(ctx);
   if (at === 'enemy' && ctx.enemy?.alive) return ctx.enemy.pos.clone().setY(0);
   return ctx.target.clone().setY(0);
 }
-// dirección de la mira desde el héroe (o su frente si la mira está encima)
-function aimDir(p, target) {
-  const dir = target.clone().sub(p.pos).setY(0);
+// dirección de la mira desde el héroe (o desde `from`; su frente si la mira está encima)
+function aimDir(p, target, from = null) {
+  const dir = target.clone().sub(from || p.pos).setY(0);
   if (dir.lengthSq() < 1e-6) dir.set(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
   return dir.normalize();
 }
@@ -107,7 +120,7 @@ const GENERIC = {
     const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
     const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct + (prof.dmgDirect || 0), e, ctx.hitInfo);
     ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
-    if (prof.chain && e.alive) g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], 0xffbb44, prof.chainPct);
+    if (prof.chain && e.alive) g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], 0xffbb44, prof.chainPct, ctx);
     p.onDealHit();
     if (crit && prof.windup > 0) g.hitStop?.('heavy');   // golpe pesado (Mandoble)
     g.spawnRing?.(e.pos, 0.8, 0xffbb44);
@@ -169,17 +182,18 @@ const GENERIC = {
 
   cone(g, ctx) {
     const { p, prof } = ctx;
-    const dir = aimDir(p, ctx.target);
+    const o = ctx.origin ? srcPos(ctx) : p.pos;
+    const dir = aimDir(p, ctx.target, o);
     p.faceToward(p.pos.clone().add(dir));
     p.swing = 1;
-    const list = g.enemiesInCone(p.pos, dir, prof.radius || 3, prof.angle || 90);
+    const list = g.enemiesInCone(o, dir, prof.radius || 3, prof.angle || 90);
     for (const e of list) {
       const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
       const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct, e, ctx.hitInfo);
       ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
     }
     if (list.length) p.onDealHit();
-    const front = p.pos.clone().addScaledVector(dir, (prof.radius || 3) * 0.6);
+    const front = o.clone().addScaledVector(dir, (prof.radius || 3) * 0.6);
     ctx.zoneCenter = front; ctx.zoneRad = (prof.radius || 3) * 0.6;
     g.spawnRing?.(front, (prof.radius || 3) * 0.6, ctx.color || 0xffaa55);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), front.clone().setY(1.0));
@@ -189,10 +203,11 @@ const GENERIC = {
 
   line(g, ctx) {
     const { p, prof, sk } = ctx;
-    const dir = aimDir(p, ctx.target);
+    const o = ctx.origin ? srcPos(ctx) : p.pos;
+    const dir = aimDir(p, ctx.target, o);
     p.faceToward(p.pos.clone().add(dir));
     const len = prof.range || sk.length || 8;
-    const list = g.enemiesInLine(p.pos, dir, len, prof.width || 2);
+    const list = g.enemiesInLine(o, dir, len, prof.width || 2);
     for (const e of list) {
       const { dmg, crit } = p.rollDamage(ctx.coef, prof.critBonus, prof.addPct, e, ctx.hitInfo);
       ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
@@ -200,12 +215,12 @@ const GENERIC = {
     if (list.length) p.onDealHit();
     // Encadenado desde el primero de la línea (Rayo en Cadena: chain + chainPct)
     if (prof.chain && list.length) {
-      const first = list.reduce((a, b) => (a.pos.distanceToSquared(p.pos) <= b.pos.distanceToSquared(p.pos) ? a : b));
-      g.spawnChainBounce(first, Math.round(ctx.avgHit), prof.chain, list, ctx.color || 0x66ddff, prof.chainPct);
+      const first = list.reduce((a, b) => (a.pos.distanceToSquared(o) <= b.pos.distanceToSquared(o) ? a : b));
+      g.spawnChainBounce(first, Math.round(ctx.avgHit), prof.chain, list, ctx.color || 0x66ddff, prof.chainPct, ctx);
     }
-    const mid = p.pos.clone().addScaledVector(dir, len / 2);
+    const mid = o.clone().addScaledVector(dir, len / 2);
     ctx.zoneCenter = mid; ctx.zoneRad = Math.max(1.5, (prof.width || 2));
-    g.spawnBeam?.(p.pos, p.pos.clone().addScaledVector(dir, len), ctx.color || 0xd8c49a, 0.25);
+    g.spawnBeam?.(o, o.clone().addScaledVector(dir, len), ctx.color || 0xd8c49a, 0.25);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), mid.clone().setY(0.3));
     return ctx.res;
   },
@@ -214,7 +229,8 @@ const GENERIC = {
   // (básicos: con el primer impacto, así el recurso llega solo si aciertas; resto:
   // cuando todos resolvieron) o, si fallan o perforan, al agotar su alcance.
   // Paso 2: perTarget (hasta N proyectiles del lanzamiento al mismo enemigo), carga completa
-  // con charge.full (otra cuenta/abanico), secuencia del básico (seq) y detonate al impactar.
+  // con charge.full (otra cuenta/abanico), secuencia del básico (seq) y detonate al impactar
+  // y al final del alcance (cola W2d: Flecha Detonante a tus trampas sin nadie encima).
   proj(g, ctx, done) {
     const { p, prof, sk, fx } = ctx;
     p.faceToward(ctx.target);
@@ -222,8 +238,9 @@ const GENERIC = {
     const full = ctx.chargeFull || null;
     let count = full?.count || (prof.count + (prof.proj || 0));
     const spread = full?.spread ?? prof.spread;
-    const baseAngle = Math.atan2(ctx.target.x - p.pos.x, ctx.target.z - p.pos.z);
-    const muzzle = p.pos.clone().setY(1.0).add(v3(Math.sin(baseAngle) * 0.5, Math.cos(baseAngle) * 0.5));
+    const from0 = ctx.origin ? srcPos(ctx) : p.pos.clone().setY(0);
+    const baseAngle = Math.atan2(ctx.target.x - from0.x, ctx.target.z - from0.z);
+    const muzzle = from0.clone().setY(1.0).add(v3(Math.sin(baseAngle) * 0.5, Math.cos(baseAngle) * 0.5));
     if (fx?.trail) g.emitFx(fxp(fx.trail), muzzle);
     else if (fx?.aura && !(prof.splash > 0)) g.emitFx(fxp(fx.aura), muzzle);
     const finish = () => done(ctx.res);
@@ -240,34 +257,44 @@ const GENERIC = {
       const n = Math.max(1, extra.count || 1), half = Math.ceil(n / 2);
       for (let i = 0; i < n; i++) shots.push({ angle: baseAngle + (i % 2 ? -1 : 1) * Math.ceil((i + 1) / 2) * (extra.spread || 0.26) / half, coef: ctx.coef * (extra.coef ?? 1), pierce: extra.pierce });
     }
+    const range = prof.range || sk.range || 10;
+    const flight = range / Math.max(1, prof.speed || 14) + 0.05;
+    // detonar (prof.detonate: coef ya escalado con el rango) al impactar y, si nadie lo para,
+    // donde acaba su vuelo (el final del alcance o la pared)
+    const det = prof.detonate || null;
     for (const s of shots) {
-      let resolved = false;
+      let resolved = false, stopped = false;
+      const pierces = s.pierce ?? prof.pierce;
       g.fireProjectile(ctx, {
         angle: s.angle, castHits, perTarget: prof.perTarget, coef: s.coef ?? undefined, pierce: s.pierce,
         onImpact: (e) => {
-          if (e && sk.detonate) g.detonateAt(p, e.pos, sk.detonate, { skill: sk.id });
+          if (e && det) g.detonateAt(p, e.pos, det, { skill: sk.id });
+          if (e && !pierces) stopped = true;
           if (firstHit) { finish(); return; }
           if (!prof.pierce && !resolved) { resolved = true; if (--pending <= 0) finish(); }
         },
       });
+      if (det) {
+        const end = g.clampWalkable(from0, from0.clone().add(v3(Math.sin(s.angle) * range, Math.cos(s.angle) * range)), range);
+        g.timers.schedule(flight, () => { if (!stopped && p.alive) g.detonateAt(p, end, det, { skill: sk.id }); });
+      }
     }
     void count;
     if (sk.beam) g.spawnBeam?.(muzzle, ctx.target.clone().setY(1.0), ctx.color || 0xffee66);
     ctx.lifestealDone = true; // el robo de los proyectiles va por impacto
-    const range = prof.range || sk.range || 10;
-    g.timers.schedule(range / Math.max(1, prof.speed || 14) + 0.05, finish);
+    g.timers.schedule(flight, finish);
     return undefined; // diferido: termina al impactar (o al agotar el alcance)
   },
 
   // salto: `at:'ownField'` (a tu campo más cercano a la mira), estela (`trail`), `plant`
-  // (al caer cuentas como plantado) y `detonate` al caer
+  // (al caer cuentas como plantado) y `detonate` al caer. El vuelo, más corto con skillSpeed
   leap(g, ctx, done) {
     const { p, prof, sk } = ctx;
     const from = p.pos.clone();
     const to = ctx.fieldDest ? ctx.fieldDest.clone() : g.clampWalkable(p.pos, ctx.target, ctx.destRange || prof.range || sk.range || 8);
     p.faceToward(to);
     p.leap = {
-      from: p.pos.clone(), to, t: 0, dur: sk.airT || prof.impactDelay || 0.45, plant: !!sk.plant,
+      from: p.pos.clone(), to, t: 0, dur: (sk.airT || prof.impactDelay || 0.45) / (prof.skillSpeed || 1), plant: !!sk.plant,
       onLand: () => {
         const rad = prof.radius || 3;
         g.spawnRing?.(p.pos, rad, ctx.color || 0xffcc66);
@@ -282,9 +309,10 @@ const GENERIC = {
     return undefined; // diferido: impacta al caer
   },
 
-  // avance: instantáneo (como hoy) o LENTO con dashT (Carga de Escudo: 8 m en 1 s, imparable);
-  // `drag` arrastra a los que encuentra (dragWidth m a cada lado), `trail` deja un campo en
-  // línea, `plant`, `detonate` y `taunt` al llegar
+  // avance: instantáneo (como hoy) o LENTO con dashT (Carga de Escudo: 8 m en 1 s, imparable;
+  // más corto con skillSpeed); `drag` arrastra a los que encuentra (dragWidth m a cada lado) y
+  // los junta dentro del golpe de llegada, `trail` deja un campo en línea, `plant`, `detonate`
+  // y `taunt` al llegar
   dash(g, ctx, done) {
     const { p, prof, sk } = ctx;
     const from = p.pos.clone();
@@ -295,17 +323,25 @@ const GENERIC = {
       dest = dist > 0.1 ? p.pos.clone().addScaledVector(dir.normalize(), dist) : p.pos.clone();
     }
     p.faceToward(dest);
+    const dragged = new Set();
     const arrive = () => {
       const rad = prof.radius || 1.9;
+      // los arrastrados que quedaron fuera del golpe de llegada (un dragWidth ancho) se juntan
+      for (const e of dragged) {
+        if (!e.alive) continue;
+        const ex = e.pos.x - p.pos.x, ez = e.pos.z - p.pos.z, d = Math.hypot(ex, ez), keep = rad * 0.8;
+        if (d <= keep || d < 1e-6) continue;
+        const nx = p.pos.x + ex / d * keep, nz = p.pos.z + ez / d * keep;
+        if (!g.world?.grid || g.world.grid.walkable(nx, nz)) { e.pos.x = nx; e.pos.z = nz; }
+      }
       g.spawnRing?.(p.pos, rad, 0xffcc66);
       if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() });
       ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
-      if (prof.chain) { const ne = g.nearestEnemy(rad + 2); if (ne) g.spawnChainBounce(ne, Math.round(ctx.avgHit), prof.chain, [], 0xffcc66, prof.chainPct); }
+      if (prof.chain) { const ne = g.nearestEnemy(rad + 2); if (ne) g.spawnChainBounce(ne, Math.round(ctx.avgHit), prof.chain, [], 0xffcc66, prof.chainPct, ctx); }
       p.swing = 1;
       g._arrive(ctx, from);
       if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(0.7));
     };
-    const dragged = new Set();
     const dragW = prof.dragWidth || 0;
     // un paso del avance: mueve al héroe y a los arrastrados
     const stepTo = (nx, nz) => {
@@ -326,15 +362,16 @@ const GENERIC = {
     };
     const total = from.distanceTo(dest);
     const dirN = total > 1e-4 ? dest.clone().sub(from).setY(0).normalize() : v3(0, 0);
-    if (sk.dashT > 0 && total > 0.1) {
+    const dashT = (sk.dashT || 0) / (prof.skillSpeed || 1);
+    if (dashT > 0 && total > 0.1) {
       // avance lento por frames (Player.update mueve; imparable mientras dura)
-      p.castLock = Math.max(p.castLock || 0, sk.dashT + 0.05);
-      if (sk.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, sk.dashT + 0.1);
+      p.castLock = Math.max(p.castLock || 0, dashT + 0.05);
+      if (sk.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dashT + 0.1);
       let traveled = 0;
       p.dashMove = {
-        dur: sk.dashT, t: 0,
+        dur: dashT, t: 0,
         step: (dt) => {
-          const want = Math.min(total - traveled, total * dt / sk.dashT);
+          const want = Math.min(total - traveled, total * dt / dashT);
           if (want <= 0) return true;
           const ok = stepTo(p.pos.x + dirN.x * want, p.pos.z + dirN.z * want);
           traveled += want;
@@ -438,9 +475,11 @@ const GENERIC = {
     const pos = ctx.target.clone().setY(0);
     const f = g.spawnField('trampa', { pos, radius: t.radius || prof.radius || 1.5, dur: prof.dur || sk.life || VERB_DEFAULTS.trapLife, owner: p,
       maxPerSkill: Math.max(t.maxArmed || 0, prof.zoneMax || 0),
+      // burst va en crudo (de la definición); rank, para que el estallido escale con el rango
+      // (× rankCoef(rank), lo aplica field-entities una vez); coef y hitDot ya llevan el rango
       data: { dmg: ctx.avgHit, coef: ctx.coef, root: Math.max(t.root || 0, prof.root || 0), color: ctx.color, skill: sk.id, tags: prof.tags, elem: prof.elem,
         armT: t.armT ?? VERB_DEFAULTS.trapArmT, burst: t.burst || null, consume: t.consume !== false,
-        lure: t.lure || null, hitDot: prof.hitDot } });
+        lure: t.lure || null, hitDot: prof.hitDot, rank: prof.rank } });
     if (f) { ctx.zoneCenter = pos; ctx.zoneRad = f.radius; }
     return ctx.res;
   },
@@ -462,7 +501,8 @@ const GENERIC = {
   // PEGAJOSO (el mismo enemigo mientras siga vivo y a rango) o un área si la
   // habilidad tiene radio. Si declara `behavior` con tick (sin cast), ese tick
   // SUSTITUYE al golpe por defecto: type:'channel' + behavior conviven.
-  // Paso 2: con autoShot, el tic solo dispara (Carrera del Viento) · pull por tic (Ciclón)
+  // Paso 2: con autoShot, el tic solo dispara (Carrera del Viento) · pull por tic (Ciclón: con
+  // pull.radius, a otro radio que el del daño) · slowImmune mientras dura (Giro Firme)
   channel(g, ctx, done) {
     const { p, prof, sk } = ctx;
     const beh = sk.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
@@ -488,6 +528,7 @@ const GENERIC = {
       dur: sk.channelT || prof.dur || 2,
       ticks: sk.ticks,
       unstoppable: prof.unstoppable,
+      slowImmune: prof.slowImmune,
       hold: sk.hold,
       endless: !!sk.endless,
       autoShot: auto,
@@ -582,6 +623,168 @@ export function skillCastable(sk) {
   return !!(b?.cast || GENERIC[sk.type]);
 }
 
+// núcleo del lanzamiento (ranura o repetición): gating, ⑦ onCast, carga, preparación y commit.
+// Función del módulo (no del mixin): se llama con castSkillCore.call(g, …). → false, true o el
+// CastInfo del lanzamiento que arrancó
+function castSkillCore(p, sk, key, { echoMult = 0, series = null, at = null, origin = null } = {}) {
+  const isEcho = echoMult > 0;
+  const prof = resolveSkill(p, sk);
+  const def = prof.def || sk;
+  // ---- §3.6.1: una CARGA en curso bloquea las demás ranuras, salvo la movilidad (la
+  // cancela sin coste) y una postura con swapGcd 0 (se alterna sin cortarla) ----
+  if (!isEcho && this._charging) {
+    const c = this._charging;
+    if (c.key === key) {
+      if (c.toggle) this.releaseSkillSlot(key, { force: true });   // 2.ª pulsación en modo toggle: suelta
+      return false;
+    }
+    if (def.cat === 'movement') this._endCharge('cancel');
+    else if (!(def.type === 'stance' && (def.stance?.swapGcd ?? 0) === 0)) return false;
+  }
+  // canal enganchado (toggle): la 2.ª pulsación de su ranura lo suelta
+  if (!isEcho && this._channel?.toggle && this._channel.ctx.key === key) { this._endChannel(this._channel, true, 'release'); return false; }
+  // tras una suelta AUTOMÁTICA hay que soltar el botón antes de volver a cargar
+  if (!isEcho && this._needsRelease?.[key]) return false;
+  // repeticiones: como mucho echoCap por lanzamiento original (una repetición no genera otra);
+  // g.castEcho trae su propia serie
+  const sst = skStateOf(p, sk.id);
+  if (isEcho) {
+    const ec = series || sst.echo || (sst.echo = { seq: -1, n: 0 });
+    if ((ec.n || 0) >= VERB_DEFAULTS.echoCap) return false;
+    ec.n = (ec.n || 0) + 1;
+  }
+  if (def.type === 'weapon' && !prof.charge) { if (!isEcho) this.castBasic(); return !isEcho; }
+  // activa de talento sin comportamiento todavía (Paso 2c.1): no se lanza ni cobra
+  if (!skillCastable(def)) {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!isEcho && (!this._noCastAt || now - this._noCastAt > 1500)) { this.ui?.message?.(`${sk.name}: aún no disponible`); this._noCastAt = now; }
+    return false;
+  }
+  const isBasic = def.cat === 'basic';
+  // ventana de RELANZAR abierta (§3.6): sin coste (free) ni enfriamiento propio; separación `gap`
+  const rcState = !isEcho && prof.recast && sst.recast?.left > 0 ? sst.recast : null;
+  const stanceSwapFree = def.type === 'stance' && (def.stance?.swapGcd ?? 0) === 0;
+  const stanceEnding = def.type === 'stance' && (def.stance?.modes?.length || 0) === 1 && sst.stance?.mode != null && def.stance?.recastEnds !== false;
+  // una principal puede CANCELAR el windup de un básico en curso (el remate del
+  // Mandoble), como en D4: la principal tiene prioridad sobre el básico
+  const yieldBasic = !isEcho && !isBasic && !!this._windup?.ctx?.isBasic;
+  // Doble Grieta (a21): durante el canal de una DEFINITIVA imparable sale una principal
+  // INSTANTÁNEA (sin preparación ni carga) sin cortarlo. Lo demás sigue esperando al canal
+  const overUlt = !isEcho && overUltChannel.call(this, prof, def, key);
+  if (!isEcho) {
+    const locked = ((p.castLock > 0 && !overUlt) || this._windup) && !yieldBasic;
+    if ((locked && !stanceSwapFree) || p.leap || p.dashMove || (this._channel && !overUlt)) return false;   // bloqueo en curso
+    if (isBasic) {
+      if (p.atkCd > 0) return false;
+      // bloqueo de ACCIÓN compartido: mientras una principal prepara, bloquea o
+      // vuela hacia su impacto, el básico no sale (queda a la espera con el
+      // botón mantenido); y si hay una principal pedida y lista, cede el turno
+      if (p.actionLockT > 0 || this._spenderWaiting()) return false;
+    } else if (rcState) {
+      if ((p.simT || 0) - (rcState.lastAt || 0) < rcState.gap - 1e-9) return false;
+    } else if (!stanceEnding && !this._skillReady(p, sk)) return false;
+    // una sola acción por frame: si el básico acaba de salir en ESTE instante, la
+    // principal sale en el siguiente (16 ms; el básico no la retrasa más que eso)
+    if (!isBasic && p.basicAt != null && p.basicAt === p.simT) return false;
+    if (prof.gcd && p.gcdT > 0 && !stanceSwapFree && !rcState) return false;          // GCD 0,2 s
+    const free = (rcState && prof.recast.free) || stanceEnding;
+    if (!free && !canAfford(p, prof.cost)) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (!this._noResAt || now - this._noResAt > 700) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); this._noResAt = now; }
+      return false;
+    }
+  }
+  // POSTURA (§3.6): su propio flujo (cambiar de modo, acabar, Guardia Total)
+  if (def.type === 'stance') return this._castStance(p, sk, prof, key, isEcho);
+  const { target, near } = this.skillTarget(p, prof, at, origin);
+  // SALTAR A TU CAMPO (at:'ownField'): sin campo de ese tipo a tu alcance no se lanza (sin
+  // coste), salvo fallbackRange (salto normal de esa distancia)
+  let fieldDest = null, destRange = 0;
+  if (def.at === 'ownField' && (def.type === 'leap' || def.type === 'blink' || def.type === 'dash')) {
+    const f = this.nearestOwnField(p, target, { kind: def.fieldKind, from: p.pos, maxDist: prof.range || def.range || 15 });
+    if (f) fieldDest = v3(f.pos.x, f.pos.z);
+    else if (def.fallbackRange > 0) destRange = def.fallbackRange;
+    else {
+      if (!isEcho) this.ui?.message?.('Ningún campo tuyo a tu alcance');
+      return false;
+    }
+  }
+  if (prof.type === 'melee' && !prof.behavior && (!near || p.pos.distanceTo(near.pos) > (prof.range || 2.2) + 0.6)) {
+    // básico cuerpo a cuerpo sin objetivo: golpe al vacío (no genera recurso)
+    if (isBasic && !isEcho) {
+      if (this.input?.mouseWorld) p.faceToward(this.input.mouseWorld);
+      p.atkCd = p.stats.atkTime * 0.6; p.swing = 1;
+      return false;
+    }
+    // con el clic mantenido no spamear el aviso cada frame
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!isEcho && (!this._noTgtAt || now - this._noTgtAt > 900)) { this.ui?.message?.('Ningún enemigo al alcance'); this._noTgtAt = now; }
+    return false;
+  }
+  // COMBO: paso que toca (el 1.º si caducó la ventana); una repetición usa el actual sin avanzar
+  let comboIdx = -1;
+  if (def.type === 'combo' && Array.isArray(def.steps) && def.steps.length) {
+    const cs = sst.combo || (sst.combo = { idx: 0, until: 0 });
+    if ((p.simT || 0) > cs.until) cs.idx = 0;
+    comboIdx = Math.min(cs.idx, def.steps.length - 1);
+  }
+  // sobre el canal de una definitiva, tampoco un paso de combo con preparación
+  if (overUlt && comboIdx >= 0 && (def.steps[comboIdx]?.windup || 0) > 0) return false;
+  // SECUENCIA (no arma; la de arma la cuenta Player.basicAttack)
+  const seq = !isEcho && def.seq && def.type !== 'weapon' ? this.seqAdvance(p, sk) : null;
+  // CastInfo.sk = definición FORJADA (los poderes y los comportamientos leen la forma real)
+  const cast = { sk: def, prof, slot: key, target, enemy: near };
+  if (rcState) cast.recast = { idx: rcState.idx + 1, left: rcState.left - 1, perfect: rcState.perfectLast > 0 && rcState.until - (p.simT || 0) <= rcState.perfectLast + 1e-9 };
+  if (comboIdx >= 0) cast.step = comboIdx + 1;
+  if (seq) { cast.seqNth = seq.nth; cast.seqIdx = seq.idx; }
+  if (isEcho) cast.echo = echoMult;
+  // ⑦ onCast (cancelado sin coste); el básico de arma tensable lo pasa al disparar (basicAttack)
+  if (!isEcho && def.type !== 'weapon' && firePower('onCast', p, this, p, cast) === false) return false;
+  if (yieldBasic) this.cancelCast('principal');                                     // corta el remate del básico
+  const ctx = this._makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx, fieldDest, destRange, rcState, origin });
+  // CARGAR Y SOLTAR (§3.6): empieza la carga (el coste y el enfriamiento, al soltar).
+  // Una repetición sale a carga completa (frac = 1) sin esperar.
+  if (prof.charge) {
+    if (isEcho || prof.charge.instant || cast.instant) return this._releaseWith(ctx, prof.charge.max, 'auto', { instant: true }) && cast;
+    return this._beginCharge(ctx) && cast;
+  }
+  // bloqueo de acción para el básico: preparación + max(bloqueo, impacto diferido,
+  // vuelo del proyectil hasta la mira), nunca menos que el GCD
+  if (!isEcho && !isBasic && prof.gcd) {
+    const flight = prof.tags.has('proj') ? Math.min(prof.range || 10, p.pos.distanceTo(target)) / Math.max(1, prof.speed || 14) : 0;
+    p.actionLockT = Math.max(p.actionLockT || 0, GCD, (ctx.windup || 0) + Math.max(prof.lockT || 0, prof.impactDelay || 0, flight));
+  }
+  if (!isEcho && prof.gcd && !rcState) p.gcdT = GCD;
+  p.castPose?.(ctx.sk.type);
+  // WINDUP: el golpe se programa; la esquiva lo cancela SIN cobrar el coste
+  if (!isEcho && ctx.windup > 0) {
+    p.castLock = ctx.windup + 0.05;
+    p.swing = Math.max(p.swing || 0, 0.6);
+    if (ctx.stepMoveMul !== 1) p.setMoveMul('windup', ctx.stepMoveMul, ctx.windup + 0.05);
+    const id = this.timers.schedule(ctx.windup, () => {
+      if (this._windup?.id !== id) return;
+      this._windup = null;
+      p.castLock = 0;
+      p.clearMoveMul?.('windup');
+      if (p.alive) this._commitCast(ctx);
+    });
+    this._windup = { id, ctx };
+    return cast;
+  }
+  return this._commitCast(ctx) && cast;
+}
+// ¿esta principal puede salir SOBRE el canal en curso? Solo con el canal de una definitiva
+// imparable (otra ranura) y si es instantánea: sin preparación, sin carga (salvo instant) y sin
+// ser canal, salto, avance, parpadeo ni postura (cortarían o moverían al que canaliza)
+function overUltChannel(prof, def, key) {
+  const inst = this._channel;
+  if (!inst || !inst.unstoppable || inst.ctx.key === key) return false;
+  const chDef = inst.ctx.baseProf?.def || inst.ctx.cast?.sk || inst.ctx.sk;
+  if (chDef?.cat !== 'ultimate' || def.cat !== 'spender') return false;
+  if (prof.windup > 0 || (prof.charge && !prof.charge.instant)) return false;
+  return !OVER_CHANNEL_TYPES_NO.has(def.type);
+}
+
 export const skillMethods = {
   // ---------------- primitivas para poderes (§9.1.4 / §6) ----------------
   // aliados (hoy: el jugador; en cooperativo, los remotos de this.party: entidades
@@ -660,7 +863,7 @@ export const skillMethods = {
   fireProjectile(ctx, opts = {}) {
     const { p, prof, sk, fx } = ctx;
     const color = opts.color ?? ctx.color ?? sk.color ?? 0xffffff;
-    const from = opts.from ? v3(opts.from.x, opts.from.z, 1.0) : p.pos.clone().setY(1.0);
+    const from = opts.from ? v3(opts.from.x, opts.from.z, 1.0) : (ctx.origin ? v3(ctx.origin.x, ctx.origin.z, 1.0) : p.pos.clone().setY(1.0));
     let to = opts.to;
     if (!to) {
       const a = opts.angle ?? Math.atan2(ctx.target.x - from.x, ctx.target.z - from.z);
@@ -679,7 +882,7 @@ export const skillMethods = {
       ...ctx.dmgOpts, hitOpts: ctx.hitExtra || null,
       impactPreset: fxp(fx?.impact),
       onHit: (e, dealt) => {
-        if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; this.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color, prof.chainPct); }
+        if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; this.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color, prof.chainPct, ctx); }
         ctx.hit(e, dealt);
         if (prof.lifesteal && dealt > 0) p.leech(dealt * prof.lifesteal / 100);
         if (e && splashCoef > 0 && prof.radius > 0) {
@@ -697,45 +900,60 @@ export const skillMethods = {
   },
 
   // Canalización por tics del planificador (API pública para comportamientos).
-  // opts = { dur, ticks, interval?, unstoppable, hold = true | false | 'toggle', endless,
+  // opts = { dur, ticks, interval?, unstoppable, slowImmune, hold = true | false | 'toggle', endless,
   //          moveMul, autoShot {every, coef, target:'nearest'|'maxHp', range}, drainPerSec,
-  //          onTick(inst, interval), onEnd(inst, end) }.
+  //          speed (× del tic; por defecto ctx.prof.skillSpeed), onTick(inst, interval), onEnd(inst, end) }.
   // Soltar la tecla (salvo hold:false: Remolino Sangriento gira solo; 'toggle': la 2.ª
   // pulsación), la esquiva o un golpe > 10 % de la vida (si es `int` y no eres imparable)
   // la cortan. endless: dura hasta soltar, quedarte sin recurso o que la corten.
+  // Los tics van a instantes FIJOS desde el inicio (t0 + k·interval): no derivan con los
+  // fotogramas (cola W2d). La velocidad de habilidades acorta el tic y mete más en la misma duración.
   // Termina llamando a done(ctx.res) y a ⑭ onSkillEnd(kind 'channel').
   startChannel(ctx, done, opts = {}) {
     const p = ctx.p;
     const dur = opts.dur || 2;
-    const ticks = Math.max(1, Math.round(opts.ticks || dur / 0.33));
-    const interval = opts.interval || dur / ticks;
+    const ticks0 = Math.max(1, Math.round(opts.ticks || dur / 0.33));
+    const speed = Math.max(0.1, opts.speed ?? ctx.prof?.skillSpeed ?? 1);
+    const interval = (opts.interval || dur / ticks0) / speed;
+    const ticks = speed === 1 ? ticks0 : Math.max(1, Math.round(dur / interval));
     const toggle = opts.hold === 'toggle' || (opts.hold !== false && this.settings?.holdMode === 'toggle');
+    const t0 = this.timers.now || 0;
     const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null,
-      hold: opts.hold !== false && !toggle, toggle, endless: !!opts.endless, interval, autoAcc: 0, endReason: null, released: false, tickN: 0 };
+      hold: opts.hold !== false && !toggle, toggle, endless: !!opts.endless, interval, autoAcc: 0, endReason: null, released: false, tickN: 0,
+      t0, slowImmune: !!opts.slowImmune };
     this._channel = inst;
-    p.castLock = opts.endless ? 1e9 : dur + 0.05;
-    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, opts.endless ? 1e9 : dur + 0.1);
+    p.castLock = opts.endless ? 1e9 : ticks * interval + 0.05;
+    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, opts.endless ? 1e9 : ticks * interval + 0.1);
+    if (inst.slowImmune) p.grantSlowImmune?.(interval + 0.1);
     if (opts.moveMul != null && opts.moveMul !== 1) p.setMoveMul('channel', opts.moveMul);
     const auto = opts.autoShot || null;
+    // el siguiente tic, al instante fijo t0 + (hechos + 1)·interval (un fotograma largo los pone al día)
+    const schedNext = () => { inst.timer = this.timers.schedule(Math.max(0, inst.t0 + (inst.tickN + 1) * interval - this.timers.now - 1e-9), step); };
     const step = () => {
       if (this._channel !== inst) return;
       if (!p.alive) { this._endChannel(inst, true, 'cancel'); return; }
       if (inst.hold && !this.slotHeld(ctx.key)) { this._endChannel(inst, true, 'release'); return; }
       if (opts.drainPerSec > 0 && !drainResource(p, opts.drainPerSec, interval)) { this._endChannel(inst, true, 'drain'); return; }
       inst.tickN++;
+      if (inst.slowImmune) p.grantSlowImmune?.(interval + 0.1);
       try { opts.onTick?.(inst, interval); } catch (err) { console.warn(`[canalización ${ctx.sk?.id}]`, err); }
-      // pull por tic (Ciclón): atrae a los enemigos del radio hacia ti
+      // pull por tic (Ciclón): atrae a los enemigos del radio de atracción (pull.radius o el del
+      // daño) hacia ti; pull.boss:false deja a los jefes
       const pr = ctx.prof;
-      if (pr?.pull > 0 && pr.radius > 0 && !pr.behavior) {
-        for (const e of this.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= pr.radius + 0.5) e.displace?.(p.pos, pr.pull, { toward: true, src: p });
+      const pullR = pr?.pullRadius || pr?.radius || 0;
+      if (pr?.pull > 0 && pullR > 0 && !pr.behavior) {
+        for (const e of this.enemies || []) {
+          if (!e.alive || (pr.pullBoss === false && isBossEnemy(e))) continue;
+          if (e.pos.distanceTo(p.pos) <= pullR + 0.5) e.displace?.(p.pos, pr.pull, { toward: true, src: p });
+        }
       }
       if (auto) { inst.autoAcc += interval; while (inst.autoAcc >= auto.every - 1e-9) { inst.autoAcc -= auto.every; this._autoShot(ctx, auto); } }
       if (!inst.endless) inst.left--;
       if (this._channel !== inst) return;
-      if (inst.endless || inst.left > 0) inst.timer = this.timers.schedule(interval, step);
+      if (inst.endless || inst.left > 0) schedNext();
       else this._endChannel(inst, false, 'done');
     };
-    inst.timer = this.timers.schedule(interval, step);
+    schedNext();
     return undefined; // diferido: termina con el último tic
   },
   // disparo automático de un canal (autoShot): al más cercano o al de más vida en `range`
@@ -751,6 +969,18 @@ export const skillMethods = {
     if (!best) return;
     const coef = (auto.coef ?? ctx.sk.coef ?? 0.5) * (ctx.prof.coef / Math.max(1e-6, ctx.sk.coef || ctx.prof.coef || 1));
     this.fireProjectile(ctx, { to: best.pos.clone(), coef, speed: auto.speed || 22, range: range + 2 });
+  },
+  // LECTURA del canal en curso (API pública; null sin canal): id de la habilidad, ranura, t (s
+  // desde que empezó), dur (total con lo que lo alargaron; Infinity si es endless), left (s que
+  // quedan), tics hechos, interval, toggle, hold, endless, unstoppable y p (quien canaliza)
+  channelInfo() {
+    const inst = this._channel;
+    if (!inst) return null;
+    const t = Math.max(0, (this.timers?.now || 0) - (inst.t0 || 0));
+    const dur = inst.endless ? Infinity : (inst.tickN + Math.max(0, inst.left)) * inst.interval;
+    return { id: inst.ctx.cast?.sk?.id || inst.ctx.sk?.id || null, key: inst.ctx.key || null, t, dur,
+      left: inst.endless ? Infinity : Math.max(0, dur - t), ticks: inst.tickN, interval: inst.interval,
+      toggle: !!inst.toggle, hold: !!inst.hold, endless: !!inst.endless, unstoppable: !!inst.unstoppable, p: inst.ctx.p };
   },
   // alarga la canalización en curso `s` segundos (Danza Carmesí, Tierra Santa)
   extendChannel(p, s) {
@@ -810,13 +1040,17 @@ export const skillMethods = {
   },
   // Encadenado: rebotes a enemigos cercanos, hasta `jumps`. Sin pct, −25 % por salto
   // (compuesto, como siempre); con pct (Rayo en Cadena: chainPct 70), cada salto hace el pct %
-  // del golpe base.
-  spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color, pct = 0) {
+  // del golpe base. La cadena se traza al lanzar (cada eslabón, el más cercano a 6 m del anterior
+  // que no esté ya en ella ni en `exclude`) y cada salto NACE en el enemigo del que sale y golpea
+  // al SIGUIENTE: su castHits lleva a todos los demás eslabones (ni el origen ni otro eslabón
+  // reciben dos veces). Con `ctx` (el del lanzamiento) lleva su habilidad, tags, elemento y marcas
+  // (perfect, echo…): cuenta para indicadores y poderes. HitInfo.source = 'chain'.
+  spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color, pct = 0, ctx = null) {
     if (!fromEnemy || baseDmg <= 0 || jumps <= 0) return;
     const seen = new Set(exclude || []);
     seen.add(fromEnemy);
-    let origin = fromEnemy;
-    let dmg = baseDmg;
+    const links = [];
+    let origin = fromEnemy, dmg = baseDmg;
     for (let j = 0; j < jumps; j++) {
       dmg = pct > 0 ? Math.round(baseDmg * pct / 100) : Math.round(dmg * 0.75);
       if (dmg <= 0) break;
@@ -828,12 +1062,20 @@ export const skillMethods = {
       }
       if (!next) break;
       seen.add(next);
-      this.spawnProjectile({
-        from: origin.pos.clone().setY(1.0), to: next.pos.clone().setY(1.0),
-        speed: 18, range: Math.sqrt(bd) + 1, dmg, crit: false, friendly: true,
-        color: color || 0x66ddff, size: 0.12,
-      });
+      links.push({ from: origin, to: next, dmg, dist: Math.sqrt(bd) });
       origin = next;
+    }
+    const info = ctx?.hitInfo || null;
+    const hitOpts = { ...(ctx?.hitExtra || {}), source: 'chain' };
+    for (const l of links) {
+      const others = new Set(seen);
+      others.delete(l.to);
+      this.spawnProjectile({
+        from: l.from.pos.clone().setY(1.0), to: l.to.pos.clone().setY(1.0),
+        speed: 18, range: l.dist + 1, dmg: l.dmg, crit: false, friendly: true,
+        color: color || 0x66ddff, size: 0.12, castHits: others,
+        skill: info?.skill || null, tags: info?.tags || null, elem: info?.elem || null, hitOpts,
+      });
     }
   },
   // daño en área: tira el golpe POR OBJETIVO (bonos condicionados) y aplica efectos
@@ -884,15 +1126,18 @@ export const skillMethods = {
       return perp <= width / 2 + 0.5 * (e.def?.scale || 1);
     });
   },
-  // destino transitable más lejano en la recta hacia `to` (acotado a `maxD`)
+  // destino transitable más lejano en la recta hacia `to` (acotado a `maxD`), en pasos de 0,3 m
+  // y el último hasta la distancia exacta (un salto de 8 m cae a 8 m, no a 7,8)
   clampWalkable(from, to, maxD) {
     const dir = to.clone().sub(from).setY(0);
     const dist = Math.min(dir.length(), maxD);
     if (dist < 0.05) return from.clone();
     dir.normalize();
     const out = from.clone();
-    for (let t = 0.3; t <= dist + 1e-6; t += 0.3) {
-      const nx = from.x + dir.x * Math.min(t, dist), nz = from.z + dir.z * Math.min(t, dist);
+    const n = Math.ceil(dist / 0.3 - 1e-9);
+    for (let i = 1; i <= n; i++) {
+      const t = Math.min(i * 0.3, dist);
+      const nx = from.x + dir.x * t, nz = from.z + dir.z * t;
       if (this.world?.grid && !this.world.grid.walkable(nx, nz)) break;
       out.x = nx; out.z = nz;
     }
@@ -1031,23 +1276,27 @@ export const skillMethods = {
   },
 
   // ---------------- canal de lanzamiento ⑦ ----------------
-  // punto y enemigo objetivo de un lanzamiento (ratón en PC; si no, el más cercano)
-  skillTarget(p, prof) {
+  // punto y enemigo objetivo de un lanzamiento (ratón en PC; si no, el más cercano).
+  // aim ({x, z}): punto fijado por quien lanza (g.castEcho) en lugar del ratón; from: desde dónde
+  // se mide el alcance (el héroe por defecto; el `origin` de una repetición)
+  skillTarget(p, prof, aim = null, from = null) {
+    const o = from ? v3(from.x, from.z) : p.pos;
     const maxRange = prof.range || 8;
-    const near = this.nearestEnemy(maxRange + 2);
+    const near = this.nearestEnemy(maxRange + 2, from ? o : null);
     let target;
-    if (this.input?.mouseWorld) target = this.input.mouseWorld.clone();
+    if (aim) target = v3(aim.x, aim.z);
+    else if (this.input?.mouseWorld) target = this.input.mouseWorld.clone();
     else if (near) target = near.pos.clone();
     else {
       const fwd = v3(Math.sin(p.group.rotation.y), Math.cos(p.group.rotation.y));
-      target = p.pos.clone().addScaledVector(fwd, Math.min(4, maxRange));
+      target = o.clone().addScaledVector(fwd, Math.min(4, maxRange));
     }
-    const delta = target.clone().sub(p.pos); delta.y = 0;
-    if (delta.length() > maxRange) target = p.pos.clone().addScaledVector(delta.normalize(), maxRange);
+    const delta = target.clone().sub(o); delta.y = 0;
+    if (delta.length() > maxRange) target = o.clone().addScaledVector(delta.normalize(), maxRange);
     target.y = 0;
     // melee: el enemigo más cercano a TI dentro del alcance; resto: el más cercano a la mira
     const enemy = prof.type === 'melee'
-      ? this.nearestEnemy(Math.max(2.2, prof.range || 2.2) + 0.6)
+      ? this.nearestEnemy(Math.max(2.2, prof.range || 2.2) + 0.6, from ? o : null)
       : (this.nearestEnemy(3, target) || near);
     return { target, near: enemy };
   },
@@ -1071,149 +1320,45 @@ export const skillMethods = {
     if (!skId) return false;
     const sk = p.cls.skills.find(s => s.id === skId);
     if (!sk || !isKnown(p, sk)) return false;
-    const isEcho = echoMult > 0;
-    const prof = resolveSkill(p, sk);
-    const def = prof.def || sk;
-    // ---- §3.6.1: una CARGA en curso bloquea las demás ranuras, salvo la movilidad (la
-    // cancela sin coste) y una postura con swapGcd 0 (se alterna sin cortarla) ----
-    if (!isEcho && this._charging) {
-      const c = this._charging;
-      if (c.key === key) {
-        if (c.toggle) this.releaseSkillSlot(key, { force: true });   // 2.ª pulsación en modo toggle: suelta
-        return false;
-      }
-      if (def.cat === 'movement') this._endCharge('cancel');
-      else if (!(def.type === 'stance' && (def.stance?.swapGcd ?? 0) === 0)) return false;
-    }
-    // canal enganchado (toggle): la 2.ª pulsación de su ranura lo suelta
-    if (!isEcho && this._channel?.toggle && this._channel.ctx.key === key) { this._endChannel(this._channel, true, 'release'); return false; }
-    // tras una suelta AUTOMÁTICA hay que soltar el botón antes de volver a cargar
-    if (!isEcho && this._needsRelease?.[key]) return false;
-    // repeticiones: como mucho echoCap por lanzamiento original (una repetición no genera otra)
-    const sst = skStateOf(p, sk.id);
-    if (isEcho) {
-      const ec = sst.echo || (sst.echo = { seq: -1, n: 0 });
-      if (ec.n >= VERB_DEFAULTS.echoCap) return false;
-      ec.n++;
-    }
-    if (def.type === 'weapon' && !prof.charge) { if (!isEcho) this.castBasic(); return !isEcho; }
-    // activa de talento sin comportamiento todavía (Paso 2c.1): no se lanza ni cobra
-    if (!skillCastable(def)) {
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (!isEcho && (!this._noCastAt || now - this._noCastAt > 1500)) { this.ui?.message?.(`${sk.name}: aún no disponible`); this._noCastAt = now; }
-      return false;
-    }
-    const isBasic = def.cat === 'basic';
-    // ventana de RELANZAR abierta (§3.6): sin coste (free) ni enfriamiento propio; separación `gap`
-    const rcState = !isEcho && prof.recast && sst.recast?.left > 0 ? sst.recast : null;
-    const stanceSwapFree = def.type === 'stance' && (def.stance?.swapGcd ?? 0) === 0;
-    const stanceEnding = def.type === 'stance' && (def.stance?.modes?.length || 0) === 1 && sst.stance?.mode != null && def.stance?.recastEnds !== false;
-    // una principal puede CANCELAR el windup de un básico en curso (el remate del
-    // Mandoble), como en D4: la principal tiene prioridad sobre el básico
-    const yieldBasic = !isEcho && !isBasic && !!this._windup?.ctx?.isBasic;
-    if (!isEcho) {
-      const locked = (p.castLock > 0 || this._windup) && !yieldBasic;
-      if ((locked && !stanceSwapFree) || p.leap || p.dashMove || this._channel) return false;   // bloqueo en curso
-      if (isBasic) {
-        if (p.atkCd > 0) return false;
-        // bloqueo de ACCIÓN compartido: mientras una principal prepara, bloquea o
-        // vuela hacia su impacto, el básico no sale (queda a la espera con el
-        // botón mantenido); y si hay una principal pedida y lista, cede el turno
-        if (p.actionLockT > 0 || this._spenderWaiting()) return false;
-      } else if (rcState) {
-        if ((p.simT || 0) - (rcState.lastAt || 0) < rcState.gap - 1e-9) return false;
-      } else if (!stanceEnding && !this._skillReady(p, sk)) return false;
-      // una sola acción por frame: si el básico acaba de salir en ESTE instante, la
-      // principal sale en el siguiente (16 ms; el básico no la retrasa más que eso)
-      if (!isBasic && p.basicAt != null && p.basicAt === p.simT) return false;
-      if (prof.gcd && p.gcdT > 0 && !stanceSwapFree && !rcState) return false;          // GCD 0,2 s
-      const free = (rcState && prof.recast.free) || stanceEnding;
-      if (!free && !canAfford(p, prof.cost)) {
-        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        if (!this._noResAt || now - this._noResAt > 700) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); this._noResAt = now; }
-        return false;
-      }
-    }
-    // POSTURA (§3.6): su propio flujo (cambiar de modo, acabar, Guardia Total)
-    if (def.type === 'stance') return this._castStance(p, sk, prof, key, isEcho);
-    const { target, near } = this.skillTarget(p, prof);
-    // SALTAR A TU CAMPO (at:'ownField'): sin campo de ese tipo a tu alcance no se lanza (sin
-    // coste), salvo fallbackRange (salto normal de esa distancia)
-    let fieldDest = null, destRange = 0;
-    if (def.at === 'ownField' && (def.type === 'leap' || def.type === 'blink' || def.type === 'dash')) {
-      const f = this.nearestOwnField(p, target, { kind: def.fieldKind, from: p.pos, maxDist: prof.range || def.range || 15 });
-      if (f) fieldDest = v3(f.pos.x, f.pos.z);
-      else if (def.fallbackRange > 0) destRange = def.fallbackRange;
-      else {
-        if (!isEcho) this.ui?.message?.('Ningún campo tuyo a tu alcance');
-        return false;
-      }
-    }
-    if (prof.type === 'melee' && !prof.behavior && (!near || p.pos.distanceTo(near.pos) > (prof.range || 2.2) + 0.6)) {
-      // básico cuerpo a cuerpo sin objetivo: golpe al vacío (no genera recurso)
-      if (isBasic && !isEcho) {
-        if (this.input?.mouseWorld) p.faceToward(this.input.mouseWorld);
-        p.atkCd = p.stats.atkTime * 0.6; p.swing = 1;
-        return false;
-      }
-      // con el clic mantenido no spamear el aviso cada frame
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (!isEcho && (!this._noTgtAt || now - this._noTgtAt > 900)) { this.ui?.message?.('Ningún enemigo al alcance'); this._noTgtAt = now; }
-      return false;
-    }
-    // COMBO: paso que toca (el 1.º si caducó la ventana); una repetición usa el actual sin avanzar
-    let comboIdx = -1;
-    if (def.type === 'combo' && Array.isArray(def.steps) && def.steps.length) {
-      const cs = sst.combo || (sst.combo = { idx: 0, until: 0 });
-      if ((p.simT || 0) > cs.until) cs.idx = 0;
-      comboIdx = Math.min(cs.idx, def.steps.length - 1);
-    }
-    // SECUENCIA (no arma; la de arma la cuenta Player.basicAttack)
-    const seq = !isEcho && def.seq && def.type !== 'weapon' ? this.seqAdvance(p, sk) : null;
-    // CastInfo.sk = definición FORJADA (los poderes y los comportamientos leen la forma real)
-    const cast = { sk: def, prof, slot: key, target, enemy: near };
-    if (rcState) cast.recast = { idx: rcState.idx + 1, left: rcState.left - 1, perfect: rcState.perfectLast > 0 && rcState.until - (p.simT || 0) <= rcState.perfectLast + 1e-9 };
-    if (comboIdx >= 0) cast.step = comboIdx + 1;
-    if (seq) { cast.seqNth = seq.nth; cast.seqIdx = seq.idx; }
-    if (isEcho) cast.echo = echoMult;
-    // ⑦ onCast (cancelado sin coste); el básico de arma tensable lo pasa al disparar (basicAttack)
-    if (!isEcho && def.type !== 'weapon' && firePower('onCast', p, this, p, cast) === false) return false;
-    if (yieldBasic) this.cancelCast('principal');                                     // corta el remate del básico
-    const ctx = this._makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx, fieldDest, destRange, rcState });
-    // CARGAR Y SOLTAR (§3.6): empieza la carga (el coste y el enfriamiento, al soltar).
-    // Una repetición sale a carga completa (frac = 1) sin esperar.
-    if (prof.charge) {
-      if (isEcho || prof.charge.instant || cast.instant) return this._releaseWith(ctx, prof.charge.max, 'auto', { instant: true });
-      return this._beginCharge(ctx);
-    }
-    // bloqueo de acción para el básico: preparación + max(bloqueo, impacto diferido,
-    // vuelo del proyectil hasta la mira), nunca menos que el GCD
-    if (!isEcho && !isBasic && prof.gcd) {
-      const flight = prof.tags.has('proj') ? Math.min(prof.range || 10, p.pos.distanceTo(target)) / Math.max(1, prof.speed || 14) : 0;
-      p.actionLockT = Math.max(p.actionLockT || 0, GCD, (ctx.windup || 0) + Math.max(prof.lockT || 0, prof.impactDelay || 0, flight));
-    }
-    if (!isEcho && prof.gcd && !rcState) p.gcdT = GCD;
-    p.castPose?.(ctx.sk.type);
-    // WINDUP: el golpe se programa; la esquiva lo cancela SIN cobrar el coste
-    if (!isEcho && ctx.windup > 0) {
-      p.castLock = ctx.windup + 0.05;
-      p.swing = Math.max(p.swing || 0, 0.6);
-      if (ctx.stepMoveMul !== 1) p.setMoveMul('windup', ctx.stepMoveMul, ctx.windup + 0.05);
-      const id = this.timers.schedule(ctx.windup, () => {
-        if (this._windup?.id !== id) return;
-        this._windup = null;
-        p.castLock = 0;
-        p.clearMoveMul?.('windup');
-        if (p.alive) this._commitCast(ctx);
-      });
-      this._windup = { id, ctx };
-      return true;
-    }
-    return this._commitCast(ctx);
+    return !!castSkillCore.call(this, p, sk, key, { echoMult });
+  },
+
+  // REPETICIÓN GRATIS de una habilidad conocida, esté o no en la barra (Ventisca Viva, Remolino,
+  // Corazón del Sol/Invierno 4, Lluvia en Retirada, Instinto…): sin coste, enfriamiento, GCD,
+  // preparación ni carga (sale a carga completa), × mult de su potencia. Lleva SU PROPIA serie de
+  // repeticiones (tope echoCap dentro de ella; `series` = { n } para encadenar varias en la misma):
+  // no toca p.skState[id].echo del jugador, ni p.hotbar, ni g.input.mouseWorld. at = {x, z}: mira
+  // (acotada al alcance desde el origen); origin = {x, z}: de dónde sale (una habilidad `at:'self'`
+  // se centra ahí; un proyectil, una línea o un cono salen de ahí). Como toda repetición, no
+  // dispara ⑦ ni genera otra. Una CANALIZACIÓN no se repite (null): el canal es del héroe (su
+  // ranura mantenida, castLock, freno y drenaje). Llamada desde otra castEcho en curso (un poder
+  // que repite desde el golpe de una repetición), hereda su serie: el tope echoCap vale para
+  // toda la cadena y no hay recursión sin fin. → el CastInfo o null.
+  // Retrocompatible con castEchoOf de la Arquera: castEcho(p, id, mult, { at }).
+  castEcho(p, id, opts = {}, legacy = null) {
+    if (typeof opts === 'number') opts = { ...(legacy || {}), mult: opts };
+    const { mult = 1, at = null, origin = null, series = null } = opts || {};
+    p = p || this.player;
+    if (!p || p !== this.player || !p.alive || this.state !== 'play' || !(mult > 0)) return null;
+    const sk = p.cls?.skills?.find(s => s.id === id);
+    if (!sk || !isKnown(p, sk)) return null;
+    const def = resolveSkill(p, sk).def || sk;
+    if (def.type === 'channel') return null;
+    // anidada: la serie de la castEcho en curso; y nunca más de echoCap niveles (una serie
+    // propia en cada nivel no la frena)
+    const outer = this._echoRun || null;
+    if (outer && outer.depth >= VERB_DEFAULTS.echoCap) return null;
+    const run = { series: series || outer?.series || { seq: -1, n: 0 }, depth: (outer?.depth || 0) + 1 };
+    this._echoRun = run;
+    let res;
+    try { res = castSkillCore.call(this, p, sk, null, { echoMult: mult, series: run.series, at, origin }); }
+    finally { this._echoRun = outer; }
+    return res && res !== true ? res : null;
   },
 
   // contexto de un lanzamiento (ctx de los tipos genéricos). Con combo, `sk`/`prof` del paso.
-  _makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx = -1, fieldDest = null, destRange = 0, rcState = null, charge = null }) {
+  // origin ({x, z}): de dónde sale una repetición de g.castEcho (srcPos)
+  _makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx = -1, fieldDest = null, destRange = 0, rcState = null, charge = null, origin = null }) {
     const def = prof.def || sk;
     const isBasic = def.cat === 'basic';
     let stepDef = def, stepProf = prof, windup = prof.windup, stepMoveMul = prof.moveMul;
@@ -1221,16 +1366,22 @@ export const skillMethods = {
       const step = def.steps[comboIdx] || {};
       stepDef = { ...def, ...step, type: step.type || 'melee', steps: undefined };
       const wb = step.windup || 0;
-      windup = wb > 0 ? Math.max(0, (wb + (prof.mods?.windupAdd || 0)) * Math.max(0, 1 + (prof.mods?.windupMul || 0) / 100)) : 0;
+      // talentos @windup de los pasos CON preparación ('<id>@windup': prof.windupMods), solo en ese paso
+      const wm = wb > 0 ? prof.windupMods : null;
+      const wAdd = (prof.mods?.windupAdd || 0) + (wm?.windupAdd || 0), wMul = (prof.mods?.windupMul || 0) + (wm?.windupMul || 0);
+      windup = wb > 0 ? Math.max(0, (wb + wAdd) * Math.max(0, 1 + wMul / 100)) / (prof.skillSpeed || 1) : 0;
       stepMoveMul = step.moveMul ?? prof.moveMul;
+      if (wm) stepMoveMul = Math.max(wm.moveMulMin || 0, stepMoveMul + (wm.moveMulAdd || 0) / 100);
       stepProf = { ...prof, type: stepDef.type, def: stepDef,
         coef: prof.coef * (step.coef ?? 1),
+        addPct: prof.addPct + (wm?.dmg || 0), critBonus: prof.critBonus + (wm?.crit || 0),
         radius: step.radius != null ? step.radius * prof.radiusMul : prof.radius,
         range: step.range != null ? step.range * prof.rangeMul : prof.range,
         angle: step.angle ?? prof.angle, width: step.width ?? prof.width,
         dot: step.dot || prof.dot, windup };
     }
-    const fx = SKILL_FX[sk.id] || null;
+    // VFX con los de la variante forjada encima (por id de variante, MAGA_FORGE_FX o vars.i|ii)
+    const fx = skillFxFor(sk.id, def.forged) || null;
     const dotKind = stepProf.dot;
     const color = def.color || (dotKind ? DOT_COLORS[dotKind] : null) || undefined;
     const coef = stepProf.coef * (isEcho ? echoMult : 1) * (charge?.coefMul || 1);
@@ -1251,13 +1402,18 @@ export const skillMethods = {
       res: { hits: 0, dealt: 0, killed: 0 },
       windup: isEcho ? 0 : windup, stepMoveMul, comboIdx, fieldDest, destRange, rcState,
       chargeFull: charge?.full ? charge.fullDef : null, seqNth: !!cast.seqNth,
+      origin: origin ? { x: origin.x, z: origin.z } : null,
+      hitSet: new Set(),                       // golpeados por el impacto (la onda no los repite)
     };
     // impacto REAL sobre un enemigo: cuenta, daño infligido y efectos de forja/soporte
     // (`from`: origen de atraer/empujar; por defecto el héroe)
     ctx.hit = (e, dealt, from = null) => {
       ctx.res.hits++;
       ctx.res.dealt += dealt || 0;
-      applyHitEffects(this, p, e, ctx.prof, ctx.avgHit, { from });
+      if (e) ctx.hitSet.add(e);
+      // pull.boss:false también al golpear (Arpón): al jefe no se lo atrae; lo demás, igual
+      const pr = ctx.prof.pullBoss === false && ctx.prof.pull > 0 && isBossEnemy(e) ? { ...ctx.prof, pull: 0 } : ctx.prof;
+      applyHitEffects(this, p, e, pr, ctx.avgHit, { from });
       if (e && !e.alive) ctx.res.killed++;
     };
     ctx.areaOpts = { addPct, critBonus: stepProf.critBonus, coldblood: prof.coldblood, color, hitInfo, onHit: ctx.hit, hitExtra };
@@ -1335,11 +1491,14 @@ export const skillMethods = {
       this.reduceCooldown(p, sk.id, Math.max(0, base.cd - reduced));
     }
     // Estela (zone): daña y, si la habilidad ralentiza (prof.slow), también ralentiza
-    // (Paso 2c.2: el suelo helado de Nova Perpetua es la Estela de una Nova que ralentiza)
+    // (Paso 2c.2: el suelo helado de Nova Perpetua es la Estela de una Nova que ralentiza).
+    // Daño por segundo: zonePct % del arma (con el rango y el saco aditivo) o el 45 % del golpe
     if (prof.zone && ctx.zoneCenter && this.spawnField) {
+      const zp = base.zonePct || 0;
+      const dps = zp > 0 ? p.avgHit(zp / 100 * rankCoef(base.rank), base.addPct) : ctx.avgHit * 0.45;
       this.spawnField('estela', { pos: ctx.zoneCenter, radius: Math.max(2, (ctx.zoneRad || 2) * 0.9), dur: prof.zoneDur, owner: p,
         maxPerSkill: base.zoneMax || 0,
-        data: { dps: ctx.avgHit * 0.45, color: def.color || 0xff7733, skill: sk.id, slow: prof.slow > 0 ? prof.slow : 0, slowPct: prof.slowPct || 30 } });
+        data: { dps, color: def.color || 0xff7733, skill: sk.id, slow: prof.slow > 0 ? prof.slow : 0, slowPct: prof.slowPct || 30 } });
     }
     // recurso de los básicos no-arma (Mandoble/Embate): solo si golpean (+extra por objetivo)
     if (isBasic && !isEcho && res.hits > 0) {
@@ -1364,10 +1523,12 @@ export const skillMethods = {
         });
       }
     }
-    // onda tras el golpe (Onda Sagrada): línea hacia la mira desde el centro del impacto
+    // onda tras el golpe (Onda Sagrada): línea hacia la mira desde el centro del impacto, solo a
+    // los que el impacto NO alcanzó (ctx.hitSet)
     if (def.wave && !isEcho) {
       const w = def.wave, dir = aimDir(p, ctx.target);
-      const list = this.enemiesInLine(center, dir, w.range || 8, w.width || 2);
+      const struck = ctx.hitSet ? new Set(ctx.hitSet) : null;
+      const list = this.enemiesInLine(center, dir, w.range || 8, w.width || 2).filter(e => !struck?.has(e));
       for (const e of list) {
         const { dmg, crit } = p.rollDamage(ctx.coef * (w.coef ?? 0.6), prof.critBonus, prof.addPct, e, ctx.hitInfo);
         ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0, center);
@@ -1387,7 +1548,7 @@ export const skillMethods = {
       this.spawnField('senuelo', { pos: center, radius: def.lure.radius || 8, dur: def.lure.dur || 6, owner: p, data: { lure: { ...def.lure }, skill: sk.id } });
     }
     // detonar al impactar un área o al llegar (las de proyectil detonan en su impacto)
-    if (def.detonate && !ctx.sk.type?.startsWith('proj') && !['leap', 'dash', 'blink'].includes(ctx.sk.type)) this.detonateAt(p, center, def.detonate, { skill: sk.id });
+    if (base.detonate && !ctx.sk.type?.startsWith('proj') && !['leap', 'dash', 'blink'].includes(ctx.sk.type)) this.detonateAt(p, center, base.detonate, { skill: sk.id });
     // reinicio al matar (killReset)
     if (!isEcho && base.killReset && res.killed > 0) this.reduceCooldown(p, sk.id, Infinity);
     // relanzar: abre o avanza la cadena (no con repeticiones)
@@ -1413,7 +1574,8 @@ export const skillMethods = {
       const r = (prof.radius || 2) + 0.5;
       for (const e of this.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= r) e.applyCC?.('taunt', prof.taunt, { src: p });
     }
-    if (sk.detonate) this.detonateAt(p, p.pos, sk.detonate, { skill: sk.id });
+    const det = (ctx.baseProf || prof).detonate;
+    if (det) this.detonateAt(p, p.pos, det, { skill: sk.id });
     // estela del avance (Sendero de Luz): campo en línea del inicio al final
     const tr = (ctx.baseProf || prof).trail;
     if (tr && from && this.spawnField) {
@@ -1513,6 +1675,32 @@ export const skillMethods = {
     const before = p.cds[id] || 0;
     p.cds[id] = amount === Infinity ? 0 : Math.max(0, before - amount);
     return before - p.cds[id];
+  },
+
+  // PONE una recarga de `s` segundos (API pública: Inquebrantable, «vuelve 15 s después»): la
+  // ranura la muestra entera (p.cds y p.cdMax = s) y sustituye a la que hubiera, también a la que
+  // esperaba al efecto (cdOnEnd). Con cargas, gasta una (si queda) y la siguiente llega en `s`
+  // (las demás, con su recarga de siempre). → true si la puso
+  startCooldown(p, id, s) {
+    p = p || this.player;
+    if (!p || !id || !(s > 0) || !Number.isFinite(s)) return false;
+    const sk = p.cls?.skills?.find(x => x.id === id);
+    if (!sk) return false;
+    const prof = resolveSkill(p, sk);
+    (p._cdRed || (p._cdRed = {}))[id] = 0;
+    if (p._cdHold) delete p._cdHold[id];
+    p.cdMax = p.cdMax || {};
+    if (prof?.charges > 1) {
+      const ch = this._syncCharges(p, id, prof);
+      ch.n = Math.max(0, ch.n - 1);
+      ch.nextAt = (p.simT || 0) + s;
+      p.cdMax[id] = s;
+      this._syncCharges(p, id, prof);
+      return true;
+    }
+    p.cds[id] = s;
+    p.cdMax[id] = s;
+    return true;
   },
 
   // reinicia TODOS los enfriamientos y cargas (respec, cambio de especialización): la vía para
@@ -1728,6 +1916,21 @@ export const skillMethods = {
     return e.marks[id];
   },
   marksOf(e) { return Object.values(e?.marks || {}).filter(m => m && m.t > 0); },
+  // ALARGA una marca viva (API pública: Condena, «tus marcas duran el doble»): t = t × mul + add,
+  // y su Debilidad (mark.weakPct) dura lo mismo. Con t ≤ 0 se van la marca y su Debilidad. → la marca o null
+  extendMark(e, markId, { mul = 1, add = 0 } = {}) {
+    const m = e?.marks?.[markId];
+    if (!m || !(m.t > 0)) return null;
+    m.t = m.t * Math.max(0, Number.isFinite(mul) ? mul : 1) + (Number.isFinite(add) ? add : 0);
+    if (!(m.t > 0)) {
+      delete e.marks[markId];
+      if (e.debuffs) delete e.debuffs[`mark:${markId}`];   // su Debilidad se va con ella
+      return null;
+    }
+    const wk = e.debuffs?.[`mark:${markId}`];
+    if (wk && e.applyWeakness) e.applyWeakness(`mark:${markId}`, wk.pct, m.t);
+    return m;
+  },
   // detona a mano una marca (poderes): consume un uso y, con opts.dmg, hace ese daño (proc)
   detonateMark(e, id, opts = {}) {
     const m = e?.marks?.[id];
@@ -1803,12 +2006,20 @@ export const skillMethods = {
   _releaseWith(ctx, u, reason, { instant = false } = {}) {
     const { p, prof, sk } = ctx;
     const ch = prof.charge;
+    // soltar ANTES del mínimo declarado (charge.min > 0: minHold) no dispara: cancela sin coste,
+    // como la esquiva (⑭ con reason 'early'). Sin min declarado o con min 0, un toque dispara
+    // al mínimo (Martillo de Guerra, Cuerda Tensa)
+    if (reason === 'release' && !instant && !ctx.isEcho && ch.minHold && u < ch.min - 1e-9) {
+      if (this._charging?.ctx === ctx) this._endCharge('early');
+      return false;
+    }
     const c = this._charging;
     if (c && c.ctx === ctx) { this._charging = null; p.clearMoveMul?.('charge'); }
-    // Punto Débil (mark.firstCharged): la primera carga contra él es perfecta (+pct)
+    // Punto Débil (mark.firstCharged): la primera carga contra él es perfecta (+pct). Una suelta
+    // por debajo de charge.markMin (un toque del básico tensable) ni la gasta ni la fuerza
     let firstPct = 0;
     const tgt = this.nearestEnemy?.(3, ctx.target) || ctx.enemy;
-    if (tgt?.marks) {
+    if (tgt?.marks && !(u < (ch.markMin || 0) - 1e-9)) {
       for (const [id, m] of Object.entries(tgt.marks)) {
         if (!m?.firstCharged || !(m.t > 0) || m.by !== p) continue;
         ctx.cast.forcePerfect = true;
@@ -1825,7 +2036,8 @@ export const skillMethods = {
     ctx.cast.perfect = rel.perfect;
     // el ctx se rehace con la carga (coef, radio, alcance, perfecto)
     const ctx2 = this._makeCtx(p, sk, prof, ctx.key, ctx.cast, { target: ctx.target, near: ctx.enemy, isEcho: ctx.isEcho,
-      echoMult: ctx.isEcho ? (ctx.coef / Math.max(1e-6, prof.coef)) : 0, comboIdx: ctx.comboIdx, fieldDest: ctx.fieldDest, destRange: ctx.destRange, rcState: ctx.rcState, charge });
+      echoMult: ctx.isEcho ? (ctx.coef / Math.max(1e-6, prof.coef)) : 0, comboIdx: ctx.comboIdx, fieldDest: ctx.fieldDest, destRange: ctx.destRange, rcState: ctx.rcState, charge,
+      origin: ctx.origin });
     if (ctx.isEcho) ctx2.coef = ctx.coef * (charge.coefMul || 1);
     // feedback del borde (D26): perfecto o fuera de la ventana; la racha de perfectos
     if (!ctx.isEcho) {
