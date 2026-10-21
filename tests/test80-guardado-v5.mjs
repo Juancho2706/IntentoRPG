@@ -7,8 +7,9 @@
 //  2) talentos: v2 con la misma especialización y el Recomendado vigente al nivel del save
 //     (héroe incluido si el Paragon se abre); sin especialización antes del Nv10; v2 → normaliza
 //  3) forja: 3.ª rama → variante, absorciones de la barra, precedencia, null, sin skillMods
-//  4) tablero: sin nodos ni puntos; glifos a la bolsa o sin engarzar si no caben
-//  5) barra: destinos por id/ranura/especialización/'*', to:null, fitsSlot, sin duplicados,
+//  4) tablero: sin nodos ni puntos; glifos a la bolsa o SUELTOS (paragon.loose) si no caben
+//  5) barra: destinos por id/ranura/especialización/'*', to:null (también por ranura), objeto sin
+//     clave aplicable = inválido, fitsSlot (destino que no cabe ni se repite), sin duplicados,
 //     conocidas (activas de talento y kit de otra especialización fuera), SPEC_BAR → FALLBACK,
 //     lmb nunca vacía, ranuras vacías siguen vacías
 //  6) soportes reencajados sobre la definición forjada; lo demás vuelve a knownSupports
@@ -59,6 +60,9 @@ const LEG = {
       m_estela_ignea: { to: { k2: 'm_armadura', piromante: 'm_paso_escarcha', '*': 'm_estela_ignea' } },
       p_llamarada: { to: { piromante: 'fx_piromante_k3', '*': 'fx_crionte_k3' } },
       m_t_barrera: { to: 'm_t_inversion' },
+      m_u_tormenta: { to: 'bola_fuego' },                                           // gastadora: no cabe en k4
+      m_u_desgarro: { to: { k4: null, '*': 'm_u_supernova' } },                     // null EXPLÍCITO en k4
+      m_armadura: { to: { k1: 'm_paso_escarcha' } },                                // en k2: sin clave aplicable
     },
     forge: {
       bola_fuego: { bola_fuego_v1: 'i', bola_fuego_v2: 'ii', bola_fuego_v3: null },
@@ -105,7 +109,12 @@ export function checkLegacy(cid, t) {
   for (const k of ['bar', 'forge']) if (!t[k] || typeof t[k] !== 'object' || Array.isArray(t[k])) err(`${k} debe ser un objeto`);
   if (!Array.isArray(t.removed)) err('removed debe ser una lista');
   if (typeof t.notice !== 'string') err('notice debe ser un texto');
-  if ('insignia' in t) err('insignia ya no va aquí (V4_INSIGNIA en save-schema.js)');
+  // insignia: opcional y la migración la IGNORA (MIGRATIONS[3] usa V4_INSIGNIA congelada en
+  // save-schema.js); si KA la escribe (§3.11), tiene que coincidir con la congelada
+  if ('insignia' in t) {
+    if (!t.insignia || typeof t.insignia !== 'object' || Array.isArray(t.insignia)) err('insignia debe ser un objeto { specId: id }');
+    else for (const [sp, id] of Object.entries(t.insignia)) if (S.V4_INSIGNIA[cid]?.[sp] !== id) err(`insignia.${sp}: «${id}» ≠ V4_INSIGNIA (${S.V4_INSIGNIA[cid]?.[sp]})`);
+  }
   const target = (id, at) => { if (id !== null && !(typeof id === 'string' && exists(id))) err(`${at}: destino «${id}» no está en el catálogo`); };
   for (const [id, e] of Object.entries(t.bar || {})) {
     if (!old.has(id)) err(`bar.${id}: no es una habilidad v4`);
@@ -141,10 +150,17 @@ for (const cid of ['maga', 'guerrero', 'arquera']) {
 {
   const bad = json(LEG.maga);
   bad.bar.zzz = { to: 'm_dardo' }; bad.bar.m_onda = { to: 'no_existe' }; bad.bar.rayo = { to: { k9: 'm_dardo' } };
-  bad.forge.rayo = { rayo_o1: 'i' }; bad.bar.m_ascua.forge = 'iii'; bad.removed.push('zzz'); bad.insignia = {};
+  bad.forge.rayo = { rayo_o1: 'i' }; bad.bar.m_ascua.forge = 'iii'; bad.removed.push('zzz'); bad.insignia = { piromante: 'k_prision' };
   const E = checkLegacy('maga', bad);
-  for (const frag of ['bar.zzz', 'bar.m_onda.to', 'bar.rayo.to.k9', 'forge.rayo', 'bar.m_ascua.forge', 'removed', 'insignia'])
+  for (const frag of ['bar.zzz', 'bar.m_onda.to', 'bar.rayo.to.k9', 'forge.rayo', 'bar.m_ascua.forge', 'removed', 'insignia.piromante'])
     assert.ok(E.some(e => e.includes(frag)), `el comprobador de tablas detecta ${frag}:\n${E.join('\n')}`);
+  // una tabla que sigue el ejemplo de §3.11 al pie de la letra (con su insignia) es válida, y la
+  // migración la ignora: da lo mismo que sin ella
+  const plain = json(LEG.maga); delete plain.forge.m_armadura;               // sin la variante «zz» de prueba
+  const withIns = { ...json(plain), insignia: { ...S.V4_INSIGNIA.maga } };
+  assert.deepEqual(checkLegacy('maga', withIns), [], 'insignia igual a V4_INSIGNIA: válida');
+  const probe = v4({ level: 40, hotbar: { lmb: 'm_dardo', k3: 'p_llamarada' } });
+  assert.deepEqual(mig(probe, { legacy: { ...LEG, maga: withIns } }), mig(probe, { legacy: { ...LEG, maga: plain } }), 'la insignia de la tabla no cambia la migración');
 }
 console.log('✓ tablas legadas: formato (reales y de prueba) y comprobador que detecta errores');
 
@@ -246,17 +262,30 @@ console.log('✓ forja: 3.ª rama → variante, absorciones, precedencia (ranura
   const d = mig(save);
   assert.deepEqual(d.paragon, { nodes: {}, glyphs: {} }, 'sin nodos, sin puntos y sin glifos engarzados');
   assert.deepEqual(d.materials.map(m => m.uid), [1, 901, 902], 'los glifos vuelven a la bolsa intactos');
-  // si no caben, se quedan en el tablero SIN engarzar (con su clave)
+  assert.ok(!d.notices.includes('glifos-sueltos'), 'sin glifos sueltos, sin aviso');
+  // si no caben, quedan SUELTOS en paragon.loose: nunca en `glyphs` con un id de zócalo v4 (el
+  // tablero nuevo no tiene esas casillas y nadie los vería)
   const full = mig(save, { canAddMaterial: () => false });
-  assert.deepEqual(Object.keys(full.paragon.glyphs).sort(), ['2_2', '4_3']);
+  assert.deepEqual(full.paragon.glyphs, {}, 'ningún glifo queda en un zócalo v4');
+  assert.deepEqual(full.paragon.loose.map(g => g.uid).sort(), [901, 902]);
   assert.deepEqual(full.paragon.nodes, {}); assert.ok(!('points' in full.paragon));
   assert.deepEqual(full.materials.map(m => m.uid), [1]);
+  assert.ok(full.notices.includes('glifos-sueltos'), 'aviso de glifos sueltos');
+  assert.match(S.LOAD_NOTICES['glifos-sueltos'], /glifos/);
   let room = 1;
   const half = mig(save, { canAddMaterial: () => room-- > 0 });
-  assert.equal(half.materials.length + Object.keys(half.paragon.glyphs).length, 3, 'ningún glifo se pierde');
+  assert.deepEqual([half.materials.length, half.paragon.loose.length], [2, 1], 'uno a la bolsa y otro suelto: ningún glifo se pierde');
+  // otra pasada CON hueco (canAddMaterial real: un glifo es material de progreso y siempre cabe)
+  const back = S.migrateV4toV5(json(full), CTX);
+  assert.deepEqual(back.paragon, { nodes: {}, glyphs: {} }, 'los sueltos vuelven a la bolsa');
+  assert.deepEqual(back.materials.map(m => m.uid).sort(), [1, 901, 902]);
+  // el héroe cargado conserva los sueltos y los vuelve a guardar
+  const pl = new Player({ ui: { spawnText() {}, message() {} }, sfx() {}, world: null, enemies: [], projectiles: [] }, 'maga', { ...full, saveVersion: 5 });
+  assert.deepEqual(pl.paragon.loose.map(g => g.uid).sort(), [901, 902], 'Player conserva paragon.loose');
+  assert.deepEqual(json(S.serializePlayer(pl)).paragon.loose.map(g => g.uid).sort(), [901, 902], 'y se guarda');
   assert.deepEqual(mig(v4({ paragon: undefined, materials: undefined })).paragon, { nodes: {}, glyphs: {} });
 }
-console.log('✓ tablero: nodos y puntos fuera; glifos a la bolsa o sin engarzar si no caben');
+console.log('✓ tablero: nodos y puntos fuera; glifos a la bolsa o sueltos (paragon.loose) si no caben');
 
 // ------------------------------------------------ 5) barra
 const isValidBar = (d, what) => {
@@ -285,8 +314,19 @@ const isValidBar = (d, what) => {
   assert.equal(bar({ lmb: 'm_dardo', k2: 'm_onda' }).k2, null);
   // en lmb, to: null no la deja vacía
   assert.equal(bar({ lmb: 'm_onda' }).lmb, 'm_dardo');
-  // destino que no cabe (básico en rmb) → SPEC_BAR de la especialización
+  // destino que no cabe (básico en rmb, que además ya está en lmb) → SPEC_BAR de la especialización
   assert.equal(bar({ lmb: 'm_dardo', rmb: 'rayo' }, { level: 30 }).rmb, 'fx_piromante_k2');
+  // destino que NO cabe y NO está repetido: m_u_tormenta → bola_fuego (gastadora) en k4
+  assert.ok(!SR.fitsSlot(skill('maga', 'bola_fuego'), 'k4') && SR.fitsSlot(skill('maga', 'bola_fuego'), 'rmb'));
+  assert.equal(bar({ lmb: 'm_dardo', rmb: null, k4: 'm_u_tormenta' }).k4, 'm_u_supernova', 'no cabe en k4 → SPEC_BAR (Piromante)');
+  assert.equal(mig({ ...v4({ level: 60, talents: { v: 1, spec: 'arcanista', cls: {}, sp: {}, choice: {} } }), hotbar: { lmb: 'm_dardo', k4: 'm_u_tormenta' } }).hotbar.k4,
+    'm_u_desgarro', 'la reserva es la de SU especialización');
+  assert.equal(mig(v4({ hotbar: { lmb: 'm_dardo', k4: 'm_u_tormenta' } }), { specBar: {} }).hotbar.k4, 'm_u_supernova', 'sin SPEC_BAR → FALLBACK_BAR');
+  // null EXPLÍCITO por ranura: vacía (no cae a '*')
+  assert.equal(bar({ lmb: 'm_dardo', k4: 'm_u_desgarro' }).k4, null, "{ k4: null, '*': … } en k4 → vacía");
+  // objeto sin clave aplicable = inválido → SPEC_BAR (ni se conserva ni se vacía)
+  const crio2 = v4({ talents: { v: 1, spec: 'crionte', cls: {}, sp: {}, choice: {} } });
+  assert.equal(mig({ ...crio2, hotbar: { lmb: 'm_dardo', k2: 'm_armadura' } }).hotbar.k2, 'm_onda', 'sin clave para k2 → SPEC_BAR de la Crionte');
   // por ranura, luego por especialización, luego '*'
   assert.equal(bar({ lmb: 'm_dardo', k2: 'm_estela_ignea' }).k2, 'm_armadura', 'por ranura');
   assert.equal(bar({ lmb: 'm_dardo', k1: 'm_estela_ignea' }).k1, 'm_paso_escarcha', 'por especialización');
@@ -319,6 +359,21 @@ const isValidBar = (d, what) => {
   assert.equal(none.hotbar.lmb, 'm_dardo');
   const noBar = mig(v4({ hotbar: undefined }));
   assert.equal(noBar.hotbar.lmb, 'm_dardo'); assert.equal(noBar.hotbar.rmb, null);
+}
+// legacyTarget: precedencia ranura → especialización → '*', null explícito y lo inválido
+{
+  const LT = S.legacyTarget;
+  assert.equal(LT({ to: { k3: 'a', piromante: 'b', '*': 'x' } }, 'k3', 'piromante', 'old'), 'a', 'la ranura primero');
+  assert.equal(LT({ to: { piromante: 'b', '*': 'x' } }, 'k3', 'piromante', 'old'), 'b', 'luego la especialización');
+  assert.equal(LT({ to: { k2: 'a', '*': 'x' } }, 'k3', 'piromante', 'old'), 'x', "luego '*'");
+  assert.equal(LT({ to: { k3: null, '*': 'x' } }, 'k3', 'piromante', 'old'), null, 'null explícito por ranura: vaciar');
+  assert.equal(LT({ to: { piromante: null, '*': 'x' } }, 'k3', 'piromante', 'old'), null, 'null explícito por especialización');
+  assert.equal(LT({ to: { k2: 'a' } }, 'k3', 'piromante', 'old'), undefined, 'sin clave aplicable: inválido');
+  assert.equal(LT({ to: { piromante: 'b' } }, 'k3', null, 'old'), undefined, 'sin especialización no aplica la suya');
+  assert.equal(LT({ to: 7 }, 'k3', null, 'old'), undefined, 'un `to` de otro tipo: inválido');
+  assert.equal(LT({ to: 'y' }, 'k3', null, 'old'), 'y'); assert.equal(LT({ to: null }, 'k3', null, 'old'), null);
+  assert.equal(LT({ forge: 'i' }, 'k3', null, 'old'), 'old', 'sin `to` conserva el id');
+  assert.equal(LT(undefined, 'k3', null, 'old'), 'old');
 }
 console.log('✓ barra: destinos, to:null, fitsSlot, duplicados, conocidas, especialización, reservas y lmb');
 
@@ -450,7 +505,7 @@ console.log('✓ idempotencia (dos pasadas = una), entrada sin mutar y cadenas v
     // carga en Player y recompute no lanza
     const p = new Player(game(), d.classId, { ...d, saveVersion: 5 });
     p.recompute();
-    assert.ok(Number.isFinite(p.stats?.maxHp ?? p.maxHp ?? 0), `${name}: stats tras cargar`);
+    assert.ok(p.stats.maxHP > 0 && Number.isFinite(p.stats.maxHP), `${name}: stats tras cargar (maxHP ${p.stats?.maxHP})`);
     n++;
   }
   assert.equal(n, 57);

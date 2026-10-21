@@ -1,5 +1,6 @@
 // Endgame: glifos del tablero (Paso 2g): engarce en el zócalo de cada brazo (paso 4 del camino),
-// escala con adyacentes activos, se quita a la bolsa y no cuenta con el zócalo inactivo
+// escala con adyacentes activos, se quita a la bolsa y no cuenta con el zócalo inactivo; glifos
+// sueltos de la migración (paragon.loose): looseGlyphs, reclaimGlyph, reclaimLooseGlyphs
 import assert from 'node:assert/strict';
 import { makeGlyph, glyphValue } from '../js/items.js';
 import { PARAGON_BOARDS, PARAGON_SOCKET_STEP, paragonPathCost } from '../js/paragon-board.js';
@@ -66,5 +67,33 @@ g.unsocketGlyph('4_8');
 assert.equal(p.materials.length, 2); assert.equal(p.paragon.glyphs['4_8'], undefined);
 assert.equal(hpS - p.stats.maxHP, glyphValue(gv, 2));
 console.log('Quitar glifo: vuelve a la bolsa de materiales ✓');
+
+// glifos SUELTOS (paragon.loose: la migración v4 → v5 no los pudo devolver a la bolsa): se
+// listan, no cuentan, se recogen a la bolsa (uno o todos) y desde ahí se engarzan
+{
+  const mk = n => Object.assign(makeGlyph(1), { glyphId: `g_suelto${n}`, stat: 'hp', per: 9, adj: 0, fam: null, rank: 1, baseName: `Glifo suelto ${n}` });
+  const [a, b, c] = [mk(1), mk(2), mk(3)];
+  p.materials = [];
+  p.recompute(); const hpNone = p.stats.maxHP;
+  p.paragon.loose = [a, b, c];
+  p.recompute();
+  assert.equal(p.stats.maxHP, hpNone, 'sueltos: no dan estadísticas');
+  const view = g.looseGlyphs();
+  assert.deepEqual(view, [a, b, c]);
+  view.pop(); assert.equal(p.paragon.loose.length, 3, 'looseGlyphs devuelve una copia');
+  assert.equal(g.reclaimGlyph(1), true);
+  assert.deepEqual(p.materials, [b]); assert.deepEqual(p.paragon.loose, [a, c]);
+  assert.equal(g.reclaimGlyph(7), false, 'índice inexistente: nada');
+  assert.equal(g.reclaimLooseGlyphs(), 2);
+  assert.deepEqual(p.materials, [b, a, c]);
+  assert.ok(!('loose' in p.paragon), 'sin sueltos la clave desaparece (el guardado queda como uno sin migrar)');
+  assert.equal(g.reclaimLooseGlyphs(), 0); assert.deepEqual(g.looseGlyphs(), []);
+  // recogido, se engarza como cualquier otro (4_8 sigue activo y vacío)
+  const hpB = p.stats.maxHP;
+  g.socketGlyph('4_8', 0);
+  assert.equal(p.paragon.glyphs['4_8'], b);
+  assert.ok(p.stats.maxHP > hpB, 'engarzado, ya cuenta');
+}
+console.log('Glifos sueltos: se listan, no cuentan y se recogen a la bolsa ✓');
 
 console.log('test37-glifos OK');

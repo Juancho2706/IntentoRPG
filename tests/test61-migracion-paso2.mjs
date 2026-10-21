@@ -2,6 +2,7 @@
 //  · MIGRATIONS[2] (v2→v3, Paso 2b) y [3] (v3→v4, Paso 2c.0) CONGELADAS (D16): su salida se
 //    comprueba contra el catálogo v4 copiado (tests/fixtures/catalog-v4.json) y NO cambia
 //    aunque cambie el catálogo vivo (se vacía CLASSES/SUPPORTS y se repite)
+//    - las constantes congeladas de save-schema.js (V4_*) = catalog-v4.json, una a una
 //    - puntos libres + ramas conservadas = puntos de Nv2–20; ramas de pasivas eliminadas fuera
 //    - barra v3: rmb = 1.ª gastadora vieja · k1 = movilidad · k2 = utilidad o 2.ª gastadora ·
 //      k4 = definitiva vieja; en v4, k3 = la insignia v4 de la especialización
@@ -11,7 +12,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CLASSES, SUPPORTS } from '../js/data.js';
-import { migrateSave, SAVE_VERSION, MIGRATIONS, REMOVED_SKILLS_V3, LOAD_NOTICES, PLAYER_SAVE_FIELDS, V4_INSIGNIA } from '../js/save-schema.js';
+import { migrateSave, SAVE_VERSION, MIGRATIONS, REMOVED_SKILLS_V3, LOAD_NOTICES, PLAYER_SAVE_FIELDS, V4_INSIGNIA,
+  V4_WEAPON_BASIC, V4_SPECS, V4_SKILLS, V4_BRANCHES, V4_SUPPORTS } from '../js/save-schema.js';
 import { talentPointsLeft, aggregateTalents } from '../js/talents.js';
 import { skillSlots, supportFits } from '../js/skill-defs.js';
 import { fitsSlot, isKnown } from '../js/skill-resolve.js';
@@ -42,6 +44,31 @@ const skill4 = (cid, id) => skills4(cid).find(s => s.id === id);
 const firstBranch = (cid, id) => CAT4.classes[cid].mods?.[id]?.[0]?.id;
 for (const cid of ['guerrero', 'maga', 'arquera'])
   for (const [spec, s] of Object.entries(CAT4.classes[cid].specs)) assert.equal(V4_INSIGNIA[cid][spec], s.insignia, `V4_INSIGNIA ${cid}/${spec} = catalog-v4`);
+// las demás constantes congeladas que leen MIGRATIONS[0] y [2], reconstruidas desde catalog-v4.json
+// y comparadas una a una (una errata en save-schema.js rompería la migración de saves viejos en silencio)
+{
+  const C4 = CAT4.classes;
+  assert.deepEqual(Object.keys(V4_SKILLS).sort(), Object.keys(C4).sort(), 'V4_SKILLS: las tres clases');
+  for (const [cid, c] of Object.entries(C4)) {
+    assert.equal(V4_WEAPON_BASIC[cid], c.weaponBasic, `V4_WEAPON_BASIC.${cid} = catalog-v4`);
+    assert.deepEqual([...V4_SPECS[cid]], Object.keys(c.specs), `V4_SPECS.${cid} = catalog-v4`);
+    // fila `id cat req kind ranuras tags banderas` (T = talento; d coef > 0, c coste > 0, k enfriamiento > 0)
+    const rows = c.skills.map(s => [s.id, s.cat, s.req, s.kind === 'talent' ? 'T' : '-', s.slots.join('/'), s.tags.join('/'),
+      (s.coef > 0 ? 'd' : '') + (s.cost > 0 ? 'c' : '') + (s.cd > 0 ? 'k' : '')].join(' '));
+    assert.deepEqual([...V4_SKILLS[cid]], rows, `V4_SKILLS.${cid} = catalog-v4 (fila a fila)`);
+    for (const s of c.skills) assert.ok(s.tags.includes(s.cat) && s.tags.includes(s.elem), `${s.id}: los tags v4 ya traen categoría y elemento`);
+    // ramas: sufijos de rama (<id>_<s>) con 3 opciones <rama>1…3
+    for (const [skId, brs] of Object.entries(c.mods || {})) {
+      assert.equal(V4_BRANCHES[skId], brs.map(b => b.id.slice(skId.length + 1)).join(''), `V4_BRANCHES.${skId} = catalog-v4`);
+      for (const b of brs) assert.deepEqual(b.opts.map(o => o.id), [1, 2, 3].map(i => `${b.id}${i}`), `${b.id}: opciones <rama>1…3`);
+    }
+  }
+  const branched = Object.values(C4).flatMap(c => Object.keys(c.mods || {}));
+  assert.deepEqual(Object.keys(V4_BRANCHES).sort(), branched.sort(), 'V4_BRANCHES: ni una habilidad con ramas de más ni de menos');
+  assert.deepEqual(JSON.parse(JSON.stringify(V4_SUPPORTS)), Object.fromEntries(CAT4.supports.map(s => [s.id, [s.requires, s.forbids]])), 'V4_SUPPORTS = catalog-v4');
+  for (const k of [V4_SKILLS, V4_BRANCHES, V4_SUPPORTS, V4_WEAPON_BASIC, V4_SPECS, V4_INSIGNIA, V4_SKILLS.maga]) assert.ok(Object.isFrozen(k), 'constantes v4 de solo lectura');
+}
+console.log('Catálogo v4 congelado (D16) = catalog-v4.json: básico, especializaciones, insignias, habilidades, ramas y soportes ✓');
 
 // barra según el catálogo v4 (intermedios v3/v4)
 function checkHotbarV4(cid, hb, level, k3 = null) {

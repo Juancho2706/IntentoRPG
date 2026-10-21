@@ -79,15 +79,17 @@ export const SKILL_SYSTEM_V3 = 5;
 // Copia de tests/fixtures/catalog-v4.json con solo lo que leen MIGRATIONS[0], [2] y [3]:
 // básico de arma, habilidades (`id cat req kind(T = talento) ranuras tags banderas`, banderas
 // d = coef > 0, c = coste > 0, k = enfriamiento > 0), ramas (sufijos; opciones <rama>1…3),
-// soportes ([requiere, prohíbe]), especializaciones e insignias.
-const V4_WEAPON_BASIC = { guerrero: 'g_tajo', maga: 'm_dardo', arquera: 'a_disparo' };
-export const V4_INSIGNIA = {
+// soportes ([requiere, prohíbe]), especializaciones e insignias. Se exportan CONGELADAS
+// (solo lectura): test61 las reconstruye desde catalog-v4.json y las compara una a una.
+const deepFreeze = o => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
+export const V4_WEAPON_BASIC = deepFreeze({ guerrero: 'g_tajo', maga: 'm_dardo', arquera: 'a_disparo' });
+export const V4_INSIGNIA = deepFreeze({
   guerrero: { berserker: 'g_t_remolino', guardian: 'g_t_desafio', cruzado: 'g_t_devocion' },
   maga: { piromante: 'p_llamarada', crionte: 'k_prision', arcanista: 'a_orbe' },
   arquera: { francotiradora: 'a_t_apuntado', montaraz: 'a_t_cepo', tiradora: 'a_t_andanada' },
-};
-const V4_SPECS = { guerrero: ['berserker', 'guardian', 'cruzado'], maga: ['piromante', 'crionte', 'arcanista'], arquera: ['francotiradora', 'montaraz', 'tiradora'] };
-const V4_SKILLS = {
+});
+export const V4_SPECS = deepFreeze({ guerrero: ['berserker', 'guardian', 'cruzado'], maga: ['piromante', 'crionte', 'arcanista'], arquera: ['francotiradora', 'montaraz', 'tiradora'] });
+export const V4_SKILLS = deepFreeze({
   guerrero: ['g_tajo basic 1 - lmb basic/melee/area/physical d', 'g_mandoble basic 3 - lmb basic/melee/physical d', 'g_embate basic 8 - lmb basic/melee/area/physical d',
     'torbellino spender 2 - rmb/k2 spender/melee/area/physical dc', 'g_hendidura spender 8 - rmb/k2 spender/melee/cone/physical dc',
     'g_martillo spender 8 - rmb/k2 spender/melee/area/physical dc', 'terremoto spender 14 - rmb/k2 spender/line/cc/physical dck',
@@ -129,17 +131,17 @@ const V4_SKILLS = {
     'a_t_arpon spec 10 T k2/k3 spec/proj/cc/utility/physical dck', 'a_t_senuelo utility 10 T k2/k3 utility/spec/summon/taunt/nature dk',
     'a_t_andanada spec 10 T k3 spec/proj/area/movement/physical dck', 'a_t_danza spec 10 T k3 spec/area/channel/movement/physical dck',
     'a_t_salto movement 10 T k1 movement/proj/physical dk'],
-};
-const V4_BRANCHES = { g_tajo: 'ofv', g_mandoble: 'ofv', g_embate: 'ofv', torbellino: 'ofv', g_hendidura: 'ofv', g_martillo: 'ofv', terremoto: 'ofv',
+});
+export const V4_BRANCHES = deepFreeze({ g_tajo: 'ofv', g_mandoble: 'ofv', g_embate: 'ofv', torbellino: 'ofv', g_hendidura: 'ofv', g_martillo: 'ofv', terremoto: 'ofv',
   g_lanza: 'ofv', embestida: 'ofv', g_salto: 'ofv', g_piel: 'orv', g_provocacion: 'odf', grito_guerra: 'odf', g_u_furia: 'odf', g_u_cataclismo: 'ofv',
   g_u_estandarte: 'odf', m_dardo: 'ofv', m_ascua: 'ofv', m_toque: 'ofv', bola_fuego: 'ofv', rayo: 'ofv', nova_hielo: 'ofv', meteoro: 'ofv',
   m_paso_escarcha: 'orv', m_estela_ignea: 'orv', m_armadura: 'orv', m_onda: 'orv', m_u_supernova: 'ofv', m_u_tormenta: 'ofv', m_u_desgarro: 'ofv',
   a_disparo: 'ofv', a_disperso: 'ofv', a_cicuta: 'ofv', flecha_perforante: 'ofv', flecha_multiple: 'ofv', lluvia_flechas: 'ofv', a_paso: 'orv',
-  agilidad: 'odf', a_red: 'orv', a_humo: 'orv', a_u_diluvio: 'ofv', a_u_celeste: 'ofv', a_u_zarzas: 'ofv' };
-const V4_SUPPORTS = { amplify: [['@dmg'], ['ultimate']], multi: [['proj'], ['channel']], pierce: [['proj'], ['channel']], wide: [['area|cone|zone'], []],
+  agilidad: 'odf', a_red: 'orv', a_humo: 'orv', a_u_diluvio: 'ofv', a_u_celeste: 'ofv', a_u_zarzas: 'ofv' });
+export const V4_SUPPORTS = deepFreeze({ amplify: [['@dmg'], ['ultimate']], multi: [['proj'], ['channel']], pierce: [['proj'], ['channel']], wide: [['area|cone|zone'], []],
   freeze: [['@dmg'], ['ultimate']], chain: [['proj'], ['channel']], concentrated: [['area|cone|zone'], []], echo: [['@dmg'], ['channel', 'ultimate', 'movement']],
   bleed: [['@dmg', 'melee|proj|area'], []], poison: [['@dmg', 'melee|proj|area'], []], coldblood: [['@dmg'], ['ultimate']], overcharge: [['@dmg'], ['ultimate', 'basic']],
-  efficient: [['@cost'], []], swift: [['@cd'], ['ultimate']], focused: [['@dmg'], ['ultimate']], lasting: [['buff|dot|aura|zone|shield'], []] };
+  efficient: [['@cost'], []], swift: [['@cd'], ['ultimate']], focused: [['@dmg'], ['ultimate']], lasting: [['buff|dot|aura|zone|shield'], []] });
 // filas → definiciones (perezoso: solo cuando migra un save viejo)
 const V4_CACHE = {};
 function v4Skills(classId) {
@@ -147,7 +149,7 @@ function v4Skills(classId) {
   const rows = V4_SKILLS[classId];
   if (!rows) return null;
   return (V4_CACHE[classId] = rows.map(r => {
-    const [id, cat, req, kind, slots, tags, flags] = r.split(' ');
+    const [id, cat, req, kind, slots, tags, flags = ''] = r.split(' ');
     return { id, cat, req: +req, kind: kind === 'T' ? 'talent' : cat, slots: slots.split('/'), tags: tags.split('/'),
       coef: flags.includes('d') ? 1 : 0, cost: flags.includes('c') ? 1 : 0, cd: flags.includes('k') ? 1 : 0 };
   }));
@@ -179,13 +181,19 @@ export function migrationCtx(over = {}) {
 }
 const BAR_SLOTS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
 const FORGE_VALUES = ['i', 'ii', null];
-// destino de una habilidad vieja en una ranura: { to: id | null | { <ranura | spec | '*'>: id } }
+// destino de una habilidad vieja en una ranura: { to: id | null | { <ranura | spec | '*'>: id | null } }
+//   id        → ese destino (luego se valida: fitsSlot, sin duplicados, conocido)
+//   null      → la ranura se vacía (también con un null EXPLÍCITO por ranura o especialización)
+//   undefined → inválido: un objeto sin clave aplicable (ni la ranura, ni la especialización,
+//               ni '*') o un `to` de otro tipo; cae a SPEC_BAR y luego a FALLBACK_BAR
+// Sin `to` (solo `forge`), la habilidad conserva su id.
 export function legacyTarget(entry, slot, spec, oldId) {
   if (!entry || !('to' in entry)) return oldId;
   const to = entry.to;
   if (to === null || typeof to === 'string') return to;
-  if (to && typeof to === 'object') return to[slot] ?? (spec ? to[spec] : undefined) ?? to['*'] ?? null;
-  return oldId;
+  if (!to || typeof to !== 'object' || Array.isArray(to)) return undefined;
+  for (const k of [slot, spec, '*']) if (k && Object.hasOwn(to, k)) return to[k] === null || typeof to[k] === 'string' ? to[k] : undefined;
+  return undefined;
 }
 
 // `over`: partes del contexto que se sustituyen (lo que falte sale de migrationCtx())
@@ -256,15 +264,18 @@ export function migrateV4toV5(d, over = {}) {
   d.skillForge = forge;
   delete d.skillMods; delete d.skillBranches; delete d.skillPoints;
   // 4) tablero de glifos: sin nodos (los puntos se derivan del nivel); los glifos engarzados
-  //    vuelven a la bolsa y, si no caben, se quedan en el tablero sin engarzar
+  //    vuelven a la bolsa y, si no caben, quedan SIN ENGARZAR en paragon.loose (lista): sus
+  //    zócalos v4 no existen en el tablero nuevo, así que en `glyphs` nadie los vería.
+  //    economy.js los lista (looseGlyphs) y los recupera (reclaimGlyph, reclaimLooseGlyphs)
   const para = d.paragon && typeof d.paragon === 'object' ? d.paragon : {};
   const mats = Array.isArray(d.materials) ? d.materials : (d.materials = []);
-  const keep = {};
-  for (const [id, gl] of Object.entries(para.glyphs || {})) {
-    if (!gl) continue;
-    if (ctx.canAddMaterial(mats, gl)) mats.push(gl); else keep[id] = gl;
+  const loose = [];
+  const socketed = para.glyphs && typeof para.glyphs === 'object' ? Object.values(para.glyphs) : [];
+  for (const gl of [...socketed, ...(Array.isArray(para.loose) ? para.loose : [])]) {
+    if (!gl || typeof gl !== 'object') continue;
+    if (ctx.canAddMaterial(mats, gl)) mats.push(gl); else loose.push(gl);
   }
-  d.paragon = { nodes: {}, glyphs: keep };
+  d.paragon = loose.length ? { nodes: {}, glyphs: {}, loose } : { nodes: {}, glyphs: {} };
   // 5) barra: cada ranura por legacy.bar; el destino debe caber en la ranura (fitsSlot), no
   //    repetirse (gana la primera ranura) y conocerse con los talentos nuevos (las activas de
   //    talento salen salvo que el Recomendado las conceda; el kit, solo de su especialización).
@@ -309,6 +320,7 @@ export function migrateV4toV5(d, over = {}) {
   const n = Array.isArray(d.notices) ? d.notices : [];
   if (L >= 2 && !n.includes('paso2')) n.push('paso2');
   if (spec && !n.includes(`paso2-${classId}`)) n.push(`paso2-${classId}`);   // se le aplicó el Recomendado
+  if (d.paragon.loose && !n.includes('glifos-sueltos')) n.push('glifos-sueltos');
   d.notices = n;
   return d;
 }
@@ -477,6 +489,8 @@ export const LOAD_NOTICES = {
   'paso2-guerrero': GUERRERO_LEGACY.notice || CLASS_NOTICE('del Guerrero'),
   'paso2-arquera': ARQUERA_LEGACY.notice || CLASS_NOTICE('de la Arquera'),
   [TALENTS_TRIMMED_NOTICE]: '🌿 Parte de tus talentos no cabía en tu nivel y se reinició: revisa tus árboles (N)',
+  // la migración dejó glifos fuera de la bolsa llena (paragon.loose; economy.looseGlyphs)
+  'glifos-sueltos': '🔷 Tu bolsa de materiales estaba llena: algunos glifos te esperan en el tablero de glifos (C). Haz hueco y recógelos',
 };
 
 // Lleva un save (de cualquier versión conocida) a SAVE_VERSION. No muta la

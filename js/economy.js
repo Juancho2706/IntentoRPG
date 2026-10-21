@@ -469,6 +469,11 @@ export const economyMethods = {
     const p = this.player;
     return !!p && (this.inSafeCamp || (p.sinceCombat ?? 99) >= 5);
   },
+  /** @deprecated D23: la forja es gratis y no tiene puntos (U3 quita el botón en E3; C1 lo borra en E5). */
+  respecSkills() {
+    this.ui?.message?.('📖 La forja es gratis: cambia las variantes en el libro (T)', 3000);
+    return false;
+  },
 
   // ---------- tablero de glifos (Nv81+, 16 puntos derivados del nivel; §3.9) ----------
   // tablero temático de la clase del jugador
@@ -536,6 +541,39 @@ export const economyMethods = {
     p.materials.push(gl);
     p.recompute();
     this.save();
+  },
+
+  // glifos SUELTOS (paragon.loose): los que la migración v4 → v5 no pudo devolver a la bolsa
+  // (sus zócalos viejos no existen en el tablero nuevo). No cuentan; se recogen a la bolsa y
+  // desde ahí se engarzan. Hoy un glifo siempre cabe (material de progreso), así que solo
+  // aparecen si esa regla cambia: es la red para no perder ninguno.
+  looseGlyphs() { return [...(this.player?.paragon?.loose || [])]; },
+  // pasa el glifo suelto i a la bolsa (si cabe)
+  reclaimGlyph(i) {
+    const p = this.player;
+    const list = p?.paragon?.loose;
+    const gl = list?.[i];
+    if (!gl) return false;
+    if (!canAddMaterial(p.materials, gl)) { this.ui.message('Bolsa de materiales llena: haz hueco para recoger el glifo'); return false; }
+    list.splice(i, 1);
+    if (!list.length) delete p.paragon.loose;
+    p.materials.push(gl);
+    this.ui.message(`🔷 ${gl.baseName || gl.name || 'Glifo'} recogido`, 2500);
+    this.save();
+    return true;
+  },
+  // pasa a la bolsa todos los sueltos que quepan; devuelve cuántos
+  reclaimLooseGlyphs() {
+    const p = this.player;
+    const list = p?.paragon?.loose;
+    if (!list?.length) return 0;
+    let n = 0;
+    for (let i = 0; i < list.length;) {
+      if (canAddMaterial(p.materials, list[i])) { p.materials.push(list.splice(i, 1)[0]); n++; } else i++;
+    }
+    if (!list.length) delete p.paragon.loose;
+    if (n) { this.ui.message(`🔷 ${n} glifo(s) recogidos en la bolsa`, 2500); this.save(); }
+    return n;
   },
 
   // reiniciar el tablero es gratis fuera de combate (D12); los puntos se recalculan solos.
