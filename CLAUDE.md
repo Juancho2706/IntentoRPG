@@ -12,6 +12,7 @@ ARPG isométrico estilo Diablo 2/4 en **JavaScript vanilla + Three.js 0.160**,
 
 ## Comandos
 - **Tests:** `npm test` (corre `node tests/run.mjs`; suites de simulación headless en `tests/*.mjs`, sin DOM/WebGL). Debe quedar **en verde** antes de commitear.
+- **Pruebas pesadas por turno (regla del usuario):** una sola a la vez en toda la PC, aunque haya varios worktrees o workflows. `npm test` y `npm run smoke` ya esperan turno solos (`tools/turno.mjs`); capturas con Chrome (`tests/visual/*.mjs`) y `balance-bench` se lanzan como `node tools/turno.mjs node <script> …`. Mientras trabajas, corre solo tus suites sueltas (`node tests/<suite>.mjs`) y deja `npm test` completo y el humo para el cierre.
 - **Servir local:** `npm start` (http-server en :8080). No hay paso de build.
 - Sintaxis rápida: `node --check js/<archivo>.js`.
 
