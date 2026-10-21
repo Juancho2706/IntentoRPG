@@ -85,7 +85,7 @@ const LEVEL_MSG_RE = /^(?:⭐|🌿|🌟|🔷)\s*(?:¡?Nivel\s+\d+|¡Especializac
 // títulos del micromenú que cambian con el Paso 2 (el «Paragon» es ahora la columna del árbol
 // héroe de los talentos; P abre el tablero de glifos)
 const MICRO_TITLE = { paragon: 'Tablero de glifos' };
-const NEWS_MS = 8000, NOTICE_MS = 60000;
+const NEWS_MS = 8000;
 const pl = (n, uno, varios) => (n === 1 ? uno : varios);
 
 // contexto de cada estadística derivada (qué hace) — se muestra como tooltip
@@ -184,11 +184,38 @@ export class UI {
     try { this.verbHud = createVerbHud(document.body, { game: this.game }); }
     catch (e) { console.error('[verbos] no se pudo crear', e); this.verbHud = null; }
   }
-  // tira «qué cambia» al cambiar de especialización (vive en el libro aunque esté cerrado)
+  // tira «qué cambia» al cambiar de especialización (2f §3.8: insignia, activas, ★ y mecánica). El
+  // cambio se hace casi siempre en el panel de talentos, y no hay hueco en él que no tape el pie
+  // (kit y leyenda) o el árbol nuevo; en el libro, a 1366, pisaría la fila de la barra. Los dos ya
+  // muestran la especialización nueva (el panel confirma con su aviso), así que la tira espera a
+  // que vuelvas a la partida y sale bajo el banner (#hud-swap), nunca encima de la barra de acciones
   showSpecSwap(prev) {
     const p = this.game.player;
     if (!p || !this.book) return;
-    try { this.book.showSpecSwap(HM.specSwapSummary(prev, p)); } catch (e) { console.warn('[libro] tira de especialización', e); }
+    try { this._swap = HM.specSwapSummary(prev, p); } catch (e) { console.warn('[libro] tira de especialización', e); this._swap = null; }
+    this._flushSpecSwap();
+  }
+  _flushSpecSwap() {
+    const sum = this._swap, host = $('hud-swap');
+    if (!sum || !this.book || !host) return;
+    if (this.activePanel || this.game.state !== 'play') return;     // con un panel abierto, espera
+    try { this.book.showSpecSwap(sum, { host }); } catch (e) { console.warn('[libro] tira de especialización', e); this._swap = null; return; }
+    this.updateTopBand();
+    // sin sitio sobre la zona de combate (marco del objetivo + banner de 2 renglones a 1366): sigue
+    // pendiente y se reintenta a 10 Hz, así sus 7 s no corren mientras espera
+    if (host.classList.contains('tc-wait')) { host.classList.remove('on', 'tc-wait'); return; }
+    this._swap = null;
+    // con el kit 2g pasa a 2–3 filas: el separador que queda al final de una fila sobra
+    for (const s of host.querySelectorAll('.row > .sep')) {
+      const a = s.previousElementSibling, b = s.nextElementSibling;
+      const mid = el => el.offsetTop + el.offsetHeight / 2;
+      s.style.visibility = a && b && Math.abs(mid(a) - mid(b)) < 10 ? '' : 'hidden';
+    }
+  }
+  // apaga la tira y lo pendiente: arranque, muerte, cambio de héroe (closeAllPanels)
+  hideSpecSwap() {
+    this._swap = null;
+    $('hud-swap')?.classList.remove('on');
   }
 
   // N: abre el panel de talentos (o la elección de especialización si aún no hay)
@@ -212,6 +239,13 @@ export class UI {
   updateSpecPrompt(p) {
     const el = $('spec-prompt'); if (!el) return;
     const need = !!p && p.level >= SPEC_AT && !Talents.activeSpec(p);
+    // la ranura 3 invita a elegir (hb-spec, clic → selector) solo si refreshHotbar la pinta así: al
+    // llegar al Nv10 por XP (onSkillsLearned no coloca nada) o al elegir, se rehace la barra
+    if (need !== this._specNeed) {
+      this._specNeed = need;
+      this.refreshHotbar();
+      if (!need && this._news?.spec) this.hideLevelNews();   // la tarjeta del Nv10 decía «Elige tu especialización»
+    }
     // la tarjeta de novedades de la subida de nivel ocupa su sitio mientras se ve
     el.classList.toggle('hidden', !need || this.activePanel === 'talents' || this._newsOn);
     if (!need) { this._specAutoShown = false; return; }
@@ -475,8 +509,16 @@ export class UI {
   _setPanel(name) {
     this.activePanel = name;
     this.game.cancelHeld?.('panel');
+    this._flushVerbs();
     this.markJustOpened();
     this.hideHudTip();
+  }
+  // con un panel abierto la partida queda en pausa y main.tick ya no llama a updateFloats: la carga
+  // que se acaba de cancelar dejaría su barra junto al cursor (z 60) congelada encima del panel.
+  // Se pinta ya el estado sin carga y se agota el rastro (RESULT_MS = 420 ms) en dos pasos de 0,25 s
+  _flushVerbs() {
+    if (!this.verbHud) return;
+    try { this.verbHud.update(0.25); this.verbHud.update(0.25); } catch (e) { console.warn('[verbos] al abrir un panel', e); }
   }
 
   // ---------- selección de héroe y clase ----------
@@ -720,6 +762,7 @@ export class UI {
     this.updateHotbarState(p);
     this.updateSpecGauge(p);
     this.updateTargetFrame(p);
+    if (this._swap) this._flushSpecSwap();      // tira «qué cambia» que esperaba a cerrar los talentos
     this.updateTopBand();
     this.updateSpecPrompt(p);
 
@@ -915,9 +958,24 @@ export class UI {
       if (id === 'hud-news' && !newsIn) continue;
       if (el && !el.classList.contains('hidden') && (id !== 'hud-banner' || el.childElementCount)) band = Math.max(band, el.getBoundingClientRect().bottom);
     }
+    const sw = $('hud-swap');
+    if (this._fitTop(sw, sw?.classList.contains('on'))) band = Math.max(band, sw.getBoundingClientRect().bottom);
+    const nt = $('hud-notice');
+    this._fitTop(nt, nt && !nt.classList.contains('hidden'));
     if (document.body.classList.contains('paused')) { const pi = $('pause-indic'); if (pi) band = Math.max(band, pi.getBoundingClientRect().bottom); }
     band = Math.max(40, Math.round(band)) + 8;
     if (band !== this._topBand) { this._topBand = band; document.documentElement.style.setProperty('--top-band', band + 'px'); }
+  }
+  // la tira «qué cambia» y la tarjeta de avisos de la migración, bajo el banner (que ahora puede
+  // ocupar dos renglones): si con el marco del objetivo pisarían la zona de combate, esperan
+  // invisibles en su hueco (para medir) y salen en cuanto caben, como la tarjeta de novedades
+  _fitTop(el, shown) {
+    if (!el) return false;
+    if (!shown) { el.classList.remove('tc-wait'); return false; }
+    const L = this.hudLayout || HM.hudLayout(window.innerWidth, window.innerHeight, this.game.settings?.hudScale || 1);
+    const fits = el.getBoundingClientRect().bottom <= L.combat[1] + 0.5;
+    el.classList.toggle('tc-wait', !fits);
+    return fits;
   }
   // aviso grande en el banner bajo el marco (p. ej. «¡QUEBRANTADO!» del aturdimiento de un jefe)
   announce(text, kind = '', ms = 1600) {
@@ -1482,7 +1540,8 @@ export class UI {
     // un motivo de talentos sin texto (código de TALENT_REASONS) se traduce como en el panel
     if (typeof text === 'string' && TALENT_REASON_SET.has(text)) text = reasonText({ ok: false, reason: text });
     // avisos de carga (migración de la partida): a su tarjeta, que se queda hasta leerla
-    if (NOTICE_TEXTS.has(text)) { this.queueNotice(text); this.syslog(String(text), true); return; }
+    if (NOTICE_TEXTS.has(text)) { this.queueNotice(text); this.syslog(this._fixMessage(text), true); return; }
+    if (typeof text === 'string') text = this._fixMessage(text);
     // subida de nivel en curso (el nivel ya subió y la tarjeta aún no salió): los avisos del
     // mismo instante se agrupan en UNA tarjeta de novedades (2f §7.1; _flushLevelNews)
     const p = this.game.player;
@@ -1492,6 +1551,18 @@ export class UI {
       return;
     }
     this._message(text, ms);
+  }
+  // textos de la simulación que la interfaz precisa: el tablero de glifos se abre con P (no con
+  // C, la hoja de personaje), y una habilidad de otra especialización dice cuál («Solo con
+  // Crionte», como la barra) en vez de «solo con su especialización»
+  _fixMessage(text) {
+    if (text.includes('tablero de glifos') && text.includes('(C)')) text = text.replace('(C)', `(${this.actionKey('paragon', 'P')})`);
+    const m = /^(.+): solo con su especialización$/u.exec(text);
+    if (m) {
+      const sk = this.game.player?.cls?.skills?.find(s => s.name === m[1] && s.spec);
+      if (sk) text = `${sk.name}: ${this.lockText(sk)}`;
+    }
+    return text;
   }
   _message(text, ms) {
     // detección de momentos clave para disparar flourishes (no invasiva: la UI
@@ -1532,11 +1603,19 @@ export class UI {
       try { news = HM.levelUpNews(p, from, to); } catch (e) { console.warn('[novedades] levelUpNews', e); }
     }
     const card = !!news && news.count >= 1;
+    // lo que la tarjeta añade de esos avisos: los puntos de atributo (+5 por nivel hasta el 20) y,
+    // en el Nv10, la invitación a elegir especialización
+    const extra = { attrs: 0, spec: false };
     for (const [t, ms] of buf) {
-      if (card && typeof t === 'string' && LEVEL_MSG_RE.test(t)) { this.detectFlourish(t); this.syslog(t); continue; }
+      if (card && typeof t === 'string' && LEVEL_MSG_RE.test(t)) {
+        const m = /\+(\d+)\s+atributos/u.exec(t);
+        if (m) extra.attrs += +m[1];
+        if (/¡Especializaciones/u.test(t)) extra.spec = true;
+        this.detectFlourish(t); this.syslog(t); continue;
+      }
       this._message(t, ms);
     }
-    if (card) this.showLevelNews(news);
+    if (card) this.showLevelNews(news, { ...extra, spec: extra.spec && !Talents.activeSpec(p) });
   }
   // nivel de referencia de las novedades: se fija al entrar en la partida (o cambiar de héroe) y
   // sigue al nivel cuando no hay una subida en curso (saltos a mano)
@@ -1558,16 +1637,18 @@ export class UI {
       this.hideNotice();
       if (act === 'book') this.togglePanel('skills');
       else if (act === 'talents') this.openTalents();
+      else if (act === 'board') this.openParagon();
     });
   }
-  showLevelNews(news) {
+  showLevelNews(news, extra = {}) {
     const el = $('hud-news');
     if (!el || !news) return;
     const first = news.items.find(i => i.id) || null;
     const pts = news.items.find(i => i.kind === 'points') || null;
-    // a dónde lleva: el libro en la primera novedad; si solo hay puntos, a su sistema
-    const target = first ? 'book' : pts?.system === 'board' ? 'board' : 'talents';
-    this._news = { first: first?.id || null, target };
+    // a dónde lleva: el libro en la primera novedad; si solo hay puntos, a su sistema. En el Nv10
+    // sin especialización, a elegirla (openTalents abre el selector)
+    const target = extra.spec ? 'talents' : first ? 'book' : pts?.system === 'board' ? 'board' : 'talents';
+    this._news = { first: first?.id || null, target, spec: !!extra.spec };
     const key = target === 'book' ? this.actionKey('skills', 'T') : target === 'board' ? this.actionKey('paragon', 'P') : this.actionKey('talents', 'N');
     const img = first?.art ? `assets/${first.art}` : HM.menuIcon(target === 'book' ? 'skills' : target === 'board' ? 'paragon' : 'talents');
     el.innerHTML = '';
@@ -1577,9 +1658,14 @@ export class UI {
     ico.appendChild(im);
     const b = document.createElement('b'); b.textContent = news.title;
     el.append(ico, b);
-    if (news.sub) { const s = document.createElement('span'); s.className = 'nw-sub'; s.textContent = news.sub; el.appendChild(s); }
+    const attrs = extra.attrs > 0 ? `+${extra.attrs} atributos (${this.actionKey('character', 'C')})` : '';
+    const sub = [extra.spec ? 'Elige tu especialización' : '', news.sub].filter(Boolean).join(' · ');
+    if (sub) { const s = document.createElement('span'); s.className = 'nw-sub'; s.textContent = sub; el.appendChild(s); }
+    // los atributos van aparte y no se recortan (el resumen sí, con «…», si no cabe a 1366)
+    if (attrs) { const a = document.createElement('span'); a.className = 'nw-attr'; a.textContent = attrs; el.appendChild(a); }
     const k = document.createElement('kbd'); k.textContent = key; el.appendChild(k);
-    el.title = `${news.items.map(i => i.text).join(' · ')}\nClic: ${target === 'book' ? 'abrir el libro' : target === 'board' ? 'abrir el tablero de glifos' : 'abrir los talentos'}`;
+    const lines = [extra.spec ? 'Elige tu especialización' : '', ...news.items.map(i => i.text), attrs].filter(Boolean);
+    el.title = `${lines.join(' · ')}\nClic: ${target === 'book' ? 'abrir el libro' : target === 'board' ? 'abrir el tablero de glifos' : extra.spec ? 'elegir tu especialización' : 'abrir los talentos'}`;
     el.classList.remove('hidden', 'nw-in', 'nw-wait');
     void el.offsetWidth;                  // reinicia la entrada
     el.classList.add('nw-in');
@@ -1631,7 +1717,8 @@ export class UI {
     if (this.activePanel !== 'skills') this.togglePanel('skills');
   }
   // avisos de la migración de la partida (LOAD_NOTICES): todos en una tarjeta que se queda hasta
-  // pulsar «Entendido» (o un minuto); el banner solo cabe un renglón y el segundo pisaría al primero
+  // pulsar «Entendido» o uno de sus botones (sin temporizador: quien carga y se aparta no la pierde;
+  // la copia del registro de sistema se apaga sola)
   queueNotice(text) {
     if (!this._notices.includes(text)) this._notices.push(text);
     if (this._noticeQ) return;
@@ -1644,20 +1731,28 @@ export class UI {
     el.innerHTML = '';
     const h = document.createElement('b'); h.className = 'nt-h'; h.textContent = 'Tu partida se actualizó';
     const ul = document.createElement('ul');
-    for (const t of this._notices) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+    // los glifos sueltos esperan en el tablero de glifos, que se abre con P (_fixMessage: el texto
+    // de la migración dice «(C)», la hoja de personaje de antes)
+    const LOOSE = LOAD_NOTICES['glifos-sueltos'];
+    const board = this.actionKey('paragon', 'P');
+    for (const t of this._notices) {
+      const li = document.createElement('li');
+      li.textContent = this._fixMessage(t);
+      ul.appendChild(li);
+    }
     const row = document.createElement('div'); row.className = 'nt-btns';
     const btn = (act, txt, key) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.textContent = txt; if (key) { const k = document.createElement('kbd'); k.textContent = key; b.appendChild(k); } return b; };
-    row.append(btn('book', 'Libro ', this.actionKey('skills', 'T')), btn('talents', 'Talentos ', this.actionKey('talents', 'N')), btn('ok', 'Entendido'));
+    row.append(btn('book', 'Libro ', this.actionKey('skills', 'T')), btn('talents', 'Talentos ', this.actionKey('talents', 'N')));
+    if (LOOSE && this._notices.includes(LOOSE)) row.append(btn('board', 'Tablero ', board));
+    row.append(btn('ok', 'Entendido'));
     // título y botones en el mismo renglón: la tarjeta queda baja (no baja hasta la zona de combate)
     const top = document.createElement('div'); top.className = 'nt-top';
     top.append(h, row);
     el.append(top, ul);
     el.classList.remove('hidden');
-    clearTimeout(this._noticeT);
-    this._noticeT = setTimeout(() => this.hideNotice(), NOTICE_MS);
+    this.updateTopBand();
   }
   hideNotice() {
-    clearTimeout(this._noticeT);
     $('hud-notice')?.classList.add('hidden');
     this._notices = [];
   }
@@ -1844,6 +1939,10 @@ export class UI {
     document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
     this.talentPanel?.close(); // #talents-panel no lleva .panel (E3·U1)
     if (this.book?.isOpen?.()) this.book.close();
+    this.hideSpecSwap();
+    // en partida, la pantalla de selección no queda debajo (z 50, por encima de los paneles):
+    // startGame llama aquí sea cual sea el camino que la arrancó
+    if (this.game.state !== 'select') $('class-select')?.classList.add('hidden');
     $('item-popup').classList.add('hidden');
     $('item-tooltip').classList.add('hidden');
     this.hideHudTip();
@@ -2098,7 +2197,8 @@ export class UI {
       const row = document.createElement('div'); row.className = 'keybind-row';
       const codes = input?.bindings?.[a.id] || [];
       const keysTxt = codes.length ? codes.map(keyLabel).join(' / ') : '—';
-      row.innerHTML = `<span class="keybind-act">${a.label}</span>`;
+      // mismo nombre que el micromenú (P = «Tablero de glifos»; el Paragon vive en Talentos)
+      row.innerHTML = `<span class="keybind-act">${MICRO_TITLE[a.id] || a.label}</span>`;
       const btn = document.createElement('button'); btn.className = 'keybind-key'; btn.textContent = keysTxt;
       btn.onclick = () => {
         btn.textContent = '… pulsa una tecla'; btn.classList.add('capturing');
@@ -3518,6 +3618,7 @@ export class UI {
       this.closePanel();
       this._setPanel('paragon');
       $('panel-paragon').classList.remove('hidden');
+      this._pgSel = null;              // la ficha vuelve a la ayuda al abrir
     }
     this.renderParagon();
   }
@@ -3562,6 +3663,16 @@ export class UI {
     grid.innerHTML = '';
     grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
     grid.classList.toggle('pg-locked', !bi.open);
+    // ficha del nodo junto a la rejilla: la del ratón mientras pasa por encima; al salir, la del
+    // último clic (o la ayuda). Así las estadísticas de un legendario se leen sin el title nativo
+    const info = $('paragon-info');
+    if (info && this._pgHelp == null) this._pgHelp = info.innerHTML;
+    const showInfo = (html) => { if (info && info.innerHTML !== html) info.innerHTML = html; };
+    const nodeInfo = (node, gl) => node.type === 'socket'
+      ? `🔷 ${gl ? `<b>${gl.name}</b>` : 'Zócalo vacío'}`
+      : `${node.type === 'legendary' ? '★ ' : ''}${node.name ? `<b>${node.name}</b> · ` : ''}${this.nodeStatsText(node)}`;
+    grid.onmouseleave = () => showInfo(this._pgSel || this._pgHelp || '');
+    showInfo(this._pgSel || this._pgHelp || '');
     const byPos = {};
     for (const n of board) byPos[n.x + ',' + n.y] = n;
     const glyph = { start: '◉', legendary: '★', rare: '◆', magic: '✦', minor: '•', socket: '◇' };
@@ -3585,14 +3696,11 @@ export class UI {
         cell.title = node.type === 'socket'
           ? (gl ? `🔷 ${gl.name} (clic para cambiar o quitar)` : 'Zócalo de glifo ◇' + (on ? ': clic para engarzar un glifo' : ' (actívalo primero)'))
           : `${node.type === 'legendary' ? '★ ' : ''}${node.name ? node.name + ': ' : ''}${this.nodeStatsText(node)}`;
+        cell.onmouseenter = () => showInfo(nodeInfo(node, gl));
         cell.onclick = () => {
-          if (node.type === 'socket') {
-            const txt = gl ? `<b>${gl.name}</b>` : 'Zócalo vacío';
-            $('paragon-info').innerHTML = `🔷 ${txt}`;
-            if (on) { this.paragonGlyphChooser(node); return; }
-          } else {
-            $('paragon-info').innerHTML = `${node.type === 'legendary' ? '★ ' : ''}${node.name ? `<b>${node.name}</b> · ` : ''}${this.nodeStatsText(node)}`;
-          }
+          this._pgSel = nodeInfo(node, gl);
+          showInfo(this._pgSel);
+          if (node.type === 'socket' && on) { this.paragonGlyphChooser(node); return; }
           if (!on && avail) { g.allocateParagonNode(node.id); this.renderParagon(); this.updateHUD(); }
         };
       }

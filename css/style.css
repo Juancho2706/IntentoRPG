@@ -2274,6 +2274,8 @@ body.hudcheck #hud-combat-zone { position: fixed; z-index: 9; pointer-events: no
 #hud-news .nw-ico.ico-missing { position: relative; inset: auto; font: 400 18px/1 system-ui, sans-serif; text-transform: none; }
 #hud-news b { flex: none; font: 700 14px/1 Cinzel, Georgia, serif; color: #ffe3a0; white-space: nowrap; letter-spacing: 0.3px; }
 #hud-news .nw-sub { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #d8c9a6; }
+#hud-news .nw-attr { flex: none; white-space: nowrap; color: #ffe3a0; font-weight: 600; }
+#hud-news .nw-sub + .nw-attr::before { content: '·'; margin-right: 8px; color: #d8c9a6; font-weight: 500; }
 #hud-news kbd { flex: none; }
 #hud-news.nw-in { animation: nwIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
 @keyframes nwIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
@@ -2311,8 +2313,40 @@ body.hudcheck #hud-combat-zone { position: fixed; z-index: 9; pointer-events: no
 #paragon-grid.pg-locked .para-node { opacity: 0.62; filter: grayscale(0.55); }
 #paragon-grid.pg-locked .para-node.pn-start { opacity: 1; filter: none; }
 .pg-loose .pg-reclaim { margin-left: 8px; padding: 0 6px; font-size: 12px; vertical-align: middle; }
+/* tablero en dos columnas: la rejilla 9 × 9 a la izquierda y, a su lado, puntos, avisos, la ficha
+   del nodo, la ayuda y el reinicio. Cabe sin scroll a 1366 × 768 (84vh = 645 px) */
+#panel-paragon { width: min(94vw, 820px); }
+#panel-paragon .pg-body { display: flex; align-items: flex-start; gap: 16px; }
+#panel-paragon #paragon-grid { flex: none; width: clamp(330px, 40vh, 440px); margin: 0; }
+#panel-paragon .pg-side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+#panel-paragon .pg-side > * { margin: 0; }
+#panel-paragon #paragon-points { font-size: 13px; line-height: 1.4; }
+#panel-paragon #pg-alert:empty { display: none; }
+#panel-paragon #paragon-info { min-height: 4.4em; padding: 8px 10px; border-radius: 7px; text-align: left; font-size: 13px; line-height: 1.45;
+  background: rgba(0, 0, 0, 0.3); border: 1px solid var(--panel-border); }
+#panel-paragon #paragon-info b { color: #f0dca4; }
+#panel-paragon #paragon-respec { align-self: flex-start; }
+
+/* tira «qué cambia» del cambio de especialización en el HUD (la pinta ui-skills.js con las clases
+   .sb-strip del libro): bajo el banner, en la columna de arriba; nunca sobre la barra de acciones */
+#hud-swap { --gold: #e8c06a; --gold2: #f6dd9c; --ink: #ede6d6; --dim: #a39a88; --dim2: #8a8173; --ok: #7fd36b; --warn: #e6a17a; display: none; }
+#hud #hud-swap.sb-strip { position: relative; left: auto; bottom: auto; z-index: auto; transform: none; margin-top: 8px;
+  max-width: 760px; white-space: normal; font: 15px/1.4 Inter, system-ui, sans-serif; color: var(--ink); }
+/* con el kit 2g (insignia, activas, ★ y mecánica) pasa de 760 px: dos filas centradas antes que
+   llegar a la placa del héroe o al minimapa */
+#hud #hud-swap .row { flex-wrap: wrap; justify-content: center; row-gap: 6px; }
+#hud #hud-swap .row > span { white-space: nowrap; }
+#hud #hud-swap.sb-strip.on { display: block; opacity: 1; animation: nwIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* la tira o la tarjeta de avisos esperan sitio (marco del objetivo + banner de 2 renglones a 1366) */
+#hud .tc-wait { visibility: hidden; pointer-events: none; animation: none; }
+
+/* banner: los avisos largos (bienvenida, Paragon abierto o en pausa) pasan a 2 renglones en vez de
+   cortarse con «…» */
+#hud-banner .ban:not(.ann) { white-space: normal; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2; }
 
 @media (prefers-reduced-motion: reduce) {
-  #hud-news.nw-in, #hud #skillbar .skill-btn.hb-spec .sk-icon { animation: none; }
+  #hud-news.nw-in, #hud #skillbar .skill-btn.hb-spec .sk-icon, #hud #hud-swap.sb-strip.on { animation: none; }
 }
-body.reduce-motion #hud-news.nw-in, body.reduce-motion #hud #skillbar .skill-btn.hb-spec .sk-icon { animation: none; }
+body.reduce-motion #hud-news.nw-in, body.reduce-motion #hud #skillbar .skill-btn.hb-spec .sk-icon,
+body.reduce-motion #hud #hud-swap.sb-strip.on { animation: none; }
