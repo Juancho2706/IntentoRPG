@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Libro de habilidades · arnés visual</title>
+<!-- Arnés visual del Paso 2 (U2; docs/paso2-implementacion.md §3.12, docs/paso2f-habilidades-ux.md §3).
+     Monta el libro REAL (createSkillBook de js/ui-skills.js, css/skills.css) sobre un héroe real
+     (tests/helpers/power-harness.mjs). Por defecto con el catálogo 2g de la clase (los borradores de
+     tools/convert-v2/out/<clase>/: arte, forja, barra y recomendadas, lo que traerán KA1/KA2);
+     &draft=0 usa el catálogo del juego tal cual.
+     Sirve la raíz del repo y abre /tests/visual/book.html con:
+       ?cls=maga|guerrero|arquera  &lv=<nivel>  &spec=<id>  &sel=<habilidad>  &combat=1
+       &forge=spec|none            variantes de la barra de la especialización (por defecto) o ninguna
+       &hover=<selector CSS>       tooltip sobre ese elemento · &alt=1 con Alt mantenido
+       &pop=<n>                    abre el engarce n · &drag=<habilidad>:<ranura> arrastre a medias
+       &swap=<spec>                tira «qué cambia» al cambiar a esa especialización (libro cerrado)
+       ?shot=<id>                  una escena con nombre (lista SHOTS abajo)
+       ?measure=1                  A5/A4 de todas las clases × niveles × especializaciones y de cada
+                                   forja (window.__uicheck de check()) → <pre id="measure">
+       &bare=1 sin barra de controles · &reduce=1 reducir movimiento · &three=local three.js local
+     Capturas: node tests/visual/chrome.mjs "<url>" --shot=out.png --size=1366,768 --wait=1500 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="../../css/skills.css">
+<script>
+  (function () {
+    const local = new URLSearchParams(location.search).get('three') === 'local';
+    const base = local ? '../../node_modules/three/' : 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
+    const im = document.createElement('script');
+    im.type = 'importmap';
+    im.textContent = JSON.stringify({ imports: { three: base + 'build/three.module.js', 'three/addons/': base + 'examples/jsm/' } });
+    document.currentScript.after(im);
+  })();
+</script>
+<style>
+  html, body { overflow: hidden; }
+  body { margin: 0; background: #0d0b10; color: #ede6d6; font: 13px/1.4 Inter, system-ui, sans-serif; }
+  #world { position: fixed; inset: 0; background:
+    radial-gradient(ellipse 55% 50% at 50% 45%, rgba(120, 104, 84, 0.22), transparent 70%),
+    repeating-linear-gradient(30deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(-30deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 64px),
+    radial-gradient(ellipse at 50% 45%, #2b241c 0%, #15110f 60%, #08070a 100%); }
+  #ctl { position: fixed; left: 8px; top: 6px; z-index: 95; display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 8px;
+    background: #110e15ee; border: 1px solid #3a2f45; font-size: 12px; color: #9a917f; }
+  #ctl select, #ctl button { background: #1c1622; color: #ede6d6; border: 1px solid #3a2f45; border-radius: 6px; padding: 2px 6px; font: inherit; }
+  body.bare #ctl { display: none; }
+  #measure { position: fixed; left: 0; bottom: 0; z-index: 999; max-width: 60vw; max-height: 40vh; overflow: auto; margin: 0; padding: 6px;
+    font: 11px/1.35 ui-monospace, Consolas, monospace; color: #cfe; background: #000c; white-space: pre-wrap; }
+  #measure:empty { display: none; }
+  .fake-cursor { position: fixed; left: 0; top: 0; z-index: 100; width: 18px; height: 26px; pointer-events: none; filter: drop-shadow(0 2px 2px #000); }
+</style>
+</head>
+<body>
+<div id="world"></div>
+<div id="ctl">
+  <select id="c-cls"><option value="maga">Maga</option><option value="guerrero">Guerrero</option><option value="arquera">Arquera</option></select>
+  <select id="c-lv"></select>
+  <select id="c-spec"></select>
+  <label><input type="checkbox" id="c-combat"> combate</label>
+  <label><input type="checkbox" id="c-draft" checked> catálogo 2g</label>
+  <button id="c-open" type="button">Libro (T)</button>
+</div>
+<pre id="measure"></pre>
+<script type="module">
+import { makeHarness } from '../helpers/power-harness.mjs';
+import { CLASSES, SUPPORTS } from '../../js/data.js';
+import { normalizeSkillDef } from '../../js/skill-defs.js';
+import { isKnown } from '../../js/skill-resolve.js';
+import { talentTreesFor } from '../../js/talents.js';
+import { createSkillBook } from '../../js/ui-skills.js';
+import { specSnapshot, specSwapSummary } from '../../js/hud-model.js';
+import * as DM from '../../tools/convert-v2/out/maga/skills-maga.draft.js';
+import * as DG from '../../tools/convert-v2/out/guerrero/skills-guerrero.draft.js';
+import * as DA from '../../tools/convert-v2/out/arquera/skills-arquera.draft.js';
+
+const Q = new URLSearchParams(location.search);
+if (Q.get('bare') === '1') document.body.classList.add('bare');
+if (Q.get('reduce') === '1') document.body.classList.add('reduce-motion');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+
+// catálogo 2g de cada clase (borradores de KA): habilidades, forja, barra por especialización y recomendadas
+const DRAFT = Object.fromEntries([['maga', DM, 'MAGA'], ['guerrero', DG, 'GUERRERO'], ['arquera', DA, 'ARQUERA']].map(([id, D, K]) => [id, {
+  skills: D[`${K}_SKILLS`], forge: D[`${K}_SKILL_FORGE`], bar: D[`${K}_SPEC_BAR`], reco: D[`${K}_FORGE_RECO`], fallback: D[`${K}_FALLBACK_BAR`],
+}]));
+const norm = s => normalizeSkillDef(s.talent && !s.kind ? { ...s, kind: 'talent' } : s);
+
+// un héroe de la clase al nivel lv (con su especialización desde el 10) y el juego falso que usa el libro
+function hero({ cls = 'maga', lv = 60, spec = null, draft = true, combat = false, forge = 'spec' } = {}) {
+  const T = talentTreesFor(cls);
+  spec = lv >= 10 ? (spec || T.specs[0].id) : null;
+  const h = makeHarness({ classId: cls, level: lv, spec, build: spec ? true : null });
+  const p = h.p;
+  if (draft) {
+    const D = DRAFT[cls];
+    p.cls = { ...CLASSES[cls], skills: D.skills.map(norm), forge: D.forge, forgeReco: D.reco, catalogV: 2 };
+    p.hotbar = { ...D.fallback };
+    if (spec) Object.assign(p.hotbar, D.bar[spec]?.bar || {});
+    p.skillForge = spec && forge === 'spec' ? { ...(D.bar[spec]?.forge || {}) } : {};
+    // una activa de talento comprada (etiqueta TALENTO en el kit base) desde el nivel 21
+    const tal = p.cls.skills.find(s => s.kind === 'talent' && !s.hero);
+    if (lv >= 21 && tal) p.talentExtra.grants.add(tal.id);
+  }
+  // la barra solo lleva habilidades que conoces (como el juego)
+  p.recompute();
+  for (const [slot, id] of Object.entries(p.hotbar)) { const sk = p.cls.skills.find(s => s.id === id); if (!sk || !isKnown(p, sk)) p.hotbar[slot] = null; }
+  p.knownSupports = SUPPORTS.slice(0, 9).map(s => s.id);
+  p.supports = {};
+  if (p.hotbar.rmb && lv >= 20) p.supports[p.hotbar.rmb] = [p.knownSupports[0]];
+  p.recompute();
+  p.resolved = {};
+  h.g.combatFree = !combat;
+  h.g.save = () => {};
+  h.g.ui = { message: t => console.info('[ui]', t), refreshHotbar() {} };
+  return { h, spec };
+}
+
+let cur = null;
+function mount(o) {
+  cur?.book?.close();
+  cur?.book?.el?.remove();
+  const { h, spec } = hero(o);
+  const book = createSkillBook(document.body, {
+    game: h.g, tipDelay: 0,
+    onClose: () => console.info('[libro] cerrado'),
+    onOpenTalents: () => console.info('[libro] abrir Talentos'),
+  });
+  cur = { h, book, spec, o };
+  window.__book = cur;
+  return cur;
+}
+function center(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+function fire(el, type, x, y, extra = {}) {
+  const Ev = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+  el.dispatchEvent(new Ev(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 1, ...extra }));
+}
+function cursorAt(x, y) {
+  let c = document.querySelector('.fake-cursor');
+  if (!c) {
+    c = document.createElement('div');
+    c.className = 'fake-cursor';
+    c.innerHTML = '<svg viewBox="0 0 18 26"><path d="M1 1 L1 21 L6 16 L10 25 L13 23.5 L9 15 L16 15 Z" fill="#f4ecd8" stroke="#1a120a" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+    document.body.appendChild(c);
+  }
+  c.style.transform = `translate(${x - 1}px, ${y - 1}px)`;
+}
+
+// escenas con nombre para las capturas
+const SHOTS = {
+  'maga60': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego' },
+  'maga60-var': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', hover: '.sb-var[data-var="i"]' },
+  'maga60-alt': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', hover: '.sb-tile[data-skill="m_dardo"]', alt: true },
+  'maga60-pop': { cls: 'maga', lv: 60, spec: 'piromante', sel: 'bola_fuego', pop: 1 },
+  'guerrero18': { cls: 'guerrero', lv: 18, spec: 'berserker', sel: 'g_hendidura', forge: 'none' },
+  'guerrero18-mech': { cls: 'guerrero', lv: 18, spec: 'berserker', sel: 'g_hendidura', forge: 'none', hover: '.sb-gchip[data-g="mech"]' },
+  'guerrero40-drag': { cls: 'guerrero', lv: 40, spec: 'guardian', drag: 'g_lanza:k2' },
+  'arquera5': { cls: 'arquera', lv: 5, sel: 'a_disparo' },
+  'arquera5-spec': { cls: 'arquera', lv: 5, hover: '.sb-srow[data-spec="montaraz"] [data-tipspec]' },
+  'arquera30-combat': { cls: 'arquera', lv: 30, spec: 'francotiradora', combat: true, hover: '.sb-var[data-var="ii"]' },
+  'maga30-v1': { cls: 'maga', lv: 30, spec: 'crionte', draft: false },
+  'swap': { cls: 'maga', lv: 40, spec: 'piromante', swap: 'crionte' },
+};
+
+async function scene(o) {
+  const c = mount(o);
+  if (o.swap) {
+    // la tira «qué cambia» sale con el libro cerrado: foto, cambio de especialización, resumen
+    const p = c.h.p;
+    const before = specSnapshot(p);
+    p.talents = { ...p.talents, spec: o.swap };
+    const D = DRAFT[o.cls];
+    if (o.draft !== false && D.bar[o.swap]) { Object.assign(p.hotbar, D.bar[o.swap].bar); p.skillForge = { ...D.bar[o.swap].forge }; }
+    p.recompute();
+    c.book.showSpecSwap(specSwapSummary(before, p), { ms: 60000 });
+    window.__ready = true;
+    return c;
+  }
+  c.book.open();
+  if (o.sel) c.book.select(o.sel);
+  await frame();
+  if (o.alt) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', code: 'AltLeft', bubbles: true }));
+  if (o.hover) {
+    const el = document.querySelector(o.hover);
+    if (el) { const { x, y } = center(el); fire(el, 'mouseover', x, y); fire(el, 'mousemove', x, y); cursorAt(x, y); await sleep(30); }
+    else console.error('[arnés] sin', o.hover);
+  }
+  if (o.pop != null) {
+    const s = document.querySelector(`.sb-sock[data-sock="${o.pop}"]`) || document.querySelector('.sb-sock');
+    if (s) { const { x, y } = center(s); fire(s, 'pointerdown', x, y); fire(s, 'click', x, y); const g = document.querySelector('.sb-pop .gm.ok'); if (g) { const q = center(g); fire(g, 'mouseover', q.x, q.y); cursorAt(q.x, q.y); await sleep(30); } }
+  }
+  if (o.drag) {
+    const [id, slot] = o.drag.split(':');
+    const t = document.querySelector(`.sb-tile[data-skill="${id}"]`);
+    const s = document.querySelector(`.sb-slot[data-slot="${slot}"]`);
+    if (t && s) {
+      const a = center(t), b = center(s);
+      fire(t, 'pointerdown', a.x, a.y);
+      for (let k = 1; k <= 6; k++) { const x = a.x + (b.x - a.x) * k / 6, y = a.y + (b.y - a.y) * k / 6; window.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y, bubbles: true })); }
+      cursorAt(b.x, b.y);
+    }
+  }
+  await document.fonts?.ready;
+  await frame();
+  c.book.check();
+  window.__ready = true;
+  return c;
+}
+
+// ?measure=1: A5/A4 de cada combinación y de la forja de cada habilidad del libro
+async function measure() {
+  await document.fonts?.ready;
+  const out = { runs: 0, forges: 0, overlaps: [], offscreen: [], errors: [], ms: [] };
+  const combos = [];
+  for (const cls of ['maga', 'guerrero', 'arquera']) {
+    const specs = talentTreesFor(cls).specs.map(s => s.id);
+    combos.push({ cls, lv: 1 }, { cls, lv: 5 });
+    for (const spec of specs) combos.push({ cls, lv: 18, spec, forge: 'none' }, { cls, lv: 60, spec });
+    combos.push({ cls, lv: 30, spec: specs[0], combat: true }, { cls, lv: 40, spec: specs[1], draft: false });
+  }
+  for (const o of combos) {
+    try {
+      const c = mount(o);
+      const t0 = performance.now();
+      c.book.open();
+      out.ms.push(performance.now() - t0);
+      await frame();
+      out.runs++;
+      const tag = `${o.cls}${o.lv}${o.spec ? '/' + o.spec : ''}${o.draft === false ? '/v1' : ''}`;
+      const take = r => { for (const x of r.overlaps) out.overlaps.push(`${tag}: ${x}`); for (const x of r.offscreen) out.offscreen.push(`${tag}: ${x}`); };
+      take(c.book.check());
+      // la forja de cada habilidad del libro
+      for (const el of [...document.querySelectorAll('.sb-tile')]) {
+        c.book.select(el.dataset.skill);
+        out.forges++;
+        const r = c.book.check();
+        take({ overlaps: r.overlaps.filter(x => !x.startsWith('.sb-tile') && !x.startsWith('.sb-sec')), offscreen: r.offscreen.filter(x => !/sb-tile|bajo el pliegue/.test(x)) });
+      }
+      c.book.close();
+    } catch (e) { out.errors.push(`${o.cls}${o.lv}: ${e.message}`); console.error(e); }
+  }
+  const avg = out.ms.reduce((a, b) => a + b, 0) / Math.max(1, out.ms.length);
+  const res = { vw: innerWidth, vh: innerHeight, runs: out.runs, forges: out.forges, openMs: Math.round(avg * 10) / 10,
+    overlaps: [...new Set(out.overlaps)], offscreen: [...new Set(out.offscreen)], errors: out.errors };
+  window.__measure = res;
+  document.getElementById('measure').textContent = JSON.stringify(res, null, 1);
+}
+
+// controles
+const $ = id => document.getElementById(id);
+for (const lv of [1, 5, 10, 18, 30, 60, 100]) $('c-lv').insertAdjacentHTML('beforeend', `<option value="${lv}">Nv ${lv}</option>`);
+function fillSpecs() {
+  $('c-spec').innerHTML = talentTreesFor($('c-cls').value).specs.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+}
+function fromCtl() { return { cls: $('c-cls').value, lv: +$('c-lv').value, spec: $('c-spec').value, combat: $('c-combat').checked, draft: $('c-draft').checked }; }
+$('c-cls').addEventListener('change', () => { fillSpecs(); scene(fromCtl()); });
+for (const id of ['c-lv', 'c-spec', 'c-combat', 'c-draft']) $(id).addEventListener('change', () => scene(fromCtl()));
+$('c-open').addEventListener('click', () => (cur?.book?.isOpen() ? cur.book.close() : cur?.book?.open()));
+document.addEventListener('keydown', e => { if (e.code === 'KeyT' && cur && !cur.book.isOpen()) cur.book.open(); });
+
+const named = SHOTS[Q.get('shot')];
+const o = named ? { ...named } : {
+  cls: Q.get('cls') || 'maga', lv: +(Q.get('lv') || 60), spec: Q.get('spec') || null, sel: Q.get('sel') || null,
+  combat: Q.get('combat') === '1', draft: Q.get('draft') !== '0', forge: Q.get('forge') || 'spec',
+  hover: Q.get('hover') || null, alt: Q.get('alt') === '1', pop: Q.get('pop'), drag: Q.get('drag'), swap: Q.get('swap'),
+};
+$('c-cls').value = o.cls; fillSpecs(); $('c-lv').value = String(o.lv);
+if (o.spec) $('c-spec').value = o.spec;
+$('c-combat').checked = !!o.combat; $('c-draft').checked = o.draft !== false;
+if (Q.get('measure') === '1') { document.body.classList.add('bare'); measure(); } else scene(o);
+</script>
+</body>
+</html>
