@@ -66,7 +66,7 @@
   text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .tp-head.is-tight .tp-title { font-size: 20px; }
 .tp-head.is-tight .tp-sub { font-size: 12.5px; }
-.tp-head.is-tight .tp-lo select { width: 200px; }
+.tp-head.is-tight .tp-lo select { width: 226px; }
 #talents-panel [hidden] { display: none !important; }
 
 /* ---------- cuerpo: 3 columnas 2 : 1 : 2 ---------- */
