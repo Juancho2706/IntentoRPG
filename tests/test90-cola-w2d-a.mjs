@@ -483,6 +483,7 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   // un proyectil que perfora (vx_detonante, 14 m) sin nadie: detona donde acaba su vuelo
   const h = mk('arquera');
   const t = trapAt(h, 12, 0);
+  assert.ok(t.data.rank === prof(h, 'vx_mina').rank && t.data.rank > 1, 'la trampa lleva el rango (para escalar su estallido)');
   h.step(0.3);
   h.aim(14, 0); h.setSlot('rmb', 'vx_detonante');
   assert.equal(h.cast('rmb'), true);
