@@ -65,7 +65,7 @@ export const GUERRERO_SKILLS = [
     line: 'Saltas hasta 8 m y golpeas al caer (150 % a 3 m). Si golpeas, puedes volver a saltar en 2 s (hasta 3 saltos).',
     desc: 'Saltas hasta 8 m al punto elegido (intocable en el aire) y al caer haces 150 % del arma en 3 m. Si golpeas, puedes volver a saltar en 2 s, hasta 3 saltos. Recarga 12 s desde el primero.' },
   // COMBO DE 3: tajo, revés y golpe descendente (320 %) con preparación que desangra
-  { id: 'g_rajar', name: 'Rajar', icon: '🗡️', art: 'talents/guerrero-berserker-s7.webp', cat: 'spender', spec: 'berserker', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'physical'], elem: 'physical',
+  { id: 'g_rajar', name: 'Rajar', icon: '🗡️', art: 'skills256/g_rajar.webp', cat: 'spender', spec: 'berserker', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'physical'], elem: 'physical',
     type: 'combo', req: 14, coef: 1.4, cost: 15, range: 2.5, radius: 2.5, comboWin: 2.5,
     steps: [
       { type: 'cone', coef: 1, angle: 100, radius: 2.5 },                                   // tajo
@@ -82,7 +82,7 @@ export const GUERRERO_SKILLS = [
 
   // ———————————————— KIT DEL GUARDIÁN (Nv10–15) ————————————————
   // POSTURAS que se alternan (sin tiempo global): Muralla (−15 % y +10 % de bloqueo) · Ariete (+15 %)
-  { id: 'g_guardia', name: 'Cambio de Guardia', icon: '🔰', art: 'talents/guerrero-guardian-s17.webp', cat: 'spec', spec: 'guardian', slots: ['k3'], tags: ['spec', 'buff', 'physical'], elem: 'physical',
+  { id: 'g_guardia', name: 'Cambio de Guardia', icon: '🔰', art: 'skills256/g_guardia.webp', cat: 'spec', spec: 'guardian', slots: ['k3'], tags: ['spec', 'buff', 'physical'], elem: 'physical',
     type: 'stance', req: 10, cd: 3,
     stance: { modes: [
       { id: 'muralla', name: 'Muralla', stats: { dr: 15, block: 10 }, color: 0x4a7ad8 },
@@ -91,7 +91,7 @@ export const GUERRERO_SKILLS = [
     line: 'Alternas dos posturas: Muralla (−15 % de daño recibido y +10 % de bloqueo) y Ariete (+15 % de daño). Cambiar: 3 s.',
     desc: 'Dos posturas que se alternan: Muralla (recibes un 15 % menos de daño y +10 % de bloqueo) y Ariete (+15 % de daño). Cambiar no gasta el tiempo global y se recarga en 3 s.' },
   // avance LENTO e imparable que arrastra; al llegar provoca 3 s a los que golpea
-  { id: 'g_carga_escudo', name: 'Carga de Escudo', icon: '🐂', art: 'talents/guerrero-guardian-s13.webp', cat: 'movement', spec: 'guardian', slots: ['k1'], tags: ['movement', 'melee', 'taunt', 'physical'], elem: 'physical',
+  { id: 'g_carga_escudo', name: 'Carga de Escudo', icon: '🐂', art: 'skills256/g_carga_escudo.webp', cat: 'movement', spec: 'guardian', slots: ['k1'], tags: ['movement', 'melee', 'taunt', 'physical'], elem: 'physical',
     type: 'dash', req: 12, coef: 1.3, cd: 10, range: 8, radius: 2.5, dashT: 1, unstoppable: true, drag: true, taunt: 3,
     line: 'Avanzas 8 m despacio e imparable (1 s): arrastras a los que encuentras y, al llegar, te atacan a ti 3 s.',
     desc: 'Avance lento e imparable: 8 m en 1 s con el escudo por delante. Arrastras a los que encuentras y, al llegar, golpeas en 2,5 m (130 % del arma) y te atacan a ti 3 s. Recarga 10 s.' },
@@ -102,7 +102,7 @@ export const GUERRERO_SKILLS = [
     line: 'Te preparas 0,4 s y golpeas el suelo: 220 % a 5 m. Plantado (1 s sin moverte), suelta 2 réplicas al 50 %.',
     desc: 'Te preparas 0,4 s y golpeas el suelo: 220 % del arma a todo lo que hay a 5 m. Si estás plantado (1 s sin moverte), suelta 2 réplicas al 50 %. Cuesta 30 de Furia.' },
   // te CLAVAS: no te mueves; −40 % a ti y a tus aliados a 6 m; provocas a 10 m cada segundo
-  { id: 'g_u_ciudadela', name: 'Ciudadela', icon: '🏰', art: 'talents/guerrero-guardian-x3.webp', cat: 'ultimate', spec: 'guardian', slots: ['k4'], tags: ['ultimate', 'aura', 'buff', 'ally', 'taunt', 'physical'], elem: 'physical',
+  { id: 'g_u_ciudadela', name: 'Ciudadela', icon: '🏰', art: 'skills256/g_u_ciudadela.webp', cat: 'ultimate', spec: 'guardian', slots: ['k4'], tags: ['ultimate', 'aura', 'buff', 'ally', 'taunt', 'physical'], elem: 'physical',
     behavior: 'g_u_ciudadela', req: 15, cd: 90, cdFloor: 0.7, dur: 8, radius: 6, buff: { dr: 40 }, moveMul: 0, plant: true,
     pulse: { every: 1, radius: 10, taunt: 1.5 },
     line: 'Clavas el escudo 8 s y no te mueves: tú y tus aliados a 6 m reciben −40 %; los enemigos a 10 m te atacan a ti.',
@@ -116,7 +116,7 @@ export const GUERRERO_SKILLS = [
     line: 'Te preparas 0,3 s y lanzas un martillo de luz (120 % a 3 m) que marca 8 s. Tu siguiente principal lo detona: +100 %.',
     desc: 'Te preparas 0,3 s y lanzas un martillo de luz a 12 m: 120 % del arma a todos en 3 m y los marca 8 s. Tu siguiente habilidad principal detona la marca: +100 % a ese enemigo. Cuesta 20 de Furia; recarga 8 s.' },
   // destello rápido que deja un SENDERO sagrado (daña y cura a tus aliados)
-  { id: 'g_sendero', name: 'Sendero de Luz', icon: '✨', art: 'talents/guerrero-cruzado-s14.webp', cat: 'movement', spec: 'cruzado', slots: ['k1'], tags: ['movement', 'zone', 'holy'], elem: 'holy',
+  { id: 'g_sendero', name: 'Sendero de Luz', icon: '✨', art: 'skills256/g_sendero.webp', cat: 'movement', spec: 'cruzado', slots: ['k1'], tags: ['movement', 'zone', 'holy'], elem: 'holy',
     type: 'blink', req: 12, coef: 1.0, cd: 10, range: 8,
     trail: { field: 'zona', dur: 4, width: 1.5, coef: 0.3, heal: 2 },
     line: 'Destello de 8 m: dejas 4 s un sendero sagrado que no se suma: daña un 30 % y cura a tus aliados un 2 % por segundo.',
@@ -138,7 +138,7 @@ export const GUERRERO_SKILLS = [
   // ———————————————— ACTIVAS DE TALENTO (kind 'talent', solo ranura 2; D29) ————————————————
   // de clase: c11A (Nv21), c17A (Nv27) y c22A (Nv31). Sus comportamientos (g_t_aliento,
   // g_t_intervencion) viven en js/powers-guerrero.js (KT)
-  { id: 'g_t_aliento', name: 'Segundo Aliento', icon: '❤️‍🩹', art: 'talents/guerrero-clase-c2.webp', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'heal', 'physical'], elem: 'physical',
+  { id: 'g_t_aliento', name: 'Segundo Aliento', icon: '❤️‍🩹', art: 'skills256/g_t_aliento.webp', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'heal', 'physical'], elem: 'physical',
     behavior: 'g_t_aliento', req: 21, cd: 30, color: 0xff5a4a,
     line: 'Gastas toda tu Furia y te curas un 1 % de la vida por cada 3 de Furia (100 de Furia: un 33 %).',
     desc: 'Gastas toda tu Furia y te curas un 1 % de la vida por cada 3 de Furia gastada (100 de Furia: un 33 %). Recarga 30 s.' },
@@ -146,14 +146,14 @@ export const GUERRERO_SKILLS = [
     type: 'buff', req: 27, cd: 20, dur: 8, buff: { dmgPct: 10 }, allyRadius: 15, gen: 30,
     line: 'Ganas 30 de Furia y tu grupo a 15 m hace +10 % de daño durante 8 s.',
     desc: 'Rugido de batalla: ganas 30 de Furia al instante y tu grupo a 15 m hace +10 % de daño durante 8 s. Sin coste; recarga 20 s.' },
-  { id: 'g_t_intervencion', name: 'Intervención', icon: '🤝', art: 'talents/guerrero-clase-c3.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'ally', 'shield', 'physical'], elem: 'physical',
+  { id: 'g_t_intervencion', name: 'Intervención', icon: '🤝', art: 'skills256/g_t_intervencion.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'ally', 'shield', 'physical'], elem: 'physical',
     type: 'leap', behavior: 'g_t_intervencion', req: 31, cd: 20, range: 8, airT: 0.4, lockT: 0.4, shieldPct: 15, dur: 6, color: 0x88bbff,
     line: 'Saltas junto a un aliado (o 8 m hacia la mira) y los dos ganan un escudo del 15 % de tu vida durante 6 s.',
     desc: 'Saltas junto a un aliado (o 8 m hacia la mira) y los dos ganan un escudo del 15 % de tu vida máxima durante 6 s. Recarga 20 s.' },
   // de los árboles héroe (fila 2 del Paragon, Nv72): Titán t4A, Gladiador l4A y Caudillo u4A.
   // Lo que enlaza con su mecánica (Golpe de Titán, Rival, Pendón) lo leen los poderes del
   // árbol en ③ afterCast con el id de la habilidad
-  { id: 'g_h_bramido', name: 'Bramido de Titán', icon: '📯', art: 'skills256/grito_guerra.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'shout', 'cc', 'physical'], elem: 'physical',
+  { id: 'g_h_bramido', name: 'Bramido de Titán', icon: '📯', art: 'skills256/g_h_bramido.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'shout', 'cc', 'physical'], elem: 'physical',
     behavior: 'g_h_bramido', req: 72, cd: 30, radius: 6, stun: 1.5, bossStun: 1,
     line: 'Bramas a 6 m: aturdes 1,5 s (a los jefes, 30 de Quebranto) y tu siguiente principal es un Golpe de Titán.',
     desc: 'Bramas a 6 m: aturdes 1,5 s a los enemigos (a los jefes, 30 de Quebranto) y tu siguiente habilidad principal es un Golpe de Titán. Recarga 30 s.' },

@@ -127,7 +127,7 @@ export const ARQUERA_SKILLS = [
 
   // ---------------- ACTIVAS DE TALENTO (solo la ranura 2) ----------------
   // Camuflaje (c11A): el comportamiento y el crítico al salir son del árbol (powers-arquera.js)
-  { id: 'a_t_camuflaje', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical',
+  { id: 'a_t_camuflaje', art: 'skills256/a_t_camuflaje.webp', name: 'Camuflaje', icon: '🍃', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'physical'], elem: 'physical',
     behavior: 'a_t_camuflaje', req: 21, cd: 20, dur: 4, color: 0x8fbf7a,
     line: 'Te vuelves invisible 4 s, los enemigos te pierden y Paso Veloz se recarga; tu primer disparo al salir es crítico.',
     desc: 'Te vuelves invisible 4 s: los enemigos te pierden, Paso Veloz se recarga y tu primer disparo al salir es crítico seguro. Se recarga en 20 s.' },
@@ -137,22 +137,22 @@ export const ARQUERA_SKILLS = [
     line: 'Durante 6 s: +30 % de velocidad, +15 % de velocidad de ataque e inmunidad a las ralentizaciones.',
     desc: 'Durante 6 s: +30 % de velocidad de movimiento, +15 % de velocidad de ataque e inmunidad a las ralentizaciones. Se recarga en 16 s.' },
   // Flecha Bengala (c22A): dentro, Debilidad (+15 % de daño recibido) y −15 % de daño de los enemigos
-  { id: 'a_t_bengala', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical',
+  { id: 'a_t_bengala', art: 'skills256/a_t_bengala.webp', name: 'Flecha Bengala', icon: '🎆', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'zone', 'ally', 'physical'], elem: 'physical',
     behavior: 'a_bengala', at: 'target', req: 31, cd: 20, radius: 10, dur: 10, range: 12, weakPct: 15, weakenPct: 15, color: 0xffcc55,
     line: 'Una bengala de 10 m durante 10 s: dentro, los enemigos reciben un 15 % más de daño del grupo y pegan un 15 % menos.',
     desc: 'Lanzas una bengala a hasta 12 m que ilumina 10 m durante 10 s: los enemigos dentro reciben un 15 % más de daño de todo el grupo y pegan un 15 % menos. Se recarga en 20 s.' },
   // Torbellino (árbol héroe Errante del Viento, q4A): las 3 Ráfagas las da su poder de árbol
-  { id: 'a_h_torbellino', art: 'talents/arquera-tiradora-s15.webp', name: 'Torbellino', icon: '🌀', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'area', 'cc', 'physical'], elem: 'physical',
+  { id: 'a_h_torbellino', art: 'skills256/a_h_torbellino.webp', name: 'Torbellino', icon: '🌀', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'area', 'cc', 'physical'], elem: 'physical',
     behavior: 'a_torbellino', req: 72, cd: 40, radius: 4, stun: 1.5, shake: 0.2, color: 0xbfe8ff,
     line: 'Un torbellino de 4 m levanta 1,5 s a los enemigos y te da 3 Ráfagas.',
     desc: 'Un torbellino de 4 m a tu alrededor levanta 1,5 s a los enemigos (a un jefe le llena Quebranto) y te da 3 Ráfagas. Se recarga en 40 s.' },
   // Desborde de Puntas (árbol héroe Carcaj Encantado, w4A): estado de 4 disparos que lee su poder de árbol
-  { id: 'a_h_puntas', art: 'talents/arquera-clase-c9.webp', name: 'Desborde de Puntas', icon: '✴️', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'buff', 'physical'], elem: 'physical',
+  { id: 'a_h_puntas', art: 'skills256/a_h_puntas.webp', name: 'Desborde de Puntas', icon: '✴️', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'buff', 'physical'], elem: 'physical',
     type: 'buff', req: 72, cd: 20, dur: 10, count: 4, buff: {}, color: 0xffd27a,
     line: 'Tus 4 siguientes disparos llevan las tres puntas encantadas a la vez, al 50 % (sin Trenza ni Punta Repartida).',
     desc: 'Tus 4 siguientes disparos (en 10 s) llevan las tres puntas encantadas a la vez, al 50 %, sin Trenza de Puntas ni Punta Repartida. Se recarga en 20 s.' },
   // Llamada del Halcón (árbol héroe Halconera, y4A)
-  { id: 'a_h_halcon', art: 'talents/arquera-clase-c4.webp', name: 'Llamada del Halcón', icon: '🦅', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'cc', 'physical'], elem: 'physical',
+  { id: 'a_h_halcon', art: 'skills256/a_h_halcon.webp', name: 'Llamada del Halcón', icon: '🦅', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'cc', 'physical'], elem: 'physical',
     behavior: 'a_halcon', req: 72, coef: 0.4, cd: 30, range: 15, dur: 6, every: 0.5, blindPct: 30, staggerOnce: 30, color: 0xd8b070,
     line: 'El halcón ataca a tu blanco 6 s sin parar (40 % cada 0,5 s), lo deja ciego y le llena 30 de Quebranto.',
     desc: 'Tu halcón ataca a tu blanco durante 6 s (40 % del arma cada 0,5 s): lo deja ciego (pega un 30 % menos) y a un jefe le llena 30 de Quebranto. Si muere, busca al enemigo más cercano. Se recarga en 30 s.' },
