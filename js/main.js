@@ -1552,10 +1552,18 @@ class Game {
     const p = this.player;
     if (this.state === 'play') {
       // esquema WASD+ratón: clic izq/der MANTENIDOS lanzan la ranura asignada
-      // (las recargas/atkCd internos regulan la cadencia). En clic-mover no aplica.
-      if ((this.settings?.controlScheme || 'wasd') !== 'click' && this.input?.mouseHeld) {
-        if (this.input.mouseHeld.l) this.castSkillSlot('lmb');
-        if (this.input.mouseHeld.r) this.castSkillSlot('rmb');
+      // (las recargas/atkCd internos regulan la cadencia). Paso 2 (§3.6.1): no relanza la
+      // ranura que está cargando o canalizando, ni la que espera a que sueltes tras una
+      // suelta automática (_needsRelease). En clic-mover solo tensa el básico tensable
+      // sobre el enemigo que atacas.
+      const held = this.input?.mouseHeld;
+      if (held) {
+        const busy = s => this._charging?.key === s || this._channel?.ctx?.key === s || this._needsRelease?.[s];
+        if ((this.settings?.controlScheme || 'wasd') !== 'click') {
+          if (held.l && !busy('lmb')) this.castSkillSlot('lmb');
+          if (held.r && !busy('rmb')) this.castSkillSlot('rmb');
+        } else if (held.l && !busy('lmb') && p.attackTarget?.alive && this.basicTensable?.()
+          && p.pos.distanceTo(p.attackTarget.pos) <= (p.cls.atkRange || 2) + 0.5) this.castSkillSlot('lmb');
       }
       p.update(dt);
       p.records.playTime += dt;

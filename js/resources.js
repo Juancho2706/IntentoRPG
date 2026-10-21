@@ -74,6 +74,15 @@ export function spendResource(p, cost) {
   p.mp = Math.max(0, p.mp - cost);
   return true;
 }
+// DRENAJE continuo (Paso 2, §3.6: canal con drainPerSec, Danza Carmesí): resta perSec·dt.
+// Devuelve false si no había bastante (queda a 0): el canal termina con endReason 'drain'.
+export function drainResource(p, perSec, dt) {
+  const n = Math.max(0, (perSec || 0) * (dt || 0));
+  if (!(n > 0)) return true;
+  if (p.mp < n - 1e-9) { p.mp = 0; return false; }
+  p.mp -= n;
+  return true;
+}
 // gana recurso (generadores, ramas Furibundo, poderes). Golpear "mantiene" la Furia.
 // ⑪ (Paso 2c.2): lo REALMENTE ganado dispara onResource(g, p, n, src) — Hermandad de
 // Armas (+5 % de la Furia generada por aliado). Un poder que da recurso EXTRA en

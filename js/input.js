@@ -5,6 +5,9 @@ import * as THREE from 'three';
 import { mergeBindings, buildCodeMap, assignBinding, MOVE_ACTIONS } from './bindings.js';
 
 const ALT_CODES = new Set(['AltLeft', 'AltRight']);
+// acción de tecla → ranura de habilidad (soltar la tecla suelta la carga o el canal: §3.6.1)
+const ACTION_SLOT = { skill1: 'k1', skill2: 'k2', skill3: 'k3', skill4: 'k4' };
+const PANEL_ACTIONS = new Set(['inventory', 'skills', 'character', 'talents', 'paragon', 'quests', 'collection', 'guide', 'map', 'close']);
 
 export class Input {
   constructor(game) {
@@ -13,7 +16,10 @@ export class Input {
     this.mouseWorld = null; // último punto del mundo bajo el ratón
     this.mouseScreen = null; // { x, y } en px de pantalla (enemigo bajo el cursor, HUD)
     this.pointerDown = false;
-    this.mouseHeld = { l: false, r: false }; // botones de ratón mantenidos (esquema WASD)
+    // botones de ratón mantenidos (D27: derivados de e.buttons; también en clic-mover). Solo
+    // cuentan si la pulsación EMPEZÓ en el lienzo (_canvasPress): arrastrar desde un panel no lanza
+    this.mouseHeld = { l: false, r: false };
+    this._canvasPress = false;
     this.keys = new Set();
     // remapeo: acciones↔teclas (defaults + anulaciones del jugador)
     this.bindings = mergeBindings(game.settings?.bindings);
@@ -51,12 +57,43 @@ export class Input {
     window.addEventListener('keyup', e => {
       if (ALT_CODES.has(e.code)) { this.setAlt(false); return; }
       this.keys.delete(e.code); this.updateKeyDir();
+      // soltar la tecla de una ranura (por el remapeo) suelta su carga o su canal
+      const slot = ACTION_SLOT[this.codeToAction[e.code]];
+      if (slot && !this.held(this.codeToAction[e.code])) this.game.releaseSkillSlot?.(slot);
     });
 
-    const clearHeld = () => { this.mouseHeld.l = this.mouseHeld.r = false; this.pointerDown = false; this.setAlt(false); };
+    // perder el foco, ocultar la pestaña o cancelar el puntero: nada queda «mantenido»
+    // (teclas incluidas) y la carga o el canal mantenido se cancelan SIN coste (§3.6.1)
+    const clearHeld = () => {
+      this.mouseHeld.l = this.mouseHeld.r = false;
+      this.pointerDown = false; this._canvasPress = false;
+      this.keys.clear(); this.keyDir = null;
+      this.setAlt(false);
+      this.game.cancelHeld?.('cancel');
+    };
     window.addEventListener('blur', clearHeld);
     window.addEventListener('pointercancel', clearHeld);
     document.addEventListener('visibilitychange', () => { if (document.hidden) clearHeld(); });
+  }
+
+  // D27: botones del ratón desde e.buttons (bit 1 = izq., bit 2 = der.). Pointer Events no
+  // emite pointerdown para el 2.º botón de un acorde (llega en pointermove), así que cada
+  // evento compara con el estado anterior: flanco de subida → lanza la ranura (en clic-mover
+  // solo 🖱️Der; 🖱️Izq ataca/mueve en onPointerDown), flanco de bajada → g.releaseSkillSlot.
+  syncButtons(e, { fromDown = false } = {}) {
+    const g = this.game;
+    if (typeof e.buttons !== 'number') return;
+    if (!this._canvasPress && !(fromDown && e.buttons)) return;
+    const l = !!(e.buttons & 1), r = !!(e.buttons & 2);
+    const was = { l: this.mouseHeld.l, r: this.mouseHeld.r };
+    this.mouseHeld.l = l; this.mouseHeld.r = r;
+    const play = g.player?.alive && g.state === 'play';
+    const scheme = g.settings?.controlScheme || 'wasd';
+    if (was.l && !l) g.releaseSkillSlot?.('lmb');
+    if (was.r && !r) g.releaseSkillSlot?.('rmb');
+    if (play && r && !was.r) g.castSkillSlot('rmb');
+    if (play && l && !was.l && scheme !== 'click') g.castSkillSlot('lmb');
+    if (!e.buttons) this._canvasPress = false;
   }
 
   // Alt mantenido → ui.altHeld (y el widget de mecánica, si expone setAltHeld)
@@ -74,6 +111,8 @@ export class Input {
   // despacha una acción lógica (resuelta desde la tecla pulsada)
   doAction(action, e) {
     const g = this.game;
+    // abrir un panel cancela SIN coste la carga o el canal mantenido (§3.6.1)
+    if (PANEL_ACTIONS.has(action)) g.cancelHeld?.('panel');
     switch (action) {
       case 'inventory': g.ui.togglePanel('inv'); break;
       case 'skills': g.ui.togglePanel('skills'); break;
@@ -154,17 +193,19 @@ export class Input {
     const g = this.game;
     if (!g.player || !g.player.alive || g.state !== 'play') return;
     this.pointerDown = true;
+    this._canvasPress = true;
     const scheme = g.settings?.controlScheme || 'wasd';
 
     // --- esquema WASD+ratón: el ratón NO mueve; clic izq/der lanzan habilidades ---
     if (scheme !== 'click') {
       e.preventDefault();
-      if (e.button === 2) { this.mouseHeld.r = true; g.castSkillSlot('rmb'); }
-      else { this.mouseHeld.l = true; g.castSkillSlot('lmb'); }
+      this.syncButtons(e, { fromDown: true });
       return;
     }
     // --- esquema clic-mover (D2): el botón DERECHO lanza la ranura DER ---
-    if (e.button === 2) { e.preventDefault(); g.castSkillSlot('rmb'); return; }
+    const onlyRight = e.button === 2;
+    this.syncButtons(e, { fromDown: true });
+    if (onlyRight) { e.preventDefault(); return; }
 
     // ¿clic sobre un enemigo?
     const ray = this.raycast(e);
@@ -189,11 +230,17 @@ export class Input {
   onPointerMove(e) {
     this.mouseScreen = { x: e.clientX, y: e.clientY };
     this.mouseWorld = this.groundPoint(e);
+    if (this._canvasPress) this.syncButtons(e);
     if (this.pointerDown && this.game.player?.alive) {
       const p = this.groundPoint(e);
       if (p && this.game.player.moveTarget) this.game.player.moveTarget = p;
     }
   }
 
-  onPointerUp() { this.pointerDown = false; this.mouseHeld.l = this.mouseHeld.r = false; }
+  // suelta SOLO los botones que ya no están pulsados (con el acorde, el otro sigue)
+  onPointerUp(e) {
+    if (this._canvasPress && typeof e?.buttons === 'number') this.syncButtons(e);
+    else { this.mouseHeld.l = this.mouseHeld.r = false; this._canvasPress = false; }
+    if (!this.mouseHeld.l && !this.mouseHeld.r) this.pointerDown = false;
+  }
 }

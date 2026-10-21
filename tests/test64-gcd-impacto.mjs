@@ -23,7 +23,7 @@ addSkill('guerrero', { id: 't_blink', name: 'Parpadeo', cat: 'movement', tags: [
 addSkill('guerrero', { id: 't_escudo', name: 'Escudo', cat: 'defense', tags: ['defense', 'shield', 'physical'], type: 'shield', cd: 10, shieldPct: 20, dur: 6 });
 addSkill('guerrero', { id: 't_provoca', name: 'Provoca', cat: 'utility', tags: ['utility', 'taunt', 'cc', 'physical'], type: 'taunt', cd: 8, radius: 6, dur: 4 });
 addSkill('guerrero', { id: 't_zona', name: 'Zona', cat: 'spender', tags: ['spender', 'zone', 'physical'], type: 'zone', at: 'target', coef: 1, cd: 5, radius: 3, dur: 2, range: 8 });
-addSkill('guerrero', { id: 't_cepo', name: 'Cepo', cat: 'utility', tags: ['utility', 'trap', 'cc', 'nature'], elem: 'nature', type: 'trap', coef: 1, cd: 5, radius: 1.5, root: 2, armT: 10, range: 8 });
+addSkill('guerrero', { id: 't_cepo', name: 'Cepo', cat: 'utility', tags: ['utility', 'trap', 'cc', 'nature'], elem: 'nature', type: 'trap', coef: 1, cd: 5, radius: 1.5, root: 2, dur: 10, trap: { armT: 0.3 }, range: 8 });
 addSkill('guerrero', { id: 't_marca', name: 'Marca', cat: 'utility', tags: ['utility', 'mark', 'arcane'], elem: 'arcane', type: 'mark', cd: 5, dur: 8, weakPct: 20, range: 10 });
 addSkill('maga', { id: 't_canal', name: 'Canal', cat: 'spender', tags: ['spender', 'channel', 'arcane'], elem: 'arcane', type: 'channel', coef: 0.5, cost: 10, cd: 1, channelT: 1, ticks: 4, int: true, range: 10 });
 
@@ -222,16 +222,26 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   h.step(1.5);
   assert.equal(h.g.fields.length, 0, 'la zona caduca');
   z.alive = false;
-  // trap: se arma y salta con el primer enemigo que entra (inmoviliza)
+  // trap: se ARMA en trap.armT (0,3 s) y salta con el primer enemigo dentro (inmoviliza);
+  // fuera de su radio no pasa nada y, al saltar, se consume (Paso 2, §3.6)
   h.tick(0.5);
   h.aim(6, 0); h.setSlot('k2', 't_cepo');
   assert.equal(h.cast('k2'), true);
   const prey = h.enemy({ hp: 1e6, pos: [9, 0, 0] });
-  h.step(0.2);
+  h.step(0.4);
   assert.equal(prey.hp, 1e6, 'fuera de la trampa no pasa nada');
-  prey.pos.set(6, 0, 0); h.step(0.2);
+  prey.pos.set(6, 0, 0); h.step(0.1);
   assert.ok(prey.hp < 1e6 && prey.rootT > 0, 'la trampa daña e inmoviliza');
+  assert.ok(!h.g.fields.some(f => !f.dead && f.kind === 'trampa'), 'al saltar se consume');
   prey.alive = false;
+  h.p.cds.t_cepo = 0; h.p.gcdT = 0;
+  const early = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+  assert.equal(h.cast('k2'), true);
+  h.step(0.2);
+  assert.equal(early.hp, 1e6, 'sin armar (0,2 s < armT) no salta aunque esté encima');
+  h.step(0.15);
+  assert.ok(early.hp < 1e6, 'armada, salta');
+  early.alive = false;
   // mark: debilitamiento (saco Debilidad)
   h.tick(0.5);
   const m = h.enemy({ hp: 1e6, pos: [4, 0, 0] });

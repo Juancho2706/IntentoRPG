@@ -1,39 +1,43 @@
 // ============================================================
 // Vocabulario y utilidades del CATÁLOGO de habilidades (módulo PURO, sin imports)
 // ============================================================
-// Paso 2b.0 (docs/paso2-diseno.md §1, §3.0, §3.4, §4.3). Lo importan:
-//  - js/skills-<clase>.js (catálogo por clase): los constructores de ramas;
-//  - js/data.js: normaliza las definiciones y fusiona SKILL_MODS;
-//  - js/skill-resolve.js: re-exporta CAT_SLOTS/TAGS y usa supportFits;
-//  - js/save-schema.js: supportFits/defaultSlots en la migración v3.
+// Paso 2b.0 (docs/paso2-diseno.md §1, §3.0, §3.4, §4.3) y Paso 2 · 2f + 2g
+// (docs/paso2-implementacion.md §3.5 forja, §3.6 verbos). Lo importan:
+//  - js/skills-<clase>.js (catálogo y forja por clase);
+//  - js/data.js: normaliza las definiciones;
+//  - js/skill-resolve.js: forja de la definición, soportes y ranuras;
+//  - js/save-schema.js: supportFits/defaultSlots en las migraciones.
 // No importa NADA del juego para que ninguno de esos módulos forme ciclos.
 //
 // FORMATO DE UNA HABILIDAD (lo que escribe cada skills-<clase>.js):
-//   { id, name, icon, desc,
+//   { id, name, icon, desc, line,
 //     cat:  'basic'|'spender'|'movement'|'defense'|'utility'|'spec'|'ultimate',
 //     slots:['rmb','k2'],            // ranuras válidas; deben coincidir con defaultSlots()
 //     tags: ['spender','proj','fire'],// vocabulario cerrado (TAGS); incluye cat y elem
 //     elem: 'physical'|'fire'|'frost'|'arcane'|'holy'|'nature',
 //     type: tipo genérico (GENERIC_TYPES) — o `behavior:'id'` (defineSkillBehavior)
-//     req:  nivel en que se aprende sola (las de talento: 10)
+//     req:  nivel en que se aprende sola · spec: '<specId>' (kit de especialización, D7)
 //     coef: WD por objetivo y uso a rango 1 (0 = sin daño) · cost · cd · gen (básicos)
 //     …parámetros del tipo (radius, range, speed, count, spread, pierce, slow, stun,
-//       root, dur, buff:{stat:valor}, shieldPct, at:'self'|'target', angle, width…)
+//       root, dur, buff:{stat:valor}, shieldPct, at:'self'|'target'|'enemy', angle, width…)
 //     windup (s, cancelable con la esquiva, no cobra coste), impactDelay (s, daño
 //       sincronizado con el VFX), lockT (s de bloqueo), int:true (interrumpible)
-//     Paso 2b.2 (núcleo): cadence (× cadencia de un básico), gen (básico: al acertar;
-//       resto: al lanzar), genOnHit (no básicos: si golpea), splash (coef de la
-//       salpicadura de un proyectil, radius = su radio), hitDot:{kind, coef, dur}
-//       (DoT propio al impactar), bossStun:false (no aturde a jefes), unstoppable /
-//       slowImmune (buff/canal: imparable / inmune a ralentizaciones), allyDr y
-//       projMissPct (zona: −daño y fallo de proyectiles enemigos para aliados dentro),
-//       resPerSec (aura: recurso por segundo al dueño dentro) }
+//     Paso 2b.2 (núcleo): cadence, gen, genOnHit, splash, hitDot, bossStun:false,
+//       unstoppable / slowImmune, allyDr / projMissPct, resPerSec
+//     Paso 2 (§3.6): claves de VERBO (charge, recast, seq, steps, stance, wall, trap,
+//       mark, detonate, follow, pull/knock/drag, charges, repeat, trail, pulse…; ver
+//       VERB_DOC abajo y docs/paso2-claves-w2.md) }
 // ============================================================
 
 // ---------- categorías, ranuras y tags ----------
 export const CATS = ['basic', 'spender', 'movement', 'defense', 'utility', 'spec', 'ultimate'];
+// D14: etiquetas VISIBLES por categoría (las claves internas no cambian; G15: nada de «Gastadora»)
+export const CAT_LABELS = Object.freeze({
+  basic: 'Básica', spender: 'Principal', movement: 'Movilidad', defense: 'Defensa',
+  utility: 'Utilidad', spec: 'Insignia', ultimate: 'Definitiva',
+});
 export const SLOT_KEYS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
-// ranuras por categoría (§1.1). La ranura k2 es FLEXIBLE: defensa, utilidad o gastadora.
+// ranuras por categoría (§1.1). La ranura k2 es FLEXIBLE: defensa, utilidad o principal.
 export const CAT_SLOTS = Object.freeze({
   basic: ['lmb'],
   spender: ['rmb', 'k2'],
@@ -54,25 +58,51 @@ export function supportSockets(sk) {
 }
 
 export const ELEMS = ['physical', 'fire', 'frost', 'arcane', 'holy', 'nature'];
+// tags de VERBO (§3.6): se DERIVAN de la definición (normalizeSkillDef); no se escriben a mano
+export const VERB_TAGS = new Set(['charge', 'combo', 'recast', 'stance']);
 export const TAGS = new Set([
   // categoría
   ...CATS,
   // entrega
-  'melee', 'proj', 'area', 'cone', 'line', 'channel', 'aura', 'zone', 'trap', 'mark',
+  'melee', 'proj', 'area', 'cone', 'line', 'channel', 'aura', 'zone', 'trap', 'mark', 'wall',
   'summon', 'shout', 'buff', 'shield', 'heal',
   // alcance · control · extra
   'ally', 'cc', 'taunt', 'interrupt', 'dot',
+  // verbo (derivados)
+  ...VERB_TAGS,
   // elemento
   ...ELEMS,
 ]);
 
 // tipos genéricos que implementa js/game-skills.js (si la habilidad no declara `behavior`)
 export const GENERIC_TYPES = ['weapon', 'melee', 'proj', 'area', 'cone', 'line', 'leap', 'dash',
-  'blink', 'shield', 'taunt', 'zone', 'trap', 'mark', 'channel', 'buff', 'aura'];
+  'blink', 'shield', 'taunt', 'zone', 'trap', 'mark', 'channel', 'buff', 'aura',
+  // Paso 2 (§3.6): combo de 3, postura y muro
+  'combo', 'stance', 'wall'];
+// tag de ENTREGA de cada tipo: al forjar un cambio de tipo, el viejo sale y entra el nuevo
+export const TYPE_TAG = Object.freeze({
+  melee: 'melee', proj: 'proj', area: 'area', cone: 'cone', line: 'line', channel: 'channel',
+  zone: 'zone', trap: 'trap', mark: 'mark', aura: 'aura', buff: 'buff', shield: 'shield',
+  taunt: 'taunt', wall: 'wall',
+});
 
 // Constantes de combate que los catálogos necesitan (este módulo no importa nada:
 // combat-math define las mismas cifras y test62 vigila que coincidan).
 export const COLDBLOOD_CRIT = 100;   // Sangre Fría: +100 de prob. crítica contra ralentizados
+
+// Valores por defecto de los verbos (§3.6.1 y decisiones del orquestador, 4: ventana de
+// 0,25 s). Son DATOS: una habilidad los cambia con sus claves y los talentos con sus mods.
+export const VERB_DEFAULTS = Object.freeze({
+  perfectWin: 0.25,     // ancho de la ventana perfecta si la carga no declara `perfect`
+  chargeMin: 0.15,      // carga mínima (un toque suelta aquí)
+  comboWin: 2.5,        // s sin pulsar que devuelven el combo al 1.er paso
+  recastGap: 0.35,      // separación mínima entre relanzamientos (tecla mantenida)
+  plantedAfter: 1,      // s sin caminar ni usar movilidad para estar PLANTADO (D20)
+  echoCap: 3,           // repeticiones por lanzamiento original (Maga §12)
+  dragWidth: 1.5,       // m a cada lado del camino que arrastra un avance con `drag`
+  trapArmT: 0.5,        // s hasta que una trampa queda armada
+  trapLife: 20,         // s de vida de una trampa armada sin `dur`
+});
 
 // Ángulo (rad, relativo a la mira) del proyectil i de n. Con abanico propio
 // (sk.spread = semiapertura) se reparte en él. Sin él (1 proyectil + Multiproyectil,
@@ -88,7 +118,7 @@ export function projFanOffset(i, n, spread = 0) {
 export const RANK_MAX = 5; // rango base máximo por nivel (§4.1); talentos/equipo suman encima
 
 // Ranuras por defecto de una habilidad (§1.1 CAT_SLOTS, incl. especialización):
-//  gastadora de especialización → rmb/k2/k3 · defensa/utilidad de especialización → k2/k3
+//  principal de especialización → rmb/k2/k3 · defensa/utilidad de especialización → k2/k3
 export function defaultSlots(cat, tags = []) {
   const t = new Set(tags);
   if (cat === 'spec') {
@@ -117,9 +147,30 @@ function compatKind(def) {
   return 'core';
 }
 
-// Normaliza una definición del catálogo: tags ⊇ {cat, elem}, slots, kind (compat) y max.
-export function normalizeSkillDef(def) {
-  const tags = [...new Set([...(def.tags || []), def.cat, def.elem].filter(Boolean))];
+// tags de verbo que corresponden a una definición
+function verbTagsOf(def) {
+  const out = [];
+  if (def.charge) out.push('charge');
+  if (def.recast) out.push('recast');
+  if (def.type === 'combo') out.push('combo');
+  if (def.type === 'stance' || def.stance) out.push('stance');
+  return out;
+}
+
+// Normaliza una definición del catálogo: tags ⊇ {cat, elem} + los de verbo, slots, kind y max.
+// `prev` (forja, §3.5): la definición anterior; si el elemento o el tipo cambian, QUITA el
+// elemento viejo y el tag de entrega del tipo viejo (y pone el del nuevo).
+export function normalizeSkillDef(def, prev = null) {
+  let tags = (def.tags || []).filter(t => !VERB_TAGS.has(t));
+  if (prev) {
+    if (prev.elem && prev.elem !== def.elem) tags = tags.filter(t => t !== prev.elem);
+    if (prev.type !== def.type) {
+      const old = TYPE_TAG[prev.type], now = TYPE_TAG[def.type];
+      if (old) tags = tags.filter(t => t !== old);
+      if (now) tags.push(now);
+    }
+  }
+  tags = [...new Set([...tags, ...verbTagsOf(def), def.cat, def.elem].filter(Boolean))];
   return {
     ...def,
     tags,
@@ -132,9 +183,121 @@ export function normalizeSkillDef(def) {
   };
 }
 
+// Chip de verbo del libro (D22): se DERIVA de la definición (forjada), sin campo a mano
+export function skillVerbs(def) {
+  if (!def) return [];
+  const out = [];
+  if (def.type === 'channel' && def.hold !== false) out.push('hold');
+  if (def.charge) out.push('charge');
+  if (def.recast) out.push('recast');
+  if (def.type === 'combo') out.push('combo');
+  if (def.seq) out.push('seq');
+  if (def.type === 'stance') out.push('stance');
+  if (def.type === 'trap' || def.trap) out.push('trap');
+  if (def.detonate || def.mark?.detonate) out.push('detonate');
+  if (def.needPlanted || def.plant || def.repeat?.needPlanted) out.push('planted');
+  if (def.follow === 'owner' || def.follow === 'aim') out.push('follow');
+  return out;
+}
+
+// ------------------------------------------------------------
+// Vocabulario de VERBOS (§3.6) — lo valida validateSkillDef
+// ------------------------------------------------------------
+// claves de la definición que estos tipos/verbos entienden (documentación viva; la
+// tabla completa con sus traducciones del mockup está en docs/paso2-claves-w2.md)
+export const VERB_DOC = Object.freeze({
+  windup: 'Preparación (s) · moveMul durante ella (1 = como hoy, 0 = quieto)',
+  channel: 'channelT, ticks, hold: true|false|"toggle", moveMul, autoShot{every,coef,target,range}, drainPerSec, endless',
+  charge: 'charge{min,max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul}}',
+  recast: 'recast{n (usos totales),win,cond:null|"hit",perfectLast,cdFrom:"first"|"end",free,gap}',
+  combo: 'type:"combo" · steps[{type,coef,radius,angle,range,width,at,windup,dot,moveMul}] · comboWin',
+  seq: 'seq{every,extra{count,spread,coef,pierce}}',
+  stance: 'type:"stance" · stance{modes[{id,name,stats,moveMul,chargeSpeed,keepGauge,color}],dur,swapCd,swapGcd,endOnDodge,recastEnds}',
+  planted: 'needPlanted · plant:true (dash/salto)',
+  mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct}}',
+  trap: 'trap{armT,maxArmed,radius,root,burst{radius,coef},consume,lure{radius,eliteRadius,boss,speedMul}}',
+  detonate: 'detonate{radius,coef,chain,perTarget,consume}',
+  wall: 'type:"wall" · wall{len,width,blocks:true|"all",contain}',
+  follow: 'follow:"owner"|"aim"',
+  displace: 'pull: m | {dist,to:"self"|"center"|"trap"} · knock: m · drag:true · dragWidth · dashT',
+  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
+});
+// stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
+export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
+// alias de los documentos que DESAPARECEN (§3.6): en un catálogo v2 son error
+export const RETIRED_KEYS = Object.freeze({
+  windupMult: 'windupMul (mod)', windupMove: 'moveMul', moveFree: 'moveMul', moveWhileChannel: 'moveMul',
+  moveSpd: 'moveMul', stopIf: 'endless + g.extendChannel', onRelease: '⑭ onSkillEnd', chargeT: 'charge.max',
+  minT: 'charge.min', coefAt: 'charge.scale.coef', perfectMul: 'charge.perfectPct', perfectBonus: 'charge.perfectPct / perfectGauge',
+  moveWhileCharging: 'charge.moveMul', chargeMul: 'chargeSpeed (%)', onChainEnd: '⑭ onSkillEnd', comboStep: 'g.setComboStep',
+  stanceBoth: 'g.setStanceBoth', markUses: 'mark.uses', aftershocks: 'repeat', window: 'recast.win',
+  // claves del mockup sin traducción directa (decisión 11 del orquestador; tabla en docs/paso2-claves-w2.md)
+  dmg3: 'mul { "steps.2.coef": × }', trapIn: 'contain (campo)', decoy: 'lure { radius, dur }', single: 'radius 0 / splash 0',
+  vulnPct: 'mark.weakPct', markCount: 'mark.count', markRadius: 'mark.radius', markDur: 'mark.dur (o mod markDur)',
+  tauntDur: 'taunt (+s)', bounce: 'bounces', length: 'wall.len', target: 'at: "enemy"',
+});
+const HOLD_VALUES = new Set([true, false, 'toggle']);
+const isNum = v => typeof v === 'number' && Number.isFinite(v);
+const isPlain = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
+
+// valida las claves de verbo de una definición (errores en `err`)
+function validateVerbs(def, id, err) {
+  if (def.moveMul != null && !(isNum(def.moveMul) && def.moveMul >= 0)) err.push(`${id}: moveMul debe ser ≥ 0`);
+  if (def.type === 'channel' && def.hold != null && !HOLD_VALUES.has(def.hold)) err.push(`${id}: hold debe ser true, false o "toggle"`);
+  if (def.autoShot && !(def.autoShot.every > 0)) err.push(`${id}: autoShot.every > 0`);
+  if (def.drainPerSec != null && !(def.drainPerSec >= 0)) err.push(`${id}: drainPerSec ≥ 0`);
+  const c = def.charge;
+  if (c) {
+    if (!isPlain(c)) err.push(`${id}: charge debe ser un objeto`);
+    else {
+      if (!(c.max > 0)) err.push(`${id}: charge.max > 0`);
+      const min = c.min ?? VERB_DEFAULTS.chargeMin;
+      if (!(min >= 0 && min < c.max)) err.push(`${id}: charge.min en [0, max)`);
+      if (c.perfect && !(Array.isArray(c.perfect) && c.perfect.length === 2 && c.perfect[0] < c.perfect[1] && c.perfect[1] <= c.max + 1e-9)) err.push(`${id}: charge.perfect = [desde, hasta] dentro de [0, max]`);
+      const sc = c.scale?.coef;
+      if (sc != null && !(Array.isArray(sc) && sc.length >= 2 && (sc.every(isNum) || sc.every(x => Array.isArray(x) && x.length === 2 && x.every(isNum))))) err.push(`${id}: charge.scale.coef = [aMin, aMax] o [[t, v], …]`);
+      if (c.full && !(c.full.count >= 1)) err.push(`${id}: charge.full.count ≥ 1`);
+    }
+  }
+  const r = def.recast;
+  if (r) {
+    if (!(Number.isInteger(r.n) && r.n >= 2)) err.push(`${id}: recast.n = usos totales de la cadena (≥ 2)`);
+    if (!(r.win > 0)) err.push(`${id}: recast.win > 0`);
+    if (r.cond != null && r.cond !== 'hit') err.push(`${id}: recast.cond null o "hit"`);
+    if (r.cdFrom != null && r.cdFrom !== 'first' && r.cdFrom !== 'end') err.push(`${id}: recast.cdFrom "first" o "end"`);
+  }
+  if (def.type === 'combo') {
+    const st = def.steps;
+    if (!(Array.isArray(st) && st.length >= 2 && st.length <= 5)) err.push(`${id}: un combo tiene de 2 a 5 pasos (steps)`);
+    else for (const [i, s] of st.entries()) {
+      if (!['melee', 'area', 'cone', 'line', 'proj'].includes(s?.type)) err.push(`${id}: steps.${i}.type debe ser melee|area|cone|line|proj`);
+    }
+  }
+  if (def.seq && !(def.seq.every >= 2 && isPlain(def.seq.extra))) err.push(`${id}: seq = { every ≥ 2, extra: {…} }`);
+  if (def.type === 'stance') {
+    const m = def.stance?.modes;
+    if (!(Array.isArray(m) && (m.length === 1 || m.length === 2) && m.every(x => x?.id))) err.push(`${id}: stance.modes = 1 o 2 modos con id`);
+    else for (const x of m) for (const k of Object.keys(x.stats || {})) if (!STANCE_STATS.has(k)) err.push(`${id}: stat de postura no soportada ${k}`);
+  }
+  if (def.type === 'wall' && !(def.wall?.len > 0)) err.push(`${id}: wall.len > 0`);
+  if (def.mark && !(def.mark.dur > 0)) err.push(`${id}: mark.dur > 0`);
+  if (def.mark?.detonate && !(def.mark.detonate.pct > 0 && def.mark.detonate.by)) err.push(`${id}: mark.detonate = { by, pct > 0 }`);
+  if (def.trap && !isPlain(def.trap)) err.push(`${id}: trap debe ser un objeto`);
+  if (def.detonate && !(def.detonate.radius > 0)) err.push(`${id}: detonate.radius > 0`);
+  if (def.follow != null && def.follow !== false && def.follow !== 'owner' && def.follow !== 'aim') err.push(`${id}: follow "owner", "aim" o false`);
+  if (def.charges != null && !(Number.isInteger(def.charges) && def.charges >= 1)) err.push(`${id}: charges entero ≥ 1`);
+  if (def.repeat && !(def.repeat.n >= 1 && def.repeat.every > 0)) err.push(`${id}: repeat = { n ≥ 1, every > 0, coef }`);
+  if (def.pull != null && !(isNum(def.pull) ? def.pull > 0 : def.pull?.dist > 0)) err.push(`${id}: pull = m o { dist, to }`);
+  if (def.at === 'ownField' && !def.fieldKind) err.push(`${id}: at "ownField" necesita fieldKind`);
+  if (def.pulse && !(def.pulse.every > 0)) err.push(`${id}: pulse.every > 0`);
+  if (def.shieldGain && !(Array.isArray(def.shieldGain) && def.shieldGain.length === 2)) err.push(`${id}: shieldGain = [pct, máx]`);
+}
+
 // Valida una definición (devuelve la lista de errores; [] = válida). Lo usan los
-// tests de catálogo (test62 y los test-skills-<clase> de 2b.1).
-export function validateSkillDef(def, { behaviors = null } = {}) {
+// tests de catálogo (test62, test81 y los test-skills-<clase>).
+// opts.v2 (catálogo 2g, CATALOG_V = 2): además, alias retirados son error y las activas
+// de talento solo van a la ranura 2 (kind 'talent' ⇒ defensa o utilidad, slots ['k2']).
+export function validateSkillDef(def, { behaviors = null, v2 = false } = {}) {
   const err = [];
   const id = def?.id || '?';
   for (const k of ['id', 'name', 'icon', 'desc', 'cat', 'elem']) if (!def?.[k]) err.push(`${id}: falta ${k}`);
@@ -159,6 +322,16 @@ export function validateSkillDef(def, { behaviors = null } = {}) {
   if (def.cat === 'basic' && (def.cost || 0) > 0) err.push(`${id}: un básico no cuesta recurso`);
   if (def.cat === 'ultimate' && (def.cost || 0) > 0) err.push(`${id}: una definitiva no cuesta recurso (solo enfriamiento)`);
   if (def.windup != null && !(def.windup >= 0 && def.windup <= 1.2)) err.push(`${id}: windup fuera de rango`);
+  validateVerbs(def, id, err);
+  if (v2) {
+    for (const [k, to] of Object.entries(RETIRED_KEYS)) if (def[k] !== undefined) err.push(`${id}: clave retirada ${k} → ${to}`);
+    if (def.type === 'field') err.push(`${id}: type "field" → type "zone"`);
+    if (def.kind === 'talent') {
+      if (def.cat !== 'defense' && def.cat !== 'utility') err.push(`${id}: una activa de talento es de defensa o utilidad`);
+      if (!(slots.length === 1 && slots[0] === 'k2')) err.push(`${id}: una activa de talento solo va a la ranura 2 (slots ['k2'])`);
+      if (def.spec) err.push(`${id}: una activa de talento no pertenece a un kit (spec)`);
+    }
+  }
   return err;
 }
 
@@ -166,6 +339,7 @@ export function validateSkillDef(def, { behaviors = null } = {}) {
 // sup.requires: lista AND; cada elemento es un tag, varios tags con '|' (OR) o un
 // pseudo-tag: '@dmg' (coef > 0), '@cost' (coste > 0), '@cd' (enfriamiento > 0).
 // sup.forbids: si la habilidad tiene CUALQUIERA de esos tags, no es compatible.
+// Paso 2 (§3.5): `sk` es la definición FORJADA (tags nuevos tras cambiar de forma o elemento)
 function hasReq(sk, tags, token) {
   return token.split('|').some(t => {
     if (t === '@dmg') return (sk.coef || 0) > 0;
@@ -182,18 +356,22 @@ export function supportFits(sup, sk) {
   return true;
 }
 
-// ---------- ramas (SKILL_MODS) ----------
-// Vocabulario de efectos de una opción (se fusiona en resolveSkill):
-//   dmg(+%) crit(+%) radius(+%) range(+%) proj(+n) pierce(bool) chain(n) slow(s) slowPct(%)
-//   stun(s) root(s) vuln(s) dot('bleed|poison|burn') cdr(+% de CDR) cost(+% coste)
-//   gen(+recurso) lifesteal(+% robo) buff(+% potencia) dur(+% duración) durS(+s)
-//   execute(%) zone(1) zoneDur(s: duración de la zona; sin ella 4 s) cdhit(n) echo(bool) coldblood(bool) haste(s) cleanse(bool)
-//   critCdr(s por crítico)
-//   rootAdd(+s) slowPctAdd(+%)  Paso 2c.2: root/slowPct toman el MÁXIMO entre fuentes (una
-//   rama y un talento no se apilan); los «+N s» / «+N %» de un talento SOBRE el valor de la
-//   habilidad van en rootAdd/slowPctAdd, que se SUMAN (Cepo de Hierro, Raíces Profundas)
-const MOD_MAX = ['slow', 'vuln', 'stun', 'root', 'execute', 'chain', 'zone', 'cdhit', 'haste', 'slowPct'];
-const MOD_BOOL = ['pierce', 'echo', 'coldblood', 'cleanse'];
+// ------------------------------------------------------------
+// MODS (perfil de resolveSkill): forja, talentos y soportes los fusionan con mergeMods
+// ------------------------------------------------------------
+// Vocabulario: dmg(+%) crit(+%) radius(+%) range(+%) proj(+n) pierce(bool) chain(n) slow(s)
+//   slowPct(%) stun(s) root(s) vuln(s) dot('bleed|poison|burn') cdr(+%) cost(+%) gen lifesteal
+//   buff(+%) dur(+%) durS(+s) execute(%) zone(1) zoneDur(s) cdhit(n) echo coldblood haste(s)
+//   cleanse critCdr(s) rootAdd(+s) slowPctAdd(+%) — rootAdd/slowPctAdd SUMAN; root/slowPct = máx.
+// Paso 2 (§3.5, §3.6): windupAdd(s) windupMul(%) moveMulAdd(puntos) moveMulMin(máx.) charges(+n)
+//   recastAdd(+usos) recastWin(+s) comboWin(+s) chargeSpeed(%) perfectWin(+s) perfectEarly(s)
+//   perfectPct(%) zoneMax(máx.) pull/knock(máx., m) killReset(bool) shieldGain([pct, máx])
+//   dmgDirect(%) splashPct(%) repeatAdd(+n) keepPlanted(bool) markDur(+s) taunt(+s)
+//   dragWidth(máx., m) zoneCoef(+coef/s) zoneHeal(+%/s)
+// Toda clave numérica nueva SUMA salvo las de MOD_MAX / MOD_BOOL.
+const MOD_MAX = ['slow', 'vuln', 'stun', 'root', 'execute', 'chain', 'zone', 'cdhit', 'haste', 'slowPct',
+  'zoneMax', 'pull', 'knock', 'moveMulMin', 'dragWidth'];
+const MOD_BOOL = ['pierce', 'echo', 'coldblood', 'cleanse', 'killReset', 'keepPlanted'];
 export function emptyMods() {
   return { dmg: 0, proj: 0, pierce: false, radius: 0, range: 0, slow: 0, slowPct: 0, crit: 0, dot: null, buff: 0, dur: 0, durS: 0,
     cdr: 0, cost: 0, gen: 0, lifesteal: 0, vuln: 0, stun: 0, root: 0, execute: 0, chain: 0, zone: 0, zoneDur: 0,
@@ -206,12 +384,14 @@ export function mergeMods(out, add) {
     if (k === 'id' || k === 'name' || k === 'desc') continue;
     if (MOD_BOOL.includes(k)) { if (v) out[k] = true; }
     else if (k === 'dot') { if (v && !out.dot) out.dot = v; }
+    else if (k === 'shieldGain') { if (Array.isArray(v)) out.shieldGain = [(out.shieldGain?.[0] || 0) + (v[0] || 0), Math.max(out.shieldGain?.[1] || 0, v[1] || 0)]; }
     else if (MOD_MAX.includes(k)) out[k] = Math.max(out[k] || 0, v || 0);
     else if (typeof v === 'number') out[k] = (out[k] || 0) + v;
   }
   return out;
 }
-// agrega las OPCIONES elegidas (1 por rama). chosen = { ramaId: opcionId }
+/** @deprecated Paso 2 (D23): las ramas desaparecen (las sustituye la forja). Se conserva para
+ *  los importadores que aún no cambian; C1 la borra en E5. */
 export function aggregateMods(branches, chosen) {
   const out = emptyMods();
   if (!branches || !chosen) return out;
@@ -223,30 +403,171 @@ export function aggregateMods(branches, chosen) {
   return out;
 }
 
-// Opciones de "Variante" reutilizables (creativas, con contrapartida); el
-// constructor les pone id único por habilidad.
-export const V_BLEED  = { name: 'Desangrar', desc: 'Aplica un sangrado intenso, pero −10% de daño directo.', dot: 'bleed', dmg: -10 };
-export const V_BURN   = { name: 'Calcinar',  desc: 'Incendia al objetivo, pero −10% de daño directo.', dot: 'burn', dmg: -10 };
-export const V_POISON = { name: 'Emponzoñar', desc: 'Envenena al objetivo, pero −10% de daño directo.', dot: 'poison', dmg: -10 };
-export const V_VULN   = { name: 'Quebrantar', desc: 'Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).', vuln: 4 };
-export const V_STUN   = { name: 'Conmocionar', desc: 'Aturde 1.5s al golpear, pero −12% de daño.', stun: 1.5, dmg: -12 };
-export const V_SLOW   = { name: 'Tullir', desc: 'Ralentiza 3s a los enemigos golpeados.', slow: 3 };
-export const V_PIERCE = { name: 'Atravesar', desc: 'Atraviesa a todos los enemigos en línea.', pierce: true };
-export const V_EXEC   = { name: 'Decapitar', desc: 'Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.', execute: 18, dmg: -10 };
-export const V_CHAIN  = { name: 'Rebote', desc: 'El golpe rebota a 2 enemigos cercanos.', chain: 2 };
-// TRANSFORMACIONES: cambian EN GRANDE cómo funciona la habilidad (rama 3)
-export const T_ZONE   = { name: 'Estela', desc: 'Deja una ZONA DE DAÑO durante 4s donde golpea.', zone: 1 };
-export const T_CDHIT  = { name: 'Masacre', desc: 'Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.', cdhit: 4 };
-export const T_ECHO   = { name: 'Eco', desc: 'Se ejecuta una 2ª vez (al 60% de daño) tras un instante.', echo: 1 };
-export const T_GIANT  = { name: 'Coloso', desc: '+90% de radio y +40% de daño, pero +50% de enfriamiento.', radius: 90, dmg: 40, cdr: -50 };
-export const T_NOVA   = { name: 'Onda', desc: '+30% de radio y aturde 1s a los golpeados.', radius: 30, stun: 1 };
-// terceras opciones de la rama Ofensiva (con contrapartida)
-export const O_RAD   = { name: 'Vorágine', desc: '+55% de radio, pero −15% de daño.', radius: 55, dmg: -15 };
-export const O_PROJ  = { name: 'Doble', desc: '+1 proyectil, pero −15% de daño.', proj: 1, dmg: -15 };
-export const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles, pero −25% de daño.', proj: 2, dmg: -25 };
-export const O_BIG   = { name: 'Aplastar', desc: '+60% de daño, pero +30% de enfriamiento.', dmg: 60, cdr: -30 };
+// ------------------------------------------------------------
+// FORJA (2f §2.3 · plan §3.5): Mejora (Nv req+3) y dos Variantes (Nv req+6)
+// ------------------------------------------------------------
+// entry = { mejora: { name, icon, line, mod?, set?, add?, mul?, elem?, tags?, power? },
+//           vars: [ { id:'<id>_i', name, role, icon, line, mod?, set?, add?, mul?, elem?,
+//                     tags:{add,remove}?, power?:'v_<id>', behavior?:'v_<id>' }, { id:'<id>_ii', … } ] }
+// set/add/mul: rutas con punto sobre la DEFINICIÓN ('charge.max', 'steps.2.coef',
+//   'steps.*.coef'). set con un objeto sobre otro objeto lo FUSIONA (no lo pisa entero).
+export const FORGE_ROLES = ['UNI', 'AREA', 'CTRL', 'AGU', 'APO', 'MOV'];
+export const FORGE_LEVELS = Object.freeze({ mejora: 3, vars: 6 });
+export const FORGE_LINE_MAX = 120;   // decisión 5 del orquestador
+export const FORGE_LINE_WARN = 70;   // 2f §3.7: aviso
+export function forgeLevels(sk) {
+  const req = sk?.req || 1;
+  return { mejora: req + FORGE_LEVELS.mejora, vars: req + FORGE_LEVELS.vars };
+}
+// variante por clave: 'i' | 'ii'
+export function forgeVar(entry, key) {
+  if (!entry?.vars || !key) return null;
+  return key === 'i' ? entry.vars[0] || null : key === 'ii' ? entry.vars[1] || null : null;
+}
 
-// constructor: ramas de una habilidad de DAÑO (Ofensiva / Ímpetu / Transformación)
+// copia profunda de objetos planos y arrays (funciones, Sets y demás, por referencia)
+export function cloneDef(v) {
+  if (Array.isArray(v)) return v.map(cloneDef);
+  if (isPlain(v)) { const o = {}; for (const [k, x] of Object.entries(v)) o[k] = cloneDef(x); return o; }
+  return v;
+}
+function applyAt(o, k, val, op) {
+  const cur = o[k];
+  if (op === 'add') o[k] = (Number(cur) || 0) + (Number(val) || 0);
+  else if (op === 'mul') { if (cur != null) o[k] = (Number(cur) || 0) * (Number(val) || 0); }
+  else if (isPlain(val) && isPlain(cur)) o[k] = { ...cur, ...cloneDef(val) };
+  else o[k] = cloneDef(val);
+}
+// escribe en una ruta con punto ('a.b.2.c', '*' = todos los elementos); op 'set'|'add'|'mul'.
+// `set` y `add` crean los contenedores que falten; `mul` solo toca valores existentes.
+export function setPath(obj, path, val, op = 'set') {
+  const keys = String(path).split('.').filter(k => k !== '');
+  if (!keys.length || obj == null) return obj;
+  const go = (o, i) => {
+    if (o == null || typeof o !== 'object') return;
+    const k = keys[i];
+    const targets = k === '*' ? (Array.isArray(o) ? o.map((_, j) => j) : Object.keys(o))
+      : [Array.isArray(o) && /^\d+$/.test(k) ? +k : k];
+    for (const t of targets) {
+      if (i === keys.length - 1) { applyAt(o, t, val, op); continue; }
+      if (o[t] == null || typeof o[t] !== 'object') {
+        if (op === 'mul' || keys[i + 1] === '*') continue;
+        o[t] = /^\d+$/.test(keys[i + 1]) ? [] : {};
+      }
+      go(o[t], i + 1);
+    }
+  };
+  go(obj, 0);
+  return obj;
+}
+// aplica UNA pieza de forja (Mejora o variante) a una definición ya copiada
+function applyForgePiece(def, piece) {
+  for (const [p, v] of Object.entries(piece.set || {})) setPath(def, p, v, 'set');
+  for (const [p, v] of Object.entries(piece.add || {})) setPath(def, p, v, 'add');
+  for (const [p, v] of Object.entries(piece.mul || {})) setPath(def, p, v, 'mul');
+  if (piece.elem) def.elem = piece.elem;
+  if (piece.tags) {
+    const rm = new Set(piece.tags.remove || []);
+    def.tags = [...new Set([...(def.tags || []).filter(t => !rm.has(t)), ...(piece.tags.add || [])])];
+  }
+  if (piece.behavior) def.behavior = piece.behavior;
+}
+// Forja de la DEFINICIÓN (§3.5): devuelve una definición nueva (normalizada, con tags
+// recalculados) o la MISMA si no hay nada que forjar. state = { mejora:bool, variant:'i'|'ii'|null }
+export function forgeDef(sk, entry, { mejora = false, variant = null } = {}) {
+  if (!sk || !entry) return sk;
+  const pieces = [];
+  if (mejora && entry.mejora) pieces.push(entry.mejora);
+  const v = forgeVar(entry, variant);
+  if (v) pieces.push(v);
+  if (!pieces.length) return sk;
+  const def = cloneDef(sk);
+  for (const piece of pieces) applyForgePiece(def, piece);
+  const out = normalizeSkillDef(def, sk);
+  out.forged = { mejora: !!(mejora && entry.mejora), variant: v ? variant : null, varId: v?.id || null };
+  return out;
+}
+// mods de la forja (Mejora + variante) para resolveSkill
+export function forgeMods(entry, { mejora = false, variant = null } = {}) {
+  const out = emptyMods();
+  if (!entry) return out;
+  if (mejora && entry.mejora?.mod) mergeMods(out, entry.mejora.mod);
+  const v = forgeVar(entry, variant);
+  if (v?.mod) mergeMods(out, v.mod);
+  return out;
+}
+// poderes que declara la forja activa (los suma Player.recompute a p.powers)
+export function forgePowers(entry, { mejora = false, variant = null } = {}) {
+  const out = [];
+  if (!entry) return out;
+  if (mejora && entry.mejora?.power) out.push(entry.mejora.power);
+  const v = forgeVar(entry, variant);
+  if (v?.power) out.push(v.power);
+  return out;
+}
+// Valida una entrada de forja: ids estables, papel, líneas (≤ 120; aviso > 70) y que el
+// poder o comportamiento esté registrado (registros opcionales). → { errors, warnings }
+export function validateForge(entry, sk, { powers = null, behaviors = null } = {}) {
+  const errors = [], warnings = [];
+  const id = sk?.id || '?';
+  if (!entry || typeof entry !== 'object') return { errors: [`${id}: forja vacía`], warnings };
+  const line = (piece, tag) => {
+    if (!piece.name) errors.push(`${tag}: falta name`);
+    const l = piece.line || '';
+    if (!l) errors.push(`${tag}: falta line`);
+    else if (l.length > FORGE_LINE_MAX) errors.push(`${tag}: line de ${l.length} caracteres (máx. ${FORGE_LINE_MAX})`);
+    else if (l.length > FORGE_LINE_WARN) warnings.push(`${tag}: line de ${l.length} caracteres (> ${FORGE_LINE_WARN})`);
+  };
+  const regs = (piece, tag) => {
+    if (piece.power && powers && !powers[piece.power]) errors.push(`${tag}: poder sin registrar ${piece.power}`);
+    if (piece.behavior && behaviors && !behaviors[piece.behavior]) errors.push(`${tag}: comportamiento sin registrar ${piece.behavior}`);
+    if (piece.elem && !ELEMS.includes(piece.elem)) errors.push(`${tag}: elem inválido ${piece.elem}`);
+    for (const t of piece.tags?.add || []) if (!TAGS.has(t)) errors.push(`${tag}: tag fuera del vocabulario ${t}`);
+    for (const op of ['add', 'mul']) for (const [p, v] of Object.entries(piece[op] || {})) if (!isNum(v)) errors.push(`${tag}: ${op}.${p} debe ser un número`);
+  };
+  if (entry.mejora) {
+    const m = entry.mejora, tag = `${id}·Mejora`;
+    if (m.id && m.id !== `${id}_m`) errors.push(`${tag}: id ${m.id} (esperado ${id}_m)`);
+    line(m, tag); regs(m, tag);
+  } else errors.push(`${id}: falta la Mejora`);
+  const vars = entry.vars;
+  if (!Array.isArray(vars) || vars.length !== 2) errors.push(`${id}: la forja trae 2 variantes`);
+  else {
+    vars.forEach((v, i) => {
+      const want = `${id}_${i ? 'ii' : 'i'}`, tag = `${id}·${i ? 'II' : 'I'}`;
+      if (v.id !== want) errors.push(`${tag}: id ${v.id} (esperado ${want})`);
+      if (!FORGE_ROLES.includes(v.role)) errors.push(`${tag}: papel inválido ${v.role}`);
+      line(v, tag); regs(v, tag);
+    });
+    if (vars[0]?.role && vars[0].role === vars[1]?.role) errors.push(`${id}: las dos variantes tienen el mismo papel (${vars[0].role})`);
+  }
+  return { errors, warnings };
+}
+
+// ------------------------------------------------------------
+// @deprecated (D23): constructores y opciones de las RAMAS (Paso 2b). La forja los sustituye;
+// se conservan mientras los catálogos v1 los importen (C1 los borra en E5).
+// ------------------------------------------------------------
+/** @deprecated */ export const V_BLEED  = { name: 'Desangrar', desc: 'Aplica un sangrado intenso, pero −10% de daño directo.', dot: 'bleed', dmg: -10 };
+/** @deprecated */ export const V_BURN   = { name: 'Calcinar',  desc: 'Incendia al objetivo, pero −10% de daño directo.', dot: 'burn', dmg: -10 };
+/** @deprecated */ export const V_POISON = { name: 'Emponzoñar', desc: 'Envenena al objetivo, pero −10% de daño directo.', dot: 'poison', dmg: -10 };
+/** @deprecated */ export const V_VULN   = { name: 'Quebrantar', desc: 'Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).', vuln: 4 };
+/** @deprecated */ export const V_STUN   = { name: 'Conmocionar', desc: 'Aturde 1.5s al golpear, pero −12% de daño.', stun: 1.5, dmg: -12 };
+/** @deprecated */ export const V_SLOW   = { name: 'Tullir', desc: 'Ralentiza 3s a los enemigos golpeados.', slow: 3 };
+/** @deprecated */ export const V_PIERCE = { name: 'Atravesar', desc: 'Atraviesa a todos los enemigos en línea.', pierce: true };
+/** @deprecated */ export const V_EXEC   = { name: 'Decapitar', desc: 'Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.', execute: 18, dmg: -10 };
+/** @deprecated */ export const V_CHAIN  = { name: 'Rebote', desc: 'El golpe rebota a 2 enemigos cercanos.', chain: 2 };
+/** @deprecated */ export const T_ZONE   = { name: 'Estela', desc: 'Deja una ZONA DE DAÑO durante 4s donde golpea.', zone: 1 };
+/** @deprecated */ export const T_CDHIT  = { name: 'Masacre', desc: 'Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.', cdhit: 4 };
+/** @deprecated */ export const T_ECHO   = { name: 'Eco', desc: 'Se ejecuta una 2ª vez (al 60% de daño) tras un instante.', echo: 1 };
+/** @deprecated */ export const T_GIANT  = { name: 'Coloso', desc: '+90% de radio y +40% de daño, pero +50% de enfriamiento.', radius: 90, dmg: 40, cdr: -50 };
+/** @deprecated */ export const T_NOVA   = { name: 'Onda', desc: '+30% de radio y aturde 1s a los golpeados.', radius: 30, stun: 1 };
+/** @deprecated */ export const O_RAD   = { name: 'Vorágine', desc: '+55% de radio, pero −15% de daño.', radius: 55, dmg: -15 };
+/** @deprecated */ export const O_PROJ  = { name: 'Doble', desc: '+1 proyectil, pero −15% de daño.', proj: 1, dmg: -15 };
+/** @deprecated */ export const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles, pero −25% de daño.', proj: 2, dmg: -25 };
+/** @deprecated */ export const O_BIG   = { name: 'Aplastar', desc: '+60% de daño, pero +30% de enfriamiento.', dmg: 60, cdr: -30 };
+
+/** @deprecated constructor de ramas de DAÑO (Ofensiva / Ímpetu / Transformación) */
 export function dmgMods(id, third, v1, v2, v3) {
   return [
     { id: `${id}_o`, name: 'Ofensiva', opts: [
@@ -264,7 +585,7 @@ export function dmgMods(id, third, v1, v2, v3) {
     ] },
   ];
 }
-// constructor: ramas de una habilidad de BUFF (Potencia / Duración / Recurso)
+/** @deprecated constructor de ramas de BUFF (Potencia / Duración / Recurso) */
 export function buffMods(id) {
   return [
     { id: `${id}_o`, name: 'Potencia', opts: [
@@ -284,7 +605,7 @@ export function buffMods(id) {
     ] },
   ];
 }
-// constructor NUEVO (§3.4): movilidad y defensa — Potencia / Recarga / Variante
+/** @deprecated constructor de ramas de movilidad y defensa (Potencia / Recarga / Variante) */
 export function utilMods(id) {
   return [
     { id: `${id}_o`, name: 'Potencia', opts: [

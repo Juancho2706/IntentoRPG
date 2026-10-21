@@ -1,61 +1,89 @@
 // ============================================================
-// CANAL DE LANZAMIENTO de habilidades (mixin de Game) — Paso 2b.0
+// CANAL DE LANZAMIENTO de habilidades (mixin de Game) — Paso 2b.0 · Paso 2 (verbos)
 // ============================================================
 // docs/paso2-diseno.md §4.4 y §9.1. Un solo canal para todas las habilidades:
-//   castSkillSlot(slot) → resolveSkill → gating (CD · GCD 0,2 s · bloqueo · coste)
-//   → ⑦ onCast (puede cancelar sin coste) → windup (cancelable con la esquiva: NO
-//   cobra el coste) → commit (cobra coste, pone CD) → efecto (comportamiento
-//   registrado o TIPO GENÉRICO) → impacto (inmediato o con impactDelay sincronizado
-//   con el VFX) → ⑦ afterCast.
+//   castSkillSlot(slot) → resolveSkill (definición FORJADA en prof.def) → gating (CD/cargas
+//   · GCD 0,2 s · bloqueo · coste) → ⑦ onCast (puede cancelar sin coste) → windup
+//   (cancelable con la esquiva: NO cobra el coste) o CARGA (se suelta) → commit (cobra
+//   coste, pone CD o gasta una carga) → efecto (comportamiento registrado o TIPO GENÉRICO)
+//   → impacto (inmediato o con impactDelay sincronizado con el VFX) → ⑦ afterCast.
 // Tipos genéricos: melee · proj · area · cone · line · leap · dash · blink · shield
-//   · taunt · zone · trap · mark · channel · buff (+ 'weapon' = Player.basicAttack).
+//   · taunt · zone · trap · mark · channel · buff · aura · combo · stance · wall
+//   (+ 'weapon' = Player.basicAttack).
 // Las canalizaciones tic a tic van por el planificador (js/timers.js) y se
 // interrumpen con la esquiva, al soltar la tecla o con un golpe > 10 % de la vida.
 // Primitivas para poderes (§9.1.4): onPlayerHit ⑤, dealProcDamage, heal, shield,
 // allies. Sin setTimeout (lo vigila test59). Se inyecta en Game.prototype.
 // Paso 2b.2 — API para comportamientos de clase:
 //   g.gainResource(p, n, opts?)       recurso de clase (Furia/Maná/Energía); ⑪ onResource
-//   g.fireProjectile(ctx, opts)       un proyectil del perfil: crítico + Sangre Fría,
-//                                     robo de vida, Encadenado, salpicadura y ctx.hit
+//   g.fireProjectile(ctx, opts)       un proyectil del perfil (opts.coef, opts.from: Paso 2)
 //   g.startChannel(ctx, done, opts)   canalización por tics (soltar/esquivar/golpe la cortan)
-// y en los tipos genéricos: sk.cadence (básicos), sk.gen (al lanzar) / genOnHit,
-// proyectiles con final AL IMPACTAR (el básico da recurso al acertar), splash,
-// hitDot, slowImmune/unstoppable (buff/canal), zonas con allyDr/projMissPct,
-// provocación con daño saliente debilitado (weakenPct) y auras (campo 'aura').
-// Paso 2c.2 — núcleo de la integración de talentos:
-//   g.heal(n, { target, radius, pos })   curación de habilidad centrada en un PUNTO (pos)
-//   g.shield(n, { …, dr })               escudo que además reduce el daño mientras aguanta
-//   g.startChannel(ctx, done, { hold: false })  canalización que NO exige mantener la tecla
-//   g.damageAlly(ally, n, opts)          ⑫ daño a un aliado del cooperativo (onAllyDamaged /
-//                                        onAllyLethal: Vínculo, Intercesión, Bastión Eterno)
-//   g.dotsOf(e, kind?) · g.hasDoT(e, kind) · g.dotRemaining(e, kind|source)
-//   g.consumeDoT(e, kind|fn) → daño restante (lo quita) · g.replaceDoT(e, total, ticks, interval, source)
-//                                        (sustituye sin integrar lo pendiente: «no se apila»)
-//   g.onDotEnd(e, inst)                  ⑬ (lo llama timers.js al agotarse un DoT solo)
-//   killStatus(e) (export)               estado del KillInfo (frozen/bleeding/burning/…)
-//   CastInfo.weapon / CastInfo.forceCrit el básico de ARMA pasa por ⑦ onCast
-//                                        (Player.basicAttack) y un onCast puede forzar el crítico
+// Paso 2c.2 — núcleo de la integración de talentos: g.heal/g.shield con pos/dr, damageAlly ⑫,
+//   API de DoT (dotsOf, hasDoT, dotRemaining, consumeDoT, replaceDoT, ⑬ onDotEnd), killStatus.
+// Paso 2 (2f + 2g; docs/paso2-implementacion.md §3.5–§3.7) — VERBOS:
+//   cargar y soltar (g._charging, g.releaseSkillSlot, ventana perfecta), relanzar
+//   (p.skState[id].recast), combo de 3, secuencia del básico, canal ampliado (moveMul,
+//   autoShot, drainPerSec, hold:'toggle', endReason, g.extendChannel), posturas
+//   (g.stanceOf, g.setStanceBoth), cargas de enfriamiento (p.skCharges), g.reduceCooldown
+//   (ÚNICA vía para restar enfriamiento), g.chooseForge, g.cancelHeld, marcas que se detonan,
+//   desplazar (pull/knock/drag), réplicas, estelas, saltar a tu campo, pulsos, ⑭ onSkillEnd.
+//   Repeticiones (cast.echo > 0): no consumen cargas ni relanzamientos, no avanzan combo ni
+//   secuencia, una carga repetida sale con frac = 1, y una repetición no genera otra (tope 3).
+//   Los SONIDOS de los verbos (D26) se emiten aquí, en el instante del borde.
 import * as THREE from 'three';
-import { resolveSkill, isKnown, fitsSlot, GCD, cooldownWithMassacre } from './skill-resolve.js';
-import { projFanOffset } from './skill-defs.js';
+import { resolveSkill, isKnown, fitsSlot, GCD, cooldownWithMassacre, forgeState, forgedDef, validSupports } from './skill-resolve.js';
+import { projFanOffset, forgeVar, VERB_DEFAULTS, supportFits } from './skill-defs.js';
 import { FIELD_DEFS } from './field-entities.js';
 import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from './powers.js';
 import { applyHitEffects, weaponBasicOf } from './entities.js';
-import { canAfford, spendResource, gainResource } from './resources.js';
-import { COLDBLOOD_CRIT, threatFromHeal } from './combat-math.js';
+import { canAfford, spendResource, gainResource, drainResource } from './resources.js';
+import { COLDBLOOD_CRIT, threatFromHeal, chargeRelease } from './combat-math.js';
 import { applyDoTInstance, dotsOf, dotRemaining, consumeDoTs, replaceDoTInstance, dotKindOf } from './timers.js';
-import { SKILL_MODS } from './data.js';
+import { SUPPORTS } from './data.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
+import { gainGauge } from './spec-mechanics.js';
 
 const SLOT_ACTION = { k1: 'skill1', k2: 'skill2', k3: 'skill3', k4: 'skill4' };
 const DOT_COLORS = { poison: 0x7cff6a, burn: 0xff7722, bleed: 0xff4466 };
 const fxp = x => (typeof x === 'string' ? (SKILL_FX_PRESETS[x] || x) : x);
 const v3 = (x, z, y = 0) => new THREE.Vector3(x, y, z);
+// reloj de pared (ms) para medir la suelta entre ticks; el arnés lo sustituye por el de simulación
+const wallNow = g => (typeof g.clockNow === 'function' ? g.clockNow() : (typeof performance !== 'undefined' ? performance.now() : Date.now()));
+// estado volátil de los verbos de una habilidad (§3.7)
+const skStateOf = (p, id) => ((p.skState || (p.skState = {}))[id] || (p.skState[id] = {}));
+// ¿una habilidad (por los tags e id de un golpe) encaja en un selector de detonación?
+// '@all' · '@<cat>' (basic|spender|movement|defense|utility|ultimate; @insignia = spec) ·
+// '@tag:<tag>' · '@<elem>' · '<skillId>'
+function matchSel(sel, hit) {
+  if (!sel || !hit) return false;
+  if (Array.isArray(sel)) return sel.some(s => matchSel(s, hit));
+  if (sel === '@all') return true;
+  const tags = hit.tags instanceof Set ? hit.tags : new Set(hit.tags || []);
+  if (sel.startsWith('@tag:')) return tags.has(sel.slice(5));
+  if (sel === '@insignia') return tags.has('spec');
+  if (sel[0] === '@') return tags.has(sel.slice(1)) || hit.elem === sel.slice(1);
+  return hit.skill === sel;
+}
+// centro de una habilidad de área/zona según `at`: 'self' · 'enemy' (sobre el enemigo de la
+// mira, o la mira si no hay) · 'target' / por defecto (la mira, acotada al alcance)
+function castCenter(ctx) {
+  const at = ctx.sk.at;
+  if (at === 'self') return ctx.p.pos.clone().setY(0);
+  if (at === 'enemy' && ctx.enemy?.alive) return ctx.enemy.pos.clone().setY(0);
+  return ctx.target.clone().setY(0);
+}
+// dirección de la mira desde el héroe (o su frente si la mira está encima)
+function aimDir(p, target) {
+  const dir = target.clone().sub(p.pos).setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
+  return dir.normalize();
+}
 
 // ------------------------------------------------------------
 // TIPOS GENÉRICOS: (g, ctx, done) → CastResult | undefined (si es diferido, llaman
-// a done(res) al impactar). ctx = { p, sk, prof, key, target, enemy, coef, isEcho,
-// hitInfo, color, fx, avgHit, res:{hits,dealt,killed}, hit(e, dealt) }
+// a done(res) al impactar). ctx = { p, sk (definición forjada o del paso), prof, key, target,
+// enemy, coef, isEcho, hitInfo, color, fx, avgHit, res:{hits,dealt,killed}, hit(e, dealt),
+// dmgOpts (con perfect/step/echo), areaOpts, cast }
 // ------------------------------------------------------------
 const GENERIC = {
   melee(g, ctx) {
@@ -66,32 +94,46 @@ const GENERIC = {
     p.faceToward(e.pos);
     p.swing = 1;
     const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
-    const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct, e, ctx.hitInfo);
+    const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct + (prof.dmgDirect || 0), e, ctx.hitInfo);
     ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
-    if (prof.chain && e.alive) g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], 0xffbb44);
+    if (prof.chain && e.alive) g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], 0xffbb44, prof.chainPct);
     p.onDealHit();
     if (crit && prof.windup > 0) g.hitStop?.('heavy');   // golpe pesado (Mandoble)
     g.spawnRing?.(e.pos, 0.8, 0xffbb44);
     g.emitFx(fxp(ctx.fx?.impact), e.pos.clone().setY(1.0));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), e.pos.clone().setY(0.1));
+    ctx.zoneCenter = e.pos.clone().setY(0); ctx.zoneRad = 1.5;
     return ctx.res;
   },
 
+  // área: `at` self/target/enemy; impacts + scatter (varios impactos repartidos en un anillo
+  // alrededor del centro, sin azar: Lluvia de Meteoritos)
   area(g, ctx, done) {
     const { p, prof, sk, fx } = ctx;
-    const atTarget = sk.at === 'target';
-    const center = atTarget ? ctx.target.clone() : p.pos.clone();
+    const atTarget = sk.at !== 'self';
+    const center = castCenter(ctx);
     const rad = prof.radius || 2;
     if (atTarget) p.faceToward(center); else p.swing = 1;
-    g.spawnRing?.(center, rad, ctx.color || 0xff6633);
+    const n = Math.max(1, Math.floor(sk.impacts || 1));
+    const scatter = n > 1 ? Math.max(0, sk.scatter || rad) : 0;
+    const base = Math.atan2(center.x - p.pos.x, center.z - p.pos.z);
+    const centers = [];
+    for (let i = 0; i < n; i++) {
+      if (n === 1) { centers.push(center); break; }
+      const a = base + i * Math.PI * 2 / n;
+      centers.push(center.clone().add(v3(Math.sin(a) * scatter * 0.6, Math.cos(a) * scatter * 0.6)));
+    }
+    for (const c of centers) g.spawnRing?.(c, rad, ctx.color || 0xff6633);
     const impact = () => {
-      const c = atTarget ? center : (ctx.followSelf ? p.pos.clone() : center);
-      g.dealArea(c, rad, ctx.coef, ctx.areaOpts);
-      ctx.zoneCenter = c; ctx.zoneRad = rad;
-      const y = fx?.auraY ?? 1.0;
-      if (fx?.impact) g.emitFx(fxp(fx.impact), c.clone().setY(0.3));
-      if (fx?.aura) g.emitFx(fxp(fx.aura), c.clone().setY(atTarget ? 0.3 : y));
-      if (fx?.extra) g.emitFx(fxp(fx.extra), c.clone().setY(atTarget ? 0.1 : 0.5));
+      for (const c0 of centers) {
+        const c = atTarget ? c0 : (ctx.followSelf ? p.pos.clone() : c0);
+        g.dealArea(c, rad, ctx.coef, { ...ctx.areaOpts, from: c });
+        const y = fx?.auraY ?? 1.0;
+        if (fx?.impact) g.emitFx(fxp(fx.impact), c.clone().setY(0.3));
+        if (fx?.aura) g.emitFx(fxp(fx.aura), c.clone().setY(atTarget ? 0.3 : y));
+        if (fx?.extra) g.emitFx(fxp(fx.extra), c.clone().setY(atTarget ? 0.1 : 0.5));
+        ctx.zoneCenter = c; ctx.zoneRad = rad;
+      }
       if (atTarget) g.addShake?.(sk.shake || 0.25);
       return done(ctx.res);
     };
@@ -99,10 +141,12 @@ const GENERIC = {
       // el daño llega CON el VFX: bola que cae y aterriza en impactDelay s
       if (atTarget && g.fxGroup) {
         try {
-          const ball = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), new THREE.MeshBasicMaterial({ color: ctx.color || 0xff6633 }));
-          ball.position.copy(center).setY(5);
-          g.fxGroup.add(ball);
-          g.fx.push({ mesh: ball, t: 0, dur: prof.impactDelay, fall: center.clone() });
+          for (const c of centers) {
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), new THREE.MeshBasicMaterial({ color: ctx.color || 0xff6633 }));
+            ball.position.copy(c).setY(5);
+            g.fxGroup.add(ball);
+            g.fx.push({ mesh: ball, t: 0, dur: prof.impactDelay, fall: c.clone() });
+          }
         } catch { /* sin GL */ }
       }
       if (fx?.trail) g.emitFx(fxp(fx.trail), center.clone().setY(4.5));
@@ -114,9 +158,7 @@ const GENERIC = {
 
   cone(g, ctx) {
     const { p, prof } = ctx;
-    const dir = ctx.target.clone().sub(p.pos).setY(0);
-    if (dir.lengthSq() < 1e-6) dir.set(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
-    dir.normalize();
+    const dir = aimDir(p, ctx.target);
     p.faceToward(p.pos.clone().add(dir));
     p.swing = 1;
     const list = g.enemiesInCone(p.pos, dir, prof.radius || 3, prof.angle || 90);
@@ -136,9 +178,7 @@ const GENERIC = {
 
   line(g, ctx) {
     const { p, prof, sk } = ctx;
-    const dir = ctx.target.clone().sub(p.pos).setY(0);
-    if (dir.lengthSq() < 1e-6) dir.set(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
-    dir.normalize();
+    const dir = aimDir(p, ctx.target);
     p.faceToward(p.pos.clone().add(dir));
     const len = prof.range || sk.length || 8;
     const list = g.enemiesInLine(p.pos, dir, len, prof.width || 2);
@@ -147,6 +187,11 @@ const GENERIC = {
       ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
     }
     if (list.length) p.onDealHit();
+    // Encadenado desde el primero de la línea (Rayo en Cadena: chain + chainPct)
+    if (prof.chain && list.length) {
+      const first = list.reduce((a, b) => (a.pos.distanceToSquared(p.pos) <= b.pos.distanceToSquared(p.pos) ? a : b));
+      g.spawnChainBounce(first, Math.round(ctx.avgHit), prof.chain, list, ctx.color || 0x66ddff, prof.chainPct);
+    }
     const mid = p.pos.clone().addScaledVector(dir, len / 2);
     ctx.zoneCenter = mid; ctx.zoneRad = Math.max(1.5, (prof.width || 2));
     g.spawnBeam?.(p.pos, p.pos.clone().addScaledVector(dir, len), ctx.color || 0xd8c49a, 0.25);
@@ -157,11 +202,15 @@ const GENERIC = {
   // Proyectiles: el daño se tira AL IMPACTAR y el lanzamiento TERMINA al impactar
   // (básicos: con el primer impacto, así el recurso llega solo si aciertas; resto:
   // cuando todos resolvieron) o, si fallan o perforan, al agotar su alcance.
+  // Paso 2: perTarget (hasta N proyectiles del lanzamiento al mismo enemigo), carga completa
+  // con charge.full (otra cuenta/abanico), secuencia del básico (seq) y detonate al impactar.
   proj(g, ctx, done) {
     const { p, prof, sk, fx } = ctx;
     p.faceToward(ctx.target);
     p.swing = 1;
-    const count = prof.count + (prof.proj || 0);
+    const full = ctx.chargeFull || null;
+    let count = full?.count || (prof.count + (prof.proj || 0));
+    const spread = full?.spread ?? prof.spread;
     const baseAngle = Math.atan2(ctx.target.x - p.pos.x, ctx.target.z - p.pos.z);
     const muzzle = p.pos.clone().setY(1.0).add(v3(Math.sin(baseAngle) * 0.5, Math.cos(baseAngle) * 0.5));
     if (fx?.trail) g.emitFx(fxp(fx.trail), muzzle);
@@ -169,20 +218,29 @@ const GENERIC = {
     const finish = () => done(ctx.res);
     const firstHit = ctx.isBasic && !ctx.isEcho;
     // sin escopetazo: si la habilidad dispara 1 proyectil de base, los extra
-    // (Multiproyectil, Doble, Vendaval) no repiten impacto en el mismo enemigo
-    const castHits = count > 1 && (sk.count || 1) <= 1 ? new Set() : null;
-    let pending = count;
-    for (let i = 0; i < count; i++) {
-      const off = projFanOffset(i, count, prof.spread);
+    // (Multiproyectil, Doble, Vendaval) no repiten impacto en el mismo enemigo;
+    // perTarget > 1 (Andanada Cerrada) deja que hasta N del lanzamiento den al mismo
+    const castHits = prof.perTarget > 1 ? new Map() : (count > 1 && (sk.count || 1) <= 1 ? new Set() : null);
+    const extra = ctx.seqNth ? (sk.seq?.extra || null) : null;
+    let pending = count + (extra ? Math.max(1, extra.count || 1) : 0);
+    const shots = [];
+    for (let i = 0; i < count; i++) shots.push({ angle: baseAngle + projFanOffset(i, count, spread), coef: null, pierce: undefined });
+    if (extra) {
+      const n = Math.max(1, extra.count || 1), half = Math.ceil(n / 2);
+      for (let i = 0; i < n; i++) shots.push({ angle: baseAngle + (i % 2 ? -1 : 1) * Math.ceil((i + 1) / 2) * (extra.spread || 0.26) / half, coef: ctx.coef * (extra.coef ?? 1), pierce: extra.pierce });
+    }
+    for (const s of shots) {
       let resolved = false;
       g.fireProjectile(ctx, {
-        angle: baseAngle + off, castHits,
-        onImpact: () => {
+        angle: s.angle, castHits, perTarget: prof.perTarget, coef: s.coef ?? undefined, pierce: s.pierce,
+        onImpact: (e) => {
+          if (e && sk.detonate) g.detonateAt(p, e.pos, sk.detonate, { skill: sk.id });
           if (firstHit) { finish(); return; }
           if (!prof.pierce && !resolved) { resolved = true; if (--pending <= 0) finish(); }
         },
       });
     }
+    void count;
     if (sk.beam) g.spawnBeam?.(muzzle, ctx.target.clone().setY(1.0), ctx.color || 0xffee66);
     ctx.lifestealDone = true; // el robo de los proyectiles va por impacto
     const range = prof.range || sk.range || 10;
@@ -190,17 +248,21 @@ const GENERIC = {
     return undefined; // diferido: termina al impactar (o al agotar el alcance)
   },
 
+  // salto: `at:'ownField'` (a tu campo más cercano a la mira), estela (`trail`), `plant`
+  // (al caer cuentas como plantado) y `detonate` al caer
   leap(g, ctx, done) {
     const { p, prof, sk } = ctx;
-    const to = g.clampWalkable(p.pos, ctx.target, prof.range || sk.range || 8);
+    const from = p.pos.clone();
+    const to = ctx.fieldDest ? ctx.fieldDest.clone() : g.clampWalkable(p.pos, ctx.target, ctx.destRange || prof.range || sk.range || 8);
     p.faceToward(to);
     p.leap = {
-      from: p.pos.clone(), to, t: 0, dur: sk.airT || prof.impactDelay || 0.45,
+      from: p.pos.clone(), to, t: 0, dur: sk.airT || prof.impactDelay || 0.45, plant: !!sk.plant,
       onLand: () => {
         const rad = prof.radius || 3;
         g.spawnRing?.(p.pos, rad, ctx.color || 0xffcc66);
-        if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, ctx.areaOpts);
+        if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() });
         ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
+        g._arrive(ctx, from);
         if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(0.7));
         g.addShake?.(sk.shake || 0.35);
         done(ctx.res);
@@ -209,41 +271,90 @@ const GENERIC = {
     return undefined; // diferido: impacta al caer
   },
 
-  dash(g, ctx) {
+  // avance: instantáneo (como hoy) o LENTO con dashT (Carga de Escudo: 8 m en 1 s, imparable);
+  // `drag` arrastra a los que encuentra (dragWidth m a cada lado), `trail` deja un campo en
+  // línea, `plant`, `detonate` y `taunt` al llegar
+  dash(g, ctx, done) {
     const { p, prof, sk } = ctx;
-    p.faceToward(ctx.target);
-    const dir = ctx.target.clone().sub(p.pos).setY(0);
-    const dist = Math.min(dir.length(), prof.range || sk.range || 7);
-    if (dist > 0.1) {
-      dir.normalize();
-      let traveled = 0;
-      while (traveled < dist) {
-        const step = Math.min(0.3, dist - traveled);
-        const nx = p.pos.x + dir.x * step, nz = p.pos.z + dir.z * step;
-        if (!g.world?.grid?.walkable(nx, nz)) break;
-        p.pos.x = nx; p.pos.z = nz;
-        traveled += step;
-        if (ctx.fx?.trail && traveled % 0.6 < 0.3) g.emitFx(fxp(ctx.fx.trail), v3(p.pos.x, p.pos.z, 0.9));
-      }
+    const from = p.pos.clone();
+    let dest = ctx.fieldDest ? ctx.fieldDest.clone() : null;
+    if (!dest) {
+      const dir = ctx.target.clone().sub(p.pos).setY(0);
+      const dist = Math.min(dir.length(), ctx.destRange || prof.range || sk.range || 7);
+      dest = dist > 0.1 ? p.pos.clone().addScaledVector(dir.normalize(), dist) : p.pos.clone();
     }
-    const rad = prof.radius || 1.9;
-    g.spawnRing?.(p.pos, rad, 0xffcc66);
-    if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, ctx.areaOpts);
-    ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
-    if (prof.chain) { const ne = g.nearestEnemy(rad + 2); if (ne) g.spawnChainBounce(ne, Math.round(ctx.avgHit), prof.chain, [], 0xffcc66); }
-    p.swing = 1;
-    if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(0.7));
+    p.faceToward(dest);
+    const arrive = () => {
+      const rad = prof.radius || 1.9;
+      g.spawnRing?.(p.pos, rad, 0xffcc66);
+      if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() });
+      ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
+      if (prof.chain) { const ne = g.nearestEnemy(rad + 2); if (ne) g.spawnChainBounce(ne, Math.round(ctx.avgHit), prof.chain, [], 0xffcc66, prof.chainPct); }
+      p.swing = 1;
+      g._arrive(ctx, from);
+      if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(0.7));
+    };
+    const dragged = new Set();
+    const dragW = prof.dragWidth || 0;
+    // un paso del avance: mueve al héroe y a los arrastrados
+    const stepTo = (nx, nz) => {
+      const dx = nx - p.pos.x, dz = nz - p.pos.z;
+      if (!g.world?.grid?.walkable(nx, nz)) return false;
+      p.pos.x = nx; p.pos.z = nz;
+      if (dragW > 0) {
+        for (const e of g.enemies || []) {
+          if (!e.alive || e.def?.boss || e.def?.uber || e.def?.worldBoss) continue;
+          const ex = e.pos.x - p.pos.x, ez = e.pos.z - p.pos.z;
+          if (dragged.has(e) || ex * ex + ez * ez <= (dragW + 0.6) * (dragW + 0.6)) {
+            dragged.add(e);
+            if (!g.world?.grid || g.world.grid.walkable(e.pos.x + dx, e.pos.z + dz)) { e.pos.x += dx; e.pos.z += dz; }
+          }
+        }
+      }
+      return true;
+    };
+    const total = from.distanceTo(dest);
+    const dirN = total > 1e-4 ? dest.clone().sub(from).setY(0).normalize() : v3(0, 0);
+    if (sk.dashT > 0 && total > 0.1) {
+      // avance lento por frames (Player.update mueve; imparable mientras dura)
+      p.castLock = Math.max(p.castLock || 0, sk.dashT + 0.05);
+      if (sk.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, sk.dashT + 0.1);
+      let traveled = 0;
+      p.dashMove = {
+        dur: sk.dashT, t: 0,
+        step: (dt) => {
+          const want = Math.min(total - traveled, total * dt / sk.dashT);
+          if (want <= 0) return true;
+          const ok = stepTo(p.pos.x + dirN.x * want, p.pos.z + dirN.z * want);
+          traveled += want;
+          if (ctx.fx?.trail && Math.random() < 0.3) g.emitFx(fxp(ctx.fx.trail), v3(p.pos.x, p.pos.z, 0.9));
+          return !ok || traveled >= total - 1e-4;
+        },
+        onArrive: () => { arrive(); done(ctx.res); },
+      };
+      return undefined;   // diferido: impacta al llegar
+    }
+    let traveled = 0;
+    while (traveled < total) {
+      const step = Math.min(0.3, total - traveled);
+      if (!stepTo(p.pos.x + dirN.x * step, p.pos.z + dirN.z * step)) break;
+      traveled += step;
+      if (ctx.fx?.trail && traveled % 0.6 < 0.3) g.emitFx(fxp(ctx.fx.trail), v3(p.pos.x, p.pos.z, 0.9));
+    }
+    arrive();
     return ctx.res;
   },
 
   blink(g, ctx) {
     const { p, prof, sk } = ctx;
-    const to = g.clampWalkable(p.pos, ctx.target, prof.range || sk.range || 8);
+    const from = p.pos.clone();
+    const to = ctx.fieldDest ? ctx.fieldDest.clone() : g.clampWalkable(p.pos, ctx.target, ctx.destRange || prof.range || sk.range || 8);
     g.spawnRing?.(p.pos, 1.0, ctx.color || 0x99aaff);
     p.pos.x = to.x; p.pos.z = to.z;
     g.spawnRing?.(p.pos, 1.2, ctx.color || 0x99aaff);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(1.0));
     ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = 2;
+    g._arrive(ctx, from);
     return ctx.res;
   },
 
@@ -271,7 +382,7 @@ const GENERIC = {
       list = e ? [e] : [];
     }
     if (!list.length && !ctx.isEcho) {
-      p.cds[sk.id] = 0;
+      g.reduceCooldown(p, sk.id, Infinity);
       g.ui?.message?.('Ningún enemigo al alcance');
       return ctx.res;
     }
@@ -288,14 +399,17 @@ const GENERIC = {
     return ctx.res;
   },
 
+  // zona: `at` self/target/enemy, `follow` ('owner'|'aim'), `contain` (no se puede salir:
+  // Jaula de Espinas), healPct (% de vida/s a los aliados dentro) y tope zoneMax por habilidad
   zone(g, ctx) {
     const { p, prof, sk } = ctx;
-    const pos = sk.at === 'self' ? p.pos.clone() : ctx.target.clone();
-    pos.y = 0;
+    const pos = castCenter(ctx);
     // coef de una zona = WD por segundo · allyDr/projMissPct: defensa de los aliados dentro
-    g.spawnField('zona', { pos, radius: prof.radius || 3, dur: prof.dur || 4, owner: p,
+    g.spawnField('zona', { pos, radius: prof.radius || 3, dur: prof.dur || 4, owner: p, follow: sk.follow || null,
+      maxPerSkill: prof.zoneMax || 0,
       data: { dps: ctx.coef > 0 ? ctx.avgHit : 0, slow: prof.slow, slowPct: prof.slowPct, color: ctx.color, skill: sk.id, tags: prof.tags,
-        allyDr: sk.allyDr ? Math.round(sk.allyDr * (prof.buffMul || 1)) : 0, projMissPct: sk.projMissPct || 0 } });
+        allyDr: sk.allyDr ? Math.round(sk.allyDr * (prof.buffMul || 1)) : 0, projMissPct: sk.projMissPct || 0,
+        contain: !!sk.contain, healPct: (sk.healPct || 0) + (prof.mods?.zoneHeal || 0) } });
     ctx.zoneCenter = pos; ctx.zoneRad = prof.radius || 3;
     g.spawnRing?.(pos, prof.radius || 3, ctx.color || 0x9aa0a8);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), pos.clone().setY(0.6));
@@ -303,10 +417,20 @@ const GENERIC = {
     return ctx.res;
   },
 
+  // TRAMPA (§3.6): se ARMA en trap.armT s, salta con el primer enemigo dentro de su radio
+  // (inmoviliza `root`, daña el golpe del perfil y, con `burst`, estalla en área), se consume
+  // (trap.consume, por defecto sí) y puede ATRAER (trap.lure) mientras está armada.
+  // Tope trap.maxArmed (y zoneMax) por habilidad: al pasarlo cae la más vieja.
   trap(g, ctx) {
     const { p, prof, sk } = ctx;
-    g.spawnField('trampa', { pos: ctx.target.clone(), radius: prof.radius || 1.5, dur: sk.armT || 20, owner: p,
-      data: { dmg: ctx.avgHit, root: prof.root, color: ctx.color, skill: sk.id } });
+    const t = sk.trap || {};
+    const pos = ctx.target.clone().setY(0);
+    const f = g.spawnField('trampa', { pos, radius: t.radius || prof.radius || 1.5, dur: prof.dur || sk.life || VERB_DEFAULTS.trapLife, owner: p,
+      maxPerSkill: Math.max(t.maxArmed || 0, prof.zoneMax || 0),
+      data: { dmg: ctx.avgHit, coef: ctx.coef, root: prof.root, color: ctx.color, skill: sk.id, tags: prof.tags, elem: prof.elem,
+        armT: t.armT ?? VERB_DEFAULTS.trapArmT, burst: t.burst || null, consume: t.consume !== false,
+        lure: t.lure || null, hitDot: prof.hitDot } });
+    if (f) { ctx.zoneCenter = pos; ctx.zoneRad = f.radius; }
     return ctx.res;
   },
 
@@ -314,10 +438,10 @@ const GENERIC = {
     const { prof, sk } = ctx;
     const e = ctx.enemy;
     if (!e || !e.alive) return ctx.res;
-    const dur = prof.dur || 8;
-    e.marks = e.marks || {};
-    e.marks[sk.id] = { t: dur, by: ctx.p };
-    if (sk.weakPct) e.applyWeakness(sk.id, sk.weakPct, dur);
+    const dur = prof.mark?.dur || prof.dur || 8;
+    const m = prof.mark || { id: sk.id, dur };
+    g.applyMark(e, { ...prof, mark: { ...m, dur } }, ctx.p);
+    if (sk.weakPct && !m.weakPct) e.applyWeakness(sk.id, sk.weakPct, dur);
     g.spawnRing?.(e.pos, 1.0, ctx.color || 0xcc88ff);
     ctx.res.hits = 1;
     return ctx.res;
@@ -327,42 +451,56 @@ const GENERIC = {
   // PEGAJOSO (el mismo enemigo mientras siga vivo y a rango) o un área si la
   // habilidad tiene radio. Si declara `behavior` con tick (sin cast), ese tick
   // SUSTITUYE al golpe por defecto: type:'channel' + behavior conviven.
+  // Paso 2: con autoShot, el tic solo dispara (Carrera del Viento) · pull por tic (Ciclón)
   channel(g, ctx, done) {
     const { p, prof, sk } = ctx;
     const beh = sk.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
+    const auto = sk.autoShot || null;
+    const defaultTick = (inst, interval) => {
+      if (auto) return;
+      if (prof.radius > 0) { g.dealArea(sk.at === 'self' || !sk.at ? p.pos.clone() : ctx.target.clone(), prof.radius, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() }); return; }
+      const range = Math.max(2, prof.range || 8);
+      let e = inst.target;
+      if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) e = inst.target = g.nearestEnemy(range, ctx.target) || g.nearestEnemy(range) || null;
+      if (!e) return;
+      p.faceToward(e.pos);
+      const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
+      const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct, e, ctx.hitInfo);
+      ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
+      p.onDealHit();
+      g.spawnBeam?.(p.pos, e.pos, ctx.color || 0xcc88ff, interval);
+      if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), e.pos.clone().setY(1.0));
+      if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
+    };
     return g.startChannel(ctx, done, {
       dur: sk.channelT || prof.dur || 2,
       ticks: sk.ticks,
       unstoppable: prof.unstoppable,
-      onTick: beh?.tick ? (inst, interval) => beh.tick(g, p, inst, interval) : (inst, interval) => {
-        if (prof.radius > 0) { g.dealArea(ctx.target.clone(), prof.radius, ctx.coef, ctx.areaOpts); return; }
-        const range = Math.max(2, prof.range || 8);
-        let e = inst.target;
-        if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) e = inst.target = g.nearestEnemy(range, ctx.target) || g.nearestEnemy(range) || null;
-        if (!e) return;
-        p.faceToward(e.pos);
-        const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
-        const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct, e, ctx.hitInfo);
-        ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
-        p.onDealHit();
-        g.spawnBeam?.(p.pos, e.pos, ctx.color || 0xcc88ff, interval);
-        if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), e.pos.clone().setY(1.0));
-        if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
-      },
-      onEnd: beh?.end ? (inst) => beh.end(g, p, inst) : null,
+      hold: sk.hold,
+      endless: !!sk.endless,
+      autoShot: auto,
+      drainPerSec: sk.drainPerSec || 0,
+      moveMul: prof.moveMul,
+      onTick: beh?.tick ? (inst, interval) => beh.tick(g, p, inst, interval) : defaultTick,
+      onEnd: beh?.end ? (inst, end) => beh.end(g, p, inst, end) : null,
     });
   },
 
+  // buff: a ti (o a los aliados con tag 'ally'); `pulse` (provoca o golpea cada `every` s
+  // mientras dura: Ciudadela). minHpPct/endHealPct del buff NO escalan con el rango.
   buff(g, ctx) {
     const { p, prof, sk } = ctx;
     const meta = { name: sk.name, icon: sk.icon, desc: sk.desc };
     const targets = prof.tags.has('ally') ? g.allies(p.pos, sk.allyRadius || 15) : [p];
+    const stats = { ...prof.buff };
+    for (const k of ['minHpPct', 'endHealPct']) if (sk.buff?.[k] != null) stats[k] = sk.buff[k];
     for (const a of targets) {
-      a.addBuff?.(sk.id, { ...prof.buff }, prof.dur, meta);
+      a.addBuff?.(sk.id, { ...stats }, prof.dur, meta);
       if (prof.slowImmune) a.grantSlowImmune?.(prof.dur);           // Agilidad, Piel de Hierro
       if (prof.unstoppable) a.unstoppableT = Math.max(a.unstoppableT || 0, prof.dur);
     }
+    if (sk.pulse) g._startPulses(ctx, () => p.pos, () => !!p.buffs?.some(b => b.id === sk.id && b.t > 0));
     g.spawnRing?.(p.pos, 1.4, ctx.color || 0x66ddff);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), p.pos.clone().setY(0.2));
@@ -371,18 +509,47 @@ const GENERIC = {
 
   // AURA en el suelo (Estandarte de Guerra): campo 'aura' a tus pies; cada 0,5 s
   // renueva el buff a los aliados en el radio y da resPerSec de recurso al dueño dentro.
+  // Paso 2: `follow` y `pulse` (pulsos desde el centro del aura)
   aura(g, ctx) {
     const { p, prof, sk } = ctx;
     const pos = (sk.at === 'target' ? ctx.target : p.pos).clone().setY(0);
     const rad = prof.radius || 8;
-    const f = g.spawnField('aura', { pos, radius: rad, dur: prof.dur || 10, owner: p,
+    const f = g.spawnField('aura', { pos, radius: rad, dur: prof.dur || 10, owner: p, follow: sk.follow || null,
       data: { buff: { ...prof.buff }, buffId: sk.id, meta: { name: sk.name, icon: sk.icon, desc: sk.desc },
         resPerSec: (sk.resPerSec || 0) * (prof.buffMul || 1), color: ctx.color || sk.color || 0xd8a040 } });
     if (f) { try { FIELD_DEFS.aura.tick(g, f, 0); } catch { /* primer pulso: buff al instante */ } }
+    if (f && sk.pulse) g._startPulses(ctx, () => v3(f.pos.x, f.pos.z), () => !f.dead);
     ctx.zoneCenter = pos; ctx.zoneRad = rad;
     g.spawnRing?.(pos, rad, ctx.color || 0xd8a040);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), pos.clone().setY(0.2));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), pos.clone().setY(1.6));
+    return ctx.res;
+  },
+
+  // COMBO DE 3 (§3.6): cada pulsación ejecuta el paso que toca (ctx.comboIdx) con su propio
+  // tipo y geometría; coef del paso = × el del perfil
+  combo(g, ctx, done) {
+    const fn = GENERIC[ctx.sk.type];
+    if (!fn || ctx.sk.type === 'combo') return ctx.res;
+    return fn(g, ctx, done);
+  },
+
+  // MURO (§3.6): campo en LÍNEA perpendicular a la mira, centrado donde apuntas; bloquea el
+  // paso (blocks: no a jefes; 'all' también a jefes) o encierra (contain). Uno por habilidad.
+  wall(g, ctx) {
+    const { p, prof, sk } = ctx;
+    const w = sk.wall || {};
+    const center = castCenter(ctx);
+    const dir = aimDir(p, center);
+    const perp = v3(-dir.z, dir.x);
+    const len = (w.len || 6) * (prof.radiusMul || 1);
+    const a = center.clone().addScaledVector(perp, -len / 2), b = center.clone().addScaledVector(perp, len / 2);
+    g.spawnField('muro', { pos: center, radius: len / 2, dur: prof.dur || 3, owner: p, shape: 'line', a, b, width: w.width || 1,
+      maxPerSkill: Math.max(1, prof.zoneMax || 0),
+      data: { blocks: w.blocks ?? true, contain: !!w.contain, dps: ctx.coef > 0 ? ctx.avgHit : 0, slow: prof.slow, slowPct: prof.slowPct,
+        color: ctx.color || 0xaad8ff, skill: sk.id, tags: prof.tags } });
+    ctx.zoneCenter = center; ctx.zoneRad = Math.max(1.5, len / 2);
+    g.spawnRing?.(center, 1.2, ctx.color || 0xaad8ff);
     return ctx.res;
   },
 };
@@ -474,33 +641,39 @@ export const skillMethods = {
 
   // Un proyectil del PERFIL de un lanzamiento (ctx del canal). Hace lo mismo que el
   // tipo genérico `proj`: tirada al impactar con crítico + Sangre Fría, ctx.hit
-  // (efectos de rama/soporte), robo de vida, Encadenado (una vez por lanzamiento),
+  // (efectos de forja/soporte), robo de vida, Encadenado (una vez por lanzamiento),
   // salpicadura (ctx.splashCoef en prof.radius, sin el objetivo directo) y VFX.
-  // opts = { angle | to, speed, range, pierce, size, color, castHits:Set (sin escopetazo),
+  // opts = { angle | to, speed, range, pierce, size, color, castHits:Set|Map, perTarget,
+  //          coef (propio: autoShot, emisores), critBonus, from (posición de un campo),
   //          onEnemy(e, dealt), onImpact(e, dealt) }
   fireProjectile(ctx, opts = {}) {
     const { p, prof, sk, fx } = ctx;
     const color = opts.color ?? ctx.color ?? sk.color ?? 0xffffff;
+    const from = opts.from ? v3(opts.from.x, opts.from.z, 1.0) : p.pos.clone().setY(1.0);
     let to = opts.to;
     if (!to) {
-      const a = opts.angle ?? Math.atan2(ctx.target.x - p.pos.x, ctx.target.z - p.pos.z);
-      to = p.pos.clone().add(v3(Math.sin(a) * 5, Math.cos(a) * 5));
+      const a = opts.angle ?? Math.atan2(ctx.target.x - from.x, ctx.target.z - from.z);
+      to = from.clone().add(v3(Math.sin(a) * 5, Math.cos(a) * 5));
     }
-    const splashCoef = ctx.splashCoef || 0;
+    const coef = opts.coef ?? ctx.coef;
+    const cb0 = opts.critBonus ?? prof.critBonus;
+    const splashCoef = opts.coef != null ? 0 : (ctx.splashCoef || 0);
+    const direct = opts.coef != null ? 0 : (prof.dmgDirect || 0);
     this.spawnProjectile({
-      from: p.pos.clone().setY(1.0), to: to.clone().setY(1.0),
+      from, to: to.clone().setY(1.0),
       speed: opts.speed ?? prof.speed, range: opts.range ?? (prof.range || sk.range || 10),
-      friendly: true, pierce: opts.pierce ?? prof.pierce, color, size: opts.size ?? sk.size ?? 0.14, castHits: opts.castHits || null,
-      rollAt: e => p.rollDamage(ctx.coef, prof.critBonus + (prof.coldblood && e?.slowT > 0 ? COLDBLOOD_CRIT : 0), prof.addPct, e, ctx.hitInfo),
-      ...ctx.dmgOpts,
+      friendly: true, pierce: opts.pierce ?? prof.pierce, color, size: opts.size ?? sk.size ?? 0.14,
+      castHits: opts.castHits || null, perTarget: opts.perTarget || 1,
+      rollAt: e => p.rollDamage(coef, cb0 + (prof.coldblood && e?.slowT > 0 ? COLDBLOOD_CRIT : 0), prof.addPct + direct, e, ctx.hitInfo),
+      ...ctx.dmgOpts, hitOpts: ctx.hitExtra || null,
       impactPreset: fxp(fx?.impact),
       onHit: (e, dealt) => {
-        if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; this.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color); }
+        if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; this.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color, prof.chainPct); }
         ctx.hit(e, dealt);
         if (prof.lifesteal && dealt > 0) p.leech(dealt * prof.lifesteal / 100);
         if (e && splashCoef > 0 && prof.radius > 0) {
           const at = e.pos.clone().setY(0);
-          this.dealArea(at, prof.radius, splashCoef, { ...ctx.areaOpts, exclude: e });
+          this.dealArea(at, prof.radius, splashCoef, { ...ctx.areaOpts, exclude: e, from: at });
           ctx.zoneCenter = at; ctx.zoneRad = Math.max(1.5, prof.radius);
           this.spawnRing?.(at, prof.radius, color);
           if (fx?.aura) this.emitFx(fxp(fx.aura), at.clone().setY(0.3));
@@ -513,32 +686,73 @@ export const skillMethods = {
   },
 
   // Canalización por tics del planificador (API pública para comportamientos).
-  // opts = { dur, ticks, interval?, unstoppable, hold = true, onTick(inst, interval), onEnd(inst) }.
-  // Soltar la tecla (salvo hold:false: Remolino Sangriento gira solo), la esquiva o un
-  // golpe > 10 % de la vida (si es `int` y no eres imparable) la cortan. Termina
-  // llamando a done(ctx.res).
+  // opts = { dur, ticks, interval?, unstoppable, hold = true | false | 'toggle', endless,
+  //          moveMul, autoShot {every, coef, target:'nearest'|'maxHp', range}, drainPerSec,
+  //          onTick(inst, interval), onEnd(inst, end) }.
+  // Soltar la tecla (salvo hold:false: Remolino Sangriento gira solo; 'toggle': la 2.ª
+  // pulsación), la esquiva o un golpe > 10 % de la vida (si es `int` y no eres imparable)
+  // la cortan. endless: dura hasta soltar, quedarte sin recurso o que la corten.
+  // Termina llamando a done(ctx.res) y a ⑭ onSkillEnd(kind 'channel').
   startChannel(ctx, done, opts = {}) {
     const p = ctx.p;
     const dur = opts.dur || 2;
     const ticks = Math.max(1, Math.round(opts.ticks || dur / 0.33));
     const interval = opts.interval || dur / ticks;
-    const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null, hold: opts.hold !== false };
+    const toggle = opts.hold === 'toggle' || (opts.hold !== false && this.settings?.holdMode === 'toggle');
+    const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null,
+      hold: opts.hold !== false && !toggle, toggle, endless: !!opts.endless, interval, autoAcc: 0, endReason: null, released: false, tickN: 0 };
     this._channel = inst;
-    p.castLock = dur + 0.05;
-    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dur + 0.1);
+    p.castLock = opts.endless ? 1e9 : dur + 0.05;
+    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, opts.endless ? 1e9 : dur + 0.1);
+    if (opts.moveMul != null && opts.moveMul !== 1) p.setMoveMul('channel', opts.moveMul);
+    const auto = opts.autoShot || null;
     const step = () => {
       if (this._channel !== inst) return;
-      if (!p.alive || (inst.hold && !this.slotHeld(ctx.key))) { this.cancelCast('release'); return; }
-      try { opts.onTick?.(inst, interval); } catch (err) { console.warn(`[canalización ${ctx.sk.id}]`, err); }
-      inst.left--;
-      if (inst.left > 0) inst.timer = this.timers.schedule(interval, step);
-      else this._endChannel(inst, false);
+      if (!p.alive) { this._endChannel(inst, true, 'cancel'); return; }
+      if (inst.hold && !this.slotHeld(ctx.key)) { this._endChannel(inst, true, 'release'); return; }
+      if (opts.drainPerSec > 0 && !drainResource(p, opts.drainPerSec, interval)) { this._endChannel(inst, true, 'drain'); return; }
+      inst.tickN++;
+      try { opts.onTick?.(inst, interval); } catch (err) { console.warn(`[canalización ${ctx.sk?.id}]`, err); }
+      // pull por tic (Ciclón): atrae a los enemigos del radio hacia ti
+      const pr = ctx.prof;
+      if (pr?.pull > 0 && pr.radius > 0 && !pr.behavior) {
+        for (const e of this.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= pr.radius + 0.5) e.displace?.(p.pos, pr.pull, { toward: true, src: p });
+      }
+      if (auto) { inst.autoAcc += interval; while (inst.autoAcc >= auto.every - 1e-9) { inst.autoAcc -= auto.every; this._autoShot(ctx, auto); } }
+      if (!inst.endless) inst.left--;
+      if (this._channel !== inst) return;
+      if (inst.endless || inst.left > 0) inst.timer = this.timers.schedule(interval, step);
+      else this._endChannel(inst, false, 'done');
     };
     inst.timer = this.timers.schedule(interval, step);
     return undefined; // diferido: termina con el último tic
   },
+  // disparo automático de un canal (autoShot): al más cercano o al de más vida en `range`
+  _autoShot(ctx, auto) {
+    const p = ctx.p;
+    const range = auto.range || ctx.prof.range || 10;
+    let best = null;
+    for (const e of this.enemies || []) {
+      if (!e.alive || e.pos.distanceTo(p.pos) > range) continue;
+      if (!best) { best = e; continue; }
+      if (auto.target === 'maxHp' ? e.hp > best.hp : e.pos.distanceToSquared(p.pos) < best.pos.distanceToSquared(p.pos)) best = e;
+    }
+    if (!best) return;
+    const coef = (auto.coef ?? ctx.sk.coef ?? 0.5) * (ctx.prof.coef / Math.max(1e-6, ctx.sk.coef || ctx.prof.coef || 1));
+    this.fireProjectile(ctx, { to: best.pos.clone(), coef, speed: auto.speed || 22, range: range + 2 });
+  },
+  // alarga la canalización en curso `s` segundos (Danza Carmesí, Tierra Santa)
+  extendChannel(p, s) {
+    const inst = this._channel;
+    if (!inst || inst.ctx.p !== (p || this.player) || !(s > 0)) return false;
+    if (!inst.endless) inst.left += Math.max(1, Math.round(s / inst.interval));
+    const pl = inst.ctx.p;
+    pl.castLock = Math.max(pl.castLock || 0, (inst.endless ? 1e9 : inst.left * inst.interval + 0.05));
+    if (inst.unstoppable) pl.unstoppableT = Math.max(pl.unstoppableT || 0, inst.left * inst.interval + 0.1);
+    return true;
+  },
   // ⑤ punto único por impacto (lo llama Enemy.takeDamage): poderes onHit (incluidos
-  // los indicadores de especialización gauge_<id>) y critCdr de la habilidad (rama/talento
+  // los indicadores de especialización gauge_<id>) y critCdr de la habilidad (forja/talento
   // `critCdr`: s de enfriamiento menos por crítico directo, como mucho una vez por instante)
   onPlayerHit(e, hit) {
     const p = this.player;
@@ -547,7 +761,7 @@ export const skillMethods = {
       const prof = p.resolved?.[hit.skill] || ((p.cds[hit.skill] || 0) > 0 ? resolveSkill(p, p.cls.skills.find(s => s.id === hit.skill)) : null);
       if (prof?.critCdr > 0 && (p.cds[hit.skill] || 0) > 0 && p._critCdrAt?.[hit.skill] !== p.simT) {
         (p._critCdrAt || (p._critCdrAt = {}))[hit.skill] = p.simT;
-        p.cds[hit.skill] = Math.max(0, p.cds[hit.skill] - prof.critCdr);
+        this.reduceCooldown(p, hit.skill, prof.critCdr);
       }
     }
     if (!p.hookIndex?.onHit) return;
@@ -583,15 +797,17 @@ export const skillMethods = {
     if (!p?.hookIndex?.onDotEnd || !inst) return;
     firePower('onDotEnd', p, this, p, e, { source: inst.source, kind: dotKindOf(inst.source), total: inst.total || 0, per: inst.per, ticks: inst.ticks || 0 });
   },
-  // Encadenado: rebotes a enemigos cercanos (−25 % por salto), hasta `jumps`
-  spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color) {
+  // Encadenado: rebotes a enemigos cercanos, hasta `jumps`. Sin pct, −25 % por salto
+  // (compuesto, como siempre); con pct (Rayo en Cadena: chainPct 70), cada salto hace el pct %
+  // del golpe base.
+  spawnChainBounce(fromEnemy, baseDmg, jumps, exclude, color, pct = 0) {
     if (!fromEnemy || baseDmg <= 0 || jumps <= 0) return;
     const seen = new Set(exclude || []);
     seen.add(fromEnemy);
     let origin = fromEnemy;
     let dmg = baseDmg;
     for (let j = 0; j < jumps; j++) {
-      dmg = Math.round(dmg * 0.75);
+      dmg = pct > 0 ? Math.round(baseDmg * pct / 100) : Math.round(dmg * 0.75);
       if (dmg <= 0) break;
       let next = null, bd = 6 * 6;
       for (const e of this.enemies) {
@@ -610,20 +826,25 @@ export const skillMethods = {
     }
   },
   // daño en área: tira el golpe POR OBJETIVO (bonos condicionados) y aplica efectos
-  // opts = { addPct, critBonus, coldblood, onHit(e, dealt), color, hitInfo, exclude }
+  // opts = { addPct, critBonus, coldblood, onHit(e, dealt, from), color, hitInfo, exclude,
+  //          from (origen de pull/knock), hitExtra (perfect/step/repeat/echo/trap → HitInfo),
+  //          perTarget (Map de impactos por enemigo y su tope) }
   dealArea(pos, radius, mult, opts = {}) {
     let hits = 0;
     const p = this.player;
-    const dmgOpts = { color: opts.color, skill: opts.hitInfo?.skill, tags: opts.hitInfo?.tags, elem: opts.hitInfo?.elem };
+    const dmgOpts = { color: opts.color, skill: opts.hitInfo?.skill, tags: opts.hitInfo?.tags, elem: opts.hitInfo?.elem, ...(opts.hitExtra || {}) };
+    const cap = opts.perTarget || null;
     for (const e of this.enemies) {
       if (!e.alive || e === opts.exclude) continue;
       const r = radius + 0.5 * (e.def.scale || 1);
       if (e.pos.distanceToSquared(pos) <= r * r) {
+        if (cap && (cap.map.get(e) || 0) >= cap.max) continue;
+        if (cap) cap.map.set(e, (cap.map.get(e) || 0) + 1);
         const cb = (opts.critBonus || 0) + (opts.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
         const { dmg, crit } = p.rollDamage(mult, cb, opts.addPct || 0, e, opts.hitInfo);
         const dealt = e.takeDamage(dmg, crit, dmgOpts) || 0;
         if (opts.slow && e.alive) e.applyCC?.('slow', opts.slow, { pct: opts.slowPct || 50, src: p });
-        if (opts.onHit) opts.onHit(e, dealt);
+        if (opts.onHit) opts.onHit(e, dealt, opts.from || pos);
         hits++;
       }
     }
@@ -666,7 +887,7 @@ export const skillMethods = {
     }
     return out.setY(0);
   },
-  // ¿sigue mantenida la tecla/botón de la ranura? (canalizaciones). Sin input: sí.
+  // ¿sigue mantenida la tecla/botón de la ranura? (canalizaciones y cargas). Sin input: sí.
   slotHeld(key) {
     const inp = this.input;
     if (!inp) return true;
@@ -676,7 +897,7 @@ export const skillMethods = {
     return act && typeof inp.held === 'function' ? !!inp.held(act) : true;
   },
 
-  // ---------------- barra de habilidades y ramas ----------------
+  // ---------------- barra de habilidades y forja ----------------
   // asigna una habilidad a una ranura: valida su categoría (CAT_SLOTS) y que la
   // conozcas; sin duplicados (k2 nunca repite la de rmb). 🖱️Izq nunca queda vacía.
   assignHotbar(slot, id) {
@@ -686,7 +907,7 @@ export const skillMethods = {
     if (id) {
       const sk = p.cls.skills.find(s => s.id === id);
       if (!sk || !fitsSlot(sk, slot)) { this.ui?.message?.(`${sk?.name || 'Esa habilidad'} no va en esa ranura`); return false; }
-      if (!isKnown(p, sk)) { this.ui?.message?.(`${sk.name}: se aprende al nivel ${sk.req}`); return false; }
+      if (!isKnown(p, sk)) { this.ui?.message?.(sk.spec ? `${sk.name}: solo con su especialización` : `${sk.name}: se aprende al nivel ${sk.req}`); return false; }
       for (const s of Object.keys(p.hotbar)) if (p.hotbar[s] === id) p.hotbar[s] = null;
     } else if (slot === 'lmb') id = weaponBasicOf(p.cls)?.id || null;
     p.hotbar[slot] = id;
@@ -695,47 +916,57 @@ export const skillMethods = {
     return true;
   },
 
-  // elige una OPCIÓN de una mini-rama. La PRIMERA elección de una mini-rama la
-  // DESBLOQUEA y cuesta 1 punto de habilidad (doble toque de confirmación);
-  // después se cambia libremente entre sus 3 opciones (gratis).
-  chooseSkillMod(skillId, branchId, optId) {
+  // FORJA (§3.5, 2f §2.2): elige la variante 'i' | 'ii' o ninguna (null) de una habilidad.
+  // Sin puntos ni confirmación; gratis FUERA de combate (canRespecFree). La variante se abre
+  // al Nv req+6. Al cambiarla, los soportes que dejan de encajar con la forma nueva se
+  // desengarzan y vuelven a knownSupports (con aviso). → { ok, reason?, unsocketed? }
+  chooseForge(skillId, v = null) {
     const p = this.player;
-    const branches = SKILL_MODS[skillId]; if (!branches) return;
-    const br = branches.find(b => b.id === branchId); if (!br) return;
-    const opt = (br.opts || []).find(o => o.id === optId); if (!opt) return;
-    const unlocked = p.skillBranches?.[skillId]?.[branchId];
-    if (unlocked) {
-      (p.skillMods[skillId] || (p.skillMods[skillId] = {}))[branchId] = optId;
-      p.resolved = {};
-      this.ui.message(`✦ ${opt.name}: ${opt.desc}`, 2200);
-      this.sfx('uiclick');
-    } else {
-      const sk = p.cls.skills.find(s => s.id === skillId);
-      if (!isKnown(p, sk)) { this.ui.message(`${sk?.name || 'La habilidad'} se aprende al nivel ${sk?.req || '?'}`); return; }
-      if (p.skillPoints <= 0) { this.ui.message(`🔒 ${opt.name}: ${opt.desc} — necesitas 1 punto`, 2800); this.sfx('error'); return; }
-      const key = skillId + '/' + branchId + '/' + optId;
-      if (this._modPending === key) {
-        this._modPending = null;
-        (p.skillBranches[skillId] || (p.skillBranches[skillId] = {}))[branchId] = true;
-        p.skillPoints--;
-        (p.skillMods[skillId] || (p.skillMods[skillId] = {}))[branchId] = optId;
-        p.resolved = {};
-        this.ui.message(`🔓 ${opt.name} desbloqueado`, 2200);
-        this.sfx('levelup');
-      } else {
-        this._modPending = key;
-        this.ui.message(`${opt.name}: ${opt.desc} — haz clic otra vez para desbloquear (1 punto)`, 3200);
-        this.sfx('uiclick');
-      }
+    const sk = p?.cls?.skills.find(s => s.id === skillId);
+    if (!sk) return { ok: false, reason: 'skill' };
+    const st = forgeState(p, sk);
+    if (!st.entry) return { ok: false, reason: 'no-forge' };
+    if (v !== null && v !== 'i' && v !== 'ii') return { ok: false, reason: 'variant' };
+    if (v && !forgeVar(st.entry, v)) return { ok: false, reason: 'variant' };
+    if (v && (p.level || 1) < st.levels.vars) { this.ui?.message?.(`${sk.name}: las variantes se abren al nivel ${st.levels.vars}`); return { ok: false, reason: 'level' }; }
+    if (typeof this.canRespecFree === 'function' && !this.canRespecFree()) {
+      this.ui?.message?.('⚔️ En combate: la forja se cambia fuera de combate (5 s sin daño) o en un campamento');
+      return { ok: false, reason: 'combat' };
     }
-    this.ui.refreshSkillsView?.();
-    this.ui.updateHUD?.();
-    this.save();
+    const before = (p.supports?.[skillId] || []).slice();
+    p.skillForge = p.skillForge || {};
+    p.skillForge[skillId] = v;
+    p.recompute();
+    // soportes incompatibles con la definición forjada → a knownSupports
+    const def = forgedDef(p, sk);
+    const keep = [], out = [];
+    for (const id of before) {
+      const sup = SUPPORTS.find(s => s.id === id);
+      if (sup && supportFits(sup, def)) keep.push(id); else out.push(id);
+    }
+    if (out.length) {
+      p.supports[skillId] = keep;
+      p.knownSupports = p.knownSupports || [];
+      for (const id of out) if (!p.knownSupports.includes(id)) p.knownSupports.push(id);
+      p.recompute();
+      this.ui?.message?.(`🔧 ${out.length} soporte${out.length > 1 ? 's' : ''} desengarzado${out.length > 1 ? 's' : ''}: no encaja${out.length > 1 ? 'n' : ''} con la forma nueva`, 3000);
+    }
+    void validSupports;
+    this.sfx?.('uiclick');
+    this.ui?.refreshSkillsView?.();
+    this.ui?.refreshHotbar?.();
+    this.save?.();
+    return { ok: true, unsocketed: out };
+  },
+  /** @deprecated Paso 2 (D23): las ramas ya no existen (forja: chooseForge). No hace nada. */
+  chooseSkillMod(skillId, branchId, optId) {
+    void skillId; void branchId; void optId;
+    return false;
   },
 
-  // ¿Hay una gastadora PEDIDA (🖱️Der mantenido) y lista para salir? Entonces el
+  // ¿Hay una principal PEDIDA (🖱️Der mantenido) y lista para salir? Entonces el
   // básico cede el turno ese frame: con los dos botones mantenidos nunca salen dos
-  // acciones a la vez y la gastadora conserva su cadencia. Sin ratón (tests sin
+  // acciones a la vez y la principal conserva su cadencia. Sin ratón (tests sin
   // input real), nunca.
   _spenderWaiting() {
     const p = this.player, inp = this.input;
@@ -743,7 +974,7 @@ export const skillMethods = {
     const id = p.hotbar?.rmb;
     const sk = id ? p.cls.skills.find(s => s.id === id) : null;
     if (!sk || sk.cat === 'basic' || !isKnown(p, sk)) return false;
-    if ((p.cds[sk.id] || 0) > 0 || p.gcdT > 0 || p.castLock > 0 || p.leap || this._channel) return false;
+    if (!this._skillReady(p, sk) || p.gcdT > 0 || p.castLock > 0 || p.leap || this._channel || this._charging) return false;
     const prof = resolveSkill(p, sk);
     if (!canAfford(p, prof.cost)) return false;
     if (prof.type === 'melee') {
@@ -756,10 +987,12 @@ export const skillMethods = {
   // ---------------- ataque básico ----------------
   // Básico de arma = GENERADOR. Apunta al cursor; melee golpea al enemigo a
   // rango, a distancia dispara hacia la mira. Sin GCD (lo marca la cadencia).
-  castBasic() {
+  // opts.charge: suelta de un básico TENSABLE (Paso 2, Cuerda Tensa)
+  castBasic(opts = {}) {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play' || this._paused || p.atkCd > 0 || p.castLock > 0 || p.leap || this._windup) return;
-    if (p.actionLockT > 0 || this._spenderWaiting()) return;   // la gastadora en curso / pedida manda
+    if (!opts.charge && this._charging) return;                 // el básico mantenido no dispara durante una carga
+    if (p.actionLockT > 0 || this._spenderWaiting()) return;   // la principal en curso / pedida manda
     const aim = this.input?.mouseWorld || null;
     const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
     const scheme = this.settings?.controlScheme || 'wasd';
@@ -768,15 +1001,21 @@ export const skillMethods = {
       const fwd = v3(Math.sin(p.group.rotation.y), Math.cos(p.group.rotation.y));
       const tgt = (scheme !== 'click' && aim) ? { pos: aim } : (near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) });
       p.faceToward(tgt.pos);
-      p.basicAttack(tgt);
+      p.basicAttack(tgt, opts);
     } else if (near && p.pos.distanceTo(near.pos) <= p.cls.atkRange) {
       p.faceToward(near.pos);
-      p.basicAttack(near);
+      p.basicAttack(near, opts);
     } else {
       // golpe melee al vacío hacia la mira (no genera Furia: hay que acertar)
       if (aim) p.faceToward(aim);
       p.atkCd = p.stats.atkTime * 0.6; p.swing = 1;
     }
+  },
+  // ¿el básico de arma se TENSA? (Cuerda Tensa de la Francotiradora; clic-mover lo usa)
+  basicTensable() {
+    const p = this.player;
+    const wb = p ? weaponBasicOf(p.cls) : null;
+    return !!(wb && resolveSkill(p, wb)?.charge);
   },
 
   // ---------------- canal de lanzamiento ⑦ ----------------
@@ -801,9 +1040,16 @@ export const skillMethods = {
     return { target, near: enemy };
   },
 
-  // echoMult > 0: repetición del Eco (sin coste, sin CD, sin windup, sin GCD).
+  // ¿lista para lanzarse por enfriamiento? (cargas: al menos una)
+  _skillReady(p, sk) {
+    const prof = resolveSkill(p, sk);
+    if (prof.charges > 1) return this._syncCharges(p, sk.id, prof).n > 0;
+    return !((p.cds[sk.id] || 0) > 0);
+  },
+
+  // echoMult > 0: repetición (sin coste, sin CD, sin windup, sin GCD; no avanza estado).
   // slotKey: 'lmb' | 'rmb' | 'k1'..'k4' (o índice 0-3 → k1-k4, retrocompat).
-  // Devuelve true si el lanzamiento arrancó.
+  // Devuelve true si el lanzamiento arrancó (también si empieza una CARGA).
   castSkillSlot(slotKey, echoMult = 0) {
     const p = this.player;
     if (!p || !p.alive || this.state !== 'play') return false;
@@ -813,40 +1059,84 @@ export const skillMethods = {
     if (!skId) return false;
     const sk = p.cls.skills.find(s => s.id === skId);
     if (!sk || !isKnown(p, sk)) return false;
-    if (sk.type === 'weapon') { if (!echoMult) this.castBasic(); return !echoMult; }
+    const isEcho = echoMult > 0;
+    const prof = resolveSkill(p, sk);
+    const def = prof.def || sk;
+    // ---- §3.6.1: una CARGA en curso bloquea las demás ranuras, salvo la movilidad (la
+    // cancela sin coste) y una postura con swapGcd 0 (se alterna sin cortarla) ----
+    if (!isEcho && this._charging) {
+      const c = this._charging;
+      if (c.key === key) {
+        if (c.toggle) this.releaseSkillSlot(key, { force: true });   // 2.ª pulsación en modo toggle: suelta
+        return false;
+      }
+      if (def.cat === 'movement') this._endCharge('cancel');
+      else if (!(def.type === 'stance' && (def.stance?.swapGcd ?? 0) === 0)) return false;
+    }
+    // canal enganchado (toggle): la 2.ª pulsación de su ranura lo suelta
+    if (!isEcho && this._channel?.toggle && this._channel.ctx.key === key) { this._endChannel(this._channel, true, 'release'); return false; }
+    // tras una suelta AUTOMÁTICA hay que soltar el botón antes de volver a cargar
+    if (!isEcho && this._needsRelease?.[key]) return false;
+    // repeticiones: como mucho echoCap por lanzamiento original (una repetición no genera otra)
+    const sst = skStateOf(p, sk.id);
+    if (isEcho) {
+      const ec = sst.echo || (sst.echo = { seq: -1, n: 0 });
+      if (ec.n >= VERB_DEFAULTS.echoCap) return false;
+      ec.n++;
+    }
+    if (def.type === 'weapon' && !prof.charge) { if (!isEcho) this.castBasic(); return !isEcho; }
     // activa de talento sin comportamiento todavía (Paso 2c.1): no se lanza ni cobra
-    if (!skillCastable(sk)) {
+    if (!skillCastable(def)) {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (!echoMult && (!this._noCastAt || now - this._noCastAt > 1500)) { this.ui?.message?.(`${sk.name}: aún no disponible`); this._noCastAt = now; }
+      if (!isEcho && (!this._noCastAt || now - this._noCastAt > 1500)) { this.ui?.message?.(`${sk.name}: aún no disponible`); this._noCastAt = now; }
       return false;
     }
-    const prof = resolveSkill(p, sk);
-    const isBasic = sk.cat === 'basic';
-    const isEcho = echoMult > 0;
-    // una gastadora puede CANCELAR el windup de un básico en curso (el remate del
-    // Mandoble), como en D4: la gastadora tiene prioridad sobre el básico
+    const isBasic = def.cat === 'basic';
+    // ventana de RELANZAR abierta (§3.6): sin coste (free) ni enfriamiento propio; separación `gap`
+    const rcState = !isEcho && prof.recast && sst.recast?.left > 0 ? sst.recast : null;
+    const stanceSwapFree = def.type === 'stance' && (def.stance?.swapGcd ?? 0) === 0;
+    const stanceEnding = def.type === 'stance' && (def.stance?.modes?.length || 0) === 1 && sst.stance?.mode != null && def.stance?.recastEnds !== false;
+    // una principal puede CANCELAR el windup de un básico en curso (el remate del
+    // Mandoble), como en D4: la principal tiene prioridad sobre el básico
     const yieldBasic = !isEcho && !isBasic && !!this._windup?.ctx?.isBasic;
     if (!isEcho) {
-      if (((p.castLock > 0 || this._windup) && !yieldBasic) || p.leap || this._channel) return false; // bloqueo en curso
+      const locked = (p.castLock > 0 || this._windup) && !yieldBasic;
+      if ((locked && !stanceSwapFree) || p.leap || p.dashMove || this._channel) return false;   // bloqueo en curso
       if (isBasic) {
         if (p.atkCd > 0) return false;
-        // bloqueo de ACCIÓN compartido: mientras una gastadora prepara, bloquea o
+        // bloqueo de ACCIÓN compartido: mientras una principal prepara, bloquea o
         // vuela hacia su impacto, el básico no sale (queda a la espera con el
-        // botón mantenido); y si hay una gastadora pedida y lista, cede el turno
+        // botón mantenido); y si hay una principal pedida y lista, cede el turno
         if (p.actionLockT > 0 || this._spenderWaiting()) return false;
-      }
-      else if ((p.cds[sk.id] || 0) > 0) return false;
+      } else if (rcState) {
+        if ((p.simT || 0) - (rcState.lastAt || 0) < rcState.gap - 1e-9) return false;
+      } else if (!stanceEnding && !this._skillReady(p, sk)) return false;
       // una sola acción por frame: si el básico acaba de salir en ESTE instante, la
-      // gastadora sale en el siguiente (16 ms; el básico no la retrasa más que eso)
-      else if (p.basicAt != null && p.basicAt === p.simT) return false;
-      if (prof.gcd && p.gcdT > 0) return false;                                       // GCD 0,2 s
-      if (!canAfford(p, prof.cost)) {
+      // principal sale en el siguiente (16 ms; el básico no la retrasa más que eso)
+      if (!isBasic && p.basicAt != null && p.basicAt === p.simT) return false;
+      if (prof.gcd && p.gcdT > 0 && !stanceSwapFree && !rcState) return false;          // GCD 0,2 s
+      const free = (rcState && prof.recast.free) || stanceEnding;
+      if (!free && !canAfford(p, prof.cost)) {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         if (!this._noResAt || now - this._noResAt > 700) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); this._noResAt = now; }
         return false;
       }
     }
+    // POSTURA (§3.6): su propio flujo (cambiar de modo, acabar, Guardia Total)
+    if (def.type === 'stance') return this._castStance(p, sk, prof, key, isEcho);
     const { target, near } = this.skillTarget(p, prof);
+    // SALTAR A TU CAMPO (at:'ownField'): sin campo de ese tipo a tu alcance no se lanza (sin
+    // coste), salvo fallbackRange (salto normal de esa distancia)
+    let fieldDest = null, destRange = 0;
+    if (def.at === 'ownField' && (def.type === 'leap' || def.type === 'blink' || def.type === 'dash')) {
+      const f = this.nearestOwnField(p, target, { kind: def.fieldKind, from: p.pos, maxDist: prof.range || def.range || 15 });
+      if (f) fieldDest = v3(f.pos.x, f.pos.z);
+      else if (def.fallbackRange > 0) destRange = def.fallbackRange;
+      else {
+        if (!isEcho) this.ui?.message?.('Ningún campo tuyo a tu alcance');
+        return false;
+      }
+    }
     if (prof.type === 'melee' && !prof.behavior && (!near || p.pos.distanceTo(near.pos) > (prof.range || 2.2) + 0.6)) {
       // básico cuerpo a cuerpo sin objetivo: golpe al vacío (no genera recurso)
       if (isBasic && !isEcho) {
@@ -859,45 +1149,47 @@ export const skillMethods = {
       if (!isEcho && (!this._noTgtAt || now - this._noTgtAt > 900)) { this.ui?.message?.('Ningún enemigo al alcance'); this._noTgtAt = now; }
       return false;
     }
+    // COMBO: paso que toca (el 1.º si caducó la ventana); una repetición usa el actual sin avanzar
+    let comboIdx = -1;
+    if (def.type === 'combo' && Array.isArray(def.steps) && def.steps.length) {
+      const cs = sst.combo || (sst.combo = { idx: 0, until: 0 });
+      if ((p.simT || 0) > cs.until) cs.idx = 0;
+      comboIdx = Math.min(cs.idx, def.steps.length - 1);
+    }
+    // SECUENCIA (no arma; la de arma la cuenta Player.basicAttack)
+    const seq = !isEcho && def.seq && def.type !== 'weapon' ? this.seqAdvance(p, sk) : null;
     const cast = { sk, prof, slot: key, target, enemy: near };
+    if (rcState) cast.recast = { idx: rcState.idx + 1, left: rcState.left - 1, perfect: rcState.perfectLast > 0 && rcState.until - (p.simT || 0) <= rcState.perfectLast + 1e-9 };
+    if (comboIdx >= 0) cast.step = comboIdx + 1;
+    if (seq) { cast.seqNth = seq.nth; cast.seqIdx = seq.idx; }
+    if (isEcho) cast.echo = echoMult;
     if (!isEcho && firePower('onCast', p, this, p, cast) === false) return false; // cancelado sin coste
     if (yieldBasic) this.cancelCast('gastadora');                                    // corta el remate del básico
+    const ctx = this._makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx, fieldDest, destRange, rcState });
+    // CARGAR Y SOLTAR (§3.6): empieza la carga (el coste y el enfriamiento, al soltar).
+    // Una repetición sale a carga completa (frac = 1) sin esperar.
+    if (prof.charge) {
+      if (isEcho || prof.charge.instant || cast.instant) return this._releaseWith(ctx, prof.charge.max, 'auto', { instant: true });
+      return this._beginCharge(ctx);
+    }
     // bloqueo de acción para el básico: preparación + max(bloqueo, impacto diferido,
     // vuelo del proyectil hasta la mira), nunca menos que el GCD
     if (!isEcho && !isBasic && prof.gcd) {
       const flight = prof.tags.has('proj') ? Math.min(prof.range || 10, p.pos.distanceTo(target)) / Math.max(1, prof.speed || 14) : 0;
-      p.actionLockT = Math.max(p.actionLockT || 0, GCD, (prof.windup || 0) + Math.max(prof.lockT || 0, prof.impactDelay || 0, flight));
+      p.actionLockT = Math.max(p.actionLockT || 0, GCD, (ctx.windup || 0) + Math.max(prof.lockT || 0, prof.impactDelay || 0, flight));
     }
-    const fx = SKILL_FX[sk.id] || null;
-    const dotKind = prof.dot;
-    const color = sk.color || (dotKind ? DOT_COLORS[dotKind] : null) || undefined;
-    const coef = prof.coef * (isEcho ? echoMult : 1);
-    const hitInfo = { skill: sk.id, tags: prof.tags, elem: prof.elem, forceCrit: !!(prof.forceCrit || cast.forceCrit) };
-    const ctx = {
-      p, sk, prof, key, target, enemy: near, coef, isEcho, isBasic, hitInfo, color, fx, cast,
-      dmgOpts: { color, skill: sk.id, tags: prof.tags, elem: prof.elem },
-      avgHit: p.avgHit(coef, prof.addPct),
-      splashCoef: (prof.splash || 0) * (isEcho ? echoMult : 1),
-      res: { hits: 0, dealt: 0, killed: 0 },
-    };
-    // impacto REAL sobre un enemigo: cuenta, daño infligido y efectos de rama/soporte
-    ctx.hit = (e, dealt) => {
-      ctx.res.hits++;
-      ctx.res.dealt += dealt || 0;
-      applyHitEffects(this, p, e, prof, ctx.avgHit);
-      if (e && !e.alive) ctx.res.killed++;
-    };
-    ctx.areaOpts = { addPct: prof.addPct, critBonus: prof.critBonus, coldblood: prof.coldblood, color, hitInfo, onHit: ctx.hit };
-    if (!isEcho && prof.gcd) p.gcdT = GCD;
-    p.castPose?.(sk.type);
+    if (!isEcho && prof.gcd && !rcState) p.gcdT = GCD;
+    p.castPose?.(ctx.sk.type);
     // WINDUP: el golpe se programa; la esquiva lo cancela SIN cobrar el coste
-    if (!isEcho && prof.windup > 0) {
-      p.castLock = prof.windup + 0.05;
+    if (!isEcho && ctx.windup > 0) {
+      p.castLock = ctx.windup + 0.05;
       p.swing = Math.max(p.swing || 0, 0.6);
-      const id = this.timers.schedule(prof.windup, () => {
+      if (ctx.stepMoveMul !== 1) p.setMoveMul('windup', ctx.stepMoveMul, ctx.windup + 0.05);
+      const id = this.timers.schedule(ctx.windup, () => {
         if (this._windup?.id !== id) return;
         this._windup = null;
         p.castLock = 0;
+        p.clearMoveMul?.('windup');
         if (p.alive) this._commitCast(ctx);
       });
       this._windup = { id, ctx };
@@ -906,21 +1198,78 @@ export const skillMethods = {
     return this._commitCast(ctx);
   },
 
-  // cobra el coste, pone el enfriamiento y ejecuta el efecto (comportamiento o genérico)
+  // contexto de un lanzamiento (ctx de los tipos genéricos). Con combo, `sk`/`prof` del paso.
+  _makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx = -1, fieldDest = null, destRange = 0, rcState = null, charge = null }) {
+    const def = prof.def || sk;
+    const isBasic = def.cat === 'basic';
+    let stepDef = def, stepProf = prof, windup = prof.windup, stepMoveMul = prof.moveMul;
+    if (comboIdx >= 0) {
+      const step = def.steps[comboIdx] || {};
+      stepDef = { ...def, ...step, type: step.type || 'melee', steps: undefined };
+      const wb = step.windup || 0;
+      windup = wb > 0 ? Math.max(0, (wb + (prof.mods?.windupAdd || 0)) * Math.max(0, 1 + (prof.mods?.windupMul || 0) / 100)) : 0;
+      stepMoveMul = step.moveMul ?? prof.moveMul;
+      stepProf = { ...prof, type: stepDef.type, def: stepDef,
+        coef: prof.coef * (step.coef ?? 1),
+        radius: step.radius != null ? step.radius * prof.radiusMul : prof.radius,
+        range: step.range != null ? step.range * prof.rangeMul : prof.range,
+        angle: step.angle ?? prof.angle, width: step.width ?? prof.width,
+        dot: step.dot || prof.dot, windup };
+    }
+    const fx = SKILL_FX[sk.id] || null;
+    const dotKind = stepProf.dot;
+    const color = def.color || (dotKind ? DOT_COLORS[dotKind] : null) || undefined;
+    const coef = stepProf.coef * (isEcho ? echoMult : 1) * (charge?.coefMul || 1);
+    const forceCrit = !!(prof.forceCrit || cast.forceCrit || (charge?.perfect && prof.charge?.perfectCrit));
+    const hitInfo = { skill: sk.id, tags: prof.tags, elem: prof.elem, forceCrit };
+    const hitExtra = {};
+    if (charge?.perfect) hitExtra.perfect = true;
+    if (comboIdx >= 0) hitExtra.step = comboIdx + 1;
+    if (isEcho) hitExtra.echo = true;
+    const addPct = stepProf.addPct + (charge?.addPct || 0);
+    const ctx = {
+      p, sk: stepDef, prof: charge ? { ...stepProf, addPct, radius: stepProf.radius * (charge.radiusMul || 1), range: stepProf.range * (charge.rangeMul || 1) } : stepProf,
+      baseProf: prof, key, target, enemy: near, coef, isEcho, isBasic, hitInfo, color, fx, cast,
+      dmgOpts: { color, skill: sk.id, tags: prof.tags, elem: prof.elem, ...hitExtra },
+      hitExtra,
+      avgHit: p.avgHit(coef, addPct),
+      splashCoef: (prof.splash || 0) * (isEcho ? echoMult : 1) * (charge?.coefMul || 1),
+      res: { hits: 0, dealt: 0, killed: 0 },
+      windup: isEcho ? 0 : windup, stepMoveMul, comboIdx, fieldDest, destRange, rcState,
+      chargeFull: charge?.full ? charge.fullDef : null, seqNth: !!cast.seqNth,
+    };
+    // impacto REAL sobre un enemigo: cuenta, daño infligido y efectos de forja/soporte
+    // (`from`: origen de atraer/empujar; por defecto el héroe)
+    ctx.hit = (e, dealt, from = null) => {
+      ctx.res.hits++;
+      ctx.res.dealt += dealt || 0;
+      applyHitEffects(this, p, e, ctx.prof, ctx.avgHit, { from });
+      if (e && !e.alive) ctx.res.killed++;
+    };
+    ctx.areaOpts = { addPct, critBonus: stepProf.critBonus, coldblood: prof.coldblood, color, hitInfo, onHit: ctx.hit, hitExtra };
+    return ctx;
+  },
+
+  // cobra el coste, pone el enfriamiento (o gasta una carga) y ejecuta el efecto
   _commitCast(ctx) {
     const { p, sk, prof, isEcho, isBasic } = ctx;
+    const base = ctx.baseProf || prof;
+    const def = base.def || sk;
+    const rc = ctx.rcState;
     if (!isEcho) {
       // básico: cadencia × sk.cadence (Mandoble 1,5 · Embate 1,1), sin contar el windup ya esperado
-      if (isBasic) { p.atkCd = Math.max(0.05, p.stats.atkTime * (prof.cadence || 1) - (prof.windup || 0)); p.basicAt = p.simT; }
+      if (isBasic) { p.atkCd = Math.max(0.05, p.stats.atkTime * (base.cadence || 1) - (ctx.windup || 0)); p.basicAt = p.simT; }
       else {
-        if (!spendResource(p, prof.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
-        if (prof.gen) gainResource(p, prof.gen);   // sk.gen (Grito de Guerra) + ramas Furibundo/Iracundo
-        p.cds[sk.id] = prof.cd;
-        p.cdMax[sk.id] = prof.cd;
+        const free = rc && base.recast?.free;
+        if (!free && !spendResource(p, base.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
+        if (base.gen && !rc) gainResource(p, base.gen);   // def.gen (Grito de Guerra) + forja/talentos
+        // enfriamiento: no en un relanzamiento (ni en el 1.º con cdFrom 'end': al cerrar la cadena)
+        if (!rc && !(base.recast && base.recast.cdFrom === 'end')) this._startCooldown(p, sk.id, base);
       }
-      if (prof.lockT > 0) p.castLock = Math.max(p.castLock || 0, prof.lockT);
-      if (prof.haste) p.addBuff(`${sk.id}_impulso`, { spdPct: 30 }, prof.haste, { name: 'Impulso', icon: '💨', desc: '+30% de velocidad de movimiento' });
-      if (prof.cleanse) p.cleanse();
+      if (base.lockT > 0) p.castLock = Math.max(p.castLock || 0, base.lockT);
+      if (base.haste) p.addBuff(`${sk.id}_impulso`, { spdPct: 30 }, base.haste, { name: 'Impulso', icon: '💨', desc: '+30% de velocidad de movimiento' });
+      if (base.cleanse) p.cleanse();
+      if (def.cat === 'movement') p.unplant?.();                    // usar movilidad rompe el plantado
     }
     let finished = false;
     const done = (res) => {
@@ -934,7 +1283,8 @@ export const skillMethods = {
       const beh = prof.behavior ? SKILL_BEHAVIORS[prof.behavior] : null;
       if (beh?.cast) res = beh.cast(this, p, prof, { ...ctx.cast, ctx, done });
       else {
-        const fn = GENERIC[sk.type];
+        const type = ctx.comboIdx >= 0 ? 'combo' : sk.type;
+        const fn = GENERIC[type];
         if (!fn) { console.warn(`[habilidad ${sk.id}] tipo genérico desconocido: ${sk.type}`); res = ctx.res; }
         else res = fn(this, ctx, done);
       }
@@ -943,75 +1293,659 @@ export const skillMethods = {
       res = ctx.res;
     }
     if (res !== undefined) done(res);              // instantáneo; si es diferido, done() llega al impactar
-    // Eco (soporte o Transformación): repite ~0,5 s después al 50-60 %
-    if (!isEcho && prof.echo > 0) this.timers.schedule(0.5, () => this.castSkillSlot(ctx.key, prof.echo));
+    // Eco (soporte o forja): repite ~0,5 s después al 50-60 % (una repetición no genera otra)
+    if (!isEcho && base.echo > 0) {
+      const sst = skStateOf(p, sk.id);
+      sst.echo = { seq: (sst.echo?.seq || 0) + 1, n: 0 };
+      this.timers.schedule(0.5, () => this.castSkillSlot(ctx.key, base.echo));
+    } else if (!isEcho) {
+      const sst = skStateOf(p, sk.id);
+      sst.echo = { seq: (sst.echo?.seq || 0) + 1, n: 0 };
+    }
+    // estado de los verbos tras lanzar (combo y secuencia no avanzan con repeticiones)
+    if (!isEcho && ctx.comboIdx >= 0) this._advanceCombo(p, sk, base);
     this.sfx?.(ctx.fx?.sfx || 'skill');
     return true;
   },
 
-  // tras el impacto: robo de vida, Masacre, Estela, recurso del básico y ⑦ afterCast
+  // tras el impacto: robo de vida, Masacre, Estela, recurso del básico, verbos de llegada
+  // (réplicas, onda, curas/escudos, cebos) y ⑦ afterCast
   _finishCast(ctx, res) {
     const { p, sk, prof, isEcho, isBasic } = ctx;
+    const base = ctx.baseProf || prof;
+    const def = base.def || sk;
     if (!ctx.lifestealDone && prof.lifesteal && res.dealt > 0) p.leech(res.dealt * prof.lifesteal / 100);
-    if (!isEcho && !isBasic && prof.cdhit && res.hits >= prof.cdhit) {
-      const reduced = cooldownWithMassacre(prof);
-      p.cds[sk.id] = Math.max(0, (p.cds[sk.id] || 0) - (prof.cd - reduced));
+    if (!isEcho && !isBasic && base.cdhit && res.hits >= base.cdhit) {
+      const reduced = cooldownWithMassacre(base);
+      this.reduceCooldown(p, sk.id, Math.max(0, base.cd - reduced));
     }
     // Estela (zone): daña y, si la habilidad ralentiza (prof.slow), también ralentiza
     // (Paso 2c.2: el suelo helado de Nova Perpetua es la Estela de una Nova que ralentiza)
     if (prof.zone && ctx.zoneCenter && this.spawnField) {
       this.spawnField('estela', { pos: ctx.zoneCenter, radius: Math.max(2, (ctx.zoneRad || 2) * 0.9), dur: prof.zoneDur, owner: p,
-        data: { dps: ctx.avgHit * 0.45, color: sk.color || 0xff7733, skill: sk.id, slow: prof.slow > 0 ? prof.slow : 0, slowPct: prof.slowPct || 30 } });
+        maxPerSkill: base.zoneMax || 0,
+        data: { dps: ctx.avgHit * 0.45, color: def.color || 0xff7733, skill: sk.id, slow: prof.slow > 0 ? prof.slow : 0, slowPct: prof.slowPct || 30 } });
     }
     // recurso de los básicos no-arma (Mandoble/Embate): solo si golpean (+extra por objetivo)
     if (isBasic && !isEcho && res.hits > 0) {
-      let add = prof.gen;
-      if (prof.genPerExtra && res.hits > 1) add = Math.min(Math.max(prof.genMax || 0, prof.gen), add + prof.genPerExtra * (res.hits - 1));
+      let add = base.gen;
+      if (base.genPerExtra && res.hits > 1) add = Math.min(Math.max(base.genMax || 0, base.gen), add + base.genPerExtra * (res.hits - 1));
       gainResource(p, add);
     }
     // no básicos: recurso SOLO si golpea (Embestida +12, Provocación +15)
-    if (!isBasic && !isEcho && prof.genOnHit && res.hits > 0) gainResource(p, prof.genOnHit);
+    if (!isBasic && !isEcho && base.genOnHit && res.hits > 0) gainResource(p, base.genOnHit);
+    // ---- verbos al terminar (§3.6) ----
+    const center = ctx.zoneCenter || p.pos.clone();
+    // réplicas en el mismo punto (Terremoto; needPlanted: solo plantado). Una réplica es un
+    // eco: no genera otra
+    const rp = base.repeat;
+    if (!isEcho && rp && rp.n > 0 && (!rp.needPlanted || p.planted)) {
+      const rad = ctx.zoneRad || prof.radius || 2, c = center.clone();
+      for (let i = 1; i <= rp.n; i++) {
+        this.timers.schedule((rp.every || 0.5) * i, () => {
+          if (!p.alive) return;
+          this.dealArea(c, rad, ctx.coef * (rp.coef ?? 0.5), { ...ctx.areaOpts, from: c, hitExtra: { ...ctx.hitExtra, repeat: i, echo: true } });
+          this.spawnRing?.(c, rad, ctx.color || 0xd8c49a);
+        });
+      }
+    }
+    // onda tras el golpe (Onda Sagrada): línea hacia la mira desde el centro del impacto
+    if (def.wave && !isEcho) {
+      const w = def.wave, dir = aimDir(p, ctx.target);
+      const list = this.enemiesInLine(center, dir, w.range || 8, w.width || 2);
+      for (const e of list) {
+        const { dmg, crit } = p.rollDamage(ctx.coef * (w.coef ?? 0.6), prof.critBonus, prof.addPct, e, ctx.hitInfo);
+        ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0, center);
+      }
+      this.spawnBeam?.(center, center.clone().addScaledVector(dir, w.range || 8), ctx.color || 0xffe680, 0.2);
+    }
+    // escudo por enemigo golpeado (Corazón de Hielo: shieldGain [pct, máx] de la vida máx.)
+    if (!isEcho && base.shieldGain && res.hits > 0) {
+      const pct = Math.min(base.shieldGain[1] || Infinity, (base.shieldGain[0] || 0) * res.hits);
+      if (pct > 0) this.shield(p.stats.maxHP * pct / 100, { target: 'self', dur: 6, src: `${sk.id}:gain` });
+    }
+    // cura y escudo al grupo al lanzar (Amanecer: heal { pct, radius } · shield { pct, radius, dur })
+    if (!isEcho && def.heal?.pct > 0) this.heal(a => a.stats.maxHP * def.heal.pct / 100 * (base.buffMul || 1), { target: def.heal.target || 'all', radius: def.heal.radius || 8, pos: center, src: sk.id });
+    if (!isEcho && def.shield?.pct > 0) this.shield(p.stats.maxHP * def.shield.pct / 100 * (base.buffMul || 1), { target: 'all', radius: def.shield.radius || 8, dur: def.shield.dur || 6, pos: center, src: `${sk.id}:shield` });
+    // señuelo (lure de la habilidad: Señuelo de Zarzas)
+    if (!isEcho && def.lure && this.spawnField) {
+      this.spawnField('senuelo', { pos: center, radius: def.lure.radius || 8, dur: def.lure.dur || 6, owner: p, data: { lure: { ...def.lure }, skill: sk.id } });
+    }
+    // detonar al impactar un área o al llegar (las de proyectil detonan en su impacto)
+    if (def.detonate && !ctx.sk.type?.startsWith('proj') && !['leap', 'dash', 'blink'].includes(ctx.sk.type)) this.detonateAt(p, center, def.detonate, { skill: sk.id });
+    // reinicio al matar (killReset)
+    if (!isEcho && base.killReset && res.killed > 0) this.reduceCooldown(p, sk.id, Infinity);
+    // relanzar: abre o avanza la cadena (no con repeticiones)
+    if (!isEcho && base.recast) this._recastAfter(p, sk, base, ctx, res);
     if (!isEcho) firePower('afterCast', p, this, p, ctx.cast, res);
   },
 
-  // la ESQUIVA cancela el windup (sin cobrar el coste) y la canalización
+  // llegada de un salto/avance/parpadeo: plantado, provocación y detonación (§3.6)
+  _arrive(ctx, from) {
+    const { p, sk, prof } = ctx;
+    if (sk.plant) p.plantNow?.();
+    // sin daño al llegar no hay golpes que provoquen (applyHitEffects): provoca el radio
+    if (prof.taunt > 0 && !(ctx.coef > 0)) {
+      const r = (prof.radius || 2) + 0.5;
+      for (const e of this.enemies || []) if (e.alive && e.pos.distanceTo(p.pos) <= r) e.applyCC?.('taunt', prof.taunt, { src: p });
+    }
+    if (sk.detonate) this.detonateAt(p, p.pos, sk.detonate, { skill: sk.id });
+    // estela del avance (Sendero de Luz): campo en línea del inicio al final
+    const tr = (ctx.baseProf || prof).trail;
+    if (tr && from && this.spawnField) {
+      const a = from.clone().setY(0), b = p.pos.clone().setY(0);
+      const mid = a.clone().add(b).multiplyScalar(0.5);
+      this.spawnField(tr.field || 'zona', { pos: mid, radius: Math.max(0.5, a.distanceTo(b) / 2), dur: tr.dur || 4, owner: p, shape: 'line', a, b, width: tr.width || 1.5,
+        maxPerSkill: (ctx.baseProf || prof).zoneMax || 0,
+        data: { dps: (tr.coef || 0) > 0 ? p.avgHit(tr.coef * (prof.coef / Math.max(1e-6, sk.coef || prof.coef || 1)), prof.addPct) : 0,
+          healPct: tr.heal || 0, color: ctx.color || 0xffe680, skill: sk.id, tags: prof.tags } });
+    }
+  },
+
+  // pulsos de un buff o aura (Ciudadela): cada `every` s mientras `alive()`; provoca a los
+  // enemigos del radio y/o los golpea con coef
+  _startPulses(ctx, posFn, alive) {
+    const pulse = ctx.sk.pulse;
+    const every = Math.max(0.1, pulse.every || 1);
+    const tick = () => {
+      if (!alive() || !ctx.p.alive) return;
+      const pos = posFn();
+      const r = pulse.radius || 6;
+      if (pulse.taunt > 0) for (const e of this.enemies || []) if (e.alive && e.pos.distanceTo(pos) <= r) e.applyCC?.('taunt', pulse.taunt, { src: ctx.p });
+      if (pulse.coef > 0) this.dealArea(pos, r, ctx.coef * pulse.coef / Math.max(1e-6, ctx.sk.coef || 1), { ...ctx.areaOpts, from: pos });
+      this.timers.schedule(every, tick);
+    };
+    this.timers.schedule(every, tick);
+  },
+
+  // ---------------- enfriamientos y cargas (D2) ----------------
+  // pone el enfriamiento de una habilidad (o gasta una carga). cdOnEnd: la recarga empieza al
+  // acabar el efecto (Piel de Hierro); cdFloor: suelo de reducción por recarga (definitivas)
+  _startCooldown(p, id, prof) {
+    const def = prof.def || {};
+    const cd = prof.cd;
+    p._cdRed = p._cdRed || {}; p._cdRed[id] = 0;
+    if (prof.charges > 1) {
+      const ch = this._syncCharges(p, id, prof);
+      ch.n = Math.max(0, ch.n - 1);
+      if (ch.nextAt == null) ch.nextAt = (p.simT || 0) + cd;
+      p.cdMax[id] = cd;
+      this._syncCharges(p, id, prof);
+      return;
+    }
+    const hold = def.cdOnEnd && prof.dur > 0 ? prof.dur : 0;
+    if (hold > 0) (p._cdHold || (p._cdHold = {}))[id] = (p.simT || 0) + hold;
+    p.cds[id] = cd + hold;
+    p.cdMax[id] = cd + hold;
+  },
+  // cargas de enfriamiento (p.skCharges[id] = { n, max, nextAt }, recarga PEREZOSA con simT).
+  // Deja p.cds[id] = 0 si hay carga o el tiempo hasta la siguiente (la UI sigue leyendo p.cds)
+  _syncCharges(p, id, prof = null) {
+    const pr = prof || resolveSkill(p, p.cls.skills.find(s => s.id === id));
+    const max = Math.max(1, pr?.charges || 1);
+    const all = p.skCharges || (p.skCharges = {});
+    const ch = all[id] || (all[id] = { n: max, max, nextAt: null });
+    if (ch.max !== max) { ch.n = Math.min(max, ch.n + Math.max(0, max - ch.max)); ch.max = max; }
+    const cd = Math.max(0.05, pr?.cd || 0.05);
+    const now = p.simT || 0;
+    while (ch.n < ch.max && ch.nextAt != null && now >= ch.nextAt - 1e-9) {
+      ch.n++;
+      ch.nextAt = ch.n < ch.max ? ch.nextAt + cd : null;
+    }
+    if (ch.n >= ch.max) ch.nextAt = null;
+    p.cds[id] = ch.n > 0 ? 0 : Math.max(0, (ch.nextAt ?? now) - now);
+    return ch;
+  },
+  // ÚNICA vía para RESTAR enfriamiento (D2): respeta las cargas (adelanta la siguiente), la
+  // recarga al acabar (cdOnEnd: no corre mientras dura el efecto) y el suelo cdFloor
+  // (fracción de la base que ninguna reducción baja por recarga). s = Infinity: lista ya.
+  reduceCooldown(p, id, s) {
+    p = p || this.player;
+    if (!p || !id || !(s > 0)) return 0;
+    const sk = p.cls?.skills?.find(x => x.id === id);
+    const prof = sk ? resolveSkill(p, sk) : null;
+    if (p._cdHold?.[id] > (p.simT || 0)) {
+      // durante el efecto solo se puede devolver ENTERO (reinicio explícito)
+      if (s !== Infinity) return 0;
+      delete p._cdHold[id];
+    }
+    let amount = s;
+    const floor = prof?.def?.cdFloor;
+    if (floor > 0 && floor < 1 && s !== Infinity) {
+      const red = p._cdRed || (p._cdRed = {});
+      const cap = (1 - floor) * (p.cdMax?.[id] || prof.cd || 0);
+      amount = Math.max(0, Math.min(amount, cap - (red[id] || 0)));
+      red[id] = (red[id] || 0) + amount;
+      if (!(amount > 0)) return 0;
+    }
+    if (prof && prof.charges > 1) {
+      const ch = this._syncCharges(p, id, prof);
+      if (ch.nextAt == null) return 0;
+      if (amount === Infinity) { ch.n = Math.min(ch.max, ch.n + 1); ch.nextAt = ch.n < ch.max ? (p.simT || 0) + prof.cd : null; }
+      else ch.nextAt -= amount;
+      this._syncCharges(p, id, prof);
+      return amount;
+    }
+    const before = p.cds[id] || 0;
+    p.cds[id] = amount === Infinity ? 0 : Math.max(0, before - amount);
+    return before - p.cds[id];
+  },
+
+  // ---------------- relanzar (§3.6) ----------------
+  _recastAfter(p, sk, prof, ctx, res) {
+    const sst = skStateOf(p, sk.id);
+    const r = prof.recast;
+    const now = p.simT || 0;
+    const rc = ctx.rcState;
+    if (!rc) {
+      // 1.er lanzamiento: abre la cadena (con cond:'hit', solo si golpeó)
+      if (r.n < 2 || (r.cond === 'hit' && !(res.hits > 0))) { if (r.cdFrom === 'end') this._startCooldown(p, sk.id, prof); return; }
+      sst.recast = { n: r.n, idx: 1, left: r.n - 1, until: now + r.win, win: r.win, casts: 1, hits: res.hits || 0,
+        lastAt: now, gap: r.gap, perfectLast: r.perfectLast, cond: r.cond, cdFrom: r.cdFrom, ticked: false,
+        refresh: r.refresh ?? r.cond === 'hit' };
+      this.emitFx?.(fxp('verbRecast'), p.pos.clone().setY(0.1));
+      return;
+    }
+    rc.idx++; rc.left--; rc.casts++; rc.hits += res.hits || 0; rc.lastAt = now;
+    if (r.cond === 'hit' && !(res.hits > 0)) { this._endRecast(p, sk, 'miss'); return; }
+    if (rc.left <= 0) { this._endRecast(p, sk, 'max'); return; }
+    if (rc.refresh) { rc.until = now + rc.win; rc.ticked = false; }
+  },
+  _endRecast(p, sk, reason) {
+    const sst = skStateOf(p, sk.id);
+    const rc = sst.recast;
+    if (!rc) return;
+    sst.recast = null;
+    const prof = resolveSkill(p, sk);
+    if (rc.cdFrom === 'end') this._startCooldown(p, sk.id, prof);
+    this._skillEnd(p, sk, { kind: 'recast', reason, casts: rc.casts, hits: rc.hits, released: false, frac: 0, perfect: false });
+  },
+
+  // ---------------- combo (§3.6) ----------------
+  _advanceCombo(p, sk, prof) {
+    const def = prof.def || sk;
+    const n = def.steps?.length || 0;
+    const cs = skStateOf(p, sk.id).combo || (skStateOf(p, sk.id).combo = { idx: 0, until: 0 });
+    const done = cs.idx >= n - 1;
+    cs.idx = done ? 0 : cs.idx + 1;
+    cs.until = (p.simT || 0) + prof.comboWin;
+    if (done) this._skillEnd(p, sk, { kind: 'combo', reason: 'done', casts: n, hits: 0, released: false, frac: 0, perfect: false });
+    else if (cs.idx === n - 1) this.sfx?.('verb_pip');      // el último paso queda listo
+  },
+  // fija el paso del combo (1-based): Caída Brutal salta al 3.º tras caer
+  setComboStep(p, id, n) {
+    p = p || this.player;
+    const sk = p?.cls?.skills.find(s => s.id === id);
+    if (!sk) return false;
+    const prof = resolveSkill(p, sk);
+    const steps = prof.def?.steps?.length || 0;
+    if (!steps) return false;
+    const cs = skStateOf(p, id).combo || (skStateOf(p, id).combo = { idx: 0, until: 0 });
+    cs.idx = Math.max(0, Math.min(steps - 1, Math.floor(n) - 1));
+    cs.until = (p.simT || 0) + prof.comboWin;
+    if (cs.idx === steps - 1) this.sfx?.('verb_pip');
+    return true;
+  },
+
+  // ---------------- secuencia del básico (§3.6) ----------------
+  // cuenta un ataque; → { idx (1…every), nth (es el N-ésimo) }
+  seqAdvance(p, sk) {
+    p = p || this.player;
+    const prof = resolveSkill(p, sk);
+    const every = Math.max(2, prof.def?.seq?.every || 3);
+    const ss = skStateOf(p, sk.id).seq || (skStateOf(p, sk.id).seq = { count: 0 });
+    ss.count++;
+    const idx = ((ss.count - 1) % every) + 1;
+    if (idx === every - 1) this.sfx?.('verb_pip');          // el siguiente es el especial
+    return { idx, nth: idx === every };
+  },
+  setSeqCount(p, id, n) {
+    p = p || this.player;
+    const ss = skStateOf(p, id).seq || (skStateOf(p, id).seq = { count: 0 });
+    ss.count = Math.max(0, Math.floor(n));
+    return true;
+  },
+
+  // ---------------- posturas (§3.6) ----------------
+  _castStance(p, sk, prof, key, isEcho) {
+    if (isEcho) return false;
+    const def = prof.def || sk;
+    const S = def.stance || {};
+    const modes = S.modes || [];
+    if (!modes.length) return false;
+    const sst = skStateOf(p, sk.id);
+    const cur = sst.stance?.mode ?? null;
+    const prevId = cur != null ? modes[cur]?.id : null;
+    let next;
+    if (modes.length === 1) {
+      if (cur != null && S.recastEnds !== false) { this._endStance(p, sk, 'recast'); return true; }
+      next = 0;
+    } else next = cur == null ? 0 : (cur + 1) % modes.length;
+    const cast = { sk, prof, slot: key, target: null, enemy: null, stance: modes[next].id, stanceFrom: prevId };
+    if (firePower('onCast', p, this, p, cast) === false) return false;
+    if (!spendResource(p, prof.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
+    // enfriamiento: el del cambio (swapCd) si alternas entre dos; si no, el de la habilidad
+    const swap = modes.length === 2 && cur != null && S.swapCd != null;
+    if (swap) { p._cdRed = p._cdRed || {}; p._cdRed[sk.id] = 0; p.cds[sk.id] = S.swapCd; p.cdMax[sk.id] = S.swapCd; }
+    else this._startCooldown(p, sk.id, prof);
+    if ((S.swapGcd ?? 0) > 0 && prof.gcd) p.gcdT = Math.max(p.gcdT || 0, S.swapGcd);
+    const dur = S.dur ?? (prof.dur || 0);
+    const now = p.simT || 0;
+    sst.stance = { mode: next, until: dur > 0 ? now + dur : Infinity, both: sst.stance?.both || false, bothUntil: sst.stance?.bothUntil || 0 };
+    const m = modes[next];
+    if (m.moveMul != null && m.moveMul !== 1) p.setMoveMul(`stance:${sk.id}`, m.moveMul); else p.clearMoveMul?.(`stance:${sk.id}`);
+    p._vstats = null;
+    this.sfx?.('verb_stance');
+    this.emitFx?.(fxp('verbStance'), p.pos.clone().setY(0.1));
+    firePower('afterCast', p, this, p, cast, { hits: 0, dealt: 0, killed: 0 });
+    return true;
+  },
+  _endStance(p, sk, reason) {
+    const sst = skStateOf(p, sk.id);
+    if (!sst.stance || sst.stance.mode == null) return false;
+    sst.stance = null;
+    p.clearMoveMul?.(`stance:${sk.id}`);
+    p._vstats = null;
+    this.sfx?.('verb_stance');
+    this._skillEnd(p, sk, { kind: 'stance', reason, casts: 1, hits: 0, released: reason === 'recast', frac: 0, perfect: false });
+    return true;
+  },
+  // modo actual de una postura (id del modo) o null
+  stanceOf(p, id) {
+    p = p || this.player;
+    const st = p?.skState?.[id]?.stance;
+    if (!st || st.mode == null) return null;
+    const sk = p.cls?.skills.find(s => s.id === id);
+    const modes = sk ? (resolveSkill(p, sk).def?.stance?.modes || []) : [];
+    return modes[st.mode]?.id ?? null;
+  },
+  // las DOS posturas a la vez durante `dur` s (Guardia Total)
+  setStanceBoth(p, id, dur) {
+    p = p || this.player;
+    const sst = skStateOf(p, id);
+    if (!sst.stance) sst.stance = { mode: 0, until: Infinity };
+    sst.stance.both = true;
+    sst.stance.bothUntil = (p.simT || 0) + Math.max(0, dur || 0);
+    p._vstats = null;
+    this.sfx?.('verb_stance');
+    return true;
+  },
+  // modos activos de todas las posturas (los lee Player.verbStats)
+  activeStanceModes(p) {
+    p = p || this.player;
+    const out = [];
+    for (const [id, st] of Object.entries(p?.skState || {})) {
+      const s = st?.stance;
+      if (!s || s.mode == null) continue;
+      const sk = p.cls?.skills.find(x => x.id === id);
+      if (!sk) continue;
+      const modes = resolveSkill(p, sk).def?.stance?.modes || [];
+      if (s.both && (p.simT || 0) < s.bothUntil) out.push(...modes);
+      else if (modes[s.mode]) out.push(modes[s.mode]);
+    }
+    return out;
+  },
+
+  // ---------------- marcas (§3.6) ----------------
+  // pone la marca del perfil (prof.mark) en `e`; mark.count/radius: también a los cercanos
+  // (una vez por instante); mark.weakPct: Debilidad mientras dura (Sentencia)
+  applyMark(e, prof, p = null) {
+    p = p || this.player;
+    const m = prof?.mark;
+    if (!e?.alive || !m) return null;
+    const id = m.id || prof.id;
+    const put = (en) => {
+      en.marks = en.marks || {};
+      en.marks[id] = { id, t: m.dur || 8, by: p, skill: prof.id, uses: Math.max(1, m.uses || 1), detonate: m.detonate || null,
+        firstCharged: m.firstCharged || null };
+      if (m.weakPct > 0) en.applyWeakness?.(`mark:${id}`, m.weakPct, m.dur || 8);
+    };
+    put(e);
+    if (m.count > 1 && m.radius > 0) {
+      const key = `${prof.id}@${p?.simT}`;
+      if (this._markSpread !== key) {
+        this._markSpread = key;
+        const others = (this.enemies || []).filter(o => o !== e && o.alive && o.pos.distanceTo(e.pos) <= m.radius)
+          .sort((a, b) => a.pos.distanceToSquared(e.pos) - b.pos.distanceToSquared(e.pos)).slice(0, m.count - 1);
+        for (const o of others) put(o);
+      }
+    }
+    return e.marks[id];
+  },
+  marksOf(e) { return Object.values(e?.marks || {}).filter(m => m && m.t > 0); },
+  // detona a mano una marca (poderes): consume un uso y, con opts.dmg, hace ese daño (proc)
+  detonateMark(e, id, opts = {}) {
+    const m = e?.marks?.[id];
+    if (!m || !(m.t > 0)) return false;
+    if (--m.uses <= 0) delete e.marks[id];
+    if (opts.dmg > 0) this.dealProcDamage(e, opts.dmg, { source: `mark:${id}`, skill: opts.skill || m.skill });
+    return true;
+  },
+  // ¿este golpe detona una marca? (lo pregunta Player.rollDamage) → pct al saco aditivo.
+  // La habilidad que puso la marca no la detona; los procs y los DoT tampoco.
+  markDetonation(e, hit) {
+    if (!e?.marks || !hit?.skill || hit.proc || hit.dot) return 0;
+    let pct = 0;
+    for (const [id, m] of Object.entries(e.marks)) {
+      if (!m || !(m.t > 0) || !m.detonate || m.skill === hit.skill) continue;
+      if (!matchSel(m.detonate.by, hit)) continue;
+      pct += m.detonate.pct || 0;
+      if (--m.uses <= 0) delete e.marks[id];
+      e._detPending = true;
+    }
+    return pct;
+  },
+
+  // ---------------- cargar y soltar (§3.6, §3.6.1) ----------------
+  _beginCharge(ctx) {
+    const { p, prof, key, sk } = ctx;
+    const ch = prof.charge;
+    const toggle = this.settings?.holdMode === 'toggle' || ch.toggle === true;
+    this._charging = { key, id: sk.id, sk, prof, ch, ctx, u: 0, t: 0, t0: p.simT || 0, frac: 0, inWindow: false, toggle,
+      window: ch.perfect, max: ch.max, min: ch.min, tickWall: wallNow(this), simPerWall: 1, release: null };
+    if (ch.moveMul != null && ch.moveMul !== 1) p.setMoveMul('charge', ch.moveMul);
+    p.castPose?.(sk.type);
+    return true;
+  },
+  // velocidad de carga: la de la habilidad × posturas (no al básico) × velocidad de ataque (básico)
+  _chargeSpeed(c) {
+    const p = this.player;
+    let s = c.ch.speed || 1;
+    const basic = (c.prof.def || c.sk).cat === 'basic';
+    if (basic) s *= (p.cls.atkTime || 1) / Math.max(0.05, p.stats.atkTime || 1);
+    else for (const m of this.activeStanceModes(p)) if (m.chargeSpeed) s *= 1 + m.chargeSpeed / 100;
+    return Math.max(0.05, s);
+  },
+  // suelta (input.js en keyup / flanco de e.buttons, el sondeo y h.release): se RESUELVE en el
+  // tick siguiente sumando lo transcurrido desde el último tick (no se pierde un frame).
+  // También suelta un canal mantenido de esa ranura y limpia _needsRelease.
+  releaseSkillSlot(slot, { force = false } = {}) {
+    if (this._needsRelease) this._needsRelease[slot] = false;
+    const c = this._charging;
+    if (c && c.key === slot && (!c.toggle || force) && !c.release) {
+      const elapsed = Math.max(0, Math.min(0.1, (wallNow(this) - c.tickWall) / 1000));
+      c.release = { u: Math.min(c.max, c.u + elapsed * c.simPerWall * this._chargeSpeed(c)), reason: 'release' };
+      return true;
+    }
+    const inst = this._channel;
+    if (inst && inst.ctx.key === slot && inst.hold) { this._endChannel(inst, true, 'release'); return true; }
+    return false;
+  },
+  // termina la carga SIN coste (esquiva, panel, pausa, blur, golpe fuerte, control duro)
+  _endCharge(reason = 'cancel') {
+    const c = this._charging;
+    if (!c) return false;
+    this._charging = null;
+    const p = this.player;
+    p?.clearMoveMul?.('charge');
+    this._skillEnd(p, c.sk, { kind: 'charge', reason, casts: 0, hits: 0, released: false, frac: c.frac || 0, perfect: false });
+    return true;
+  },
+  // resuelve una suelta con la carga `u`: coste, enfriamiento, perfecto y lanzamiento
+  _releaseWith(ctx, u, reason, { instant = false } = {}) {
+    const { p, prof, sk } = ctx;
+    const ch = prof.charge;
+    const c = this._charging;
+    if (c && c.ctx === ctx) { this._charging = null; p.clearMoveMul?.('charge'); }
+    // Punto Débil (mark.firstCharged): la primera carga contra él es perfecta (+pct)
+    let firstPct = 0;
+    const tgt = this.nearestEnemy?.(3, ctx.target) || ctx.enemy;
+    if (tgt?.marks) {
+      for (const [id, m] of Object.entries(tgt.marks)) {
+        if (!m?.firstCharged || !(m.t > 0) || m.by !== p) continue;
+        ctx.cast.forcePerfect = true;
+        firstPct += typeof m.firstCharged === 'number' ? m.firstCharged : 0;
+        if (--m.uses <= 0) delete tgt.marks[id];
+        break;
+      }
+    }
+    const rel = chargeRelease(ch, u, { def: prof.def || sk, forcePerfect: !!ctx.cast.forcePerfect, perfectAlways: (p.stats?.perfectAlways || p.powerStats?.perfectAlways || 0) > 0 });
+    // carga completa con `full` (Tres Saetas): otra cuenta/abanico y coef por proyectil
+    const charge = { ...rel, addPct: rel.addPct + firstPct, fullDef: ch.full ? { count: ch.full.count, spread: ch.full.spread ?? prof.spread } : null };
+    if (ch.full && rel.full) charge.coefMul *= ch.full.coefMul ?? 1; else charge.full = false;
+    ctx.cast.charge = { t: rel.u, frac: rel.frac };
+    ctx.cast.perfect = rel.perfect;
+    // el ctx se rehace con la carga (coef, radio, alcance, perfecto)
+    const ctx2 = this._makeCtx(p, sk, prof, ctx.key, ctx.cast, { target: ctx.target, near: ctx.enemy, isEcho: ctx.isEcho,
+      echoMult: ctx.isEcho ? (ctx.coef / Math.max(1e-6, prof.coef)) : 0, comboIdx: ctx.comboIdx, fieldDest: ctx.fieldDest, destRange: ctx.destRange, rcState: ctx.rcState, charge });
+    if (ctx.isEcho) ctx2.coef = ctx.coef * (charge.coefMul || 1);
+    // feedback del borde (D26): perfecto o fuera de la ventana; la racha de perfectos
+    if (!ctx.isEcho) {
+      if (rel.perfect) {
+        p.perfectStreak = (p.perfectStreak || 0) + 1;
+        this.sfx?.('verb_perfect');
+        this.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡Perfecto!', 'txt-crit');
+        this.emitFx?.(fxp('verbPerfect'), p.pos.clone().setY(1.2));
+        for (const [gid, n] of Object.entries(ch.perfectGauge || {})) gainGauge(p, gid, n);
+      } else if (!instant) {
+        p.perfectStreak = 0;
+        this.sfx?.('verb_miss');
+      }
+    }
+    // básico de arma tensable: dispara con la carga
+    let ok;
+    if ((prof.def || sk).type === 'weapon') {
+      this.castBasic({ charge: { t: rel.u, frac: rel.frac, perfect: rel.perfect, coefMul: charge.coefMul, addPct: charge.addPct } });
+      ok = true;
+    } else {
+      if (!ctx.isEcho && prof.gcd && !ctx.rcState) p.gcdT = GCD;
+      ok = this._commitCast(ctx2);
+    }
+    if (!ctx.isEcho) {
+      if (reason === 'auto' && !ch.repeat && !instant) (this._needsRelease || (this._needsRelease = {}))[ctx.key] = true;
+      this._skillEnd(p, sk, { kind: 'charge', reason, casts: 1, hits: 0, released: reason === 'release', frac: rel.frac, perfect: rel.perfect });
+    }
+    return ok;
+  },
+
+  // ---------------- avance por tick de los verbos (lo llama Player.update) ----------------
+  tickSkillVerbs(dt) {
+    const p = this.player;
+    if (!p) return;
+    const now = p.simT || 0;
+    // carga en curso: avanza con el dt de simulación (el hit-stop la congela igual)
+    const c = this._charging;
+    if (c) {
+      const wall = wallNow(this);
+      const wdt = (wall - c.tickWall) / 1000;
+      c.simPerWall = wdt > 1e-4 ? Math.max(0, Math.min(1, dt / wdt)) : 1;
+      c.tickWall = wall;
+      if (c.release) this._releaseWith(c.ctx, c.release.u, c.release.reason);
+      else {
+        c.t += dt;
+        c.u = Math.min(c.max, c.u + dt * this._chargeSpeed(c));
+        c.frac = c.max > c.min ? Math.max(0, (c.u - c.min) / (c.max - c.min)) : 1;
+        const [a, b] = c.window;
+        const inWin = c.u >= a - 1e-9 && c.u <= b + 1e-9;
+        if (inWin && !c.inWindow) { this.sfx?.('verb_win'); this.emitFx?.(fxp('verbWindow'), p.pos.clone().setY(1.4)); }
+        c.inWindow = inWin;
+        if (!c.toggle && !this.slotHeld(c.key)) c.release = { u: c.u, reason: 'release' };
+        else if (c.ch.autoRelease && c.u >= c.max - 1e-9) this._releaseWith(c.ctx, c.u, 'auto');
+        if (this._charging === c && c.release) this._releaseWith(c.ctx, c.release.u, c.release.reason);
+      }
+    }
+    // _needsRelease: el sondeo limpia las ranuras que ya no están pulsadas
+    if (this._needsRelease) for (const s of Object.keys(this._needsRelease)) if (this._needsRelease[s] && !this.slotHeld(s)) this._needsRelease[s] = false;
+    // avance lento (dashT)
+    if (p.dashMove) {
+      const d = p.dashMove;
+      d.t += dt;
+      if (d.step(dt) || d.t >= d.dur + 0.5) { p.dashMove = null; try { d.onArrive?.(); } catch (err) { console.warn('[avance] llegada', err); } }
+    }
+    // relanzar, combo y postura de cada habilidad
+    for (const [id, st] of Object.entries(p.skState || {})) {
+      if (!st) continue;
+      const rc = st.recast;
+      if (rc) {
+        if (this._charging?.id === id) rc.until += dt;          // la ventana no corre mientras se carga
+        if (rc.perfectLast > 0 && !rc.ticked && rc.until - now <= rc.perfectLast + 1e-9) { rc.ticked = true; this.sfx?.('verb_tick'); }
+        if (now > rc.until + 1e-9) { const sk = p.cls.skills.find(s => s.id === id); if (sk) this._endRecast(p, sk, 'timeout'); else st.recast = null; }
+      }
+      const cs = st.combo;
+      if (cs && cs.idx > 0 && now > cs.until) {
+        cs.idx = 0;
+        const sk = p.cls.skills.find(s => s.id === id);
+        if (sk) this._skillEnd(p, sk, { kind: 'combo', reason: 'timeout', casts: 0, hits: 0, released: false, frac: 0, perfect: false });
+      }
+      const ss = st.stance;
+      if (ss && ss.mode != null) {
+        const sk = p.cls.skills.find(s => s.id === id);
+        if (!sk || !isKnown(p, sk)) { if (sk) this._endStance(p, sk, 'spec'); else st.stance = null; }
+        else if (now >= ss.until) this._endStance(p, sk, 'end');
+        else if (ss.both && now >= ss.bothUntil) { ss.both = false; p._vstats = null; }
+      }
+    }
+  },
+  // ¿una preparación o carga en curso deja caminar sin romper el plantado? (Sin Pausa)
+  keepsPlanted() {
+    return !!((this._windup && this._windup.ctx.prof?.keepPlanted) || (this._charging && this._charging.prof?.keepPlanted));
+  },
+
+  // ⑭ fin de un verbo: poderes onSkillEnd y el `end` del comportamiento de la habilidad
+  _skillEnd(p, sk, end) {
+    if (!p || !sk) return;
+    try { if (sk.behavior && SKILL_BEHAVIORS[sk.behavior]?.end && end.kind !== 'channel') SKILL_BEHAVIORS[sk.behavior].end(this, p, { ctx: null, end }, end); } catch (err) { console.warn('[verbo] end', err); }
+    if (p.hookIndex?.onSkillEnd) firePower('onSkillEnd', p, this, p, sk, end);
+  },
+
+  // la ESQUIVA cancela el windup (sin cobrar el coste), la canalización, la carga y las
+  // posturas con endOnDodge
   cancelCast(reason = 'dodge') {
     const p = this.player;
     let any = false;
     if (this._windup) {
       this.timers.cancel(this._windup.id);
       this._windup = null;
+      p?.clearMoveMul?.('windup');
       any = true;
     }
-    if (this._channel) { this._endChannel(this._channel, true); any = true; }
+    if (this._channel) { this._endChannel(this._channel, true, reason === 'dodge' ? 'dodge' : reason); any = true; }
+    if (this._charging) { this._endCharge(reason === 'dodge' ? 'dodge' : reason); any = true; }
+    if (reason === 'dodge' && p) {
+      for (const [id, st] of Object.entries(p.skState || {})) {
+        if (!st?.stance || st.stance.mode == null) continue;
+        const sk = p.cls.skills.find(s => s.id === id);
+        if (sk && resolveSkill(p, sk).def?.stance?.endOnDodge) { this._endStance(p, sk, 'dodge'); any = true; }
+      }
+    }
     if (any && p) p.castLock = 0;
-    void reason;
     return any;
   },
-  // un golpe fuerte interrumpe las canalizaciones y las habilidades `int:true`
+  // cancela SIN coste lo que se mantiene (carga y canal con mantener): blur, panel, pausa
+  // (§3.6.1). reason: 'cancel' | 'panel' | 'cc'
+  cancelHeld(reason = 'cancel') {
+    let any = false;
+    if (this._charging) { this._endCharge(reason); any = true; }
+    const inst = this._channel;
+    if (inst && (inst.hold || inst.toggle)) { this._endChannel(inst, true, reason); any = true; }
+    if (this._needsRelease) this._needsRelease = {};
+    if (any && this.player) this.player.castLock = 0;
+    return any;
+  },
+  // un golpe fuerte interrumpe las canalizaciones y las habilidades `int:true`, y SIEMPRE
+  // una carga (§3.6.1; sin coste). El llamador ya descarta al héroe imparable.
   interruptCast(reason = 'hit') {
     const c = this._channel, w = this._windup;
-    if ((c && c.ctx.prof.interruptible) || (w && w.ctx.prof.interruptible)) return this.cancelCast(reason);
-    return false;
+    let any = false;
+    if (this._charging) { this._endCharge('interrupt'); any = true; }
+    if ((c && c.ctx.prof?.interruptible) || (w && w.ctx.prof?.interruptible)) {
+      if (this._windup && w?.ctx.prof?.interruptible) { this.timers.cancel(w.id); this._windup = null; this.player?.clearMoveMul?.('windup'); any = true; }
+      if (c?.ctx.prof?.interruptible) { this._endChannel(c, true, reason === 'hit' ? 'interrupt' : reason); any = true; }
+      if (this.player) this.player.castLock = 0;
+    }
+    return any;
   },
-  _endChannel(inst, canceled) {
+  _endChannel(inst, canceled, reason = null) {
     if (this._channel !== inst) return;
     this._channel = null;
     if (inst.timer) this.timers.cancel(inst.timer);
     const p = this.player;
-    if (p) { p.castLock = 0; if (inst.unstoppable) p.unstoppableT = 0; }
-    try {
-      if (inst.onEnd) inst.onEnd(inst);
-      else SKILL_BEHAVIORS[inst.ctx.sk.behavior]?.end?.(this, p, inst);
-    } catch (err) { console.warn('[canalización] end', err); }
+    if (p) { p.castLock = 0; if (inst.unstoppable) p.unstoppableT = 0; p.clearMoveMul?.('channel'); }
+    inst.endReason = reason || (canceled ? 'cancel' : 'done');
+    inst.released = inst.endReason === 'release';
     inst.canceled = !!canceled;
+    const cast = inst.ctx.cast;
+    if (cast) { cast.endReason = inst.endReason; cast.released = inst.released; }
+    const end = { kind: 'channel', reason: inst.endReason, casts: 1, hits: inst.ctx.res?.hits || 0, released: inst.released, frac: 0, perfect: false };
+    try {
+      if (inst.onEnd) inst.onEnd(inst, end);
+      else { const b = inst.ctx.sk?.behavior; if (b) SKILL_BEHAVIORS[b]?.end?.(this, p, inst, end); }
+    } catch (err) { console.warn('[canalización] end', err); }
+    const esk = inst.ctx.cast?.sk || inst.ctx.sk;
+    if (esk && p?.hookIndex?.onSkillEnd) firePower('onSkillEnd', p, this, p, esk, end);
     inst.done?.(inst.ctx.res);
   },
-  // limpia windup/canalización/salto (cambio de mundo, muerte)
+  // limpia windup/canalización/carga/salto/avance y el estado de los verbos (cambio de
+  // mundo, muerte)
   resetCastState() {
     this._windup = null;
     this._channel = null;
+    this._charging = null;
+    this._needsRelease = {};
     const p = this.player;
-    if (p) { p.castLock = 0; p.leap = null; p.gcdT = 0; p.actionLockT = 0; }
+    if (p) {
+      p.castLock = 0; p.leap = null; p.dashMove = null; p.gcdT = 0; p.actionLockT = 0;
+      p.skState = {}; p.moveMuls = {}; p._vstats = null;
+    }
   },
 };

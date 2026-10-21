@@ -259,6 +259,8 @@ export function sumWeakness(debuffs) {
 //   explodedDmg   golpes de Fuego contra enemigos que ya estallaron (Sol Naciente: e.pyroBurst)
 //   executePct    élites y jefes por debajo del umbral: +executeDmg (Ejecutar; sin esa clave,
 //                 EXECUTE_ELITE_ADD; a los normales los remata el poder común nucleo_tv)
+// Paso 2 (§3.6, verbos): plantedDmg (héroe PLANTADO), markedDmg (objetivo con una marca
+// tuya), detonateDmg (golpe que detona una marca: se suma al pct de la marca)
 export const EXECUTE_ELITE_ADD = 40;
 export function condAddPct(tv = {}, c = {}) {
   if (!tv) return 0;
@@ -271,7 +273,62 @@ export function condAddPct(tv = {}, c = {}) {
   if (c.targetPrey) a += tv.preyDmg || 0;
   if (c.targetExploded && c.elem === 'fire') a += tv.explodedDmg || 0;
   if (tv.executePct > 0 && c.targetElite && (c.targetFrac ?? 1) < tv.executePct / 100) a += tv.executeDmg > 0 ? tv.executeDmg : EXECUTE_ELITE_ADD;
+  if (c.planted) a += tv.plantedDmg || 0;
+  if (c.targetMarked) a += tv.markedDmg || 0;
+  if (c.detonated) a += tv.detonateDmg || 0;
   return a;
+}
+
+// ---------- CARGAR Y SOLTAR (Paso 2, §3.6) ----------
+// Valor de una escala de carga en la carga `u` (s nominales): `scale` = [aMin, aMax] (lineal
+// entre min y max) o [[t, v], …] (por tramos, t en s). Fuera del rango, el extremo.
+export function chargeCoefAt(scale, u, min = 0, max = 1) {
+  if (!Array.isArray(scale) || !scale.length) return null;
+  if (Array.isArray(scale[0])) {
+    const pts = scale;
+    if (u <= pts[0][0]) return pts[0][1];
+    for (let i = 1; i < pts.length; i++) {
+      const [t0, v0] = pts[i - 1], [t1, v1] = pts[i];
+      if (u <= t1) return t1 > t0 ? v0 + (v1 - v0) * (u - t0) / (t1 - t0) : v1;
+    }
+    return pts[pts.length - 1][1];
+  }
+  const f = max > min ? Math.max(0, Math.min(1, (u - min) / (max - min))) : 1;
+  return scale[0] + (scale[scale.length - 1] - scale[0]) * f;
+}
+// Resultado de una SUELTA: frac (0–1), perfect (en la ventana, forzada o siempre perfecta)
+// y los multiplicadores del perfil respecto a su base (coef/radio/alcance de la escala).
+// La suelta perfecta suma perfectPct al saco ADITIVO (no es un multiplicador [×]).
+export function chargeRelease(ch, u, { def = null, forcePerfect = false, perfectAlways = false } = {}) {
+  const min = ch?.min || 0, max = ch?.max || 1;
+  const uu = Math.max(min, Math.min(max, u || 0));
+  const frac = max > min ? (uu - min) / (max - min) : 1;
+  const [a, b] = ch?.perfect || [max, max];
+  // perfectAlways (Calma Absoluta): perfecto desde media carga
+  const perfect = !!forcePerfect || (uu >= a - 1e-9 && uu <= b + 1e-9) || (!!perfectAlways && frac >= 0.5 - 1e-9);
+  const ratio = (key, base) => {
+    const v = chargeCoefAt(ch?.scale?.[key], uu, min, max);
+    return v == null ? 1 : (base > 0 ? v / base : 1);
+  };
+  return {
+    u: uu, frac, perfect,
+    coefMul: ratio('coef', def?.coef || 0),
+    radiusMul: ratio('radius', def?.radius || 0),
+    rangeMul: ratio('range', def?.range || 0),
+    addPct: perfect ? (ch?.perfectPct || 0) : 0,
+    full: frac >= 1 - 1e-9,
+  };
+}
+
+// ---------- DESPLAZAR (Paso 2, §3.6) ----------
+// Rendimientos decrecientes propios de atraer/empujar: +add por aplicación, decaen decay/s,
+// inmune con ≥ 0,9 (como el control duro, pero más suaves: un giro que atrae cada tic).
+export const DISPLACE_DR = Object.freeze({ add: 0.1, decay: 0.25 });
+// a los jefes no se les mueve: el desplazamiento llena Quebranto (5 por metro = un empuje de 2 m
+// lo mismo que STAGGER_CC.knock)
+export const STAGGER_PER_DISPLACE_M = 5;
+export function staggerFromDisplace(dist, staggerPct = 0) {
+  return Math.max(0, dist || 0) * STAGGER_PER_DISPLACE_M * Math.max(0, 1 + (staggerPct || 0) / 100);
 }
 // probabilidad de crítico condicional por claves tv (se suma al critBonus del golpe):
 //   burningCrit   contra enemigos en llamas (Calor Abrasador)

@@ -14,6 +14,11 @@ import { volatileDamage } from './combat-math.js';
 import { dealProcDamage, powerState } from './powers.js';
 import { gaugeValue } from './spec-mechanics.js';
 import { gainResource } from './resources.js';
+// definición FORJADA de una habilidad (elemento real tras la forja): la caché que deja
+// resolveSkill (p.forged / p.resolved). Sin importar skill-resolve.js: resources.js →
+// powers.js → aquí → skill-resolve → data.js formaría un ciclo con RESOURCE_DEFS sin iniciar.
+// Las habilidades en enfriamiento ya se resolvieron al lanzarse.
+const forgedDef = (p, sk) => p.forged?.[sk.id]?.def || p.resolved?.[sk.id]?.def || sk;
 
 // ------------------------------------------------------------
 // Paso 2c.2 — CLAVES tv QUE CONSUME EL NÚCLEO (poder común `nucleo_tv`)
@@ -33,6 +38,9 @@ import { gainResource } from './resources.js';
 //   drHighMana · drVsSlowed · drMoving · drFocus   ⑧ reducción de daño CONDICIONAL
 //                   (maná > 50 % · el atacante está ralentizado/Congelado · te mueves ·
 //                   Concentración > 50). El tv.dmgReduc de recompute es la incondicional.
+//   perfectCdrAll   ③ Paso 2 (Liturgia): cada suelta PERFECTA acorta X s tus enfriamientos
+//                   salvo las definitivas y las de recarga al acabar (cdOnEnd); como mucho
+//                   una vez cada 2 s. Todo enfriamiento se resta con g.reduceCooldown (D2).
 // Las demás claves de §5.3 las lee su punto natural: combat-math.condAddPct/condCritPct
 // (eliteDmg, slowedDmg, preyDmg, explodedDmg, burningCrit…), spec-mechanics (frostLayers,
 // focusRate, focusEnergy, galeHeal, galeEnergy, fervorChance), resolveSkill (costRed…),
@@ -40,7 +48,8 @@ import { gainResource } from './resources.js';
 export const CORE_TV_POWER = 'nucleo_tv';
 function coreTvKeys() {
   return ['killHeal', 'manaOnKill', 'burnKillHeal', 'burnKillMana', 'bleedKillHeal', 'bleedKillMana',
-    'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus'];
+    'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus',
+    'perfectCdrAll'];
 }
 export function usesCoreTv(tv) {
   if (!tv) return false;
@@ -137,7 +146,7 @@ export function commonPowers() {
     nucleo_tv: {                                    // = CORE_TV_POWER (literal: ciclo de módulos)
       name: 'Talentos (núcleo)', desc: 'Aplica las claves de talento que consume el núcleo (curas al matar, Ejecutar, reducción condicional…).',
       priority: 5,                                    // el remate antes que los onHit de clase
-      state: () => ({ cdrAt: -1 }),
+      state: () => ({ cdrAt: -1, perfAt: -99 }),
       onHit(g, p, e, hit) {
         const tv = p.tv || {};
         // Ejecutar: normales por debajo del umbral → remate; élites/jefes → marca de «remate»
@@ -150,17 +159,32 @@ export function commonPowers() {
             dealProcDamage(g, e, e.hp + 1, { source: 'power:nucleo_tv', skill: hit?.skill || null });
           }
         }
-        // Pirotecnia: crítico directo de Fuego → −X s a los enfriamientos de Fuego (no definitivas)
+        // Pirotecnia: crítico directo de Fuego → −X s a los enfriamientos de Fuego (no definitivas;
+        // elemento FORJADO: una Saeta Ígnea cuenta como Fuego)
         const red = tv.critFireCdr || 0;
-        if (red > 0 && hit?.crit && hit.elem === 'fire') {
+        if (red > 0 && hit?.crit && hit.elem === 'fire' && !hit.proc && !hit.dot) {
           const st = powerState(p, 'nucleo_tv');
           if (st.cdrAt !== p.simT) {
             st.cdrAt = p.simT;
             for (const sk of p.cls?.skills || []) {
-              if (sk.elem !== 'fire' || sk.cat === 'ultimate' || !(p.cds?.[sk.id] > 0)) continue;
-              p.cds[sk.id] = Math.max(0, p.cds[sk.id] - red);
+              const def = forgedDef(p, sk);
+              if (def.elem !== 'fire' || def.cat === 'ultimate' || !(p.cds?.[sk.id] > 0)) continue;
+              g.reduceCooldown?.(p, sk.id, red);
             }
           }
+        }
+      },
+      // Liturgia: suelta perfecta → −X s a todas tus recargas (no definitivas ni cdOnEnd), cada 2 s
+      afterCast(g, p, cast) {
+        const red = p.tv?.perfectCdrAll || 0;
+        if (!(red > 0) || !cast?.perfect || cast.echo) return;
+        const st = powerState(p, 'nucleo_tv');
+        if ((p.simT || 0) - st.perfAt < 2 - 1e-9) return;
+        st.perfAt = p.simT || 0;
+        for (const sk of p.cls?.skills || []) {
+          const def = forgedDef(p, sk);
+          if (def.cat === 'ultimate' || def.cdOnEnd || !(p.cds?.[sk.id] > 0)) continue;
+          g.reduceCooldown?.(p, sk.id, red);
         }
       },
       onKill(g, p, e, kill) {

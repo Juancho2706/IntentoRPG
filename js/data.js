@@ -3,7 +3,7 @@
 // ============================================================
 
 import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, UBER_HP_MULT, bossHpMult, eliteHpMult } from './combat-math.js';
-import { normalizeSkillDef, aggregateMods } from './skill-defs.js';
+import { normalizeSkillDef, emptyMods, CAT_LABELS } from './skill-defs.js';
 import { RESOURCE_DEFS } from './resources.js';
 // catálogo por clase (cada archivo es de un trabajador; data.js solo lo fusiona)
 import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS, GUERRERO_SKILL_FORGE, GUERRERO_SPEC_BAR, GUERRERO_FORGE_RECO,
@@ -32,21 +32,30 @@ export function xpForLevel(level) {
 // su nivel (`req`) y su rango sale del nivel (skill-resolve.skillRank). El
 // recurso de clase (Furia/Maná/Energía) se define en js/resources.js (§2).
 // `tree` es una vista DERIVADA por categoría para la UI previa al Paso 2d.
+// Paso 2 (D14, D7): grupos con las etiquetas nuevas (Principales, Insignia…) para el kit
+// base y UN GRUPO POR ESPECIALIZACIÓN para las habilidades de su kit (`spec`).
 // ------------------------------------------------------------
 const CAT_NODES = [
-  { cats: ['basic'],              kind: 'basic',    name: 'Ataques básicos' },
-  { cats: ['spender'],            kind: 'core',     name: 'Gastadoras' },
-  { cats: ['movement'],           kind: 'core',     name: 'Movilidad' },
-  { cats: ['defense', 'utility'], kind: 'core',     name: 'Defensa y utilidad' },
-  { cats: ['spec'],               kind: 'core',     name: 'Especialización' },
-  { cats: ['ultimate'],           kind: 'ultimate', name: 'Definitiva' },
+  { cats: ['basic'],              kind: 'basic',    name: 'Básicas' },
+  { cats: ['spender'],            kind: 'core',     name: 'Principales' },
+  { cats: ['movement'],           kind: 'core',     name: CAT_LABELS.movement },
+  { cats: ['defense', 'utility'], kind: 'core',     name: `${CAT_LABELS.defense} y ${CAT_LABELS.utility.toLowerCase()}` },
+  { cats: ['spec'],               kind: 'core',     name: CAT_LABELS.spec },
+  { cats: ['ultimate'],           kind: 'ultimate', name: 'Definitivas' },
 ];
-function buildSkillTree(prefix, skills) {
+function buildSkillTree(prefix, skills, specs = []) {
   const out = [];
+  const base = skills.filter(s => s.kind !== 'talent' && !s.spec);
   for (const nd of CAT_NODES) {
-    const list = skills.filter(s => nd.cats.includes(s.cat) && s.kind !== 'talent').sort((x, y) => x.req - y.req);
+    const list = base.filter(s => nd.cats.includes(s.cat)).sort((x, y) => x.req - y.req);
     if (!list.length) continue;
     out.push({ id: `${prefix}_${nd.cats[0]}`, kind: nd.kind, name: nd.name, req: Math.min(...list.map(s => s.req)), skills: list.map(s => s.id) });
+  }
+  // kit de cada especialización (D7): un grupo con su nombre
+  for (const sp of specs) {
+    const list = skills.filter(s => s.kind !== 'talent' && s.spec === sp.id).sort((x, y) => x.req - y.req);
+    if (!list.length) continue;
+    out.push({ id: `${prefix}_spec_${sp.id}`, kind: 'core', spec: sp.id, name: sp.name || sp.id, req: Math.min(...list.map(s => s.req)), skills: list.map(s => s.id) });
   }
   return out;
 }
@@ -59,11 +68,18 @@ function classResource(id, skills) {
 // Paso 2c.0: las activas de talento (TALENTS.skills) entran en el catálogo de la
 // clase NORMALIZADAS como las base (tags ⊇ {cat, elem}, slots, max) con kind
 // 'talent'; se conocen solo si talentAgg.grants las concede (skill-resolve.isKnown).
-function makeClass(base, prefix, rawSkills, talentSkills = []) {
-  const ids = new Set(rawSkills.map(s => s.id));
-  const extra = (talentSkills || []).filter(s => s && !ids.has(s.id)).map(s => ({ ...s, kind: 'talent' }));
-  const skills = [...rawSkills, ...extra].map(normalizeSkillDef);
-  return { ...base, skills, tree: buildSkillTree(prefix, skills), resource: classResource(base.resourceId, skills) };
+// D29 (Paso 2): con el catálogo 2g (CATALOG_V = 2) las 6 activas de talento viven en el
+// PROPIO catálogo (skills-<clase>.js, `kind:'talent'`) y <CLASE>_TALENT_SKILLS es solo una
+// lista de ids: no se fusiona nada de los talentos. `forge` = forja de la clase (§3.5).
+function makeClass(base, prefix, rawSkills, { talents = null, catalogV = 1, forge = {} } = {}) {
+  let list = rawSkills;
+  if (catalogV !== 2) {
+    const ids = new Set(rawSkills.map(s => s.id));
+    const extra = (talents?.skills || []).filter(s => s && typeof s === 'object' && !ids.has(s.id)).map(s => ({ ...s, kind: 'talent' }));
+    list = [...rawSkills, ...extra];
+  }
+  const skills = list.map(s => normalizeSkillDef(s.talent && !s.kind ? { ...s, kind: 'talent' } : s));
+  return { ...base, skills, forge: forge || {}, catalogV, tree: buildSkillTree(prefix, skills, talents?.specs || []), resource: classResource(base.resourceId, skills) };
 }
 
 export const CLASSES = {
@@ -77,7 +93,7 @@ export const CLASSES = {
     fists: [3, 6],
     resourceId: 'furia',
     basicName: 'Tajo', basicDesc: 'Ataque básico: corta a los enemigos cercanos y genera Furia.',
-  }, 'g', GUERRERO_SKILLS, GUERRERO_TALENTS?.skills),
+  }, 'g', GUERRERO_SKILLS, { talents: GUERRERO_TALENTS, catalogV: GUERRERO_CATALOG_V, forge: GUERRERO_SKILL_FORGE }),
   maga: makeClass({
     id: 'maga', name: 'Maga', icon: '🔮', color: 0x3a6bd6,
     desc: 'Domina los elementos a distancia. Frágil pero con un poder inmenso.',
@@ -88,7 +104,7 @@ export const CLASSES = {
     fists: [2, 5],
     resourceId: 'mana',
     basicName: 'Dardo Arcano', basicDesc: 'Ataque básico: lanza un dardo a distancia y recupera Maná.',
-  }, 'm', MAGA_SKILLS, MAGA_TALENTS?.skills),
+  }, 'm', MAGA_SKILLS, { talents: MAGA_TALENTS, catalogV: MAGA_CATALOG_V, forge: MAGA_SKILL_FORGE }),
   arquera: makeClass({
     id: 'arquera', name: 'Arquera', icon: '🏹', color: 0x3d8c45,
     desc: 'Rápida y precisa. Acaba con sus enemigos antes de que se acerquen.',
@@ -99,7 +115,7 @@ export const CLASSES = {
     fists: [2, 5],
     resourceId: 'energia',
     basicName: 'Disparo Rápido', basicDesc: 'Ataque básico: dispara una flecha veloz y recupera Energía.',
-  }, 'a', ARQUERA_SKILLS, ARQUERA_TALENTS?.skills),
+  }, 'a', ARQUERA_SKILLS, { talents: ARQUERA_TALENTS, catalogV: ARQUERA_CATALOG_V, forge: ARQUERA_SKILL_FORGE }),
 };
 
 // Valor de una propiedad escalable [base, porNivel] (compat: el catálogo de
@@ -444,11 +460,12 @@ export function eraIdForTime(now = Date.now()) {
 // ------------------------------------------------------------
 export const SYSTEMS_GUIDE = [
   { icon: '⚔️', name: 'Atributos y daño', desc: 'Reparte puntos en Fuerza/Destreza/Vitalidad/Energía para moldear a tu héroe.', req: 1 },
-  { icon: '📖', name: 'Habilidades (estilo D4)', desc: 'Se aprenden solas al subir de nivel: el básico GENERA recurso (Furia/Maná/Energía) y las gastadoras lo GASTAN. Barra de 6 ranuras: 🖱️Izq básico · 🖱️Der gastadora · 1 movilidad · 2 defensa o 2.ª gastadora · 3 especialización · 4 definitiva. Libro de habilidades (T): arrastra cada habilidad a su ranura; clic derecho en una ranura para cambiarla. Los puntos de habilidad compran ramas.', req: 1 },
+  { icon: '📖', name: 'Habilidades (estilo D4)', desc: 'Se aprenden solas al subir de nivel: la Básica GENERA recurso (Furia/Maná/Energía) y las Principales lo GASTAN. Barra de 6 ranuras: 🖱️Izq Básica · 🖱️Der Principal · 1 movilidad · 2 defensa, utilidad o 2.ª Principal · 3 Insignia de tu especialización · 4 definitiva. Libro de habilidades (T): arrastra cada habilidad a su ranura; clic derecho en una ranura para cambiarla.', req: 1 },
+  { icon: '⚒️', name: 'Forja de habilidades', desc: 'Cada habilidad gana una Mejora 3 niveles después de aprenderla y abre dos Variantes a los 6: elige una (o ninguna) en el libro (T). Cambiar es gratis fuera de combate.', req: 4 },
   { icon: '💎', name: 'Soportes de habilidad', desc: 'Engarza hasta 2 soportes por habilidad para modificar su comportamiento (estilo gemas de PoE).', reqText: 'Caen como botín' },
-  { icon: '🌿', name: 'Talentos y especialización', desc: 'En el nivel 10 eliges 1 de 3 especializaciones (con su habilidad insignia y su indicador propio) y desde ahí ganas 1 punto de talento por nivel para sus dos árboles (clase y especialización). Cambiarla es gratis fuera de combate (tecla N).', req: 10 },
-  { icon: '🌟', name: 'Tablero de Paragon', desc: 'Tablero de nodos conectados: cada nivel tras el 20 da un punto para potenciar tu build.', req: 20 },
-  { icon: '🔷', name: 'Glifos', desc: 'Se engarzan en nodos de engarce del Paragon; su poder crece con el rango y los nodos adyacentes.', req: 20 },
+  { icon: '🌿', name: 'Talentos y especialización', desc: 'En el nivel 10 eliges 1 de 3 especializaciones (con su kit de habilidades y su indicador propio). Hasta el nivel 100 ganas 1 punto por nivel, cada uno para un solo sistema: árbol de clase, de especialización, Paragon o tablero. Cambiarla es gratis fuera de combate (tecla N).', req: 10 },
+  { icon: '🌟', name: 'Paragon (árbol héroe)', desc: 'Al gastar los 31 puntos de tu especialización se abre su árbol héroe: un nodo clave gratis y 10 puntos más (Nv71–80).', req: 71 },
+  { icon: '🔷', name: 'Tablero de glifos', desc: 'Desde el nivel 81, 16 puntos para el tablero de tu clase; sus nodos legendarios dan estadísticas y los glifos crecen con los nodos adyacentes.', req: 81 },
   { icon: '🏆', name: 'Eras (temporadas)', desc: 'Cada semana cambia un mutador global y trae 3 objetivos con recompensa y un título.', req: 1 },
   { icon: '☠️', name: 'Tormento', desc: 'Dificultad global seleccionable en la Estatua del Mundo: más reto = mejor botín.', reqText: 'Estatua del Mundo' },
   { icon: '🌀', name: 'Grietas', desc: 'Usa Llaves de Grieta para zonas corruptas de dificultad creciente y gran botín.', reqText: 'Consigue Llaves de Grieta' },
@@ -523,17 +540,19 @@ export const SUPPORTS = [
 ];
 
 // ------------------------------------------------------------
-// MODIFICADORES DE HABILIDAD (ramas estilo D4 Lord of Hatred): cada habilidad
-// tiene 3 RAMAS y cada rama 3 OPCIONES. Paso 2b.0: las ramas de cada clase viven
-// en js/skills-<clase>.js (constructores dmgMods/buffMods/utilMods en
-// js/skill-defs.js); aquí solo se fusionan. Estado en `player.skillMods[skId] =
-// { ramaId: opcionId }` y `player.skillBranches[skId][ramaId] = true`.
+// RAMAS (Paso 2b) — @deprecated (D23): la forja (Mejora + 2 Variantes, §3.5) las sustituye.
+// Los exports quedan como stubs VACÍOS mientras algún módulo los importe (ui.js, la
+// migración congelada de save-schema.js, el banco); C1 los borra en E5. Las ramas que los
+// catálogos v1 aún declaran (<CLASE>_SKILL_MODS) ya no tienen efecto.
 // ------------------------------------------------------------
-export const SKILL_MODS = { ...GUERRERO_SKILL_MODS, ...MAGA_SKILL_MODS, ...ARQUERA_SKILL_MODS };
+/** @deprecated Paso 2: sin ramas (forja). Siempre vacío. */
+export const SKILL_MODS = Object.freeze({});
+void GUERRERO_SKILL_MODS; void MAGA_SKILL_MODS; void ARQUERA_SKILL_MODS;
 
-// agrega los efectos de las OPCIONES elegidas (1 por rama). `chosen` = { ramaId: opcionId }
+/** @deprecated Paso 2: sin ramas. Devuelve mods neutros. */
 export function aggregateSkillMods(skId, chosen) {
-  return aggregateMods(SKILL_MODS[skId], chosen);
+  void skId; void chosen;
+  return emptyMods();
 }
 
 // ------------------------------------------------------------

@@ -1,26 +1,32 @@
 // ============================================================
 // RESOLVEDOR ÚNICO de habilidades (módulo PURO) — Paso 2b.0, docs/paso2-diseno.md §4
 // ============================================================
-// resolveSkill(p, sk) fusiona, en este orden y todo ADITIVO dentro de su clave:
-//   1. definición base (sk, de js/skills-<clase>.js)
-//   2. ramas elegidas (SKILL_MODS → aggregateSkillMods)
-//   3. talentos (p.talentAgg.mods[sk.id] + skillLv; Player.recompute → aggregateTalents)
-//   4. soportes engarzados compatibles (por tags) → tabla SUPPORT_MOD
-//   5. valores globales del héroe (stats.cdr, tv.costRed / costRedBig)
-//   6. poderes (② modifyResolve) y topes de combat-math (CDR 50; crítico al tirar)
-// y devuelve el PERFIL COMPLETO del lanzamiento, cacheado en p.resolved[sk.id]
-// (Player.recompute lo invalida). Lo usan el canal de lanzamiento
-// (js/game-skills.js), Player.basicAttack, el banco de balance y la UI.
+// resolveSkill(p, sk) fusiona, en este orden y todo ADITIVO dentro de su clave
+// (Paso 2, docs/paso2-implementacion.md §3.5):
+//   1. rango (nivel + talentos + equipo)
+//   2. FORJA de la DEFINICIÓN (forgedDef: set/add/mul/elem/tags de Mejora y variante;
+//      tags recalculados → soportes y selectores de talento ven la forma nueva)
+//   3. mods de la forja (Mejora si Nv ≥ req+3, variante si Nv ≥ req+6)
+//   4. talentos (p.talentAgg.mods[sk.id]: los selectores se expanden sobre la definición forjada)
+//   5. soportes engarzados compatibles con los tags FORJADOS → tabla SUPPORT_MOD
+//   6. valores globales del héroe (stats.cdr, tv.costRed / costRedBig)
+//   7. poderes (② modifyResolve) y topes de combat-math (CDR 50; crítico al tirar)
+// y devuelve el PERFIL COMPLETO del lanzamiento (con `prof.def`, la definición forjada,
+// y las claves de verbo de §3.6 ya resueltas), cacheado en p.resolved[sk.id]
+// (Player.recompute lo invalida). Lo usan el canal de lanzamiento (js/game-skills.js),
+// Player.basicAttack, el banco de balance y la UI.
 import { CAPS, rankCoef, rankBuff } from './combat-math.js';
-import { CLASSES, SKILL_MODS, SUPPORTS, aggregateSkillMods } from './data.js';
-import { CAT_SLOTS, SLOT_KEYS, GCD_CATS, RANK_MAX, TAGS, supportFits, supportSockets, skillSlots, mergeMods, defaultSlots } from './skill-defs.js';
-import { firePower } from './powers.js';
+import { CLASSES, SUPPORTS, SKILL_FORGE } from './data.js';
+import { CAT_SLOTS, SLOT_KEYS, GCD_CATS, RANK_MAX, TAGS, supportFits, supportSockets, skillSlots, mergeMods, defaultSlots,
+  forgeDef, forgeMods, forgeLevels, forgeVar, VERB_DEFAULTS } from './skill-defs.js';
+import { firePower, SKILL_BEHAVIORS } from './powers.js';
 
 export { CAT_SLOTS, SLOT_KEYS, TAGS, RANK_MAX, supportFits, supportSockets, skillSlots, defaultSlots };
 
-export const GCD = 0.2;                 // enfriamiento global entre gastadoras (§4.4)
-export const TALENT_SKILL_REQ = 10;     // las activas de talento usan req = 10 (§4.1)
-export const BIG_HIT_INTERRUPT = 0.10;  // un golpe > 10 % de la vida interrumpe (canalizaciones/Int.)
+export const GCD = 0.2;                 // enfriamiento global entre principales (§4.4)
+/** @deprecated Paso 2 (§3.5): una activa de talento usa el `req` de su catálogo (21/27/31/72). */
+export const TALENT_SKILL_REQ = 10;
+export const BIG_HIT_INTERRUPT = 0.10;  // un golpe > 10 % de la vida interrumpe (canalizaciones/Int./cargas)
 
 // Efecto de cada soporte como `mod` (sustituye a los has('x') dispersos del lanzamiento).
 // Mismas cifras que el Paso 1A (combat-math SUPPORT_ADD/SUPPORT_COST/SUPPORT_CDR/SUPPORT_CRIT).
@@ -50,7 +56,8 @@ const DOT_PRIORITY = ['poison', 'bleed', 'burn'];
 export function rankBase(level, req) {
   return Math.max(1, Math.min(RANK_MAX, 1 + Math.floor(((level || 1) - (req || 1)) / 8)));
 }
-function skillReq(sk) { return sk.kind === 'talent' ? TALENT_SKILL_REQ : (sk.req || 1); }
+// Paso 2: las activas de talento también usan el `req` de su catálogo
+function skillReq(sk) { return sk.req || 1; }
 // rango = base(nivel, req) + talentos.skillLv[id] + stats.skillLv[id] (equipo, Paso 4)
 export function skillRank(p, sk) {
   if (!p || !sk) return 0;
@@ -59,10 +66,17 @@ export function skillRank(p, sk) {
   const eq = p.stats?.skillLv?.[sk.id] || 0;
   return base + tal + eq;
 }
+// especialización ACTIVA (la del agregado de talentos: solo cuenta a partir del Nv10)
+function activeSpecId(p) {
+  if (p?.talentAgg) return p.talentAgg.spec || null;
+  return p?.talents?.spec || null;
+}
 // ¿la conoce? Base: nivel ≥ req. De talento: concedida por p.talentAgg.grants.
+// D7: el kit de una especialización (`sk.spec`) solo con ESA especialización activa.
 export function isKnown(p, sk) {
   if (!p || !sk) return false;
   if (sk.kind === 'talent') return !!p.talentAgg?.grants?.has?.(sk.id);
+  if (sk.spec && sk.spec !== activeSpecId(p)) return false;
   return (p.level || 1) >= (sk.req || 1);
 }
 export function knownSkills(p) {
@@ -76,16 +90,51 @@ export function knownRankMap(p) {
   return out;
 }
 
-// soportes engarzados válidos de una habilidad (compatibles por tags y dentro de sus huecos)
+// ---------- forja (§3.5, D3) ----------
+// entrada de forja de una habilidad: la de la clase del héroe (cls.forge) o la fusión global
+export function forgeEntry(p, sk) {
+  if (!sk || sk.kind === 'talent') return null;
+  const cls = p?.cls || CLASSES[p?.classId];
+  return cls?.forge?.[sk.id] || SKILL_FORGE[sk.id] || null;
+}
+// estado de la forja: Mejora activa (Nv ≥ req+3), variante elegida y abierta (Nv ≥ req+6).
+// chosen = lo guardado ('i' | 'ii' | null; undefined = nunca elegida, D3)
+export function forgeState(p, sk) {
+  const entry = forgeEntry(p, sk);
+  const levels = forgeLevels(sk);
+  const chosen = p?.skillForge?.[sk?.id];
+  if (!entry) return { entry: null, mejora: false, variant: null, chosen, levels };
+  const L = p?.level || 1;
+  const mejora = !!entry.mejora && L >= levels.mejora;
+  const variant = (chosen === 'i' || chosen === 'ii') && L >= levels.vars && forgeVar(entry, chosen) ? chosen : null;
+  return { entry, mejora, variant, chosen, levels };
+}
+// definición FORJADA (caché p.forged[id], la vacía Player.recompute cuando cambian nivel o forja)
+export function forgedDef(p, sk) {
+  if (!p || !sk) return sk;
+  const st = forgeState(p, sk);
+  if (!st.entry || (!st.mejora && !st.variant)) return sk;
+  const key = `${st.mejora ? 1 : 0}:${st.variant || ''}`;
+  const cache = p.forged || (p.forged = {});
+  const c = cache[sk.id];
+  if (c && c.src === sk && c.key === key) return c.def;
+  const def = forgeDef(sk, st.entry, st);
+  cache[sk.id] = { src: sk, key, def };
+  return def;
+}
+
+// soportes engarzados válidos de una habilidad (compatibles con sus tags FORJADOS y
+// dentro de sus huecos)
 export function validSupports(p, sk) {
   const raw = p?.supports?.[sk.id];
   const list = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw ? [raw] : []);
+  const def = p ? forgedDef(p, sk) : sk;
   const out = [];
   for (const id of list) {
     if (!id || out.includes(id)) continue;
     const sup = SUPPORTS.find(s => s.id === id);
-    if (sup && supportFits(sup, sk)) out.push(id);
-    if (out.length >= supportSockets(sk)) break;
+    if (sup && supportFits(sup, def)) out.push(id);
+    if (out.length >= supportSockets(def)) break;
   }
   return out;
 }
@@ -105,12 +154,46 @@ export function resolveSkillId(p, id) {
   return sk ? resolveSkill(p, sk) : null;
 }
 
+// distancia de un `pull` (número o { dist, to })
+const pullDist = v => (typeof v === 'number' ? v : (v?.dist || 0));
+// carga resuelta (§3.6): ventana con perfectWin/perfectEarly, velocidad con chargeSpeed
+function resolveCharge(def, mods, moveMul, p) {
+  const c = def.charge;
+  if (!c) return null;
+  const max = Math.max(0.05, c.max || 1);
+  const min = Math.min(max * 0.95, Math.max(0, c.min ?? VERB_DEFAULTS.chargeMin));
+  let [a, b] = Array.isArray(c.perfect) ? c.perfect : [max - 0.05 - VERB_DEFAULTS.perfectWin, max - 0.05];
+  // Fe Serena: la ventana se ensancha por los dos lados (si choca con el tope, crece hacia atrás)
+  const widen = mods.perfectWin || 0;
+  if (widen) { a -= widen / 2; b += widen / 2; if (b > max) { a -= b - max; b = max; } }
+  // Aureola: la ventana empieza antes
+  const early = mods.perfectEarly || 0;
+  if (early) { a -= early; b -= early; }
+  a = Math.max(min, a); b = Math.max(a + 0.01, Math.min(max, b));
+  const speedPct = (mods.chargeSpeed || 0) + (def.cat === 'basic' ? 0 : (p?.tv?.chargeSpeed || 0));
+  return {
+    min, max, perfect: [a, b],
+    perfectPct: (c.perfectPct || 0) + (mods.perfectPct || 0),
+    perfectCrit: !!c.perfectCrit,
+    scale: c.scale || null,
+    moveMul: Math.max(mods.moveMulMin || 0, (c.moveMul ?? moveMul) + (mods.moveMulAdd || 0) / 100),
+    autoRelease: c.autoRelease !== false,
+    instant: !!c.instant,
+    repeat: c.repeat ?? def.cat === 'basic',
+    perfectGauge: c.perfectGauge || null,
+    full: c.full || null,
+    speed: Math.max(0.1, 1 + speedPct / 100),
+  };
+}
+
 function computeProfile(p, sk) {
-  const rank = skillRank(p, sk);
-  // 2) ramas  3) talentos
-  const mods = aggregateSkillMods(sk.id, p.skillMods?.[sk.id]);
+  // 2) forja de la definición · 3) mods de forja · 4) talentos
+  const fst = forgeState(p, sk);
+  const def = forgedDef(p, sk);
+  const rank = skillRank(p, def);
+  const mods = forgeMods(fst.entry, fst);
   if (p.talentAgg?.mods?.[sk.id]) mergeMods(mods, p.talentAgg.mods[sk.id]);
-  // 4) soportes (por tags) → mod
+  // 5) soportes (por tags forjados) → mod
   const sups = validSupports(p, sk);
   let costMul = 1, dotMul = 1;
   for (const id of sups) {
@@ -123,84 +206,123 @@ function computeProfile(p, sk) {
   const supEcho = sups.includes('echo') ? SUPPORT_MOD.echo.echo : 0;
   const tv = p.tv || p.talentAgg?.tv || {};
   const st = p.stats || {};
-  const isBasic = sk.cat === 'basic';
-  const tags = new Set(sk.tags || []);
-  if (sk.cat) tags.add(sk.cat);
-  if (sk.elem) tags.add(sk.elem);
+  const isBasic = def.cat === 'basic';
+  const tags = new Set(def.tags || []);
+  if (def.cat) tags.add(def.cat);
+  if (def.elem) tags.add(def.elem);
   if (mods.dot) tags.add('dot');
 
-  // coste: sk.cost × Π soportes × (1 − costRed/100) × (1 + mod.cost/100); costRedBig si supera el umbral
-  let cost = isBasic ? 0 : (sk.cost || 0) * costMul;
+  // coste: def.cost × Π soportes × (1 − costRed/100) × (1 + mod.cost/100); costRedBig si supera el umbral
+  let cost = isBasic ? 0 : (def.cost || 0) * costMul;
   let costRed = tv.costRed || 0;
-  if (tv.costRedBig && (sk.cost || 0) > (tv.costRedBig.over || 0)) costRed += tv.costRedBig.pct || 0;
+  if (tv.costRedBig && (def.cost || 0) > (tv.costRedBig.over || 0)) costRed += tv.costRedBig.pct || 0;
   cost *= Math.max(0, 1 - costRed / 100) * Math.max(0, 1 + (mods.cost || 0) / 100);
   // multiplicador de coste por BUFF (stat spenderCostPct, p. ej. Furia Inmortal −100 =
-  // gastadoras gratis): solo a las gastadoras (incluidas las de especialización)
+  // principales gratis): solo a las principales (incluidas las de especialización)
   if (tags.has('spender') && st.spenderCostPct) cost *= Math.max(0, 1 + st.spenderCostPct / 100);
   cost = Math.max(0, Math.round(cost));
 
-  // enfriamiento: UN número de CDR (stat + ramas + soportes), tope CAPS.cdr
+  // enfriamiento: UN número de CDR (stat + forja/talentos + soportes), tope CAPS.cdr
   const cdrPts = Math.max(-100, Math.min(CAPS.cdr, (st.cdr || 0) + (mods.cdr || 0)));
-  const cd = Math.max(0, (sk.cd || 0) * (1 - cdrPts / 100));
+  const cd = Math.max(0, (def.cd || 0) * (1 - cdrPts / 100));
 
   const radiusMul = Math.max(0.2, 1 + (mods.radius || 0) / 100);
   const rangeMul = Math.max(0.2, 1 + (mods.range || 0) / 100);
   const buffMul = rankBuff(rank) * Math.max(0, 1 + (mods.buff || 0) / 100);
   const durMul = Math.max(0.1, 1 + (mods.dur || 0) / 100);
   const buff = {};
-  for (const [k, v] of Object.entries(sk.buff || {})) buff[k] = Math.round(v * buffMul);
-  // DoT: prioridad veneno > sangrado > quemadura (como antes); soporte o rama
+  for (const [k, v] of Object.entries(def.buff || {})) buff[k] = Math.round(v * buffMul);
+  // DoT: prioridad veneno > sangrado > quemadura (como antes); soporte o forja/talento
   let dot = null;
   const dotCand = new Set([mods.dot, ...sups.map(s => SUPPORT_MOD[s]?.dot)].filter(Boolean));
   for (const k of DOT_PRIORITY) if (dotCand.has(k)) { dot = k; break; }
 
+  // ---- verbos (§3.6) ----
+  // preparación: (windup + windupAdd) × (1 + windupMul/100); moverse: moveMul (D8: 1 por defecto)
+  const windup = Math.max(0, ((def.windup || 0) + (mods.windupAdd || 0)) * Math.max(0, 1 + (mods.windupMul || 0) / 100));
+  const moveMul = Math.max(mods.moveMulMin || 0, (def.moveMul ?? 1) + (mods.moveMulAdd || 0) / 100);
+  // los comportamientos con cast propio gestionan sus desplazamientos de la DEFINICIÓN
+  // (Onda Repulsora, Arpón…); los mods (forja/talentos) sí van por la vía genérica
+  const ownCast = !!(def.behavior && SKILL_BEHAVIORS[def.behavior]?.cast);
+  const recast = def.recast && def.recast.n ? {
+    n: Math.max(1, Math.floor(def.recast.n + (mods.recastAdd || 0))),
+    win: Math.max(0.1, (def.recast.win || 2) + (mods.recastWin || 0)),
+    cond: def.recast.cond || null, perfectLast: def.recast.perfectLast || 0,
+    cdFrom: def.recast.cdFrom || 'first', free: def.recast.free !== false, gap: def.recast.gap ?? VERB_DEFAULTS.recastGap,
+  } : null;
+  const repeat = def.repeat ? { ...def.repeat, n: Math.max(0, Math.floor((def.repeat.n || 0) + (mods.repeatAdd || 0))) } : null;
+  const trail = def.trail ? { ...def.trail, coef: (def.trail.coef || 0) + (mods.zoneCoef || 0), heal: (def.trail.heal || 0) + (mods.zoneHeal || 0) } : null;
+  const mark = def.mark ? { ...def.mark, dur: (def.mark.dur || 8) + (mods.markDur || 0) } : null;
+  const shieldGain = def.shieldGain || mods.shieldGain
+    ? [(def.shieldGain?.[0] || 0) + (mods.shieldGain?.[0] || 0), Math.max(def.shieldGain?.[1] || 0, mods.shieldGain?.[1] || 0)] : null;
+
   const prof = {
-    id: sk.id, name: sk.name, rank, tags, elem: sk.elem || null, cat: sk.cat, slots: skillSlots(sk),
-    type: sk.type, behavior: sk.behavior || null, kind: sk.kind,
+    id: sk.id, name: def.name, rank, tags, elem: def.elem || null, cat: def.cat, slots: skillSlots(def),
+    type: def.type, behavior: def.behavior || null, kind: def.kind,
+    // definición forjada y estado de la forja (UI, comportamientos y poderes leen la forma real)
+    def, variant: fst.variant, mejora: fst.mejora,
     // daño
-    coef: (sk.coef || 0) * rankCoef(rank),
-    addPct: (sk.addPct || 0) + (mods.dmg || 0),
-    critBonus: (sk.critBonus || 0) + (mods.crit || 0),
+    coef: (def.coef || 0) * rankCoef(rank),
+    addPct: (def.addPct || 0) + (mods.dmg || 0),
+    critBonus: (def.critBonus || 0) + (mods.crit || 0),
+    dmgDirect: (def.dmgDirect || 0) + (mods.dmgDirect || 0),   // +% al golpe DIRECTO (no salpicadura)
     // coste, tiempos
-    cost, cd, cdBase: sk.cd || 0, cdrPts,
-    gcd: GCD_CATS.has(sk.cat),
-    windup: sk.windup || 0, lockT: sk.lockT || 0, impactDelay: sk.impactDelay || 0,
-    interruptible: !!sk.int,
+    cost, cd, cdBase: def.cd || 0, cdrPts,
+    gcd: GCD_CATS.has(def.cat),
+    windup, lockT: def.lockT || 0, impactDelay: def.impactDelay || 0,
+    interruptible: !!def.int,
+    moveMul,
     // geometría
-    radiusMul, radius: (sk.radius || 0) * radiusMul, range: (sk.range || 0) * rangeMul, rangeMul,
-    angle: sk.angle || 90, width: sk.width || 2, speed: sk.speed || 14,
-    count: Math.max(1, Math.floor(sk.count || 1)), spread: sk.spread || 0,   // 0 = sin abanico propio (extras a 0,18 rad)
-    proj: mods.proj || 0, pierce: !!(sk.pierce || mods.pierce), chain: mods.chain || 0,
+    radiusMul, radius: (def.radius || 0) * radiusMul, range: (def.range || 0) * rangeMul, rangeMul,
+    angle: def.angle || 90, width: def.width || 2, speed: def.speed || 14,
+    count: Math.max(1, Math.floor(def.count || 1)), spread: def.spread || 0,   // 0 = sin abanico propio (extras a 0,18 rad)
+    proj: mods.proj || 0, pierce: !!(def.pierce || mods.pierce), chain: Math.max(def.chain || 0, mods.chain || 0), chainPct: def.chainPct || 0,
+    perTarget: Math.max(1, def.perTarget || 1),
     // control y efectos al golpear
     // root/slowPct = MÁXIMO entre la habilidad y los mods + los «+N» de talento (rootAdd/slowPctAdd)
-    slow: Math.max(sk.slow || 0, mods.slow || 0), slowPct: Math.max(sk.slowPct || 0, mods.slowPct || 0) + (mods.slowPctAdd || 0),
-    stun: Math.max(sk.stun || 0, mods.stun || 0), root: Math.max(sk.root || 0, mods.root || 0) + (mods.rootAdd || 0),
+    slow: Math.max(def.slow || 0, mods.slow || 0), slowPct: Math.max(def.slowPct || 0, mods.slowPct || 0) + (mods.slowPctAdd || 0),
+    stun: Math.max(def.stun || 0, mods.stun || 0), root: Math.max(def.root || 0, mods.root || 0) + (mods.rootAdd || 0),
     vuln: mods.vuln || 0, dot, dotMul,
+    // desplazar (§3.6): m de atracción / empuje y hacia dónde
+    pull: Math.max(ownCast ? 0 : pullDist(def.pull), mods.pull || 0), pullTo: (typeof def.pull === 'object' && def.pull?.to) || null,
+    knock: Math.max(ownCast ? 0 : (def.knock || 0), mods.knock || 0),
+    dragWidth: Math.max(def.dragWidth || (def.drag ? VERB_DEFAULTS.dragWidth : 0), mods.dragWidth || 0),
+    taunt: (def.taunt || 0) + (mods.taunt || 0),
     // zona (Estela): 4 s por defecto; zoneDur = duración EXPLÍCITA (s) cuando la da un
     // talento (Pira 1,5 s/rango, Abrojos 2 s/rango: «el texto del nodo manda», §9.3)
     zone: mods.zone || 0, zoneDur: (mods.zoneDur || 0) > 0 ? mods.zoneDur : 4,
+    zoneMax: Math.max(def.zoneMax || 0, mods.zoneMax || 0),
     echo: supEcho || (mods.echo ? 0.6 : 0), execute: mods.execute || 0, cdhit: mods.cdhit || 0,
     critCdr: mods.critCdr || 0, lifesteal: mods.lifesteal || 0, coldblood: !!mods.coldblood,
     haste: mods.haste || 0, cleanse: !!mods.cleanse,
+    killReset: !!(def.killReset || mods.killReset), shieldGain,
     // recurso que genera: básicos al ACERTAR (+extra por objetivo); resto AL LANZAR
-    // (sk.gen de la habilidad + ramas Furibundo/Iracundo) y genOnHit si golpea
-    gen: (sk.gen || 0) + (mods.gen || 0),
-    genPerExtra: isBasic ? (sk.genPerExtra || 0) : 0, genMax: isBasic ? (sk.genMax || 0) : 0,
-    genOnHit: isBasic ? 0 : (sk.genOnHit || 0),
-    cadence: isBasic ? Math.max(0.2, sk.cadence || 1) : 1,   // × cadencia del básico (Mandoble 1,5)
+    // (def.gen + forja/talentos) y genOnHit si golpea
+    gen: (def.gen || 0) + (mods.gen || 0),
+    genPerExtra: isBasic ? (def.genPerExtra || 0) : 0, genMax: isBasic ? (def.genMax || 0) : 0,
+    genOnHit: isBasic ? 0 : (def.genOnHit || 0) + (mods.genOnHit || 0),
+    cadence: isBasic ? Math.max(0.2, def.cadence || 1) : 1,   // × cadencia del básico (Mandoble 1,5)
     // salpicadura de un proyectil (coef por objetivo en `radius` alrededor del impacto)
-    splash: (sk.splash || 0) * rankCoef(rank),
+    splash: (def.splash || 0) * rankCoef(rank) * Math.max(0, 1 + (mods.splashPct || 0) / 100),
+    splashPct: mods.splashPct || 0,
     // DoT propio al impactar (Cicuta): total = golpe medio × coef (escala con rango y saco aditivo)
-    hitDot: sk.hitDot ? { kind: sk.hitDot.kind || 'poison', coef: (sk.hitDot.coef || 0) * rankCoef(rank) * dotMul, dur: sk.hitDot.dur || 4 } : null,
+    hitDot: def.hitDot ? { kind: def.hitDot.kind || 'poison', coef: (def.hitDot.coef || 0) * rankCoef(rank) * dotMul, dur: def.hitDot.dur || 4 } : null,
     // jefes (Paso 2c.0): todo control suma STAGGER; bossStun numérico = duración
     // nominal contra jefes (Martillo de Justicia) · stagger = stagger propio por golpe
-    bossStun: typeof sk.bossStun === 'number' ? sk.bossStun : sk.bossStun !== false,
-    stagger: sk.stagger || 0,
+    bossStun: typeof def.bossStun === 'number' ? def.bossStun : def.bossStun !== false,
+    stagger: (def.stagger || 0) + (mods.stagger || 0),
     forceCrit: false,                           // crítico seguro (Ignición Total: modifyResolve)
-    unstoppable: !!sk.unstoppable, slowImmune: !!sk.slowImmune,
+    unstoppable: !!def.unstoppable, slowImmune: !!def.slowImmune,
     // buffs / escudos / duraciones
     buff, buffMul, durMul, durS: mods.durS || 0,
-    dur: Math.max(0, (sk.dur || 0) * durMul + (mods.durS || 0)),
+    dur: Math.max(0, (def.dur || 0) * durMul + (mods.durS || 0)),
+    // verbos (§3.6) resueltos con sus mods
+    charge: resolveCharge(def, mods, moveMul, p),
+    recast,
+    comboWin: Math.max(0.2, (def.comboWin ?? VERB_DEFAULTS.comboWin) + (mods.comboWin || 0)),
+    charges: Math.max(1, Math.floor((def.charges || 1) + (mods.charges || 0))),
+    repeat, trail, mark,
+    keepPlanted: !!(def.keepPlanted || mods.keepPlanted),
     // poderes que reaccionan al golpe de esta habilidad (los rellenan modifyResolve)
     onHitPowers: [],
     sups, mods,
