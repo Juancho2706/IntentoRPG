@@ -947,16 +947,17 @@ export function arqueraPowers() {
     // / Punta Repartida, Trampa Encantada (trampas, zonas y lluvias toman la punta al colocarlas),
     // Punta Curativa, Fuego Prendido, Hielo Hondo, Trenza de Puntas, Chispa Saltarina / Hielo
     // Mordiente, Puntas Afines, Encantamiento Hondo y Punta Viva. Desborde de Puntas (activa):
-    // tus 4 siguientes disparos llevan las tres puntas al 50 % (cuentan como una por enemigo).
+    // tus 4 siguientes disparos (en lo que dura: 10 s) llevan las tres puntas al 50 % (cuentan como una por enemigo).
     w_puntas: {
       name: 'Puntas Encantadas', desc: 'Cada 6 s tu siguiente flecha lleva una punta encantada que rota: Fuego, Hielo o Rayo.',
       priority: 1,                                                  // antes que Lluvia Encantada (30 %)
       procs: true,                                                   // los tics de una zona que lleva la punta
       state: () => ({ readyAt: 0, idx: 0, seq: [], braid: false, last: new WeakMap(), bite: new WeakMap(),
-        share: null, desborde: 0, desb: null, placed: new Map(), quickAt: -Infinity, healAt: -Infinity }),
+        share: null, desborde: 0, desbUntil: 0, desb: null, placed: new Map(), quickAt: -Infinity, healAt: -Infinity }),
       onCast(g, p, cast) {
         const st = powerState(p, 'w_puntas'), sk = cast?.sk, t = now(p);
         if (!sk) return;
+        if (st.desborde > 0 && t > st.desbUntil + 1e-9) st.desborde = 0;
         if (st.desborde > 0 && arrowCast(cast)) { st.desborde--; st.desb = { skill: sk.id, until: t + tune().tip.shareWin, done: new Set() }; }
         // Trampa Encantada: lo que colocas toma la punta lista (y la gasta)
         if (p.tv?.tipPlace > 0 && placesTip(cast) && tipReady(p)) {
@@ -964,8 +965,12 @@ export function arqueraPowers() {
           st.placed.set(sk.id, { elem: takeTip(p), until: t + dur + 1 });
         }
       },
+      // Desborde de Puntas: sus disparos valen lo que dura la activa (su `dur`, 10 s)
       afterCast(g, p, cast) {
-        if (cast?.sk?.id === 'a_h_puntas') powerState(p, 'w_puntas').desborde = tune().tip.desborde.shots;
+        if (cast?.sk?.id !== 'a_h_puntas') return;
+        const st = powerState(p, 'w_puntas');
+        st.desborde = tune().tip.desborde.shots;
+        st.desbUntil = now(p) + (cast.prof?.dur || cast.sk.dur || 10);
       },
       onHit(g, p, e, hit) {
         if (!e || hit?.proc) return;

@@ -2864,6 +2864,21 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     const es = [0, 1, 2, 3, 4].map(i => h.enemy({ hp: 1e7, pos: [Math.cos(i * 1.2) * 5, 0, -Math.sin(i * 1.2) * 5 - 1] }));
     const burns = es.map(e => { shoot(h, e, 0.35); return burnLeft(h, e) || 0; });   // recién llegada la flecha (sin tics aún)
     same(burns.map(x => x > 0), [true, true, true, true, false], 'Desborde: 4 disparos');
+    // y solo mientras dura (su `dur`: 10 s); pasado, los disparos que quedaban se pierden
+    {
+      const late = sec => {
+        const x = withActive('a_h_puntas'), r = x.enemy({ hp: 1e7, pos: [0, 0, 6] });
+        tipHit(x, r);                                                    // gasta la punta del ciclo
+        cast(x, 'k2', 'a_h_puntas', 0, 0, 0.1);
+        x.tick(sec);
+        const e = x.enemy({ hp: 1e7, pos: [5, 0, 0] });
+        shoot(x, e, 0.35);
+        return burnLeft(x, e) || 0;
+      };
+      eq(rp(withActive('a_h_puntas'), 'a_h_puntas').dur, 10, 'Desborde: dura 10 s');
+      ok(late(9.5) > 0, 'w4A: a los 9,5 s, aún lleva las puntas');
+      eq(late(10.5), 0, 'w4A: pasados los 10 s, sin Desborde (la punta del ciclo que toca es Hielo: sin quemadura)');
+    }
     near(burns[0] / full, 0.5, 'Desborde: las puntas al 50 %', 0.03);
     const cd = nodes => {
       const x = hero('h2', nodes, {}, { spec: 'montaraz' }), e = x.enemy({ hp: 1e7, pos: [0, 0, 6] });
