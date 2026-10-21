@@ -13,10 +13,11 @@
 //   const ops = createTalentOps(Talents);
 //   ops.addRank(p, 'spec', 's1')   // → { ok:true, rank } | { ok:false, reason:'gate', text:'…' }
 //
-// Respuestas: { ok, reason?, text?, … }. `reason` es un código (§3.4): 'combat' (lo pone el
-// mixin) · 'points' · 'gate' · 'req' · 'max' · 'hero-closed' · 'no-spec' · 'choice' · 'free'
-// · 'unknown' · 'level' · 'full' · 'code-version' · 'code-class' · 'code-check' ·
-// 'code-illegal'. `text` es el texto para el jugador (la UI puede usar el suyo).
+// Respuestas: { ok, reason?, text?, … }. `reason` es un código del conjunto CERRADO
+// TALENT_REASONS (los de §3.4 más cinco que el plan no nombraba: 'free' nodo gratis, 'empty' sin
+// rangos que quitar, 'unknown' id o configuración desconocida, 'level' nivel insuficiente y
+// 'full' sin hueco de configuración; test70 vigila que no aparezca otro). `text` es el texto
+// para el jugador (la UI puede usar el suyo, traduciendo por código).
 // Ninguna operación llama a recompute() ni guarda: lo hace quien la invoca.
 //
 // CÓDIGO DE BUILD (§3.10):
@@ -29,6 +30,8 @@ export const CODE_VERSION = 'IRPG2';
 export const CODE_VERSION_OLD = 'IRPG1';
 export const LOADOUTS_MAX = 10;
 export const LOADOUT_NAME_MAX = 24;
+export const TALENT_REASONS = Object.freeze(['combat', 'points', 'gate', 'req', 'max', 'hero-closed', 'no-spec', 'choice',
+  'code-version', 'code-class', 'code-check', 'code-illegal', 'free', 'empty', 'unknown', 'level', 'full']);
 
 const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
 const NAMES = { guerrero: 'Guerrero', maga: 'Maga', arquera: 'Arquera' };
@@ -152,7 +155,7 @@ export function createTalentOps(T) {
     if (!node) return fail('unknown', 'Talento desconocido');
     if (node.free) return fail('free', 'El nodo clave no se puede quitar');
     const r = ranks[id] | 0;
-    if (r <= 0) return fail('max', 'No tiene rangos que quitar');
+    if (r <= 0) return fail('empty', 'No tiene rangos que quitar');
     if (!T.canRemoveRank(p, which, id)) return fail('req', nodeState(p, which, node, tree).removeBlock || 'No puedes quitar este rango');
     const before = heroFlags(p);
     if (r - 1 > 0) ranks[id] = r - 1; else delete ranks[id];

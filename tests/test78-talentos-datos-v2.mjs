@@ -14,13 +14,19 @@
 //  · G18: 3 árboles héroe, cada especialización en 2, 10 nodos por build
 //  · poderes registrados, con el prefijo de su clase, uno por nodo y sin repetirse entre clases (D28)
 //  · claves tv del núcleo (CORE_TV_KEYS) o de la clase (<CLASE>_TV_KEYS); claves de fx conocidas
+//  · vocabulario (lo que test65a miraba): claves de nodo y de opción; stats e innatas que suma
+//    recompute (el saco `item` de js/entities.js y los atributos); claves de mod de mergeMods
+//    (emptyMods + las nuevas de §3.5/§3.6); destinos de mod y skillLv = selector de §3.8 o una
+//    habilidad del catálogo; listas por rango con `max` valores
+//  · AVISOS (no fallan salvo en ctx.strict): G8b (los puntos de una build van a habilidades de su
+//    barra: build.bar o SPEC_BAR[spec]) y `todo` (permitido en el esqueleto de E1.5, no al cerrar E2)
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
 import * as T from '../js/talents.js';
-import { ELEMS } from '../js/skill-defs.js';
+import * as SD from '../js/skill-defs.js';
 import { POWER_HOOKS } from '../js/powers.js';
-import { CLASSES, specKitOf } from '../js/data.js';
+import { CLASSES, SPEC_BAR, specKitOf } from '../js/data.js';
 import * as TM from '../js/talents-maga.js';
 import * as TG from '../js/talents-guerrero.js';
 import * as TA from '../js/talents-arquera.js';
@@ -32,7 +38,30 @@ const GRID = TV2.REJILLA, RULES = TV2.REGLAS, GAUGES = new Set(TV2.GAUGES);
 export const POWER_PREFIX = { maga: /^[mpka]_[a-z0-9_]+$/, guerrero: /^g_[a-z0-9_]+$/, arquera: /^[afmtqwy]_[a-z0-9_]+$/ };
 const JARGON = /\bUNI\b|ÁREA×5|\bTTD\b|stagger|\bprocs?\b|astadora/i;
 const FX_KEYS = new Set(['stats', 'elem', 'skillLv', 'mod', 'tv', 'power', 'grant']);
+const { ELEMS, CATS } = SD;
 const ELEM_KEYS = new Set([...ELEMS, 'phys']);
+// claves de un nodo (§3.1) y de una opción de elección
+const NODE_KEYS = new Set(['id', 'name', 't', 'tag', 'r', 'c', 'max', 'req', 'free', 'fx', 'opts', 'd', 'win', 'touch', 'icon', 'arch', 'final', 'hyb', 'todo']);
+const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx']);
+// stats que SUMA recompute: el saco `item` de Player.recompute (js/entities.js) y los atributos.
+// addStats descarta en silencio cualquier otra clave: un nodo con una errata no haría nada
+const ENTITIES_SRC = readFileSync(new URL('../js/entities.js', import.meta.url), 'utf8');
+const ITEM_BLOCK = ENTITIES_SRC.match(/const item = \{([\s\S]*?)\};/);
+assert.ok(ITEM_BLOCK, 'test78: no encuentro el saco `const item = {…}` de recompute en js/entities.js');
+const RECOMPUTE_STATS = new Set([...ITEM_BLOCK[1].replace(/\/\/.*$/gm, '').matchAll(/([A-Za-z_]\w*)\s*:/g)].map(m => m[1]));
+for (const k of ['hp', 'mp', 'dmgPct', 'crit', 'arm', 'aspdPct', 'critDmg', 'dr', 'block', 'hpPct', 'staggerPct', 'threatMult', 'healPct'])
+  assert.ok(RECOMPUTE_STATS.has(k), `test78: el saco de recompute leído de entities.js no tiene «${k}» (¿cambió su forma?)`);
+const ATTR_KEYS = new Set(Object.values(CLASSES).flatMap(c => Object.keys(c.base || {})));
+assert.ok(ATTR_KEYS.size >= 4, 'atributos de las clases (fue, des, vit, ene)');
+export const STAT_KEYS = new Set([...RECOMPUTE_STATS, ...ATTR_KEYS]);
+// claves de mod: las de mergeMods (emptyMods) + las nuevas de §3.5 y §3.6 (+ SD.MOD_KEYS si W2 lo exporta)
+export const MOD_KEYS = new Set([...Object.keys(SD.emptyMods()),
+  'windupAdd', 'windupMul', 'moveMulAdd', 'moveMulMin', 'charges', 'recastAdd', 'recastWin', 'comboWin', 'chargeSpeed',
+  'perfectWin', 'perfectEarly', 'perfectPct', 'zoneMax', 'pull', 'knock', 'killReset', 'shieldGain', 'dmgDirect', 'splashPct',
+  'repeatAdd', ...(SD.MOD_KEYS || [])]);
+// valores válidos de '@cat:' y '@tag:' (tags del catálogo + los de verbo de §3.6; cat y elem también son tags)
+const TAG_VALUES = new Set([...(SD.TAGS || []), 'charge', 'combo', 'recast', 'stance', ...CATS, ...ELEMS]);
+const CAT_VALUES = new Set(CATS);
 const num = id => +String(id).replace(/^\D+/, '');
 const isFn = v => typeof v === 'function';
 
@@ -48,9 +77,11 @@ const isFn = v => typeof v === 'function';
 
 // ------------------------------------------------ el comprobador
 // ctx = { isRegistered(id), tvKeys:Set, kitOf(specId) → ids, skillOf(id) → definición del catálogo | null }
+//       specBar?(specId) → { lmb, rmb, k1, k2, k3, k4 } (G8b), warnings?: [] (avisos), strict?: Set(tags de aviso que fallan)
 export function checkClassData(cid, data, ctx) {
   const E = [];
   const err = (tag, msg) => E.push(`[${tag}] ${cid}: ${msg}`);
+  const warn = (tag, msg) => (ctx.strict?.has(tag) ? E : (ctx.warnings || [])).push(`[${tag}] ${cid}: ${msg}`);
   if (!data || data.v !== 2) { err('forma', 'no es v2'); return E; }
   const specs = data.specs || [], heroes = data.hero || [];
   const trees = [['cls', data.cls?.nodes || []], ...specs.map(s => [s.id, s.nodes || []]), ...heroes.map(h => [h.id, h.nodes || []])];
@@ -84,7 +115,18 @@ export function checkClassData(cid, data, ctx) {
   for (const s of specs) {
     if (!ELEMS.includes(s.elem)) err('elem', `${s.id}: elem «${s.elem}» (${ELEMS})`);
     if (!GAUGES.has(s.mechanic)) err('mecánica', `${s.id}: mecánica «${s.mechanic}» no existe`);
+    for (const k of Object.keys(s.innate || {})) if (!STAT_KEYS.has(k)) err('stats', `${s.id}: innata «${k}» (recompute no la suma)`);
   }
+  // destino de un mod o un skillLv: selector de §3.8 o una habilidad del catálogo de la clase
+  const target = (sel, at) => {
+    if (typeof sel === 'string' && sel[0] === '@') {
+      if (!T.isKnownSelector(sel)) return err('selector', `${at}: selector «${sel}» no existe (§3.8)`);
+      if (sel.startsWith('@cat:') && !CAT_VALUES.has(sel.slice(5))) err('selector', `${at}: categoría «${sel.slice(5)}» no existe`);
+      if (sel.startsWith('@tag:') && !TAG_VALUES.has(sel.slice(5))) err('selector', `${at}: tag «${sel.slice(5)}» no existe`);
+    } else if (!ctx.skillOf(sel)) err('selector', `${at}: «${sel}» no es un selector ni una habilidad del catálogo`);
+  };
+  // un valor por rango: una lista debe tener exactamente `max` valores
+  const perRank = (v, max, at) => { if (Array.isArray(v) && v.length !== max) err('rango', `${at}: lista de ${v.length} valores (el nodo tiene ${max} rangos)`); };
   // árboles héroe (G18): 3, cada especialización en 2
   if (heroes.length !== 3) err('héroe', `${heroes.length} árboles héroe (deben ser 3)`);
   for (const h of heroes) if (!Array.isArray(h.specs) || h.specs.length !== 2 || new Set(h.specs).size !== 2 || h.specs.some(x => !specs.some(s => s.id === x)))
@@ -105,12 +147,15 @@ export function checkClassData(cid, data, ctx) {
     };
     for (const n of nodes) {
       const where = `${w}/${n.id}`;
+      for (const k of Object.keys(n)) if (!NODE_KEYS.has(k)) err('nodo', `${where}: clave de nodo desconocida «${k}»`);
+      if ('todo' in n) warn('todo', `${where}: aún tiene «todo» (${String(n.todo).slice(0, 60)})`);
       if (typeof n.name !== 'string' || !n.name) err('textos', `${where}: sin nombre`); else if (JARGON.test(n.name)) err('jerga', `${where}: nombre «${n.name}»`);
       const fxs = [];
       if (n.t === 'c') {
         if (!Array.isArray(n.opts) || n.opts.map(o => o.k).join() !== 'A,B') { err('elección', `${where}: opts A/B`); continue; }
         if (typeof n.win !== 'string' || !n.win.trim()) err('win', `${where}: falta win («cuál conviene»)`); else if (JARGON.test(n.win)) err('jerga', `${where}: win «${n.win}»`);
         for (const o of n.opts) {
+          for (const k of Object.keys(o)) if (!OPT_KEYS.has(k)) err('nodo', `${where}${o.k}: clave de opción desconocida «${k}»`);
           text(`${where}${o.k}`, o.desc);
           if (JARGON.test(o.name || '')) err('jerga', `${where}${o.k}: nombre «${o.name}»`);
           fxs.push([o.fx || {}, `${where}${o.k}`, o.k]);
@@ -126,6 +171,20 @@ export function checkClassData(cid, data, ctx) {
       for (const [fx, at, k] of fxs) {
         for (const key of Object.keys(fx)) if (!FX_KEYS.has(key)) err('fx', `${at}: clave de fx desconocida «${key}»`);
         for (const e of Object.keys(fx.elem || {})) if (!ELEM_KEYS.has(e)) err('fx', `${at}: elem «${e}»`);
+        // vocabulario: stats que suma recompute, claves de mod, destinos y listas por rango
+        const max = n.max | 0;
+        for (const [st, v] of Object.entries(fx.stats || {})) { if (!STAT_KEYS.has(st)) err('stats', `${at}: stat «${st}» (recompute no la suma)`); perRank(v, max, `${at} stats.${st}`); }
+        for (const [e, v] of Object.entries(fx.elem || {})) perRank(v, max, `${at} elem.${e}`);
+        for (const [t, v] of Object.entries(fx.tv || {})) perRank(v, max, `${at} tv.${t}`);
+        for (const [sel, v] of Object.entries(fx.skillLv || {})) { target(sel, `${at} skillLv`); perRank(v, max, `${at} skillLv.${sel}`); }
+        for (const [sel, m] of Object.entries(fx.mod || {})) {
+          target(sel, `${at} mod`);
+          if (!m || typeof m !== 'object' || Array.isArray(m)) { err('mod', `${at}: mod.${sel} debe ser un objeto`); continue; }
+          for (const [mk, v] of Object.entries(m)) {
+            if (!MOD_KEYS.has(mk)) err('mod', `${at}: clave de mod desconocida «${sel}.${mk}»`);
+            perRank(v, max, `${at} mod.${sel}.${mk}`);
+          }
+        }
         // G1: la clase no toca el kit de especialización
         if (isCls) {
           const sels = [...Object.keys(fx.mod || {}), ...Object.keys(fx.skillLv || {}), ...(n.touch || [])];
@@ -183,6 +242,18 @@ export function checkClassData(cid, data, ctx) {
         const n = [...data.cls.nodes, ...s.nodes].find(x => x.id === id);
         if (!n || n.t !== 'c' || !['A', 'B'].includes(k)) err('builds', `${key}: elección ${id}=${k} no válida`);
       }
+      // G8b (aviso): cada nodo comprado que nombra habilidades en `touch` toca alguna de SU barra
+      const bar = b.bar || ctx.specBar?.(s.id) || null;
+      if (bar) {
+        const onBar = new Set(Object.values(bar).filter(Boolean));
+        const hb = heroes.find(x => x.id === b.hero);
+        const bought = [...data.cls.nodes.filter(n => cls[n.id] > 0), ...s.nodes.filter(n => sp[n.id] > 0),
+          ...(hb?.nodes || []).filter(n => b.heroNodes.includes(n.id))];
+        for (const n of bought) {
+          const ids = (n.touch || []).filter(x => typeof x === 'string' && x[0] !== '@');
+          if (ids.length && !ids.some(id => onBar.has(id))) warn('G8b', `${key}: ${n.id} toca ${ids.join(', ')}, fuera de su barra`);
+        }
+      }
       const h = heroes.find(x => x.id === b.hero);
       if (!h || !h.specs.includes(s.id)) { err('héroe', `${key}: árbol héroe «${b.hero}» no es de ${s.id}`); continue; }
       if (b.heroNodes.length !== RULES.pts.hero || new Set(b.heroNodes).size !== b.heroNodes.length) err('héroe', `${key}: heroNodes = ${RULES.pts.hero} nodos distintos (sin la clave)`);
@@ -206,6 +277,8 @@ const CLASS_MODS = { maga: TM, guerrero: TG, arquera: TA };
 const PREFIX = { maga: 'MAGA', guerrero: 'GUERRERO', arquera: 'ARQUERA' };
 
 // ------------------------------------------------ 1) clases del juego en v2
+// avisos que FALLAN en las clases del juego (E2: añadir 'G8b' a la Arquera, §8; y 'todo' a todas al cerrar E2)
+const STRICT = { maga: new Set(), guerrero: new Set(), arquera: new Set() };
 const realPowers = new Map();
 let real = 0;
 for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
@@ -213,31 +286,42 @@ for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
   const mod = CLASS_MODS[cid];
   const ctx = { prefix: POWER_PREFIX[cid], isRegistered: id => !!POWER_HOOKS[id], powerClass: realPowers,
     tvKeys: new Set([...T.CORE_TV_KEYS, ...(mod[`${PREFIX[cid]}_TV_KEYS`] || [])]), kitOf: spec => specKitOf(cid, spec),
-    skillOf: id => CLASSES[cid].skills.find(s => s.id === id) || null };
+    skillOf: id => CLASSES[cid].skills.find(s => s.id === id) || null, specBar: spec => SPEC_BAR?.[spec]?.bar || null,
+    warnings: [], strict: STRICT[cid] };
   const errs = checkClassData(cid, data, ctx);
   assert.deepEqual(errs, [], `${cid}: datos v2 con errores:\n${errs.join('\n')}`);
+  for (const w of ctx.warnings) console.warn(`  ⚠ ${w}`);
   real++;
   console.log(`✓ ${cid}: datos del juego v2 en regla`);
 }
 
 // ------------------------------------------------ 2) el fixture v2 (las tres clases)
 const FIX_TV = { maga: FIX.MAGA_TV_KEYS, guerrero: FIX.GUERRERO_TV_KEYS, arquera: FIX.ARQUERA_TV_KEYS };
-const fixSkills = cid => new Map(FIX.FIXTURE_TREES[cid].skills.map(s => [s.id, { ...s }]));
+// catálogo del fixture: sus activas de talento y el kit sintético de cada especialización
+const KIT_CAT = ['spec', 'movement', 'spender', 'ultimate'];
+const fixSkills = cid => new Map([...FIX.FIXTURE_TREES[cid].skills.map(s => [s.id, { ...s }]),
+  ...FIX.FIXTURE_TREES[cid].specs.flatMap(s => FIX.FIXTURE_KITS[s.id].map((id, i) => [id, { id, cat: KIT_CAT[i], spec: s.id }]))]);
+// barra de prueba de cada especialización: insignia en 3, movilidad en 1, principal en 🖱️Der, definitiva en 4
+const fixBar = spec => { const [k1, k2, k3, k4] = FIX.FIXTURE_KITS[spec] || []; return { lmb: 'fx_basico', rmb: k3, k1: k2, k2: null, k3: k1, k4 }; };
 function fixCtx(cid, powerClass = new Map()) {
   const skills = fixSkills(cid);
   return { prefix: POWER_PREFIX[cid], isRegistered: id => FIX.FIXTURE_POWERS.has(id), powerClass,
-    tvKeys: new Set([...T.CORE_TV_KEYS, ...FIX_TV[cid]]), kitOf: spec => FIX.FIXTURE_KITS[spec] || [], skillOf: id => skills.get(id) || null };
+    tvKeys: new Set([...T.CORE_TV_KEYS, ...FIX_TV[cid]]), kitOf: spec => FIX.FIXTURE_KITS[spec] || [], skillOf: id => skills.get(id) || null,
+    specBar: fixBar, warnings: [], strict: new Set() };
 }
 {
   const shared = new Map();
   for (const cid of ['maga', 'guerrero', 'arquera']) {
-    const errs = checkClassData(cid, FIX.FIXTURE_TREES[cid], fixCtx(cid, shared));
+    const ctx = fixCtx(cid, shared);
+    const errs = checkClassData(cid, FIX.FIXTURE_TREES[cid], ctx);
     assert.deepEqual(errs, [], `fixture ${cid}:\n${errs.join('\n')}`);
+    assert.deepEqual(ctx.warnings, [], `fixture ${cid}: sin avisos (G8b contra la barra de prueba)`);
   }
-  console.log('✓ fixture v2: las tres clases cumplen todas las reglas');
+  console.log('✓ fixture v2: las tres clases cumplen todas las reglas (y sin avisos)');
 }
 
 // ------------------------------------------------ 3) cada regla puede fallar (mutaciones sembradas)
+let mutations = 0;
 function expectFail(name, mutate, tag, { cid = 'maga', ctxMut = null } = {}) {
   const data = clone(FIX.FIXTURE_TREES[cid]);
   const ctx = fixCtx(cid);
@@ -245,6 +329,19 @@ function expectFail(name, mutate, tag, { cid = 'maga', ctxMut = null } = {}) {
   if (ctxMut) ctxMut(ctx);
   const errs = checkClassData(cid, data, ctx);
   assert.ok(errs.some(e => e.startsWith(`[${tag}]`)), `la mutación «${name}» debía dar un error [${tag}]; dio:\n${errs.join('\n') || '(ninguno)'}`);
+  mutations++;
+}
+// un AVISO: sin `strict` no es error (solo aviso); con strict de su etiqueta, sí
+function expectWarn(name, mutate, tag, { cid = 'maga' } = {}) {
+  const data = clone(FIX.FIXTURE_TREES[cid]);
+  mutate(data);
+  const soft = fixCtx(cid);
+  const errs = checkClassData(cid, data, soft);
+  assert.ok(!errs.some(e => e.startsWith(`[${tag}]`)), `«${name}»: [${tag}] es un aviso, no un error`);
+  assert.ok(soft.warnings.some(w => w.startsWith(`[${tag}]`)), `«${name}» debía avisar [${tag}]; avisó:\n${soft.warnings.join('\n') || '(nada)'}`);
+  const hard = { ...fixCtx(cid), strict: new Set([tag]) };
+  assert.ok(checkClassData(cid, data, hard).some(e => e.startsWith(`[${tag}]`)), `«${name}»: con strict, [${tag}] es un error`);
+  mutations++;
 }
 const spec0 = d => d.specs[0], node = (nodes, id) => nodes.find(n => n.id === id);
 expectFail('id repetido entre árboles', d => { node(spec0(d).nodes, 's5').id = 'i5'; }, 'ids');
@@ -282,6 +379,32 @@ expectFail('poder repetido entre clases (D28)', () => {}, 'D28', { cid: 'arquera
 expectFail('clave tv sin declarar', d => { node(spec0(d).nodes, 's7').fx = { tv: { tvInventada: 3 } }; }, 'tv');
 expectFail('clave de fx desconocida', d => { node(d.cls.nodes, 'c1').fx = { statz: { hp: 1 } }; }, 'fx');
 expectFail('menos de 3 nodos mecánicos por habilidad del kit (G17)', d => { for (const n of spec0(d).nodes) if (n.touch) n.touch = n.touch.filter(id => id !== 'fx_piromante_k4'); }, 'G17');
-console.log('✓ 35 mutaciones sembradas: cada regla detecta su error');
+// vocabulario (lo que miraba test65a): stats, innatas, claves de mod, destinos, listas por rango, claves de nodo
+expectFail('stat con errata', d => { node(d.cls.nodes, 'c1').fx = { stats: { dmgPtc: 5 } }; }, 'stats');
+expectFail('innata que recompute no suma', d => { spec0(d).innate = { fuerza: 3 }; }, 'stats');
+expectFail('clave de mod con errata', d => { node(d.cls.nodes, 'c6').opts[0].fx = { mod: { '@spender': { dmgg: 15 } } }; }, 'mod');
+expectFail('selector inexistente', d => { node(d.cls.nodes, 'c2').fx = { mod: { '@spendr': { dmg: 6 } } }; }, 'selector');
+expectFail('mod a una habilidad que no existe', d => { node(spec0(d).nodes, 's12').fx = { mod: { bola_fuegoo: { dmg: 8 } } }; }, 'selector');
+expectFail('skillLv con selector inexistente', d => { node(spec0(d).nodes, 's2').fx = { skillLv: { '@spek': 1 } }; }, 'selector');
+expectFail('@cat: con categoría inexistente', d => { node(d.cls.nodes, 'c3').fx = { mod: { '@cat:movilidad': { cdr: 10 } } }; }, 'selector');
+expectFail('@tag: con tag inexistente', d => { node(d.cls.nodes, 'c3').fx = { mod: { '@tag:rafaga': { cdr: 10 } } }; }, 'selector');
+expectFail('lista de mod con más valores que rangos', d => { node(spec0(d).nodes, 's12').fx = { mod: { fx_piromante_k3: { dmg: [1, 2, 3, 4, 5, 6, 7] } } }; }, 'rango');
+expectFail('lista de stats con menos valores que rangos', d => { node(spec0(d).nodes, 's1').fx = { stats: { hp: [10, 20] } }; }, 'rango');
+expectFail('clave de nodo desconocida', d => { node(d.cls.nodes, 'c1').tuch = ['@all']; }, 'nodo');
+expectFail('clave de opción desconocida', d => { node(d.cls.nodes, 'c6').opts[0].dsc = 'Más daño'; }, 'nodo');
+// la errata combinada del revisor: tres efectos vacíos en silencio → errores de cada tipo
+{
+  const d = clone(FIX.FIXTURE_TREES.maga);
+  node(d.cls.nodes, 'c1').fx = { stats: { dmgPtc: 5 } };
+  node(d.cls.nodes, 'c2').fx = { mod: { '@spendr': { dmgg: 6 } } };
+  node(spec0(d).nodes, 's12').fx = { mod: { bola_fuegoo: { dmg: [1, 2, 3, 4, 5, 6, 7] } } };
+  const errs = checkClassData('maga', d, fixCtx('maga'));
+  for (const tag of ['stats', 'selector', 'mod', 'rango']) assert.ok(errs.some(e => e.startsWith(`[${tag}]`)), `errata combinada: falta [${tag}]\n${errs.join('\n')}`);
+}
+// avisos: G8b (la build compra nodos de habilidades que no lleva en la barra) y `todo`
+expectWarn('build.bar sin la principal (G8b)', d => { const [k1, k2, , k4] = FIX.FIXTURE_KITS.piromante; d.builds.brasa.bar = { lmb: 'fx_basico', rmb: null, k1: k2, k2: null, k3: k1, k4 }; }, 'G8b');
+expectWarn('barra de la build sin la definitiva (G8b)', d => { for (const k of ['brasa', 'cataclismo', 'ignicion', 'hibrido']) d.builds[k].bar = { ...fixBar('piromante'), k4: null }; }, 'G8b');
+expectWarn('nodo con «todo»', d => { node(spec0(d).nodes, 's7').todo = 'falta el efecto'; }, 'todo');
+console.log(`✓ ${mutations} mutaciones sembradas: cada regla detecta su error (y los avisos solo fallan con strict)`);
 
 console.log(`\n✅ DATOS DE TALENTOS v2 (test78): ${real} clase(s) del juego en v2 y el fixture en regla`);

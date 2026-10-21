@@ -7,12 +7,14 @@
 //  5) G5 Paragon: sin efecto hasta 31/31 gastados; clave gratis al abrirse; apertura al Nv70
 //  6) G13 pausa: bajar de 31/31 pausa el héroe (sin efecto, nodos guardados) y volver lo reactiva
 //  7) buildRanks idéntico a simularBuild (validador) y a t2applyPreset (héroe), nivel a nivel,
-//     sobre las 36 builds del fixture y las 12 REALES de la Maga del mockup
+//     sobre las 36 builds del fixture y las 12 REALES de la Maga del mockup; heroNodes desordenados
 //  8) aggregateTalents: selectores §3.8, escala por rango, costRedBig, powerRank/talentRank,
-//     innata y mecánica solo con la especialización activa; memo por revisión (riesgo 11)
+//     innata y mecánica solo con la especialización activa; memo por revisión (riesgo 11) y
+//     por firma de accesores (una llamada sin opts no envenena la de elemOf) y memoTag
 //  9) normalizeTalents v2: v1 → vacío, purga, elecciones, héroe por especialización, loadouts,
 //     validación por árbol al nivel (talentos-recortados)
 // 10) treeSignature, specElem, presetRanks/presetList (envoltorios del banco)
+// 11) avisos de subida por sistema (progression.levelUpText)
 import assert from 'node:assert/strict';
 import './helpers/use-talents-fixture.mjs';
 import { cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
@@ -315,6 +317,22 @@ for (const [key, raw] of Object.entries(MAGA_MOCK.builds)) {
   assert.equal(T.buildRanks({ classId: 'maga' }, raw, { level: 84 }).cls.c4, 1);
   assert.equal(T.buildRanks({ classId: 'maga' }, raw, { level: 100 }).cls.c4, 3);
 }
+// árbol héroe con heroNodes DESORDENADOS: un hijo antes que su padre no se compra (pasada única
+// en orden, como t2applyPreset); el resto sí y el resultado sigue siendo legal
+{
+  const raw = { ...F.MAGA_TALENTS.builds.brasa };
+  const h = F.MAGA_TALENTS.hero.find(x => x.id === raw.hero);
+  const f9 = h.nodes.find(n => n.id === 'f9');
+  assert.deepEqual(f9.req, ['f5', 'f6'], 'f9 cuelga de f5 o f6');
+  raw.heroNodes = ['f2', 'f9', 'f3', 'f6', 'f5', 'f8', 'f11', 'f12', 'f4', 'f1'];
+  const r = T.buildRanks({ classId: 'maga' }, raw, { level: 100 });
+  const got = r.hero.nodes[raw.hero];
+  assert.ok(!('f9' in got), 'f9 va antes que sus padres: no se compra');
+  assert.deepEqual(Object.keys(got).sort(), ['f1', 'f11', 'f12', 'f2', 'f3', 'f4', 'f5', 'f6', 'f8']);
+  assert.ok(T.validRanks({ nodes: h.nodes, gates: T.HERO_GATES }, got, 100), 'el árbol héroe resultante es legal');
+  const s = T.findSpec('maga', raw.sp);
+  assert.deepEqual(got, heroPreset(h, T.normBuild(raw), r.sp[raw.sp], s.nodes, 100), '= t2applyPreset del mockup');
+}
 console.log(`buildRanks = simularBuild + t2applyPreset en ${compared} comparaciones (fixture y Maga real del mockup) ✓`);
 
 // ------------------------------------------------ 8) aggregateTalents
@@ -415,6 +433,26 @@ console.log(`buildRanks = simularBuild + t2applyPreset en ${compared} comparacio
   const h0 = T.talentAggStats().hits;
   for (let i = 0; i < 50; i++) T.aggregateTalents(p);
   assert.equal(T.talentAggStats().hits, h0 + 50, '50 recompute seguidos sin cambios = 50 aciertos');
+  // la firma de accesores entra en la clave: una llamada SIN opts (talentRank de respaldo, una
+  // vista previa) no envenena la siguiente CON elemOf sobre el mismo héroe, ni al revés
+  const q = hero('maga', 100, { spec: 'piromante' });
+  q.talents.sp.piromante.s3 = 1;                                   // +4 % a lo de Fuego (elemento FORJADO)
+  const arc = CLASSES.maga.skills.find(s => s.kind !== 'passive' && s.elem === 'arcane' && s.cat === 'spender');
+  const elemOf = id => (id === arc.id ? 'fire' : CLASSES.maga.skills.find(s => s.id === id)?.elem);
+  const plain = T.aggregateTalents(q);
+  assert.equal(plain.mods[arc.id]?.dmg, undefined, `sin elemOf ${arc.id} sigue siendo Arcano`);
+  const forged = T.aggregateTalents(q, { elemOf });
+  assert.equal(forged.mods[arc.id]?.dmg, 4, 'tras una llamada sin opts, la llamada con elemOf ve su elemento forjado');
+  assert.equal(T.aggregateTalents(q).mods[arc.id]?.dmg, undefined, 'y la de sin opts no se ensucia con la de elemOf');
+  const hq = T.talentAggStats().hits;
+  T.aggregateTalents(q, { elemOf }); T.aggregateTalents(q);
+  assert.equal(T.talentAggStats().hits, hq + 2, 'alternar las dos firmas no vacía el memo de ninguna');
+  // memoTag: lo que los accesores no ven (quien llama la resume en la etiqueta)
+  const mq = T.talentAggStats().misses;
+  T.aggregateTalents(q, { elemOf, memoTag: 'a' }); T.aggregateTalents(q, { elemOf, memoTag: 'a' });
+  assert.equal(T.talentAggStats().misses, mq + 1, 'misma etiqueta: acierto');
+  T.aggregateTalents(q, { elemOf, memoTag: 'b' });
+  assert.equal(T.talentAggStats().misses, mq + 2, 'otra etiqueta: se recalcula');
 }
 console.log('aggregateTalents: selectores §3.8, elemento forjado, finales con rango, innata y memo ✓');
 
@@ -485,5 +523,27 @@ console.log('normalizeTalents v2: v1 → vacío, purga, elecciones, héroe por e
   assert.deepEqual(T.buildsFor('maga', 'crionte').map(b => b.key), ['glaciar', 'tormenta', 'fractura', 'hibcrio']);
 }
 console.log('treeSignature, specElem, presetRanks/presetList y buildsFor ✓');
+
+// ------------------------------------------------ 11) avisos de subida por sistema (progression.levelUpText)
+{
+  const { levelUpText } = await import('../js/progression.js');
+  const bare = L => levelUpText({ classId: 'maga', level: L, talents: T.normalizeTalents({ v: 2, spec: 'piromante' }, 'maga') }, L);
+  assert.equal(bare(9), null, 'Nv9: ningún sistema da punto');
+  assert.match(bare(10), /Especializaciones desbloqueadas/);
+  assert.equal(bare(11), '🌿 Nivel 11: +1 punto de clase (N)');
+  assert.equal(bare(12), '🌿 Nivel 12: +1 punto de especialización (N)');
+  assert.equal(bare(69), '🌿 Nivel 69: +1 punto de clase (N)');
+  assert.match(bare(70), /^🌿 Nivel 70: último punto de especialización\. Gasta los 31 para abrir el Paragon/);
+  // Nv71: con la especialización a 0/31 el Paragon sigue cerrado; con 31/31, abierto
+  assert.match(bare(71), /^🌟 Nivel 71: \+1 punto de Paragon\. Gasta tus 31 puntos de especialización para abrirlo/);
+  const open71 = heroAt(71);
+  assert.equal(T.heroOpen(open71), true);
+  assert.equal(levelUpText(open71, 71), '🌟 Nivel 71: +1 punto de Paragon (N)');
+  assert.match(bare(81), /^🔷 Nivel 81: ¡tablero de glifos abierto! 16 puntos hasta el nivel 100/);
+  assert.equal(bare(82), '🔷 Nivel 82: +1 punto del tablero de glifos (2/16)');
+  assert.equal(bare(85), '🌿 Nivel 85: +1 punto de clase (N)', 'Nv85: punto tardío de clase, no de tablero');
+  assert.equal(bare(100), '🌿 Nivel 100: +1 punto de clase (N)');
+}
+console.log('levelUpText: aviso por sistema (especialización, clase, Paragon cerrado/abierto, tablero) ✓');
 
 console.log('\n✅ MOTOR DE TALENTOS v2 (test77) OK');

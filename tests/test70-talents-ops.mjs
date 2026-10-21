@@ -6,15 +6,25 @@
 //  · build recomendada (applyBuild) y reinicios; la especialización conserva sus rangos
 //  · configuraciones (≤ 10 por especialización), deshacer (snapshot/restore), talentsRev
 //  · habilidades concedidas (grantsOf) y ámbito de un nodo (whichOf)
+//  · códigos `reason` del conjunto cerrado TALENT_REASONS (en cada fallo y en el código fuente)
 // El código IRPG2 se prueba entero en test79.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import './helpers/use-talents-fixture.mjs';
 const T = await import('../js/talents.js');
-const { createTalentOps, CODE_VERSION, LOADOUTS_MAX, LOADOUT_NAME_MAX } = await import('../js/talents-ops.js');
+const { createTalentOps, CODE_VERSION, LOADOUTS_MAX, LOADOUT_NAME_MAX, TALENT_REASONS } = await import('../js/talents-ops.js');
 
 const ops = createTalentOps(T);
 const hero = (classId, level) => ({ classId, level, talentsRev: 0, talents: T.normalizeTalents(null, classId) });
-const no = (r, reason, re) => { assert.equal(r.ok, false, `debía fallar (${reason})`); assert.equal(r.reason, reason, `${r.reason}: ${r.text}`); if (re) assert.match(r.text, re); assert.equal(r.error, r.text); };
+const no = (r, reason, re) => { assert.equal(r.ok, false, `debía fallar (${reason})`); assert.equal(r.reason, reason, `${r.reason}: ${r.text}`); if (re) assert.match(r.text, re); assert.equal(r.error, r.text); assert.ok(TALENT_REASONS.includes(r.reason), `«${r.reason}» fuera de TALENT_REASONS`); };
+// conjunto cerrado de códigos: la UI (U1, U3) traduce por código; ningún archivo devuelve otro
+{
+  const src = ['../js/talents-ops.js', '../js/game-talents.js'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
+  const used = new Set([...src.matchAll(/fail\('([a-z-]+)'/g), ...src.matchAll(/reason: '([a-z-]+)'/g)].map(m => m[1]));
+  assert.ok(used.size >= 12, `códigos encontrados en el fuente: ${[...used]}`);
+  for (const r of used) assert.ok(TALENT_REASONS.includes(r), `talents-ops/game-talents devuelven «${r}», que no está en TALENT_REASONS`);
+  assert.ok(Object.isFrozen(TALENT_REASONS));
+}
 const st = (p, w, id) => ops.nodeState(p, w, T.nodeById(T.treeOf(p, w), id));
 const add = (p, w, ...ids) => { for (const id of ids) { const r = ops.addRank(p, w, id); assert.equal(r.ok, true, `${w}/${id}: ${r.text}`); } };
 assert.throws(() => createTalentOps({}), /falta la API/);
@@ -62,7 +72,7 @@ console.log('Nivel bajo, especialización y estado ausente ✓');
   assert.equal(st(p, 'spec', 'b1').state, 'available', 'b1 cuelga del nodo clave gratis');
   assert.equal(st(p, 'cls', 'c15').choice, 'A', 'una elección nueva arranca en A');
   no(ops.addRank(p, 'spec', 'b0'), 'free'); no(ops.removeRank(p, 'spec', 'b0'), 'free');
-  no(ops.removeRank(p, 'cls', 'c30'), 'max', /No tiene rangos/);
+  no(ops.removeRank(p, 'cls', 'c30'), 'empty', /No tiene rangos/);
   // quitar una hoja sí
   const rev = p.talentsRev;
   assert.equal(ops.removeRank(p, 'cls', 'c15').ok, true);

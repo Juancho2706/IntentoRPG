@@ -323,6 +323,14 @@ export function expandSelector(key, ctx, spec) {
   if (key[0] === '@') return [];
   return [key];
 }
+// ¿es un selector '@…' que expandSelector entiende? (los ids de habilidad no empiezan por '@').
+// '@cat:' y '@tag:' solo exigen un valor: que la categoría o el tag existan lo mira test78
+export function isKnownSelector(key) {
+  if (typeof key !== 'string' || key[0] !== '@') return false;
+  if (['@all', '@spec', '@windup', '@holyZone'].includes(key) || CAT_ALIAS[key] || TAG_ALIAS[key]) return true;
+  if ((key.startsWith('@cat:') || key.startsWith('@tag:')) && key.length > 5) return true;
+  return ELEM_KEYS.has(key.slice(1));
+}
 
 // suma de una clave tv: números se suman; costRedBig {pct, over} suma pct y se queda con
 // el umbral más bajo
@@ -393,7 +401,10 @@ function computeAgg(p, opts) {
 // memo por héroe: clave = lo que cambia el resultado (nivel, especialización, rangos,
 // elecciones, árbol héroe y forja). recompute corre en cada addBuff y no debe rehacer
 // 156 nodos con selectores por un buff (riesgo 11). Devuelve SIEMPRE una copia: quien
-// llama puede sumarle cosas (talentExtra) sin ensuciar el memo
+// llama puede sumarle cosas (talentExtra) sin ensuciar el memo.
+// Una entrada por FIRMA de accesores (cuáles vienen y opts.memoTag): una llamada sin opts
+// (talentRank/powerRank de respaldo, una vista previa, un test) no envenena la de recompute
+// con elemOf/kitOf, y alternarlas no vacía el memo de la otra.
 const AGG_MEMO = new WeakMap();
 const AGG_STATS = { hits: 0, misses: 0 };
 export function talentAggStats() { return { ...AGG_STATS }; }
@@ -403,17 +414,24 @@ function aggKey(p) {
   return JSON.stringify([p.classId, p.level || 1, spec, T.cls || null, spec ? T.sp?.[spec] || null : null,
     T.choice || null, spec ? T.hero?.[spec] || null : null, p.skillForge || null, p.talentsRev || 0]);
 }
+const accessorSig = opts => ['elemOf', 'kitOf', 'defOf'].map(k => (typeof opts[k] === 'function' ? k[0] : '-')).join('')
+  + (opts.memoTag != null ? `:${opts.memoTag}` : '');
 // opts = { elemOf(id) → elemento forjado, kitOf(specId) → ids del kit, defOf?(id) → definición
-// forjada (tags y preparación para '@tag:'/'@windup') }; sin ellos se usa el catálogo.
-// El memo supone que esos accesores solo dependen del catálogo, la forja y la especialización.
+// forjada (tags y preparación para '@tag:'/'@windup'), memoTag? }; sin ellos se usa el catálogo.
+// El memo supone que esos accesores solo dependen del catálogo, la forja y la especialización;
+// si dependen de otra cosa, quien llama la resume en memoTag (cambiarla invalida).
 export function aggregateTalents(p, opts = {}) {
   if (!p || typeof p !== 'object') return emptyAgg();
-  const key = aggKey(p);
-  const hit = AGG_MEMO.get(p);
+  opts = opts && typeof opts === 'object' ? opts : {};
+  const key = aggKey(p), sig = accessorSig(opts);
+  let slots = AGG_MEMO.get(p);
+  if (!slots) AGG_MEMO.set(p, (slots = new Map()));
+  const hit = slots.get(sig);
   if (hit && hit.key === key) { AGG_STATS.hits++; return cloneAgg(hit.agg); }
   AGG_STATS.misses++;
   const agg = computeAgg(p, opts);
-  AGG_MEMO.set(p, { key, agg });
+  if (!slots.has(sig) && slots.size >= 4) slots.delete(slots.keys().next().value);   // pocas firmas por héroe
+  slots.set(sig, { key, agg });
   return cloneAgg(agg);
 }
 // rango EFECTIVO de un nodo (0 si su árbol no aporta: héroe cerrado o en pausa, otra especialización)
