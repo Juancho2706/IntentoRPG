@@ -56,8 +56,17 @@ export function insideField(f, pos, pad = 0) {
   return dx * dx + dz * dz <= r * r;
 }
 const inside = (f, pos) => insideField(f, pos);
-// lado de la recta a–b en que queda (x, z) (signo del producto vectorial)
-const sideOf = (f, x, z) => Math.sign((f.b.x - f.a.x) * (z - f.a.z) - (f.b.z - f.a.z) * (x - f.a.x));
+// ¿el paso (bx, bz) → (nx, nz) cruza el segmento a–b del muro (alargado `pad` m por cada extremo)?
+function stepCrosses(f, bx, bz, nx, nz, pad) {
+  const wx = f.b.x - f.a.x, wz = f.b.z - f.a.z, mx = nx - bx, mz = nz - bz;
+  const den = mx * wz - mz * wx;
+  if (Math.abs(den) < 1e-12) return false;
+  const dx = f.a.x - bx, dz = f.a.z - bz;
+  const t = (dx * wz - dz * wx) / den;            // a lo largo del paso
+  const u = (dx * mz - dz * mx) / den;            // a lo largo del muro
+  const e = pad / (Math.hypot(wx, wz) || 1);
+  return t >= 0 && t <= 1 && u >= -e && u <= 1 + e;
+}
 const isBossE = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
 // ¿el campo cambia el movimiento enemigo? (muro, zona que encierra, cebo)
 const movesEnemies = f => !f.dead && (f.kind === 'muro' || !!f.data?.contain || !!f.data?.lure);
@@ -306,12 +315,10 @@ export const fieldMethods = {
         const all = f.data.blocks === 'all' || f.data.contain;
         if (!all && (!f.data.blocks || boss)) continue;
         const pad = 0.4 * (e.def?.scale || 1);
-        const s0 = sideOf(f, bx, bz), s1 = sideOf(f, nx, nz);
         const near1 = segDist2(nx, nz, f.a, f.b) <= (f.width / 2 + pad) ** 2;
         const near0 = segDist2(bx, bz, f.a, f.b) <= (f.width / 2 + pad) ** 2;
-        // cruza la recta dentro del segmento, o se mete en el grosor del muro
-        const crosses = s0 !== 0 && s1 !== 0 && s0 !== s1 && segDist2((bx + nx) / 2, (bz + nz) / 2, f.a, f.b) <= (f.width / 2 + pad + Math.hypot(nx - bx, nz - bz)) ** 2;
-        if (crosses || (near1 && !near0)) { e.pos.x = bx; e.pos.z = bz; return true; }
+        // cruza el segmento, o se mete en el grosor del muro
+        if (stepCrosses(f, bx, bz, nx, nz, pad) || (near1 && !near0)) { e.pos.x = bx; e.pos.z = bz; return true; }
       } else if (f.data?.contain && f.shape !== 'line') {
         const was = insideField(f, { x: bx, z: bz }), now = insideField(f, e.pos);
         if (was && !now) { e.pos.x = bx; e.pos.z = bz; return true; }

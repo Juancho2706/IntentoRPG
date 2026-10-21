@@ -427,7 +427,7 @@ const GENERIC = {
     const pos = ctx.target.clone().setY(0);
     const f = g.spawnField('trampa', { pos, radius: t.radius || prof.radius || 1.5, dur: prof.dur || sk.life || VERB_DEFAULTS.trapLife, owner: p,
       maxPerSkill: Math.max(t.maxArmed || 0, prof.zoneMax || 0),
-      data: { dmg: ctx.avgHit, coef: ctx.coef, root: prof.root, color: ctx.color, skill: sk.id, tags: prof.tags, elem: prof.elem,
+      data: { dmg: ctx.avgHit, coef: ctx.coef, root: Math.max(t.root || 0, prof.root || 0), color: ctx.color, skill: sk.id, tags: prof.tags, elem: prof.elem,
         armT: t.armT ?? VERB_DEFAULTS.trapArmT, burst: t.burst || null, consume: t.consume !== false,
         lure: t.lure || null, hitDot: prof.hitDot } });
     if (f) { ctx.zoneCenter = pos; ctx.zoneRad = f.radius; }
@@ -566,7 +566,7 @@ export function killStatus(e) {
 // activas de talento cuyo comportamiento aún no existe (2c.1) no se lanzan ni cobran.
 export function skillCastable(sk) {
   if (!sk) return false;
-  if (sk.type === 'weapon') return true;
+  if (sk.type === 'weapon' || sk.type === 'stance') return true;   // la postura tiene su flujo (_castStance)
   const b = sk.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
   return !!(b?.cast || GENERIC[sk.type]);
 }
@@ -1163,7 +1163,8 @@ export const skillMethods = {
     if (comboIdx >= 0) cast.step = comboIdx + 1;
     if (seq) { cast.seqNth = seq.nth; cast.seqIdx = seq.idx; }
     if (isEcho) cast.echo = echoMult;
-    if (!isEcho && firePower('onCast', p, this, p, cast) === false) return false; // cancelado sin coste
+    // ⑦ onCast (cancelado sin coste); el básico de arma tensable lo pasa al disparar (basicAttack)
+    if (!isEcho && def.type !== 'weapon' && firePower('onCast', p, this, p, cast) === false) return false;
     if (yieldBasic) this.cancelCast('gastadora');                                    // corta el remate del básico
     const ctx = this._makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx, fieldDest, destRange, rcState });
     // CARGAR Y SOLTAR (§3.6): empieza la carga (el coste y el enfriamiento, al soltar).
@@ -1267,6 +1268,7 @@ export const skillMethods = {
         if (!rc && !(base.recast && base.recast.cdFrom === 'end')) this._startCooldown(p, sk.id, base);
       }
       if (base.lockT > 0) p.castLock = Math.max(p.castLock || 0, base.lockT);
+      if (base.recast && base.recast.cond !== 'hit') this._recastCommit(p, sk, base, ctx);
       if (base.haste) p.addBuff(`${sk.id}_impulso`, { spdPct: 30 }, base.haste, { name: 'Impulso', icon: '💨', desc: '+30% de velocidad de movimiento' });
       if (base.cleanse) p.cleanse();
       if (def.cat === 'movement') p.unplant?.();                    // usar movilidad rompe el plantado
@@ -1376,7 +1378,16 @@ export const skillMethods = {
     // reinicio al matar (killReset)
     if (!isEcho && base.killReset && res.killed > 0) this.reduceCooldown(p, sk.id, Infinity);
     // relanzar: abre o avanza la cadena (no con repeticiones)
-    if (!isEcho && base.recast) this._recastAfter(p, sk, base, ctx, res);
+    if (!isEcho && base.recast) {
+      if (base.recast.cond === 'hit') this._recastAfter(p, sk, base, ctx, res);
+      else if (ctx._rcChain) {
+        // la cadena se abrió/avanzó al lanzar (_recastCommit): aquí suma los golpes y, si este
+        // era el último uso, cierra con ⑭ (los golpes de un proyectil llegan al impactar)
+        const rc = ctx._rcChain;
+        rc.hits += res.hits || 0;
+        if (ctx._closeChain) this._skillEnd(p, sk, { kind: 'recast', reason: ctx._closeChain, casts: rc.casts, hits: rc.hits, released: false, frac: 0, perfect: false });
+      }
+    }
     if (!isEcho) firePower('afterCast', p, this, p, ctx.cast, res);
   },
 
@@ -1491,7 +1502,38 @@ export const skillMethods = {
     return before - p.cds[id];
   },
 
+  // reinicia TODOS los enfriamientos y cargas (respec, cambio de especialización): la vía para
+  // los módulos que hoy hacen p.cds = {} (test87)
+  resetCooldowns(p) {
+    p = p || this.player;
+    if (!p) return;
+    p.cds = {}; p.skCharges = {}; p._cdHold = {}; p._cdRed = {};
+  },
+
   // ---------------- relanzar (§3.6) ----------------
+  // sin condición, la cadena se abre o avanza AL LANZAR (la ventana no espera al impacto de un
+  // proyectil); con cond:'hit', al terminar (_recastAfter), porque depende de si golpeó
+  _recastCommit(p, sk, prof, ctx) {
+    const sst = skStateOf(p, sk.id);
+    const r = prof.recast;
+    const now = p.simT || 0;
+    const rc = ctx.rcState;
+    if (!rc) {
+      if (r.n < 2) { if (r.cdFrom === 'end') this._startCooldown(p, sk.id, prof); return; }
+      sst.recast = { n: r.n, idx: 1, left: r.n - 1, until: now + r.win, win: r.win, casts: 1, hits: 0,
+        lastAt: now, gap: r.gap, perfectLast: r.perfectLast, cond: r.cond, cdFrom: r.cdFrom, ticked: false, refresh: !!r.refresh };
+      ctx._rcChain = sst.recast;
+      this.emitFx?.(fxp('verbRecast'), p.pos.clone().setY(0.1));
+      return;
+    }
+    rc.idx++; rc.left--; rc.casts++; rc.lastAt = now;
+    ctx._rcChain = rc;
+    if (rc.left <= 0) {
+      if (sst.recast === rc) sst.recast = null;
+      if (rc.cdFrom === 'end') this._startCooldown(p, sk.id, prof);
+      ctx._closeChain = 'max';
+    } else if (rc.refresh) { rc.until = now + rc.win; rc.ticked = false; }
+  },
   _recastAfter(p, sk, prof, ctx, res) {
     const sst = skStateOf(p, sk.id);
     const r = prof.recast;
@@ -1923,6 +1965,8 @@ export const skillMethods = {
     if (p) { p.castLock = 0; if (inst.unstoppable) p.unstoppableT = 0; p.clearMoveMul?.('channel'); }
     inst.endReason = reason || (canceled ? 'cancel' : 'done');
     inst.released = inst.endReason === 'release';
+    // sin recurso (drain) hay que soltar antes de volver a canalizar, como tras una suelta automática
+    if (inst.endReason === 'drain' && inst.ctx.key) (this._needsRelease || (this._needsRelease = {}))[inst.ctx.key] = true;
     inst.canceled = !!canceled;
     const cast = inst.ctx.cast;
     if (cast) { cast.endReason = inst.endReason; cast.released = inst.released; }

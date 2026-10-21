@@ -1,11 +1,12 @@
 // Paso 2b.0 — resolvedor único de habilidades (js/skill-resolve.js, §4)
 //  1) catálogo válido en el formato nuevo (cat/slots/tags/coef) y CAT_SLOTS (k2 flexible)
 //  2) rangos por nivel (rangoBase), conocidas por nivel y mapa derivado p.skills
-//  3) fusión: rango → ramas → talentos → soportes (por tags) → CDR/costRed → poderes
+//  3) fusión: rango → forja (Mejora + variante) → talentos → soportes (por tags) → CDR/costRed → poderes
+//     (Paso 2: las ramas se sustituyen por la forja, §3.5)
 //  4) compatibilidad de soportes por requires/forbids (§4.3) y huecos por categoría
 //  5) caché p.resolved invalidada en recompute
 import assert from 'node:assert/strict';
-import { CLASSES, SKILL_MODS, SUPPORTS } from '../js/data.js';
+import { CLASSES, SUPPORTS } from '../js/data.js';
 import { validateSkillDef, defaultSlots, CAT_SLOTS, GCD_CATS } from '../js/skill-defs.js';
 import { resolveSkill, rankBase, skillRank, isKnown, knownRankMap, supportFits, supportSockets, validSupports,
   SUPPORT_MOD, fitsSlot, cooldownWithMassacre, GCD, TALENT_SKILL_REQ } from '../js/skill-resolve.js';
@@ -70,29 +71,35 @@ assert.ok(approx(prof.coef, tb.coef * (1 + 0.1 * (r - 1))), 'coef × (1 + 0,10·
 assert.equal(prof.cost, tb.cost); assert.ok(approx(prof.cd, tb.cd)); assert.equal(prof.gcd, true);
 assert.ok(prof.tags.has('spender') && prof.tags.has('physical') && prof.tags.has('area'));
 assert.equal(resolveSkill(g, tb), prof, 'cacheado en p.resolved');
-// ramas: Brutal (+45 daño, +20 % CD) y Furibundo (gen)
-g.skillMods = { torbellino: { torbellino_o: 'torbellino_o1', torbellino_f: 'torbellino_f3' } };
+// forja: Mejora (+45 daño, +20 % CD) y variante i (gen 16) sobre una copia de la clase
+const line = 'prueba';
+const FORGE_TB = { torbellino: { mejora: { name: 'Brutal', line, mod: { dmg: 45, cdr: -20 } }, vars: [
+  { id: 'torbellino_i', name: 'Furibundo', role: 'UNI', line, mod: { gen: 16 } },
+  { id: 'torbellino_ii', name: 'Amplio', role: 'AREA', line, mul: { radius: 1.5 } }] } };
+g.cls = { ...g.cls, forge: FORGE_TB };
+g.skillForge = { torbellino: 'i' };
 g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.addPct, 45); assert.ok(approx(prof.cd, tb.cd * 1.2)); assert.equal(prof.gen, 16);
+assert.ok(prof.mejora && prof.variant === 'i', 'perfil con el estado de la forja');
 // soportes por tags: Amplificado (+30 aditivo), Sobrecarga (+50, coste ×1,4); Multiproyectil NO encaja (no es proj)
 g.supports = { torbellino: ['multi', 'amplify', 'overcharge'] };
 g.recompute();
 prof = resolveSkill(g, tb);
 assert.deepEqual(prof.sups, ['amplify', 'overcharge'], 'los incompatibles se ignoran; máx. 2 huecos');
-assert.equal(prof.addPct, 45 + 30 + 50, 'saco ADITIVO: ramas + soportes');
+assert.equal(prof.addPct, 45 + 30 + 50, 'saco ADITIVO: forja + soportes');
 assert.equal(prof.cost, Math.round(tb.cost * 1.4));
 g.supports = { torbellino: ['efficient', 'swift'] }; g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.cost, Math.round(tb.cost * 0.65)); assert.ok(approx(prof.cd, tb.cd * (1 - (30 - 20) / 100)), 'Raudo suma CDR al número único');
-// CDR del héroe topada a 50 (stat + ramas + soportes)
+// CDR del héroe topada a 50 (stat + forja + soportes)
 g.equipment.helm = { kind: 'item', slot: 'helm', affixes: { cdr: 90 }, quality: 0 }; g.recompute();
 prof = resolveSkill(g, tb);
 assert.ok(approx(prof.cd, tb.cd * (1 - CAPS.cdr / 100)), 'CDR tope 50');
 assert.ok(approx(cooldownWithMassacre({ ...prof, cdrPts: 20 }), tb.cd * (1 - 45 / 100)), 'Masacre suma 25 puntos de CDR');
 g.equipment.helm = null;
 // talentos: mod de la habilidad + costRed / costRedBig
-g.supports = {}; g.skillMods = {};
+g.supports = {}; g.skillForge = {}; g.cls = CLASSES.guerrero;
 g.talentExtra = { powers: new Set(), mods: { torbellino: { dmg: 10, radius: 20 } }, skillLv: {}, grants: new Set(), tv: { costRed: 10, costRedBig: { pct: 15, over: 9 } } };
 g.recompute();
 prof = resolveSkill(g, tb);
@@ -102,7 +109,7 @@ assert.equal(prof.cost, Math.round(tb.cost * (1 - 25 / 100)), 'costRed + costRed
 g.talentExtra = null; g.supports = { torbellino: ['echo', 'bleed'] }; g.recompute();
 prof = resolveSkill(g, tb);
 assert.equal(prof.echo, 0.5); assert.equal(prof.dot, 'bleed'); assert.equal(prof.cost, Math.round(tb.cost * 1.6));
-console.log('Fusión: rango → ramas → talentos → soportes → CDR/costRed (aditivo por clave, topes) ✓');
+console.log('Fusión: rango → forja → talentos → soportes → CDR/costRed (aditivo por clave, topes) ✓');
 
 // ② poderes: multidisparo solo suma proyectil a habilidades con tag proj
 const a = new Player(mk(), 'arquera'); a.level = 20;
@@ -141,10 +148,12 @@ console.log('Soportes por tags (requires/forbids) y huecos por categoría ✓');
 // ------------------------------------------------ 5) caché e invalidación
 const c = new Player(mk(), 'maga'); c.level = 10; c.recompute();
 const bf = sk('maga', 'bola_fuego');
+c.cls = { ...c.cls, forge: { bola_fuego: { mejora: null, vars: [
+  { id: 'bola_fuego_i', name: 'Ígnea', role: 'UNI', line, mod: { dmg: 45 } }, { id: 'bola_fuego_ii', name: 'x', role: 'AREA', line, mul: { radius: 2 } }] } } };
+c.recompute();
 const p1 = resolveSkill(c, bf);
-c.skillMods = { bola_fuego: { bola_fuego_o: 'bola_fuego_o1' } };
+c.skillForge = { bola_fuego: 'i' };
 assert.equal(resolveSkill(c, bf), p1, 'sin recompute sigue cacheado');
 c.recompute();
-assert.equal(resolveSkill(c, bf).addPct, 45, 'recompute invalida p.resolved');
-assert.ok(Object.keys(SKILL_MODS).length >= 25);
+assert.equal(resolveSkill(c, bf).addPct, 45, 'recompute invalida p.resolved (cambio de forja)');
 console.log('\n✅ RESOLVEDOR DE HABILIDADES (resolveSkill) OK');
