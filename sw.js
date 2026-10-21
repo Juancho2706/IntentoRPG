@@ -34,6 +34,7 @@ const ASSETS = [
   './js/rng.js',
   './js/timers.js',
   './js/save-schema.js',
+  './js/materials.js',
   './js/combat-math.js',
   './js/skill-defs.js',
   './js/skill-resolve.js',

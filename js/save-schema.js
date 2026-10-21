@@ -28,7 +28,7 @@ import { supportFits, supportSockets } from './skill-defs.js';
 import * as SR from './skill-resolve.js';
 import { normalizeTalents, aggregateTalents, buildRanks, findSpec, defaultBuildKey, talentTreesFor,
   LEVEL_MAX, TALENT_RULES, TALENTS_TRIMMED_NOTICE } from './talents.js';
-import { canAddMaterial } from './entities.js';
+import { canAddMaterial } from './materials.js';   // hoja: sin ciclo con entities.js
 import { MAGA_LEGACY } from './save-legacy-maga.js';
 import { GUERRERO_LEGACY } from './save-legacy-guerrero.js';
 import { ARQUERA_LEGACY } from './save-legacy-arquera.js';

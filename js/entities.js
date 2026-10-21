@@ -4,14 +4,13 @@
 import * as THREE from 'three';
 import { CLASSES, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 // Paso 2c.0: talentos y especialización (sustituyen a las maestrías)
-import { aggregateTalents, normalizeTalents } from './talents.js';
-// talentsTrimmed / TALENTS_TRIMMED_NOTICE solo existen en talents.js v2 (W1): se leen opcionales
-import * as talentsApi from './talents.js';
+import { aggregateTalents, normalizeTalents, talentsTrimmed, TALENTS_TRIMMED_NOTICE } from './talents.js';
 // Paso 2 (E0.3): experiencia, subida de nivel y sus avisos (Player.gainXP delega)
 import { gainXP as progressionGainXP } from './progression.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
 import { migrateSave, serializePlayer } from './save-schema.js';
+import { MAX_MATERIALS, PROGRESS_MATERIAL_KINDS, materialStackKey, materialSlotsUsed, canAddMaterial } from './materials.js';
 import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
   condAddPct, condCritPct, dotProfile, healScaled,
@@ -114,42 +113,9 @@ function forgeSig(p) {
   return s;
 }
 
-// Tope de la bolsa de materiales, en HUECOS (no en objetos):
-//  - las gemas/runas idénticas se APILAN (un hueco por pila, contador en la UI);
-//  - los materiales de PROGRESO (llaves de grieta, fragmentos, glifos) no ocupan
-//    hueco: nunca quedan bloqueados por el tope.
-// El array p.materials sigue guardando un objeto por unidad (compatibilidad con
-// cubo/engarce/consumo por índice); el apilado es lógico → saves viejos válidos.
-export const MAX_MATERIALS = 60;
-export const PROGRESS_MATERIAL_KINDS = ['riftkey', 'fragment', 'glyph'];
-
-// clave de pila: dos gemas/runas con la misma clave son idénticas (null = no apila)
-export function materialStackKey(it) {
-  if (!it) return null;
-  if (it.kind === 'gem') return `gem|${it.gemId}|${it.ilvl}|${JSON.stringify(it.stats || {})}`;
-  if (it.kind === 'rune') return `rune|${it.runeId}|${JSON.stringify(it.stats || {})}`;
-  return null;
-}
-
-// huecos ocupados de la bolsa (pilas de gemas/runas + otros; progreso no cuenta)
-export function materialSlotsUsed(mats) {
-  const keys = new Set();
-  let n = 0;
-  for (const it of mats || []) {
-    if (it && PROGRESS_MATERIAL_KINDS.includes(it.kind)) continue;
-    const k = materialStackKey(it);
-    if (k) { if (!keys.has(k)) { keys.add(k); n++; } } else n++;
-  }
-  return n;
-}
-
-// ¿cabe este material en la bolsa? (sin item → ¿hay algún hueco libre?)
-export function canAddMaterial(mats, item = null) {
-  if (item && PROGRESS_MATERIAL_KINDS.includes(item.kind)) return true;
-  const k = materialStackKey(item);
-  if (k && (mats || []).some(m => materialStackKey(m) === k)) return true; // se apila
-  return materialSlotsUsed(mats) < MAX_MATERIALS;
-}
+// Bolsa de materiales: vive en js/materials.js (hoja sin imports; save-schema la usa sin
+// formar ciclo con este archivo) y se reexporta aquí para sus importadores de siempre
+export { MAX_MATERIALS, PROGRESS_MATERIAL_KINDS, materialStackKey, materialSlotsUsed, canAddMaterial };
 
 // Esquiva: duración corta y pico de velocidad alto con ease-out (recorre ~3.4u)
 const DASH_DUR = 0.26;
@@ -568,10 +534,7 @@ export class Player {
     // avisos de carga (la migración v4 deja 'talentos'); los muestra Game y se vacían
     this.notices = Array.isArray(this.notices) ? this.notices : [];
     // §3.2: un árbol ilegal al nivel que normalizeTalents vació deja el aviso 'talentos-recortados'
-    if ((talentsApi.talentsTrimmed?.(this.talents) || []).length) {
-      const id = talentsApi.TALENTS_TRIMMED_NOTICE || 'talentos-recortados';
-      if (!this.notices.includes(id)) this.notices.push(id);
-    }
+    if (talentsTrimmed(this.talents).length && !this.notices.includes(TALENTS_TRIMMED_NOTICE)) this.notices.push(TALENTS_TRIMMED_NOTICE);
     // eras (temporada local): estado por semana; títulos cosméticos obtenidos
     this.era = this.era && typeof this.era === 'object' ? this.era : null;
     this.titles = Array.isArray(this.titles) ? this.titles : [];

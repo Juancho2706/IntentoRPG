@@ -38,7 +38,7 @@
 //   hero:{ specId:{ tree, nodes:{treeId:{…}}, choice:{treeId:{…}} } }, loadouts:{ specId:[…] } }
 //   Los nodos gratis (clave de especialización y de héroe) NO se guardan.
 import { CLASSES, specKitOf } from './data.js';
-import { mergeMods } from './skill-defs.js';
+import { mergeMods, NUCLEO_TV_KEYS } from './skill-defs.js';
 import { MAGA_TALENTS } from './talents-maga.js';
 import { GUERRERO_TALENTS } from './talents-guerrero.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
@@ -277,16 +277,19 @@ export function nodeDesc(node, r, choice) {
 // fusión de modificadores: reglas de skill-defs.mergeMods (máximos, sumas y booleanos)
 export function mergeSkillMods(out, add) { return mergeMods(out, add); }
 
-// claves tv que lee el NÚCLEO (combat-math.condAddPct/condCritPct/dotProfile, recompute,
-// poder común nucleo_tv, resolveSkill, game-skills). Las de una sola clase van en
-// <CLASE>_TV_KEYS (talents-<clase>.js); tests/test78 lo comprueba
+// claves tv que lee el NÚCLEO (combat-math.condAddPct/condCritPct/dotProfile/ccDuration,
+// recompute, poder común nucleo_tv, resolveSkill, game-skills). Las de nucleo_tv salen de
+// NUCLEO_TV_KEYS (skill-defs.js, fuente única con powers-common). Las de una sola clase van
+// en <CLASE>_TV_KEYS (talents-<clase>.js); tests/test78 exige que cada una se lea en js/ común
 export const CORE_TV_KEYS = Object.freeze([
   'critDmg', 'dmgReduc',
   'eliteDmg', 'slowedDmg', 'highHpDmg', 'lowHpDmg', 'highManaDmg', 'preyDmg', 'explodedDmg', 'executeDmg', 'burningCrit',
-  'dotPct', 'bleedPct', 'poisonPct', 'burnPct', 'dotDur', 'burnDur',
-  'killHeal', 'manaOnKill', 'burnKillHeal', 'burnKillMana', 'bleedKillHeal', 'bleedKillMana', 'executePct',
-  'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus', 'shatterPct',
+  'dotPct', 'bleedPct', 'poisonPct', 'burnPct', 'dotDur', 'burnDur', 'shatterPct',
   'costRed', 'costRedBig', 'barrierDr',
+  // Paso 2 (docs/paso2-claves-w2.md): duraciones de control y de Sangrado, condiciones de los
+  // verbos en condAddPct (plantado, marcado, detonado) y velocidad de carga (resolveSkill)
+  'bleedDur', 'ccDurPct', 'freezeDur', 'plantedDmg', 'markedDmg', 'detonateDmg', 'chargeSpeed',
+  ...NUCLEO_TV_KEYS,
 ]);
 
 // ------------------------------------------------------------ selectores (§3.8)

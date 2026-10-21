@@ -26,6 +26,7 @@ import { cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
 import * as T from '../js/talents.js';
 import * as SD from '../js/skill-defs.js';
 import { POWER_HOOKS } from '../js/powers.js';
+import { CRIT_CDR_TV_KEYS, usesCoreTv } from '../js/powers-common.js';
 import { CLASSES, SPEC_BAR, specKitOf } from '../js/data.js';
 import * as TM from '../js/talents-maga.js';
 import * as TG from '../js/talents-guerrero.js';
@@ -66,13 +67,27 @@ const num = id => +String(id).replace(/^\D+/, '');
 const isFn = v => typeof v === 'function';
 
 // ------------------------------------------------ claves tv del núcleo: cada una se lee en un archivo común
+// Por nombre (tv.x / tv?.x), por el sufijo dinámico de dotProfile (tv?.[kind + 'Pct']) o POR TABLA:
+// nucleo_tv recorre CRIT_CDR_KEYS y lee tv[clave] (las claves de esa tabla: CRIT_CDR_TV_KEYS).
 {
   const dir = new URL('../js/', import.meta.url);
   const shared = readdirSync(dir).filter(f => f.endsWith('.js') && !/-(maga|guerrero|arquera)\.js$/.test(f) && f !== 'talents.js');
   const src = shared.map(f => readFileSync(new URL(f, dir), 'utf8')).join('\n');
   const read = new Set([...src.matchAll(/\btv\??\.([A-Za-z_]\w*)/g)].map(m => m[1]));
   const dynamicPct = /tv\?\.\[kind \+ 'Pct'\]/.test(src);
-  for (const k of T.CORE_TV_KEYS) assert.ok(read.has(k) || (dynamicPct && /^(bleed|poison|burn)Pct$/.test(k)), `CORE_TV_KEYS: «${k}» no lo lee ningún archivo común de js/`);
+  const pcSrc = readFileSync(new URL('powers-common.js', dir), 'utf8');
+  const tableLoop = /for \(const \[(\w+)[^\]]*\] of Object\.entries\(CRIT_CDR_KEYS\)\)[\s\S]{0,300}?\btv\[\1\]/.test(pcSrc);
+  assert.ok(tableLoop, 'nucleo_tv debe leer su tabla CRIT_CDR_KEYS con tv[clave] (si no, sus claves no se leen en ningún sitio)');
+  const byTable = new Set(CRIT_CDR_TV_KEYS);
+  assert.ok(byTable.size >= 4 && byTable.has('critFireCdr'), `CRIT_CDR_TV_KEYS: ${[...byTable]}`);
+  const isRead = k => read.has(k) || byTable.has(k) || (dynamicPct && /^(bleed|poison|burn)Pct$/.test(k));
+  for (const k of T.CORE_TV_KEYS) assert.ok(isRead(k), `CORE_TV_KEYS: «${k}» no lo lee ningún archivo común de js/`);
+  assert.ok(!isRead('tvInventadaXyz'), 'la comprobación de lectura rechaza una clave que nadie lee');
+  // fuente única: NUCLEO_TV_KEYS ⊂ CORE_TV_KEYS, y toda clave de la tabla activa nucleo_tv (si no,
+  // recompute no añadiría el poder y la clave no haría nada)
+  for (const k of SD.NUCLEO_TV_KEYS) assert.ok(T.CORE_TV_KEYS.includes(k), `NUCLEO_TV_KEYS: «${k}» fuera de CORE_TV_KEYS`);
+  for (const k of byTable) assert.ok(SD.NUCLEO_TV_KEYS.includes(k) && usesCoreTv({ [k]: 1 }), `«${k}» (tabla de nucleo_tv) debe activar el poder nucleo_tv`);
+  assert.equal(new Set(T.CORE_TV_KEYS).size, T.CORE_TV_KEYS.length, 'CORE_TV_KEYS sin repetidos');
 }
 
 // ------------------------------------------------ el comprobador

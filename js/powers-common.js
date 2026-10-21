@@ -14,6 +14,7 @@ import { volatileDamage } from './combat-math.js';
 import { dealProcDamage, powerState } from './powers.js';
 import { gaugeValue } from './spec-mechanics.js';
 import { gainResource } from './resources.js';
+import { NUCLEO_TV_KEYS } from './skill-defs.js';   // módulo sin imports: no forma ciclo
 // definición FORJADA de una habilidad (elemento real tras la forja): la caché que deja
 // resolveSkill (p.forged / p.resolved). Sin importar skill-resolve.js: resources.js →
 // powers.js → aquí → skill-resolve → data.js formaría un ciclo con RESOURCE_DEFS sin iniciar.
@@ -53,27 +54,25 @@ const forgedDef = (p, sk) => p.forged?.[sk.id]?.def || p.resolved?.[sk.id]?.def 
 // focusRate, focusEnergy, galeHeal, galeEnergy, fervorChance), resolveSkill (costRed…),
 // dotProfile (bleedPct, dotDur…) o la activa que las usa (barrierDr, verdictHeal…).
 export const CORE_TV_POWER = 'nucleo_tv';
-function coreTvKeys() {
-  return ['killHeal', 'manaOnKill', 'burnKillHeal', 'burnKillMana', 'bleedKillHeal', 'bleedKillMana',
-    'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus',
-    'perfectCdrAll', 'critFrostCdr', 'critCdrAll', 'basicCritCdr', 'dartCritCdr', 'drLowHp', 'frozenKillHeal', 'frozenKillMana'];
-}
+// la lista de claves es NUCLEO_TV_KEYS (skill-defs.js, fuente única que comparte talents.CORE_TV_KEYS)
 // umbral de vida de tv.drLowHp
 export const DR_LOW_HP_FRAC = 0.4;
-// crítico directo → enfriamientos (claves tv del núcleo): qué habilidades acorta cada clave
+// crítico directo → enfriamientos (claves tv del núcleo): qué habilidades acorta cada clave.
+// nucleo_tv las lee POR TABLA (tv[clave]); test78 acepta como leídas las de CRIT_CDR_TV_KEYS
 const CRIT_CDR_KEYS = {
   critFireCdr: { hit: h => h.elem === 'fire', sk: d => d.elem === 'fire' },
   critFrostCdr: { hit: h => h.elem === 'frost', sk: d => d.elem === 'frost' },
   critCdrAll: { hit: () => true, sk: () => true },
   basicCritCdr: { hit: h => hasTag(h, 'basic'), sk: d => d.cat === 'movement' || d.cat === 'defense' },
 };
+export const CRIT_CDR_TV_KEYS = Object.freeze(Object.keys(CRIT_CDR_KEYS));
 function hasTag(hit, t) {
   const tags = hit?.tags;
   return !!(tags && (tags instanceof Set ? tags.has(t) : Array.isArray(tags) && tags.includes(t)));
 }
 export function usesCoreTv(tv) {
   if (!tv) return false;
-  for (const k of coreTvKeys()) if (tv[k]) return true;
+  for (const k of NUCLEO_TV_KEYS) if (tv[k]) return true;
   return false;
 }
 // ¿murió REMATADO? (normal ejecutado por Ejecutar, o élite/jefe golpeado bajo el umbral)

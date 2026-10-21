@@ -1,11 +1,6 @@
 {
   "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Inventario de E0.1: suites que se van a romper, con su dueño y etapa. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9).",
   "suites": {
-    "test56-hotfixes.mjs": {
-      "owner": "I",
-      "stage": "E1.5",
-      "por": "bloque «6/8/9) básico a distancia» (p.skillMods) a borrar: lo cubre test82 §11 sobre la forja"
-    },
     "test68-sustento-debilidad.mjs": {
       "owner": "KT-guerrero",
       "stage": "E2",
@@ -20,11 +15,6 @@
       "owner": "KA-guerrero · KA-maga",
       "stage": "E2",
       "por": "arnés Nv20 con guardian/crionte"
-    },
-    "test43-mixins.mjs": {
-      "owner": "I",
-      "stage": "E1.5",
-      "por": "métodos nuevos de los mixins"
     },
     "test75-gaugeview-v2.mjs": {
       "owner": "I · KT",
@@ -105,11 +95,6 @@
       "owner": "KA-arquera · KT×3",
       "stage": "E2",
       "por": "p.cds escrito en skills-arquera.js (301, 308, 309), powers-arquera.js (281, 806, 851, 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
-    },
-    "test78-talentos-datos-v2.mjs": {
-      "owner": "I",
-      "stage": "E1.5",
-      "por": "integración W1×W2: la comprobación «CORE_TV_KEYS se lee en un archivo común» no ve las claves que powers-common lee por tabla (CRIT_CDR_KEYS)"
     },
     "test84-movimiento-cc.mjs": {
       "owner": "I",

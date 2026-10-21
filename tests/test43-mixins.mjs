@@ -73,9 +73,11 @@ if (zlKeys.length !== ZONELIFE_EXPECTED.length) {
 console.log(`zoneLifeMethods exporta los ${ZONELIFE_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
 // Paso 2c.0: game-talents.js sustituye a game-mastery.js (§5.4)
+// Paso 2 (W1, §3.4): árbol héroe, builds («Recomendado») y configuraciones por especialización
 const TALENT_EXPECTED = ['canEditTalents', '_talentMutate', 'onTalentsChanged', 'chooseSpec', 'switchSpec',
-  'addTalentRank', 'removeTalentRank', 'chooseTalentOption', 'applyTalentPreset', 'resetTalentTree',
-  'exportTalentCode', 'importTalentCode', 'talentPointsInfo', 'toggleTalentChoice'];
+  'chooseHeroTree', 'addTalentRank', 'removeTalentRank', 'chooseTalentOption', 'toggleTalentChoice',
+  'applyTalentBuild', 'applyTalentPreset', 'saveTalentLoadout', 'applyTalentLoadout', 'renameTalentLoadout',
+  'deleteTalentLoadout', 'resetTalentTree', 'exportTalentCode', 'importTalentCode', 'talentPointsInfo'];
 const tKeys = Object.keys(talentMethods);
 for (const m of TALENT_EXPECTED) {
   if (typeof talentMethods[m] !== 'function') throw new Error('falta método de talentos o no es función: ' + m);
@@ -103,16 +105,43 @@ const SKILLS_EXPECTED = [
   'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',
   // Paso 2c.2: ⑫ daño a aliados y API de DoT (⑬ onDotEnd)
   'damageAlly', 'dotsOf', 'hasDoT', 'dotRemaining', 'consumeDoT', 'replaceDoT', 'onDotEnd',
+  // Paso 2 (W2, §3.6–§3.7): forja, canal ampliado, enfriamientos con cargas, relanzar, combo,
+  // secuencia, postura, marcas, cargar y soltar, botones mantenidos (D27) y ⑭ onSkillEnd
+  'chooseForge', '_autoShot', 'extendChannel', 'basicTensable', '_skillReady', '_makeCtx', '_arrive', '_startPulses',
+  '_startCooldown', '_syncCharges', 'reduceCooldown', 'resetCooldowns', '_recastCommit', '_recastAfter', '_endRecast',
+  '_advanceCombo', 'setComboStep', 'seqAdvance', 'setSeqCount', '_castStance', '_endStance', 'stanceOf', 'setStanceBoth',
+  'activeStanceModes', 'applyMark', 'marksOf', 'detonateMark', 'markDetonation', '_beginCharge', '_chargeSpeed',
+  'releaseSkillSlot', '_endCharge', '_releaseWith', 'heldSlotBusy', 'pumpHeldSlots', 'tickSkillVerbs', 'keepsPlanted',
+  '_skillEnd', 'cancelHeld',
 ];
 const skKeys = Object.keys(skillMethods);
 for (const m of SKILLS_EXPECTED) if (typeof skillMethods[m] !== 'function') throw new Error('falta método de skills o no es función: ' + m);
 if (skKeys.length !== SKILLS_EXPECTED.length) throw new Error(`skillMethods tiene ${skKeys.length} métodos, esperaba ${SKILLS_EXPECTED.length}: ${skKeys.join(', ')}`);
 console.log(`skillMethods exporta los ${SKILLS_EXPECTED.length} métodos esperados, todos funciones ✓`);
-const FIELDS_EXPECTED = ['spawnField', 'fieldsAt', 'updateFields', 'clearFields', '_expireField', '_renderField'];
+const FIELDS_EXPECTED = ['spawnField', 'fieldsAt', 'updateFields', 'clearFields', '_expireField', '_renderField',
+  // Paso 2 (W2, §3.6): campos que siguen, trampas armadas con cebo y detonación, muros
+  'fieldsOf', 'nearestOwnField', '_followField', '_recountMoveFields', 'detonateField', 'detonateAt', '_trapBurst',
+  '_spendTrap', '_logTrapBurst', 'trapBurstsWithin', 'lureStep', '_pickLure', 'constrainMove'];
 const fKeys = Object.keys(fieldMethods);
 for (const m of FIELDS_EXPECTED) if (typeof fieldMethods[m] !== 'function') throw new Error('falta método de campos o no es función: ' + m);
 if (fKeys.length !== FIELDS_EXPECTED.length) throw new Error(`fieldMethods tiene ${fKeys.length} métodos, esperaba ${FIELDS_EXPECTED.length}: ${fKeys.join(', ')}`);
 console.log(`fieldMethods exporta los ${FIELDS_EXPECTED.length} métodos esperados, todos funciones ✓`);
+
+// economía (tienda, cubo, engarce, mascota, arrastre y tablero de glifos). Paso 2 (W1, §3.9):
+// puntos del tablero derivados del nivel y glifos sueltos; respecSkills queda como stub (D23)
+const ECONOMY_EXPECTED = [
+  'ensureShopStock', 'buyShopItem', 'buyGambleItem', 'buyPet', 'petUpgradeCost', 'upgradePet', 'setPetCollar', 'switchPetKind',
+  'equipItem', 'unequipItem', 'sellItem', 'dropItem', 'addToCube', 'cubeReturn', 'addMaterialToCube', 'cubeCost', 'cubeSocketParts',
+  'socketCost', 'cubePreview', 'transmute', 'socketGem', 'enchantCost', 'enchantItem', 'masterworkCost', 'masterworkItem',
+  'respecCost', 'respecAttributes', 'canRespecFree', 'respecSkills', 'paragonBoard', 'paragonPointsInfo', 'paragonNodeReachable',
+  'allocateParagonNode', 'socketGlyph', 'unsocketGlyph', 'looseGlyphs', 'reclaimGlyph', 'reclaimLooseGlyphs', 'respecParagonCost',
+  'respecParagon', 'sellJunk', 'sortInventory', 'toggleFav', 'moveItem', 'equipToSlot', 'swapInv', 'swapMaterials', 'identifyItem',
+  'identifyAll',
+];
+const ecoKeys = Object.keys(economyMethods);
+for (const m of ECONOMY_EXPECTED) if (typeof economyMethods[m] !== 'function') throw new Error('falta método de economía o no es función: ' + m);
+if (ecoKeys.length !== ECONOMY_EXPECTED.length) throw new Error(`economyMethods tiene ${ecoKeys.length} métodos, esperaba ${ECONOMY_EXPECTED.length}: ${ecoKeys.join(', ')}`);
+console.log(`economyMethods exporta los ${ECONOMY_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
 // sin colisiones de nombres entre los nueve mixins (se aplican todos al prototype)
 const mixins = { economyMethods, enemyAbilities, endgameMethods, worldFlowMethods, zoneLifeMethods, talentMethods, eraMethods, skillMethods, fieldMethods };

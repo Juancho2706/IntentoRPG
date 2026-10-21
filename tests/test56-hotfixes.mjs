@@ -4,7 +4,7 @@
 //  3) bolsa de materiales: gemas/runas apilan; llaves/fragmentos/glifos nunca bloqueados
 //  4) la mascota recoge llaves de grieta (kind 'riftkey')
 //  5) caminos entre regiones exigen el nivel mínimo
-//  6/8/9) básico a distancia: recurso/robo/efectos SOLO al impactar (también con {pos})
+//  (6/8/9: básico a distancia con efectos solo al impactar → test82 §11, sobre la forja)
 //  7) aturdimiento con rendimientos decrecientes y regla de jefe
 //  10) Enemy.dispose libera geometrías/materiales
 //  11) los jefes con rangedChance disparan a distancia
@@ -28,10 +28,6 @@ const mk = () => ({
   spawnBurst() {}, spawnRing() {}, emitFx() {}, hitStop() {}, onEnemyKilled() {}, applyDoT() {},
   input: { joyDir: null, keyDir: null }, world: openWorld, enemies: [], projectiles: [],
   spawnProjectile(o) { this.projectiles.push(new Projectile(this, o)); },
-  stepProjectiles(sec) {
-    for (let t = 0; t < sec; t += 1 / 60)
-      for (let i = this.projectiles.length - 1; i >= 0; i--) if (this.projectiles[i].update(1 / 60)) this.projectiles.splice(i, 1);
-  },
 });
 
 // ---------------------------------------------------------------- 1) guardado
@@ -135,33 +131,6 @@ const mk = () => ({
   g.player.level = 6;
   assert(g.crossZoneExit({ biome: 'Cavernas de Hielo' }) === true && loads[0]?.biome === 'Cavernas de Hielo', 'con nivel 6 sí cruza');
   console.log('Caminos entre regiones: exigen minLevel (avisa y no cruza) ✓');
-}
-
-// ------------------------------------------------- 6/8/9) básico a distancia
-{
-  const g = mk();
-  const p = new Player(g, 'arquera'); g.player = p; p.pos.set(0, 0, 0);
-  // ramas: Sediento (robo 14%) + Quebrantar (vulnerable)
-  p.skillMods = { a_disparo: { a_disparo_f: 'a_disparo_f2', a_disparo_v: 'a_disparo_v2' } };
-  const e = new Enemy(g, scaleEnemy(pickEnemyDef(1), 1), new THREE.Vector3(0, 0, 5));
-  e.maxHP = e.hp = 99999; g.enemies = [e];
-  p.mp = 0; p.hp = 10;
-  // FALLO: dispara a un punto vacío (+x) → ni recurso, ni robo, ni efectos
-  p.basicAttack({ pos: new THREE.Vector3(6, 0, 0) });
-  assert(p.mp === 0, `el básico a distancia generó recurso sin impactar (${p.mp})`);
-  g.stepProjectiles(2);
-  assert(p.mp === 0 && p.hp === 10 && e.hp === 99999 && !(e.vulnT > 0), 'un disparo fallido no debe dar recurso/vida/efectos');
-  // ACIERTO apuntando con {pos} (esquema WASD): todo se aplica AL IMPACTAR
-  p.atkCd = 0;
-  p.basicAttack({ pos: new THREE.Vector3(0, 0, 5) });
-  assert(p.mp === 0, 'el recurso no debe llegar antes del impacto');
-  g.stepProjectiles(2);
-  const dealt = 99999 - e.hp;
-  assert(dealt > 0, 'el proyectil debía impactar');
-  assert(p.mp > 0, 'el impacto debe generar recurso');
-  assert(e.vulnT > 0, 'las ramas del básico deben aplicarse con {pos} (WASD)');
-  assert(Math.abs((p.hp - 10) - dealt * 0.14) < 0.01, `robo de vida debe ser 14% del daño infligido (${p.hp - 10} vs ${dealt * 0.14})`);
-  console.log('Básico a distancia: recurso/robo/ramas solo al impactar, también apuntando a un punto ✓');
 }
 
 // ---------------------------------------------------------------- 7) aturdir

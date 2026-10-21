@@ -104,6 +104,17 @@ export const VERB_DEFAULTS = Object.freeze({
   trapLife: 20,         // s de vida de una trampa armada sin `dur`
 });
 
+// Claves `tv` de talento que aplica el poder común `nucleo_tv` (js/powers-common.js): si el
+// agregado de talentos trae alguna, recompute añade ese poder (usesCoreTv). FUENTE ÚNICA:
+// talents.CORE_TV_KEYS las incluye y test78 exige que cada una se lea en un archivo común.
+// Vive aquí (módulo sin imports) para que powers-common y talents.js la compartan sin ciclos.
+export const NUCLEO_TV_KEYS = Object.freeze([
+  'killHeal', 'manaOnKill', 'burnKillHeal', 'burnKillMana', 'bleedKillHeal', 'bleedKillMana',
+  'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus',
+  // Paso 2 (docs/paso2-claves-w2.md §2; dartCritCdr = alias de basicCritCdr)
+  'perfectCdrAll', 'critFrostCdr', 'critCdrAll', 'basicCritCdr', 'dartCritCdr', 'drLowHp', 'frozenKillHeal', 'frozenKillMana',
+]);
+
 // Ángulo (rad, relativo a la mira) del proyectil i de n. Con abanico propio
 // (sk.spread = semiapertura) se reparte en él. Sin él (1 proyectil + Multiproyectil,
 // Doble, multidisparo) el PRIMERO va recto a la mira y los extras se alternan a

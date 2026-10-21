@@ -300,6 +300,24 @@ class Game {
     try { localStorage.removeItem(this.slotKey(i)); } catch { /* sin almacenamiento */ }
   }
 
+  // Paso 2 (§3.11): copia ÚNICA del guardado crudo anterior a v5 antes de que Player lo
+  // migre (MIGRATIONS[4] rehace talentos, forja y barra). Va en `<clave del hueco>.bak-v4`,
+  // nunca se pisa ni se borra sola. Si localStorage está lleno (3 huecos y el alijo comparten
+  // la cuota) se migra igual y se avisa por consola. Un save importado pasa por aquí al cargarlo.
+  backupBeforeV5(slot, raw, saved) {
+    const v = Number.isInteger(saved?.saveVersion) ? saved.saveVersion : 0;
+    if (v >= 5 || typeof raw !== 'string') return false;
+    const key = `${this.slotKey(slot)}.bak-v4`;
+    try {
+      if (localStorage.getItem(key) != null) return false;
+      localStorage.setItem(key, raw);
+      return true;
+    } catch (e) {
+      try { console.warn(`[save] sin espacio para el respaldo ${key}: se migra sin copia`, e); } catch { /* sin consola */ }
+      return false;
+    }
+  }
+
   // exportar/importar partida (código de texto; más adelante, guardado en la nube)
   exportSave() {
     this.save();
@@ -341,19 +359,17 @@ class Game {
     this.zoneBounties = {};
     let saved = null;
     if (pick === 'continue') {
-      try { saved = JSON.parse(localStorage.getItem(this.slotKey(slot))); } catch { saved = null; }
+      let raw = null;
+      try { raw = localStorage.getItem(this.slotKey(slot)); saved = JSON.parse(raw); } catch { saved = null; }
       if (!saved) pick = 'guerrero';
+      else this.backupBeforeV5(slot, raw, saved);
     }
     const classId = saved ? saved.classId : pick;
     this.player = new Player(this, classId, saved, opts);
     // uids de objetos: el contador arranca por encima de lo ya guardado (héroe +
     // alijo compartido + tienda en memoria) y se re-numeran duplicados viejos
     syncItemUids(this.player.toSaveData(), this.stash, this.shopStock?.items);
-    if (!saved) {
-      // las habilidades se aprenden solas por nivel (Paso 2b.0): no hay "primera gratis"
-      this.player.skillPoints = 0;
-      this.player.hardcore = !!opts.hardcore;
-    }
+    if (!saved) this.player.hardcore = !!opts.hardcore;
     this.scene.add(this.player.group);
     if (this.player.pet) this.spawnPet();
     this.state = 'play';
@@ -1532,7 +1548,13 @@ class Game {
     // (no mueres en menús; estándar en ARPG single-player). Sigue el render y el
     // ambiente para que no se vea "muerto"; la UI responde por sus propios eventos.
     const paused = this.state === 'play' && !!this.ui?.activePanel;
-    if (paused !== this._paused) { this._paused = paused; document.body.classList.toggle('paused', paused); this.ui?.updateTopBand?.(); }
+    if (paused !== this._paused) {
+      this._paused = paused;
+      // un panel abierto con el ratón no deja una carga ni un canal mantenidos (§3.6.1, sin coste)
+      if (paused) this.cancelHeld('panel');
+      document.body.classList.toggle('paused', paused);
+      this.ui?.updateTopBand?.();
+    }
     if (paused) {
       this.particles?.update(realDt, this.camera.position); // motas ambientales (estético)
       this.renderScene();
