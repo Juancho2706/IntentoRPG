@@ -1,287 +1,332 @@
 // ============================================================
-// FIXTURE de talentos (formato §5.1 de docs/paso2-diseno.md)
+// FIXTURE de talentos v2 (formato §3.1 de docs/paso2-implementacion.md)
 // ============================================================
-// Generado a partir de los mockups aprobados (D:\Proyectos\IntentoRPG-assets\
-// mockups\Talentos.dc.html y Spec-*.dc.html): TREES.cls/spec → nodos, y
-// RECOMMENDED → preset ([id, rangos, elección?]). Es SOLO para desarrollo y tests
-// del panel (tools/talents-preview.html, tests/test70-talents-ops.mjs) mientras
-// se transcriben los js/talents-<clase>.js reales; no lo importa el juego.
-// Diferencias con los reales: sin los ajustes de §5.2 y sin `skills` (grant).
+// Datos SINTÉTICOS pero completos para probar el motor v2 (js/talents.js), las operaciones
+// (js/talents-ops.js), el mixin, el código IRPG2 y la migración v4 → v5 sin depender de los
+// js/talents-<clase>.js reales (que llegan en E1.5/E2). Lo cargan los tests con
+//   import './helpers/use-talents-fixture.mjs';   (redirige js/talents-<clase>.js aquí)
+// o importándolo directamente (test78: las reglas genéricas de los datos).
+//
+// Forma (la de cualquier clase v2): árbol de clase de 30 nodos (rejilla de clase), tres
+// especializaciones de 29 (la misma rejilla), tres árboles héroe de 13 (cada especialización
+// en dos), 12 builds por clase (4 por especialización, una híbrida) y defaultBuild. La rejilla
+// es una COPIA de TV2.REJILLA (docs/mockups/data/talents-v2-comun.js): test78 la compara con
+// la del mockup, así que un error aquí se ve. Las builds son las 12 aprobadas de la Maga
+// (docs/mockups/data/talents-v2-maga.js) con los prefijos de cada clase: la legalidad de una
+// build solo depende de la rejilla.
+// Los efectos (fx) son variados a propósito: stats, tv del núcleo y de la clase, mods con
+// selectores (§3.8), skillLv, poderes (finales y ápice con rango) y activas de talento (grant).
+import { n1, pl } from '../../js/talent-text.js';
 
-export const GUERRERO_TALENTS = {
-  cls: { name: "Guerrero", preset: [ [ "c1", 2 ], [ "c2", 1 ], [ "c3", 1 ], [ "c5", 1, "B" ], [ "c6", 2 ], [ "c7", 2 ], [ "c8", 2 ], [ "c10", 3 ], [ "c13", 2 ], [ "c14", 1 ], [ "c15", 1 ] ], nodes: [
-    { "id": "c1", "name": "Fuerza de Titán", "icon": "talents/guerrero-clase-c1.webp", "t": "p", "r": 0, "c": 1.5, "max": 2, "fx": { "elem": { "phys": 4 } }, "d": "+4% de daño Físico por rango." },
-    { "id": "c2", "name": "Segundo Aliento", "icon": "talents/guerrero-clase-c2.webp", "t": "a", "r": 1, "c": 0.5, "max": 1, "req": [ "c1" ], "fx": { "grant": "g_t_aliento" }, "d": "Activa nueva: consumes toda tu Furia y te curas un 1% de vida por cada 3 de Furia gastada. Enfriamiento 30 s." },
-    { "id": "c3", "name": "Intervención", "icon": "talents/guerrero-clase-c3.webp", "t": "a", "r": 1, "c": 2.5, "max": 1, "req": [ "c1" ], "fx": { "grant": "g_t_intervencion" }, "d": "Activa nueva: saltas hasta un aliado (o 8 m hacia el cursor) y ambos ganan un escudo del 15% de tu vida durante 6 s. Enfriamiento 20 s." },
-    { "id": "c4", "name": "Piel Curtida", "icon": "talents/guerrero-clase-c4.webp", "t": "p", "r": 2, "c": 0, "max": 3, "req": [ "c2" ], "fx": { "stats": { "arm": 15 } }, "d": "+15 de armadura por rango." },
-    { "id": "c5", "name": "Conmoción o Barrido", "icon": "talents/guerrero-clase-c5.webp", "t": "c", "r": 2, "c": 1.5, "max": 1, "req": [ "c2", "c3" ], "opts": [ { "k": "A", "name": "Golpe Conmocionador", "desc": "Mandoble aturde 1 s y hace +20% de daño. Pensado para jefes y élites.", "fx": { "mod": { "g_mandoble": { "stun": 1, "dmg": 20 } } } }, { "k": "B", "name": "Barrido Amplio", "desc": "Embate gana +40% de radio y +15% de daño. Pensado para hordas.", "fx": { "mod": { "g_embate": { "radius": 40, "dmg": 15 } } } } ] },
-    { "id": "c6", "name": "Disciplina de Combate", "icon": "talents/guerrero-clase-c6.webp", "t": "p", "r": 2, "c": 3, "max": 2, "req": [ "c3" ], "fx": { "tv": { "costRed": 6 } }, "d": "Tus habilidades cuestan un 6% menos de Furia por rango." },
-    { "id": "c7", "name": "Desviar Golpes", "icon": "talents/guerrero-clase-c7.webp", "t": "p", "r": 3, "c": 0.5, "max": 2, "req": [ "c4", "c5" ], "fx": { "tv": { "dmgReduc": 4 } }, "d": "−4% de daño recibido por rango." },
-    { "id": "c8", "name": "Golpes Rápidos", "icon": "talents/guerrero-clase-c8.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "c5", "c6" ], "fx": { "stats": { "aspdPct": 5 } }, "d": "+5% de velocidad de ataque por rango." },
-    { "id": "c9", "name": "Veterano", "icon": "talents/guerrero-clase-c9.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "c7" ], "fx": { "skillLv": { "torbellino": 1, "g_martillo": 1, "g_hendidura": 1 } }, "d": "+1 nivel por rango a Torbellino, Martillo de Guerra y Hendidura." },
-    { "id": "c10", "name": "Sangre de Guerrero", "icon": "talents/guerrero-clase-c10.webp", "t": "p", "r": 4, "c": 1.5, "max": 3, "req": [ "c7", "c8" ], "fx": { "stats": { "lph": 2 } }, "d": "+2 de vida al golpear por rango." },
-    { "id": "c11", "name": "Avance Implacable", "icon": "talents/guerrero-clase-c11.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "c8" ], "fx": { "mod": { "embestida": { "cdr": 8 }, "g_salto": { "cdr": 8 } } }, "d": "−8% de enfriamiento de Embestida y Salto Devastador por rango." },
-    { "id": "c12", "name": "Bramido o Coraza", "icon": "talents/guerrero-clase-c12.webp", "t": "c", "r": 5, "c": 0.5, "max": 1, "req": [ "c9", "c10" ], "opts": [ { "k": "A", "name": "Bramido de Guerra", "desc": "Activa: +15% de vida máxima para ti y tus aliados a 15 m durante 10 s.", "active": true, "fx": { "grant": "g_t_bramido" } }, { "k": "B", "name": "Coraza de Hierro", "desc": "Al bajar del 30% de vida recibes −30% de daño durante 5 s. Una vez cada 60 s.", "fx": { "power": "g_coraza_hierro" } } ] },
-    { "id": "c13", "name": "Cazador de Campeones", "icon": "talents/guerrero-clase-c13.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "c10", "c11" ], "fx": { "tv": { "eliteDmg": 5 } }, "d": "+5% de daño contra élites y jefes por rango." },
-    { "id": "c14", "name": "Maestro de Armas", "icon": "talents/guerrero-clase-c14.webp", "t": "p", "r": 6, "c": 1.5, "max": 1, "req": [ "c12", "c13" ], "fx": { "tv": { "critDmg": 15 }, "power": "g_crit_furia" }, "d": "+15% de daño crítico. Cada crítico te da 3 de Furia." },
-    { "id": "c15", "name": "Hermandad de Armas", "icon": "talents/guerrero-clase-c15.webp", "t": "k", "r": 7, "c": 1.5, "max": 1, "req": [ "c14" ], "fx": { "power": "g_aura_hermandad" }, "d": "Grupo: tú y los aliados a 15 m ganan +5% de daño y +8% de vida máxima. Generas un 5% más de Furia por cada aliado cerca (máx. 3)." }
-  ] },
-  specs: [
-    { ...{ "id": "berserker", "name": "Berserker", "role": "dps", "roleLabel": "Daño cuerpo a cuerpo", "icon": "specs/berserker.webp", "emblem": "emblems/berserker.webp", "mechanic": "sed" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s6", 1, "A" ], [ "s7", 2 ], [ "s8", 2 ], [ "s9", 1 ], [ "s11", 2 ], [ "s14", 1 ], [ "s16", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Sed de Batalla", "icon": "talents/guerrero-berserker-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_berserk" }, "d": "Nodo clave (gratis): con menos del 40% de vida haces +40% de daño. Perder vida y desangrar enemigos llena tu Sed." },
-      { "id": "s1", "name": "Ira Creciente", "icon": "talents/guerrero-berserker-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "elem": { "phys": 5 } }, "d": "+5% de daño Físico por rango." },
-      { "id": "s2", "name": "Frenesí", "icon": "talents/guerrero-berserker-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "stats": { "aspdPct": 5 } }, "d": "+5% de velocidad de ataque por rango." },
-      { "id": "s3", "name": "Heridas Profundas", "icon": "talents/guerrero-berserker-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "mod": { "torbellino": { "dot": "bleed" }, "g_hendidura": { "dot": "bleed" } }, "tv": { "bleedPct": 15 } }, "d": "Torbellino y Hendidura aplican Sangrado. +15% de daño de Sangrado por rango." },
-      { "id": "s4", "name": "Remolino Sangriento", "icon": "talents/guerrero-berserker-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "g_t_remolino" }, "d": "Activa nueva: giras 3 s desangrando a todo lo que tocas. Cada enemigo golpeado suma 4 de Sed. Cuesta 30 de Furia." },
-      { "id": "s5", "name": "Instinto Asesino", "icon": "talents/guerrero-berserker-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "stats": { "crit": 3 } }, "d": "+3% de probabilidad de crítico por rango. Cada crítico suma 2 de Sed." },
-      { "id": "s6", "name": "Carnicería o Duelista", "icon": "talents/guerrero-berserker-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Carnicería", "desc": "Remolino Sangriento: +40% de radio y el Sangrado salta a 2 cercanos. Para hordas.", "fx": { "mod": { "g_t_remolino": { "radius": 40, "chain": 2 } } } }, { "k": "B", "name": "Duelista", "desc": "Mandoble deja al objetivo vulnerable 4 s (+20% de daño recibido). Para jefes.", "fx": { "mod": { "g_mandoble": { "vuln": 4 } } } } ] },
-      { "id": "s7", "name": "Golpe Salvaje", "icon": "talents/guerrero-berserker-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "mod": { "g_mandoble": { "dmg": 12 } } }, "d": "+12% de daño de Mandoble por rango." },
-      { "id": "s8", "name": "Festín de Sangre", "icon": "talents/guerrero-berserker-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "killHeal": 2 } }, "d": "Matar a un enemigo que sangra te cura un 2% de vida por rango." },
-      { "id": "s9", "name": "Temeridad", "icon": "talents/guerrero-berserker-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "g_t_temeridad" }, "d": "Activa nueva: durante 10 s ganas +25% de crítico y tu Sed se llena el doble de rápido, pero recibes +10% de daño. Enfriamiento 90 s." },
-      { "id": "s10", "name": "Arsenal Brutal", "icon": "talents/guerrero-berserker-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "torbellino": { "dmg": 10 }, "g_hendidura": { "dmg": 10 } } }, "d": "+10% de daño de Torbellino y Hendidura por rango." },
-      { "id": "s11", "name": "Umbral del Dolor", "icon": "talents/guerrero-berserker-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "tv": { "dmgReduc": 4 } }, "d": "−4% de daño recibido por rango. El dolor solo te enfurece más." },
-      { "id": "s12", "name": "Ritmo de Matanza", "icon": "talents/guerrero-berserker-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "mod": { "g_t_remolino": { "cdr": 12 }, "g_t_temeridad": { "cdr": 12 } } }, "d": "−12% de enfriamiento de Remolino Sangriento y Temeridad por rango." },
-      { "id": "s13", "name": "Negación o Ira Ciega", "icon": "talents/guerrero-berserker-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Negación de la Muerte", "desc": "Una vez cada 2 minutos, un golpe letal te deja con 1 de vida y la Sed llena.", "fx": { "power": "g_negacion" } }, { "k": "B", "name": "Ira Ciega", "desc": "Activa: 6 s de +30% de daño e inmune a aturdimientos. Cuesta un 10% de vida.", "active": true, "fx": { "grant": "g_t_ira_ciega" } } ] },
-      { "id": "s14", "name": "Sangre Hirviente", "icon": "talents/guerrero-berserker-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "g_desenfreno" }, "d": "Con la Sed llena entras en Desenfreno 8 s: +30% de velocidad de ataque y cada golpe te cura un 1% de vida." },
-      { "id": "s15", "name": "Sed Insaciable", "icon": "talents/guerrero-berserker-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "tv": { "manaOnKill": 4 } }, "d": "+4 de Furia por rango cada vez que muere un enemigo que sangra." },
-      { "id": "s16", "name": "Torbellino de Acero", "icon": "talents/guerrero-berserker-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "mod": { "torbellino": { "radius": 15, "dmg": 8 } } }, "d": "+15% de radio y +8% de daño de Torbellino por rango." },
-      { "id": "s17", "name": "Golpes Despiadados", "icon": "talents/guerrero-berserker-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "tv": { "critDmg": 12 } }, "d": "+12% de daño crítico por rango." },
-      { "id": "x1", "name": "Ejecutar", "icon": "talents/guerrero-berserker-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "tv": { "executePct": 20 } }, "d": "Apex I: rematas al instante a los enemigos normales bajo el 20% de vida. Contra élites y jefes, +40% de daño bajo ese umbral." },
-      { "id": "x2", "name": "Carnicero", "icon": "talents/guerrero-berserker-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "power": "g_carnicero" }, "d": "Apex II: cada remate suma 15 de Sed por rango y te devuelve 10 de Furia." },
-      { "id": "x3", "name": "Matanza Eterna", "icon": "talents/guerrero-berserker-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "g_matanza_eterna" }, "d": "Apex III (cúspide): rematar durante el Desenfreno lo alarga 2 s, sin límite." }
-    ] },
-    { ...{ "id": "guardian", "name": "Guardián", "role": "tank", "roleLabel": "Tanque de grupo", "icon": "specs/guardian.webp", "emblem": "emblems/guardian.webp", "mechanic": "bastion" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s5", 1 ], [ "s6", 1, "A" ], [ "s8", 2 ], [ "s9", 1 ], [ "s11", 2 ], [ "s13", 1, "B" ], [ "s14", 1 ], [ "s17", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Muro Inquebrantable", "icon": "talents/guerrero-guardian-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_aegis" }, "d": "Nodo clave (gratis): un golpe letal te deja a 1 de vida e inmune 2 s (recarga 30 s). Bloquear golpes te da cargas de Bastión." },
-      { "id": "s1", "name": "Baluarte", "icon": "talents/guerrero-guardian-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "stats": { "arm": 25 } }, "d": "+25 de armadura por rango." },
-      { "id": "s2", "name": "Fortaleza", "icon": "talents/guerrero-guardian-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "stats": { "hp": 40 } }, "d": "+40 de vida máxima por rango." },
-      { "id": "s3", "name": "Púas de Hierro", "icon": "talents/guerrero-guardian-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "stats": { "thorns": 10 } }, "d": "+10 de daño de espinas por rango." },
-      { "id": "s4", "name": "Grito Desafiante", "icon": "talents/guerrero-guardian-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "g_t_desafio" }, "d": "Activa nueva: provocas a todos los enemigos a 10 m durante 4 s y ganas 2 cargas de Bastión. Enfriamiento 12 s." },
-      { "id": "s5", "name": "Guardia Alta", "icon": "talents/guerrero-guardian-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "tv": { "dmgReduc": 3 } }, "d": "−3% de daño recibido por rango." },
-      { "id": "s6", "name": "Cerco o Reto", "icon": "talents/guerrero-guardian-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Cerco", "desc": "Grito Desafiante: +50% de radio y ralentiza 3 s a los provocados. Para hordas.", "fx": { "mod": { "g_t_desafio": { "radius": 50, "slow": 3 } } } }, { "k": "B", "name": "Reto Singular", "desc": "Provocación marca a un enemigo: −20% de daño a tu grupo durante 8 s. Para jefes.", "fx": { "power": "g_reto" } } ] },
-      { "id": "s7", "name": "Martillo Pesado", "icon": "talents/guerrero-guardian-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "mod": { "g_martillo": { "dmg": 15 } } }, "d": "+15% de daño de Martillo de Guerra por rango. Si golpea a 3 o más, suma 1 carga de Bastión." },
-      { "id": "s8", "name": "Recuperación", "icon": "talents/guerrero-guardian-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "killHeal": 1.5 } }, "d": "Matar a un enemigo te cura un 1.5% de vida por rango." },
-      { "id": "s9", "name": "Muro de Escudos", "icon": "talents/guerrero-guardian-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "g_t_muro" }, "d": "Activa nueva: gastas todas tus cargas de Bastión y recibes −10% de daño por carga durante 8 s (máx. −50%). Enfriamiento 25 s." },
-      { "id": "s10", "name": "Sacudida", "icon": "talents/guerrero-guardian-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "terremoto": { "dmg": 10, "stun": [ 1, 1 ] } } }, "d": "+10% de daño de Terremoto por rango. Con 1 rango, aturde 1 s." },
-      { "id": "s11", "name": "Coloso", "icon": "talents/guerrero-guardian-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "stats": { "hp": 50, "arm": 15 } }, "d": "+50 de vida máxima y +15 de armadura por rango." },
-      { "id": "s12", "name": "Réplica", "icon": "talents/guerrero-guardian-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "mod": { "g_tajo": { "dmg": 8 }, "g_martillo": { "dmg": 8 } } }, "d": "+8% de daño de Tajo y Martillo de Guerra por rango." },
-      { "id": "s13", "name": "Juramento o Carga", "icon": "talents/guerrero-guardian-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Juramento del Escudo", "desc": "Muro Inquebrantable se recarga en 20 s en lugar de 30 s. Más seguro.", "fx": { "power": "g_juramento" } }, { "k": "B", "name": "Carga de Escudo", "desc": "Activa: cargas 8 m arrastrando enemigos y los aturdes 1.5 s. Enfriamiento 14 s.", "active": true, "fx": { "grant": "g_t_carga" } } ] },
-      { "id": "s14", "name": "Vínculo del Guardián", "icon": "talents/guerrero-guardian-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "g_vinculo" }, "d": "Grupo: recibes tú el 20% del daño que sufren los aliados a 10 m, reducido por tu armadura." },
-      { "id": "s15", "name": "Temple", "icon": "talents/guerrero-guardian-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "stats": { "cdr": 4 } }, "d": "−4% de enfriamiento de todas tus habilidades por rango." },
-      { "id": "s16", "name": "Erizo", "icon": "talents/guerrero-guardian-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "stats": { "thorns": 15 } }, "d": "+15 de daño de espinas por rango." },
-      { "id": "s17", "name": "Muralla Viviente", "icon": "talents/guerrero-guardian-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "power": "g_muralla_viva", "tv": { "dmgReduc": 2 } }, "d": "Cada carga de Bastión te da −2% de daño recibido por rango." },
-      { "id": "x1", "name": "Represalia", "icon": "talents/guerrero-guardian-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "power": "g_represalia" }, "d": "Apex I: tus espinas reflejan además el 30% del daño que bloqueas o absorbes con Muro de Escudos." },
-      { "id": "x2", "name": "Venganza Acumulada", "icon": "talents/guerrero-guardian-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "power": "g_venganza" }, "d": "Apex II: al terminar Muro de Escudos, una onda devuelve el 20% del daño absorbido por rango." },
-      { "id": "x3", "name": "Bastión Eterno", "icon": "talents/guerrero-guardian-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "g_bastion_eterno" }, "d": "Apex III (cúspide): con 5 cargas, Muro Inquebrantable protege también a los aliados a 10 m (una vez cada 60 s)." }
-    ] },
-    { ...{ "id": "cruzado", "name": "Cruzado", "role": "support", "roleLabel": "Apoyo de grupo", "icon": "specs/cruzado.webp", "emblem": "emblems/cruzado.webp", "mechanic": "fervor" }, preset: [ [ "s1", 1 ], [ "s2", 2 ], [ "s4", 1 ], [ "s5", 2 ], [ "s6", 1, "A" ], [ "s7", 2 ], [ "s9", 1 ], [ "s10", 2 ], [ "s12", 2 ], [ "s14", 1 ], [ "s17", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Juicio", "icon": "talents/guerrero-cruzado-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_judgment" }, "d": "Nodo clave (gratis): al matar, una onda sagrada daña a los enemigos cercanos y te da 1 de Fervor." },
-      { "id": "s1", "name": "Fe Ardiente", "icon": "talents/guerrero-cruzado-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "elem": { "holy": 5 } }, "d": "+5% de daño Sagrado por rango (Juicio, Veredicto Final, Cataclismo y Martillos Benditos)." },
-      { "id": "s2", "name": "Plegaria", "icon": "talents/guerrero-cruzado-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "stats": { "cdr": 4 } }, "d": "−4% de enfriamiento de todas tus habilidades por rango." },
-      { "id": "s3", "name": "Mano Sanadora", "icon": "talents/guerrero-cruzado-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "stats": { "lph": 2 }, "power": "g_mano_sanadora" }, "d": "+2 de vida al golpear por rango. Los aliados a 10 m reciben la mitad." },
-      { "id": "s4", "name": "Aura de Devoción", "icon": "talents/guerrero-cruzado-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "g_t_devocion" }, "d": "Activa nueva: durante 8 s, tú y los aliados a 15 m recuperan un 2% de vida por segundo y ganan +30 de armadura. Enfriamiento 30 s." },
-      { "id": "s5", "name": "Celo", "icon": "talents/guerrero-cruzado-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "stats": { "crit": 3 } }, "d": "+3% de probabilidad de crítico por rango." },
-      { "id": "s6", "name": "Consagración o Sentencia", "icon": "talents/guerrero-cruzado-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Consagración", "desc": "Martillo de Guerra deja suelo sagrado 4 s: daña enemigos y cura aliados.", "fx": { "mod": { "g_martillo": { "zone": 1 } } } }, { "k": "B", "name": "Sentencia", "desc": "Juicio marca a élites y jefes: reciben +20% de daño de todo el grupo durante 4 s.", "fx": { "power": "g_sentencia" } } ] },
-      { "id": "s7", "name": "Martillo Justiciero", "icon": "talents/guerrero-cruzado-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "mod": { "g_martillo": { "dmg": 12, "radius": 10 } } }, "d": "+12% de daño y +10% de radio de Martillo de Guerra por rango." },
-      { "id": "s8", "name": "Luz Sanadora", "icon": "talents/guerrero-cruzado-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "killHeal": 1.5 }, "power": "g_luz_sanadora" }, "d": "Matar a un enemigo cura un 1.5% de vida por rango a ti y a los aliados a 10 m." },
-      { "id": "s9", "name": "Veredicto Final", "icon": "talents/guerrero-cruzado-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "g_t_veredicto" }, "d": "Activa nueva: gastas 3 de Fervor en un golpe sagrado en cono del 300% que cura al grupo un 25% del daño hecho." },
-      { "id": "s10", "name": "Estandarte Sagrado", "icon": "talents/guerrero-cruzado-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "g_u_estandarte": { "dur": 20 } }, "power": "g_estandarte_grupo" }, "d": "Estandarte de Guerra dura un 20% más por rango y su bonificación alcanza a los aliados a 15 m." },
-      { "id": "s11", "name": "Égida Sagrada", "icon": "talents/guerrero-cruzado-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "stats": { "arm": 25, "thorns": 6 } }, "d": "+25 de armadura y +6 de espinas por rango." },
-      { "id": "s12", "name": "Fervor Creciente", "icon": "talents/guerrero-cruzado-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "tv": { "fervorChance": 15 } }, "d": "Martillo de Guerra tiene un 15% de probabilidad por rango de darte 1 de Fervor extra." },
-      { "id": "s13", "name": "Intercesión o Justicia", "icon": "talents/guerrero-cruzado-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Intercesión", "desc": "Cada 90 s, un aliado que iba a morir queda a 1 de vida; tú pierdes un 20% de vida.", "fx": { "power": "g_intercesion" } }, { "k": "B", "name": "Martillo de Justicia", "desc": "Activa: arrojas un martillo que aturde 3 s a un enemigo (1.5 s a jefes).", "active": true, "fx": { "grant": "g_t_justicia" } } ] },
-      { "id": "s14", "name": "Luz del Alba", "icon": "talents/guerrero-cruzado-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "g_luz_alba" }, "d": "El Aura de Devoción también da +10% de daño al grupo, y cada Fervor gastado la alarga 1 s." },
-      { "id": "s15", "name": "Devoción", "icon": "talents/guerrero-cruzado-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "stats": { "hp": 35 } }, "d": "+35 de vida máxima por rango." },
-      { "id": "s16", "name": "Ira Divina", "icon": "talents/guerrero-cruzado-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "mod": { "g_u_cataclismo": { "dmg": 15 }, "g_t_veredicto": { "dmg": 15 } } }, "d": "+15% de daño de Cataclismo y Veredicto Final por rango." },
-      { "id": "s17", "name": "Gracia", "icon": "talents/guerrero-cruzado-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "tv": { "verdictHeal": 10 } }, "d": "Veredicto Final cura un 10% más del daño hecho por rango." },
-      { "id": "x1", "name": "Martillo Bendito", "icon": "talents/guerrero-cruzado-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "power": "g_martillo_bendito" }, "d": "Apex I: 3 martillos sagrados orbitan a tu alrededor. Cada golpe cura un 1% de vida a los aliados a 15 m." },
-      { "id": "x2", "name": "Martillos del Juicio", "icon": "talents/guerrero-cruzado-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "power": "g_martillos_juicio" }, "d": "Apex II: +1 martillo y +15% de daño de los Martillos Benditos por rango." },
-      { "id": "x3", "name": "Ascensión", "icon": "talents/guerrero-cruzado-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "g_ascension" }, "d": "Apex III (cúspide): tras 3 Veredictos seguidos, 10 s de alas de luz: el Fervor no se gasta y el Aura cubre 30 m." }
-    ] }
-  ],
-  skills: [],
+// ---------------------------------------------------------------- rejillas (copia de TV2.REJILLA)
+const g = rows => rows.map(([n, r, c, max, t, req]) => ({ n, r, c, max, t, req }));
+export const GRID = {
+  cls: g([
+    [1, 0, 1, 2, 'p', []], [2, 0, 3, 2, 'p', []], [3, 0, 5, 2, 'p', []],
+    [4, 1, 0, 3, 'p', [1]], [5, 1, 2, 1, 'c', [1, 2]], [6, 1, 4, 1, 'c', [2, 3]], [7, 1, 6, 1, 'p', [3]],
+    [8, 2, 1, 2, 'p', [4, 5]], [9, 2, 3, 1, 'c', [5, 6]], [10, 2, 5, 1, 'c', [6, 7]],
+    [11, 3, 0, 1, 'c', [8]], [12, 3, 2, 2, 'p', [8, 9]], [13, 3, 4, 2, 'p', [9, 10]], [14, 3, 6, 1, 'c', [10]],
+    [15, 4, 1, 1, 'c', [11, 12]], [16, 4, 3, 1, 'c', [12, 13]], [17, 4, 5, 1, 'c', [13, 14]],
+    [18, 5, 0, 2, 'p', [15]], [19, 5, 2, 1, 'p', [15, 16]], [20, 5, 4, 1, 'p', [16, 17]], [21, 5, 6, 1, 'p', [17]],
+    [22, 6, 1, 1, 'c', [18, 19]], [23, 6, 3, 2, 'p', [19, 20]], [24, 6, 5, 2, 'p', [20, 21]],
+    [25, 7, 0, 3, 'p', [22]], [26, 7, 3, 3, 'p', [23]], [27, 7, 6, 3, 'p', [24]],
+    [28, 8, 0, 3, 'f', [25]], [29, 8, 3, 3, 'f', [26]], [30, 8, 6, 3, 'f', [27]],
+  ]),
+  spec: g([
+    [0, 0, 3, 1, 'k', []],
+    [1, 1, 1, 3, 'p', [0]], [2, 1, 3, 3, 'p', [0]], [3, 1, 5, 3, 'p', [0]],
+    [4, 2, 0, 2, 'p', [1]], [5, 2, 2, 1, 'p', [1, 2]], [6, 2, 4, 1, 'p', [2, 3]], [7, 2, 6, 2, 'p', [3]],
+    [8, 3, 1, 1, 'c', [4, 5]], [9, 3, 3, 1, 'c', [5, 6]], [10, 3, 5, 1, 'c', [6, 7]],
+    [11, 4, 0, 2, 'p', [8]], [12, 4, 2, 2, 'p', [8, 9]], [13, 4, 4, 2, 'p', [9, 10]], [14, 4, 6, 1, 'p', [10]],
+    [15, 5, 1, 1, 'c', [11, 12]], [16, 5, 3, 2, 'p', [12, 13]], [17, 5, 5, 2, 'p', [13, 14]],
+    [18, 6, 0, 2, 'p', [15]], [19, 6, 2, 2, 'p', [15, 16]], [20, 6, 4, 2, 'p', [16, 17]], [21, 6, 6, 1, 'p', [17]],
+    [22, 7, 0, 3, 'p', [18]], [23, 7, 3, 3, 'p', [19]], [24, 7, 6, 3, 'p', [21]],
+    [25, 8, 0, 3, 'f', [22]], [26, 8, 3, 3, 'f', [23]], [27, 8, 6, 3, 'f', [24]],
+    [28, 9, 3, 4, 'x', [25, 26, 27]],
+  ]),
+  hero: g([
+    [0, 0, 1, 1, 'k', []],
+    [1, 1, 0, 1, 'p', [0]], [2, 1, 1, 1, 'c', [0]], [3, 1, 2, 1, 'p', [0]],
+    [4, 2, 0, 1, 'c', [1, 2]], [5, 2, 1, 1, 'p', [2]], [6, 2, 2, 1, 'p', [2, 3]],
+    [7, 3, 0, 1, 'p', [4, 5]], [8, 3, 1, 1, 'c', [5]], [9, 3, 2, 1, 'p', [5, 6]],
+    [10, 4, 0.5, 1, 'p', [7, 8]], [11, 4, 1.5, 1, 'p', [8, 9]],
+    [12, 5, 1, 1, 'f', [10, 11]],
+  ]),
 };
 
-export const MAGA_TALENTS = {
-  cls: { name: "Maga", preset: [ [ "c1", 2 ], [ "c2", 1 ], [ "c3", 1 ], [ "c4", 3 ], [ "c5", 1, "A" ], [ "c6", 2 ], [ "c8", 2 ], [ "c10", 3 ], [ "c13", 2 ] ], nodes: [
-    { "id": "c1", "name": "Intelecto Arcano", "icon": "talents/maga-clase-c1.webp", "t": "p", "r": 0, "c": 1.5, "max": 2, "d": "+4% de daño de hechizos por rango." },
-    { "id": "c2", "name": "Barrera de Maná", "icon": "talents/maga-clase-c2.webp", "t": "a", "r": 1, "c": 0.5, "max": 1, "req": [ "c1" ], "d": "Activa nueva: absorbe daño igual al 30% de tu maná máximo. Enfriamiento 30 s." },
-    { "id": "c3", "name": "Parpadeo", "icon": "talents/maga-clase-c3.webp", "t": "a", "r": 1, "c": 2.5, "max": 1, "req": [ "c1" ], "d": "Activa nueva: te teletransportas 8 m hacia el cursor. Enfriamiento 15 s." },
-    { "id": "c4", "name": "Mente Afilada", "icon": "talents/maga-clase-c4.webp", "t": "p", "r": 2, "c": 0, "max": 3, "req": [ "c2" ], "d": "+2% de probabilidad de crítico por rango." },
-    { "id": "c5", "name": "Contrahechizo o Ralentizar", "icon": "talents/maga-clase-c5.webp", "t": "c", "r": 2, "c": 1.5, "max": 1, "req": [ "c2", "c3" ], "opts": [ { "k": "A", "name": "Contrahechizo", "desc": "Activa: interrumpe al lanzador enemigo y lo silencia 3 s. Ideal en grupo.", "active": true }, { "k": "B", "name": "Ralentizar", "desc": "Tu siguiente hechizo ralentiza un 50% durante 4 s." } ] },
-    { "id": "c6", "name": "Reservas Profundas", "icon": "talents/maga-clase-c6.webp", "t": "p", "r": 2, "c": 3, "max": 2, "req": [ "c3" ], "d": "+8% de maná máximo por rango." },
-    { "id": "c7", "name": "Escudo Prismático", "icon": "talents/maga-clase-c7.webp", "t": "p", "r": 3, "c": 0.5, "max": 2, "req": [ "c4", "c5" ], "d": "−10% de daño recibido por rango mientras la Barrera de Maná está activa." },
-    { "id": "c8", "name": "Presencia Mental", "icon": "talents/maga-clase-c8.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "c5", "c6" ], "d": "−4% de enfriamiento de todas tus habilidades por rango." },
-    { "id": "c9", "name": "Conducto Elemental", "icon": "talents/maga-clase-c9.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "c7" ], "d": "+1 nivel por rango a las habilidades del elemento de tu especialización." },
-    { "id": "c10", "name": "Flujo de Maná", "icon": "talents/maga-clase-c10.webp", "t": "p", "r": 4, "c": 1.5, "max": 3, "req": [ "c7", "c8" ], "d": "+1 de maná al golpear por rango." },
-    { "id": "c11", "name": "Celeridad", "icon": "talents/maga-clase-c11.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "c8" ], "d": "+4% de velocidad de lanzamiento por rango." },
-    { "id": "c12", "name": "Inversión o Bloque", "icon": "talents/maga-clase-c12.webp", "t": "c", "r": 5, "c": 0.5, "max": 1, "req": [ "c9", "c10" ], "opts": [ { "k": "A", "name": "Inversión del Tiempo", "desc": "Activa: vuelves a tu vida y posición de hace 5 s. Enfriamiento 60 s.", "active": true }, { "k": "B", "name": "Bloque de Hielo", "desc": "Activa: inmune 4 s, pero no puedes moverte ni atacar. Enfriamiento 90 s.", "active": true } ] },
-    { "id": "c13", "name": "Erudición", "icon": "talents/maga-clase-c13.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "c10", "c11" ], "d": "+5% de daño contra élites y +6% de experiencia por rango." },
-    { "id": "c14", "name": "Maestría Arcana", "icon": "talents/maga-clase-c14.webp", "t": "p", "r": 6, "c": 1.5, "max": 1, "req": [ "c12", "c13" ], "d": "Los hechizos que cuestan más de 20 de maná cuestan un 15% menos." },
-    { "id": "c15", "name": "Aura de Intelecto", "icon": "talents/maga-clase-c15.webp", "t": "k", "r": 7, "c": 1.5, "max": 1, "req": [ "c14" ], "d": "Grupo: tú y los aliados a 15 m ganan +5% de daño y +10% de maná máximo." }
-  ] },
-  specs: [
-    { ...{ "id": "piromante", "name": "Piromante", "role": "dps", "roleLabel": "Daño en área", "icon": "specs/piromante.webp", "emblem": "emblems/piromante.webp", "mechanic": "calor" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s6", 1, "A" ], [ "s7", 2 ], [ "s9", 1 ], [ "s11", 2 ], [ "s14", 1 ], [ "s16", 2 ], [ "s17", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Ignición", "icon": "talents/maga-piromante-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "d": "Nodo clave (gratis): tus golpes de Fuego aplican Quemadura, el 60% del golpe en 4 s, y generan Calor." },
-      { "id": "s1", "name": "Llama Viva", "icon": "talents/maga-piromante-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "d": "+5% de daño de Fuego por rango." },
-      { "id": "s2", "name": "Combustión Rápida", "icon": "talents/maga-piromante-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "d": "−10% de enfriamiento de Bola de Fuego por rango." },
-      { "id": "s3", "name": "Brasas", "icon": "talents/maga-piromante-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "d": "La Quemadura dura +1 s por rango." },
-      { "id": "s4", "name": "Llamarada", "icon": "talents/maga-piromante-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "d": "Activa nueva: un cono de fuego de 7 m que detona las Quemaduras y hace el 100% de su daño restante al instante. +25 de Calor." },
-      { "id": "s5", "name": "Calor Abrasador", "icon": "talents/maga-piromante-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "d": "+4% de crítico contra enemigos en llamas por rango." },
-      { "id": "s6", "name": "Propagación o Concentración", "icon": "talents/maga-piromante-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Propagación", "desc": "Si muere un enemigo en llamas, su Quemadura salta a 2 enemigos cercanos." }, { "k": "B", "name": "Concentración", "desc": "La Quemadura se acumula hasta 3 veces sobre el mismo objetivo. Mejor contra jefes." } ] },
-      { "id": "s7", "name": "Pira", "icon": "talents/maga-piromante-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "d": "Meteoro deja un charco de fuego durante 1.5 s por rango." },
-      { "id": "s8", "name": "Fuego Interior", "icon": "talents/maga-piromante-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "d": "Matar a un enemigo en llamas te cura un 2% de vida por rango." },
-      { "id": "s9", "name": "Combustión", "icon": "talents/maga-piromante-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "d": "Activa nueva: durante 10 s tus hechizos de Fuego son siempre críticos y el Calor se duplica. Enfriamiento 90 s." },
-      { "id": "s10", "name": "Ceniza Ardiente", "icon": "talents/maga-piromante-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "d": "+10% de daño de Meteoro y Supernova por rango." },
-      { "id": "s11", "name": "Llama Persistente", "icon": "talents/maga-piromante-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "d": "+15% de daño de Quemadura por rango." },
-      { "id": "s12", "name": "Pirotecnia", "icon": "talents/maga-piromante-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "d": "Cada crítico reduce 0.5 s los enfriamientos de Fuego por rango." },
-      { "id": "s13", "name": "Fénix o Muro de Fuego", "icon": "talents/maga-piromante-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Fénix", "desc": "Una vez cada 2 minutos, al morir renaces con el 50% de vida." }, { "k": "B", "name": "Muro de Fuego", "desc": "Activa: levanta una línea de fuego que quema y bloquea el paso 5 s.", "active": true } ] },
-      { "id": "s14", "name": "Conflagración", "icon": "talents/maga-piromante-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "d": "Al matar, una explosión de fuego daña la zona con el 70% de tu daño." },
-      { "id": "s15", "name": "Combustible", "icon": "talents/maga-piromante-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "d": "+3 de maná por cada enemigo en llamas que muere, por rango." },
-      { "id": "s16", "name": "Supernova Abrasadora", "icon": "talents/maga-piromante-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "d": "Supernova aplica una Quemadura un 50% más fuerte por rango." },
-      { "id": "s17", "name": "Ola de Calor", "icon": "talents/maga-piromante-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "d": "+20% de radio de las habilidades de Fuego por rango." },
-      { "id": "x1", "name": "Corazón del Sol", "icon": "talents/maga-piromante-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "d": "Apex I: cuando una Quemadura termina, explota en área con el 40% de su daño total." },
-      { "id": "x2", "name": "Sol Naciente", "icon": "talents/maga-piromante-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "d": "Apex II: +15% de daño de Fuego por rango contra enemigos que ya estallaron." },
-      { "id": "x3", "name": "Nova Solar", "icon": "talents/maga-piromante-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "d": "Apex III (cúspide): cada 20 explosiones, Supernova se lanza sola y gratis." }
-    ] },
-    { ...{ "id": "crionte", "name": "Crionte", "role": "control", "roleLabel": "Control", "icon": "specs/crionte.webp", "emblem": "emblems/crionte.webp", "mechanic": "escarcha" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s6", 1, "A" ], [ "s7", 2 ], [ "s9", 1 ], [ "s11", 2 ], [ "s12", 1 ], [ "s13", 1, "B" ], [ "s14", 1 ], [ "s16", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Cero Absoluto", "icon": "talents/maga-crionte-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_shatter", "tv": { "shatterPct": 15 } }, "d": "Nodo clave (gratis): tus golpes de Escarcha suman capas de hielo; a 5 capas el enemigo queda Congelado 1.5 s. Los Congelados con menos del 15% de vida se astillan (no jefes)." },
-      { "id": "s1", "name": "Mordedura Gélida", "icon": "talents/maga-crionte-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "elem": { "frost": 5 } }, "d": "+5% de daño de Escarcha por rango." },
-      { "id": "s2", "name": "Invierno Temprano", "icon": "talents/maga-crionte-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "mod": { "nova_hielo": { "cdr": 10, "radius": 10 } } }, "d": "Nova de Hielo: −10% de enfriamiento y +10% de radio por rango." },
-      { "id": "s3", "name": "Frío Persistente", "icon": "talents/maga-crionte-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "mod": { "@frost": { "slow": [ 4, 5 ] } } }, "d": "Tus hechizos de Escarcha ralentizan durante 4 s (5 s en el rango 2)." },
-      { "id": "s4", "name": "Prisión de Hielo", "icon": "talents/maga-crionte-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "k_prision" }, "d": "Activa nueva: encierra en hielo a los enemigos en 4 m (5 capas: Congelados 3 s). Los jefes quedan Ateridos. Enfriamiento 20 s." },
-      { "id": "s5", "name": "Sangre Fría", "icon": "talents/maga-crionte-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "tv": { "slowedDmg": 6 } }, "d": "+6% de daño contra enemigos ralentizados o Congelados por rango." },
-      { "id": "s6", "name": "Ventisca o Témpano", "icon": "talents/maga-crionte-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Ventisca", "desc": "Activa: una tormenta de 5 m durante 6 s que suma 1 capa por segundo a todo lo que está dentro. Control de zona.", "active": true, "fx": { "grant": "k_ventisca" } }, { "k": "B", "name": "Témpano", "desc": "Nova de Hielo se expande como un anillo que empuja 3 m y aturde 1 s. Para alejar a quien te alcanza.", "fx": { "mod": { "nova_hielo": { "radius": 30, "stun": 1 } }, "power": "k_nova_push" } } ] },
-      { "id": "s7", "name": "Carámbanos", "icon": "talents/maga-crionte-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "power": "k_icicle_dart", "mod": { "m_dardo": { "dmg": 10 } } }, "d": "Dardo Arcano dispara carámbanos que suman 1 capa de Escarcha; +10% de su daño por rango." },
-      { "id": "s8", "name": "Coraza de Escarcha", "icon": "talents/maga-crionte-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "dmgReduc": 5 }, "power": "k_frost_armor" }, "d": "−5% de daño recibido por rango; quien te golpea cuerpo a cuerpo gana 1 capa." },
-      { "id": "s9", "name": "Lanza de Hielo", "icon": "talents/maga-crionte-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "k_lanza" }, "d": "Activa nueva: una lanza perforante que hace el triple de daño a los Congelados y los astilla; el estallido golpea en 3 m. Enfriamiento 6 s." },
-      { "id": "s10", "name": "Hielo Eterno", "icon": "talents/maga-crionte-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "skillLv": { "nova_hielo": 1, "k_prision": 1 } }, "d": "+1 nivel de Nova de Hielo y Prisión de Hielo por rango." },
-      { "id": "s11", "name": "Escarcha Contagiosa", "icon": "talents/maga-crionte-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "tv": { "frostLayers": 1 } }, "d": "Nova de Hielo suma 1 capa adicional por rango a cada enemigo que toca." },
-      { "id": "s12", "name": "Filo Cristalino", "icon": "talents/maga-crionte-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "mod": { "k_lanza": { "cdr": 12, "coldblood": [ false, true ] } } }, "d": "Lanza de Hielo: −12% de enfriamiento por rango. En el rango 2 es siempre crítica contra ralentizados." },
-      { "id": "s13", "name": "Tumba o Aliento", "icon": "talents/maga-crionte-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Tumba Glacial", "desc": "Los enemigos que mueren Congelados dejan un bloque de hielo que corta el paso 4 s.", "fx": { "power": "k_ice_tomb" } }, { "k": "B", "name": "Aliento Boreal", "desc": "Activa: un cono helado de 6 m que empuja 4 m y suma 3 capas. Enfriamiento 12 s.", "active": true, "fx": { "grant": "k_aliento" } } ] },
-      { "id": "s14", "name": "Reacción Glacial", "icon": "talents/maga-crionte-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "k_shatter_chain" }, "d": "Cada astillamiento suma 2 capas a los enemigos en 4 m: la congelación salta de uno a otro." },
-      { "id": "s15", "name": "Mente Gélida", "icon": "talents/maga-crionte-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "tv": { "manaOnKill": 3 } }, "d": "+3 de maná por cada enemigo astillado o abatido, por rango." },
-      { "id": "s16", "name": "Nova Perpetua", "icon": "talents/maga-crionte-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "mod": { "nova_hielo": { "zone": 1, "dmg": 15 } } }, "d": "Nova de Hielo deja suelo helado 4 s que daña y ralentiza; +15% de su daño por rango." },
-      { "id": "s17", "name": "Frío Implacable", "icon": "talents/maga-crionte-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "tv": { "eliteDmg": 8 }, "power": "k_numb" }, "d": "+8% de daño contra élites y jefes por rango; los Ateridos atacan un 15% más lento." },
-      { "id": "x1", "name": "Invierno Eterno", "icon": "talents/maga-crionte-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "power": "k_eternal_winter" }, "d": "Apex I: Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50%." },
-      { "id": "x2", "name": "Glaciación", "icon": "talents/maga-crionte-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "tv": { "fieldVuln": 8 } }, "d": "Apex II: los enemigos dentro del campo helado reciben +8% de daño de todo tu grupo por rango." },
-      { "id": "x3", "name": "Edad de Hielo", "icon": "talents/maga-crionte-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "k_ice_age" }, "d": "Apex III (cúspide): cada 15 astillamientos, Prisión de Hielo se lanza sola y gratis sobre el grupo más numeroso." }
-    ] },
-    { ...{ "id": "arcanista", "name": "Arcanista", "role": "dps", "roleLabel": "Daño a un objetivo", "icon": "specs/arcanista.webp", "emblem": "emblems/arcanista.webp", "mechanic": "cargas" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s6", 1, "A" ], [ "s7", 2 ], [ "s9", 1 ], [ "s12", 2 ], [ "s14", 1 ], [ "s15", 2 ], [ "s17", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Sobrecarga Arcana", "icon": "talents/maga-arcanista-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_overload", "stats": { "mph": 1 } }, "d": "Nodo clave (gratis): cada golpe Arcano te devuelve 1 de maná. Dardo Arcano genera Cargas Arcanas (máx. 4) y Rayo las descarga todas a la vez." },
-      { "id": "s1", "name": "Potencia Arcana", "icon": "talents/maga-arcanista-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "elem": { "arcane": 5 } }, "d": "+5% de daño Arcano por rango." },
-      { "id": "s2", "name": "Conductividad", "icon": "talents/maga-arcanista-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "mod": { "rayo": { "cdr": 10, "crit": 4 } } }, "d": "Rayo: −10% de enfriamiento y +4% de crítico por rango." },
-      { "id": "s3", "name": "Manantial", "icon": "talents/maga-arcanista-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "stats": { "mph": 2 } }, "d": "+2 de maná al golpear por rango." },
-      { "id": "s4", "name": "Orbe Arcano", "icon": "talents/maga-arcanista-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "a_orbe" }, "d": "Activa nueva: un orbe lento que atraviesa y rebota 2 veces; genera 1 Carga por enemigo golpeado (máx. 2). Enfriamiento 8 s." },
-      { "id": "s5", "name": "Precisión Letal", "icon": "talents/maga-arcanista-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "tv": { "critDmg": 8 } }, "d": "+8% de daño crítico por rango." },
-      { "id": "s6", "name": "Misiles o Arco Voltaico", "icon": "talents/maga-arcanista-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Misiles Arcanos", "desc": "Activa: canalizas 2 s seis misiles sobre un objetivo; cada uno devuelve 1% de maná. Foco total.", "active": true, "fx": { "grant": "a_misiles" } }, { "k": "B", "name": "Arco Voltaico", "desc": "Dardo Arcano rebota a 2 enemigos con −10% de daño. Más limpieza de oleadas, menos foco.", "fx": { "mod": { "m_dardo": { "chain": 2, "dmg": -10 } } } } ] },
-      { "id": "s7", "name": "Gravedad del Orbe", "icon": "talents/maga-arcanista-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "mod": { "a_orbe": { "cdr": 12, "dmg": 15 } } }, "d": "Orbe Arcano: −12% de enfriamiento y +15% de daño por rango." },
-      { "id": "s8", "name": "Piel de Maná", "icon": "talents/maga-arcanista-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "dmgReduc": 5 }, "power": "a_manaskin" }, "d": "Con más del 50% de maná, −5% de daño recibido por rango." },
-      { "id": "s9", "name": "Sello del Archimago", "icon": "talents/maga-arcanista-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "a_sello" }, "d": "Activa nueva: marca a un objetivo 8 s y te da 4 Cargas. Guarda el 25% del daño que le haces y al expirar estalla con todo. Enfriamiento 45 s." },
-      { "id": "s10", "name": "Alto Voltaje", "icon": "talents/maga-arcanista-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "rayo": { "dmg": 10 } } }, "d": "+10% de daño de Rayo por rango." },
-      { "id": "s11", "name": "Claridad", "icon": "talents/maga-arcanista-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "power": "a_clarity", "tv": { "clarityPct": 15 } }, "d": "Descargar 4 Cargas tiene un 15% de probabilidad por rango de dejar gratis tu siguiente Rayo." },
-      { "id": "s12", "name": "Concentración Absoluta", "icon": "talents/maga-arcanista-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "tv": { "eliteDmg": 8 } }, "d": "+8% de daño contra élites y jefes por rango." },
-      { "id": "s13", "name": "Evocación o Pacto", "icon": "talents/maga-arcanista-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Evocación", "desc": "Activa: canalizas 3 s y recuperas el 60% de tu maná. Los golpes fuertes te interrumpen.", "active": true, "fx": { "grant": "a_evocacion" } }, { "k": "B", "name": "Pacto de Maná", "desc": "Con más del 70% de maná, +15% de daño. Premia no vaciarte nunca.", "fx": { "tv": { "highManaDmg": 15 } } } ] },
-      { "id": "s14", "name": "Resonancia", "icon": "talents/maga-arcanista-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "a_resonance" }, "d": "Con 4 Cargas, tus hechizos Arcanos tienen +15% de crítico y las Cargas no se desvanecen fuera de combate." },
-      { "id": "s15", "name": "Sobretensión", "icon": "talents/maga-arcanista-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "power": "a_overvolt", "mod": { "m_dardo": { "dmg": 10 } } }, "d": "Con 4 Cargas, Dardo Arcano atraviesa a los enemigos; +10% de su daño por rango." },
-      { "id": "s16", "name": "Desintegrar", "icon": "talents/maga-arcanista-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "tv": { "lowHpDmg": 10 } }, "d": "+10% de daño contra enemigos por debajo del 35% de vida por rango." },
-      { "id": "s17", "name": "Dominio Arcano", "icon": "talents/maga-arcanista-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "skillLv": { "rayo": 1, "a_orbe": 1 } }, "d": "+1 nivel de Rayo y Orbe Arcano por rango." },
-      { "id": "x1", "name": "Cadena de Rayos", "icon": "talents/maga-arcanista-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "mod": { "rayo": { "chain": 3 } }, "power": "a_chain_crit" }, "d": "Apex I: los críticos de Rayo saltan a 3 enemigos con el 50% del daño; si el objetivo está solo, lo golpean dos veces." },
-      { "id": "x2", "name": "Arco Eterno", "icon": "talents/maga-arcanista-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "power": "a_arc_charge", "tv": { "arcChargePct": 25 } }, "d": "Apex II: cada salto de la cadena tiene un 25% de probabilidad por rango de darte 1 Carga Arcana." },
-      { "id": "x3", "name": "Singularidad", "icon": "talents/maga-arcanista-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "a_singularity" }, "d": "Apex III (cúspide): descargar 4 Cargas hace que el objetivo reciba +15% de tu daño durante 6 s (hasta 2 veces)." }
-    ] }
-  ],
-  skills: [],
+// ---------------------------------------------------------------- clases
+const ELEM_TXT = { fire: 'Fuego', frost: 'Hielo', arcane: 'Arcano', physical: 'Físico', holy: 'Sagrado', nature: 'Naturaleza' };
+const CFG = {
+  maga: {
+    name: 'Maga', pw: 'm_', tvKey: 'fxRunas',
+    specs: [
+      { id: 'piromante', name: 'Piromante', role: 'dps', roleLabel: 'Daño en área', mechanic: 'calor', elem: 'fire', prefix: 's', innate: { dmgPct: 2 } },
+      { id: 'crionte', name: 'Crionte', role: 'control', roleLabel: 'Control', mechanic: 'escarcha', elem: 'frost', prefix: 'i', innate: { staggerPct: 25 } },
+      { id: 'arcanista', name: 'Arcanista', role: 'dps', roleLabel: 'Un objetivo', mechanic: 'cargas', elem: 'arcane', prefix: 'a', innate: { crit: 2 } },
+    ],
+    hero: [{ id: 'crono', name: 'Cronomante', prefix: 't' }, { id: 'invoca', name: 'Invocadora', prefix: 'f' }, { id: 'escriba', name: 'Escriba Rúnica', prefix: 'e' }],
+    grants: ['m_t_bloque', 'm_t_inversion', 'm_t_contrahechizo'], heroGrants: ['m_h_detener', 'm_h_constructo', 'm_h_palabra'], elem: 'arcane',
+  },
+  guerrero: {
+    name: 'Guerrero', pw: 'g_', tvKey: 'fxFuriaTope',
+    specs: [
+      { id: 'berserker', name: 'Berserker', role: 'dps', roleLabel: 'Daño', mechanic: 'sed', elem: 'physical', prefix: 'b', innate: { aspdPct: 3 } },
+      { id: 'guardian', name: 'Guardián', role: 'tank', roleLabel: 'Tanque', mechanic: 'bastion', elem: 'physical', prefix: 'd', innate: { block: 15, threatMult: 3, hpPct: 5 } },
+      { id: 'cruzado', name: 'Cruzado', role: 'support', roleLabel: 'Apoyo', mechanic: 'fervor', elem: 'holy', prefix: 'z', innate: { healPct: 30 } },
+    ],
+    hero: [{ id: 'titan', name: 'Titán', prefix: 't' }, { id: 'caudillo', name: 'Caudillo', prefix: 'u' }, { id: 'heraldo', name: 'Heraldo', prefix: 'l' }],
+    grants: ['g_t_aliento', 'g_t_intervencion', 'g_t_bramido'], heroGrants: ['g_h_titan', 'g_h_caudillo', 'g_h_heraldo'], elem: 'physical',
+  },
+  arquera: {
+    name: 'Arquera', pw: 'y_', tvKey: 'fxPluma',
+    specs: [
+      { id: 'tiradora', name: 'Tiradora Veloz', role: 'dps', roleLabel: 'Daño en área', mechanic: 'impulso', elem: 'physical', prefix: 'v', innate: { spdPct: 3 } },
+      { id: 'francotiradora', name: 'Francotiradora', role: 'dps', roleLabel: 'Un objetivo', mechanic: 'concentracion', elem: 'physical', prefix: 'f', innate: { crit: 3 } },
+      { id: 'montaraz', name: 'Montaraz', role: 'control', roleLabel: 'Control', mechanic: 'coto', elem: 'nature', prefix: 'm', innate: { staggerPct: 25 } },
+    ],
+    hero: [{ id: 'centinela', name: 'Centinela', prefix: 'q' }, { id: 'sombra', name: 'Sombra', prefix: 'w' }, { id: 'druida', name: 'Druida', prefix: 'y' }],
+    grants: ['a_t_camuflaje', 'a_t_bengala', 'a_t_silencio'], heroGrants: ['a_h_centinela', 'a_h_sombra', 'a_h_druida'], elem: 'nature',
+  },
 };
+// árboles héroe: 0 = especializaciones 1.ª + 3.ª · 1 = 1.ª + 2.ª · 2 = 2.ª + 3.ª (como la Maga)
+const HERO_SPECS = [[0, 2], [0, 1], [1, 2]];
 
-export const ARQUERA_TALENTS = {
-  cls: { name: "Arquera", preset: [ [ "c1", 2 ], [ "c2", 1 ], [ "c3", 1 ], [ "c4", 3 ], [ "c5", 1, "A" ], [ "c7", 1 ], [ "c8", 2 ], [ "c10", 3 ], [ "c13", 2 ], [ "c14", 1 ], [ "c15", 1 ] ], nodes: [
-    { "id": "c1", "name": "Pulso Firme", "icon": "talents/arquera-clase-c1.webp", "t": "p", "r": 0, "c": 1.5, "max": 2, "fx": { "stats": { "dmgPct": 4 } }, "d": "+4% de daño con arco por rango." },
-    { "id": "c2", "name": "Voltereta", "icon": "talents/arquera-clase-c2.webp", "t": "a", "r": 1, "c": 0.5, "max": 1, "req": [ "c1" ], "fx": { "grant": "a_t_voltereta" }, "d": "Activa nueva: ruedas 6 m hacia atrás y tu próximo disparo no cuesta Energía. Enfriamiento 12 s." },
-    { "id": "c3", "name": "Disparo Conmocionante", "icon": "talents/arquera-clase-c3.webp", "t": "a", "r": 1, "c": 2.5, "max": 1, "req": [ "c1" ], "fx": { "grant": "a_t_conmocion" }, "d": "Activa nueva: una flecha roma que ralentiza un 50% durante 4 s. 10 de Energía, enfriamiento 6 s." },
-    { "id": "c4", "name": "Ojo de Halcón", "icon": "talents/arquera-clase-c4.webp", "t": "p", "r": 2, "c": 0, "max": 3, "req": [ "c2" ], "fx": { "stats": { "crit": 2 } }, "d": "+2% de probabilidad de crítico por rango." },
-    { "id": "c5", "name": "Silencio o Paso Ligero", "icon": "talents/arquera-clase-c5.webp", "t": "c", "r": 2, "c": 1.5, "max": 1, "req": [ "c2", "c3" ], "opts": [ { "k": "A", "name": "Flecha Silenciadora", "desc": "Activa: interrumpe al lanzador enemigo y lo silencia 3 s. Ideal en grupo.", "active": true, "fx": { "grant": "a_t_silencio" } }, { "k": "B", "name": "Paso Ligero", "desc": "+12% de velocidad de movimiento si no recibes daño durante 3 s.", "fx": { "power": "a_tailwind" } } ] },
-    { "id": "c6", "name": "Carcaj Profundo", "icon": "talents/arquera-clase-c6.webp", "t": "p", "r": 2, "c": 3, "max": 2, "req": [ "c3" ], "fx": { "stats": { "mp": 6 } }, "d": "+6 de Energía máxima por rango." },
-    { "id": "c7", "name": "Cuero Curtido", "icon": "talents/arquera-clase-c7.webp", "t": "p", "r": 3, "c": 0.5, "max": 2, "req": [ "c4", "c5" ], "fx": { "tv": { "dmgReduc": 4 } }, "d": "−4% de daño recibido por rango; el doble durante 2 s tras una Voltereta." },
-    { "id": "c8", "name": "Cadencia", "icon": "talents/arquera-clase-c8.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "c5", "c6" ], "fx": { "stats": { "aspdPct": 4 } }, "d": "+4% de velocidad de ataque por rango." },
-    { "id": "c9", "name": "Flechas Templadas", "icon": "talents/arquera-clase-c9.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "c7" ], "fx": { "skillLv": { "flecha_multiple": 1, "flecha_perforante": 1 } }, "d": "+1 nivel por rango a Flecha Múltiple y Flecha Perforante." },
-    { "id": "c10", "name": "Instinto de Cazadora", "icon": "talents/arquera-clase-c10.webp", "t": "p", "r": 4, "c": 1.5, "max": 3, "req": [ "c7", "c8" ], "fx": { "stats": { "mph": 1 } }, "d": "+1 de Energía al golpear por rango." },
-    { "id": "c11", "name": "Paso de Viento", "icon": "talents/arquera-clase-c11.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "c8" ], "fx": { "stats": { "spdPct": 4 }, "mod": { "agilidad": { "dur": 1 } } }, "d": "+4% de velocidad de movimiento y +1 s de duración de Agilidad por rango." },
-    { "id": "c12", "name": "Bengala o Camuflaje", "icon": "talents/arquera-clase-c12.webp", "t": "c", "r": 5, "c": 0.5, "max": 1, "req": [ "c9", "c10" ], "opts": [ { "k": "A", "name": "Flecha Bengala", "desc": "Activa: revela a los invisibles en 10 m durante 8 s; dentro, el grupo hace +8% de daño.", "active": true, "fx": { "grant": "a_t_bengala" } }, { "k": "B", "name": "Camuflaje", "desc": "Activa: invisible 4 s; tu primer disparo al salir es crítico seguro.", "active": true, "fx": { "grant": "a_t_camuflaje" } } ] },
-    { "id": "c13", "name": "Conocer a la Presa", "icon": "talents/arquera-clase-c13.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "c10", "c11" ], "fx": { "tv": { "eliteDmg": 5 } }, "d": "+5% de daño contra élites y jefes por rango." },
-    { "id": "c14", "name": "Economía Letal", "icon": "talents/arquera-clase-c14.webp", "t": "p", "r": 6, "c": 1.5, "max": 1, "req": [ "c12", "c13" ], "fx": { "tv": { "costRed": 15 } }, "d": "Las habilidades que cuestan más de 15 de Energía cuestan un 15% menos." },
-    { "id": "c15", "name": "Espíritu del Halcón", "icon": "talents/arquera-clase-c15.webp", "t": "k", "r": 7, "c": 1.5, "max": 1, "req": [ "c14" ], "fx": { "power": "a_aura_halcon" }, "d": "Grupo: tú y los aliados a 15 m ganan +5% de probabilidad de crítico y +6% de velocidad de movimiento." }
-  ] },
-  specs: [
-    { ...{ "id": "francotiradora", "name": "Francotiradora", "role": "dps", "roleLabel": "Daño a un objetivo", "icon": "specs/francotiradora.webp", "emblem": "emblems/francotiradora.webp", "mechanic": "concentracion" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s6", 1, "B" ], [ "s7", 2 ], [ "s9", 1 ], [ "s10", 2 ], [ "s12", 2 ], [ "s14", 1 ], [ "s17", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Tiro Mortal", "icon": "talents/arquera-francotiradora-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_deadeye" }, "d": "Nodo clave (gratis): tus críticos contra enemigos con más del 60% de vida hacen +50% de daño. Quedarte quieta genera Concentración." },
-      { "id": "s1", "name": "Ojo de Águila", "icon": "talents/arquera-francotiradora-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "stats": { "crit": 3 } }, "d": "+3% de probabilidad de crítico por rango." },
-      { "id": "s2", "name": "Aliento Contenido", "icon": "talents/arquera-francotiradora-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "tv": { "focusRate": 20 } }, "d": "La Concentración sube un 20% más rápido por rango." },
-      { "id": "s3", "name": "Calibre Pesado", "icon": "talents/arquera-francotiradora-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "mod": { "flecha_perforante": { "dmg": 10 } } }, "d": "+10% de daño de Flecha Perforante por rango." },
-      { "id": "s4", "name": "Disparo Apuntado", "icon": "talents/arquera-francotiradora-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "a_t_apuntado" }, "d": "Activa nueva: cargas 1 s y disparas una saeta que atraviesa toda la línea con el 380% de daño. Con Concentración al 100% la carga es instantánea." },
-      { "id": "s5", "name": "Primera Sangre", "icon": "talents/arquera-francotiradora-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "tv": { "highHpDmg": 6 } }, "d": "+6% de daño por rango contra enemigos con más del 60% de vida." },
-      { "id": "s6", "name": "Remate o Herida Abierta", "icon": "talents/arquera-francotiradora-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Golpe de Gracia", "desc": "Disparo Apuntado remata a enemigos por debajo del 15% de vida (no jefes).", "fx": { "mod": { "a_t_apuntado": { "execute": 15 } } } }, { "k": "B", "name": "Herida Abierta", "desc": "Los críticos de Disparo Apuntado sangran un 80% extra en 6 s. Mejor contra jefes.", "fx": { "mod": { "a_t_apuntado": { "dot": "bleed" } }, "tv": { "bleedPct": 80 } } } ] },
-      { "id": "s7", "name": "Letalidad", "icon": "talents/arquera-francotiradora-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "tv": { "critDmg": 15 } }, "d": "+15% de daño de crítico por rango." },
-      { "id": "s8", "name": "Posición Elevada", "icon": "talents/arquera-francotiradora-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "dmgReduc": 3 }, "power": "f_perch" }, "d": "−3% de daño recibido por rango; el doble con la Concentración por encima de 50." },
-      { "id": "s9", "name": "Visión Certera", "icon": "talents/arquera-francotiradora-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "a_t_vision" }, "d": "Activa nueva: durante 12 s moverte no vacía la Concentración, +25% de velocidad de ataque y Disparo Apuntado se recarga un 50% más rápido. Enfriamiento 90 s." },
-      { "id": "s10", "name": "Recarga Táctica", "icon": "talents/arquera-francotiradora-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "a_t_apuntado": { "cdhit": 0.4 } } }, "d": "Cada crítico reduce 0.4 s el enfriamiento de Disparo Apuntado por rango." },
-      { "id": "s11", "name": "Respiración Profunda", "icon": "talents/arquera-francotiradora-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "tv": { "focusEnergy": 8 } }, "d": "Al llenar la Concentración recuperas 8 de Energía por rango." },
-      { "id": "s12", "name": "Puntas de Acero Negro", "icon": "talents/arquera-francotiradora-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "skillLv": { "flecha_perforante": 1, "a_p_punteria": 1 } }, "d": "+1 nivel por rango a Flecha Perforante y a Puntería." },
-      { "id": "s13", "name": "Disuasión o Paciencia", "icon": "talents/arquera-francotiradora-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Disparo Disuasorio", "desc": "Activa: disparo a quemarropa que te empuja 8 m atrás y aturde 1 s al objetivo.", "active": true, "fx": { "grant": "a_t_disuasorio" } }, { "k": "B", "name": "Paciencia del Depredador", "desc": "Quieta, ganas +2% de daño por segundo, hasta +20%. Se pierde al moverte.", "fx": { "power": "f_patience" } } ] },
-      { "id": "s14", "name": "Sobrepenetración", "icon": "talents/arquera-francotiradora-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "mod": { "a_t_apuntado": { "pierce": true } }, "power": "f_overpen" }, "d": "Cada enemigo que atraviesa Disparo Apuntado aumenta un 15% su daño contra el siguiente." },
-      { "id": "s15", "name": "Paso del Acechador", "icon": "talents/arquera-francotiradora-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "stats": { "spdPct": 5 } }, "d": "+5% de velocidad de movimiento por rango; moverte vacía un 15% menos de Concentración." },
-      { "id": "s16", "name": "Cazamayores", "icon": "talents/arquera-francotiradora-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "tv": { "eliteDmg": 8 } }, "d": "+8% de daño contra élites y jefes por rango." },
-      { "id": "s17", "name": "Tiro Limpio", "icon": "talents/arquera-francotiradora-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "mod": { "a_t_apuntado": { "dmg": 12 } } }, "d": "+12% de daño de Disparo Apuntado por rango." },
-      { "id": "x1", "name": "Punto Débil", "icon": "talents/arquera-francotiradora-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "power": "f_weakspot" }, "d": "Apex I: Disparo Apuntado marca a élites y jefes 8 s; tú y tu grupo tienen +15% de probabilidad de crítico contra ellos." },
-      { "id": "x2", "name": "Herida Expuesta", "icon": "talents/arquera-francotiradora-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "tv": { "weakCritDmg": 12 } }, "d": "Apex II: el grupo hace +12% de daño de crítico por rango contra objetivos con Punto Débil." },
-      { "id": "x3", "name": "Disparo Imposible", "icon": "talents/arquera-francotiradora-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "mod": { "a_t_apuntado": { "echo": true } }, "power": "f_impossible" }, "d": "Apex III (cúspide): con Concentración al 100%, Disparo Apuntado se dispara dos veces y el segundo es crítico seguro." }
-    ] },
-    { ...{ "id": "montaraz", "name": "Montaraz", "role": "control", "roleLabel": "Control", "icon": "specs/montaraz.webp", "emblem": "emblems/montaraz.webp", "mechanic": "coto" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s5", 1 ], [ "s6", 1, "A" ], [ "s8", 2 ], [ "s9", 1 ], [ "s11", 2 ], [ "s13", 1, "A" ], [ "s14", 1 ], [ "s16", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Cacería", "icon": "talents/arquera-montaraz-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "m_hunt", "tv": { "slowedDmg": 25 } }, "d": "Nodo clave (gratis): +25% de daño contra enemigos ralentizados o inmovilizados. El primer élite que golpeas se convierte en tu Presa." },
-      { "id": "s1", "name": "Puntas de Cicuta", "icon": "talents/arquera-montaraz-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "elem": { "nature": 5 }, "tv": { "poisonPct": 5 } }, "d": "+5% de daño de Naturaleza y de Veneno por rango." },
-      { "id": "s2", "name": "Paso del Rastreador", "icon": "talents/arquera-montaraz-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "stats": { "spdPct": 4 } }, "d": "+4% de velocidad de movimiento por rango. Ves el rastro de tu Presa." },
-      { "id": "s3", "name": "Abrojos", "icon": "talents/arquera-montaraz-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "mod": { "lluvia_flechas": { "zone": 2, "slow": 30 } } }, "d": "Lluvia de Flechas deja abrojos durante 2 s por rango que ralentizan un 30%." },
-      { "id": "s4", "name": "Trampa de Cepo", "icon": "talents/arquera-montaraz-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "a_t_cepo" }, "d": "Activa nueva: armas una trampa (hasta 3). Quien la pisa queda inmovilizado 2 s y envenenado con el 150% de daño en 5 s. 2 cargas." },
-      { "id": "s5", "name": "Flecha Lastrada", "icon": "talents/arquera-montaraz-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "mod": { "flecha_multiple": { "slow": 10 } } }, "d": "Flecha Múltiple ralentiza un 10% por rango durante 3 s." },
-      { "id": "s6", "name": "Cepo o Mina", "icon": "talents/arquera-montaraz-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Cepo de Hierro", "desc": "La trampa inmoviliza 1 s más y a los jefes los ralentiza un 50%.", "fx": { "mod": { "a_t_cepo": { "stun": 1 } } } }, { "k": "B", "name": "Mina de Espinas", "desc": "La trampa estalla en 3 m con el 120% de daño, pero no inmoviliza.", "fx": { "mod": { "a_t_cepo": { "radius": 3, "dmg": 120 } } } } ] },
-      { "id": "s7", "name": "Veneno de Mantícora", "icon": "talents/arquera-montaraz-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "tv": { "poisonPct": 20 } }, "d": "+20% de daño de Veneno por rango." },
-      { "id": "s8", "name": "Pellejo de Oso", "icon": "talents/arquera-montaraz-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "dmgReduc": 5 } }, "d": "−5% de daño recibido por rango contra enemigos ralentizados." },
-      { "id": "s9", "name": "Arpón", "icon": "talents/arquera-montaraz-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "a_t_arpon" }, "d": "Activa nueva: un arpón con cadena atrae al objetivo 6 m hacia tu trampa más cercana y lo ralentiza un 60% durante 3 s. Enfriamiento 10 s." },
-      { "id": "s10", "name": "Lazo Corredizo", "icon": "talents/arquera-montaraz-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "flecha_perforante": { "stun": 0.5 } } }, "d": "Flecha Perforante inmoviliza 0.5 s por rango al primer enemigo que toca." },
-      { "id": "s11", "name": "Ponzoña Lenta", "icon": "talents/arquera-montaraz-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "tv": { "dotDur": 1.5 } }, "d": "El Veneno dura +1.5 s por rango y ralentiza un 10%." },
-      { "id": "s12", "name": "Rearme Rápido", "icon": "talents/arquera-montaraz-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "mod": { "a_t_cepo": { "cdr": 15 }, "a_t_arpon": { "cdr": 15 } } }, "d": "−15% de enfriamiento de Trampa de Cepo y Arpón por rango." },
-      { "id": "s13", "name": "Señuelo o Guardabosques", "icon": "talents/arquera-montaraz-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Señuelo de Paja", "desc": "Activa: un muñeco provoca a los enemigos cercanos 5 s y luego estalla en espinas.", "active": true, "fx": { "grant": "a_t_senuelo" } }, { "k": "B", "name": "Guardabosques", "desc": "Tus trampas armadas curan un 3% de vida por segundo a los aliados encima.", "fx": { "power": "m_warden" } } ] },
-      { "id": "s14", "name": "Coto Cerrado", "icon": "talents/arquera-montaraz-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "m_extratrap" }, "d": "Puedes armar 1 trampa más (hasta 4) y su radio de activación crece un 30%." },
-      { "id": "s15", "name": "Cazadora Paciente", "icon": "talents/arquera-montaraz-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "tv": { "eliteDmg": 10 } }, "d": "+10% de daño contra tu Presa por rango." },
-      { "id": "s16", "name": "Raíces Profundas", "icon": "talents/arquera-montaraz-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "mod": { "a_t_cepo": { "stun": 0.5 } } }, "d": "La inmovilización de tus trampas dura +0.5 s por rango." },
-      { "id": "s17", "name": "Espinas Venenosas", "icon": "talents/arquera-montaraz-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "mod": { "a_t_cepo": { "vuln": 10 } } }, "d": "Los enemigos inmovilizados reciben +10% de daño de todo el grupo por rango." },
-      { "id": "x1", "name": "Red de Espinas", "icon": "talents/arquera-montaraz-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "power": "m_thornweb" }, "d": "Apex I: las trampas armadas a menos de 10 m se unen con una red de espinas; quien la cruza queda ralentizado un 50% y sangra." },
-      { "id": "x2", "name": "Zarzal", "icon": "talents/arquera-montaraz-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "tv": { "webDmg": 20 } }, "d": "Apex II: la red inflige el 20% de tu daño por segundo por rango." },
-      { "id": "x3", "name": "Gran Cacería", "icon": "talents/arquera-montaraz-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "m_greathunt" }, "d": "Apex III (cúspide): si tu Presa queda atrapada en la red, todas las trampas se rearman y el grupo gana +15% de daño durante 6 s." }
-    ] },
-    { ...{ "id": "tiradora", "name": "Tiradora Veloz", "role": "dps", "roleLabel": "Daño en área", "icon": "specs/tiradora.webp", "emblem": "emblems/tiradora.webp", "mechanic": "impulso" }, preset: [ [ "s1", 3 ], [ "s2", 2 ], [ "s4", 1 ], [ "s6", 1, "A" ], [ "s7", 2 ], [ "s9", 1 ], [ "s10", 2 ], [ "s12", 2 ], [ "s14", 1 ], [ "s17", 2 ], [ "x1", 1 ], [ "x2", 1 ] ], nodes: [
-      { "id": "s0", "name": "Tormenta de Flechas", "icon": "talents/arquera-tiradora-s0.webp", "t": "k", "r": 0, "c": 1.5, "max": 1, "free": true, "fx": { "power": "multidisparo", "stats": { "aspdPct": 15 } }, "d": "Nodo clave (gratis): +1 proyectil y +15% de velocidad de ataque. Disparar mientras te mueves genera Impulso." },
-      { "id": "s1", "name": "Dedos Ligeros", "icon": "talents/arquera-tiradora-s1.webp", "t": "p", "r": 1, "c": 0.5, "max": 3, "req": [ "s0" ], "fx": { "stats": { "aspdPct": 4 } }, "d": "+4% de velocidad de ataque por rango." },
-      { "id": "s2", "name": "Correr y Disparar", "icon": "talents/arquera-tiradora-s2.webp", "t": "p", "r": 1, "c": 2.5, "max": 2, "req": [ "s0" ], "fx": { "stats": { "spdPct": 4 } }, "d": "+4% de velocidad de movimiento por rango. Disparar ya no te frena." },
-      { "id": "s3", "name": "Abanico Amplio", "icon": "talents/arquera-tiradora-s3.webp", "t": "p", "r": 2, "c": 0, "max": 2, "req": [ "s1" ], "fx": { "mod": { "flecha_multiple": { "proj": 1 } } }, "d": "Flecha Múltiple dispara +1 flecha por rango." },
-      { "id": "s4", "name": "Andanada", "icon": "talents/arquera-tiradora-s4.webp", "t": "a", "r": 2, "c": 1.5, "max": 1, "req": [ "s1", "s2" ], "fx": { "grant": "a_t_andanada" }, "d": "Activa nueva: barres un arco de 120° con 12 flechas (60% de daño cada una) mientras retrocedes 3 m. +20 de Impulso." },
-      { "id": "s5", "name": "Viento de Cola", "icon": "talents/arquera-tiradora-s5.webp", "t": "p", "r": 2, "c": 3, "max": 3, "req": [ "s2" ], "fx": { "mod": { "agilidad": { "dur": 1, "buff": 5 } } }, "d": "Agilidad dura +1 s y da +5% de velocidad de ataque adicional por rango." },
-      { "id": "s6", "name": "Rebote o Corona", "icon": "talents/arquera-tiradora-s6.webp", "t": "c", "r": 3, "c": 0.5, "max": 1, "req": [ "s3", "s4" ], "opts": [ { "k": "A", "name": "Flechas Rebotadoras", "desc": "Flecha Múltiple rebota a 2 enemigos cercanos con el 50% de daño.", "fx": { "mod": { "flecha_multiple": { "chain": 2 } } } }, { "k": "B", "name": "Corona de Flechas", "desc": "Flecha Múltiple sale en 360° con −30% de daño. Ideal si te rodean.", "fx": { "mod": { "flecha_multiple": { "proj": 4, "dmg": -30 } } } } ] },
-      { "id": "s7", "name": "Puntas Ligeras", "icon": "talents/arquera-tiradora-s7.webp", "t": "p", "r": 3, "c": 2.5, "max": 2, "req": [ "s4", "s5" ], "fx": { "mod": { "flecha_multiple": { "cost": -10 }, "a_t_andanada": { "cost": -10 } } }, "d": "−10% de coste de Energía de Flecha Múltiple y Andanada por rango." },
-      { "id": "s8", "name": "Esquiva Felina", "icon": "talents/arquera-tiradora-s8.webp", "t": "p", "r": 4, "c": 0, "max": 2, "req": [ "s6" ], "fx": { "tv": { "dmgReduc": 4 } }, "d": "−4% de daño recibido por rango mientras te mueves." },
-      { "id": "s9", "name": "Danza de Flechas", "icon": "talents/arquera-tiradora-s9.webp", "t": "a", "r": 4, "c": 1.5, "max": 1, "req": [ "s6", "s7" ], "fx": { "grant": "a_t_danza" }, "d": "Activa nueva: durante 4 s disparas flechas en espiral a tu alrededor sin dejar de correr, inmune a ralentizaciones. Enfriamiento 25 s." },
-      { "id": "s10", "name": "Lluvia Torrencial", "icon": "talents/arquera-tiradora-s10.webp", "t": "p", "r": 4, "c": 3, "max": 2, "req": [ "s7" ], "fx": { "mod": { "lluvia_flechas": { "radius": 15, "dmg": 10 } } }, "d": "+15% de radio y +10% de daño de Lluvia de Flechas por rango." },
-      { "id": "s11", "name": "Segundo Aliento", "icon": "talents/arquera-tiradora-s11.webp", "t": "p", "r": 5, "c": 0.5, "max": 2, "req": [ "s8", "s9" ], "fx": { "tv": { "galeHeal": 4 } }, "d": "Al llenar el Impulso recuperas un 4% de vida y 10 de Energía por rango." },
-      { "id": "s12", "name": "Carcaj Sin Fondo", "icon": "talents/arquera-tiradora-s12.webp", "t": "p", "r": 5, "c": 2.5, "max": 2, "req": [ "s9", "s10" ], "fx": { "skillLv": { "flecha_multiple": 1, "lluvia_flechas": 1 } }, "d": "+1 nivel por rango a Flecha Múltiple y Lluvia de Flechas." },
-      { "id": "s13", "name": "Salto o Estela", "icon": "talents/arquera-tiradora-s13.webp", "t": "c", "r": 6, "c": 0, "max": 1, "req": [ "s11" ], "opts": [ { "k": "A", "name": "Salto de Retirada", "desc": "Activa: saltas 7 m atrás y disparas 5 flechas al aterrizar. +30 de Impulso.", "active": true, "fx": { "grant": "a_t_salto" } }, { "k": "B", "name": "Estela de Viento", "desc": "Durante el Vendaval dejas una estela que acelera un 15% a los aliados.", "fx": { "power": "t_slipstream" } } ] },
-      { "id": "s14", "name": "Vendaval Perpetuo", "icon": "talents/arquera-tiradora-s14.webp", "t": "k", "r": 6, "c": 1.5, "max": 1, "req": [ "s11", "s12" ], "fx": { "power": "t_galechain" }, "d": "Durante el Vendaval, cada enemigo abatido alarga su duración 0.5 s (hasta +6 s)." },
-      { "id": "s15", "name": "Ojo de Tormenta", "icon": "talents/arquera-tiradora-s15.webp", "t": "p", "r": 6, "c": 3, "max": 2, "req": [ "s12" ], "fx": { "mod": { "flecha_multiple": { "crit": 3 }, "a_t_andanada": { "crit": 3 } } }, "d": "+3% de crítico por rango a Flecha Múltiple y Andanada." },
-      { "id": "s16", "name": "Diluvio Constante", "icon": "talents/arquera-tiradora-s16.webp", "t": "p", "r": 7, "c": 1, "max": 2, "req": [ "s13", "s14" ], "fx": { "mod": { "a_u_diluvio": { "cdr": 15 } } }, "d": "−15% de enfriamiento de Diluvio de Saetas por rango." },
-      { "id": "s17", "name": "Filo del Viento", "icon": "talents/arquera-tiradora-s17.webp", "t": "p", "r": 7, "c": 2, "max": 2, "req": [ "s14", "s15" ], "fx": { "elem": { "phys": 6 } }, "d": "+6% de daño Físico por rango a todas tus flechas." },
-      { "id": "x1", "name": "Ráfaga Infinita", "icon": "talents/arquera-tiradora-x1.webp", "t": "x", "r": 8, "c": 0.5, "max": 1, "req": [ "s16", "s17" ], "fx": { "power": "t_infinite" }, "d": "Apex I: cada 10 disparos, el siguiente no cuesta Energía y lanza el doble de proyectiles." },
-      { "id": "x2", "name": "Huracán", "icon": "talents/arquera-tiradora-x2.webp", "t": "x", "r": 8, "c": 1.5, "max": 2, "req": [ "x1" ], "fx": { "tv": { "infiniteDmg": 10 } }, "d": "Apex II: los disparos de Ráfaga Infinita hacen +10% de daño y dan +10 de Impulso por rango." },
-      { "id": "x3", "name": "Ojo del Huracán", "icon": "talents/arquera-tiradora-x3.webp", "t": "x", "r": 8, "c": 2.5, "max": 1, "req": [ "x2" ], "fx": { "power": "t_eyestorm" }, "d": "Apex III (cúspide): durante el Vendaval, Ráfaga Infinita se activa cada 5 disparos en lugar de 10." }
-    ] }
-  ],
-  skills: [],
+// kit sintético por especialización (insignia, movilidad/utilidad, principal, definitiva):
+// solo existe en el fixture (lo usan '@spec' vía kitOf y la regla G17 de test78)
+export const FIXTURE_KITS = {};
+for (const c of Object.values(CFG)) for (const s of c.specs) FIXTURE_KITS[s.id] = [1, 2, 3, 4].map(k => `fx_${s.id}_k${k}`);
+
+// ---------------------------------------------------------------- contenido por posición
+const opt = (k, name, desc, role, fx) => ({ k, name, desc, role, fx });
+const P = (pw, tag, n) => `${pw}fx_${tag}_${n}`;
+// árbol de CLASE: toca el kit base y lo genérico (nunca @spec ni el kit: G1)
+function clsContent(c) {
+  const pw = c.pw, el = ELEM_TXT[c.elem], pwr = n => P(pw, 'cls', n);
+  return {
+    1: { name: 'Temple', tag: 'num', d: r => `+${20 * r} de vida máxima`, fx: { stats: { hp: 20 } } },
+    2: { name: 'Disciplina', tag: 'num', d: r => `Todas tus habilidades hacen +${6 * r} % de daño`, fx: { mod: { '@all': { dmg: 6 } } }, touch: ['@all'] },
+    3: { name: 'Reflejos', tag: 'num', d: r => `Tu movilidad se recarga un ${10 * r} % antes`, fx: { mod: { '@movement': { cdr: 10 } } }, touch: ['@movement'] },
+    4: { name: 'Coraza', tag: 'num', d: r => `Recibes un ${2 * r} % menos de daño (antes 0 %)`, fx: { tv: { dmgReduc: 2 } } },
+    5: { name: 'Básica: Certera o Amplia', tag: 'mec', touch: ['@basic'], opts: [
+      opt('A', 'Certera', 'Cada 4.º golpe básico es crítico seguro', 'UNI', { power: pwr('5a') }),
+      opt('B', 'Amplia', 'Tu habilidad básica hace +20 % de daño', 'AREA', { mod: { '@basic': { dmg: 20 } } })],
+      win: 'A, contra jefes: un crítico seguro cada pocos segundos. B, contra grupos' },
+    6: { name: 'Principal: Núcleo u Onda', tag: 'num', touch: ['@spender'], opts: [
+      opt('A', 'Núcleo', 'Tus habilidades principales hacen +15 % de daño', 'UNI', { mod: { '@spender': { dmg: 15 } } }),
+      opt('B', 'Onda', 'Tus habilidades principales tienen +30 % de radio', 'AREA', { mod: { '@spender': { radius: 30 } } })],
+      win: 'A, contra jefes. B, contra grupos' },
+    7: { name: 'Paso Ligero', tag: 'mec', d: () => 'Después de tu movilidad corres un 30 % más rápido durante 3 s', fx: { power: pwr(7) }, touch: ['@movement'] },
+    8: { name: 'Piel Dura', tag: 'num', d: r => `+${15 * r} de armadura`, fx: { stats: { arm: 15 } } },
+    9: { name: 'Frenar o Golpear', tag: 'mec', touch: ['@spender'], opts: [
+      opt('A', 'Frenar', 'Tus habilidades principales ralentizan un 30 % durante 2 s', 'CTRL', { mod: { '@spender': { slow: 2, slowPct: 30 } } }),
+      opt('B', 'Golpear', 'Tus habilidades principales hacen +20 % de daño a grupos', 'AREA', { mod: { '@spender': { dmg: 20 } } })],
+      win: 'A, para controlar. B, contra grupos' },
+    10: { name: 'Corte o Silencio', tag: 'mec', opts: [
+      opt('A', 'Corte', 'Cada 8 s, tu siguiente golpe ralentiza un 50 % durante 4 s', 'CTRL', { power: pwr('10a') }),
+      opt('B', 'Silencio', 'Cada 10 s, tu siguiente golpe deja mudo al enemigo 3 s', 'UNI', { power: pwr('10b') })],
+      win: 'A, contra grupos que te rodean. B, contra jefes que lanzan hechizos' },
+    11: { name: 'Refugio o Aguante', tag: 'mec', opts: [
+      opt('A', 'Refugio', 'Habilidad (ranura 2): no recibes daño durante 4 s. Se recarga en 90 s', 'AGU', { grant: c.grants[0] }),
+      opt('B', 'Aguante', 'Un golpe que te mataría te deja con 1 de vida. Una vez cada 120 s', 'AGU', { power: pwr('11b') })],
+      win: 'A, contra golpes que se ven venir (ocupa la ranura 2). B, siempre activo' },
+    12: { name: 'Precisión', tag: 'num', d: r => `+${3 * r} % de probabilidad de crítico`, fx: { stats: { crit: 3 } } },
+    13: { name: 'Cazador', tag: 'num', d: r => `+${6 * r} % de daño contra élites y jefes`, fx: { tv: { eliteDmg: 6 } } },
+    14: { name: 'Huida o Reparo', tag: 'mec', touch: ['@movement'], opts: [
+      opt('A', 'Huida', 'Tu movilidad dura un 20 % más', 'CTRL', { mod: { '@movement': { dur: 20 } } }),
+      opt('B', 'Reparo', 'Tu movilidad te cura un 5 % de la vida', 'AGU', { power: pwr('14b') })],
+      win: 'A, para controlar el espacio. B, para sobrevivir' },
+    15: { name: 'Vigor o Festín', tag: 'mec', opts: [
+      opt('A', 'Vigor', '+60 de vida máxima', 'AGU', { stats: { hp: 60 } }),
+      opt('B', 'Festín', 'Matar a un enemigo te cura un 2 % de la vida', 'AGU', { tv: { killHeal: 2 } })],
+      win: 'A, contra jefes. B, contra grupos' },
+    16: { name: 'Filo o Maestría', tag: 'mec', opts: [
+      opt('A', 'Filo', 'Todas tus habilidades tienen +5 % de crítico', 'UNI', { mod: { '@all': { crit: 5 } } }),
+      opt('B', 'Maestría', '+1 nivel a tus habilidades principales', 'AREA', { skillLv: { '@spender': 1 } })],
+      win: 'A, contra jefes. B, contra grupos' },
+    17: { name: 'Pausa o Remate', tag: 'mec', opts: [
+      opt('A', 'Pausa', 'Habilidad (ranura 2): detienes a los enemigos a 8 m 3 s. Se recarga en 60 s', 'CTRL', { grant: c.grants[1] }),
+      opt('B', 'Remate', 'Rematas a los enemigos normales bajo el 10 % de vida', 'UNI', { tv: { executePct: 10 } })],
+      win: 'A, para controlar (ocupa la ranura 2). B, contra grupos que se quedan con poca vida' },
+    18: { name: 'Escudo Firme', tag: 'mec', d: r => `Con escudo recibes un ${5 * r} % menos de daño`, fx: { tv: { barrierDr: 5 } } },
+    19: { name: 'Resonancia', tag: 'mec', d: () => 'Tus escudos te devuelven 5 de recurso al romperse', fx: { power: pwr(19) } },
+    20: { name: 'Eco', tag: 'mec', d: () => `Tus golpes de ${el} repiten un 10 % del daño`, fx: { power: pwr(20) } },
+    21: { name: 'Zancada', tag: 'mec', d: () => 'En movimiento recibes un 8 % menos de daño', fx: { tv: { drMoving: 8 } } },
+    22: { name: 'Corte o Canal', tag: 'mec', opts: [
+      opt('A', 'Corte', 'Habilidad (ranura 2): cortas el hechizo de un enemigo a 12 m. Se recarga en 18 s', 'UNI', { grant: c.grants[2] }),
+      opt('B', 'Canal', 'Al bajar del 30 % de vida recibes un 30 % menos de daño 5 s', 'AGU', { power: pwr('22b') })],
+      win: 'A, contra jefes que lanzan hechizos (ocupa la ranura 2). B, para sobrevivir' },
+    23: { name: 'Ritmo', tag: 'mec', d: r => `Tus habilidades se recargan un ${4 * r} % antes`, fx: { mod: { '@all': { cdr: 4 } } } },
+    24: { name: 'Celeridad', tag: 'num', d: r => `+${5 * r} % de velocidad de ataque`, fx: { stats: { aspdPct: 5 } } },
+    25: { name: 'Bastión', tag: 'mec', d: r => `Recibes un ${2 * r} % menos de daño más`, fx: { tv: { dmgReduc: 2 } } },
+    26: { name: 'Torrente', tag: 'mec', d: r => `Tus habilidades principales hacen +${5 * r} % de daño`, fx: { mod: { '@spender': { dmg: 5 } } } },
+    27: { name: 'Estela', tag: 'mec', d: r => `+${4 * r} % de velocidad de movimiento`, fx: { stats: { spdPct: 4 } } },
+    28: { name: 'Muralla', tag: 'mec', final: 'Defensa', d: r => `Cada ${12 - 2 * r} s un escudo te cubre`, fx: { power: pwr(28) } },
+    29: { name: 'Archimagia', tag: 'mec', final: 'Poder', d: r => `Tus principales se repiten al ${20 * r} %`, fx: { power: pwr(29) } },
+    30: { name: 'Paso del Vacío', tag: 'mec', final: 'Movilidad', d: r => `Tu movilidad tiene ${r} ${pl(r, 'carga', 'cargas')}`, fx: { power: pwr(30) } },
+  };
+}
+// árbol de ESPECIALIZACIÓN (la misma rejilla para las tres): toca su kit y su elemento
+function specContent(c, s) {
+  const pw = c.pw, [k1, k2, k3, k4] = FIXTURE_KITS[s.id], el = ELEM_TXT[s.elem], pwr = n => P(pw, s.id, n);
+  return {
+    0: { name: `Clave ${s.name}`, tag: 'mec', d: () => `Tu mecánica de ${s.name} se enciende`, fx: { power: pwr(0) } },
+    1: { name: 'Kit Afilado', tag: 'num', d: r => `Tu kit hace +${5 * r} % de daño`, fx: { mod: { '@spec': { dmg: 5 } } }, touch: [k1] },
+    2: { name: 'Kit Experto', tag: 'num', d: r => `+${r} ${pl(r, 'nivel', 'niveles')} a las habilidades de tu kit`, fx: { skillLv: { '@spec': 1 } } },
+    3: { name: `Afinidad de ${el}`, tag: 'num', d: r => `+${4 * r} % de daño de ${el}`, fx: { elem: { [s.elem]: 4 } } },
+    4: { name: 'Pulso', tag: 'num', d: r => `+${2 * r} de potencia de tu mecánica`, fx: { tv: { [c.tvKey]: 2 } } },
+    5: { name: 'Puente', tag: 'mec', hyb: 'A + B', d: () => 'Tu insignia acelera tu movilidad 1 s', fx: { power: pwr(5) }, touch: [k2] },
+    6: { name: 'Enlace', tag: 'mec', hyb: 'B + C', d: () => 'Tu principal deja una marca 3 s', fx: { power: pwr(6) }, touch: [k3] },
+    7: { name: 'Acoso', tag: 'num', d: r => `+${5 * r} % de daño contra ralentizados`, fx: { tv: { slowedDmg: 5 } } },
+    8: { name: 'Insignia: Ancha o Densa', tag: 'mec', touch: [k1], opts: [
+      opt('A', 'Ancha', 'Tu insignia tiene +30 % de radio', 'AREA', { mod: { [k1]: { radius: 30 } } }),
+      opt('B', 'Densa', 'Tu insignia hace +25 % de daño', 'UNI', { mod: { [k1]: { dmg: 25 } } })],
+      win: 'A, contra grupos. B, contra jefes' },
+    9: { name: 'Principal: Doble o Fija', tag: 'mec', touch: [k3], opts: [
+      opt('A', 'Doble', 'Tu principal lanza un proyectil más', 'AREA', { mod: { [k3]: { proj: 1 } } }),
+      opt('B', 'Fija', 'Tu principal hace +30 % al mismo enemigo', 'UNI', { power: pwr('9b') })],
+      win: 'A, contra grupos. B, contra jefes' },
+    10: { name: 'Definitiva: Hielo o Pronta', tag: 'mec', touch: [k4], opts: [
+      opt('A', 'Atadura', 'Tu definitiva inmoviliza 1 s', 'CTRL', { power: pwr('10a') }),
+      opt('B', 'Pronta', 'Tu definitiva se recarga un 15 % antes', 'UNI', { mod: { [k4]: { cdr: 15 } } })],
+      win: 'A, para controlar. B, contra jefes' },
+    11: { name: 'Aguante', tag: 'num', d: r => `+${30 * r} de vida máxima`, fx: { stats: { hp: 30 } } },
+    12: { name: 'Golpe Doble', tag: 'mec', d: r => `Tu principal hace +${8 * r} % de daño`, fx: { mod: { [k3]: { dmg: 8 } } }, touch: [k3] },
+    13: { name: 'Paso Firme', tag: 'mec', d: r => `Tu movilidad te protege ${r} s`, fx: { power: pwr(13) }, touch: [k2] },
+    14: { name: 'Remate Final', tag: 'mec', d: () => 'Tu definitiva remata bajo el 15 % de vida', fx: { power: pwr(14) }, touch: [k4] },
+    15: { name: 'Sangre o Escudo', tag: 'mec', opts: [
+      opt('A', 'Sangre', 'Matar a un enemigo te cura un 3 % de la vida', 'AGU', { tv: { killHeal: 3 } }),
+      opt('B', 'Escudo', 'Al bajar del 40 % de vida ganas un escudo', 'AGU', { power: pwr('15b') })],
+      win: 'A, contra grupos. B, contra jefes' },
+    16: { name: 'Núcleo', tag: 'mec', hyb: 'A + B + C', d: r => `Tu mecánica dura ${r} s más`, fx: { power: pwr(16) }, touch: [k1, k2] },
+    17: { name: 'Prisa', tag: 'mec', d: r => `Tu movilidad dura ${r} s más`, fx: { mod: { [k2]: { durS: 1 } } }, touch: [k2] },
+    18: { name: 'Brasa Viva', tag: 'mec', d: r => `Tu insignia deja una zona ${r} s`, fx: { power: pwr(18) }, touch: [k1] },
+    19: { name: 'Astillas', tag: 'mec', d: r => `Tu principal salta a ${r} ${pl(r, 'enemigo', 'enemigos')}`, fx: { power: pwr(19) }, touch: [k3] },
+    20: { name: 'Agudeza', tag: 'mec', d: r => `+${10 * r} % de daño crítico`, fx: { tv: { critDmg: 10 } } },
+    21: { name: 'Ojo Frío', tag: 'mec', d: () => 'Tu definitiva marca al enemigo más fuerte', fx: { power: pwr(21) }, touch: [k4] },
+    22: { name: 'Penúltimo A', tag: 'mec', d: r => `Tu insignia hace +${n1(0.5 * r)} de daño por capa`, fx: { power: pwr(22) }, touch: [k1] },
+    23: { name: 'Penúltimo B', tag: 'mec', d: r => `Tu principal golpea ${r} ${pl(r, 'vez', 'veces')} más`, fx: { power: pwr(23) }, touch: [k3] },
+    24: { name: 'Penúltimo C', tag: 'mec', d: r => `Tu definitiva dura ${r} s más`, fx: { power: pwr(24) }, touch: [k4] },
+    25: { name: 'Final A', tag: 'mec', final: 'A', d: r => `Tu insignia estalla al ${100 * r} %`, fx: { power: pwr(25) }, touch: [k1] },
+    26: { name: 'Final B', tag: 'mec', final: 'B', d: r => `Tu principal se repite al ${20 * r} %`, fx: { power: pwr(26) }, touch: [k3] },
+    27: { name: 'Final C', tag: 'mec', final: 'C', d: r => `Tu definitiva y tu movilidad se recargan ${r} s antes`, fx: { power: pwr(27) }, touch: [k4, k2] },
+    28: { name: `Ápice ${s.name}`, tag: 'mec', d: r => ['1) Tu mecánica arranca llena.', '2) Tu insignia no cuesta.', '3) Tu principal es crítica.', '4) Tu definitiva se repite.'].slice(0, r).join(' '), fx: { power: pwr(28) } },
+  };
+}
+// árbol HÉROE: temático de la clase; una sola activa (opción A del nodo 4)
+function heroContent(c, h, grant) {
+  const pw = c.pw, pwr = n => P(pw, h.id, n);
+  return {
+    0: { name: h.name, tag: 'mec', d: () => `Tu identidad de ${h.name} se despierta`, fx: { power: pwr(0) } },
+    1: { name: `${h.name}: Brío`, tag: 'num', d: () => '+5 % de daño', fx: { stats: { dmgPct: 5 } } },
+    2: { name: `${h.name}: Uno o Muchos`, tag: 'mec', opts: [
+      opt('A', `${h.name}: Uno`, 'Tu marca hace +45 % a un enemigo', 'UNI', { power: pwr('2a') }),
+      opt('B', `${h.name}: Muchos`, 'Tu marca pasa a 2 enemigos cercanos', 'AREA', { power: pwr('2b') })],
+      win: 'A, contra jefes. B, contra grupos' },
+    3: { name: `${h.name}: Prisa`, tag: 'mec', d: () => 'Cada marca que termina te acelera 3 s', fx: { power: pwr(3) } },
+    4: { name: `${h.name}: Llamada o Retiro`, tag: 'mec', opts: [
+      opt('A', `${h.name}: Llamada`, 'Habilidad (ranura 2): paras a los enemigos a 8 m 3 s. Se recarga en 75 s', 'CTRL', { grant }),
+      opt('B', `${h.name}: Retiro`, 'Al bajar del 40 % de vida vuelves a la vida de hace 3 s', 'AGU', { power: pwr('4b') })],
+      win: 'A, para controlar grupos (ocupa la ranura 2). B, para sobrevivir' },
+    5: { name: `${h.name}: Saña`, tag: 'num', d: () => '+8 % de daño contra élites y jefes', fx: { tv: { eliteDmg: 8 } } },
+    6: { name: `${h.name}: Paradoja`, tag: 'mec', d: () => 'Si el marcado muere, la marca pasa al más cercano', fx: { power: pwr(6) } },
+    7: { name: `${h.name}: Bucle`, tag: 'mec', d: () => 'Cada 4.ª marca se repite', fx: { power: pwr(7) } },
+    8: { name: `${h.name}: Presagio o Memoria`, tag: 'mec', opts: [
+      opt('A', `${h.name}: Presagio`, '+5 % de probabilidad de crítico', 'UNI', { stats: { crit: 5 } }),
+      opt('B', `${h.name}: Memoria`, 'Matar a un enemigo te cura un 2 % de la vida', 'AGU', { tv: { killHeal: 2 } })],
+      win: 'A, contra jefes. B, para aguantar en grupos' },
+    9: { name: `${h.name}: Grieta`, tag: 'mec', d: () => 'Tres marcas a la vez abren una grieta 3 s', fx: { power: pwr(9) } },
+    10: { name: `${h.name}: Aceleración`, tag: 'num', d: () => '+6 % de velocidad de ataque', fx: { stats: { aspdPct: 6 } } },
+    11: { name: `${h.name}: Momento`, tag: 'mec', d: () => 'Tus críticos alargan la marca 1 s', fx: { power: pwr(11) } },
+    12: { name: `${h.name}: Cumbre`, tag: 'mec', d: () => 'Cada 30 s tu siguiente principal se repite entera', fx: { power: pwr(12) } },
+  };
+}
+// arma un árbol a partir de la rejilla y su contenido
+function buildTree(grid, prefix, content, iconBase) {
+  return grid.map(gn => {
+    const id = `${prefix}${gn.n}`, ct = content[gn.n];
+    const node = { id, name: ct.name, t: gn.t, tag: ct.tag, r: gn.r, c: gn.c, max: gn.max };
+    if (gn.req.length) node.req = gn.req.map(x => `${prefix}${x}`);
+    if (gn.t === 'k') node.free = true;
+    if (gn.t === 'c') { node.opts = ct.opts.map(o => ({ ...o, fx: { ...o.fx } })); node.win = ct.win; }
+    else { node.d = ct.d; node.fx = { ...ct.fx }; }
+    for (const k of ['touch', 'final', 'hyb']) if (ct[k]) node[k] = Array.isArray(ct[k]) ? [...ct[k]] : ct[k];
+    node.icon = `talents/${iconBase}-${id}.webp`;
+    return node;
+  });
+}
+
+// ---------------------------------------------------------------- builds (las 12 de la Maga)
+const MAGA_SPEC_PREFIX = ['s', 'i', 'a'], MAGA_HERO_PREFIX = ['t', 'f', 'e'];
+const MAGA_SPECS = ['piromante', 'crionte', 'arcanista'], MAGA_HEROES = ['crono', 'invoca', 'escriba'];
+const BUILD_TEMPLATES = {
+  brasa: { sp: 'piromante', n: 'Incendio', arch: 'Brasa', hero: 'invoca', heroCh: { f2: 'B', f4: 'A', f8: 'B' }, heroNodes: ['f2', 'f3', 'f6', 'f5', 'f9', 'f8', 'f11', 'f12', 'f4', 'f1'], cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c9: 1, c16: 1, c18: 2, c13: 2, c6: 1, c10: 1, c25: 3, c28: 3, c3: 2, c7: 1, c14: 1 }, clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'A', c16: 'B', c22: 'B' }, spec: { s1: 3, s4: 2, s5: 1, s8: 1, s11: 2, s15: 1, s18: 2, s22: 3, s25: 3, s28: 4, s2: 3, s9: 1, s12: 2, s16: 2, s3: 1 }, specCh: { s8: 'A', s9: 'B', s15: 'B' } },
+  cataclismo: { sp: 'piromante', n: 'Lluvia de Fuego', arch: 'Cataclismo', hero: 'crono', heroCh: { t2: 'B', t4: 'B', t8: 'A' }, heroNodes: ['t2', 't3', 't6', 't5', 't9', 't8', 't11', 't12', 't4', 't1'], cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c1: 2, c5: 1, c9: 1, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c27: 3, c30: 3, c8: 2, c4: 2 }, clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c14: 'A', c16: 'B', c17: 'B' }, spec: { s3: 3, s7: 2, s6: 1, s10: 1, s13: 2, s14: 1, s17: 2, s21: 1, s24: 3, s27: 3, s28: 4, s2: 3, s9: 1, s16: 2, s20: 2 }, specCh: { s9: 'B', s10: 'A' } },
+  ignicion: { sp: 'piromante', n: 'Combustión Perpetua', arch: 'Ignición', hero: 'crono', heroCh: { t2: 'A', t4: 'B', t8: 'A' }, heroNodes: ['t2', 't1', 't3', 't5', 't8', 't4', 't7', 't10', 't12', 't11'], cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c4_: 2 }, clsCh: { c5: 'A', c6: 'A', c9: 'B', c10: 'B', c15: 'B', c16: 'A', c17: 'A' }, spec: { s2: 3, s5: 1, s9: 1, s12: 2, s16: 2, s19: 2, s23: 3, s26: 3, s28: 4, s1: 3, s4: 1, s8: 1, s15: 1, s3: 3, s6: 1 }, specCh: { s8: 'B', s9: 'A', s15: 'A' } },
+  hibrido: { sp: 'piromante', n: 'Brasa Ardiente', arch: 'Híbrido Brasa-Ignición', hero: 'invoca', heroCh: { f2: 'A', f4: 'A', f8: 'A' }, heroNodes: ['f2', 'f1', 'f4', 'f5', 'f8', 'f3', 'f7', 'f10', 'f12', 'f11'], cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c7: 1, c4_: 1 }, clsCh: { c5: 'A', c6: 'B', c9: 'B', c10: 'A', c15: 'A', c16: 'B', c17: 'B' }, spec: { s1: 3, s2: 3, s4: 2, s5: 1, s8: 1, s9: 1, s11: 2, s12: 2, s15: 1, s16: 2, s18: 2, s19: 2, s22: 3, s23: 3, s3: 1, s20: 2 }, specCh: { s8: 'A', s9: 'A', s15: 'B' } },
+  glaciar: { sp: 'crionte', n: 'Era Glacial', arch: 'Glaciar', hero: 'escriba', heroCh: { e2: 'B', e4: 'B', e8: 'B' }, heroNodes: ['e2', 'e3', 'e6', 'e5', 'e9', 'e8', 'e11', 'e12', 'e4', 'e1'], cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c9: 1, c16: 1, c18: 2, c13: 2, c6: 1, c10: 1, c25: 3, c28: 3, c3: 2, c7: 1, c14: 1 }, clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'A', c16: 'B', c22: 'B' }, spec: { i1: 3, i4: 2, i5: 1, i8: 1, i11: 2, i15: 1, i18: 2, i22: 3, i25: 3, i28: 4, i2: 3, i9: 1, i12: 2, i16: 2, i3: 1 }, specCh: { i8: 'A', i9: 'A', i15: 'A' } },
+  tormenta: { sp: 'crionte', n: 'Invierno Eterno', arch: 'Tormenta', hero: 'invoca', heroCh: { f2: 'B', f4: 'A', f8: 'B' }, heroNodes: ['f2', 'f3', 'f6', 'f5', 'f9', 'f8', 'f11', 'f12', 'f4', 'f1'], cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c1: 2, c5: 1, c9: 1, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c27: 3, c30: 3, c8: 2, c4: 2 }, clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c14: 'A', c16: 'B', c17: 'B' }, spec: { i3: 3, i7: 2, i6: 1, i10: 1, i13: 2, i14: 1, i17: 2, i21: 1, i24: 3, i27: 3, i28: 4, i2: 3, i9: 1, i16: 2, i20: 2 }, specCh: { i9: 'A', i10: 'A' } },
+  fractura: { sp: 'crionte', n: 'Cero Absoluto', arch: 'Fractura', hero: 'escriba', heroCh: { e2: 'A', e4: 'B', e8: 'A' }, heroNodes: ['e2', 'e1', 'e3', 'e5', 'e8', 'e4', 'e7', 'e10', 'e12', 'e11'], cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c4_: 2 }, clsCh: { c5: 'A', c6: 'A', c9: 'B', c10: 'B', c15: 'B', c16: 'A', c17: 'A' }, spec: { i2: 3, i5: 1, i9: 1, i12: 2, i16: 2, i19: 2, i23: 3, i26: 3, i28: 4, i1: 3, i4: 1, i8: 1, i15: 1, i3: 3, i6: 1 }, specCh: { i8: 'B', i9: 'B', i15: 'B' } },
+  hibcrio: { sp: 'crionte', n: 'Escarcha Quebradiza', arch: 'Híbrido Glaciar-Fractura', hero: 'invoca', heroCh: { f2: 'A', f4: 'B', f8: 'B' }, heroNodes: ['f2', 'f1', 'f4', 'f5', 'f8', 'f3', 'f7', 'f10', 'f12', 'f11'], cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c7: 1, c4_: 1 }, clsCh: { c5: 'A', c6: 'B', c9: 'B', c10: 'A', c15: 'A', c16: 'B', c17: 'B' }, spec: { i1: 3, i2: 3, i4: 2, i5: 1, i8: 1, i9: 1, i11: 2, i12: 2, i15: 1, i16: 2, i18: 2, i19: 2, i22: 3, i23: 3, i3: 1, i20: 2 }, specCh: { i8: 'A', i9: 'B', i15: 'A' } },
+  rayo: { sp: 'arcanista', n: 'Tormenta de Cargas', arch: 'Rayo', hero: 'crono', heroCh: { t2: 'A', t4: 'B', t8: 'A' }, heroNodes: ['t2', 't1', 't3', 't5', 't8', 't4', 't7', 't10', 't12', 't11'], cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c4_: 2 }, clsCh: { c5: 'A', c6: 'A', c9: 'B', c10: 'B', c15: 'B', c16: 'A', c17: 'A' }, spec: { a1: 3, a4: 2, a5: 1, a8: 1, a11: 2, a15: 1, a18: 2, a22: 3, a25: 3, a28: 4, a2: 3, a9: 1, a12: 2, a16: 2, a3: 1 }, specCh: { a8: 'A', a9: 'A', a15: 'B' } },
+  orbe: { sp: 'arcanista', n: 'Constelación', arch: 'Orbe', hero: 'escriba', heroCh: { e2: 'B', e4: 'B', e8: 'A' }, heroNodes: ['e2', 'e3', 'e6', 'e5', 'e9', 'e8', 'e11', 'e12', 'e4', 'e1'], cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c1: 2, c5: 1, c9: 1, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c27: 3, c30: 3, c8: 2, c4: 2 }, clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c14: 'A', c16: 'B', c17: 'B' }, spec: { a2: 3, a5: 1, a9: 1, a12: 2, a16: 2, a19: 2, a23: 3, a26: 3, a28: 4, a1: 3, a4: 1, a8: 1, a15: 1, a3: 3, a6: 1 }, specCh: { a8: 'B', a9: 'B', a15: 'A' } },
+  grieta: { sp: 'arcanista', n: 'Grieta Eterna', arch: 'Grieta', hero: 'crono', heroCh: { t2: 'A', t4: 'A', t8: 'A' }, heroNodes: ['t2', 't3', 't6', 't5', 't9', 't8', 't11', 't12', 't4', 't1'], cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c9: 1, c16: 1, c18: 2, c13: 2, c6: 1, c10: 1, c25: 3, c28: 3, c3: 2, c7: 1, c14: 1 }, clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'A', c16: 'B', c22: 'B' }, spec: { a3: 3, a7: 2, a6: 1, a10: 1, a13: 2, a14: 1, a17: 2, a21: 1, a24: 3, a27: 3, a28: 4, a2: 3, a9: 1, a16: 2, a20: 2 }, specCh: { a9: 'A', a10: 'A' } },
+  hibarca: { sp: 'arcanista', n: 'Rayo Orbital', arch: 'Híbrido Rayo-Orbe', hero: 'escriba', heroCh: { e2: 'A', e4: 'B', e8: 'A' }, heroNodes: ['e2', 'e1', 'e3', 'e5', 'e8', 'e4', 'e7', 'e10', 'e12', 'e11'], cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c7: 1, c4_: 1 }, clsCh: { c5: 'A', c6: 'B', c9: 'B', c10: 'A', c15: 'A', c16: 'B', c17: 'B' }, spec: { a1: 3, a2: 3, a4: 2, a5: 1, a8: 1, a9: 1, a11: 2, a12: 2, a15: 1, a16: 2, a18: 2, a19: 2, a22: 3, a23: 3, a3: 1, a20: 2 }, specCh: { a8: 'A', a9: 'B', a15: 'B' } },
 };
+const DEFAULT_TEMPLATE = ['brasa', 'glaciar', 'rayo'];
+// traduce una build de la Maga a la clase: prefijos de especialización y de héroe, ids
+function translateBuild(b, c) {
+  const pre = {}, ids = {};
+  MAGA_SPEC_PREFIX.forEach((p, i) => { pre[p] = c.specs[i].prefix; });
+  MAGA_SPECS.forEach((s, i) => { ids[s] = c.specs[i].id; });
+  const hpre = {}, hids = {};
+  MAGA_HERO_PREFIX.forEach((p, i) => { hpre[p] = c.hero[i].prefix; });
+  MAGA_HEROES.forEach((h, i) => { hids[h] = c.hero[i].id; });
+  const mapId = (id, table) => id.replace(/^([a-z]+)(\d+_?)$/, (m, p, rest) => (p === 'c' ? m : `${table[p] ?? p}${rest}`));
+  const mapObj = (o, table) => Object.fromEntries(Object.entries(o).map(([k, v]) => [mapId(k, table), v]));
+  return { ...b, sp: ids[b.sp], hero: hids[b.hero], heroCh: mapObj(b.heroCh, hpre), heroNodes: b.heroNodes.map(id => mapId(id, hpre)),
+    cls: { ...b.cls }, clsCh: { ...b.clsCh }, spec: mapObj(b.spec, pre), specCh: mapObj(b.specCh, pre) };
+}
 
-export const SAMPLE_TALENTS = { guerrero: GUERRERO_TALENTS, maga: MAGA_TALENTS, arquera: ARQUERA_TALENTS };
+// ---------------------------------------------------------------- activas de talento (kind 'talent', ranura 2)
+function talentSkill(id, cat, elem, req, grantBy, extra = {}) {
+  return { id, name: `Activa ${id}`, icon: '✦', kind: 'talent', cat, slots: ['k2'], tags: [cat, elem], elem, type: 'buff',
+    req, cd: 30, dur: 4, stats: { dr: 10 }, grantBy, desc: `Habilidad de talento de prueba (${id}).`, ...extra };
+}
+
+// ---------------------------------------------------------------- ensamblado por clase
+export const FIXTURE_POWERS = new Set();
+function makeClass(classId) {
+  const c = CFG[classId];
+  const cls = { name: c.name, nodes: buildTree(GRID.cls, 'c', clsContent(c), `${classId}-clase`) };
+  const specs = c.specs.map(s => ({ id: s.id, name: s.name, role: s.role, roleLabel: s.roleLabel, icon: `specs/${s.id}.webp`,
+    emblem: `emblems/${s.id}.webp`, mechanic: s.mechanic, elem: s.elem, prefix: s.prefix, innate: { ...s.innate },
+    innateText: `Pasiva de ${s.name}`, line: `La fantasía de ${s.name} en una frase.`, desc: `Especialización ${s.name} (fixture).`,
+    nodes: buildTree(GRID.spec, s.prefix, specContent(c, s), `${classId}-${s.id}`) }));
+  const hero = c.hero.map((h, i) => ({ id: h.id, name: h.name, specs: HERO_SPECS[i].map(k => c.specs[k].id), art: 'ui256/menu_viajes.webp',
+    line: `La línea de ${h.name}`, key: `El nodo clave de ${h.name} en una frase`, prefix: h.prefix,
+    nodes: buildTree(GRID.hero, h.prefix, heroContent(c, h, c.heroGrants[i]), `${classId}-${h.id}`) }));
+  const builds = {};
+  for (const [k, b] of Object.entries(BUILD_TEMPLATES)) builds[k] = translateBuild(b, c);
+  const defaultBuild = Object.fromEntries(c.specs.map((s, i) => [s.id, DEFAULT_TEMPLATE[i]]));
+  const skills = [
+    talentSkill(c.grants[0], 'defense', c.elem, 21, 'c11'),
+    talentSkill(c.grants[1], 'utility', c.elem, 27, 'c17'),
+    talentSkill(c.grants[2], 'utility', c.elem, 31, 'c22'),
+    ...c.heroGrants.map((id, i) => talentSkill(id, 'utility', c.elem, 72, `${c.hero[i].prefix}4`, { hero: true })),
+  ];
+  for (const n of [...cls.nodes, ...specs.flatMap(s => s.nodes), ...hero.flatMap(h => h.nodes)])
+    for (const fx of n.t === 'c' ? n.opts.map(o => o.fx) : [n.fx]) if (fx.power) FIXTURE_POWERS.add(fx.power);
+  return { v: 2, cls, specs, hero, builds, defaultBuild, groups: {}, skills };
+}
+
+export const MAGA_TALENTS = makeClass('maga');
+export const GUERRERO_TALENTS = makeClass('guerrero');
+export const ARQUERA_TALENTS = makeClass('arquera');
+export const MAGA_TALENT_SKILLS = MAGA_TALENTS.skills;
+export const GUERRERO_TALENT_SKILLS = GUERRERO_TALENTS.skills;
+export const ARQUERA_TALENT_SKILLS = ARQUERA_TALENTS.skills;
+// claves tv propias de cada clase (las consume un poder de la clase; test78 las acepta)
+export const MAGA_TV_KEYS = [CFG.maga.tvKey];
+export const GUERRERO_TV_KEYS = [CFG.guerrero.tvKey];
+export const ARQUERA_TV_KEYS = [CFG.arquera.tvKey];
+export const FIXTURE_TREES = { maga: MAGA_TALENTS, guerrero: GUERRERO_TALENTS, arquera: ARQUERA_TALENTS };

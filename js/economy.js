@@ -5,6 +5,7 @@
 import { generateItem, makeGem, gambleItem, checkRuneword, rerollAffix, MAX_QUALITY, maxSockets } from './items.js';
 import { SHOP_REFRESH_MS, PET_PRICE, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 import { MAX_MATERIALS, canAddMaterial, materialSlotsUsed } from './entities.js';
+import { paragonPointsEarned, paragonPointsLeft, PARAGON_OPEN_LEVEL } from './talents.js';
 
 export const economyMethods = {
   // ---------- tienda del mercader ----------
@@ -461,30 +462,23 @@ export const economyMethods = {
     this.save();
   },
   
-  // Paso 2b.0 (§4.1): reespecializar las RAMAS es GRATIS fuera de combate (tras 5 s
-  // sin dar ni recibir daño, o en un campamento). Las habilidades no se reembolsan:
-  // se aprenden solas por nivel.
+  // Cambiar talentos, forja o tablero es GRATIS fuera de combate (tras 5 s sin dar ni
+  // recibir daño, o en un campamento). Paso 2g: sin respecSkills (la forja no tiene puntos
+  // que reembolsar; las habilidades se aprenden solas por nivel).
   canRespecFree() {
     const p = this.player;
     return !!p && (this.inSafeCamp || (p.sinceCombat ?? 99) >= 5);
   },
-  respecSkills() {
-    const p = this.player;
-    if (!this.canRespecFree()) { this.ui.message('⚔️ Solo fuera de combate (5 s sin daño) o en un campamento'); return; }
-    p.skillMods = {};       // las opciones elegidas se reembolsan
-    p.skillBranches = {};   // las mini-ramas desbloqueadas (1 pt c/u) también
-    p.skillPoints = Math.max(0, Math.min(p.level, 20) - 1);
-    p.cds = {};
-    p.recompute();
-    this.ui.refreshHotbar();
-    this.ui.message('🔄 Habilidades redistribuidas: aprende tu nueva build', 3500);
-    this.sfx('levelup');
-    this.save();
-  },
-  
-  // ---------- paragon: tablero de nodos (nivel 20+) ----------
-  // tablero temático de la clase del jugador (Fase 4)
+
+  // ---------- tablero de glifos (Nv81+, 16 puntos derivados del nivel; §3.9) ----------
+  // tablero temático de la clase del jugador
   paragonBoard() { return paragonBoardFor(this.player?.classId); },
+  // puntos del tablero: { earned, spent, left, open, openLevel }
+  paragonPointsInfo() {
+    const p = this.player;
+    const earned = p ? paragonPointsEarned(p) : 0, left = p ? paragonPointsLeft(p) : 0;
+    return { earned, spent: earned - left, left, open: earned > 0, openLevel: PARAGON_OPEN_LEVEL };
+  },
 
   // un nodo es accesible si conecta ortogonalmente con el Inicio o un nodo activo
   paragonNodeReachable(nodeId) {
@@ -497,19 +491,22 @@ export const economyMethods = {
       Math.abs(o.x - node.x) + Math.abs(o.y - node.y) === 1);
   },
 
+  // activa un nodo: hace falta un punto libre (derivado del nivel) y que conecte con lo activo
   allocateParagonNode(nodeId) {
     const p = this.player;
-    const para = p.paragon;
-    if (para.points <= 0) { this.ui.message('No tienes puntos Paragon'); return; }
-    if (para.nodes[nodeId]) return;
+    const para = p.paragon || (p.paragon = { nodes: {}, glyphs: {} });
+    para.nodes ||= {};
+    if (paragonPointsEarned(p) <= 0) { this.ui.message(`🔷 El tablero de glifos se abre en el nivel ${PARAGON_OPEN_LEVEL}`); return false; }
+    if (paragonPointsLeft(p) <= 0) { this.ui.message('No te quedan puntos del tablero'); return false; }
+    if (para.nodes[nodeId]) return false;
     const node = this.paragonBoard().find(n => n.id === nodeId);
-    if (!node || node.type === 'start') return;
-    if (!this.paragonNodeReachable(nodeId)) { this.ui.message('Debe conectar con un nodo ya activado'); return; }
+    if (!node || node.type === 'start') return false;
+    if (!this.paragonNodeReachable(nodeId)) { this.ui.message('Debe conectar con un nodo ya activado'); return false; }
     para.nodes[nodeId] = true;
-    para.points--;
     p.recompute();
     this.sfx('levelup');
     this.save();
+    return true;
   },
 
   // glifos: engarzar / quitar en un nodo de engarce activo del tablero
@@ -541,21 +538,22 @@ export const economyMethods = {
     this.save();
   },
 
-  respecParagonCost() { return 500 + (this.player.level || 1) * 50; },
+  // reiniciar el tablero es gratis fuera de combate (D12); los puntos se recalculan solos.
+  // Los glifos se quedan en su zócalo: vuelven a contar al reactivarlo (como antes).
+  /** @deprecated D12: el reinicio es gratis; la UI deja de mostrar el coste (U3). */
+  respecParagonCost() { return 0; },
 
   respecParagon() {
     const p = this.player;
-    const cost = this.respecParagonCost();
-    if (p.gold < cost) { this.ui.message('🪙 No tienes oro suficiente'); return; }
-    const spent = Object.keys(p.paragon.nodes || {}).length;
-    if (!spent) { this.ui.message('El tablero ya está vacío'); return; }
-    p.gold -= cost;
-    p.paragon.points += spent;
+    if (!this.canRespecFree()) { this.ui.message('⚔️ Solo fuera de combate (5 s sin daño) o en un campamento'); return false; }
+    const spent = Object.keys(p.paragon?.nodes || {}).length;
+    if (!spent) { this.ui.message('El tablero ya está vacío'); return false; }
     p.paragon.nodes = {};
     p.recompute();
-    this.ui.message('🌟 Tablero de Paragon reespecializado', 3000);
+    this.ui.message('🔷 Tablero de glifos reiniciado', 3000);
     this.sfx('levelup');
     this.save();
+    return true;
   },
 
   // ---------- calidad de vida del inventario ----------
