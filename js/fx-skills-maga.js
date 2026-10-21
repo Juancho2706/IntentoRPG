@@ -13,6 +13,10 @@
 // arcano violeta. Sonidos elementales de §4.4: fire / ice / bolt.
 // Paso 2g: una entrada por habilidad del catálogo (kit base, kits de especialización y las 6
 // activas de talento); los comportamientos leen aura/impact/extra/trail de su ctx.fx.
+// Forja (KA2): MAGA_FORGE_FX = VFX de las VARIANTES que cambian de forma, por id de variante
+// (`<id>_i` / `<id>_ii`); los comportamientos de skills-maga.js los ponen encima de los de la
+// habilidad y los poderes de powers-forge-maga.js los leen para sus estallidos. Las variantes de
+// tipo genérico cambian solo de color (el `color` de su definición forjada).
 // Este archivo no importa nada.
 
 export const MAGA_FX_PRESETS = {
@@ -286,6 +290,88 @@ export const MAGA_FX_PRESETS = {
     size: { start: [0.6, 0.8], end: 5.0 },
     color: { start: '#e6dcff', end: '#6a48d8' }, alpha: { start: 0.5, end: 0 },
   },
+  // ============ variantes de la forja (KA2) ============
+  // ---- Saeta Ígnea: el dardo de fuego estalla pequeño (1,5 m) ----
+  saetaBurst: {
+    name: 'Saeta Ígnea estallido', texture: 'glow', blending: 'additive',
+    count: 18, burst: true, lifetime: [0.2, 0.4],
+    shape: 'sphere', shapeRadius: 0.15, speed: [2.5, 5.5], gravity: -1.5, drag: 1.2,
+    size: { start: [0.2, 0.4], end: 0.0 },
+    color: { start: '#fff0b0', end: '#ff5a14' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Racimo: cada brasa revienta en chispas ----
+  emberPop: {
+    name: 'Racimo brasa', texture: 'spark', blending: 'additive',
+    count: 16, burst: true, lifetime: [0.2, 0.45],
+    shape: 'sphere', shapeRadius: 0.2, speed: [2, 5], gravity: 3, drag: 0.8,
+    size: { start: [0.14, 0.28], end: 0.0 },
+    color: { start: '#ffe6a8', end: '#ff3c0a' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Llamarada: Lanza de Llamas (cono estrecho y largo) y Erupción (anillo a tus pies) ----
+  flameLance: {
+    name: 'Lanza de Llamas', texture: 'glow', blending: 'additive',
+    count: 50, burst: true, lifetime: [0.25, 0.5],
+    shape: 'cone', shapeRadius: 0.15, coneAngle: 25, speed: [12, 20], gravity: -0.5, drag: 0.9,
+    size: { start: [0.35, 0.7], end: 0.0 },
+    color: { start: '#fff6c8', end: '#e8460c' }, alpha: { start: 1, end: 0 },
+  },
+  flameRing: {
+    name: 'Erupción', texture: 'glow', blending: 'additive',
+    count: 70, burst: true, lifetime: [0.3, 0.6],
+    shape: 'ring', shapeRadius: 1.0, speed: [6, 10], gravity: -2.5, drag: 0.9,
+    size: { start: [0.4, 0.8], end: 0.0 },
+    color: { start: '#fff2b0', end: '#d8380a' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Coraza Arcana: chispas doradas sobre la burbuja ----
+  cuirassMotes: {
+    name: 'Coraza Arcana', texture: 'star', blending: 'additive',
+    count: 26, burst: true, lifetime: [0.4, 0.8],
+    shape: 'sphere', shapeRadius: 1.1, speed: [-1.2, -0.3], gravity: 0, drag: 0.4,
+    size: { start: [0.16, 0.32], end: 0.0 },
+    color: { start: '#fff6d8', end: '#c08cff' }, alpha: { start: 0.95, end: 0 }, spin: 180,
+  },
+  // ---- Celda Lejana / Prisión Fugaz: celda de hielo pequeña sobre un enemigo ----
+  iceCell: {
+    name: 'Celda de hielo', texture: 'disc', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.35, 0.4],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [3.0, 3.2], end: 1.2 },
+    color: { start: '#ffffff', end: '#5cb6ff' }, alpha: { start: 0.75, end: 0 },
+  },
+  // ---- Colapso: la estrella se hunde en un solo estallido ----
+  collapseCore: {
+    name: 'Colapso', texture: 'glow', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.3, 0.35],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [5.0, 5.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#ff9a2a' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Granizo: un pedrisco que cae y revienta ----
+  hailStone: {
+    name: 'Granizo', texture: 'star', blending: 'additive',
+    count: 40, burst: true, lifetime: [0.3, 0.6],
+    shape: 'sphere', shapeRadius: 0.4, speed: [4, 9], gravity: 6, drag: 0.5,
+    size: { start: [0.25, 0.5], end: 0.0 },
+    color: { start: '#ffffff', end: '#8fdcff' }, alpha: { start: 1, end: 0 }, spin: 240,
+  },
+};
+
+// VFX de las variantes de la forja (por id de variante). Solo las claves que lee su consumidor:
+// los comportamientos (aura/impact/extra/trail) y los poderes (impact o extra de su estallido)
+export const MAGA_FORGE_FX = {
+  m_dardo_i:          { impact: 'saetaBurst' },                                         // v_saeta_ignea
+  bola_fuego_ii:      { extra: 'emberPop' },                                            // v_racimo
+  m_parpadeo_ii:      { impact: 'blinkFlash', aura: 'repulseWave', extra: 'repulseRunes' },
+  m_barrera_i:        { aura: 'frostArmor', extra: 'frostArmorRing', impact: 'iceDomeShards' },   // impact: v_reactiva
+  m_barrera_ii:       { extra: 'cuirassMotes' },
+  p_llamarada_i:      { aura: 'flameLance' },
+  p_llamarada_ii:     { aura: 'flameRing' },
+  m_estela_ignea_ii:  { trail: 'fireWallFlames' },                                      // llamas del campo p_muro_fuego
+  m_u_supernova_ii:   { aura: 'collapseCore' },
+  k_prision_i:        { aura: 'iceCell' },
+  k_prision_ii:       { aura: 'iceDomeShards' },                                        // a lo largo del muro
+  m_paso_escarcha_ii: { extra: 'iceCell' },                                             // v_prision_fugaz
+  m_u_tormenta_ii:    { aura: 'hailStone', extra: 'iceLanceShatter' },
 };
 
 export const MAGA_FX = {

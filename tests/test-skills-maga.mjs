@@ -13,7 +13,7 @@ import { validateSkillDef, CAT_SLOTS, SLOT_KEYS } from '../js/skill-defs.js';
 import { SKILL_BEHAVIORS, definePower, POWER_HOOKS } from '../js/powers.js';
 import { resolveSkill, fitsSlot, isKnown } from '../js/skill-resolve.js';
 import * as SK from '../js/skills-maga.js';
-import { MAGA_FX, MAGA_FX_PRESETS } from '../js/fx-skills-maga.js';
+import { MAGA_FX, MAGA_FX_PRESETS, MAGA_FORGE_FX } from '../js/fx-skills-maga.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { TALENT_TREES } from '../js/talents.js';
 import { talentMethods } from '../js/game-talents.js';
@@ -73,8 +73,10 @@ for (const s of SK.MAGA_SKILLS) {
   }
   assert.equal(SKILL_FX[s.id], MAGA_FX[s.id], `${s.id}: VFX propio fusionado en SKILL_FX`);
 }
-// los comportamientos propios se usan todos (nada muerto) y no pisan ids de otro dueño
-const usedBeh = new Set(SK.MAGA_SKILLS.map(s => s.behavior).filter(Boolean));
+// los comportamientos propios se usan todos, en el catálogo o en una variante de la forja (nada
+// muerto), y no pisan ids de otro dueño
+const forgeBeh = Object.values(SK.MAGA_SKILL_FORGE).flatMap(e => [e.mejora, ...e.vars]).map(x => x?.behavior).filter(Boolean);
+const usedBeh = new Set([...SK.MAGA_SKILLS.map(s => s.behavior).filter(Boolean), ...forgeBeh]);
 for (const id of Object.keys(SK.MAGA_SKILL_BEHAVIORS)) assert.ok(usedBeh.has(id), `comportamiento ${id} sin habilidad`);
 // las gastadoras cuestan y se recargan; las definitivas no cuestan; el básico genera 3
 for (const s of SK.MAGA_SKILLS.filter(x => x.cat === 'spender' || x.cat === 'spec')) assert.ok(s.cd > 0 && s.cost > 0, `${s.id}: coste y enfriamiento`);
@@ -91,11 +93,12 @@ for (const [id, fx] of Object.entries(MAGA_FX)) {
   }
   assert.ok(['fire', 'ice', 'bolt', 'dash', 'portal'].includes(fx.sfx), `${id}: sfx`);
 }
-// presets propios: todos en uso salvo los de las variantes de la forja (KA2)
-const FORGE_ONLY = ['repulseWave', 'repulseRunes', 'fireWallFlames'];
+// presets propios: todos en uso, por una habilidad o por una variante de la forja (MAGA_FORGE_FX,
+// que comprueba test-forge-maga)
+for (const fx of Object.values(MAGA_FORGE_FX)) for (const v of Object.values(fx)) usedPresets.add(v);
 for (const k of Object.keys(MAGA_FX_PRESETS)) {
   assert.equal(SKILL_FX_PRESETS[k], MAGA_FX_PRESETS[k], `preset ${k} fusionado`);
-  assert.ok(usedPresets.has(k) || FORGE_ONLY.includes(k), `preset ${k} sin uso`);
+  assert.ok(usedPresets.has(k), `preset ${k} sin uso`);
 }
 console.log('Catálogo 2g de la Maga: 23 habilidades, formato v2 limpio, retiradas fuera y VFX ✓');
 
@@ -232,6 +235,8 @@ assert.deepEqual([...L.removed].sort(), removedWant, 'removed = todo lo v4 que y
 console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia, retiradas y aviso ✓');
 
 // ------------------------------------------------ 5) comportamientos (canal real)
+// Cada habilidad del kit se prueba a Nv req+2: ya se conoce y aún no tiene la Mejora de la forja
+// (Nv req+3), así que es su forma base. La forja la prueba test-forge-maga.
 // Barrera de Maná: 60 % del maná máximo × potencia; la potencia de talento (mod buff) la sube
 {
   const h = makeHarness({ classId: 'maga', level: 6 });
@@ -257,7 +262,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 // Llamarada: hace estallar las quemaduras (60 %; Llamarada Avivada 100 %) y golpea el cono
 {
   const run = (powers = []) => {
-    const h = makeHarness({ classId: 'maga', level: 15, spec: 'piromante', powers }); noCrit(h);
+    const h = makeHarness({ classId: 'maga', level: 12, spec: 'piromante', powers }); noCrit(h);
     const burnt = h.enemy({ hp: 1e7, pos: [0, 0, 3] });
     const plain = h.enemy({ hp: 1e7, pos: [0.6, 0, 4] });
     const back = h.enemy({ hp: 1e7, pos: [0, 0, -3] });
@@ -282,7 +287,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Estela Ígnea: desliz de 6 m y franja de fuego de 1,5 m de ancho 3 s
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'piromante' });
+  const h = makeHarness({ classId: 'maga', level: 14, spec: 'piromante' });
   const on = h.enemy({ hp: 1e7, pos: [3, 0, 0.5] });
   const off = h.enemy({ hp: 1e7, pos: [3, 0, 1.6] });
   h.aim(10, 0); h.setSlot('k1', 'm_estela_ignea');
@@ -302,7 +307,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Meteoro (área genérica): cae a los 0,6 s donde apuntas
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'piromante' });
+  const h = makeHarness({ classId: 'maga', level: 16, spec: 'piromante' });
   const m = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
   h.aim(6, 0); h.setSlot('k2', 'meteoro');
   assert.equal(h.cast('k2'), true);
@@ -313,7 +318,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Supernova: se forma sobre ti; tres ondas a 5 m y Quemadura de 1200 % al final
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'piromante' }); noCrit(h);
+  const h = makeHarness({ classId: 'maga', level: 17, spec: 'piromante' }); noCrit(h);
   const e = h.enemy({ hp: 1e8, pos: [3, 0, 0] });
   const far = h.enemy({ hp: 1e8, pos: [9, 0, 0] });
   let waves = 0;
@@ -338,7 +343,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Prisión de Hielo: congela 2 s a 4 m (a los jefes, Quebranto) y golpea
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'crionte' });
+  const h = makeHarness({ classId: 'maga', level: 12, spec: 'crionte' });
   const near = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
   const far = h.enemy({ hp: 1e7, pos: [7, 0, 0] });
   const boss = h.enemy({ hp: 1e7, pos: [0, 0, 2.5], boss: true });
@@ -355,7 +360,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Paso de Escarcha: desliz y camino que ralentiza 40 % y golpea de Hielo cada segundo
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'crionte' });
+  const h = makeHarness({ classId: 'maga', level: 14, spec: 'crionte' });
   const on = h.enemy({ hp: 1e7, pos: [3, 0, 0.4] });
   const off = h.enemy({ hp: 1e7, pos: [3, 0, 2] });
   let hits = 0;
@@ -380,7 +385,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 {
   definePower('t_ka_maga_deshiela', { name: 'prueba', onHit: (g, p, e, hit) => { if (hit.skill === 'k_lanza') e.frozenT = 0; } });
   const run = (powers = []) => {
-    const h = makeHarness({ classId: 'maga', level: 15, spec: 'crionte', powers }); noCrit(h);
+    const h = makeHarness({ classId: 'maga', level: 16, spec: 'crionte', powers }); noCrit(h);
     const a = h.enemy({ hp: 1e7, pos: [0, 0, 3] });
     const b = h.enemy({ hp: 1e7, pos: [0, 0, 6] });
     b.applyCC('freeze', 5);
@@ -405,7 +410,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Tormenta Glacial: te sigue 8 s y golpea cada 0,5 s a 4 m
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'crionte' });
+  const h = makeHarness({ classId: 'maga', level: 17, spec: 'crionte' });
   const a = h.enemy({ hp: 1e8, pos: [2, 0, 0] });
   h.setSlot('k4', 'm_u_tormenta');
   assert.equal(h.cast('k4'), true);
@@ -427,7 +432,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Orbe Arcano: lento, atraviesa y rebota 2 veces
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'arcanista' });
+  const h = makeHarness({ classId: 'maga', level: 12, spec: 'arcanista' });
   const a = h.enemy({ hp: 1e7, pos: [0, 0, 4] });
   const b = h.enemy({ hp: 1e7, pos: [0, 0, 8] });
   const segs = [];
@@ -446,7 +451,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Rayo (línea genérica): 15 m en línea
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'arcanista' });
+  const h = makeHarness({ classId: 'maga', level: 16, spec: 'arcanista' });
   const a = h.enemy({ hp: 1e7, pos: [0, 0, 5] });
   const b = h.enemy({ hp: 1e7, pos: [0, 0, 14] });
   const side = h.enemy({ hp: 1e7, pos: [3, 0, 5] });
@@ -458,7 +463,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Sello del Archimago: dentro, las principales cuestan un 30 % menos
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'arcanista' });
+  const h = makeHarness({ classId: 'maga', level: 14, spec: 'arcanista' });
   const rayo = byId('rayo');
   const c0 = resolveSkill(h.p, rayo).cost;
   h.setSlot('k2', 'a_sello');
@@ -473,7 +478,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 
 // Desgarro Arcano: canalización imparable y plantada, 6 golpes en 3 s
 {
-  const h = makeHarness({ classId: 'maga', level: 15, spec: 'arcanista' });
+  const h = makeHarness({ classId: 'maga', level: 17, spec: 'arcanista' });
   const e = h.enemy({ hp: 1e8, pos: [0, 0, 4] });
   let ticks = 0;
   const orig = e.takeDamage.bind(e);

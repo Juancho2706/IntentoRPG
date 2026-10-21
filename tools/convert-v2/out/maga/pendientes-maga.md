@@ -245,113 +245,115 @@
 
 ## Forja (KA2): Mejora (Nv req+3) y variantes I/II (Nv req+6)
 
+KA2-maga: `MAGA_SKILL_FORGE` (17 entradas, nombres/líneas/roles del borrador; todas las líneas ≤ 70) y `MAGA_FORGE_RECO` escritas en `js/skills-maga.js`; poderes `v_*` en `js/powers-forge-maga.js`; VFX de los cambios de forma en `MAGA_FORGE_FX` (`js/fx-skills-maga.js`, por id de variante; los comportamientos propios y los poderes lo leen con `fxOf(cast)`). Prueba: `tests/test-forge-maga.mjs` (datos A1/A9/D28, recomendada que nunca apaga su indicador y cada pieza con el canal real). Un solo comportamiento nuevo de la forja (`v_parpadeo_onda`); el resto, tipos y claves genéricos o parámetros de los comportamientos del kit.
+
 ### m_dardo · Dardo Arcano
 
-- [ ] **Mejora · Dardo Veloz** — NUEVO · `★add{speed:+40%} · range +20`
-- [ ] **I (AREA) · Saeta Ígnea** — NUEVO · `★elem fire · ★set{splash:.3, radius:1.5} (absorbe a Ascua)`
-- [ ] **II (CTRL) · Saeta Gélida** — NUEVO · `★elem frost · slow 1.5 · slowPct 20 · dmg −10 (absorbe a Toque Gélido)`
+- [x] **Mejora · Dardo Veloz** — `mul{speed:1.4} · mod{range:20}` (el Dardo declara `speed 13`). El +20 % de alcance queda en el perfil: el básico de arma aún no lee `prof.rangeMul` (petición W2)
+- [x] **I (AREA) · Saeta Ígnea** — `elem fire · set{splash:.3, radius:1.5, color}` + poder **`v_saeta_ignea`** (nuevo, onHit: estallido de 1,5 m al 30 % que no repite en el objetivo ni encadena). Divergencia: el básico de arma no hace `splash` nativo (petición W2; con él se retira el poder)
+- [x] **II (CTRL) · Saeta Gélida** — `elem frost · set{color} · mod{slow:1.5, slowPct:20, dmg:−10}`
 
 ### bola_fuego · Bola de Fuego
 
-- [ ] **Mejora · Núcleo Inestable** — existe · `radius +30`
-- [ ] **I (UNI) · Pirodardo** — NUEVO · `★set{windup:0, speed:22} · ★add{splash:−.6}`
-- [ ] **II (AREA) · Racimo** — NUEVO · `★power v_racimo (onHit)`
+- [x] **Mejora · Núcleo Inestable** — `mod{radius:30}` (2 → 2,6 m)
+- [x] **I (UNI) · Pirodardo** — `set{windup:0, speed:22} · add{splash:−0.6}` (explosión 100 → 40 %)
+- [x] **II (AREA) · Racimo** — poder `v_racimo` (onHit del primer impacto: tras 0,3 s, 3 brasas en anillo de 2 m, radio 1,2, 40 % cada una; no encadena)
 
 ### nova_hielo · Nova de Hielo
 
-- [ ] **Mejora · Escarcha Profunda** — existe · `slowPct 40`
-- [ ] **I (AGU) · Corazón de Hielo** — NUEVO · `★shieldGain 3/15`
-- [ ] **II (UNI) · Nova Fracturante** — NUEVO · `★power v_fractura (condAdd)`
+- [x] **Mejora · Escarcha Profunda** — `mod{slowPct:40}`
+- [x] **I (AGU) · Corazón de Hielo** — `set{shieldGain:[3,15]}` (clave genérica del área: 3 % por golpeado, tope 15 %)
+- [x] **II (UNI) · Nova Fracturante** — poder `v_fractura` (condAdd +40 % a ralentizados o congelados, solo la Nova)
 
 ### m_parpadeo · Parpadeo
 
-- [ ] **Mejora · Salto Largo** — existe · `range +25`
-- [ ] **I (MOV) · Doble Parpadeo** — NUEVO · `★charges 2`
-- [ ] **II (CTRL) · Parpadeo Disruptor** — NUEVO · `★behavior v_parpadeo_onda (lo de m_onda) · coef .8 (absorbe a Onda Repulsora)`
+- [x] **Mejora · Salto Largo** — `mod{range:25}` (8 → 10 m)
+- [x] **I (MOV) · Doble Parpadeo** — `set{charges:2}` (cargas genéricas)
+- [x] **II (CTRL) · Parpadeo Disruptor** — comportamiento **`v_parpadeo_onda`** (teletransporte + onda de 4 m al 80 %) · `mod{knock:3, stun:0.5}` (a jefes: Quebranto)
 
 ### m_barrera · Barrera de Maná
 
-- [ ] **Mejora · Burbuja Estable** — existe · `durS 2`
-- [ ] **I (CTRL) · Barrera Gélida** — NUEVO · `★elem frost · ★power v_reactiva (absorbe a Armadura de Hielo)`
-- [ ] **II (UNI) · Coraza Arcana** — NUEVO · `★power v_coraza_arcana`
+- [x] **Mejora · Burbuja Estable** — `mod{durS:2}` (8 → 10 s)
+- [x] **I (CTRL) · Barrera Gélida** — `elem frost · set{color}` + poder `v_reactiva` (al ROMPERSE, no al caducar: congela 1,5 s a 3 m). VFX: `frostArmor*`, `iceDomeShards`
+- [x] **II (UNI) · Coraza Arcana** — poder `v_coraza_arcana` (condAdd +15 % mientras aguanta la Barrera, `src 'm_barrera'`)
 
 ### p_llamarada · Llamarada
 
-- [ ] **Mejora · Llama Ancha** — NUEVO · `★set{angle:90}`
-- [ ] **I (UNI) · Lanza de Llamas** — NUEVO · `★set{angle:25, radius:10} · dmg +50`
-- [ ] **II (AREA) · Erupción** — NUEVO · `★set{type:area, at:self, radius:5} · dmg −15`
+- [x] **Mejora · Llama Ancha** — `set{angle:90}`
+- [x] **I (UNI) · Lanza de Llamas** — `set{angle:25, radius:10} · mod{dmg:50}` · VFX `flameLance`
+- [x] **II (AREA) · Erupción** — `set{type:'area', at:'self', radius:5} · mod{dmg:−15}` (el comportamiento `llamarada` hace anillo) · VFX `flameRing`
 
 ### m_estela_ignea · Estela Ígnea
 
-- [ ] **Mejora · Rastro Ardiente** — existe · `durS 1`
-- [ ] **I (AREA) · Senda de Llamas** — existe · `radius +100 · dmg +37`
-- [ ] **II (CTRL) · Muro de Llamas** — NUEVO · `★set{blocks:true} · dmg −50 · campo p_muro_fuego (absorbe a Muro de Fuego)` · traducir: `blocks: parámetro de la clase (KA-maga: blocks del campo p_muro_fuego (true = corta el paso, no a jefes; como wall.blocks de §3.6))`
+- [x] **Mejora · Rastro Ardiente** — `mod{durS:1}` (3 → 4 s)
+- [x] **I (AREA) · Senda de Llamas** — `mod{radius:100, dmg:37}` (ancho 1,5 → 3 m)
+- [x] **II (CTRL) · Muro de Llamas** — `set{blocks:true} · mod{dmg:−50}`: el rastro es el campo `p_muro_fuego` de KT (`data.blocks`; corta el paso, no a jefes, y quema). Si el campo no está registrado cae al `muro` genérico en línea
 
 ### meteoro · Meteoro
 
-- [ ] **Mejora · Puntería Ígnea** — NUEVO · `★set{impactDelay:.45}`
-- [ ] **I (AREA) · Lluvia de Meteoritos** — NUEVO · `★set{impacts:3, scatter:2.5} · behavior v_meteoritos`
-- [ ] **II (UNI) · Meteoro Ancestral** — existe · `dmg +60 · stun 1 · cdr −50`
+- [x] **Mejora · Puntería Ígnea** — `set{impactDelay:0.45}`
+- [x] **I (AREA) · Lluvia de Meteoritos** — `set{impacts:3, scatter:2.5, radius:2.2} · mod{dmg:−45}` con el `area` genérico (impactos repartidos). Divergencia: sin `behavior v_meteoritos` (el genérico basta); al centro le caen los 3 (165 %): calibración B1
+- [x] **II (UNI) · Meteoro Ancestral** — `mod{dmg:60, stun:1, cdr:−50}` (enfriamiento 6 → 9 s)
 
 ### m_u_supernova · Supernova
 
-- [ ] **Mejora · Gravedad Solar** — NUEVO · `★pull 2`
-- [ ] **I (AREA) · Sol Errante** — NUEVO · `★set{follow:true, pulses:4} · behavior` · traducir: `follow:true → follow: 'owner'`
-- [ ] **II (UNI) · Colapso** — NUEVO · `★set{pulses:1, radius:3, coef:13}`
+- [x] **Mejora · Gravedad Solar** — `set{pull:2}` (parámetro del comportamiento `m_u_supernova`: atrae antes de la 1.ª onda a radio + 2 m; a jefes, Quebranto)
+- [x] **I (AREA) · Sol Errante** — `set{follow:'owner', pulses:4, pulseGap:1, impactDelay:1, coef:3.8}`
+- [x] **II (UNI) · Colapso** — `set{pulses:1, radius:3, coef:13}` · VFX `collapseCore`
 
 ### k_prision · Prisión de Hielo
 
-- [ ] **Mejora · Celda Amplia** — existe · `radius +25`
-- [ ] **I (UNI) · Celda Lejana** — NUEVO · `★set{at:target, range:15, radius:1.5} · stun 3`
-- [ ] **II (CTRL) · Muralla de Hielo** — NUEVO · `★set{type:wall, length:8} · campo k_muralla` · traducir: `type:wall → type:'wall' + wall: { len, width, blocks, contain }`; `length → wall.len`
+- [x] **Mejora · Celda Amplia** — `mod{radius:25}` (4 → 5 m)
+- [x] **I (UNI) · Celda Lejana** — `set{at:'enemy', range:15, radius:1.5, freeze:3}`. Divergencia: el mockup dice `stun 3` y `at target`; congela (como la Prisión) al enemigo de la mira
+- [x] **II (CTRL) · Muralla de Hielo** — `set{type:'wall', at:'target', range:10, dur:3, layers:1, wall:{len:8, width:1, blocks:true}}`: `prision_hielo` levanta el `muro` genérico en línea (perpendicular a la mira; la Mejora lo alarga a 10 m) y el primer roce de cada enemigo es un golpe de Hielo. Divergencia: sin campo `k_muralla`
 
 ### m_paso_escarcha · Paso de Escarcha
 
-- [ ] **Mejora · Hielo Duradero** — existe · `durS 1`
-- [ ] **I (MOV) · Paso Doble** — NUEVO · `★charges 2`
-- [ ] **II (CTRL) · Prisión Fugaz** — NUEVO · `★power v_prision_fugaz`
+- [x] **Mejora · Hielo Duradero** — `mod{durS:1}`
+- [x] **I (MOV) · Paso Doble** — `set{charges:2}`
+- [x] **II (CTRL) · Prisión Fugaz** — poder `v_prision_fugaz` (afterCast: congela 1 s a 2 m al llegar) · VFX `iceCell`
 
 ### k_lanza · Lanza de Hielo
 
-- [ ] **Mejora · Punta Afilada** — existe · `range +17 · dmg +15`
-- [ ] **I (UNI) · Lanza Pesada** — NUEVO · `★set{pierce:0} · dmg +60 · layers 2` · traducir: `layers: parámetro de la clase (KA-maga · KT-maga: set: { layers: n } (capas de Escarcha que deja cada golpe; hoy lo leen k_prision y k_aliento))`
-- [ ] **II (AREA) · Abanico Gélido** — NUEVO · `★set{count:3, spread:30} · dmg −50`
+- [x] **Mejora · Punta Afilada** — `mod{range:17, dmg:15}`
+- [x] **I (UNI) · Lanza Pesada** — `set{pierce:false, layers:2} · mod{dmg:60}` (las 2 capas: KT lee `prof.def.layers`)
+- [x] **II (AREA) · Abanico Gélido** — `set{count:3, spread:0.26} · mod{dmg:−50}` (15° entre lanzas; un impacto por enemigo y lanzamiento)
 
 ### m_u_tormenta · Tormenta Glacial
 
-- [ ] **Mejora · Ojo Tranquilo** — NUEVO · `★power v_ojo`
-- [ ] **I (AREA) · Ventisca Anclada** — NUEVO · `★set{follow:false, radius:6}`
-- [ ] **II (UNI) · Granizo** — NUEVO · `★set{pulses:1, radius:2.5, coef:11} · freeze 2`
+- [x] **Mejora · Ojo Tranquilo** — poder `v_ojo` (condDr −10 % dentro de `magaStorm(p)`)
+- [x] **I (AREA) · Ventisca Anclada** — `set{follow:false, at:'target', range:12, radius:6}`
+- [x] **II (UNI) · Granizo** — `set{follow:false, at:'enemy', range:12, pulses:1, radius:2.5, coef:11, freeze:2}` (nuevo parámetro `freeze` del comportamiento) · VFX `hailStone`
 
 ### a_orbe · Orbe Arcano
 
-- [ ] **Mejora · Orbe Grande** — existe · `radius +30`
-- [ ] **I (UNI) · Orbe Veloz** — NUEVO · `★set{speed:2x, bounce:0} · dmg +40` · traducir: `bounce → set: { bounces: n } (el Orbe lee prof.def.bounces)`
-- [ ] **II (AREA) · Orbe Gemelo** — NUEVO · `★set{count:2, spread:25} · dmg −40`
+- [x] **Mejora · Orbe Grande** — `mul{size:1.3}` (el Orbe es un proyectil: «radio +30 %» = tamaño; roza 0,1 m más a cada lado)
+- [x] **I (UNI) · Orbe Veloz** — `mul{speed:2} · set{bounces:0} · mod{dmg:40}`
+- [x] **II (AREA) · Orbe Gemelo** — `set{count:2, spread:0.22} · mod{dmg:−40}` (un impacto por enemigo y lanzamiento)
 
 ### a_sello · Sello del Archimago
 
-- [ ] **Mejora · Sello Firme** — existe · `durS 2`
-- [ ] **I (UNI) · Sello Ofensivo** — NUEVO · `★power v_sello_ofensivo`
-- [ ] **II (CTRL) · Sello de Contención** — NUEVO · `★set{slowPct:40}`
+- [x] **Mejora · Sello Firme** — `mod{durS:2}`
+- [x] **I (UNI) · Sello Ofensivo** — `set{buff:{spenderCostPct:0, critDmg:25}, color}` (la `aura` genérica). Divergencia: sin poder `v_sello_ofensivo` (el buff del aura basta)
+- [x] **II (CTRL) · Sello de Contención** — `set{slowPct:40, color}` + poder **`v_sello_contencion`** (nuevo: la `aura` genérica no ralentiza; cada 0,5 s ralentiza 40 % a los enemigos dentro)
 
 ### rayo · Rayo
 
-- [ ] **Mejora · Rayo Largo** — existe · `range +20`
-- [ ] **I (AREA) · Rayo en Cadena** — NUEVO · `★set{chain:3} · chainPct 70`
-- [ ] **II (UNI) · Haz Concentrado** — NUEVO · `★set{type:channel, dur:1.5} · dmg +80`
+- [x] **Mejora · Rayo Largo** — `mod{range:20}` (15 → 18 m)
+- [x] **I (AREA) · Rayo en Cadena** — `set{chain:3, chainPct:70}` (línea genérica; ver la petición W2 de `spawnChainBounce`)
+- [x] **II (UNI) · Haz Concentrado** — `set{type:'channel', channelT:1.5, ticks:3, coef:0.8} · mod{dmg:80}`
 
 ### m_u_desgarro · Desgarro Arcano
 
-- [ ] **Mejora · Desgarro Estable** — NUEVO · `★set{moveWhileChannel:0.4}` · traducir: `moveWhileChannel → moveMul`
-- [ ] **I (AREA) · Brecha** — NUEVO · `★set{type:field, dur:5, radius:3}` · traducir: `type:field → type: 'zone' (+ at, dur, radius, follow); type:'field' es error en v2`
-- [ ] **II (UNI) · Quiebre** — NUEVO · `★set{pulses:1, coef:9}`
+- [x] **Mejora · Desgarro Estable** — `set{moveMul:0.4}`
+- [x] **I (AREA) · Brecha** — `set{type:'zone', at:'target', dur:5, radius:3}`
+- [x] **II (UNI) · Quiebre** — `set{type:'area', at:'enemy', radius:1.2, windup:0.5, coef:9}`
 
 ## Barra y recomendaciones
 
-Referencias a ids que no están en el catálogo 2g (KA: corregir o declarar): `reco.crionte.m_toque`, `reco.arcanista.m_onda`, `reco.arcanista.m_armadura`.
+- [x] Referencias a ids que no están en el catálogo 2g: `reco.crionte.m_toque` se quita (Toque Gélido ya es la Saeta Gélida, `m_dardo: 'ii'`); `reco.arcanista.m_onda` (A) → `m_parpadeo: 'i'` y `reco.arcanista.m_armadura` (B) → `m_barrera: 'ii'`, como `specBar.arcanista.forge` del mockup. Ninguna variante recomendada cambia el elemento a otro que el de su especialización ni apaga su indicador (2f §7.7; lo prueba test-forge-maga). Divergencia `reco` declarada en divergencias.json (aprobada: false).
 
-KA1-maga: `MAGA_SPEC_BAR` y `MAGA_FALLBACK_BAR` escritas (iguales al mockup); `MAGA_FORGE_RECO` y `MAGA_SKILL_FORGE` son de KA2 (divergencias temporales `forja` y `reco` en divergencias.json, aprobada: false).
+KA1-maga: `MAGA_SPEC_BAR` y `MAGA_FALLBACK_BAR` escritas (iguales al mockup). KA2-maga: `MAGA_FORGE_RECO` y `MAGA_SKILL_FORGE` escritas; la divergencia temporal `forja` se retira.
 
 Activas de talento NUEVAS (en `--write` no entran en `MAGA_TALENT_SKILLS` hasta que existan): `m_h_detener`, `m_h_palabra`, `m_h_constructo`.
 
@@ -360,6 +362,8 @@ Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skill
 ## Poderes nuevos citados (comprobar contra out/power-ids.json, D28)
 
 `m_dardo_certero`, `m_dardo_sifon`, `m_paso_fugaz`, `m_nova_congelante`, `m_disrupcion`, `m_aguante`, `m_runa`, `m_parpadeo_cura`, `m_escudo_mana`, `m_armonia`, `m_pureza`, `m_anclaje`, `m_barrera_resonante`, `m_escarcha_arcana`, `m_cristal`, `m_torrente`, `m_imagen`, `m_bastion`, `m_archimaga`, `m_vacio`, `p_chispas`, `p_volatil`, `p_llamarada_voraz`, `p_meteoro_gemelo`, `p_meteoro_conc`, `p_escudo_llamas`, `p_brasero`, `p_estrellas_fugaces`, `p_brasa_errante`, `p_estela_meteorica`, `p_brasa_viva`, `p_crater`, `p_incendio`, `p_perpetua`, `p_lluvia_fuego`, `p_corazon_sol`, `k_quebradizo`, `k_polvo`, `k_crece`, `k_prision_profunda`, `k_lanza_invierno`, `k_ventisca_viva`, `k_frio_sostenido`, `k_cristal`, `k_invierno`, `k_remolino`, `k_cadena`, `k_ruptura`, `k_ojo_frio`, `k_glaciar`, `k_esquirlas`, `k_perpetua`, `k_era_glacial`, `k_cero`, `k_eterno`, `k_corazon_invierno`, `a_rebote_cargado`, `a_sello_cargado`, `a_rayo_doble`, `a_rayo_recargado`, `a_orbe_cargado`, `a_orbe_atrae`, `a_desgarro_fijo`, `a_desgarro_voraz`, `a_inercia`, `a_mana_inagotable`, `a_desplazamiento`, `a_sello_sigue`, `a_carga_final`, `a_satelite`, `a_doble_grieta`, `a_orbe_multiple`, `a_fuente`, `a_tormenta_cargas`, `a_constelacion`, `a_grieta_eterna`, `a_singularidad`, `v_racimo`, `v_fractura`, `v_reactiva`, `v_coraza_arcana`, `v_prision_fugaz`, `v_ojo`, `v_sello_ofensivo`
+
+KA2-maga: usados `v_racimo`, `v_fractura`, `v_reactiva`, `v_coraza_arcana`, `v_prision_fugaz`, `v_ojo`; nuevos `v_saeta_ignea` y `v_sello_contencion` (ningún otro archivo ni clase los usa: test-forge-maga); `v_sello_ofensivo` y `v_meteoritos` no se crean (lo cubren el buff del aura y el `area` genérico).
 
 ## Barras de mecánica (texto del mockup; KT: `mech-<clase>.js` y `ui-gauges-<clase>.js`)
 
@@ -372,3 +376,11 @@ Activas de talento del juego v1 que dejan de serlo en 2g (pasan al kit de `skill
 - **KT-maga**: retirar los comportamientos muertos `m_t_barrera`, `p_llamarada`, `p_combustion`, `k_prision`, `k_lanza`, `k_ventisca`, `k_aliento`, `a_orbe`, `a_misiles`, `a_sello`, `a_evocacion` (el catálogo usa `m_barrera`, `llamarada`, `prision_hielo`, `lanza_hielo`, `orbe_arcano` y la `aura` genérica) y los campos `k_ventisca`, `k_tumba`, `k_campo_helado` si nadie los usa; conservar el campo `p_muro_fuego` si KA2 lo usa para Muro de Llamas.
 - **KT-maga**: Escarcha pone `prof.def.layers` capas (Prisión 2) en vez de 1 en ese golpe; Cargas +1 por golpe de `m_u_desgarro` y +1 cada 2 s dentro del propio `a_sello`; c4/c19/c25/c28 identifican el escudo por `src 'm_barrera'`; i7/i10/i24/i27 usan `magaStorm(p)` (`left`, `radius`, `center()`); e0 escribe las runas de `cast.runeSpots`; t4·A «las Marcas guardan el doble» en ③ afterCast de `m_h_detener`; f8 usa `cast.construct`.
 - **W2**: stat de coste para TODAS las habilidades con coste (el Sello abarata «tus hechizos»; hoy `spenderCostPct` solo toca principales y no al Orbe); alcance propio del básico de arma (`range` del Dardo: 20 m en el mockup, 9 m en el motor).
+
+## KA2-maga · peticiones (por id)
+
+- **W2**: `Player.basicAttack` (básico de arma) — leer `prof.rangeMul`/`def.range` (Dardo Veloz +20 %; el mockup da 20 m al Dardo), el `color` de la definición forjada antes que el de `SKILL_FX` (Saeta Ígnea/Gélida salen con el color arcano) y `splash` nativo (con él se retira `v_saeta_ignea`).
+- **W2**: `spawnChainBounce` — cada salto es un proyectil que nace sobre el enemigo del que sale y lo golpea a él (el último de la cadena nunca recibe) y sale sin `skill` (no cuenta para indicadores ni poderes). Afecta a Rayo en Cadena y a toda cadena. Arreglo sugerido: `castHits`/`hitSet` sembrado con el origen y el `skill` del lanzamiento.
+- **W2**: stat de coste para TODAS las habilidades con coste (el Sello abarata «tus hechizos»; `spenderCostPct` solo toca principales).
+- **KT-maga**: conservar el campo `p_muro_fuego` (lo usa Muro de Llamas con `data.blocks`); las Cargas, solo por impactos ARCANOS directos del Dardo (hoy las Saetas Ígnea/Gélida y el estallido también dan); Escarcha con `prof.def.layers` (Prisión 2, Lanza Pesada 2, Muralla 1); c21 Escarcha Tenaz no alarga la ralentización de `v_sello_contencion`; el 350 % innato de la Bola debería escalar el `splash` forjado (Pirodardo, Racimo).
+- **B1**: Lluvia de Meteoritos (3 × 55 % que caen todos al centro = 165 %) frente al Ancestral (160 % + aturdir); Haz Concentrado (3 × 0,8 × 1,8); Abanico Gélido y Orbe Gemelo, un impacto por enemigo.

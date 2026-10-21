@@ -1,7 +1,6 @@
 {
   "nota": "Divergencias DELIBERADAS entre los datos del juego y los del mockup (docs/paso2-implementacion.md §4). Cada una: { clase, ruta, motivo, aprobada }. La ruta es la que imprime tests/test-v2-paridad.mjs (p. ej. 'forja.g_tajo.vars.i.line', 'spec.berserker.b3.d', 'catalogo.a_disparo.req', 'builds.brasa.cls') y cubre todo lo que cuelga de ella. 'aprobada' = el dueño ya dio el visto bueno (las líneas de forja acortadas de A1 empiezan en false). clase '*' = todas.",
   "divergencias": [
-    { "clase": "maga", "ruta": "forja", "motivo": "TEMPORAL (E2 · KA1-maga): el catálogo 2g ya está en el juego (CATALOG_V = 2) pero MAGA_SKILL_FORGE la escribe KA2-maga; se retira al cerrar KA2", "aprobada": false },
-    { "clase": "maga", "ruta": "reco", "motivo": "TEMPORAL (E2 · KA1-maga): MAGA_FORGE_RECO la escribe KA2-maga (el mockup recomienda m_toque, m_onda y m_armadura, que 2g retira: KA2 los resuelve); se retira al cerrar KA2", "aprobada": false }
+    { "clase": "maga", "ruta": "reco", "motivo": "El mockup recomienda tres habilidades que 2g retira (A.6). Crionte: m_toque A se quita (Toque Gélido ya es la Saeta Gélida, m_dardo ii, que la misma reco elige). Arcanista: m_onda A y m_armadura B pasan a la forja que el mockup pone en la barra del Arcanista (specBar.arcanista.forge): m_parpadeo i (Doble Parpadeo) y m_barrera ii (Coraza Arcana; A.6: Armadura ii → Barrera ii). Ninguna apaga el indicador de su especialización (2f §7.7)", "aprobada": false }
   ]
 }

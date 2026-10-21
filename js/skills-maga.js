@@ -16,13 +16,17 @@
 // Las activas que ya existían (Bloque de Hielo, Inversión del Tiempo, Contrahechizo) usan el
 // comportamiento de su mismo id en js/powers-maga.js (KT-maga: coordinación por ids).
 // Solo importa datos puros: skill-defs.js y sus propios VFX (spec-mechanics y powers lo importan).
+// FORJA (KA2, 2f §2 y A.7): MAGA_SKILL_FORGE (Mejora + 2 variantes de las 17 habilidades con
+// forja), MAGA_FORGE_RECO y el comportamiento de forja v_parpadeo_onda; los poderes `v_*` de
+// las variantes viven en js/powers-forge-maga.js y sus VFX en MAGA_FORGE_FX (fx-skills-maga.js).
 import { projFanOffset, COLDBLOOD_CRIT } from './skill-defs.js';
-import { MAGA_FX_PRESETS } from './fx-skills-maga.js';
+import { MAGA_FX_PRESETS, MAGA_FORGE_FX } from './fx-skills-maga.js';
 
 export const MAGA_SKILLS = [
   // ---------------- KIT BASE ----------------
+  // speed = la del básico de la Maga (Player.basicAttack): la Mejora la multiplica
   { id: 'm_dardo', name: 'Dardo Arcano', icon: '✨', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'arcane'], elem: 'arcane',
-    type: 'weapon', req: 1, coef: 1.05, gen: 3, color: 0xcc66ff,
+    type: 'weapon', req: 1, coef: 1.05, gen: 3, speed: 13, color: 0xcc66ff,
     line: 'Dispara un dardo arcano a distancia. Cada impacto te devuelve 3 de maná.',
     desc: 'Lanza un dardo arcano a distancia (105 % del daño de arma) y recupera 3 de Maná al impactar.' },
   // la explosión del kit base es de 100 % (el Piromante la sube a 350 % con su pasiva, p_ignicion)
@@ -152,6 +156,11 @@ const inRadius = (e, c, rad) => { const r = rad + 0.5 * (e.def?.scale || 1); ret
 const isBoss = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
 const ground = v => { const o = v.clone(); o.y = 0; return o; };
 const fxAt = (g, preset, pos, y) => { if (preset && pos) { const at = pos.clone(); at.y = y; g.emitFx?.(preset, at); } };
+// VFX del lanzamiento: los de la habilidad y, encima, los de su VARIANTE forjada (MAGA_FORGE_FX)
+const fxOf = cast => {
+  const v = MAGA_FORGE_FX[cast.sk?.forged?.varId];
+  return v ? { ...(cast.ctx.fx || {}), ...v } : cast.ctx.fx;
+};
 // dirección horizontal de la mira (o del frente del héroe si la mira está encima)
 function aimDir(p, target) {
   let dx = (target?.x ?? p.pos.x) - p.pos.x, dz = (target?.z ?? p.pos.z) - p.pos.z;
@@ -198,6 +207,37 @@ function segDist2(q, a, b) {
   const dx = q.x - (a.x + vx * t), dz = q.z - (a.z + vz * t);
   return dx * dx + dz * dz;
 }
+// Muralla de Hielo (forja de la Prisión, type 'wall'): muro en línea perpendicular a la mira,
+// donde apuntas, que corta el paso `dur` s (campo genérico 'muro', uno por habilidad). El
+// primer roce de cada enemigo es un golpe de Hielo de la habilidad: el indicador le pone su capa
+function iceWall(g, p, prof, cast, fx) {
+  const { ctx, sk } = cast;
+  const w = sk.wall || {};
+  const center = ground(cast.target || p.pos);
+  const len = (w.len || 8) * (prof.radiusMul || 1), width = w.width || 1;
+  const { a, b } = wallLine(p, center, len);
+  const color = ctx.color ?? sk.color;
+  p.faceToward?.(center);
+  const f = g.spawnField?.('muro', { pos: center, radius: len / 2, dur: prof.dur || 3, owner: p, shape: 'line', a, b, width,
+    maxPerSkill: 1, data: { blocks: w.blocks ?? true, contain: !!w.contain, color, skill: sk.id, tags: prof.tags } });
+  const touched = new Set();
+  const touch = () => {
+    if (!f || f.dead || !p.alive || g.player !== p) return;
+    let n = 0;
+    for (const e of g.enemies || []) {
+      if (!e.alive || touched.has(e)) continue;
+      const r = width / 2 + 0.35 + 0.5 * (e.def?.scale || 1);
+      if (segDist2(e.pos, f.a, f.b) <= r * r) { touched.add(e); strike(p, ctx, e); n++; }
+    }
+    if (n) p.onDealHit();
+    g.timers.schedule(0.1, touch);
+  };
+  touch();
+  ctx.zoneCenter = center; ctx.zoneRad = Math.max(1.5, len / 2);
+  g.spawnRing?.(center, 1.2, color);
+  for (const t of [0.15, 0.5, 0.85]) { const q = a.clone(); q.x += (b.x - a.x) * t; q.z += (b.z - a.z) * t; fxAt(g, fx?.aura, q, 0.4); }
+  return ctx.res;
+}
 function trailField(g, p, prof, cast, from, to, data) {
   const mid = from.clone(); mid.x = (from.x + to.x) / 2; mid.z = (from.z + to.z) / 2;
   return g.spawnField?.('zona', { pos: mid, shape: 'line', a: from, b: to, width: trailWidth(prof), dur: prof.dur || 3, owner: p,
@@ -233,12 +273,19 @@ function ownProjectile(g, ctx, { from, to, peek = null, onHit = null, castHits =
   });
 }
 // segmento del Orbe (g.fireProjectile del núcleo): atraviesa y, al acabar su recorrido, rebota
-// al enemigo vivo más cercano (o vuelve si no hay ninguno); `left` = rebotes que quedan
-function orbSegment(g, ctx, from, toward, left, done, castHits = null) {
+// al enemigo vivo más cercano (o vuelve si no hay ninguno); `left` = rebotes que quedan.
+// `lane` (Orbe Grande): el orbe es más grande y roza a los enemigos hasta `lane` m más a cada
+// lado de su recorrido (dos carriles paralelos que comparten los impactos: uno por enemigo)
+function orbSegment(g, ctx, from, toward, left, done, castHits = null, lane = 0) {
   const { p, prof, sk } = ctx;
   const speed = prof.speed || 6, range = prof.range || 14;
   const d = aimDir({ pos: from, group: p.group }, toward);
-  g.fireProjectile(ctx, { from, to: toward, speed, range, pierce: true, castHits });
+  const hits = lane > 0 ? (castHits || new Set()) : castHits;
+  g.fireProjectile(ctx, { from, to: toward, speed, range, pierce: true, castHits: hits });
+  for (const s of lane > 0 ? [-1, 1] : []) {
+    const shift = v => { const o = v.clone(); o.x -= d.z * lane * s; o.z += d.x * lane * s; return o; };
+    g.fireProjectile(ctx, { from: shift(from), to: shift(toward), speed, range, pierce: true, castHits: hits, size: 0.02 });
+  }
   const end = from.clone(); end.x += d.x * range; end.z += d.z * range; end.y = 0;
   const stop = g.clampWalkable ? g.clampWalkable(from, end, range) : end;
   g.timers.schedule(range / Math.max(1, speed), () => {
@@ -247,8 +294,21 @@ function orbSegment(g, ctx, from, toward, left, done, castHits = null) {
     for (const e of g.enemies || []) { if (!e.alive) continue; const q = dist2(e.pos, stop); if (q < bd) { bd = q; tgt = e; } }
     const back = tgt && bd > 0.25 ? ground(tgt.pos) : (() => { const v = stop.clone(); v.x -= d.x * range; v.z -= d.z * range; return v; })();
     g.spawnRing?.(stop, 0.9, ctx.color ?? sk.color);
-    orbSegment(g, ctx, stop, back, left - 1, done);
+    orbSegment(g, ctx, stop, back, left - 1, done, null, lane);
   });
+}
+// carril extra del Orbe forjado: lo que su tamaño pasa del del catálogo (Orbe Grande ×1,3)
+function orbLane(sk) {
+  const base = MAGA_SKILLS.find(s => s.id === 'a_orbe')?.size || sk.size || 0;
+  return Math.max(0, (sk.size || base) - base);
+}
+// segmento del Muro: centro, eje y extremos (perpendicular a la mira, como el tipo genérico wall)
+function wallLine(p, center, len) {
+  const d = aimDir(p, center);
+  const a = center.clone(), b = center.clone();
+  a.x += d.z * len / 2; a.z -= d.x * len / 2;
+  b.x -= d.z * len / 2; b.z += d.x * len / 2;
+  return { a, b, d };
 }
 
 // Tormenta Glacial activa del héroe (para los poderes de KT: dónde está, alargarla, crecer).
@@ -267,9 +327,10 @@ export const MAGA_SKILL_BEHAVIORS = {
       const { ctx, sk } = cast;
       const amt = (sk.shieldManaPct || 60) / 100 * (p.stats.maxMP || 0) * (prof.buffMul || 1);
       g.shield(amt, { target: 'self', dur: prof.dur || 8, src: 'm_barrera', dr: p.tv?.barrierDr || 0 });
+      const fx = fxOf(cast);
       g.spawnRing?.(p.pos, 1.4, ctx.color ?? sk.color);
-      fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-      fxAt(g, ctx.fx?.extra, p.pos, 1.0);
+      fxAt(g, fx?.aura, p.pos, 1.0);
+      fxAt(g, fx?.extra, p.pos, 1.0);
       return ctx.res;
     },
   },
@@ -306,37 +367,56 @@ export const MAGA_SKILL_BEHAVIORS = {
       const front = ground(p.pos);
       if (!ring) { front.x += d.x * rad * 0.5; front.z += d.z * rad * 0.5; }
       ctx.zoneCenter = front; ctx.zoneRad = ring ? rad : rad * 0.5;
+      const fx = fxOf(cast);
       g.spawnRing?.(front, ctx.zoneRad, ctx.color ?? sk.color);
-      fxAt(g, ctx.fx?.aura, p.pos, 1.0);
-      fxAt(g, ctx.fx?.impact, front, 0.8);
+      fxAt(g, fx?.aura, p.pos, 1.0);
+      fxAt(g, fx?.impact, front, 0.8);
       return ctx.res;
     },
   },
 
-  // Estela Ígnea: desliz de 6 m y una franja de fuego del inicio al final (coef = WD por segundo)
+  // Estela Ígnea: desliz de 6 m y una franja de fuego del inicio al final (coef = WD por segundo).
+  // Muro de Llamas (forja, `blocks`): la franja es el campo p_muro_fuego (powers-maga.js) que
+  // corta el paso a los que no son jefes; sin ese campo, el muro genérico (field-entities)
   m_estela_ignea: {
+    params: ['blocks'],
     cast(g, p, prof, cast) {
+      const { ctx, sk } = cast;
+      const fx = fxOf(cast);
       const { from, to } = slide(g, p, prof, cast);
-      trailField(g, p, prof, cast, from, to, { dps: cast.ctx.avgHit, interval: 0.5 });
-      fxAt(g, cast.ctx.fx?.impact, p.pos, 0.6);
-      return cast.ctx.res;
+      if (sk.blocks) {
+        const len = Math.max(0.5, Math.hypot(to.x - from.x, to.z - from.z));
+        const ux = (to.x - from.x) / len, uz = (to.z - from.z) / len;
+        const mid = from.clone(); mid.x = (from.x + to.x) / 2; mid.z = (from.z + to.z) / 2;
+        const width = trailWidth(prof), dur = prof.dur || 3, color = ctx.color ?? sk.color;
+        const f = g.spawnField?.('p_muro_fuego', { pos: mid, radius: len / 2, dur, owner: p,
+          data: { ux, uz, nx: -uz, nz: ux, half: len / 2, width, blocks: true, dps: ctx.avgHit, skill: sk.id, tags: prof.tags, color, preset: fx?.trail || null } });
+        if (!f) g.spawnField?.('muro', { pos: mid, radius: len / 2, dur, owner: p, shape: 'line', a: from, b: to, width, maxPerSkill: 1,
+          data: { blocks: true, dps: ctx.avgHit, color, skill: sk.id, tags: prof.tags } });
+      } else trailField(g, p, prof, cast, from, to, { dps: ctx.avgHit, interval: 0.5 });
+      fxAt(g, fx?.impact, p.pos, 0.6);
+      return ctx.res;
     },
   },
 
   // Supernova: se forma a tu alrededor (at 'self') o en la mira; `pulses` ondas separadas
   // `pulseGap` s tras impactDelay; la última deja la Quemadura (burn WD en burnT s, escala
-  // con el rango como el golpe). follow 'owner': cada onda estalla donde estás
+  // con el rango como el golpe). follow 'owner': cada onda estalla donde estás. `pull`
+  // (Gravedad Solar): justo antes de la primera onda atrae `pull` m hacia el centro a los
+  // enemigos a radio + `pull` m (a los jefes, Quebranto)
   m_u_supernova: {
     params: ['pulses', 'pulseGap', 'burn', 'burnT'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
+      const fx = fxOf(cast);
       const anchor = ground(sk.at === 'self' ? p.pos : (cast.target || p.pos));
       const follow = sk.follow === 'owner';
       const rad = prof.radius || 5;
       const color = ctx.color ?? sk.color;
+      const pull = sk.pull || 0;
       if (sk.at !== 'self') p.faceToward?.(anchor);
       g.spawnRing?.(anchor, rad, color);                       // telegrafía
-      fxAt(g, ctx.fx?.trail, anchor, 4.5);
+      fxAt(g, fx?.trail, anchor, 4.5);
       const pulses = Math.max(1, Math.floor(sk.pulses || 1));
       const burnTotal = (sk.burn || 0) > 0 ? p.avgHit(ctx.coef * sk.burn / (sk.coef || 1), prof.addPct) : 0;
       const burnT = sk.burnT || 6;
@@ -345,6 +425,7 @@ export const MAGA_SKILL_BEHAVIORS = {
         n++;
         const last = n >= pulses;
         const c = follow ? ground(p.pos) : anchor;
+        if (n === 1 && pull > 0) for (const e of g.enemies || []) if (e.alive && inRadius(e, c, rad + pull)) e.displace?.(c, pull, { toward: true, src: p });
         g.dealArea(c, rad, ctx.coef, {
           ...ctx.areaOpts, from: c,
           onHit: (e, dealt) => {
@@ -352,9 +433,9 @@ export const MAGA_SKILL_BEHAVIORS = {
             if (last && e.alive && burnTotal > 0) g.applyDoT?.(e, burnTotal, burnT, 1, undefined, 'm_u_supernova:burn');
           },
         });
-        fxAt(g, ctx.fx?.impact, c, 0.3);
-        fxAt(g, ctx.fx?.aura, c, 0.3);
-        if (last) fxAt(g, ctx.fx?.extra, c, 0.3);
+        fxAt(g, fx?.impact, c, 0.3);
+        fxAt(g, fx?.aura, c, 0.3);
+        if (last) fxAt(g, fx?.extra, c, 0.3);
         g.spawnRing?.(c, rad * (last ? 1 : 0.6), color);
         g.addShake?.(last ? (sk.shake || 0.6) : 0.3);
         if (!last) { g.timers.schedule(sk.pulseGap || 0.25, pulse); return; }
@@ -368,22 +449,29 @@ export const MAGA_SKILL_BEHAVIORS = {
 
   // Prisión de Hielo: congela `freeze` s a los enemigos del área (a tu alrededor o, si la forja
   // la lanza, en la mira) y después los golpea. Primero el hielo: la congelación larga gana a
-  // la de 1 s del indicador (5 capas). A los jefes, Enemy.applyCC lo convierte en Quebranto
+  // la de 1 s del indicador (5 capas). A los jefes, Enemy.applyCC lo convierte en Quebranto.
+  // Forja: at 'enemy' (Celda Lejana) = solo el enemigo de la mira; type 'wall' (Muralla de
+  // Hielo) = muro en línea que corta el paso `dur` s y golpea una vez a cada enemigo que lo roza
   prision_hielo: {
     params: ['freeze', 'layers'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
-      const center = ground(sk.at === 'self' ? p.pos : (cast.target || p.pos));
+      const fx = fxOf(cast);
+      if (sk.type === 'wall') return iceWall(g, p, prof, cast, fx);
+      const one = sk.at === 'enemy' && cast.enemy?.alive ? cast.enemy : null;
+      const center = ground(one ? one.pos : sk.at === 'self' ? p.pos : (cast.target || p.pos));
       const rad = prof.radius || 4;
       if (sk.at !== 'self') p.faceToward?.(center);
       else p.swing = 1;
       const freeze = sk.freeze || 2;
-      for (const e of g.enemies || []) if (e.alive && inRadius(e, center, rad)) e.applyCC('freeze', freeze, { src: p });
-      g.dealArea(center, rad, ctx.coef, { ...ctx.areaOpts, from: center });
+      const list = one ? [one] : (g.enemies || []).filter(e => e.alive && inRadius(e, center, rad));
+      for (const e of list) e.applyCC('freeze', freeze, { src: p });
+      if (one) { strike(p, ctx, one); p.onDealHit(); }
+      else g.dealArea(center, rad, ctx.coef, { ...ctx.areaOpts, from: center });
       ctx.zoneCenter = center; ctx.zoneRad = rad;
       g.spawnRing?.(center, rad, ctx.color ?? sk.color);
-      fxAt(g, ctx.fx?.aura, center, 0.4);
-      fxAt(g, ctx.fx?.extra, center, 0.2);
+      fxAt(g, fx?.aura, center, 0.4);
+      fxAt(g, fx?.extra, center, 0.2);
       g.addShake?.(0.25);
       return ctx.res;
     },
@@ -417,19 +505,20 @@ export const MAGA_SKILL_BEHAVIORS = {
   // Lanza de Hielo: `count` lanzas (abanico con `spread`) que atraviesan si `pierce`; a un
   // enemigo que estaba Congelado al llegar, el golpe vale `frozenMult` veces: lo que pasa de 1×
   // va como daño de poder (sin multiplicadores [×] nuevos). Lanza del Invierno lo sube con
-  // modifyResolve (prof.frozenMult)
+  // modifyResolve (prof.frozenMult). Varias lanzas (Abanico Gélido o soporte): un impacto por enemigo
   lanza_hielo: {
     params: ['frozenMult', 'layers'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
+      const fx = fxOf(cast);
       p.faceToward?.(cast.target);
       p.swing = 1;
       const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
       const base = Math.atan2(cast.target.x - p.pos.x, cast.target.z - p.pos.z);
-      const castHits = n > 1 && (sk.count || 1) <= 1 ? new Set() : null;   // extra de soporte: un impacto por enemigo
+      const castHits = n > 1 ? new Set() : null;
       const mult = Math.max(1, prof.frozenMult ?? sk.frozenMult ?? 3);
       const from = ground(p.pos);
-      fxAt(g, ctx.fx?.trail, p.pos, 1.0);
+      fxAt(g, fx?.trail, p.pos, 1.0);
       for (let i = 0; i < n; i++) {
         const a = base + projFanOffset(i, n, prof.spread);
         const to = from.clone(); to.x += Math.sin(a) * 5; to.z += Math.cos(a) * 5;
@@ -437,7 +526,7 @@ export const MAGA_SKILL_BEHAVIORS = {
           onHit: (e, dealt, wasFrozen) => {
             if (!wasFrozen || !(dealt > 0) || mult <= 1 || !e.alive) return;
             g.dealProcDamage(e, dealt * (mult - 1), { source: `skill:${sk.id}`, skill: sk.id, elem: 'frost', tags: prof.tags });
-            fxAt(g, ctx.fx?.extra, e.pos, 0.8);
+            fxAt(g, fx?.extra, e.pos, 0.8);
           } });
       }
       g.timers.schedule((prof.range || 12) / Math.max(1, prof.speed || 20) + 0.05, () => cast.done(ctx.res));
@@ -446,15 +535,18 @@ export const MAGA_SKILL_BEHAVIORS = {
   },
 
   // Tormenta Glacial: golpes cada `interval` s en `radius` m alrededor de ti (follow 'owner') o
-  // fija donde la lanzas; cada golpe de Hielo pone su capa por el indicador. `pulses` (forja)
-  // fija el número de golpes; si no, sale de la duración. Una sola a la vez (magaStorm)
+  // fija donde la lanzas (at 'target'; at 'enemy' = sobre el enemigo de la mira); cada golpe de
+  // Hielo pone su capa por el indicador. `pulses` (forja) fija el número de golpes; si no, sale
+  // de la duración. `freeze` (Granizo): congela antes de cada golpe. Una sola a la vez (magaStorm)
   m_u_tormenta: {
-    params: ['interval', 'pulses'],
+    params: ['interval', 'pulses', 'freeze'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
+      const fx = fxOf(cast);
       const prev = STORMS.get(p); if (prev) prev.alive = false;
       const interval = sk.interval || 0.5;
-      const anchor = ground(sk.at === 'target' ? (cast.target || p.pos) : p.pos);
+      const on = sk.at === 'enemy' && cast.enemy?.alive ? cast.enemy.pos : null;
+      const anchor = ground(on || (sk.at === 'target' || sk.at === 'enemy' ? (cast.target || p.pos) : p.pos));
       const follow = sk.follow === 'owner';
       const inst = { alive: true, interval, radius: prof.radius || 4,
         left: sk.pulses > 0 ? Math.floor(sk.pulses) : Math.max(1, Math.round((prof.dur || 8) / interval)),
@@ -467,9 +559,10 @@ export const MAGA_SKILL_BEHAVIORS = {
       const pulse = () => {
         if (!inst.alive || !p.alive || g.player !== p || (g.state && g.state !== 'play')) { inst.alive = false; return; }
         const c = inst.center();
+        if (sk.freeze > 0) for (const e of g.enemies || []) if (e.alive && inRadius(e, c, inst.radius)) e.applyCC('freeze', sk.freeze, { src: p });
         g.dealArea(c, inst.radius, ctx.coef, { ...ctx.areaOpts, from: c });
-        fxAt(g, ctx.fx?.aura, c, 1.2);
-        fxAt(g, ctx.fx?.extra, c, 0.3);
+        fxAt(g, fx?.aura, c, 1.2);
+        fxAt(g, fx?.extra, c, 0.3);
         if (inst.left % 2 === 0) g.spawnRing?.(c, inst.radius, color);
         n++;
         if (--inst.left > 0) g.timers.schedule(Math.max(0, t0 + n * inst.interval - (g.timers.now || 0)), pulse);
@@ -481,7 +574,9 @@ export const MAGA_SKILL_BEHAVIORS = {
     },
   },
 
-  // Orbe Arcano: `count` orbes (abanico con `spread`) lentos que atraviesan y rebotan `bounces` veces
+  // Orbe Arcano: `count` orbes (abanico con `spread`) lentos que atraviesan y rebotan `bounces`
+  // veces. Varios orbes (Orbe Gemelo o soporte): un impacto por enemigo en el primer tramo (los
+  // rebotes, libres). Orbe Grande: más tamaño = roza más ancho (orbLane)
   orbe_arcano: {
     params: ['bounces'],
     cast(g, p, prof, cast) {
@@ -491,17 +586,44 @@ export const MAGA_SKILL_BEHAVIORS = {
       const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
       const base = Math.atan2(cast.target.x - p.pos.x, cast.target.z - p.pos.z);
       const from = ground(p.pos);
-      // orbes extra de soporte: un impacto por enemigo en el primer tramo (los rebotes, libres)
-      const castHits = n > 1 && (sk.count || 1) <= 1 ? new Set() : null;
+      const castHits = n > 1 ? new Set() : null;
+      const lane = orbLane(sk);
       let pending = n, finished = false;
       const done = () => { if (--pending <= 0 && !finished) { finished = true; cast.done(ctx.res); } };
       for (let i = 0; i < n; i++) {
         const a = base + projFanOffset(i, n, prof.spread);
         const to = from.clone(); to.x += Math.sin(a) * 5; to.z += Math.cos(a) * 5;
-        orbSegment(g, ctx, from, to, Math.max(0, Math.floor(sk.bounces ?? 2)), done, castHits);
+        orbSegment(g, ctx, from, to, Math.max(0, Math.floor(sk.bounces ?? 2)), done, castHits, lane);
       }
-      fxAt(g, ctx.fx?.aura, p.pos, 1.0);
+      fxAt(g, fxOf(cast)?.aura, p.pos, 1.0);
       return undefined;   // diferido: termina con el último rebote
+    },
+  },
+
+  // ---- FORJA (≤ 3 comportamientos nuevos por clase, 2f §7.2): solo el Parpadeo Disruptor ----
+  // Parpadeo Disruptor (variante II del Parpadeo, absorbe a la Onda Repulsora): te teletransporta
+  // como el Parpadeo y, al llegar, una onda de `radius` m golpea (coef), empuja (mod knock, desde
+  // donde llegas) y aturde (mod stun; a los jefes, Quebranto)
+  v_parpadeo_onda: {
+    cast(g, p, prof, cast) {
+      const { ctx, sk } = cast;
+      const fx = fxOf(cast);
+      const color = ctx.color ?? sk.color;
+      const aim = cast.target || p.pos;
+      const to = g.clampWalkable ? g.clampWalkable(p.pos, aim, prof.range || 8) : ground(aim);
+      g.spawnRing?.(p.pos, 1.0, color);
+      fxAt(g, fx?.impact, p.pos, 1.0);
+      p.faceToward?.(to);
+      p.pos.x = to.x; p.pos.z = to.z;
+      const c = ground(p.pos), rad = prof.radius || 4;
+      if (ctx.coef > 0) g.dealArea(c, rad, ctx.coef, { ...ctx.areaOpts, from: c });
+      ctx.zoneCenter = c; ctx.zoneRad = rad;
+      g.spawnRing?.(c, rad, color);
+      fxAt(g, fx?.impact, c, 1.0);
+      fxAt(g, fx?.aura, c, 0.4);
+      fxAt(g, fx?.extra, c, 0.8);
+      g.addShake?.(0.2);
+      return ctx.res;
     },
   },
 
@@ -606,8 +728,185 @@ export const MAGA_SKILL_BEHAVIORS = {
 // ------------------------------------------------------------
 // Barras y forja por especialización (docs/paso2-implementacion.md §3.5, D3, D6)
 // ------------------------------------------------------------
-// skillId → { mejora, vars: [i, ii] } (2f §2.3): KA2
-export const MAGA_SKILL_FORGE = {};
+// FORJA (2f §2, A.7; plan §3.5): skillId → { mejora (Nv req+3), vars: [i, ii] (Nv req+6) }.
+// Nombres, líneas y papeles = mockup congelado; el efecto sale de su `k` y del doc:
+//  · mod: claves de mergeMods (se suman; slow, stun, knock… son máximos) · set/add/mul: rutas
+//    sobre la DEFINICIÓN (forma, ritmo, parámetros que leen los comportamientos) · elem: el
+//    elemento y sus tags · power: poder `v_*` (js/powers-forge-maga.js) · behavior: `v_*` aquí.
+//  · «−X % de daño» y «X % cada uno» van al saco aditivo (mod dmg), como en el resto de la forja.
+//  · color: el de la forma nueva (anillos, haces y campos lo toman de la definición forjada).
+// Desviaciones del `k` del mockup (anotadas en tools/convert-v2/out/maga/pendientes-maga.md):
+// Lluvia de Meteoritos y Sello Ofensivo sin código propio (área genérica con impactos y buff
+// del aura); Muralla de Hielo con el campo genérico 'muro'; Saeta Ígnea y Sello de Contención
+// con poderes v_* (el básico de arma no tiene salpicadura ni el aura ralentiza).
+export const MAGA_SKILL_FORGE = {
+  // ---------------- kit base ----------------
+  m_dardo: {
+    // el alcance (+20 %) espera a que el básico de arma lea prof.range (petición W2)
+    mejora: { name: 'Dardo Veloz', icon: 'forge/mejora', line: '+40 % de velocidad del proyectil y +2 m de alcance.',
+      mul: { speed: 1.4 }, mod: { range: 20 } },
+    vars: [
+      { id: 'm_dardo_i', name: 'Saeta Ígnea', role: 'AREA', icon: 'forge/v_m_dardo_i', line: 'Se vuelve de Fuego y estalla a 1,5 m (30 %).',
+        elem: 'fire', set: { splash: 0.3, radius: 1.5, color: 0xff7a22 }, power: 'v_saeta_ignea' },
+      { id: 'm_dardo_ii', name: 'Saeta Gélida', role: 'CTRL', icon: 'forge/v_m_dardo_ii', line: 'Se vuelve de Hielo: ralentiza 20 % 1,5 s; −10 % daño.',
+        elem: 'frost', set: { color: 0x9fe3ff }, mod: { slow: 1.5, slowPct: 20, dmg: -10 } },
+    ],
+  },
+  bola_fuego: {
+    mejora: { name: 'Núcleo Inestable', icon: 'forge/mejora', line: 'Explosión 2 → 2,6 m.', mod: { radius: 30 } },
+    vars: [
+      { id: 'bola_fuego_i', name: 'Pirodardo', role: 'UNI', icon: 'forge/v_bola_fuego_i', line: 'Sin preparación y muy rápida; explosión 40 %.',
+        set: { windup: 0, speed: 22 }, add: { splash: -0.6 } },
+      { id: 'bola_fuego_ii', name: 'Racimo', role: 'AREA', icon: 'forge/v_bola_fuego_ii', line: 'Al explotar suelta 3 brasas que estallan (40 % c/u).',
+        power: 'v_racimo' },
+    ],
+  },
+  m_parpadeo: {
+    mejora: { name: 'Salto Largo', icon: 'forge/mejora', line: 'Alcance 8 → 10 m.', mod: { range: 25 } },
+    vars: [
+      { id: 'm_parpadeo_i', name: 'Doble Parpadeo', role: 'MOV', icon: 'forge/v_m_parpadeo_i', line: '2 cargas (12 s cada una).',
+        set: { charges: 2 } },
+      { id: 'm_parpadeo_ii', name: 'Parpadeo Disruptor', role: 'CTRL', icon: 'forge/v_m_parpadeo_ii', line: 'Al llegar empujas 3 m y aturdes 0,5 s (80 %).',
+        behavior: 'v_parpadeo_onda', set: { coef: 0.8, radius: 4 }, mod: { knock: 3, stun: 0.5 } },
+    ],
+  },
+  m_barrera: {
+    mejora: { name: 'Burbuja Estable', icon: 'forge/mejora', line: 'Dura 8 → 10 s.', mod: { durS: 2 } },
+    vars: [
+      { id: 'm_barrera_i', name: 'Barrera Gélida', role: 'CTRL', icon: 'forge/v_m_barrera_i', line: 'Se vuelve de Hielo: al romperse congela 1,5 s a 3 m.',
+        elem: 'frost', set: { color: 0x9fe3ff }, power: 'v_reactiva' },
+      { id: 'm_barrera_ii', name: 'Coraza Arcana', role: 'UNI', icon: 'forge/v_m_barrera_ii', line: 'Mientras aguanta, +15 % de daño de hechizos.',
+        power: 'v_coraza_arcana' },
+    ],
+  },
+  nova_hielo: {
+    mejora: { name: 'Escarcha Profunda', icon: 'forge/mejora', line: 'Ralentiza 30 → 40 %.', mod: { slowPct: 40 } },
+    vars: [
+      { id: 'nova_hielo_i', name: 'Corazón de Hielo', role: 'AGU', icon: 'forge/v_nova_hielo_i', line: 'Escudo del 3 % de vida por golpeado (máx. 15 %).',
+        set: { shieldGain: [3, 15] } },
+      { id: 'nova_hielo_ii', name: 'Nova Fracturante', role: 'UNI', icon: 'forge/v_nova_hielo_ii', line: '+40 % de daño a enemigos ya ralentizados.',
+        power: 'v_fractura' },
+    ],
+  },
+  // ---------------- Piromante ----------------
+  p_llamarada: {
+    mejora: { name: 'Llama Ancha', icon: 'forge/mejora', line: 'Cono 70 → 90°.', set: { angle: 90 } },
+    vars: [
+      { id: 'p_llamarada_i', name: 'Lanza de Llamas', role: 'UNI', icon: 'forge/v_p_llamarada_i', line: 'Cono de 25° y 10 m; +50 % de daño.',
+        set: { angle: 25, radius: 10 }, mod: { dmg: 50 } },
+      { id: 'p_llamarada_ii', name: 'Erupción', role: 'AREA', icon: 'forge/v_p_llamarada_ii', line: 'Anillo de 5 m a tu alrededor; −15 % de daño.',
+        set: { type: 'area', at: 'self', radius: 5 }, mod: { dmg: -15 } },
+    ],
+  },
+  m_estela_ignea: {
+    mejora: { name: 'Rastro Ardiente', icon: 'forge/mejora', line: 'El fuego dura 3 → 4 s.', mod: { durS: 1 } },
+    vars: [
+      { id: 'm_estela_ignea_i', name: 'Senda de Llamas', role: 'AREA', icon: 'forge/v_m_estela_ignea_i', line: 'Rastro el doble de ancho (3 m) y 55 %/s.',
+        mod: { radius: 100, dmg: 37 } },
+      // blocks: el rastro es el campo p_muro_fuego, que corta el paso (no a jefes)
+      { id: 'm_estela_ignea_ii', name: 'Muro de Llamas', role: 'CTRL', icon: 'forge/v_m_estela_ignea_ii', line: 'El rastro corta el paso 3 s (no a jefes); −50 % daño.',
+        set: { blocks: true }, mod: { dmg: -50 } },
+    ],
+  },
+  meteoro: {
+    mejora: { name: 'Puntería Ígnea', icon: 'forge/mejora', line: 'Cae a los 0,45 s.', set: { impactDelay: 0.45 } },
+    vars: [
+      // impactos repartidos en anillo por el área genérica (impacts + scatter)
+      { id: 'meteoro_i', name: 'Lluvia de Meteoritos', role: 'AREA', icon: 'forge/v_meteoro_i', line: '3 meteoritos (55 % c/u, 2,2 m) en un área de 5 m.',
+        set: { impacts: 3, scatter: 2.5, radius: 2.2 }, mod: { dmg: -45 } },
+      { id: 'meteoro_ii', name: 'Meteoro Ancestral', role: 'UNI', icon: 'forge/v_meteoro_ii', line: '+60 % de daño y aturde 1 s; enfriamiento 6 → 9 s.',
+        mod: { dmg: 60, stun: 1, cdr: -50 } },
+    ],
+  },
+  m_u_supernova: {
+    mejora: { name: 'Gravedad Solar', icon: 'forge/mejora', line: 'Atrae 2 m antes de estallar.', set: { pull: 2 } },
+    vars: [
+      { id: 'm_u_supernova_i', name: 'Sol Errante', role: 'AREA', icon: 'forge/v_m_u_supernova_i', line: 'La estrella te sigue 4 s y estalla 4 veces (380 %).',
+        set: { follow: 'owner', pulses: 4, pulseGap: 1, impactDelay: 1, coef: 3.8 } },
+      { id: 'm_u_supernova_ii', name: 'Colapso', role: 'UNI', icon: 'forge/v_m_u_supernova_ii', line: 'Una sola onda de 1300 % en 3 m.',
+        set: { pulses: 1, radius: 3, coef: 13 } },
+    ],
+  },
+  // ---------------- Crionte ----------------
+  k_prision: {
+    mejora: { name: 'Celda Amplia', icon: 'forge/mejora', line: 'Radio 4 → 5 m.', mod: { radius: 25 } },
+    vars: [
+      { id: 'k_prision_i', name: 'Celda Lejana', role: 'UNI', icon: 'forge/v_k_prision_i', line: 'La lanzas a 15 m sobre un solo enemigo: lo encierra 3 s.',
+        set: { at: 'enemy', range: 15, radius: 1.5, freeze: 3 } },
+      // muro genérico (field-entities 'muro'); el roce es un golpe de Hielo con 1 capa
+      { id: 'k_prision_ii', name: 'Muralla de Hielo', role: 'CTRL', icon: 'forge/v_k_prision_ii', line: 'Un muro de hielo de 8 m corta el paso 3 s y da 1 capa al tocarlo.',
+        set: { type: 'wall', at: 'target', range: 10, dur: 3, layers: 1, wall: { len: 8, width: 1, blocks: true } } },
+    ],
+  },
+  m_paso_escarcha: {
+    mejora: { name: 'Hielo Duradero', icon: 'forge/mejora', line: 'El hielo dura 3 → 4 s.', mod: { durS: 1 } },
+    vars: [
+      { id: 'm_paso_escarcha_i', name: 'Paso Doble', role: 'MOV', icon: 'forge/v_m_paso_escarcha_i', line: '2 cargas (10 s cada una).',
+        set: { charges: 2 } },
+      { id: 'm_paso_escarcha_ii', name: 'Prisión Fugaz', role: 'CTRL', icon: 'forge/v_m_paso_escarcha_ii', line: 'Al llegar, congelas 1 s a los que están a 2 m.',
+        power: 'v_prision_fugaz' },
+    ],
+  },
+  k_lanza: {
+    mejora: { name: 'Punta Afilada', icon: 'forge/mejora', line: '+2 m de alcance y +15 % de daño.', mod: { range: 17, dmg: 15 } },
+    vars: [
+      { id: 'k_lanza_i', name: 'Lanza Pesada', role: 'UNI', icon: 'forge/v_k_lanza_i', line: 'No atraviesa; +60 % de daño y deja 2 capas.',
+        set: { pierce: false, layers: 2 }, mod: { dmg: 60 } },
+      { id: 'k_lanza_ii', name: 'Abanico Gélido', role: 'AREA', icon: 'forge/v_k_lanza_ii', line: '3 lanzas en abanico; 50 % cada una.',
+        set: { count: 3, spread: 0.26 }, mod: { dmg: -50 } },
+    ],
+  },
+  m_u_tormenta: {
+    mejora: { name: 'Ojo Tranquilo', icon: 'forge/mejora', line: 'Dentro, tú recibes un 10 % menos de daño.', power: 'v_ojo' },
+    vars: [
+      { id: 'm_u_tormenta_i', name: 'Ventisca Anclada', role: 'AREA', icon: 'forge/v_m_u_tormenta_i', line: 'Se queda fija donde la lanzas, 6 m de radio.',
+        set: { follow: false, at: 'target', range: 12, radius: 6 } },
+      { id: 'm_u_tormenta_ii', name: 'Granizo', role: 'UNI', icon: 'forge/v_m_u_tormenta_ii', line: 'Un solo pedrisco de 1100 % sobre el objetivo; congela 2 s.',
+        set: { follow: false, at: 'enemy', range: 12, pulses: 1, radius: 2.5, coef: 11, freeze: 2 } },
+    ],
+  },
+  // ---------------- Arcanista ----------------
+  a_orbe: {
+    mejora: { name: 'Orbe Grande', icon: 'forge/mejora', line: '+30 % de tamaño.', mul: { size: 1.3 } },
+    vars: [
+      { id: 'a_orbe_i', name: 'Orbe Veloz', role: 'UNI', icon: 'forge/v_a_orbe_i', line: 'El doble de rápido; +40 % de daño y sin rebotes.',
+        mul: { speed: 2 }, set: { bounces: 0 }, mod: { dmg: 40 } },
+      { id: 'a_orbe_ii', name: 'Orbe Gemelo', role: 'AREA', icon: 'forge/v_a_orbe_ii', line: 'Lanzas 2 orbes en V; 60 % cada uno.',
+        set: { count: 2, spread: 0.22 }, mod: { dmg: -40 } },
+    ],
+  },
+  a_sello: {
+    mejora: { name: 'Sello Firme', icon: 'forge/mejora', line: 'Dura 8 → 10 s.', mod: { durS: 2 } },
+    vars: [
+      // el buff del aura: daño de los críticos en vez del abaratamiento
+      { id: 'a_sello_i', name: 'Sello Ofensivo', role: 'UNI', icon: 'forge/v_a_sello_i', line: 'Dentro, tus críticos hacen +25 %; ya no abarata.',
+        set: { buff: { spenderCostPct: 0, critDmg: 25 }, color: 0xff8ad8 } },
+      { id: 'a_sello_ii', name: 'Sello de Contención', role: 'CTRL', icon: 'forge/v_a_sello_ii', line: 'Los enemigos que entran quedan ralentizados un 40 %.',
+        set: { slowPct: 40, color: 0x9fd8ff }, power: 'v_sello_contencion' },
+    ],
+  },
+  rayo: {
+    mejora: { name: 'Rayo Largo', icon: 'forge/mejora', line: 'Alcance 15 → 18 m.', mod: { range: 20 } },
+    vars: [
+      { id: 'rayo_i', name: 'Rayo en Cadena', role: 'AREA', icon: 'forge/v_rayo_i', line: 'Salta a 3 enemigos cercanos (70 % cada salto).',
+        set: { chain: 3, chainPct: 70 } },
+      // 3 pulsos de 80 % en 1,5 s (+80 %): el 432 % del golpe va al primero que toca
+      { id: 'rayo_ii', name: 'Haz Concentrado', role: 'UNI', icon: 'forge/v_rayo_ii', line: 'Lo canalizas 1,5 s: +80 % al primero que toca.',
+        set: { type: 'channel', channelT: 1.5, ticks: 3, coef: 0.8 }, mod: { dmg: 80 } },
+    ],
+  },
+  m_u_desgarro: {
+    mejora: { name: 'Desgarro Estable', icon: 'forge/mejora', line: 'Puedes moverte despacio mientras lo canalizas.', set: { moveMul: 0.4 } },
+    vars: [
+      // grieta = zona genérica (coef = daño por segundo a todos dentro)
+      { id: 'm_u_desgarro_i', name: 'Brecha', role: 'AREA', icon: 'forge/v_m_u_desgarro_i', line: 'Abre una grieta en el suelo 5 s que daña a todos a 3 m.',
+        set: { type: 'zone', at: 'target', dur: 5, radius: 3 } },
+      // un golpe tras 0,5 s de preparación sobre el enemigo de la mira
+      { id: 'm_u_desgarro_ii', name: 'Quiebre', role: 'UNI', icon: 'forge/v_m_u_desgarro_ii', line: 'Un solo pulso de 900 % al final; no se canaliza.',
+        set: { type: 'area', at: 'enemy', radius: 1.2, windup: 0.5, coef: 9 } },
+    ],
+  },
+};
 // specId → { bar, forge (variantes que muestra el mockup con la barra), sel }: la aplica
 // chooseSpec en las ranuras del kit anterior, vacías o con habilidades que ya no conoces
 export const MAGA_SPEC_BAR = {
@@ -618,8 +917,17 @@ export const MAGA_SPEC_BAR = {
   arcanista: { bar: { lmb: 'm_dardo', rmb: 'rayo', k1: 'm_parpadeo', k2: 'a_sello', k3: 'a_orbe', k4: 'm_u_desgarro' },
     forge: { m_parpadeo: 'i', m_barrera: 'ii' }, sel: 'rayo' },
 };
-// specId → { skillId: 'i' | 'ii' } (forja recomendada en las habilidades nunca forjadas): KA2
-export const MAGA_FORGE_RECO = {};
+// specId → { skillId: 'i' | 'ii' }: forja recomendada (★ del libro y «Recomendado»; chooseSpec la
+// aplica a las habilidades nunca forjadas, D3). La del mockup salvo sus ids retirados (A.6):
+// Toque Gélido ya es la Saeta Gélida del Crionte; Onda Repulsora y Armadura de Hielo pasan a la
+// forja que el mockup pone en la barra del Arcanista (Parpadeo I, Barrera II). Ninguna apaga el
+// indicador de su especialización (2f §7.7): el Dardo es de Fuego con Calor, de Hielo con Escarcha
+// y Arcano (sin variante) con las Cargas
+export const MAGA_FORGE_RECO = {
+  piromante: { m_dardo: 'i', bola_fuego: 'ii', meteoro: 'i', m_u_supernova: 'i', p_llamarada: 'ii' },
+  crionte: { m_dardo: 'ii', nova_hielo: 'ii', m_u_tormenta: 'i', m_paso_escarcha: 'ii' },
+  arcanista: { rayo: 'ii', m_u_desgarro: 'ii', m_parpadeo: 'i', m_barrera: 'ii' },
+};
 // barra de reserva (migración y especialización aún sin kit): el kit base de cada ranura
 export const MAGA_FALLBACK_BAR = { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'm_barrera', k3: null, k4: null };
 // 2 = catálogo 2g
