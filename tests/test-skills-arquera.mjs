@@ -189,8 +189,12 @@ console.log('Barras: SPEC_BAR por especialización, reserva del kit base y 3/4 l
 const warn = console.warn;
 const warnings = [];
 console.warn = (...a) => { warnings.push(a.map(String).join(' ')); };
+// Estas pruebas miden la definición BASE del catálogo: sin la forja (una entrada vacía por
+// habilidad: ni Mejora ni variantes, aunque el nivel las abra). La forja: test-forge-arquera.mjs
 const mk = (spec = null, level = 20) => {
   const h = makeHarness({ classId: 'arquera', level, spec });
+  h.p.cls = { ...h.p.cls, forge: Object.fromEntries(h.p.cls.skills.map(s => [s.id, { mejora: null, vars: [] }])) };
+  h.p.recompute();
   h.p.mp = h.p.stats.maxMP;
   return h;
 };

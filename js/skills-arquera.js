@@ -178,6 +178,14 @@ function aimDir(p, target) {
   if (l < 0.05) { dx = Math.sin(p.group?.rotation?.y || 0); dz = Math.cos(p.group?.rotation?.y || 0); return { x: dx, z: dz }; }
   return { x: dx / l, z: dz / l };
 }
+// VFX de la forma forjada: la entrada de la habilidad con lo que cambia su variante
+// (ARQUERA_FX[id].vars.i|ii). Los comportamientos de este archivo ya la usan; el canal
+// genérico, cuando el motor la lea (petición a la cola W2).
+function fxOf(ctx, sk) {
+  const v = sk?.forged?.variant;
+  const over = v ? ctx.fx?.vars?.[v] : null;
+  return over ? { ...ctx.fx, ...over } : (ctx.fx || null);
+}
 // pulso cada `every` s mientras el campo viva (sigue su posición: un campo con follow se mueve)
 function pulseField(g, f, every, fn) {
   if (!f) return;
@@ -190,16 +198,21 @@ function pulseField(g, f, every, fn) {
 }
 
 // Lluvia por oleadas: aviso de impactDelay s y `waves` oleadas repartidas en `span` s, cada una
-// con dealArea. El centro queda fijo (at self/target) o te sigue (follow 'owner') o sigue la
-// mira (follow 'aim'). Un poder puede cambiar la cadencia con prof.waves / prof.span /
-// prof.follow (modifyResolve): se leen antes que los de la definición.
+// con dealArea. El centro queda fijo (at self/target), sigue a tu objetivo (at 'enemy': Saetas
+// Pesadas; si muere, queda donde cayó), te sigue (follow 'owner') o sigue la mira (follow
+// 'aim'). Un poder puede cambiar la cadencia con prof.waves / prof.span / prof.follow
+// (modifyResolve): se leen antes que los de la definición. Con allyDr / projMissPct (Cortina),
+// mientras llueve la zona protege a los aliados que estén dentro.
 function rain(g, p, prof, cast) {
   const { ctx, sk } = cast;
+  const fx = fxOf(ctx, sk);
   const follow = prof.follow ?? sk.follow ?? null;
-  const fixed = (sk.at === 'self' ? p.pos : (cast.target || p.pos)).clone(); fixed.y = 0;
+  const prey = sk.at === 'enemy' && cast.enemy?.alive ? cast.enemy : null;
+  const fixed = (sk.at === 'self' ? p.pos : (prey ? prey.pos : (cast.target || p.pos))).clone(); fixed.y = 0;
   const centerNow = () => {
     if (follow === 'owner') return p.pos.clone().setY(0);
     if (follow === 'aim' && g.input?.mouseWorld) return g.input.mouseWorld.clone().setY(0);
+    if (prey?.alive) fixed.set(prey.pos.x, 0, prey.pos.z);
     return fixed;
   };
   const rad = prof.radius || sk.radius || 3;
@@ -210,17 +223,22 @@ function rain(g, p, prof, cast) {
   const c0 = centerNow();
   if (sk.at !== 'self') p.faceToward(c0);
   g.spawnRing?.(c0, rad, color);                                   // telegrafía
-  if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, c0.clone().setY(4.5));
+  if (fx?.trail) g.emitFx?.(fx.trail, c0.clone().setY(4.5));
+  if (sk.allyDr > 0 || sk.projMissPct > 0) {
+    g.spawnField?.('zona', { pos: c0.clone(), radius: rad, dur: (prof.impactDelay || 0) + span + 0.1, owner: p,
+      follow: follow === 'owner' || follow === 'aim' ? follow : null,
+      data: { dps: 0, color, skill: sk.id, tags: prof.tags, allyDr: sk.allyDr || 0, projMissPct: sk.projMissPct || 0 } });
+  }
   ctx.zoneCenter = c0; ctx.zoneRad = rad;
   let left = waves;
   const wave = () => {
     if (follow === 'owner' && !p.alive) { cast.done(ctx.res); return; }
     const c = centerNow();
     g.dealArea(c, rad, ctx.coef, { ...ctx.areaOpts, from: c });
-    if (ctx.fx?.impact) g.emitFx?.(ctx.fx.impact, c.clone().setY(0.3));
-    if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, c.clone().setY(0.3));
-    if (ctx.fx?.extra) g.emitFx?.(ctx.fx.extra, c.clone().setY(0.1));
-    if (follow) g.spawnRing?.(c, rad, color);
+    if (fx?.impact) g.emitFx?.(fx.impact, c.clone().setY(0.3));
+    if (fx?.aura) g.emitFx?.(fx.aura, c.clone().setY(0.3));
+    if (fx?.extra) g.emitFx?.(fx.extra, c.clone().setY(0.1));
+    if (follow || prey) g.spawnRing?.(c, rad, color);
     g.addShake?.(sk.shake || 0.1);
     ctx.zoneCenter = c;
     if (--left > 0) g.timers.schedule(step, wave);
@@ -246,36 +264,41 @@ export const ARQUERA_SKILL_BEHAVIORS = {
     cast(g, p, prof, cast) { return rain(g, p, prof, cast); },
   },
 
-  // Bomba de Humo: zona (−allyDr % de daño dentro, proyectiles enemigos que se pierden y,
-  // con la forja, veneno) + CEGUERA: los enemigos dentro pegan −blindPct %. Con `follow`
-  // (Manto de Niebla: prof.follow) la nube y la ceguera van contigo.
+  // Bomba de Humo: zona (−allyDr % de daño dentro, proyectiles enemigos que se pierden y, con
+  // Humo Venenoso, veneno de coef WD/s) y, con la misma vida, el campo de CEGUERA (a_humo_ciego,
+  // de powers-arquera.js: los enemigos dentro pegan −blindPct %). Con `follow` (Manto de Niebla:
+  // prof.follow) los dos van contigo. Estallido de Humo: al lanzarla, golpe sin daño a los del
+  // radio que aplica prof.knock (desde el centro) y prof.slow.
   a_humo: {
     name: 'Bomba de Humo', params: ['blindPct'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
+      const fx = fxOf(ctx, sk);
       const pos = p.pos.clone(); pos.y = 0;
       const radius = prof.radius || sk.radius || 4, dur = prof.dur || sk.dur || 8;
       const follow = prof.follow ?? sk.follow ?? null;
       const color = ctx.color || sk.color || 0x9aa0a8;
-      const f = g.spawnField?.('zona', { pos, radius, dur, owner: p, follow, maxPerSkill: prof.zoneMax || 0,
+      g.spawnField?.('zona', { pos, radius, dur, owner: p, follow, maxPerSkill: prof.zoneMax || 0,
         data: { dps: ctx.coef > 0 ? ctx.avgHit : 0, color, skill: sk.id, tags: prof.tags,
           allyDr: sk.allyDr ? Math.round(sk.allyDr * (prof.buffMul || 1)) : 0, projMissPct: sk.projMissPct || 0 } });
-      const blind = sk.blindPct || 0;
-      if (blind > 0) pulseField(g, f, 0.25, (fl) => {
-        for (const e of g.enemies || []) if (e.alive && inCircle(e.pos, fl.pos, reach(e, fl.radius))) e.weakenOutgoing?.('a_humo', blind, 0.4);
-      });
+      if (sk.blindPct > 0) g.spawnField?.('a_humo_ciego', { pos: pos.clone(), radius, dur, owner: p, follow, data: { pct: sk.blindPct } });
+      if (prof.knock > 0 || prof.slow > 0) {
+        for (const e of g.enemies || []) if (e.alive && inCircle(e.pos, pos, reach(e, radius))) ctx.hit(e, 0, pos);
+        if (fx?.impact) g.emitFx?.(fx.impact, pos.clone().setY(0.5));
+      }
       ctx.zoneCenter = pos; ctx.zoneRad = radius;
       g.spawnRing?.(pos, radius, color);
-      if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, pos.clone().setY(0.6));
-      if (ctx.fx?.extra) g.emitFx?.(ctx.fx.extra, pos.clone().setY(0.3));
+      if (fx?.aura) g.emitFx?.(fx.aura, pos.clone().setY(0.6));
+      if (fx?.extra) g.emitFx?.(fx.extra, pos.clone().setY(0.3));
       return ctx.res;
     },
   },
 
   // Paso Veloz: rueda `range` m en la dirección de movimiento (o hacia el cursor) en rollT s
-  // y da el buff (+20 % de velocidad de ataque 3 s; sin buff, Doble Rodada)
+  // y da el buff (+20 % de velocidad de ataque 3 s; sin buff, Doble Rodada). `rollShot` lo lee
+  // el poder de Rodar y Disparar (powers-forge-arquera.js) al terminar la rodada
   a_paso: {
-    name: 'Paso Veloz', params: ['rollT'],
+    name: 'Paso Veloz', params: ['rollT', 'rollShot'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
       const d = g.input?.keyDir;
@@ -287,7 +310,7 @@ export const ARQUERA_SKILL_BEHAVIORS = {
       const dest = g.clampWalkable(p.pos, want, dist);
       const from = p.pos.clone();
       p.faceToward(dest);
-      if (Object.keys(prof.buff || {}).length) {
+      if (Object.values(prof.buff || {}).some(v => v > 0)) {
         const asp = prof.buff.aspdPct || 0;
         p.addBuff(sk.id, { ...prof.buff }, prof.dur || 3, { name: sk.name, icon: sk.icon, desc: asp ? `+${asp}% de velocidad de ataque` : sk.name });
       }
@@ -330,9 +353,12 @@ export const ARQUERA_SKILL_BEHAVIORS = {
       muzzle.x += dir.x * 0.5; muzzle.z += dir.z * 0.5;
       p.faceToward(p.pos.clone().set(p.pos.x + dir.x, 0, p.pos.z + dir.z));
       p.swing = 1;
-      if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, muzzle);
+      // VFX de la variante (Andanada Repulsora: impacto romo): una copia del contexto por lanzamiento
+      const fx = fxOf(ctx, sk);
+      const shotCtx = fx === ctx.fx ? ctx : { ...ctx, fx };
+      if (fx?.aura) g.emitFx?.(fx.aura, muzzle);
       for (let i = 0; i < n; i++)
-        g.fireProjectile(ctx, { angle: base + projFanOffset(i, n, prof.spread), castHits, perTarget: prof.perTarget, size: sk.size || 0.1 });
+        g.fireProjectile(shotCtx, { angle: base + projFanOffset(i, n, prof.spread), castHits, perTarget: prof.perTarget, size: sk.size || 0.1 });
       ctx.lifestealDone = true;                                     // el robo de vida va por impacto
       // una repetición (Eco) solo repite las flechas: no vuelve a saltar
       const airT = cast.echo ? 0 : (sk.airT || 0.3);
@@ -348,22 +374,27 @@ export const ARQUERA_SKILL_BEHAVIORS = {
 
   // Cerco de Zarzas: anillo donde apuntas (at 'enemy': sobre tu blanco). Cruzarlo en
   // cualquier sentido es un golpe sin daño que aplica prof.root (+ rootAdd) y la forja;
-  // dentro, el veneno del campo `zona` (coef = WD/s); al cerrarse, estallido de endMul × coef.
-  // Con `contain` (Jaula de Espinas) no se puede salir. El anillo dura lo que su campo.
+  // dentro, el veneno del campo `zona` (coef = WD/s; venomPct: +% solo al veneno, Jaula de
+  // Espinas); al cerrarse, estallido de endMul × coef. Con `contain` (Jaula de Espinas) no se
+  // puede salir. Es un zarzal (data.fieldDur: lo alarga Ojo de Trampera) y el anillo, el cruce y
+  // el estallido duran lo que su campo, no la `dur` local.
   a_zarzas: {
-    name: 'Cerco de Zarzas', params: ['endMul'],
+    name: 'Cerco de Zarzas', params: ['endMul', 'venomPct'],
     cast(g, p, prof, cast) {
       const { ctx, sk } = cast;
+      const fx = fxOf(ctx, sk);
       const src = sk.at === 'self' ? p.pos : (sk.at === 'enemy' && cast.enemy?.alive ? cast.enemy.pos : (cast.target || p.pos));
       const c = src.clone(); c.y = 0;
       const rad = prof.radius || sk.radius || 7;
       const dur = prof.dur || sk.dur || 8;
       const color = ctx.color || sk.color || 0x5a8a3a;
+      const venom = 1 + Math.max(0, sk.venomPct || 0) / 100;
       const f = g.spawnField?.('zona', { pos: c, radius: rad, dur, owner: p, maxPerSkill: 1,
-        data: { dps: ctx.avgHit, interval: 0.5, color, skill: sk.id, tags: prof.tags, contain: !!sk.contain } });
+        data: { dps: ctx.avgHit * venom, interval: 0.5, color, skill: sk.id, tags: prof.tags, contain: !!sk.contain, fieldDur: true } });
       if (sk.at !== 'self') p.faceToward(c);
       g.spawnRing?.(c, rad, color);
-      if (ctx.fx?.aura) g.emitFx?.(ctx.fx.aura, c.clone().setY(0.3));
+      if (fx?.aura) g.emitFx?.(fx.aura, c.clone().setY(0.3));
+      if (fx?.extra) g.emitFx?.(fx.extra, c.clone().setY(0.2));
       ctx.zoneCenter = c; ctx.zoneRad = rad;
       const state = new Map();
       for (const e of g.enemies || []) if (e.alive) state.set(e, inCircle(e.pos, c, rad));
@@ -375,7 +406,7 @@ export const ARQUERA_SKILL_BEHAVIORS = {
         // el estallido no vuelve a inmovilizar (sin onHit: solo daño)
         g.dealArea(c, rad, ctx.coef * mul, { ...ctx.areaOpts, onHit: null, from: c });
         g.spawnRing?.(c, rad, color);
-        if (ctx.fx?.impact) g.emitFx?.(ctx.fx.impact, c.clone().setY(0.4));
+        if (fx?.impact) g.emitFx?.(fx.impact, c.clone().setY(0.4));
         g.addShake?.(sk.shake || 0.3);
       };
       const tick = () => {
@@ -386,7 +417,7 @@ export const ARQUERA_SKILL_BEHAVIORS = {
           const was = state.get(e);
           if (was !== undefined && was !== now) {
             ctx.hit(e, 0, c);
-            if (ctx.fx?.impact) g.emitFx?.(ctx.fx.impact, e.pos.clone().setY(0.5));
+            if (fx?.impact) g.emitFx?.(fx.impact, e.pos.clone().setY(0.5));
           }
           state.set(e, now);
         }
@@ -489,8 +520,182 @@ export const ARQUERA_SKILL_BEHAVIORS = {
 // Paso 2 (2f + 2g) · forja, barras y versión del catálogo (docs/paso2-implementacion.md §3.5,
 // D3, D6 y D24). data.js los fusiona.
 // ------------------------------------------------------------
-// skillId → { mejora, vars: [<id>_i, <id>_ii] } · KA2 (las 17 entradas del borrador)
-export const ARQUERA_SKILL_FORGE = {};
+// skillId → { mejora, vars: [<id>_i, <id>_ii] } (KA2). Nombres, líneas y papeles: los del mockup
+// congelado (las líneas de más de 70 caracteres, acortadas: tools/convert-v2/divergencias.json).
+// Efectos desde su `k` y docs/paso2g-arquera.md §5–§7 y §10: la Mejora (Nv req+3) se suma a la
+// variante (Nv req+6), así que donde las dos fijan el mismo parámetro la Mejora usa `set` y la
+// variante lo pisa (Diluvio Anclado: 6 m, no 6 × 1,25). Poderes `v_*`: powers-forge-arquera.js.
+const FORGE_ICON = id => `forge/v_${id}`;
+export const ARQUERA_SKILL_FORGE = {
+  a_disparo: {
+    mejora: { id: 'a_disparo_m', name: 'Mano Rápida', icon: 'forge/mejora', line: 'Disparas un 10 % más rápido.', set: { cadence: 0.9 } },
+    vars: [
+      { id: 'a_disparo_i', name: 'Disparo Disperso', role: 'AREA', icon: FORGE_ICON('a_disparo_i'), line: '3 flechas en abanico de 25° (45 % cada una).',
+        set: { count: 3, spread: 0.218, coef: 0.45 } },
+      // el veneno de la Cicuta se SUMA en el mismo enemigo (applyDoT), al revés que el del cepo
+      { id: 'a_disparo_ii', name: 'Flecha de Cicuta', role: 'UNI', icon: FORGE_ICON('a_disparo_ii'), line: 'Se vuelve de Naturaleza: 70 % y veneno del 50 % en 4 s, que se suma.',
+        elem: 'nature', set: { coef: 0.7, hitDot: { kind: 'poison', coef: 0.5, dur: 4 }, color: 0x86d47a }, tags: { add: ['dot'] } },
+    ],
+  },
+  flecha_perforante: {
+    mejora: { id: 'flecha_perforante_m', name: 'Astil de Fresno', icon: 'forge/mejora', line: '+2 m de alcance y +20 % de velocidad de la flecha.', set: { range: 15 }, mul: { speed: 1.2 } },
+    vars: [
+      { id: 'flecha_perforante_i', name: 'Flecha Explosiva', role: 'AREA', icon: FORGE_ICON('flecha_perforante_i'), line: 'No atraviesa: explota en 3 m al 80 %.',
+        set: { pierce: false, splash: 0.8, radius: 3 }, tags: { add: ['area'] } },
+      { id: 'flecha_perforante_ii', name: 'Tiro de Precisión', role: 'UNI', icon: FORGE_ICON('flecha_perforante_ii'), line: 'Preparas 0,35 s (la esquiva la cancela): +45 % de daño.',
+        set: { windup: 0.35 }, mod: { dmg: 45 } },
+    ],
+  },
+  a_paso: {
+    mejora: { id: 'a_paso_m', name: 'Ágil', icon: 'forge/mejora', line: 'El bonus dura 3 → 4 s.', mod: { durS: 1 } },
+    vars: [
+      { id: 'a_paso_i', name: 'Rodar y Disparar', role: 'UNI', icon: FORGE_ICON('a_paso_i'), line: 'Al rodar disparas un Disparo Rápido gratis al 150 %.',
+        set: { rollShot: 1.5 }, power: 'v_rodar' },
+      { id: 'a_paso_ii', name: 'Doble Rodada', role: 'MOV', icon: FORGE_ICON('a_paso_ii'), line: '2 cargas (9 s cada una), sin el bonus de ataque.',
+        mod: { charges: 1 }, set: { buff: null } },
+    ],
+  },
+  a_humo: {
+    mejora: { id: 'a_humo_m', name: 'Humo Espeso', icon: 'forge/mejora', line: 'Radio 4 → 5 m.', set: { radius: 5 } },
+    vars: [
+      // el veneno es el daño por segundo de la zona (como el del Cerco de Zarzas)
+      { id: 'a_humo_i', name: 'Humo Venenoso', role: 'AREA', icon: FORGE_ICON('a_humo_i'), line: 'Dentro, los enemigos sufren veneno del 40 % por segundo.',
+        set: { coef: 0.4 }, tags: { add: ['dot'] } },
+      { id: 'a_humo_ii', name: 'Estallido de Humo', role: 'CTRL', icon: FORGE_ICON('a_humo_ii'), line: 'Al lanzarla, empuja 3 m a los cercanos y los ralentiza un 40 % 2 s.',
+        mod: { knock: 3, slow: 2, slowPct: 40 } },
+    ],
+  },
+  lluvia_flechas: {
+    mejora: { id: 'lluvia_flechas_m', name: 'Cielo Plomizo', icon: 'forge/mejora', line: '4 → 5 oleadas.', add: { waves: 1 } },
+    vars: [
+      { id: 'lluvia_flechas_i', name: 'Aguacero', role: 'UNI', icon: FORGE_ICON('lluvia_flechas_i'), line: 'Radio 2 m, cae en 0,8 s y hace +40 % de daño.',
+        set: { radius: 2, span: 0.8 }, mod: { dmg: 40 } },
+      // zona de defensa de los aliados dentro mientras llueve (como la Bomba de Humo)
+      { id: 'lluvia_flechas_ii', name: 'Cortina', role: 'AGU', icon: FORGE_ICON('lluvia_flechas_ii'), line: 'Dentro recibes un 15 % menos y la mitad de los disparos te fallan.',
+        set: { allyDr: 15, projMissPct: 50 } },
+    ],
+  },
+  a_t_andanada: {
+    mejora: { id: 'a_t_andanada_m', name: 'Arco Ancho', icon: 'forge/mejora', line: 'Abanico 120 → 150°.', set: { spread: 1.309 } },
+    vars: [
+      { id: 'a_t_andanada_i', name: 'Andanada Cerrada', role: 'UNI', icon: FORGE_ICON('a_t_andanada_i'), line: 'Abanico de 30° y +3 m: hasta 3 flechas por salto dan al mismo enemigo.',
+        set: { spread: 0.2618, perTarget: 3 }, add: { range: 3 } },
+      { id: 'a_t_andanada_ii', name: 'Andanada Repulsora', role: 'CTRL', icon: FORGE_ICON('a_t_andanada_ii'), line: 'Las flechas empujan 2 m y ralentizan un 30 % 2 s; −15 % de daño.',
+        mod: { knock: 2, slow: 2, slowPct: 30, dmg: -15 } },
+    ],
+  },
+  a_v_carrera: {
+    mejora: { id: 'a_v_carrera_m', name: 'Galope', icon: 'forge/mejora', line: 'Corres un 40 → 55 % más rápido.', set: { moveMul: 1.55 } },
+    vars: [
+      { id: 'a_v_carrera_i', name: 'Carrera Certera', role: 'UNI', icon: FORGE_ICON('a_v_carrera_i'), line: 'Disparas cada 0,6 s al enemigo con más vida; +70 % de daño.',
+        set: { 'autoShot.every': 0.6, 'autoShot.target': 'maxHp' }, mod: { dmg: 70 } },
+      { id: 'a_v_carrera_ii', name: 'Carrera Esquiva', role: 'AGU', icon: FORGE_ICON('a_v_carrera_ii'), line: 'Corriendo, el 40 % de los disparos enemigos te fallan; −30 % de daño.',
+        set: { projMissPct: 40 }, mod: { dmg: -30 }, power: 'v_carrera_esquiva' },
+    ],
+  },
+  flecha_multiple: {
+    mejora: { id: 'flecha_multiple_m', name: 'Alcance Largo', icon: 'forge/mejora', line: '+3 m de alcance (10 → 13 m).', set: { range: 13 } },
+    vars: [
+      { id: 'flecha_multiple_i', name: 'Abanico Abierto', role: 'AREA', icon: FORGE_ICON('flecha_multiple_i'), line: '7 flechas en 90° (38 % cada una).',
+        set: { count: 7, spread: 0.785, coef: 0.38 } },
+      { id: 'flecha_multiple_ii', name: 'Haz Cerrado', role: 'UNI', icon: FORGE_ICON('flecha_multiple_ii'), line: '3 flechas juntas en 10° que atraviesan; 55 % cada una.',
+        set: { count: 3, spread: 0.0873, pierce: true, coef: 0.55 } },
+    ],
+  },
+  a_u_diluvio: {
+    mejora: { id: 'a_u_diluvio_m', name: 'Nube Ancha', icon: 'forge/mejora', line: 'Radio 4 → 5 m.', set: { radius: 5 } },
+    vars: [
+      { id: 'a_u_diluvio_i', name: 'Diluvio Anclado', role: 'AREA', icon: FORGE_ICON('a_u_diluvio_i'), line: 'Queda fijo donde apuntas, con 6 m de radio.',
+        set: { follow: false, at: 'target', radius: 6, range: 12 } },
+      { id: 'a_u_diluvio_ii', name: 'Saetas Pesadas', role: 'UNI', icon: FORGE_ICON('a_u_diluvio_ii'), line: '4 saetas de 700 % caen sobre tu objetivo en 2 s.',
+        set: { follow: false, at: 'enemy', waves: 4, span: 2, radius: 1.5, coef: 7, range: 12 } },
+    ],
+  },
+  a_t_apuntado: {
+    // un 15 % más rápido: la ventana dorada se escala con la velocidad (carga completa en 1,3 s)
+    mejora: { id: 'a_t_apuntado_m', name: 'Tensado Rápido', icon: 'forge/mejora', line: 'Tensas un 15 % más rápido (carga completa en 1,3 s).', mod: { chargeSpeed: 15 } },
+    vars: [
+      // a carga completa, 3 saetas al 40 % del disparo cargado (full.coefMul) en 20° (semiapertura 10°)
+      { id: 'a_t_apuntado_i', name: 'Tres Saetas', role: 'AREA', icon: FORGE_ICON('a_t_apuntado_i'), line: 'A carga completa, 3 saetas en 20° que atraviesan, al 40 % cada una.',
+        set: { 'charge.full': { count: 3, spread: 0.1745, coefMul: 0.4 } } },
+      { id: 'a_t_apuntado_ii', name: 'Tiro Pesado', role: 'UNI', icon: FORGE_ICON('a_t_apuntado_ii'), line: 'Tensas hasta 2,5 s: hasta 300 %, pero no atraviesa.',
+        set: { 'charge.max': 2.5, 'charge.perfect': [2.15, 2.35], 'charge.scale.coef': [0.8, 3], pierce: false } },
+    ],
+  },
+  a_f_rodilla: {
+    mejora: { id: 'a_f_rodilla_m', name: 'Rodilla Firme', icon: 'forge/mejora', line: 'Disparo Apuntado y haces: tensado un 50 % más rápido (antes 40 %).',
+      set: { 'stance.modes.0.chargeSpeed': 50 } },
+    vars: [
+      { id: 'a_f_rodilla_i', name: 'Puesto Fijo', role: 'UNI', icon: FORGE_ICON('a_f_rodilla_i'), line: 'No te mueves: Disparo Apuntado y haces, el doble de rápido y +15 %.',
+        set: { 'stance.modes.0.moveMul': 0, 'stance.modes.0.chargeSpeed': 100 }, power: 'v_puesto_fijo' },
+      { id: 'a_f_rodilla_ii', name: 'Parapeto', role: 'AGU', icon: FORGE_ICON('a_f_rodilla_ii'), line: 'De rodillas recibes un 30 % menos y la mitad de disparos te fallan.',
+        set: { 'stance.modes.0.stats': { dr: 30, projMissPct: 50 } } },
+    ],
+  },
+  a_f_rastreador: {
+    mejora: { id: 'a_f_rastreador_m', name: 'Marca Duradera', icon: 'forge/mejora', line: 'El Punto Débil dura 12 s (antes 8 s).', set: { 'mark.dur': 12 } },
+    vars: [
+      { id: 'a_f_rastreador_i', name: 'Rastreo Múltiple', role: 'AREA', icon: FORGE_ICON('a_f_rastreador_i'), line: 'Abre el Punto Débil en 3 enemigos a 4 m del blanco; dura 6 s.',
+        set: { 'mark.count': 3, 'mark.radius': 4, 'mark.dur': 6 } },
+      // el marcado va lento lo que dura la marca (12 s con la Mejora, siempre activa a este nivel)
+      { id: 'a_f_rastreador_ii', name: 'Grillete', role: 'CTRL', icon: FORGE_ICON('a_f_rastreador_ii'), line: 'El marcado va un 50 % más lento; a un jefe le llena 20 de Quebranto.',
+        mod: { slow: 12, slowPct: 50, stagger: 20 } },
+    ],
+  },
+  a_u_celeste: {
+    mejora: { id: 'a_u_celeste_m', name: 'Cielo Abierto', icon: 'forge/mejora', line: 'Tienes 10 s para disparar los haces (antes 8 s).', mod: { recastWin: 2 } },
+    vars: [
+      // cambio de forma: área donde apuntas (el tensado escala 75–150 %); sigue habiendo 3 haces
+      { id: 'a_u_celeste_i', name: 'Lluvia Estelar', role: 'AREA', icon: FORGE_ICON('a_u_celeste_i'), line: 'Cada haz cae del cielo donde apuntas, en 4 m (150 %); no atraviesa.',
+        set: { type: 'area', at: 'target', radius: 4, coef: 1.5, pierce: false, impactDelay: 0.25, 'charge.scale.coef': [0.75, 1.5] } },
+      { id: 'a_u_celeste_ii', name: 'Haz Único', role: 'UNI', icon: FORGE_ICON('a_u_celeste_ii'), line: 'Un solo haz que tensas hasta 3 s: hasta 1000 %.',
+        set: { recast: null, 'charge.max': 3, 'charge.perfect': [2.7, 2.95], 'charge.scale.coef': [2, 10] } },
+    ],
+  },
+  a_t_cepo: {
+    mejora: { id: 'a_t_cepo_m', name: 'Muelles Firmes', icon: 'forge/mejora', line: 'Se arma en 0,2 s (antes 0,5 s).', set: { 'trap.armT': 0.2 } },
+    vars: [
+      { id: 'a_t_cepo_i', name: 'Mina de Espinas', role: 'AREA', icon: FORGE_ICON('a_t_cepo_i'), line: 'No inmoviliza: al pisarla estalla en 3 m (100 %).',
+        set: { root: 0, 'trap.burst': { radius: 3, coef: 1 }, color: 0xc0783c } },
+      // la red (radio y raíz de la definición) la lanza su poder al saltar el cepo
+      { id: 'a_t_cepo_ii', name: 'Red de Caza', role: 'CTRL', icon: FORGE_ICON('a_t_cepo_ii'), line: 'Al pisarla, una red de 3 m inmoviliza 2,5 s a todos los que atrapa.',
+        set: { root: 2.5, radius: 3, color: 0xd8c08a }, power: 'v_red_caza' },
+    ],
+  },
+  a_m_acecho: {
+    mejora: { id: 'a_m_acecho_m', name: 'Acecho Lejano', icon: 'forge/mejora', line: 'Llegas a trampas a 20 m (antes 15 m).', set: { range: 20 } },
+    vars: [
+      // detonate.consume:false: la trampa estalla y se rearma (petición a la cola W2); la raíz al
+      // caer la pone su poder
+      { id: 'a_m_acecho_i', name: 'Acecho Enredador', role: 'CTRL', icon: FORGE_ICON('a_m_acecho_i'), line: 'Al llegar no la gastas: inmovilizas 1,5 s a todos a 3 m.',
+        set: { 'detonate.consume': false, root: 1.5, radius: 3 }, power: 'v_acecho_enredador' },
+      // el estallido es el de la detonación: su coef, no el saco aditivo del salto
+      { id: 'a_m_acecho_ii', name: 'Doble Acecho', role: 'MOV', icon: FORGE_ICON('a_m_acecho_ii'), line: '2 cargas (10 s cada una); el estallido hace un 30 % menos.',
+        mod: { charges: 1 }, set: { 'detonate.coef': 0.7 } },
+    ],
+  },
+  a_m_detonante: {
+    mejora: { id: 'a_m_detonante_m', name: 'Pólvora Fina', icon: 'forge/mejora', line: 'Estalla en 4 m (antes 3 m).', set: { radius: 4, 'detonate.radius': 4 } },
+    vars: [
+      { id: 'a_m_detonante_i', name: 'Detonación en Cadena', role: 'AREA', icon: FORGE_ICON('a_m_detonante_i'), line: 'Cada trampa que estalla hace estallar las tuyas a 6 m, una tras otra.',
+        set: { 'detonate.chain': 6 } },
+      // ni estalla ni detona: arrastra (pull con destino 'trap', applyHitEffects)
+      { id: 'a_m_detonante_ii', name: 'Flecha de Garfio', role: 'CTRL', icon: FORGE_ICON('a_m_detonante_ii'), line: 'No estalla: arrastra 6 m al enemigo hacia tu trampa más cercana.',
+        set: { splash: 0, detonate: null, pull: { dist: 6, to: 'trap' } }, tags: { remove: ['area'] } },
+    ],
+  },
+  a_u_zarzas: {
+    mejora: { id: 'a_u_zarzas_m', name: 'Espinas Duraderas', icon: 'forge/mejora', line: 'Dura 10 s (antes 8 s).', mod: { durS: 2 } },
+    vars: [
+      // sobre tu blanco, encierra (contain) y +30 % SOLO al veneno (venomPct; el estallido no)
+      { id: 'a_u_zarzas_i', name: 'Jaula de Espinas', role: 'UNI', icon: FORGE_ICON('a_u_zarzas_i'), line: 'Se cierra sobre un enemigo: 3 m, no sale y el veneno hace +30 %.',
+        set: { radius: 3, at: 'enemy', contain: true, venomPct: 30 } },
+      // el señuelo (lure de la habilidad) lo planta el canal al cerrar el lanzamiento, en el centro del anillo
+      { id: 'a_u_zarzas_ii', name: 'Señuelo de Zarzas', role: 'AGU', icon: FORGE_ICON('a_u_zarzas_ii'), line: 'En el centro, un señuelo de paja atrae 6 s a los enemigos a 10 m.',
+        set: { lure: { radius: 10, dur: 6 } } },
+    ],
+  },
+};
 // barra, forja del mockup ('i'/'ii') y habilidad seleccionada al elegir la especialización (D6)
 export const ARQUERA_SPEC_BAR = {
   tiradora: { bar: { lmb: 'a_disparo', rmb: 'flecha_multiple', k1: 'a_v_carrera', k2: 'a_humo', k3: 'a_t_andanada', k4: 'a_u_diluvio' },
@@ -500,8 +705,14 @@ export const ARQUERA_SPEC_BAR = {
   montaraz: { bar: { lmb: 'a_disparo', rmb: 'a_m_detonante', k1: 'a_m_acecho', k2: 'a_humo', k3: 'a_t_cepo', k4: 'a_u_zarzas' },
     forge: { a_disparo: 'ii', a_t_cepo: 'ii' }, sel: 'a_t_cepo' },
 };
-// specId → { skillId: 'i' | 'ii' } (forja recomendada, D3) · KA2
-export const ARQUERA_FORGE_RECO = {};
+// specId → { skillId: 'i' | 'ii' } (forja recomendada del mockup, D3): chooseSpec la aplica a las
+// habilidades nunca forjadas. Ninguna apaga la barra de su especialización (2f §7.7): la
+// Tiradora conserva sus flechas, la Francotiradora su tensado y el Montaraz sus trampas
+export const ARQUERA_FORGE_RECO = {
+  tiradora: { a_disparo: 'i', flecha_multiple: 'i', a_t_andanada: 'ii', a_v_carrera: 'ii', a_u_diluvio: 'i', a_humo: 'i', a_paso: 'i' },
+  francotiradora: { a_disparo: 'ii', a_t_apuntado: 'ii', a_f_rastreador: 'ii', a_f_rodilla: 'i', a_u_celeste: 'ii', flecha_perforante: 'ii', a_paso: 'i' },
+  montaraz: { a_disparo: 'ii', a_t_cepo: 'ii', a_m_detonante: 'i', a_m_acecho: 'i', a_u_zarzas: 'i', a_humo: 'ii', lluvia_flechas: 'ii' },
+};
 // barra de reserva de la migración (§3.11): el kit base
 export const ARQUERA_FALLBACK_BAR = { lmb: 'a_disparo', rmb: 'flecha_perforante', k1: 'a_paso', k2: 'a_humo', k3: null, k4: null };
 // 1 = catálogo v4 · 2 = catálogo 2g

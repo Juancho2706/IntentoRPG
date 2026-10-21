@@ -3,14 +3,56 @@
   "divergencias": [
     {
       "clase": "arquera",
-      "ruta": "forja",
-      "motivo": "KA1 sube el catálogo 2g (CATALOG_V = 2) sin la forja: las 17 entradas de ARQUERA_SKILL_FORGE son de KA2 (E2). Se retira al fusionar KA2.",
+      "ruta": "forja.lluvia_flechas.vars.ii.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 78 → 66 caracteres. Mockup: «Dentro, los enemigos pegan un 15 % menos y fallan la mitad de sus proyectiles.» · juego: «Dentro recibes un 15 % menos y la mitad de los disparos te fallan.». Dice «recibes» porque la zona protege a los aliados que están dentro (allyDr y projMissPct del k).",
       "aprobada": false
     },
     {
       "clase": "arquera",
-      "ruta": "reco",
-      "motivo": "ARQUERA_FORGE_RECO es de KA2 (E2) y queda vacío hasta entonces. Se retira al fusionar KA2.",
+      "ruta": "forja.a_t_andanada.vars.i.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 85 → 70 caracteres. Mockup: «Abanico de 30° y +3 m de alcance: hasta 3 flechas de cada salto dan al mismo enemigo.» · juego: «Abanico de 30° y +3 m: hasta 3 flechas por salto dan al mismo enemigo.».",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_v_carrera.vars.ii.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 78 → 69 caracteres. Mockup: «Mientras corres, el 40 % de los proyectiles enemigos te fallan; −30 % de daño.» · juego: «Corriendo, el 40 % de los disparos enemigos te fallan; −30 % de daño.».",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_t_apuntado.vars.i.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 83 → 67 caracteres. Mockup: «A carga completa sueltas 3 saetas en abanico de 20° que atraviesan (40 % cada una).» · juego: «A carga completa, 3 saetas en 20° que atraviesan, al 40 % cada una.». «al 40 %»: cada saeta hace el 40 % del disparo cargado (k: coef ×0,4 = charge.full.coefMul), no el 40 % del arma.",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_f_rodilla.mejora.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 71 → 66 caracteres. Mockup: «Disparo Apuntado y los haces se tensan un 50 % más rápido (antes 40 %).» · juego: «Disparo Apuntado y haces: tensado un 50 % más rápido (antes 40 %).».",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_f_rodilla.vars.i.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 86 → 67 caracteres. Mockup: «No te mueves: Disparo Apuntado y los haces se tensan el doble de rápido y hacen +15 %.» · juego: «No te mueves: Disparo Apuntado y haces, el doble de rápido y +15 %.».",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_f_rodilla.vars.ii.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 82 → 67 caracteres. Mockup: «De rodillas recibes un 30 % menos de daño y la mitad de los proyectiles te fallan.» · juego: «De rodillas recibes un 30 % menos y la mitad de disparos te fallan.».",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_t_cepo.vars.ii.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 76 → 67 caracteres. Mockup: «Al pisarla lanza una red de 3 m que inmoviliza 2,5 s a todos los que atrapa.» · juego: «Al pisarla, una red de 3 m inmoviliza 2,5 s a todos los que atrapa.».",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "forja.a_u_zarzas.vars.i.line",
+      "motivo": "A1 (líneas de forja ≤ 70): 71 → 64 caracteres. Mockup: «Se cierra sobre un enemigo: 3 m, no puede salir y el veneno hace +30 %.» · juego: «Se cierra sobre un enemigo: 3 m, no sale y el veneno hace +30 %.».",
       "aprobada": false
     }
   ]

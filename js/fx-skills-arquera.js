@@ -3,7 +3,8 @@
 // ============================================================
 // js/fx-skills.js FUSIONA estos mapas en SKILL_FX / SKILL_FX_PRESETS (este mapa
 // va DESPUÉS del base, así que redefine las entradas viejas de la Arquera).
-//  - ARQUERA_FX: { idHabilidad: { trail?, impact?, aura?, extra?, auraY?, color?, sfx? } }
+//  - ARQUERA_FX: { idHabilidad: { trail?, impact?, aura?, extra?, auraY?, color?, sfx?, vars? } }
+//    (vars = { i?, ii? }: lo que cambia cada variante de la forja, con las mismas claves)
 //    cada campo es un preset de partículas (objeto parcial, ver js/particles.js) o el
 //    NOMBRE de uno existente (string). `sfx` es un nombre de js/sfx.js.
 //  - ARQUERA_FX_PRESETS: presets nuevos con nombre (se citan por string).
@@ -312,31 +313,70 @@ export const ARQUERA_FX_PRESETS = {
     size: { start: [0.14, 0.28], end: 0.0 },
     color: { start: '#ffffff', end: '#d8b070' }, alpha: { start: 1, end: 0 },
   },
+  // ---- Forja 2g (Paso 2, KA2): cambios de forma ----
+  // Humo Venenoso — la nube se tiñe de verde cicuta
+  arqVenomCloud: {
+    name: 'Humo Venenoso', texture: 'smoke', blending: 'normal',
+    count: 60, burst: true, lifetime: [1.8, 3.6],
+    shape: 'disc', shapeRadius: 3.6, speed: [0.3, 1.2], gravity: -0.15, drag: 0.9,
+    size: { start: [1.2, 2.2], end: 3.4 },
+    color: { start: '#cfe8a8', end: '#4e7a32' }, alpha: { start: 0.6, end: 0 }, spin: 20,
+  },
+  // Jaula de Espinas — el anillo de zarzas, cerrado a 3 m
+  arqBriarCage: {
+    name: 'Jaula de Espinas', texture: 'spark', blending: 'normal',
+    count: 50, burst: true, lifetime: [0.8, 1.6],
+    shape: 'ring', shapeRadius: 2.9, speed: [0.4, 1.4], gravity: -1.4, drag: 0.8,
+    size: { start: [0.25, 0.5], end: 0.1 },
+    color: { start: '#b8e070', end: '#3e5e22' }, alpha: { start: 0.95, end: 0 }, spin: 40,
+  },
+  // Lluvia Estelar — el haz cae del cielo antes del impacto
+  arqCelestialFall: {
+    name: 'Lluvia Estelar caída', texture: 'star', blending: 'additive',
+    count: 18, burst: true, lifetime: [0.2, 0.35],
+    shape: 'disc', shapeRadius: 0.6, speed: [8, 12], gravity: 26, drag: 0.1,
+    size: { start: [0.3, 0.55], end: 0.06 },
+    color: { start: '#ffffff', end: '#7fc4ff' }, alpha: { start: 1, end: 0.2 }, spin: 120,
+  },
 };
 
 // Por habilidad del catálogo 2g. Los presets de las habilidades retiradas se conservan para las
 // variantes de la forja que las absorben (Disperso, Cicuta, Red de Caza, Garfio, Señuelo).
+// `vars.i|ii` (Paso 2, forja): lo que cambia el VFX de esa variante (mismas claves; se fusiona
+// sobre la entrada). Los comportamientos de skills-arquera.js ya lo leen; los tipos genéricos
+// (flecha, salto) y el básico de arma, cuando el motor lo haga (petición a la cola W2). Las
+// trampas cambian de color con la definición forjada (`color` de la variante).
 export const ARQUERA_FX = {
-  // kit base
-  flecha_perforante: { trail: 'piercingTrail', impact: 'arrowSpark', color: 0xffffcc, sfx: 'shoot' },
+  // kit base (el básico de arma: la flecha de siempre; sus variantes, abanico o cicuta)
+  a_disparo:         { aura: 'basicArrow', color: 0xe8d8a0, sfx: 'shoot',
+    vars: { i: { aura: 'arqScatter' }, ii: { aura: 'arqHemlockTrail', impact: 'arqHemlockSplash', color: 0x86d47a } } },
+  flecha_perforante: { trail: 'piercingTrail', impact: 'arrowSpark', color: 0xffffcc, sfx: 'shoot',
+    vars: { i: { aura: 'arqDetonBlast', extra: 'arqBlastPop' }, ii: { trail: 'arqAimedTrail', impact: 'arqAimedImpact' } } },
   a_paso:            { trail: 'arqRollDust', impact: 'arqRollDust', color: 0xe2d8bc, sfx: 'dash' },
-  a_humo:            { aura: 'arqSmokeCloud', extra: 'arqSmokePuff', color: 0x9aa0a8, sfx: 'dash' },
-  lluvia_flechas:    { aura: 'arrowRain', extra: 'arrowRainDust', color: 0xaaffaa, sfx: 'shoot' },
+  a_humo:            { aura: 'arqSmokeCloud', extra: 'arqSmokePuff', color: 0x9aa0a8, sfx: 'dash',
+    vars: { i: { aura: 'arqVenomCloud', extra: 'arqHemlockSplash' }, ii: { impact: 'arqStunPop' } } },
+  lluvia_flechas:    { aura: 'arrowRain', extra: 'arrowRainDust', color: 0xaaffaa, sfx: 'shoot',
+    vars: { ii: { extra: 'arqSmokePuff' } } },
   // Tiradora
-  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot' },
+  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot',
+    vars: { ii: { impact: 'arqStunPop' } } },
   a_v_carrera:       { aura: 'arqWindRun', impact: 'arrowSpark', color: 0x9fe8ff, sfx: 'dash' },
   flecha_multiple:   { aura: 'multiShotBurst', impact: 'arrowSpark', color: 0xccddaa, sfx: 'shoot' },
-  a_u_diluvio:       { trail: 'arqDelugeFall', aura: 'arqDeluge', extra: 'arrowRainDust', color: 0xbfffbf, sfx: 'shoot' },
+  a_u_diluvio:       { trail: 'arqDelugeFall', aura: 'arqDeluge', extra: 'arrowRainDust', color: 0xbfffbf, sfx: 'shoot',
+    vars: { ii: { aura: 'arqAimedImpact', extra: 'critRing' } } },
   // Francotiradora
   a_t_apuntado:      { trail: 'arqAimedTrail', impact: 'arqAimedImpact', color: 0xfff1a8, sfx: 'crit' },
   a_f_rodilla:       { aura: 'arqKneel', color: 0xffd966, sfx: 'skill' },
   a_f_rastreador:    { trail: 'arqTrackerTrail', impact: 'arqTrackerMark', color: 0xff9a4a, sfx: 'shoot' },
-  a_u_celeste:       { aura: 'arqCelestialMuzzle', impact: 'arqCelestialImpact', extra: 'critRing', color: 0x9fd8ff, sfx: 'crit' },
-  // Montaraz
+  a_u_celeste:       { aura: 'arqCelestialMuzzle', impact: 'arqCelestialImpact', extra: 'critRing', color: 0x9fd8ff, sfx: 'crit',
+    vars: { i: { trail: 'arqCelestialFall' } } },
+  // Montaraz (la red y el salto enredador los pinta su poder: arqNetBurst)
   a_t_cepo:          { aura: 'arqTrapSnap', color: 0x86d47a, sfx: 'trap' },
   a_m_acecho:        { trail: 'arqRollDust', impact: 'arqThornBurst', color: 0xb6e07a, sfx: 'dash' },
-  a_m_detonante:     { trail: 'arqDetonTrail', impact: 'arqBlastPop', aura: 'arqDetonBlast', color: 0xffa040, sfx: 'shoot' },
-  a_u_zarzas:        { aura: 'arqBriarRing', impact: 'arqBriarSnag', color: 0x5a8a3a, sfx: 'trap' },
+  a_m_detonante:     { trail: 'arqDetonTrail', impact: 'arqBlastPop', aura: 'arqDetonBlast', color: 0xffa040, sfx: 'shoot',
+    vars: { ii: { trail: 'arqChainTrail', impact: 'arqChainTrail' } } },
+  a_u_zarzas:        { aura: 'arqBriarRing', impact: 'arqBriarSnag', color: 0x5a8a3a, sfx: 'trap',
+    vars: { i: { aura: 'arqBriarCage' }, ii: { extra: 'arqStrawPuff' } } },
   // activas de talento
   a_t_camuflaje:     { aura: 'arqCamoLeaves', color: 0x8fbf7a, sfx: 'portal' },
   agilidad:          { aura: 'agility', extra: 'agilityMotes', color: 0x9af06a, sfx: 'dash' },
