@@ -9,7 +9,8 @@
 //   3. mods de la forja (Mejora si Nv ≥ req+3, variante si Nv ≥ req+6)
 //   4. talentos (p.talentAgg.mods[sk.id]: los selectores se expanden sobre la definición forjada)
 //   5. soportes engarzados compatibles con los tags FORJADOS → tabla SUPPORT_MOD
-//   6. valores globales del héroe (stats.cdr, tv.costRed / costRedBig)
+//   6. valores globales del héroe (stats.cdr, tv.costRed / costRedBig, stats.spenderCostPct /
+//      costPct, stats.skillSpeedPct, talentos de DoT en hitDot)
 //   7. poderes (② modifyResolve) y topes de combat-math (CDR 50; crítico al tirar)
 // y devuelve el PERFIL COMPLETO del lanzamiento (con `prof.def`, la definición forjada,
 // y las claves de verbo de §3.6 ya resueltas), cacheado en p.resolved[sk.id]
@@ -154,8 +155,20 @@ export function resolveSkillId(p, id) {
   return sk ? resolveSkill(p, sk) : null;
 }
 
-// distancia de un `pull` (número o { dist, to })
+// distancia de un `pull` (número o { dist, to, radius, boss })
 const pullDist = v => (typeof v === 'number' ? v : (v?.dist || 0));
+// DoT propio al golpear (hitDot) con los talentos de DoT del héroe, como el perfil central
+// (combat-math.dotProfile): +% de dotPct y <tipo>Pct al total; +s de dotDur, bleedDur y burnDur
+// alargan con el MISMO daño por segundo (el coef crece en proporción a la duración)
+function resolveHitDot(hd, rank, dotMul, tv) {
+  const kind = hd.kind || 'poison';
+  const dur0 = hd.dur || 4;
+  const pct = (tv.dotPct || 0) + (tv[`${kind}Pct`] || 0);
+  const extra = (tv.dotDur || 0) + (kind === 'bleed' ? (tv.bleedDur || 0) : 0) + (kind === 'burn' ? (tv.burnDur || 0) : 0);
+  const dur = Math.max(0.5, dur0 + extra);
+  const coef = (hd.coef || 0) * rankCoef(rank) * dotMul * Math.max(0, 1 + pct / 100) * dur / dur0;
+  return { kind, coef, dur };
+}
 // carga resuelta (§3.6): ventana con perfectWin/perfectEarly, velocidad con chargeSpeed
 function resolveCharge(def, mods, moveMul, p) {
   const c = def.charge;
@@ -179,6 +192,11 @@ function resolveCharge(def, mods, moveMul, p) {
     moveMul: Math.max(mods.moveMulMin || 0, (c.moveMul ?? moveMul) + (mods.moveMulAdd || 0) / 100),
     autoRelease: c.autoRelease !== false,
     instant: !!c.instant,
+    // por debajo de markMin (s) la suelta no gasta las marcas firstCharged ni fuerza el perfecto
+    markMin: Math.max(0, c.markMin || 0),
+    // un `min` DECLARADO (> 0) es tensado mínimo: soltar antes no dispara (cancela sin coste). Sin
+    // declararlo (el de VERB_DEFAULTS), un toque dispara al mínimo como siempre; con min 0, también
+    minHold: (c.min || 0) > 0,
     repeat: c.repeat ?? def.cat === 'basic',
     perfectGauge: c.perfectGauge || null,
     full: c.full || null,
@@ -220,6 +238,9 @@ function computeProfile(p, sk) {
   // multiplicador de coste por BUFF (stat spenderCostPct, p. ej. Furia Inmortal −100 =
   // principales gratis): solo a las principales (incluidas las de especialización)
   if (tags.has('spender') && st.spenderCostPct) cost *= Math.max(0, 1 + st.spenderCostPct / 100);
+  // stat costPct (negativo abarata): TODAS las habilidades con coste (Sello del Archimago: «tus
+  // hechizos»), aparte de spenderCostPct y multiplicando con él
+  if (st.costPct) cost *= Math.max(0, 1 + st.costPct / 100);
   cost = Math.max(0, Math.round(cost));
 
   // enfriamiento: UN número de CDR (stat + forja/talentos + soportes), tope CAPS.cdr
@@ -238,8 +259,11 @@ function computeProfile(p, sk) {
   for (const k of DOT_PRIORITY) if (dotCand.has(k)) { dot = k; break; }
 
   // ---- verbos (§3.6) ----
-  // preparación: (windup + windupAdd) × (1 + windupMul/100); moverse: moveMul (D8: 1 por defecto)
-  const windup = Math.max(0, ((def.windup || 0) + (mods.windupAdd || 0)) * Math.max(0, 1 + (mods.windupMul || 0) / 100));
+  // velocidad de habilidades (stat skillSpeedPct, Sangre Hirviente): acorta la preparación, el tic
+  // de los canales y la duración de avances y saltos; los enfriamientos no
+  const skillSpeed = Math.max(0.1, 1 + (st.skillSpeedPct || 0) / 100);
+  // preparación: (windup + windupAdd) × (1 + windupMul/100) / velocidad; moverse: moveMul (D8: 1 por defecto)
+  const windup = Math.max(0, ((def.windup || 0) + (mods.windupAdd || 0)) * Math.max(0, 1 + (mods.windupMul || 0) / 100)) / skillSpeed;
   const moveMul = Math.max(mods.moveMulMin || 0, (def.moveMul ?? 1) + (mods.moveMulAdd || 0) / 100);
   // los comportamientos con cast propio gestionan sus desplazamientos de la DEFINICIÓN
   // (Onda Repulsora, Arpón…); los mods (forja/talentos) sí van por la vía genérica
@@ -251,7 +275,12 @@ function computeProfile(p, sk) {
     cdFrom: def.recast.cdFrom || 'first', free: def.recast.free !== false, gap: def.recast.gap ?? VERB_DEFAULTS.recastGap,
   } : null;
   const repeat = def.repeat ? { ...def.repeat, n: Math.max(0, Math.floor((def.repeat.n || 0) + (mods.repeatAdd || 0))) } : null;
-  const trail = def.trail ? { ...def.trail, coef: (def.trail.coef || 0) + (mods.zoneCoef || 0), heal: (def.trail.heal || 0) + (mods.zoneHeal || 0) } : null;
+  // estela de un avance: zoneDur de los talentos SUMA segundos a la suya («duran r s más»)
+  const trail = def.trail ? { ...def.trail, coef: (def.trail.coef || 0) + (mods.zoneCoef || 0), heal: (def.trail.heal || 0) + (mods.zoneHeal || 0),
+    dur: Math.max(0.5, (def.trail.dur || 4) + (mods.zoneDur || 0)) } : null;
+  // arrastre: solo si la DEFINICIÓN arrastra (drag o dragWidth propio; drag:false lo apaga). El
+  // dragWidth de un talento ensancha el de la definición, no lo enciende (Gran Arrastre y Carga Veloz)
+  const drags = def.drag !== false && (!!def.drag || (def.dragWidth || 0) > 0);
   const mark = def.mark ? { ...def.mark, dur: (def.mark.dur || 8) + (mods.markDur || 0) } : null;
   const shieldGain = def.shieldGain || mods.shieldGain
     ? [(def.shieldGain?.[0] || 0) + (mods.shieldGain?.[0] || 0), Math.max(def.shieldGain?.[1] || 0, mods.shieldGain?.[1] || 0)] : null;
@@ -269,7 +298,9 @@ function computeProfile(p, sk) {
     // coste, tiempos
     cost, cd, cdBase: def.cd || 0, cdrPts,
     gcd: GCD_CATS.has(def.cat),
-    windup, lockT: def.lockT || 0, impactDelay: def.impactDelay || 0,
+    windup, lockT: def.lockT || 0, impactDelay: def.impactDelay || 0, skillSpeed,
+    // mods de talento para los PASOS de combo con preparación (selector @windup → '<id>@windup')
+    windupMods: p.talentAgg?.mods?.[`${sk.id}@windup`] || null,
     interruptible: !!def.int,
     moveMul,
     // geometría
@@ -283,15 +314,24 @@ function computeProfile(p, sk) {
     slow: Math.max(def.slow || 0, mods.slow || 0), slowPct: Math.max(def.slowPct || 0, mods.slowPct || 0) + (mods.slowPctAdd || 0),
     stun: Math.max(def.stun || 0, mods.stun || 0), root: Math.max(def.root || 0, mods.root || 0) + (mods.rootAdd || 0),
     vuln: mods.vuln || 0, dot, dotMul,
-    // desplazar (§3.6): m de atracción / empuje y hacia dónde
+    // desplazar (§3.6): m de atracción / empuje y hacia dónde. pull.radius: radio de la atracción
+    // por tic de un canal (por defecto, el del daño); pull.boss:false no atrae a los jefes
     pull: Math.max(ownCast ? 0 : pullDist(def.pull), mods.pull || 0), pullTo: (typeof def.pull === 'object' && def.pull?.to) || null,
+    pullRadius: (typeof def.pull === 'object' && def.pull?.radius) || 0,
+    pullBoss: !(typeof def.pull === 'object' && def.pull?.boss === false),
     knock: Math.max(ownCast ? 0 : (def.knock || 0), mods.knock || 0),
-    dragWidth: Math.max(def.dragWidth || (def.drag ? VERB_DEFAULTS.dragWidth : 0), mods.dragWidth || 0),
+    dragWidth: drags ? Math.max(def.dragWidth || (def.drag ? VERB_DEFAULTS.dragWidth : 0), mods.dragWidth || 0) : 0,
     taunt: (def.taunt || 0) + (mods.taunt || 0),
     // zona (Estela): 4 s por defecto; zoneDur = duración EXPLÍCITA (s) cuando la da un
-    // talento (Pira 1,5 s/rango, Abrojos 2 s/rango: «el texto del nodo manda», §9.3)
+    // talento (Pira 1,5 s/rango, Abrojos 2 s/rango: «el texto del nodo manda», §9.3).
+    // zonePct = daño por segundo de la Estela en % del ARMA (escala con el rango, como el coef);
+    // sin él, el 45 % del golpe de siempre
     zone: mods.zone || 0, zoneDur: (mods.zoneDur || 0) > 0 ? mods.zoneDur : 4,
+    zonePct: Math.max(0, (def.zonePct || 0) + (mods.zonePct || 0)),
     zoneMax: Math.max(def.zoneMax || 0, mods.zoneMax || 0),
+    // detonar (§3.6): el coef de los estallidos escala con el rango de la habilidad (× rankCoef,
+    // UNA vez: game-skills pasa este perfil a detonateAt y field-entities no lo reescala)
+    detonate: def.detonate ? { ...def.detonate, coef: (def.detonate.coef ?? 1) * rankCoef(rank) } : null,
     echo: supEcho || (mods.echo ? 0.6 : 0), execute: mods.execute || 0, cdhit: mods.cdhit || 0,
     critCdr: mods.critCdr || 0, lifesteal: mods.lifesteal || 0, coldblood: !!mods.coldblood,
     haste: mods.haste || 0, cleanse: !!mods.cleanse,
@@ -305,8 +345,9 @@ function computeProfile(p, sk) {
     // salpicadura de un proyectil (coef por objetivo en `radius` alrededor del impacto)
     splash: (def.splash || 0) * rankCoef(rank) * Math.max(0, 1 + (mods.splashPct || 0) / 100),
     splashPct: mods.splashPct || 0,
-    // DoT propio al impactar (Cicuta): total = golpe medio × coef (escala con rango y saco aditivo)
-    hitDot: def.hitDot ? { kind: def.hitDot.kind || 'poison', coef: (def.hitDot.coef || 0) * rankCoef(rank) * dotMul, dur: def.hitDot.dur || 4 } : null,
+    // DoT propio al impactar (Cicuta): total = golpe medio × coef (escala con rango, saco aditivo
+    // y los talentos de DoT: dotPct/<tipo>Pct y dotDur/bleedDur/burnDur)
+    hitDot: def.hitDot ? resolveHitDot(def.hitDot, rank, dotMul, tv) : null,
     // jefes (Paso 2c.0): todo control suma STAGGER; bossStun numérico = duración
     // nominal contra jefes (Martillo de Justicia) · stagger = stagger propio por golpe
     bossStun: typeof def.bossStun === 'number' ? def.bossStun : def.bossStun !== false,
