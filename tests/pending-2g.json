@@ -6,11 +6,6 @@
       "stage": "E2·integración (tras fusionar las tres clases)",
       "por": "catálogo v1: MAGA_SKILL_MODS, insignias por s0 y activas v1 (p_llamarada, k_prision…) que con D29 salen de MAGA_TALENT_SKILLS y pasan al kit de skills-maga.js"
     },
-    "test-gauges-arquera.mjs": {
-      "owner": "KT-arquera",
-      "stage": "E2·integración (tras fusionar las tres clases)",
-      "why": "«perfecto de Disparo Apuntado: +15» con la forja de KA2"
-    },
     "balance-bench.mjs": {
       "owner": "B1",
       "stage": "E4",
@@ -20,11 +15,6 @@
       "owner": "KT-maga",
       "stage": "E2·integración (tras fusionar las tres clases)",
       "why": "la Barrera caducó: la suite de KT se escribió sin la forja de KA2"
-    },
-    "test-talentos-arquera.mjs": {
-      "owner": "KT-arquera",
-      "stage": "E2·integración (tras fusionar las tres clases)",
-      "why": "c25 r1 (2 disparos críticos al salir) probado sin la forja de KA2"
     }
   }
 }

@@ -1283,7 +1283,8 @@ export function buildRefuge() {
   // cristales del vacío decorativos (racimos) + setas luminosas y rocas
   for (let i = 0; i < 10; i++) {
     const x = ri(3, W - 4), z = ri(3, H - 4);
-    if (!grid.cells[z][x] || (Math.abs(x - W / 2) < 4 && Math.abs(z - H / 2) < 6)) continue;
+    // ni en el centro ni encima del punto de aparición (13, H − 5) y sus vecinas
+    if (!grid.cells[z][x] || (Math.abs(x - W / 2) < 4 && Math.abs(z - H / 2) < 6) || (Math.abs(x - 13) <= 1 && Math.abs(z - (H - 5)) <= 1)) continue;
     grid.cells[z][x] = 0;
     const c = grid.center(x, z);
     const cl = makeCrystalCluster(Math.random, { color: 0xcc99ff, emissive: 0x7744cc, count: 3 + (Math.random() * 3 | 0), maxH: 1.3 });
