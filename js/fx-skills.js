@@ -19,7 +19,7 @@
 // No importa THREE ni el juego: solo objetos de datos serializables.
 // Paso 2b.0: fusiona los catálogos por clase (js/fx-skills-<clase>.js).
 import { GUERRERO_FX, GUERRERO_FX_PRESETS } from './fx-skills-guerrero.js';
-import { MAGA_FX, MAGA_FX_PRESETS } from './fx-skills-maga.js';
+import { MAGA_FX, MAGA_FX_PRESETS, MAGA_FORGE_FX } from './fx-skills-maga.js';
 import { ARQUERA_FX, ARQUERA_FX_PRESETS } from './fx-skills-arquera.js';
 
 // ------------------------------------------------------------
@@ -495,6 +495,16 @@ const BASE_SKILL_FX = {
 // Paso 2b.0: cada clase aporta sus VFX desde js/fx-skills-<clase>.js (dueño: el
 // trabajador de la clase). Lo de la clase PISA lo base con el mismo id.
 export const SKILL_FX = { ...BASE_SKILL_FX, ...GUERRERO_FX, ...MAGA_FX, ...ARQUERA_FX };
+
+// VFX de una habilidad con los de su variante forjada encima (Paso 2 · E2): por id de variante
+// (GUERRERO_FX['g_tajo_ii'], MAGA_FORGE_FX) o en vars.i|ii de la entrada base (Arquera).
+//   forged = la marca de la definición forjada (def.forged: { variant, varId }) o null
+export function skillFxFor(id, forged = null) {
+  const base = SKILL_FX[id] || null;
+  const over = (forged?.varId && (SKILL_FX[forged.varId] || MAGA_FORGE_FX[forged.varId]))
+    || (forged?.variant && base?.vars?.[forged.variant]) || null;
+  return over ? { ...(base || {}), ...over } : base;
+}
 
 const BASE_FX_PRESETS = {
   brutalStrike, brutalStrikeDust, brutalStrikeWave,
