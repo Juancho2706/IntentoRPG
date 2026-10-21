@@ -917,7 +917,7 @@ E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inve
     - `tv.drStill` (Arquera f15A): en `nucleo_tv.condDr`, espejo de `drMoving` con `p.planted`.
     - `tv.fieldDur` (Arquera m20): +% de duración de las trampas y zonas propias en `spawnField`.
     - `stats.blockPower` (Guerrero d1, d16B): `BLOCK_REDUCTION + blockPower/100`, tope 90, en `combat-math.js` y el saco de `recompute`.
-    - `input.js`: `KeyZ` (`cleanHud`) se ignora con Ctrl o con un panel abierto (adelanta la petición de U3).
+    - (`KeyZ` con Ctrl o con un panel abierto ya lo ignora `input.js:56` desde W2: U3 no tiene que pedirlo.)
 
 ### Pendientes de decisión (texto original de la crítica)
 
