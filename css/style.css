@@ -2279,14 +2279,15 @@ body.hudcheck #hud-combat-zone { position: fixed; z-index: 9; pointer-events: no
 @keyframes nwIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
 /* avisos de la migración de la partida: varias líneas, hasta pulsar «Entendido» */
-#hud-notice { margin-top: 8px; pointer-events: auto; width: 600px; padding: 12px 16px 10px; border-radius: 12px;
+#hud-notice { margin-top: 8px; pointer-events: auto; width: 760px; padding: 10px 16px 8px; border-radius: 12px;
   background: linear-gradient(180deg, rgba(27,21,32,0.98), rgba(15,12,18,0.98)); border: 1px solid #7a6131;
   box-shadow: 0 8px 26px #000c; color: var(--ink); font: 500 13.5px/1.45 Inter, system-ui, sans-serif; text-align: left; }
 #hud-notice.hidden { display: none !important; }
-#hud-notice .nt-h { display: block; margin-bottom: 6px; font: 700 16px Cinzel, Georgia, serif; color: #e8c06a; letter-spacing: 0.4px; }
-#hud-notice ul { margin: 0 0 10px; padding-left: 18px; }
-#hud-notice li { margin: 3px 0; }
-#hud-notice .nt-btns { display: flex; gap: 8px; justify-content: flex-end; }
+#hud-notice .nt-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+#hud-notice .nt-h { flex: 1 1 auto; font: 700 16px Cinzel, Georgia, serif; color: #e8c06a; letter-spacing: 0.4px; white-space: nowrap; }
+#hud-notice ul { margin: 0; padding-left: 18px; }
+#hud-notice li { margin: 2px 0; }
+#hud-notice .nt-btns { flex: none; display: flex; gap: 8px; }
 #hud-notice button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 6px; cursor: pointer;
   border-style: solid; border-width: 7px 14px; border-color: transparent; border-radius: 0;
   border-image: url('../assets/chrome/ui_boton.webp') 18 40 fill / 7px 14px / 0 stretch;

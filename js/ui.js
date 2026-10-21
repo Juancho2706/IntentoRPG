@@ -1648,7 +1648,10 @@ export class UI {
     const row = document.createElement('div'); row.className = 'nt-btns';
     const btn = (act, txt, key) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.textContent = txt; if (key) { const k = document.createElement('kbd'); k.textContent = key; b.appendChild(k); } return b; };
     row.append(btn('book', 'Libro ', this.actionKey('skills', 'T')), btn('talents', 'Talentos ', this.actionKey('talents', 'N')), btn('ok', 'Entendido'));
-    el.append(h, ul, row);
+    // título y botones en el mismo renglón: la tarjeta queda baja (no baja hasta la zona de combate)
+    const top = document.createElement('div'); top.className = 'nt-top';
+    top.append(h, row);
+    el.append(top, ul);
     el.classList.remove('hidden');
     clearTimeout(this._noticeT);
     this._noticeT = setTimeout(() => this.hideNotice(), NOTICE_MS);
