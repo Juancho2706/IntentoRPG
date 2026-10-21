@@ -51,6 +51,7 @@ import { gainGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics
 import { projFanOffset } from './skill-defs.js';
 import { enemiesInField, fieldArmed, insideField } from './field-entities.js';
 import { spendResource } from './resources.js';
+import { rankCoef } from './combat-math.js';
 import { cotoAddPrey, cotoPreys } from './mech-arquera.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
 
@@ -1288,8 +1289,9 @@ function shotCoef(prof, frac) {
 // PUNTO DÉBIL: la marca del motor (a_punto_debil, se gasta con el primer tensado) o el seguimiento
 // propio (Tiro Rastreador, Línea de Mira, Marca Saltarina): segundos que le quedan
 function weakMap(p) { const st = powerState(p, 'arq_debil'); return st.m || (st.m = new Map()); }
-function weakLeft(p, e) {
-  if (!e?.alive) return 0;
+// (dead: también de un enemigo que acaba de morir, para Marca Saltarina)
+function weakLeft(p, e, dead = false) {
+  if (!e || (!dead && !e.alive)) return 0;
   const m = e.marks?.a_punto_debil;
   const own = m && m.t > 0 && (!m.by || m.by === p) ? m.t : 0;
   return Math.max(own, (weakMap(p).get(e) || 0) - now(p), 0);
@@ -1340,14 +1342,16 @@ function scaleTrap(f, mul) {
 function cepoData(p) {
   const tpl = powerState(p, 'arq_cepo').tpl;
   if (tpl) return { data: { ...tpl.data, tags: tpl.data.tags }, radius: tpl.radius, life: tpl.life };
+  // sin cepo colocado aún: el perfil de Trampa de Cepo (el cacheado o, si no, coef × rango y su +% de
+  // talentos: lo mismo que pondría el tipo trap). Sin importar skill-resolve.js (ciclo con data.js)
   const def = p?.cls?.skills?.find(s => s.id === 'a_t_cepo') || {};
-  const t = def.trap || {};
-  const add = p?.talentAgg?.mods?.a_t_cepo?.dmg || 0;
+  const pr = p?.resolved?.a_t_cepo || { coef: (def.coef ?? 0.6) * rankCoef(p?.skills?.a_t_cepo || 1), addPct: (def.addPct || 0) + (p?.talentAgg?.mods?.a_t_cepo?.dmg || 0) };
+  const t = def.trap || {}, coef = pr.coef ?? def.coef ?? 0.6;
   return {
-    data: { dmg: p.avgHit ? p.avgHit(def.coef || 0.6, add) : 0, coef: def.coef || 0.6, root: def.root || 0, color: def.color, skill: 'a_t_cepo',
-      tags: new Set([...(def.tags || []), 'trap']), elem: def.elem || 'nature', armT: t.armT ?? 0.5, burst: t.burst || null,
-      consume: t.consume !== false, lure: t.lure || null, hitDot: def.hitDot || null },
-    radius: t.radius || 1.5, life: def.dur || 30,
+    data: { dmg: p.avgHit ? p.avgHit(coef, pr.addPct || 0) : 0, coef, root: Math.max(t.root || 0, pr.root || def.root || 0), color: def.color, skill: 'a_t_cepo',
+      tags: pr.tags || new Set([...(def.tags || []), 'trap']), elem: pr.elem || def.elem || 'nature', armT: t.armT ?? 0.5, burst: t.burst || null,
+      consume: t.consume !== false, lure: t.lure || null, hitDot: pr.hitDot || def.hitDot || null },
+    radius: t.radius || pr.radius || 1.5, life: pr.dur || def.dur || 30,
   };
 }
 // coloca un cepo GENÉRICO (campo 'trampa' del núcleo: detonable, cuenta para el Coto y Salto de
@@ -1780,7 +1784,7 @@ function tiradoraPowers() {
           if (!spendResource(p, (T.galerna.cost + T.galerna.ramp * Math.floor(extra + 1e-9)) * dt)) return;
         }
         // en el último tic (base o prórroga pagada), un tic más mientras quede tope
-        if (ch.left * ch.interval <= 0.15 && t + ch.left * ch.interval < base + cap - 1e-9) g.extendChannel?.(p, ch.interval);
+        if (ch.left <= 1 && t + ch.left * ch.interval < base + cap - 1e-9) g.extendChannel?.(p, ch.interval);
       },
     },
     // v28 Ojo del Huracán (ápice): 1) el Vendaval da +20 % de velocidad · 2) matar a un élite, 50 de
@@ -1916,7 +1920,7 @@ function francotiradoraPowers() {
     f_marca_saltarina: {
       name: 'Marca Saltarina', desc: 'Si el marcado muere, el Punto Débil salta al enemigo más cercano.',
       onKill(g, p, e) {
-        const left = weakLeft(p, e);
+        const left = weakLeft(p, e, true);
         if (!(left > 0)) return;
         const to = foesNear(g, e.pos, T.saltarina.range, e)[0];
         weakMap(p).delete(e);
@@ -2036,7 +2040,10 @@ function francotiradoraPowers() {
       name: 'Haces Gemelos', desc: 'Cada haz de Tiro Celestial dispara otro detrás.',
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_u_celeste') return;
-        const mult = T.gemelos.perRank * powerRank(p, 'f_haces_gemelos'), at = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
+        // la repetición de una carga sale a carga completa: el gemelo, al 35 %/rango DE ESTE haz
+        const pr = cast.prof || p.resolved?.a_u_celeste, full = shotCoef(pr, 1);
+        const frac = full > 0 ? shotCoef(pr, cast.charge?.frac ?? 1) / full : 1;
+        const mult = T.gemelos.perRank * powerRank(p, 'f_haces_gemelos') * frac, at = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
         g.timers?.schedule?.(0.15, () => { if (p.alive) castEchoOf(g, p, 'a_u_celeste', mult, at); });
       },
     },
