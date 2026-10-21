@@ -1,28 +1,56 @@
 // ============================================================
-// PODERES de la MAGA (Piromante · Crionte · Arcanista) — Paso 2c.1 / 2c.2
+// PODERES de la MAGA (Piromante · Crionte · Arcanista) — Paso 2c.1 / 2c.2 · Paso 2g (KT-maga)
 // ============================================================
-// Dueño: el trabajador de la clase en el Paso 2c.1 (docs/paso2-diseno.md §9.1.6).
-// Solo se tocan ESTE archivo, js/talents-maga.js, js/fx-skills-maga.js y
-// tests/test-powers-maga.mjs. js/powers.js importa y registra al cargar los cuatro
-// mapas que devuelven las funciones de abajo.
+// Dueño desde el Paso 2 (E2): KT-maga (docs/paso2-implementacion.md §2 E2). js/powers.js importa
+// y registra al cargar los cuatro mapas que devuelven las funciones de abajo.
 // Son FUNCIONES (no constantes) a propósito: powers.js ↔ powers-maga.js forman un
 // ciclo de módulos y una función declarada se puede llamar aunque este módulo aún
 // no se haya evaluado (p. ej. si un test lo importa el primero). Por eso TODOS los
 // helpers de este archivo son `function` (se elevan) y nada del nivel superior lee
-// un binding importado: no hay `const` de módulo.
+// un binding importado: no hay `const` de módulo. Tampoco se importa js/talents.js:
+// resources.js → powers.js → aquí → talents.js → data.js leería RESOURCE_DEFS sin iniciar
+// (el rango de un final sale del agregado que deja recompute: rankOf = talents.powerRank).
 //
 //  magaPowers()          { id: PowerDef }  → definePower (claves de POWER_KEYS en powers.js).
 //                        Ningún poder declara `mult` (test67 / test-powers-maga).
 //  magaSkillBehaviors() { skillId: { cast?(g,p,prof,cast), tick?(g,p,inst,dt), end?(g,p,inst) } }
-//                        → el `behavior` de las 15 activas de talento de js/talents-maga.js.
-//  magaFields()          campos de suelo propios: p_muro_fuego, k_ventisca, k_tumba, k_campo_helado.
+//                        → el `behavior` de las activas de talento y de la Barrera de Maná.
+//  magaFields()          campos de suelo propios (Muro de Fuego, Ventisca, runas, Sellos…).
 //  magaGauges()          ninguno nuevo: los tres indicadores (calor, escarcha, cargas) son los
 //                        base de spec-mechanics.js; aquí se POTENCIAN con gainGauge/spendGauge/onGauge.
 //
-// MAPA nodo → implementación (el texto del nodo manda; desviaciones al final):
-//  Clase   c2 m_t_barrera (comp.) · c5A m_t_contrahechizo · c5B m_ralentizar ·
-//          c12A m_t_inversion (comp. + passiveTick) · c12B m_t_bloque ·
-//          c15 m_aura_intelecto (grupo: g.allies) · resto = stats/tv/mod del núcleo.
+// MAPA nodo 2g → implementación (docs/paso2g-maga-coherencia.md §4 y §7; el texto del nodo manda):
+//  Clase   c1 stats.mpPct · c2 mod @all · c3 mod m_parpadeo (espera el catálogo de KA1) · c4 tv.barrierDr ·
+//          c5 m_dardo_certero | m_dardo_sifon · c6 mod @spender dmgDirect | splashPct · c7 m_paso_fugaz ·
+//          c8 tv.drHighMana · c9 m_nova_congelante | mod nova_hielo + m_nova_cortante ·
+//          c10 m_ralentizar | m_disrupcion · c11 activa m_t_bloque | m_aguante · c12 stats.mph ·
+//          c13 stats.crit · c14 m_runa | m_parpadeo_cura · c15 m_escudo_mana | stats.regenPct + tv.highManaDmg ·
+//          c16 m_armonia | m_pureza · c17 activa m_t_inversion | m_anclaje · c18 mod m_barrera (KA1) ·
+//          c19 m_barrera_resonante · c20 m_escarcha_arcana · c21 m_escarcha_tenaz · c22 activa
+//          m_t_contrahechizo | tv.costRedBig · c23 tv.basicCritCdr · c24 stats.aspdPct · c25 m_cristal ·
+//          c26 m_torrente · c27 m_imagen · finales c28 m_bastion · c29 m_archimaga · c30 m_vacio.
+//  Paragon Cronomante t0 m_marca_tiempo (Marca del Tiempo) + claves tv chrono* de t1–t11 (MAGA_TV_KEYS) ·
+//          t4B m_retroceso · final t12 m_senora_tiempo.
+//          Invocadora f0 m_familiar (Familiar Arcano) + claves tv fam* · final f12 m_legion.
+//          Escriba Rúnica e0 m_runas (runas y Sellos) + claves tv rune*/seal* · final e12 m_gran_grimorio.
+//          Las activas t4A/e4A/f8A (m_h_detener, m_h_palabra, m_h_constructo) son del catálogo (KA1):
+//          la Marca escucha ③ afterCast de m_h_detener (guardan el doble) y las runas, el de m_h_palabra.
+//  DESVIACIONES de la clase 2g:
+//  · c21 Escarcha Tenaz es un poder y no un mod: `slow` de mergeMods es un MÁXIMO (no suma 2 s). Suma
+//    +2 s a la ralentización del perfil (modifyResolve) y a las que ponen los poderes de este archivo.
+//  · c9B: el +40 % es mod; «ralentiza 1 s menos» lo quita m_nova_cortante (un mod de slow es un máximo).
+//  · La Barrera de Maná se reconoce por la fuente de su escudo (m_barrera; m_t_barrera, la vieja). La
+//    pone el comportamiento m_t_barrera (lee shieldManaPct y prof.buffMul; con Bastión no caduca).
+//  · Cristal y Bastión distinguen la Barrera ROTA (absorbida hasta 0) de la que caduca.
+//  · Torrente cuenta el coste de los lanzamientos (⑦ onCast), no el maná que pagas con Escudo de Maná.
+//  · El Familiar, las Marcas y las runas no son mascotas ni proyectiles: sus golpes son daño de PODER
+//    (dealProcDamage: no disparan onHit ni llenan el indicador, salvo Eco Elemental f9).
+//  · Enjambre (f2B): cada Familiar prefiere un enemigo que no tenga otro; con Cazador (f4B) todos
+//    persiguen al de más vida. Grieta Temporal (t9): «a la vez» = en el mismo paso de 0,1 s.
+//  · El Dardo Arcano (básico de ARMA) cuenta como hechizo para Armonía, Pureza, el elemento del
+//    Familiar y las runas de la Escriba.
+//
+// MAPA v1 de las especializaciones (lo rehacen los trabajos 2 y 3 de KT-maga):
 //  Piro    s0 p_ignicion (solo la Quemadura 60 %/4 s) · p_llamarada (comp.) ·
 //          s4 p_llamarada_avivada · s6A p_propagacion · s6B p_acumular ·
 //          s9 p_combustion (comp. + poder propio) · s13A p_fenix · s13B p_muro_fuego (comp. + campo) ·
@@ -45,7 +73,7 @@
 //  · Crionte s15 manaOnKill → nucleo_tv · s16 Nova Perpetua → mod nova_hielo { zone } (la
 //    Estela de una habilidad que ralentiza también ralentiza: núcleo).
 //  · Arcanista s8 drHighMana → nucleo_tv (reducción condicional con maná > 50 %).
-//  · Clase c7 barrierDr → g.shield(…, { dr }) del comportamiento m_t_barrera.
+//  · Clase c4 barrierDr (2g; era c7) → g.shield(…, { dr }) de putBarrier.
 //  · DoT por la API del núcleo (g.replaceDoT / consumeDoT / dotRemaining / dotsOf): nadie
 //    toca e._dots.
 //
@@ -73,7 +101,7 @@
 //  · Cadena de Rayos (x1): se quitó el mod `rayo.chain` (encadenaba TODOS los impactos con
 //    −25 %/salto); a_chain_crit encadena solo el PRIMER crítico de cada Rayo (150 % a 3
 //    enemigos; solo, 2 veces al mismo).
-//  · Ralentizar (c5B) ignora el básico de ARMA que ahora también pasa por ⑦ onCast
+//  · Ralentizar (c10A; era c5B) ignora el básico de ARMA que ahora también pasa por ⑦ onCast
 //    (cast.weapon): antes no lo veía y así no cambia nada.
 //  · Claves tv que consumen poderes de su MISMO nodo: fieldVuln (x2, campo de x1: si no hay
 //    campo no hay nada que potenciar), clarityPct (s11 a_clarity), arcChargePct (x2 a_arc_charge).
@@ -81,7 +109,9 @@
 // REGLAS: sin `powers.has(` fuera de js/powers*.js (aquí: hasPower), sin setTimeout
 // (g.timers.schedule), sin Math.random en la simulación (p.combatRng). Daño de un poder:
 // dealProcDamage. Control: e.applyCC. Curas: p.sustain / g.shield; restauraciones p.setHp.
+import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
+import { rankBuff } from './combat-math.js';
 import { gainGauge, gaugeValue, touchGauge } from './spec-mechanics.js';
 
 // ------------------------------------------------------------
@@ -96,8 +126,7 @@ export function magaTuning() {
     propagateN: 2, propagateR: 5,                        // Propagación
     coreFrac: 0.3, coreR: 2.5, novaEvery: 20,            // Corazón del Sol / Nova Solar
     fenixCd: 120, fenixHp: 0.5, fenixInvuln: 1,          // Fénix
-    slowEvery: 8, slowPct: 50, slowT: 4,                 // Ralentizar (c5B)
-    auraR: 15, auraDmg: 5, auraMp: 10,                   // Aura de Intelecto (c15)
+    slowEvery: 8, slowPct: 50, slowT: 4,                 // Ralentizar (c10A)
     rewindT: 5, rewindEvery: 0.25, rewindKeep: 40,       // Inversión del Tiempo
     prisonLayers: 5, prisonFreeze: 2, prisonFreezeBig: 3, prisonStagger: 20, prisonStaggerBig: 35, numbT: 4,
     novaPush: 3, frostArmorLayers: 1, iceTombT: 4, iceTombR: 1.2, chainLayers: 2, chainR: 4, iceAgeEvery: 15,
@@ -105,6 +134,44 @@ export function magaTuning() {
     orbCap: 2, chainCritN: 3, chainCritFrac: 1.5, chainCritR: 6, chainCritSolo: 0, singPct: 15, singT: 6, singMax: 2,
     misilesChargeEvery: 2,                               // Misiles Arcanos: 1 Carga cada 2 misiles (Paso 2e)
     resonanceCrit: 12, sealR: 3,
+    // ---- árbol de CLASE 2g (§4) ----
+    barrierPct: 60, barrierT: 8,                         // Barrera de Maná si el catálogo no trae sus números
+    certeroEvery: 4,                                     // c5A Dardo Certero
+    sifonMana: 6, sifonCdr: 1,                           // c5B Dardo Sifón
+    fugazSpd: 30, fugazT: 3,                             // c7 Paso Fugaz
+    novaFreezeT: 1, novaFreezeEvery: 8, cortanteSlow: 1, // c9 Nova Congelante / Cortante
+    disrupEvery: 10, disrupT: 3,                         // c10B Disrupción
+    aguanteCd: 120,                                      // c11B Aguante Arcano
+    runaR: 2, runaT: 3, runaSlowPct: 50,                 // c14A Runa de Escarcha
+    reparoPct: 8,                                        // c14B Parpadeo Reparador
+    escudoManaPct: 20,                                   // c15A Escudo de Maná
+    armoniaPct: 8, armoniaT: 5, armoniaMax: 3,           // c16A Armonía Elemental
+    purezaN: 3, purezaPct: 15, purezaT: 6,               // c16B Pureza Elemental
+    anclajeHp: 0.3, anclajeDr: 30, anclajeSpd: 50, anclajeT: 4, anclajeCd: 60,   // c17B Anclaje Temporal
+    resonanteMana: 2, resonanteVida: 2,                  // c19 Barrera Resonante (maná · % de vida)
+    escArcSlowPct: 30, escArcT: 2, escArcCrit: 15,       // c20 Escarcha Arcana
+    tenazS: 2,                                           // c21 Escarcha Tenaz
+    cristalR: 3, cristalKnock: 3, cristalSlowPct: 40, cristalSlowT: 2, cristalMana: 10,   // c25 (maná % por rango)
+    torrenteMana: 60, torrenteWin: 3, torrenteBase: 4, torrenteRank: 8, torrenteT: 4,     // c26 Torrente de Maná
+    imagenR: 6, imagenBase: 2,                           // c27 Imagen Arcana (s = base + rango)
+    bastionVuelta: 20, bastionCoste: 10, bastionDur: 1e6, // c28 Bastión Arcano (coste % por rango)
+    archimagaEvery: 4, archimagaBase: 20, archimagaRank: 20, echoGap: 0.25,   // c29 Archimaga
+    vacioPct: 15,                                        // c30 Paso del Vacío (por rango)
+    // ---- PARAGON 2g (§7) ----
+    // Cronomante: Marca del Tiempo
+    marcaT: 4, marcaPct: 30, marcaSaltoR: 6, marcaParadojaR: 8, marcaCritMax: 3, marcaPrisaT: 3,
+    grietaR: 4, grietaT: 3, detenerT: 3, detenerR: 8, retroHp: 0.4, retroT: 3, retroCd: 90,
+    senoraEvery: 30, senoraT: 5,
+    // Invocadora: Familiar Arcano (vida = % de la tuya)
+    famEvery: 1.5, famCoef: 0.5, famSwarmCoef: 0.4, famRange: 10, famDist: 2.5, famVida: 30,
+    famVuelta: 10, famVueltaBoom: 5, famBoomR: 4, famBurnFrac: 0.6, famBurnT: 4, famSlowPct: 30, famSlowT: 1.5,
+    famArcMana: 3, famStunEvery: 5, famStunT: 0.5, famHasteT: 3, famForgeWin: 8, famForgeMax: 25,
+    famHuntT: 2, famEchoCalor: 3, famEchoCapas: 1, famThreadEvery: 0.5, famThreadW: 0.6,
+    legionEvery: 25, legionT: 8, legionCopy: 50, legionMul: 3,
+    // Escriba Rúnica: runas (cada 3.er hechizo) y Sellos (3 runas cerca)
+    runaEvery: 3, runaVida: 8, runaRad: 1, runaDist: 1.8, selloNear: 5, selloR: 3.5, selloT: 8,
+    selloDmg: 15, selloDr: 10, runaElemSlowPct: 30, runaBurnCoef: 0.4, runaBurnT: 4,
+    palimpsestoR: 1.2, grimorioEvery: 30, grimorioT: 10, grimorioCopy: 40,
   }));
 }
 
@@ -258,13 +325,389 @@ function solarCount(g, p, pos) {
 }
 
 // ============================================================
+// Paso 2g · helpers del árbol de CLASE y del PARAGON
+// ============================================================
+// rango del nodo que concede el poder `id` (finales): el mismo dato que talents.powerRank, leído
+// del agregado de recompute (ver la cabecera: este módulo no importa talents.js). Un poder puesto
+// a mano (arnés, talentExtra) cuenta como rango 1.
+function rankOf(p, id) {
+  const r = p?.talentAgg?.powerRank?.[id] | 0;
+  return r > 0 ? r : (hasPower(p, id) ? 1 : 0);
+}
+function tvOf(p) { return p?.tv || {}; }
+function skillOf(p, id) { return p?.cls?.skills?.find(s => s.id === id) || null; }
+// definición FORJADA ya resuelta (la caché de resolveSkill); si no, la del catálogo
+function forgedOf(p, id) { return p?.forged?.[id]?.def || p?.resolved?.[id]?.def || skillOf(p, id); }
+function byDist(pos) { return (a, b) => dist2(a.pos, pos) - dist2(b.pos, pos); }
+// un lanzamiento de habilidad principal (cast.sk = definición forjada)
+function isSpender(cast) { return cast?.sk?.cat === 'spender'; }
+// un «hechizo» con daño (Armonía, Pureza, elemento del Familiar, Gran Grimorio). El Dardo Arcano es el
+// básico de ARMA de la Maga (cast.weapon, ⑦ sin afterCast) y cuenta: «Dardo Arcano + Fuego + Nova»
+function isSpell(cast) { return !!cast?.sk && (cast.prof?.coef || 0) > 0; }
+// ralentización de los poderes de la Maga con Escarcha Tenaz (c21: +2 s)
+function slowDur(p, d) { return d + (hasPower(p, 'm_escarcha_tenaz') ? magaTuning().tenazS : 0); }
+// buff que se renueva sin recompute: si ya está, solo se alarga (recompute solo al ponerlo)
+function refreshBuff(a, id, stats, keep, meta = {}) {
+  const b = a?.buffs?.find?.(x => x.id === id);
+  if (b) { b.t = Math.max(b.t, keep); b.dur = Math.max(b.dur || 0, keep); return; }
+  a?.addBuff?.(id, { ...stats }, keep, meta);
+}
+// resta `s` s a las recargas en curso de las habilidades cuya definición forjada cumple `pred`
+function cdrWhere(g, p, s, pred) {
+  for (const sk of p?.cls?.skills || []) {
+    if (!((p.cds?.[sk.id] || 0) > 0)) continue;
+    if (pred(forgedOf(p, sk.id))) g?.reduceCooldown?.(p, sk.id, s);
+  }
+}
+// repite un lanzamiento como ECO (sin coste ni recarga; una repetición no genera otra) si la
+// ranura sigue con esa habilidad
+function echoCast(g, p, cast, mult, delay) {
+  const slot = cast?.slot, id = cast?.sk?.id;
+  if (!slot || !id || !(mult > 0) || !g?.timers) return;
+  g.timers.schedule(delay, () => {
+    if (!p.alive || g.player !== p || p.hotbar?.[slot] !== id) return;
+    g.castSkillSlot?.(slot, mult);
+  });
+}
+function insideR(pos, center, r) { return dist2(pos, center) <= r * r; }
+function enemiesIn(g, center, r) {
+  return (g?.enemies || []).filter(e => e.alive && insideR(e.pos, center, r + 0.5 * (e.def?.scale || 1)));
+}
+// partículas sueltas (inline: los presets con nombre son de fx-skills-maga.js)
+function glow(color, size = 0.3, life = 0.35) {
+  return { name: 'Maga destello', texture: 'glow', blending: 'additive', count: 3, burst: true, lifetime: [life * 0.7, life],
+    shape: 'sphere', shapeRadius: 0.12, speed: [0.1, 0.5], gravity: -0.4, drag: 0.6,
+    size: { start: [size * 0.8, size], end: 0 }, color: { start: '#ffffff', end: color }, alpha: { start: 0.9, end: 0 } };
+}
+// color de cada elemento de la Maga (null si no es Fuego, Hielo ni Arcano)
+function elemColor(el) { return el === 'fire' ? 0xff7a2a : el === 'frost' ? 0x8fe0ff : el === 'arcane' ? 0xc8a0ff : null; }
+function elemHex(el) { return `#${(elemColor(el) ?? 0xc8a0ff).toString(16).padStart(6, '0')}`; }
+// calcomanía de suelo (anillo o disco) de un campo; la libera al morir
+function decal(g, f, { color, opacity = 0.35, disc = false, inner = 0.82 } = {}) {
+  if (f.dead) {
+    if (f.decal) { g.fxGroup.remove(f.decal); f.decal.geometry.dispose(); f.decal.material.dispose(); f.decal = null; }
+    return null;
+  }
+  if (!f.decal) {
+    const geo = disc ? new THREE.CircleGeometry(f.radius, 32) : new THREE.RingGeometry(f.radius * inner, f.radius, 40);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    m.rotation.x = -Math.PI / 2;
+    g.fxGroup.add(m);
+    f.decal = m;
+  }
+  f.decal.position.set(f.pos.x, 0.06, f.pos.z);
+  return f.decal;
+}
+
+// ---- Barrera de Maná (base del kit; la usan c4, c11B, c18, c19, c25 y c28) ----
+// su escudo se reconoce por la fuente: m_barrera (2g) o m_t_barrera (la activa vieja)
+function isBarrierSrc(src) { return src === 'm_barrera' || src === 'm_t_barrera'; }
+function barrierShield(p) { return (p?.shields || []).find(s => isBarrierSrc(s.src) && s.amt > 0 && s.t > 0) || null; }
+// lo que absorbe una Barrera nueva: % del maná máximo × potencia (rango y c18 Barrera Reforzada)
+function barrierAmount(p) {
+  const prof = p?.resolved?.m_barrera;
+  const def = prof?.def || skillOf(p, 'm_barrera');
+  const pct = def?.shieldManaPct || magaTuning().barrierPct;
+  // sin perfil en caché (Aguante, vuelta del Bastión): la misma cuenta que resolveSkill
+  const mul = prof?.buffMul ?? rankBuff(p?.skills?.m_barrera || 1) * Math.max(0, 1 + (p?.talentAgg?.mods?.m_barrera?.buff || 0) / 100);
+  return pct / 100 * (p?.stats?.maxMP || 0) * mul;
+}
+function barrierDur(p) { return p?.resolved?.m_barrera?.dur || skillOf(p, 'm_barrera')?.dur || magaTuning().barrierT; }
+// pone la Barrera (comportamiento, Aguante Arcano, vuelta del Bastión): con Bastión Arcano no
+// caduca. Guarda su máximo (Barrera Resonante la recarga hasta ahí)
+function putBarrier(g, p, amt, dur, src = 'm_barrera') {
+  if (!(amt > 0) || !g?.shield) return 0;
+  const d = hasPower(p, 'm_bastion') ? magaTuning().bastionDur : dur;
+  const got = g.shield(amt, { target: 'self', dur: d, src, dr: tvOf(p).barrierDr || 0 });
+  const s = (p.shields || []).find(x => x.src === src);
+  if (s) s.max = s.amt;
+  return got;
+}
+// vigía de la Barrera de un poder (st.bar): true si la que había se ROMPIÓ (absorbida hasta 0;
+// si caducó o la cambiaste por otra, no)
+function barrierBroke(p, st) {
+  const was = st.bar;
+  st.bar = barrierShield(p);
+  return !!was && was !== st.bar && !(was.amt > 0) && was.t > 0;
+}
+// c25 Cristal de Barrera: empuja 3 m, ralentiza un 40 % 2 s y devuelve maná (10 % por rango)
+function crystalBurst(g, p) {
+  const T = magaTuning();
+  for (const e of enemiesIn(g, p.pos, T.cristalR)) {
+    e.applyCC?.('knock', T.cristalKnock, { from: p.pos.clone(), src: p });
+    if (e.alive) e.applyCC?.('slow', slowDur(p, T.cristalSlowT), { pct: T.cristalSlowPct, src: p });
+  }
+  g.gainResource?.(p, (p.stats?.maxMP || 0) * T.cristalMana * rankOf(p, 'm_cristal') / 100);
+  ring(g, p.pos, T.cristalR, 0xbfe0ff);
+  g.ui?.spawnText?.(p.pos, '¡Cristal!', 'txt-mana');
+}
+// c28 Bastión Arcano: si la rompen, vuelve sola a los 20 s; el coste baja solo con ella puesta
+// (al cambiar ese estado se invalidan los perfiles)
+function bastionWatch(g, p, tick) {
+  const T = magaTuning();
+  const st = powerState(p, 'm_bastion');
+  if (barrierBroke(p, st)) st.backAt = now(p) + T.bastionVuelta;
+  if (tick && st.backAt > 0 && now(p) >= st.backAt - 1e-9 && p.alive) {
+    st.backAt = 0;
+    if (!barrierShield(p)) { putBarrier(g, p, barrierAmount(p), barrierDur(p)); st.bar = barrierShield(p); }
+  }
+  const up = !!barrierShield(p);
+  if (up !== !!st.up) { st.up = up; invalidate(p); }
+}
+
+// ---- Cronomante: Marca del Tiempo (t0) ----
+// estado en powerState(p, 'm_marca_tiempo'): marks = Map(enemigo → { until, stored, ext }),
+// ends (Marcas acabadas: Bucle), stopUntil/stopOn (Señora del Tiempo), detener (m_h_detener)
+function cronoState(p) { return powerState(p, 'm_marca_tiempo'); }
+function putMark(g, p, e, st, stored = 0, until = null) {
+  if (!e?.alive || st.marks.has(e)) return null;
+  const m = { until: until ?? now(p) + magaTuning().marcaT + (tvOf(p).chronoDur || 0), stored, ext: 0 };
+  st.marks.set(e, m);
+  ring(g, e.pos, 0.8, 0xe8c87a);
+  return m;
+}
+// ¿el enemigo está bajo Detener el Tiempo? (t4A: las Marcas guardan el doble)
+function underTimeStop(p, st, e) { return !!st.detener && now(p) < st.detener.until && st.detener.set.has(e); }
+// una Marca termina: repite el pct % de lo guardado (daño de poder: no cuenta para otras Marcas)
+function endMark(g, p, e, m, pct) {
+  const T = magaTuning(), tv = tvOf(p);
+  const st = cronoState(p);
+  const amount = m.stored * pct / 100;
+  let done = 0;
+  const opts = { source: 'power:m_marca_tiempo', tags: new Set(['arcane']) };
+  if (amount > 0 && e.alive) done += dealProcDamage(g, e, amount, opts);
+  st.ends++;
+  // t7 Bucle: cada 4.ª Marca que termina se repite una segunda vez
+  if (tv.chronoLoop > 0 && st.ends % tv.chronoLoop === 0 && amount > 0 && e.alive) done += dealProcDamage(g, e, amount, opts);
+  if (done > 0) { text(g, e, '¡Eco del tiempo!', 'txt-mana'); ring(g, e.pos, 1.1, 0xe8c87a); }
+  // t8B Memoria: te curas el 3 % de lo repetido
+  if (tv.chronoHeal > 0 && done > 0) p.sustain?.(done * tv.chronoHeal / 100, 'm_marca_tiempo');
+  // t3 Prisa Temporal: +10 % de velocidad de lanzamiento 3 s
+  if (tv.chronoHaste > 0) refreshBuff(p, 'm_prisa_temporal', { aspdPct: tv.chronoHaste }, T.marcaPrisaT, { name: 'Prisa Temporal', icon: '⏳', desc: `+${tv.chronoHaste} % de velocidad de lanzamiento` });
+  // t5 Segundos Robados: recarga 1 s de tu definitiva
+  if (tv.chronoUltCdr > 0) cdrWhere(g, p, tv.chronoUltCdr, d => d?.cat === 'ultimate');
+  // t2B Marca Contagiosa: pasa a los enemigos cercanos sin Marca
+  if (tv.chronoSpread > 0) {
+    const near = alivesNear(g, e.pos, T.marcaSaltoR, e).filter(o => !st.marks.has(o)).sort(byDist(e.pos)).slice(0, tv.chronoSpread);
+    for (const o of near) { putMark(g, p, o, st); try { g.spawnBeam?.(e.pos, o.pos, 0xe8c87a, 0.2); } catch { /* */ } }
+  }
+}
+// 10 Hz: Paradoja, final de las Marcas, Grieta Temporal y Aceleración
+function resolveMarks(g, p) {
+  const T = magaTuning(), tv = tvOf(p);
+  const st = cronoState(p), t = now(p);
+  // muertos antes de tiempo: t6 Paradoja pasa la Marca (con lo guardado) al más cercano
+  for (const [e, m] of [...st.marks]) {
+    if (e.alive) continue;
+    st.marks.delete(e);
+    if (!tv.chronoParadox) continue;
+    const o = alivesNear(g, e.pos, T.marcaParadojaR).filter(x => !st.marks.has(x)).sort(byDist(e.pos))[0];
+    const n = o && putMark(g, p, o, st, m.stored, Math.max(m.until, t + 0.5));
+    if (n) { n.ext = m.ext; try { g.spawnBeam?.(e.pos, o.pos, 0xe8c87a, 0.25); } catch { /* */ } }
+  }
+  // t12 Señora del Tiempo: con el reloj parado no termina ninguna; al acabar, todas al 100 %
+  if (st.stopUntil > t + 1e-9) return;
+  const all = !!st.stopOn;
+  st.stopOn = false;
+  const pct = all ? 100 : T.marcaPct + (tv.chronoPct || 0);
+  const ending = [];
+  for (const [e, m] of st.marks) if (all || t >= m.until - 1e-9) ending.push([e, m]);
+  for (const [e, m] of ending) { st.marks.delete(e); endMark(g, p, e, m, pct); }
+  // t9 Grieta Temporal: 3 Marcas que terminan a la vez abren una grieta que ralentiza
+  if (tv.chronoRift > 0 && ending.length >= 3) {
+    let x = 0, z = 0;
+    for (const [e] of ending) { x += e.pos.x; z += e.pos.z; }
+    const c = at(p.pos, x / ending.length, z / ending.length);
+    g.spawnField?.('m_grieta', { pos: c, radius: T.grietaR, dur: T.grietaT, owner: p, data: { slowPct: tv.chronoRift } });
+  }
+  // t10 Aceleración: con 3 o más Marcas puestas lanzas más rápido
+  if (tv.chronoAccel > 0 && st.marks.size >= 3)
+    refreshBuff(p, 'm_aceleracion', { aspdPct: tv.chronoAccel }, 0.35, { name: 'Aceleración', icon: '⏳', desc: `+${tv.chronoAccel} % de velocidad de lanzamiento` });
+}
+
+// ---- Invocadora: Familiar Arcano (f0) ----
+// estado en powerState(p, 'm_familiar'): fams (1, 3 con Enjambre; ×3 con Legión), vida común
+// (hp/maxHp), elem (el de tu último hechizo), downAt (vuelve), hasteUntil (Sobrecarga),
+// recent (habilidades usadas: Fragua Rúnica), threadAcc (Hilo de Maná)
+function famState(p) { return powerState(p, 'm_familiar'); }
+function legionOn(p) { return hasPower(p, 'm_legion') && powerState(p, 'm_legion').until > now(p) + 1e-9; }
+function famCount(p) {
+  const base = tvOf(p).famSwarm > 0 ? tvOf(p).famSwarm : 1;
+  return base * (legionOn(p) ? magaTuning().legionMul : 1);
+}
+function famMaxHp(p) { return (p?.stats?.maxHP || 0) * magaTuning().famVida / 100 * (1 + (tvOf(p).famVit || 0) / 100); }
+// crea, quita y coloca los Familiares (en corro a 2,5 m de la Maga)
+function famSync(g, p, st) {
+  const T = magaTuning();
+  const want = st.downAt > now(p) + 1e-9 ? 0 : famCount(p);
+  if (want > 0 && !st.fams.length) { st.maxHp = famMaxHp(p); st.hp = st.maxHp; }
+  while (st.fams.length > want) st.fams.pop();
+  while (st.fams.length < want) {
+    const i = st.fams.length;
+    st.fams.push({ idx: i, pos: at(p.pos, p.pos.x, p.pos.z), acc: T.famEvery * i / Math.max(1, want), shots: 0 });
+  }
+  const n = st.fams.length, rot = now(p) * 0.6;
+  st.fams.forEach((f, i) => {
+    const a = rot + i * Math.PI * 2 / Math.max(1, n);
+    f.pos.x = p.pos.x + Math.cos(a) * T.famDist; f.pos.z = p.pos.z + Math.sin(a) * T.famDist;
+  });
+}
+// f8B Fragua Rúnica: +5 % por habilidad distinta usada en 8 s (hasta +25 %)
+function famForgeBonus(p, st) {
+  const per = tvOf(p).famForge || 0;
+  if (!(per > 0)) return 0;
+  const T = magaTuning(), t = now(p);
+  const ids = new Set(st.recent.filter(x => t - x.t <= T.famForgeWin + 1e-9).map(x => x.id));
+  return Math.min(T.famForgeMax, per * ids.size);
+}
+// f7 Aprendiz: copia la variante del Dardo (la forma que cambia frente al catálogo): estalla
+// con su salpicadura (Saeta Ígnea) o ralentiza con su frío (Saeta Gélida)
+function famApprentice(g, p, e, dmg) {
+  const base = skillOf(p, 'm_dardo');
+  const fd = p?.forged?.m_dardo?.def;
+  if (!base || !fd || fd === base) return;
+  if ((fd.splash || 0) > (base.splash || 0) && fd.radius > 0) {
+    const frac = fd.splash / Math.max(0.01, fd.coef || 1);
+    for (const o of enemiesIn(g, e.pos, fd.radius)) if (o !== e) dealProcDamage(g, o, dmg * frac, { source: 'power:m_familiar', skill: 'm_familiar', elem: fd.elem || null });
+    ring(g, e.pos, fd.radius, elemColor(fd.elem) || 0xc8a0ff);
+  }
+  if ((fd.slow || 0) > (base.slow || 0) && e.alive) e.applyCC?.('slow', slowDur(p, fd.slow), { pct: fd.slowPct || 20, src: p });
+}
+// un disparo de un Familiar: 50 % del arma con tu último elemento (Fuego quema, Hielo frena,
+// Arcano da maná). Daño de poder (no dispara onHit ni llena tu indicador, salvo Eco Elemental)
+function famShoot(g, p, st, f) {
+  const T = magaTuning(), tv = tvOf(p);
+  let list = alivesNear(g, f.pos, T.famRange);
+  if (!list.length) return false;
+  let e;
+  // f4B Cazador: todos persiguen al de más vida
+  if (tv.famHunt > 0) e = list.reduce((a, b) => (b.hp > a.hp ? b : a));
+  else {
+    // el Enjambre reparte: cada uno prefiere un enemigo que no tenga ya otro Familiar
+    const taken = new Set(st.fams.filter(o => o !== f && o.target?.alive).map(o => o.target));
+    const free = list.filter(x => !taken.has(x));
+    e = (free.length ? free : list).sort(byDist(f.pos))[0];
+  }
+  f.target = e;
+  f.shots++;
+  const el = st.elem || 'arcane';
+  const tags = new Set(['summon', el]);
+  // f4B Cazador: el enemigo con más vida recibe +10 % (Debilidad, también este disparo)
+  if (tv.famHunt > 0) e.applyWeakness?.('m_cazador', tv.famHunt, T.famHuntT);
+  const add = (tv.famBig || 0) + (tv.famDmg || 0) + famForgeBonus(p, st);
+  const { dmg } = p.rollDamage(tv.famSwarm > 0 ? T.famSwarmCoef : T.famCoef, 0, add, e, { skill: 'm_familiar', tags, elem: el });
+  try { g.spawnBeam?.(at(f.pos, f.pos.x, f.pos.z, 1.4), e.pos, elemColor(el), 0.15); } catch { /* */ }
+  dealProcDamage(g, e, dmg, { source: 'power:m_familiar', skill: 'm_familiar', elem: el, tags });
+  if (el === 'fire') { if (e.alive) g.replaceDoT?.(e, dmg * T.famBurnFrac, T.famBurnT, 1, 'm_familiar:burn'); }
+  else if (el === 'frost') { if (e.alive) e.applyCC?.('slow', slowDur(p, T.famSlowT), { pct: T.famSlowPct, src: p }); }
+  else g.gainResource?.(p, T.famArcMana);
+  if (tv.famMana > 0) g.gainResource?.(p, tv.famMana);                                 // f1 Vínculo
+  if (tv.famBig > 0 && f.shots % T.famStunEvery === 0 && e.alive) e.applyCC?.('stun', T.famStunT, { src: p });   // f2A
+  if (tv.famApprentice > 0) famApprentice(g, p, e, dmg);                                // f7
+  if (tv.famEcho > 0) {                                                                // f9 Eco Elemental
+    gainGauge(p, 'calor', T.famEchoCalor);
+    if (e.alive) gainGauge(p, 'escarcha', T.famEchoCapas, e);
+  }
+  return true;
+}
+// el Familiar cae (Guardián): f6 Detonar Constructo estalla y vuelve antes
+function famDown(g, p, st) {
+  const T = magaTuning(), tv = tvOf(p);
+  if (tv.famBoom > 0) {
+    const dmg = p.avgHit(tv.famBoom / 100);
+    for (const f of st.fams) {
+      for (const e of enemiesIn(g, f.pos, T.famBoomR)) dealProcDamage(g, e, dmg, { source: 'power:m_familiar', skill: 'm_familiar', tags: new Set(['area', 'arcane']) });
+      ring(g, f.pos, T.famBoomR, 0xc8a0ff);
+    }
+  }
+  st.fams = [];
+  st.hp = 0;
+  st.downAt = now(p) + (tv.famBoom > 0 ? T.famVueltaBoom : T.famVuelta);
+  g.ui?.spawnText?.(p.pos, 'El Familiar cae', 'txt-mana');
+}
+// f11 Hilo de Maná: daña a quien cruza el hilo entre la Maga y cada Familiar (por segundo)
+function famThread(g, p, st) {
+  const T = magaTuning(), pct = tvOf(p).famThread || 0;
+  if (!(pct > 0)) return;
+  const per = p.avgHit(pct / 100) * T.famThreadEvery;
+  for (const f of st.fams) {
+    const a = p.pos, b = f.pos;
+    for (const e of g?.enemies || []) {
+      if (!e.alive) continue;
+      const r = T.famThreadW + 0.5 * (e.def?.scale || 1);
+      const vx = b.x - a.x, vz = b.z - a.z, l2 = vx * vx + vz * vz || 1;
+      const k = Math.max(0, Math.min(1, ((e.pos.x - a.x) * vx + (e.pos.z - a.z) * vz) / l2));
+      const dx = e.pos.x - (a.x + vx * k), dz = e.pos.z - (a.z + vz * k);
+      if (dx * dx + dz * dz <= r * r) dealProcDamage(g, e, per, { source: 'power:m_familiar', skill: 'm_familiar_hilo', tags: new Set(['arcane']) });
+    }
+    try { g.spawnBeam?.(at(a, a.x, a.z, 1.2), at(b, b.x, b.z, 1.4), 0xc8a0ff, T.famThreadEvery); } catch { /* */ }
+  }
+}
+
+// ---- Escriba Rúnica: runas y Sellos (e0) ----
+function runeFields(g, p) { return (g?.fieldsOf?.(p, { kind: 'm_runa_escrita' }) || []).filter(f => !f.data.spent && f.t > 0); }
+function sealFields(g, p) { return (g?.fieldsOf?.(p, { kind: 'm_sello' }) || []).filter(f => !f.data.replaced && f.t > 0); }
+function sealsAround(p) { return sealFields(p?.game, p).filter(f => insideR(p.pos, f.pos, f.radius)); }
+// escribe una runa (sin `pos`: en corro a 1,8 m de la Maga, 120° más allá de la anterior)
+function writeRune(g, p, elem, pos = null, { form = true } = {}) {
+  const T = magaTuning(), tv = tvOf(p);
+  const st = powerState(p, 'm_runas');
+  if (!pos) {
+    const a = (st.seq++ % 3) * Math.PI * 2 / 3 + 0.3;
+    pos = at(p.pos, p.pos.x + Math.cos(a) * T.runaDist, p.pos.z + Math.sin(a) * T.runaDist);
+  }
+  // e6 Tinta Elemental: la runa toma el elemento del hechizo
+  const el = tv.runeElem > 0 && elemColor(elem) ? elem : null;
+  const f = g?.spawnField?.('m_runa_escrita', { pos, radius: T.runaRad, dur: T.runaVida + (tv.runeDur || 0), owner: p,
+    data: { elem: el, used: false, armed: !insideR(p.pos, pos, T.runaRad) } });
+  if (!f) return null;
+  if (el === 'arcane') gainGauge(p, 'cargas', 1);            // «Arcano da 1 Carga»
+  if (form) tryFormSeal(g, p, f);
+  return f;
+}
+// tres runas a 5 m o menos forman un Sello en su centro (se gastan)
+function tryFormSeal(g, p, rune) {
+  const T = magaTuning();
+  const near = runeFields(g, p).filter(f => insideR(f.pos, rune.pos, T.selloNear)).sort(byDist(rune.pos));
+  if (near.length < 3) return null;
+  const used = near.slice(0, 3);
+  let x = 0, z = 0;
+  for (const f of used) { f.data.spent = true; f.t = 0; x += f.pos.x; z += f.pos.z; }
+  return formSeal(g, p, at(p.pos, x / 3, z / 3));
+}
+function formSeal(g, p, pos) {
+  const T = magaTuning(), tv = tvOf(p);
+  const max = 1 + (tv.sealMax || 0);                         // e9 Doble Sello
+  const old = sealFields(g, p);
+  while (old.length >= max) { const f = old.shift(); f.data.replaced = true; f.t = 0; }
+  // e12 Gran Grimorio: cada 30 s, el siguiente Sello es un Grimorio de 10 s
+  let grim = false;
+  if (hasPower(p, 'm_gran_grimorio')) {
+    const gst = powerState(p, 'm_gran_grimorio');
+    if (now(p) >= gst.readyAt - 1e-9) { grim = true; gst.readyAt = now(p) + T.grimorioEvery; }
+  }
+  const f = g?.spawnField?.('m_sello', { pos, radius: T.selloR, dur: grim ? T.grimorioT : T.selloT, owner: p, data: { grimoire: grim } });
+  if (!f) return null;
+  ring(g, pos, T.selloR, grim ? 0xffd27a : 0xc8a0ff);
+  g.ui?.spawnText?.(pos, grim ? '¡Grimorio!' : '¡Sello!', 'txt-mana');
+  // e2B Sello Explosivo: estalla en su área al formarse
+  if (tv.sealBurst > 0) {
+    const dmg = p.avgHit(tv.sealBurst / 100);
+    for (const e of enemiesIn(g, pos, T.selloR)) dealProcDamage(g, e, dmg, { source: 'power:m_runas', tags: new Set(['area', 'arcane']) });
+  }
+  // e7 Inspiración: todos tus enfriamientos bajan 2 s
+  if (tv.sealCdr > 0) cdrWhere(g, p, tv.sealCdr, () => true);
+  return f;
+}
+
+// ============================================================
 // PODERES
 // ============================================================
 export function magaPowers() {
   const T = magaTuning();
   return {
-    // ---------------------------------------------------- CLASE
-    // c5B Ralentizar: cada 8 s, el siguiente hechizo (con daño) ralentiza 50 % 4 s
+    // ---------------------------------------------------- CLASE 2g (§4)
+    // c10A Ralentizar: cada 8 s, el siguiente hechizo (con daño) ralentiza 50 % 4 s
     m_ralentizar: {
       name: 'Ralentizar', desc: 'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s a quien golpea.',
       state: () => ({ readyAt: 0, armed: null, armedAt: -9 }),
@@ -277,29 +720,459 @@ export function magaPowers() {
       },
       onHit(g, p, e, hit) {
         const st = powerState(p, 'm_ralentizar');
-        if (st.armed && hit?.skill === st.armed && e?.alive) e.applyCC?.('slow', T.slowT, { pct: T.slowPct, src: p });
+        if (st.armed && hit?.skill === st.armed && e?.alive) e.applyCC?.('slow', slowDur(p, T.slowT), { pct: T.slowPct, src: p });
       },
       afterCast(g, p, cast) {
         const st = powerState(p, 'm_ralentizar');
         if (st.armed && cast?.sk?.id === st.armed) { st.armed = null; st.readyAt = now(p) + T.slowEvery; }
       },
     },
-    // c15 Aura de Intelecto: tú y los aliados a 15 m, +5 % de daño y +10 % de maná máx.
-    m_aura_intelecto: {
-      name: 'Aura de Intelecto', desc: 'Tú y los aliados a 15 m ganáis +5 % de daño y +10 % de maná máximo.',
-      state: () => ({ acc: 0.5 }),
-      stats: () => ({ dmgPct: T.auraDmg, mpPct: T.auraMp }),
-      onTick(g, p, dt) {
-        const st = powerState(p, 'm_aura_intelecto');
-        st.acc += dt;
-        if (st.acc < 0.5 - 1e-9) return;
-        st.acc = 0;
-        for (const a of g?.allies?.(p.pos, T.auraR) || []) {
-          if (a === p) continue;
-          const b = a.buffs?.find(x => x.id === 'm_aura_intelecto');
-          if (b) { b.t = Math.max(b.t, 1); b.dur = Math.max(b.dur || 0, 1); }
-          else a.addBuff?.('m_aura_intelecto', { dmgPct: T.auraDmg, mpPct: T.auraMp }, 1, { name: 'Aura de Intelecto', icon: '🧠', desc: `+${T.auraDmg}% de daño y +${T.auraMp}% de maná máximo` });
+    // c5A Dardo Certero: cada 4.º Dardo Arcano es crítico seguro (⑦ pone cast.forceCrit)
+    m_dardo_certero: {
+      name: 'Dardo Certero', desc: 'Cada 4.º Dardo Arcano es crítico seguro.',
+      state: () => ({ n: 0 }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_dardo') return;
+        const st = powerState(p, 'm_dardo_certero');
+        if (++st.n < T.certeroEvery) return;
+        st.n = 0;
+        cast.forceCrit = true;
+      },
+    },
+    // c5B Dardo Sifón: si el Dardo mata, +6 de maná y tus principales se recargan 1 s antes
+    m_dardo_sifon: {
+      name: 'Dardo Sifón', desc: 'Si el Dardo Arcano mata, ganas 6 de maná y tus habilidades principales se recargan 1 s antes.',
+      onKill(g, p, e, kill) {
+        if (kill?.skill !== 'm_dardo') return;
+        g.gainResource?.(p, T.sifonMana);
+        cdrWhere(g, p, T.sifonCdr, d => d?.cat === 'spender');
+      },
+    },
+    // c7 Paso Fugaz: después de Parpadeo, +30 % de velocidad 3 s
+    m_paso_fugaz: {
+      name: 'Paso Fugaz', desc: 'Después de Parpadeo corres un 30 % más rápido durante 3 s.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_parpadeo') return;
+        p.addBuff('m_paso_fugaz', { spdPct: T.fugazSpd }, T.fugazT, { name: 'Paso Fugaz', icon: '💨', desc: `+${T.fugazSpd} % de velocidad` });
+      },
+    },
+    // c9A Nova Congelante: la Nova congela 1 s (no a jefes); como mucho una vez cada 8 s
+    m_nova_congelante: {
+      name: 'Nova Congelante', desc: 'La Nova de Hielo congela 1 s (no a jefes); como mucho una vez cada 8 s.',
+      state: () => ({ readyAt: 0, armed: false }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'nova_hielo') return;
+        const st = powerState(p, 'm_nova_congelante');
+        if (now(p) < st.readyAt - 1e-9) return;
+        st.armed = true;
+        st.readyAt = now(p) + T.novaFreezeEvery;
+      },
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'nova_hielo' || hit.proc || hit.dot || !e?.alive || isBoss(e)) return;
+        if (powerState(p, 'm_nova_congelante').armed) e.applyCC?.('freeze', T.novaFreezeT, { src: p });
+      },
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'nova_hielo') powerState(p, 'm_nova_congelante').armed = false; },
+    },
+    // c9B Nova Cortante: el +40 % de daño es su mod; aquí, 1 s menos de ralentización
+    // (un mod `slow` es un máximo: no puede restar)
+    m_nova_cortante: {
+      name: 'Nova Cortante', desc: 'La Nova de Hielo ralentiza 1 s menos.',
+      modifyResolve(p, sk, prof) {
+        if (sk.id === 'nova_hielo' && prof.slow > 0) prof.slow = Math.max(0, prof.slow - T.cortanteSlow);
+      },
+    },
+    // c10B Disrupción: cada 10 s, tu siguiente Dardo corta el hechizo y deja mudo 3 s (a los
+    // jefes, applyCC('interrupt') ya les llena 20 de Quebranto)
+    m_disrupcion: {
+      name: 'Disrupción', desc: 'Cada 10 s, tu siguiente Dardo Arcano corta el hechizo del enemigo y lo deja mudo 3 s.',
+      state: () => ({ readyAt: 0 }),
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'm_dardo' || hit.proc || hit.dot || hit.echo || !e?.alive) return;
+        const st = powerState(p, 'm_disrupcion');
+        if (now(p) < st.readyAt - 1e-9) return;
+        st.readyAt = now(p) + T.disrupEvery;
+        e.applyCC?.('interrupt', T.disrupT, { src: p });
+        text(g, e, '¡Silenciado!', 'txt-mana');
+      },
+    },
+    // c11B Aguante Arcano: un golpe letal te deja a 1 de vida con una Barrera gratis (cada 120 s)
+    m_aguante: {
+      name: 'Aguante Arcano', desc: 'Un golpe que te mataría te deja con 1 de vida y una Barrera de Maná gratis. Una vez cada 120 s.',
+      state: () => ({ readyAt: 0 }),
+      priority: -2,                                    // después de Fénix (el que da más vida, primero)
+      onLethal(g, p) {
+        const st = powerState(p, 'm_aguante');
+        if (now(p) < st.readyAt - 1e-9) return false;
+        st.readyAt = now(p) + T.aguanteCd;
+        p.setHp(1, 'm_aguante');                        // restauración (no escala)
+        putBarrier(g, p, barrierAmount(p), barrierDur(p));
+        g.ui?.spawnText?.(p.pos, '¡Aguante!', 'txt-heal');
+        return true;
+      },
+    },
+    // c14A Runa de Escarcha: donde empieza tu Parpadeo queda una runa que ralentiza (⑦ onCast:
+    // aún estás en el punto de partida)
+    m_runa: {
+      name: 'Runa de Escarcha', desc: 'Donde empieza tu Parpadeo queda una runa que ralentiza un 50 % durante 3 s.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_parpadeo') return;
+        g.spawnField?.('m_runa_escarcha', { pos: p.pos, radius: T.runaR, dur: T.runaT, owner: p, data: { slowPct: T.runaSlowPct } });
+      },
+    },
+    // c14B Parpadeo Reparador: te cura un 8 % (curación de habilidad) y te quita las ralentizaciones
+    m_parpadeo_cura: {
+      name: 'Parpadeo Reparador', desc: 'Parpadeo te cura un 8 % de la vida y te quita las ralentizaciones.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_parpadeo') return;
+        g.heal?.(p.stats.maxHP * T.reparoPct / 100, { target: 'self', src: 'm_parpadeo_cura' });
+        p.cleanse?.();
+      },
+    },
+    // c15A Escudo de Maná: el 20 % del daño que recibes lo pagas con maná (mientras te quede)
+    m_escudo_mana: {
+      name: 'Escudo de Maná', desc: 'El 20 % del daño que recibes lo pagas con maná en vez de vida.',
+      onDamaged(g, p, dmg) {
+        const take = Math.min((dmg?.amount || 0) * T.escudoManaPct / 100, p.mp || 0);
+        if (!(take > 0)) return;
+        p.mp -= take;
+        dmg.amount -= take;
+      },
+    },
+    // c16A Armonía Elemental: cada cambio de elemento (entre hechizos con daño) +8 % 5 s, hasta 3
+    m_armonia: {
+      name: 'Armonía Elemental', desc: 'Cada vez que cambias de elemento: +8 % de daño durante 5 s (hasta 3 veces).',
+      state: () => ({ last: null, stacks: [] }),
+      onCast(g, p, cast) {
+        const el = isSpell(cast) ? cast.prof.elem : null;
+        if (!el) return;
+        const st = powerState(p, 'm_armonia');
+        st.stacks = st.stacks.filter(t => t > now(p));
+        if (st.last && st.last !== el) {
+          st.stacks.push(now(p) + T.armoniaT);
+          while (st.stacks.length > T.armoniaMax) st.stacks.shift();
         }
+        st.last = el;
+      },
+      condAdd(p) {
+        let n = 0;
+        for (const t of powerState(p, 'm_armonia').stacks) if (t > now(p)) n++;
+        return n * T.armoniaPct;
+      },
+    },
+    // c16B Pureza Elemental: 3 hechizos seguidos del mismo elemento → +15 % a ese elemento 6 s
+    m_pureza: {
+      name: 'Pureza Elemental', desc: 'Tres hechizos seguidos del mismo elemento: +15 % de daño de ese elemento durante 6 s.',
+      state: () => ({ elem: null, n: 0, bonus: null, until: 0 }),
+      onCast(g, p, cast) {
+        const el = isSpell(cast) ? cast.prof.elem : null;
+        if (!el) return;
+        const st = powerState(p, 'm_pureza');
+        if (st.elem === el) st.n++; else { st.elem = el; st.n = 1; }
+        if (st.n >= T.purezaN) { st.bonus = el; st.until = now(p) + T.purezaT; }
+      },
+      condAdd(p, e, hit) {
+        const st = powerState(p, 'm_pureza');
+        return hit?.elem && hit.elem === st.bonus && now(p) < st.until ? T.purezaPct : 0;
+      },
+    },
+    // c17B Anclaje Temporal: un golpe que te deja por debajo del 30 % → −30 % de daño recibido
+    // y +50 % de velocidad 4 s (cada 60 s)
+    m_anclaje: {
+      name: 'Anclaje Temporal', desc: 'Al bajar del 30 % de vida: −30 % de daño recibido y +50 % de velocidad 4 s. Una vez cada 60 s.',
+      state: () => ({ readyAt: 0 }),
+      onDamaged(g, p, dmg) {
+        const st = powerState(p, 'm_anclaje');
+        if (now(p) < st.readyAt - 1e-9 || !(p.hp - (dmg?.amount || 0) < (p.stats?.maxHP || 0) * T.anclajeHp)) return;
+        st.readyAt = now(p) + T.anclajeCd;
+        p.addBuff('m_anclaje', { dr: T.anclajeDr, spdPct: T.anclajeSpd }, T.anclajeT, { name: 'Anclaje Temporal', icon: '⚓', desc: `−${T.anclajeDr} % de daño recibido y +${T.anclajeSpd} % de velocidad` });
+      },
+    },
+    // c19 Barrera Resonante: con la Barrera puesta, cada Dardo da 2 de maná y la recarga un 2 %
+    // de tu vida (hasta lo que absorbía al ponerla)
+    m_barrera_resonante: {
+      name: 'Barrera Resonante', desc: 'Con la Barrera puesta, cada Dardo Arcano te da 2 de maná y la recarga un 2 % de tu vida.',
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'm_dardo' || hit.proc || hit.dot) return;
+        const s = barrierShield(p);
+        if (!s) return;
+        g.gainResource?.(p, T.resonanteMana);
+        s.max = s.max ?? s.amt;
+        s.amt = Math.min(s.max, s.amt + (p.stats?.maxHP || 0) * T.resonanteVida / 100);
+      },
+    },
+    // c20 Escarcha Arcana: tus críticos ralentizan un 30 % 2 s; el Dardo tiene +15 % de crítico
+    // contra ralentizados
+    m_escarcha_arcana: {
+      name: 'Escarcha Arcana', desc: 'Tus críticos ralentizan un 30 % 2 s; contra enemigos ralentizados, el Dardo Arcano tiene +15 % de crítico.',
+      onHit(g, p, e, hit) {
+        if (!hit?.crit || hit.proc || hit.dot || !e?.alive) return;
+        e.applyCC?.('slow', slowDur(p, T.escArcT), { pct: T.escArcSlowPct, src: p });
+      },
+      condCrit(p, e, hit) { return hit?.skill === 'm_dardo' && e && ((e.slowT || 0) > 0 || (e.frozenT || 0) > 0) ? T.escArcCrit : 0; },
+    },
+    // c21 Escarcha Tenaz: tus ralentizaciones duran 2 s más (las del perfil aquí; las de los
+    // poderes de la Maga, con slowDur). Antes que Nova Cortante: suma sobre la ralentización base
+    m_escarcha_tenaz: {
+      name: 'Escarcha Tenaz', desc: 'Todas tus ralentizaciones duran 2 s más.',
+      priority: 1,
+      modifyResolve(p, sk, prof) { if (prof.slow > 0) prof.slow += T.tenazS; },
+    },
+    // c25 Cristal de Barrera: al romperse la Barrera, estalla (empuja, ralentiza y devuelve maná)
+    m_cristal: {
+      name: 'Cristal de Barrera', desc: 'Cuando se rompe la Barrera, estalla: empuja 3 m, ralentiza y te devuelve maná.',
+      state: () => ({ bar: null }),
+      onDamaged(g, p) { if (barrierBroke(p, powerState(p, 'm_cristal'))) crystalBurst(g, p); },
+      onTick(g, p) { if (barrierBroke(p, powerState(p, 'm_cristal'))) crystalBurst(g, p); },
+    },
+    // c26 Torrente de Maná: gastar 60 de maná en 3 s → Sobrecarga (+4 + 8 × rango % de daño 4 s)
+    m_torrente: {
+      name: 'Torrente de Maná', desc: 'Si gastas 60 de maná en 3 s, entras en Sobrecarga: más daño durante 4 s.',
+      state: () => ({ log: [] }),
+      onCast(g, p, cast) {
+        const cost = cast?.recast && cast.prof?.recast?.free ? 0 : (cast?.prof?.cost || 0);
+        if (!(cost > 0)) return;
+        const st = powerState(p, 'm_torrente'), t = now(p);
+        st.log = st.log.filter(x => t - x.t <= T.torrenteWin + 1e-9);
+        st.log.push({ t, c: cost });
+        if (st.log.reduce((a, x) => a + x.c, 0) < T.torrenteMana - 1e-9) return;
+        st.log = [];
+        const pct = T.torrenteBase + T.torrenteRank * rankOf(p, 'm_torrente');
+        p.addBuff('m_torrente', { dmgPct: pct }, T.torrenteT, { name: 'Sobrecarga', icon: '🌀', desc: `+${pct} % de daño` });
+        g.ui?.spawnText?.(p.pos, '¡Sobrecarga!', 'txt-mana');
+      },
+    },
+    // c27 Imagen Arcana: Parpadeo deja una copia tuya (2 + rango s) que atrae a los enemigos a 6 m
+    m_imagen: {
+      name: 'Imagen Arcana', desc: 'Parpadeo deja una copia tuya unos segundos; los enemigos a 6 m la atacan a ella.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_parpadeo') return;
+        const pos = at(p.pos, p.pos.x, p.pos.z);
+        const decoy = { pos: pos.clone(), alive: true, decoy: true, hp: 1, stats: { maxHP: 1 }, takeDamage() { return 0; }, applySlow() { return false; } };
+        const f = g.spawnField?.('m_imagen', { pos, radius: T.imagenR, dur: T.imagenBase + rankOf(p, 'm_imagen'), owner: p, data: { decoy } });
+        if (f) imageTaunt(g, f);
+      },
+    },
+    // c28 Bastión Arcano (final): la Barrera no caduca y vuelve sola a los 20 s de romperse; con
+    // ella, tus hechizos cuestan un 10 % menos por rango
+    m_bastion: {
+      name: 'Bastión Arcano', desc: 'La Barrera ya no caduca y vuelve a los 20 s de romperse; con ella, tus hechizos cuestan menos.',
+      state: () => ({ bar: null, up: false, backAt: 0 }),
+      modifyResolve(p, sk, prof) {
+        if (!(prof.cost > 0) || !barrierShield(p)) return;
+        prof.cost *= Math.max(0, 1 - T.bastionCoste * rankOf(p, 'm_bastion') / 100);
+      },
+      onDamaged(g, p) { bastionWatch(g, p, false); },
+      onTick(g, p) { bastionWatch(g, p, true); },
+    },
+    // c29 Archimaga (final): cada 4.ª habilidad principal se repite gratis al 20 + 20 × rango %
+    m_archimaga: {
+      name: 'Archimaga', desc: 'Cada 4.ª habilidad principal se lanza dos veces: la copia es gratis.',
+      state: () => ({ n: 0 }),
+      afterCast(g, p, cast) {
+        if (!isSpender(cast) || cast.echo) return;
+        const st = powerState(p, 'm_archimaga');
+        if (++st.n < T.archimagaEvery) return;
+        st.n = 0;
+        echoCast(g, p, cast, (T.archimagaBase + T.archimagaRank * rankOf(p, 'm_archimaga')) / 100, T.echoGap);
+      },
+    },
+    // c30 Paso del Vacío (final): tras Parpadeo, tu siguiente principal no se recarga y hace
+    // +15 % por rango
+    m_vacio: {
+      name: 'Paso del Vacío', desc: 'Tras Parpadeo, tu siguiente habilidad principal no se recarga y hace más daño.',
+      state: () => ({ armed: false, skill: null }),
+      onCast(g, p, cast) {
+        const st = powerState(p, 'm_vacio');
+        if (st.armed && isSpender(cast)) { st.armed = false; st.skill = cast.sk.id; }
+      },
+      condAdd(p, e, hit) {
+        const st = powerState(p, 'm_vacio');
+        return st.skill && hit?.skill === st.skill ? T.vacioPct * rankOf(p, 'm_vacio') : 0;
+      },
+      afterCast(g, p, cast) {
+        const st = powerState(p, 'm_vacio');
+        if (cast?.sk?.id === 'm_parpadeo') { st.armed = true; return; }
+        if (st.skill && cast?.sk?.id === st.skill) { g.reduceCooldown?.(p, st.skill, Infinity); st.skill = null; }
+      },
+    },
+
+    // ---------------------------------------------------- PARAGON 2g (§7)
+    // t0 Marca del Tiempo (Cronomante): tu primer golpe marca 4 s; al acabar, repite el 30 % de
+    // todo el daño que le hiciste (procs y DoT incluidos; no el de otras Marcas). Lee las
+    // claves tv chrono* de t1–t11
+    m_marca_tiempo: {
+      name: 'Marca del Tiempo', desc: 'Tu primer golpe marca al enemigo; al acabar, la Marca repite parte del daño que le hiciste.',
+      procs: true,
+      state: () => ({ marks: new Map(), ends: 0, stopUntil: 0, stopOn: false, detener: null }),
+      onHit(g, p, e, hit) {
+        if (!e || hit?.source === 'power:m_marca_tiempo') return;
+        const st = cronoState(p), tv = tvOf(p);
+        const dealt = hit?.dealt || 0;
+        let m = st.marks.get(e);
+        if (!m) {
+          if (hit.proc || hit.dot || !e.alive) return;            // la pone un golpe directo
+          m = putMark(g, p, e, st);
+          if (!m) return;
+          if (tv.chronoOmen > 0) m.stored += dealt;               // t8A Presagio: ese golpe cuenta doble
+        }
+        m.stored += dealt * (underTimeStop(p, st, e) ? 2 : 1);
+        // t11 Momento Exacto: tus críticos alargan la Marca 1 s (hasta 3 s)
+        if (hit.crit && !hit.proc && !hit.dot && tv.chronoCritExt > 0 && m.ext < T.marcaCritMax) {
+          const add = Math.min(tv.chronoCritExt, T.marcaCritMax - m.ext);
+          m.until += add; m.ext += add;
+        }
+      },
+      // t4A Detener el Tiempo (activa del catálogo): los enemigos a 8 m guardan el doble 3 s
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_h_detener') return;
+        cronoState(p).detener = { until: now(p) + (cast.prof?.dur || T.detenerT), set: new Set(alivesNear(g, p.pos, cast.prof?.radius || T.detenerR)) };
+      },
+      onTick(g, p) { resolveMarks(g, p); },
+    },
+    // t4B Retroceso: al bajar del 40 %, vuelves a la vida de hace 3 s (cada 90 s)
+    m_retroceso: {
+      name: 'Retroceso', desc: 'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s.',
+      state: () => ({ hist: [], acc: 1, readyAt: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'm_retroceso');
+        st.acc += dt;
+        if (st.acc < 0.25 - 1e-9) return;
+        st.acc = 0;
+        st.hist.push({ t: now(p), hp: p.hp });
+        while (st.hist.length > 20) st.hist.shift();
+      },
+      onDamaged(g, p, dmg) {
+        const st = powerState(p, 'm_retroceso');
+        const after = p.hp - (dmg?.amount || 0);
+        if (now(p) < st.readyAt - 1e-9 || !(after < (p.stats?.maxHP || 0) * T.retroHp)) return;
+        let snap = null;
+        for (const s of st.hist) if (s.t <= now(p) - T.retroT + 1e-6) snap = s;
+        if (!snap || !(snap.hp > after)) return;
+        st.readyAt = now(p) + T.retroCd;
+        dmg.amount = 0;
+        p.setHp(Math.max(p.hp, snap.hp), 'm_retroceso');          // restauración
+        ring(g, p.pos, 1.4, 0xe8c87a);
+        g.ui?.spawnText?.(p.pos, '¡Retroceso!', 'txt-heal');
+      },
+    },
+    // t12 Señora del Tiempo (final): cada 30 s, tu siguiente principal para el reloj 5 s; las
+    // Marcas no terminan y luego repiten el 100 % de lo guardado
+    m_senora_tiempo: {
+      name: 'Señora del Tiempo', desc: 'Cada 30 s, tu siguiente habilidad principal para el reloj 5 s y las Marcas repiten todo lo guardado.',
+      state: () => ({ readyAt: 0 }),
+      onCast(g, p, cast) {
+        if (!isSpender(cast)) return;
+        const st = powerState(p, 'm_senora_tiempo');
+        if (now(p) < st.readyAt - 1e-9) return;
+        st.readyAt = now(p) + T.senoraEvery;
+        const c = cronoState(p);
+        c.stopUntil = now(p) + T.senoraT;
+        c.stopOn = true;
+        ring(g, p.pos, 3, 0xe8c87a);
+        g.ui?.spawnText?.(p.pos, '¡El tiempo se detiene!', 'txt-crit');
+      },
+    },
+    // f0 Familiar Arcano (Invocadora): uno, tres con Enjambre; dispara cada 1,5 s con tu último
+    // elemento. Lee las claves tv fam* de f1–f11
+    m_familiar: {
+      name: 'Familiar Arcano', desc: 'Un Familiar de maná dispara cada 1,5 s con el elemento de tu último hechizo.',
+      state: () => ({ fams: [], hp: 0, maxHp: 0, elem: 'arcane', downAt: 0, hasteUntil: 0, recent: [], threadAcc: 0, fxAcc: 0 }),
+      onTick(g, p, dt) {
+        const st = famState(p), tv = tvOf(p);
+        famSync(g, p, st);
+        if (!st.fams.length) return;
+        const haste = now(p) < st.hasteUntil ? (tv.famHaste || 0) : 0;
+        const every = T.famEvery / (1 + haste / 100);
+        for (const f of st.fams) {
+          f.acc += dt;
+          if (f.acc >= every - 1e-9 && famShoot(g, p, st, f)) f.acc -= every;
+          else if (f.acc > every) f.acc = every;               // sin objetivo: listo para el siguiente
+        }
+        st.threadAcc += dt;
+        if (st.threadAcc >= T.famThreadEvery - 1e-9) { st.threadAcc = 0; famThread(g, p, st); }
+        st.fxAcc += dt;
+        if (st.fxAcc >= 0.2 - 1e-9) {
+          st.fxAcc = 0;
+          for (const f of st.fams) g.emitFx?.(glow(elemHex(st.elem), tv.famSwarm > 0 ? 0.24 : 0.36), at(f.pos, f.pos.x, f.pos.z, 1.4));
+        }
+      },
+      onCast(g, p, cast) {
+        const st = famState(p);
+        if (cast?.sk?.id) st.recent = [...st.recent.filter(x => now(p) - x.t <= T.famForgeWin), { id: cast.sk.id, t: now(p) }];
+        if (isSpell(cast) && elemColor(cast.prof.elem)) st.elem = cast.prof.elem;
+      },
+      afterCast(g, p, cast) {
+        const st = famState(p), tv = tvOf(p);
+        if (!st.fams.length || cast?.echo) return;
+        if (tv.famHaste > 0 && isSpender(cast)) st.hasteUntil = now(p) + T.famHasteT;          // f5 Sobrecarga
+        if (tv.famUltCopy > 0 && cast?.sk?.cat === 'ultimate') echoCast(g, p, cast, tv.famUltCopy / 100, 0.3);   // f3 Imitación
+      },
+      // f4A Guardián: el Familiar recibe el 15 % del daño que te hacen
+      onDamaged(g, p, dmg) {
+        const st = famState(p), pct = tvOf(p).famGuard || 0;
+        if (!(pct > 0) || !st.fams.length || !(dmg?.amount > 0)) return;
+        const share = dmg.amount * pct / 100;
+        dmg.amount -= share;
+        st.hp -= share;
+        if (st.hp <= 0) famDown(g, p, st);
+      },
+    },
+    // f12 Legión (final): cada 25 s, el Familiar se divide en 3 durante 8 s y todos copian tu
+    // siguiente principal al 50 % (como mucho 3 repeticiones por lanzamiento)
+    m_legion: {
+      name: 'Legión', desc: 'Cada 25 s, tu Familiar se divide en 3 durante 8 s y todos copian tu siguiente habilidad principal.',
+      state: () => ({ readyAt: 0, until: 0, copy: false }),
+      onTick(g, p) {
+        const st = powerState(p, 'm_legion');
+        if (now(p) < st.readyAt - 1e-9 || !famState(p).fams.length) return;
+        st.readyAt = now(p) + T.legionEvery;
+        st.until = now(p) + T.legionT;
+        st.copy = true;
+        g.ui?.spawnText?.(p.pos, '¡Legión!', 'txt-mana');
+      },
+      afterCast(g, p, cast) {
+        const st = powerState(p, 'm_legion');
+        if (!st.copy || !isSpender(cast) || cast.echo || !legionOn(p)) return;
+        st.copy = false;
+        const n = Math.min(3, famState(p).fams.length);
+        for (let i = 0; i < n; i++) echoCast(g, p, cast, T.legionCopy / 100, T.echoGap + 0.15 * i);
+      },
+    },
+    // e0 Runas (Escriba Rúnica): cada 3.er hechizo escribe una runa; tres cerca forman un Sello:
+    // dentro haces +15 % y recibes −10 %. Lee las claves tv rune*/seal* de e1–e11
+    m_runas: {
+      name: 'Runas', desc: 'Cada 3.er hechizo escribe una runa; tres runas cerca forman un Sello que te potencia.',
+      state: () => ({ n: 0, seq: 0 }),
+      onCast(g, p, cast) {
+        if (!cast?.sk || cast.sk.id === 'm_h_palabra') return;           // todo hechizo, también el Dardo
+        const st = powerState(p, 'm_runas');
+        const every = Math.max(1, T.runaEvery - (tvOf(p).runeFast || 0));          // e5 Caligrafía Rápida
+        if (++st.n < every) return;
+        st.n = 0;
+        writeRune(g, p, cast.prof?.elem || cast.sk.elem);
+      },
+      // e4A Palabra de Poder (activa del catálogo): 3 runas a tu alrededor → un Sello donde estás
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_h_palabra') return;
+        for (let i = 0; i < 3; i++) writeRune(g, p, cast.prof?.elem || 'arcane', null, { form: i === 2 });
+      },
+      condAdd(p) { return sealsAround(p).length ? T.selloDmg + (tvOf(p).sealDmg || 0) : 0; },
+      condDr(p) { return sealsAround(p).length ? T.selloDr + (tvOf(p).sealDr || 0) : 0; },
+      // e10 Concentración: dentro del Sello lanzas más rápido (sin recompute por tic)
+      onTick(g, p) {
+        const a = tvOf(p).sealAspd || 0;
+        if (a > 0 && sealsAround(p).length) refreshBuff(p, 'm_sello_prisa', { aspdPct: a }, 0.35, { name: 'Concentración', icon: '📜', desc: `+${a} % de velocidad de lanzamiento` });
+      },
+    },
+    // e12 Gran Grimorio (final): dentro de un Grimorio, cada hechizo se repite al 40 % (el Sello
+    // se vuelve Grimorio en formSeal, cada 30 s)
+    m_gran_grimorio: {
+      name: 'Gran Grimorio', desc: 'Cada 30 s, tu siguiente Sello es un Grimorio: dentro, cada hechizo se lanza dos veces.',
+      state: () => ({ readyAt: 0 }),
+      afterCast(g, p, cast) {
+        if (!isSpell(cast) || cast.echo) return;
+        if (!sealsAround(p).some(f => f.data.grimoire)) return;
+        echoCast(g, p, cast, T.grimorioCopy / 100, 0.2);
       },
     },
 
@@ -543,8 +1416,9 @@ export function magaPowers() {
 // COMPORTAMIENTOS de las activas de talento
 // ============================================================
 // cast = { sk, prof, slot, target, enemy, ctx, done } (MEMORIA.md §7 punto 3)
+// sin objetivo: devuelve el enfriamiento entero (D2: solo con g.reduceCooldown; Infinity = listo)
 function refund(g, p, sk, msg) {
-  if (p.cds) p.cds[sk.id] = 0;
+  g.reduceCooldown?.(p, sk.id, Infinity);
   if (msg) g.ui?.message?.(msg);
 }
 function aimDir(p, target) {
@@ -596,12 +1470,17 @@ export function magaSkillBehaviors() {
     // ---- clase ----
     // Barrera de Maná: escudo del 30 % del maná máximo, 8 s. Escudo Prismático (c7): −X %
     // de daño recibido mientras el escudo aguanta (g.shield con `dr`: se va con el escudo)
+    // Paso 2g: es el comportamiento de la Barrera del kit base (m_barrera): la fuente del escudo es
+    // el id de la habilidad (los poderes la reconocen así), c18 la refuerza por prof.buffMul y con
+    // Bastión Arcano (c28) no caduca
     m_t_barrera: {
+      params: ['shieldManaPct'],
       cast(g, p, prof, cast) {
         const { ctx, sk } = cast;
-        const dur = prof.dur || sk.dur || 8;
-        const amt = (sk.shieldManaPct || 30) / 100 * (p.stats.maxMP || 0) * (prof.buffMul || 1);
-        g.shield(amt, { target: 'self', dur, src: 'm_t_barrera', dr: p.tv?.barrierDr || 0 });
+        const def = prof.def || sk;
+        const dur = prof.dur || def.dur || T.barrierT;
+        const amt = (def.shieldManaPct || T.barrierPct) / 100 * (p.stats.maxMP || 0) * (prof.buffMul || 1);
+        putBarrier(g, p, amt, dur, sk.id);
         ring(g, p.pos, 1.4, ctx.color ?? sk.color);
         fx(g, ctx.fx?.aura, p.pos, 1.0);
         return ctx.res;
@@ -832,15 +1711,18 @@ export function magaSkillBehaviors() {
     },
 
     // ---- Arcanista ----
-    // Orbe Arcano: lento, atraviesa y rebota 2 veces (cada segmento golpea de nuevo)
+    // Orbe Arcano: lento, atraviesa y rebota 2 veces (cada segmento golpea de nuevo). Los rebotes
+    // salen de la definición FORJADA (la variante puede quitarlos: set { bounces: 0 })
     a_orbe: {
+      params: ['bounces'],
       cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
+        const { ctx } = cast;
+        const def = prof.def || cast.sk;
         p.faceToward?.(cast.target);
         p.swing = 1;
         let finished = false;
         const done = () => { if (!finished) { finished = true; cast.done(ctx.res); } };
-        orbSegment(g, ctx, p.pos.clone(), cast.target || p.pos, sk.bounces ?? 2, done);
+        orbSegment(g, ctx, p.pos.clone(), cast.target || p.pos, def.bounces ?? 2, done);
         fx(g, ctx.fx?.aura, p.pos, 1.0);
         return undefined;
       },
@@ -927,9 +1809,115 @@ export function magaSkillBehaviors() {
 // ============================================================
 function enemyR(e) { return 0.45 * (e?.def?.scale || 1); }
 function inField(f, e) { return dist2(e.pos, f.pos) <= f.radius * f.radius; }
+// c27 Imagen Arcana: los enemigos del radio atacan a la copia (provocación corta, renovada)
+function imageTaunt(g, f) {
+  const t = Math.min(f.t, 0.7);
+  if (!(t > 0) || !f.data.decoy?.alive) return;
+  for (const e of enemiesIn(g, f.pos, f.radius)) g.forceTarget?.(e, f.data.decoy, t);
+}
+
 export function magaFields() {
   const T = magaTuning();
   return {
+    // ---- Paso 2g: campos del árbol de clase y del Paragon ----
+    // c14A Runa de Escarcha: ralentiza (1 s, renovado) a quien la pisa
+    m_runa_escarcha: {
+      name: 'Runa de Escarcha',
+      init(f) { f.acc = 0.5; },
+      tick(g, f, dt) {
+        f.acc += dt;
+        if (f.acc < 0.5 - 1e-9) return;
+        f.acc = 0;
+        for (const e of enemiesIn(g, f.pos, f.radius)) e.applyCC?.('slow', slowDur(f.owner, 1), { pct: f.data.slowPct || T.runaSlowPct, src: f.owner });
+      },
+      render(g, f) { decal(g, f, { color: 0x9fe3ff, opacity: 0.4 }); },
+    },
+    // c27 Imagen Arcana: la copia que provoca a los enemigos a 6 m mientras dura
+    m_imagen: {
+      name: 'Imagen Arcana',
+      init(f) { f.acc = 0; },
+      tick(g, f, dt) {
+        f.acc += dt;
+        if (f.acc < 0.5 - 1e-9) return;
+        f.acc = 0;
+        imageTaunt(g, f);
+        g.emitFx?.(glow('#c8a0ff', 0.5, 0.5), { x: f.pos.x, y: 1.1, z: f.pos.z });
+      },
+      onExpire(g, f) { if (f.data.decoy) f.data.decoy.alive = false; },
+      render(g, f) { decal(g, f, { color: 0xc8a0ff, opacity: 0.2 }); },
+    },
+    // t9 Grieta Temporal: ralentiza (1 s, renovado) a los enemigos dentro
+    m_grieta: {
+      name: 'Grieta Temporal',
+      init(f) { f.acc = 0.5; },
+      tick(g, f, dt) {
+        f.acc += dt;
+        if (f.acc < 0.5 - 1e-9) return;
+        f.acc = 0;
+        for (const e of enemiesIn(g, f.pos, f.radius)) e.applyCC?.('slow', slowDur(f.owner, 1), { pct: f.data.slowPct || 30, src: f.owner });
+      },
+      render(g, f) { decal(g, f, { color: 0xe8c87a, opacity: 0.3, disc: true }); },
+    },
+    // e0 runa escrita: Tinta de Maná (pisarla, una vez, da maná) y Tinta Elemental (Hielo frena,
+    // Fuego quema a quien la pisa). `armed`: la Maga tiene que salir de ella antes de pisarla
+    m_runa_escrita: {
+      name: 'Runa',
+      init(f) { f.acc = 0.5; },
+      tick(g, f, dt) {
+        const p = f.owner, d = f.data, tv = tvOf(p);
+        if (!p) return;
+        const on = p.alive && insideR(p.pos, f.pos, f.radius);
+        if (!on) d.armed = true;
+        else if (d.armed && !d.used && tv.runeMana > 0) {
+          d.used = true;
+          g.gainResource?.(p, tv.runeMana);
+          g.ui?.spawnText?.(p.pos, `+${tv.runeMana} maná`, 'txt-mana');
+        }
+        f.acc += dt;
+        if (!d.elem || f.acc < 0.5 - 1e-9) return;
+        f.acc = 0;
+        for (const e of enemiesIn(g, f.pos, f.radius)) {
+          if (d.elem === 'frost') e.applyCC?.('slow', slowDur(p, 1), { pct: T.runaElemSlowPct, src: p });
+          else if (d.elem === 'fire' && !(g.dotRemaining?.(e, 'm_runa:burn') > 0)) g.replaceDoT?.(e, p.avgHit(T.runaBurnCoef), T.runaBurnT, 1, 'm_runa:burn');
+        }
+      },
+      render(g, f) { decal(g, f, { color: elemColor(f.data.elem) || 0xc8a0ff, opacity: 0.45, disc: true }); },
+    },
+    // e0 Sello: dentro, +daño y −daño recibido (los da el poder m_runas); Glosa (e8A) debilita a
+    // los enemigos dentro y Círculo Protector (e8B) cura a los aliados dentro; Palimpsesto (e11)
+    m_sello: {
+      name: 'Sello',
+      init(f) { f.acc = 0.5; f.healAcc = 0; },
+      tick(g, f, dt) {
+        const p = f.owner, tv = tvOf(p);
+        f.acc += dt; f.healAcc += dt;
+        if (f.acc >= 0.5 - 1e-9) {
+          f.acc = 0;
+          if (tv.sealVuln > 0) for (const e of enemiesIn(g, f.pos, f.radius)) e.applyWeakness?.('m_glosa', tv.sealVuln, 0.7);
+        }
+        if (f.healAcc >= 1 - 1e-9) {
+          f.healAcc = 0;
+          if (tv.sealRegen > 0 && g.heal) {
+            const c = at(p.pos, f.pos.x, f.pos.z);
+            g.heal(a => a.stats.maxHP * tv.sealRegen / 100, { target: 'all', pos: c, radius: f.radius, src: 'm_sello' });
+          }
+        }
+      },
+      // e11 Palimpsesto: al acabar deja 3 runas; si sigues dentro, el Sello vuelve a formarse
+      onExpire(g, f) {
+        const p = f.owner;
+        if (!p?.alive || f.data.replaced || !(tvOf(p).sealPalimpsest > 0)) return;
+        const inside = insideR(p.pos, f.pos, f.radius);
+        for (let i = 0; i < 3; i++) {
+          const a = i * Math.PI * 2 / 3;
+          writeRune(g, p, null, at(p.pos, f.pos.x + Math.cos(a) * T.palimpsestoR, f.pos.z + Math.sin(a) * T.palimpsestoR), { form: inside && i === 2 });
+        }
+      },
+      render(g, f) {
+        const d = decal(g, f, { color: f.data.grimoire ? 0xffd27a : 0xc8a0ff, opacity: 0.4 });
+        if (d) d.material.opacity = 0.25 + 0.15 * Math.abs(Math.sin(f.t * 2));
+      },
+    },
     // Muro de Fuego: segmento (centro f.pos, eje u, normal n, mitad `half`, ancho `width`)
     p_muro_fuego: {
       name: 'Muro de Fuego',

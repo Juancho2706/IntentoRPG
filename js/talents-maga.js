@@ -5,8 +5,33 @@
 // Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup
 // (los compara tests/test-v2-paridad.mjs: una divergencia deliberada va en tools/convert-v2/divergencias.json).
 // `fx: {}` + `todo` = el `impl` del mockup: E2 (KT) los escribe y borra `todo`. Importa SOLO hero y talent-text.
+// E2 · KT-maga, trabajo 1: árbol de CLASE y árboles héroe con su `fx` (poderes en js/powers-maga.js).
+// Quedan con `todo` c3 y c18 (sus mods apuntan a m_parpadeo y m_barrera, que crea el catálogo de KA1)
+// y, en hero-maga.js, las opciones A de t4/e4/f8 (su `grant` lo escribe KA1, decisión 16). Las
+// especializaciones son los trabajos 2 y 3.
 import { MAGA_HERO } from './hero-maga.js';
 import { n1 } from './talent-text.js';
+
+// Claves `tv` propias de la Maga (§2 E2): las consume un poder de js/powers-maga.js (no el núcleo).
+// Paragon: Cronomante (Marca del Tiempo, m_marca_tiempo), Invocadora (Familiar, m_familiar) y
+// Escriba Rúnica (runas y Sellos, m_runas); cada nodo da su número y el poder del nodo clave lo lee.
+export const MAGA_TV_KEYS = [
+  // Cronomante: +s de Marca (t1) · +% repetido (t2A) · contagio a N (t2B) · +% de lanzamiento al
+  // acabar (t3) · s de definitiva (t5) · Paradoja (t6) · Bucle cada N (t7) · Presagio (t8A) ·
+  // % de cura (t8B) · % de ralentización de la Grieta (t9) · Aceleración (t10) · s por crítico (t11)
+  'chronoDur', 'chronoPct', 'chronoSpread', 'chronoHaste', 'chronoUltCdr', 'chronoParadox', 'chronoLoop',
+  'chronoOmen', 'chronoHeal', 'chronoRift', 'chronoAccel', 'chronoCritExt',
+  // Invocadora: % de vida y maná por disparo (f1) · Gran Constructo / Enjambre (f2) · % de la copia de
+  // la definitiva (f3) · Guardián / Cazador (f4) · Sobrecarga (f5) · Detonar (f6) · Aprendiz (f7) ·
+  // Fragua Rúnica (f8B) · Eco Elemental (f9) · +% de daño (f10) · Hilo de Maná (f11)
+  'famVit', 'famMana', 'famBig', 'famSwarm', 'famUltCopy', 'famGuard', 'famHunt', 'famHaste', 'famBoom',
+  'famApprentice', 'famForge', 'famEcho', 'famDmg', 'famThread',
+  // Escriba Rúnica: +s de runa (e1) · Runa de Poder / Sello Explosivo (e2) · Tinta de Maná (e3) · Runa
+  // Guardiana (e4B) · Caligrafía Rápida (e5) · Tinta Elemental (e6) · Inspiración (e7) · Glosa /
+  // Círculo Protector (e8) · Doble Sello (e9) · Concentración (e10) · Palimpsesto (e11)
+  'runeDur', 'sealDmg', 'sealBurst', 'runeMana', 'sealDr', 'runeFast', 'runeElem', 'sealCdr',
+  'sealVuln', 'sealRegen', 'sealMax', 'sealAspd', 'sealPalimpsest',
+];
 
 // D29: las 6 activas de talento de la clase (los nodos las conceden con `grant`); su definición vive en el catálogo.
 // Aún no son activas de talento en el juego (las escribe KA1 en el catálogo; su nodo queda sin grant): m_h_detener, m_h_palabra, m_h_constructo.
@@ -27,76 +52,76 @@ export const MAGA_TALENT_SKILL_DEFS = [
 export const MAGA_TALENTS = {
   v: 2,
   cls: { name: 'Maga', emblem: 'ui/res_mana.webp', art: 'specs/arcanista.webp', nodes: [
-    { id: 'c1', name: 'Reservas Profundas', t: 'p', tag: 'num', r: 0, c: 1, max: 2, d: r=>`+${15*r} % de maná máximo`, icon: 'talents/maga-clase-c6.webp', fx: {}, todo: 'stats.mpPct · existe' },
-    { id: 'c2', name: 'Intelecto Arcano', t: 'p', tag: 'num', r: 0, c: 3, max: 2, d: r=>`Todos tus hechizos hacen +${6*r} % de daño`, icon: 'talents/maga-clase-c1.webp', fx: {}, todo: 'mod @all dmg · existe' },
-    { id: 'c3', name: 'Reflejos Arcanos', t: 'p', tag: 'num', r: 0, c: 5, max: 2, d: r=>`Parpadeo se recarga en ${12-2*r} s (antes 12 s)`, touch: ['m_parpadeo'], icon: 'talents/maga-clase-c3.webp', fx: {}, todo: 'mod m_parpadeo cdr · existe' },
-    { id: 'c4', name: 'Escudo Prismático', t: 'p', tag: 'num', r: 1, c: 0, max: 3, req: ['c1'], d: r=>`Mientras tengas la Barrera de Maná, recibes un ${8*r} % menos de daño`, touch: ['m_barrera'], icon: 'talents/maga-clase-c7.webp', fx: {}, todo: 'tv.barrierDr · existe' },
+    { id: 'c1', name: 'Reservas Profundas', t: 'p', tag: 'num', r: 0, c: 1, max: 2, d: r=>`+${15*r} % de maná máximo`, icon: 'talents/maga-clase-c6.webp', fx: { stats: { mpPct: 15 } } },
+    { id: 'c2', name: 'Intelecto Arcano', t: 'p', tag: 'num', r: 0, c: 3, max: 2, d: r=>`Todos tus hechizos hacen +${6*r} % de daño`, icon: 'talents/maga-clase-c1.webp', fx: { mod: { '@all': { dmg: 6 } } } },
+    { id: 'c3', name: 'Reflejos Arcanos', t: 'p', tag: 'num', r: 0, c: 5, max: 2, d: r=>`Parpadeo se recarga en ${12-2*r} s (antes 12 s)`, touch: ['m_parpadeo'], icon: 'talents/maga-clase-c3.webp', fx: {}, todo: 'espera m_parpadeo en el catálogo (KA1): fx { mod: { m_parpadeo: { cdr: [50 / 3, 100 / 3] } } } (12 → 10 → 8 s)' },
+    { id: 'c4', name: 'Escudo Prismático', t: 'p', tag: 'num', r: 1, c: 0, max: 3, req: ['c1'], d: r=>`Mientras tengas la Barrera de Maná, recibes un ${8*r} % menos de daño`, touch: ['m_barrera'], icon: 'talents/maga-clase-c7.webp', fx: { tv: { barrierDr: 8 } } },
     { id: 'c5', name: 'Dardo: Certero o Sifón', t: 'c', tag: 'mec', r: 1, c: 2, max: 1, req: ['c1', 'c2'], touch: ['m_dardo'], icon: 'talents/maga-clase-c4.webp', opts: [
-        { k: 'A', name: 'Dardo Certero', desc: 'Cada 4.º Dardo Arcano es crítico seguro', role: 'UNI', fx: {}, todo: 'power m_dardo_certero · NUEVO' },
-        { k: 'B', name: 'Dardo Sifón', desc: 'Si el Dardo mata, ganas 6 de maná y tus habilidades principales se recargan 1 s antes', role: 'AREA', fx: {}, todo: 'power m_dardo_sifon · NUEVO' },
+        { k: 'A', name: 'Dardo Certero', desc: 'Cada 4.º Dardo Arcano es crítico seguro', role: 'UNI', fx: { power: 'm_dardo_certero' } },
+        { k: 'B', name: 'Dardo Sifón', desc: 'Si el Dardo mata, ganas 6 de maná y tus habilidades principales se recargan 1 s antes', role: 'AREA', fx: { power: 'm_dardo_sifon' } },
       ],
       win: 'A, contra jefes: un crítico seguro cada ~4 s. B, contra grupos: como mueren muchos, ≈1 habilidad principal extra cada 8 s' },
     { id: 'c6', name: 'Principal: Núcleo u Onda', t: 'c', tag: 'num', r: 1, c: 4, max: 1, req: ['c2', 'c3'], touch: ['bola_fuego', 'nova_hielo', 'meteoro', 'k_lanza', 'rayo'], icon: 'talents/maga-clase-c8.webp', opts: [
-        { k: 'A', name: 'Núcleo Denso', desc: 'El golpe directo de tus habilidades principales hace +25 %', role: 'UNI', fx: {}, todo: 'mod @spender dmgDirect · NUEVO (clave)' },
-        { k: 'B', name: 'Onda Expansiva', desc: 'Las explosiones y áreas de tus habilidades principales hacen +30 %', role: 'AREA', fx: {}, todo: 'mod @spender splashPct · NUEVO (clave)' },
+        { k: 'A', name: 'Núcleo Denso', desc: 'El golpe directo de tus habilidades principales hace +25 %', role: 'UNI', fx: { mod: { '@spender': { dmgDirect: 25 } } } },
+        { k: 'B', name: 'Onda Expansiva', desc: 'Las explosiones y áreas de tus habilidades principales hacen +30 %', role: 'AREA', fx: { mod: { '@spender': { splashPct: 30 } } } },
       ],
       win: 'A, contra jefes (un solo blanco recibe el golpe). B, contra grupos (el área golpea a todos). Sirve igual con Fuego, Hielo o Arcano' },
-    { id: 'c7', name: 'Paso Fugaz', t: 'p', tag: 'mec', r: 1, c: 6, max: 1, req: ['c3'], d: ()=>'Después de Parpadeo corres un 30 % más rápido durante 3 s', touch: ['m_parpadeo'], icon: 'talents/maga-clase-c11.webp', fx: {}, todo: 'power m_paso_fugaz · NUEVO (afterCast + addBuff)' },
-    { id: 'c8', name: 'Piel de Maná', t: 'p', tag: 'num', r: 2, c: 1, max: 2, req: ['c4', 'c5'], d: r=>`Con más de la mitad del maná, recibes un ${8*r} % menos de daño`, icon: 'talents/maga-clase-c2.webp', fx: {}, todo: 'tv.drHighMana · existe' },
+    { id: 'c7', name: 'Paso Fugaz', t: 'p', tag: 'mec', r: 1, c: 6, max: 1, req: ['c3'], d: ()=>'Después de Parpadeo corres un 30 % más rápido durante 3 s', touch: ['m_parpadeo'], icon: 'talents/maga-clase-c11.webp', fx: { power: 'm_paso_fugaz' } },
+    { id: 'c8', name: 'Piel de Maná', t: 'p', tag: 'num', r: 2, c: 1, max: 2, req: ['c4', 'c5'], d: r=>`Con más de la mitad del maná, recibes un ${8*r} % menos de daño`, icon: 'talents/maga-clase-c2.webp', fx: { tv: { drHighMana: 8 } } },
     { id: 'c9', name: 'Nova: Congelante o Cortante', t: 'c', tag: 'mec', r: 2, c: 3, max: 1, req: ['c5', 'c6'], touch: ['nova_hielo'], icon: 'talents/maga-crionte-s2.webp', opts: [
-        { k: 'A', name: 'Nova Congelante', desc: 'La Nova de Hielo congela 1 s (no a jefes); como mucho una vez cada 8 s', role: 'CTRL', fx: {}, todo: 'power m_nova_congelante · NUEVO (applyCC freeze)' },
-        { k: 'B', name: 'Nova Cortante', desc: 'La Nova de Hielo hace +40 % de daño, pero ralentiza 1 s menos', role: 'AREA', fx: {}, todo: 'mod nova_hielo dmg/slow · claves existentes' },
+        { k: 'A', name: 'Nova Congelante', desc: 'La Nova de Hielo congela 1 s (no a jefes); como mucho una vez cada 8 s', role: 'CTRL', fx: { power: 'm_nova_congelante' } },
+        { k: 'B', name: 'Nova Cortante', desc: 'La Nova de Hielo hace +40 % de daño, pero ralentiza 1 s menos', role: 'AREA', fx: { mod: { nova_hielo: { dmg: 40 } }, power: 'm_nova_cortante' } },
       ],
       win: 'A, para controlar y sobrevivir: congelas al grupo un 8–12 % del tiempo. B, para matar grupos más rápido' },
     { id: 'c10', name: 'Ralentizar o Disrupción', t: 'c', tag: 'mec', r: 2, c: 5, max: 1, req: ['c6', 'c7'], icon: 'talents/maga-clase-c5.webp', opts: [
-        { k: 'A', name: 'Ralentizar', desc: 'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s', role: 'CTRL', fx: {}, todo: 'power m_ralentizar · existe' },
-        { k: 'B', name: 'Disrupción', desc: 'Cada 10 s, tu siguiente Dardo corta el hechizo del enemigo y lo deja mudo 3 s', role: 'UNI', fx: {}, touch: ['m_dardo'], todo: 'power m_disrupcion · NUEVO (lógica de m_t_contrahechizo; +20 de Quebranto a jefes)' },
+        { k: 'A', name: 'Ralentizar', desc: 'Cada 8 s, tu siguiente hechizo ralentiza un 50 % durante 4 s', role: 'CTRL', fx: { power: 'm_ralentizar' } },
+        { k: 'B', name: 'Disrupción', desc: 'Cada 10 s, tu siguiente Dardo corta el hechizo del enemigo y lo deja mudo 3 s', role: 'UNI', fx: { power: 'm_disrupcion' }, touch: ['m_dardo'] },
       ],
       win: 'A, contra grupos que te rodean. B, contra jefes y élites que lanzan hechizos (además llena su barra de Quebranto)' },
     { id: 'c11', name: 'Bloque de Hielo o Aguante', t: 'c', tag: 'mec', r: 3, c: 0, max: 1, req: ['c8'], icon: 'talents/maga-clase-c12.webp', opts: [
-        { k: 'A', name: 'Bloque de Hielo', desc: 'Habilidad (ranura 2): te encierras en hielo 4 s; no recibes daño ni te mueves. Se recarga en 90 s', role: 'AGU', fx: { grant: 'm_t_bloque' }, todo: 'activa m_t_bloque · existe' },
-        { k: 'B', name: 'Aguante Arcano', desc: 'Un golpe que te mataría te deja con 1 de vida y una Barrera gratis. Una vez cada 120 s', role: 'AGU', fx: {}, todo: 'power m_aguante · NUEVO (onLethal)' },
+        { k: 'A', name: 'Bloque de Hielo', desc: 'Habilidad (ranura 2): te encierras en hielo 4 s; no recibes daño ni te mueves. Se recarga en 90 s', role: 'AGU', fx: { grant: 'm_t_bloque' } },
+        { k: 'B', name: 'Aguante Arcano', desc: 'Un golpe que te mataría te deja con 1 de vida y una Barrera gratis. Una vez cada 120 s', role: 'AGU', fx: { power: 'm_aguante' } },
       ],
       win: 'A, contra golpes de jefe que se ven venir (ocupa la ranura 2). B, siempre activo y sin ocupar ranura' },
-    { id: 'c12', name: 'Flujo de Maná', t: 'p', tag: 'num', r: 3, c: 2, max: 2, req: ['c8', 'c9'], d: r=>`Cada golpe te devuelve ${2*r} de maná`, icon: 'talents/maga-clase-c10.webp', fx: {}, todo: 'stats.mph · existe' },
-    { id: 'c13', name: 'Mente Afilada', t: 'p', tag: 'num', r: 3, c: 4, max: 2, req: ['c9', 'c10'], d: r=>`+${5*r} % de probabilidad de crítico`, icon: 'talents/maga-clase-c4.webp', fx: {}, todo: 'stats.crit · existe' },
+    { id: 'c12', name: 'Flujo de Maná', t: 'p', tag: 'num', r: 3, c: 2, max: 2, req: ['c8', 'c9'], d: r=>`Cada golpe te devuelve ${2*r} de maná`, icon: 'talents/maga-clase-c10.webp', fx: { stats: { mph: 2 } } },
+    { id: 'c13', name: 'Mente Afilada', t: 'p', tag: 'num', r: 3, c: 4, max: 2, req: ['c9', 'c10'], d: r=>`+${5*r} % de probabilidad de crítico`, icon: 'talents/maga-clase-c4.webp', fx: { stats: { crit: 5 } } },
     { id: 'c14', name: 'Parpadeo: Runa o Reparo', t: 'c', tag: 'mec', r: 3, c: 6, max: 1, req: ['c10'], touch: ['m_parpadeo'], icon: 'talents/maga-clase-c3.webp', opts: [
-        { k: 'A', name: 'Runa de Escarcha', desc: 'Donde empieza tu Parpadeo queda una runa que ralentiza un 50 % durante 3 s', role: 'CTRL', fx: {}, todo: 'power m_runa · NUEVO (spawnField zona)' },
-        { k: 'B', name: 'Parpadeo Reparador', desc: 'Parpadeo te cura un 8 % de la vida y te quita las ralentizaciones', role: 'AGU', fx: {}, todo: 'power m_parpadeo_cura · NUEVO (g.heal)' },
+        { k: 'A', name: 'Runa de Escarcha', desc: 'Donde empieza tu Parpadeo queda una runa que ralentiza un 50 % durante 3 s', role: 'CTRL', fx: { power: 'm_runa' } },
+        { k: 'B', name: 'Parpadeo Reparador', desc: 'Parpadeo te cura un 8 % de la vida y te quita las ralentizaciones', role: 'AGU', fx: { power: 'm_parpadeo_cura' } },
       ],
       win: 'A, para escapar de enemigos cuerpo a cuerpo. B, para aguantar peleas largas' },
     { id: 'c15', name: 'Escudo de Maná o Mente Clara', t: 'c', tag: 'mec', r: 4, c: 1, max: 1, req: ['c11', 'c12'], icon: 'talents/maga-arcanista-s8.webp', opts: [
-        { k: 'A', name: 'Escudo de Maná', desc: 'El 20 % del daño que recibes lo pagas con maná en vez de vida', role: 'AGU', fx: {}, todo: 'power m_escudo_mana · NUEVO (④ onDamaged)' },
-        { k: 'B', name: 'Mente Clara', desc: 'Recuperas maná un 30 % más rápido; con el maná lleno, haces +10 % de daño', role: 'UNI', fx: {}, todo: 'stats regen + tv.highManaDmg · existe ⟶ traducir: stats.regen → stats.regenPct' },
+        { k: 'A', name: 'Escudo de Maná', desc: 'El 20 % del daño que recibes lo pagas con maná en vez de vida', role: 'AGU', fx: { power: 'm_escudo_mana' } },
+        { k: 'B', name: 'Mente Clara', desc: 'Recuperas maná un 30 % más rápido; con el maná lleno, haces +10 % de daño', role: 'UNI', fx: { stats: { regenPct: 30 }, tv: { highManaDmg: 10 } } },
       ],
       win: 'A, para sobrevivir (+15–20 % de aguante). B, para hacer daño (+6–8 %: lanzas más habilidades principales)' },
     { id: 'c16', name: 'Armonía o Pureza Elemental', t: 'c', tag: 'mec', r: 4, c: 3, max: 1, req: ['c12', 'c13'], icon: 'talents/maga-clase-c9.webp', opts: [
-        { k: 'A', name: 'Armonía Elemental', desc: 'Cada vez que cambias de elemento: +8 % de daño 5 s (se suma hasta 3 veces)', role: 'UNI', fx: {}, todo: 'power m_armonia · NUEVO' },
-        { k: 'B', name: 'Pureza Elemental', desc: '3 hechizos seguidos del mismo elemento: +15 % de daño de ese elemento durante 6 s', role: 'AREA', fx: {}, todo: 'power m_pureza · NUEVO' },
+        { k: 'A', name: 'Armonía Elemental', desc: 'Cada vez que cambias de elemento: +8 % de daño 5 s (se suma hasta 3 veces)', role: 'UNI', fx: { power: 'm_armonia' } },
+        { k: 'B', name: 'Pureza Elemental', desc: '3 hechizos seguidos del mismo elemento: +15 % de daño de ese elemento durante 6 s', role: 'AREA', fx: { power: 'm_pureza' } },
       ],
       win: 'A, si mezclas elementos (Dardo Arcano + Fuego + Nova): hasta +24 %. B, si todo es del mismo elemento (todo Fuego, todo Hielo o todo Arcano): +15 % casi siempre. Es la pieza que une el árbol con la forja' },
     { id: 'c17', name: 'Inversión o Anclaje', t: 'c', tag: 'mec', r: 4, c: 5, max: 1, req: ['c13', 'c14'], icon: 'talents/maga-clase-c12.webp', opts: [
-        { k: 'A', name: 'Inversión del Tiempo', desc: 'Habilidad (ranura 2): vuelves a la vida y al lugar que tenías hace 5 s. Se recarga en 60 s', role: 'AGU', fx: { grant: 'm_t_inversion' }, todo: 'activa m_t_inversion · existe' },
-        { k: 'B', name: 'Anclaje Temporal', desc: 'Al bajar del 30 % de vida: −30 % de daño recibido y +50 % de velocidad 4 s. Una vez cada 60 s', role: 'AGU', fx: {}, todo: 'power m_anclaje · NUEVO (onDamaged)' },
+        { k: 'A', name: 'Inversión del Tiempo', desc: 'Habilidad (ranura 2): vuelves a la vida y al lugar que tenías hace 5 s. Se recarga en 60 s', role: 'AGU', fx: { grant: 'm_t_inversion' } },
+        { k: 'B', name: 'Anclaje Temporal', desc: 'Al bajar del 30 % de vida: −30 % de daño recibido y +50 % de velocidad 4 s. Una vez cada 60 s', role: 'AGU', fx: { power: 'm_anclaje' } },
       ],
       win: 'A, contra un golpe enorme de jefe (ocupa la ranura 2). B, contra el daño constante de un grupo, sin ocupar ranura' },
-    { id: 'c18', name: 'Barrera Reforzada', t: 'p', tag: 'num', r: 5, c: 0, max: 2, req: ['c15'], d: r=>`La Barrera de Maná absorbe un ${25*r} % más`, touch: ['m_barrera'], icon: 'talents/maga-clase-c2.webp', fx: {}, todo: 'mod m_barrera shieldManaPct · claves ⟶ traducir: shieldManaPct → mod buff (+% de escudo: el comportamiento de la Barrera multiplica shieldManaPct por prof.buffMul)' },
-    { id: 'c19', name: 'Barrera Resonante', t: 'p', tag: 'mec', r: 5, c: 2, max: 1, req: ['c15', 'c16'], d: ()=>'Con la Barrera puesta, cada Dardo te da 2 de maná y la recarga un 2 % de tu vida', touch: ['m_barrera', 'm_dardo'], hyb: 'Defensa + Arcano', icon: 'talents/maga-arcanista-s3.webp', fx: {}, todo: 'power m_barrera_resonante · NUEVO' },
-    { id: 'c20', name: 'Escarcha Arcana', t: 'p', tag: 'mec', r: 5, c: 4, max: 1, req: ['c16', 'c17'], d: ()=>'Tus críticos ralentizan un 30 % 2 s; contra enemigos ralentizados, el Dardo tiene +15 % de crítico', touch: ['m_dardo'], hyb: 'Arcano + Control', icon: 'talents/maga-crionte-s5.webp', fx: {}, todo: 'power m_escarcha_arcana · NUEVO' },
-    { id: 'c21', name: 'Escarcha Tenaz', t: 'p', tag: 'num', r: 5, c: 6, max: 1, req: ['c17'], d: ()=>'Todas tus ralentizaciones duran 2 s más', icon: 'talents/maga-crionte-s3.webp', fx: {}, todo: 'mod @all slow +2 · claves' },
+    { id: 'c18', name: 'Barrera Reforzada', t: 'p', tag: 'num', r: 5, c: 0, max: 2, req: ['c15'], d: r=>`La Barrera de Maná absorbe un ${25*r} % más`, touch: ['m_barrera'], icon: 'talents/maga-clase-c2.webp', fx: {}, todo: 'espera m_barrera en el catálogo (KA1): fx { mod: { m_barrera: { buff: 25 } } } (el comportamiento m_t_barrera multiplica por prof.buffMul)' },
+    { id: 'c19', name: 'Barrera Resonante', t: 'p', tag: 'mec', r: 5, c: 2, max: 1, req: ['c15', 'c16'], d: ()=>'Con la Barrera puesta, cada Dardo te da 2 de maná y la recarga un 2 % de tu vida', touch: ['m_barrera', 'm_dardo'], hyb: 'Defensa + Arcano', icon: 'talents/maga-arcanista-s3.webp', fx: { power: 'm_barrera_resonante' } },
+    { id: 'c20', name: 'Escarcha Arcana', t: 'p', tag: 'mec', r: 5, c: 4, max: 1, req: ['c16', 'c17'], d: ()=>'Tus críticos ralentizan un 30 % 2 s; contra enemigos ralentizados, el Dardo tiene +15 % de crítico', touch: ['m_dardo'], hyb: 'Arcano + Control', icon: 'talents/maga-crionte-s5.webp', fx: { power: 'm_escarcha_arcana' } },
+    { id: 'c21', name: 'Escarcha Tenaz', t: 'p', tag: 'num', r: 5, c: 6, max: 1, req: ['c17'], d: ()=>'Todas tus ralentizaciones duran 2 s más', icon: 'talents/maga-crionte-s3.webp', fx: { power: 'm_escarcha_tenaz' } },
     { id: 'c22', name: 'Contrahechizo o Canalizador', t: 'c', tag: 'mec', r: 6, c: 1, max: 1, req: ['c18', 'c19'], icon: 'talents/maga-clase-c5.webp', opts: [
-        { k: 'A', name: 'Contrahechizo', desc: 'Habilidad (ranura 2): corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s. Se recarga en 18 s', role: 'CTRL', fx: { grant: 'm_t_contrahechizo' }, todo: 'activa m_t_contrahechizo · existe' },
-        { k: 'B', name: 'Canalizador', desc: 'Los hechizos que cuestan más de 20 de maná cuestan un 20 % menos', role: 'UNI', fx: {}, todo: 'tv.costRedBig · existe' },
+        { k: 'A', name: 'Contrahechizo', desc: 'Habilidad (ranura 2): corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s. Se recarga en 18 s', role: 'CTRL', fx: { grant: 'm_t_contrahechizo' } },
+        { k: 'B', name: 'Canalizador', desc: 'Los hechizos que cuestan más de 20 de maná cuestan un 20 % menos', role: 'UNI', fx: { tv: { costRedBig: { pct: 20, over: 20 } } } },
       ],
       win: 'A, en grupo y contra enemigos que lanzan hechizos. B, para hacer daño (+5–7 %)' },
-    { id: 'c23', name: 'Ritmo Arcano', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada crítico del Dardo recarga ${n1(0.5*r)} s de Parpadeo y de la Barrera`, touch: ['m_dardo', 'm_parpadeo', 'm_barrera'], icon: 'talents/maga-clase-c9.webp', fx: {}, todo: 'tv.dartCritCdr · NUEVO ⟶ traducir: tv.dartCritCdr → tv.basicCritCdr (el núcleo acepta los dos nombres)' },
-    { id: 'c24', name: 'Celeridad', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Lanzas hechizos un ${7*r} % más rápido`, icon: 'talents/maga-clase-c11.webp', fx: {}, todo: 'stats.aspdPct · existe' },
-    { id: 'c25', name: 'Cristal de Barrera', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Cuando se rompe la Barrera, estalla: empuja 3 m, ralentiza un 40 % 2 s y te devuelve el ${10*r} % del maná`, touch: ['m_barrera'], icon: 'talents/maga-clase-c7.webp', fx: {}, todo: 'power m_cristal · NUEVO (onShieldBreak)' },
-    { id: 'c26', name: 'Torrente de Maná', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Si gastas 60 de maná en 3 s, entras en Sobrecarga: +${4+8*r} % de daño durante 4 s`, icon: 'talents/maga-clase-c14.webp', fx: {}, todo: 'power m_torrente · NUEVO (⑪ onResource)' },
-    { id: 'c27', name: 'Imagen Arcana', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['c24'], d: r=>`Parpadeo deja una copia tuya ${2+r} s; los enemigos a 6 m la atacan a ella`, touch: ['m_parpadeo'], icon: 'talents/maga-arcanista-s14.webp', fx: {}, todo: 'power m_imagen · NUEVO (g.forceTarget)' },
-    { id: 'c28', name: 'Bastión Arcano', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['c25'], d: r=>`La Barrera ya no caduca: dura hasta que la rompen y vuelve a los 20 s. Con ella, tus hechizos cuestan un ${10*r} % menos`, touch: ['m_barrera'], final: 'Defensa', icon: 'talents/maga-clase-c15.webp', fx: {}, todo: 'power m_bastion · NUEVO' },
-    { id: 'c29', name: 'Archimaga', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['c26'], d: r=>`Cada 4.ª habilidad principal se lanza dos veces: la copia es gratis y hace el ${20+20*r} %`, final: 'Arcano', icon: 'talents/maga-clase-c1.webp', fx: {}, todo: 'power m_archimaga · NUEVO (echo del canal)' },
-    { id: 'c30', name: 'Paso del Vacío', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['c27'], d: r=>`Tras Parpadeo, tu siguiente habilidad principal no se recarga y hace +${15*r} %`, touch: ['m_parpadeo'], final: 'Movilidad', icon: 'talents/maga-arcanista-x3.webp', fx: {}, todo: 'power m_vacio · NUEVO' },
+    { id: 'c23', name: 'Ritmo Arcano', t: 'p', tag: 'mec', r: 6, c: 3, max: 2, req: ['c19', 'c20'], d: r=>`Cada crítico del Dardo recarga ${n1(0.5*r)} s de Parpadeo y de la Barrera`, touch: ['m_dardo', 'm_parpadeo', 'm_barrera'], icon: 'talents/maga-clase-c9.webp', fx: { tv: { basicCritCdr: 0.5 } } },
+    { id: 'c24', name: 'Celeridad', t: 'p', tag: 'num', r: 6, c: 5, max: 2, req: ['c20', 'c21'], d: r=>`Lanzas hechizos un ${7*r} % más rápido`, icon: 'talents/maga-clase-c11.webp', fx: { stats: { aspdPct: 7 } } },
+    { id: 'c25', name: 'Cristal de Barrera', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['c22'], d: r=>`Cuando se rompe la Barrera, estalla: empuja 3 m, ralentiza un 40 % 2 s y te devuelve el ${10*r} % del maná`, touch: ['m_barrera'], icon: 'talents/maga-clase-c7.webp', fx: { power: 'm_cristal' } },
+    { id: 'c26', name: 'Torrente de Maná', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['c23'], d: r=>`Si gastas 60 de maná en 3 s, entras en Sobrecarga: +${4+8*r} % de daño durante 4 s`, icon: 'talents/maga-clase-c14.webp', fx: { power: 'm_torrente' } },
+    { id: 'c27', name: 'Imagen Arcana', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['c24'], d: r=>`Parpadeo deja una copia tuya ${2+r} s; los enemigos a 6 m la atacan a ella`, touch: ['m_parpadeo'], icon: 'talents/maga-arcanista-s14.webp', fx: { power: 'm_imagen' } },
+    { id: 'c28', name: 'Bastión Arcano', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['c25'], d: r=>`La Barrera ya no caduca: dura hasta que la rompen y vuelve a los 20 s. Con ella, tus hechizos cuestan un ${10*r} % menos`, touch: ['m_barrera'], final: 'Defensa', icon: 'talents/maga-clase-c15.webp', fx: { power: 'm_bastion' } },
+    { id: 'c29', name: 'Archimaga', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['c26'], d: r=>`Cada 4.ª habilidad principal se lanza dos veces: la copia es gratis y hace el ${20+20*r} %`, final: 'Arcano', icon: 'talents/maga-clase-c1.webp', fx: { power: 'm_archimaga' } },
+    { id: 'c30', name: 'Paso del Vacío', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['c27'], d: r=>`Tras Parpadeo, tu siguiente habilidad principal no se recarga y hace +${15*r} %`, touch: ['m_parpadeo'], final: 'Movilidad', icon: 'talents/maga-arcanista-x3.webp', fx: { power: 'm_vacio' } },
   ] },
   specs: [
     {
