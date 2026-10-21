@@ -339,7 +339,8 @@ export function staggerFromDisplace(dist, staggerPct = 0, dr = 0) {
 }
 // Quebranto por desplazamiento REAPLICADO al mismo jefe (cola W2d): cada tirón o empuje rinde
 // × (1 − dr) y sube dr en `add` (tope 1); dr baja `decay` por segundo. Un tirón cada 5 s rinde
-// entero; una lanza con Arpón por segundo da 20, 12, 4, 2, 2… en vez de 20 cada vez
+// entero; una lanza con Arpón por segundo da 20, 12, 4, 2, 2… en vez de 20 cada vez. Con la barra
+// cerrada (Quebrantado o bloqueada) no sube (Enemy.displace)
 export const STAGGER_DISPLACE_DR = Object.freeze({ add: 0.5, decay: 0.1 });
 // a campeones y élites se les mueve menos (×0,6 de la distancia)
 export const ELITE_DISPLACE_MUL = 0.6;
@@ -393,7 +394,8 @@ export function staggerFromCC(kind, dur = 0, { pct = 0, staggerPct = 0 } = {}) {
 // Quebranto por ralentización REAPLICADA al mismo jefe (cola W2d): solo cuentan los segundos
 // NUEVOS de ralentización (≥ STAGGER_SLOW_MIN_PCT), los que alargan lo ya cubierto
 // (`covered`: s que le quedan de una que ya llenó Quebranto). Así un jefe ralentizado sin
-// pausa llena 4 por segundo aunque lo vuelvan a ralentizar en cada impacto.
+// pausa llena 4 por segundo aunque lo vuelvan a ralentizar en cada impacto (o cada tic de una
+// zona). Con la barra cerrada no se cubre nada (Enemy.applyCC).
 export function slowStaggerSecs(dur, covered = 0) {
   return Math.max(0, (dur || 0) - Math.max(0, covered || 0));
 }

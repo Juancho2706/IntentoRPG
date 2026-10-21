@@ -17,7 +17,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as CM from '../js/combat-math.js';
-import { applyHitEffects } from '../js/entities.js';
+import { applyHitEffects, INNATE_ONLY_STATS } from '../js/entities.js';
 import { definePower, POWER_HOOKS } from '../js/powers.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { resolveSkill } from '../js/skill-resolve.js';
@@ -88,8 +88,18 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   t.p.basicAttack(te, { charge: { t: 1, frac: 1, coefMul: 1 } });
   t.p.basicAttack(te, { charge: { t: 0.5, frac: 0.5, coefMul: 1 } });
   t.p.basicAttack(te);
-  assert.deepEqual(t.shots.map(s => s.range), [16, 13, 10.5], 'tensado al máximo 16 m, a media carga 13 m; sin carga, el de siempre');
+  t.p.basicAttack(te, { charge: { t: 0, frac: 0, coefMul: 1 } });
+  assert.deepEqual(t.shots.map(s => s.range), [16, 13, 10.5, 10.5], 'tensado al máximo 16 m, a media carga 13 m; sin carga, el de siempre; un tensado corto, nunca menos');
   near(t.p.basicRange(1), 16, 'basicRange(t)');
+  // charge.scale.rangeAdd: metros que SUMA el tensado (Vista Larga: +2 m por rango desde 0,3 s)
+  definePower('vx91_vista', { name: 'vista', modifyResolve(p, sk, prof) {
+    if (sk.id === 'a_disparo') prof.charge = { min: 0, max: 1, perfect: [0.8, 1], perfectPct: 0, scale: { rangeAdd: [[0.29, 0], [0.3, 4]] }, repeat: true, speed: 1 };
+  } });
+  const v = hero('arquera', 1, { powers: ['vx91_spy', 'vx91_vista'] });
+  const ve = v.enemy({ hp: 1e6, pos: [0, 0, 5] });
+  v.p.basicAttack(ve, { charge: { t: 0.2, frac: 0.2, coefMul: 1 } });
+  v.p.basicAttack(ve, { charge: { t: 0.6, frac: 0.6, coefMul: 1 } });
+  assert.deepEqual(v.shots.map(s => s.range), [10.5, 14.5], 'rangeAdd: un toque, lo de siempre; tensado, +4 m');
   const u = hero('arquera', 1);
   u.p.basicAttack(u.enemy({ hp: 1e6, pos: [0, 0, 5] }), { charge: { t: 1, frac: 1, coefMul: 1, rangeMul: 1.5 } });
   near(u.shots[0].range, 10.5 * 1.5, 'charge.rangeMul sin escala de alcance');
@@ -144,6 +154,23 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   assert.equal(of(far).length, 0, 'fuera del radio, nada');
   const ratio = sh[0].raw / of(a)[0].raw;
   assert.ok(ratio > 0.4 && ratio < 0.6, `salpicadura al 50 % del golpe (${ratio.toFixed(2)})`);
+  // dos proyectiles por disparo (count 2: el 2.º a 0,18 rad): el 1.º da al blanco y salpica al que
+  // está en la trayectoria del 2.º, que llega después y ya no le da (un enemigo recibe el ataque una vez)
+  const two = hero('maga', 1, { inject: { skills: [{ id: 'm_dardo', name: 'Dardo', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'arcane'], elem: 'arcane',
+    type: 'weapon', coef: 1, gen: 3, speed: 13, count: 2, splash: 0.5, radius: 1.5 }] } });
+  const a4 = two.enemy({ hp: 1e6, pos: [0, 0, 5] }), b4 = two.enemy({ hp: 1e6, pos: [6 * Math.sin(0.18), 0, 6 * Math.cos(0.18)] });
+  two.p.basicAttack(a4); two.step(1);
+  assert.equal(of(a4, x => x.skill === 'm_dardo').length, 1, 'count 2: el blanco, un impacto');
+  assert.deepEqual(of(b4, x => x.skill === 'm_dardo').map(x => x.source), ['splash'], 'el de la 2.ª trayectoria: la salpicadura y no además el 2.º proyectil');
+  // y no recibe dos salpicaduras: entre el blanco y el que golpea el 2.º proyectil (otro instante)
+  HITS.length = 0;
+  const a5 = two.enemy({ hp: 1e6, pos: [20, 0, 5] }), c5 = two.enemy({ hp: 1e6, pos: [20 + 7 * Math.sin(0.18), 0, 7 * Math.cos(0.18)] }),
+    b5 = two.enemy({ hp: 1e6, pos: [19.7, 0, 6.6] });
+  for (const x of [a4, b4]) x.alive = false;
+  two.p.pos.set(20, 0, 0); two.p.atkCd = 0;
+  two.p.basicAttack(a5); two.step(1);
+  assert.ok(of(a5).length === 1 && of(c5).filter(x => x.source !== 'splash').length === 1, 'cada proyectil, su blanco');
+  assert.deepEqual(of(b5, x => x.skill === 'm_dardo').map(x => x.source), ['splash'], 'el de en medio: una salpicadura, no dos');
   const none = hero('maga', 1);
   const a2 = none.enemy({ hp: 1e6, pos: [0, 0, 5] }), nb2 = none.enemy({ hp: 1e6, pos: [1.2, 0, 5.4] });
   none.p.basicAttack(a2); none.step(0.6);
@@ -199,6 +226,15 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   e.pos.set(0.9, 0, 0); e.atkCd = 0;
   for (let t = 0; t < 2 && h.p.hp === hp0; t += DT) e.update(DT);
   assert.ok(h.p.hp < hp0, 'sin miedo, ataca');
+  // al acabar SOLO (sin clearCC) suelta su origen y vuelve a pelear
+  const nat = h.enemy({ hp: 1e6, pos: [0, 0, -2] });
+  nat.aggroed = true;
+  nat.applyCC('fear', 0.5, { src: h.p });
+  for (let t = 0; t < 0.6; t += DT) nat.update(DT);
+  assert.ok(!(nat.fearT > 0) && nat.fearFrom === null, 'fin natural: sin miedo ni origen');
+  const dNat = nat.pos.distanceTo(h.p.pos);
+  for (let t = 0; t < 0.5; t += DT) nat.update(DT);
+  assert.ok(nat.pos.distanceTo(h.p.pos) < dNat - 0.3, 'y vuelve hacia el héroe');
   // desde `from` (Clamor: el Rival caído), canal duro con rendimientos decrecientes
   const f = h.enemy({ hp: 1e6, pos: [0, 0, 4] });
   f.applyCC('fear', 2, { src: h.p, from: new THREE.Vector3(0, 0, 6) });
@@ -217,6 +253,23 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   const x0 = s.pos.x;
   for (let t = 0; t < 0.3; t += DT) s.update(DT);
   assert.equal(s.pos.x, x0, 'aturdido: no huye');
+  // el miedo manda sobre el cebo: dentro de un cebo armado, huye de su origen y no va hacia el cebo
+  h.g.spawnField('trampa', { pos: new THREE.Vector3(0, 0, 16), radius: 1, dur: 20, owner: h.p, data: { dmg: 1, coef: 1, armT: 0, lure: { radius: 8 } } });
+  const lu = h.enemy({ hp: 1e6, pos: [0, 0, 12] });
+  for (let t = 0; t < 0.4; t += DT) lu.update(DT);
+  assert.ok(lu.pos.z > 12 + 0.2, `sin miedo, el cebo lo atrae (${lu.pos.z.toFixed(2)})`);
+  lu.pos.set(0, 0, 12);
+  lu.applyCC('fear', 2, { src: h.p, from: new THREE.Vector3(0, 0, 14) });
+  for (let t = 0; t < 0.5; t += DT) lu.update(DT);
+  assert.ok(lu.pos.z < 12 - 0.3, `asustado, huye del origen aunque el cebo tire (${lu.pos.z.toFixed(2)})`);
+  // contra un muro rodea: huir de frente a la pared lo desliza de lado (sin pasarla)
+  const grid0 = h.g.world.grid;
+  h.g.world.grid = { walkable: (x, z) => z < 20.5, lineOfSight: () => true };
+  const wl = h.enemy({ hp: 1e6, pos: [0, 0, 20] });
+  wl.applyCC('fear', 2, { src: h.p, from: new THREE.Vector3(0, 0, 18) });
+  for (let t = 0; t < 0.5; t += DT) wl.update(DT);
+  h.g.world.grid = grid0;
+  assert.ok(Math.abs(wl.pos.x) > 0.3 && wl.pos.z < 20.5, `contra el muro, rodea (${wl.pos.x.toFixed(2)}, ${wl.pos.z.toFixed(2)})`);
   // a los jefes no los asusta: Quebranto (15 por s, como inmovilizar)
   const b = h.enemy({ hp: 1e7, boss: true, pos: [2, 0, 0] });
   const bx = b.pos.x;
@@ -225,7 +278,7 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   assert.ok(!(b.fearT > 0) && b.pos.x <= bx + 1e-9, 'jefe: no huye');
   near(b.stagger, CM.staggerFromCC('fear', 2), 'jefe: Quebranto de asustar');
   near(b.stagger, 30, 'jefe: 15 por s × 2 s');
-  console.log("applyCC('fear'): huye de su origen sin atacar, rendimientos del canal duro; jefes → Quebranto ✓");
+  console.log("applyCC('fear'): huye de su origen sin atacar (sobre el cebo, rodeando muros), rendimientos del canal duro; jefes → Quebranto ✓");
 }
 
 // ------------------------------------------------ 4) Quebranto: ralentización y desplazamiento reaplicados
@@ -257,6 +310,22 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   d.tickStun(10);
   const s0 = d.stagger; d.displace(h.p.pos, 4, { toward: true, src: h.p });
   near(d.stagger - s0, 20, 'tras 10 s sin tirones, entero otra vez');
+  // con la barra cerrada (Quebrantado y bloqueada) ni llena ni sube la resistencia ni cuenta la
+  // ralentización como pagada: al reabrirse, el primer tirón rinde entero y la ralentización también
+  const k = h.enemy({ hp: 1e9, boss: true, pos: [-4, 0, 0] });
+  k.breakStagger();
+  for (let t = 0; t < CM.STAGGER_BREAK_T + CM.STAGGER_LOCK_T - 0.5; t += 0.5) {
+    k.displace(h.p.pos, 4, { toward: true, src: h.p });
+    k.applyCC('slow', 8, { pct: 50, src: h.p });
+    k.tickStun(0.5);
+  }
+  assert.ok(!k.staggerOpen() && k.stagger === 0, 'bloqueada: nada');
+  k.tickStun(0.6);
+  assert.ok(k.staggerOpen(), 'reabierta');
+  const k0 = k.stagger; k.displace(h.p.pos, 4, { toward: true, src: h.p });
+  near(k.stagger - k0, 20, 'primer tirón tras el bloqueo: entero');
+  const k1 = k.stagger; k.applyCC('slow', 8, { pct: 50, src: h.p });
+  near(k.stagger - k1, 32, 'y la ralentización, sus 8 s');
   // a un enemigo normal no le cambia nada (su dispDR de siempre)
   const n = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
   near(n.displace(h.p.pos, 2, { toward: false, src: h.p }), 2, 'normal: 2 m');
@@ -277,6 +346,11 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   const h = hero('guerrero', 30);
   h.p.talentExtra.stats = { dr: 80, block: 70 }; h.p.recompute();
   assert.ok(h.p.stats.dr === 50 && h.p.stats.block === 40, 'sin innata: 50 y 40');
+  // los topes propios SOLO desde la innata: como stat de nodo, objeto o era no suben nada
+  h.p.talentExtra.stats = { dr: 80, block: 70, drCapAdd: 15, blockCapAdd: 10 }; h.p.recompute();
+  assert.ok(h.p.stats.dr === 50 && h.p.stats.block === 40 && !h.p.stats.drCapAdd, 'como stat (no innata): sin efecto');
+  assert.deepEqual([...INNATE_ONLY_STATS].sort(), ['blockCapAdd', 'drCapAdd'], 'INNATE_ONLY_STATS');
+  h.p.talentExtra.stats = { dr: 80, block: 70 };
   h.p.talentExtra.innate = { drCapAdd: 15, blockCapAdd: 10 }; h.p.recompute();
   assert.ok(h.p.stats.dr === 65 && h.p.stats.block === 50, `Guardián: 65 y 50 (${h.p.stats.dr}, ${h.p.stats.block})`);
   // el mismo golpe con el tope común y con el propio: (1 − 0,65) / (1 − 0,5) = 0,7
@@ -303,7 +377,12 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
     near((after.mods.buff || 0) - (before.mods.buff || 0), 25, 'Piel de Hierro: +25 % de buff');
     near(after.buffMul / before.buffMul, (1 + after.mods.buff / 100) / (1 + (before.mods.buff || 0) / 100), 'y el perfil lo aplica');
     assert.equal((after.mods.cdr || 0) - (before.mods.cdr || 0), 10, 'selector @defense');
-    assert.ok(!('mod' in makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }).p.stats), 'mod no es una stat');
+    // y no toca el saco de recompute (las stats del Guardián son las mismas con y sin innate.mod)
+    const withMod = makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }).p.stats;
+    spec.innate = inn;
+    const noMod = makeHarness({ classId: 'guerrero', level: 30, spec: 'guardian' }).p.stats;
+    assert.deepEqual(withMod, noMod, 'innate.mod no cambia ninguna stat (hpPct, block…)');
+    spec.innate = { ...inn, mod: { g_piel: { durS: 4, buff: 25 }, '@defense': { cdr: 10 } } };
     const other = piel(makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker' }));
     assert.ok(other.dur === ber0.dur && (other.mods.buff || 0) === (ber0.mods.buff || 0), 'con otra especialización, nada');
   } finally { spec.innate = inn; }
@@ -312,6 +391,8 @@ const forge = (h, map) => { h.p.skillForge = { ...(h.p.skillForge || {}), ...map
   assert.ok(h.p.stats.costPct === -30 && h.p.stats.skillSpeedPct === 20, 'costPct y skillSpeedPct');
   h.p.talentExtra.stats = { costPct: -150, skillSpeedPct: 300 }; h.p.recompute();
   assert.ok(h.p.stats.costPct === -100 && h.p.stats.skillSpeedPct === CM.CAPS.aspd, 'topados (−100 y CAPS.aspd)');
+  h.p.talentExtra.stats = { skillSpeedPct: -80 }; h.p.recompute();
+  assert.equal(h.p.stats.skillSpeedPct, -50, 'y por abajo, −50 (como mucho la mitad de rápido)');
   console.log('Topes propios (drCapAdd/blockCapAdd), innate.mod con selectores y stats costPct/skillSpeedPct ✓');
 }
 
@@ -374,15 +455,23 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   h.enemy({ hp: 1e6, pos: [10, 0, 0] });
   h.step(DT * 2);
   near(mults[1], 1 * 2 * 0.5, 'data.rankMul y data.burstMul');
-  // detonar: coef de la definición × el rango de la habilidad que detona (× burstMul de la trampa)
+  // data.rank (lo guarda game-skills al colocarla: W2d-A) manda sobre el rango del dueño: una trampa
+  // de un eco o de una habilidad que el héroe no tiene en p.resolved escala con SU rango
+  trap(13, { rank: 2 });
+  h.enemy({ hp: 1e6, pos: [13, 0, 0] });
+  h.step(DT * 2);
+  assert.ok(CM.rankCoef(2) !== rk, 'rango 2 ≠ el del dueño');
+  near(mults[2], CM.rankCoef(2), 'data.rank: × rankCoef(data.rank), no el rango de la habilidad del dueño');
+  // detonar: el coef llega YA escalado (prof.detonate de skill-resolve, W2d-A) y detonateAt no lo
+  // reescala; × burstMul de la trampa y × opts.rankMul si un poder pasa uno crudo
   mults.length = 0;
   trap(20, { burst: null, burstMul: 0.5 }); trap(-20);
-  h.g.detonateAt(h.p, v3(20, 0), { radius: 2, coef: 1 }, { skill: 'vx91_det' });
-  h.g.detonateAt(h.p, v3(-20, 0), { radius: 2, coef: 1 }, { skill: 'vx91_nada' });
+  h.g.detonateAt(h.p, v3(20, 0), { radius: 2, coef: 1.3 }, { skill: 'vx91_det' });
+  h.g.detonateAt(h.p, v3(-20, 0), { radius: 2, coef: 1 }, { skill: 'vx91_det', rankMul: 1.5 });
   h.step(TRAP_FLASH_T + 0.05);
-  const rd = CM.rankCoef(h.p.skills.vx91_det);
-  near(mults[0], rd * 0.5, 'detonate.coef × rango de quien detona × burstMul');
-  near(mults[1], 1, 'sin habilidad conocida, × 1');
+  assert.ok(CM.rankCoef(h.p.skills.vx91_det) > 1, 'la habilidad que detona tiene rango > 1');
+  near(mults[0], 1.3 * 0.5, 'detonate.coef tal cual (una sola vez el rango) × burstMul');
+  near(mults[1], 1.5, 'opts.rankMul');
   // detonate.consume: false → estalla y se rearma
   const keep = trap(30, { burst: null, armT: 0.4 });
   h.g.detonateAt(h.p, v3(30, 0), { radius: 2, coef: 1, consume: false }, { skill: 'vx91_det' });
@@ -395,7 +484,15 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   assert.ok(!gone.dead, 'detonateField con consume:false');
   h.g.detonateField(gone, { coef: 1, delay: 0 });
   assert.ok(gone.dead, 'sin él, se gasta');
-  console.log('Trampa: estallido sin golpe directo, × rango (rankMul o el de su habilidad), burstMul, detonar por rango y consume:false ✓');
+  // el ⑤ sin daño del salto es del héroe dueño: una trampa de otro dueño no lo emite
+  const foe = h.enemy({ hp: 1e6, pos: [60, 0, 3] });
+  h.g.spawnField('trampa', { pos: v3(50, 0), radius: 1, dur: 20, owner: foe, data: { dmg: 100, coef: 0.6, skill: 'vx91_cepo', armT: 0, hitDot: { kind: 'poison', coef: 0.6, dur: 5 } } });
+  const mine2 = h.g.spawnField('trampa', { pos: v3(54, 0), radius: 1, dur: 20, owner: h.p, data: { dmg: 100, coef: 0.6, skill: 'vx91_cepo', armT: 0, hitDot: { kind: 'poison', coef: 0.6, dur: 5 } } });
+  const s1 = h.enemy({ hp: 1e6, pos: [50, 0, 0] }), s2 = h.enemy({ hp: 1e6, pos: [54, 0, 0] });
+  h.step(DT * 2);
+  assert.ok(mine2.dead && of(s2, x => x.source === 'field:trampa').length === 1, 'la del héroe: su ⑤');
+  assert.equal(of(s1, x => x.source === 'field:trampa').length, 0, 'la de otro dueño: sin ⑤');
+  console.log('Trampa: estallido sin golpe directo, × rango (rankMul, data.rank o el de su habilidad) una vez, burstMul, detonar sin reescalar, consume:false y ⑤ solo del héroe ✓');
 }
 
 // ------------------------------------------------ 7) Punto Débil: una vez por enemigo cada 8 s
@@ -420,12 +517,43 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   const o = h.enemy({ hp: 1e6, pos: [0, 0, 3] });
   applyHitEffects(h.g, h.p, o, prof, 0);
   assert.equal(o.marks.vx91_pd.firstCharged, 30, 'por enemigo: otro enemigo lo tiene');
+  // Rastreo Múltiple (mark.count 3, radius 4): la regla vale en CADA enemigo marcado, también en los
+  // vecinos que reparte g.applyMark. t=0 sobre A (A, B y C con premio); t=2 sobre B: ninguno lo
+  // recupera (A y C lo gastaron en t=0 y B lo guarda); t=3 sobre A: C, sin premio desde t=0, tampoco
+  const multi = { id: 'vx91_multi', tags: new Set(), mark: { id: 'vx91_pm', dur: 6, uses: 1, firstCharged: 30, count: 3, radius: 4 } };
+  const A = h.enemy({ hp: 1e6, pos: [20, 0, 0] }), B = h.enemy({ hp: 1e6, pos: [21, 0, 0] }), C = h.enemy({ hp: 1e6, pos: [20, 0, 1.5] });
+  const fc = x => x.marks?.vx91_pm?.firstCharged ?? null;
+  const tick2 = s => { for (let t = 0; t < s - 1e-9; t += 0.1) { h.p.simT += 0.1; for (const x of [A, B, C]) x.tickStun(0.1); } };
+  applyHitEffects(h.g, h.p, A, multi, 0);
+  assert.deepEqual([A, B, C].map(fc), [30, 30, 30], 't=0: los tres con premio');
+  delete A.marks.vx91_pm; delete C.marks.vx91_pm;             // A y C lo gastan
+  tick2(2);
+  applyHitEffects(h.g, h.p, B, multi, 0);
+  assert.deepEqual([A, B, C].map(fc), [null, 30, null], 't=2 sobre B: B conserva el suyo; A y C, la marca sin premio');
+  tick2(1);
+  applyHitEffects(h.g, h.p, A, multi, 0);
+  assert.deepEqual([A, B, C].map(fc), [null, 30, null], 't=3 sobre A: igual');
+  tick2(5.1);
+  delete B.marks.vx91_pm;
+  applyHitEffects(h.g, h.p, C, multi, 0);
+  assert.deepEqual([A, B, C].map(fc), [30, 30, 30], 'a los 8 s del primero, otra vez en los tres');
+  // la marca viva de OTRO héroe no le guarda el premio a este: cada héroe, su propia cuenta
+  const p2 = { simT: h.p.simT, pos: h.p.pos.clone(), stats: {} };
+  const D = h.enemy({ hp: 1e6, pos: [-20, 0, 0] });
+  applyHitEffects(h.g, h.p, D, prof, 0);
+  delete D.marks.vx91_pd;
+  h.p.simT += 1; p2.simT = h.p.simT;
+  applyHitEffects(h.g, p2, D, prof, 0);
+  assert.ok(D.marks.vx91_pd.by === p2 && D.marks.vx91_pd.firstCharged === 30, 'otro héroe: su primera marca, con premio');
+  h.p.simT += 1;
+  applyHitEffects(h.g, h.p, D, prof, 0);
+  assert.ok(D.marks.vx91_pd.by === h.p && D.marks.vx91_pd.firstCharged === null, 'la del otro no le vale: a los 2 s, sin premio');
   // preguntar dos veces en el mismo instante (applyHitEffects y g.applyMark) da lo mismo
   const q = h.enemy({ hp: 1e6, pos: [0, 0, -3] });
   assert.ok(q.firstChargedOk(h.p, 'vx91_q') && q.firstChargedOk(h.p, 'vx91_q'), 'mismo instante: idempotente');
   tick(0.5);
   assert.equal(q.firstChargedOk(h.p, 'vx91_q'), false, 'medio segundo después (sin marca viva): no');
-  console.log('Punto Débil: el premio de la marca, una vez por enemigo cada 8 s aunque se remarque ✓');
+  console.log('Punto Débil: el premio de la marca, una vez por enemigo y héroe cada 8 s aunque se remarque (también los vecinos de Rastreo Múltiple) ✓');
 }
 
 // ------------------------------------------------ 8) registro de estallidos con la clave de la trampa

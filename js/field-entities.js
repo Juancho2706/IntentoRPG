@@ -27,12 +27,13 @@
 // zarzal); `data.fieldDur: false` deja fuera hasta una trampa. Una zona sin marca no cambia:
 // el comportamiento que la marca toma su final del campo devuelto (f.dur), no de su `dur` local.
 // Cola W2d: la trampa genérica aplica su data.hitDot al saltar (renueva) en vez del golpe directo
-// y, con estallido, quien la pisa no recibe además ese golpe (sigue el ⑤ con hit.trap); el estallido
-// (trap.burst.coef) y la detonación (detonate.coef) escalan con el RANGO (× rankCoef: data.rankMul o
-// el rango de data.skill del dueño; detonateAt, el de la habilidad que detona) y con data.burstMul;
-// detonate.consume: false estalla sin gastar la trampa; el registro de estallidos guarda la clave
-// de la trampa (un Racimo = una) y trapBurstsWithin(owner, s, { distinct: true }) cuenta trampas.
-// g.expireField(f) (público) y g.stopDash(p) (Player.stopDash: detener un avance lento).
+// y, con estallido, quien la pisa no recibe además ese golpe (sigue el ⑤ con hit.trap). RANGO (regla
+// común con W2d-A, una sola vez): el estallido propio (data.burst.coef, crudo de la definición) ×
+// rankCoef(data.rank) aquí (o data.rankMul; sin ninguno, el rango de data.skill del dueño); la
+// detonación (detonate.coef) ya llega escalada del perfil (skill-resolve: prof.detonate) y detonateAt
+// no la reescala. Los dos × data.burstMul. detonate.consume: false estalla sin gastar la trampa; el
+// registro de estallidos guarda la clave de la trampa (un Racimo = una) y trapBurstsWithin(owner, s,
+// { distinct: true }) cuenta trampas. g.expireField(f) (público) y g.stopDash(p) (Player.stopDash).
 import * as THREE from 'three';
 import { fieldDurationWithTalents, rankCoef } from './combat-math.js';
 
@@ -95,8 +96,9 @@ function skillRankMul(owner, skill) {
   const r = skill ? (owner?.resolved?.[skill]?.rank ?? owner?.skills?.[skill]) : 0;
   return r > 0 ? rankCoef(r) : 1;
 }
-// × rango de una trampa: data.rankMul (lo pone quien la coloca) o el rango de data.skill del dueño
-const trapRankMul = f => f.data?.rankMul ?? skillRankMul(f.owner, f.data?.skill);
+// × rango del estallido de una trampa: data.rankMul (multiplicador ya hecho), data.rank (el rango de
+// la habilidad que la colocó: game-skills) o, sin ninguno, el rango de data.skill del dueño
+const trapRankMul = f => f.data?.rankMul ?? (f.data?.rank > 0 ? rankCoef(f.data.rank) : skillRankMul(f.owner, f.data?.skill));
 // instante de una entrada del registro de estallidos (número de antes o { t, x, z, key })
 const burstT = b => (typeof b === 'number' ? b : (b?.t ?? -Infinity));
 
@@ -104,7 +106,7 @@ const burstT = b => (typeof b === 'number' ? b : (b?.t ?? -Infinity));
 // hit.trap y source 'field:trampa', como el golpe de antes (Red de Caza, el Coto lo escuchan)
 function springHit(g, f, e, hitOpts) {
   e.aggroed = true;
-  if (!g.player || !g.onPlayerHit) return;
+  if (!isHeroOwner(g, f.owner) || !g.onPlayerHit) return;
   g.onPlayerHit(e, { dealt: 0, raw: 0, crit: false, skill: hitOpts.skill, tags: hitOpts.tags, elem: null, proc: false, dot: false,
     source: hitOpts.source, pos: { x: e.pos.x, z: e.pos.z }, perfect: false, step: 0, repeat: 0, echo: false, detonated: false, trap: hitOpts.trap });
 }
@@ -247,9 +249,9 @@ export const fieldMethods = {
 
   // ---------------- detonar (§3.6) ----------------
   // DETONA un campo: su `onDetonate` (trampas de clase) o el estallido de la trampa genérica.
-  // Parpadea TRAP_FLASH_T s y estalla (opts.delay = 0: al instante). opts = { coef (ya × rango de
-  // quien detona), radius, perTarget: { map, max }, skill, chain (m), done:Set, consume (false:
-  // estalla y se rearma) }. → true si va a estallar.
+  // Parpadea TRAP_FLASH_T s y estalla (opts.delay = 0: al instante). opts = { coef (el de la
+  // detonación, con su rango), radius, perTarget: { map, max }, skill, chain (m), done:Set, consume
+  // (false: estalla y se rearma) }. → true si va a estallar.
   detonateField(f, opts = {}) {
     if (!f || f.dead || f._detonating) return false;
     const def = FIELD_DEFS[f.kind];
@@ -281,13 +283,13 @@ export const fieldMethods = {
   },
   // DETONAR en un punto (clave `detonate: { radius, coef, chain, perTarget, consume }` de un impacto o
   // de una llegada): estalla las trampas propias cuyo centro cae en el radio; cada enemigo
-  // recibe como mucho perTarget estallidos (2 por defecto). `det` va CRUDO (el de la definición):
-  // coef × el rango de `skill` del dueño (o rankMul); consume: false no gasta las trampas.
-  // → nº de trampas detonadas
-  detonateAt(owner, pos, det = {}, { skill = null, rankMul = null } = {}) {
+  // recibe como mucho perTarget estallidos (2 por defecto). det.coef va como llega: el del perfil ya
+  // trae el rango (prof.detonate); un poder que pase uno crudo da su multiplicador en `rankMul`.
+  // consume: false no gasta las trampas. → nº de trampas detonadas
+  detonateAt(owner, pos, det = {}, { skill = null, rankMul = 1 } = {}) {
     if (!owner || !pos) return 0;
     const r = det.radius || 3;
-    const opts = { coef: (det.coef ?? 1) * (rankMul ?? skillRankMul(owner, skill)), chain: det.chain || 0, skill,
+    const opts = { coef: (det.coef ?? 1) * (rankMul ?? 1), chain: det.chain || 0, skill,
       perTarget: { map: new Map(), max: Math.max(1, det.perTarget ?? 2) }, done: new Set(), consume: det.consume };
     let n = 0;
     for (const f of this.fieldsOf(owner)) {
@@ -530,7 +532,8 @@ defineField('aura', {
 // hit.trap. Se consume (consume:false: se rearma). `lure` (cebo) atrae a los enemigos mientras
 // está armada (g.lureStep). La detona g.detonateField / g.detonateAt (estallido, con parpadeo previo).
 // data = { dmg, coef, root, color, skill, tags, elem, armT, burst, consume, lure, hitDot,
-//          rankMul (× rango del estallido), burstMul (× estallido), cluster (clave del registro) }
+//          rank (rango de la habilidad: × rankCoef al estallido), rankMul (el multiplicador ya hecho,
+//          manda sobre rank), burstMul (× estallido y detonación), cluster (clave del registro) }
 // ------------------------------------------------------------
 defineField('trampa', {
   name: 'Trampa',

@@ -30,6 +30,9 @@ import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource
 
 const EMPTY_TAGS = new Set();
 const isBossDef = d => !!(d?.boss || d?.uber || d?.worldBoss);
+// stats que SOLO suma la innata de la especialización (recompute): ningún objeto, nodo, era ni
+// buff las sube. Los topes propios del Guardián (combat-math.drCapOf/blockCapOf: 65 % y 50 %)
+export const INNATE_ONLY_STATS = Object.freeze(['drCapAdd', 'blockCapAdd']);
 // ¿es un escudo? (la innata de bloqueo del Guardián solo cuenta con uno equipado)
 export function isShieldItem(it) {
   return !!it && !it.unidentified && it.slot === 'offhand' && (it.icon === '🛡️' || /escudo/i.test(it.baseName || it.name || ''));
@@ -86,15 +89,29 @@ export function applyHitEffects(g, p, e, prof, avgHit, opts = {}) {
     }
     if (prof.knock > 0) e.displace?.(from, prof.knock, { toward: false, src: p });
   }
-  if (e.alive && prof.mark && g?.applyMark) {
-    // Punto Débil (mark.firstCharged): remarcar refresca la marca, pero su premio llega como mucho
-    // una vez por enemigo cada FIRST_CHARGED_ICD s (Enemy.firstChargedOk)
-    const m = prof.mark;
-    const keep = !m.firstCharged || !e.firstChargedOk || e.firstChargedOk(p, m.id || prof.id, m.firstIcd);
-    g.applyMark(e, keep ? prof : { ...prof, mark: { ...m, firstCharged: null } }, p);
-  }
+  if (e.alive && prof.mark && g?.applyMark) markOnce(g, p, e, prof);
   // provocar a los golpeados (clave `taunt`, s): Carga de Escudo, Golpe de Escudo
   if (e.alive && prof.taunt > 0) e.applyCC?.('taunt', prof.taunt, { src: p });
+}
+
+// Pone la marca del perfil (g.applyMark: el blanco y, con mark.count/radius, sus vecinos). Punto
+// Débil (mark.firstCharged): remarcar refresca la marca, pero su premio llega como mucho una vez
+// por enemigo cada FIRST_CHARGED_ICD s (Enemy.firstChargedOk), en CADA enemigo que la recibe. Se
+// decide con la marca que tenía antes (la que aún guarda el premio es la misma concesión)
+function markOnce(g, p, e, prof) {
+  const m = prof.mark;
+  p = p || g.player;
+  if (!m.firstCharged) { g.applyMark(e, prof, p); return; }
+  const id = m.id || prof.id;
+  const reach = m.count > 1 && m.radius > 0 ? m.radius + 1e-6 : 0;
+  const before = new Map([[e, e.marks?.[id]]]);
+  if (reach) for (const o of g.enemies || []) if (o !== e && o.alive && o.pos.distanceTo(e.pos) <= reach) before.set(o, o.marks?.[id]);
+  g.applyMark(e, prof, p);
+  for (const [o, prev] of before) {
+    const got = o.marks?.[id];
+    if (!got || got === prev || !got.firstCharged || !o.firstChargedOk) continue;   // no la recibió ahora
+    if (!o.firstChargedOk(p, id, m.firstIcd, prev || null)) got.firstCharged = null;
+  }
 }
 
 function rand(min, max) { return min + Math.random() * (max - min); }
@@ -738,11 +755,11 @@ export class Player {
                    // Paso 2 (cola W2): puntos que suma lo que PARA un bloqueo (Escudo Alzado;
                    // combat-math.blockReduction: 50 + blockPower, tope 90)
                    blockPower: 0,
-                   // Paso 2 (cola W2d): topes propios de reducción de daño y de bloqueo (innata
-                   // del Guardián: combat-math.drCapOf/blockCapOf), % de coste de TODAS las
-                   // habilidades con coste (Sello del Archimago) y % de velocidad de habilidades
-                   // (giros y saltos: Sangre Hirviente); los dos últimos los lee la cola W2d-A
-                   drCapAdd: 0, blockCapAdd: 0, costPct: 0, skillSpeedPct: 0 };
+                   // Paso 2 (cola W2d): % de coste de TODAS las habilidades con coste (Sello del
+                   // Archimago) y % de velocidad de habilidades (giros y saltos: Sangre Hirviente);
+                   // los lee la cola W2d-A (skill-resolve). Los topes propios (INNATE_ONLY_STATS)
+                   // no van en este saco: solo los da la innata
+                   costPct: 0, skillSpeedPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -829,10 +846,13 @@ export class Player {
     // incondicionales de tv: daño crítico (saco aditivo) y reducción de daño
     if (agg.tv.critDmg) item.critDmg += agg.tv.critDmg;
     if (agg.tv.dmgReduc) item.dr += agg.tv.dmgReduc;
-    // pasivas INNATAS de la especialización (§5.2.5): el bloqueo solo con escudo
+    // pasivas INNATAS de la especialización (§5.2.5): el bloqueo solo con escudo; los topes
+    // propios (INNATE_ONLY_STATS) solo desde aquí
     const inn = agg.innate || {};
+    const capAdd = Object.fromEntries(INNATE_ONLY_STATS.map(k => [k, 0]));
     for (const [k, v] of Object.entries(inn)) {
-      if (k === 'block') { if (isShieldItem(this.equipment.offhand)) item.block += v; }
+      if (k in capAdd) capAdd[k] += v;
+      else if (k === 'block') { if (isShieldItem(this.equipment.offhand)) item.block += v; }
       else if (k === 'threatMult') item.threatMult += Math.max(0, v - 1);   // ×3 → +2 sobre el ×1 base
       else if (k in item) item[k] += v;
     }
@@ -903,9 +923,9 @@ export class Player {
       lph: item.lph, mph: Math.min(CAPS.mph, item.mph), thorns: item.thorns,   // recurso al golpear topado (§2)
       cdr: Math.min(CAPS.cdr, item.cdr), // tope de reducción de enfriamiento
       goldPct: Math.round(item.goldPct), // bonus de oro recogido (collar del pet)
-      // topes de reducción de daño y de bloqueo: los de CAPS o los propios (drCapAdd/blockCapAdd)
-      drCapAdd: item.drCapAdd, blockCapAdd: item.blockCapAdd,
-      dr: Math.min(drCapOf(item), item.dr), block: Math.min(blockCapOf(item), item.block),
+      // topes de reducción de daño y de bloqueo: los de CAPS o los propios de la innata
+      drCapAdd: capAdd.drCapAdd, blockCapAdd: capAdd.blockCapAdd,
+      dr: Math.min(drCapOf(capAdd), item.dr), block: Math.min(blockCapOf(capAdd), item.block),
       resFire: item.resFire, resCold: item.resCold, resLightning: item.resLightning, resPoison: item.resPoison,
       dodgeCdr: item.dodgeCdr, energyRegen: item.energyRegen, healPct: Math.min(CAPS.heal, item.healPct),
       spenderCostPct: Math.max(-100, item.spenderCostPct), projMissPct: Math.min(100, Math.max(0, item.projMissPct)),
@@ -1588,14 +1608,18 @@ export class Player {
 
   // ALCANCE del disparo del básico de arma (cola W2d): el de la definición forjada (def.range) o,
   // sin él, atkRange + 2 (lo que siempre voló), × prof.rangeMul (Dardo Veloz +20 %). Con `t` (s de
-  // carga de un básico TENSADO) y charge.scale.range en el perfil, la escala da los metros (Vista Larga)
+  // carga de un básico TENSADO), la escala de su carga: charge.scale.range da los metros (nunca
+  // menos que sin tensar) y charge.scale.rangeAdd los SUMA (Vista Larga: +2 m por rango)
   basicRange(t = null) {
     const wb = weaponBasicOf(this.cls);
     const prof = wb ? resolveSkill(this, wb) : null;
     const def = prof?.def || wb;
     let base = def?.range > 0 ? def.range : (this.cls?.atkRange || 2) + 2;
-    const ch = prof?.charge, sc = ch?.scale?.range;
-    if (t != null && sc) { const v = chargeCoefAt(sc, t, ch.min || 0, ch.max || 1); if (v > 0) base = v; }
+    const ch = prof?.charge, sc = ch?.scale;
+    if (t != null && sc) {
+      const at = key => chargeCoefAt(sc[key], t, ch.min || 0, ch.max || 1) || 0;
+      base = Math.max(base, at('range')) + Math.max(0, at('rangeAdd'));
+    }
     return base * (prof?.rangeMul || 1);
   }
   // distancia a la que el básico se pone a disparar (clic-mover): atkRange y, a distancia, lo que el
@@ -1698,11 +1722,14 @@ export class Player {
     const speed = arrow ? 18 : 13;
     const size = arrow ? 0.09 : 0.17;
     // alcance del perfil (basicRange) y, en un básico tensado, el de su carga
-    let range = this.basicRange(ch && prof?.charge?.scale?.range ? (ch.t ?? 0) : null);
-    if (ch?.rangeMul > 0 && !prof?.charge?.scale?.range) range *= ch.rangeMul;
+    const chScale = prof?.charge?.scale;
+    const scaled = !!(ch && (chScale?.range || chScale?.rangeAdd));
+    let range = this.basicRange(scaled ? (ch.t ?? 0) : null);
+    if (ch?.rangeMul > 0 && !scaled) range *= ch.rangeMul;
     // SALPICADURA nativa (clave `splash` del perfil, en prof.radius alrededor del impacto): golpes de
-    // la habilidad con source 'splash', sin el objetivo directo ni quien ya recibió esta habilidad en
-    // este instante (otra flecha del disparo o el estallido de un poder: no se repite ni encadena)
+    // la habilidad con source 'splash'. Un enemigo recibe el ataque UNA vez (castHits: ni la flecha
+    // que llega después ni otra salpicadura) y no repite con quien ya recibió esta habilidad en este
+    // instante (el estallido de un poder: no se encadena)
     const splashR = prof?.splash > 0 && prof.radius > 0 ? prof.radius : 0;
     const splashAt = (e, c) => {
       if (!splashR || !e) return;
@@ -1710,9 +1737,10 @@ export class Player {
       const sc = prof.splash * (prof.coef > 0 ? c / prof.coef : 1);
       let hits = 0;
       for (const o of g.enemies.slice()) {
-        if (o === e || !o.alive || o._hitAt?.[hitInfo.skill] === now) continue;
+        if (o === e || !o.alive || castHits?.has(o) || o._hitAt?.[hitInfo.skill] === now) continue;
         const r = splashR + 0.5 * (o.def?.scale || 1);
         if (o.pos.distanceToSquared(at) > r * r) continue;
+        castHits?.add(o);
         const { dmg, crit } = this.rollDamage(sc, bCrit, bAdd, o, hitInfo);
         o.takeDamage(dmg, crit, { ...dmgOpts, color, source: 'splash' });
         onHit(o);
@@ -1730,7 +1758,8 @@ export class Player {
     const muzzle = this.pos.clone().setY(1.0)
       .add(new THREE.Vector3(Math.sin(baseAngle) * 0.45, 0, Math.cos(baseAngle) * 0.45));
     g.emitFx?.(fxp(fx?.aura || fx?.trail) || (arrow ? 'basicArrow' : 'basicBolt'), muzzle);
-    const castHits = count > 1 || seq?.nth ? new Set() : null;   // sin escopetazo: un impacto por enemigo
+    // sin escopetazo: un impacto por enemigo (con salpicadura, también entre flechas y salpicaduras)
+    const castHits = count > 1 || seq?.nth || splashR ? new Set() : null;
     const shoot = (a, c, pierce) => {
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
       g.spawnProjectile({
@@ -1863,8 +1892,9 @@ export class Enemy {
       if (kind === 'stun' || kind === 'freeze' || kind === 'root' || kind === 'knock' || kind === 'fear') {
         return this.addStagger(staggerFromCC(kind, dur, { staggerPct: sp }), opts.src, { raw: true });
       }
-      if (kind === 'slow' && (opts.pct ?? 50) >= STAGGER_SLOW_MIN_PCT) {
-        // ralentización reaplicada: solo los segundos que alargan la que ya llenó Quebranto
+      if (kind === 'slow' && (opts.pct ?? 50) >= STAGGER_SLOW_MIN_PCT && this.staggerOpen()) {
+        // ralentización reaplicada: solo los segundos que alargan la que ya llenó Quebranto (con
+        // la barra cerrada no llena ni cuenta como pagada)
         const secs = slowStaggerSecs(dur, this.slowStagT);
         this.slowStagT = Math.max(this.slowStagT || 0, dur);
         if (secs > 0) this.addStagger(staggerFromCC('slow', secs, { pct: opts.pct ?? 50, staggerPct: sp }), opts.src, { raw: true });
@@ -1934,6 +1964,7 @@ export class Enemy {
         if (!from) return 0;
         this.fearT = d;
         this.fearFrom = { x: from.x, z: from.z };
+        this._fleeSide = this.uid % 2 ? 1 : -1;                    // lado al rodear un muro (_fleeStep)
         this.stunDR = Math.min(1, dr + 0.35);
         this.interruptCast();                                      // corta un lanzamiento interrumpible
         return d;
@@ -1964,22 +1995,25 @@ export class Enemy {
     return active() < before;
   }
 
-  // Punto Débil (mark.firstCharged, cola W2d): ¿esta marca de `p` puede llevar su premio? Una marca
-  // viva que aún lo guarda es la misma concesión; si no, como mucho una vez cada `icd` s (8 por
-  // defecto) aunque se remarque. Si lo concede, lo apunta (preguntar otra vez en el mismo instante
-  // da lo mismo: applyHitEffects y g.applyMark pueden preguntar los dos)
-  firstChargedOk(p, id, icd = FIRST_CHARGED_ICD) {
-    const live = this.marks?.[id];
+  // Punto Débil (mark.firstCharged, cola W2d): ¿la marca `id` que `p` pone ahora puede llevar su
+  // premio? `live` = la marca que tenía antes de ponerla (null: ninguna; omitido, la de ahora:
+  // pregúntese ANTES de sobrescribirla). Si es de `p` y aún guarda el premio, es la misma
+  // concesión; si no, como mucho una vez cada `icd` s (8 por defecto) por héroe aunque se
+  // remarque. Si lo concede, lo apunta; preguntar otra vez en el mismo instante da lo mismo
+  firstChargedOk(p, id, icd = FIRST_CHARGED_ICD, live = this.marks?.[id]) {
+    if (!p) return true;
     if (live && live.t > 0 && live.by === p && live.firstCharged) return true;
-    const now = p?.simT || 0;
-    const rec = this._firstAt || (this._firstAt = {});
-    const at = rec[id];
-    if (at && at.by === p) {
-      const since = now - at.t;
+    const now = p.simT || 0;
+    const rec = this._firstAt || (this._firstAt = new WeakMap());   // héroe → { id: instante }
+    let mine = rec.get(p);
+    if (!mine) rec.set(p, mine = {});
+    const at = mine[id];
+    if (at != null) {
+      const since = now - at;
       if (since <= 1e-9) return true;
       if (since < (icd ?? FIRST_CHARGED_ICD) - 1e-9) return false;
     }
-    rec[id] = { by: p, t: now };
+    mine[id] = now;
     return true;
   }
 
@@ -1991,12 +2025,14 @@ export class Enemy {
   // Vulnerable); después la barra queda bloqueada STAGGER_LOCK_T s. Devuelve lo sumado.
   addStagger(n, src = null, { raw = false } = {}) {
     if (!(n > 0) || !this.alive || !isBossDef(this.def)) return 0;
-    if (this.staggerBrokenT > 0 || this.staggerLockT > 0) return 0;
+    if (!this.staggerOpen()) return 0;
     const add = raw ? n : n * Math.max(0, 1 + (src?.stats?.staggerPct || 0) / 100);
     this.stagger = Math.min(STAGGER_MAX, (this.stagger || 0) + add);
     if (this.stagger >= STAGGER_MAX) this.breakStagger();
     return add;
   }
+  // ¿la barra admite Quebranto? (ni Quebrantado ni bloqueada)
+  staggerOpen() { return !(this.staggerBrokenT > 0 || this.staggerLockT > 0); }
   breakStagger() {
     this.stagger = 0;
     this.staggerBrokenT = STAGGER_BREAK_T;
@@ -2161,6 +2197,8 @@ export class Enemy {
     if (!this.alive || !from || !(dist > 0)) return 0;
     const g = this.game;
     if (isBossDef(this.def)) {
+      // con la barra cerrada (Quebrantado o bloqueada) ni llena ni sube la resistencia
+      if (!this.staggerOpen()) return 0;
       const sp = src?.stats?.staggerPct || 0;
       const dr = this.dispStagDR || 0;
       this.dispStagDR = Math.min(1, dr + STAGGER_DISPLACE_DR.add);
@@ -2349,23 +2387,32 @@ export class Enemy {
   _moveSpd() {
     return this.def.spd * (this.slowT > 0 ? 0.45 : 1) * (this.rallyT > 0 ? 1.2 : 1) * (this.rootT > 0 ? 0 : 1) * (this.numbT > 0 ? 0.7 : 1);
   }
-  // un paso de HUIDA (miedo, cola W2d): se aleja de fearFrom; contra un muro, lo rodea en perpendicular
+  // un paso de HUIDA (miedo, cola W2d): se aleja de fearFrom. Contra un muro (avanza menos de la
+  // mitad) lo rodea de lado con lo que le falta, siempre hacia el mismo (_fleeSide; en una esquina,
+  // cambia de lado)
   _fleeStep(dt) {
     if (this.slowT > 0) this.slowT -= dt;
-    const f = this.fearFrom, spd = this._moveSpd();
-    if (!f || !(spd > 0)) return;
+    const f = this.fearFrom, want = this._moveSpd() * dt;
+    if (!f || !(want > 0)) return;
     let ux = this.pos.x - f.x, uz = this.pos.z - f.z;
     const l = Math.hypot(ux, uz);
     if (l < 1e-4) { ux = 0; uz = 1; } else { ux /= l; uz /= l; }
     const grid = this.game.world?.grid;
     const step = (x, z) => {
-      if (grid) moveWithCollision(grid, this.pos, x * spd * dt, z * spd * dt, 0.3);
-      else { this.pos.x += x * spd * dt; this.pos.z += z * spd * dt; }
+      if (grid) moveWithCollision(grid, this.pos, x, z, 0.3);
+      else { this.pos.x += x; this.pos.z += z; }
     };
     const bx = this.pos.x, bz = this.pos.z;
-    step(ux, uz);
-    if ((this.pos.x - bx) ** 2 + (this.pos.z - bz) ** 2 < 1e-10) { step(-uz, ux); this.group.rotation.y = Math.atan2(-uz, ux); }
-    else this.group.rotation.y = Math.atan2(ux, uz);
+    step(ux * want, uz * want);
+    const moved = Math.hypot(this.pos.x - bx, this.pos.z - bz);
+    if (moved < want * 0.5) {
+      const side = this._fleeSide || 1, rest = want - moved;
+      const sx = this.pos.x, sz = this.pos.z;
+      step(-uz * side * rest, ux * side * rest);
+      if (Math.hypot(this.pos.x - sx, this.pos.z - sz) < rest * 0.5) this._fleeSide = -side;
+    }
+    const mx = this.pos.x - bx, mz = this.pos.z - bz;
+    if (mx * mx + mz * mz > 1e-10) this.group.rotation.y = Math.atan2(mx, mz);
   }
 
   _updateAI(dt) {
