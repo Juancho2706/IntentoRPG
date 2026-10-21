@@ -373,11 +373,15 @@ function hawkTarget(g, p) {
   if (e?.alive && now(p) - (st.targetAt ?? -99) <= T.recent && dist2(e.pos, p.pos) <= T.range * T.range) return e;
   return foesNear(g, p.pos, T.near)[0] || null;
 }
-// Cielo de Halcones: cada picado busca a OTRO enemigo (el más cercano sin marca)
+// Cielo de Halcones: cada picado busca a OTRO enemigo (el más cercano que aún no cayó en esta
+// tormenta; si ya cayeron todos, cualquiera menos el último)
 function skyTarget(g, p) {
   const st = powerState(p, 'y_halcon');
+  const seen = st.skySeen || (st.skySeen = new WeakSet());
   const list = foesNear(g, p.pos, tune().hawk.near);
-  return list.find(e => e !== st.lastDive && !hawkMarked(p, e)) || list.find(e => e !== st.lastDive) || list[0] || null;
+  const e = list.find(o => !seen.has(o)) || list.find(o => o !== st.lastDive) || list[0] || null;
+  if (e) seen.add(e);
+  return e;
 }
 // el marcado recibe +10 % de tus flechas 6 s (Ojo Compartido: 12 s y varios a la vez);
 // Presa Señalada (Montaraz): cuenta como tu Presa
@@ -551,8 +555,9 @@ export function arqueraPowers() {
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_paso') return;
         const T = tune().cls.abrojos;
-        g.spawnField?.('zona', { pos: p.pos.clone().setY(0), radius: T.radius, dur: T.dur, owner: p,
+        const f = g.spawnField?.('zona', { pos: p.pos.clone().setY(0), radius: T.radius, dur: T.dur, owner: p,
           data: { dps: 0, slow: T.slowT, slowPct: T.slowPct, color: T.color, skill: 'a_paso_abrojos' } });
+        if (f) f.acc = f.data.interval;                              // el primer pulso, ya en el siguiente tic
       },
     },
     // c14B Paso Sanador: Paso Veloz te cura un 6 % (cubeta de autocuración; una vez cada 12 s)
@@ -1030,6 +1035,7 @@ export function arqueraPowers() {
         if (st.cycle + 1e-9 < T.every) return;
         st.cycle -= T.every;
         st.storm = T.dur;
+        powerState(p, 'y_halcon').skySeen = new WeakSet();          // cada tormenta reparte de nuevo
         g.ui?.spawnText?.(p.pos, '¡Cielo de Halcones!', 'txt-crit');
       },
     },
