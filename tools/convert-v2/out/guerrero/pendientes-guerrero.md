@@ -88,7 +88,7 @@
 ## Guardián (d0…28)
 
 - [ ] **d0 Pie Firme (clave, gratis)** — NUEVO · `mecánica bastion rehecha (plantedEvery 2, moveLossEvery 2, drPerCharge 4, descarga al cambiar de postura) · NUEVO; m_aegis sale`
-- [ ] **d1 Escudo Alzado** — NUEVO · `stats.blockPower · NUEVO (combat-math: BLOCK_REDUCTION + blockPower/100; antes +15 % de bloqueo, que chocaba con CAPS.block)` · traducir: `stats.blockPower: pendiente de la cola W2 (combat-math + recompute (cola W2))`
+- [ ] **d1 Escudo Alzado** — NUEVO · `stats.blockPower · NUEVO (combat-math: BLOCK_REDUCTION + blockPower/100; antes +15 % de bloqueo, que chocaba con CAPS.block)`
 - [ ] **d2 Puño Telúrico** — existe · `mod terremoto dmg · existe`
 - [ ] **d3 Paso Pesado** — existe · `mod g_carga_escudo cdr · existe`
 - [ ] **d4 Contragolpe** — NUEVO · `power g_d_contragolpe · NUEVO (④ onDamaged blocked, icd 1)`

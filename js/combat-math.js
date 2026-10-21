@@ -27,7 +27,8 @@
 //             (3) mayores activos a la vez.
 //
 // DEFENSA (en capas, todas multiplicativas entre sí):
-//   1) bloqueo (opcional): prob. topada en CAPS.block, reduce el golpe BLOCK_REDUCTION
+//   1) bloqueo (opcional): prob. topada en CAPS.block; para BLOCK_REDUCTION + blockPower/100
+//      del golpe, con tope BLOCK_REDUCTION_MAX (blockReduction)
 //   2) armadura: solo daño físico; arm/(arm + K(AL)); tope CAPS.armor (75 %)
 //   3) resistencia elemental (fuego/frío/rayo/veneno): tope CAPS.res (70 %), 0 por defecto
 //   4) reducción de daño % (saco escaso): Π(1−r) de las fuentes, tope CAPS.dr
@@ -63,7 +64,8 @@ export const VULN_PCT = 20;            // Vulnerable: +20 puntos en el saco Debi
 export const WEAKNESS_CAP = 1.5;       // tope del saco Debilidad
 export const VULN_MULT = 1 + VULN_PCT / 100; // (compat) Vulnerable solo = ×1,2
 export const MAX_MULT_ACTIVE = 3;      // nº máximo de multiplicadores [×] activos
-export const BLOCK_REDUCTION = 0.5;    // un golpe bloqueado pierde el 50 %
+export const BLOCK_REDUCTION = 0.5;    // un golpe bloqueado pierde el 50 % (+ stat blockPower)
+export const BLOCK_REDUCTION_MAX = 0.9; // tope: un bloqueo nunca para todo el golpe
 export const LEECH_CAP_PER_SEC = 0.06; // cubeta de SUSTENTO: máx. 6 % de la vida máx. por segundo
 export const MAIN_STAT_PER_POINT = 0.01; // +1 % de daño por punto de atributo principal
 export const VOLATILE_COEF = 0.5;      // Volátil: 50 % del golpe medio del héroe
@@ -343,6 +345,11 @@ export function ccDurationWithTalents(kind, dur, tv = null) {
   if (kind === 'freeze' && tv.freezeDur) return dur + tv.freezeDur;
   return dur;
 }
+// duración de una trampa o un zarzal PROPIOS con tv.fieldDur (+%: Ojo de Trampera); la aplica spawnField
+export function fieldDurationWithTalents(dur, tv = null) {
+  const pct = tv?.fieldDur || 0;
+  return pct ? dur * Math.max(0, 1 + pct / 100) : dur;
+}
 // probabilidad de crítico condicional por claves tv (se suma al critBonus del golpe):
 //   burningCrit   contra enemigos en llamas (Calor Abrasador)
 export function condCritPct(tv = {}, c = {}) {
@@ -442,6 +449,11 @@ export function resistance(stats, element) {
 // Reducción de daño genérica (saco escaso): se guarda como % sumado en stats.dr
 // (cada fuente debería ser pequeña); tope CAPS.dr.
 export function damageReduction(stats) { return Math.max(0, Math.min(CAPS.dr, stats?.dr || 0)) / 100; }
+// Lo que PARA un bloqueo (fracción del golpe): BLOCK_REDUCTION + blockPower/100 (Escudo
+// Alzado, Aguante de Roca), con tope BLOCK_REDUCTION_MAX
+export function blockReduction(stats) {
+  return Math.max(0, Math.min(BLOCK_REDUCTION_MAX, BLOCK_REDUCTION + (stats?.blockPower || 0) / 100));
+}
 
 // Mitiga un golpe entrante. opts: { al, element='phys', rng=Math.random }
 // Devuelve { dmg, blocked, armorPct, resPct }.
@@ -451,7 +463,7 @@ export function mitigate(amount, stats, opts = {}) {
   let d = Math.max(0, amount || 0);
   let blocked = false;
   const blockCh = Math.max(0, Math.min(CAPS.block, stats?.block || 0));
-  if (blockCh > 0 && rng() * 100 < blockCh) { d *= 1 - BLOCK_REDUCTION; blocked = true; }
+  if (blockCh > 0 && rng() * 100 < blockCh) { d *= 1 - blockReduction(stats); blocked = true; }
   const armorPct = el === 'phys' ? armorReduction(stats?.arm || 0, opts.al || 1) : 0;
   const resPct = el === 'phys' ? 0 : resistance(stats, el);
   d *= (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats)) * takenMult(stats);
@@ -464,7 +476,7 @@ export function expectedMitigation(stats, al, element = 'phys') {
   const blockCh = Math.max(0, Math.min(CAPS.block, stats?.block || 0)) / 100;
   const armorPct = element === 'phys' ? armorReduction(stats?.arm || 0, al) : 0;
   const resPct = element === 'phys' ? 0 : resistance(stats, element);
-  return (1 - blockCh * BLOCK_REDUCTION) * (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats)) * takenMult(stats);
+  return (1 - blockCh * blockReduction(stats)) * (1 - armorPct) * (1 - resPct) * (1 - damageReduction(stats)) * takenMult(stats);
 }
 
 // ---------- cubeta de SUSTENTO (robo de vida y TODA cura por golpe/muerte) ----------
