@@ -1,5 +1,5 @@
 // ============================================================
-// VFX/SFX de las habilidades de la clase GUERRERO — dueño: trabajador de la clase (2b.1)
+// VFX/SFX de las habilidades de la clase GUERRERO — dueño: KA-guerrero (catálogo 2g)
 // ============================================================
 // js/fx-skills.js FUSIONA estos mapas en SKILL_FX / SKILL_FX_PRESETS (lo de la
 // clase pisa lo base con el mismo id).
@@ -8,7 +8,10 @@
 //    NOMBRE de uno existente (string). `sfx` es un nombre de js/sfx.js.
 //  - GUERRERO_FX_PRESETS: presets nuevos con nombre (se citan por string).
 // Los presets ajenos (fx-skills.js: whirlwind, brutalStrike, quakeDust, warCry…) se
-// citan por NOMBRE: importarlos formaría un ciclo. Columna VFX/SFX de §3.1.
+// citan por NOMBRE: importarlos formaría un ciclo. GUERRERO_FX: una entrada por habilidad del
+// catálogo 2g (los kits reutilizan los presets de 2b; los verbos —carga, postura, perfecto— los
+// dibuja el canal con los presets verb* de fx-skills.js). Los presets sin uso en GUERRERO_FX
+// se conservan: los citan los poderes de la clase.
 // Estética (fx-skills.js): físico = blanco/ámbar, sangre/furia = rojo, sagrado =
 // dorado pálido; counts moderados, vidas cortas.
 
@@ -260,38 +263,32 @@ export const GUERRERO_FX_PRESETS = {
 };
 
 export const GUERRERO_FX = {
-  // básicos (el Tajo lo dibuja Player.basicAttack con 'basicCleave'/'meleeHit')
+  // kit base (el Tajo lo dibuja Player.basicAttack con 'basicCleave'/'meleeHit')
   g_tajo:        { impact: 'basicCleave', color: 0xffbb66, sfx: 'hit' },
-  g_mandoble:    { impact: 'heavySwing', extra: 'meleeHit', color: 0xffc46a, sfx: 'crit' },
-  g_embate:      { aura: 'sweepRing', auraY: 0.6, color: 0xffbb66, sfx: 'hit' },
-  // gastadoras
-  torbellino:    { aura: 'whirlwind', extra: 'whirlwindInner', color: 0xcfd6e0, sfx: 'dash' },
   g_hendidura:   { impact: 'cleaveArc', aura: 'cleaveBlood', color: 0xd8302a, sfx: 'hit' },
-  g_martillo:    { impact: 'brutalStrike', aura: 'hammerShock', extra: 'brutalStrikeDust', color: 0xffd58a, sfx: 'hit' },
-  terremoto:     { impact: 'quakeFissure', color: 0x9a8c6e, sfx: 'hit' },
-  g_lanza:       { trail: 'piercingTrail', impact: 'meleeHit', color: 0xe8dcc0, sfx: 'shoot' },
-  // movilidad
   embestida:     { trail: 'chargeTrail', impact: 'chargeImpact', color: 0xffcf7a, sfx: 'dash' },
-  g_salto:       { impact: 'leapImpact', color: 0xffcc66, sfx: 'hit' },
-  // defensa / utilidad
   g_piel:        { aura: 'ironSkin', color: 0xb8c4d0, sfx: 'equip' },
-  g_provocacion: { aura: 'tauntShout', impact: 'tauntMark', color: 0xff5544, sfx: 'levelup' },
-  grito_guerra:  { aura: 'warCry', extra: 'warCryRing', color: 0xe08a2a, sfx: 'levelup' },
-  // definitivas
+  g_lanza:       { trail: 'piercingTrail', impact: 'meleeHit', color: 0xe8dcc0, sfx: 'shoot' },
+  // kit del Berserker (rojo sangre)
+  g_remolino:    { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash' },
+  g_salto:       { impact: 'leapImpact', color: 0xffcc66, sfx: 'hit' },
+  g_rajar:       { impact: 'cleaveArc', aura: 'bloodDrops', extra: 'cleaveBlood', color: 0xb0101c, sfx: 'hit' },
   g_u_furia:     { aura: 'furyAura', extra: 'warCryRing', color: 0xff5a3c, sfx: 'hurt' },
-  g_u_cataclismo:{ trail: 'holyFall', impact: 'holyImpact', aura: 'brutalStrikeWave', color: 0xffe7a0, sfx: 'holy' },
-  g_u_estandarte:{ aura: 'bannerAura', extra: 'bannerSparks', color: 0xd8a040, sfx: 'levelup' },
-  // activas de talento (Paso 2c.1; comportamientos en js/powers-guerrero.js)
+  // kit del Guardián (azul acero; el cambio de postura lo dibuja el canal con verbStance)
+  g_guardia:     { aura: 'shieldWall', color: 0x4a7ad8, sfx: 'equip' },
+  g_carga_escudo:{ trail: 'shieldChargeTrail', impact: 'chargeImpact', color: 0x6699ff, sfx: 'dash' },
+  terremoto:     { impact: 'quakeFissure', aura: 'quakeWave', extra: 'quakeRocks', auraY: 0.2, color: 0x9a8c6e, sfx: 'hit' },
+  g_u_ciudadela: { aura: 'shieldWall', extra: 'defiantShout', color: 0x7fb0e8, sfx: 'equip' },
+  // kit del Cruzado (oro y luz; extra del Cataclismo = el suelo consagrado)
+  g_juicio:      { trail: 'justiceHammer', impact: 'holyImpact', aura: 'justiceSpark', color: 0xffd36b, sfx: 'holy' },
+  g_sendero:     { impact: 'devotionMotes', color: 0xffe680, sfx: 'dash' },
+  g_martillo:    { impact: 'holyImpact', aura: 'hammerShock', extra: 'brutalStrikeDust', color: 0xffe08a, sfx: 'holy' },
+  g_u_cataclismo:{ trail: 'holyFall', impact: 'holyImpact', aura: 'brutalStrikeWave', extra: 'devotionCircle', color: 0xffe7a0, sfx: 'holy' },
+  // activas de talento (de clase: comportamientos en js/powers-guerrero.js; de héroe: en skills-guerrero.js)
   g_t_aliento:      { aura: 'secondWind', color: 0xff5a4a, sfx: 'potion' },
+  grito_guerra:     { aura: 'warCry', extra: 'warCryRing', color: 0xe08a2a, sfx: 'levelup' },
   g_t_intervencion: { trail: 'chargeTrail', impact: 'interveneDome', color: 0x88bbff, sfx: 'dash' },
-  g_t_bramido:      { aura: 'warHorn', extra: 'warCryRing', color: 0xff6644, sfx: 'levelup' },
-  g_t_remolino:     { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash' },
-  g_t_temeridad:    { aura: 'recklessAura', color: 0xff3322, sfx: 'crit' },
-  g_t_ira_ciega:    { aura: 'blindRage', extra: 'recklessAura', color: 0xff2200, sfx: 'hurt' },
-  g_t_desafio:      { aura: 'defiantShout', impact: 'tauntMark', color: 0x5599ff, sfx: 'levelup' },
-  g_t_muro:         { aura: 'shieldWall', color: 0x7fb0e8, sfx: 'equip' },
-  g_t_carga:        { trail: 'shieldChargeTrail', impact: 'chargeImpact', color: 0x6699ff, sfx: 'dash' },
-  g_t_devocion:     { aura: 'devotionCircle', extra: 'devotionMotes', color: 0xffdd77, sfx: 'holy' },
-  g_t_veredicto:    { impact: 'verdictStrike', aura: 'holyImpact', color: 0xffe08a, sfx: 'crit' },
-  g_t_justicia:     { trail: 'justiceHammer', impact: 'holyImpact', color: 0xffd36b, sfx: 'hit' },
+  g_h_bramido:      { aura: 'warHorn', extra: 'warCryRing', color: 0xff6644, sfx: 'levelup' },
+  g_h_desafio:      { aura: 'bannerAura', impact: 'tauntMark', color: 0xe0a040, sfx: 'levelup' },
+  g_h_estandarte:   { aura: 'bannerAura', extra: 'bannerSparks', color: 0xd8a040, sfx: 'levelup' },
 };

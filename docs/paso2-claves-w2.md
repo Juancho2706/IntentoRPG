@@ -117,3 +117,37 @@ como mucho, no definitivas ni `cdOnEnd`).
   un lanzamiento enemigo en curso termina antes de que lo atraiga.
 - **Fórmulas en `combat-math.js`:** `ELITE_DISPLACE_MUL` (0,6), `displaceDist(dist, dr, elite)` y
   `ccDurationWithTalents(kind, dur, tv)` (`ccDurPct`, `freezeDur`).
+
+## 7. Cola W2 resuelta en paralelo con E2 (punto 16 del plan, W2b)
+
+Las tres filas que `claves-w2.mjs` tenía como `cola` pasan a `canonica`. Las dos `tv` están en `NUCLEO_TV_KEYS`
+(`skill-defs.js`), y por ella en `CORE_TV_KEYS`; KT las escribe en el `fx` del nodo sin declararlas en
+`<CLASE>_TV_KEYS`.
+
+| Clave | Decisión | Dónde vive | Prueba |
+|---|---|---|---|
+| `tv.drStill` | Canónica (⑧, % como `drMoving`): reducción de daño **quieta ≥ 1 s** (`DR_STILL_T`) = `p.stillT ≥ 1`. `stillT` cuenta los segundos sin desplazarte por ningún medio: caminar (también plantada con `keepPlanted`), la movilidad (`unplant`), un avance o salto (también al llegar con `plant: true`), la esquiva o cualquier desplazamiento entre fotogramas (rodar o un parpadeo de un comportamiento, un tirón) la ponen a 0; chocar contra un muro sin avanzar no. No es el plantado de D20, que no cambia. Nunca se suma a la vez que `drMoving` | `nucleo_tv.condDr` + `Player.stillT` | `test88` §1 |
+| `tv.fieldDur` | Canónica (% como las demás): `dur × (1 + fieldDur/100)` en tus **trampas** (la genérica, un campo con `onDetonate` o con `data.trap`) y tus **zarzales**: los campos marcados `data.fieldDur: true`. Una zona sin marca no cambia (`zona` genérica, `estela`, Bomba de Humo…), ni muros, auras, señuelos o emisores; `data.fieldDur: false` deja fuera hasta una trampa. Solo si el dueño es un héroe (`g.player` o `g.party`), nunca un enemigo. No activa `nucleo_tv` (`NUCLEO_TV_OUTSIDE`) | `field-entities.spawnField` (`combat-math.fieldDurationWithTalents`) | `test88` §2 y §2b |
+| `stats.blockPower` | Canónica (puntos %): un bloqueo para `BLOCK_REDUCTION + blockPower/100`, con tope `BLOCK_REDUCTION_MAX` (0,9: nunca todo el golpe), en el golpe con azar (`mitigate`) y en el esperado (`expectedMitigation`). Se suma en el saco de `recompute` (`fx.stats`, buffs, poderes con `stats`) y, sin `recompute`, desde una postura (`STANCE_STATS`); el tope solo en `combat-math.blockReduction` | `combat-math.blockReduction` + `recompute` | `test88` §3 |
+
+Cómo se escribe cada nodo:
+
+- Arquera f15A Quietud: `fx: { tv: { drStill: 15 } }`.
+- Arquera m20 Ojo de Trampera: `fx: { tv: { fieldDur: 25 } }` por rango (r2 = 50). La Trampa de Cepo cuenta sola si es
+  la trampa genérica o un campo con `data.trap`. El Cerco de Zarzas (y cualquier zarzal: `m_zarzal`, ecos de Bosque Vivo)
+  solo cuenta si su comportamiento marca el campo con `data.fieldDur: true` **y** toma su final del campo devuelto, no de
+  su `dur` local: `const f = g.spawnField('zona', { …, dur, data: { …, fieldDur: true } }); const end = f?.dur ?? dur;`
+  (o termina cuando `f.dead`). Así el cruce que inmoviliza, la Debilidad, `cast.done` y el estallido al cerrarse
+  llegan cuando el zarzal se cierra de verdad. Si otro campo acompaña al zarzal, lleva la misma marca. Un zarzal hecho
+  con el tipo genérico `zone` no se puede marcar (sus `data` las arma `game-skills`): eso sería una petición a W2.
+- Guerrero d1 Escudo Alzado: `fx: { stats: { blockPower: 10 } }` por rango (r3 = 80 %).
+- Guerrero d15B Aguante de Roca: su poder `g_d_roca` suma `blockPower: 10` solo con 5 cargas de Bastión. Por eventos,
+  nunca renovándolo en cada tick (`addBuff` rehace `recompute`): al ganar cargas (⑩ `onGauge(…, 'bastion', 'gain')`)
+  con `gaugeValue(p, 'bastion') >= 5` y sin el buff, `addBuff('g_d_roca', { blockPower: 10 }, 3600)`; al gastar cargas (⑩ `'spent'`) o, en `onTick`, si
+  `gaugeValue(p, 'bastion') < 5` y el buff sigue, se quita (`p.buffs = p.buffs.filter(b => b.id !== 'g_d_roca');
+  p.recompute()`). La pérdida por el tiempo (1 carga cada 6 s) no dispara ⑩ hasta vaciarse: por eso la comprobación en
+  `onTick` (barata: solo rehace `recompute` al cambiar).
+
+Las salidas versionadas del conversor (`tools/convert-v2/out/claves-impl.md` y `pendientes-<clase>.md`) se generaron
+antes de W2b y aún dicen «cola W2 (pendiente)» en estas tres claves: manda esta tabla (y `claves-w2.mjs`) hasta que se
+regeneren (`node tools/convert-v2/convert.mjs --draft --todas`).

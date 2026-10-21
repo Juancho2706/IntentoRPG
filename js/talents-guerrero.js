@@ -86,7 +86,7 @@ export const GUERRERO_TALENTS = {
       ],
       win: 'A, si tu daño sangra (el Tajo con Desgarro y las habilidades que desangran): +25 % a todo ese daño. B, si controlas: más control y más Quebranto. Une el árbol con la forja' },
     { id: 'c17', name: 'Grito de Guerra o Ira Contenida', t: 'c', tag: 'mec', r: 4, c: 5, max: 1, req: ['c13', 'c14'], icon: 'talents/guerrero-clase-c12.webp', opts: [
-        { k: 'A', name: 'Grito de Guerra', desc: 'Habilidad (ranura 2): +30 de Furia y +10 % de daño al grupo 8 s. Si no la pones, sale con Piel de Hierro al 50 %', role: 'UNI', fx: { power: 'g_piel_grito' }, todo: 'grant grito_guerra: lo escribe KA1 al pasarla a activa de talento (punto 16 del plan); el poder g_piel_grito ya está' },
+        { k: 'A', name: 'Grito de Guerra', desc: 'Habilidad (ranura 2): +30 de Furia y +10 % de daño al grupo 8 s. Si no la pones, sale con Piel de Hierro al 50 %', role: 'UNI', fx: { grant: 'grito_guerra', power: 'g_piel_grito' } },
         { k: 'B', name: 'Ira Contenida', desc: 'Cada 20 s, tu siguiente habilidad principal no cuesta Furia y hace +20 %', role: 'UNI', fx: { power: 'g_ira_contenida' } },
       ],
       win: 'A: en la ranura 2 abre una ráfaga de grupo; sin ponerla, cada Piel de Hierro te da 15 de Furia y +5 % al grupo. B, en solitario: más daño propio y sin ocupar ranura' },

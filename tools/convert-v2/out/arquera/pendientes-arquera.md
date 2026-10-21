@@ -105,7 +105,7 @@
 - [ ] **f12 Lectura del Blanco** — NUEVO · `power f_lectura · NUEVO (modifyResolve charge.perfect contra el marcado)`
 - [ ] **f13 Puntería de Vigía** — NUEVO · `power f_punteria_vigia · NUEVO (condAdd con la postura)`
 - [ ] **f14 Estrella Fija** — NUEVO · `power f_estrella_fija · NUEVO (onCast de a_t_apuntado si cast.perfect y la Calma Absoluta está activa: ronda 3; el básico y los haces no cuentan; cdReduce sobre @ultimate: respeta el suelo de las definitivas)`
-- [ ] **f15·A Quietud** — NUEVO · `tv.drStill · NUEVO (clave, espejo de drMoving)` · traducir: `tv.drStill: pendiente de la cola W2 (nucleo_tv.condDr (cola W2))`
+- [ ] **f15·A Quietud** — NUEVO · `tv.drStill · NUEVO (clave, espejo de drMoving)`
 - [ ] **f15·B Nervios de Acero** — NUEVO · `power f_nervios · NUEVO (④ onDamaged + g.shield; ronda 3: por la cubeta de autocuración de la Arquera, 1 %/s)`
 - [ ] **f16 Serenidad** — NUEVO · `power f_serenidad · NUEVO (condAdd con gaugeValue)`
 - [ ] **f17 Haces Gemelos** — NUEVO · `power f_haces_gemelos · NUEVO (eco del haz; un eco no repite; ronda 3: 35/70 %, antes 15/30 %: con el suelo de las definitivas la recarga ya no hace bucle)`
@@ -147,7 +147,7 @@
 - [ ] **m17 Zarzas Trepadoras** — NUEVO · `power m_trepadoras · NUEVO`
 - [ ] **m18 Rearme Rápido** — NUEVO · `power m_rearme · NUEVO (por detonación, no por trampa; los cepos pequeños y sembrados no cuentan; Salto ≥ 5 s)`
 - [ ] **m19 Rastro Fresco** — NUEVO · `power m_rastro · NUEVO (onKill)`
-- [ ] **m20 Ojo de Trampera** — existe · `tv.fieldDur · claves` · traducir: `tv.fieldDur: pendiente de la cola W2 (field-entities.spawnField (cola W2))`
+- [ ] **m20 Ojo de Trampera** — existe · `tv.fieldDur · claves`
 - [ ] **m21 Rebrote** — NUEVO · `power m_rebrote · NUEVO (campo m_zarzal ×3)`
 - [ ] **m22 Campo Sembrado** — NUEVO · `power m_campo_sembrado · NUEVO (afterCast)`
 - [ ] **m23 Batida Mayor** — NUEVO · `tv.batidaDur + tv.batidaPreyStagger · NUEVO (claves de la mecánica coto; ya no sube la Debilidad)` · traducir: `tv.batidaDur: clave de la clase (KT-arquera, <CLASE>_TV_KEYS)`; `tv.batidaPreyStagger: clave de la clase (KT-arquera, <CLASE>_TV_KEYS)`
