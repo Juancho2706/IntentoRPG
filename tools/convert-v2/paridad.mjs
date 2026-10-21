@@ -1,18 +1,19 @@
 // Paridad juego ↔ mockup (docs/paso2-implementacion.md §4): la usan tests/test-v2-paridad.mjs (datos del juego)
 // y convert.mjs (comprobación de sus propios borradores). Compara:
 //  · reglas comunes: TALENT_RULES / LEVEL_MAX / earnedAt / puertas = TV2 (solo si js/talents.js ya exporta TALENT_RULES);
-//  · talentos (si <CLASE>_TALENTS.v === 2): ids, t, r, c, max, req, free; nombres y d(r); win; opciones (k, role, nombre,
-//    texto, grant); especializaciones (orden, nombre, roleLabel, mecánica); árboles héroe (specs, key, line, nombre);
-//    builds (normalizadas) y defaultBuild;
-//  · catálogo (si <CLASE>_CATALOG_V === 2): ids, cat, req, spec, elem y activa de talento; forja (ids, nombres, líneas,
-//    papeles); SPEC_BAR (barra, forja i/ii, selección), FORGE_RECO y FALLBACK_BAR.
+//  · talentos (si <CLASE>_TALENTS.v === 2): ids, t, r, c, max, req, free; nombres y d(r); win; touch (de cada nodo y de cada
+//    opción: qué habilidades toca, sin importar el orden y con las banderas «toca todo tu X» del mockup ya expandidas);
+//    opciones (k, role, nombre, texto, grant); especializaciones (orden, nombre, roleLabel, mecánica); árboles héroe (specs,
+//    key, line, nombre); builds (normalizadas) y defaultBuild;
+//  · catálogo (si <CLASE>_CATALOG_V === 2): ids, cat, req, spec, elem, line (la línea del libro) y activa de talento; forja
+//    (ids, nombres, líneas, papeles); SPEC_BAR (barra, forja i/ii, selección), FORGE_RECO y FALLBACK_BAR.
 // Una divergencia deliberada se declara en tools/convert-v2/divergencias.json ({ clase, ruta, motivo }); cubre su ruta y
 // todo lo que cuelga de ella.
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { textoD } from './lib/funciones.mjs';
-import { varDe } from './lib/transformar.mjs';
+import { varDe, touchNodoMockup } from './lib/transformar.mjs';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 export const DIVERGENCIAS = join(DIR, 'divergencias.json');
@@ -33,6 +34,8 @@ function canon(v, ordenadas = false) {
   return v === undefined ? null : v;
 }
 const igual = (a, b, ordenadas = false) => JSON.stringify(canon(a, ordenadas)) === JSON.stringify(canon(b, ordenadas));
+// un touch es un conjunto de selectores/ids: se compara sin orden ni repetidos (ausente = vacío)
+const conjunto = l => [...new Set(l || [])].sort();
 const corto = v => { const s = typeof v === 'string' ? `«${v}»` : JSON.stringify(v); return s && s.length > 160 ? s.slice(0, 157) + '…' : s; };
 
 function nuevoInforme(cls) {
@@ -69,6 +72,7 @@ function compararNodo(R, m, j, ruta) {
   R.eq(!!m.free, !!j.free, `${ruta}.free`);
   R.eq(m.n, j.name, `${ruta}.name`);
   R.eq(m.win ?? null, j.win ?? null, `${ruta}.win`);
+  R.eq(conjunto(touchNodoMockup(m, R.groups).touch), conjunto(j.touch), `${ruta}.touch`);
   if (m.t === 'c') {
     const mo = m.opts || [], jo = j.opts || [];
     R.eq(mo.map(o => o.k), jo.map(o => o.k), `${ruta}.opts`);
@@ -79,6 +83,7 @@ function compararNodo(R, m, j, ruta) {
       R.eq(o.role, q.role, `${rr}.role`);
       R.eq(o.n, q.name, `${rr}.name`);
       R.eq(o.d, q.desc, `${rr}.desc`);
+      R.eq(conjunto(o.touch), conjunto(q.touch), `${rr}.touch`);
       // un grant que falta solo es «pendiente» si el nodo aún es esqueleto (todo) y la activa NO existe hoy en el
       // juego (R.activas: activas de talento de CLASSES); si existe, falta de verdad (la activa quedaría inalcanzable)
       const g = q.fx?.grant ?? null;
@@ -105,6 +110,7 @@ export function normalizarBuild(TV2, b) {
   return c;
 }
 export function compararTalentos(R, { C, TV2, talents }) {
+  R.groups = C.groups || {};   // banderas «toca todo tu X»: compararNodo expande el touch del mockup como el conversor
   compararArbol(R, C.tree?.cls, talents.cls?.nodes, 'clase');
   const specs = C.specOrder || [];
   R.eq(specs, (talents.specs || []).map(s => s.id), 'spec.orden');
@@ -150,6 +156,7 @@ export function compararCatalogo(R, { C, cat }) {
     const j = jc.get(m.id);
     if (!j) { R.dif(`catalogo.${m.id}`, m.n, '(falta en el juego)'); continue; }
     for (const k of ['cat', 'req', 'elem']) R.eq(m[k], j[k], `catalogo.${m.id}.${k}`);
+    R.eq(m.s, j.line, `catalogo.${m.id}.line`);
     R.eq(m.spec ?? null, j.spec ?? null, `catalogo.${m.id}.spec`);
     R.eq(!!m.talent, j.kind === 'talent', `catalogo.${m.id}.talent`);
     jc.delete(m.id);

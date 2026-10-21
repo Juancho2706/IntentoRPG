@@ -51,9 +51,25 @@ export function extraerIds(C) {
 // héroe, decisión 9 del orquestador); los de la forja son v_ (powers-forge-<clase>.js)
 export const PREFIJOS_PODER = { maga: /^(m|p|k|a)_/, guerrero: /^g_/, arquera: /^(a|f|m|t|q|w|y)_/ };
 
-// power-ids.json: ids por clase, choques entre clases (error), doble declaración en una clase (error) y avisos
+// ids que registra el juego vivo, por clase y en orden alfabético (D28):
+// { poderes, comportamientos, campos, indicadores: { comun: [ids], maga: [...], guerrero: [...], arquera: [...] } }
+// 'comun' = no es de ninguna clase (powers-common.js, indicadores base y sus gauge_<id>, campos de field-entities.js)
+export function listarRegistrados(registro) {
+  const out = {};
+  for (const tipo of ['poderes', 'comportamientos', 'campos', 'indicadores']) {
+    const porClase = {};
+    for (const [id, cls] of registro[tipo] || []) (porClase[cls] ||= []).push(id);
+    out[tipo] = Object.fromEntries(['comun', ...Object.keys(PREFIJOS_PODER), '?'].filter(c => porClase[c]).map(c => [c, porClase[c].sort()]));
+  }
+  return out;
+}
+
+// power-ids.json: ids por clase, choques entre clases (error), doble declaración en una clase (error) y avisos.
+// Con `registro` (registroJuego) suma `registrados` (lo que el juego registra hoy, por clase) y `choquesRegistro` (error): un
+// id que el mockup de una clase declara NUEVO y que hoy registra OTRA clase. definePower lanza con un id repetido, así que el
+// choque tumbaría el juego entero al fusionar; lo que registra powers-common.js sigue siendo un aviso (se puede reutilizar)
 export function informePoderes(porClase, registro) {
-  const res = { ok: true, nota: '', clases: {}, choques: [], dobleDeclaracion: [], avisos: [] };
+  const res = { ok: true, nota: '', clases: {}, choques: [], dobleDeclaracion: [], choquesRegistro: [], avisos: [] };
   const todas = new Map(); // id → Map(cls → usos)
   for (const [cls, ids] of Object.entries(porClase)) {
     const poderes = {}, comportamientos = {};
@@ -71,7 +87,9 @@ export function informePoderes(porClase, registro) {
         const decl = d.usos.filter(u => u.estado === 'NUEVO').map(u => u.en);
         d.estado = decl.length ? 'NUEVO' : d.usos.some(u => u.estado === 'existe') ? 'existe' : (enJuego ? 'existe' : 'NUEVO (sin marca)');
         if (new Set(decl).size > 1) res.dobleDeclaracion.push({ clase: cls, tipo, id, en: [...new Set(decl)] });
-        if (enJuego && enJuego !== cls && enJuego !== '?' && d.estado.startsWith('NUEVO'))
+        if (enJuego && enJuego !== cls && PREFIJOS_PODER[enJuego] && d.estado.startsWith('NUEVO'))
+          res.choquesRegistro.push({ tipo, id, clase: cls, juego: enJuego, en: d.usos.map(u => `${u.en} ${u.estado}`) });
+        else if (enJuego && enJuego !== cls && enJuego !== '?' && d.estado.startsWith('NUEVO'))
           res.avisos.push(`${cls}: ${tipo} ${id} es NUEVO pero hoy lo registra ${enJuego === 'comun' ? 'powers-common.js' : `la clase ${enJuego}`}: choca si no se retira`);
         if (d.estado === 'existe' && !enJuego) res.avisos.push(`${cls}: ${tipo} ${id} se marca «existe» pero el juego no lo registra (${d.usos.map(u => u.en).join(', ')})`);
         if (tipo === 'power' && !/^v_/.test(id) && PREFIJOS_PODER[cls] && !PREFIJOS_PODER[cls].test(id) && d.estado.startsWith('NUEVO'))
@@ -86,10 +104,41 @@ export function informePoderes(porClase, registro) {
     const [tipo, id] = clave.split(':');
     res.choques.push({ tipo, id, clases: Object.fromEntries([...m].map(([c, en]) => [c, en])) });
   }
-  res.ok = !res.choques.length && !res.dobleDeclaracion.length;
+  res.ok = !res.choques.length && !res.dobleDeclaracion.length && !res.choquesRegistro.length;
   res.nota = 'D28: un id de poder o de comportamiento no puede repetirse entre clases (definePower lanza con un id repetido). ' +
-    '«choques» y «dobleDeclaracion» hacen fallar el conversor; «avisos» son para revisar (prefijos de test78, ids que hoy registra otra clase).';
+    '«choques», «dobleDeclaracion» y «choquesRegistro» (un id NUEVO del mockup que hoy registra otra clase) hacen fallar el conversor; ' +
+    '«avisos» son para revisar (prefijos de test78, ids que hoy registra powers-common.js). «registrados» = lo que registra el juego vivo HOY ' +
+    '(js/powers.js, js/field-entities.js, js/spec-mechanics.js), por la clase que lo define («comun»: ninguna; los campos se registran con defineField, ' +
+    'los indicadores con defineGauge y sus poderes gauge_<id> cuentan como poderes); se lee del registro, no a mano.';
+  if (registro) {
+    res.registrados = listarRegistrados(registro);
+    for (const [tipo, porClase] of Object.entries(res.registrados)) if (porClase['?'])
+      res.avisos.push(`registro del juego: ${porClase['?'].length} ${tipo} sin clase identificable (${porClase['?'].slice(0, 5).join(', ')}…): el conversor no sabe qué fábrica los registra`);
+  }
   return res;
+}
+
+// Texto de out/power-ids.json. Igual que JSON.stringify(res, null, 2), salvo que las listas de ids de `registrados` (unos 450)
+// van ajustadas a ~110 columnas en vez de una por línea
+export function textoPowerIds(cabecera, res) {
+  const { registrados, ...resto } = res;
+  const todo = { ...cabecera, ...resto };
+  if (!registrados) return JSON.stringify(todo, null, 2) + '\n';
+  const listas = [];
+  const bloque = JSON.stringify(registrados, (k, v) => (Array.isArray(v) ? `@@${listas.push(v) - 1}@@` : v), 2)
+    .replace(/^( *)("[^"]+"): "@@(\d+)@@"(,?)$/gm, (m, ind, k, n, coma) => {
+      const lineas = []; let cur = '';
+      for (const id of listas[n]) {
+        const t = JSON.stringify(id) + ',';
+        if (cur && ind.length + 2 + cur.length + t.length > 110) { lineas.push(cur); cur = ''; }
+        cur += (cur ? ' ' : '') + t;
+      }
+      if (cur) lineas.push(cur);
+      const cuerpo = lineas.map(l => `${ind}  ${l}`).join('\n').replace(/,$/, '');   // sin coma tras el último
+      return `${ind}${k}: [\n${cuerpo}\n${ind}]${coma}`;
+    });
+  const base = JSON.stringify(todo, null, 2);
+  return base.replace(/\n\}$/, () => `,\n  "registrados": ${bloque.replace(/\n/g, '\n  ')}\n}`) + '\n';
 }
 
 // ---------------------------------------------------------------- claves de impl/k frente al vocabulario §3.6

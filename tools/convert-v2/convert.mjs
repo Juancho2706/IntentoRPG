@@ -13,6 +13,7 @@
 //                                                                    --conservar deja la carpeta temporal con lo que se validó
 //   Opciones: --src <carpeta> (datos del mockup; por defecto docs/mockups/data) · --out <carpeta> (por defecto tools/convert-v2/out)
 //             --dest <carpeta> (solo --write: escribe ahí en vez de js/, para probarlo) · --sin-avisos
+//             --regenerar-pendientes (--draft: reescribe pendientes-<clase>.md aunque ya exista; ver abajo)
 //
 // Salida de --draft (en <out>/):
 //   <clase>/talents-<clase>.js, <clase>/hero-<clase>.js   formato §3.1: estructura, textos, d(r), builds y defaultBuild exactos;
@@ -20,8 +21,12 @@
 //   <clase>/skills-<clase>.draft.js                        catálogo, forja (k del mockup en comentario), SPEC_BAR (A/B → i/ii),
 //                                                          FORGE_RECO, FALLBACK_BAR; la definición del juego v1 en comentario
 //   <clase>/talent-text.js                                 reexporta js/talent-text.js (para importar el borrador desde out/)
-//   <clase>/pendientes-<clase>.md                          lista de trabajo de KA/KT (NUEVO · existe · vacío)
-//   power-ids.json                                         ids de poder/comportamiento de las tres clases; FALLA si se repiten (D28)
+//   <clase>/pendientes-<clase>.md                          lista de trabajo de KA/KT (NUEVO · existe · vacío). Solo se escribe si NO
+//                                                          existe: desde E2 KA/KT lo editan a mano (marcan lo hecho y anotan peticiones)
+//                                                          y regenerarlo borraría ese trabajo. --regenerar-pendientes lo pisa a conciencia
+//   power-ids.json                                         ids de poder/comportamiento de las tres clases (FALLA si se repiten, D28) y,
+//                                                          en `registrados`, los que ya registra el juego vivo (poderes, comportamientos,
+//                                                          campos e indicadores, por clase); FALLA si un id NUEVO lo registra otra clase
 //   claves-impl.md                                         claves de impl/k fuera de §3.6: alias → traducción o «SIN TRADUCCIÓN»
 //   missing-icons.md                                       iconos citados que no están en assets/ (la UI pinta el marcador)
 // Comprobaciones que hacen fallar (código 1): d(r) con identificadores libres que no exporta js/talent-text.js, d(r) que
@@ -38,7 +43,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { ROOT, MOCKUP_DIR, CLASES, PREFIJO, cargarMockup } from './lib/cargar.mjs';
 import { convertirClase, verificarN1 } from './lib/transformar.mjs';
 import { textoTalents, textoHero, textoSkillsDraft, textoShim } from './lib/emitir.mjs';
-import { extraerIds, informePoderes, informeClaves, informePendientes, traduccionesNota } from './lib/impl.mjs';
+import { extraerIds, informePoderes, textoPowerIds, informeClaves, informePendientes, traduccionesNota } from './lib/impl.mjs';
 import { juegoDeClase, juegoV1, fotoV1, registroJuego, vocabularioJuego } from './lib/juego.mjs';
 import { compararClase } from './paridad.mjs';
 import { claseMockupDesdeJuego, validarConMockup } from './lib/inverso.mjs';
@@ -122,7 +127,9 @@ async function draft({ escribirJs = false } = {}) {
     if (!escribirJs) {
       escribir(archivos.skills, textoSkillsDraft({ cls, conv, fuente }));
       escribir(join(dir, 'talent-text.js'), textoShim(dir, join(ROOT, 'js')));
-      escribir(join(dir, `pendientes-${cls}.md`), informePendientes({ cls, C: m.C, conv, fuente, poderes: poderes.clases[cls], voc }));
+      const rutaPend = join(dir, `pendientes-${cls}.md`);
+      if (existsSync(rutaPend) && !flag('--regenerar-pendientes')) avisos.push(`${relRoot(rutaPend)} ya existe y se edita a mano (KA/KT): no se regenera (--regenerar-pendientes lo pisa)`);
+      else escribir(rutaPend, informePendientes({ cls, C: m.C, conv, fuente, poderes: poderes.clases[cls], voc }));
     } else {
       if (resolve(DEST) !== resolve(ROOT, 'js')) escribir(join(dir, 'talent-text.js'), textoShim(dir, join(ROOT, 'js')));
       const salen = conv.ctx.activasV1Fuera || [];
@@ -139,7 +146,7 @@ async function draft({ escribirJs = false } = {}) {
   if (!escribirJs) {
     mkdirSync(OUT, { recursive: true });
     const fuentes = Object.entries(cargados).map(([cls, m]) => ({ cls, rel: m.rel, hash: m.hash, estado: m.C.estado }));
-    writeFileSync(join(OUT, 'power-ids.json'), JSON.stringify({ generado: 'tools/convert-v2/convert.mjs --draft', fuentes, ...poderes }, null, 2) + '\n');
+    writeFileSync(join(OUT, 'power-ids.json'), textoPowerIds({ generado: 'tools/convert-v2/convert.mjs --draft', fuentes }, poderes));
     const claves = informeClaves(Object.fromEntries(Object.entries(cargados).map(([cls, m]) => [cls, { C: m.C }])), voc, fuentes);
     writeFileSync(join(OUT, 'claves-impl.md'), claves.md);
     const mi = ['# Iconos citados que no están en assets/', '', `> Generado por \`tools/convert-v2/convert.mjs --draft\` (${pedidas.join(', ')}). La UI pinta el marcador (§3.12); encargo de arte para Codex (§7).`, ''];
@@ -149,12 +156,15 @@ async function draft({ escribirJs = false } = {}) {
       mi.push(`## ${cls} (${porRuta.size})`, '', ...(porRuta.size ? [...porRuta].map(([ruta, donde]) => `- \`${ruta}\` · ${donde.join(', ')}`) : ['—']), '');
     }
     writeFileSync(join(OUT, 'missing-icons.md'), mi.join('\n'));
-    resumen.push(`power-ids.json: ${poderes.ok ? 'sin choques' : `${poderes.choques.length} choques entre clases y ${poderes.dobleDeclaracion.length} dobles declaraciones`} · ${poderes.avisos.length} avisos`);
+    const reg = poderes.registrados;
+    resumen.push(`power-ids.json: ${poderes.ok ? 'sin choques' : `${poderes.choques.length} choques entre clases, ${poderes.dobleDeclaracion.length} dobles declaraciones y ${poderes.choquesRegistro.length} choques con el registro del juego`} · ${poderes.avisos.length} avisos` +
+      (reg ? ` · registrados: ${Object.entries(reg).map(([t, pc]) => `${Object.values(pc).reduce((n, l) => n + l.length, 0)} ${t}`).join(', ')}` : ''));
     resumen.push(`claves-impl.md: ${claves.alias} alias con traducción · ${claves.sin} SIN TRADUCCIÓN · ${claves.sinDecidir} claves tv/stats sin decidir · ${claves.cola} peticiones a la cola W2`);
     if (claves.sin) errores.push(`claves-impl.md: ${claves.sin} claves SIN TRADUCCIÓN (añádelas a tools/convert-v2/claves-w2.mjs o pídelas a la cola W2)`);
     resumen.push(`missing-icons.md: ${new Set(iconos.map(x => `${x.cls}:${x.ruta}`)).size} iconos sin archivo`);
     for (const c of poderes.choques) errores.push(`D28: ${c.tipo} «${c.id}» en varias clases: ${Object.entries(c.clases).map(([k, v]) => `${k} (${v.join(', ')})`).join(' · ')}`);
     for (const c of poderes.dobleDeclaracion) errores.push(`D28: ${c.tipo} «${c.id}» declarado NUEVO en dos sitios de ${c.clase}: ${c.en.join(', ')}`);
+    for (const c of poderes.choquesRegistro) errores.push(`D28: ${c.tipo} «${c.id}» es NUEVO en ${c.clase} (${c.en.join(', ')}) pero el juego ya lo registra en ${c.juego}`);
   }
   return { errores, avisos, resumen };
 }
