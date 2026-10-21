@@ -46,8 +46,8 @@ const forgedDef = (p, sk) => p.forged?.[sk.id]?.def || p.resolved?.[sk.id]?.def 
 //                   Concentración > 50). El tv.dmgReduc de recompute es la incondicional.
 //                   drHighMana vale para cualquier recurso (> 50 %: Determinación = drHighFury)
 //   drLowHp         ⑧ Paso 2: reducción de daño con menos del 40 % de vida (Umbral del Dolor)
-//   drStill         ⑧ Paso 2: reducción de daño QUIETA (Quietud): plantada (p.planted, D20:
-//                   1 s sin caminar ni usar movilidad) y sin moverse este frame; espejo de drMoving
+//   drStill         ⑧ Paso 2: reducción de daño QUIETA más de DR_STILL_T s (Quietud): p.stillT,
+//                   s sin desplazarte por ningún medio (no el plantado); espejo de drMoving
 //   perfectCdrAll   ③ Paso 2 (Liturgia): cada suelta PERFECTA acorta X s tus enfriamientos
 //                   salvo las definitivas y las de recarga al acabar (cdOnEnd); como mucho
 //                   una vez cada 2 s. Todo enfriamiento se resta con g.reduceCooldown (D2).
@@ -60,6 +60,8 @@ export const CORE_TV_POWER = 'nucleo_tv';
 // la lista de claves es NUCLEO_TV_KEYS (skill-defs.js, fuente única que comparte talents.CORE_TV_KEYS)
 // umbral de vida de tv.drLowHp
 export const DR_LOW_HP_FRAC = 0.4;
+// s quieta para tv.drStill (Quietud: «quieta más de 1 s»)
+export const DR_STILL_T = 1;
 // crítico directo → enfriamientos (claves tv del núcleo): qué habilidades acorta cada clave.
 // nucleo_tv las lee POR TABLA (tv[clave]); test78 acepta como leídas las de CRIT_CDR_TV_KEYS
 const CRIT_CDR_KEYS = {
@@ -234,8 +236,8 @@ export function commonPowers() {
         const src = dmg?.src;
         if (tv.drVsSlowed && src && ((src.slowT || 0) > 0 || (src.frozenT || 0) > 0)) dr += tv.drVsSlowed;
         if (tv.drMoving && p.moving) dr += tv.drMoving;
-        // quieta ≥ 1 s: plantada y sin moverse (keepPlanted deja caminar plantado: eso no es quieta)
-        if (tv.drStill && p.planted && !p.moving) dr += tv.drStill;
+        // quieta ≥ 1 s (p.stillT: caminar con keepPlanted o llegar con plant: true no cuentan)
+        if (tv.drStill && (p.stillT || 0) >= DR_STILL_T - 1e-9) dr += tv.drStill;
         if (tv.drFocus && gaugeValue(p, 'concentracion') > 50) dr += tv.drFocus;
         if (tv.drLowHp && (p.stats?.maxHP || 0) > 0 && p.hp / p.stats.maxHP < DR_LOW_HP_FRAC) dr += tv.drLowHp;
         return dr;

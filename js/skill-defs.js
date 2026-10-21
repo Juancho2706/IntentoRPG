@@ -239,7 +239,7 @@ export const VERB_DOC = Object.freeze({
   other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
-export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
+export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'blockPower', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
 // alias de los documentos que DESAPARECEN (§3.6): en un catálogo v2 son error
 export const RETIRED_KEYS = Object.freeze({
   windupMult: 'windupMul (mod)', windupMove: 'moveMul', moveFree: 'moveMul', moveWhileChannel: 'moveMul',

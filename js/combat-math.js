@@ -345,7 +345,7 @@ export function ccDurationWithTalents(kind, dur, tv = null) {
   if (kind === 'freeze' && tv.freezeDur) return dur + tv.freezeDur;
   return dur;
 }
-// duración de una trampa o zona PROPIA con tv.fieldDur (+%: Ojo de Trampera); la aplica spawnField
+// duración de una trampa o un zarzal PROPIOS con tv.fieldDur (+%: Ojo de Trampera); la aplica spawnField
 export function fieldDurationWithTalents(dur, tv = null) {
   const pct = tv?.fieldDur || 0;
   return pct ? dur * Math.max(0, 1 + pct / 100) : dur;

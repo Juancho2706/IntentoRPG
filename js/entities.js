@@ -120,6 +120,8 @@ export { MAX_MATERIALS, PROGRESS_MATERIAL_KINDS, materialStackKey, materialSlots
 // Esquiva: duración corta y pico de velocidad alto con ease-out (recorre ~3.4u)
 const DASH_DUR = 0.26;
 const DASH_PEAK = 26;
+// desplazamiento² (m²) entre fotogramas por debajo del cual sigues QUIETA (stillT)
+const STILL_EPS2 = 1e-6;
 
 // Mueve una posición con colisión contra la cuadrícula (por ejes)
 export function moveWithCollision(grid, pos, dx, dz, r = 0.32) {
@@ -598,6 +600,9 @@ export class Player {
     this.moveMuls = {};
     this.planted = false;
     this.plantedT = 0;
+    // QUIETA (tv.drStill, Quietud): s sin desplazarte por ningún medio. No es el plantado:
+    // caminar con keepPlanted, rodar, ser arrastrada o llegar con `plant: true` la ponen a 0
+    this.stillT = 0;
     this.perfectStreak = 0;     // sueltas perfectas seguidas (fallar la ventana la reinicia)
 
     this.buffs = [];
@@ -1000,8 +1005,9 @@ export class Player {
   }
   clearMoveMul(id) { if (this.moveMuls) delete this.moveMuls[id]; }
   // plantado al instante (`plant: true` al llegar de un avance o salto) · usar movilidad lo rompe
-  plantNow() { this.plantedT = Math.max(this.plantedT || 0, VERB_DEFAULTS.plantedAfter); this.planted = true; }
-  unplant() { this.plantedT = 0; this.planted = false; }
+  // (llegar de un desplazamiento no es estar quieta: stillT vuelve a 0)
+  plantNow() { this.plantedT = Math.max(this.plantedT || 0, VERB_DEFAULTS.plantedAfter); this.planted = true; this.stillT = 0; }
+  unplant() { this.plantedT = 0; this.planted = false; this.stillT = 0; }
   moveMulProduct() {
     let m = 1;
     for (const k in this.moveMuls || {}) m *= this.moveMuls[k].mul;
@@ -1254,7 +1260,8 @@ export class Player {
     const vs = this.verbStats();
     if (vs.dr) extraDr += vs.dr;
     let st = extraDr ? { ...this.stats, dr: (this.stats.dr || 0) + extraDr } : this.stats;
-    if (vs.block || vs.dmgTakenPct) st = { ...st, block: (st.block || 0) + (vs.block || 0), dmgTakenPct: (st.dmgTakenPct || 0) + (vs.dmgTakenPct || 0) };
+    if (vs.block || vs.blockPower || vs.dmgTakenPct) st = { ...st, block: (st.block || 0) + (vs.block || 0),
+      blockPower: (st.blockPower || 0) + (vs.blockPower || 0), dmgTakenPct: (st.dmgTakenPct || 0) + (vs.dmgTakenPct || 0) };
     const mit = mitigate(amount, st, { al: attackerLevel, element: info.element, rng: this.combatRng });
     info.blocked = mit.blocked;
     const absorbed = mit.dmg - this.absorbShields(mit.dmg);
@@ -1381,12 +1388,13 @@ export class Player {
         try { L.onLand?.(); } catch (err) { console.warn('[salto] onLand', err); }
       }
       this.moving = true;
+      this.stillT = 0;
       if (!this.leap && L.plant) this.plantNow();     // `plant: true`: al caer cuentas como plantado
       else { this.plantedT = 0; this.planted = false; }
       return;
     }
     // avance LENTO en curso (dash con dashT: lo mueve g.tickSkillVerbs): no se camina
-    if (this.dashMove) { this.moving = true; this.plantedT = 0; this.planted = false; return; }
+    if (this.dashMove) { this.moving = true; this.stillT = 0; this.plantedT = 0; this.planted = false; return; }
 
     // ---- movimiento ----
     let dir = null;
@@ -1436,6 +1444,7 @@ export class Player {
       if (this.dashTrail >= 0.025) { this.dashTrail = 0; g.spawnDashGhost?.(this); }
       if (this.dodgeT <= 0 && a) { a.rig.rotation.x = 0; a.rig.position.y = 0; }
       this.moving = true;
+      this.stillT = 0;
       this.plantedT = 0; this.planted = false;
       return;
     }
@@ -1462,6 +1471,12 @@ export class Player {
     if (moving && !g.keepsPlanted?.()) this.plantedT = 0;
     else this.plantedT = (this.plantedT || 0) + dt;
     this.planted = this.plantedT >= VERB_DEFAULTS.plantedAfter;
+    // QUIETA: también la rompe cualquier desplazamiento entre fotogramas (rodar o un parpadeo
+    // de un comportamiento, ser arrastrada); chocar contra un muro sin avanzar no la rompe
+    const at = this._stillAt;
+    const shifted = !at || (this.pos.x - at.x) ** 2 + (this.pos.z - at.z) ** 2 > STILL_EPS2;
+    this.stillT = moving || shifted ? 0 : (this.stillT || 0) + dt;
+    if (at) { at.x = this.pos.x; at.z = this.pos.z; } else this._stillAt = { x: this.pos.x, z: this.pos.z };
 
     // esquema WASD+ratón: el héroe MIRA hacia el cursor (apuntado libre), no hacia
     // su dirección de movimiento. En clic-mover o táctil (sin mouseWorld) se ignora.

@@ -63,9 +63,9 @@ export const CLAVES_W2 = Object.freeze({
   'tv.titanStagger': { tipo: 'clase', dueño: 'KT-guerrero', a: 'tv.titanStagger (GUERRERO_TV_KEYS)', donde: 'powers-guerrero.js (árbol héroe: Golpe de Titán)', prueba: 'test-powers-guerrero' },
   'tv.rivalKillHeal': { tipo: 'clase', dueño: 'KT-guerrero', a: 'tv.rivalKillHeal (GUERRERO_TV_KEYS)', donde: 'powers-guerrero.js (árbol héroe: Rival, por p.sustain)', prueba: 'test-powers-guerrero' },
   // cola W2 resuelta (punto 16, W2b): docs/paso2-claves-w2.md §7
-  'tv.drStill': { tipo: 'canonica', a: 'tv.drStill (% de DR quieta ≥ 1 s: plantada y sin moverse; espejo de drMoving)', donde: 'nucleo_tv.condDr', prueba: 'test88 §1' },
-  'tv.fieldDur': { tipo: 'canonica', a: 'tv.fieldDur (+% de duración de tus trampas y zonas; un campo de clase cuenta con data.trap o data.zone)', donde: 'field-entities.spawnField (combat-math.fieldDurationWithTalents)', prueba: 'test88 §2' },
-  'stats.blockPower': { tipo: 'canonica', a: 'stats.blockPower (un bloqueo para 50 + blockPower %, tope 90; fx.stats o buff)', donde: 'combat-math.blockReduction (mitigate, expectedMitigation) + recompute', prueba: 'test88 §3' },
+  'tv.drStill': { tipo: 'canonica', a: 'tv.drStill (% de DR quieta ≥ 1 s: p.stillT, sin desplazarte por ningún medio; espejo de drMoving)', donde: 'nucleo_tv.condDr (+ Player.stillT)', prueba: 'test88 §1' },
+  'tv.fieldDur': { tipo: 'canonica', a: 'tv.fieldDur (+% de duración de tus trampas y zarzales: las trampas y los campos con data.fieldDur: true; el comportamiento termina con f.dur)', donde: 'field-entities.spawnField (combat-math.fieldDurationWithTalents)', prueba: 'test88 §2 y §2b' },
+  'stats.blockPower': { tipo: 'canonica', a: 'stats.blockPower (un bloqueo para 50 + blockPower %, tope 90; fx.stats, buff o postura)', donde: 'combat-math.blockReduction (mitigate, expectedMitigation) + recompute (+ STANCE_STATS)', prueba: 'test88 §3' },
   // ---- parámetros de una definición que leía una activa v1 de la Maga (salen de js/ con E1.5; revisión de E1.5)
   //      tipo 'clase' en una clave de definición = la lee el código de la clase (comportamiento, campo o mecánica), no el núcleo
   shieldManaPct: { tipo: 'alias', a: "mod buff (+% de escudo: el comportamiento de la Barrera multiplica shieldManaPct por prof.buffMul)", donde: 'powers-maga.js (comportamiento m_t_barrera → m_barrera)', prueba: 'test-powers-maga' },
