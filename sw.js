@@ -72,6 +72,12 @@ const ASSETS = [
   './css/gauges-guerrero.css',
   './css/gauges-maga.css',
   './css/gauges-arquera.css',
+  // Paso 2 (2f + 2g), E0.3: progresión, tablero de Paragon y mecánicas por clase (salen de entities/data/spec-mechanics)
+  './js/progression.js',
+  './js/paragon-board.js',
+  './js/mech-guerrero.js',
+  './js/mech-maga.js',
+  './js/mech-arquera.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
