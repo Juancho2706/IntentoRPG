@@ -8,8 +8,12 @@
 //
 // ---- tipos (JSDoc): firmas EXACTAS que reciben los ganchos ----
 /** @typedef {{ dealt:number, raw:number, crit:boolean, skill:string|null, tags:Set<string>,
- *   elem:string|null, proc:boolean, dot:boolean, source:string, pos:{x:number,z:number} }} HitInfo
- *   (dot = tic de daño por tiempo o de campo: como los procs, no dispara onHit salvo `procs:true`) */
+ *   elem:string|null, proc:boolean, dot:boolean, source:string, pos:{x:number,z:number},
+ *   perfect:boolean, step:number, repeat:number, echo:boolean, detonated:boolean, trap:object|null }} HitInfo
+ *   (dot = tic de daño por tiempo o de campo: como los procs, no dispara onHit salvo `procs:true`)
+ *   Paso 2 (§3.6): perfect = golpe de una suelta perfecta · step = paso de combo (1-based) ·
+ *   repeat = réplica n.º (1-based) · echo = de una repetición · detonated = este golpe detonó
+ *   una marca tuya · trap = { uid, skill } si es el estallido de una trampa */
 /** @typedef {{ skill:string|null, tags:Set<string>, crit:boolean, overkill:number, nested:boolean,
  *   loot:{goldMul:number},
  *   status:{ frozen:boolean, bleeding:boolean, burning:boolean, poisoned:boolean,
@@ -19,8 +23,21 @@
 /** @typedef {{ amount:number, raw:number, element:string, melee:boolean, blocked:boolean,
  *   src:object|null }} DamageTaken      // `amount` es MUTABLE en onDamaged (redirección/absorción) */
 /** @typedef {{ sk:object, prof:object, slot:string, target:{x:number,z:number}|null,
- *   enemy:object|null }} CastInfo */
+ *   enemy:object|null, weapon?:boolean, forceCrit?:boolean, echo?:number,
+ *   charge?:{t:number, frac:number}|null, perfect?:boolean, forcePerfect?:boolean, instant?:boolean,
+ *   recast?:{idx:number, left:number, perfect:boolean}|null, step?:number, seqNth?:boolean,
+ *   stance?:string|null, stanceFrom?:string|null, endReason?:string, released?:boolean }} CastInfo
+ *   Paso 2 (§3.6): sk = definición FORJADA (prof.def: la Mejora y la variante ya aplicadas;
+ *   el mismo id que la del catálogo). ③/⑤ leen «perfecto», «paso» y «postura» aquí. Un poder puede poner en
+ *   onCast `forcePerfect` (Punto Débil: la suelta será perfecta) o `instant` (carga completa al
+ *   instante). `echo` > 0 = repetición: no consume cargas ni relanzamientos ni avanza estado. */
 /** @typedef {{ hits:number, dealt:number, killed:number }} CastResult */
+/** @typedef {{ kind:'recast'|'channel'|'charge'|'stance'|'combo', reason:string, casts:number,
+ *   hits:number, released:boolean, frac:number, perfect:boolean }} SkillEnd
+ *   ⑭ fin de una cadena de relanzar, un canal, una carga, una postura o un combo. reason:
+ *   recast: max|timeout|miss · channel: release|done|dodge|interrupt|drain|cc|cancel ·
+ *   charge: release|auto|dodge|interrupt|cc|cancel|panel · stance: end|recast|dodge|death|spec ·
+ *   combo: done|timeout */
 //
 // PUNTOS DE DESPACHO (los ÚNICOS que llaman a firePower):
 //  ① Player.recompute ............ stats (+ buildHookIndex)          entities.js
@@ -44,6 +61,10 @@
 //  ⑬ fin natural de un DoT ....... onDotEnd(g, p, e, dot)            timers.js → game-skills.js
 //       dot = { source, kind, total, per, ticks } (solo si se agotó solo: no al
 //       consumirlo, reemplazarlo ni al morir el objetivo)
+// Paso 2 (D9: un solo gancho nuevo para los verbos):
+//  ⑭ fin de un verbo ............. onSkillEnd(g, p, sk, end)         game-skills.js
+//       end = SkillEnd (arriba). El comportamiento `end` de la habilidad recibe el mismo `end`
+//       como 4.º argumento. «Perfecto», «paso» y «postura» se leen en ③ afterCast y ⑤ onHit.
 //
 // MÓDULOS POR CLASE (Paso 2c.1, §9.1.6): js/powers-<clase>.js exporta
 // <clase>Powers(), <clase>SkillBehaviors() (activas de talento), <clase>Fields() y
@@ -60,13 +81,19 @@ import { ARQUERA_SKILL_BEHAVIORS } from './skills-arquera.js';
 import { guerreroPowers, guerreroSkillBehaviors, guerreroFields, guerreroGauges } from './powers-guerrero.js';
 import { magaPowers, magaSkillBehaviors, magaFields, magaGauges } from './powers-maga.js';
 import { arqueraPowers, arqueraSkillBehaviors, arqueraFields, arqueraGauges } from './powers-arquera.js';
+// Paso 2 (§3.5): poderes `v_<id>` de las variantes de la forja, uno por clase (dueños: KA)
+import { guerreroForgePowers } from './powers-forge-guerrero.js';
+import { magaForgePowers } from './powers-forge-maga.js';
+import { arqueraForgePowers } from './powers-forge-arquera.js';
 import { defineField } from './field-entities.js';
 import { gaugePowers, registerGauges } from './spec-mechanics.js';
 
 export const HOOK_NAMES = ['stats', 'modifyResolve', 'condAdd', 'condCrit', 'onCast', 'afterCast',
   'onHit', 'onKill', 'condDr', 'onDamaged', 'onLethal', 'onTick', 'onGauge',
   // Paso 2c.2: ⑪ recurso ganado · ⑫ daño / golpe letal a un ALIADO · ⑬ fin de un DoT
-  'onResource', 'onAllyDamaged', 'onAllyLethal', 'onDotEnd'];
+  'onResource', 'onAllyDamaged', 'onAllyLethal', 'onDotEnd',
+  // Paso 2 (D9): ⑭ fin de un verbo (cadena de relanzar, canal, carga, postura, combo)
+  'onSkillEnd'];
 // claves admitidas en un PowerDef (cualquier otra → definePower lanza)
 export const POWER_KEYS = new Set([...HOOK_NAMES, 'mult', 'icd', 'priority', 'procs', 'state', 'name', 'desc', 'tags']);
 
@@ -175,7 +202,9 @@ export function dealProcDamage(g, e, amount, opts = {}) {
 // historial desde que la tienes, no desde la primera activa).
 // ------------------------------------------------------------
 export const SKILL_BEHAVIORS = {};
-const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'passiveTick', 'name', 'desc']);
+// params: claves PROPIAS de la definición que lee el comportamiento (validateSkillDef v2 no
+// las avisa como desconocidas)
+const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'passiveTick', 'name', 'desc', 'params']);
 export function defineSkillBehavior(id, def) {
   if (!id || SKILL_BEHAVIORS[id]) throw new Error(`defineSkillBehavior: id inválido o repetido "${id}"`);
   // cast() es lo normal; un comportamiento SOLO con tick/end convive con el tipo
@@ -208,4 +237,6 @@ for (const [powers, behaviors, fields, gauges] of [
   for (const [kind, def] of Object.entries(fields() || {})) defineField(kind, def);
   registerGauges(gauges());
 }
+// Paso 2: poderes de la forja (variantes `v_*`; ids únicos entre clases, D28)
+for (const forge of [guerreroForgePowers, magaForgePowers, arqueraForgePowers]) registerPowers(forge());
 registerPowers(gaugePowers());

@@ -22,6 +22,13 @@
 // Paso 2c.2: aliados del cooperativo con el contrato del núcleo
 //   const a = h.ally(3, 0, 1000);   // en g.party; a.takeDamage(n) → g.damageAlly (⑫)
 //   KillInfo.status con killStatus(e) de game-skills.js (bleeding/burning/poisoned reales)
+// Paso 2 (verbos, §3.6): habilidades y forja SINTÉTICAS sobre una copia de la clase
+//   const h = makeHarness({ classId: 'guerrero', level: 30, inject: { skills: [def…], forge: { id: entrada } } });
+//   h.press('rmb'); h.step(0.5); h.release('rmb');  // carga y suelta (entrada controlada)
+//   h.hold('k2', 1.0);                               // pulsa, mantiene 1 s y suelta
+//   h.walk({ x: 1, z: 0 }, 0.5); h.stand(1);         // caminar / quedarse quieto
+//   h.sfxCount('verb_perfect'); h.g.sfxLog           // espía de sonidos (nombre + simT)
+//   g.clockNow() = reloj de simulación en ms (la suelta se mide sin reloj de pared)
 import * as THREE from 'three';
 import { Player, Enemy, Projectile } from '../../js/entities.js';
 import { TickScheduler } from '../../js/timers.js';
@@ -31,7 +38,8 @@ import { firePower } from '../../js/powers.js';
 import { createRng } from '../../js/rng.js';
 import { normalizeTalents } from '../../js/talents.js';
 import { setGauge, gaugeValue, gaugeView, gaugeState } from '../../js/spec-mechanics.js';
-import { ENEMIES, scaleEnemy, ENEMY_RANKS } from '../../js/data.js';
+import { ENEMIES, scaleEnemy, ENEMY_RANKS, CLASSES } from '../../js/data.js';
+import { normalizeSkillDef } from '../../js/skill-defs.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 
@@ -44,7 +52,7 @@ export function makeGame({ seed = 7 } = {}) {
     updateHUD() {}, refreshSkillsView() {},
   };
   const g = {
-    ui, state: 'play', settings: {}, _paused: false,
+    ui, state: 'play', settings: {}, _paused: false, sfxLog: [], _clockMs: 0,
     // 🖱️Der NO mantenido por defecto (si no, el básico cederá el turno a la gastadora
     // de 🖱️Der: regla de los dos botones del Paso 2b.2); h.g.input.mouseHeld.r = true lo simula
     input: { joyDir: null, keyDir: null, mouseWorld: null, mouseHeld: { l: true, r: false }, held: () => true },
@@ -52,7 +60,11 @@ export function makeGame({ seed = 7 } = {}) {
     enemies: [], projectiles: [], fx: [], kills: [],
     timers: new TickScheduler(),
     rng: createRng(seed),
-    sfx() {}, emitFx() {}, addShake() {}, vibrate() {}, tip() {}, spawnBurst() {}, spawnRing() {}, spawnBeam() {},
+    sfx(name) { this.sfxLog.push({ name, t: this.player?.simT || 0 }); }, emitFx() {}, addShake() {},
+    // reloj de simulación en ms (game-skills lo usa en lugar del de pared para medir la suelta)
+    clockNow() { return this._clockMs; },
+    // fuera de combate por defecto (forja y respec gratis); h.g.combatFree = false lo bloquea
+    canRespecFree() { return this.combatFree !== false; }, vibrate() {}, tip() {}, spawnBurst() {}, spawnRing() {}, spawnBeam() {},
     hitStop() {}, save() {}, onPlayerDeath() { this.dead = true; },
     spawnProjectile(o) { this.projectiles.push(new Projectile(this, o)); },
     nearestEnemy(maxDist = 10, from = null) {
@@ -80,6 +92,9 @@ export function makeGame({ seed = 7 } = {}) {
     // avanza la simulación como Game.tick (sin render)
     step(dt) {
       const p = this.player;
+      this._clockMs += dt * 1000;
+      // con la entrada controlada (h.press), el MISMO bucle de botones mantenidos que Game.tick
+      if (this.input._ctl && p) this.pumpHeldSlots();
       if (p) p.update(dt);
       this.updateFields(dt);
       this.timers.tick(dt);
@@ -91,9 +106,19 @@ export function makeGame({ seed = 7 } = {}) {
   return g;
 }
 
-export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed = 7, tv = null, spec = null, talents = null } = {}) {
+// copia de la clase con habilidades y forja inyectadas (no toca CLASSES)
+function injectClass(classId, inject) {
+  const base = CLASSES[classId];
+  const extra = (inject.skills || []).map(d => normalizeSkillDef({ icon: '🧪', desc: 'prueba', elem: 'physical', req: 1, ...d }));
+  const ids = new Set(extra.map(s => s.id));
+  return { ...base, skills: [...base.skills.filter(s => !ids.has(s.id)), ...extra], forge: { ...(base.forge || {}), ...(inject.forge || {}) } };
+}
+const SLOT_ACTION = { k1: 'skill1', k2: 'skill2', k3: 'skill3', k4: 'skill4' };
+
+export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed = 7, tv = null, spec = null, talents = null, inject = null } = {}) {
   const g = makeGame({ seed });
   const p = new Player(g, classId);
+  if (inject) p.cls = injectClass(classId, inject);
   g.player = p;
   p.combatRng = createRng(seed).fork('combate');
   p.level = level;
@@ -152,6 +177,31 @@ export function makeHarness({ classId = 'guerrero', level = 1, powers = [], seed
       (g.party || (g.party = [])).push(a);
       return a;
     },
+    // ---- entrada controlada (Paso 2): la 1.ª llamada pasa de «todo mantenido» a teclas reales
+    control() {
+      const inp = g.input;
+      if (inp._ctl) return inp;
+      inp._ctl = true; inp._keys = new Set(); inp.mouseHeld = { l: false, r: false };
+      inp.held = a => inp._keys.has(a);
+      return inp;
+    },
+    setHeld(slot, on) {
+      const inp = this.control();
+      if (slot === 'lmb') inp.mouseHeld.l = on;
+      else if (slot === 'rmb') inp.mouseHeld.r = on;
+      else if (on) inp._keys.add(SLOT_ACTION[slot]); else inp._keys.delete(SLOT_ACTION[slot]);
+    },
+    press(slot) { this.setHeld(slot, true); return g.castSkillSlot(slot); },
+    release(slot) { this.setHeld(slot, false); return g.releaseSkillSlot(slot); },
+    hold(slot, sec, dt = 1 / 60) { const ok = this.press(slot); this.step(sec, dt); this.release(slot); return ok; },
+    walk(dir, sec = 1, dt = 1 / 60) {
+      const l = Math.hypot(dir.x, dir.z) || 1;
+      g.input.keyDir = { x: dir.x / l, z: dir.z / l };
+      this.step(sec, dt);
+      g.input.keyDir = null;
+    },
+    stand(sec = 1, dt = 1 / 60) { g.input.keyDir = null; this.step(sec, dt); },
+    sfxCount(name) { return g.sfxLog.filter(x => x.name === name).length; },
     sustained() { return p._sustained || 0; },
     messages() { return g.ui.messages; },
     // indicador de especialización (spec-mechanics): fija el valor por gainGauge/drainGauge

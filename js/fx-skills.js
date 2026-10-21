@@ -412,6 +412,62 @@ export const critRing = {
 };
 
 // ------------------------------------------------------------
+// VERBOS (Paso 2, §3.12): presets GENÉRICOS que el canal de lanzamiento emite en el
+// instante del borde. Los catálogos por clase solo eligen color y escala con
+// verbFx(nombre, '#hex', escala) (no hace falta un preset por habilidad).
+// ------------------------------------------------------------
+// la carga entra en la ventana perfecta: destello corto en el arma
+export const verbWindow = {
+  name: 'Ventana perfecta', texture: 'glow', blending: 'additive',
+  count: 2, burst: true, lifetime: [0.12, 0.2],
+  shape: 'point', shapeRadius: 0.05, speed: [0, 0.3], gravity: 0, drag: 0,
+  size: { start: [0.9, 1.2], end: 0.0 },
+  color: { start: '#ffffff', end: '#ffd34d' }, alpha: { start: 1, end: 0 },
+};
+// suelta perfecta: estallido dorado nítido
+export const verbPerfect = {
+  name: 'Suelta perfecta', texture: 'spark', blending: 'additive',
+  count: 14, burst: true, lifetime: [0.2, 0.38],
+  shape: 'sphere', shapeRadius: 0.15, speed: [2.5, 5.0], gravity: -3, drag: 2.2,
+  size: { start: [0.18, 0.32], end: 0.0 },
+  color: { start: '#fffbe0', end: '#ffb81e' }, alpha: { start: 1, end: 0 },
+};
+// relanzar disponible: aro que se abre a los pies
+export const verbRecast = {
+  name: 'Relanzar', texture: 'disc', blending: 'additive',
+  count: 1, burst: true, lifetime: [0.25, 0.32],
+  shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+  size: { start: [0.5, 0.6], end: 2.4 },
+  color: { start: '#e8f4ff', end: '#7ab8ff' }, alpha: { start: 0.8, end: 0 },
+};
+// cambio de postura: aro del color del modo
+export const verbStance = {
+  name: 'Postura', texture: 'disc', blending: 'additive',
+  count: 1, burst: true, lifetime: [0.3, 0.4],
+  shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+  size: { start: [1.6, 1.8], end: 0.6 },
+  color: { start: '#ffffff', end: '#8ab4ff' }, alpha: { start: 0.75, end: 0 },
+};
+// una trampa estalla por una detonación
+export const verbDetonate = {
+  name: 'Detonación', texture: 'glow', blending: 'additive',
+  count: 10, burst: true, lifetime: [0.18, 0.32],
+  shape: 'sphere', shapeRadius: 0.2, speed: [1.5, 3.5], gravity: -2, drag: 2.5,
+  size: { start: [0.3, 0.5], end: 0.0 },
+  color: { start: '#fff2c0', end: '#ff6a2a' }, alpha: { start: 0.95, end: 0 },
+};
+const VERB_PRESETS = { verbWindow, verbPerfect, verbRecast, verbStance, verbDetonate };
+// copia de un preset de verbo con otro color final y otra escala (KA: «solo color y escala»)
+export function verbFx(name, color = null, scale = 1) {
+  const base = VERB_PRESETS[name];
+  if (!base) return null;
+  const sz = base.size || {};
+  const mul = v => (Array.isArray(v) ? v.map(x => x * scale) : (typeof v === 'number' ? v * scale : v));
+  return { ...base, size: { start: mul(sz.start), end: mul(sz.end) },
+    color: color ? { start: base.color?.start || '#ffffff', end: color } : base.color };
+}
+
+// ------------------------------------------------------------
 // Tabla por id de habilidad (para acceso cómodo desde main.js).
 // Cada entrada describe los presets que usa la habilidad y el color de elemento.
 // ------------------------------------------------------------
@@ -456,6 +512,7 @@ const BASE_FX_PRESETS = {
   basicCleave, basicBolt, basicArrow,
   meleeHit, meleeHitFlash,
   critStar, critFlash, critRing,
+  ...VERB_PRESETS,
 };
 export const SKILL_FX_PRESETS = { ...BASE_FX_PRESETS, ...GUERRERO_FX_PRESETS, ...MAGA_FX_PRESETS, ...ARQUERA_FX_PRESETS };
 

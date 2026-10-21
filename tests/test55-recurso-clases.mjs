@@ -59,7 +59,8 @@ const mk = () => ({ ui: { spawnText() {}, message() {}, flashDamage() {}, refres
 const g = mk();
 const p = new Player(g, 'guerrero'); g.player = p;
 assert.deepEqual(Object.keys(p.skills).sort(), ['g_tajo'], 'Nv1: solo el básico A');
-assert.equal(p.skillPoints, 0, 'Nv1: 0 puntos');
+assert.equal(p.skillPoints, undefined, 'sin puntos de habilidad: las ramas pasan a la forja (Paso 2)');
+assert.deepEqual(p.skillForge, {}, 'forja vacía al empezar');
 assert.equal(p.hotbar.lmb, 'g_tajo', '🖱️Izq = básico de arma');
 assert.equal(p.skillSystemV, 5);
 p.level = 15; p.recompute();

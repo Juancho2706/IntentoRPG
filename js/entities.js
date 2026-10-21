@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { CLASSES, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 // Paso 2c.0: talentos y especialización (sustituyen a las maestrías)
 import { aggregateTalents, normalizeTalents } from './talents.js';
+// talentsTrimmed / TALENTS_TRIMMED_NOTICE solo existen en talents.js v2 (W1): se leen opcionales
+import * as talentsApi from './talents.js';
 // Paso 2 (E0.3): experiencia, subida de nivel y sus avisos (Player.gainXP delega)
 import { gainXP as progressionGainXP } from './progression.js';
 import { glyphValue } from './items.js';
@@ -13,15 +15,16 @@ import { migrateSave, serializePlayer } from './save-schema.js';
 import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
   condAddPct, condCritPct, dotProfile, healScaled,
-  STAGGER_MAX, STAGGER_BREAK_T, STAGGER_LOCK_T, staggerFromCC, staggerFromDamage,
-  THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage } from './combat-math.js';
+  STAGGER_MAX, STAGGER_BREAK_T, STAGGER_LOCK_T, staggerFromCC, staggerFromDamage, staggerFromDisplace, DISPLACE_DR,
+  displaceDist, ccDurationWithTalents,
+  THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage, chargeCoefAt } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
-import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT } from './skill-resolve.js';
+import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef } from './skill-resolve.js';
 import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
 import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
 import { dotsOf } from './timers.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
-import { projFanOffset } from './skill-defs.js';
+import { projFanOffset, forgePowers, STANCE_STATS, VERB_DEFAULTS } from './skill-defs.js';
 import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
   potionResourceAmount, touchCombat } from './resources.js';
 
@@ -40,7 +43,7 @@ export function weaponBasicOf(cls) {
 // REALMENTE golpeado: Vulnerable, aturdir/inmovilizar/ralentizar (Enemy.applyCC,
 // con rendimientos decrecientes), DoT (perfil central de combat-math) y Decapitar.
 // Lo comparten el básico (Player.basicAttack) y el canal de lanzamiento (game-skills).
-export function applyHitEffects(g, p, e, prof, avgHit) {
+export function applyHitEffects(g, p, e, prof, avgHit, opts = {}) {
   if (!e || !e.alive || !prof) return;
   if (prof.vuln) e.vulnT = Math.max(e.vulnT || 0, prof.vuln);
   // Paso 2c.0: a los jefes el aturdimiento no los aturde: suma STAGGER (Enemy.applyCC).
@@ -73,9 +76,43 @@ export function applyHitEffects(g, p, e, prof, avgHit) {
   // Decapitar: ejecuta a enemigos (no jefes) por debajo del umbral de vida
   if (prof.execute && e.alive && !isBossDef(e.def) && e.hp / e.maxHP <= prof.execute / 100)
     e.takeDamage(e.hp + 1, false, { proc: true, source: 'execute', skill: prof.id });
+  // Paso 2 (§3.6): desplazar a los golpeados (pull/knock; a los jefes, Quebranto) y marcar.
+  // `from` = origen del empuje/atracción (el héroe o el centro del área: lo pone el canal)
+  if (e.alive && (prof.pull > 0 || prof.knock > 0) && !opts.noDisplace) {
+    const from = opts.from || p?.pos;
+    if (prof.pull > 0) {
+      const to = prof.pullTo === 'trap' && g?.nearestOwnField ? (g.nearestOwnField(p, e.pos, { kind: 'trampa' })?.pos || from) : from;
+      e.displace?.(to, prof.pull, { toward: true, src: p });
+    }
+    if (prof.knock > 0) e.displace?.(from, prof.knock, { toward: false, src: p });
+  }
+  if (e.alive && prof.mark && g?.applyMark) g.applyMark(e, prof, p);
+  // provocar a los golpeados (clave `taunt`, s): Carga de Escudo, Golpe de Escudo
+  if (e.alive && prof.taunt > 0) e.applyCC?.('taunt', prof.taunt, { src: p });
 }
 
 function rand(min, max) { return min + Math.random() * (max - min); }
+
+// forja guardada (D3) validada contra el catálogo de la clase: solo ids de habilidades
+// que existen y valores 'i' | 'ii' | null (null = «sin variante» elegido a propósito)
+function sanitizeForge(raw, cls) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  const ids = new Set((cls?.skills || []).map(s => s.id));
+  for (const [id, v] of Object.entries(raw)) if (ids.has(id) && (v === 'i' || v === 'ii' || v === null)) out[id] = v;
+  return out;
+}
+// ¿el enemigo lleva una marca VIVA de este héroe? (tv.markedDmg)
+function hasOwnMark(e, p) {
+  for (const k in e?.marks || {}) { const m = e.marks[k]; if (m && m.t > 0 && (!m.by || m.by === p)) return true; }
+  return false;
+}
+// firma barata de la forja (revisión de la caché p.forged, riesgo 11)
+function forgeSig(p) {
+  let s = String(p.level || 1);
+  for (const [k, v] of Object.entries(p.skillForge || {})) s += `|${k}:${v}`;
+  return s;
+}
 
 // Tope de la bolsa de materiales, en HUECOS (no en objetos):
 //  - las gemas/runas idénticas se APILAN (un hueco por pila, contador en la UI);
@@ -468,8 +505,7 @@ export class Player {
     this.xp = 0;
     this.attributes = { ...this.cls.base };
     this.statPoints = 0;
-    this.skillPoints = 0;       // nv1: solo el ataque básico; el 1er punto llega al nv2
-    this.skills = {};           // id -> nivel
+    this.skills = {};           // id -> nivel (derivado; lo rellena recompute)
     this.gold = 50;
     this.potions = { hp: 3, mp: 2 };
     this.inventory = [];        // máx 32 — SOLO objetos de equipo ('item'/'charm')
@@ -525,11 +561,17 @@ export class Player {
     } else this.pet = null;
     // talentos (Paso 2c.0, sustituyen a las maestrías): { v, spec, cls, sp, choice }.
     // normalizeTalents valida contra el catálogo ACTUAL (ids/rangos que ya no existen
-    // se purgan). La migración maestría → especialización vive en MIGRATIONS[3].
-    this.talents = normalizeTalents(this.talents, classId);
+    // se purgan) y, con el NIVEL (§3.3), cada árbol contra lo que da ese nivel (puertas,
+    // requisitos y presupuesto). La migración maestría → especialización vive en MIGRATIONS[3].
+    this.talents = normalizeTalents(this.talents, classId, this.level);
     delete this.mastery;
     // avisos de carga (la migración v4 deja 'talentos'); los muestra Game y se vacían
     this.notices = Array.isArray(this.notices) ? this.notices : [];
+    // §3.2: un árbol ilegal al nivel que normalizeTalents vació deja el aviso 'talentos-recortados'
+    if ((talentsApi.talentsTrimmed?.(this.talents) || []).length) {
+      const id = talentsApi.TALENTS_TRIMMED_NOTICE || 'talentos-recortados';
+      if (!this.notices.includes(id)) this.notices.push(id);
+    }
     // eras (temporada local): estado por semana; títulos cosméticos obtenidos
     this.era = this.era && typeof this.era === 'object' ? this.era : null;
     this.titles = Array.isArray(this.titles) ? this.titles : [];
@@ -552,15 +594,15 @@ export class Player {
     this.blessings = this.blessings || {};
     // registro de colección: sets vistos, poderes legendarios, bestiario
     this.discovered = { sets: {}, powers: {}, bestiary: {}, ...(this.discovered || {}) };
-    // Paragon: tablero de nodos. La conversión del formato plano antiguo vive en
-    // MIGRATIONS[0]; esto es el valor por defecto (héroe nuevo) y red de
-    // seguridad ante un save corrupto (reembolsa level-20 al tablero vacío).
+    // Paragon: tablero de glifos. La conversión del formato plano antiguo vive en
+    // MIGRATIONS[0]. Paso 2 (D12): los puntos son DERIVADOS del nivel (paragonPointsEarned),
+    // así que un héroe nuevo nace con { nodes:{}, glyphs:{} } sin `points` (la migración
+    // v4 → v5 borra el campo de los guardados viejos).
     if (this.paragon && this.paragon.nodes) {
-      this.paragon.points = this.paragon.points || 0;
       this.paragon.nodes = this.paragon.nodes || {};
       this.paragon.glyphs = this.paragon.glyphs || {};
     } else {
-      this.paragon = { points: Math.max(0, (this.level || 1) - 20), nodes: {}, glyphs: {} };
+      this.paragon = { nodes: {}, glyphs: {} };
     }
     this.records = {
       kills: 0, eliteKills: 0, bossKills: 0, mimics: 0, deaths: 0,
@@ -572,21 +614,35 @@ export class Player {
     // --- Sistema de habilidades v5 (Paso 2b.0, kit de 6 ranuras con categoría):
     // las habilidades se APRENDEN SOLAS al llegar a su nivel y su rango sale del
     // nivel (+talentos/equipo): `this.skills` (id → rango) es DERIVADO y lo
-    // rellena recompute(); ya no se guarda. Los puntos de habilidad (Nv2–20) solo
-    // desbloquean mini-ramas (skillBranches). La migración vive en MIGRATIONS[2].
+    // rellena recompute(); ya no se guarda.
     this.skills = {};
+    // @deprecated (Paso 2): ramas viejas. Se sanean por si un guardado v4 las trae; la
+    // migración v4 → v5 las traduce a forja y las borra (sin puntos de habilidad).
     this.skillMods = (this.skillMods && typeof this.skillMods === 'object') ? this.skillMods : {};
-    // skillBranches[skId][branchId] = true → mini-rama de pasivos DESBLOQUEADA (cuesta 1 punto)
     this.skillBranches = (this.skillBranches && typeof this.skillBranches === 'object') ? this.skillBranches : {};
     if (this.skillSystemV == null) this.skillSystemV = 5;
+    // FORJA (Paso 2, D3): skillId → 'i' | 'ii' | null (sin clave = nunca elegida). Se valida
+    // contra el catálogo actual: ids desconocidos o valores inválidos se descartan.
+    this.skillForge = sanitizeForge(this.skillForge, this.cls);
     this.furiaIdle = 0; // temporizador de disipación de Furia (fuera de combate)
+
+    // estado VOLÁTIL de los verbos (§3.7; no se guarda): relanzar/combo/secuencia/postura
+    // por habilidad, cargas de enfriamiento, definición forjada en caché, multiplicadores
+    // de movimiento y PLANTADO (D20: 1 s sin caminar ni usar movilidad)
+    this.skState = {};
+    this.skCharges = {};
+    this.forged = {};
+    this.moveMuls = {};
+    this.planted = false;
+    this.plantedT = 0;
+    this.perfectStreak = 0;     // sueltas perfectas seguidas (fallar la ventana la reinicia)
 
     this.buffs = [];
     this.cds = {};
     this.cdMax = {};            // enfriamiento total del último uso (overlay de la UI)
-    this.gcdT = 0;              // enfriamiento global (0,2 s entre gastadoras)
+    this.gcdT = 0;              // enfriamiento global (0,2 s entre principales)
     this.castLock = 0;          // bloqueo de lanzamiento (windup / canalización)
-    this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una gastadora (Paso 2b.2)
+    this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una principal (Paso 2b.2)
     this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
     this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
@@ -614,7 +670,7 @@ export class Player {
 
     this.group = makePlayerModel(this.cls, this.tint);
     this.recompute();
-    // hotbar de 6 ranuras con categoría (lmb básico · rmb gastadora · k1 movilidad ·
+    // hotbar de 6 ranuras con categoría (lmb básico · rmb principal · k1 movilidad ·
     // k2 flexible · k3 especialización · k4 definitiva); se valida con el nivel ya cargado
     this.hotbar = this.normalizeHotbar(this.hotbar);
     this.hp = this.stats.maxHP;
@@ -662,6 +718,19 @@ export class Player {
     return isKnown(this, sk);
   }
 
+  // accesores de lo FORJADO que recompute pasa a aggregateTalents (§3.3 y §3.8): elemOf
+  // (selectores '@<elem>'), kitOf ('@spec') y defOf (definición forjada: '@tag:', atajos
+  // como '@charge' y '@windup'; una variante que añade `charge` recibe los talentos de @charge)
+  talentAccessors() {
+    const skills = this.cls?.skills || [];
+    const defOf = id => { const sk = skills.find(s => s.id === id); return sk ? forgedDef(this, sk) : null; };
+    return {
+      elemOf: id => defOf(id)?.elem || null,
+      kitOf: specId => skills.filter(s => specId && s.spec === specId).map(s => s.id),
+      defOf,
+    };
+  }
+
   get pos() { return this.group.position; }
 
   // estadísticas derivadas de atributos + equipo + buffs + pasivas
@@ -678,14 +747,19 @@ export class Player {
                    critDmg: 0, dr: 0, block: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0,
                    // Paso 2b.0: esquiva (s menos de recarga), regen. de Energía y curación de habilidad
                    dodgeCdr: 0, energyRegen: 0, healPct: 0,
-                   // Paso 2b.2: coste de gastadoras por buff (−100 = gratis) y fallo de proyectiles enemigos
+                   // Paso 2b.2: coste de principales por buff (−100 = gratis) y fallo de proyectiles enemigos
                    spenderCostPct: 0, projMissPct: 0,
                    // Paso 2c.0 (talentos, §5.3): % de vida/maná máx., % de experiencia,
                    // amenaza extra (se suma al ×1 base; la innata del Guardián lo fija en ×3)
                    // y % de stagger contra jefes
                    hpPct: 0, mpPct: 0, xpPct: 0, threatMult: 0, staggerPct: 0,
                    // Paso 2c.2: daño recibido extra (%, tras mitigar: Temeridad +10)
-                   dmgTakenPct: 0 };
+                   dmgTakenPct: 0,
+                   // Paso 2 (claves de talento, docs/paso2-claves-w2.md): +% de regeneración del
+                   // recurso (Maná/Energía) y +% del recurso GENERADO (Furia Creciente)
+                   regenPct: 0, resGainPct: 0,
+                   // Paso 2 (§3.6): suelta perfecta desde media carga (buff Calma Absoluta)
+                   perfectAlways: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -747,9 +821,15 @@ export class Player {
       const c = PET_COLLARS[this.pet.collar];
       if (c?.stat) addStats({ [c.stat]: c.value });
     }
+    // FORJA (Paso 2, §3.5): la caché de definiciones forjadas solo se rehace si cambian el
+    // nivel o la forja (no en cada addBuff: riesgo 11)
+    const fsig = forgeSig(this);
+    if (fsig !== this._forgeSig) { this.forged = {}; this._forgeSig = fsig; }
+    const clsSkills = this.cls?.skills || [];
     // TALENTOS (Paso 2c.0, §5.4): árbol de clase + especialización activa (Nv ≥ 10).
-    // talentExtra = agregado extra que inyectan los tests/arnés (se suma encima).
-    const agg = aggregateTalents(this);
+    // §3.3: los selectores de talento se expanden por el elemento FORJADO (elemOf) y por el
+    // kit de la especialización (kitOf). talentExtra = agregado extra de los tests/arnés.
+    const agg = aggregateTalents(this, this.talentAccessors());
     const ex = this.talentExtra;
     if (ex) {
       for (const [k, v] of Object.entries(ex.stats || {})) agg.stats[k] = (agg.stats[k] || 0) + v;
@@ -787,6 +867,14 @@ export class Player {
     // reducción de daño condicional, Pirotecnia, Espinas Venenosas…) van por el poder
     // común `nucleo_tv` (powers-common.js): sin poderes «portadores» en los nodos
     if (usesCoreTv(agg.tv)) this.powers.add(CORE_TV_POWER);
+    // poderes de la FORJA (Mejora y variante elegida, `power: 'v_<id>'`) de las habilidades
+    // que conoces (una variante de otro kit no aplica)
+    for (const sk of clsSkills) {
+      const fs = forgeState(this, sk);
+      if (!fs.entry || (!fs.mejora && !fs.variant) || !isKnown(this, sk)) continue;
+      for (const id of forgePowers(fs.entry, fs)) this.powers.add(id);
+    }
+    this._vstats = null;        // stats de postura (verbStats): se recalculan al pedirlas
     // activas conocidas con passiveTick (⑨ a 10 Hz aunque no estén en la barra)
     this.passiveBehaviors = [];
     for (const id of agg.grants || []) {
@@ -840,6 +928,8 @@ export class Player {
       hpPct: item.hpPct, mpPct: item.mpPct, xpPct: item.xpPct,
       threatMult: Math.max(0.1, 1 + item.threatMult), staggerPct: item.staggerPct,
       dmgTakenPct: item.dmgTakenPct,
+      regenPct: item.regenPct, resGainPct: item.resGainPct,
+      perfectAlways: item.perfectAlways,
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
@@ -887,11 +977,21 @@ export class Player {
   // Debilidad y los multiplicadores [×] los aplica Enemy.takeDamage al impactar.
   rollDamage(coef = 1, critBonus = 0, addPct = 0, e = null, hit = null) {
     const r = this.combatRng || Math.random;
-    const st = this.stats;
+    let st = this.stats;
     let add = addPct, cb = critBonus;
+    // Paso 2 (§3.6): stats de las posturas activas (sin recompute) y DETONACIÓN de una marca
+    // propia por este golpe (+pct al saco aditivo; consume un uso; hit.detonated)
+    const vs = this.verbStats();
+    if (vs.dmgPct) add += vs.dmgPct;
+    if (vs.crit) cb += vs.crit;
+    if (vs.critDmg) st = { ...st, critDmg: (st.critDmg || 0) + vs.critDmg };
+    let det = 0;
+    if (e && hit && this.game?.markDetonation) det = this.game.markDetonation(e, hit) || 0;
+    if (det > 0) add += det;
     if (e && this.tv) {
       // Paso 2c.2: Presa (preyDmg), «ya estallaron» (explodedDmg, Fuego), Ejecutar contra
-      // élites/jefes (executePct) y crítico contra enemigos en llamas (burningCrit)
+      // élites/jefes (executePct) y crítico contra enemigos en llamas (burningCrit).
+      // Paso 2: plantado (plantedDmg), objetivo con tu marca (markedDmg), detonación (detonateDmg)
       const c = {
         targetElite: !!(e.def?.rank || isBossDef(e.def) || e.prey),
         targetSlowed: e.slowT > 0 || e.frozenT > 0,
@@ -899,6 +999,7 @@ export class Player {
         manaFrac: st.maxMP ? this.mp / st.maxMP : 0,
         targetPrey: !!e.prey, targetExploded: !!e.pyroBurst, elem: hit?.elem || null,
         targetBurning: !!this.tv.burningCrit && dotsOf(e, 'burn').length > 0,
+        planted: !!this.planted, targetMarked: hasOwnMark(e, this), detonated: det > 0,
       };
       add += condAddPct(this.tv, c);
       cb += condCritPct(this.tv, c);
@@ -906,10 +1007,44 @@ export class Player {
     if (this.hookIndex?.condAdd) add += firePower('condAdd', this, this, e, hit || {});
     if (this.hookIndex?.condCrit) cb += firePower('condCrit', this, this, e, hit || {});
     const w = st.wMin + r() * (st.wMax - st.wMin);
-    // hit.forceCrit: crítico seguro (Ignición Total del Calor); se tira igual (azar estable)
+    // hit.forceCrit: crítico seguro (Ignición Total del Calor; suelta perfecta con perfectCrit);
+    // se tira igual (azar estable)
     const crit = r() * 100 < critChance(st.critRaw ?? st.crit, cb) || !!hit?.forceCrit;
     const dmg = hitDamage(w, coef, st, add, crit);
-    return { dmg: Math.max(1, Math.round(dmg)), crit };
+    return { dmg: Math.max(1, Math.round(dmg)), crit, detonated: det > 0 };
+  }
+
+  // Stats VOLÁTILES de los verbos (§3.6): las posturas activas suman sus `stats` sin pasar
+  // por recompute (cambiar de postura no rehace el héroe). Caché hasta el próximo cambio.
+  verbStats() {
+    if (this._vstats) return this._vstats;
+    const out = {};
+    const g = this.game;
+    const modes = g?.activeStanceModes ? g.activeStanceModes(this) : [];
+    for (const m of modes) for (const [k, v] of Object.entries(m.stats || {})) if (STANCE_STATS.has(k) && Number.isFinite(v)) out[k] = (out[k] || 0) + v;
+    this._vstats = out;
+    return out;
+  }
+  // multiplicadores de movimiento (§3.7): spd ×= Π; 0 = quieto. dur en s (Infinity = hasta clear)
+  setMoveMul(id, mul, dur = Infinity) {
+    if (!id) return;
+    this.moveMuls = this.moveMuls || {};
+    this.moveMuls[id] = { mul: Math.max(0, Number(mul) || 0), t: dur > 0 ? dur : Infinity };
+  }
+  clearMoveMul(id) { if (this.moveMuls) delete this.moveMuls[id]; }
+  // plantado al instante (`plant: true` al llegar de un avance o salto) · usar movilidad lo rompe
+  plantNow() { this.plantedT = Math.max(this.plantedT || 0, VERB_DEFAULTS.plantedAfter); this.planted = true; }
+  unplant() { this.plantedT = 0; this.planted = false; }
+  moveMulProduct() {
+    let m = 1;
+    for (const k in this.moveMuls || {}) m *= this.moveMuls[k].mul;
+    return m;
+  }
+  // vida mínima de los buffs con minHpPct (Furia Inmortal), en puntos de vida (0 = sin suelo)
+  minHpFloor() {
+    let pct = 0;
+    for (const b of this.buffs || []) if (b.t > 0 && b.stats?.minHpPct > pct) pct = b.stats.minHpPct;
+    return pct > 0 ? Math.max(1, this.stats.maxHP * pct / 100) : 0;
   }
 
   // golpe MEDIO esperado sin crítico (para DoT/Estela/explosiones/encadenado)
@@ -1010,9 +1145,9 @@ export class Player {
     }
     return out;
   }
-  // probabilidad (%) de que un proyectil ENEMIGO falle al héroe: buff + zona (tope 100)
+  // probabilidad (%) de que un proyectil ENEMIGO falle al héroe: buff + zona + postura (tope 100)
   projMissChance() {
-    return Math.min(100, Math.max(this.stats?.projMissPct || 0, this.zoneDefense().miss));
+    return Math.min(100, Math.max(this.stats?.projMissPct || 0, this.zoneDefense().miss, this.verbStats().projMissPct || 0));
   }
 
   // meta opcional: { name, icon, desc } para que la UI muestre el efecto.
@@ -1087,7 +1222,8 @@ export class Player {
 
   // esquiva: impulso rápido con invulnerabilidad breve
   dodge() {
-    if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0) return;
+    // durante un avance lento (dashT, imparable) no se esquiva: el avance manda
+    if (!this.alive || this.dodgeCd > 0 || this.dodgeT > 0 || this.dashMove) return;
     const g = this.game;
     const dir = g.input.keyDir;
     let dx, dz;
@@ -1147,13 +1283,20 @@ export class Player {
     if (zd > 0) extraDr += zd;
     const sd = this.shieldDr();                       // escudo con reducción (Escudo Prismático)
     if (sd > 0) extraDr += sd;
-    const st = extraDr ? { ...this.stats, dr: (this.stats.dr || 0) + extraDr } : this.stats;
+    // Paso 2: postura activa (Muralla −15 %, Parapeto −30 %…: sin recompute)
+    const vs = this.verbStats();
+    if (vs.dr) extraDr += vs.dr;
+    let st = extraDr ? { ...this.stats, dr: (this.stats.dr || 0) + extraDr } : this.stats;
+    if (vs.block || vs.dmgTakenPct) st = { ...st, block: (st.block || 0) + (vs.block || 0), dmgTakenPct: (st.dmgTakenPct || 0) + (vs.dmgTakenPct || 0) };
     const mit = mitigate(amount, st, { al: attackerLevel, element: info.element, rng: this.combatRng });
     info.blocked = mit.blocked;
     const absorbed = mit.dmg - this.absorbShields(mit.dmg);
     info.amount = mit.dmg - absorbed;
     if (this.hookIndex?.onDamaged) firePower('onDamaged', this, g, this, info);
-    const dmg = Math.max(0, Math.round(info.amount));
+    let dmg = Math.max(0, Math.round(info.amount));
+    // vida mínima (buff minHpPct, Furia Inmortal): no baja del suelo salvo golpes `unavoidable`
+    const floor = opts.unavoidable ? 0 : this.minHpFloor();
+    if (floor > 0 && this.hp - dmg < floor) dmg = Math.max(0, Math.floor(this.hp - floor));
     this.hp -= dmg;
     this.sinceCombat = 0;
     onHurtResource(this, dmg);                      // Furia por daño recibido (tope 12/s)
@@ -1214,10 +1357,17 @@ export class Player {
     if (!this.alive) return;
     const g = this.game;
 
-    // buffs
+    // buffs (Paso 2: endHealPct = cura al ACABAR, p. ej. Furia Inmortal 20 %)
     let expired = false;
     for (const b of this.buffs) { b.t -= dt; if (b.t <= 0) expired = true; }
-    if (expired) { this.buffs = this.buffs.filter(b => b.t > 0); this.recompute(); }
+    if (expired) {
+      const ends = this.buffs.filter(b => b.t <= 0 && b.stats?.endHealPct > 0);
+      this.buffs = this.buffs.filter(b => b.t > 0);
+      this.recompute();
+      for (const b of ends) this.healSkill(this.stats.maxHP * b.stats.endHealPct / 100, b.id);
+    }
+    // multiplicadores de movimiento con duración (§3.7)
+    for (const k in this.moveMuls || {}) { const m = this.moveMuls[k]; if (Number.isFinite(m.t)) { m.t -= dt; if (m.t <= 0) delete this.moveMuls[k]; } }
 
     // cooldowns y regeneración
     this.simT = (this.simT || 0) + dt;
@@ -1234,6 +1384,8 @@ export class Player {
     if (this.shields?.length) { for (const s of this.shields) s.t -= dt; this.shields = this.shields.filter(s => s.t > 0 && s.amt > 0); }
     if (this.xpBoostT > 0) this.xpBoostT -= dt;
     for (const k in this.cds) this.cds[k] = Math.max(0, this.cds[k] - dt);
+    // verbos (§3.6): avance de la carga, ventanas de relanzar, combos y posturas (game-skills)
+    g.tickSkillVerbs?.(dt);
     // recurso de clase (resources.js §2): Furia se pierde fuera de combate; Maná/Energía regeneran
     tickResource(this, dt);
     this.hp = Math.min(this.stats.maxHP, this.hp + (0.4 + this.stats.vit * 0.02) * dt);
@@ -1262,8 +1414,12 @@ export class Player {
         try { L.onLand?.(); } catch (err) { console.warn('[salto] onLand', err); }
       }
       this.moving = true;
+      if (!this.leap && L.plant) this.plantNow();     // `plant: true`: al caer cuentas como plantado
+      else { this.plantedT = 0; this.planted = false; }
       return;
     }
+    // avance LENTO en curso (dash con dashT: lo mueve g.tickSkillVerbs): no se camina
+    if (this.dashMove) { this.moving = true; this.plantedT = 0; this.planted = false; return; }
 
     // ---- movimiento ----
     let dir = null;
@@ -1277,7 +1433,7 @@ export class Player {
         const d = this.pos.distanceTo(t.pos);
         if (d <= this.cls.atkRange) {
           this.faceToward(t.pos);
-          if (this.atkCd <= 0) this.basicAttack(t);
+          if (this.atkCd <= 0 && !g._charging) this.basicAttack(t);   // durante una carga no sale
         } else {
           dir = { x: t.pos.x - this.pos.x, z: t.pos.z - this.pos.z };
         }
@@ -1296,7 +1452,8 @@ export class Player {
     }
 
     if (this.slowT > 0) this.slowT -= dt;
-    const spd = this.stats.spd * (this.slowT > 0 ? 0.55 : 1);
+    // §3.7: Π de los multiplicadores de movimiento (preparar, cargar, canalizar, postura…)
+    const spd = this.stats.spd * (this.slowT > 0 ? 0.55 : 1) * this.moveMulProduct();
 
     // esquiva en curso: voltereta de buceo (gira sobre los pies + arco de salto).
     // Velocidad con ease-out (sale rápido y frena) — se siente mucho más ágil.
@@ -1312,11 +1469,12 @@ export class Player {
       if (this.dashTrail >= 0.025) { this.dashTrail = 0; g.spawnDashGhost?.(this); }
       if (this.dodgeT <= 0 && a) { a.rig.rotation.x = 0; a.rig.position.y = 0; }
       this.moving = true;
+      this.plantedT = 0; this.planted = false;
       return;
     }
 
     let moving = false;
-    if (dir) {
+    if (dir && spd > 0) {
       const len = Math.hypot(dir.x, dir.z);
       if (len > 0.001) {
         const nx = dir.x / len, nz = dir.z / len;
@@ -1332,6 +1490,11 @@ export class Player {
     }
 
     this.moving = moving;       // Concentración (quieta) / Impulso (en movimiento)
+    // PLANTADO (D20): 1 s sin caminar ni usar movilidad. Una preparación o carga con
+    // keepPlanted (Sin Pausa) deja caminar sin romperlo
+    if (moving && !g.keepsPlanted?.()) this.plantedT = 0;
+    else this.plantedT = (this.plantedT || 0) + dt;
+    this.planted = this.plantedT >= VERB_DEFAULTS.plantedAfter;
 
     // esquema WASD+ratón: el héroe MIRA hacia el cursor (apuntado libre), no hacia
     // su dirección de movimiento. En clic-mover o táctil (sin mouseWorld) se ignora.
@@ -1415,23 +1578,31 @@ export class Player {
     }
   }
 
-  basicAttack(target) {
+  // opts.charge (Paso 2, básico tensable): { t, frac, perfect, coefMul, addPct } de la suelta
+  basicAttack(target, opts = {}) {
     const g = this.game;
     const atk = this.cls.atk || (this.cls.ranged ? 'arrow' : 'cleave');
     const wb = weaponBasicOf(this.cls);
     const prof = wb ? resolveSkill(this, wb) : null;
+    const def = prof?.def || wb;
+    // secuencia del básico (§3.6: seq { every, extra }): el N-ésimo ataque lleva extra
+    const seq = def?.seq && g.seqAdvance ? g.seqAdvance(this, wb) : null;
+    const ch = opts.charge || null;
     // ⑦ Paso 2c.2: el básico de ARMA también pasa por onCast (CastInfo.weapon = true):
     // Ráfaga Infinita cuenta sus disparos y un onCast puede forzar el crítico
     // (cast.forceCrit: Camuflaje) o cancelarlo (false)
-    const cast = { sk: wb, prof, slot: 'lmb', target: target?.pos || null, enemy: target?.def ? target : null, weapon: true };
+    const cast = { sk: wb, prof, slot: 'lmb', target: target?.pos || null, enemy: target?.def ? target : null, weapon: true,
+      seqNth: !!seq?.nth, seqIdx: seq?.idx || 0, charge: ch ? { t: ch.t, frac: ch.frac } : null, perfect: !!ch?.perfect };
     if (wb && prof && this.hookIndex?.onCast && firePower('onCast', this, g, this, cast) === false) return;
     this.atkCd = this.stats.atkTime;
     this.swing = 1;
-    const coef = prof ? prof.coef : 1;
-    const bAdd = prof?.addPct || 0;
+    const coef = (prof ? prof.coef : 1) * (ch?.coefMul || 1);
+    const bAdd = (prof?.addPct || 0) + (ch?.addPct || 0);
     const bCrit = prof?.critBonus || 0;
-    const hitInfo = { skill: wb?.id || null, tags: prof?.tags || EMPTY_TAGS, elem: prof?.elem || null, forceCrit: !!(prof?.forceCrit || cast.forceCrit) };
-    const dmgOpts = { skill: hitInfo.skill, tags: hitInfo.tags, elem: hitInfo.elem };
+    const direct = prof?.dmgDirect || 0;   // +% al golpe directo (no a la salpicadura)
+    const hitInfo = { skill: wb?.id || null, tags: prof?.tags || EMPTY_TAGS, elem: prof?.elem || null,
+      forceCrit: !!(prof?.forceCrit || cast.forceCrit || (ch?.perfect && prof?.charge?.perfectCrit)) };
+    const dmgOpts = { skill: hitInfo.skill, tags: hitInfo.tags, elem: hitInfo.elem, perfect: !!ch?.perfect };
     const avgHit = this.avgHit(coef, bAdd);
     // VFX/SFX del básico de la clase (fx-skills-<clase>.js): el Dardo suena `bolt`
     const fx = (wb && SKILL_FX[wb.id]) || null;
@@ -1452,7 +1623,7 @@ export class Player {
 
     if (atk === 'cleave') {
       // Guerrero: tajo amplio — golpea al objetivo y a los enemigos pegados
-      const { dmg, crit } = this.rollDamage(coef, bCrit, bAdd, target, hitInfo);
+      const { dmg, crit } = this.rollDamage(coef, bCrit, bAdd + direct, target, hitInfo);
       const tpos = target.pos.clone();
       let dealtTotal = target.takeDamage(dmg, crit, dmgOpts) || 0;
       onHit(target);
@@ -1464,8 +1635,9 @@ export class Player {
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
       let targets = 1;
-      const cleaveCoef = coef * (wb?.cleave ?? 0.5);
-      const cleaveR = wb?.cleaveR ?? 2.0;
+      // salpicadura del tajo con la definición FORJADA (Filo Ancho, Siega) y splashPct
+      const cleaveCoef = coef * (def?.cleave ?? 0.5) * Math.max(0, 1 + (prof?.splashPct || 0) / 100);
+      const cleaveR = def?.cleaveR ?? 2.0;
       for (const e of g.enemies) {
         if (e === target || !e.alive) continue;
         if (e.pos.distanceToSquared(target.pos) < cleaveR * cleaveR) {
@@ -1492,25 +1664,38 @@ export class Player {
     const color = fx?.color ?? wb?.color ?? (arrow ? 0xe8d8a0 : 0xcc66ff);
     const speed = arrow ? 18 : 13;
     const size = arrow ? 0.09 : 0.17;
-    const extra = prof?.proj || 0; // multidisparo (poder) + aspecto "Doble"/"Enjambre"
+    // proyectiles de la definición forjada (Disparo Disperso: count/spread) + multidisparo
+    // (poder) + aspecto «Doble»/«Enjambre»; la secuencia (seq) añade los suyos al N-ésimo
+    const count = Math.max(1, Math.floor(def?.count || 1)) + (prof?.proj || 0);
+    const spread = def?.count > 1 ? (prof?.spread || 0) : 0;
     const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
     // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
     const muzzle = this.pos.clone().setY(1.0)
       .add(new THREE.Vector3(Math.sin(baseAngle) * 0.45, 0, Math.cos(baseAngle) * 0.45));
     g.emitFx?.(fxp(fx?.aura || fx?.trail) || (arrow ? 'basicArrow' : 'basicBolt'), muzzle);
-    const castHits = extra ? new Set() : null;   // sin escopetazo: un impacto por enemigo
-    for (let i = 0; i <= extra; i++) {
-      const a = baseAngle + projFanOffset(i, extra + 1);   // el primero recto a la mira
+    const castHits = count > 1 || seq?.nth ? new Set() : null;   // sin escopetazo: un impacto por enemigo
+    const shoot = (a, c, pierce) => {
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed, range: this.cls.atkRange + 2, friendly: true, color, size, pierce: !!prof?.pierce, castHits,
-        rollAt: e => this.rollDamage(coef, bCrit, bAdd, e, hitInfo), ...dmgOpts,
+        speed: def?.speed || speed, range: this.cls.atkRange + 2, friendly: true, color, size, pierce, castHits,
+        rollAt: e => this.rollDamage(c, bCrit, bAdd + direct, e, hitInfo), ...dmgOpts, hitOpts: ch?.perfect ? { perfect: true } : null,
         ...(fx?.impact ? { impactPreset: fxp(fx.impact) } : {}),
-        // recurso, efectos de rama y robo de vida: al IMPACTAR (no al disparar).
+        // recurso, efectos de forja/soporte y robo de vida: al IMPACTAR (no al disparar).
         // Así también funcionan apuntando a un punto vacío ({pos: aim} en WASD).
         onHit: (e, dealt) => { grantGen(1); onHit(e); lifeHeal(dealt); },
       });
+    };
+    for (let i = 0; i < count; i++) shoot(baseAngle + projFanOffset(i, count, spread), coef, !!prof?.pierce);
+    // N-ésimo de la secuencia: proyectiles extra a los lados, alternos, hasta la semiapertura
+    // `spread` (rad) (Tercera Flecha)
+    if (seq?.nth) {
+      const x = def.seq.extra || {};
+      const n = Math.max(1, x.count || 1), half = Math.ceil(n / 2);
+      for (let i = 0; i < n; i++) {
+        const off = (i % 2 ? -1 : 1) * Math.ceil((i + 1) / 2) * (x.spread || 0.26) / half;
+        shoot(baseAngle + off, coef * (x.coef ?? 1), x.pierce ?? !!prof?.pierce);
+      }
     }
     g.sfx(fx?.sfx || (arrow ? 'shoot' : 'skill'));
   }
@@ -1610,6 +1795,9 @@ export class Enemy {
   // suma 20; la provocación funciona igual (sin rendimientos decrecientes).
   applyCC(kind, dur, opts = {}) {
     if (!(dur > 0) || !this.alive) return 0;
+    // claves de talento del héroe que lo aplica (ccDurPct, freezeDur: combat-math), en un
+    // único punto para todas las fuentes
+    dur = ccDurationWithTalents(kind, dur, opts.src?.tv);
     const boss = isBossDef(this.def);
     if (boss) {
       const sp = opts.src?.stats?.staggerPct || 0;
@@ -1838,6 +2026,42 @@ export class Enemy {
     if (this.numbT > 0) this.numbT -= dt;
     for (const k in this.debuffs) { const d = this.debuffs[k]; d.t -= dt; if (d.t <= 0) delete this.debuffs[k]; }
     for (const k in this.outWeak) { const d = this.outWeak[k]; d.t -= dt; if (d.t <= 0) delete this.outWeak[k]; }
+    // Paso 2: resistencia a los DESPLAZAMIENTOS y caducidad de las marcas (§3.6)
+    if (this.dispDR > 0) this.dispDR = Math.max(0, this.dispDR - dt * DISPLACE_DR.decay);
+    if (this.marks) for (const k in this.marks) { const m = this.marks[k]; if (m && Number.isFinite(m.t)) { m.t -= dt; if (m.t <= 0) delete this.marks[k]; } }
+  }
+
+  // DESPLAZAR (§3.6, §3.7): mueve `dist` m alejándolo de `from` (o hacia él con toward,
+  // sin pasarse: se queda a 0,8 m). Rendimientos decrecientes propios (dispDR) y, a los
+  // JEFES, ningún movimiento: suma Quebranto (combat-math.staggerFromDisplace). Devuelve
+  // los metros recorridos (0 = nada).
+  displace(from, dist, { toward = false, src = null } = {}) {
+    if (!this.alive || !from || !(dist > 0)) return 0;
+    const g = this.game;
+    if (isBossDef(this.def)) {
+      const sp = src?.stats?.staggerPct || 0;
+      this.addStagger(staggerFromDisplace(dist, sp), src, { raw: true });
+      return 0;
+    }
+    const dr = this.dispDR || 0;
+    if (dr >= 0.9) return 0;
+    let d = displaceDist(dist, dr, !!this.def.rank);
+    const dx = this.pos.x - from.x, dz = this.pos.z - from.z, l = Math.hypot(dx, dz);
+    if (l < 1e-4) return 0;
+    const sgn = toward ? -1 : 1;
+    if (toward) d = Math.min(d, Math.max(0, l - 0.8));
+    if (!(d > 0.01)) return 0;
+    const bx = this.pos.x, bz = this.pos.z;
+    const grid = g.world?.grid;
+    const ux = sgn * dx / l, uz = sgn * dz / l;
+    // en pasos de 0,3 m: no atraviesa muros
+    for (let left = d; left > 1e-6; left -= 0.3) {
+      const s = Math.min(0.3, left);
+      if (grid) moveWithCollision(grid, this.pos, ux * s, uz * s, 0.3);
+      else { this.pos.x += ux * s; this.pos.z += uz * s; }
+    }
+    this.dispDR = Math.min(1, dr + DISPLACE_DR.add);
+    return Math.hypot(this.pos.x - bx, this.pos.z - bz);
   }
 
   // Devuelve el daño REALMENTE infligido (0 si ya estaba muerto), para que el
@@ -1911,9 +2135,13 @@ export class Enemy {
     if (this.hp <= 0) this.die();
     // ⑤ punto único por impacto: poderes onHit (y, en 2c, indicadores de especialización)
     if (pl) {
+      // Paso 2 (§3.6): perfect (suelta perfecta), step (paso de combo), repeat (réplica),
+      // echo (repetición), detonated (este golpe detonó una marca), trap (estallido de trampa)
+      const detonated = !!this._detPending; this._detPending = false;
       const hit = { dealt, raw, crit: !!crit, skill: opts.skill || null, tags: opts.tags || EMPTY_TAGS, elem: opts.elem || null,
         proc: !!opts.proc, dot: !!opts.dot, source: opts.source || (opts.proc ? 'proc' : opts.dot ? 'dot' : 'hit'),
-        pos: { x: this.pos.x, z: this.pos.z } };
+        pos: { x: this.pos.x, z: this.pos.z },
+        perfect: !!opts.perfect, step: opts.step || 0, repeat: opts.repeat || 0, echo: !!opts.echo, detonated, trap: opts.trap || null };
       const g = this.game;
       if (g.onPlayerHit) g.onPlayerHit(this, hit);
       else if (pl.hookIndex?.onHit) firePower('onHit', pl, g, pl, this, hit);
@@ -1976,7 +2204,20 @@ export class Enemy {
     if (a.lid) a.lid.rotation.x = a.lidBase - (moving ? Math.abs(sw) * 0.3 : 0) - lunge * 0.5;
   }
 
+  // Paso 2 (§3.6): campos que cambian el movimiento enemigo (muros que BLOQUEAN, zonas que
+  // CONTIENEN y cebos que ATRAEN; field-entities.js). Solo cuestan algo si hay campos de
+  // ese tipo vivos (g._moveFields > 0): el cebo se evalúa a 5 Hz escalonado por enemigo y
+  // sustituye SOLO el movimiento y la decisión (lo hace _updateAI tras los temporizadores).
   update(dt) {
+    const g = this.game;
+    if (!(g._moveFields > 0) || !this.alive) return this._updateAI(dt);
+    const bx = this.pos.x, bz = this.pos.z;
+    const r = this._updateAI(dt);
+    if (this.alive) g.constrainMove?.(this, bx, bz);
+    return r;
+  }
+
+  _updateAI(dt) {
     const g = this.game;
     // afijo Escudado: si un golpe lo "mató" durante la ventana de inmunidad,
     // la inmunidad lo niega (revive a la vida que tenía al activar el escudo).
@@ -2022,6 +2263,11 @@ export class Enemy {
     // solo nos ahorramos el vaivén de miembros cuando nadie lo ve.
     const pl = g.player;
     if (!pl || this.group.position.distanceToSquared(pl.pos) < 30 * 30) this.animate(dt);
+
+    // CEBO (§3.6): un cebo armado lo atrae en lugar de moverse y decidir; los temporizadores
+    // de arriba (Vulnerable, control, marcas, destello) siguen corriendo y un lanzamiento en
+    // curso termina antes
+    if (g._moveFields > 0 && !this.casting && g.lureStep?.(this, dt)) return false;
 
     // objetivo: provocación > amenaza > el jugador (Paso 2c.0; en solitario, el jugador)
     const player = pl ? this.combatTarget(pl) : pl;
@@ -2589,6 +2835,11 @@ export class Projectile {
     // comparten `castHits` golpean a cada enemigo UNA vez (los extra de
     // Multiproyectil/Doble/Vendaval cubren más enemigos, no multiplican el daño a uno)
     this.castHits = opts.castHits || null;
+    // Paso 2: `perTarget` > 1 (Andanada Cerrada): castHits es un Map de impactos por enemigo
+    // y cada uno admite hasta perTarget proyectiles del mismo lanzamiento
+    this.perTarget = Math.max(1, opts.perTarget || 1);
+    // datos del lanzamiento que viajan al HitInfo (§3.6: perfect, step, repeat, echo)
+    this.hitOpts = opts.hitOpts || null;
     // callback al IMPACTAR de verdad (e, dañoInfligido): DoT/aturdir/vulnerable/
     // encadenado/robo de vida/recurso se aplican aquí, no al lanzar
     this.onHit = typeof opts.onHit === 'function' ? opts.onHit : null;
@@ -2637,7 +2888,9 @@ export class Projectile {
 
     if (this.friendly) {
       for (const e of g.enemies) {
-        if (!e.alive || this.hitSet.has(e) || this.castHits?.has(e)) continue;
+        if (!e.alive || this.hitSet.has(e)) continue;
+        const ch = this.castHits;
+        if (ch && (ch instanceof Map ? (ch.get(e) || 0) >= this.perTarget : ch.has(e))) continue;
         const r = 0.55 * (e.def.scale || 1);
         if (p.distanceToSquared(e.pos.clone().setY(p.y)) < r * r) {
           if (this.rollAt) {
@@ -2645,8 +2898,8 @@ export class Projectile {
             this.dmg = roll.dmg; this.crit = roll.crit;
             if (this._autoImpact) this.impactPreset.count = this.crit ? 16 : 9;
           }
-          this.castHits?.add(e);
-          const dealt = e.takeDamage(this.dmg, this.crit, { color: this.color, skill: this.skill, tags: this.tags || undefined, elem: this.elem }) || 0;
+          if (ch instanceof Map) ch.set(e, (ch.get(e) || 0) + 1); else ch?.add(e);
+          const dealt = e.takeDamage(this.dmg, this.crit, { color: this.color, skill: this.skill, tags: this.tags || undefined, elem: this.elem, ...(this.hitOpts || {}) }) || 0;
           g.player?.onDealHit();
           if (this.slow && e.alive) {
             if (e.applyCC) e.applyCC('slow', this.slow, { pct: this.slowPct || 50, src: g.player });

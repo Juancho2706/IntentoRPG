@@ -1551,12 +1551,8 @@ class Game {
 
     const p = this.player;
     if (this.state === 'play') {
-      // esquema WASD+ratón: clic izq/der MANTENIDOS lanzan la ranura asignada
-      // (las recargas/atkCd internos regulan la cadencia). En clic-mover no aplica.
-      if ((this.settings?.controlScheme || 'wasd') !== 'click' && this.input?.mouseHeld) {
-        if (this.input.mouseHeld.l) this.castSkillSlot('lmb');
-        if (this.input.mouseHeld.r) this.castSkillSlot('rmb');
-      }
+      // clic izq/der MANTENIDOS (§3.6.1): game-skills.pumpHeldSlots (el arnés usa el mismo)
+      this.pumpHeldSlots();
       p.update(dt);
       p.records.playTime += dt;
       if (this.pet) this.pet.update(dt);
