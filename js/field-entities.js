@@ -22,7 +22,12 @@
 // campos `muro` (bloquea o encierra), `senuelo` (atrae) y `emisor` (dispara desde su sitio).
 // El movimiento enemigo lo corrigen `g.lureStep` (cebo, 5 Hz escalonado) y
 // `g.constrainMove` (muros y zonas que encierran); solo cuestan algo con g._moveFields > 0.
+// tv.fieldDur (Ojo de Trampera: «tus trampas y zarzales»): los campos de un HÉROE duran +X %
+// (spawnField). Cuentan las trampas (isTrap) y los campos marcados `data.fieldDur: true` (un
+// zarzal); `data.fieldDur: false` deja fuera hasta una trampa. Una zona sin marca no cambia:
+// el comportamiento que la marca toma su final del campo devuelto (f.dur), no de su `dur` local.
 import * as THREE from 'three';
+import { fieldDurationWithTalents } from './combat-math.js';
 
 export const FIELD_DEFS = {};
 export const FIELD_CAP_PER_OWNER = 12;
@@ -74,6 +79,10 @@ const movesEnemies = f => !f.dead && (f.kind === 'muro' || !!f.data?.contain || 
 export const fieldArmed = f => !f.dead && !f.sprung && (f.age || 0) >= (f.armAt || 0) - 1e-9;
 // ¿es una trampa detonable? (la genérica, las de clase con onDetonate o data.trap)
 const isTrap = f => f.kind === 'trampa' || !!FIELD_DEFS[f.kind]?.onDetonate || !!f.data?.trap;
+// ¿lo alarga tv.fieldDur? (trampas y campos marcados; la marca false excluye)
+const stretchesWithFieldDur = f => f.data?.fieldDur === true || (f.data?.fieldDur !== false && isTrap(f));
+// ¿el dueño es un héroe? (el jugador o uno del grupo; nunca un enemigo)
+const isHeroOwner = (g, o) => !!o && (o === g.player || (g.party || []).includes(o));
 
 export const fieldMethods = {
   // crea un campo de suelo; devuelve el campo o null si el kind no existe
@@ -89,6 +98,9 @@ export const fieldMethods = {
       const same = this.fields.filter(f => !f.dead && f.owner === owner && f.kind === kind && f.data?.skill === data.skill);
       while (same.length >= maxPerSkill) this._expireField(same.shift());
     }
+    // tv.fieldDur: tus trampas y zarzales duran más (no los de un enemigo ni los demás campos)
+    if (owner?.tv?.fieldDur && isHeroOwner(this, owner) && stretchesWithFieldDur({ kind, data }))
+      dur = fieldDurationWithTalents(dur, owner.tv);
     const f = { uid: fieldUid++, kind, pos: { x: pos.x, y: 0.05, z: pos.z }, radius, dur, t: dur, owner, data: { ...data }, inside: new Set(), dead: false,
       age: 0, armAt: Math.max(0, data?.armT || 0), follow: follow === true ? 'owner' : (follow || null) };
     if (shape === 'line' && a && b) {
