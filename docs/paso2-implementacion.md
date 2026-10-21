@@ -851,6 +851,21 @@ E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inve
     - `Ctrl+Z` choca con `KeyZ = cleanHud`. Lo resuelven U1 y U3: `input.js` ignora `KeyZ` con Ctrl o con un panel abierto, y esa línea la pide U3 a la cola W2.
     - El humo lee `p.skState[id].recast` y `g.stanceOf(p, id)`. W2 respeta esos nombres o avisa.
 
+13. **D18, congelación de datos (commit `0fa03dc`).** Los datos del Guerrero y de la Arquera quedan congelados para E2. Pasaron 3 rondas de juicio de balance; los bloqueantes y altos están cerrados, y los medios que quedan están anotados en §20–21 del Guerrero y §19–20 de la Arquera. Hashes sha256 (los primeros 16 caracteres):
+
+    | Archivo | Hash |
+    |---|---|
+    | `talents-v2-guerrero.js` | `8892962c553193ed` |
+    | `talents-v2-arquera.js` | `5778dc7d164a46c2` |
+    | `talents-v2-maga.js` | `e992080d421f779b` |
+
+    Los ajustes de números que salgan del banco real (E4) entran por el conversor y la paridad, y quedan anotados en `divergencias.json`. Las notas del integrador de cada documento (Guerrero §18 notas 16–18; Arquera notas 15–19) son entrada de E1.5 y E2:
+    - el suelo de definitivas `ultCdFloor`, absoluto, de 70 % de `sk.cd`;
+    - las zonas que «no se suman»;
+    - «cuenta el primer uso de la cadena» en movilidades que se relanzan;
+    - la cubeta de autocuración;
+    - el escenario del banco contra 10.
+
 ### Pendientes de decisión (texto original de la crítica)
 
 1. **Valores por defecto de §3.6.1** (bloqueos durante la carga, `charge.repeat` del básico, clic-mover, `toggle`): los propone esta revisión; el orquestador los confirma antes de lanzar E1.
