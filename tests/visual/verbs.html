@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback de los verbos · arnés visual</title>
+<!-- Arnés visual del Paso 2 (U2; docs/paso2-implementacion.md §3.12 «Feedback de los verbos»).
+     El mockup no dibuja ningún verbo (Guerrero §18.6): este arnés enseña cada estado de la tabla
+     para el juicio, dibujado por createVerbHud(root, { game }) de js/ui-verbs.js sobre la barra de
+     acciones REAL (css/style.css) con un héroe real (tests/helpers/power-harness.mjs) y las
+     habilidades sintéticas de verbo (tests/fixtures/skills-verbs-sample.mjs). El juego falso
+     recorre los estados por tiempo (fija g._charging, g._channel, p.skState, p.skCharges…).
+     Sirve la raíz del repo y abre /tests/visual/verbs.html con:
+       (sin parámetros)   demostración: recorre todos los estados en bucle
+       ?state=<id>        un estado fijo (lista en la barra de arriba) · &t=<s> instante del estado
+       ?all=1             contacto: todos los estados a la vez (una barra por estado)
+       ?measure=1         G17 con el MOTOR REAL (carga del Martillo: .verb-charge[data-in-window] —por
+                          presencia— en el mismo frame que g._charging.inWindow), A5 (solapes y fuera de pantalla),
+                          coste por frame y mutaciones del DOM en reposo → <pre id="measure">
+       &hold=1            capturas: los destellos quedan quietos en su primer tramo y, tras una suelta
+                          (perfecto, fallo), el tiempo de la interfaz se para (la barra del cursor no se
+                          apaga). Ej.: ?state=perfecto&t=0.6&hold=1 (el último frame antes de soltar
+                          siempre se pinta con u fijo: 1,0 dentro de la ventana; 0,6 antes de ella)
+       &reduce=1          reducir movimiento · &bare=1 sin barra de controles
+       &three=local       three.js desde node_modules (por defecto el CDN del juego)
+     Capturas: node tests/visual/chrome.mjs "<url>" --shot=out.png --size=1366,768 --wait=1500 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="../../css/verbs.css">
+<script>
+  (function () {
+    const local = new URLSearchParams(location.search).get('three') === 'local';
+    const base = local ? '../../node_modules/three/' : 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
+    const im = document.createElement('script');
+    im.type = 'importmap';
+    im.textContent = JSON.stringify({ imports: { three: base + 'build/three.module.js', 'three/addons/': base + 'examples/jsm/' } });
+    document.currentScript.after(im);
+  })();
+</script>
+<style>
+  html, body { overflow: hidden; }
+  body { margin: 0; background: #0d0b10; color: #ede6d6; font: 13px/1.4 Inter, system-ui, sans-serif; }
+  /* «mundo» de fondo: suelo de piedra con viñeta (como el juego visto desde arriba) */
+  #world { position: fixed; inset: 0; background:
+    radial-gradient(ellipse 55% 50% at 50% 45%, rgba(120, 104, 84, 0.22), transparent 70%),
+    repeating-linear-gradient(30deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(-30deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 64px),
+    radial-gradient(ellipse at 50% 45%, #2b241c 0%, #15110f 60%, #08070a 100%); }
+  .dummy { position: absolute; width: 46px; height: 46px; margin: -38px 0 0 -23px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #6d5b48, #2a2119 70%); box-shadow: 0 10px 14px -6px #000a, 0 0 0 2px #0008; }
+  .dummy::after { content: ''; position: absolute; left: 50%; top: 100%; width: 54px; height: 14px; margin: -4px 0 0 -27px; border-radius: 50%; background: #0007; z-index: -1; }
+  .mouse { position: fixed; left: 0; top: 0; z-index: 80; width: 18px; height: 26px; pointer-events: none; filter: drop-shadow(0 2px 2px #000); }
+  .ftxt { position: fixed; z-index: 50; transform: translate(-50%, -100%); font: 800 20px Cinzel, serif; color: #ffd76a;
+    text-shadow: 0 2px 4px #000, 0 0 10px rgba(255, 200, 90, 0.7); pointer-events: none; white-space: nowrap; }
+  #cap { position: fixed; left: 18px; top: 14px; z-index: 90; max-width: 560px; padding: 10px 14px; border-radius: 10px;
+    background: #110e15e6; border: 1px solid #3a2f45; box-shadow: 0 8px 22px #000a; }
+  #cap b { display: block; font: 700 16px Cinzel, serif; color: #e8c06a; margin-bottom: 2px; }
+  #cap span { color: #c9bfae; }
+  #ctl { position: fixed; right: 12px; top: 12px; z-index: 95; display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 8px;
+    background: #110e15ee; border: 1px solid #3a2f45; font-size: 12px; color: #9a917f; }
+  #ctl select { background: #1c1622; color: #ede6d6; border: 1px solid #3a2f45; border-radius: 6px; padding: 3px 6px; font: inherit; }
+  body.bare #ctl { display: none; }
+  /* el dock del juego (solo la barra de acciones y el hueco de la mecánica) */
+  #hud .dock-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .gz-ph { width: 520px; height: 72px; border-radius: 10px; border: 1px dashed #3a2f4588; color: #6d6377; display: grid; place-items: center; font-size: 12px; letter-spacing: 1px; }
+  /* contacto (?all=1) */
+  #grid { position: fixed; inset: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 148px; gap: 4px 10px; padding: 8px 12px; overflow: hidden; }
+  .tile { position: relative; border-radius: 10px; background: #15111acc; border: 1px solid #2f2638; overflow: visible; }
+  .tile h4 { margin: 0; padding: 6px 10px 0; font: 700 12px Inter; letter-spacing: 0.6px; color: #e8c06a; text-transform: uppercase; }
+  .tile p { margin: 0; padding: 0 10px; color: #a39a88; font-size: 11px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tile .mini { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 7px 10px; border-radius: 12px;
+    background: linear-gradient(180deg, #221a14f2, #0e0b08f6); box-shadow: 0 0 0 1px #5a4724, 0 6px 18px #000c; }
+  /* las reglas de «#hud #skillbar» de style.css, para las barras pequeñas del contacto */
+  .mini .skillbar { display: flex; align-items: flex-end; gap: 6px; }
+  .mini .skill-btn { position: relative; width: 56px; height: 56px; border-radius: 8px; }
+  .mini .skill-btn .sk-art { border-radius: 6px; }
+  .mini .skill-btn .sk-cat { top: -6px; left: -6px; right: auto; width: 18px; height: 18px; }
+  .mini .skill-btn .sk-cost { position: absolute; top: 1px; right: 2px; bottom: auto; font-size: 10px; color: #9fc8ff; }
+  .mini .skill-btn.slot-lmb { margin-left: 14px; }
+  .mini .hb-kbd { position: absolute; left: -3px; bottom: -4px; z-index: 6; }
+  .mini .hb-mouse { position: absolute; left: -3px; bottom: -4px; z-index: 6; width: 15px; height: 19px; border: 1px solid #6b5a3a; border-radius: 7px 7px 8px 8px; background: #1d1710; overflow: hidden; }
+  .mini .hb-mouse i { position: absolute; top: 0; width: 50%; height: 45%; background: #f3e2b5; }
+  .mini .hb-mouse.l i { left: 0; } .mini .hb-mouse.r i { right: 0; }
+  /* &hold=1 (capturas): los destellos quedan quietos en su primer tramo */
+  body.hold [data-flash] { animation-delay: -0.06s !important; animation-play-state: paused !important; }
+  pre#measure { position: fixed; left: 8px; bottom: 8px; z-index: 99; max-width: 70vw; max-height: 60vh; overflow: auto; margin: 0; padding: 6px 8px;
+    white-space: pre-wrap; word-break: break-all; font: 11px/1.35 ui-monospace, Consolas, monospace; color: #9fe39a; background: #000d; }
+</style>
+</head>
+<body>
+<div id="world"></div>
+<div id="layer"></div>
+<script type="module">
+import { verbHarness, VERB_SKILLS } from '../fixtures/skills-verbs-sample.mjs';
+import { createVerbHud } from '../../js/ui-verbs.js';
+import { hudLayout, verbView, SLOT_LABEL } from '../../js/hud-model.js';
+import { resolveSkill } from '../../js/skill-resolve.js';
+
+const Q = new URLSearchParams(location.search);
+const $ = (s, r = document) => r.querySelector(s);
+document.body.classList.toggle('reduce-motion', Q.get('reduce') === '1');
+document.body.classList.toggle('bare', Q.get('bare') === '1');
+const HOLD = Q.get('hold') === '1';
+document.body.classList.toggle('hold', HOLD);
+
+// arte real del juego para las habilidades sintéticas (assets/skills/<id>.webp)
+const ART = {
+  vx_martillo: 'g_martillo', vx_tenso: 'flecha_perforante', vx_andanada: 'g_salto', vx_celeste: 'a_u_celeste', vx_combo: 'torbellino',
+  vx_tercera: 'a_disparo', vx_carrera: 'agilidad', vx_rayo: 'm_u_desgarro', vx_guardia: 'g_piel', vx_rodilla: 'a_humo', vx_paso: 'a_paso',
+  vx_cepo: 'a_red', vx_mina: 'a_cicuta', vx_terremoto: 'terremoto', vx_detonante: 'flecha_multiple', vx_sentencia: 'g_provocacion',
+};
+const artOf = id => `../../assets/skills/${ART[id] || id}.webp`;
+
+// ---------------- estados de la tabla «Feedback de los verbos» (§3.12) ----------------
+// bar: barra de ese estado · set(h, t): fija el estado del motor en el instante t (s) · dur: bucle
+const BAR_CARGA = { lmb: 'g_tajo', rmb: 'vx_martillo', k1: 'vx_paso', k2: 'vx_guardia', k3: 'vx_andanada', k4: 'g_u_cataclismo' };
+const BAR_COMBO = { lmb: 'g_tajo', rmb: 'vx_combo', k1: 'embestida', k2: 'vx_tercera', k3: 'vx_andanada', k4: 'g_u_cataclismo' };
+const BAR_CANAL = { lmb: 'g_tajo', rmb: 'vx_rayo', k1: 'embestida', k2: 'vx_carrera', k3: 'vx_andanada', k4: 'g_u_cataclismo' };
+const BAR_POST = { lmb: 'g_tajo', rmb: 'vx_martillo', k1: 'embestida', k2: 'vx_guardia', k3: 'vx_rodilla', k4: 'g_u_cataclismo' };
+const BAR_PLANT = { lmb: 'g_tajo', rmb: 'vx_terremoto', k1: 'vx_paso', k2: 'vx_cepo', k3: 'vx_mina', k4: 'g_u_cataclismo' };
+// la carga en curso como la deja el motor (game-skills._beginCharge + tickSkillVerbs): UN objeto
+// por carga (la UI resuelve el resultado cuando cambia) que avanza su `u` frame a frame
+const charge = (h, u, { calm = false, toggle = false, slot = 'rmb', id = 'vx_martillo' } = {}) => {
+  const p = h.p, sk = p.cls.skills.find(s => s.id === id), prof = resolveSkill(p, sk), ch = prof.charge;
+  p.stats.perfectAlways = calm ? 1 : 0;
+  const [a, b] = ch.perfect;
+  let c = h.g._charging;
+  if (!c || c.key !== slot || c.id !== id) c = h.g._charging = { key: slot, id, sk, prof, ch, t0: p.simT || 0, window: ch.perfect, min: ch.min, max: ch.max, release: null };
+  Object.assign(c, { u, t: u, frac: Math.max(0, (u - ch.min) / (ch.max - ch.min)), inWindow: u >= a - 1e-9 && u <= b + 1e-9, toggle });
+};
+// la suelta como la deja el motor: la carga se va y g._chargeEnd dice cómo acabó (cola W2: hoy
+// el motor aún no lo escribe; sin él, la UI lo deduce de la racha de perfectos)
+const release = (h, perfect) => {
+  const c = h.g._charging;
+  h.g._charging = null;
+  h.p.perfectStreak = perfect ? (h.p.perfectStreak || 0) + 1 : 0;
+  h.g._chargeEnd = { key: c?.key || 'rmb', id: c?.id || null, reason: 'release', perfect, t: h.p.simT || 0 };
+};
+const STATES = [
+  { id: 'carga', name: 'Cargar y soltar · antes de la ventana', bar: BAR_CARGA, dur: 2,
+    txt: 'La barra se llena en la ranura (DER) y junto al cursor; la ventana perfecta es el tramo dorado entre dos muescas.',
+    set: (h, t) => charge(h, 0.3 + 0.5 * (t % 1)) },
+  { id: 'carga-ventana', name: 'Cargar y soltar · dentro de la ventana', bar: BAR_CARGA, dur: 2,
+    txt: 'Al entrar en la ventana (en el mismo frame) la barra se vuelve oro, engorda y brilla; la ranura se enmarca en oro.',
+    set: h => charge(h, 1.0) },
+  { id: 'carga-fuera', name: 'Cargar y soltar · fuera de la ventana', bar: BAR_CARGA, dur: 2,
+    txt: 'Pasada la ventana (sin suelta automática) el relleno vuelve a marfil: soltar ahora no es perfecto.',
+    set: (h, t) => { charge(h, 1.17); h.g._charging.u = 1.18; h.g._charging.inWindow = false; } },
+  // suelta: la rampa llega a un ÚLTIMO frame fijo (u = 1,0 dentro de la ventana [0,9, 1,1]; u = 0,6
+  // antes de ella) que se pinta siempre antes de soltar, sea cual sea el ritmo de frames; con
+  // &hold=1 el tiempo se para tras la suelta (ctx.freeze) para capturar el resultado
+  { id: 'perfecto', name: 'Suelta perfecta', bar: BAR_CARGA, dur: 1.2,
+    txt: 'Soltar dentro de la ventana: destello en la ranura y en la barra; la simulación pone «¡Perfecto!» y su tono.',
+    set: (h, t, ctx) => suelta(h, t, ctx, 1.0, true, u => 0.55 + 0.9 * u) },
+  { id: 'fallo', name: 'Suelta fuera de la ventana', bar: BAR_CARGA, dur: 1.2,
+    txt: 'Soltar antes de la ventana: destello rojo junto al cursor (y su tono); la racha de perfectos vuelve a 0. En el juego, con g._chargeEnd (cola W2) o si había racha.',
+    set: (h, t, ctx) => suelta(h, t, ctx, 0.6, false, u => 0.3 + 0.6 * u) },
+  { id: 'calma', name: 'Calma Absoluta', bar: BAR_CARGA, dur: 2,
+    txt: 'Con Calma Absoluta toda suelta desde media carga es perfecta: la barra es dorada desde la mitad.',
+    set: (h, t) => charge(h, 0.75 + 0.3 * (t % 1), { calm: true }) },
+  { id: 'toggle', name: 'Modo alternar · carga enganchada', bar: BAR_CARGA, dur: 2,
+    txt: 'Con «mantener» en modo alternar, la carga queda enganchada: candado en la ranura y junto a la barra.',
+    set: (h, t) => charge(h, 0.6 + 0.2 * (t % 1), { toggle: true }) },
+  { id: 'relanzar', name: 'Relanzar · usos y ventana', bar: BAR_CARGA, dur: 2,
+    txt: 'Aro que se vacía mientras dura la ventana y número de usos que quedan (ranura 3).',
+    set: (h, t) => { h.p.skState.vx_andanada = { recast: { n: 3, idx: 1, left: 2, until: h.p.simT + 1.9 - 0.6 * (t % 1), win: 2, perfectLast: 0.5, gap: 0.35 } }; } },
+  { id: 'relanzar-justo', name: 'Relanzar · tiempo justo', bar: BAR_CARGA, dur: 2,
+    txt: 'En los últimos 0,5 s (perfectLast) el aro se vuelve dorado: el último uso a tiempo vale más.',
+    set: (h, t) => { h.p.skState.vx_andanada = { recast: { n: 3, idx: 2, left: 1, until: h.p.simT + 0.45 - 0.3 * (t % 1), win: 2, perfectLast: 0.5, gap: 0.35 } }; } },
+  { id: 'combo', name: 'Combo de 3 · 2.º paso', bar: BAR_COMBO, dur: 2,
+    txt: 'Tres pips: hechos en marfil y el que toca brilla (DER). El 3.º es el golpe fuerte (rombo).',
+    set: h => { h.p.skState.vx_combo = { combo: { idx: 1, until: h.p.simT + 2 } }; } },
+  { id: 'combo-3', name: 'Combo de 3 · el 3.º listo', bar: BAR_COMBO, dur: 2,
+    txt: 'El 3.º golpe queda listo: su rombo brilla (y suena verb_pip).',
+    set: h => { h.p.skState.vx_combo = { combo: { idx: 2, until: h.p.simT + 2 } }; } },
+  { id: 'secuencia', name: 'Secuencia · la 3.ª sale reforzada', bar: BAR_COMBO, dur: 2,
+    txt: 'Dos disparos hechos: el siguiente es el especial (ranura 2, rombo encendido).',
+    set: h => { h.p.skState.vx_tercera = { seq: { count: 2 } }; } },
+  { id: 'canal', name: 'Canalizar', bar: BAR_CANAL, dur: 2,
+    txt: 'Aro que se consume mientras canalizas (DER); en modo alternar, con candado.',
+    set: (h, t) => { const sk = h.p.cls.skills.find(s => s.id === 'vx_rayo'); h.g._channel = { ctx: { key: 'rmb', sk }, left: Math.max(1, 8 - Math.floor(t * 3)), interval: 0.25, ticks: 8, endless: false, toggle: true, hold: false }; } },
+  { id: 'canal-sinfin', name: 'Canalizar sin fin', bar: BAR_CANAL, dur: 2,
+    txt: 'Canal sin fin (Carrera del Viento, ranura 2): aro entero que late hasta que sueltas o te quedas sin recurso.',
+    set: h => { const sk = h.p.cls.skills.find(s => s.id === 'vx_carrera'); h.g._channel = { ctx: { key: 'k2', sk }, left: 1, interval: 0.1, endless: true, toggle: false, hold: true }; } },
+  { id: 'postura-a', name: 'Postura · 1.er modo', bar: BAR_POST, dur: 2,
+    txt: 'Guardia en modo Escudo: marco del color del modo en la ranura 2 (y aro a los pies en el mundo).',
+    set: h => { h.p.skState.vx_guardia = { stance: { mode: 0, until: Infinity } }; } },
+  { id: 'postura-b', name: 'Postura · 2.º modo', bar: BAR_POST, dur: 2,
+    txt: 'Al cambiar a Espada el icono se da la vuelta y el marco toma el color del modo.',
+    set: h => { h.p.skState.vx_guardia = { stance: { mode: 1, until: Infinity } }; } },
+  { id: 'postura-dur', name: 'Postura con duración', bar: BAR_POST, dur: 2,
+    txt: 'Rodilla en Tierra (ranura 3): marco y aro con lo que le queda; las dos posturas a la vez llevan doble marco (ranura 2).',
+    set: (h, t) => { h.p.skState.vx_rodilla = { stance: { mode: 0, until: h.p.simT + 6 - 2 * (t % 1) } }; h.p.skState.vx_guardia = { stance: { mode: 0, until: Infinity, both: true, bothUntil: h.p.simT + 4 } }; } },
+  { id: 'plantado', name: 'Plantado', bar: BAR_PLANT, dur: 2,
+    txt: 'Icono de estado en las habilidades que lo piden (DER, Terremoto): encendido tras 1 s quieto.',
+    set: (h, t) => { h.p.planted = (t % 2) < 1.4; } },
+  { id: 'trampas', name: 'Trampas armadas', bar: BAR_PLANT, dur: 2,
+    txt: 'Pips verdes con las trampas armadas de cada habilidad (2 y 3); las cargas, en número (ranura 1).',
+    set: (h, t) => { traps(h, 'vx_cepo', 2); traps(h, 'vx_mina', 1 + Math.floor((t % 2) * 1.5)); h.p.skCharges.vx_paso = { n: 2, max: 3, nextAt: h.p.simT + 3 }; } },
+];
+function suelta(h, t, ctx, uLast, perfect, ramp) {
+  if (t < 0.5) { ctx.done = 0; ctx.pre = 0; ctx.freeze = false; charge(h, Math.min(uLast, ramp(t))); return; }
+  if (!ctx.pre) { ctx.pre = 1; charge(h, uLast); return; }          // el último frame antes de soltar
+  if (ctx.done) return;
+  release(h, perfect);
+  ctx.done = 1; ctx.freeze = true;
+  if (perfect) ctx.text('¡Perfecto!');
+}
+function traps(h, skill, n) {
+  const p = h.p;
+  h.g.fields = (h.g.fields || []).filter(f => f.data?.skill !== skill);
+  for (let i = 0; i < n; i++) h.g.fields.push({ uid: skill + i, kind: 'trampa', owner: p, data: { skill }, age: 2, armAt: 0.5, dead: false, pos: { x: i, z: 0 } });
+}
+
+// ---------------- un héroe real con las habilidades de verbo y su barra ----------------
+function makeScene(state) {
+  const h = verbHarness('guerrero', { level: 40 });
+  h.p.simT = 100;
+  h.p.skState = {}; h.p.skCharges = {}; h.p.planted = false; h.p.perfectStreak = 0;
+  h.g._charging = null; h.g._channel = null; h.g.fields = [];
+  h.p.hotbar = { ...state.bar };
+  h.g.input.mouseScreen = { x: 0, y: 0 };
+  return h;
+}
+// la barra como la pinta js/ui.js (refreshHotbar): mismo marcado y clases
+function barHTML(h) {
+  const p = h.p;
+  return ['k1', 'k2', 'k3', 'k4', 'lmb', 'rmb'].map(slot => {
+    const sk = p.cls.skills.find(s => s.id === p.hotbar[slot]);
+    const key = slot === 'lmb' || slot === 'rmb' ? `<span class="hb-mouse ${slot === 'lmb' ? 'l' : 'r'}"><i></i></span>` : `<kbd class="hb-kbd">${SLOT_LABEL[slot]}</kbd>`;
+    if (!sk) return `<button class="skill-btn slot-${slot} hb-empty" data-slot="${slot}"><span class="sk-icon dim">+</span>${key}</button>`;
+    return `<button class="skill-btn slot-${slot} cat-${sk.cat}" data-slot="${slot}" data-skill="${sk.id}">` +
+      `<span class="sk-icon has-art"><img class="sk-art" src="${artOf(sk.id)}" alt="" draggable="false"></span>` +
+      `<img class="sk-cat" src="../../assets/ui/${{ basic: 'cat_basico', spender: 'cat_gastadora', movement: 'cat_movilidad', defense: 'cat_defensa', utility: 'cat_defensa', spec: 'cat_especializacion', ultimate: 'cat_definitiva' }[sk.cat]}.webp" alt="">` +
+      key + (sk.cost ? `<span class="sk-cost">${sk.cost}</span>` : '') + '<div class="gcd-overlay"></div><div class="cd-overlay cd-radial"></div><span class="sk-cd-sec"></span></button>';
+  }).join('');
+}
+const MOUSE_SVG = '<svg class="mouse" viewBox="0 0 18 26"><path d="M1 1 L1 21 L6 16 L9.5 24 L13 22.5 L9.6 15 L16.5 15 Z" fill="#f4ecda" stroke="#1a120a" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+
+// ---------------- un estado a pantalla completa ----------------
+let running = null;                         // la escena viva (una sola: se para al montar otra)
+function single(state, tFix = null) {
+  if (running) running.stop();
+  const vw = innerWidth, vh = innerHeight;
+  const L = hudLayout(vw, vh);
+  document.documentElement.style.setProperty('--s', L.s);
+  const layer = $('#layer');
+  layer.innerHTML = `<div id="hud"><div class="cl bc" id="hud-bc"><div id="hud-dock"><div class="dock-col">
+      <div class="gz-ph">zona de la mecánica (520 × 72)</div>
+      <div id="hud-bar" data-hud-block="barra"><button class="hb-small" id="btn-pot-hp"><kbd class="hb-kbd">Q</kbd></button><i class="hb-sep"></i>
+        <div id="skillbar"></div><i class="hb-sep"></i><button class="hb-small" id="btn-dodge"><kbd class="hb-kbd">⇧</kbd></button><button class="hb-small" id="btn-pot-mp"><kbd class="hb-kbd">E</kbd></button></div>
+      <div id="xp-bar"><div id="xp-fill" style="transform:scaleX(.62)"></div></div></div></div></div></div>
+    <div id="vroot"></div><div class="dummy" style="left:${Math.round(vw * 0.56)}px;top:${Math.round(vh * 0.44)}px"></div>${MOUSE_SVG}`;
+  const mouse = { x: Math.round(vw * 0.56), y: Math.round(vh * 0.44) };
+  $('.mouse').style.transform = `translate(${mouse.x}px, ${mouse.y}px)`;
+  let h = null, hud = null, t0 = performance.now(), cur = state, ctx = {};
+  const texts = [];
+  const mount = st => {
+    cur = st; ctx = { text: s => floatText(s) };
+    h = makeScene(st);
+    h.g.input.mouseScreen = { ...mouse };
+    $('#skillbar').innerHTML = barHTML(h);
+    if (hud) hud.destroy();
+    hud = createVerbHud($('#vroot'), { game: h.g });
+    caption(st);
+  };
+  const floatText = s => {
+    const el = document.createElement('div');
+    el.className = 'ftxt'; el.textContent = s;
+    el.style.left = Math.round(vw * 0.5) + 'px'; el.style.top = Math.round(vh * 0.38) + 'px';
+    document.body.appendChild(el); texts.push(el);
+    if (!HOLD) setTimeout(() => el.remove(), 1400);
+  };
+  mount(state);
+  let last = performance.now(), alive = true;
+  const demo = !Q.get('state') && Q.get('measure') !== '1';
+  const frame = now => {
+    if (!alive) return;
+    // &hold=1: tras la suelta el tiempo de la interfaz se para (la barra del cursor no se apaga)
+    const dt = HOLD && ctx.freeze ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
+    let t = (now - t0) / 1000;
+    if (demo && t > cur.dur * 1.5) { mount(STATES[(STATES.indexOf(cur) + 1) % STATES.length]); t0 = now; t = 0; }
+    const tt = tFix != null ? tFix : (demo ? t : t % cur.dur);
+    cur.set(h, tt, ctx);
+    hud.update(dt);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  running = { stop() { alive = false; hud?.destroy(); for (const el of texts) el.remove(); } };
+  return running;
+}
+function caption(st) {
+  let c = $('#cap');
+  if (!c) { c = document.createElement('div'); c.id = 'cap'; document.body.appendChild(c); }
+  c.innerHTML = `<b>${st.name}</b><span>${st.txt}</span>`;
+}
+
+// ---------------- contacto: una barra por estado ----------------
+function sheet() {
+  document.documentElement.style.setProperty('--s', 1);
+  const grid = document.createElement('div');
+  grid.id = 'grid';
+  $('#layer').appendChild(grid);
+  const scenes = [];
+  for (const st of STATES) {
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML = `<h4>${st.name}</h4><p>${st.txt}</p><div class="mini"><div class="skillbar" id="sb-${st.id}"></div></div>`;
+    grid.appendChild(tile);
+    const h = makeScene(st);
+    tile.querySelector('.skillbar').innerHTML = barHTML(h);
+    const root = document.createElement('div');
+    tile.appendChild(root);
+    const sb = tile.querySelector('.skillbar');
+    const hud = createVerbHud(root, { game: h.g, slotEl: s => sb.querySelector(`.skill-btn[data-slot="${s}"]`) });
+    scenes.push({ st, h, hud, tile, ctx: { text() {} } });
+  }
+  requestAnimationFrame(() => {
+    for (const s of scenes) {
+      const r = s.tile.getBoundingClientRect();
+      s.h.g.input.mouseScreen = { x: Math.round(r.left + r.width - 48), y: Math.round(r.top + 92) };
+      const m = document.createElement('div');
+      m.innerHTML = MOUSE_SVG;
+      const svg = m.firstElementChild; svg.style.transform = `translate(${s.h.g.input.mouseScreen.x}px, ${s.h.g.input.mouseScreen.y}px)`;
+      document.body.appendChild(svg);
+    }
+    let last = performance.now(), t0 = last;
+    const frame = now => {
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      const t = (now - t0) / 1000;
+      for (const s of scenes) { const tt = Q.get('t') != null ? +Q.get('t') : (s.st.id === 'perfecto' || s.st.id === 'fallo' ? Math.min(t, 0.62) : t % s.st.dur); s.st.set(s.h, tt, s.ctx); s.hud.update(HOLD && s.ctx.freeze ? 0 : dt); }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
+// ---------------- medidas: G17 con el motor real, A5, coste y mutaciones ----------------
+async function measure() {
+  const vw = innerWidth, vh = innerHeight;
+  document.documentElement.style.setProperty('--s', hudLayout(vw, vh).s);
+  single(STATES[0], 0);                     // monta la escena (barra real y capa)
+  await new Promise(r => setTimeout(r, 300));
+  const out = { res: `${vw}x${vh}` };
+  // G17: carga REAL del Martillo (motor de game-skills: tickSkillVerbs fija inWindow); cada frame
+  // la simulación avanza y verbHud.update pinta: la marca debe coincidir EN EL MISMO frame
+  {
+    const h = verbHarness('guerrero', { level: 40 });
+    h.p.hotbar = { ...BAR_CARGA };
+    h.g.input.mouseScreen = { x: vw / 2, y: vh / 2 };
+    const sb = document.createElement('div');
+    sb.id = 'g17bar'; sb.style.cssText = 'position:fixed;left:-9999px;top:0';
+    sb.innerHTML = barHTML(h);
+    document.body.appendChild(sb);
+    const root = document.createElement('div'); document.body.appendChild(root);
+    const hud = createVerbHud(root, { game: h.g, slotEl: s => sb.querySelector(`.skill-btn[data-slot="${s}"]`) });
+    let frames = 0, mism = 0, firstEngine = -1, firstDom = -1, slotMism = 0;
+    const runs = [1 / 60, 1 / 144, 1 / 30];
+    for (const dt of runs) {
+      h.p.mp = 999; h.g._needsRelease = {}; h.g.resetCooldowns(h.p);
+      h.press('rmb');
+      for (let i = 0; i < Math.ceil(1.15 / dt); i++) {
+        h.step(dt, dt);                      // simulación (tickSkillVerbs)
+        hud.update(dt);                      // pintura del mismo frame
+        const c = h.g._charging;
+        if (!c) break;
+        frames++;
+        // por PRESENCIA (§3.12): el atributo está solo dentro de la ventana
+        const dom = hud.bar.hasAttribute('data-in-window');
+        const sl = !!sb.querySelector('.skill-btn[data-slot="rmb"] .verb-slot')?.hasAttribute('data-win');
+        if (dom !== !!c.inWindow) mism++;
+        if (sl !== !!c.inWindow) slotMism++;
+        if (dt === runs[0] && c.inWindow && firstEngine < 0) firstEngine = i;
+        if (dt === runs[0] && dom && firstDom < 0) firstDom = i;
+      }
+      h.release('rmb'); h.step(0.5, 1 / 60); hud.update(0.5);
+    }
+    out.g17 = { frames, mismatches: mism, slotMismatches: slotMism, firstEngineFrame: firstEngine, firstDomFrame: firstDom, ok: mism === 0 && slotMism === 0 && firstEngine === firstDom && firstEngine >= 0 };
+    hud.destroy(); sb.remove(); root.remove();
+  }
+  // A5: en cada estado, las piezas de una ranura no pisan a las vecinas ni salen de la pantalla,
+  // y la barra del cursor queda dentro de la pantalla aunque el cursor esté en una esquina
+  const overlaps = [], offscreen = [];
+  for (const st of STATES) {
+    $('#layer').innerHTML = '';
+    single(st, st.id === 'perfecto' ? 0.3 : 0.5);
+    await new Promise(r => setTimeout(r, 120));
+    const btns = [...document.querySelectorAll('#skillbar .skill-btn')];
+    // cada ranura con lo que sobresale de ella (tecla, ratón, categoría): nada de una ranura
+    // puede pisar a otra; dentro de la suya, el número y el icono de plantado no pisan la
+    // tecla ni la categoría
+    const zones = btns.map(b => [b, ...b.querySelectorAll('.hb-kbd, .hb-mouse, .sk-cat')].map(e => e.getBoundingClientRect()));
+    const hit = (r, o) => Math.min(r.right, o.right) - Math.max(r.left, o.left) > 1 && Math.min(r.bottom, o.bottom) - Math.max(r.top, o.top) > 1;
+    btns.forEach((b, i) => {
+      for (const el of b.querySelectorAll('.verb-slot > *')) {
+        const cs = getComputedStyle(el);
+        if (cs.opacity === '0' || cs.display === 'none' || el.classList.contains('verb-flash')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 1) continue;
+        zones.forEach((zs, j) => {
+          if (j !== i && zs.some(o => hit(r, o))) overlaps.push(`${st.id}: ${b.dataset.slot} .${el.className} pisa ${btns[j].dataset.slot}`);
+        });
+        if (/verb-(count|plant|pips|slotbar|latch)/.test(el.className) && zones[i].slice(1).some(o => hit(r, o))) overlaps.push(`${st.id}: ${b.dataset.slot} .${el.className} pisa su tecla o su categoría`);
+        if (r.left < 0 || r.top < 0 || r.right > vw || r.bottom > vh) offscreen.push(`${st.id}: ${b.dataset.slot} .${el.className}`);
+      }
+    });
+  }
+  out.a5 = { overlaps, offscreen };
+  // cursor en las esquinas (cursorBarPos ya probado en test86; aquí sobre el DOM real)
+  {
+    running?.stop(); running = null;
+    $('#layer').innerHTML = '';
+    const h = makeScene(STATES[1]);
+    const sb = document.createElement('div'); sb.innerHTML = barHTML(h); document.body.appendChild(sb);
+    const root = document.createElement('div'); document.body.appendChild(root);
+    const hud = createVerbHud(root, { game: h.g, slotEl: s => sb.querySelector(`.skill-btn[data-slot="${s}"]`) });
+    const bad = [];
+    for (const [mx, my] of [[1, 1], [vw - 1, 1], [1, vh - 1], [vw - 1, vh - 1], [vw / 2, 12]]) {
+      h.g.input.mouseScreen = { x: mx, y: my };
+      STATES[1].set(h, 0, {});
+      hud.update(1 / 60); hud.update(1 / 60);
+      const r = hud.bar.getBoundingClientRect();
+      if (r.left < 0 || r.top < 0 || r.right > vw || r.bottom > vh) bad.push(`cursor ${mx},${my}: ${Math.round(r.left)},${Math.round(r.top)}`);
+    }
+    out.a5.cursorOffscreen = bad;
+    // coste por frame y mutaciones del DOM con todo quieto (A7 de 2d.2: 0 mutaciones en reposo)
+    let muts = 0;
+    const mo = new MutationObserver(list => { muts += list.length; });
+    mo.observe(document.body, { subtree: true, attributes: true, childList: true, characterData: true });
+    STATES[1].set(h, 0, {}); hud.update(1 / 60);
+    await new Promise(r => setTimeout(r, 30));
+    muts = 0;
+    const T0 = performance.now();
+    for (let i = 0; i < 600; i++) hud.update(1 / 60);
+    const ms = (performance.now() - T0) / 600;
+    await new Promise(r => setTimeout(r, 30));
+    out.perf = { msPerUpdate: Math.round(ms * 1000) / 1000, mutationsAtRest: muts };
+    mo.disconnect();
+    hud.destroy(); sb.remove(); root.remove();
+  }
+  out.ok = out.g17.ok && !out.a5.overlaps.length && !out.a5.offscreen.length && !out.a5.cursorOffscreen.length && out.perf.mutationsAtRest === 0;
+  let pre = $('pre#measure');
+  if (!pre) { pre = document.createElement('pre'); pre.id = 'measure'; document.body.appendChild(pre); }
+  pre.textContent = JSON.stringify(out);
+}
+
+// ---------------- barra de controles ----------------
+if (Q.get('bare') !== '1' && Q.get('measure') !== '1') {
+  const c = document.createElement('div');
+  c.id = 'ctl';
+  const sel = Q.get('all') === '1' ? 'all' : (Q.get('state') || 'demo');
+  c.innerHTML = `<b style="color:#e8c06a;font:700 13px Cinzel,serif">Verbos</b><select id="cSt"><option value="demo">Demostración (bucle)</option><option value="all">Contacto (todos)</option>` +
+    STATES.map(s => `<option value="${s.id}"${s.id === sel ? ' selected' : ''}>${s.name}</option>`).join('') + '</select>' +
+    `<label><input type="checkbox" id="cRm"${Q.get('reduce') === '1' ? ' checked' : ''}> Reducir movimiento</label>`;
+  document.body.appendChild(c);
+  if (sel === 'all') c.querySelector('#cSt').value = 'all';
+  if (sel === 'demo') c.querySelector('#cSt').value = 'demo';
+  const go = () => {
+    const v = c.querySelector('#cSt').value, u = new URLSearchParams();
+    if (v === 'all') u.set('all', '1'); else if (v !== 'demo') u.set('state', v);
+    if (c.querySelector('#cRm').checked) u.set('reduce', '1');
+    if (Q.get('three')) u.set('three', Q.get('three'));
+    location.search = u.toString();
+  };
+  c.querySelector('#cSt').onchange = go; c.querySelector('#cRm').onchange = go;
+}
+void VERB_SKILLS; void verbView;
+if (Q.get('measure') === '1') measure();
+else if (Q.get('all') === '1') sheet();
+else single(STATES.find(s => s.id === Q.get('state')) || STATES[0], Q.get('t') != null ? +Q.get('t') : null);
+</script>
+</body>
+</html>
