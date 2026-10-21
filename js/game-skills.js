@@ -21,7 +21,7 @@
 // Paso 2c.2 — núcleo de la integración de talentos: g.heal/g.shield con pos/dr, damageAlly ⑫,
 //   API de DoT (dotsOf, hasDoT, dotRemaining, consumeDoT, replaceDoT, ⑬ onDotEnd), killStatus.
 // Paso 2 (2f + 2g; docs/paso2-implementacion.md §3.5–§3.7) — VERBOS:
-//   cargar y soltar (g._charging, g.releaseSkillSlot, ventana perfecta), relanzar
+//   cargar y soltar (g._charging, g.releaseSkillSlot, ventana perfecta, g._chargeEnd), relanzar
 //   (p.skState[id].recast), combo de 3, secuencia del básico, canal ampliado (moveMul,
 //   autoShot, drainPerSec, hold:'toggle', endReason, g.extendChannel), posturas
 //   (g.stanceOf, g.setStanceBoth), cargas de enfriamiento (p.skCharges), g.reduceCooldown
@@ -51,6 +51,14 @@ const v3 = (x, z, y = 0) => new THREE.Vector3(x, y, z);
 const wallNow = g => (typeof g.clockNow === 'function' ? g.clockNow() : (typeof performance !== 'undefined' ? performance.now() : Date.now()));
 // estado volátil de los verbos de una habilidad (§3.7)
 const skStateOf = (p, id) => ((p.skState || (p.skState = {}))[id] || (p.skState[id] = {}));
+// fin de CADA carga para la interfaz (ui-verbs: destello de acierto o de fallo):
+// g._chargeEnd = { key, id, reason, perfect, frac, t, instant }. reason: 'release' | 'auto' al
+// soltar; al cancelar, el motivo que llegue (dodge, panel, cancel, interrupt…). t va en el reloj
+// de _charging.t0 (p.simT): la UI descarta un registro anterior a la carga que mira. instant:
+// suelta sin carga visible (carga instantánea). Las repeticiones (eco) no lo escriben
+function noteChargeEnd(g, key, id, reason, perfect, frac, instant = false) {
+  g._chargeEnd = { key, id, reason, perfect: !!perfect, frac: Number.isFinite(frac) ? frac : 0, t: g.player?.simT || 0, instant };
+}
 // ¿una habilidad (por los tags e id de un golpe) encaja en un selector de detonación?
 // '@all' · '@<cat>' (basic|spender|movement|defense|utility|ultimate; @insignia = spec) ·
 // '@tag:<tag>' · '@<elem>' · '<skillId>'
@@ -1784,6 +1792,7 @@ export const skillMethods = {
     this._charging = null;
     const p = this.player;
     p?.clearMoveMul?.('charge');
+    noteChargeEnd(this, c.key, c.id, reason, false, c.frac);
     this._skillEnd(p, c.sk, { kind: 'charge', reason, casts: 0, hits: 0, released: false, frac: c.frac || 0, perfect: false });
     return true;
   },
@@ -1817,6 +1826,7 @@ export const skillMethods = {
     if (ctx.isEcho) ctx2.coef = ctx.coef * (charge.coefMul || 1);
     // feedback del borde (D26): perfecto o fuera de la ventana; la racha de perfectos
     if (!ctx.isEcho) {
+      noteChargeEnd(this, ctx.key, sk.id, reason, rel.perfect, rel.frac, instant);
       if (rel.perfect) {
         p.perfectStreak = (p.perfectStreak || 0) + 1;
         this.sfx?.('verb_perfect');
@@ -2006,6 +2016,8 @@ export const skillMethods = {
   resetCastState() {
     this._windup = null;
     this._channel = null;
+    const c = this._charging;
+    if (c) noteChargeEnd(this, c.key, c.id, 'reset', false, c.frac);
     this._charging = null;
     this._needsRelease = {};
     const p = this.player;
