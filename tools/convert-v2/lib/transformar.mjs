@@ -45,8 +45,15 @@ export function buildCruda(b, errores = [], donde = '') {
   return out;
 }
 
-// Contexto de una conversión: errores (fallan), avisos, iconos que faltan, grants omitidos
-function nuevoCtx(cls) { return { cls, errores: [], avisos: [], iconos: [], grantsOmitidos: [] }; }
+// Contexto de una conversión: errores (fallan), avisos, iconos que faltan, grants omitidos.
+// traducir(texto) → ['alias → canónica', …] (opcional: tabla de W2 y vocabulario del juego; lo pasa
+// convert.mjs) se añade al `todo` para que KT no traduzca a mano
+function nuevoCtx(cls, traducir = null) { return { cls, errores: [], avisos: [], iconos: [], grantsOmitidos: [], traducir }; }
+function todoDe(ctx, impl) {
+  const t = impl || SIN_IMPL;
+  const tr = impl && ctx.traducir ? ctx.traducir(impl) : [];
+  return tr.length ? `${t} ⟶ traducir: ${tr.join('; ')}` : t;
+}
 
 function icono(ctx, ruta, donde) {
   const r = rutaIcono(ruta);
@@ -93,14 +100,14 @@ function nodoJuego(ctx, n, { C, TV2, helpers, arbolIcono, grantSi }) {
       }
       if (o.touch?.length) op.touch = [...o.touch];
       if (o.icon) op.icon = icono(ctx, o.icon, `${donde}${o.k}`);
-      op.todo = o.impl || SIN_IMPL;
+      op.todo = todoDe(ctx, o.impl);
       return op;
     });
     if (n.win != null) out.win = n.win;
   } else {
     if (n.win != null) out.win = n.win;
     out.fx = {};
-    out.todo = n.impl || SIN_IMPL;
+    out.todo = todoDe(ctx, n.impl);
   }
   return out;
 }
@@ -160,8 +167,8 @@ function forjaDe(s) {
 
 // Convierte una clase del mockup. opts.grantSoloSiExiste: true en --write (E1.5): `grant` solo si la activa ya existe.
 // → { talents, hero, talentSkills, skills, forge, specBar, forgeReco, fallbackBar, ctx }
-export function convertirClase({ cls, C, TV2, helpers, juego, grantSoloSiExiste = false }) {
-  const ctx = nuevoCtx(cls);
+export function convertirClase({ cls, C, TV2, helpers, juego, grantSoloSiExiste = false, traducir = null }) {
+  const ctx = nuevoCtx(cls, traducir);
   const catJuego = juego?.catalogo || new Map();
   const grantSi = id => !grantSoloSiExiste || catJuego.has(id);
   const comun = { C, TV2, helpers, grantSi };

@@ -33,7 +33,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { ROOT, MOCKUP_DIR, CLASES, PREFIJO, cargarMockup } from './lib/cargar.mjs';
 import { convertirClase, verificarN1 } from './lib/transformar.mjs';
 import { textoTalents, textoHero, textoSkillsDraft, textoShim } from './lib/emitir.mjs';
-import { extraerIds, informePoderes, informeClaves, informePendientes } from './lib/impl.mjs';
+import { extraerIds, informePoderes, informeClaves, informePendientes, traduccionesNota } from './lib/impl.mjs';
 import { juegoDeClase, registroJuego, vocabularioJuego } from './lib/juego.mjs';
 import { compararClase } from './paridad.mjs';
 import { claseMockupDesdeJuego, validarConMockup } from './lib/inverso.mjs';
@@ -93,13 +93,17 @@ async function draft({ escribirJs = false } = {}) {
   const registro = await registroJuego();
   if (registro.error) avisos.push(registro.error);
   const poderes = informePoderes(ids, registro);
+  // vocabulario del juego ANTES de escribir nada en js/ (con --write los talentos pasan a v2 esqueleto)
+  const voc = await vocabularioJuego();
 
   for (const cls of pedidas) {
     const m = cargados[cls];
     if (!m) { errores.push(`${cls}: no hay datos del mockup en ${relRoot(SRC)}`); continue; }
     const juego = await juegoDeClase(cls);
     avisos.push(...juego.errores);
-    const conv = convertirClase({ cls, C: m.C, TV2: m.TV2, helpers, juego, grantSoloSiExiste: escribirJs });
+    const catalogo = new Set((m.C.catalog || []).map(s => s.id));
+    const traducir = texto => traduccionesNota(texto, { catalogo, voc });
+    const conv = convertirClase({ cls, C: m.C, TV2: m.TV2, helpers, juego, grantSoloSiExiste: escribirJs, traducir });
     errores.push(...conv.ctx.errores);
     avisos.push(...conv.ctx.avisos);
     iconos.push(...conv.ctx.iconos.map(x => ({ cls, ...x })));
@@ -111,7 +115,7 @@ async function draft({ escribirJs = false } = {}) {
     if (!escribirJs) {
       escribir(archivos.skills, textoSkillsDraft({ cls, conv, fuente }));
       escribir(join(dir, 'talent-text.js'), textoShim(dir, join(ROOT, 'js')));
-      escribir(join(dir, `pendientes-${cls}.md`), informePendientes({ cls, C: m.C, conv, fuente, poderes: poderes.clases[cls] }));
+      escribir(join(dir, `pendientes-${cls}.md`), informePendientes({ cls, C: m.C, conv, fuente, poderes: poderes.clases[cls], voc }));
     } else {
       if (resolve(DEST) !== resolve(ROOT, 'js')) escribir(join(dir, 'talent-text.js'), textoShim(dir, join(ROOT, 'js')));
       const salen = conv.ctx.activasV1Fuera || [];
@@ -129,7 +133,6 @@ async function draft({ escribirJs = false } = {}) {
     mkdirSync(OUT, { recursive: true });
     const fuentes = Object.entries(cargados).map(([cls, m]) => ({ cls, rel: m.rel, hash: m.hash, estado: m.C.estado }));
     writeFileSync(join(OUT, 'power-ids.json'), JSON.stringify({ generado: 'tools/convert-v2/convert.mjs --draft', fuentes, ...poderes }, null, 2) + '\n');
-    const voc = await vocabularioJuego();
     const claves = informeClaves(Object.fromEntries(Object.entries(cargados).map(([cls, m]) => [cls, { C: m.C }])), voc, fuentes);
     writeFileSync(join(OUT, 'claves-impl.md'), claves.md);
     const mi = ['# Iconos citados que no están en assets/', '', `> Generado por \`tools/convert-v2/convert.mjs --draft\` (${pedidas.join(', ')}). La UI pinta el marcador (§3.12); encargo de arte para Codex (§7).`, ''];
@@ -140,7 +143,8 @@ async function draft({ escribirJs = false } = {}) {
     }
     writeFileSync(join(OUT, 'missing-icons.md'), mi.join('\n'));
     resumen.push(`power-ids.json: ${poderes.ok ? 'sin choques' : `${poderes.choques.length} choques entre clases y ${poderes.dobleDeclaracion.length} dobles declaraciones`} · ${poderes.avisos.length} avisos`);
-    resumen.push(`claves-impl.md: ${claves.alias} alias con traducción · ${claves.sin} SIN TRADUCCIÓN`);
+    resumen.push(`claves-impl.md: ${claves.alias} alias con traducción · ${claves.sin} SIN TRADUCCIÓN · ${claves.sinDecidir} claves tv/stats sin decidir · ${claves.cola} peticiones a la cola W2`);
+    if (claves.sin) errores.push(`claves-impl.md: ${claves.sin} claves SIN TRADUCCIÓN (añádelas a tools/convert-v2/claves-w2.mjs o pídelas a la cola W2)`);
     resumen.push(`missing-icons.md: ${new Set(iconos.map(x => `${x.cls}:${x.ruta}`)).size} iconos sin archivo`);
     for (const c of poderes.choques) errores.push(`D28: ${c.tipo} «${c.id}» en varias clases: ${Object.entries(c.clases).map(([k, v]) => `${k} (${v.join(', ')})`).join(' · ')}`);
     for (const c of poderes.dobleDeclaracion) errores.push(`D28: ${c.tipo} «${c.id}» declarado NUEVO en dos sitios de ${c.clase}: ${c.en.join(', ')}`);

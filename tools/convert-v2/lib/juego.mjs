@@ -58,13 +58,18 @@ export async function registroJuego() {
 }
 
 // vocabulario de claves que ya existen en el juego
-// → { mods:Set, params:Set (claves de las definiciones, también 'a.b'), tv:Set, stats:Set, tipos:Set (GENERIC_TYPES) }
+// → { mods:Set, params:Set (claves de las definiciones, también 'a.b'), tv:Set, stats:Set, tipos:Set (GENERIC_TYPES),
+//     skillKeys:Set (SKILL_KEYS: claves que entiende el motor), retirados:Map (RETIRED_KEYS: alias → traducción) }
 export async function vocabularioJuego() {
-  const mods = new Set(), params = new Set(), tv = new Set(), stats = new Set(), tipos = new Set();
+  const mods = new Set(), params = new Set(), tv = new Set(), stats = new Set(), tipos = new Set(), skillKeys = new Set(), retirados = new Map();
   try {
     const sd = await import(url('skill-defs.js'));
     for (const k of Object.keys(sd.emptyMods?.() || {})) mods.add(k);
     for (const t of sd.GENERIC_TYPES || []) tipos.add(t);
+    for (const k of sd.SKILL_KEYS || []) skillKeys.add(k);
+    for (const [k, v] of Object.entries(sd.RETIRED_KEYS || {})) retirados.set(k, v);
+    // claves tv del núcleo que se leen por TABLA (nucleo_tv): no aparecen como tv.x en el código
+    for (const k of sd.NUCLEO_TV_KEYS || []) tv.add(k);
   } catch { /* sin skill-defs */ }
   const recorrer = (o, pre = '') => {
     for (const [k, v] of Object.entries(o || {})) {
@@ -95,5 +100,5 @@ export async function vocabularioJuego() {
     if (i >= 0) { const bloque = txt.slice(i, txt.indexOf('};', i)); for (const [, k] of bloque.matchAll(/([A-Za-z_]\w*):\s*0/g)) stats.add(k); }
   } catch { /* sin entities */ }
   for (const k of ['fue', 'des', 'vit', 'ene', 'gaugeGain', 'gaugeLoss']) stats.add(k);
-  return { mods, params, tv, stats, tipos };
+  return { mods, params, tv, stats, tipos, skillKeys, retirados };
 }

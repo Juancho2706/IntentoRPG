@@ -1,11 +1,11 @@
 // ============================================================
 // CATÁLOGO 2g de la clase Guerrero — BORRADOR para KA (no lo carga el juego)
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-guerrero.js (sha1 966148bcbff2, estado «diseño»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-guerrero.js (sha1 b0f282184d7d, estado «diseño»).
 // Formato: docs/paso2-implementacion.md §3.5 (forja de 2f §2.3). Ids, cat, req, spec, elem, nombres, líneas y papeles
 // exactos (los compara tests/test-v2-paridad.mjs cuando <CLASE>_CATALOG_V = 2). Los efectos se escriben a mano desde
 // el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existe, su definición actual.
-// Las 3 activas de talento viven en talents-guerrero.js (GUERRERO_TALENT_SKILLS): g_t_aliento, grito_guerra, g_t_intervencion.
+// Las 6 activas de talento viven en talents-guerrero.js (GUERRERO_TALENT_SKILLS): g_t_aliento, grito_guerra, g_t_intervencion, g_h_bramido, g_h_desafio, g_h_estandarte.
 export const GUERRERO_SKILLS = [
   // juego actual: { id: 'g_tajo', name: 'Tajo', icon: '⚔️', cat: 'basic', slots: ['lmb'], tags: ['basic', 'melee', 'area', 'physical'], elem: 'physical', type: 'weapon', req: 1, coef: 1, gen: 10, genPerExtra: 2, genMax: 16, cleave: 0.5, cleaveR: 2, desc: 'Corta al objetivo (100 % del arma) y a los enemigos pegados a él, a 2 m o menos (50 %). Genera 10 de Furia, +2 por cada enemigo extra (máx. 16).' }
   { id: 'g_tajo', name: 'Tajo', icon: '⚔️', cat: 'basic', req: 1, elem: 'physical', coef: 1, gen: 10, line: 'Cortas al objetivo y al que está pegado a él (50 %). Te da 10 de Furia, +2 por cada enemigo extra.', art: 'skills256/g_tajo.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
@@ -14,7 +14,7 @@ export const GUERRERO_SKILLS = [
   // juego actual: { id: 'embestida', name: 'Embestida', icon: '💨', cat: 'movement', slots: ['k1'], tags: ['movement', 'melee', 'area', 'physical'], elem: 'physical', type: 'dash', req: 4, coef: 1.2, cd: 8, range: 7, radius: 1.9, lockT: 0.25, genOnHit: 12, desc: 'Embistes hasta 7 m hacia la mira: al llegar haces 120 % del arma a todos en 1,9 m y, si golpeas a alguno, ganas 12 de Furia. Enfriamiento 8 s.' }
   { id: 'embestida', name: 'Embestida', icon: '💨', cat: 'movement', req: 4, elem: 'physical', coef: 1.2, cd: 8, line: 'Embistes 7 m hacia la mira y golpeas al llegar (120 % a 1,9 m). Si golpeas, ganas 12 de Furia.', art: 'skills256/embestida.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
   // juego actual: { id: 'g_piel', name: 'Piel de Hierro', icon: '🛡️', cat: 'defense', slots: ['k2'], tags: ['defense', 'buff', 'physical'], elem: 'physical', type: 'buff', req: 6, cd: 20, dur: 12, buff: { dr: 50 }, slowImmune: true, desc: 'Tu piel se vuelve de acero 12 s: −50 % de daño recibido (reducción de daño, tope 50 %) e inmunidad a las ralentizaciones. Enfriamiento 20 s.' }
-  { id: 'g_piel', name: 'Piel de Hierro', icon: '🛡️', cat: 'defense', req: 6, elem: 'physical', cd: 20, line: 'Durante 8 s recibes un 40 % menos de daño y no te pueden ralentizar.', art: 'skills256/g_piel.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  { id: 'g_piel', name: 'Piel de Hierro', icon: '🛡️', cat: 'defense', req: 6, elem: 'physical', cd: 20, line: 'Durante 8 s recibes un 40 % menos de daño y no te pueden ralentizar. Su recarga empieza al acabar.', innate: { guardian: 'Guardián: 12 s y −50 %' }, art: 'skills256/g_piel.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
   // juego actual: { id: 'g_lanza', name: 'Lanza Arrojadiza', icon: '🎯', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'physical'], elem: 'physical', type: 'proj', req: 14, coef: 1.9, cost: 20, speed: 16, range: 11, pierce: true, lockT: 0.3, desc: 'Arrojas una lanza que atraviesa a todos los enemigos en 11 m: 190 % del arma a cada uno. Tu respuesta a voladores y lanzadores. Cuesta 20 de Furia.' }
   { id: 'g_lanza', name: 'Lanza Arrojadiza', icon: '🎯', cat: 'spender', req: 8, elem: 'physical', coef: 1.9, cost: 20, line: 'Arrojas una lanza que atraviesa a todos en 11 m (190 %). Tu respuesta a voladores y lanzadores.', art: 'skills256/g_lanza.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
   // NUEVA en 2g con este id; en el juego hay una parecida: { id: 'g_t_remolino', name: 'Remolino Sangriento', icon: '🌪️', kind: 'talent', cat: 'spec', slots: ['k3'], tags: ['spec', 'melee', 'area', 'dot', 'physical'], elem: 'physical', behavior: 'g_t_remolino', req: 10, coef: 0.57, cost: 30, cd: 6, channelT: 2, ticks: 10, radius: 2.9, dotKind: 'bleed', moveFree: true, color: 13378082, desc: 'Insignia del Berserker: giras 2 s a velocidad normal golpeando 10 veces a todo lo que hay a 2,9 m (57 % del arma por golpe, 570 % en total) y lo desangras. Cuesta 30 de Furia; enfriamiento 6 s.' }
@@ -25,6 +25,22 @@ export const GUERRERO_SKILLS = [
   { id: 'g_rajar', name: 'Rajar', icon: '✦', cat: 'spender', req: 14, spec: 'berserker', elem: 'physical', coef: 1.4, cost: 15, line: 'Combo de 3: tajo, revés y un golpe descendente (320 %) que se prepara 0,3 s y desangra. Si paras 2,5 s, vuelve al 1.º.', art: 'talents/guerrero-berserker-s7.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
   // juego actual: { id: 'g_u_furia', name: 'Furia Inmortal', icon: '😤', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'buff', 'physical'], elem: 'physical', type: 'buff', req: 15, cd: 60, dur: 10, buff: { aspdPct: 30, spenderCostPct: -100 }, unstoppable: true, slowImmune: true, desc: 'Definitiva: 10 s de furia sin límite: tus gastadoras no cuestan Furia, +30 % de velocidad de ataque y eres imparable (inmune a control e interrupciones). Enfriamiento 60 s.' }
   { id: 'g_u_furia', name: 'Furia Inmortal', icon: '😤', cat: 'ultimate', req: 15, spec: 'berserker', elem: 'physical', cd: 60, line: '10 s imparable: tu vida no baja del 1 % y tus principales no cuestan Furia. Al acabar, te curas un 20 %.', art: 'skills256/g_u_furia.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // NUEVA en 2g (no existe en el juego)
+  { id: 'g_guardia', name: 'Cambio de Guardia', icon: '✦', cat: 'spec', req: 10, spec: 'guardian', elem: 'physical', cd: 3, line: 'Alternas dos posturas: Muralla (−15 % de daño recibido y +10 % de bloqueo) y Ariete (+15 % de daño). Cambiar: 3 s.', art: 'talents/guerrero-guardian-s17.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // NUEVA en 2g (no existe en el juego)
+  { id: 'g_carga_escudo', name: 'Carga de Escudo', icon: '✦', cat: 'movement', req: 12, spec: 'guardian', elem: 'physical', coef: 1.3, cd: 10, line: 'Avanzas 8 m despacio e imparable (1 s): arrastras a los que encuentras y, al llegar, te atacan a ti 3 s.', art: 'talents/guerrero-guardian-s13.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // juego actual: { id: 'terremoto', name: 'Terremoto', icon: '💥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'line', 'cc', 'physical'], elem: 'physical', type: 'line', req: 14, coef: 3.1, cost: 26, cd: 4, range: 8, width: 2, stun: 0.75, bossStun: false, windup: 0.15, desc: 'Partes el suelo en una grieta de 8 × 2 m (preparación de 0,15 s): 310 % del arma y aturde 0,75 s a todo lo que alcanza salvo a los jefes. Cuesta 26 de Furia; enfriamiento 4 s.' }
+  { id: 'terremoto', name: 'Terremoto', icon: '💥', cat: 'spender', req: 14, spec: 'guardian', elem: 'physical', coef: 2.2, cost: 30, line: 'Te preparas 0,4 s y golpeas el suelo: 220 % a 5 m. Plantado (1 s sin moverte), suelta 2 réplicas al 50 %.', art: 'skills256/terremoto.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // NUEVA en 2g (no existe en el juego)
+  { id: 'g_u_ciudadela', name: 'Ciudadela', icon: '✦', cat: 'ultimate', req: 15, spec: 'guardian', elem: 'physical', cd: 90, line: 'Clavas el escudo 8 s y no te mueves: tú y tus aliados a 6 m reciben −40 %; los enemigos a 10 m te atacan a ti.', art: 'talents/guerrero-guardian-x3.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // NUEVA en 2g (no existe en el juego)
+  { id: 'g_juicio', name: 'Juicio', icon: '✦', cat: 'spec', req: 10, spec: 'cruzado', elem: 'holy', coef: 1.2, cost: 20, cd: 8, line: 'Te preparas 0,3 s y lanzas un martillo de luz (120 % a 3 m) que marca 8 s. Tu siguiente principal lo detona: +100 %.', art: 'talents/guerrero-cruzado-s16.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // NUEVA en 2g (no existe en el juego)
+  { id: 'g_sendero', name: 'Sendero de Luz', icon: '✦', cat: 'movement', req: 12, spec: 'cruzado', elem: 'holy', coef: 1, cd: 10, line: 'Destello de 8 m: dejas 4 s un sendero sagrado que no se suma: daña un 30 % y cura a tus aliados un 2 % por segundo.', art: 'talents/guerrero-cruzado-s14.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // juego actual: { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'area', 'physical'], elem: 'physical', type: 'area', at: 'target', req: 8, coef: 1.5, cost: 30, radius: 3, range: 2.5, windup: 0.15, impactDelay: 0.23, shake: 0.35, desc: 'Descargas el martillo hasta 2,5 m delante (preparación de 0,15 s): la onda hace 150 % del arma a todos en 3 m al tocar el suelo. Cuesta 30 de Furia.' }
+  { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', cat: 'spender', req: 14, spec: 'cruzado', elem: 'holy', coef: 1.4, cost: 25, line: 'Mantén para cargar (hasta 1,2 s) y suelta: 140 → 380 % a 3–5 m. Ventana perfecta (destello): +25 % y 1 de Fervor.', art: 'skills256/g_martillo.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
+  // juego actual: { id: 'g_u_cataclismo', name: 'Cataclismo', icon: '☄️', cat: 'ultimate', slots: ['k4'], tags: ['ultimate', 'area', 'holy'], elem: 'holy', type: 'area', at: 'target', behavior: 'g_u_cataclismo', req: 15, coef: 3.1, cd: 50, radius: 3, range: 9, windup: 0.15, impacts: 8, spanT: 5, teleT: 0.4, shake: 0.5, desc: 'Definitiva: 8 meteoros de luz caen en 5 s sobre la zona (cada uno avisa 0,4 s antes): 310 % del arma por impacto en 3 m, hasta 2480 % en el centro. Enfriamiento 50 s.' }
+  { id: 'g_u_cataclismo', name: 'Cataclismo', icon: '☄️', cat: 'ultimate', req: 15, spec: 'cruzado', elem: 'holy', coef: 5, cd: 60, line: 'Mantén hasta 2 s y suelta: la luz cae en la mira (500 → 1200 % a 6 m) y consagra el suelo 6 s.', art: 'skills256/g_u_cataclismo.webp', todo: 'KA1: tipo genérico, verbos (§3.6) y números desde el doc de la clase' },
 ];
 
 // Forja: ids estables <id>_i / <id>_ii; papeles UNI · AREA · CTRL · AGU · APO · MOV; Mejora a Nv req+3, variantes a req+6
@@ -119,16 +135,98 @@ export const GUERRERO_SKILL_FORGE = {
       { id: 'g_u_furia_ii', name: 'Frenesí', role: 'UNI', icon: 'forge/v_g_u_furia_ii', line: '+40 % de velocidad de ataque, pero tu vida sí puede bajar del 1 %.' },
     ],
   },
+  g_guardia: {
+    // k: cdr −50
+    mejora: { name: 'Guardia Ligera', icon: 'forge/mejora', line: 'Cambiar de postura se recarga en 1,5 s (antes 3 s).' },
+    vars: [
+      // k: ★aura stance 50 % (r 6)
+      { id: 'g_guardia_i', name: 'Guardia Compartida', role: 'APO', icon: 'forge/v_g_guardia_i', line: 'Tus aliados a 6 m reciben la mitad de tu postura: −8 % de daño recibido o +8 % de daño.' },
+      // k: ★aura enemigos: weakenOutgoing 10 | slow 20 (r 5)
+      { id: 'g_guardia_ii', name: 'Guardia Opresiva', role: 'CTRL', icon: 'forge/v_g_guardia_ii', line: 'Tu postura también pesa sobre los enemigos a 5 m: Muralla les quita un 10 % de daño; Ariete los frena un 20 %.' },
+    ],
+  },
+  g_carga_escudo: {
+    // k: range +25
+    mejora: { name: 'Avance Largo', icon: 'forge/mejora', line: 'Avanzas 10 m (antes 8 m) en el mismo tiempo.' },
+    vars: [
+      // k: ★knock 1 · stagger 20
+      { id: 'g_carga_escudo_i', name: 'Arrollador', role: 'CTRL', icon: 'forge/v_g_carga_escudo_i', line: 'Al llegar derribas 1 s a los arrastrados; a los jefes les llenas 20 de Quebranto.' },
+      // k: ★set{range:12, dashT:.3, drag:false, taunt:0}
+      { id: 'g_carga_escudo_ii', name: 'Carga Veloz', role: 'MOV', icon: 'forge/v_g_carga_escudo_ii', line: 'Rápida: 12 m en 0,3 s, sin arrastrar ni provocar.' },
+    ],
+  },
+  terremoto: {
+    // k: radius +20
+    mejora: { name: 'Suelo Partido', icon: 'forge/mejora', line: 'Radio 5 → 6 m.' },
+    vars: [
+      // k: ★set{at:aim3, radius:2.5} · dmg +60 · stagger 20
+      { id: 'terremoto_i', name: 'Martinete', role: 'UNI', icon: 'forge/v_terremoto_i', line: 'Golpeas un solo punto a 3 m: radio 2,5 m, +60 % y 20 de Quebranto a los jefes.' },
+      // k: ★set{type:line, range:10, width:2} · dmg −20 · slow 2
+      { id: 'terremoto_ii', name: 'Falla', role: 'AREA', icon: 'forge/v_terremoto_ii', line: 'El suelo se abre en línea 10 m: −20 % de daño y ralentiza un 40 % durante 2 s.' },
+    ],
+  },
+  g_u_ciudadela: {
+    // k: durS 2
+    mejora: { name: 'Muros Altos', icon: 'forge/mejora', line: 'Dura 10 s (antes 8 s).' },
+    vars: [
+      // k: ★set{root:false, moveSpd:.5} · dr 25
+      { id: 'g_u_ciudadela_i', name: 'Ciudadela Andante', role: 'MOV', icon: 'forge/v_g_u_ciudadela_i', line: 'Puedes moverte al 50 % de velocidad; la reducción baja a −25 % (antes −40 %).' },
+      // k: ★power v_empalizada (onDamaged, icd 1)
+      { id: 'g_u_ciudadela_ii', name: 'Empalizada', role: 'AREA', icon: 'forge/v_g_u_ciudadela_ii', line: 'Quien te golpea mientras dura recibe el 60 % de tu arma (una vez por segundo).' },
+    ],
+  },
+  g_juicio: {
+    // k: radius +33
+    mejora: { name: 'Juicio Amplio', icon: 'forge/mejora', line: 'Radio 3 → 4 m.' },
+    vars: [
+      // k: ★set{radius:0, single:true, markDur:12} · vulnPct 15
+      { id: 'g_juicio_i', name: 'Sentencia', role: 'UNI', icon: 'forge/v_g_juicio_i', line: 'Marca a un solo enemigo 12 s: recibe un 15 % más de daño de todo el grupo.' },
+      // k: ★set{count:3, spread:.3} · dmg −40
+      { id: 'g_juicio_ii', name: 'Tres Juicios', role: 'AREA', icon: 'forge/v_g_juicio_ii', line: 'Arrojas 3 martillos en abanico al 60 %; cada uno marca.' },
+    ],
+  },
+  g_sendero: {
+    // k: zoneDur +2
+    mejora: { name: 'Huella de Luz', icon: 'forge/mejora', line: 'El sendero dura 6 s (antes 4 s).' },
+    vars: [
+      // k: ★power v_escolta_luz (g.shield al aliado; icd 6 por aliado)
+      { id: 'g_sendero_i', name: 'Escolta de Luz', role: 'APO', icon: 'forge/v_g_sendero_i', line: 'Si atraviesas a un aliado, le das un escudo del 12 % de tu vida durante 6 s (una vez cada 6 s por aliado).' },
+      // k: ★charges 2 · zoneDur −2
+      { id: 'g_sendero_ii', name: 'Destello Doble', role: 'MOV', icon: 'forge/v_g_sendero_ii', line: '2 cargas (10 s cada una); el sendero dura 2 s.' },
+    ],
+  },
+  g_martillo: {
+    // k: chargeT .9 · perfect [.6, .85]
+    mejora: { name: 'Mano Ágil', icon: 'forge/mejora', line: 'Cargas del todo en 0,9 s (antes 1,2 s); la ventana perfecta se adelanta igual.' },
+    vars: [
+      // k: ★set{type:proj, range:12, radius:0} · dmg +40
+      { id: 'g_martillo_i', name: 'Martillo Arrojado', role: 'UNI', icon: 'forge/v_g_martillo_i', line: 'Al soltar, lo lanzas a 12 m contra uno solo: +40 % y sin área; vuelve a tu mano.' },
+      // k: ★add{wave:{range:8, coef:.6}}
+      { id: 'g_martillo_ii', name: 'Onda Sagrada', role: 'AREA', icon: 'forge/v_g_martillo_ii', line: 'Al soltar, el golpe sigue en una onda de 8 m hacia delante (60 %).' },
+    ],
+  },
+  g_u_cataclismo: {
+    // k: radius +25
+    mejora: { name: 'Columna Ancha', icon: 'forge/mejora', line: 'Radio 6 → 7,5 m.' },
+    vars: [
+      // k: ★set{radius:2} · dmg +80 · stagger 40
+      { id: 'g_u_cataclismo_i', name: 'Rayo del Cielo', role: 'UNI', icon: 'forge/v_g_u_cataclismo_i', line: 'Un rayo estrecho de 2 m: +80 % y 40 de Quebranto a los jefes.' },
+      // k: ★heal 30 (r 8) · shield 10 · dmg −40
+      { id: 'g_u_cataclismo_ii', name: 'Amanecer', role: 'APO', icon: 'forge/v_g_u_cataclismo_ii', line: '−40 % de daño, pero curas un 30 % a tus aliados a 8 m y les das un escudo del 10 %.' },
+    ],
+  },
 };
 
 // Barra, forja ('i'/'ii'; el mockup usa 'A'/'B') y habilidad seleccionada al elegir la especialización (D6)
 export const GUERRERO_SPEC_BAR = {
   berserker: { bar: { lmb: 'g_tajo', rmb: 'g_rajar', k1: 'g_salto', k2: 'g_piel', k3: 'g_remolino', k4: 'g_u_furia' }, forge: { g_tajo: 'i', g_remolino: 'ii' }, sel: 'g_rajar' },
-  guardian: { bar: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_lanza', k3: null, k4: null }, forge: {}, sel: 'g_hendidura' },
-  cruzado: { bar: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: null, k4: null }, forge: {}, sel: 'g_hendidura' },
+  guardian: { bar: { lmb: 'g_tajo', rmb: 'terremoto', k1: 'g_carga_escudo', k2: 'g_piel', k3: 'g_guardia', k4: 'g_u_ciudadela' }, forge: { g_tajo: 'ii', g_piel: 'ii', g_guardia: 'i' }, sel: 'g_guardia' },
+  cruzado: { bar: { lmb: 'g_tajo', rmb: 'g_martillo', k1: 'g_sendero', k2: 'g_piel', k3: 'g_juicio', k4: 'g_u_cataclismo' }, forge: { g_juicio: 'ii', g_sendero: 'i' }, sel: 'g_martillo' },
 };
 export const GUERRERO_FORGE_RECO = {
   berserker: { g_tajo: 'i', g_remolino: 'ii', g_u_furia: 'i' },
+  guardian: { g_tajo: 'ii', g_piel: 'ii', g_guardia: 'i', g_carga_escudo: 'i', g_u_ciudadela: 'ii' },
+  cruzado: { g_juicio: 'ii', g_sendero: 'i', g_martillo: 'ii', g_u_cataclismo: 'i' },
 };
 export const GUERRERO_FALLBACK_BAR = { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: null, k4: null };
 export const GUERRERO_CATALOG_V = 2;

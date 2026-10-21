@@ -29,7 +29,7 @@
 - [ ] **c14·A Runa de Escarcha** — NUEVO · `power m_runa · NUEVO (spawnField zona)`
 - [ ] **c14·B Parpadeo Reparador** — NUEVO · `power m_parpadeo_cura · NUEVO (g.heal)`
 - [ ] **c15·A Escudo de Maná** — NUEVO · `power m_escudo_mana · NUEVO (④ onDamaged)`
-- [ ] **c15·B Mente Clara** — existe · `stats regen + tv.highManaDmg · existe`
+- [ ] **c15·B Mente Clara** — existe · `stats regen + tv.highManaDmg · existe` · traducir: `stats.regen → stats.regenPct`
 - [ ] **c16·A Armonía Elemental** — NUEVO · `power m_armonia · NUEVO`
 - [ ] **c16·B Pureza Elemental** — NUEVO · `power m_pureza · NUEVO`
 - [ ] **c17·A Inversión del Tiempo (concede m_t_inversion)** — existe · `activa m_t_inversion · existe`
@@ -40,7 +40,7 @@
 - [ ] **c21 Escarcha Tenaz** — existe · `mod @all slow +2 · claves`
 - [ ] **c22·A Contrahechizo (concede m_t_contrahechizo)** — existe · `activa m_t_contrahechizo · existe`
 - [ ] **c22·B Canalizador** — existe · `tv.costRedBig · existe`
-- [ ] **c23 Ritmo Arcano** — NUEVO · `tv.dartCritCdr · NUEVO`
+- [ ] **c23 Ritmo Arcano** — NUEVO · `tv.dartCritCdr · NUEVO` · traducir: `tv.dartCritCdr → tv.basicCritCdr (el núcleo acepta los dos nombres)`
 - [ ] **c24 Celeridad** — existe · `stats.aspdPct · existe`
 - [ ] **c25 Cristal de Barrera** — NUEVO · `power m_cristal · NUEVO (onShieldBreak)`
 - [ ] **c26 Torrente de Maná** — NUEVO · `power m_torrente · NUEVO (⑪ onResource)`
@@ -89,7 +89,7 @@
 
 - [ ] **i0 Escarcha (clave, gratis)** — existe · `mecánica escarcha · existe`
 - [ ] **i1 Frío Penetrante** — NUEVO · `tv.freezeDur · NUEVO (clave)`
-- [ ] **i2 Filo Helado** — NUEVO · `tv.frostCrit · NUEVO (clave)`
+- [ ] **i2 Filo Helado** — NUEVO · `tv.frostCrit · NUEVO (clave)` · traducir: `tv.frostCrit: clave de la clase (KT-maga, <CLASE>_TV_KEYS)`
 - [ ] **i3 Viento Cortante** — existe · `mod nova_hielo cdr · existe`
 - [ ] **i4 Escarcha Densa** — existe · `tuning escarcha.decayEvery · tv`
 - [ ] **i5 Hielo Quebradizo** — NUEVO · `power k_quebradizo · NUEVO (condAdd)`
@@ -105,7 +105,7 @@
 - [ ] **i12 Astillas** — NUEVO · `tv.critFrostCdr · NUEVO (copia de critFireCdr)`
 - [ ] **i13 Frío Intenso** — existe · `mod dmg · claves`
 - [ ] **i14 Suelo Helado** — NUEVO · `campo k_suelo · NUEVO`
-- [ ] **i15·A Piel de Invierno** — NUEVO · `tv.drVsLayered · NUEVO`
+- [ ] **i15·A Piel de Invierno** — NUEVO · `tv.drVsLayered · NUEVO` · traducir: `tv.drVsLayered: clave de la clase (KT-maga, <CLASE>_TV_KEYS)`
 - [ ] **i15·B Cristal Protector** — NUEVO · `power k_cristal · NUEVO (g.shield)`
 - [ ] **i16 Invierno Profundo** — NUEVO · `power k_invierno · NUEVO (condAdd)`
 - [ ] **i17 Remolino** — NUEVO · `power k_remolino · NUEVO (afterCast)`
@@ -125,7 +125,7 @@
 
 - [ ] **a0 Cargas Arcanas (clave, gratis)** — existe · `mecánica cargas · existe`
 - [ ] **a1 Memoria Arcana** — existe · `tuning cargas.loseAfter · tv`
-- [ ] **a2 Mente Brillante** — NUEVO · `tv.chargeCrit · NUEVO (clave)`
+- [ ] **a2 Mente Brillante** — NUEVO · `tv.chargeCrit · NUEVO (clave)` · traducir: `tv.chargeCrit: clave de la clase (KT-maga, <CLASE>_TV_KEYS)`
 - [ ] **a3 Flujo Constante** — existe · `mod m_u_desgarro cdr · claves`
 - [ ] **a4 Potencia Acumulada** — existe · `tuning cargas.dmgPerCharge · tv`
 - [ ] **a5 Rebote Cargado** — NUEVO · `power a_rebote_cargado · NUEVO (onHit)`
@@ -142,12 +142,12 @@
 - [ ] **a13 Torrente Arcano** — existe · `mod dmg · claves`
 - [ ] **a14 Maná Inagotable** — NUEVO · `power a_mana_inagotable · NUEVO`
 - [ ] **a15·A Desplazamiento** — NUEVO · `power a_desplazamiento · NUEVO (onDamaged)`
-- [ ] **a15·B Velo Arcano** — NUEVO · `tv.drCharges · NUEVO`
+- [ ] **a15·B Velo Arcano** — NUEVO · `tv.drCharges · NUEVO` · traducir: `tv.drCharges: clave de la clase (KT-maga, <CLASE>_TV_KEYS)`
 - [ ] **a16 Resonancia** — existe · `power a_resonance · existe (rangos)`
 - [ ] **a17 Sello Viviente** — existe · `mod a_sello durS + power a_sello_sigue`
 - [ ] **a18 Carga Final** — NUEVO · `power a_carga_final · NUEVO (afterCast)`
 - [ ] **a19 Satélite** — NUEVO · `power a_satelite · NUEVO`
-- [ ] **a20 Agudeza** — NUEVO · `tv.aspdCharges · NUEVO`
+- [ ] **a20 Agudeza** — NUEVO · `tv.aspdCharges · NUEVO` · traducir: `tv.aspdCharges: clave de la clase (KT-maga, <CLASE>_TV_KEYS)`
 - [ ] **a21 Doble Grieta** — NUEVO · `power a_doble_grieta · NUEVO`
 - [ ] **a22 Cargas Desbordadas** — existe · `tuning cargas.max + condAdd`
 - [ ] **a23 Orbe Múltiple** — NUEVO · `power a_orbe_multiple · NUEVO (echo)`
@@ -296,14 +296,14 @@
 ### m_u_supernova · Supernova
 
 - [ ] **Mejora · Gravedad Solar** — NUEVO · `★pull 2`
-- [ ] **I (AREA) · Sol Errante** — NUEVO · `★set{follow:true, pulses:4} · behavior`
+- [ ] **I (AREA) · Sol Errante** — NUEVO · `★set{follow:true, pulses:4} · behavior` · traducir: `follow:true → follow: 'owner'`
 - [ ] **II (UNI) · Colapso** — NUEVO · `★set{pulses:1, radius:3, coef:13}`
 
 ### k_prision · Prisión de Hielo
 
 - [ ] **Mejora · Celda Amplia** — existe · `radius +25`
 - [ ] **I (UNI) · Celda Lejana** — NUEVO · `★set{at:target, range:15, radius:1.5} · stun 3`
-- [ ] **II (CTRL) · Muralla de Hielo** — NUEVO · `★set{type:wall, length:8} · campo k_muralla`
+- [ ] **II (CTRL) · Muralla de Hielo** — NUEVO · `★set{type:wall, length:8} · campo k_muralla` · traducir: `type:wall → type:'wall' + wall: { len, width, blocks, contain }`; `length → wall.len`
 
 ### m_paso_escarcha · Paso de Escarcha
 
@@ -326,7 +326,7 @@
 ### a_orbe · Orbe Arcano
 
 - [ ] **Mejora · Orbe Grande** — existe · `radius +30`
-- [ ] **I (UNI) · Orbe Veloz** — NUEVO · `★set{speed:2x, bounce:0} · dmg +40`
+- [ ] **I (UNI) · Orbe Veloz** — NUEVO · `★set{speed:2x, bounce:0} · dmg +40` · traducir: `bounce → set: { bounces: n } (el Orbe lee prof.def.bounces)`
 - [ ] **II (AREA) · Orbe Gemelo** — NUEVO · `★set{count:2, spread:25} · dmg −40`
 
 ### a_sello · Sello del Archimago
@@ -343,8 +343,8 @@
 
 ### m_u_desgarro · Desgarro Arcano
 
-- [ ] **Mejora · Desgarro Estable** — NUEVO · `★set{moveWhileChannel:0.4}`
-- [ ] **I (AREA) · Brecha** — NUEVO · `★set{type:field, dur:5, radius:3}`
+- [ ] **Mejora · Desgarro Estable** — NUEVO · `★set{moveWhileChannel:0.4}` · traducir: `moveWhileChannel → moveMul`
+- [ ] **I (AREA) · Brecha** — NUEVO · `★set{type:field, dur:5, radius:3}` · traducir: `type:field → type: 'zone' (+ at, dur, radius, follow); type:'field' es error en v2`
 - [ ] **II (UNI) · Quiebre** — NUEVO · `★set{pulses:1, coef:9}`
 
 ## Barra y recomendaciones
