@@ -32,12 +32,19 @@ const forgedDef = (p, sk) => p.forged?.[sk.id]?.def || p.resolved?.[sk.id]?.def 
 //   bleedKillHeal / bleedKillMana  ⑥ lo mismo si el muerto SANGRABA (KillInfo.status.bleeding)
 //   executePct      ⑤ remata a los NORMALES por debajo del umbral (élites/jefes: +40 %
 //                   aditivo bajo él, combat-math.condAddPct); wasExecuted(e) = «remate»
-//   critFireCdr     ⑤ cada crítico DIRECTO de Fuego reduce X s los enfriamientos de Fuego
-//                   (no definitivas), una vez por instante
+//   critFireCdr · critFrostCdr   ⑤ cada crítico DIRECTO de Fuego (de Hielo) reduce X s los
+//                   enfriamientos de Fuego (de Hielo), no definitivas, una vez por instante
+//   critCdrAll      ⑤ Paso 2: cada crítico directo reduce X s TODOS tus enfriamientos salvo
+//                   las definitivas (Ritmo de Matanza), una vez por instante
+//   basicCritCdr    ⑤ Paso 2: cada crítico directo de tu BÁSICO reduce X s los enfriamientos
+//                   de tu movilidad y de tus defensas (Ritmo de Combate; alias dartCritCdr)
+//   frozenKillHeal / frozenKillMana   ⑥ Paso 2: % de vida / recurso al matar a un CONGELADO
 //   rootedWeak      ⑨ Debilidad +X a los enemigos INMOVILIZADOS (todo el grupo)
 //   drHighMana · drVsSlowed · drMoving · drFocus   ⑧ reducción de daño CONDICIONAL
 //                   (maná > 50 % · el atacante está ralentizado/Congelado · te mueves ·
 //                   Concentración > 50). El tv.dmgReduc de recompute es la incondicional.
+//                   drHighMana vale para cualquier recurso (> 50 %: Determinación = drHighFury)
+//   drLowHp         ⑧ Paso 2: reducción de daño con menos del 40 % de vida (Umbral del Dolor)
 //   perfectCdrAll   ③ Paso 2 (Liturgia): cada suelta PERFECTA acorta X s tus enfriamientos
 //                   salvo las definitivas y las de recarga al acabar (cdOnEnd); como mucho
 //                   una vez cada 2 s. Todo enfriamiento se resta con g.reduceCooldown (D2).
@@ -49,7 +56,20 @@ export const CORE_TV_POWER = 'nucleo_tv';
 function coreTvKeys() {
   return ['killHeal', 'manaOnKill', 'burnKillHeal', 'burnKillMana', 'bleedKillHeal', 'bleedKillMana',
     'executePct', 'critFireCdr', 'rootedWeak', 'drHighMana', 'drVsSlowed', 'drMoving', 'drFocus',
-    'perfectCdrAll'];
+    'perfectCdrAll', 'critFrostCdr', 'critCdrAll', 'basicCritCdr', 'dartCritCdr', 'drLowHp', 'frozenKillHeal', 'frozenKillMana'];
+}
+// umbral de vida de tv.drLowHp
+export const DR_LOW_HP_FRAC = 0.4;
+// crítico directo → enfriamientos (claves tv del núcleo): qué habilidades acorta cada clave
+const CRIT_CDR_KEYS = {
+  critFireCdr: { hit: h => h.elem === 'fire', sk: d => d.elem === 'fire' },
+  critFrostCdr: { hit: h => h.elem === 'frost', sk: d => d.elem === 'frost' },
+  critCdrAll: { hit: () => true, sk: () => true },
+  basicCritCdr: { hit: h => hasTag(h, 'basic'), sk: d => d.cat === 'movement' || d.cat === 'defense' },
+};
+function hasTag(hit, t) {
+  const tags = hit?.tags;
+  return !!(tags && (tags instanceof Set ? tags.has(t) : Array.isArray(tags) && tags.includes(t)));
 }
 export function usesCoreTv(tv) {
   if (!tv) return false;
@@ -146,7 +166,7 @@ export function commonPowers() {
     nucleo_tv: {                                    // = CORE_TV_POWER (literal: ciclo de módulos)
       name: 'Talentos (núcleo)', desc: 'Aplica las claves de talento que consume el núcleo (curas al matar, Ejecutar, reducción condicional…).',
       priority: 5,                                    // el remate antes que los onHit de clase
-      state: () => ({ cdrAt: -1, perfAt: -99 }),
+      state: () => ({ cdrAt: {}, perfAt: -99 }),
       onHit(g, p, e, hit) {
         const tv = p.tv || {};
         // Ejecutar: normales por debajo del umbral → remate; élites/jefes → marca de «remate»
@@ -159,16 +179,18 @@ export function commonPowers() {
             dealProcDamage(g, e, e.hp + 1, { source: 'power:nucleo_tv', skill: hit?.skill || null });
           }
         }
-        // Pirotecnia: crítico directo de Fuego → −X s a los enfriamientos de Fuego (no definitivas;
-        // elemento FORJADO: una Saeta Ígnea cuenta como Fuego)
-        const red = tv.critFireCdr || 0;
-        if (red > 0 && hit?.crit && hit.elem === 'fire' && !hit.proc && !hit.dot) {
+        // críticos directos que acortan enfriamientos (Pirotecnia, Astillas, Ritmo de Matanza,
+        // Ritmo de Combate): elemento FORJADO (una Saeta Ígnea cuenta como Fuego), nunca las
+        // definitivas, una vez por instante y clave
+        if (hit?.crit && !hit.proc && !hit.dot) {
           const st = powerState(p, 'nucleo_tv');
-          if (st.cdrAt !== p.simT) {
-            st.cdrAt = p.simT;
+          for (const [key, rule] of Object.entries(CRIT_CDR_KEYS)) {
+            const red = tv[key] || (key === 'basicCritCdr' ? tv.dartCritCdr || 0 : 0);
+            if (!(red > 0) || !rule.hit(hit) || st.cdrAt[key] === p.simT) continue;
+            st.cdrAt[key] = p.simT;
             for (const sk of p.cls?.skills || []) {
               const def = forgedDef(p, sk);
-              if (def.elem !== 'fire' || def.cat === 'ultimate' || !(p.cds?.[sk.id] > 0)) continue;
+              if (def.cat === 'ultimate' || !rule.sk(def) || !(p.cds?.[sk.id] > 0)) continue;
               g.reduceCooldown?.(p, sk.id, red);
             }
           }
@@ -189,10 +211,10 @@ export function commonPowers() {
       },
       onKill(g, p, e, kill) {
         const tv = p.tv || {};
-        const burning = !!kill?.status?.burning, bleeding = !!kill?.status?.bleeding;
-        const heal = (tv.killHeal || 0) + (burning ? tv.burnKillHeal || 0 : 0) + (bleeding ? tv.bleedKillHeal || 0 : 0);
+        const burning = !!kill?.status?.burning, bleeding = !!kill?.status?.bleeding, frozen = !!kill?.status?.frozen;
+        const heal = (tv.killHeal || 0) + (burning ? tv.burnKillHeal || 0 : 0) + (bleeding ? tv.bleedKillHeal || 0 : 0) + (frozen ? tv.frozenKillHeal || 0 : 0);
         if (heal > 0 && p.alive && p.sustain(p.stats.maxHP * heal / 100, 'nucleo_tv') > 0) g.ui?.spawnText?.(p.pos, '+❤️', 'txt-heal');
-        const res = (tv.manaOnKill || 0) + (burning ? tv.burnKillMana || 0 : 0) + (bleeding ? tv.bleedKillMana || 0 : 0);
+        const res = (tv.manaOnKill || 0) + (burning ? tv.burnKillMana || 0 : 0) + (bleeding ? tv.bleedKillMana || 0 : 0) + (frozen ? tv.frozenKillMana || 0 : 0);
         if (res > 0) gainResource(p, res);
       },
       // Espinas Venenosas: Debilidad a los inmovilizados (dura lo que les quede de raíz)
@@ -210,6 +232,7 @@ export function commonPowers() {
         if (tv.drVsSlowed && src && ((src.slowT || 0) > 0 || (src.frozenT || 0) > 0)) dr += tv.drVsSlowed;
         if (tv.drMoving && p.moving) dr += tv.drMoving;
         if (tv.drFocus && gaugeValue(p, 'concentracion') > 50) dr += tv.drFocus;
+        if (tv.drLowHp && (p.stats?.maxHP || 0) > 0 && p.hp / p.stats.maxHP < DR_LOW_HP_FRAC) dr += tv.drLowHp;
         return dr;
       },
     },

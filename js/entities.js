@@ -732,7 +732,10 @@ export class Player {
                    // y % de stagger contra jefes
                    hpPct: 0, mpPct: 0, xpPct: 0, threatMult: 0, staggerPct: 0,
                    // Paso 2c.2: daño recibido extra (%, tras mitigar: Temeridad +10)
-                   dmgTakenPct: 0 };
+                   dmgTakenPct: 0,
+                   // Paso 2 (claves de talento, docs/paso2-claves-w2.md): +% de regeneración del
+                   // recurso (Maná/Energía) y +% del recurso GENERADO (Furia Creciente)
+                   regenPct: 0, resGainPct: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -904,6 +907,7 @@ export class Player {
       hpPct: item.hpPct, mpPct: item.mpPct, xpPct: item.xpPct,
       threatMult: Math.max(0.1, 1 + item.threatMult), staggerPct: item.staggerPct,
       dmgTakenPct: item.dmgTakenPct,
+      regenPct: item.regenPct, resGainPct: item.resGainPct,
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
@@ -1768,6 +1772,13 @@ export class Enemy {
   // suma 20; la provocación funciona igual (sin rendimientos decrecientes).
   applyCC(kind, dur, opts = {}) {
     if (!(dur > 0) || !this.alive) return 0;
+    // claves de talento del héroe que lo aplica: tv.ccDurPct (+% a los aturdimientos) y
+    // tv.freezeDur (+s al Congelado), en un único punto para todas las fuentes
+    const tv = opts.src?.tv;
+    if (tv) {
+      if (kind === 'stun' && tv.ccDurPct) dur *= Math.max(0, 1 + tv.ccDurPct / 100);
+      if (kind === 'freeze' && tv.freezeDur) dur += tv.freezeDur;
+    }
     const boss = isBossDef(this.def);
     if (boss) {
       const sp = opts.src?.stats?.staggerPct || 0;

@@ -227,4 +227,24 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   console.log('Avance lento: arrastre, imparable, provocación y plantado ✓');
 }
 
+// ------------------------------------------------ 9) type:field del mockup → type:'zone' (docs/paso2-claves-w2.md)
+{
+  // Brecha (m_u_desgarro.A: «set{type:field, dur:5, radius:3}»): la variante convierte un canal
+  // en una ZONA genérica de 5 s y 3 m donde apuntas
+  const forge = { vx_rayo: { mejora: null, vars: [
+    { id: 'vx_rayo_i', name: 'Brecha', role: 'AREA', line: 'grieta 5 s', set: { type: 'zone', at: 'target', dur: 5, radius: 3, coef: 0.5 } },
+    { id: 'vx_rayo_ii', name: 'x', role: 'UNI', line: 'x', add: { range: 2 } }] } };
+  const h = verbHarness('maga', { level: 30, forge, powers: ['vx_spy83'] });
+  h.p.skillForge = { vx_rayo: 'i' }; h.p.recompute();
+  const e = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
+  h.aim(6, 0); h.setSlot('k2', 'vx_rayo');
+  assert.equal(h.press('k2'), true); h.release('k2');
+  assert.ok(!h.g._channel, 'ya no canaliza');
+  const [z] = live(h, 'zona', 'vx_rayo');
+  assert.ok(z && z.radius === 3 && z.dur === 5 && Math.abs(z.pos.x - 6) < 1e-6, 'zona de 5 s y 3 m en la mira');
+  h.step(1.0);
+  assert.ok(e.hp < 1e6, 'daña por tics');
+  console.log("type:field → type:'zone' (variante que cambia la entrega) ✓");
+}
+
 console.log('\n✅ CAMPOS 2g (trampa · cebo · detonar · muro · seguir · emisor · estela · saltar a tu campo) OK');

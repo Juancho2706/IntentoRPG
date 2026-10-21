@@ -564,4 +564,128 @@ const dealt = e => e.maxHP - e.hp;
   console.log('El canal lee la definición forjada ✓');
 }
 
+// ------------------------------------------------ 9) claves resueltas (docs/paso2-claves-w2.md)
+{
+  // chainPct (Rayo en Cadena): cada salto hace el 70 % del golpe base (no −25 % compuesto)
+  const h = mk('maga');
+  h.p.stats.wMin = h.p.stats.wMax = 1000;
+  h.enemy({ hp: 1e7, pos: [3, 0, 0] });
+  for (const z of [2, 4, 6]) h.enemy({ hp: 1e7, pos: [3, 0, z] });
+  h.aim(6, 0); h.setSlot('rmb', 'vx_rayo_cadena');
+  const prof = resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'vx_rayo_cadena'));
+  h.press('rmb'); h.release('rmb');
+  const jumps = h.g.projectiles.filter(x => x.dmg > 0);
+  const want = Math.round(Math.round(h.p.avgHit(prof.coef, prof.addPct)) * 0.7);
+  assert.equal(jumps.length, 3, 'salta a 3');
+  assert.ok(jumps.every(x => x.dmg === want), `cada salto al 70 % del golpe (${jumps.map(x => x.dmg)} vs ${want})`);
+}
+{
+  // impacts + scatter (Lluvia de Meteoritos): 3 impactos repartidos a 0,6 × scatter del centro
+  const h = mk('maga');
+  h.setSlot('rmb', 'vx_meteoritos');
+  h.aim(6, 0);
+  const r = 0.6 * 2.5;
+  const ring = [0, 1, 2].map(i => { const a = Math.PI / 2 + i * 2 * Math.PI / 3; return h.enemy({ hp: 1e7, pos: [6 + Math.sin(a) * r, 0, Math.cos(a) * r] }); });
+  const mid = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
+  h.press('rmb'); h.release('rmb');
+  assert.ok(ring.every(e => e.hp < 1e7), 'cada impacto alcanza su punto del anillo');
+  assert.equal(mid.hp, 1e7, 'el centro queda entre impactos (radio 1)');
+}
+{
+  // dmg3 → mul { 'steps.2.coef' } (Estocada Final: el 3.er paso del combo +40 %)
+  const forge = { vx_combo: { mejora: { name: 'Estocada Final', line: 'x', mul: { 'steps.2.coef': 1.4 } }, vars: [] } };
+  const h = mk('guerrero', { forge });
+  const sk = h.p.cls.skills.find(s => s.id === 'vx_combo');
+  const prof = resolveSkill(h.p, sk);
+  assert.ok(Math.abs(prof.def.steps[2].coef - 2.8) < 1e-9 && prof.def.steps[0].coef === 1, 'solo el 3.er paso');
+  const c3 = h.g._makeCtx(h.p, sk, prof, 'rmb', { sk, prof }, { target: h.p.pos.clone(), near: null, isEcho: false, echoMult: 0, comboIdx: 2 });
+  assert.ok(Math.abs(c3.coef - prof.coef * 2.8) < 1e-9, 'el paso 3 lanza con su coef forjado');
+  console.log('Claves resueltas: chainPct, impacts + scatter, dmg3 → steps.2.coef ✓');
+}
+
+// ------------------------------------------------ 10) otros verbos: carga completa, perTarget, cdOnEnd/cdFloor, onda,
+// cura/escudo al lanzar, señuelo, pulsos
+{
+  const extra = [
+    { id: 'vx_x_saetas', name: 'Tres Saetas', cat: 'spender', tags: ['spender', 'proj', 'physical'], type: 'proj', coef: 1, cost: 0, cd: 0, range: 12, speed: 30,
+      charge: { min: 0.1, max: 0.5, perfect: [0.4, 0.5], full: { count: 3, spread: 0.3, coefMul: 0.8 } } },
+    { id: 'vx_x_cerrada', name: 'Andanada Cerrada', cat: 'spender', tags: ['spender', 'proj', 'physical'], type: 'proj', coef: 1, cost: 0, cd: 0, range: 12, speed: 30, spread: 0.05, perTarget: 2 },
+    { id: 'vx_x_abierta', name: 'Andanada', cat: 'spender', tags: ['spender', 'proj', 'physical'], type: 'proj', coef: 1, cost: 0, cd: 0, range: 12, speed: 30, spread: 0.05 },
+    { id: 'vx_x_piel', name: 'Piel de Hierro', cat: 'defense', tags: ['defense', 'buff', 'physical'], type: 'buff', cd: 5, dur: 3, buff: { dr: 10 }, cdOnEnd: true },
+    { id: 'vx_x_ulti', name: 'Definitiva', cat: 'ultimate', tags: ['ultimate', 'area', 'physical'], type: 'area', at: 'self', coef: 1, cd: 10, radius: 3, cdFloor: 0.5 },
+    { id: 'vx_x_onda', name: 'Onda Sagrada', cat: 'spender', tags: ['spender', 'melee', 'holy'], elem: 'holy', type: 'melee', coef: 1, cost: 0, cd: 0, range: 2.5, wave: { range: 6, width: 1.5, coef: 0.5 } },
+    { id: 'vx_x_amanecer', name: 'Amanecer', cat: 'defense', tags: ['defense', 'buff', 'heal', 'shield', 'holy'], elem: 'holy', type: 'buff', cd: 0, dur: 2, buff: { dr: 5 },
+      heal: { pct: 10, radius: 8 }, shield: { pct: 10, radius: 8, dur: 4 } },
+    { id: 'vx_x_senuelo', name: 'Señuelo de Zarzas', cat: 'utility', tags: ['utility', 'area', 'nature'], elem: 'nature', type: 'area', at: 'target', coef: 0.1, cd: 0, range: 12, radius: 1,
+      lure: { radius: 8, dur: 4, speedMul: 1 } },
+  ];
+  // carga completa (charge.full): otra cuenta de proyectiles
+  let h = mk('arquera', { skills: extra });
+  h.enemy({ hp: 1e7, pos: [0, 0, 8] });
+  h.aim(0, 8); h.setSlot('rmb', 'vx_x_saetas');
+  h.press('rmb'); h.step(0.6); h.release('rmb');
+  const full = h.g.projectiles.length;
+  h.step(1);
+  h.press('rmb'); h.step(0.2); h.release('rmb'); h.step(DT);
+  assert.ok(full === 3 && h.g.projectiles.length === 1, `carga completa: 3 saetas; a medias: 1 (${full}, ${h.g.projectiles.length})`);
+  // perTarget: con +1 proyectil (Vendaval), la Andanada normal da 1 vez al mismo enemigo y la Cerrada 2
+  const hitsOn = (id) => {
+    const k = mk('arquera', { skills: extra, powers: ['vx_spy', 'multidisparo'] });
+    const e = k.enemy({ hp: 1e7, pos: [0, 0, 3] });    // abanico estrecho (0,05 rad): los dos le llegan
+    k.aim(0, 6); k.setSlot('rmb', id);
+    k.press('rmb'); k.release('rmb'); k.step(0.6);
+    return SPY.hit.filter(x => x.skill === id).length + (dealt(e) > 0 ? 0 : -99);
+  };
+  assert.equal(hitsOn('vx_x_abierta'), 1, 'sin perTarget: un impacto por enemigo y lanzamiento');
+  assert.equal(hitsOn('vx_x_cerrada'), 2, 'perTarget 2: los dos proyectiles al mismo enemigo');
+  // cdOnEnd: el enfriamiento corre al acabar el efecto (las reducciones no cuentan mientras dura)
+  h = mk('guerrero', { skills: extra });
+  h.setSlot('k2', 'vx_x_piel');
+  h.press('k2'); h.release('k2');
+  assert.ok(near(h.p.cds.vx_x_piel, 8), 'cdOnEnd: 3 s de efecto + 5 s');
+  assert.equal(h.g.reduceCooldown(h.p, 'vx_x_piel', 2), 0, 'durante el efecto no se reduce');
+  h.step(3.1);
+  assert.ok(h.g.reduceCooldown(h.p, 'vx_x_piel', 2) > 1.9, 'acabado el efecto, sí');
+  // cdFloor: ninguna reducción baja la recarga de la definitiva de su 50 %
+  h.setSlot('k4', 'vx_x_ulti');
+  h.press('k4'); h.release('k4');
+  for (let i = 0; i < 5; i++) h.g.reduceCooldown(h.p, 'vx_x_ulti', 2);
+  assert.ok(near(h.p.cds.vx_x_ulti, 5, 1e-6), `cdFloor 0,5: como mucho −5 s de 10 (${h.p.cds.vx_x_ulti})`);
+  h.g.reduceCooldown(h.p, 'vx_x_ulti', Infinity);
+  assert.equal(h.p.cds.vx_x_ulti, 0, 'un reinicio explícito sí');
+  // onda tras el golpe: alcanza en línea más allá del cuerpo a cuerpo
+  h = mk('guerrero', { skills: extra });
+  const near1 = h.enemy({ hp: 1e7, pos: [1.5, 0, 0] }), far1 = h.enemy({ hp: 1e7, pos: [5, 0, 0] }), off1 = h.enemy({ hp: 1e7, pos: [5, 0, 3] });
+  h.aim(6, 0); h.setSlot('rmb', 'vx_x_onda');
+  h.press('rmb'); h.release('rmb');
+  assert.ok(dealt(near1) > 0 && dealt(far1) > 0 && dealt(off1) === 0, 'onda: golpe + línea hacia la mira');
+  // cura y escudo al grupo al lanzar
+  h.setSlot('k2', 'vx_x_amanecer'); h.step(0.25);   // GCD de la onda
+  h.p.hp = h.p.stats.maxHP * 0.5;
+  const hp0 = h.p.hp, sh0 = h.p.shieldTotal();
+  assert.equal(h.press('k2'), true); h.release('k2');
+  assert.ok(h.p.hp - hp0 >= h.p.stats.maxHP * 0.1 - 1 && h.p.shieldTotal() - sh0 >= h.p.stats.maxHP * 0.1 - 1, 'heal y shield al lanzar (≥ 10 %)');
+  // señuelo: campo que atrae
+  h.setSlot('k2', 'vx_x_senuelo'); h.step(0.3);
+  h.aim(8, 0); h.press('k2'); h.release('k2');
+  const [s] = h.g.fieldsOf(h.p, { kind: 'senuelo' });
+  assert.ok(s && h.g._moveFields > 0, 'campo señuelo');
+  const lured = h.enemy({ hp: 1e7, pos: [8, 0, 5] });
+  const z0 = lured.pos.z;
+  for (let i = 0; i < 30; i++) h.g.lureStep(lured, DT);
+  assert.ok(lured.pos.z < z0 - 0.3, 'el señuelo atrae');
+  // pulsos (Ciudadela): provoca cada 1 s a los del radio mientras dura el buff
+  h = mk('guerrero');
+  const inR = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), outR = h.enemy({ hp: 1e7, pos: [9, 0, 0] });
+  h.setSlot('k2', 'vx_ciudadela');
+  h.press('k2'); h.release('k2');
+  assert.ok(!(inR.tauntT > 0), 'el pulso llega a cada segundo');
+  h.step(1.05);
+  assert.ok(inR.tauntT > 0 && !(outR.tauntT > 0), 'pulso: provoca a los del radio');
+  h.step(4);
+  inR.tauntT = 0; h.step(1.1);
+  assert.ok(!(inR.tauntT > 0), 'acabado el buff, no hay más pulsos');
+  console.log('Carga completa, perTarget, cdOnEnd, cdFloor, onda, cura/escudo, señuelo y pulsos ✓');
+}
+
 console.log('\n✅ VERBOS (carga · relanzar · combo · secuencia · canal · postura · cargas · ecos · marcas) OK');

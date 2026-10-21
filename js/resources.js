@@ -44,9 +44,11 @@ export function resourceMax(def, { ene = 0, level = 1, bonus = 0 } = {}) {
 }
 
 // Regeneración pasiva por segundo. Solo el Maná lee el atributo Energía (§2).
+// stats.regenPct (Paso 2): +% a esa regeneración (Mente Clara, Respiración Pausada).
 export function resourceRegenRate(def, stats = {}) {
-  if (def.id === 'mana') return resourceRegen(def.regen, stats.ene || 0);
-  if (def.id === 'energia') return def.regen + Math.max(0, Math.min(def.regenStatCap, stats.energyRegen || 0));
+  const pct = Math.max(0, 1 + (stats.regenPct || 0) / 100);
+  if (def.id === 'mana') return resourceRegen(def.regen, stats.ene || 0) * pct;
+  if (def.id === 'energia') return (def.regen + Math.max(0, Math.min(def.regenStatCap, stats.energyRegen || 0))) * pct;
   return 0;
 }
 
@@ -87,8 +89,10 @@ export function drainResource(p, perSec, dt) {
 // ⑪ (Paso 2c.2): lo REALMENTE ganado dispara onResource(g, p, n, src) — Hermandad de
 // Armas (+5 % de la Furia generada por aliado). Un poder que da recurso EXTRA en
 // respuesta pasa { silent: true } para no realimentarse.
-export function gainResource(p, n, { silent = false, src = null } = {}) {
+// stats.resGainPct (Paso 2, Furia Creciente): +% a lo GENERADO; raw:true lo salta (pociones)
+export function gainResource(p, n, { silent = false, src = null, raw = false } = {}) {
   if (!(n > 0)) return 0;
+  if (!raw && p.stats?.resGainPct) n *= Math.max(0, 1 + p.stats.resGainPct / 100);
   const before = p.mp;
   p.mp = Math.min(p.stats?.maxMP || 0, p.mp + n);
   p.furiaIdle = 0;

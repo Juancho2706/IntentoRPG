@@ -12,7 +12,7 @@
 //  6) A1 / F7 GENÉRICOS sobre las clases con CATALOG_V = 2 (forja completa y sin no-ops); el
 //     comprobador se valida con una entrada sintética que tiene un no-op
 import assert from 'node:assert/strict';
-import { forgeDef, forgeMods, forgePowers, validateForge, forgeLevels, setPath, normalizeSkillDef, FORGE_LINE_MAX, FORGE_LINE_WARN } from '../js/skill-defs.js';
+import { forgeDef, forgeMods, forgePowers, validateForge, forgeLevels, setPath, normalizeSkillDef, validateSkillDef, FORGE_LINE_MAX, FORGE_LINE_WARN } from '../js/skill-defs.js';
 import { resolveSkill, forgeState, forgedDef, validSupports } from '../js/skill-resolve.js';
 import { CLASSES, CATALOG_V, SKILL_FORGE } from '../js/data.js';
 import { definePower, POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
@@ -81,6 +81,15 @@ const line = 'Una línea corta de prueba';
   assert.ok(has(/mismo papel/), 'papeles distintos');
   assert.ok(validateForge({ vars: [] }, sk).errors.some(x => /falta la Mejora/.test(x)) && validateForge({ vars: [] }, sk).errors.some(x => /2 variantes/.test(x)));
   console.log('forgeMods, forgePowers y validateForge ✓');
+
+  // claves del mockup resueltas (docs/paso2-claves-w2.md): bounce → bounces (parámetro del
+  // Orbe), dmg3 → mul 'steps.2.coef', type:field → type:'zone' (en un catálogo v2, error)
+  const orb = forgeDef(normalizeSkillDef(verbSkill('vx_tercera')), { vars: [{ id: 'vx_tercera_i', name: 'Veloz', role: 'UNI', line, set: { bounces: 0 }, mul: { speed: 2 } }, { id: 'vx_tercera_ii', name: 'x', role: 'AREA', line }] }, { variant: 'i' });
+  assert.ok(orb.bounces === 0 && orb.speed === 60, 'set bounces: 0 · mul speed ×2');
+  const v2err = validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_corona'), type: 'field' }), { v2: true });
+  assert.ok(v2err.some(x => /field/.test(x)), "type:'field' no existe en v2 (se escribe type:'zone')");
+  assert.ok(validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_corona'), windupMult: 20 }), { v2: true }).some(x => /windupMult/.test(x)), 'alias retirado: error en v2');
+  console.log('Claves resueltas en la forja: bounces, steps.2.coef, field → zone, alias retirados ✓');
 }
 
 // ------------------------------------------------ 3) forgeState (niveles, D3)

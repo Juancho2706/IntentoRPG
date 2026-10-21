@@ -11,7 +11,10 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { DISPLACE_DR, staggerFromDisplace, STAGGER_PER_DISPLACE_M } from '../js/combat-math.js';
 import { VERB_DEFAULTS } from '../js/skill-defs.js';
-import { forgedDef } from '../js/skill-resolve.js';
+import { forgedDef, resolveSkillId } from '../js/skill-resolve.js';
+import { dotProfile } from '../js/combat-math.js';
+import { firePower } from '../js/powers.js';
+import { resourceDefFor, resourceRegenRate, gainResource } from '../js/resources.js';
 import { verbHarness } from './fixtures/skills-verbs-sample.mjs';
 
 const DT = 1 / 60;
@@ -173,4 +176,104 @@ const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
   console.log('recompute: definición forjada y stats de postura en caché ✓');
 }
 
-console.log('\n✅ MOVIMIENTO Y CONTROL (moveMul · plantado · desplazar · minHpPct · cachés) OK');
+// ------------------------------------------------ 6) claves de talento del núcleo (docs/paso2-claves-w2.md)
+{
+  // tv.ccDurPct (+% aturdimientos) y tv.freezeDur (+s Congelado) en Enemy.applyCC
+  const h = mk();
+  const e = h.enemy({ hp: 1e7, pos: [3, 0, 0] }), f = h.enemy({ hp: 1e7, pos: [-3, 0, 0] });
+  h.p.tv = { ccDurPct: 50, freezeDur: 0.4 };
+  e.applyCC('stun', 1, { src: h.p });
+  assert.ok(near(e.stunT, 1.5), `ccDurPct 50: aturdir 1 s → 1,5 s (${e.stunT})`);
+  f.applyCC('freeze', 1, { src: h.p });
+  assert.ok(near(f.frozenT, 1.4), `freezeDur +0,4 s (${f.frozenT})`);
+  const g2 = h.enemy({ hp: 1e7, pos: [0, 0, 3] });
+  g2.applyCC('stun', 1, { src: null });
+  assert.ok(near(g2.stunT, 1), 'sin héroe de origen, sin bonificación');
+  // stats.staggerPct (la clave tv.staggerPct del mockup se traduce a esta stat)
+  const b = h.enemy({ hp: 1e7, boss: true, pos: [0, 0, -5] });
+  h.p.stats.staggerPct = 30;
+  b.displace(h.p.pos, 2, { src: h.p });
+  assert.ok(near(b.stagger, staggerFromDisplace(2, 30)) && near(b.stagger, 13), `staggerPct 30: Quebranto ×1,3 (${b.stagger})`);
+}
+{
+  // tv.bleedDur (+s Sangrado, como burnDur)
+  const base = dotProfile('bleed', 100, {}), longer = dotProfile('bleed', 100, { tv: { bleedDur: 1 } });
+  assert.ok(longer.ticks > base.ticks && near(longer.total / base.total, longer.ticks / base.ticks), 'bleedDur alarga el Sangrado (mismo daño por tic)');
+  assert.equal(dotProfile('burn', 100, { tv: { bleedDur: 1 } }).ticks, dotProfile('burn', 100, {}).ticks, 'solo al Sangrado');
+}
+{
+  // críticos que acortan enfriamientos: critCdrAll, critFrostCdr, basicCritCdr (alias dartCritCdr)
+  const run = (tv, hit) => {
+    const h = mk('maga');
+    h.p.talentExtra.tv = tv; h.p.recompute();
+    const e = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
+    const ult = h.p.cls.skills.find(s => s.cat === 'ultimate');
+    const ids = ['nova_hielo', 'vx_sendero', 'vx_guardia', 'vx_martillo', ult.id];   // (vx_paso tiene cargas: aparte)
+    for (const id of ids) { h.p.cds[id] = 10; resolveSkillId(h.p, id); }
+    h.hit(e, { crit: true, ...hit });
+    h.hit(e, { crit: true, ...hit });             // mismo instante: una sola vez
+    const red = id => 10 - h.p.cds[id];
+    return { frost: red('nova_hielo'), move: red('vx_sendero'), def: red('vx_guardia'), spender: red('vx_martillo'), ult: red(ult.id) };
+  };
+  let r = run({ critCdrAll: 1 }, { skill: 'vx_corazon' });
+  assert.ok(near(r.spender, 1) && near(r.move, 1) && near(r.frost, 1) && r.ult === 0, `critCdrAll: todas −1 s salvo la definitiva ${JSON.stringify(r)}`);
+  r = run({ critFrostCdr: 2 }, { skill: 'nova_hielo', elem: 'frost' });
+  assert.ok(near(r.frost, 2) && r.spender === 0 && r.move === 0, `critFrostCdr: solo las de Hielo ${JSON.stringify(r)}`);
+  r = run({ critFrostCdr: 2 }, { skill: 'vx_corazon', elem: 'fire' });
+  assert.equal(r.frost, 0, 'critFrostCdr: un crítico de Fuego no cuenta');
+  r = run({ basicCritCdr: 0.5 }, { skill: 'm_dardo', tags: ['basic', 'proj'] });
+  assert.ok(near(r.move, 0.5) && near(r.def, 0.5) && r.spender === 0 && r.frost === 0, `basicCritCdr: movilidad y defensa ${JSON.stringify(r)}`);
+  r = run({ dartCritCdr: 0.5 }, { skill: 'm_dardo', tags: ['basic', 'proj'] });
+  assert.ok(near(r.move, 0.5), 'dartCritCdr = alias de basicCritCdr');
+  r = run({ basicCritCdr: 0.5 }, { skill: 'vx_corazon', tags: ['spender'] });
+  assert.equal(r.move, 0, 'basicCritCdr: solo con el básico');
+}
+{
+  // ⑧ drLowHp (< 40 % de vida) y drHighMana con Furia (Determinación = drHighFury)
+  const h = mk();
+  h.p.talentExtra.tv = { drLowHp: 15, drHighMana: 8 }; h.p.recompute();
+  const cond = () => firePower('condDr', h.p, h.p, { amount: 100, src: null });
+  h.p.hp = h.p.stats.maxHP * 0.3; h.p.mp = 40;
+  assert.equal(cond(), 15, 'vida < 40 %: drLowHp');
+  h.p.hp = h.p.stats.maxHP * 0.6; h.p.mp = 60;
+  assert.equal(cond(), 8, 'Furia > 50 (de 100): drHighMana vale para la Furia');
+  h.p.mp = 50;
+  assert.equal(cond(), 0);
+}
+{
+  // ⑥ frozenKillHeal / frozenKillMana: matar a un Congelado
+  const h = mk('maga');
+  h.p.talentExtra.tv = { frozenKillHeal: 4, frozenKillMana: 6 }; h.p.recompute();
+  h.p.hp = h.p.stats.maxHP * 0.5; h.p.mp = 10;
+  const e = h.enemy({ hp: 10, pos: [2, 0, 0] });
+  e.frozenT = 2;
+  const hp0 = h.p.hp;
+  e.takeDamage(100, false, { skill: 'vx_corazon' });
+  assert.ok(near(h.p.hp - hp0, h.p.stats.maxHP * 0.04, 1) && near(h.p.mp, 16, 1e-6), `cura 4 % y +6 de maná (${(h.p.hp - hp0).toFixed(1)}, ${h.p.mp})`);
+  const o = h.enemy({ hp: 10, pos: [2, 0, 0] });
+  const hp1 = h.p.hp;
+  o.takeDamage(100, false, { skill: 'vx_corazon' });
+  assert.equal(h.p.hp, hp1, 'sin congelar, nada');
+}
+{
+  // stats.regenPct (Mente Clara · Respiración Pausada), stats.resGainPct (Furia Creciente),
+  // stat mp (Furia Desbordante: resMaxAdd 30)
+  const m = mk('maga');
+  const def = resourceDefFor(m.p.cls);
+  const r0 = resourceRegenRate(def, m.p.stats);
+  m.p.talentExtra.stats = { regenPct: 30 }; m.p.recompute();
+  assert.ok(near(resourceRegenRate(def, m.p.stats), r0 * 1.3), 'regenPct +30 %');
+  const a = mk('arquera');
+  const ea = resourceRegenRate(resourceDefFor(a.p.cls), a.p.stats);
+  a.p.talentExtra.stats = { regenPct: 15 }; a.p.recompute();
+  assert.ok(near(resourceRegenRate(resourceDefFor(a.p.cls), a.p.stats), ea * 1.15), 'también la Energía');
+  const w = mk();
+  w.p.talentExtra.stats = { resGainPct: 20, mp: 30 }; w.p.recompute();
+  w.p.mp = 0;
+  assert.ok(near(gainResource(w.p, 10), 12), 'resGainPct +20 % a lo generado');
+  assert.ok(near(gainResource(w.p, 10, { raw: true }), 10), 'raw (pociones, reembolsos) no');
+  assert.equal(w.p.stats.maxMP, 130, 'resMaxAdd 30 = stat mp: Furia hasta 130');
+  console.log('Claves de talento del núcleo: ccDurPct, freezeDur, staggerPct, bleedDur, crit→CDR, drLowHp, drHighMana, frozenKill*, regenPct, resGainPct, mp ✓');
+}
+
+console.log('\n✅ MOVIMIENTO Y CONTROL (moveMul · plantado · desplazar · minHpPct · cachés · claves de talento) OK');

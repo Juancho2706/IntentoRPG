@@ -391,7 +391,8 @@ export function dotProfile(kind, avgHit, { dotMul = 1, tv = null } = {}) {
   const P = DOT_PROFILES[kind];
   if (!P || !(avgHit > 0)) return null;
   const pct = (tv?.dotPct || 0) + (tv?.[kind + 'Pct'] || 0);
-  const extraS = (tv?.dotDur || 0) + (kind === 'burn' ? (tv?.burnDur || 0) : 0);
+  // +s por tipo: tv.burnDur (Quemadura) y tv.bleedDur (Sangrado, Heridas Abiertas)
+  const extraS = (tv?.dotDur || 0) + (kind === 'burn' ? (tv?.burnDur || 0) : 0) + (kind === 'bleed' ? (tv?.bleedDur || 0) : 0);
   const extraTicks = Math.max(0, Math.round(extraS / P.interval));
   const base = avgHit * P.frac * dotMul * Math.max(0, 1 + pct / 100);
   return { kind, total: base * (P.ticks + extraTicks) / P.ticks, ticks: P.ticks + extraTicks, interval: P.interval, color: P.color };

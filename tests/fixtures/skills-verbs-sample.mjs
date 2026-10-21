@@ -112,6 +112,12 @@ export const VERB_SKILLS = [
     type: 'melee', coef: 1, cost: 0, cd: 8, range: 2.5, killReset: true }),
   S({ id: 'vx_corazon', name: 'Corazón de Hielo', cat: 'spender', tags: ['spender', 'area', 'frost'], elem: 'frost',
     type: 'area', at: 'self', coef: 0.2, cost: 0, cd: 0, radius: 4, shieldGain: [5, 20] }),
+  // claves resueltas en docs/paso2-claves-w2.md: chainPct (Rayo en Cadena) e impacts + scatter
+  // (Lluvia de Meteoritos)
+  S({ id: 'vx_rayo_cadena', name: 'Rayo en Cadena', cat: 'spender', tags: ['spender', 'line', 'arcane'], elem: 'arcane',
+    type: 'line', coef: 1, cost: 0, cd: 0, range: 8, width: 1.5, chain: 3, chainPct: 70 }),
+  S({ id: 'vx_meteoritos', name: 'Lluvia de Meteoritos', cat: 'spender', tags: ['spender', 'area', 'fire'], elem: 'fire',
+    type: 'area', at: 'target', coef: 0.55, cost: 0, cd: 0, range: 12, radius: 1, impacts: 3, scatter: 2.5 }),
 ];
 
 export const verbSkill = id => VERB_SKILLS.find(s => s.id === id);
