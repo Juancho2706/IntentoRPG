@@ -18,10 +18,14 @@ const TREES = TALENT_TREES.arquera;
 const SRC = readFileSync(new URL('../js/powers-arquera.js', import.meta.url), 'utf8');
 const MECH = readFileSync(new URL('../js/mech-arquera.js', import.meta.url), 'utf8');
 const SK = id => CLASSES.arquera.skills.find(s => s.id === id);
+const rp = (h, id) => resolveSkill(h.p, SK(id));
 let checks = 0;
-const ok = (c, m) => { assert.ok(c, m); checks++; };
-const eq = (a, b, m) => { assert.equal(a, b, m); checks++; };
-const near = (a, b, m, tol = 0.02) => { assert.ok(Math.abs(a - b) <= tol * Math.max(1, Math.abs(b)), `${m}: ${a} ≠ ${b}`); checks++; };
+// mensajes de las comprobaciones que ya pasaron (la cobertura del final busca en ellos cada nodo)
+const PASSED = [];
+const ok = (c, m) => { assert.ok(c, m); checks++; PASSED.push(m); };
+const eq = (a, b, m) => { assert.equal(a, b, m); checks++; PASSED.push(m); };
+const same = (a, b, m) => { assert.deepEqual(a, b, m); checks++; PASSED.push(m); };
+const near = (a, b, m, tol = 0.02) => { assert.ok(Math.abs(a - b) <= tol * Math.max(1, Math.abs(b)), `${m}: ${a} ≠ ${b}`); checks++; PASSED.push(m); };
 const section = (name, fn) => { fn(); console.log(`  ✓ ${name}`); };
 
 // ------------------------------------------------------------ arneses
@@ -120,8 +124,8 @@ section('datos: fx, poderes y claves tv', () => {
   for (const s of TREES.specs) walk(`${s.id}.`, s.nodes);
   for (const t of TREES.hero) walk(`${t.id}.`, t.nodes);
   // E2 cerrado: ningún nodo, opción ni especialización con «todo»; la pasiva es el poder del nodo clave
-  assert.deepEqual(todos, [], 'nodos con todo'); checks++;
-  assert.deepEqual(empty, [], 'nodos con fx vacío'); checks++;
+  same(todos, [], 'nodos con todo');
+  same(empty, [], 'nodos con fx vacío');
   for (const s of TREES.specs) {
     ok(!('todo' in s) && Object.keys(s.innate || {}).length === 0, `${s.id}: sin todo e innate vacío`);
     ok(s.nodes.find(n => n.free)?.fx?.power, `${s.id}: el nodo clave lleva la pasiva (poder)`);
@@ -224,8 +228,8 @@ section('clase: Puntería Fija, Saqueo, Bocajarro, Tiro Lejano y Punta de Diaman
     shoot(h, e2);
     shoot(h, e1);
     for (let i = 0; i < 3; i++) shoot(h, e1);
-    assert.deepEqual(by(l1, 'a_disparo').map(x => x.crit), [false, false, false, true, false, false, false], 'c5A: 4.º disparo a e1 crítico'); checks++;
-    assert.deepEqual(by(l2, 'a_disparo').map(x => x.crit), [false], 'c5A: la cuenta es por enemigo'); checks++;
+    same(by(l1, 'a_disparo').map(x => x.crit), [false, false, false, true, false, false, false], 'c5A: 4.º disparo a e1 crítico');
+    same(by(l2, 'a_disparo').map(x => x.crit), [false], 'c5A: la cuenta es por enemigo');
     const b = cls(), f = b.enemy({ hp: 1e7, pos: [3, 0, 0] }), lf = spy(f);
     for (let i = 0; i < 4; i++) shoot(b, f);
     ok(by(lf, 'a_disparo').length === 4 && by(lf, 'a_disparo').every(x => !x.crit), 'sin c5A: ninguno crítico');
@@ -458,6 +462,20 @@ section('clase: Adrenalina, Calma Letal, Presión, Barrido y Huida', () => {
     ok(!p.buffs.some(b => b.id === 'a_huida'), 'c17B: una vez cada 60 s');
     ok(!cross(cls(), 0.3).buffs.some(b => b.id === 'a_huida'), 'sin c17B: nada');
   }
+  // c17A Agilidad (activa del catálogo que concede el nodo): 6 s de +30 % de velocidad, +15 % de
+  // velocidad de ataque e inmunidad a las ralentizaciones
+  {
+    ok(!isKnown(cls().p, SK('agilidad')) && !isKnown(cls({ c17: 1 }, { c17: 'B' }).p, SK('agilidad')), 'sin c17A (o con la B): sin Agilidad');
+    const h = cls({ c17: 1 }, { c17: 'A' }), p = h.p;
+    ok(isKnown(p, SK('agilidad')), 'c17A concede Agilidad');
+    const spd = p.stats.spdPct, aspd = p.stats.aspdPct, buff = rp(h, 'agilidad').buff;
+    same(SK('agilidad').buff, { spdPct: 30, aspdPct: 15 }, 'c17A: +30 % de velocidad y +15 % de velocidad de ataque (rango 1)');
+    ok(cast(h, 'k2', 'agilidad', 0, 0, 0.1), 'Agilidad se lanza');
+    ok(p.stats.spdPct - spd === buff.spdPct && p.stats.aspdPct - aspd === buff.aspdPct && buff.spdPct >= 30, `c17A: el buff de su perfil (${JSON.stringify(buff)})`);
+    ok(!p.applySlow(2) && !(p.slowT > 0), 'c17A: inmune a las ralentizaciones');
+    h.tick(6.2);
+    ok(p.stats.spdPct === spd && p.applySlow(2), 'c17A: dura 6 s');
+  }
 });
 
 section('clase: humo (Tiro desde la Niebla, Emboscada, Manto de Niebla) y Lluvia en Retirada', () => {
@@ -485,22 +503,29 @@ section('clase: humo (Tiro desde la Niebla, Emboscada, Manto de Niebla) y Lluvia
     near(o.mp, ob.mp, 'c19: fuera del humo, nada', 0.001);
     eq(o.ext, 0, 'c19: fuera del humo, no lo alarga');
   }
-  // c25 Emboscada: al salir del humo, los r+1 siguientes disparos son críticos seguros
+  // c25 Emboscada: al salir del humo, los r+1 siguientes disparos son críticos seguros. El humo es
+  // el de la forja real (a Nv60, Humo Espeso: radio 5 m), así que se sale a su radio + 1 m
   {
     const h = cls({ c25: 1 }), e = h.enemy({ hp: 1e7, pos: [9, 0, 0] }), log = spy(e);
     cast(h, 'k2', 'a_humo', 0, 0, 0.1);
+    const smoke = h.g.fields.find(f => f.data?.skill === 'a_humo');
+    eq(smoke.radius, resolveSkill(h.p, SK('a_humo')).radius, 'c25: el humo tiene el radio de la forja');
     shoot(h, e);
     ok(by(log, 'a_disparo')[0]?.crit === false, 'c25: dentro del humo, normal');
-    h.p.pos.set(5, 0, 0);
+    h.p.pos.set(smoke.radius - 0.5, 0, 0);
+    h.tick(0.2);
+    shoot(h, e);
+    ok(by(log, 'a_disparo')[1]?.crit === false, 'c25: todavía dentro (en el borde), normal');
+    h.p.pos.set(smoke.radius + 1, 0, 0);
     h.tick(0.2);
     for (let i = 0; i < 3; i++) shoot(h, e);
-    assert.deepEqual(by(log, 'a_disparo').slice(1).map(x => x.crit), [true, true, false], 'c25 r1: 2 disparos críticos al salir'); checks++;
+    same(by(log, 'a_disparo').slice(2).map(x => x.crit), [true, true, false], 'c25 r1: 2 disparos críticos al salir');
     // al acabarse el humo estando dentro, también
     const h2 = cls({ c25: 3 }), e2 = h2.enemy({ hp: 1e7, pos: [3, 0, 0] }), l2 = spy(e2);
     cast(h2, 'k2', 'a_humo', 0, 0, 0.1);
     h2.tick(8.2);
     for (let i = 0; i < 5; i++) shoot(h2, e2);
-    assert.deepEqual(by(l2, 'a_disparo').map(x => x.crit), [true, true, true, true, false], 'c25 r3: 4 críticos al acabarse'); checks++;
+    same(by(l2, 'a_disparo').map(x => x.crit), [true, true, true, true, false], 'c25 r3: 4 críticos al acabarse');
   }
   // c28 Manto de Niebla: el humo te sigue, −25 % (antes −50 %) y cura a los aliados 0,25 %/s por rango
   {
@@ -632,7 +657,9 @@ section('clase: Recarga en Marcha, Compás, Tras la Rodada, Danza del Arco y Som
 });
 
 // ============================================================ Errante del Viento (h1)
-const TORBELLINO = { id: 'a_h_torbellino', name: 'Torbellino', cat: 'utility', slots: ['k2'], tags: ['utility', 'physical'], type: 'buff', cd: 20, dur: 1, buff: { aspdPct: 1 } };
+// las activas de árbol héroe son del catálogo (skills-arquera.js) y las concede la opción A de su nodo 4
+const GRANT = { a_h_torbellino: ['h1', 'q4'], a_h_puntas: ['h2', 'w4'], a_h_halcon: ['h3', 'y4'] };
+const withActive = (id, nodes = {}, choice = {}, o = {}) => { const [tree, node] = GRANT[id]; return hero(tree, { [node]: 1, ...nodes }, { [node]: 'A', ...choice }, o); };
 const gusts = h => powerState(h.p, 'q_rafagas').n || 0;
 // gasta las Ráfagas con una Flecha Perforante y devuelve los golpes de viento
 function volley(h, e, at = e) {
@@ -689,8 +716,8 @@ section('héroe Errante del Viento: Ráfagas y sus nodos', () => {
       volley(h, es[0], es[0]);
       return logs.map(l => by(l, 'q_rafagas').length);
     };
-    assert.deepEqual(run({ q3: 1 }), [1, 1, 1], 'q3: una flecha de viento atraviesa a los 3'); checks++;
-    assert.deepEqual(run({}), [1, 0, 0], 'sin q3: solo al primero'); checks++;
+    same(run({ q3: 1 }), [1, 1, 1], 'q3: una flecha de viento atraviesa a los 3');
+    same(run({}), [1, 0, 0], 'sin q3: solo al primero');
   }
   // q4B Corriente Protectora: con 3 Ráfagas, −15 % de daño recibido
   {
@@ -720,7 +747,7 @@ section('héroe Errante del Viento: Ráfagas y sus nodos', () => {
   // da las 3 Ráfagas sin esperar a que la insignia se recargue sola
   {
     const run = nodes => {
-      const h = hero('h1', nodes, {}, { inject: { skills: [TORBELLINO] } }), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
+      const h = withActive('a_h_torbellino', nodes), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
       cast(h, 'k3', 'a_t_andanada', 5, 0, 0.1);
       const cd0 = h.p.cds.a_t_andanada || 0;
       cast(h, 'k2', 'a_h_torbellino', 0, 0, 0.1);
@@ -757,8 +784,8 @@ section('héroe Errante del Viento: Ráfagas y sus nodos', () => {
       volley(h, es[0], es[3]);
       return logs.map(l => by(l, 'q_rafagas').length);
     };
-    assert.deepEqual(run({ q8: 1 }), [1, 1, 1, 1], 'q8B: la flecha atraviesa a 3 (4 en total)'); checks++;
-    assert.deepEqual(run({}), [0, 0, 0, 1], 'sin q8B: una flecha al más cercano a la mira'); checks++;
+    same(run({ q8: 1 }), [1, 1, 1, 1], 'q8B: la flecha atraviesa a 3 (4 en total)');
+    same(run({}), [0, 0, 0, 1], 'sin q8B: una flecha al más cercano a la mira');
     // con 3 Ráfagas, abanico hacia la mira: también alcanza a los de los lados
     const fan = nodes => {
       const h = hero('h1', nodes, { q8: 'B' });
@@ -767,7 +794,7 @@ section('héroe Errante del Viento: Ráfagas y sus nodos', () => {
       volley(h, h.enemy({ hp: 1e7, pos: [12, 0, 0] }), { pos: { x: 12, z: 0 } });
       return logs.map(l => by(l, 'q_rafagas').length);
     };
-    assert.deepEqual(fan({ q8: 1 }), [1, 1], 'q8B: el abanico alcanza a los dos lados'); checks++;
+    same(fan({ q8: 1 }), [1, 1], 'q8B: el abanico alcanza a los dos lados');
   }
   // q9 Aire Pesado: ralentizan un 30 % 2 s
   {
@@ -790,13 +817,18 @@ section('héroe Errante del Viento: Ráfagas y sus nodos', () => {
     eq(n, 1, 'q11: devuelve una Ráfaga');
     eq(n0, 0, 'sin q11: ninguna');
   }
-  // Torbellino (activa de KA1, sintética aquí): da 3 Ráfagas
+  // q4A Torbellino (activa del catálogo que concede el nodo): aturde a los cercanos y da 3 Ráfagas
   {
-    const h = hero('h1', {}, {}, { inject: { skills: [TORBELLINO] } });
+    ok(!isKnown(hero('h1').p, SK('a_h_torbellino')) && !isKnown(hero('h1', { q4: 1 }, { q4: 'B' }).p, SK('a_h_torbellino')), 'sin q4A (o con la B): sin Torbellino');
+    const h = withActive('a_h_torbellino');
+    ok(isKnown(h.p, SK('a_h_torbellino')), 'q4A concede el Torbellino');
     eq(gusts(h), 0, 'sin Ráfagas al empezar');
     cast(h, 'k2', 'a_h_torbellino', 0, 0, 0.1);
-    eq(gusts(h), 3, 'Torbellino: +3 Ráfagas');
-    eq(volley(h, h.enemy({ hp: 1e7, pos: [5, 0, 0] })).length, 3, 'Torbellino: salen con la siguiente principal');
+    eq(gusts(h), 3, 'q4A: el Torbellino da 3 Ráfagas');
+    eq(volley(h, h.enemy({ hp: 1e7, pos: [5, 0, 0] })).length, 3, 'q4A: salen con la siguiente principal');
+    const s = withActive('a_h_torbellino'), close = s.enemy({ hp: 1e7, pos: [0, 0, 2] }), far = s.enemy({ hp: 1e7, pos: [0, 0, 7] });
+    cast(s, 'k2', 'a_h_torbellino', 0, 0, 0.1);
+    ok(close.stunT > 0 && !(far.stunT > 0), 'q4A: y aturde a los cercanos');
   }
   // q12 Rosa de los Vientos: cada 25 s, 6 s con una Ráfaga por segundo y +50 % de daño de viento
   {
@@ -873,7 +905,7 @@ section('héroe Carcaj Encantado: Puntas y sus nodos', () => {
       cast(h, 'rmb', 'lluvia_flechas', 6.3, 0.3, 2.2);
       return [burnLeft(h, e1) > 0, burnLeft(h, e2) > 0];
     };
-    assert.deepEqual(run({ w3: 1 }), [true, true], 'w3: los dos golpeados por la lluvia arden'); checks++;
+    same(run({ w3: 1 }), [true, true], 'w3: los dos golpeados por la lluvia arden');
     eq(run({}).filter(Boolean).length, 1, 'sin w3: solo uno');
   }
   // w4B Punta Curativa: cada punta cura un 2 % (cubeta; cada 6 s)
@@ -942,19 +974,20 @@ section('héroe Carcaj Encantado: Puntas y sus nodos', () => {
     const run = nodes => { const h = hero('h2', nodes), e = h.enemy({ hp: 1e7 }); const g0 = h.gaugeValue('impulso'); tipHit(h, e); return h.gaugeValue('impulso') - g0; };
     near(run({ w9: 1 }) - run({}), 8, 'w9: +8 de Impulso', 0.01);
   }
-  // Desborde de Puntas (activa de KA1, sintética aquí): 4 disparos con las tres puntas al 50 %
+  // w4A Desborde de Puntas (activa del catálogo que concede el nodo): 4 disparos con las tres puntas al 50 %
   {
-    const DESBORDE = { ...TORBELLINO, id: 'a_h_puntas', name: 'Desborde de Puntas' };
+    ok(!isKnown(hero('h2').p, SK('a_h_puntas')) && !isKnown(hero('h2', { w4: 1 }, { w4: 'B' }).p, SK('a_h_puntas')), 'sin w4A (o con la B): sin Desborde');
+    ok(isKnown(withActive('a_h_puntas').p, SK('a_h_puntas')), 'w4A concede el Desborde de Puntas');
     const run = (activa) => {
-      const h = hero('h2', {}, {}, { inject: { skills: [DESBORDE] } }), e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), log = spy(e);
+      const h = withActive('a_h_puntas'), e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), log = spy(e);
       tipHit(h, h.enemy({ hp: 1e7, pos: [0, 0, 6] }));                 // gasta la punta del ciclo
       if (activa) cast(h, 'k2', 'a_h_puntas', 0, 0, 0.1);
       shoot(h, e, 1.2);
       return { burn: burnLeft(h, e), slow: e.slowT > 0, bolt: by(log, 'w_puntas').filter(x => x.proc && !x.dot).length };
     };
     const a = run(true), b = run(false);
-    ok(a.burn > 0 && a.slow && a.bolt === 1, 'Desborde: Fuego, Hielo y Rayo en el mismo disparo');
-    ok(!(b.burn > 0) && !b.slow && b.bolt === 0, 'sin Desborde: ninguna punta (la del ciclo estaba gastada)');
+    ok(a.burn > 0 && a.slow && a.bolt === 1, 'w4A: Fuego, Hielo y Rayo en el mismo disparo');
+    ok(!(b.burn > 0) && !b.slow && b.bolt === 0, 'sin lanzar el Desborde: ninguna punta (la del ciclo estaba gastada)');
   }
   // w12 Lluvia Encantada: cada 30 s, 6 s en que tus flechas llevan punta al 30 %
   {
@@ -972,6 +1005,8 @@ section('héroe Carcaj Encantado: Puntas y sus nodos', () => {
 
 // ============================================================ Halconera (h3)
 const dives = log => by(log, 'y_halcon');
+// ataques de la Llamada del Halcón (golpes de su habilidad, a_h_halcon)
+const calls = log => by(log, 'a_h_halcon');
 const marked = (h, e) => (powerState(h.p, 'y_halcon').marks?.get(e) || 0) > h.p.simT;
 section('héroe Halconera: Halcón Cazador y sus nodos', () => {
   // y0: cada 6 s cae en picado (100 %) y marca 6 s: +10 % de tus flechas
@@ -1077,8 +1112,8 @@ section('héroe Halconera: Halcón Cazador y sus nodos', () => {
       h.tick(3.1);
       return [marked(h, e1), marked(h, e2)];
     };
-    assert.deepEqual(run({ y10: 1 }), [true, true], 'y10: los dos marcados'); checks++;
-    assert.deepEqual(run({}), [false, true], 'sin y10: solo el último'); checks++;
+    same(run({ y10: 1 }), [true, true], 'y10: los dos marcados');
+    same(run({}), [false, true], 'sin y10: solo el último');
   }
   // y11 Halcón Fiel: si el marcado muere, marca al siguiente y cae en picado gratis
   {
@@ -1088,17 +1123,18 @@ section('héroe Halconera: Halcón Cazador y sus nodos', () => {
       e1.takeDamage(2e7, false, { skill: 'a_disparo' });
       return [dives(l2).length, marked(h, e2)];
     };
-    assert.deepEqual(run({ y11: 1 }), [1, true], 'y11: picado y marca al siguiente'); checks++;
-    assert.deepEqual(run({}), [0, false], 'sin y11: nada'); checks++;
+    same(run({ y11: 1 }), [1, true], 'y11: picado y marca al siguiente');
+    same(run({}), [0, false], 'sin y11: nada');
   }
-  // Llamada del Halcón (activa de KA1, sintética aquí): 6 s de ataques al 40 % cada 0,5 s
+  // y4A Llamada del Halcón (activa del catálogo que concede el nodo): 6 s de ataques al 40 % cada 0,5 s
   {
-    const LLAMADA = { ...TORBELLINO, id: 'a_h_halcon', name: 'Llamada del Halcón' };
-    const h = hero('h3', {}, {}, { inject: { skills: [LLAMADA] } }), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] }), l = spy(boss);
+    ok(!isKnown(hero('h3').p, SK('a_h_halcon')) && !isKnown(hero('h3', { y4: 1 }, { y4: 'B' }).p, SK('a_h_halcon')), 'sin y4A (o con la B): sin Llamada');
+    const h = withActive('a_h_halcon'), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] }), l = spy(boss);
+    ok(isKnown(h.p, SK('a_h_halcon')), 'y4A concede la Llamada del Halcón');
     cast(h, 'k2', 'a_h_halcon', 5, 0, 0.3);
-    near(boss.outDmgMul(), 0.7, 'Llamada: ciega (−30 %)');
+    near(boss.outDmgMul(), 0.7, 'y4A: la Llamada ciega (−30 %)');
     h.tick(6.1);
-    ok(dives(l).length >= 12, `Llamada: ataques cada 0,5 s (${dives(l).length})`);
+    eq(calls(l).length, 12, 'y4A: un ataque cada 0,5 s durante 6 s');
   }
   // y12 Cielo de Halcones: cada 30 s, 4 s de picados cada segundo sobre enemigos distintos
   {
@@ -1129,7 +1165,6 @@ function shots(h, fn, skill = null) {
   try { fn(); } finally { g.spawnProjectile = orig; }
   return skill ? list.filter(o => (o.skill || o.hitInfo?.skill) === skill) : list;
 }
-const rp = (h, id) => resolveSkill(h.p, SK(id));
 // corre Carrera del Viento `sec` s (mantenida) y la suelta
 function run(h, sec, x = 6, z = 0) {
   ready(h);
@@ -1147,7 +1182,7 @@ section('Tiradora: Tercera Flecha, Impulso y nodos de números', () => {
   {
     const h = tir(), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
     const n = [0, 1, 2, 3].map(() => shots(h, () => shoot(h, e)).length);
-    assert.deepEqual(n, [1, 1, 3, 1], 'v0: el 3.º sale triple'); checks++;
+    same(n, [1, 1, 3, 1], 'v0: el 3.º sale triple');
     const f = mon(), e2 = f.enemy({ hp: 1e7, pos: [6, 0, 0] });
     eq([0, 1, 2].map(() => shots(f, () => shoot(f, e2)).length).join(), '1,1,1', 'otra especialización: sin Tercera Flecha');
   }
@@ -1381,13 +1416,13 @@ section('Tiradora: Flecha Múltiple, defensa y ápice', () => {
     const h = tir({ v23: 1 }), e = h.enemy({ hp: 1e7, pos: [3, 0, 0] }), l = spy(e);
     h.gauge('impulso', 100);
     const crits = [0, 1, 2].map(() => { const n0 = l.length; h.p.mp = h.p.stats.maxMP; cast(h, 'rmb', 'flecha_multiple', 3, 0, 0.6); const s = l.slice(n0); return s.length > 0 && s.every(x => x.crit); });
-    assert.deepEqual(crits, [true, true, false], 'v23 r1: las 2 primeras críticas'); checks++;
+    same(crits, [true, true, false], 'v23 r1: las 2 primeras críticas');
   }
   // v25 Tormenta de Plumas: cada 3.ª Múltiple, además un círculo de 3 + 3·rango flechas
   {
     const h = tir({ v25: 1 }), e = h.enemy({ hp: 1e7, pos: [4, 0, 0] }), l = spy(e);
     const n = [0, 1, 2].map(() => { h.p.mp = h.p.stats.maxMP; return shots(h, () => cast(h, 'rmb', 'flecha_multiple', 4, 0, 0.6), 't_tormenta_plumas').length; });
-    assert.deepEqual(n, [0, 0, 6], 'v25 r1: 6 flechas en la 3.ª'); checks++;
+    same(n, [0, 0, 6], 'v25 r1: 6 flechas en la 3.ª');
     ok(by(l, 't_tormenta_plumas').length >= 1, 'v25: alcanzan al blanco');
   }
   // v15A Piel de Brisa: −20 % de daño recibido durante el Vendaval
@@ -1437,7 +1472,12 @@ function tense(h, slot, id, sec, x, z, after = 0.8) {
   h.release(slot);
   h.step(after);
 }
-const PERFECT = 1.25, HALF = 0.6;                  // Disparo Apuntado: ventana dorada de 1,15 a 1,35 s
+// Disparo Apuntado con el catálogo y la forja REALES (a Nv100 va con la Mejora, Tensado Rápido): PERFECT
+// = el centro de su ventana dorada; HALF = por encima del mínimo y antes de la ventana (sin perfecto)
+const AP_CH = resolveSkill(fra().p, SK('a_t_apuntado')).charge;
+const PERFECT = (AP_CH.perfect[0] + AP_CH.perfect[1]) / 2 / AP_CH.speed, HALF = 0.6;
+assert.ok(HALF * AP_CH.speed > AP_CH.min && HALF * AP_CH.speed < AP_CH.perfect[0], 'HALF: tensado sin perfecto');
+assert.ok(PERFECT * AP_CH.speed < AP_CH.max, 'PERFECT: sin llegar a la carga completa');
 const aimed = (h, e, sec = PERFECT, after = 0.8) => tense(h, 'k3', 'a_t_apuntado', sec, e.pos.x, e.pos.z, after);
 const kneel = h => cast(h, 'k2', 'a_f_rodilla', 0, 0, 0.1);
 const cdReset = (h, id) => h.g.reduceCooldown(h.p, id, Infinity);
@@ -1488,6 +1528,20 @@ section('Francotiradora: Cuerda Tensa y nodos de números', () => {
     near(roll(h, far12, 'a_t_apuntado') / roll(h, near8, 'a_t_apuntado'), addRatio(h.p, 12), 'f20 r2: +12 % a más de 10 m');
     near(roll(h, far12, 'a_disparo') / roll(h, near8, 'a_disparo'), 1, 'f20: un básico sin tensar no cuenta');
   }
+  // f20 Vista Larga: el básico TENSADO (Cuerda Tensa, desde 0,3 s) llega 2 m más lejos por rango; sin
+  // tensar (o un toque), igual
+  {
+    const v1 = fra({ f20: 1 }), v2 = fra({ f20: 2 }), b = fra(), base = b.p.basicRange();
+    near(v1.p.basicRange(0.6) - b.p.basicRange(0.6), 2, 'f20 r1: el básico tensado, +2 m', 0.001);
+    near(v2.p.basicRange(0.6) - b.p.basicRange(0.6), 4, 'f20 r2: el básico tensado, +4 m', 0.001);
+    near(v2.p.basicRange(0.2), b.p.basicRange(0.2), 'f20: un toque (sin tensar) no llega más lejos', 0.001);
+    near(v2.p.basicRange(), base, 'f20: el básico sin tensar, igual', 0.001);
+    // en juego: un enemigo a 3 m más del alcance del básico solo lo alcanza el tensado con Vista Larga r2
+    const reach = (h, sec) => { const e = h.enemy({ hp: 1e7, pos: [base + 3, 0, 0] }), l = spy(e); tense(h, 'lmb', 'a_disparo', sec, e.pos.x, 0, 1); return by(l, 'a_disparo').length; };
+    eq(reach(fra({ f20: 2 }), 0.6), 1, 'f20 r2: el disparo tensado llega 3 m más allá');
+    eq(reach(fra(), 0.6), 0, 'sin Vista Larga: no llega');
+    eq(reach(fra({ f20: 2 }), 0.1), 0, 'f20: un toque no llega');
+  }
   // f15A Quietud: quieta más de 1 s, −15 % de daño recibido
   {
     const h = fra({ f15: 1 }, { f15: 'A' }), b = fra();
@@ -1517,8 +1571,8 @@ section('Francotiradora: Disparo Apuntado (Perforación y Punto Débil)', () => 
   // f8A Estela Explosiva: tras un perfecto, la línea estalla a los 0,5 s (30 %)
   {
     const go = sec => { const h = fra({ f8: 1 }, { f8: 'A' }), es = [4, 7].map(x => h.enemy({ hp: 1e7, pos: [x, 0, 0] })), ls = es.map(spy); aimed(h, es[1], sec, 1); return ls.map(l => by(l, 'f_estela').length); };
-    assert.deepEqual(go(PERFECT), [1, 1], 'f8A: la estela alcanza a los dos'); checks++;
-    assert.deepEqual(go(HALF), [0, 0], 'f8A: sin perfecto, nada'); checks++;
+    same(go(PERFECT), [1, 1], 'f8A: la estela alcanza a los dos');
+    same(go(HALF), [0, 0], 'f8A: sin perfecto, nada');
   }
   // f8B Doble Impacto: si no atraviesa a nadie más, golpea otra vez al blanco al 30 %
   {
@@ -1569,7 +1623,13 @@ section('Francotiradora: Disparo Apuntado (Perforación y Punto Débil)', () => 
     track(h, e);
     h.tick(0.2);
     eq(e.debuffs?.f_herida_expuesta?.pct, 12, 'f19 r2: Debilidad del 12 %');
-    h.tick(8.5);
+    // el Punto Débil dura lo que diga la forja real (a Nv100, Marca Duradera: 12 s)
+    const left = weak(h, e);
+    const dur = rp(h, 'a_f_rastreador').def.mark.dur;
+    ok(dur === 12 && left > dur - 1.2 && left <= dur, `f19: Punto Débil de la forja (${left} de ${dur} s)`);
+    h.tick(left - 0.5);
+    ok(e.debuffs?.f_herida_expuesta?.t > 0, 'f19: dura mientras dure el Punto Débil');
+    h.tick(1);
     ok(!(e.debuffs?.f_herida_expuesta?.t > 0), 'f19: se va con el Punto Débil');
   }
   // f23 Herida sobre Herida: cada perfecto a tu Punto Débil deja una Herida: tus tensados +2 %/rango por cada una
@@ -1624,9 +1684,9 @@ section('Francotiradora: Disparo Apuntado (Perforación y Punto Débil)', () => 
   // f25 Línea Mortal: a carga completa, 30 m de alcance y la línea estalla (5 + 5·rango %)
   {
     const go = (nodes, sec) => { const h = fra(nodes), e = h.enemy({ hp: 1e7, pos: [25, 0, 0] }), l = spy(e); aimed(h, e, sec, 1.5); return [by(l, 'a_t_apuntado').length, by(l, 'f_linea_mortal').length]; };
-    assert.deepEqual(go({ f25: 1 }, 1.6), [1, 1], 'f25: a carga completa llega a 25 m y estalla'); checks++;
-    assert.deepEqual(go({ f25: 1 }, PERFECT), [0, 0], 'f25: sin carga completa, 16 m'); checks++;
-    assert.deepEqual(go({}, 1.6), [0, 0], 'sin f25: 16 m'); checks++;
+    same(go({ f25: 1 }, 1.6), [1, 1], 'f25: a carga completa llega a 25 m y estalla');
+    same(go({ f25: 1 }, PERFECT), [0, 0], 'f25: sin carga completa, 16 m');
+    same(go({}, 1.6), [0, 0], 'sin f25: 16 m');
   }
 });
 
@@ -1662,7 +1722,7 @@ section('Francotiradora: Vigía (Rodilla en Tierra), Tiro Celestial y ápice', (
       return casts(h, 'a_t_apuntado').map(c => c.addPct);
     };
     const a = go({ f10: 1 }), b = go({});
-    assert.deepEqual(a.map((x, i) => x - b[i]), [15, 30, 45, 45], 'f10B: +15 % por disparo seguido, hasta +45 %'); checks++;
+    same(a.map((x, i) => x - b[i]), [15, 30, 45, 45], 'f10B: +15 % por disparo seguido, hasta +45 %');
   }
   // f13 Puntería de Vigía: de rodillas, los tensados +15 %/rango
   {
@@ -1714,10 +1774,13 @@ section('Francotiradora: Vigía (Rodilla en Tierra), Tiro Celestial y ápice', (
   }
   // f24 Ojo Entrenado: cada 7 − rango s de rodillas, el siguiente Disparo Apuntado sale al instante a carga completa
   {
-    const go = (nodes, wait) => { const h = spyF('francotiradora', nodes), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e); kneel(h); h.tick(wait); aimed(h, e, 0.05, 0.7); return [!!casts(h, 'a_t_apuntado')[0]?.instant, by(l, 'a_t_apuntado')[0]?.n || 0]; };
-    const [inst, n] = go({ f24: 2 }, 5.1), [inst0, n0] = go({ f24: 2 }, 4.5);
+    const go = (nodes, wait, sec = 0.05) => { const h = spyF('francotiradora', nodes), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e); kneel(h); h.tick(wait); aimed(h, e, sec, 0.7); return [!!casts(h, 'a_t_apuntado')[0]?.instant, by(l, 'a_t_apuntado')[0]?.n || 0, h]; };
+    const [inst, n] = go({ f24: 2 }, 5.1), [inst0, n0, h0] = go({ f24: 2 }, 4.5), [, full] = go({}, 0, 2);
     ok(inst && !inst0, 'f24 r2: a los 5 s de rodillas sale al instante; antes, no');
-    near(n / n0, 2.5 / 0.8, 'f24: a carga completa (250 % frente al 80 % de soltar enseguida)', 0.03);
+    // sin el instante, un toque por debajo del mínimo (0,3 s) no dispara: cancela sin coste (W2d-A)
+    ok(n0 === 0 && h0.g._chargeEnd?.reason === 'early' && !(h0.p.cds.a_t_apuntado > 0), 'f24: antes, soltar enseguida no dispara');
+    ok(full > 0, 'tensado entero de rodillas');
+    near(n / full, 1, 'f24: al instante sale a carga completa (como tensarlo entero)', 0.01);
   }
   // f27 Atalaya Eterna: Rodilla en Tierra dura 20 s (r1) y cada 5 s de rodillas cae un haz celeste (200 %)
   {
@@ -1863,10 +1926,32 @@ section('Montaraz: Campo Minado (cepos, detonaciones, Batida)', () => {
     eq(s.length, 2, 'm22 r2: 2 cepos');
     ok(s.every(f => Math.abs(Math.hypot(f.pos.x - 12, f.pos.z) - 1.1) < 0.05), 'm22: al final del vuelo');
     ok(s.every(f => (f.age || 0) >= (f.armAt || 0) && f.data.lure), 'm22: armados y con cebo');
-    // con blanco: donde estalla, y atrapan al momento
+    // con blanco: donde estalla, y atrapan al momento. Un cepo con veneno (hitDot) no golpea directo al
+    // saltar (W2d-B): inmoviliza y envenena; el de dos cepos del mismo tipo se renueva, no se suma
     const w = mon({ m22: 2 }), e = w.enemy({ hp: 1e7, pos: [5, 0, 0] }), l = spy(e);
     det(w, e);
-    eq(by(l, 'm_campo_sembrado').length, 2, 'm22: los dos atrapan al que está encima');
+    eq(traps(w, 'm_campo_sembrado').length, 0, 'm22: los dos saltan con el que está encima');
+    ok(e.rootT > 0, 'm22: lo inmovilizan');
+    eq(by(l, 'm_campo_sembrado').filter(x => !x.dot).length, 0, 'm22: sin golpe directo (el cepo envenena)');
+    const poison = w.g.dotsOf(e).filter(d => d.source === 'm_campo_sembrado:poison');
+    eq(poison.length, 1, 'm22: su veneno (uno: se renueva)');
+    const sd = s[0].data, one = Math.max(1, Math.round(sd.dmg * sd.hitDot.coef / sd.coef / poison[0].ticks)) * poison[0].ticks;
+    eq(poison[0].total, one, 'm22: el veneno de UN cepo sembrado (no se suma)');
+    // con Mina de Espinas (forja de Trampa de Cepo), el sembrado estalla con el rango de Trampa de
+    // Cepo UNA vez (data.rank), también sin haber colocado antes ningún cepo: el 35 % del estallido de
+    // una mina de carga (los dos con el mismo rango)
+    const burstOf = (h, skill, at) => { const e = h.enemy({ hp: 1e7, pos: [at.x, 0, at.z] }), l = spy(e); h.step(0.4); return by(l, skill).filter(x => !x.dot)[0]?.n || 0; };
+    const mina = nodes => { const h = mon(nodes); h.g.chooseForge('a_t_cepo', 'i'); h.p.mp = h.p.stats.maxMP; return h; };
+    const sm = mina({ m22: 1 });
+    det(sm, { pos: { x: 8, z: 0 } }, 0.9);
+    const seed = traps(sm, 'm_campo_sembrado')[0];
+    ok(seed?.data.burst && seed.data.rank > 1, `m22: el sembrado lleva la mina y el rango de Trampa de Cepo (${seed?.data.rank})`);
+    const sown = burstOf(sm, 'm_campo_sembrado', seed.pos);
+    const mc = mina({});
+    trap(mc, 5, 0);
+    const full = burstOf(mc, 'a_t_cepo', { x: 5, z: 0 });
+    ok(sown > 0 && full > 0, 'los dos estallan');
+    near(sown / full, 0.35, 'm22: el estallido del sembrado, al 35 % del de una mina (rango una sola vez)');
     const b = mon();
     trap(b, 5, 0);
     near(s[0].data.dmg / traps(b)[0].data.dmg, 0.35, 'm22: al 35 %');
@@ -1917,8 +2002,8 @@ section('Montaraz: Presa (Presa Atrapada, Cerco a la Presa, Manada, Presa Herida
   // m5 Presa Atrapada: una trampa que atrapa a tu Presa estalla (60 %) y devuelve una carga (cada 10 s)
   {
     const go = nodes => { const h = mon(nodes), e = h.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] }), l = spy(e); makePrey(h, e); trap(h, 5, 0, 1); return [by(l, 'm_presa_atrapada').length, h.p.skCharges.a_t_cepo.n]; };
-    assert.deepEqual(go({ m5: 1 }), [1, 2], 'm5: estalla y devuelve la carga'); checks++;
-    assert.deepEqual(go({}), [0, 1], 'sin m5: nada'); checks++;
+    same(go({ m5: 1 }), [1, 2], 'm5: estalla y devuelve la carga');
+    same(go({}), [0, 1], 'sin m5: nada');
     const h = mon({ m5: 1 }), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] }), l = spy(e);
     trap(h, 5, 0, 1);
     eq(by(l, 'm_presa_atrapada').length, 0, 'm5: un común (no Presa), nada');
@@ -2067,10 +2152,19 @@ section('Montaraz: Zarzal (Semillas, Huida, Guarida, Coto Cerrado, Cerco y Bosqu
   }
   // m21 Rebrote: al acabarse, el Cerco deja 3 zarzales de 6 s
   {
-    const go = nodes => { const h = mon(nodes); cast(h, 'k4', 'a_u_zarzas', 0, 0, 0.1); h.tick(8.3); return zarzales(h); };
-    const z = go({ m21: 1 });
+    // el Cerco dura lo de la forja real (a Nv100, Espinas Duraderas: 8 + 2 s)
+    const go = nodes => {
+      const h = mon(nodes);
+      cast(h, 'k4', 'a_u_zarzas', 0, 0, 0.1);
+      h.tick(rp(h, 'a_u_zarzas').dur - 0.5);
+      const before = !!cerco(h) && zarzales(h).length === 0;
+      h.tick(0.8);
+      return [zarzales(h), before];
+    };
+    const [z, before] = go({ m21: 1 });
+    ok(before, 'm21: mientras dura el Cerco, nada');
     ok(z.length === 3 && z.every(f => Math.abs(f.dur - 6) < 1e-6), 'm21: 3 zarzales de 6 s');
-    eq(go({}).length, 0, 'sin m21: nada');
+    eq(go({})[0].length, 0, 'sin m21: nada');
   }
   // m27 Bosque Vivo: 3 zarzales tuyos que se tocan forman un Cerco gratis de rango + 1 s que inmoviliza
   {
@@ -2151,8 +2245,6 @@ function hitWhileTensing(h) {
   h.step(0.1);
   return on;
 }
-// ¿el motor ya aplica charge.markMin (petición a la cola W2)? Hasta entonces el caso queda pendiente
-const ENGINE_MARKMIN = /\bmarkMin\b/.test(readFileSync(new URL('../js/game-skills.js', import.meta.url), 'utf8'));
 
 section('revisión: Presa Señalada (y3) es el Punto Débil de la Francotiradora', () => {
   // 31 puntos que no tocan el tensado (ni Cuerda Ligera ni Serenidad) ni dan Punto Débil o Quebranto propios
@@ -2206,9 +2298,11 @@ section('revisión: Salva de Vigía, toque del básico, Semillas sin blanco', ()
     const h = fra(), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] });
     track(h, e, true);
     ok(!!e.marks?.a_punto_debil, 'Tiro Rastreador abre el Punto Débil del motor');
-    tense(h, 'lmb', 'a_disparo', 0.05, 6, 0, 0.3);
-    if (ENGINE_MARKMIN) ok(!!e.marks?.a_punto_debil, 'f0: un toque no gasta el Punto Débil');
-    else console.log(`    · pendiente (cola W2, charge.markMin): hoy un toque ${e.marks?.a_punto_debil ? 'no gasta' : 'gasta'} el Punto Débil`);
+    const l = spy(e);
+    tense(h, 'lmb', 'a_disparo', 0.05, 6, 0, 0.6);
+    ok(!!e.marks?.a_punto_debil && by(l, 'a_disparo')[0]?.crit === false, 'f0: un toque ni gasta el Punto Débil ni sale perfecto (charge.markMin)');
+    tense(h, 'lmb', 'a_disparo', 0.5, 6, 0, 0.6);
+    ok(!e.marks?.a_punto_debil && by(l, 'a_disparo')[1]?.crit === true, 'f0: un tensado (desde 0,3 s) sí: sale perfecto y lo gasta');
   }
   // m14: sin blanco, el zarzal donde acaba el vuelo (12 m); con blanco, donde estalla
   {
@@ -2244,6 +2338,17 @@ section('revisión: la Batida cuenta un Racimo como una trampa', () => {
   const c = go({}, [[3, 77], [1, null], [1, null]]);
   ok(c.batida, 'un Racimo y dos cepos: tres trampas, Batida');
   ok(go({ m28: 3 }, [[3, 77], [1, null]]).batida && !go({ m28: 3 }, [[3, 77]]).batida, 'm28 r3: un Racimo y un cepo bastan; un Racimo solo, no');
+  // una trampa que estalla y se rearma (consume: false, Acecho Enredador) cuenta UNA vez: dos
+  // trampas que estallan dos veces son 4 estallidos, pero solo dos trampas
+  {
+    const h = mon(), boss = h.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] });
+    makePrey(h, boss);
+    for (const z of [2.5, -2.5]) putTrap(h, 5, z, { consume: false });
+    h.tick(0.2);
+    for (let i = 0; i < 2; i++) { h.g.detonateAt(h.p, { x: 5, z: 0 }, { radius: 3, coef: 0.1 }, { skill: 'a_m_acecho' }); h.step(0.3); }
+    ok(h.g.trapBurstsWithin(h.p, 1) === 4 && traps(h).length === 2, 'dos trampas que se rearman estallan 4 veces');
+    ok(!boss.debuffs?.coto_batida, 'Batida: 4 estallidos de 2 trampas no bastan');
+  }
 });
 
 section('revisión: ralentizaciones mantenidas (el Quebranto de una ralentización continua)', () => {
@@ -2320,8 +2425,8 @@ section('G19: enfriamientos internos', () => {
       return [first, jump()];
     };
     for (const [r, cd] of [[1, 12], [2, 9], [3, 6]]) {
-      assert.deepEqual(go(r, cd - 0.4), [true, false], `m26 r${r}: no otra vez antes de ${cd} s`); checks++;
-      assert.deepEqual(go(r, cd + 0.2), [true, true], `m26 r${r}: a los ${cd} s, otra vez`); checks++;
+      same(go(r, cd - 0.4), [true, false], `m26 r${r}: no otra vez antes de ${cd} s`);
+      same(go(r, cd + 0.2), [true, true], `m26 r${r}: a los ${cd} s, otra vez`);
     }
   }
   // f26 Disparo Imposible: una vez por segundo
@@ -2348,11 +2453,11 @@ section('G19: enfriamientos internos', () => {
       trapHit(x, prey, f.uid, { spring: true });
       return { n: [n1, by(l, 'm_presa_atrapada').length], l, x, prey };
     };
-    assert.deepEqual(go(9.5).n, [1, 1], 'm5: no otra vez antes de 10 s'); checks++;
+    same(go(9.5).n, [1, 1], 'm5: no otra vez antes de 10 s');
     const a = go(10.2);
-    assert.deepEqual(a.n, [1, 2], 'm5: a los 10 s, otra'); checks++;
+    same(a.n, [1, 2], 'm5: a los 10 s, otra');
     near(by(a.l, 'm_presa_atrapada')[0].n / trapRollAs(a.x, a.prey, 'm_presa_atrapada'), 0.6, 'm5: estalla al 60 %');
-    assert.deepEqual(go(0.5, true).n, [0, 0], 'm5: una trampa de Gran Cacería no la activa'); checks++;
+    same(go(0.5, true).n, [0, 0], 'm5: una trampa de Gran Cacería no la activa');
   }
   // f15B Nervios de Acero: un escudo cada 6 s; el 8 % lo limita el depósito de la cubeta (6 %)
   {
@@ -2416,7 +2521,7 @@ section('G19: enfriamientos internos', () => {
     ok(t1 - t0 < 4, `la segunda Andanada antes de 4 s (${(t1 - t0).toFixed(2)})`);
     h.tick(Math.max(0, 4.2 - (h.p.simT - t0)));
     volleyThenShoot();
-    assert.deepEqual(out, [3, 1, 3], 'v5: triple, sencillo antes de 4 s, triple otra vez'); checks++;
+    same(out, [3, 1, 3], 'v5: triple, sencillo antes de 4 s, triple otra vez');
   }
   // m15A Cepo de Huida: una vez cada 30 s
   {
@@ -2510,8 +2615,10 @@ section('G19: topes de cantidad', () => {
   }
   // m22 Campo Sembrado y m25 Tierra Arrasada: 6 cepos vivos de cada uno como mucho
   {
+    // cada flecha a un lado: la Flecha Detonante también detona al final de su vuelo (W2d-A) y, al
+    // mismo sitio, la segunda haría estallar los cepos de la primera
     const h = mon({ m22: 3 });
-    for (let i = 0; i < 3; i++) det(h, { pos: { x: 8, z: 0 } }, 0.9);
+    for (const [x, z] of [[8, 0], [0, 8], [-8, 0]]) det(h, { pos: { x, z } }, 0.9);
     eq(traps(h, 'm_campo_sembrado').length, 6, 'm22 r3: 9 sembrados, 6 vivos');
     const t = mon({ m25: 3 }), en = t.enemy({ hp: 1e7, pos: [5, 0, 0] });
     for (let i = 0; i < 3; i++) trapHit(t, en, 7000 + i);
@@ -2533,7 +2640,7 @@ section('G19: coeficientes', () => {
   // f0 Cuerda Tensa: hasta 1 s, ventana dorada [0,8, 1] s y tensando te mueves al 60 %
   {
     const ch = rp(fra(), 'a_disparo').charge;
-    assert.deepEqual([ch.max, ch.perfect, ch.moveMul], [1, [0.8, 1], 0.6], 'f0: 1 s, ventana [0,8, 1] y moveMul 0,6'); checks++;
+    same([ch.max, ch.perfect, ch.moveMul], [1, [0.8, 1], 0.6], 'f0: 1 s, ventana [0,8, 1] y moveMul 0,6');
     const crit = sec => { const h = fra(), e = h.enemy({ hp: 1e7, pos: [6, 0, 0] }), l = spy(e); tense(h, 'lmb', 'a_disparo', sec, 6, 0, 0.5); return by(l, 'a_disparo')[0].crit; };
     eq(crit(0.7), false, 'f0: a 0,7 s todavía no es perfecto');
     eq(crit(0.85), true, 'f0: a 0,85 s, perfecto');
@@ -2669,9 +2776,9 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     const h = hero('h1'), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] });
     h.tick(4.05);
     near(volley(h, e)[0].n / roll(h, e, 'q_rafagas'), 0.6, 'q0: flecha de viento al 60 %');
-    const t = hero('h1', { q10: 1 }, {}, { inject: { skills: [TORBELLINO] } });
+    const t = withActive('a_h_torbellino', { q10: 1 });
     cast(t, 'k2', 'a_h_torbellino', 0, 0, 0.1);
-    eq(gusts(t), 3, 'Torbellino: 3 Ráfagas (con hueco para 5)');
+    eq(gusts(t), 3, 'q4A: el Torbellino da 3 Ráfagas (con hueco para 5)');
     const r = hero('h1', { q10: 1, q12: 1 }), re = r.enemy({ hp: 1e7, pos: [5, 0, 0] });
     r.tick(25.05);
     volley(r, re);
@@ -2716,20 +2823,24 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     f.tick(6.05);
     near(dives(ls)[0].n / physRoll(f, side), 0.4, 'y9: plumas al 40 %');
     void fe;
-    // Llamada del Halcón: 40 % cada 0,5 s durante 6 s, 30 de Quebranto
-    const LLAMADA = { ...TORBELLINO, id: 'a_h_halcon', name: 'Llamada del Halcón' };
-    const c = hero('h3', {}, {}, { inject: { skills: [LLAMADA] } }), boss = c.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] }), lb = spy(boss);
+    // y4A Llamada del Halcón: 40 % cada 0,5 s durante 6 s y 30 de Quebranto, UNA vez (el poder del
+    // halcón no la repite: solo sus picados periódicos); Garras Afiladas (y5) también la sube
+    const callRoll = (h, e) => h.p.rollDamage(rp(h, 'a_h_halcon').coef, 0, 0, e, { skill: 'a_h_halcon', tags: new Set(SK('a_h_halcon').tags), elem: 'physical' }).dmg;
+    const c = withActive('a_h_halcon'), boss = c.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] }), lb = spy(boss);
     const s0 = boss.stagger || 0;
-    cast(c, 'k2', 'a_h_halcon', 5, 0, 0.15);
-    ok((boss.stagger || 0) - s0 >= 30 && (boss.stagger || 0) - s0 < 31, `Llamada: 30 de Quebranto (${((boss.stagger || 0) - s0).toFixed(2)})`);
-    near(dives(lb)[0].n / physRoll(c, boss), 0.4, 'Llamada: ataques al 40 %');
-    // los ataques de la Llamada (40 %), aparte de los picados periódicos (100 %)
-    const ref = physRoll(c, boss), assault = () => dives(lb).filter(x => Math.abs(x.n / ref - 0.4) < 0.02).length;
+    cast(c, 'k2', 'a_h_halcon', 5, 0, 0.3);
+    ok((boss.stagger || 0) - s0 >= 30 && (boss.stagger || 0) - s0 < 31, `y4A: 30 de Quebranto (${((boss.stagger || 0) - s0).toFixed(2)})`);
+    near(rp(c, 'a_h_halcon').def.coef, 0.4, 'y4A: ataques al 40 % del arma', 0.001);
+    near(calls(lb)[0].n / callRoll(c, boss), 1, 'y4A: cada ataque, el golpe de su perfil');
     c.tick(6.5);
-    const n = assault();
-    ok(n >= 12 && n <= 13, `Llamada: un ataque cada 0,5 s durante 6 s (${n})`);
+    const n = calls(lb).length;
+    eq(n, 12, `y4A: un ataque cada 0,5 s durante 6 s (${n})`);
+    ok(dives(lb).length <= 1, `y4A: el halcón solo añade su picado periódico (${dives(lb).length})`);
     c.tick(2);
-    eq(assault(), n, 'Llamada: después, ninguno más');
+    eq(calls(lb).length, n, 'y4A: después, ninguno más');
+    const claws = withActive('a_h_halcon', { y5: 1 }), cb = claws.enemy({ hp: 1e7, boss: true, pos: [5, 0, 0] }), lc = spy(cb);
+    cast(claws, 'k2', 'a_h_halcon', 5, 0, 0.3);
+    near(calls(lc)[0].n / calls(lb)[0].n, addRatio(claws.p, 25), 'y5: la Llamada también +25 %');
   }
   // y12 Cielo de Halcones: 4 s de picados, uno por segundo
   {
@@ -2745,15 +2856,14 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
   // w4A Desborde de Puntas: 4 disparos, las tres puntas al 50 % · w9 Puntas Afines (Montaraz): 1 s de Trampa de Cepo
   // · w12 Lluvia Encantada: 6 s
   {
-    const DESBORDE = { ...TORBELLINO, id: 'a_h_puntas', name: 'Desborde de Puntas' };
-    const h = hero('h2', {}, {}, { inject: { skills: [DESBORDE] } });
+    const h = withActive('a_h_puntas');
     const ref = h.enemy({ hp: 1e7, pos: [0, 0, 6] });
     tipHit(h, ref);                                                       // la punta del ciclo (Fuego al 100 %)
     const full = burnLeft(h, ref);
     cast(h, 'k2', 'a_h_puntas', 0, 0, 0.1);
     const es = [0, 1, 2, 3, 4].map(i => h.enemy({ hp: 1e7, pos: [Math.cos(i * 1.2) * 5, 0, -Math.sin(i * 1.2) * 5 - 1] }));
     const burns = es.map(e => { shoot(h, e, 0.35); return burnLeft(h, e) || 0; });   // recién llegada la flecha (sin tics aún)
-    assert.deepEqual(burns.map(x => x > 0), [true, true, true, true, false], 'Desborde: 4 disparos'); checks++;
+    same(burns.map(x => x > 0), [true, true, true, true, false], 'Desborde: 4 disparos');
     near(burns[0] / full, 0.5, 'Desborde: las puntas al 50 %', 0.03);
     const cd = nodes => {
       const x = hero('h2', nodes, {}, { spec: 'montaraz' }), e = x.enemy({ hp: 1e7, pos: [0, 0, 6] });
@@ -2815,9 +2925,9 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     const sf = h.g.spawnField.bind(h.g);
     h.g.spawnField = (k, o) => { if (o?.data?.skill === 't_ciclones') list.push({ dur: o.dur, every: o.data.every, coef: o.data.coef, max: o.maxPerSkill }); return sf(k, o); };
     run(h, 2.2);
-    assert.deepEqual(list[0], { dur: 4, every: 0.5, coef: 0.28, max: 3 }, 'v24: ciclón de 4 s, disparo cada 0,5 s al 28 %, 3 vivos'); checks++;
+    same(list[0], { dur: 4, every: 0.5, coef: 0.28, max: 3 }, 'v24: ciclón de 4 s, disparo cada 0,5 s al 28 %, 3 vivos');
     const made = r => { const x = tir({ v24: r }), n = countFields(x, 'emisor', 't_ciclones'); run(x, 3.9); return n.length; };
-    assert.deepEqual([made(1), made(2)], [1, 2], 'v24: uno cada 2,5 − 0,5·rango s (r1: 2 s; r2: 1,5 s)'); checks++;
+    same([made(1), made(2)], [1, 2], 'v24: uno cada 2,5 − 0,5·rango s (r1: 2 s; r2: 1,5 s)');
   }
   // v28 r3 y f28 r3: el Vendaval y la Calma saltan a 80 (no a 75)
   {
@@ -2839,7 +2949,7 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     h.g.shield = (n, o = {}) => { if (o.src === 'f_nervios') durs.push(o.dur); return sh(n, o); };
     hitWhileTensing(h);
     void log;
-    assert.deepEqual(durs, [6], 'f15B: escudo de 6 s'); checks++;
+    same(durs, [6], 'f15B: escudo de 6 s');
   }
   // m8B Cepo Reforzado: 3 estallidos (no más, aunque se espere)
   {
@@ -2877,5 +2987,17 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     ok(a.slowT > 0 && !(b.slowT > 0), 'm28 r1: ralentiza a 2,9 m; a 3,2 m, no');
   }
 });
+
+// ============================================================ cobertura
+// cada nodo u opción (clase, especializaciones y héroe) tiene al menos una comprobación que PASÓ y lo
+// nombra (no cuenta un «sin <id>»: esa es la de control); el nodo clave, también por su poder
+{
+  const keysOf = nodes => nodes.flatMap(n => (n.t === 'c' ? n.opts.map(o => [`${n.id}${o.k}`, o, n]) : [[n.id, n, n]]));
+  const ALL = [...keysOf(TREES.cls.nodes), ...TREES.specs.flatMap(s => keysOf(s.nodes)), ...TREES.hero.flatMap(t => keysOf(t.nodes))];
+  const named = (key, alt = null) => PASSED.some(m => typeof m === 'string' && [key, alt].filter(Boolean).some(k => new RegExp(`(^|[^\\w])(?<!sin )${k}(?![\\w])`).test(m)));
+  const missing = ALL.filter(([key, , n]) => !named(key, n.t === 'c' ? null : n.fx?.power)).map(([key]) => key);
+  same(missing, [], `nodos u opciones sin una comprobación de su efecto: ${missing.join(', ')}`);
+  console.log(`  ✓ ${ALL.length} nodos u opciones (clase, especializaciones y héroe) con efecto comprobado: ${missing.length} sin efecto`);
+}
 
 console.log(`✅ TALENTOS DE LA ARQUERA (clase, especializaciones y héroe) OK · ${checks} comprobaciones`);

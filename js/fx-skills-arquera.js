@@ -343,13 +343,13 @@ export const ARQUERA_FX_PRESETS = {
 // Por habilidad del catálogo 2g. Los presets de las habilidades retiradas se conservan para las
 // variantes de la forja que las absorben (Disperso, Cicuta, Red de Caza, Garfio, Señuelo).
 // `vars.i|ii` (Paso 2, forja): lo que cambia el VFX de esa variante (mismas claves; se fusiona
-// sobre la entrada). Los comportamientos de skills-arquera.js ya lo leen; los tipos genéricos
-// (flecha, salto) y el básico de arma, cuando el motor lo haga (petición a la cola W2). Las
-// trampas cambian de color con la definición forjada (`color` de la variante).
+// sobre la entrada). Lo leen los comportamientos de skills-arquera.js, los tipos genéricos (flecha,
+// salto) y el básico de arma (skillFxFor de fx-skills.js). Las trampas cambian de color con la
+// definición forjada (`color` de la variante).
 export const ARQUERA_FX = {
   // kit base (el básico de arma: la flecha de siempre; sus variantes, abanico o cicuta). Sin
-  // `color` en la base: Player.basicAttack antepone el del VFX al de la definición y taparía el verde
-  // de la Cicuta cuando lea la definición forjada (cola W2); sin él sale la flecha beige de siempre
+  // `color` en la base: sale la flecha beige de la clase; la Cicuta pone su verde (vars.ii y la
+  // definición forjada, que Player.basicAttack lee antes que el color del VFX base)
   a_disparo:         { aura: 'basicArrow', sfx: 'shoot',
     vars: { i: { aura: 'arqScatter' }, ii: { aura: 'arqHemlockTrail', impact: 'arqHemlockSplash', color: 0x86d47a } } },
   flecha_perforante: { trail: 'piercingTrail', impact: 'arrowSpark', color: 0xffffcc, sfx: 'shoot',

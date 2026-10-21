@@ -179,8 +179,8 @@ function aimDir(p, target) {
   return { x: dx / l, z: dz / l };
 }
 // VFX de la forma forjada: la entrada de la habilidad con lo que cambia su variante
-// (ARQUERA_FX[id].vars.i|ii). Los comportamientos de este archivo ya la usan; el canal
-// genérico, cuando el motor la lea (petición a la cola W2).
+// (ARQUERA_FX[id].vars.i|ii). El canal genérico y el básico de arma ya la fusionan (skillFxFor de
+// fx-skills.js); aquí vale también si el contexto trae la entrada sin fusionar.
 function fxOf(ctx, sk) {
   const v = sk?.forged?.variant;
   const over = v ? ctx.fx?.vars?.[v] : null;
@@ -528,7 +528,7 @@ export const ARQUERA_SKILL_BEHAVIORS = {
 const FORGE_ICON = id => `forge/v_${id}`;
 export const ARQUERA_SKILL_FORGE = {
   a_disparo: {
-    // cadencia del básico ×0,9: el perfil la lleva, pero Player.basicAttack aún no la lee (cola W2)
+    // cadencia del básico ×0,9: el perfil la lleva y Player.basicAttack la lee (prof.cadence, cola W2d)
     mejora: { id: 'a_disparo_m', name: 'Mano Rápida', icon: 'forge/mejora', line: 'Disparas un 10 % más rápido.', set: { cadence: 0.9 } },
     vars: [
       { id: 'a_disparo_i', name: 'Disparo Disperso', role: 'AREA', icon: FORGE_ICON('a_disparo_i'), line: '3 flechas en abanico de 25° (45 % cada una).',
@@ -670,7 +670,7 @@ export const ARQUERA_SKILL_FORGE = {
   a_m_acecho: {
     mejora: { id: 'a_m_acecho_m', name: 'Acecho Lejano', icon: 'forge/mejora', line: 'Llegas a trampas a 20 m (antes 15 m).', set: { range: 20 } },
     vars: [
-      // detonate.consume:false: la trampa estalla y se rearma (petición a la cola W2); la raíz al
+      // detonate.consume:false: la trampa estalla y se rearma (lo lee el motor, cola W2d); la raíz al
       // caer la pone su poder
       { id: 'a_m_acecho_i', name: 'Acecho Enredador', role: 'CTRL', icon: FORGE_ICON('a_m_acecho_i'), line: 'Al llegar no la gastas: inmovilizas 1,5 s a todos a 3 m.',
         set: { 'detonate.consume': false, root: 1.5, radius: 3 }, power: 'v_acecho_enredador' },

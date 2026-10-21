@@ -116,7 +116,7 @@ function tune() {
     hawk: Object.freeze({
       every: 6, coef: 1, mark: 6, markPct: 10, range: 15, recent: 5, near: 12, sweep: { len: 8, width: 1.5 },
       deepStagger: 15, flock: { n: 2, radius: 8 }, feathers: { radius: 5, coef: 0.4 }, loyal: { radius: 12 },
-      assault: { dur: 6, every: 0.5, coef: 0.4, blind: 30, stagger: 30 }, guard: { below: 0.4, dur: 4, every: 60 },
+      guard: { below: 0.4, dur: 4, every: 60 },
       sky: { every: 30, dur: 4, gap: 1 }, color: 0xb98a55,
     }),
     // ---- Tiradora Veloz (§7.0)
@@ -147,7 +147,7 @@ function tune() {
     }),
     // ---- Francotiradora (§7.1)
     fra: Object.freeze({
-      cuerda: { max: 1, perfect: [0.8, 1], addPct: 60, moveMul: 0.6, tensedAt: 0.3, farAt: 10 },  // f0 · f20 (más de 10 m)
+      cuerda: { max: 1, perfect: [0.8, 1], addPct: 60, moveMul: 0.6, tensedAt: 0.3, farAt: 10, farRange: 2 },  // f0 · f20 (más de 10 m; +2 m por rango)
       weakDur: 8,                                                // Punto Débil (marca de Tiro Rastreador)
       sobre: { perRank: 10, max: 4 },                            // f4
       mira: { dur: 4 },                                          // f5
@@ -323,27 +323,12 @@ function selfShield(g, p, pct, dur, src) {
   return g?.shield ? g.shield(amount, { target: 'self', dur, src }) : (p.addShield?.(amount, dur, src) || 0);
 }
 
-// REPETICIÓN GRATIS de una habilidad, también si no está en la barra (Lluvia en Retirada,
-// Instinto de Supervivencia): eco del canal ⑦ desde una ranura temporal y, con `at`, apuntado a
-// ese punto (la mira se restaura al momento). El tope de repeticiones del motor cuenta por
-// lanzamiento ORIGINAL de la habilidad; aquí el original es otro (la rodada, el golpe letal), así
-// que cada uso abre su cuenta. Con g.castEcho (petición a la cola W2) lo hace el motor.
-const ECHO_SLOT = 'arq_eco';
-function castEchoOf(g, p, id, mult, at = null) {
-  if (typeof g?.castEcho === 'function') return g.castEcho(p, id, mult, { at });
-  if (!g?.castSkillSlot || !p?.cls?.skills?.some(s => s.id === id)) return false;
-  const hb = p.hotbar || (p.hotbar = {});
-  const inp = g.input || null;
-  const aim = inp ? inp.mouseWorld : null;
-  const sst = (p.skState || (p.skState = {}))[id] || (p.skState[id] = {});
-  sst.echo = { seq: (sst.echo?.seq || 0) + 1, n: 0 };
-  hb[ECHO_SLOT] = id;
-  if (at && inp) inp.mouseWorld = v3(at.x, at.z);
-  try { return g.castSkillSlot(ECHO_SLOT, mult); } finally {
-    delete hb[ECHO_SLOT];
-    if (inp) inp.mouseWorld = aim;
-  }
-}
+// REPETICIONES GRATIS (Instinto de Supervivencia, Lluvia en Retirada, Soltar y Disparar, Haces
+// Gemelos, Corazón del Bosque): g.castEcho(p, id, { mult, at }) del motor, también si la habilidad no
+// está en la barra. Sin coste, enfriamiento ni carga y con su propia serie de repeticiones; `at`
+// ({ x, z }) es el punto al que apunta. No repite canalizaciones (devuelve null) y una movilidad
+// movería a la heroína: aquí solo se repiten zonas, lluvias, la Andanada (su comportamiento no salta
+// en una repetición), los haces y el Cerco.
 
 // ---------- Bomba de Humo (campos que deja a_humo: la zona y la ceguera) ----------
 function isSmoke(f) { return !f.dead && (f.data?.skill === 'a_humo' || f.kind === 'a_humo_ciego'); }
@@ -642,8 +627,7 @@ export function arqueraPowers() {
       name: 'Instinto de Supervivencia', desc: 'Un golpe que te mataría te deja con 1 de vida y suelta una Bomba de Humo gratis. Una vez cada 180 s.',
       icd: 180,
       onLethal(g, p) {
-        const at = p.pos.clone();
-        g.timers?.schedule?.(tune().frame, () => { if (p.alive) castEchoOf(g, p, 'a_humo', 1, at); });
+        g.timers?.schedule?.(tune().frame, () => { if (p.alive) g.castEcho?.(p, 'a_humo'); });
         g.ui?.spawnText?.(p.pos, '¡Instinto!', 'txt-crit');
         return true;                                                 // el núcleo te deja con 1 de vida
       },
@@ -746,8 +730,8 @@ export function arqueraPowers() {
       name: 'Lluvia en Retirada', desc: 'Paso Veloz deja caer una Lluvia de Flechas gratis al 30 % donde empezaste a rodar.',
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_paso') return;
-        const T = tune().cls.retirada, at = p.pos.clone();
-        g.timers?.schedule?.(T.delay, () => { if (p.alive) castEchoOf(g, p, 'lluvia_flechas', T.mult, at); });
+        const T = tune().cls.retirada, at = { x: p.pos.x, z: p.pos.z };
+        g.timers?.schedule?.(T.delay, () => { if (p.alive) g.castEcho?.(p, 'lluvia_flechas', { mult: T.mult, at }); });
       },
     },
     // c23 Recarga en Marcha: cada principal recarga 0,3 s/rango de Paso Veloz y de la Bomba de Humo
@@ -1058,34 +1042,17 @@ export function arqueraPowers() {
     // +10 % de tus flechas. Sus nodos (claves hawk*): Alas Rápidas (cada 5 s), Picado Hondo /
     // Vuelo Rasante, Presa Señalada, Alas Protectoras, Garras Afiladas, Grito del Halcón,
     // Cetrería, Bandada / Halcón Peregrino, Plumas Cortantes, Ojo Compartido y Halcón Fiel.
-    // Llamada del Halcón (activa): 6 s de ataques (40 % cada 0,5 s), ceguera y 30 de Quebranto.
+    // Llamada del Halcón (activa y4A) es del catálogo (comportamiento a_halcon: 6 s de ataques del
+    // 40 % cada 0,5 s, ceguera y 30 de Quebranto); aquí solo Garras Afiladas le sube el daño.
     y_halcon: {
       name: 'Halcón Cazador', desc: 'Un halcón cae en picado cada 6 s sobre tu blanco y lo marca: recibe +10 % de tus flechas.',
-      state: () => ({ acc: 0, target: null, targetAt: -99, marks: new Map(), assault: null, callAt: -Infinity, guardAt: -Infinity, lastDive: null }),
+      state: () => ({ acc: 0, target: null, targetAt: -99, marks: new Map(), callAt: -Infinity, guardAt: -Infinity, lastDive: null }),
       onTick(g, p, dt) {
         const st = powerState(p, 'y_halcon'), T = tune().hawk, tv = p.tv || {}, t = now(p);
         // marcas que caducan (o mueren); Presa Señalada: el marcado sigue contando como tu Presa
         for (const [e, until] of [...st.marks]) {
           if (!e.alive || until <= t) hawkUnmark(p, e);
           else if (tv.hawkPrey > 0 && p.talentAgg?.mechanic === 'coto') e.prey = true;
-        }
-        // Llamada del Halcón: ataques cada 0,5 s durante 6 s (si el blanco cae, busca otro)
-        const a = st.assault;
-        if (a) {
-          if (t > a.until) st.assault = null;
-          else if (t + 1e-9 >= a.next) {
-            if (!a.e?.alive) a.e = hawkTarget(g, p);
-            const e = a.e;
-            if (e?.alive) {
-              strike(g, p, e, T.assault.coef, tv.hawkDmg || 0, 'y_halcon', new Set(['physical']));
-              if (a.first && e.alive) {
-                a.first = false;
-                e.weakenOutgoing?.('y_ceguera', T.assault.blind, T.assault.dur);
-                e.addStagger?.(T.assault.stagger, p);
-              }
-            }
-            a.next += T.assault.every;
-          }
         }
         // picado periódico (Cielo de Halcones: cada segundo y sobre otro enemigo)
         const sky = skyStorm(p);
@@ -1109,11 +1076,8 @@ export function arqueraPowers() {
         }
       },
       condAdd(p, e, hit) { return e && arrowRoll(hit) && hawkMarked(p, e) ? tune().hawk.markPct : 0; },
-      afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'a_h_halcon') return;
-        const e = hawkTarget(g, p);
-        if (e) powerState(p, 'y_halcon').assault = { e, until: now(p) + tune().hawk.assault.dur, next: now(p), first: true };
-      },
+      // los ataques de la Llamada son del halcón: Garras Afiladas (tv.hawkDmg) también los sube
+      modifyResolve(p, sk, prof) { if (sk.id === 'a_h_halcon' && p.tv?.hawkDmg > 0) prof.addPct += p.tv.hawkDmg; },
       // Halcón Fiel: si el marcado muere, el halcón marca al siguiente y cae en picado gratis
       onKill(g, p, e) {
         const st = powerState(p, 'y_halcon');
@@ -1354,35 +1318,43 @@ function newestTrap(g, p, skill) {
   const list = (g?.fieldsOf?.(p, { kind: 'trampa', skill }) || []).filter(f => !f.sprung);
   return list.length ? list[list.length - 1] : null;
 }
-// el daño de un cepo × mul (el estallido lo escala el núcleo con data.burstMul: petición a la cola W2)
+// el daño de un cepo × mul (su estallido y su detonación, el núcleo con data.burstMul)
 function scaleTrap(f, mul) {
   const d = f.data;
   if (d.baseDmg == null) d.baseDmg = d.dmg;
   d.dmg = (d.dmg || 0) * mul;
   d.burstMul = (d.burstMul || 1) * mul;
 }
+// rango de Trampa de Cepo (el de su perfil cacheado o el que da el nivel)
+function cepoRank(p) { return p?.resolved?.a_t_cepo?.rank || p?.skills?.a_t_cepo || 1; }
 // datos de un cepo como el de Trampa de Cepo (el último colocado; si no hay, el de la definición)
 function cepoData(p) {
   const tpl = powerState(p, 'arq_cepo').tpl;
   if (tpl) return { data: { ...tpl.data, tags: tpl.data.tags }, radius: tpl.radius, life: tpl.life };
-  // sin cepo colocado aún: el perfil de Trampa de Cepo (el cacheado o, si no, coef × rango y su +% de
-  // talentos: lo mismo que pondría el tipo trap). Sin importar skill-resolve.js (ciclo con data.js)
-  const def = p?.cls?.skills?.find(s => s.id === 'a_t_cepo') || {};
-  const pr = p?.resolved?.a_t_cepo || { coef: (def.coef ?? 0.6) * rankCoef(p?.skills?.a_t_cepo || 1), addPct: (def.addPct || 0) + (p?.talentAgg?.mods?.a_t_cepo?.dmg || 0) };
+  // sin cepo colocado aún: el perfil de Trampa de Cepo (el cacheado o, si no, la definición FORJADA —
+  // Mina de Espinas, Red de Caza— con coef y veneno × rango y su +% de talentos: lo mismo que pondría
+  // el tipo trap). Sin importar skill-resolve.js (ciclo con data.js)
+  const rank = cepoRank(p), rc = rankCoef(rank);
+  const def = p?.resolved?.a_t_cepo?.def || p?.talentAccessors?.().defOf('a_t_cepo') || p?.cls?.skills?.find(s => s.id === 'a_t_cepo') || {};
+  const pr = p?.resolved?.a_t_cepo || { coef: (def.coef ?? 0.6) * rc, addPct: (def.addPct || 0) + (p?.talentAgg?.mods?.a_t_cepo?.dmg || 0),
+    hitDot: def.hitDot ? { ...def.hitDot, coef: (def.hitDot.coef || 0) * rc } : null };
   const t = def.trap || {}, coef = pr.coef ?? def.coef ?? 0.6;
   return {
     data: { dmg: p.avgHit ? p.avgHit(coef, pr.addPct || 0) : 0, coef, root: Math.max(t.root || 0, pr.root || def.root || 0), color: def.color, skill: 'a_t_cepo',
       tags: pr.tags || new Set([...(def.tags || []), 'trap']), elem: pr.elem || def.elem || 'nature', armT: t.armT ?? 0.5, burst: t.burst || null,
-      consume: t.consume !== false, lure: t.lure || null, hitDot: pr.hitDot || def.hitDot || null },
+      consume: t.consume !== false, lure: t.lure || null, hitDot: pr.hitDot || null, rank },
     radius: t.radius || pr.radius || 1.5, life: pr.dur || def.dur || 30,
   };
 }
 // coloca un cepo GENÉRICO (campo 'trampa' del núcleo: detonable, cuenta para el Coto y Salto de
-// Acecho lo encuentra) con `mul` de su daño y una habilidad propia (su tope no pisa el de Trampa de Cepo)
+// Acecho lo encuentra) con `mul` de su daño y una habilidad propia (su tope no pisa el de Trampa de
+// Cepo). Su estallido (burst crudo de la forja) escala UNA vez con el rango de Trampa de Cepo: data.rank
+// (field-entities lo aplica; sin él miraría el rango de `skill`, que la arquera no conoce)
 function spawnCepo(g, p, pos, { mul = 1, skill = 'a_t_cepo', max = 6, cluster = null, armT = null } = {}) {
   const c = cepoData(p);
   const base = c.data.baseDmg ?? c.data.dmg;
-  const data = { ...c.data, baseDmg: base, dmg: base * mul, burstMul: mul, skill, greatHunt: false };
+  const data = { ...c.data, baseDmg: base, dmg: base * mul, burstMul: mul, skill, greatHunt: false, rank: c.data.rank > 0 ? c.data.rank : cepoRank(p) };
+  delete data.rankMul;
   if (cluster != null) data.cluster = cluster; else delete data.cluster;
   if (armT != null) data.armT = armT;
   if (!data.lure && hasPower(p, 'm_cebo')) data.lure = { ...tune().mon.cebo };
@@ -1472,7 +1444,7 @@ function tiradoraPowers() {
       name: 'Soltar y Disparar', desc: 'Al soltar o acabar Carrera del Viento disparas una Andanada gratis al 60 %.',
       onSkillEnd(g, p, sk, end) {
         if (sk?.id !== 'a_v_carrera' || end?.kind !== 'channel' || !(end.reason === 'release' || end.reason === 'done')) return;
-        castEchoOf(g, p, 'a_t_andanada', T.soltar.mult);
+        g.castEcho?.(p, 'a_t_andanada', { mult: T.soltar.mult });
       },
     },
     // v7 Fondo de Corredora (con su mod durS): mientras corres con la Carrera, inmune a ralentizaciones
@@ -1809,14 +1781,19 @@ function francotiradoraPowers() {
     f_cuerda_tensa: {
       name: 'Cuerda Tensa', desc: 'Mantén Disparo Rápido para tensarlo: hasta +60 %; su último 0,2 s es perfecto.',
       priority: 2,
-      // markMin: un toque (menos de 0,3 s) no gasta el Punto Débil de Tiro Rastreador (lo lee el motor:
-      // petición a la cola W2; hasta entonces el toque se lo lleva)
+      // markMin: un toque (menos de 0,3 s) ni gasta ni fuerza el Punto Débil de Tiro Rastreador (lo lee
+      // el motor). Vista Larga (f20): el básico TENSADO (desde 0,3 s) llega 2 m más lejos por rango
+      // (charge.scale.rangeAdd: el motor los suma en Player.basicRange; aquí no se llama a basicRange,
+      // que resuelve este mismo perfil)
       modifyResolve(p, sk, prof) {
         if (sk.id !== 'a_disparo' || prof.charge) return;
         const C = T.cuerda, def = prof.def || sk;
         const n = Math.max(1, Math.floor(def.count || 1)), c0 = def.coef || 1;
+        const scale = { coef: [c0, c0 * (1 + C.addPct / 100 / n)] };
+        const far = p.talentAgg?.ranks?.f20 | 0;
+        if (far > 0) scale.rangeAdd = [[C.tensedAt - 0.01, 0], [C.tensedAt, C.farRange * far]];
         prof.charge = { min: 0, max: C.max, perfect: [...C.perfect], perfectPct: 0, perfectCrit: true,
-          scale: { coef: [c0, c0 * (1 + C.addPct / 100 / n)] }, moveMul: C.moveMul, autoRelease: true, instant: false,
+          scale, moveMul: C.moveMul, autoRelease: true, instant: false,
           repeat: true, perfectGauge: null, full: null, speed: 1, markMin: C.tensedAt };
       },
       onCast(g, p, cast) {
@@ -2034,7 +2011,7 @@ function francotiradoraPowers() {
         const pr = cast.prof || p.resolved?.a_u_celeste, full = shotCoef(pr, 1);
         const frac = full > 0 ? shotCoef(pr, cast.charge?.frac ?? 1) / full : 1;
         const mult = T.gemelos.perRank * powerRank(p, 'f_haces_gemelos') * frac, at = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
-        g.timers?.schedule?.(0.15, () => { if (p.alive) castEchoOf(g, p, 'a_u_celeste', mult, at); });
+        g.timers?.schedule?.(0.15, () => { if (p.alive) g.castEcho?.(p, 'a_u_celeste', { mult, at }); });
       },
     },
     // f18 Rebote Certero: Disparo Apuntado rebota en el primer muro y vuelve por su línea al 10 %/rango del disparo
@@ -2620,7 +2597,7 @@ function montarazPowers() {
         st.n = Math.min(T.corazon.every, st.n + 1);
         if (st.n < T.corazon.every || !takeCd(st, 'cd', T.corazon.icd, p)) return;
         st.n = 0;
-        castEchoOf(g, p, 'a_u_zarzas', 1, { x: e.pos.x, z: e.pos.z });
+        g.castEcho?.(p, 'a_u_zarzas', { at: { x: e.pos.x, z: e.pos.z } });
       },
     },
   };

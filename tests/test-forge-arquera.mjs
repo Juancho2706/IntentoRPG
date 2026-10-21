@@ -7,8 +7,8 @@
 //     y solo cambia lo suyo (lista de claves por pieza: nada de recargas, costes o alcances colados)
 //  3) A9 y D28: poderes v_* registrados, todos usados, sin `mult` e ids únicos entre clases
 //  4) cada Mejora y cada variante en el arnés con el canal REAL, comparada con la habilidad sin
-//     esa pieza (la Mejora, contra el nivel anterior; la variante, contra solo la Mejora). Lo que
-//     espera al motor (cola W2) se mide igual y vale el valor de hoy o el correcto (PEND_W2)
+//     esa pieza (la Mejora, contra el nivel anterior; la variante, contra solo la Mejora). Las tres
+//     que esperaban al motor (Mano Rápida, Mina de Espinas, Acecho Enredador) ya son estrictas (cola W2d)
 //  5) FORGE_RECO: la ★ del libro, la aplica chooseSpec (D3) y nunca apaga la barra de su
 //     especialización (2f §7.7)
 //  6) VFX de las variantes que cambian de forma (ARQUERA_FX[id].vars)
@@ -272,20 +272,6 @@ const fanSpan = h => { const a = h.g.projectiles.map(pr => Math.atan2(pr.vel.x, 
 const shoot = (h, slot, id, [x, z], sec = 1) => { h.aim(x, z); h.setSlot(slot, id); const ok = h.cast(slot); h.step(sec); return ok; };
 // tensar `hold` s y soltar (Disparo Apuntado, haces)
 const tense = (h, slot, id, [x, z], hold, after = 0.6) => { h.aim(x, z); h.setSlot(slot, id); const ok = h.press(slot); h.step(hold); h.release(slot); h.step(after); return ok; };
-// Piezas que esperan al motor (cola W2, tools/convert-v2/out/arquera/pendientes-arquera.md). Su
-// afirmación de juego se mide igual: mientras siga aquí vale el valor de HOY o el CORRECTO (cualquier
-// otro falla); cuando el motor dé el correcto, la suite lo avisa para sacarla de la lista
-const PEND_W2 = {
-  a_disparo_m: 'W2 n.º 2: Player.basicAttack no lee prof.cadence',
-  a_t_cepo_i: 'W2 n.º 7 y KA1 n.º 1: la mina suma el golpe directo y su estallido no escala con el rango',
-  a_m_acecho_i: 'W2 n.º 4: detonate.consume:false; hoy la trampa se gasta',
-};
-const pendSeen = new Map();
-function pending(id, { ok, today, msg }) {
-  if (!PEND_W2[id]) { assert.ok(ok, msg); return; }
-  assert.ok(ok || today, `${msg}: ni el valor de hoy ni el correcto (pendiente ${PEND_W2[id]})`);
-  if (pendSeen.get(id) !== false) pendSeen.set(id, !!ok);
-}
 
 // ———————— kit base ————————
 { // Disparo Rápido · Mejora (Mano Rápida): cadencia ×0,9 del básico
@@ -300,8 +286,7 @@ function pending(id, { ok, today, msg }) {
   assert.ok(approx(gap(3), 1, 1e-9), `sin Mano Rápida (Nv3): un disparo cada atkTime (${gap(3).toFixed(3)})`);
   for (const [L, spec] of [[4, null], [20, 'tiradora'], [20, 'montaraz']]) {
     const r = gap(L, spec);
-    pending('a_disparo_m', { ok: approx(r, 0.9, 1e-9), today: approx(r, 1, 1e-9),
-      msg: `Mano Rápida en juego (Nv${L}${spec ? ` ${spec}` : ''}): el siguiente disparo a 0,9 × atkTime (${r.toFixed(3)})` });
+    assert.ok(approx(r, 0.9, 1e-9), `Mano Rápida en juego (Nv${L}${spec ? ` ${spec}` : ''}): el siguiente disparo a 0,9 × atkTime (${r.toFixed(3)})`);
   }
 }
 { // Disparo Rápido · I (Disparo Disperso): 3 flechas en 25° al 45 %
@@ -660,23 +645,22 @@ function kneelShot(level, forge, hold) {
   const wd = x.h.p.rollDamage(1, 0, resolveSkill(x.h.p, SK('a_t_cepo')).addPct, x.b, { skill: 'a_t_cepo' }).dmg;
   assert.ok(approx(x.b.t.direct, wd, wd * 0.02), `Mina de Espinas: al 100 % del arma (${x.b.t.direct} ≈ ${wd})`);
   assert.equal(fieldsOf(x.h, 'trampa').length, 0, 'Mina de Espinas: se gasta');
-  // quien la pisa recibe solo el estallido (el veneno del cepo aparte); hoy, el golpe directo del cepo
-  // y además el estallido
+  // quien la pisa recibe solo el estallido (el veneno del cepo aparte, en tics): sin el golpe directo
+  // del cepo (cola W2d-B)
   const pr = resolveSkill(x.h.p, SK('a_t_cepo'));
-  const direct = x.h.p.rollDamage(pr.coef, 0, pr.addPct, x.a, { skill: 'a_t_cepo' }).dmg;
   const wdA = x.h.p.rollDamage(1, 0, pr.addPct, x.a, { skill: 'a_t_cepo' }).dmg;
-  pending('a_t_cepo_i', { ok: x.a.t.n === 1 && approx(x.a.t.direct, wdA, wdA * 0.02),
-    today: x.a.t.n === 2 && approx(x.a.t.direct, wdA + direct, (wdA + direct) * 0.02),
-    msg: `Mina de Espinas: quien la pisa, solo el estallido del 100 % (${x.a.t.n} golpes, ${x.a.t.direct} frente a ${wdA})` });
+  assert.ok(x.a.t.n === 1 && approx(x.a.t.direct, wdA, wdA * 0.02),
+    `Mina de Espinas: quien la pisa, solo el estallido del 100 % (${x.a.t.n} golpes, ${x.a.t.direct} frente a ${wdA})`);
+  assert.ok(x.h.g.hasDoT(x.a, 'poison'), 'Mina de Espinas: y el veneno del cepo');
   // a rango 3 (Nv26) el estallido escala como el resto de la habilidad (100 % × rango)
   const h3 = hero(26, { spec: 'montaraz', forge: { a_t_cepo: 'i' } });
   const s3 = foe(h3, 0, 6), n3 = foe(h3, 2.6, 6);
   shoot(h3, 'k3', 'a_t_cepo', [0, 6], 0.5);
   const p3 = resolveSkill(h3.p, SK('a_t_cepo')), rk = p3.coef / SK('a_t_cepo').coef;
   assert.ok(rk > 1.1, `Nv26: el cepo ya escala con el rango (×${rk.toFixed(2)})`);
-  const at1 = h3.p.rollDamage(1, 0, p3.addPct, n3, { skill: 'a_t_cepo' }).dmg, atR = h3.p.rollDamage(rk, 0, p3.addPct, n3, { skill: 'a_t_cepo' }).dmg;
-  pending('a_t_cepo_i', { ok: n3.t.n === 1 && approx(n3.t.direct, atR, atR * 0.02), today: n3.t.n === 1 && approx(n3.t.direct, at1, at1 * 0.02),
-    msg: `Mina de Espinas a rango 3: el estallido al 100 % × ${rk.toFixed(2)} (${n3.t.direct} frente a ${atR})` });
+  const atR = h3.p.rollDamage(rk, 0, p3.addPct, n3, { skill: 'a_t_cepo' }).dmg;
+  assert.ok(n3.t.n === 1 && approx(n3.t.direct, atR, atR * 0.02),
+    `Mina de Espinas a rango 3: el estallido al 100 % × ${rk.toFixed(2)}, una sola vez (${n3.t.direct} frente a ${atR})`);
   assert.ok(s3.t.n >= 1, 'Nv26: la mina salta al pisarla');
 }
 { // Trampa de Cepo · II (Red de Caza): al pisarla, una red de 3 m inmoviliza 2,5 s a todos
@@ -710,8 +694,10 @@ function trapAt(h, x, z) { h.aim(x, z); h.setSlot('k3', 'a_t_cepo'); h.g.reduceC
   assert.ok(!(e.out.rootT > 0), 'Acecho Enredador: a 3,8 m, no');
   assert.ok(approx(e.h.p.pos.x, 8, 1e-6), 'Acecho Enredador: saltas a tu trampa');
   assert.equal(fieldsOf(m.h, 'trampa').length, 0, 'sin Acecho Enredador: la trampa estalla y se gasta');
-  const left = fieldsOf(e.h, 'trampa').length;
-  pending('a_m_acecho_i', { ok: left === 1, today: left === 0, msg: `Acecho Enredador: la trampa sigue puesta tras el salto (${left})` });
+  // detonate.consume: false (cola W2d-B): la trampa estalla y se rearma
+  const left = fieldsOf(e.h, 'trampa');
+  assert.ok(left.length === 1 && e.h.p.trapBursts?.length >= 1, `Acecho Enredador: la trampa estalla y sigue puesta tras el salto (${left.length})`);
+  assert.ok(!(m.h.p.trapBursts?.length > 1), 'sin Acecho Enredador: un estallido');
 }
 { // Salto de Acecho · II (Doble Acecho): 2 cargas; el estallido, −30 %
   const run = forge => {
@@ -801,9 +787,6 @@ function briar(level, forge, spots = [[0, 8]]) {
   for (let i = 0; i < 30; i++) { s.h.g.lureStep(near, 1 / 30); s.h.g.lureStep(far, 1 / 30); }
   assert.ok(near.pos.z < 17.4 && approx(far.pos.z, 19), `Señuelo de Zarzas: atrae a 10 m, no a 11 (z=${near.pos.z.toFixed(2)})`);
 }
-// cada pendiente de PEND_W2 se midió; las que ya cumple el motor se avisan para sacarlas de la lista
-assert.deepEqual([...pendSeen.keys()].sort(), Object.keys(PEND_W2).sort(), 'PEND_W2: cada pieza pendiente tiene su afirmación de juego');
-for (const [id, ok] of pendSeen) console.log(ok ? `  ⚠ ${id}: el motor ya lo cumple; sácala de PEND_W2 (queda estricta)` : `  · ${id}: pendiente (${PEND_W2[id]})`);
 console.log('En el arnés: las 51 piezas (Mejoras y variantes) del kit base, Tiradora, Francotiradora y Montaraz ✓');
 
 // ------------------------------------------------ 5) FORGE_RECO (★ del libro) y la barra de su especialización

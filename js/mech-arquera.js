@@ -136,7 +136,7 @@ export function baseGauges(T, H) {
     // Quebranto a la Presa); una cada 12 s
     coto: {
       name: 'Coto de Caza', color: '#86d47a', max: K.maxArmed, integer: true,
-      state: () => ({ prey: null, preyT: 0, preys: [], hits: new Map(), batidaT: 0, batidaMax: 0, batidaAt: -99, batidas: 0, live: new Map(), gone: [] }),
+      state: () => ({ prey: null, preyT: 0, preys: [], hits: new Map(), batidaT: 0, batidaMax: 0, batidaAt: -99, batidas: 0 }),
       value(p) {
         const seen = new Set();
         for (const f of p.game?.fields || []) {
@@ -164,17 +164,11 @@ export function baseGauges(T, H) {
         if (st.batidaT > 0) st.batidaT = Math.max(0, st.batidaT - dt);
         const t = now(p);
         for (const [e, at] of st.hits) if (!e.alive || t - at > 2) st.hits.delete(e);
-        // trampas tuyas que acaban de irse (por trampa del Coto: los cepos de un Racimo son una). El
-        // registro del núcleo (trapBurstsWithin) cuenta estallidos sueltos; los dos juntos dan las
-        // trampas distintas que estallaron (la que caduca o se cae por el tope no está en el registro)
-        const live = new Map();
-        for (const f of g?.fields || []) if (!f.dead && f.owner === p && (f.kind === 'trampa' || f.data?.trap)) live.set(f.uid, f.data?.cluster ?? f.uid);
-        for (const [uid, key] of st.live) if (!live.has(uid)) st.gone.push({ key, t });
-        st.live = live;
-        st.gone = st.gone.filter(x => t - x.t <= K.batida.win + 0.1 + 1e-9);
+        // trampas DISTINTAS que estallaron en la ventana (registro del núcleo, por clave: los cepos de
+        // un Racimo son una y la que estalla y se rearma cuenta una vez; la que caduca no está)
         const need = K.batida.n - ((p.talentAgg?.powerRank?.m_corazon_bosque | 0) >= 3 ? 1 : 0);
         if (t - st.batidaAt < K.batida.icd - 1e-9) return;
-        const bursts = Math.min(g?.trapBurstsWithin?.(p, K.batida.win) || 0, new Set(st.gone.map(x => x.key)).size);
+        const bursts = g?.trapBurstsWithin?.(p, K.batida.win, { distinct: true }) || 0;
         if (bursts < need) return;
         const targets = new Set(cotoPreys(st));
         for (const [e, at] of st.hits) if (e.alive && t - at <= K.batida.win + 1e-9) targets.add(e);
