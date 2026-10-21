@@ -224,7 +224,7 @@ export function skillVerbs(def) {
 export const VERB_DOC = Object.freeze({
   windup: 'Preparación (s) · moveMul durante ella (1 = como hoy, 0 = quieto)',
   channel: 'channelT, ticks, hold: true|false|"toggle", moveMul, autoShot{every,coef,target,range}, drainPerSec, endless',
-  charge: 'charge{min (declarado > 0: soltar antes no dispara, cancela sin coste; sin declarar o 0, un toque dispara al mínimo),max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul},markMin (en la unidad de min/max/perfect; por debajo, la suelta no gasta marcas firstCharged)}',
+  charge: 'charge{min (declarado > 0: soltar antes no dispara, cancela sin coste; sin declarar o 0, un toque dispara al mínimo),max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range,rangeAdd (m que suma el tensado al básico de arma; mismo formato que coef)},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul},markMin (en la unidad de min/max/perfect; por debajo, la suelta no gasta marcas firstCharged)}',
   recast: 'recast{n (usos totales),win,cond:null|"hit",perfectLast,cdFrom:"first"|"end",free,gap}',
   combo: 'type:"combo" · steps[{type,coef,radius,angle,range,width,at,windup,dot,moveMul}] · comboWin',
   seq: 'seq{every,extra{count,spread,coef,pierce}}',
@@ -295,8 +295,10 @@ function validateVerbs(def, id, err) {
       const min = c.min ?? VERB_DEFAULTS.chargeMin;
       if (!(min >= 0 && min < c.max)) err.push(`${id}: charge.min en [0, max)`);
       if (c.perfect && !(Array.isArray(c.perfect) && c.perfect.length === 2 && c.perfect[0] < c.perfect[1] && c.perfect[1] <= c.max + 1e-9)) err.push(`${id}: charge.perfect = [desde, hasta] dentro de [0, max]`);
-      const sc = c.scale?.coef;
-      if (sc != null && !(Array.isArray(sc) && sc.length >= 2 && (sc.every(isNum) || sc.every(x => Array.isArray(x) && x.length === 2 && x.every(isNum))))) err.push(`${id}: charge.scale.coef = [aMin, aMax] o [[t, v], …]`);
+      for (const k of ['coef', 'rangeAdd']) {
+        const sc = c.scale?.[k];
+        if (sc != null && !(Array.isArray(sc) && sc.length >= 2 && (sc.every(isNum) || sc.every(x => Array.isArray(x) && x.length === 2 && x.every(isNum))))) err.push(`${id}: charge.scale.${k} = [aMin, aMax] o [[t, v], …]`);
+      }
       if (c.full && !(c.full.count >= 1)) err.push(`${id}: charge.full.count ≥ 1`);
       if (c.markMin != null && !(c.markMin >= 0 && c.markMin <= c.max)) err.push(`${id}: charge.markMin en [0, max]`);
     }

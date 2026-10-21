@@ -346,7 +346,7 @@ function castEchoOf(g, p, id, mult, at = null) {
 }
 
 // ---------- Bomba de Humo (campos que deja a_humo: la zona y la ceguera) ----------
-function isSmoke(f) { return !f.dead && f.data?.skill === 'a_humo'; }
+function isSmoke(f) { return !f.dead && (f.data?.skill === 'a_humo' || f.kind === 'a_humo_ciego'); }
 function smokesOf(g, p) { return (g?.fields || []).filter(f => f.owner === p && isSmoke(f)); }
 function smokesHere(g, p) { return (g?.fieldsAt ? g.fieldsAt(p.pos) : []).filter(f => f.owner === p && isSmoke(f)); }
 
@@ -843,9 +843,9 @@ export function arqueraPowers() {
           if (!f._arqManto) {
             f._arqManto = true;
             f.follow = 'owner';
-            if ((f.data.allyDr || 0) > T.dr) f.data.allyDr = T.dr;
+            if (f.kind !== 'a_humo_ciego' && (f.data.allyDr || 0) > T.dr) f.data.allyDr = T.dr;
           }
-          if (!(r > 0)) continue;
+          if (f.kind === 'a_humo_ciego' || !(r > 0)) continue;
           const pct = T.healPerRank * r;
           const at = v3(f.pos.x, f.pos.z);
           const inside = new Set((g.allies ? g.allies() : []).filter(a => a !== p && dist2(a.pos, f.pos) <= f.radius * f.radius));
@@ -2662,6 +2662,18 @@ export function arqueraFields() { return arqueraFieldsCache(); }
 
 function buildFields() {
   return {
+    // Bomba de Humo (Paso 2e): ciega a los enemigos dentro: −pct % de daño mientras estén en el humo
+    // (skills-arquera.js lo crea junto al humo, con su misma vida)
+    a_humo_ciego: {
+      name: 'Humo cegador',
+      init(f) { f.acc = 0.25; },
+      tick(g, f, dt) {
+        f.acc += dt;
+        if (f.acc < 0.25 - 1e-9) return;
+        f.acc = 0;
+        for (const e of enemiesInField(g, f)) e.weakenOutgoing?.('a_humo', f.data.pct, 0.4);
+      },
+    },
     // Zarzal (m6, m14, m21, m24; tres que se tocan forman el Cerco de Bosque Vivo): ralentiza un 40 %
     m_zarzal: {
       name: 'Zarzal',

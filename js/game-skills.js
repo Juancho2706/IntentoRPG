@@ -1251,7 +1251,9 @@ export const skillMethods = {
     // la principal en curso / pedida manda (la suelta de una carga ya tensada sale siempre)
     if (!opts.charge && (p.actionLockT > 0 || this._spenderWaiting())) return;
     const aim = this.input?.mouseWorld || null;
-    const near = this.nearestEnemy((p.cls.atkRange || 8) + 3);
+    // alcance del básico (cola W2d-B: p.basicReach, con el alcance alargado del básico de arma)
+    const reach = p.basicReach?.() ?? (p.cls.atkRange || 8);
+    const near = this.nearestEnemy(reach + 3);
     const scheme = this.settings?.controlScheme || 'wasd';
     p.basicAt = p.simT;                                         // una acción por frame
     if (p.cls.ranged) {
@@ -1259,7 +1261,7 @@ export const skillMethods = {
       const tgt = (scheme !== 'click' && aim) ? { pos: aim } : (near || { pos: aim || p.pos.clone().addScaledVector(fwd, 4) });
       p.faceToward(tgt.pos);
       p.basicAttack(tgt, opts);
-    } else if (near && p.pos.distanceTo(near.pos) <= p.cls.atkRange) {
+    } else if (near && p.pos.distanceTo(near.pos) <= reach) {
       p.faceToward(near.pos);
       p.basicAttack(near, opts);
     } else {
@@ -1899,8 +1901,10 @@ export const skillMethods = {
     const id = m.id || prof.id;
     const put = (en) => {
       en.marks = en.marks || {};
+      // Punto Débil una vez por enemigo y héroe cada firstIcd s: se decide con la marca de ANTES
+      const fc = m.firstCharged && (!en.firstChargedOk || en.firstChargedOk(p, id, m.firstIcd)) ? m.firstCharged : null;
       en.marks[id] = { id, t: m.dur || 8, by: p, skill: prof.id, uses: Math.max(1, m.uses || 1), detonate: m.detonate || null,
-        firstCharged: m.firstCharged || null };
+        firstCharged: fc };
       if (m.weakPct > 0) en.applyWeakness?.(`mark:${id}`, m.weakPct, m.dur || 8);
     };
     put(e);
@@ -2084,7 +2088,7 @@ export const skillMethods = {
       if (held.l && !this.heldSlotBusy('lmb')) this.castSkillSlot('lmb');
       if (held.r && !this.heldSlotBusy('rmb')) this.castSkillSlot('rmb');
     } else if (held.l && !this.heldSlotBusy('lmb') && p.attackTarget?.alive && this.basicTensable()
-      && p.pos.distanceTo(p.attackTarget.pos) <= (p.cls.atkRange || 2) + 0.5) this.castSkillSlot('lmb');
+      && p.pos.distanceTo(p.attackTarget.pos) <= (p.basicReach?.() ?? (p.cls.atkRange || 2)) + 0.5) this.castSkillSlot('lmb');
   },
 
   // ---------------- avance por tick de los verbos (lo llama Player.update) ----------------

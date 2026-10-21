@@ -482,7 +482,9 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   assert.equal(e.rootT || 0, 0, 'antes de 0,5 s no está armada');
   h.step(0.4);
   assert.ok(e.rootT > 1.7 && e.rootT <= 2, `al armarse salta: inmoviliza 2 s (${e.rootT.toFixed(2)})`);
-  assert.ok(e.hp < 1e7, 'y hace daño');
+  // cola W2d-B: el Cepo no golpea directo, aplica su hitDot (veneno)
+  const cepoDot = h.g.dotsOf(e, 'poison').find(d => d.source === 'a_t_cepo:poison');
+  assert.ok(cepoDot && cepoDot.ticks > 0, `y lo envenena (hitDot del Cepo: ${JSON.stringify(cepoDot)})`);
   assert.equal(alive(h).filter(f => f.kind === 'trampa').length, 0, 'se consume');
   assert.equal(h.cast('k3'), true, 'segunda carga');
   h.p.gcdT = 0;

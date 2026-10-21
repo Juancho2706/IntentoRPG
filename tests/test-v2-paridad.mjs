@@ -90,6 +90,11 @@ for (const cls of CLASES) {
   siembra('un texto d(r) cambiado', () => { const v = n0.d; n0.d = () => 'otro'; return () => { n0.d = v; }; }, `clase.${n0.id}.d(1)`);
   const elec = conv.talents.cls.nodes.find(n => n.t === 'c');
   if (elec) siembra('un papel de opción cambiado', () => { const o = elec.opts[1], v = o.role; o.role = 'XX'; return () => { o.role = v; }; }, `clase.${elec.id}.opts.B.role`);
+  // touch y line (Conversor, tanda 1)
+  const nT = conv.talents.cls.nodes.find(n => n.touch?.length);
+  if (nT) siembra('un touch cambiado', () => { const v = nT.touch; nT.touch = [...v, 'zz']; return () => { nT.touch = v; }; }, `clase.${nT.id}.touch`);
+  const sk0 = conv.skills.find(s => typeof s.line === 'string');
+  if (sk0) siembra('la línea de una habilidad', () => { const v = sk0.line; sk0.line += '!'; return () => { sk0.line = v; }; }, `catalogo.${sk0.id}.line`);
   const sp = conv.talents.specs.find(s => s.nodes.length);
   if (sp) siembra('un requisito cambiado', () => { const n = sp.nodes[1], v = n.req; n.req = ['zz']; return () => { n.req = v; }; }, `spec.${sp.id}.${sp.nodes[1].id}.req`);
   // un grant que falta: con la activa en el juego es una diferencia; sin ella (y con todo), un pendiente

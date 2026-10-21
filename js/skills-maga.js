@@ -265,7 +265,7 @@ function ownProjectile(g, ctx, { from, to, peek = null, onHit = null, castHits =
     ...ctx.dmgOpts, hitOpts: ctx.hitExtra || null,
     ...(impact ? { impactPreset: impact } : {}),
     onHit: (e, dealt) => {
-      if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color, prof.chainPct); }
+      if (e?.alive && !ctx._chained && prof.chain) { ctx._chained = true; g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], color, prof.chainPct, ctx); }
       ctx.hit(e, dealt);
       if (prof.lifesteal && dealt > 0) p.leech(dealt * prof.lifesteal / 100);
       if (e) { ctx.zoneCenter = ground(e.pos); ctx.zoneRad = 1.5; onHit?.(e, dealt, seen.get(e)); }

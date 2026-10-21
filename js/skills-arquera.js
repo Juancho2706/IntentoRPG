@@ -659,7 +659,7 @@ export const ARQUERA_SKILL_FORGE = {
   a_t_cepo: {
     mejora: { id: 'a_t_cepo_m', name: 'Muelles Firmes', icon: 'forge/mejora', line: 'Se arma en 0,2 s (antes 0,5 s).', set: { 'trap.armT': 0.2 } },
     vars: [
-      // el estallido aún no escala con el rango y se suma al golpe directo de la trampa (cola W2)
+      // el estallido escala con el rango de la habilidad (data.rank) y sustituye al golpe directo (cola W2d-B)
       { id: 'a_t_cepo_i', name: 'Mina de Espinas', role: 'AREA', icon: FORGE_ICON('a_t_cepo_i'), line: 'No inmoviliza: al pisarla estalla en 3 m (100 %).',
         set: { root: 0, 'trap.burst': { radius: 3, coef: 1 }, color: 0xc0783c } },
       // la red (radio y raíz de la definición) la lanza su poder al saltar el cepo

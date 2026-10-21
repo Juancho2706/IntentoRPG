@@ -192,12 +192,14 @@ fallo.
 
 ### 8.2 `owner.trapBursts`: estallidos de trampa (`field-entities.js`)
 
-- Cada estallido añade `{ t, x, z }`: `t` = `owner.simT`; `x`, `z` = centro del campo que estalla (`f.pos`), no los
+- Cada estallido añade `{ t, x, z, key }` (`key` desde W2d-B: `data.cluster` de la trampa —los cepos de un Racimo son
+  una— o su `uid`): `t` = `owner.simT`; `x`, `z` = centro del campo que estalla (`f.pos`), no los
   pies del dueño. Pasa al pisar la trampa (tick de la `trampa` genérica) y al detonarla (`detonateField`, también por
   `detonateAt`). Si el sitio no es finito, solo `{ t }`. Se guardan las 12 últimas.
 - Al leer se sigue aceptando el formato viejo, el instante suelto (un número). No cuenta una entrada sin instante
   numérico (`null`, `{ x, z }`, `t` nulo o en texto).
-- `g.trapBurstsWithin(owner, s = 1)` no cambia de firma ni de lo que devuelve: cuántos estallidos hubo en los últimos
+- `g.trapBurstsWithin(owner, s = 1, { distinct = false } = {})`: cuántos estallidos hubo en los últimos (con `distinct`,
+  cuántas trampas DISTINTAS, por `key`; una entrada sin clave cuenta sola)
   `s` s (la Batida del Coto: 3 en 1 s). `world-marks` lee los dos formatos y pone el anillo de la Batida en el centro
   de los estallidos recientes.
 
@@ -208,3 +210,44 @@ fallo.
 - Con `g._talentQuiet` (llamadas del panel por `gameTalentOps` de `ui-talents.js`) no van al banner, que el panel
   tapa. La respuesta trae `heroOpened`, `heroPaused` y `missing`, y el panel los enseña en su aviso y anima la
   revelación. Esto corrige lo que dice §3.4 de `paso2-implementacion.md` (petición al orquestador).
+
+## 9. Cola W2d (tanda 1 de la integración de E2)
+
+Fusionada en `paso2-impl` (W2d-A: canal de lanzamiento y perfil; W2d-B: entidades, campos y topes). Lo prueban
+`test90-cola-w2d-a` y `test91-cola-w2d-b`.
+
+### 9.1 APIs nuevas
+
+- `g.castEcho(p, id, { mult = 1, at = null, origin = null, series = null } = {})` → `CastInfo | null`: repetición
+  gratis de una habilidad conocida (sin coste, enfriamiento, GCD, preparación ni carga), con su propia serie (tope
+  `echoCap` = 3). No toca `skState.echo`, la barra ni la mira. Devuelve `null` con una canalización. Una movilidad
+  mueve al héroe. Acepta también la firma vieja `castEcho(p, id, mult, { at })`.
+- `g.startCooldown(p, id, s)` → bool (sustituye a `cdOnEnd`; con cargas gasta una) · `g.channelInfo()` → `null | { id,
+  key, t, dur, left, ticks, interval, toggle, hold, endless, unstoppable, p }` · `g.extendMark(e, markId, { mul, add })`
+  (alarga también su Debilidad; con `t ≤ 0` borra las dos).
+- `g.spawnChainBounce(…, pct, ctx)`: con `ctx`, cada salto lleva skill, tags, elemento y `hitExtra` (`HitInfo.source
+  = 'chain'`). `g.skillTarget(p, prof, aim, from)`. `g.startChannel(ctx, done, { slowImmune, speed })`: los tics van
+  a instantes fijos `t0 + k·interval`.
+- `Player.basicRange(t)`, `Player.basicReach()` (el básico busca y dispara a esa distancia), `Player.stopDash()` /
+  `g.stopDash(p)`, `g.expireField(f)`, `g.detonateAt(owner, pos, det, { skill, rankMul })`.
+- `Enemy.applyCC('fear', dur, { src, from })` (control duro con rendimientos; a los jefes, 15 de Quebranto por s),
+  `Enemy.clearCC(kind)`, `Enemy.firstChargedOk(p, id, icd, live)` (Punto Débil una vez por enemigo y héroe cada 8 s,
+  también al remarcar con `g.applyMark`), `Enemy.staggerOpen()`.
+- `combat-math`: `CAPS_HARD { dr: 75, block: 75 }`, `drCapOf(stats)`, `blockCapOf(stats)`, `slowStaggerSecs`,
+  `staggerFromDisplace` (resistencia al Quebranto por desplazar), `STAGGER_CC.fear`, `FIRST_CHARGED_ICD`.
+
+### 9.2 Claves y stats
+
+- Stats `costPct` (todas las habilidades con coste; × `spenderCostPct`) y `skillSpeedPct` (preparación, tic de canal,
+  vuelo del salto y avance; no toca enfriamientos), los dos por `recompute`. `drCapAdd` y `blockCapAdd`: solo de la
+  innata (`INNATE_ONLY_STATS`).
+- Definición: `zonePct` (Estela, % del arma por s × rango), `charge.min` declarado > 0 (soltar antes cancela sin coste:
+  ⑭ y `_chargeEnd` con `reason: 'early'`), `charge.markMin` (en la unidad de la carga), `charge.scale.rangeAdd` (m que
+  suma el tensado al básico), `pull { dist, to, radius, boss:false }`, `detonate` (también al final del vuelo o contra
+  una pared). Mod de talento `zonePct`. Selector `'<id>@windup'`: lo produce `skill-resolve` (`comboWindupMods`) y
+  solo toca los pasos de combo con preparación.
+- `spec.innate.mod` se suma a `agg.mods` (Piel de Hierro del Guardián).
+- Regla de rango: `prof.coef`, `prof.hitDot.coef` y `prof.detonate.coef` se escalan en `skill-resolve`; el estallido de
+  la trampa (`data.burst.coef`) va crudo y lo escala una vez `field-entities` con `data.rank` (o `data.rankMul`).
+- Trampa genérica: `data.hitDot` se aplica al saltar en lugar del golpe directo (renueva, no suma); con `burst`, quien
+  la pisa no recibe además el golpe directo; ⑤ sin daño con `hit.trap` y `source 'field:trampa'`.
