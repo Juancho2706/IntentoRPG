@@ -7,7 +7,8 @@
 //     con habilidades que ya no se conocen
 //  4) activas de talento: al libro y a la ranura 2 si está libre; fuera al dejar de concederse
 //  5) recompute: stats, skillLv, tv, mecánica e indicador de la especialización
-//  6) Paragon por el mixin: avisos de apertura y pausa (siempre, también desde el panel)
+//  6) Paragon por el mixin: avisos de apertura y pausa (al banner sin _talentQuiet; desde el panel,
+//     solo en la respuesta: heroOpened / heroPaused, que el panel enseña en su aviso)
 //  7) build recomendada, configuraciones, reinicio y código IRPG2 por el mixin
 //  8) indicadores de especialización: cada especialización activa el suyo; ⑩ onGauge y la
 //     mecánica base de los 9 (el detalle por clase vive en test-gauges-<clase>)
@@ -147,13 +148,13 @@ console.log('Activas de talento (libro y ranura 2), stats, tv y skillLv en recom
   const h = mk('guerrero', 100);
   const g = h.g, p = h.p;
   g.chooseSpec('berserker');
-  g._talentQuiet = true;                                          // el panel muestra sus avisos…
+  g._talentQuiet = true;                                          // el panel muestra sus avisos (también los del Paragon)
   const n0 = h.messages().length;
   const b = g.applyTalentBuild('brasa');
   assert.equal(b.ok, true); assert.equal(b.heroOpened, true);
   const opened = h.messages().slice(n0);
-  assert.ok(opened.some(m => /Paragon abierto/.test(m)), '…pero la apertura del Paragon se avisa siempre');
-  assert.ok(!opened.some(m => /Recomendado aplicado/.test(m)), 'el resto no');
+  assert.ok(!opened.some(m => /Paragon abierto/.test(m)), 'desde el panel, la apertura del Paragon no va al banner (la enseña el panel)');
+  assert.ok(!opened.some(m => /Recomendado aplicado/.test(m)), 'ni el resto');
   g._talentQuiet = false;
   const tree = T.talentTreesFor('guerrero').builds.brasa.hero;
   assert.equal(T.activeHeroTree(p).id, tree);
@@ -164,13 +165,18 @@ console.log('Activas de talento (libro y ranura 2), stats, tv y skillLv en recom
   // pausa
   const leaf = T.treeOf(p, 'spec').nodes.find(n => !n.free && (p.talents.sp.berserker[n.id] | 0) > 0 && T.canRemoveRank(p, 'spec', n.id));
   p.hotbar.k2 = heroGrant;
+  const n1 = h.messages().length;
   g._talentQuiet = true;
   const r = g.removeTalentRank('spec', leaf.id);
   g._talentQuiet = false;
-  assert.equal(r.heroPaused, true);
-  assert.match(last(h), /Paragon en pausa: te falta gastar 1 punto de especialización/);
+  assert.equal(r.heroPaused, true); assert.equal(r.missing, 1);
+  assert.ok(!h.messages().slice(n1).some(m => /Paragon en pausa/.test(m)), 'desde el panel, la pausa no va al banner');
   assert.equal(p.hotbar.k2, null, 'en pausa la activa del héroe sale de la barra');
   assert.equal(g.talentPointsInfo().heroPaused, true);
+  assert.equal(g.addTalentRank('spec', leaf.id).heroOpened, true);
+  assert.match(last(h), /Paragon abierto/, 'sin _talentQuiet, la apertura va al banner del HUD');
+  assert.equal(g.removeTalentRank('spec', leaf.id).heroPaused, true);
+  assert.match(last(h), /Paragon en pausa: te falta gastar 1 punto de especialización/, 'y la pausa también');
   assert.equal(g.addTalentRank('spec', leaf.id).heroOpened, true);
   // árbol héroe por el mixin
   const other = T.heroTreesFor('guerrero', 'berserker').find(x => x.id !== tree).id;
