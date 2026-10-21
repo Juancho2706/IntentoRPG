@@ -151,3 +151,60 @@ Cómo se escribe cada nodo:
 Las salidas versionadas del conversor (`tools/convert-v2/out/claves-impl.md` y `pendientes-<clase>.md`) se generaron
 antes de W2b y aún dicen «cola W2 (pendiente)» en estas tres claves: manda esta tabla (y `claves-w2.mjs`) hasta que se
 regeneren (`node tools/convert-v2/convert.mjs --draft --todas`).
+
+## 8. Cola W2c (E3b: lo que pidieron U1 y U2)
+
+Tres contratos nuevos entre el motor y la interfaz. Los prueba `test89` (§1 a §3); los avisos del Paragon,
+también `test65` §6.
+
+### 8.1 `g._chargeEnd`: fin de carga (`game-skills.js`)
+
+El motor escribe `g._chargeEnd = { key, id, reason, perfect, frac, t, instant }` al terminar **cada** carga, y el
+registro se queda hasta la siguiente: nadie lo borra. Lo lee `ui-verbs.finishCharge` para el destello de acierto o de
+fallo.
+
+| Campo | Qué es |
+|---|---|
+| `key` | Ranura de la carga (`'lmb'`, `'rmb'`, `'k1'`…`'k4'`) |
+| `id` | Id de la habilidad |
+| `reason` | Cómo acabó (tabla siguiente) |
+| `perfect` | En una suelta, el de la suelta (ventana, `forcePerfect`, `perfectAlways`, Punto Débil). En una cancelación, `false` |
+| `frac` | En [0, 1]. En una suelta, el de la suelta (= `end.frac` de ⑭ y `cast.charge.frac`); en una cancelación, lo cargado hasta ese momento |
+| `t` | `p.simT` del instante en que terminó: el **mismo** reloj que `g._charging.t0` (inicio de la carga). Un registro con `t < t0` es de una carga anterior |
+| `instant` | `true` si la habilidad salió sin carga visible (`charge.instant`, o `cast.instant` puesto en ⑦, como Ojo Entrenado): `reason: 'auto'` y `frac: 1`. **No es un fallo** aunque `perfect` sea `false`: el motor no baja la racha ni suena `verb_miss` |
+
+| `reason` | Dónde | ⑭ `onSkillEnd` |
+|---|---|---|
+| `release` | `_releaseWith`: soltar el botón o la tecla | Sí, con el mismo `reason`, `frac` y `perfect` |
+| `auto` | `_releaseWith`: suelta sola al máximo, y también la carga instantánea (`instant: true`) | Sí |
+| `dodge`, `panel`, `cancel`, `interrupt`, `cc` | `_endCharge`, sin coste: esquiva (`dodge`); abrir un panel, pausar o soltar con `g._paused` (`panel`); `blur`, cambio de pestaña o la movilidad (`cancel`); golpe fuerte (`interrupt`); control duro (`cc`) | Sí, con el mismo `reason`, `released: false` y `perfect: false` |
+| `reset` | `resetCastState` (cambio de mundo, muerte) | **No**. El reinicio limpia sin ganchos, igual que el canal y el lanzamiento en curso. Este motivo solo existe en `_chargeEnd` |
+
+- Las repeticiones (`cast.echo`: Eco, Archimaga…) **no** lo escriben, aunque pasen por `_releaseWith`: el registro
+  sigue siendo el de la última carga del jugador.
+- El consumidor solo se fía de un registro de la carga que estaba mirando: misma ranura (`end.key === slot`), mismo id
+  si los dos lo traen y `end.t ≥ t0`. Si no hay registro, o no es de esa carga, decide la racha de perfectos
+  (`p.perfectStreak`): si sube, perfecta; si cae a 0, fallo; si no cambia, sin destello. Con el registro, fallo =
+  `!perfect` con `reason` `release` o `auto`. Falta que excluya `instant` (petición a U2). Hoy no se nota, porque una
+  carga instantánea no se ve y la UI no la resuelve.
+- En las pruebas, un caso que pisa el registro para probar ese respaldo tiene que hacerlo **después** de simular y
+  antes de pintar: el motor ya escribe el suyo en el tick de la suelta (`test89` §1g).
+
+### 8.2 `owner.trapBursts`: estallidos de trampa (`field-entities.js`)
+
+- Cada estallido añade `{ t, x, z }`: `t` = `owner.simT`; `x`, `z` = centro del campo que estalla (`f.pos`), no los
+  pies del dueño. Pasa al pisar la trampa (tick de la `trampa` genérica) y al detonarla (`detonateField`, también por
+  `detonateAt`). Si el sitio no es finito, solo `{ t }`. Se guardan las 12 últimas.
+- Al leer se sigue aceptando el formato viejo, el instante suelto (un número). No cuenta una entrada sin instante
+  numérico (`null`, `{ x, z }`, `t` nulo o en texto).
+- `g.trapBurstsWithin(owner, s = 1)` no cambia de firma ni de lo que devuelve: cuántos estallidos hubo en los últimos
+  `s` s (la Batida del Coto: 3 en 1 s). `world-marks` lee los dos formatos y pone el anillo de la Batida en el centro
+  de los estallidos recientes.
+
+### 8.3 Avisos del Paragon (`game-talents.js`, `_talentMutate`)
+
+- Sin `g._talentQuiet` (HUD, atajos, código importado): «🌟 ¡Paragon abierto!…» y «Paragon en pausa: te falta gastar N
+  punto(s) de especialización…» van al banner (`ui.message`, 4 s), como antes.
+- Con `g._talentQuiet` (llamadas del panel por `gameTalentOps` de `ui-talents.js`) no van al banner, que el panel
+  tapa. La respuesta trae `heroOpened`, `heroPaused` y `missing`, y el panel los enseña en su aviso y anima la
+  revelación. Esto corrige lo que dice §3.4 de `paso2-implementacion.md` (petición al orquestador).

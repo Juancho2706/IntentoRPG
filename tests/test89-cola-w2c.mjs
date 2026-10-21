@@ -3,9 +3,12 @@
 // ============================================================
 //  1) g._chargeEnd = { key, id, reason, perfect, frac, t, instant } al terminar CADA carga:
 //     suelta (release | auto, perfect = el de la suelta), cancelación sin coste (esquiva, panel,
-//     cancelar, golpe, control, movilidad, reinicio: perfect false) y carga instantánea; el eco
-//     no lo escribe. t va en el reloj de _charging.t0 (p.simT). Contra el consumidor REAL
-//     (ui-verbs.finishCharge): un fallo sin racha previa ya da el destello rojo
+//     cancelar, golpe, control, movilidad: el motivo de ⑭; reinicio: 'reset', sin ⑭; perfect
+//     false) y carga instantánea; el eco no lo escribe. t va en el reloj de _charging.t0
+//     (p.simT). Contra el consumidor REAL (ui-verbs.finishCharge): un fallo sin racha previa ya
+//     da el destello rojo, y un registro viejo, de otra ranura, de otra habilidad o ninguno no
+//     cuentan (manda la racha); se pisa entre la simulación y la pintura, porque el motor ya
+//     escribe el suyo en cada suelta
 //  2) estallidos de trampa: owner.trapBursts guarda { t, x, z } con el centro del campo que
 //     estalla (pisada y detonación); trapBurstsWithin cuenta los dos formatos; el anillo de la
 //     Batida (respaldo del Coto en world-marks) sale en el centro de los estallidos
@@ -110,13 +113,20 @@ definePower('vx_instant89', { name: 'carga instantánea', onCast(g, p, cast) { i
     ['cancel', (g, hh) => { assert.equal(hh.press('k1'), true, 'la movilidad sale'); hh.release('k1'); }],   // movilidad
     ['reset', g => g.resetCastState()],                                        // cambio de mundo / muerte
   ];
+  const chargeEnds = () => ENDS.filter(x => x.kind === 'charge').length;
   for (const [reason, act] of cancels) {
     c = begin(h, 0.3);
-    const frac = c.frac;
+    const frac = c.frac, n14 = chargeEnds();
     act(h.g, h);
     assert.equal(h.g._charging, null, `${reason}: la carga terminó`);
     e = check(h, c, { reason, perfect: false }, `cancelar (${reason})`);
     assert.ok(near(e.frac, frac) && frac > 0, `${reason}: frac de la carga cancelada (${e.frac})`);
+    // el mismo final que ve ⑭; el reinicio (cambio de mundo, muerte) limpia sin ⑭, como el canal
+    if (reason === 'reset') assert.equal(chargeEnds(), n14, 'reset: sin ⑭ onSkillEnd');
+    else {
+      const se = lastEnd();
+      assert.ok(chargeEnds() === n14 + 1 && se.reason === reason && se.perfect === false && near(se.frac, e.frac), `${reason}: ⑭ con el mismo motivo y frac`);
+    }
     h.release('rmb');
     h.p.dashMove = null; h.p.leap = null;
   }
@@ -213,8 +223,61 @@ definePower('vx_instant89', { name: 'carga instantánea', onCast(g, p, cast) { i
   const flash0 = glow.getAttribute('data-flash');
   hu.g.cancelCast('dodge'); hu.release('rmb'); hud.update(DT);
   assert.ok(state() === 'end' && glow.getAttribute('data-flash') === flash0, 'esquiva: la carga termina sin destello');
+  settle();
+
+  // guardas del consumidor: el motor ya dejó SU registro en el tick de la suelta, así que aquí se
+  // pisa después de la simulación y antes de pintar (lo que vería la UI con un registro ajeno)
+  const flashed = (kind, f0) => { const f = glow.getAttribute('data-flash'); return f !== f0 && f?.startsWith(kind + '-'); };
+  // carga del Martillo hasta la ventana (inWin) o corta, antes de ella
+  const chargeTo = (inWin, streak) => {
+    hu.p.perfectStreak = streak;
+    begin(hu, 0); hud.update(DT);
+    if (inWin) for (let i = 0; i < 90 && !hu.g._charging?.inWindow; i++) frame();
+    else for (let i = 0; i < 15; i++) frame();
+    assert.ok(hu.g._charging && !!hu.g._charging.inWindow === inWin, inWin ? 'en la ventana' : 'antes de la ventana');
+    return hu.g._charging;
+  };
+  const releaseWith = (c, end) => {
+    const f0 = glow.getAttribute('data-flash');
+    hu.release('rmb'); hu.step(DT, DT);
+    assert.equal(hu.g._charging, null, 'suelta resuelta');
+    assert.equal(hu.g._chargeEnd?.key, 'rmb', 'el motor escribió el suyo');
+    hu.g._chargeEnd = typeof end === 'function' ? end(c) : end;
+    hud.update(DT);
+    return f0;
+  };
+  // a) registro VIEJO (anterior al t0 de esta carga) que dice «perfecta»: no cuenta; la racha cae → fallo
+  let cc = chargeTo(false, 1);
+  let f0 = releaseWith(cc, x => ({ key: 'rmb', id: 'vx_martillo', reason: 'release', perfect: true, frac: 0.9, t: x.t0 - 1, instant: false }));
+  assert.equal(hu.p.perfectStreak, 0, 'racha 1 → 0');
+  assert.ok(state() === 'miss' && flashed('miss', f0), `_chargeEnd anterior a la carga → manda la racha: fallo (estado ${state()})`);
+  settle();
+  // b) registro de OTRA ranura que dice «fallo»: no cuenta; la racha sube → perfecto
+  cc = chargeTo(true, 0);
+  f0 = releaseWith(cc, { key: 'lmb', id: 'vx_martillo', reason: 'release', perfect: false, frac: 0.2, t: hu.p.simT, instant: false });
+  assert.equal(hu.p.perfectStreak, 1, 'racha 0 → 1');
+  assert.ok(state() === 'perfect' && flashed('perfect', f0), `_chargeEnd de otra ranura → manda la racha: perfecto (estado ${state()})`);
+  settle();
+  // c) registro de OTRA habilidad en la misma ranura que dice «perfecta»: no cuenta → fallo
+  cc = chargeTo(false, 1);
+  f0 = releaseWith(cc, { key: 'rmb', id: 'vx_otra', reason: 'release', perfect: true, frac: 0.9, t: hu.p.simT, instant: false });
+  assert.ok(state() === 'miss' && flashed('miss', f0), `_chargeEnd de otra habilidad → manda la racha: fallo (estado ${state()})`);
+  settle();
+  // d) SIN registro: la racha decide (sube → perfecto, cae → fallo, 0 → 0 sin datos: sin destello)
+  cc = chargeTo(true, 1);
+  f0 = releaseWith(cc, null);
+  assert.ok(hu.p.perfectStreak === 2 && state() === 'perfect' && flashed('perfect', f0), `sin _chargeEnd, racha 1 → 2: perfecto (estado ${state()})`);
+  settle();
+  cc = chargeTo(false, 2);
+  f0 = releaseWith(cc, null);
+  assert.ok(hu.p.perfectStreak === 0 && state() === 'miss' && flashed('miss', f0), `sin _chargeEnd, racha 2 → 0: fallo (estado ${state()})`);
+  settle();
+  cc = chargeTo(false, 0);
+  f0 = releaseWith(cc, null);
+  assert.ok(state() === 'end' && glow.getAttribute('data-flash') === f0, `sin _chargeEnd ni racha: sin destello (estado ${state()})`);
+  settle();
   hud.destroy();
-  console.log('ui-verbs (consumidor real): fallo sin racha y suelta automática → destello rojo; perfecto → dorado; esquiva → sin destello ✓');
+  console.log('ui-verbs (consumidor real): fallo sin racha y suelta automática → destello rojo; perfecto → dorado; esquiva → sin destello; registro viejo, de otra ranura, de otra habilidad o ninguno → manda la racha ✓');
 }
 
 // ------------------------------------------------ 2) estallidos de trampa con su sitio
@@ -257,6 +320,8 @@ definePower('vx_instant89', { name: 'carga instantánea', onCast(g, p, cast) { i
   p.trapBursts = [now - 2, now - 0.5, { t: now - 0.9, x: 1, z: 2 }, { t: now }, { t: now - 1.5, x: 0, z: 0 }, { x: 3, z: 3 }, null];
   assert.equal(d.g.trapBurstsWithin(p, 1), 3, 'en 1 s: el instante de −0,5 y los objetos de −0,9 y 0');
   assert.equal(d.g.trapBurstsWithin(p, 2), 5, 'en 2 s: también −2 (número) y −1,5 (objeto)');
+  p.trapBursts.push({ t: null, x: 0, z: 0 }, { t: String(now) });
+  assert.equal(d.g.trapBurstsWithin(p, 1e6), 5, 'sin instante numérico no cuenta, por ancha que sea la ventana (null, { x, z }, t nulo o en texto)');
   p.trapBursts = [now - 0.3, now - 0.2, now];
   assert.equal(d.g.trapBurstsWithin(p, 1), 3, 'el formato viejo (solo instantes) sigue contando');
   p.trapBursts = null;

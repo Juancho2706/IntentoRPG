@@ -53,9 +53,12 @@ const wallNow = g => (typeof g.clockNow === 'function' ? g.clockNow() : (typeof 
 const skStateOf = (p, id) => ((p.skState || (p.skState = {}))[id] || (p.skState[id] = {}));
 // fin de CADA carga para la interfaz (ui-verbs: destello de acierto o de fallo):
 // g._chargeEnd = { key, id, reason, perfect, frac, t, instant }. reason: 'release' | 'auto' al
-// soltar; al cancelar, el motivo que llegue (dodge, panel, cancel, interrupt…). t va en el reloj
-// de _charging.t0 (p.simT): la UI descarta un registro anterior a la carga que mira. instant:
-// suelta sin carga visible (carga instantánea). Las repeticiones (eco) no lo escriben
+// soltar (perfect y frac, los de la suelta); al cancelar sin coste, el mismo de ⑭ (dodge, panel,
+// cancel, interrupt, cc: perfect false, frac = lo cargado); 'reset' en resetCastState (cambio de
+// mundo o muerte), que no dispara ⑭. t va en el reloj de _charging.t0 (p.simT): la UI descarta un
+// registro anterior a la carga que mira. instant: suelta sin carga visible (carga instantánea),
+// que NO es un fallo aunque perfect sea false (ni baja la racha ni suena el fallo). Las
+// repeticiones (eco) no lo escriben. Contrato completo: docs/paso2-claves-w2.md §8
 function noteChargeEnd(g, key, id, reason, perfect, frac, instant = false) {
   g._chargeEnd = { key, id, reason, perfect: !!perfect, frac: Number.isFinite(frac) ? frac : 0, t: g.player?.simT || 0, instant };
 }

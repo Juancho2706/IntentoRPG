@@ -37,9 +37,11 @@ export const TRAP_FLASH_T = 0.1;
 // el cebo no mueve a quien ya pelea cuerpo a cuerpo contigo (m)
 const LURE_MELEE_R = 2.5;
 // registro de estallidos (owner.trapBursts): { t, x, z } (x, z: centro del campo que estalla);
-// el formato viejo era el instante suelto y se sigue aceptando al leer
+// el formato viejo era el instante suelto y se sigue aceptando al leer. Una entrada sin instante
+// numérico (null, { x, z } sin t, t nulo o en texto) no cuenta; antes un null contaba como t = 0
+// (nadie escribe entradas así)
 const TRAP_LOG_MAX = 12;
-const burstAt = b => (typeof b === 'number' ? b : Number(b?.t));
+const burstAt = b => (typeof b === 'number' ? b : typeof b?.t === 'number' ? b.t : NaN);
 
 export function defineField(kind, def) {
   if (!kind || FIELD_DEFS[kind]) throw new Error(`defineField: kind inválido o repetido "${kind}"`);
