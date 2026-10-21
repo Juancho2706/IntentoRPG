@@ -76,8 +76,12 @@ for (const [id, d] of Object.entries(P)) ok(!d.mult, `${id}: sin mult`);
   // canal en curso solo por g.channelInfo (no por el estado interno g._channel)
   ok(!/\.(stunT|frozenT|rootT|slowT|fearT)\s*(=(?!=)|\+=|-=)/.test(src), 'sin escribir controles a mano (applyCC / clearCC)');
   ok(!/\._channel\b/.test(src), 'sin leer g._channel (g.channelInfo)');
+  // las repeticiones van por g.castEcho (o, las de un canal, por un haz propio): ni la ranura del
+  // jugador (castSkillSlot con potencia) ni su mira (g.input.mouseWorld) prestadas
+  ok(!/castSkillSlot\s*\(/.test(src), 'sin castSkillSlot (repeticiones por g.castEcho)');
+  ok(!/mouseWorld\s*=(?!=)/.test(src), 'sin escribir la mira del jugador (castEcho con at)');
 }
-console.log('✓ reglas: claves, sin mult, sin Math.random, setTimeout, p.cds, controles a mano ni g._channel');
+console.log('✓ reglas: claves, sin mult, sin Math.random, setTimeout, p.cds, controles a mano, g._channel ni la ranura o la mira prestadas');
 
 // ------------------------------------------------ utilidades
 const WEAPON = { kind: 'item', slot: 'weapon', name: 'Bastón de prueba', dmg: [1000, 1000], affixes: {}, quality: 0 };

@@ -27,8 +27,8 @@ export const MAGA_SKILLS = [
   // speed = la del básico de la Maga (Player.basicAttack): la Mejora la multiplica
   { id: 'm_dardo', name: 'Dardo Arcano', icon: '✨', cat: 'basic', slots: ['lmb'], tags: ['basic', 'proj', 'arcane'], elem: 'arcane',
     type: 'weapon', req: 1, coef: 1.05, gen: 3, speed: 13, color: 0xcc66ff,
-    line: 'Dispara un dardo arcano a distancia. Cada impacto te devuelve 3 de maná.',
-    desc: 'Lanza un dardo arcano a distancia (105 % del daño de arma) y recupera 3 de Maná al impactar.' },
+    line: 'Dispara un dardo a 9 m. Cada impacto te devuelve 3 de maná.',
+    desc: 'Lanza un dardo arcano que vuela 9 m (105 % del daño de arma) y recupera 3 de Maná al impactar.' },
   // la explosión del kit base es de 100 % (el Piromante la sube a 350 % con su pasiva, p_ignicion)
   { id: 'bola_fuego', name: 'Bola de Fuego', icon: '🔥', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'fire'], elem: 'fire',
     type: 'proj', req: 2, coef: 2.2, splash: 1.0, radius: 2, cost: 18, cd: 1.5, windup: 0.3, speed: 13, range: 12, size: 0.26, color: 0xff6622,

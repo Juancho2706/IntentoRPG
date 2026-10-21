@@ -306,9 +306,9 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 // ------------------------------------------------ 5) comportamientos (canal real)
 // Cada habilidad del kit se prueba a Nv req+2: ya se conoce y aún no tiene la Mejora de la forja
 // (Nv req+3), así que es su forma base. La forja la prueba test-forge-maga.
-// Dardo Arcano: el básico de arma vuela 9 m (atkRange 7 + 2: sin alcance propio, decisión de la
-// tanda 2; la línea dice «a distancia», divergencia catalogo.m_dardo.line) y Dardo Veloz (Mejora,
-// Nv4) lo alarga un 20 %: 10,8 m. Lo que mide es el impacto REAL (proyectil del canal)
+// Dardo Arcano: el básico de arma vuela 9 m (atkRange 7 + 2: sin alcance propio, propuesta de la
+// tanda 2; la línea dice «a 9 m» y no «a 20 m» como el mockup, divergencia catalogo.m_dardo.line) y
+// Dardo Veloz (Mejora, Nv4) lo alarga un 20 %: 10,8 m. Lo que mide es el impacto REAL (proyectil del canal)
 {
   const shot = (level, z) => {
     const h = makeHarness({ classId: 'maga', level });
@@ -323,6 +323,8 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   assert.ok(Math.abs(n3.range - 9) < 1e-9 && Math.abs(n4.range - 10.8) < 1e-9, `alcance 9 → 10,8 m (${n3.range}, ${n4.range})`);
   assert.ok(n3.hit && !n3far.hit, 'Nv3: alcanza a 8,5 m, no a 9,9 m');
   assert.ok(n4.hit && !n4far.hit, 'Dardo Veloz: alcanza a 10,3 m, no a 11,7 m');
+  const said = /a (\d+(?:,\d+)?) m\b/.exec(byId('m_dardo').line);
+  assert.ok(said && Number(said[1].replace(',', '.')) === n3.range, `la línea dice el alcance real sin la Mejora (${said?.[1]} m frente a ${n3.range} m)`);
   noWarnings('Dardo');
   console.log('Dardo Arcano: vuela 9 m (10,8 m con Dardo Veloz) ✓');
 }
