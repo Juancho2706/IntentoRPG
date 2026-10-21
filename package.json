@@ -5,6 +5,7 @@
   "description": "ARPG isométrico estilo Diablo 2 con Three.js",
   "scripts": {
     "test": "node tests/run.mjs",
+    "smoke": "node tools/smoke/smoke.mjs",
     "start": "npx http-server -p 8080"
   },
   "devDependencies": {
