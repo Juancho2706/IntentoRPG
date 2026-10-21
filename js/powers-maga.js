@@ -7,139 +7,123 @@
 // ciclo de módulos y una función declarada se puede llamar aunque este módulo aún
 // no se haya evaluado (p. ej. si un test lo importa el primero). Por eso TODOS los
 // helpers de este archivo son `function` (se elevan) y nada del nivel superior lee
-// un binding importado: no hay `const` de módulo. Tampoco se importa js/talents.js:
-// resources.js → powers.js → aquí → talents.js → data.js leería RESOURCE_DEFS sin iniciar
-// (el rango de un final sale del agregado que deja recompute: rankOf = talents.powerRank).
+// un binding importado: no hay `const` de módulo. Tampoco se importa js/talents.js ni
+// js/skill-resolve.js: resources.js → powers.js → aquí → data.js leería RESOURCE_DEFS sin
+// iniciar (el rango de un final sale del agregado que deja recompute: rankOf = talents.powerRank;
+// el perfil de una habilidad, de la caché p.resolved).
 //
 //  magaPowers()          { id: PowerDef }  → definePower (claves de POWER_KEYS en powers.js).
 //                        Ningún poder declara `mult` (test67 / test-powers-maga).
-//  magaSkillBehaviors() { skillId: { cast?(g,p,prof,cast), tick?(g,p,inst,dt), end?(g,p,inst) } }
-//                        → el `behavior` de las activas de talento y de la Barrera de Maná.
-//  magaFields()          campos de suelo propios (Muro de Fuego, Ventisca, runas, Sellos…).
-//  magaGauges()          ninguno nuevo: los tres indicadores (calor, escarcha, cargas) son los
-//                        base de spec-mechanics.js; aquí se POTENCIAN con gainGauge/spendGauge/onGauge.
+//  magaSkillBehaviors() { skillId: { cast?(g,p,prof,cast), passiveTick? } } → el `behavior` de las
+//                        activas de talento de la clase (Bloque, Inversión y Contrahechizo). El kit y
+//                        las activas del Paragon son del catálogo (KA-maga, js/skills-maga.js).
+//  magaFields()          campos de suelo propios (runas, Sellos, Cráter, Suelo Helado, grietas…).
+//  magaGauges()          ninguno nuevo: los tres indicadores (calor, escarcha, cargas) son los de
+//                        js/mech-maga.js; aquí se potencian con gainGauge/setGauge/onGauge.
 //
-// MAPA nodo 2g → implementación (docs/paso2g-maga-coherencia.md §4 y §7; el texto del nodo manda):
-//  Clase   c1 stats.mpPct · c2 mod @all · c3 mod m_parpadeo (espera el catálogo de KA1) · c4 tv.barrierDr ·
-//          c5 m_dardo_certero | m_dardo_sifon · c6 mod @spender dmgDirect | splashPct · c7 m_paso_fugaz ·
-//          c8 tv.drHighMana · c9 m_nova_congelante | mod nova_hielo + m_nova_cortante ·
-//          c10 m_ralentizar | m_disrupcion · c11 activa m_t_bloque | m_aguante · c12 stats.mph ·
-//          c13 stats.crit · c14 m_runa | m_parpadeo_cura · c15 m_escudo_mana | stats.regenPct + tv.highManaDmg ·
-//          c16 m_armonia | m_pureza · c17 activa m_t_inversion | m_anclaje · c18 mod m_barrera (KA1) ·
-//          c19 m_barrera_resonante · c20 m_escarcha_arcana · c21 m_escarcha_tenaz · c22 activa
-//          m_t_contrahechizo | tv.costRedBig · c23 tv.basicCritCdr · c24 stats.aspdPct · c25 m_cristal ·
-//          c26 m_torrente · c27 m_imagen · finales c28 m_bastion · c29 m_archimaga · c30 m_vacio.
-//  Paragon Cronomante t0 m_marca_tiempo (Marca del Tiempo) + claves tv chrono* de t1–t11 (MAGA_TV_KEYS) ·
-//          t4B m_retroceso · final t12 m_senora_tiempo.
-//          Invocadora f0 m_familiar (Familiar Arcano) + claves tv fam* · final f12 m_legion.
-//          Escriba Rúnica e0 m_runas (runas y Sellos) + claves tv rune*/seal* · final e12 m_gran_grimorio.
-//          Las activas t4A/e4A/f8A (m_h_detener, m_h_palabra, m_h_constructo) son del catálogo (KA1):
-//          la Marca escucha ③ afterCast de m_h_detener (guardan el doble) y las runas, el de m_h_palabra.
-//  DESVIACIONES de la clase 2g:
-//  · c21 Escarcha Tenaz es un poder y no un mod: `slow` de mergeMods es un MÁXIMO (no suma 2 s). Suma
-//    +2 s a la ralentización del perfil (modifyResolve) y a las que ponen los poderes de este archivo.
-//  · c9B: el +40 % es mod; «ralentiza 1 s menos» lo quita m_nova_cortante (un mod de slow es un máximo).
-//  · La Barrera de Maná se reconoce por la fuente de su escudo (m_barrera; m_t_barrera, la vieja). La
-//    pone el comportamiento m_t_barrera (lee shieldManaPct y prof.buffMul; con Bastión no caduca).
-//  · Cristal y Bastión distinguen la Barrera ROTA (absorbida hasta 0) de la que caduca.
+// MAPA nodo 2g → implementación (docs/paso2g-maga-coherencia.md §4, §5 y §7; el texto del nodo manda):
+//  Clase   c1 stats.mpPct · c2 mod @all · c3 mod m_parpadeo · c4 tv.barrierDr · c5 m_dardo_certero |
+//          m_dardo_sifon · c6 mod @spender dmgDirect | splashPct · c7 m_paso_fugaz · c8 tv.drHighMana ·
+//          c9 m_nova_congelante | mod nova_hielo + m_nova_cortante · c10 m_ralentizar | m_disrupcion ·
+//          c11 activa m_t_bloque | m_aguante · c12 stats.mph · c13 stats.crit · c14 m_runa | m_parpadeo_cura ·
+//          c15 m_escudo_mana | stats.regenPct + tv.highManaDmg · c16 m_armonia | m_pureza · c17 activa
+//          m_t_inversion | m_anclaje · c18 mod m_barrera buff · c19 m_barrera_resonante · c20 m_escarcha_arcana ·
+//          c21 m_escarcha_tenaz · c22 activa m_t_contrahechizo | tv.costRedBig · c23 tv.basicCritCdr ·
+//          c24 stats.aspdPct · c25 m_cristal · c26 m_torrente · c27 m_imagen · finales c28 m_bastion ·
+//          c29 m_archimaga · c30 m_vacio.
+//  Paragon Cronomante t0 m_marca_tiempo + claves tv chrono* (MAGA_TV_KEYS) · t4A activa m_h_detener ·
+//          t4B m_retroceso · final t12 m_senora_tiempo. Invocadora f0 m_familiar + claves fam* · f8A activa
+//          m_h_constructo · final f12 m_legion. Escriba Rúnica e0 m_runas + claves rune*/seal* · e4A activa
+//          m_h_palabra · final e12 m_gran_grimorio. La Marca escucha ③ afterCast de m_h_detener (guardan el
+//          doble) y las runas, el de m_h_palabra.
+//  Piro    s0 p_ignicion (quemadura + Bola al 350 %) · s1 tv.burnDur · s2 tv.burningCrit · s3 mod bola_fuego ·
+//          s4 tv.burnPct · s5 p_chispas · s6 p_volatil · s7 p_pira · s8 p_propagacion | p_acumular ·
+//          s9 p_llamarada_avivada | p_llamarada_voraz · s10 p_meteoro_gemelo | p_meteoro_conc ·
+//          s11 tv.burnKillHeal/burnKillMana · s12 tv.critFireCdr · s13 mod meteoro/supernova ·
+//          s14 mod meteoro (ralentiza) + p_sismico · s15 p_fenix | p_escudo_llamas · s16 p_brasero ·
+//          s17 p_estrellas_fugaces · s18 p_brasa_errante · s19 tv.calorHit (mech) · s20 mod @fire radius ·
+//          s21 p_estela_meteorica · s22 p_brasa_viva · s23 p_combustion · s24 p_crater (campo) ·
+//          finales s25 p_incendio · s26 p_perpetua · s27 p_lluvia_fuego · ápice s28 p_corazon_sol.
+//  Crionte i0 la mecánica (js/mech-maga.js) · i1 tv.freezeDur · i2 k_filo_helado · i3 mod nova_hielo ·
+//          i4 tv.frostDecay (mech) · i5 k_quebradizo · i6 k_polvo · i7 mod m_u_tormenta + k_crece · i8 mod k_prision |
+//          k_prision_profunda · i9 mod k_lanza | k_lanza_invierno · i10 k_ventisca_viva | k_frio_sostenido ·
+//          i11 tv.frozenKillHeal/frozenKillMana · i12 k_astillas · i13 mod · i14 k_suelo (campo) ·
+//          i15 k_piel_invierno | k_cristal · i16 k_invierno · i17 k_remolino · i18 k_cadena · i19 k_ruptura ·
+//          i20 mod @frost radius · i21 k_ojo_frio · i22 k_glaciar · i23 k_esquirlas · i24 k_perpetua ·
+//          finales i25 k_era_glacial · i26 k_cero · i27 k_eterno · ápice i28 k_corazon_invierno.
+//  Arcan.  a0 la mecánica (mech) · a1 tv.chargeDur (mech) · a2 tv.chargeCrit (mech) · a3 mod m_u_desgarro ·
+//          a4 tv.chargeDmg (mech) · a5 a_rebote_cargado · a6 a_sello_cargado · a7 a_grieta (campo) ·
+//          a8 a_rayo_doble | a_rayo_recargado · a9 a_orbe_cargado | a_orbe_atrae · a10 a_desgarro_fijo |
+//          a_desgarro_voraz · a11 mod rayo crit · a12 a_inercia · a13 mod · a14 a_mana_inagotable ·
+//          a15 a_desplazamiento | tv.drCharges (mech) · a16 a_resonance · a17 mod a_sello + a_sello_sigue ·
+//          a18 a_carga_final · a19 a_satelite · a20 tv.aspdCharges (mech) · a21 a_doble_grieta ·
+//          a22 a_desbordadas · a23 a_orbe_multiple · a24 a_fuente · finales a25 a_tormenta_cargas ·
+//          a26 a_constelacion · a27 a_grieta_eterna · ápice a28 a_singularidad.
+//  Los nodos clave de Crionte y Arcanista (i0, a0) son su mecánica: la llena, la gasta y la pierde
+//  el indicador (js/mech-maga.js; funciona con cualquier árbol que declare la mecánica). Piromante s0
+//  sí lleva poder: la quemadura y la Bola al 350 % no son del Calor.
+//  Los «+X %» de rango 2–3 de los finales y las líneas de rango que solo suman un número van como
+//  listas por rango en el `fx` del nodo (mod dmg, tv burnPct/freezeDur, stats critDmg).
+//
+// DESVIACIONES (el texto del nodo manda; lo que el motor no dice, se fija aquí):
+//  · La Barrera de Maná se reconoce por la fuente de su escudo (m_barrera: el comportamiento del
+//    catálogo). Cristal y Bastión distinguen la Barrera ROTA (absorbida hasta 0) de la que caduca;
+//    con Bastión, la lanzada tampoco caduca (③ afterCast la alarga).
+//  · c21 Escarcha Tenaz es un poder y no un mod: `slow` de mergeMods es un MÁXIMO (no suma 2 s).
 //  · Torrente cuenta el coste de los lanzamientos (⑦ onCast), no el maná que pagas con Escudo de Maná.
-//  · El Familiar, las Marcas y las runas no son mascotas ni proyectiles: sus golpes son daño de PODER
+//  · El Familiar, las Marcas, las runas, las esquirlas y los estallidos son daño de PODER
 //    (dealProcDamage: no disparan onHit ni llenan el indicador, salvo Eco Elemental f9).
-//  · Enjambre (f2B): cada Familiar prefiere un enemigo que no tenga otro; con Cazador (f4B) todos
-//    persiguen al de más vida. Grieta Temporal (t9): «a la vez» = en el mismo paso de 0,1 s.
-//  · El Dardo Arcano (básico de ARMA) cuenta como hechizo para Armonía, Pureza, el elemento del
-//    Familiar y las runas de la Escriba.
-//
-// MAPA v1 de las especializaciones (lo rehacen los trabajos 2 y 3 de KT-maga):
-//  Piro    s0 p_ignicion (solo la Quemadura 60 %/4 s) · p_llamarada (comp.) ·
-//          s4 p_llamarada_avivada · s6A p_propagacion · s6B p_acumular ·
-//          s9 p_combustion (comp. + poder propio) · s13A p_fenix · s13B p_muro_fuego (comp. + campo) ·
-//          x1 p_corazon_sol (⑬ onDotEnd) · x3 p_nova_solar.
-//  Crionte s0 k_prision (comp.) · s4 k_prision_profunda · s6A k_ventisca (comp. + campo) ·
-//          s6B k_nova_push · s7 k_icicle_dart · s8 k_frost_armor · s9 k_lanza (comp.) ·
-//          s13A k_ice_tomb (campo) · s13B k_aliento (comp.) · s14 k_shatter_chain ·
-//          s17 k_numb · x1 k_eternal_winter (campo; x2 fieldVuln) · x3 k_ice_age.
-//  Arcan.  s0 a_orbe (comp.) · s4 a_orbe_resonante · s6A a_misiles (comp. tick) ·
-//          s9 a_sello (comp.) · s11 a_clarity · s13A a_evocacion (comp.) ·
-//          s14 a_resonance · s15 a_overvolt · x1 a_chain_crit · x2 a_arc_charge · x3 a_singularity.
-//
-// Paso 2c.2 — SIN PORTADORES/ANFITRIONES: cada nodo con efecto propio lleva SU poder
-// (ninguno está en dos nodos) o una clave tv que consume el núcleo:
-//  · Piromante s5 burningCrit → combat-math.condCritPct · x2 explodedDmg → condAddPct ·
-//    s8 burnKillHeal / s15 burnKillMana / s12 critFireCdr → poder común nucleo_tv ·
-//    s16 supernovaBurn → comportamiento m_u_supernova (js/skills-maga.js) al crear su
-//    Quemadura · s9 Combustión → poder p_combustion (Fuego siempre crítico mientras dura el
-//    buff) + stat del buff 'gaugeGain:calor' (Calor ×2).
-//  · Crionte s15 manaOnKill → nucleo_tv · s16 Nova Perpetua → mod nova_hielo { zone } (la
-//    Estela de una habilidad que ralentiza también ralentiza: núcleo).
-//  · Arcanista s8 drHighMana → nucleo_tv (reducción condicional con maná > 50 %).
-//  · Clase c4 barrierDr (2g; era c7) → g.shield(…, { dr }) de putBarrier.
-//  · DoT por la API del núcleo (g.replaceDoT / consumeDoT / dotRemaining / dotsOf): nadie
-//    toca e._dots.
-//
-// DESVIACIONES / RODEOS LOCALES:
-//  · Quemadura de Ignición NO se apila (s6B Concentración la deja apilar hasta 3, con
-//    fuentes distintas): una nueva aplicación SUSTITUYE a la anterior (g.replaceDoT: lo que
-//    le quedaba se pierde). Así Concentración «mejor contra jefes» tiene sentido. Se tira
-//    sobre hit.raw (sin Π[×]: los tics ya los reciben).
-//  · Llamarada detona (CONSUME, g.consumeDoT) las Quemaduras: 60 % de su daño restante al
-//    instante (100 % con s4). Se detona ANTES de que el cono vuelva a encenderlas.
-//  · Pirotecnia (s12, núcleo) no reduce el enfriamiento de las definitivas (Supernova).
-//  · Nova Solar (x3) cuenta como «explosiones» las de Corazón del Sol y Conflagración.
-//  · Prisión de Hielo: a los no jefes los congela 2 s (3 s con s4) y les pone las 5 capas;
-//    a los jefes no les suma capas (su base de 5 capas ya da Aterido + 25 de stagger):
-//    Aterido 4 s + 20 de stagger (35 con s4), escalado por staggerPct como todo stagger.
-//  · Lanza de Hielo ×3 a los Congelados = +200 % del golpe como daño de poder (proc; no
-//    hay `mult` nuevo) y «los astilla» = estallido de 3 m con el golpe medio de la Lanza +
-//    un ASTILLAMIENTO (cuenta para s14 y x3).
-//  · Inversión del Tiempo: el historial lo graba el passiveTick de su comportamiento (cada
-//    0,25 s) desde que conoces la activa; sin historial, no gasta el enfriamiento.
-//  · Bloque de Hielo: «cancelable» = la ESQUIVA lo rompe (volver a pulsar no llega al
-//    comportamiento: la ranura está en enfriamiento).
-//  · Sello del Archimago guarda el 25 % de la vida que pierde el objetivo marcado (sondeo
-//    de su vida cada 0,1 s; no hay gancho ④ por objetivo marcado sin un poder en s9).
-//  · Cadena de Rayos (x1): se quitó el mod `rayo.chain` (encadenaba TODOS los impactos con
-//    −25 %/salto); a_chain_crit encadena solo el PRIMER crítico de cada Rayo (150 % a 3
-//    enemigos; solo, 2 veces al mismo).
-//  · Ralentizar (c10A; era c5B) ignora el básico de ARMA que ahora también pasa por ⑦ onCast
-//    (cast.weapon): antes no lo veía y así no cambia nada.
-//  · Claves tv que consumen poderes de su MISMO nodo: fieldVuln (x2, campo de x1: si no hay
-//    campo no hay nada que potenciar), clarityPct (s11 a_clarity), arcChargePct (x2 a_arc_charge).
+//  · Quemaduras (Piromante): una por enemigo; 3 con Brasa Profunda y 5 con Incendio Forestal (cada
+//    una en su hueco; la nueva sustituye a la más débil). Llama Persistente, Brasero e Incendio
+//    suben su daño AL PONERLA (un tic de DoT no pasa por el saco aditivo).
+//  · «Pasar» una quemadura copia lo que le queda: la mitad del daño y del tiempo; con Brasa Errante,
+//    entera (y a 1–2 enemigos más). Brasa Viva copia (no quita) cada segundo.
+//  · «Estallar» las quemaduras (Corazón del Sol 1) hace el % de lo que les queda SIN gastarlas.
+//  · «Explosiones» (Corazón del Sol 4): cada estallido de Bola o Meteoro que golpea (uno por instante),
+//    el segundo del Cráter, cada meteorito de Estrellas Fugaces y cada estallido de Ignición Total.
+//  · Pira (s7) usa su propio campo con el 40 % del arma por segundo (el `zone` genérico hace el 45 %
+//    del golpe del Meteoro, que no es lo que dice el nodo).
+//  · Congelar (Crionte): un enemigo que pasa a Congelado desde el último sondeo (10 Hz, todas las
+//    fuentes). Los jefes no se congelan: llenar sus capas es «congelar a un jefe» (Aterido).
+//  · «Hacer añicos» (Ruptura, Esquirlas, Cero Absoluto) = la Lanza de Hielo golpea a un Congelado
+//    (no jefe) con Ruptura: le quita la congelación y deja 3 capas.
+//  · Astillas (i12) es un poder y no tv.critFrostCdr: el nodo nombra solo la Lanza y la Prisión.
+//  · Prisión Profunda (i8B): la Prisión no atrapa en su área; atrapa 3 s al enemigo de la mira (o al
+//    más cercano a 8 m) con un golpe real de la Prisión al 180 %.
+//  · Ventisca Viva y Remolino lanzan la Nova de Hielo real como repetición (a tus pies).
+//  · Doble Grieta (a21): el motor no deja lanzar mientras canalizas; el poder está listo para cuando
+//    la cola W2 lo permita (petición en el informe de KT-maga).
+//  · Inercia (a12) cuenta los rebotes por el ritmo del Orbe del catálogo (un tramo = alcance / velocidad).
+//  · «Críticos de Hielo +X %» (Cero Absoluto) va al saco de crítico (stats.critDmg): el saco no
+//    distingue elemento y la Crionte golpea casi todo con Hielo.
 //
 // REGLAS: sin `powers.has(` fuera de js/powers*.js (aquí: hasPower), sin setTimeout
 // (g.timers.schedule), sin Math.random en la simulación (p.combatRng). Daño de un poder:
 // dealProcDamage. Control: e.applyCC. Curas: p.sustain / g.shield; restauraciones p.setHp.
+// Enfriamientos: solo g.reduceCooldown (Infinity = reinicio).
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { rankBuff } from './combat-math.js';
-import { gainGauge, gaugeValue, touchGauge } from './spec-mechanics.js';
+import { gainGauge, setGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
+import { drainResource } from './resources.js';
+import { magaStorm } from './skills-maga.js';
 
 // ------------------------------------------------------------
-// CONSTANTES (perezosas: nada se evalúa al cargar el módulo)
+// CONSTANTES (perezosas: nada se evalúa al cargar el módulo). Los números que enseña la barra
+// de mecánica viven en js/mech-maga.js (gaugeTuning) y se leen de ahí: una sola fuente.
 // ------------------------------------------------------------
 // eslint-disable-next-line no-var
 var TUNE;
 export function magaTuning() {
   return TUNE || (TUNE = Object.freeze({
-    burnFrac: 0.6, burnT: 4, burnStacks: 3,             // Ignición: 60 % del golpe en 4 s (s6B: 3 pilas)
-    detonatePct: 60, detonateBig: 100, avivadaCalor: 25, // Llamarada / Llamarada Avivada
-    propagateN: 2, propagateR: 5,                        // Propagación
-    coreFrac: 0.3, coreR: 2.5, novaEvery: 20,            // Corazón del Sol / Nova Solar
-    fenixCd: 120, fenixHp: 0.5, fenixInvuln: 1,          // Fénix
-    slowEvery: 8, slowPct: 50, slowT: 4,                 // Ralentizar (c10A)
     rewindT: 5, rewindEvery: 0.25, rewindKeep: 40,       // Inversión del Tiempo
-    prisonLayers: 5, prisonFreeze: 2, prisonFreezeBig: 3, prisonStagger: 20, prisonStaggerBig: 35, numbT: 4,
-    novaPush: 3, frostArmorLayers: 1, iceTombT: 4, iceTombR: 1.2, chainLayers: 2, chainR: 4, iceAgeEvery: 15,
-    numbExtra: 0.15, winterT: 6, winterSlow: 50,
-    orbCap: 2, chainCritN: 3, chainCritFrac: 1.5, chainCritR: 6, chainCritSolo: 0, singPct: 15, singT: 6, singMax: 2,
-    misilesChargeEvery: 2,                               // Misiles Arcanos: 1 Carga cada 2 misiles (Paso 2e)
-    resonanceCrit: 12, sealR: 3,
     // ---- árbol de CLASE 2g (§4) ----
     barrierPct: 60, barrierT: 8,                         // Barrera de Maná si el catálogo no trae sus números
     certeroEvery: 4,                                     // c5A Dardo Certero
     sifonMana: 6, sifonCdr: 1,                           // c5B Dardo Sifón
     fugazSpd: 30, fugazT: 3,                             // c7 Paso Fugaz
     novaFreezeT: 1, novaFreezeEvery: 8, cortanteSlow: 1, // c9 Nova Congelante / Cortante
+    slowEvery: 8, slowPct: 50, slowT: 4,                 // c10A Ralentizar
     disrupEvery: 10, disrupT: 3,                         // c10B Disrupción
     aguanteCd: 120,                                      // c11B Aguante Arcano
     runaR: 2, runaT: 3, runaSlowPct: 50,                 // c14A Runa de Escarcha
@@ -172,56 +156,90 @@ export function magaTuning() {
     runaEvery: 3, runaVida: 8, runaRad: 1, runaDist: 1.8, selloNear: 5, selloR: 3.5, selloT: 8,
     selloDmg: 15, selloDr: 10, runaElemSlowPct: 30, runaBurnCoef: 0.4, runaBurnT: 4,
     palimpsestoR: 1.2, grimorioEvery: 30, grimorioT: 10, grimorioCopy: 40,
+    // ---- PIROMANTE 2g (§5.0) ----
+    burnFrac: 0.6, burnT: 4, bolaPiro: 3.5,              // s0 Ignición: 60 % del golpe en 4 s · Bola 100 → 350 %
+    burnStacks: 3, incendioStacks: 5,                    // s8B Brasa Profunda · s25 Incendio Forestal
+    volatilRadius: 2,                                    // s6 Combustible Volátil: la Bola explota en el doble (2 → 4 m)
+    piraCoef: 0.4, piraBase: 1,                          // s7 Pira: 40 % por segundo durante 1 + rango s
+    propagateN: 2, propagateR: 5, passKeep: 0.5,         // s8A Propagación · lo que conserva una quemadura que pasa
+    vorazN: 3, vorazCdr: 4,                              // s9B Llamarada Voraz (el Calor por enemigo: mech)
+    gemeloEvery: 3,                                      // s10A Meteoro Gemelo
+    concPct: 50,                                         // s10B Meteoro Concentrado
+    sismicoStagger: 20,                                  // s14 Impacto Sísmico (jefes)
+    fenixCd: 120, fenixHp: 0.5, fenixInvuln: 1,          // s15A Fénix
+    escudoLlamasDr: 10, escudoLlamasCoef: 1,             // s15B Escudo de Llamas (quemadura de un golpe del arma)
+    braseroCalor: 50, braseroBurn: 15, braseroBurnRank: 10, braseroMeteo: 10, braseroMeteoRank: 5,   // s16
+    estrellasCoef: 0.4, estrellasT: 3, estrellasR: 1.5, estrellasArea: 8,   // s17 Estrellas Fugaces (1 + 2 × rango)
+    vivaEvery: 1, vivaR: 2, vivaBase: 10, vivaRank: 10,  // s22 Brasa Viva
+    craterT: 4, craterBase: 10, craterRank: 5,           // s24 Cráter
+    incendioR: 4,                                        // s25 Incendio Forestal
+    lluviaEcho: 0.6, lluviaHits: 3, lluviaGap: 0.35,     // s27 Lluvia de Fuego (cae 3 veces: 100/60/60 %)
+    coreR: 8, corePct: 50, coreEvery: 20,                // s28 Corazón del Sol (rangos 1 y 4)
+    // ---- CRIONTE 2g (§5.2) ----
+    filoCrit: 5, pielDr: 15,                             // i2 Filo Helado (por rango) · i15A Piel de Invierno
+    quebradizoPct: 20,                                   // i5 Hielo Quebradizo
+    creceStep: 10,                                       // i7 Tormenta Creciente: +10 % de radio por segundo
+    profundaFreeze: 3, profundaPct: 80, profundaR: 8,    // i8B Prisión Profunda
+    lanzaInvierno: 4,                                    // i9B Lanza del Invierno: ×4 a Congelados y Ateridos
+    ventiscaEvery: 2,                                    // i10A Ventisca Viva
+    frioSostenido: 60,                                   // i10B Frío Sostenido
+    astillasCdr: 0.5,                                    // i12 Astillas (s por rango)
+    sueloT: 4, sueloSlowPct: 40,                         // i14 Suelo Helado (1 capa por segundo)
+    cristalShieldPct: 5, cristalShieldCd: 3, cristalShieldR: 4, cristalShieldT: 6,   // i15B Cristal Protector
+    inviernoPct: 5, inviernoR: 10, inviernoMax: 5,       // i16 Invierno Profundo (por rango y Congelado)
+    remolinoPct: 50,                                     // i17 Remolino (por rango)
+    cadenaR: 4,                                          // i18 Congelación en Cadena (1 por rango)
+    rupturaPct: 25, rupturaLayers: 3,                    // i19 Ruptura
+    ojoCoef: 2, ojoLayers: 3,                            // i21 Ojo Frío
+    glaciarR: 3,                                         // i22 Glaciar (capas = rango)
+    esquirlasN: 4, esquirlasBase: 20, esquirlasRank: 10, esquirlasR: 4,   // i23 Esquirlas
+    perpetuaStep: 0.5, perpetuaMax: 6,                   // i24 Tormenta Perpetua (s por rango, tope)
+    eraR: 5, eraCd: 6,                                   // i25 Era Glacial
+    ceroCoef: 3,                                         // i26 Cero Absoluto: 300 % del arma extra
+    eternoMax: 20,                                       // i27 Invierno Eterno
+    corazonStagger: 20, corazonMana: 10, corazonEvery: 15,   // i28 Corazón del Invierno
+    // ---- ARCANISTA 2g (§5.3) ----
+    grietaCoef: 0.4, grietaBase: 1, grietaRad: 1.6,      // a7 Grieta Abierta (1 + rango s)
+    dobleNeed: 4, dobleCopy: 0.5,                        // a8A Rayo Doble
+    recargadoMax: 2,                                     // a8B Rayo Recargado
+    orbeCargadoPct: 20,                                  // a9A Orbe Cargado (por Carga)
+    atraeR: 3,                                           // a9B Orbe Atrayente
+    fijoPct: 8, fijoMax: 6,                              // a10A Desgarro Fijo (+8 % por medio segundo, hasta +48 %)
+    vorazMana: 3, vorazEvery: 1,                         // a10B Desgarro Voraz
+    inerciaCdr: 0.5,                                     // a12 Inercia (s por rango)
+    inagotablePct: 2,                                    // a14 Maná Inagotable (% del maná por segundo)
+    desplazaPct: 20, desplazaDist: 5, desplazaCd: 30,    // a15A Desplazamiento
+    cargaFinalNeed: 4,                                   // a18 Carga Final
+    sateliteEvery: 3, sateliteT: 6, satelitePct: 20, sateliteR: 0.9, sateliteOrbit: 1.8, sateliteHitCd: 0.5,   // a19
+    multipleEvery: 3, multipleCopy: 0.4, multipleSpread: 0.35,   // a23 Orbe Múltiple
+    fuenteEvery: 1, fuentePct: 5, fuenteMax: 3,          // a24 Fuente de Maná
+    tormentaNeed: 4, tormentaCopy: 0.5, tormentaGap: 0.75,   // a25 Tormenta de Cargas (3 veces en 1,5 s)
+    constelT: 8, constelMax: 3, constelEvery: 1, constelCoef: 0.4, constelOrbit: 2.2, constelRange: 10,   // a26
+    eternaDrain: 3,                                      // a27 Grieta Eterna (% del maná por segundo)
+    singGrietaT: 3, singGrietaCoef: 0.5, singElite: 4, singEvery: 20, singT: 2, singTicks: 4,   // a28
   }));
 }
+// números de la barra de mecánica (js/mech-maga.js): una sola fuente para el juego y la UI
+function TG() { return gaugeTuning(); }
 
 // ------------------------------------------------------------
 // helpers (todas `function`: se elevan, seguras con el ciclo de módulos)
 // ------------------------------------------------------------
 function isBoss(e) { return !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss); }
+function isElite(e) { return !!(e?.def?.rank || isBoss(e)); }
 function now(p) { return p?.simT || 0; }
 function rng(p) { return typeof p?.combatRng === 'function' ? p.combatRng() : 0.5; }
 function dist2(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return dx * dx + dz * dz; }
 function alivesNear(g, pos, r, not = null) {
   return (g?.enemies || []).filter(o => o.alive && o !== not && dist2(o.pos, pos) <= r * r);
 }
-// vector de THREE a partir de uno existente (este módulo no importa THREE)
-function at(ref, x, z, y = 0) { const v = ref.clone(); v.x = x; v.y = y; v.z = z; return v; }
+// vector de THREE a partir de uno existente (las posiciones de los campos son objetos planos)
+function at(ref, x, z, y = 0) { const v = ref.clone ? ref.clone() : new THREE.Vector3(); v.x = x; v.y = y; v.z = z; return v; }
 function fx(g, preset, pos, y = 1.0) { if (preset && pos) { try { g.emitFx?.(preset, at(pos, pos.x, pos.z, y)); } catch { /* headless */ } } }
 function ring(g, pos, r, color) { try { g.spawnRing?.(at(pos, pos.x, pos.z, 0), r, color); } catch { /* headless */ } }
+function beam(g, a, b, color, t = 0.2) { try { g.spawnBeam?.(at(a, a.x, a.z, 1), at(b, b.x, b.z, 1), color, t); } catch { /* headless */ } }
 function text(g, e, s, cls = 'txt-crit') { try { g.ui?.spawnText?.(at(e.pos, e.pos.x, e.pos.z, (e.def?.scale || 1) + 0.7), s, cls); } catch { /* */ } }
 function invalidate(p, id = null) { if (!p) return; if (id) { if (p.resolved) delete p.resolved[id]; } else p.resolved = {}; }
-
-// ---- Quemaduras (DoT del planificador, fuentes `<origen>:burn`; API del núcleo, sin e._dots) ----
-// aplica una quemadura de `total` en `ticks` s con la fuente `key`, SIN apilar: la nueva
-// SUSTITUYE a la anterior de esa fuente (g.replaceDoT: lo que le quedaba se pierde).
-// Apilar es lo que da s6B Concentración (fuentes distintas).
-function applyBurnTotal(g, e, total, ticks, key) {
-  if (!e?.alive || !(total > 0) || !g?.replaceDoT) return 0;
-  g.replaceDoT(e, Math.max(1, total), ticks, 1, key);
-  return total;
-}
-// Ignición (Piromante s0): 60 % del golpe en 4 s (+burnDur/dotDur s, × burnPct/dotPct)
-function burnProfile(p, base) {
-  const T = magaTuning(), tv = p?.tv || {};
-  const ticks = T.burnT + Math.max(0, Math.round((tv.burnDur || 0) + (tv.dotDur || 0)));
-  const per = base * T.burnFrac / T.burnT * Math.max(0, 1 + ((tv.burnPct || 0) + (tv.dotPct || 0)) / 100);
-  return { ticks, total: per * ticks };
-}
-function ignite(g, p, e, base) {
-  if (!e?.alive || !(base > 0)) return 0;
-  const { ticks, total } = burnProfile(p, base);
-  if (!hasPower(p, 'p_acumular')) return applyBurnTotal(g, e, total, ticks, 'p_ignicion:burn');
-  // Concentración (s6B): hasta 3 pilas; la nueva ocupa una libre o la más débil
-  const keys = ['p_ignicion:burn', 'p_ignicion#2:burn', 'p_ignicion#3:burn'].slice(0, magaTuning().burnStacks);
-  let best = keys[0], bv = Infinity;
-  for (const k of keys) {
-    const v = g.dotRemaining?.(e, k) || 0;
-    if (v < bv) { bv = v; best = k; }
-  }
-  return applyBurnTotal(g, e, total, ticks, best);
-}
-function combustionOn(p) { return !!p?.buffs?.some(b => b.id === 'p_combustion' && b.t > 0); }
 
 // ---- utilidades de lanzamiento ----
 // grupo más numeroso (centro en el enemigo con más vecinos a r)
@@ -234,20 +252,24 @@ function densest(g, r = 4) {
   }
   return best;
 }
-// lanza una habilidad «sola y gratis» (Nova Solar, Edad de Hielo) por el canal real como
-// ECO a potencia completa (sin coste, sin enfriamiento, sin preparación) hacia `pos`. Si
-// no está en la barra, toma prestada su ranura un instante.
-function autoCast(g, p, skillId, pos) {
+// lanza una habilidad «sola y gratis» por el canal real como REPETICIÓN (mult × su potencia, sin
+// coste, sin enfriamiento, sin preparación) hacia `pos`. Si no está en la barra, toma prestada su
+// ranura un instante. Una repetición no dispara ⑦ ni genera otra repetición. No repite un
+// lanzamiento tuyo: abre su PROPIA serie de repeticiones (el tope echoCap cuenta por lanzamiento
+// original; la Nova de la Ventisca cada 2 s no gasta el de tu última Nova)
+function autoCast(g, p, skillId, pos, mult = 1) {
   const sk = p?.cls?.skills?.find(s => s.id === skillId);
   if (!sk || !g?.castSkillSlot || !p.hotbar) return false;
+  const ss = p.skState?.[skillId];
+  if (ss?.echo) ss.echo = { seq: (ss.echo.seq || 0) + 1, n: 0 };
   let slot = Object.keys(p.hotbar).find(k => p.hotbar[k] === skillId);
   let borrowed = false, prev = null;
   if (!slot) { slot = (sk.slots || []).find(s => s !== 'lmb') || 'k4'; prev = p.hotbar[slot]; p.hotbar[slot] = skillId; borrowed = true; }
   const inp = g.input;
   const mw = inp ? inp.mouseWorld : null;
-  if (inp && pos) inp.mouseWorld = at(pos, pos.x, pos.z, 0);
+  if (inp && pos) inp.mouseWorld = at(p.pos, pos.x, pos.z, 0);
   let ok = false;
-  try { ok = !!g.castSkillSlot(slot, 1); }
+  try { ok = !!g.castSkillSlot(slot, mult); }
   catch (err) { try { console.warn(`[maga] autoCast ${skillId}`, err); } catch { /* */ } }
   finally {
     if (borrowed) p.hotbar[slot] = prev;
@@ -255,37 +277,28 @@ function autoCast(g, p, skillId, pos) {
   }
   return ok;
 }
-function scheduleAutoCast(g, p, skillId, fallbackPos) {
+// la definitiva o habilidad que se lanza «sola» un instante después, sobre el grupo más numeroso
+function scheduleAutoCast(g, p, skillId, fallbackPos, label) {
   g?.timers?.schedule?.(0.05, () => {
     if (!p.alive || g.player !== p) return;
     const e = densest(g) || null;
     const pos = e ? e.pos : fallbackPos;
-    if (pos && autoCast(g, p, skillId, pos)) text(g, e || p, skillId === 'k_prision' ? '¡EDAD DE HIELO!' : '¡NOVA SOLAR!');
+    if (pos && autoCast(g, p, skillId, pos) && label) text(g, e || p, label);
   });
 }
-
-// ---- Escarcha: astillamientos (Reacción Glacial s14 · Edad de Hielo x3) ----
-// cada efecto es de SU poder: s14 suma capas alrededor, x3 cuenta astillamientos
-function shatterChain(g, p, e) {
-  const T = magaTuning();
-  for (const o of alivesNear(g, e.pos, T.chainR, e)) gainGauge(p, 'escarcha', T.chainLayers, o);
-  ring(g, e.pos, T.chainR, 0xbfeaff);
+// repite el lanzamiento `cast` (su ranura) tras `delay` s, apuntando a `pos` si se da (mismo sitio)
+function echoAt(g, p, cast, mult, delay, pos = null) {
+  const slot = cast?.slot, id = cast?.sk?.id;
+  if (!slot || !id || !(mult > 0) || !g?.timers) return;
+  const aim = pos ? { x: pos.x, z: pos.z } : null;
+  g.timers.schedule(delay, () => {
+    if (!p.alive || g.player !== p || p.hotbar?.[slot] !== id) return;
+    const inp = g.input, mw = inp ? inp.mouseWorld : null;
+    if (inp && aim) inp.mouseWorld = at(p.pos, aim.x, aim.z, 0);
+    try { g.castSkillSlot?.(slot, mult); }
+    finally { if (inp && aim) inp.mouseWorld = mw; }
+  });
 }
-function iceAgeCount(g, p, e) {
-  const T = magaTuning();
-  const st = powerState(p, 'k_ice_age');
-  st.n = (st.n || 0) + 1;
-  if (st.n >= T.iceAgeEvery) { st.n = 0; scheduleAutoCast(g, p, 'k_prision', e.pos); }
-}
-// un astillamiento fuera de Cero Absoluto (estallido de la Lanza de Hielo): avisa a los
-// poderes de astillamiento que tenga el héroe
-function shatterEvent(g, p, e) {
-  if (hasPower(p, 'k_shatter_chain')) shatterChain(g, p, e);
-  if (hasPower(p, 'k_ice_age')) iceAgeCount(g, p, e);
-}
-// astillamiento de Cero Absoluto (m_shatter, powers-common): su proc mata con source
-// 'power:m_shatter' (cada poder de astillamiento lo detecta en su propio onHit)
-function isShatterKill(e, hit) { return hit?.source === 'power:m_shatter' && !e?.alive; }
 
 // ---- Inversión del Tiempo: historial de vida/posición ----
 // lo graba el passiveTick del comportamiento m_t_inversion (10 Hz mientras CONOCES la
@@ -307,21 +320,179 @@ function recordRewind(g, p, dt) {
   while (R.hist.length > T.rewindKeep) R.hist.shift();
 }
 
-// ---- Corazón del Sol: explosión al terminar una quemadura ----
-function solarBurst(g, p, e, amount) {
+// ============================================================
+// Paso 2g · helpers de las ESPECIALIZACIONES
+// ============================================================
+// ---- Piromante: quemaduras (DoT del planificador, fuentes `p_ignicion[#n]:burn`; API del núcleo) ----
+// huecos de quemadura por enemigo: 1; 3 con Brasa Profunda (s8B); 5 con Incendio Forestal (s25)
+function burnKeys(p) {
   const T = magaTuning();
-  if (!(amount > 0)) return;
-  ring(g, e.pos, T.coreR, 0xffa040);
-  fx(g, 'fireballBlast', e.pos, 0.6);
-  for (const o of alivesNear(g, e.pos, T.coreR + 0.5 * (e.def?.scale || 1)))
-    dealProcDamage(g, o, amount, { source: 'power:p_corazon_sol', elem: 'fire', tags: new Set(['area', 'fire']) });
-  e.pyroBurst = true;                                    // Sol Naciente (x2): «ya estallaron»
-  if (hasPower(p, 'p_nova_solar')) solarCount(g, p, e.pos);
+  const n = hasPower(p, 'p_incendio') ? T.incendioStacks : hasPower(p, 'p_acumular') ? T.burnStacks : 1;
+  const out = [];
+  for (let i = 1; i <= n; i++) out.push(i === 1 ? 'p_ignicion:burn' : `p_ignicion#${i}:burn`);
+  return out;
 }
-function solarCount(g, p, pos) {
-  const st = powerState(p, 'p_nova_solar');
-  st.n = (st.n || 0) + 1;
-  if (st.n >= magaTuning().novaEvery) { st.n = 0; scheduleAutoCast(g, p, 'm_u_supernova', pos); }
+// +% de una quemadura AL PONERLA: Llama Persistente e Incendio (tv.burnPct, también dotPct) y
+// Brasero (s16: con más de 50 de Calor)
+function burnBonus(p) {
+  const T = magaTuning(), tv = p?.tv || {};
+  let add = (tv.burnPct || 0) + (tv.dotPct || 0);
+  if (hasPower(p, 'p_brasero') && gaugeValue(p, 'calor') > T.braseroCalor) add += T.braseroBurn + T.braseroBurnRank * rankOf(p, 'p_brasero');
+  return add;
+}
+// Ignición (s0): 60 % del golpe en 4 s (+burnDur/dotDur s), con su bono
+function burnProfile(p, base) {
+  const T = magaTuning(), tv = p?.tv || {};
+  const ticks = T.burnT + Math.max(0, Math.round((tv.burnDur || 0) + (tv.dotDur || 0)));
+  const per = base * T.burnFrac / T.burnT * Math.max(0, 1 + burnBonus(p) / 100);
+  return { ticks, total: per * ticks };
+}
+// pone `total` en `ticks` s en el hueco libre o en el de la más débil, que se pierde; si todas
+// son más fuertes que la nueva, no cambia nada (un golpe flojo no apaga una quemadura grande)
+function putBurn(g, p, e, total, ticks) {
+  if (!e?.alive || !(total > 0) || !g?.replaceDoT) return 0;
+  let best = null, bv = Infinity;
+  for (const k of burnKeys(p)) {
+    const v = g.dotRemaining?.(e, k) || 0;
+    if (v < bv) { bv = v; best = k; }
+    if (!(v > 0)) break;
+  }
+  if (bv > 0 && total <= bv) return 0;
+  g.replaceDoT(e, Math.max(1, total), Math.max(1, Math.round(ticks)), 1, best);
+  return total;
+}
+function ignite(g, p, e, base) {
+  if (!e?.alive || !(base > 0)) return 0;
+  const { ticks, total } = burnProfile(p, base);
+  return putBurn(g, p, e, total, ticks);
+}
+// pasa las quemaduras de `from` a `to` (Propagación, Incendio Forestal): copia `frac` de lo que le
+// queda a cada una; sin Brasa Errante (s18) pierden la mitad del daño y del tiempo. `whole`: copia
+// sin esa pérdida (Brasa Viva ya dice cuánto pasa)
+function passBurns(g, p, from, to, frac = 1, whole = false) {
+  if (!to?.alive || to === from) return 0;
+  const keep = whole || hasPower(p, 'p_brasa_errante') ? 1 : magaTuning().passKeep;
+  let n = 0;
+  for (const d of g?.dotsOf?.(from, 'burn') || []) {
+    const total = d.remaining * frac * keep;
+    if (!(total >= 1)) continue;
+    putBurn(g, p, to, total, Math.max(1, Math.round(d.left * keep)));
+    n++;
+  }
+  if (n) beam(g, from.pos, to.pos, 0xff7722, 0.2);
+  return n;
+}
+// cuántos enemigos más reciben una quemadura que pasa (Brasa Errante: 1 por rango)
+function passExtra(p) { return hasPower(p, 'p_brasa_errante') ? rankOf(p, 'p_brasa_errante') : 0; }
+function combustionBuff(p) { return (p?.buffs || []).find(b => b.id === 'p_combustion' && b.t > 0) || null; }
+// cuenta una explosión (Corazón del Sol, rango 4): cada 20, Supernova sola y gratis
+function countExplosion(g, p, pos) {
+  if (!hasPower(p, 'p_corazon_sol') || rankOf(p, 'p_corazon_sol') < 4) return;
+  const st = powerState(p, 'p_corazon_sol');
+  st.boom = (st.boom || 0) + 1;
+  if (st.boom >= magaTuning().coreEvery) { st.boom = 0; scheduleAutoCast(g, p, 'm_u_supernova', pos, '¡Supernova!'); }
+}
+// ¿dentro de un Cráter tuyo? (s24)
+function inCrater(g, p, pos) { return (g?.fieldsOf?.(p, { kind: 'p_crater' }) || []).some(f => f.t > 0 && insideR(pos, f.pos, f.radius)); }
+
+// ---- Crionte: congelaciones y Tormenta Glacial ----
+// enemigos que pasaron a Congelados desde el último sondeo (10 Hz, todas las fuentes). Un solo barrido
+// por instante y héroe: los poderes que reaccionan «al congelar» lo comparten
+function freezesNow(g, p) {
+  const F = p._mgFrz || (p._mgFrz = { t: -1, list: [], on: new WeakSet() });
+  if (F.t === now(p)) return F.list;
+  F.t = now(p);
+  F.list = [];
+  for (const e of g?.enemies || []) {
+    if (!e.alive) { F.on.delete(e); continue; }
+    if ((e.frozenT || 0) > 0) { if (!F.on.has(e)) { F.on.add(e); F.list.push(e); } }
+    else F.on.delete(e);
+  }
+  return F.list;
+}
+function layersOf(p, e) { return e?.alive ? gaugeValue(p, 'escarcha', e) : 0; }
+function frozen(e) { return !!e?.alive && (e.frozenT || 0) > 0; }
+function freezeBase() { return TG().escarcha.freezeT; }
+// quita la congelación (Ruptura): solo la parte del aturdimiento que era hielo. No hay primitiva
+// del núcleo para quitar un control (petición en la cola W2: Enemy.clearCC('freeze'))
+function thaw(e) {
+  const f = e?.frozenT || 0;
+  if (!(f > 0)) return;
+  e.stunT = Math.max(0, (e.stunT || 0) - f);
+  e.frozenT = 0;
+}
+// Corazón del Invierno (rango 4): cada 15 congelaciones, la Tormenta Glacial sola y gratis
+function countFreezes(g, p, k) {
+  if (!(k > 0) || rankOf(p, 'k_corazon_invierno') < 4) return;
+  const st = powerState(p, 'k_corazon_invierno');
+  st.n = (st.n || 0) + k;
+  if (st.n < magaTuning().corazonEvery) return;
+  st.n -= magaTuning().corazonEvery;
+  scheduleAutoCast(g, p, 'm_u_tormenta', p.pos, '¡Tormenta!');
+}
+// la Tormenta Glacial activa (comportamiento del catálogo) y su seguimiento por poder
+function stormOf(p) { return magaStorm(p); }
+function stormTrack(p, id) {
+  const st = powerState(p, id);
+  const s = stormOf(p);
+  if (s && st.inst !== s) { st.inst = s; st.t0 = now(p); st.base = s.radius; st.ext = 0; st.acc = 0; }
+  return s;
+}
+
+// ---- Arcanista: Cargas, Sello, canal ----
+function charges(p) { return Math.floor(gaugeValue(p, 'cargas')); }
+// ¿dentro de tu Sello del Archimago? (aura genérica del catálogo: buffId = id de la habilidad)
+function sealOf(g, p) { return (g?.fieldsOf?.(p, { kind: 'aura' }) || []).filter(f => f.data?.buffId === 'a_sello' && f.t > 0); }
+function inOwnSeal(g, p) { return sealOf(g, p).some(f => insideR(p.pos, f.pos, f.radius)); }
+// canalización en curso del héroe (y de qué habilidad)
+function channelOf(g, p, id = null) {
+  const c = g?._channel;
+  if (!c || c.ctx?.p !== p) return null;
+  return !id || c.ctx?.sk?.id === id ? c : null;
+}
+// grieta arcana en el suelo (Grieta Abierta, Doble Grieta, Singularidad): `coef` del arma por segundo
+function openRift(g, p, pos, dur, coef) {
+  if (!pos || !(dur > 0)) return null;
+  return g.spawnField?.('a_grieta', { pos, radius: magaTuning().grietaRad, dur, owner: p,
+    data: { dps: p.avgHit(coef, p.resolved?.m_u_desgarro?.addPct || 0), skill: 'm_u_desgarro' } }) || null;
+}
+// Cargas que gastó el último Rayo (las anota el indicador, js/mech-maga.js, en su ③ afterCast: los
+// poderes que leen esto van con prioridad −1, después de él)
+function spentCharges(p) { return gaugeState(p, 'cargas')?.spent || 0; }
+// repetición del Rayo con las Cargas del original (Rayo Doble, Tormenta de Cargas): el Rayo es
+// instantáneo, así que su golpe lee echoN (indicador) mientras dura la llamada
+function rayoEcho(g, p, cast, mult, delay, n) {
+  const slot = cast?.slot;
+  if (!slot || !(mult > 0) || !g?.timers) return;
+  g.timers.schedule(delay, () => {
+    if (!p.alive || g.player !== p || p.hotbar?.[slot] !== 'rayo') return;
+    const st = gaugeState(p, 'cargas');
+    if (st) st.echoN = n;
+    try { g.castSkillSlot?.(slot, mult); } finally { if (st) st.echoN = null; }
+  });
+}
+// Singularidad (rango 4): un Desgarro propio de 2 s (4 golpes reales al objetivo más cercano)
+function singularBeam(g, p) {
+  const T = magaTuning();
+  const def = forgedOf(p, 'm_u_desgarro');
+  const range = def?.range || 10, gap = T.singT / T.singTicks;
+  let tgt = null;
+  for (let i = 1; i <= T.singTicks; i++) {
+    g.timers.schedule(gap * i, () => {
+      if (!p.alive || g.player !== p) return;
+      if (!tgt?.alive || !insideR(tgt.pos, p.pos, range + 1)) tgt = alivesNear(g, p.pos, range).sort(byDist(p.pos))[0] || null;
+      if (!tgt) return;
+      strikeAs(p, tgt, 'm_u_desgarro', def?.coef || 1.2, p.resolved?.m_u_desgarro?.addPct || 0);
+      beam(g, p.pos, tgt.pos, def?.color || 0xd28cff, gap);
+    });
+  }
+  text(g, p, '¡Singularidad!');
+}
+// golpe REAL de una habilidad desde un poder (Singularidad 4: cuenta como el Desgarro)
+function strikeAs(p, e, skillId, coef, addPct = 0, extra = {}) {
+  const tags = new Set(['arcane', ...(extra.tags || [])]);
+  const { dmg, crit } = p.rollDamage(coef, 0, addPct, e, { skill: skillId, tags, elem: 'arcane' });
+  return e.takeDamage(dmg, crit, { skill: skillId, tags, elem: 'arcane', echo: true }) || 0;
 }
 
 // ============================================================
@@ -400,8 +571,8 @@ function decal(g, f, { color, opacity = 0.35, disc = false, inner = 0.82 } = {})
 }
 
 // ---- Barrera de Maná (base del kit; la usan c4, c11B, c18, c19, c25 y c28) ----
-// su escudo se reconoce por la fuente: m_barrera (2g) o m_t_barrera (la activa vieja)
-function isBarrierSrc(src) { return src === 'm_barrera' || src === 'm_t_barrera'; }
+// su escudo se reconoce por la fuente: m_barrera (el comportamiento del catálogo y putBarrier)
+function isBarrierSrc(src) { return src === 'm_barrera'; }
 function barrierShield(p) { return (p?.shields || []).find(s => isBarrierSrc(s.src) && s.amt > 0 && s.t > 0) || null; }
 // lo que absorbe una Barrera nueva: % del maná máximo × potencia (rango y c18 Barrera Reforzada)
 function barrierAmount(p) {
@@ -891,6 +1062,8 @@ export function magaPowers() {
     // de tu vida (hasta lo que absorbía al ponerla)
     m_barrera_resonante: {
       name: 'Barrera Resonante', desc: 'Con la Barrera puesta, cada Dardo Arcano te da 2 de maná y la recarga un 2 % de tu vida.',
+      // la Barrera del catálogo no guarda su máximo: se anota al ponerla
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'm_barrera') { const s = barrierShield(p); if (s) s.max = s.amt; } },
       onHit(g, p, e, hit) {
         if (hit?.skill !== 'm_dardo' || hit.proc || hit.dot) return;
         const s = barrierShield(p);
@@ -960,6 +1133,13 @@ export function magaPowers() {
       modifyResolve(p, sk, prof) {
         if (!(prof.cost > 0) || !barrierShield(p)) return;
         prof.cost *= Math.max(0, 1 - T.bastionCoste * rankOf(p, 'm_bastion') / 100);
+      },
+      // la Barrera que lanzas tampoco caduca (el comportamiento del catálogo le pone su duración)
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_barrera') return;
+        const s = barrierShield(p);
+        if (s) s.t = T.bastionDur;
+        bastionWatch(g, p, false);
       },
       onDamaged(g, p) { bastionWatch(g, p, false); },
       onTick(g, p) { bastionWatch(g, p, true); },
@@ -1176,49 +1356,118 @@ export function magaPowers() {
       },
     },
 
-    // ---------------------------------------------------- PIROMANTE
-    // s0 Ignición: los golpes de Fuego aplican Quemadura (60 % del golpe en 4 s). Solo eso:
-    // s5/s8/s12/s15/x2 son claves tv del núcleo y s16 la lee el comportamiento de Supernova
+    // ---------------------------------------------------- PIROMANTE 2g (§5.0 y Anexo A.7)
+    // s0 Ignición (clave): tus golpes de Fuego queman (60 % del golpe en 4 s) y la explosión de la
+    // Bola de Fuego pasa del 100 % al 350 % (su innata: con otra especialización vuelve al 100 %)
     p_ignicion: {
-      name: 'Ignición', desc: 'Tus golpes de Fuego aplican Quemadura: el 60 % del golpe en 4 s.',
+      name: 'Ignición', desc: 'Tus golpes de Fuego queman (un 60 % extra del golpe en 4 s) y la Bola de Fuego explota al 350 %.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'bola_fuego' && prof.splash > 0) prof.splash *= T.bolaPiro; },
       onHit(g, p, e, hit) {
-        if (hit?.proc || hit?.dot || hit?.elem !== 'fire') return;
-        if (e?.alive) ignite(g, p, e, hit.raw || hit.dealt || 0);
+        if (hit?.proc || hit?.dot || hit?.elem !== 'fire' || !e?.alive) return;
+        ignite(g, p, e, hit.raw || hit.dealt || 0);
       },
     },
-    // s4 Llamarada Avivada: detona el 100 % y da 25 de Calor
-    p_llamarada_avivada: {
-      name: 'Llamarada Avivada', desc: 'Llamarada detona el 100 % del daño restante de las Quemaduras y te da 25 de Calor.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'p_llamarada') prof.detonatePct = T.detonateBig; },
-      afterCast(g, p, cast) { if (cast?.sk?.id === 'p_llamarada') gainGauge(p, 'calor', T.avivadaCalor); },
+    // s5 Chispas: un crítico sobre un enemigo que YA se quemaba reinicia sus quemaduras y da Calor
+    // (antes que Ignición: la quemadura que pone este mismo golpe no cuenta)
+    p_chispas: {
+      name: 'Chispas', desc: 'Un crítico sobre un enemigo que se quema reinicia su quemadura y te da 5 de Calor.',
+      priority: 1,
+      onHit(g, p, e, hit) {
+        if (!hit?.crit || hit.proc || hit.dot || !e?.alive) return;
+        const burns = g.dotsOf?.(e, 'burn') || [];
+        if (!burns.length) return;
+        for (const d of burns) g.replaceDoT(e, d.total, d.ticks, 1, d.source);
+        gainGauge(p, 'calor', TG().calor.chispas);
+      },
     },
-    // s6A Propagación: si muere un enemigo en llamas, su Quemadura salta a 2 cercanos
+    // s6 Combustible Volátil: con Ignición Total, la Bola explota al doble de radio y el Meteoro cae ya
+    p_volatil: {
+      name: 'Combustible Volátil', desc: 'Con Ignición Total, la Bola explota en 4 m y el Meteoro cae al instante.',
+      priority: -1,                                         // después del indicador (prof.ignition)
+      modifyResolve(p, sk, prof) {
+        if (!prof.ignition) return;
+        if (sk.id === 'bola_fuego') prof.radius *= T.volatilRadius;
+        if (sk.id === 'meteoro') prof.impactDelay = 0;
+      },
+    },
+    // s7 Pira: el Meteoro deja el suelo ardiendo 1 + rango s (40 % del arma por segundo)
+    p_pira: {
+      name: 'Pira', desc: 'El Meteoro deja el suelo ardiendo unos segundos.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'meteoro' || !cast.target) return;
+        g.spawnField?.('zona', { pos: cast.target, radius: cast.prof?.radius || 3, dur: T.piraBase + rankOf(p, 'p_pira'), owner: p,
+          data: { dps: p.avgHit(T.piraCoef, cast.prof?.addPct || 0), interval: 0.5, color: 0xff5a1f, skill: 'meteoro', tags: new Set(['zone', 'fire']) } });
+      },
+    },
+    // s8A Propagación: al morir quemándose, sus quemaduras pasan a los 2 enemigos más cercanos (5 m)
     p_propagacion: {
-      name: 'Propagación', desc: 'Si muere un enemigo en llamas, su Quemadura salta a 2 enemigos cercanos.',
+      name: 'Propagación', desc: 'Cuando muere un enemigo que se quema, su quemadura pasa a 2 enemigos cercanos.',
       onKill(g, p, e) {
-        const rem = g.dotRemaining?.(e, 'burn') || 0;
-        if (!(rem > 0)) return;
-        const near = alivesNear(g, e.pos, T.propagateR, e).sort((a, b) => dist2(a.pos, e.pos) - dist2(b.pos, e.pos)).slice(0, T.propagateN);
-        for (const o of near) {
-          applyBurnTotal(g, o, rem, T.burnT, 'p_ignicion:burn');
-          try { g.spawnBeam?.(e.pos, o.pos, 0xff7722, 0.2); } catch { /* */ }
-        }
+        if (!(g.dotsOf?.(e, 'burn') || []).length) return;
+        const near = alivesNear(g, e.pos, T.propagateR, e).sort(byDist(e.pos)).slice(0, T.propagateN + passExtra(p));
+        for (const o of near) passBurns(g, p, e, o);
       },
     },
-    // s6B Concentración: la Quemadura se apila hasta 3 veces (la lee ignite)
-    p_acumular: { name: 'Concentración', desc: 'La Quemadura de Ignición se acumula hasta 3 veces sobre el mismo objetivo.' },
-    // s9 Combustión (poder del nodo; la activa homónima es un comportamiento aparte): el
-    // Fuego es siempre crítico mientras dura su buff (addBuff/expirar → recompute invalida).
-    // El Calor doble lo da la stat 'gaugeGain:calor' del propio buff.
-    p_combustion: {
-      name: 'Combustión', desc: 'Mientras dura Combustión, tus hechizos de Fuego son siempre críticos.',
-      modifyResolve(p, sk, prof) { if (prof.elem === 'fire' && combustionOn(p)) prof.forceCrit = true; },
+    // s8B Brasa Profunda: hasta 3 quemaduras tuyas a la vez en el mismo enemigo (las cuenta burnKeys)
+    p_acumular: { name: 'Brasa Profunda', desc: 'Puedes poner hasta 3 quemaduras a la vez en el mismo enemigo.' },
+    // s9A Llamarada Avivada: hace estallar el 100 % y te da 25 de Calor
+    p_llamarada_avivada: {
+      name: 'Llamarada Avivada', desc: 'Llamarada hace estallar el 100 % de las quemaduras y te da 25 de Calor.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'p_llamarada') prof.detonatePct = 100; },
+      afterCast(g, p, cast) { if (cast?.sk?.id === 'p_llamarada') gainGauge(p, 'calor', TG().calor.llamarada); },
     },
-    // s13A Fénix: una vez cada 2 minutos, al morir renaces con el 50 % de vida
+    // s9B Llamarada Voraz: si estalla 3 o más quemaduras, 4 s menos de recarga y 8 de Calor por enemigo.
+    // Cuenta los estallidos (daño de poder `skill:p_llamarada`) de ESE lanzamiento
+    p_llamarada_voraz: {
+      name: 'Llamarada Voraz', desc: 'Si Llamarada hace estallar 3 o más quemaduras, se recarga antes y te da Calor.',
+      procs: true,
+      state: () => ({ n: 0 }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'p_llamarada') powerState(p, 'p_llamarada_voraz').n = 0; },
+      onHit(g, p, e, hit) { if (hit?.proc && hit.source === 'skill:p_llamarada') powerState(p, 'p_llamarada_voraz').n++; },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'p_llamarada') return;
+        const st = powerState(p, 'p_llamarada_voraz');
+        const n = st.n; st.n = 0;
+        if (n < TG().calor.vorazN) return;
+        g.reduceCooldown?.(p, 'p_llamarada', T.vorazCdr);
+        gainGauge(p, 'calor', TG().calor.voraz * n);
+      },
+    },
+    // s10A Meteoro Gemelo: cada 3.er Meteoro cae otra vez en el mismo sitio
+    p_meteoro_gemelo: {
+      name: 'Meteoro Gemelo', desc: 'Cada 3.er Meteoro cae dos veces en el mismo sitio.',
+      state: () => ({ n: 0 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'meteoro') return;
+        const st = powerState(p, 'p_meteoro_gemelo');
+        if (++st.n < T.gemeloEvery) return;
+        st.n = 0;
+        echoAt(g, p, cast, 1, 0.25, cast.target);
+      },
+    },
+    // s10B Meteoro Concentrado: +50 % al enemigo más cercano al centro del impacto
+    p_meteoro_conc: {
+      name: 'Meteoro Concentrado', desc: 'El Meteoro hace +50 % al enemigo más cercano al centro.',
+      state: () => ({ c: null, at: -1, pick: null }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'meteoro' && cast.target) powerState(p, 'p_meteoro_conc').c = { x: cast.target.x, z: cast.target.z }; },
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'meteoro' || !e) return 0;
+        const st = powerState(p, 'p_meteoro_conc');
+        if (!st.c) return 0;
+        if (st.at !== now(p)) { st.at = now(p); st.pick = alivesNear(p.game, st.c, 6).sort(byDist(st.c))[0] || null; }
+        return st.pick === e ? T.concPct : 0;
+      },
+    },
+    // s14 Impacto Sísmico: la ralentización es un mod del nodo; a los jefes, 20 de Quebranto por golpe
+    p_sismico: {
+      name: 'Impacto Sísmico', desc: 'El Meteoro llena 20 de Quebranto a los jefes.',
+      onHit(g, p, e, hit) { if (hit?.skill === 'meteoro' && !hit.proc && !hit.dot && isBoss(e)) e.addStagger?.(T.sismicoStagger, p); },
+    },
+    // s15A Fénix: una vez cada 2 minutos, al morir renaces con la mitad de la vida
     p_fenix: {
-      name: 'Fénix', desc: 'Una vez cada 2 minutos, al morir renaces con el 50 % de vida.',
+      name: 'Fénix', desc: 'Si mueres, renaces con la mitad de la vida. Una vez cada 2 minutos.',
       state: () => ({ readyAt: 0 }),
-      priority: -1,                                           // después de Muro Inquebrantable
+      priority: -1,                                           // después de los que salvan sin coste
       onLethal(g, p) {
         const st = powerState(p, 'p_fenix');
         if (now(p) < st.readyAt) return false;
@@ -1233,181 +1482,837 @@ export function magaPowers() {
         return true;
       },
     },
-    // x1 Corazón del Sol: cuando una Quemadura termina, explota con el 30 % de su daño total (2c.2: era 40)
-    p_corazon_sol: {
-      name: 'Corazón del Sol', desc: 'Cuando una Quemadura termina, explota en área con el 30 % de su daño total.',
-      // ⑬ solo si se agotó SOLA (no consumida por Llamarada, ni sustituida, ni al morir)
-      onDotEnd(g, p, e, dot) { if (dot?.kind === 'burn' && e?.alive) solarBurst(g, p, e, (dot.total || 0) * T.coreFrac); },
-    },
-    // x3 Nova Solar: cada 20 explosiones (Corazón del Sol, Conflagración), Supernova sola y gratis
-    p_nova_solar: {
-      name: 'Nova Solar', desc: 'Cada 20 explosiones, Supernova se lanza sola y gratis.',
-      state: () => ({ n: 0 }),
-      onKill(g, p, e, kill) { if (hasPower(p, 'm_conflag') && !kill?.nested) solarCount(g, p, e.pos); },
-    },
-
-    // ---------------------------------------------------- CRIONTE
-    // s4 Prisión Profunda: Congelado 3 s y 35 de stagger (lo lee el comportamiento)
-    k_prision_profunda: {
-      name: 'Prisión Profunda', desc: 'Prisión de Hielo congela 3 s y suma 35 de stagger a los jefes.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') { prof.prisonFreeze = T.prisonFreezeBig; prof.prisonStagger = T.prisonStaggerBig; } },
-    },
-    // s6B Témpano: la Nova empuja 3 m (el aturdir 1 s y el radio los da su mod)
-    k_nova_push: {
-      name: 'Témpano', desc: 'Nova de Hielo empuja 3 m a los enemigos que toca.',
-      onHit(g, p, e, hit) { if (hit?.skill === 'nova_hielo' && e?.alive) e.applyCC?.('knock', T.novaPush, { from: p.pos.clone(), src: p }); },
-    },
-    // s7 Carámbanos: el Dardo Arcano pasa a Escarcha (suma 1 capa por el indicador base)
-    k_icicle_dart: {
-      name: 'Carámbanos', desc: 'Dardo Arcano dispara carámbanos de Escarcha que suman 1 capa.',
-      modifyResolve(p, sk, prof) {
-        if (sk.id !== 'm_dardo') return;
-        prof.elem = 'frost';
-        const tags = new Set(prof.tags); tags.delete('arcane'); tags.add('frost');
-        prof.tags = tags;
+    // s15B Escudo de Llamas: −10 % de daño recibido; quien te golpea cuerpo a cuerpo se quema
+    // (la quemadura de un golpe del 100 % de tu arma)
+    p_escudo_llamas: {
+      name: 'Escudo de Llamas', desc: 'Recibes un 10 % menos de daño y quien te golpea cuerpo a cuerpo se quema.',
+      condDr() { return T.escudoLlamasDr; },
+      onDamaged(g, p, info) {
+        const src = info?.src;
+        if (!info?.melee || !src?.alive || typeof src.takeDamage !== 'function') return;
+        ignite(g, p, src, p.avgHit(T.escudoLlamasCoef));
       },
     },
-    // s8 Coraza de Escarcha: quien te golpea cuerpo a cuerpo gana 1 capa (el −5 % es tv.dmgReduc)
-    k_frost_armor: {
-      name: 'Coraza de Escarcha', desc: 'Quien te golpea cuerpo a cuerpo gana 1 capa de Escarcha.',
-      onDamaged(g, p, dmg) { if (dmg?.melee && dmg.src?.alive) gainGauge(p, 'escarcha', T.frostArmorLayers, dmg.src); },
-    },
-    // s13A Tumba Glacial: los que mueren Congelados dejan un bloque que corta el paso 4 s
-    k_ice_tomb: {
-      name: 'Tumba Glacial', desc: 'Los enemigos que mueren Congelados dejan un bloque de hielo que corta el paso 4 s.',
-      onKill(g, p, e, kill) {
-        if (!(kill?.status?.frozen || e.frozenT > 0)) return;
-        g.spawnField?.('k_tumba', { pos: e.pos, radius: T.iceTombR, dur: T.iceTombT, owner: p, data: { color: 0xbfeaff } });
+    // s16 Brasero: con más de 50 de Calor, quemaduras +(15 + 10 × rango) % (al ponerlas: burnBonus)
+    // y Meteoro +(10 + 5 × rango) %
+    p_brasero: {
+      name: 'Brasero', desc: 'Con más de 50 de Calor, tus quemaduras y tu Meteoro hacen más daño.',
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'meteoro' || !(gaugeValue(p, 'calor') > T.braseroCalor)) return 0;
+        return T.braseroMeteo + T.braseroMeteoRank * rankOf(p, 'p_brasero');
       },
     },
-    // s14 Reacción Glacial: cada astillamiento suma 2 capas a los enemigos en 4 m
-    // (s15 Mente Gélida ya no lo lleva: su maná al matar es tv.manaOnKill del núcleo)
-    k_shatter_chain: {
-      name: 'Reacción Glacial', desc: 'Cada astillamiento suma 2 capas a los enemigos en 4 m.',
-      procs: true,
-      onHit(g, p, e, hit) { if (isShatterKill(e, hit)) shatterChain(g, p, e); },
-    },
-    // s17 Frío Implacable: los Ateridos atacan un 15 % más lento (sobre el −15 % base)
-    k_numb: {
-      name: 'Frío Implacable', desc: 'Los enemigos Ateridos atacan un 15 % más lento.',
-      onTick(g, p, dt) {
-        for (const e of g?.enemies || []) if (e.alive && e.numbT > 0 && e.atkCd > 0) e.atkCd += T.numbExtra * dt;
-      },
-    },
-    // x1 Invierno Eterno: la Nova deja un campo helado 6 s (+1 capa/s, −50 % de movimiento).
-    // (El suelo helado de s16 Nova Perpetua es la Estela de la Nova: la ralentiza el núcleo.)
-    k_eternal_winter: {
-      name: 'Invierno Eterno', desc: 'Nova de Hielo deja un campo helado de 6 s que suma 1 capa por segundo y ralentiza un 50 %.',
+    // s17 Estrellas Fugaces: Supernova suelta 1 + 2 × rango meteoros pequeños (40 % cada uno) en 3 s
+    // sobre los enemigos a 8 m
+    p_estrellas_fugaces: {
+      name: 'Estrellas Fugaces', desc: 'Supernova suelta además meteoros pequeños en los 3 s siguientes.',
       afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'nova_hielo') return;
-        g.spawnField?.('k_campo_helado', { pos: p.pos, radius: cast.prof?.radius || 3.3, dur: T.winterT, owner: p, data: { color: 0x9fe3ff } });
+        if (cast?.sk?.id !== 'm_u_supernova') return;
+        const n = 1 + 2 * rankOf(p, 'p_estrellas_fugaces');
+        const amt = p.avgHit(T.estrellasCoef, cast.prof?.addPct || 0);
+        for (let i = 0; i < n; i++) {
+          g.timers.schedule(T.estrellasT * (i + 1) / n, () => {
+            if (!p.alive || g.player !== p) return;
+            const pool = alivesNear(g, p.pos, T.estrellasArea);
+            if (!pool.length) return;
+            const tgt = pool[Math.floor(rng(p) * pool.length) % pool.length];
+            const c = { x: tgt.pos.x, z: tgt.pos.z };
+            for (const o of alivesNear(g, c, T.estrellasR + 0.5))
+              dealProcDamage(g, o, amt, { source: 'power:p_estrellas_fugaces', skill: 'm_u_supernova', elem: 'fire', tags: new Set(['area', 'fire']) });
+            ring(g, c, T.estrellasR, 0xffb347);
+            fx(g, 'fireballBlast', c, 0.4);
+            countExplosion(g, p, c);
+          });
+        }
       },
     },
-    // x3 Edad de Hielo: cada 15 astillamientos, Prisión de Hielo sola y gratis
-    k_ice_age: {
-      name: 'Edad de Hielo', desc: 'Cada 15 astillamientos, Prisión de Hielo se lanza sola y gratis sobre el grupo más numeroso.',
-      state: () => ({ n: 0 }),
-      procs: true,
-      onHit(g, p, e, hit) { if (isShatterKill(e, hit)) iceAgeCount(g, p, e); },
+    // s18 Brasa Errante: las quemaduras que pasan no pierden daño ni tiempo y llegan a 1–2 enemigos
+    // más (lo leen passBurns y passExtra)
+    p_brasa_errante: { name: 'Brasa Errante', desc: 'Las quemaduras que pasan a otro enemigo no pierden daño ni tiempo, y llegan a más enemigos.' },
+    // s21 Estela Meteórica: al terminar la Estela Ígnea, tu siguiente Meteoro cae allí al instante
+    p_estela_meteorica: {
+      name: 'Estela Meteórica', desc: 'Al terminar la Estela Ígnea, tu siguiente Meteoro cae allí al instante.',
+      state: () => ({ pos: null }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_estela_ignea') return;
+        powerState(p, 'p_estela_meteorica').pos = { x: p.pos.x, z: p.pos.z };
+        invalidate(p, 'meteoro');
+        ring(g, p.pos, 1.2, 0xff7733);
+      },
+      modifyResolve(p, sk, prof) { if (sk.id === 'meteoro' && powerState(p, 'p_estela_meteorica').pos) prof.impactDelay = 0; },
+      // cast.target es el mismo vector que usa el lanzamiento: se mueve al final de la Estela
+      onCast(g, p, cast) {
+        const st = powerState(p, 'p_estela_meteorica');
+        if (cast?.sk?.id !== 'meteoro' || !st.pos || !cast.target) return;
+        cast.target.x = st.pos.x; cast.target.z = st.pos.z;
+        st.pos = null;
+        invalidate(p, 'meteoro');
+      },
+    },
+    // s22 Brasa Viva: cada segundo, cada enemigo que se quema copia el (10 + 10 × rango) % de lo que
+    // le queda a otro enemigo a 2 m (copia: no lo pierde)
+    p_brasa_viva: {
+      name: 'Brasa Viva', desc: 'Los enemigos que se queman contagian a otro cercano cada segundo.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'p_brasa_viva');
+        st.acc += dt;
+        if (st.acc < T.vivaEvery - 1e-9) return;
+        st.acc = 0;
+        const frac = (T.vivaBase + T.vivaRank * rankOf(p, 'p_brasa_viva')) / 100;
+        const burning = (g.enemies || []).filter(e => e.alive && (g.dotsOf?.(e, 'burn') || []).length);
+        for (const e of burning) {
+          const o = alivesNear(g, e.pos, T.vivaR + 0.5 * (e.def?.scale || 1), e).sort(byDist(e.pos))[0];
+          if (o) passBurns(g, p, e, o, frac, true);
+        }
+      },
+    },
+    // s23 Combustión: al usar Ignición Total, 1,5 + rango s en los que todo tu Fuego es crítico
+    p_combustion: {
+      name: 'Combustión', desc: 'Al usar Ignición Total, durante unos segundos todo tu Fuego es crítico.',
+      onCast(g, p, cast) {
+        if (!cast?.prof?.ignition) return;
+        const C = TG().calor.combustion;
+        const t = C.base + C.perRank * rankOf(p, 'p_combustion');
+        p.addBuff('p_combustion', {}, t, { name: 'Combustión', icon: '🔥', desc: 'Todo tu Fuego es crítico' });
+        text(g, p, '¡Combustión!');
+      },
+      modifyResolve(p, sk, prof) { if (prof.elem === 'fire' && combustionBuff(p)) prof.forceCrit = true; },
+    },
+    // s24 Cráter: el Meteoro deja un cráter 4 s; dentro, +(10 + 5 × rango) % de Fuego y la Bola de
+    // Fuego explota dos veces (la segunda, al poco: daño de poder con su explosión)
+    p_crater: {
+      name: 'Cráter', desc: 'El Meteoro deja un cráter: dentro, más daño de Fuego y la Bola de Fuego explota dos veces.',
+      state: () => ({ bolaAt: -1 }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'meteoro' || !cast.target) return;
+        g.spawnField?.('p_crater', { pos: cast.target, radius: cast.prof?.radius || 3, dur: T.craterT, owner: p, data: { skill: 'meteoro' } });
+      },
+      condAdd(p, e, hit) {
+        if (hit?.elem !== 'fire' || !e || !inCrater(p.game, p, e.pos)) return 0;
+        return T.craterBase + T.craterRank * rankOf(p, 'p_crater');
+      },
+      // el primer golpe de la Bola en un instante es el directo (después llega su explosión)
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'bola_fuego' || hit.proc || hit.dot || !e) return;
+        const st = powerState(p, 'p_crater');
+        const first = st.bolaAt !== now(p);
+        st.bolaAt = now(p);
+        if (!first || !inCrater(g, p, e.pos)) return;
+        const pr = p.resolved?.bola_fuego;
+        const c = { x: e.pos.x, z: e.pos.z }, r = pr?.radius || 2;
+        const amt = p.avgHit(pr?.splash || T.bolaPiro, pr?.addPct || 0);
+        g.timers.schedule(0.15, () => {
+          if (!p.alive || g.player !== p) return;
+          for (const o of enemiesIn(g, c, r)) dealProcDamage(g, o, amt, { source: 'power:p_crater', skill: 'bola_fuego', elem: 'fire', tags: new Set(['area', 'fire']) });
+          ring(g, c, r, 0xff6622);
+          fx(g, 'fireballBlast', c, 0.4);
+          countExplosion(g, p, c);
+        });
+      },
+    },
+    // s25 Incendio Forestal (final): 5 quemaduras por enemigo; al morir, TODAS pasan a cada enemigo a
+    // 4 m (rangos 2–3: tv.burnPct del nodo)
+    p_incendio: {
+      name: 'Incendio Forestal', desc: 'Un enemigo aguanta hasta 5 quemaduras tuyas; al morir, todas pasan a los que estén a 4 m.',
+      onKill(g, p, e) {
+        if (!(g.dotsOf?.(e, 'burn') || []).length) return;
+        for (const o of alivesNear(g, e.pos, T.incendioR, e)) passBurns(g, p, e, o);
+        ring(g, e.pos, T.incendioR, 0xff5a1f);
+      },
+    },
+    // s26 Combustión Perpetua (final): en Combustión, cada crítico da 4 de Calor; al llenarlo, la
+    // Combustión dura 3 s más y se lanza una Bola gratis (rangos 2–3: stats.critDmg del nodo)
+    p_perpetua: {
+      name: 'Combustión Perpetua', desc: 'En Combustión, tus críticos dan Calor; al llenarlo, la Combustión dura más y lanzas una Bola gratis.',
+      onHit(g, p, e, hit) {
+        if (!hit?.crit || hit.proc || hit.dot || !combustionBuff(p)) return;
+        gainGauge(p, 'calor', TG().calor.perpetua);
+      },
+      onGauge(g, p, id, ev) {
+        if (id !== 'calor' || ev !== 'full') return;
+        const b = combustionBuff(p);
+        if (!b) return;
+        const ext = TG().calor.perpetuaExt;
+        b.t += ext; b.dur = (b.dur || 0) + ext;
+        scheduleAutoCast(g, p, 'bola_fuego', p.pos, '¡Bola gratis!');
+      },
+    },
+    // s27 Lluvia de Fuego (final): con Ignición Total, el Meteoro cae 3 veces (100/60/60 %); si golpea
+    // a 3 o más, se recarga al instante (rangos 2–3: mod meteoro dmg del nodo)
+    p_lluvia_fuego: {
+      name: 'Lluvia de Fuego', desc: 'Con Ignición Total, el Meteoro cae tres veces; si golpea a 3 o más, se recarga al instante.',
+      afterCast(g, p, cast, res) {
+        if (cast?.sk?.id !== 'meteoro' || !cast.prof?.ignition) return;
+        for (let i = 1; i < T.lluviaHits; i++) echoAt(g, p, cast, T.lluviaEcho, T.lluviaGap * i, cast.target);
+        if ((res?.hits || 0) >= T.lluviaHits) g.reduceCooldown?.(p, 'meteoro', Infinity);
+      },
+    },
+    // s28 Corazón del Sol (ápice, 4 rangos): 1) al usar Ignición Total estallan las quemaduras a 8 m
+    // (50 % de lo que les queda, sin gastarlas) · 2) matar a un élite da 25 de Calor · 3) Ignición a 80
+    // (máximo del Calor −20) · 4) cada 20 explosiones, Supernova sola y gratis (countExplosion)
+    p_corazon_sol: {
+      name: 'Corazón del Sol', desc: 'Ignición Total hace estallar tus quemaduras; los élites dan Calor; Ignición antes; Supernova sola.',
+      state: () => ({ boom: 0, hitKey: '' }),
+      stats(p) { return rankOf(p, 'p_corazon_sol') >= 3 ? { 'gaugeMax:calor': TG().calor.ignitionAt - TG().calor.max } : {}; },
+      onCast(g, p, cast) {
+        if (!cast?.prof?.ignition) return;
+        let any = false;
+        for (const o of alivesNear(g, p.pos, T.coreR)) {
+          const rem = g.dotRemaining?.(o, 'burn') || 0;
+          if (!(rem > 0)) continue;
+          dealProcDamage(g, o, rem * T.corePct / 100, { source: 'power:p_corazon_sol', elem: 'fire', tags: new Set(['area', 'fire']) });
+          fx(g, 'fireballBlast', o.pos, 0.6);
+          any = true;
+        }
+        if (any) { ring(g, p.pos, T.coreR, 0xffa040); countExplosion(g, p, p.pos); }
+      },
+      onKill(g, p, e) { if (rankOf(p, 'p_corazon_sol') >= 2 && isElite(e)) gainGauge(p, 'calor', TG().calor.eliteCalor); },
+      // explosiones de la Bola y del Meteoro: una por habilidad e instante
+      onHit(g, p, e, hit) {
+        if ((hit?.skill !== 'bola_fuego' && hit?.skill !== 'meteoro') || hit.proc || hit.dot) return;
+        const st = powerState(p, 'p_corazon_sol');
+        const key = `${hit.skill}@${now(p)}`;
+        if (st.hitKey === key) return;
+        st.hitKey = key;
+        countExplosion(g, p, e?.pos || p.pos);
+      },
     },
 
-    // ---------------------------------------------------- ARCANISTA
-    // s4 Orbe Resonante: +1 Carga por enemigo golpeado por el Orbe (máx. 2 por lanzamiento)
-    a_orbe_resonante: {
-      name: 'Orbe Resonante', desc: 'Orbe Arcano te da 1 Carga Arcana por enemigo golpeado (máx. 2 por lanzamiento).',
-      state: () => ({ n: 0 }),
-      onCast(g, p, cast) { if (cast?.sk?.id === 'a_orbe') powerState(p, 'a_orbe_resonante').n = 0; },
-      onHit(g, p, e, hit) {
-        if (hit?.skill !== 'a_orbe') return;
-        const st = powerState(p, 'a_orbe_resonante');
-        if (st.n >= T.orbCap) return;
-        if (gainGauge(p, 'cargas', 1) > 0) st.n++;
-      },
+    // ---------------------------------------------------- CRIONTE 2g (§5.2)
+    // i2 Filo Helado: +5 × rango % de crítico contra enemigos con 3 o más capas (las capas son por
+    // enemigo: el indicador no puede dar crítico, lo da este poder)
+    k_filo_helado: {
+      name: 'Filo Helado', desc: 'Más probabilidad de crítico contra enemigos con 3 o más capas de Escarcha.',
+      condCrit(p, e) { return e && layersOf(p, e) >= 3 ? T.filoCrit * rankOf(p, 'k_filo_helado') : 0; },
     },
-    // s11 Claridad: descargar 4 Cargas → X % de que tu siguiente Rayo sea gratis
-    a_clarity: {
-      name: 'Claridad', desc: 'Descargar 4 Cargas puede dejar gratis tu siguiente Rayo.',
+    // i5 Hielo Quebradizo: los Congelados reciben +20 % de daño de todo (saco Debilidad, mientras dure)
+    k_quebradizo: {
+      name: 'Hielo Quebradizo', desc: 'Los enemigos Congelados reciben +20 % de daño de todo.',
+      onTick(g) { for (const e of g.enemies || []) if (frozen(e)) e.applyWeakness('k_quebradizo', T.quebradizoPct, e.frozenT); },
+    },
+    // i6 Polvo de Diamante: al congelar a un enemigo, tu siguiente Lanza o Nova no cuesta maná
+    k_polvo: {
+      name: 'Polvo de Diamante', desc: 'Al congelar a un enemigo, tu siguiente Lanza de Hielo o Nova no cuesta maná.',
       state: () => ({ free: false }),
-      onGauge(g, p, id, ev, n) {
-        if (id !== 'cargas' || ev !== 'spent' || n < 4) return;
-        if (rng(p) * 100 < (p.tv?.clarityPct || 0)) {
-          powerState(p, 'a_clarity').free = true;
-          invalidate(p, 'rayo');
-          g?.ui?.spawnText?.(p.pos, '¡Claridad!', 'txt-mana');
-        }
+      onTick(g, p) {
+        const st = powerState(p, 'k_polvo');
+        if (st.free || !freezesNow(g, p).length) return;
+        st.free = true;
+        invalidate(p, 'k_lanza'); invalidate(p, 'nova_hielo');
       },
-      modifyResolve(p, sk, prof) { if (sk.id === 'rayo' && powerState(p, 'a_clarity').free) prof.cost = 0; },
+      modifyResolve(p, sk, prof) { if ((sk.id === 'k_lanza' || sk.id === 'nova_hielo') && powerState(p, 'k_polvo').free) prof.cost = 0; },
       onCast(g, p, cast) {
-        const st = powerState(p, 'a_clarity');
-        if (st.free && cast?.sk?.id === 'rayo') { st.free = false; invalidate(p, 'rayo'); }
+        const st = powerState(p, 'k_polvo');
+        if (!st.free || (cast?.sk?.id !== 'k_lanza' && cast?.sk?.id !== 'nova_hielo')) return;
+        st.free = false;
+        invalidate(p, 'k_lanza'); invalidate(p, 'nova_hielo');
       },
     },
-    // s14 Resonancia: con 4 Cargas, +15 % de crítico Arcano y las Cargas no se desvanecen
-    a_resonance: {
-      name: 'Resonancia', desc: 'Con 4 Cargas, tus hechizos Arcanos tienen +15 % de crítico y las Cargas no se desvanecen.',
-      condCrit(p, e, hit) { return hit?.elem === 'arcane' && gaugeValue(p, 'cargas') >= 4 ? T.resonanceCrit : 0; },
-      onTick(g, p) { if (gaugeValue(p, 'cargas') > 0) touchGauge(p, 'cargas'); },
+    // i7 Tormenta Creciente: la Tormenta Glacial crece un 10 % de radio cada segundo (la duración, mod)
+    k_crece: {
+      name: 'Tormenta Creciente', desc: 'La Tormenta Glacial crece un 10 % cada segundo.',
+      onTick(g, p) {
+        const s = stormTrack(p, 'k_crece');
+        if (!s) return;
+        const st = powerState(p, 'k_crece');
+        s.radius = st.base * (1 + T.creceStep / 100 * Math.floor(now(p) - st.t0 + 1e-9));
+      },
     },
-    // s15 Sobretensión: con 4 Cargas, el Dardo Arcano atraviesa
-    a_overvolt: {
-      name: 'Sobretensión', desc: 'Con 4 Cargas, Dardo Arcano atraviesa a los enemigos.',
-      modifyResolve(p, sk, prof) { if (sk.id === 'm_dardo' && gaugeValue(p, 'cargas') >= 4) prof.pierce = true; },
-      onGauge(g, p, id) { if (id === 'cargas') invalidate(p, 'm_dardo'); },
+    // i8B Prisión Profunda: la Prisión no atrapa en área; atrapa 3 s al enemigo de la mira (o al más
+    // cercano a 8 m) con un golpe real de la Prisión con +80 %
+    k_prision_profunda: {
+      name: 'Prisión Profunda', desc: 'La Prisión de Hielo atrapa a un solo enemigo 3 s y le hace +80 %.',
+      modifyResolve(p, sk, prof) { if (sk.id === 'k_prision') prof.radius = 1e-3; },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'k_prision') return;
+        const pick = cast.enemy?.alive && insideR(cast.enemy.pos, p.pos, T.profundaR) ? cast.enemy : alivesNear(g, p.pos, T.profundaR).sort(byDist(p.pos))[0];
+        if (!pick) return;
+        pick.applyCC('freeze', T.profundaFreeze, { src: p });
+        const pr = cast.prof || {};
+        const info = { skill: 'k_prision', tags: pr.tags || new Set(['frost']), elem: 'frost' };
+        const { dmg, crit } = p.rollDamage(pr.coef || 0.8, pr.critBonus || 0, (pr.addPct || 0) + T.profundaPct, pick, info);
+        pick.takeDamage(dmg, crit, info);
+        ring(g, pick.pos, 1.2, 0x88ddff);
+        fx(g, 'iceShatter', pick.pos, 0.8);
+      },
     },
-    // x1 Cadena de Rayos: el primer crítico de cada Rayo salta a 3 enemigos con el 150 % (2e);
-    // si está solo, lo golpea dos veces
-    a_chain_crit: {
-      name: 'Cadena de Rayos', desc: 'Los críticos de Rayo saltan a 3 enemigos con el 150 % del daño; sin otro enemigo cerca no saltan.',
-      state: () => ({ done: false }),
-      onCast(g, p, cast) { if (cast?.sk?.id === 'rayo') powerState(p, 'a_chain_crit').done = false; },
+    // i9B Lanza del Invierno: la Lanza hace ×4 a los Congelados (antes ×3: prof.frozenMult) y también
+    // ×4 a los jefes Ateridos (antes de que este golpe sume su capa)
+    k_lanza_invierno: {
+      name: 'Lanza del Invierno', desc: 'Contra Congelados o Ateridos, la Lanza de Hielo hace el cuádruple.',
+      priority: 2,
+      modifyResolve(p, sk, prof) { if (sk.id === 'k_lanza') prof.frozenMult = T.lanzaInvierno; },
       onHit(g, p, e, hit) {
-        if (hit?.skill !== 'rayo' || !hit.crit) return;
-        const st = powerState(p, 'a_chain_crit');
-        if (st.done) return;
-        st.done = true;
-        const amt = (hit.dealt || 0) * T.chainCritFrac;
-        if (!(amt > 0)) return;
-        const opts = { source: 'power:a_chain_crit', skill: 'rayo', elem: 'arcane', tags: new Set(['arcane', 'chain']) };
-        const others = alivesNear(g, e.pos, T.chainCritR, e).sort((a, b) => dist2(a.pos, e.pos) - dist2(b.pos, e.pos)).slice(0, T.chainCritN);
-        if (others.length) {
-          let from = e;
-          for (const o of others) { try { g.spawnBeam?.(from.pos, o.pos, 0xd6b8ff, 0.18); } catch { /* */ } dealProcDamage(g, o, amt, opts); from = o; }
-        } else if (e.alive) {
-          for (let i = 0; i < T.chainCritSolo && e.alive; i++) dealProcDamage(g, e, amt, opts);
+        if (hit?.skill !== 'k_lanza' || hit.proc || hit.dot || !isBoss(e) || !((e.numbT || 0) > 0) || !e.alive) return;
+        dealProcDamage(g, e, (hit.dealt || 0) * (T.lanzaInvierno - 1), { source: 'power:k_lanza_invierno', skill: 'k_lanza', elem: 'frost', tags: new Set(['frost']) });
+      },
+    },
+    // i10A Ventisca Viva: mientras dura la Tormenta Glacial, una Nova de Hielo cada 2 s
+    k_ventisca_viva: {
+      name: 'Ventisca Viva', desc: 'Mientras dura, la Tormenta Glacial suelta una Nova de Hielo cada 2 s.',
+      state: () => ({ acc: 0 }),
+      onTick(g, p, dt) {
+        const s = stormTrack(p, 'k_ventisca_viva');
+        if (!s) return;
+        const st = powerState(p, 'k_ventisca_viva');
+        st.acc += dt;
+        if (st.acc < T.ventiscaEvery - 1e-9) return;
+        st.acc = 0;
+        autoCast(g, p, 'nova_hielo', null, 1);
+      },
+    },
+    // i10B Frío Sostenido: la Tormenta hace +60 % al enemigo con más capas dentro de ella
+    k_frio_sostenido: {
+      name: 'Frío Sostenido', desc: 'La Tormenta Glacial hace +60 % al enemigo con más capas.',
+      state: () => ({ at: -1, pick: null }),
+      condAdd(p, e, hit) {
+        if (hit?.skill !== 'm_u_tormenta' || !e) return 0;
+        const s = stormOf(p);
+        if (!s) return 0;
+        const st = powerState(p, 'k_frio_sostenido');
+        if (st.at !== now(p)) {
+          st.at = now(p);
+          let best = null, bv = 0;
+          for (const o of enemiesIn(p.game, s.center(), s.radius)) { const v = layersOf(p, o); if (v > bv) { bv = v; best = o; } }
+          st.pick = best;
+        }
+        return st.pick === e ? T.frioSostenido : 0;
+      },
+    },
+    // i12 Astillas: cada crítico de Hielo recarga 0,5 × rango s de la Lanza y de la Prisión (uno por instante)
+    k_astillas: {
+      name: 'Astillas', desc: 'Cada crítico de Hielo recarga parte de la Lanza de Hielo y de la Prisión de Hielo.',
+      state: () => ({ at: -1 }),
+      onHit(g, p, e, hit) {
+        if (!hit?.crit || hit.proc || hit.dot || hit.elem !== 'frost') return;
+        const st = powerState(p, 'k_astillas');
+        if (st.at === now(p)) return;
+        st.at = now(p);
+        const s = T.astillasCdr * rankOf(p, 'k_astillas');
+        g.reduceCooldown?.(p, 'k_lanza', s);
+        g.reduceCooldown?.(p, 'k_prision', s);
+      },
+    },
+    // i14 Suelo Helado: la Prisión deja el suelo helado 4 s (ralentiza un 40 %, 1 capa por segundo)
+    k_suelo: {
+      name: 'Suelo Helado', desc: 'La Prisión de Hielo deja el suelo helado: ralentiza y pone capas.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'k_prision') return;
+        const r = (cast.prof?.radius || 0) > 0.5 ? cast.prof.radius : (cast.sk.radius || 4);
+        g.spawnField?.('k_suelo', { pos: p.pos, radius: r, dur: T.sueloT, owner: p, data: { skill: 'k_prision' } });
+      },
+    },
+    // i15A Piel de Invierno: recibes un 15 % menos de daño de enemigos con capas
+    k_piel_invierno: {
+      name: 'Piel de Invierno', desc: 'Recibes menos daño de los enemigos con capas de Escarcha.',
+      condDr(p, info) { return info?.src && layersOf(p, info.src) >= 1 ? T.pielDr : 0; },
+    },
+    // i15B Cristal Protector: congelar a un enemigo a 4 m te da un escudo del 5 % de tu vida (cada 3 s)
+    k_cristal: {
+      name: 'Cristal Protector', desc: 'Congelar a un enemigo cerca de ti te da un escudo.',
+      state: () => ({ readyAt: 0 }),
+      onTick(g, p) {
+        const st = powerState(p, 'k_cristal');
+        const list = freezesNow(g, p);
+        if (now(p) < st.readyAt - 1e-9 || !list.some(e => insideR(e.pos, p.pos, T.cristalShieldR + 0.5 * (e.def?.scale || 1)))) return;
+        st.readyAt = now(p) + T.cristalShieldCd;
+        g.shield?.(p.stats.maxHP * T.cristalShieldPct / 100, { target: 'self', dur: T.cristalShieldT, src: 'k_cristal' });
+        ring(g, p.pos, 1.1, 0xbfeaff);
+      },
+    },
+    // i16 Invierno Profundo: tu Hielo hace +5 × rango % por cada Congelado a 10 m (hasta 5)
+    k_invierno: {
+      name: 'Invierno Profundo', desc: 'Tu Hielo hace más daño por cada enemigo Congelado cerca de ti.',
+      state: () => ({ at: -1, n: 0 }),
+      condAdd(p, e, hit) {
+        if (hit?.elem !== 'frost') return 0;
+        const st = powerState(p, 'k_invierno');
+        if (st.at !== now(p)) { st.at = now(p); st.n = Math.min(T.inviernoMax, enemiesIn(p.game, p.pos, T.inviernoR).filter(frozen).length); }
+        return st.n * T.inviernoPct * rankOf(p, 'k_invierno');
+      },
+    },
+    // i17 Remolino: al terminar el Paso de Escarcha, una Nova de Hielo al 50 × rango %
+    k_remolino: {
+      name: 'Remolino', desc: 'Al terminar el Paso de Escarcha, sueltas una Nova de Hielo.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'm_paso_escarcha') return;
+        autoCast(g, p, 'nova_hielo', null, T.remolinoPct * rankOf(p, 'k_remolino') / 100);
+      },
+    },
+    // i18 Congelación en Cadena: cuando muere un Congelado, se congelan 1–2 enemigos a 4 m
+    k_cadena: {
+      name: 'Congelación en Cadena', desc: 'Cuando muere un enemigo Congelado, se congelan otros cercanos.',
+      onKill(g, p, e, kill) {
+        if (!kill?.status?.frozen && !((e.frozenT || 0) > 0)) return;
+        const near = alivesNear(g, e.pos, T.cadenaR, e).filter(o => !frozen(o)).sort(byDist(e.pos)).slice(0, rankOf(p, 'k_cadena'));
+        for (const o of near) { o.applyCC('freeze', freezeBase(), { src: p }); beam(g, e.pos, o.pos, 0xbfeaff, 0.2); }
+      },
+    },
+    // i19 Ruptura: la Lanza hace añicos a un Congelado (no jefe): +25 × rango % (daño de poder),
+    // le quita la congelación y le deja 3 capas. Después de Escarcha: el golpe ya puso su capa y
+    // quedan exactamente 3 (si no, una Lanza de 2 capas lo volvería a congelar al instante)
+    k_ruptura: {
+      name: 'Ruptura', desc: 'La Lanza de Hielo hace añicos a un Congelado: más daño, lo descongela y le deja 3 capas.',
+      priority: -1,
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'k_lanza' || hit.proc || hit.dot || !e?.alive || isBoss(e) || !frozen(e)) return;
+        thaw(e);
+        setGauge(p, 'escarcha', T.rupturaLayers, e);
+        dealProcDamage(g, e, (hit.dealt || 0) * T.rupturaPct * rankOf(p, 'k_ruptura') / 100, { source: 'power:k_ruptura', skill: 'k_lanza', elem: 'frost', tags: new Set(['frost']) });
+        fx(g, 'iceShatter', e.pos, 0.8);
+        text(g, e, '¡Añicos!', 'txt-mana');
+      },
+    },
+    // i21 Ojo Frío: al acabar, la Tormenta Glacial estalla (200 %) y congela a los que tengan 3 o más capas
+    k_ojo_frio: {
+      name: 'Ojo Frío', desc: 'Al acabar, la Tormenta Glacial estalla y congela a los que tengan 3 o más capas.',
+      state: () => ({ inst: null, c: null, r: 0, addPct: 0 }),
+      onTick(g, p) {
+        const st = powerState(p, 'k_ojo_frio');
+        const s = stormOf(p);
+        if (s) {
+          if (st.inst !== s) st.inst = s;
+          const c = s.center();
+          st.c = { x: c.x, z: c.z }; st.r = s.radius; st.addPct = p.resolved?.m_u_tormenta?.addPct ?? st.addPct;
+          return;
+        }
+        if (!st.inst) return;
+        st.inst = null;
+        if (!p.alive || !st.c) return;
+        const amt = p.avgHit(T.ojoCoef, st.addPct || 0);
+        for (const o of enemiesIn(g, st.c, st.r)) {
+          dealProcDamage(g, o, amt, { source: 'power:k_ojo_frio', skill: 'm_u_tormenta', elem: 'frost', tags: new Set(['area', 'frost']) });
+          if (o.alive && layersOf(p, o) >= T.ojoLayers) o.applyCC('freeze', freezeBase(), { src: p });
+        }
+        ring(g, st.c, st.r, 0xbfe9ff);
+        fx(g, 'iceShatter', st.c, 0.6);
+      },
+    },
+    // i22 Glaciar: al congelar a un enemigo, los que están a 3 m ganan 1 capa por rango
+    k_glaciar: {
+      name: 'Glaciar', desc: 'Al congelar a un enemigo, los que están cerca ganan capas de Escarcha.',
+      onTick(g, p) {
+        const n = rankOf(p, 'k_glaciar');
+        for (const e of freezesNow(g, p))
+          for (const o of alivesNear(g, e.pos, T.glaciarR, e)) gainGauge(p, 'escarcha', n, o);
+      },
+    },
+    // i23 Esquirlas: hacer añicos (Ruptura) suelta 4 esquirlas al (20 + 10 × rango) % a los cercanos
+    k_esquirlas: {
+      name: 'Esquirlas', desc: 'Hacer añicos a un enemigo suelta esquirlas que dañan a los cercanos.',
+      procs: true,
+      onHit(g, p, e, hit) {
+        if (hit?.source !== 'power:k_ruptura' || !e) return;
+        const amt = p.avgHit((T.esquirlasBase + T.esquirlasRank * rankOf(p, 'k_esquirlas')) / 100, p.resolved?.k_lanza?.addPct || 0);
+        for (const o of alivesNear(g, e.pos, T.esquirlasR, e).sort(byDist(e.pos)).slice(0, T.esquirlasN)) {
+          dealProcDamage(g, o, amt, { source: 'power:k_esquirlas', skill: 'k_lanza', elem: 'frost', tags: new Set(['frost']) });
+          beam(g, e.pos, o.pos, 0xcff3ff, 0.15);
         }
       },
     },
-    // x2 Arco Eterno: cada salto de la cadena puede dar 1 Carga (se suma al TERMINAR el Rayo,
-    // para que no la gaste el mismo Rayo que la genera)
-    a_arc_charge: {
-      name: 'Arco Eterno', desc: 'Cada salto de la Cadena de Rayos puede darte 1 Carga Arcana.',
-      priority: -1, procs: true,
-      state: () => ({ pending: 0 }),
-      onHit(g, p, e, hit) {
-        if (hit?.source !== 'power:a_chain_crit') return;
-        if (rng(p) * 100 < (p.tv?.arcChargePct || 0)) powerState(p, 'a_arc_charge').pending++;
+    // i24 Tormenta Perpetua: cada enemigo que congelas dentro de la Tormenta la alarga 0,5 × rango s
+    // (hasta +6 s)
+    k_perpetua: {
+      name: 'Tormenta Perpetua', desc: 'Cada enemigo que congelas dentro de la Tormenta Glacial la alarga.',
+      onTick(g, p) {
+        const s = stormTrack(p, 'k_perpetua');
+        if (!s) return;
+        const st = powerState(p, 'k_perpetua');
+        const c = s.center();
+        for (const e of freezesNow(g, p)) {
+          if (!insideR(e.pos, c, s.radius + 0.5 * (e.def?.scale || 1))) continue;
+          const add = Math.min(T.perpetuaStep * rankOf(p, 'k_perpetua'), T.perpetuaMax - st.ext);
+          if (!(add > 1e-9)) return;
+          st.acc += add;
+          const pulses = Math.floor(st.acc / s.interval + 1e-9);
+          if (pulses > 0) { s.left += pulses; st.acc -= pulses * s.interval; }
+          st.ext += add;
+        }
       },
+    },
+    // i25 Era Glacial (final): al congelar a un enemigo, se congelan todos los que tengan capas a 5 m
+    // (una vez cada 6 s; rangos 2–3: tv.freezeDur del nodo)
+    k_era_glacial: {
+      name: 'Era Glacial', desc: 'Al congelar a un enemigo, se congelan todos los que tengan capas cerca.',
+      state: () => ({ readyAt: 0 }),
+      onTick(g, p) {
+        const st = powerState(p, 'k_era_glacial');
+        if (now(p) < st.readyAt - 1e-9) return;
+        const e = freezesNow(g, p)[0];
+        if (!e) return;
+        st.readyAt = now(p) + T.eraCd;
+        for (const o of alivesNear(g, e.pos, T.eraR, e)) if (layersOf(p, o) >= 1) o.applyCC('freeze', freezeBase(), { src: p });
+        ring(g, e.pos, T.eraR, 0xbfeaff);
+      },
+    },
+    // i26 Cero Absoluto (final): hacer añicos a un Congelado hace un 300 % del arma extra y recarga
+    // la Lanza (rangos 2–3: stats.critDmg del nodo)
+    k_cero: {
+      name: 'Cero Absoluto', desc: 'Hacer añicos a un Congelado hace mucho daño extra y recarga la Lanza de Hielo.',
+      procs: true,
+      onHit(g, p, e, hit) {
+        if (hit?.source !== 'power:k_ruptura' || !e) return;
+        dealProcDamage(g, e, p.avgHit(T.ceroCoef, p.resolved?.k_lanza?.addPct || 0), { source: 'power:k_cero', skill: 'k_lanza', elem: 'frost', tags: new Set(['frost']) });
+        g.reduceCooldown?.(p, 'k_lanza', Infinity);
+      },
+    },
+    // i27 Invierno Eterno (final): la Tormenta no se acaba mientras haya un Congelado dentro (hasta
+    // 20 s; rangos 2–3: mod m_u_tormenta dmg del nodo)
+    k_eterno: {
+      name: 'Invierno Eterno', desc: 'La Tormenta Glacial no se acaba mientras haya un enemigo Congelado dentro.',
+      onTick(g, p) {
+        const s = stormTrack(p, 'k_eterno');
+        if (!s || s.left > 1 || now(p) - powerState(p, 'k_eterno').t0 >= T.eternoMax - s.interval) return;
+        if (enemiesIn(g, s.center(), s.radius).some(frozen)) s.left += 1;
+      },
+    },
+    // i28 Corazón del Invierno (ápice, 4 rangos): 1) congelar a un jefe (llenar sus capas) le llena 20
+    // de Quebranto · 2) matar a un Congelado da 10 de maná · 3) bastan 4 capas (máximo −1) · 4) cada
+    // 15 congelaciones, la Tormenta Glacial sola y gratis
+    k_corazon_invierno: {
+      name: 'Corazón del Invierno', desc: 'Congelar jefes los quiebra; los Congelados dan maná; congelas antes; la Tormenta se lanza sola.',
+      state: () => ({ n: 0 }),
+      stats(p) { return rankOf(p, 'k_corazon_invierno') >= 3 ? { 'gaugeMax:escarcha': -1 } : {}; },
+      onGauge(g, p, id, ev, n, e) {
+        if (id !== 'escarcha' || ev !== 'full' || !isBoss(e)) return;
+        e.addStagger?.(T.corazonStagger, p);
+        countFreezes(g, p, 1);
+      },
+      onKill(g, p, e, kill) {
+        if (rankOf(p, 'k_corazon_invierno') >= 2 && (kill?.status?.frozen || (e.frozenT || 0) > 0)) g.gainResource?.(p, T.corazonMana);
+      },
+      onTick(g, p) { const k = freezesNow(g, p).length; if (k) countFreezes(g, p, k); },
+    },
+
+    // ---------------------------------------------------- ARCANISTA 2g (§5.3)
+    // a0 Cargas Arcanas (clave) es la mecánica: js/mech-maga.js da, gasta y pierde las Cargas
+    // a5 Rebote Cargado: cada enemigo que toca el Orbe Arcano (una vez por lanzamiento) da 1 Carga
+    a_rebote_cargado: {
+      name: 'Rebote Cargado', desc: 'Cada enemigo que toca el Orbe Arcano te da 1 Carga.',
+      state: () => ({ seen: new WeakSet() }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'a_orbe') powerState(p, 'a_rebote_cargado').seen = new WeakSet(); },
+      onHit(g, p, e, hit) {
+        if (hit?.skill !== 'a_orbe' || hit.proc || hit.dot || !e) return;
+        const st = powerState(p, 'a_rebote_cargado');
+        if (st.seen.has(e)) return;
+        st.seen.add(e);
+        gainGauge(p, 'cargas', 1);
+      },
+    },
+    // a6 Sello Cargado: dentro de tu Sello, el Orbe y el Desgarro dan 1 Carga por golpe
+    a_sello_cargado: {
+      name: 'Sello Cargado', desc: 'Dentro de tu Sello del Archimago, el Orbe y el Desgarro te dan Cargas por golpe.',
+      onHit(g, p, e, hit) {
+        if ((hit?.skill !== 'a_orbe' && hit?.skill !== 'm_u_desgarro') || hit.proc || hit.dot || !inOwnSeal(g, p)) return;
+        gainGauge(p, 'cargas', 1);
+      },
+    },
+    // a7 Grieta Abierta: al terminar el Desgarro, la grieta queda 1 + rango s (40 % por segundo) donde
+    // golpeaba
+    a_grieta: {
+      name: 'Grieta Abierta', desc: 'Al terminar el Desgarro Arcano, la grieta se queda abierta y sigue dañando.',
+      state: () => ({ at: null }),
+      onHit(g, p, e, hit) { if (hit?.skill === 'm_u_desgarro' && !hit.proc && !hit.dot && e) powerState(p, 'a_grieta').at = { x: e.pos.x, z: e.pos.z }; },
+      onSkillEnd(g, p, sk, end) {
+        if (sk?.id !== 'm_u_desgarro' || end?.kind !== 'channel') return;
+        const st = powerState(p, 'a_grieta');
+        const pos = st.at || p.pos;
+        st.at = null;
+        openRift(g, p, pos, T.grietaBase + rankOf(p, 'a_grieta'), T.grietaCoef);
+      },
+    },
+    // a8A Rayo Doble: un Rayo con 4 Cargas se repite al 50 % (con las mismas Cargas)
+    a_rayo_doble: {
+      name: 'Rayo Doble', desc: 'Un Rayo con 4 Cargas se lanza dos veces; la copia hace el 50 %.',
+      priority: -1,
+      afterCast(g, p, cast) {
+        const n = spentCharges(p);
+        if (cast?.sk?.id === 'rayo' && n >= T.dobleNeed) rayoEcho(g, p, cast, T.dobleCopy, 0.25, n);
+      },
+    },
+    // a8B Rayo Recargado: cada enemigo que atraviesa el Rayo devuelve 1 Carga (hasta 2), tras gastarlas
+    a_rayo_recargado: {
+      name: 'Rayo Recargado', desc: 'Cada enemigo que atraviesa el Rayo te devuelve 1 Carga (hasta 2).',
+      priority: -1,
+      afterCast(g, p, cast, res) {
+        if (cast?.sk?.id !== 'rayo') return;
+        const n = Math.min(T.recargadoMax, res?.hits || 0);
+        if (n > 0) gainGauge(p, 'cargas', n);
+      },
+    },
+    // a9A Orbe Cargado: el Orbe hace +20 % por Carga que tienes (sin gastarlas)
+    a_orbe_cargado: {
+      name: 'Orbe Cargado', desc: 'El Orbe Arcano hace más daño por cada Carga que tienes, sin gastarlas.',
+      condAdd(p, e, hit) { return hit?.skill === 'a_orbe' ? T.orbeCargadoPct * charges(p) : 0; },
+    },
+    // a9B Orbe Atrayente: el Orbe arrastra hacia su camino a los enemigos a 3 m (una vez por orbe)
+    a_orbe_atrae: {
+      name: 'Orbe Atrayente', desc: 'El Orbe Arcano arrastra hacia su camino a los enemigos cercanos.',
+      state: () => ({ seen: new WeakMap() }),
+      onTick(g, p) {
+        const st = powerState(p, 'a_orbe_atrae');
+        for (const pr of g.projectiles || []) {
+          if (!pr.friendly || pr.skill !== 'a_orbe' || !(pr.life > 0) || !pr.mesh) continue;
+          const at0 = pr.mesh.position;
+          let done = st.seen.get(pr);
+          if (!done) st.seen.set(pr, (done = new WeakSet()));
+          for (const e of alivesNear(g, at0, T.atraeR)) {
+            if (done.has(e)) continue;
+            done.add(e);
+            e.displace?.(at(at0, at0.x, at0.z, 0), Math.sqrt(dist2(e.pos, at0)), { toward: true, src: p });
+          }
+        }
+      },
+    },
+    // a10A Desgarro Fijo: si no te mueves, el Desgarro hace +8 % cada medio segundo (hasta +48 %)
+    a_desgarro_fijo: {
+      name: 'Desgarro Fijo', desc: 'Si no te mueves, el Desgarro Arcano hace cada vez más daño.',
+      state: () => ({ n: 0, acc: 0, x: null, z: null }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'a_desgarro_fijo');
+        if (!channelOf(g, p, 'm_u_desgarro')) { st.n = 0; st.acc = 0; st.x = null; return; }
+        if (st.x != null && (Math.abs(p.pos.x - st.x) > 0.05 || Math.abs(p.pos.z - st.z) > 0.05)) { st.n = 0; st.acc = 0; }
+        st.x = p.pos.x; st.z = p.pos.z;
+        st.acc += dt;
+        while (st.acc >= 0.5 - 1e-9) { st.acc -= 0.5; st.n = Math.min(T.fijoMax, st.n + 1); }
+      },
+      condAdd(p, e, hit) { return hit?.skill === 'm_u_desgarro' ? T.fijoPct * powerState(p, 'a_desgarro_fijo').n : 0; },
+    },
+    // a10B Desgarro Voraz: cada enemigo que toca el Desgarro da 3 de maná, y 1 Carga por segundo de canal
+    a_desgarro_voraz: {
+      name: 'Desgarro Voraz', desc: 'El Desgarro Arcano te da maná por golpe y Cargas mientras lo canalizas.',
+      state: () => ({ acc: 0 }),
+      onHit(g, p, e, hit) { if (hit?.skill === 'm_u_desgarro' && !hit.proc && !hit.dot) g.gainResource?.(p, T.vorazMana); },
+      onTick(g, p, dt) {
+        const st = powerState(p, 'a_desgarro_voraz');
+        if (!channelOf(g, p, 'm_u_desgarro')) { st.acc = 0; return; }
+        st.acc += dt;
+        if (st.acc < T.vorazEvery - 1e-9) return;
+        st.acc = 0;
+        gainGauge(p, 'cargas', 1);
+      },
+    },
+    // a12 Inercia: cada rebote del Orbe recarga 0,5 × rango s del Rayo (al ritmo del Orbe del catálogo:
+    // rebota cada alcance / velocidad s)
+    a_inercia: {
+      name: 'Inercia', desc: 'Cada rebote del Orbe Arcano recarga parte del Rayo.',
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_orbe') return;
+        const pr = cast.prof || {};
+        const leg = (pr.range || cast.sk.range || 14) / Math.max(1, pr.speed || cast.sk.speed || 6);
+        const n = Math.max(0, Math.floor(cast.sk.bounces ?? 2));
+        const s = T.inerciaCdr * rankOf(p, 'a_inercia');
+        for (let i = 1; i <= n; i++) g.timers.schedule(leg * i + 0.01, () => { if (p.alive && g.player === p) g.reduceCooldown?.(p, 'rayo', s); });
+      },
+    },
+    // a14 Maná Inagotable: canalizando el Desgarro no gastas maná (Grieta Eterna) y recuperas un 2 %/s
+    a_mana_inagotable: {
+      name: 'Maná Inagotable', desc: 'Mientras canalizas el Desgarro Arcano no gastas maná y lo recuperas.',
+      onTick(g, p, dt) { if (channelOf(g, p, 'm_u_desgarro')) g.gainResource?.(p, (p.stats?.maxMP || 0) * T.inagotablePct / 100 * dt); },
+    },
+    // a15A Desplazamiento: un golpe de más del 20 % de tu vida te teletransporta 5 m sin hacerte daño
+    // (cada 30 s)
+    a_desplazamiento: {
+      name: 'Desplazamiento', desc: 'Un golpe muy fuerte te teletransporta lejos y no te hace daño. Una vez cada 30 s.',
+      state: () => ({ readyAt: 0 }),
+      onDamaged(g, p, info) {
+        const st = powerState(p, 'a_desplazamiento');
+        if (!info || now(p) < st.readyAt - 1e-9 || !(info.amount > (p.stats?.maxHP || 0) * T.desplazaPct / 100)) return;
+        st.readyAt = now(p) + T.desplazaCd;
+        info.amount = 0;
+        const src = info.src?.pos;
+        let dx = src ? p.pos.x - src.x : -Math.sin(p.group?.rotation?.y || 0), dz = src ? p.pos.z - src.z : -Math.cos(p.group?.rotation?.y || 0);
+        const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+        ring(g, p.pos, 1, 0xc8a0ff);
+        for (let k = 0; k < T.desplazaDist / 0.25; k++) {
+          const nx = p.pos.x + dx * 0.25, nz = p.pos.z + dz * 0.25;
+          if (g.world?.grid && !g.world.grid.walkable(nx, nz)) break;
+          p.pos.x = nx; p.pos.z = nz;
+        }
+        p.moveTarget = null;
+        ring(g, p.pos, 1, 0xc8a0ff);
+        g.ui?.spawnText?.(p.pos, '¡Desplazada!', 'txt-mana');
+      },
+    },
+    // a16 Resonancia: con 4 Cargas no se pierden (js/mech-maga.js) y tienes +6 × rango % de crítico
+    a_resonance: {
+      name: 'Resonancia', desc: 'Con 4 Cargas, no se pierden y tienes más probabilidad de crítico.',
+      condCrit(p) { return charges(p) >= TG().cargas.max ? TG().cargas.resonanceCrit * rankOf(p, 'a_resonance') : 0; },
+    },
+    // a17 Sello Viviente: el Sello del Archimago te sigue (la duración, mod del nodo)
+    a_sello_sigue: {
+      name: 'Sello Viviente', desc: 'El Sello del Archimago te sigue.',
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_sello') return;
+        const f = sealOf(g, p).pop();
+        if (f) f.follow = 'owner';
+      },
+    },
+    // a18 Carga Final: un Rayo con 4 Cargas te devuelve 1 Carga por rango (después de gastarlas)
+    a_carga_final: {
+      name: 'Carga Final', desc: 'Un Rayo con 4 Cargas te devuelve Cargas.',
+      priority: -1,
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id === 'rayo' && spentCharges(p) >= T.cargaFinalNeed) gainGauge(p, 'cargas', rankOf(p, 'a_carga_final'));
+      },
+    },
+    // a19 Satélite: cada 3.er Orbe deja un orbe pequeño girando a tu alrededor 6 s (20 × rango % por golpe)
+    a_satelite: {
+      name: 'Satélite', desc: 'Cada 3.er Orbe Arcano deja un orbe pequeño girando a tu alrededor.',
+      state: () => ({ n: 0, sats: [] }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_orbe') return;
+        const st = powerState(p, 'a_satelite');
+        if (++st.n < T.sateliteEvery) return;
+        st.n = 0;
+        st.sats.push({ until: now(p) + T.sateliteT, ang: rng(p) * Math.PI * 2, hit: new WeakMap() });
+      },
+      onTick(g, p, dt) {
+        const st = powerState(p, 'a_satelite');
+        st.sats = st.sats.filter(s => s.until > now(p) + 1e-9);
+        if (!st.sats.length) return;
+        const amt = p.avgHit(T.satelitePct * rankOf(p, 'a_satelite') / 100, p.resolved?.a_orbe?.addPct || 0);
+        for (const s of st.sats) {
+          s.ang += dt * Math.PI * 2 / 1.5;
+          const c = { x: p.pos.x + Math.cos(s.ang) * T.sateliteOrbit, z: p.pos.z + Math.sin(s.ang) * T.sateliteOrbit };
+          for (const e of alivesNear(g, c, T.sateliteR + 0.5)) {
+            if ((s.hit.get(e) || -9) > now(p) - T.sateliteHitCd + 1e-9) continue;
+            s.hit.set(e, now(p));
+            dealProcDamage(g, e, amt, { source: 'power:a_satelite', skill: 'a_orbe', elem: 'arcane', tags: new Set(['arcane']) });
+          }
+          fx(g, glow(0xc8a0ff, 0.22, 0.25), c, 1.0);
+        }
+      },
+    },
+    // a21 Doble Grieta: si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %
+    // donde apuntas mientras dure el canal (el motor aún no deja lanzar canalizando: cola W2)
+    a_doble_grieta: {
+      name: 'Doble Grieta', desc: 'Si lanzas el Rayo durante el Desgarro Arcano, se abre una segunda grieta.',
+      onCast(g, p, cast) {
+        const ch = channelOf(g, p, 'm_u_desgarro');
+        if (cast?.sk?.id !== 'rayo' || !ch) return;
+        const at0 = cast.enemy?.alive ? cast.enemy.pos : cast.target;
+        if (!at0) return;
+        const left = Math.max(0.5, (ch.left || 0) * (ch.interval || 0.5));
+        const coef = (forgedOf(p, 'm_u_desgarro')?.coef || 1.2) / (ch.interval || 0.5) * T.dobleCopy;
+        openRift(g, p, at0, left, coef);
+      },
+    },
+    // a22 Cargas Desbordadas: guardas 1 Carga más por rango (las que pasan de 4 dan el doble: el indicador)
+    a_desbordadas: {
+      name: 'Cargas Desbordadas', desc: 'Puedes guardar más Cargas; las que pasan de 4 dan el doble al Rayo.',
+      stats(p) { return { 'gaugeMax:cargas': rankOf(p, 'a_desbordadas') }; },
+    },
+    // a23 Orbe Múltiple: cada 3.er Orbe sale con 1 orbe más por rango (40 % cada uno), en abanico
+    a_orbe_multiple: {
+      name: 'Orbe Múltiple', desc: 'Cada 3.er Orbe Arcano sale con orbes más pequeños.',
+      state: () => ({ n: 0 }),
+      onCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_orbe' || !cast.target) return;
+        const st = powerState(p, 'a_orbe_multiple');
+        if (++st.n < T.multipleEvery) return;
+        st.n = 0;
+        const base = Math.atan2(cast.target.x - p.pos.x, cast.target.z - p.pos.z);
+        const d = Math.max(2, Math.hypot(cast.target.x - p.pos.x, cast.target.z - p.pos.z));
+        const k = rankOf(p, 'a_orbe_multiple');
+        for (let i = 1; i <= k; i++) {
+          const a = base + T.multipleSpread * Math.ceil(i / 2) * (i % 2 ? 1 : -1);
+          echoAt(g, p, cast, T.multipleCopy, 0.05 * i, { x: p.pos.x + Math.sin(a) * d, z: p.pos.z + Math.cos(a) * d });
+        }
+      },
+    },
+    // a24 Fuente de Maná: mientras canalizas, cada segundo 1 Carga y +5 × rango % de daño (hasta 3 veces)
+    a_fuente: {
+      name: 'Fuente de Maná', desc: 'Mientras canalizas, ganas Cargas y daño cada segundo.',
+      state: () => ({ acc: 0, n: 0 }),
+      onTick(g, p, dt) {
+        const st = powerState(p, 'a_fuente');
+        if (!channelOf(g, p)) { st.acc = 0; st.n = 0; return; }
+        st.acc += dt;
+        if (st.acc < T.fuenteEvery - 1e-9) return;
+        st.acc = 0;
+        gainGauge(p, 'cargas', 1);
+        st.n = Math.min(T.fuenteMax, st.n + 1);
+        const pct = T.fuentePct * rankOf(p, 'a_fuente') * st.n;
+        p.addBuff('a_fuente', { dmgPct: pct }, T.fuenteEvery + 0.3, { name: 'Fuente de Maná', icon: '💧', desc: `+${pct} % de daño` });
+      },
+    },
+    // a25 Tormenta de Cargas (final): al gastar 4 o más, el Rayo se repite 2 veces al 50 % en 1,5 s
+    // (con las mismas Cargas; rangos 2–3: mod rayo dmg del nodo)
+    a_tormenta_cargas: {
+      name: 'Tormenta de Cargas', desc: 'Al gastar 4 o más Cargas, el Rayo se lanza tres veces.',
+      priority: -1,
+      afterCast(g, p, cast) {
+        const n = spentCharges(p);
+        if (cast?.sk?.id !== 'rayo' || n < T.tormentaNeed) return;
+        for (let i = 1; i <= 2; i++) rayoEcho(g, p, cast, T.tormentaCopy, T.tormentaGap * i, n);
+      },
+    },
+    // a26 Constelación (final): tus Orbes se quedan 8 s girando a tu alrededor (hasta 3) y disparan al
+    // más cercano cada segundo (40 %; rangos 2–3: mod a_orbe dmg del nodo)
+    a_constelacion: {
+      name: 'Constelación', desc: 'Tus Orbes Arcanos se quedan girando a tu alrededor y disparan al enemigo más cercano.',
+      state: () => ({ orbs: [] }),
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_orbe') return;
+        const st = powerState(p, 'a_constelacion');
+        st.orbs.push({ until: now(p) + T.constelT, acc: 0, ang: rng(p) * Math.PI * 2 });
+        while (st.orbs.length > T.constelMax) st.orbs.shift();
+      },
+      onTick(g, p, dt) {
+        const st = powerState(p, 'a_constelacion');
+        st.orbs = st.orbs.filter(o => o.until > now(p) + 1e-9);
+        if (!st.orbs.length) return;
+        const amt = p.avgHit(T.constelCoef, p.resolved?.a_orbe?.addPct || 0);
+        for (const o of st.orbs) {
+          o.ang += dt * Math.PI * 2 / 3;
+          o.acc += dt;
+          const c = { x: p.pos.x + Math.cos(o.ang) * T.constelOrbit, z: p.pos.z + Math.sin(o.ang) * T.constelOrbit };
+          fx(g, glow(0xb388ff, 0.3, 0.3), c, 1.2);
+          if (o.acc < T.constelEvery - 1e-9) continue;
+          o.acc = 0;
+          const tgt = alivesNear(g, c, T.constelRange).sort(byDist(c))[0];
+          if (!tgt) continue;
+          dealProcDamage(g, tgt, amt, { source: 'power:a_constelacion', skill: 'a_orbe', elem: 'arcane', tags: new Set(['proj', 'arcane']) });
+          beam(g, at(p.pos, c.x, c.z, 1.2), tgt.pos, 0xb388ff, 0.15);
+        }
+      },
+    },
+    // a27 Grieta Eterna (final): el Desgarro dura mientras tengas maná (un 3 %/s; nada con Maná
+    // Inagotable); rangos 2–3: mod m_u_desgarro dmg del nodo
+    a_grieta_eterna: {
+      name: 'Grieta Eterna', desc: 'El Desgarro Arcano dura mientras tengas maná.',
+      onTick(g, p, dt) {
+        const ch = channelOf(g, p, 'm_u_desgarro');
+        if (!ch) return;
+        const free = hasPower(p, 'a_mana_inagotable');
+        if (!free && !drainResource(p, (p.stats?.maxMP || 0) * T.eternaDrain / 100, dt)) return;
+        if ((ch.left || 0) <= 2 && (free || p.mp > 0)) g.extendChannel?.(p, ch.interval || 0.5);
+      },
+    },
+    // a28 Singularidad (ápice, 4 rangos): 1) un Rayo con 4 Cargas abre una grieta 3 s en el objetivo
+    // (50 %/s) · 2) matar a un élite da 4 Cargas · 3) las Cargas no se pierden (tv.chargeKeep del nodo,
+    // mech-maga.js) · 4) cada 20 Cargas gastadas, un Desgarro propio de 2 s (golpes reales)
+    a_singularidad: {
+      name: 'Singularidad', desc: 'El Rayo cargado abre grietas; los élites dan Cargas; no se pierden; el Desgarro se lanza solo.',
+      state: () => ({ spent: 0 }),
+      priority: -1,
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'rayo') return;
-        const st = powerState(p, 'a_arc_charge');
-        if (st.pending > 0) { gainGauge(p, 'cargas', st.pending); st.pending = 0; }
+        const n = spentCharges(p);
+        if (n >= 4) {
+          const tgt = cast.enemy?.alive ? cast.enemy.pos : cast.target;
+          if (tgt) openRift(g, p, tgt, T.singGrietaT, T.singGrietaCoef);
+        }
+        if (rankOf(p, 'a_singularidad') < 4 || !(n > 0)) return;
+        const st = powerState(p, 'a_singularidad');
+        st.spent += n;
+        if (st.spent < T.singEvery) return;
+        st.spent -= T.singEvery;
+        singularBeam(g, p);
       },
-    },
-    // x3 Singularidad: descargar 4 Cargas → el objetivo recibe +15 % de daño 6 s (hasta 2 veces)
-    a_singularity: {
-      name: 'Singularidad', desc: 'Descargar 4 Cargas hace que el objetivo reciba +15 % de daño durante 6 s (hasta 2 veces).',
-      state: () => ({ target: null }),
-      onCast(g, p, cast) { if (cast?.sk?.id === 'rayo') powerState(p, 'a_singularity').target = null; },
-      onHit(g, p, e, hit) { if (hit?.skill === 'rayo') { const st = powerState(p, 'a_singularity'); if (!st.target) st.target = e; } },
-      onGauge(g, p, id, ev, n) {
-        if (id !== 'cargas' || ev !== 'spent' || n < 4) return;
-        const e = powerState(p, 'a_singularity').target;
-        if (!e?.alive) return;
-        const cur = e.debuffs?.a_singularity;
-        const stacks = Math.min(T.singMax, (cur && cur.t > 0 ? Math.round(cur.pct / T.singPct) : 0) + 1);
-        e.applyWeakness?.('a_singularity', T.singPct * stacks, T.singT);
-        text(g, e, `Singularidad ×${stacks}`, 'txt-mana');
-      },
+      onKill(g, p, e) { if (rankOf(p, 'a_singularidad') >= 2 && isElite(e)) gainGauge(p, 'cargas', T.singElite); },
     },
   };
 }
@@ -1421,71 +2326,10 @@ function refund(g, p, sk, msg) {
   g.reduceCooldown?.(p, sk.id, Infinity);
   if (msg) g.ui?.message?.(msg);
 }
-function aimDir(p, target) {
-  let dx = (target?.x ?? p.pos.x) - p.pos.x, dz = (target?.z ?? p.pos.z) - p.pos.z;
-  let l = Math.hypot(dx, dz);
-  if (l < 1e-3) { const ry = p.group?.rotation?.y || 0; dx = Math.sin(ry); dz = Math.cos(ry); l = 1; }
-  return { x: dx / l, z: dz / l };
-}
-function dirVec(p, d) { return at(p.pos, d.x, d.z, 0); }
-// golpe directo de la habilidad a `e` (tirada + takeDamage + efectos del perfil)
-function strike(p, ctx, e, coef = ctx.coef) {
-  const prof = ctx.prof;
-  const { dmg, crit } = p.rollDamage(coef, prof.critBonus, prof.addPct, e, ctx.hitInfo);
-  const dealt = e.takeDamage(dmg, crit, ctx.dmgOpts) || 0;
-  ctx.hit(e, dealt);
-  return dealt;
-}
-// enemigos en el radio de un área (mismo criterio que Game.dealArea)
-function inArea(g, center, rad) {
-  return (g.enemies || []).filter(e => { if (!e.alive) return false; const r = rad + 0.5 * (e.def?.scale || 1); return dist2(e.pos, center) <= r * r; });
-}
-// orbe que atraviesa y rebota: un segmento de proyectil desde `from` hacia `to`
-function orbSegment(g, ctx, from, to, left, done) {
-  const { p, prof, sk } = ctx;
-  const speed = prof.speed || 6, range = prof.range || 14;
-  g.spawnProjectile({
-    from: at(from, from.x, from.z, 1.0), to: at(to, to.x, to.z, 1.0),
-    speed, range, friendly: true, pierce: true, color: ctx.color ?? sk.color, size: 0.34,
-    rollAt: e => p.rollDamage(ctx.coef, prof.critBonus, prof.addPct, e, ctx.hitInfo),
-    ...ctx.dmgOpts,
-    impactPreset: ctx.fx?.impact,
-    onHit: (e, dealt) => ctx.hit(e, dealt),
-  });
-  const d = aimDir({ pos: from, group: p.group }, to);
-  const end = g.clampWalkable ? g.clampWalkable(from, at(from, from.x + d.x * range, from.z + d.z * range), range) : at(from, from.x + d.x * range, from.z + d.z * range);
-  g.timers.schedule(range / Math.max(1, speed), () => {
-    if (left <= 0 || !p.alive || g.player !== p) { done(); return; }
-    // rebote: hacia el enemigo vivo más cercano al final del recorrido; si no hay, de vuelta
-    const tgt = (g.enemies || []).filter(o => o.alive).sort((a, b) => dist2(a.pos, end) - dist2(b.pos, end))[0];
-    const back = tgt && dist2(tgt.pos, end) > 0.25 ? tgt.pos : at(end, end.x - d.x * range, end.z - d.z * range);
-    ring(g, end, 0.9, ctx.color ?? sk.color);
-    orbSegment(g, ctx, end, back, left - 1, done);
-  });
-}
-
 export function magaSkillBehaviors() {
   const T = magaTuning();
   const B = {
-    // ---- clase ----
-    // Barrera de Maná: escudo del 30 % del maná máximo, 8 s. Escudo Prismático (c7): −X %
-    // de daño recibido mientras el escudo aguanta (g.shield con `dr`: se va con el escudo)
-    // Paso 2g: es el comportamiento de la Barrera del kit base (m_barrera): la fuente del escudo es
-    // el id de la habilidad (los poderes la reconocen así), c18 la refuerza por prof.buffMul y con
-    // Bastión Arcano (c28) no caduca
-    m_t_barrera: {
-      params: ['shieldManaPct'],
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const def = prof.def || sk;
-        const dur = prof.dur || def.dur || T.barrierT;
-        const amt = (def.shieldManaPct || T.barrierPct) / 100 * (p.stats.maxMP || 0) * (prof.buffMul || 1);
-        putBarrier(g, p, amt, dur, sk.id);
-        ring(g, p.pos, 1.4, ctx.color ?? sk.color);
-        fx(g, ctx.fx?.aura, p.pos, 1.0);
-        return ctx.res;
-      },
-    },
+    // ---- activas de talento de la clase (c11A, c17A, c22A) ----
     // Contrahechizo: interrumpe y silencia 3 s al lanzador a 12 m (prefiere al que está
     // lanzando); a los jefes, applyCC('interrupt') ya suma 20 de stagger
     m_t_contrahechizo: {
@@ -1561,245 +2405,6 @@ export function magaSkillBehaviors() {
         return ctx.res;
       },
     },
-
-    // ---- Piromante ----
-    // Llamarada: cono de 7 m; DETONA las Quemaduras (60 % / 100 % con s4) y luego golpea
-    p_llamarada: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const d = aimDir(p, cast.target);
-        const dir = dirVec(p, d);
-        p.faceToward?.(at(p.pos, p.pos.x + d.x, p.pos.z + d.z));
-        p.swing = 1;
-        const rad = prof.radius || 7;
-        const list = g.enemiesInCone(p.pos, dir, rad, prof.angle || 70);
-        const pct = prof.detonatePct || sk.detonatePct || T.detonatePct;
-        for (const e of list) {
-          const rem = g.consumeDoT?.(e, 'burn') || 0;
-          if (rem > 0) {
-            dealProcDamage(g, e, rem * pct / 100, { source: 'power:p_llamarada', skill: 'p_llamarada', elem: 'fire', tags: prof.tags });
-            fx(g, 'fireballBlast', e.pos, 0.8);
-          }
-        }
-        let n = 0;
-        for (const e of list) if (e.alive) { strike(p, ctx, e); n++; }
-        if (n) p.onDealHit();
-        const front = at(p.pos, p.pos.x + d.x * rad * 0.5, p.pos.z + d.z * rad * 0.5);
-        ctx.zoneCenter = front; ctx.zoneRad = rad * 0.5;
-        ring(g, front, rad * 0.5, ctx.color ?? sk.color);
-        fx(g, ctx.fx?.aura, p.pos, 1.0);
-        fx(g, ctx.fx?.impact, front, 0.8);
-        return ctx.res;
-      },
-    },
-    // Combustión: 10 s de Fuego siempre crítico (poder p_combustion del nodo s9) y Calor
-    // doble (stat 'gaugeGain:calor' del buff: +100 % de lo ganado con gaugeMult 2)
-    p_combustion: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const gain = Math.max(0, ((sk.gaugeMult || 2) - 1) * 100);
-        p.addBuff('p_combustion', { 'gaugeGain:calor': gain }, prof.dur || sk.dur || 10, { name: sk.name, icon: sk.icon, desc: 'Fuego siempre crítico y el Calor se llena el doble' });
-        ring(g, p.pos, 1.6, ctx.color ?? sk.color);
-        fx(g, ctx.fx?.aura, p.pos, 1.0);
-        fx(g, ctx.fx?.extra, p.pos, 0.2);
-        g.addShake?.(0.2);
-        return ctx.res;
-      },
-    },
-    // Muro de Fuego: línea de 8 m (perpendicular a la mira) 5 s; quema y bloquea el paso
-    p_muro_fuego: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const c = cast.target || p.pos;
-        const d = aimDir(p, c);
-        const half = (sk.length || 8) / 2 * (prof.radiusMul || 1);
-        g.spawnField('p_muro_fuego', { pos: c, radius: half, dur: prof.dur || sk.dur || 5, owner: p,
-          data: { ux: -d.z, uz: d.x, nx: d.x, nz: d.z, half, width: sk.width || 1, blocks: sk.blocks !== false,
-            dps: ctx.coef > 0 ? ctx.avgHit : 0, skill: sk.id, tags: prof.tags, color: ctx.color ?? sk.color, preset: ctx.fx?.extra || null } });
-        ctx.zoneCenter = at(c, c.x, c.z); ctx.zoneRad = 2;
-        fx(g, ctx.fx?.aura, c, 0.3);
-        return ctx.res;
-      },
-    },
-
-    // ---- Crionte ----
-    // Prisión de Hielo: 5 capas → Congelados 2 s (3 s con s4); jefes: Aterido + 20/35 de stagger
-    k_prision: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const center = at(cast.target || p.pos, (cast.target || p.pos).x, (cast.target || p.pos).z);
-        const rad = prof.radius || 4;
-        p.faceToward?.(center);
-        const freeze = prof.prisonFreeze || sk.freezeDur || T.prisonFreeze;
-        const stag = prof.prisonStagger || sk.bossStagger || T.prisonStagger;
-        // primero el hielo (la congelación larga gana a la de 1,5 s del indicador), luego el golpe
-        for (const e of inArea(g, center, rad)) {
-          if (isBoss(e)) { e.numbT = Math.max(e.numbT || 0, T.numbT); e.addStagger?.(stag, p); continue; }
-          e.applyCC('freeze', freeze, { src: p });
-          gainGauge(p, 'escarcha', Math.max(0, (sk.layers || T.prisonLayers) - gaugeValue(p, 'escarcha', e)), e);
-        }
-        g.dealArea(center, rad, ctx.coef, ctx.areaOpts);
-        ctx.zoneCenter = center; ctx.zoneRad = rad;
-        ring(g, center, rad, ctx.color ?? sk.color);
-        fx(g, ctx.fx?.aura, center, 0.4);
-        fx(g, ctx.fx?.extra, center, 0.2);
-        g.addShake?.(0.25);
-        return ctx.res;
-      },
-    },
-    // Lanza de Hielo: perforante; ×3 a los Congelados y los astilla (estallido de 3 m)
-    k_lanza: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        p.faceToward?.(cast.target);
-        p.swing = 1;
-        let finished = false;
-        const finish = () => { if (!finished) { finished = true; cast.done(ctx.res); } };
-        g.fireProjectile(ctx, {
-          pierce: true, size: 0.22,
-          onEnemy: (e, dealt) => {
-            if (isBoss(e) || !(e.frozenT > 0)) return;
-            if (e.alive && dealt > 0) dealProcDamage(g, e, dealt * ((sk.frozenMult || 3) - 1), { source: 'power:k_lanza', skill: 'k_lanza', elem: 'frost', tags: prof.tags });
-            const r = sk.burstRadius || 3;
-            for (const o of alivesNear(g, e.pos, r, e)) dealProcDamage(g, o, ctx.avgHit, { source: 'power:k_lanza', skill: 'k_lanza', elem: 'frost', tags: new Set(['area', 'frost']) });
-            ring(g, e.pos, r, ctx.color ?? sk.color);
-            fx(g, ctx.fx?.extra, e.pos, 0.8);
-            text(g, e, '¡ASTILLADO!');
-            shatterEvent(g, p, e);
-          },
-        });
-        g.timers.schedule((prof.range || 13) / Math.max(1, prof.speed || 20) + 0.05, finish);
-        return undefined;
-      },
-    },
-    // Ventisca: tormenta de 5 m 6 s; 30 % del arma por segundo y +1 capa por segundo
-    k_ventisca: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const c = cast.target || p.pos;
-        g.spawnField('k_ventisca', { pos: c, radius: prof.radius || 5, dur: prof.dur || 6, owner: p,
-          data: { dps: ctx.coef > 0 ? ctx.avgHit : 0, layers: sk.layersPerSec || 1, slow: prof.slow, slowPct: prof.slowPct, skill: sk.id, tags: prof.tags,
-            color: ctx.color ?? sk.color, preset: ctx.fx?.aura || null } });
-        ctx.zoneCenter = at(c, c.x, c.z); ctx.zoneRad = prof.radius || 5;
-        ring(g, c, prof.radius || 5, ctx.color ?? sk.color);
-        fx(g, ctx.fx?.extra, c, 0.3);
-        return ctx.res;
-      },
-    },
-    // Aliento Boreal: cono de 6 m, empuja 4 m y deja 3 capas (el golpe de Escarcha da 1)
-    k_aliento: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const d = aimDir(p, cast.target);
-        p.faceToward?.(at(p.pos, p.pos.x + d.x, p.pos.z + d.z));
-        p.swing = 1;
-        const from = p.pos.clone();
-        const list = g.enemiesInCone(p.pos, dirVec(p, d), prof.radius || 6, prof.angle || 70);
-        for (const e of list) {
-          if (!e.alive) continue;
-          strike(p, ctx, e);
-          if (!e.alive) continue;
-          e.applyCC('knock', (sk.knock || 4) * (prof.rangeMul || 1), { from, src: p });
-          const want = sk.layers || 3;
-          gainGauge(p, 'escarcha', Math.max(0, want - 1), e);
-        }
-        if (list.length) p.onDealHit();
-        fx(g, ctx.fx?.aura, p.pos, 1.0);
-        fx(g, ctx.fx?.impact, at(p.pos, p.pos.x + d.x * 3, p.pos.z + d.z * 3), 0.8);
-        return ctx.res;
-      },
-    },
-
-    // ---- Arcanista ----
-    // Orbe Arcano: lento, atraviesa y rebota 2 veces (cada segmento golpea de nuevo). Los rebotes
-    // salen de la definición FORJADA (la variante puede quitarlos: set { bounces: 0 })
-    a_orbe: {
-      params: ['bounces'],
-      cast(g, p, prof, cast) {
-        const { ctx } = cast;
-        const def = prof.def || cast.sk;
-        p.faceToward?.(cast.target);
-        p.swing = 1;
-        let finished = false;
-        const done = () => { if (!finished) { finished = true; cast.done(ctx.res); } };
-        orbSegment(g, ctx, p.pos.clone(), cast.target || p.pos, def.bounces ?? 2, done);
-        fx(g, ctx.fx?.aura, p.pos, 1.0);
-        return undefined;
-      },
-    },
-    // Misiles Arcanos: canalización genérica (type channel); cada misil devuelve 1 % de maná
-    a_misiles: {
-      tick(g, p, inst, interval) {
-        const ctx = inst.ctx, prof = ctx.prof, sk = ctx.sk;
-        const range = Math.max(2, prof.range || 10);
-        let e = inst.target;
-        if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) e = inst.target = g.nearestEnemy(range, ctx.target) || g.nearestEnemy(range) || null;
-        if (!e) return;
-        p.faceToward?.(e.pos);
-        strike(p, ctx, e);
-        p.onDealHit();
-        g.gainResource(p, (p.stats.maxMP || 0) * (sk.manaPerTickPct || 1) / 100);
-        // Paso 2e: cada 2 misiles, 1 Carga Arcana (la variante ofensiva de la Arcanista carga el Rayo)
-        inst._missiles = (inst._missiles || 0) + 1;
-        if (inst._missiles % magaTuning().misilesChargeEvery === 0) gainGauge(p, 'cargas', 1);
-        try { g.spawnBeam?.(p.pos, e.pos, ctx.color ?? sk.color, interval); } catch { /* */ }
-        fx(g, ctx.fx?.impact, e.pos, 1.0);
-        if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
-      },
-    },
-    // Sello del Archimago: marca 8 s, +4 Cargas; guarda el 25 % de la vida que pierde y
-    // al expirar (o al morir) estalla con todo en 3 m
-    a_sello: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const range = prof.range || sk.range || 12;
-        let e = cast.enemy;
-        if (!e?.alive || e.pos.distanceTo(p.pos) > range + 0.5) e = g.nearestEnemy?.(range) || null;
-        if (!e) { refund(g, p, sk, 'Ningún enemigo al alcance'); return ctx.res; }
-        const dur = prof.dur || sk.dur || 8;
-        e.marks = e.marks || {};
-        e.marks[sk.id] = { t: dur, by: p };
-        gainGauge(p, 'cargas', sk.charges || 4);
-        ctx.res.hits = 1;
-        const S = { stored: 0, hp: e.hp, until: g.timers.now + dur, pos: e.pos.clone() };
-        e._mgSeal = S;
-        const pct = (sk.storePct || 25) / 100;
-        const blow = () => {
-          if (e.marks) delete e.marks[sk.id];
-          if (e._mgSeal === S) e._mgSeal = null;
-          const amt = Math.round(S.stored);
-          ring(g, S.pos, T.sealR, ctx.color ?? sk.color);
-          fx(g, ctx.fx?.impact, S.pos, 1.0);
-          if (amt > 0) for (const o of alivesNear(g, S.pos, T.sealR)) dealProcDamage(g, o, amt, { source: 'power:a_sello', skill: 'a_sello', elem: 'arcane', tags: new Set(['arcane', 'area']) });
-          g.addShake?.(0.25);
-        };
-        const poll = () => {
-          if (e._mgSeal !== S) return;
-          const lost = Math.max(0, S.hp - Math.max(0, e.hp));
-          S.stored += lost * pct; S.hp = e.hp;
-          if (e.alive) S.pos = e.pos.clone();
-          if (!e.alive || g.timers.now >= S.until - 1e-9) { blow(); return; }
-          g.timers.schedule(0.1, poll);
-        };
-        g.timers.schedule(0.1, poll);
-        ring(g, e.pos, 1.0, ctx.color ?? sk.color);
-        fx(g, ctx.fx?.aura, e.pos, 2.0);
-        return ctx.res;
-      },
-    },
-    // Evocación: canalizas 3 s y recuperas el 60 % del maná (los golpes fuertes la cortan)
-    a_evocacion: {
-      cast(g, p, prof, cast) {
-        const { ctx, sk } = cast;
-        const ticks = sk.ticks || 6;
-        const per = (p.stats.maxMP || 0) * (sk.manaPct || 60) / 100 / ticks;
-        fx(g, ctx.fx?.aura, p.pos, 1.0);
-        return g.startChannel(ctx, cast.done, {
-          dur: sk.channelT || 3, ticks,
-          onTick: () => { g.gainResource(p, per); fx(g, ctx.fx?.extra, p.pos, 1.2); },
-        });
-      },
-    },
   };
   return B;
 }
@@ -1808,7 +2413,6 @@ export function magaSkillBehaviors() {
 // CAMPOS DE SUELO
 // ============================================================
 function enemyR(e) { return 0.45 * (e?.def?.scale || 1); }
-function inField(f, e) { return dist2(e.pos, f.pos) <= f.radius * f.radius; }
 // c27 Imagen Arcana: los enemigos del radio atacan a la copia (provocación corta, renovada)
 function imageTaunt(g, f) {
   const t = Math.min(f.t, 0.7);
@@ -1918,6 +2522,7 @@ export function magaFields() {
         if (d) d.material.opacity = 0.25 + 0.15 * Math.abs(Math.sin(f.t * 2));
       },
     },
+    // Muro de Fuego (campo en línea que deja la variante Muro de Llamas de la Estela Ígnea, forja)
     // Muro de Fuego: segmento (centro f.pos, eje u, normal n, mitad `half`, ancho `width`)
     p_muro_fuego: {
       name: 'Muro de Fuego',
@@ -1954,61 +2559,56 @@ export function magaFields() {
         }
       },
     },
-    // Ventisca: daño por segundo (tic 0,5 s) y +1 capa de Escarcha por segundo dentro
-    k_ventisca: {
-      name: 'Ventisca',
-      init(f) { f.acc = 0; f.layerAcc = 0; f.fxAcc = 0; },
+    // ---- Paso 2g: campos de las especializaciones ----
+    // s24 Cráter: marca el suelo 4 s (el +% de Fuego y la segunda explosión los mira el poder p_crater)
+    p_crater: {
+      name: 'Cráter',
+      init(f) { f.fxAcc = 0; },
       tick(g, f, dt) {
-        const d = f.data;
-        f.acc += dt; f.layerAcc += dt; f.fxAcc += dt;
-        if (f.fxAcc >= 0.5 && d.preset) { f.fxAcc = 0; g.emitFx?.(d.preset, { x: f.pos.x, y: 1.2, z: f.pos.z }); }
-        if (f.acc >= 0.5 - 1e-9) {
-          f.acc = 0;
-          const per = Math.max(0, Math.round((d.dps || 0) * 0.5));
-          for (const e of (g.enemies || []).filter(o => o.alive && inField(f, o))) {
-            if (per > 0) e.takeDamage(per, false, { dot: true, source: 'field:k_ventisca', skill: d.skill || 'k_ventisca', tags: d.tags || new Set(['zone', 'frost']), elem: 'frost' });
-            if (d.slow && e.alive) e.applyCC?.('slow', Math.min(d.slow, 1), { pct: d.slowPct || 40, src: f.owner });
-          }
-        }
-        if (f.layerAcc >= 1 - 1e-9) {
-          f.layerAcc = 0;
-          for (const e of (g.enemies || []).filter(o => o.alive && inField(f, o))) gainGauge(f.owner, 'escarcha', d.layers || 1, e);
-        }
+        f.fxAcc += dt;
+        if (f.fxAcc < 0.6) return;
+        f.fxAcc = 0;
+        ring(g, f.pos, f.radius * 0.9, 0xff5a1f);
+      },
+      render(g, f) {
+        const d = decal(g, f, { color: 0xff5a1f, opacity: 0.32, disc: true });
+        if (d) d.material.opacity = 0.18 + 0.14 * Math.max(0, Math.min(1, f.t / (f.dur || 1)));
       },
     },
-    // Tumba Glacial: bloque de hielo que corta el paso (empuja fuera a los no jefes)
-    k_tumba: {
-      name: 'Tumba Glacial',
-      tick(g, f) {
-        for (const e of g.enemies || []) {
-          if (!e.alive || isBoss(e)) continue;
-          const dx = e.pos.x - f.pos.x, dz = e.pos.z - f.pos.z, l = Math.hypot(dx, dz), min = f.radius + enemyR(e);
-          if (l >= min) continue;
-          const ux = l > 1e-3 ? dx / l : 1, uz = l > 1e-3 ? dz / l : 0;
-          const nx = f.pos.x + ux * (min + 0.02), nz = f.pos.z + uz * (min + 0.02);
-          if (!g.world?.grid || g.world.grid.walkable(nx, nz)) { e.pos.x = nx; e.pos.z = nz; }
-        }
-      },
-    },
-    // Invierno Eterno: +1 capa por segundo, −50 % de movimiento y Glaciación (x2: Debilidad)
-    k_campo_helado: {
-      name: 'Campo helado',
-      init(f) { f.acc = 0.5; f.layerAcc = 0; },
+    // i14 Suelo Helado: ralentiza un 40 % (tic 0,5 s) y pone 1 capa de Escarcha por segundo a quien lo pisa
+    k_suelo: {
+      name: 'Suelo Helado',
+      init(f) { f.acc = 0; f.layerAcc = 0; },
       tick(g, f, dt) {
         const p = f.owner;
         f.acc += dt; f.layerAcc += dt;
         if (f.acc >= 0.5 - 1e-9) {
           f.acc = 0;
-          const vuln = p?.tv?.fieldVuln || 0;
-          for (const e of (g.enemies || []).filter(o => o.alive && inField(f, o))) {
-            e.applyCC?.('slow', 0.7, { pct: T.winterSlow, src: p });
-            if (vuln > 0) e.applyWeakness?.('k_glaciacion', vuln, 0.7);
-          }
+          for (const e of enemiesIn(g, f.pos, f.radius)) e.applyCC?.('slow', slowDur(p, 0.7), { pct: T.sueloSlowPct, src: p });
         }
         if (f.layerAcc >= 1 - 1e-9) {
           f.layerAcc = 0;
-          for (const e of (g.enemies || []).filter(o => o.alive && inField(f, o))) gainGauge(p, 'escarcha', 1, e);
+          for (const e of enemiesIn(g, f.pos, f.radius)) gainGauge(p, 'escarcha', 1, e);
         }
+      },
+      render(g, f) { decal(g, f, { color: 0x9fe3ff, opacity: 0.3, disc: true }); },
+    },
+    // a7 / a21 / a28 Grieta arcana: daña cada 0,5 s (data.dps) a quien está dentro; daño de campo
+    a_grieta: {
+      name: 'Grieta Arcana',
+      init(f) { f.acc = 0; },
+      tick(g, f, dt) {
+        f.acc += dt;
+        if (f.acc < 0.5 - 1e-9) return;
+        f.acc = 0;
+        const per = Math.max(1, Math.round((f.data.dps || 0) * 0.5));
+        for (const e of enemiesIn(g, f.pos, f.radius))
+          e.takeDamage(per, false, { dot: true, source: 'field:a_grieta', skill: f.data.skill || null, elem: 'arcane', tags: new Set(['zone', 'arcane']) });
+        ring(g, f.pos, f.radius, 0xd28cff);
+      },
+      render(g, f) {
+        const d = decal(g, f, { color: 0xd28cff, opacity: 0.45, disc: true });
+        if (d) d.material.opacity = 0.3 + 0.2 * Math.abs(Math.sin(f.t * 5));
       },
     },
   };
