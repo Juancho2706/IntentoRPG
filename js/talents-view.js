@@ -15,10 +15,14 @@
 //   nodo: { id, which, t, tag, x, y, w, h, shape: 'circle'|'hex', inner: 'circle'|'split'|'square'|null,
 //           state: 'locked'|'avail'|'partial'|'max'|'paused', rank, max, free, choice, hasAct, icon, … }
 //
+// PURO DE VERDAD: los lectores del motor (ranksOf, heroState, ensure…) crean los objetos que faltan.
+// Cada función exportada que lee al jugador lo hace sobre una SOMBRA (readOnly): el mismo jugador
+// por prototipo con una copia de sus talentos, así ninguna consulta muta p (test85 lo comprueba).
+//
 // Coordenadas: x, y de un nodo son del lienzo de su árbol; (x0, y0) del árbol es la esquina del
 // lienzo dentro del panel. Así el panel coloca nodos, flotantes y tooltips SIN leer el layout.
 import * as Talents from './talents.js';
-import { createTalentOps, TALENT_REASONS } from './talents-ops.js';
+import { createTalentOps, TALENT_REASONS, LOADOUTS_MAX, LOADOUT_NAME_MAX } from './talents-ops.js';
 import { CLASSES } from './data.js';
 import { knownSkills } from './skill-resolve.js';
 import { CAT_LABELS, skillSlots } from './skill-defs.js';
@@ -26,6 +30,21 @@ import { CAT_LABELS, skillSlots } from './skill-defs.js';
 // operaciones puras (solo para CONSULTAR el estado de un nodo; las mutaciones van por ops)
 const OPS = createTalentOps(Talents);
 const R = Talents.TALENT_RULES;
+// primer nivel en que un sistema da su primer punto (cabeceras «Nv req.» y nota del velo)
+const firstLevel = w => { for (let L = 1; L <= R.nivelMax; L++) if (Talents.earnedAt(w, L) > 0) return L; return R.nivelMax; };
+const CLS_AT = firstLevel('cls'), BOARD_AT = firstLevel('board');
+// rangos «Nv71–80»: sin corte de línea alrededor de la raya (U+2060, unión de palabras)
+const span = (a, b) => `Nv${a}\u2060–\u2060${b}`;
+
+// sombra de solo lectura del jugador: lo que el motor cree al leer queda en la copia
+const SHADE = Symbol('talents-view:sombra');
+export function readOnly(p) {
+  if (!p || typeof p !== 'object' || p[SHADE]) return p;
+  const q = Object.create(p);
+  q.talents = p.talents && typeof p.talents === 'object' ? JSON.parse(JSON.stringify(p.talents)) : p.talents ?? null;
+  Object.defineProperty(q, SHADE, { value: true });
+  return q;
+}
 
 // ------------------------------------------------------------ geometría (px a escala 1)
 // Panel del mockup: 1560 × 930, relleno 22/28, cabecera 86, pie 60, huecos 14, columnas 2 : 1 : 2
@@ -107,7 +126,7 @@ export const REASON_TEXT = Object.freeze({
   gate: { text: 'Gasta más puntos en las filas de arriba', detail: true },
   req: { text: 'Antes necesitas el talento de arriba al máximo', detail: true },
   max: { text: 'Ya está al máximo' },
-  'hero-closed': { text: 'Gasta tus 31 puntos de especialización para abrir el Paragon' },
+  'hero-closed': { text: `Gasta tus ${R.pts.spec} puntos de especialización para abrir el Paragon` },
   'no-spec': { text: 'Elige primero una especialización' },
   choice: { text: 'Esa opción no es válida' },
   'code-version': { text: 'Es una build de otra versión de los talentos', detail: true },
@@ -118,7 +137,7 @@ export const REASON_TEXT = Object.freeze({
   empty: { text: 'No tiene rangos que quitar' },
   unknown: { text: 'No se pudo hacer', detail: true },
   level: { text: `Las especializaciones se abren al nivel ${R.specAt}`, detail: true },
-  full: { text: 'Ya tienes 10 configuraciones en esta especialización' },
+  full: { text: `Ya tienes ${LOADOUTS_MAX}: borra una configuración para guardar otra` },
 });
 // texto de una respuesta fallida de ops (null si salió bien)
 export function reasonText(r) {
@@ -128,7 +147,7 @@ export function reasonText(r) {
   if (!e) return detail || REASON_TEXT.unknown.text;
   return (e.detail && detail) || e.text;
 }
-export { TALENT_REASONS };
+export { TALENT_REASONS, LOADOUTS_MAX };
 
 // ------------------------------------------------------------ iconos y habilidades
 // ruta (relativa a assets/) del icono de un nodo: el suyo o talents/<clase>-<clase|spec|héroe>-<id>.webp
@@ -315,10 +334,11 @@ function colHead(p, which, spec, heroTree) {
   if (which === 'hero') {
     const open = Talents.heroOpen(p);
     if (open && L < R.heroAt) meta.push(`1.er punto al Nv${R.heroAt}`);
+    // cerrado (o en pausa): lo que falta para abrirlo; abierto, el tablero (no caben los dos en 300 px)
     if (!open) meta.push(`Espec. ${specSpent(p, spec)}/${R.pts.spec}`);
     const board = Talents.earnedAt('board', L);
-    if (board > 0) meta.push(`Tablero ${board}/${R.pts.board}`);
-  } else meta.push(`Nv req. ${which === 'cls' ? 11 : R.specAt}`);
+    if (open && board > 0) meta.push(`Tablero ${board}/${R.pts.board}`);
+  } else meta.push(`Nv req. ${which === 'cls' ? CLS_AT : R.specAt}`);
   const name = which === 'cls' ? (Talents.talentTreesFor(p.classId)?.cls?.name || p.classId) : which === 'spec' ? (spec?.name || 'Especialización') : 'Paragon';
   return { which, name, sub: which === 'hero' ? (heroTree?.name || '') : '', spent, total, earned, left, meta,
     text: `Gastados ${spent} / ${total}` };
@@ -337,6 +357,7 @@ function heroView(p, spec) {
   const N = R.pts.spec, sp = specSpent(p, spec), earned = Talents.earnedAt('spec', p.level | 0);
   const tree = Talents.treeOf(p, 'hero');
   const kept = tree ? Talents.spentIn(tree, Talents.ranksOf(p, 'hero')) : 0;
+  const paid = (trees[0]?.nodes || []).filter(n => !n.free).length;
   const veil = open ? null : {
     paused,
     title: paused ? 'Paragon en pausa' : 'Paragon',
@@ -346,7 +367,7 @@ function heroView(p, spec) {
     when: earned < N ? `El último punto se gana al nivel ${R.specLast}`
       : `Te ${N - sp === 1 ? 'queda 1 punto' : `quedan ${N - sp} puntos`} por gastar en el árbol de ${spec?.name || 'tu especialización'}`,
     previews: trees.map(h => ({ id: h.id, name: h.name, art: h.art || null, key: h.key || h.line || '' })),
-    note: `Elige uno de los dos: su nodo clave es gratis y luego ${R.pts.hero} puntos (Nv${R.heroAt}–${R.heroAt + R.pts.hero - 1}) para 12 nodos. Después, el tablero de glifos (${R.pts.board} puntos, Nv81–100).`,
+    note: `Elige uno de los dos: su nodo clave es gratis y luego ${R.pts.hero} puntos (${span(R.heroAt, R.heroAt + R.pts.hero - 1)}) para ${paid} nodos. Después, el tablero de glifos (${R.pts.board} puntos, ${span(BOARD_AT, R.nivelMax)}).`,
   };
   return { open, paused, tree: cur?.id || null, treeName: cur?.name || '', art: cur?.art || null,
     trees: trees.map(h => ({ id: h.id, name: h.name, art: h.art || null, on: h.id === cur?.id, key: h.key || '', line: h.line || '' })),
@@ -356,11 +377,13 @@ function heroView(p, spec) {
 
 // ------------------------------------------------------------ kit, selector y builds
 export function kitView(p) {
+  p = readOnly(p);
   const list = knownSkills(p).filter(s => s.kind !== 'passive');
   list.sort((a, b) => (CAT_ORDER[a.cat] ?? 9) - (CAT_ORDER[b.cat] ?? 9) || (a.req || 1) - (b.req || 1));
   return list.map(sk => ({ id: sk.id, name: sk.name, cat: sk.cat, spec: sk.spec || null, talent: sk.kind === 'talent', icon: skillIconPath(p.classId, sk) }));
 }
 export function chooserView(p) {
+  p = readOnly(p);
   const t = Talents.talentTreesFor(p?.classId);
   const cur = p?.talents?.spec || null;
   const locked = (p?.level | 0) < R.specAt;
@@ -405,8 +428,21 @@ export function loadoutOptions(p, sel = 'custom') {
   if (sel === 'custom' || !out.some(o => o.value === sel)) out.push({ value: 'custom', label: 'Personalizada (sin guardar)', title: 'Personalizada (sin guardar)', kind: 'custom' });
   return out.map(o => ({ ...o, selected: o.value === sel || (o.kind === 'custom' && !out.some(x => x.value === sel && x.kind !== 'custom')) }));
 }
+// gestor de configuraciones (botón Guardar): las guardadas de la especialización, el hueco que
+// queda y un nombre libre para la siguiente («Mi build N»)
+export function loadoutsView(p) {
+  const spec = p?.talents?.spec;
+  if (!spec) return null;
+  const list = (p.talents.loadouts?.[spec] || []).map((l, i) => ({ i, name: String(l?.name || ''), value: `saved:${i}` }));
+  const names = new Set(list.map(l => l.name));
+  let n = list.length + 1;
+  while (names.has(`Mi build ${n}`)) n++;
+  return { spec, specName: Talents.findSpec(p.classId, spec)?.name || spec, count: list.length, max: LOADOUTS_MAX,
+    full: list.length >= LOADOUTS_MAX, list, nextName: `Mi build ${n}`, nameMax: LOADOUT_NAME_MAX };
+}
 // ¿los talentos del jugador son exactamente una build de su especialización a su nivel? → clave | null
 export function matchBuild(p) {
+  p = readOnly(p);
   const spec = p?.talents?.spec;
   if (!spec) return null;
   const want = Talents.defaultBuildKey(p.classId, spec);
@@ -429,6 +465,7 @@ const sortObj = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v).s
 // ------------------------------------------------------------ vista completa
 export function talentsView(p, opts = {}) {
   if (!p || !Talents.talentTreesFor(p.classId)) return null;
+  p = readOnly(p);
   OPS.ensure(p);
   const t = Talents.talentTreesFor(p.classId);
   const spec = Talents.activeSpec(p);
@@ -497,6 +534,7 @@ const nodeSig = n => `${n.state}|${n.rank}|${n.choice || ''}|${n.inner}|${n.icon
 // tooltip de un nodo: título, tipo, una frase (o las dos opciones), «cuál conviene», habilidades
 // que toca y estado. alt = detalle técnico (id y efectos).
 export function nodeTooltip(p, which, id, { alt = false } = {}) {
+  p = readOnly(p);
   const tree = Talents.treeOf(p, which);
   const node = tree && Talents.nodeById(tree, id);
   if (!node) return null;
@@ -549,9 +587,18 @@ function fxSummary(fx) {
   for (const [sel, m] of Object.entries(fx.mod || {})) parts.push(`${sel} ${Object.entries(m).map(([a, b]) => `${a}:${Array.isArray(b) ? b.join('/') : b}`).join(', ')}`);
   return parts.join(' · ') || 'sin efecto todavía';
 }
-// nodos (clase, especialización activa y héroe activo) que tocan una habilidad
-export function nodesTouchingSkill(p, skillId) {
+// nodos (clase, especialización activa y héroe activo) que tocan una habilidad. Con { spec }, solo
+// los del árbol de ESA especialización (tarjetas del selector: lo que mejora la que miras)
+export function nodesTouchingSkill(p, skillId, { spec = null } = {}) {
+  p = readOnly(p);
   const out = [];
+  if (spec) {
+    const s = Talents.findSpec(p?.classId, spec);
+    const ranks = p?.talents?.sp?.[spec] || {};
+    for (const n of s?.nodes || []) if (nodeTouches(p.classId, n).ids.includes(skillId))
+      out.push({ which: 'spec', id: n.id, name: n.name, icon: nodeIconPath(p.classId, 'spec', spec, n), rank: n.free ? (p.talents?.spec === spec ? 1 : 0) : (ranks[n.id] | 0) });
+    return out;
+  }
   for (const w of ['cls', 'spec', 'hero']) {
     const tree = Talents.treeOf(p, w);
     if (!tree) continue;
@@ -562,16 +609,17 @@ export function nodesTouchingSkill(p, skillId) {
   }
   return out;
 }
-// tooltip de una habilidad de «Tu kit»
-export function skillTooltip(p, skillId) {
+// tooltip de una habilidad de «Tu kit» (o, con { spec }, de una tarjeta del selector)
+export function skillTooltip(p, skillId, { spec = null } = {}) {
+  p = readOnly(p);
   const sk = findSkill(p?.classId, skillId);
   if (!sk) return null;
-  const spec = sk.spec ? Talents.findSpec(p.classId, sk.spec) : null;
-  const origin = sk.kind === 'talent' ? 'Habilidad de talento' : spec ? spec.name : 'Kit base';
+  const own = sk.spec ? Talents.findSpec(p.classId, sk.spec) : null;
+  const origin = sk.kind === 'talent' ? 'Habilidad de talento' : own ? own.name : 'Kit base';
   const slots = skillSlots(sk).map(s => SLOT_LABEL[s]).filter(Boolean).join(' o ');
   return { id: sk.id, name: sk.name, icon: skillIconPath(p.classId, sk), talent: sk.kind === 'talent',
     kind: `${origin} · ${CAT_LABELS[sk.cat] || sk.cat}${slots ? ` · ${slots}` : ''}`, line: skillLine(sk),
-    links: nodesTouchingSkill(p, skillId) };
+    links: nodesTouchingSkill(p, skillId, { spec }) };
 }
 // tooltip de una puerta
 export function gateTooltip(gate) {

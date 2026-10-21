@@ -15,8 +15,11 @@
        &alt=1 (detalle) · &tip=<cls|spec|hero>:<id> (tooltip o flotante A/B de ese nodo) · &hl=<skillId>
        &demo=spend|remove|undo|code|swap|herotree   &t=<ms> (congela las animaciones en ese instante)
        &bare=1 (sin barra de controles) · &three=local (three.js de node_modules)
-       &measure=1  vuelca en <pre id="measure"> (JSON): G6 (formas), G10 (reducir movimiento),
-                   G14 (elementFromPoint y clic derecho con el flotante abierto), A5 (__uicheck)
+       &measure=1  vuelca en <pre id="measure"> (JSON): G6 (formas), A5 (__uicheck), DOM (contrato §3.12),
+                   G14 (el flotante no tapa la cara; ratón lento a 4 px; clic derecho y puente), Recorrido
+                   (flotante y tooltip de los 72 nodos dentro del panel), Pausa (aviso y [data-paused]),
+                   Cambio (relevo de especialización), G10 (reducir movimiento: fundidos y opacidad del
+                   arte al gastar, revelar el Paragon y cambiar de especialización) y Config (Guardar)
      Capturas: node tests/visual/chrome.mjs "<url>&bare=1" --shot=out.png --size=1920,1080 --wait=2500 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,7 +107,8 @@ let lastDropped = null;
 if (state === 'reveal' || state === 'paused') lastDropped = dropOneSpecPoint();
 
 const ops = gameTalentOps(g);
-panel = createTalentPanel($('#host'), { ops, getPlayer: () => g.player, getGame: () => g, assetBase: '../../assets/',
+// tipDelay 0: el arnés enseña los tooltips al instante (el recorrido de --measure pasa por los 72 nodos)
+panel = createTalentPanel($('#host'), { ops, getPlayer: () => g.player, getGame: () => g, assetBase: '../../assets/', tipDelay: 0,
   onClose: () => { panel.close(); setTimeout(() => panel.open(), 400); }, onOpenBook: () => log('Habilidades (T): lo monta U3 con ui-skills.js') });
 window.__h = h; window.__panel = panel; window.__g = g;
 function log(t) { msgs.push(t); $('#log').textContent = msgs.slice(-3).join(' · '); }
@@ -122,7 +126,7 @@ if (Q.get('bare') !== '1') {
     <label>Paragon <select data-q="state">${opt('', 'normal', state)}${opt('reveal', 'revelación (Nv70)', state)}${opt('paused', 'en pausa', state)}</select></label>
     <label><input type="checkbox" data-q="rm" ${Q.get('rm') === '1' ? 'checked' : ''}> Reducir movimiento</label>
     <label><input type="checkbox" data-q="combat" ${Q.get('combat') === '1' ? 'checked' : ''}> En combate</label>
-    <button data-run="reveal">Gastar el último punto</button><button data-run="measure">Comprobar (G6 · G10 · G14 · A5)</button>`;
+    <button data-run="reveal">Gastar el último punto</button><button data-run="measure">Comprobar (G6 · G10 · G14 · A5 · DOM)</button>`;
   $('#ctl').addEventListener('change', e => {
     const k = e.target.dataset.q; if (!k) return;
     const q = new URLSearchParams(location.search);
@@ -145,38 +149,108 @@ const fire = (el, type, at, extra = {}) => el.dispatchEvent(new MouseEvent(type,
 const spentAll = () => { const i = g.talentPointsInfo(); return i.cls.spent + i.spec.spent + i.hero.spent; };
 
 // ---------- comprobaciones (?measure=1) ----------
+const PANEL = () => document.querySelector('#talents-panel .tp-panel');
+const ctrlZ = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true }));
+const running = () => document.getAnimations().filter(a => a.effect?.target?.closest?.('#talents-panel') && a.playState === 'running')
+  .map(a => ({ name: a.animationName || `transición ${a.transitionProperty}`, ms: +(a.effect.getTiming().duration) || 0, en: a.effect.target.className?.baseVal ?? String(a.effect.target.className || a.effect.target.tagName).split(' ')[0] }));
+const opa = sel => { const el = document.querySelector(sel); return el ? Math.round(+getComputedStyle(el).opacity * 100) / 100 : null; };
+// ratón «de verdad» sin CDP: recorre el segmento a pasos de `step` px y, como el navegador, avisa
+// mouseout/mouseover (con relatedTarget) cada vez que cambia el elemento bajo el puntero
+async function glide(from, to, step) {
+  const n = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / step));
+  let prev = document.elementFromPoint(from.x, from.y);
+  for (let i = 1; i <= n; i++) {
+    const x = from.x + (to.x - from.x) * i / n, y = from.y + (to.y - from.y) * i / n;
+    const cur = document.elementFromPoint(x, y);
+    if (cur !== prev) {
+      prev?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: cur, clientX: x, clientY: y }));
+      cur?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: prev, clientX: x, clientY: y }));
+      prev = cur;
+    }
+    cur?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y }));
+    await sleep(4);
+  }
+  return prev;
+}
+const inPanel = (r, M) => { const P = PANEL().getBoundingClientRect(); return r.left >= P.left + M && r.top >= P.top + M && r.right <= P.right - M && r.bottom <= P.bottom - M; };
+
 async function measure() {
   const out = { cls, spec, lvl, state, res: `${innerWidth}x${innerHeight}` };
   await document.fonts?.ready;
   await sleep(500);
+  const scale = panel.debug().scale;
+  const trees = !!document.querySelector('#talents-panel .tp-body[data-view="trees"]');
   // G6: formas
   const nodes = [...document.querySelectorAll('#talents-panel .tn')];
   const shape = el => { const f = el.querySelector('.tn-face'); const cs = getComputedStyle(f); return cs.clipPath && cs.clipPath !== 'none' ? 'hex' : cs.borderRadius.startsWith('50%') ? 'circle' : 'other'; };
   const bad6 = nodes.filter(el => (el.classList.contains('t-c') ? 'hex' : 'circle') !== shape(el)).map(el => el.dataset.node);
   const sq = nodes.filter(el => el.classList.contains('is-square')).map(el => { const i = el.querySelector('.tn-img'); const cs = getComputedStyle(i); return { id: el.dataset.node, square: cs.clipPath === 'none' && cs.borderRadius === '4px' }; });
   out.G6 = { nodos: nodes.length, hex: nodes.filter(el => el.classList.contains('t-c')).length, mal: bad6, cuadrados: sq, ok: !bad6.length && sq.every(s => s.square) };
-  // A5: solapes y fuera de pantalla
+  // A5: solapes y fuera de pantalla (cabecera, árboles, pie, selector y lo flotante abierto)
   out.A5 = panel.check();
   out.A5.ok = !out.A5.overlaps.length && !out.A5.offscreen.length;
-  // G14: flotante encima del hexágono; elementFromPoint en el centro del icono = el nodo; clic derecho quita
-  const hexes = nodes.filter(el => el.classList.contains('t-c') && ['avail', 'max', 'partial'].includes(el.dataset.state) && !el.closest('.tp-hero[data-open="0"]'));
+  // DOM estable (§3.12): raíz abierta, 30 + 29 + 13 nodos con id y estado, puertas con fila
+  const count = sel => document.querySelectorAll(sel).length;
+  const dom = { open: !!document.querySelector('#talents-panel[data-open]') };
+  if (trees) {
+    dom.nodos = ['cls', 'spec', 'hero'].map(w => count(`#talents-panel [data-tree="${w}"] .tn[data-node][data-state]`));
+    dom.puertas = ['cls', 'spec'].map(w => count(`#talents-panel [data-tree="${w}"] .tp-gate[data-row]`));
+    dom.pausa = !!document.querySelector('#talents-panel .tp-hero[data-paused]');
+    dom.ok = dom.open && dom.nodos.join() === '30,29,13' && dom.puertas.join() === '2,3' && dom.pausa === (state === 'paused');
+  } else dom.ok = dom.open;
+  out.DOM = dom;
+  if (!trees) { out.ok = out.G6.ok && out.A5.ok && dom.ok; return out; }
+
+  // G14: el flotante encima del hexágono no tapa el centro ni la cara (elementFromPoint), queda
+  // pegado al nodo y dentro del panel
+  const hexes = nodes.filter(el => el.classList.contains('t-c') && ['avail', 'max', 'partial'].includes(el.dataset.state) && !el.closest('.tp-hero:not([data-open])'));
   const g14 = [];
-  for (const el of hexes.slice(0, 6)) {
+  for (const el of hexes.slice(0, 8)) {
     const at = center(el);
     fire(el, 'mouseover', at);
     await sleep(220);
     const pop = document.querySelector('#talents-panel .tp-pop');
-    const under = document.elementFromPoint(at.x, at.y)?.closest('.tn')?.dataset.node || null;
-    const popR = pop.hidden ? null : pop.getBoundingClientRect(), nr = el.getBoundingClientRect();
-    g14.push({ id: el.dataset.node, under, popEncima: !!popR && popR.bottom <= nr.top + 1, ok: under === el.dataset.node && !!popR && popR.bottom <= nr.top + 1 });
+    const nr = el.getBoundingClientRect(), popR = pop.hidden ? null : pop.getBoundingClientRect();
+    // centro y cara del icono (por debajo de la franja del puente, 7 px a escala)
+    const pts = [at, { x: at.x, y: nr.top + 10 * scale }, { x: nr.left + 10 * scale, y: at.y }, { x: nr.right - 10 * scale, y: at.y }, { x: at.x, y: nr.bottom - 6 * scale }];
+    const tapa = pts.filter(q => document.elementFromPoint(q.x, q.y)?.closest('.tn') !== el).length;
+    const pegado = !!popR && Math.abs(popR.bottom - nr.top) <= 1;
+    const dentro = !!popR && inPanel(popR, 6 * scale);
+    const kids = count('#talents-panel .tp-pop .tn-choice[data-k="A"]') + count('#talents-panel .tp-pop .tn-choice[data-k="B"]');
+    g14.push({ id: el.dataset.node, tapa, pegado, dentro, mitades: kids, ok: !tapa && pegado && dentro && kids === 2 });
+    fire(el, 'mouseout', at, { relatedTarget: document.querySelector('#talents-panel .tp-foot') });
+  }
+  // ratón lento (4 px por evento) y normal (12 px) del centro del hexágono a la otra mitad: el
+  // flotante sigue abierto al llegar y el clic cambia la opción (luego Ctrl+Z)
+  const lento = [];
+  const ch = nodes.find(el => el.classList.contains('t-c') && el.classList.contains('is-chosen') && !el.closest('[data-tree="hero"]'));
+  for (const step of [4, 12]) {
+    if (!ch) break;
+    const at = center(ch);
+    const far = center(document.querySelector('#talents-panel .tp-foot'));
+    await glide(far, at, 24);
+    await sleep(250);
+    const cur = ch.querySelector('.tn-ab')?.textContent;
+    const other = cur === 'A' ? 'B' : 'A';
+    const half = document.querySelector(`#talents-panel .tp-pop:not([hidden]) .tn-choice[data-k="${other}"]`);
+    if (!half) { lento.push({ step, err: 'sin flotante' }); continue; }
+    const hc = center(half);
+    const last = await glide(at, hc, step);
+    const abierto = !document.querySelector('#talents-panel .tp-pop').hidden;
+    fire(last, 'click', hc);
+    await sleep(150);
+    const despues = ch.querySelector('.tn-ab')?.textContent;
+    lento.push({ step, id: ch.dataset.node, abierto, cambio: `${cur}→${despues}`, ok: abierto && despues === other });
+    if (despues !== cur) { ctrlZ(); await sleep(150); }
+    await glide(hc, far, 24);
   }
   // clic derecho con el flotante abierto (en un hexágono con rango que el motor deja quitar): quita el punto.
-  // Uno que otro nodo necesita (requisito) NO se quita y el flotante dice por qué.
+  // Uno que otro nodo necesita (requisito) NO se quita y el flotante dice por qué
   const treeOfEl = el => el.closest('[data-tree]').dataset.tree;
   const ownedHex = hexes.filter(el => el.dataset.state === 'max' && !el.closest('[data-tree="hero"]'));
   const owned = ownedHex.find(el => Talents.canRemoveRank(p, treeOfEl(el), el.dataset.node));
   const blocked = ownedHex.find(el => !Talents.canRemoveRank(p, treeOfEl(el), el.dataset.node));
-  let rclick = null, rblock = null;
+  let rclick = null, rblock = null, rbridge = null;
   if (blocked) {
     const at = center(blocked);
     fire(blocked, 'mouseover', at);
@@ -198,58 +272,163 @@ async function measure() {
     await sleep(100);
     const after = spentAll();
     rclick = { id: owned.dataset.node, hit: target?.closest('.tn')?.dataset.node || target?.className, quito: after < before };
-    // Ctrl+Z lo devuelve
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true }));
+    ctrlZ();
     await sleep(100);
     rclick.deshacer = spentAll() === before;
+    // el puente tapa la franja de arriba del nodo: un clic derecho ahí también es del nodo
+    fire(owned, 'mouseover', at);
+    await sleep(220);
+    const nr = owned.getBoundingClientRect(), top = { x: at.x, y: nr.top + 3 * scale };
+    const t2 = document.elementFromPoint(top.x, top.y);
+    fire(t2, 'contextmenu', top, { button: 2 });
+    await sleep(100);
+    rbridge = { en: t2?.classList?.contains('tp-pop') ? 'puente' : t2?.closest?.('.tn') ? 'nodo' : String(t2?.className), quito: spentAll() < before };
+    rbridge.ok = rbridge.quito;
+    if (rbridge.quito) { ctrlZ(); await sleep(100); }
   }
-  // clic en la otra mitad del flotante: cambia la opción (sin caer en la mitad vecina)
-  let pick = null;
-  const ch = nodes.find(el => el.classList.contains('t-c') && el.classList.contains('is-chosen') && !el.closest('[data-tree="hero"]'));
-  if (ch) {
-    const at = center(ch);
-    fire(ch, 'mouseover', at);
-    await sleep(260);
-    const cur = ch.querySelector('.tn-ab')?.textContent;
-    const other = cur === 'A' ? 'B' : 'A';
-    const half = document.querySelector(`#talents-panel .tp-pop .tn-choice[data-k="${other}"]`);
-    if (half) {
-      const hc = center(half);
-      const tg = document.elementFromPoint(hc.x, hc.y);
-      fire(tg, 'click', hc);
-      await sleep(120);
-      pick = { id: ch.dataset.node, cayo: tg?.closest('.tn-choice')?.dataset.k || null, antes: cur, despues: ch.querySelector('.tn-ab')?.textContent };
-      pick.ok = pick.cayo === other && pick.despues === other;
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true }));
-      await sleep(100);
+  panel.unhover();
+  out.G14 = { flotante: g14, lento, clicDerecho: rclick, puente: rbridge, bloqueado: rblock,
+    // a niveles bajos puede no haber hexágonos elegidos o que se puedan quitar: esas partes no aplican
+    ok: g14.length === Math.min(8, hexes.length) && g14.every(x => x.ok) && (!ch || (lento.length === 2 && lento.every(x => x.ok)))
+      && (!owned || (rclick.quito && rclick.deshacer && rbridge?.ok)) && (!rblock || rblock.ok), aplica: { hexagonos: hexes.length, elegido: !!ch, quitable: !!owned } };
+
+  // Recorrido: el flotante y el tooltip de CADA nodo quedan dentro del panel (sin pisar el marco)
+  const fuera = [];
+  for (const el of document.querySelectorAll('#talents-panel .tn')) {
+    panel.hover(treeOfEl(el), el.dataset.node);
+    await sleep(0);
+    for (const sel of ['.tp-pop:not([hidden])', '.tp-tip.on']) {
+      const x = document.querySelector(`#talents-panel ${sel}`);
+      if (x && !inPanel(x.getBoundingClientRect(), 6 * scale)) fuera.push(`${treeOfEl(el)}:${el.dataset.node} ${sel.split(':')[0].split('.').join(' ').trim()}`);
     }
   }
   panel.unhover();
-  out.G14 = { flotante: g14, clicDerecho: rclick, bloqueado: rblock, mitad: pick,
-    ok: g14.length > 0 && g14.every(x => x.ok) && !!rclick && rclick.quito && rclick.deshacer && (!rblock || rblock.ok) && (!pick || pick.ok) };
-  // G10: con «reducir movimiento», gastar un punto no deja pulsos, chispas ni sacudidas (solo fundidos
-  // cortos). Se quita un punto (clic derecho) y se vuelve a gastar con reducir movimiento
-  await sleep(700);
+  out.Recorrido = { nodos: nodes.length, fuera, ok: !fuera.length };
+
+  // Paragon en pausa (2g §7.1, §10): quitar un punto de especialización con el Paragon abierto y
+  // con puntos pone .tp-hero[data-paused] y el aviso sale en el propio panel; Ctrl+Z lo quita
+  let pausa = null;
+  const removable = () => [...document.querySelectorAll('#talents-panel [data-tree="spec"] .tn')].reverse().find(x => !x.classList.contains('is-free') && Talents.canRemoveRank(p, 'spec', x.dataset.node));
+  if (lvl > Talents.TALENT_RULES.heroAt && Talents.heroOpen(p)) {
+    const el = removable();
+    fire(el, 'contextmenu', center(el), { button: 2 });
+    await sleep(120);
+    const toastTxt = document.querySelector('#talents-panel .tp-toast.on')?.textContent || '';
+    pausa = { nodo: el.dataset.node, attr: !!document.querySelector('#talents-panel .tp-hero[data-paused]'), aviso: /Paragon en pausa/.test(toastTxt) };
+    ctrlZ();
+    await sleep(150);
+    pausa.vuelve = !document.querySelector('#talents-panel .tp-hero[data-paused]') && !!document.querySelector('#talents-panel .tp-hero[data-open]');
+    pausa.ok = pausa.attr && pausa.aviso && pausa.vuelve;
+  }
+  out.Pausa = pausa;
+
+  // Cambio de especialización desde el selector (2g §10): fundido cruzado del arte y nodos que bajan
+  const other = CLS[cls].find(s => s !== p.talents.spec);
+  async function swap(rm) {
+    document.body.classList.toggle('reduce-motion', rm);
+    document.querySelector('#talents-panel [data-act="spec"]').click();      // «Cambiar», como el jugador
+    await sleep(120);
+    document.querySelector(`#talents-panel [data-act="pick"][data-spec="${other}"]`)?.click();
+    await sleep(rm ? 40 : 250);
+    const anims = running();
+    const r = { rm, spec: p.talents.spec, fxSwap: !!document.querySelector('#talents-panel .tp-col-spec.fx-swap'),
+      nombres: [...new Set(anims.map(a => a.name))], arte: opa('#talents-panel .tp-col-spec .tp-art'),
+      arteViejo: getComputedStyle(document.querySelector('#talents-panel .tp-col-spec .tp-art-old')).display };
+    await sleep(1100);
+    ctrlZ();
+    await sleep(rm ? 200 : 1200);
+    r.deshecho = p.talents.spec === spec;
+    return r;
+  }
+  const sw = await swap(false);
+  sw.ok = sw.spec === other && sw.fxSwap && sw.nombres.includes('tpReflow') && sw.nombres.includes('tpArtIn') && sw.deshecho;
+  out.Cambio = sw;
+
+  // G10: con «reducir movimiento», solo fundidos cortos (§10) y el arte en su opacidad de reposo
+  await sleep(300);
   document.body.classList.add('reduce-motion');
-  let cand = nodes.find(el => el.dataset.state === 'avail' && !el.classList.contains('t-c'));
+  const fades = new Set(['tpSoft', 'tpVeil', 'tpIn', 'transición opacity']);
+  const bad = list => list.filter(a => !fades.has(a.name) || a.ms > 200);
+  // (a) gastar un punto (los árboles se reconstruyeron al cambiar de especialización: nodos de ahora)
+  const live = [...document.querySelectorAll('#talents-panel .tn')];
+  let cand = live.find(el => el.dataset.state === 'avail' && !el.classList.contains('t-c'));
   if (!cand) {
-    cand = [...nodes].reverse().find(el => el.dataset.state === 'max' && !el.classList.contains('t-c') && !el.classList.contains('is-free') && !el.closest('[data-tree="hero"]'));
-    fire(cand, 'contextmenu', center(cand), { button: 2 });
-    await sleep(400);
+    // sin ninguno libre: se quita un punto de uno al máximo y se vuelve a gastar; si tampoco hay,
+    // un hexágono disponible (compra con la A)
+    cand = [...live].reverse().find(el => ['max', 'partial'].includes(el.dataset.state) && !el.classList.contains('t-c') && !el.classList.contains('is-free') && !el.closest('[data-tree="hero"]'));
+    if (cand) { fire(cand, 'contextmenu', center(cand), { button: 2 }); await sleep(400); }
+    else cand = live.find(el => el.dataset.state === 'avail');
   }
   let anims = [];
   if (cand) {
     fire(cand, 'click', center(cand));
     await sleep(40);
-    anims = document.getAnimations().filter(a => a.effect?.target?.closest?.('#talents-panel') && a.playState === 'running')
-      .map(a => ({ name: a.animationName || `transición ${a.transitionProperty}`, ms: +(a.effect.getTiming().duration) || 0 }));
+    anims = running();
   }
-  const fades = new Set(['tpFadeIn', 'tpVeil', 'transición opacity']);
-  const prohibidas = anims.filter(a => !fades.has(a.name) || a.ms > 200);
-  const sparks = document.querySelectorAll('#talents-panel .tn-burst i').length;
+  const g10 = { nodo: cand?.dataset.node || null, animaciones: anims.length, nombres: [...new Set(anims.map(a => a.name))], prohibidas: bad(anims),
+    chispas: document.querySelectorAll('#talents-panel .tn-burst i').length };
+  g10.gastar = cand ? anims.length > 0 && !g10.prohibidas.length && !g10.chispas : null;     // null: nada que gastar
+  // (b) revelar el Paragon: solo el velo se funde; el arte del Paragon y el de la especialización, en reposo
+  if (lvl >= Talents.TALENT_RULES.specLast) {
+    await sleep(300);
+    const el = removable();
+    fire(el, 'contextmenu', center(el), { button: 2 });
+    await sleep(300);
+    const cerrado = !document.querySelector('#talents-panel .tp-hero[data-open]');
+    fire(el, 'click', center(el));
+    await sleep(150);
+    const ra = running();
+    g10.revelar = { cerrado, abierto: !!document.querySelector('#talents-panel .tp-hero[data-open]'), nombres: [...new Set(ra.map(a => a.name))], prohibidas: bad(ra),
+      velo: opa('#talents-panel .tp-hero .tp-veil.is-out'), arteParagon: opa('#talents-panel .tp-col-hero .tp-art'), arteEspec: opa('#talents-panel .tp-col-spec .tp-art'),
+      nodosParagon: [...new Set([...document.querySelectorAll('#talents-panel .tp-col-hero .tn')].map(x => +getComputedStyle(x).opacity))] };
+    const R = g10.revelar;
+    R.ok = R.cerrado && R.abierto && !R.prohibidas.length && R.velo != null && R.velo < 0.5 && R.arteParagon === 0.3 && R.arteEspec === 0.24
+      && R.nombres.includes('tpVeil') && R.nodosParagon.every(o => o === 1);
+    await sleep(1800);
+  }
+  // (c) cambiar de especialización: fundido de los nodos; el arte en reposo y sin el arte anterior
+  const swr = await swap(true);
+  swr.prohibidas = [];
+  swr.ok = swr.spec === other && swr.arte === 0.24 && swr.arteViejo === 'none' && swr.nombres.every(n => fades.has(n)) && swr.deshecho;
+  g10.cambio = swr;
   document.body.classList.toggle('reduce-motion', Q.get('rm') === '1');
-  out.G10 = { nodo: cand?.dataset.node || null, animaciones: anims.length, nombres: [...new Set(anims.map(a => a.name))], prohibidas, chispas: sparks, ok: !!cand && anims.length > 0 && !prohibidas.length && !sparks };
-  out.ok = out.G6.ok && out.A5.ok && out.G14.ok && out.G10.ok;
+  g10.ok = g10.gastar !== false && (!g10.revelar || g10.revelar.ok) && swr.ok;
+  out.G10 = g10;
+
+  // Configuraciones (Guardar): guardar con nombre hasta 10, el tope se explica y se libera
+  // borrando; renombrar cambia el desplegable
+  const lop = () => document.querySelector('#talents-panel .tp-lopop');
+  const act = (a, i) => document.querySelector(`#talents-panel .tp-lopop [data-act="${a}"]${i != null ? `[data-i="${i}"]` : ''}`)?.click();
+  document.querySelector('#talents-panel [data-act="save"]').click();
+  await sleep(60);
+  const lo = { abre: !lop().hidden };
+  for (let i = 0; i < 11; i++) { act('lo-save'); await sleep(20); }
+  const saved = () => (p.talents.loadouts?.[p.talents.spec] || []).length;
+  lo.guardadas = saved();
+  lo.lleno = !!lop().querySelector('.tp-lfull') && !!lop().querySelector('[data-act="lo-save"][disabled]');
+  lo.check = panel.check().offscreen.filter(x => /flotante/.test(x));
+  act('lo-ren', 0);
+  await sleep(30);
+  const inp = lop().querySelector('[data-ref="lren"]');
+  inp.value = 'Contra jefes';
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  act('lo-ren-ok', 0);
+  await sleep(30);
+  lo.renombrada = p.talents.loadouts[p.talents.spec][0].name === 'Contra jefes' && [...document.querySelectorAll('#talents-panel [data-ref="lo"] option')].some(o => o.textContent === '★ Contra jefes');
+  act('lo-del', 1);
+  await sleep(30);
+  lo.confirma = !!lop().querySelector('.tp-lrow.is-del');
+  act('lo-del-ok', 1);
+  await sleep(30);
+  lo.trasBorrar = saved();
+  lo.libre = !lop().querySelector('[data-act="lo-save"][disabled]');
+  document.querySelector('#talents-panel [data-act="save"]').click();
+  await sleep(30);
+  lo.cierra = lop().hidden;
+  lo.ok = lo.abre && lo.guardadas === 10 && lo.lleno && !lo.check.length && lo.renombrada && lo.confirma && lo.trasBorrar === 9 && lo.libre && lo.cierra;
+  out.Config = lo;
+
+  out.ok = out.G6.ok && out.A5.ok && dom.ok && out.G14.ok && out.Recorrido.ok && (!pausa || pausa.ok) && sw.ok && g10.ok && lo.ok;
   return out;
 }
 
@@ -273,7 +452,8 @@ requestAnimationFrame(async () => {
   else if (dm === 'herotree') document.querySelector('#talents-panel .tp-htab:not(.on):not(.off)')?.click();
   else if (dm === 'undo') { const el = [...document.querySelectorAll('#talents-panel [data-tree="spec"] .tn')].reverse().find(x => x.dataset.state === 'max' && !x.classList.contains('is-free')); el?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); await sleep(500); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true })); }
   const t = Q.get('t');
-  if (t != null) requestAnimationFrame(() => document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = +t; } catch { /* */ } }));
+  // &t: congela el cuadro (y que los temporizadores del panel no quiten las clases de motion)
+  if (t != null) requestAnimationFrame(() => { panel.freezeFx(); document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = +t; } catch { /* */ } }); });
   if (Q.get('measure') === '1') {
     const out = await measure();
     document.body.insertAdjacentHTML('beforeend', `<pre id="measure"></pre>`);

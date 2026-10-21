@@ -5,8 +5,9 @@
    Medidas a escala 1 (1560 × 930); la escala la pone el JS (--s, transform). Las posiciones de
    nodos, puertas y flotantes salen de js/talents-view.js (TALENT_PANEL / TREE_CANVAS).
    MOTION (2g §10): SOLO transform, opacity, clip-path y stroke-dashoffset; con «reducir
-   movimiento» (prefers-reduced-motion o body.reduce-motion), sin pulsos, giros ni sacudidas:
-   fundidos cortos. tests/test85 lo comprueba sobre este archivo.
+   movimiento» (prefers-reduced-motion o body.reduce-motion) todo se apaga y quedan solo los
+   fundidos de la tabla de §10. tests/test85 lo comprueba sobre este archivo y el arnés
+   (tests/visual/talents.html, G10) mide su efecto.
    ============================================================ */
 
 #talents-panel {
@@ -61,12 +62,14 @@
 .tp-hbtn.tp-x { width: 44px; justify-content: center; padding: 0; font-size: 20px; }
 .tp-hbtn.is-on { border-color: var(--gold); color: var(--gold2); }
 .tp-lo { display: flex; flex-direction: column; gap: 2px; color: var(--dim); font: 600 10.5px Inter, sans-serif; letter-spacing: 1px; text-transform: uppercase; flex: none; }
-.tp-lo select { height: 30px; width: 236px; background: #1c1622; color: var(--ink); border: 1px solid #4a3c2a; border-radius: 7px; font: 600 13px Inter, sans-serif; padding: 0 8px; cursor: pointer;
-  /* nombre largo: puntos suspensivos (el completo va en `title`) */
+.tp-lo select { height: 30px; width: 236px; background: #1c1622; color: var(--ink); border: 1px solid #4a3c2a; border-radius: 7px; font: 600 12.5px Inter, sans-serif; padding: 0 7px; cursor: pointer;
+  /* a 12,5 px caben enteras todas las builds no híbridas (la más larga, «Campo Minado · Tierra
+     Arrasada»); 236 es lo que deja libre el título de 26 px. Una híbrida larga lleva puntos
+     suspensivos: el nombre completo va en `title` (Guerrero §18.2) */
   text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .tp-head.is-tight .tp-title { font-size: 20px; }
 .tp-head.is-tight .tp-sub { font-size: 12.5px; }
-.tp-head.is-tight .tp-lo select { width: 226px; }
+.tp-head.is-tight .tp-lo select { width: 244px; }
 #talents-panel [hidden] { display: none !important; }
 
 /* ---------- cuerpo: 3 columnas 2 : 1 : 2 ---------- */
@@ -102,7 +105,7 @@
 .tp-edges line.live { stroke: #e8c06a; color: #e8c06a; }
 
 /* ---------- nodos: CÍRCULO pasivo · HEXÁGONO elección · CUADRADO activo (2g §9.2) ---------- */
-.tn { position: absolute; z-index: 3; width: 44px; height: 44px; margin: -22px 0 0 -22px; cursor: pointer; }
+.tn { position: absolute; z-index: 3; width: 44px; height: 44px; margin: -22px 0 0 -22px; cursor: pointer; transition: opacity 0.15s; }
 .tn-face { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: #0d0b10;
   box-shadow: inset 0 0 0 2px #4a3e54, 0 2px 6px rgba(0, 0, 0, 0.66); transition: transform 0.14s cubic-bezier(.2, .8, .2, 1); }
 .tn-img, .tn-half { position: absolute; inset: 3px; border-radius: 50%; background: center / cover no-repeat; }
@@ -132,6 +135,7 @@
 /* estados (data-state del contrato §3.12) */
 .tn[data-state="locked"] .tn-img, .tn[data-state="locked"] .tn-half,
 .tn[data-state="paused"] .tn-img, .tn[data-state="paused"] .tn-half { filter: grayscale(1) brightness(0.38); }
+.tn[data-state="locked"] .ico-missing, .tn[data-state="paused"] .ico-missing { filter: grayscale(1) brightness(0.5); }
 .tn[data-state="avail"] .tn-face { box-shadow: inset 0 0 0 2px var(--ok), 0 0 12px rgba(127, 211, 107, 0.35); }
 .tn[data-state="partial"] .tn-face { box-shadow: inset 0 0 0 2px #b88b35, 0 2px 6px rgba(0, 0, 0, 0.66); }
 .tn[data-state="max"] .tn-face { box-shadow: inset 0 0 0 2.5px var(--gold), 0 0 14px rgba(232, 192, 106, 0.38); }
@@ -193,10 +197,10 @@
 .tp-htab { width: 34px; height: 34px; align-self: center; border-radius: 50%; border: 2px solid #4a3e54; background: #0d0b10 center / cover no-repeat; cursor: pointer; padding: 0; }
 .tp-htab.on { width: 52px; height: 52px; border-width: 3px; border-color: var(--gold); box-shadow: 0 0 0 3px #15111a, 0 0 0 4px #6b5631, 0 0 18px rgba(232, 192, 106, 0.5); cursor: default; }
 .tp-htab.off { opacity: 0.3; filter: grayscale(1); cursor: help; }
-.tp-hero[data-open="0"] .tp-can .tn, .tp-hero[data-open="0"] .tp-can .tp-edges, .tp-hero[data-open="0"] .tp-htabs { filter: grayscale(1); opacity: 0.28; }
-.tp-hero[data-open="0"] .tp-art { filter: grayscale(1); opacity: 0.1; }
+.tp-hero:not([data-open]) .tp-can .tn, .tp-hero:not([data-open]) .tp-can .tp-edges, .tp-hero:not([data-open]) .tp-htabs { filter: grayscale(1); opacity: 0.28; }
+.tp-hero:not([data-open]) .tp-art { filter: grayscale(1); opacity: 0.1; }
 .tp-veil { position: absolute; inset: 0; z-index: 7; background: linear-gradient(rgba(22, 18, 27, 0.55), rgba(22, 18, 27, 0.82)); }
-.tp-hero[data-open="1"] .tp-veil:not(.is-out) { display: none; }
+.tp-hero[data-open] .tp-veil:not(.is-out) { display: none; }
 .tp-vbox { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 18px; text-align: center; }
 .tp-vbox > b { font: 700 22px Cinzel, Georgia, serif; color: var(--gold2); font-variant: small-caps; }
 .tp-vlock { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #1c1622; border: 2px solid #6b5631; color: var(--gold); }
@@ -263,10 +267,16 @@
 .tp-card .tp-cfoot { margin-top: auto; }
 .tp-card .tp-cfoot .tp-hbtn { width: 100%; justify-content: center; height: 40px; }
 
-/* ---------- flotante A/B ENCIMA del nodo (G14: nunca tapa el icono) ---------- */
+/* ---------- flotante A/B ENCIMA del nodo (G14: nunca tapa el centro ni la cara del icono) ----------
+   Su borde inferior es el borde superior del nodo; el relleno de abajo (12 px, con la flecha) y el
+   PUENTE (::before, transparente) llevan el ratón del icono a las mitades sin cerrarlo (2g §9.3).
+   El puente baja 7 px sobre la franja de arriba de la caja del nodo (esquinas vacías del hexágono);
+   un clic ahí es del nodo (ui-talents.js, bridgeNode). --ax: el nodo respecto al centro del flotante
+   cuando este se recoloca para no salirse del panel. */
 .tp-pop { position: absolute; z-index: 55; display: flex; gap: 6px; padding-bottom: 12px; transform: translate(-50%, -100%); }
-.tp-pop::after { content: ''; position: absolute; left: 50%; bottom: 4px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg);
-  background: #1b1520; border-right: 1.5px solid #6b5631; border-bottom: 1.5px solid #6b5631; }
+.tp-pop::before { content: ''; position: absolute; left: calc(50% + var(--ax, 0px) - 30px); bottom: -7px; width: 60px; height: 8px; }
+.tp-pop::after { content: ''; position: absolute; left: calc(50% + var(--ax, 0px)); bottom: 4px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg);
+  background: #1b1520; border-right: 1.5px solid #6b5631; border-bottom: 1.5px solid #6b5631; pointer-events: none; }
 .tn-choice { position: relative; width: 76px; padding: 6px 4px; border-radius: 12px; background: rgba(27, 21, 32, 0.96); border: 1.5px solid #6b5631;
   cursor: pointer; font: 600 11.5px/1.15 Inter, sans-serif; text-align: center; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7); }
 .tn-choice i { position: relative; display: block; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 50%; background: center / cover no-repeat; overflow: hidden; }
@@ -292,6 +302,31 @@
 .tp-codepop .tp-crow { display: flex; gap: 8px; align-items: center; }
 .tp-codepop small { color: var(--dim); font-size: 12px; }
 .tp-codepop .tp-cerr { color: #f0a093; font-size: 12.5px; min-height: 16px; }
+
+/* ---------- configuraciones (Guardar): guardar con nombre, aplicar, renombrar y borrar ---------- */
+.tp-lopop { position: absolute; z-index: 56; display: flex; flex-direction: column; gap: 8px; width: 560px; padding: 14px 16px;
+  border-radius: 12px; background: rgba(27, 21, 32, 0.98); border: 1px solid #6b5631; box-shadow: 0 14px 30px rgba(0, 0, 0, 0.8); }
+.tp-lopop > b { font: 700 15px Cinzel, Georgia, serif; color: var(--gold2); }
+.tp-lopop > b small { margin-left: 6px; color: var(--dim); font: 600 12px Inter, sans-serif; }
+.tp-lopop input { flex: 1; min-width: 0; height: 32px; background: #0d0b10; color: var(--ink); border: 1px solid #3a3045; border-radius: 6px;
+  font: 600 13px Inter, sans-serif; padding: 0 8px; user-select: text; }
+.tp-lopop input:focus { outline: none; border-color: var(--gold); }
+.tp-lopop input[disabled] { opacity: 0.5; }
+.tp-lopop .tp-crow { display: flex; gap: 8px; align-items: center; }
+.tp-lopop .tp-hbtn { height: 32px; padding: 0 10px; }
+.tp-lopop small { color: var(--dim); font-size: 12px; }
+.tp-lopop .tp-lfull { color: var(--lk); font-weight: 600; }
+.tp-llist { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px solid #3a3045; }
+.tp-lrow { display: flex; gap: 6px; align-items: center; min-height: 34px; padding: 1px 4px 1px 8px; border-radius: 8px; }
+.tp-lrow:hover { background: #211b28; }
+.tp-lrow.is-cur { background: #241c14; box-shadow: inset 0 0 0 1px #8a6f38; }
+.tp-lrow.is-del { background: #2c1714; }
+.tp-lname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px Inter, sans-serif; color: var(--ink); }
+.tp-lrow .tp-hbtn { height: 28px; padding: 0 9px; font-size: 12px; }
+.tp-hbtn.is-bad { border-color: #8a4a3a; color: #f6d3c8; }
+.tp-hbtn.is-bad:hover:not([disabled]) { border-color: var(--bad); color: #fff; }
+.tp-lopop .tp-cerr { color: #f0a093; font-size: 12.5px; min-height: 16px; }
+.tp-lopop .tp-cerr.is-ok { color: var(--ok); }
 
 /* ---------- tooltip (marco 9-slice ui_tooltip) ---------- */
 .tp-tip { position: absolute; z-index: 60; width: 380px; pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity 0.12s, transform 0.12s;
@@ -336,8 +371,9 @@
 /* ---------- aviso breve ---------- */
 .tp-toast { position: absolute; left: 50%; top: 96px; z-index: 70; transform: translateX(-50%); max-width: 900px; padding: 9px 18px; border-radius: 12px;
   background: linear-gradient(#2a2015, #17120d); border: 1px solid #8a6f38; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.66); color: var(--ink); font-size: 14px;
-  opacity: 0; pointer-events: none; transition: opacity 0.18s; white-space: nowrap; }
+  opacity: 0; pointer-events: none; transition: opacity 0.18s; white-space: pre; text-align: center; }
 .tp-toast.on { opacity: 1; }
+.tp-toast.warn { border-color: #a0763a; background: linear-gradient(#2c2213, #17110a); color: #ffe2b0; }
 .tp-toast.err { border-color: #8a4a3a; background: linear-gradient(#2c1714, #170d0b); color: #f6d3c8; }
 
 /* ============================================================
@@ -404,31 +440,44 @@
 @keyframes tpReflow { 0% { transform: translateY(-8px) scale(0.7); opacity: 0; } 100% { transform: none; opacity: 1; } }
 .tp-col-spec.fx-swap .tp-edges { animation: tpEdgeIn 0.4s ease-out 0.38s both; }
 
-/* ---------- reducir movimiento: sin pulsos, giros, chispas ni sacudidas; fundidos de 120 ms ---------- */
+/* ---------- reducir movimiento (2g §10, columna «Con reducir movimiento») ----------
+   Nada se desplaza, gira, late ni se sacude: TODAS las animaciones del panel se apagan
+   (animation: none) y se declaran a propósito los pocos fundidos de la tabla, de 120 ms y SIN
+   fill-mode (no dejan nada a medias): la cara del nodo al gastar, quitar, desbloquear o elegir,
+   los nodos al cambiar de especialización o de árbol héroe y las mitades del flotante. Revelar el
+   Paragon es SOLO el fundido del velo (200 ms): el arte queda en su opacidad de reposo. Lo que
+   sin animación quedaría fijo a medio efecto (anillo, chispas, destello, barrido, brillo de la
+   puerta, arte anterior) no se pinta. Bloque doble: preferencia del sistema y opción del juego. */
 @media (prefers-reduced-motion: reduce) {
-  #talents-panel .tn *, #talents-panel .tn::before, #talents-panel .tn::after, #talents-panel .tp-gate *, #talents-panel .tp-gate::after,
-  #talents-panel .tp-col *, #talents-panel .tp-pop *, #talents-panel .tp-meta, #talents-panel .tp-panel {
-    animation-duration: 0.12s !important; animation-delay: 0s !important; animation-name: tpFadeIn !important; transition-duration: 0s !important; }
+  #talents-panel *, #talents-panel *::before, #talents-panel *::after { animation: none !important; }
+  #talents-panel .tp-panel { animation: tpIn 0.12s ease-out !important; }
+  #talents-panel .tn.fx-spend .tn-face, #talents-panel .tn.fx-remove .tn-face, #talents-panel .tn.fx-unlock .tn-face, #talents-panel .tn.fx-flip .tn-face,
+  #talents-panel .tp-col-spec.fx-swap .tn, #talents-panel .tp-hero.fx-reveal:not(.fx-unveil) .tn, #talents-panel .tp-pop.is-open .tn-choice {
+    animation: tpSoft 0.12s ease-out !important; }
+  #talents-panel .tp-hero.fx-unveil .tp-veil.is-out { animation: tpVeil 0.2s ease-out both !important; }
   #talents-panel .tn-burst, #talents-panel .tn.fx-spend::before, #talents-panel .tn.fx-max .tn-face::before, #talents-panel .tp-beam,
-  #talents-panel .tp-hero.fx-unveil .tp-vlock, #talents-panel .tp-gate.fx-open::after { display: none; }
+  #talents-panel .tp-gate.fx-open::after, #talents-panel .tp-art-old { display: none !important; }
   #talents-panel .tp-edges line.fx-lit { stroke-dasharray: none; }
   #talents-panel .tp-gate.fx-open .tp-seal { opacity: 0; }
-  #talents-panel .tp-hero.fx-unveil .tp-veil.is-out { animation: tpVeil 0.2s ease-out both !important; }
   #talents-panel .tn:hover .tn-face { transform: none; }
-  /* el flotante solo se funde (sin deslizarse) y el kit no se levanta con transición */
+  #talents-panel .tn-face, #talents-panel .tp-skl, #talents-panel .tp-art { transition: none; }
+  #talents-panel .tp-hero.fx-unveil .tn { transition: none; }
   #talents-panel .tp-tip { transform: none; transition: opacity 0.12s; }
-  #talents-panel .tp-skl { transition: none; }
 }
-body.reduce-motion #talents-panel .tn *, body.reduce-motion #talents-panel .tn::before, body.reduce-motion #talents-panel .tn::after,
-body.reduce-motion #talents-panel .tp-gate *, body.reduce-motion #talents-panel .tp-gate::after, body.reduce-motion #talents-panel .tp-col *,
-body.reduce-motion #talents-panel .tp-pop *, body.reduce-motion #talents-panel .tp-meta, body.reduce-motion #talents-panel .tp-panel {
-  animation-duration: 0.12s !important; animation-delay: 0s !important; animation-name: tpFadeIn !important; transition-duration: 0s !important; }
+body.reduce-motion #talents-panel *, body.reduce-motion #talents-panel *::before, body.reduce-motion #talents-panel *::after { animation: none !important; }
+body.reduce-motion #talents-panel .tp-panel { animation: tpIn 0.12s ease-out !important; }
+body.reduce-motion #talents-panel .tn.fx-spend .tn-face, body.reduce-motion #talents-panel .tn.fx-remove .tn-face, body.reduce-motion #talents-panel .tn.fx-unlock .tn-face,
+body.reduce-motion #talents-panel .tn.fx-flip .tn-face, body.reduce-motion #talents-panel .tp-col-spec.fx-swap .tn,
+body.reduce-motion #talents-panel .tp-hero.fx-reveal:not(.fx-unveil) .tn, body.reduce-motion #talents-panel .tp-pop.is-open .tn-choice {
+  animation: tpSoft 0.12s ease-out !important; }
+body.reduce-motion #talents-panel .tp-hero.fx-unveil .tp-veil.is-out { animation: tpVeil 0.2s ease-out both !important; }
 body.reduce-motion #talents-panel .tn-burst, body.reduce-motion #talents-panel .tn.fx-spend::before, body.reduce-motion #talents-panel .tn.fx-max .tn-face::before,
-body.reduce-motion #talents-panel .tp-beam, body.reduce-motion #talents-panel .tp-hero.fx-unveil .tp-vlock, body.reduce-motion #talents-panel .tp-gate.fx-open::after { display: none; }
+body.reduce-motion #talents-panel .tp-beam, body.reduce-motion #talents-panel .tp-gate.fx-open::after, body.reduce-motion #talents-panel .tp-art-old { display: none !important; }
 body.reduce-motion #talents-panel .tp-edges line.fx-lit { stroke-dasharray: none; }
 body.reduce-motion #talents-panel .tp-gate.fx-open .tp-seal { opacity: 0; }
-body.reduce-motion #talents-panel .tp-hero.fx-unveil .tp-veil.is-out { animation: tpVeil 0.2s ease-out both !important; }
 body.reduce-motion #talents-panel .tn:hover .tn-face { transform: none; }
+body.reduce-motion #talents-panel .tn-face, body.reduce-motion #talents-panel .tp-skl, body.reduce-motion #talents-panel .tp-art { transition: none; }
+body.reduce-motion #talents-panel .tp-hero.fx-unveil .tn { transition: none; }
 body.reduce-motion #talents-panel .tp-tip { transform: none; transition: opacity 0.12s; }
-body.reduce-motion #talents-panel .tp-skl { transition: none; }
-@keyframes tpFadeIn { from { opacity: 0.6; } to { opacity: 1; } }
+/* fundido corto: de 0,55 a la opacidad de reposo del elemento (sin «to» ni fill-mode: acaba en su estado) */
+@keyframes tpSoft { from { opacity: 0.55; } }

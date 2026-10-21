@@ -11,18 +11,22 @@
 //     reconstruye solo esos árboles
 //  7) tooltips, «habilidades que toca», Tu kit, configuraciones y build reconocida
 //  8) G10 sobre css/talents.css: motion solo con transform / opacity / clip-path / stroke-dashoffset y
-//     reducir movimiento sin pulsos, chispas ni sacudidas
-//  9) ui-talents.js se importa sin DOM, contrato de DOM (§3.12) y envoltorio gameTalentOps sobre el mixin real
+//     reducir movimiento: todo apagado salvo los fundidos de §10 (120 ms sin fill-mode; velo 200 ms)
+//  9) ui-talents.js se importa sin DOM, nada lee el layout dentro de requestAnimationFrame y
+//     envoltorio gameTalentOps sobre el mixin real (el contrato de DOM lo mide el arnés visual)
+// 10) el modelo es PURO: ninguna consulta muta al jugador (talentos ni claves), ni con talents = null
+// 11) textos que salen de las reglas (puntos, tope de configuraciones, niveles) y gestor de configuraciones
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeHarness } from './helpers/power-harness.mjs';
 import * as Talents from '../js/talents.js';
 import { TALENT_REASONS } from '../js/talents-ops.js';
 import { talentMethods } from '../js/game-talents.js';
+import { LOADOUTS_MAX } from '../js/talents-ops.js';
 import {
   talentsView, viewDiff, panelScale, TALENT_PANEL, TREE_CANVAS, NODE_BOX, nodeBoxes, boxHit, gateLabelW, gateBoxes,
   REASON_TEXT, reasonText, nodeTooltip, skillTooltip, gateTooltip, nodeTouches, nodesTouchingSkill,
-  loadoutOptions, matchBuild, kitView, chooserView, contractState,
+  loadoutOptions, loadoutsView, matchBuild, kitView, chooserView, specKit, contractState, readOnly,
 } from '../js/talents-view.js';
 import * as UI from '../js/ui-talents.js';
 
@@ -307,7 +311,7 @@ console.log(`Motivos: ${TALENT_REASONS.length} códigos con texto (puerta y cód
 
 // ------------------------------------------------ 8) G10: motion en css/talents.css
 {
-  const css = readFileSync(new URL('../css/talents.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = readFileSync(new URL('../css/talents.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '');
   const ALLOWED = new Set(['transform', 'opacity', 'clip-path', 'stroke-dashoffset']);
   const frames = [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g)];
   assert.ok(frames.length >= 15, `keyframes del panel (${frames.length})`);
@@ -322,12 +326,38 @@ console.log(`Motivos: ${TALENT_REASONS.length} códigos con texto (puerta y cód
   assert.ok(!/transition\s*:\s*all/.test(css), 'sin transition: all');
   const rm = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
   assert.ok(css.includes('@media (prefers-reduced-motion: reduce)') && css.includes('body.reduce-motion #talents-panel'), 'reducir movimiento: preferencia del sistema y opción del juego');
-  for (const sel of ['.tn-burst', '.tn.fx-spend::before', '.tn.fx-max .tn-face::before', '.tp-beam']) assert.ok(rm.includes(sel), `reducir movimiento oculta ${sel}`);
-  assert.ok(/animation-name:\s*tpFadeIn\s*!important/.test(rm), 'reducir movimiento: solo fundidos');
+  // los dos bloques (sistema y juego) dicen lo mismo
+  const media = rm.slice(rm.indexOf('{') + 1, rm.indexOf('\n}\n'));
+  const game = rm.slice(rm.indexOf('\n}\n') + 3).split('@keyframes')[0];
+  const rules = txt => [...txt.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => !/@keyframes/.test(m[1])).map(m => [m[1].replace(/body\.reduce-motion\s+/g, '').replace(/\s+/g, ' ').trim(), m[2].replace(/\s+/g, ' ').trim()]);
+  assert.deepEqual(rules(game).map(r => r.join('{')), rules(media).map(r => r.join('{')), 'reducir movimiento: mismo bloque para la preferencia del sistema y la opción del juego');
+  // todo apagado…
+  assert.ok(rules(media).some(([sel, body]) => sel === '#talents-panel *, #talents-panel *::before, #talents-panel *::after' && body === 'animation: none !important;'), 'reducir movimiento: todas las animaciones apagadas');
+  // …salvo los fundidos de la tabla de §10: 120 ms sin fill-mode (tpSoft), el velo 200 ms y la apertura del panel
+  const anims = rules(media).flatMap(([sel, body]) => [...body.matchAll(/animation:\s*([^;!]+)/g)].map(m => ({ sel, v: m[1].trim() }))).filter(a => a.v !== 'none');
+  assert.ok(anims.length >= 3, 'fundidos declarados a propósito');
+  for (const { sel, v } of anims) {
+    const [name, dur] = v.split(/\s+/);
+    assert.ok(['tpSoft', 'tpVeil', 'tpIn'].includes(name), `reducir movimiento: «${name}» en ${sel} no es un fundido de §10`);
+    assert.ok(parseFloat(dur) <= (name === 'tpVeil' ? 0.2 : 0.12), `reducir movimiento: ${name} dura ${dur}`);
+    if (name !== 'tpVeil') assert.ok(!/\b(both|forwards|backwards)\b/.test(v), `reducir movimiento: ${name} sin fill-mode (${sel})`);
+  }
+  const soft = anims.filter(a => a.v.startsWith('tpSoft')).map(a => a.sel).join(',');
+  for (const sel of ['.tn.fx-spend .tn-face', '.tn.fx-remove .tn-face', '.tp-col-spec.fx-swap .tn', '.tp-hero.fx-reveal:not(.fx-unveil) .tn', '.tp-pop.is-open .tn-choice'])
+    assert.ok(soft.includes(sel), `reducir movimiento: fundido de 120 ms en ${sel}`);
+  assert.ok(!soft.includes('fx-unveil .tn') && !/tp-art/.test(soft), 'revelar el Paragon: solo el velo (ni nodos ni arte)');
+  assert.ok(/@keyframes tpSoft\s*\{\s*from\s*\{\s*opacity:\s*0?\.\d+;\s*\}\s*\}/.test(css), 'tpSoft: solo «from» (acaba en la opacidad de reposo)');
+  // lo que sin animación quedaría fijo a medio efecto no se pinta; el arte no transiciona
+  const hidden = rules(media).filter(([, body]) => /display:\s*none/.test(body)).map(([sel]) => sel).join(',');
+  for (const sel of ['.tn-burst', '.tn.fx-spend::before', '.tn.fx-max .tn-face::before', '.tp-beam', '.tp-gate.fx-open::after', '.tp-art-old']) assert.ok(hidden.includes(sel), `reducir movimiento oculta ${sel}`);
+  assert.ok(rules(media).some(([sel, body]) => sel.includes('.tp-art') && /transition:\s*none/.test(body)), 'reducir movimiento: el arte no transiciona');
+  assert.ok(rules(media).some(([sel, body]) => sel === '#talents-panel .tp-hero.fx-unveil .tn' && /transition:\s*none/.test(body)), 'revelar con reducir movimiento: los nodos del Paragon no transicionan');
+  // iluminar por habilidad: 150 ms (2g §10), también con reducir movimiento
+  assert.ok(/\.tn \{[^}]*transition:\s*opacity 0\.15s/.test(css), 'iluminar por habilidad: transición de 150 ms');
   // el flotante no se desliza con reducir movimiento (solo se funde), en los dos bloques
   for (const pre of ['#talents-panel .tp-tip', 'body.reduce-motion #talents-panel .tp-tip'])
     assert.ok(new RegExp(`${pre.replace(/[.#]/g, '\\$&')}\\s*\\{\\s*transform:\\s*none;\\s*transition:\\s*opacity`).test(rm), `reducir movimiento: ${pre} sin desplazamiento`);
-  for (const n of ['tpPulse', 'tpRing', 'tpSpark', 'tpDeny', 'tpFlip', 'tpShine', 'tpSealL', 'tpBeam', 'tpVeil', 'tpIris', 'tpRise', 'tpReflow', 'tpDraw', 'halfA'])
+  for (const n of ['tpPulse', 'tpRing', 'tpSpark', 'tpDeny', 'tpFlip', 'tpShine', 'tpSealL', 'tpBeam', 'tpVeil', 'tpIris', 'tpRise', 'tpReflow', 'tpDraw', 'halfA', 'tpArtIn', 'tpSoft'])
     assert.ok(frames.some(f => f[1] === n), `motion de 2g §10: ${n}`);
   console.log(`G10: ${frames.length} keyframes solo con transform/opacity/clip-path/stroke-dashoffset; reducir movimiento ✓`);
 }
@@ -337,10 +367,22 @@ console.log(`Motivos: ${TALENT_REASONS.length} códigos con texto (puerta y cód
   assert.equal(typeof UI.createTalentPanel, 'function');
   assert.equal(typeof UI.gameTalentOps, 'function');
   const src = readFileSync(new URL('../js/ui-talents.js', import.meta.url), 'utf8');
-  for (const s of ["'talents-panel'", 'dataset.open', '`tn t-', 'data-node=', 'data-state=', 'tn-choice', 'data-k=', 'tp-gate', 'data-row=', 'tp-hero', 'data-paused', 'ico-missing', '__uicheck', 'talentscheck', 'data-tree='])
-    assert.ok(src.includes(s), `contrato de DOM (§3.12): ${s}`);
-  // ni `powers.has(` ni lecturas de layout por frame (requestAnimationFrame solo para reiniciar clases)
   assert.ok(!src.includes('powers.has('));
+  // nada lee el layout por frame: los callbacks de requestAnimationFrame no miden (el contrato de DOM
+  // de §3.12 lo comprueba el arnés tests/visual/talents.html con --measure)
+  const LAYOUT = /getBoundingClientRect|getClientRects|offset(Width|Height|Top|Left)|client(Width|Height)|scroll(Width|Height)|getComputedStyle/;
+  let rafs = 0;
+  for (let i = src.indexOf('requestAnimationFrame('); i >= 0; i = src.indexOf('requestAnimationFrame(', i + 1)) {
+    let depth = 0, j = i + 'requestAnimationFrame'.length;
+    do { if (src[j] === '(') depth++; else if (src[j] === ')') depth--; j++; } while (depth > 0 && j < src.length);
+    const cb = src.slice(i, j);
+    rafs++;
+    assert.ok(!LAYOUT.test(cb), `requestAnimationFrame sin lecturas de layout: ${cb.slice(0, 80)}`);
+  }
+  assert.ok(rafs >= 3, 'requestAnimationFrame revisados');
+  // el de redimensionar llama a applyScale: escala y caja desde la ventana y la geometría del modelo
+  const as = src.slice(src.indexOf('function applyScale('), src.indexOf('\n  }', src.indexOf('function applyScale(')));
+  assert.ok(as.includes('innerWidth') && !LAYOUT.test(as), 'applyScale: sin leer el layout');
   // el envoltorio sobre el mixin real: mutaciones silenciosas, deshacer por snapshot/restore
   const h = hero('arquera', 'montaraz', 50);
   Object.assign(h.g, talentMethods);
@@ -369,6 +411,82 @@ console.log(`Motivos: ${TALENT_REASONS.length} códigos con texto (puerta y cód
   // mechInfo y SPEC_INFO (el resto, en test76)
   assert.equal(UI.mechInfo(null), null);
   console.log('ui-talents.js: se importa sin DOM, contrato de DOM y ops del mixin (silenciosas, deshacer, combate) ✓');
+}
+
+// ------------------------------------------------ 10) el modelo no muta al jugador
+{
+  const snap = p => JSON.stringify({ talents: p.talents, keys: Object.keys(p).sort(), rev: p.talentsRev | 0 });
+  let calls = 0;
+  for (const [cls, specs] of Object.entries(CLS)) for (const lvl of [5, 40, 75, 100]) {
+    const h = lvl >= 10 ? hero(cls, specs[1], lvl) : makeHarness({ classId: cls, level: lvl });
+    const p = h.p;
+    // a Nv40 el árbol héroe de la especialización aún no existe en los talentos: leerlo NO lo crea
+    if (lvl === 40) { delete p.talents.hero?.[specs[1]]; }
+    const before = snap(p);
+    const v = talentsView(p);
+    const ids = v.trees.spec ? [['cls', v.trees.cls.nodes[3].id], ['spec', v.trees.spec.nodes[5].id], ['hero', v.trees.hero.nodes[2].id]] : [['cls', v.trees.cls.nodes[3].id]];
+    for (const [w, id] of ids) { nodeTooltip(p, w, id, { alt: true }); calls++; }
+    kitView(p); matchBuild(p); chooserView(p); loadoutOptions(p, 'custom'); loadoutsView(p);
+    talentsView(p, { chooser: true });
+    for (const sk of p.cls.skills.slice(0, 4)) { skillTooltip(p, sk.id); skillTooltip(p, sk.id, { spec: specs[2] }); nodesTouchingSkill(p, sk.id); }
+    calls += 8;
+    assert.equal(snap(p), before, `${cls} Nv${lvl}: el modelo no toca al jugador`);
+  }
+  // sin talentos (save viejo o recién creado): la vista sale y p.talents sigue como estaba
+  const h0 = makeHarness({ classId: 'maga', level: 30 });
+  h0.p.talents = null;
+  const v0 = talentsView(h0.p);
+  assert.ok(v0 && v0.view === 'choose', 'sin talentos: el selector');
+  assert.equal(h0.p.talents, null, 'sin talentos: no se crean');
+  const q = readOnly(h0.p);
+  assert.equal(readOnly(q), q, 'la sombra no se vuelve a sombrear');
+  assert.equal(q.classId, 'maga', 'la sombra lee al jugador por prototipo');
+  console.log(`Pureza: ${calls} consultas en 3 clases × Nv5/40/75/100 sin mutar al jugador (ni con talents = null) ✓`);
+}
+
+// ------------------------------------------------ 11) textos de las reglas y configuraciones
+{
+  const R = Talents.TALENT_RULES;
+  assert.ok(REASON_TEXT['hero-closed'].text.includes(`${R.pts.spec} puntos`), 'hero-closed: los puntos de la regla');
+  assert.ok(REASON_TEXT.full.text.includes(String(LOADOUTS_MAX)) && /borra/.test(REASON_TEXT.full.text), 'full: el tope y cómo hacer sitio');
+  const v = talentsView(hero('arquera', 'montaraz', 60).p);
+  let clsAt = 1;
+  while (Talents.earnedAt('cls', clsAt) <= 0) clsAt++;
+  assert.ok(v.trees.cls.head.meta.includes(`Nv req. ${clsAt}`), `clase: Nv req. ${clsAt} (primer punto de clase)`);
+  assert.ok(v.trees.spec.head.meta.includes(`Nv req. ${R.specAt}`));
+  // cabecera del Paragon (300 px): abierto, el tablero; cerrado o en pausa, solo lo que falta para abrirlo
+  const h100 = hero('guerrero', 'berserker', 100);
+  assert.ok(talentsView(h100.p).trees.hero.head.meta.includes(`Tablero ${R.pts.board}/${R.pts.board}`), 'Paragon abierto: tablero');
+  const rk = Talents.ranksOf(h100.p, 'spec');
+  const drop = Object.keys(rk).reverse().find(x => Talents.canRemoveRank(h100.p, 'spec', x));
+  rk[drop]--; if (!rk[drop]) delete rk[drop];
+  assert.deepEqual(talentsView(h100.p).trees.hero.head.meta, [`Espec. ${R.pts.spec - 1}/${R.pts.spec}`], 'Paragon en pausa a Nv100: solo «Espec.» (no cabe con el tablero)');
+  // la nota del velo no parte los rangos de nivel («Nv81–/100»)
+  const veil = talentsView(hero('maga', 'crionte', 40).p).hero.veil;
+  assert.ok(/Nv\d+\u2060–\u2060\d+/.test(veil.note) && !/Nv\d+–\d+/.test(veil.note), 'velo: rangos de nivel sin corte');
+  const paid = Talents.heroTreesFor('maga', 'crionte')[0].nodes.filter(n => !n.free).length;
+  assert.ok(veil.note.includes(`para ${paid} nodos`), `velo: ${paid} nodos de pago`);
+  // tarjetas del selector: con { spec }, los talentos de ESA especialización
+  const h = hero('maga', 'piromante', 100);
+  const kitCrio = specKit('maga', Talents.findSpec('maga', 'crionte'));
+  const sk = kitCrio.list[0];
+  const links = skillTooltip(h.p, sk.id, { spec: 'crionte' }).links;
+  assert.ok(links.length && links.every(l => l.which === 'spec' && Talents.findSpec('maga', 'crionte').nodes.some(n => n.id === l.id)), 'tarjeta: talentos de la especialización de la tarjeta');
+  assert.ok(links.every(l => l.rank === (h.p.talents.sp?.crionte?.[l.id] | 0) || l.rank === 0), 'tarjeta: rangos de esa especialización');
+  // gestor de configuraciones: nombre libre, tope y lista
+  Object.assign(h.g, talentMethods);
+  let m = loadoutsView(h.p);
+  assert.deepEqual([m.count, m.max, m.full, m.nextName], [0, LOADOUTS_MAX, false, 'Mi build 1']);
+  for (let i = 0; i < LOADOUTS_MAX; i++) assert.ok(h.g.saveTalentLoadout(loadoutsView(h.p).nextName).ok);
+  m = loadoutsView(h.p);
+  assert.ok(m.full && m.list.length === LOADOUTS_MAX && m.list[9].value === 'saved:9', 'lleno');
+  const full = h.g.saveTalentLoadout('otra');
+  assert.equal(full.reason, 'full');
+  assert.match(reasonText(full), /borra/, 'el aviso de lleno dice cómo hacer sitio');
+  assert.ok(h.g.deleteTalentLoadout(0).ok && h.g.renameTalentLoadout(0, 'Mi build 1').ok);
+  assert.equal(loadoutsView(h.p).nextName, 'Mi build 11', 'el nombre nuevo no repite uno que ya existe');
+  assert.equal(loadoutsView(makeHarness({ classId: 'maga', level: 5 }).p), null, 'sin especialización no hay configuraciones');
+  console.log('Textos de las reglas (puntos, tope, niveles), velo sin cortes, tarjetas y gestor de configuraciones ✓');
 }
 
 console.log('\n✅ PANEL DE TALENTOS v2: VISTA PURA (Paso 2 · E3 · U1) OK');
