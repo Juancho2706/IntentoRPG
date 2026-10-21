@@ -629,6 +629,20 @@ export function presetRanks(p, which) {
   return which === 'cls' ? r.cls : (r.sp[p.talents.spec] || {});
 }
 
-// ------------------------------------------------------------ retirados (D23)
-/** @deprecated D23: las insignias son habilidades del catálogo (D7). Devuelve null. Se borra en E5. */
+// ------------------------------------------------------------ retirados (D23, se borran en E5)
+/** @deprecated D23: las insignias son habilidades del catálogo (D7). Devuelve null. */
 export function specInsignia() { return null; }
+/** @deprecated D23: los puntos de talento llegan hasta LEVEL_MAX (v1: 50). */
+export const TALENT_CAP_LEVEL = LEVEL_MAX;
+/** @deprecated D11: sin hazañas; siempre 0. */
+export function featCount() { return 0; }
+/** @deprecated D23: el elemento es el del catálogo (sk.elem) o el forjado (aggregateTalents elemOf). */
+export const SKILL_ELEM = Object.freeze({});
+/** @deprecated D23: nombres de elemento (la UI tiene los suyos). */
+export const ELEM_NAME = Object.freeze({ fire: 'Fuego', frost: 'Escarcha', arcane: 'Arcano', phys: 'Físico', physical: 'Físico', holy: 'Sagrado', nature: 'Naturaleza' });
+/** @deprecated D23: elemento base del catálogo. */
+export function skillElem(sk) { return sk?.elem || null; }
+/** @deprecated D23: rango base de una activa de talento (v1); las de v2 usan el rango por nivel. */
+export function talentSkillBase(level) {
+  return Math.max(1, Math.min(6, 1 + Math.floor(Math.max(0, (level || 1) - TALENT_RULES.specAt) / 8)));
+}

@@ -49,6 +49,11 @@ assert.equal(T.pointKindAt(81), 'board'); assert.equal(T.pointKindAt(85), 'cls')
 assert.equal(T.PARAGON_OPEN_LEVEL, 81);
 assert.equal(T.TALENT_START_LEVEL, 10, 'stub @deprecated = TALENT_RULES.specAt (D23)');
 assert.equal(T.specInsignia('maga', 'piromante'), null, 'stub @deprecated → null (D23)');
+// resto de stubs @deprecated (D23): siguen exportados con un valor coherente con v2
+assert.equal(T.TALENT_CAP_LEVEL, 100); assert.equal(T.featCount({ strongholdsCleared: ['a', 'b'], records: { bossKills: 9 } }), 0, 'D11: sin hazañas');
+assert.equal(T.skillElem({ id: 'x', elem: 'frost' }), 'frost'); assert.equal(T.skillElem(null), null);
+assert.equal(T.ELEM_NAME.fire, 'Fuego'); assert.deepEqual(T.SKILL_ELEM, {});
+assert.deepEqual([9, 10, 18, 50, 100].map(T.talentSkillBase), [1, 1, 2, 6, 6]);
 console.log('Reglas comunes = TV2.REGLAS; un sistema por nivel (31 + 34 + 10 + 16) ✓');
 
 // ------------------------------------------------ 2) G3 ritmo
