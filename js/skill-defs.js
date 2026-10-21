@@ -224,7 +224,7 @@ export function skillVerbs(def) {
 export const VERB_DOC = Object.freeze({
   windup: 'Preparación (s) · moveMul durante ella (1 = como hoy, 0 = quieto)',
   channel: 'channelT, ticks, hold: true|false|"toggle", moveMul, autoShot{every,coef,target,range}, drainPerSec, endless',
-  charge: 'charge{min (declarado > 0: soltar antes no dispara, cancela sin coste; sin declarar o 0, un toque dispara al mínimo),max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul},markMin (por debajo, la suelta no gasta marcas firstCharged)}',
+  charge: 'charge{min (declarado > 0: soltar antes no dispara, cancela sin coste; sin declarar o 0, un toque dispara al mínimo),max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul},markMin (en la unidad de min/max/perfect; por debajo, la suelta no gasta marcas firstCharged)}',
   recast: 'recast{n (usos totales),win,cond:null|"hit",perfectLast,cdFrom:"first"|"end",free,gap}',
   combo: 'type:"combo" · steps[{type,coef,radius,angle,range,width,at,windup,dot,moveMul}] · comboWin',
   seq: 'seq{every,extra{count,spread,coef,pierce}}',
@@ -235,7 +235,7 @@ export const VERB_DOC = Object.freeze({
   detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance',
   wall: 'type:"wall" · wall{len,width,blocks:true|"all",contain}',
   follow: 'follow:"owner"|"aim"',
-  displace: 'pull: m | {dist,to:"self"|"center"|"trap",radius (atracción por tic de un canal),boss:false} · knock: m · drag:true · dragWidth (solo si la definición arrastra) · dashT',
+  displace: 'pull: m | {dist,to:"self"|"center"|"trap",radius (atracción por tic de un canal),boss:false (no atrae a los jefes: tic del canal y golpe)} · knock: m · drag:true · dragWidth (solo si la definición arrastra) · dashT',
   other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)

@@ -10,15 +10,16 @@
 //  2) stat costPct: abarata TODAS las habilidades con coste (aparte de spenderCostPct)
 //  3) cargar y soltar: soltar antes de un charge.min declarado cancela sin coste; charge.markMin
 //  4) principal instantánea sobre el canal de una definitiva imparable (Doble Grieta)
-//  5) g.castEcho(p, id, { mult, at, origin, series }): repetición con su propia serie
+//  5) g.castEcho(p, id, { mult, at, origin, series }): repetición con su propia serie (nunca una
+//     canalización; anidada, hereda la serie y no pasa de echoCap niveles)
 //  6) _makeCtx con skillFxFor (VFX de la variante forjada)
-//  7) wave sin repetir al del impacto · zonePct · @windup en pasos de combo · hitDot con los
-//     talentos de DoT · trail.dur con zoneDur
+//  7) wave sin repetir al del impacto · zonePct · @windup en pasos de combo (también con el nodo
+//     REAL c9 del Guerrero sobre Rajar) · hitDot con los talentos de DoT · trail.dur con zoneDur
 //  8) los tics de startChannel no derivan (30, 60 y 144 fps)
 //  9) un proyectil con detonate detona al final de su vuelo; detonate.coef × rankCoef
-// 10) g.startCooldown, g.channelInfo, g.extendMark
+// 10) g.startCooldown, g.channelInfo, g.extendMark (con su Debilidad)
 // 11) clampWalkable hasta el final · dragWidth de talento sin drag · arrastrados juntos al
-//     llegar · slowImmune del canal · pull.radius y pull.boss del canal
+//     llegar · slowImmune del canal · pull.radius y pull.boss (canal y golpe)
 // 12) stat skillSpeedPct: preparación, tic de canal, avances y saltos (no enfriamientos)
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -28,6 +29,8 @@ import { validateSkillDef, normalizeSkillDef, SKILL_KEYS } from '../js/skill-def
 import { rankCoef } from '../js/combat-math.js';
 import { SKILL_FX } from '../js/fx-skills.js';
 import { verbHarness } from './fixtures/skills-verbs-sample.mjs';
+import { makeHarness } from './helpers/power-harness.mjs';
+import { findSpec, heroTreesFor } from '../js/talents.js';
 
 const DT = 1 / 60;
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
@@ -42,6 +45,17 @@ definePower('vx90_spy', {
   afterCast(g, p, cast, res) { SPY.after.push({ cast: { ...cast }, res: { ...res } }); },
   onHit(g, p, e, hit) { SPY.hit.push({ ...hit, e }); },
   onSkillEnd(g, p, sk, end) { SPY.end.push({ id: sk.id, ...end }); },
+});
+
+// un poder que repite la Nova desde CADA golpe suyo, sin mirar hit.echo (§5: tope de la cadena).
+// fresh: cada llamada con una serie propia (solo la profundidad la frena)
+const ECO = { on: false, fresh: false, n: 0 };
+definePower('vx90_eco_loco', {
+  name: 'repite sin mirar',
+  onHit(g, p, e, hit) {
+    if (!ECO.on || hit.skill !== 'vx90_nova') return;
+    if (g.castEcho(p, 'vx90_nova', ECO.fresh ? { series: { n: 0 } } : {})) ECO.n++;
+  },
 });
 
 const S = d => ({ icon: '🧪', desc: 'prueba de la cola W2d', req: 1, elem: 'physical', ...d });
@@ -73,6 +87,8 @@ const SKILLS = [
   S({ id: 'vx90_estela0', name: 'Estela de siempre', cat: 'spender', tags: ['spender', 'area'], type: 'area', at: 'self', coef: 1, cost: 0, cd: 0, radius: 2 }),
   S({ id: 'vx90_sangra', name: 'Corte sangrante', cat: 'spender', tags: ['spender', 'melee', 'dot'], type: 'melee', coef: 1, cost: 0, cd: 0, range: 2.5,
     hitDot: { kind: 'bleed', coef: 0.6, dur: 3 } }),
+  S({ id: 'vx90_quema', name: 'Corte ardiente', cat: 'spender', tags: ['spender', 'melee', 'dot', 'fire'], elem: 'fire', type: 'melee', coef: 1, cost: 0, cd: 0, range: 2.5,
+    hitDot: { kind: 'burn', coef: 0.5, dur: 4 } }),
   S({ id: 'vx90_veneno', name: 'Corte venenoso', cat: 'spender', tags: ['spender', 'melee', 'dot'], type: 'melee', coef: 1, cost: 0, cd: 0, range: 2.5,
     hitDot: { kind: 'poison', coef: 0.5, dur: 4 } }),
   S({ id: 'vx90_carrera', name: 'Carrera de 4 s', cat: 'spender', tags: ['spender', 'channel'], type: 'channel', coef: 0, cost: 0, cd: 0, channelT: 4, ticks: 20, hold: false, range: 10 }),
@@ -82,6 +98,8 @@ const SKILLS = [
     channelT: 1, ticks: 4, radius: 2, hold: false, pull: { dist: 1, radius: 5 } }),
   S({ id: 'vx90_ciclon0', name: 'Giro sin más', cat: 'spender', tags: ['spender', 'channel'], type: 'channel', at: 'self', coef: 0.05, cost: 0, cd: 0,
     channelT: 1, ticks: 4, radius: 2, hold: false, pull: 1 }),
+  S({ id: 'vx90_arpon', name: 'Arpón sin jefes', cat: 'spender', tags: ['spender', 'area', 'cc'], type: 'area', at: 'self', coef: 0.1, cost: 0, cd: 0,
+    radius: 6, pull: { dist: 2, boss: false } }),
   S({ id: 'vx90_det', name: 'Flecha que detona', cat: 'spender', tags: ['spender', 'proj', 'fire'], elem: 'fire', type: 'proj', coef: 0.5, cost: 0, cd: 0,
     range: 12, speed: 30, detonate: { radius: 3, coef: 1 } }),
   S({ id: 'vx90_piel', name: 'Piel', cat: 'defense', tags: ['defense', 'buff'], type: 'buff', cd: 10, dur: 4, buff: { dr: 10 }, cdOnEnd: true }),
@@ -118,7 +136,7 @@ const prof = (h, id) => resolveSkill(h.p, h.p.cls.skills.find(s => s.id === id))
 const hitLog = h => {
   const log = [];
   const on = h.g.onPlayerHit;
-  h.g.onPlayerHit = function (e, hit) { log.push({ e, skill: hit.skill, source: hit.source, dealt: hit.dealt, dot: hit.dot }); return on.call(this, e, hit); };
+  h.g.onPlayerHit = function (e, hit) { log.push({ e, skill: hit.skill, source: hit.source, dealt: hit.dealt, dot: hit.dot, echo: !!hit.echo }); return on.call(this, e, hit); };
   return log;
 };
 const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot && f(x));
@@ -183,6 +201,16 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   assert.equal(hitsOn(dlog, inLine).length, 1, 'el otro de la línea no recibe saltos');
   assert.ok(Math.abs(lost(b) / lost(a) - 0.75) < 0.01 && Math.abs(lost(c) / lost(a) - 0.5625) < 0.01,
     `sin chainPct: 75 % y 56 % (${(lost(b) / lost(a)).toFixed(3)}, ${(lost(c) / lost(a)).toFixed(3)})`);
+  // los saltos heredan las marcas del lanzamiento (hitExtra): los de una repetición, echo
+  const ec = mk('maga');
+  flat(ec);
+  const rlog = hitLog(ec);
+  const r0 = ec.enemy({ hp: 1e7, pos: [3, 0, 0] }), r1 = ec.enemy({ hp: 1e7, pos: [3, 0, 2] });
+  ec.aim(6, 0);
+  assert.ok(ec.g.castEcho(ec.p, 'vx_rayo_cadena'));
+  ec.step(1);
+  assert.ok(hitsOn(rlog, r0)[0]?.echo && hitsOn(rlog, r1).length === 1, 'la repetición golpea y salta');
+  assert.ok(hitsOn(rlog, r1)[0]?.source === 'chain' && hitsOn(rlog, r1)[0]?.echo === true, 'el salto de una repetición también es repetición (hit.echo)');
   console.log('Encadenado: nace en el origen, golpea al siguiente, el último recibe y cuenta para los poderes ✓');
 }
 
@@ -297,6 +325,20 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
     t.step(0.3);
     assert.equal(t.g.castSkillSlot('rmb'), false, `${id}: la principal espera`);
   }
+  // un combo: sus pasos instantáneos salen sobre la definitiva; el paso con preparación, no
+  const k = mk('maga');
+  k.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+  k.aim(1.5, 0);
+  k.setSlot('rmb', 'vx_combo'); k.setSlot('k4', 'vx90_grieta');
+  assert.equal(k.press('k4'), true);
+  k.step(0.3);
+  const kch = k.g._channel;
+  for (let i = 1; i <= 2; i++) {
+    assert.equal(k.g.castSkillSlot('rmb'), true, `paso ${i} (instantáneo) sobre el canal`);
+    k.step(0.3);
+  }
+  assert.equal(k.g.castSkillSlot('rmb'), false, 'el 3.er paso (con preparación) espera');
+  assert.ok(k.g._channel === kch && !k.g._windup, 'sin empezar a prepararlo y sin cortar el canal');
   console.log('Doble Grieta: principal instantánea sobre el canal de una definitiva imparable, sin cortarlo ✓');
 }
 
@@ -352,6 +394,37 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   const ch = h.g._channel;
   assert.ok(h.g.castEcho(h.p, 'vx90_carrera') === null, 'un canal no se repite mientras canalizas');
   assert.ok(h.g._channel === ch, 'tu canal sigue');
+  // una canalización no se repite NUNCA: el canal es del héroe (ranura, castLock, freno, drenaje)
+  const q = mk('maga');
+  q.enemy({ hp: 1e7, pos: [3, 0, 0] }); q.aim(3, 0);
+  assert.ok(q.g.castEcho(q.p, 'vx90_canal') === null, 'sin canal en curso, tampoco');
+  assert.ok(!q.g._channel && !(q.p.castLock > 0) && !q.p.moveMuls?.channel, 'no ocupa tu canal ni te bloquea');
+  q.setSlot('rmb', 'vx90_rayo');
+  assert.equal(q.cast('rmb'), true, 'y puedes lanzar al momento');
+  // solo el héroe, vivo y en partida
+  assert.ok(q.g.castEcho(mk('maga').p, 'vx90_nova') === null, 'otro héroe (el de otra partida): null');
+  q.g.state = 'menu';
+  assert.ok(q.g.castEcho(q.p, 'vx90_nova') === null, 'fuera de la partida: null');
+  q.g.state = 'play';
+  q.p.alive = false;
+  assert.ok(q.g.castEcho(q.p, 'vx90_nova') === null, 'muerto: null');
+  q.p.alive = true;
+  assert.ok(q.g.castEcho(q.p, 'vx90_nova'), 'y en partida, sí');
+  // un poder que repite desde CADA golpe de la repetición (sin mirar hit.echo) no se queda en
+  // bucle: la anidada hereda la serie (3 por cadena aunque cada Nova toque a dos) y, con serie
+  // propia en cada llamada, la profundidad la frena en echoCap niveles
+  for (const [fresh, want] of [[false, 6], [true, 3]]) {
+    const r = mk('maga');
+    r.addPowers('vx90_eco_loco');
+    r.enemy({ hp: 1e9, pos: [1, 0, 0] });
+    if (!fresh) r.enemy({ hp: 1e9, pos: [1, 0, 1] });
+    Object.assign(ECO, { on: true, fresh, n: 0 });
+    r.setSlot('rmb', 'vx90_nova');
+    assert.equal(r.cast('rmb'), true);
+    ECO.on = false;
+    assert.equal(ECO.n, want, `${fresh ? 'serie propia' : 'serie heredada'}: ${ECO.n} repeticiones`);
+    assert.ok(!r.g._echoRun, 'la cadena se cierra');
+  }
   console.log('castEcho: repetición gratis con su serie, origin y at, sin tocar barra, mira ni serie del jugador ✓');
 }
 
@@ -424,6 +497,57 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   assert.ok(tal.dmg[2] > base.dmg[2] * 1.2, `el paso con preparación hace más (${base.dmg[2]} → ${tal.dmg[2]})`);
 }
 {
+  // @windup con el nodo REAL c9 del Guerrero (Berserker) sobre Rajar: el selector llega al golpe
+  // descendente (3.er paso, preparación 0,3 s) y solo a él; la Hendidura (preparación propia) lo
+  // recibe por el agregado, como siempre
+  const rajar = choice => {
+    const h = makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker', talents: choice ? { cls: { c9: 1 }, choice: { c9: choice } } : null });
+    flat(h);
+    h.p.mp = h.p.stats.maxMP;
+    const e = h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+    h.aim(1.5, 0); h.setSlot('rmb', 'g_rajar');
+    const out = { dmg: [], windup: 0, addPct: [], hend: prof(h, 'g_hendidura'), mods: prof(h, 'g_rajar').windupMods };
+    for (let i = 0; i < 3; i++) {
+      const before = lost(e);
+      h.p.mp = h.p.stats.maxMP;
+      assert.equal(h.cast('rmb'), true, `Rajar, paso ${i + 1}`);
+      if (i === 2) { out.windup = h.g._windup?.ctx?.windup || 0; out.addPct = h.g._windup?.ctx?.prof?.addPct; }
+      h.step(0.8);
+      out.dmg.push(lost(e) - before);
+    }
+    return out;
+  };
+  const r0 = rajar(null), rA = rajar('A'), rB = rajar('B');
+  assert.ok(r0.mods === null && near(r0.windup, 0.3), `sin c9: el descendente se prepara 0,3 s (${r0.windup})`);
+  assert.deepEqual(rA.mods, { windupAdd: 0.3, dmg: 40 }, 'c9 A (Golpe Pesado) llega a Rajar como mods de sus pasos preparados');
+  assert.ok(near(rA.windup, 0.6) && near(rA.addPct - r0.addPct, 40), `c9 A: 0,3 → 0,6 s y +40 % (${rA.windup}, +${rA.addPct - r0.addPct})`);
+  assert.ok(rA.dmg[0] === r0.dmg[0] && rA.dmg[1] === r0.dmg[1] && rA.dmg[2] > r0.dmg[2] * 1.2, 'solo el paso preparado hace más');
+  assert.ok(near(rB.windup, 0.15), `c9 B (Sin Pausa): la mitad (${rB.windup})`);
+  assert.ok(near(r0.hend.windup, 0.25) && near(rA.hend.windup, 0.55) && near(rB.hend.windup, 0.125) && rA.hend.windupMods === null,
+    'la Hendidura (preparación propia): por el agregado, sin windupMods');
+}
+{
+  // también los árboles de especialización y héroe (nodos sintéticos gratis en los árboles reales,
+  // quitados al acabar): el héroe solo con el Paragon abierto, con la opción escogida (o la A)
+  const spec = findSpec('guerrero', 'berserker'), hero = heroTreesFor('guerrero', 'berserker')[0];
+  const add = (level, extra = {}) => prof(makeHarness({ classId: 'guerrero', level, spec: 'berserker', ...extra }), 'g_rajar').windupMods?.windupAdd || 0;
+  const heroB = { hero: { berserker: { choice: { [hero.id]: { vx90_hw: 'B' } } } } };
+  const b30 = add(30), b100 = add(100, { build: true });
+  const sNode = { id: 'vx90_bw', name: 'prueba', t: 'p', r: 0, c: 0, max: 1, free: true, fx: { mod: { '@windup': { windupAdd: 0.1 } } } };
+  const hNode = { id: 'vx90_hw', name: 'prueba', t: 'c', r: 0, c: 0, max: 1, free: true, opts: [
+    { k: 'A', name: 'A', desc: '', fx: { mod: { '@windup': { windupAdd: 0.02 } } } },
+    { k: 'B', name: 'B', desc: '', fx: { mod: { '@windup': { windupAdd: 0.04 } } } }] };
+  spec.nodes.push(sNode); hero.nodes.push(hNode);
+  try {
+    assert.ok(near(add(30) - b30, 0.1), 'nodo de la especialización; con el Paragon cerrado, el del héroe no cuenta');
+    assert.ok(near(add(100, { build: true }) - b100, 0.12), 'con el Paragon abierto, también el del héroe (opción A)');
+    assert.ok(near(add(100, { build: true, talents: heroB }) - b100, 0.14), 'la opción B del héroe');
+  } finally {
+    spec.nodes.splice(spec.nodes.indexOf(sNode), 1);
+    hero.nodes.splice(hero.nodes.indexOf(hNode), 1);
+  }
+}
+{
   // hitDot con los talentos de DoT (dotPct, <tipo>Pct, dotDur, bleedDur): más daño y más tics
   const dot = (id, tv) => {
     const h = mk('guerrero');
@@ -441,6 +565,9 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   const p0 = dot('vx90_veneno'), p1 = dot('vx90_veneno', { dotPct: 20, dotDur: 2, bleedDur: 5 });
   assert.ok(near(p1.prof.hitDot.dur, 6) && near(p1.prof.hitDot.coef / p0.prof.hitDot.coef, 1.2 * 6 / 4), 'veneno: dotPct y dotDur (bleedDur no)');
   assert.ok(p1.dot.total > p0.dot.total * 1.7, 'y el DoT aplicado lo refleja');
+  const q0 = dot('vx90_quema'), q1 = dot('vx90_quema', { burnDur: 2, burnPct: 10, bleedDur: 5, poisonPct: 50 });
+  assert.ok(near(q1.prof.hitDot.dur, 6) && near(q1.prof.hitDot.coef / q0.prof.hitDot.coef, 1.1 * 6 / 4), 'quemadura: burnPct y burnDur (bleedDur y poisonPct no)');
+  assert.ok(q1.dot.ticks === 12 && q0.dot.ticks === 8, 'y sus tics (8 → 12)');
 }
 {
   // trail.dur con zoneDur (suma segundos)
@@ -452,7 +579,7 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
     return h.g.fieldsOf(h.p, { kind: 'zona', skill: 'vx_sendero' })[0].dur;
   };
   assert.ok(near(len(null), 3) && near(len({ vx_sendero: { zoneDur: 2 } }), 5), 'la estela del avance: 3 s → 5 s con zoneDur +2');
-  console.log('Onda sin repetir, zonePct, @windup en pasos de combo, hitDot con talentos de DoT y trail.dur ✓');
+  console.log('Onda sin repetir, zonePct, @windup en pasos de combo (c9 real sobre Rajar), hitDot con talentos de DoT y trail.dur ✓');
 }
 
 // ------------------------------------------------ 8) los tics de startChannel no derivan
@@ -574,8 +701,9 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   assert.ok(m && near(m.t, 2 * t0) && near(e.debuffs['mark:vx_sentencia'].t, 2 * t0), 'mul 2: la marca y su Debilidad duran el doble');
   h.g.extendMark(e, 'vx_sentencia', { add: 1 });
   assert.ok(near(e.marks.vx_sentencia.t, 2 * t0 + 1), 'add +1 s');
+  assert.ok(e.debuffs['mark:vx_sentencia']?.t > 0, 'con su Debilidad viva');
   assert.ok(h.g.extendMark(e, 'vx_sentencia', { add: -100 }) === null, 'llevarla a 0 la quita');
-  assert.ok(!e.marks.vx_sentencia);
+  assert.ok(!e.marks.vx_sentencia && !e.debuffs['mark:vx_sentencia'], '…y también su Debilidad');
   assert.ok(h.g.extendMark(e, 'no_hay') === null, 'sin marca: null');
   console.log('APIs: startCooldown (también con cargas y cdOnEnd), channelInfo y extendMark ✓');
 }
@@ -653,7 +781,20 @@ const hitsOn = (log, e, f = () => true) => log.filter(x => x.e === e && !x.dot &
   assert.equal(o.cast('rmb'), true);
   o.step(1.2);
   assert.ok(near(far.pos.x, 4, 1e-3), 'pull sin radius: solo dentro del radio del daño');
-  console.log('clampWalkable entero, dragWidth sin drag, arrastre que junta, slowImmune y pull.radius/boss del canal ✓');
+  // pull.boss:false también al GOLPEAR (no solo por tic de canal): atrae al resto, al jefe no
+  const a = mk('guerrero');
+  const amob = a.enemy({ hp: 1e7, pos: [4, 0, 0] }), aboss = a.enemy({ hp: 1e7, pos: [0, 0, 4], boss: true });
+  a.setSlot('rmb', 'vx90_arpon');
+  assert.equal(a.cast('rmb'), true);
+  assert.ok(amob.pos.x < 3 && lost(aboss) > 0, `al golpear atrae al resto (${amob.pos.x.toFixed(2)}) y al jefe le pega`);
+  // (el daño le llena una pizca de Quebranto; el tirón, 15)
+  assert.ok(near(aboss.pos.z, 4) && aboss.stagger < 0.01, `al jefe ni lo mueve ni le llena Quebranto con el tirón (${aboss.stagger})`);
+  const t = mk('guerrero');
+  const tboss = t.enemy({ hp: 1e7, pos: [0, 0, 4], boss: true });
+  t.setSlot('rmb', 'vx_tiron');
+  assert.equal(t.cast('rmb'), true);
+  assert.ok(tboss.stagger >= 10, `sin boss:false, el tirón le llena Quebranto (${tboss.stagger})`);
+  console.log('clampWalkable entero, dragWidth sin drag, arrastre que junta, slowImmune, pull.radius del canal y pull.boss ✓');
 }
 
 // ------------------------------------------------ 12) stat skillSpeedPct

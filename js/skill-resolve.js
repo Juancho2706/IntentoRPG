@@ -7,7 +7,8 @@
 //   2. FORJA de la DEFINICIÓN (forgedDef: set/add/mul/elem/tags de Mejora y variante;
 //      tags recalculados → soportes y selectores de talento ven la forma nueva)
 //   3. mods de la forja (Mejora si Nv ≥ req+3, variante si Nv ≥ req+6)
-//   4. talentos (p.talentAgg.mods[sk.id]: los selectores se expanden sobre la definición forjada)
+//   4. talentos (p.talentAgg.mods[sk.id]: los selectores se expanden sobre la definición forjada;
+//      los '@windup' de los pasos de combo, aparte en prof.windupMods: comboWindupMods)
 //   5. soportes engarzados compatibles con los tags FORJADOS → tabla SUPPORT_MOD
 //   6. valores globales del héroe (stats.cdr, tv.costRed / costRedBig, stats.spenderCostPct /
 //      costPct, stats.skillSpeedPct, talentos de DoT en hitDot)
@@ -21,6 +22,7 @@ import { CLASSES, SUPPORTS, SKILL_FORGE } from './data.js';
 import { CAT_SLOTS, SLOT_KEYS, GCD_CATS, RANK_MAX, TAGS, supportFits, supportSockets, skillSlots, mergeMods, defaultSlots,
   forgeDef, forgeMods, forgeLevels, forgeVar, VERB_DEFAULTS } from './skill-defs.js';
 import { firePower, SKILL_BEHAVIORS } from './powers.js';
+import { talentTreesFor, activeSpec, activeHeroTree, nodeFx, scaleFx } from './talents.js';
 
 export { CAT_SLOTS, SLOT_KEYS, TAGS, RANK_MAX, supportFits, supportSockets, skillSlots, defaultSlots };
 
@@ -169,6 +171,36 @@ function resolveHitDot(hd, rank, dotMul, tv) {
   const coef = (hd.coef || 0) * rankCoef(rank) * dotMul * Math.max(0, 1 + pct / 100) * dur / dur0;
   return { kind, coef, dur };
 }
+// talentos '@windup' de los PASOS de combo con preparación (Golpe Pesado / Sin Pausa sobre el
+// golpe descendente de Rajar). aggregateTalents expande el selector a las habilidades con
+// preparación PROPIA (def.windup); un combo sin ella y con algún paso preparado recibe aquí,
+// aparte, los mods '@windup' de los nodos activos, que _makeCtx aplica SOLO a esos pasos. Con las
+// reglas del agregado: rango efectivo (agg.ranks; el árbol héroe, solo con el Paragon abierto),
+// la opción escogida (o la A) y scaleFx. Fuente única: talents.js no escribe '<id>@windup'; esa
+// clave de talentAgg.mods solo llega de p.talentExtra (tests) y se suma.
+function comboWindupMods(p, id, def) {
+  if (def.type !== 'combo' || (def.windup || 0) > 0 || !def.steps?.some(s => (s?.windup || 0) > 0)) return null;
+  const agg = p.talentAgg;
+  const out = mergeMods({}, agg?.mods?.[`${id}@windup`]);
+  const trees = agg?.ranks ? talentTreesFor(p.classId) : null;
+  if (trees) {
+    const T = p.talents || {};
+    const s = activeSpec(p);
+    const h = s && agg.heroOpen ? activeHeroTree(p) : null;
+    const groups = [[trees.cls?.nodes, T.choice], [s?.nodes, T.choice], [h?.nodes, T.hero?.[s?.id]?.choice?.[h?.id]]];
+    for (const [nodes, choice] of groups) {
+      for (const n of nodes || []) {
+        const r = agg.ranks[n.id] | 0;
+        const m = r > 0 ? nodeFx(n, choice?.[n.id])?.mod?.['@windup'] : null;
+        if (!m) continue;
+        const scaled = {};
+        for (const [k, v] of Object.entries(m)) scaled[k] = scaleFx(v, r);
+        mergeMods(out, scaled);
+      }
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
 // carga resuelta (§3.6): ventana con perfectWin/perfectEarly, velocidad con chargeSpeed
 function resolveCharge(def, mods, moveMul, p) {
   const c = def.charge;
@@ -299,8 +331,8 @@ function computeProfile(p, sk) {
     cost, cd, cdBase: def.cd || 0, cdrPts,
     gcd: GCD_CATS.has(def.cat),
     windup, lockT: def.lockT || 0, impactDelay: def.impactDelay || 0, skillSpeed,
-    // mods de talento para los PASOS de combo con preparación (selector @windup → '<id>@windup')
-    windupMods: p.talentAgg?.mods?.[`${sk.id}@windup`] || null,
+    // mods de talento '@windup' para los PASOS de combo con preparación (comboWindupMods)
+    windupMods: comboWindupMods(p, sk.id, def),
     interruptible: !!def.int,
     moveMul,
     // geometría

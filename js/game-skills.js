@@ -75,6 +75,8 @@ function matchSel(sel, hit) {
 function srcPos(ctx) {
   return ctx.origin ? v3(ctx.origin.x, ctx.origin.z) : ctx.p.pos.clone().setY(0);
 }
+// jefe (jefe de zona, über o de mundo): pull.boss:false no lo atrae
+const isBossEnemy = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
 // centro de una habilidad de área/zona según `at`: 'self' (de donde sale) · 'enemy' (sobre el
 // enemigo de la mira, o la mira si no hay) · 'target' / por defecto (la mira, acotada al alcance)
 function castCenter(ctx) {
@@ -497,7 +499,7 @@ const GENERIC = {
     const auto = sk.autoShot || null;
     const defaultTick = (inst, interval) => {
       if (auto) return;
-      if (prof.radius > 0) { g.dealArea(sk.at === 'self' || !sk.at ? (ctx.origin ? srcPos(ctx) : p.pos.clone()) : ctx.target.clone(), prof.radius, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() }); return; }
+      if (prof.radius > 0) { g.dealArea(sk.at === 'self' || !sk.at ? p.pos.clone() : ctx.target.clone(), prof.radius, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() }); return; }
       const range = Math.max(2, prof.range || 8);
       let e = inst.target;
       if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) e = inst.target = g.nearestEnemy(range, ctx.target) || g.nearestEnemy(range) || null;
@@ -930,7 +932,7 @@ export const skillMethods = {
       const pullR = pr?.pullRadius || pr?.radius || 0;
       if (pr?.pull > 0 && pullR > 0 && !pr.behavior) {
         for (const e of this.enemies || []) {
-          if (!e.alive || (pr.pullBoss === false && (e.def?.boss || e.def?.uber || e.def?.worldBoss))) continue;
+          if (!e.alive || (pr.pullBoss === false && isBossEnemy(e))) continue;
           if (e.pos.distanceTo(p.pos) <= pullR + 0.5) e.displace?.(p.pos, pr.pull, { toward: true, src: p });
         }
       }
@@ -1317,7 +1319,10 @@ export const skillMethods = {
   // no toca p.skState[id].echo del jugador, ni p.hotbar, ni g.input.mouseWorld. at = {x, z}: mira
   // (acotada al alcance desde el origen); origin = {x, z}: de dónde sale (una habilidad `at:'self'`
   // se centra ahí; un proyectil, una línea o un cono salen de ahí). Como toda repetición, no
-  // dispara ⑦ ni genera otra, y una canalización no sale mientras canalizas. → el CastInfo o null.
+  // dispara ⑦ ni genera otra. Una CANALIZACIÓN no se repite (null): el canal es del héroe (su
+  // ranura mantenida, castLock, freno y drenaje). Llamada desde otra castEcho en curso (un poder
+  // que repite desde el golpe de una repetición), hereda su serie: el tope echoCap vale para
+  // toda la cadena y no hay recursión sin fin. → el CastInfo o null.
   // Retrocompatible con castEchoOf de la Arquera: castEcho(p, id, mult, { at }).
   castEcho(p, id, opts = {}, legacy = null) {
     if (typeof opts === 'number') opts = { ...(legacy || {}), mult: opts };
@@ -1327,8 +1332,16 @@ export const skillMethods = {
     const sk = p.cls?.skills?.find(s => s.id === id);
     if (!sk || !isKnown(p, sk)) return null;
     const def = resolveSkill(p, sk).def || sk;
-    if (def.type === 'channel' && this._channel) return null;
-    const res = castSkillCore.call(this, p, sk, null, { echoMult: mult, series: series || { seq: -1, n: 0 }, at, origin });
+    if (def.type === 'channel') return null;
+    // anidada: la serie de la castEcho en curso; y nunca más de echoCap niveles (una serie
+    // propia en cada nivel no la frena)
+    const outer = this._echoRun || null;
+    if (outer && outer.depth >= VERB_DEFAULTS.echoCap) return null;
+    const run = { series: series || outer?.series || { seq: -1, n: 0 }, depth: (outer?.depth || 0) + 1 };
+    this._echoRun = run;
+    let res;
+    try { res = castSkillCore.call(this, p, sk, null, { echoMult: mult, series: run.series, at, origin }); }
+    finally { this._echoRun = outer; }
     return res && res !== true ? res : null;
   },
 
@@ -1387,7 +1400,9 @@ export const skillMethods = {
       ctx.res.hits++;
       ctx.res.dealt += dealt || 0;
       if (e) ctx.hitSet.add(e);
-      applyHitEffects(this, p, e, ctx.prof, ctx.avgHit, { from });
+      // pull.boss:false también al golpear (Arpón): al jefe no se lo atrae; lo demás, igual
+      const pr = ctx.prof.pullBoss === false && ctx.prof.pull > 0 && isBossEnemy(e) ? { ...ctx.prof, pull: 0 } : ctx.prof;
+      applyHitEffects(this, p, e, pr, ctx.avgHit, { from });
       if (e && !e.alive) ctx.res.killed++;
     };
     ctx.areaOpts = { addPct, critBonus: stepProf.critBonus, coldblood: prof.coldblood, color, hitInfo, onHit: ctx.hit, hitExtra };
@@ -1891,12 +1906,16 @@ export const skillMethods = {
   },
   marksOf(e) { return Object.values(e?.marks || {}).filter(m => m && m.t > 0); },
   // ALARGA una marca viva (API pública: Condena, «tus marcas duran el doble»): t = t × mul + add,
-  // y su Debilidad (mark.weakPct) dura lo mismo. Con t ≤ 0 la marca se va. → la marca o null
+  // y su Debilidad (mark.weakPct) dura lo mismo. Con t ≤ 0 se van la marca y su Debilidad. → la marca o null
   extendMark(e, markId, { mul = 1, add = 0 } = {}) {
     const m = e?.marks?.[markId];
     if (!m || !(m.t > 0)) return null;
     m.t = m.t * Math.max(0, Number.isFinite(mul) ? mul : 1) + (Number.isFinite(add) ? add : 0);
-    if (!(m.t > 0)) { delete e.marks[markId]; return null; }
+    if (!(m.t > 0)) {
+      delete e.marks[markId];
+      if (e.debuffs) delete e.debuffs[`mark:${markId}`];   // su Debilidad se va con ella
+      return null;
+    }
     const wk = e.debuffs?.[`mark:${markId}`];
     if (wk && e.applyWeakness) e.applyWeakness(`mark:${markId}`, wk.pct, m.t);
     return m;
