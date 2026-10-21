@@ -27,7 +27,8 @@
  *   charge?:{t:number, frac:number}|null, perfect?:boolean, forcePerfect?:boolean, instant?:boolean,
  *   recast?:{idx:number, left:number, perfect:boolean}|null, step?:number, seqNth?:boolean,
  *   stance?:string|null, stanceFrom?:string|null, endReason?:string, released?:boolean }} CastInfo
- *   Paso 2 (§3.6): ③/⑤ leen «perfecto», «paso» y «postura» aquí. Un poder puede poner en
+ *   Paso 2 (§3.6): sk = definición FORJADA (prof.def: la Mejora y la variante ya aplicadas;
+ *   el mismo id que la del catálogo). ③/⑤ leen «perfecto», «paso» y «postura» aquí. Un poder puede poner en
  *   onCast `forcePerfect` (Punto Débil: la suelta será perfecta) o `instant` (carga completa al
  *   instante). `echo` > 0 = repetición: no consume cargas ni relanzamientos ni avanza estado. */
 /** @typedef {{ hits:number, dealt:number, killed:number }} CastResult */
@@ -201,7 +202,9 @@ export function dealProcDamage(g, e, amount, opts = {}) {
 // historial desde que la tienes, no desde la primera activa).
 // ------------------------------------------------------------
 export const SKILL_BEHAVIORS = {};
-const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'passiveTick', 'name', 'desc']);
+// params: claves PROPIAS de la definición que lee el comportamiento (validateSkillDef v2 no
+// las avisa como desconocidas)
+const BEHAVIOR_KEYS = new Set(['cast', 'tick', 'end', 'passiveTick', 'name', 'desc', 'params']);
 export function defineSkillBehavior(id, def) {
   if (!id || SKILL_BEHAVIORS[id]) throw new Error(`defineSkillBehavior: id inválido o repetido "${id}"`);
   // cast() es lo normal; un comportamiento SOLO con tick/end convive con el tipo

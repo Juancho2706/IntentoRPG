@@ -93,13 +93,8 @@ export function makeGame({ seed = 7 } = {}) {
     step(dt) {
       const p = this.player;
       this._clockMs += dt * 1000;
-      // con la entrada controlada (h.press), réplica del bucle de botones mantenidos de main.js
-      if (this.input._ctl && p) {
-        const held = this.input.mouseHeld;
-        const busy = s => this._charging?.key === s || this._channel?.ctx?.key === s || this._needsRelease?.[s];
-        if (held.l && !busy('lmb')) this.castSkillSlot('lmb');
-        if (held.r && !busy('rmb')) this.castSkillSlot('rmb');
-      }
+      // con la entrada controlada (h.press), el MISMO bucle de botones mantenidos que Game.tick
+      if (this.input._ctl && p) this.pumpHeldSlots();
       if (p) p.update(dt);
       this.updateFields(dt);
       this.timers.tick(dt);

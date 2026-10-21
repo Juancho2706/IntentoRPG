@@ -31,7 +31,7 @@
 
 // ---------- categorías, ranuras y tags ----------
 export const CATS = ['basic', 'spender', 'movement', 'defense', 'utility', 'spec', 'ultimate'];
-// D14: etiquetas VISIBLES por categoría (las claves internas no cambian; G15: nada de «Gastadora»)
+// D14: etiquetas VISIBLES por categoría (las claves internas no cambian; G15: la categoría se llama «Principal»)
 export const CAT_LABELS = Object.freeze({
   basic: 'Básica', spender: 'Principal', movement: 'Movilidad', defense: 'Defensa',
   utility: 'Utilidad', spec: 'Insignia', ultimate: 'Definitiva',
@@ -236,6 +236,28 @@ export const RETIRED_KEYS = Object.freeze({
   vulnPct: 'mark.weakPct', markCount: 'mark.count', markRadius: 'mark.radius', markDur: 'mark.dur (o mod markDur)',
   tauntDur: 'taunt (+s)', bounce: 'bounces', length: 'wall.len', target: 'at: "enemy"',
 });
+// Claves de una definición que el MOTOR entiende (campos base, parámetros de los tipos
+// genéricos y verbos de §3.6). En un catálogo v2, otra clave es un AVISO (errata como
+// 'chrage'); las propias de un comportamiento se declaran en su `params`
+// (defineSkillBehavior(id, { cast, params: ['reach'] })).
+export const SKILL_KEYS = new Set([
+  // base y catálogo
+  'id', 'name', 'icon', 'desc', 'line', 'cat', 'slots', 'tags', 'elem', 'type', 'behavior', 'req', 'spec', 'kind', 'max',
+  'color', 'shake', 'size', 'beam', 'airT',
+  // perfil de daño y de recurso
+  'coef', 'cost', 'cd', 'gen', 'genMax', 'genOnHit', 'genPerExtra', 'cadence', 'critBonus', 'addPct', 'dmgDirect',
+  'splash', 'hitDot', 'bossStun', 'stagger', 'chain', 'chainPct', 'perTarget', 'pierce', 'count', 'spread', 'speed',
+  'range', 'radius', 'angle', 'width', 'at', 'cleave', 'cleaveR', 'resPerSec',
+  // control, tiempos y buffs
+  'slow', 'slowPct', 'stun', 'root', 'int', 'unstoppable', 'slowImmune', 'weakenPct', 'weakPct', 'taunt', 'dur', 'windup',
+  'impactDelay', 'lockT', 'channelT', 'ticks', 'endless', 'hold', 'moveMul', 'autoShot', 'drainPerSec', 'buff',
+  'shieldPct', 'allyDr', 'projMissPct', 'allyRadius', 'healPct', 'heal', 'shield', 'detonate',
+  // verbos (§3.6) y claves resueltas (docs/paso2-claves-w2.md)
+  'charge', 'recast', 'steps', 'comboWin', 'seq', 'stance', 'needPlanted', 'plant', 'keepPlanted', 'mark', 'trap',
+  'wall', 'follow', 'contain', 'zoneMax', 'pull', 'knock', 'drag', 'dragWidth', 'dashT', 'charges', 'killReset',
+  'shieldGain', 'repeat', 'trail', 'fieldKind', 'fallbackRange', 'pulse', 'wave', 'lure', 'impacts', 'scatter',
+  'cdOnEnd', 'cdFloor',
+]);
 const HOLD_VALUES = new Set([true, false, 'toggle']);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const isPlain = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
@@ -295,10 +317,14 @@ function validateVerbs(def, id, err) {
 
 // Valida una definición (devuelve la lista de errores; [] = válida). Lo usan los
 // tests de catálogo (test62, test81 y los test-skills-<clase>).
-// opts.v2 (catálogo 2g, CATALOG_V = 2): además, alias retirados son error y las activas
-// de talento solo van a la ranura 2 (kind 'talent' ⇒ defensa o utilidad, slots ['k2']).
-export function validateSkillDef(def, { behaviors = null, v2 = false } = {}) {
+// opts.v2 (catálogo 2g, CATALOG_V = 2): además, alias retirados son error, las activas
+// de talento solo van a la ranura 2 (kind 'talent' ⇒ defensa o utilidad, slots ['k2']) y
+// una clave fuera de SKILL_KEYS (ni en `params` de su comportamiento) es un AVISO: la lista
+// va en `errs.warnings` (no enumerable) y, si se pasa, en opts.warnings.
+export function validateSkillDef(def, { behaviors = null, v2 = false, warnings = null } = {}) {
   const err = [];
+  const warn = [];
+  Object.defineProperty(err, 'warnings', { value: warn, enumerable: false });
   const id = def?.id || '?';
   for (const k of ['id', 'name', 'icon', 'desc', 'cat', 'elem']) if (!def?.[k]) err.push(`${id}: falta ${k}`);
   if (!CATS.includes(def.cat)) err.push(`${id}: cat inválida ${def.cat}`);
@@ -331,7 +357,13 @@ export function validateSkillDef(def, { behaviors = null, v2 = false } = {}) {
       if (!(slots.length === 1 && slots[0] === 'k2')) err.push(`${id}: una activa de talento solo va a la ranura 2 (slots ['k2'])`);
       if (def.spec) err.push(`${id}: una activa de talento no pertenece a un kit (spec)`);
     }
+    const own = new Set(behaviors?.[def.behavior]?.params || []);
+    for (const k of Object.keys(def || {})) {
+      if (SKILL_KEYS.has(k) || own.has(k) || RETIRED_KEYS[k] !== undefined) continue;
+      warn.push(`${id}: clave desconocida ${k}${def.behavior ? ` (si la lee ${def.behavior}, decláralo en su params)` : ''}`);
+    }
   }
+  if (Array.isArray(warnings)) warnings.push(...warn);
   return err;
 }
 

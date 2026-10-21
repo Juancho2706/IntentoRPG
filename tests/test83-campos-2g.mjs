@@ -31,7 +31,10 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   h.step(0.3);
   assert.ok(prey.hp < 1e6 && prey.rootT > 0, 'armada: golpea e inmoviliza al que la pisa');
   assert.ok(side.hp < 1e6, 'el estallido alcanza a los de alrededor');
-  assert.ok(HITS.some(x => x.e === side && x.trap), 'HitInfo.trap en el estallido (golpe real: ⑤)');
+  const th = HITS.find(x => x.e === side && x.trap);
+  assert.ok(th && th.trap.skill === 'vx_cepo' && th.trap.uid === f.uid, 'HitInfo.trap = { uid, skill } en el estallido (golpe real: ⑤)');
+  const tp = HITS.find(x => x.e === prey && x.source === 'field:trampa');
+  assert.ok(tp && tp.trap.uid === f.uid, 'y en el golpe de la trampa al que la pisa');
   assert.equal(live(h, 'trampa').length, 0, 'consume: true → desaparece');
   assert.equal(h.g.trapBurstsWithin(h.p, 1), 1, 'registro de estallidos (Batida)');
   prey.alive = side.alive = false;
@@ -66,7 +69,22 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   const z0 = far.pos.z;
   far.update(0.2);
   assert.ok(far.pos.z < z0, 'Enemy.update usa el cebo');
-  console.log('Cebo: atrae a comunes, élites solo de cerca, ni jefes ni quien te pega ✓');
+  // …pero solo sustituye el movimiento y la decisión: Vulnerable, Debilidad, marcas, el
+  // destello y un lanzamiento en curso siguen corriendo mientras el cebo atrae
+  far.vulnT = 1; far.flashT = 0.3; far.applyWeakness('vx_w', 10, 0.5);
+  far.marks = { vx_m: { t: 0.5, uses: 1 } };
+  let ran = false;
+  far.casting = { id: 'vx_cast', t: 0.4, run() { ran = true; } };
+  const zc = far.pos.z;
+  for (let i = 0; i < 20; i++) far.update(DT);
+  assert.ok(Math.abs(far.pos.z - zc) < 1e-9, 'mientras lanza no lo mueve el cebo');
+  for (let i = 0; i < 100; i++) far.update(DT);
+  assert.ok(far.vulnT <= 0 && far.flashT <= 0, `Vulnerable y destello caducan con el cebo vivo (${far.vulnT.toFixed(2)}, ${far.flashT.toFixed(2)})`);
+  assert.equal(far.weaknessPct(), 0, 'la Debilidad caduca');
+  assert.ok(!far.marks.vx_m, 'la marca caduca');
+  assert.ok(ran && !far.casting, 'el lanzamiento en curso termina');
+  assert.ok(far.pos.z < zc - 0.3, 'y después el cebo lo sigue atrayendo');
+  console.log('Cebo: atrae a comunes, élites solo de cerca, ni jefes ni quien te pega; los temporizadores siguen ✓');
 }
 
 // ------------------------------------------------ 3) detonar: perTarget, cadena, parpadeo previo

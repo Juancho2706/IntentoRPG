@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { CLASSES, paragonBoardFor, PET_KINDS, PET_UPGRADES, PET_COLLARS } from './data.js';
 // Paso 2c.0: talentos y especialización (sustituyen a las maestrías)
 import { aggregateTalents, normalizeTalents } from './talents.js';
+// talentsTrimmed / TALENTS_TRIMMED_NOTICE solo existen en talents.js v2 (W1): se leen opcionales
+import * as talentsApi from './talents.js';
 // Paso 2 (E0.3): experiencia, subida de nivel y sus avisos (Player.gainXP delega)
 import { gainXP as progressionGainXP } from './progression.js';
 import { glyphValue } from './items.js';
@@ -14,6 +16,7 @@ import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critCha
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
   condAddPct, condCritPct, dotProfile, healScaled,
   STAGGER_MAX, STAGGER_BREAK_T, STAGGER_LOCK_T, staggerFromCC, staggerFromDamage, staggerFromDisplace, DISPLACE_DR,
+  displaceDist, ccDurationWithTalents,
   THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage, chargeCoefAt } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef } from './skill-resolve.js';
@@ -558,11 +561,17 @@ export class Player {
     } else this.pet = null;
     // talentos (Paso 2c.0, sustituyen a las maestrías): { v, spec, cls, sp, choice }.
     // normalizeTalents valida contra el catálogo ACTUAL (ids/rangos que ya no existen
-    // se purgan). La migración maestría → especialización vive en MIGRATIONS[3].
-    this.talents = normalizeTalents(this.talents, classId);
+    // se purgan) y, con el NIVEL (§3.3), cada árbol contra lo que da ese nivel (puertas,
+    // requisitos y presupuesto). La migración maestría → especialización vive en MIGRATIONS[3].
+    this.talents = normalizeTalents(this.talents, classId, this.level);
     delete this.mastery;
     // avisos de carga (la migración v4 deja 'talentos'); los muestra Game y se vacían
     this.notices = Array.isArray(this.notices) ? this.notices : [];
+    // §3.2: un árbol ilegal al nivel que normalizeTalents vació deja el aviso 'talentos-recortados'
+    if ((talentsApi.talentsTrimmed?.(this.talents) || []).length) {
+      const id = talentsApi.TALENTS_TRIMMED_NOTICE || 'talentos-recortados';
+      if (!this.notices.includes(id)) this.notices.push(id);
+    }
     // eras (temporada local): estado por semana; títulos cosméticos obtenidos
     this.era = this.era && typeof this.era === 'object' ? this.era : null;
     this.titles = Array.isArray(this.titles) ? this.titles : [];
@@ -631,9 +640,9 @@ export class Player {
     this.buffs = [];
     this.cds = {};
     this.cdMax = {};            // enfriamiento total del último uso (overlay de la UI)
-    this.gcdT = 0;              // enfriamiento global (0,2 s entre gastadoras)
+    this.gcdT = 0;              // enfriamiento global (0,2 s entre principales)
     this.castLock = 0;          // bloqueo de lanzamiento (windup / canalización)
-    this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una gastadora (Paso 2b.2)
+    this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una principal (Paso 2b.2)
     this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
     this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
@@ -661,7 +670,7 @@ export class Player {
 
     this.group = makePlayerModel(this.cls, this.tint);
     this.recompute();
-    // hotbar de 6 ranuras con categoría (lmb básico · rmb gastadora · k1 movilidad ·
+    // hotbar de 6 ranuras con categoría (lmb básico · rmb principal · k1 movilidad ·
     // k2 flexible · k3 especialización · k4 definitiva); se valida con el nivel ya cargado
     this.hotbar = this.normalizeHotbar(this.hotbar);
     this.hp = this.stats.maxHP;
@@ -709,6 +718,19 @@ export class Player {
     return isKnown(this, sk);
   }
 
+  // accesores de lo FORJADO que recompute pasa a aggregateTalents (§3.3 y §3.8): elemOf
+  // (selectores '@<elem>'), kitOf ('@spec') y defOf (definición forjada: '@tag:', atajos
+  // como '@charge' y '@windup'; una variante que añade `charge` recibe los talentos de @charge)
+  talentAccessors() {
+    const skills = this.cls?.skills || [];
+    const defOf = id => { const sk = skills.find(s => s.id === id); return sk ? forgedDef(this, sk) : null; };
+    return {
+      elemOf: id => defOf(id)?.elem || null,
+      kitOf: specId => skills.filter(s => specId && s.spec === specId).map(s => s.id),
+      defOf,
+    };
+  }
+
   get pos() { return this.group.position; }
 
   // estadísticas derivadas de atributos + equipo + buffs + pasivas
@@ -725,7 +747,7 @@ export class Player {
                    critDmg: 0, dr: 0, block: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0,
                    // Paso 2b.0: esquiva (s menos de recarga), regen. de Energía y curación de habilidad
                    dodgeCdr: 0, energyRegen: 0, healPct: 0,
-                   // Paso 2b.2: coste de gastadoras por buff (−100 = gratis) y fallo de proyectiles enemigos
+                   // Paso 2b.2: coste de principales por buff (−100 = gratis) y fallo de proyectiles enemigos
                    spenderCostPct: 0, projMissPct: 0,
                    // Paso 2c.0 (talentos, §5.3): % de vida/maná máx., % de experiencia,
                    // amenaza extra (se suma al ×1 base; la innata del Guardián lo fija en ×3)
@@ -735,7 +757,9 @@ export class Player {
                    dmgTakenPct: 0,
                    // Paso 2 (claves de talento, docs/paso2-claves-w2.md): +% de regeneración del
                    // recurso (Maná/Energía) y +% del recurso GENERADO (Furia Creciente)
-                   regenPct: 0, resGainPct: 0 };
+                   regenPct: 0, resGainPct: 0,
+                   // Paso 2 (§3.6): suelta perfecta desde media carga (buff Calma Absoluta)
+                   perfectAlways: 0 };
 
     const addStats = (src) => {
       for (const [k, v] of Object.entries(src)) {
@@ -805,10 +829,7 @@ export class Player {
     // TALENTOS (Paso 2c.0, §5.4): árbol de clase + especialización activa (Nv ≥ 10).
     // §3.3: los selectores de talento se expanden por el elemento FORJADO (elemOf) y por el
     // kit de la especialización (kitOf). talentExtra = agregado extra de los tests/arnés.
-    const agg = aggregateTalents(this, {
-      elemOf: id => { const sk = clsSkills.find(s => s.id === id); return sk ? (forgedDef(this, sk)?.elem || null) : null; },
-      kitOf: specId => clsSkills.filter(s => specId && s.spec === specId).map(s => s.id),
-    });
+    const agg = aggregateTalents(this, this.talentAccessors());
     const ex = this.talentExtra;
     if (ex) {
       for (const [k, v] of Object.entries(ex.stats || {})) agg.stats[k] = (agg.stats[k] || 0) + v;
@@ -908,6 +929,7 @@ export class Player {
       threatMult: Math.max(0.1, 1 + item.threatMult), staggerPct: item.staggerPct,
       dmgTakenPct: item.dmgTakenPct,
       regenPct: item.regenPct, resGainPct: item.resGainPct,
+      perfectAlways: item.perfectAlways,
     };
     // habilidades conocidas y su rango (DERIVADO del nivel; §4.1) + caché del resolvedor
     this.resolved = {};
@@ -1773,13 +1795,9 @@ export class Enemy {
   // suma 20; la provocación funciona igual (sin rendimientos decrecientes).
   applyCC(kind, dur, opts = {}) {
     if (!(dur > 0) || !this.alive) return 0;
-    // claves de talento del héroe que lo aplica: tv.ccDurPct (+% a los aturdimientos) y
-    // tv.freezeDur (+s al Congelado), en un único punto para todas las fuentes
-    const tv = opts.src?.tv;
-    if (tv) {
-      if (kind === 'stun' && tv.ccDurPct) dur *= Math.max(0, 1 + tv.ccDurPct / 100);
-      if (kind === 'freeze' && tv.freezeDur) dur += tv.freezeDur;
-    }
+    // claves de talento del héroe que lo aplica (ccDurPct, freezeDur: combat-math), en un
+    // único punto para todas las fuentes
+    dur = ccDurationWithTalents(kind, dur, opts.src?.tv);
     const boss = isBossDef(this.def);
     if (boss) {
       const sp = opts.src?.stats?.staggerPct || 0;
@@ -2027,7 +2045,7 @@ export class Enemy {
     }
     const dr = this.dispDR || 0;
     if (dr >= 0.9) return 0;
-    let d = dist * (1 - dr) * (this.def.rank ? 0.6 : 1);
+    let d = displaceDist(dist, dr, !!this.def.rank);
     const dx = this.pos.x - from.x, dz = this.pos.z - from.z, l = Math.hypot(dx, dz);
     if (l < 1e-4) return 0;
     const sgn = toward ? -1 : 1;
@@ -2188,13 +2206,13 @@ export class Enemy {
 
   // Paso 2 (§3.6): campos que cambian el movimiento enemigo (muros que BLOQUEAN, zonas que
   // CONTIENEN y cebos que ATRAEN; field-entities.js). Solo cuestan algo si hay campos de
-  // ese tipo vivos (g._moveFields > 0): el cebo se evalúa a 5 Hz escalonado por enemigo.
+  // ese tipo vivos (g._moveFields > 0): el cebo se evalúa a 5 Hz escalonado por enemigo y
+  // sustituye SOLO el movimiento y la decisión (lo hace _updateAI tras los temporizadores).
   update(dt) {
     const g = this.game;
     if (!(g._moveFields > 0) || !this.alive) return this._updateAI(dt);
     const bx = this.pos.x, bz = this.pos.z;
-    let r = false;
-    if (!(g.lureStep?.(this, dt))) r = this._updateAI(dt);
+    const r = this._updateAI(dt);
     if (this.alive) g.constrainMove?.(this, bx, bz);
     return r;
   }
@@ -2245,6 +2263,11 @@ export class Enemy {
     // solo nos ahorramos el vaivén de miembros cuando nadie lo ve.
     const pl = g.player;
     if (!pl || this.group.position.distanceToSquared(pl.pos) < 30 * 30) this.animate(dt);
+
+    // CEBO (§3.6): un cebo armado lo atrae en lugar de moverse y decidir; los temporizadores
+    // de arriba (Vulnerable, control, marcas, destello) siguen corriendo y un lanzamiento en
+    // curso termina antes
+    if (g._moveFields > 0 && !this.casting && g.lureStep?.(this, dt)) return false;
 
     // objetivo: provocación > amenaza > el jugador (Paso 2c.0; en solitario, el jugador)
     const player = pl ? this.combatTarget(pl) : pl;

@@ -155,7 +155,7 @@ export function mainStatMult(v) { return 1 + Math.max(0, v || 0) * MAIN_STAT_PER
 export function attackTime(base, aspdPct) { return base / (1 + Math.max(-50, Math.min(CAPS.aspd, aspdPct || 0)) / 100); }
 export function moveSpeed(base, spdPct) { return base * (1 + Math.max(-50, Math.min(CAPS.spd, spdPct || 0)) / 100); }
 // Regeneración de Maná/Energía por segundo. Antes ×(1 + 5 % por punto de Energía):
-// con ~50 de Energía la Maga regeneraba ×3,5 y su gastadora de 0,9 s salía gratis
+// con ~50 de Energía la Maga regeneraba ×3,5 y su principal de 0,9 s salía gratis
 // (recurso casi infinito). Ahora +2 % por punto: hay que alternar con el básico.
 export const REGEN_PER_ENE = 0.02;
 export function resourceRegen(base, ene) { return (base || 0) * (1 + Math.max(0, ene || 0) * REGEN_PER_ENE); }
@@ -329,6 +329,19 @@ export const DISPLACE_DR = Object.freeze({ add: 0.1, decay: 0.25 });
 export const STAGGER_PER_DISPLACE_M = 5;
 export function staggerFromDisplace(dist, staggerPct = 0) {
   return Math.max(0, dist || 0) * STAGGER_PER_DISPLACE_M * Math.max(0, 1 + (staggerPct || 0) / 100);
+}
+// a campeones y élites se les mueve menos (×0,6 de la distancia)
+export const ELITE_DISPLACE_MUL = 0.6;
+export function displaceDist(dist, dr = 0, elite = false) {
+  return Math.max(0, dist || 0) * Math.max(0, 1 - (dr || 0)) * (elite ? ELITE_DISPLACE_MUL : 1);
+}
+// duración de un control con las claves de talento del héroe que lo aplica:
+//   ccDurPct  +% a los aturdimientos · freezeDur  +s al Congelado
+export function ccDurationWithTalents(kind, dur, tv = null) {
+  if (!tv) return dur;
+  if (kind === 'stun' && tv.ccDurPct) return dur * Math.max(0, 1 + tv.ccDurPct / 100);
+  if (kind === 'freeze' && tv.freezeDur) return dur + tv.freezeDur;
+  return dur;
 }
 // probabilidad de crítico condicional por claves tv (se suma al critBonus del golpe):
 //   burningCrit   contra enemigos en llamas (Calor Abrasador)

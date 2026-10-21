@@ -1159,14 +1159,15 @@ export const skillMethods = {
     }
     // SECUENCIA (no arma; la de arma la cuenta Player.basicAttack)
     const seq = !isEcho && def.seq && def.type !== 'weapon' ? this.seqAdvance(p, sk) : null;
-    const cast = { sk, prof, slot: key, target, enemy: near };
+    // CastInfo.sk = definición FORJADA (los poderes y los comportamientos leen la forma real)
+    const cast = { sk: def, prof, slot: key, target, enemy: near };
     if (rcState) cast.recast = { idx: rcState.idx + 1, left: rcState.left - 1, perfect: rcState.perfectLast > 0 && rcState.until - (p.simT || 0) <= rcState.perfectLast + 1e-9 };
     if (comboIdx >= 0) cast.step = comboIdx + 1;
     if (seq) { cast.seqNth = seq.nth; cast.seqIdx = seq.idx; }
     if (isEcho) cast.echo = echoMult;
     // ⑦ onCast (cancelado sin coste); el básico de arma tensable lo pasa al disparar (basicAttack)
     if (!isEcho && def.type !== 'weapon' && firePower('onCast', p, this, p, cast) === false) return false;
-    if (yieldBasic) this.cancelCast('gastadora');                                    // corta el remate del básico
+    if (yieldBasic) this.cancelCast('principal');                                     // corta el remate del básico
     const ctx = this._makeCtx(p, sk, prof, key, cast, { target, near, isEcho, echoMult, comboIdx, fieldDest, destRange, rcState });
     // CARGAR Y SOLTAR (§3.6): empieza la carga (el coste y el enfriamiento, al soltar).
     // Una repetición sale a carga completa (frac = 1) sin esperar.
@@ -1624,7 +1625,7 @@ export const skillMethods = {
       if (cur != null && S.recastEnds !== false) { this._endStance(p, sk, 'recast'); return true; }
       next = 0;
     } else next = cur == null ? 0 : (cur + 1) % modes.length;
-    const cast = { sk, prof, slot: key, target: null, enemy: null, stance: modes[next].id, stanceFrom: prevId };
+    const cast = { sk: prof.def || sk, prof, slot: key, target: null, enemy: null, stance: modes[next].id, stanceFrom: prevId };
     if (firePower('onCast', p, this, p, cast) === false) return false;
     if (!spendResource(p, prof.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
     // enfriamiento: el del cambio (swapCd) si alternas entre dos; si no, el de la habilidad
@@ -1765,6 +1766,8 @@ export const skillMethods = {
   releaseSkillSlot(slot, { force = false } = {}) {
     if (this._needsRelease) this._needsRelease[slot] = false;
     const c = this._charging;
+    // con la partida en pausa (panel abierto con el ratón) la suelta CANCELA sin coste (§3.6.1)
+    if (c && c.key === slot && this._paused) { this._endCharge('panel'); if (this.player) this.player.castLock = 0; return true; }
     if (c && c.key === slot && (!c.toggle || force) && !c.release) {
       const elapsed = Math.max(0, Math.min(0.1, (wallNow(this) - c.tickWall) / 1000));
       c.release = { u: Math.min(c.max, c.u + elapsed * c.simPerWall * this._chargeSpeed(c)), reason: 'release' };
@@ -1839,6 +1842,24 @@ export const skillMethods = {
       this._skillEnd(p, sk, { kind: 'charge', reason, casts: 1, hits: 0, released: reason === 'release', frac: rel.frac, perfect: rel.perfect });
     }
     return ok;
+  },
+
+  // §3.6.1: bucle de los botones del ratón MANTENIDOS (Game.tick antes de p.update; el arnés
+  // lo llama igual). WASD+ratón: relanza 🖱️Izq/🖱️Der mientras sigan pulsados (las recargas
+  // regulan la cadencia), salvo la ranura que carga, canaliza o espera a que sueltes tras una
+  // suelta automática (_needsRelease). Clic-mover: solo tensa el básico tensable sobre el
+  // enemigo que atacas.
+  heldSlotBusy(slot) {
+    return this._charging?.key === slot || this._channel?.ctx?.key === slot || !!this._needsRelease?.[slot];
+  },
+  pumpHeldSlots() {
+    const p = this.player, held = this.input?.mouseHeld;
+    if (!p || !held) return;
+    if ((this.settings?.controlScheme || 'wasd') !== 'click') {
+      if (held.l && !this.heldSlotBusy('lmb')) this.castSkillSlot('lmb');
+      if (held.r && !this.heldSlotBusy('rmb')) this.castSkillSlot('rmb');
+    } else if (held.l && !this.heldSlotBusy('lmb') && p.attackTarget?.alive && this.basicTensable()
+      && p.pos.distanceTo(p.attackTarget.pos) <= (p.cls.atkRange || 2) + 0.5) this.castSkillSlot('lmb');
   },
 
   // ---------------- avance por tick de los verbos (lo llama Player.update) ----------------

@@ -16,6 +16,7 @@ import { dotProfile } from '../js/combat-math.js';
 import { firePower } from '../js/powers.js';
 import { resourceDefFor, resourceRegenRate, gainResource } from '../js/resources.js';
 import { verbHarness } from './fixtures/skills-verbs-sample.mjs';
+import * as T from '../js/talents.js';
 
 const DT = 1 / 60;
 const mk = (classId = 'guerrero', opts = {}) => verbHarness(classId, { level: 30, ...opts });
@@ -174,6 +175,26 @@ const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
   assert.notEqual(h.p.verbStats(), vs, 'cambiar de modo invalida la caché');
   assert.equal(h.p.verbStats().dmgPct, 25);
   console.log('recompute: definición forjada y stats de postura en caché ✓');
+}
+{
+  // riesgo 11: recompute corre en cada addBuff; con un héroe Nv100 con especialización, los
+  // talentos de su build y forja elegida, la media de 1000 llamadas queda por debajo de 0,5 ms
+  const forge = { vx_corazon: { mejora: { name: 'x', line: 'x', add: { radius: 1 } }, vars: [
+    { id: 'vx_corazon_i', name: 'a', role: 'UNI', line: 'x', mul: { coef: 1.2 } }, { id: 'vx_corazon_ii', name: 'b', role: 'AREA', line: 'x', add: { radius: 1 } }] } };
+  const h = verbHarness('guerrero', { level: 100, spec: 'berserker', forge });
+  if (typeof T.presetRanks === 'function') {
+    h.p.talents.cls = T.presetRanks(h.p, 'cls') || {};
+    h.p.talents.sp = { ...h.p.talents.sp, berserker: T.presetRanks(h.p, 'spec') || {} };
+    assert.ok(Object.keys(h.p.talents.cls).length + Object.keys(h.p.talents.sp.berserker).length > 10, 'con los talentos de la build');
+  }
+  h.p.skillForge = { vx_corazon: 'i' };
+  h.p.recompute();
+  assert.equal(h.p.talentAgg.spec, 'berserker');
+  const t0 = performance.now();
+  for (let i = 0; i < 1000; i++) h.p.recompute();
+  const ms = (performance.now() - t0) / 1000;
+  assert.ok(ms < 0.5, `recompute medio ${ms.toFixed(4)} ms (tope 0,5 ms)`);
+  console.log(`recompute de un héroe Nv100 con talentos y forja: ${ms.toFixed(4)} ms de media ✓`);
 }
 
 // ------------------------------------------------ 6) claves de talento del núcleo (docs/paso2-claves-w2.md)

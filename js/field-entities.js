@@ -243,7 +243,7 @@ export const fieldMethods = {
     const coef = opts.coef ?? d.burst?.coef ?? d.coef ?? 1;
     if (owner && owner === this.player && coef > 0 && this.dealArea) {
       this.dealArea(at, rad, coef, { hitInfo: { skill: opts.skill || d.skill || null, tags: d.tags || new Set(['trap']), elem: d.elem || null },
-        hitExtra: { trap: true }, perTarget: opts.perTarget || null, from: at });
+        hitExtra: { trap: { uid: f.uid, skill: d.skill || null } }, perTarget: opts.perTarget || null, from: at });
     }
     this.spawnRing?.(at, rad, d.color ?? 0xc8a050);
     this.sfx?.('trap');
@@ -464,7 +464,7 @@ defineField('trampa', {
     for (const e of g.enemies || []) if (e.alive && inside(f, e.pos)) { hit = e; break; }
     if (!hit) return;
     const d = f.data;
-    if (d.dmg > 0) hit.takeDamage(Math.max(1, Math.round(d.dmg)), false, { source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: true });
+    if (d.dmg > 0) hit.takeDamage(Math.max(1, Math.round(d.dmg)), false, { source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: { uid: f.uid, skill: d.skill || null } });
     if (d.root && hit.alive) hit.applyCC?.('root', d.root, { src: f.owner });
     g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius, d.color);
     g._logTrapBurst(f.owner);

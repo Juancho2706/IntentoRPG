@@ -13,10 +13,17 @@
 //  6) posturas (alternar sin GCD, también durante una carga; 1 modo con dur, endOnDodge)
 //  7) cargas de enfriamiento con g.reduceCooldown · repeticiones (eco) que no avanzan estado
 //  8) marcas que detonan · killReset · shieldGain · réplicas · ⑭ onSkillEnd
+//  11) contratos finos: suelta con lo transcurrido, D7 (kit por especialización), ventana
+//      perfectWin/perfectEarly/perfectAlways, racha, Liturgia, relanzar con fallo, postura
+//      que acaba al cambiar de especialización, pausa, básico con forja solo al impactar
+//  12) entrada D27: input.js con eventos sintéticos (acorde, remapeo, blur, pestaña oculta,
+//      panel) y el mismo bucle de botones mantenidos que Game.tick (pumpHeldSlots)
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
 import { definePower } from '../js/powers.js';
 import { validateSkillDef, normalizeSkillDef, skillVerbs, VERB_DEFAULTS } from '../js/skill-defs.js';
-import { resolveSkill } from '../js/skill-resolve.js';
+import { resolveSkill, isKnown } from '../js/skill-resolve.js';
 import { SKILL_BEHAVIORS } from '../js/powers.js';
 import { VERB_SFX } from '../js/sfx.js';
 import { VERB_SKILLS, verbSkill, verbHarness } from './fixtures/skills-verbs-sample.mjs';
@@ -51,7 +58,27 @@ const dealt = e => e.maxHP - e.hp;
   const bad = validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_andanada'), recast: { n: 1, win: 2 } }), { v2: true });
   assert.ok(bad.some(x => /recast\.n/.test(x)), 'recast.n < 2 es error');
   for (const n of VERB_SFX) assert.ok(typeof n === 'string' && n.startsWith('verb_'));
-  console.log('Fixture de verbos válido; chips derivados ✓');
+  // v2: una clave fuera del vocabulario es AVISO (errata), no error; los params de un comportamiento valen
+  for (const def of VERB_SKILLS) assert.deepEqual(validateSkillDef(normalizeSkillDef(def), { v2: true }).warnings, [], `${def.id}: sin claves desconocidas`);
+  const typo = validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_martillo'), chrage: { max: 1 }, recats: { n: 2, win: 1 } }), { v2: true });
+  assert.deepEqual(typo, [], 'una errata no es error…');
+  assert.ok(typo.warnings.some(w => /chrage/.test(w)) && typo.warnings.some(w => /recats/.test(w)), '…pero se avisa');
+  const sink = [];
+  validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_martillo'), chrage: 1 }), { v2: true, warnings: sink });
+  assert.equal(sink.length, 1, 'opts.warnings recibe los avisos');
+  assert.deepEqual(validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_martillo'), chrage: 1 })).warnings, [], 'solo en v2');
+  const behaviors = { vx_b: { id: 'vx_b', cast() {}, params: ['reach'] } };
+  const wb = validateSkillDef(normalizeSkillDef({ ...verbSkill('vx_martillo'), behavior: 'vx_b', reach: 3, rech: 2 }), { v2: true, behaviors });
+  assert.ok(!wb.warnings.some(w => /reach\b/.test(w)) && wb.warnings.some(w => /rech\b/.test(w)), 'params del comportamiento: declarados sí, erratas no');
+  // activas de talento (kind 'talent'): defensa o utilidad, solo la ranura 2, sin kit
+  const tal = { ...verbSkill('vx_inmortal'), kind: 'talent' };
+  const talErr = d => validateSkillDef(normalizeSkillDef(d), { v2: true }).filter(x => /activa de talento/.test(x));
+  assert.deepEqual(talErr(tal), [], 'defensa en k2: válida');
+  assert.equal(talErr({ ...tal, tags: [...tal.tags, 'spec'] }).length, 1, 'con ranuras k2+k3: error (solo la 2)');
+  assert.equal(talErr({ ...tal, cat: 'spender', tags: ['spender', 'buff', 'physical'], slots: ['k2'] }).length, 1, 'principal (aunque vaya en k2): error');
+  assert.equal(talErr({ ...tal, spec: 'berserker' }).length, 1, 'con kit (spec): error');
+  assert.deepEqual(talErr({ ...tal, kind: undefined, tags: [...tal.tags, 'spec'] }), [], 'la regla es solo de las activas de talento');
+  console.log('Fixture de verbos válido; chips derivados; avisos de claves; activas de talento en k2 ✓');
 }
 
 // ------------------------------------------------ 2) cargar y soltar
@@ -66,11 +93,18 @@ const dealt = e => e.maxHP - e.hp;
   assert.equal(h.g._charging?.key, 'rmb');
   assert.equal(h.p.mp, mp0, 'el coste NO se cobra al empezar a cargar');
   assert.ok(near(h.p.moveMulProduct(), 0.5), 'cargando vas al 50 %');
-  h.step(0.95);
+  // el «clang» suena en el MISMO tick en que la carga entra en la ventana (D26: borde exacto)
+  let tickU = -1, tickS = -1;
+  for (let i = 0; i < 57; i++) {
+    h.step(DT, DT);
+    if (tickU < 0 && h.g._charging.u >= 0.9 - 1e-9) tickU = i;
+    if (tickS < 0 && h.sfxCount('verb_win') > 0) tickS = i;
+  }
   assert.equal(e.hp, e.maxHP, 'sin daño mientras carga');
   const win = h.g.sfxLog.filter(x => x.name === 'verb_win');
   assert.equal(win.length, 1, 'un solo «clang» al entrar en la ventana');
-  assert.ok(win[0].t - t0 >= 0.9 - 1e-9 && win[0].t - t0 <= 0.9 + DT + 1e-9, `el sonido suena en el borde (0,9 s): ${(win[0].t - t0).toFixed(4)}`);
+  assert.ok(tickU > 0 && tickS === tickU, `el sonido suena en el tick del borde (u ≥ 0,9 en el ${tickU}, sonido en el ${tickS})`);
+  assert.ok(win[0].t - t0 >= 0.9 - 1e-9, `nunca antes del borde (${(win[0].t - t0).toFixed(4)})`);
   h.release('rmb');
   assert.equal(h.g._charging?.key, 'rmb', 'la suelta se resuelve en el tick siguiente');
   h.step(DT);
@@ -686,6 +720,302 @@ const dealt = e => e.maxHP - e.hp;
   inR.tauntT = 0; h.step(1.1);
   assert.ok(!(inR.tauntT > 0), 'acabado el buff, no hay más pulsos');
   console.log('Carga completa, perTarget, cdOnEnd, cdFloor, onda, cura/escudo, señuelo y pulsos ✓');
+}
+
+// ------------------------------------------------ 11) contratos finos (§3.6, §3.6.1, D7)
+{
+  // la suelta suma lo transcurrido desde el último tick (a 30 fps un frame son 33 ms de ventana)
+  const h = mk();
+  h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+  h.aim(1.5, 0); h.setSlot('rmb', 'vx_martillo');
+  h.press('rmb'); h.step(0.5);
+  const c = h.g._charging, u0 = c.u;
+  h.g._clockMs += 20;                        // 20 ms de reloj desde el último tick, sin tick todavía
+  h.release('rmb');
+  assert.ok(near(c.release.u, u0 + 0.02, 1e-6), `la suelta cuenta los 20 ms (${(c.release.u - u0).toFixed(4)})`);
+  h.step(DT);
+  const end = SPY.end.find(x => x.kind === 'charge');
+  assert.ok(end && near(end.frac, u0 + 0.02 - 0.2, 1e-6), `y se resuelve con esa carga (frac ${end?.frac})`);
+}
+{
+  // racha de perfectos: sube con cada suelta perfecta y una fuera de la ventana la reinicia
+  const h = mk();
+  h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+  h.aim(1.5, 0); h.setSlot('rmb', 'vx_martillo');
+  const shoot = (sec) => { h.p.cds = {}; h.p.gcdT = 0; h.p.mp = h.p.stats.maxMP; h.press('rmb'); h.step(sec); h.release('rmb'); h.step(DT); };
+  shoot(0.95); assert.equal(h.p.perfectStreak, 1);
+  shoot(0.95); assert.equal(h.p.perfectStreak, 2, 'racha 2');
+  shoot(0.4); assert.equal(h.p.perfectStreak, 0, 'fallar la ventana la reinicia');
+  assert.equal(h.sfxCount('verb_miss'), 1);
+  console.log('Suelta con lo transcurrido desde el último tick; racha de perfectos ✓');
+}
+{
+  // D7: el kit de una especialización solo se conoce con ESA especialización activa (Nv ≥ 10)
+  const kit = { ...verbSkill('vx_corazon'), id: 'vx_kit', spec: 'berserker' };
+  const known = (spec, level = 30) => {
+    const h = mk('guerrero', { skills: [kit], spec, level });
+    return { h, k: isKnown(h.p, h.p.cls.skills.find(s => s.id === 'vx_kit')) };
+  };
+  const yes = known('berserker');
+  assert.equal(yes.k, true, 'con su especialización activa: conocida');
+  assert.ok('vx_kit' in yes.h.p.skills, 'y en p.skills');
+  assert.equal(known('guardian').k, false, 'con otra especialización: no');
+  assert.equal(known(null).k, false, 'sin especialización: no');
+  assert.equal(known('berserker', 8).k, false, 'bajo el Nv10 la especialización no cuenta');
+  const { h } = known('guardian');
+  h.setSlot('rmb', 'vx_kit');
+  assert.equal(h.press('rmb'), false, 'ni se lanza');
+  assert.ok(!('vx_kit' in h.p.skills), 'ni está en p.skills');
+  console.log('D7: kit por especialización (isKnown) ✓');
+}
+{
+  // ventana perfecta con mods (Fe Serena perfectWin, Aureola perfectEarly) y la stat perfectAlways
+  const winOf = (mods) => {
+    const h = mk();
+    h.p.talentExtra.mods = { vx_martillo: mods }; h.p.recompute();
+    return resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'vx_martillo')).charge.perfect;
+  };
+  const eq = (w, a, b, msg) => assert.ok(near(w[0], a) && near(w[1], b), `${msg}: [${w.map(x => x.toFixed(2))}]`);
+  eq(winOf({}), 0.9, 1.1, 'ventana base');
+  eq(winOf({ perfectWin: 0.2 }), 0.8, 1.2, 'perfectWin: se ensancha por los dos lados');
+  eq(winOf({ perfectWin: 0.4 }), 0.6, 1.2, 'perfectWin contra el tope: crece hacia atrás');
+  eq(winOf({ perfectEarly: 0.3 }), 0.6, 0.8, 'perfectEarly: empieza antes');
+  const relAt = (sec, mods = {}, buff = null) => {
+    const h = mk();
+    h.p.talentExtra.mods = { vx_martillo: mods }; h.p.recompute();
+    if (buff) h.p.addBuff('vx_calma', buff, 30);
+    h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+    h.aim(1.5, 0); h.setSlot('rmb', 'vx_martillo');
+    h.press('rmb'); h.step(sec); h.release('rmb'); h.step(DT);
+    return SPY.after.at(-1).cast.perfect;
+  };
+  assert.equal(relAt(0.7), false, 'base: a 0,7 s, fuera');
+  assert.equal(relAt(0.7, { perfectEarly: 0.3 }), true, 'perfectEarly: a 0,7 s, dentro');
+  assert.equal(relAt(0.82, { perfectWin: 0.2 }), true, 'perfectWin: a 0,82 s, dentro');
+  assert.equal(relAt(0.75, {}, { perfectAlways: 1 }), true, 'perfectAlways (buff Calma Absoluta): perfecta desde media carga');
+  assert.equal(relAt(0.55, {}, { perfectAlways: 1 }), false, '…pero no antes de media carga');
+  console.log('Ventana perfecta: perfectWin, perfectEarly y perfectAlways (perfil y suelta) ✓');
+}
+{
+  // Liturgia (tv.perfectCdrAll): cada suelta perfecta acorta 1 s las recargas, como mucho cada 2 s
+  const h = mk('arquera', { tv: { perfectCdrAll: 1 } });
+  h.aim(0, 8); h.setSlot('rmb', 'vx_tenso');
+  h.p.cds.vx_verdugo = 6;
+  SPY.forcePerfect = true;
+  const fire = () => {
+    const cd0 = h.p.cds.vx_verdugo, t0 = h.p.simT;
+    h.press('rmb'); h.step(0.2); h.release('rmb'); h.step(0.5);
+    return cd0 - h.p.cds.vx_verdugo - (h.p.simT - t0);   // lo que bajó además del tiempo
+  };
+  assert.ok(near(fire(), 1, 1e-6), 'perfecta: −1 s');
+  assert.ok(near(fire(), 0, 1e-6), 'otra antes de 2 s: nada');
+  h.step(1.4);
+  assert.ok(near(fire(), 1, 1e-6), 'pasados 2 s, otra vez −1 s');
+  SPY.forcePerfect = false;
+  console.log('Liturgia (perfectCdrAll): −1 s por perfecta, cada 2 s como mucho ✓');
+}
+{
+  // relanzar con cond 'hit': el relanzamiento que FALLA cierra la cadena ('miss') y cuenta el CD
+  const extra = [{ id: 'vx_x_garra3', name: 'Garra Triple', cat: 'spender', tags: ['spender', 'area', 'physical'], type: 'area', at: 'self',
+    coef: 0.5, cost: 0, cd: 5, radius: 2, recast: { n: 3, win: 1.5, cond: 'hit', cdFrom: 'end' } }];
+  const h = mk('guerrero', { skills: extra });
+  const e = h.enemy({ hp: 1e7, pos: [1, 0, 0] });
+  h.aim(1, 0); h.setSlot('rmb', 'vx_x_garra3');
+  h.press('rmb'); h.release('rmb');
+  assert.equal(h.p.skState.vx_x_garra3.recast?.left, 2, 'golpea: ventana con 2 relanzamientos');
+  e.pos.set(9, 0, 0);                         // se aparta: el relanzamiento no golpea
+  h.step(0.4);
+  h.press('rmb'); h.release('rmb');
+  assert.ok(!h.p.skState.vx_x_garra3.recast, 'el fallo cierra la cadena aunque queden usos');
+  const end = SPY.end.find(x => x.kind === 'recast');
+  assert.ok(end && end.reason === 'miss' && end.casts === 2 && end.hits === 1, `⑭ recast miss (${JSON.stringify(end)})`);
+  assert.ok(near(h.p.cds.vx_x_garra3, 5), 'cdFrom end: el CD empieza al cerrar');
+  console.log("Relanzar: el fallo con cond 'hit' cierra la cadena (miss) ✓");
+}
+{
+  // la postura de un kit acaba al perder su especialización (con sus stats y su moveMul)
+  const kitSt = { ...verbSkill('vx_guardia'), id: 'vx_guardia_kit', spec: 'guardian' };
+  const h = mk('guerrero', { skills: [kitSt], spec: 'guardian' });
+  h.setSlot('k2', 'vx_guardia_kit');
+  h.press('k2'); h.release('k2');
+  assert.equal(h.g.stanceOf(h.p, 'vx_guardia_kit'), 'escudo');
+  assert.equal(h.p.verbStats().dr, 20);
+  h.p.talents.spec = 'berserker'; h.p.recompute();
+  h.step(DT);
+  assert.equal(h.g.stanceOf(h.p, 'vx_guardia_kit'), null, 'cambiar de especialización la termina');
+  assert.equal(SPY.end.at(-1).reason, 'spec');
+  assert.ok(!(h.p.verbStats().dr > 0) && near(h.p.moveMulProduct(), 1), 'sin sus stats ni su moveMul');
+  console.log('Postura de kit: acaba al cambiar de especialización ✓');
+}
+{
+  // soltar con la partida en pausa (panel abierto con el ratón) cancela SIN coste
+  const h = mk();
+  h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });
+  h.aim(1.5, 0); h.setSlot('rmb', 'vx_martillo');
+  const mp0 = h.p.mp;
+  h.press('rmb'); h.step(0.95);
+  h.g._paused = true;
+  h.release('rmb');
+  assert.ok(!h.g._charging, 'soltar en pausa termina la carga');
+  h.g._paused = false; h.step(0.1);
+  assert.equal(h.p.mp, mp0, 'sin coste');
+  assert.equal(h.p.cds.vx_martillo || 0, 0, 'sin enfriamiento');
+  assert.equal(SPY.end.at(-1).reason, 'panel');
+  assert.equal(h.sfxCount('verb_perfect') + h.sfxCount('verb_miss'), 0, 'ni sonido de suelta');
+  console.log('Pausa: soltar cancela sin coste ✓');
+}
+{
+  // (de test56) la Mejora del básico a distancia aplica sus efectos SOLO al impactar, también
+  // apuntando a un punto ({ pos }, esquema WASD): ni recurso, ni robo, ni Vulnerable al fallar
+  const forge = { a_disparo: { mejora: { name: 'Sediento', line: 'x', mod: { vuln: 4, lifesteal: 14 } } } };
+  const h = mk('arquera', { forge });
+  const e = h.enemy({ hp: 99999, pos: [0, 0, 5] });
+  const fly = (sec) => { for (let t = 0; t < sec; t += DT) for (let i = h.g.projectiles.length - 1; i >= 0; i--) if (h.g.projectiles[i].update(DT)) h.g.projectiles.splice(i, 1); };
+  h.p.mp = 0; h.p.hp = 10;
+  h.p.basicAttack({ pos: new THREE.Vector3(6, 0, 0) });
+  assert.equal(h.p.mp, 0, 'el básico a distancia no da recurso al disparar');
+  fly(1);
+  assert.ok(h.p.mp === 0 && h.p.hp === 10 && e.hp === 99999 && !(e.vulnT > 0), 'un disparo fallido no da recurso, vida ni efectos');
+  h.p.atkCd = 0;
+  h.p.basicAttack({ pos: new THREE.Vector3(0, 0, 5) });
+  assert.equal(h.p.mp, 0, 'el recurso no llega antes del impacto');
+  fly(1);
+  const d = 99999 - e.hp;
+  assert.ok(d > 0 && h.p.mp > 0, 'el impacto da recurso');
+  assert.ok(e.vulnT > 0, 'la Mejora del básico aplica Vulnerable apuntando a un punto');
+  assert.ok(Math.abs((h.p.hp - 10) - d * 0.14) < 0.01, `robo de vida del 14 % del daño (${h.p.hp - 10} vs ${d * 0.14})`);
+  console.log('Básico con forja: recurso, robo y Vulnerable solo al impactar (también con { pos }) ✓');
+}
+
+// ------------------------------------------------ 12) entrada D27: input.js con eventos sintéticos
+{
+  const h = mk();
+  const g = h.g;
+  h.enemy({ hp: 1e7, pos: [1.5, 0, 0] });                  // antes del DOM falso (los modelos miran document)
+  h.aim(1.5, 0); h.setSlot('rmb', 'vx_martillo'); h.setSlot('k2', 'vx_tenso');
+  // DOM mínimo: window y document como EventTarget y un lienzo propio
+  const win = new EventTarget(); win.innerWidth = 1280; win.innerHeight = 720;
+  const doc = new EventTarget(); doc.hidden = false; doc.body = { classList: { toggle() {} } };
+  const canvas = new EventTarget();
+  const prevWin = globalThis.window, prevDoc = globalThis.document;
+  globalThis.window = win; globalThis.document = doc;
+  g.renderer = { domElement: canvas };
+  g.ui.togglePanel = () => {};
+  const { Input } = await import('../js/input.js');
+  const inp = new Input(g);
+  inp.groundPoint = () => new THREE.Vector3(1.5, 0, 0);      // sin cámara: mira fija
+  inp._ctl = true;                                             // el arnés corre el bucle de botones (pumpHeldSlots)
+  g.input = inp;
+  const calls = [];
+  const rel0 = g.releaseSkillSlot, can0 = g.cancelHeld;
+  g.releaseSkillSlot = function (s, o) { calls.push(`release:${s}`); return rel0.call(this, s, o); };
+  g.cancelHeld = function (r) { calls.push(`cancel:${r}`); return can0.call(this, r); };
+  const ev = (type, props = {}) => Object.assign(new Event(type), props);
+  const ptr = (target, type, buttons, button = 0) => target.dispatchEvent(ev(type, { buttons, button, clientX: 640, clientY: 360 }));
+  const key = (type, code) => win.dispatchEvent(ev(type, { code }));
+  const fresh = () => { h.p.cds = {}; h.p.gcdT = 0; h.p.mp = h.p.stats.maxMP; };
+  try {
+    // acorde: 🖱️Izq pulsado y después 🖱️Der (llega en pointermove, sin pointerdown)
+    ptr(canvas, 'pointerdown', 1, 0);
+    assert.deepEqual(inp.mouseHeld, { l: true, r: false });
+    ptr(win, 'pointermove', 3);
+    assert.deepEqual(inp.mouseHeld, { l: true, r: true }, 'el 2.º botón del acorde se lee de e.buttons');
+    h.step(3 * DT);                              // una acción por frame: el básico acaba de salir
+    assert.equal(g._charging?.key, 'rmb', 'y empieza su carga');
+    h.step(0.3);
+    assert.equal(g._charging?.key, 'rmb', 'mantenido: sigue cargando');
+    ptr(win, 'pointermove', 1);
+    assert.deepEqual(inp.mouseHeld, { l: true, r: false });
+    assert.ok(calls.includes('release:rmb'), 'flanco de bajada de 🖱️Der → releaseSkillSlot');
+    h.step(DT);
+    assert.ok(!g._charging && SPY.end.some(x => x.kind === 'charge' && x.reason === 'release'), 'la carga sale al soltar');
+    ptr(win, 'pointerup', 0);
+    assert.deepEqual(inp.mouseHeld, { l: false, r: false });
+    assert.ok(calls.includes('release:lmb') && !inp.pointerDown, 'soltar el último botón');
+    // arrastrar desde un panel (la pulsación no empezó en el lienzo) no cuenta
+    ptr(win, 'pointermove', 2);
+    assert.deepEqual(inp.mouseHeld, { l: false, r: false }, 'sin pulsación en el lienzo no hay botón mantenido');
+    assert.ok(!g._charging);
+
+    // teclas: keyup suelta SU ranura, según el remapeo
+    fresh();
+    key('keydown', 'Digit2');
+    assert.equal(g._charging?.key, 'k2', 'la tecla 2 empieza la carga');
+    h.step(0.2);
+    calls.length = 0;
+    key('keyup', 'Digit2');
+    assert.deepEqual(calls, ['release:k2'], 'keyup → releaseSkillSlot(k2)');
+    h.step(DT);
+    assert.ok(!g._charging, 'y sale');
+    inp.setBinding('skill2', 'KeyR');
+    h.step(0.3); fresh();
+    key('keydown', 'KeyR');
+    assert.equal(g._charging?.key, 'k2', 'remapeada a R');
+    calls.length = 0;
+    key('keyup', 'Digit2');
+    assert.deepEqual(calls, [], 'el 2 ya no suelta nada');
+    key('keyup', 'KeyR');
+    assert.deepEqual(calls, ['release:k2'], 'la tecla nueva sí');
+    h.step(DT);
+    assert.ok(!g._charging);
+
+    // blur: vacía botones y TECLAS y cancela sin coste lo mantenido
+    h.step(0.3); fresh();
+    const mp0 = h.p.mp;
+    ptr(canvas, 'pointerdown', 2, 2);
+    key('keydown', 'KeyW');
+    assert.ok(g._charging?.key === 'rmb' && inp.keys.size > 0 && inp.keyDir, 'cargando y caminando');
+    calls.length = 0;
+    win.dispatchEvent(ev('blur'));
+    assert.deepEqual(inp.mouseHeld, { l: false, r: false });
+    assert.equal(inp.keys.size, 0, 'blur vacía también las teclas');
+    assert.equal(inp.keyDir, null);
+    assert.ok(calls.includes('cancel:cancel') && !g._charging, 'cancelHeld(cancel)');
+    h.step(0.1);
+    assert.equal(h.p.mp, mp0, 'sin coste');
+    assert.equal(SPY.end.at(-1).reason, 'cancel');
+    // pestaña oculta y pointercancel: lo mismo
+    ptr(canvas, 'pointerdown', 2, 2);
+    assert.equal(g._charging?.key, 'rmb');
+    doc.dispatchEvent(ev('visibilitychange'));
+    assert.ok(g._charging, 'pestaña visible: nada cambia');
+    calls.length = 0;
+    doc.hidden = true; doc.dispatchEvent(ev('visibilitychange')); doc.hidden = false;
+    assert.ok(!g._charging && calls.includes('cancel:cancel') && !inp.mouseHeld.r, 'pestaña oculta: cancela');
+    h.step(0.1);
+    ptr(canvas, 'pointerdown', 2, 2);
+    key('keydown', 'KeyD');
+    win.dispatchEvent(ev('pointercancel'));
+    assert.ok(!g._charging && inp.keys.size === 0 && !inp.mouseHeld.r, 'pointercancel: vacía y cancela');
+    // abrir un panel con su tecla: motivo 'panel'
+    h.step(0.1);
+    ptr(canvas, 'pointerdown', 2, 2);
+    key('keydown', 'KeyI');
+    assert.ok(!g._charging && SPY.end.at(-1).reason === 'panel', 'panel: cancela sin coste');
+    ptr(win, 'pointerup', 0); key('keyup', 'KeyI');
+
+    // holdMode 'toggle': con el botón mantenido el bucle no relanza (ni suelta) la ranura que carga
+    g.settings.holdMode = 'toggle';
+    h.step(0.3); fresh();
+    ptr(canvas, 'pointerdown', 2, 2);
+    h.step(0.4);
+    assert.equal(g._charging?.key, 'rmb', 'toggle con el botón mantenido: sigue cargando');
+    ptr(win, 'pointerup', 0);
+    assert.equal(g._charging?.key, 'rmb', 'toggle: soltar el botón no la suelta');
+    ptr(canvas, 'pointerdown', 2, 2);
+    h.step(DT);
+    assert.ok(!g._charging, 'la 2.ª pulsación la suelta');
+    ptr(win, 'pointerup', 0);
+    g.settings.holdMode = 'hold';
+  } finally {
+    if (prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+  // Game.tick usa el MISMO bucle de botones que el arnés (game-skills.pumpHeldSlots)
+  const mainSrc = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+  assert.ok(mainSrc.includes('this.pumpHeldSlots();'), 'main.js llama a pumpHeldSlots');
+  assert.ok(!mainSrc.includes("castSkillSlot('lmb')") && !mainSrc.includes("castSkillSlot('rmb')"), 'y no tiene otro bucle propio de botones');
+  console.log('Entrada D27: acorde por e.buttons, keyup con remapeo, blur/pestaña/pointercancel vacían teclas y cancelan, panel, toggle ✓');
 }
 
 console.log('\n✅ VERBOS (carga · relanzar · combo · secuencia · canal · postura · cargas · ecos · marcas) OK');

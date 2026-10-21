@@ -11,11 +11,18 @@
 //     que dejan de encajar (vuelven a knownSupports), poder de la variante en p.powers
 //  6) A1 / F7 GENÉRICOS sobre las clases con CATALOG_V = 2 (forja completa y sin no-ops); el
 //     comprobador se valida con una entrada sintética que tiene un no-op
+//  7) comportamientos: cast.sk = definición FORJADA (y F7 lo tiene en cuenta)
+//  8) recompute → talentos: accesores forjados (elemOf, kitOf, defOf; §3.3, §3.8), el
+//     constructor valida los talentos al NIVEL y la forja guardada se sanea
 import assert from 'node:assert/strict';
 import { forgeDef, forgeMods, forgePowers, validateForge, forgeLevels, setPath, normalizeSkillDef, validateSkillDef, FORGE_LINE_MAX, FORGE_LINE_WARN } from '../js/skill-defs.js';
 import { resolveSkill, forgeState, forgedDef, validSupports } from '../js/skill-resolve.js';
 import { CLASSES, CATALOG_V, SKILL_FORGE } from '../js/data.js';
-import { definePower, POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
+import { definePower, defineSkillBehavior, POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
+import { readFileSync } from 'node:fs';
+import { Player } from '../js/entities.js';
+import * as T from '../js/talents.js';
+import { SAVE_VERSION } from '../js/save-schema.js';
 import { verbHarness, verbSkill } from './fixtures/skills-verbs-sample.mjs';
 
 const line = 'Una línea corta de prueba';
@@ -194,9 +201,11 @@ function forgeAudit(classId, cls, forge) {
       h.p.skillForge = { [sk.id]: state.variant };
       h.p.recompute();
       const pr = resolveSkill(h.p, sk);
-      // el perfil EFECTIVO: sin la propia etiqueta de la forja (variant/mejora) ni la definición
+      // el perfil EFECTIVO: sin la propia etiqueta de la forja (variant/mejora) ni la definición…
       const { def, mods, sups, onHitPowers, variant, mejora, ...rest } = pr;
-      void def; void mods; void sups; void onHitPowers; void variant; void mejora;
+      void mods; void sups; void onHitPowers; void variant; void mejora;
+      // …salvo con un comportamiento con cast propio: lee la definición forjada (cast.sk)
+      if (pr.behavior && SKILL_BEHAVIORS[pr.behavior]?.cast) { const { forged, ...d } = def; void forged; rest.def = d; }
       return JSON.stringify(rest, (k, x) => (x instanceof Set ? [...x].sort() : x));
     };
     const plain = sig({ mejora: false, variant: null });
@@ -230,6 +239,68 @@ function forgeAudit(classId, cls, forge) {
     if (r.warnings.length) console.log(`  ${cid}: ${r.warnings.length} avisos de longitud (> ${FORGE_LINE_WARN})`);
   }
   console.log(`A1/F7 genéricos ✓ (clases con CATALOG_V = 2: ${v2.length ? v2.join(', ') : 'ninguna todavía; el comprobador se validó con datos sintéticos'})`);
+}
+
+// ------------------------------------------------ 7) comportamientos: cast.sk = definición FORJADA
+{
+  const BEH = [];
+  defineSkillBehavior('vx_b_alcance', { params: ['reach'], cast(g, p, prof, cast) { BEH.push(cast.sk.reach); return cast.ctx.res; } });
+  const bsk = { id: 'vx_alcance', name: 'Alcance', icon: '🧪', desc: 'x', req: 1, elem: 'physical', cat: 'spender', tags: ['spender', 'area', 'physical'],
+    type: 'area', at: 'self', coef: 1, cost: 0, cd: 0, radius: 3, behavior: 'vx_b_alcance', reach: 4 };
+  const bforge = { vx_alcance: { mejora: { name: 'Largo', line, add: { reach: 2 } }, vars: [
+    { id: 'vx_alcance_i', name: 'Lejos', role: 'UNI', line, set: { reach: 9 } },
+    { id: 'vx_alcance_ii', name: 'Más', role: 'AREA', line, mod: { dmg: 10 } }] } };
+  const h = verbHarness('guerrero', { level: 30, forge: bforge, skills: [bsk] });
+  h.setSlot('rmb', 'vx_alcance');
+  h.press('rmb'); h.release('rmb');
+  h.p.skillForge = { vx_alcance: 'i' }; h.p.recompute(); h.step(0.3);
+  h.press('rmb'); h.release('rmb');
+  assert.deepEqual(BEH, [6, 9], 'el comportamiento lee la definición forjada (Mejora +2; variante i = 9)');
+  assert.deepEqual(validateSkillDef(normalizeSkillDef(bsk), { v2: true, behaviors: SKILL_BEHAVIORS }).warnings, [], 'params: reach no es una clave desconocida');
+  // F7: una pieza que solo cambia lo que lee el comportamiento NO es un no-op
+  const a = forgeAudit('guerrero', { ...CLASSES.guerrero, skills: [normalizeSkillDef(bsk)] }, bforge);
+  assert.deepEqual(a.noops, [], `F7 con comportamiento propio: ${a.noops.join(' · ')}`);
+  const b = forgeAudit('guerrero', { ...CLASSES.guerrero, skills: [normalizeSkillDef(bsk)] },
+    { vx_alcance: { ...bforge.vx_alcance, vars: [{ ...bforge.vx_alcance.vars[0], set: { reach: 6 } }, bforge.vx_alcance.vars[1]] } });
+  assert.deepEqual(b.noops, ['vx_alcance_i'], 'y sí detecta la que deja la definición igual');
+  console.log('Comportamientos: cast.sk forjada; F7 cuenta la definición que leen ✓');
+}
+
+// ------------------------------------------------ 8) recompute → talentos y forja guardada
+{
+  // accesores de lo FORJADO (§3.3, §3.8): una variante que añade `charge` y cambia el elemento
+  const forge = { vx_tercera: { mejora: null, vars: [
+    { id: 'vx_tercera_i', name: 'Tensa', role: 'UNI', line, set: { charge: { min: 0.1, max: 0.6, perfect: [0.45, 0.6] } }, elem: 'fire' },
+    { id: 'vx_tercera_ii', name: 'x', role: 'AREA', line, mod: { dmg: 5 } }] } };
+  const kit = { ...verbSkill('vx_corazon'), id: 'vx_kit81', spec: 'francotiradora' };
+  const h = verbHarness('arquera', { level: 30, forge, skills: [kit] });
+  let acc = h.p.talentAccessors();
+  assert.ok(!acc.defOf('vx_tercera').charge && acc.elemOf('vx_tercera') === 'physical', 'sin variante: la definición base');
+  h.p.skillForge = { vx_tercera: 'i' }; h.p.recompute();
+  acc = h.p.talentAccessors();
+  const d = acc.defOf('vx_tercera');
+  assert.ok(d.charge && d.tags.includes('charge'), "defOf: la definición FORJADA (la variante añade charge: entra en '@charge')");
+  assert.equal(acc.elemOf('vx_tercera'), 'fire', 'elemOf: el elemento forjado');
+  assert.equal(acc.defOf('no_existe'), null);
+  assert.deepEqual(acc.kitOf('francotiradora'), ['vx_kit81'], 'kitOf: el kit de la especialización');
+  assert.deepEqual(acc.kitOf(null), []);
+  const src = readFileSync(new URL('../js/entities.js', import.meta.url), 'utf8');
+  assert.ok(src.includes('aggregateTalents(this, this.talentAccessors())'), 'recompute pasa elemOf, kitOf y defOf a aggregateTalents');
+  // el constructor valida los talentos al NIVEL (§3.3: normalizeTalents(raw, classId, level))
+  assert.ok(src.includes('normalizeTalents(this.talents, classId, this.level)'), 'el constructor pasa el nivel');
+  if (typeof T.talentsTrimmed === 'function') {
+    // talents.js v2 (W1): un árbol con más rangos de los que da el nivel se vacía y deja el aviso
+    const cls = Object.fromEntries(T.TALENT_TREES.maga.cls.nodes.map(n => [n.id, n.max || 1]));
+    const p = new Player(h.g, 'maga', { classId: 'maga', saveVersion: SAVE_VERSION, level: 12, talents: { v: 2, spec: null, cls, sp: {}, choice: {} } });
+    assert.deepEqual(p.talents.cls, {}, 'árbol de clase recortado al nivel');
+    assert.ok(p.notices.includes(T.TALENTS_TRIMMED_NOTICE), 'con el aviso talentos-recortados');
+  } else console.log('  (talents.js v1: el recorte por nivel se prueba al integrar con W1)');
+  // forja guardada (D3): solo ids de la clase y 'i' | 'ii' | null
+  const [s1, s2, s3, s4] = CLASSES.arquera.skills.filter(s => s.kind !== 'talent').map(s => s.id);
+  const ps = new Player(h.g, 'arquera', { classId: 'arquera', saveVersion: SAVE_VERSION, level: 30,
+    skillForge: { [s1]: 'ii', [s2]: null, [s3]: 'iii', [s4]: 1, a_no_existe: 'i' } });
+  assert.deepEqual(ps.skillForge, { [s1]: 'ii', [s2]: null }, 'la forja inválida se descarta al cargar');
+  console.log('recompute: accesores forjados para los selectores; nivel al normalizar; forja guardada saneada ✓');
 }
 
 console.log('\n✅ FORJA (forgeDef · validateForge · niveles · orden de resolveSkill · chooseForge · A1/F7) OK');
