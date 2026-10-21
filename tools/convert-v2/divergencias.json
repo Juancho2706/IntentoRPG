@@ -1,4 +1,17 @@
 {
   "nota": "Divergencias DELIBERADAS entre los datos del juego y los del mockup (docs/paso2-implementacion.md §4). Cada una: { clase, ruta, motivo, aprobada }. La ruta es la que imprime tests/test-v2-paridad.mjs (p. ej. 'forja.g_tajo.vars.i.line', 'spec.berserker.b3.d', 'catalogo.a_disparo.req', 'builds.brasa.cls') y cubre todo lo que cuelga de ella. 'aprobada' = el dueño ya dio el visto bueno (las líneas de forja acortadas de A1 empiezan en false). clase '*' = todas.",
-  "divergencias": []
+  "divergencias": [
+    {
+      "clase": "arquera",
+      "ruta": "forja",
+      "motivo": "KA1 sube el catálogo 2g (CATALOG_V = 2) sin la forja: las 17 entradas de ARQUERA_SKILL_FORGE son de KA2 (E2). Se retira al fusionar KA2.",
+      "aprobada": false
+    },
+    {
+      "clase": "arquera",
+      "ruta": "reco",
+      "motivo": "ARQUERA_FORGE_RECO es de KA2 (E2) y queda vacío hasta entonces. Se retira al fusionar KA2.",
+      "aprobada": false
+    }
+  ]
 }

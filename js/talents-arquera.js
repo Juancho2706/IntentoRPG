@@ -75,7 +75,7 @@ export const ARQUERA_TALENTS = {
       ],
       win: 'A, contra jefes: +20 % casi siempre. B, contra grupos: +15 % de velocidad de ataque con 5 enemigos a tiro' },
     { id: 'c17', name: 'Agilidad o Huida', t: 'c', tag: 'mec', r: 4, c: 5, max: 1, req: ['c13', 'c14'], icon: 'skills256/agilidad.webp', opts: [
-        { k: 'A', name: 'Agilidad', desc: 'Habilidad (ranura 2): 6 s con +30 % de velocidad, +15 % de ataque e inmune a ralentizaciones. Se recarga en 16 s', role: 'AGU', fx: {}, todo: 'activa agilidad · existe (buff genérico con slowImmune)' },
+        { k: 'A', name: 'Agilidad', desc: 'Habilidad (ranura 2): 6 s con +30 % de velocidad, +15 % de ataque e inmune a ralentizaciones. Se recarga en 16 s', role: 'AGU', fx: { grant: 'agilidad' }, todo: 'activa agilidad · existe (buff genérico con slowImmune)' },
         { k: 'B', name: 'Huida Desesperada', desc: 'Al bajar del 30 % de vida: +40 % de velocidad y un 20 % menos de daño 4 s. Una vez cada 60 s', role: 'AGU', fx: {}, todo: 'power a_huida · NUEVO (onDamaged)' },
       ],
       win: 'A, para escapar o perseguir a voluntad (ocupa la ranura 2). B, contra el daño constante de un grupo, sin ocupar ranura' },
