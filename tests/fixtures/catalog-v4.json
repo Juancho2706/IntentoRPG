@@ -1,0 +1,2284 @@
+{
+ "_meta": {
+  "nota": "Generado por tools/make-v4-saves.mjs con el código del juego en SAVE_VERSION 4 (antes del Paso 2). No editar a mano. `saves` indexa tests/fixtures/saves-v4-paso2.json (misma clave); `savesSha256` detecta ediciones del otro archivo.",
+  "codeCommit": "ccce3d9",
+  "saveVersion": 4,
+  "classes": ["guerrero", "maga", "arquera"],
+  "levels": [5, 10, 18, 40, 50, 60, 75],
+  "specFromLevel": 10,
+  "saveFields": ["classId", "level", "xp", "attributes", "statPoints", "skillPoints", "skillSystemV", "skillBranches", "hotbar", "gold", "potions", "inventory", "materials", "equipment", "lastFloor", "hp", "mp", "waypoints", "records", "cube", "quest", "hardcore", "pet", "talents", "era", "titles", "title", "discoveredZones", "homeZone", "strongholdsCleared", "dailyDone", "tips", "supports", "knownSupports", "skillMods", "paragon", "refugeUnlocked", "discovered", "heroName", "tint", "torment", "codex", "blessings"],
+  "savesSha256": "f7a58787db964fec80266cc057eada457a07a97f390736f2efda8014f591bff2",
+  "saves": [
+   { "key": "guerrero-5-sin-spec", "classId": "guerrero", "level": 5, "spec": null, "third": ["torbellino", "g_mandoble", "embestida"], "branches": 4, "skillPoints": 0, "bar": "g_tajo torbellino embestida · · ·", "k2": null, "k3": null, "supported": 2, "knownSupports": 2, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 0, "strongholds": 0 },
+   { "key": "guerrero-10-berserker", "classId": "guerrero", "level": 10, "spec": "berserker", "third": ["g_hendidura", "g_embate"], "branches": 9, "skillPoints": 0, "bar": "g_embate torbellino embestida g_hendidura g_t_remolino ·", "k2": null, "k3": "g_t_remolino", "supported": 3, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 0, "strongholds": 0 },
+   { "key": "guerrero-10-guardian", "classId": "guerrero", "level": 10, "spec": "guardian", "third": ["g_mandoble", "g_hendidura"], "branches": 6, "skillPoints": 3, "bar": "g_embate torbellino embestida g_hendidura g_t_desafio ·", "k2": null, "k3": "g_t_desafio", "supported": 2, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 1, "strongholds": 0 },
+   { "key": "guerrero-10-cruzado", "classId": "guerrero", "level": 10, "spec": "cruzado", "third": ["g_martillo", "embestida", "g_tajo"], "branches": 7, "skillPoints": 2, "bar": "g_tajo torbellino embestida g_piel g_t_devocion ·", "k2": null, "k3": "g_t_devocion", "supported": 1, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 2, "strongholds": 0 },
+   { "key": "guerrero-18-berserker", "classId": "guerrero", "level": 18, "spec": "berserker", "third": ["torbellino", "embestida"], "branches": 12, "skillPoints": 5, "bar": "g_embate torbellino · g_piel g_t_remolino g_u_furia", "k2": null, "k3": "g_t_remolino", "supported": 3, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 1, "bossKills": 1, "strongholds": 1 },
+   { "key": "guerrero-18-guardian", "classId": "guerrero", "level": 18, "spec": "guardian", "third": ["terremoto", "g_hendidura", "g_u_cataclismo"], "branches": 17, "skillPoints": 0, "bar": "g_mandoble torbellino · g_t_aliento g_t_desafio g_u_furia", "k2": "g_t_aliento", "k3": "g_t_desafio", "supported": 1, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 1, "bossKills": 1, "strongholds": 1 },
+   { "key": "guerrero-18-cruzado", "classId": "guerrero", "level": 18, "spec": "cruzado", "third": ["g_embate", "grito_guerra"], "branches": 17, "skillPoints": 0, "bar": "g_tajo torbellino embestida terremoto g_t_devocion g_u_furia", "k2": null, "k3": "g_t_devocion", "supported": 4, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 1, "bossKills": 2, "strongholds": 1 },
+   { "key": "guerrero-40-berserker", "classId": "guerrero", "level": 40, "spec": "berserker", "third": ["g_provocacion", "torbellino", "g_martillo"], "branches": 19, "skillPoints": 0, "bar": "g_embate torbellino · g_t_aliento g_t_remolino g_u_furia", "k2": "g_t_aliento", "k3": "g_t_remolino", "supported": 4, "knownSupports": 6, "nodes": 20, "sockets": 4, "glyphs": 4, "paragonPoints": 0, "feats": 4, "bossKills": 6, "strongholds": 2 },
+   { "key": "guerrero-40-guardian", "classId": "guerrero", "level": 40, "spec": "guardian", "third": ["g_u_estandarte", "g_provocacion", "grito_guerra"], "branches": 19, "skillPoints": 0, "bar": "g_embate torbellino embestida g_t_aliento g_t_desafio g_u_furia", "k2": "g_t_aliento", "k3": "g_t_desafio", "supported": 3, "knownSupports": 6, "nodes": 11, "sockets": 3, "glyphs": 3, "paragonPoints": 9, "feats": 3, "bossKills": 4, "strongholds": 2 },
+   { "key": "guerrero-40-cruzado", "classId": "guerrero", "level": 40, "spec": "cruzado", "third": ["g_tajo", "g_u_estandarte", "g_provocacion"], "branches": 19, "skillPoints": 0, "bar": "g_tajo torbellino embestida g_t_aliento g_t_devocion g_u_furia", "k2": "g_t_aliento", "k3": "g_t_devocion", "supported": 4, "knownSupports": 6, "nodes": 15, "sockets": 3, "glyphs": 3, "paragonPoints": 5, "feats": 3, "bossKills": 3, "strongholds": 2 },
+   { "key": "guerrero-50-berserker", "classId": "guerrero", "level": 50, "spec": "berserker", "third": ["terremoto", "g_tajo", "g_embate"], "branches": 14, "skillPoints": 5, "bar": "g_embate torbellino embestida g_t_aliento g_t_remolino g_u_furia", "k2": "g_t_aliento", "k3": "g_t_remolino", "supported": 3, "knownSupports": 7, "nodes": 17, "sockets": 4, "glyphs": 4, "paragonPoints": 13, "feats": 4, "bossKills": 7, "strongholds": 2 },
+   { "key": "guerrero-50-guardian", "classId": "guerrero", "level": 50, "spec": "guardian", "third": ["g_u_cataclismo", "g_tajo", "g_piel"], "branches": 19, "skillPoints": 0, "bar": "g_embate torbellino · g_t_bramido g_t_desafio g_u_furia", "k2": "g_t_bramido", "k3": "g_t_desafio", "supported": 5, "knownSupports": 7, "nodes": 23, "sockets": 4, "glyphs": 3, "paragonPoints": 7, "feats": 6, "bossKills": 14, "strongholds": 2 },
+   { "key": "guerrero-50-cruzado", "classId": "guerrero", "level": 50, "spec": "cruzado", "third": ["g_embate", "g_mandoble", "grito_guerra"], "branches": 19, "skillPoints": 0, "bar": "g_tajo g_lanza embestida g_t_veredicto g_t_devocion g_u_furia", "k2": "g_t_veredicto", "k3": "g_t_devocion", "supported": 6, "knownSupports": 7, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 2, "feats": 6, "bossKills": 14, "strongholds": 2 },
+   { "key": "guerrero-60-berserker", "classId": "guerrero", "level": 60, "spec": "berserker", "third": ["g_u_estandarte", "g_tajo"], "branches": 16, "skillPoints": 3, "bar": "g_embate torbellino embestida g_piel g_t_remolino ·", "k2": null, "k3": "g_t_remolino", "supported": 3, "knownSupports": 8, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 12, "feats": 5, "bossKills": 11, "strongholds": 2 },
+   { "key": "guerrero-60-guardian", "classId": "guerrero", "level": 60, "spec": "guardian", "third": ["g_piel", "g_salto"], "branches": 16, "skillPoints": 3, "bar": "g_mandoble torbellino embestida g_piel g_t_desafio g_u_furia", "k2": null, "k3": "g_t_desafio", "supported": 4, "knownSupports": 8, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 12, "feats": 6, "bossKills": 14, "strongholds": 2 },
+   { "key": "guerrero-60-cruzado", "classId": "guerrero", "level": 60, "spec": "cruzado", "third": ["embestida", "g_u_estandarte", "g_provocacion"], "branches": 19, "skillPoints": 0, "bar": "g_tajo torbellino · g_martillo g_t_devocion g_u_furia", "k2": null, "k3": "g_t_devocion", "supported": 5, "knownSupports": 8, "nodes": 22, "sockets": 4, "glyphs": 3, "paragonPoints": 18, "feats": 6, "bossKills": 18, "strongholds": 2 },
+   { "key": "guerrero-75-berserker", "classId": "guerrero", "level": 75, "spec": "berserker", "third": ["g_martillo", "grito_guerra", "g_hendidura"], "branches": 15, "skillPoints": 4, "bar": "g_embate torbellino embestida g_piel g_t_remolino g_u_furia", "k2": null, "k3": "g_t_remolino", "supported": 4, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 27, "feats": 6, "bossKills": 16, "strongholds": 2 },
+   { "key": "guerrero-75-guardian", "classId": "guerrero", "level": 75, "spec": "guardian", "third": ["g_u_cataclismo", "g_hendidura", "g_piel"], "branches": 19, "skillPoints": 0, "bar": "g_embate torbellino embestida g_hendidura g_t_desafio g_u_furia", "k2": null, "k3": "g_t_desafio", "supported": 5, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 27, "feats": 6, "bossKills": 17, "strongholds": 2 },
+   { "key": "guerrero-75-cruzado", "classId": "guerrero", "level": 75, "spec": "cruzado", "third": ["g_lanza", "g_u_estandarte", "embestida"], "branches": 14, "skillPoints": 5, "bar": "g_tajo g_martillo embestida g_t_aliento g_t_devocion g_u_furia", "k2": "g_t_aliento", "k3": "g_t_devocion", "supported": 6, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 4, "paragonPoints": 27, "feats": 6, "bossKills": 12, "strongholds": 2 },
+   { "key": "maga-5-sin-spec", "classId": "maga", "level": 5, "spec": null, "third": ["m_dardo", "bola_fuego"], "branches": 4, "skillPoints": 0, "bar": "m_ascua bola_fuego m_paso_escarcha · · ·", "k2": null, "k3": null, "supported": 2, "knownSupports": 2, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 0, "strongholds": 0 },
+   { "key": "maga-10-piromante", "classId": "maga", "level": 10, "spec": "piromante", "third": ["m_dardo", "bola_fuego"], "branches": 7, "skillPoints": 2, "bar": "m_ascua bola_fuego m_paso_escarcha m_armadura p_llamarada ·", "k2": null, "k3": "p_llamarada", "supported": 3, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 0, "strongholds": 0 },
+   { "key": "maga-10-crionte", "classId": "maga", "level": 10, "spec": "crionte", "third": ["bola_fuego", "m_toque", "m_armadura"], "branches": 9, "skillPoints": 0, "bar": "m_dardo bola_fuego m_paso_escarcha m_armadura k_prision ·", "k2": null, "k3": "k_prision", "supported": 2, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 1, "strongholds": 0 },
+   { "key": "maga-10-arcanista", "classId": "maga", "level": 10, "spec": "arcanista", "third": ["bola_fuego", "m_toque", "m_armadura"], "branches": 4, "skillPoints": 5, "bar": "m_ascua bola_fuego m_paso_escarcha m_armadura a_orbe ·", "k2": null, "k3": "a_orbe", "supported": 1, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 0, "strongholds": 0 },
+   { "key": "maga-18-piromante", "classId": "maga", "level": 18, "spec": "piromante", "third": ["m_onda", "m_u_supernova"], "branches": 17, "skillPoints": 0, "bar": "m_ascua bola_fuego · m_t_barrera p_llamarada m_u_supernova", "k2": "m_t_barrera", "k3": "p_llamarada", "supported": 1, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 2, "bossKills": 3, "strongholds": 1 },
+   { "key": "maga-18-crionte", "classId": "maga", "level": 18, "spec": "crionte", "third": ["m_ascua", "bola_fuego", "m_armadura"], "branches": 17, "skillPoints": 0, "bar": "m_dardo bola_fuego m_paso_escarcha m_armadura k_prision m_u_supernova", "k2": null, "k3": "k_prision", "supported": 4, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 2, "bossKills": 3, "strongholds": 1 },
+   { "key": "maga-18-arcanista", "classId": "maga", "level": 18, "spec": "arcanista", "third": ["m_toque", "nova_hielo", "m_armadura"], "branches": 15, "skillPoints": 2, "bar": "m_ascua bola_fuego m_paso_escarcha m_armadura a_orbe m_u_supernova", "k2": null, "k3": "a_orbe", "supported": 5, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 1, "bossKills": 2, "strongholds": 1 },
+   { "key": "maga-40-piromante", "classId": "maga", "level": 40, "spec": "piromante", "third": ["m_ascua", "m_paso_escarcha", "m_onda"], "branches": 19, "skillPoints": 0, "bar": "m_ascua bola_fuego m_paso_escarcha m_t_barrera p_llamarada m_u_supernova", "k2": "m_t_barrera", "k3": "p_llamarada", "supported": 4, "knownSupports": 6, "nodes": 11, "sockets": 3, "glyphs": 3, "paragonPoints": 9, "feats": 3, "bossKills": 5, "strongholds": 2 },
+   { "key": "maga-40-crionte", "classId": "maga", "level": 40, "spec": "crionte", "third": ["meteoro", "m_toque"], "branches": 19, "skillPoints": 0, "bar": "m_dardo bola_fuego m_paso_escarcha k_aliento k_prision m_u_supernova", "k2": "k_aliento", "k3": "k_prision", "supported": 3, "knownSupports": 6, "nodes": 15, "sockets": 4, "glyphs": 3, "paragonPoints": 5, "feats": 4, "bossKills": 6, "strongholds": 2 },
+   { "key": "maga-40-arcanista", "classId": "maga", "level": 40, "spec": "arcanista", "third": ["m_u_tormenta", "meteoro"], "branches": 13, "skillPoints": 6, "bar": "m_ascua rayo m_paso_escarcha a_misiles a_orbe m_u_supernova", "k2": "a_misiles", "k3": "a_orbe", "supported": 4, "knownSupports": 6, "nodes": 20, "sockets": 4, "glyphs": 3, "paragonPoints": 0, "feats": 3, "bossKills": 5, "strongholds": 2 },
+   { "key": "maga-50-piromante", "classId": "maga", "level": 50, "spec": "piromante", "third": ["m_onda", "meteoro", "m_dardo"], "branches": 16, "skillPoints": 3, "bar": "m_ascua rayo m_paso_escarcha m_t_barrera p_llamarada ·", "k2": "m_t_barrera", "k3": "p_llamarada", "supported": 5, "knownSupports": 7, "nodes": 23, "sockets": 4, "glyphs": 3, "paragonPoints": 7, "feats": 4, "bossKills": 7, "strongholds": 2 },
+   { "key": "maga-50-crionte", "classId": "maga", "level": 50, "spec": "crionte", "third": ["rayo", "m_u_desgarro"], "branches": 19, "skillPoints": 0, "bar": "m_dardo bola_fuego m_paso_escarcha k_lanza k_prision m_u_supernova", "k2": "k_lanza", "k3": "k_prision", "supported": 3, "knownSupports": 7, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 2, "feats": 6, "bossKills": 13, "strongholds": 2 },
+   { "key": "maga-50-arcanista", "classId": "maga", "level": 50, "spec": "arcanista", "third": ["m_u_tormenta", "m_estela_ignea"], "branches": 17, "skillPoints": 2, "bar": "m_toque bola_fuego m_paso_escarcha m_t_barrera a_orbe m_u_supernova", "k2": "m_t_barrera", "k3": "a_orbe", "supported": 5, "knownSupports": 7, "nodes": 17, "sockets": 3, "glyphs": 3, "paragonPoints": 13, "feats": 4, "bossKills": 7, "strongholds": 2 },
+   { "key": "maga-60-piromante", "classId": "maga", "level": 60, "spec": "piromante", "third": ["m_armadura", "m_onda"], "branches": 19, "skillPoints": 0, "bar": "m_ascua bola_fuego · m_t_barrera p_llamarada m_u_supernova", "k2": "m_t_barrera", "k3": "p_llamarada", "supported": 3, "knownSupports": 8, "nodes": 28, "sockets": 4, "glyphs": 4, "paragonPoints": 12, "feats": 6, "bossKills": 18, "strongholds": 2 },
+   { "key": "maga-60-crionte", "classId": "maga", "level": 60, "spec": "crionte", "third": ["m_toque", "m_onda"], "branches": 19, "skillPoints": 0, "bar": "m_dardo bola_fuego m_paso_escarcha m_t_bloque k_prision ·", "k2": "m_t_bloque", "k3": "k_prision", "supported": 6, "knownSupports": 8, "nodes": 22, "sockets": 4, "glyphs": 3, "paragonPoints": 18, "feats": 5, "bossKills": 9, "strongholds": 2 },
+   { "key": "maga-60-arcanista", "classId": "maga", "level": 60, "spec": "arcanista", "third": ["m_ascua", "m_u_supernova", "m_onda"], "branches": 19, "skillPoints": 0, "bar": "m_toque bola_fuego m_paso_escarcha m_t_barrera a_orbe m_u_supernova", "k2": "m_t_barrera", "k3": "a_orbe", "supported": 5, "knownSupports": 8, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 12, "feats": 5, "bossKills": 10, "strongholds": 2 },
+   { "key": "maga-75-piromante", "classId": "maga", "level": 75, "spec": "piromante", "third": ["m_dardo", "m_estela_ignea", "m_ascua"], "branches": 19, "skillPoints": 0, "bar": "m_toque bola_fuego m_paso_escarcha m_t_barrera p_llamarada m_u_supernova", "k2": "m_t_barrera", "k3": "p_llamarada", "supported": 5, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 4, "paragonPoints": 27, "feats": 6, "bossKills": 18, "strongholds": 2 },
+   { "key": "maga-75-crionte", "classId": "maga", "level": 75, "spec": "crionte", "third": ["m_toque", "m_paso_escarcha", "rayo"], "branches": 15, "skillPoints": 4, "bar": "m_dardo bola_fuego m_paso_escarcha m_t_contrahechizo k_prision ·", "k2": "m_t_contrahechizo", "k3": "k_prision", "supported": 3, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 4, "paragonPoints": 27, "feats": 6, "bossKills": 16, "strongholds": 2 },
+   { "key": "maga-75-arcanista", "classId": "maga", "level": 75, "spec": "arcanista", "third": ["m_ascua", "nova_hielo"], "branches": 19, "skillPoints": 0, "bar": "m_ascua bola_fuego m_paso_escarcha m_t_barrera a_orbe m_u_supernova", "k2": "m_t_barrera", "k3": "a_orbe", "supported": 5, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 4, "paragonPoints": 27, "feats": 6, "bossKills": 19, "strongholds": 2 },
+   { "key": "arquera-5-sin-spec", "classId": "arquera", "level": 5, "spec": null, "third": ["a_paso", "a_disparo"], "branches": 4, "skillPoints": 0, "bar": "a_disperso flecha_perforante a_paso · · ·", "k2": null, "k3": null, "supported": 2, "knownSupports": 2, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 0, "strongholds": 0 },
+   { "key": "arquera-10-francotiradora", "classId": "arquera", "level": 10, "spec": "francotiradora", "third": ["flecha_multiple", "a_disperso"], "branches": 9, "skillPoints": 0, "bar": "a_disparo flecha_perforante a_paso flecha_multiple a_t_apuntado ·", "k2": null, "k3": "a_t_apuntado", "supported": 2, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 1, "strongholds": 0 },
+   { "key": "arquera-10-montaraz", "classId": "arquera", "level": 10, "spec": "montaraz", "third": ["flecha_multiple", "a_disparo"], "branches": 9, "skillPoints": 0, "bar": "a_cicuta flecha_perforante a_paso a_red a_t_cepo ·", "k2": null, "k3": "a_t_cepo", "supported": 2, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 1, "strongholds": 0 },
+   { "key": "arquera-10-tiradora", "classId": "arquera", "level": 10, "spec": "tiradora", "third": ["a_cicuta", "a_disperso", "flecha_perforante"], "branches": 6, "skillPoints": 3, "bar": "a_disperso flecha_perforante a_paso flecha_multiple a_t_andanada ·", "k2": null, "k3": "a_t_andanada", "supported": 3, "knownSupports": 3, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 0, "bossKills": 2, "strongholds": 0 },
+   { "key": "arquera-18-francotiradora", "classId": "arquera", "level": 18, "spec": "francotiradora", "third": ["a_humo", "agilidad", "a_paso"], "branches": 17, "skillPoints": 0, "bar": "a_disparo flecha_multiple · a_t_conmocion a_t_apuntado a_u_diluvio", "k2": "a_t_conmocion", "k3": "a_t_apuntado", "supported": 2, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 2, "bossKills": 1, "strongholds": 2 },
+   { "key": "arquera-18-montaraz", "classId": "arquera", "level": 18, "spec": "montaraz", "third": ["a_humo", "flecha_multiple", "a_cicuta"], "branches": 13, "skillPoints": 4, "bar": "a_cicuta flecha_perforante a_paso a_t_conmocion a_t_cepo a_u_diluvio", "k2": "a_t_conmocion", "k3": "a_t_cepo", "supported": 5, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 3, "bossKills": 4, "strongholds": 2 },
+   { "key": "arquera-18-tiradora", "classId": "arquera", "level": 18, "spec": "tiradora", "third": ["a_cicuta", "a_u_celeste"], "branches": 17, "skillPoints": 0, "bar": "a_disperso flecha_perforante a_paso lluvia_flechas a_t_andanada a_u_diluvio", "k2": null, "k3": "a_t_andanada", "supported": 4, "knownSupports": 4, "nodes": 0, "sockets": 0, "glyphs": 0, "paragonPoints": 0, "feats": 2, "bossKills": 2, "strongholds": 2 },
+   { "key": "arquera-40-francotiradora", "classId": "arquera", "level": 40, "spec": "francotiradora", "third": ["lluvia_flechas", "flecha_perforante", "a_u_zarzas"], "branches": 19, "skillPoints": 0, "bar": "a_disparo flecha_perforante a_paso a_t_silencio a_t_apuntado a_u_diluvio", "k2": "a_t_silencio", "k3": "a_t_apuntado", "supported": 4, "knownSupports": 6, "nodes": 15, "sockets": 4, "glyphs": 3, "paragonPoints": 5, "feats": 5, "bossKills": 9, "strongholds": 2 },
+   { "key": "arquera-40-montaraz", "classId": "arquera", "level": 40, "spec": "montaraz", "third": ["a_disparo", "a_paso"], "branches": 19, "skillPoints": 0, "bar": "a_cicuta flecha_multiple a_paso a_t_conmocion a_t_cepo a_u_diluvio", "k2": "a_t_conmocion", "k3": "a_t_cepo", "supported": 4, "knownSupports": 6, "nodes": 20, "sockets": 4, "glyphs": 3, "paragonPoints": 0, "feats": 3, "bossKills": 4, "strongholds": 2 },
+   { "key": "arquera-40-tiradora", "classId": "arquera", "level": 40, "spec": "tiradora", "third": ["a_disparo", "agilidad", "a_disperso"], "branches": 17, "skillPoints": 2, "bar": "a_disperso flecha_perforante · a_t_conmocion a_t_andanada a_u_diluvio", "k2": "a_t_conmocion", "k3": "a_t_andanada", "supported": 3, "knownSupports": 6, "nodes": 11, "sockets": 2, "glyphs": 2, "paragonPoints": 9, "feats": 4, "bossKills": 7, "strongholds": 2 },
+   { "key": "arquera-50-francotiradora", "classId": "arquera", "level": 50, "spec": "francotiradora", "third": ["a_cicuta", "a_disparo", "flecha_perforante"], "branches": 19, "skillPoints": 0, "bar": "a_disparo flecha_multiple · a_red a_t_apuntado a_u_diluvio", "k2": null, "k3": "a_t_apuntado", "supported": 5, "knownSupports": 7, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 2, "feats": 6, "bossKills": 12, "strongholds": 2 },
+   { "key": "arquera-50-montaraz", "classId": "arquera", "level": 50, "spec": "montaraz", "third": ["a_disperso", "a_u_zarzas"], "branches": 17, "skillPoints": 2, "bar": "a_cicuta flecha_perforante a_paso a_t_conmocion a_t_cepo ·", "k2": "a_t_conmocion", "k3": "a_t_cepo", "supported": 4, "knownSupports": 7, "nodes": 17, "sockets": 3, "glyphs": 2, "paragonPoints": 13, "feats": 5, "bossKills": 10, "strongholds": 2 },
+   { "key": "arquera-50-tiradora", "classId": "arquera", "level": 50, "spec": "tiradora", "third": ["a_humo", "lluvia_flechas", "a_cicuta"], "branches": 19, "skillPoints": 0, "bar": "a_cicuta flecha_perforante a_paso a_t_bengala a_t_andanada a_u_diluvio", "k2": "a_t_bengala", "k3": "a_t_andanada", "supported": 4, "knownSupports": 7, "nodes": 23, "sockets": 4, "glyphs": 3, "paragonPoints": 7, "feats": 4, "bossKills": 6, "strongholds": 2 },
+   { "key": "arquera-60-francotiradora", "classId": "arquera", "level": 60, "spec": "francotiradora", "third": ["flecha_multiple", "a_u_zarzas", "flecha_perforante"], "branches": 15, "skillPoints": 4, "bar": "a_disparo flecha_perforante a_paso a_t_conmocion a_t_apuntado a_u_diluvio", "k2": "a_t_conmocion", "k3": "a_t_apuntado", "supported": 5, "knownSupports": 8, "nodes": 22, "sockets": 4, "glyphs": 3, "paragonPoints": 18, "feats": 6, "bossKills": 15, "strongholds": 2 },
+   { "key": "arquera-60-montaraz", "classId": "arquera", "level": 60, "spec": "montaraz", "third": ["a_cicuta", "a_paso", "lluvia_flechas"], "branches": 19, "skillPoints": 0, "bar": "a_cicuta flecha_perforante a_paso a_red a_t_cepo a_u_diluvio", "k2": null, "k3": "a_t_cepo", "supported": 6, "knownSupports": 8, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 12, "feats": 6, "bossKills": 12, "strongholds": 2 },
+   { "key": "arquera-60-tiradora", "classId": "arquera", "level": 60, "spec": "tiradora", "third": ["a_disparo", "a_paso"], "branches": 19, "skillPoints": 0, "bar": "a_cicuta flecha_perforante a_paso a_t_camuflaje a_t_andanada a_u_diluvio", "k2": "a_t_camuflaje", "k3": "a_t_andanada", "supported": 4, "knownSupports": 8, "nodes": 28, "sockets": 4, "glyphs": 4, "paragonPoints": 12, "feats": 6, "bossKills": 15, "strongholds": 2 },
+   { "key": "arquera-75-francotiradora", "classId": "arquera", "level": 75, "spec": "francotiradora", "third": ["agilidad", "flecha_perforante"], "branches": 14, "skillPoints": 5, "bar": "a_disparo flecha_perforante a_paso a_red a_t_apuntado ·", "k2": null, "k3": "a_t_apuntado", "supported": 6, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 27, "feats": 6, "bossKills": 19, "strongholds": 2 },
+   { "key": "arquera-75-montaraz", "classId": "arquera", "level": 75, "spec": "montaraz", "third": ["a_cicuta", "lluvia_flechas", "a_red"], "branches": 13, "skillPoints": 6, "bar": "a_cicuta flecha_perforante · flecha_multiple a_t_cepo a_u_diluvio", "k2": null, "k3": "a_t_cepo", "supported": 5, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 27, "feats": 6, "bossKills": 16, "strongholds": 2 },
+   { "key": "arquera-75-tiradora", "classId": "arquera", "level": 75, "spec": "tiradora", "third": ["a_u_diluvio", "a_red"], "branches": 19, "skillPoints": 0, "bar": "a_disperso flecha_perforante a_paso a_t_conmocion a_t_andanada ·", "k2": "a_t_conmocion", "k3": "a_t_andanada", "supported": 5, "knownSupports": 10, "nodes": 28, "sockets": 4, "glyphs": 3, "paragonPoints": 27, "feats": 6, "bossKills": 18, "strongholds": 2 }
+  ]
+ },
+ "classes": {
+  "guerrero": {
+   "name": "Guerrero",
+   "resourceId": "furia",
+   "mainStat": "fue",
+   "weaponBasic": "g_tajo",
+   "classGrants": ["g_t_aliento", "g_t_intervencion", "g_t_bramido"],
+   "specs": {
+    "berserker": { "name": "Berserker", "role": "dps", "mechanic": "sed", "insignia": "g_t_remolino", "grants": ["g_t_remolino", "g_t_temeridad", "g_t_ira_ciega"] },
+    "guardian": { "name": "Guardián", "role": "tank", "mechanic": "bastion", "insignia": "g_t_desafio", "grants": ["g_t_desafio", "g_t_muro", "g_t_carga"] },
+    "cruzado": { "name": "Cruzado", "role": "support", "mechanic": "fervor", "insignia": "g_t_devocion", "grants": ["g_t_devocion", "g_t_veredicto", "g_t_justicia"] }
+   },
+   "skills": [
+    { "id": "g_tajo", "name": "Tajo", "icon": "⚔️", "cat": "basic", "req": 1, "kind": "basic", "slots": ["lmb"], "type": "weapon", "elem": "physical", "tags": ["basic", "melee", "area", "physical"], "coef": 1, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "g_mandoble", "name": "Mandoble", "icon": "🗡️", "cat": "basic", "req": 3, "kind": "basic", "slots": ["lmb"], "type": "melee", "elem": "physical", "tags": ["basic", "melee", "physical"], "coef": 1.5, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "g_embate", "name": "Embate", "icon": "🌀", "cat": "basic", "req": 8, "kind": "basic", "slots": ["lmb"], "type": "area", "elem": "physical", "tags": ["basic", "melee", "area", "physical"], "coef": 0.6, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "torbellino", "name": "Torbellino", "icon": "🌪️", "cat": "spender", "req": 2, "kind": "core", "slots": ["rmb", "k2"], "type": "area", "elem": "physical", "tags": ["spender", "melee", "area", "physical"], "coef": 1.5, "cost": 25, "cd": 0, "behavior": null, "branches": true },
+    { "id": "g_hendidura", "name": "Hendidura", "icon": "🪓", "cat": "spender", "req": 8, "kind": "core", "slots": ["rmb", "k2"], "type": "cone", "elem": "physical", "tags": ["spender", "melee", "cone", "physical"], "coef": 2.9, "cost": 27, "cd": 0, "behavior": null, "branches": true },
+    { "id": "g_martillo", "name": "Martillo de Guerra", "icon": "🔨", "cat": "spender", "req": 8, "kind": "core", "slots": ["rmb", "k2"], "type": "area", "elem": "physical", "tags": ["spender", "melee", "area", "physical"], "coef": 1.5, "cost": 30, "cd": 0, "behavior": null, "branches": true },
+    { "id": "terremoto", "name": "Terremoto", "icon": "💥", "cat": "spender", "req": 14, "kind": "core", "slots": ["rmb", "k2"], "type": "line", "elem": "physical", "tags": ["spender", "line", "cc", "physical"], "coef": 3.1, "cost": 26, "cd": 4, "behavior": null, "branches": true },
+    { "id": "g_lanza", "name": "Lanza Arrojadiza", "icon": "🎯", "cat": "spender", "req": 14, "kind": "core", "slots": ["rmb", "k2"], "type": "proj", "elem": "physical", "tags": ["spender", "proj", "physical"], "coef": 1.9, "cost": 20, "cd": 0, "behavior": null, "branches": true },
+    { "id": "embestida", "name": "Embestida", "icon": "💨", "cat": "movement", "req": 4, "kind": "core", "slots": ["k1"], "type": "dash", "elem": "physical", "tags": ["movement", "melee", "area", "physical"], "coef": 1.2, "cost": 0, "cd": 8, "behavior": null, "branches": true },
+    { "id": "g_salto", "name": "Salto Devastador", "icon": "🦶", "cat": "movement", "req": 12, "kind": "core", "slots": ["k1"], "type": "leap", "elem": "physical", "tags": ["movement", "area", "cc", "physical"], "coef": 1.8, "cost": 0, "cd": 12, "behavior": null, "branches": true },
+    { "id": "g_piel", "name": "Piel de Hierro", "icon": "🛡️", "cat": "defense", "req": 6, "kind": "core", "slots": ["k2"], "type": "buff", "elem": "physical", "tags": ["defense", "buff", "physical"], "coef": 0, "cost": 0, "cd": 20, "behavior": null, "branches": true },
+    { "id": "g_provocacion", "name": "Provocación", "icon": "😠", "cat": "utility", "req": 16, "kind": "core", "slots": ["k2"], "type": "taunt", "elem": "physical", "tags": ["utility", "taunt", "cc", "physical"], "coef": 0, "cost": 0, "cd": 8, "behavior": null, "branches": true },
+    { "id": "grito_guerra", "name": "Grito de Guerra", "icon": "📢", "cat": "utility", "req": 12, "kind": "core", "slots": ["k2"], "type": "buff", "elem": "physical", "tags": ["utility", "shout", "buff", "ally", "physical"], "coef": 0, "cost": 0, "cd": 20, "behavior": null, "branches": true },
+    { "id": "g_u_furia", "name": "Furia Inmortal", "icon": "😤", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": "buff", "elem": "physical", "tags": ["ultimate", "buff", "physical"], "coef": 0, "cost": 0, "cd": 60, "behavior": null, "branches": true },
+    { "id": "g_u_cataclismo", "name": "Cataclismo", "icon": "☄️", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": "area", "elem": "holy", "tags": ["ultimate", "area", "holy"], "coef": 3.1, "cost": 0, "cd": 50, "behavior": "g_u_cataclismo", "branches": true },
+    { "id": "g_u_estandarte", "name": "Estandarte de Guerra", "icon": "🚩", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": "aura", "elem": "physical", "tags": ["ultimate", "aura", "buff", "ally", "physical"], "coef": 0, "cost": 0, "cd": 55, "behavior": null, "branches": true },
+    {
+     "id": "g_t_aliento",
+     "name": "Segundo Aliento",
+     "icon": "❤️‍🩹",
+     "cat": "defense",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["defense", "heal", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 30,
+     "behavior": "g_t_aliento",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c2" }
+    },
+    {
+     "id": "g_t_intervencion",
+     "name": "Intervención",
+     "icon": "🛡️",
+     "cat": "movement",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k1"],
+     "type": "leap",
+     "elem": "physical",
+     "tags": ["movement", "ally", "shield", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 20,
+     "behavior": "g_t_intervencion",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c3" }
+    },
+    {
+     "id": "g_t_bramido",
+     "name": "Bramido de Guerra",
+     "icon": "📯",
+     "cat": "defense",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": "buff",
+     "elem": "physical",
+     "tags": ["defense", "shout", "buff", "ally", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 28,
+     "behavior": "g_t_bramido",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c12", "opt": "A" }
+    },
+    {
+     "id": "g_t_remolino",
+     "name": "Remolino Sangriento",
+     "icon": "🌪️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["spec", "melee", "area", "dot", "physical"],
+     "coef": 0.57,
+     "cost": 30,
+     "cd": 6,
+     "behavior": "g_t_remolino",
+     "branches": false,
+     "grantedBy": { "tree": "berserker", "node": "s0", "free": true }
+    },
+    {
+     "id": "g_t_temeridad",
+     "name": "Temeridad",
+     "icon": "💢",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "buff",
+     "elem": "physical",
+     "tags": ["spec", "buff", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 90,
+     "behavior": "g_t_temeridad",
+     "branches": false,
+     "grantedBy": { "tree": "berserker", "node": "s9" }
+    },
+    {
+     "id": "g_t_ira_ciega",
+     "name": "Ira Ciega",
+     "icon": "👁️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": "buff",
+     "elem": "physical",
+     "tags": ["spec", "buff", "utility", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 60,
+     "behavior": "g_t_ira_ciega",
+     "branches": false,
+     "grantedBy": { "tree": "berserker", "node": "s13", "opt": "B" }
+    },
+    {
+     "id": "g_t_desafio",
+     "name": "Grito Desafiante",
+     "icon": "📢",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "taunt",
+     "elem": "physical",
+     "tags": ["spec", "shout", "taunt", "cc", "area", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 12,
+     "behavior": "g_t_desafio",
+     "branches": false,
+     "grantedBy": { "tree": "guardian", "node": "s0", "free": true }
+    },
+    {
+     "id": "g_t_muro",
+     "name": "Muro de Escudos",
+     "icon": "🧱",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["spec", "defense", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 25,
+     "behavior": "g_t_muro",
+     "branches": false,
+     "grantedBy": { "tree": "guardian", "node": "s9" }
+    },
+    {
+     "id": "g_t_carga",
+     "name": "Carga de Escudo",
+     "icon": "🐂",
+     "cat": "movement",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k1"],
+     "type": "dash",
+     "elem": "physical",
+     "tags": ["movement", "melee", "cc", "physical"],
+     "coef": 1,
+     "cost": 0,
+     "cd": 14,
+     "behavior": "g_t_carga",
+     "branches": false,
+     "grantedBy": { "tree": "guardian", "node": "s13", "opt": "B" }
+    },
+    {
+     "id": "g_t_devocion",
+     "name": "Aura de Devoción",
+     "icon": "✨",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "buff",
+     "elem": "holy",
+     "tags": ["spec", "aura", "heal", "ally", "holy"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 30,
+     "behavior": "g_t_devocion",
+     "branches": false,
+     "grantedBy": { "tree": "cruzado", "node": "s0", "free": true }
+    },
+    {
+     "id": "g_t_veredicto",
+     "name": "Veredicto Final",
+     "icon": "⚖️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["rmb", "k2", "k3"],
+     "type": "cone",
+     "elem": "holy",
+     "tags": ["spec", "spender", "cone", "heal", "holy"],
+     "coef": 2,
+     "cost": 0,
+     "cd": 0,
+     "behavior": "g_t_veredicto",
+     "branches": false,
+     "grantedBy": { "tree": "cruzado", "node": "s9" }
+    },
+    {
+     "id": "g_t_justicia",
+     "name": "Martillo de Justicia",
+     "icon": "🔨",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": "proj",
+     "elem": "holy",
+     "tags": ["utility", "proj", "cc", "holy"],
+     "coef": 1.2,
+     "cost": 0,
+     "cd": 15,
+     "behavior": null,
+     "branches": false,
+     "grantedBy": { "tree": "cruzado", "node": "s13", "opt": "B" }
+    }
+   ],
+   "mods": {
+    "g_tajo": [
+     {
+      "id": "g_tajo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_tajo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_tajo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_tajo_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_tajo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_tajo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_tajo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_tajo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_tajo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_tajo_v1", "name": "Desangrar", "desc": "Aplica un sangrado intenso, pero −10% de daño directo.", "dot": "bleed", "dmg": -10 },
+       { "id": "g_tajo_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "g_tajo_v3", "name": "Rebote", "desc": "El golpe rebota a 2 enemigos cercanos.", "chain": 2 }
+      ]
+     }
+    ],
+    "g_mandoble": [
+     {
+      "id": "g_mandoble_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_mandoble_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_mandoble_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_mandoble_o3", "name": "Aplastar", "desc": "+60% de daño, pero +30% de enfriamiento.", "dmg": 60, "cdr": -30 }
+      ]
+     },
+     {
+      "id": "g_mandoble_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_mandoble_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_mandoble_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_mandoble_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_mandoble_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_mandoble_v1", "name": "Decapitar", "desc": "Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.", "execute": 18, "dmg": -10 },
+       { "id": "g_mandoble_v2", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 },
+       { "id": "g_mandoble_v3", "name": "Eco", "desc": "Se ejecuta una 2ª vez (al 60% de daño) tras un instante.", "echo": 1 }
+      ]
+     }
+    ],
+    "g_embate": [
+     {
+      "id": "g_embate_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_embate_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_embate_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_embate_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_embate_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_embate_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_embate_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_embate_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_embate_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_embate_v1", "name": "Desangrar", "desc": "Aplica un sangrado intenso, pero −10% de daño directo.", "dot": "bleed", "dmg": -10 },
+       { "id": "g_embate_v2", "name": "Tullir", "desc": "Ralentiza 3s a los enemigos golpeados.", "slow": 3 },
+       { "id": "g_embate_v3", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 }
+      ]
+     }
+    ],
+    "torbellino": [
+     {
+      "id": "torbellino_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "torbellino_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "torbellino_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "torbellino_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "torbellino_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "torbellino_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "torbellino_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "torbellino_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "torbellino_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "torbellino_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 },
+       { "id": "torbellino_v2", "name": "Masacre", "desc": "Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.", "cdhit": 4 },
+       { "id": "torbellino_v3", "name": "Coloso", "desc": "+90% de radio y +40% de daño, pero +50% de enfriamiento.", "radius": 90, "dmg": 40, "cdr": -50 }
+      ]
+     }
+    ],
+    "g_hendidura": [
+     {
+      "id": "g_hendidura_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_hendidura_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_hendidura_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_hendidura_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_hendidura_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_hendidura_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_hendidura_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_hendidura_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_hendidura_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_hendidura_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 },
+       { "id": "g_hendidura_v2", "name": "Masacre", "desc": "Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.", "cdhit": 4 },
+       { "id": "g_hendidura_v3", "name": "Desangrar", "desc": "Aplica un sangrado intenso, pero −10% de daño directo.", "dot": "bleed", "dmg": -10 }
+      ]
+     }
+    ],
+    "g_martillo": [
+     {
+      "id": "g_martillo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_martillo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_martillo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_martillo_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_martillo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_martillo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_martillo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_martillo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_martillo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_martillo_v1", "name": "Onda", "desc": "+30% de radio y aturde 1s a los golpeados.", "radius": 30, "stun": 1 },
+       { "id": "g_martillo_v2", "name": "Masacre", "desc": "Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.", "cdhit": 4 },
+       { "id": "g_martillo_v3", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 }
+      ]
+     }
+    ],
+    "terremoto": [
+     {
+      "id": "terremoto_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "terremoto_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "terremoto_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "terremoto_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "terremoto_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "terremoto_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "terremoto_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "terremoto_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "terremoto_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "terremoto_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 },
+       { "id": "terremoto_v2", "name": "Coloso", "desc": "+90% de radio y +40% de daño, pero +50% de enfriamiento.", "radius": 90, "dmg": 40, "cdr": -50 },
+       { "id": "terremoto_v3", "name": "Decapitar", "desc": "Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.", "execute": 18, "dmg": -10 }
+      ]
+     }
+    ],
+    "g_lanza": [
+     {
+      "id": "g_lanza_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_lanza_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_lanza_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_lanza_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_lanza_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_lanza_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_lanza_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_lanza_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_lanza_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_lanza_v1", "name": "Atravesar", "desc": "Atraviesa a todos los enemigos en línea.", "pierce": true },
+       { "id": "g_lanza_v2", "name": "Rebote", "desc": "El golpe rebota a 2 enemigos cercanos.", "chain": 2 },
+       { "id": "g_lanza_v3", "name": "Eco", "desc": "Se ejecuta una 2ª vez (al 60% de daño) tras un instante.", "echo": 1 }
+      ]
+     }
+    ],
+    "embestida": [
+     {
+      "id": "embestida_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "embestida_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "embestida_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "embestida_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "embestida_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "embestida_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "embestida_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "embestida_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "embestida_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "embestida_v1", "name": "Rebote", "desc": "El golpe rebota a 2 enemigos cercanos.", "chain": 2 },
+       { "id": "embestida_v2", "name": "Onda", "desc": "+30% de radio y aturde 1s a los golpeados.", "radius": 30, "stun": 1 },
+       { "id": "embestida_v3", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 }
+      ]
+     }
+    ],
+    "g_salto": [
+     {
+      "id": "g_salto_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_salto_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_salto_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_salto_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_salto_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_salto_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_salto_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_salto_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_salto_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_salto_v1", "name": "Onda", "desc": "+30% de radio y aturde 1s a los golpeados.", "radius": 30, "stun": 1 },
+       { "id": "g_salto_v2", "name": "Masacre", "desc": "Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.", "cdhit": 4 },
+       { "id": "g_salto_v3", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 }
+      ]
+     }
+    ],
+    "g_piel": [
+     {
+      "id": "g_piel_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "g_piel_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "g_piel_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "g_piel_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "g_piel_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "g_piel_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "g_piel_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "g_piel_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "g_piel_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "g_piel_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "g_piel_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "g_piel_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "g_provocacion": [
+     {
+      "id": "g_provocacion_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "g_provocacion_o1", "name": "Reforzado", "desc": "+35% de potencia, pero −20% de duración.", "buff": 35, "dur": -20 },
+       { "id": "g_provocacion_o2", "name": "Supremo", "desc": "+60% de potencia, pero +25% de enfriamiento.", "buff": 60, "cdr": -25 },
+       { "id": "g_provocacion_o3", "name": "Equilibrado", "desc": "+25% de potencia y +30% de duración.", "buff": 25, "dur": 30 }
+      ]
+     },
+     {
+      "id": "g_provocacion_d",
+      "name": "Duración",
+      "opts": [
+       { "id": "g_provocacion_d1", "name": "Duradero", "desc": "+70% de duración.", "dur": 70 },
+       { "id": "g_provocacion_d2", "name": "Eterno", "desc": "+120% de duración, pero −15% de potencia.", "dur": 120, "buff": -15 },
+       { "id": "g_provocacion_d3", "name": "Sostenido", "desc": "+40% de duración y −15% de enfriamiento.", "dur": 40, "cdr": 15 }
+      ]
+     },
+     {
+      "id": "g_provocacion_f",
+      "name": "Recurso",
+      "opts": [
+       { "id": "g_provocacion_f1", "name": "Rápido", "desc": "−30% de enfriamiento, pero −15% de duración.", "cdr": 30, "dur": -15 },
+       { "id": "g_provocacion_f2", "name": "Iracundo", "desc": "Genera +22 de recurso al usarla.", "gen": 22 },
+       { "id": "g_provocacion_f3", "name": "Eficiente", "desc": "−15% de enfriamiento y +12 de recurso.", "cdr": 15, "gen": 12 }
+      ]
+     }
+    ],
+    "grito_guerra": [
+     {
+      "id": "grito_guerra_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "grito_guerra_o1", "name": "Reforzado", "desc": "+35% de potencia, pero −20% de duración.", "buff": 35, "dur": -20 },
+       { "id": "grito_guerra_o2", "name": "Supremo", "desc": "+60% de potencia, pero +25% de enfriamiento.", "buff": 60, "cdr": -25 },
+       { "id": "grito_guerra_o3", "name": "Equilibrado", "desc": "+25% de potencia y +30% de duración.", "buff": 25, "dur": 30 }
+      ]
+     },
+     {
+      "id": "grito_guerra_d",
+      "name": "Duración",
+      "opts": [
+       { "id": "grito_guerra_d1", "name": "Duradero", "desc": "+70% de duración.", "dur": 70 },
+       { "id": "grito_guerra_d2", "name": "Eterno", "desc": "+120% de duración, pero −15% de potencia.", "dur": 120, "buff": -15 },
+       { "id": "grito_guerra_d3", "name": "Sostenido", "desc": "+40% de duración y −15% de enfriamiento.", "dur": 40, "cdr": 15 }
+      ]
+     },
+     {
+      "id": "grito_guerra_f",
+      "name": "Recurso",
+      "opts": [
+       { "id": "grito_guerra_f1", "name": "Rápido", "desc": "−30% de enfriamiento, pero −15% de duración.", "cdr": 30, "dur": -15 },
+       { "id": "grito_guerra_f2", "name": "Iracundo", "desc": "Genera +22 de recurso al usarla.", "gen": 22 },
+       { "id": "grito_guerra_f3", "name": "Eficiente", "desc": "−15% de enfriamiento y +12 de recurso.", "cdr": 15, "gen": 12 }
+      ]
+     }
+    ],
+    "g_u_furia": [
+     {
+      "id": "g_u_furia_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "g_u_furia_o1", "name": "Reforzado", "desc": "+35% de potencia, pero −20% de duración.", "buff": 35, "dur": -20 },
+       { "id": "g_u_furia_o2", "name": "Supremo", "desc": "+60% de potencia, pero +25% de enfriamiento.", "buff": 60, "cdr": -25 },
+       { "id": "g_u_furia_o3", "name": "Equilibrado", "desc": "+25% de potencia y +30% de duración.", "buff": 25, "dur": 30 }
+      ]
+     },
+     {
+      "id": "g_u_furia_d",
+      "name": "Duración",
+      "opts": [
+       { "id": "g_u_furia_d1", "name": "Duradero", "desc": "+70% de duración.", "dur": 70 },
+       { "id": "g_u_furia_d2", "name": "Eterno", "desc": "+120% de duración, pero −15% de potencia.", "dur": 120, "buff": -15 },
+       { "id": "g_u_furia_d3", "name": "Sostenido", "desc": "+40% de duración y −15% de enfriamiento.", "dur": 40, "cdr": 15 }
+      ]
+     },
+     {
+      "id": "g_u_furia_f",
+      "name": "Recurso",
+      "opts": [
+       { "id": "g_u_furia_f1", "name": "Rápido", "desc": "−30% de enfriamiento, pero −15% de duración.", "cdr": 30, "dur": -15 },
+       { "id": "g_u_furia_f2", "name": "Iracundo", "desc": "Genera +22 de recurso al usarla.", "gen": 22 },
+       { "id": "g_u_furia_f3", "name": "Eficiente", "desc": "−15% de enfriamiento y +12 de recurso.", "cdr": 15, "gen": 12 }
+      ]
+     }
+    ],
+    "g_u_cataclismo": [
+     {
+      "id": "g_u_cataclismo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "g_u_cataclismo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "g_u_cataclismo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "g_u_cataclismo_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "g_u_cataclismo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "g_u_cataclismo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "g_u_cataclismo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "g_u_cataclismo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "g_u_cataclismo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "g_u_cataclismo_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 },
+       { "id": "g_u_cataclismo_v2", "name": "Coloso", "desc": "+90% de radio y +40% de daño, pero +50% de enfriamiento.", "radius": 90, "dmg": 40, "cdr": -50 },
+       { "id": "g_u_cataclismo_v3", "name": "Decapitar", "desc": "Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.", "execute": 18, "dmg": -10 }
+      ]
+     }
+    ],
+    "g_u_estandarte": [
+     {
+      "id": "g_u_estandarte_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "g_u_estandarte_o1", "name": "Reforzado", "desc": "+35% de potencia, pero −20% de duración.", "buff": 35, "dur": -20 },
+       { "id": "g_u_estandarte_o2", "name": "Supremo", "desc": "+60% de potencia, pero +25% de enfriamiento.", "buff": 60, "cdr": -25 },
+       { "id": "g_u_estandarte_o3", "name": "Equilibrado", "desc": "+25% de potencia y +30% de duración.", "buff": 25, "dur": 30 }
+      ]
+     },
+     {
+      "id": "g_u_estandarte_d",
+      "name": "Duración",
+      "opts": [
+       { "id": "g_u_estandarte_d1", "name": "Duradero", "desc": "+70% de duración.", "dur": 70 },
+       { "id": "g_u_estandarte_d2", "name": "Eterno", "desc": "+120% de duración, pero −15% de potencia.", "dur": 120, "buff": -15 },
+       { "id": "g_u_estandarte_d3", "name": "Sostenido", "desc": "+40% de duración y −15% de enfriamiento.", "dur": 40, "cdr": 15 }
+      ]
+     },
+     {
+      "id": "g_u_estandarte_f",
+      "name": "Recurso",
+      "opts": [
+       { "id": "g_u_estandarte_f1", "name": "Rápido", "desc": "−30% de enfriamiento, pero −15% de duración.", "cdr": 30, "dur": -15 },
+       { "id": "g_u_estandarte_f2", "name": "Iracundo", "desc": "Genera +22 de recurso al usarla.", "gen": 22 },
+       { "id": "g_u_estandarte_f3", "name": "Eficiente", "desc": "−15% de enfriamiento y +12 de recurso.", "cdr": 15, "gen": 12 }
+      ]
+     }
+    ]
+   }
+  },
+  "maga": {
+   "name": "Maga",
+   "resourceId": "mana",
+   "mainStat": "ene",
+   "weaponBasic": "m_dardo",
+   "classGrants": ["m_t_barrera", "m_t_parpadeo", "m_t_contrahechizo", "m_t_inversion", "m_t_bloque"],
+   "specs": {
+    "piromante": { "name": "Piromante", "role": "dps", "mechanic": "calor", "insignia": "p_llamarada", "grants": ["p_llamarada", "p_combustion", "p_muro_fuego"] },
+    "crionte": { "name": "Crionte", "role": "control", "mechanic": "escarcha", "insignia": "k_prision", "grants": ["k_prision", "k_ventisca", "k_lanza", "k_aliento"] },
+    "arcanista": { "name": "Arcanista", "role": "dps", "mechanic": "cargas", "insignia": "a_orbe", "grants": ["a_orbe", "a_misiles", "a_sello", "a_evocacion"] }
+   },
+   "skills": [
+    { "id": "m_dardo", "name": "Dardo Arcano", "icon": "✨", "cat": "basic", "req": 1, "kind": "basic", "slots": ["lmb"], "type": "weapon", "elem": "arcane", "tags": ["basic", "proj", "arcane"], "coef": 1.05, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "m_ascua", "name": "Ascua", "icon": "🔸", "cat": "basic", "req": 3, "kind": "basic", "slots": ["lmb"], "type": "proj", "elem": "fire", "tags": ["basic", "proj", "area", "fire"], "coef": 0.75, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "m_toque", "name": "Toque Gélido", "icon": "🌬️", "cat": "basic", "req": 8, "kind": "basic", "slots": ["lmb"], "type": "cone", "elem": "frost", "tags": ["basic", "cone", "cc", "frost"], "coef": 0.7, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "bola_fuego", "name": "Bola de Fuego", "icon": "🔥", "cat": "spender", "req": 2, "kind": "core", "slots": ["rmb", "k2"], "type": "proj", "elem": "fire", "tags": ["spender", "proj", "area", "fire"], "coef": 2.2, "cost": 18, "cd": 1.5, "behavior": null, "branches": true },
+    { "id": "rayo", "name": "Rayo", "icon": "⚡", "cat": "spender", "req": 8, "kind": "core", "slots": ["rmb", "k2"], "type": "proj", "elem": "arcane", "tags": ["spender", "proj", "arcane"], "coef": 2.3, "cost": 20, "cd": 2.2, "behavior": null, "branches": true },
+    { "id": "nova_hielo", "name": "Nova de Hielo", "icon": "❄️", "cat": "spender", "req": 14, "kind": "core", "slots": ["rmb", "k2"], "type": "area", "elem": "frost", "tags": ["spender", "area", "cc", "frost"], "coef": 1.4, "cost": 25, "cd": 4, "behavior": null, "branches": true },
+    { "id": "meteoro", "name": "Meteoro", "icon": "☄️", "cat": "spender", "req": 14, "kind": "core", "slots": ["rmb", "k2"], "type": "area", "elem": "fire", "tags": ["spender", "area", "fire"], "coef": 3.7, "cost": 40, "cd": 6, "behavior": null, "branches": true },
+    { "id": "m_paso_escarcha", "name": "Paso de Escarcha", "icon": "🧊", "cat": "movement", "req": 4, "kind": "core", "slots": ["k1"], "type": null, "elem": "frost", "tags": ["movement", "frost"], "coef": 0, "cost": 0, "cd": 10, "behavior": "m_paso_escarcha", "branches": true },
+    { "id": "m_estela_ignea", "name": "Estela Ígnea", "icon": "♨️", "cat": "movement", "req": 12, "kind": "core", "slots": ["k1"], "type": null, "elem": "fire", "tags": ["movement", "zone", "fire"], "coef": 0.4, "cost": 0, "cd": 10, "behavior": "m_estela_ignea", "branches": true },
+    { "id": "m_armadura", "name": "Armadura de Hielo", "icon": "🛡️", "cat": "defense", "req": 6, "kind": "core", "slots": ["k2"], "type": "shield", "elem": "frost", "tags": ["defense", "shield", "frost"], "coef": 0, "cost": 0, "cd": 12, "behavior": null, "branches": true },
+    { "id": "m_onda", "name": "Onda Repulsora", "icon": "🌀", "cat": "utility", "req": 12, "kind": "core", "slots": ["k2"], "type": null, "elem": "arcane", "tags": ["utility", "area", "cc", "arcane"], "coef": 0.8, "cost": 15, "cd": 12, "behavior": "m_onda", "branches": true },
+    { "id": "m_u_supernova", "name": "Supernova", "icon": "🌟", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": null, "elem": "fire", "tags": ["ultimate", "area", "fire"], "coef": 4.7, "cost": 0, "cd": 50, "behavior": "m_u_supernova", "branches": true },
+    { "id": "m_u_tormenta", "name": "Tormenta Glacial", "icon": "🌨️", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": null, "elem": "frost", "tags": ["ultimate", "zone", "cc", "frost"], "coef": 0.6, "cost": 0, "cd": 55, "behavior": "m_u_tormenta", "branches": true },
+    { "id": "m_u_desgarro", "name": "Desgarro Arcano", "icon": "🌌", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": "channel", "elem": "arcane", "tags": ["ultimate", "channel", "arcane"], "coef": 4.4, "cost": 0, "cd": 45, "behavior": null, "branches": true },
+    {
+     "id": "m_t_barrera",
+     "name": "Barrera de Maná",
+     "icon": "🔮",
+     "cat": "defense",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": "shield",
+     "elem": "arcane",
+     "tags": ["defense", "shield", "arcane"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 20,
+     "behavior": "m_t_barrera",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c2" }
+    },
+    {
+     "id": "m_t_parpadeo",
+     "name": "Parpadeo",
+     "icon": "💫",
+     "cat": "movement",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k1"],
+     "type": "blink",
+     "elem": "arcane",
+     "tags": ["movement", "arcane"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 15,
+     "behavior": null,
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c3" }
+    },
+    {
+     "id": "m_t_contrahechizo",
+     "name": "Contrahechizo",
+     "icon": "🚫",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": null,
+     "elem": "arcane",
+     "tags": ["utility", "interrupt", "arcane"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 18,
+     "behavior": "m_t_contrahechizo",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c5", "opt": "A" }
+    },
+    {
+     "id": "m_t_inversion",
+     "name": "Inversión del Tiempo",
+     "icon": "⏳",
+     "cat": "defense",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": null,
+     "elem": "arcane",
+     "tags": ["defense", "arcane"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 60,
+     "behavior": "m_t_inversion",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c12", "opt": "A" }
+    },
+    {
+     "id": "m_t_bloque",
+     "name": "Bloque de Hielo",
+     "icon": "🧊",
+     "cat": "defense",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": null,
+     "elem": "frost",
+     "tags": ["defense", "frost"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 90,
+     "behavior": "m_t_bloque",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c12", "opt": "B" }
+    },
+    {
+     "id": "p_llamarada",
+     "name": "Llamarada",
+     "icon": "🔥",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "cone",
+     "elem": "fire",
+     "tags": ["spec", "cone", "fire"],
+     "coef": 1.5,
+     "cost": 25,
+     "cd": 8,
+     "behavior": "p_llamarada",
+     "branches": false,
+     "grantedBy": { "tree": "piromante", "node": "s0", "free": true }
+    },
+    {
+     "id": "p_combustion",
+     "name": "Combustión",
+     "icon": "☀️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "buff",
+     "elem": "fire",
+     "tags": ["spec", "buff", "fire"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 90,
+     "behavior": "p_combustion",
+     "branches": false,
+     "grantedBy": { "tree": "piromante", "node": "s9" }
+    },
+    {
+     "id": "p_muro_fuego",
+     "name": "Muro de Fuego",
+     "icon": "🧱",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": "zone",
+     "elem": "fire",
+     "tags": ["utility", "spec", "zone", "fire"],
+     "coef": 0.6,
+     "cost": 20,
+     "cd": 18,
+     "behavior": "p_muro_fuego",
+     "branches": false,
+     "grantedBy": { "tree": "piromante", "node": "s13", "opt": "B" }
+    },
+    {
+     "id": "k_prision",
+     "name": "Prisión de Hielo",
+     "icon": "🏔️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "area",
+     "elem": "frost",
+     "tags": ["spec", "area", "cc", "frost"],
+     "coef": 0.8,
+     "cost": 30,
+     "cd": 20,
+     "behavior": "k_prision",
+     "branches": false,
+     "grantedBy": { "tree": "crionte", "node": "s0", "free": true }
+    },
+    {
+     "id": "k_lanza",
+     "name": "Lanza de Hielo",
+     "icon": "🔱",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["rmb", "k2", "k3"],
+     "type": "proj",
+     "elem": "frost",
+     "tags": ["spec", "spender", "proj", "frost"],
+     "coef": 2.5,
+     "cost": 22,
+     "cd": 6,
+     "behavior": "k_lanza",
+     "branches": false,
+     "grantedBy": { "tree": "crionte", "node": "s9" }
+    },
+    {
+     "id": "k_ventisca",
+     "name": "Ventisca",
+     "icon": "🌨️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "zone",
+     "elem": "frost",
+     "tags": ["spec", "zone", "cc", "frost"],
+     "coef": 0.3,
+     "cost": 35,
+     "cd": 15,
+     "behavior": "k_ventisca",
+     "branches": false,
+     "grantedBy": { "tree": "crionte", "node": "s6", "opt": "A" }
+    },
+    {
+     "id": "k_aliento",
+     "name": "Aliento Boreal",
+     "icon": "🌬️",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": "cone",
+     "elem": "frost",
+     "tags": ["utility", "spec", "cone", "cc", "frost"],
+     "coef": 1,
+     "cost": 20,
+     "cd": 12,
+     "behavior": "k_aliento",
+     "branches": false,
+     "grantedBy": { "tree": "crionte", "node": "s13", "opt": "B" }
+    },
+    {
+     "id": "a_orbe",
+     "name": "Orbe Arcano",
+     "icon": "🔵",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "proj",
+     "elem": "arcane",
+     "tags": ["spec", "proj", "arcane"],
+     "coef": 2,
+     "cost": 20,
+     "cd": 8,
+     "behavior": "a_orbe",
+     "branches": false,
+     "grantedBy": { "tree": "arcanista", "node": "s0", "free": true }
+    },
+    {
+     "id": "a_misiles",
+     "name": "Misiles Arcanos",
+     "icon": "✴️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["rmb", "k2", "k3"],
+     "type": "channel",
+     "elem": "arcane",
+     "tags": ["spec", "spender", "channel", "arcane"],
+     "coef": 0.66,
+     "cost": 25,
+     "cd": 0,
+     "behavior": "a_misiles",
+     "branches": false,
+     "grantedBy": { "tree": "arcanista", "node": "s6", "opt": "A" }
+    },
+    {
+     "id": "a_sello",
+     "name": "Sello del Archimago",
+     "icon": "🔯",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "mark",
+     "elem": "arcane",
+     "tags": ["spec", "mark", "arcane"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 45,
+     "behavior": "a_sello",
+     "branches": false,
+     "grantedBy": { "tree": "arcanista", "node": "s9" }
+    },
+    {
+     "id": "a_evocacion",
+     "name": "Evocación",
+     "icon": "🌀",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": null,
+     "elem": "arcane",
+     "tags": ["utility", "spec", "channel", "arcane"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 60,
+     "behavior": "a_evocacion",
+     "branches": false,
+     "grantedBy": { "tree": "arcanista", "node": "s13", "opt": "A" }
+    }
+   ],
+   "mods": {
+    "m_dardo": [
+     {
+      "id": "m_dardo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "m_dardo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "m_dardo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "m_dardo_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "m_dardo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "m_dardo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "m_dardo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "m_dardo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "m_dardo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "m_dardo_v1", "name": "Calcinar", "desc": "Incendia al objetivo, pero −10% de daño directo.", "dot": "burn", "dmg": -10 },
+       { "id": "m_dardo_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "m_dardo_v3", "name": "Tullir", "desc": "Ralentiza 3s a los enemigos golpeados.", "slow": 3 }
+      ]
+     }
+    ],
+    "m_ascua": [
+     {
+      "id": "m_ascua_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "m_ascua_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "m_ascua_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "m_ascua_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "m_ascua_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "m_ascua_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "m_ascua_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "m_ascua_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "m_ascua_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "m_ascua_v1", "name": "Calcinar", "desc": "Incendia al objetivo, pero −10% de daño directo.", "dot": "burn", "dmg": -10 },
+       { "id": "m_ascua_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "m_ascua_v3", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde golpea.", "zone": 1 }
+      ]
+     }
+    ],
+    "m_toque": [
+     {
+      "id": "m_toque_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "m_toque_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "m_toque_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "m_toque_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "m_toque_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "m_toque_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "m_toque_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "m_toque_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "m_toque_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "m_toque_v1", "name": "Tullir", "desc": "Ralentiza 3s a los enemigos golpeados.", "slow": 3 },
+       { "id": "m_toque_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "m_toque_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "bola_fuego": [
+     {
+      "id": "bola_fuego_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "bola_fuego_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "bola_fuego_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "bola_fuego_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "bola_fuego_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "bola_fuego_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "bola_fuego_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "bola_fuego_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "bola_fuego_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "bola_fuego_v1", "name": "Calcinar", "desc": "Incendia al objetivo, pero −10% de daño directo.", "dot": "burn", "dmg": -10 },
+       { "id": "bola_fuego_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "bola_fuego_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "rayo": [
+     {
+      "id": "rayo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "rayo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "rayo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "rayo_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "rayo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "rayo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "rayo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "rayo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "rayo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "rayo_v1", "name": "Rebote", "desc": "El golpe rebota a 2 enemigos cercanos.", "chain": 2 },
+       { "id": "rayo_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "rayo_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "nova_hielo": [
+     {
+      "id": "nova_hielo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "nova_hielo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "nova_hielo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "nova_hielo_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "nova_hielo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "nova_hielo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "nova_hielo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "nova_hielo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "nova_hielo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "nova_hielo_v1", "name": "Tullir", "desc": "Ralentiza 3s a los enemigos golpeados.", "slow": 3 },
+       { "id": "nova_hielo_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "nova_hielo_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "meteoro": [
+     {
+      "id": "meteoro_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "meteoro_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "meteoro_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "meteoro_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "meteoro_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "meteoro_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "meteoro_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "meteoro_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "meteoro_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "meteoro_v1", "name": "Calcinar", "desc": "Incendia al objetivo, pero −10% de daño directo.", "dot": "burn", "dmg": -10 },
+       { "id": "meteoro_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "meteoro_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "m_paso_escarcha": [
+     {
+      "id": "m_paso_escarcha_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "m_paso_escarcha_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "m_paso_escarcha_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "m_paso_escarcha_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "m_paso_escarcha_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "m_paso_escarcha_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "m_paso_escarcha_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "m_paso_escarcha_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "m_paso_escarcha_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "m_paso_escarcha_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "m_paso_escarcha_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "m_paso_escarcha_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "m_estela_ignea": [
+     {
+      "id": "m_estela_ignea_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "m_estela_ignea_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "m_estela_ignea_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "m_estela_ignea_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "m_estela_ignea_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "m_estela_ignea_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "m_estela_ignea_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "m_estela_ignea_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "m_estela_ignea_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "m_estela_ignea_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "m_estela_ignea_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "m_estela_ignea_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "m_armadura": [
+     {
+      "id": "m_armadura_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "m_armadura_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "m_armadura_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "m_armadura_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "m_armadura_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "m_armadura_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "m_armadura_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "m_armadura_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "m_armadura_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "m_armadura_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "m_armadura_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "m_armadura_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "m_onda": [
+     {
+      "id": "m_onda_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "m_onda_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "m_onda_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "m_onda_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "m_onda_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "m_onda_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "m_onda_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "m_onda_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "m_onda_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "m_onda_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "m_onda_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "m_onda_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "m_u_supernova": [
+     {
+      "id": "m_u_supernova_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "m_u_supernova_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "m_u_supernova_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "m_u_supernova_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "m_u_supernova_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "m_u_supernova_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "m_u_supernova_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "m_u_supernova_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "m_u_supernova_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "m_u_supernova_v1", "name": "Calcinar", "desc": "Incendia al objetivo, pero −10% de daño directo.", "dot": "burn", "dmg": -10 },
+       { "id": "m_u_supernova_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "m_u_supernova_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "m_u_tormenta": [
+     {
+      "id": "m_u_tormenta_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "m_u_tormenta_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "m_u_tormenta_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "m_u_tormenta_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "m_u_tormenta_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "m_u_tormenta_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "m_u_tormenta_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "m_u_tormenta_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "m_u_tormenta_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "m_u_tormenta_v1", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "m_u_tormenta_v2", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 },
+       { "id": "m_u_tormenta_v3", "name": "Invierno Eterno", "desc": "+3 s de duración, pero −15 % de daño.", "durS": 3, "dmg": -15 }
+      ]
+     }
+    ],
+    "m_u_desgarro": [
+     {
+      "id": "m_u_desgarro_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "m_u_desgarro_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "m_u_desgarro_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "m_u_desgarro_o3", "name": "Aplastar", "desc": "+60% de daño, pero +30% de enfriamiento.", "dmg": 60, "cdr": -30 }
+      ]
+     },
+     {
+      "id": "m_u_desgarro_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "m_u_desgarro_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "m_u_desgarro_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "m_u_desgarro_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "m_u_desgarro_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "m_u_desgarro_v1", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "m_u_desgarro_v2", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 },
+       { "id": "m_u_desgarro_v3", "name": "Decapitar", "desc": "Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.", "execute": 18, "dmg": -10 }
+      ]
+     }
+    ]
+   }
+  },
+  "arquera": {
+   "name": "Arquera",
+   "resourceId": "energia",
+   "mainStat": "des",
+   "weaponBasic": "a_disparo",
+   "classGrants": ["a_t_voltereta", "a_t_conmocion", "a_t_silencio", "a_t_bengala", "a_t_camuflaje"],
+   "specs": {
+    "francotiradora": { "name": "Francotiradora", "role": "dps", "mechanic": "concentracion", "insignia": "a_t_apuntado", "grants": ["a_t_apuntado", "a_t_vision", "a_t_disuasorio"] },
+    "montaraz": { "name": "Montaraz", "role": "control", "mechanic": "coto", "insignia": "a_t_cepo", "grants": ["a_t_cepo", "a_t_arpon", "a_t_senuelo"] },
+    "tiradora": { "name": "Tiradora Veloz", "role": "dps", "mechanic": "impulso", "insignia": "a_t_andanada", "grants": ["a_t_andanada", "a_t_danza", "a_t_salto"] }
+   },
+   "skills": [
+    { "id": "a_disparo", "name": "Disparo Rápido", "icon": "🏹", "cat": "basic", "req": 1, "kind": "basic", "slots": ["lmb"], "type": "weapon", "elem": "physical", "tags": ["basic", "proj", "physical"], "coef": 1, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "a_disperso", "name": "Disparo Disperso", "icon": "🎇", "cat": "basic", "req": 3, "kind": "basic", "slots": ["lmb"], "type": "proj", "elem": "physical", "tags": ["basic", "proj", "area", "physical"], "coef": 0.45, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "a_cicuta", "name": "Flecha de Cicuta", "icon": "🌿", "cat": "basic", "req": 8, "kind": "basic", "slots": ["lmb"], "type": "proj", "elem": "nature", "tags": ["basic", "proj", "nature", "dot"], "coef": 0.7, "cost": 0, "cd": 0, "behavior": null, "branches": true },
+    { "id": "flecha_perforante", "name": "Flecha Perforante", "icon": "➶", "cat": "spender", "req": 2, "kind": "core", "slots": ["rmb", "k2"], "type": "proj", "elem": "physical", "tags": ["spender", "proj", "physical"], "coef": 2.4, "cost": 26, "cd": 0, "behavior": null, "branches": true },
+    { "id": "flecha_multiple", "name": "Flecha Múltiple", "icon": "🔱", "cat": "spender", "req": 8, "kind": "core", "slots": ["rmb", "k2"], "type": "proj", "elem": "physical", "tags": ["spender", "proj", "area", "physical"], "coef": 0.39, "cost": 22, "cd": 0, "behavior": null, "branches": true },
+    { "id": "lluvia_flechas", "name": "Lluvia de Flechas", "icon": "🌧️", "cat": "spender", "req": 14, "kind": "core", "slots": ["rmb", "k2"], "type": null, "elem": "physical", "tags": ["spender", "area", "physical"], "coef": 0.6, "cost": 30, "cd": 4, "behavior": "a_lluvia", "branches": true },
+    { "id": "a_paso", "name": "Paso Veloz", "icon": "👣", "cat": "movement", "req": 4, "kind": "core", "slots": ["k1"], "type": null, "elem": "physical", "tags": ["movement", "physical"], "coef": 0, "cost": 0, "cd": 9, "behavior": "a_paso", "branches": true },
+    { "id": "agilidad", "name": "Agilidad", "icon": "🌪️", "cat": "movement", "req": 12, "kind": "core", "slots": ["k1"], "type": "buff", "elem": "physical", "tags": ["movement", "buff", "physical"], "coef": 0, "cost": 0, "cd": 16, "behavior": null, "branches": true },
+    { "id": "a_red", "name": "Red de Caza", "icon": "🕸️", "cat": "utility", "req": 6, "kind": "core", "slots": ["k2"], "type": null, "elem": "physical", "tags": ["utility", "cc", "physical"], "coef": 0, "cost": 10, "cd": 14, "behavior": "a_red", "branches": true },
+    { "id": "a_humo", "name": "Bomba de Humo", "icon": "💨", "cat": "defense", "req": 12, "kind": "core", "slots": ["k2"], "type": "zone", "elem": "physical", "tags": ["defense", "zone", "physical"], "coef": 0, "cost": 0, "cd": 16, "behavior": "a_humo", "branches": true },
+    { "id": "a_u_diluvio", "name": "Diluvio de Saetas", "icon": "🌠", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": null, "elem": "physical", "tags": ["ultimate", "area", "physical"], "coef": 2.73, "cost": 0, "cd": 50, "behavior": "a_diluvio", "branches": true },
+    { "id": "a_u_celeste", "name": "Tiro Celestial", "icon": "🌌", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": null, "elem": "physical", "tags": ["ultimate", "proj", "physical"], "coef": 7, "cost": 0, "cd": 50, "behavior": "a_celeste", "branches": true },
+    { "id": "a_u_zarzas", "name": "Cerco de Zarzas", "icon": "🌵", "cat": "ultimate", "req": 15, "kind": "ultimate", "slots": ["k4"], "type": null, "elem": "nature", "tags": ["ultimate", "zone", "cc", "nature"], "coef": 1, "cost": 0, "cd": 55, "behavior": "a_zarzas", "branches": true },
+    {
+     "id": "a_t_voltereta",
+     "name": "Voltereta",
+     "icon": "🤸",
+     "cat": "movement",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k1"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["movement", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 12,
+     "behavior": "a_t_voltereta",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c2" }
+    },
+    {
+     "id": "a_t_conmocion",
+     "name": "Disparo Conmocionante",
+     "icon": "🎯",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": "proj",
+     "elem": "physical",
+     "tags": ["utility", "proj", "cc", "physical"],
+     "coef": 1,
+     "cost": 10,
+     "cd": 6,
+     "behavior": null,
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c3" }
+    },
+    {
+     "id": "a_t_silencio",
+     "name": "Flecha Silenciadora",
+     "icon": "🤫",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": "proj",
+     "elem": "physical",
+     "tags": ["utility", "interrupt", "proj", "physical"],
+     "coef": 0.8,
+     "cost": 0,
+     "cd": 18,
+     "behavior": "a_t_silencio",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c5", "opt": "A" }
+    },
+    {
+     "id": "a_t_bengala",
+     "name": "Flecha Bengala",
+     "icon": "🎆",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["utility", "zone", "ally", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 30,
+     "behavior": "a_t_bengala",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c12", "opt": "A" }
+    },
+    {
+     "id": "a_t_camuflaje",
+     "name": "Camuflaje",
+     "icon": "🍃",
+     "cat": "defense",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["defense", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 30,
+     "behavior": "a_t_camuflaje",
+     "branches": false,
+     "grantedBy": { "tree": "cls", "node": "c12", "opt": "B" }
+    },
+    {
+     "id": "a_t_apuntado",
+     "name": "Disparo Apuntado",
+     "icon": "🏹",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["rmb", "k2", "k3"],
+     "type": "proj",
+     "elem": "physical",
+     "tags": ["spec", "spender", "proj", "physical"],
+     "coef": 3.2,
+     "cost": 30,
+     "cd": 6,
+     "behavior": "a_t_apuntado",
+     "branches": false,
+     "grantedBy": { "tree": "francotiradora", "node": "s0", "free": true }
+    },
+    {
+     "id": "a_t_vision",
+     "name": "Visión Certera",
+     "icon": "👁️",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "buff",
+     "elem": "physical",
+     "tags": ["spec", "buff", "physical"],
+     "coef": 0,
+     "cost": 0,
+     "cd": 90,
+     "behavior": "a_t_vision",
+     "branches": false,
+     "grantedBy": { "tree": "francotiradora", "node": "s9" }
+    },
+    {
+     "id": "a_t_disuasorio",
+     "name": "Disparo Disuasorio",
+     "icon": "💥",
+     "cat": "movement",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k1"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["movement", "proj", "cc", "physical"],
+     "coef": 1.2,
+     "cost": 0,
+     "cd": 12,
+     "behavior": "a_t_disuasorio",
+     "branches": false,
+     "grantedBy": { "tree": "francotiradora", "node": "s13", "opt": "A" }
+    },
+    {
+     "id": "a_t_cepo",
+     "name": "Trampa de Cepo",
+     "icon": "🪤",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "trap",
+     "elem": "nature",
+     "tags": ["spec", "trap", "cc", "nature"],
+     "coef": 0.6,
+     "cost": 10,
+     "cd": 8,
+     "behavior": "a_t_cepo",
+     "branches": false,
+     "grantedBy": { "tree": "montaraz", "node": "s0", "free": true }
+    },
+    {
+     "id": "a_t_arpon",
+     "name": "Arpón",
+     "icon": "🪝",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": "proj",
+     "elem": "physical",
+     "tags": ["spec", "proj", "cc", "utility", "physical"],
+     "coef": 1.2,
+     "cost": 15,
+     "cd": 10,
+     "behavior": "a_t_arpon",
+     "branches": false,
+     "grantedBy": { "tree": "montaraz", "node": "s9" }
+    },
+    {
+     "id": "a_t_senuelo",
+     "name": "Señuelo de Paja",
+     "icon": "🎎",
+     "cat": "utility",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k2", "k3"],
+     "type": null,
+     "elem": "nature",
+     "tags": ["utility", "spec", "summon", "taunt", "nature"],
+     "coef": 2,
+     "cost": 0,
+     "cd": 25,
+     "behavior": "a_t_senuelo",
+     "branches": false,
+     "grantedBy": { "tree": "montaraz", "node": "s13", "opt": "A" }
+    },
+    {
+     "id": "a_t_andanada",
+     "name": "Andanada",
+     "icon": "🎇",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": "proj",
+     "elem": "physical",
+     "tags": ["spec", "proj", "area", "movement", "physical"],
+     "coef": 0.6,
+     "cost": 25,
+     "cd": 6,
+     "behavior": "a_t_andanada",
+     "branches": false,
+     "grantedBy": { "tree": "tiradora", "node": "s0", "free": true }
+    },
+    {
+     "id": "a_t_danza",
+     "name": "Danza de Flechas",
+     "icon": "🌀",
+     "cat": "spec",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k3"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["spec", "area", "channel", "movement", "physical"],
+     "coef": 0.5,
+     "cost": 20,
+     "cd": 25,
+     "behavior": "a_t_danza",
+     "branches": false,
+     "grantedBy": { "tree": "tiradora", "node": "s9" }
+    },
+    {
+     "id": "a_t_salto",
+     "name": "Salto de Retirada",
+     "icon": "🦘",
+     "cat": "movement",
+     "req": 10,
+     "kind": "talent",
+     "slots": ["k1"],
+     "type": null,
+     "elem": "physical",
+     "tags": ["movement", "proj", "physical"],
+     "coef": 0.6,
+     "cost": 0,
+     "cd": 12,
+     "behavior": "a_t_salto",
+     "branches": false,
+     "grantedBy": { "tree": "tiradora", "node": "s13", "opt": "A" }
+    }
+   ],
+   "mods": {
+    "a_disparo": [
+     {
+      "id": "a_disparo_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "a_disparo_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "a_disparo_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "a_disparo_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "a_disparo_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "a_disparo_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "a_disparo_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "a_disparo_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "a_disparo_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "a_disparo_v1", "name": "Emponzoñar", "desc": "Envenena al objetivo, pero −10% de daño directo.", "dot": "poison", "dmg": -10 },
+       { "id": "a_disparo_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "a_disparo_v3", "name": "Atravesar", "desc": "Atraviesa a todos los enemigos en línea.", "pierce": true }
+      ]
+     }
+    ],
+    "a_disperso": [
+     {
+      "id": "a_disperso_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "a_disperso_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "a_disperso_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "a_disperso_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "a_disperso_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "a_disperso_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "a_disperso_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "a_disperso_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "a_disperso_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "a_disperso_v1", "name": "Emponzoñar", "desc": "Envenena al objetivo, pero −10% de daño directo.", "dot": "poison", "dmg": -10 },
+       { "id": "a_disperso_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "a_disperso_v3", "name": "Atravesar", "desc": "Atraviesa a todos los enemigos en línea.", "pierce": true }
+      ]
+     }
+    ],
+    "a_cicuta": [
+     {
+      "id": "a_cicuta_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "a_cicuta_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "a_cicuta_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "a_cicuta_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "a_cicuta_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "a_cicuta_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "a_cicuta_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "a_cicuta_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "a_cicuta_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "a_cicuta_v1", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "a_cicuta_v2", "name": "Tullir", "desc": "Ralentiza 3s a los enemigos golpeados.", "slow": 3 },
+       { "id": "a_cicuta_v3", "name": "Atravesar", "desc": "Atraviesa a todos los enemigos en línea.", "pierce": true }
+      ]
+     }
+    ],
+    "flecha_perforante": [
+     {
+      "id": "flecha_perforante_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "flecha_perforante_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "flecha_perforante_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "flecha_perforante_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "flecha_perforante_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "flecha_perforante_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "flecha_perforante_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "flecha_perforante_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "flecha_perforante_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "flecha_perforante_v1", "name": "Atravesar", "desc": "Atraviesa a todos los enemigos en línea.", "pierce": true },
+       { "id": "flecha_perforante_v2", "name": "Emponzoñar", "desc": "Envenena al objetivo, pero −10% de daño directo.", "dot": "poison", "dmg": -10 },
+       { "id": "flecha_perforante_v3", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 }
+      ]
+     }
+    ],
+    "flecha_multiple": [
+     {
+      "id": "flecha_multiple_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "flecha_multiple_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "flecha_multiple_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "flecha_multiple_o3", "name": "Enjambre", "desc": "+2 proyectiles, pero −25% de daño.", "proj": 2, "dmg": -25 }
+      ]
+     },
+     {
+      "id": "flecha_multiple_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "flecha_multiple_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "flecha_multiple_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "flecha_multiple_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "flecha_multiple_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "flecha_multiple_v1", "name": "Emponzoñar", "desc": "Envenena al objetivo, pero −10% de daño directo.", "dot": "poison", "dmg": -10 },
+       { "id": "flecha_multiple_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "flecha_multiple_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "lluvia_flechas": [
+     {
+      "id": "lluvia_flechas_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "lluvia_flechas_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "lluvia_flechas_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "lluvia_flechas_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "lluvia_flechas_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "lluvia_flechas_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "lluvia_flechas_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "lluvia_flechas_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "lluvia_flechas_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "lluvia_flechas_v1", "name": "Emponzoñar", "desc": "Envenena al objetivo, pero −10% de daño directo.", "dot": "poison", "dmg": -10 },
+       { "id": "lluvia_flechas_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "lluvia_flechas_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "a_paso": [
+     {
+      "id": "a_paso_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "a_paso_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "a_paso_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "a_paso_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "a_paso_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "a_paso_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "a_paso_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "a_paso_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "a_paso_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "a_paso_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "a_paso_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "a_paso_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "agilidad": [
+     {
+      "id": "agilidad_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "agilidad_o1", "name": "Reforzado", "desc": "+35% de potencia, pero −20% de duración.", "buff": 35, "dur": -20 },
+       { "id": "agilidad_o2", "name": "Supremo", "desc": "+60% de potencia, pero +25% de enfriamiento.", "buff": 60, "cdr": -25 },
+       { "id": "agilidad_o3", "name": "Equilibrado", "desc": "+25% de potencia y +30% de duración.", "buff": 25, "dur": 30 }
+      ]
+     },
+     {
+      "id": "agilidad_d",
+      "name": "Duración",
+      "opts": [
+       { "id": "agilidad_d1", "name": "Duradero", "desc": "+70% de duración.", "dur": 70 },
+       { "id": "agilidad_d2", "name": "Eterno", "desc": "+120% de duración, pero −15% de potencia.", "dur": 120, "buff": -15 },
+       { "id": "agilidad_d3", "name": "Sostenido", "desc": "+40% de duración y −15% de enfriamiento.", "dur": 40, "cdr": 15 }
+      ]
+     },
+     {
+      "id": "agilidad_f",
+      "name": "Recurso",
+      "opts": [
+       { "id": "agilidad_f1", "name": "Rápido", "desc": "−30% de enfriamiento, pero −15% de duración.", "cdr": 30, "dur": -15 },
+       { "id": "agilidad_f2", "name": "Iracundo", "desc": "Genera +22 de recurso al usarla.", "gen": 22 },
+       { "id": "agilidad_f3", "name": "Eficiente", "desc": "−15% de enfriamiento y +12 de recurso.", "cdr": 15, "gen": 12 }
+      ]
+     }
+    ],
+    "a_red": [
+     {
+      "id": "a_red_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "a_red_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "a_red_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "a_red_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "a_red_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "a_red_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "a_red_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "a_red_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "a_red_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "a_red_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "a_red_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "a_red_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "a_humo": [
+     {
+      "id": "a_humo_o",
+      "name": "Potencia",
+      "opts": [
+       { "id": "a_humo_o1", "name": "Reforzado", "desc": "+35% de escudo, cura o distancia.", "buff": 35, "range": 35 },
+       { "id": "a_humo_o2", "name": "Amplio", "desc": "+40% de radio de efecto.", "radius": 40 },
+       { "id": "a_humo_o3", "name": "Persistente", "desc": "+50% de duración.", "dur": 50 }
+      ]
+     },
+     {
+      "id": "a_humo_r",
+      "name": "Recarga",
+      "opts": [
+       { "id": "a_humo_r1", "name": "Presto", "desc": "−25% de enfriamiento.", "cdr": 25 },
+       { "id": "a_humo_r2", "name": "Oportuno", "desc": "−15% de enfriamiento y +10 de recurso al usarla.", "cdr": 15, "gen": 10 },
+       { "id": "a_humo_r3", "name": "Tenaz", "desc": "−10% de enfriamiento y +20% de duración.", "cdr": 10, "dur": 20 }
+      ]
+     },
+     {
+      "id": "a_humo_v",
+      "name": "Variante",
+      "opts": [
+       { "id": "a_humo_v1", "name": "Estela", "desc": "Deja una ZONA DE DAÑO durante 4s donde termina.", "zone": 1 },
+       { "id": "a_humo_v2", "name": "Impulso", "desc": "+30% de velocidad de movimiento durante 3s al usarla.", "haste": 3 },
+       { "id": "a_humo_v3", "name": "Purga", "desc": "Al usarla, te libra de ralentizaciones.", "cleanse": true }
+      ]
+     }
+    ],
+    "a_u_diluvio": [
+     {
+      "id": "a_u_diluvio_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "a_u_diluvio_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "a_u_diluvio_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "a_u_diluvio_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "a_u_diluvio_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "a_u_diluvio_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "a_u_diluvio_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "a_u_diluvio_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "a_u_diluvio_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "a_u_diluvio_v1", "name": "Emponzoñar", "desc": "Envenena al objetivo, pero −10% de daño directo.", "dot": "poison", "dmg": -10 },
+       { "id": "a_u_diluvio_v2", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "a_u_diluvio_v3", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 }
+      ]
+     }
+    ],
+    "a_u_celeste": [
+     {
+      "id": "a_u_celeste_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "a_u_celeste_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "a_u_celeste_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "a_u_celeste_o3", "name": "Doble", "desc": "+1 proyectil, pero −15% de daño.", "proj": 1, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "a_u_celeste_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "a_u_celeste_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "a_u_celeste_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "a_u_celeste_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "a_u_celeste_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "a_u_celeste_v1", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "a_u_celeste_v2", "name": "Conmocionar", "desc": "Aturde 1.5s al golpear, pero −12% de daño.", "stun": 1.5, "dmg": -12 },
+       { "id": "a_u_celeste_v3", "name": "Decapitar", "desc": "Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.", "execute": 18, "dmg": -10 }
+      ]
+     }
+    ],
+    "a_u_zarzas": [
+     {
+      "id": "a_u_zarzas_o",
+      "name": "Ofensiva",
+      "opts": [
+       { "id": "a_u_zarzas_o1", "name": "Brutal", "desc": "+45% de daño, pero +20% de enfriamiento.", "dmg": 45, "cdr": -20 },
+       { "id": "a_u_zarzas_o2", "name": "Quirúrgico", "desc": "+30% de prob. crítica, pero −12% de daño base.", "crit": 30, "dmg": -12 },
+       { "id": "a_u_zarzas_o3", "name": "Vorágine", "desc": "+55% de radio, pero −15% de daño.", "radius": 55, "dmg": -15 }
+      ]
+     },
+     {
+      "id": "a_u_zarzas_f",
+      "name": "Ímpetu",
+      "opts": [
+       { "id": "a_u_zarzas_f1", "name": "Frenético", "desc": "−30% de enfriamiento, pero −12% de daño.", "cdr": 30, "dmg": -12 },
+       { "id": "a_u_zarzas_f2", "name": "Sediento", "desc": "Roba un 14% del daño infligido como vida.", "lifesteal": 14 },
+       { "id": "a_u_zarzas_f3", "name": "Furibundo", "desc": "Genera +16 de recurso al usarla.", "gen": 16 }
+      ]
+     },
+     {
+      "id": "a_u_zarzas_v",
+      "name": "Transformación",
+      "opts": [
+       { "id": "a_u_zarzas_v1", "name": "Quebrantar", "desc": "Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).", "vuln": 4 },
+       { "id": "a_u_zarzas_v2", "name": "Tullir", "desc": "Ralentiza 3s a los enemigos golpeados.", "slow": 3 },
+       { "id": "a_u_zarzas_v3", "name": "Decapitar", "desc": "Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.", "execute": 18, "dmg": -10 }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ "supports": [
+  { "id": "amplify", "name": "Amplificado", "tag": "pro", "requires": ["@dmg"], "forbids": ["ultimate"] },
+  { "id": "multi", "name": "Multiproyectil", "tag": "pro", "requires": ["proj"], "forbids": ["channel"] },
+  { "id": "pierce", "name": "Perforante", "tag": "pro", "requires": ["proj"], "forbids": ["channel"] },
+  { "id": "wide", "name": "Expansivo", "tag": "pro", "requires": ["area|cone|zone"], "forbids": [] },
+  { "id": "freeze", "name": "Gélido", "tag": "pro", "requires": ["@dmg"], "forbids": ["ultimate"] },
+  { "id": "chain", "name": "Encadenado", "tag": "tradeoff", "requires": ["proj"], "forbids": ["channel"] },
+  { "id": "concentrated", "name": "Concentrado", "tag": "tradeoff", "requires": ["area|cone|zone"], "forbids": [] },
+  { "id": "echo", "name": "Eco", "tag": "tradeoff", "requires": ["@dmg"], "forbids": ["channel", "ultimate", "movement"] },
+  { "id": "bleed", "name": "Sed de Sangre", "tag": "pro", "requires": ["@dmg", "melee|proj|area"], "forbids": [] },
+  { "id": "poison", "name": "Veneno", "tag": "pro", "requires": ["@dmg", "melee|proj|area"], "forbids": [] },
+  { "id": "coldblood", "name": "Sangre Fría", "tag": "pro", "requires": ["@dmg"], "forbids": ["ultimate"] },
+  { "id": "overcharge", "name": "Sobrecarga", "tag": "tradeoff", "requires": ["@dmg"], "forbids": ["ultimate", "basic"] },
+  { "id": "efficient", "name": "Eficiente", "tag": "pro", "requires": ["@cost"], "forbids": [] },
+  { "id": "swift", "name": "Raudo", "tag": "pro", "requires": ["@cd"], "forbids": ["ultimate"] },
+  { "id": "focused", "name": "Certero", "tag": "pro", "requires": ["@dmg"], "forbids": ["ultimate"] },
+  { "id": "lasting", "name": "Persistente", "tag": "pro", "requires": ["buff|dot|aura|zone|shield"], "forbids": [] }
+ ],
+ "slotRules": {
+  "CAT_SLOTS": { "basic": ["lmb"], "spender": ["rmb", "k2"], "movement": ["k1"], "defense": ["k2"], "utility": ["k2"], "spec": ["k3"], "ultimate": ["k4"] },
+  "SLOT_UNLOCK": { "lmb": 1, "rmb": 2, "k1": 4, "k2": 6, "k3": 10, "k4": 15 }
+ },
+ "paragonBoards": {
+  "guerrero": [
+   { "id": "4_4", "x": 4, "y": 4, "type": "start", "cat": null, "name": "Inicio" },
+   { "id": "4_3", "x": 4, "y": 3, "type": "minor", "cat": "ofensiva" },
+   { "id": "4_2", "x": 4, "y": 2, "type": "magic", "cat": "ofensiva" },
+   { "id": "4_1", "x": 4, "y": 1, "type": "minor", "cat": "ofensiva" },
+   { "id": "4_0", "x": 4, "y": 0, "type": "legendary", "cat": "ofensiva", "name": "Sed de Batalla", "power": "furia" },
+   { "id": "3_2", "x": 3, "y": 2, "type": "rare", "cat": "ofensiva" },
+   { "id": "5_2", "x": 5, "y": 2, "type": "rare", "cat": "ofensiva" },
+   { "id": "4_5", "x": 4, "y": 5, "type": "minor", "cat": "sustento" },
+   { "id": "4_6", "x": 4, "y": 6, "type": "magic", "cat": "sustento" },
+   { "id": "4_7", "x": 4, "y": 7, "type": "minor", "cat": "sustento" },
+   { "id": "4_8", "x": 4, "y": 8, "type": "legendary", "cat": "sustento", "name": "Corazón Voraz", "power": "festin" },
+   { "id": "3_6", "x": 3, "y": 6, "type": "rare", "cat": "sustento" },
+   { "id": "5_6", "x": 5, "y": 6, "type": "rare", "cat": "sustento" },
+   { "id": "3_4", "x": 3, "y": 4, "type": "minor", "cat": "defensa" },
+   { "id": "2_4", "x": 2, "y": 4, "type": "magic", "cat": "defensa" },
+   { "id": "1_4", "x": 1, "y": 4, "type": "minor", "cat": "defensa" },
+   { "id": "0_4", "x": 0, "y": 4, "type": "legendary", "cat": "defensa", "name": "Muralla" },
+   { "id": "2_3", "x": 2, "y": 3, "type": "rare", "cat": "defensa" },
+   { "id": "2_5", "x": 2, "y": 5, "type": "rare", "cat": "defensa" },
+   { "id": "5_4", "x": 5, "y": 4, "type": "minor", "cat": "utilidad" },
+   { "id": "6_4", "x": 6, "y": 4, "type": "magic", "cat": "utilidad" },
+   { "id": "7_4", "x": 7, "y": 4, "type": "minor", "cat": "utilidad" },
+   { "id": "8_4", "x": 8, "y": 4, "type": "legendary", "cat": "utilidad", "name": "Cosecha Macabra", "power": "volatil" },
+   { "id": "6_3", "x": 6, "y": 3, "type": "rare", "cat": "utilidad" },
+   { "id": "6_5", "x": 6, "y": 5, "type": "rare", "cat": "utilidad" },
+   { "id": "3_3", "x": 3, "y": 3, "type": "socket", "cat": null },
+   { "id": "5_3", "x": 5, "y": 3, "type": "socket", "cat": null },
+   { "id": "3_5", "x": 3, "y": 5, "type": "socket", "cat": null },
+   { "id": "5_5", "x": 5, "y": 5, "type": "socket", "cat": null }
+  ],
+  "maga": [
+   { "id": "4_4", "x": 4, "y": 4, "type": "start", "cat": null, "name": "Inicio" },
+   { "id": "4_3", "x": 4, "y": 3, "type": "minor", "cat": "ofensiva" },
+   { "id": "4_2", "x": 4, "y": 2, "type": "magic", "cat": "ofensiva" },
+   { "id": "4_1", "x": 4, "y": 1, "type": "minor", "cat": "ofensiva" },
+   { "id": "4_0", "x": 4, "y": 0, "type": "legendary", "cat": "ofensiva", "name": "Núcleo Ardiente", "power": "volatil" },
+   { "id": "3_2", "x": 3, "y": 2, "type": "rare", "cat": "ofensiva" },
+   { "id": "5_2", "x": 5, "y": 2, "type": "rare", "cat": "ofensiva" },
+   { "id": "4_5", "x": 4, "y": 5, "type": "minor", "cat": "sustento" },
+   { "id": "4_6", "x": 4, "y": 6, "type": "magic", "cat": "sustento" },
+   { "id": "4_7", "x": 4, "y": 7, "type": "minor", "cat": "sustento" },
+   { "id": "4_8", "x": 4, "y": 8, "type": "legendary", "cat": "sustento", "name": "Manantial Arcano" },
+   { "id": "3_6", "x": 3, "y": 6, "type": "rare", "cat": "sustento" },
+   { "id": "5_6", "x": 5, "y": 6, "type": "rare", "cat": "sustento" },
+   { "id": "3_4", "x": 3, "y": 4, "type": "minor", "cat": "defensa" },
+   { "id": "2_4", "x": 2, "y": 4, "type": "magic", "cat": "defensa" },
+   { "id": "1_4", "x": 1, "y": 4, "type": "minor", "cat": "defensa" },
+   { "id": "0_4", "x": 0, "y": 4, "type": "legendary", "cat": "defensa", "name": "Égida de Escarcha" },
+   { "id": "2_3", "x": 2, "y": 3, "type": "rare", "cat": "defensa" },
+   { "id": "2_5", "x": 2, "y": 5, "type": "rare", "cat": "defensa" },
+   { "id": "5_4", "x": 5, "y": 4, "type": "minor", "cat": "utilidad" },
+   { "id": "6_4", "x": 6, "y": 4, "type": "magic", "cat": "utilidad" },
+   { "id": "7_4", "x": 7, "y": 4, "type": "minor", "cat": "utilidad" },
+   { "id": "8_4", "x": 8, "y": 4, "type": "legendary", "cat": "utilidad", "name": "Vendaval Arcano", "power": "multidisparo" },
+   { "id": "6_3", "x": 6, "y": 3, "type": "rare", "cat": "utilidad" },
+   { "id": "6_5", "x": 6, "y": 5, "type": "rare", "cat": "utilidad" },
+   { "id": "3_3", "x": 3, "y": 3, "type": "socket", "cat": null },
+   { "id": "5_3", "x": 5, "y": 3, "type": "socket", "cat": null },
+   { "id": "3_5", "x": 3, "y": 5, "type": "socket", "cat": null },
+   { "id": "5_5", "x": 5, "y": 5, "type": "socket", "cat": null }
+  ],
+  "arquera": [
+   { "id": "4_4", "x": 4, "y": 4, "type": "start", "cat": null, "name": "Inicio" },
+   { "id": "4_3", "x": 4, "y": 3, "type": "minor", "cat": "ofensiva" },
+   { "id": "4_2", "x": 4, "y": 2, "type": "magic", "cat": "ofensiva" },
+   { "id": "4_1", "x": 4, "y": 1, "type": "minor", "cat": "ofensiva" },
+   { "id": "4_0", "x": 4, "y": 0, "type": "legendary", "cat": "ofensiva", "name": "Ojo del Halcón", "power": "furia" },
+   { "id": "3_2", "x": 3, "y": 2, "type": "rare", "cat": "ofensiva" },
+   { "id": "5_2", "x": 5, "y": 2, "type": "rare", "cat": "ofensiva" },
+   { "id": "4_5", "x": 4, "y": 5, "type": "minor", "cat": "sustento" },
+   { "id": "4_6", "x": 4, "y": 6, "type": "magic", "cat": "sustento" },
+   { "id": "4_7", "x": 4, "y": 7, "type": "minor", "cat": "sustento" },
+   { "id": "4_8", "x": 4, "y": 8, "type": "legendary", "cat": "sustento", "name": "Festín del Cazador", "power": "festin" },
+   { "id": "3_6", "x": 3, "y": 6, "type": "rare", "cat": "sustento" },
+   { "id": "5_6", "x": 5, "y": 6, "type": "rare", "cat": "sustento" },
+   { "id": "3_4", "x": 3, "y": 4, "type": "minor", "cat": "defensa" },
+   { "id": "2_4", "x": 2, "y": 4, "type": "magic", "cat": "defensa" },
+   { "id": "1_4", "x": 1, "y": 4, "type": "minor", "cat": "defensa" },
+   { "id": "0_4", "x": 0, "y": 4, "type": "legendary", "cat": "defensa", "name": "Reflejos Felinos", "power": "agil" },
+   { "id": "2_3", "x": 2, "y": 3, "type": "rare", "cat": "defensa" },
+   { "id": "2_5", "x": 2, "y": 5, "type": "rare", "cat": "defensa" },
+   { "id": "5_4", "x": 5, "y": 4, "type": "minor", "cat": "utilidad" },
+   { "id": "6_4", "x": 6, "y": 4, "type": "magic", "cat": "utilidad" },
+   { "id": "7_4", "x": 7, "y": 4, "type": "minor", "cat": "utilidad" },
+   { "id": "8_4", "x": 8, "y": 4, "type": "legendary", "cat": "utilidad", "name": "Lluvia de Flechas", "power": "multidisparo" },
+   { "id": "6_3", "x": 6, "y": 3, "type": "rare", "cat": "utilidad" },
+   { "id": "6_5", "x": 6, "y": 5, "type": "rare", "cat": "utilidad" },
+   { "id": "3_3", "x": 3, "y": 3, "type": "socket", "cat": null },
+   { "id": "5_3", "x": 5, "y": 3, "type": "socket", "cat": null },
+   { "id": "3_5", "x": 3, "y": 5, "type": "socket", "cat": null },
+   { "id": "5_5", "x": 5, "y": 5, "type": "socket", "cat": null }
+  ]
+ }
+}
