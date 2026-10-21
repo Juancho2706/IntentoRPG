@@ -909,8 +909,10 @@ export class UI {
   // Los números flotantes no suben por encima (nunca tapan la vida del jefe)
   updateTopBand() {
     let band = 0;
+    const newsIn = this._fitNews();
     for (const id of ['target-frame', 'hud-banner', 'hud-news']) {
       const el = $(id);
+      if (id === 'hud-news' && !newsIn) continue;
       if (el && !el.classList.contains('hidden') && (id !== 'hud-banner' || el.childElementCount)) band = Math.max(band, el.getBoundingClientRect().bottom);
     }
     if (document.body.classList.contains('paused')) { const pi = $('pause-indic'); if (pi) band = Math.max(band, pi.getBoundingClientRect().bottom); }
@@ -1022,6 +1024,8 @@ export class UI {
       nw.classList.remove('hidden');
       nw.innerHTML = `<span class="nw-ico"><img src="${HM.menuIcon('skills')}" alt=""></span><b>Nivel 18: 3 novedades</b><span class="nw-sub">Supernova: mejora Gravedad Solar · Bola de Fuego: elige una variante · +1 punto de talento de especialización</span><kbd>T</kbd>`;
     }
+    // con jefe y banner a la vez puede no caber: entonces espera (como en partida) y no se mide
+    this._fitNews();
     // derecha: zona, misión y contratos
     fill('hud-zone', 'Cripta de Hueso · Piso 12<small>Tormento III · <kbd>M</kbd> mapa</small>');
     const qt = $('quest-tracker');
@@ -1576,19 +1580,45 @@ export class UI {
     if (news.sub) { const s = document.createElement('span'); s.className = 'nw-sub'; s.textContent = news.sub; el.appendChild(s); }
     const k = document.createElement('kbd'); k.textContent = key; el.appendChild(k);
     el.title = `${news.items.map(i => i.text).join(' · ')}\nClic: ${target === 'book' ? 'abrir el libro' : target === 'board' ? 'abrir el tablero de glifos' : 'abrir los talentos'}`;
-    el.classList.remove('hidden', 'nw-in');
+    el.classList.remove('hidden', 'nw-in', 'nw-wait');
     void el.offsetWidth;                  // reinicia la entrada
     el.classList.add('nw-in');
     this._newsOn = true;
+    this._newsWait = false;
     $('spec-prompt')?.classList.add('hidden');
-    clearTimeout(this._newsT);
-    this._newsT = setTimeout(() => this.hideLevelNews(), NEWS_MS);
+    this._newsLeft = NEWS_MS;
+    this._armNews();
     this.updateTopBand();
+  }
+  _armNews() {
+    clearTimeout(this._newsT);
+    this._newsT0 = performance.now();
+    this._newsT = setTimeout(() => this.hideLevelNews(), this._newsLeft);
+  }
+  // la tarjeta va bajo el marco del objetivo y el banner: si con los dos (jefe + aviso, a
+  // 1366 × 768) pisaría la zona de combate, espera invisible (ocupa su sitio para medirla) y
+  // su tiempo se para; sale en cuanto vuelve a caber (2f §7.1: no tapar el combate)
+  _fitNews() {
+    const el = $('hud-news');
+    if (!el || el.classList.contains('hidden')) return false;
+    const L = this.hudLayout || HM.hudLayout(window.innerWidth, window.innerHeight, this.game.settings?.hudScale || 1);
+    const fits = el.getBoundingClientRect().bottom <= L.combat[1] + 0.5;
+    if (fits === !!el.classList.contains('nw-wait')) {
+      el.classList.toggle('nw-wait', !fits);
+      if (this._newsOn) {
+        this._newsWait = !fits;
+        if (!fits) { clearTimeout(this._newsT); this._newsLeft = Math.max(2500, this._newsLeft - (performance.now() - this._newsT0)); }
+        else this._armNews();
+      }
+    }
+    return fits;
   }
   hideLevelNews() {
     clearTimeout(this._newsT);
     $('hud-news')?.classList.add('hidden');
+    $('hud-news')?.classList.remove('nw-wait');
     this._newsOn = false;
+    this._newsWait = false;
     this._news = null;
   }
   openLevelNews() {

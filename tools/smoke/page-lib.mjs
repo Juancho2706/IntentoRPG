@@ -75,6 +75,9 @@ export function pageLib() {
   L.start = (cls, slot) => {
     const g = G();
     L.messages.length = 0;
+    // como el botón «Elegir» (ui.showClassSelect): sin esto la pantalla de selección (z 50) queda
+    // encima de los paneles (z 30) y los clics del humo caen en ella
+    document.getElementById('class-select')?.classList.add('hidden');
     g.startGame(cls, {}, slot);
     return { state: g.state, cls: g.player?.classId, level: g.player?.level, hud: L.hudVisible(), hotbar: { ...(g.player?.hotbar || {}) } };
   };

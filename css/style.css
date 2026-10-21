@@ -2265,6 +2265,8 @@ body.hudcheck #hud-combat-zone { position: fixed; z-index: 9; pointer-events: no
   background: linear-gradient(180deg, rgba(38,29,15,0.97), rgba(19,14,9,0.97)); border: 1px solid #c8a050; color: #f5e6c0;
   font: 500 13.5px Inter, system-ui, sans-serif; box-shadow: 0 0 16px rgba(232,192,106,0.32), 0 4px 12px #000a; }
 #hud-news.hidden { display: none !important; }
+/* esperando sitio (jefe + banner a 1366 × 768): invisible pero en su hueco, para medir si ya cabe */
+#hud-news.nw-wait { visibility: hidden; pointer-events: none; animation: none; }
 #hud-news:hover, #hud-news:focus-visible { border-color: #ffe7a8; outline: none; }
 #hud-news .nw-ico { position: relative; flex: none; width: 32px; height: 32px; border-radius: 7px; overflow: hidden; background: #0d0b10;
   box-shadow: inset 0 0 0 1px #6b5a3a; display: grid; place-items: center; font-size: 18px; }
