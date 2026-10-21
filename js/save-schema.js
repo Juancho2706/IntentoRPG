@@ -171,9 +171,11 @@ const v4Sockets = sk => (sk?.cat === 'basic' || sk?.cat === 'ultimate' ? 1 : 2);
 // ------------------------------------------------------------ v4 → v5 (Paso 2g, §3.11)
 // tablas por clase (save-legacy-<clase>.js; las escribe KA desde catalog-v4.json)
 export const LEGACY_TABLES = { maga: MAGA_LEGACY, guerrero: GUERRERO_LEGACY, arquera: ARQUERA_LEGACY };
-// contexto de la migración (los tests inyectan tablas y barras de prueba)
+// contexto de la migración (los tests inyectan tablas y barras de prueba). forgedDef(hero, sk)
+// = definición forjada (la de skill-resolve cuando exista; sin ella, la base)
 export function migrationCtx(over = {}) {
-  return { legacy: LEGACY_TABLES, specBar: SPEC_BAR, fallbackBar: FALLBACK_BAR, canAddMaterial, ...over };
+  return { legacy: LEGACY_TABLES, specBar: SPEC_BAR, fallbackBar: FALLBACK_BAR, canAddMaterial,
+    forgedDef: typeof SR.forgedDef === 'function' ? SR.forgedDef : null, ...over };
 }
 const BAR_SLOTS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
 const FORGE_VALUES = ['i', 'ii', null];
@@ -186,7 +188,9 @@ export function legacyTarget(entry, slot, spec, oldId) {
   return oldId;
 }
 
-export function migrateV4toV5(d, ctx = migrationCtx()) {
+// `over`: partes del contexto que se sustituyen (lo que falte sale de migrationCtx())
+export function migrateV4toV5(d, over = {}) {
+  const ctx = migrationCtx(over);
   const classId = d.classId;
   const legacy = ctx.legacy?.[classId] || {};
   const cls = CLASSES[classId];
@@ -197,6 +201,9 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
   d.xp = Math.max(0, Math.min(Number(d.xp) || 0, xpForLevel(LEVEL_MAX)));
   const L = d.level;
   const oldBar = d.hotbar && typeof d.hotbar === 'object' ? { ...d.hotbar } : {};
+  // un save v4 siempre trae estos campos (MIGRATIONS[2]); sin ellos es una segunda pasada:
+  // la barra ya tiene ids nuevos y legacy.bar (ids v4) no se le vuelve a aplicar
+  const fromV4 = ['skillMods', 'skillBranches', 'skillPoints'].some(k => Object.hasOwn(d, k));
   // 3) talentos: v2 vacío con la misma especialización y el Recomendado vigente al nivel del
   //    save (incluye el árbol héroe si el Paragon se abre). Va antes que la barra: decide qué
   //    activas de talento se conocen. Un save que ya trae v2 solo se normaliza.
@@ -204,9 +211,9 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
   let talents;
   if (oldT?.v === 2) talents = normalizeTalents(oldT, classId);
   else {
-    const spec = findSpec(classId, oldT?.spec) ? oldT.spec : null;
+    const spec = L >= specAt && findSpec(classId, oldT?.spec) ? oldT.spec : null;
     const t = { v: 2, spec, cls: {}, sp: {}, choice: {}, hero: {}, loadouts: {} };
-    const key = spec && L >= specAt ? defaultBuildKey(classId, spec) : null;
+    const key = spec ? defaultBuildKey(classId, spec) : null;
     if (key) {
       const r = buildRanks({ classId, level: L, talents: t }, talentTreesFor(classId).builds[key], { level: L });
       t.cls = r.cls; t.sp = r.sp; t.choice = r.choice;
@@ -219,7 +226,8 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
   // 2) forja: la opción de la 3.ª rama de v4 → variante (legacy.forge) y las absorciones de la
   //    barra (legacy.bar[*].forge). Si dos fuentes eligen variante para la misma habilidad,
   //    gana la de la ranura con más prioridad y, fuera de la barra, la propia antes que una
-  //    absorbida. Sin skillMods (segunda pasada) la forja no se toca.
+  //    absorbida; en la misma ranura, la rama elegida (skillMods) antes que la absorción por
+  //    defecto de legacy.bar. Sin skillMods (segunda pasada) la forja no se toca.
   const forge = d.skillForge && typeof d.skillForge === 'object' ? { ...d.skillForge } : {};
   if (d.skillMods && typeof d.skillMods === 'object') {
     const sources = [];
@@ -232,16 +240,16 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
       for (const opt of Object.values(chosen)) {
         if (typeof opt !== 'string' || !Object.hasOwn(map, opt) || !FORGE_VALUES.includes(map[opt])) continue;
         const i = slotIdx(skId);
-        sources.push({ target: absorbed ? entry.to : skId, variant: map[opt], rank: i >= 0 ? i : BAR_SLOTS.length + (absorbed ? 1 : 0), own: absorbed ? 0 : 1, mods: 1 });
+        sources.push({ target: absorbed ? entry.to : skId, variant: map[opt], rank: i >= 0 ? i : BAR_SLOTS.length + (absorbed ? 1 : 0), mods: 1 });
       }
     }
     BAR_SLOTS.forEach((slot, i) => {
       const id = oldBar[slot], e = id && legacy.bar?.[id];
       if (!e || !Object.hasOwn(e, 'forge') || !FORGE_VALUES.includes(e.forge)) return;
       const target = legacyTarget(e, slot, spec, id);
-      if (target) sources.push({ target, variant: e.forge, rank: i, own: 0, mods: 0 });
+      if (target) sources.push({ target, variant: e.forge, rank: i, mods: 0 });
     });
-    sources.sort((a, b) => a.rank - b.rank || b.own - a.own || b.mods - a.mods);
+    sources.sort((a, b) => a.rank - b.rank || b.mods - a.mods);
     const fixed = new Set();
     for (const s of sources) { if (fixed.has(s.target)) continue; fixed.add(s.target); forge[s.target] = s.variant; }
   }
@@ -260,7 +268,9 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
   // 5) barra: cada ranura por legacy.bar; el destino debe caber en la ranura (fitsSlot), no
   //    repetirse (gana la primera ranura) y conocerse con los talentos nuevos (las activas de
   //    talento salen salvo que el Recomendado las conceda; el kit, solo de su especialización).
-  //    Si no vale: SPEC_BAR de la especialización y después FALLBACK_BAR. lmb nunca vacía.
+  //    Si no vale: SPEC_BAR de la especialización y después FALLBACK_BAR. Una ranura vacía (o
+  //    vaciada con to: null) sigue vacía —así una segunda pasada da lo mismo—, salvo lmb, que
+  //    nunca queda vacía.
   const hero = { classId, level: L, talents, skillForge: forge, cls, forged: {} };
   hero.talentAgg = aggregateTalents(hero);
   const known = sk => SR.isKnown(hero, sk) && (!sk.spec || (sk.spec === spec && L >= specAt));
@@ -268,8 +278,8 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
   const usable = (id, slot) => { const sk = skillOf(id); return !!sk && SR.fitsSlot(sk, slot) && known(sk) && !Object.values(hb).includes(id); };
   for (const slot of BAR_SLOTS) {
     const old = oldBar[slot];
-    const mapped = old ? legacyTarget(legacy.bar?.[old], slot, spec, old) : null;
-    if (old && mapped === null) { hb[slot] = null; continue; }                // to: null = vaciar
+    const mapped = !old ? null : fromV4 ? legacyTarget(legacy.bar?.[old], slot, spec, old) : old;
+    if (slot !== 'lmb' && (!old || mapped === null)) { hb[slot] = null; continue; }
     const cands = [mapped, spec ? ctx.specBar?.[spec]?.bar?.[slot] : null, ctx.fallbackBar?.[classId]?.[slot]];
     hb[slot] = cands.find(id => id && usable(id, slot)) || null;
   }
@@ -285,7 +295,7 @@ export function migrateV4toV5(d, ctx = migrationCtx()) {
     for (const id of ids) if (!knownSup.includes(id)) knownSup.push(id);
     const sk = !removed.has(skId) ? skillOf(skId) : null;
     if (!sk) continue;
-    const def = typeof SR.forgedDef === 'function' ? (SR.forgedDef(hero, sk) || sk) : sk;
+    const def = (typeof ctx.forgedDef === 'function' && ctx.forgedDef(hero, sk)) || sk;
     const ok = [];
     for (const id of ids) {
       const sup = SUPPORTS.find(s => s.id === id);
