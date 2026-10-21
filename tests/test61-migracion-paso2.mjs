@@ -1,41 +1,54 @@
-// Paso 2b.0 — migración de guardado v2→v3 (MIGRATIONS[2], docs/paso2-diseno.md §8)
-// Paso 2c.0 — migración v3→v4 (MIGRATIONS[3]): maestría → talentos (al final)
-// Saves v0, v1 y v2 de las TRES clases con rangos, ramas, maestría y soportes:
-//  - suma de puntos correcta (puntos libres + ramas conservadas = puntos de Nv2–20)
-//  - las ramas de habilidades eliminadas (pasivas g_p_*/m_p_arcano/a_p_punteria) se descartan
-//  - hotbar sin ids huérfanos, cada habilidad en una ranura de su categoría, sin duplicados
-//  - reglas de la barra: rmb = 1.ª gastadora vieja · k1 = movilidad · k2 = utilidad o
-//    2.ª gastadora vieja · k4 = definitiva vieja · k3 vacía
-//  - soportes incompatibles por tags se desengarzan (siguen en knownSupports)
-//  - migrar dos veces da lo mismo; un save del Paso 0 (v4 de habilidades) entra sin
-//    reembolsos dobles
+// Cadena de migraciones del guardado hasta v5 (docs/paso2-implementacion.md §3.11)
+//  · MIGRATIONS[2] (v2→v3, Paso 2b) y [3] (v3→v4, Paso 2c.0) CONGELADAS (D16): su salida se
+//    comprueba contra el catálogo v4 copiado (tests/fixtures/catalog-v4.json) y NO cambia
+//    aunque cambie el catálogo vivo (se vacía CLASSES/SUPPORTS y se repite)
+//    - puntos libres + ramas conservadas = puntos de Nv2–20; ramas de pasivas eliminadas fuera
+//    - barra v3: rmb = 1.ª gastadora vieja · k1 = movilidad · k2 = utilidad o 2.ª gastadora ·
+//      k4 = definitiva vieja; en v4, k3 = la insignia v4 de la especialización
+//    - soportes incompatibles por tags (v4) se desengarzan (siguen en knownSupports)
+//  · la cadena completa v0/v1/v2/Paso 0 → v5 y v3 → v5 (saves reales del Paso 2b): sin
+//    puntos ni ramas, talentos v2 con la especialización, barra válida, idempotente, carga
 import assert from 'node:assert/strict';
-import { CLASSES, SKILL_MODS } from '../js/data.js';
-import { migrateSave, SAVE_VERSION, MIGRATIONS, REMOVED_SKILLS_V3, LOAD_NOTICES, PLAYER_SAVE_FIELDS } from '../js/save-schema.js';
 import { readFileSync } from 'node:fs';
-import { specInsignia, talentPointsLeft, aggregateTalents } from '../js/talents.js';
+import { CLASSES, SUPPORTS } from '../js/data.js';
+import { migrateSave, SAVE_VERSION, MIGRATIONS, REMOVED_SKILLS_V3, LOAD_NOTICES, PLAYER_SAVE_FIELDS, V4_INSIGNIA } from '../js/save-schema.js';
+import { talentPointsLeft, aggregateTalents } from '../js/talents.js';
 import { skillSlots, supportFits } from '../js/skill-defs.js';
-import { SUPPORTS } from '../js/data.js';
+import { fitsSlot, isKnown } from '../js/skill-resolve.js';
 import { Player } from '../js/entities.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 const mk = () => ({ ui: { spawnText() {}, message() {} }, sfx() {}, world: null, enemies: [], projectiles: [], input: { joyDir: null, keyDir: null } });
 const json = o => JSON.parse(JSON.stringify(o));
-assert.equal(SAVE_VERSION, 4);
-// la cadena de migraciones hasta una versión concreta (para comprobar el v3 intermedio)
+const CAT4 = JSON.parse(readFileSync(new URL('./fixtures/catalog-v4.json', import.meta.url), 'utf8'));
+assert.equal(SAVE_VERSION, 5);
+// la cadena de migraciones hasta una versión concreta (para comprobar los intermedios)
 function migrateTo(data, target) {
   let d = json(data), v = Number.isInteger(d.saveVersion) ? d.saveVersion : 0;
   while (v < target) { d = MIGRATIONS[v](d) || d; v++; d.saveVersion = v; }
   return d;
 }
+// el catálogo vivo vaciado: las migraciones congeladas deben dar lo mismo
+function withoutLiveCatalog(fn) {
+  const saved = Object.fromEntries(Object.entries(CLASSES).map(([k, c]) => [k, c.skills]));
+  const sup = SUPPORTS.splice(0, SUPPORTS.length);
+  try { for (const c of Object.values(CLASSES)) c.skills = []; return fn(); }
+  finally { for (const [k, s] of Object.entries(saved)) CLASSES[k].skills = s; SUPPORTS.push(...sup); }
+}
 
-const firstBranch = id => SKILL_MODS[id]?.[0]?.id;
-function checkHotbar(cid, hb, level, k3 = null) {
-  const cls = CLASSES[cid];
+// ------------------------------------------------ catálogo v4 congelado
+const skills4 = cid => CAT4.classes[cid].skills;
+const skill4 = (cid, id) => skills4(cid).find(s => s.id === id);
+const firstBranch = (cid, id) => CAT4.classes[cid].mods?.[id]?.[0]?.id;
+for (const cid of ['guerrero', 'maga', 'arquera'])
+  for (const [spec, s] of Object.entries(CAT4.classes[cid].specs)) assert.equal(V4_INSIGNIA[cid][spec], s.insignia, `V4_INSIGNIA ${cid}/${spec} = catalog-v4`);
+
+// barra según el catálogo v4 (intermedios v3/v4)
+function checkHotbarV4(cid, hb, level, k3 = null) {
   const seen = new Set();
   for (const [slot, id] of Object.entries(hb)) {
     if (!id) continue;
-    const sk = cls.skills.find(s => s.id === id);
+    const sk = skill4(cid, id) || Object.values(CAT4.classes[cid].specs).some(s => s.insignia === id) && { slots: ['k3'], req: 10 };
     assert.ok(sk, `${cid}: id huérfano en la barra ${slot}=${id}`);
     assert.ok(skillSlots(sk).includes(slot), `${cid}: ${id} no va en ${slot}`);
     assert.ok((sk.req || 1) <= level, `${cid}: ${id} aún no se conoce a Nv${level}`);
@@ -45,6 +58,29 @@ function checkHotbar(cid, hb, level, k3 = null) {
   assert.ok(hb.lmb, `${cid}: 🖱️Izq nunca vacía`);
   assert.equal(hb.k3, k3, k3 ? 'k3 = la insignia de la especialización (v4)' : 'k3 vacía hasta elegir especialización');
 }
+// barra v5 según el catálogo VIVO y los talentos nuevos
+function checkHotbarV5(d, what) {
+  const cls = CLASSES[d.classId];
+  const hero = { classId: d.classId, level: d.level, talents: d.talents, skillForge: d.skillForge };
+  hero.talentAgg = aggregateTalents(hero);
+  const ids = Object.values(d.hotbar).filter(Boolean);
+  assert.equal(new Set(ids).size, ids.length, `${what}: sin duplicados`);
+  assert.ok(d.hotbar.lmb, `${what}: lmb`);
+  for (const [slot, id] of Object.entries(d.hotbar)) {
+    if (!id) continue;
+    const sk = cls.skills.find(s => s.id === id);
+    assert.ok(sk && fitsSlot(sk, slot) && isKnown(hero, sk), `${what}: ${slot}=${id} válida`);
+  }
+}
+const checkV5 = (d, what) => {
+  assert.equal(d.saveVersion, 5, what);
+  for (const k of ['skillPoints', 'skillBranches', 'skillMods', 'mastery', 'skills']) assert.ok(!(k in d), `${what}: sin ${k}`);
+  assert.equal(d.talents.v, 2, `${what}: talentos v2`);
+  assert.equal(typeof d.skillForge, 'object');
+  assert.ok(d.paragon && !('points' in d.paragon) && Object.keys(d.paragon.nodes).length === 0, `${what}: tablero sin nodos ni puntos`);
+  checkHotbarV5(d, what);
+  assert.deepEqual(migrateSave(d), d, `${what}: migrar dos veces da lo mismo`);
+};
 
 // fixtures por clase: la barra vieja "libre" con dos gastadoras, una movilidad/utilidad y la definitiva
 const FIX = {
@@ -57,139 +93,133 @@ const FIX = {
 };
 
 for (const [cid, f] of Object.entries(FIX)) {
-  const cls = CLASSES[cid];
-  const weapon = cls.skills.find(s => s.cat === 'basic' && s.type === 'weapon').id;
+  const weapon = CAT4.classes[cid].weaponBasic;
   const earned = Math.min(f.level, 20) - 1;
   const oldBar = { lmb: weapon, rmb: f.sp1, k1: f.sp2, k2: f.mv || f.ult, k3: f.ut, k4: f.ult };
-  const branches = { [f.sp1]: { [firstBranch(f.sp1)]: true }, [f.sp2]: { [firstBranch(f.sp2)]: true, [`${f.sp2}_v`]: true },
+  const branches = { [f.sp1]: { [firstBranch(cid, f.sp1)]: true }, [f.sp2]: { [firstBranch(cid, f.sp2)]: true, [`${f.sp2}_v`]: true },
     [f.passive]: { [`${f.passive}_o`]: true } };           // rama de una pasiva eliminada
-  const mods = { [f.sp1]: { [firstBranch(f.sp1)]: `${firstBranch(f.sp1)}1` } };
+  const mods = { [f.sp1]: { [firstBranch(cid, f.sp1)]: `${firstBranch(cid, f.sp1)}1` } };
   const skills = { [weapon]: 1, [f.sp1]: 4, [f.sp2]: 3, [f.ult]: 1, [f.passive]: 2 };
-  const base = { classId: cid, level: f.level, xp: 10, attributes: { ...cls.base }, gold: 100, hotbar: oldBar,
+  const base = { classId: cid, level: f.level, xp: 10, attributes: { ...CLASSES[cid].base }, gold: 100, hotbar: oldBar,
     skills, skillBranches: branches, skillMods: mods, supports: f.supports, knownSupports: ['multi', 'amplify', 'wide', 'pierce'],
     mastery: { id: f.mastery, nodes: {}, points: 2 } };
   const keptBranches = 3; // sp1 (1) + sp2 (2); la de la pasiva se devuelve
+  const ins = V4_INSIGNIA[cid][f.mastery];
 
-  // ---- v2 (Paso 1A) con el sistema de habilidades v4 ----
+  // ---- v2 (Paso 1A) con el sistema de habilidades v4 → v3 (Paso 2b) ----
   const v2 = { ...json(base), saveVersion: 2, skillSystemV: 4, skillPoints: earned - (4 + 3 + 1 + 2 - 1) - 4 };
-  const m2 = migrateTo(v2, 3);                               // el v3 intermedio (Paso 2b)
-  assert.equal(m2.saveVersion, 3); assert.equal(m2.skillSystemV, 5);
-  assert.equal(m2.skills, undefined, 'skills ya no se persiste');
-  assert.equal(m2.skillPoints + keptBranches, earned, `${cid} v2: puntos libres + ramas = ${earned} (dio ${m2.skillPoints} + ${keptBranches})`);
-  assert.ok(!m2.skillBranches[f.passive], `${cid}: la rama de ${f.passive} se descarta`);
+  const m3 = migrateTo(v2, 3);
+  assert.equal(m3.saveVersion, 3); assert.equal(m3.skillSystemV, 5);
+  assert.equal(m3.skills, undefined, 'skills ya no se persiste');
+  assert.equal(m3.skillPoints + keptBranches, earned, `${cid} v2: puntos libres + ramas = ${earned}`);
+  assert.ok(!m3.skillBranches[f.passive], `${cid}: la rama de ${f.passive} se descarta`);
   assert.ok(REMOVED_SKILLS_V3.includes(f.passive));
-  assert.equal(Object.keys(m2.skillBranches[f.sp2]).length, 2, 'las ramas válidas se conservan');
-  assert.deepEqual(m2.skillMods, mods, 'la opción elegida de una rama conservada se mantiene');
-  checkHotbar(cid, m2.hotbar, f.level);
-  assert.equal(m2.hotbar.rmb, f.sp1, 'rmb = primera gastadora de la barra vieja');
-  assert.equal(m2.hotbar.k4, f.ult, 'k4 = la definitiva vieja');
-  if (f.mv) assert.equal(m2.hotbar.k1, f.mv, 'k1 = la movilidad que había');
-  if (f.ut) assert.equal(m2.hotbar.k2, f.ut, 'k2 = la utilidad que había');
-  else assert.equal(m2.hotbar.k2, f.sp2, 'k2 = la SEGUNDA gastadora vieja (respeta a quien jugaba con dos)');
-  // soportes por tags: los incompatibles se desengarzan; los de habilidades eliminadas también
-  for (const [skId, list] of Object.entries(m2.supports)) {
-    const sk = cls.skills.find(s => s.id === skId);
+  assert.equal(Object.keys(m3.skillBranches[f.sp2]).length, 2, 'las ramas válidas se conservan');
+  assert.deepEqual(m3.skillMods, mods, 'la opción elegida de una rama conservada se mantiene (en bruto, para MIGRATIONS[4])');
+  checkHotbarV4(cid, m3.hotbar, f.level);
+  assert.equal(m3.hotbar.rmb, f.sp1, 'rmb = primera gastadora de la barra vieja');
+  assert.equal(m3.hotbar.k4, f.ult, 'k4 = la definitiva vieja');
+  if (f.mv) assert.equal(m3.hotbar.k1, f.mv, 'k1 = la movilidad que había');
+  if (f.ut) assert.equal(m3.hotbar.k2, f.ut, 'k2 = la utilidad que había');
+  else assert.equal(m3.hotbar.k2, f.sp2, 'k2 = la SEGUNDA gastadora vieja');
+  const sups4 = CAT4.supports;
+  for (const [skId, list] of Object.entries(m3.supports)) {
+    const sk = skill4(cid, skId);
     assert.ok(sk, `${cid}: soporte en habilidad inexistente ${skId}`);
-    for (const id of list) assert.ok(supportFits(SUPPORTS.find(s => s.id === id), sk), `${cid}: ${id} no encaja en ${skId}`);
+    for (const id of list) assert.ok(supportFits(sups4.find(s => s.id === id), sk), `${cid}: ${id} no encaja en ${skId} (v4)`);
     assert.ok(list.length <= (sk.cat === 'ultimate' || sk.cat === 'basic' ? 1 : 2));
   }
-  assert.ok(!m2.supports[f.passive], 'soportes de habilidades eliminadas fuera');
-  assert.deepEqual(m2.knownSupports, base.knownSupports, 'siguen aprendidos');
-  // idempotencia: MIGRATIONS[2] otra vez da lo mismo
-  assert.deepEqual(MIGRATIONS[2](json(m2)), m2, 'MIGRATIONS[2] es idempotente');
-  assert.equal(m2.mastery.id, f.mastery, 'en v3 la maestría sigue ahí');
-  // v4 (Paso 2c.0): la maestría pasa a ser la especialización; k3 = su insignia
-  const m4 = migrateSave(v2);
-  assert.equal(m4.saveVersion, 4);
+  assert.ok(!m3.supports[f.passive], 'soportes de habilidades eliminadas fuera');
+  assert.deepEqual(m3.knownSupports, base.knownSupports, 'siguen aprendidos');
+  assert.deepEqual(MIGRATIONS[2](json(m3)), m3, 'MIGRATIONS[2] es idempotente');
+  assert.equal(m3.mastery.id, f.mastery, 'en v3 la maestría sigue ahí');
+
+  // ---- v3 → v4 (Paso 2c.0): maestría → especialización; k3 = la insignia v4 ----
+  const m4 = migrateTo(v2, 4);
   assert.equal(m4.mastery, undefined, 'mastery fuera del guardado');
-  assert.equal(m4.talents.spec, f.mastery, 'la maestría es ahora la especialización');
-  const ins = specInsignia(cid, f.mastery);
-  checkHotbar(cid, m4.hotbar, f.level, ins);
-  assert.deepEqual(migrateSave(m4), m4, 'migrar dos veces da lo mismo');
-  // el héroe carga y su barra es válida
-  const hero = new Player(mk(), cid, json(m4));
-  checkHotbar(cid, hero.hotbar, f.level, ins);
-  assert.equal(hero.skillPoints, m2.skillPoints);
-  assert.ok(hero.skills[f.sp1] > 0 && hero.skills[weapon] > 0, 'habilidades conocidas por nivel');
-  assert.equal(hero.talents.spec, f.mastery, 'la especialización llega al héroe');
-  assert.ok(hero.skills[ins] > 0, 'conoce la insignia (nodo clave gratis)');
+  assert.deepEqual(m4.talents, { v: 1, spec: f.mastery, cls: {}, sp: Object.fromEntries(Object.keys(CAT4.classes[cid].specs).map(s => [s, {}])), choice: {} }, 'talentos v1 escritos tal cual');
+  checkHotbarV4(cid, m4.hotbar, f.level, ins);
+  assert.deepEqual(m4.notices, ['talentos']);
 
-  // ---- v1 (Paso 1B): misma build, pasa por v1→v2→v3 ----
+  // ---- congeladas: sin catálogo vivo, la misma salida (v0, v1, v2 y Paso 0) ----
   const v1 = { ...json(base), saveVersion: 1, skillSystemV: 4, skillPoints: 0 };
-  const m1 = migrateSave(v1);
-  assert.equal(m1.skillPoints + keptBranches, earned, `${cid} v1: puntos coherentes`);
-  checkHotbar(cid, m1.hotbar, f.level, ins);
-
-  // ---- v0 (sin versión, sistema de habilidades previo al v4): v0 reembolsa y v3 recalcula ----
   const v0 = { ...json(base), skillSystemV: 3, skillPoints: 2 };
-  const m0 = migrateSave(v0);
-  assert.equal(m0.skillPoints, earned, `${cid} v0: todas las ramas se reembolsaron en v0 → ${earned} puntos`);
-  assert.deepEqual(m0.skillBranches, {});
-  checkHotbar(cid, m0.hotbar, f.level, ins);
-
-  // ---- Paso 0 (habilidades v4 SIN saveVersion): sin reembolso doble ----
   const p0 = { ...json(base), skillSystemV: 4, skillPoints: 1 };
-  const mp0 = migrateSave(p0);
-  assert.equal(mp0.skillPoints + keptBranches, earned, `${cid} Paso 0: sin reembolso doble`);
-  console.log(`${cls.name}: v0/v1/v2/Paso 0 → v3 (puntos, ramas, barra con categorías, soportes por tags) → v4 (especialización) ✓`);
+  const live = [v2, v1, v0, p0].map(s => migrateTo(s, 4));
+  const frozen = withoutLiveCatalog(() => [v2, v1, v0, p0].map(s => migrateTo(s, 4)));
+  assert.deepEqual(frozen, live, `${cid}: MIGRATIONS[0]–[3] no leen el catálogo vivo (D16)`);
+  assert.equal(live[1].skillPoints + keptBranches, earned, `${cid} v1: puntos coherentes`);
+  assert.equal(live[2].skillPoints, earned, `${cid} v0: todas las ramas se reembolsaron en v0`);
+  assert.deepEqual(live[2].skillBranches, {});
+  assert.equal(live[3].skillPoints + keptBranches, earned, `${cid} Paso 0: sin reembolso doble`);
+  for (const m of live) checkHotbarV4(cid, m.hotbar, f.level, ins);
+
+  // ---- toda la cadena hasta v5 ----
+  for (const [name, s] of [['v2', v2], ['v1', v1], ['v0', v0], ['Paso 0', p0]]) {
+    const m5 = migrateSave(s);
+    checkV5(m5, `${cid} ${name}`);
+    assert.equal(m5.talents.spec, f.mastery, `${cid} ${name}: la maestría sigue siendo la especialización`);
+    assert.ok(m5.notices.includes('talentos') && m5.notices.includes('paso2') && m5.notices.includes(`paso2-${cid}`), `${cid} ${name}: avisos`);
+  }
+  // el héroe carga y guarda lo mismo dos veces
+  const hero = new Player(mk(), cid, json(v2));
+  assert.equal(hero.talents.spec, f.mastery, 'la especialización llega al héroe');
+  assert.ok(hero.skills[f.sp1] > 0 && hero.skills[weapon] > 0, 'habilidades conocidas por nivel');
+  const s1 = json(hero.toSaveData());
+  assert.deepEqual(json(new Player(mk(), cid, json(s1)).toSaveData()), s1, `${cid}: recargar dos veces da el mismo guardado`);
+  console.log(`${CLASSES[cid].name}: v0/v1/v2/Paso 0 → v3 → v4 congeladas (catálogo v4) → v5 ✓`);
 }
 
-// hotbar a nivel bajo: sin movilidad/defensa antes de su nivel; sin gastadora vieja → la A
+// barra a nivel bajo (v3 congelada): sin movilidad/defensa antes de su nivel; sin gastadora vieja → la A
 {
   const lowSave = { classId: 'guerrero', level: 3, saveVersion: 2, skillSystemV: 4, hotbar: { lmb: 'basic', rmb: null }, skills: { g_tajo: 1 } };
-  const m = migrateSave(lowSave);
+  const m = migrateTo(lowSave, 4);
   assert.equal(m.hotbar.lmb, 'g_tajo', 'literal viejo basic → básico de arma');
   assert.equal(m.hotbar.rmb, 'torbellino', 'sin gastadora vieja: la gastadora A (Nv2)');
   assert.equal(m.hotbar.k1, null, 'movilidad solo desde Nv4');
   assert.equal(m.skillPoints, 2);
+  checkV5(migrateSave(lowSave), 'Nv3');
   console.log('Barra a nivel bajo: gastadora A, sin movilidad antes de Nv4 ✓');
 }
 
-// ------------------------------------------------ v3 → v4 con saves REALES del Paso 2b
+// ------------------------------------------------ v3 → v4 → v5 con saves REALES del Paso 2b
 // tests/fixtures/saves-v3-paso2b.json: Player.toSaveData() del código de 1717389
-// (antes del Paso 2c.0) para las 3 clases, con maestría (con nodos y puntos) y sin ella
 {
   const FX = JSON.parse(readFileSync(new URL('./fixtures/saves-v3-paso2b.json', import.meta.url), 'utf8'));
   assert.ok(Object.keys(FX).length >= 6);
   for (const [name, save] of Object.entries(FX)) {
     assert.equal(save.saveVersion, 3, `${name}: fixture v3`);
     assert.ok(save.mastery && !('talents' in save), `${name}: fixture con el formato viejo`);
-    const m = migrateSave(save);
     const cid = save.classId, mid = save.mastery.id;
-    assert.equal(m.saveVersion, 4);
-    assert.ok(!('mastery' in m), `${name}: sin mastery`);
-    assert.equal(m.talents.spec, mid || null, `${name}: especialización = maestría vieja`);
-    assert.deepEqual(m.talents.cls, {}, `${name}: los puntos se calculan (no se convierten)`);
-    for (const r of Object.values(m.talents.sp)) assert.deepEqual(r, {}, `${name}: sin rangos de especialización`);
+    const m4 = migrateTo(save, 4);
+    assert.ok(!('mastery' in m4), `${name}: sin mastery`);
+    assert.equal(m4.talents.spec, mid || null, `${name}: especialización = maestría vieja`);
+    assert.deepEqual(m4.talents.cls, {}, `${name}: los puntos se calculan (no se convierten)`);
     if (mid && save.level >= 10) {
-      assert.equal(m.hotbar.k3, specInsignia(cid, mid), `${name}: k3 = insignia`);
-      assert.deepEqual(m.notices, ['talentos'], `${name}: aviso de la migración`);
+      assert.equal(m4.hotbar.k3, V4_INSIGNIA[cid][mid], `${name}: k3 = insignia`);
+      assert.deepEqual(m4.notices, ['talentos'], `${name}: aviso de la migración`);
       assert.ok(LOAD_NOTICES.talentos.includes('talentos'));
     } else {
-      assert.equal(m.hotbar.k3, null, `${name}: sin especialización, k3 vacía`);
-      assert.ok(!m.notices?.length, `${name}: sin aviso si no tenía maestría`);
+      assert.equal(m4.hotbar.k3, null, `${name}: sin especialización, k3 vacía`);
+      assert.ok(!m4.notices?.length, `${name}: sin aviso si no tenía maestría`);
     }
-    // idempotente y estable al recargar: el héroe guarda lo mismo dos veces
-    assert.deepEqual(migrateSave(m), m, `${name}: migrar dos veces da lo mismo`);
-    assert.deepEqual(MIGRATIONS[3](json(m)), m, `${name}: MIGRATIONS[3] es idempotente`);
-    const hero = new Player(mk(), cid, json(m));
+    assert.deepEqual(MIGRATIONS[3](json(m4)), m4, `${name}: MIGRATIONS[3] es idempotente`);
+    assert.deepEqual(withoutLiveCatalog(() => migrateTo(save, 4)), m4, `${name}: [3] congelada`);
+    // hasta v5
+    const m5 = migrateSave(save);
+    checkV5(m5, name);
+    assert.equal(m5.talents.spec, mid && save.level >= 10 ? mid : null, `${name}: especialización en v5`);
+    const hero = new Player(mk(), cid, json(m5));
     assert.equal(hero.mastery, undefined);
-    assert.equal(hero.talents.spec, mid || null);
     assert.ok(talentPointsLeft(hero, 'cls') >= 0 && talentPointsLeft(hero, 'spec') >= 0);
-    if (mid && save.level >= 10) {
-      assert.ok(hero.talentAgg.grants.has(specInsignia(cid, mid)), `${name}: la insignia está concedida`);
-      assert.ok(hero.powers.has(`gauge_${hero.talentAgg.mechanic}`), `${name}: su indicador está activo`);
-      assert.equal(hero.hotbar.k3, specInsignia(cid, mid));
-    }
     assert.equal(hero.gold, save.gold, `${name}: el resto del héroe intacto`);
     assert.equal(hero.level, save.level);
     const s1 = json(hero.toSaveData());
     for (const k of PLAYER_SAVE_FIELDS) assert.ok(k in s1, `${name}: falta ${k}`);
-    assert.ok(!('mastery' in s1) && 'talents' in s1);
     const again = json(new Player(mk(), cid, json(s1)).toSaveData());
     assert.deepEqual(again, s1, `${name}: recargar dos veces da el mismo guardado`);
     assert.deepEqual(aggregateTalents(hero).grants, hero.talentAgg.grants);
   }
-  console.log(`v3 → v4 con ${Object.keys(FX).length} saves reales del Paso 2b: maestría → especialización, k3 = insignia, aviso, idempotente ✓`);
+  console.log(`v3 → v4 → v5 con ${Object.keys(FX).length} saves reales del Paso 2b: congeladas, especialización, aviso, idempotente ✓`);
 }
-console.log('\n✅ MIGRACIÓN DE GUARDADO v3 (Paso 2b) y v4 (Paso 2c.0) OK');
+console.log('\n✅ CADENA DE MIGRACIONES HASTA v5 (congeladas [0]–[3]) OK');

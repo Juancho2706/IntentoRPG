@@ -416,7 +416,10 @@ console.log('aggregateTalents: selectores §3.8, elemento forjado, finales con r
 // ------------------------------------------------ 9) normalizeTalents v2
 {
   const v1 = T.normalizeTalents({ v: 1, spec: 'piromante', cls: { c1: 2 }, sp: { piromante: { s1: 3 } }, choice: { c5: 'A' } }, 'maga');
-  assert.deepEqual({ ...v1 }, { v: 2, spec: null, cls: {}, sp: {}, choice: {}, hero: {}, loadouts: {} }, 'un v1 vuelve vacío (lo rehace MIGRATIONS[4])');
+  const empty = { v: 2, spec: null, cls: {}, sp: { piromante: {}, crionte: {}, arcanista: {} }, choice: {}, hero: {}, loadouts: {} };
+  assert.deepEqual({ ...v1 }, empty, 'un v1 vuelve vacío (lo rehace MIGRATIONS[4])');
+  assert.deepEqual({ ...T.normalizeTalents(null, 'maga') }, empty, 'sin talentos: la misma forma');
+  assert.deepEqual({ ...T.normalizeTalents(T.normalizeTalents(null, 'maga'), 'maga') }, empty, 'normalizar dos veces = una');
   const dirty = T.normalizeTalents({ v: 2, spec: 'piromante', cls: { c1: 99, zz: 3, c2: 0 }, sp: { piromante: { s0: 1, s1: 7, x9: 1 }, nope: { a: 1 } },
     choice: { c5: 'B', c6: 'Z', c1: 'A', s8: 'A', zz: 'A' }, hero: { piromante: { tree: 'escriba', nodes: { invoca: { f1: 5, t1: 1 }, crono: { t1: 1 } }, choice: { invoca: { f2: 'B', f1: 'A' } } }, nope: {} },
     loadouts: { piromante: Array.from({ length: 12 }, (_, i) => ({ name: 'x'.repeat(40) + i, cls: {}, sp: {}, choice: {} })), crionte: 'mal' } }, 'maga');

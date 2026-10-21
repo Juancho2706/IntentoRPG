@@ -561,6 +561,8 @@ export function normalizeTalents(raw, classId, level) {
   const out = { v: 2, spec: null, cls: {}, sp: {}, choice: {}, hero: {}, loadouts: {} };
   const t = TALENT_TREES[classId];
   const trimmed = [];
+  // misma forma para un guardado vacío o v1 que para uno ya normalizado (idempotente)
+  for (const s of t?.specs || []) out.sp[s.id] = {};
   if (isObj(raw) && (raw.v === 2 || raw.v === undefined) && t) {
     out.spec = findSpec(classId, raw.spec) ? raw.spec : null;
     out.cls = cleanRanks(raw.cls, t.cls.nodes);

@@ -360,6 +360,7 @@ console.log('✓ soportes: reencaje sobre la definición forjada; el resto vuelv
   assert.deepEqual(mig(v4({ level: 1 })).notices, []);
   assert.deepEqual(mig(v4({ level: 5 })).notices, ['paso2']);
   assert.deepEqual(mig(v4({ level: 10 })).notices, ['paso2', 'paso2-maga']);
+  assert.deepEqual(mig(v4({ level: 40, talents: { v: 1, spec: null, cls: {}, sp: {}, choice: {} } })).notices, ['paso2'], 'sin especialización no se aplicó Recomendado: sin aviso de clase');
   assert.deepEqual(mig(v4({ classId: 'guerrero', level: 40, hotbar: {}, talents: { v: 1, spec: 'guardian', cls: {}, sp: {}, choice: {} }, notices: ['talentos', 'paso2'] })).notices, ['talentos', 'paso2', 'paso2-guerrero']);
   for (const id of ['talentos', 'paso2', 'paso2-maga', 'paso2-guerrero', 'paso2-arquera', T.TALENTS_TRIMMED_NOTICE])
     assert.ok(typeof S.LOAD_NOTICES[id] === 'string' && S.LOAD_NOTICES[id].length > 20, `LOAD_NOTICES['${id}']`);
@@ -442,7 +443,7 @@ console.log('✓ idempotencia (dos pasadas = una), entrada sin mutar y cadenas v
     }
     for (const id of [...(s.knownSupports || []), ...Object.values(s.supports || {}).flat()]) assert.ok(d.knownSupports.includes(id), `${name}: ${id} en knownSupports`);
     assert.ok(d.notices.includes('paso2'), `${name}: aviso paso2`);
-    assert.equal(d.notices.includes(`paso2-${d.classId}`), L >= 10, `${name}: aviso de clase`);
+    assert.equal(d.notices.includes(`paso2-${d.classId}`), !!spec, `${name}: aviso de clase`);
     // idempotente y serializable
     assert.deepEqual(mig(d), d, `${name}: dos pasadas = una`);
     assert.deepEqual(json(d), d, `${name}: JSON puro`);

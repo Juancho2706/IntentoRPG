@@ -308,7 +308,7 @@ export function migrateV4toV5(d, over = {}) {
   // 7) avisos de carga (ids; los textos están en LOAD_NOTICES)
   const n = Array.isArray(d.notices) ? d.notices : [];
   if (L >= 2 && !n.includes('paso2')) n.push('paso2');
-  if (L >= specAt && !n.includes(`paso2-${classId}`)) n.push(`paso2-${classId}`);
+  if (spec && !n.includes(`paso2-${classId}`)) n.push(`paso2-${classId}`);   // se le aplicó el Recomendado
   d.notices = n;
   return d;
 }
