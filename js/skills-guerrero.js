@@ -15,10 +15,10 @@
 //    coef ×(1+0,10·(rango−1)); buffs ×(1+0,06·(rango−1))).
 //  · Verbos: claves canónicas de §3.6 (charge, recast, steps, stance, repeat, trail, pulse…);
 //    lo que ningún tipo genérico cubre va en GUERRERO_SKILL_BEHAVIORS (anotado en
-//    tools/convert-v2/out/pendientes-guerrero.md).
+//    tools/convert-v2/out/guerrero/pendientes-guerrero.md).
 //  · `art`: el arte del mockup (assets/<art>; reutiliza el de 2b y el de los nodos para las
-//    habilidades nuevas). `innate`: el chip de la pasiva por especialización. Las dos claves
-//    esperan a W2 (SKILL_KEYS) y `art`, a U2 (hud-model.baseSkillIcon todavía pide skills/<id>.webp).
+//    habilidades nuevas; hud-model.baseSkillIcon lo prefiere a skills/<id>.webp). `innate`: el
+//    chip de la pasiva por especialización (el efecto lo da la innata de la especialización).
 // Este archivo no importa nada (evita ciclos con data/powers).
 
 export const GUERRERO_SKILLS = [
@@ -38,8 +38,8 @@ export const GUERRERO_SKILLS = [
     line: 'Embistes 7 m hacia la mira y golpeas al llegar (120 % a 1,9 m). Si golpeas, ganas 12 de Furia.',
     desc: 'Embistes hasta 7 m hacia la mira: al llegar haces 120 % del arma a todos en 1,9 m y, si golpeas a alguno, ganas 12 de Furia. Recarga 8 s.' },
   // la recarga empieza al ACABAR (cdOnEnd, rejuicio §20); el Guardián la lleva a 12 s y −50 % (su
-  // pasiva, §11.1). `innate` = el texto del chip por especialización (mockup); el efecto aún no lo
-  // aplica nadie (pendientes-guerrero.md §3: decisión del orquestador)
+  // pasiva, §11.1). `innate` = el texto del chip por especialización (mockup); el efecto es el
+  // innate.mod del Guardián (talents-guerrero.js; pendientes-guerrero.md §3, opción a)
   { id: 'g_piel', name: 'Piel de Hierro', icon: '🛡️', art: 'skills256/g_piel.webp', cat: 'defense', slots: ['k2'], tags: ['defense', 'buff', 'physical'], elem: 'physical',
     type: 'buff', req: 6, cd: 20, dur: 8, buff: { dr: 40 }, slowImmune: true, cdOnEnd: true, innate: { guardian: 'Guardián: 12 s y −50 %' },
     line: 'Durante 8 s recibes un 40 % menos de daño y no te pueden ralentizar. Su recarga empieza al acabar.',
@@ -173,8 +173,8 @@ export const GUERRERO_SKILLS = [
 export const GUERRERO_SKILL_MODS = {};
 
 // ============================================================
-// Comportamientos a medida (solo donde ningún tipo genérico basta; tools/convert-v2/out/
-// pendientes-guerrero.md dice por qué). Firma: cast(g, p, prof, cast) con
+// Comportamientos a medida (solo donde ningún tipo genérico basta; tools/convert-v2/out/guerrero/
+// pendientes-guerrero.md §1 dice por qué). Firma: cast(g, p, prof, cast) con
 //   cast = { sk (definición FORJADA), prof, slot, target, enemy, ctx, done }
 //   ctx = { coef, prof, baseProf, areaOpts, hitInfo, avgHit, color, fx, isEcho, res, hit(e, dealt) }
 // Devuelven ctx.res (instantáneo) o undefined y luego cast.done(ctx.res) (diferido, siempre por
@@ -299,43 +299,6 @@ export const GUERRERO_SKILL_BEHAVIORS = {
       return ctx.res;
     },
   },
-
-  // FORJA · Martillo de Guerra II (Onda Sagrada): el golpe del Martillo en la mira (coef y radio
-  // ya escalados por la carga; la ventana perfecta y el Fervor los pone el canal al soltar) y una
-  // onda en línea de `onda.range` m desde el impacto hacia delante al `onda.coef` del golpe. La
-  // onda no vuelve a dar a quien ya recibió el impacto (la clave genérica `wave` sí). Una
-  // repetición (Eco) no lanza onda, como `wave`.
-  v_onda_sagrada: {
-    params: ['onda'],
-    cast(g, p, prof, cast) {
-      const { ctx } = cast;
-      const def = cast.sk;
-      const center = ctx.target.clone().setY(0);
-      const rad = ctx.prof.radius || 3;
-      p.faceToward(center);
-      g.spawnRing?.(center, rad, ctx.color || 0xffe08a);
-      const struck = new Set();
-      g.dealArea(center, rad, ctx.coef, { ...ctx.areaOpts, from: center, onHit: (e, dealt, from) => { struck.add(e); ctx.hit(e, dealt, from); } });
-      emit(g, ctx.fx?.impact, center.clone().setY(0.3));
-      emit(g, ctx.fx?.aura, center.clone().setY(0.3));
-      emit(g, ctx.fx?.extra, center.clone().setY(0.1));
-      g.addShake?.(def.shake || 0.25);
-      ctx.zoneCenter = center; ctx.zoneRad = rad;
-      const w = def.onda;
-      if (!ctx.isEcho && w?.range > 0) {
-        const dir = center.clone().sub(p.pos).setY(0);
-        if (dir.lengthSq() < 1e-6) { const yaw = p.group?.rotation?.y || 0; dir.set(Math.sin(yaw), 0, Math.cos(yaw)); }
-        dir.normalize();
-        for (const e of g.enemiesInLine(center, dir, w.range, w.width || 2)) {
-          if (struck.has(e)) continue;
-          const { dmg, crit } = p.rollDamage(ctx.coef * (w.coef ?? 0.6), ctx.prof.critBonus, ctx.prof.addPct, e, ctx.hitInfo);
-          ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0, center);
-        }
-        g.spawnBeam?.(center, center.clone().addScaledVector(dir, w.range), ctx.color || 0xffe680, 0.2);
-      }
-      return ctx.res;
-    },
-  },
 };
 
 // ------------------------------------------------------------
@@ -348,7 +311,7 @@ export const GUERRERO_SKILL_BEHAVIORS = {
 //  · set/add/mul sobre la DEFINICIÓN (rutas con punto); una variante se aplica DESPUÉS de la
 //    Mejora (que ya está activa cuando se abren las variantes): sus `set` pisan lo de la Mejora.
 //  · mod = mods del perfil (2f §2.3, §3.5); power = poder v_* de js/powers-forge-guerrero.js.
-// Lo que difiere del `k` del mockup (y por qué) está en tools/convert-v2/out/pendientes-guerrero.md §4.
+// Lo que difiere del `k` del mockup (y por qué) está en tools/convert-v2/out/guerrero/pendientes-guerrero.md §4.
 const F = id => `forge/v_${id}`;
 export const GUERRERO_SKILL_FORGE = {
   // ———— kit base ————
@@ -369,9 +332,9 @@ export const GUERRERO_SKILL_FORGE = {
     vars: [
       { id: 'g_hendidura_i', name: 'Rompefilas', role: 'UNI', icon: F('g_hendidura_i'), line: '+45 % de daño si golpea a un único enemigo.',
         power: 'v_rompefilas' },
-      // la Estela genérica (zone): 2 s, una a la vez
+      // la Estela genérica (zone): 2 s, una a la vez, y el 40 % del arma por segundo (zonePct, con el rango)
       { id: 'g_hendidura_ii', name: 'Grieta', role: 'AREA', icon: F('g_hendidura_ii'), line: 'Deja una grieta 2 s que hace el 40 % por segundo; solo 1 a la vez.',
-        mod: { zone: 1, zoneDur: 2, zoneMax: 1 } },
+        mod: { zone: 1, zoneDur: 2, zoneMax: 1, zonePct: 40 } },
     ],
   },
   embestida: {
@@ -409,15 +372,16 @@ export const GUERRERO_SKILL_FORGE = {
 
   // ———— kit del Berserker ————
   g_remolino: {
-    // el canal no da inmunidad por sí solo: v_giro_firme la mantiene mientras giras
+    // el canal genérico renueva la inmunidad en cada giro (slowImmune del perfil)
     mejora: { id: 'g_remolino_m', name: 'Giro Firme', icon: 'forge/mejora', line: 'Mientras giras no te pueden ralentizar.',
-      set: { slowImmune: true }, power: 'v_giro_firme' },
+      set: { slowImmune: true } },
     vars: [
       { id: 'g_remolino_i', name: 'Remolino Anclado', role: 'UNI', icon: F('g_remolino_i'), line: 'Giras sin moverte: radio 2 m y +60 % de daño.',
         set: { moveMul: 0, radius: 2 }, mod: { dmg: 60 } },
-      // atrae a 5 m en cada giro (v_ciclon); el radio del daño no cambia
+      // atrae 1 m a 5 m en cada giro (pull del canal genérico, con su radio propio); el radio del daño no
+      // cambia. A los jefes no (boss:false): el tirón les llenaría Quebranto, que es cosa del Guardián
       { id: 'g_remolino_ii', name: 'Ciclón', role: 'CTRL', icon: F('g_remolino_ii'), line: 'Cada giro atrae 1 m a los enemigos a 5 m; −15 % de daño.',
-        mod: { dmg: -15 }, power: 'v_ciclon', tags: { add: ['cc'] } },
+        set: { pull: { dist: 1, radius: 5, boss: false } }, mod: { dmg: -15 }, tags: { add: ['cc'] } },
     ],
   },
   g_salto: {
@@ -525,10 +489,10 @@ export const GUERRERO_SKILL_FORGE = {
       // se sigue cargando y soltando: lo que sale es un proyectil de un solo objetivo
       { id: 'g_martillo_i', name: 'Martillo Arrojado', role: 'UNI', icon: F('g_martillo_i'), line: 'Al soltar, lo lanzas a 12 m contra uno solo: +40 % y sin área.',
         set: { type: 'proj', range: 12, radius: 0, speed: 18, size: 0.3 }, mod: { dmg: 40 }, tags: { remove: ['melee'] } },
-      // onda en línea desde el impacto hacia la mira (comportamiento v_onda_sagrada: la clave
-      // genérica `wave` vuelve a golpear a los del impacto)
+      // onda en línea de 8 × 2 m desde el impacto hacia la mira al 60 % del golpe (clave genérica
+      // `wave`: no repite a los que recibió el impacto; una repetición no lanza onda)
       { id: 'g_martillo_ii', name: 'Onda Sagrada', role: 'AREA', icon: F('g_martillo_ii'), line: 'Al soltar, el golpe sigue en una onda de 8 m hacia delante (60 %).',
-        behavior: 'v_onda_sagrada', set: { onda: { range: 8, width: 2, coef: 0.6 } } },
+        set: { wave: { range: 8, width: 2, coef: 0.6 } } },
     ],
   },
   g_u_cataclismo: {

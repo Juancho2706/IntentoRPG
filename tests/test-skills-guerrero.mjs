@@ -1,7 +1,7 @@
 // Paso 2 (2g) — catálogo del GUERRERO (docs/paso2g-guerrero.md §3–§9 y §11.1; formato §3.5–§3.7
 // de docs/paso2-implementacion.md)
-//  1) las 23 habilidades: válidas con el validador v2 (0 errores; solo los avisos de `art`/`innate`,
-//     claves pendientes de W2), arte del mockup en assets/, números de diseño,
+//  1) las 23 habilidades: válidas con el validador v2 (0 errores y 0 avisos: `art` e `innate` ya
+//     son claves del motor), arte del mockup en assets/, números de diseño,
 //     ranuras por categoría, textos y VFX/SFX; fuera las retiradas
 //  2) G2: las 6 activas de talento son kind 'talent', solo de la ranura 2 y las concede UN nodo
 //  3) G17: ≥ 3 verbos por especialización y el principal de cada una es suyo
@@ -70,9 +70,8 @@ for (const id of ['g_mandoble', 'g_embate', 'torbellino', 'g_provocacion', 'g_u_
   'g_t_ira_ciega', 'g_t_desafio', 'g_t_muro', 'g_t_carga', 'g_t_devocion', 'g_t_veredicto', 'g_t_justicia'])
   assert.ok(!SK(id), `${id}: fuera del libro (§11.1)`);
 const JERGA = /\b(UNI|TTD|proc|stagger|GCD|DoT|AoE|CC)\b|ÁREA×|astadora|vosotros/i;
-// claves del mockup que el motor aún no declara (petición a W2: SKILL_KEYS): `art` en las 23 e
-// `innate` solo en Piel de Hierro. Cualquier otro aviso falla
-const PENDING_W2 = /: clave desconocida (art|innate)($| \()/;
+// `art` (las 23) e `innate` (Piel de Hierro) son claves del motor desde la cola W2d (SKILL_KEYS)
+assert.ok(SKILL_KEYS.has('art') && SKILL_KEYS.has('innate'), 'SKILL_KEYS declara art e innate');
 for (const raw of GUERRERO_SKILLS) {
   const s = SK(raw.id);
   const [cat, req, owner, coef, cost, cd] = EXPECT[s.id];
@@ -80,8 +79,7 @@ for (const raw of GUERRERO_SKILLS) {
   const errs = validateSkillDef(raw, { behaviors: SKILL_BEHAVIORS, v2: true, warnings });
   assert.deepEqual(errs, [], `${s.id}: validateSkillDef v2 sin errores`);
   const all = [...new Set([...warnings, ...(errs.warnings || [])])];
-  assert.deepEqual(all.filter(w => !PENDING_W2.test(w)), [], `${s.id}: validateSkillDef v2 sin avisos`);
-  if (!SKILL_KEYS.has('art')) assert.ok(all.some(w => w.startsWith(`${s.id}: clave desconocida art`)), `${s.id}: el aviso de \`art\` es el único pendiente`);
+  assert.deepEqual(all, [], `${s.id}: validateSkillDef v2 sin avisos`);
   // arte del mockup: existe en assets/ (el HUD lo pedirá en vez de skills/<id>.webp: petición a U2)
   assert.ok(typeof s.art === 'string' && existsSync(new URL(`../assets/${s.art}`, import.meta.url)), `${s.id}: arte ${s.art} en assets/`);
   assert.equal(!!s.innate, s.id === 'g_piel', `${s.id}: solo Piel de Hierro trae chip de pasiva`);
@@ -127,7 +125,7 @@ for (const L of [15, 40, 72]) {
   const fu = resolveSkill(h.p, SK('g_u_furia')), r = rankBase(L, 15);
   assert.equal(fu.buff.spenderCostPct, Math.round(-100 * (1 + 0.06 * (r - 1))), 'Furia Inmortal: el coste cero escala (y se recorta a 0)');
 }
-console.log('Catálogo 2g del Guerrero: 23 habilidades válidas (v2; avisos: solo art/innate, pendientes de W2), arte, números, ranuras, textos y VFX ✓');
+console.log('Catálogo 2g del Guerrero: 23 habilidades válidas (v2, sin avisos), arte, números, ranuras, textos y VFX ✓');
 
 // ------------------------------------------------ 2) G2: activas de talento
 const TALENT_ACTIVES = { g_t_aliento: 'c11', grito_guerra: 'c17', g_t_intervencion: 'c22', g_h_bramido: 't4', g_h_desafio: 'l4', g_h_estandarte: 'u4' };

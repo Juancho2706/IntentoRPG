@@ -2,19 +2,19 @@
 // formato de docs/paso2-implementacion.md §3.5
 //  1) A1: las 17 habilidades del libro (no las activas de talento) con Mejora + 2 variantes; ids
 //     estables, papeles de §4/§7, líneas ≤ 70 (las acortadas, declaradas en divergencias.json)
-//  2) A2/F7 estricto: cada definición forjada es válida (validateSkillDef v2: 0 errores; avisos solo
-//     de `art`/`innate`, claves pendientes de W2)
+//  2) A2/F7 estricto: cada definición forjada es válida (validateSkillDef v2: 0 errores y 0 avisos)
 //     y cada pieza cambia el perfil o la definición que lee el motor, o declara un poder registrado
 //  3) A9 y D28: poderes v_* registrados, todos usados, sin `mult` e ids únicos entre clases
 //  4) cada Mejora y cada variante en el arnés con el canal REAL, comparada con la habilidad sin
 //     esa pieza (la Mejora, contra el nivel anterior; la variante, contra solo la Mejora)
 //  5) FORGE_RECO: la ★ del libro y nunca apaga la barra de su especialización (2f §7.7)
-//  6) VFX de las variantes que cambian de forma: datos válidos; el uso en el juego, PENDIENTE de W2
+//  6) VFX de las variantes que cambian de forma: datos válidos y en uso (skillFxFor por variante)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CLASSES, SKILL_FORGE, FORGE_RECO, SPEC_BAR } from '../js/data.js';
 import { forgeDef, validateForge, validateSkillDef, FORGE_ROLES, FORGE_LINE_WARN } from '../js/skill-defs.js';
 import { resolveSkill } from '../js/skill-resolve.js';
+import { rankCoef } from '../js/combat-math.js';
 import { POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
 import { GUERRERO_SKILL_FORGE, GUERRERO_FORGE_RECO, GUERRERO_SPEC_BAR } from '../js/skills-guerrero.js';
 import { guerreroForgePowers, guerreroForgeTuning } from '../js/powers-forge-guerrero.js';
@@ -37,8 +37,6 @@ const approx = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 const SK = id => CLASSES.guerrero.skills.find(s => s.id === id);
 const BOOK = CLASSES.guerrero.skills.filter(s => s.kind !== 'talent');
 const piecesOf = entry => [['m', entry.mejora], ['i', entry.vars[0]], ['ii', entry.vars[1]]];
-// claves del mockup que el motor aún no declara (W2: SKILL_KEYS); cualquier otro aviso falla
-const PENDING_W2 = /: clave desconocida (art|innate)($| \()/;
 
 // ------------------------------------------------ 1) A1: estructura
 // papeles de §4 (kit base) y §7 (kits de especialización)
@@ -116,7 +114,7 @@ function sigOf(h, sk, forge, variant, withMejora = true) {
       const warnings = [];
       const errs = validateSkillDef(d, { behaviors: SKILL_BEHAVIORS, v2: true, warnings });
       assert.deepEqual(errs, [], `${sk.id} ${JSON.stringify(st)}: definición forjada válida`);
-      assert.deepEqual(warnings.filter(w => !PENDING_W2.test(w)), [], `${sk.id} ${JSON.stringify(st)}: sin claves desconocidas`);
+      assert.deepEqual(warnings, [], `${sk.id} ${JSON.stringify(st)}: sin claves desconocidas`);
       assert.equal(d.id, sk.id, 'la forja conserva el id');
     }
     const base = sigOf(h, sk, entry, null, false), m = sigOf(h, sk, entry, null, true);
@@ -130,7 +128,7 @@ function sigOf(h, sk, forge, variant, withMejora = true) {
   assert.equal(sigOf(h, sk, fake, 'i'), sigOf(h, sk, fake, null), 'F7: una variante vacía no cambia la firma');
   assert.notEqual(sigOf(h, sk, fake, 'ii'), sigOf(h, sk, fake, null), 'F7: cambiar solo los pasos del combo sí la cambia');
 }
-console.log('A2/F7: 51 definiciones forjadas válidas (v2; avisos solo de art/innate, pendientes de W2); ninguna pieza es un no-op ✓');
+console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna pieza es un no-op ✓');
 
 // ------------------------------------------------ 3) A9 y D28: poderes de la forja
 {
@@ -164,10 +162,15 @@ console.log('A2/F7: 51 definiciones forjadas válidas (v2; avisos solo de art/in
   assert.ok(h.p.powers.has('v_espinas'), 'Nv12 con la variante I: Espinas');
   h.p.skillForge = { g_piel: 'ii' }; h.p.recompute();
   assert.ok(!h.p.powers.has('v_espinas'), 'con la II, Espinas sale');
-  h.p.skillForge = { g_remolino: 'ii' }; h.p.level = 30; h.p.recompute();
-  assert.ok(!h.p.powers.has('v_ciclon'), 'una variante de otro kit (sin la especialización) no aplica');
+  h.p.skillForge = { g_u_furia: 'i' }; h.p.level = 30; h.p.recompute();
+  assert.ok(!h.p.powers.has('v_sed_voraz'), 'una variante de otro kit (sin la especialización) no aplica');
+  const b = makeHarness({ classId: 'guerrero', level: 30, spec: 'berserker' });
+  b.p.skillForge = { g_u_furia: 'i' }; b.p.recompute();
+  assert.ok(b.p.powers.has('v_sed_voraz'), 'con la especialización, sí');
+  // Giro Firme y Ciclón son claves del canal genérico (slowImmune, pull), no poderes
+  assert.ok(!POWER_HOOKS.v_giro_firme && !POWER_HOOKS.v_ciclon, 'v_giro_firme y v_ciclon retirados');
 }
-console.log('A9 y D28: 10 poderes v_* registrados, usados y sin choques entre clases ✓');
+console.log(`A9 y D28: ${Object.keys(guerreroForgePowers()).length} poderes v_* registrados, usados y sin choques entre clases ✓`);
 
 // ------------------------------------------------ 4) en el arnés (canal REAL)
 const WEAPON = { kind: 'item', slot: 'weapon', name: 'Maza de prueba', dmg: [100, 100], affixes: {}, quality: 0 };
@@ -239,8 +242,14 @@ let h, e, e2, e3;
   };
   const m = run({}), g = run({ g_hendidura: 'ii' });
   assert.ok(m.f.length === 0 && g.f.length === 1 && approx(g.f[0].dur, 2), 'Grieta: una grieta de 2 s (la segunda sustituye a la primera)');
+  // el 40 % del ARMA por segundo con el rango y el saco aditivo (zonePct), no el 45 % del golpe
+  const pr = resolveSkill(g.hh.p, SK('g_hendidura'));
+  const want = g.hh.p.avgHit(0.4 * rankCoef(pr.rank), pr.addPct);
+  assert.ok(pr.zonePct === 40 && approx(g.f[0].data.dps, want, 0.5) && g.f[0].data.dps < g.hh.p.avgHit(pr.coef, pr.addPct) * 0.2,
+    `Grieta: el 40 % del arma por segundo (${g.f[0].data.dps.toFixed(1)} / ${want.toFixed(1)})`);
+  const d0 = g.a.t.dot;
   g.hh.tick(1);
-  assert.ok(g.a.t.dot > 0 && m.a.t.dot === 0, 'Grieta: daña cada segundo');
+  assert.ok(g.a.t.dot - d0 > 0 && m.a.t.dot === 0, 'Grieta: daña cada segundo');
   g.hh.tick(1.5);
   assert.equal(g.hh.g.fieldsOf(g.hh.p, { kind: 'estela', skill: 'g_hendidura' }).length, 0, 'Grieta: dura 2 s');
 }
@@ -340,6 +349,10 @@ let h, e, e2, e3;
   const run = forge => { const hh = hero(16, { spec: 'berserker', forge }); const near = foe(hh, 1.6), far = foe(hh, 4.5); hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(0.8); return { near, far }; };
   const m = run({}), c = run({ g_remolino: 'ii' });
   assert.ok(approx(m.far.pos.x, 4.5) && c.far.pos.x < 3.6, `Ciclón: atrae a 5 m (4,5 → ${c.far.pos.x.toFixed(2)})`);
+  // un giro (el primer tic del canal: 3 s / 12) = 1 m, fuera del radio del daño (2,9 m)
+  const one = hero(16, { spec: 'berserker', forge: { g_remolino: 'ii' } }), out = foe(one, 4.5);
+  one.setSlot('k3', 'g_remolino'); one.press('k3'); one.stand(0.26);
+  assert.ok(approx(out.pos.x, 3.5, 0.01) && out.t.n === 0, `Ciclón: 1 m por giro (4,5 → ${out.pos.x.toFixed(2)})`);
   assert.ok(approx((c.near.t.direct / c.near.t.n) / (m.near.t.direct / m.near.t.n), 0.85, 0.01), 'Ciclón: −15 % de daño');
 }
 { // Remolino · II (Ciclón) junto a un jefe: los tirones no le llenan Quebranto (solo el del daño, −15 %)
@@ -632,7 +645,13 @@ function hammer(level, forge, spots, hold, aim = [2.5, 0]) {
 function cata(level, forge, spots, allies = []) {
   const hh = hero(level, { spec: 'cruzado', forge });
   const es = spots.map(([x, z, extra]) => foe(hh, x, z, extra || {}));
-  const as = allies.map(([x, z]) => { const a = hh.ally(x, z, 1000); a.hp = 300; return a; });
+  // aliados heridos con sus curas por fuente (la clave gratis del Cruzado, z0, también cura)
+  const as = allies.map(([x, z]) => {
+    const a = hh.ally(x, z, 1000); a.hp = 300; a.by = {};
+    const heal = a.healSkill.bind(a);
+    a.healSkill = (n, src) => { const got = heal(n, src); a.by[src] = (a.by[src] || 0) + got; return got; };
+    return a;
+  });
   hh.aim(8, 0); hh.setSlot('k4', 'g_u_cataclismo'); hh.press('k4'); hh.step(0.5); hh.release('k4'); hh.step(0.5);
   return { hh, es, as };
 }
@@ -649,10 +668,13 @@ function cata(level, forge, spots, allies = []) {
 }
 { // Cataclismo · II (Amanecer): −40 %; cura un 30 % y da un escudo del 10 % a los aliados a 8 m
   const run = forge => cata(21, forge, [[8, 0]], [[8, 5], [8, 10]]);
+  // la base es la MISMA especialización y nivel sin la variante: el Cruzado ya cura con su clave gratis
+  // (Martillo Piadoso, z0); se mide lo que AÑADE Amanecer
   const m = run({}), d = run({ g_u_cataclismo: 'ii' });
-  assert.ok(m.as[0].healed === 0 && m.as[0].shields.length === 0, 'sin la variante: ni cura ni escudo');
-  assert.ok(d.as[0].healed === 300 && d.as[0].shields.length === 1 && approx(d.as[0].shields[0].amt, d.hh.p.stats.maxHP * 0.1, 1), 'Amanecer: cura un 30 % y escuda un 10 %');
-  assert.ok(d.as[1].healed === 0 && d.as[1].shields.length === 0, 'Amanecer: solo a 8 m del impacto');
+  assert.ok(!m.as[0].by.g_u_cataclismo && m.as[0].shields.length === 0, `sin la variante, la Cataclismo ni cura ni escuda (${JSON.stringify(m.as[0].by)})`);
+  assert.ok(d.as[0].healed - m.as[0].healed === 300 && d.as[0].by.g_u_cataclismo === 300, `Amanecer: cura un 30 % más que sin ella (${m.as[0].healed} → ${d.as[0].healed})`);
+  assert.ok(d.as[0].shields.length === 1 && approx(d.as[0].shields[0].amt, d.hh.p.stats.maxHP * 0.1, 1), 'Amanecer: y escuda un 10 % de tu vida');
+  assert.ok(d.as[1].healed === m.as[1].healed && !d.as[1].by.g_u_cataclismo && d.as[1].shields.length === 0, 'Amanecer: solo a 8 m del impacto');
   assert.ok(approx(d.es[0].t.direct / m.es[0].t.direct, 0.6, 0.01), 'Amanecer: −40 % de daño');
 }
 console.log('En el arnés: las 51 piezas (Mejoras y variantes) del kit base, Berserker, Guardián y Cruzado ✓');
@@ -714,11 +736,8 @@ function gaugeLoss(spec, reco, forge = GUERRERO_SKILL_FORGE) {
 console.log('FORGE_RECO: la ★ de §7, dentro de la barra de su especialización, y nunca le apaga la barra (2f §7.7) ✓');
 
 // ------------------------------------------------ 6) VFX de las variantes que cambian de forma
-// Las entradas `<id>_i`/`<id>_ii` de GUERRERO_FX tienen que ser datos válidos, pero el juego solo
-// las usa cuando el motor busque el VFX por variante (petición a W2: SKILL_FX[def.forged.varId]);
-// hasta entonces la variante sale con el VFX de su habilidad. Se mide el uso REAL y, si el motor
-// aún no lo hace, la sección queda PENDIENTE (no se da por buena).
-let fxPending = false;
+// Las entradas `<id>_i`/`<id>_ii` de GUERRERO_FX son datos válidos y el motor las usa (skillFxFor de
+// fx-skills.js busca el VFX por variante): se mide el uso REAL con una sonda
 {
   const varIds = new Map();
   for (const [id, entry] of Object.entries(GUERRERO_SKILL_FORGE)) for (const v of entry.vars) varIds.set(v.id, { id, v });
@@ -729,9 +748,9 @@ let fxPending = false;
     const fx = GUERRERO_FX[k], { id, v } = varIds.get(k);
     for (const f of ['trail', 'impact', 'aura', 'extra']) if (typeof fx[f] === 'string') assert.ok(SKILL_FX_PRESETS[fx[f]], `${k}: preset ${fx[f]}`);
     assert.ok(SFX_TONES[fx.sfx], `${k}: sonido ${fx.sfx}`);
-    // una variante con VFX propios cambia la forma (tipo, pasos, centro, radio, número o recorrido)
+    // una variante con VFX propios cambia la forma (tipo, pasos, centro, radio, número, recorrido o tirón)
     const keys = Object.keys({ ...(v.set || {}), ...(v.add || {}), ...(v.mul || {}) }).map(x => x.split('.')[0]);
-    const FORM = ['type', 'steps', 'at', 'radius', 'count', 'range', 'dashT', 'heal', 'cleaveR', 'moveMul', 'recast'];
+    const FORM = ['type', 'steps', 'at', 'radius', 'count', 'range', 'dashT', 'heal', 'cleaveR', 'moveMul', 'recast', 'pull'];
     assert.ok(keys.some(x => FORM.includes(x)) || !!v.power, `${k}: cambia la forma de ${id}`);
   }
   // uso real: Martinete (terremoto_i) emite su golpe (brutalStrike) o el de Terremoto (quakeFissure)
@@ -742,13 +761,10 @@ let fxPending = false;
   hh.aim(3, 0); hh.setSlot('rmb', 'terremoto'); hh.cast('rmb'); hh.step(0.5);
   const mine = SKILL_FX_PRESETS[GUERRERO_FX.terremoto_i.impact], base = SKILL_FX_PRESETS[GUERRERO_FX.terremoto.impact];
   assert.ok(mine && base && mine !== base, 'la sonda distingue el VFX de la variante del de su habilidad');
-  assert.ok(seen.includes(mine) !== seen.includes(base), 'el Martinete emite uno de los dos golpes');
-  fxPending = !seen.includes(mine);
+  assert.ok(seen.includes(mine) && !seen.includes(base), 'el Martinete sale con su golpe, no con el del Terremoto');
 }
-console.log(fxPending
-  ? 'VFX: entradas de las variantes válidas (presets y sonidos que existen) · ⏳ PENDIENTE W2: el motor aún dibuja la variante con el VFX de su habilidad'
-  : 'VFX: entradas de las variantes válidas y en uso (el Martinete sale con su golpe) ✓');
+console.log('VFX: entradas de las variantes válidas y en uso (el Martinete sale con su golpe) ✓');
 
 assert.deepEqual(warns, [], `ningún poder ni comportamiento lanzó errores: ${warns.join(' · ')}`);
 console.warn = origWarn;
-console.log(`\n✅ FORJA DEL GUERRERO (A1 · A2/F7 · A9 · 51 piezas en el arnés · ★${fxPending ? '' : ' · VFX'}) OK${fxPending ? ' · VFX por variante pendiente (W2)' : ''}`);
+console.log('\n✅ FORJA DEL GUERRERO (A1 · A2/F7 · A9 · 51 piezas en el arnés · ★ · VFX) OK');

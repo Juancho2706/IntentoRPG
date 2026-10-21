@@ -141,6 +141,16 @@ console.log(`(e) ${RETIRED.length} poderes v1 retirados (y m_aegis, m_judgment s
   assert.ok(d.p.stats.threatMult === 3 && b.p.stats.threatMult === 1 && z.p.stats.threatMult === 1, 'Guardián: amenaza ×3');
   assert.equal(d.p.stats.hpPct - b.p.stats.hpPct, 5, 'Guardián: +5 % de vida');
   assert.ok(b.p.stats.healPct === z.p.stats.healPct && b.p.stats.hpPct === z.p.stats.hpPct, 'Berserker y Cruzado sin stats innatas');
+  // topes propios del Guardián (drCapAdd 15, blockCapAdd 10: solo de la innata): con dr 80 y block 70
+  // (con escudo), 65 y 50; las otras especializaciones, los topes comunes 50 y 40
+  for (const x of [b, d, z]) { x.p.talentExtra.stats = { dr: 80, block: 70 }; x.p.recompute(); }
+  assert.ok(d.p.stats.dr === 65 && d.p.stats.block === 50, `Guardián: topes 65 y 50 (${d.p.stats.dr}, ${d.p.stats.block})`);
+  assert.ok(b.p.stats.dr === 50 && b.p.stats.block === 40 && z.p.stats.dr === 50, `Berserker y Cruzado: 50 y 40 (${b.p.stats.dr}, ${b.p.stats.block})`);
+  // Piel de Hierro del Guardián (innate.mod): 12 s y −50 %, lanzada de verdad y una sola vez (d0 ya no la suma)
+  for (const x of [b, d]) { x.p.talentExtra.stats = {}; x.p.recompute(); x.setSlot('k2', 'g_piel'); x.cast('k2'); }
+  const piel = x => x.p.buffs.find(f => f.id === 'g_piel');
+  assert.ok(approx(piel(d).t, 12, 0.05) && approx(piel(b).t, 8, 0.05), `Guardián: Piel de Hierro 12 s (${piel(d).t} frente a ${piel(b).t})`);
+  assert.ok(approx(piel(d).stats.dr / piel(b).stats.dr, 1.25, 0.02), `Guardián: −50 % frente a −40 % (×1,25: ${piel(d).stats.dr} / ${piel(b).stats.dr})`);
 }
 // Cruzado solo: el Martillo Piadoso te cura a ti (eres el aliado con menos vida)
 {

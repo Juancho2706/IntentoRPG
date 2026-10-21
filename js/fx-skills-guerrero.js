@@ -312,10 +312,9 @@ export const GUERRERO_FX = {
   g_h_estandarte:   { aura: 'bannerAura', extra: 'bannerSparks', color: 0xd8a040, sfx: 'levelup' },
 
   // ---------------- forja: VFX de las variantes que CAMBIAN DE FORMA ----------------
-  // Clave = id de la variante (`<id>_i` / `<id>_ii`): sustituirán a los de su habilidad cuando el
-  // motor busque el VFX por variante (petición a W2: SKILL_FX[def.forged.varId]); hasta entonces la
-  // variante sale con el VFX de su habilidad. Reutilizan presets existentes: el mismo campo
-  // (trail/impact/aura/extra) que lee el tipo genérico de la forma nueva.
+  // Clave = id de la variante (`<id>_i` / `<id>_ii`): sustituyen a los de su habilidad (el motor
+  // busca el VFX por variante: skillFxFor de fx-skills.js). Reutilizan presets existentes: el mismo
+  // campo (trail/impact/aura/extra) que lee el tipo genérico de la forma nueva.
   g_tajo_ii:         { impact: 'sweepRing', color: 0xffcc77, sfx: 'hit' },                                       // Siega: barrido
   g_remolino_i:      { aura: 'whirlwindInner', extra: 'bloodDrops', color: 0xb0101c, sfx: 'hit' },              // Anclado: giro corto
   g_remolino_ii:     { aura: 'whirlwind', extra: 'bloodDrops', color: 0xcfd6e0, sfx: 'dash' },                  // Ciclón: remolino de viento

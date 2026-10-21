@@ -65,6 +65,9 @@ for (const k of ['hp', 'mp', 'dmgPct', 'crit', 'arm', 'aspdPct', 'critDmg', 'dr'
 const ATTR_KEYS = new Set(Object.values(CLASSES).flatMap(c => Object.keys(c.base || {})));
 assert.ok(ATTR_KEYS.size >= 4, 'atributos de las clases (fue, des, vit, ene)');
 export const STAT_KEYS = new Set([...RECOMPUTE_STATS, ...ATTR_KEYS]);
+// topes propios que solo suma la innata (INNATE_ONLY_STATS de js/entities.js: drCapAdd, blockCapAdd)
+const INNATE_ONLY = new Set([...(ENTITIES_SRC.match(/export const INNATE_ONLY_STATS = Object\.freeze\(\[([^\]]*)\]\)/)?.[1] || '').matchAll(/'(\w+)'/g)].map(m => m[1]));
+assert.ok(INNATE_ONLY.has('drCapAdd') && INNATE_ONLY.has('blockCapAdd'), 'test78: INNATE_ONLY_STATS leído de entities.js');
 // claves de mod: las de mergeMods (emptyMods) + las nuevas de §3.5 y §3.6 (+ SD.MOD_KEYS si W2 lo exporta)
 export const MOD_KEYS = new Set([...Object.keys(SD.emptyMods()),
   'windupAdd', 'windupMul', 'moveMulAdd', 'moveMulMin', 'charges', 'recastAdd', 'recastWin', 'comboWin', 'chargeSpeed',
@@ -143,7 +146,6 @@ export function checkClassData(cid, data, ctx) {
   for (const s of specs) {
     if (!ELEMS.includes(s.elem)) err('elem', `${s.id}: elem «${s.elem}» (${ELEMS})`);
     if (!GAUGES.has(s.mechanic)) err('mecánica', `${s.id}: mecánica «${s.mechanic}» no existe`);
-    for (const k of Object.keys(s.innate || {})) if (!STAT_KEYS.has(k)) err('stats', `${s.id}: innata «${k}» (recompute no la suma)`);
   }
   // destino de un mod o un skillLv: selector de §3.8 o una habilidad del catálogo de la clase
   const target = (sel, at) => {
@@ -153,6 +155,19 @@ export function checkClassData(cid, data, ctx) {
       if (sel.startsWith('@tag:') && !TAG_VALUES.has(sel.slice(5))) err('selector', `${at}: tag «${sel.slice(5)}» no existe`);
     } else if (!ctx.skillOf(sel)) err('selector', `${at}: «${sel}» no es un selector ni una habilidad del catálogo`);
   };
+  // innata (cola W2d): stats que suma recompute, los topes propios (INNATE_ONLY_STATS, solo desde
+  // aquí) y `mod` (mods de habilidad como los de fx.mod, sin rangos: aggregateTalents los suma)
+  for (const s of specs) for (const [k, v] of Object.entries(s.innate || {})) {
+    if (k !== 'mod') { if (!STAT_KEYS.has(k) && !INNATE_ONLY.has(k)) err('stats', `${s.id}: innata «${k}» (recompute no la suma)`); continue; }
+    for (const [sel, m] of Object.entries(v || {})) {
+      target(sel, `${s.id} innate.mod`);
+      if (!m || typeof m !== 'object' || Array.isArray(m)) { err('mod', `${s.id}: innate.mod.${sel} debe ser un objeto`); continue; }
+      for (const [mk, x] of Object.entries(m)) {
+        if (!MOD_KEYS.has(mk)) err('mod', `${s.id}: clave de mod desconocida «innate.mod.${sel}.${mk}»`);
+        if (Array.isArray(x)) err('rango', `${s.id}: innate.mod.${sel}.${mk} sin rangos (un solo valor)`);
+      }
+    }
+  }
   // un valor por rango: una lista debe tener exactamente `max` valores
   const perRank = (v, max, at) => { if (Array.isArray(v) && v.length !== max) err('rango', `${at}: lista de ${v.length} valores (el nodo tiene ${max} rangos)`); };
   // árboles héroe (G18): 3, cada especialización en 2
