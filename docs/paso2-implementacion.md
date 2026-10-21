@@ -866,6 +866,44 @@ E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inve
     - la cubeta de autocuración;
     - el escenario del banco contra 10.
 
+14. **Ampliaciones de contrato de E1, ratificadas** (fusión de W1 y W2 en `paso2-impl`, 2026-10-21):
+    - §3.3: `aggregateTalents(p, { elemOf, kitOf, defOf?, memoTag? })`. `defOf` da la definición **forjada** (para `@tag:`, los atajos de verbo y `@windup`). `Player.talentAccessors()` devuelve los tres accesores y `recompute` los pasa. El memo guarda una entrada por héroe y por firma de accesores.
+    - §3.4: `reason` es el conjunto cerrado `TALENT_REASONS` (`talents-ops.js`), que suma `free`, `empty` (sin rangos que quitar), `unknown`, `level` y `full`. U1 y U3 traducen por código.
+    - §3.8: `isKnownSelector(sel)` en `talents.js`.
+    - §3.11:
+      - `insignia` es **opcional** en `<CLASE>_LEGACY` y `MIGRATIONS[4]` la ignora; si KA la escribe, debe coincidir con `V4_INSIGNIA`.
+      - En `to` por ranura, un `null` explícito vacía la ranura; un objeto sin clave aplicable es inválido y cae a `SPEC_BAR` y luego a `FALLBACK_BAR`.
+      - Los glifos que no caben van a `paragon.loose`, con el aviso `glifos-sueltos`, y se recuperan con `looseGlyphs()`, `reclaimGlyph(i)` y `reclaimLooseGlyphs()`.
+    - §3.7:
+      - `CastInfo.sk` es la definición **forjada**: los comportamientos leen `cast.sk` o `prof.def`, nunca el catálogo.
+      - `HitInfo.trap` es `{ uid, skill }`.
+      - `defineSkillBehavior` declara en `params` las claves propias que lee; `validateSkillDef` v2 avisa de las demás.
+      - El bucle de botones mantenidos vive en `game-skills.pumpHeldSlots()` y `heldSlotBusy()`.
+    - G8b se lee así: cada nodo comprado que nombra ids en `touch` toca al menos uno de su barra (`build.bar` o `SPEC_BAR[spec].bar`). Es un aviso; la tabla `STRICT` de `test78` lo vuelve error en la Arquera en E2, y `todo` en las tres clases al cerrar E2.
+    - `respecSkills` vuelve como stub `@deprecated` (D23), que solo avisa; C1 lo borra en E5.
+15. **Peticiones de E1 que quedan en cola** (cada dueño las recibe en su encargo):
+    - **KA (E2):**
+      - Los comportamientos leen `prof.def` o `cast.sk`; por ejemplo, `orbSegment` lee `prof.def.bounces`.
+      - Las escrituras a `p.cds` de `skills-arquera.js` pasan a `recast`, `charges` o `g.reduceCooldown` (`test87`).
+      - `trap.armT` es el tiempo de armado y la vida es `dur` (`a_t_cepo`).
+      - Las tablas legadas siguen el formato que valida `checkLegacy` de `test80`.
+    - **KT (E2):**
+      - Las escrituras a `p.cds` de `powers-<clase>.js` pasan a `g.reduceCooldown(p, id, s)` (`Infinity` = reinicio).
+      - Las claves `tv` del indicador son suyas: `frostCrit`, `drVsLayered`, `aspdCharges`, `chargeCrit`, `drCharges`, `galeT`.
+      - La Batida lee `g.trapBurstsWithin(p, 1)` y emite `verb_hunt`.
+      - `test65` dejó fuera Sed Saciada ×1,25 y el astillado de Cero Absoluto (`m_shatter`): van a `test-gauges-<clase>` o `test-powers-<clase>`.
+      - Activar `STRICT` de `test78`.
+    - **U1/U3 (E3):**
+      - Traducir `TALENT_REASONS`.
+      - Quitar el botón de `respecSkills` (`ui.js:2482`) y las insignias y resúmenes de `p.skillPoints` (628, 2439-2443, 2839) y el coste de `respecParagonCost` (3625).
+      - Puntos con `talentPointsInfo` y `paragonPointsInfo`, y glifos sueltos en el tablero.
+      - `TALENT_START_LEVEL` → `TALENT_RULES.specAt`.
+      - Ajuste `holdMode` en Opciones.
+      - Estado de los verbos para la UI: `g._charging` (`{ key, u, min, max, window, frac, toggle }`), `g._channel.toggle`, `p.skState[id]` y `p.skCharges[id]`, más `g.basicTensable()`.
+    - **B1 (E4):**
+      - Pasar de `presetRanks`/`presetList` a `buildsFor`/`buildRanks` con el árbol héroe y el tablero.
+      - Calibrar los legendarios del tablero: `test38` pide la mejor asignación legal de 16 puntos entre ×1,15 y ×2,0 (hoy ×1,63).
+
 ### Pendientes de decisión (texto original de la crítica)
 
 1. **Valores por defecto de §3.6.1** (bloqueos durante la carga, `charge.repeat` del básico, clic-mover, `toggle`): los propone esta revisión; el orquestador los confirma antes de lanzar E1.
