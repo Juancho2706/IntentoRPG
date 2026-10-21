@@ -1,5 +1,5 @@
 {
-  "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Revisada en E1.5 (integrador I) tras pasar los talentos de las tres clases a v2 esqueleto (fx vacío + todo, CATALOG_V = 1). Cada suite: dueño, etapa y por qué falla HOY. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9); test66 y test68 pasan hoy con el esqueleto, pero dependen del kit (KA-guerrero, KA-maga) y de m_aegis (KT-guerrero).",
+  "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Revisada en E1.5 (integrador I) tras pasar los talentos de las tres clases a v2 esqueleto (fx vacío + todo, CATALOG_V = 1) y en su ronda de corrección: test55, test67, test72 y test74 se partieron para no apagar sus guardas genéricas (lo de una clase pasó a test67b y a test-gauges-<clase>; test72 §2 usa una habilidad sintética). Cada suite: dueño, etapa y por qué falla HOY. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9); test55, test66 y test68 pasan hoy con el esqueleto, pero dependen del kit (KA-guerrero, KA-maga, KA-arquera) y de m_aegis (KT-guerrero).",
   "suites": {
     "test-skills-maga.mjs": {
       "owner": "KA-maga",
@@ -15,16 +15,6 @@
       "owner": "KA-arquera",
       "stage": "E2 (KA1)",
       "por": "catálogo v1: ARQUERA_SKILL_MODS, insignias por s0 y activas v1 (a_t_cepo, a_t_apuntado…) que con D29 salen de ARQUERA_TALENT_SKILLS y pasan al kit de skills-arquera.js"
-    },
-    "test55-recurso-clases.mjs": {
-      "owner": "KA-guerrero · KA-maga · KA-arquera",
-      "stage": "E2 (KA1)",
-      "por": "estructura del catálogo: exige activas de talento con req 10 y las 2g usan el req del catálogo (21/27/31/72); el recurso por clase ya pasa"
-    },
-    "test72-nucleo-2c2.mjs": {
-      "owner": "KA-arquera",
-      "stage": "E2 (KA1)",
-      "por": "§2 (rootAdd/slowPctAdd) resuelve a_t_cepo, activa v1 que sale de los talentos y vuelve como insignia de Montaraz en el catálogo; el resto de la suite pasa"
     },
     "test-powers-maga.mjs": {
       "owner": "KT-maga",
@@ -44,32 +34,27 @@
     "test-gauges-maga.mjs": {
       "owner": "KT-maga",
       "stage": "E2",
-      "por": "ui-gauges-maga.js y mech-maga.js citan nodos v1 (s0, s4, s9, s14) y p_combustion; al final, los casos de Calor, Escarcha y Cargas movidos de test75 (E1.5)"
+      "por": "A3: los `nodes` de ui-gauges-maga.js y mech-maga.js citan nodos v1 (s0, s4, s9, s14) y p_combustion. OJO: la Piromante v2 también usa el prefijo s (s0…s28 existen con OTRO contenido), así que los de Calor pasan A3 en silencio y hay que revisarlos uno a uno; los de Escarcha (i*) y Cargas (a*) fallan. Al final, los casos de Calor, Escarcha y Cargas movidos de test75 (E1.5)"
     },
     "test-gauges-guerrero.mjs": {
       "owner": "KT-guerrero",
       "stage": "E2",
-      "por": "ui-gauges-guerrero.js y mech-guerrero.js citan nodos v1 (s0, s4, s9, s17, x3), g_t_muro y g_t_veredicto; al final, los casos de Sed, Bastión y Fervor movidos de test75 (E1.5)"
+      "por": "A3: ui-gauges-guerrero.js y mech-guerrero.js citan nodos v1 (s0, s4, s9, s17, x3), g_t_muro y g_t_veredicto; los árboles v2 usan b*, d* y z*. Al final, los casos de Sed, Bastión y Fervor movidos de test75 (E1.5)"
     },
     "test-gauges-arquera.mjs": {
       "owner": "KT-arquera",
       "stage": "E2",
-      "por": "ui-gauges-arquera.js y mech-arquera.js citan nodos v1 (s0, s4, s9, s14), a_t_vision y a_t_cepo; al final, los casos de Concentración, Coto e Impulso movidos de test75 (E1.5)"
+      "por": "A3: ui-gauges-arquera.js y mech-arquera.js citan nodos v1 (s0, s4, s9, s14), a_t_vision y a_t_cepo; los árboles v2 usan v*, f* y m*. Al final, los casos de Concentración, Coto e Impulso movidos de test75 (E1.5)"
     },
-    "test74-gauges-registro.mjs": {
-      "owner": "KT-guerrero · KT-maga · KT-arquera",
-      "stage": "E2",
-      "por": "A3: los `nodes` de cada ui-gauges-<clase>.js citan ids v1 (s0…) que no existen en los árboles v2 (b*, d*, z*, p*, i*, a*, t*, f*, m*); el registro genérico pasa"
-    },
-    "test67-sin-powers-has.mjs": {
+    "test67b-poderes-clave-talentos.mjs": {
       "owner": "KT-guerrero · KT-maga · KT-arquera (Orq ajusta la lista)",
       "stage": "E2",
-      "por": "parte 2: exige que m_berserk, m_aegis, m_judgment, m_conflag, m_shatter, m_overload, m_deadeye, m_hunt y multidisparo sigan en un nodo de talento; con fx vacío ningún nodo los lleva. KT los pone en su nodo 2g o los retira (lista de cada doc). Las partes 1 y 3–5 (powers.has, definePower, mult) pasan: conviene partirla para no perderlas en cuarentena"
+      "por": "partida de test67 §2 en E1.5: m_berserk, m_aegis y m_judgment (Guerrero), m_conflag, m_shatter y m_overload (Maga), m_deadeye, m_hunt y multidisparo (Arquera) deben seguir en un nodo de talento de su clase; con fx vacío ningún nodo los lleva. KT los pone en su nodo 2g o los retira (lista de cada doc)"
     },
     "test87-sin-cds.mjs": {
       "owner": "KA-arquera · KT-guerrero · KT-maga · KT-arquera",
       "stage": "E2",
-      "por": "p.cds escrito fuera del motor: skills-arquera.js:301, powers-arquera.js (281, 806, 851, 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
+      "por": "p.cds escrito fuera del motor: skills-arquera.js (301, 308 y 309), powers-arquera.js (281, 806, 851 y 855), powers-guerrero.js:197 y powers-maga.js:547 (D2: g.reduceCooldown)"
     },
     "test76-talentos-mecanica.mjs": {
       "owner": "U1",

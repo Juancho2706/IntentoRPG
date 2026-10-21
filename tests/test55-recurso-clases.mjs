@@ -44,7 +44,13 @@ for (const c of Object.values(CLASSES)) {
   const basics = c.skills.filter(s => s.cat === 'basic').map(s => s.req).sort((a, b) => a - b);
   assert.deepEqual(basics, [1, 3, 8], `${c.id}: básicos A/B/C en Nv1/3/8`);
   assert.ok(c.skills.filter(s => s.kind !== 'talent').every(s => s.req <= 16), `${c.id}: el kit base se completa en Nv16`);
-  assert.ok(c.skills.filter(s => s.kind === 'talent').every(s => s.req === 10), `${c.id}: las activas de talento usan req 10`);
+  // D7 (Paso 2g): las activas de talento son solo de la ranura 2, Defensa o Utilidad, y llegan con el req del
+  // catálogo 2g (21/27/31 las de clase, 72+ las del héroe), después del kit base; en v1 todas usaban req 10
+  for (const s of c.skills.filter(x => x.kind === 'talent')) {
+    assert.deepEqual(s.slots, ['k2'], `${s.id}: activa de talento solo en la ranura 2`);
+    assert.ok(['defense', 'utility'].includes(s.cat), `${s.id}: Defensa o Utilidad (D7), no «${s.cat}»`);
+    assert.ok(s.req > 16, `${s.id}: req ${s.req} (el del catálogo 2g, después del kit base de Nv16)`);
+  }
 }
 assert.equal(GUERRERO_SKILLS.find(s => s.id === 'g_provocacion').req, 16, 'Provocación = Defensa/utilidad C (Nv16)');
 console.log('Clases: recurso de §2, básico generador, catálogo por categoría desde skills-<clase>.js ✓');

@@ -144,14 +144,20 @@ assert.ok(POWER_HOOKS[CORE_TV_POWER], 'poder común nucleo_tv registrado');
 }
 
 // ------------------------------------------------ 2) rootAdd / slowPctAdd · Estela que ralentiza
+// rootAdd/slowPctAdd son del núcleo (resolveSkill): se prueban sobre una habilidad SINTÉTICA que inmoviliza 2 s
+// (antes, la activa v1 a_t_cepo, que sale de los talentos en E1.5; la Trampa de Cepo la prueba KA-arquera)
 {
-  const h = makeHarness({ classId: 'arquera', level: 30 });
-  const cepo = SK('arquera', 'a_t_cepo');
+  const cepoDef = { id: 't_cepo', name: 'Cepo de prueba', cat: 'utility', tags: ['utility', 'area', 'cc', 'nature'], elem: 'nature',
+    type: 'area', at: 'target', coef: 0.6, cost: 10, cd: 8, radius: 1.5, range: 9, root: 2 };
+  const h = makeHarness({ classId: 'arquera', level: 30, inject: { skills: [cepoDef] } });
+  const cepo = h.p.cls.skills.find(s => s.id === 't_cepo');
   assert.equal(resolveSkill(h.p, cepo).root, 2);
-  h.p.talentExtra.mods = { a_t_cepo: { rootAdd: 1.5 } }; h.p.recompute();
+  h.p.talentExtra.mods = { t_cepo: { rootAdd: 1.5 } }; h.p.recompute();
   assert.equal(resolveSkill(h.p, cepo).root, 3.5, 'rootAdd SUMA sobre la habilidad');
-  h.p.talentExtra.mods = { a_t_cepo: { root: 1, rootAdd: 0.5 } }; h.p.recompute();
+  h.p.talentExtra.mods = { t_cepo: { root: 1, rootAdd: 0.5 } }; h.p.recompute();
   assert.equal(resolveSkill(h.p, cepo).root, 2.5, 'root toma el MÁXIMO (2 > 1) + rootAdd');
+  h.p.talentExtra.mods = { t_cepo: { root: 3 } }; h.p.recompute();
+  assert.equal(resolveSkill(h.p, cepo).root, 3, 'root del mod mayor que el de la habilidad: manda el mod');
   const m = makeHarness({ classId: 'maga', level: 30 });
   m.p.talentExtra.mods = { nova_hielo: { slowPctAdd: 10 } }; m.p.recompute();
   assert.equal(resolveSkill(m.p, SK('maga', 'nova_hielo')).slowPct, 40, 'slowPctAdd: 30 + 10');
