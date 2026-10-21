@@ -11,7 +11,8 @@
 // Los ids `v_*` son únicos entre clases (tools/convert-v2/out/power-ids.json, D28; definePower
 // lanza con uno repetido). Los VFX de cada estallido salen de MAGA_FORGE_FX (fx-skills-maga.js).
 //   magaForgePowers() → { v_<id>: PowerDef }
-//  v_saeta_ignea      Saeta Ígnea (Dardo I): el Dardo estalla al impactar (splash/radius forjados)
+//  (Saeta Ígnea, Dardo I, no lleva poder: su estallido es la salpicadura nativa del básico de arma,
+//   cola W2d; sus golpes llevan source 'splash')
 //  v_racimo           Racimo (Bola II): al explotar suelta 3 brasas que estallan (40 % c/u)
 //  v_fractura         Nova Fracturante (Nova II): +40 % a los ya ralentizados
 //  v_reactiva         Barrera Gélida (Barrera I): al romperse, congela 1,5 s a 3 m
@@ -54,30 +55,6 @@ function profOf(p, st, id) { return st.prof || p?.resolved?.[id] || null; }
 
 export function magaForgePowers() {
   return {
-    // Saeta Ígnea: el Dardo de Fuego estalla donde impacta. La salpicadura y su radio son los de
-    // la definición forjada (perfil: rango, talentos y soportes); el objetivo directo no la recibe.
-    // Los estallidos son golpes de la habilidad (Calor, Quemadura) con source 'power:v_saeta_ignea'
-    // (no son impactos del Dardo: no dan Cargas) y no vuelven a estallar
-    v_saeta_ignea: {
-      name: 'Saeta Ígnea', desc: 'El Dardo Arcano se vuelve de Fuego y estalla al impactar.',
-      state: () => ({ prof: null, busy: false }),
-      onCast(g, p, cast) { if (cast?.sk?.id === 'm_dardo') powerState(p, 'v_saeta_ignea').prof = cast.prof || null; },
-      onHit(g, p, e, hit) {
-        if (!direct(hit, 'm_dardo') || !e) return;
-        const st = powerState(p, 'v_saeta_ignea');
-        const prof = profOf(p, st, 'm_dardo');
-        if (st.busy || !(prof?.splash > 0) || !(prof.radius > 0)) return;
-        const c = at(e.pos);
-        st.busy = true;
-        try {
-          g.dealArea(c, prof.radius, prof.splash, { addPct: prof.addPct, critBonus: prof.critBonus, exclude: e, from: c,
-            hitInfo: { skill: 'm_dardo', tags: prof.tags, elem: prof.elem }, hitExtra: { source: 'power:v_saeta_ignea' } });
-        } finally { st.busy = false; }
-        g.spawnRing?.(c, prof.radius, 0xff7a22);
-        fx(g, 'm_dardo_i', 'impact', c, 0.6);
-      },
-    },
-
     // Racimo: la PRIMERA explosión de cada instante (el impacto, no su salpicadura) suelta
     // emberN brasas en anillo a emberRing m que estallan emberDelay s después (emberR m, 40 %
     // del arma × rango, con el saco aditivo de la Bola). Ni el objetivo directo ni nadie recibe

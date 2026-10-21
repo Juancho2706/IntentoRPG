@@ -56,10 +56,6 @@ const profOf = (h, id) => resolveSkill(h.p, byId(id));
 const pieces = e => [['m', e.mejora], ['i', e.vars[0]], ['ii', e.vars[1]]];
 // arma fija y grande (sin variación ni redondeo apreciable): daños comparables golpe a golpe
 const flat = h => { h.p.stats.wMin = h.p.stats.wMax = 1000; return h; };
-// efectos que dependen de otro dueño (petición abierta): mientras no llegan, se avisa como
-// PENDIENTE; en cuanto el efecto aparece, se exige su valor exacto (ni verde sin efecto ni otro valor)
-const PENDING = [];
-const pendingOr = (arrived, check, what) => { if (arrived) check(); else PENDING.push(what); };
 
 // ------------------------------------------------ 1) datos (A1, A9, D28)
 const withForge = SKILLS.filter(s => s.kind !== 'talent');
@@ -189,7 +185,7 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
 // ---- Dardo Arcano (Nv1: Mejora 4, variantes 7) ----
 {
   const shoot = (level, forge = {}, spec = null) => {
-    const h = hz({ level, forge, spec });
+    const h = flat(hz({ level, forge, spec }));   // arma fija: la proporción del estallido sin redondeo
     const shots = [];
     const orig = h.g.spawnProjectile.bind(h.g);
     h.g.spawnProjectile = o => { shots.push(o); return orig(o); };
@@ -202,26 +198,27 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
     h.step(0.5);
     return { h, shots, a, b, la, lb, lf };
   };
-  // Mejora: +40 % de velocidad y +20 % de alcance (en el perfil; el básico de arma aún no lo lee)
+  // Mejora: +40 % de velocidad y +20 % de alcance (el básico de arma lee prof.rangeMul: 9 → 10,8 m)
   const m0 = shoot(3), m1 = shoot(4);
   assert.equal(m0.shots[0].speed, 13);
   assert.ok(near(m1.shots[0].speed, 13 * 1.4), `Dardo Veloz: ${m1.shots[0].speed}`);
   assert.ok(profOf(m0.h, 'm_dardo').rangeMul === 1 && near(profOf(m1.h, 'm_dardo').rangeMul, 1.2));
-  pendingOr(m1.shots[0].range !== m0.shots[0].range,
-    () => assert.ok(near(m1.shots[0].range / m0.shots[0].range, 1.2, 0.01), `Dardo Veloz: alcance ${m0.shots[0].range} → ${m1.shots[0].range}`),
-    'W2 · Dardo Veloz: el básico de arma no lee prof.rangeMul (alcance del dardo sin el +20 %)');
-  // I · Saeta Ígnea: de Fuego y estalla a 1,5 m (30 %); el objetivo no recibe su propio estallido
+  assert.ok(near(m0.shots[0].range, 9) && near(m1.shots[0].range, 9 * 1.2), `Dardo Veloz: alcance ${m0.shots[0].range} → ${m1.shots[0].range}`);
+  // I · Saeta Ígnea: de Fuego y estalla a 1,5 m (30 %) con la salpicadura NATIVA del básico de arma
+  // (sin poder: golpes del Dardo con source 'splash'); el objetivo no recibe su propio estallido
   const base = shoot(30, { m_dardo: null }), fire = shoot(30, { m_dardo: 'i' });
   assert.ok(base.la.length === 1 && base.lb.length === 0, 'sin variante no estalla');
   assert.equal(fire.la.length, 1, 'el objetivo: solo el impacto');
   assert.equal(fire.la[0].elem, 'fire', 'el Dardo es de Fuego');
   assert.equal(hitsOf(fire.lb, 'm_dardo').length, 1, 'el vecino a 1,3 m recibe un estallido (un golpe, no una cadena)');
   assert.equal(fire.lb[0].elem, 'fire');
-  assert.ok(fire.lb[0].source === 'power:v_saeta_ignea' && fire.la[0].source === null, 'el estallido no es un impacto del Dardo (source del poder)');
+  assert.ok(fire.lb[0].source === 'splash' && fire.la[0].source === null, `el estallido es la salpicadura del Dardo, no su impacto (${fire.lb[0].source})`);
   assert.equal(fire.lf.length, 0, 'a 3 m, nada');
   const ratio = fire.lb[0].amt / fire.la[0].amt;
-  assert.ok(ratio > 0.15 && ratio < 0.5, `estallido ≈ 30/105 del impacto (${ratio.toFixed(2)})`);
-  assert.ok(fire.h.p.powers.has('v_saeta_ignea') && !base.h.p.powers.has('v_saeta_ignea'), 'su poder solo con la variante');
+  assert.ok(near(ratio, 0.3 / 1.05, 0.02), `estallido = 30/105 del impacto (${ratio.toFixed(3)})`);
+  assert.ok(![...fire.h.p.powers].some(id => id.startsWith('v_')), 'la Saeta Ígnea no lleva poder');
+  assert.ok(fire.shots[0].impactPreset && fire.shots[0].impactPreset === SKILL_FX_PRESETS[MAGA_FORGE_FX.m_dardo_i.impact]
+    && base.shots[0].impactPreset !== fire.shots[0].impactPreset, 'su VFX de impacto (MAGA_FORGE_FX, saetaBurst)');
   // II · Saeta Gélida: de Hielo, ralentiza 20 % 1,5 s y −10 % de daño
   const ice = shoot(30, { m_dardo: 'ii' });
   assert.equal(ice.la[0].elem, 'frost');
@@ -542,13 +539,12 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   const a12 = c12.enemy({ hp: 1e7, pos: [4.6, 0, 0] }), a13 = c13.enemy({ hp: 1e7, pos: [4.6, 0, 0] });
   c12.cast('k3'); c13.cast('k3'); c12.step(0.2); c13.step(0.2);
   assert.ok(!(a12.frozenT > 0) && a13.frozenT > 1.5, 'Celda Amplia: 4 → 5 m');
-  // la Prisión pone 2 capas de Escarcha (las pone el indicador con prof.def.layers: petición a KT)
+  // la Prisión pone 2 capas de Escarcha (las pone el indicador con prof.def.layers)
   {
     const h = pri(12);
     const e = h.enemy({ hp: 1e7, pos: [2, 0, 0] });
     h.cast('k3'); h.step(0.2);
-    const n = h.gaugeValue('escarcha', e);
-    pendingOr(n !== 1, () => assert.equal(n, 2, 'Prisión: 2 capas'), 'KT · Prisión de Hielo: el indicador pone 1 capa, no las 2 de prof.def.layers');
+    assert.equal(h.gaugeValue('escarcha', e), 2, 'Prisión: 2 capas');
   }
   // I · Celda Lejana: a 15 m sobre UN enemigo, 3 s
   const run = forge => {
@@ -649,7 +645,7 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   // efecto: capas de Escarcha en el primero (el de 1 m; la base pone 1 por golpe de Hielo)
   const nb = b.h.gaugeValue('escarcha', b.es[3]), nh = heavy.h.gaugeValue('escarcha', heavy.es[3]);
   assert.equal(nb, 1, 'Lanza: 1 capa al golpear');
-  pendingOr(nh !== 1, () => assert.equal(nh, 2, 'Lanza Pesada: 2 capas'), 'KT · Lanza Pesada: el indicador pone 1 capa, no las 2 de prof.def.layers');
+  assert.equal(nh, 2, 'Lanza Pesada: 2 capas');
   noWarnings('Lanza de Hielo');
   console.log('Lanza de Hielo: Punta Afilada, Lanza Pesada (no atraviesa) y Abanico Gélido (3 lanzas) ✓');
 }
@@ -744,17 +740,17 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   const seal = (level, forge = {}) => {
     const h = hz({ spec: 'arcanista', level, forge });
     h.setSlot('k2', 'a_sello');
-    const c0 = profOf(h, 'rayo').cost;
+    const c0 = profOf(h, 'rayo').cost, o0 = profOf(h, 'a_orbe').cost;
     assert.equal(h.cast('k2'), true);
     const f = h.g.fields.find(x => !x.dead && x.kind === 'aura' && x.data?.buffId === 'a_sello');
-    return { h, f, c0 };
+    return { h, f, c0, o0 };
   };
   assert.ok(near(seal(14).f.t, 8) && near(seal(15).f.t, 10), 'Sello Firme: 8 → 10 s');
-  // I · Sello Ofensivo: dentro, +25 % al daño de los críticos y ya no abarata
+  // I · Sello Ofensivo: dentro, +25 % al daño de los críticos y ya no abarata (ni el Rayo ni el Orbe)
   const base = seal(30, { a_sello: null }), off = seal(30, { a_sello: 'i' });
   const buff = x => x.h.p.buffs.find(b => b.id === 'a_sello');
-  assert.ok(profOf(base.h, 'rayo').cost < base.c0 && !(buff(base).stats.critDmg > 0), 'base: abarata');
-  assert.ok(profOf(off.h, 'rayo').cost === off.c0 && buff(off).stats.critDmg >= 25, `Ofensivo: críticos +${buff(off).stats.critDmg} % y coste normal`);
+  assert.ok(profOf(base.h, 'rayo').cost < base.c0 && profOf(base.h, 'a_orbe').cost < base.o0 && !(buff(base).stats.critDmg > 0), 'base: abarata tus hechizos (también el Orbe, que no es principal)');
+  assert.ok(profOf(off.h, 'rayo').cost === off.c0 && profOf(off.h, 'a_orbe').cost === off.o0 && buff(off).stats.critDmg >= 25, `Ofensivo: críticos +${buff(off).stats.critDmg} % y coste normal`);
   // II · Sello de Contención: ralentiza un 40 % a los enemigos dentro
   const con = seal(30, { a_sello: 'ii' });
   const inE = con.h.enemy({ hp: 1e7, pos: [2, 0, 0] }), outE = con.h.enemy({ hp: 1e7, pos: [8, 0, 0] });
@@ -862,5 +858,4 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   console.log('Desgarro Arcano: Desgarro Estable (moverse), Brecha (grieta 5 s) y Quiebre (un golpe) ✓');
 }
 
-for (const w of PENDING) console.log(`⚠ PENDIENTE ${w}`);
 console.log('\n✅ FORJA DE LA MAGA (17 habilidades × Mejora y 2 variantes) OK');

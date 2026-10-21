@@ -94,12 +94,13 @@ export const MAGA_SKILLS = [
     type: 'proj', behavior: 'orbe_arcano', req: 10, coef: 1.6, cost: 20, cd: 8, speed: 6, range: 14, size: 0.34, pierce: true, bounces: 2, color: 0xb388ff,
     line: 'Lanzas un orbe lento que atraviesa y rebota 2 veces entre enemigos.',
     desc: 'Un orbe arcano lento que atraviesa a los enemigos (160 % por impacto) y, al acabar su recorrido, rebota 2 veces hacia el enemigo más cercano. Cuesta 20 de Maná; enfriamiento 8 s.' },
-  // Sello del Archimago: aura en el suelo que abarata tus principales mientras estás dentro.
-  // La Carga cada 2 s la da el indicador de Cargas (mech-maga.js) al dueño dentro de su Sello
+  // Sello del Archimago: aura en el suelo que abarata tus hechizos mientras estás dentro (stat
+  // costPct: todas las habilidades con coste, cola W2d). La Carga cada 2 s la da el indicador de
+  // Cargas (mech-maga.js) al dueño dentro de su Sello
   { id: 'a_sello', name: 'Sello del Archimago', icon: '🔯', cat: 'utility', spec: 'arcanista', slots: ['k2'], tags: ['utility', 'aura', 'arcane'], elem: 'arcane',
-    type: 'aura', at: 'self', req: 12, cd: 20, radius: 4, dur: 8, buff: { spenderCostPct: -30 }, color: 0xe0b0ff,
-    line: 'Círculo de 4 m durante 8 s: dentro, tus principales cuestan un 30 % menos y ganas 1 Carga cada 2 s.',
-    desc: 'Dibujas un círculo de 4 m a tus pies durante 8 s: mientras estás dentro, tus habilidades principales cuestan un 30 % menos y ganas 1 Carga Arcana cada 2 s. Enfriamiento 20 s.' },
+    type: 'aura', at: 'self', req: 12, cd: 20, radius: 4, dur: 8, buff: { costPct: -30 }, color: 0xe0b0ff,
+    line: 'Círculo de 4 m durante 8 s: dentro, tus hechizos cuestan un 30 % menos y ganas 1 Carga cada 2 s.',
+    desc: 'Dibujas un círculo de 4 m a tus pies durante 8 s: mientras estás dentro, tus hechizos con coste cuestan un 30 % menos y ganas 1 Carga Arcana cada 2 s. Enfriamiento 20 s.' },
   { id: 'rayo', name: 'Rayo', icon: '⚡', cat: 'spender', spec: 'arcanista', slots: ['rmb', 'k2'], tags: ['spender', 'line', 'arcane'], elem: 'arcane',
     type: 'line', req: 14, coef: 2.4, cost: 22, cd: 2, range: 15, width: 1.2, lockT: 0.3, color: 0xffee66,
     line: 'Rayo de 15 m que atraviesa en línea y gasta tus Cargas: +35 % de daño y 5 de maná por Carga.',
@@ -743,18 +744,19 @@ export const MAGA_SKILL_BEHAVIORS = {
 //  · «−X % de daño» y «X % cada uno» van al saco aditivo (mod dmg), como en el resto de la forja.
 //  · color: el de la forma nueva (anillos, haces y campos lo toman de la definición forjada).
 // Desviaciones del `k` del mockup (anotadas en tools/convert-v2/out/maga/pendientes-maga.md):
-// Lluvia de Meteoritos y Sello Ofensivo sin código propio (área genérica con impactos y buff
-// del aura); Muralla de Hielo con el campo genérico 'muro'; Saeta Ígnea y Sello de Contención
-// con poderes v_* (el básico de arma no tiene salpicadura ni el aura ralentiza).
+// Lluvia de Meteoritos, Sello Ofensivo y Saeta Ígnea sin código propio (área genérica con
+// impactos, buff del aura y salpicadura nativa del básico de arma); Muralla de Hielo con el campo
+// genérico 'muro'; Sello de Contención con un poder v_* (el aura genérica no ralentiza).
 export const MAGA_SKILL_FORGE = {
   // ---------------- kit base ----------------
   m_dardo: {
-    // el alcance (+20 %) espera a que el básico de arma lea prof.range (petición W2)
+    // +20 % de alcance: el básico de arma lo lee del perfil (Player.basicRange × prof.rangeMul): 9 → 10,8 m
     mejora: { name: 'Dardo Veloz', icon: 'forge/mejora', line: '+40 % de velocidad del proyectil y +2 m de alcance.',
       mul: { speed: 1.4 }, mod: { range: 20 } },
     vars: [
+      // salpicadura nativa del básico de arma (prof.splash en prof.radius): golpes del Dardo con source 'splash'
       { id: 'm_dardo_i', name: 'Saeta Ígnea', role: 'AREA', icon: 'forge/v_m_dardo_i', line: 'Se vuelve de Fuego y estalla a 1,5 m (30 %).',
-        elem: 'fire', set: { splash: 0.3, radius: 1.5, color: 0xff7a22 }, power: 'v_saeta_ignea' },
+        elem: 'fire', set: { splash: 0.3, radius: 1.5, color: 0xff7a22 } },
       { id: 'm_dardo_ii', name: 'Saeta Gélida', role: 'CTRL', icon: 'forge/v_m_dardo_ii', line: 'Se vuelve de Hielo: ralentiza 20 % 1,5 s; −10 % daño.',
         elem: 'frost', set: { color: 0x9fe3ff }, mod: { slow: 1.5, slowPct: 20, dmg: -10 } },
     ],
@@ -885,9 +887,9 @@ export const MAGA_SKILL_FORGE = {
   a_sello: {
     mejora: { name: 'Sello Firme', icon: 'forge/mejora', line: 'Dura 8 → 10 s.', mod: { durS: 2 } },
     vars: [
-      // el buff del aura: daño de los críticos en vez del abaratamiento
+      // el buff del aura (set lo FUSIONA con el de la base): daño de los críticos y coste a 0
       { id: 'a_sello_i', name: 'Sello Ofensivo', role: 'UNI', icon: 'forge/v_a_sello_i', line: 'Dentro, tus críticos hacen +25 %; ya no abarata.',
-        set: { buff: { spenderCostPct: 0, critDmg: 25 }, color: 0xff8ad8 } },
+        set: { buff: { costPct: 0, critDmg: 25 }, color: 0xff8ad8 } },
       { id: 'a_sello_ii', name: 'Sello de Contención', role: 'CTRL', icon: 'forge/v_a_sello_ii', line: 'Los enemigos que entran quedan ralentizados un 40 %.',
         set: { slowPct: 40, color: 0x9fd8ff }, power: 'v_sello_contencion' },
     ],

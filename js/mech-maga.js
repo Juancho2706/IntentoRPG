@@ -143,9 +143,11 @@ export function baseGauges(T, H) {
         if (boss && numbT > 0) { out.state = 'active'; out.label = 'Aterido'; out.t = numbT; out.tMax = T.escarcha.numbT; out.decayIn = null; }
       },
     },
-    // Arcanista: 1 Carga por impacto del Dardo y por golpe del Desgarro, y 1 cada 2 s dentro de tu
-    // Sello. El Rayo las gasta TODAS: +(35 + tv.chargeDmg) % por Carga (las que pasan de 4, el doble:
-    // Cargas Desbordadas) y 5 de maná por Carga; anota cuántas (st.spent: Rayo Doble, Carga Final…).
+    // Arcanista: 1 Carga por impacto DIRECTO del Dardo y por golpe del Desgarro (HitInfo.source
+    // 'hit': ni los saltos de una cadena, 'chain', ni la salpicadura de la Saeta Ígnea, 'splash'), y
+    // 1 cada 2 s dentro de tu Sello. El Rayo las gasta TODAS: +(35 + tv.chargeDmg) % por Carga (las
+    // que pasan de 4, el doble: Cargas Desbordadas) y 5 de maná por Carga; anota cuántas (st.spent:
+    // Rayo Doble, Carga Final…).
     // Máximo 4 (+1 por rango de Cargas Desbordadas). Se pierden todas 6 s (+2 por rango de Memoria
     // Arcana) después de la última ganancia, salvo con Resonancia y 4 o con Singularidad 3. Con 2 o
     // más: Mente Brillante (crítico); con 3 o más: Velo Arcano (menos daño) y Agudeza (buff a_agudeza).
@@ -154,8 +156,8 @@ export function baseGauges(T, H) {
       state: () => ({ keep: false, spent: 0, echoN: null, seal: 0 }),
       hold: st => !!st.keep,
       onHit(g, p, e, hit) {
-        if (hit?.proc || hit?.dot) return;
-        if (hit?.skill === 'm_dardo' || hit?.skill === 'm_u_desgarro') gainGauge(p, 'cargas', T.cargas.perDart);
+        if (hit?.proc || hit?.dot || (hit?.source || 'hit') !== 'hit') return;
+        if (hit.skill === 'm_dardo' || hit.skill === 'm_u_desgarro') gainGauge(p, 'cargas', T.cargas.perDart);
       },
       // las repeticiones del Rayo (Rayo Doble, Tormenta de Cargas) usan las Cargas del original (echoN)
       condAdd(p, e, hit, st) {

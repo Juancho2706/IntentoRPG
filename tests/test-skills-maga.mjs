@@ -306,6 +306,27 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
 // ------------------------------------------------ 5) comportamientos (canal real)
 // Cada habilidad del kit se prueba a Nv req+2: ya se conoce y aún no tiene la Mejora de la forja
 // (Nv req+3), así que es su forma base. La forja la prueba test-forge-maga.
+// Dardo Arcano: el básico de arma vuela 9 m (atkRange 7 + 2: sin alcance propio, decisión de la
+// tanda 2; la línea dice «a distancia», divergencia catalogo.m_dardo.line) y Dardo Veloz (Mejora,
+// Nv4) lo alarga un 20 %: 10,8 m. Lo que mide es el impacto REAL (proyectil del canal)
+{
+  const shot = (level, z) => {
+    const h = makeHarness({ classId: 'maga', level });
+    const e = h.enemy({ hp: 1e7, pos: [0, 0, z] });
+    h.aim(0, z); h.setSlot('lmb', 'm_dardo');
+    assert.equal(h.cast('lmb'), true, `Nv${level}: el Dardo sale`);
+    h.step(1.5);
+    return { range: h.p.basicRange(), hit: lost(e) > 0 };
+  };
+  assert.ok(!(byId('m_dardo').range > 0), 'el Dardo no declara alcance propio');
+  const n3 = shot(3, 8.5), n3far = shot(3, 9.9), n4 = shot(4, 10.3), n4far = shot(4, 11.7);
+  assert.ok(Math.abs(n3.range - 9) < 1e-9 && Math.abs(n4.range - 10.8) < 1e-9, `alcance 9 → 10,8 m (${n3.range}, ${n4.range})`);
+  assert.ok(n3.hit && !n3far.hit, 'Nv3: alcanza a 8,5 m, no a 9,9 m');
+  assert.ok(n4.hit && !n4far.hit, 'Dardo Veloz: alcanza a 10,3 m, no a 11,7 m');
+  noWarnings('Dardo');
+  console.log('Dardo Arcano: vuela 9 m (10,8 m con Dardo Veloz) ✓');
+}
+
 // Barrera de Maná: 60 % del maná máximo × potencia; la potencia de talento (mod buff) la sube
 {
   const h = makeHarness({ classId: 'maga', level: 6 });
@@ -540,18 +561,21 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   noWarnings('Rayo');
 }
 
-// Sello del Archimago: dentro, las principales cuestan un 30 % menos
+// Sello del Archimago: dentro, tus hechizos con coste cuestan un 30 % menos (stat costPct: todas
+// las habilidades con coste, también el Orbe, que es la insignia y no una principal)
 {
   const h = makeHarness({ classId: 'maga', level: 14, spec: 'arcanista' });
-  const rayo = byId('rayo');
-  const c0 = resolveSkill(h.p, rayo).cost;
+  const ids = ['rayo', 'a_orbe', 'nova_hielo', 'bola_fuego'];
+  const c0 = Object.fromEntries(ids.map(id => [id, resolveSkill(h.p, byId(id)).cost]));
+  assert.ok(ids.every(id => c0[id] > 0), 'cuatro hechizos con coste');
   h.setSlot('k2', 'a_sello');
   assert.equal(h.cast('k2'), true);
   const f = h.g.fields.find(x => x.kind === 'aura' && x.data?.buffId === 'a_sello');
   assert.ok(f && f.radius === 4 && Math.abs(f.t - 8) < 1e-6, 'círculo de 4 m durante 8 s');
-  assert.equal(resolveSkill(h.p, rayo).cost, Math.round(c0 * 0.7), 'Rayo −30 % dentro');
+  for (const id of ids) assert.equal(resolveSkill(h.p, byId(id)).cost, Math.round(c0[id] * 0.7), `${id}: −30 % dentro`);
+  assert.equal(byId('a_orbe').cat, 'spec', 'el Orbe es la insignia (no una principal) y también se abarata');
   h.step(9);
-  assert.equal(resolveSkill(h.p, rayo).cost, c0, 'al terminar, coste normal');
+  for (const id of ids) assert.equal(resolveSkill(h.p, byId(id)).cost, c0[id], `${id}: al terminar, coste normal`);
   noWarnings('Sello');
 }
 

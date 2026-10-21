@@ -72,8 +72,12 @@ for (const [id, d] of Object.entries(P)) ok(!d.mult, `${id}: sin mult`);
   ok(!/setTimeout\s*\(/.test(src), 'sin setTimeout (planificador por ticks)');
   ok(!/\.cds\s*(\[[^\]]+\]|\.\w+)\s*(=(?!=)|\+=|-=)/.test(src), 'sin escribir p.cds (g.reduceCooldown)');
   ok(!/powers\.has\(/.test(src), 'sin powers.has (hasPower)');
+  // cola W2d: el control solo por Enemy.applyCC/clearCC (Ruptura ya no escribe stunT/frozenT) y el
+  // canal en curso solo por g.channelInfo (no por el estado interno g._channel)
+  ok(!/\.(stunT|frozenT|rootT|slowT|fearT)\s*(=(?!=)|\+=|-=)/.test(src), 'sin escribir controles a mano (applyCC / clearCC)');
+  ok(!/\._channel\b/.test(src), 'sin leer g._channel (g.channelInfo)');
 }
-console.log('✓ reglas: claves, sin mult, sin Math.random, setTimeout ni p.cds');
+console.log('✓ reglas: claves, sin mult, sin Math.random, setTimeout, p.cds, controles a mano ni g._channel');
 
 // ------------------------------------------------ utilidades
 const WEAPON = { kind: 'item', slot: 'weapon', name: 'Bastón de prueba', dmg: [1000, 1000], affixes: {}, quality: 0 };
@@ -159,20 +163,24 @@ console.log('✓ activas de talento: Contrahechizo, Inversión del Tiempo y Bloq
   eq(h.gaugeValue('escarcha', n), 1, 'congelar: Glaciar lo ve una vez (no en cada sondeo)');
   eq(h.p.shields.length, 1, 'congelar: el Cristal Protector, una vez');
 }
-{ // repetición «sola» (Ventisca Viva): va en su propia serie; la de tu último lanzamiento queda igual
+{ // repetición «sola» (Ventisca Viva, g.castEcho de la cola W2d): va en su propia serie; la de tu
+  // último lanzamiento queda igual, sin tocar la barra ni pasar por una ranura
   const h = H({ spec: 'crionte', talents: { specRanks: { i10: 1, i7: 2 }, choice: { i10: 'A' } } });   // Tormenta de 10 s
-  const out = [];
-  const orig = h.g.castSkillSlot.bind(h.g);
-  h.g.castSkillSlot = (slot, mult = 0) => { const r = orig(slot, mult); if (mult > 0) out.push({ id: h.p.hotbar[slot], r }); return r; };
+  const out = [], slots = [];
+  const orig = h.g.castEcho.bind(h.g), origSlot = h.g.castSkillSlot.bind(h.g);
+  h.g.castEcho = (p, id, opts, legacy) => { const r = orig(p, id, opts, legacy); out.push({ id, r, origin: opts?.origin || null }); return r; };
+  h.g.castSkillSlot = (slot, mult = 0) => { if (mult > 0) slots.push(slot); return origSlot(slot, mult); };
   // tu última Nova ya gastó 2 de sus 3 repeticiones (Archimaga, Gran Grimorio…)
   h.p.skState.nova_hielo = { ...(h.p.skState.nova_hielo || {}), echo: { seq: 7, n: 2 } };
-  // sin la Nova en la barra: la toma prestada un instante y la devuelve
+  // sin la Nova en la barra
   for (const k of Object.keys(h.p.hotbar)) if (h.p.hotbar[k] === 'nova_hielo') h.p.hotbar[k] = null;
   const bar = { ...h.p.hotbar };
   castAt(h, 'k4', 'm_u_tormenta', 0, 0, 0.05);
   h.p.cds.m_u_tormenta = 0;
   h.tick(10.5);
   ok(out.filter(x => x.id === 'nova_hielo' && x.r).length === 4, 'Ventisca Viva: salen las 4 Novas (más que el tope de 3 repeticiones de un lanzamiento)');
+  ok(out.every(x => x.origin), 'Ventisca Viva: cada Nova con su origen (el centro de la Tormenta)');
+  eq(slots.length, 0, 'Ventisca Viva: sin repeticiones por ranura (castEcho, no castSkillSlot)');
   ok(!magaStorm(h.p), 'la Tormenta acabó');
   assert.deepEqual(h.p.skState.nova_hielo.echo, { seq: 7, n: 2 }, 'Ventisca Viva: no reinicia ni gasta la serie de tu última Nova (el tope sigue valiendo)'); checks++;
   assert.deepEqual(h.p.hotbar, { ...bar, k4: 'm_u_tormenta' }, 'Ventisca Viva: la barra queda como estaba'); checks++;

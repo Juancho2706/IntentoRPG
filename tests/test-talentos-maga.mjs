@@ -68,6 +68,17 @@ function spyEchoes(h) {
   h.g.castSkillSlot = (slot, mult = 0) => { if (mult > 0) out.push({ slot, mult, t: h.p.simT }); return orig(slot, mult); };
   return out;
 }
+// lanzamientos «solos y gratis» (g.castEcho, cola W2d): id, potencia, mira, origen y si salió
+function spyFree(h) {
+  const out = [];
+  const orig = h.g.castEcho.bind(h.g);
+  h.g.castEcho = (p, id, opts = {}, legacy) => {
+    const r = orig(p, id, opts, legacy);
+    out.push({ id, mult: opts?.mult ?? 1, at: opts?.at || null, origin: opts?.origin || null, ok: !!r, t: h.p.simT });
+    return r;
+  };
+  return out;
+}
 const sk = (h, id) => h.p.cls.skills.find(s => s.id === id);
 const prof = (h, id) => { h.p.resolved = {}; return resolveSkill(h.p, sk(h, id)); };
 // lanza la ranura (lista: sin enfriamiento ni bloqueo) y deja correr la simulación (proyectiles,
@@ -1428,15 +1439,22 @@ for (const r of [1, 2]) {
   h.p.addBuff('p_combustion', {}, 2.5, { name: 'Combustión' });
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', crit: true });
   eq(h.gaugeValue('calor'), TT.calor.perpetua, 's26: +4 de Calor por crítico');
-  h.setSlot('rmb', 'bola_fuego');
-  const ech = spyEchoes(h);
+  // la Bola sale aunque no esté en la barra, sin coste ni enfriamiento (g.castEcho)
+  const bar0 = { ...h.p.hotbar };
+  ok(!Object.values(bar0).includes('bola_fuego'), 'la Bola no está en la barra');
+  const ech = spyFree(h), shots = [];
+  const sp0 = h.g.spawnProjectile.bind(h.g);
+  h.g.spawnProjectile = o => { if (o.skill === 'bola_fuego') shots.push(o); return sp0(o); };
   h.gauge('calor', 99);
   h.p.simT += 0.1;
   h.hit(e, { elem: 'arcane', skill: 'm_dardo', crit: true });
   const bf = h.p.buffs.find(x => x.id === 'p_combustion');
   ok(bf && bf.t > 5, `s26: a tope, la Combustión dura 3 s más (${bf?.t})`);
+  const mp0 = h.p.mp;
   h.step(0.2);
-  ok(ech.length === 1 && h.p.hotbar[ech[0].slot] === 'bola_fuego', 's26: y lanza una Bola gratis');
+  ok(ech.length === 1 && ech[0].id === 'bola_fuego' && ech[0].mult === 1 && ech[0].ok && shots.length === 1, 's26: y lanza una Bola gratis');
+  ok(h.p.mp >= mp0 && !(h.p.cds.bola_fuego > 0), 's26: sin coste ni enfriamiento');
+  same(h.p.hotbar, bar0, 's26: la barra queda como estaba');
 }
 // s27 Lluvia de Fuego (final): con Ignición, el Meteoro cae 3 veces (100/60/60 %); con 3+ golpeados, se recarga
 {
@@ -1478,13 +1496,16 @@ for (const r of [1, 2]) {
   eq(h3.gaugeView().state, 'active', 's28.3: Ignición Total a 80 de Calor');
   // 4) cada 20 explosiones, Supernova sola y gratis
   const h4 = sp('piromante', { s28: 4 }), t = h4.enemy({ hp: 1e9, pos: [3, 0, 0] });
-  const ech = spyEchoes(h4);
+  const ech = spyFree(h4);
   for (let i = 0; i < 19; i++) { h4.hit(t, { elem: 'fire', skill: 'bola_fuego' }); h4.hit(t, { elem: 'fire', skill: 'bola_fuego' }); h4.p.simT += 0.1; }
   h4.step(0.2);
   eq(ech.length, 0, 's28.4: 19 explosiones, aún no');
   h4.hit(t, { elem: 'fire', skill: 'meteoro' });
   h4.step(0.2);
-  ok(ech.length === 1 && ech[0].mult === 1, 's28.4: la 20.ª lanza Supernova sola');
+  ok(ech.length === 1 && ech[0].id === 'm_u_supernova' && ech[0].mult === 1 && ech[0].ok, 's28.4: la 20.ª lanza Supernova sola');
+  const tl = spy(h4);
+  h4.step(1.5);
+  ok(from(tl, 'm_u_supernova', t).length >= 1, 's28.4: y la Supernova estalla');
 }
 console.log('✓ Piromante: cada nodo con su efecto (quemaduras, Calor, Meteoro y finales por rango)');
 
@@ -1626,12 +1647,25 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 // i10A Ventisca Viva (una Nova cada 2 s) · i10B Frío Sostenido (+60 % al de más capas)
 {
   const h = sp('crionte', { i10: 1 }, { i10: 'A' });
-  const ech = spyEchoIds(h);
+  const ech = spyFree(h);
   cast(h, 'k4', 'm_u_tormenta', 0.05);
   h.tick(8.5);
   const novas = ech.filter(x => x.id === 'nova_hielo');
   eq(novas.length, 3, 'i10A: una Nova cada 2 s mientras dura (a los 2, 4 y 6 s)');
-  ok(novas.every(x => x.mult === 1), 'i10A: Novas enteras');
+  ok(novas.every(x => x.mult === 1 && x.ok), 'i10A: Novas enteras');
+  // la Nova sale del CENTRO de la Tormenta (origin): con la Ventisca Anclada (forja I), donde la
+  // anclaste, no a tus pies
+  const an = sp('crionte', { i10: 1 }, { i10: 'A' });
+  an.p.skillForge = { m_u_tormenta: 'i' }; an.p.recompute(); an.p.mp = an.p.stats.maxMP;
+  const ea = spyFree(an), la = spy(an);
+  const there = an.enemy({ hp: 1e9, pos: [10, 0, 0] }), here = an.enemy({ hp: 1e9, pos: [-1, 0, 0] });
+  an.aim(10, 0);
+  cast(an, 'k4', 'm_u_tormenta', 0.05);
+  ok(Math.hypot(magaStorm(an.p).center().x - 10, magaStorm(an.p).center().z) < 1e-6, 'la Ventisca Anclada se queda a 10 m');
+  an.tick(2.1);
+  const nv = ea.filter(x => x.id === 'nova_hielo');
+  ok(nv.length === 1 && nv[0].ok && nv[0].origin && Math.hypot(nv[0].origin.x - 10, nv[0].origin.z) < 1e-6, 'i10A: con la Ventisca Anclada, la Nova sale del centro de la Tormenta');
+  ok(from(la, 'nova_hielo', there).length === 1 && !from(la, 'nova_hielo', here).length, 'i10A: la Nova golpea allí y no a tus pies');
   const c = sp('crionte', { i10: 1 }, { i10: 'B' });
   const a = c.enemy({ hp: 1e9, pos: [1, 0, 0] }), o = c.enemy({ hp: 1e9, pos: [-1, 0, 0] });
   for (let i = 0; i < 3; i++) c.hit(a, FROST()); c.hit(o, FROST());
@@ -1725,13 +1759,16 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
 }
 // i17 Remolino: al terminar el Paso de Escarcha, una Nova al 50 % por rango
 {
+  // la Nova sale donde acaba el desliz (6 m): golpea al de allí, no al del punto de partida
   const h = sp('crionte', { i17: 2 });
-  const ech = spyEchoIds(h);
+  const ech = spyFree(h), lg = spy(h);
+  const end = h.enemy({ hp: 1e9, pos: [7, 0, 1.5] }), start = h.enemy({ hp: 1e9, pos: [-1.5, 0, 1.5] });
   h.aim(6, 0); cast(h, 'k1', 'm_paso_escarcha', 0.1);
-  ok(ech.length === 1 && ech[0].id === 'nova_hielo' && ech[0].mult === 1, 'i17 r2: una Nova al 100 %');
-  const r1 = sp('crionte', { i17: 1 }), e1 = spyEchoIds(r1);
+  ok(ech.length === 1 && ech[0].id === 'nova_hielo' && ech[0].mult === 1 && ech[0].ok, 'i17 r2: una Nova al 100 %');
+  ok(from(lg, 'nova_hielo', end).length === 1 && !from(lg, 'nova_hielo', start).length, 'i17: la Nova sale donde terminas el Paso');
+  const r1 = sp('crionte', { i17: 1 }), e1 = spyFree(r1);
   r1.aim(6, 0); cast(r1, 'k1', 'm_paso_escarcha', 0.1);
-  ok(e1.length === 1 && e1[0].mult === 0.5, 'i17 r1: al 50 %');
+  ok(e1.length === 1 && e1[0].mult === 0.5 && e1[0].ok, 'i17 r1: al 50 %');
 }
 // i18 Congelación en Cadena: muere un Congelado → se congelan 1 por rango a 4 m
 {
@@ -1879,12 +1916,12 @@ const freezeNow = (h, e, t = 1) => e.applyCC('freeze', t, { src: h.p });
   ok(e3.frozenT > 0, 'i28.3: se congela con 4 capas');
   // 4) cada 15 congelaciones, la Tormenta sola
   const h4 = sp('crionte', { i28: 4 });
-  const ech = spyEchoIds(h4);
+  const ech = spyFree(h4);
   for (let i = 0; i < 14; i++) { const o = h4.enemy({ hp: 1e9, pos: [i % 5, 0, Math.floor(i / 5)] }); freezeNow(h4, o); h4.tick(0.1); }
   h4.step(0.1);
   eq(ech.length, 0, 'i28.4: 14 congelaciones, aún no');
   freezeNow(h4, h4.enemy({ hp: 1e9, pos: [7, 0, 7] })); h4.tick(0.1); h4.step(0.1);
-  ok(ech.length === 1 && ech[0].id === 'm_u_tormenta', 'i28.4: la 15.ª lanza la Tormenta Glacial');
+  ok(ech.length === 1 && ech[0].id === 'm_u_tormenta' && ech[0].ok, 'i28.4: la 15.ª lanza la Tormenta Glacial');
   ok(magaStorm(h4.p), 'i28.4: la Tormenta está activa');
 }
 console.log('✓ Crionte: cada nodo con su efecto (capas, congelación, Lanza, Tormenta y finales por rango)');
@@ -1912,6 +1949,21 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   s.p.pos.set(20, 0, 0); s.tick(4.05);
   eq(charges(s), 2, 'a0: fuera del Sello, no');
   eq(MAGA_TALENTS.specs[2].nodes[0].touch.includes('a_sello'), true, 'a0 toca el Sello del Archimago');
+  // solo el impacto DIRECTO (HitInfo.source 'hit'): ni la salpicadura de la Saeta Ígnea ('splash',
+  // con el canal real) ni un salto de cadena ('chain'), aunque lleven la habilidad del Dardo
+  const sa = sp('arcanista');
+  sa.p.skillForge = { m_dardo: 'i' }; sa.p.recompute(); sa.p.mp = sa.p.stats.maxMP;
+  sa.enemy({ hp: 1e9, pos: [0, 0, 5] });
+  const nb = sa.enemy({ hp: 1e9, pos: [1.2, 0, 5.4] });
+  const ls = spy(sa);
+  sa.aim(0, 5); cast(sa, 'lmb', 'm_dardo', 0.8);
+  ok(ls.some(x => x.e === nb && x.skill === 'm_dardo' && x.source === 'splash'), 'la Saeta Ígnea salpica al vecino con un golpe del Dardo');
+  eq(charges(sa), 1, 'a0: la salpicadura de la Saeta Ígnea no da Carga (solo el impacto)');
+  const cj = sp('arcanista'), ce = cj.enemy({ hp: 1e9, pos: [3, 0, 0] });
+  for (const source of ['chain', 'splash']) cj.g.onPlayerHit(ce, { dealt: 10, raw: 10, crit: false, skill: 'm_dardo', tags: new Set(['arcane']), elem: 'arcane', proc: false, dot: false, source, pos: { x: 3, z: 0 } });
+  eq(charges(cj), 0, 'a0: un salto de cadena o una salpicadura del Dardo no dan Carga');
+  cj.hit(ce, DART);
+  eq(charges(cj), 1, 'a0: el impacto directo, sí');
 }
 // a1 Memoria Arcana (+2 s por rango) · a2 Mente Brillante (+5 % de crítico con 2+) · a4 Potencia Acumulada (+5 % por Carga y rango)
 {
@@ -2118,16 +2170,34 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   h.gauge('cargas', 2); h.tick(0.6);
   ok(!h.p.buffs.some(b => b.id === 'a_agudeza') && Math.abs(h.p.stats.atkTime - t0) < 1e-9, 'a20: con 2, se va');
 }
-// a21 Doble Grieta: el Rayo durante el Desgarro abre otra grieta al 50 % (el motor aún no deja lanzar canalizando)
+// a21 Doble Grieta: el Rayo lanzado DURANTE el Desgarro (una principal instantánea sale sobre el
+// canal de una definitiva imparable sin cortarlo, cola W2d) abre otra grieta al 50 % donde apuntas
+// el resto del canal. Con el canal real
 {
-  const h = sp('arcanista', { a21: 1 });
-  firePower('onCast', h.p, h.g, h.p, { sk: { id: 'rayo' }, target: { x: 4, z: 0 } });
-  eq(h.g.fields.filter(f => f.kind === 'a_grieta').length, 0, 'a21: sin canalizar, nada');
-  h.g._channel = { ctx: { p: h.p, sk: { id: 'm_u_desgarro' } }, left: 4, interval: 0.5 };
-  firePower('onCast', h.p, h.g, h.p, { sk: { id: 'rayo' }, target: { x: 4, z: 0 } });
-  const f = h.g.fields.find(x => x.kind === 'a_grieta');
-  ok(f && f.dur === 2 && Math.abs(f.data.dps - h.p.avgHit(1.2, 0)) <= 2, 'a21: grieta al 50 % el resto del canal');
-  h.g._channel = null;
+  const run = ranks => {
+    const h = sp('arcanista', ranks);
+    const e = h.enemy({ hp: 1e9, pos: [6, 0, 0] });
+    h.aim(6, 0);
+    cast(h, 'rmb', 'rayo', 0.3);
+    const before = h.g.fields.filter(f => f.kind === 'a_grieta').length;
+    cast(h, 'k4', 'm_u_desgarro', 1.2);                // entre dos golpes: le quedan 1,8 s (4 golpes)
+    const ch = h.g.channelInfo();
+    ok(ch?.id === 'm_u_desgarro' && ch.unstoppable && ch.left > 1, 'canalizas el Desgarro (imparable)');
+    h.p.cds.rayo = 0; h.p.gcdT = 0; h.p.atkCd = 0; h.p.mp = h.p.stats.maxMP;
+    const log = spy(h);
+    const at0 = { x: e.pos.x, z: e.pos.z };          // los golpes del Desgarro lo van apartando
+    const fired = h.cast('rmb');
+    return { h, e, at0, before, ch, fired, log, after: h.g.channelInfo(), rift: h.g.fields.find(x => x.kind === 'a_grieta' && !x.dead) };
+  };
+  const r = run({ a21: 1 });
+  eq(r.before, 0, 'a21: el Rayo sin canalizar no abre grieta');
+  ok(r.fired && from(r.log, 'rayo', r.e).length === 1, 'a21: el Rayo sale y golpea durante el Desgarro');
+  ok(r.after?.id === 'm_u_desgarro' && Math.abs(r.after.left - r.ch.left) < 1e-6, 'a21: sin cortar el canal');
+  ok(r.rift && Math.hypot(r.rift.pos.x - r.at0.x, r.rift.pos.z - r.at0.z) < 0.05, 'a21: la segunda grieta se abre sobre el enemigo de la mira');
+  near(r.rift?.dur, r.ch.left, 1e-6, 'a21: dura lo que le queda al canal');
+  near(r.rift?.data.dps, r.h.p.avgHit(1.2 / 0.5 * 0.5, r.h.p.resolved?.m_u_desgarro?.addPct || 0), 2, 'a21: al 50 % del Desgarro (1,2 cada 0,5 s)');
+  const n = run({});
+  ok(n.fired && !n.rift, 'sin a21, el Rayo sale durante el Desgarro pero no abre grieta');
 }
 // a22 Cargas Desbordadas: máximo 4 + rango; las que pasan de 4 dan el doble al Rayo
 {

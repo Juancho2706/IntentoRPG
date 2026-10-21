@@ -318,7 +318,7 @@ function variantOf(base, color = null, scale = 1, extra = null) {
 // VFX de las variantes de la forja (por id de variante). Solo las claves que lee su consumidor:
 // los comportamientos (aura/impact/extra/trail) y los poderes (impact o extra de su estallido)
 export const MAGA_FORGE_FX = {
-  m_dardo_i:          { impact: 'saetaBurst' },                                         // v_saeta_ignea
+  m_dardo_i:          { impact: 'saetaBurst' },                                         // impacto del Dardo (basicAttack, skillFxFor)
   bola_fuego_ii:      { extra: 'fireStepBurst' },                                       // v_racimo: cada brasa
   m_parpadeo_ii:      { impact: 'blinkFlash', aura: 'repulseWave', extra: 'repulseRunes' },
   m_barrera_i:        { aura: 'frostArmor', extra: 'frostArmorRing', impact: 'iceDomeShards' },   // impact: v_reactiva
