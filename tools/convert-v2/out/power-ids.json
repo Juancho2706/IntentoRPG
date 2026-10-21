@@ -1,0 +1,1398 @@
+{
+  "generado": "tools/convert-v2/convert.mjs --draft",
+  "fuentes": [
+    {
+      "cls": "maga",
+      "rel": "docs/mockups/data/talents-v2-maga.js",
+      "hash": "7801561901ba",
+      "estado": "aprobado"
+    },
+    {
+      "cls": "guerrero",
+      "rel": "docs/mockups/data/talents-v2-guerrero.js",
+      "hash": "966148bcbff2",
+      "estado": "diseño"
+    },
+    {
+      "cls": "arquera",
+      "rel": "docs/mockups/data/talents-v2-arquera.js",
+      "hash": "db6e09d7abe7",
+      "estado": "diseño"
+    }
+  ],
+  "ok": true,
+  "nota": "D28: un id de poder o de comportamiento no puede repetirse entre clases (definePower lanza con un id repetido). «choques» y «dobleDeclaracion» hacen fallar el conversor; «avisos» son para revisar (prefijos de test78, ids que hoy registra otra clase).",
+  "clases": {
+    "maga": {
+      "poderes": {
+        "m_dardo_certero": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c5A NUEVO"
+          ]
+        },
+        "m_dardo_sifon": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c5B NUEVO"
+          ]
+        },
+        "m_paso_fugaz": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c7 NUEVO"
+          ]
+        },
+        "m_nova_congelante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c9A NUEVO"
+          ]
+        },
+        "m_ralentizar": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "c10A existe"
+          ]
+        },
+        "m_disrupcion": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c10B NUEVO"
+          ]
+        },
+        "m_aguante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c11B NUEVO"
+          ]
+        },
+        "m_runa": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c14A NUEVO"
+          ]
+        },
+        "m_parpadeo_cura": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c14B NUEVO"
+          ]
+        },
+        "m_escudo_mana": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c15A NUEVO"
+          ]
+        },
+        "m_armonia": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c16A NUEVO"
+          ]
+        },
+        "m_pureza": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c16B NUEVO"
+          ]
+        },
+        "m_anclaje": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c17B NUEVO"
+          ]
+        },
+        "m_barrera_resonante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c19 NUEVO"
+          ]
+        },
+        "m_escarcha_arcana": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c20 NUEVO"
+          ]
+        },
+        "m_cristal": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c25 NUEVO"
+          ]
+        },
+        "m_torrente": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c26 NUEVO"
+          ]
+        },
+        "m_imagen": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c27 NUEVO"
+          ]
+        },
+        "m_bastion": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c28 NUEVO"
+          ]
+        },
+        "m_archimaga": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c29 NUEVO"
+          ]
+        },
+        "m_vacio": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c30 NUEVO"
+          ]
+        },
+        "p_ignicion": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "s0 existe"
+          ]
+        },
+        "p_chispas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s5 NUEVO"
+          ]
+        },
+        "p_volatil": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s6 NUEVO"
+          ]
+        },
+        "p_propagacion": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "s8A existe"
+          ]
+        },
+        "p_acumular": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "s8B existe"
+          ]
+        },
+        "p_llamarada_avivada": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "s9A existe"
+          ]
+        },
+        "p_llamarada_voraz": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s9B NUEVO"
+          ]
+        },
+        "p_meteoro_gemelo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s10A NUEVO"
+          ]
+        },
+        "p_meteoro_conc": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s10B NUEVO"
+          ]
+        },
+        "p_fenix": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "s15A existe"
+          ]
+        },
+        "p_escudo_llamas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s15B NUEVO"
+          ]
+        },
+        "p_brasero": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s16 NUEVO"
+          ]
+        },
+        "p_estrellas_fugaces": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s17 NUEVO"
+          ]
+        },
+        "p_brasa_errante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s18 NUEVO"
+          ]
+        },
+        "p_estela_meteorica": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s21 NUEVO"
+          ]
+        },
+        "p_brasa_viva": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s22 NUEVO"
+          ]
+        },
+        "p_combustion": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "s23 existe"
+          ]
+        },
+        "p_crater": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s24 NUEVO"
+          ]
+        },
+        "p_incendio": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s25 NUEVO"
+          ]
+        },
+        "p_perpetua": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s26 NUEVO"
+          ]
+        },
+        "p_lluvia_fuego": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "s27 NUEVO"
+          ]
+        },
+        "p_corazon_sol": {
+          "estado": "NUEVO",
+          "juego": "maga",
+          "en": [
+            "s28 NUEVO"
+          ]
+        },
+        "k_quebradizo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i5 NUEVO"
+          ]
+        },
+        "k_polvo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i6 NUEVO"
+          ]
+        },
+        "k_crece": {
+          "estado": "NUEVO (sin marca)",
+          "juego": null,
+          "en": [
+            "i7 ref"
+          ]
+        },
+        "k_prision_profunda": {
+          "estado": "NUEVO",
+          "juego": "maga",
+          "en": [
+            "i8B NUEVO"
+          ]
+        },
+        "k_lanza_invierno": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i9B NUEVO"
+          ]
+        },
+        "k_ventisca_viva": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i10A NUEVO"
+          ]
+        },
+        "k_frio_sostenido": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i10B NUEVO"
+          ]
+        },
+        "k_cristal": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i15B NUEVO"
+          ]
+        },
+        "k_invierno": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i16 NUEVO"
+          ]
+        },
+        "k_remolino": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i17 NUEVO"
+          ]
+        },
+        "k_cadena": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i18 NUEVO"
+          ]
+        },
+        "k_ruptura": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i19 NUEVO"
+          ]
+        },
+        "k_ojo_frio": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i21 NUEVO"
+          ]
+        },
+        "k_glaciar": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i22 NUEVO"
+          ]
+        },
+        "k_esquirlas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i23 NUEVO"
+          ]
+        },
+        "k_perpetua": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i24 NUEVO"
+          ]
+        },
+        "k_era_glacial": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i25 NUEVO"
+          ]
+        },
+        "k_cero": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i26 NUEVO"
+          ]
+        },
+        "k_eterno": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i27 NUEVO"
+          ]
+        },
+        "k_corazon_invierno": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "i28 NUEVO"
+          ]
+        },
+        "a_rebote_cargado": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a5 NUEVO"
+          ]
+        },
+        "a_sello_cargado": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a6 NUEVO"
+          ]
+        },
+        "a_rayo_doble": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a8A NUEVO"
+          ]
+        },
+        "a_rayo_recargado": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a8B NUEVO"
+          ]
+        },
+        "a_orbe_cargado": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a9A NUEVO"
+          ]
+        },
+        "a_orbe_atrae": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a9B NUEVO"
+          ]
+        },
+        "a_desgarro_fijo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a10A NUEVO"
+          ]
+        },
+        "a_desgarro_voraz": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a10B NUEVO"
+          ]
+        },
+        "a_inercia": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a12 NUEVO"
+          ]
+        },
+        "a_mana_inagotable": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a14 NUEVO"
+          ]
+        },
+        "a_desplazamiento": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a15A NUEVO"
+          ]
+        },
+        "a_resonance": {
+          "estado": "existe",
+          "juego": "maga",
+          "en": [
+            "a16 existe"
+          ]
+        },
+        "a_sello_sigue": {
+          "estado": "NUEVO (sin marca)",
+          "juego": null,
+          "en": [
+            "a17 ref"
+          ]
+        },
+        "a_carga_final": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a18 NUEVO"
+          ]
+        },
+        "a_satelite": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a19 NUEVO"
+          ]
+        },
+        "a_doble_grieta": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a21 NUEVO"
+          ]
+        },
+        "a_orbe_multiple": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a23 NUEVO"
+          ]
+        },
+        "a_fuente": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a24 NUEVO"
+          ]
+        },
+        "a_tormenta_cargas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a25 NUEVO"
+          ]
+        },
+        "a_constelacion": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a26 NUEVO"
+          ]
+        },
+        "a_grieta_eterna": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a27 NUEVO"
+          ]
+        },
+        "a_singularidad": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a28 NUEVO"
+          ]
+        },
+        "v_racimo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "bola_fuego.B NUEVO"
+          ]
+        },
+        "v_fractura": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "nova_hielo.B NUEVO"
+          ]
+        },
+        "v_reactiva": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "m_barrera.A NUEVO"
+          ]
+        },
+        "v_coraza_arcana": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "m_barrera.B NUEVO"
+          ]
+        },
+        "v_prision_fugaz": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "m_paso_escarcha.B NUEVO"
+          ]
+        },
+        "v_ojo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "m_u_tormenta.M NUEVO"
+          ]
+        },
+        "v_sello_ofensivo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a_sello.A NUEVO"
+          ]
+        }
+      },
+      "comportamientos": {
+        "v_parpadeo_onda": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "m_parpadeo.B NUEVO"
+          ]
+        },
+        "v_meteoritos": {
+          "estado": "NUEVO (sin marca)",
+          "juego": null,
+          "en": [
+            "meteoro.A ref"
+          ]
+        }
+      }
+    },
+    "guerrero": {
+      "poderes": {
+        "g_tajo_firme": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c5A NUEVO"
+          ]
+        },
+        "g_tajo_voraz": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c5B NUEVO"
+          ]
+        },
+        "g_ensanamiento": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c6A NUEVO"
+          ]
+        },
+        "g_sin_cuartel": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c6B NUEVO"
+          ]
+        },
+        "g_derribo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c10A NUEVO"
+          ]
+        },
+        "g_silenciar": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c10B NUEVO"
+          ]
+        },
+        "g_coraza_hierro": {
+          "estado": "existe",
+          "juego": "guerrero",
+          "en": [
+            "c11B existe"
+          ]
+        },
+        "g_polvareda": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c14A NUEVO"
+          ]
+        },
+        "g_carga_reparadora": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c14B NUEVO"
+          ]
+        },
+        "g_furia_protectora": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c15A NUEVO"
+          ]
+        },
+        "g_desbordante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c15B NUEVO"
+          ]
+        },
+        "g_ira_contenida": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c17B NUEVO"
+          ]
+        },
+        "g_temple": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c19 NUEVO"
+          ]
+        },
+        "g_desequilibrio": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c20 NUEVO"
+          ]
+        },
+        "g_persecucion": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c21 NUEVO"
+          ]
+        },
+        "g_aura_hermandad": {
+          "estado": "existe",
+          "juego": "guerrero",
+          "en": [
+            "c22B existe"
+          ]
+        },
+        "g_rencor": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c25 NUEVO"
+          ]
+        },
+        "g_ira_gasto": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c26 NUEVO"
+          ]
+        },
+        "g_rugido_carga": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c27 NUEVO"
+          ]
+        },
+        "g_inquebrantable": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c28 NUEVO"
+          ]
+        },
+        "g_senor_guerra": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c29 NUEVO"
+          ]
+        },
+        "g_asalto_total": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c30 NUEVO"
+          ]
+        },
+        "m_berserk": {
+          "estado": "existe",
+          "juego": "comun",
+          "en": [
+            "b0 existe"
+          ]
+        },
+        "b_reabrir": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b5 NUEVO"
+          ]
+        },
+        "b_caida_brutal": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b6 NUEVO"
+          ]
+        },
+        "b_contagio": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b8A NUEVO"
+          ]
+        },
+        "b_desangrar": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b8B NUEVO"
+          ]
+        },
+        "b_onda_choque": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b9A NUEVO"
+          ]
+        },
+        "b_remate_certero": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b9B NUEVO"
+          ]
+        },
+        "b_salto_aplastante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b10B NUEVO"
+          ]
+        },
+        "g_negacion": {
+          "estado": "existe",
+          "juego": "guerrero",
+          "en": [
+            "b15A existe"
+          ]
+        },
+        "b_sangre_hirviente": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b16 NUEVO"
+          ]
+        },
+        "b_sin_suelo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b17 NUEVO"
+          ]
+        },
+        "b_avidez": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b18 NUEVO"
+          ]
+        },
+        "b_ultimo_trago": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b19 NUEVO"
+          ]
+        },
+        "b_caida_sangrienta": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b21 NUEVO"
+          ]
+        },
+        "b_estallido_rojo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b22 NUEVO"
+          ]
+        },
+        "b_verdugo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b23 NUEVO"
+          ]
+        },
+        "b_impetu": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b24 NUEVO"
+          ]
+        },
+        "b_danza_carmesi": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b25 NUEVO"
+          ]
+        },
+        "b_golpe_gracia": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b26 NUEVO"
+          ]
+        },
+        "b_estampida": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b27 NUEVO"
+          ]
+        },
+        "b_corazon_indomable": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "b28 NUEVO"
+          ]
+        },
+        "v_rompefilas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "g_hendidura.A NUEVO"
+          ]
+        },
+        "v_carnero": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "embestida.A NUEVO"
+          ]
+        },
+        "v_temple": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "g_piel.M NUEVO"
+          ]
+        },
+        "v_espinas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "g_piel.A NUEVO"
+          ]
+        },
+        "v_sed_voraz": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "g_u_furia.A NUEVO"
+          ]
+        }
+      },
+      "comportamientos": {}
+    },
+    "arquera": {
+      "poderes": {
+        "a_punteria_fija": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c5A NUEVO"
+          ]
+        },
+        "a_saqueo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c5B NUEVO"
+          ]
+        },
+        "a_bocajarro": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c6A NUEVO"
+          ]
+        },
+        "a_tiro_lejano": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c6B NUEVO"
+          ]
+        },
+        "a_punta_diamante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c9B NUEVO"
+          ]
+        },
+        "a_flecha_roma": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c10A NUEVO"
+          ]
+        },
+        "a_silbante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c10B NUEVO"
+          ]
+        },
+        "a_camuflaje": {
+          "estado": "existe",
+          "juego": "arquera",
+          "en": [
+            "c11A ref"
+          ]
+        },
+        "a_instinto": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c11B NUEVO"
+          ]
+        },
+        "a_paso_abrojos": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c14A NUEVO"
+          ]
+        },
+        "a_rodada_cura": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c14B NUEVO"
+          ]
+        },
+        "a_adrenalina": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c15A NUEVO"
+          ]
+        },
+        "a_presion": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c16A NUEVO"
+          ]
+        },
+        "a_barrido": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c16B NUEVO"
+          ]
+        },
+        "a_huida": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c17B NUEVO"
+          ]
+        },
+        "a_tiro_niebla": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c19 NUEVO"
+          ]
+        },
+        "a_lluvia_retirada": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c20 NUEVO"
+          ]
+        },
+        "a_recarga_marcha": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c23 NUEVO"
+          ]
+        },
+        "a_emboscada": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c25 NUEVO"
+          ]
+        },
+        "a_compas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c26 NUEVO"
+          ]
+        },
+        "a_tras_rodada": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c27 NUEVO"
+          ]
+        },
+        "a_manto": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c28 NUEVO"
+          ]
+        },
+        "a_danza_arco": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c29 NUEVO"
+          ]
+        },
+        "a_sombra": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "c30 NUEVO"
+          ]
+        },
+        "t_tercera": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v0 NUEVO",
+            "v4 ref",
+            "v8A ref"
+          ]
+        },
+        "t_remate_triple": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v5 NUEVO"
+          ]
+        },
+        "t_soltar": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v6 NUEVO"
+          ]
+        },
+        "t_triple_clavado": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v8B NUEVO"
+          ]
+        },
+        "t_ultimo_instante": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v9A NUEVO"
+          ]
+        },
+        "t_rueda": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v10A NUEVO"
+          ]
+        },
+        "t_blanco_fijo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v10B NUEVO"
+          ]
+        },
+        "t_salto_impulsivo": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v12 NUEVO"
+          ]
+        },
+        "t_vacio_aire": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v14 NUEVO"
+          ]
+        },
+        "t_piel_brisa": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v15A NUEVO"
+          ]
+        },
+        "t_retirada": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v15B NUEVO"
+          ]
+        },
+        "t_viento_plumas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v16 NUEVO"
+          ]
+        },
+        "t_nube_paso": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v17 NUEVO"
+          ]
+        },
+        "t_flechas_perdidas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v18 NUEVO"
+          ]
+        },
+        "t_vendaval_encadenado": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v19 NUEVO"
+          ]
+        },
+        "t_nube_fiel": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v21 NUEVO"
+          ]
+        },
+        "t_rafaga_creciente": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v22 NUEVO"
+          ]
+        },
+        "t_apertura": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v23 NUEVO"
+          ]
+        },
+        "t_ciclones": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v24 NUEVO"
+          ]
+        },
+        "t_tormenta_plumas": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v25 NUEVO"
+          ]
+        },
+        "t_vaiven": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v26 NUEVO"
+          ]
+        },
+        "t_galerna": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v27 NUEVO"
+          ]
+        },
+        "t_ojo_huracan": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "v28 NUEVO"
+          ]
+        },
+        "v_rodar": {
+          "estado": "NUEVO",
+          "juego": null,
+          "en": [
+            "a_paso.A NUEVO"
+          ]
+        }
+      },
+      "comportamientos": {}
+    }
+  },
+  "choques": [],
+  "dobleDeclaracion": [],
+  "avisos": [
+    "guerrero: poder b_reabrir sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_caida_brutal sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_contagio sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_desangrar sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_onda_choque sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_remate_certero sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_salto_aplastante sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_sangre_hirviente sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_sin_suelo sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_avidez sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_ultimo_trago sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_caida_sangrienta sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_estallido_rojo sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_verdugo sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_impetu sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_danza_carmesi sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_golpe_gracia sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_estampida sin el prefijo de su clase (/^g_/): test78 lo rechazaría",
+    "guerrero: poder b_corazon_indomable sin el prefijo de su clase (/^g_/): test78 lo rechazaría"
+  ]
+}
