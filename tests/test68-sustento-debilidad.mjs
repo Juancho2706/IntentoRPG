@@ -97,14 +97,18 @@ for (const [cid, board] of Object.entries(PARAGON_BOARDS)) assert.ok(board.every
 
 // ------------------------------------------------ 4) restauraciones y control
 {
-  const h = makeHarness({ classId: 'guerrero', level: 30, powers: ['m_aegis'] });
+  // Paso 2g: m_aegis sale del Guerrero; la restauración la cubre Negación de la Muerte (onLethal, icd 2 min)
+  const h = makeHarness({ classId: 'guerrero', level: 30, powers: ['g_negacion'] });
   const p = h.p;
   p.hp = 5;
   p.takeDamage(1e6, 1);
-  assert.ok(p.alive && p.hp === 1 && p.invulnT > 0, 'Muro Inquebrantable (onLethal) te deja a 1 de vida e inmune');
+  assert.ok(p.alive && p.hp === 1, 'Negación de la Muerte (onLethal) te deja a 1 de vida');
   h.tick(3);
   p.hp = 5; p.takeDamage(1e6, 1);
-  assert.ok(!p.alive, 'con la recarga activa, el golpe letal mata');
+  assert.ok(!p.alive, 'con su recarga de 2 min activa, el golpe letal mata');
+  const h0 = makeHarness({ classId: 'guerrero', level: 30 });
+  h0.p.hp = 5; h0.p.takeDamage(1e6, 1);
+  assert.ok(!h0.p.alive, 'sin restauración, el golpe letal mata');
   // rendimientos decrecientes por canal
   const h2 = makeHarness({ classId: 'guerrero', level: 10 });
   const e = h2.enemy({ hp: 1e6 });

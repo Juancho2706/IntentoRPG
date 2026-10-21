@@ -9,7 +9,8 @@ import { TALENT_TREES } from '../js/talents.js';
 
 // poder clave → clase que lo lleva
 const KEY_POWERS = {
-  m_berserk: 'guerrero', m_aegis: 'guerrero', m_judgment: 'guerrero',
+  // Guerrero (docs/paso2g-guerrero.md §11.3): m_aegis y m_judgment salen; m_berserk sigue en b0
+  m_berserk: 'guerrero',
   // Maga (KT-maga, E2): Conflagración, Sobrecarga y el astillamiento v1 salen en 2g (docs/paso2g-maga-coherencia.md:
   // Cero Absoluto es k_cero y la mecánica de Cargas, a_cargas); m_shatter sigue registrado (lo cubre test-powers-maga)
   m_deadeye: 'arquera', m_hunt: 'arquera', multidisparo: 'arquera',

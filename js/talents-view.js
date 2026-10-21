@@ -176,7 +176,7 @@ export function skillIconPath(classId, sk) {
     const g = grantNodeOf(classId, sk.id);
     if (g) { const o = (g.node.opts || []).find(x => x.fx?.grant === sk.id); return o?.icon || nodeIconPath(classId, g.which, g.owner, g.node); }
   }
-  return `skills/${sk.id}.webp`;
+  return sk.art || `skills/${sk.id}.webp`; // `art` del catálogo 2g (arte ya existente) manda
 }
 // una línea de la habilidad: `line` (2g) o la primera frase de la descripción
 function skillLine(sk) {

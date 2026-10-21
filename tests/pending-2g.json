@@ -6,30 +6,15 @@
       "stage": "E2·integración (tras fusionar maga y guerrero) · medir la quemadura por su fuente (la Ignición s0 añade otra)",
       "por": "catálogo v1: MAGA_SKILL_MODS, insignias por s0 y activas v1 (p_llamarada, k_prision…) que con D29 salen de MAGA_TALENT_SKILLS y pasan al kit de skills-maga.js"
     },
-    "test-skills-guerrero.mjs": {
-      "owner": "KA-guerrero",
-      "stage": "E2 (KA1)",
-      "por": "catálogo v1: GUERRERO_SKILL_MODS, insignias por s0 y activas v1 (g_t_muro, g_t_veredicto…) que con D29 salen de GUERRERO_TALENT_SKILLS y pasan al kit de skills-guerrero.js"
-    },
     "test-skills-arquera.mjs": {
       "owner": "KA-arquera",
       "stage": "E2 (KA1)",
       "por": "catálogo v1: ARQUERA_SKILL_MODS, insignias por s0 y activas v1 (a_t_cepo, a_t_apuntado…) que con D29 salen de ARQUERA_TALENT_SKILLS y pasan al kit de skills-arquera.js"
     },
-    "test-powers-guerrero.mjs": {
-      "owner": "KT-guerrero",
-      "stage": "E2",
-      "por": "nodos v1 (c1…, s* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
-    },
     "test-powers-arquera.mjs": {
       "owner": "KT-arquera",
       "stage": "E2",
       "por": "nodos v1 (c1…, s* de 2c) y sus poderes: el esqueleto v2 tiene fx vacío con todo"
-    },
-    "test-gauges-guerrero.mjs": {
-      "owner": "KT-guerrero",
-      "stage": "E2",
-      "por": "A3: ui-gauges-guerrero.js y mech-guerrero.js citan nodos v1 (s0, s4, s9, s17, x3), g_t_muro y g_t_veredicto; los árboles v2 usan b*, d* y z*. Al final, los casos de Sed, Bastión y Fervor movidos de test75 (E1.5)"
     },
     "test-gauges-arquera.mjs": {
       "owner": "KT-arquera",
@@ -59,12 +44,12 @@
     "test64-gcd-impacto.mjs": {
       "owner": "W2",
       "stage": "E2·integración (tras fusionar maga y guerrero)",
-      "why": "usa habilidades v1 (Meteoro sin especialización)"
+      "why": "usa habilidades v1 (Meteoro sin especialización) · y ids v1 del guerrero (torbellino, g_martillo v1, g_provocacion, g_embate)"
     },
     "test69-nucleo-2b2.mjs": {
       "owner": "W2",
       "stage": "E2·integración (tras fusionar maga y guerrero)",
-      "why": "usa m_ascua (retirada en 2g)"
+      "why": "usa m_ascua (retirada en 2g) · y ids v1 del guerrero (torbellino, g_martillo v1, g_provocacion, g_embate)"
     },
     "test72-nucleo-2c2.mjs": {
       "owner": "W2",
@@ -80,6 +65,46 @@
       "owner": "U1",
       "stage": "E2·integración (tras fusionar maga y guerrero)",
       "why": "suponía catálogo sin `spec`; ya lo trae KA"
+    },
+    "test61-migracion-paso2.mjs": {
+      "owner": "W1",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "usa torbellino (retirado en 2g)"
+    },
+    "test62-resolve-skill.mjs": {
+      "owner": "W2",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "usa torbellino (retirado en 2g)"
+    },
+    "test65-talentos.mjs": {
+      "owner": "W1",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "espera g_mandoble/torbellino en SPEC_BAR y g_u_estandarte"
+    },
+    "test77-talentos-v2.mjs": {
+      "owner": "W1",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "usa defs.torbellino"
+    },
+    "test78-talentos-datos-v2.mjs": {
+      "owner": "W1",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "POWER_PREFIX.guerrero no acepta m_berserk (que test67b exige en b0)"
+    },
+    "test-talentos-guerrero.mjs": {
+      "owner": "KT-guerrero",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "t11, z5, z6, z12, z25 y z26 probados sin la forja de KA2 (la Mejora del Martillo cambia la suelta)"
+    },
+    "test-forge-guerrero.mjs": {
+      "owner": "KA-guerrero",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "«sin la variante: ni cura ni escudo»: con los talentos de KT ya hay cura o escudo de base"
+    },
+    "test86-libro-forja-vista.mjs": {
+      "owner": "U2",
+      "stage": "E2·integración (tras fusionar maga y guerrero)",
+      "why": "espera ids del fixture (vx_ins_ber) y ve el catálogo real (g_remolino)"
     }
   }
 }

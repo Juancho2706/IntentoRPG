@@ -287,6 +287,8 @@ export function pickBossTarget(enemies, pos, range = 28) {
 // para el foco de ramas). Las activas de talento usan el sprite de su nodo.
 export function baseSkillIcon(sk, big = false) {
   if (!sk?.id || sk.kind === 'talent') return null;
+  // `art` del catálogo 2g (arte ya existente) manda sobre skills/<id>.webp
+  if (sk.art) return big ? sk.art : sk.art.replace('skills256/', 'skills/');
   return `${big ? 'skills256' : 'skills'}/${sk.id}.webp`;
 }
 
