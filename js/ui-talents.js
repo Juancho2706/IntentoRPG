@@ -1,102 +1,57 @@
 // ============================================================
-// PANEL DE TALENTOS (estilo WoW Retail) · #panel-talents · tecla N
+// PANEL DE TALENTOS v2 · #talents-panel · tecla N — Paso 2 · E3 (U1)
 // ============================================================
-// Paso 2d (parte del trabajador). Referencia visual aprobada: los mockups
-// IntentoRPG-assets/mockups/Talentos.dc.html y Spec-*.dc.html. Solo PC (ratón y
-// teclado). Estilos en css/talents.css (prefijo `tp-`).
+// Port del mockup aprobado docs/mockups/skills-ux.html (renderTV2, drawTree3, drawHero, heroVeil,
+// openChoice, fx*, demoReveal): tres columnas 2 : 1 : 2 (clase · Paragon · especialización),
+// formas por tipo (círculo pasivo, hexágono de elección con su flotante ENCIMA, cuadrado activo),
+// puertas, banda del ápice, velo/pausa/revelación del Paragon, selector de especialización y de
+// árbol héroe, Configuración, Guardar, Código, Recomendado, ↶ (Ctrl+Z) y Reiniciar.
+// Diseño: docs/paso2g-maga-coherencia.md §7.1, §9 y §10; contrato: docs/paso2-implementacion.md
+// §3.4 (ops) y §3.12 (fábrica, modelo puro, DOM estable). Solo PC (ratón y teclado).
 //
-// API PÚBLICA
-//   import * as Talents from './talents.js';
-//   import { createTalentPanel } from './ui-talents.js';
-//   const panel = createTalentPanel(host, {
-//     api: Talents,                 // OBLIGATORIO: la API pura de js/talents.js
-//     getPlayer: () => game.player, // OBLIGATORIO: el jugador a mostrar/editar
-//     onChange: (p) => { … },       // tras CADA mutación: p.recompute() + guardar
-//     onClose: () => ui.closePanel(),// botón ✕ y clic en el fondo (por defecto: close())
-//     canEdit: (p) => null | 'motivo', // p. ej. bloquear en combate (por defecto: null)
-//     assetBase: 'assets/',         // raíz de talents/, specs/, emblems/, ui/
-//     id: 'panel-talents',          // id del elemento raíz (clase .panel)
-//     ops: { addRank(p, which, id) … }, // OPCIONAL (2d): sustituye mutaciones de
-//                                   // talents-ops por las del juego (mixin game-talents,
-//                                   // que además sincroniza la barra); mismas firmas
-//   });
-//   → { el, open(), close(), render(), isOpen(), showSpecChoice(), destroy(), mech(), mechFocus(id) }
+// API
+//   const panel = createTalentPanel(host, { ops, getPlayer, getGame, onClose, onOpenBook, assetBase });
+//   → { el, open(), close(), refresh(), check(), isOpen(), showSpecChoice() }   (+ render = refresh)
+//   · host: el elemento donde se cuelga #talents-panel (o el propio #talents-panel si ya existe).
+//   · ops: los métodos del mixin game-talents.js (§3.4) más snapshot(p) y restore(p, s):
+//       addTalentRank(which, id, k?) · removeTalentRank(which, id) · chooseTalentOption(id, k) ·
+//       chooseSpec(id) · chooseHeroTree(id) · applyTalentBuild(key?) · saveTalentLoadout(name) ·
+//       applyTalentLoadout(i) · resetTalentTree('all') · exportTalentCode() · importTalentCode(code, opts?)
+//     Cada mutación devuelve { ok, reason?, text?, heroOpened?, heroPaused? } y ya hizo recompute,
+//     barra y guardado (el mixin). gameTalentOps(game) arma ese envoltorio desde un Game.
+//   · El panel traduce `reason` por código (REASON_TEXT de talents-view.js, TALENT_REASONS).
 //
-// MECÁNICA ÚNICA (Paso 2d.2 · E2, docs/paso2d2-hud-pc.md §4): la columna central monta el
-// MISMO widget del HUD (createGaugeHud de js/ui-gauges.js) en modo 'demo' con la línea de
-// tiempo del renderizador de la mecánica; texto y columnas salen de explain(gaugeTuning())
-// (mechInfo; SPEC_INFO ya no tiene textos de mecánica). Debajo, el subtítulo de la fase
-// (frame.cap) y las PÍLDORAS de los nodos que la demo menciona: la fase en curso las enciende
-// junto a su nodo del árbol (.tp-node.is-mech-hint); pasar el ratón por una píldora o por un
-// nodo que potencia la mecánica (def.nodes) salta la demo a su fase, la retiene mientras dure
-// el hover y el detalle añade «Potencia tu X: …». Controles: ▶ Demostración · ◉ Mi estado
-// (modo 'live' con gaugeView(p), 10 Hz) · ↺. La elección de especialización (Nv10) muestra la
-// barra de cada tarjeta en demo. Escala del widget: 1 en el diseño completo, 0,8 en el compacto
-// (LAYOUTS.gzK / cardGzK). Los relojes de 10 Hz se paran al cerrar o reconstruir (destroyGauges).
+// RENDIMIENTO: el DOM de cada árbol se construye UNA vez (al abrir o al cambiar de clase,
+// especialización o árbol héroe); cada punto solo toca los nodos, aristas y puertas que cambian
+// (viewDiff). Nada por frame: el motion es CSS (transform/opacity/clip-path/stroke-dashoffset) y
+// las posiciones salen del modelo (talents-view.js), sin leer el layout. ?talentscheck=1 vuelca
+// solapes y elementos fuera de pantalla en window.__uicheck tras cada apertura.
 //
-//   · Construye su propio DOM: añade a `host` un <div id="panel-talents"
-//     class="panel tp hidden">. open()/close() solo quitan/ponen `hidden` y
-//     open() renderiza; render() repinta (llamarlo al abrir o tras un cambio
-//     externo: subir de nivel, cargar partida). NUNCA hace trabajo por frame.
-//   · Las mutaciones van por js/talents-ops.js (createTalentOps(api)); el panel
-//     no toca p.talents directamente y después llama onChange(p).
-//   · Los iconos se crean al construir el árbol (al abrir), no al importar el
-//     módulo; si una imagen falla se muestran las iniciales del talento.
-//   · El tamaño se adapta a la ventana: diseño "completo" (1760×1080, el del
-//     mockup) o "compacto" (1330×740, para 1366×768), escalado con `zoom`; el
-//     cálculo solo se rehace en `resize` mientras el panel está abierto.
-//
-// CONEXIÓN EN ui.js (jefe):
-//   this.talentPanel = createTalentPanel(document.body, { api: Talents,
-//     getPlayer: () => this.game.player, onClose: () => this.closePanel(),
-//     canEdit: (p) => this.game.inCombat?.() ? 'No puedes cambiar talentos en combate' : null,
-//     onChange: (p) => { p.recompute(); this.game.save?.(); this.renderHUD?.(); } });
-//   togglePanel('talents') funciona tal cual (quita `hidden` a #panel-talents);
-//   en renderPanel(): `else if (this.activePanel === 'talents') this.talentPanel.render();`
-//   input.js: case 'talents': g.ui.togglePanel('talents').
+// PURO EN EL NIVEL SUPERIOR: nada de document/window al importar (los tests lo importan headless).
 import { createTalentOps } from './talents-ops.js';
-// Paso 2d.2 · E2: el bloque «Mecánica única» monta el MISMO widget del HUD (js/ui-gauges.js) en
-// modo demostración; los textos de la mecánica salen de explain(gaugeTuning()) del renderizador.
-import { createGaugeHud, gaugeViewFor, demoNodes } from './ui-gauges.js';
-import { gaugeDefs, gaugeTuning, gaugeView } from './spec-mechanics.js';
+import * as Talents from './talents.js';
+import { gaugeDefs, gaugeTuning } from './spec-mechanics.js';
+import { gaugeViewFor, demoNodes } from './ui-gauges.js';
+import { talentsView, viewDiff, nodeTooltip, skillTooltip, gateTooltip, reasonText, panelScale, nodeTouches,
+  TALENT_PANEL, matchBuild, loadoutOptions, ROLE_TEXT } from './talents-view.js';
 
-// ---------- presentación por especialización (copiado de los mockups) ----------
-const CLASS_COLOR = { guerrero: '#c98b6b', maga: '#9fbaff', arquera: '#a8d88a' };
-const CLASS_NAME = { guerrero: 'Guerrero', maga: 'Maga', arquera: 'Arquera' };
-const ROLE_LABEL = { dps: 'Daño', tank: 'Tanque', support: 'Apoyo', control: 'Control' };
-// color · acento · fondo/borde de la tarjeta de mecánica · borde del árbol · rol · descripción.
-// SIN textos de mecánica (Paso 2d.2 §3.10 punto 2, Anexo A): salen de explain(gaugeTuning())
-// del renderizador de cada mecánica (mechInfo), así que los números nunca se desfasan.
-export const SPEC_INFO = {
-  berserker: { color: '#e8634a', hi: '#ff8f7a', bg: '#1c0f0e', bd: '#5a2620', tree: '#4a2622', role: 'Daño cuerpo a cuerpo',
-    desc: 'Cuerpo a cuerpo temerario: cuanta menos vida te queda, más golpeas. Sangrados, críticos y remates en cadena.' },
-  guardian: { color: '#7fb0e8', hi: '#a9cdf5', bg: '#0f1520', bd: '#2b4566', tree: '#263a52', role: 'Tanque de grupo',
-    desc: 'El muro del grupo: bloquea, provoca y aguanta el golpe fuerte del jefe mientras devuelves el daño con espinas.' },
-  cruzado: { color: '#ecc760', hi: '#f3d98c', bg: '#1a160c', bd: '#5a4a1e', tree: '#4a3e1c', role: 'Apoyo de grupo',
-    desc: 'Martillo sagrado y auras: castiga a los enemigos en cono y cura al grupo con parte del daño que haces.' },
-  piromante: { color: '#ff8a3d', hi: '#ffb27a', bg: '#1a120d', bd: '#5a3a22', tree: '#4a3324', role: 'Daño en área',
-    desc: 'Fuego en área: quemaduras que se propagan, detonaciones y, con el brasero al máximo, una Bola de Fuego o un Meteoro gratis y crítico.' },
-  crionte: { color: '#74cdf2', hi: '#a8e0f8', bg: '#0b161d', bd: '#22445a', tree: '#24485e', role: 'Control',
-    desc: 'Control de escarcha: congela grupos enteros y astilla a los congelados con la Lanza de Hielo.' },
-  arcanista: { color: '#b996ff', hi: '#cfbaff', bg: '#130e22', bd: '#3e2f66', tree: '#3c2f60', role: 'Daño a un objetivo',
-    desc: 'Daño a un objetivo con riesgo: acumula Cargas Arcanas y descárgalas con Rayo sin quedarte sin maná.' },
-  francotiradora: { color: '#ead86e', hi: '#f2e39a', bg: '#16140b', bd: '#4d4520', tree: '#4a4224', role: 'Daño a un objetivo',
-    desc: 'Precisión a distancia: quieta llenas la Concentración y tus Disparos Apuntados rompen jefes.' },
-  montaraz: { color: '#86d47a', hi: '#a9e59d', bg: '#0f170d', bd: '#2d4a28', tree: '#2f4a2a', role: 'Control',
-    desc: 'Trampera de control: arma el coto de caza, inmoviliza a la presa y deja que el grupo la remate.' },
-  tiradora: { color: '#66d7c7', hi: '#94e8dc', bg: '#0c1716', bd: '#1f4a45', tree: '#22443f', role: 'Daño en área',
-    desc: 'Arquera en movimiento: dispara mientras corres para acumular Impulso y desatar el Vendaval: más cadencia y una flecha más en Flecha Múltiple.' },
-};
-const DEFAULT_INFO = { color: '#e8c06a', hi: '#f5d999', bg: '#17131c', bd: '#3a2f45', tree: '#3a2f45', desc: '' };
-function specInfo(spec) {
-  if (!spec) return DEFAULT_INFO;
-  const base = SPEC_INFO[spec.id] || DEFAULT_INFO;
-  // los datos reales pueden sobreescribir la presentación (spec.color…)
-  return { ...base, ...(spec.color ? { color: spec.color } : null),
-    role: spec.roleLabel || base.role || ROLE_LABEL[spec.role] || '', desc: spec.desc || base.desc };
-}
-// mecánica única de una especialización: nombre (spec-mechanics), textos (explain del
-// renderizador, con los números de gaugeTuning()), nodos que la potencian y los de la demo
+export { TALENT_PANEL };
+
+// ---------- presentación por especialización (colores del mockup; SIN textos de mecánica) ----------
+// Los textos de la mecánica salen de explain(gaugeTuning()) del renderizador (mechInfo).
+// gaugeIcon: icono del chip «Mecánica» del selector (el del mockup).
+export const SPEC_INFO = Object.freeze({
+  berserker: { color: '#e8634a', gaugeIcon: 'ui/st_sangrado.webp' },
+  guardian: { color: '#7fb0e8', gaugeIcon: 'emblems/guardian.webp' },
+  cruzado: { color: '#ecc760', gaugeIcon: 'emblems/cruzado.webp' },
+  piromante: { color: '#ff8a3d', gaugeIcon: 'ui/st_quemadura.webp' },
+  crionte: { color: '#74cdf2', gaugeIcon: 'ui/st_escarcha.webp' },
+  arcanista: { color: '#b996ff', gaugeIcon: 'ui/res_mana.webp' },
+  francotiradora: { color: '#ead86e', gaugeIcon: 'emblems/francotiradora.webp' },
+  montaraz: { color: '#86d47a', gaugeIcon: 'emblems/montaraz.webp' },
+  tiradora: { color: '#66d7c7', gaugeIcon: 'emblems/tiradora.webp' },
+});
+// mecánica única de una especialización: nombre (spec-mechanics) y textos de explain(gaugeTuning())
 export function mechInfo(spec) {
   const id = spec?.mechanic;
   if (!id) return null;
@@ -106,710 +61,960 @@ export function mechInfo(spec) {
   return { id, name: gaugeDefs()[id]?.name || id, text: E?.text || '', cols: E?.cols || [],
     nodes: def.nodes || {}, demoNodes: demoNodes(def.demo) };
 }
-// escala del widget (520×72) para que quepa en un ancho dado: nunca más de 1
-function gzScale(w) { return Math.max(0.5, Math.min(1, Math.floor((w / 520) * 100) / 100)); }
 
-// ---------- geometría (la del mockup y una compacta para 1366×768) ----------
-const LAYOUTS = {
-  full: { name: 'full', W: 1760, H: 1080, padY: 32, padX: 40, headH: 72, gap: 20, legendH: 56,
-    clsW: 520, specW: 560, midW: 560, treeHead: 60, cy0: 44, dy: 82, node: 52, big: 60,
-    cls: { cx0: 71, dx: 126 }, spec: { cx0: 85, dx: 130 } },
-  // compacto: la columna central se ensancha (390 → 450) para el widget de mecánica al 0,8
-  // (416 px); los árboles ceden 30 px cada uno estrechando la separación entre columnas
-  compact: { name: 'compact', W: 1330, H: 740, padY: 14, padX: 18, headH: 56, gap: 12, legendH: 34,
-    clsW: 400, specW: 420, midW: 450, treeHead: 46, cy0: 34, dy: 61, node: 44, big: 50,
-    cls: { cx0: 50, dx: 100 }, spec: { cx0: 57, dx: 102 } },
-};
-for (const L of Object.values(LAYOUTS)) {
-  L.mainH = L.H - 2 * L.padY - L.headH - L.legendH - 2 * L.gap;
-  // escala del widget: bloque de mecánica (columna central − borde − relleno) y tarjeta de elección
-  L.mechPadX = L.name === 'full' ? 18 : 14;
-  L.gzK = gzScale(L.midW - 2 - 2 * L.mechPadX);
-  L.cardPadX = L.name === 'full' ? 22 : 16;
-  L.cardGzK = gzScale((L.W - 2 * L.padX - 2 * L.gap) / 3 - 2 - 2 * L.cardPadX - 2 * 12);   // − relleno de .tp-card-mech
+// envoltorio `ops` (§3.4) sobre un Game con el mixin game-talents.js: las llamadas del panel van
+// con _talentQuiet (el panel enseña sus avisos; el mixin sigue avisando de la apertura y la pausa
+// del Paragon) y restore pasa por _talentMutate (combate, recompute, barra y guardado)
+export function gameTalentOps(g) {
+  const LOCAL = createTalentOps(Talents);
+  const quiet = fn => (...a) => {
+    const was = g._talentQuiet;
+    g._talentQuiet = true;
+    try { return fn(...a) || { ok: false, reason: 'unknown' }; } finally { g._talentQuiet = was; }
+  };
+  return {
+    addTalentRank: quiet((w, id, k) => g.addTalentRank(w, id, k)),
+    removeTalentRank: quiet((w, id) => g.removeTalentRank(w, id)),
+    chooseTalentOption: quiet((id, k) => g.chooseTalentOption(id, k)),
+    toggleTalentChoice: quiet((w, id) => g.toggleTalentChoice(w, id)),
+    chooseSpec: quiet(id => g.chooseSpec(id)),
+    chooseHeroTree: quiet(id => g.chooseHeroTree(id)),
+    applyTalentBuild: quiet(key => g.applyTalentBuild(key)),
+    saveTalentLoadout: quiet(name => g.saveTalentLoadout(name)),
+    applyTalentLoadout: quiet(i => g.applyTalentLoadout(i)),
+    renameTalentLoadout: quiet((i, name) => g.renameTalentLoadout(i, name)),
+    deleteTalentLoadout: quiet(i => g.deleteTalentLoadout(i)),
+    resetTalentTree: quiet(w => g.resetTalentTree(w)),
+    exportTalentCode: () => g.exportTalentCode(),
+    importTalentCode: quiet((code, o) => g.importTalentCode(code, o)),
+    talentPointsInfo: () => g.talentPointsInfo(),
+    canEditTalents: () => g.canEditTalents?.() || null,
+    snapshot: p => LOCAL.snapshot(p),
+    restore: quiet((p, s) => g._talentMutate(q => LOCAL.restore(q, s))),
+  };
 }
-function pickLayout(vw, vh) {
-  const F = LAYOUTS.full, C = LAYOUTS.compact;
-  const sf = Math.min((vw - 24) / F.W, (vh - 24) / F.H);
-  if (sf >= 0.9) return { L: F, scale: Math.min(sf, 1.25) };
-  const sc = Math.min((vw - 16) / C.W, (vh - 16) / C.H);
-  return { L: C, scale: Math.max(0.5, Math.min(sc, 1.15)) };
-}
 
-export { LAYOUTS as TALENT_LAYOUTS };   // tests (escala del widget por diseño)
-
-const KINDS = { p: 'PASIVA', a: 'ACTIVA NUEVA', c: 'ELECCIÓN', k: 'NODO CLAVE', x: 'APEX' };
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const initials = (name) => (String(name || '?').split(/\s+/).filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join('') || String(name || '?')[0]).toUpperCase();
+// ---------- utilidades ----------
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const LOCK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const UNDO_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
+const ROLE_COLOR = { UNI: '#f0c45a', AREA: '#ff8a3d', CTRL: '#74cdf2', AGU: '#7fb0e8', APO: '#ecc760', MOV: '#86d47a' };
+const TAG_COLOR = { mec: '#d6bdf5', num: '#c9d3dc' };
+const UNDO_MAX = 40;
+const TIP_DELAY = 120;
+const ART = new Map();               // url → true (carga) | false (falta) | null (comprobando)
+let UID = 0;
 
 export function createTalentPanel(host, opts = {}) {
-  const T = opts.api;
-  if (!T) throw new Error('createTalentPanel: falta opts.api (import * as Talents from "./talents.js")');
-  const ops = { ...createTalentOps(T), ...(opts.ops || {}) };
-  const getPlayer = opts.getPlayer || (() => null);
-  const onChange = opts.onChange || (() => {});
-  const canEdit = opts.canEdit || (() => null);
+  const getGame = opts.getGame || (() => null);
+  const getPlayer = opts.getPlayer || (() => getGame()?.player || null);
+  const onClose = opts.onClose || (() => api.close());
+  const onOpenBook = opts.onOpenBook || null;
   const base = opts.assetBase ?? 'assets/';
-  const doc = host.ownerDocument || document;
-  const win = doc.defaultView || window;
+  const doc = host?.ownerDocument || globalThis.document;
+  const win = doc.defaultView || globalThis.window;
+  const uid = ++UID;
+  let opsCache = null;
+  const O = () => opts.ops || (opsCache ||= gameTalentOps(getGame()));
+  const CHECK = /[?&]talentscheck=1(&|$)/.test(win.location?.search || '');
+  const src = rel => (rel ? base + rel : '');
+  const reduced = () => doc.body?.classList.contains('reduce-motion') || !!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  const root = doc.createElement('div');
-  root.id = opts.id || 'panel-talents';
-  root.className = 'panel tp hidden';
-  root.setAttribute('role', 'dialog');
-  root.setAttribute('aria-label', 'Talentos');
-  root.innerHTML = '<div class="tp-stage"></div>';
-  host.appendChild(root);
-  const stage = root.firstChild;
+  // ---------- raíz y esqueleto (una vez) ----------
+  let root = host?.id === 'talents-panel' ? host : null;
+  if (!root) { root = doc.createElement('div'); root.id = 'talents-panel'; host.appendChild(root); }
+  root.classList.add('tp-root', 'hidden');
+  root.removeAttribute('data-open');
+  root.innerHTML = `
+    <div class="tp-panel" role="dialog" aria-label="Talentos">
+      <header class="tp-head">
+        <div class="tp-emb" data-ref="emb"></div>
+        <div class="tp-titles"><h2 class="tp-title" data-ref="title"></h2><div class="tp-sub" data-ref="sub"></div></div>
+        <div class="tp-spacer"></div>
+        <button class="tp-hbtn" type="button" data-act="book" title="Libro de habilidades (T)"><img alt="" src="${esc(src('ui/menu_habilidades.webp'))}">Habilidades <kbd>T</kbd></button>
+        <button class="tp-hbtn" type="button" data-act="spec" data-spec-only title="Cambiar de especialización (gratis fuera de combate)"><img alt="" data-ref="specEmb">Cambiar</button>
+        <label class="tp-lo" data-spec-only><span>Configuración</span><select data-act="loadout" data-ref="lo" aria-label="Configuración"></select></label>
+        <button class="tp-hbtn" type="button" data-act="save" data-spec-only title="Guarda tus talentos como configuración (hasta 10)">Guardar</button>
+        <button class="tp-hbtn" type="button" data-act="code" data-spec-only title="Código para compartir o importar una build">Código</button>
+        <button class="tp-hbtn" type="button" data-act="reco" data-spec-only title="Aplica la build recomendada de la configuración elegida">Recomendado</button>
+        <button class="tp-hbtn" type="button" data-act="undo" data-spec-only data-ref="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">${UNDO_SVG}</button>
+        <button class="tp-hbtn" type="button" data-act="reset" data-spec-only title="Quita todos los puntos (gratis; Ctrl+Z lo deshace)">Reiniciar</button>
+        <button class="tp-hbtn tp-x" type="button" data-act="close" title="Cerrar (N / Esc)" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="tp-body" data-view="trees" data-ref="body">
+        ${['cls', 'hero', 'spec'].map(w => `
+        <section class="tp-col tp-col-${w}${w === 'hero' ? ' tp-hero' : ''}" data-tree="${w}"${w === 'hero' ? ' data-open="0" data-paused="0"' : ''}>
+          ${w === 'spec' ? '<div class="tp-art-old"></div>' : ''}<div class="tp-art"></div>
+          <header class="tp-colh"></header>
+          <div class="tp-can"></div>
+          ${w === 'hero' ? '<div class="tp-beam"></div>' : ''}
+        </section>`).join('')}
+        <div class="tp-choose" data-ref="choose"></div>
+      </div>
+      <footer class="tp-foot" data-ref="foot"></footer>
+      <div class="tp-pop" data-ref="pop" hidden></div>
+      <div class="tp-codepop" data-ref="code" hidden></div>
+      <div class="tp-tip" data-ref="tip" role="tooltip"></div>
+      <div class="tp-toast" data-ref="toast" role="status" aria-live="polite"></div>
+    </div>`;
+  const $ = s => root.querySelector(s);
+  const ref = name => $(`[data-ref="${name}"]`);
+  const panel = $('.tp-panel');
+  const R = { emb: ref('emb'), title: ref('title'), sub: ref('sub'), specEmb: ref('specEmb'), lo: ref('lo'), undo: ref('undo'),
+    body: ref('body'), choose: ref('choose'), foot: ref('foot'), pop: ref('pop'), code: ref('code'), tip: ref('tip'), toast: ref('toast'),
+    head: $('.tp-head') };
+  const COL = {};
+  for (const w of ['cls', 'hero', 'spec']) {
+    const c = $(`.tp-col-${w}`);
+    COL[w] = { el: c, art: c.querySelector('.tp-art'), artOld: c.querySelector('.tp-art-old'), head: c.querySelector('.tp-colh'), can: c.querySelector('.tp-can'), beam: c.querySelector('.tp-beam') };
+  }
 
   const S = {
-    open: false, view: 'trees', // 'trees' | 'choose'
-    key: null, layout: null, scale: 1,
-    hover: null,                // { which, id }
-    importing: false, importErr: '', resetArmed: false, resetT: 0,
-    trees: {},                  // which → { tree, nodes: Map(id → refs), edges: [], gates: [], band }
-    refs: {},
-    // bloque «Mecánica única» (Paso 2d.2 · E2): el widget del HUD en demo/en vivo
-    mech: null,                 // mechInfo(spec) de la especialización mostrada
-    gz: null,                   // createGaugeHud del bloque (modo 'demo' | 'live')
-    gzMode: 'demo',
-    gzLive: 0,                  // intervalo de 10 Hz del modo «Mi estado»
-    cardGz: [],                 // widgets de las tarjetas de elección (Nv10)
-    mechHint: new Set(),        // nodos del árbol de especialización con .is-mech-hint
-    mechPin: null,              // nodo bajo el ratón (píldora o árbol) que fija el resalte
-    frameNodes: [],             // nodos del fotograma en curso de la demo
-    capSig: '', pillSig: '',
-  };
-  const close = () => { if (opts.onClose) opts.onClose(); else api.close(); };
-
-  // ---------- utilidades ----------
-  const iconSrc = (p, which, node) => base + (node.icon || `talents/${p.classId}-${which === 'cls' ? 'clase' : p.talents.spec}-${node.id}.webp`);
-  function imgTag(src, cls, alt = '') {
-    return `<img class="${cls}" src="${esc(src)}" alt="${esc(alt)}" draggable="false" onerror="this.classList.add('tp-broken')">`;
-  }
-  function toast(msg, kind = 'err') {
-    const t = S.refs.toast; if (!t) return;
-    t.textContent = msg;
-    t.className = 'tp-toast tp-toast-' + kind + ' tp-show';
-    clearTimeout(S.toastT);
-    S.toastT = setTimeout(() => t.classList.remove('tp-show'), 2600);
-  }
-  function featInfo(p) {
-    const st = Math.min(2, (p.strongholdsCleared || []).length);
-    const bo = Math.min(4, Math.floor((p.records?.bossKills || 0) / 3));
-    return { n: st + bo, st, bo };
-  }
-  function mutate(fn, okMsg) {
-    const p = getPlayer(); if (!p) return false;
-    const lock = canEdit(p);
-    if (lock) { toast(lock); return false; }
-    const r = fn(p);
-    if (r && r.ok === false) { if (r.reason || r.error) toast(r.reason || r.error); render(); return false; }
-    try { onChange(p); } catch (e) { console.error('[talentos] onChange', e); }
-    render();
-    if (okMsg) toast(okMsg, 'ok');
-    return true;
-  }
-
-  // ---------- layout / escala ----------
-  function applyLayout() {
-    const { L, scale } = pickLayout(win.innerWidth || 1920, win.innerHeight || 1080);
-    S.scale = scale;
-    stage.style.zoom = String(Math.round(scale * 1000) / 1000);
-    if (S.layout !== L) { S.layout = L; S.key = null; }
-    stage.classList.remove('tp-full', 'tp-compact');
-    stage.classList.add('tp-' + L.name);
-    const st = stage.style;
-    st.width = L.W + 'px'; st.height = L.H + 'px';
-    st.setProperty('--tp-pad-y', L.padY + 'px'); st.setProperty('--tp-pad-x', L.padX + 'px');
-    st.setProperty('--tp-gap', L.gap + 'px'); st.setProperty('--tp-head-h', L.headH + 'px');
-    st.setProperty('--tp-legend-h', L.legendH + 'px'); st.setProperty('--tp-main-h', L.mainH + 'px');
-    st.setProperty('--tp-cls-w', L.clsW + 'px'); st.setProperty('--tp-spec-w', L.specW + 'px');
-    st.setProperty('--tp-mid-w', L.midW + 'px'); st.setProperty('--tp-tree-head', L.treeHead + 'px');
-  }
-  let resizeRaf = 0;
-  const onResize = () => {
-    if (resizeRaf) return;
-    resizeRaf = win.requestAnimationFrame(() => { resizeRaf = 0; if (S.open) { const prev = S.layout; applyLayout(); if (prev !== S.layout) render(); } });
+    open: false, chooser: false, alt: false, scale: 1, box: { left: 0, top: 0 },
+    v: null,                                  // última vista pintada
+    built: { cls: null, spec: null, hero: null },   // DOM de cada árbol { owner, tv, nodes, edges, gates, veil }
+    headSig: '', loSig: '', kitSig: '', heroSig: '', chooserSig: '',
+    undo: [], player: null, sel: new WeakMap(),
+    hover: null, pop: null, tipFn: null, tipAnchor: null, tipT: 0, toastT: 0,
+    code: { open: false, importing: false, err: '', trim: false, value: '' },
+    hl: null, checkT: 0, fxTimers: new Set(),
   };
 
-  // ---------- esqueleto ----------
-  function buildSkeleton(p, spec, view) {
-    destroyGauges();
-    const info = specInfo(spec);
-    S.mech = view === 'choose' ? null : mechInfo(spec);
-    const cc = CLASS_COLOR[p.classId] || '#e8c06a';
-    stage.style.setProperty('--tp-spec', info.color);
-    stage.style.setProperty('--tp-hi', info.hi);
-    stage.style.setProperty('--tp-cls', cc);
-    stage.style.setProperty('--tp-mech-bg', info.bg);
-    stage.style.setProperty('--tp-mech-bd', info.bd);
-    stage.style.setProperty('--tp-tree-bd', info.tree);
-    const portrait = spec ? base + (spec.icon || `specs/${spec.id}.webp`) : '';
-    const emblem = spec ? base + (spec.emblem || `emblems/${spec.id}.webp`) : '';
-    const L = S.layout;
-    let main;
-    if (view === 'choose') main = chooserHTML(p);
-    else main = `
-      <section class="tp-tree tp-tree-cls" aria-label="Árbol de clase" style="width:${L.clsW}px">
-        <div class="tp-thead"><div class="tp-tname">Árbol de ${esc(CLASS_NAME[p.classId] || p.classId)}</div>
-          <div class="tp-tpts" data-pts="cls"></div></div>
-        <div class="tp-canvas" data-canvas="cls"></div>
-      </section>
-      <div class="tp-mid" style="width:${L.midW}px">
-        <div class="tp-detail" data-detail></div>
-        ${S.mech ? mechHTML(p, spec, S.mech) : ''}
-        <div class="tp-grants">
-          <div class="tp-label">HABILIDADES CONCEDIDAS POR TALENTOS</div>
-          <div class="tp-grant-list" data-grants></div>
-          <div class="tp-code">
-            <div class="tp-code-field"><label for="${root.id}-code">Código para compartir la build</label>
-              <input id="${root.id}-code" class="tp-code-input" data-code readonly spellcheck="false" autocomplete="off"></div>
-            <button class="tp-btn tp-btn-sm" data-act="copy">Copiar</button>
-            <button class="tp-btn tp-btn-sm" data-act="import">Importar</button>
-            <button class="tp-btn tp-btn-sm tp-btn-gold" data-act="import-apply">Aplicar</button>
-            <button class="tp-btn tp-btn-sm" data-act="import-cancel">Cancelar</button>
-          </div>
-          <div class="tp-code-err" data-code-err role="alert"></div>
-        </div>
-      </div>
-      <section class="tp-tree tp-tree-spec" aria-label="Árbol de especialización" style="width:${L.specW}px">
-        <div class="tp-thead"><div class="tp-tname tp-tname-spec">${emblem ? imgTag(emblem, 'tp-temblem') : ''}${esc(spec?.name || '')}</div>
-          <div class="tp-tpts" data-pts="spec"></div></div>
-        <div class="tp-canvas" data-canvas="spec">${portrait ? imgTag(portrait, 'tp-tree-art') : ''}</div>
-      </section>`;
-    stage.innerHTML = `
-      ${portrait ? imgTag(portrait, 'tp-bgart') : ''}
-      <header class="tp-head">
-        <div class="tp-crest">${imgTag(base + 'ui/menu_talentos.webp', 'tp-crest-img')}</div>
-        <div class="tp-titles"><h2 class="tp-h1" data-title></h2><div class="tp-sub" data-sub></div></div>
-        <div class="tp-actions">
-          <span class="tp-lock" data-lock></span>
-          ${view === 'choose' ? (spec ? '<button class="tp-btn" data-act="back">Volver a los talentos</button>' : '')
-            : `<button class="tp-btn tp-btn-spec" data-act="spec">${emblem ? imgTag(emblem, 'tp-btn-emblem') : ''}Especialización</button>
-               <button class="tp-btn tp-btn-gold" data-act="preset">Recomendado</button>
-               <button class="tp-btn tp-btn-ghost" data-act="reset">Reiniciar</button>`}
-          <button class="tp-close" data-act="close" title="Cerrar (Esc)" aria-label="Cerrar">✕</button>
-        </div>
-      </header>
-      <div class="tp-main">${main}</div>
-      <footer class="tp-legend">
-        <span><i class="tp-lg tp-lg-p"></i>Pasiva</span>
-        <span><i class="tp-lg tp-lg-a"></i>Activa nueva</span>
-        <span><i class="tp-lg tp-lg-c"></i>Elección (A o B)</span>
-        <span><i class="tp-lg tp-lg-k"></i>Nodo clave</span>
-        <span><i class="tp-lg tp-lg-x"></i>Apex</span>
-        <span class="tp-lg-sep"><i class="tp-dot" style="background:#e8c06a"></i>Al máximo</span>
-        <span><i class="tp-dot" style="background:#7bd36a"></i>Disponible</span>
-        <span><i class="tp-dot" style="background:#4a4252"></i>Bloqueado</span>
-        <span class="tp-keys">Clic +1 · Clic derecho −1 · N / Esc cerrar</span>
-      </footer>
-      <div class="tp-toast" data-toast role="status" aria-live="polite"></div>`;
-    const q = (s) => stage.querySelector(s);
-    S.refs = { title: q('[data-title]'), sub: q('[data-sub]'), lock: q('[data-lock]'), toast: q('[data-toast]'),
-      detail: q('[data-detail]'), grants: q('[data-grants]'), code: q('[data-code]'), codeErr: q('[data-code-err]'),
-      pts: { cls: q('[data-pts="cls"]'), spec: q('[data-pts="spec"]') } };
-    S.trees = {};
-    if (view !== 'choose') {
-      buildTree(p, 'cls', q('[data-canvas="cls"]'));
-      if (spec) buildTree(p, 'spec', q('[data-canvas="spec"]'));
-      const ci = S.refs.code;
-      ci.addEventListener('keydown', (e) => {
-        e.stopPropagation(); // que el juego no lea las teclas mientras se escribe
-        if (!S.importing) return;
-        if (e.key === 'Enter') { e.preventDefault(); doImport(); }
-        else if (e.key === 'Escape') { e.preventDefault(); setImporting(false); }
-      });
-      ci.addEventListener('keyup', (e) => e.stopPropagation());
-      mountMechGauge(p, spec);
-    } else mountCardGauges(p);
+  // ---------- escala y coordenadas (sin leer el layout: ventana y geometría del modelo) ----------
+  function applyScale() {
+    const vw = win.innerWidth || TALENT_PANEL.refW, vh = win.innerHeight || TALENT_PANEL.refH;
+    S.scale = panelScale(vw, vh);
+    root.style.setProperty('--s', String(S.scale));
+    S.box = { left: (vw - TALENT_PANEL.w * S.scale) / 2, top: (vh - TALENT_PANEL.h * S.scale) / 2 };
+  }
+  // rectángulo de pantalla → coordenadas del panel (una lectura por hover, nunca por frame)
+  function toPanel(r) {
+    return { x: (r.left - S.box.left) / S.scale, y: (r.top - S.box.top) / S.scale, w: r.width / S.scale, h: r.height / S.scale };
+  }
+  const nodeBox = (w, n) => { const t = S.built[w]?.tv; return { x: t.x0 + n.x - n.w / 2, y: t.y0 + n.y - n.h / 2, w: n.w, h: n.h }; };
+
+  // ---------- iconos: marcador si la imagen no existe (§3.12) ----------
+  function markMissing(el) {
+    const hostEl = el.closest('.tn-face') || el;
+    if (hostEl.querySelector(':scope > .ico-missing')) return;
+    const m = doc.createElement('span');
+    m.className = 'ico-missing';
+    m.dataset.id = el.dataset.ph || '';
+    m.textContent = el.dataset.ph || '?';
+    if (el.dataset.phc) m.style.setProperty('--ph', el.dataset.phc);
+    hostEl.appendChild(m);
+  }
+  function probe(scope) {
+    for (const el of scope.querySelectorAll('[data-art]')) {
+      const u = el.dataset.art;
+      if (!u) continue;
+      const st = ART.get(u);
+      if (st === false) { markMissing(el); continue; }
+      if (st !== undefined) continue;
+      ART.set(u, null);
+      const im = new win.Image();
+      im.onload = () => ART.set(u, true);
+      im.onerror = () => { ART.set(u, false); for (const x of root.querySelectorAll('[data-art]')) if (x.dataset.art === u) markMissing(x); };
+      im.src = u;
+    }
+  }
+  const artAttr = (rel, id, color) => `style="background-image:url('${esc(src(rel))}')" data-art="${esc(src(rel))}" data-ph="${esc(id)}"${color ? ` data-phc="${color}"` : ''}`;
+
+  // ---------- avisos ----------
+  function toast(msg, kind = 'ok') {
+    if (!msg) return;
+    R.toast.textContent = msg;
+    R.toast.className = `tp-toast on ${kind === 'err' ? 'err' : ''}`;
+    win.clearTimeout(S.toastT);
+    S.toastT = win.setTimeout(() => R.toast.classList.remove('on'), 2400);
   }
 
-  // ---------- bloque «Mecánica única» (§4): el widget del HUD en demostración ----------
-  function mechHTML(p, spec, M) {
-    const L = S.layout;
-    const tree = T.treeOf(p, 'spec');
-    const pills = M.demoNodes.map(id => {
-      const n = tree && T.nodeById(tree, id);
-      if (!n) return '';
-      const how = M.nodes[id] || '';
-      return `<button class="tp-pill" type="button" data-mech-node="${esc(id)}" title="${esc(how || n.name)}">
-        <span class="tp-pill-ic">${imgTag(iconSrc(p, 'spec', n), 'tp-pill-img')}<span class="tp-glyph">${esc(initials(n.name))}</span></span><span class="tp-pill-name">${esc(n.name)}</span></button>`;
-    }).join('');
-    return `<div class="tp-mech" data-mech style="--gz-k:${L.gzK};padding-left:${L.mechPadX}px;padding-right:${L.mechPadX}px">
-      <div class="tp-mech-top"><span class="tp-mech-title">MECÁNICA ÚNICA · ${esc(M.name.toLocaleUpperCase('es'))}</span>
-        <span class="tp-mech-ctl" role="group" aria-label="Demostración de la mecánica">
-          <button class="tp-mbtn is-on" type="button" data-act="mech-demo" title="Demostración en bucle">▶<span> Demostración</span></button>
-          <button class="tp-mbtn" type="button" data-act="mech-live" title="Tu ${esc(M.name)} ahora mismo">◉<span> Mi estado</span></button>
-          <button class="tp-mbtn" type="button" data-act="mech-replay" title="Repetir la demostración" aria-label="Repetir">↺</button>
-        </span></div>
-      <p class="tp-mech-text">${M.text}</p>
-      <div class="tp-gz"><div data-gz></div></div>
-      <div class="tp-mech-cap" data-cap></div>
-      ${pills ? `<div class="tp-pills" data-pills>${pills}</div>` : ''}
-      <div class="tp-mech-cols">${M.cols.map(([a, b]) => `<div><span>${esc(a.toLocaleUpperCase('es'))}</span><span>${esc(b)}</span></div>`).join('')}</div>
-    </div>`;
-  }
-  function mountMechGauge(p, spec) {
-    const host = stage.querySelector('[data-gz]');
-    const M = S.mech;
-    if (!host || !M) return;
-    S.refs.cap = stage.querySelector('[data-cap]');
-    S.refs.pills = [...stage.querySelectorAll('[data-mech-node]')];
-    S.capSig = ''; S.pillSig = ''; S.frameNodes = []; S.mechPin = null;
-    S.gzMode = 'demo';
-    try {
-      S.gz = createGaugeHud(host, {
-        mode: 'demo', id: M.id, specName: spec.name,
-        // «Mi estado»: la vista real del héroe (sin el desvanecimiento de fuera de combate)
-        getView: () => { const q = getPlayer(); let v = null; try { v = q && gaugeView(q); } catch { v = null; } return v ? { ...v, ooc: false, specName: spec.name } : null; },
-        onFrame: (fr) => onMechFrame(fr),
-      });
-    } catch (e) { console.error('[talentos] widget de mecánica', e); S.gz = null; }
-  }
-  function mountCardGauges(p) {
-    const t = T.talentTreesFor(p.classId);
-    for (const host of stage.querySelectorAll('[data-card-gz]')) {
-      const s = (t?.specs || []).find(x => x.id === host.dataset.cardGz);
-      if (!s?.mechanic) continue;
-      const cap = host.closest('.tp-card-mech')?.querySelector('[data-card-cap]');
-      let last = '';
-      try {
-        S.cardGz.push(createGaugeHud(host, { mode: 'demo', id: s.mechanic, specName: s.name,
-          onFrame: (fr) => { if (!alive()) return; if (fr.cap && fr.cap !== last && cap) { last = fr.cap; cap.textContent = fr.cap; } } }));
-      } catch (e) { console.error('[talentos] widget de la tarjeta', e); }
-    }
-  }
-  // si el panel se cerró por otra vía (closeAllPanels quita la clase sin llamar a close),
-  // los relojes de la demo se paran solos
-  function alive() {
-    if (!root.classList.contains('hidden')) return true;
-    destroyGauges();
-    return false;
-  }
-  function destroyGauges() {
-    if (S.gzLive) { win.clearInterval(S.gzLive); S.gzLive = 0; }
-    try { S.gz?.destroy(); } catch { /* */ }
-    S.gz = null;
-    for (const g of S.cardGz) { try { g.destroy(); } catch { /* */ } }
-    S.cardGz = [];
-    S.mechHint = new Set(); S.mechPin = null; S.frameNodes = [];
-  }
-  // fotograma de la demo (10 Hz): subtítulo, píldoras y nodos del árbol encendidos
-  function onMechFrame(fr) {
-    if (!alive() || S.gzMode !== 'demo') return;
-    // con un nodo bajo el ratón la demo se queda en SU fase (la repite) hasta que sales
-    if (S.mechPin && !S.seeking && !(fr.nodes || []).includes(S.mechPin)) {
-      S.seeking = true;
-      try { if (S.gz?.seekNode(S.mechPin)) return; } finally { S.seeking = false; }
-    }
-    // el subtítulo se conserva hasta el siguiente fotograma que traiga el suyo
-    if (fr.cap && fr.cap !== S.capSig && S.refs.cap) { S.capSig = fr.cap; S.refs.cap.textContent = fr.cap; }
-    S.frameNodes = fr.nodes || [];
-    syncMechHint();
-  }
-  function syncMechHint() {
-    const on = new Set(S.gzMode === 'demo' ? S.frameNodes : []);
-    if (S.mechPin) on.add(S.mechPin);
-    const sig = [...on].sort().join(',');
-    if (sig === S.pillSig) return;
-    S.pillSig = sig;
-    for (const b of S.refs.pills || []) b.classList.toggle('is-on', on.has(b.dataset.mechNode));
-    const TT = S.trees.spec;
-    if (TT) for (const [id, R] of TT.nodes) R.el.classList.toggle('is-mech-hint', on.has(id));
-    S.mechHint = on;
-  }
-  // un nodo del árbol de especialización (o su píldora) bajo el ratón: si potencia la
-  // mecánica, la demo salta a la fase que lo explica y el nodo queda resaltado
-  function mechFocus(id) {
-    const M = S.mech;
-    const pin = id && M && (M.nodes[id] || M.demoNodes.includes(id)) ? id : null;
-    if (pin === S.mechPin) return;
-    S.mechPin = pin;
-    if (pin && S.gz && S.gzMode === 'demo') S.gz.seekNode(pin);
-    syncMechHint();
-  }
-  function setMechMode(m) {
-    if (!S.gz) return;
-    S.gzMode = m;
-    if (S.gzLive) { win.clearInterval(S.gzLive); S.gzLive = 0; }
-    if (m === 'live') {
-      S.gz.setMode('live');
-      const tick = () => {
-        if (!alive() || !S.gz) return;
-        S.gz.update();
-        const v = S.gz.view();
-        const cap = !v ? 'Sin datos de la mecánica.' : (v.value > 0 || v.state === 'active' || v.state === 'prey')
-          ? 'Tu estado ahora mismo (con tus talentos actuales).' : `Vacía: tu ${S.mech?.name || 'mecánica'} se llena en combate.`;
-        if (cap !== S.capSig && S.refs.cap) { S.capSig = cap; S.refs.cap.textContent = cap; }
-      };
-      tick();
-      S.gzLive = win.setInterval(tick, 100);
-    } else S.gz.play(S.mech?.id);
-    syncMechHint();
-    for (const b of stage.querySelectorAll('[data-act^="mech-"]')) b.classList.toggle('is-on', b.dataset.act === (m === 'live' ? 'mech-live' : 'mech-demo'));
+  // ---------- efectos: añade una clase de motion y la quita al acabar ----------
+  function fx(el, cls, ms) {
+    if (!el) return;
+    const add = () => {
+      el.classList.add(cls);
+      const t = win.setTimeout(() => { el.classList.remove(cls); S.fxTimers.delete(t); }, ms);
+      S.fxTimers.add(t);
+    };
+    if (el.classList.contains(cls)) { el.classList.remove(cls); win.requestAnimationFrame(() => win.requestAnimationFrame(add)); }
+    else add();
   }
 
-  function chooserHTML(p) {
-    const t = T.talentTreesFor(p.classId);
-    const lockLvl = (p.level | 0) < T.TALENT_START_LEVEL;
-    const cur = p.talents?.spec;
-    return `<div class="tp-choose">
-      ${(t?.specs || []).map(s => {
-        const info = specInfo(s);
-        const M = mechInfo(s);
-        const isCur = s.id === cur;
-        const btn = lockLvl ? `<button class="tp-btn" disabled>Disponible en el nivel ${T.TALENT_START_LEVEL}</button>`
-          : isCur ? '<button class="tp-btn tp-btn-gold" data-act="back">Especialización actual · ver talentos</button>'
-          : `<button class="tp-btn tp-btn-choose" data-act="choose" data-spec="${esc(s.id)}">Elegir ${esc(s.name)}</button>`;
-        return `<article class="tp-card${isCur ? ' tp-card-cur' : ''}${lockLvl ? ' tp-card-lock' : ''}" style="--c:${info.color};--hi:${info.hi};--mbg:${info.bg};--mbd:${info.bd}">
-          <div class="tp-card-art">${imgTag(base + (s.icon || `specs/${s.id}.webp`), 'tp-card-portrait')}
-            <div class="tp-card-emblem">${imgTag(base + (s.emblem || `emblems/${s.id}.webp`), 'tp-card-emblem-img')}</div></div>
-          <div class="tp-card-body" style="padding-left:${S.layout.cardPadX}px;padding-right:${S.layout.cardPadX}px">
-            <div class="tp-card-role">${esc((info.role || '').toUpperCase())}</div>
-            <h3 class="tp-card-name">${esc(s.name)}</h3>
-            <p class="tp-card-desc">${esc(info.desc)}</p>
-            ${M ? `<div class="tp-card-mech" style="--gz-k:${S.layout.cardGzK}" aria-label="Mecánica: ${esc(M.name)}">
-              <div class="tp-gz"><div data-card-gz="${esc(s.id)}"></div></div><p class="tp-card-cap" data-card-cap></p></div>` : ''}
-            <div class="tp-card-foot">${btn}</div>
-          </div></article>`;
-      }).join('')}
-    </div>`;
+  // ============================================================ construcción del DOM
+  function nodeLabel(n) {
+    const st = { locked: 'bloqueado', avail: 'disponible', partial: 'con rango', max: 'al máximo', paused: 'en pausa' }[n.state] || '';
+    return `${n.name}${n.free ? '' : `, rango ${n.rank} de ${n.max}`}${st ? `, ${st}` : ''}`;
   }
-
-  // ---------- árboles ----------
-  function buildTree(p, which, canvas) {
-    const tree = T.treeOf(p, which);
-    if (!tree || !canvas) return;
-    const L = S.layout, G = L[which];
-    const cx = (n) => G.cx0 + n.c * G.dx, cy = (n) => L.cy0 + n.r * L.dy;
-    const canvasH = L.mainH - L.treeHead;
-    let html = '';
-    const lastRow = Math.max(...tree.nodes.map(n => n.r));
-    const apexGate = tree.gates.find(g => g.level);
-    if (which === 'spec' && apexGate) {
-      const top = Math.round(cy({ r: apexGate.row }) - L.dy * 0.52);
-      const h = Math.round(Math.min(canvasH - 8 - top, L.dy * 1.17));
-      html += `<div class="tp-band" data-band style="top:${top}px;height:${h}px"><span>APEX</span></div>`;
-    }
-    tree.gates.forEach((g, i) => {
-      const y = Math.round(L.cy0 + (g.row - 0.5) * L.dy);
-      html += `<div class="tp-gate" data-gate="${i}" style="top:${y}px"><span class="tp-gate-lbl"></span></div>`;
-    });
-    const edges = [];
-    for (const n of tree.nodes) for (const pid of n.req || []) {
-      const par = T.nodeById(tree, pid); if (!par) continue;
-      const x1 = cx(par), y1 = cy(par), x2 = cx(n), y2 = cy(n);
-      const len = Math.round(Math.hypot(x2 - x1, y2 - y1));
-      const deg = Math.round(Math.atan2(y2 - y1, x2 - x1) * 1800 / Math.PI) / 10;
-      html += `<div class="tp-edge" data-edge="${edges.length}" style="left:${x1}px;top:${y1 - 1.5}px;width:${len}px;transform:rotate(${deg}deg)"></div>`;
-      edges.push({ par, n });
-    }
-    for (const n of tree.nodes) {
-      const s = n.t === 'k' || n.t === 'x' ? L.big : L.node;
-      html += `<div class="tp-node k-${esc(n.t)}" data-tree="${which}" data-id="${esc(n.id)}" style="left:${cx(n) - s / 2}px;top:${cy(n) - s / 2}px;width:${s}px;height:${s}px">
-        <span class="tp-pulse"></span><span class="tp-burst"></span>
-        <button class="tp-nbtn" type="button"><span class="tp-nfill">${imgTag(iconSrc(p, which, n), 'tp-nimg')}<span class="tp-glyph">${esc(initials(n.name))}</span></span></button>
-        ${n.free ? '' : '<span class="tp-badge"></span>'}${n.t === 'c' ? '<span class="tp-opt"></span>' : ''}</div>`;
-    }
-    canvas.insertAdjacentHTML('beforeend', html);
-    canvas.style.setProperty('--tp-rows', lastRow + 1);
+  function nodeHTML(n) {
+    const phc = n.t === 'c' ? ROLE_COLOR.UNI : TAG_COLOR[n.tag] || '';
+    const cls = `tn t-${n.t}${n.free ? ' is-free' : ''}${n.hyb ? ' is-hyb' : ''}${n.hasAct ? ' has-act' : ''}${n.choice ? ' is-chosen' : ''}${n.inner === 'square' ? ' is-square' : ''}`;
+    const face = n.t === 'c'
+      ? `<div class="tn-face"><i class="tn-img${n.flip ? ' is-flip' : ''}" ${artAttr(n.icon, n.id, phc)}></i><i class="tn-half tn-ha" ${artAttr(n.iconA, n.id, phc)}></i><i class="tn-half tn-hb${n.flipB ? ' is-flip' : ''}" ${artAttr(n.iconB, n.id, phc)}></i></div>`
+      : `<div class="tn-face"><i class="tn-img" ${artAttr(n.icon, n.id, phc)}></i></div>`;
+    const marks = n.t === 'x' ? `<span class="tn-pips">${Array.from({ length: n.pips || 4 }, (_, i) => `<i class="${i < n.rank ? 'on' : ''}"></i>`).join('')}</span>`
+      : n.free ? '' : `<span class="tn-rk">${n.rankText}</span>`;
+    return `<div class="${cls}" data-node="${esc(n.id)}" data-state="${n.state}" data-tag="${n.tag}" style="left:${n.x}px;top:${n.y}px" role="button" aria-label="${esc(nodeLabel(n))}">${face}${marks}${n.t === 'c' ? `<span class="tn-ab">${n.choice || ''}</span>` : ''}<span class="tn-tg ${n.tag}">${n.tag === 'mec' ? 'M' : 'N'}</span><span class="tn-burst"></span></div>`;
+  }
+  function veilHTML(veil) {
+    if (!veil) return '';
+    return `<div class="tp-vbox"><div class="tp-vlock">${LOCK_SVG}</div><b>${esc(veil.title)}</b>
+      <span class="tp-vgoal">${esc(veil.goal)} <em data-ref="vcount">(${esc(veil.count)})</em></span>
+      <span class="tp-vbar"><i data-ref="vbar" style="transform:scaleX(${veil.frac})"></i></span>
+      ${veil.kept ? `<small class="tp-vnote">${esc(veil.kept)}</small>` : ''}
+      <small class="tp-vnote">${esc(veil.when)}</small>
+      ${veil.previews.map(h => `<div class="tp-hprev"><i ${h.art ? `style="background-image:url('${esc(src(h.art))}')"` : ''}></i><div><b>${esc(h.name)}</b><small>${esc(h.key)}</small></div></div>`).join('')}
+      <small class="tp-vnote">${esc(veil.note)}</small></div>`;
+  }
+  function tabsHTML(hero) {
+    if (!hero) return '';
+    return hero.trees.map(h => `<button class="tp-htab${h.on ? ' on' : ''}" type="button" data-ht="${esc(h.id)}" title="${esc(h.name)}${h.on ? ' (elegido)' : ': cambiar de árbol héroe (gratis fuera de combate)'}" aria-label="${esc(h.name)}" ${h.art ? `style="background-image:url('${esc(src(h.art))}')"` : ''}></button>`).join('')
+      + (hero.other ? `<span class="tp-htab off" title="${esc(hero.other.title)}" ${hero.other.art ? `style="background-image:url('${esc(src(hero.other.art))}')"` : ''}></span>` : '');
+  }
+  function buildTree(w, tv, hero) {
+    const C = COL[w];
+    if (!tv) { C.can.innerHTML = ''; S.built[w] = null; return; }
+    const mk = `tp-ar-${uid}-${w}`;
+    let html = `<svg class="tp-edges" viewBox="0 0 ${tv.w} ${tv.h}" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="${mk}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="currentColor"/></marker></defs>`;
+    for (const e of tv.edges) html += `<line pathLength="1" data-edge="${esc(e.id)}" x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" class="${e.state === 'off' ? '' : e.state}" marker-end="url(#${mk})"/>`;
+    html += '</svg>';
+    if (tv.apex) html += `<div class="tp-apexband" style="top:${tv.apex.y}px"></div>`;
+    for (const g of tv.gates) html += `<div class="tp-gate${g.ok ? ' ok' : ''}${g.apex ? ' apx' : ''}" data-row="${g.row}" style="top:${g.y}px;--gx:${g.gx}px"><span class="tp-seal"><i></i><i></i></span><b>${esc(g.label)}</b></div>`;
+    for (const n of tv.nodes) html += nodeHTML(n);
+    if (w === 'hero') html += `<div class="tp-htabs">${tabsHTML(hero)}</div><div class="tp-veil">${veilHTML(hero?.veil)}</div>`;
+    C.can.innerHTML = html;
     const nodes = new Map();
-    canvas.querySelectorAll('.tp-node').forEach(el => nodes.set(el.dataset.id, {
-      el, btn: el.querySelector('.tp-nbtn'), badge: el.querySelector('.tp-badge'), opt: el.querySelector('.tp-opt'), burst: el.querySelector('.tp-burst') }));
-    S.trees[which] = { tree, nodes, edges: edges.map((e, i) => ({ ...e, el: canvas.querySelector(`[data-edge="${i}"]`) })),
-      gates: tree.gates.map((g, i) => ({ g, el: canvas.querySelector(`[data-gate="${i}"]`) })), band: canvas.querySelector('[data-band]') };
+    for (const el of C.can.querySelectorAll('.tn')) {
+      nodes.set(el.dataset.node, { el, face: el.querySelector('.tn-face'), img: el.querySelector('.tn-img'), rk: el.querySelector('.tn-rk'),
+        ab: el.querySelector('.tn-ab'), pips: [...el.querySelectorAll('.tn-pips i')], burst: el.querySelector('.tn-burst') });
+    }
+    const edges = new Map();
+    for (const el of C.can.querySelectorAll('line[data-edge]')) edges.set(el.dataset.edge, el);
+    const gates = [...C.can.querySelectorAll('.tp-gate')].map(el => ({ el, b: el.querySelector('b') }));
+    S.built[w] = { owner: tv.owner, tv, nodes, edges, gates, veil: C.can.querySelector('.tp-veil'), tabs: C.can.querySelector('.tp-htabs') };
+    if (w === 'hero') S.heroSig = heroSig(hero);
+    probe(C.can);
   }
+  const heroSig = h => JSON.stringify([h?.trees, h?.other?.id, h?.veil]);
 
-  function updateTree(p, which) {
-    const TT = S.trees[which]; if (!TT) return;
-    const tree = T.treeOf(p, which); if (!tree) return;
-    TT.tree = tree;
-    const ranks = T.ranksOf(p, which);
-    const rk = (n) => (n.free ? 1 : (ranks[n.id] | 0));
-    const left = T.talentPointsLeft(p, which);
-    const earned = T.talentPointsEarned(p, which);
-    const spent = T.spentIn(tree, ranks);
-    S.refs.pts[which].innerHTML = `<b class="${left > 0 ? 'tp-left' : 'tp-left0'}">${left}</b> puntos libres · ${spent}/${earned}`;
-    for (const n of tree.nodes) {
-      const R = TT.nodes.get(n.id); if (!R) continue;
-      const st = ops.nodeState(p, which, n, tree);
-      R.el.className = `tp-node k-${n.t} is-${st.state}${st.canAdd ? ' can-add' : ''}${which === 'spec' && S.mechHint.has(n.id) ? ' is-mech-hint' : ''}`;
-      if (R.badge) R.badge.textContent = `${st.rank}/${n.max}`;
-      if (R.opt) R.opt.textContent = st.rank > 0 ? (st.choice || n.opts[0].k) : '';
-      R.btn.setAttribute('aria-label', `${n.name}, rango ${st.rank} de ${n.max}${st.canAdd ? ', disponible' : ''}${st.state === 'locked' ? ', bloqueado' : ''}`);
-    }
-    for (const E of TT.edges) {
-      const on = rk(E.par) >= E.par.max, live = on && rk(E.n) > 0;
-      E.el.className = 'tp-edge' + (live ? ' is-live' : on ? ' is-on' : '');
-    }
-    for (const Gt of TT.gates) {
-      const g = Gt.g;
-      const have = T.spentIn(tree, ranks, g.row);
-      const ok = have >= g.need && (!g.level || (p.level | 0) >= g.level);
-      Gt.el.className = 'tp-gate' + (ok ? ' is-ok' : '');
-      Gt.el.firstChild.textContent = ok ? (g.level ? 'APEX DESBLOQUEADO' : `FILA ${g.row + 1} DESBLOQUEADA`)
-        : g.level ? `APEX · NIVEL ${g.level} Y ${g.need} PUNTOS (${have})` : `${g.need} PUNTOS PARA DESBLOQUEAR (${have})`;
-      if (g.level && TT.band) TT.band.classList.toggle('is-ok', ok);
+  function patchNode(w, n) {
+    const B = S.built[w];
+    const X = B?.nodes.get(n.id);
+    if (!X) return;
+    X.el.dataset.state = n.state;
+    X.el.classList.toggle('is-chosen', !!n.choice);
+    X.el.classList.toggle('is-square', n.inner === 'square');
+    X.el.setAttribute('aria-label', nodeLabel(n));
+    if (X.rk) X.rk.textContent = n.rankText;
+    if (X.ab) X.ab.textContent = n.choice || '';
+    X.pips.forEach((pi, i) => pi.classList.toggle('on', i < n.rank));
+    if (X.img) {
+      const u = src(n.icon);
+      if (X.img.dataset.art !== u) {
+        X.img.style.backgroundImage = `url('${u}')`;
+        X.img.dataset.art = u;
+        X.face.querySelector(':scope > .ico-missing')?.remove();
+        probe(X.face);
+      }
+      X.img.classList.toggle('is-flip', !!n.flip);
     }
   }
-
-  // ---------- panel de detalle (el "tooltip" fijo del mockup) ----------
-  function updateDetail(p) {
-    const box = S.refs.detail; if (!box) return;
-    let h = S.hover;
-    if (!h || !S.trees[h.which]?.tree || !T.nodeById(S.trees[h.which].tree, h.id)) {
-      // por defecto: el primer talento disponible (o el nodo clave)
-      h = null;
-      for (const which of ['spec', 'cls']) {
-        const TT = S.trees[which]; if (!TT) continue;
-        const n = TT.tree.nodes.find(x => ops.nodeState(p, which, x, TT.tree).canAdd) || (which === 'spec' ? TT.tree.nodes.find(x => x.free) : null);
-        if (n) { h = { which, id: n.id }; break; }
-      }
-      if (!h && S.trees.cls) h = { which: 'cls', id: S.trees.cls.tree.nodes[0].id };
-      if (!h) { box.innerHTML = ''; return; }
+  function patchTree(w, tv) {
+    const B = S.built[w];
+    const d = viewDiff({ trees: { [w]: B.tv } }, { trees: { [w]: tv } });
+    for (const c of d.nodes) patchNode(w, c.to);
+    for (const e of d.edges) { const el = B.edges.get(e.id); if (el) { el.classList.toggle('on', e.to === 'on'); el.classList.toggle('live', e.to === 'live'); } }
+    for (const g of d.gates) {
+      const i = tv.gates.findIndex(x => x.row === g.row);
+      const G = B.gates[i];
+      if (G) { G.el.classList.toggle('ok', g.to.ok); G.b.textContent = g.to.label; }
     }
-    const tree = S.trees[h.which].tree, n = T.nodeById(tree, h.id);
-    const st = ops.nodeState(p, h.which, n, tree);
-    const lines = [];
-    if (n.t === 'c') {
-      const pick = st.choice || n.opts[0].k;
-      for (const o of n.opts) {
-        const on = st.rank > 0 && o.k === pick;
-        lines.push(`<button class="tp-line tp-line-opt${on ? ' is-on' : ''}" data-act="opt" data-k="${esc(o.k)}" data-which="${h.which}" data-id="${esc(n.id)}" type="button">
-          <span class="tp-line-title">${esc(o.k)} · ${esc(o.name)}${o.active || o.fx?.grant ? ' · activa' : ''}${on ? ' ✓' : ''}</span>
-          <span class="tp-line-text">${esc(o.desc ?? o.d ?? '')}</span></button>`);
+    B.tv = tv;
+  }
+  function colHeadHTML(w, v) {
+    const h = v.trees[w]?.head;
+    if (!h) return '';
+    const emb = w === 'spec' ? `<img class="tp-cemb" alt="" src="${esc(src(v.spec.emblem))}">`
+      : w === 'hero' ? `<span class="tp-hring" ${v.hero?.art ? `style="background-image:url('${esc(src(v.hero.art))}')"` : ''}></span>`
+        : `<img class="tp-cemb" alt="" src="${esc(src(v.cls.emblem || 'ui256/menu_talentos.webp'))}">`;
+    const lf = h.left > 0 && !(w === 'hero' && !v.hero?.open) ? `<span class="tp-lf">${h.left} libre${h.left > 1 ? 's' : ''}</span>` : '';
+    return `${emb}<div><h3>${esc(h.name)}${w === 'hero' && h.sub ? ` <small>· ${esc(h.sub)}</small>` : ''}</h3>
+      <div class="tp-meta"><span>Gastados <b>${h.spent}</b> / ${h.total}</span>${lf}${h.meta.map(m => `<span class="tp-rq">${esc(m)}</span>`).join('')}</div></div>`;
+  }
+
+  // ---------- cabecera, columnas y pie ----------
+  function patchHead(v) {
+    const lock = editLock();
+    const sig = JSON.stringify([v.head, lock]);
+    if (sig !== S.headSig) {
+      S.headSig = sig;
+      R.emb.style.backgroundImage = `url('${src(v.head.emblem)}')`;
+      R.title.textContent = v.head.title;
+      R.sub.innerHTML = `Nivel <b>${v.level}</b> · ${lock ? `<span class="tp-lockt">${esc(lock)}</span>` : esc(v.head.sub)}`;
+      for (const el of root.querySelectorAll('[data-spec-only]')) el.hidden = !v.head.hasSpec;
+      if (v.spec) R.specEmb.src = src(v.spec.emblem);
+      // título largo («Arquera Tiradora Veloz»): letra más pequeña (una medición al cambiar el texto)
+      R.head.classList.remove('is-tight');
+      const tt = R.title.parentElement;
+      if (tt.scrollWidth > tt.clientWidth + 1) R.head.classList.add('is-tight');
+    }
+    const specBtn = root.querySelector('[data-act="spec"]');
+    if (specBtn) specBtn.lastChild.textContent = S.chooser && v.head.hasSpec ? 'Volver' : 'Cambiar';
+    specBtn?.classList.toggle('is-on', S.chooser);
+    R.undo.disabled = !S.undo.length;
+    patchLoadouts(v);
+  }
+  function selOf(p) { const m = S.sel.get(p); return m?.[p.talents?.spec] ?? null; }
+  function setSel(p, key) { if (!p?.talents?.spec) return; const m = S.sel.get(p) || {}; m[p.talents.spec] = key; S.sel.set(p, m); }
+  function patchLoadouts(v) {
+    const p = getPlayer();
+    if (!p || !v.spec) return;
+    let sel = selOf(p);
+    if (sel == null) { sel = matchBuild(p) || 'custom'; setSel(p, sel); }
+    const list = loadoutOptions(p, sel);
+    const sig = JSON.stringify(list);
+    if (sig === S.loSig) return;
+    S.loSig = sig;
+    R.lo.innerHTML = list.map(o => `<option value="${esc(o.value)}" title="${esc(o.title)}"${o.selected ? ' selected' : ''}>${esc(o.label)}</option>`).join('')
+      || '<option value="" selected disabled>Sin builds todavía</option>';
+    const cur = list.find(o => o.selected);
+    R.lo.title = cur ? cur.title : '';          // nombre completo (Guerrero §18.2)
+  }
+  function patchCols(v) {
+    for (const w of ['cls', 'spec', 'hero']) {
+      const C = COL[w];
+      const html = colHeadHTML(w, v);
+      if (C.head.dataset.sig !== html) { C.head.innerHTML = html; C.head.dataset.sig = html; }
+      const art = w === 'spec' ? v.spec?.icon : w === 'hero' ? v.hero?.art : v.cls.art;
+      const bg = art ? `url('${src(art)}')` : 'none';
+      if (C.art.dataset.bg !== bg) { C.art.style.backgroundImage = bg; C.art.dataset.bg = bg; }
+    }
+    const H = COL.hero.el;
+    H.dataset.open = v.hero?.open ? '1' : '0';
+    H.dataset.paused = v.hero?.paused ? '1' : '0';
+    const B = S.built.hero;
+    if (B && heroSig(v.hero) !== S.heroSig) {
+      S.heroSig = heroSig(v.hero);
+      if (B.tabs) B.tabs.innerHTML = tabsHTML(v.hero);
+      if (B.veil && v.hero?.veil && !B.veil.classList.contains('is-out')) B.veil.innerHTML = veilHTML(v.hero.veil);
+    }
+  }
+  function patchFoot(v) {
+    const sig = JSON.stringify([v.view, v.head.hasSpec, v.kit.map(k => k.id + k.icon)]);
+    if (sig === S.kitSig) return;
+    S.kitSig = sig;
+    if (!v.head.hasSpec) {
+      R.foot.innerHTML = `<span class="tp-ftxt">Cada especialización trae <b>su kit al libro</b>, su mecánica y su árbol</span><span class="tp-keys"><kbd>T</kbd> habilidades · <kbd>N</kbd> / <kbd>Esc</kbd> cerrar</span>`;
+      return;
+    }
+    const many = v.kit.length > 12;
+    R.foot.innerHTML = `<span class="tp-kl">Tu kit</span><span class="tp-kit${many ? ' is-many' : ''}">${v.kit.map(k => `<span class="tp-skl" data-sk="${esc(k.id)}" ${artAttr(k.icon, k.id)}></span>`).join('')}</span>
+      <span class="tp-sep"></span><span class="tp-lgd"><i class="lg p"></i>Pasiva <i class="lg a"></i>Activa <i class="lg c"></i>Elección A/B <i class="lg f"></i>Final <i class="lg x"></i>Ápice <i class="tg mec">M</i>mecánica <i class="tg num">N</i>número</span>
+      <span class="tp-keys">Clic +1 · Clic der. −1 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Alt</kbd> detalle</span>`;
+    probe(R.foot);
+  }
+  function buildChooser(v) {
+    const p = getPlayer();
+    const sig = JSON.stringify([v.chooser, v.level]);
+    if (sig === S.chooserSig) return;
+    S.chooserSig = sig;
+    R.choose.innerHTML = (v.chooser || []).map(c => {
+      const M = mechInfo({ mechanic: c.mechanic });
+      const info = SPEC_INFO[c.id] || {};
+      const btn = c.locked ? `<button class="tp-hbtn" type="button" disabled>${LOCK_SVG.replace('<svg', '<svg width="14" height="14"')} Disponible al nivel ${Talents.TALENT_RULES.specAt}</button>`
+        : c.current ? '<button class="tp-hbtn" type="button" disabled>✓ Tu especialización</button>'
+          : `<button class="tp-hbtn" type="button" data-act="pick" data-spec="${esc(c.id)}">Elegir ${esc(c.name)}</button>`;
+      return `<article class="tp-card${c.current ? ' is-cur' : ''}" data-spec="${esc(c.id)}">
+        <div class="tp-cart" style="background-image:url('${esc(src(c.icon))}')"><img class="tp-cemb2" alt="" src="${esc(src(c.emblem))}"></div>
+        <div class="tp-cbody"><div class="tp-crole">${esc(c.role)}</div><h3>${esc(c.name)}</h3><div class="tp-cline">${esc(c.line)}</div>
+          ${c.kit.length ? `<div class="tp-ckit">${c.kit.map(k => `<div class="tp-ck" data-ck="${esc(k.id)}" data-spec="${esc(c.id)}"><i ${artAttr(k.icon, k.id)}></i><span>${esc(k.name)}</span></div>`).join('')}</div>` : ''}
+          ${M ? `<span class="tp-gchip" data-mech="${esc(c.id)}"><i style="background-image:url('${esc(src(info.gaugeIcon || c.emblem))}')"></i>Mecánica: <b>${esc(M.name)}</b></span>` : ''}
+          ${c.innate ? `<span class="tp-gchip" data-innate="${esc(c.id)}">Pasiva: <b>${esc(c.innate)}</b></span>` : ''}
+          <div class="tp-cfoot">${btn}</div></div></article>`;
+    }).join('');
+    void p;
+    probe(R.choose);
+  }
+
+  // ============================================================ refresco (por diferencias)
+  function editLock() {
+    try { return (opts.ops ? opts.ops.canEditTalents?.() : getGame()?.canEditTalents?.()) || null; } catch { return null; }
+  }
+  function refresh() {
+    if (!S.open) return;
+    const p = getPlayer();
+    if (p !== S.player) { S.player = p; S.undo = []; for (const w of ['cls', 'spec', 'hero']) S.built[w] = null; S.v = null; }
+    if (!p) { R.title.textContent = 'Talentos'; R.sub.textContent = 'Sin personaje'; R.body.dataset.view = 'choose'; R.choose.innerHTML = ''; return; }
+    const v = talentsView(p, { chooser: S.chooser });
+    if (!v) return;
+    patchHead(v);
+    R.body.dataset.view = v.view;
+    if (v.view === 'choose') buildChooser(v);
+    else {
+      S.chooserSig = '';
+      for (const w of ['cls', 'spec', 'hero']) {
+        const tv = v.trees[w];
+        const B = S.built[w];
+        if (!tv) { if (B) buildTree(w, null); continue; }
+        if (!B || B.owner !== tv.owner || B.tv.nodes.length !== tv.nodes.length) buildTree(w, tv, v.hero);
+        else patchTree(w, tv);
       }
+      patchCols(v);
+      if (S.hl) highlight(S.hl);
+    }
+    patchFoot(v);
+    S.v = v;
+    if (CHECK) scheduleCheck();
+  }
+
+  // ============================================================ mutaciones
+  function act(fn, { undo = true, ok = null, silent = [], fxMode = 'edit' } = {}) {
+    const p = getPlayer();
+    if (!p) return null;
+    const before = S.v;
+    let snap = null;
+    if (undo) { try { snap = O().snapshot?.(p) ?? null; } catch { snap = null; } }
+    let r;
+    try { r = fn(O(), p) || { ok: false, reason: 'unknown' }; } catch (e) { console.error('[talentos]', e); r = { ok: false, reason: 'unknown' }; }
+    if (!r.ok) {
+      if (!silent.includes(r.reason)) toast(reasonText(r), 'err');
+      refresh();
+      return r;
+    }
+    if (snap != null && !r.same) { S.undo.push(snap); if (S.undo.length > UNDO_MAX) S.undo.shift(); }
+    refresh();
+    playFx(before, S.v, r, fxMode);
+    if (ok) toast(typeof ok === 'function' ? ok(r) : ok, 'ok');
+    return r;
+  }
+  function custom() { const p = getPlayer(); if (p) setSel(p, 'custom'); }
+  function spend(w, n, k = null) {
+    if (n.t === 'c' && n.rank > 0) {
+      if (!k || k === n.choice) return;
+      if (act((o) => o.chooseTalentOption(n.id, k))?.ok) custom();
+      return;
+    }
+    const r = act((o) => o.addTalentRank(w, n.id, k || undefined));
+    if (r?.ok) custom();
+    else if (r && S.built[w]) fx(S.built[w].nodes.get(n.id)?.el, 'fx-deny', 320);
+  }
+  function removeRank(w, n) {
+    const r = act((o) => o.removeTalentRank(w, n.id), { silent: ['empty', 'free'] });
+    if (r?.ok) custom();
+    else if (r && r.reason !== 'empty' && r.reason !== 'free') fx(S.built[w]?.nodes.get(n.id)?.el, 'fx-deny', 320);
+  }
+  function undo() {
+    const p = getPlayer();
+    const s = S.undo.pop();
+    if (!p || s == null) return;
+    const r = act((o, q) => o.restore(q, s), { undo: false, fxMode: 'undo' });
+    if (!r?.ok) S.undo.push(s);
+    else custom();
+    R.undo.disabled = !S.undo.length;
+  }
+  function applyBuild(key) {
+    const p = getPlayer();
+    const r = act((o) => o.applyTalentBuild(key || undefined), { ok: rr => { const b = Talents.talentTreesFor(p.classId)?.builds?.[rr.key || key]; return b ? `Recomendado aplicado: ${b.arch} · ${b.n}` : 'Recomendado aplicado'; } });
+    if (r?.ok) setSel(p, r.key || key || 'custom');
+  }
+  function onLoadout(value) {
+    const p = getPlayer();
+    if (!p || !value || value === 'custom') return;
+    if (value.startsWith('saved:')) {
+      const i = +value.slice(6);
+      const name = p.talents.loadouts?.[p.talents.spec]?.[i]?.name || '';
+      const r = act((o) => o.applyTalentLoadout(i), { ok: rr => `Configuración «${name}» aplicada${rr.trimmed ? ' (recortada a tu nivel)' : ''}` });
+      if (r?.ok) setSel(p, value);
+    } else applyBuild(value);
+    S.loSig = '';
+    refresh();
+  }
+  function saveLoadout() {
+    const p = getPlayer();
+    if (!p?.talents?.spec) return;
+    const n = (p.talents.loadouts?.[p.talents.spec] || []).length;
+    const r = act((o) => o.saveTalentLoadout(`Mi build ${n + 1}`), { undo: false, ok: 'Configuración guardada' });
+    if (r?.ok) { setSel(p, `saved:${r.index ?? n}`); S.loSig = ''; refresh(); }
+  }
+
+  // ============================================================ motion
+  function sparks(X) {
+    if (reduced() || !X?.burst) return;
+    X.burst.textContent = '';
+    for (let i = 0; i < 10; i++) {
+      const a = i / 10 * Math.PI * 2 + 0.3, d = 26 + (i % 3) * 7;
+      const s = doc.createElement('i');
+      s.style.setProperty('--dx', `${Math.round(Math.cos(a) * d)}px`);
+      s.style.setProperty('--dy', `${Math.round(Math.sin(a) * d)}px`);
+      s.style.animationDelay = `${(i % 4) * 18}ms`;
+      X.burst.appendChild(s);
+    }
+    const t = win.setTimeout(() => { X.burst.textContent = ''; S.fxTimers.delete(t); }, 650);
+    S.fxTimers.add(t);
+  }
+  // fxMode 'undo': deshacer solo encoge lo que baja (2g §10); lo que vuelve no estalla
+  function playFx(a, b, r, fxMode = 'edit') {
+    if (!a || !b || b.view !== 'trees') return;
+    if (a.spec?.id && b.spec?.id && a.spec.id !== b.spec.id) { fxSwap(a.spec); return; }
+    if (a.view !== 'trees') return;
+    if (a.hero && b.hero && a.hero.tree !== b.hero.tree && b.hero.open) fxReveal(false);
+    const d = viewDiff(a, b);
+    const up = new Set();
+    for (const c of d.nodes) {
+      const X = S.built[c.which]?.nodes.get(c.id);
+      if (!X) continue;
+      if (c.to.rank > c.from.rank && !c.to.free && fxMode !== 'undo') {
+        up.add(`${c.which}:${c.id}`);
+        fx(X.el, 'fx-spend', 520); sparks(X);
+        if (c.to.state === 'max' && c.from.state !== 'max') fx(X.el, 'fx-max', 1100);
+      } else if (c.to.rank < c.from.rank) fx(X.el, 'fx-remove', 260);
+      else if (c.to.choice && c.from.choice && c.to.choice !== c.from.choice) fx(X.el, 'fx-flip', 400);
+    }
+    // hijos que se acaban de abrir: línea que se enciende y el nodo que se desbloquea
+    let k = 0;
+    for (const c of d.nodes) {
+      if (c.from.state !== 'locked' || c.to.state !== 'avail') continue;
+      const par = c.to.req.find(pid => up.has(`${c.which}:${pid}`));
+      if (!par) continue;
+      const B = S.built[c.which];
+      const ln = B.edges.get(`${par}>${c.id}`);
+      if (ln) { ln.style.animationDelay = `${120 + k * 70}ms`; fx(ln, 'fx-lit', 700 + k * 70); }
+      const X = B.nodes.get(c.id);
+      if (X) { X.el.style.setProperty('--d', `${320 + k * 70}ms`); fx(X.el, 'fx-unlock', 700 + k * 70); }
+      k++;
+    }
+    for (const g of d.gates) if (!g.from.ok && g.to.ok) {
+      const B = S.built[g.which];
+      const G = B?.gates[B.tv.gates.findIndex(x => x.row === g.row)];
+      if (G) fx(G.el, 'fx-open', 700);
+    }
+    if (!a.hero?.open && b.hero?.open && (r?.heroOpened || a.hero)) fxReveal(fxMode !== 'undo');
+  }
+  // revelación del Paragon (2g §10): contador, barrido de luz, candado, velo, iris y nodos
+  function fxReveal(full) {
+    const H = COL.hero.el, B = S.built.hero;
+    if (!B) return;
+    let i = 0;
+    for (const X of B.nodes.values()) X.el.style.setProperty('--d', `${(full ? 700 : 380) + (i++) * 30}ms`);
+    if (full && B.veil) {
+      const N = Talents.TALENT_RULES.pts.spec;
+      const cnt = B.veil.querySelector('[data-ref="vcount"]'), bar = B.veil.querySelector('[data-ref="vbar"]');
+      if (cnt) cnt.textContent = `(${N}/${N})`;
+      if (bar) bar.style.transform = 'scaleX(1)';
+      B.veil.classList.add('is-out');
+      const t = win.setTimeout(() => { B.veil.classList.remove('is-out'); S.fxTimers.delete(t); refresh(); }, 1700);
+      S.fxTimers.add(t);
+      fx(H, 'fx-unveil', 1700);
+      fx(COL.spec.head.querySelector('.tp-meta'), 'fx-maxspec', 480);
+    }
+    fx(H, 'fx-reveal', full ? 1600 : 900);
+  }
+  function fxSwap(prev) {
+    const C = COL.spec;
+    if (C.artOld) C.artOld.style.backgroundImage = prev?.icon ? `url('${src(prev.icon)}')` : 'none';
+    const B = S.built.spec;
+    if (B) for (const X of B.nodes.values()) X.el.style.setProperty('--d', `${Math.round(200 + parseFloat(X.el.style.left) * 0.6)}ms`);
+    fx(C.el, 'fx-swap', 1000);
+  }
+
+  // ============================================================ tooltips y flotante A/B
+  function tipHTML(m) {
+    if (!m) return '';
+    if (m.kind === 'node') {
+      const t = m.t;
+      let body;
+      if (t.opts) {
+        body = t.opts.map(o => `<div class="opt${o.on ? ' on' : ''}${m.hovK === o.k ? ' hov' : ''}">${o.k} · <i class="shp ${o.act ? 'sq' : 'ci'}"></i>${esc(o.name)}${o.act ? ' <span class="actb">HABILIDAD</span>' : ''} <span class="rl">${esc(o.role)}</span>${o.on ? ' <b class="ok">✓</b>' : ''}<small>${esc(o.desc)}</small></div>`).join('')
+          + (t.win ? `<div class="win">${esc(t.win)}</div>` : '');
+      } else body = `<div class="tl">${esc(t.now)}</div>${t.next ? `<div class="tnx">→ ${esc(t.next)}</div>` : ''}`;
+      return `<div class="th"><div class="ti ${t.shape === 'hex' ? 'hex' : 'ci'}" ${artAttr(t.icon, t.id)}></div><div><div class="tn1t">${esc(t.name)}</div>
+        <div class="tk">${esc(t.kind)} · ${esc(t.tree)} · ${esc(t.rank)} <span class="tp-tagc ${t.tagKey}">${esc(t.tag)}</span></div></div></div>
+        ${t.final ? `<div class="fin">${esc(t.final)}</div>` : ''}${t.hyb ? `<div class="hy">${esc(t.hyb)}</div>` : ''}${body}
+        ${t.touches.length ? `<div class="tnodes"><span class="lb">${esc(t.touchLabel)}</span>${t.touches.slice(0, 8).map(s => `<span class="tn1"><i ${artAttr(s.icon, s.id)}></i>${esc(s.name)}</span>`).join('')}</div>` : ''}
+        <div class="st ${t.statusKind}">${esc(t.status)}</div>${t.alt ? `<div class="adv">${esc(t.alt)}</div>` : ''}`;
+    }
+    if (m.kind === 'skill') {
+      const s = m.t;
+      return `<div class="th"><div class="ti" ${artAttr(s.icon, s.id)}></div><div><div class="tn1t">${esc(s.name)}</div><div class="tk">${esc(s.kind)}</div></div></div>
+        <div class="tl">${esc(s.line)}</div>
+        ${s.links.length ? `<div class="tnodes"><span class="lb">Talentos que la tocan</span>${s.links.slice(0, 8).map(x => `<span class="tn1${x.rank ? '' : ' off'}"><i ${artAttr(x.icon, x.id)}></i>${esc(x.name)}${x.rank ? ' <b>✓</b>' : ''}</span>`).join('')}</div>` : ''}
+        ${m.lockText ? `<div class="st lk">${esc(m.lockText)}</div>` : ''}`;
+    }
+    if (m.kind === 'gate') return `<div class="tn1t">${esc(m.t.title)}</div><div class="tl">${esc(m.t.line)}</div><div class="st ${m.t.ok ? 'ok' : 'lk'}">${esc(m.t.status)}</div>`;
+    if (m.kind === 'mech') {
+      const M = m.t;
+      return `<div class="tn1t">${esc(M.name)}</div><div class="tl">${M.text}</div>${M.cols.length ? `<div class="mcols">${M.cols.map(([a, b]) => `<div><b>${esc(String(a).toLocaleUpperCase('es'))}</b>${esc(b)}</div>`).join('')}</div>` : ''}`;
+    }
+    if (m.kind === 'text') return `<div class="tn1t">${esc(m.title)}</div><div class="tl">${esc(m.line)}</div>`;
+    return '';
+  }
+  // tooltip anclado: a la izquierda del ancla (o a la derecha si no cabe), alineado arriba
+  function showTip(fn, anchor) {
+    S.tipFn = fn; S.tipAnchor = anchor;
+    win.clearTimeout(S.tipT);
+    const go = () => {
+      if (S.tipFn !== fn) return;
+      const html = tipHTML(fn());
+      if (!html) { hideTip(); return; }
+      R.tip.innerHTML = html;
+      probe(R.tip);
+      placeTip();
+      R.tip.classList.add('on');
+    };
+    if (CHECK || opts.tipDelay === 0) go(); else S.tipT = win.setTimeout(go, TIP_DELAY);
+  }
+  function placeTip() {
+    const a = S.tipAnchor;
+    if (!a) return;
+    const W = TALENT_PANEL.w, H = TALENT_PANEL.h, w = 380;
+    const h = R.tip.offsetHeight || 160;
+    let x = a.x - w - 14;
+    if (x < 8) x = a.x + a.w + 14;
+    if (x + w > W - 8) x = Math.max(8, W - 8 - w);
+    let y = Math.min(a.y, H - h - 8);
+    y = Math.max(8, y);
+    R.tip.style.left = `${Math.round(x)}px`;
+    R.tip.style.top = `${Math.round(y)}px`;
+  }
+  function hideTip() { win.clearTimeout(S.tipT); S.tipFn = null; R.tip.classList.remove('on'); }
+  function refreshTip() { if (S.tipFn && R.tip.classList.contains('on')) { R.tip.innerHTML = tipHTML(S.tipFn()); probe(R.tip); placeTip(); } }
+
+  function nodeOf(w, id) { return S.built[w]?.tv.nodes.find(n => n.id === id) || null; }
+  function openChoice(w, n) {
+    const p = getPlayer();
+    const t = S.built[w].tv;
+    const tt = nodeTooltip(p, w, n.id);
+    R.pop.innerHTML = (tt?.opts || []).map((o, i) => {
+      const icon = i === 0 ? n.iconA : n.iconB;
+      const flip = i === 1 && n.flipB;
+      return `<button class="tn-choice${o.act ? ' act' : ''}${o.on ? ' on' : ''}${n.rank <= 0 && n.state !== 'avail' ? ' dis' : ''}" type="button" data-k="${esc(o.k)}" aria-label="${esc(`${o.k}: ${o.name}`)}"><i class="${flip ? 'is-flip' : ''}" ${artAttr(icon, n.id, ROLE_COLOR.UNI)}></i><b>${esc(o.k)}</b><span>${esc(o.name)}</span></button>`;
+    }).join('');
+    R.pop.hidden = false;
+    R.pop.dataset.which = w;
+    R.pop.dataset.node = n.id;
+    // encima del nodo, sin taparlo: el borde inferior del flotante queda 2 px sobre el icono
+    R.pop.style.left = `${t.x0 + n.x}px`;
+    R.pop.style.top = `${t.y0 + n.y - n.h / 2 - 2}px`;
+    R.pop.classList.remove('is-open');
+    win.requestAnimationFrame(() => R.pop.classList.add('is-open'));
+    S.pop = { which: w, id: n.id };
+    probe(R.pop);
+  }
+  function closeChoice() { R.pop.hidden = true; R.pop.classList.remove('is-open'); S.pop = null; }
+  function popBox() {
+    const w = S.pop?.which, n = S.pop && nodeOf(w, S.pop.id);
+    if (!n) return null;
+    const t = S.built[w].tv;
+    const h = R.pop.offsetHeight || 100, pw = R.pop.offsetWidth || 158;
+    return { x: t.x0 + n.x - pw / 2, y: t.y0 + n.y - n.h / 2 - 2 - h, w: pw, h };
+  }
+  function enterNode(w, id) {
+    const p = getPlayer();
+    const n = nodeOf(w, id);
+    if (!p || !n) return;
+    if (S.hover?.which === w && S.hover?.id === id) return;
+    S.hover = { which: w, id };
+    litKit(p, n);
+    const choosable = n.t === 'c' && (n.state === 'avail' || n.rank > 0) && n.state !== 'paused' && n.state !== 'locked';
+    const tip = () => ({ kind: 'node', t: nodeTooltip(p, w, id, { alt: S.alt }) });
+    if (choosable || (n.t === 'c' && n.rank > 0 && n.state !== 'paused')) {
+      openChoice(w, n);
+      showTip(tip, popBox());
     } else {
-      const box1 = (title, text, cls = '') => `<div class="tp-line ${cls}">${title ? `<span class="tp-line-title">${esc(title)}</span>` : ''}<span class="tp-line-text">${esc(text)}</span></div>`;
-      const r = st.rank;
-      if (n.free) lines.push(box1('', T.nodeDesc(n, 1)));
-      else if (r <= 0) lines.push(box1(n.max > 1 ? `Rango 1 (máx. ${n.max})` : 'Rango 1', T.nodeDesc(n, 1), 'is-next'));
-      else if (r >= n.max) lines.push(box1(`Rango ${r} · máximo`, T.nodeDesc(n, r), 'is-cur'));
-      else {
-        const cur = T.nodeDesc(n, r), nxt = T.nodeDesc(n, r + 1);
-        if (cur === nxt) lines.push(box1(`Rango actual ${r} · siguiente ${r + 1}`, cur, 'is-cur'));
-        else { lines.push(box1(`Rango actual (${r})`, cur, 'is-cur')); lines.push(box1(`Siguiente rango (${r + 1})`, nxt, 'is-next')); }
+      closeChoice();
+      showTip(tip, nodeBox(w, n));
+    }
+  }
+  function leaveNode() { S.hover = null; litKit(null, null); hideTip(); closeChoice(); }
+
+  // «Tu kit»: los iconos que toca el nodo bajo el ratón; al revés, iluminar los nodos de una habilidad
+  function litKit(p, n) {
+    const ids = n && p ? new Set(nodeTouches(p.classId, Talents.nodeById(Talents.treeOf(p, n.which), n.id)).ids) : null;
+    for (const el of R.foot.querySelectorAll('.tp-skl')) el.classList.toggle('is-lit', !!ids?.has(el.dataset.sk));
+  }
+  function highlight(skillId) {
+    S.hl = skillId;
+    const p = getPlayer();
+    R.body.classList.toggle('is-dim', !!skillId);
+    for (const w of ['cls', 'spec', 'hero']) {
+      const B = S.built[w];
+      if (!B) continue;
+      const tree = p && Talents.treeOf(p, w);
+      for (const [id, X] of B.nodes) {
+        const node = tree && Talents.nodeById(tree, id);
+        X.el.classList.toggle('is-hl', !!skillId && !!node && nodeTouches(p.classId, node).ids.includes(skillId));
       }
     }
-    let status, sc;
-    if (n.free) { status = 'Concedido gratis al elegir la especialización'; sc = 'gold'; }
-    else if (st.maxed) { status = 'Al máximo' + (st.removeBlock ? ` · ${st.removeBlock}` : ' · clic derecho para quitar un rango'); sc = 'gold'; }
-    else if (st.gate || st.req) { status = st.gate || st.req; sc = 'warn'; }
-    else if (st.left <= 0) { status = `Sin puntos libres en este árbol${st.rank > 0 && st.removeBlock ? ' · ' + st.removeBlock : ''}`; sc = 'warn'; }
-    else { status = 'Disponible: haz clic para aprender' + (st.removeBlock ? ` · ${st.removeBlock}` : ''); sc = 'ok'; }
-    const kindColor = n.t === 'x' ? 'var(--tp-hi)' : n.t === 'a' ? (h.which === 'cls' ? 'var(--tp-cls)' : 'var(--tp-hi)') : n.t === 'k' ? '#e8c06a' : '#b8ad9a';
-    box.className = 'tp-detail' + (n.t === 'x' ? ' is-apex' : '');
-    box.innerHTML = `
-      <div class="tp-d-top"><span class="tp-d-kind" style="color:${kindColor}">${KINDS[n.t] || ''}${h.which === 'cls' ? ' · CLASE' : ' · ESPECIALIZACIÓN'}</span>
-        <span class="tp-d-rank">Rango ${st.rank}/${n.max} · fila ${n.r + 1}</span></div>
-      <div class="tp-d-name">${esc(n.name)}</div>
-      <div class="tp-d-lines${n.t === 'c' ? ' is-choice' : ''}">${lines.join('')}</div>
-      ${h.which === 'spec' && S.mech?.nodes[n.id] ? `<div class="tp-d-mech"><b>Potencia tu ${esc(S.mech.name)}:</b> ${esc(S.mech.nodes[n.id].replace(/^[^:]+:\s*/, ''))}</div>` : ''}
-      <div class="tp-d-status tp-s-${sc}">${esc(status)}</div>
-      <div class="tp-d-hint">Clic: +1 rango · Clic derecho: −1 · En elecciones, clic alterna la opción</div>`;
-    const dl = box.querySelector('.tp-d-lines');      // texto largo: se desplaza con un degradado
-    if (dl) dl.classList.toggle('is-scroll', dl.scrollHeight > dl.clientHeight + 2);
+    for (const el of R.foot.querySelectorAll('.tp-skl')) el.classList.toggle('is-on', el.dataset.sk === skillId);
   }
 
-  function updateGrants(p) {
-    const el = S.refs.grants; if (!el) return;
-    const items = [];
-    for (const which of ['cls', 'spec']) {
-      const TT = S.trees[which]; if (!TT) continue;
-      for (const g of ops.grantsOf(p, which, TT.tree)) items.push({ ...g, which });
-    }
-    const short = S.layout?.name === 'compact';
-    const label = (g) => g.choice ? (short ? `fila ${g.node.r + 1} (${g.opt})` : `elección, fila ${g.node.r + 1}`) : short ? `fila ${g.node.r + 1}`
-      : `${g.which === 'cls' ? (CLASS_NAME[p.classId] || 'Clase') : (T.findSpec(p.classId, p.talents.spec)?.name || '')}, fila ${g.node.r + 1}`;
-    el.innerHTML = items.length ? items.map(g => `
-      <div class="tp-grant${g.learned ? ' is-on' : ''} tp-g-${g.which}" data-hover-which="${g.which}" data-hover-id="${esc(g.node.id)}">
-        <span class="tp-grant-ic">${imgTag(iconSrc(p, g.which, g.node), 'tp-grant-img')}<span class="tp-glyph">${esc(initials(g.name))}</span></span>
-        <span class="tp-grant-txt"><span class="tp-grant-name">${esc(g.name)}</span>
-          <span class="tp-grant-tag">${g.learned ? 'Aprendida' : 'Sin aprender'} · ${esc(label(g))}</span></span>
-      </div>`).join('') : '<div class="tp-empty">Este árbol no concede habilidades activas.</div>';
-    el.classList.toggle('is-scroll', el.scrollHeight > el.clientHeight + 2);
+  // ============================================================ código de build
+  function renderCode() {
+    const c = S.code;
+    if (!c.open) { R.code.hidden = true; return; }
+    const p = getPlayer();
+    let code = '';
+    try { code = O().exportTalentCode?.() || ''; } catch { code = ''; }
+    R.code.hidden = false;
+    R.code.innerHTML = c.importing
+      ? `<b>Importar una build</b><input data-ref="cin" spellcheck="false" autocomplete="off" placeholder="Pega aquí un código IRPG2-…" value="${esc(c.value)}">
+         <div class="tp-crow"><button class="tp-hbtn" type="button" data-act="code-apply">Aplicar</button>${c.trim ? '<button class="tp-hbtn" type="button" data-act="code-trim">Recortar a mi nivel y aplicar</button>' : ''}<button class="tp-hbtn" type="button" data-act="code-cancel">Cancelar</button></div>
+         <div class="tp-cerr" role="alert">${esc(c.err)}</div>`
+      : `<b>Código para compartir</b><input data-ref="cin" readonly spellcheck="false" value="${esc(code)}">
+         <div class="tp-crow"><button class="tp-hbtn" type="button" data-act="code-copy">Copiar</button><button class="tp-hbtn" type="button" data-act="code-import">Importar…</button><button class="tp-hbtn" type="button" data-act="code-close">Cerrar</button></div>
+         <small>Pégalo en el juego de otro jugador de ${esc(p ? (Talents.talentTreesFor(p.classId)?.cls?.name || '') : '')}; avisa si la build es de otra versión.</small>`;
+    const inp = R.code.querySelector('input');
+    inp.addEventListener('keydown', e => {
+      e.stopPropagation();          // que el juego no lea las teclas mientras se escribe
+      if (e.key === 'Enter' && S.code.importing) { e.preventDefault(); doImport(false); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeCode(); }
+    });
+    inp.addEventListener('keyup', e => e.stopPropagation());
+    inp.addEventListener('input', () => { S.code.value = inp.value; });
+    if (c.importing) inp.focus(); else inp.select?.();
   }
-
-  function updateCode(p) {
-    const ci = S.refs.code; if (!ci) return;
-    stage.classList.toggle('tp-importing', S.importing);
-    if (!S.importing) { ci.readOnly = true; ci.value = ops.exportCode(p); ci.placeholder = ''; }
-    S.refs.codeErr.textContent = S.importErr || '';
-  }
-  function setImporting(on) {
-    S.importing = on; S.importErr = '';
-    const ci = S.refs.code; if (!ci) return;
-    if (on) { ci.readOnly = false; ci.value = ''; ci.placeholder = 'Pega aquí un código IRPG1-…'; }
-    const p = getPlayer(); if (p) updateCode(p);
-    if (on) ci.focus();
-  }
-  function doImport() {
-    const p = getPlayer(); if (!p) return;
-    const lock = canEdit(p);
-    if (lock) { S.importErr = lock; updateCode(p); return; }
-    const code = S.refs.code.value;
-    const r = ops.importCode(p, code);
-    if (!r.ok) { S.importErr = r.error; updateCode(p); return; }
-    S.importing = false; S.importErr = '';
-    try { onChange(p); } catch (e) { console.error('[talentos] onChange', e); }
-    render();
-    toast('Build importada', 'ok');
+  function closeCode() { S.code = { open: false, importing: false, err: '', trim: false, value: '' }; renderCode(); }
+  function doImport(trim) {
+    const value = (R.code.querySelector('input')?.value || S.code.value || '').trim();
+    S.code.value = value;
+    const r = act((o) => o.importTalentCode(value, trim ? { trim: true } : undefined), { silent: ['code-version', 'code-class', 'code-check', 'code-illegal', 'combat'] });
+    if (r?.ok) { closeCode(); custom(); toast(r.trimmed ? 'Build importada (recortada a tu nivel)' : 'Build importada'); return; }
+    S.code.err = reasonText(r);
+    S.code.trim = r?.reason === 'code-illegal' && !trim;
+    renderCode();
   }
   function copyCode() {
-    const ci = S.refs.code; if (!ci) return;
-    const txt = ci.value;
-    const done = () => toast('Código copiado', 'ok');
-    try {
-      if (win.navigator?.clipboard?.writeText) { win.navigator.clipboard.writeText(txt).then(done, () => { ci.select(); doc.execCommand?.('copy'); done(); }); return; }
-    } catch { /* sin portapapeles: selección manual */ }
-    ci.select(); try { doc.execCommand('copy'); } catch { /* ignorar */ }
+    const inp = R.code.querySelector('input');
+    const txt = inp?.value || '';
+    const done = () => toast('Código copiado');
+    try { if (win.navigator?.clipboard?.writeText) { win.navigator.clipboard.writeText(txt).then(done, () => { inp.select(); doc.execCommand?.('copy'); done(); }); return; } } catch { /* sin portapapeles */ }
+    inp?.select(); try { doc.execCommand('copy'); } catch { /* selección manual */ }
     done();
   }
 
-  // ---------- render ----------
-  function render() {
-    if (root.classList.contains('hidden')) { // lo cerró otro (ui.closePanel)
-      if (S.open) { S.open = false; win.removeEventListener('resize', onResize); }
-      destroyGauges(); S.key = null;
+  // ============================================================ eventos (delegados; ninguno por frame)
+  const nodeFrom = el => { const t = el?.closest?.('.tn'); const col = t?.closest('[data-tree]'); return t && col && root.contains(t) ? { w: col.dataset.tree, id: t.dataset.node, el: t } : null; };
+  root.addEventListener('mouseover', e => {
+    const nd = nodeFrom(e.target);
+    if (nd) { enterNode(nd.w, nd.id); return; }
+    const half = e.target.closest?.('.tn-choice');
+    if (half && S.pop) {
+      const p = getPlayer(), { which, id } = S.pop;
+      showTip(() => ({ kind: 'node', t: nodeTooltip(p, which, id, { alt: S.alt }), hovK: half.dataset.k }), popBox());
       return;
     }
-    if (!S.open) return;
-    const p = getPlayer();
-    if (!p) { stage.innerHTML = '<div class="tp-empty">Sin personaje.</div>'; S.key = null; return; }
-    ops.ensure(p);
-    if (!S.layout) applyLayout();
-    const spec = T.findSpec(p.classId, p.talents.spec);
-    const view = !spec || S.view === 'choose' ? 'choose' : 'trees';
-    const key = [p.classId, spec?.id || '-', view, S.layout.name].join('|');
-    if (key !== S.key) { S.key = key; buildSkeleton(p, spec, view); }
-    // cabecera
-    const info = specInfo(spec);
-    const fi = featInfo(p);
-    const feats = fi.n ? `${fi.n} hazaña${fi.n > 1 ? 's' : ''} (${fi.st} ${fi.st === 1 ? 'bastión' : 'bastiones'}, ${fi.bo} jefe${fi.bo === 1 ? '' : 's'} único${fi.bo === 1 ? '' : 's'})` : 'sin hazañas';
-    const cname = CLASS_NAME[p.classId] || p.classId;
-    if (view === 'choose') {
-      S.refs.title.textContent = `Especialización · ${cname}`;
-      S.refs.sub.textContent = (p.level | 0) < T.TALENT_START_LEVEL
-        ? `Nivel ${p.level | 0} · las especializaciones se desbloquean en el nivel ${T.TALENT_START_LEVEL} (te faltan ${T.TALENT_START_LEVEL - (p.level | 0)})`
-        : `Nivel ${p.level | 0} · elige tu camino: su nodo clave es gratis · cada especialización guarda sus talentos · cambiar es gratis fuera de combate`;
-    } else {
-      S.refs.title.textContent = `Talentos · ${cname} ${spec.name}`;
-      S.refs.sub.textContent = `Nivel ${p.level | 0} · ${info.role} · ${feats} · cambiar especialización: gratis fuera de combate`;
-      updateTree(p, 'cls'); updateTree(p, 'spec');
-      updateDetail(p); updateGrants(p); updateCode(p);
+    const sk = e.target.closest?.('.tp-skl');
+    if (sk) { const p = getPlayer(); highlight(sk.dataset.sk); showTip(() => ({ kind: 'skill', t: skillTooltip(p, sk.dataset.sk) }), toPanel(sk.getBoundingClientRect())); return; }
+    const ck = e.target.closest?.('.tp-ck');
+    if (ck) {
+      const p = getPlayer(), t = skillTooltip(p, ck.dataset.ck);
+      const sp = Talents.findSpec(p.classId, ck.dataset.spec);
+      const req = (p?.cls?.skills || []).find(s => s.id === ck.dataset.ck)?.req || 1;
+      showTip(() => ({ kind: 'skill', t, lockText: `Kit de ${sp?.name || ''}: se aprende al nivel ${req} con esa especialización` }), toPanel(ck.getBoundingClientRect()));
+      return;
     }
-    const lock = canEdit(p);
-    S.refs.lock.textContent = lock || '';
-    stage.classList.toggle('tp-locked', !!lock);
-    const rb = stage.querySelector('[data-act="reset"]');
-    if (rb) rb.textContent = S.resetArmed ? '¿Seguro? Reiniciar' : 'Reiniciar';
-  }
-
-  // ---------- eventos (delegados; ninguno por frame) ----------
-  function nodeFromEvent(e) {
-    const el = e.target.closest?.('.tp-node');
-    return el && stage.contains(el) ? { which: el.dataset.tree, id: el.dataset.id, el } : null;
-  }
-  function burst(which, id) {
-    const R = S.trees[which]?.nodes.get(id); if (!R) return;
-    R.el.classList.remove('tp-burst-a', 'tp-burst-b');
-    void R.el.offsetWidth; // reinicia la animación
-    R.el.classList.add(S.flip ? 'tp-burst-a' : 'tp-burst-b'); S.flip = !S.flip;
-  }
-  root.addEventListener('click', (e) => {
-    if (e.target === root) { close(); return; } // clic en el fondo oscuro
-    const nd = nodeFromEvent(e);
+    const mc = e.target.closest?.('[data-mech]');
+    if (mc) { const s = Talents.findSpec(getPlayer()?.classId, mc.dataset.mech); showTip(() => ({ kind: 'mech', t: mechInfo(s) }), toPanel(mc.getBoundingClientRect())); return; }
+    const inn = e.target.closest?.('[data-innate]');
+    if (inn) { const s = Talents.findSpec(getPlayer()?.classId, inn.dataset.innate); showTip(() => ({ kind: 'text', title: s?.innateName || 'Pasiva', line: s?.innateDesc || s?.innateText || '' }), toPanel(inn.getBoundingClientRect())); return; }
+    const gb = e.target.closest?.('.tp-gate b, .tp-gate .tp-seal');
+    if (gb) {
+      const col = gb.closest('[data-tree]').dataset.tree, row = +gb.closest('.tp-gate').dataset.row;
+      const g = S.built[col]?.tv.gates.find(x => x.row === row);
+      showTip(() => ({ kind: 'gate', t: gateTooltip(g) }), toPanel(gb.getBoundingClientRect()));
+    }
+  });
+  root.addEventListener('mouseout', e => {
+    const to = e.relatedTarget;
+    const from = e.target;
+    if (from.closest?.('.tn')) {
+      if (to && (to.closest?.('.tp-pop') || (to.closest?.('.tn') === from.closest('.tn')))) return;
+      leaveNode();
+      return;
+    }
+    if (from.closest?.('.tp-pop')) {
+      if (to && (to.closest?.('.tp-pop') || to.closest?.('.tn'))) {
+        // de la mitad al nodo: vuelve su tooltip
+        if (to.closest?.('.tn') && S.pop) { const p = getPlayer(), { which, id } = S.pop; showTip(() => ({ kind: 'node', t: nodeTooltip(p, which, id, { alt: S.alt }) }), popBox()); }
+        return;
+      }
+      leaveNode();
+      return;
+    }
+    if (from.closest?.('.tp-skl')) { if (!to?.closest?.('.tp-skl')) { highlight(null); hideTip(); } return; }
+    if (from.closest?.('.tp-ck, [data-mech], [data-innate], .tp-gate b, .tp-gate .tp-seal')) hideTip();
+  });
+  root.addEventListener('click', e => {
+    if (e.target === root) { onClose(); return; }              // clic en el fondo oscuro
+    const half = e.target.closest?.('.tn-choice');
+    if (half && S.pop) {
+      const { which, id } = S.pop;
+      const n = nodeOf(which, id);
+      const k = half.dataset.k;
+      closeChoice(); hideTip(); S.hover = null;
+      if (n) spend(which, n, k);
+      return;
+    }
+    const nd = nodeFrom(e.target);
     if (nd) {
-      const p = getPlayer(); if (!p) return;
-      const tree = S.trees[nd.which]?.tree; const n = tree && T.nodeById(tree, nd.id);
-      S.hover = { which: nd.which, id: nd.id };
-      if (n?.t === 'c' && (T.ranksOf(p, nd.which)[n.id] | 0) > 0) { mutate(q => ops.toggleChoice(q, nd.which, nd.id)); return; }
-      if (mutate(q => ops.addRank(q, nd.which, nd.id))) burst(nd.which, nd.id);
+      const n = nodeOf(nd.w, nd.id);
+      if (!n) return;
+      // el icono del hexágono también compra (con la última opción, o A); ya comprado, el flotante elige
+      if (n.t === 'c' && n.rank > 0) return;
+      spend(nd.w, n, n.t === 'c' ? (n.choice || null) : null);
+      S.hover = null;
+      enterNode(nd.w, nd.id);
+      return;
+    }
+    const tab = e.target.closest?.('.tp-htab[data-ht]');
+    if (tab) {
+      if (tab.classList.contains('on')) return;
+      const r = act((o) => o.chooseHeroTree(tab.dataset.ht));
+      if (r?.ok) custom();
       return;
     }
     const b = e.target.closest?.('[data-act]');
-    if (!b || !stage.contains(b) || b.disabled) return;
-    const act = b.dataset.act;
-    if (act === 'close') close();
-    else if (act === 'spec') { S.view = 'choose'; render(); }
-    else if (act === 'back') { S.view = 'trees'; render(); }
-    else if (act === 'choose') {
-      const sid = b.dataset.spec;
-      if (mutate(q => ops.chooseSpec(q, sid))) { S.view = 'trees'; S.hover = null; render(); toast(`Especialización: ${T.findSpec(getPlayer().classId, sid)?.name || sid}`, 'ok'); }
+    if (!b || b.disabled || b.tagName === 'SELECT') return;
+    const a = b.dataset.act;
+    if (a === 'close') onClose();
+    else if (a === 'book') { if (onOpenBook) onOpenBook(); else onClose(); }
+    else if (a === 'spec') { S.chooser = !S.chooser; hideTip(); refresh(); }
+    else if (a === 'pick') {
+      const id = b.dataset.spec;
+      const r = act((o) => o.chooseSpec(id), { ok: () => `Especialización: ${Talents.findSpec(getPlayer().classId, id)?.name || id} · kit, barra y árbol cambiados (gratis fuera de combate)` });
+      if (r?.ok) { S.chooser = false; S.loSig = ''; refresh(); }
     }
-    else if (act === 'preset') mutate(q => ops.applyPresetAll(q), 'Build recomendada aplicada');
-    else if (act === 'reset') {
-      if (!S.resetArmed) {
-        S.resetArmed = true; render();
-        clearTimeout(S.resetT); S.resetT = setTimeout(() => { S.resetArmed = false; render(); }, 3000);
-      } else { S.resetArmed = false; clearTimeout(S.resetT); mutate(q => ops.resetAll(q), 'Talentos reiniciados'); }
-    }
-    else if (act === 'opt') mutate(q => ops.setChoice(q, b.dataset.which, b.dataset.id, b.dataset.k));
-    else if (act === 'mech-demo') setMechMode('demo');
-    else if (act === 'mech-live') setMechMode('live');
-    else if (act === 'mech-replay') { setMechMode('demo'); S.gz?.seek(0); }
-    else if (act === 'copy') copyCode();
-    else if (act === 'import') setImporting(true);
-    else if (act === 'import-cancel') setImporting(false);
-    else if (act === 'import-apply') doImport();
+    else if (a === 'reco') applyBuild(selKeyForReco());
+    else if (a === 'save') saveLoadout();
+    else if (a === 'undo') undo();
+    else if (a === 'reset') { const r = act((o) => o.resetTalentTree('all'), { ok: 'Talentos reiniciados (gratis) · Ctrl+Z para deshacer' }); if (r?.ok) custom(); }
+    else if (a === 'code') { if (S.code.open) closeCode(); else { S.code = { open: true, importing: false, err: '', trim: false, value: '' }; renderCode(); } }
+    else if (a === 'code-copy') copyCode();
+    else if (a === 'code-import') { S.code.importing = true; S.code.err = ''; S.code.value = ''; renderCode(); }
+    else if (a === 'code-apply') doImport(false);
+    else if (a === 'code-trim') doImport(true);
+    else if (a === 'code-cancel' || a === 'code-close') closeCode();
   });
-  root.addEventListener('contextmenu', (e) => {
+  function selKeyForReco() {
+    const p = getPlayer();
+    const s = p && selOf(p);
+    const builds = p ? Talents.talentTreesFor(p.classId)?.builds || {} : {};
+    return s && builds[s]?.sp === p?.talents?.spec ? s : null;
+  }
+  root.addEventListener('contextmenu', e => {
     e.preventDefault();
-    const nd = nodeFromEvent(e);
+    const nd = nodeFrom(e.target);
     if (!nd) return;
-    S.hover = { which: nd.which, id: nd.id };
-    mutate(q => ops.removeRank(q, nd.which, nd.id));
+    const n = nodeOf(nd.w, nd.id);
+    if (!n) return;
+    removeRank(nd.w, n);
+    // el tooltip sigue al nodo (con su estado nuevo)
+    S.hover = null;
+    enterNode(nd.w, nd.id);
   });
-  const hoverTo = (which, id) => {
-    if (S.hover && S.hover.which === which && S.hover.id === id) return;
-    S.hover = { which, id };
-    const p = getPlayer(); if (p) updateDetail(p);
+  R.lo.addEventListener('change', () => onLoadout(R.lo.value));
+  const onKey = e => {
+    if (!S.open) return;
+    if (e.key === 'Alt') { if (!S.alt) { S.alt = true; root.classList.add('is-alt'); refreshTip(); } e.preventDefault(); return; }
+    const typing = e.target?.closest?.('input, textarea, select');
+    if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyZ' || e.key === 'z' || e.key === 'Z') && !typing) { e.preventDefault(); undo(); return; }
+    if (e.key === 'Escape' && (S.code.open || S.pop)) {
+      // primero se cierra lo flotante; el juego no lo ve (no cierra el panel)
+      e.stopPropagation(); e.preventDefault();
+      if (S.code.open) closeCode(); else leaveNode();
+    }
   };
-  root.addEventListener('mouseover', (e) => {
-    const nd = nodeFromEvent(e);
-    if (nd) { hoverTo(nd.which, nd.id); mechFocus(nd.which === 'spec' ? nd.id : null); return; }
-    const pill = e.target.closest?.('[data-mech-node]');
-    if (pill && stage.contains(pill)) { hoverTo('spec', pill.dataset.mechNode); mechFocus(pill.dataset.mechNode); return; }
-    const g = e.target.closest?.('[data-hover-id]');
-    if (g && stage.contains(g)) hoverTo(g.dataset.hoverWhich, g.dataset.hoverId);
-  });
-  root.addEventListener('mouseout', (e) => {
-    const from = e.target.closest?.('.tp-node, [data-mech-node]');
-    if (!from) return;
-    const to = e.relatedTarget?.closest?.('.tp-node, [data-mech-node]');
-    if (to !== from) mechFocus(null);
-  });
-  root.addEventListener('focusin', (e) => { const nd = nodeFromEvent(e); if (nd) hoverTo(nd.which, nd.id); });
+  const onKeyUp = e => { if (e.key === 'Alt' && S.alt) { S.alt = false; root.classList.remove('is-alt'); refreshTip(); } };
+  const onBlur = () => { if (S.alt) { S.alt = false; root.classList.remove('is-alt'); } };
+  let resizeRaf = 0;
+  const onResize = () => { if (resizeRaf) return; resizeRaf = win.requestAnimationFrame(() => { resizeRaf = 0; if (S.open) { applyScale(); if (CHECK) scheduleCheck(); } }); };
 
-  // ---------- API ----------
+  // ============================================================ comprobación (?talentscheck=1, §3.12)
+  function scheduleCheck() { win.clearTimeout(S.checkT); S.checkT = win.setTimeout(() => { try { check(); } catch (e) { console.error('[talentos] check', e); } }, 450); }
+  function check() {
+    const vw = win.innerWidth, vh = win.innerHeight;
+    const shown = el => !!el && el.getClientRects().length > 0 && win.getComputedStyle(el).visibility !== 'hidden';
+    const box = el => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+    const name = el => el.dataset?.node ? `${el.closest('[data-tree]')?.dataset.tree}:${el.dataset.node}` : el.dataset?.act || el.dataset?.sk || el.className?.baseVal || String(el.className || el.tagName).split(' ')[0];
+    const overlaps = [], offscreen = [], clipped = [];
+    const hit = (a, b) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > 1 && Math.min(a.b, b.b) - Math.max(a.t, b.t) > 1;
+    const pairs = (list, label) => {
+      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+        const A = list[i], B = list[j];
+        if (A.owner && A.owner === B.owner) continue;
+        if (hit(A.r, B.r)) overlaps.push(`${label}: ${A.n} × ${B.n}`);
+      }
+    };
+    const items = sel => [...root.querySelectorAll(sel)].filter(shown).map(el => ({ el, r: box(el), n: name(el), owner: el.closest('.tn') }));
+    const P = box(panel);
+    // cabecera, pie y, por árbol, nodos + pastillas + letras + etiquetas de puerta + pestañas
+    pairs(items('.tp-head > .tp-emb, .tp-head .tp-title, .tp-head .tp-sub, .tp-head > .tp-hbtn, .tp-head > .tp-lo'), 'cabecera');
+    pairs(items('.tp-foot > :not(.tp-kit), .tp-foot .tp-skl'), 'pie');
+    for (const w of ['cls', 'spec', 'hero']) {
+      if (R.body.dataset.view === 'choose') break;
+      const scope = `.tp-col-${w} .tp-can`;
+      pairs([...items(`${scope} .tn`), ...items(`${scope} .tn-rk, ${scope} .tn-ab, ${scope} .tn-pips`), ...items(`${scope} .tp-gate b`), ...items(`${scope} .tp-htab`)], `árbol ${w}`);
+    }
+    // fuera de la ventana o del panel
+    if (P.l < -1 || P.t < -1 || P.r > vw + 1 || P.b > vh + 1) offscreen.push('panel');
+    for (const it of items('.tn, .tn-rk, .tp-hbtn, .tp-lo, .tp-skl, .tp-gate b, .tp-htab, .tp-card, .tp-colh h3, .tp-meta, .tp-title, .tp-sub')) {
+      const r = it.r;
+      if (r.l < P.l - 1 || r.t < P.t - 1 || r.r > P.r + 1 || r.b > P.b + 1 || r.l < -1 || r.t < -1 || r.r > vw + 1 || r.b > vh + 1) offscreen.push(it.n);
+    }
+    // textos cortados (una línea que no cabe en su caja)
+    for (const el of root.querySelectorAll('.tp-title, .tp-sub, .tp-colh h3, .tp-meta, .tp-card h3, .tp-crole, .tp-keys, .tp-lgd')) {
+      if (!shown(el)) continue;
+      const box2 = el.parentElement.getBoundingClientRect(), r = el.getBoundingClientRect();
+      if (el.scrollWidth > el.clientWidth + 1 || r.right > box2.right + 1) clipped.push(name(el));
+    }
+    const out = { panel: 'talents', overlaps, offscreen, clipped, res: `${vw}x${vh}`, scale: S.scale, view: R.body.dataset.view };
+    win.__uicheck = out;
+    if (CHECK) console.log('[talentscheck]', JSON.stringify(out));
+    return out;
+  }
+
+  // ============================================================ API
   const api = {
     el: root,
     isOpen: () => S.open,
     open() {
-      if (!S.open) { S.open = true; win.addEventListener('resize', onResize); }
+      if (!S.open) {
+        S.open = true;
+        win.addEventListener('resize', onResize);
+        doc.addEventListener('keydown', onKey, true);
+        doc.addEventListener('keyup', onKeyUp, true);
+        win.addEventListener('blur', onBlur);
+      }
       root.classList.remove('hidden');
-      S.view = 'trees'; S.importing = false; S.importErr = '';
-      applyLayout();
-      render();
+      root.dataset.open = '';
+      S.undo = []; S.chooser = false; S.hover = null; S.hl = null;
+      applyScale();
+      refresh();
     },
     close() {
-      if (S.open) { S.open = false; win.removeEventListener('resize', onResize); }
+      if (S.open) {
+        S.open = false;
+        win.removeEventListener('resize', onResize);
+        doc.removeEventListener('keydown', onKey, true);
+        doc.removeEventListener('keyup', onKeyUp, true);
+        win.removeEventListener('blur', onBlur);
+      }
       root.classList.add('hidden');
-      destroyGauges(); S.key = null;   // al reabrir se reconstruye (y la demo arranca de cero)
-      S.resetArmed = false; clearTimeout(S.resetT);
+      root.removeAttribute('data-open');
+      hideTip(); closeChoice(); closeCode();
+      for (const t of S.fxTimers) win.clearTimeout(t);
+      S.fxTimers.clear();
+      win.clearTimeout(S.checkT);
+      S.alt = false; root.classList.remove('is-alt');
     },
-    render() {
-      // tolera que ui.js quite `hidden` por su cuenta (togglePanel) y luego llame render()
-      if (!S.open && !root.classList.contains('hidden')) { S.open = true; win.addEventListener('resize', onResize); applyLayout(); }
-      render();
-    },
-    showSpecChoice() { api.open(); S.view = 'choose'; render(); },
-    destroy() { api.close(); root.remove(); },
-    // pruebas y capturas (A12): el bloque de mecánica
-    mech: () => ({ info: S.mech, gauge: S.gz, mode: S.gzMode, hint: [...S.mechHint], cards: S.cardGz.length }),
-    mechFocus,
-    ops,
+    refresh,
+    render: () => refresh(),
+    showSpecChoice() { api.open(); S.chooser = true; refresh(); },
+    check,
+    // arnés y pruebas: estado interno de solo lectura
+    debug: () => ({ view: S.v, undo: S.undo.length, built: Object.fromEntries(Object.entries(S.built).map(([w, b]) => [w, b ? { owner: b.owner, nodes: b.nodes.size } : null])), scale: S.scale }),
+    hover: (w, id) => { S.hover = null; enterNode(w, id); },
+    unhover: () => leaveNode(),
   };
   return api;
 }
