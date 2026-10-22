@@ -201,7 +201,7 @@ Orden del roadmap: ítems → calibración → multijugador. Las listas exactas 
 - `needsForm` «uno u otro» (a24 Fuente de Maná vale con cualquier canal); `noFlightLock` para proyectiles de comportamiento que no impactan (el Orbe baja `actionLockT` a mano) y una entidad viva genérica (`g.spawnEntity`) en lugar del Orbe dentro de `g.projectiles`.
 - Banco: lanzar las definitivas de carga con el indicador lleno; el Montaraz pone el cepo antes de la Detonante; Tierra Arrasada usa el contador GLOBAL `fieldUid` para el ángulo de sus campos (`G9:montaraz:*:campo:area` cambia según lo simulado antes): contador por héroe (KT-arquera).
 - Icono propio de «Asustado» (`assets/ui/st_asustado.webp` en `UI_ASSETS`); un héroe v4 de Nv ≥ 10 sin especialización migra sin un aviso que le pida elegirla; los `desc` de poderes que se leen fuera del libro no pasan por `rankText`.
-- Rendimiento: el humo `full` (cc45160) dio el tick ×1,26 (Guerrero) y ×1,37 (Arquera) sobre la línea base de ccce3d9 (umbral 1,25): perfil en curso.
+- Rendimiento (2026-10-22, hecho): el ×1,26/×1,37 del humo era sobre todo medición (SwiftShader compitiendo, base absoluta de otro momento, la Arquera medida con otra especialización, `psys.emit` sin silenciar); la subida real (+9 %) llegó con el kit 2g de Nv10. Arreglos sin cambio de comportamiento: `_acquire` sale si el pool está lleno (particles), `setRotX/setRotY` solo si el ángulo cambia (entities), lista de llamas por mundo (main), `flashDamage` sin layout forzado (ui). Humo: silencia `psys.emit` y `ui.flashDamage`, para el bucle 1,5 s y mide la especialización de la base (`BASE_SPEC`); `baseline.json` regenerada con ccce3d9 y el método nuevo. Resultado: ×0,92 / ×0,95 / ×0,94. Punto caliente real en partida: la interfaz viva (200–330 µs por fotograma frente a ~100 µs de simulación).
 
 ## 6. Bugs/gotchas conocidos
 
@@ -612,7 +612,7 @@ Lo que YA existe (no reimplementar):
     - ✅ d26 Montaña Viva (`g_d_montana_viva`): aturde 0,5 s enteros (noDR) como mucho 1 vez cada 3 s por enemigo (`montana.icd`); a los jefes nada (guarda `isBoss`).
     - Aprobadas en `divergencias.json`: lo de la propuesta de sensación (recomendados y estas decisiones). PENDING aceptadas para E4b con `nota: 'decisión del dueño: E4b'`.
 
-**Estado (2026-10-22):** Paso 2 completo en `paso2-impl` (preview, sw v117). Falta la revisión en vivo del dueño y, después, el humo `full` y la publicación a `main`. Cuarentena (`tests/pending-2g.json`): 0. Lo que queda (calibración E4b con sus decisiones, rework de VFX y sonido, la cola abierta) está en §5 «Backlog tras el Paso 2».
+**Estado (2026-10-22):** Paso 2 completo en `paso2-impl` (preview, sw v118). Falta la revisión en vivo del dueño y, después, el humo `full` y la publicación a `main`. Cuarentena (`tests/pending-2g.json`): 0. Lo que queda (calibración E4b con sus decisiones, rework de VFX y sonido, la cola abierta) está en §5 «Backlog tras el Paso 2».
 
 **⚠ Día de publicar (riesgo 20 del plan): cerrar TODAS las pestañas del juego antes de abrir la versión nueva.** Una pestaña v4 que siga abierta lee un save v5 como «versión futura» sin romperse, pero al guardar escribe v4: se pierden la forja elegida (vuelve la ★), los talentos propios y las ranuras con habilidades 2g. La siguiente carga lo vuelve a migrar (queda válido), pero `.bak-v4` solo guarda el v4 original: es único por hueco y nunca se borra.
 

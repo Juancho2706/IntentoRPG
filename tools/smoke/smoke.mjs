@@ -54,6 +54,8 @@ const PANEL_LEVELS = [10, 40, 69, 70, 100];
 const NODE_COUNTS = { cls: 30, spec: 29, hero: 13 };
 const NODE_STATES = new Set(['locked', 'avail', 'partial', 'max', 'paused']);
 const TICK_LIMIT = 1.25;              // §6: coste medio del tick ≤ 1,25 × la línea base
+// especialización de cada clase en la línea base (la 1.ª cuando se escribió): se mide la misma
+const BASE_SPEC = (() => { try { return Object.fromEntries(Object.entries(JSON.parse(readFileSync(BASELINE, 'utf8')).clases || {}).map(([c, v]) => [c, v.spec])); } catch { return {}; } })();
 const BENCH = { seconds: 60, warmup: 2, dt: 1 / 60, enemies: 30, level: 10, floor: 3, seed: 424242,
   slots: ['lmb', 'rmb', 'k2', 'k3', 'k4'], roster: ['zombi', 'esqueleto', 'esqueleto', 'brujo', 'demonio'] };
 
@@ -862,7 +864,9 @@ async function benchClass(page, origin, cls, seconds, runs) {
       check(s.state === 'play', `state = ${s.state}`);
       const info = await L(page, 'classInfo', cls);
       await L(page, 'setLevel', BENCH.level);
-      const spec = info.specs[0]?.id;
+      // la MISMA especialización que la línea base (la 1.ª de entonces): si el orden de las
+      // especializaciones cambia, la comparación sigue siendo de igual a igual
+      const spec = BASE_SPEC[cls] && info.specs.some(x => x.id === BASE_SPEC[cls]) ? BASE_SPEC[cls] : info.specs[0]?.id;
       if (spec) { const c = await L(page, 'chooseSpec', spec); check(c.ok, `chooseSpec('${spec}')`, c); }
       await L(page, 'enterArena', { floor: BENCH.floor, seed: BENCH.seed });
       const n = await L(page, 'spawnRing', { n: BENCH.enemies, floor: BENCH.floor, immortal: true, roster: BENCH.roster });
@@ -870,6 +874,10 @@ async function benchClass(page, origin, cls, seconds, runs) {
       return { spec, iso };
     };
     const drive = async (secs, quietUi) => {
+      // bucle parado y una pausa antes de medir: con SwiftShader el proceso de la GPU sigue pintando
+      // (en varios hilos de CPU) los fotogramas de la preparación y compite con el tick medido
+      await page.evaluate('window.__game.renderer.setAnimationLoop(null)');
+      await sleep(1500);
       const d = await page.evaluate(`window.__smokeLib.drive(${JSON.stringify({ seconds: secs + BENCH.warmup, warmup: BENCH.warmup, dt: BENCH.dt,
         renderEvery: 0, slots: BENCH.slots, measure: true, quietUi })})`, null, { timeout: 600000 });
       check(d.state === 'play', `state = ${d.state}`);

@@ -1531,6 +1531,10 @@ export class UI {
 
   flashDamage() {
     const el = $('damage-flash');
+    // con el destello aún en curso se rebobina su animación: sin el recálculo de layout forzado
+    // (void offsetWidth) de cada golpe; si ya terminó, el reinicio de siempre
+    const an = el.classList.contains('active') ? el.getAnimations?.()[0] : null;
+    if (an) { an.currentTime = 0; an.play(); return; }
     el.classList.remove('active');
     void el.offsetWidth;
     el.classList.add('active');

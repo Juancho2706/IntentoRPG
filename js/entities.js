@@ -29,6 +29,11 @@ import { projFanOffset, fanSpread, forgePowers, STANCE_STATS, VERB_DEFAULTS } fr
 import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
   potionResourceAmount, touchCombat } from './resources.js';
 
+// Ángulo de un Object3D SOLO si cambia: el setter de Euler de three recalcula el cuaternión
+// (setFromEuler) aunque el valor sea el mismo (miembros quietos, orientación sin cambios)
+const setRotX = (o, v) => { if (o.rotation.x !== v) o.rotation.x = v; };
+const setRotY = (o, v) => { if (o.rotation.y !== v) o.rotation.y = v; };
+
 const EMPTY_TAGS = new Set();
 const isBossDef = d => !!(d?.boss || d?.uber || d?.worldBoss);
 // stats que SOLO suma la innata de la especialización (recompute): ningún objeto, nodo, era ni
@@ -2399,22 +2404,22 @@ export class Enemy {
     if (a.body) {
       a.body.position.y = a.bodyY + (moving ? Math.abs(sw) * 0.06 : Math.sin(t * 2 + this._aoff) * 0.02);
       a.body.position.z = a.bodyZ + lunge * 0.28;
-      a.body.rotation.x = -lunge * 0.5 + (moving ? Math.sin(this.walkT * 2) * 0.04 : 0);
+      setRotX(a.body, -lunge * 0.5 + (moving ? Math.sin(this.walkT * 2) * 0.04 : 0));
       // squash de impacto al recibir daño (sobre la escala base de la forma)
       if (a.bodyScale) a.body.scale.set(a.bodyScale.x * (1 + hit * 0.7), a.bodyScale.y * (1 - hit * 1.3), a.bodyScale.z * (1 + hit * 0.7));
     }
-    if (a.head) a.head.rotation.x = lunge * 0.6 + (moving ? -Math.sin(this.walkT * 2) * 0.05 : 0);
+    if (a.head) setRotX(a.head, lunge * 0.6 + (moving ? -Math.sin(this.walkT * 2) * 0.05 : 0));
     if (a.legs) {
-      a.legs[0].rotation.x = moving ? sw * 0.7 : 0;
-      a.legs[1].rotation.x = moving ? -sw * 0.7 : 0;
+      setRotX(a.legs[0], moving ? sw * 0.7 : 0);
+      setRotX(a.legs[1], moving ? -sw * 0.7 : 0);
     }
     if (a.arms) {
       const idle = Math.sin(t * 1.5 + this._aoff) * 0.05;
-      a.arms[0].rotation.x = -lunge * 1.2 + (moving ? -sw * 0.45 : idle);
-      a.arms[1].rotation.x = -lunge * 1.2 + (moving ? sw * 0.45 : -idle);
+      setRotX(a.arms[0], -lunge * 1.2 + (moving ? -sw * 0.45 : idle));
+      setRotX(a.arms[1], -lunge * 1.2 + (moving ? sw * 0.45 : -idle));
     }
-    if (a.tail) a.tail.rotation.y = Math.sin(this.walkT * 1.5 + t * (moving ? 0 : 1.5)) * (moving ? 0.5 : 0.18);
-    if (a.lid) a.lid.rotation.x = a.lidBase - (moving ? Math.abs(sw) * 0.3 : 0) - lunge * 0.5;
+    if (a.tail) setRotY(a.tail, Math.sin(this.walkT * 1.5 + t * (moving ? 0 : 1.5)) * (moving ? 0.5 : 0.18));
+    if (a.lid) setRotX(a.lid, a.lidBase - (moving ? Math.abs(sw) * 0.3 : 0) - lunge * 0.5);
   }
 
   // Paso 2 (§3.6): campos que cambian el movimiento enemigo (muros que BLOQUEAN, zonas que
@@ -2886,7 +2891,7 @@ export class Enemy {
 
     // enemigo activo: mira, usa mecánicas, ataca o persigue
     {
-      this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+      setRotY(this.group, Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z));
 
       // mecánicas especiales de jefe
       if (this.def.mechanic) {

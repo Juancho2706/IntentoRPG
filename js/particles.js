@@ -537,6 +537,7 @@ export class ParticleSystem {
 
   _acquire() {
     const N = this.poolSize;
+    if (this.alive >= N) return -1;   // pool lleno: no hace falta recorrerlo (alive = vivas exactas)
     for (let k = 0; k < N; k++) {
       const i = (this.cursor + k) % N;
       if (this.life[i] <= 0) {

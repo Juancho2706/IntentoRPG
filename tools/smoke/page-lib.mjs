@@ -219,10 +219,10 @@ export function pageLib() {
     let renderOn = false;
     const realRender = g.renderScene;
     wrap(g, 'renderScene', 'render', function () { if (renderOn) return realRender.apply(this, arguments); });
-    for (const n of ['updateFloats', 'updateHUD', 'drawMinimap', 'renderMap', 'spawnText', 'message', 'updateTopBand']) wrap(g.ui, n, 'ui');
+    for (const n of ['updateFloats', 'updateHUD', 'drawMinimap', 'renderMap', 'spawnText', 'message', 'updateTopBand', 'flashDamage']) wrap(g.ui, n, 'ui');
     for (const n of ['syncWorldLabels', 'updatePerfHud']) wrap(g, n, 'ui');
     for (const n of ['emitFx', 'spawnBurst', 'spawnRing', 'addShake', 'sfx', 'vibrate']) wrap(g, n, 'fx');
-    wrap(g.psys, 'update', 'fx'); wrap(g.particles, 'update', 'fx'); wrap(g.worldMarks, 'update', 'fx');
+    wrap(g.psys, 'update', 'fx'); wrap(g.psys, 'emit', 'fx'); wrap(g.particles, 'update', 'fx'); wrap(g.worldMarks, 'update', 'fx');
     wrap(g.blobShadows, 'update', 'fx'); wrap(g.postfx, 'setOutlineTargets', 'fx');
     // reloj fijo y bucle real parado
     g.renderer.setAnimationLoop(null);

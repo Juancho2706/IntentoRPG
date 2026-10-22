@@ -1720,11 +1720,13 @@ class Game {
         c.position.y = (c.userData.baseY ?? 0.95) + Math.sin(t * 2.5) * 0.12;
       }
     }
-    this.world.group.traverse(o => {
-      if (o.userData?.flame) {
-        o.userData.flame.scale.y = 1 + Math.sin(t * 11 + o.position.x) * 0.25;
-      }
-    });
+    // antorchas: la lista se arma una vez por mundo (las llamas solo se crean al construirlo)
+    if (this._flameGroup !== this.world.group) {
+      this._flameGroup = this.world.group;
+      this._flames = [];
+      this.world.group.traverse(o => { if (o.userData?.flame) this._flames.push(o); });
+    }
+    for (const o of this._flames) o.userData.flame.scale.y = 1 + Math.sin(t * 11 + o.position.x) * 0.25;
 
     // cámara y luces siguen al jugador (con sacudida breve y amortiguada)
     this.camTarget.lerp(p.pos, Math.min(1, dt * 6));
