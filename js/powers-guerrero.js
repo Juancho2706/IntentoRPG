@@ -44,7 +44,7 @@
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower, POWER_HOOKS } from './powers.js';
 import { gainGauge, gaugeValue, gaugeMax, gaugeState, gaugeTuning, setGauge } from './spec-mechanics.js';
-import { dotProfile, damageReduction, takenMult, chargeRelease, rankCoef, rankBuff, blockReduction, DOT_PROFILES, CAPS } from './combat-math.js';
+import { dotProfile, damageReduction, takenMult, chargeRelease, blockReduction, DOT_PROFILES } from './combat-math.js';
 import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 import { insideField } from './field-entities.js';
@@ -237,28 +237,9 @@ const now = p => p?.simT || 0;
 // rango del nodo que concede el poder (finales y ápice): el mismo dato que talents.powerRank,
 // leído del agregado de talentos que deja recompute (mínimo 1: el poder solo existe con el nodo)
 const rankOf = (p, powerId) => Math.max(1, p?.talentAgg?.powerRank?.[powerId] | 0);
-// perfil de una habilidad de la clase: el del núcleo (g.skillProfile, cola W2) o el de la caché de
-// resolveSkill; si no está (recompute la vacía), uno básico del catálogo forjado con el rango del
-// héroe y los mods de talento (sin soportes)
-function profOf(g, p, id) {
-  if (typeof g?.skillProfile === 'function') return g.skillProfile(p, id);
-  if (p?.resolved?.[id]) return p.resolved[id];
-  const sk = skillOf(p, id);
-  if (!sk) return null;
-  const def = p.forged?.[id]?.def || sk;
-  const rank = p.skills?.[id] || 1;
-  const m = p.talentAgg?.mods?.[id] || {};
-  const cdr = Math.max(-100, Math.min(CAPS.cdr, (p.stats?.cdr || 0) + (m.cdr || 0)));
-  const buffMul = rankBuff(rank) * Math.max(0, 1 + (m.buff || 0) / 100);
-  const buff = {};
-  for (const [k, v] of Object.entries(def.buff || {})) buff[k] = Math.round(v * buffMul);
-  return {
-    id, def, cat: def.cat, coef: (def.coef || 0) * rankCoef(rank), addPct: (def.addPct || 0) + (m.dmg || 0),
-    range: (def.range || 0) * Math.max(0.2, 1 + (m.range || 0) / 100), tags: new Set([...(def.tags || []), def.cat, def.elem].filter(Boolean)),
-    cd: Math.max(0, (def.cd || 0) * (1 - cdr / 100)), buffMul, buff, gen: (def.gen || 0) + (m.gen || 0),
-    dur: Math.max(0, (def.dur || 0) * Math.max(0.1, 1 + (m.dur || 0) / 100) + (m.durS || 0)),
-  };
-}
+// perfil de una habilidad de la clase: el del núcleo (g.skillProfile = resolveSkill, cola W2; los
+// poderes no importan skill-resolve). null si el héroe no la tiene en su catálogo
+const profOf = (g, p, id) => g.skillProfile(p, id);
 // quita un buff YA (sin esperar a que caduque) y recalcula; true si estaba
 function dropBuff(p, id) {
   const n = p?.buffs?.length || 0;

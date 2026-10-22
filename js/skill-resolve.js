@@ -27,8 +27,6 @@ import { talentTreesFor, activeSpec, activeHeroTree, nodeFx, scaleFx, TALENT_RUL
 export { CAT_SLOTS, SLOT_KEYS, TAGS, RANK_MAX, supportFits, supportSockets, skillSlots, defaultSlots };
 
 export const GCD = 0.2;                 // enfriamiento global entre principales (§4.4)
-/** @deprecated Paso 2 (§3.5): una activa de talento usa el `req` de su catálogo (21/27/31/72). */
-export const TALENT_SKILL_REQ = 10;
 export const BIG_HIT_INTERRUPT = 0.10;  // un golpe > 10 % de la vida interrumpe (canalizaciones/Int./cargas)
 
 // Efecto de cada soporte como `mod` (sustituye a los has('x') dispersos del lanzamiento).

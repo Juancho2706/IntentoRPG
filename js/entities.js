@@ -640,7 +640,7 @@ export class Player {
     this.castLock = 0;          // bloqueo de lanzamiento (windup / canalización)
     this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una principal (Paso 2b.2)
     this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
-    this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
+    this.invulnT = 0;           // inmunidad (Bloque de Hielo, Fénix…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
     this.slowImmuneT = 0;       // inmune a ralentizaciones (Agilidad, Piel de Hierro, Furia Inmortal)
     this.invisT = 0;            // invisible (Camuflaje): los enemigos pierden el objetivo (Paso 2c.2)
@@ -979,7 +979,7 @@ export class Player {
 
   // vida/recurso al golpear (una vez por impacto: AoE, proyectil, golpe). La vida
   // al golpear (lph) ENTRA en la cubeta de sustento (§6.1, cambio intencional).
-  // Los poderes "por golpe" (Sobrecarga Arcana…) van por ⑤ onHit (registro).
+  // Los poderes "por golpe" (Cero Absoluto, los de la forja y los talentos…) van por ⑤ onHit (registro).
   onDealHit() {
     this.sinceCombat = 0;
     touchCombat(this);
@@ -1100,7 +1100,7 @@ export class Player {
     void src;
     return this.hp - before;
   }
-  // RESTAURACIÓN: fija la vida a un valor (Muro Inquebrantable, Fénix…); no escala
+  // RESTAURACIÓN: fija la vida a un valor (Negación de la Muerte, Fénix…); no escala
   setHp(v, src = 'restore') {
     this.hp = Math.max(0, Math.min(this.stats.maxHP, v));
     void src;
@@ -1348,7 +1348,7 @@ export class Player {
     this.game.sfx('hurt');
     this.game.tip('pocion', 'Si tu vida baja, bebe una poción: tecla Q o el botón 🧪');
     if (this.hp <= 0) {
-      // onLethal: un poder puede salvarte (Muro Inquebrantable…); gana el primero por prioridad
+      // onLethal: un poder puede salvarte (Negación de la Muerte, Fénix…); gana el primero por prioridad
       if (this.hookIndex?.onLethal && firePower('onLethal', this, g, this, info)) {
         if (this.hp <= 0) this.hp = 1;
         return;
@@ -2284,8 +2284,8 @@ export class Enemy {
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
     const raw = amount;
     amount *= weaknessMult(this.vulnT > 0 ? VULN_PCT : 0, sumWeakness(this.debuffs));
-    // multiplicadores [×] del héroe (Furia, Sed de Batalla, Tiro Mortal, Cacería y
-    // los nodos clave de talento): solo los MAX_MULT_ACTIVE mayores activos. No
+    // multiplicadores [×] del héroe (Furia, Sed de Batalla y los nodos clave de
+    // talento): solo los MAX_MULT_ACTIVE mayores activos. No
     // aplican a los "procs" para que no se realimenten. (El daño al enemigo siempre
     // procede del jugador: la mascota no daña y los enemigos no se golpean entre sí.)
     const pl = this.game.player;
