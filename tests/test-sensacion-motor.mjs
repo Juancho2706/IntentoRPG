@@ -218,9 +218,14 @@ section('T2d · nonBlocking: el canal no bloquea el básico ni las otras ranuras
   ok(b.lock > 1 && !b.basic && !b.rmb, `canal normal: bloquea (castLock ${b.lock.toFixed(2)})`);
   ok(f.lock === 0 && f.basic && f.rmb && f.still, `nonBlocking: castLock ${f.lock}, básico ${f.basic}, 🖱️Der ${f.rmb}, el canal sigue ${f.still}`);
 });
+// S-maga: el Haz Concentrado real ya golpea al pulsar (tickNow) y gasta las Cargas en su 1.er tic; para
+// probar «soltar antes del 1.er tic» se inyecta un Haz con su mismo tic (v_haz_concentrado) SIN tickNow
+// (el 1.er tic a los 0,5 s, como el de antes de S-maga)
+const HAZ_SIN_TICKNOW = { ...CLASSES.maga.forge.rayo, vars: [CLASSES.maga.forge.rayo.vars[0],
+  { ...CLASSES.maga.forge.rayo.vars[1], set: { type: 'channel', channelT: 1.5, ticks: 3, coef: 0.8, cost: 22, beam: { color: 0xb996ff } } }] };
 section('T2e · soltar el Haz Concentrado antes del 1.er tic: ni maná, ni enfriamiento, ni Cargas (sin ③ afterCast)', () => {
   const run = hold => {
-    const h = hero('maga', 40, { spec: 'arcanista', forge: { rayo: 'ii' } });
+    const h = hero('maga', 40, { spec: 'arcanista', forge: { rayo: 'ii' }, inject: { forge: { rayo: HAZ_SIN_TICKNOW } } });
     h.addPowers('zz_fin_s0');
     foe(h, 4); h.aim(4, 0); h.setSlot('rmb', 'rayo');
     h.gauge('cargas', 4);

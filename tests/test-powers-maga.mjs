@@ -53,12 +53,16 @@ const P = magaPowers();
 for (const id of ['p_nova_solar', 'k_nova_push', 'k_icicle_dart', 'k_frost_armor', 'k_ice_tomb', 'k_shatter_chain', 'k_numb',
   'k_eternal_winter', 'k_ice_age', 'a_orbe_resonante', 'a_clarity', 'a_overvolt', 'a_chain_crit', 'a_arc_charge', 'a_singularity', 'a_manaskin'])
   ok(!POWER_HOOKS[id], `${id}: retirado en 2g`);
-// comportamientos: solo las activas de talento de la clase; el kit es del catálogo (KA)
+// comportamientos: las activas de talento de la clase y (S-maga) los de la Arcanista que tocan sus Cargas o
+// necesitan THREE: el Orbe Arcano (con cast), el tic del Haz Concentrado (forja) y el del Desgarro; el resto
+// del kit es del catálogo (KA)
 const B = magaSkillBehaviors();
-assert.deepEqual(Object.keys(B).sort(), ['m_t_bloque', 'm_t_contrahechizo', 'm_t_inversion']); checks++;
-for (const id of Object.keys(B)) ok(SKILL_BEHAVIORS[id] && typeof B[id].cast === 'function' && !MAGA_SKILL_BEHAVIORS[id], `${id}: registrado, con cast, sin chocar con el catálogo`);
+assert.deepEqual(Object.keys(B).sort(), ['desgarro_canal', 'm_t_bloque', 'm_t_contrahechizo', 'm_t_inversion', 'orbe_arcano', 'v_haz_concentrado']); checks++;
+const TICK_ONLY = new Set(['desgarro_canal', 'v_haz_concentrado']);
+for (const id of Object.keys(B)) ok(SKILL_BEHAVIORS[id] && (TICK_ONLY.has(id) ? !B[id].cast && typeof B[id].tick === 'function' : typeof B[id].cast === 'function') && !MAGA_SKILL_BEHAVIORS[id],
+  `${id}: registrado, con cast (o solo el tic de un canal), sin chocar con el catálogo`);
 const F = magaFields();
-assert.deepEqual(Object.keys(F).sort(), ['a_grieta', 'k_suelo', 'm_grieta', 'm_imagen', 'm_runa_escarcha', 'm_runa_escrita', 'm_sello', 'p_crater', 'p_muro_fuego'].sort()); checks++;
+assert.deepEqual(Object.keys(F).sort(), ['a_desgarro_grieta', 'a_grieta', 'k_suelo', 'm_grieta', 'm_imagen', 'm_runa_escarcha', 'm_runa_escrita', 'm_sello', 'p_crater', 'p_muro_fuego'].sort()); checks++;
 for (const k of Object.keys(F)) ok(FIELD_DEFS[k], `campo ${k} registrado`);
 assert.deepEqual(magaGauges(), {}, 'ningún indicador nuevo: los tres son de js/mech-maga.js'); checks++;
 console.log(`✓ cobertura: ${Object.keys(P).length} poderes (uno por nodo), ${Object.keys(B).length} comportamientos y ${Object.keys(F).length} campos; los v1 retirados`);

@@ -13,6 +13,7 @@ import { validateSkillDef, CAT_SLOTS, SLOT_KEYS, skillVerbs, forgeDef } from '..
 import { SKILL_BEHAVIORS, definePower, POWER_HOOKS } from '../js/powers.js';
 import { resolveSkill, fitsSlot, isKnown } from '../js/skill-resolve.js';
 import * as SK from '../js/skills-maga.js';
+import { magaOrbs } from '../js/powers-maga.js';
 import { MAGA_FX, MAGA_FX_PRESETS, MAGA_FORGE_FX } from '../js/fx-skills-maga.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { TALENT_TREES } from '../js/talents.js';
@@ -532,23 +533,27 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   console.log('Tormenta Glacial: te sigue 8 s y golpea cada 0,5 s a 4 m ✓');
 }
 
-// Orbe Arcano: lento, atraviesa y rebota 2 veces
+// Orbe Arcano (S-maga, M-01): no es un proyectil de contacto; viaja a la mira (mínimo 5 m), descarga
+// a su alrededor, se detiene 2 s y vuelve a ti (la traza completa: test-sensacion-maga)
 {
   const h = makeHarness({ classId: 'maga', level: 12, spec: 'arcanista' });
   const a = h.enemy({ hp: 1e7, pos: [0, 0, 4] });
   const b = h.enemy({ hp: 1e7, pos: [0, 0, 8] });
   const segs = [];
   const orig = h.g.spawnProjectile.bind(h.g);
-  h.g.spawnProjectile = o => { if (o.skill === 'a_orbe') segs.push(o); return orig(o); };
+  h.g.spawnProjectile = o => { segs.push(o); return orig(o); };
   h.aim(0, 4); h.setSlot('k3', 'a_orbe');
   assert.equal(h.cast('k3'), true);
+  const orb = magaOrbs(h.p)[0];
+  assert.ok(orb && segs.length === 0, 'un orbe propio, sin proyectiles de contacto');
+  h.step(1.0);
+  assert.ok(lost(a) > 0 && orb.state === 'quieto' && Math.abs(orb.c.z - 5) < 0.05, `descarga y se detiene a 5 m (${orb.state}, ${orb.c.z.toFixed(2)})`);
+  h.step(1.9);
+  assert.ok(lost(b) > 0, 'quieto, también alcanza al de 8 m');
   h.step(1.5);
-  assert.ok(lost(a) > 0 && lost(b) > 0, 'atraviesa a los dos');
-  h.step(6);
-  assert.equal(segs.length, 3, `un tramo + 2 rebotes (${segs.length})`);
-  assert.ok(segs.every(o => o.pierce), 'cada tramo atraviesa');
+  assert.ok(!orb.alive && orb.caught && magaOrbs(h.p).length === 0, 'vuelve a ti y lo recoges');
   noWarnings('Orbe Arcano');
-  console.log('Orbe Arcano: atraviesa y rebota 2 veces ✓');
+  console.log('Orbe Arcano: descarga, se detiene y vuelve ✓');
 }
 
 // Rayo (línea genérica): 15 m en línea
@@ -581,7 +586,7 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   noWarnings('Sello');
 }
 
-// Desgarro Arcano: canalización imparable y plantada, 6 golpes en 3 s
+// Desgarro Arcano (S-maga, M-12): canalización imparable y plantada, 13 golpes en 3 s (el 1.º al pulsar)
 {
   const h = makeHarness({ classId: 'maga', level: 17, spec: 'arcanista' });
   const e = h.enemy({ hp: 1e8, pos: [0, 0, 4] });
@@ -592,8 +597,9 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   h.aim(0, 4); h.setSlot('k4', 'm_u_desgarro');
   assert.equal(h.cast('k4'), true);
   assert.ok(h.p.unstoppableT > 0, 'imparable');
+  assert.equal(ticks, 1, 'golpea al pulsar');
   h.step(3.2);
-  assert.equal(ticks, 6, `6 golpes (${ticks})`);
+  assert.equal(ticks, 13, `13 golpes (${ticks})`);
   assert.equal(h.g._channel, null);
   noWarnings('Desgarro');
 }

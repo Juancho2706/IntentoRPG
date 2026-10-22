@@ -13,6 +13,7 @@ import { SKILL_BEHAVIORS, POWER_HOOKS, firePower } from '../js/powers.js';
 import { resolveSkill, isKnown } from '../js/skill-resolve.js';
 import * as SK from '../js/skills-maga.js';
 import { magaForgePowers } from '../js/powers-forge-maga.js';
+import { magaSkillBehaviors, magaOrbs } from '../js/powers-maga.js';
 import { guerreroForgePowers } from '../js/powers-forge-guerrero.js';
 import { arqueraForgePowers } from '../js/powers-forge-arquera.js';
 import { MAGA_FORGE_FX } from '../js/fx-skills-maga.js';
@@ -99,9 +100,17 @@ for (const id of forgePowers) {
   assert.ok(!others.has(id), `${id}: no lo usa otra clase (D28)`);
   assert.ok(!SK.MAGA_SKILL_BEHAVIORS[id], `${id}: ni es un comportamiento`);
 }
-// comportamientos nuevos de la forja: como mucho 3 por clase (2f §7.2), propios y con cast
+// comportamientos nuevos de la forja: como mucho 3 por clase (2f §7.2), propios (v_*) y con cast del
+// catálogo, o (S-maga) el TIC de un canal de la forja: un comportamiento solo con tick convive con el
+// canal genérico (Haz Concentrado, v_haz_concentrado de js/powers-maga.js: gasta las Cargas)
 assert.ok(forgeBehaviors.size <= 3, 'forja: ≤ 3 comportamientos nuevos');
-for (const id of forgeBehaviors) assert.ok(/^v_/.test(id) && SK.MAGA_SKILL_BEHAVIORS[id]?.cast && SKILL_BEHAVIORS[id].cast === SK.MAGA_SKILL_BEHAVIORS[id].cast, `${id}: comportamiento de la forja`);
+const ownTick = magaSkillBehaviors();
+for (const id of forgeBehaviors) {
+  const viaCast = !!SK.MAGA_SKILL_BEHAVIORS[id]?.cast && SKILL_BEHAVIORS[id].cast === SK.MAGA_SKILL_BEHAVIORS[id].cast;
+  const viaTick = !SK.MAGA_SKILL_BEHAVIORS[id] && !ownTick[id]?.cast && typeof ownTick[id]?.tick === 'function' && String(SKILL_BEHAVIORS[id]?.tick) === String(ownTick[id].tick)
+    && pieces(FORGE[Object.keys(FORGE).find(k => pieces(FORGE[k]).some(([, x]) => x.behavior === id))]).some(([, x]) => x.behavior === id && x.set?.type === 'channel');
+  assert.ok(/^v_/.test(id) && (viaCast || viaTick), `${id}: comportamiento de la forja (cast del catálogo o tic de un canal)`);
+}
 // VFX de las variantes: ids de variante y presets que existen
 const varIds = new Set(Object.values(FORGE).flatMap(e => e.vars.map(v => v.id)));
 for (const [id, fx] of Object.entries(MAGA_FORGE_FX)) {
@@ -699,40 +708,40 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
 
 // ---- Orbe Arcano (Arcanista, Nv10: Mejora 13, variantes 16) ----
 {
-  const orb = (level, forge, spots) => {
+  // S-maga (M-01): el Orbe descarga a su alrededor (zap), se detiene (park) y vuelve (back)
+  const orb = (level, forge, spots, aim = [0, 5]) => {
     const h = hz({ spec: 'arcanista', level, forge });
-    const segs = [];
-    const orig = h.g.spawnProjectile.bind(h.g);
-    h.g.spawnProjectile = o => { if (o.skill === 'a_orbe' && o.size > 0.1) segs.push(o); return orig(o); };
     const es = spots.map(([x, z]) => h.enemy({ hp: 1e7, pos: [x, 0, z] }));
     const logs = es.map(spy);
-    h.aim(0, 4); h.setSlot('k3', 'a_orbe');
+    h.aim(aim[0], aim[1]); h.setSlot('k3', 'a_orbe');
     assert.equal(h.cast('k3'), true);
-    h.step(1);
-    return { h, segs, hits: () => logs.map(l => hitsOf(l, 'a_orbe').length) };
+    const o = magaOrbs(h.p)[0];
+    const states = new Set();
+    const run = s => { for (let t = 0; t < s - 1e-9; t += 1 / 60) { h.step(1 / 60); states.add(o.state); } };
+    return { h, o, states, run, hits: () => logs.map(l => hitsOf(l, 'a_orbe').length) };
   };
-  // Mejora: +30 % de tamaño = el radio de choque (0,55 m a escala 1) crece un 30 %: choca hasta
-  // 0,165 m más a cada lado. Uno que pasaba rozando entra; uno algo más allá, no
-  const r = 0.55 * (makeHarness({ classId: 'maga' }).enemy().def.scale || 1), lane = 0.3 * 0.55;
-  const SPOTS = [[r + 0.03, 3], [r + lane - 0.03, 5], [r + lane + 0.03, 7]];
+  // Mejora (Nv13): descargas a 4,5 m (antes 3,5; el enemigo cuenta su tamaño, +0,5 m) y la malla ×1,3.
+  // Un enemigo a 4,5 m del punto donde se detiene: a Nv12 no le llega ninguna; a Nv13, sí
+  const SPOTS = [[0, 9.5]];
   const o12 = orb(12, {}, SPOTS), o13 = orb(13, {}, SPOTS);
-  assert.deepEqual(o12.hits(), [0, 0, 0], 'Nv12: el orbe pasa de largo');
-  assert.deepEqual(o13.hits(), [1, 1, 0], 'Orbe Grande: choca hasta +0,165 m');
-  assert.ok(near(o13.segs[0].size, 0.34 * 1.3), 'y más grande');
-  // I · Orbe Veloz: el doble de rápido, sin rebotes (+40 %) · II · Orbe Gemelo: 2 en V (60 %), una vez por enemigo
-  const v = [5 * Math.sin(0.22), 5 * Math.cos(0.22)];
-  const SP = [[0, 1], v];
+  o12.run(3.2); o13.run(3.2);
+  assert.ok(o12.hits()[0] === 0 && o13.hits()[0] > 0, `Orbe Grande: a 4,5 m sí descarga (${o12.hits()} → ${o13.hits()})`);
+  assert.ok(near(o13.o.P.radius, 4.5) && near(o12.o.P.radius, 3.5) && near(profOf(o13.h, 'a_orbe').def.size, 0.34 * 1.3), 'y más grande');
+  // I · Orbe Veloz: el doble de rápido, sin detenerse, cada 0,15 s a 1 enemigo (+100 %) ·
+  // II · Orbe Gemelo: 2 cuerpos que giran juntos y descargan a enemigos distintos (−40 %)
+  const SP = [[0.8, 2], [-0.8, 2], [1, 3], [-1, 3]];
   const b = orb(30, { a_orbe: null }, SP), fast = orb(30, { a_orbe: 'i' }, SP), twin = orb(30, { a_orbe: 'ii' }, SP);
-  assert.ok(near(fast.segs[0].speed, 2 * b.segs[0].speed), 'el doble de rápido');
-  assert.deepEqual([b.segs.length, twin.segs.length], [1, 2], 'Gemelo: 2 orbes');
-  assert.deepEqual(b.hits(), [1, 0]);
-  assert.deepEqual(twin.hits(), [1, 1], 'Gemelo: el de la V también, y el cercano una vez');
-  for (const x of [b, fast]) x.h.step(8);
-  assert.ok(b.segs.length === 3 && fast.segs.length === 1, 'Veloz: sin rebotes');
+  assert.ok(near(fast.o.P.speed, 2 * b.o.P.speed) && near(fast.o.P.every, 0.15) && fast.o.P.n === 1 && fast.o.P.park === 0, 'Veloz: el doble de rápido, cada 0,15 s a 1');
+  b.run(0.26); fast.run(0.16); twin.run(0.26);
+  assert.deepEqual([b.hits().reduce((a, x) => a + x, 0), fast.hits().reduce((a, x) => a + x, 0), twin.hits().reduce((a, x) => a + x, 0)], [2, 1, 4],
+    'la 1.ª descarga: base a 2, Veloz a 1, Gemelo a 4 distintos (2 por cuerpo)');
+  assert.ok(twin.o.P.twin === 0.8 && twin.hits().every(x => x === 1), 'Gemelo: cada cuerpo, a otros enemigos');
+  for (const x of [b, fast, twin]) x.run(6);
+  assert.ok(b.states.has('quieto') && !fast.states.has('quieto') && fast.o.caught && b.o.caught, 'Veloz: no se detiene; los dos vuelven a ti');
   const pa = x => profOf(x.h, 'a_orbe').addPct;
-  assert.ok(pa(fast) === pa(b) + 40 && pa(twin) === pa(b) - 40);
+  assert.ok(pa(fast) === pa(b) + 100 && pa(twin) === pa(b) - 40);
   noWarnings('Orbe Arcano');
-  console.log('Orbe Arcano: Orbe Grande (roza más ancho), Orbe Veloz (sin rebotes) y Orbe Gemelo (2 en V) ✓');
+  console.log('Orbe Arcano: Orbe Grande (descarga a 4,5 m), Orbe Veloz (sin detenerse, a 1 cada 0,15 s) y Orbe Gemelo (2 que giran) ✓');
 }
 
 // ---- Sello del Archimago (Arcanista, Nv12: Mejora 15, variantes 18) ----
@@ -793,26 +802,31 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
   assert.ok(cb.every(q => q.dmg === cb[0].dmg), 'cada salto el mismo daño (no decae)');
   const r = cb[0].dmg / hitsOf(lc, 'rayo')[0].amt;
   assert.ok(r > 0.5 && r < 0.95, `cada salto ≈ 70 % del golpe (${r.toFixed(2)})`);
-  // II · Haz Concentrado: canalizado 1,5 s (3 pulsos de 80 %) al primero que toca, +80 %: en total,
-  // 3 × 0,8 × 1,8 = 1,8 veces el Rayo (240 %)
+  // II · Haz Concentrado (S-maga, M-06/M-07): canal SIN FIN mantenido al primero que toca; el 1.er tic al
+  // pulsar y uno cada 0,2 s (30 % cada uno, el 12,5 % del Rayo de 240 %), +10 % por tic hasta +100 %;
+  // el coste se drena (12 de maná por segundo) y al soltar termina
   const beam = bolt(30, { rayo: 'ii' }, [[0, 5], [0, 9]]);
   const one = bolt(30, { rayo: null }, [[0, 5]]);
   flat(beam.h); flat(one.h);
   const l0 = spy(beam.es[0]), l1 = spy(beam.es[1]), lo = spy(one.es[0]);
+  beam.h.p.stats.regenPct = -100; beam.h.p.mp = 100;     // sin regeneración: se ve el drenaje
   assert.equal(beam.h.press('rmb'), true);
-  assert.ok(beam.h.g._channel, 'canaliza');
-  beam.h.step(1.7);
+  assert.ok(beam.h.g.channelInfo()?.endless && hitsOf(l0, 'rayo').length === 1, 'canal sin fin que golpea al pulsar');
+  beam.h.step(1.0);
+  const n10 = hitsOf(l0, 'rayo').length, mp10 = beam.h.p.mp;
+  beam.h.step(2.2);
   beam.h.release('rmb');
-  assert.ok(hitsOf(l0, 'rayo').length === 3 && l1.length === 0, `3 pulsos al primero (${hitsOf(l0, 'rayo').length})`);
-  assert.equal(profOf(beam.h, 'rayo').addPct, profOf(base.h, 'rayo').addPct + 80);
+  const L = hitsOf(l0, 'rayo').map(x => x.amt);
+  assert.ok(n10 === 6 && L.length === 17 && l1.length === 0, `un tic cada 0,2 s, solo al primero (${n10} a 1 s, ${L.length} a 3,2 s)`);
+  assert.ok(near(L[1] / L[0], 1.1, 0.01) && near(L[5] / L[0], 1.5, 0.01) && near(L[12] / L[0], 2, 0.01) && near(L[16] / L[0], 2, 0.01), `rampa +10 %/tic con tope +100 % (${L.map(x => Math.round(x)).join(' ')})`);
+  assert.ok(near(100 - mp10, 12 * 1.2, 0.5), `drena 12 de maná por segundo (${(100 - mp10).toFixed(1)} en 6 tics)`);
+  assert.equal(profOf(beam.h, 'rayo').addPct, profOf(base.h, 'rayo').addPct, 'sin el +80 % de antes: la rampa lo sustituye');
   assert.ok(!beam.h.g._channel, 'al soltar, termina');
   assert.equal(one.h.cast('rmb'), true);
-  const sum = l => hitsOf(l, 'rayo').reduce((a, x) => a + x.amt, 0);
   assert.equal(hitsOf(lo, 'rayo').length, 1);
-  const k = sum(l0) / sum(lo);
-  assert.ok(Math.abs(k - 1.8) < 0.03, `Haz: ${k.toFixed(3)} veces el Rayo`);
+  assert.ok(near(L[0] / hitsOf(lo, 'rayo')[0].amt, 0.3 / 2.4, 0.005), `cada tic, el 30 % (${(L[0] / hitsOf(lo, 'rayo')[0].amt).toFixed(3)} del Rayo)`);
   noWarnings('Rayo');
-  console.log('Rayo: Rayo Largo, Rayo en Cadena (3 saltos al 70 %) y Haz Concentrado (canalizado) ✓');
+  console.log('Rayo: Rayo Largo, Rayo en Cadena (3 saltos al 70 %) y Haz Concentrado (canal sin fin con rampa) ✓');
 }
 
 // ---- Desgarro Arcano (Arcanista, Nv15: Mejora 18, variantes 21) ----
