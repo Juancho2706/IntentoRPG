@@ -240,13 +240,17 @@ export const PENDING_E4B = [
   { key: 'G18:arcanista', medido: 0.127, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +9.3 % frente a Escriba Rúnica +21.9 % (diferencia 12.7 puntos > 5)' },
   // S-guerrero (sensación, hallazgos recomendados; ronda 2). Sin la trampa del Remolino (antes ×0,58 con él), el Berserker
   // rinde lo que su rotación: el criterio (a) (con el Remolino ≥ ×0,9 en UNI a Nv50) deja su TTK de jefe en ~32 s (sin
-  // Remolino, ~30 s) y la media de Nv50 en 44,8 s: 1A:media:50:ttkB lo decide el jefe (dueño E4b). A Nv10 el giro aún pesa
+  // Remolino, ~30 s) y la media de Nv50 en 44,8 s (tras fusionar las 3 clases vuelve a la banda). A Nv10 el giro aún pesa
   // ×1,29 (sin Rajar ni Salto, el kit sin él es Tajo y Hendidura). La Carga de Escudo a 8 m/s (G10) le quita al Guardián
   // el segundo de avance de las cargas cortas (más Terremotos: jefe en 30,9 s). G9/G18: dueño KT-guerrero
   { key: '1A:guerrero:10:ttkE', medido: 4.069, objetivo: [4.5, 10.5], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK élite 4.07s fuera de 4.5,10.5' },
   { key: '1A:guerrero:10:ttkB', medido: 31.183, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK jefe 31.2s fuera de 35,100' },
   { key: '1A:guerrero:50:ttkB', medido: 31.683, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv50: TTK jefe 31.7s fuera de 35,100' },
-  { key: '1A:media:50:ttkB', medido: 44.761, objetivo: [45, 90], dueño: 'E4b', regla: 'Nv50: media TTK jefe 44.8s fuera de 45,90' },
+  // Fusión de la sensación de las 3 clases (S-maga + S-guerrero + S-arquera): con Guerrero y Arquera más fuertes sube la
+  // media de Nv50. La Tiradora (×0,74 en UNI) y la Arcanista (×0,748 en ÁREA, al filo) quedan bajo su suelo de papel;
+  // la media de TTK de jefe de Nv50 vuelve a la banda (sale 1A:media:50:ttkB). Calibración entre clases: E4b
+  { key: 'ROL:tiradora:50:min:uni', medido: 0.74, objetivo: 0.85, dueño: 'E4b', regla: 'tiradora Nv50: UNI ×0.74 de la media (< ×0.85)' },
+  { key: 'ROL:arcanista:50:min:area', medido: 0.748, objetivo: 0.75, dueño: 'E4b', regla: 'arcanista Nv50: AREA ×0.75 de la media (< ×0.75)' },
   { key: 'ROL:berserker:50:ttkB', medido: 31.683, objetivo: [36, 108], dueño: 'KA-guerrero', regla: 'berserker Nv50: TTK jefe 31.7s fuera de 36,108' },
   { key: 'ROL:guardian:50:ttkB', medido: 30.925, objetivo: [36, 130], dueño: 'KA-guerrero', regla: 'guardian Nv50: TTK jefe 30.9s fuera de 36,130' },
   { key: 'ROL:cruzado:50:ttkE', medido: 3.458, objetivo: [3.6, 12.6], dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTK élite 3.46s fuera de 3.6,12.6' },
