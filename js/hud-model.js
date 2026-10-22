@@ -18,7 +18,7 @@
 // vínculos con los talentos (talentLinks, nodeSkills, specSwapSummary, levelUpNews). Los
 // pintan js/ui-skills.js (tecla T) y js/ui-verbs.js (cada frame); tests/test86 los cubre.
 import { GCD_CATS, CAT_LABELS, CATS, SLOT_UNLOCK, skillVerbs, forgeDef, forgeVar, supportFits, supportSockets, RANK_MAX } from './skill-defs.js';
-import { isKnown, forgeState, forgedDef, resolveSkill, fitsSlot, rankBase, rankReq } from './skill-resolve.js';
+import { isKnown, forgeState, forgedDef, resolveSkill, fitsSlot, rankBase, rankReq, rankedText } from './skill-resolve.js';
 import { SUPPORTS, FORGE_RECO, CLASSES } from './data.js';
 import { talentTreesFor, findSpec, activeHeroTree, heroOpen, pointKindAt, TALENT_RULES, forgeRecoFor, formVoids } from './talents.js';
 import { rankCoef, chargeRelease } from './combat-math.js';
@@ -902,7 +902,8 @@ export function forgeView(p, sk, { combat = false } = {}) {
   const lvMej = fst.levels.mejora, lvVar = fst.levels.vars;
   const withMejora = forgeDef(sk, entry, { mejora: fst.mejora });
   const mejora = entry?.mejora ? {
-    id: entry.mejora.id || `${sk.id}_m`, name: entry.mejora.name, line: entry.mejora.line || '', icon: entry.mejora.icon || null,
+    id: entry.mejora.id || `${sk.id}_m`, name: entry.mejora.name, icon: entry.mejora.icon || null,
+    line: rankedText(p, sk, entry.mejora.line || '', { prof, def: withMejora, map: entry.mejora.rankText || {} }),
     level: lvMej, state: known && L >= lvMej ? 'abierta' : 'bloqueada', detail: forgePieceDetail(entry.mejora),
   } : null;
   const vars = (entry?.vars || []).slice(0, 2).map((v, i) => {
@@ -914,7 +915,9 @@ export function forgeView(p, sk, { combat = false } = {}) {
     // S0 (T5): nodos comprados que esta variante dejaría sin efecto (needsForm de los nodos)
     const voids = known ? formVoids(p, sk.id, withV) : [];
     return {
-      key, num: i ? 'II' : 'I', id: v.id, name: v.name, line: v.line || '', role, roleLabel: ROLE_INFO[role].label, roleColor: ROLE_INFO[role].color,
+      key, num: i ? 'II' : 'I', id: v.id, name: v.name, role, roleLabel: ROLE_INFO[role].label, roleColor: ROLE_INFO[role].color,
+      // X1: los números de buff, escudo y cura de la variante, a tu rango (su rankText sobre su definición)
+      line: rankedText(p, sk, v.line || '', { prof, def: withV, map: v.rankText || {} }),
       icon: v.icon || null, level: lvVar, state: !open ? 'bloqueada' : fst.chosen === key ? 'elegida' : 'abierta',
       reco: recoKey === key, recoSpec: recoKey === key ? specName : '', tagsAdd: diff.add, tagsDel: diff.del,
       elem: withV.elem !== withMejora.elem ? { from: withMejora.elem, to: withV.elem } : null, detail: forgePieceDetail(v),
@@ -932,11 +935,12 @@ export function forgeView(p, sk, { combat = false } = {}) {
     return sup ? { id: sup.id, name: sup.name, icon: sup.icon, effect: sup.effect || sup.desc || '', trade: sup.trade || '', fits: supportFits(sup, def) } : null;
   });
   return {
-    id: sk.id, name: sk.name, line: sk.line || sk.desc || '', emoji: sk.icon || '✦', art: skillArtPath(sk, trees),
+    // X1 (E5): los números de buff, escudo y cura, al rango actual (rankText; la habilidad base con su Mejora)
+    id: sk.id, name: sk.name, line: rankedText(p, sk, sk.line || sk.desc || '', { prof }), emoji: sk.icon || '✦', art: skillArtPath(sk, trees),
     cat: sk.cat, catLabel: catLabel(sk.cat), catIcon: catIcon(sk.cat), slots: slotsLabel(sk), known, req: sk.req || 1,
     learnAt: sk.spec ? Math.max(sk.req || 1, TALENT_RULES.specAt) : (sk.req || 1),     // nivel en que se aprende
     talent: sk.kind === 'talent', hero: !!sk.hero, spec: sk.spec ? specCard(p.classId, sk.spec) : null,
-    innate: specId && sk.innate?.[specId] ? sk.innate[specId] : '', elem: def.elem || null, elemLabel: ELEM_LABEL[def.elem] || '',
+    innate: specId && sk.innate?.[specId] ? rankedText(p, sk, sk.innate[specId], { prof }) : '', elem: def.elem || null, elemLabel: ELEM_LABEL[def.elem] || '',
     rank, rankMax: RANK_MAX, nextRankLv: baseRank < RANK_MAX ? rankReq(sk) + 8 * baseRank : null,
     dmg, dmgNext, cost: prof ? prof.cost : (sk.cost || 0), cd: prof ? Math.round(prof.cd * 10) / 10 : (sk.cd || 0),
     gen: sk.cat === 'basic' ? (prof?.gen ?? sk.gen ?? 0) : (prof?.gen || 0), coef: prof ? prof.coef : (sk.coef || 0),
@@ -1092,7 +1096,7 @@ export function levelUpNews(p, before, after) {
       const req = Math.max(s.req || 1, s.spec ? TALENT_RULES.specAt : 1);
       const fst = forgeState({ cls, classId: p?.classId, level: L, skillForge: p?.skillForge }, s);
       const art = skillArtPath(s, trees);
-      if (L === req) items.push({ kind: 'learn', id: s.id, name: s.name, art, text: `Aprendes ${s.name}`, line: s.line || '' });
+      if (L === req) items.push({ kind: 'learn', id: s.id, name: s.name, art, text: `Aprendes ${s.name}`, line: rankedText(p, s, s.line || '') });
       if (fst.entry?.mejora && L === fst.levels.mejora && L >= req) items.push({ kind: 'mejora', id: s.id, name: s.name, art,
         text: `${s.name}: mejora ${fst.entry.mejora.name}`, line: fst.entry.mejora.line || '' });
       if (fst.entry?.vars?.length && L === fst.levels.vars && L >= req) items.push({ kind: 'vars', id: s.id, name: s.name, art,

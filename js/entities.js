@@ -20,7 +20,7 @@ import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critCha
   THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage, chargeCoefAt } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef,
-  specBarUpgrade, specBarSwapText } from './skill-resolve.js';
+  specBarUpgrade, specBarSwapText, rankedText } from './skill-resolve.js';
 import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
 import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
 import { dotsOf } from './timers.js';
@@ -1176,9 +1176,11 @@ export class Player {
   // Guardamos `dur` (total) además de `t` (restante) para poder calcular progreso.
   addBuff(id, stats, dur, meta = {}) {
     this.buffs = this.buffs.filter(b => b.id !== id);
+    // X1 (E5): el aviso del buff de una habilidad tuya (su `desc` del catálogo) lleva los números a tu rango
+    const sk = meta.desc ? this.cls?.skills?.find(s => s.id === id && s.desc === meta.desc) : null;
     this.buffs.push({
       id, stats, t: dur, dur,
-      name: meta.name, icon: meta.icon, desc: meta.desc,
+      name: meta.name, icon: meta.icon, desc: sk ? rankedText(this, sk, meta.desc) : meta.desc,
     });
     this.recompute();
   }

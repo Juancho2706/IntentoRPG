@@ -38,11 +38,12 @@ export const ARQUERA_SKILLS = [
     line: 'Una flecha pesada (240 %) que atraviesa a todos los enemigos en línea. Cuesta 26 de Energía.',
     desc: 'Una flecha pesada (240 % del arma) que atraviesa a todos los enemigos en línea. 26 de Energía, sin recarga.' },
   { id: 'a_paso', name: 'Paso Veloz', icon: '👣', cat: 'movement', slots: ['k1'], tags: ['movement', 'physical'], elem: 'physical',
-    behavior: 'a_paso', req: 4, cd: 9, range: 6, rollT: 0.2, lockT: 0.2, dur: 3, buff: { aspdPct: 20 }, color: 0xe2d8bc,
+    behavior: 'a_paso', req: 4, cd: 9, range: 6, rollT: 0.2, lockT: 0.2, dur: 3, buff: { aspdPct: 20 }, color: 0xe2d8bc, rankText: { '+20 %': 'buff.aspdPct' },
     line: 'Ruedas 6 m hacia donde te mueves y ganas +20 % de velocidad de ataque durante 3 s.',
     desc: 'Ruedas 6 m hacia donde te mueves (o hacia el cursor) y ganas +20 % de velocidad de ataque 3 s. Se recarga en 9 s.' },
   { id: 'a_humo', name: 'Bomba de Humo', icon: '💨', cat: 'defense', slots: ['k2'], tags: ['defense', 'zone', 'physical'], elem: 'physical',
     type: 'zone', behavior: 'a_humo', at: 'self', req: 6, cd: 16, cdOnEnd: true, radius: 4, dur: 8, allyDr: 50, projMissPct: 50, blindPct: 30, color: 0x9aa0a8,
+    rankText: { '50 %': 'allyDr' },
     line: 'Nube de 4 m durante 8 s: dentro recibes un 50 % menos de daño y los cegados pegan un 30 % menos. Recarga al disiparse.',
     desc: 'Una nube de 4 m a tus pies durante 8 s: dentro recibes un 50 % menos de daño, la mitad de los proyectiles enemigos se pierden y los enemigos, cegados, pegan un 30 % menos. Se recarga en 16 s desde que se disipa.' },
   { id: 'lluvia_flechas', name: 'Lluvia de Flechas', icon: '🌧️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'physical'], elem: 'physical',
@@ -156,7 +157,7 @@ export const ARQUERA_SKILLS = [
     desc: 'Te vuelves invisible 4 s: los enemigos te pierden, Paso Veloz se recarga y tu primer disparo al salir es crítico seguro. Se recarga en 20 s.' },
   // Agilidad (c17A): deja la ranura 1 y pasa a activa de talento
   { id: 'agilidad', name: 'Agilidad', icon: '🌪️', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'buff', 'physical'], elem: 'physical',
-    type: 'buff', req: 27, cd: 16, dur: 6, buff: { spdPct: 30, aspdPct: 15 }, slowImmune: true, color: 0x9af06a,
+    type: 'buff', req: 27, cd: 16, dur: 6, buff: { spdPct: 30, aspdPct: 15 }, slowImmune: true, color: 0x9af06a, rankText: { '+30 %': 'buff.spdPct', '+15 %': 'buff.aspdPct' },
     line: 'Durante 6 s: +30 % de velocidad, +15 % de velocidad de ataque e inmunidad a las ralentizaciones.',
     desc: 'Durante 6 s: +30 % de velocidad de movimiento, +15 % de velocidad de ataque e inmunidad a las ralentizaciones. Se recarga en 16 s.' },
   // Flecha Bengala (c22A): dentro, Debilidad (+15 % de daño recibido) y −15 % de daño de los enemigos

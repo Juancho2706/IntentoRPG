@@ -43,7 +43,7 @@ export const MAGA_SKILLS = [
     line: 'Te teletransportas 8 m hacia el cursor, atravesando enemigos.',
     desc: 'Te teletransportas al instante 8 m hacia el cursor (atraviesas enemigos, no muros). Enfriamiento 12 s.' },
   { id: 'm_barrera', name: 'Barrera de Maná', icon: '🔮', cat: 'defense', slots: ['k2'], tags: ['defense', 'shield', 'arcane'], elem: 'arcane',
-    behavior: 'm_barrera', req: 6, cd: 20, dur: 8, shieldManaPct: 60, color: 0xb98cff,
+    behavior: 'm_barrera', req: 6, cd: 20, dur: 8, shieldManaPct: 60, color: 0xb98cff, rankText: { '60 %': 'shieldManaPct' },
     line: 'Escudo que absorbe daño igual al 60 % de tu maná máximo; dura 8 s.',
     desc: 'Una burbuja de maná absorbe daño igual al 60 % de tu Maná máximo durante 8 s. Enfriamiento 20 s.' },
   { id: 'nova_hielo', name: 'Nova de Hielo', icon: '❄️', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'area', 'cc', 'frost'], elem: 'frost',
@@ -106,7 +106,7 @@ export const MAGA_SKILLS = [
   // costPct: todas las habilidades con coste, cola W2d). La Carga cada 2 s la da el indicador de
   // Cargas (mech-maga.js) al dueño dentro de su Sello
   { id: 'a_sello', name: 'Sello del Archimago', icon: '🔯', cat: 'utility', spec: 'arcanista', slots: ['k2'], tags: ['utility', 'aura', 'arcane'], elem: 'arcane',
-    type: 'aura', at: 'self', req: 12, cd: 20, radius: 4, dur: 8, buff: { costPct: -30 }, color: 0xe0b0ff,
+    type: 'aura', at: 'self', req: 12, cd: 20, radius: 4, dur: 8, buff: { costPct: -30 }, color: 0xe0b0ff, rankText: { '30 %': 'buff.costPct' },
     line: 'Círculo de 4 m durante 8 s: dentro, tus hechizos cuestan un 30 % menos y ganas 1 Carga cada 2 s.',
     desc: 'Dibujas un círculo de 4 m a tus pies durante 8 s: mientras estás dentro, tus hechizos con coste cuestan un 30 % menos y ganas 1 Carga Arcana cada 2 s. Enfriamiento 20 s.' },
   // violeta (el de las Cargas, #b996ff): el Rayo es arcano, no eléctrico (M-08)
@@ -149,9 +149,9 @@ export const MAGA_SKILLS = [
     line: 'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.',
     desc: 'Escribes al instante 3 runas a 1,8 m de ti: forman un Sello donde estás. Enfriamiento 40 s.' },
   { id: 'm_h_constructo', art: 'skills256/m_h_constructo.webp', name: 'Llamar Constructo', icon: '🗿', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'summon', 'taunt', 'arcane'], elem: 'arcane',
-    behavior: 'm_h_constructo', req: 73, cd: 45, dur: 10, radius: 8, range: 6, hpPct: 50, color: 0x9f8cff,
+    behavior: 'm_h_constructo', req: 73, cd: 45, dur: 10, radius: 8, range: 6, hpPct: 50, color: 0x9f8cff, rankText: { '50 %': 'hpPct' },
     line: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.',
-    desc: 'Un Constructo de maná aparece hacia la mira (hasta 6 m) durante 10 s y obliga a los enemigos a 8 m de él a atacarlo; aguanta la mitad de tu vida máxima. Enfriamiento 45 s.' },
+    desc: 'Un Constructo de maná aparece hacia la mira (hasta 6 m) durante 10 s y obliga a los enemigos a 8 m de él a atacarlo; aguanta un 50 % de tu vida máxima. Enfriamiento 45 s.' },
 ];
 
 // ------------------------------------------------------------
@@ -856,7 +856,7 @@ export const MAGA_SKILL_FORGE = {
     vars: [
       // el buff del aura (set lo FUSIONA con el de la base): daño de los críticos y coste a 0
       { id: 'a_sello_i', name: 'Sello Ofensivo', role: 'UNI', icon: 'forge/v_a_sello_i', line: 'Dentro, tus críticos hacen +25 %; ya no abarata.',
-        set: { buff: { costPct: 0, critDmg: 25 }, color: 0xff8ad8 } },
+        set: { buff: { costPct: 0, critDmg: 25 }, color: 0xff8ad8 }, rankText: { '+25 %': 'buff.critDmg' } },
       // slow: lo que dura cada ralentización (se renueva cada 0,5 s dentro; Escarcha Tenaz la alarga)
       { id: 'a_sello_ii', name: 'Sello de Contención', role: 'CTRL', icon: 'forge/v_a_sello_ii', line: 'Los enemigos que entran quedan ralentizados un 40 %.',
         set: { slowPct: 40, slow: 0.6, color: 0x9fd8ff }, power: 'v_sello_contencion' },

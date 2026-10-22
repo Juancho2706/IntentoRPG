@@ -20,7 +20,7 @@
 import { CAPS, rankCoef, rankBuff } from './combat-math.js';
 import { CLASSES, SUPPORTS, SKILL_FORGE, SPEC_BAR } from './data.js';
 import { CAT_SLOTS, SLOT_KEYS, GCD_CATS, RANK_MAX, TAGS, supportFits, supportSockets, skillSlots, mergeMods, defaultSlots,
-  forgeDef, forgeMods, forgeLevels, forgeVar, VERB_DEFAULTS } from './skill-defs.js';
+  forgeDef, forgeMods, forgeLevels, forgeVar, VERB_DEFAULTS, rankTextApply } from './skill-defs.js';
 import { firePower, SKILL_BEHAVIORS } from './powers.js';
 import { talentTreesFor, activeSpec, activeHeroTree, nodeFx, scaleFx, TALENT_RULES } from './talents.js';
 
@@ -240,6 +240,12 @@ function resolveCharge(def, mods, moveMul, p) {
   };
 }
 
+// potencia de los buffs, escudos y curas de una habilidad: rango (combat-math.rankBuff, +6 %/rango)
+// × mods.buff de la forja y los talentos
+export function buffMulOf(rank, mods = null) {
+  return rankBuff(rank) * Math.max(0, 1 + (mods?.buff || 0) / 100);
+}
+
 function computeProfile(p, sk) {
   // 2) forja de la definición · 3) mods de forja · 4) talentos
   const fst = forgeState(p, sk);
@@ -285,7 +291,7 @@ function computeProfile(p, sk) {
 
   const radiusMul = Math.max(0.2, 1 + (mods.radius || 0) / 100);
   const rangeMul = Math.max(0.2, 1 + (mods.range || 0) / 100);
-  const buffMul = rankBuff(rank) * Math.max(0, 1 + (mods.buff || 0) / 100);
+  const buffMul = buffMulOf(rank, mods);
   const durMul = Math.max(0.1, 1 + (mods.dur || 0) / 100);
   const buff = {};
   for (const [k, v] of Object.entries(def.buff || {})) buff[k] = Math.round(v * buffMul);
@@ -472,6 +478,47 @@ export function specBarSwapText(p, swap, key = 'T') {
   const head = `${sk.icon ? `${sk.icon} ` : ''}${sk.name}`;
   const tail = `(cámbialo en el libro, ${key || 'T'})`;
   return old ? `${head} reemplaza a ${old.name} en ${where} ${tail}` : `${head} va a ${where} ${tail}`;
+}
+
+// ---------- textos al rango (E5, X1; vocabulario: skill-defs, TEXTOS AL RANGO) ----------
+// valor REAL de una fuente de rankText para la definición `def` con la potencia de buffs `buffMul`
+// (null si la definición no tiene ese número: el trozo se queda como está)
+export function rankTextValue(src, num, { def = null, buffMul = 1, rank = 1 } = {}) {
+  if (src === '*') return num * buffMul;
+  if (src === 'rank') return num * rankBuff(rank);
+  const v = String(src).split('.').reduce((o, k) => (o == null ? undefined : o[k]), def);
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  // el buff y la reducción de una zona los redondea el juego (resolveSkill, GENERIC.zone)
+  return src.startsWith('buff.') || src === 'allyDr' ? Math.round(v * buffMul) : v * buffMul;
+}
+// rango y potencia de buffs de una habilidad para sus textos: los del perfil (`prof`) o, sin él, los
+// que tiene (o tendría, si aún no la conoce) por nivel, talentos, equipo y forja; sin escribir en la
+// caché de resolveSkill (el panel de talentos lee con una sombra del héroe)
+export function rankTextCtx(p, sk, prof = null) {
+  if (prof) return { rank: prof.rank || 1, buffMul: prof.buffMul ?? 1 };
+  const fst = forgeState(p, sk);
+  const mods = forgeMods(fst.entry, fst);
+  if (p?.talentAgg?.mods?.[sk.id]) mergeMods(mods, p.talentAgg.mods[sk.id]);
+  const rank = Math.max(1, skillRank(p, sk));
+  return { rank, buffMul: buffMulOf(rank, mods) };
+}
+// `text` de la habilidad `sk` con sus números de buff, escudo y cura al rango del héroe (rankText de la
+// habilidad). Describe la habilidad BASE (con la Mejora si está abierta): una variante trae su propia
+// línea, que se pasa con { map: v.rankText, def: la definición con esa variante }. Sin héroe o sin
+// rankText, el texto tal cual
+export function rankedText(p, sk, text, { prof = null, def = null, map = null } = {}) {
+  const s = String(text ?? '');
+  if (!p || !sk || !s) return s;
+  const base = (p.cls?.skills || CLASSES[p.classId]?.skills || []).find(x => x.id === sk.id) || sk;
+  const m = map || base.rankText;
+  if (!m) return s;
+  let d = def;
+  if (!d) {
+    const fst = isKnown(p, base) ? forgeState(p, base) : null;
+    d = fst?.entry && fst.mejora ? forgeDef(base, fst.entry, { mejora: true }) : base;
+  }
+  const ctx = { def: d, ...rankTextCtx(p, base, prof) };
+  return rankTextApply(s, m, (src, num) => rankTextValue(src, num, ctx));
 }
 
 // texto corto de lo que hace el perfil (UI/tooltips): número FINAL, no el base
