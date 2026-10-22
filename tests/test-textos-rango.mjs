@@ -8,11 +8,14 @@
 //       del texto es el dato) y todo número que el juego escala está declarado (con sus excepciones)
 //   R2  Maga, Guerrero y Arquera: buff, escudo y cura (lo que tenga cada clase) a DOS rangos: el número
 //       del libro (forgeView) es el que aplica el juego al lanzarla
+//   R4  las curas y escudos que no crecían (revisión X1): Corazón de Hielo, Acero Templado, Escolta de
+//       Luz, la cura del Sendero, la cura final de Furia Inmortal y la Cortina, a dos rangos
 //   R3  dónde se ve: libro y forja (línea, innata y variantes), panel de talentos (activa sin comprar)
 //       y el aviso del buff en el HUD (el de Piel de Hierro con los talentos del Guardián y el aviso de
 //       nivel van en R2, junto a su libro)
 // Cada apartado falla sin su arreglo (uno roto no tapa a los demás; al final, exit 1 si alguno falla).
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { makeHarness } from './helpers/power-harness.mjs';
 import { CLASSES } from '../js/data.js';
 import { rankTextApply, fmtRankNum, rankTextNum, validateRankText, forgeDef, RANK_TEXT_SRC } from '../js/skill-defs.js';
@@ -85,19 +88,21 @@ section('R0 · rankTextApply: trozo con su número, signo, una sola pasada (el m
 
 // ------------------------------------------------ R1 · catálogo
 // lo que el juego escala con buffMul en la definición (GENERIC.buff/aura/shield/zone, Barrera, Constructo,
-// Intervención, verbos heal/shield de llegada); minHpPct y endHealPct del buff NO escalan
-const NO_SCALE_BUFF = new Set(['minHpPct', 'endHealPct']);
+// Intervención, verbos heal/shield de llegada, escudo por golpeado, cura del sendero, la Cortina de la
+// lluvia); minHpPct del buff (un suelo de vida, no una cura) NO escala
+const NO_SCALE_BUFF = new Set(['minHpPct']);
 function scaledPaths(o) {
   const out = [];
   for (const [k, v] of Object.entries(o?.buff || {})) if (!NO_SCALE_BUFF.has(k) && typeof v === 'number' && v !== 0) out.push(`buff.${k}`);
   for (const k of ['shieldPct', 'shieldManaPct', 'hpPct', 'allyDr']) if (typeof o?.[k] === 'number' && o[k] > 0) out.push(k);
   for (const k of ['heal', 'shield']) if (o?.[k]?.pct > 0) out.push(`${k}.pct`);
+  if (o?.trail?.heal > 0) out.push('trail.heal');
+  if (Array.isArray(o?.shieldGain)) out.push('shieldGain.0', 'shieldGain.1');
   return out;
 }
 // números que el juego escala y el texto NO cita (con su motivo)
 const NOT_CITED = {
   'g_u_furia:buff.spenderCostPct': 'el texto dice «no cuestan Furia» (−100 %, ya el tope)',
-  'lluvia_flechas·II:allyDr': 'la Cortina de a_lluvia no escala con el rango (skills-arquera, campo propio)',
 };
 section('R1 · cada rankText del catálogo reproduce su texto a rango 1 y cubre lo que el juego escala', () => {
   let n = 0, pieces = 0;
@@ -273,6 +278,76 @@ section('R2 · variantes y otra especialización: Sello Ofensivo, Ciudadela Anda
   ok(news.line !== skill('guerrero', 'g_piel').line, `y no el texto del catálogo («${news.line}»)`);
 });
 
+// ------------------------------------------------ R4 · las curas y escudos que no crecían (revisión X1)
+section('R4 · Corazón de Hielo, Acero Templado, Escolta de Luz, cura del Sendero, cura final de Furia Inmortal y Cortina, a dos rangos', () => {
+  const varLine = (h, id, key) => HM.forgeView(h.p, skill(h.p.classId, id)).vars.find(v => v.key === key).line;
+  // Corazón de Hielo (Nova de Hielo I): escudo por golpeado; un golpeado = el % de la línea
+  twoRanks('nova_hielo·I', [14, 40], L => {
+    const h = hero('maga', L, { forge: { nova_hielo: 'i' } });
+    h.enemy({ hp: 1e7, pos: [2, 0, 0] });
+    const t = textNum(varLine(h, 'nova_hielo', 'i'), /Escudo del (\d+(?:,\d+)?) % de vida/);
+    ok(cast(h, 'rmb', 'nova_hielo', { aim: [2, 0], sec: 0.3 }), 'Nova de Hielo');
+    // el escudo se redondea a puntos de vida enteros (addShield)
+    const amt = h.p.shieldTotal(), want = h.p.stats.maxHP * t / 100;
+    ok(Math.abs(amt - want) <= 1, `Nv${L}: escudo de ${amt} (vida ${h.p.stats.maxHP}) y la línea dice ${t} % = ${want.toFixed(2)}`);
+    return { rank: skillRank(h.p, skill('maga', 'nova_hielo')), text: t };
+  });
+  // Acero Templado (Mejora de Piel de Hierro): la cura al activarla
+  twoRanks('g_piel·M', [9, 38], L => {
+    const h = hero('guerrero', L);
+    eq(h.p.stats.healPct || 0, 0, 'sin bonus de curación del equipo');
+    const t = textNum(HM.forgeView(h.p, skill('guerrero', 'g_piel')).mejora.line, /te curas el (\d+(?:,\d+)?) %/);
+    h.p.hp = h.p.stats.maxHP / 2;
+    ok(cast(h, 'k2', 'g_piel', { sec: 0.05 }), 'Piel de Hierro');
+    const healed = (h.p.hp - h.p.stats.maxHP / 2) / h.p.stats.maxHP * 100;
+    ok(Math.abs(healed - t) <= 0.1, `Nv${L}: cura el ${healed.toFixed(2)} % y la Mejora dice ${t} %`);
+    return { rank: skillRank(h.p, skill('guerrero', 'g_piel')), text: t };
+  });
+  // Sendero de Luz (Cruzado): la cura de la estela y, con Escolta de Luz (I), el escudo al aliado atravesado
+  twoRanks('g_sendero', [18, 44], L => {
+    const h = hero('guerrero', L, { spec: 'cruzado', forge: { g_sendero: 'i' } });
+    const ally = h.ally(4, 0.5);
+    const heal = textNum(line(h, 'g_sendero'), /cura a tus aliados un (\d+(?:,\d+)?) %/);
+    const sh = textNum(varLine(h, 'g_sendero', 'i'), /escudo del (\d+(?:,\d+)?) % de tu vida/);
+    ok(cast(h, 'k1', 'g_sendero', { aim: [10, 0], sec: 0.1 }), 'Sendero de Luz');
+    const f = (h.g.fields || []).find(x => !x.dead && x.data?.skill === 'g_sendero' && x.kind === 'zona');
+    // el Cruzado pasa la cura de sus zonas sagradas a data._holy (no se suman: powers-guerrero.holyZones)
+    const fh = f ? (f.data._holy ? f.data._holy.heal : f.data.healPct) : null;
+    ok(fh > 0 && Math.abs(fh - heal) <= 0.05, `Nv${L}: la estela cura ${fh} %/s y el libro dice ${heal} %`);
+    const amt = ally.shields.find(s => s.src === 'v_escolta_luz')?.amt || 0;
+    ok(Math.abs(amt / h.p.stats.maxHP * 100 - sh) <= 0.5, `Nv${L}: Escolta de Luz (desde 10, el texto da enteros) da el ${(amt / h.p.stats.maxHP * 100).toFixed(2)} % y la variante dice ${sh} %`);
+    return { rank: skillRank(h.p, skill('guerrero', 'g_sendero')), text: `${heal}/${sh}` };
+  });
+  // Furia Inmortal (Berserker): la cura al acabar (el suelo de vida del 1 % no cambia)
+  twoRanks('g_u_furia', [15, 47], L => {
+    const h = hero('guerrero', L, { spec: 'berserker' });
+    const t = textNum(line(h, 'g_u_furia'), /te curas un (\d+) %/);
+    ok(/no baja del 1 %/.test(line(h, 'g_u_furia')), 'el suelo de vida sigue en el 1 %');
+    ok(cast(h, 'k4', 'g_u_furia', { sec: 0.1 }), 'Furia Inmortal');
+    const b = buffOf(h.p, 'g_u_furia');
+    eq([b?.stats.endHealPct, b?.stats.minHpPct], [t, 1], `Nv${L}: cura al acabar lo que dice el libro`);
+    return { rank: skillRank(h.p, skill('guerrero', 'g_u_furia')), text: t };
+  });
+  // y la Furia gratis de Corazón Indomable 4 (cada 3 Sed Saciadas) lleva la misma cura
+  {
+    const h = makeHarness({ classId: 'guerrero', spec: 'berserker', level: 100, talents: { specRanks: { b28: 4 } } });
+    const t = textNum(line(h, 'g_u_furia'), /te curas un (\d+) %/);
+    let b = null;
+    for (let n = 0; n < 4 && !b; n++) { h.p.sinceCombat = 0; h.gauge('sed', 100); h.tick(0.1); b = buffOf(h.p, 'g_u_furia'); if (!b) h.tick(10); }
+    ok(b && b.t <= 5, 'Corazón Indomable 4: Furia Inmortal gratis (5 s)');
+    eq(b.stats.endHealPct, t, `Nv100: la Furia gratis cura al acabar lo que dice el libro (${t} %)`);
+  }
+  // Cortina (Lluvia de Flechas II): la reducción de daño dentro de la lluvia
+  twoRanks('lluvia_flechas·II', [14, 46], L => {
+    const h = hero('arquera', L, { forge: { lluvia_flechas: 'ii' } });
+    const t = textNum(varLine(h, 'lluvia_flechas', 'ii'), /recibes un (\d+) % menos/);
+    ok(cast(h, 'rmb', 'lluvia_flechas', { aim: [5, 0], sec: 0.1 }), 'Lluvia de Flechas');
+    const f = (h.g.fields || []).find(x => !x.dead && x.data?.skill === 'lluvia_flechas' && x.kind === 'zona');
+    eq(f?.data.allyDr, t, `Nv${L}: la Cortina reduce lo que dice su línea`);
+    return { rank: skillRank(h.p, skill('arquera', 'lluvia_flechas')), text: t };
+  });
+});
+
 // ------------------------------------------------ R3 · dónde se ve
 section('R3 · panel de talentos (la activa sin comprar, al rango que tendría), aviso del buff en el HUD y libro', () => {
   const h = hero('arquera', 60);
@@ -289,6 +364,10 @@ section('R3 · panel de talentos (la activa sin comprar, al rango que tendría),
   const low = hero('arquera', 27, { grants: ['agilidad'] });
   eq(line(low, 'agilidad'), skill('arquera', 'agilidad').line, 'rango 1: la línea del catálogo');
   eq(rankedText(null, skill('arquera', 'agilidad'), 'Durante 6 s: +30 %'), 'Durante 6 s: +30 %', 'sin héroe, tal cual');
+  // el tooltip del kit de otra especialización (ui-skills.js usa el DOM: no se importa headless, se
+  // comprueba en su código que pasa la línea por rankedText)
+  const UI_SKILLS = readFileSync(new URL('../js/ui-skills.js', import.meta.url), 'utf8');
+  ok(/<div class="tl">\$\{esc\(rankedText\(p, sk, sk\.line \|\| sk\.desc \|\| ''\)\)\}<\/div>/.test(UI_SKILLS), 'ui-skills: el tooltip del kit de otra especialización, al rango');
 });
 
 console.log(`\n${checks} comprobaciones`);

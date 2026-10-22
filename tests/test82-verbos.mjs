@@ -559,7 +559,8 @@ const dealt = e => e.maxHP - e.hp;
   const sh0 = h.p.shieldTotal();
   h.press('k2'); h.release('k2');
   const sh = h.p.shieldTotal() - sh0;
-  assert.ok(near(sh, h.p.stats.maxHP * 0.20, 1.5), `shieldGain 5 %/enemigo con tope 20 % (${sh})`);
+  // × la potencia de buffs de la habilidad a su rango (buffMul, X1)
+  assert.ok(near(sh, h.p.stats.maxHP * 0.20 * h.g.skillProfile(h.p, 'vx_corazon').buffMul, 1.5), `shieldGain 5 %/enemigo con tope 20 % (${sh})`);
   console.log('killReset y shieldGain ✓');
 }
 {

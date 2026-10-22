@@ -755,7 +755,7 @@ export const MAGA_SKILL_FORGE = {
     mejora: { name: 'Escarcha Profunda', icon: 'forge/mejora', line: 'Ralentiza 30 → 40 %.', mod: { slowPct: 40 } },
     vars: [
       { id: 'nova_hielo_i', name: 'Corazón de Hielo', role: 'AGU', icon: 'forge/v_nova_hielo_i', line: 'Escudo del 3 % de vida por golpeado (máx. 15 %).',
-        set: { shieldGain: [3, 15] } },
+        set: { shieldGain: [3, 15] }, rankText: { 'del 3 %': 'shieldGain.0', 'máx. 15 %': 'shieldGain.1' } },
       { id: 'nova_hielo_ii', name: 'Nova Fracturante', role: 'UNI', icon: 'forge/v_nova_hielo_ii', line: '+40 % de daño a enemigos ya ralentizados.',
         power: 'v_fractura' },
     ],

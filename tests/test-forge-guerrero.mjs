@@ -618,7 +618,9 @@ function judge(level, forge, spots, aim = [6, 0]) {
   };
   const m = run({}), s = run({ g_sendero: 'i' });
   assert.ok(m.first === 0, 'sin la variante: ningún escudo');
-  assert.ok(s.first === 1 && approx(s.on.shields[0].amt, s.hh.p.stats.maxHP * TUN.escolta.shieldPct / 100, 1) && s.on.shields[0].t === 6, 'Escolta de Luz: 12 % de tu vida, 6 s');
+  // × la potencia de buffs del Sendero a su rango (buffMul, X1)
+  const bm = s.hh.g.skillProfile(s.hh.p, 'g_sendero').buffMul;
+  assert.ok(s.first === 1 && approx(s.on.shields[0].amt, s.hh.p.stats.maxHP * TUN.escolta.shieldPct / 100 * bm, 1) && s.on.shields[0].t === 6, `Escolta de Luz: 12 % de tu vida × ${bm}, 6 s`);
   assert.ok(s.off.shields.length === 0, 'Escolta de Luz: solo a quien atraviesas');
   assert.equal(s.on.shields.length, 1, 'Escolta de Luz: una vez cada 6 s por aliado');
 }

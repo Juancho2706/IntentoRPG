@@ -226,7 +226,8 @@ function pulseField(g, f, every, fn) {
 // Pesadas; si muere, queda donde cayó), te sigue (follow 'owner') o sigue la mira (follow
 // 'aim'). Un poder puede cambiar la cadencia con prof.waves / prof.span / prof.follow
 // (modifyResolve): se leen antes que los de la definición. Con allyDr / projMissPct (Cortina),
-// mientras llueve la zona protege a los aliados que estén dentro.
+// mientras llueve la zona protege a los aliados que estén dentro (la reducción crece con el rango,
+// como la de GENERIC.zone).
 function rain(g, p, prof, cast) {
   const { ctx, sk } = cast;
   const fx = fxOf(ctx, sk);
@@ -251,7 +252,7 @@ function rain(g, p, prof, cast) {
   if (sk.allyDr > 0 || sk.projMissPct > 0) {
     g.spawnField?.('zona', { pos: c0.clone(), radius: rad, dur: (prof.impactDelay || 0) + span + 0.1, owner: p,
       follow: follow === 'owner' || follow === 'aim' ? follow : null,
-      data: { dps: 0, color, skill: sk.id, tags: prof.tags, allyDr: sk.allyDr || 0, projMissPct: sk.projMissPct || 0 } });
+      data: { dps: 0, color, skill: sk.id, tags: prof.tags, allyDr: sk.allyDr ? Math.round(sk.allyDr * (prof.buffMul || 1)) : 0, projMissPct: sk.projMissPct || 0 } });
   }
   ctx.zoneCenter = c0; ctx.zoneRad = rad;
   let left = waves;
@@ -651,7 +652,7 @@ export const ARQUERA_SKILL_FORGE = {
         set: { radius: 2, span: 0.8 }, mod: { dmg: 40 } },
       // zona de defensa de los aliados dentro mientras llueve (como la Bomba de Humo)
       { id: 'lluvia_flechas_ii', name: 'Cortina', role: 'AGU', icon: FORGE_ICON('lluvia_flechas_ii'), line: 'Dentro recibes un 15 % menos y la mitad de los disparos te fallan.',
-        set: { allyDr: 15, projMissPct: 50 } },
+        set: { allyDr: 15, projMissPct: 50 }, rankText: { 'un 15 %': 'allyDr' } },
     ],
   },
   a_t_andanada: {

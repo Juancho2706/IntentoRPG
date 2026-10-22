@@ -87,6 +87,7 @@ export const GUERRERO_SKILLS = [
   // ventana de riesgo: vida mínima del 1 % y principales gratis; al acabar te curas
   { id: 'g_u_furia', name: 'Furia Inmortal', icon: '😤', art: 'skills256/g_u_furia.webp', cat: 'ultimate', spec: 'berserker', slots: ['k4'], tags: ['ultimate', 'buff', 'physical'], elem: 'physical',
     type: 'buff', req: 15, cd: 60, cdFloor: 0.7, dur: 10, buff: { spenderCostPct: -100, minHpPct: 1, endHealPct: 20 }, unstoppable: true, slowImmune: true,
+    rankText: { 'te curas un 20 %': 'buff.endHealPct' },
     line: '10 s imparable: tu vida no baja del 1 % y tus principales no cuestan Furia. Al acabar, te curas un 20 %.',
     desc: 'Definitiva: 10 s imparable. Tu vida no baja del 1 % y tus habilidades principales no cuestan Furia. Al acabar, te curas un 20 % de la vida. Recarga 60 s (nunca baja de 42 s).' },
 
@@ -136,7 +137,7 @@ export const GUERRERO_SKILLS = [
   // destello rápido que deja un SENDERO sagrado (daña y cura a tus aliados)
   { id: 'g_sendero', name: 'Sendero de Luz', icon: '✨', art: 'skills256/g_sendero.webp', cat: 'movement', spec: 'cruzado', slots: ['k1'], tags: ['movement', 'zone', 'holy'], elem: 'holy',
     type: 'blink', req: 12, coef: 1.0, cd: 10, range: 8,
-    trail: { field: 'zona', dur: 4, width: 1.5, coef: 0.3, heal: 2 },
+    trail: { field: 'zona', dur: 4, width: 1.5, coef: 0.3, heal: 2 }, rankText: { 'un 2 %': 'trail.heal' },
     line: 'Destello de 8 m: dejas 4 s un sendero sagrado que no se suma: daña un 30 % y cura a tus aliados un 2 % por segundo.',
     desc: 'Destello rápido de 8 m: dejas un sendero sagrado 4 s que hace un 30 % del arma por segundo a los enemigos y cura a tus aliados un 2 % de la vida por segundo. Recarga 10 s.' },
   // CARGAR Y SOLTAR: 140 → 380 % a 3–5 m; la ventana perfecta (0,9–1,15 s) da +25 % y 1 de Fervor
@@ -436,7 +437,7 @@ export const GUERRERO_SKILL_FORGE = {
     ],
   },
   g_piel: {
-    mejora: { id: 'g_piel_m', name: 'Acero Templado', icon: 'forge/mejora', line: 'Al activarla te curas el 8 % de la vida.', power: 'v_temple' },
+    mejora: { id: 'g_piel_m', name: 'Acero Templado', icon: 'forge/mejora', line: 'Al activarla te curas el 8 % de la vida.', power: 'v_temple', rankText: { 'el 8 %': '*' } },
     vars: [
       { id: 'g_piel_i', name: 'Espinas', role: 'AREA', icon: F('g_piel_i'), line: 'Mientras dura, devuelves el 40 % del daño cuerpo a cuerpo que recibes.',
         power: 'v_espinas' },
@@ -562,7 +563,7 @@ export const GUERRERO_SKILL_FORGE = {
     mejora: { id: 'g_sendero_m', name: 'Huella de Luz', icon: 'forge/mejora', line: 'El sendero dura 6 s (antes 4 s).', add: { 'trail.dur': 2 } },
     vars: [
       { id: 'g_sendero_i', name: 'Escolta de Luz', role: 'APO', icon: F('g_sendero_i'), line: 'Al atravesar a un aliado, escudo del 12 % de tu vida 6 s (cada 6 s).',
-        power: 'v_escolta_luz' },
+        power: 'v_escolta_luz', rankText: { 'del 12 %': '*' } },
       { id: 'g_sendero_ii', name: 'Destello Doble', role: 'MOV', icon: F('g_sendero_ii'), line: '2 cargas (10 s cada una); el sendero dura 2 s.',
         set: { charges: 2, 'trail.dur': 2 } },
     ],

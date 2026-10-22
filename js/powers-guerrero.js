@@ -672,7 +672,7 @@ function freeFury(g, p, dur) {
   if (!sk || buffOf(p, 'g_u_furia')) return false;
   const def = defOf(p, sk.id);
   const stats = { ...(profOf(g, p, sk.id)?.buff || def.buff || {}) };
-  for (const k of ['minHpPct', 'endHealPct']) if (def.buff?.[k] != null) stats[k] = def.buff[k];
+  if (def.buff?.minHpPct != null) stats.minHpPct = def.buff.minHpPct;      // la cura al acabar sí crece con el rango
   p.addBuff('g_u_furia', stats, dur, { name: def.name, icon: def.icon, desc: def.desc });
   if (def.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dur);
   if (def.slowImmune) p.grantSlowImmune?.(dur);

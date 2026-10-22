@@ -203,7 +203,8 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   const heal0 = h.p.healSkill.bind(h.p);
   h.p.healSkill = (n, src) => { const r = heal0(n, src); if (src === 'field:vx_sendero') healed += r; return r; };
   h.step(1.05);
-  assert.ok(Math.abs(healed - h.p.stats.maxHP * 0.03) < 0.5, `la estela cura (trail.heal 3 %/s: ${healed.toFixed(2)})`);
+  // × la potencia de buffs del avance a su rango (buffMul, X1)
+  assert.ok(Math.abs(healed - h.p.stats.maxHP * 0.03 * h.g.skillProfile(h.p, 'vx_sendero').buffMul) < 0.5, `la estela cura (trail.heal 3 %/s: ${healed.toFixed(2)})`);
 }
 {
   const h = mk();

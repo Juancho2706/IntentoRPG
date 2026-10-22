@@ -620,13 +620,14 @@ const GENERIC = {
   },
 
   // buff: a ti (o a los aliados con tag 'ally'); `pulse` (provoca o golpea cada `every` s
-  // mientras dura: Ciudadela). minHpPct/endHealPct del buff NO escalan con el rango.
+  // mientras dura: Ciudadela). minHpPct (suelo de vida) NO escala con el rango; endHealPct (la cura
+  // al acabar: Furia Inmortal) sí, como el resto del buff (prof.buff).
   buff(g, ctx) {
     const { p, prof, sk } = ctx;
     const meta = { name: sk.name, icon: sk.icon, desc: sk.desc };
     const targets = prof.tags.has('ally') ? g.allies(p.pos, sk.allyRadius || 15) : [p];
     const stats = { ...prof.buff };
-    for (const k of ['minHpPct', 'endHealPct']) if (sk.buff?.[k] != null) stats[k] = sk.buff[k];
+    if (sk.buff?.minHpPct != null) stats.minHpPct = sk.buff.minHpPct;
     for (const a of targets) {
       a.addBuff?.(sk.id, { ...stats }, prof.dur, meta);
       if (prof.slowImmune) a.grantSlowImmune?.(prof.dur);           // Agilidad, Piel de Hierro
@@ -1711,9 +1712,10 @@ export const skillMethods = {
       }
       this.spawnBeam?.(center, center.clone().addScaledVector(dir, w.range || 8), ctx.color || 0xffe680, 0.2);
     }
-    // escudo por enemigo golpeado (Corazón de Hielo: shieldGain [pct, máx] de la vida máx.)
+    // escudo por enemigo golpeado (Corazón de Hielo: shieldGain [pct, máx] de la vida máx.; los dos
+    // crecen con el rango, buffMul)
     if (!isEcho && base.shieldGain && res.hits > 0) {
-      const pct = Math.min(base.shieldGain[1] || Infinity, (base.shieldGain[0] || 0) * res.hits);
+      const pct = Math.min(base.shieldGain[1] || Infinity, (base.shieldGain[0] || 0) * res.hits) * (base.buffMul || 1);
       if (pct > 0) this.shield(p.stats.maxHP * pct / 100, { target: 'self', dur: 6, src: `${sk.id}:gain` });
     }
     // cura y escudo al grupo al lanzar (Amanecer: heal { pct, radius } · shield { pct, radius, dur })
@@ -1752,7 +1754,7 @@ export const skillMethods = {
     }
     const det = (ctx.baseProf || prof).detonate;
     if (det) this.detonateAt(p, p.pos, det, { skill: sk.id });
-    // estela del avance (Sendero de Luz): campo en línea del inicio al final
+    // estela del avance (Sendero de Luz): campo en línea del inicio al final; su cura crece con el rango
     const tr = (ctx.baseProf || prof).trail;
     if (tr && from && this.spawnField) {
       const a = from.clone().setY(0), b = p.pos.clone().setY(0);
@@ -1760,7 +1762,7 @@ export const skillMethods = {
       this.spawnField(tr.field || 'zona', { pos: mid, radius: Math.max(0.5, a.distanceTo(b) / 2), dur: tr.dur || 4, owner: p, shape: 'line', a, b, width: tr.width || 1.5,
         maxPerSkill: (ctx.baseProf || prof).zoneMax || 0,
         data: { dps: (tr.coef || 0) > 0 ? p.avgHit(tr.coef * (prof.coef / Math.max(1e-6, sk.coef || prof.coef || 1)), prof.addPct) : 0,
-          healPct: tr.heal || 0, color: ctx.color || 0xffe680, skill: sk.id, tags: prof.tags } });
+          healPct: (tr.heal || 0) * ((ctx.baseProf || prof).buffMul || 1), color: ctx.color || 0xffe680, skill: sk.id, tags: prof.tags } });
     }
   },
 

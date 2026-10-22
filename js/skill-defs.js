@@ -238,7 +238,8 @@ export function skillVerbs(def) {
 // cada uno y de dónde sale su valor (en la habilidad o en una pieza de la forja):
 //   rankText: { '<trozo literal de line/desc>': '<fuente>' }
 //   fuente: 'buff.<stat>' (el buff redondeado, como lo aplica el juego) · '<clave>' o '<clave>.<sub>'
-//           numérica de la definición × buffMul (shieldPct, shieldManaPct, hpPct, allyDr, heal.pct…)
+//           numérica de la definición × buffMul (shieldPct, shieldManaPct, hpPct, allyDr, heal.pct,
+//           trail.heal, shieldGain.0…; buff.minHpPct, un suelo de vida, es lo único del buff que no crece)
 //           · '*' (el número del trozo × buffMul: la cifra vive en un comportamiento) · 'rank' (el
 //           número × rankBuff del rango, sin talentos: una cláusula de otra especialización)
 // Lo aplica skill-resolve.rankedText (libro, forja, tooltips, panel de talentos y aviso del buff).

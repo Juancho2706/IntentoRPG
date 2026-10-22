@@ -120,7 +120,8 @@ for (const id of Object.keys(GUERRERO_SKILL_BEHAVIORS)) {
   assert.ok(GUERRERO_SKILLS.some(s => s.behavior === id) || FORGE_BEH.includes(id), `${id}: lo usa una habilidad o su forja`);
   assert.equal(SKILL_BEHAVIORS[id]?.cast, GUERRERO_SKILL_BEHAVIORS[id].cast, `${id}: registrado desde skills-guerrero.js`);
 }
-// rango por nivel: coef ×(1+0,10·(rango−1)) y buffs ×(1+0,06·(rango−1)); minHpPct/endHealPct no escalan
+// rango por nivel: coef ×(1+0,10·(rango−1)) y buffs ×(1+0,06·(rango−1)); minHpPct (suelo de vida) no escala;
+// endHealPct (la cura al acabar) sí, como el resto del buff (X1)
 for (const L of [15, 40, 72]) {
   const h = makeHarness({ classId: 'guerrero', level: L, spec: 'berserker' });
   for (const id of ['g_hendidura', 'g_remolino', 'g_rajar', 'terremoto', 'g_martillo', 'g_u_cataclismo']) {
@@ -130,6 +131,8 @@ for (const L of [15, 40, 72]) {
   }
   const fu = resolveSkill(h.p, SK('g_u_furia')), r = rankBase(L, 15);
   assert.equal(fu.buff.spenderCostPct, Math.round(-100 * (1 + 0.06 * (r - 1))), 'Furia Inmortal: el coste cero escala (y se recorta a 0)');
+  assert.equal(fu.buff.endHealPct, Math.round(20 * (1 + 0.06 * (r - 1))), `Furia Inmortal Nv${L}: la cura al acabar crece con el rango`);
+  assert.equal(fu.buff.minHpPct, 1, 'Furia Inmortal: el suelo de vida no');
 }
 console.log('Catálogo 2g del Guerrero: 23 habilidades válidas (v2, sin avisos), arte, números, ranuras, textos y VFX ✓');
 

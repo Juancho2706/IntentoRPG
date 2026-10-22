@@ -67,12 +67,12 @@ export function guerreroForgePowers() {
       },
     },
 
-    // Piel de Hierro (Mejora) · Acero Templado: te curas el 8 % al activarla
+    // Piel de Hierro (Mejora) · Acero Templado: te curas el 8 % al activarla (crece con el rango de la Piel)
     v_temple: {
-      name: 'Acero Templado', desc: 'Piel de Hierro te cura el 8 % de la vida al activarla',
+      name: 'Acero Templado', desc: 'Piel de Hierro te cura el 8 % de la vida al activarla (más con su rango)',
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_piel' || cast.echo) return;
-        g.heal?.(p.stats.maxHP * T.temple.healPct / 100, { target: 'self', src: 'v_temple' });
+        g.heal?.(p.stats.maxHP * T.temple.healPct / 100 * (cast.prof?.buffMul || 1), { target: 'self', src: 'v_temple' });
       },
     },
 
@@ -110,7 +110,7 @@ export function guerreroForgePowers() {
     },
 
     // Sendero de Luz I · Escolta de Luz: al atravesar a un aliado con el destello, escudo del 12 % de
-    // tu vida 6 s (como mucho una vez cada 6 s por aliado)
+    // tu vida 6 s (como mucho una vez cada 6 s por aliado; crece con el rango del Sendero)
     v_escolta_luz: {
       name: 'Escolta de Luz', desc: 'El Sendero de Luz escuda a los aliados que atraviesas',
       state: () => ({ from: null, until: new Map() }),
@@ -128,7 +128,7 @@ export function guerreroForgePowers() {
           if (ally === p || !ally.alive || distToSeg(ally.pos, a, p.pos) > reach) continue;
           if ((st.until.get(ally) || -Infinity) > now(p)) continue;
           st.until.set(ally, now(p) + T.escolta.icd);
-          ally.addShield?.(p.stats.maxHP * T.escolta.shieldPct / 100, T.escolta.dur, 'v_escolta_luz');
+          ally.addShield?.(p.stats.maxHP * T.escolta.shieldPct / 100 * (cast.prof?.buffMul || 1), T.escolta.dur, 'v_escolta_luz');
         }
       },
     },
