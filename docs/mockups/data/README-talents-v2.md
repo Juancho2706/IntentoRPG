@@ -84,12 +84,13 @@ Ejemplos de la Maga (`data/talents-v2-maga.js`). «Oblig.» = el validador lo ex
 | `innate` | `{ <spec>: {…} }` | sí | Pasiva de la especialización (§3) | |
 | `groups` | `{ <flag>: { label, ids } }` | sí (puede ir vacío) | Nodos que tocan «todo tu X»: el nodo lleva `<flag>: true` | `fire: { label:'Toca todo tu Fuego', ids:['m_dardo','bola_fuego',…] }` |
 | `tree` | `{ cls, spec, hero }` | sí | Los árboles (§5–§8) | |
+| `rejilla` | `{ spec?, <specId>?, cls?, hero? }` | no | Reorden por nivel (§6): casilla nueva `[fila, columna]` de cada número. `spec` vale para las tres especializaciones; `<specId>`, solo para esa | `{ arcanista: { 3:[4,4], 13:[1,5], 7:[5,5], 17:[2,6] } }` |
 | `specHero` | `{ <spec>: [heroId, heroId] }` | no | Se deduce de `hero[].specs`; ponlo solo para otro orden de pestañas | `piromante: ['crono','invoca']` |
 | `builds` | `{ <clave>: build }` | sí | 4 por especialización, una híbrida (§9) | `brasa`, `cataclismo`, `ignicion`, `hibrido`… |
 | `defaultBuild` | `{ <spec>: clave }` | sí | La que aplica «Recomendado» y la de inicio | `{ piromante:'brasa', crionte:'glaciar', arcanista:'rayo' }` |
 | `demo` | objeto | no | Ids de nodo para las demos de captura | `{ spend:'s16', choice:'s9', hover:'s9', hoveract:'t4', rclick:'s9', pick:'s8', undo:'s23', hl:'meteoro', swapTo:'crionte', gate:{ ranks:{ c2:2, c1:2, c3:2, c6:1 }, ch:{ c6:'B' }, buy:['c5','A'] } }` |
 
-Lo **común** (puntos por nivel, presupuesto, puertas, rejillas) **no** va en el archivo de clase: está en `talents-v2-comun.js` y es igual para todas (§10).
+Lo **común** (puntos por nivel, presupuesto, puertas, rejillas) **no** va en el archivo de clase: está en `talents-v2-comun.js` y es igual para todas (§10). Solo el reorden por nivel de la clase va en ella (`rejilla`, §6).
 
 ## 3. Especializaciones: metadatos, barra de mecánica y pasiva
 
@@ -234,6 +235,8 @@ La misma para las tres especializaciones de **todas** las clases (`TV2.REJILLA.s
 
 Fijo (error si no se cumple): número de nodos, fila, columna, rangos, requisitos; clave en n0, finales en n25–27, ápice en n28 y las tres elecciones de la fila 3. Una pasiva de 1 rango puede volverse elección (o al revés) con aviso: cambia la forma, no el presupuesto.
 
+**Reorden por nivel** (aprobado por el dueño, 2026-10-22): los primeros talentos deben tocar lo que ya conoces. Una clase puede recolocar números con `rejilla` (§2): `{ spec: { 4:[1,3], … } }` mueve el n4 a la fila 1, columna 3 en sus tres especializaciones (el Guerrero) y `{ arcanista: {…} }`, solo en esa (la Maga y la Arquera). La forma no cambia: el número conserva sus rangos y su tipo, va a una casilla del mismo tipo y sus requisitos son los de la casilla que ocupa. `TV2.reordenar` lo comprueba (permutación sin casillas repetidas ni entradas que sobren) y el validador compara cada árbol con su rejilla recolocada (`TV2.rejillaDe`).
+
 ## 7. Rejilla obligatoria del árbol de CLASE (30 nodos · 53 rangos · filas 0–8)
 
 Toca el **kit base** y lo genérico de la clase; **ningún nodo nombra una habilidad de especialización** (G1). Tres caminos a tres finales de **utilidad o ritmo** (el daño grande vive en la especialización). Puertas: 8 → fila 4 · 24 → fila 7.
@@ -322,7 +325,7 @@ brasa: { sp:'piromante', n:'Incendio', arch:'Brasa', hero:'invoca', heroCh:{ f2:
 | Campo | Qué es |
 |---|---|
 | `sp` · `n` · `arch` | Especialización, nombre de la build y arquetipo («Brasa», «Híbrido Brasa-Ignición») |
-| `cls` · `spec` | Rangos por nodo **en orden de compra**. `'c4_': 2` = rangos del mismo nodo comprados más tarde (Nv85+) |
+| `cls` · `spec` | Rangos por nodo **en orden de compra**. `'c4_': 2` = rangos del mismo nodo comprados más tarde (en `cls`, Nv85+; en `spec`, tras otros nodos: `'a2_': 2`). `TV2.normBuild` los suma y deja el orden en `clsOrder`/`specOrder` |
 | `clsCh` · `specCh` · `heroCh` | Opción (`'A'`/`'B'`) de cada nodo de elección comprado |
 | `hero` · `heroNodes` | Árbol héroe (uno de los 2 de su especialización) y sus **10** nodos en orden (sin la clave) |
 

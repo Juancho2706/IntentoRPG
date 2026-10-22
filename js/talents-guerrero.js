@@ -2,9 +2,9 @@
 // TALENTOS v2 de la clase Guerrero — esqueleto (clase 30 + especialización 3×29 + héroe 3×13)
 // ============================================================
 // Generado por tools/convert-v2/convert.mjs (--write talents, E1.5) desde docs/mockups/data/talents-v2-guerrero.js (sha1 b0f282184d7d, estado «diseño»).
-// Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup, salvo
+// Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup, también
 // el reorden por nivel de abajo (los compara tests/test-v2-paridad.mjs: cada divergencia deliberada va en
-// tools/convert-v2/divergencias.json; el mockup y su TV2.REJILLA siguen con la colocación vieja).
+// tools/convert-v2/divergencias.json).
 // El `fx` de cada nodo es el `impl` del mockup (E2, KT): ningún nodo conserva `todo` (test78 lo hace error). Importa
 // SOLO hero y talent-text.
 // E2 (KT-guerrero): árbol de clase, las tres especializaciones y los árboles héroe con su `fx` (poderes en
@@ -17,7 +17,7 @@
 // habilidad aprendida (3 a la fila 2; 12 a la 2, bajo el 1; 2 y 6 a la 4) y 20 y 13 se cambian de
 // casilla para que cada build siga llegando a sus nodos. El 5 (un rango) es el paso al 8 y al 9: ninguna
 // build necesita el 12 para llegar a otro nodo y cada una lo compra donde diga su orden (Montaña Viva, tras
-// el 2: su Tambor de Guerra con el Terremoto dispara el TTD+). Casilla de cada número: GRID_REORDER de test78
+// el 2: su Tambor de Guerra con el Terremoto dispara el TTD+). Casilla de cada número: la `rejilla` del mockup
 import { GUERRERO_HERO } from './hero-guerrero.js';
 import { n1 } from './talent-text.js';
 

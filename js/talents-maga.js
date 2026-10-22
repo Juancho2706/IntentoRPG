@@ -5,7 +5,7 @@
 // Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup
 // (los compara tests/test-v2-paridad.mjs: una divergencia deliberada va en tools/convert-v2/divergencias.json).
 // T-maga (nivel de aprendizaje): la rejilla de la Arcanista (a3↔a13, a7↔a17) y el orden de compra
-// de las builds rayo, grieta e hibarca ya no son los del mockup; van declarados en divergencias.json.
+// de las builds rayo, grieta e hibarca; el mockup los tiene igual (su `rejilla`, D1).
 // `fx: {}` + `todo` = el `impl` del mockup: E2 (KT) los escribe y borra `todo`. Importa SOLO hero y talent-text.
 // E2 · KT-maga: clase, Paragon (hero-maga.js) y las tres especializaciones con su `fx` (poderes en
 // js/powers-maga.js; las mecánicas en js/mech-maga.js). Sin `todo`: test78 lo exige (STRICT).

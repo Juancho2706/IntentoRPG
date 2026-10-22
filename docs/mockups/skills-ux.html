@@ -1595,7 +1595,7 @@ function t2applyPreset(key = null) {
   T2 = { cls:{}, spec:{}, hero:{}, ch:{ ...b.clsCh, ...b.specCh, ...b.heroCh }, heroTree: b.hero };
   for (const w of ['cls', 'spec']) {
     if (w === 'spec' && !curSpec()) continue;
-    const order = w === 'cls' ? b.clsOrder || [] : Object.entries(b.spec || {});
+    const order = w === 'cls' ? b.clsOrder || [] : b.specOrder || Object.entries(b.spec || {});
     while (t3left(w) > 0) {
       const hit = order.find(([id, t]) => { if ((T2[w][id] || 0) >= t) return false; T2[w][id] = (T2[w][id] || 0) + 1; const ok = t3valid(w); if (--T2[w][id] <= 0) delete T2[w][id]; return ok; });
       if (!hit) break; T2[w][hit[0]] = (T2[w][hit[0]] || 0) + 1;

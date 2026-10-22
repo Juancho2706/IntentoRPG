@@ -236,13 +236,14 @@ function simularBuild(TV2, list, gates, order, w) {
   return { ranks, spent, fin };
 }
 function validarDiseno(TV2, C, R) {
-  const G = TV2.REJILLA, RG = TV2.REGLAS, t = C.tree, specs = C.specOrder;
+  const RG = TV2.REGLAS, t = C.tree, specs = C.specOrder;
   const cat = C.catalog || [], catIds = new Set(cat.map(s => s.id));
-  // --- rejillas
-  compararRejilla(t.cls, G.cls, 'clase', R, 'c');
+  // --- rejillas (la de la clase: TV2.REJILLA recolocada por su `rejilla`, el reorden por nivel)
+  const G = (tipo, sec, sp) => { const x = TV2.rejillaDe(C, tipo, sp); for (const b of x.bad) R.e(sec, `rejilla: ${b}`); return x.G; };
+  compararRejilla(t.cls, G('cls', 'clase'), 'clase', R, 'c');
   const prefijos = {};
-  for (const sp of specs) { compararRejilla(t.spec[sp], G.spec, `spec ${sp}`, R); prefijos[sp] = pref(t.spec[sp][0]?.id || ''); }
-  for (const h of t.hero) compararRejilla(h.nodes, G.hero, `héroe ${h.id}`, R);
+  for (const sp of specs) { compararRejilla(t.spec[sp], G('spec', `spec ${sp}`, sp), `spec ${sp}`, R); prefijos[sp] = pref(t.spec[sp][0]?.id || ''); }
+  for (const h of t.hero) compararRejilla(h.nodes, G('hero', `héroe ${h.id}`), `héroe ${h.id}`, R);
   // --- etiquetas: filas 3–9 ≥ 60 % mecánica (§17.3)
   const etiq = (list, sec) => { const f = list.filter(n => n.r >= 3), m = f.filter(n => n.tag === 'mec').length; const p = f.length ? Math.round(100 * m / f.length) : 100;
     (p >= 60 ? R.i : R.e)(sec, `filas 3–9: ${m}/${f.length} «mecánica» (${p} %; mínimo 60 %)`); };
@@ -330,7 +331,7 @@ function validarDiseno(TV2, C, R) {
     for (const [k, b] of bs) {
       TV2.normBuild(b);
       const sec = `build ${k}`, out = [];
-      for (const [w, list, order, ch] of [['cls', t.cls, b.clsOrder, b.clsCh], ['spec', t.spec[sp], Object.entries(b.spec || {}), b.specCh]]) {
+      for (const [w, list, order, ch] of [['cls', t.cls, b.clsOrder, b.clsCh], ['spec', t.spec[sp], b.specOrder, b.specCh]]) {
         for (const [id] of order) if (!list.find(n => n.id === id)) R.e(sec, `id desconocido «${id}» en ${w}`);
         const sim = simularBuild(TV2, list, RG.gates[w], order, w), pts = RG.pts[w];
         if (sim.spent !== pts) R.e(sec, `${w}: gasta ${sim.spent}/${pts} comprando punto a punto (orden ilegal o le faltan nodos)`);

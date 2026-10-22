@@ -3,8 +3,9 @@
 // se saltan) y sobre el fixture v2 (tests/fixtures/talents-sample.mjs). Cada regla se prueba además
 // con una mutación sembrada en una copia del fixture (debe fallar con su mensaje).
 //  · ids únicos por clase; solo la clase usa c + número
-//  · G16: mismo número = misma casilla en las tres especializaciones; forma = TV2.REJILLA (recolocada por
-//    el reorden por nivel que el dueño aprobó: GRID_REORDER por número, o G16_REORDER por nodo)
+//  · G16: forma = TV2.REJILLA recolocada por el reorden por nivel que el dueño aprobó (la `rejilla` de cada
+//    clase en docs/mockups/data/talents-v2-<clase>.js, TV2.reordenar); en el Guerrero (G16_STRICT), mismo
+//    número = misma casilla en las tres especializaciones
 //  · G2: grant solo en la opción A, ≤ 3 en clase, ≤ 1 por árbol héroe, ninguno en especialización;
 //    la activa existe en el catálogo y solo cabe en la ranura 2
 //  · G7: textos ≤ 120 por rango (el ápice, por segmento), sin jerga; `win` en cada elección
@@ -47,19 +48,15 @@ assert.ok(COMMON_POWER_IDS.has('m_berserk') && COMMON_POWER_IDS.has('nucleo_tv')
 // Acecho tiene 1 (m18, §10 del diseño; KAT-arquera quitó en la tanda 2 el touch de m11, m25 y m28, cuyo
 // texto no lo nombra). a_u_diluvio (2 en el punto 17) ya cumple con los datos de KT-arquera
 export const G17_EXCEPTION = { arquera: { a_m_acecho: 1 } };
-// G16 con reorden (nivel de aprendizaje, aprobado por el dueño): nodos que cambiaron de casilla dentro de
-// su árbol, por clase ({ <clase>: { <id>: número de la casilla que ocupa ahora } }). La forma no cambia
-// (casillas, tipo y aristas de la rejilla); el máximo viaja con el nodo. Una entrada que sobra es un error
-export const G16_REORDER = {
-  // T-maga: en la Arcanista, Torrente Arcano y Sello Viviente suben (Orbe del Nv10, Sello del Nv12) y
-  // Flujo Constante y Grieta Abierta (solo el Desgarro, Nv15) bajan
-  maga: { a13: 3, a3: 13, a17: 7, a7: 17 },
-  // T-arquera: en la Tiradora suben Puntas Templadas (disparo triple, Nv10) y Pies Ligeros, y Astiles
-  // Ligeros (Múltiple, Nv14) y Aire Fresco (Carrera, Nv12) bajan; Mano Llena (Múltiple) pasa a la fila 2,
-  // que se compra al Nv14. En el Montaraz sube Espino Venenoso (veneno del cepo, Nv10) y Semillas de
-  // Zarza (Detonante, Nv14) pasa a la fila 2; Raíz Rápida y Raíces Profundas (Cerco, Nv15) bajan a la 4
-  arquera: { v4: 1, v11: 4, v1: 11, v20: 3, v3: 20, m13: 3, m3: 13, m14: 7, m7: 14 },
-};
+// G16 tras el reorden por nivel (regla del dueño: los primeros talentos tocan lo que ya tienes; levanta D18
+// solo para casillas, requisitos y builds): la casilla de cada número la declara la clase en su mockup
+// (`rejilla`: `spec` para las tres especializaciones o <specId> para una; TV2.reordenar comprueba que sea
+// una permutación de casillas del mismo tipo, sin entradas que sobren). La Maga y la Arquera recolocan una
+// especialización (Arcanista; Tiradora y Montaraz); el Guerrero, las tres igual: en él G16 es estricto
+// (ningún reorden propio de una especialización y el mismo número en la misma casilla en las tres)
+export const REJILLA_CLASE = Object.fromEntries(['maga', 'guerrero', 'arquera'].map(c => [c, cargarMockup(c).C?.rejilla || null]));
+export const G16_STRICT = new Set(['guerrero']);
+assert.ok(REJILLA_CLASE.guerrero?.spec && REJILLA_CLASE.maga?.arcanista && REJILLA_CLASE.arquera?.tiradora, 'test78: reorden por nivel leído del mockup de cada clase');
 const JARGON = /\bUNI\b|ÁREA×5|\bTTD\b|stagger|\bprocs?\b|astadora/i;
 const FX_KEYS = new Set(['stats', 'elem', 'skillLv', 'mod', 'tv', 'power', 'grant']);
 const { ELEMS, CATS } = SD;
@@ -98,39 +95,11 @@ const CAT_VALUES = new Set(CATS);
 const num = id => +String(id).replace(/^\D+/, '');
 const isFn = v => typeof v === 'function';
 
-// G16 tras el reorden por nivel (regla del dueño: los primeros talentos tocan lo que ya tienes; levanta
-// D18 solo para casillas, requisitos y builds): por clase y árbol ('cls' | 'spec' | 'hero'), número →
-// casilla nueva [fila, columna], la misma en las tres especializaciones. Cada número conserva su
-// máximo y su tipo; sus requisitos son los de la casilla que ocupa (las aristas no cambian)
-export const GRID_REORDER = {
-  // T-guerrero: 4 y 16 suben a la fila 1 (Nv10); 3 y 12 a la fila 2 y 2 y 6 a la 4 (Nv14 y
-  // Rajar/Terremoto/Martillo); 12 al pie del 1 (el 5 se queda: es el paso al 8 y al 9, así ninguna
-  // build necesita el 12 para seguir); 20 y 13 cambian para que cada build llegue a sus nodos
-  guerrero: { spec: { 4: [1, 3], 16: [1, 5], 12: [2, 0], 3: [2, 4], 2: [4, 2], 6: [4, 4], 20: [5, 3], 13: [6, 4] } },
-};
-// rejilla recolocada → { G, bad }: bad = errores del propio reorden (casilla repetida o de otro tipo)
+// rejilla recolocada → { G, bad } (TV2.reordenar del mockup: la misma regla que su validador). Copia de
+// este reino: el mockup carga en node:vm y assert.deepEqual mira el prototipo
 export function reorderGrid(G, perm) {
-  if (!perm) return { G, bad: [] };
-  const bad = [];
-  const cellOf = g => perm[g.n] || [g.r, g.c];
-  const key = ([r, c]) => `${r},${c}`;
-  const host = new Map(G.map(g => [key([g.r, g.c]), g]));   // casilla → quien la ocupaba en la rejilla
-  const at = new Map();                                      // casilla nueva → número
-  for (const g of G) {
-    const k = key(cellOf(g));
-    if (at.has(k)) bad.push(`casilla ${k} repetida (${at.get(k)} y ${g.n})`);
-    if (!host.has(k)) bad.push(`${g.n}: la casilla ${k} no es de la rejilla`);
-    else if (host.get(k).t !== g.t) bad.push(`${g.n} (${g.t}) en la casilla ${k}, que es de tipo ${host.get(k).t}`);
-    at.set(k, g.n);
-  }
-  if (bad.length) return { G, bad };
-  const by = new Map(G.map(g => [g.n, g]));
-  const out = G.map(g => {
-    const [r, c] = cellOf(g);
-    const req = host.get(key([r, c])).req.map(m => at.get(key([by.get(m).r, by.get(m).c])));
-    return { ...g, r, c, req };
-  });
-  return { G: out, bad };
+  const { G: out, bad } = TV2.reordenar(G, perm || null);
+  return { G: out, bad: Array.from(bad) };
 }
 
 // ------------------------------------------------ claves tv del núcleo: cada una se lee en un archivo común
@@ -160,7 +129,8 @@ export function reorderGrid(G, perm) {
 // ------------------------------------------------ el comprobador
 // ctx = { isRegistered(id), tvKeys:Set, kitOf(specId) → ids, skillOf(id) → definición del catálogo | null }
 //       specBar?(specId) → { lmb, rmb, k1, k2, k3, k4 } (G8b), warnings?: [] (avisos), strict?: Set(tags de aviso que fallan)
-//       reorder?: { cls?, spec?, hero? } (G16: el reorden por nivel de la clase, GRID_REORDER)
+//       reorder?: { cls?, spec?, hero?, <specId>? } (G16: el reorden por nivel de la clase, su `rejilla` del mockup)
+//       g16?: true = G16 estricto (mismo número = misma casilla en las tres especializaciones; G16_STRICT)
 export function checkClassData(cid, data, ctx) {
   const E = [];
   const err = (tag, msg) => E.push(`[${tag}] ${cid}: ${msg}`);
@@ -176,11 +146,9 @@ export function checkClassData(cid, data, ctx) {
     if (w === 'cls' && !/^c\d+$/.test(n.id)) err('ids', `${n.id}: los nodos de clase se llaman c1…c30`);
     if (w !== 'cls' && /^c\d/.test(n.id)) err('ids', `${n.id}: solo la clase usa c + número`);
   }
-  // rejillas (G16): misma forma que TV2.REJILLA, recolocada por ctx.reorder (GRID_REORDER: casilla nueva por
-  // número, igual en las tres especializaciones) o con nodos que cambian de casilla (ctx.g16, G16_REORDER: el
-  // nodo lleva su máximo; tipo, aristas y posición son los de la casilla)
-  const cellOf = id => ctx.g16?.[id] ?? num(id);
-  const moved = new Set();
+  // rejillas (G16): misma forma que TV2.REJILLA, recolocada por ctx.reorder (casilla nueva por número: `spec`
+  // en las tres especializaciones, <specId> en una; el número lleva su máximo y su tipo, y sus requisitos
+  // son los de la casilla que ocupa)
   const grid = (nodes, G0, w, perm) => {
     const { G, bad } = reorderGrid(G0, perm);
     for (const b of bad) err('rejilla', `${w}: reorden ${b}`);
@@ -188,20 +156,29 @@ export function checkClassData(cid, data, ctx) {
     const pre = new Set(nodes.map(n => String(n.id).replace(/\d+$/, '')));
     if (pre.size > 1) err('rejilla', `${w}: prefijos distintos (${[...pre]})`);
     for (const g of G) {
-      const n = nodes.find(x => cellOf(x.id) === g.n);
+      const n = nodes.find(x => num(x.id) === g.n);
       if (!n) { err('rejilla', `${w}: falta el nodo de la casilla ${g.n}`); continue; }
-      const own = G.find(x => x.n === num(n.id)) || g;
-      if (cellOf(n.id) !== num(n.id)) moved.add(n.id);
-      if (n.r !== g.r || n.c !== g.c || n.max !== own.max || n.t !== g.t) err('rejilla', `${w}/${n.id}: casilla ${n.r},${n.c} ×${n.max} ${n.t} (rejilla ${g.r},${g.c} ×${own.max} ${g.t})`);
-      const rq = (n.req || []).map(cellOf).sort((a, b) => a - b).join(), gq = [...g.req].sort((a, b) => a - b).join();
+      if (n.r !== g.r || n.c !== g.c || n.max !== g.max || n.t !== g.t) err('rejilla', `${w}/${n.id}: casilla ${n.r},${n.c} ×${n.max} ${n.t} (rejilla ${g.r},${g.c} ×${g.max} ${g.t})`);
+      const rq = (n.req || []).map(num).sort((a, b) => a - b).join(), gq = [...g.req].sort((a, b) => a - b).join();
       if (rq !== gq) err('rejilla', `${w}/${n.id}: requisitos ${rq} (rejilla ${gq})`);
       if ((n.t === 'k') !== !!n.free) err('rejilla', `${w}/${n.id}: el nodo clave (y solo él) es gratis`);
     }
   };
   grid(data.cls?.nodes || [], GRID.cls, 'clase', ctx.reorder?.cls);
-  for (const s of specs) grid(s.nodes || [], GRID.spec, s.id, ctx.reorder?.spec);
+  for (const s of specs) grid(s.nodes || [], GRID.spec, s.id, ctx.reorder?.[s.id] || ctx.reorder?.spec);
   for (const h of heroes) grid(h.nodes || [], GRID.hero, h.id, ctx.reorder?.hero);
-  for (const id of Object.keys(ctx.g16 || {})) if (!moved.has(id)) err('rejilla', `G16_REORDER: ${id} no cambia de casilla (sobra)`);
+  for (const k of Object.keys(ctx.reorder || {})) if (!['cls', 'spec', 'hero'].includes(k) && !specs.some(s => s.id === k)) err('rejilla', `reorden de «${k}», que no es un árbol de la clase`);
+  // G16 estricto: ningún reorden propio de una especialización y, en los datos, el mismo número en la misma
+  // casilla (con los mismos requisitos) en las tres
+  if (ctx.g16) {
+    for (const s of specs) if (ctx.reorder?.[s.id]) err('rejilla', `G16: reorden propio de ${s.id} (el de esta clase vale para las tres especializaciones)`);
+    const cell = new Map();
+    for (const s of specs) for (const n of s.nodes || []) {
+      const at = `${n.r},${n.c} [${(n.req || []).map(num).sort((a, b) => a - b)}]`, k = num(n.id);
+      if (!cell.has(k)) cell.set(k, [s.id, at]);
+      else if (cell.get(k)[1] !== at) err('rejilla', `G16: el ${k} está en ${cell.get(k)[1]} (${cell.get(k)[0]}) y en ${at} (${s.id})`);
+    }
+  }
   if (specs.length !== 3) err('forma', `${specs.length} especializaciones`);
   // especializaciones: elemento y mecánica
   for (const s of specs) {
@@ -414,7 +391,7 @@ for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
   const ctx = { prefix: POWER_PREFIX[cid], common: COMMON_POWER_IDS, isRegistered: id => !!POWER_HOOKS[id], powerClass: realPowers,
     tvKeys: new Set([...T.CORE_TV_KEYS, ...(mod[`${PREFIX[cid]}_TV_KEYS`] || [])]), kitOf: spec => specKitOf(cid, spec),
     skillOf: id => CLASSES[cid].skills.find(s => s.id === id) || null, specBar: spec => SPEC_BAR?.[spec]?.bar || null,
-    g17: G17_EXCEPTION[cid] || null, g16: G16_REORDER[cid] || null, warnings: [], strict: STRICT[cid], reorder: GRID_REORDER[cid] || null };
+    g17: G17_EXCEPTION[cid] || null, g16: G16_STRICT.has(cid), warnings: [], strict: STRICT[cid], reorder: REJILLA_CLASE[cid] };
   const errs = checkClassData(cid, data, ctx);
   assert.deepEqual(errs, [], `${cid}: datos v2 con errores:\n${errs.join('\n')}`);
   // los `todo` del esqueleto se cuentan (son cientos); los demás avisos van uno a uno
@@ -480,8 +457,9 @@ expectFail('nodo de especialización con c + número', d => { spec0(d).nodes.fin
 expectFail('casilla distinta en una especialización (G16)', d => { node(d.specs[2].nodes, 'a12').c = 3; }, 'rejilla');
 expectFail('requisito cambiado en el héroe', d => { node(d.hero[1].nodes, 'f7').req = ['f4']; }, 'rejilla');
 expectFail('falta un nodo de clase', d => { d.cls.nodes.pop(); }, 'rejilla');
-// G16 con reorden: dos nodos que cambian de casilla (posición y aristas) valen solo declarados, y
-// una declaración que no se cumple o que sobra falla
+// G16 con el reorden de UNA especialización (como la Arcanista): dos nodos que cambian de casilla valen
+// solo con su reorden declarado en esa especialización; media permutación, una entrada que sobra, una
+// declaración que no se cumple o el reorden de un árbol que no existe fallan
 {
   const swap = (nodes, a, b) => {
     const A = node(nodes, a), B = node(nodes, b);
@@ -490,21 +468,29 @@ expectFail('falta un nodo de clase', d => { d.cls.nodes.pop(); }, 'rejilla');
     for (const n of nodes) if (n.req) n.req = n.req.map(ren);
   };
   const d = clone(FIX.FIXTURE_TREES.maga);
-  swap(d.specs[2].nodes, 'a3', 'a13');
-  const rej = ctx => checkClassData('maga', d, ctx).filter(e => e.startsWith('[rejilla]'));
-  assert.ok(rej(fixCtx('maga')).length > 0, 'G16: un cambio de casilla sin declarar falla');
-  assert.deepEqual(rej({ ...fixCtx('maga'), g16: { a3: 13, a13: 3 } }), [], 'G16: el cambio declarado vale (el máximo viaja con el nodo)');
-  assert.ok(rej({ ...fixCtx('maga'), g16: { a3: 13 } }).length > 0, 'G16: media permutación falla');
-  assert.ok(rej({ ...fixCtx('maga'), g16: { a3: 13, a13: 3, a7: 7 } }).some(e => /a7 no cambia de casilla/.test(e)), 'G16: una entrada que sobra falla');
-  assert.ok(rej({ ...fixCtx('maga'), g16: { a3: 13, a13: 3, a1: 2, a2: 1 } }).length > 0, 'G16: una declaración que no se cumple falla');
+  const arc = d.specs[2];
+  swap(arc.nodes, 'a3', 'a13');
+  const cell = id => { const n = node(arc.nodes, id); return [n.r, n.c]; };
+  const base = n => { const g = GRID.spec.find(x => x.n === n); return [g.r, g.c]; };
+  const perm = { 3: cell('a3'), 13: cell('a13') };
+  const rej = reorder => checkClassData('maga', d, { ...fixCtx('maga'), reorder }).filter(e => e.startsWith('[rejilla]'));
+  assert.ok(rej(null).length > 0, 'G16: un cambio de casilla sin declarar falla');
+  assert.deepEqual(rej({ [arc.id]: perm }), [], 'G16: declarado en su especialización vale (el máximo viaja con el número)');
+  assert.ok(rej({ spec: perm }).length > 0, 'G16: declarado para las tres falla (las otras dos no se movieron)');
+  assert.ok(rej({ [arc.id]: { 3: perm[3] } }).length > 0, 'G16: media permutación falla');
+  assert.ok(rej({ [arc.id]: { ...perm, 7: base(7) } }).some(e => /7: ya está en .* \(sobra\)/.test(e)), 'G16: una entrada que sobra falla');
+  assert.ok(rej({ [arc.id]: { ...perm, 1: base(2), 2: base(1) } }).length > 0, 'G16: una declaración que no se cumple falla');
+  assert.ok(rej({ [arc.id]: perm, zarzal: perm }).some(e => /«zarzal», que no es un árbol/.test(e)), 'G16: el reorden de un árbol que no existe falla');
   mutations++;
 }
 expectFail('reorden con una casilla repetida (G16)', () => {}, 'rejilla', { ctxMut: ctx => { ctx.reorder = { spec: { 2: [1, 1] } }; } });
 expectFail('reorden a una casilla de otro tipo (G16)', () => {}, 'rejilla', { ctxMut: ctx => { ctx.reorder = { spec: { 2: [3, 1], 8: [1, 3] } }; } });
-// el reorden declarado del Guerrero sobre el fixture: recolocado en las tres especializaciones cumple
-// la rejilla; sin declararlo, o recolocando una sola especialización (G16), no
+// el reorden del Guerrero (su `rejilla` del mockup) sobre el fixture: recolocado en las tres
+// especializaciones cumple la rejilla; sin declararlo, o recolocando una sola, no. Con G16 estricto (el
+// del Guerrero), tampoco vale declararlo solo para una especialización aunque la rejilla cuadre
 {
-  const { G, bad } = reorderGrid(GRID.spec, GRID_REORDER.guerrero.spec);
+  const PERM = REJILLA_CLASE.guerrero.spec;
+  const { G, bad } = reorderGrid(GRID.spec, PERM);
   assert.deepEqual(bad, [], 'el reorden del Guerrero es una permutación de casillas del mismo tipo');
   const place = s => {
     const pre = s.nodes[0].id.replace(/\d+$/, '');
@@ -514,15 +500,18 @@ expectFail('reorden a una casilla de otro tipo (G16)', () => {}, 'rejilla', { ct
       if (g.req.length) n.req = g.req.map(m => pre + m); else delete n.req;
     }
   };
-  const grid = (data, reorder) => checkClassData('guerrero', data, { ...fixCtx('guerrero'), reorder }).filter(e => e.startsWith('[rejilla]'));
+  const grid = (data, reorder, g16 = true) => checkClassData('guerrero', data, { ...fixCtx('guerrero'), reorder, g16 }).filter(e => e.startsWith('[rejilla]'));
   const all = clone(FIX.FIXTURE_TREES.guerrero);
   all.specs.forEach(place);
-  assert.deepEqual(grid(all, GRID_REORDER.guerrero), [], 'recolocado en las tres con el reorden declarado: rejilla en regla');
+  assert.deepEqual(grid(all, { spec: PERM }), [], 'recolocado en las tres con el reorden declarado: rejilla en regla');
   assert.ok(grid(all, null).length > 0, 'sin declarar el reorden, la rejilla falla');
   const one = clone(FIX.FIXTURE_TREES.guerrero);
   place(one.specs[0]);
-  assert.ok(grid(one, GRID_REORDER.guerrero).length > 0, 'recolocar una sola especialización rompe G16');
-  mutations += 2;
+  assert.ok(grid(one, { spec: PERM }).some(e => /G16: el \d+ está en/.test(e)), 'recolocar una sola especialización rompe G16 (en los datos)');
+  const own = { [one.specs[0].id]: PERM };
+  assert.deepEqual(grid(one, own, false), [], 'sin G16 estricto, el reorden propio de una especialización cuadra');
+  assert.ok(grid(one, own).some(e => /G16: reorden propio/.test(e)), 'con G16 estricto (Guerrero), no se admite');
+  mutations += 3;
 }
 expectFail('activa en la opción B (G2)', d => { const n = node(d.cls.nodes, 'c11'); n.opts[1].fx = { grant: n.opts[0].fx.grant }; n.opts[0].fx = {}; }, 'G2');
 expectFail('cuarta activa en la clase (G2)', d => { node(d.cls.nodes, 'c5').opts[0].fx = { grant: 'm_t_bloque' }; }, 'G2');

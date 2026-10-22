@@ -6,7 +6,8 @@
  * por clase (data/talents-v2-<clase>.js), que se registra en window.TALENTS_V2_CLASSES['<clase>'].
  *
  * Este archivo NO tiene datos de ninguna clase: solo el ritmo de puntos, el presupuesto, las puertas y las
- * REJILLAS obligatorias (§17 de docs/paso2g-maga-coherencia.md). Si cambia algo aquí, cambia para todas las
+ * REJILLAS obligatorias (§17 de docs/paso2g-maga-coherencia.md), con la regla del reorden por nivel que cada clase
+ * declara en su archivo (`rejilla`, abajo). Si cambia algo aquí, cambia para todas las
  * clases: coordínalo antes (el Guerrero y la Arquera se diseñan en paralelo).
  * Contrato del formato: data/README-talents-v2.md.
  * ===================================================================================================== */
@@ -89,6 +90,44 @@
     ]),
   };
 
+  // ---------------------------------------------------------------- REORDEN por nivel (aprobado por el dueño, 2026-10-22)
+  // Una clase puede recolocar números de la rejilla para que los primeros talentos toquen lo que ya conoces. Lo declara
+  // en su archivo con `rejilla: { cls?, spec?, hero?, <specId>? }`, cada uno { número: [fila, columna] }: `spec` vale para
+  // sus tres especializaciones (mismo número = misma casilla) y <specId> solo para esa (manda sobre `spec`). La forma no
+  // cambia: el número conserva su máximo y su tipo, va a una casilla del mismo tipo y sus requisitos son los de la casilla
+  // que ocupa (las aristas no se mueven).
+  // reordenar(G, perm) → { G: rejilla recolocada, bad: [errores del propio reorden] }
+  function reordenar(G, perm) {
+    if (!perm || !Object.keys(perm).length) return { G, bad: [] };
+    const bad = [];
+    const key = ([r, c]) => `${r},${c}`;
+    const cellOf = g => perm[g.n] || [g.r, g.c];
+    const host = new Map(G.map(g => [key([g.r, g.c]), g]));   // casilla → quien la ocupa en la rejilla base
+    const at = new Map();                                      // casilla nueva → número
+    for (const n of Object.keys(perm)) if (!G.some(g => String(g.n) === n)) bad.push(`${n}: no es un número de la rejilla`);
+    for (const g of G) {
+      if (perm[g.n] && key(perm[g.n]) === key([g.r, g.c])) bad.push(`${g.n}: ya está en ${key([g.r, g.c])} (sobra)`);
+      const k = key(cellOf(g));
+      if (at.has(k)) bad.push(`casilla ${k} repetida (${at.get(k)} y ${g.n})`);
+      if (!host.has(k)) bad.push(`${g.n}: la casilla ${k} no es de la rejilla`);
+      else if (host.get(k).t !== g.t) bad.push(`${g.n} (${g.t}) en la casilla ${k}, que es de tipo ${host.get(k).t}`);
+      at.set(k, g.n);
+    }
+    if (bad.length) return { G, bad };
+    const by = new Map(G.map(g => [g.n, g]));
+    const out = G.map(g => {
+      const [r, c] = cellOf(g);
+      const req = host.get(key([r, c])).req.map(m => at.get(key([by.get(m).r, by.get(m).c])));
+      return { ...g, r, c, req };
+    });
+    return { G: out, bad: [] };
+  }
+  // rejilla de un árbol de la clase C: tipo 'cls' | 'spec' | 'hero' (specId: la especialización, si es 'spec')
+  function rejillaDe(C, tipo, specId = null) {
+    const R = C?.rejilla || {};
+    return reordenar(REJILLA[tipo], (tipo === 'spec' && specId && R[specId]) || R[tipo] || null);
+  }
+
   // ---------------------------------------------------------------- clases del juego (selector de clase)
   // specs = ids de especialización (los del juego) · gauges = barra de mecánica que ya existe en js/spec-mechanics.js
   const CLASES = {
@@ -108,13 +147,15 @@
   // ---------------------------------------------------------------- utilidades para los archivos de clase
   // ruta del icono de un nodo si el nodo no trae `icon`: talents/<clase>-<clase|spec|héroe>-<nodeId>.webp
   const iconoNodo = (cls, arbol, id) => `talents/${cls}-${arbol}-${id}.webp`;
-  // Build: `cls` va en ORDEN DE COMPRA; «id_» = rango extra del mismo nodo comprado más tarde (Nv85+).
-  // normBuild suma esos rangos en `cls` y deja el orden en `clsOrder` ([[id, rango acumulado], …]). Idempotente.
+  // Build: `cls` y `spec` van en ORDEN DE COMPRA; «id_» = rango extra del mismo nodo comprado más tarde (en `cls`, Nv85+;
+  // en `spec`, tras otros nodos: el reorden por nivel de la Arcanista y del Guerrero). normBuild suma esos rangos en
+  // `cls`/`spec` y deja el orden en `clsOrder`/`specOrder` ([[id, rango acumulado], …]). Idempotente.
   function normBuild(b) {
-    if (!b || b.clsOrder) return b;
-    const o = {}; b.clsOrder = [];
-    for (const [k, v] of Object.entries(b.cls || {})) { const id = k.replace(/_$/, ''); o[id] = (o[id] || 0) + v; b.clsOrder.push([id, o[id]]); }
-    b.cls = o; return b;
+    if (!b) return b;
+    const sumar = (src, orden) => { const o = {}; for (const [k, v] of Object.entries(src || {})) { const id = k.replace(/_$/, ''); o[id] = (o[id] || 0) + v; orden.push([id, o[id]]); } return o; };
+    if (!b.clsOrder) { b.clsOrder = []; b.cls = sumar(b.cls, b.clsOrder); }
+    if (!b.specOrder) { b.specOrder = []; b.spec = sumar(b.spec, b.specOrder); }
+    return b;
   }
   // árboles héroe de cada especialización (si la clase no trae `specHero`): en el orden de `hero`
   function specHeroDe(def) {
@@ -123,6 +164,6 @@
     return out;
   }
 
-  W.TV2 = { formato: 1, n1, REGLAS, earnedAt, REJILLA, CLASES, CLASES_ORDEN, GAUGES, iconoNodo, normBuild, specHeroDe };
+  W.TV2 = { formato: 1, n1, REGLAS, earnedAt, REJILLA, reordenar, rejillaDe, CLASES, CLASES_ORDEN, GAUGES, iconoNodo, normBuild, specHeroDe };
   W.TALENTS_V2_CLASSES = W.TALENTS_V2_CLASSES || {};
 })();

@@ -27,21 +27,23 @@ export function rutaIcono(ruta) {
   return { ruta, existe: false };
 }
 
-// Build del mockup → forma «cruda» (la que se escribe a mano: `cls` en orden de compra con «id_» = rangos tardíos).
-// Las builds de la Maga llegan ya normalizadas por TV2.normBuild (cls sumado + clsOrder): se deshace.
+// Build del mockup → forma «cruda» (la que se escribe a mano: `cls` y `spec` en orden de compra con «id_» = rangos
+// de más tarde). Las builds de la Maga llegan ya normalizadas por TV2.normBuild (sumado + clsOrder/specOrder): se deshace.
 export function buildCruda(b, errores = [], donde = '') {
-  let cls;
-  if (Array.isArray(b.clsOrder)) {
-    cls = {}; const prev = {};
-    for (const [id, acum] of b.clsOrder) {
+  const cruda = (orden, plano) => {
+    if (!Array.isArray(orden)) return { ...(plano || {}) };
+    const o = {}, prev = {};
+    for (const [id, acum] of orden) {
       const k = id in prev ? `${id}_` : id;
-      if (k in cls) errores.push(`${donde}: ${id} se compra en más de dos tandas: no cabe en la forma «id_»`);
-      cls[k] = acum - (prev[id] || 0); prev[id] = acum;
+      if (k in o) errores.push(`${donde}: ${id} se compra en más de dos tandas: no cabe en la forma «id_»`);
+      o[k] = acum - (prev[id] || 0); prev[id] = acum;
     }
-  } else cls = { ...(b.cls || {}) };
+    return o;
+  };
+  const cls = cruda(b.clsOrder, b.cls), spec = cruda(b.specOrder, b.spec);
   const out = {};
-  for (const k of ['sp', 'n', 'arch', 'hero', 'heroCh', 'heroNodes', 'cls', 'clsCh', 'spec', 'specCh']) if (b[k] !== undefined) out[k] = k === 'cls' ? cls : clon(b[k]);
-  for (const k of Object.keys(b)) if (!(k in out) && k !== 'clsOrder') out[k] = clon(b[k]);
+  for (const k of ['sp', 'n', 'arch', 'hero', 'heroCh', 'heroNodes', 'cls', 'clsCh', 'spec', 'specCh']) if (b[k] !== undefined) out[k] = k === 'cls' ? cls : k === 'spec' ? spec : clon(b[k]);
+  for (const k of Object.keys(b)) if (!(k in out) && k !== 'clsOrder' && k !== 'specOrder') out[k] = clon(b[k]);
   return out;
 }
 
