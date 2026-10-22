@@ -954,6 +954,18 @@ E0 fusionada en `paso2-impl` (P1–P4 más la suite `test-fixtures-v4` y el inve
 
 19. **E4a fusionada; E4b aplazada** (2026-10-21, decisión del dueño). El banco del catálogo 2g (B1, workflow `wf_d59042bf-ba3` / `wf_18a09fc1-dbd`; revisión cortada a pedido del dueño) queda como herramienta: `balance-bench` y `forge-bench` salen verdes contra sus listas exactas de lo que hoy falla (`PENDING_E4B`, 98 reglas; `PENDING_FORGE`, 97), y su informe para calibrar es `docs/paso2-e4-informe.md`. **La calibración fina de números (E4b) se hace DESPUÉS del rework de ítems, inventario y stats** (paso 4 del roadmap): con el equipo nuevo todo se mueve. Cuarentena: **0**. Antes del cierre solo se arreglan los efectos ROTOS que el banco encontró (no dependen del equipo): E4b-bugs (Danza Carmesí y Montaña Viva restan a su build; Línea Mortal nunca se activa y Tiro Pesado pone la ventana perfecta antes de la carga completa; Vaivén Eterno y Gran Cacería no cambian nada; Estampida Sin Fin −2 %, Tierra Santa ±1 %; la forja recomendada de la Arcanista y la Tiradora hace menos que la Mejora sola). Después, E5.
 
+    **E4b-bugs hecha** (B2, workflow `wf_c610b24c-206`, commit `24f0fdb`; pruebas en `tests/test-e4b-bugs.mjs`, cada una falla sin su arreglo; detalle y números en `docs/paso2-e4-informe.md` §0 punto 5):
+    - **Danza Carmesí: arreglada en el motor** (`js/timers.js`). Reaplicar o sustituir un DoT reiniciaba su intervalo, así que un DoT reaplicado más deprisa que su intervalo no hacía ningún tic: el Sangrado de cada tic del Remolino no sangraba nunca. Ahora el refresco conserva el ritmo (`TickScheduler.dueIn`). Berserker Nv70 UNI con Danza 975 → 1277 (sin ella, 2387: lo que falta es calibración). Arregla también Reabrir y las quemaduras de golpes rápidos.
+    - **Línea Mortal: arreglada** (`js/powers-arquera.js`). «A carga completa» se mide desde la ventana dorada de Tiro Pesado (`fullAt`), que está antes del máximo: el soltado perfecto ya activa la Línea. Francotiradora UNI Nv70 2016 → 2108, Nv100 2528 → 2710.
+    - **Gran Cacería: arreglada** (`js/powers-arquera.js` y `_spendTrap` de `js/field-entities.js`). La trampa que pisa la Presa también se rearma y salta (`f.rearmOnce`): con un solo cepo vivo ya se activa. 0 → 8 activaciones por pelea; Montaraz UNI Nv70 1949 → 2109.
+    - **Vaivén Eterno: límite del banco**. El banco nunca pulsaba Andanada en el Vendaval; ahora sí (`GAUGE_SPEND`). 0 → 8 vaivenes (Nv70) y 3 → 12 (Nv100).
+    - **Tierra Santa: límite del banco**. Los aliados de APOYO estaban fuera del radio y la cura se saturaba. Ahora están a tu lado y siempre heridos (`APOYO_ALLIES`, `APOYO_KEEP`). Santa APOYO Nv70: 2,45 frente a 2,44 sin el nodo → 7,82 frente a 7,44.
+    - **No eran fallos y quedan para E4b**:
+      - Montaña Viva: el control acumula rendimientos decrecientes y el TTD+ se mide en el equilibrio de la cubeta.
+      - Estampida Sin Fin: +0,8 % en ÁREA Nv70; el −2 % no se reproduce y comparte tope con Asalto Total.
+      - Haz Concentrado (1135 frente a 1679 de la Mejora) y Abanico Abierto (UNI 1098 frente a 2264): hacen lo que dicen y son débiles.
+    - **Pendientes**: `PENDING_E4B` 98 → 92 y `PENDING_FORGE` 97 → 96. Entran por el nuevo ritmo de los DoT: Piromante ÁREA Nv50, Hendidura, Embestida y Meteoro; los motivos están en cada lista.
+
 ### Pendientes de decisión (texto original de la crítica)
 
 1. **Valores por defecto de §3.6.1** (bloqueos durante la carga, `charge.repeat` del básico, clic-mover, `toggle`): los propone esta revisión; el orquestador los confirma antes de lanzar E1.
