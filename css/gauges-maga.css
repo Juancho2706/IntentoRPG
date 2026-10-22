@@ -173,3 +173,14 @@
 .gz-escarcha.gz-plain .fr-tag { background: none; border-color: transparent; box-shadow: none; padding: 0; }
 .gz-escarcha.gz-plain .fr-tag:not([data-boss="1"]) { display: none; }
 .gz-escarcha.gz-plain .fr-nm, .gz-escarcha.gz-plain .fr-cnt-t { display: none; }
+
+/* avisos que eran solo palabra (el HUD de juego va sin textos): ahora también se VEN */
+/* Combustión (crítico): aro rojo que late detrás del icono de Ignición */
+.gz-calor .brz-side[data-comb="1"] .brz-ign { opacity: 1; transform: none; }
+.gz-calor .brz-side[data-comb="1"] .brz-ign::before { content: ''; position: absolute; inset: 6px 0; border-radius: 50%;
+  box-shadow: 0 0 10px 4px #ff3b1f, inset 0 0 8px #ffb04a; animation: gz-calor-crit .45s ease-in-out infinite alternate; }
+@keyframes gz-calor-crit { from { opacity: .35; transform: scale(.9); } to { opacity: 1; transform: scale(1.08); } }
+/* Resonancia: halo lila que late alrededor del anillo (además del arco lleno y la órbita rápida) */
+.gz-cargas .ac[data-res="1"]::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid #e7dbff;
+  box-shadow: 0 0 12px #b996ff; pointer-events: none; animation: gz-cargas-res .6s ease-in-out infinite alternate; }
+@keyframes gz-cargas-res { from { opacity: .3; transform: scale(.94); } to { opacity: 1; transform: scale(1.04); } }
