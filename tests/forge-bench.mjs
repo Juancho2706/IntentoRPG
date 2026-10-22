@@ -116,7 +116,6 @@ export const PENDING_FORGE = [
   { key: 'F9:ult:m_u_supernova_ii', medido: 0.044, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_supernova_ii: la definitiva aporta 4% de UNI (12–22 %)' },
   { key: 'F1:k_prision_i', medido: -0.089, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga k_prision_i (Celda Lejana, UNI): gana a su hermana por -9% del aporte en uni (≥ 8 %)' },
   { key: 'F8:k_prision', medido: null, objetivo: null, dueño: 'KA-maga', regla: 'F8 maga k_prision: ninguna variante supera a la Mejora sola en su escenario' },
-  { key: 'F2a:k_prision_ii', medido: null, objetivo: null, dueño: 'KA-maga', regla: 'F2 maga k_prision_ii (Muralla de Hielo): gana a su hermana en todos los escenarios (uni, area, ctl)' },
   { key: 'F3:k_prision', medido: null, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga k_prision (Celda Amplia): la Mejora da — (la habilidad no aporta en ctl) del aporte en ctl (+5–15 %)' },
   { key: 'F1:m_paso_escarcha_ii', medido: null, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga m_paso_escarcha_ii (Prisión Fugaz, CTRL): no aporta nada en ctl (≥ 8 %)' },
   { key: 'F8:m_paso_escarcha', medido: null, objetivo: null, dueño: 'KA-maga', regla: 'F8 maga m_paso_escarcha: ninguna variante supera a la Mejora sola en su escenario' },
@@ -146,7 +145,6 @@ export const PENDING_FORGE = [
   { key: 'F1:a_v_carrera_i', medido: 0.03, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera a_v_carrera_i (Carrera Certera, UNI): gana a su hermana por 3% del aporte en uni (≥ 8 %)' },
   { key: 'F8:a_v_carrera', medido: null, objetivo: null, dueño: 'KA-arquera', regla: 'F8 arquera a_v_carrera: ninguna variante supera a la Mejora sola en su escenario' },
   { key: 'F1:flecha_multiple_i', medido: -3.303, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera flecha_multiple_i (Abanico Abierto, AREA): gana a su hermana por -330% del aporte en area (≥ 8 %)' },
-  { key: 'F2a:flecha_multiple_ii', medido: null, objetivo: null, dueño: 'KA-arquera', regla: 'F2 arquera flecha_multiple_ii (Haz Cerrado): gana a su hermana en todos los escenarios (uni, area, apoyo)' },
   { key: 'F2b:flecha_multiple_ii', medido: 0.455, objetivo: 0.2, dueño: 'KA-arquera', regla: 'F2 arquera flecha_multiple_ii (Haz Cerrado): sube la rotación UNI +46% sobre la Mejora (≤ +20 %)' },
   { key: 'F3:a_u_diluvio', medido: 1.248, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_u_diluvio (Nube Ancha): la Mejora da +125% del aporte en area (+5–15 %)' },
   { key: 'F9:ult:a_u_diluvio_ii', medido: 0.221, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'F9 arquera a_u_diluvio_ii: la definitiva aporta 22% de UNI (12–22 %)' },
@@ -238,6 +236,8 @@ function measure(p, s, ref, ctx) {
 export function forgeSkill(classId, id, { seed = 1, full = false, level = LEVEL } = {}) {
   const entry = CLASSES[classId].forge?.[id] || SKILL_FORGE[id];
   let { spec, slot, sk } = hostOf(classId, id);
+  // con el nivel que habilita las variantes (Nv base + 6) como mínimo: hoy todas antes del Nv50
+  level = Math.max(level, forgeLevels(sk).vars || 0);
   const al = CM.areaLevelForHero(level), ref = refEnemies(al);
   const hp = ref.boss * UNI_LIFE / 60;
   // el BÁSICO lo llevan las tres: se mide en la especialización en que más daño hace en UNI (en la del
@@ -280,6 +280,13 @@ export function forgeSkill(classId, id, { seed = 1, full = false, level = LEVEL 
   for (const [cfg, list] of Object.entries(want)) {
     out.m[cfg] = {};
     for (const s of list) out.m[cfg][s] = measure(mk(cfg), s, ref, ctx);
+  }
+  // F2 habla de TODOS los escenarios del banco: si una variante gana a su hermana en todo lo medido,
+  // se miden también los que faltan (el modo rápido no la da por obligatoria si pierde en otro)
+  if (!full) for (const [a, b] of [['i', 'ii'], ['ii', 'i']]) {
+    const common = Object.keys(out.m[a]).filter(s => out.m[b][s]);
+    if (common.length > 1 && common.every(s => winBy(out, a, b, s)))
+      for (const s of SCENARIOS) for (const c of [a, b]) if (!out.m[c][s]) out.m[c][s] = measure(mk(c), s, ref, ctx);
   }
   // F9: «solo básico» con cada pieza del básico; la definitiva de refuerzo, por su marginal
   if (isBasic) for (const cfg of ['mejora', 'i', 'ii']) out.m[cfg].basico = measure(mk(cfg, 'basico'), 'uni', ref, ctx);
@@ -417,14 +424,18 @@ const SC = { uni: 'UNI', area: 'ÁREA', ctl: 'CTRL', ttdp: 'TTD+', apoyo: 'APOYO
 const fmtV = (s, m) => (m == null ? '—' : s === 'ctl' ? pct(m.v) : s === 'apoyo' ? m.v.toFixed(3) : f1(m.v));
 export function printForge(rows) {
   for (const c of [...new Set(rows.map(r => r.classId))]) {
-    console.log(`\nFORJA · ${c.toUpperCase()} (Nv${LEVEL} típico; host = especialización · ranura; métricas: UNI/ÁREA DPS, CTRL % lento, TTD+ s, APOYO puntos)`);
-    console.log('habilidad           host               config                         |    UNI       ÁREA     CTRL    TTD+   APOYO | aporte(ppal)');
+    console.log(`\nFORJA · ${c.toUpperCase()} (Nv${LEVEL} típico, con todas las piezas ya habilitadas; host = especialización · ranura; métricas: UNI/ÁREA DPS, CTRL % lento, TTD+ s, APOYO puntos)`);
+    console.log('habilidad           host · Nv que habilita config                         |    UNI       ÁREA     CTRL    TTD+   APOYO | aporte(ppal)');
     for (const r of rows.filter(x => x.classId === c)) {
       const lines = [['base', 'sin Mejora'], ['mejora', `Mejora · ${r.mejora || '—'}`], ['i', `I ${r.vars[0]?.role} · ${r.vars[0]?.name}`], ['ii', `II ${r.vars[1]?.role} · ${r.vars[1]?.name}`], ['sin', 'sin la habilidad']];
+      // la primera línea lleva la habilidad y su sitio; la segunda, los niveles de la Mejora y las variantes
+      let n = 0;
       for (const [cfg, label] of lines) {
         const m = r.m[cfg]; if (!m || !Object.keys(m).length) continue;
         const ap = r.main ? aporte(r, cfg, r.main) : null;
-        console.log(`${(cfg === 'base' ? r.id : '').padEnd(19)} ${(cfg === 'base' ? `${r.spec}·${r.slot}` : '').padEnd(18)} ${label.slice(0, 30).padEnd(30)} | ${['uni', 'area', 'ctl', 'ttdp', 'apoyo'].map(s => fmtV(s, m[s]).padStart(s === 'uni' || s === 'area' ? 8 : 7)).join(' ')} | ${ap == null ? '—' : f1(ap)}`);
+        const head = n === 0 ? [r.id, `${r.spec}·${r.slot}`] : n === 1 ? ['', `M Nv${r.levels?.mejora} · I/II Nv${r.levels?.vars}`] : ['', ''];
+        n++;
+        console.log(`${head[0].padEnd(19)} ${head[1].padEnd(22)} ${label.slice(0, 30).padEnd(30)} | ${['uni', 'area', 'ctl', 'ttdp', 'apoyo'].map(s => fmtV(s, m[s]).padStart(s === 'uni' || s === 'area' ? 8 : 7)).join(' ')} | ${ap == null ? '—' : f1(ap)}`);
       }
     }
   }

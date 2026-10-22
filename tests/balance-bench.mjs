@@ -142,7 +142,6 @@ export const PENDING_E4B = [
   { key: 'ROL:berserker:50:min:ttdp', medido: 0.3, objetivo: 0.9, dueño: 'KA-guerrero', regla: 'berserker Nv50: TTDP ×0.30 de la media (< ×0.9)' },
   { key: 'ROL:berserker:50:best:uni', medido: 0.482, objetivo: 1.1, dueño: 'KA-guerrero', regla: 'berserker Nv50: UNI no es la mejor de su clase por ×1.1 (1895.5 frente a 3934.0)' },
   { key: 'ROL:berserker:50:ult', medido: 0, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'berserker Nv50: la definitiva g_u_furia aporta 0% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
-  { key: 'ROL:guardian:50:ttd', medido: 26.124, objetivo: [4.8, 12], dueño: 'KT-guerrero', regla: 'guardian Nv50: TTD manada 26.1s fuera de 4.8,12' },
   { key: 'ROL:cruzado:50:min:ttdp', medido: 0.406, objetivo: 1.3, dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTDP ×0.41 de la media (< ×1.3)' },
   { key: 'ROL:cruzado:50:apoyoDps', medido: 0.08, objetivo: 0.25, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO 8% del DPS de un aliado (< 25%)' },
   { key: 'ROL:cruzado:50:best:apoyo', medido: 0.305, objetivo: 1.1, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO no es la mejor de su clase por ×1.1 (0.08 frente a 0.26)' },
@@ -374,8 +373,10 @@ export function runSpecs({ level = 50, seed = 1, specs = ALL_SPECS } = {}) {
     row.breaks = row.uni.breaks / (row.uni.t / 60);
     const dp = mk(spec, 'defensiva');
     row.defK2 = dp.hotbar.k2;
-    row.ttdp = ttdPlusSim(dp, ref, { defAtCd: true });
+    // TTD (analítico, sin mitigación activa) ANTES de simular: la simulación deja posturas, buffs y
+    // escudos puestos en el héroe (el Guardián acababa en Muralla y daba un TTD de 26 s en vez de 10)
     row.ttd = ttdPack(dp, ref, al);
+    row.ttdp = ttdPlusSim(dp, ref, { defAtCd: true });
     row.apoyo = apoyoSim(mk(spec), ref, { hp, allyHp });
     const ob = simulate(mk(spec, 'ofensiva', 'optimo'), ref.boss, 2, { kind: 'boss', ref });
     row.optMaxHit = ob.maxHit; row.optMaxHitBy = ob.maxHitBy;
@@ -458,7 +459,7 @@ export function runBuilds({ level, seed = 1, specs = ALL_SPECS, full = false } =
       row.ult = row.ultKind === 'dmg' && u.total > 0 ? (u.by[h0.hotbar.k4] || 0) / u.total : null;
       row.by = Object.fromEntries(Object.entries(u.by).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => [k, v / u.total]));
       row.area = areaSim(mk(), ref).dps;
-      if (need.has('ctl')) { const ct = controlSim(mk(), ref); row.ctl = ct.slow; row.hard = ct.hard; }
+      if (need.has('ctl')) { const ct = controlSim(mk(), ref); row.ctl = ct.slow; row.hard = ct.hard; row.hardRoot = ct.hardRoot; }
       if (need.has('ttdp')) row.ttdp = ttdPlusSim(mk('defensiva'), ref, { defAtCd: true, extrapolate: true });
       if (need.has('apoyo')) { const a = apoyoSim(mk(), ref, { hp, allyHp }); row.apoyo = a.heal; row.apoyoDps = a.dpsShare; }
       rows.push(row);
@@ -631,7 +632,7 @@ const SPEC_FIELDS = [num('ttkN'), num('ttkE'), num('ttkB'), num('ttd'), num('ttd
   sub('uni', 'dps'), sub('uni', 'perfect'), sub('uni', 'planted'), sub('area', 'dps'), sub('apoyo', 'dpsShare'), sub('apoyo', 'heal'),
   sub('ctl', 'hard'), sub('ctl', 'hardRoot'), sub('ctl', 'slow'),
   { get: r => r.uniBasic.dps / r.uni.dps, set: (o, v) => { o.uniBasic = { ...o.uniBasic, dps: v * o.uni.dps }; } }];
-const BUILD_FIELDS = ['uni', 'area', 'ctl', 'hard', 'ttdp', 'apoyo', 'apoyoDps', 'ult', 'perfect', 'planted', 'breaks'].map(num);
+const BUILD_FIELDS = ['uni', 'area', 'ctl', 'hard', 'hardRoot', 'ttdp', 'apoyo', 'apoyoDps', 'ult', 'perfect', 'planted', 'breaks'].map(num);
 export function seedRuns(n, { specLevels = [50, 70], buildLevels = G9_LEVELS, full = true } = {}) {
   const seeds = Array.from({ length: n }, (_, i) => i + 1);
   const out = { n, specs: {}, builds: {}, hero: null, perSeed: {} };
