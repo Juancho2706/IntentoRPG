@@ -289,8 +289,9 @@ export function migrateV4toV5(d, over = {}) {
   //    VACÍA de v4 recibe, como un héroe nuevo, la de SPEC_BAR (o FALLBACK_BAR) si se puede usar;
   //    se rellena al final para no quitarle su habilidad a una ranura elegida por el jugador. La
   //    vaciada a propósito (to: null) sigue vacía, y en una segunda pasada (sin campos v4) una
-  //    vacía también: así dos pasadas dan lo mismo. lmb nunca queda vacía.
-  const hero = { classId, level: L, talents, skillForge: forge, cls, forged: {} };
+  //    vacía también: así dos pasadas dan lo mismo. lmb nunca queda vacía. La ranura que conserva
+  //    la elección v4 (su destino de legacy.bar) va a hotbarManual: lo que el jugador puso no se toca.
+  const hero ={ classId, level: L, talents, skillForge: forge, cls, forged: {} };
   hero.talentAgg = aggregateTalents(hero);
   const known = sk => SR.isKnown(hero, sk) && (!sk.spec || (sk.spec === spec && L >= specAt));
   const hb = {};
@@ -303,6 +304,8 @@ export function migrateV4toV5(d, over = {}) {
     if (slot !== 'lmb' && !old && fromV4) { hb[slot] = null; fill.push(slot); continue; }
     if (slot !== 'lmb' && (!old || mapped === null)) { hb[slot] = null; continue; }
     hb[slot] = [mapped, ...reco(slot)].find(id => id && usable(id, slot)) || null;
+    // la eligió el jugador en v4: cuenta como puesta a mano (la pasada S0 al cargar no la cambia)
+    if (fromV4 && hb[slot] && hb[slot] === mapped) (d.hotbarManual ||= {})[slot] = mapped;
   }
   for (const slot of fill) hb[slot] = reco(slot).find(id => id && usable(id, slot)) || null;
   if (!hb.lmb) hb.lmb = (cls?.skills || []).find(s => s.cat === 'basic' && usable(s.id, 'lmb'))?.id || null;

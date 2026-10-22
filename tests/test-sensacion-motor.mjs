@@ -5,7 +5,8 @@
 // roto no tapa a los demás; al final, exit 1 si alguno falla):
 //   T1  barra de la especialización: la habilidad del kit que aprendes (o eliges) sustituye a la del
 //       kit base que no pusiste a mano, con aviso; p.hotbarManual se guarda; un guardado sin él (v5 de
-//       antes de S0, v4 o anterior) recibe la pasada al cargar, con su aviso una vez
+//       antes de S0, v4 o anterior) recibe la pasada al cargar, con su aviso una vez; lo que un v4 eligió
+//       cuenta como puesto a mano (la migración lo marca) y no se toca
 //   T2  canales: tickNow, drainCost, rampa (rampPerTic/rampMax), nonBlocking y soltar antes del 1.er
 //       tic = como no lanzado (devuelve coste y enfriamiento, sin ③ afterCast: no gasta Cargas)
 //   T3  haz vivo: g.spawnLiveBeam, el haz del canal sigue al objetivo y se apaga, el de un proyectil
@@ -120,21 +121,22 @@ section('T1 · lo que pusiste a mano no se toca (p.hotbarManual) y el Rayo va a 
   delete sv.hotbarManual;
   const pre = new Player(old.g, 'maga', sv);
   ok(pre.hotbar.rmb === 'rayo' && pre.hotbar.k2 === 'a_sello' && pre.notices.includes('barra-especializacion'), `guardado de antes: Rayo y Sello al cargar, con aviso (${JSON.stringify(pre.hotbar)})`);
-  // un v4 real (Arcanista Nv60 con Bola de Fuego y la Barrera v4): su migración deja la Bola de Fuego y la
-  // Barrera de Maná, y la pasada entra igual al cargar (X1: también las migraciones v<5)
+  // el aviso no se duplica aunque ya viniera en la lista
+  const dup = new Player(old.g, 'maga', { ...JSON.parse(JSON.stringify(sv)), notices: ['barra-especializacion'] });
+  eq(dup.notices.filter(n => n === 'barra-especializacion').length, 1, 'el aviso no se repite');
+  // y una vez guardado (con hotbarManual), la siguiente carga ya no pasa
+  const again = new Player(old.g, 'maga', JSON.parse(JSON.stringify(serializePlayer(pre))));
+  ok(!again.notices.includes('barra-especializacion') && again.hotbar.rmb === 'rayo', 'guardado de nuevo: sin otra pasada ni aviso');
+  // un v4 real (Arcanista Nv60 con Bola de Fuego y la Barrera v4): la migración deja lo elegido y lo marca
+  // como puesto a mano, así que la pasada al cargar no lo cambia por el Rayo y el Sello (ni avisa)
   const v4 = JSON.parse(JSON.stringify(SAVES_V4['maga-60-arcanista']));
   eq(v4.saveVersion, 4, 'el guardado es v4');
   const mig = migrateSave(v4);
   ok(mig.hotbar.rmb === 'bola_fuego' && mig.hotbar.k2 === 'm_barrera', `la migración deja lo elegido (${JSON.stringify(mig.hotbar)})`);
+  ok(mig.hotbarManual?.rmb === 'bola_fuego' && mig.hotbarManual?.k2 === 'm_barrera', `y lo marca como puesto a mano (${JSON.stringify(mig.hotbarManual)})`);
   const p4 = new Player(old.g, 'maga', JSON.parse(JSON.stringify(v4)));
-  ok(p4.hotbar.rmb === 'rayo' && p4.hotbar.k2 === 'a_sello', `v4 al cargar: Rayo y Sello (${JSON.stringify(p4.hotbar)})`);
-  eq(p4.notices.filter(n => n === 'barra-especializacion').length, 1, 'v4: con su aviso, una vez');
-  // el aviso no se duplica aunque ya viniera en la lista
-  const dup = new Player(old.g, 'maga', { ...JSON.parse(JSON.stringify(v4)), notices: ['barra-especializacion'] });
-  eq(dup.notices.filter(n => n === 'barra-especializacion').length, 1, 'el aviso no se repite');
-  // y una vez guardado (con hotbarManual), la siguiente carga ya no pasa
-  const again = new Player(old.g, 'maga', JSON.parse(JSON.stringify(serializePlayer(p4))));
-  ok(!again.notices.includes('barra-especializacion') && again.hotbar.rmb === 'rayo', 'guardado de nuevo: sin otra pasada ni aviso');
+  ok(p4.hotbar.rmb === 'bola_fuego' && p4.hotbar.k2 === 'm_barrera', `v4 al cargar: lo elegido sigue (${JSON.stringify(p4.hotbar)})`);
+  ok(!p4.notices.includes('barra-especializacion'), 'v4: sin aviso de la barra (no cambió nada)');
 });
 section('T1 · al elegir especialización con el kit ya aprendido, también (y con aviso)', () => {
   const run = manual => {

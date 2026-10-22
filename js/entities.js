@@ -91,7 +91,7 @@ export function applyHitEffects(g, p, e, prof, avgHit, opts = {}) {
     if (prof.knock > 0) e.displace?.(from, prof.knock, { toward: false, src: p });
   }
   if (e.alive && prof.mark && g?.applyMark) markOnce(g, p, e, prof);
-  // provocar a los golpeados (clave `taunt`, s): Carga de Escudo, Golpe de Escudo
+  // provocar a los golpeados (clave `taunt`, s): Carga de Escudo
   if (e.alive && prof.taunt > 0) e.applyCC?.('taunt', prof.taunt, { src: p });
 }
 
@@ -676,7 +676,7 @@ export class Player {
     for (const [s, id] of Object.entries(hm)) if (typeof id === 'string' && this.hotbar[s] === id) this.hotbarManual[s] = id;
     // guardado de antes de S0 (también un v4 o anterior recién migrado): una pasada de la barra de la
     // especialización, como si acabaras de aprender su kit (el Rayo que nunca llegó a 🖱️Der), con su
-    // aviso de carga (una sola vez)
+    // aviso de carga (una sola vez). Lo que eligió un v4 ya llega en hotbarManual (migrateV4toV5)
     if (preS0Bar && specBarUpgrade(this).length && !this.notices.includes(SPEC_BAR_NOTICE)) this.notices.push(SPEC_BAR_NOTICE);
     this.hp = this.stats.maxHP;
     // recurso inicial (resources.js): la Furia arranca vacía; Maná/Energía llenos
@@ -1662,7 +1662,7 @@ export class Player {
     const seq = def?.seq && g.seqAdvance ? g.seqAdvance(this, wb) : null;
     const ch = opts.charge || null;
     // ⑦ Paso 2c.2: el básico de ARMA también pasa por onCast (CastInfo.weapon = true):
-    // Ráfaga Infinita cuenta sus disparos y un onCast puede forzar el crítico
+    // Compás cuenta los básicos, Triple Clavado su disparo triple y un onCast puede forzar el crítico
     // (cast.forceCrit: Camuflaje) o cancelarlo (false)
     const cast = { sk: wb, prof, slot: 'lmb', target: target?.pos || null, enemy: target?.def ? target : null, weapon: true,
       seqNth: !!seq?.nth, seqIdx: seq?.idx || 0, charge: ch ? { t: ch.t, frac: ch.frac } : null, perfect: !!ch?.perfect };

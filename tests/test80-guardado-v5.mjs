@@ -13,7 +13,8 @@
 //     conocidas (activas de talento y kit de otra especialización fuera), SPEC_BAR → FALLBACK,
 //     lmb nunca vacía; una ranura que llega VACÍA de v4 recibe la de SPEC_BAR (o FALLBACK) como un
 //     héroe nuevo, después de las elegidas (no les quita su habilidad); la vaciada con to: null y,
-//     en una segunda pasada, cualquier vacía siguen vacías
+//     en una segunda pasada, cualquier vacía siguen vacías; la ranura que conserva la elección v4
+//     va a hotbarManual (la pasada S0 al cargar no la cambia)
 //  6) soportes reencajados sobre la definición forjada; lo demás vuelve a knownSupports
 //  7) avisos (ids) con su texto en LOAD_NOTICES
 //  8) idempotencia (dos pasadas = una) y cadena v0 → v5 y v3 → v5
@@ -315,6 +316,14 @@ const isValidBar = (d, what) => {
   // héroe nuevo (la k1 elegida no se cambia por la de SPEC_BAR)
   assert.deepEqual(bar({ lmb: 'm_toque', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: null, k3: null, k4: null }),
     { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'm_barrera', k3: 'fx_piromante_k3', k4: 'm_u_supernova' });
+  // lo que conserva la elección v4 cuenta como puesto a mano (hotbarManual: la pasada S0 al cargar no
+  // lo cambia); lo autorrellenado y lo que cae a la reserva, no; una segunda pasada no lo toca
+  {
+    const d = mig(v4({ hotbar: { lmb: 'm_toque', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'zzz_vieja' } }));
+    assert.deepEqual([d.hotbar.k2, d.hotbar.k3], ['m_barrera', 'fx_piromante_k3']);
+    assert.deepEqual(d.hotbarManual, { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo' }, 'elegidas en v4 → hotbarManual');
+    assert.deepEqual(S.migrateV4toV5(json(d), CTX).hotbarManual, d.hotbarManual, 'segunda pasada: hotbarManual igual');
+  }
   // se rellenan DESPUÉS de las elegidas: la gastadora que el jugador puso en k2 no se la lleva la rmb
   // vacía (que recibe la de FALLBACK_BAR) y nunca se repite una habilidad
   assert.deepEqual(bar({ lmb: 'm_dardo', rmb: null, k1: null, k2: 'fx_piromante_k2' }),

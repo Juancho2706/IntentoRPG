@@ -191,15 +191,20 @@ for (const [cid, f] of Object.entries(FIX)) {
   // el héroe carga y guarda lo mismo dos veces
   const hero = new Player(mk(), cid, json(v2));
   assert.equal(hero.talents.spec, f.mastery, 'la especialización llega al héroe');
-  // la principal de 🖱️Der que deja la migración (Torbellino → Hendidura en 2g; las otras dos se quedan)
-  // y, al cargar un guardado sin hotbarManual, la del kit de la especialización si SPEC_BAR la pone ahí
-  // (S0: el Rajar del Berserker sustituye a la Hendidura, con aviso)
+  // la principal de 🖱️Der es la que dejó la migración (Torbellino → Hendidura en 2g; las otras dos se
+  // quedan): la eligió el jugador, cuenta como puesta a mano (hotbarManual) y la pasada S0 al cargar no la
+  // cambia por la del kit de la especialización (el Rajar del Berserker); el aviso, solo si cambió algo
   const migratedRmb = cid === 'guerrero' ? 'g_hendidura' : f.sp1;
-  assert.equal(migrateSave(v2).hotbar.rmb, migratedRmb, `${cid}: principal migrada`);
-  const kitRmb = CLASSES[cid].skills.find(s => s.id === SPEC_BAR[f.mastery]?.bar?.rmb && s.spec === f.mastery && hero.knows(s.id))?.id || null;
-  assert.equal(hero.hotbar.rmb, kitRmb || migratedRmb, `${cid}: principal al cargar`);
-  assert.equal(hero.notices.includes(SPEC_BAR_NOTICE), !!kitRmb && kitRmb !== migratedRmb, `${cid}: aviso de la barra de la especialización`);
-  if (cid === 'guerrero') assert.equal(hero.hotbar.rmb, 'g_rajar', 'el Berserker carga con el Rajar en 🖱️Der');
+  const m5 = migrateSave(v2);
+  assert.equal(m5.hotbar.rmb, migratedRmb, `${cid}: principal migrada`);
+  assert.equal(hero.hotbar.rmb, migratedRmb, `${cid}: principal al cargar`);
+  assert.equal(hero.hotbarManual.rmb, migratedRmb, `${cid}: la principal elegida cuenta como puesta a mano`);
+  const s0 = Object.keys(m5.hotbar).some(k => (m5.hotbar[k] || null) !== (hero.hotbar[k] || null));
+  assert.equal(hero.notices.includes(SPEC_BAR_NOTICE), s0, `${cid}: aviso de la barra de la especialización`);
+  if (cid === 'guerrero') {
+    assert.ok(hero.knows('g_rajar') && SPEC_BAR[f.mastery].bar.rmb === 'g_rajar', 'el Berserker conoce el Rajar de su SPEC_BAR');
+    assert.equal(hero.hotbar.rmb, 'g_hendidura', 'y conserva la Hendidura que eligió en 🖱️Der');
+  }
   assert.ok(hero.skills[hero.hotbar.rmb] > 0 && hero.skills[weapon] > 0, 'habilidades conocidas por nivel');
   const s1 = json(hero.toSaveData());
   assert.deepEqual(json(new Player(mk(), cid, json(s1)).toSaveData()), s1, `${cid}: recargar dos veces da el mismo guardado`);

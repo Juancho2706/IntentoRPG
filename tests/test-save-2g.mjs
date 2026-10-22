@@ -76,33 +76,38 @@ assert.equal(Object.keys(REAL).length, 57, 'los 57 saves v4 de E0.2');
 // barra esperada (§3.11 paso 5): el destino de la tabla legada si el héroe CARGADO lo conoce, cabe en
 // la ranura y no se repite; si no, SPEC_BAR de su especialización y luego FALLBACK_BAR. Una ranura que
 // v4 dejó vacía recibe DESPUÉS de las elegidas (sin quitarles nada) la de SPEC_BAR o FALLBACK_BAR, como
-// un héroe nuevo; la vaciada con to: null sigue vacía; lmb nunca. Y al cargar un guardado sin
-// hotbarManual (S0), el kit de la especialización entra en su ranura de SPEC_BAR si la ocupa una del kit
-// base o está libre. → la barra, con `swapped` (no enumerable): ranuras que cambió esa pasada
+// un héroe nuevo; la vaciada con to: null sigue vacía; lmb nunca. La ranura que conserva la elección v4
+// (su destino de la tabla) va a hotbarManual. Y al cargar un guardado sin hotbarManual (S0), el kit de la
+// especialización entra en su ranura de SPEC_BAR si está libre o la ocupa una del kit base que no es de
+// hotbarManual. → la barra, con `manual` (lo elegido en v4), `swapped` (ranuras que cambió esa pasada) y
+// `kept` (elegidas que la pasada habría cambiado sin la marca), no enumerables
 function expectedBar(v4bar, p) {
   const legacy = S.LEGACY_TABLES[p.classId];
   const spec = p.talents.spec;
   const out = {};
   const ok = (id, slot) => { const sk = skillOf(p.classId, id); return !!sk && SR.fitsSlot(sk, slot) && p.knows(id) && !Object.values(out).includes(id); };
   const reco = slot => [spec && SPEC_BAR[spec].bar[slot], FALLBACK_BAR[p.classId][slot]];
-  const fill = [];
+  const fill = [], manual = {};
   for (const slot of SLOTS) {
     const old = v4bar?.[slot] || null;
     const to = old ? S.legacyTarget(legacy.bar[old], slot, spec, old) : null;
     if (slot !== 'lmb' && !old) { out[slot] = null; fill.push(slot); continue; }
     if (slot !== 'lmb' && to === null) { out[slot] = null; continue; }
     out[slot] = [to, ...reco(slot)].find(id => id && ok(id, slot)) || null;
+    if (out[slot] && out[slot] === to) manual[slot] = to;
   }
   for (const slot of fill) out[slot] = reco(slot).find(id => id && ok(id, slot)) || null;
-  let swapped = 0;
+  let swapped = 0, kept = 0;
   for (const slot of spec ? SLOTS : []) {
     const id = SPEC_BAR[spec].bar[slot], sk = skillOf(p.classId, id);
     if (!sk || sk.spec !== spec || !p.knows(id) || !SR.fitsSlot(sk, slot) || Object.values(out).includes(id)) continue;
     const cur = skillOf(p.classId, out[slot]);
     if (out[slot] && (!cur || cur.spec || cur.kind === 'talent')) continue;
+    if (manual[slot]) { kept++; continue; }
     out[slot] = id; swapped++;
   }
-  return Object.defineProperty(out, 'swapped', { value: swapped, enumerable: false });
+  for (const [k, value] of Object.entries({ manual, swapped, kept })) Object.defineProperty(out, k, { value, enumerable: false });
+  return out;
 }
 // invariantes de la barra de un héroe cargado: cada habilidad existe, cabe, se conoce, tiene perfil
 // (resolveSkill) y no se repite; lmb nunca vacía
@@ -120,7 +125,7 @@ function checkBar(p, what) {
 }
 
 // ------------------------------------------------ 1) los 57 saves v4 reales
-let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, recoBeaten = 0, swappedSaves = 0, emptyFilled = 0;
+let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, recoBeaten = 0, keptSaves = 0, emptyFilled = 0;
 {
   for (const [name, s] of Object.entries(REAL)) {
     const cid = s.classId;
@@ -142,7 +147,9 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
     const bar = expectedBar(s.hotbar, p);
     assert.deepEqual(p.hotbar, bar, `${name}: barra esperada`);
     checkBar(p, name);
-    if (bar.swapped) swappedSaves++;
+    // lo elegido en v4 queda como puesto a mano: la pasada S0 al cargar no lo cambia
+    assert.deepEqual(p.hotbarManual, bar.manual, `${name}: hotbarManual = lo elegido en v4`);
+    if (bar.kept) keptSaves++;
     if (spec) {
       const want = SPEC_BAR[spec].bar;
       assert.equal(p.hotbar.lmb, want.lmb, `${name}: el básico v4 → el de la clase`);
@@ -215,8 +222,8 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
   assert.ok(withChoices >= 50, `elecciones A/B del Recomendado en ${withChoices} saves`);
   assert.ok(recoIn >= 100 && recoBeaten >= 5, `forja recomendada: ${recoIn} variantes llegan y ${recoBeaten} pierden ante lo elegido en v4`);
   // los dos caminos de la barra con datos reales: insignia o definitiva vacías en v4 que se rellenan y
-  // la pasada S0 al cargar (un v4 no trae hotbarManual)
-  assert.ok(emptyFilled >= 1 && swappedSaves >= 1, `barra: ${emptyFilled} saves con la 3 o la 4 vacías rellenadas y ${swappedSaves} con la pasada S0`);
+  // ranuras del kit base elegidas en v4 que la pasada S0 al cargar respeta (sin la marca las cambiaría)
+  assert.ok(emptyFilled >= 1 && keptSaves >= 20, `barra: ${emptyFilled} saves con la 3 o la 4 vacías rellenadas y ${keptSaves} con lo elegido a salvo de la pasada S0`);
   // casos a mano (las tablas legadas están congeladas desde E2); el resto, la recomendada (D3)
   assert.deepEqual(load(REAL['maga-40-piromante']).skillForge, { ...FORGE_RECO.piromante, m_dardo: 'i' }, 'Ascua en lmb → Dardo I (Saeta Ígnea)');
   assert.deepEqual(load(REAL['guerrero-18-guardian']).skillForge, { ...FORGE_RECO.guardian, g_tajo: 'i', terremoto: 'ii', g_hendidura: 'ii', g_u_cataclismo: 'i' },
@@ -268,7 +275,7 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
     dropped += no.length; extra += yes.length - want.length; forgedOnly += only ? 1 : 0;
   }
   assert.ok(dropped >= 57 && extra >= 20 && forgedOnly >= 5, `soportes sembrados: ${dropped} que no encajan, ${extra} de más y ${forgedOnly} que solo encajan en la variante`);
-  console.log(`✓ 57 saves v4 reales: Recomendado entero sin recorte (${withChoices} con elecciones A/B), barra esperada (${emptyFilled} con la 3 o la 4 rellenadas, ${swappedSaves} con la pasada S0), forja (${recoIn} variantes recomendadas, ${recoBeaten} vencidas por lo elegido), soportes (${resocketed} reengarzados, ${returned} devueltos), glifos y avisos`);
+  console.log(`✓ 57 saves v4 reales: Recomendado entero sin recorte (${withChoices} con elecciones A/B), barra esperada (${emptyFilled} con la 3 o la 4 rellenadas, ${keptSaves} con lo elegido a salvo de la pasada S0), forja (${recoIn} variantes recomendadas, ${recoBeaten} vencidas por lo elegido), soportes (${resocketed} reengarzados, ${returned} devueltos), glifos y avisos`);
   console.log(`✓ soportes sembrados: fuera ${dropped} que no encajan y ${extra} de más; se quedan ${forgedOnly} que solo encajan en la variante forjada; todos en knownSupports`);
 }
 
