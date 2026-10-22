@@ -21,6 +21,8 @@ import { CLASSES } from '../js/data.js';
 import { gaugeValue, gaugeTuning } from '../js/spec-mechanics.js';
 import { missingFor } from './helpers/talent-coverage.mjs';
 import { magaStorm } from '../js/skills-maga.js';
+import { learnAt, buildsFor, buildRanks, normalizeTalents, talentsTrimmed, skillLearnLevel, TALENT_RULES } from '../js/talents.js';
+import { levelTrees, buyLevel } from './helpers/talent-level.mjs';
 
 let checks = 0;
 // mensajes de las comprobaciones que ya pasaron: la cobertura del final busca en ellos cada nodo
@@ -2460,5 +2462,50 @@ console.log('✓ Arcanista: cada nodo con su efecto (Cargas, Rayo, Orbe, Desgarr
   const missing = ALL.filter(key => !named(key));
   same(missing, [], `nodos u opciones sin una comprobación de su efecto: ${missing.join(', ')}`);
   console.log(`✓ cobertura: ${ALL.length} nodos u opciones (clase, especializaciones y Paragon) con efecto comprobado: ${missing.length} sin efecto`);
+}
+// ------------------------------------------------------------ 6) nivel de aprendizaje (T-maga)
+// Va DESPUÉS de la cobertura: estos mensajes nombran nodos, pero no prueban su efecto.
+//  a) ningún nodo ni opción se aprende más tarde de lo que el árbol deja comprarlo (learnAt ≤ nivel
+//     de compra: fila, padre al máximo y puertas). La suite de nivel da por bueno el bloqueo; aquí
+//     se fija el reorden de la Maga, que lo dejó a cero
+//  b) las builds de la Arcanista no gastan los puntos de antes del Rayo en alargar las Cargas
+//     (Memoria Arcana) sin Mente Brillante, lo único que les da efecto hasta entonces
+//  c) un guardado con la rejilla vieja (a3 y a7 en las filas 1 y 2) se recorta fino al cargarlo
+{
+  const late = [];
+  for (const tree of levelTrees('maga')) for (const n of tree.nodes) {
+    if (n.free) continue;
+    const buy = buyLevel(tree, n);
+    for (const k of n.t === 'c' ? n.opts.map(o => o.k) : [null]) {
+      const at = learnAt(n, k);
+      if (at != null && at > buy) late.push(`${tree.key}/${n.id}${k ?? ''} (se aprende al Nv${at}, se compra al Nv${buy})`);
+    }
+  }
+  same(late, [], `nivel: nodos u opciones que se compran antes de aprender lo que tocan: ${late.join(', ')}`);
+
+  const rayoAt = skillLearnLevel('maga', 'rayo', 'arcanista');
+  const dead = [];
+  for (const { key, build } of buildsFor('maga', 'arcanista'))
+    for (let L = TALENT_RULES.specAt; L < rayoAt; L++) {
+      const r = buildRanks({ classId: 'maga', level: L }, build, { level: L }).sp.arcanista || {};
+      if (r.a1 && !r.a2) dead.push(`${key} Nv${L}`);
+    }
+  same(dead, [], `nivel: builds que alargan las Cargas antes del Rayo (Nv${rayoAt}) sin Mente Brillante: ${dead.join(', ')}`);
+  const L0 = TALENT_RULES.specAt;
+  const first = buildRanks({ classId: 'maga', level: L0 }, MAGA_TALENTS.builds[MAGA_TALENTS.defaultBuild.arcanista], { level: L0 });
+  same(first.sp.arcanista, { a2: 1 }, 'nivel: la build por defecto de la Arcanista empieza por Mente Brillante');
+
+  // la build grieta del árbol de antes del reorden (cc43ca4), con los rangos que tenía a ese nivel
+  const load = (ranks, level) => normalizeTalents({ v: 2, spec: 'arcanista', cls: {}, sp: { arcanista: ranks }, choice: { a10: 'A' } }, 'maga', level);
+  const v16 = load({ a3: 3, a7: 1 }, 16);
+  same(v16.sp.arcanista, {}, 'rejilla vieja a Nv16: Flujo Constante y Grieta Abierta ya no caben y devuelven sus 4 puntos');
+  ok(talentsTrimmed(v16).includes('sp.arcanista'), 'rejilla vieja a Nv16: el recorte se avisa');
+  const v30 = load({ a3: 3, a7: 2, a6: 1, a10: 1, a2: 1, a13: 2, a14: 1 }, 30);
+  same(v30.sp.arcanista, { a13: 2, a2: 1, a6: 1, a10: 1 }, 'rejilla vieja a Nv30: solo se quitan a3, a14 y a7 (6 puntos libres)');
+  const old40 = { a3: 3, a7: 2, a6: 1, a10: 1, a2: 3, a13: 2, a14: 1, a17: 2, a21: 1 };
+  const v40 = load(old40, 40);
+  same(v40.sp.arcanista, old40, 'rejilla vieja a Nv40: cabe entera');
+  same(talentsTrimmed(v40), [], 'rejilla vieja a Nv40: sin aviso de recorte');
+  console.log(`✓ nivel de aprendizaje: 0 nodos u opciones bloqueados, builds de la Arcanista sin Cargas muertas antes del Rayo (Nv${rayoAt}) y recorte fino de la rejilla vieja`);
 }
 console.log(`\n✅ TALENTOS 2g DE LA MAGA (clase, especializaciones y Paragon): ${checks} comprobaciones`);

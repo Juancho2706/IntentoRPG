@@ -4,6 +4,8 @@
 // Generado por tools/convert-v2/convert.mjs (--write talents, E1.5) desde docs/mockups/data/talents-v2-maga.js (sha1 7801561901ba, estado «aprobado»).
 // Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup
 // (los compara tests/test-v2-paridad.mjs: una divergencia deliberada va en tools/convert-v2/divergencias.json).
+// T-maga (nivel de aprendizaje): la rejilla de la Arcanista (a3↔a13, a7↔a17) y el orden de compra
+// de las builds rayo, grieta e hibarca ya no son los del mockup; van declarados en divergencias.json.
 // `fx: {}` + `todo` = el `impl` del mockup: E2 (KT) los escribe y borra `todo`. Importa SOLO hero y talent-text.
 // E2 · KT-maga: clase, Paragon (hero-maga.js) y las tres especializaciones con su `fx` (poderes en
 // js/powers-maga.js; las mecánicas en js/mech-maga.js). Sin `todo`: test78 lo exige (STRICT).
@@ -441,7 +443,10 @@ export const MAGA_TALENTS = {
       heroNodes: ['t2', 't1', 't3', 't5', 't8', 't4', 't7', 't10', 't12', 't11'],
       cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c4_: 2 },
       clsCh: { c5: 'A', c6: 'A', c9: 'B', c10: 'B', c15: 'B', c16: 'A', c17: 'A' },
-      spec: { a1: 3, a4: 2, a5: 1, a8: 1, a11: 2, a15: 1, a18: 2, a22: 3, a25: 3, a28: 4, a2: 3, a9: 1, a12: 2, a16: 2, a3: 1 },
+      // T-maga: las Cargas no hacen nada hasta el Rayo (Nv14) salvo con Mente Brillante (a2). El
+      // primer rango de a2 (el que la build ya ponía de relleno de la puerta al Nv24) va al Nv10; los
+      // otros dos, donde estaban. Desde el Nv24 la build es la de siempre
+      spec: { a2: 1, a1: 3, a4: 2, a5: 1, a8: 1, a11: 2, a15: 1, a18: 2, a22: 3, a25: 3, a28: 4, a2_: 2, a9: 1, a12: 2, a16: 2, a3: 1 },
       specCh: { a8: 'A', a9: 'A', a15: 'B' },
     },
     orbe: {
@@ -478,7 +483,9 @@ export const MAGA_TALENTS = {
       heroNodes: ['e2', 'e1', 'e3', 'e5', 'e8', 'e4', 'e7', 'e10', 'e12', 'e11'],
       cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c7: 1, c4_: 1 },
       clsCh: { c5: 'A', c6: 'B', c9: 'B', c10: 'A', c15: 'A', c16: 'B', c17: 'B' },
-      spec: { a1: 3, a2: 3, a4: 2, a5: 1, a8: 1, a9: 1, a11: 2, a12: 2, a15: 1, a16: 2, a18: 2, a19: 2, a22: 3, a23: 3, a3: 1, a20: 2 },
+      // T-maga: Mente Brillante antes que Memoria Arcana: alargar las Cargas no sirve de nada hasta el
+      // Rayo (Nv14). Potencia Acumulada sigue llegando al Nv22
+      spec: { a2: 3, a1: 3, a4: 2, a5: 1, a8: 1, a9: 1, a11: 2, a12: 2, a15: 1, a16: 2, a18: 2, a19: 2, a22: 3, a23: 3, a3: 1, a20: 2 },
       specCh: { a8: 'A', a9: 'B', a15: 'B' },
     },
   },
