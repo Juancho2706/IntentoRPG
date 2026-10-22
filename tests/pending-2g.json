@@ -1,10 +1,4 @@
 {
   "nota": "Cuarentena del Paso 2 (docs/paso2-implementacion.md §2.2). Revisada en E1.5 (integrador I) tras pasar los talentos de las tres clases a v2 esqueleto (fx vacío + todo, CATALOG_V = 1) y en su ronda de corrección: test55, test67, test72 y test74 se partieron para no apagar sus guardas genéricas (lo de una clase pasó a test67b y a test-gauges-<clase>; test72 §2 usa una habilidad sintética). Cada suite: dueño, etapa y por qué falla HOY. Una suite listada que ya pasa se avisa en run.mjs; su dueño la saca al dejarla verde. Debe quedar vacía en E5. Vigilar sin cuarentena: loot-regression y test16 (siguen verdes si se conservan los definePower de §3.9); test55, test66 y test68 pasan hoy con el esqueleto, pero dependen del kit (KA-guerrero, KA-maga, KA-arquera) y de m_aegis (KT-guerrero).",
-  "suites": {
-    "balance-bench.mjs": {
-      "owner": "B1",
-      "stage": "E4",
-      "por": "presetRanks/presetList (stubs D23), SKILL_MODS, ramas y nivel 50: importa y corre sin excepción de módulo, pero sus objetivos son del 2e con datos v1 · W2d-B: Math.min(CM.CAPS.dr, …) → CM.drCapOf(p.stats) (línea 527) y cifras nuevas del Quebranto"
-    }
-  }
+  "suites": {}
 }
