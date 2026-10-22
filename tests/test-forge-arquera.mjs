@@ -417,12 +417,12 @@ const tense = (h, slot, id, [x, z], hold, after = 0.6) => { h.aim(x, z); h.setSl
 }
 
 // ———————— Tiradora ————————
-{ // Andanada · Mejora (Arco Ancho, S-arquera A1): +2 flechas (9 → 11) y abanico un 20 % más ancho
-  // (2 → 2,4 m a cada lado del cursor; a quemarropa, 120 → 150°)
+{ // Andanada · Mejora (Arco Ancho, S-arquera A1): +2 flechas en el abanico (9 → 11, más la gemela de
+  // la central) y un abanico un 20 % más ancho (2,5 → 3 m a cada lado del cursor; a quemarropa, 120 → 150°)
   const run = (L, z) => { const h = hero(L, { spec: 'tiradora' }); h.aim(0, z); h.setSlot('k3', 'a_t_andanada'); h.cast('k3'); return { span: fanSpan(h), n: h.g.projectiles.length }; };
   const b6 = run(12, 6), w6 = run(13, 6);
   assert.deepEqual([b6.n, w6.n], [9, 11], 'Arco Ancho: 9 → 11 flechas');
-  assert.ok(approx(b6.span, 2 * Math.atan(2 / 6), 0.002) && approx(w6.span, 2 * Math.atan(2.4 / 6), 0.002), `Arco Ancho: a 6 m, 2 → 2,4 m a cada lado (${b6.span.toFixed(3)} → ${w6.span.toFixed(3)})`);
+  assert.ok(approx(b6.span, 2 * Math.atan(2.5 / 6), 0.002) && approx(w6.span, 2 * Math.atan(3 / 6), 0.002), `Arco Ancho: a 6 m, 2,5 → 3 m a cada lado (${b6.span.toFixed(3)} → ${w6.span.toFixed(3)})`);
   assert.ok(approx(run(12, 0.5).span, 2.094, 0.002) && approx(run(13, 0.5).span, 2.618, 0.002), 'Arco Ancho: a quemarropa, 120 → 150°');
 }
 { // Andanada · I (Andanada Cerrada): 30°, +3 m y hasta 3 flechas por salto al mismo enemigo

@@ -1849,7 +1849,7 @@ section('Montaraz: Cebo de Caza y nodos de números', () => {
     ok(!f2.data.lure, 'sin m0 (Tiradora): no');
   }
   const base = mon();
-  near(rp(mon({ m1: 3 }), 'a_t_cepo').cd, 2.5, 'm1 r3: Trampa de Cepo 4 → 2,5 s por carga (S-arquera A3)');
+  near(rp(mon({ m1: 3 }), 'a_t_cepo').cd, 5, 'm1 r3: Trampa de Cepo 8 → 5 s');
   near(rp(mon({ m3: 3 }), 'a_u_zarzas').cd, 36, 'm3 r3: Cerco de Zarzas 45 → 36 s');
   near(rp(mon({ m7: 2 }), 'a_u_zarzas').root, 2.5, 'm7 r2: el Cerco inmoviliza 2,5 s');
   eq(rp(mon({ m4: 2 }), 'a_t_cepo').addPct - rp(base, 'a_t_cepo').addPct, 30, 'm4 r2: Trampa de Cepo +30 %');
@@ -1924,13 +1924,9 @@ section('Montaraz: Campo Minado (cepos, detonaciones, Batida)', () => {
       trap(h, 5, 0); trap(h, -6, 0);
       cast(h, 'k1', 'a_m_acecho', -6, 0, 0.8);
       cast(h, 'k1', 'a_m_acecho', 0, 0, 0.1);
-      // S-arquera (A3): 3 cargas de 4 s; con dos cepos puestos aún queda una, así que la recarga se lee
-      // en skCharges.nextAt. Con las cargas llenas, un cepo lejos arranca una recarga entera (caben los 2 s)
-      for (let i = 0; i < 3; i++) cdReset(h, 'a_t_cepo');
-      trap(h, -30, -30, 0.1);
-      const before = [h.p.skCharges.a_t_cepo.nextAt, h.p.cds.a_m_acecho];
+      const before = [h.p.cds.a_t_cepo, h.p.cds.a_m_acecho];
       det(h, e);
-      return [h.p.skCharges.a_t_cepo.nextAt, h.p.cds.a_m_acecho, before];
+      return [h.p.cds.a_t_cepo, h.p.cds.a_m_acecho, before];
     };
     const [c, a] = go({ m18: 2 }), [c0, a0] = go({});
     near(c0 - c, 2, 'm18 r2: −2 s a Trampa de Cepo', 0.02);
@@ -2041,8 +2037,8 @@ section('Montaraz: Presa (Presa Atrapada, Cerco a la Presa, Manada, Presa Herida
   // m5 Presa Atrapada: una trampa que atrapa a tu Presa estalla (60 %) y devuelve una carga (cada 10 s)
   {
     const go = nodes => { const h = mon(nodes), e = h.enemy({ hp: 1e7, rank: 'elite', pos: [5, 0, 0] }), l = spy(e); makePrey(h, e); trap(h, 5, 0, 1); return [by(l, 'm_presa_atrapada').length, h.p.skCharges.a_t_cepo.n]; };
-    same(go({ m5: 1 }), [1, 3], 'm5: estalla y devuelve la carga (3 cargas: S-arquera A3)');
-    same(go({}), [0, 2], 'sin m5: nada');
+    same(go({ m5: 1 }), [1, 2], 'm5: estalla y devuelve la carga');
+    same(go({}), [0, 1], 'sin m5: nada');
     const h = mon({ m5: 1 }), e = h.enemy({ hp: 1e7, pos: [5, 0, 0] }), l = spy(e);
     trap(h, 5, 0, 1);
     eq(by(l, 'm_presa_atrapada').length, 0, 'm5: un común (no Presa), nada');
@@ -2930,7 +2926,7 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
     near(burns[0] / full, 0.5, 'Desborde: las puntas al 50 %', 0.03);
     const cd = nodes => {
       const x = hero('h2', nodes, {}, { spec: 'montaraz' }), e = x.enemy({ hp: 1e7, pos: [0, 0, 6] });
-      trap(x, -6, 0, 0.1); trap(x, -6, 3, 0.1); trap(x, -6, -3, 0.1);   // las 3 cargas (S-arquera A3)
+      trap(x, -6, 0, 0.1); trap(x, -6, 3, 0.1);
       const c = x.p.cds.a_t_cepo;
       tipHit(x, e);
       return c - x.p.cds.a_t_cepo;

@@ -1783,13 +1783,15 @@ function tiradoraPowers() {
 // Disparo Rápido tensado (Cuerda Tensa). Lo lleva Cuerda Tensa (f0, gratis con la Francotiradora):
 //   · tensando (onTick, 10 Hz): partículas que convergen en el arco y crecen con la carga, brillo del
 //     arco (dorado en la ventana) y, al empezar, un ANILLO que se cierra justo cuando se abre la ventana
-//     dorada (como el «Perfect Timing» del Snipe de PoE2)
+//     dorada (como el «Perfect Timing» del Snipe de PoE2). El Disparo Rápido tensado, sin anillo y más
+//     discreto (lo tensas a cada rato)
 //   · al soltar (⑭ de la carga; el básico, en ⑦): destello en el arco, sacudida (Tiro Celestial) y la
 //     SAETA ALARGADA (un haz vivo corto que viaja con el proyectil) con su TRAZADOR desde la boca, que
 //     acaba en la última víctima (no en el cursor) y se apaga en 0,3 s; dorados y más gruesos en el
-//     perfecto. Tiro Celestial: surco luminoso en el suelo a lo largo de su línea (1 s); su haz de la
-//     línea entera lo pinta el motor (`beam` de la definición)
-//   · al impactar (⑤): chispa en cada enemigo atravesado y congelado en el perfecto (una vez por suelta)
+//     perfecto. Tres Saetas: una saeta y un trazador por saeta. Tiro Celestial: surco luminoso en el
+//     suelo a lo largo de su línea (1 s); su haz de la línea entera lo pinta el motor (`beam`)
+//   · al impactar (⑤): chispa en cada enemigo atravesado y congelado en el perfecto (una vez por suelta);
+//     la víctima cuenta para el trazador de SU saeta (la que pasa a menos de 0,6 m o de su radio)
 // El recorrido del proyectil se calcula (recto, a su velocidad): no hace falta el objeto del motor.
 // ============================================================
 // eslint-disable-next-line no-var
@@ -1797,10 +1799,15 @@ var TENSE_FEEL;
 function tenseFeel() {
   return TENSE_FEEL || (TENSE_FEEL = Object.freeze({
     ids: Object.freeze(['a_t_apuntado', 'a_u_celeste']),
+    // los que se ven tensando (el básico también: Cuerda Tensa)
+    charge: Object.freeze(['a_t_apuntado', 'a_u_celeste', 'a_disparo']),
     gold: 0xffcf40,
-    a_t_apuntado: { color: 0xfff1a8, ring: '#fff1a8', streak: 0.85, width: 0.12, stop: 70, shake: 0.12 },
-    a_u_celeste: { color: 0x9fd8ff, ring: '#bfe6ff', streak: 1.2, width: 0.2, stop: 100, shake: 0.32, furrow: 1.0 },
-    a_disparo: { color: 0xe8d8a0, streak: 0.6, width: 0.08, stop: 45, shake: 0, speed: 18, range: 12 },
+    // glow: × del brillo y de las chispas al tensar; ring: color del anillo (sin él, no hay anillo)
+    a_t_apuntado: { color: 0xfff1a8, ring: '#fff1a8', glow: 1, streak: 0.85, width: 0.12, stop: 70, shake: 0.12 },
+    a_u_celeste: { color: 0x9fd8ff, ring: '#bfe6ff', glow: 1, streak: 1.2, width: 0.2, stop: 100, shake: 0.32, furrow: 1.0 },
+    a_disparo: { color: 0xe8d8a0, ring: null, glow: 0.6, streak: 0.6, width: 0.08, stop: 45, shake: 0, speed: 18 },
+    // a qué distancia de la línea de una saeta cuenta una víctima para su trazador (m; o su radio)
+    lineR: 0.6,
     trace: { linger: 0.12, fade: 0.3 },
   }));
 }
@@ -1813,14 +1820,13 @@ function hexCol(c) { return '#' + (((c >>> 0) & 0xffffff).toString(16).padStart(
 // tensando: anillo que se cierra al abrirse la ventana (al empezar) y chispas que convergen en el arco
 function tenseChargeFx(g, p) {
   const c = g?._charging;
-  if (!c || !tenseFeel().ids.includes(c.id)) return;
+  if (!c || !tenseFeel().charge.includes(c.id)) return;
   const F = tenseFeel(), cfg = F[c.id];
   const st = powerState(p, 'arq_tensado');
   const at = bowPos(p);
   const inWin = !!c.inWindow;
-  const col = inWin ? hexCol(F.gold) : cfg.ring;
-  if (st.chargeT0 !== c.t0) {
-    st.chargeT0 = c.t0;
+  const col = inWin ? hexCol(F.gold) : (cfg.ring || hexCol(cfg.color));
+  if (st.chargeT0 !== c.t0 && cfg.ring) {
     const speed = g._chargeSpeed ? g._chargeSpeed(c) : 1;
     const win0 = (c.window || [c.max])[0];
     const T = Math.max(0.15, (win0 - (c.u || 0)) / Math.max(0.05, speed));
@@ -1830,12 +1836,14 @@ function tenseChargeFx(g, p) {
       size: { start: [0.12, 0.16], end: 0.22 }, color: { start: cfg.ring, end: hexCol(F.gold) }, alpha: { start: 0.55, end: 1 } }, v3(at.x, at.z, 1.45));
     st.rings = (st.rings || 0) + 1;
   }
-  const k = Math.max(0, Math.min(1, c.frac || 0));
-  g.emitFx?.({ name: 'Tensado chispas', texture: 'spark', blending: 'additive', count: Math.round(3 + 6 * k), burst: true, lifetime: [0.22, 0.32],
-    shape: 'sphere', shapeRadius: 0.9, speed: [-3.2, -2.2], gravity: 0, drag: 0, size: { start: [0.05 + 0.06 * k, 0.08 + 0.1 * k], end: 0.02 },
+  st.chargeT0 = c.t0;
+  const k = Math.max(0, Math.min(1, c.frac || 0)), m = cfg.glow ?? 1;
+  g.emitFx?.({ name: 'Tensado chispas', texture: 'spark', blending: 'additive', count: Math.max(1, Math.round((3 + 6 * k) * m)), burst: true, lifetime: [0.22, 0.32],
+    shape: 'sphere', shapeRadius: 0.9 * m, speed: [-3.2 * m, -2.2 * m], gravity: 0, drag: 0, size: { start: [0.05 + 0.06 * k, 0.08 + 0.1 * k], end: 0.02 },
     color: { start: '#ffffff', end: col }, alpha: { start: 0.9, end: 0.2 } }, at);
+  const s = (0.25 + 0.55 * k) * m;
   g.emitFx?.({ name: 'Tensado brillo', texture: 'glow', blending: 'additive', count: 1, burst: true, lifetime: [0.13, 0.13],
-    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0, size: { start: [0.25 + 0.55 * k, 0.25 + 0.55 * k], end: 0.2 + 0.5 * k },
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0, size: { start: [s, s], end: (0.2 + 0.5 * k) * m },
     color: { start: inWin ? '#fff6cc' : '#ffffff', end: col }, alpha: { start: 0.55 + 0.35 * k, end: 0.3 } }, at);
   st.glows = (st.glows || 0) + 1;
 }
@@ -1847,7 +1855,6 @@ function tenseShot(g, p, id, { from, dir, speed, range, pierce, perfect = false,
   const end0 = g.clampWalkable ? g.clampWalkable(v3(from.x, from.z), v3(from.x + dir.x * range, from.z + dir.z * range), range) : v3(from.x + dir.x * range, from.z + dir.z * range);
   const lineLen = Math.hypot(end0.x - from.x, end0.z - from.z);
   const shot = { id, t0: now(p), from: { x: from.x, z: from.z }, dir, speed: Math.max(1, speed), lineLen, pierce: !!pierce, stopAt: null, last: null, done: false, perfect, stopped: false };
-  st.shot = shot;
   const color = perfect ? F.gold : cfg.color;
   const head = () => {
     const d = Math.min(shot.stopAt ?? shot.lineLen, (now(p) - shot.t0) * shot.speed);
@@ -1893,9 +1900,20 @@ function tenseRelease(g, p, sk, end) {
   if (def.type !== 'proj') return;                                  // Lluvia Estelar: cae del cielo
   const aim = st.aim || (g.input?.mouseWorld ? { x: g.input.mouseWorld.x, z: g.input.mouseWorld.z } : null);
   const dir = aimDir(p, aim);
-  const range = (prof?.range || def.range || 16) * 1;
-  const shot = tenseShot(g, p, id, { from: p.pos, dir, speed: prof?.speed || def.speed || 30, range, pierce: prof?.pierce ?? def.pierce, perfect, frac });
-  if (shot) shot.release = st.release;
+  const range = prof?.range || def.range || 16;
+  // a carga completa con `full` (Tres Saetas): una saeta y un trazador por saeta, en su abanico
+  const full = end.full && prof?.charge?.full?.count > 1 ? prof.charge.full : null;
+  const n = full ? full.count : 1, spread = full ? (full.spread ?? prof.spread ?? 0) : 0;
+  const base = Math.atan2(dir.x, dir.z);
+  st.shots = [];
+  for (let i = 0; i < n; i++) {
+    const a = base + (n > 1 ? projFanOffset(i, n, spread) : 0);
+    const s = tenseShot(g, p, id, { from: p.pos, dir: { x: Math.sin(a), z: Math.cos(a) }, speed: prof?.speed || def.speed || 30, range, pierce: prof?.pierce ?? def.pierce, perfect, frac });
+    if (s) { s.release = st.release; st.shots.push(s); }
+  }
+  // la central (la del cursor) es la que se recuerda como «la saeta» de la suelta
+  const shot = st.shots[n > 1 ? (n - 1) >> 1 : 0] || null;
+  st.shot = shot;
   // surco luminoso en el suelo (Tiro Celestial): se apaga en 1 s
   if (cfg.furrow && shot && g.spawnLiveBeam) {
     const a = v3(p.pos.x + dir.x * 0.5, p.pos.z + dir.z * 0.5, 0.06), b = v3(p.pos.x + dir.x * shot.lineLen, p.pos.z + dir.z * shot.lineLen, 0.06);
@@ -1914,23 +1932,40 @@ function tenseBasic(g, p, cast) {
   if (!to) return;
   const dir = aimDir(p, to);
   if (cast.perfect) { g.emitFx?.('arqReleasePerfect', bowPos(p)); }
-  const shot = tenseShot(g, p, 'a_disparo', { from: p.pos, dir, speed: cfg.speed, range: cfg.range, pierce: !!cast.prof?.pierce, perfect: !!cast.perfect, frac: cast.charge.frac ?? 1 });
+  // el recorrido de la flecha de verdad (Player.basicAttack): su alcance (basicRange, con el de la carga
+  // si la escala lo alarga: Vista Larga) y su velocidad
+  const pr = cast.prof, sc = pr?.charge?.scale;
+  const range = p.basicRange ? p.basicRange(sc?.range || sc?.rangeAdd ? cast.charge.t : null) : 12;
+  const shot = tenseShot(g, p, 'a_disparo', { from: p.pos, dir, speed: pr?.def?.speed || cfg.speed, range, pierce: !!pr?.pierce, perfect: !!cast.perfect, frac: cast.charge.frac ?? 1 });
   if (shot) shot.release = st.release;
+  st.shot = shot;
+  st.shots = shot ? [shot] : [];
 }
 // impacto de un tensado: la saeta para en su víctima (si no atraviesa), chispa en cada atravesado y
 // congelado en el perfecto (una vez por suelta, ni en repeticiones)
 function tenseHit(g, p, e, hit) {
   if (!e || hit?.proc || hit?.dot) return;
   const st = powerState(p, 'arq_tensado');
-  const shot = st.shot;
   const id = hit?.skill;
-  if (!shot || shot.id !== id || shot.release !== st.release) return;
+  const mine = (st.shots || []).filter(s => s.id === id && s.release === st.release);
+  if (!mine.length) return;
   const F = tenseFeel(), cfg = F[id] || F.a_disparo;
-  if (!hit.echo) {
-    shot.last = { x: e.pos.x, z: e.pos.z };
-    if (!shot.pierce && shot.stopAt == null) shot.stopAt = Math.max(0.3, Math.hypot(e.pos.x - shot.from.x, e.pos.z - shot.from.z) - 0.3);
-    g.emitFx?.(shot.perfect ? 'arqPierceGold' : 'arqPierceSpark', v3(e.pos.x, e.pos.z, 1.0));
+  // la saeta de la víctima: la que pasa más cerca (a menos de 0,6 m de su línea o de su radio)
+  const r = Math.max(F.lineR, 0.55 * (e.def?.scale || 1));
+  let shot = null, best = Infinity;
+  for (const s of mine) {
+    const dx = e.pos.x - s.from.x, dz = e.pos.z - s.from.z;
+    const along = dx * s.dir.x + dz * s.dir.z, perp = Math.abs(dx * s.dir.z - dz * s.dir.x);
+    if (along > -0.5 && perp <= r && perp < best) { best = perp; shot = s; }
   }
+  if (!hit.echo) {
+    if (shot) {
+      shot.last = { x: e.pos.x, z: e.pos.z };
+      if (!shot.pierce && shot.stopAt == null) shot.stopAt = Math.max(0.3, Math.hypot(e.pos.x - shot.from.x, e.pos.z - shot.from.z) - 0.3);
+    }
+    g.emitFx?.((shot || mine[0]).perfect ? 'arqPierceGold' : 'arqPierceSpark', v3(e.pos.x, e.pos.z, 1.0));
+  }
+  shot = shot || mine[0];
   if (hit.perfect && !hit.echo && st.stopFor !== shot.release && cfg.stop > 0) {
     st.stopFor = shot.release;
     g.hitStop?.(cfg.stop);

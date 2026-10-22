@@ -133,9 +133,11 @@ export function projFanOffset(i, n, spread = 0) {
 // ABANICO QUE SE CIERRA CON LA DISTANCIA (S-arquera: Andanada, Disparo Disperso; como el Split Arrow
 // de PoE, apuntar lejos junta las flechas). Con `fanW` (m) la semiapertura es la que cubre fanW m a
 // cada lado de la mira a `dist` m, atan(fanW / dist), entre `spreadMin` y `spread` (rad); sin fanW,
-// la `spread` fija de siempre. `spread` = la del perfil (puede traer talentos)
-export function fanSpread(def, dist, spread = def?.spread || 0) {
-  const w = def?.fanW || 0;
+// la `spread` fija de siempre. `spread` = la del perfil (puede traer talentos). `targetR` (m, opcional:
+// el radio de impacto del blanco apuntado) estrecha fanW a 0,8 × targetR para que las flechas de los
+// lados también le den a un blanco pequeño (Disparo Disperso contra una rata)
+export function fanSpread(def, dist, spread = def?.spread || 0, targetR = 0) {
+  const w = targetR > 0 ? Math.min(def?.fanW || 0, 0.8 * targetR) : (def?.fanW || 0);
   if (!(w > 0) || !(spread > 0)) return spread;
   const lo = Math.min(spread, Math.max(0, def.spreadMin || 0));
   return Math.max(lo, Math.min(spread, Math.atan2(w, Math.max(0.1, dist || 0))));

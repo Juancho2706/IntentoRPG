@@ -3,18 +3,25 @@
 // ============================================================
 // Cada apartado prueba un hallazgo y falla sin su arreglo (cada uno por separado: un apartado roto no
 // tapa a los demás; al final, exit 1 si alguno falla):
-//   A1   Andanada: impar con la central al cursor, abanico que se cierra con la distancia, ≤ 2 flechas
-//        por enemigo (un demonio a 5/6/8 m recibe 2, con y sin Arco Ancho; 5 zombis juntos, ≥ 6),
-//        el empujón de la Repulsora no le quita la segunda y el salto se ve (polvo)
-//   A-x1 Disparo Disperso: a un blanco a 6 m pega como un básico normal; a quemarropa, 25°
-//   A2   Carrera del Viento: no bloquea (básico y otras ranuras mientras corres) y viento a los pies
+//   A1   Andanada: impar con la central al cursor (y doble: su gemela por la misma línea), abanico que
+//        se cierra con la distancia (atan(2,5 m / d) entre 15° y 60°), ≤ 2 flechas por enemigo (un
+//        demonio a 5/6/8 m recibe 2, con y sin Arco Ancho, y una rata o una cría también; 5 zombis
+//        juntos —cursor y lados a 1,2 m, o el racimo apretado de 0,8 m—, ≥ 6; en columna no cuenta: las
+//        flechas paran en el primero), el empujón de la Repulsora no le quita la segunda y el salto se ve
+//   A-x1 Disparo Disperso: a un blanco a 6 m pega como un básico normal, también a una rata (el abanico
+//        no se abre más que el blanco); a quemarropa, 25°; con Bocajarro a 2 m, 2 flechas y un empujón
+//   A2   Carrera del Viento: no bloquea (básico y otras ranuras mientras corres), viento a los pies y sus
+//        flechas de viento atraviesan (al de detrás también le llegan)
 //   A3   cepo «colocar y detonar»: cerrado y pegado al atrapado, detonable (Detonante, Salto) y se
-//        gasta; al jefe no lo atrapa: lo muerde una vez, sigue armado, ralentiza y suma Quebranto
+//        gasta; al jefe no lo atrapa: lo muerde una vez, sigue armado, ralentiza y suma Quebranto; un
+//        cepo cerrado no cuenta en el tope de 3 (colocar otro no quita el único armado)
 //   A4   Tiro Celestial: anillo que se cierra en la ventana, chispas que convergen, haz vivo de la
 //        línea, surco, destello, sacudida y congelado (una vez) en el perfecto
-//   A5   Disparo Apuntado: saeta alargada y trazador que acaba en la última víctima; congelado en el
-//        perfecto; sin haz del motor
-//   A7   forja por build: Perforación y Pulso, Disparo Apuntado base; Punto Débil, Tiro Pesado
+//   A5   Disparo Apuntado: saeta alargada y trazador que acaba en la última víctima de SU línea (Tres
+//        Saetas: uno por saeta); congelado en el perfecto; sin haz del motor. Cuerda Tensa: el básico
+//        tensado brilla en el arco (dorado en la ventana) y su saeta acaba donde acaba la flecha
+//   A7   forja por build: Perforación y Pulso, Disparo Apuntado base; Punto Débil, Tiro Pesado; y la
+//        forja de cada build cumple el needsForm de sus nodos (Sobrepenetración y Línea de Mira atraviesan)
 //   A10  cepo visible: dientes que se cierran, pulso armado, chasquido y estallido de espinas
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -96,15 +103,33 @@ section('A1 · Andanada: abanico al cursor que se cierra lejos, 2 flechas por en
     const want = Math.atan2(aim[0], aim[1]);
     ok(r.ang.some(a => Math.abs(a - want) < 1e-6), `una flecha va al cursor (${aim})`);
   }
-  // el abanico se cierra con la distancia: 2 m a cada lado del cursor, entre 30° y 120°
-  const span = z => { const r = volley(12, {}, [], [0, z]); return Math.max(...r.ang) - Math.min(...r.ang); };
+  // la central sale doble: 0,05 s después, su gemela por la misma línea (desde donde disparó)
+  {
+    const h = hero(12, { spec: 'tiradora' });
+    h.aim(0, 5); h.setSlot('k3', 'a_t_andanada');
+    ok(h.cast('k3'), 'Andanada');
+    const n0 = h.g.projectiles.length;
+    h.step(0.07);
+    eq(h.g.projectiles.length, n0 + 1, 'una flecha más 0,05 s después: la gemela');
+    eq(h.g.projectiles.filter(pr => Math.abs(Math.atan2(pr.vel.x, pr.vel.z)) < 1e-6).length, 2, 'dos flechas por la línea del cursor');
+  }
+  // el abanico se cierra con la distancia: 2,5 m a cada lado del cursor (atan(2,5 / d)), entre 15° y
+  // 60° de semiapertura; con Arco Ancho (Nv13), 3 m y hasta 75°
+  const span = (z, L = 12) => { const r = volley(L, {}, [], [0, z]); return Math.max(...r.ang) - Math.min(...r.ang); };
   near(span(0.5), 2 * 1.047, 0.01, 'a quemarropa, 120°');
-  near(span(5), 2 * Math.atan(2 / 5), 0.01, 'a 5 m, 2 m a cada lado');
+  near(span(5), 2 * Math.atan(2.5 / 5), 0.01, 'a 5 m, 2,5 m a cada lado');
   near(span(12), 2 * 0.2618, 0.01, 'lejos, 30°');
-  // un demonio solo a 5, 6 y 8 m: 2 flechas, con y sin Arco Ancho (Nv13), y nunca 3
+  near(span(5, 13), 2 * Math.atan(3 / 5), 0.01, 'Arco Ancho a 5 m: 3 m a cada lado');
+  near(span(0.5, 13), 2 * 1.309, 0.01, 'Arco Ancho a quemarropa: 150°');
+  // un demonio solo a 5, 6 y 8 m: 2 flechas, con y sin Arco Ancho (Nv13), y nunca 3; un blanco
+  // pequeño (rata, cría de espora) también recibe las 2 (la central y su gemela)
   for (const d of [5, 6, 8]) for (const L of [12, 13]) {
     const r = volley(L, {}, [[0, d, DEF('demonio')]], [0, d]);
     eq(r.hits[0], 2, `demonio a ${d} m ${L >= 13 ? 'con' : 'sin'} Arco Ancho: 2 flechas`);
+  }
+  for (const id of ['rata', 'cria_espora']) for (const d of [5, 8]) {
+    const r = volley(12, {}, [[0, d, DEF(id)]], [0, d]);
+    eq(r.hits[0], 2, `${id} (escala ${DEF(id).scale}) a ${d} m: 2 flechas`);
   }
   // Repulsora: el empujón llega 0,15 s después del impacto, así que la flecha vecina aún lo encuentra
   // (a 8 m, empujado al instante, quedaría fuera del alcance de 10 m de las demás)
@@ -114,13 +139,17 @@ section('A1 · Andanada: abanico al cursor que se cierra lejos, 2 flechas por en
     ok(rep.es[0].t.at.every(q => Math.abs(q.z - d) < 0.3), `las 2 le llegan antes del empujón (z ${rep.es[0].t.at.map(q => q.z.toFixed(2))})`);
     ok(rep.es[0].pos.z > d + 1.5, `y lo empuja (z=${rep.es[0].pos.z.toFixed(2)})`);
   }
-  // 5 zombis juntos (uno al cursor a 6 m, dos a sus lados a 1,2 m y dos detrás): ≥ 6 impactos y
-  // ninguno con más de 2
-  const pack = [[0, 6], [1.2, 6.5], [-1.2, 6.5], [0.6, 7.5], [-0.6, 7.5]].map(([x, z]) => [x, z, DEF('zombi')]);
-  for (const L of [12, 13]) {
-    const g = volley(L, {}, pack, [0, 6]);
+  // 5 zombis juntos: ≥ 6 impactos y ninguno con más de 2. Dos formaciones: uno al cursor a 6 m, dos a
+  // sus lados a 1,2 m y dos detrás; y el racimo apretado (0,8 m entre ellos). En columna no vale: las
+  // flechas paran en el primero y solo las del centro llegan
+  const packs = {
+    'cursor, lados y detrás': [[0, 6], [1.2, 6.5], [-1.2, 6.5], [0.6, 7.5], [-0.6, 7.5]],
+    'racimo apretado': [[0, 6], [0.8, 6], [-0.8, 6], [0.4, 6.8], [-0.4, 6.8]],
+  };
+  for (const [k, pos] of Object.entries(packs)) for (const L of [12, 13]) {
+    const g = volley(L, {}, pos.map(([x, z]) => [x, z, DEF('zombi')]), [0, 6]);
     const tot = g.hits.reduce((a, b) => a + b, 0);
-    ok(tot >= 6, `5 zombis juntos ${L >= 13 ? 'con' : 'sin'} Arco Ancho: ≥ 6 impactos (${g.hits})`);
+    ok(tot >= 6, `5 zombis (${k}) ${L >= 13 ? 'con' : 'sin'} Arco Ancho: ≥ 6 impactos (${g.hits})`);
     ok(g.hits.every(n => n <= 2), `ninguno recibe más de 2 (${g.hits})`);
   }
   // el salto se ve: polvo al despegar y al caer, y estela de polvo en el aire
@@ -130,10 +159,10 @@ section('A1 · Andanada: abanico al cursor que se cierra lejos, 2 flechas por en
 });
 
 // ———————————————————————————————————————— A-x1
-section('A-x1 · Disparo Disperso: a 6 m pega como un básico; a quemarropa, 25°', () => {
-  const run = (forge, z) => {
+section('A-x1 · Disparo Disperso: a 6 m pega como un básico (también a una rata); a quemarropa, 25°', () => {
+  const run = (forge, z, id = 'zombi') => {
     const h = hero(7, { forge });
-    const e = h.enemy({ hp: 1e9, pos: [0, 0, z], def: DEF('zombi') });
+    const e = h.enemy({ hp: 1e9, pos: [0, 0, z], def: DEF(id) });
     const t = tally(e, skill('a_disparo'));
     h.aim(0, z); h.setSlot('lmb', 'a_disparo');
     ok(h.cast('lmb'), 'dispara');
@@ -147,14 +176,46 @@ section('A-x1 · Disparo Disperso: a 6 m pega como un básico; a quemarropa, 25�
   ok(dis.t.sum >= basic.t.sum * 0.99, `a 6 m, al menos un básico normal (${dis.t.sum} frente a ${basic.t.sum})`);
   near(close.span, 0.436, 0.01, 'a quemarropa, 25°');
   ok(dis.span < 0.2, `a 6 m el abanico se cierra (${dis.span.toFixed(3)} rad)`);
+  // un blanco pequeño SOLO con la mira encima (WASD: apunta a un punto): las flechas de los lados no se
+  // abren más que él (0,8 × su radio de impacto), así que también recibe un básico entero
+  for (const id of ['rata', 'cria_espora']) for (const z of [3, 6, 9]) {
+    const b = run({}, z, id), d = run({ a_disparo: 'i' }, z, id);
+    eq(d.t.n, 2, `${id} a ${z} m: 2 flechas`);
+    ok(d.t.sum >= b.t.sum * 0.99, `${id} a ${z} m: al menos un básico normal (${d.t.sum} frente a ${b.t.sum})`);
+  }
+  // en un grupo (otra rata a 1,2 m) el abanico no se estrecha: sigue a 0,4 m a cada lado, para repartirse
+  {
+    const h = hero(7, { forge: { a_disparo: 'i' } });
+    h.enemy({ hp: 1e9, pos: [0, 0, 6], def: DEF('rata') }); h.enemy({ hp: 1e9, pos: [1.2, 0, 6], def: DEF('rata') });
+    h.aim(0, 6); h.setSlot('lmb', 'a_disparo');
+    ok(h.cast('lmb'), 'dispara al grupo');
+    const ang = h.g.projectiles.map(pr => Math.atan2(pr.vel.x, pr.vel.z));
+    near(Math.max(...ang) - Math.min(...ang), 2 * Math.atan(0.4 / 6), 0.002, 'en grupo, el abanico de siempre');
+  }
+  // Bocajarro (c6A) a 2 m: el empujón espera a la descarga (0,15 s), así que las 2 flechas le dan, y
+  // empuja una sola vez (1 m). Aquí el zombi NO se fija tras cada golpe: si el empujón llegara con la
+  // primera flecha, la segunda ya no lo encontraría
+  {
+    const h = hero(7, { forge: { a_disparo: 'i' } });
+    h.p.talentExtra = { powers: ['a_bocajarro'] }; h.p.recompute();
+    const e = h.enemy({ hp: 1e9, pos: [0, 0, 2], def: DEF('zombi') });
+    const t = { n: 0 };
+    const td = e.takeDamage.bind(e);
+    e.takeDamage = (a, c, o = {}) => { if (!o.dot && o.skill === 'a_disparo') t.n++; return td(a, c, o); };
+    h.aim(0, 2); h.setSlot('lmb', 'a_disparo');
+    ok(h.cast('lmb'), 'dispara a bocajarro');
+    h.step(0.9);
+    eq(t.n, 2, 'Bocajarro a 2 m: le dan las 2 flechas');
+    near(e.pos.z, 3, 0.35, 'y lo empuja una vez, 1 m');
+  }
 });
 
 // ———————————————————————————————————————— A2
 section('A2 · Carrera del Viento: no bloquea y deja viento a los pies', () => {
   const h = hero(20, { spec: 'tiradora' });
   const S = spy(h);
-  const e = h.enemy({ hp: 1e9, pos: [0, 0, 5] });
-  const run = tally(e, skill('a_v_carrera')), basic = tally(e, skill('a_disparo'));
+  const e = h.enemy({ hp: 1e9, pos: [0, 0, 5] }), behind = h.enemy({ hp: 1e9, pos: [0, 0, 7] });
+  const run = tally(e, skill('a_v_carrera')), basic = tally(e, skill('a_disparo')), through = tally(behind, skill('a_v_carrera'));
   h.aim(0, 5);
   h.setSlot('k1', 'a_v_carrera'); h.setSlot('lmb', 'a_disparo'); h.setSlot('rmb', 'flecha_multiple');
   ok(h.press('k1'), 'empieza a correr');
@@ -168,6 +229,7 @@ section('A2 · Carrera del Viento: no bloquea y deja viento a los pies', () => {
   ok(h.g._channel, 'sin cortar la carrera');
   h.step(1.0);
   ok(run.n >= 2 && basic.n >= 1, `autodisparos de extra (${run.n}) y el básico (${basic.n})`);
+  ok(through.n >= 2 && through.n >= run.n - 1, `los autodisparos atraviesan: el de detrás recibe ${through.n} de ${run.n}`);
   // viento a los pies en cada tic (0,1 s) y estela detrás
   ok(S.count('arqWindStep') >= 10, `viento a los pies cada 0,1 s (${S.count('arqWindStep')} en 1,3 s)`);
   ok(S.count('arqWindTrail') >= 5, `estela detrás (${S.count('arqWindTrail')})`);
@@ -239,6 +301,24 @@ section('A3 · cepo «colocar y detonar»: cerrado, pegado, detonable y, a un je
     h.step(0.25);                                    // salta a los 0,2 s (Muelles Firmes) y se vuelve a armar
     ok(e.rootT > 0, 'saltó (lo atrapa)');
     ok(f && !f.dead && !f.closed && !f.sprung, 'rearmOnce: se rearma, no se cierra');
+  }
+  // 4b) tope de 3: los cepos CERRADOS no cuentan (ya saltaron). Con 2 cerrados y 1 armado, colocar otro
+  // no hace caducar al armado (antes caducaba el más viejo, aunque fuera el único armado)
+  {
+    const h = hero(20, { spec: 'montaraz' });
+    const refill = () => h.g.reduceCooldown(h.p, 'a_t_cepo', Infinity);
+    h.enemy({ hp: 1e9, pos: [-6, 0, 0], def: ZOMBI }); h.enemy({ hp: 1e9, pos: [6, 0, 0], def: ZOMBI });
+    place(h, 0, 9, 0.7);                              // el armado, el más viejo
+    refill(); place(h, -6, 0, 0.7); refill(); place(h, 6, 0, 0.7);
+    const armed = traps(h).find(f => !f.closed);
+    eq(traps(h).filter(f => f.closed).length, 2, 'dos cepos cerrados sobre sus zombis');
+    ok(armed && Math.abs(armed.pos.z - 9) < 0.1, 'y uno armado');
+    refill(); ok(place(h, 0, -9, 0.1), 'colocas un cuarto');
+    ok(!armed.dead, 'el armado sigue (los cerrados no cuentan en el tope)');
+    eq(traps(h).length, 4, 'los 4 a la vez: 2 cerrados y 2 armados');
+    refill(); place(h, 3, -9, 0.1); refill(); place(h, -3, -9, 0.1);
+    eq(traps(h).filter(f => !f.closed).length, 3, 'como mucho 3 sin cerrar');
+    ok(armed.dead, 'al pasar de 3 armados caduca el más viejo');
   }
   // 5) jefe: no lo atrapa; una mordida, sigue armado bajo él, lo ralentiza y le suma Quebranto
   {
@@ -353,14 +433,89 @@ section('A5 · Disparo Apuntado: saeta alargada, trazador a la última víctima,
   ok(t.shot && !t.shot.pierce && t.shot.stopAt != null && Math.abs(t.shot.stopAt - 5.7) < 0.5, `Tiro Pesado: la saeta para en el primero (${t.shot?.stopAt})`);
   near(t.S.beams.find(b => b.o.scroll === 10).o.to().z, 6, 0.5, 'y el trazador acaba en él');
   ok(t.e2.hp === 1e9, 'no atraviesa');
+  // Tres Saetas (a carga completa): una saeta y un trazador por saeta; el de la central acaba en SU
+  // víctima, no en la que alcanza una lateral (antes se iba en diagonal hacia ella)
+  {
+    const h = hero(20, { spec: 'francotiradora', forge: { a_t_apuntado: 'i' } });
+    const S = spy(h);
+    const pr = resolveSkill(h.p, h.p.cls.skills.find(s => s.id === 'a_t_apuntado'));
+    const half = pr.charge.full.spread;
+    const e1 = h.enemy({ hp: 1e9, pos: [0, 0, 6] });
+    const e2 = h.enemy({ hp: 1e9, pos: [Math.sin(half) * 9, 0, Math.cos(half) * 9] });   // en la línea de una lateral, más lejos
+    h.aim(0, 6); h.setSlot('k3', 'a_t_apuntado');
+    ok(h.press('k3'), 'tensa Tres Saetas');
+    h.step((pr.charge.perfect[0] + pr.charge.perfect[1]) / 2); h.release('k3'); h.step(0.02);
+    const st = powerState(h.p, 'arq_tensado');
+    eq(st.shots?.length, 3, 'tres saetas, cada una con su trazador');
+    h.step(0.8);
+    ok(e1.hp < 1e9 && e2.hp < 1e9, 'la central y una lateral aciertan');
+    near(st.shot.last?.z ?? 0, 6, 0.3, 'el trazador de la central acaba en su víctima');
+    near(st.shot.last?.x ?? 9, 0, 0.3, 'y no en la de la lateral');
+    ok(st.shots.some(s => s !== st.shot && s.last && Math.abs(s.last.x - e2.pos.x) < 0.3), 'la lateral acaba en la suya');
+    ok(S.beams.length >= 6, `saeta y trazador por saeta (${S.beams.length} haces)`);
+  }
+  // Cuerda Tensa: el Disparo Rápido tensado brilla en el arco, crece con la carga y se vuelve dorado en
+  // la ventana (sin anillo); su saeta y su trazador hacen el recorrido de la flecha de verdad
+  {
+    const h = hero(20, { spec: 'francotiradora' });
+    const S = spy(h);
+    h.enemy({ hp: 1e9, pos: [0, 0, 6] });
+    h.aim(0, 6); h.setSlot('lmb', 'a_disparo');
+    ok(h.press('lmb'), 'tensa el básico');
+    let inWin = false;
+    for (let t = 0; t < 0.92; t += 1 / 60) { h.step(1 / 60); if (h.g._charging?.inWindow) inWin = true; }
+    ok(inWin, 'llega a la ventana dorada');
+    const glows = S.fx.filter(f => f.name === 'Tensado brillo');
+    ok(glows.length >= 6, `brillo del arco al tensar el básico (${glows.length})`);
+    ok(glows[0].def.color.end !== '#ffcf40' && glows.at(-1).def.color.end === '#ffcf40', 'se vuelve dorado en la ventana');
+    ok(glows.at(-1).def.size.start[0] > glows[0].def.size.start[0], 'y crece con la carga');
+    eq(S.count('Tensado anillo'), 0, 'sin anillo');
+    const n0 = h.g.projectiles.length;
+    h.release('lmb'); h.step(1 / 60);
+    const arrow = h.g.projectiles[n0] || h.g.projectiles.at(-1);
+    const st = powerState(h.p, 'arq_tensado');
+    ok(arrow && st.shot?.id === 'a_disparo', 'suelta la flecha con su saeta');
+    const speed = Math.hypot(arrow.vel.x, arrow.vel.z), range = (arrow.life + 1 / 60) * speed;
+    near(st.shot.speed, speed, 0.01, 'la saeta va a la velocidad de la flecha');
+    near(st.shot.lineLen, range, 0.4, `y acaba donde acaba la flecha (${st.shot.lineLen.toFixed(1)} frente a ${range.toFixed(1)} m)`);
+  }
 });
 
 // ———————————————————————————————————————— A7
-section('A7 · forja por build y Disparo Apuntado sin haz del motor', () => {
+section('A7 · forja por build, needsForm de sus nodos y Disparo Apuntado sin haz del motor', () => {
   const reco = b => TAL.forgeRecoFor('arquera', 'francotiradora', b).a_t_apuntado;
   eq(reco('perforacion'), null, 'Perforación (Línea Mortal): Disparo Apuntado base, que atraviesa');
   eq(reco('pulso'), null, 'Pulso de Hierro: base (compra nodos que piden atravesar)');
   eq(reco('puntodebil'), 'ii', 'Punto Débil (Disparo Imposible): Tiro Pesado');
+  // Sobrepenetración y Línea de Mira piden que la saeta atraviese (el libro avisa con Tiro Pesado)
+  const fr = TAL.talentTreesFor('arquera').specs.find(s => s.id === 'francotiradora');
+  for (const id of ['f4', 'f5']) eq(fr.nodes.find(n => n.id === id).needsForm?.a_t_apuntado, 'pierce', `${id}: needsForm pierce`);
+  // cada build de la Arquera, a Nv100 y con su forja recomendada: ningún nodo comprado sin efecto
+  const T = TAL.talentTreesFor('arquera'), builds = T.builds;
+  // las habilidades que algún nodo de la Arquera pide con una forma (needsForm de nodos y opciones)
+  const needIds = new Set([T.cls, ...T.specs, ...(T.hero || [])].flatMap(t => (t.nodes || []).flatMap(n => [n, ...(n.opts || [])]))
+    .flatMap(n => Object.keys(n.needsForm || {})));
+  ok(needIds.has('a_t_apuntado'), 'Disparo Apuntado entre las habilidades con needsForm');
+  let checked = 0;
+  for (const [key, b] of Object.entries(builds)) {
+    const hb = makeHarness({ classId: 'arquera', level: 100, spec: b.sp, build: key });
+    const forge = TAL.forgeRecoFor('arquera', b.sp, key);
+    hb.p.skillForge = { ...forge }; hb.p.recompute();
+    for (const sk of hb.p.cls.skills.filter(x => needIds.has(x.id))) {
+      const def = resolveSkill(hb.p, sk)?.def || sk;
+      const voids = TAL.formVoids(hb.p, sk.id, def);
+      eq(voids.length, 0, `${key} (${b.sp}): ${sk.id} con su forja (${forge[sk.id] ?? 'base'}) no deja nodos sin efecto (${voids.map(v => `${v.id} ${v.text}`).join(', ')})`);
+    }
+    checked++;
+  }
+  eq(checked, 12, '12 builds de la Arquera');
+  // y con Tiro Pesado, Línea Mortal sí los dejaría sin efecto (el aviso funciona)
+  {
+    const hb = makeHarness({ classId: 'arquera', level: 100, spec: 'francotiradora', build: 'perforacion' });
+    hb.p.skillForge = { a_t_apuntado: 'ii' }; hb.p.recompute();
+    const def = resolveSkill(hb.p, hb.p.cls.skills.find(s => s.id === 'a_t_apuntado')).def;
+    eq(TAL.formVoids(hb.p, 'a_t_apuntado', def).map(v => v.id).sort().join(','), 'f4,f5', 'Línea Mortal con Tiro Pesado: Sobrepenetración y Línea de Mira, sin efecto');
+  }
   const h = hero(30, { spec: 'francotiradora' });
   for (const v of [null, 'i', 'ii']) {
     h.p.skillForge = { a_t_apuntado: v }; h.p.recompute();

@@ -82,7 +82,7 @@ for (const id of Object.keys(ACTIVES)) {
   assert.ok(['defense', 'utility'].includes(s.cat) && !s.spec, `${id}: defensa o utilidad, sin kit`);
 }
 // D2: cargas y relanzamientos con las claves del motor (nada de window/shots/charges a mano)
-assert.equal(S_('a_t_cepo').charges, 3, 'Trampa de Cepo: 3 cargas (S-arquera A3)');
+assert.equal(S_('a_t_cepo').charges, 2, 'Trampa de Cepo: 2 cargas');
 assert.deepEqual(S_('a_t_andanada').recast, { n: 2, win: 2, cdFrom: 'first' }, 'Andanada: relanzar en 2 s');
 assert.deepEqual(S_('a_u_celeste').recast, { n: 3, win: 8, cdFrom: 'first' }, 'Tiro Celestial: 3 haces en 8 s');
 for (const s of skills) for (const k of ['window', 'shots', 'recastGap', 'crossRoot', 'armT', 'maxArmed']) assert.ok(!(k in s), `${s.id}: clave v1 ${k}`);
@@ -127,7 +127,7 @@ for (const s of skills) {
 assert.deepEqual([S_('a_disparo').coef, S_('flecha_perforante').coef, S_('flecha_perforante').cost, S_('flecha_multiple').coef, S_('flecha_multiple').count],
   [1.0, 2.4, 26, 0.45, 5], 'números del doc (§5, §6)');
 assert.equal(+(S_('a_u_diluvio').coef * S_('a_u_diluvio').waves).toFixed(2), 20.4, 'Diluvio: 12 oleadas de 170 % = 2040 %');
-assert.deepEqual([S_('a_t_cepo').cd, S_('a_m_acecho').cd, S_('a_u_zarzas').cd], [4, 10, 45], 'recargas del Montaraz (el cepo, 4 s por carga)');
+assert.deepEqual([S_('a_t_cepo').cd, S_('a_m_acecho').cd, S_('a_u_zarzas').cd], [8, 10, 45], 'recargas del Montaraz');
 for (const L of [1, 15, 50]) {
   const h = makeHarness({ classId: 'arquera', level: L });
   for (const s of skills) {
@@ -293,7 +293,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
 }
 
 // TIRADORA · Andanada: salto atrás disparando 9 flechas (abanico que se cierra con la distancia
-// al cursor: 2 m a cada lado); relanzar en 2 s salta adelante
+// al cursor: 2,5 m a cada lado) y la gemela de la central; relanzar en 2 s salta adelante
 {
   const h = mk('tiradora');
   const e = h.enemy({ hp: 1e7, pos: [0, 0, 2] });
@@ -303,7 +303,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   assert.equal(h.cast('k3'), true);
   assert.equal(h.g.projectiles.length, 9, '9 flechas (impar: la central al cursor)');
   const ang = h.g.projectiles.map(pr => Math.atan2(pr.vel.x, pr.vel.z));
-  assert.ok(Math.abs(Math.max(...ang) - Math.min(...ang) - 2 * Math.atan(2 / 6)) < 0.01, 'cursor a 6 m: abanico de 2·atan(2/6) ≈ 37°');
+  assert.ok(Math.abs(Math.max(...ang) - Math.min(...ang) - 2 * Math.atan(2.5 / 6)) < 0.01, 'cursor a 6 m: abanico de 2·atan(2,5/6) ≈ 45°');
   assert.ok(ang.some(a => Math.abs(a) < 1e-6), 'una flecha va justo al cursor');
   assert.equal(mp0 - h.p.mp, 25, 'cuesta 25');
   h.step(0.4);
@@ -321,7 +321,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   h2.aim(0, 6); h2.setSlot('k3', 'a_t_andanada');
   h2.cast('k3'); h2.step(2.3);
   assert.equal(h2.cast('k3'), false, 'pasada la ventana, no se relanza');
-  console.log('Andanada: 9 flechas en abanico al cursor, salto atrás y relanzar adelante en 2 s ✓');
+  console.log('Andanada: 9 flechas en abanico al cursor (y la gemela), salto atrás y relanzar adelante en 2 s ✓');
 }
 
 // TIRADORA · Carrera del Viento: mantener = un 40 % más rápido y disparo solo cada 0,4 s
@@ -472,7 +472,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
 }
 
 // MONTARAZ · Trampa de Cepo: se arma en 0,5 s, inmoviliza 2 s (+ rootAdd), se cierra y queda
-// pegada 3,5 s (S-arquera A3), 3 cargas de 4 s, hasta 3
+// pegada 3,5 s (S-arquera A3), 2 cargas de 8 s, hasta 3
 {
   const h = mk('montaraz');
   const e = h.enemy({ hp: 1e7, pos: [0, 0, 6] });
@@ -480,7 +480,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   const mp0 = h.p.mp;
   assert.equal(h.cast('k3'), true);
   assert.equal(mp0 - h.p.mp, 10, 'cuesta 10');
-  assert.deepEqual(h.p.skCharges.a_t_cepo, { n: 2, max: 3, nextAt: 4 }, '3 cargas: gasta una');
+  assert.deepEqual(h.p.skCharges.a_t_cepo, { n: 1, max: 2, nextAt: 8 }, '2 cargas: gasta una');
   h.step(0.3);
   assert.equal(e.rootT || 0, 0, 'antes de 0,5 s no está armada');
   h.step(0.4);
@@ -497,14 +497,15 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   h.aim(12, 6);
   assert.equal(h.cast('k3'), true, 'segunda carga');
   h.p.gcdT = 0;
-  assert.equal(h.cast('k3'), true, 'tercera carga');
-  h.p.gcdT = 0;
   assert.equal(h.cast('k3'), false, 'sin cargas');
   h.step(shut[0].closed.until - shut[0].age - 0.15);
   assert.ok(!shut[0].dead && shut[0].closed, 'cerrada sigue ahí antes de 3,5 s');
   h.step(0.3);
   assert.ok(shut[0].dead, 'sin detonarla, a los 3,5 s se gasta');
-  assert.equal(h.cast('k3'), true, 'la carga vuelve en 4 s');
+  h.step(7.8 - h.p.simT); h.p.gcdT = 0;
+  assert.equal(h.cast('k3'), false, 'antes de 8 s, aún sin cargas');
+  h.step(0.3); h.p.gcdT = 0;
+  assert.equal(h.cast('k3'), true, 'la carga vuelve en 8 s');
   // rootAdd de los talentos suma sobre los 2 s de la trampa (test72 §2 → aquí)
   const h2 = mk('montaraz');
   h2.p.talentExtra.mods = { a_t_cepo: { rootAdd: 1.5 } }; h2.p.recompute();
@@ -525,7 +526,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   assert.equal(traps.length, 3, 'como mucho 3');
   assert.ok(!traps.some(f => Math.abs(f.pos.x) < 0.1), 'cae la más vieja');
   assert.ok(traps.every(f => f.data.lure?.radius === 6), 'atraen a 6 m (Cebo de Caza)');
-  console.log('Trampa de Cepo: armado 0,5 s, 2 s (+ rootAdd), cerrada 3,5 s, 3 cargas y 3 armadas ✓');
+  console.log('Trampa de Cepo: armado 0,5 s, 2 s (+ rootAdd), cerrada 3,5 s, 2 cargas y 3 armadas ✓');
 }
 
 // MONTARAZ · Salto de Acecho: a tu trampa más cercana al cursor y la hace estallar; sin trampas, 6 m
@@ -564,7 +565,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   h.aim(0, 6);
   const mp0 = h.p.mp;
   assert.equal(h.cast('rmb'), true);
-  assert.equal(mp0 - h.p.mp, 30, 'cuesta 30');
+  assert.equal(mp0 - h.p.mp, 24, 'cuesta 24');
   h.step(1.2);
   assert.equal(ct.n, 1, 'impacto directo');
   assert.equal(cs.n, 1, 'estalla en 3 m');

@@ -1772,9 +1772,27 @@ export class Player {
     // proyectiles de la definición forjada (Disparo Disperso: count/spread) + multidisparo
     // (poder) + aspecto «Doble»/«Enjambre»; la secuencia (seq) añade los suyos al N-ésimo
     const count = Math.max(1, Math.floor(def?.count || 1)) + (prof?.proj || 0);
-    // abanico que se cierra con la distancia al blanco (S-arquera: fanW de Disparo Disperso)
+    // abanico que se cierra con la distancia al blanco y, contra un blanco SOLO, no se abre más que él
+    // (S-arquera: fanW de Disparo Disperso; radio de impacto de un proyectil = 0,55 × escala, como
+    // Projectile.update): a una rata sola le dan 2 flechas; en un grupo (otro enemigo a menos de 2 m) el
+    // abanico sigue abierto para repartirse. Si apuntas a un punto (WASD), el blanco es el enemigo bajo la
+    // mira (a menos de su radio + 0,4 m)
     const aimDist = Math.hypot(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
-    const spread = def?.count > 1 ? fanSpread(def, aimDist, prof?.spread || 0) : 0;
+    let aimR = 0;
+    if (def?.count > 1 && def.fanW > 0) {
+      let aimed = target.def ? target : null;
+      if (!aimed) {
+        let best = Infinity;
+        for (const e of g.enemies || []) {
+          if (!e.alive) continue;
+          const d = Math.hypot(e.pos.x - target.pos.x, e.pos.z - target.pos.z);
+          if (d < 0.55 * (e.def?.scale || 1) + 0.4 && d < best) { best = d; aimed = e; }
+        }
+      }
+      const alone = aimed && !(g.enemies || []).some(o => o !== aimed && o.alive && o.pos.distanceToSquared(aimed.pos) < 4);
+      if (alone) aimR = 0.55 * (aimed.def?.scale || 1);
+    }
+    const spread = def?.count > 1 ? fanSpread(def, aimDist, prof?.spread || 0, aimR) : 0;
     const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
     // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
     const muzzle = this.pos.clone().setY(1.0)

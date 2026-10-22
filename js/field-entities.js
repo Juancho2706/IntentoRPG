@@ -155,9 +155,10 @@ export const fieldMethods = {
     // tope por dueño (FIFO): el más viejo caduca ya
     const mine = this.fields.filter(f => f.owner === owner && !f.dead);
     while (mine.length >= FIELD_CAP_PER_OWNER) this._expireField(mine.shift());
-    // tope por habilidad (zoneMax, trap.maxArmed, un muro por habilidad)
+    // tope por habilidad (zoneMax, trap.maxArmed, un muro por habilidad). Un cepo CERRADO sobre un
+    // enemigo (f.closed, S-arquera) ya saltó: no cuenta como armado ni caduca por colocar otro
     if (maxPerSkill > 0 && data?.skill) {
-      const same = this.fields.filter(f => !f.dead && f.owner === owner && f.kind === kind && f.data?.skill === data.skill);
+      const same = this.fields.filter(f => !f.dead && f.owner === owner && f.kind === kind && f.data?.skill === data.skill && !f.closed);
       while (same.length >= maxPerSkill) this._expireField(same.shift());
     }
     // tv.fieldDur: tus trampas y zarzales duran más (no los de un enemigo ni los demás campos)
