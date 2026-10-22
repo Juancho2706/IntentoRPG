@@ -11,7 +11,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeHarness } from './helpers/power-harness.mjs';
-import { TALENT_TREES, buildRanks, defaultBuildKey } from '../js/talents.js';
+import { TALENT_TREES, buildRanks, buildsFor, defaultBuildKey, skillLearnLevel } from '../js/talents.js';
+import { levelTrees, buyLevel } from './helpers/talent-level.mjs';
 import { GUERRERO_TV_KEYS } from '../js/talents-guerrero.js';
 import { resolveSkill } from '../js/skill-resolve.js';
 import { firePower, powerState, POWER_HOOKS } from '../js/powers.js';
@@ -2558,5 +2559,27 @@ assert.ok(!new RegExp('\\btv\\??\\.titanInventada\\b').test(SRC), 'la comprobaci
 // los poderes de los nodos de clase y héroe usan el prefijo de la clase y están registrados
 for (const [key, o] of ALL) if (o.fx?.power) assert.ok((/^g_/.test(o.fx.power) || o.fx.power === 'm_berserk') && POWER_HOOKS[o.fx.power], `${key}: poder ${o.fx.power} registrado`);
 console.log(`✓ ${GUERRERO_TV_KEYS.length} claves tv propias leídas por sus poderes`);
+
+// T-guerrero (reorden por nivel): el learnAt de estos nodos sale de un touch secundario (Cambio de
+// Guardia, Piel de Hierro, Juicio), pero su efecto solo actúa con la principal de Nv14: su nivel de
+// compra (fila, padres y puertas) no puede llegar antes. Y ninguna build del Guardián compra Tambor de
+// Guerra antes del Nv26 (como en el mockup): con el Terremoto acorta Piel de Hierro y el TTD+ de
+// Montaña Viva salta de 24 s a 256 s (pendiente de KA-guerrero; un reorden no debe adelantarlo)
+{
+  const NEEDS = { berserker: { b5: 'g_rajar' }, guardian: { d5: 'terremoto', d12: 'terremoto' }, cruzado: { z5: 'g_martillo' } };
+  for (const [spec, nodes] of Object.entries(NEEDS)) {
+    const tree = levelTrees('guerrero').find(t => t.spec === spec);
+    for (const [id, skill] of Object.entries(nodes)) {
+      const at = skillLearnLevel('guerrero', skill, spec), buy = buyLevel(tree, tree.nodes.find(n => n.id === id));
+      assert.ok(buy >= at, `${id}: se compra al Nv${buy}, antes de conocer ${skill} (Nv${at}), con la que actúa`);
+    }
+  }
+  for (const { key, build } of buildsFor('guerrero', 'guardian'))
+    for (let L = 10; L < 26; L++) {
+      const r = buildRanks({ classId: 'guerrero', level: L, talents: { v: 2, spec: 'guardian' } }, build, { level: L }).sp.guardian;
+      assert.ok(!(r.d12 > 0), `${key}: compra Tambor de Guerra al Nv${L} (antes del Nv26)`);
+    }
+}
+console.log('✓ reorden por nivel: Reabrir, Echar Raíces, Tambor de Guerra y Sello del Martillo se compran con su principal; Tambor de Guerra no antes del Nv26');
 
 console.log('\n✅ TALENTOS DEL GUERRERO (clase, especializaciones y héroe): cada nodo con su efecto');
