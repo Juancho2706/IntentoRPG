@@ -80,6 +80,8 @@ function noteChargeEnd(g, key, id, reason, perfect, frac, instant = false) {
 // ¿una habilidad (por los tags e id de un golpe) encaja en un selector de detonación?
 // '@all' · '@<cat>' (basic|spender|movement|defense|utility|ultimate; @insignia = spec) ·
 // '@tag:<tag>' · '@<elem>' · '<skillId>'
+// detonate.self: s que una marca lleva puesta antes de que la misma habilidad pueda detonarla
+export const MARK_SELF_AGE = 0.5;
 function matchSel(sel, hit) {
   if (!sel || !hit) return false;
   if (Array.isArray(sel)) return sel.some(s => matchSel(s, hit));
@@ -2061,8 +2063,9 @@ export const skillMethods = {
       en.marks = en.marks || {};
       // Punto Débil una vez por enemigo y héroe cada firstIcd s: se decide con la marca de ANTES
       const fc = m.firstCharged && (!en.firstChargedOk || en.firstChargedOk(p, id, m.firstIcd)) ? m.firstCharged : null;
+      // `at`: instante en que se puso (detonate.self: la detona la misma habilidad en un lanzamiento posterior)
       en.marks[id] = { id, t: m.dur || 8, by: p, skill: prof.id, uses: Math.max(1, m.uses || 1), detonate: m.detonate || null,
-        firstCharged: fc };
+        firstCharged: fc, at: p?.simT || 0 };
       if (m.weakPct > 0) en.applyWeakness?.(`mark:${id}`, m.weakPct, m.dur || 8);
     };
     put(e);
@@ -2102,12 +2105,16 @@ export const skillMethods = {
     return true;
   },
   // ¿este golpe detona una marca? (lo pregunta Player.rollDamage) → pct al saco aditivo.
-  // La habilidad que puso la marca no la detona; los procs y los DoT tampoco.
+  // La habilidad que puso la marca no la detona (con detonate.self, sí en un lanzamiento posterior: la
+  // marca tiene que llevar MARK_SELF_AGE s puesta, así los martillos de un mismo lanzamiento no se
+  // detonan entre sí; el Juicio en cadena, S-guerrero G07); los procs y los DoT tampoco.
   markDetonation(e, hit) {
     if (!e?.marks || !hit?.skill || hit.proc || hit.dot) return 0;
     let pct = 0;
     for (const [id, m] of Object.entries(e.marks)) {
-      if (!m || !(m.t > 0) || !m.detonate || m.skill === hit.skill) continue;
+      if (!m || !(m.t > 0) || !m.detonate) continue;
+      const t = (m.by || this.player)?.simT || 0;
+      if (m.skill === hit.skill && !(m.detonate.self && t - (m.at ?? t) >= MARK_SELF_AGE - 1e-9)) continue;
       if (!matchSel(m.detonate.by, hit)) continue;
       pct += m.detonate.pct || 0;
       if (--m.uses <= 0) delete e.marks[id];

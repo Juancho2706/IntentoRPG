@@ -54,14 +54,19 @@ export const GUERRERO_SKILLS = [
   // canalizar EN MARCHA (moveMul 1 por defecto): giras mientras mantienes; cada golpe desangra.
   // S-guerrero (G01, G02): el 1.er giro sale al pulsar (tickNow), cada giro pega más que el anterior
   // (rampa: +3,75 % por giro = +15 % por segundo, hasta +45 % a los 3 s, como el Warpath de Last Epoch)
-  // y el tic es propio (behavior): el héroe gira, el anillo del radio real rota y cada golpe salpica
+  // y el tic es propio (behavior): el héroe gira, el anillo del radio real rota y cada golpe salpica.
+  // Ronda 2: la economía del Torbellino de D4 (cuesta mucha Furia y la devuelve al golpear a varios):
+  // 60 de Furia y cada giro devuelve 2 por enemigo golpeado además del primero (hasta 6). Con poca
+  // Furia (Nv10–25) giras menos; entre la manada el giro se paga solo (banco, 5 semillas: con él frente
+  // a sin él, UNI ×1,29/1,07/0,93/0,92 y ÁREA×5 ×1,29/1,26/1,04/1,04 a Nv10/25/40/50). 3,8 m: el
+  // radio que alcanza a la manada del ÁREA×5 (con 3,2–3,5 m, ×0,88–0,95 a Nv40)
   { id: 'g_remolino', name: 'Remolino Sangriento', icon: '🌪️', art: 'skills256/torbellino.webp', cat: 'spec', spec: 'berserker', slots: ['k3'],
     tags: ['spec', 'melee', 'area', 'channel', 'dot', 'physical'], elem: 'physical',
-    type: 'channel', behavior: 'g_remolino', at: 'self', req: 10, coef: 1.5, cost: 30, cd: 6, channelT: 3, ticks: 13, tickNow: true,
-    rampPerTic: 3.75, rampMax: 45, radius: 3.8, hold: true,
+    type: 'channel', behavior: 'g_remolino', at: 'self', req: 10, coef: 1.55, cost: 60, cd: 6, channelT: 3, ticks: 13, tickNow: true,
+    rampPerTic: 3.75, rampMax: 45, radius: 3.8, hold: true, foeGen: { per: 2, max: 6 },
     hitDot: { kind: 'bleed', coef: 0.08, dur: 3 },
-    line: 'Mantén para girar hasta 3 s en marcha: golpeas a 3,8 m 4 veces por segundo (150 %, +15 % cada segundo) y desangras.',
-    desc: 'Mantén para girar hasta 3 s en marcha (el 1.er giro sale al pulsar): golpeas a todo a 3,8 m 4 veces por segundo (150 % del arma), +15 % por segundo girando (hasta +45 %), y desangras. Cuesta 30 de Furia; recarga 6 s.' },
+    line: 'Mantén para girar 3 s en marcha: golpeas a 3,8 m 4 veces por segundo (155 %, +15 % cada segundo) y desangras.',
+    desc: 'Mantén para girar hasta 3 s en marcha: golpeas a todo a 3,8 m 4 veces por segundo (155 % del arma, +15 % por segundo, hasta +45 %) y desangras. Cada giro devuelve 2 de Furia por enemigo extra golpeado (hasta 6). Cuesta 60 de Furia; recarga 6 s.' },
   // RELANZAR si golpea: hasta 3 saltos, 2 s entre uno y otro (la ventana se renueva con cada acierto)
   { id: 'g_salto', name: 'Salto Devastador', icon: '🦶', art: 'skills256/g_salto.webp', cat: 'movement', spec: 'berserker', slots: ['k1'], tags: ['movement', 'area', 'physical'], elem: 'physical',
     type: 'leap', req: 12, coef: 1.5, cd: 12, radius: 3, range: 8, airT: 0.45, shake: 0.4, heavy: 70,
@@ -116,15 +121,17 @@ export const GUERRERO_SKILLS = [
     desc: 'Definitiva: te clavas 8 s y no te mueves. Tú y tus aliados a 6 m reciben un 40 % menos de daño y los enemigos a 10 m te atacan a ti. Recarga 90 s (nunca baja de 63 s).' },
 
   // ———————————————— KIT DEL CRUZADO (Nv10–15) ————————————————
-  // MARCA que detona tu siguiente principal o tu definitiva (+150 % a ese enemigo); sale al instante
+  // MARCA que detona tu siguiente principal, tu definitiva o el próximo Juicio (+150 % a ese enemigo)
   { id: 'g_juicio', name: 'Juicio', icon: '⚖️', art: 'talents/guerrero-cruzado-s16.webp', cat: 'spec', spec: 'cruzado', slots: ['k3'], tags: ['spec', 'proj', 'mark', 'holy'], elem: 'holy',
-    type: 'proj', req: 10, coef: 2, splash: 2, radius: 3, cost: 0, cd: 8, range: 12, speed: 45, size: 0.3, windup: 0,
-    // S-guerrero (G07): la marca vale por sí sola (+150 % al detonarla, también con el Cataclismo), el
-    // Juicio que golpea da 1 de Fervor (mech-guerrero.js) y sale al instante, sin coste y rápido: lanzarlo
-    // ya no cuesta un Martillo (banco, 3 semillas: quitarlo de la barra del Cruzado pierde un 5–14 % de UNI a Nv40–70)
-    mark: { id: 'juicio', dur: 8, detonate: { by: ['@spender', '@ultimate'], pct: 150 } },
-    line: 'Lanzas un martillo de luz (200 % a 3 m; +1 de Fervor) que marca 8 s. Tu principal o definitiva lo detona: +150 %.',
-    desc: 'Lanzas al instante un martillo de luz a 12 m: 200 % del arma a todos en 3 m, +1 de Fervor y los marca 8 s. Tu siguiente principal o tu definitiva detona la marca: +150 % a ese enemigo. Sin coste; recarga 8 s.' },
+    type: 'proj', req: 10, coef: 1.2, splash: 1.2, radius: 3, cost: 20, cd: 8, range: 12, speed: 20, size: 0.3, windup: 0.3,
+    // S-guerrero (G07): la marca vale más que la del Sello o el Edicto (+150 %, también al detonarla con el
+    // Cataclismo), el Juicio que golpea da 1 de Fervor (mech-guerrero.js) y JUICIO EN CADENA: su martillo
+    // detona las marcas que ya había en sus 3 m (detonate.self: un Juicio posterior; las del Sello y el
+    // Edicto, siempre) antes de volver a marcar, como el Juicio del Paladín de D4 que otra habilidad hace
+    // estallar. Números del catálogo de antes (120 %, 20 de Furia, 0,3 s)
+    mark: { id: 'juicio', dur: 8, detonate: { by: ['@spender', '@ultimate', 'g_juicio'], pct: 150, self: true } },
+    line: 'Lanzas un martillo de luz (120 % a 3 m; +1 de Fervor) que detona las marcas que toca y marca 8 s: +150 % al detonarla.',
+    desc: 'Te preparas 0,3 s y lanzas un martillo de luz a 12 m: 120 % del arma en 3 m y +1 de Fervor. Detona las marcas de Juicio que toca y marca 8 s: tu principal, tu definitiva o el próximo Juicio la detonan (+150 %). Cuesta 20 de Furia; recarga 8 s.' },
   // destello rápido que deja un SENDERO sagrado (daña y cura a tus aliados)
   { id: 'g_sendero', name: 'Sendero de Luz', icon: '✨', art: 'skills256/g_sendero.webp', cat: 'movement', spec: 'cruzado', slots: ['k1'], tags: ['movement', 'zone', 'holy'], elem: 'holy',
     type: 'blink', req: 12, coef: 1.0, cd: 10, range: 8,
@@ -137,13 +144,20 @@ export const GUERRERO_SKILLS = [
     charge: { max: 1.2, perfect: [0.9, 1.15], perfectPct: 25, scale: { coef: [1.4, 3.8], radius: [3, 5] }, moveMul: 0.5, perfectGauge: { fervor: 1 } },
     line: 'Mantén para cargar (hasta 1,2 s) y suelta: 140 → 380 % a 3–5 m. Ventana perfecta (destello): +25 % y 1 de Fervor.',
     desc: 'Mantén para cargar (hasta 1,2 s; caminas al 50 %) y suelta: de 140 a 380 % del arma en 3–5 m. Soltar en la ventana perfecta (0,9–1,15 s, con destello) da +25 % y 1 de Fervor. La esquiva cancela la carga sin coste. Cuesta 25 de Furia.' },
-  // CARGAR Y SOLTAR la definitiva: 300 → 700 % en la mira, la columna arde 1,2 s y consagra el suelo 6 s
+  // CARGAR Y SOLTAR la definitiva: 350 → 800 % en la mira, la columna arde 1,2 s y consagra el suelo 6 s.
+  // S-guerrero (G04): detona TODAS las marcas de su radio (la marca de Juicio la detona '@ultimate'),
+  // gasta el Fervor (+25 % por punto: mech-guerrero.js) y cargada del todo (1,7–2 s) es SIEMPRE una suelta
+  // perfecta: +3 de Fervor y el Martillo Celestial (z26). Ronda 2 · decisión de diseño declarada (no
+  // «sensación»): la COLUMNA QUE ARDE (`pulse`: 4 golpes, uno cada 0,3 s, al 70 % del impacto) reparte la
+  // mitad del golpe en 1,2 s para que la definitiva pese (≥ 5 Martillos por uso) sin subir el golpe máximo.
+  // En el banco el Cataclismo sale a los 2 s del combate (sin Fervor ni marcas), así que sin ella pesa 1,3–2,3
+  // Martillos (ver el informe de S-guerrero)
   { id: 'g_u_cataclismo', name: 'Cataclismo', icon: '☄️', art: 'skills256/g_u_cataclismo.webp', cat: 'ultimate', spec: 'cruzado', slots: ['k4'], tags: ['ultimate', 'area', 'zone', 'holy'], elem: 'holy',
-    behavior: 'g_u_cataclismo', type: 'area', at: 'target', req: 15, coef: 3, cd: 60, cdFloor: 0.7, radius: 6, range: 12, impactDelay: 0.3, shake: 0.8, heavy: 120,
-    charge: { max: 2, perfect: [1.7, 1.95], scale: { coef: [3, 7] }, perfectGauge: { fervor: 3 } },
+    behavior: 'g_u_cataclismo', type: 'area', at: 'target', req: 15, coef: 3.5, cd: 60, cdFloor: 0.7, radius: 6, range: 12, impactDelay: 0.3, shake: 0.8, heavy: 120,
+    charge: { max: 2, perfect: [1.7, 2], scale: { coef: [3.5, 8] }, perfectGauge: { fervor: 3 } },
     floor: { dur: 6, coef: 0.4 }, pulse: { n: 4, every: 0.3, pct: 70 },
-    line: 'Mantén hasta 2 s: la luz cae en la mira (300 → 700 % a 6 m) y arde 1,2 s; detona las marcas y gasta el Fervor.',
-    desc: 'Definitiva: mantén hasta 2 s y suelta. La luz cae en la mira (300 → 700 % a 6 m) y arde 1,2 s (4 golpes al 70 %); detona las marcas, gasta tu Fervor (+25 % por punto) y consagra el suelo 6 s (40 %/s). Perfecta: +3 de Fervor. Recarga 60 s.' },
+    line: 'Mantén hasta 2 s: la luz cae en la mira (350 → 800 % a 6 m) y arde 1,2 s; detona las marcas y gasta el Fervor.',
+    desc: 'Definitiva: mantén hasta 2 s. La luz cae en la mira (350 → 800 % a 6 m) y arde 1,2 s (4 golpes al 70 %); detona tus marcas, gasta tu Fervor (+25 %/punto) y consagra el suelo 6 s (40 %/s). A 1,7 s es perfecta: +3 de Fervor. Recarga 60 s (nunca baja de 42 s).' },
 
   // ———————————————— ACTIVAS DE TALENTO (kind 'talent', solo ranura 2; D29) ————————————————
   // de clase: c11A (Nv21), c17A (Nv27) y c22A (Nv31). Sus comportamientos (g_t_aliento,
@@ -205,13 +219,19 @@ export const GUERRERO_SKILL_BEHAVIORS = {
   // campo 'g_giro' (powers-guerrero.js) que hace girar al héroe con el brazo extendido y rota el anillo
   // del radio real mientras dure el canal (también lo que alarga Danza Carmesí)
   g_remolino: {
+    params: ['foeGen'],
     tick(g, p, inst) {
       const ctx = inst.ctx, prof = ctx.prof;
       const rad = prof.radius || 2.9;
       const at = p.pos.clone().setY(0);
       const struck = [];
+      let n = 0;
       g.dealArea(at, rad, ctx.coef * (inst.rampMul || 1), { ...ctx.areaOpts, from: at,
-        onHit: (e, dealt, from) => { ctx.hit(e, dealt, from); if (struck.length < GIRO_DROPS) struck.push(e); } });
+        onHit: (e, dealt, from) => { ctx.hit(e, dealt, from); n++; if (struck.length < GIRO_DROPS) struck.push(e); } });
+      // `foeGen` { per, max }: cada giro devuelve `per` de Furia por enemigo golpeado más allá del primero
+      // (hasta `max`): entre la manada el giro se paga solo; contra uno, no
+      const fg = ctx.sk?.foeGen || prof.def?.foeGen;
+      if (fg && n > 1) g.gainResource?.(p, Math.min(fg.max || 0, (fg.per || 0) * (n - 1)));
       // Ciclón: cada giro atrae a los del radio de atracción (pull.radius), no a los jefes
       const pullR = prof.pullRadius || rad;
       if (prof.pull > 0) {
@@ -255,8 +275,8 @@ export const GUERRERO_SKILL_BEHAVIORS = {
       if (ctx.cast) ctx.cast.at = center;
       g.spawnRing?.(center, rad, color);                                         // telegrafía
       emit(g, ctx.fx?.trail, center.clone().setY(4.5));
-      const burnT = (def.pulse?.n || 0) * (def.pulse?.every || 0);
-      g.spawnField?.('g_cata_columna', { pos: center, radius: rad, dur: delay + burnT + 0.4, owner: null, data: { delay, burnT, color } });
+      const every = def.pulse?.every || 0.3, burnT = (def.pulse?.n || 0) * every;
+      g.spawnField?.('g_cata_columna', { pos: center, radius: rad, dur: delay + burnT + 0.25, owner: null, data: { delay, burnT, every, color } });
       g.timers.schedule(delay, () => {
         if (p.alive) {
           g.dealArea(center, rad, ctx.coef, { ...ctx.areaOpts, from: center });

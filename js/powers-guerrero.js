@@ -49,6 +49,7 @@ import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 import { insideField } from './field-entities.js';
 import { strikeBleedSource } from './mech-guerrero.js';
+import { verbFx } from './fx-skills.js';
 // (importados: úsalos solo dentro de los ganchos). Sin talents.js ni skill-resolve.js: los dos
 // llegan a data.js y, si el primer módulo cargado es resources.js, el ciclo resources → powers →
 // aquí → data dejaría RESOURCE_DEFS sin iniciar (la misma razón que en powers-common.js)
@@ -69,6 +70,7 @@ function tun() {
     sinCuartel: { per: 5, max: 5, radius: 2.5 },          // c6B: +5 % por enemigo (hasta +25 %)
     marcha: 1,                                            // c7: s de imparable tras tu movilidad
     golpePesado: 15,                                      // c9A: Quebranto a jefes por golpe preparado o suelta perfecta
+    golpePesadoAdd: 0.3,                                  // c9A: s que suma a la preparación (el mod del nodo; el Juicio no la suma)
     derribo: { stun: 1, stagger: 20, icd: 8 },            // c10A
     silenciar: { dur: 3, icd: 10 },                       // c10B
     pielHalf: 0.5,                                        // c11A/c17A/c22A: fuera de la barra salen con Piel de Hierro al 50 %
@@ -866,6 +868,27 @@ function tribunalJump(g, p, st) {
     for (const o of free.slice(0, T.tribunal.jump)) g.applyMark(o, one, p);
   }
 }
+// detonaciones de Juicio de ESTE instante (S-guerrero, G06): se juntan y, al acabar el golpe (planificador,
+// 0 s), cada enemigo lleva su destello (verbDetonate dorado) y su anillo, y sale UN texto «¡Juicio!»
+// («×N» si fueron varios) sobre el primero: un área que detona cinco marcas no apila cinco textos
+export const JUICIO_FX = { color: '#ffc23a', scale: 1.2, ring: 1.6, ringColor: 0xffd36b };
+function juicioBurst(g, p, e) {
+  const st = powerState(p, 'g_z_martillo_piadoso');
+  if (st.detAt !== now(p)) { st.detAt = now(p); st.det = []; }
+  if (st.det.includes(e)) return;
+  st.det.push(e);
+  if (st.det.length > 1) return;                     // el primero programa el pintado de todo el instante
+  g.timers?.schedule(0, () => {
+    const list = st.det; st.det = [];
+    if (!list.length) return;
+    const fx = verbFx('verbDetonate', JUICIO_FX.color, JUICIO_FX.scale);
+    for (const o of list) {
+      g.emitFx?.(fx, o.pos.clone().setY(1.2));
+      g.spawnRing?.(o.pos.clone().setY(0), JUICIO_FX.ring, JUICIO_FX.ringColor);
+    }
+    g.ui?.spawnText?.(list[0].pos.clone().setY(2.6), list.length > 1 ? `¡Juicio! ×${list.length}` : '¡Juicio!', 'txt-crit');
+  });
+}
 // ¿el lanzamiento es un Veredicto? (lo anota la mecánica del Fervor al lanzar el Martillo)
 const verdictOf = (p, cast) => !!cast && gaugeState(p, 'fervor')?.verdictCast === cast;
 // Milagro (z15A): `a` (tú o un aliado) queda con un 20 % de vida; una vez cada 2 min entre todos
@@ -943,9 +966,14 @@ export function guerreroPowers() {
     },
     // c9A Golpe Pesado (el +0,3 s, el +40 % y el +25 % de la suelta perfecta son mods del nodo):
     // a los jefes, 15 de Quebranto por golpe preparado o suelta perfecta (una vez por enemigo e instante)
+    // S-guerrero (G07, opción c de la auditoría): el Juicio no se alarga (se queda en sus 0,3 s; el +40 % sí)
     g_golpe_pesado: {
       name: 'Golpe Pesado', desc: 'Tus golpes con preparación y tus sueltas perfectas llenan 15 de Quebranto a los jefes.',
       state: () => ({ at: -1, seen: new Set() }),
+      modifyResolve(p, sk, prof) {
+        const w0 = prof.def?.windup || 0;
+        if (sk.id === 'g_juicio' && w0 > 0 && prof.windup > 0) prof.windup *= w0 / (w0 + T.golpePesadoAdd);
+      },
       onHit(g, p, e, hit) {
         if (!direct(hit) || hit.echo || hit.repeat || !isBoss(e)) return;
         const prof = p.resolved?.[hit.skill];
@@ -2521,11 +2549,14 @@ export function guerreroPowers() {
     // al aliado con menos vida a 15 m, hasta un 1 % de su vida por segundo) y la regla de sus zonas
     // sagradas (§21): su daño y su cura no se suman (vale la más fuerte) y la cura de zona va a una
     // cubeta de 4 %/s por receptor
+    // S-guerrero (G06): la DETONACIÓN de una marca de Juicio se ve (es la clave del Cruzado: va con el
+    // Fervor): verbDetonate dorado y un anillo en cada enemigo y UN «¡Juicio! ×N» por instante (juicioBurst)
     g_z_martillo_piadoso: {
       name: 'Martillo Piadoso', desc: 'El 10 % de tu daño sagrado cura al aliado con menos vida a 15 m (hasta un 1 % de su vida por segundo).',
       procs: true,
-      state: () => ({ acc: 0 }),
+      state: () => ({ acc: 0, det: [], detAt: -1 }),
       onHit(g, p, e, hit) {
+        if (hit?.detonated && !hit.proc && !hit.dot && e?.pos) juicioBurst(g, p, e);
         if (!(hit?.dealt > 0) || !isHolyHit(hit)) return;
         const a = lowestAlly(g, p, p.pos, T.piadoso.radius);
         if (a) bucketHeal(g, p, a, 'piadoso', T.piadoso.cap, hit.dealt * T.piadoso.pct / 100, 'g_z_martillo_piadoso');
@@ -2970,6 +3001,8 @@ export function guerreroSkillBehaviors() {
 // ---- giro del Remolino (S-guerrero, G02) ----
 // el cuerpo gira ~2 vueltas por segundo y el anillo de los pies, más despacio y al revés
 const GIRO_SPIN = 13, GIRO_RING = 5;
+// radios (en unidades del radio real) del aro continuo y de los arcos que giran por dentro
+export const GIRO_EDGE = [0.95, 1], GIRO_ARCS = [0.78, 0.9];
 // pose del giro sobre el esqueleto procedural (Player.update no toca rig.rotation.y; los brazos los
 // pone cada frame antes de los campos, así que aquí se pisan): brazo del arma extendido hacia fuera
 export function giroPose(a, age) {
@@ -2991,25 +3024,29 @@ function giroRender(g, f) {
     return;
   }
   if (!f.ring) {
-    // tres arcos del radio real (el color de la habilidad) y un aro fino por dentro (el segundo color)
+    // aro continuo en el radio REAL (rojo sangre: el alcance se lee siempre, también con el Ciclón) y tres
+    // arcos que giran por dentro (el segundo color: gris en el Ciclón)
     const [c0, c1 = c0] = f.data.colors || [0xcc2222];
     const mat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide,
       depthWrite: false, blending: THREE.AdditiveBlending });
     const grp = new THREE.Group();
+    const edge = new THREE.Mesh(new THREE.RingGeometry(GIRO_EDGE[0], GIRO_EDGE[1], 64), mat(c0, 0.75));
+    edge.rotation.x = -Math.PI / 2;
+    grp.add(edge);
+    const arcs = new THREE.Group();
     for (let i = 0; i < 3; i++) {
-      const arc = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 24, 1, i * Math.PI * 2 / 3, 1.25), mat(c0, 0.6));
+      const arc = new THREE.Mesh(new THREE.RingGeometry(GIRO_ARCS[0], GIRO_ARCS[1], 24, 1, i * Math.PI * 2 / 3, 1.25), mat(c1, 0.55));
       arc.rotation.x = -Math.PI / 2;
-      grp.add(arc);
+      arcs.add(arc);
     }
-    const inner = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.74, 48), mat(c1, 0.45));
-    inner.rotation.x = -Math.PI / 2;
-    grp.add(inner);
+    grp.add(arcs);
+    grp.userData = { edge, arcs };
     g.fxGroup.add(grp);
     f.ring = grp;
   }
   f.ring.position.set(f.pos.x, 0.08, f.pos.z);
   f.ring.scale.setScalar(f.radius);
-  f.ring.rotation.y = -(f.age || 0) * GIRO_RING;
+  f.ring.userData.arcs.rotation.y = -(f.age || 0) * GIRO_RING;      // giran los arcos; el aro del radio queda quieto
   giroPose(a, f.age || 0);
 }
 
@@ -3025,18 +3062,21 @@ function dropMeshes(g, obj) {
 // motas por segundo de la luz del héroe (de vacío a carga completa) y del suelo consagrado
 export const CATA_MOTES = { charge: [3, 15], ground: 5 };
 // anillo del radio real en la mira (blanco; dorado en la ventana perfecta), relleno que crece con la
-// carga y una columna de luz en el héroe que sube con ella
+// carga y, en el héroe, un AURA EN LOS PIES que se cierra y se enciende con la carga (no lo envuelve:
+// ronda 2, el cilindro de luz lo tapaba); las motas que suben las emite el campo
+export const CATA_FEET = { from: 1.6, to: 0.85, opacity: [0.2, 0.7] };
 function cataMiraRender(g, f) {
-  if (f.dead) { f.vis = dropMeshes(g, f.vis); f.glow = dropMeshes(g, f.glow); return; }
+  if (f.dead) { f.vis = dropMeshes(g, f.vis); f.feet = dropMeshes(g, f.feet); return; }
   if (!f.vis) {
     const grp = new THREE.Group();
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.93, 1, 64), addMat(0xfff2c0, 0.7));
     const fill = new THREE.Mesh(new THREE.CircleGeometry(1, 48), addMat(0xffe7a0, 0.1));
     ring.rotation.x = fill.rotation.x = -Math.PI / 2;
-    const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 1, 20, 1, true), addMat(0xffe7a0, 0.2));
+    const feet = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 40), addMat(0xffe7a0, 0.2));
+    feet.rotation.x = -Math.PI / 2;
     grp.add(ring, fill);
-    g.fxGroup.add(grp, glow);
-    f.vis = grp; f.ring = ring; f.fill = fill; f.glow = glow;
+    g.fxGroup.add(grp, feet);
+    f.vis = grp; f.ring = ring; f.fill = fill; f.feet = feet;
   }
   const k = f.frac || 0;
   f.vis.position.set(f.pos.x, 0.09, f.pos.z);
@@ -3047,33 +3087,45 @@ function cataMiraRender(g, f) {
   f.fill.material.opacity = 0.06 + 0.16 * k;
   const p = f.data.p;
   if (p?.pos) {
-    const h = 0.4 + 2.4 * k;
-    f.glow.scale.set(1, h, 1);
-    f.glow.position.set(p.pos.x, h / 2, p.pos.z);
-    f.glow.material.opacity = (f.win ? 0.45 : 0.12 + 0.25 * k);
+    const F = CATA_FEET;
+    f.feet.position.set(p.pos.x, 0.07, p.pos.z);
+    f.feet.scale.setScalar(F.from + (F.to - F.from) * k);
+    f.feet.material.color.setHex(f.win ? 0xffc23a : 0xffe7a0);
+    f.feet.material.opacity = f.win ? F.opacity[1] : F.opacity[0] + (F.opacity[1] - F.opacity[0]) * 0.8 * k;
   }
 }
-// columna de luz: baja del cielo durante el retardo del impacto, late mientras arde y luego se abre y se apaga
-const COLUMNA_H = 14;
+// columna de luz: baja del cielo durante el retardo del impacto y, al caer, se abre y se apaga en
+// COLUMNA_FADE s (ronda 2: no blanquea el impacto); mientras arde queda un haz fino que late con cada
+// golpe y se apaga al acabar. Opacidades bajas: es aditiva
+export const COLUMNA = { h: 14, core: 0.35, halo: 0.12, fade: 0.18, beam: 0.3, beamOpacity: 0.28 };
 function cataColumnaRender(g, f) {
   if (f.dead) { f.vis = dropMeshes(g, f.vis); return; }
+  const C = COLUMNA;
   if (!f.vis) {
     const grp = new THREE.Group();
-    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, true), addMat(0xfff6d8, 0.85)));
-    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 1, 24, 1, true), addMat(f.data.color || 0xffe7a0, 0.25)));
+    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, true), addMat(0xfff6d8, C.core)));
+    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 1, 24, 1, true), addMat(f.data.color || 0xffe7a0, C.halo)));
     g.fxGroup.add(grp);
     f.vis = grp;
   }
-  const delay = f.data.delay || 0.3, burn = f.data.burnT || 0, age = f.age || 0;
+  const delay = f.data.delay || 0.3, burn = f.data.burnT || 0, every = f.data.every || 0.3, age = f.age || 0;
   const r = Math.min(1.8, Math.max(0.6, f.radius * 0.28));
-  let len = COLUMNA_H, fade = 1, widen = 1;
-  if (age < delay) len = COLUMNA_H * Math.max(0.05, age / delay);
-  else if (age < delay + burn) fade = 0.75 + 0.25 * Math.cos((age - delay) * 20);          // arde (late)
-  else { const k = Math.min(1, (age - delay - burn) / 0.4); fade = 1 - k; widen = 1 + 0.5 * k; }
-  f.vis.scale.set(r * widen, len, r * widen);
-  f.vis.position.set(f.pos.x, COLUMNA_H - len / 2, f.pos.z);
-  f.vis.children[0].material.opacity = 0.85 * fade;
-  f.vis.children[1].material.opacity = 0.25 * fade;
+  let len = C.h, w = r, core = C.core, halo = C.halo;
+  if (age < delay) len = C.h * Math.max(0.05, age / delay);                              // baja
+  else if (age < delay + C.fade) {                                                       // cae: se abre y se apaga
+    const k = (age - delay) / C.fade;
+    w = r * (1 + 0.6 * k); core = C.core * (1 - k); halo = C.halo * (1 - k);
+  } else if (age < delay + burn) {                                                       // arde: haz fino que late
+    const ph = ((age - delay) % every) / every;
+    w = r * C.beam; core = C.beamOpacity * (1 - 0.6 * ph); halo = 0;
+  } else {                                                                               // se apaga
+    const k = Math.min(1, (age - delay - burn) / C.fade);
+    w = r * C.beam; core = C.beamOpacity * 0.4 * (1 - k); halo = 0;
+  }
+  f.vis.scale.set(w, len, w);
+  f.vis.position.set(f.pos.x, C.h - len / 2, f.pos.z);
+  f.vis.children[0].material.opacity = core;
+  f.vis.children[1].material.opacity = halo;
 }
 // borde brillante del suelo consagrado (late despacio) mientras viva la zona
 function sueloRender(g, f) {

@@ -1485,7 +1485,9 @@ check('b25', () => {
   const a = run(0), b = run(1), c = run(2);
   assert.ok(!a.on, 'sin b25 el giro acaba a los 3 s');
   assert.ok(b.on && !b.late, `b25 r1: sigue mientras toques a alguien que sangra, hasta 6 s (${JSON.stringify(b)})`);
-  assert.ok(approx(b.mp, 100 - 30 - 12, 1.5), `b25: 8 de Furia por segundo tras 3 s (${b.mp})`);
+  // el coste del Remolino (60 desde S-guerrero, ronda 2) y 8/s durante 1,5 s de danza
+  const remCost = CLASSES.guerrero.skills.find(s => s.id === 'g_remolino').cost;
+  assert.ok(approx(b.mp, 100 - remCost - 12, 1.5), `b25: 8 de Furia por segundo tras 3 s (${b.mp})`);
   assert.ok(c.late && c.bleedPct === 15, `b25 r2: hasta 10 s y Sangrados +15 % (${JSON.stringify(c)})`);
 });
 check('b26', () => {

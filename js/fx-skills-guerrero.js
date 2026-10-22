@@ -271,14 +271,6 @@ export const GUERRERO_FX_PRESETS = {
   },
 
   // ---------------- sensación (S-guerrero, auditoría) ----------------
-  // Juicio (G06): la marca estalla al detonarla (la mecánica del Fervor lo emite sobre el enemigo)
-  juicioDetonate: {
-    name: 'Juicio detonado', texture: 'star', blending: 'additive',
-    count: 16, burst: true, lifetime: [0.22, 0.4],
-    shape: 'sphere', shapeRadius: 0.25, speed: [2, 4.5], gravity: -2, drag: 2.2,
-    size: { start: [0.3, 0.55], end: 0.0 },
-    color: { start: '#fffbe0', end: '#ffc23a' }, alpha: { start: 1, end: 0 },
-  },
   // Cataclismo (G05): luz que sube por el héroe mientras carga (más seguida cuanto más cargas)
   cataChargeMote: {
     name: 'Cataclismo carga', texture: 'glow', blending: 'additive',
@@ -323,8 +315,9 @@ export const GUERRERO_FX = {
   g_piel:        { aura: 'ironSkin', color: 0xb8c4d0, sfx: 'equip' },
   g_lanza:       { trail: 'piercingTrail', impact: 'meleeHit', color: 0xe8dcc0, sfx: 'shoot' },
   // kit del Berserker (rojo sangre). Remolino (S-guerrero, G02): aura y «whoosh» en CADA giro (tickSfx),
-  // gotas sobre los golpeados y el anillo que rota a tus pies con estos colores (campo g_giro)
-  g_remolino:    { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash', tickSfx: 'whoosh', ringColors: [0xd8202a, 0x7a0a10] },
+  // gotas sobre los golpeados y, a tus pies (campo g_giro), ringColors = [aro continuo del radio real
+  // (siempre rojo sangre), arcos que giran por dentro]
+  g_remolino:    { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash', tickSfx: 'whoosh', ringColors: [0xd8202a, 0xff6a50] },
   g_salto:       { impact: 'leapImpact', color: 0xffcc66, sfx: 'hit' },
   g_rajar:       { impact: 'cleaveArc', aura: 'bloodDrops', extra: 'cleaveBlood', color: 0xb0101c, sfx: 'hit' },
   g_u_furia:     { aura: 'furyAura', extra: 'warCryRing', color: 0xff5a3c, sfx: 'hurt' },
@@ -352,8 +345,8 @@ export const GUERRERO_FX = {
   // campo (trail/impact/aura/extra) que lee el tipo genérico de la forma nueva.
   g_tajo_ii:         { impact: 'sweepRing', color: 0xffcc77, sfx: 'hit' },                                       // Siega: barrido
   g_remolino_i:      { aura: 'whirlwindInner', extra: 'bloodDrops', color: 0xb0101c, sfx: 'hit', tickSfx: 'whoosh', ringColors: [0xb0101c, 0xff4a3a] },   // Anclado: giro corto
-  // Ciclón: remolino de viento gris con la sangre del Remolino (anillo gris y rojo, gotas rojas)
-  g_remolino_ii:     { aura: 'bloodWindWhirl', extra: 'bloodDrops', color: 0xcfd6e0, sfx: 'dash', tickSfx: 'whoosh', ringColors: [0xcfd6e0, 0xc8202a] },
+  // Ciclón: remolino de viento gris con la sangre del Remolino (aro rojo del radio real, arcos grises, gotas rojas)
+  g_remolino_ii:     { aura: 'bloodWindWhirl', extra: 'bloodDrops', color: 0xcfd6e0, sfx: 'dash', tickSfx: 'whoosh', ringColors: [0xc8202a, 0xcfd6e0] },
   g_salto_i:         { impact: 'quakeWave', color: 0xd8b070, sfx: 'hit' },                                      // Caída Atronadora: onda
   g_salto_ii:        { impact: 'chargeImpact', color: 0xffcc66, sfx: 'dash' },                                  // Salto Rasante
   g_rajar_i:         { impact: 'heavySwing', aura: 'bloodDrops', extra: 'cleaveBlood', color: 0xb0101c, sfx: 'hit' },  // Estocada en línea
