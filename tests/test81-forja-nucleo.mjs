@@ -333,10 +333,11 @@ function forgeAudit(classId, cls, forge) {
   // el constructor valida los talentos al NIVEL (§3.3: normalizeTalents(raw, classId, level))
   assert.ok(src.includes('normalizeTalents(this.talents, classId, this.level)'), 'el constructor pasa el nivel');
   if (typeof T.talentsTrimmed === 'function') {
-    // talents.js v2 (W1): un árbol con más rangos de los que da el nivel se vacía y deja el aviso
+    // talents.js v2 (W1): un árbol con más rangos de los que da el nivel se recorta (T0: fino, de
+    // abajo arriba hasta el punto que da el Nv12) y deja el aviso
     const cls = Object.fromEntries(T.TALENT_TREES.maga.cls.nodes.map(n => [n.id, n.max || 1]));
     const p = new Player(h.g, 'maga', { classId: 'maga', saveVersion: SAVE_VERSION, level: 12, talents: { v: 2, spec: null, cls, sp: {}, choice: {} } });
-    assert.deepEqual(p.talents.cls, {}, 'árbol de clase recortado al nivel');
+    assert.deepEqual(p.talents.cls, { c1: 1 }, 'árbol de clase recortado al nivel');
     assert.ok(p.notices.includes(T.TALENTS_TRIMMED_NOTICE), 'con el aviso talentos-recortados');
   } else console.log('  (talents.js v1: el recorte por nivel se prueba al integrar con W1)');
   // forja guardada (D3): solo ids de la clase y 'i' | 'ii' | null

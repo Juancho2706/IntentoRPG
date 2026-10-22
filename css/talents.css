@@ -289,6 +289,12 @@
 .tn-choice:hover { border-color: var(--gold); background: rgba(42, 32, 21, 0.96); }
 .tn-choice.on { border-color: var(--gold); background: linear-gradient(rgba(58, 45, 23, 0.96), rgba(26, 19, 10, 0.96)); }
 .tn-choice.dis { opacity: 0.55; }
+/* opción que tu nivel aún no deja (T0): gris como un nodo tras una puerta, con candado */
+.tn-choice.is-lock { cursor: not-allowed; border-color: #4a4152; }
+.tn-choice.is-lock i { filter: grayscale(1) brightness(0.5); }
+.tn-choice.is-lock:hover { border-color: #6a5f74; background: rgba(27, 21, 32, 0.96); }
+.tn-choice .tn-lk { position: absolute; right: 3px; top: 4px; width: 12px; height: 12px; color: var(--lk); }
+.tn-choice .tn-lk svg { display: block; width: 12px; height: 12px; }
 .tn-choice.act i { border-radius: 6px; box-shadow: 0 0 0 2px #7fb6ff; }
 .tn-choice.act::after { content: 'HABILIDAD'; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); padding: 1px 5px; border-radius: 6px;
   background: #1d2a3d; border: 1px solid #3d6a9e; font: 700 8px/12px Inter, sans-serif; letter-spacing: 0.04em; color: #9cc8ff; }
@@ -350,6 +356,9 @@
 .tp-tip .opt.on .ok { color: var(--ok); }
 .tp-tip .opt.hov { border-color: var(--gold); }
 .tp-tip .opt .rl { float: right; color: var(--dim); font: 600 11px Inter, sans-serif; }
+.tp-tip .opt.is-lock { color: #a99fb3; }
+.tp-tip .opt .olk { display: flex; align-items: center; gap: 5px; color: var(--lk); font: 700 12px Inter, sans-serif; }
+.tp-tip .opt .olk svg { flex: none; width: 12px; height: 12px; }
 .tp-tip .shp { display: inline-block; width: 10px; height: 10px; margin: 0 5px 0 1px; vertical-align: -1px; border: 1.5px solid currentColor; }
 .tp-tip .shp.ci { border-radius: 50%; }
 .tp-tip .shp.sq { border-radius: 2px; color: #7fb6ff; }
