@@ -34,16 +34,6 @@ export const GUERRERO_TALENT_SKILLS = ['g_t_aliento', 'grito_guerra', 'g_t_inter
 export const GUERRERO_TV_KEYS = ['titanPct', 'titanStagger', 'titanRadius', 'titanSlow', 'titanCostRed', 'rivalKillHeal',
   'pendonRadius', 'pendonDmg', 'pendonDr', 'pendonSpd', 'pendonWeak', 'pendonDur', 'pendonCdr'];
 
-/** @deprecated D29 (puente de E1.5 hasta KA1): definición de las activas de talento que YA existen en el juego,
- *  mientras GUERRERO_CATALOG_V = 1 (data.js las fusiona en CLASSES como antes). Con el catálogo 2g
- *  (GUERRERO_CATALOG_V = 2) viven en skills-guerrero.js y data.js deja de leer esta lista; se borra en E5 (C1). */
-export const GUERRERO_TALENT_SKILL_DEFS = [
-  // juego v1: { id: 'g_t_aliento', name: 'Segundo Aliento', icon: '❤️‍🩹', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'heal', 'physical'], elem: 'physical', behavior: 'g_t_aliento', req: 10, cd: 30, furyPerPct: 3, color: 16734794, desc: 'Consumes toda tu Furia y te curas un 1 % de vida por cada 3 de Furia gastada (100 de Furia → 33 %). Enfriamiento 30 s.' }
-  { id: 'g_t_aliento', name: 'Segundo Aliento', icon: '❤️‍🩹', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'heal', 'physical'], elem: 'physical', req: 21, cd: 30, behavior: 'g_t_aliento', furyPerPct: 3, color: 16734794, grantBy: 'c11', line: 'Gastas toda tu Furia y te curas un 1 % de la vida por cada 3 de Furia (100 de Furia: un 33 %).', desc: 'Consumes toda tu Furia y te curas un 1 % de vida por cada 3 de Furia gastada (100 de Furia → 33 %). Enfriamiento 30 s.', art: 'talents/guerrero-clase-c2.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
-  // juego v1: { id: 'g_t_intervencion', name: 'Intervención', icon: '🛡️', kind: 'talent', cat: 'movement', slots: ['k1'], tags: ['movement', 'ally', 'shield', 'physical'], elem: 'physical', type: 'leap', behavior: 'g_t_intervencion', req: 10, cd: 20, range: 8, airT: 0.4, lockT: 0.4, shieldPct: 15, dur: 6, color: 8961023, desc: 'Saltas hasta un aliado (o 8 m hacia el cursor) y ambos ganan un escudo del 15 % de tu vida máxima durante 6 s. Enfriamiento 20 s.' }
-  { id: 'g_t_intervencion', name: 'Intervención', icon: '🛡️', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['ally', 'shield', 'physical', 'utility'], elem: 'physical', req: 31, cd: 20, type: 'leap', behavior: 'g_t_intervencion', range: 8, airT: 0.4, lockT: 0.4, shieldPct: 15, dur: 6, color: 8961023, grantBy: 'c22', line: 'Saltas junto a un aliado (o 8 m hacia la mira) y los dos ganan un escudo del 15 % de tu vida durante 6 s.', desc: 'Saltas hasta un aliado (o 8 m hacia el cursor) y ambos ganan un escudo del 15 % de tu vida máxima durante 6 s. Enfriamiento 20 s.', art: 'talents/guerrero-clase-c3.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
-];
-
 export const GUERRERO_TALENTS = {
   v: 2,
   cls: { name: 'Guerrero', emblem: 'ui/res_furia.webp', art: 'specs/guardian.webp', nodes: [
@@ -477,5 +467,4 @@ export const GUERRERO_TALENTS = {
     movilidad: { label: 'Toca tu habilidad de movilidad (ranura 1)', ids: ['embestida', 'g_salto', 'g_carga_escudo', 'g_sendero'] },
     sagrado: { label: 'Toca todo tu daño sagrado', ids: ['g_juicio', 'g_sendero', 'g_martillo', 'g_u_cataclismo'] },
   },
-  skills: GUERRERO_TALENT_SKILL_DEFS,   // puente D29 (ver arriba)
 };

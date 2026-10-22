@@ -85,9 +85,7 @@ export const PARAGON_BOARDS = {
   maga: buildParagonBoard(PG_CFG.maga),
   arquera: buildParagonBoard(PG_CFG.arquera),
 };
-/** @deprecated D23: alias del tablero del guerrero (compat); usa paragonBoardFor(clase). Se borra en E5. */
-export const PARAGON_BOARD = PARAGON_BOARDS.guerrero;
-export function paragonBoardFor(classId) { return PARAGON_BOARDS[classId] || PARAGON_BOARD; }
+export function paragonBoardFor(classId) { return PARAGON_BOARDS[classId] || PARAGON_BOARDS.guerrero; }
 export const PARAGON_BOARD_SIZE = 9;
 
 // coste mínimo (nodos a activar) para tener activos a la vez los nodos `targets` desde el

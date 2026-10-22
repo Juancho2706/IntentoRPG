@@ -134,6 +134,7 @@ export function matIcon(kind) { return uiIcon(MAT_ICON[kind]); }
 export const STATUS = Object.freeze({
   quebrantado: { icon: 'st_quebrantado', label: 'Quebrantado' },
   aturdido: { icon: 'st_aturdido', label: 'Aturdido' },
+  asustado: { icon: 'st_aturdido', label: 'Asustado' },   // sin icono propio: el del control más parecido
   escarcha: { icon: 'st_escarcha', label: 'Escarcha' },
   ralentizado: { icon: 'st_ralentizado', label: 'Ralentizado' },
   provocado: { icon: 'st_provocado', label: 'Provocado' },
@@ -156,6 +157,8 @@ export function enemyStatuses(e) {
   else if (e.numbT > 0) add('escarcha', 'Aterido', e.numbT);
   else if ((e.gauges?.escarcha?.v || 0) > 0) add('escarcha', `Escarcha ${Math.floor(e.gauges.escarcha.v)}`);
   if (e.stunT > 0 && !(e.staggerBrokenT > 0) && !(e.frozenT > 0)) add('aturdido', 'Aturdido', e.stunT);
+  // el aturdimiento y la congelación mandan sobre el miedo (no huye): sin chip repetido
+  if (e.fearT > 0 && !(e.stunT > 0) && !(e.frozenT > 0)) add('asustado', 'Asustado', e.fearT);
   if (e.rootT > 0) add('ralentizado', 'Inmovilizado', e.rootT);
   else if (e.slowT > 0) add('ralentizado', 'Ralentizado', e.slowT);
   if (e.tauntT > 0) add('provocado', 'Provocado', e.tauntT);

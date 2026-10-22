@@ -168,10 +168,6 @@ export const GUERRERO_SKILLS = [
     desc: 'Clavas al instante un Pendón en la mira (a 15 m), aparte del que clavas solo cada 15 s: durante 12 s, tú y tus aliados a 8 m hacen +8 % de daño y reciben un 8 % menos. Recarga 30 s.' },
 ];
 
-/** @deprecated Paso 2 (D23): las ramas desaparecen (las sustituye la forja). data.js aún lo
- *  importa; C1 lo borra en E5. */
-export const GUERRERO_SKILL_MODS = {};
-
 // ============================================================
 // Comportamientos a medida (solo donde ningún tipo genérico basta; tools/convert-v2/out/guerrero/
 // pendientes-guerrero.md §1 dice por qué). Firma: cast(g, p, prof, cast) con

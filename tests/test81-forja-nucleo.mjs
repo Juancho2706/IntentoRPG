@@ -179,7 +179,6 @@ definePower('vx_v_garfio', { name: 'variante de prueba' });
   assert.ok(!h.p.powers.has('vx_v_garfio'), 'el poder de la ii sale');
   const r3 = h.g.chooseForge('vx_tercera', null);
   assert.ok(r3.ok && h.p.skillForge.vx_tercera === null && forgedDef(h.p, sk).type === 'proj', 'null: sin variante (queda la Mejora)');
-  assert.equal(h.g.chooseSkillMod('vx_tercera', 'a', 'b'), false, '@deprecated: chooseSkillMod no hace nada');
   console.log('chooseForge: niveles, A6 en combate/fuera, soportes desengarzados, poder de la variante ✓');
 }
 

@@ -13,7 +13,7 @@
 //     por firma de accesores (una llamada sin opts no envenena la de elemOf) y memoTag
 //  9) normalizeTalents v2: v1 → vacío, purga, elecciones, héroe por especialización, loadouts,
 //     validación por árbol al nivel (talentos-recortados)
-// 10) treeSignature, specElem, presetRanks/presetList (envoltorios del banco)
+// 10) treeSignature, specElem, defaultBuildKey y buildsFor
 // 11) avisos de subida por sistema (progression.levelUpText)
 import assert from 'node:assert/strict';
 import './helpers/use-talents-fixture.mjs';
@@ -49,13 +49,7 @@ assert.equal(T.pointKindAt(9), null); assert.equal(T.pointKindAt(10), 'spec'); a
 assert.equal(T.pointKindAt(70), 'spec'); assert.equal(T.pointKindAt(71), 'hero'); assert.equal(T.pointKindAt(80), 'hero');
 assert.equal(T.pointKindAt(81), 'board'); assert.equal(T.pointKindAt(85), 'cls'); assert.equal(T.pointKindAt(100), 'cls');
 assert.equal(T.PARAGON_OPEN_LEVEL, 81);
-assert.equal(T.TALENT_START_LEVEL, 10, 'stub @deprecated = TALENT_RULES.specAt (D23)');
-assert.equal(T.specInsignia('maga', 'piromante'), null, 'stub @deprecated → null (D23)');
-// resto de stubs @deprecated (D23): siguen exportados con un valor coherente con v2
-assert.equal(T.TALENT_CAP_LEVEL, 100); assert.equal(T.featCount({ strongholdsCleared: ['a', 'b'], records: { bossKills: 9 } }), 0, 'D11: sin hazañas');
-assert.equal(T.skillElem({ id: 'x', elem: 'frost' }), 'frost'); assert.equal(T.skillElem(null), null);
-assert.equal(T.ELEM_NAME.fire, 'Fuego'); assert.deepEqual(T.SKILL_ELEM, {});
-assert.deepEqual([9, 10, 18, 50, 100].map(T.talentSkillBase), [1, 1, 2, 6, 6]);
+assert.equal(T.TALENT_RULES.specAt, 10, 'la especialización llega a Nv10');
 console.log('Reglas comunes = TV2.REGLAS; un sistema por nivel (31 + 34 + 10 + 16) ✓');
 
 // ------------------------------------------------ 2) G3 ritmo
@@ -518,12 +512,11 @@ console.log('normalizeTalents v2: v1 → vacío, purga, elecciones, héroe por e
   const p = hero('arquera', 100, { spec: 'montaraz' });
   assert.equal(T.defaultBuildKey('arquera', 'montaraz'), 'rayo');
   const r = T.buildRanks(p, F.ARQUERA_TALENTS.builds.rayo);
-  assert.deepEqual(T.presetRanks(p, 'cls'), r.cls); assert.deepEqual(T.presetRanks(p, 'spec'), r.sp.montaraz);
-  assert.deepEqual(T.presetList(p, 'spec').map(([id, n]) => [id, n]), T.normBuild(F.ARQUERA_TALENTS.builds.rayo).specOrder);
-  assert.equal(T.presetRanks(hero('arquera', 100), 'cls'), null, 'sin especialización no hay Recomendado');
+  assert.ok(Object.keys(r.cls).length > 0 && Object.keys(r.sp.montaraz).length > 0, 'la build trae rangos de clase y de especialización');
+  assert.equal(T.defaultBuildKey('arquera', null), null, 'sin especialización no hay Recomendado');
   assert.deepEqual(T.buildsFor('maga', 'crionte').map(b => b.key), ['glaciar', 'tormenta', 'fractura', 'hibcrio']);
 }
-console.log('treeSignature, specElem, presetRanks/presetList y buildsFor ✓');
+console.log('treeSignature, specElem, defaultBuildKey y buildsFor ✓');
 
 // ------------------------------------------------ 11) avisos de subida por sistema (progression.levelUpText)
 {

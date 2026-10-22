@@ -140,9 +140,6 @@ export const MAGA_SKILLS = [
     desc: 'Un Constructo de maná aparece hacia la mira (hasta 6 m) durante 10 s y obliga a los enemigos a 8 m de él a atacarlo; aguanta la mitad de tu vida máxima. Enfriamiento 45 s.' },
 ];
 
-/** @deprecated Paso 2 (D23): las ramas desaparecen (las sustituye la forja). data.js aún lo importa; C1 lo borra en E5. */
-export const MAGA_SKILL_MODS = {};
-
 // ------------------------------------------------------------
 // Comportamientos a medida. Firma: cast(g, p, prof, cast) con cast = { sk (definición
 // FORJADA), prof, slot, target, enemy, ctx, done } → ctx.res (instantáneo) o undefined +

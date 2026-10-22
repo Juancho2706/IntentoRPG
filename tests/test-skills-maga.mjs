@@ -56,7 +56,6 @@ assert.equal(CLASSES.maga.catalogV, 2);
 assert.deepEqual(SKILLS.map(s => s.id).sort(), Object.keys(EXPECTED).sort(), 'las 23 habilidades del catálogo 2g y ninguna más');
 assert.equal(SK.MAGA_SKILLS.length, 23);
 for (const id of RETIRED) assert.ok(!byId(id) && !MAGA_FX[id], `${id}: retirada (A.6)`);
-assert.deepEqual(SK.MAGA_SKILL_MODS, {}, 'sin ramas (D23)');
 for (const s of SK.MAGA_SKILLS) {
   const w = [];
   assert.deepEqual(validateSkillDef(s, { behaviors: SKILL_BEHAVIORS, v2: true, warnings: w }), [], `${s.id}: formato v2`);

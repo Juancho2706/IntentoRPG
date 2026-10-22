@@ -3,15 +3,16 @@
 // ============================================================
 // Las ramas (3 × 3 opciones con puntos de habilidad) desaparecen: cada habilidad base tiene
 // una Mejora y dos Variantes en js/skills-<clase>.js (<CLASE>_SKILL_FORGE), que data.js
-// fusiona tal cual. Lo viejo queda como stub @deprecated sin efecto:
-//  1) SKILL_MODS vacío y congelado; aggregateSkillMods neutro; chooseSkillMod no hace nada
+// fusiona tal cual. Lo viejo (los stubs @deprecated de las ramas) se borró en E5 (D23); que no
+// vuelva lo vigila test-cierre-e5:
+//  1) el héroe ya no tiene puntos de habilidad
 //  2) un guardado viejo con skillMods/skillBranches no cambia ningún perfil
 //  3) contratos de data.js: SKILL_FORGE / SPEC_BAR / FORGE_RECO / FALLBACK_BAR / CATALOG_V
 //     fusionados por clase, cls.forge, ids de la propia clase, recomendaciones 'i'|'ii',
 //     barras que encajan en sus ranuras, specKitOf
 import assert from 'node:assert/strict';
-import { SKILL_MODS, aggregateSkillMods, CLASSES, SKILL_FORGE, SPEC_BAR, FORGE_RECO, FALLBACK_BAR, CATALOG_V, specKitOf } from '../js/data.js';
-import { emptyMods, validateForge } from '../js/skill-defs.js';
+import { CLASSES, SKILL_FORGE, SPEC_BAR, FORGE_RECO, FALLBACK_BAR, CATALOG_V, specKitOf } from '../js/data.js';
+import { validateForge } from '../js/skill-defs.js';
 import { resolveSkill, fitsSlot } from '../js/skill-resolve.js';
 import { POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
 import * as G from '../js/skills-guerrero.js';
@@ -19,15 +20,12 @@ import * as M from '../js/skills-maga.js';
 import * as A from '../js/skills-arquera.js';
 import { makeHarness } from './helpers/power-harness.mjs';
 
-// ------------------------------------------------ 1) stubs @deprecated
-assert.ok(Object.isFrozen(SKILL_MODS) && Object.keys(SKILL_MODS).length === 0, 'SKILL_MODS: vacío y congelado');
-assert.deepEqual(aggregateSkillMods('torbellino', { b1: 'o1' }), emptyMods(), 'aggregateSkillMods: neutro');
+// ------------------------------------------------ 1) sin puntos de habilidad
 {
   const h = makeHarness({ classId: 'guerrero', level: 30 });
-  assert.equal(h.g.chooseSkillMod('torbellino', 'b', 'o'), false, 'chooseSkillMod: no hace nada');
   assert.equal(h.p.skillPoints, undefined, 'sin puntos de habilidad');
 }
-console.log('Ramas: SKILL_MODS/aggregateSkillMods/chooseSkillMod son stubs sin efecto ✓');
+console.log('Ramas: el héroe no tiene puntos de habilidad ✓');
 
 // ------------------------------------------------ 2) un guardado viejo con ramas no cambia nada
 for (const cid of Object.keys(CLASSES)) {
@@ -94,4 +92,4 @@ console.log(`Contratos de forja en data.js (${entries} entradas hoy; KA2 las lle
 const all = [...Object.keys(G.GUERRERO_SKILL_FORGE), ...Object.keys(M.MAGA_SKILL_FORGE), ...Object.keys(A.ARQUERA_SKILL_FORGE)];
 assert.equal(new Set(all).size, all.length, 'ids de forja únicos entre clases');
 
-console.log('\n✅ DE LAS RAMAS A LA FORJA (stubs, guardados viejos, contratos de data.js) OK');
+console.log('\n✅ DE LAS RAMAS A LA FORJA (guardados viejos, contratos de data.js) OK');

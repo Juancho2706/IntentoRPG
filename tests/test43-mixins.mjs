@@ -101,7 +101,7 @@ console.log(`eraMethods exporta los ${ERA_EXPECTED.length} métodos esperados, t
 const SKILLS_EXPECTED = [
   'allies', 'heal', 'shield', 'dealProcDamage', 'addThreat', 'forceTarget', 'gainResource', 'fireProjectile', 'startChannel', 'onPlayerHit',
   'skillSupports', 'applyDoT', 'spawnChainBounce', 'dealArea', 'enemiesInCone', 'enemiesInLine', 'clampWalkable', 'slotHeld',
-  'assignHotbar', 'chooseSkillMod', '_spenderWaiting', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
+  'assignHotbar', 'skillProfile', '_spenderWaiting', 'castBasic', 'skillTarget', 'castSkillSlot', '_commitCast', '_finishCast',
   'cancelCast', 'interruptCast', '_endChannel', 'resetCastState',
   // Paso 2c.2: ⑫ daño a aliados y API de DoT (⑬ onDotEnd)
   'damageAlly', 'dotsOf', 'hasDoT', 'dotRemaining', 'consumeDoT', 'replaceDoT', 'onDotEnd',
@@ -130,13 +130,13 @@ if (fKeys.length !== FIELDS_EXPECTED.length) throw new Error(`fieldMethods tiene
 console.log(`fieldMethods exporta los ${FIELDS_EXPECTED.length} métodos esperados, todos funciones ✓`);
 
 // economía (tienda, cubo, engarce, mascota, arrastre y tablero de glifos). Paso 2 (W1, §3.9):
-// puntos del tablero derivados del nivel y glifos sueltos; respecSkills queda como stub (D23)
+// puntos del tablero derivados del nivel y glifos sueltos; sin reinicio de habilidades (D23)
 const ECONOMY_EXPECTED = [
   'ensureShopStock', 'buyShopItem', 'buyGambleItem', 'buyPet', 'petUpgradeCost', 'upgradePet', 'setPetCollar', 'switchPetKind',
   'equipItem', 'unequipItem', 'sellItem', 'dropItem', 'addToCube', 'cubeReturn', 'addMaterialToCube', 'cubeCost', 'cubeSocketParts',
   'socketCost', 'cubePreview', 'transmute', 'socketGem', 'enchantCost', 'enchantItem', 'masterworkCost', 'masterworkItem',
-  'respecCost', 'respecAttributes', 'canRespecFree', 'respecSkills', 'paragonBoard', 'paragonPointsInfo', 'paragonNodeReachable',
-  'allocateParagonNode', 'socketGlyph', 'unsocketGlyph', 'looseGlyphs', 'reclaimGlyph', 'reclaimLooseGlyphs', 'respecParagonCost',
+  'respecCost', 'respecAttributes', 'canRespecFree', 'paragonBoard', 'paragonPointsInfo', 'paragonNodeReachable',
+  'allocateParagonNode', 'socketGlyph', 'unsocketGlyph', 'looseGlyphs', 'reclaimGlyph', 'reclaimLooseGlyphs',
   'respecParagon', 'sellJunk', 'sortInventory', 'toggleFav', 'moveItem', 'equipToSlot', 'swapInv', 'swapMaterials', 'identifyItem',
   'identifyAll',
 ];

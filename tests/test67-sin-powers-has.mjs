@@ -39,7 +39,7 @@ for (const board of Object.values(PARAGON_BOARDS)) for (const n of board) if (n.
 for (const e of ERA_MUTATORS) if (e.power) referenced.add(e.power);
 const missing = [...referenced].filter(id => !POWER_HOOKS[id]);
 assert.deepEqual(missing, [], 'poderes sin entrada en el registro: ' + missing.join(', '));
-for (const id of ['festin', 'volatil', 'furia', 'agil', 'multidisparo', 'avaricia', 'm_berserk', 'm_aegis', 'm_judgment', 'm_conflag', 'm_overload', 'm_deadeye', 'm_shatter', 'm_hunt'])
+for (const id of ['festin', 'volatil', 'furia', 'agil', 'multidisparo', 'avaricia', 'm_berserk', 'm_shatter'])
   assert.ok(POWER_HOOKS[id], 'falta el poder migrado ' + id);
 console.log(`Registro: los ${referenced.size} poderes referenciados por el contenido existen ✓`);
 
@@ -52,7 +52,7 @@ assert.ok(POWER_KEYS.has('onLethal') && POWER_KEYS.has('icd') && !POWER_KEYS.has
 console.log('definePower rechaza claves desconocidas, ids repetidos y mult > ×1,3 ✓');
 
 // ------------------------------------------------ 4) multiplicadores autorizados
-const ALLOWED_MULT = new Set(['furia', 'm_berserk', 'm_deadeye', 'm_hunt']);
+const ALLOWED_MULT = new Set(['furia', 'm_berserk']);
 const withMult = Object.values(POWER_HOOKS).filter(d => d.mult).map(d => d.id);
 assert.deepEqual(withMult.filter(id => !ALLOWED_MULT.has(id)), [], 'poderes con mult no autorizado: ' + withMult);
 for (const id of ALLOWED_MULT) assert.ok(MULT_POWERS[id] && MULT_POWERS[id].mult <= 1.3, `${id} registrado en combat-math (≤ ×1,3)`);
@@ -82,6 +82,6 @@ try {
 assert.equal(firePower('condAdd', p, p, null, {}), 12, 'condAdd suma');
 assert.deepEqual(firePower('stats', p, p), { crit: 3 }, 'stats agrega');
 assert.equal(firePower('onCast', { powers: new Set() }, {}), true, 'sin poderes, onCast no cancela');
-assert.ok(typeof powerState(p, 'm_aegis') === 'object');
+assert.ok(typeof powerState(p, 'festin') === 'object');
 console.log('firePower: aísla errores, respeta icd/procs y agrega resultados ✓');
 console.log('\n✅ REGISTRO DE PODERES (sin powers.has dispersos) OK');

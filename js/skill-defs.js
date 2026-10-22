@@ -446,18 +446,6 @@ export function mergeMods(out, add) {
   }
   return out;
 }
-/** @deprecated Paso 2 (D23): las ramas desaparecen (las sustituye la forja). Se conserva para
- *  los importadores que aún no cambian; C1 la borra en E5. */
-export function aggregateMods(branches, chosen) {
-  const out = emptyMods();
-  if (!branches || !chosen) return out;
-  for (const br of branches) {
-    const optId = chosen[br.id]; if (!optId) continue;
-    const o = (br.opts || []).find(x => x.id === optId); if (!o) continue;
-    mergeMods(out, o);
-  }
-  return out;
-}
 
 // ------------------------------------------------------------
 // FORJA (2f §2.3 · plan §3.5): Mejora (Nv req+3) y dos Variantes (Nv req+6)
@@ -598,86 +586,4 @@ export function validateForge(entry, sk, { powers = null, behaviors = null } = {
     if (vars[0]?.role && vars[0].role === vars[1]?.role) errors.push(`${id}: las dos variantes tienen el mismo papel (${vars[0].role})`);
   }
   return { errors, warnings };
-}
-
-// ------------------------------------------------------------
-// @deprecated (D23): constructores y opciones de las RAMAS (Paso 2b). La forja los sustituye;
-// se conservan mientras los catálogos v1 los importen (C1 los borra en E5).
-// ------------------------------------------------------------
-/** @deprecated */ export const V_BLEED  = { name: 'Desangrar', desc: 'Aplica un sangrado intenso, pero −10% de daño directo.', dot: 'bleed', dmg: -10 };
-/** @deprecated */ export const V_BURN   = { name: 'Calcinar',  desc: 'Incendia al objetivo, pero −10% de daño directo.', dot: 'burn', dmg: -10 };
-/** @deprecated */ export const V_POISON = { name: 'Emponzoñar', desc: 'Envenena al objetivo, pero −10% de daño directo.', dot: 'poison', dmg: -10 };
-/** @deprecated */ export const V_VULN   = { name: 'Quebrantar', desc: 'Vuelve a los golpeados vulnerables 4s (+20% de daño recibido).', vuln: 4 };
-/** @deprecated */ export const V_STUN   = { name: 'Conmocionar', desc: 'Aturde 1.5s al golpear, pero −12% de daño.', stun: 1.5, dmg: -12 };
-/** @deprecated */ export const V_SLOW   = { name: 'Tullir', desc: 'Ralentiza 3s a los enemigos golpeados.', slow: 3 };
-/** @deprecated */ export const V_PIERCE = { name: 'Atravesar', desc: 'Atraviesa a todos los enemigos en línea.', pierce: true };
-/** @deprecated */ export const V_EXEC   = { name: 'Decapitar', desc: 'Ejecuta a enemigos (no jefes) por debajo del 18% de vida, pero −10% de daño.', execute: 18, dmg: -10 };
-/** @deprecated */ export const V_CHAIN  = { name: 'Rebote', desc: 'El golpe rebota a 2 enemigos cercanos.', chain: 2 };
-/** @deprecated */ export const T_ZONE   = { name: 'Estela', desc: 'Deja una ZONA DE DAÑO durante 4s donde golpea.', zone: 1 };
-/** @deprecated */ export const T_CDHIT  = { name: 'Masacre', desc: 'Si golpea a 4+ enemigos, su enfriamiento se reduce a la MITAD.', cdhit: 4 };
-/** @deprecated */ export const T_ECHO   = { name: 'Eco', desc: 'Se ejecuta una 2ª vez (al 60% de daño) tras un instante.', echo: 1 };
-/** @deprecated */ export const T_GIANT  = { name: 'Coloso', desc: '+90% de radio y +40% de daño, pero +50% de enfriamiento.', radius: 90, dmg: 40, cdr: -50 };
-/** @deprecated */ export const T_NOVA   = { name: 'Onda', desc: '+30% de radio y aturde 1s a los golpeados.', radius: 30, stun: 1 };
-/** @deprecated */ export const O_RAD   = { name: 'Vorágine', desc: '+55% de radio, pero −15% de daño.', radius: 55, dmg: -15 };
-/** @deprecated */ export const O_PROJ  = { name: 'Doble', desc: '+1 proyectil, pero −15% de daño.', proj: 1, dmg: -15 };
-/** @deprecated */ export const O_PROJ2 = { name: 'Enjambre', desc: '+2 proyectiles, pero −25% de daño.', proj: 2, dmg: -25 };
-/** @deprecated */ export const O_BIG   = { name: 'Aplastar', desc: '+60% de daño, pero +30% de enfriamiento.', dmg: 60, cdr: -30 };
-
-/** @deprecated constructor de ramas de DAÑO (Ofensiva / Ímpetu / Transformación) */
-export function dmgMods(id, third, v1, v2, v3) {
-  return [
-    { id: `${id}_o`, name: 'Ofensiva', opts: [
-      { id: `${id}_o1`, name: 'Brutal', desc: '+45% de daño, pero +20% de enfriamiento.', dmg: 45, cdr: -20 },
-      { id: `${id}_o2`, name: 'Quirúrgico', desc: '+30% de prob. crítica, pero −12% de daño base.', crit: 30, dmg: -12 },
-      { id: `${id}_o3`, ...third },
-    ] },
-    { id: `${id}_f`, name: 'Ímpetu', opts: [
-      { id: `${id}_f1`, name: 'Frenético', desc: '−30% de enfriamiento, pero −12% de daño.', cdr: 30, dmg: -12 },
-      { id: `${id}_f2`, name: 'Sediento', desc: 'Roba un 14% del daño infligido como vida.', lifesteal: 14 },
-      { id: `${id}_f3`, name: 'Furibundo', desc: 'Genera +16 de recurso al usarla.', gen: 16 },
-    ] },
-    { id: `${id}_v`, name: 'Transformación', opts: [
-      { id: `${id}_v1`, ...v1 }, { id: `${id}_v2`, ...v2 }, { id: `${id}_v3`, ...v3 },
-    ] },
-  ];
-}
-/** @deprecated constructor de ramas de BUFF (Potencia / Duración / Recurso) */
-export function buffMods(id) {
-  return [
-    { id: `${id}_o`, name: 'Potencia', opts: [
-      { id: `${id}_o1`, name: 'Reforzado', desc: '+35% de potencia, pero −20% de duración.', buff: 35, dur: -20 },
-      { id: `${id}_o2`, name: 'Supremo', desc: '+60% de potencia, pero +25% de enfriamiento.', buff: 60, cdr: -25 },
-      { id: `${id}_o3`, name: 'Equilibrado', desc: '+25% de potencia y +30% de duración.', buff: 25, dur: 30 },
-    ] },
-    { id: `${id}_d`, name: 'Duración', opts: [
-      { id: `${id}_d1`, name: 'Duradero', desc: '+70% de duración.', dur: 70 },
-      { id: `${id}_d2`, name: 'Eterno', desc: '+120% de duración, pero −15% de potencia.', dur: 120, buff: -15 },
-      { id: `${id}_d3`, name: 'Sostenido', desc: '+40% de duración y −15% de enfriamiento.', dur: 40, cdr: 15 },
-    ] },
-    { id: `${id}_f`, name: 'Recurso', opts: [
-      { id: `${id}_f1`, name: 'Rápido', desc: '−30% de enfriamiento, pero −15% de duración.', cdr: 30, dur: -15 },
-      { id: `${id}_f2`, name: 'Iracundo', desc: 'Genera +22 de recurso al usarla.', gen: 22 },
-      { id: `${id}_f3`, name: 'Eficiente', desc: '−15% de enfriamiento y +12 de recurso.', cdr: 15, gen: 12 },
-    ] },
-  ];
-}
-/** @deprecated constructor de ramas de movilidad y defensa (Potencia / Recarga / Variante) */
-export function utilMods(id) {
-  return [
-    { id: `${id}_o`, name: 'Potencia', opts: [
-      { id: `${id}_o1`, name: 'Reforzado', desc: '+35% de escudo, cura o distancia.', buff: 35, range: 35 },
-      { id: `${id}_o2`, name: 'Amplio', desc: '+40% de radio de efecto.', radius: 40 },
-      { id: `${id}_o3`, name: 'Persistente', desc: '+50% de duración.', dur: 50 },
-    ] },
-    { id: `${id}_r`, name: 'Recarga', opts: [
-      { id: `${id}_r1`, name: 'Presto', desc: '−25% de enfriamiento.', cdr: 25 },
-      { id: `${id}_r2`, name: 'Oportuno', desc: '−15% de enfriamiento y +10 de recurso al usarla.', cdr: 15, gen: 10 },
-      { id: `${id}_r3`, name: 'Tenaz', desc: '−10% de enfriamiento y +20% de duración.', cdr: 10, dur: 20 },
-    ] },
-    { id: `${id}_v`, name: 'Variante', opts: [
-      { id: `${id}_v1`, name: 'Estela', desc: 'Deja una ZONA DE DAÑO durante 4s donde termina.', zone: 1 },
-      { id: `${id}_v2`, name: 'Impulso', desc: '+30% de velocidad de movimiento durante 3s al usarla.', haste: 3 },
-      { id: `${id}_v3`, name: 'Purga', desc: 'Al usarla, te libra de ralentizaciones.', cleanse: true },
-    ] },
-  ];
 }

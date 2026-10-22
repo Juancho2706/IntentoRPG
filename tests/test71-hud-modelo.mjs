@@ -106,6 +106,12 @@ const boss = { staggerBrokenT: 2, slowT: 3, tauntT: 1, vulnT: 0, debuffs: { a: {
 assert.deepEqual(HM.enemyStatuses(boss).map(s => s.id), ['quebrantado', 'escarcha', 'ralentizado', 'provocado', 'debilidad', 'quemadura', 'sangrado', 'veneno']);
 assert.equal(HM.enemyStatuses({ stunT: 1 })[0].id, 'aturdido');
 assert.equal(HM.enemyStatuses({ rootT: 1 })[0].label, 'Inmovilizado');
+// miedo («Asustado», el icono del control más parecido); aturdido o congelado lo tapan (no huye)
+assert.deepEqual(HM.enemyStatuses({ fearT: 2.5 }), [{ id: 'asustado', label: 'Asustado', t: 2.5 }]);
+assert.deepEqual(HM.enemyStatuses({ fearT: 2, stunT: 1 }).map(s => s.id), ['aturdido'], 'aturdido manda sobre el miedo');
+assert.deepEqual(HM.enemyStatuses({ fearT: 2, frozenT: 1 }).map(s => s.id), ['escarcha'], 'congelado manda sobre el miedo');
+assert.deepEqual(HM.enemyStatuses({ fearT: 0 }), [], 'sin miedo, sin chip');
+assert.equal(HM.statusIcon('asustado'), 'assets/ui/st_aturdido.webp');
 assert.equal(HM.enemyStatuses({ gauges: { escarcha: { v: 3 } } })[0].label, 'Escarcha 3');
 assert.equal(HM.playerStatusIcon({ id: 'slow', name: 'Ralentizado' }), 'assets/ui/st_ralentizado.webp');
 assert.equal(HM.playerStatusIcon({ id: 'shield', name: 'Escudo' }), 'assets/ui/st_escudo.webp');

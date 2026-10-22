@@ -97,13 +97,10 @@ export function commonPowers() {
   return {
     // ---- multiplicadores [×] (Paso 1A; ≤ ×1,3; máx. 3 activos) ----
     furia:     { name: 'Furia', desc: 'Daño ×1,15 con vida por encima del 80 %.', mult: { mult: 1.15, when: c => c.hpFrac > 0.8 } },
-    // nodos clave de talento (§5.2.2): Sed de Batalla también con la Sed Saciada
-    // (indicador de spec-mechanics: p.gauges.sed.satedT), Tiro Mortal ×1,30 y
-    // Cacería ×1,30 contra ralentizados o inmovilizados que NO sean jefes (2e: control de hordas)
+    // nodo clave de talento (§5.2.2): Sed de Batalla también con la Sed Saciada
+    // (indicador de spec-mechanics: p.gauges.sed.satedT)
     m_berserk: { name: 'Sed de Batalla', desc: 'Daño ×1,25 con vida por debajo del 40 % o con la Sed Saciada.',
       mult: { mult: 1.25, when: c => c.hpFrac < 0.4 || (c.p?.gauges?.sed?.satedT || 0) > 0 } },
-    m_deadeye: { name: 'Tiro Mortal', desc: 'Críticos ×1,20 contra objetivos con más del 60 % de vida.', mult: { mult: 1.20, when: c => c.crit && c.targetFrac > 0.6 } },
-    m_hunt:    { name: 'Cacería', desc: 'Daño ×1,30 contra ralentizados o inmovilizados (salvo jefes).', mult: { mult: 1.30, when: c => !c.e?.def?.boss && (c.targetSlowed || (c.e?.rootT || 0) > 0) } },
 
     // ---- ① stats ----
     avaricia: {
@@ -123,15 +120,6 @@ export function commonPowers() {
     },
 
     // ---- ⑤ onHit ----
-    // Arcanista s0 (Paso 2c.0): el texto del nodo es «cada golpe Arcano te devuelve 1
-    // de maná» (eso lo da su stats.mph: 1) y las Cargas Arcanas (indicador `cargas`
-    // de spec-mechanics.js). El 4 % del maná máximo por golpe de la maestría vieja
-    // era maná infinito con el pozo de §2 (≈16 por golpe a Nv50): el poder queda
-    // como marca del nodo clave, sin efecto propio (los talentos de 2c.1 pueden
-    // reaccionar a él con hasPower).
-    m_overload: {
-      name: 'Sobrecarga Arcana', desc: 'Nodo clave del Arcanista: cada golpe te devuelve maná y el Dardo Arcano genera Cargas Arcanas.',
-    },
     // Crionte s0 (§5.2.3): astilla a los CONGELADOS (5 capas de Escarcha) por debajo
     // de tv.shatterPct (15 %), no jefes
     m_shatter: {
@@ -156,14 +144,6 @@ export function commonPowers() {
     volatil: {
       name: 'Volátil', desc: 'Los enemigos explotan al morir: 50 % de tu golpe medio a los cercanos (no encadena).',
       onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, volatileDamage(avgOf(p)), 2.6, 0xff6622, 10, 'volatil'); },
-    },
-    m_judgment: {
-      name: 'Juicio', desc: 'Al matar, una onda sagrada (20 % del golpe medio) daña a los cercanos.',
-      onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, Math.max(2, Math.round(avgOf(p) * 0.2)), 2.9, 0xffe680, 10, 'm_judgment'); },
-    },
-    m_conflag: {
-      name: 'Conflagración', desc: 'Al matar, una explosión de fuego (270 % del golpe medio) daña la zona.',
-      onKill(g, p, e, kill) { if (!kill?.nested) burst(g, e, Math.max(2, Math.round(avgOf(p) * 2.7)), 3.1, 0xff7722, 14, 'm_conflag'); },
     },
 
     // ---- Paso 2c.2: claves tv del núcleo (ver cabecera) ----
@@ -241,25 +221,6 @@ export function commonPowers() {
         if (tv.drFocus && gaugeValue(p, 'concentracion') > 50) dr += tv.drFocus;
         if (tv.drLowHp && (p.stats?.maxHP || 0) > 0 && p.hp / p.stats.maxHP < DR_LOW_HP_FRAC) dr += tv.drLowHp;
         return dr;
-      },
-    },
-
-    // ---- ⑧ onLethal + ⑨ onTick ----
-    m_aegis: {
-      name: 'Muro Inquebrantable', desc: 'Un golpe letal te deja a 1 de vida e inmune 2 s (recarga 30 s).',
-      state: () => ({ cd: 0 }),
-      onTick(g, p, dt) { const st = powerState(p, 'm_aegis'); if (st.cd > 0) st.cd = Math.max(0, st.cd - dt); },
-      onLethal(g, p) {
-        const st = powerState(p, 'm_aegis');
-        if (st.cd > 0) return false;
-        st.cd = 30;
-        p.setHp(1, 'm_aegis');       // restauración (fija la vida; no es curación)
-        p.grantInvuln(2);
-        g.ui?.message?.('🛡️ ¡Muro Inquebrantable! Sobrevives al golpe letal', 3000);
-        g.ui?.spawnText?.(p.pos, '¡INQUEBRANTABLE!', 'txt-heal');
-        g.addShake?.(0.5, 0.5);
-        g.sfx?.('levelup');
-        return true;
       },
     },
   };

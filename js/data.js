@@ -3,14 +3,14 @@
 // ============================================================
 
 import { enemyHpScale, enemyDmgScale, enemyXpScale, RANK_HP, RANK_DMG, UBER_HP_MULT, bossHpMult, eliteHpMult } from './combat-math.js';
-import { normalizeSkillDef, emptyMods, CAT_LABELS } from './skill-defs.js';
+import { normalizeSkillDef, CAT_LABELS } from './skill-defs.js';
 import { RESOURCE_DEFS } from './resources.js';
 // catálogo por clase (cada archivo es de un trabajador; data.js solo lo fusiona)
-import { GUERRERO_SKILLS, GUERRERO_SKILL_MODS, GUERRERO_SKILL_FORGE, GUERRERO_SPEC_BAR, GUERRERO_FORGE_RECO,
+import { GUERRERO_SKILLS, GUERRERO_SKILL_FORGE, GUERRERO_SPEC_BAR, GUERRERO_FORGE_RECO,
   GUERRERO_FALLBACK_BAR, GUERRERO_CATALOG_V } from './skills-guerrero.js';
-import { MAGA_SKILLS, MAGA_SKILL_MODS, MAGA_SKILL_FORGE, MAGA_SPEC_BAR, MAGA_FORGE_RECO,
+import { MAGA_SKILLS, MAGA_SKILL_FORGE, MAGA_SPEC_BAR, MAGA_FORGE_RECO,
   MAGA_FALLBACK_BAR, MAGA_CATALOG_V } from './skills-maga.js';
-import { ARQUERA_SKILLS, ARQUERA_SKILL_MODS, ARQUERA_SKILL_FORGE, ARQUERA_SPEC_BAR, ARQUERA_FORGE_RECO,
+import { ARQUERA_SKILLS, ARQUERA_SKILL_FORGE, ARQUERA_SPEC_BAR, ARQUERA_FORGE_RECO,
   ARQUERA_FALLBACK_BAR, ARQUERA_CATALOG_V } from './skills-arquera.js';
 // activas `grant` de los talentos (kind 'talent'; dueños: trabajadores de 2c.1).
 // Estos archivos no importan nada, así que no hay ciclo con talents.js.
@@ -65,22 +65,12 @@ function classResource(id, skills) {
   // `gen` = generación del básico de arma (la UI lo muestra en la barra)
   return { id: def.id, name: def.name, icon: def.icon, color: def.color, start: def.start, regen: def.regen, gen: basic?.gen || 0 };
 }
-// Paso 2c.0: las activas de talento (TALENTS.skills) entran en el catálogo de la
-// clase NORMALIZADAS como las base (tags ⊇ {cat, elem}, slots, max) con kind
-// 'talent'; se conocen solo si talentAgg.grants las concede (skill-resolve.isKnown).
-// D29 (Paso 2): con el catálogo 2g (CATALOG_V = 2) las 6 activas de talento viven en el
-// PROPIO catálogo (skills-<clase>.js, `kind:'talent'`) y <CLASE>_TALENT_SKILLS es solo una
-// lista de ids: no se fusiona nada de los talentos. Con el catálogo v1 (E1.5 → KA1),
-// TALENTS.skills es el puente @deprecated <CLASE>_TALENT_SKILL_DEFS: las activas 2g que ya
-// existían como activas de talento. `forge` = forja de la clase (§3.5).
+// Las activas de talento (kind 'talent', tags ⊇ {cat, elem}, slots, max) viven en el
+// PROPIO catálogo de la clase (skills-<clase>.js; D29) y se conocen solo si talentAgg.grants
+// las concede (skill-resolve.isKnown). <CLASE>_TALENT_SKILLS es solo una lista de ids.
+// `forge` = forja de la clase (§3.5).
 function makeClass(base, prefix, rawSkills, { talents = null, catalogV = 1, forge = {} } = {}) {
-  let list = rawSkills;
-  if (catalogV !== 2) {
-    const ids = new Set(rawSkills.map(s => s.id));
-    const extra = (talents?.skills || []).filter(s => s && typeof s === 'object' && !ids.has(s.id)).map(s => ({ ...s, kind: 'talent' }));
-    list = [...rawSkills, ...extra];
-  }
-  const skills = list.map(s => normalizeSkillDef(s.talent && !s.kind ? { ...s, kind: 'talent' } : s));
+  const skills = rawSkills.map(s => normalizeSkillDef(s.talent && !s.kind ? { ...s, kind: 'talent' } : s));
   return { ...base, skills, forge: forge || {}, catalogV, tree: buildSkillTree(prefix, skills, talents?.specs || []), resource: classResource(base.resourceId, skills) };
 }
 
@@ -542,25 +532,9 @@ export const SUPPORTS = [
 ];
 
 // ------------------------------------------------------------
-// RAMAS (Paso 2b) — @deprecated (D23): la forja (Mejora + 2 Variantes, §3.5) las sustituye.
-// Los exports quedan como stubs VACÍOS mientras algún módulo los importe (ui.js, la
-// migración congelada de save-schema.js, el banco); C1 los borra en E5. Las ramas que los
-// catálogos v1 aún declaran (<CLASE>_SKILL_MODS) ya no tienen efecto.
-// ------------------------------------------------------------
-/** @deprecated Paso 2: sin ramas (forja). Siempre vacío. */
-export const SKILL_MODS = Object.freeze({});
-void GUERRERO_SKILL_MODS; void MAGA_SKILL_MODS; void ARQUERA_SKILL_MODS;
-
-/** @deprecated Paso 2: sin ramas. Devuelve mods neutros. */
-export function aggregateSkillMods(skId, chosen) {
-  void skId; void chosen;
-  return emptyMods();
-}
-
-// ------------------------------------------------------------
 // Paso 2 (2f + 2g) · FORJA Y BARRAS (E0.6, stubs de contrato: docs/paso2-implementacion.md
 // §3.5, D3, D6 y D24). Cada clase los declara en js/skills-<clase>.js (vacíos hasta que KA los
-// llene en E2) y aquí solo se fusionan, como SKILL_MODS. Los ids de habilidad y de
+// llene en E2) y aquí solo se fusionan. Los ids de habilidad y de
 // especialización son únicos entre clases: SKILL_FORGE, SPEC_BAR y FORGE_RECO van planos.
 // ------------------------------------------------------------
 // skillId → { mejora, vars: [i, ii] }   (la forja de cada habilidad; §3.5)
@@ -624,7 +598,7 @@ export function blessingValue(b, tier) {
 
 // Tablero de Paragon (glifos): vive en js/paragon-board.js (Paso 2, E0.3; dueño W1 en E1).
 // Aquí solo se reexporta: los importadores de data.js no cambian.
-export { PARAGON_CATS, PG_CFG, buildParagonBoard, PARAGON_BOARDS, PARAGON_BOARD, paragonBoardFor, PARAGON_BOARD_SIZE } from './paragon-board.js';
+export { PARAGON_CATS, PG_CFG, buildParagonBoard, PARAGON_BOARDS, paragonBoardFor, PARAGON_BOARD_SIZE } from './paragon-board.js';
 export const STAT_NAMES = { fue: 'Fuerza', des: 'Destreza', vit: 'Vitalidad', ene: 'Energía' };
 export const STAT_DESC = {
   fue: 'Aumenta el daño físico',

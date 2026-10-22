@@ -19,7 +19,7 @@ import { SFX_TONES } from '../js/sfx.js';
 import { normalizePreset } from '../js/particles.js';
 import { talentMethods } from '../js/game-talents.js';
 import * as S from '../js/save-schema.js';
-import { ARQUERA_SKILLS, ARQUERA_SKILL_BEHAVIORS, ARQUERA_SKILL_MODS, ARQUERA_SPEC_BAR, ARQUERA_FALLBACK_BAR,
+import { ARQUERA_SKILLS, ARQUERA_SKILL_BEHAVIORS, ARQUERA_SPEC_BAR, ARQUERA_FALLBACK_BAR,
   ARQUERA_CATALOG_V } from '../js/skills-arquera.js';
 import { ARQUERA_FX, ARQUERA_FX_PRESETS } from '../js/fx-skills-arquera.js';
 import { ARQUERA_TALENT_SKILLS } from '../js/talents-arquera.js';
@@ -46,7 +46,6 @@ assert.equal(ARQUERA_SKILLS.length, 23, '23 habilidades: 5 de base, 12 de kits y
 assert.deepEqual(skills.map(s => s.id), ARQUERA_SKILLS.map(s => s.id), 'CLASSES sale del catálogo, en su orden (D29: las activas al final)');
 assert.deepEqual(skills.map(s => s.id).sort(), Object.keys(ALL).sort(), 'ids del catálogo 2g');
 for (const id of RETIRED) assert.ok(!S_(id), `${id}: retirada (§11.1)`);
-assert.deepEqual(ARQUERA_SKILL_MODS, {}, 'sin ramas v1');
 assert.deepEqual([...ARQUERA_TALENT_SKILLS].sort(), Object.keys(ACTIVES).sort(), 'las 6 activas de talento coinciden con la lista del árbol');
 for (const s of skills) {
   const warnings = [];

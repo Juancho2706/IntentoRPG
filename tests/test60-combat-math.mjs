@@ -29,13 +29,15 @@ console.log('Saco aditivo (sinergias+soportes+mods+dmgPct+critDmg) ✓');
 // --- 2) multiplicadores [×]: solo los 3 mayores, cada uno ≤ ×1,3 ---
 CM.registerMultiplier('t_test_a', { mult: 1.3, when: () => true });
 CM.registerMultiplier('t_test_b', { mult: 2.0, when: () => true }); // se topa a 1,3
-const act = CM.activeMultipliers(new Set(['furia', 'm_berserk', 'm_hunt', 't_test_a', 't_test_b']),
+// con condición de contexto (como la vieja Cacería: ×1,30 contra ralentizados, salvo jefes)
+CM.registerMultiplier('t_test_c', { mult: 1.3, when: c => !c.e?.def?.boss && c.targetSlowed });
+const act = CM.activeMultipliers(new Set(['furia', 'm_berserk', 't_test_a', 't_test_b', 't_test_c']),
   { hpFrac: 1, targetSlowed: true }, [{ id: 'x', mult: 1.12 }]);
-ok(act.length === CM.MAX_MULT_ACTIVE && act.every(m => m <= 1.3) && approx(act[0], 1.3) && approx(act[1], 1.3) && approx(act[2], 1.3), 'activeMultipliers: ' + act);   // Paso 2e: Cacería ×1,10 → ×1,30 (salvo jefes)
-ok(approx(CM.multiplierProduct(new Set(['m_hunt']), { targetSlowed: true, e: { def: { boss: true } } }), 1), 'Cacería no cuenta contra jefes (2e)');
-ok(approx(CM.multiplierProduct(new Set(['m_hunt']), { targetSlowed: true, e: { def: {} } }), 1.3), 'Cacería ×1,30 contra ralentizados (2e)');
+ok(act.length === CM.MAX_MULT_ACTIVE && act.every(m => m <= 1.3) && approx(act[0], 1.3) && approx(act[1], 1.3) && approx(act[2], 1.3), 'activeMultipliers: ' + act);
+ok(approx(CM.multiplierProduct(new Set(['t_test_c']), { targetSlowed: true, e: { def: { boss: true } } }), 1), 'la condición del contexto: no cuenta contra jefes');
+ok(approx(CM.multiplierProduct(new Set(['t_test_c']), { targetSlowed: true, e: { def: {} } }), 1.3), 'la condición del contexto: ×1,30 contra ralentizados');
 ok(CM.multiplierProduct(new Set(['m_berserk']), { hpFrac: 0.9 }) === 1, 'Sed de Batalla solo con vida baja');
-delete CM.MULT_POWERS.t_test_a; delete CM.MULT_POWERS.t_test_b;
+delete CM.MULT_POWERS.t_test_a; delete CM.MULT_POWERS.t_test_b; delete CM.MULT_POWERS.t_test_c;
 console.log('Multiplicadores escasos: máx 3 activos, tope ×1,3 c/u, hook registerMultiplier ✓');
 
 // --- 3) topes del héroe: crítico tras bonus, vel. ataque/mov., CDR ---
