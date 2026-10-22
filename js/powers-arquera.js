@@ -53,7 +53,7 @@ import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower } from './powers.js';
 import { gainGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
 import { projFanOffset } from './skill-defs.js';
-import { enemiesInField, fieldArmed, insideField } from './field-entities.js';
+import { enemiesInField, fieldArmed, insideField, defineTrapSkin } from './field-entities.js';
 import { spendResource } from './resources.js';
 import { rankCoef, chargeFullAt } from './combat-math.js';
 import { cotoAddPrey, cotoPreys } from './mech-arquera.js';
@@ -71,7 +71,7 @@ function tune() {
     cls: Object.freeze({
       punteria: { every: 4 },                                    // c5A: cada 4.º Disparo Rápido al mismo enemigo
       saqueo: { energy: 8 },                                     // c5B
-      bocajarro: { near: 5, pct: 15, knock: 1 },                 // c6A
+      bocajarro: { near: 5, pct: 15, knock: 1, delay: 0.15 },    // c6A (empujón al acabar la descarga)
       lejano: { far: 10, pct: 20 },                              // c6B
       diamante: { pct: 40 },                                     // c9B
       roma: { slowPct: 50, slowT: 4 },                           // c10A (icd 8 s)
@@ -554,10 +554,20 @@ export function arqueraPowers() {
         const T = tune().cls.bocajarro;
         return e && arrowRoll(hit) && dist(p.pos, e.pos) < T.near ? T.pct : 0;
       },
+      // S-arquera (A1/A-x1): el empujón llega al acabar la descarga (T.delay s) y uno por enemigo: las
+      // flechas de un mismo abanico (Disparo Disperso, Andanada) que van al mismo enemigo aún lo encuentran
+      state: () => ({ pending: new WeakSet() }),
       onHit(g, p, e, hit) {
         const T = tune().cls.bocajarro;
         if (!e?.alive || !arrowHit(hit) || dist(p.pos, e.pos) >= T.near) return;
-        e.displace?.(p.pos, T.knock, { src: p });
+        const st = powerState(p, 'a_bocajarro');
+        if (!g.timers) { e.displace?.(p.pos, T.knock, { src: p }); return; }
+        if (st.pending.has(e)) return;
+        st.pending.add(e);
+        g.timers.schedule(T.delay, () => {
+          st.pending.delete(e);
+          if (e.alive && p.alive) e.displace?.(p.pos, T.knock, { src: p });
+        });
       },
     },
     // c6B Tiro Lejano: a más de 10 m, tus flechas +20 %
@@ -1347,7 +1357,8 @@ function cepoData(p) {
   return {
     data: { dmg: p.avgHit ? p.avgHit(coef, pr.addPct || 0) : 0, coef, root: Math.max(t.root || 0, pr.root || def.root || 0), color: def.color, skill: 'a_t_cepo',
       tags: pr.tags || new Set([...(def.tags || []), 'trap']), elem: pr.elem || def.elem || 'nature', armT: t.armT ?? 0.5, burst: t.burst || null,
-      consume: t.consume !== false, lure: t.lure || null, hitDot: pr.hitDot || null, rank },
+      consume: t.consume !== false, lure: t.lure || null, hitDot: pr.hitDot || null, rank,
+      hold: t.hold || 0, boss: t.boss || null, skin: t.skin || null },
     radius: t.radius || pr.radius || 1.5, life: pr.dur || def.dur || 30,
   };
 }
@@ -1768,6 +1779,166 @@ function tiradoraPowers() {
 }
 
 // ============================================================
+// SENSACIÓN DE LOS TENSADOS (S-arquera, A4 · A5): lo que se VE de Disparo Apuntado, Tiro Celestial y el
+// Disparo Rápido tensado (Cuerda Tensa). Lo lleva Cuerda Tensa (f0, gratis con la Francotiradora):
+//   · tensando (onTick, 10 Hz): partículas que convergen en el arco y crecen con la carga, brillo del
+//     arco (dorado en la ventana) y, al empezar, un ANILLO que se cierra justo cuando se abre la ventana
+//     dorada (como el «Perfect Timing» del Snipe de PoE2)
+//   · al soltar (⑭ de la carga; el básico, en ⑦): destello en el arco, sacudida (Tiro Celestial) y la
+//     SAETA ALARGADA (un haz vivo corto que viaja con el proyectil) con su TRAZADOR desde la boca, que
+//     acaba en la última víctima (no en el cursor) y se apaga en 0,3 s; dorados y más gruesos en el
+//     perfecto. Tiro Celestial: surco luminoso en el suelo a lo largo de su línea (1 s); su haz de la
+//     línea entera lo pinta el motor (`beam` de la definición)
+//   · al impactar (⑤): chispa en cada enemigo atravesado y congelado en el perfecto (una vez por suelta)
+// El recorrido del proyectil se calcula (recto, a su velocidad): no hace falta el objeto del motor.
+// ============================================================
+// eslint-disable-next-line no-var
+var TENSE_FEEL;
+function tenseFeel() {
+  return TENSE_FEEL || (TENSE_FEEL = Object.freeze({
+    ids: Object.freeze(['a_t_apuntado', 'a_u_celeste']),
+    gold: 0xffcf40,
+    a_t_apuntado: { color: 0xfff1a8, ring: '#fff1a8', streak: 0.85, width: 0.12, stop: 70, shake: 0.12 },
+    a_u_celeste: { color: 0x9fd8ff, ring: '#bfe6ff', streak: 1.2, width: 0.2, stop: 100, shake: 0.32, furrow: 1.0 },
+    a_disparo: { color: 0xe8d8a0, streak: 0.6, width: 0.08, stop: 45, shake: 0, speed: 18, range: 12 },
+    trace: { linger: 0.12, fade: 0.3 },
+  }));
+}
+// el arco: a la altura del pecho y un poco por delante (la mano de game-skills.handPos)
+function bowPos(p) {
+  const r = p?.group?.rotation?.y || 0;
+  return v3(p.pos.x + Math.sin(r) * 0.4, p.pos.z + Math.cos(r) * 0.4, 1.2);
+}
+function hexCol(c) { return '#' + (((c >>> 0) & 0xffffff).toString(16).padStart(6, '0')); }
+// tensando: anillo que se cierra al abrirse la ventana (al empezar) y chispas que convergen en el arco
+function tenseChargeFx(g, p) {
+  const c = g?._charging;
+  if (!c || !tenseFeel().ids.includes(c.id)) return;
+  const F = tenseFeel(), cfg = F[c.id];
+  const st = powerState(p, 'arq_tensado');
+  const at = bowPos(p);
+  const inWin = !!c.inWindow;
+  const col = inWin ? hexCol(F.gold) : cfg.ring;
+  if (st.chargeT0 !== c.t0) {
+    st.chargeT0 = c.t0;
+    const speed = g._chargeSpeed ? g._chargeSpeed(c) : 1;
+    const win0 = (c.window || [c.max])[0];
+    const T = Math.max(0.15, (win0 - (c.u || 0)) / Math.max(0.05, speed));
+    const R = 1.1;
+    g.emitFx?.({ name: 'Tensado anillo', texture: 'glow', blending: 'additive', count: 28, burst: true, lifetime: [T, T],
+      shape: 'ring', shapeRadius: R, speed: [-R / T * 1.05, -R / T * 1.05], gravity: -0.6, drag: 0,
+      size: { start: [0.12, 0.16], end: 0.22 }, color: { start: cfg.ring, end: hexCol(F.gold) }, alpha: { start: 0.55, end: 1 } }, v3(at.x, at.z, 1.45));
+    st.rings = (st.rings || 0) + 1;
+  }
+  const k = Math.max(0, Math.min(1, c.frac || 0));
+  g.emitFx?.({ name: 'Tensado chispas', texture: 'spark', blending: 'additive', count: Math.round(3 + 6 * k), burst: true, lifetime: [0.22, 0.32],
+    shape: 'sphere', shapeRadius: 0.9, speed: [-3.2, -2.2], gravity: 0, drag: 0, size: { start: [0.05 + 0.06 * k, 0.08 + 0.1 * k], end: 0.02 },
+    color: { start: '#ffffff', end: col }, alpha: { start: 0.9, end: 0.2 } }, at);
+  g.emitFx?.({ name: 'Tensado brillo', texture: 'glow', blending: 'additive', count: 1, burst: true, lifetime: [0.13, 0.13],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0, size: { start: [0.25 + 0.55 * k, 0.25 + 0.55 * k], end: 0.2 + 0.5 * k },
+    color: { start: inWin ? '#fff6cc' : '#ffffff', end: col }, alpha: { start: 0.55 + 0.35 * k, end: 0.3 } }, at);
+  st.glows = (st.glows || 0) + 1;
+}
+// saeta alargada + trazador de un disparo recto: from (y 1), dir unitaria, speed, range, pierce
+function tenseShot(g, p, id, { from, dir, speed, range, pierce, perfect = false, frac = 1 }) {
+  if (!g?.spawnLiveBeam) return null;
+  const F = tenseFeel(), cfg = F[id] || F.a_disparo;
+  const st = powerState(p, 'arq_tensado');
+  const end0 = g.clampWalkable ? g.clampWalkable(v3(from.x, from.z), v3(from.x + dir.x * range, from.z + dir.z * range), range) : v3(from.x + dir.x * range, from.z + dir.z * range);
+  const lineLen = Math.hypot(end0.x - from.x, end0.z - from.z);
+  const shot = { id, t0: now(p), from: { x: from.x, z: from.z }, dir, speed: Math.max(1, speed), lineLen, pierce: !!pierce, stopAt: null, last: null, done: false, perfect, stopped: false };
+  st.shot = shot;
+  const color = perfect ? F.gold : cfg.color;
+  const head = () => {
+    const d = Math.min(shot.stopAt ?? shot.lineLen, (now(p) - shot.t0) * shot.speed);
+    return v3(shot.from.x + dir.x * d, shot.from.z + dir.z * d, 1.0);
+  };
+  const finished = () => (now(p) - shot.t0) * shot.speed >= (shot.stopAt ?? shot.lineLen) - 1e-6;
+  const w = cfg.width * (perfect ? 1.6 : 1) * (0.8 + 0.4 * frac);
+  // la saeta: un haz corto que viaja con la punta
+  let bolt = null;
+  bolt = g.spawnLiveBeam({ color, coreColor: 0xffffff, width: w, core: w * 0.45, intensity: perfect ? 1.8 : 1.3, sparks: false,
+    from: () => { const h = head(); const back = Math.min(cfg.streak, Math.hypot(h.x - shot.from.x, h.z - shot.from.z)); return v3(h.x - dir.x * back, h.z - dir.z * back, 1.0); },
+    to: () => { const h = head(); if (bolt && !bolt.ending && finished()) bolt.end(0.06); return h; } });
+  // el trazador: de la boca a la punta; al acabar, a la última víctima (o donde paró) y se apaga
+  let trace = null;
+  const traceTo = () => {
+    if (!finished()) return head();
+    if (!shot.done) {
+      shot.done = true;
+      g.timers?.schedule?.(F.trace.linger, () => trace?.end?.(F.trace.fade));
+    }
+    return shot.last ? v3(shot.last.x, shot.last.z, 1.0) : head();
+  };
+  trace = g.spawnLiveBeam({ color, coreColor: perfect ? 0xfff6cc : 0xffffff, width: w * 0.55, core: w * 0.2, intensity: perfect ? 1.1 : 0.7, sparks: false, scroll: 10,
+    from: v3(from.x + dir.x * 0.4, from.z + dir.z * 0.4, 1.0), to: traceTo });
+  shot.bolt = bolt; shot.trace = trace;
+  return shot;
+}
+// la suelta de un tensado (Disparo Apuntado, Tiro Celestial): destello, sacudida, saeta y trazador
+function tenseRelease(g, p, sk, end) {
+  const id = sk?.id;
+  if (!tenseFeel().ids.includes(id) || end?.kind !== 'charge' || !(end.casts > 0)) return;
+  const F = tenseFeel(), cfg = F[id];
+  const prof = p.resolved?.[id] || null;
+  const def = prof?.def || sk;
+  const st = powerState(p, 'arq_tensado');
+  st.release = (st.release || 0) + 1;
+  st.stopFor = null;
+  const frac = Math.max(0, Math.min(1, end.frac ?? 1)), perfect = !!end.perfect;
+  const at = bowPos(p);
+  g.emitFx?.(perfect ? 'arqReleasePerfect' : 'arqReleaseFlash', at);
+  if (id === 'a_u_celeste') g.emitFx?.('arqCelestialFlash', at);
+  if (cfg.shake > 0) g.addShake?.(cfg.shake * (0.6 + 0.4 * frac) * (perfect ? 1.3 : 1));
+  if (def.type !== 'proj') return;                                  // Lluvia Estelar: cae del cielo
+  const aim = st.aim || (g.input?.mouseWorld ? { x: g.input.mouseWorld.x, z: g.input.mouseWorld.z } : null);
+  const dir = aimDir(p, aim);
+  const range = (prof?.range || def.range || 16) * 1;
+  const shot = tenseShot(g, p, id, { from: p.pos, dir, speed: prof?.speed || def.speed || 30, range, pierce: prof?.pierce ?? def.pierce, perfect, frac });
+  if (shot) shot.release = st.release;
+  // surco luminoso en el suelo (Tiro Celestial): se apaga en 1 s
+  if (cfg.furrow && shot && g.spawnLiveBeam) {
+    const a = v3(p.pos.x + dir.x * 0.5, p.pos.z + dir.z * 0.5, 0.06), b = v3(p.pos.x + dir.x * shot.lineLen, p.pos.z + dir.z * shot.lineLen, 0.06);
+    st.furrow = g.spawnLiveBeam({ from: a, to: b, color: F.a_u_celeste.color, coreColor: 0xe8f6ff, width: 0.25 + 0.35 * frac, core: 0.08 + 0.08 * frac,
+      intensity: 0.9, sparks: false, scroll: 2, dur: cfg.furrow });
+  }
+}
+// el básico tensado de Cuerda Tensa (⑦ del básico de arma, antes de soltar la flecha)
+function tenseBasic(g, p, cast) {
+  if (!cast?.weapon || !cast.charge || !(cast.charge.t >= tune().fra.cuerda.tensedAt - 1e-9)) return;
+  const F = tenseFeel(), cfg = F.a_disparo;
+  const st = powerState(p, 'arq_tensado');
+  st.release = (st.release || 0) + 1;
+  st.stopFor = null;
+  const to = cast.target || cast.enemy?.pos;
+  if (!to) return;
+  const dir = aimDir(p, to);
+  if (cast.perfect) { g.emitFx?.('arqReleasePerfect', bowPos(p)); }
+  const shot = tenseShot(g, p, 'a_disparo', { from: p.pos, dir, speed: cfg.speed, range: cfg.range, pierce: !!cast.prof?.pierce, perfect: !!cast.perfect, frac: cast.charge.frac ?? 1 });
+  if (shot) shot.release = st.release;
+}
+// impacto de un tensado: la saeta para en su víctima (si no atraviesa), chispa en cada atravesado y
+// congelado en el perfecto (una vez por suelta, ni en repeticiones)
+function tenseHit(g, p, e, hit) {
+  if (!e || hit?.proc || hit?.dot) return;
+  const st = powerState(p, 'arq_tensado');
+  const shot = st.shot;
+  const id = hit?.skill;
+  if (!shot || shot.id !== id || shot.release !== st.release) return;
+  const F = tenseFeel(), cfg = F[id] || F.a_disparo;
+  if (!hit.echo) {
+    shot.last = { x: e.pos.x, z: e.pos.z };
+    if (!shot.pierce && shot.stopAt == null) shot.stopAt = Math.max(0.3, Math.hypot(e.pos.x - shot.from.x, e.pos.z - shot.from.z) - 0.3);
+    g.emitFx?.(shot.perfect ? 'arqPierceGold' : 'arqPierceSpark', v3(e.pos.x, e.pos.z, 1.0));
+  }
+  if (hit.perfect && !hit.echo && st.stopFor !== shot.release && cfg.stop > 0) {
+    st.stopFor = shot.release;
+    g.hitStop?.(cfg.stop);
+    st.stops = (st.stops || 0) + 1;
+  }
+}
+
+// ============================================================
 // FRANCOTIRADORA (§7.1): Concentración, Cuerda Tensa y sus tres estilos (Perforación, Punto Débil, Vigía)
 // ============================================================
 // «Tensados» = Disparo Apuntado, los haces de Tiro Celestial y el Disparo Rápido mantenido (Cuerda
@@ -1807,14 +1978,20 @@ function francotiradoraPowers() {
           scale, moveMul: C.moveMul, autoRelease: true, instant: false,
           repeat: true, perfectGauge: null, full: null, speed: 1, markMin: C.tensedAt };
       },
+      // (la sensación de los tensados —tenseFeel: anillo, saeta, trazador, destello y congelado— va en
+      // estos mismos ganchos: S-arquera A4 · A5)
       onCast(g, p, cast) {
-        if (cast?.sk?.id === 'a_t_apuntado') {
+        const id = cast?.sk?.id;
+        // un tensado sale hacia la mira de cuando empezaste a tensar (ctx.target): la saeta y el trazador
+        if (tenseFeel().ids.includes(id)) powerState(p, 'arq_tensado').aim = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
+        if (id === 'a_t_apuntado') {
           Object.assign(aimOf(p), { aim: cast.target ? { x: cast.target.x, z: cast.target.z } : null, prof: cast.prof });
           return;
         }
         if (!cast?.weapon || !(cast.charge?.t >= T.cuerda.tensedAt - 1e-9)) return;
         const prof = ownProf(p, cast);
         if (prof) prof.tags = new Set([...(prof.tags || []), 'tensado']);
+        tenseBasic(g, p, cast);
       },
       condAdd(p, e, hit) {
         const far = p.tv?.farTense || 0;
@@ -1823,11 +2000,14 @@ function francotiradoraPowers() {
       },
       onHit(g, p, e, hit) {
         if (hit?.skill === 'a_f_rastreador' && e?.alive) markWeak(p, e, p.resolved?.a_f_rastreador?.mark?.dur || T.weakDur);
+        tenseHit(g, p, e, hit);
       },
+      onSkillEnd(g, p, sk, end) { tenseRelease(g, p, sk, end); },
       onTick(g, p) {
         const st = powerState(p, 'arq_debil');
         st.acc = (st.acc || 0) + 1;
         if (st.acc % 10 === 0) pruneWeak(p);
+        tenseChargeFx(g, p);
       },
     },
     // f4 Sobrepenetración: +10 %/rango por cada enemigo que ya atravesó la saeta (hasta 4)
@@ -2661,7 +2841,101 @@ var FIELDS_CACHE;
 function arqueraFieldsCache() { return FIELDS_CACHE || (FIELDS_CACHE = buildFields()); }
 export function arqueraFields() { return arqueraFieldsCache(); }
 
+// ============================================================
+// ASPECTO DEL CEPO (S-arquera, A10): `data.skin: 'cepo'` de Trampa de Cepo (y de los cepos que colocan
+// los talentos: spawnCepo copia su molde). Lo registra buildFields en field-entities (defineTrapSkin):
+//   · render: placa y dientes de metal alrededor de la placa de presión, más el anillo del radio de
+//     disparo. Armándose, apagado; ARMADO, late suave una vez por segundo; CERRADO (f.closed) los dientes
+//     se cierran en 0,08 s, va pegado al atrapado y brilla en naranja («¡detónalo!»); mordiendo a un jefe,
+//     a medio cerrar y en naranja; a punto de estallar (f.flashT), en rojo
+//   · snap: dientes metálicos (arqTrapSnap) y sacudida de 0,1 al cerrarse o morder
+//   · burst: estallido de espinas (arqThornBurst + arqDetonBlast) y sacudida de 0,18 al detonarse
+// ============================================================
+// eslint-disable-next-line no-var
+var CEPO_SKIN;
+function cepoSkinDef() {
+  if (CEPO_SKIN) return CEPO_SKIN;
+  const K = Object.freeze({ teeth: 10, r: 0.42, open: -0.95, closed: 0.75, closeT: 0.08, pulse: 1,
+    metal: 0xc9cdd2, dark: 0x3f444a, hot: 0xff7a10, flash: 0xff3030, snapShake: 0.1, burstShake: 0.18 });
+  const disposeObj = o => o.traverse?.(m => { m.geometry?.dispose?.(); m.material?.dispose?.(); });
+  const build = (g, f) => {
+    const root = new THREE.Group();
+    const col = f.data.color ?? 0x86d47a;
+    const plate = new THREE.Mesh(new THREE.RingGeometry(0.16, K.r + 0.08, 28), new THREE.MeshBasicMaterial({ color: K.dark, side: THREE.DoubleSide, transparent: true, opacity: 0.95 }));
+    plate.rotation.x = -Math.PI / 2; plate.position.y = 0.03;
+    const trigger = new THREE.Mesh(new THREE.CircleGeometry(0.15, 20), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+    trigger.rotation.x = -Math.PI / 2; trigger.position.y = 0.04;
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(K.r + 0.3, 28), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = 0.05;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(f.radius * 0.93, f.radius, 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
+    root.add(plate, trigger, glow, ring);
+    // dientes: un pivote por diente en el borde, que se inclina hacia fuera (abierto) o hacia el centro (cerrado)
+    const toothGeo = new THREE.ConeGeometry(0.055, 0.24, 4);
+    const toothMat = new THREE.MeshBasicMaterial({ color: K.metal });
+    const teeth = [];
+    for (let i = 0; i < K.teeth; i++) {
+      const a = i * 2 * Math.PI / K.teeth;
+      const pivot = new THREE.Object3D();
+      pivot.position.set(Math.cos(a) * K.r, 0.05, Math.sin(a) * K.r);
+      pivot.rotation.y = -a;                          // el eje x local apunta hacia fuera, radial
+      const tooth = new THREE.Mesh(toothGeo, toothMat);
+      tooth.position.y = 0.12;
+      pivot.add(tooth);
+      pivot.rotation.z = K.open;
+      root.add(pivot);
+      teeth.push(pivot);
+    }
+    g.fxGroup.add(root);
+    return { root, plate, trigger, glow, ring, teeth, toothMat, close: 0 };
+  };
+  CEPO_SKIN = {
+    render(g, f) {
+      if (f.dead) {
+        if (f.skin) { g.fxGroup.remove(f.skin.root); disposeObj(f.skin.root); f.skin = null; }
+        return;
+      }
+      const s = f.skin || (f.skin = build(g, f));
+      s.root.position.set(f.pos.x, 0, f.pos.z);
+      const age = f.age || 0, armed = fieldArmed(f);
+      const bitten = !f.closed && f.bitten?.size > 0;
+      // dientes: abiertos → cerrados en closeT s desde que se cerró (mordiendo a un jefe, a medio cerrar)
+      if (f.closed && s.closedAt == null) s.closedAt = age;
+      if (!f.closed) s.closedAt = null;
+      const want = f.closed ? Math.min(1, (age - s.closedAt) / K.closeT) : bitten ? 0.5 : 0;
+      s.close += (want - s.close) * (want > s.close ? 1 : 0.3);
+      for (const t of s.teeth) t.rotation.z = K.open + (K.closed - K.open) * s.close;
+      // color y pulso: rojo al estallar · naranja cerrado o mordiendo · late armado · apagado armándose
+      const k = 0.5 + 0.5 * Math.sin(age * 2 * Math.PI / K.pulse);
+      const hot = f.closed || bitten;
+      const c = f.flashT > 0 ? K.flash : hot ? K.hot : (f.data.color ?? 0x86d47a);
+      s.trigger.material.color.setHex(c);
+      s.glow.material.color.setHex(c);
+      s.ring.material.color.setHex(c);
+      s.toothMat.color.setHex(hot ? 0xffd9b0 : K.metal);
+      if (f.flashT > 0) { s.glow.material.opacity = 0.85; s.ring.material.opacity = 0.7; }
+      else if (hot) { const q = 0.5 + 0.5 * Math.sin(age * 2 * Math.PI * 3); s.glow.material.opacity = 0.12 + 0.2 * q; s.ring.material.opacity = f.closed ? 0 : 0.35; }
+      else if (armed) { s.glow.material.opacity = 0.08 + 0.22 * k; s.ring.material.opacity = 0.18 + 0.2 * k; }
+      else { s.glow.material.opacity = 0; s.ring.material.opacity = 0.1; }
+      s.trigger.material.opacity = armed || hot ? 0.95 : 0.4;
+      s.ring.visible = !f.closed;
+    },
+    snap(g, f) {
+      g.emitFx?.('arqTrapSnap', { x: f.pos.x, y: 0.35, z: f.pos.z });
+      g.addShake?.(K.snapShake);
+    },
+    burst(g, f) {
+      g.emitFx?.('arqThornBurst', { x: f.pos.x, y: 0.4, z: f.pos.z });
+      g.emitFx?.('arqDetonBlast', { x: f.pos.x, y: 0.6, z: f.pos.z });
+      g.addShake?.(K.burstShake);
+    },
+  };
+  return CEPO_SKIN;
+}
+
 function buildFields() {
+  // aspecto del cepo (A10): field-entities lo usa con data.skin 'cepo'
+  defineTrapSkin('cepo', cepoSkinDef());
   return {
     // Bomba de Humo (Paso 2e): ciega a los enemigos dentro: −pct % de daño mientras estén en el humo
     // (skills-arquera.js lo crea junto al humo, con su misma vida)

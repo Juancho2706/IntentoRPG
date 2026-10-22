@@ -36,7 +36,7 @@ const T = gaugeTuning();
 const DOC = {
   concentracion: { gainPerSec: 15, losePerSec: 25, critPerPoint: 0.15, max: 100, perfectGain: 15, basicPerfectGain: 3, gainGap: 1,
     calmT: 5, calmLong: 8, calmChargeMul: 1.5, calmLock: 7 },
-  coto: { maxArmed: 3, preyT: 15, manada: { elite: 1, trap: 2 }, batida: { n: 3, win: 1, pct: 15, dur: 6, icd: 12 }, trap: { charges: 2, cd: 8, root: 2 } },
+  coto: { maxArmed: 3, preyT: 15, manada: { elite: 1, trap: 2 }, batida: { n: 3, win: 1, pct: 15, dur: 6, icd: 12 }, trap: { charges: 3, cd: 4, root: 2 } },   // S-arquera (A3): 3 cargas de 4 s
   impulso: { perShot: 3, shotGap: 0.15, galeT: 6, galeAspd: 25, max: 100, galeProj: 1, idleAfter: 2, idleRate: 10 },
 };
 const V = A.ARQUERA_GAUGE_VIEWS;

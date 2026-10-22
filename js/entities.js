@@ -25,7 +25,7 @@ import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
 import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
 import { dotsOf } from './timers.js';
 import { SKILL_FX_PRESETS, skillFxFor } from './fx-skills.js';
-import { projFanOffset, forgePowers, STANCE_STATS, VERB_DEFAULTS } from './skill-defs.js';
+import { projFanOffset, fanSpread, forgePowers, STANCE_STATS, VERB_DEFAULTS } from './skill-defs.js';
 import { resourceDefFor, resourceMax, tickResource, gainResource, onHurtResource, initialResource,
   potionResourceAmount, touchCombat } from './resources.js';
 
@@ -1760,7 +1760,7 @@ export class Player {
         if (o === e || !o.alive || castHits?.has(o) || o._hitAt?.[hitInfo.skill] === now) continue;
         const r = splashR + 0.5 * (o.def?.scale || 1);
         if (o.pos.distanceToSquared(at) > r * r) continue;
-        castHits?.add(o);
+        if (castHits instanceof Map) castHits.set(o, perTarget); else castHits?.add(o);
         const { dmg, crit } = this.rollDamage(sc, bCrit, bAdd, o, hitInfo);
         o.takeDamage(dmg, crit, { ...dmgOpts, color, source: 'splash' });
         onHit(o);
@@ -1772,19 +1772,23 @@ export class Player {
     // proyectiles de la definición forjada (Disparo Disperso: count/spread) + multidisparo
     // (poder) + aspecto «Doble»/«Enjambre»; la secuencia (seq) añade los suyos al N-ésimo
     const count = Math.max(1, Math.floor(def?.count || 1)) + (prof?.proj || 0);
-    const spread = def?.count > 1 ? (prof?.spread || 0) : 0;
+    // abanico que se cierra con la distancia al blanco (S-arquera: fanW de Disparo Disperso)
+    const aimDist = Math.hypot(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+    const spread = def?.count > 1 ? fanSpread(def, aimDist, prof?.spread || 0) : 0;
     const baseAngle = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
     // fogonazo en la mano al lanzar (arcano para la maga, viento para la arquera).
     const muzzle = this.pos.clone().setY(1.0)
       .add(new THREE.Vector3(Math.sin(baseAngle) * 0.45, 0, Math.cos(baseAngle) * 0.45));
     g.emitFx?.(fxp(fx?.aura || fx?.trail) || (arrow ? 'basicArrow' : 'basicBolt'), muzzle);
-    // sin escopetazo: un impacto por enemigo (con salpicadura, también entre flechas y salpicaduras)
-    const castHits = count > 1 || seq?.nth || splashR ? new Set() : null;
+    // sin escopetazo: un impacto por enemigo (con salpicadura, también entre flechas y salpicaduras);
+    // perTarget > 1 (S-arquera: Disparo Disperso) deja que hasta N flechas del disparo den al mismo
+    const perTarget = Math.max(1, prof?.perTarget || 1);
+    const castHits = perTarget > 1 ? new Map() : (count > 1 || seq?.nth || splashR ? new Set() : null);
     const shoot = (a, c, pierce) => {
       const to = this.pos.clone().add(new THREE.Vector3(Math.sin(a) * 6, 0, Math.cos(a) * 6));
       g.spawnProjectile({
         from: this.pos.clone().setY(1.0), to: to.setY(1.0),
-        speed: def?.speed || speed, range, friendly: true, color, size, pierce, castHits,
+        speed: def?.speed || speed, range, friendly: true, color, size, pierce, castHits, perTarget,
         rollAt: e => this.rollDamage(c, bCrit, bAdd + direct, e, hitInfo), ...dmgOpts, hitOpts: ch?.perfect ? { perfect: true } : null,
         ...(fx?.impact ? { impactPreset: fxp(fx.impact) } : {}),
         // recurso, efectos de forja/soporte y robo de vida: al IMPACTAR (no al disparar).

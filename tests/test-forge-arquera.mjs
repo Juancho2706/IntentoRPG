@@ -14,7 +14,7 @@
 //  6) VFX de las variantes que cambian de forma (ARQUERA_FX[id].vars)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CLASSES, SKILL_FORGE, FORGE_RECO, SPEC_BAR } from '../js/data.js';
+import { CLASSES, SKILL_FORGE, FORGE_RECO, SPEC_BAR, ENEMIES } from '../js/data.js';
 import { forgeDef, validateForge, validateSkillDef, FORGE_ROLES, FORGE_LINE_WARN } from '../js/skill-defs.js';
 import { resolveSkill } from '../js/skill-resolve.js';
 import { staggerFromCC } from '../js/combat-math.js';
@@ -76,15 +76,23 @@ const ROLES = {
     }
   }
   // las líneas que difieren del mockup (acortadas por A1) están declaradas, y solo esas
-  const div = JSON.parse(readFileSync(new URL('../tools/convert-v2/divergencias.json', import.meta.url), 'utf8')).divergencias
+  const divAll = JSON.parse(readFileSync(new URL('../tools/convert-v2/divergencias.json', import.meta.url), 'utf8')).divergencias
     .filter(d => d.clase === 'arquera' && /^forja\./.test(d.ruta));
-  const changed = [];
+  // S-arquera (D18 levantado): rediseños aprobados por el dueño que cambian lo que hace la pieza,
+  // y con ello su línea (A1 Arco Ancho, A-x1 Disparo Disperso); se comprueba que de verdad difieren
+  const REDESIGN = new Set(['forja.a_disparo.vars.i.line', 'forja.a_t_andanada.mejora.line']);
+  const changed = [], redesigned = [];
   for (const s of MOCK.catalog.filter(x => x.M)) {
     for (const [k, mk] of [['mejora', 'M'], ['vars.i', 'A'], ['vars.ii', 'B']]) {
       const ruta = `forja.${s.id}.${k}.line`;
-      if (lines.get(ruta) !== s[mk].s) changed.push(ruta);
+      if (lines.get(ruta) !== s[mk].s) (REDESIGN.has(ruta) ? redesigned : changed).push(ruta);
     }
   }
+  assert.deepEqual(redesigned.sort(), [...REDESIGN].sort(), 'los rediseños de S-arquera cambian su línea');
+  // y están declarados (aprobados) en divergencias.json; las demás son las acortadas de A1
+  const div = divAll.filter(d => !REDESIGN.has(d.ruta));
+  assert.deepEqual(divAll.filter(d => REDESIGN.has(d.ruta) && d.aprobada === true).map(d => d.ruta).sort(), [...REDESIGN].sort(),
+    'divergencias.json declara los rediseños de S-arquera, aprobados');
   // (el mockup vive en otro contexto de vm: sus arrays se copian a este antes de comparar)
   const long = [...MOCK.catalog].filter(x => x.M).flatMap(s => [['mejora', 'M'], ['vars.i', 'A'], ['vars.ii', 'B']]
     .filter(([, mk]) => s[mk].s.length > 70).map(([k]) => `forja.${s.id}.${k}.line`));
@@ -128,12 +136,12 @@ function changedPaths(a, b) {
 // lo que puede cambiar cada pieza (prefijos de ruta): su `k` y lo que el motor deriva de él
 // (durS → dur, dmg → addPct, recast null → tags). Cualquier otra ruta es un cambio colado
 const OWN_KEYS = {
-  a_disparo_m: ['cadence'], a_disparo_i: ['count', 'spread', 'coef'], a_disparo_ii: ['coef', 'elem', 'hitDot', 'color', 'tags'],
+  a_disparo_m: ['cadence'], a_disparo_i: ['count', 'spread', 'fanW', 'perTarget', 'coef'], a_disparo_ii: ['coef', 'elem', 'hitDot', 'color', 'tags'],
   flecha_perforante_m: ['range', 'speed'], flecha_perforante_i: ['pierce', 'splash', 'radius', 'tags'], flecha_perforante_ii: ['windup', 'addPct'],
   a_paso_m: ['dur', 'durS'], a_paso_i: ['rollShot'], a_paso_ii: ['charges', 'buff'],
   a_humo_m: ['radius'], a_humo_i: ['coef', 'tags'], a_humo_ii: ['knock', 'slow', 'slowPct'],
   lluvia_flechas_m: ['waves'], lluvia_flechas_i: ['radius', 'span', 'addPct'], lluvia_flechas_ii: ['allyDr', 'projMissPct'],
-  a_t_andanada_m: ['spread'], a_t_andanada_i: ['spread', 'perTarget', 'range'], a_t_andanada_ii: ['knock', 'slow', 'slowPct', 'addPct'],
+  a_t_andanada_m: ['count', 'fanW', 'spread'],a_t_andanada_i: ['spread', 'perTarget', 'range'], a_t_andanada_ii: ['knock', 'slow', 'slowPct', 'addPct'],
   a_v_carrera_m: ['moveMul'], a_v_carrera_i: ['autoShot.every', 'autoShot.target', 'addPct'], a_v_carrera_ii: ['projMissPct', 'addPct'],
   flecha_multiple_m: ['range'], flecha_multiple_i: ['count', 'spread', 'coef'], flecha_multiple_ii: ['count', 'spread', 'pierce', 'coef'],
   a_u_diluvio_m: ['radius'], a_u_diluvio_i: ['follow', 'at', 'radius', 'range'], a_u_diluvio_ii: ['follow', 'at', 'waves', 'span', 'radius', 'coef', 'range'],
@@ -291,12 +299,14 @@ const tense = (h, slot, id, [x, z], hold, after = 0.6) => { h.aim(x, z); h.setSl
     assert.ok(approx(r, 0.9, 1e-9), `Mano Rápida en juego (Nv${L}${spec ? ` ${spec}` : ''}): el siguiente disparo a 0,9 × atkTime (${r.toFixed(3)})`);
   }
 }
-{ // Disparo Rápido · I (Disparo Disperso): 3 flechas en 25° al 45 %
-  const run = forge => { const h = hero(7, { forge }); const a = foe(h, 0, 5); shoot(h, 'lmb', 'a_disparo', [0, 5], 0); const n = h.g.projectiles.length, span = fanSpan(h); h.step(0.8); return { n, span, a }; };
-  const m = run({}), d = run({ a_disparo: 'i' });
+{ // Disparo Rápido · I (Disparo Disperso): 3 flechas al 50 %, 2 al mismo enemigo, abanico que se
+  // cierra con la distancia (S-arquera A-x1: 0,4 m a cada lado del blanco, hasta 25° a quemarropa)
+  const run = (forge, z = 5) => { const h = hero(7, { forge }); const a = foe(h, 0, z, { def: ENEMIES.find(x => x.id === 'zombi') }); shoot(h, 'lmb', 'a_disparo', [0, z], 0); const n = h.g.projectiles.length, span = fanSpan(h); h.step(0.8); return { n, span, a }; };
+  const m = run({}), d = run({ a_disparo: 'i' }), near = run({ a_disparo: 'i' }, 1);
   assert.ok(m.n === 1 && d.n === 3, `Disparo Disperso: 3 flechas (${d.n})`);
-  assert.ok(approx(d.span, 0.436, 0.002), `Disparo Disperso: abanico de 25° (${d.span.toFixed(3)} rad)`);
-  assert.ok(d.a.t.n === 1 && approx(d.a.t.direct / m.a.t.direct, 0.45, 0.01), 'Disparo Disperso: al 45 % (una flecha por enemigo)');
+  assert.ok(approx(d.span, 2 * Math.atan(0.4 / 5), 0.002), `Disparo Disperso: a 5 m, 0,4 m a cada lado (${d.span.toFixed(3)} rad)`);
+  assert.ok(approx(near.span, 0.436, 0.002), `Disparo Disperso: a quemarropa, 25° (${near.span.toFixed(3)} rad)`);
+  assert.ok(d.a.t.n === 2 && approx(d.a.t.direct / m.a.t.direct, 2 * 0.5, 0.01), `Disparo Disperso: a un blanco lejano, 2 × 50 % = un básico (${d.a.t.n} flechas)`);
 }
 { // Disparo Rápido · II (Flecha de Cicuta): Naturaleza, 70 % y veneno del 50 % en 4 s que se suma
   const run = forge => { const h = hero(7, { forge }); const a = foe(h, 0, 5); shoot(h, 'lmb', 'a_disparo', [0, 5], 0.5); return { h, a }; };
@@ -407,9 +417,13 @@ const tense = (h, slot, id, [x, z], hold, after = 0.6) => { h.aim(x, z); h.setSl
 }
 
 // ———————— Tiradora ————————
-{ // Andanada · Mejora (Arco Ancho): abanico 120 → 150°
-  const run = L => { const h = hero(L, { spec: 'tiradora' }); h.aim(0, 6); h.setSlot('k3', 'a_t_andanada'); h.cast('k3'); return fanSpan(h); };
-  assert.ok(approx(run(12), 2.094, 0.002) && approx(run(13), 2.618, 0.002), 'Arco Ancho: 120 → 150°');
+{ // Andanada · Mejora (Arco Ancho, S-arquera A1): +2 flechas (9 → 11) y abanico un 20 % más ancho
+  // (2 → 2,4 m a cada lado del cursor; a quemarropa, 120 → 150°)
+  const run = (L, z) => { const h = hero(L, { spec: 'tiradora' }); h.aim(0, z); h.setSlot('k3', 'a_t_andanada'); h.cast('k3'); return { span: fanSpan(h), n: h.g.projectiles.length }; };
+  const b6 = run(12, 6), w6 = run(13, 6);
+  assert.deepEqual([b6.n, w6.n], [9, 11], 'Arco Ancho: 9 → 11 flechas');
+  assert.ok(approx(b6.span, 2 * Math.atan(2 / 6), 0.002) && approx(w6.span, 2 * Math.atan(2.4 / 6), 0.002), `Arco Ancho: a 6 m, 2 → 2,4 m a cada lado (${b6.span.toFixed(3)} → ${w6.span.toFixed(3)})`);
+  assert.ok(approx(run(12, 0.5).span, 2.094, 0.002) && approx(run(13, 0.5).span, 2.618, 0.002), 'Arco Ancho: a quemarropa, 120 → 150°');
 }
 { // Andanada · I (Andanada Cerrada): 30°, +3 m y hasta 3 flechas por salto al mismo enemigo
   const run = forge => { const h = hero(16, { spec: 'tiradora', forge }); const a = foe(h, 0, 3), far = foe(h, 2.55, 12.25); h.aim(0, 6); h.setSlot('k3', 'a_t_andanada'); h.cast('k3'); const span = fanSpan(h); h.step(1); return { a, far, span }; };
@@ -419,8 +433,9 @@ const tense = (h, slot, id, [x, z], hold, after = 0.6) => { h.aim(x, z); h.setSl
   assert.ok(m.far.t.n === 0 && c.far.t.n >= 1, 'Andanada Cerrada: +3 m de alcance');
 }
 { // Andanada · II (Andanada Repulsora): empujan 2 m y ralentizan un 30 % 2 s; −15 %
-  // enemigo pegado (en 150° solo le llegan las flechas centrales)
-  const run = forge => { const h = hero(16, { spec: 'tiradora', forge }); const a = foe(h, 0, 2); h.aim(0, 6); h.setSlot('k3', 'a_t_andanada'); h.cast('k3'); h.step(0.25); return { h, a }; };
+  // enemigo pegado (en 150° solo le llegan las flechas centrales); el empujón llega 0,15 s después del
+  // impacto (S-arquera A1: así la flecha vecina del abanico aún lo encuentra)
+  const run = forge => { const h = hero(16, { spec: 'tiradora', forge }); const a = foe(h, 0, 2); h.aim(0, 6); h.setSlot('k3', 'a_t_andanada'); h.cast('k3'); h.step(0.4); return { h, a }; };
   const m = run({}), r = run({ a_t_andanada: 'ii' });
   assert.ok(m.a.t.n >= 1 && r.a.t.n >= 1, 'las flechas centrales alcanzan al enemigo pegado');
   assert.ok(approx((r.a.t.direct / r.a.t.n) / (m.a.t.direct / m.a.t.n), 0.85, 0.01), 'Andanada Repulsora: −15 % por flecha');

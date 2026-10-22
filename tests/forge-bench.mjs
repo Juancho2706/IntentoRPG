@@ -144,14 +144,25 @@ export const PENDING_FORGE = [
   { key: 'F1:flecha_perforante_i', medido: -0.076, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera flecha_perforante_i (Flecha Explosiva, AREA): gana a su hermana por -8% del aporte en area (≥ 8 %)' },
   { key: 'F3:flecha_perforante', medido: -0.01, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera flecha_perforante (Astil de Fresno): la Mejora da -1% del aporte en uni (+5–15 %)' },
   { key: 'F3:a_humo', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_humo (Humo Espeso): la Mejora da +0% del aporte en ttdp (+5–15 %)' },
+  // S-arquera (A3): el humo y la lluvia se miden en el Montaraz (ranura 2), y con el cepo de 3 cargas de
+  // 4 s su control ya está casi lleno (ralentizado el 95 % del tiempo en CONTROL; antes, 88 %):
+  // Estallido de Humo (CTRL) suma un 1 %. En TTD+, sin la lluvia (el humo en la 2) aguanta 46,6 s y con
+  // Cortina 16,1 s (antes 5,9 y 12,1): la Cortina sale por debajo de no llevarla
+  { key: 'F1:a_humo_ii', medido: null, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera a_humo_ii (Estallido de Humo, CTRL): no aporta nada en ctl (≥ 8 %)' },
   { key: 'F3:lluvia_flechas', medido: 0.291, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera lluvia_flechas (Cielo Plomizo): la Mejora da +29% del aporte en area (+5–15 %)' },
-  { key: 'F3:a_t_andanada', medido: -0.209, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_t_andanada (Arco Ancho): la Mejora da -21% del aporte en area (+5–15 %)' },
+  { key: 'F1:lluvia_flechas_ii', medido: null, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera lluvia_flechas_ii (Cortina, AGU): no aporta nada en ttdp (≥ 8 %)' },
+  // (F3:a_t_andanada sale: Arco Ancho, rediseñado en S-arquera A1 con +2 flechas, ya da su +5–15 %)
   { key: 'F1:a_v_carrera_i', medido: 0.03, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera a_v_carrera_i (Carrera Certera, UNI): gana a su hermana por 3% del aporte en uni (≥ 8 %)' },
   { key: 'F8:a_v_carrera', medido: null, objetivo: null, dueño: 'KA-arquera', regla: 'F8 arquera a_v_carrera: ninguna variante supera a la Mejora sola en su escenario' },
   // F1 de flecha_multiple_i (Abanico Abierto) ya no se afirma: va a BENCH_LIMITS (E4b-bugs, revisión)
   { key: 'F2b:flecha_multiple_ii', medido: 0.455, objetivo: 0.2, dueño: 'KA-arquera', regla: 'F2 arquera flecha_multiple_ii (Haz Cerrado): sube la rotación UNI +46% sobre la Mejora (≤ +20 %)' },
+  // S-arquera (A1, A2): con la Andanada que acierta y la Carrera que no bloquea, la Tiradora hace más daño
+  // con lo demás: el aporte de Flecha Múltiple y de Diluvio pesa menos (sale F9:ult:a_u_diluvio_ii, que
+  // pasaba del 22 %)
+  { key: 'F3:flecha_multiple', medido: 0.04, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera flecha_multiple (Alcance Largo): la Mejora da +4% del aporte en area (+5–15 %)' },
   { key: 'F3:a_u_diluvio', medido: 1.248, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_u_diluvio (Nube Ancha): la Mejora da +125% del aporte en area (+5–15 %)' },
-  { key: 'F9:ult:a_u_diluvio_ii', medido: 0.221, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'F9 arquera a_u_diluvio_ii: la definitiva aporta 22% de UNI (12–22 %)' },
+  { key: 'F9:ult:a_u_diluvio:mejora', medido: 0.09, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'F9 arquera a_u_diluvio:mejora: la definitiva aporta 9% de UNI (12–22 %)' },
+  { key: 'F9:ult:a_u_diluvio_i', medido: 0.1, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'F9 arquera a_u_diluvio_i: la definitiva aporta 10% de UNI (12–22 %)' },
   // E4b-bugs (revisión): con la carga completa desde la ventana dorada, Tres Saetas sale en cada
   // soltado perfecto (antes casi nunca: el banco suelta en la ventana o antes, nunca en el máximo, y
   // daba +4 % por ruido). Sus 3 saetas al 40 %, con un impacto por enemigo, rinden menos que un tiro
@@ -168,6 +179,10 @@ export const PENDING_FORGE = [
   { key: 'F9:ult:a_u_celeste_ii', medido: 0.119, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'F9 arquera a_u_celeste_ii: la definitiva aporta 12% de UNI (12–22 %)' },
   { key: 'F3:a_t_cepo', medido: 0.191, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_t_cepo (Muelles Firmes): la Mejora da +19% del aporte en ctl (+5–15 %)' },
   { key: 'F3:a_m_detonante', medido: 0.506, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_m_detonante (Pólvora Fina): la Mejora da +51% del aporte en area (+5–15 %)' },
+  // S-arquera (A3): con la Detonante base al 100 % y cepos cerrados que detonar, sus variantes (Reacción
+  // en Cadena, atraer a la trampa) y las del Salto ya no superan a la Mejora sola en su escenario
+  { key: 'F8:a_m_acecho', medido: null, objetivo: null, dueño: 'KA-arquera', regla: 'F8 arquera a_m_acecho: ninguna variante supera a la Mejora sola en su escenario' },
+  { key: 'F8:a_m_detonante', medido: null, objetivo: null, dueño: 'KA-arquera', regla: 'F8 arquera a_m_detonante: ninguna variante supera a la Mejora sola en su escenario' },
   { key: 'F3:a_u_zarzas', medido: 0.369, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_u_zarzas (Espinas Duraderas): la Mejora da +37% del aporte en ctl (+5–15 %)' },
 ];
 

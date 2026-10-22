@@ -537,7 +537,9 @@ const GENERIC = {
       // (× rankCoef(rank), lo aplica field-entities una vez); coef y hitDot ya llevan el rango
       data: { dmg: ctx.avgHit, coef: ctx.coef, root: Math.max(t.root || 0, prof.root || 0), color: ctx.color, skill: sk.id, tags: prof.tags, elem: prof.elem,
         armT: t.armT ?? VERB_DEFAULTS.trapArmT, burst: t.burst || null, consume: t.consume !== false,
-        lure: t.lure || null, hitDot: prof.hitDot, rank: prof.rank } });
+        lure: t.lure || null, hitDot: prof.hitDot, rank: prof.rank,
+        // S-arquera (A3, A10): cepo que se cierra sobre quien lo pisa (hold s; a un jefe, boss) y su aspecto
+        hold: t.hold || 0, boss: t.boss || null, skin: t.skin || null } });
     if (f) { ctx.zoneCenter = pos; ctx.zoneRad = f.radius; }
     return ctx.res;
   },

@@ -42,6 +42,24 @@ export const FIELD_CAP_PER_OWNER = 12;
 const FIELD_KEYS = new Set(['init', 'tick', 'onEnter', 'onExit', 'onExpire', 'onDetonate', 'render', 'name']);
 // retardo del estallido de una trampa detonada (parpadea en rojo antes: §3.6)
 export const TRAP_FLASH_T = 0.1;
+// S-arquera (A3): un jefe sobre una trampa que se CIERRA (data.hold) no queda atrapado: cada
+// TRAP_BOSS_EVERY s (por jefe, aunque pise varias) lo ralentiza y le suma Quebranto (data.boss)
+export const TRAP_BOSS_EVERY = 0.5;
+// ASPECTO de las trampas (S-arquera, A10): `data.skin` nombra uno de TRAP_SKINS = { render(g, f) (sustituye
+// a la calcomanía de anillo; se llama también con f.dead para liberar lo suyo), snap(g, f, e, info) (salta o
+// muerde a un jefe), burst(g, f, info) (estalla) }. Lo registra la clase (defineTrapSkin, puede repetirse)
+export const TRAP_SKINS = {};
+export function defineTrapSkin(id, def) {
+  if (!id || !def || typeof def !== 'object') throw new Error(`defineTrapSkin: aspecto inválido "${id}"`);
+  TRAP_SKINS[id] = Object.freeze({ ...def });
+  return TRAP_SKINS[id];
+}
+const trapSkin = f => (f?.data?.skin ? TRAP_SKINS[f.data.skin] || null : null);
+function skinCall(f, k, ...a) {
+  const fn = trapSkin(f)?.[k];
+  if (!fn) return;
+  try { fn(...a); } catch (err) { console.warn(`[aspecto ${f.data.skin}] ${k}`, err); }
+}
 // el cebo no mueve a quien ya pelea cuerpo a cuerpo contigo (m)
 const LURE_MELEE_R = 2.5;
 // registro de estallidos (owner.trapBursts): { t, x, z, key } (x, z: centro del campo que estalla);
@@ -319,14 +337,16 @@ export const fieldMethods = {
     }
     this.spawnRing?.(at, rad, d.color ?? 0xc8a050);
     this.sfx?.('trap');
+    skinCall(f, 'burst', this, f, { radius: rad, coef });
     this._spendTrap(f, opts.consume);
   },
-  // gasta la trampa o, con data.consume / `consume` false, la rearma (armT de nuevo). f.rearmOnce: un
-  // poder pide que la que salta ahora se rearme UNA vez (Gran Cacería: la que pisa la Presa)
+  // gasta la trampa o, con data.consume / `consume` false, la rearma (armT de nuevo; una CERRADA se abre
+  // donde está). f.rearmOnce: un poder pide que la que salta ahora se rearme UNA vez (Gran Cacería: la
+  // que pisa la Presa)
   _spendTrap(f, consume) {
     const once = !!f.rearmOnce;
     f.rearmOnce = false;
-    if (once || f.data?.consume === false || consume === false) { f.sprung = false; f.armAt = (f.age || 0) + Math.max(0, f.data?.armT || 0); return; }
+    if (once || f.data?.consume === false || consume === false) { f.sprung = false; f.closed = null; f.armAt = (f.age || 0) + Math.max(0, f.data?.armT || 0); return; }
     f.sprung = true;
     this._expireField(f);
   },
@@ -544,28 +564,76 @@ defineField('aura', {
 // está armada (g.lureStep). La detona g.detonateField / g.detonateAt (estallido, con parpadeo previo).
 // data = { dmg, coef, root, color, skill, tags, elem, armT, burst, consume, lure, hitDot,
 //          rank (rango de la habilidad: × rankCoef al estallido), rankMul (el multiplicador ya hecho,
-//          manda sobre rank), burstMul (× estallido y detonación), cluster (clave del registro) }
+//          manda sobre rank), burstMul (× estallido y detonación), cluster (clave del registro),
+//          S-arquera: hold (s), boss { slowPct, stagger }, skin }
+// CEPO QUE SE CIERRA (S-arquera, A3; data.hold > 0 y sin estallido propio): el que lo pisa queda
+// atrapado y el cepo CERRADO va pegado a él hold s (f.closed; sprung: ni atrae, ni cuenta como armado,
+// ni vuelve a saltar), detonable (g.detonateAt / g.detonateField lo hacen estallar y entonces se gasta;
+// si nadie lo detona, se gasta al acabar). A un JEFE no lo atrapa: lo muerde UNA vez (la pisada de
+// siempre: ⑤, veneno e inmovilizar, que en un jefe es Quebranto) y sigue ARMADO bajo él; mientras lo
+// pisa, cada TRAP_BOSS_EVERY s, lo ralentiza boss.slowPct % y le suma boss.stagger de Quebranto por
+// segundo, hasta que lo detonas
 // ------------------------------------------------------------
+const trapHitOpts = (f, d) => ({ source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: { uid: f.uid, skill: d.skill || null } });
+const holds = d => d.hold > 0 && !d.burst;
+// jefe sobre un cepo que se cierra: mordida (una por jefe y cepo) y pulso de ralentizar + Quebranto
+function trapBossBite(g, f, e) {
+  const d = f.data;
+  if (!(f.bitten || (f.bitten = new Set())).has(e)) {
+    f.bitten.add(e);
+    springHit(g, f, e, trapHitOpts(f, d));
+    trapDot(g, f, e);
+    if (d.root && e.alive) e.applyCC?.('root', d.root, { src: f.owner });
+    g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius, d.color);
+    g._logTrapBurst(f.owner, f);
+    f.rearmOnce = false;                   // no se gasta: nada que rearmar (Gran Cacería la mueve igual)
+    g.sfx?.('hit');
+    skinCall(f, 'snap', g, f, e, { boss: true });
+  }
+  const now = f.owner?.simT ?? f.age;
+  if (!e.alive || (e._trapPulseAt ?? -Infinity) > now + 1e-9) return;
+  e._trapPulseAt = now + TRAP_BOSS_EVERY;
+  const B = d.boss || {};
+  e.applyCC?.('slow', TRAP_BOSS_EVERY + 0.2, { pct: B.slowPct ?? 40, src: f.owner });
+  if (B.stagger > 0) e.addStagger?.(B.stagger * TRAP_BOSS_EVERY, f.owner);
+}
 defineField('trampa', {
   name: 'Trampa',
   init(f) { f.data.color = f.data.color ?? 0xc8a050; },
   tick(g, f) {
-    if (f.dead || f._detonating || !fieldArmed(f)) return;
-    let hit = null;
-    for (const e of g.enemies || []) if (e.alive && inside(f, e.pos)) { hit = e; break; }
-    if (!hit) return;
+    if (f.dead || f._detonating) return;
     const d = f.data;
-    const hitOpts = { source: 'field:trampa', skill: d.skill || null, tags: d.tags || new Set(['trap']), trap: { uid: f.uid, skill: d.skill || null } };
+    // cerrado: pegado al atrapado (si muere, se queda donde cayó) hasta que lo detonan o caduca
+    if (f.closed) {
+      const c = f.closed;
+      if (c.e?.alive) { f.pos.x = c.e.pos.x; f.pos.z = c.e.pos.z; }
+      if ((f.age || 0) >= c.until - 1e-9) { f.closed = null; g._spendTrap(f); }
+      return;
+    }
+    if (!fieldArmed(f)) return;
+    let hit = null;
+    for (const e of g.enemies || []) {
+      if (!e.alive || !inside(f, e.pos)) continue;
+      if (holds(d) && d.boss && isBossE(e)) { trapBossBite(g, f, e); if (f.dead || f._detonating) return; continue; }
+      hit = e; break;
+    }
+    if (!hit) return;
+    const hitOpts = trapHitOpts(f, d);
     if (d.dmg > 0 && !d.hitDot && !d.burst) hit.takeDamage(Math.max(1, Math.round(d.dmg)), false, hitOpts);
     else springHit(g, f, hit, hitOpts);
     trapDot(g, f, hit);
     if (d.root && hit.alive) hit.applyCC?.('root', d.root, { src: f.owner });
     g.spawnRing?.(new THREE.Vector3(f.pos.x, 0.05, f.pos.z), f.radius, d.color);
     g._logTrapBurst(f.owner, f);
+    skinCall(f, 'snap', g, f, hit, { boss: false });
     if (d.burst) g._trapBurst(f, { coef: (d.burst.coef ?? 1) * trapRankMul(f), radius: d.burst.radius, skill: d.skill });
+    // se cierra sobre él (salvo que un poder la rearme ya: Gran Cacería)
+    else if (holds(d) && !f.rearmOnce && !f.dead) { g.sfx?.('hit'); f.sprung = true; f.closed = { e: hit, until: (f.age || 0) + d.hold }; }
     else { g.sfx?.('hit'); g._spendTrap(f); }
   },
   render(g, f) {
+    const sk = trapSkin(f);
+    if (sk?.render) { sk.render(g, f); return; }
     const d = groundDecal(g, f, { color: f.data.color, opacity: 0.5, ring: true });
     if (!d) return;
     d.material.color.setHex(f.flashT > 0 ? 0xff3030 : f.data.color);

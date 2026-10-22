@@ -265,7 +265,7 @@ export const ARQUERA_TALENTS = {
       innateSkill: 'a_t_cepo',
       nodes: [
         { id: 'm0', name: 'Coto de Caza', t: 'k', tag: 'mec', r: 0, c: 3, max: 1, free: true, d: ()=>'Cada trampa armada suma 1 al Coto (hasta 3). Si estallan 3 a la vez, Batida: +15 % de daño recibido 6 s (cada 12 s)', touch: ['a_t_cepo', 'a_m_detonante'], icon: 'talents/arquera-montaraz-s14.webp', fx: { power: 'm_cebo' } },
-        { id: 'm1', name: 'Muelles Ligeros', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['m0'], d: r=>`Trampa de Cepo recupera una carga en ${8-r} s (antes 8 s)`, touch: ['a_t_cepo'], arch: 'campo', icon: 'talents/arquera-montaraz-s12.webp', fx: { mod: { a_t_cepo: { cdr: 12.5 } } } },
+        { id: 'm1', name: 'Muelles Ligeros', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['m0'], d: r=>`Trampa de Cepo recupera una carga en ${n1(4-0.5*r)} s (antes 4 s)`, touch: ['a_t_cepo'], arch: 'campo', icon: 'talents/arquera-montaraz-s12.webp', fx: { mod: { a_t_cepo: { cdr: 12.5 } } } },
         { id: 'm2', name: 'Olfato de Presa', t: 'p', tag: 'num', r: 1, c: 3, max: 3, req: ['m0'], d: r=>`Haces +${4*r} % de daño a tu Presa`, arch: 'presa', icon: 'talents/arquera-montaraz-s15.webp', fx: { tv: { preyDmg: 4 } } },
         // T-arquera: la columna Zarzal empieza por Espino Venenoso (también el veneno del Cepo, Nv10) y
         // Semillas de Zarza (Detonante, Nv14, en la fila 2 que se compra al Nv14); Raíz Rápida y Raíces
@@ -377,6 +377,9 @@ export const ARQUERA_TALENTS = {
       clsCh: { c5: 'A', c6: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'B', c16: 'B', c17: 'B' },
       spec: { f1: 3, f4: 2, f5: 1, f8: 1, f11: 2, f15: 1, f18: 2, f22: 3, f25: 3, f28: 4, f2: 3, f9: 1, f12: 2, f16: 2, f3: 1 },
       specCh: { f8: 'A', f9: 'A', f15: 'A' },
+      // forja de la build (S-arquera, A7): Disparo Apuntado sin variante, que atraviesa la fila (Tiro Pesado
+      // no atraviesa y apagaba Sobrepenetración y Línea de Mira)
+      forge: { a_t_apuntado: null },
     },
     puntodebil: {
       sp: 'francotiradora',
@@ -389,6 +392,8 @@ export const ARQUERA_TALENTS = {
       clsCh: { c5: 'A', c6: 'B', c10: 'B', c11: 'B', c14: 'B', c15: 'B', c16: 'A', c17: 'B' },
       spec: { f2: 3, f5: 1, f9: 1, f12: 2, f16: 2, f19: 2, f23: 3, f26: 3, f28: 4, f1: 3, f4: 1, f8: 1, f15: 1, f3: 3, f6: 1 },
       specCh: { f8: 'B', f9: 'B', f15: 'B' },
+      // forja de la build (S-arquera, A7): Tiro Pesado, el tensado largo contra un solo blanco
+      forge: { a_t_apuntado: 'ii' },
     },
     vigia: {
       sp: 'francotiradora',
@@ -414,6 +419,9 @@ export const ARQUERA_TALENTS = {
       clsCh: { c5: 'A', c6: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'B' },
       spec: { f1: 3, f2: 3, f4: 2, f5: 1, f8: 1, f9: 1, f11: 2, f12: 2, f15: 1, f16: 2, f18: 2, f19: 2, f22: 3, f23: 3, f3: 1, f20: 2 },
       specCh: { f8: 'B', f9: 'B', f15: 'B' },
+      // forja de la build (S-arquera, A7): la híbrida compra Sobrepenetración 2 y Línea de Mira, que piden
+      // que la saeta atraviese: Disparo Apuntado sin variante
+      forge: { a_t_apuntado: null },
     },
     campo: {
       sp: 'montaraz',
