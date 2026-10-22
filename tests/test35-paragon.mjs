@@ -123,7 +123,6 @@ const nodes0 = { ...p.paragon.nodes };
 assert.equal(g.respecParagon(), false, 'en combate no');
 assert.deepEqual(p.paragon.nodes, nodes0);
 assert.match(g.msgs.pop(), /fuera de combate/);
-assert.equal(g.respecParagonCost(), 0, 'stub @deprecated: gratis');
 p.sinceCombat = 10;
 p.paragon.glyphs['4_8'] = { uid: 77, kind: 'glyph', glyphId: 'g_hp', stat: 'hp', per: 10, adj: 5, rank: 2, baseName: 'Glifo de Vigor' };
 assert.equal(g.respecParagon(), true);

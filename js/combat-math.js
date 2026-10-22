@@ -22,7 +22,7 @@
 //   DEB       saco DEBILIDAD del objetivo: Vulnerable (+20) + debilitamientos,
 //             tope ×1,5 (weaknessMult) — Paso 2b.0
 //   Π[×]      multiplicadores ESCASOS: poderes legendarios / nodos clave de
-//             maestría (Furia, Sed de Batalla, Tiro Mortal, Cacería) y el hook de
+//             maestría (Furia, Sed de Batalla) y el hook de
 //             talentos. Cada uno ×1,10–×1,30 y solo cuentan los MAX_MULT_ACTIVE
 //             (3) mayores activos a la vez.
 //
@@ -224,7 +224,7 @@ export function hitDamage(w, coef, st, addPct = 0, isCrit = false) {
 // ctx = { hpFrac (héroe), targetFrac, targetSlowed, crit }
 // Paso 2b.0: la tabla se rellena desde el registro de poderes (js/powers.js →
 // PowerDef.mult → registerMultiplier). Los de siempre (Furia ×1,15, Sed de Batalla
-// ×1,25, Tiro Mortal ×1,25, Cacería ×1,15) viven en js/powers-common.js.
+// ×1,25) viven en js/powers-common.js.
 export const MULT_POWERS = {};
 export function registerMultiplier(id, def) {
   if (!id || !def || !(def.mult > 0)) return;

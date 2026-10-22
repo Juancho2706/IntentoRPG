@@ -136,7 +136,7 @@ const ECONOMY_EXPECTED = [
   'equipItem', 'unequipItem', 'sellItem', 'dropItem', 'addToCube', 'cubeReturn', 'addMaterialToCube', 'cubeCost', 'cubeSocketParts',
   'socketCost', 'cubePreview', 'transmute', 'socketGem', 'enchantCost', 'enchantItem', 'masterworkCost', 'masterworkItem',
   'respecCost', 'respecAttributes', 'canRespecFree', 'paragonBoard', 'paragonPointsInfo', 'paragonNodeReachable',
-  'allocateParagonNode', 'socketGlyph', 'unsocketGlyph', 'looseGlyphs', 'reclaimGlyph', 'reclaimLooseGlyphs', 'respecParagonCost',
+  'allocateParagonNode', 'socketGlyph', 'unsocketGlyph', 'looseGlyphs', 'reclaimGlyph', 'reclaimLooseGlyphs',
   'respecParagon', 'sellJunk', 'sortInventory', 'toggleFav', 'moveItem', 'equipToSlot', 'swapInv', 'swapMaterials', 'identifyItem',
   'identifyAll',
 ];

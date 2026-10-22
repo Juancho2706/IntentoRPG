@@ -573,8 +573,6 @@ export const economyMethods = {
 
   // reiniciar el tablero es gratis fuera de combate (D12); los puntos se recalculan solos.
   // Los glifos se quedan en su zócalo: vuelven a contar al reactivarlo (como antes).
-  /** @deprecated D12: el reinicio es gratis; la UI deja de mostrar el coste (U3). */
-  respecParagonCost() { return 0; },
 
   respecParagon() {
     const p = this.player;

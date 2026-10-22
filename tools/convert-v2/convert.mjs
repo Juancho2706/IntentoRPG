@@ -2,6 +2,10 @@
 // =====================================================================================================
 // Conversor de talentos y catálogo v2 (Paso 2 · E0.4) · mockup (docs/mockups/data) → formato del juego
 // -----------------------------------------------------------------------------------------------------
+// CONGELADO (E5, C1): el conversor cumplió su papel en E1.5. NO regenerar js/talents-<clase>.js con --write: E2 ya los
+// trabajó a mano (fx, textos, builds) y se perderían; tampoco emite ya el puente @deprecated <CLASE>_TALENT_SKILL_DEFS ni
+// la línea `skills:` (borrados en C1, D29). --draft/--validate-game siguen valiendo como herramientas de consulta.
+//
 // Contrato: docs/paso2-implementacion.md §3.1 (talentos y héroe), §3.5 (catálogo y forja), §4 (este conversor),
 // D18 (datos congelados), D28 (ids de poder únicos). Sin dependencias (Node ≥ 20).
 //

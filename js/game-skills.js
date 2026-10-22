@@ -35,7 +35,7 @@
 //   principal instantánea sobre el canal de una definitiva imparable; detonar al final del
 //   vuelo; encadenado que nace en el origen y lleva la habilidad; velocidad de habilidades.
 import * as THREE from 'three';
-import { resolveSkill, isKnown, fitsSlot, GCD, cooldownWithMassacre, forgeState, forgedDef, validSupports } from './skill-resolve.js';
+import { resolveSkill, resolveSkillId, isKnown, fitsSlot, GCD, cooldownWithMassacre, forgeState, forgedDef, validSupports } from './skill-resolve.js';
 import { projFanOffset, forgeVar, VERB_DEFAULTS, supportFits } from './skill-defs.js';
 import { FIELD_DEFS } from './field-entities.js';
 import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from './powers.js';
@@ -1219,8 +1219,7 @@ export const skillMethods = {
   // por id; null si no la tiene. Público para los poderes: no pueden importar skill-resolve
   // (ciclo de módulos), así que lo piden al juego.
   skillProfile(p, id) {
-    const sk = (p?.cls?.skills || []).find(s => s.id === id);
-    return sk ? resolveSkill(p, sk) : null;
+    return resolveSkillId(p, id);
   },
 
   // ¿Hay una principal PEDIDA (🖱️Der mantenido) y lista para salir? Entonces el
