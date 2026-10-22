@@ -4,18 +4,21 @@
 //  1) DoT: reaplicar no reinicia el ritmo de los tics (js/timers.js). El Sangrado del Remolino
 //     (4 golpes/s, tics de 0,5 s) hacía 0 tics durante el giro y la Sed no subía (Danza Carmesí)
 //  2) Línea Mortal (f25): la carga completa llega con la ventana dorada; con Tiro Pesado el
-//     soltado perfecto (2,15–2,35 s de 2,5) no la activaba nunca
+//     soltado perfecto (2,15–2,35 s de 2,5) no la activaba nunca. Revisión: la MISMA carga completa
+//     (combat-math chargeFullAt) en todo el kit: Salva de Vigía (f10A) y Tres Saetas (charge.full)
+//     pedían el máximo, y con la ventana antes del máximo un soltado perfecto no las activaba
 //  3) Gran Cacería (m26): «todas tus trampas» incluye la que pisa la Presa: se rearma a mitad de
 //     daño junto a ella (antes pedía otra trampa armada y, con los cepos a sus pies, nunca había)
-//  4) Banco: Vaivén Eterno (v26) gasta el Vendaval en Andanada (GAUGE_SPEND); APOYO con los
-//     aliados a tu lado y siempre heridos (Tierra Santa, z27, se veía ±1 %)
+//  4) Banco: Vaivén Eterno (v26) gasta el Vendaval en Andanada (GAUGE_SPEND) y el final se activa;
+//     APOYO con los aliados a tu lado y siempre heridos (Tierra Santa, z27, se veía ±1 %). Las
+//     comparaciones «sin el nodo» usan withoutNode (rangos puestos: el Paragon sigue abierto)
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { TickScheduler, applyDoTInstance } from '../js/timers.js';
 import { makeHarness } from './helpers/power-harness.mjs';
 import { powerState } from '../js/powers.js';
 import { resolveSkill } from '../js/skill-resolve.js';
-import { buildHero, refEnemies, apoyoSim, GAUGE_SPEND, UNI_LIFE } from './helpers/bench-core.mjs';
+import { buildHero, refEnemies, apoyoSim, simulateUni, withoutNode, GAUGE_SPEND, UNI_LIFE } from './helpers/bench-core.mjs';
 import { setGauge, gaugeState } from '../js/spec-mechanics.js';
 import * as CM from '../js/combat-math.js';
 
@@ -87,13 +90,74 @@ const dummy = () => ({ alive: true, dmg: 0, ticks: 0, takeDamage(n) { this.dmg +
     h.step(sec / speed);
     h.release('k3');
     h.step(1.2);
-    return { line: hits.filter(s => s === 'f_linea_mortal').length, frac: powerState(h.p, 'f_linea_mortal').fullFrac };
+    return { line: hits.filter(s => s === 'f_linea_mortal').length };
   };
   const perfect = shoot((ch.perfect[0] + ch.perfect[1]) / 2), early = shoot(1.8), full = shoot(2.6);
   ok(perfect.line === 1, `soltado perfecto (2,25 s) a carga completa: la línea estalla (${perfect.line}; antes 0)`);
   ok(full.line === 1, 'a la carga máxima, también');
   ok(early.line === 0, 'antes de la ventana dorada (1,8 s), no');
-  ok(Math.abs(perfect.frac - (2.15 - ch.min) / (2.5 - ch.min)) < 1e-9, 'la carga completa empieza con la ventana dorada');
+  ok(CM.chargeFullAt(ch) === 2.15, 'la carga completa empieza con la ventana dorada');
+}
+{
+  // la regla compartida: con la ventana antes del máximo, desde la ventana; sin ventana o con la
+  // ventana en el máximo, el máximo
+  ok(CM.chargeFullAt({ min: 0.3, max: 2.5, perfect: [2.15, 2.35] }) === 2.15 && CM.chargeFullAt({ min: 0.3, max: 1.5 }) === 1.5
+    && CM.chargeFullAt({ min: 0.3, max: 1.5, perfect: [1.5, 1.5] }) === 1.5, 'chargeFullAt: ventana dorada antes del máximo, o el máximo');
+  ok(CM.chargeRelease({ min: 0.3, max: 2.5, perfect: [2.15, 2.35] }, 2.25).full && !CM.chargeRelease({ min: 0.3, max: 2.5, perfect: [2.15, 2.35] }, 2.1).full,
+    'chargeRelease: `full` desde la ventana dorada (antes, solo en el máximo)');
+  // tensa hasta `u` s nominales (sea cual sea la velocidad: Rodilla en Tierra la sube) y suelta
+  const tenseTo = (h, slot, u) => {
+    h.press(slot);
+    const c = h.g._charging;
+    h.step(Math.max(0, u - c.u) / h.g._chargeSpeed(c));
+    h.release(slot);
+    return c;
+  };
+  // Salva de Vigía (f10A), de rodillas y con Tiro Pesado: el soltado perfecto también dispara las 2 saetas
+  const salva = u => {
+    const h = makeHarness({ classId: 'arquera', spec: 'francotiradora', level: 100, seed: 5, talents: { specRanks: { f10: 1 }, choice: { f10: 'A' } } });
+    h.p.skillForge = { a_t_apuntado: 'ii' };
+    h.p.recompute();
+    let n = 0;
+    for (const e of [h.enemy({ hp: 1e9, pos: [6, 0, 0] }), h.enemy({ hp: 1e9, pos: [4, 0, 4] })]) {
+      const td = e.takeDamage.bind(e);
+      e.takeDamage = (a, c, o = {}) => { if (o.skill === 'f_salva') n++; return td(a, c, o); };
+    }
+    h.p.mp = h.p.stats.maxMP;
+    h.setSlot('k2', 'a_f_rodilla');
+    h.aim(6, 0);
+    h.cast('k2');
+    h.step(0.1);
+    h.setSlot('k3', 'a_t_apuntado');
+    const c = tenseTo(h, 'k3', u);
+    h.step(1);
+    return { n, window: c.window };
+  };
+  const sp = salva(2.25), se = salva(1.8), sm = salva(2.5);
+  ok(sp.window[0] === 2.15 && sp.window[1] === 2.35, 'Salva de Vigía con Tiro Pesado: ventana 2,15–2,35 s');
+  ok(sp.n === 2, `Salva de Vigía: el soltado perfecto (2,25 s) es a carga completa: 2 saetas (${sp.n}; antes 0)`);
+  ok(sm.n === 2 && se.n === 0, `Salva de Vigía: al máximo, también; antes de la ventana (1,8 s), no (${sm.n}, ${se.n})`);
+  // Tres Saetas (charge.full, con la Mejora: hasta 1,3 s, ventana 1,0–1,17 s): el perfecto da 3 saetas
+  const saetas = at => {
+    const h = makeHarness({ classId: 'arquera', spec: 'francotiradora', level: 100, seed: 5 });
+    h.p.skillForge = { a_t_apuntado: 'i' };
+    h.p.recompute();
+    h.enemy({ hp: 1e9, pos: [8, 0, 0] });
+    h.p.mp = h.p.stats.maxMP;
+    h.setSlot('k3', 'a_t_apuntado');
+    h.aim(8, 0);
+    const n0 = h.g.projectiles.length;
+    h.press('k3');
+    const c = h.g._charging, u = at(c);
+    h.step(Math.max(0, u - c.u) / h.g._chargeSpeed(c));
+    h.release('k3');
+    h.step(0.02);
+    return { n: h.g.projectiles.length - n0, c };
+  };
+  const tp = saetas(c => (c.window[0] + c.window[1]) / 2), th = saetas(c => c.min + 0.3), tm = saetas(c => c.max);
+  ok(tp.c.max === 1.3 && tp.c.window[0] < tp.c.max, `Tres Saetas: la ventana (${tp.c.window.join('–')} s) se abre antes del máximo (${tp.c.max} s)`);
+  ok(tp.n === 3, `Tres Saetas: el soltado perfecto es a carga completa: 3 saetas (${tp.n}; antes 1)`);
+  ok(tm.n === 3 && th.n === 1, `Tres Saetas: al máximo, 3; antes de la ventana, 1 (${tm.n}, ${th.n})`);
 }
 
 // ------------------------------------------------------------ 3) Gran Cacería (m26)
@@ -132,16 +196,22 @@ const dummy = () => ({ alive: true, dmg: 0, ticks: 0, takeDamage(n) { this.dmg +
   ok(v.galeT > 0 && pl.galeT > 0, 'Vendaval en marcha');
   ok(v.id === 'a_t_andanada', `con Vaivén Eterno, en el Vendaval el banco pulsa Andanada (${v.id}; antes la Múltiple y el final no se activaba)`);
   ok(pl.id === 'flecha_multiple', 'sin Vaivén Eterno, la Múltiple');
+  // y el final se activa de verdad en una pelea corta del banco (20 s contra el jefe de UNI, Nv70)
+  const L = 70, al = CM.areaLevelForHero(L), ref = refEnemies(al), hp = ref.boss * UNI_LIFE / 60;
+  const p = buildHero('arquera', L, 'tipico', { al, seed: 1, spec: 'tiradora', build: 'vaiven', move: true });
+  let vaivenes = 0, last = 0;
+  simulateUni(p, ref, 20, { hp, onFrame: () => { const u = powerState(p, 't_vaiven').used || 0; if (u > last) vaivenes += u - last; last = u; } });
+  ok(vaivenes >= 1, `Vaivén Eterno en una pelea del banco: ${vaivenes} vaivenes en 20 s (antes 0)`);
 }
 {
-  // APOYO: la cura de Tierra Santa (z27) se ve con los aliados a tu lado (en tus zonas) y heridos
+  // APOYO: la cura de Tierra Santa (z27) se ve con los aliados a tu lado (en tus zonas) y heridos.
+  // «Sin» = el nodo sin efecto y con sus rangos (withoutNode: el Paragon sigue abierto)
   const L = 70, al = CM.areaLevelForHero(L), ref = refEnemies(al), hp = ref.boss * UNI_LIFE / 60;
-  const heal = drop => {
-    const p = buildHero('guerrero', L, 'tipico', { al, spec: 'cruzado', build: 'santa', move: true });
-    if (drop) { p.talents.sp.cruzado.z27 = 0; p.recompute(); }
-    return apoyoSim(p, ref, { hp, allyHp: 1000 }).heal;
-  };
-  const con = heal(false), sin = heal(true);
+  const heal = () => apoyoSim(buildHero('guerrero', L, 'tipico', { al, spec: 'cruzado', build: 'santa', move: true }), ref, { hp, allyHp: 1000 }).heal;
+  const con = heal(), sin = withoutNode('guerrero', 'cruzado', 'z27', heal);
   ok(con > sin * 1.02, `APOYO: Tierra Santa cura más (${con.toFixed(2)} frente a ${sin.toFixed(2)} %/s; antes 2,45 frente a 2,44)`);
+  // la ablación justa: sin el nodo, el Paragon sigue abierto (rangos a 0 lo cerraban)
+  const p0 = withoutNode('guerrero', 'cruzado', 'z27', () => buildHero('guerrero', L, 'tipico', { al, spec: 'cruzado', build: 'santa', move: true }));
+  ok(p0.talentAgg.heroOpen && !p0.powers.has('g_z_tierra_santa'), 'withoutNode: el nodo no hace nada y el árbol héroe sigue abierto');
 }
-console.log('\n✅ E4b-bugs: DoT al ritmo, Línea Mortal en la ventana dorada, Gran Cacería con una trampa, banco (Vaivén y APOYO)');
+console.log('\n✅ E4b-bugs: DoT al ritmo, carga completa en la ventana dorada (Línea Mortal, Salva, Tres Saetas), Gran Cacería con una trampa, banco (Vaivén y APOYO)');

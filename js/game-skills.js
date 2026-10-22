@@ -2071,7 +2071,7 @@ export const skillMethods = {
     }
     if (!ctx.isEcho) {
       if (reason === 'auto' && !ch.repeat && !instant) (this._needsRelease || (this._needsRelease = {}))[ctx.key] = true;
-      this._skillEnd(p, sk, { kind: 'charge', reason, casts: 1, hits: 0, released: reason === 'release', frac: rel.frac, perfect: rel.perfect });
+      this._skillEnd(p, sk, { kind: 'charge', reason, casts: 1, hits: 0, released: reason === 'release', frac: rel.frac, perfect: rel.perfect, full: rel.full });
     }
     return ok;
   },

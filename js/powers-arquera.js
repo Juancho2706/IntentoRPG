@@ -55,7 +55,7 @@ import { gainGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics
 import { projFanOffset } from './skill-defs.js';
 import { enemiesInField, fieldArmed, insideField } from './field-entities.js';
 import { spendResource } from './resources.js';
-import { rankCoef } from './combat-math.js';
+import { rankCoef, chargeFullAt } from './combat-math.js';
 import { cotoAddPrey, cotoPreys } from './mech-arquera.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
 
@@ -1776,12 +1776,12 @@ function francotiradoraPowers() {
   const T = tune().fra;
   // onSkillEnd de una suelta de Disparo Apuntado que disparó (perfecta si `perfect`)
   const aimedRelease = (sk, end, perfect = false) => sk?.id === 'a_t_apuntado' && end?.kind === 'charge' && end.casts > 0 && (!perfect || end.perfect);
-  // «a carga completa» de Línea Mortal (f25): el arco tensado del todo, que llega con la ventana
-  // dorada si se abre antes del máximo (Disparo Apuntado 1,15 de 1,5 s; Tiro Pesado 2,15 de 2,5;
-  // Tensado Rápido 1,0 de 1,3) y, sin ventana, con el máximo. Así un soltado perfecto también es a
-  // carga completa, como dice la rotación del diseño («a carga completa en la ventana dorada»);
-  // antes pedía el máximo, siempre después de la ventana, y la build no lo alcanzaba nunca (E4b-bugs)
-  const fullAt = ch => { const a = ch?.perfect?.[0]; return a > ch.min && a < ch.max ? a : ch.max; };
+  // «a carga completa» (Salva de Vigía, Línea Mortal y Tres Saetas en el motor): el arco tensado del
+  // todo, que llega con la ventana dorada si se abre antes del máximo (combat-math chargeFullAt:
+  // Disparo Apuntado 1,15 de 1,5 s; Tiro Pesado 2,15 de 2,5; Tensado Rápido 1,0 de 1,3; Tiro
+  // Celestial 0,5 de 0,8) y, sin ventana, con el máximo. Así un soltado perfecto también es a carga
+  // completa, como dice la rotación del diseño («a carga completa en la ventana dorada»). La suelta
+  // lo trae en `end.full` (⑭). Antes pedían el máximo, siempre después de la ventana (E4b-bugs)
   // mira y perfil del último Disparo Apuntado (al empezar a tensar; la suelta sale hacia ahí)
   const aimOf = (p) => powerState(p, 'arq_apuntado');
   return {
@@ -1933,11 +1933,12 @@ function francotiradoraPowers() {
       },
     },
     // f10A Salva de Vigía: de rodillas, cada soltado a carga completa (Disparo Apuntado o un haz; el
-    // básico tensado no, §19.1 hallazgo 4) dispara 2 saetas más al 25 %
+    // básico tensado no, §19.1 hallazgo 4) dispara 2 saetas más al 25 %. «A carga completa» = end.full,
+    // desde la ventana dorada: el soltado perfecto también (E4b-bugs; antes, solo al máximo)
     f_salva: {
       name: 'Salva de Vigía', desc: 'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más.',
       onSkillEnd(g, p, sk, end) {
-        if (!isCharged(sk?.id) || end?.kind !== 'charge' || !(end.casts > 0) || !(end.frac >= 1 - 1e-9) || !kneeling(p)) return;
+        if (!isCharged(sk?.id) || end?.kind !== 'charge' || !(end.casts > 0) || !end.full || !kneeling(p)) return;
         const foes = foesNear(g, p.pos, T.salva.range);
         for (let i = 0; i < T.salva.n && foes.length; i++)
           shootArrow(g, p, { from: p.pos, to: nth(foes, i).pos, coef: T.salva.coef, skill: 'f_salva', speed: 26, range: T.salva.range + 2 });
@@ -2106,21 +2107,19 @@ function francotiradoraPowers() {
         cast.instant = true;
       },
     },
-    // f25 Línea Mortal (final): a carga completa (fullAt: desde la ventana dorada), Disparo Apuntado
-    // llega a 30 m y su línea estalla (5 + 5·rango %)
+    // f25 Línea Mortal (final): a carga completa (desde la ventana dorada, chargeFullAt), Disparo
+    // Apuntado llega a 30 m y su línea estalla (5 + 5·rango %)
     f_linea_mortal: {
       name: 'Línea Mortal', desc: 'A carga completa, Disparo Apuntado es un haz de 30 m que estalla en toda su línea.',
-      state: () => ({ fullFrac: 1 }),
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_t_apuntado' || !cast.prof?.charge) return;
         const prof = ownProf(p, cast), ch = prof.charge, def = prof.def || cast.sk;
-        const d = def.range || 16, R = prof.range || d, F = fullAt(ch);
+        const d = def.range || 16, R = prof.range || d, F = chargeFullAt(ch);
         // escala de alcance por tramos: el de siempre hasta la carga completa y 30 m desde ahí (rangeMul = v / def.range)
         prof.charge = { ...ch, scale: { ...(ch.scale || {}), range: [[ch.min, d], [F - 1e-3, d], [F, T.mortal.range * d / R]] } };
-        powerState(p, 'f_linea_mortal').fullFrac = ch.max > ch.min ? (F - ch.min) / (ch.max - ch.min) : 1;
       },
       onSkillEnd(g, p, sk, end) {
-        if (!aimedRelease(sk, end) || !(end.frac >= powerState(p, 'f_linea_mortal').fullFrac - 1e-9)) return;
+        if (!aimedRelease(sk, end) || !end.full) return;
         const st = aimOf(p), from = { x: p.pos.x, z: p.pos.z }, dir = aimDir(p, st.aim);
         const coef = (T.mortal.base + T.mortal.perRank * powerRank(p, 'f_linea_mortal')) / 100;
         g.timers?.schedule?.(0.3, () => {

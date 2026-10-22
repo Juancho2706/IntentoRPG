@@ -72,6 +72,8 @@ export class TickScheduler {
 // que un DoT reaplicado más deprisa que su intervalo no hacía ni un tic mientras se
 // reaplicaba: el Sangrado del Remolino (4 golpes/s, tics de 0,5 s) se acumulaba durante
 // todo el giro, sin Sed, y Reabrir dejaba sin tics los Sangrados que reiniciaba.
+// Efecto: tras un refresco el DoT acaba un poco antes (dura lo que faltaba para el siguiente
+// tic + (ticks − 1)·intervalo, no ticks·intervalo); el daño total no cambia.
 // Se detiene solo al morir el objetivo (o al limpiar el planificador).
 //   opts: { total, ticks, interval, source = 'dot', replace = false }
 //   replace (Paso 2c.2): SUSTITUYE a la instancia previa sin integrar lo pendiente

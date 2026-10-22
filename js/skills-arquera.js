@@ -614,11 +614,15 @@ export const ARQUERA_SKILL_FORGE = {
   },
   a_t_apuntado: {
     // carga completa en 1,3 s (★set charge.max del k) y la ventana dorada escalada igual (×1,3/1,5).
-    // Es `set`, no un mod de velocidad: Tiro Pesado lo pisa con su tensado de 2,5 s y Tres Saetas lo hereda
+    // Es `set`, no un mod de velocidad: Tiro Pesado lo pisa con su tensado de 2,5 s y Tres Saetas lo hereda.
+    // Su línea habla del tensado máximo (la escala llega al 250 % a 1,3 s); los efectos «a carga
+    // completa» (Tres Saetas, Salva de Vigía, Línea Mortal) valen ya desde la ventana dorada, que se
+    // abre antes del máximo (combat-math chargeFullAt; E4b-bugs)
     mejora: { id: 'a_t_apuntado_m', name: 'Tensado Rápido', icon: 'forge/mejora', line: 'Tensas un 15 % más rápido (carga completa en 1,3 s).',
       set: { 'charge.max': 1.3, 'charge.perfect': [1.0, 1.17] } },
     vars: [
-      // a carga completa, 3 saetas al 40 % del disparo cargado (full.coefMul) en 20° (semiapertura 10°)
+      // a carga completa (desde la ventana dorada), 3 saetas al 40 % del disparo cargado (full.coefMul)
+      // en 20° (semiapertura 10°)
       { id: 'a_t_apuntado_i', name: 'Tres Saetas', role: 'AREA', icon: FORGE_ICON('a_t_apuntado_i'), line: 'A carga completa, 3 saetas en 20° que atraviesan, al 40 % cada una.',
         set: { 'charge.full': { count: 3, spread: 0.1745, coefMul: 0.4 } } },
       { id: 'a_t_apuntado_ii', name: 'Tiro Pesado', role: 'UNI', icon: FORGE_ICON('a_t_apuntado_ii'), line: 'Tensas hasta 2,5 s: hasta 300 %, pero no atraviesa.',

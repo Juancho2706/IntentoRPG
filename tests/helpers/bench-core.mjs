@@ -788,6 +788,19 @@ export function ultKind(p) {
   return Object.keys(d.buff || {}).some(k => OFF_BUFF.includes(k)) ? 'buff' : 'def';
 }
 
+// ABLACIÓN JUSTA de un nodo de especialización (sondas y pruebas de E4b): mientras corre `fn`, el
+// nodo conserva sus rangos pero no hace nada (fx vacío). Ponerle los rangos a 0 deja la
+// especialización por debajo de sus 31 puntos y CIERRA el Paragon (heroOpen) a Nv70+: el «sin»
+// pierde también el árbol héroe (a Nv70, el nodo clave; a Nv100, el árbol entero) y la diferencia
+// mide eso (E4b-bugs, revisión: Montaña Viva a Nv100 daba un TTD+ de 1800 frente a 111 por eso)
+export function withoutNode(classId, spec, id, fn) {
+  const n = (talentTreesFor(classId)?.specs?.find(s => s.id === spec)?.nodes || []).find(x => x.id === id);
+  if (!n) throw new Error(`banco: el nodo ${id} no existe en ${classId}/${spec}`);
+  const fx = n.fx;
+  n.fx = {};
+  try { return fn(); } finally { n.fx = fx; }
+}
+
 // utilidades de informe
 export const med =a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor((s.length - 1) / 2)]; };
 export const f1 = v => (v === Infinity ? '∞' : v == null || Number.isNaN(v) ? '—' : v.toFixed(Math.abs(v) < 10 ? 2 : 1));

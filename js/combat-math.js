@@ -303,8 +303,19 @@ export function chargeCoefAt(scale, u, min = 0, max = 1) {
   const f = max > min ? Math.max(0, Math.min(1, (u - min) / (max - min))) : 1;
   return scale[0] + (scale[scale.length - 1] - scale[0]) * f;
 }
-// Resultado de una SUELTA: frac (0–1), perfect (en la ventana, forzada o siempre perfecta)
-// y los multiplicadores del perfil respecto a su base (coef/radio/alcance de la escala).
+// «A carga completa» (s nominales): el arco tensado del todo. Si la ventana dorada se abre antes
+// del máximo, llega con ella, y sin ventana, con el máximo. Así un soltado perfecto también es a
+// carga completa («a carga completa en la ventana dorada», rotaciones de la Arquera §8). La leen
+// todos los efectos «a carga completa»: `full` de abajo (charge.full: Tres Saetas), Salva de Vigía
+// y Línea Mortal. La escala (coef, radio, alcance) sigue subiendo hasta el máximo (E4b-bugs: antes
+// `full` pedía el máximo, siempre después de la ventana, y con Tiro Pesado no salía nunca)
+export function chargeFullAt(ch) {
+  const min = ch?.min || 0, max = ch?.max || 1, a = ch?.perfect?.[0];
+  return a > min && a < max ? a : max;
+}
+// Resultado de una SUELTA: frac (0–1), perfect (en la ventana, forzada o siempre perfecta),
+// full (a carga completa, chargeFullAt) y los multiplicadores del perfil respecto a su base
+// (coef/radio/alcance de la escala).
 // La suelta perfecta suma perfectPct al saco ADITIVO (no es un multiplicador [×]).
 export function chargeRelease(ch, u, { def = null, forcePerfect = false, perfectAlways = false } = {}) {
   const min = ch?.min || 0, max = ch?.max || 1;
@@ -323,7 +334,7 @@ export function chargeRelease(ch, u, { def = null, forcePerfect = false, perfect
     radiusMul: ratio('radius', def?.radius || 0),
     rangeMul: ratio('range', def?.range || 0),
     addPct: perfect ? (ch?.perfectPct || 0) : 0,
-    full: frac >= 1 - 1e-9,
+    full: uu >= chargeFullAt(ch) - 1e-9,
   };
 }
 
