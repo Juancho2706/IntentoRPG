@@ -259,6 +259,9 @@ function auraBuff(a, id, stats, dur, meta) {
   if (up) a.recompute?.();
 }
 const isSpenderCast = cast => (cast?.sk?.cat || cast?.prof?.cat) === 'spender';
+// serie de repeticiones del lanzamiento ORIGINAL `cast` (g.castEcho, docs/paso2-claves-w2.md §9):
+// todas sus copias comparten el tope echoCap del motor
+const echoSeries = cast => cast._echoSeries || (cast._echoSeries = { seq: -1, n: 0 });
 const isMoveCast = cast => (cast?.sk?.cat || cast?.prof?.cat) === 'movement';
 const tagsHave = (hit, t) => !!(hit?.tags && (hit.tags instanceof Set ? hit.tags.has(t) : Array.isArray(hit.tags) && hit.tags.includes(t)));
 const direct = hit => !!hit && !hit.proc && !hit.dot;
@@ -1280,8 +1283,9 @@ export function guerreroPowers() {
       },
     },
     // c29 Señor de la Guerra (final, rango r): cada 100 de Furia PAGADA, tu siguiente principal
-    // sale dos veces; la copia (repetición del núcleo: gratis, no activa otros efectos) al
-    // (20 + 20·r) %; con cargar y soltar, con la misma carga
+    // sale dos veces; la copia (g.castEcho: gratis, no activa otros efectos) al (20 + 20·r) %, en la
+    // serie del original y hacia donde apuntaba (no a la mira de ese momento); con cargar y soltar,
+    // con la misma carga
     g_senor_guerra: {
       name: 'Señor de la Guerra', desc: 'Cada 100 de Furia gastada, tu siguiente principal sale dos veces.',
       state: () => ({ spent: 0, ready: false }),
@@ -1297,8 +1301,9 @@ export function guerreroPowers() {
             const full = chargeRelease(ch, ch.max, { def: cast.sk }).coefMul;
             if (full > 0) mul *= chargeRelease(ch, cast.charge.t, { def: cast.sk }).coefMul / full;
           }
-          const slot = cast.slot, id = cast.sk.id;
-          g.timers?.schedule(T.senorGuerra.delay, () => { if (p.alive && p.hotbar?.[slot] === id) g.castSkillSlot(slot, mul); });
+          const id = cast.sk.id, series = echoSeries(cast);
+          const at = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
+          g.timers?.schedule(T.senorGuerra.delay, () => { if (p.alive) g.castEcho?.(p, id, { mult: mul, at, series }); });
         }
         const paid = furyPaid(cast);
         if (!(paid > 0) || st.ready) return;
