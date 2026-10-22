@@ -532,7 +532,7 @@ console.log('En el arnés: kit base, Berserker, Guardián, Cruzado y activas de 
   assert.equal(LEGACY_TABLES.guerrero, GUERRERO_LEGACY, 'save-schema migra con esta tabla');
   const migrate = (spec, hotbar, skillMods = {}, level = 20) => migrateV4toV5({
     classId: 'guerrero', level, xp: 0, hotbar: { lmb: null, rmb: null, k1: null, k2: null, k3: null, k4: null, ...hotbar },
-    skillMods, skillBranches: {}, skillPoints: 0, talents: { spec }, paragon: {}, materials: [], supports: {}, knownSupports: [] });
+    skillMods, skillBranches: {}, skillPoints: 0, talents: { spec }, paragon: {}, materials: [], supports: {}, knownSupports: [] }, { forgeReco: {} });   // solo la tabla legada (la ★ de D3: test-save-2g)
   // §11.6.3 · barra: básicos → Tajo; gastadoras del kit solo con su especialización (si no,
   // Hendidura); movilidad, insignia y definitiva de su especialización; utilidades → Piel de Hierro
   const BAR_CASES = [

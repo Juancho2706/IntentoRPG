@@ -88,7 +88,7 @@ const FALLBACK = {
   guerrero: { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'embestida', k2: 'g_piel', k3: null, k4: null },
   arquera: { lmb: 'a_disparo', rmb: 'flecha_perforante', k1: 'a_paso', k2: 'a_humo', k3: null, k4: null },
 };
-const CTX = { legacy: LEG, specBar: SPEC_BAR, fallbackBar: FALLBACK };
+const CTX = { legacy: LEG, specBar: SPEC_BAR, fallbackBar: FALLBACK, forgeReco: {} };   // forja recomendada real: test-save-2g
 const mig = (save, over = {}) => S.migrateV4toV5(json(save), { ...CTX, ...over });
 const v4 = (o = {}) => ({
   saveVersion: 4, classId: 'maga', level: 30, xp: 100, statPoints: 0, skillPoints: 3, skillSystemV: 5,
