@@ -227,12 +227,16 @@ export function magaTuning() {
     orbCatch: 0.8, orbPulse: 0.5, orbTrailEvery: 0.05, orbHumEvery: 0.4,   // recogida, anillo quieto, estela, zumbido
     orbSmallR: 2.5, orbSmallScale: 0.6,                  // a23: los orbes pequeños descargan a 2,5 m
     // ---- Haz Concentrado (M-07/M-08) y Desgarro canalizado (M-12) ----
-    hazWidthPer: 0.2, hazGlowPer: 0.15, hazShake: 0.05,  // el haz crece por Carga gastada; micro-sacudida con 4
-    riftShake: 0.06, riftScarR: 1.4,                     // sacudida leve por golpe; grieta al final del haz
+    hazWidthPer: 0.2, hazGlowPer: 0.075, hazGlowMax: 1.3, hazShake: 0.05,   // el haz crece por Carga gastada (brillo con tope: en
+                                                         // aditivo, más satura a blanco); micro-sacudida con 4
+    riftShake: 0.06, riftScarR: 1.4, riftGlowTop: 0.15,  // sacudida leve por golpe; grieta en el haz donde apuntas; brillo al tope
+                                                         // (poco: con el núcleo ×2 en aditivo ya satura a blanco)
+    riftScarLen: 3.2, riftScarWid: 1.1, riftScarKeep: 2, riftScarMin: 1.5,   // la grieta: largo y ancho (m), dura 2 golpes (cada
+                                                         // golpe la renueva) y no más cerca de 1,5 m
     inagotablePct: 2,                                    // a14 Maná Inagotable (% del maná por segundo)
     desplazaPct: 20, desplazaDist: 5, desplazaCd: 30,    // a15A Desplazamiento
     cargaFinalNeed: 4,                                   // a18 Carga Final
-    sateliteEvery: 3, sateliteT: 6, satelitePct: 20, sateliteR: 0.9, sateliteOrbit: 1.8, sateliteHitCd: 0.5,   // a19
+    sateliteEvery: 3, sateliteT: 8, satelitePct: 20, sateliteR: 0.9, sateliteOrbit: 1.8, sateliteHitCd: 0.5,   // a19
     multipleEvery: 3, multipleCopy: 0.4, multipleSpread: 0.35,   // a23 Orbe Múltiple
     fuenteEvery: 1, fuentePct: 5, fuenteMax: 3,          // a24 Fuente de Maná
     tormentaNeed: 4, tormentaCopy: 0.5, tormentaGap: 0.75,   // a25 Tormenta de Cargas (3 veces en 1,5 s)
@@ -600,6 +604,8 @@ function riftTargets(g, p, end, width) {
 // cuerpos, cada uno a enemigos distintos. Se mueve cada fotograma en g.projectiles (update(dt) → true al
 // acabar, como un Projectile: el bucle de main.js quita su malla). Los poderes lo leen con magaOrbs(p):
 // stopAt (Orbe Atrayente), zapHits (Inercia); cast.orbs = sus unidades (Orbe Múltiple: setSmall).
+// Satélite (a19) y Constelación (a26) marcan el lanzamiento (cast.orbit): al volver, ese orbe no se
+// absorbe (ni Carga ni destello) y se queda en órbita (los dos poderes, en su ③ afterCast)
 // eslint-disable-next-line no-var
 var ORBS;   // héroe → Set de orbes vivos (perezoso: nada de `const` de módulo, ver la cabecera)
 function orbsOf(p) {
@@ -608,7 +614,16 @@ function orbsOf(p) {
   if (!s) ORBS.set(p, (s = new Set()));
   return s;
 }
+// cambio de zona: loadWorld vacía g.projectiles sin avisar y el orbe ya no se mueve. Los que no están
+// en la lista de su juego se apagan (sin Carga) para que su lanzamiento termine y no se acumulen. Lo
+// miran el siguiente Orbe (launchOrb) y los poderes que leen magaOrbs (10 Hz)
+function sweepOrbs(p) {
+  const s = p && ORBS ? ORBS.get(p) : null;
+  if (!s) return;
+  for (const o of [...s]) if (o.alive && !(o.g?.projectiles || []).includes(o)) orbEnd(o.g, o, false);
+}
 export function magaOrbs(p) {
+  sweepOrbs(p);
   const s = p && ORBS ? ORBS.get(p) : null;
   return s ? [...s].filter(o => o.alive) : [];
 }
@@ -725,7 +740,8 @@ function orbStop(g, o) {
     ring(g, o.c, o.P.radius, o.color);
   } else o.state = 'vuelta';
 }
-// fin: recogido (Carga y destello en tu mano) o apagado
+// fin: recogido (Carga y destello en tu mano), en órbita (Satélite / Constelación: ni Carga ni
+// destello, un anillo a tu alrededor) o apagado
 function orbEnd(g, o, caught) {
   if (!o.alive) return;
   o.alive = false;
@@ -733,7 +749,10 @@ function orbEnd(g, o, caught) {
   o.caught = !!caught;
   orbsOf(o.p).delete(o);
   const p = o.p;
-  if (caught && p.alive) {
+  if (caught && p.alive && !o.echo && o.ctx.cast?.orbit) {
+    o.orbited = true;
+    ring(g, p.pos, magaTuning().sateliteOrbit, o.color);
+  } else if (caught && p.alive) {
     if (!o.echo) gainGauge(p, 'cargas', TG().cargas.perOrb);
     const hand = handAt(p);
     fx(g, o.ctx.fx?.absorb, hand, 1.2);
@@ -814,16 +833,20 @@ function launchOrb(g, p, ctx, { from, toward, echo = false, onDone = null }) {
   const color = ctx.color ?? sk.color ?? 0xb388ff;
   const scale = (sk.size || 0.34) / 0.34;
   const o = {
-    kind: 'magaOrb', skill: 'a_orbe', friendly: true, alive: true, p, ctx, P, color, scale, echo, onDone,
+    kind: 'magaOrb', skill: 'a_orbe', friendly: true, alive: true, g, p, ctx, P, color, scale, echo, onDone,
     c: { x: from.x, z: from.z }, dir: { x: dx, z: dz }, travel: Math.hypot(stop.x - from.x, stop.z - from.z), went: 0,
     state: 'ida', t: 0, spin: 0, zapAcc: 0, zapHits: 0, zapped: new Map(), parkLeft: 0, pulseAcc: 0, backT: 0, backHit: new Set(),
     trailAcc: 0, humAcc: 0, stopAt: null, stopPos: null, small: false, caught: false,
     // Orbe Múltiple (a23): orbes pequeños que descargan a 2,5 m
     setSmall() { const T = magaTuning(); o.small = true; o.P.radius = T.orbSmallR; o.scale *= T.orbSmallScale; },
     update(dt) { return orbUpdate(g, o, dt); },
+    // cambio de zona: si Game.loadWorld avisa a sus proyectiles antes de vaciar la lista (petición de
+    // S-maga al motor), el orbe se apaga en el acto; si no, lo apaga sweepOrbs más tarde
+    onWorldReset() { orbEnd(g, o, false); },
   };
   o.mesh = orbMesh(g, color, P.twin ? 2 : 1, P.twin, scale) || stubMesh();
   if (o.travel < 0.3) orbStop(g, o);
+  sweepOrbs(p);
   orbsOf(p).add(o);
   (g.projectiles || (g.projectiles = [])).push(o);
   return o;
@@ -906,6 +929,40 @@ function decal(g, f, { color, opacity = 0.35, disc = false, inner = 0.82 } = {})
     g.fxGroup.add(m);
     f.decal = m;
   }
+  f.decal.position.set(f.pos.x, 0.06, f.pos.z);
+  return f.decal;
+}
+// grieta del Desgarro (M-12): una fisura dentada casi blanca sobre un resplandor alargado de su color,
+// orientada como el haz (data.ang, data.len × data.wid m); la libera al morir el campo
+function riftDecal(g, f) {
+  if (f.dead) {
+    if (f.decal) { g.fxGroup.remove(f.decal); f.decal.traverse(x => { x.geometry?.dispose?.(); x.material?.dispose?.(); }); f.decal = null; }
+    return null;
+  }
+  if (!f.decal) {
+    const L = f.data.len || 3, W = f.data.wid || 1;
+    const mat = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 28), mat(f.data.color || 0xd28cff, 0.4));
+    glow.scale.set(L, W, 1);
+    // zigzag fijo a lo largo del eje: borde de arriba de ida y el de abajo de vuelta (más fino en las puntas)
+    const Z = [0, 0.16, -0.12, 0.2, -0.16, 0.1, -0.06, 0];
+    const H = [0, 0.05, 0.08, 0.09, 0.08, 0.06, 0.04, 0];
+    const crackShape = new THREE.Shape();
+    Z.forEach((z, i) => { const x = (i / (Z.length - 1) - 0.5) * L * 0.9; const y = z * W + H[i] * W; if (i) crackShape.lineTo(x, y); else crackShape.moveTo(x, y); });
+    for (let i = Z.length - 1; i >= 0; i--) crackShape.lineTo((i / (Z.length - 1) - 0.5) * L * 0.9, Z[i] * W - H[i] * W);
+    const crack = new THREE.Mesh(new THREE.ShapeGeometry(crackShape), mat(0xf3e6ff, 0.85));
+    crack.position.z = 0.01;
+    const flat = new THREE.Group();
+    flat.rotation.x = -Math.PI / 2;
+    flat.add(glow, crack);
+    const root = new THREE.Group();
+    root.add(flat);
+    root.userData = { glow, crack };
+    g.fxGroup.add(root);
+    f.decal = root;
+  }
+  // tumbada, el eje x local va por el x del mundo y el y local por −z: girar −ang alrededor de y
+  f.decal.rotation.y = -(f.data.ang || 0);
   f.decal.position.set(f.pos.x, 0.06, f.pos.z);
   return f.decal;
 }
@@ -2385,11 +2442,10 @@ export function magaPowers() {
       },
     },
     // a7 Grieta Abierta: al terminar el Desgarro, la grieta queda 1 + rango s (40 % por segundo) donde
-    // golpeaba
+    // estaba la grieta del haz, donde apuntabas (st.at: la anota desgarro_canal al acabar, antes de este ⑭)
     a_grieta: {
       name: 'Grieta Abierta', desc: 'Al terminar el Desgarro Arcano, la grieta se queda abierta y sigue dañando.',
       state: () => ({ at: null }),
-      onHit(g, p, e, hit) { if (hit?.skill === 'm_u_desgarro' && !hit.proc && !hit.dot && e) powerState(p, 'a_grieta').at = { x: e.pos.x, z: e.pos.z }; },
       onSkillEnd(g, p, sk, end) {
         // un Desgarro soltado antes de su primer golpe no deja grieta (S-maga)
         if (sk?.id !== 'm_u_desgarro' || end?.kind !== 'channel' || !(end.ticks > 0)) return;
@@ -2543,17 +2599,22 @@ export function magaPowers() {
         if (cast?.sk?.id === 'rayo' && spentCharges(p) >= T.cargaFinalNeed) gainGauge(p, 'cargas', rankOf(p, 'a_carga_final'));
       },
     },
-    // a19 Satélite: cada 3.er Orbe, al volver a ti, se queda girando a tu alrededor 6 s como un orbe
-    // pequeño (20 × rango % por golpe). ③ afterCast = el Orbe vuelve (S-maga: antes, al lanzarlo)
+    // a19 Satélite (M-01, propuesta del dueño): cada 3.er Orbe, al volver a ti, NO se absorbe (ni su Carga):
+    // se queda girando a tu alrededor 8 s como un orbe pequeño (20 × rango % por golpe). ⑦ onCast marca
+    // el lanzamiento (cast.orbit, lo lee orbEnd) y ③ afterCast (el Orbe ya volvió) lo pone en órbita
     a_satelite: {
-      name: 'Satélite', desc: 'Cada 3.er Orbe Arcano, al volver, se queda girando a tu alrededor.',
+      name: 'Satélite', desc: 'Cada 3.er Orbe Arcano, al volver, no se absorbe: se queda girando a tu alrededor.',
       state: () => ({ n: 0, sats: [] }),
-      afterCast(g, p, cast) {
+      onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_orbe') return;
         const st = powerState(p, 'a_satelite');
         if (++st.n < T.sateliteEvery) return;
         st.n = 0;
-        st.sats.push({ until: now(p) + T.sateliteT, ang: rng(p) * Math.PI * 2, hit: new WeakMap() });
+        cast.orbit = { ...(cast.orbit || {}), satelite: true };
+      },
+      afterCast(g, p, cast) {
+        if (cast?.sk?.id !== 'a_orbe' || !cast.orbit?.satelite || !(cast.orbs || []).some(o => o.orbited)) return;
+        powerState(p, 'a_satelite').sats.push({ until: now(p) + T.sateliteT, ang: rng(p) * Math.PI * 2, hit: new WeakMap() });
       },
       onTick(g, p, dt) {
         const st = powerState(p, 'a_satelite');
@@ -2643,15 +2704,18 @@ export function magaPowers() {
         for (let i = 1; i <= 2; i++) echoCast(g, p, cast, T.tormentaCopy, T.tormentaGap * i, { n });
       },
     },
-    // a26 Constelación (final): tus Orbes, al volver (③ afterCast), se quedan 8 s girando a tu alrededor
-    // (hasta 3) y disparan al más cercano cada segundo (40 %; rangos 2–3: mod a_orbe dmg del nodo)
+    // a26 Constelación (final; M-01, propuesta del dueño): tus Orbes, al volver, NO se absorben (ni su
+    // Carga): se quedan 8 s girando a tu alrededor (hasta 3) y disparan al más cercano cada segundo (40 %;
+    // rangos 2–3: mod a_orbe dmg del nodo). ⑦ marca el lanzamiento; ③ afterCast, uno por orbe que volvió
     a_constelacion: {
-      name: 'Constelación', desc: 'Tus Orbes Arcanos, al volver, se quedan girando a tu alrededor y disparan al enemigo más cercano.',
+      name: 'Constelación', desc: 'Tus Orbes Arcanos, al volver, no se absorben: se quedan girando a tu alrededor y disparan al enemigo más cercano.',
       state: () => ({ orbs: [] }),
+      onCast(g, p, cast) { if (cast?.sk?.id === 'a_orbe') cast.orbit = { ...(cast.orbit || {}), constelacion: true }; },
       afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'a_orbe') return;
+        if (cast?.sk?.id !== 'a_orbe' || !cast.orbit?.constelacion) return;
         const st = powerState(p, 'a_constelacion');
-        st.orbs.push({ until: now(p) + T.constelT, acc: 0, ang: rng(p) * Math.PI * 2 });
+        const n = (cast.orbs || []).filter(u => u.orbited).length;
+        for (let i = 0; i < n; i++) st.orbs.push({ until: now(p) + T.constelT, acc: 0, ang: rng(p) * Math.PI * 2 });
         while (st.orbs.length > T.constelMax) st.orbs.shift();
       },
       onTick(g, p, dt) {
@@ -2772,7 +2836,7 @@ export function magaSkillBehaviors() {
           if (k > 0 && inst.beam && inst.beamBase) {
             inst.beamBase = { width: inst.beamBase.width * (1 + T.hazWidthPer * k), core: inst.beamBase.core * (1 + T.hazWidthPer * k) };
             inst.beam.setWidth(inst.beamBase.width, inst.beamBase.core);
-            inst.beam.setIntensity(1 + T.hazGlowPer * k);
+            inst.beam.setIntensity(Math.min(T.hazGlowMax, 1 + T.hazGlowPer * k));
           }
         }
         if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
@@ -2789,12 +2853,15 @@ export function magaSkillBehaviors() {
       },
     },
     // Desgarro Arcano canalizado (M-12): cada tic, un haz de `width` m hacia la mira (recortado por la
-    // pared) que golpea a TODOS los que atraviesa con coef × rampa; deja una grieta en el suelo al final
-    // del haz y sacude un poco. La Carga por golpe la da el indicador (una por tic)
+    // pared) que golpea a TODOS los que atraviesa con coef × rampa; abre una grieta en el suelo, en el haz
+    // donde apuntas, y sacude un poco. La Carga por golpe la da el indicador (una por tic). El halo del haz vivo
+    // mide lo que golpea: el motor lo ensancharía ×2 con la rampa; aquí se queda y crecen el núcleo (×2
+    // al tope) y el brillo
     desgarro_canal: {
-      tick(g, p, inst) {
+      tick(g, p, inst, interval) {
         const ctx = inst.ctx, prof = ctx.prof;
-        const { dir, end } = riftLine(g, p, g.input?.mouseWorld || ctx.target, Math.max(2, prof.range || 10));
+        const aim = g.input?.mouseWorld || ctx.target;
+        const { dir, end, len } = riftLine(g, p, aim, Math.max(2, prof.range || 10));
         p.faceToward?.(at(p.pos, p.pos.x + dir.x, p.pos.z + dir.z));
         const list = riftTargets(g, p, end, prof.width || ctx.sk?.width || 2.5);
         const coef = ctx.coef * (inst.rampMul || 1);
@@ -2804,15 +2871,34 @@ export function magaSkillBehaviors() {
           fx(g, ctx.fx?.impact, e.pos, 1.0);
         }
         if (list.length) p.onDealHit?.();
-        // la grieta sigue el final del haz
+        if (inst.beam && inst.beamBase) {
+          const k = Math.min(1, (inst.rampPct || 0) / Math.max(1, prof.rampMax || 100));
+          inst.beam.setWidth(inst.beamBase.width, inst.beamBase.core * (1 + k));
+          inst.beam.setIntensity(1 + T.riftGlowTop * k);
+        }
+        // la grieta se abre en el haz donde apuntas (la mira sobre su eje, hasta su final: el haz sigue
+        // hasta 10 m y la manada suele estar antes), alineada con él. Dura riftScarKeep golpes y cada golpe
+        // la renueva: aunque falte el fin del canal (resetCastState al morir), se apaga sola
+        const d = Math.max(Math.min(T.riftScarMin, len), Math.min(len, ((aim?.x ?? end.x) - p.pos.x) * dir.x + ((aim?.z ?? end.z) - p.pos.z) * dir.z));
+        const spot = { x: p.pos.x + dir.x * d, z: p.pos.z + dir.z * d };
+        const keep = T.riftScarKeep * (interval || inst.interval || 0.25);
+        const ang = Math.atan2(dir.z, dir.x);
         const scar = inst._scar;
-        if (!scar || scar.dead) inst._scar = g.spawnField?.('a_desgarro_grieta', { pos: end, radius: T.riftScarR, dur: 3600, owner: p, data: { color: ctx.color ?? 0xd28cff } }) || null;
-        else { scar.pos.x = end.x; scar.pos.z = end.z; }
-        if (inst.tickN % 2 === 1) fx(g, ctx.fx?.extra, end, 0.4);
+        if (!scar || scar.dead) {
+          inst._scar = g.spawnField?.('a_desgarro_grieta', { pos: spot, radius: T.riftScarR, dur: keep, owner: p,
+            data: { color: ctx.color ?? 0xd28cff, ang, len: T.riftScarLen, wid: T.riftScarWid } }) || null;
+        } else { scar.pos.x = spot.x; scar.pos.z = spot.z; scar.data.ang = ang; scar.t = scar.dur = keep; }
+        inst._spot = spot;
+        if (inst.tickN % 2 === 1) fx(g, ctx.fx?.extra, spot, 0.4);
         if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
         if (!g.settings?.reduceMotion) g.addShake?.(T.riftShake * (1 + (inst.rampPct || 0) / 100));
       },
-      end(g, p, inst) { if (inst._scar && !inst._scar.dead) g.expireField?.(inst._scar); inst._scar = null; },
+      // fin del canal (antes del ⑭ onSkillEnd): Grieta Abierta (a7) se queda donde estaba la grieta
+      end(g, p, inst) {
+        if (inst._spot) powerState(p, 'a_grieta').at = inst._spot;
+        if (inst._scar && !inst._scar.dead) g.expireField?.(inst._scar);
+        inst._scar = null;
+      },
     },
     // ---- activas de talento de la clase (c11A, c17A, c22A) ----
     // Contrahechizo: interrumpe y silencia 3 s al lanzador a 12 m (prefiere al que está
@@ -3079,15 +3165,18 @@ export function magaFields() {
       },
       render(g, f) { decal(g, f, { color: 0x9fe3ff, opacity: 0.3, disc: true }); },
     },
-    // Desgarro Arcano (M-12): la grieta del suelo al final del haz mientras se canaliza (solo se ve: el
-    // daño es el del haz). La mueve desgarro_canal en cada tic y la apaga al acabar el canal
+    // Desgarro Arcano (M-12): la grieta del suelo, en el haz donde apuntas, mientras se canaliza (solo se ve: el
+    // daño es el del haz). La mueve, la orienta y la renueva desgarro_canal en cada tic; la apaga al acabar
     a_desgarro_grieta: {
       name: 'Grieta del Desgarro',
       init(f) { f.acc = 0; },
       tick(g, f, dt) { f.acc += dt; },
       render(g, f) {
-        const d = decal(g, f, { color: f.data.color || 0xd28cff, opacity: 0.5, disc: true });
-        if (d) d.material.opacity = 0.35 + 0.25 * Math.abs(Math.sin(f.acc * 6));
+        const d = riftDecal(g, f);
+        if (!d) return;
+        const k = Math.abs(Math.sin(f.acc * 6));
+        d.userData.glow.material.opacity = 0.45 + 0.25 * k;
+        d.userData.crack.material.opacity = 0.8 + 0.2 * k;
       },
     },
     // a7 / a21 / a28 Grieta arcana: daña cada 0,5 s (data.dps) a quien está dentro; daño de campo

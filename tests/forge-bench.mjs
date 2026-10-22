@@ -137,7 +137,11 @@ export const PENDING_FORGE = [
   { key: 'F3:a_sello', medido: 1.345, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga a_sello (Sello Firme): la Mejora da +135% del aporte en uni (+5–15 %)' },
   { key: 'F3:rayo', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga rayo (Rayo Largo): la Mejora da +0% del aporte en area (+5–15 %)' },
   { key: 'F3:m_u_desgarro', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga m_u_desgarro (Desgarro Estable): la Mejora da +0% del aporte en uni (+5–15 %)' },
-  { key: 'F9:ult:m_u_desgarro:mejora', medido: 0.066, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro:mejora: la definitiva aporta 7% de UNI (12–22 %)' },
+  // S-maga (revisión): el Desgarro canalizado ya es un haz ancho que atraviesa a todos (M-12) y, con la build
+  // Rayo sin Cadena, la manada vive más: en ÁREA×5 aporta 184/s frente a 177 de Brecha (su variante de ÁREA;
+  // con Cadena, 164 frente a 186). Quiebre tampoco gana UNI (91/s frente a 124). Brecha necesita su número: KA-maga
+  { key: 'F8:m_u_desgarro', medido: null, objetivo: null, dueño: 'KA-maga', regla: 'F8 maga m_u_desgarro: ninguna variante supera a la Mejora sola en su escenario' },
+  { key: 'F9:ult:m_u_desgarro:mejora', medido: 0.061, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro:mejora: la definitiva aporta 6% de UNI (12–22 %)' },
   { key: 'F9:ult:m_u_desgarro_i', medido: 0.021, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro_i: la definitiva aporta 2% de UNI (12–22 %)' },
   { key: 'F9:ult:m_u_desgarro_ii', medido: 0.042, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro_ii: la definitiva aporta 4% de UNI (12–22 %)' },
   { key: 'F1:a_disparo_i', medido: -0.968, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera a_disparo_i (Disparo Disperso, AREA): gana a su hermana por -97% del aporte en area (≥ 8 %)' },

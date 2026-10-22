@@ -586,7 +586,8 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   noWarnings('Sello');
 }
 
-// Desgarro Arcano (S-maga, M-12): canalización imparable y plantada, 13 golpes en 3 s (el 1.º al pulsar)
+// Desgarro Arcano (S-maga, M-12): canalización imparable y plantada, 12 golpes en 3 s (uno cada 0,25 s: el
+// 1.º a los 0,25 s, así que soltar antes devuelve la definitiva)
 {
   const h = makeHarness({ classId: 'maga', level: 17, spec: 'arcanista' });
   const e = h.enemy({ hp: 1e8, pos: [0, 0, 4] });
@@ -597,9 +598,11 @@ console.log('Tablas legadas: barra, forja (3.ª rama v4 → variante), insignia,
   h.aim(0, 4); h.setSlot('k4', 'm_u_desgarro');
   assert.equal(h.cast('k4'), true);
   assert.ok(h.p.unstoppableT > 0, 'imparable');
-  assert.equal(ticks, 1, 'golpea al pulsar');
-  h.step(3.2);
-  assert.equal(ticks, 13, `13 golpes (${ticks})`);
+  assert.equal(ticks, 0, 'nada al pulsar');
+  h.step(0.26);
+  assert.equal(ticks, 1, 'el 1.er golpe a los 0,25 s');
+  h.step(2.94);
+  assert.equal(ticks, 12, `12 golpes (${ticks})`);
   assert.equal(h.g._channel, null);
   noWarnings('Desgarro');
 }

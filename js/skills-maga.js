@@ -115,13 +115,15 @@ export const MAGA_SKILLS = [
     line: 'Rayo de 15 m que atraviesa en línea y gasta tus Cargas: +35 % de daño y 5 de maná por Carga.',
     desc: 'Un rayo arcano de 15 m que golpea a todos en línea (240 %). Gasta todas tus Cargas Arcanas: +35 % de daño y 5 de Maná por Carga. Cuesta 22 de Maná; enfriamiento 2 s.' },
   // canalizado y plantado (moveMul 0): la Mejora de la forja deja moverse despacio. S-maga (M-12): un haz
-  // ANCHO hacia la mira que atraviesa a todos (desgarro_canal, js/powers-maga.js), el 1.er golpe al pulsar
-  // y una rampa de +10 % por golpe hasta +100 % (Incinerar de D4); el haz vivo crece ×2 al tope
+  // ANCHO hacia la mira que atraviesa a todos (desgarro_canal, js/powers-maga.js), un golpe cada 0,25 s
+  // con una rampa de +10 % por golpe hasta +100 % (Incinerar de D4). Sin tickNow: el 1.er golpe llega a los
+  // 0,25 s y soltar antes devuelve los 50 s de enfriamiento (el motor). El halo del haz vivo mide lo que
+  // golpea (2,5 m) y es el núcleo el que crece ×2 al tope; la grieta del suelo marca la franja
   { id: 'm_u_desgarro', name: 'Desgarro Arcano', icon: '🌌', cat: 'ultimate', spec: 'arcanista', slots: ['k4'], tags: ['ultimate', 'channel', 'arcane'], elem: 'arcane',
-    type: 'channel', behavior: 'desgarro_canal', unstoppable: true, moveMul: 0, req: 15, coef: 0.6, channelT: 3, ticks: 13, tickNow: true,
-    rampPerTic: 10, rampMax: 100, cd: 50, range: 10, width: 2.5, beam: { width: 1.2, core: 0.4, color: 0xd28cff, line: true }, color: 0xd28cff,
+    type: 'channel', behavior: 'desgarro_canal', unstoppable: true, moveMul: 0, req: 15, coef: 0.65, channelT: 3, ticks: 12,
+    rampPerTic: 10, rampMax: 100, cd: 50, range: 10, width: 2.5, beam: { width: 2.5, core: 0.4, color: 0xa86cf5, coreColor: 0xead6ff, line: true }, color: 0xd28cff,
     line: 'Canalizas 3 s un haz gigante de 2,5 m que atraviesa a todos y crece hasta +100 %; te da Cargas.',
-    desc: 'Definitiva: mantén la tecla para canalizar 3 s un rayo arcano gigante de 10 m y 2,5 m de ancho hacia la mira: cada 0,25 s golpea a todos los que atraviesa (60 %, +10 % por golpe hasta +100 %) y cada golpe te da 1 Carga Arcana. No te mueves y eres imparable mientras dura. Enfriamiento 50 s.' },
+    desc: 'Definitiva: mantén la tecla para canalizar 3 s un rayo arcano gigante de 10 m y 2,5 m de ancho hacia la mira: cada 0,25 s golpea a todos los que atraviesa (65 %, +10 % por golpe hasta +100 %) y cada golpe te da 1 Carga Arcana. No te mueves y eres imparable mientras dura. Si lo sueltas antes del primer golpe, no gasta el enfriamiento. Enfriamiento 50 s.' },
 
   // ---------------- ACTIVAS DE TALENTO (ranura 2; las concede su nodo) ----------------
   { id: 'm_t_bloque', art: 'skills256/m_t_bloque.webp', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost',
@@ -848,7 +850,7 @@ export const MAGA_SKILL_FORGE = {
       { id: 'a_orbe_i', name: 'Orbe Veloz', role: 'UNI', icon: 'forge/v_a_orbe_i', line: 'Doble de rápido, sin pararse: descarga a 1 cada 0,15 s (+100 %).',
         mul: { speed: 2 }, set: { park: 0, 'zap.every': 0.15, 'zap.n': 1, 'back.speed': 12, 'back.zap': true }, mod: { dmg: 100 } },
       // dos orbes que giran uno alrededor del otro (0,8 m) por la misma línea; cada descarga, a otro enemigo
-      { id: 'a_orbe_ii', name: 'Orbe Gemelo', role: 'AREA', icon: 'forge/v_a_orbe_ii', line: '2 orbes que giran juntos y descargan a enemigos distintos (60 % c/u).',
+      { id: 'a_orbe_ii', name: 'Orbe Gemelo', role: 'AREA', icon: 'forge/v_a_orbe_ii', line: '2 orbes giran juntos a enemigos distintos (60 % del Orbe cada uno).',
         set: { twin: 0.8 }, mod: { dmg: -40 } },
     ],
   },
@@ -871,11 +873,13 @@ export const MAGA_SKILL_FORGE = {
       // S-maga (M-06/M-07/M-08): canal SIN FIN mantenido (Incinerar de D4: rampa con tope; Desintegrar de
       // Last Epoch: maná por segundo). El 1.er tic al pulsar (un clic ya pega) y el coste se drena (12/s);
       // un tic cada 0,2 s y +10 % por tic hasta +100 %. Gasta TODAS las Cargas en el 1.er tic y su bono dura
-      // todo el canal (v_haz_concentrado, js/powers-maga.js). Haz vivo violeta: más ancho con las Cargas, ×2 al tope
+      // todo el canal (v_haz_concentrado, js/powers-maga.js). Haz vivo violeta saturado (en aditivo, el lavanda de
+      // las Cargas se veía blanco) con núcleo lila: más ancho con las Cargas (brillo con tope ×1,3), ×2 al tope.
+      // Lo de las Cargas (todas en el 1.er tic, bono todo el canal) lo cuenta la barra (ui-gauges-maga, explain)
       { id: 'rayo_ii', name: 'Haz Concentrado', role: 'UNI', icon: 'forge/v_rayo_ii', line: 'Haz sin fin (30 % cada 0,2 s, +10 % por tic hasta +100 %); 12 maná/s.',
         behavior: 'v_haz_concentrado',
         set: { type: 'channel', endless: true, channelT: 1, ticks: 5, tickNow: true, drainCost: true, cost: 12, cd: 1, lockT: 0, coef: 0.3,
-          rampPerTic: 10, rampMax: 100, beam: { width: 0.36, core: 0.11, color: 0xb996ff, coreColor: 0xffffff } } },
+          rampPerTic: 10, rampMax: 100, beam: { width: 0.36, core: 0.11, color: 0x8a5cf0, coreColor: 0xe2d4ff } } },
     ],
   },
   m_u_desgarro: {
@@ -883,10 +887,10 @@ export const MAGA_SKILL_FORGE = {
     vars: [
       // grieta = zona genérica (coef = daño por segundo a todos dentro); sin las claves del canal
       { id: 'm_u_desgarro_i', name: 'Brecha', role: 'AREA', icon: 'forge/v_m_u_desgarro_i', line: 'Abre una grieta en el suelo 5 s: 120 % por segundo a todos a 3 m.',
-        set: { type: 'zone', at: 'target', dur: 5, radius: 3, coef: 1.2, tickNow: false, rampPerTic: null, rampMax: null, beam: null } },
+        set: { type: 'zone', at: 'target', dur: 5, radius: 3, coef: 1.2, rampPerTic: null, rampMax: null, beam: null } },
       // un golpe tras 0,5 s de preparación sobre el enemigo de la mira
       { id: 'm_u_desgarro_ii', name: 'Quiebre', role: 'UNI', icon: 'forge/v_m_u_desgarro_ii', line: 'Un solo pulso de 900 % al final; no se canaliza.',
-        set: { type: 'area', at: 'enemy', radius: 1.2, windup: 0.5, coef: 9, tickNow: false, rampPerTic: null, rampMax: null, beam: null } },
+        set: { type: 'area', at: 'enemy', radius: 1.2, windup: 0.5, coef: 9, rampPerTic: null, rampMax: null, beam: null } },
     ],
   },
 };

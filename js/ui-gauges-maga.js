@@ -323,13 +323,13 @@ const cargas = {
     return {
       text: `Dardo Arcano suma <b>Cargas Arcanas</b> (máx. ${A.max}). <b>Rayo</b> las gasta todas: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga.`,
       cols: [
-        ['Generar', `Dardo Arcano +${A.perDart} por impacto · Desgarro Arcano +${A.perRiftTic} por golpe del haz · Orbe Arcano +${A.perOrb} al recogerlo · Sello del Archimago +1 cada ${fmtN(A.sealEvery)} s`],
-        ['Descargar', `Rayo las gasta todas: hasta +${A.dmgPerCharge * A.max} % de daño y +${A.manaPerCharge * A.max} de maná`],
+        ['Generar', `Dardo Arcano +${A.perDart} por impacto · Desgarro Arcano +${A.perRiftTic} por golpe del haz · Orbe Arcano +${A.perOrb} al recogerlo (no si se queda en órbita) · Sello del Archimago +1 cada ${fmtN(A.sealEvery)} s`],
+        ['Descargar', `Rayo las gasta todas: hasta +${A.dmgPerCharge * A.max} % de daño y +${A.manaPerCharge * A.max} de maná · Haz Concentrado, en su 1.er tic, y el bono dura todo el canal`],
         ['Pérdida', `Todas a los ${fmtN(A.loseAfter)} s sin ganar (salvo Resonancia)`],
       ],
       tip: [
         `<b>Qué es:</b> hasta ${A.max} runas que orbitan tu núcleo arcano y potencian el próximo <b>Rayo</b>.`,
-        `<b>Gana:</b> +${A.perDart} por impacto de Dardo Arcano, +${A.perRiftTic} por golpe del haz del Desgarro (aunque atraviese a varios) y +${A.perOrb} al recoger tu Orbe; dentro de tu Sello, +1 cada ${fmtN(A.sealEvery)} s. <b>Descarga:</b> Rayo las gasta todas: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga.`,
+        `<b>Gana:</b> +${A.perDart} por impacto de Dardo Arcano, +${A.perRiftTic} por golpe del haz del Desgarro (aunque atraviese a varios) y +${A.perOrb} al recoger tu Orbe (no si se queda en órbita: Satélite, Constelación); dentro de tu Sello, +1 cada ${fmtN(A.sealEvery)} s. <b>Descarga:</b> Rayo las gasta todas: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga. Con <b>Haz Concentrado</b> las gasta todas su 1.er tic (aunque lo sueltes enseguida) y su bono dura todo el canal.`,
         `<b>Pierde:</b> todas a los ${fmtN(A.loseAfter)} s sin ganar (el arco avisa); con Resonancia y ${A.max} Cargas no se pierden y tienes +${A.resonanceCrit} % de crítico por rango.`,
       ],
     };
