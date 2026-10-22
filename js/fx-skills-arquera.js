@@ -244,6 +244,67 @@ export const ARQUERA_FX_PRESETS = {
     size: { start: [0.2, 0.36], end: 0.0 },
     color: { start: '#f0fdff', end: '#9fe8ff' }, alpha: { start: 0.8, end: 0 },
   },
+  // ---- Sensación (S-arquera) ----
+  // Carrera del Viento — remolino bajo a los pies en cada tic (0,1 s) y estela detrás al correr
+  arqWindStep: {
+    name: 'Carrera del Viento pasos', texture: 'glow', blending: 'additive',
+    count: 6, burst: true, lifetime: [0.18, 0.32],
+    shape: 'ring', shapeRadius: 0.45, speed: [1.2, 2.4], gravity: -0.5, drag: 1.2,
+    size: { start: [0.16, 0.3], end: 0.0 },
+    color: { start: '#f4feff', end: '#9fe8ff' }, alpha: { start: 0.7, end: 0 },
+  },
+  arqWindTrail: {
+    name: 'Carrera del Viento estela', texture: 'spark', blending: 'additive',
+    count: 5, burst: true, lifetime: [0.25, 0.45],
+    shape: 'disc', shapeRadius: 0.35, speed: [0.2, 0.6], gravity: 0, drag: 1.5,
+    size: { start: [0.22, 0.4], end: 0.05 },
+    color: { start: '#ffffff', end: '#7fdcff' }, alpha: { start: 0.75, end: 0 }, spin: 120,
+  },
+  // Andanada — patada de polvo al despegar y al caer del salto hacia atrás
+  arqLeapKick: {
+    name: 'Andanada polvo del salto', texture: 'smoke', blending: 'normal',
+    count: 16, burst: true, lifetime: [0.35, 0.7],
+    shape: 'ring', shapeRadius: 0.5, speed: [1.6, 3.2], gravity: -0.3, drag: 1.1,
+    size: { start: [0.35, 0.6], end: 1.2 },
+    color: { start: '#efe6cc', end: '#8f8468' }, alpha: { start: 0.55, end: 0 }, spin: 30,
+  },
+  // Tensados (Disparo Apuntado, Tiro Celestial, Cuerda Tensa) — destello en el arco al soltar (dorado y
+  // con estrellas en el perfecto) y chispa en cada enemigo que atraviesa la saeta
+  arqReleaseFlash: {
+    name: 'Tensado destello', texture: 'glow', blending: 'additive',
+    count: 2, burst: true, lifetime: [0.07, 0.1],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [0.9, 1.1], end: 0.2 },
+    color: { start: '#ffffff', end: '#fff1a8' }, alpha: { start: 1, end: 0 },
+  },
+  arqReleasePerfect: {
+    name: 'Tensado perfecto', texture: 'star', blending: 'additive',
+    count: 16, burst: true, lifetime: [0.12, 0.3],
+    shape: 'sphere', shapeRadius: 0.15, speed: [3, 6], gravity: 0, drag: 1.2,
+    size: { start: [0.25, 0.45], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffcf40' }, alpha: { start: 1, end: 0 }, spin: 200,
+  },
+  arqCelestialFlash: {
+    name: 'Tiro Celestial destello', texture: 'glow', blending: 'additive',
+    count: 3, burst: true, lifetime: [0.08, 0.12],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [1.8, 2.2], end: 0.4 },
+    color: { start: '#ffffff', end: '#9fd8ff' }, alpha: { start: 1, end: 0 },
+  },
+  arqPierceSpark: {
+    name: 'Saeta atraviesa', texture: 'spark', blending: 'additive',
+    count: 14, burst: true, lifetime: [0.12, 0.28],
+    shape: 'sphere', shapeRadius: 0.12, speed: [3, 7], gravity: 1, drag: 0.6,
+    size: { start: [0.12, 0.26], end: 0.0 },
+    color: { start: '#ffffff', end: '#fff1a8' }, alpha: { start: 1, end: 0 },
+  },
+  arqPierceGold: {
+    name: 'Saeta perfecta atraviesa', texture: 'spark', blending: 'additive',
+    count: 22, burst: true, lifetime: [0.15, 0.35],
+    shape: 'sphere', shapeRadius: 0.15, speed: [4, 9], gravity: 1, drag: 0.6,
+    size: { start: [0.16, 0.34], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffcf40' }, alpha: { start: 1, end: 0 },
+  },
   // Rodilla en Tierra — polvo dorado al hincar la rodilla
   arqKneel: {
     name: 'Rodilla en Tierra', texture: 'smoke', blending: 'normal',
@@ -360,9 +421,11 @@ export const ARQUERA_FX = {
   lluvia_flechas:    { aura: 'arrowRain', extra: 'arrowRainDust', color: 0xaaffaa, sfx: 'shoot',
     vars: { ii: { extra: 'arqSmokePuff' } } },
   // Tiradora
-  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot',
+  // S-arquera: la Andanada levanta polvo al despegar y al caer (extra) y deja estela en el aire (trail);
+  // la Carrera, viento a los pies en cada tic (extra) y estela detrás (trail)
+  a_t_andanada:      { aura: 'multiShotBurst', trail: 'arqRollDust', extra: 'arqLeapKick', impact: 'arrowSpark', color: 0x66d7c7, sfx: 'shoot',
     vars: { ii: { impact: 'arqStunPop' } } },
-  a_v_carrera:       { aura: 'arqWindRun', impact: 'arrowSpark', color: 0x9fe8ff, sfx: 'dash' },
+  a_v_carrera:       { aura: 'arqWindRun', extra: 'arqWindStep', trail: 'arqWindTrail', impact: 'arrowSpark', color: 0x9fe8ff, sfx: 'dash' },
   flecha_multiple:   { aura: 'multiShotBurst', impact: 'arrowSpark', color: 0xccddaa, sfx: 'shoot' },
   a_u_diluvio:       { trail: 'arqDelugeFall', aura: 'arqDeluge', extra: 'arrowRainDust', color: 0xbfffbf, sfx: 'shoot',
     vars: { ii: { aura: 'arqAimedImpact', extra: 'critRing' } } },

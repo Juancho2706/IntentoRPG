@@ -137,10 +137,9 @@ export const PENDING_E4B = [
   { key: '1A:maga:50:ttkE', medido: 3.942, objetivo: [4.5, 10.5], dueño: 'KA-maga', regla: 'maga Nv50: TTK élite 3.94s fuera de 4.5,10.5' },
   { key: '1A:maga:50:ttd', medido: 5.831, objetivo: [6, 13], dueño: 'KA-maga', regla: 'maga Nv50: TTD manada 5.83s fuera de 6,13' },
   { key: '1A:maga:50:ult', medido: 0.061, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'maga Nv50: la definitiva m_u_supernova aporta 6% del daño UNI (objetivo 12–22 %)' },
-  { key: '1A:arquera:25:maxHit', medido: 0.288, objetivo: 0.25, dueño: 'KA-arquera', regla: 'arquera Nv25: un golpe óptimo (a_u_celeste) quita 29% de la vida del jefe' },
-  { key: '1A:arquera:50:ult', medido: 0.119, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'arquera Nv50: la definitiva a_u_celeste aporta 12% del daño UNI (objetivo 12–22 %)' },
   { key: 'ROL:berserker:50:min:ttdp', medido: 0.27, objetivo: 0.9, dueño: 'KA-guerrero', regla: 'berserker Nv50: TTDP ×0.27 de la media (< ×0.9)' },
   { key: 'ROL:berserker:50:best:uni', medido: 0.687, objetivo: 1.1, dueño: 'KA-guerrero', regla: 'berserker Nv50: UNI no es la mejor de su clase por ×1.1 (3193.1 frente a 4649.4)' },
+  { key: '1A:arquera:25:maxHit', medido: 0.283, objetivo: 0.25, dueño: 'KA-arquera', regla: 'arquera Nv25: un golpe óptimo (a_u_celeste) quita 28% de la vida del jefe' },
   { key: 'ROL:berserker:50:ult', medido: 0, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'berserker Nv50: la definitiva g_u_furia aporta 0% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
   { key: 'ROL:cruzado:50:min:ttdp', medido: 0.445, objetivo: 1.3, dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTDP ×0.45 de la media (< ×1.3)' },
   { key: 'ROL:cruzado:50:apoyoDps', medido: 0.08, objetivo: 0.25, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO 8% del DPS de un aliado (< 25%)' },
@@ -161,17 +160,20 @@ export const PENDING_E4B = [
   { key: 'ROL:arcanista:50:min:uni', medido: 1.037, objetivo: 1.15, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI ×1.04 de la media (< ×1.15)' },
   { key: 'ROL:arcanista:50:best:uni', medido: 0.724, objetivo: 1.1, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI no es la mejor de su clase por ×1.1 (2171.6 frente a 2997.7)' },
   { key: 'ROL:arcanista:50:ult', medido: 0.042, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'arcanista Nv50: la definitiva m_u_desgarro aporta 4% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:francotiradora:50:min:uni', medido: 0.768, objetivo: 1.15, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI ×0.77 de la media (< ×1.15)' },
-  { key: 'ROL:francotiradora:50:min:area', medido: 0.448, objetivo: 0.7, dueño: 'KA-arquera', regla: 'francotiradora Nv50: AREA ×0.45 de la media (< ×0.7)' },
-  { key: 'ROL:francotiradora:50:min:ttdp', medido: 0.277, objetivo: 0.85, dueño: 'KA-arquera', regla: 'francotiradora Nv50: TTDP ×0.28 de la media (< ×0.85)' },
-  { key: 'ROL:francotiradora:50:ult', medido: 0.119, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'francotiradora Nv50: la definitiva a_u_celeste aporta 12% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:montaraz:50:min:area', medido: 0.591, objetivo: 0.9, dueño: 'KA-arquera', regla: 'montaraz Nv50: AREA ×0.59 de la media (< ×0.9)' },
-  { key: 'ROL:montaraz:50:ttkE', medido: 12.792, objetivo: [3.6, 12.6], dueño: 'KA-arquera', regla: 'montaraz Nv50: TTK élite 12.8s fuera de 3.6,12.6' },
-  { key: 'ROL:tiradora:50:min:area', medido: 0.386, objetivo: 1.2, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA ×0.39 de la media (< ×1.2)' },
-  { key: 'ROL:tiradora:50:min:uni', medido: 0.555, objetivo: 0.85, dueño: 'KA-arquera', regla: 'tiradora Nv50: UNI ×0.55 de la media (< ×0.85)' },
-  { key: 'ROL:tiradora:50:best:area', medido: 0.652, objetivo: 1.1, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA no es la mejor de su clase por ×1.1 (1830.5 frente a 2807.1)' },
-  { key: 'ROL:tiradora:50:ttkN', medido: 2.863, objetivo: [0.48, 1.8], dueño: 'KA-arquera', regla: 'tiradora Nv50: TTK común 2.86s fuera de 0.48,1.8' },
-  { key: 'ROL:tiradora:50:ttkE', medido: 24.878, objetivo: [3.6, 12.6], dueño: 'KA-arquera', regla: 'tiradora Nv50: TTK élite 24.9s fuera de 3.6,12.6' },
+  { key: 'ROL:francotiradora:50:min:uni', medido: 0.765, objetivo: 1.15, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI ×0.77 de la media (< ×1.15)' },
+  { key: 'ROL:francotiradora:50:min:area', medido: 0.426, objetivo: 0.7, dueño: 'KA-arquera', regla: 'francotiradora Nv50: AREA ×0.43 de la media (< ×0.7)' },
+  { key: 'ROL:francotiradora:50:min:ttdp', medido: 0.227, objetivo: 0.85, dueño: 'KA-arquera', regla: 'francotiradora Nv50: TTDP ×0.23 de la media (< ×0.85)' },
+  // S-arquera (sensación): la Andanada acierta a un blanco (A1: la central y su gemela), el Disparo
+  // Disperso pega como un básico (A-x1) y la Carrera no bloquea (A2): la Tiradora pasa de 1102 a 1841 de
+  // UNI y supera a la Francotiradora (1590, con Punto Débil rehecho en A7); su definitiva pesa menos
+  // (10 %). Salen ROL:tiradora:50:min:uni, :ttkN y :ttkE; con el cepo cerrado detonable (A3),
+  // ROL:montaraz:50:ttkE; con Tiro Celestial al 12 % de la Francotiradora, ROL:francotiradora:50:ult y
+  // 1A:arquera:50:ult. Calibración del papel UNI (propuesta en el informe de S-arquera): E4b
+  { key: 'ROL:francotiradora:50:best:uni', medido: 0.864, objetivo: 1.1, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI no es la mejor de su clase por ×1.1 (1589.9 frente a 1840.6)' },
+  { key: 'ROL:montaraz:50:min:area', medido: 0.599, objetivo: 0.9, dueño: 'KA-arquera', regla: 'montaraz Nv50: AREA ×0.60 de la media (< ×0.9)' },
+  { key: 'ROL:tiradora:50:min:area', medido: 0.555, objetivo: 1.2, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA ×0.55 de la media (< ×1.2)' },
+  { key: 'ROL:tiradora:50:best:area', medido: 0.927, objetivo: 1.1, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA no es la mejor de su clase por ×1.1 (2689.7 frente a 2902.3)' },
+  { key: 'ROL:tiradora:50:ult', medido: 0.102, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'tiradora Nv50: la definitiva a_u_diluvio aporta 10% del daño UNI (objetivo 12–22 %)' },
   { key: 'ROL:spread:50', medido: 3.571, objetivo: 2, dueño: 'E4b', regla: 'Nv50: jefe más lento ×3.57 el más rápido (> ×2)' },
   { key: 'G9:piromante:70:brasa:area', medido: 0.461, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 piromante: Incendio no gana ÁREA×5 (×0.46 de Combustión Perpetua)' },
   { key: 'G9:piromante:70:cataclismo:ctl', medido: 0.996, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 piromante: Lluvia de Fuego no gana CONTROL (×1.00 de Combustión Perpetua)' },
@@ -191,18 +193,23 @@ export const PENDING_E4B = [
   { key: 'G9:guardian:70:hibguard:hibrida', medido: 0.012, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: la híbrida Roca y Escudo queda a ×0.01 de la mejor en TTD+ (≥ ×0.9)' },
   { key: 'G9:cruzado:70:tribunal:area', medido: 0.643, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: Tribunal no gana ÁREA×5 (×0.64 de Martillo Celestial)' },
   { key: 'G9:cruzado:70:hibcruz:hibrida', medido: 0.8, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: la híbrida Luz y Martillo queda a ×0.80 de la mejor en UNI (≥ ×0.9)' },
-  { key: 'G9:tiradora:70:vaiven:uni', medido: 0.52, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: Vaivén Eterno no gana UNI (×0.52 de Tormenta de Plumas)' },
-  { key: 'G9:tiradora:70:cruzado:min:uni', medido: 0.772, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: la híbrida Viento Cruzado queda a ×0.77 de la mejor en UNI (≥ ×0.8)' },
-  { key: 'G9:tiradora:70:cruzado:min:mixto', medido: 0.845, objetivo: 0.9, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: la híbrida Viento Cruzado queda a ×0.85 de la mejor en mixto (≥ ×0.9)' },
-  { key: 'G9:francotiradora:70:perforacion:area', medido: 0.545, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: Línea Mortal no gana ÁREA×5 (×0.54 de Atalaya Eterna)' },
-  { key: 'G9:francotiradora:70:puntodebil:uni', medido: 0.96, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: Disparo Imposible no gana UNI (×0.96 de Atalaya Eterna)' },
-  { key: 'G9:francotiradora:70:pulso:min:area', medido: 0.576, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: la híbrida Pulso de Hierro queda a ×0.58 de la mejor en ÁREA×5 (≥ ×0.8)' },
-  { key: 'G9:francotiradora:70:pulso:min:mixto', medido: 0.765, objetivo: 0.9, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: la híbrida Pulso de Hierro queda a ×0.77 de la mejor en mixto (≥ ×0.9)' },
-  { key: 'G9:montaraz:70:campo:area', medido: 0.759, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.76 de Bosque Vivo)' },
-  { key: 'G9:montaraz:70:caceria:uni', medido: 0.801, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Gran Cacería no gana UNI (×0.80 de Espinas de Caza)' },
-  { key: 'G9:montaraz:70:zarzal:ctl', medido: 0.94, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Bosque Vivo no gana CONTROL (×0.94 de Espinas de Caza)' },
-  { key: 'G9:montaraz:70:espinas:noBest:uni', medido: 1.249, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: la híbrida Espinas de Caza es la mejor en UNI (×1.25)' },
-  { key: 'G9:montaraz:70:espinas:noBest:mixto', medido: 1.065, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: la híbrida Espinas de Caza es la mejor en mixto (×1.07)' },
+  { key: 'G9:tiradora:70:vaiven:uni', medido: 0.631, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: Vaivén Eterno no gana UNI (×0.63 de Tormenta de Plumas)' },
+  // S-arquera: con la Carrera que no bloquea y atraviesa, Viento Cruzado sube (sale su :min:uni y su
+  // :min:mixto pasa de ×0,85 a ×0,89) y Galerna Infinita alcanza a Tormenta de Plumas en ÁREA×5
+  { key: 'G9:tiradora:70:cruzado:min:mixto', medido: 0.89, objetivo: 0.9, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: la híbrida Viento Cruzado queda a ×0.89 de la mejor en mixto (≥ ×0.9)' },
+  { key: 'G9:tiradora:70:plumas:area', medido: 0.991, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: Tormenta de Plumas no gana ÁREA×5 (×0.99 de Galerna Infinita)' },
+  { key: 'G9:francotiradora:70:perforacion:area', medido: 0.729, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: Línea Mortal no gana ÁREA×5 (×0.73 de Atalaya Eterna)' },
+  { key: 'G9:francotiradora:70:puntodebil:uni', medido: 0.939, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: Disparo Imposible no gana UNI (×0.94 de Atalaya Eterna)' },
+  { key: 'G9:francotiradora:70:pulso:min:area', medido: 0.697, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: la híbrida Pulso de Hierro queda a ×0.70 de la mejor en ÁREA×5 (≥ ×0.8)' },
+  { key: 'G9:francotiradora:70:pulso:min:mixto', medido: 0.814, objetivo: 0.9, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: la híbrida Pulso de Hierro queda a ×0.81 de la mejor en mixto (≥ ×0.9)' },
+  { key: 'G9:montaraz:70:campo:area', medido: 0.845, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.85 de Bosque Vivo)' },
+  { key: 'G9:montaraz:70:caceria:uni', medido: 0.815, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Gran Cacería no gana UNI (×0.81 de Espinas de Caza)' },
+  { key: 'G9:montaraz:70:zarzal:ctl', medido: 0.948, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Bosque Vivo no gana CONTROL (×0.95 de Espinas de Caza)' },
+  { key: 'G9:montaraz:70:espinas:noBest:uni', medido: 1.086, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: la híbrida Espinas de Caza es la mejor en UNI (×1.09)' },
+  // S-arquera (A3): con el cepo cerrado detonable (y los cerrados fuera del tope de 3), las builds de
+  // trampas de Bosque Vivo y Tierra Arrasada sacan más en ÁREA×5 y la híbrida queda por debajo (también
+  // a Nv100); salen sus :noBest:mixto (Nv70 y Nv100) y la CONTROL de Bosque Vivo a Nv100
+  { key: 'G9:montaraz:70:espinas:min:area', medido: 0.733, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: la híbrida Espinas de Caza queda a ×0.73 de la mejor en ÁREA×5 (≥ ×0.8)' },
   { key: 'G9:piromante:100:brasa:area', medido: 0.603, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 piromante: Incendio no gana ÁREA×5 (×0.60 de Combustión Perpetua)' },
   { key: 'G9:piromante:100:cataclismo:ctl', medido: 1, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 piromante: Lluvia de Fuego no gana CONTROL (×1.00 de Combustión Perpetua)' },
   { key: 'G9:piromante:100:hibrido:hibrida', medido: 0.343, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 piromante: la híbrida Brasa Ardiente queda a ×0.34 de la mejor en UNI (≥ ×0.85)' },
@@ -216,19 +223,14 @@ export const PENDING_E4B = [
   { key: 'G9:guardian:100:hibguard:hibrida', medido: 0.283, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: la híbrida Roca y Escudo queda a ×0.28 de la mejor en TTD+ (≥ ×0.9)' },
   { key: 'G9:cruzado:100:tribunal:area', medido: 0.759, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: Tribunal no gana ÁREA×5 (×0.76 de Martillo Celestial)' },
   { key: 'G9:cruzado:100:hibcruz:hibrida', medido: 0.737, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: la híbrida Luz y Martillo queda a ×0.74 de la mejor en UNI (≥ ×0.9)' },
-  { key: 'G9:tiradora:100:vaiven:uni', medido: 0.664, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 tiradora: Vaivén Eterno no gana UNI (×0.66 de Viento Cruzado)' },
-  { key: 'G9:tiradora:100:cruzado:noBest:uni', medido: 1.004, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 tiradora: la híbrida Viento Cruzado es la mejor en UNI (×1.00)' },
-  { key: 'G9:francotiradora:100:perforacion:area', medido: 0.757, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: Línea Mortal no gana ÁREA×5 (×0.76 de Atalaya Eterna)' },
+  { key: 'G9:tiradora:100:vaiven:uni', medido: 0.732, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 tiradora: Vaivén Eterno no gana UNI (×0.73 de Viento Cruzado)' },
+  { key: 'G9:tiradora:100:cruzado:noBest:uni', medido: 1.032, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 tiradora: la híbrida Viento Cruzado es la mejor en UNI (×1.03)' },
+  { key: 'G9:francotiradora:100:perforacion:area', medido: 0.809, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: Línea Mortal no gana ÁREA×5 (×0.81 de Atalaya Eterna)' },
   // E4b-bugs (revisión): con la carga completa desde la ventana dorada, Salva de Vigía sale en los
   // soltados perfectos (del 0,8 al 1,2 % del UNI de Atalaya Eterna). En la mediana de 5 semillas,
   // Atalaya Eterna no cambia (UNI ×1,003, ÁREA×5 ×1,000); con la semilla 1 baja un 5 % de UNI (los
   // tiros de más mueven el azar del combate) y su mixto pasa a ×0,99 de Disparo Imposible. Por lo
   // mismo, Pulso de Hierro (`G9:francotiradora:100:pulso:min:mixto`, ×0,89) pasa a ×0,91 y sale
-  { key: 'G9:francotiradora:100:vigia:mixto', medido: 0.987, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: Atalaya Eterna no gana mixto (×0.99 de Disparo Imposible)' },
-  { key: 'G9:montaraz:100:campo:area', medido: 0.717, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.72 de Bosque Vivo)' },
-  { key: 'G9:montaraz:100:caceria:uni', medido: 0.829, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Gran Cacería no gana UNI (×0.83 de Espinas de Caza)' },
-  { key: 'G9:montaraz:100:espinas:noBest:uni', medido: 1.206, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza es la mejor en UNI (×1.21)' },
-  { key: 'G9:montaraz:100:espinas:noBest:mixto', medido: 1.079, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza es la mejor en mixto (×1.08)' },
   { key: 'G18:berserker', medido: 0.129, objetivo: 0.05, dueño: 'KT-guerrero', regla: 'G18 berserker: Titán +3.8 % frente a Gladiador +16.6 % (diferencia 12.9 puntos > 5)' },
   { key: 'G18:piromante', medido: 0.11, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 piromante: Invocadora +22.1 % frente a Cronomante +11.1 % (diferencia 11.0 puntos > 5)' },
   { key: 'G18:crionte', medido: 0.105, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 crionte: Escriba Rúnica +28.7 % frente a Invocadora +18.1 % (diferencia 10.5 puntos > 5)' },
@@ -236,7 +238,6 @@ export const PENDING_E4B = [
   // Nv70 a Nv80 contra los mismos enemigos (con Cadena ganaba un 11 %; ningún nodo del Cronomante solo lo
   // explica: la manada muere antes y llega desalineada). Con Cadena se cumplía (Cronomante +17 %, Escriba +20 %). KT-maga
   { key: 'G18:arcanista', medido: 0.127, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +9.3 % frente a Escriba Rúnica +21.9 % (diferencia 12.7 puntos > 5)' },
-  { key: 'G18:tiradora', medido: 0.131, objetivo: 0.05, dueño: 'KT-arquera', regla: 'G18 tiradora: Carcaj Encantado +10.6 % frente a Errante del Viento +23.7 % (diferencia 13.1 puntos > 5)' },
   // S-guerrero (sensación, hallazgos recomendados; ronda 2). Sin la trampa del Remolino (antes ×0,58 con él), el Berserker
   // rinde lo que su rotación: el criterio (a) (con el Remolino ≥ ×0,9 en UNI a Nv50) deja su TTK de jefe en ~32 s (sin
   // Remolino, ~30 s) y la media de Nv50 en 44,8 s: 1A:media:50:ttkB lo decide el jefe (dueño E4b). A Nv10 el giro aún pesa
@@ -252,6 +253,19 @@ export const PENDING_E4B = [
   { key: 'G9:berserker:100:estampida:area', medido: 0.824, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: Estampida Sin Fin no gana ÁREA×5 (×0.82 de Danza Carmesí)' },
   { key: 'G9:guardian:100:guardia:ttdp', medido: 0.266, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: Guardia Total no gana TTD+ (×0.27 de Montaña Viva)' },
   { key: 'G9:cruzado:100:santa:apoyo', medido: 0.958, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: Tierra Santa no gana APOYO (×0.96 de Tribunal)' },
+  { key: 'G9:francotiradora:100:vigia:mixto', medido: 0.976, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: Atalaya Eterna no gana mixto (×0.98 de Pulso de Hierro)' },
+  // S-arquera (A7, forja por build): Pulso de Hierro compra Sobrepenetración y Línea de Mira, que piden
+  // que la saeta atraviese (needsForm), así que deja Tiro Pesado por el Disparo Apuntado base; con eso
+  // es la mejor en mixto a Nv100 por un 2 % (una híbrida no debe ganar). Calibración de la híbrida: E4b
+  { key: 'G9:francotiradora:100:pulso:noBest:mixto', medido: 1.025, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: la híbrida Pulso de Hierro es la mejor en mixto (×1.02)' },
+  { key: 'G9:montaraz:100:campo:area', medido: 0.821, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.82 de Bosque Vivo)' },
+  { key: 'G9:montaraz:100:caceria:uni', medido: 0.893, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Gran Cacería no gana UNI (×0.89 de Espinas de Caza)' },
+  { key: 'G9:montaraz:100:espinas:noBest:uni', medido: 1.103, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza es la mejor en UNI (×1.10)' },
+  { key: 'G9:montaraz:100:espinas:min:area', medido: 0.741, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza queda a ×0.74 de la mejor en ÁREA×5 (≥ ×0.8)' },
+  { key: 'G18:tiradora', medido: 0.08, objetivo: 0.05, dueño: 'KT-arquera', regla: 'G18 tiradora: Carcaj Encantado +8.1 % frente a Errante del Viento +16.1 % (diferencia 8.0 puntos > 5)' },
+  // S-arquera (A7): con la forja por build (Línea Mortal y Pulso de Hierro sin Tiro Pesado) y Punto Débil y
+  // Vigía rehechos, la diferencia entre héroes pasa de 5
+  { key: 'G18:francotiradora', medido: 0.064, objetivo: 0.05, dueño: 'KT-arquera', regla: 'G18 francotiradora: Errante del Viento +12.5 % frente a Halconera +6.1 % (diferencia 6.4 puntos > 5)' },
 ];
 
 // ---------------- comprobaciones ----------------

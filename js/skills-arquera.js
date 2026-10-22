@@ -25,7 +25,7 @@
 // métodos de Game (dealArea, fireProjectile, spawnField, clampWalkable, timers…) y las
 // primitivas de Player/Enemy (addBuff, applyCC, applyWeakness, weakenOutgoing,
 // addStagger); nunca setTimeout ni p.cds (D2: las cargas y recargas son del motor).
-import { projFanOffset } from './skill-defs.js';
+import { projFanOffset, fanSpread } from './skill-defs.js';
 
 export const ARQUERA_SKILLS = [
   // ---------------- KIT BASE ----------------
@@ -51,18 +51,28 @@ export const ARQUERA_SKILLS = [
     desc: 'Tras 0,3 s de aviso, 4 oleadas de flechas caen en 1,5 s sobre un círculo de 3 m (60 % del arma cada una). 30 de Energía, se recarga en 4 s.' },
 
   // ---------------- TIRADORA VELOZ (moverse disparando) ----------------
-  // Andanada: salto hacia atrás disparando; en 2 s, otra pulsación salta adelante y repite
+  // Andanada: salto hacia atrás disparando; en 2 s, otra pulsación salta adelante y repite. S-arquera
+  // (A1): número IMPAR de flechas (la central va al cursor y sale DOBLE: una gemela por su misma línea,
+  // comportamiento a_andanada), abanico que se cierra con la distancia a la mira (fanW = 2,5 m a cada
+  // lado del cursor, semiapertura entre 15° y 60°: skill-defs.fanSpread) y hasta 2 flechas por enemigo
+  // (perTarget): el blanco del cursor recibe 2 flechas sea cual sea su tamaño
   { id: 'a_t_andanada', name: 'Andanada', icon: '🎇', cat: 'spec', spec: 'tiradora', slots: ['k3'], tags: ['spec', 'proj', 'area', 'physical'], elem: 'physical',
-    behavior: 'a_andanada', req: 10, coef: 0.45, cost: 25, cd: 8, count: 10, spread: 1.047, speed: 18, range: 10, jump: 4, airT: 0.3, lockT: 0.35,
+    behavior: 'a_andanada', req: 10, coef: 0.45, cost: 25, cd: 8, count: 9, spread: 1.047, spreadMin: 0.2618, fanW: 2.5, perTarget: 2,
+    speed: 18, range: 10, jump: 4, airT: 0.3, lockT: 0.35,
     recast: { n: 2, win: 2, cdFrom: 'first' }, color: 0x66d7c7,
-    line: 'Saltas 4 m atrás y disparas 10 flechas en 120° (45 % cada una). En 2 s, pulsa otra vez: saltas adelante y repites.',
-    desc: 'Saltas 4 m hacia atrás y disparas 10 flechas en un abanico de 120° (45 % del arma cada una). Durante 2 s puedes pulsar otra vez: saltas 4 m hacia delante y repites. 25 de Energía, se recarga en 8 s.' },
-  // Carrera del Viento: mantener para correr más rápido mientras disparas sola
+    line: 'Saltas 4 m atrás y disparas 10 flechas al cursor, la central doble (45 %; 2 por enemigo). En 2 s, otra vez: adelante.',
+    desc: 'Saltas 4 m hacia atrás y disparas un abanico de 9 flechas hacia el cursor con la central doble: 10 flechas del 45 % del arma (como mucho 2 dan al mismo enemigo; las dos centrales, al que apuntas). El abanico se cierra cuanto más lejos apuntas: cubre 2,5 m a cada lado del cursor, de 120° a quemarropa a 30° lejos. Durante 2 s puedes pulsar otra vez: saltas 4 m hacia delante y repites. 25 de Energía, se recarga en 8 s.' },
+  // Carrera del Viento: mantener para correr más rápido mientras disparas sola. S-arquera (A2): el
+  // canal NO bloquea (nonBlocking): sigues con el básico y las demás ranuras y los autodisparos van
+  // de extra; viento a los pies en cada tic (0,1 s) y estela detrás (comportamiento a_carrera). Sus
+  // flechas de viento atraviesan (pierce: lo leen los autodisparos): contra un grupo la Carrera suma de
+  // verdad (sin atravesar, en ÁREA×5 valía lo mismo que la acción que ocupa: ×0,997–1,05 frente a no
+  // llevarla; atravesando, ×1,03–1,09) y a un solo blanco no cambia nada
   { id: 'a_v_carrera', name: 'Carrera del Viento', icon: '🌬️', cat: 'movement', spec: 'tiradora', slots: ['k1'], tags: ['movement', 'channel', 'proj', 'physical'], elem: 'physical',
-    type: 'channel', req: 12, coef: 0.45, cd: 10, dur: 4, ticks: 20, hold: true, moveMul: 1.4,
+    type: 'channel', behavior: 'a_carrera', req: 12, coef: 0.45, cd: 10, dur: 4, ticks: 40, hold: true, moveMul: 1.4, nonBlocking: true, pierce: true,
     autoShot: { every: 0.4, coef: 0.45, target: 'nearest', range: 10 }, color: 0x9fe8ff,
-    line: 'Mantén pulsado: corres un 40 % más rápido hasta 4 s y disparas sola al enemigo más cercano cada 0,4 s (45 %).',
-    desc: 'Mientras la mantienes (hasta 4 s) corres un 40 % más rápido y disparas sola al enemigo más cercano cada 0,4 s (45 % del arma). Esquivar la corta. Se recarga en 10 s.' },
+    line: 'Mantén: corres un 40 % más rápido hasta 4 s sin dejar de atacar y cada 0,4 s sale sola una flecha que atraviesa (45 %).',
+    desc: 'Mientras la mantienes (hasta 4 s) corres un 40 % más rápido y, además de tus ataques, disparas sola al enemigo más cercano cada 0,4 s una flecha de viento que atraviesa (45 % del arma). No te frena ni te bloquea: el básico y tus otras habilidades siguen libres. Esquivar la corta. Se recarga en 10 s.' },
   { id: 'flecha_multiple', name: 'Flecha Múltiple', icon: '🔱', cat: 'spender', spec: 'tiradora', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'physical'], elem: 'physical',
     type: 'proj', req: 14, coef: 0.45, cost: 22, speed: 15, range: 10, count: 5, spread: 0.436, lockT: 0.35, color: 0xccddaa,
     line: 'Disparas 5 flechas en un abanico de 50° (45 % cada una). No te frena: úsala corriendo.',
@@ -74,8 +84,11 @@ export const ARQUERA_SKILLS = [
     desc: 'Definitiva: una nube de saetas te sigue 6 s y cada 0,5 s descarga en 4 m a tu alrededor (170 % del arma por oleada, 12 oleadas). Se recarga en 50 s.' },
 
   // ---------------- FRANCOTIRADORA (tensar y soltar con ventana dorada) ----------------
+  // S-arquera (A5, A7): sin el haz de la línea (beam: false): la saeta alargada y su trazador hasta la
+  // última víctima los pinta Cuerda Tensa (powers-arquera.js, tenseFeel); Tiro Pesado, que no atraviesa,
+  // tampoco pinta un haz
   { id: 'a_t_apuntado', name: 'Disparo Apuntado', icon: '🎯', cat: 'spec', spec: 'francotiradora', slots: ['k3'], tags: ['spec', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', req: 10, coef: 2.5, cost: 30, cd: 4, speed: 30, range: 16, pierce: true, beam: true, size: 0.16, lockT: 0.2, color: 0xfff1a8,
+    type: 'proj', req: 10, coef: 2.5, cost: 30, cd: 4, speed: 30, range: 16, pierce: true, beam: false, size: 0.1, lockT: 0.2, color: 0xfff1a8,
     charge: { min: 0.3, max: 1.5, perfect: [1.15, 1.35], perfectPct: 50, perfectCrit: true, scale: { coef: [0.8, 2.5] }, moveMul: 0.6 },
     line: 'Mantén para tensar hasta 1,5 s y suelta: de 80 a 250 % y atraviesa. En la ventana dorada, +50 % y crítico.',
     desc: 'Mantén para tensar hasta 1,5 s y suelta: una saeta que atraviesa la línea con del 80 al 250 % del arma. Soltar en la ventana dorada (1,15–1,35 s) da +50 % y crítico seguro. Tensando vas al 60 % de velocidad; rodar cancela sin coste. 30 de Energía, se recarga en 4 s.' },
@@ -92,33 +105,43 @@ export const ARQUERA_SKILLS = [
     line: 'Una flecha (140 %) que abre un Punto Débil 8 s: tu primer tensado contra él es perfecto y +30 % (uno cada 8 s).',
     desc: 'Una flecha (140 % del arma) que abre un Punto Débil durante 8 s: tu primer disparo tensado contra él sale perfecto y con +30 %. 20 de Energía, sin recarga.' },
   // Tiro Celestial: hasta 3 haces en 8 s (relanzar) y cada uno se tensa (cargar)
+  // S-arquera (A4): HAZ VIVO a lo largo de toda la línea que atraviesa (motor: `beam` de un proyectil que
+  // perfora; ancho 0,27–0,63 m según la carga y 0,5 s), núcleo blanco y halo azul cielo; la carga, el
+  // destello, el surco en el suelo y el congelado del perfecto los pone Cuerda Tensa (tenseFeel)
   { id: 'a_u_celeste', name: 'Tiro Celestial', icon: '🌌', cat: 'ultimate', spec: 'francotiradora', slots: ['k4'], tags: ['ultimate', 'proj', 'physical'], elem: 'physical',
-    type: 'proj', req: 15, coef: 4.0, cd: 50, cdFloor: 0.7, speed: 30, range: 16, pierce: true, beam: true, size: 0.18, color: 0x9fd8ff,
+    type: 'proj', req: 15, coef: 4.0, cd: 50, cdFloor: 0.7, speed: 30, range: 16, pierce: true, size: 0.14, color: 0x9fd8ff,
+    beam: { width: 0.45, core: 0.14, color: 0x9fd8ff, coreColor: 0xffffff, intensity: 1.5, dur: 0.5 },
     recast: { n: 3, win: 8, cdFrom: 'first' },
     charge: { min: 0.3, max: 0.8, perfect: [0.5, 0.75], perfectPct: 50, perfectCrit: true, scale: { coef: [2.0, 4.0] }, moveMul: 0.6 },
     line: 'Durante 8 s tensas hasta 3 haces celestes (0,8 s cada uno): 400 % y atraviesan. Perfecto: +50 % y crítico.',
     desc: 'Definitiva: durante 8 s tensas y sueltas hasta 3 haces celestes (0,8 s cada uno) que atraviesan con hasta el 400 % del arma. Soltar en la ventana dorada da +50 % y crítico seguro. Se recarga en 50 s desde el primero.' },
 
   // ---------------- MONTARAZ (colocar trampas y detonarlas) ----------------
-  // Trampa de Cepo: trampa genérica (se arma en 0,5 s, hasta 3, 30 s de vida) con 2 cargas
+  // Trampa de Cepo: trampa genérica (se arma en 0,5 s, hasta 3, 30 s de vida) con 2 cargas. S-arquera
+  // (A3, «colocar y detonar»): se CIERRA sobre quien lo pisa y queda detonable 3,5 s pegado a él (hold);
+  // a un jefe no lo atrapa: lo muerde (la pisada: inmovilizar = 30 de Quebranto) y sigue armado bajo
+  // él, ralentizándolo y sumándole Quebranto (boss: 4/s + los 4/s de la ralentización) hasta que lo
+  // detonas. A10: aspecto de cepo con dientes (skin 'cepo', powers-arquera.js)
   { id: 'a_t_cepo', name: 'Trampa de Cepo', icon: '🪤', cat: 'spec', spec: 'montaraz', slots: ['k3'], tags: ['spec', 'trap', 'cc', 'dot', 'nature'], elem: 'nature',
     type: 'trap', req: 10, coef: 0.6, cost: 10, cd: 8, charges: 2, range: 9, dur: 30, root: 2, color: 0x86d47a,
     hitDot: { kind: 'poison', coef: 0.6, dur: 5 },
-    trap: { armT: 0.5, maxArmed: 3, radius: 1.5, lure: { radius: 6, eliteRadius: 3, boss: false, speedMul: 0.8 } },
-    line: 'Colocas un cepo (hasta 3; se arma en 0,5 s): inmoviliza 2 s y envenena (60 % en 5 s; se renueva, no se suma). 2 cargas.',
-    desc: 'Colocas un cepo a hasta 9 m (hasta 3 a la vez; se arma en 0,5 s y dura 30 s): atrae a los enemigos cercanos y, al pisarlo, inmoviliza 2 s y envenena con el 60 % del arma. 2 cargas (8 s cada una); 10 de Energía.' },
+    trap: { armT: 0.5, maxArmed: 3, radius: 1.5, lure: { radius: 6, eliteRadius: 3, boss: false, speedMul: 0.8 },
+      hold: 3.5, boss: { slowPct: 40, stagger: 4 }, skin: 'cepo' },
+    line: 'Colocas un cepo (hasta 3): atrapa 2 s, envenena (60 %) y queda pegado 3,5 s para detonarlo. 2 cargas.',
+    desc: 'Colocas un cepo a hasta 9 m (hasta 3 a la vez; se arma en 0,5 s y dura 30 s) que atrae a los enemigos cercanos. Al pisarlo se cierra sobre el enemigo: lo inmoviliza 2 s, lo envenena con el 60 % del arma en 5 s (se renueva, no se suma) y se queda pegado a él 3,5 s, listo para que Flecha Detonante o Salto de Acecho lo hagan estallar. A un jefe no lo atrapa: lo muerde (30 de Quebranto) y sigue armado bajo él, ralentizándolo y llenándole 8 de Quebranto por segundo hasta que lo detonas. 2 cargas (8 s cada una); 10 de Energía.' },
   // Salto de Acecho: salto a tu trampa más cercana a la mira (at 'ownField') que la hace estallar al caer
   { id: 'a_m_acecho', name: 'Salto de Acecho', icon: '🐾', cat: 'movement', spec: 'montaraz', slots: ['k1'], tags: ['movement', 'physical'], elem: 'physical',
     type: 'leap', req: 12, cd: 10, cdFloor: 0.5, range: 15, at: 'ownField', fieldKind: 'trampa', fallbackRange: 6, radius: 2, airT: 0.45, shake: 0.2,
     detonate: { radius: 2, coef: 1, perTarget: 2 }, color: 0xb6e07a,
     line: 'Saltas a tu trampa más cercana al cursor (hasta 15 m) y la haces estallar al llegar (100 %). Sin trampas, 6 m.',
-    desc: 'Saltas a tu trampa más cercana al cursor (hasta 15 m) y la haces estallar al caer (100 % del arma). Sin trampas a tu alcance, saltas 6 m. Se recarga en 10 s.' },
-  // Flecha Detonante: estalla al impactar y hace estallar tus trampas que alcanza (detonate)
+    desc: 'Saltas a tu trampa más cercana al cursor (hasta 15 m), también a un cepo cerrado sobre un enemigo, y la haces estallar al caer (100 % del arma). Sin trampas a tu alcance, saltas 6 m. Se recarga en 10 s.' },
+  // Flecha Detonante: estalla al impactar y hace estallar tus trampas que alcanza (detonate); S-arquera
+  // (A3): también los cepos cerrados sobre un enemigo y el que sigue armado bajo un jefe
   { id: 'a_m_detonante', name: 'Flecha Detonante', icon: '💥', cat: 'spender', spec: 'montaraz', slots: ['rmb', 'k2'], tags: ['spender', 'proj', 'area', 'physical'], elem: 'physical',
     type: 'proj', req: 14, coef: 0.8, cost: 24, speed: 22, range: 12, splash: 0.8, radius: 3, lockT: 0.35,
     detonate: { radius: 3, coef: 1, perTarget: 2 }, color: 0xffa040,
     line: 'Estalla en 3 m (80 %) y hace estallar tus trampas que alcanza (100 % cada una; como mucho 2 por enemigo).',
-    desc: 'Una flecha que estalla en 3 m al impactar (80 % del arma) y hace estallar las trampas tuyas que alcanza (100 % cada una; como mucho 2 estallidos por enemigo). 24 de Energía, sin recarga.' },
+    desc: 'Una flecha que estalla en 3 m al impactar (80 % del arma) y hace estallar las trampas tuyas que alcanza, también los cepos cerrados sobre un enemigo (100 % cada una; como mucho 2 estallidos por enemigo). 24 de Energía, sin recarga.' },
   // Cerco de Zarzas: anillo donde apuntas; cruzarlo inmoviliza, dentro veneno y al cerrarse estalla
   { id: 'a_u_zarzas', name: 'Cerco de Zarzas', icon: '🌵', cat: 'ultimate', spec: 'montaraz', slots: ['k4'], tags: ['ultimate', 'zone', 'cc', 'dot', 'nature'], elem: 'nature',
     behavior: 'a_zarzas', at: 'target', req: 15, coef: 1.0, cd: 45, cdFloor: 0.7, range: 12, radius: 7, dur: 8, root: 1.5, endMul: 3, shake: 0.3, color: 0x5a8a3a,
@@ -167,6 +190,10 @@ const inCircle = (pos, c, r) => {
 };
 // radio efectivo contra un enemigo (su tamaño cuenta, como dealArea)
 const reach = (e, r) => r + 0.5 * (e.def?.scale || 1);
+// s entre el primer impacto de una Andanada y su empujón (Repulsora): da tiempo a la flecha vecina
+const KNOCK_DELAY = 0.15;
+// s entre la flecha central de la Andanada y su gemela (por la misma línea: a 18 m/s, 0,9 m detrás)
+const TWIN_DELAY = 0.05;
 // dirección unitaria hacia la mira (encima del héroe: hacia donde mira)
 function aimDir(p, target) {
   let dx = (target?.x ?? p.pos.x) - p.pos.x, dz = (target?.z ?? p.pos.z) - p.pos.z;
@@ -260,6 +287,24 @@ export const ARQUERA_SKILL_BEHAVIORS = {
     cast(g, p, prof, cast) { return rain(g, p, prof, cast); },
   },
 
+  // Carrera del Viento (S-arquera, A2): solo el TIC del canal genérico (sin `cast`: el canal, sus
+  // autodisparos y el no bloquear son del motor). Cada tic (0,1 s) levanta viento a los pies y, uno de
+  // cada dos, deja una estela detrás de la heroína, en sentido contrario a donde corre
+  a_carrera: {
+    name: 'Carrera del Viento',
+    tick(g, p, inst) {
+      const fx = inst.ctx?.fx || {};
+      const n = inst.tickN || 0;
+      const kd = g.input?.keyDir;
+      const moving = kd && Math.hypot(kd.x, kd.z) > 1e-3;
+      const r = p.group?.rotation?.y || 0;
+      const dx = moving ? kd.x / Math.hypot(kd.x, kd.z) : Math.sin(r), dz = moving ? kd.z / Math.hypot(kd.x, kd.z) : Math.cos(r);
+      g.emitFx?.(fx.extra || 'arqWindStep', p.pos.clone().setY(0.15));
+      if (n % 2) g.emitFx?.(fx.trail || 'arqWindTrail', p.pos.clone().set(p.pos.x - dx * 0.7, 0.9, p.pos.z - dz * 0.7));
+      inst.windFx = (inst.windFx || 0) + 1;
+    },
+  },
+
   // Bomba de Humo: zona (−allyDr % de daño dentro, proyectiles enemigos que se pierden y, con
   // Humo Venenoso, veneno de coef WD/s) y, con la misma vida, el campo de CEGUERA (a_humo_ciego,
   // de powers-arquera.js: los enemigos dentro pegan −blindPct %). Con `follow` (Manto de Niebla:
@@ -332,6 +377,11 @@ export const ARQUERA_SKILL_BEHAVIORS = {
   // Andanada: abanico de `count` flechas desde donde saltas y salto de `jump` m (intocable en
   // el aire). Los usos impares de la cadena (1.º y 3.º con Ida y Vuelta) saltan hacia atrás;
   // el relanzamiento, hacia delante. El relanzar (ventana, coste, recarga) es del motor.
+  // S-arquera (A1): la flecha central va al cursor y el abanico se cierra con la distancia a la mira
+  // (fanSpread: fanW m a cada lado del cursor, entre spreadMin y spread); hasta perTarget flechas por
+  // enemigo. La central sale DOBLE: una gemela por la misma línea TWIN_DELAY s después (se ve como dos
+  // flechas seguidas), así el blanco del cursor recibe 2 aunque sea pequeño y las vecinas lo rocen sin
+  // tocarlo. El salto se ve: polvo al despegar, una estela de polvo cada 0,06 s en el aire y al caer
   a_andanada: {
     name: 'Andanada', params: ['jump'],
     cast(g, p, prof, cast) {
@@ -344,24 +394,51 @@ export const ARQUERA_SKILL_BEHAVIORS = {
       const to = g.clampWalkable(p.pos, want, dist);
       const base = Math.atan2(dir.x, dir.z);
       const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
-      const castHits = prof.perTarget > 1 ? new Map() : null;     // Andanada Cerrada: hasta N por enemigo
+      const aim = cast.target ? Math.hypot(cast.target.x - p.pos.x, cast.target.z - p.pos.z) : 6;
+      const spread = fanSpread(sk, aim, prof.spread);
+      const castHits = prof.perTarget > 1 ? new Map() : null;     // hasta perTarget flechas por enemigo
       const muzzle = p.pos.clone().setY(1.0);
       muzzle.x += dir.x * 0.5; muzzle.z += dir.z * 0.5;
       p.faceToward(p.pos.clone().set(p.pos.x + dir.x, 0, p.pos.z + dir.z));
       p.swing = 1;
+      // Andanada Repulsora (knock): el empujón llega KNOCK_DELAY s después del primer impacto en cada
+      // enemigo (uno por lanzamiento); si empujara con la primera flecha, la vecina del abanico ya no
+      // lo encontraría. El golpe lleva el perfil sin knock (ctx.prof de ESTE lanzamiento)
+      const knock = ctx.prof?.knock || 0;
+      if (knock > 0) ctx.prof = { ...ctx.prof, knock: 0 };
+      const pushed = knock > 0 ? new Set() : null;
+      const onEnemy = pushed ? e => {
+        if (!e?.alive || pushed.has(e)) return;
+        pushed.add(e);
+        g.timers.schedule(KNOCK_DELAY, () => { if (e.alive && p.alive) e.displace?.(p.pos, knock, { toward: false, src: p }); });
+      } : undefined;
       // VFX de la variante (Andanada Repulsora: impacto romo): una copia del contexto por lanzamiento
       const fx = fxOf(ctx, sk);
-      const shotCtx = fx === ctx.fx ? ctx : { ...ctx, fx };
+      const shotCtx = fx === ctx.fx && !knock ? ctx : { ...ctx, fx };
       if (fx?.aura) g.emitFx?.(fx.aura, muzzle);
-      for (let i = 0; i < n; i++)
-        g.fireProjectile(shotCtx, { angle: base + projFanOffset(i, n, prof.spread), castHits, perTarget: prof.perTarget, size: sk.size || 0.1 });
+      const shot = a => ({ angle: a, castHits, perTarget: prof.perTarget, size: sk.size || 0.1, onEnemy });
+      for (let i = 0; i < n; i++) g.fireProjectile(shotCtx, shot(base + projFanOffset(i, n, spread)));
+      // la gemela de la central: desde donde disparaste (la heroína ya va en el aire)
+      const from = { x: p.pos.x, z: p.pos.z };
+      g.timers.schedule(TWIN_DELAY, () => { if (p.alive) g.fireProjectile(shotCtx, { ...shot(base), from }); });
       ctx.lifestealDone = true;                                     // el robo de vida va por impacto
+      ctx.fanSpread = spread;
       // una repetición (Eco) solo repite las flechas: no vuelve a saltar
       const airT = cast.echo ? 0 : (sk.airT || 0.3);
-      if (!cast.echo) p.leap = { from: p.pos.clone(), to, t: 0, dur: airT, plant: false, onLand: () => {
-        ctx.zoneCenter = p.pos.clone().setY(0); ctx.zoneRad = 2;
-        if (ctx.fx?.trail) g.emitFx?.(ctx.fx.trail, p.pos.clone().setY(0.3));
-      } };
+      if (!cast.echo) {
+        const dust = fx?.trail || 'arqRollDust';
+        g.emitFx?.(fx?.extra || 'arqLeapKick', p.pos.clone().setY(0.2));
+        g.spawnDashGhost?.(p);
+        p.leap = { from: p.pos.clone(), to, t: 0, dur: airT, plant: false, onLand: () => {
+          ctx.zoneCenter = p.pos.clone().setY(0); ctx.zoneRad = 2;
+          g.emitFx?.(dust, p.pos.clone().setY(0.3));
+          g.emitFx?.('arqLeapKick', p.pos.clone().setY(0.15));
+        } };
+        // estela de polvo durante el salto
+        const leap = p.leap;
+        const trail = () => { if (p.leap !== leap) return; g.emitFx?.(dust, p.pos.clone().setY(0.25)); g.timers.schedule(0.06, trail); };
+        g.timers.schedule(0.06, trail);
+      }
       const flight = (prof.range || sk.range || 10) / Math.max(1, prof.speed || 14) + 0.05;
       g.timers.schedule(Math.max(flight, airT), () => cast.done(ctx.res));
       return undefined;
@@ -527,8 +604,12 @@ export const ARQUERA_SKILL_FORGE = {
     // cadencia del básico ×0,9: el perfil la lleva y Player.basicAttack la lee (prof.cadence, cola W2d)
     mejora: { id: 'a_disparo_m', name: 'Mano Rápida', icon: 'forge/mejora', line: 'Disparas un 10 % más rápido.', set: { cadence: 0.9 } },
     vars: [
-      { id: 'a_disparo_i', name: 'Disparo Disperso', role: 'AREA', icon: FORGE_ICON('a_disparo_i'), line: '3 flechas en abanico de 25° (45 % cada una).',
-        set: { count: 3, spread: 0.218, coef: 0.45 } },
+      // S-arquera (A-x1): el abanico se cierra con la distancia (0,4 m a cada lado del blanco, hasta 25°
+      // a quemarropa, y nunca más ancho que el blanco: 0,8 × su radio de impacto, fanSpread) y 2 flechas
+      // pueden dar al mismo enemigo: a cualquier blanco pega como un básico normal (2 × 50 %), también a
+      // una rata; de cerca, las tres se abren sobre el grupo
+      { id: 'a_disparo_i', name: 'Disparo Disperso', role: 'AREA', icon: FORGE_ICON('a_disparo_i'), line: '3 flechas al 50 % (2 al mismo enemigo); el abanico se cierra lejos.',
+        set: { count: 3, spread: 0.218, fanW: 0.4, perTarget: 2, coef: 0.5 } },
       // el veneno de la Cicuta se SUMA en el mismo enemigo (applyDoT), al revés que el del cepo
       { id: 'a_disparo_ii', name: 'Flecha de Cicuta', role: 'UNI', icon: FORGE_ICON('a_disparo_ii'), line: 'Se vuelve de Naturaleza: 70 % y veneno del 50 % en 4 s, que se suma.',
         elem: 'nature', set: { coef: 0.7, hitDot: { kind: 'poison', coef: 0.5, dur: 4 }, color: 0x86d47a }, tags: { add: ['dot'] } },
@@ -573,8 +654,12 @@ export const ARQUERA_SKILL_FORGE = {
     ],
   },
   a_t_andanada: {
-    mejora: { id: 'a_t_andanada_m', name: 'Arco Ancho', icon: 'forge/mejora', line: 'Abanico 120 → 150°.', set: { spread: 1.309 } },
+    // S-arquera (A1): más área sin abrir hueco en el centro: +2 flechas en el abanico (11, sigue siendo
+    // impar, y la central doble) y cubre 3 m a cada lado del cursor (antes 2,5), hasta 150° a quemarropa
+    mejora: { id: 'a_t_andanada_m', name: 'Arco Ancho', icon: 'forge/mejora', line: '+2 flechas (12) y un abanico un 20 % más ancho (hasta 150°).',
+      add: { count: 2 }, set: { fanW: 3, spread: 1.309 } },
     vars: [
+      // abanico FIJO de 30° (spreadMin = spread: no se abre ni se cierra con la distancia)
       { id: 'a_t_andanada_i', name: 'Andanada Cerrada', role: 'UNI', icon: FORGE_ICON('a_t_andanada_i'), line: 'Abanico de 30° y +3 m: hasta 3 flechas por salto dan al mismo enemigo.',
         set: { spread: 0.2618, perTarget: 3 }, add: { range: 3 } },
       { id: 'a_t_andanada_ii', name: 'Andanada Repulsora', role: 'CTRL', icon: FORGE_ICON('a_t_andanada_ii'), line: 'Las flechas empujan 2 m y ralentizan un 30 % 2 s; −15 % de daño.',

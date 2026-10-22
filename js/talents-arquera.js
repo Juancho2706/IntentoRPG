@@ -198,8 +198,8 @@ export const ARQUERA_TALENTS = {
         { id: 'f1', name: 'Punta de Barrena', t: 'p', tag: 'num', r: 1, c: 1, max: 3, req: ['f0'], d: r=>`Disparo Apuntado hace +${10*r} % de daño y llega ${2*r} m más lejos`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s3.webp', fx: { mod: { a_t_apuntado: { dmg: 10, range: 12.5 } } } },
         { id: 'f2', name: 'Ojo Paciente', t: 'p', tag: 'num', r: 1, c: 3, max: 3, req: ['f0'], d: r=>`Un soltado perfecto de Disparo Apuntado o de un haz hace +${50+5*r} % de daño (antes +50 %)`, touch: ['a_t_apuntado', 'a_u_celeste'], arch: 'puntodebil', icon: 'talents/arquera-francotiradora-s1.webp', fx: { mod: { a_t_apuntado: { perfectPct: 5 }, a_u_celeste: { perfectPct: 5 } } } },
         { id: 'f3', name: 'Cuerda Ligera', t: 'p', tag: 'num', r: 1, c: 5, max: 3, req: ['f0'], d: r=>`Disparo Apuntado y los haces de Tiro Celestial se tensan un ${8*r} % más rápido`, touch: ['a_t_apuntado', 'a_u_celeste'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s10.webp', fx: { mod: { a_t_apuntado: { chargeSpeed: 8 }, a_u_celeste: { chargeSpeed: 8 } } } },
-        { id: 'f4', name: 'Sobrepenetración', t: 'p', tag: 'mec', r: 2, c: 0, max: 2, req: ['f1'], d: r=>`Disparo Apuntado hace +${10*r} % más por cada enemigo que ya atravesó (hasta 4)`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s14.webp', fx: { power: 'f_sobrepenetracion' } },
-        { id: 'f5', name: 'Línea de Mira', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['f1', 'f2'], d: ()=>'Un soltado perfecto que atraviesa deja un Punto Débil de 4 s en cada enemigo que toca', touch: ['a_t_apuntado', 'a_f_rastreador'], arch: 'perforacion+puntodebil', hyb: 'Perforación + Punto Débil', icon: 'talents/arquera-francotiradora-s7.webp', fx: { power: 'f_linea_mira' } },
+        { id: 'f4', name: 'Sobrepenetración', t: 'p', tag: 'mec', r: 2, c: 0, max: 2, req: ['f1'], d: r=>`Disparo Apuntado hace +${10*r} % más por cada enemigo que ya atravesó (hasta 4)`, touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s14.webp', fx: { power: 'f_sobrepenetracion' }, needsForm: { a_t_apuntado: 'pierce' } },
+        { id: 'f5', name: 'Línea de Mira', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['f1', 'f2'], d: ()=>'Un soltado perfecto que atraviesa deja un Punto Débil de 4 s en cada enemigo que toca', touch: ['a_t_apuntado', 'a_f_rastreador'], arch: 'perforacion+puntodebil', hyb: 'Perforación + Punto Débil', icon: 'talents/arquera-francotiradora-s7.webp', fx: { power: 'f_linea_mira' }, needsForm: { a_t_apuntado: 'pierce' } },
         { id: 'f6', name: 'Pulso Quieto', t: 'p', tag: 'mec', r: 2, c: 4, max: 1, req: ['f2', 'f3'], d: ()=>'En Rodilla en Tierra, la ventana dorada de tus disparos tensados es un 50 % más ancha', touch: ['a_f_rodilla', 'a_t_apuntado'], needs: ['a_f_rodilla'], arch: 'puntodebil+vigia', hyb: 'Punto Débil + Vigía', icon: 'talents/arquera-francotiradora-s2.webp', fx: { power: 'f_pulso_quieto' } },
         { id: 'f7', name: 'Guardia Larga', t: 'p', tag: 'num', r: 2, c: 6, max: 2, req: ['f3'], d: r=>`Rodilla en Tierra dura ${8+2*r} s (antes 8 s)`, touch: ['a_f_rodilla'], arch: 'vigia', icon: 'talents/arquera-francotiradora-s8.webp', fx: { mod: { a_f_rodilla: { durS: 2 } } } },
         { id: 'f8', name: 'Saeta: Estela o Doble Impacto', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['f4', 'f5'], touch: ['a_t_apuntado'], arch: 'perforacion', icon: 'talents/arquera-francotiradora-s6.webp', opts: [
@@ -373,6 +373,9 @@ export const ARQUERA_TALENTS = {
       clsCh: { c5: 'A', c6: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'B', c16: 'B', c17: 'B' },
       spec: { f1: 3, f4: 2, f5: 1, f8: 1, f11: 2, f15: 1, f18: 2, f22: 3, f25: 3, f28: 4, f2: 3, f9: 1, f12: 2, f16: 2, f3: 1 },
       specCh: { f8: 'A', f9: 'A', f15: 'A' },
+      // forja de la build (S-arquera, A7): Disparo Apuntado sin variante, que atraviesa la fila (Tiro Pesado
+      // no atraviesa y apagaba Sobrepenetración y Línea de Mira)
+      forge: { a_t_apuntado: null },
     },
     puntodebil: {
       sp: 'francotiradora',
@@ -383,8 +386,13 @@ export const ARQUERA_TALENTS = {
       heroNodes: ['y2', 'y1', 'y3', 'y5', 'y8', 'y4', 'y7', 'y10', 'y12', 'y11'],
       cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c21: 1, c24: 2, c1: 2, c5: 1, c8: 2, c12: 2, c13: 2, c16: 1, c15: 1, c11: 1, c27: 3, c30: 3, c20: 1, c23: 2, c26: 1 },
       clsCh: { c5: 'A', c6: 'B', c10: 'B', c11: 'B', c14: 'B', c15: 'B', c16: 'A', c17: 'B' },
-      spec: { f2: 3, f5: 1, f9: 1, f12: 2, f16: 2, f19: 2, f23: 3, f26: 3, f28: 4, f1: 3, f4: 1, f8: 1, f15: 1, f3: 3, f6: 1 },
-      specCh: { f8: 'B', f9: 'B', f15: 'B' },
+      // S-arquera (A7): con Tiro Pesado (no atraviesa) Sobrepenetración y Línea de Mira no hacen nada
+      // (needsForm), y Saeta (f8) solo se abre con una de las dos al máximo: esos 3 puntos pasan a Puntería
+      // de Vigía 2 (sus tensados de rodillas) y Vista Larga 1; la Marca (f9) se abre por Pulso Quieto (f6)
+      spec: { f2: 3, f6: 1, f9: 1, f12: 2, f16: 2, f19: 2, f23: 3, f26: 3, f28: 4, f1: 3, f13: 2, f15: 1, f3: 3, f20: 1 },
+      specCh: { f9: 'B', f15: 'B' },
+      // forja de la build (S-arquera, A7): Tiro Pesado, el tensado largo contra un solo blanco
+      forge: { a_t_apuntado: 'ii' },
     },
     vigia: {
       sp: 'francotiradora',
@@ -395,7 +403,9 @@ export const ARQUERA_TALENTS = {
       heroNodes: ['q2', 'q1', 'q3', 'q5', 'q8', 'q4', 'q7', 'q10', 'q12', 'q11'],
       cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c10: 1, c17: 1, c20: 1, c23: 2, c8: 2, c15: 1, c3: 2, c11: 1, c7: 1, c26: 3, c29: 3, c14: 1, c21: 1, c24: 2 },
       clsCh: { c5: 'A', c6: 'B', c9: 'B', c10: 'B', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'B' },
-      spec: { f3: 3, f7: 2, f6: 1, f10: 1, f13: 2, f14: 1, f17: 2, f21: 1, f24: 3, f27: 3, f28: 4, f2: 3, f5: 1, f16: 2, f20: 2 },
+      // S-arquera (A7): Vigía tensa Tiro Pesado (la forja de la especialización), que no atraviesa: el
+      // punto de Línea de Mira (f5, needsForm pierce) pasa a Punta de Barrena (f1)
+      spec: { f3: 3, f7: 2, f6: 1, f10: 1, f13: 2, f14: 1, f17: 2, f21: 1, f24: 3, f27: 3, f28: 4, f2: 3, f1: 1, f16: 2, f20: 2 },
       specCh: { f10: 'A' },
       bar: { lmb: 'a_disparo', rmb: 'flecha_perforante', k1: 'a_paso', k2: 'a_f_rodilla', k3: 'a_t_apuntado', k4: 'a_u_celeste' },
     },
@@ -410,6 +420,10 @@ export const ARQUERA_TALENTS = {
       clsCh: { c5: 'A', c6: 'B', c10: 'A', c11: 'B', c14: 'A', c15: 'B', c16: 'A', c17: 'B' },
       spec: { f1: 3, f2: 3, f4: 2, f5: 1, f8: 1, f9: 1, f11: 2, f12: 2, f15: 1, f16: 2, f18: 2, f19: 2, f22: 3, f23: 3, f3: 1, f20: 2 },
       specCh: { f8: 'B', f9: 'B', f15: 'B' },
+      // forja de la build (S-arquera, A7): la híbrida Perforación + Punto Débil compra Sobrepenetración 2 y
+      // Línea de Mira (su nodo híbrido), que piden que la saeta atraviese (needsForm): Disparo Apuntado sin
+      // variante. Con Tiro Pesado serían 3 puntos muertos y rehacerla la dejaría en un Punto Débil más
+      forge: { a_t_apuntado: null },
     },
     campo: {
       sp: 'montaraz',

@@ -130,6 +130,18 @@ export function projFanOffset(i, n, spread = 0) {
   if (spread > 0) return (i - (n - 1) / 2) * spread * 2 / (n - 1);
   return i === 0 ? 0 : (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.18;
 }
+// ABANICO QUE SE CIERRA CON LA DISTANCIA (S-arquera: Andanada, Disparo Disperso; como el Split Arrow
+// de PoE, apuntar lejos junta las flechas). Con `fanW` (m) la semiapertura es la que cubre fanW m a
+// cada lado de la mira a `dist` m, atan(fanW / dist), entre `spreadMin` y `spread` (rad); sin fanW,
+// la `spread` fija de siempre. `spread` = la del perfil (puede traer talentos). `targetR` (m, opcional:
+// el radio de impacto del blanco apuntado) estrecha fanW a 0,8 × targetR para que las flechas de los
+// lados también le den a un blanco pequeño (Disparo Disperso contra una rata)
+export function fanSpread(def, dist, spread = def?.spread || 0, targetR = 0) {
+  const w = targetR > 0 ? Math.min(def?.fanW || 0, 0.8 * targetR) : (def?.fanW || 0);
+  if (!(w > 0) || !(spread > 0)) return spread;
+  const lo = Math.min(spread, Math.max(0, def.spreadMin || 0));
+  return Math.max(lo, Math.min(spread, Math.atan2(w, Math.max(0.1, dist || 0))));
+}
 
 export const RANK_MAX = 5; // rango base máximo por nivel (§4.1); talentos/equipo suman encima
 
@@ -238,12 +250,12 @@ export const VERB_DOC = Object.freeze({
   stance: 'type:"stance" · stance{modes[{id,name,stats,moveMul,chargeSpeed,keepGauge,color}],dur,swapCd,swapGcd,endOnDodge,recastEnds}',
   planted: 'needPlanted · plant:true (dash/salto)',
   mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct}}',
-  trap: 'trap{armT,maxArmed,radius,root,burst{radius,coef},consume,lure{radius,eliteRadius,boss,speedMul}}',
+  trap: 'trap{armT,maxArmed,radius,root,burst{radius,coef},consume,lure{radius,eliteRadius,boss,speedMul},hold (s: se cierra sobre quien lo pisa y queda detonable; a un jefe no lo atrapa),boss{slowPct,stagger (por s)},skin (aspecto: field-entities.TRAP_SKINS)}',
   detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance',
   wall: 'type:"wall" · wall{len,width,blocks:true|"all",contain}',
   follow: 'follow:"owner"|"aim"',
   displace: 'pull: m | {dist,to:"self"|"center"|"trap",radius (atracción por tic de un canal),boss:false (no atrae a los jefes: tic del canal y golpe)} · knock: m · drag:true · dragWidth (solo si la definición arrastra) · dashT',
-  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor',
+  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor · fanW + spreadMin (abanico que se cierra con la distancia a la mira: fanSpread)',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
 export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'blockPower', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
@@ -288,6 +300,8 @@ export const SKILL_KEYS = new Set([
   // S-guerrero (G10): avance a velocidad fija (m/s; dashT = la duración mínima) y golpe de llegada que
   // crece con los arrastrados ({ per, max }: +per % por arrastrado, hasta +max %)
   'dashSpeed', 'dragPct',
+  // S-arquera: abanico que se cierra con la distancia a la mira (fanSpread)
+  'fanW', 'spreadMin',
 ]);
 const HOLD_VALUES = new Set([true, false, 'toggle']);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -299,6 +313,8 @@ function validateVerbs(def, id, err) {
   if (def.type === 'channel' && def.hold != null && !HOLD_VALUES.has(def.hold)) err.push(`${id}: hold debe ser true, false o "toggle"`);
   if (def.autoShot && !(def.autoShot.every > 0)) err.push(`${id}: autoShot.every > 0`);
   if (def.drainPerSec != null && !(def.drainPerSec >= 0)) err.push(`${id}: drainPerSec ≥ 0`);
+  // S-arquera: abanico que se cierra con la distancia (fanW m a cada lado de la mira; spreadMin rad)
+  for (const k of ['fanW', 'spreadMin']) if (def[k] != null && !(isNum(def[k]) && def[k] >= 0)) err.push(`${id}: ${k} ≥ 0`);
   // S0: claves del canal y del golpe pesado
   for (const k of ['tickNow', 'drainCost', 'nonBlocking']) if (def[k] != null && typeof def[k] !== 'boolean') err.push(`${id}: ${k} es true o false`);
   if ((def.tickNow || def.drainCost || def.nonBlocking || def.rampPerTic != null || def.rampMax != null) && def.type !== 'channel')

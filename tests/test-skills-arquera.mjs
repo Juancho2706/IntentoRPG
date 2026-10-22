@@ -291,7 +291,8 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   console.log('Lluvia de Flechas: aviso y 4 oleadas ✓');
 }
 
-// TIRADORA · Andanada: salto atrás disparando 10 flechas; relanzar en 2 s salta adelante
+// TIRADORA · Andanada: salto atrás disparando 9 flechas (abanico que se cierra con la distancia
+// al cursor: 2,5 m a cada lado) y la gemela de la central; relanzar en 2 s salta adelante
 {
   const h = mk('tiradora');
   const e = h.enemy({ hp: 1e7, pos: [0, 0, 2] });
@@ -299,9 +300,10 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   h.aim(0, 6); h.setSlot('k3', 'a_t_andanada');
   const mp0 = h.p.mp;
   assert.equal(h.cast('k3'), true);
-  assert.equal(h.g.projectiles.length, 10, '10 flechas');
+  assert.equal(h.g.projectiles.length, 9, '9 flechas (impar: la central al cursor)');
   const ang = h.g.projectiles.map(pr => Math.atan2(pr.vel.x, pr.vel.z));
-  assert.ok(Math.abs(Math.max(...ang) - Math.min(...ang) - 2 * 1.047) < 0.01, 'abanico de 120°');
+  assert.ok(Math.abs(Math.max(...ang) - Math.min(...ang) - 2 * Math.atan(2.5 / 6)) < 0.01, 'cursor a 6 m: abanico de 2·atan(2,5/6) ≈ 45°');
+  assert.ok(ang.some(a => Math.abs(a) < 1e-6), 'una flecha va justo al cursor');
   assert.equal(mp0 - h.p.mp, 25, 'cuesta 25');
   h.step(0.4);
   assert.ok(h.p.pos.z < -3.5 && Math.abs(h.p.pos.x) < 1e-6, `salta ~4 m hacia atrás (z=${h.p.pos.z.toFixed(2)})`);
@@ -318,7 +320,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   h2.aim(0, 6); h2.setSlot('k3', 'a_t_andanada');
   h2.cast('k3'); h2.step(2.3);
   assert.equal(h2.cast('k3'), false, 'pasada la ventana, no se relanza');
-  console.log('Andanada: 10 flechas en 120°, salto atrás y relanzar adelante en 2 s ✓');
+  console.log('Andanada: 9 flechas en abanico al cursor (y la gemela), salto atrás y relanzar adelante en 2 s ✓');
 }
 
 // TIRADORA · Carrera del Viento: mantener = un 40 % más rápido y disparo solo cada 0,4 s
@@ -468,7 +470,8 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   console.log('Tiro Celestial: 3 haces que se tensan en 8 s y recarga desde el primero ✓');
 }
 
-// MONTARAZ · Trampa de Cepo: se arma en 0,5 s, inmoviliza 2 s (+ rootAdd), 2 cargas, hasta 3
+// MONTARAZ · Trampa de Cepo: se arma en 0,5 s, inmoviliza 2 s (+ rootAdd), se cierra y queda
+// pegada 3,5 s (S-arquera A3), 2 cargas de 8 s, hasta 3
 {
   const h = mk('montaraz');
   const e = h.enemy({ hp: 1e7, pos: [0, 0, 6] });
@@ -484,11 +487,23 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   // cola W2d-B: el Cepo no golpea directo, aplica su hitDot (veneno)
   const cepoDot = h.g.dotsOf(e, 'poison').find(d => d.source === 'a_t_cepo:poison');
   assert.ok(cepoDot && cepoDot.ticks > 0, `y lo envenena (hitDot del Cepo: ${JSON.stringify(cepoDot)})`);
-  assert.equal(alive(h).filter(f => f.kind === 'trampa').length, 0, 'se consume');
+  const shut = alive(h).filter(f => f.kind === 'trampa');
+  assert.ok(shut.length === 1 && shut[0].closed?.e === e, 'no se consume: se cierra sobre él');
+  const left = shut[0].closed.until - shut[0].age;   // saltó entre los 0,5 y los 0,7 s
+  assert.ok(left > 3.25 && left <= 3.5 + 1e-9, `cerrada 3,5 s desde que salta (quedan ${left.toFixed(2)})`);
+  e.pos.set(1, 0, 6); h.step(0.1);
+  assert.ok(Math.abs(shut[0].pos.x - 1) < 1e-6, 'y va pegada a él');
+  h.aim(12, 6);
   assert.equal(h.cast('k3'), true, 'segunda carga');
   h.p.gcdT = 0;
   assert.equal(h.cast('k3'), false, 'sin cargas');
-  h.step(8);
+  h.step(shut[0].closed.until - shut[0].age - 0.15);
+  assert.ok(!shut[0].dead && shut[0].closed, 'cerrada sigue ahí antes de 3,5 s');
+  h.step(0.3);
+  assert.ok(shut[0].dead, 'sin detonarla, a los 3,5 s se gasta');
+  h.step(7.8 - h.p.simT); h.p.gcdT = 0;
+  assert.equal(h.cast('k3'), false, 'antes de 8 s, aún sin cargas');
+  h.step(0.3); h.p.gcdT = 0;
   assert.equal(h.cast('k3'), true, 'la carga vuelve en 8 s');
   // rootAdd de los talentos suma sobre los 2 s de la trampa (test72 §2 → aquí)
   const h2 = mk('montaraz');
@@ -510,7 +525,7 @@ const alive = h => (h.g.fields || []).filter(f => !f.dead);
   assert.equal(traps.length, 3, 'como mucho 3');
   assert.ok(!traps.some(f => Math.abs(f.pos.x) < 0.1), 'cae la más vieja');
   assert.ok(traps.every(f => f.data.lure?.radius === 6), 'atraen a 6 m (Cebo de Caza)');
-  console.log('Trampa de Cepo: armado 0,5 s, 2 s (+ rootAdd), 2 cargas y 3 armadas ✓');
+  console.log('Trampa de Cepo: armado 0,5 s, 2 s (+ rootAdd), cerrada 3,5 s, 2 cargas y 3 armadas ✓');
 }
 
 // MONTARAZ · Salto de Acecho: a tu trampa más cercana al cursor y la hace estallar; sin trampas, 6 m
