@@ -147,7 +147,7 @@ export function magaTuning() {
     purezaN: 3, purezaPct: 15, purezaT: 6,               // c16B Pureza Elemental
     anclajeHp: 0.3, anclajeDr: 30, anclajeSpd: 50, anclajeT: 4, anclajeCd: 60,   // c17B Anclaje Temporal
     resonanteMana: 2, resonanteVida: 2,                  // c19 Barrera Resonante (maná · % de vida)
-    escArcSlowPct: 30, escArcT: 2, escArcCrit: 15,       // c20 Escarcha Arcana
+    escArcSlowPct: 30, escArcT: 2, escArcCrit: 15, escArcIcd: 4,   // c20 Escarcha Arcana (icd: s por enemigo)
     tenazS: 2,                                           // c21 Escarcha Tenaz
     ritmoCdr: 0.5,                                       // c23 Ritmo Arcano (s por rango)
     cristalR: 3, cristalKnock: 3, cristalSlowPct: 40, cristalSlowT: 2, cristalMana: 10,   // c25 (maná % por rango)
@@ -605,7 +605,8 @@ function riftTargets(g, p, end, width) {
 // acabar, como un Projectile: el bucle de main.js quita su malla). Los poderes lo leen con magaOrbs(p):
 // stopAt (Orbe Atrayente), zapHits (Inercia); cast.orbs = sus unidades (Orbe Múltiple: setSmall).
 // Satélite (a19) y Constelación (a26) marcan el lanzamiento (cast.orbit): al volver, ese orbe no se
-// absorbe (ni Carga ni destello) y se queda en órbita (los dos poderes, en su ③ afterCast)
+// absorbe aún y se queda en órbita (los dos poderes, en su ③ afterCast); al TERMINAR la órbita se absorbe
+// y da su Carga (decisión del dueño M4: orbitHold / orbitRelease)
 // eslint-disable-next-line no-var
 var ORBS;   // héroe → Set de orbes vivos (perezoso: nada de `const` de módulo, ver la cabecera)
 function orbsOf(p) {
@@ -740,8 +741,27 @@ function orbStop(g, o) {
     ring(g, o.c, o.P.radius, o.color);
   } else o.state = 'vuelta';
 }
-// fin: recogido (Carga y destello en tu mano), en órbita (Satélite / Constelación: ni Carga ni
-// destello, un anillo a tu alrededor) o apagado
+// recogerlo: su Carga (no las repeticiones) y el destello en tu mano
+function orbAbsorb(g, p, o) {
+  o.absorbed = true;
+  if (!p?.alive) return;
+  if (!o.echo) gainGauge(p, 'cargas', TG().cargas.perOrb);
+  const hand = handAt(p), F = o.ctx?.fx;
+  fx(g, F?.absorb, hand, 1.2);
+  fx(g, F?.aura, hand, 1.2);
+  ring(g, p.pos, 1.0, o.color ?? 0xb388ff);
+  if (F?.absorbSfx) g.sfx?.(F.absorbSfx);
+}
+// órbita (Satélite / Constelación): cada poder que lo pone a girar lo retiene y lo suelta al acabar su
+// órbita; cuando lo suelta el último, se absorbe (su Carga). Con los dos, una sola Carga
+function orbitHold(o) { o.orbitRefs = (o.orbitRefs || 0) + 1; return o; }
+function orbitRelease(g, p, o) {
+  if (!o || o.absorbed) return;
+  o.orbitRefs = Math.max(0, (o.orbitRefs || 1) - 1);
+  if (!o.orbitRefs) orbAbsorb(g, p, o);
+}
+// fin: recogido (Carga y destello en tu mano), en órbita (Satélite / Constelación: un anillo a tu
+// alrededor; la Carga, al acabar la órbita) o apagado
 function orbEnd(g, o, caught) {
   if (!o.alive) return;
   o.alive = false;
@@ -752,14 +772,7 @@ function orbEnd(g, o, caught) {
   if (caught && p.alive && !o.echo && o.ctx.cast?.orbit) {
     o.orbited = true;
     ring(g, p.pos, magaTuning().sateliteOrbit, o.color);
-  } else if (caught && p.alive) {
-    if (!o.echo) gainGauge(p, 'cargas', TG().cargas.perOrb);
-    const hand = handAt(p);
-    fx(g, o.ctx.fx?.absorb, hand, 1.2);
-    fx(g, o.ctx.fx?.aura, hand, 1.2);
-    ring(g, p.pos, 1.0, o.color);
-    if (o.ctx.fx?.absorbSfx) g.sfx?.(o.ctx.fx.absorbSfx);
-  }
+  } else if (caught && p.alive) orbAbsorb(g, p, o);
   freeOrbMesh(o.mesh);
   o.onDone?.(o);
 }
@@ -1473,11 +1486,17 @@ export function magaPowers() {
       },
     },
     // c20 Escarcha Arcana: tus críticos ralentizan un 30 % 2 s; el Dardo tiene +15 % de crítico
-    // contra ralentizados
+    // contra ralentizados. Decisión del dueño (M1): la ralentización entra como mucho 1 vez cada 4 s
+    // POR ENEMIGO; si no, las descargas del Orbe (8 golpes/s) la dejaban puesta siempre
     m_escarcha_arcana: {
-      name: 'Escarcha Arcana', desc: 'Tus críticos ralentizan un 30 % 2 s; contra enemigos ralentizados, el Dardo Arcano tiene +15 % de crítico.',
+      name: 'Escarcha Arcana', desc: 'Tus críticos ralentizan un 30 % 2 s (1 vez cada 4 s por enemigo); contra ralentizados, el Dardo Arcano tiene +15 % de crítico.',
+      state: () => ({ at: new WeakMap() }),
       onHit(g, p, e, hit) {
         if (!hit?.crit || hit.proc || hit.dot || !e?.alive) return;
+        const st = powerState(p, 'm_escarcha_arcana');
+        const t0 = st.at.get(e);
+        if (t0 != null && now(p) - t0 < T.escArcIcd - 1e-9) return;
+        st.at.set(e, now(p));
         e.applyCC?.('slow', slowDur(p, T.escArcT), { pct: T.escArcSlowPct, src: p });
       },
       condCrit(p, e, hit) { return hit?.skill === 'm_dardo' && e && ((e.slowT || 0) > 0 || (e.frozenT || 0) > 0) ? T.escArcCrit : 0; },
@@ -2599,11 +2618,12 @@ export function magaPowers() {
         if (cast?.sk?.id === 'rayo' && spentCharges(p) >= T.cargaFinalNeed) gainGauge(p, 'cargas', rankOf(p, 'a_carga_final'));
       },
     },
-    // a19 Satélite (M-01, propuesta del dueño): cada 3.er Orbe, al volver a ti, NO se absorbe (ni su Carga):
-    // se queda girando a tu alrededor 8 s como un orbe pequeño (20 × rango % por golpe). ⑦ onCast marca
-    // el lanzamiento (cast.orbit, lo lee orbEnd) y ③ afterCast (el Orbe ya volvió) lo pone en órbita
+    // a19 Satélite (M-01, propuesta del dueño): cada 3.er Orbe, al volver a ti, no se absorbe aún: se
+    // queda girando a tu alrededor 8 s como un orbe pequeño (20 × rango % por golpe) y, al acabar, se
+    // absorbe y da su Carga (decisión del dueño M4). ⑦ onCast marca el lanzamiento (cast.orbit, lo lee
+    // orbEnd) y ③ afterCast (el Orbe ya volvió) lo pone en órbita
     a_satelite: {
-      name: 'Satélite', desc: 'Cada 3.er Orbe Arcano, al volver, no se absorbe: se queda girando a tu alrededor.',
+      name: 'Satélite', desc: 'Cada 3.er Orbe Arcano, al volver, gira 8 s a tu alrededor antes de absorberse.',
       state: () => ({ n: 0, sats: [] }),
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_orbe') return;
@@ -2614,10 +2634,13 @@ export function magaPowers() {
       },
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_orbe' || !cast.orbit?.satelite || !(cast.orbs || []).some(o => o.orbited)) return;
-        powerState(p, 'a_satelite').sats.push({ until: now(p) + T.sateliteT, ang: rng(p) * Math.PI * 2, hit: new WeakMap() });
+        const orbs = (cast.orbs || []).filter(o => o.orbited).map(orbitHold);
+        powerState(p, 'a_satelite').sats.push({ until: now(p) + T.sateliteT, ang: rng(p) * Math.PI * 2, hit: new WeakMap(), orbs });
       },
       onTick(g, p, dt) {
         const st = powerState(p, 'a_satelite');
+        // al acabar la órbita, se absorbe (su Carga)
+        for (const s of st.sats) if (s.until <= now(p) + 1e-9) for (const o of s.orbs || []) orbitRelease(g, p, o);
         st.sats = st.sats.filter(s => s.until > now(p) + 1e-9);
         if (!st.sats.length) return;
         const amt = p.avgHit(T.satelitePct * rankOf(p, 'a_satelite') / 100, p.resolved?.a_orbe?.addPct || 0);
@@ -2704,22 +2727,24 @@ export function magaPowers() {
         for (let i = 1; i <= 2; i++) echoCast(g, p, cast, T.tormentaCopy, T.tormentaGap * i, { n });
       },
     },
-    // a26 Constelación (final; M-01, propuesta del dueño): tus Orbes, al volver, NO se absorben (ni su
-    // Carga): se quedan 8 s girando a tu alrededor (hasta 3) y disparan al más cercano cada segundo (40 %;
-    // rangos 2–3: mod a_orbe dmg del nodo). ⑦ marca el lanzamiento; ③ afterCast, uno por orbe que volvió
+    // a26 Constelación (final; M-01, propuesta del dueño): tus Orbes, al volver, no se absorben aún: se
+    // quedan 8 s girando a tu alrededor (hasta 3) y disparan al más cercano cada segundo (40 %; rangos 2–3:
+    // mod a_orbe dmg del nodo). Al acabar la órbita (o si un 4.º lo echa), se absorben y dan su Carga
+    // (decisión del dueño M4). ⑦ marca el lanzamiento; ③ afterCast, uno por orbe que volvió
     a_constelacion: {
-      name: 'Constelación', desc: 'Tus Orbes Arcanos, al volver, no se absorben: se quedan girando a tu alrededor y disparan al enemigo más cercano.',
+      name: 'Constelación', desc: 'Tus Orbes Arcanos, al volver, giran 8 s a tu alrededor disparando al enemigo más cercano y luego se absorben.',
       state: () => ({ orbs: [] }),
       onCast(g, p, cast) { if (cast?.sk?.id === 'a_orbe') cast.orbit = { ...(cast.orbit || {}), constelacion: true }; },
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_orbe' || !cast.orbit?.constelacion) return;
         const st = powerState(p, 'a_constelacion');
-        const n = (cast.orbs || []).filter(u => u.orbited).length;
-        for (let i = 0; i < n; i++) st.orbs.push({ until: now(p) + T.constelT, acc: 0, ang: rng(p) * Math.PI * 2 });
-        while (st.orbs.length > T.constelMax) st.orbs.shift();
+        for (const u of (cast.orbs || []).filter(x => x.orbited)) st.orbs.push({ until: now(p) + T.constelT, acc: 0, ang: rng(p) * Math.PI * 2, orb: orbitHold(u) });
+        while (st.orbs.length > T.constelMax) orbitRelease(g, p, st.orbs.shift().orb);
       },
       onTick(g, p, dt) {
         const st = powerState(p, 'a_constelacion');
+        // al acabar la órbita, se absorbe (su Carga)
+        for (const o of st.orbs) if (o.until <= now(p) + 1e-9) orbitRelease(g, p, o.orb);
         st.orbs = st.orbs.filter(o => o.until > now(p) + 1e-9);
         if (!st.orbs.length) return;
         const amt = p.avgHit(T.constelCoef, p.resolved?.a_orbe?.addPct || 0);

@@ -414,6 +414,17 @@ const DATA_CHECKS = PASSED.length;
   ok(e.slowT >= 2 - 1e-6 && e.slowPct === 30, 'c20: un crítico ralentiza un 30 % 2 s');
   eq(firePower('condCrit', h.p, h.p, e, { skill: 'm_dardo' }), 15, 'c20: +15 % de crítico del Dardo contra ralentizados');
   eq(firePower('condCrit', h.p, h.p, e, { skill: 'bola_fuego' }), 0, 'c20: solo el Dardo');
+  // decisión del dueño (M1): como mucho 1 vez cada 4 s POR ENEMIGO (otro enemigo, aparte)
+  h.tick(2.5);
+  ok(!(e.slowT > 0), 'c20: la ralentización acaba a los 2 s');
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(!(e.slowT > 0), 'c20: otro crítico antes de 4 s no lo vuelve a ralentizar (1 vez cada 4 s por enemigo)');
+  const e2 = h.enemy({ hp: 1e6, pos: [3, 0, 1] });
+  h.hit(e2, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(e2.slowT > 0, 'c20: el enfriamiento es por enemigo (otro sí se ralentiza)');
+  h.tick(1.6);
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(e.slowT > 0 && e.slowPct === 30, 'c20: a los 4 s, otro crítico lo vuelve a ralentizar');
 }
 // c23 Ritmo Arcano: crítico del Dardo → −0,5 × rango s a Parpadeo y a la Barrera (solo esas dos)
 {
@@ -2276,8 +2287,9 @@ function hazRun(ranks, choice = {}, hold = 1.0) {
   eq(charges(h), 2, 'a18 r2: con 4, te devuelve 2');
 }
 // a19 Satélite (S-maga, M-01: propuesta del dueño): cada 3.er Orbe LANZADO (⑦ onCast marca cast.orbit), al
-// VOLVER (③ afterCast) no se absorbe y se queda girando 8 s (20 % por rango y golpe). Sin un orbe que haya
-// vuelto (orbited: lo pone orbEnd), nada. El recorrido real (sin Carga) lo prueba test-sensacion-maga O11
+// VOLVER (③ afterCast) no se absorbe aún y se queda girando 8 s (20 % por rango y golpe). Sin un orbe que haya
+// vuelto (orbited: lo pone orbEnd), nada. El recorrido real y la Carga al acabar la órbita (decisión del
+// dueño M4) los prueba test-sensacion-maga O10 y O11
 {
   const h = sp('arcanista', { a19: 2 });
   const foe = h.enemy({ hp: 1e9, pos: [1.8, 0, 0] });

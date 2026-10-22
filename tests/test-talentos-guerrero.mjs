@@ -1940,9 +1940,10 @@ check('d26', () => {
     const log = spyHits(h);
     h.tick(1.2);
     for (let i = 0; i < 3; i++) cast(h, 'rmb', 'terremoto', { aim: [2, 0], mp: 100, sec: i < 2 ? 1.2 : 0.45 });
-    const stun = e.stunT || 0;
-    h.step(1.2);
-    return { main: log.filter(x => x.e === e && x.skill === 'terremoto' && !x.repeat).length, stunAtRep: Math.max(stun, e.stunT || 0) };
+    // el aturdimiento más largo durante las réplicas (con el enfriamiento por enemigo de G4, solo la 1.ª aturde)
+    let stun = e.stunT || 0;
+    for (let k = 0; k < 24; k++) { h.step(0.05); stun = Math.max(stun, e.stunT || 0); }
+    return { main: log.filter(x => x.e === e && x.skill === 'terremoto' && !x.repeat).length, stunAtRep: stun };
   };
   const a = run(false), b = run(true);
   assert.ok(a.main === 3 && b.main === 4, `d26: el 3.er Terremoto plantado se repite (${a.main} → ${b.main})`);

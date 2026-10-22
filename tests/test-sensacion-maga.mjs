@@ -9,7 +9,8 @@
 //       antes y vuelve igual; descarga con haz violeta y 'zap', zumba y suena al recogerlo. No retiene
 //       el Dardo; las repeticiones (a23) no dan Carga; el Veloz descarga de vuelta; los dos cuerpos del
 //       Gemelo van a enemigos distintos; un cambio de zona no lo deja colgado; con Satélite (a19) o
-//       Constelación (a26) el que vuelve no se absorbe y se queda 8 s en órbita
+//       Constelación (a26) el que vuelve se queda 8 s en órbita y, al acabarla, se absorbe y da su
+//       Carga (decisión del dueño M4: una sola con los dos; la build Orbe vuelve a sacar Cargas del Orbe)
 //   R   Rayo y Haz Concentrado (M-06/M-07/M-08): un clic hace daño (el Haz pega al pulsar); el Haz es
 //       un canal sin fin con rampa, gasta las Cargas al empezar (y devuelve su maná) y su haz vivo crece
 //       con ellas (brillo ≤ ×1,3); 3 s de Haz rinden al menos lo que la Bola de Fuego del kit base
@@ -30,7 +31,7 @@ import { talentTreesFor, forgeRecoFor, formVoids } from '../js/talents.js';
 import { forgeView } from '../js/hud-model.js';
 import { FORGE_RECO, CLASSES } from '../js/data.js';
 import * as CM from '../js/combat-math.js';
-import { powerState } from '../js/powers.js';
+import { powerState, firePower } from '../js/powers.js';
 
 const magaOrbs = p => (PM.magaOrbs ? PM.magaOrbs(p) : []);
 const fails = [];
@@ -241,7 +242,7 @@ section('O9 · cambio de zona (loadWorld vacía los proyectiles): el Orbe se apa
   for (const pr of c.g.projectiles) pr.onWorldReset?.();
   ok(!oc.alive && !oc.caught && c.gaugeValue('cargas') === 0, 'onWorldReset lo apaga en el acto, sin Carga');
 });
-section('O10 · Satélite (a19) y Constelación (a26): el Orbe que vuelve no se absorbe (sin Carga) y se queda 8 s en órbita', () => {
+section('O10 · Satélite (a19) y Constelación (a26): el Orbe que vuelve no se absorbe aún (sin Carga) y se queda 8 s en órbita', () => {
   const run = (power, preset = null) => {
     const h = hero(30);
     h.addPowers(power);
@@ -263,6 +264,68 @@ section('O10 · Satélite (a19) y Constelación (a26): el Orbe que vuelve no se 
   ok(sa.length === 1 && near(sa[0].until - s.h.p.simT, 8, 0.05), `Satélite: en órbita 8 s (${sa.map(x => (x.until - s.h.p.simT).toFixed(2))})`);
   const s1 = run('a_satelite');
   ok(!s1.r.o.orbited && s1.h.gaugeValue('cargas') === 1 && !powerState(s1.h.p, 'a_satelite').sats.length, 'Satélite: el 1.º se absorbe (Carga) y no se queda');
+});
+section('O11 · decisión del dueño M4: al ACABAR la órbita, el Orbe se absorbe y da su Carga (una con los dos poderes); la build Orbe vuelve a sacar Cargas del Orbe', () => {
+  const absorbs = h => h.g.sfxLog.filter(x => x.name === 'absorb').length;
+  for (const [powers, preset] of [[['a_constelacion'], null], [['a_satelite'], { n: 2 }], [['a_satelite', 'a_constelacion'], { n: 2 }]]) {
+    const h = hero(30);
+    h.addPowers(...powers);
+    if (preset) Object.assign(powerState(h.p, 'a_satelite'), preset);
+    const r = runOrb(h, 8, 0);
+    const tag = powers.join(' + ');
+    ok(r.o.orbited && h.gaugeValue('cargas') === 0, `${tag}: vuelve y se queda en órbita, aún sin Carga`);
+    h.step(7.7);
+    ok(h.gaugeValue('cargas') === 0 && !r.o.absorbed, `${tag}: a los 7,7 s de órbita, todavía no`);
+    h.step(0.5);
+    eq(h.gaugeValue('cargas'), 1, `${tag}: al acabar la órbita, su Carga (una sola)`);
+    ok(r.o.absorbed && absorbs(h) === 1, `${tag}: se absorbe con el sonido de recogerlo (${absorbs(h)})`);
+  }
+  // Constelación guarda hasta 3: el 4.º echa al más viejo, que se absorbe ya (su Carga no se pierde).
+  // Cuatro Orbes que vuelven a la vez (⑦ marca el lanzamiento, ③ los pone en órbita)
+  const c = hero(30);
+  c.addPowers('a_constelacion');
+  const back = [];
+  for (let i = 0; i < 4; i++) {
+    const cast = { sk: { id: 'a_orbe' } };
+    firePower('onCast', c.p, c.g, c.p, cast);
+    const o = { orbited: !!cast.orbit?.constelacion };
+    cast.orbs = [o];
+    back.push(o);
+    firePower('afterCast', c.p, c.g, c.p, cast, {});
+  }
+  ok(back.every(o => o.orbited) && back[0].absorbed && !back.slice(1).some(o => o.absorbed), 'Constelación: el 4.º Orbe echa de la órbita al 1.º, que se absorbe');
+  eq(c.gaugeValue('cargas'), 1, 'Constelación: y da su Carga');
+  // con los dos poderes, el que echa Constelación sigue girando en Satélite: se absorbe al acabar esa órbita
+  const d = hero(30);
+  d.addPowers('a_satelite', 'a_constelacion');
+  Object.assign(powerState(d.p, 'a_satelite'), { n: 2 });
+  const both = [];
+  for (let i = 0; i < 4; i++) {
+    const cast = { sk: { id: 'a_orbe' } };
+    firePower('onCast', d.p, d.g, d.p, cast);
+    const o = { orbited: !!cast.orbit };
+    cast.orbs = [o];
+    both.push(o);
+    firePower('afterCast', d.p, d.g, d.p, cast, {});
+  }
+  ok(!both[0].absorbed && d.gaugeValue('cargas') === 0, 'los dos: el 1.º sale de Constelación pero sigue en Satélite (aún sin Carga)');
+  d.tick(8.2);
+  ok(both.every(o => o.absorbed) && d.gaugeValue('cargas') === 4, `los dos: al acabar las órbitas, una Carga por Orbe (${d.gaugeValue('cargas')})`);
+  // la build Orbe (Constelación, Nv70): 3 Orbes en órbita dan sus 3 Cargas al acabarla (antes, ninguna)
+  // (seguidos, 0,3 s entre uno y otro, para que vuelvan antes de que acabe la primera órbita)
+  const b = hero(70, { build: 'orbe' });
+  b.aim(8, 0); b.setSlot('k3', 'a_orbe');
+  const orbs = [];
+  for (let i = 0; i < 3; i++) {
+    b.p.cds.a_orbe = 0; b.p.gcdT = 0; b.p.actionLockT = 0; b.p.mp = b.p.stats.maxMP;
+    b.cast('k3');
+    orbs.push(magaOrbs(b.p).at(-1));
+    b.step(0.3);
+  }
+  for (let t = 0; t < 9 && magaOrbs(b.p).length; t += 1 / 60) b.g.step(1 / 60);
+  ok(orbs.every(o => o?.orbited) && b.gaugeValue('cargas') === 0, `build Orbe: sus 3 Orbes en órbita, sin Carga aún (${b.gaugeValue('cargas')})`);
+  b.step(8.2);
+  eq(b.gaugeValue('cargas'), 3, 'build Orbe: al acabar sus órbitas, las 3 Cargas de sus Orbes');
 });
 
 // ------------------------------------------------ R · Rayo y Haz Concentrado

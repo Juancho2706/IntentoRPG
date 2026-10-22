@@ -134,7 +134,7 @@ function tun() {
     replicaHonda: 10,                                     // d23: % por rango (×2 contra Quebrantados)
     escolta: { perRank: 4, radius: 6, dur: 6, icd: 10 },  // d24
     guardiaTotal: { need: 3, win: 8, dur: [3, 4.5, 6], icd: 15, bonus: 15 },   // d25
-    montana: { every: 3, mul: [0.5, 0.75, 1], stun: 0.5, delay: 0.3 },        // d26
+    montana: { every: 3, mul: [0.5, 0.75, 1], stun: 0.5, delay: 0.3, icd: 3 }, // d26 (icd: s por enemigo)
     cabeza: { charges: [2, 3, 5], icd: 10, radius: 8, taunt: 4 },             // d27
     inexpugnable: { maxAdd: 2, piel: 6, every: 3, dur: 4, icd: 45 },          // d28
     // Cruzado
@@ -2487,10 +2487,11 @@ export function guerreroPowers() {
     // d26 Montaña Viva (final, rango r): plantado, cada 3.er Terremoto se repite gratis al 50/75/100 %
     // (repetición: no cuenta ni gasta nada) y sus réplicas aturden 0,5 s (los jefes no).
     // Terremoto +15·(r−1) %: mod del nodo. S-guerrero (F2): ese aturdimiento corto NO suma resistencia
-    // al control (noDR): no le gasta a Arrollador el derribo de 1 s de la Carga
+    // al control (noDR): no le gasta a Arrollador el derribo de 1 s de la Carga. Decisión del dueño (G4):
+    // entero, pero como mucho 1 vez cada 3 s por enemigo, para que no encadene
     g_d_montana_viva: {
-      name: 'Montaña Viva', desc: 'Plantado, cada 3.er Terremoto se repite gratis y sus réplicas aturden.',
-      state: () => ({ n: 0, stunUntil: -1 }),
+      name: 'Montaña Viva', desc: 'Plantado, cada 3.er Terremoto se repite gratis y sus réplicas aturden (1 vez cada 3 s por enemigo).',
+      state: () => ({ n: 0, stunUntil: -1, at: new WeakMap() }),
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'terremoto' || cast.echo || !p.planted) return;
         const st = powerState(p, 'g_d_montana_viva');
@@ -2504,7 +2505,12 @@ export function guerreroPowers() {
       },
       onHit(g, p, e, hit) {
         if (!isHitOf(hit, 'terremoto') || !hit.repeat || !e?.alive || isBoss(e)) return;
-        if (now(p) <= powerState(p, 'g_d_montana_viva').stunUntil) e.applyCC?.('stun', T.montana.stun, { src: p, noDR: true });
+        const st = powerState(p, 'g_d_montana_viva');
+        if (now(p) > st.stunUntil) return;
+        const t0 = st.at.get(e);
+        if (t0 != null && now(p) - t0 < T.montana.icd - 1e-9) return;
+        st.at.set(e, now(p));
+        e.applyCC?.('stun', T.montana.stun, { src: p, noDR: true });
       },
     },
     // d27 Cabeza de Puente (final, rango r): al acabar la Carga te plantas, ganas 2/3/5 cargas de
