@@ -30,6 +30,7 @@ import { resolveSkill } from '../js/skill-resolve.js';
 import { SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { enemyStatuses } from '../js/hud-model.js';
 import { worldMarksPlan } from '../js/world-marks.js';
+import { powerState } from '../js/powers.js';
 // las APIs nuevas por espacio de nombres: sin ellas (código de antes) falla su apartado, no la carga
 import * as PG from '../js/powers-guerrero.js';
 import * as UG from '../js/ui-gauges-guerrero.js';
@@ -568,6 +569,18 @@ section('F2 · Montaña Viva: las réplicas aturden 0,5 s enteros (sin rendimien
   ok(reps.filter(t => t >= first - 1e-9 && t < first + 3).length >= 2, `con 2 réplicas o más en 3 s (${reps.map(t => t.toFixed(2))}), un solo aturdimiento`);
   ok(st[1].t - st[0].t >= 3 - 1e-9, `1 vez cada 3 s por enemigo (${(st[1].t - st[0].t).toFixed(2)} s entre uno y otro)`);
   ok(st2.length === 2 && Math.abs(st2[0].t - st[0].t) < 0.05, 'el enfriamiento es por enemigo: el de al lado también queda aturdido');
+  // el límite de los 3 s, con la ventana de las réplicas abierta a mano: otra réplica al mismo enemigo a
+  // los 2,9 s no lo aturde; a los 3 s, sí
+  const hb = hero(70, 'guardian', { talents: { specRanks: { d26: 1 } } });
+  const x = foe(hb, 3), xs = [];
+  const ax = x.applyCC.bind(x);
+  x.applyCC = (kind, dur, o = {}) => { if (kind === 'stun') xs.push(hb.p.simT); return ax(kind, dur, o); };
+  powerState(hb.p, 'g_d_montana_viva').stunUntil = 1e9;
+  const rep = () => hb.g.onPlayerHit(x, { skill: 'terremoto', repeat: true, dealt: 1, raw: 1, crit: false, tags: new Set(), source: 'hit', pos: { x: x.pos.x, z: x.pos.z } });
+  rep(); hb.tick(2.9); rep();
+  eq(xs.length, 1, `una réplica a los 2,9 s no aturde (${xs.map(t => t.toFixed(2))})`);
+  hb.tick(0.1); rep();
+  ok(xs.length === 2 && near(xs[1] - xs[0], 3, 1e-6), `a los 3 s, sí (${xs.map(t => t.toFixed(2))})`);
 });
 
 // ------------------------------------------------ F3 · Estampida Sin Fin

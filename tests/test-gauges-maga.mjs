@@ -87,6 +87,8 @@ const plain = E => [E.text, ...E.cols.flat(), ...E.tip].join(' ');
   for (const frag of [`${T.cargas.dmgPerCharge} %`, `${T.cargas.manaPerCharge} de maná`, `máx. ${T.cargas.max}`, `${es(T.cargas.loseAfter)} s`, `cada ${es(T.cargas.sealEvery)} s`,
     `${T.cargas.resonanceCrit} %`, `+${T.cargas.dmgPerCharge * T.cargas.max} %`, 'Resonancia', 'Rayo', 'Desgarro', 'Sello'])
     assert.ok(s.includes(frag), `Cargas: explain cita «${frag}»`);
+  // decisión del dueño M4: el Orbe en órbita (Satélite, Constelación) da su Carga al acabarla
+  assert.ok(!s.includes('no si se queda en órbita') && s.includes('al acabarla') && s.includes('al acabar su órbita'), 'Cargas: el Orbe en órbita da su Carga al acabarla (M4)');
 }
 // ningún número a mano: con otra T el texto cambia
 {
