@@ -944,7 +944,7 @@ export class UI {
     const sig = sts.map(x => x.id + x.label).join(',');
     if (sig !== this._tfStSig) {
       this._tfStSig = sig;
-      el.querySelector('.bf-status').innerHTML = sts.slice(0, 4).map(x => `<span class="st-chip st-${x.id}" title="${x.label}"><img src="${HM.statusIcon(x.id)}" alt="" draggable="false" onerror="this.remove()"><em>${x.label}</em></span>`).join('');
+      el.querySelector('.bf-status').innerHTML = sts.slice(0, 4).map(x => `<span class="st-chip st-${x.id}" title="${x.label}"><img src="${x.icon || HM.statusIcon(x.id)}" alt="" draggable="false" onerror="this.remove()"><em>${x.label}</em></span>`).join('');
     }
   }
 

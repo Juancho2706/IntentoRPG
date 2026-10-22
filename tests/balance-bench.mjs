@@ -131,7 +131,7 @@ function g9Needs(spec) {
 // 2026-10-22: los DoT al ritmo y la carga completa desde la ventana dorada movieron las cifras).
 export const PENDING_E4B = [
   { key: '1A:guerrero:5:ttkB', medido: 26.425, objetivo: [30, 90], dueño: 'KA-guerrero', regla: 'guerrero Nv5: TTK jefe 26.4s fuera de 30,90' },
-  { key: '1A:guerrero:25:ult', medido: 0, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'guerrero Nv25: la definitiva g_u_furia aporta 0% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
+  { key: '1A:guerrero:25:ult', medido: 0.037, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'guerrero Nv25: la definitiva g_u_furia aporta 4% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
   { key: '1A:guerrero:50:ult', medido: 0, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'guerrero Nv50: la definitiva g_u_furia aporta 0% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
   { key: '1A:maga:25:ult', medido: 0.105, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'maga Nv25: la definitiva m_u_supernova aporta 10% del daño UNI (objetivo 12–22 %)' },
   { key: '1A:maga:50:ttkE', medido: 3.942, objetivo: [4.5, 10.5], dueño: 'KA-maga', regla: 'maga Nv50: TTK élite 3.94s fuera de 4.5,10.5' },
@@ -139,17 +139,14 @@ export const PENDING_E4B = [
   { key: '1A:maga:50:ult', medido: 0.061, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'maga Nv50: la definitiva m_u_supernova aporta 6% del daño UNI (objetivo 12–22 %)' },
   { key: '1A:arquera:25:maxHit', medido: 0.288, objetivo: 0.25, dueño: 'KA-arquera', regla: 'arquera Nv25: un golpe óptimo (a_u_celeste) quita 29% de la vida del jefe' },
   { key: '1A:arquera:50:ult', medido: 0.119, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'arquera Nv50: la definitiva a_u_celeste aporta 12% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:berserker:50:min:uni', medido: 0.996, objetivo: 1.1, dueño: 'KA-guerrero', regla: 'berserker Nv50: UNI ×1.00 de la media (< ×1.1)' },
-  { key: 'ROL:berserker:50:min:area', medido: 0.913, objetivo: 1, dueño: 'KA-guerrero', regla: 'berserker Nv50: AREA ×0.91 de la media (< ×1)' },
-  { key: 'ROL:berserker:50:min:ttdp', medido: 0.3, objetivo: 0.9, dueño: 'KA-guerrero', regla: 'berserker Nv50: TTDP ×0.30 de la media (< ×0.9)' },
-  { key: 'ROL:berserker:50:best:uni', medido: 0.501, objetivo: 1.1, dueño: 'KA-guerrero', regla: 'berserker Nv50: UNI no es la mejor de su clase por ×1.1 (1970.6 frente a 3934.0)' },
+  { key: 'ROL:berserker:50:min:ttdp', medido: 0.27, objetivo: 0.9, dueño: 'KA-guerrero', regla: 'berserker Nv50: TTDP ×0.27 de la media (< ×0.9)' },
+  { key: 'ROL:berserker:50:best:uni', medido: 0.687, objetivo: 1.1, dueño: 'KA-guerrero', regla: 'berserker Nv50: UNI no es la mejor de su clase por ×1.1 (3193.1 frente a 4649.4)' },
   { key: 'ROL:berserker:50:ult', medido: 0, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'berserker Nv50: la definitiva g_u_furia aporta 0% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
-  { key: 'ROL:cruzado:50:min:ttdp', medido: 0.406, objetivo: 1.3, dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTDP ×0.41 de la media (< ×1.3)' },
+  { key: 'ROL:cruzado:50:min:ttdp', medido: 0.445, objetivo: 1.3, dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTDP ×0.45 de la media (< ×1.3)' },
   { key: 'ROL:cruzado:50:apoyoDps', medido: 0.08, objetivo: 0.25, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO 8% del DPS de un aliado (< 25%)' },
-  { key: 'ROL:cruzado:50:best:apoyo', medido: 0.305, objetivo: 1.1, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO no es la mejor de su clase por ×1.1 (0.08 frente a 0.26)' },
-  { key: 'ROL:cruzado:50:ttkB', medido: 26.025, objetivo: [36, 108], dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTK jefe 26.0s fuera de 36,108' },
-  { key: 'ROL:cruzado:50:ult', medido: 0.047, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'cruzado Nv50: la definitiva g_u_cataclismo aporta 5% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:cruzado:50:maxHit', medido: 0.367, objetivo: 0.25, dueño: 'KA-guerrero', regla: 'cruzado Nv50: un golpe óptimo (g_u_cataclismo) quita 37% de la vida del jefe' },
+  { key: 'ROL:cruzado:50:best:apoyo', medido: 0.302, objetivo: 1.1, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO no es la mejor de su clase por ×1.1 (0.08 frente a 0.27)' },
+  { key: 'ROL:cruzado:50:ttkB', medido: 19.75, objetivo: [36, 108], dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTK jefe 19.7s fuera de 36,108' },
+  { key: 'ROL:cruzado:50:maxHit', medido: 0.251, objetivo: 0.25, dueño: 'KA-guerrero', regla: 'cruzado Nv50: un golpe óptimo (g_martillo) quita 25% de la vida del jefe' },
   { key: 'ROL:piromante:50:ult', medido: 0.061, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'piromante Nv50: la definitiva m_u_supernova aporta 6% del daño UNI (objetivo 12–22 %)' },
   // E4b-bugs (B2): con las quemaduras haciendo sus tics al ritmo (js/timers.js), la manada del ÁREA×5
   // muere escalonada y la Bola y el Meteoro dan a menos enemigos por lanzamiento (9054 → 7507)
@@ -188,12 +185,12 @@ export const PENDING_E4B = [
   // 13 483 frente a 8363 a Nv70). La build Rayo ya no lleva Cadena (revisión: era la variante de ÁREA en una
   // build de UNI) y deja de ser la mejor en ÁREA. Constelación necesita sus talentos (a19/a23/a26): KT-maga
   { key: 'G9:arcanista:70:orbe:area', medido: 0.62, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: Constelación no gana ÁREA×5 (×0.62 de Grieta Eterna)' },
-  { key: 'G9:berserker:70:danza:ttdp', medido: 0.589, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: Danza Carmesí no gana TTD+ (×0.59 de Estampida Sin Fin)' },
-  { key: 'G9:berserker:70:hibrido:hibrida', medido: 0.557, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: la híbrida Sangre y Acero queda a ×0.56 de la mejor en UNI (≥ ×0.9)' },
-  { key: 'G9:guardian:70:guardia:ttdp', medido: 0.024, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: Guardia Total no gana TTD+ (×0.02 de Cabeza de Puente)' },
-  { key: 'G9:guardian:70:hibguard:hibrida', medido: 0.008, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: la híbrida Roca y Escudo queda a ×0.01 de la mejor en TTD+ (≥ ×0.9)' },
-  { key: 'G9:cruzado:70:tribunal:area', medido: 0.701, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: Tribunal no gana ÁREA×5 (×0.70 de Luz y Martillo)' },
-  { key: 'G9:cruzado:70:hibcruz:hibrida', medido: 0.811, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: la híbrida Luz y Martillo queda a ×0.81 de la mejor en UNI (≥ ×0.9)' },
+  { key: 'G9:berserker:70:danza:ttdp', medido: 0.614, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: Danza Carmesí no gana TTD+ (×0.61 de Estampida Sin Fin)' },
+  { key: 'G9:berserker:70:hibrido:hibrida', medido: 0.762, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: la híbrida Sangre y Acero queda a ×0.76 de la mejor en UNI (≥ ×0.9)' },
+  { key: 'G9:guardian:70:guardia:ttdp', medido: 0.024, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: Guardia Total no gana TTD+ (×0.02 de Montaña Viva)' },
+  { key: 'G9:guardian:70:hibguard:hibrida', medido: 0.012, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: la híbrida Roca y Escudo queda a ×0.01 de la mejor en TTD+ (≥ ×0.9)' },
+  { key: 'G9:cruzado:70:tribunal:area', medido: 0.643, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: Tribunal no gana ÁREA×5 (×0.64 de Martillo Celestial)' },
+  { key: 'G9:cruzado:70:hibcruz:hibrida', medido: 0.8, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: la híbrida Luz y Martillo queda a ×0.80 de la mejor en UNI (≥ ×0.9)' },
   { key: 'G9:tiradora:70:vaiven:uni', medido: 0.52, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: Vaivén Eterno no gana UNI (×0.52 de Tormenta de Plumas)' },
   { key: 'G9:tiradora:70:cruzado:min:uni', medido: 0.772, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: la híbrida Viento Cruzado queda a ×0.77 de la mejor en UNI (≥ ×0.8)' },
   { key: 'G9:tiradora:70:cruzado:min:mixto', medido: 0.845, objetivo: 0.9, dueño: 'KT-arquera', regla: 'G9 Nv70 tiradora: la híbrida Viento Cruzado queda a ×0.85 de la mejor en mixto (≥ ×0.9)' },
@@ -214,11 +211,11 @@ export const PENDING_E4B = [
   { key: 'G9:crionte:100:hibcrio:hibrida', medido: 0.623, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: la híbrida Escarcha Quebradiza queda a ×0.62 de la mejor en ÁREA×5 (≥ ×0.85)' },
   { key: 'G9:arcanista:100:hibarca:hibrida', medido: 0.5, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: la híbrida Rayo Orbital queda a ×0.50 de la mejor en UNI (≥ ×0.85)' },
   { key: 'G9:arcanista:100:orbe:area', medido: 0.639, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: Constelación no gana ÁREA×5 (×0.64 de Grieta Eterna)' },
-  { key: 'G9:berserker:100:danza:ttdp', medido: 0.361, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: Danza Carmesí no gana TTD+ (×0.36 de Estampida Sin Fin)' },
-  { key: 'G9:berserker:100:hibrido:hibrida', medido: 0.63, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: la híbrida Sangre y Acero queda a ×0.63 de la mejor en UNI (≥ ×0.9)' },
-  { key: 'G9:guardian:100:hibguard:hibrida', medido: 0.067, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: la híbrida Roca y Escudo queda a ×0.07 de la mejor en TTD+ (≥ ×0.9)' },
-  { key: 'G9:cruzado:100:tribunal:area', medido: 0.692, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: Tribunal no gana ÁREA×5 (×0.69 de Luz y Martillo)' },
-  { key: 'G9:cruzado:100:hibcruz:hibrida', medido: 0.75, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: la híbrida Luz y Martillo queda a ×0.75 de la mejor en UNI (≥ ×0.9)' },
+  { key: 'G9:berserker:100:danza:ttdp', medido: 0.465, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: Danza Carmesí no gana TTD+ (×0.47 de Estampida Sin Fin)' },
+  { key: 'G9:berserker:100:hibrido:hibrida', medido: 0.761, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: la híbrida Sangre y Acero queda a ×0.76 de la mejor en UNI (≥ ×0.9)' },
+  { key: 'G9:guardian:100:hibguard:hibrida', medido: 0.283, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: la híbrida Roca y Escudo queda a ×0.28 de la mejor en TTD+ (≥ ×0.9)' },
+  { key: 'G9:cruzado:100:tribunal:area', medido: 0.759, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: Tribunal no gana ÁREA×5 (×0.76 de Martillo Celestial)' },
+  { key: 'G9:cruzado:100:hibcruz:hibrida', medido: 0.737, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: la híbrida Luz y Martillo queda a ×0.74 de la mejor en UNI (≥ ×0.9)' },
   { key: 'G9:tiradora:100:vaiven:uni', medido: 0.664, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 tiradora: Vaivén Eterno no gana UNI (×0.66 de Viento Cruzado)' },
   { key: 'G9:tiradora:100:cruzado:noBest:uni', medido: 1.004, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 tiradora: la híbrida Viento Cruzado es la mejor en UNI (×1.00)' },
   { key: 'G9:francotiradora:100:perforacion:area', medido: 0.757, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: Línea Mortal no gana ÁREA×5 (×0.76 de Atalaya Eterna)' },
@@ -232,8 +229,7 @@ export const PENDING_E4B = [
   { key: 'G9:montaraz:100:caceria:uni', medido: 0.829, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Gran Cacería no gana UNI (×0.83 de Espinas de Caza)' },
   { key: 'G9:montaraz:100:espinas:noBest:uni', medido: 1.206, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza es la mejor en UNI (×1.21)' },
   { key: 'G9:montaraz:100:espinas:noBest:mixto', medido: 1.079, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza es la mejor en mixto (×1.08)' },
-  { key: 'G18:berserker', medido: 0.092, objetivo: 0.05, dueño: 'KT-guerrero', regla: 'G18 berserker: Titán +9.1 % frente a Gladiador +18.2 % (diferencia 9.2 puntos > 5)' },
-  { key: 'G18:guardian', medido: 0.064, objetivo: 0.05, dueño: 'KT-guerrero', regla: 'G18 guardian: Caudillo +1.2 % frente a Titán +7.5 % (diferencia 6.4 puntos > 5)' },
+  { key: 'G18:berserker', medido: 0.129, objetivo: 0.05, dueño: 'KT-guerrero', regla: 'G18 berserker: Titán +3.8 % frente a Gladiador +16.6 % (diferencia 12.9 puntos > 5)' },
   { key: 'G18:piromante', medido: 0.11, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 piromante: Invocadora +22.1 % frente a Cronomante +11.1 % (diferencia 11.0 puntos > 5)' },
   { key: 'G18:crionte', medido: 0.105, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 crionte: Escriba Rúnica +28.7 % frente a Invocadora +18.1 % (diferencia 10.5 puntos > 5)' },
   // S-maga (revisión: la build Rayo con el Rayo base, sin Cadena): su Rayo en línea pierde un 17 % de ÁREA×5 de
@@ -241,6 +237,21 @@ export const PENDING_E4B = [
   // explica: la manada muere antes y llega desalineada). Con Cadena se cumplía (Cronomante +17 %, Escriba +20 %). KT-maga
   { key: 'G18:arcanista', medido: 0.127, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +9.3 % frente a Escriba Rúnica +21.9 % (diferencia 12.7 puntos > 5)' },
   { key: 'G18:tiradora', medido: 0.131, objetivo: 0.05, dueño: 'KT-arquera', regla: 'G18 tiradora: Carcaj Encantado +10.6 % frente a Errante del Viento +23.7 % (diferencia 13.1 puntos > 5)' },
+  // S-guerrero (sensación, hallazgos recomendados; ronda 2). Sin la trampa del Remolino (antes ×0,58 con él), el Berserker
+  // rinde lo que su rotación: el criterio (a) (con el Remolino ≥ ×0,9 en UNI a Nv50) deja su TTK de jefe en ~32 s (sin
+  // Remolino, ~30 s) y la media de Nv50 en 44,8 s: 1A:media:50:ttkB lo decide el jefe (dueño E4b). A Nv10 el giro aún pesa
+  // ×1,29 (sin Rajar ni Salto, el kit sin él es Tajo y Hendidura). La Carga de Escudo a 8 m/s (G10) le quita al Guardián
+  // el segundo de avance de las cargas cortas (más Terremotos: jefe en 30,9 s). G9/G18: dueño KT-guerrero
+  { key: '1A:guerrero:10:ttkE', medido: 4.069, objetivo: [4.5, 10.5], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK élite 4.07s fuera de 4.5,10.5' },
+  { key: '1A:guerrero:10:ttkB', medido: 31.183, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK jefe 31.2s fuera de 35,100' },
+  { key: '1A:guerrero:50:ttkB', medido: 31.683, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv50: TTK jefe 31.7s fuera de 35,100' },
+  { key: '1A:media:50:ttkB', medido: 44.761, objetivo: [45, 90], dueño: 'E4b', regla: 'Nv50: media TTK jefe 44.8s fuera de 45,90' },
+  { key: 'ROL:berserker:50:ttkB', medido: 31.683, objetivo: [36, 108], dueño: 'KA-guerrero', regla: 'berserker Nv50: TTK jefe 31.7s fuera de 36,108' },
+  { key: 'ROL:guardian:50:ttkB', medido: 30.925, objetivo: [36, 130], dueño: 'KA-guerrero', regla: 'guardian Nv50: TTK jefe 30.9s fuera de 36,130' },
+  { key: 'ROL:cruzado:50:ttkE', medido: 3.458, objetivo: [3.6, 12.6], dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTK élite 3.46s fuera de 3.6,12.6' },
+  { key: 'G9:berserker:100:estampida:area', medido: 0.824, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: Estampida Sin Fin no gana ÁREA×5 (×0.82 de Danza Carmesí)' },
+  { key: 'G9:guardian:100:guardia:ttdp', medido: 0.266, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: Guardia Total no gana TTD+ (×0.27 de Montaña Viva)' },
+  { key: 'G9:cruzado:100:santa:apoyo', medido: 0.958, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 cruzado: Tierra Santa no gana APOYO (×0.96 de Tribunal)' },
 ];
 
 // ---------------- comprobaciones ----------------

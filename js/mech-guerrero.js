@@ -40,9 +40,16 @@ export function gaugeTuning() {
     // Fervor (rehecho): +1 por suelta perfecta o detonación de Juicio (como mucho 1 por lanzamiento;
     // la suelta perfecta la suma el catálogo: perfectGauge del Martillo 1 y del Cataclismo 3) y +1
     // cada 3 Tajos. A 3, el siguiente Martillo sale al instante como Veredicto (+50 % y cura un 6 %
-    // al más herido); el Veredicto no da Fervor ni es suelta perfecta. Fuera de combate, −1 cada 10 s
+    // al más herido); el Veredicto no da Fervor ni es suelta perfecta. Fuera de combate, −1 cada 10 s.
+    // S-guerrero: +1 si el Juicio golpea y +1 SIEMPRE al detonar una marca del propio Juicio (aparte del
+    // tope por lanzamiento); el Cataclismo gasta el Fervor que tenías al empezar a cargar (+25 % por
+    // punto a su golpe; una suelta perfecta lo deja en 3, como siempre)
     fervor: { max: 3, perPerfect: 1, perDetonate: 1, perCastMax: 1, perfectCataclysm: 3, basicHits: 3, decayOOC: 10,
-      verdict: { cost: 3, dmgPct: 50, healPct: 6, apexHealPct: 10, radius: 15 } },
+      verdict: { cost: 3, dmgPct: 50, healPct: 6, apexHealPct: 10, radius: 15 },
+      // S-guerrero: el Juicio que golpea da 1 y su marca, al detonarla, otro (G07: «+150 % y 1 de Fervor
+      // seguro»); el Cataclismo gasta el que tenías al empezar a cargarlo: +25 % por punto (G04; la suelta
+      // perfecta lo devuelve: +3)
+      juicioHit: 1, ownDetonate: 1, cataclysmPct: 25, cataLive: 3 },   // cataLive: s tras empezar a cargar en que un Cataclismo cancelado deja de llevarse el Fervor
   };
 }
 
@@ -173,12 +180,29 @@ export function baseGauges(T, H) {
     fervor: {
       name: 'Fervor', color: '#ecc760', max: T.fervor.max, integer: true,
       decay: { after: T.fervor.decayOOC, every: T.fervor.decayOOC, n: 1, ooc: true },
-      state: () => ({ basicAt: -1, basicN: 0, det: false, verdictCast: null, verdictLive: false, verdictTarget: null, verdictHealed: null, ready: false }),
+      // own: enemigo → { m, uses } con la marca que le puso el propio Juicio (no la del Sello ni la del
+      // Edicto) y los usos que le quedaban: si bajan, se detonó y da su Fervor seguro. jHits: los que
+      // golpea el Juicio en curso (su marca se pone después del gancho ⑤; se anota en afterCast)
+      state: () => ({ basicAt: -1, basicN: 0, det: false, verdictCast: null, verdictLive: false, verdictTarget: null, verdictHealed: null, ready: false,
+        cata: null, own: new WeakMap(), jHits: [] }),
       onFull(g, p, st) { syncVerdict(p, st); },
-      onTick(g, p, dt, st) { syncVerdict(p, st); },
+      onTick(g, p, dt, st) {
+        syncVerdict(p, st);
+        // un Cataclismo que no llegó a caer (carga cancelada) ya no se lleva el Fervor
+        if (st.cata?.live && !g?._charging && now(p) - st.cata.t0 > T.fervor.cataLive) st.cata.live = false;
+      },
       // a 3 de Fervor, el Martillo sale al instante (Veredicto: cast.instant, carga completa sin perfecto)
       onCast(g, p, cast, st) {
         st.det = false;
+        if (cast?.sk?.id === 'g_juicio' && !cast.echo) st.jHits = [];
+        // Cataclismo (S-guerrero, G04/G05): gasta el Fervor que tienes al EMPEZAR a cargarlo (condAdd y
+        // afterCast) y, mientras cargas, la mira y el héroe lo telegrafían (campo g_cata_mira de
+        // js/powers-guerrero.js: círculo del radio real, dorado en la ventana, y luz que sube en ti)
+        if (cast?.sk?.id === 'g_u_cataclismo' && !cast.echo) {
+          st.cata = { cast, n: Math.floor(st.v || 0), live: true, t0: now(p) };
+          g?.spawnField?.('g_cata_mira', { pos: cast.target || p.pos, radius: cast.prof?.radius || 6, dur: 10, owner: null,
+            data: { p, cast, prof: cast.prof } });
+        }
         if (cast?.sk?.id !== 'g_martillo' || cast.echo) return;
         if ((st.v || 0) >= T.fervor.verdict.cost - 1e-9) {
           cast.instant = true;
@@ -187,7 +211,17 @@ export function baseGauges(T, H) {
       },
       onHit(g, p, e, hit, st) {
         if (hit?.proc || hit?.dot) return;
-        if (hit?.detonated && !hit.echo) st.det = true;
+        if (hit?.detonated) {
+          if (!hit.echo) st.det = true;
+          // ¿era la marca del propio Juicio? (le quedan menos usos que al ponerla): +1 seguro
+          const o = e && st.own.get(e);
+          if (o && o.m.uses < o.uses) {
+            o.uses = o.m.uses;
+            if (o.uses <= 0) st.own.delete(e);
+            gainGauge(p, 'fervor', T.fervor.ownDetonate);
+          }
+        }
+        if (hit?.skill === 'g_juicio' && !hit.echo && e) st.jHits.push(e);
         // +1 cada 3 Tajos que aciertan (uno por golpe aunque alcance a varios)
         if (isBasicHit(p, hit) && st.basicAt !== now(p)) {
           st.basicAt = now(p);
@@ -197,7 +231,10 @@ export function baseGauges(T, H) {
           if (ch > 0 && (typeof p.combatRng === 'function' ? p.combatRng() : 0.5) * 100 < ch) gainGauge(p, 'fervor', 1);
         }
       },
-      condAdd: (p, e, hit, st) => (hit?.skill === 'g_martillo' && st?.verdictLive ? T.fervor.verdict.dmgPct : 0),
+      // Veredicto: +50 % al Martillo · Cataclismo: +25 % por cada punto de Fervor que gasta (solo su golpe
+      // al caer: la repetición del Martillo Celestial llega después de afterCast y ya no lo lleva)
+      condAdd: (p, e, hit, st) => (hit?.skill === 'g_martillo' && st?.verdictLive ? T.fervor.verdict.dmgPct : 0)
+        + (hit?.skill === 'g_u_cataclismo' && st?.cata?.live ? T.fervor.cataclysmPct * st.cata.n : 0),
       afterCast(g, p, cast, res, st) {
         if (!cast || cast.echo) return;
         const det = st.det;
@@ -221,6 +258,23 @@ export function baseGauges(T, H) {
           syncVerdict(p, st);
           g?.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡VEREDICTO!', 'txt-crit');
           return;
+        }
+        // Juicio (S-guerrero, G07): si golpea, +1 de Fervor (además de lo que dé su detonación) y se
+        // anotan las marcas que acaba de poner (las suyas: puestas en este instante a los que golpeó)
+        if (cast.sk?.id === 'g_juicio') {
+          if (res?.hits > 0) gainGauge(p, 'fervor', T.fervor.juicioHit);
+          for (const e of st.jHits) {
+            const m = e.marks?.juicio;
+            if (m && m.by === p && m.at >= now(p) - 1e-9) st.own.set(e, { m, uses: m.uses });
+          }
+          st.jHits = [];
+        }
+        // Cataclismo (G04): se lleva el Fervor con que empezaste a cargar (no es un Veredicto: drenaje, sin
+        // 'spent'). Una suelta perfecta ya te dejó en 3 (perfectGauge) y lo conserva
+        if (cast.sk?.id === 'g_u_cataclismo' && st.cata?.cast === cast) {
+          if (!cast.perfect && st.cata.n > 0) drainGauge(p, 'fervor', Math.min(st.v || 0, st.cata.n));
+          st.cata.live = false;
+          syncVerdict(p, st);
         }
         // detonar marcas: +1 (como mucho 1 por lanzamiento; una suelta perfecta ya dio el suyo)
         if (det && !cast.perfect) gainGauge(p, 'fervor', T.fervor.perDetonate);
@@ -249,3 +303,4 @@ export function strikeBleedSource(p, hit) {
   const dot = hit.step > 0 ? (def.steps?.[hit.step - 1]?.dot || top) : top;
   return dot === 'bleed' ? `${hit.skill}:bleed` : null;
 }
+

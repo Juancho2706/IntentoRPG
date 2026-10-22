@@ -388,11 +388,14 @@ const FERVOR = {
     { t: 1.4, x: { basicHits: 2 } },
     { t: 2, value: 1, x: { basicHits: 0 }, fire: 'gain', cap: `${TT.fervor.basicHits}.er Tajo: se enciende un sol.`, nodes: [], tag: 'building' },
     { t: 3.2, value: 2, fire: 'gain', cap: `Suelta perfecta del Martillo o detonar una marca: +${TT.fervor.perPerfect} (como mucho ${TT.fervor.perCastMax} por lanzamiento).`, nodes: ['z0', 'z5'] },
+    { t: 3.8, cap: `El Juicio que golpea: +${TT.fervor.juicioHit}; detonar la marca del propio Juicio: +${TT.fervor.ownDetonate} más, siempre.`, nodes: ['z0'] },
     { t: 4.4, value: 3, state: 'full', fire: 'full', ready: ['g_martillo'], label: 'Veredicto',
       cap: 'La corona se enciende: tu siguiente Martillo sale al instante como Veredicto.', nodes: ['z0', 'z9'], tag: 'full' },
     { t: 7, value: 0, state: 'idle', label: '', ready: null, fire: 'spent',
       cap: `Veredicto: +${TT.fervor.verdict.dmgPct}${NB}% y cura un ${TT.fervor.verdict.healPct}${NB}% al más herido (${TT.fervor.verdict.apexHealPct}${NB}% con Aureola).`, nodes: ['z9', 'z15', 'z28'] },
     { t: 8.4, value: 1, state: 'building', fire: 'gain', decayIn: TT.fervor.decayOOC * 2, cap: 'Ardor: tus golpes sagrados hacen más daño por cada punto de Fervor.', nodes: ['z16'] },
+    { t: 9, value: 0, state: 'idle', fire: 'spent', decayIn: null, cap: `Cataclismo: gasta tu Fervor, +${TT.fervor.cataclysmPct}${NB}% por punto; cargado del todo te deja en ${TT.fervor.perfectCataclysm}.`, nodes: [] },
+    { t: 9.3, value: 1, state: 'building', fire: 'gain', decayIn: TT.fervor.decayOOC * 2 },
     { t: 9.6, decayIn: TT.fervor.decayOOC, ease: 1, cap: `Fuera de combate, −1 cada ${TT.fervor.decayOOC} s.`, nodes: [], tag: 'decay' },
     { t: 12, decayIn: 0.4 },
     { t: 12.4, value: 0, state: 'idle', decayIn: null, fire: 'empty', cap: '', nodes: [] },
@@ -401,16 +404,16 @@ const FERVOR = {
   explain: T => {
     const F = T.fervor;
     return {
-      text: `Una suelta perfecta o detonar marcas de Juicio te da <b>Fervor</b> (como mucho ${F.perCastMax} por lanzamiento; el Cataclismo perfecto, ${F.perfectCataclysm}). A ${F.max}, tu siguiente Martillo sale al instante como <b>Veredicto</b>: +${F.verdict.dmgPct} % y cura un ${F.verdict.healPct} % al aliado más herido.`,
+      text: `Una suelta perfecta o detonar marcas de Juicio te da <b>Fervor</b> (como mucho ${F.perCastMax} por lanzamiento; el Cataclismo perfecto, ${F.perfectCataclysm}); el Juicio que golpea, ${F.juicioHit}, y detonar la marca del propio Juicio, ${F.ownDetonate} más. A ${F.max}, tu siguiente Martillo sale al instante como <b>Veredicto</b>: +${F.verdict.dmgPct} % y cura un ${F.verdict.healPct} % al aliado más herido. El <b>Cataclismo</b> gasta el que tengas: +${F.cataclysmPct} % por punto.`,
       cols: [
-        ['Generar', `Suelta perfecta o detonación +${F.perPerfect} (máx. ${F.perCastMax} por lanzamiento) · uno cada ${F.basicHits} Tajos`],
-        ['Descargar', `Veredicto (gasta ${F.verdict.cost}): Martillo al instante, +${F.verdict.dmgPct} % y cura un ${F.verdict.healPct} %; no da Fervor`],
+        ['Generar', `Suelta perfecta o detonación +${F.perPerfect} (máx. ${F.perCastMax} por lanzamiento) · Juicio que golpea +${F.juicioHit} · marca del Juicio detonada +${F.ownDetonate} · uno cada ${F.basicHits} Tajos`],
+        ['Descargar', `Veredicto (gasta ${F.verdict.cost}): Martillo al instante, +${F.verdict.dmgPct} % y cura un ${F.verdict.healPct} %; no da Fervor · Cataclismo: lo gasta todo, +${F.cataclysmPct} % por punto (cargado del todo te deja en ${F.perfectCataclysm})`],
         ['Pérdida', `No se pierde con el tiempo; fuera de combate, −1 cada ${F.decayOOC} s`],
       ],
       tip: [
         `<b>Qué es:</b> un halo de ${F.max} soles; con los ${F.verdict.cost} encendidos, tu siguiente Martillo es un Veredicto.`,
-        `<b>Gana:</b> ${F.perPerfect} por suelta perfecta o detonación (como mucho ${F.perCastMax} por lanzamiento) y uno cada ${F.basicHits} Tajos.`,
-        `<b>Descarga:</b> Veredicto, +${F.verdict.dmgPct} % y cura un ${F.verdict.healPct} % al más herido. Fuera de combate, −1 cada ${F.decayOOC} s.`,
+        `<b>Gana:</b> ${F.perPerfect} por suelta perfecta o detonación (como mucho ${F.perCastMax} por lanzamiento), ${F.juicioHit} si el Juicio golpea, ${F.ownDetonate} más al detonar la marca del propio Juicio y uno cada ${F.basicHits} Tajos.`,
+        `<b>Descarga:</b> Veredicto, +${F.verdict.dmgPct} % y cura un ${F.verdict.healPct} % al más herido; el Cataclismo lo gasta todo (+${F.cataclysmPct} % por punto). Fuera de combate, −1 cada ${F.decayOOC} s.`,
       ],
     };
   },
@@ -423,7 +426,19 @@ const FERVOR = {
     z28: `Aureola: matar a un élite llena el Fervor y el Veredicto cura un ${TT.fervor.verdict.apexHealPct} %.`,
   },
   sounds: { full: 'holy', spent: 'holy' },
+  world: {
+    // S-guerrero (G06): SELLO de Juicio sobre la barra de vida de cada enemigo con una marca tuya: un
+    // rombo dorado por uso que le queda (Tribunal: 2 o 3) que parpadea los últimos 2 s. Puro: lee e.marks
+    overhead(e, p) {
+      const m = e && e.alive !== false ? e.marks?.juicio : null;
+      if (!m || !(m.t > 0) || (p && m.by && m.by !== p)) return null;
+      const n = Math.max(1, m.uses | 0);
+      return { n, max: n, tone: 'gold', blink: m.t <= JUICIO_BLINK_T };
+    },
+  },
 };
+// el sello de Juicio parpadea cuando a la marca le quedan estos segundos
+export const JUICIO_BLINK_T = 2;
 
 export const GUERRERO_GAUGE_VIEWS = { sed: SED, bastion: BASTION, fervor: FERVOR };
 // modelos puros (tests y arnés)

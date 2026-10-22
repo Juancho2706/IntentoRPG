@@ -167,6 +167,14 @@ export const GUERRERO_FX_PRESETS = {
     size: { start: [0.22, 0.45], end: 0.0 },
     color: { start: '#ffb0a0', end: '#b0101c' }, alpha: { start: 1, end: 0 }, spin: 260,
   },
+  // Ciclón (S-guerrero, G02): el viento gris del Ciclón que se tiñe de rojo al girar
+  bloodWindWhirl: {
+    name: 'Ciclón sangriento', texture: 'spark', blending: 'additive',
+    count: 48, burst: true, lifetime: [0.25, 0.5],
+    shape: 'ring', shapeRadius: 1.7, speed: [3, 6], gravity: 0, drag: 0.4,
+    size: { start: [0.22, 0.45], end: 0.0 },
+    color: { start: '#e6ecf4', end: '#b0101c' }, alpha: { start: 0.95, end: 0 }, spin: 300,
+  },
   bloodDrops: {
     name: 'Remolino gotas', texture: 'disc', blending: 'normal',
     count: 10, burst: true, lifetime: [0.3, 0.6],
@@ -262,6 +270,24 @@ export const GUERRERO_FX_PRESETS = {
     color: { start: '#ffffff', end: '#ffd060' }, alpha: { start: 1, end: 0 },
   },
 
+  // ---------------- sensación (S-guerrero, auditoría) ----------------
+  // Cataclismo (G05): luz que sube por el héroe mientras carga (más seguida cuanto más cargas)
+  cataChargeMote: {
+    name: 'Cataclismo carga', texture: 'glow', blending: 'additive',
+    count: 3, burst: true, lifetime: [0.4, 0.7],
+    shape: 'ring', shapeRadius: 0.5, speed: [0.6, 1.4], gravity: -4.5, drag: 0.4,
+    size: { start: [0.18, 0.32], end: 0.0 },
+    color: { start: '#ffffff', end: '#ffd060' }, alpha: { start: 0.9, end: 0 },
+  },
+  // suelo consagrado del Cataclismo (G05): motas doradas que suben del suelo
+  holyGroundMote: {
+    name: 'Suelo consagrado', texture: 'star', blending: 'additive',
+    count: 2, burst: true, lifetime: [0.6, 1.1],
+    shape: 'point', shapeRadius: 0.1, speed: [0.3, 0.9], gravity: -2.2, drag: 0.4,
+    size: { start: [0.18, 0.32], end: 0.0 },
+    color: { start: '#fffbe0', end: '#ffc860' }, alpha: { start: 0.95, end: 0 },
+  },
+
   // ---------------- forja (Paso 2, KA2): cambios de forma ----------------
   // Rayo del Cielo: columna estrecha de luz blanca (sube desde el impacto)
   holyBeam: {
@@ -288,8 +314,10 @@ export const GUERRERO_FX = {
   embestida:     { trail: 'chargeTrail', impact: 'chargeImpact', color: 0xffcf7a, sfx: 'dash' },
   g_piel:        { aura: 'ironSkin', color: 0xb8c4d0, sfx: 'equip' },
   g_lanza:       { trail: 'piercingTrail', impact: 'meleeHit', color: 0xe8dcc0, sfx: 'shoot' },
-  // kit del Berserker (rojo sangre)
-  g_remolino:    { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash' },
+  // kit del Berserker (rojo sangre). Remolino (S-guerrero, G02): aura y «whoosh» en CADA giro (tickSfx),
+  // gotas sobre los golpeados y, a tus pies (campo g_giro), ringColors = [aro continuo del radio real
+  // (siempre rojo sangre), arcos que giran por dentro]
+  g_remolino:    { aura: 'bloodWhirl', extra: 'bloodDrops', color: 0xcc2222, sfx: 'dash', tickSfx: 'whoosh', ringColors: [0xd8202a, 0xff6a50] },
   g_salto:       { impact: 'leapImpact', color: 0xffcc66, sfx: 'hit' },
   g_rajar:       { impact: 'cleaveArc', aura: 'bloodDrops', extra: 'cleaveBlood', color: 0xb0101c, sfx: 'hit' },
   g_u_furia:     { aura: 'furyAura', extra: 'warCryRing', color: 0xff5a3c, sfx: 'hurt' },
@@ -316,8 +344,9 @@ export const GUERRERO_FX = {
   // busca el VFX por variante: skillFxFor de fx-skills.js). Reutilizan presets existentes: el mismo
   // campo (trail/impact/aura/extra) que lee el tipo genérico de la forma nueva.
   g_tajo_ii:         { impact: 'sweepRing', color: 0xffcc77, sfx: 'hit' },                                       // Siega: barrido
-  g_remolino_i:      { aura: 'whirlwindInner', extra: 'bloodDrops', color: 0xb0101c, sfx: 'hit' },              // Anclado: giro corto
-  g_remolino_ii:     { aura: 'whirlwind', extra: 'bloodDrops', color: 0xcfd6e0, sfx: 'dash' },                  // Ciclón: remolino de viento
+  g_remolino_i:      { aura: 'whirlwindInner', extra: 'bloodDrops', color: 0xb0101c, sfx: 'hit', tickSfx: 'whoosh', ringColors: [0xb0101c, 0xff4a3a] },   // Anclado: giro corto
+  // Ciclón: remolino de viento gris con la sangre del Remolino (aro rojo del radio real, arcos grises, gotas rojas)
+  g_remolino_ii:     { aura: 'bloodWindWhirl', extra: 'bloodDrops', color: 0xcfd6e0, sfx: 'dash', tickSfx: 'whoosh', ringColors: [0xc8202a, 0xcfd6e0] },
   g_salto_i:         { impact: 'quakeWave', color: 0xd8b070, sfx: 'hit' },                                      // Caída Atronadora: onda
   g_salto_ii:        { impact: 'chargeImpact', color: 0xffcc66, sfx: 'dash' },                                  // Salto Rasante
   g_rajar_i:         { impact: 'heavySwing', aura: 'bloodDrops', extra: 'cleaveBlood', color: 0xb0101c, sfx: 'hit' },  // Estocada en línea

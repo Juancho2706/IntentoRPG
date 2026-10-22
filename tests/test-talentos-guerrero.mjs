@@ -1429,17 +1429,19 @@ check('b21', () => {
 check('b22', () => {
   const run = on => {
     const h = on ? spec('berserker', { b22: 3 }) : spec('berserker');
-    const e = h.enemy({ hp: 1e6, pos: [3.7, 0, 0] });
+    // a 3 m: el giro (3,8 m) lo alcanza y, golpeado, se aparta ~0,7 m, aún dentro de los 4 m del estallido
+    const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
     h.g.applyDoT(e, 300, 3, 1, undefined, 'g_tajo:bleed');
     h.setSlot('k3', 'g_remolino'); h.p.mp = 100;
     h.press('k3'); h.step(0.6);
-    const hp0 = e.hp;
+    // (S-guerrero: su Sangrado también estalla, con el del Tajo)
+    const hp0 = e.hp, left = h.g.dotRemaining(e, 'bleed');
     h.release('k3'); h.step(0.05);
-    return { dmg: hp0 - e.hp, bleed: h.g.dotRemaining(e, 'bleed') };
+    return { dmg: hp0 - e.hp, bleed: h.g.dotRemaining(e, 'bleed'), left };
   };
   const a = run(false), b = run(true);
   assert.ok(a.dmg === 0 && a.bleed > 0, 'sin b22 el Sangrado sigue');
-  assert.ok(approx(b.dmg, 195, 2) && b.bleed === 0, `b22 r3: al soltar, estalla el 65 % de lo que quedaba (${JSON.stringify(b)})`);
+  assert.ok(b.left > 300 && approx(b.dmg, 0.65 * b.left, 2) && b.bleed === 0, `b22 r3: al soltar, estalla el 65 % de lo que quedaba (${JSON.stringify(b)})`);
 });
 check('b23', () => {
   const h = spec('berserker', { b23: 3 }), n = spec('berserker');
@@ -1483,7 +1485,9 @@ check('b25', () => {
   const a = run(0), b = run(1), c = run(2);
   assert.ok(!a.on, 'sin b25 el giro acaba a los 3 s');
   assert.ok(b.on && !b.late, `b25 r1: sigue mientras toques a alguien que sangra, hasta 6 s (${JSON.stringify(b)})`);
-  assert.ok(approx(b.mp, 100 - 30 - 12, 1.5), `b25: 8 de Furia por segundo tras 3 s (${b.mp})`);
+  // el coste del Remolino (60 desde S-guerrero, ronda 2) y 8/s durante 1,5 s de danza
+  const remCost = CLASSES.guerrero.skills.find(s => s.id === 'g_remolino').cost;
+  assert.ok(approx(b.mp, 100 - remCost - 12, 1.5), `b25: 8 de Furia por segundo tras 3 s (${b.mp})`);
   assert.ok(c.late && c.bleedPct === 15, `b25 r2: hasta 10 s y Sangrados +15 % (${JSON.stringify(c)})`);
 });
 check('b26', () => {
@@ -2388,10 +2392,10 @@ check('z25', () => {
   const md = h.g.markDetonation.bind(h.g);
   h.g.markDetonation = (en, ht) => { const r = md(en, ht); if (r && en === a) dets.push(r); return r; };
   hammer(h, [2.5, 0], 0.3);
-  assert.ok(a.marks.juicio && dets[0] === 100, 'z25: la 1.ª detonación no la gasta');
+  assert.ok(a.marks.juicio && dets[0] === 150, 'z25: la 1.ª detonación no la gasta');
   const log = spyHits(h);
   h.tick(0.3); hammer(h, [2.5, 0], 0.3);
-  assert.ok(dets[1] === 40 && !a.marks?.juicio, `z25 r1: la 2.ª al 40 % (${dets})`);
+  assert.ok(dets[1] === 60 && !a.marks?.juicio, `z25 r1: la 2.ª al 40 % de los +150 % (${dets})`);
   assert.ok(b.marks?.juicio && c.marks?.juicio && b.marks.juicio.uses === 1, 'z25: la última salta a 2 enemigos');
   // con la carga de la Mejora (Mano Ágil), b está dentro de ese golpe: la marca que le salta no la
   // detona el mismo golpe (salta al acabarlo, sea cual sea el orden de los impactos)
@@ -2473,16 +2477,18 @@ check('z28', () => {
   const log = spyHits(h);
   h.step(0.6);
   for (let i = 0; i < 7; i++) { h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(0.6); }
-  h.step(0.6);
+  h.step(1.4);                                       // la columna arde 1,2 s tras el impacto
   const cat = log.filter(x => x.e === boss && x.skill === 'g_u_cataclismo' && !x.dot);
-  assert.ok(cat.length === 1 && cat[0].echo && h.gaugeValue('fervor') === 0 && !(h.p.cds.g_u_cataclismo > 0), `z28 r4: al 8.º Veredicto, un Cataclismo gratis (no da Fervor) (${cat.length}, ${h.gaugeValue('fervor')}, ${h.p.cds.g_u_cataclismo})`);
+  // (S-guerrero: el impacto y los 4 golpes de la columna que arde, todos de la repetición)
+  assert.ok(cat.length === 5 && cat.every(x => x.echo) && h.gaugeValue('fervor') === 0 && !(h.p.cds.g_u_cataclismo > 0), `z28 r4: al 8.º Veredicto, un Cataclismo gratis (no da Fervor) (${cat.length}, ${h.gaugeValue('fervor')}, ${h.p.cds.g_u_cataclismo})`);
   // r4: como mucho cada 30 s (otros 8 Veredictos en ~6 s no lo lanzan; el de después de 30 s, sí)
-  const cats = () => log.filter(x => x.e === boss && x.skill === 'g_u_cataclismo' && !x.dot && x.echo).length;
+  // (cada Cataclismo: el impacto y los 4 golpes de la columna)
+  const cats = () => log.filter(x => x.e === boss && x.skill === 'g_u_cataclismo' && !x.dot && x.echo).length / 5;
   for (let i = 0; i < 8; i++) { h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(0.6); }
   h.step(0.6);
   assert.equal(cats(), 1, 'z28 r4: otros 8 Veredictos antes de 30 s: ningún Cataclismo más');
   h.tick(25);
-  h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(1.2);
+  h.gauge('fervor', 3); hammer(h, [2.5, 0], 0.05); h.step(1.8);
   assert.equal(cats(), 2, 'z28 r4: pasados 30 s, el siguiente Veredicto lo lanza');
 });
 

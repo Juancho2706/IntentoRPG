@@ -49,6 +49,7 @@ import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 import { insideField } from './field-entities.js';
 import { strikeBleedSource } from './mech-guerrero.js';
+import { verbFx } from './fx-skills.js';
 // (importados: úsalos solo dentro de los ganchos). Sin talents.js ni skill-resolve.js: los dos
 // llegan a data.js y, si el primer módulo cargado es resources.js, el ciclo resources → powers →
 // aquí → data dejaría RESOURCE_DEFS sin iniciar (la misma razón que en powers-common.js)
@@ -69,6 +70,7 @@ function tun() {
     sinCuartel: { per: 5, max: 5, radius: 2.5 },          // c6B: +5 % por enemigo (hasta +25 %)
     marcha: 1,                                            // c7: s de imparable tras tu movilidad
     golpePesado: 15,                                      // c9A: Quebranto a jefes por golpe preparado o suelta perfecta
+    golpePesadoAdd: 0.3,                                  // c9A: s que suma a la preparación (el mod del nodo; el Juicio no la suma)
     derribo: { stun: 1, stagger: 20, icd: 8 },            // c10A
     silenciar: { dur: 3, icd: 10 },                       // c10B
     pielHalf: 0.5,                                        // c11A/c17A/c22A: fuera de la barra salen con Piel de Hierro al 50 %
@@ -105,9 +107,9 @@ function tun() {
     estallido: { radius: 4, base: 20, perRank: 15 },      // b22
     verdugo: 3,                                           // b23: % por cada 10 % de vida que falta, × rango
     impetu: { perRank: 3, max: 5, dur: 8 },               // b24
-    danza: { after: 3, cap: [6, 10, 20], furyPerSec: 8, step: 0.25 },   // b25
+    danza: { after: 3, cap: [6, 10, 20], furyPerSec: 8, step: 0.25, rampAdd: [15, 30, 45] },   // b25 (rampAdd: +% al tope de la rampa del giro)
     gracia: { pct: [30, 45, 60], vuln: [1, 2.5, 4], delay: 0.15 },     // b26
-    estampida: { need: 3, refund: [4, 8, Infinity], row: 2 },          // b27
+    estampida: { need: 3, refund: [4, 8, Infinity], row: 2, vuln: 3 }, // b27 (vuln: s de Vulnerable del Salto recargado)
     corazon: { icd3: 60, every: 3, dur: 5, icd4: 90 },                // b28 (Sed por élite y 9 s: la mecánica)
     // Guardián
     contragolpe: { perRank: 40, icd: 1, reach: 3 },       // d4
@@ -158,6 +160,7 @@ function tun() {
     graciaCielo: 2,                                       // z20: s por rango
     vigilia: 2,                                           // z21: recarga ×2 dentro de tu zona
     edicto: 5,                                            // z22: radio
+    marcaAjena: 100,                                      // z5/z22: % de las marcas que no pone el Juicio
     racha: { perRank: 4, max: 5 },                        // z23
     peregrino: { dmg: 4, dr: 3 },                         // z24: por rango
     tribunal: { uses: [2, 2, 3], pct: [40, 60, 80], jump: 2, radius: 6 },  // z25
@@ -670,10 +673,14 @@ function estampida(g, p) {
   const st = powerState(p, 'g_b_estampida');
   const last = st.last;
   st.last = null;
+  st.boost = false;                        // acabó la cadena (la recargada también)
   const E = tun().estampida;
   if (!last || last.hits.length < E.need || (saltoRow(p).row || 0) >= E.row) return;
   const s = E.refund[Math.min(E.refund.length, rankOf(p, 'g_b_estampida')) - 1];
-  if (cutCd(g, p, 'g_salto', s) > 0) g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡ESTAMPIDA!', 'txt-crit');
+  if (cutCd(g, p, 'g_salto', s) > 0) {
+    st.armed = true;                       // la cadena siguiente deja Vulnerable (S-guerrero, F3)
+    g.ui?.spawnText?.(p.pos.clone().setY(2.2), '¡ESTAMPIDA!', 'txt-crit');
+  }
 }
 // Furia Inmortal GRATIS (Corazón Indomable 4): el buff del catálogo `dur` s, sin coste ni recarga
 function freeFury(g, p, dur) {
@@ -825,6 +832,14 @@ function bucketHeal(g, p, a, key, pct, want, src) {
 }
 // perfil de la marca de Juicio (Sello del Martillo, Edicto, Tribunal): el resuelto o el del
 // catálogo forjado con los modifyResolve de sus talentos (Marca Indeleble, Tribunal)
+// marca de Juicio que pone OTRA fuente (Sello del Martillo z5, Edicto z22): vale +marcaAjena %
+// (S-guerrero, G07: la del propio Juicio vale más, +150 %, para que lanzarlo siga mereciendo la pena)
+function sideMarkProf(p) {
+  const prof = juicioProf(p);
+  if (!prof) return null;
+  const det = prof.mark.detonate;
+  return { ...prof, mark: { ...prof.mark, detonate: det ? { ...det, pct: tun().marcaAjena } : det } };
+}
 function juicioProf(p) {
   const r = p?.resolved?.g_juicio;
   if (r?.mark) return r;
@@ -852,6 +867,27 @@ function tribunalJump(g, p, st) {
     free.sort((a, b) => dist2D(a.pos, j.pos) - dist2D(b.pos, j.pos));
     for (const o of free.slice(0, T.tribunal.jump)) g.applyMark(o, one, p);
   }
+}
+// detonaciones de Juicio de ESTE instante (S-guerrero, G06): se juntan y, al acabar el golpe (planificador,
+// 0 s), cada enemigo lleva su destello (verbDetonate dorado) y su anillo, y sale UN texto «¡Juicio!»
+// («×N» si fueron varios) sobre el primero: un área que detona cinco marcas no apila cinco textos
+export const JUICIO_FX = { color: '#ffc23a', scale: 1.2, ring: 1.6, ringColor: 0xffd36b };
+function juicioBurst(g, p, e) {
+  const st = powerState(p, 'g_z_martillo_piadoso');
+  if (st.detAt !== now(p)) { st.detAt = now(p); st.det = []; }
+  if (st.det.includes(e)) return;
+  st.det.push(e);
+  if (st.det.length > 1) return;                     // el primero programa el pintado de todo el instante
+  g.timers?.schedule(0, () => {
+    const list = st.det; st.det = [];
+    if (!list.length) return;
+    const fx = verbFx('verbDetonate', JUICIO_FX.color, JUICIO_FX.scale);
+    for (const o of list) {
+      g.emitFx?.(fx, o.pos.clone().setY(1.2));
+      g.spawnRing?.(o.pos.clone().setY(0), JUICIO_FX.ring, JUICIO_FX.ringColor);
+    }
+    g.ui?.spawnText?.(list[0].pos.clone().setY(2.6), list.length > 1 ? `¡Juicio! ×${list.length}` : '¡Juicio!', 'txt-crit');
+  });
 }
 // ¿el lanzamiento es un Veredicto? (lo anota la mecánica del Fervor al lanzar el Martillo)
 const verdictOf = (p, cast) => !!cast && gaugeState(p, 'fervor')?.verdictCast === cast;
@@ -930,9 +966,14 @@ export function guerreroPowers() {
     },
     // c9A Golpe Pesado (el +0,3 s, el +40 % y el +25 % de la suelta perfecta son mods del nodo):
     // a los jefes, 15 de Quebranto por golpe preparado o suelta perfecta (una vez por enemigo e instante)
+    // S-guerrero (G07, opción c de la auditoría): el Juicio no se alarga (se queda en sus 0,3 s; el +40 % sí)
     g_golpe_pesado: {
       name: 'Golpe Pesado', desc: 'Tus golpes con preparación y tus sueltas perfectas llenan 15 de Quebranto a los jefes.',
       state: () => ({ at: -1, seen: new Set() }),
+      modifyResolve(p, sk, prof) {
+        const w0 = prof.def?.windup || 0;
+        if (sk.id === 'g_juicio' && w0 > 0 && prof.windup > 0) prof.windup *= w0 / (w0 + T.golpePesadoAdd);
+      },
       onHit(g, p, e, hit) {
         if (!direct(hit) || hit.echo || hit.repeat || !isBoss(e)) return;
         const prof = p.resolved?.[hit.skill];
@@ -1950,10 +1991,17 @@ export function guerreroPowers() {
     // b25 Danza Carmesí (final, rango r): el Remolino sigue mientras toques a alguien que sangra,
     // hasta 6/10/20 s, a 8 de Furia por segundo pasados los 3 s (ese drenaje no cuenta como Furia
     // gastada). Sangrados +15·(r−1) %: clave tv del nodo. Lee el canal con g.channelInfo()
-    // (t = s desde que empezó el giro, left = s que le quedan); el radio, el del perfil al lanzarlo
+    // (t = s desde que empezó el giro, left = s que le quedan); el radio, el del perfil al lanzarlo.
+    // S-guerrero (F1): mientras dura la danza el giro sigue creciendo: el tope de la rampa del Remolino
+    // (+45 %) sube +15/30/45 puntos (+60/75/90 %), así el giro largo vale más que la rotación que tapa
     g_b_danza_carmesi: {
-      name: 'Danza Carmesí', desc: 'El Remolino sigue mientras toques a alguien que sangra.',
+      name: 'Danza Carmesí', desc: 'El Remolino sigue mientras toques a alguien que sangra y su giro sigue creciendo.',
       state: () => ({ radius: 0 }),
+      modifyResolve(p, sk, prof) {
+        if (sk.id !== 'g_remolino' || !prof.ramp) return;
+        const add = T.danza.rampAdd[Math.min(T.danza.rampAdd.length, rankOf(p, 'g_b_danza_carmesi')) - 1];
+        prof.ramp = { ...prof.ramp, max: prof.ramp.max + add };
+      },
       onCast(g, p, cast) { if (cast?.sk?.id === 'g_remolino') powerState(p, 'g_b_danza_carmesi').radius = cast.prof?.radius || 0; },
       onTick(g, p, dt) {
         const ch = g.channelInfo?.();
@@ -1991,13 +2039,22 @@ export function guerreroPowers() {
     // Salto recupera 4 s / 8 s / se recarga al instante; como mucho 2 recargas seguidas recortadas
     // (cuentan las de otros poderes: Asalto Total). Salto +15·(r−1) %: mod del nodo
     g_b_estampida: {
-      name: 'Estampida Sin Fin', desc: 'Si el último salto de la cadena golpea a 3 o más, el Salto recupera su recarga.',
+      name: 'Estampida Sin Fin', desc: 'Si el último salto de la cadena golpea a 3 o más, el Salto recupera su recarga y la cadena siguiente deja Vulnerable.',
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_salto') return;
-        if (!cast.recast) { const r = saltoRow(p); if (!r.cut) r.row = 0; r.cut = false; }
+        if (!cast.recast) {
+          const r = saltoRow(p); if (!r.cut) r.row = 0; r.cut = false;
+          // la cadena que abre un Salto recargado por la Estampida deja Vulnerable a los que golpea
+          const st = powerState(p, 'g_b_estampida');
+          st.boost = !!st.armed; st.armed = false;
+        }
         jumpOpen(p, 'g_b_estampida', cast);
       },
-      onHit(g, p, e, hit) { if (isHitOf(hit, 'g_salto') && !hit.echo) jumpHit(p, 'g_b_estampida', e, hit.dealt); },
+      onHit(g, p, e, hit) {
+        if (!isHitOf(hit, 'g_salto') || hit.echo) return;
+        jumpHit(p, 'g_b_estampida', e, hit.dealt);
+        if (powerState(p, 'g_b_estampida').boost && e?.alive) e.vulnT = Math.max(e.vulnT || 0, T.estampida.vuln);
+      },
       afterCast(g, p, cast) {
         if (cast?.sk?.id !== 'g_salto' || cast.echo) return;
         noteStart(p, cast);
@@ -2429,7 +2486,8 @@ export function guerreroPowers() {
     },
     // d26 Montaña Viva (final, rango r): plantado, cada 3.er Terremoto se repite gratis al 50/75/100 %
     // (repetición: no cuenta ni gasta nada) y sus réplicas aturden 0,5 s (los jefes no).
-    // Terremoto +15·(r−1) %: mod del nodo
+    // Terremoto +15·(r−1) %: mod del nodo. S-guerrero (F2): ese aturdimiento corto NO suma resistencia
+    // al control (noDR): no le gasta a Arrollador el derribo de 1 s de la Carga
     g_d_montana_viva: {
       name: 'Montaña Viva', desc: 'Plantado, cada 3.er Terremoto se repite gratis y sus réplicas aturden.',
       state: () => ({ n: 0, stunUntil: -1 }),
@@ -2446,7 +2504,7 @@ export function guerreroPowers() {
       },
       onHit(g, p, e, hit) {
         if (!isHitOf(hit, 'terremoto') || !hit.repeat || !e?.alive || isBoss(e)) return;
-        if (now(p) <= powerState(p, 'g_d_montana_viva').stunUntil) e.applyCC?.('stun', T.montana.stun, { src: p });
+        if (now(p) <= powerState(p, 'g_d_montana_viva').stunUntil) e.applyCC?.('stun', T.montana.stun, { src: p, noDR: true });
       },
     },
     // d27 Cabeza de Puente (final, rango r): al acabar la Carga te plantas, ganas 2/3/5 cargas de
@@ -2491,11 +2549,14 @@ export function guerreroPowers() {
     // al aliado con menos vida a 15 m, hasta un 1 % de su vida por segundo) y la regla de sus zonas
     // sagradas (§21): su daño y su cura no se suman (vale la más fuerte) y la cura de zona va a una
     // cubeta de 4 %/s por receptor
+    // S-guerrero (G06): la DETONACIÓN de una marca de Juicio se ve (es la clave del Cruzado: va con el
+    // Fervor): verbDetonate dorado y un anillo en cada enemigo y UN «¡Juicio! ×N» por instante (juicioBurst)
     g_z_martillo_piadoso: {
       name: 'Martillo Piadoso', desc: 'El 10 % de tu daño sagrado cura al aliado con menos vida a 15 m (hasta un 1 % de su vida por segundo).',
       procs: true,
-      state: () => ({ acc: 0 }),
+      state: () => ({ acc: 0, det: [], detAt: -1 }),
       onHit(g, p, e, hit) {
+        if (hit?.detonated && !hit.proc && !hit.dot && e?.pos) juicioBurst(g, p, e);
         if (!(hit?.dealt > 0) || !isHolyHit(hit)) return;
         const a = lowestAlly(g, p, p.pos, T.piadoso.radius);
         if (a) bucketHeal(g, p, a, 'piadoso', T.piadoso.cap, hit.dealt * T.piadoso.pct / 100, 'g_z_martillo_piadoso');
@@ -2535,7 +2596,7 @@ export function guerreroPowers() {
       name: 'Sello del Martillo', desc: 'Soltar el Martillo de Guerra en la ventana perfecta marca con Juicio a todos los que golpea.',
       onHit(g, p, e, hit) {
         if (!isHitOf(hit, 'g_martillo') || !hit.perfect || hit.echo || !e?.alive) return;
-        const prof = juicioProf(p);
+        const prof = sideMarkProf(p);
         if (prof) g.applyMark(e, prof, p);
       },
     },
@@ -2753,7 +2814,7 @@ export function guerreroPowers() {
       afterCast(g, p, cast) {
         const st = powerState(p, 'g_z_edicto');
         const list = st.list; st.list = [];
-        const prof = list.length && !cast?.echo ? juicioProf(p) : null;
+        const prof = list.length && !cast?.echo ? sideMarkProf(p) : null;
         if (!prof) return;
         const n = rankOf(p, 'g_z_edicto');
         for (const d of list) {
@@ -2808,19 +2869,23 @@ export function guerreroPowers() {
       },
     },
     // z26 Martillo Celestial (final, rango r): cada suelta perfecta llama 0,3 s después un martillo
-    // del cielo que repite el 30/45/60 % del golpe (repetición). Martillo +15·(r−1) %: mod del nodo
+    // del cielo que repite el 30/45/60 % del golpe (repetición). Martillo +15·(r−1) %: mod del nodo.
+    // S-guerrero (G04): también la del Cataclismo, donde cayó (cast.at) y con su radio
     g_z_martillo_celestial: {
-      name: 'Martillo Celestial', desc: 'Cada suelta perfecta llama un martillo del cielo que repite parte del golpe.',
+      name: 'Martillo Celestial', desc: 'Cada suelta perfecta del Martillo o del Cataclismo llama un martillo del cielo que repite parte del golpe.',
       afterCast(g, p, cast) {
-        if (cast?.sk?.id !== 'g_martillo' || !cast.perfect || cast.echo || !cast.target) return;
+        const id = cast?.sk?.id;
+        if ((id !== 'g_martillo' && id !== 'g_u_cataclismo') || !cast.perfect || cast.echo) return;
+        const at = cast.at || cast.target;
+        if (!at) return;
         const prof = cast.prof;
         const rel = prof.charge ? chargeRelease(prof.charge, cast.charge?.t ?? prof.charge.max, { def: prof.def || cast.sk }) : { coefMul: 1, radiusMul: 1, addPct: 0 };
         const pct = T.celestial.pct[Math.min(3, rankOf(p, 'g_z_martillo_celestial')) - 1];
-        const c = cast.target.clone().setY(0), rad = (prof.radius || 3) * (rel.radiusMul || 1);
+        const c = at.clone().setY(0), rad = (prof.radius || 3) * (rel.radiusMul || 1);
         g.timers?.schedule(T.celestial.delay, () => {
           if (!p.alive) return;
           g.dealArea(c, rad, prof.coef * (rel.coefMul || 1) * pct / 100,
-            { addPct: (prof.addPct || 0) + (rel.addPct || 0), critBonus: prof.critBonus, from: c, hitInfo: { skill: 'g_martillo', tags: prof.tags, elem: prof.elem }, hitExtra: { echo: true } });
+            { addPct: (prof.addPct || 0) + (rel.addPct || 0), critBonus: prof.critBonus, from: c, hitInfo: { skill: id, tags: prof.tags, elem: prof.elem }, hitExtra: { echo: true } });
           g.spawnRing?.(c, rad, 0xfff0a0);
           fxAt(g, 'holyImpact', c, 0.3);
         });
@@ -2933,8 +2998,210 @@ export function guerreroSkillBehaviors() {
 // ============================================================
 // CAMPOS DE SUELO
 // ============================================================
+// ---- giro del Remolino (S-guerrero, G02) ----
+// el cuerpo gira ~2 vueltas por segundo y el anillo de los pies, más despacio y al revés
+const GIRO_SPIN = 13, GIRO_RING = 5;
+// radios (en unidades del radio real) del aro continuo y de los arcos que giran por dentro
+export const GIRO_EDGE = [0.95, 1], GIRO_ARCS = [0.78, 0.9];
+// pose del giro sobre el esqueleto procedural (Player.update no toca rig.rotation.y; los brazos los
+// pone cada frame antes de los campos, así que aquí se pisan): brazo del arma extendido hacia fuera
+export function giroPose(a, age) {
+  if (!a?.rig) return;
+  a.rig.rotation.y = (age * GIRO_SPIN) % (Math.PI * 2);
+  a.rig.rotation.z = 0;
+  if (a.armR) { a.armR.rotation.x = -0.3; a.armR.rotation.z = 1.35; }
+  if (a.armL) { a.armL.rotation.x = 0.2; a.armL.rotation.z = -0.8; }
+}
+function giroRender(g, f) {
+  const a = f.data.p?.group?.userData?.anim;
+  if (f.dead) {
+    if (f.ring) {
+      g.fxGroup.remove(f.ring);
+      f.ring.traverse(m => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
+      f.ring = null;
+    }
+    if (a?.rig) a.rig.rotation.y = 0;              // vuelve a mirar a la mira
+    return;
+  }
+  if (!f.ring) {
+    // aro continuo en el radio REAL (rojo sangre: el alcance se lee siempre, también con el Ciclón) y tres
+    // arcos que giran por dentro (el segundo color: gris en el Ciclón)
+    const [c0, c1 = c0] = f.data.colors || [0xcc2222];
+    const mat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide,
+      depthWrite: false, blending: THREE.AdditiveBlending });
+    const grp = new THREE.Group();
+    const edge = new THREE.Mesh(new THREE.RingGeometry(GIRO_EDGE[0], GIRO_EDGE[1], 64), mat(c0, 0.75));
+    edge.rotation.x = -Math.PI / 2;
+    grp.add(edge);
+    const arcs = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const arc = new THREE.Mesh(new THREE.RingGeometry(GIRO_ARCS[0], GIRO_ARCS[1], 24, 1, i * Math.PI * 2 / 3, 1.25), mat(c1, 0.55));
+      arc.rotation.x = -Math.PI / 2;
+      arcs.add(arc);
+    }
+    grp.add(arcs);
+    grp.userData = { edge, arcs };
+    g.fxGroup.add(grp);
+    f.ring = grp;
+  }
+  f.ring.position.set(f.pos.x, 0.08, f.pos.z);
+  f.ring.scale.setScalar(f.radius);
+  f.ring.userData.arcs.rotation.y = -(f.age || 0) * GIRO_RING;      // giran los arcos; el aro del radio queda quieto
+  giroPose(a, f.age || 0);
+}
+
+// ---- Cataclismo (S-guerrero, G05): mira mientras cargas, columna al soltar y suelo consagrado ----
+const addMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide,
+  depthWrite: false, blending: THREE.AdditiveBlending });
+function dropMeshes(g, obj) {
+  if (!obj) return null;
+  g.fxGroup.remove(obj);
+  obj.traverse(m => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
+  return null;
+}
+// motas por segundo de la luz del héroe (de vacío a carga completa) y del suelo consagrado
+export const CATA_MOTES = { charge: [3, 15], ground: 5 };
+// anillo del radio real en la mira (blanco; dorado en la ventana perfecta), relleno que crece con la
+// carga y, en el héroe, un AURA EN LOS PIES que se cierra y se enciende con la carga (no lo envuelve:
+// ronda 2, el cilindro de luz lo tapaba); las motas que suben las emite el campo
+export const CATA_FEET = { from: 1.6, to: 0.85, opacity: [0.2, 0.7] };
+function cataMiraRender(g, f) {
+  if (f.dead) { f.vis = dropMeshes(g, f.vis); f.feet = dropMeshes(g, f.feet); return; }
+  if (!f.vis) {
+    const grp = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.93, 1, 64), addMat(0xfff2c0, 0.7));
+    const fill = new THREE.Mesh(new THREE.CircleGeometry(1, 48), addMat(0xffe7a0, 0.1));
+    ring.rotation.x = fill.rotation.x = -Math.PI / 2;
+    const feet = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 40), addMat(0xffe7a0, 0.2));
+    feet.rotation.x = -Math.PI / 2;
+    grp.add(ring, fill);
+    g.fxGroup.add(grp, feet);
+    f.vis = grp; f.ring = ring; f.fill = fill; f.feet = feet;
+  }
+  const k = f.frac || 0;
+  f.vis.position.set(f.pos.x, 0.09, f.pos.z);
+  f.ring.scale.setScalar(f.radius);
+  f.ring.material.color.setHex(f.win ? 0xffc23a : 0xfff2c0);
+  f.ring.material.opacity = f.win ? 0.95 : 0.45 + 0.35 * k;
+  f.fill.scale.setScalar(Math.max(0.01, f.radius * k));
+  f.fill.material.opacity = 0.06 + 0.16 * k;
+  const p = f.data.p;
+  if (p?.pos) {
+    const F = CATA_FEET;
+    f.feet.position.set(p.pos.x, 0.07, p.pos.z);
+    f.feet.scale.setScalar(F.from + (F.to - F.from) * k);
+    f.feet.material.color.setHex(f.win ? 0xffc23a : 0xffe7a0);
+    f.feet.material.opacity = f.win ? F.opacity[1] : F.opacity[0] + (F.opacity[1] - F.opacity[0]) * 0.8 * k;
+  }
+}
+// columna de luz: baja del cielo durante el retardo del impacto y, al caer, se abre y se apaga en
+// COLUMNA_FADE s (ronda 2: no blanquea el impacto); mientras arde queda un haz fino que late con cada
+// golpe y se apaga al acabar. Opacidades bajas: es aditiva
+export const COLUMNA = { h: 14, core: 0.35, halo: 0.12, fade: 0.18, beam: 0.3, beamOpacity: 0.28 };
+function cataColumnaRender(g, f) {
+  if (f.dead) { f.vis = dropMeshes(g, f.vis); return; }
+  const C = COLUMNA;
+  if (!f.vis) {
+    const grp = new THREE.Group();
+    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, true), addMat(0xfff6d8, C.core)));
+    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 1, 24, 1, true), addMat(f.data.color || 0xffe7a0, C.halo)));
+    g.fxGroup.add(grp);
+    f.vis = grp;
+  }
+  const delay = f.data.delay || 0.3, burn = f.data.burnT || 0, every = f.data.every || 0.3, age = f.age || 0;
+  const r = Math.min(1.8, Math.max(0.6, f.radius * 0.28));
+  let len = C.h, w = r, core = C.core, halo = C.halo;
+  if (age < delay) len = C.h * Math.max(0.05, age / delay);                              // baja
+  else if (age < delay + C.fade) {                                                       // cae: se abre y se apaga
+    const k = (age - delay) / C.fade;
+    w = r * (1 + 0.6 * k); core = C.core * (1 - k); halo = C.halo * (1 - k);
+  } else if (age < delay + burn) {                                                       // arde: haz fino que late
+    const ph = ((age - delay) % every) / every;
+    w = r * C.beam; core = C.beamOpacity * (1 - 0.6 * ph); halo = 0;
+  } else {                                                                               // se apaga
+    const k = Math.min(1, (age - delay - burn) / C.fade);
+    w = r * C.beam; core = C.beamOpacity * 0.4 * (1 - k); halo = 0;
+  }
+  f.vis.scale.set(w, len, w);
+  f.vis.position.set(f.pos.x, C.h - len / 2, f.pos.z);
+  f.vis.children[0].material.opacity = core;
+  f.vis.children[1].material.opacity = halo;
+}
+// borde brillante del suelo consagrado (late despacio) mientras viva la zona
+function sueloRender(g, f) {
+  if (f.dead) { f.vis = dropMeshes(g, f.vis); return; }
+  if (!f.vis) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.94, 1, 64), addMat(f.data.color || 0xffe7a0, 0.6));
+    ring.rotation.x = -Math.PI / 2;
+    g.fxGroup.add(ring);
+    f.vis = ring;
+  }
+  f.vis.position.set(f.pos.x, 0.1, f.pos.z);
+  f.vis.scale.setScalar(f.radius);
+  f.vis.material.opacity = 0.45 + 0.25 * Math.sin((f.age || 0) * 4);
+}
+
 export function guerreroFields() {
   return {
+    // Giro del Remolino Sangriento (S-guerrero, G02): lo crea el tic del Remolino (skills-guerrero.js) y
+    // vive mientras dure ESE canal (data.inst; también lo que alarga Danza Carmesí). Sigue al héroe
+    // (data.p; sin dueño: no ocupa sitio en el tope de campos del héroe ni cuenta como suyo) con el
+    // radio actual del perfil. Solo dibuja: el héroe gira con el brazo extendido y el anillo rota
+    g_giro: {
+      name: 'Giro',
+      tick(g, f) {
+        const d = f.data, p = d.p;
+        if (!p?.alive || g._channel !== d.inst) { f.t = 0; return; }
+        f.pos.x = p.pos.x; f.pos.z = p.pos.z;
+        f.radius = d.inst.ctx?.prof?.radius || f.radius;
+      },
+      render(g, f) { giroRender(g, f); },
+    },
+    // Mira del Cataclismo (G05): la crea la mecánica del Fervor al empezar a cargar (mech-guerrero.js) y
+    // vive mientras dure ESA carga (data.cast). Sigue a la mira con el radio real; la luz del héroe
+    // (motas cataChargeMote) se acelera con la carga
+    g_cata_mira: {
+      name: 'Mira del Cataclismo',
+      init(f) { f.acc = 0; f.frac = 0; f.win = false; },
+      tick(g, f, dt) {
+        const d = f.data, p = d.p, c = g._charging;
+        if (!p?.alive || !c || c.ctx?.cast !== d.cast) { f.t = 0; return; }
+        const prof = c.prof || d.prof;
+        const aim = typeof g.skillTarget === 'function' ? g.skillTarget(p, prof)?.target : null;
+        if (aim) { f.pos.x = aim.x; f.pos.z = aim.z; }
+        const rel = chargeRelease(c.ch, c.u, { def: prof.def || c.sk });
+        f.radius = (prof.radius || 6) * (rel.radiusMul || 1);
+        f.frac = c.frac || 0; f.win = !!c.inWindow;
+        const [lo, hi] = CATA_MOTES.charge;
+        f.acc += dt * (lo + (hi - lo) * f.frac);
+        if (f.acc >= 1) { f.acc -= 1; g.emitFx?.('cataChargeMote', p.pos.clone().setY(0.4 + 1.4 * f.frac)); }
+      },
+      render(g, f) { cataMiraRender(g, f); },
+    },
+    // Columna de luz del Cataclismo (G05): baja durante el retardo del impacto; solo dibuja
+    g_cata_columna: {
+      name: 'Columna de luz',
+      render(g, f) { cataColumnaRender(g, f); },
+    },
+    // Suelo consagrado del Cataclismo (G05): sigue a SU zona (data.zone, la que hace el daño) mientras
+    // viva —Tierra Santa la alarga y Tierra Bendita la agranda—; borde brillante y motas doradas
+    g_suelo_sagrado: {
+      name: 'Suelo consagrado',
+      init(f) { f.acc = 0; f.n = 0; },
+      tick(g, f, dt) {
+        const z = f.data.zone;
+        if (!z || z.dead || !(z.t > 0)) { f.t = 0; return; }
+        f.pos.x = z.pos.x; f.pos.z = z.pos.z; f.radius = z.radius;
+        f.acc += dt * CATA_MOTES.ground;
+        while (f.acc >= 1) {
+          // reparto en espiral áurea por el disco (sin azar: el de la simulación es de rng.js)
+          f.acc -= 1; f.n++;
+          const a = f.n * 2.39996, r = Math.sqrt((f.n * 0.618034) % 1) * f.radius;
+          g.emitFx?.('holyGroundMote', v3(f.pos.x + Math.cos(a) * r, 0.15, f.pos.z + Math.sin(a) * r));
+        }
+      },
+      render(g, f) { sueloRender(g, f); },
+    },
     // Pendón del Caudillo (h3): un pulso al clavarse y otro cada 0,5 s (pendonPulse); con
     // Abanderado sigue al dueño (follow 'owner' del núcleo); al acabar, Relevo da un escudo del
     // 10 % de su vida a los aliados a 8 m

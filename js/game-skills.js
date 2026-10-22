@@ -80,6 +80,8 @@ function noteChargeEnd(g, key, id, reason, perfect, frac, instant = false) {
 // ¿una habilidad (por los tags e id de un golpe) encaja en un selector de detonación?
 // '@all' · '@<cat>' (basic|spender|movement|defense|utility|ultimate; @insignia = spec) ·
 // '@tag:<tag>' · '@<elem>' · '<skillId>'
+// detonate.self: s que una marca lleva puesta antes de que la misma habilidad pueda detonarla
+export const MARK_SELF_AGE = 0.5;
 function matchSel(sel, hit) {
   if (!sel || !hit) return false;
   if (Array.isArray(sel)) return sel.some(s => matchSel(s, hit));
@@ -391,8 +393,13 @@ const GENERIC = {
         const nx = p.pos.x + ex / d * keep, nz = p.pos.z + ez / d * keep;
         if (!g.world?.grid || g.world.grid.walkable(nx, nz)) { e.pos.x = nx; e.pos.z = nz; }
       }
-      g.spawnRing?.(p.pos, rad, 0xffcc66);
-      if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() });
+      // S-guerrero (G10): anillo del color de la habilidad y golpe que crece con los arrastrados
+      // (dragPct { per, max }: +per % por arrastrado vivo, hasta +max %, al saco aditivo)
+      g.spawnRing?.(p.pos, rad, ctx.color || ctx.fx?.color || 0xffcc66);
+      const dp = sk.dragPct;
+      const dragAdd = dp ? Math.min(dp.max || 0, (dp.per || 0) * [...dragged].filter(e => e.alive).length) : 0;
+      ctx.dragAdd = dragAdd;
+      if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, { ...ctx.areaOpts, addPct: (ctx.areaOpts.addPct || 0) + dragAdd, from: p.pos.clone() });
       ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
       if (prof.chain) { const ne = g.nearestEnemy(rad + 2); if (ne) g.spawnChainBounce(ne, Math.round(ctx.avgHit), prof.chain, [], 0xffcc66, prof.chainPct, ctx); }
       p.swing = 1;
@@ -420,12 +427,14 @@ const GENERIC = {
     };
     const total = from.distanceTo(dest);
     const dirN = total > 1e-4 ? dest.clone().sub(from).setY(0).normalize() : v3(0, 0);
-    const dashT = (sk.dashT || 0) / (prof.skillSpeed || 1);
+    // S-guerrero (G10): con dashSpeed (m/s) el avance dura lo que pide la distancia (dashT es entonces el
+    // mínimo): una Carga de Escudo a 2 m no te arrastra 1 s
+    const dashT = Math.max(sk.dashT || 0, sk.dashSpeed > 0 ? total / sk.dashSpeed : 0) / (prof.skillSpeed || 1);
     if (dashT > 0 && total > 0.1) {
       // avance lento por frames (Player.update mueve; imparable mientras dura)
       p.castLock = Math.max(p.castLock || 0, dashT + 0.05);
       if (sk.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dashT + 0.1);
-      let traveled = 0;
+      let traveled = 0, trailAt = -1;
       p.dashMove = {
         dur: dashT, t: 0,
         step: (dt) => {
@@ -433,7 +442,8 @@ const GENERIC = {
           if (want <= 0) return true;
           const ok = stepTo(p.pos.x + dirN.x * want, p.pos.z + dirN.z * want);
           traveled += want;
-          if (ctx.fx?.trail && Math.random() < 0.3) g.emitFx(fxp(ctx.fx.trail), v3(p.pos.x, p.pos.z, 0.9));
+          // estela continua (S-guerrero, G10/G13): una emisión cada 0,3 m recorridos (antes, al azar)
+          if (ctx.fx?.trail && traveled - trailAt >= 0.3) { trailAt = traveled; g.emitFx(fxp(ctx.fx.trail), v3(p.pos.x, p.pos.z, 0.9)); }
           return !ok || traveled >= total - 1e-4;
         },
         onArrive: () => { arrive(); done(ctx.res); },
@@ -2055,8 +2065,9 @@ export const skillMethods = {
       en.marks = en.marks || {};
       // Punto Débil una vez por enemigo y héroe cada firstIcd s: se decide con la marca de ANTES
       const fc = m.firstCharged && (!en.firstChargedOk || en.firstChargedOk(p, id, m.firstIcd)) ? m.firstCharged : null;
+      // `at`: instante en que se puso (detonate.self: la detona la misma habilidad en un lanzamiento posterior)
       en.marks[id] = { id, t: m.dur || 8, by: p, skill: prof.id, uses: Math.max(1, m.uses || 1), detonate: m.detonate || null,
-        firstCharged: fc };
+        firstCharged: fc, at: p?.simT || 0 };
       if (m.weakPct > 0) en.applyWeakness?.(`mark:${id}`, m.weakPct, m.dur || 8);
     };
     put(e);
@@ -2096,12 +2107,16 @@ export const skillMethods = {
     return true;
   },
   // ¿este golpe detona una marca? (lo pregunta Player.rollDamage) → pct al saco aditivo.
-  // La habilidad que puso la marca no la detona; los procs y los DoT tampoco.
+  // La habilidad que puso la marca no la detona (con detonate.self, sí en un lanzamiento posterior: la
+  // marca tiene que llevar MARK_SELF_AGE s puesta, así los martillos de un mismo lanzamiento no se
+  // detonan entre sí; el Juicio en cadena, S-guerrero G07); los procs y los DoT tampoco.
   markDetonation(e, hit) {
     if (!e?.marks || !hit?.skill || hit.proc || hit.dot) return 0;
     let pct = 0;
     for (const [id, m] of Object.entries(e.marks)) {
-      if (!m || !(m.t > 0) || !m.detonate || m.skill === hit.skill) continue;
+      if (!m || !(m.t > 0) || !m.detonate) continue;
+      const t = (m.by || this.player)?.simT || 0;
+      if (m.skill === hit.skill && !(m.detonate.self && t - (m.at ?? t) >= MARK_SELF_AGE - 1e-9)) continue;
       if (!matchSel(m.detonate.by, hit)) continue;
       pct += m.detonate.pct || 0;
       if (--m.uses <= 0) delete e.marks[id];

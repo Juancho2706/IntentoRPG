@@ -44,7 +44,7 @@ const EXPECT = {
   embestida:        ['movement', 4,  null,        1.2,  0,  8],
   g_piel:           ['defense',  6,  null,        0,    0,  20],
   g_lanza:          ['spender',  8,  null,        1.9,  20, 0],
-  g_remolino:       ['spec',     10, 'berserker', 0.45, 30, 6],
+  g_remolino:       ['spec',     10, 'berserker', 1.55, 60, 6],   // S-guerrero (G01; ronda 2): 155 % y 60 de Furia (devuelve Furia entre varios)
   g_salto:          ['movement', 12, 'berserker', 1.5,  0,  12],
   g_rajar:          ['spender',  14, 'berserker', 1.4,  15, 0],
   g_u_furia:        ['ultimate', 15, 'berserker', 0,    0,  60],
@@ -52,10 +52,10 @@ const EXPECT = {
   g_carga_escudo:   ['movement', 12, 'guardian',  1.3,  0,  10],
   terremoto:        ['spender',  14, 'guardian',  2.2,  30, 0],
   g_u_ciudadela:    ['ultimate', 15, 'guardian',  0,    0,  90],
-  g_juicio:         ['spec',     10, 'cruzado',   1.2,  20, 8],
+  g_juicio:         ['spec',     10, 'cruzado',   1.2,  20, 8],    // S-guerrero (G07, ronda 2): los números de antes; el valor, por conducta
   g_sendero:        ['movement', 12, 'cruzado',   1.0,  0,  10],
   g_martillo:       ['spender',  14, 'cruzado',   1.4,  25, 0],
-  g_u_cataclismo:   ['ultimate', 15, 'cruzado',   5,    0,  60],
+  g_u_cataclismo:   ['ultimate', 15, 'cruzado',   3.5,  0,  60],   // S-guerrero (f): impacto 350 → 800 % y columna que arde
   g_t_aliento:      ['defense',  21, 'talent',    0,    0,  30],
   grito_guerra:     ['utility',  27, 'talent',    0,    0,  20],
   g_t_intervencion: ['utility',  31, 'talent',    0,    0,  20],
@@ -246,7 +246,10 @@ h.step(0.1); assert.ok(e.hp < 1e6 && e2.hp === 1e6 && h.p.mp === 73, 'Hendidura:
 h = makeHarness({ classId: 'guerrero', level: 6 });
 e = h.enemy({ hp: 1e6, pos: [7.5, 0, 0] });
 h.aim(10, 0); h.setSlot('k1', 'embestida'); assert.equal(h.cast('k1'), true);
-assert.ok(approx(h.p.pos.x, 7, 0.05) && e.hp < 1e6 && h.p.mp === 12 && h.p.cds.embestida === 8, 'Embestida: 7 m, golpea y +12');
+// S-guerrero (G13): recorre los 7 m en 0,2 s (antes llegaba al instante)
+assert.ok(h.p.pos.x < 6.5 && e.hp === 1e6, `Embestida: no llega al instante (x=${h.p.pos.x.toFixed(2)})`);
+h.step(0.25);
+assert.ok(approx(h.p.pos.x, 7, 0.05) && e.hp < 1e6 && h.p.mp === 12 && h.p.cdMax.embestida === 8, 'Embestida: 7 m, golpea y +12');
 
 // Piel de Hierro: −40 % 8 s, inmune a ralentizaciones; la recarga empieza al acabar (cdOnEnd)
 h = mk(6); h.setSlot('k2', 'g_piel');
@@ -267,7 +270,7 @@ h.aim(10, 0); h.setSlot('rmb', 'g_lanza'); assert.equal(h.cast('rmb'), true); h.
 assert.ok(e.hp < 1e6 && e2.hp < 1e6 && e3.hp === 1e6 && h.p.mp === 80, 'Lanza: atraviesa a los dos de los 11 m; el de 14 m, no; cuesta 20');
 
 // ---- Berserker ----
-// Remolino Sangriento: mantener = girar (4 golpes/s a 2,9 m) en marcha, desangra; soltar lo corta
+// Remolino Sangriento: mantener = girar (4 golpes/s a 3,8 m) en marcha, desangra; soltar lo corta
 h = mk(12, 'berserker'); e = h.enemy({ hp: 1e6, pos: [2, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [6, 0, 0] });
 let n = counter(e);
 h.setSlot('k3', 'g_remolino');
@@ -276,9 +279,9 @@ h.walk({ x: 0, z: 1 }, 0.3);
 assert.ok(h.p.pos.z > 0.5, `Remolino: giras sin dejar de moverte (z=${h.p.pos.z.toFixed(2)})`);
 h.p.pos.set(0, 0, 0);
 h.stand(0.75);
-assert.ok(n.hits >= 3 && n.hits <= 5 && e2.hp === 1e6, `Remolino: ~4 golpes por segundo a 2,9 m (${n.hits})`);
+assert.ok(n.hits >= 3 && n.hits <= 5 && e2.hp === 1e6, `Remolino: ~4 golpes por segundo a 3,8 m (${n.hits})`);
 assert.ok(h.g.hasDoT(e, 'bleed'), 'Remolino: desangra');
-assert.equal(h.p.mp, 70, 'Remolino: 30 de Furia');
+assert.equal(h.p.mp, 40, 'Remolino: 60 de Furia (contra uno solo no devuelve nada)');
 h.release('k3'); h.step(0.05);
 const after = n.hits; h.stand(0.6);
 assert.ok(!h.g._channel && n.hits === after, 'Remolino: soltar corta el giro');
@@ -389,8 +392,8 @@ assert.ok(h.p.pos.x > 0.5, 'Ciudadela: al acabar vuelves a moverte');
 assert.ok(h.p.cdMax.g_u_ciudadela === 90, 'Ciudadela: recarga 90 s');
 
 // ---- Cruzado ----
-// Juicio: se prepara 0,3 s; martillo de luz que marca 8 s (también a los de 3 m); tu siguiente
-// principal detona la marca (+100 % a ese enemigo) y la consume
+// Juicio: se prepara 0,3 s; martillo de luz que marca 8 s (también a los de 3 m) y da 1 de Fervor
+// (S-guerrero, G07); tu siguiente principal detona la marca (+150 % a ese enemigo) y la consume
 h = mk(12, 'cruzado'); e = h.enemy({ hp: 1e6, pos: [6, 0, 0] }); e2 = h.enemy({ hp: 1e6, pos: [7.5, 0, 1] }); e3 = h.enemy({ hp: 1e6, pos: [6, 0, 6] });
 h.aim(6, 0); h.setSlot('k3', 'g_juicio'); assert.equal(h.cast('k3'), true);
 h.step(0.25); assert.equal(e.hp, 1e6, 'Juicio: se prepara');
@@ -398,11 +401,12 @@ h.step(0.6);
 assert.ok(e.hp < 1e6 && e2.hp < 1e6 && e3.hp === 1e6, 'Juicio: 120 % a 3 m del impacto');
 assert.ok(e.marks?.juicio?.t > 7 && e2.marks?.juicio && !e3.marks?.juicio, 'Juicio: marca a los golpeados 8 s');
 assert.equal(h.p.mp, 80, 'Juicio: 20 de Furia');
+assert.equal(h.gaugeValue('fervor'), 1, 'Juicio: si golpea, +1 de Fervor');
 const dets = []; const md = h.g.markDetonation.bind(h.g);
 h.g.markDetonation = (en, hit) => { const r = md(en, hit); if (r) dets.push({ en, skill: hit.skill, r }); return r; };
 h.p.pos.set(4, 0, 0); h.aim(6, 0); h.setSlot('rmb', 'g_hendidura'); h.tick(0.3);
 assert.equal(h.cast('rmb'), true); h.step(0.4);
-assert.ok(dets.some(d => d.en === e && d.skill === 'g_hendidura' && d.r === 100), 'Juicio: la siguiente principal (Hendidura) la detona: +100 %');
+assert.ok(dets.some(d => d.en === e && d.skill === 'g_hendidura' && d.r === 150), 'Juicio: la siguiente principal (Hendidura) la detona: +150 %');
 assert.ok(!e.marks?.juicio, 'Juicio: la marca se consume');
 
 // Sendero de Luz: destello de 8 m que deja 4 s un sendero: daña al enemigo y cura a tu aliado

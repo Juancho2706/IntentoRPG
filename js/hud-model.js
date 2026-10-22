@@ -162,6 +162,9 @@ export function enemyStatuses(e) {
   if (e.rootT > 0) add('ralentizado', 'Inmovilizado', e.rootT);
   else if (e.slowT > 0) add('ralentizado', 'Ralentizado', e.slowT);
   if (e.tauntT > 0) add('provocado', 'Provocado', e.tauntT);
+  // MARCAS (§3.6; S-guerrero G06): estado genérico «marca», uno por marca viva, con el nombre y el arte de
+  // la habilidad que la puso (`icon`: ruta propia, no hay st_* de marca) y sus usos («×2» con Tribunal)
+  for (const m of Object.values(e.marks || {})) if (m?.t > 0) out.push(markStatus(m));
   const weak = Object.keys(e.debuffs || {}).length > 0;
   if (e.vulnT > 0) add('debilidad', 'Vulnerable', e.vulnT);
   else if (weak) add('debilidad', 'Debilidad');
@@ -170,6 +173,13 @@ export function enemyStatuses(e) {
   if (dots.some(k => k.includes('bleed'))) add('sangrado');
   if (dots.some(k => k.includes('poison'))) add('veneno');
   return out;
+}
+// estado de una marca: { id: 'marca', label, t, icon } (icon: el arte de su habilidad, relativo a la raíz)
+export function markStatus(m) {
+  const sk = m?.skill ? Object.values(CLASSES).flatMap(c => c.skills).find(s => s.id === m.skill) : null;
+  const name = sk?.name || (m?.id ? m.id[0].toUpperCase() + m.id.slice(1) : 'Marca');
+  const art = sk ? skillArtPath(sk) : null;
+  return { id: 'marca', label: (m?.uses | 0) > 1 ? `${name} ×${m.uses | 0}` : name, ...(m?.t > 0 ? { t: m.t } : {}), icon: art ? `assets/${art}` : null };
 }
 // icono de estado de un buff/debuff del jugador (fila de buffs) o null
 export function playerStatusIcon(b) {
