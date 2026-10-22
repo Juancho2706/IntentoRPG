@@ -1610,7 +1610,7 @@ export class Player {
 
   // Ataque básico de arma = GENERADOR (§2) y una habilidad más (cat:'basic'): su
   // coeficiente, ramas, soportes y poderes salen de resolveSkill. El recurso se
-  // gana SOLO al acertar (Tajo/Embate: +extra por objetivo adicional).
+  // gana SOLO al acertar (Tajo: +extra por objetivo adicional).
   // ⑨ passiveTick de las activas conocidas (Inversión del Tiempo graba su historial)
   _passiveTick(g, dt) {
     for (const b of this.passiveBehaviors || []) {
@@ -1901,7 +1901,7 @@ export class Enemy {
   get pos() { return this.group.position; }
 
   // Aturdimiento con RENDIMIENTOS DECRECIENTES (evita el bloqueo permanente con
-  // Bola de Fuego/Mandoble + "Conmocionar"):
+  // aturdimientos encadenados de varias habilidades; applyCC con { noDR } se lo salta a propósito):
   //  - cada aturdimiento que se aplica suma resistencia (stunDR, 0..1) que decae
   //    sola con el tiempo (~0.12/s); la duración efectiva es dur × (1 − stunDR);
   //  - con stunDR ≥ 0.9 el enemigo es INMUNE hasta que la resistencia baje;
