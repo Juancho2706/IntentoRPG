@@ -240,6 +240,10 @@
 .sb-lockpill { right: 12px; display: inline-flex; align-items: center; gap: 5px; background: #221c28; border: 1px solid #4a3e54; color: #cfc4b0; font: 700 11px/22px Inter, sans-serif; letter-spacing: 0.6px; }
 .sb-lockpill svg { width: 12px; height: 12px; flex: none; }
 .sb-recochip { left: 30px; background: #2a2012; border: 1px solid #b88b35; color: var(--gold2); font: 700 11px/22px Inter, sans-serif; letter-spacing: 0.4px; }
+/* S0 (T5): la variante deja sin efecto talentos comprados (needsForm de los nodos) */
+.sb-voidchip { position: absolute; bottom: -11px; right: 12px; z-index: 3; height: 22px; box-sizing: border-box; padding: 0 9px; border-radius: 11px; white-space: nowrap;
+  background: #3a1f1c; border: 1px solid var(--bad); color: #ffb4a8; font: 700 11px/20px Inter, sans-serif; letter-spacing: 0.3px; }
+.sb-tip .st.warn { color: var(--bad); }
 /* icono de variante: reserva legible (base virada al color del papel, II en espejo, glifo grande) */
 .sb-vico { position: relative; display: block; width: 104px; height: 104px; border-radius: 12px; overflow: hidden; background: #0d0b10; color: var(--rc, #e8c06a); flex: none; }
 .sb-vico::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px #3b3044; pointer-events: none; }

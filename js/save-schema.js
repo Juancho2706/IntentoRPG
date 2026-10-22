@@ -42,6 +42,9 @@ export const PLAYER_SAVE_FIELDS = [
   // Paso 2g (v5): fuera skillPoints, skillBranches y skillMods; entra skillForge (D3).
   'statPoints',
   'skillSystemV', 'hotbar', 'skillForge',
+  // S0 (T1): ranuras que el jugador colocó a mano (la barra de la especialización no las toca). Campo
+  // nuevo sin cambio de formato: un guardado sin él carga con {} (ninguna puesta a mano)
+  'hotbarManual',
   'gold', 'potions', 'inventory', 'materials', 'equipment',
   'lastFloor', 'hp', 'mp',
   'waypoints', 'records', 'cube',

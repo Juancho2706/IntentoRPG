@@ -31,7 +31,7 @@ import { Player, Enemy } from '../../js/entities.js';
 import { generateItem } from '../../js/items.js';
 import { CLASSES, ENEMIES, ELITE_MODS, ENEMY_RANKS, bossForFloor, scaleEnemy,
   paragonBoardFor, BLESSINGS, blessingValue, SPEC_BAR, FORGE_RECO, FALLBACK_BAR } from '../../js/data.js';
-import { normalizeTalents, buildRanks, defaultBuildKey, talentTreesFor, TALENT_RULES, earnedAt } from '../../js/talents.js';
+import { normalizeTalents, buildRanks, defaultBuildKey, talentTreesFor, TALENT_RULES, earnedAt, forgeRecoFor } from '../../js/talents.js';
 import * as CM from '../../js/combat-math.js';
 import { resolveSkill, isKnown, GCD, fitsSlot } from '../../js/skill-resolve.js';
 import { onHurtResource } from '../../js/resources.js';
@@ -208,8 +208,9 @@ export function buildHero(classId, level, gear = 'tipico', { al = CM.areaLevelFo
     const r = buildRanks({ classId, level, talents: { v: 2, spec: sp } }, B, { level });
     p.talents = normalizeTalents({ v: 2, spec: sp, cls: r.cls, sp: r.sp, choice: r.choice, hero: r.hero ? { [sp]: r.hero } : {} }, classId);
   }
-  // forja: la recomendada de la especialización (D3) y, encima, lo que se pida
-  p.skillForge = forge === 'none' ? {} : { ...(sp ? FORGE_RECO[sp] || {} : {}), ...(forge && typeof forge === 'object' ? forge : {}) };
+  // forja: la recomendada (D3) —la de la build (S0, T5: builds[key].forge) encima de la de la
+  // especialización— y, encima, lo que se pida
+  p.skillForge = forge === 'none' ? {} : { ...(sp ? forgeRecoFor(classId, sp, buildKey) : {}), ...(forge && typeof forge === 'object' ? forge : {}) };
   // tablero de glifos (Nv81+) y, en el óptimo, bendiciones
   if (board) applyBoard(p, level, opt);
   if (opt && level > 20) {

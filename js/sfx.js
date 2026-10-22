@@ -34,6 +34,8 @@ export const SFX_TONES = Object.freeze({
   holy:    [{ f: 880, d: 0.25, type: 'sine', v: 0.09 }, { f: 1320, d: 0.3, type: 'sine', v: 0.06, t: 0.04 }],
   trap:    [{ f: 220, d: 0.05, type: 'square', v: 0.12, slide: 600 }, { f: 140, d: 0.08, type: 'square', v: 0.09, t: 0.05 }],
   chain:   [{ f: 500, d: 0.06, type: 'sawtooth', v: 0.07, slide: 300 }, { f: 700, d: 0.06, type: 'sawtooth', v: 0.06, t: 0.06, slide: 300 }],
+  // S0: golpe grave de las réplicas (Terremoto): el plantado se oye
+  thud:    [{ f: 95, d: 0.2, type: 'sine', v: 0.16, slide: -45 }, { f: 60, d: 0.14, type: 'triangle', v: 0.1, t: 0.03 }],
   // Paso 2 (D26): tonos de los VERBOS; los emite la simulación (game-skills.js) en el
   // instante del borde. Cortos y distintos entre sí para leerse sin mirar.
   verb_win:     [{ f: 1480, d: 0.06, type: 'triangle', v: 0.1 }, { f: 2220, d: 0.09, type: 'sine', v: 0.06, t: 0.01 }],          // «clang» al entrar en la ventana

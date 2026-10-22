@@ -19,7 +19,8 @@ import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critCha
   FIRST_CHARGED_ICD,
   THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage, chargeCoefAt } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
-import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef } from './skill-resolve.js';
+import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef,
+  specBarUpgrade, specBarSwapText } from './skill-resolve.js';
 import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
 import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
 import { dotsOf } from './timers.js';
@@ -665,6 +666,11 @@ export class Player {
     // hotbar de 6 ranuras con categoría (lmb básico · rmb principal · k1 movilidad ·
     // k2 flexible · k3 especialización · k4 definitiva); se valida con el nivel ya cargado
     this.hotbar = this.normalizeHotbar(this.hotbar);
+    // ranuras que el jugador colocó A MANO (S0, T1: assignHotbar): la barra de la especialización no
+    // las sustituye. Solo las que siguen teniendo esa habilidad
+    const hm = this.hotbarManual && typeof this.hotbarManual === 'object' ? this.hotbarManual : {};
+    this.hotbarManual = {};
+    for (const [s, id] of Object.entries(hm)) if (typeof id === 'string' && this.hotbar[s] === id) this.hotbarManual[s] = id;
     this.hp = this.stats.maxHP;
     // recurso inicial (resources.js): la Furia arranca vacía; Maná/Energía llenos
     this.mp = initialResource(resourceDefFor(this.cls), this.stats.maxMP);
@@ -1255,12 +1261,19 @@ export class Player {
   gainXP(amount) { progressionGainXP(this, amount); }
 
   // habilidades aprendidas solas al subir de nivel (§4.1): aviso y, si su ranura
-  // natural está libre, se colocan en la barra.
+  // natural está libre, se colocan en la barra. S0 (T1): una del kit de la especialización ACTIVA va
+  // a su ranura de SPEC_BAR aunque la ocupe una del kit base que no pusiste a mano (con aviso)
   onSkillsLearned(knownBefore) {
     const fresh = knownSkills(this).filter(sk => !knownBefore.has(sk.id));
     if (!fresh.length) return;
-    let placed = false;
+    const swaps = specBarUpgrade(this, new Set(fresh.map(sk => sk.id)));
+    let placed = swaps.length > 0;
+    const key = this.game.ui?.actionKey?.('skills', 'T') || 'T';
     for (const sk of fresh) {
+      const sw = swaps.find(x => x.id === sk.id);
+      // el aviso de la sustitución va al banner aunque la subida de nivel saque su tarjeta de novedades
+      // (no empieza por «📖 Nueva habilidad», que la tarjeta se queda)
+      if (sw) { this.game.ui?.message?.(specBarSwapText(this, sw, key), 5000); continue; }
       const slot = (sk.slots || []).find(s => this.hotbar && !this.hotbar[s]);
       if (slot && !Object.values(this.hotbar).includes(sk.id)) { this.hotbar[slot] = sk.id; placed = true; }
       this.game.ui?.message?.(`📖 Nueva habilidad: ${sk.icon} ${sk.name}${slot ? ` (ranura ${slot.toUpperCase()})` : ''}`, 3500);
@@ -1683,8 +1696,9 @@ export class Player {
       onHit(target);
       this.onDealHit();
       // game-feel: hit-stop seco SOLO en crítico (en cada golpe se sentía
-      // como tirones); el golpe normal se refuerza con el destello/partículas
-      if (crit) g.hitStop?.('heavy');
+      // como tirones); el golpe normal se refuerza con el destello/partículas. S0 (G08): 40 ms
+      // (basicCrit), el peso grande queda para las habilidades que declaran `heavy`
+      if (crit) g.hitStop?.('basicCrit');
       g.spawnBurst?.(tpos, crit ? 0xffffff : 0xffddaa, crit ? 8 : 5);
       if (target.alive && target.def.thorns)
         this.takeDamage(Math.max(1, Math.round(dmg * target.def.thorns)), target.def.level || 1);
@@ -1873,7 +1887,10 @@ export class Enemy {
   //  - interrupt: sin rendimientos; 6 s de inmunidad tras silenciar
   //  - taunt: objetivo forzado (los jefes sí se pueden provocar)
   //  - fear (cola W2d): huye de `from` (o de quien lo aplica) sin atacar; canal duro
-  // opts = { src, pct (slow), from (knock/fear: origen), stagger (extra) }.
+  // opts = { src, pct (slow), from (knock/fear: origen), stagger (extra), noDR }.
+  // noDR (S0, F2): un control CORTO que no suma resistencia (stun/freeze/knock/root): la resistencia
+  // que ya haya lo acorta igual, pero no gasta la del control grande que venga detrás (las réplicas
+  // de Montaña Viva no le quitan el aturdimiento a Arrollador).
   // Devuelve lo aplicado (0 = nada).
   // Paso 2c.0 (§6) — JEFES (boss/uber/jefe de mundo): el control duro, inmovilizar y
   // asustar NO los afectan: suman STAGGER (combat-math.staggerFromCC × staggerPct del
@@ -1910,7 +1927,7 @@ export class Enemy {
         this.stunT = d;
         if (kind === 'freeze') this.frozenT = Math.max(this.frozenT || 0, d);
         this.slowT = Math.max(this.slowT || 0, d);
-        this.stunDR = Math.min(1, dr + (boss ? 0.6 : 0.35));
+        if (!opts.noDR) this.stunDR = Math.min(1, dr + (boss ? 0.6 : 0.35));
         return d;
       }
       case 'knock': {                                              // dur = metros de empuje
@@ -1924,7 +1941,7 @@ export class Enemy {
           const nx = this.pos.x + dx / l * dist, nz = this.pos.z + dz / l * dist;
           if (this.game.world?.grid?.walkable(nx, nz)) { this.pos.x = nx; this.pos.z = nz; }
         }
-        this.stunDR = Math.min(1, dr + 0.35);
+        if (!opts.noDR) this.stunDR = Math.min(1, dr + 0.35);
         return dist;
       }
       case 'root': {
@@ -1933,7 +1950,7 @@ export class Enemy {
         const d = dur * (1 - dr) * (boss ? 0.35 : 1);
         if (d < 0.05 || d <= (this.rootT || 0)) return 0;
         this.rootT = d;
-        this.rootDR = Math.min(1, dr + 0.25);
+        if (!opts.noDR) this.rootDR = Math.min(1, dr + 0.25);
         return d;
       }
       case 'slow': {

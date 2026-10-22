@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { CLASSES, SKILL_FORGE, FORGE_RECO, SPEC_BAR } from '../js/data.js';
 import { forgeDef, validateForge, validateSkillDef, FORGE_ROLES, FORGE_LINE_WARN } from '../js/skill-defs.js';
 import { resolveSkill } from '../js/skill-resolve.js';
-import { rankCoef } from '../js/combat-math.js';
+import { rankCoef, rankBuff } from '../js/combat-math.js';
 import { POWER_HOOKS, SKILL_BEHAVIORS } from '../js/powers.js';
 import { GUERRERO_SKILL_FORGE, GUERRERO_FORGE_RECO, GUERRERO_SPEC_BAR } from '../js/skills-guerrero.js';
 import { guerreroForgePowers, guerreroForgeTuning } from '../js/powers-forge-guerrero.js';
@@ -461,9 +461,10 @@ function rajar(forge, spots) {
   assert.ok(s.dealtAfter > 0 && s.after === 0, `Sed Voraz: fuera de la Furia Inmortal no roba (${s.after} tras ${s.dealtAfter} de daño)`);
 }
 { // Furia Inmortal · II (Frenesí): +40 % de velocidad de ataque, pero la vida sí baja del 1 %
-  const run = forge => { const hh = hero(21, { spec: 'berserker', forge }); const as0 = hh.p.stats.aspdPct; hh.setSlot('k4', 'g_u_furia'); hh.cast('k4'); const as = hh.p.stats.aspdPct - as0; hh.p.takeDamage(hh.p.stats.maxHP * 5, 1); return { as, alive: hh.p.alive }; };
+  // el buff crece con el rango (rankBuff): S0 cuenta el rango del kit desde el Nv10, así que a Nv21 es el 2
+  const run = forge => { const hh = hero(21, { spec: 'berserker', forge }); const as0 = hh.p.stats.aspdPct; hh.setSlot('k4', 'g_u_furia'); hh.cast('k4'); const as = hh.p.stats.aspdPct - as0; const rank = resolveSkill(hh.p, CLASSES.guerrero.skills.find(s => s.id === 'g_u_furia')).rank; hh.p.takeDamage(hh.p.stats.maxHP * 5, 1); return { as, rank, alive: hh.p.alive }; };
   const m = run({}), f = run({ g_u_furia: 'ii' });
-  assert.ok(m.as === 0 && f.as === 40, `Frenesí: +40 % de velocidad de ataque (${f.as})`);
+  assert.ok(m.as === 0 && f.as === Math.round(40 * rankBuff(f.rank)), `Frenesí: +40 % de velocidad de ataque × rango ${f.rank} (${f.as})`);
   assert.ok(m.alive && !f.alive, 'Frenesí: sin la vida mínima del 1 %');
 }
 
@@ -558,7 +559,9 @@ function quake(level, forge, spots, aim = [5, 0]) {
   const m = run({}), a = run({ g_u_ciudadela: 'i' });
   assert.ok(approx(m.x1, 0, 1e-6) && m.hh.p.planted, 'sin la variante: clavado y plantado');
   assert.ok(approx(a.x1 / spd, 0.5, 0.06), `Andante: caminas al 50 % (${(a.x1 / spd).toFixed(2)})`);
-  assert.ok(a.hh.p.pos.x > 7 && a.b && a.b.stats.dr === 25 && !a.hh.p.planted, 'Andante: lejos del punto inicial sigues con ella (−25 %) y no estás plantado');
+  // −25 % × rango (rankBuff; S0: a Nv21 el kit va en rango 2)
+  const drWant = Math.round(25 * rankBuff(resolveSkill(a.hh.p, CLASSES.guerrero.skills.find(s => s.id === 'g_u_ciudadela')).rank));
+  assert.ok(a.hh.p.pos.x > 7 && a.b && a.b.stats.dr === drWant && !a.hh.p.planted, `Andante: lejos del punto inicial sigues con ella (−25 % × rango: ${a.b?.stats.dr}) y no estás plantado`);
 }
 { // Ciudadela · II (Empalizada): quien te golpea recibe el 60 % de tu arma (una vez por segundo)
   const run = forge => {
@@ -686,8 +689,11 @@ function cata(level, forge, spots, allies = []) {
   // (Martillo Piadoso, z0); se mide lo que AÑADE Amanecer
   const m = run({}), d = run({ g_u_cataclismo: 'ii' });
   assert.ok(!m.as[0].by.g_u_cataclismo && m.as[0].shields.length === 0, `sin la variante, la Cataclismo ni cura ni escuda (${JSON.stringify(m.as[0].by)})`);
-  assert.ok(d.as[0].healed - m.as[0].healed === 300 && d.as[0].by.g_u_cataclismo === 300, `Amanecer: cura un 30 % más que sin ella (${m.as[0].healed} → ${d.as[0].healed})`);
-  assert.ok(d.as[0].shields.length === 1 && approx(d.as[0].shields[0].amt, d.hh.p.stats.maxHP * 0.1, 1), 'Amanecer: y escuda un 10 % de tu vida');
+  // 30 % × rango (buffMul; S0: a Nv21 el kit va en rango 2). La clave z0 cura además según el daño, que también sube
+  const bm = resolveSkill(d.hh.p, CLASSES.guerrero.skills.find(s => s.id === 'g_u_cataclismo')).buffMul;
+  assert.ok(approx(d.as[0].by.g_u_cataclismo, 300 * bm, 1e-6) && d.as[0].healed - m.as[0].healed >= 300 * bm - 1e-6,
+    `Amanecer: cura un 30 % × rango más que sin ella (${m.as[0].healed} → ${d.as[0].healed}; Amanecer ${d.as[0].by.g_u_cataclismo})`);
+  assert.ok(d.as[0].shields.length === 1 && approx(d.as[0].shields[0].amt, d.hh.p.stats.maxHP * 0.1 * bm, 1), 'Amanecer: y escuda un 10 % de tu vida × rango');
   assert.ok(d.as[1].healed === m.as[1].healed && !d.as[1].by.g_u_cataclismo && d.as[1].shields.length === 0, 'Amanecer: solo a 8 m del impacto');
   assert.ok(approx(d.es[0].t.direct / m.es[0].t.direct, 0.6, 0.01), 'Amanecer: −40 % de daño');
 }

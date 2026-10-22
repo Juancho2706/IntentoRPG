@@ -2298,9 +2298,10 @@ function hazRun(ranks, choice = {}) {
   const dp = prof(r.h, 'm_u_desgarro');
   ok(dp.rank === 5 && dp.coef > 1.2 * 1.3 && dp.addPct === 30, `a21: a Nv70 el Desgarro está en rango 5 (${dp.coef} por golpe, +${dp.addPct} %)`);
   near(r.rift?.data.dps, r.h.p.avgHit(dp.coef / r.ch.interval * 0.5, dp.addPct), 2, 'a21: al 50 % del Desgarro (su golpe con rango cada 0,5 s)');
-  const lo = run({ a21: 1 }, 20), dl = prof(lo.h, 'm_u_desgarro');
-  ok(dl.rank === 1 && dl.coef === 1.2, 'a21: a Nv20 el Desgarro está en rango 1 (1,2 por golpe)');
-  near(lo.rift?.data.dps, lo.h.p.avgHit(1.2 / 0.5 * 0.5, dl.addPct), 2, 'a21 a Nv20: al 50 % del Desgarro (1,2 cada 0,5 s)');
+  // S0 (T6): el kit de la especialización cuenta el rango desde el Nv10, así que el rango 1 es hasta el 17
+  const lo = run({ a21: 1 }, 17), dl = prof(lo.h, 'm_u_desgarro');
+  ok(dl.rank === 1 && dl.coef === 1.2, 'a21: a Nv17 el Desgarro está en rango 1 (1,2 por golpe)');
+  near(lo.rift?.data.dps, lo.h.p.avgHit(1.2 / 0.5 * 0.5, dl.addPct), 2, 'a21 a Nv17: al 50 % del Desgarro (1,2 cada 0,5 s)');
   const n = run({});
   ok(n.fired && !n.rift, 'sin a21, el Rayo sale durante el Desgarro pero no abre grieta');
 }
