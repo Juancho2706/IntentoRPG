@@ -9,7 +9,8 @@
 //   R2  Maga, Guerrero y Arquera: buff, escudo y cura (lo que tenga cada clase) a DOS rangos: el número
 //       del libro (forgeView) es el que aplica el juego al lanzarla
 //   R3  dónde se ve: libro y forja (línea, innata y variantes), panel de talentos (activa sin comprar)
-//       y el aviso del buff en el HUD
+//       y el aviso del buff en el HUD (el de Piel de Hierro con los talentos del Guardián y el aviso de
+//       nivel van en R2, junto a su libro)
 // Cada apartado falla sin su arreglo (uno roto no tapa a los demás; al final, exit 1 si alguno falla).
 import assert from 'node:assert/strict';
 import { makeHarness } from './helpers/power-harness.mjs';
@@ -259,10 +260,17 @@ section('R2 · variantes y otra especialización: Sello Ofensivo, Ciudadela Anda
     const t = textNum(line(h, 'g_piel'), /recibes un (\d+) % menos/);
     ok(cast(h, 'k2', 'g_piel', { sec: 0.1 }), 'Piel de Hierro');
     eq(buffOf(h.p, 'g_piel')?.stats.dr, t, `Piel de Hierro (${h.p.talents.spec || 'sin especialización'}): la reducción que dice el libro`);
+    // el aviso del buff (sin perfil: rango y mods de talento como los lee rankTextCtx) dice lo mismo
+    const b = buffOf(h.p, 'g_piel');
+    eq(textNum(b.desc, /recibes un (\d+) % menos/), b.stats.dr, `Piel de Hierro (${h.p.talents.spec || 'sin especialización'}): el aviso del HUD`);
   }
   const rk = skillRank(g.p, skill('guerrero', 'g_piel'));
   eq(HM.forgeView(g.p, skill('guerrero', 'g_piel')).innate, `Guardián: 12 s y −${Math.round(50 * rankBuff(rk))} %`, 'la innata del Guardián, al rango');
   eq(textNum(line(g, 'g_piel'), /recibes un (\d+) % menos/), Math.round(50 * rankBuff(rk)), 'y coincide con la del Guardián');
+  // el aviso de nivel («Aprendes Piel de Hierro») también cita el valor de tu héroe, no el del catálogo
+  const news = HM.levelUpNews(g.p, 5, 6).items.find(i => i.kind === 'learn' && i.id === 'g_piel');
+  eq(news?.line, line(g, 'g_piel'), 'el aviso de nivel = la línea del libro');
+  ok(news.line !== skill('guerrero', 'g_piel').line, `y no el texto del catálogo («${news.line}»)`);
 });
 
 // ------------------------------------------------ R3 · dónde se ve
