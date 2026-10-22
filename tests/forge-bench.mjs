@@ -124,19 +124,25 @@ export const PENDING_FORGE = [
   // S-maga: el Orbe nuevo (M-01) y el Haz sin fin (M-06/M-08) cumplen F8:a_orbe y F1:rayo_ii (salen);
   // Orbe Veloz +100 % (antes +40 %: rendía 0,72× el Orbe base contra uno solo) deja F1 a −2 %; el Sello
   // y la definitiva cambian de cifra porque la Arcanista del banco ya hace daño con el Haz
-  { key: 'F1:a_orbe_i', medido: -0.023, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga a_orbe_i (Orbe Veloz, UNI): gana a su hermana por -2% del aporte en uni (≥ 8 %)' },
+  { key: 'F1:a_orbe_i', medido: 0.045, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga a_orbe_i (Orbe Veloz, UNI): gana a su hermana por 4% del aporte en uni (≥ 8 %)' },
   { key: 'F3:a_orbe', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga a_orbe (Orbe Grande): la Mejora da +0% del aporte en uni (+5–15 %)' },
-  { key: 'F5:a_sello_i', medido: 0.322, objetivo: 0.25, dueño: 'KA-maga', regla: 'F5 maga a_sello_i (Sello Ofensivo): sube la generación de recurso +32% (≤ +25 %)' },
-  { key: 'F3:a_sello', medido: 1.345, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga a_sello (Sello Firme): la Mejora da +135% del aporte en uni (+5–15 %)' },
+  { key: 'F5:a_sello_i', medido: 0.332, objetivo: 0.25, dueño: 'KA-maga', regla: 'F5 maga a_sello_i (Sello Ofensivo): sube la generación de recurso +33% (≤ +25 %)' },
+  { key: 'F3:a_sello', medido: 0.45, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga a_sello (Sello Firme): la Mejora da +45% del aporte en uni (+5–15 %)' },
+  // DEC (M1, decisión del dueño): con Escarcha Arcana (c20) que ralentiza como mucho 1 vez cada 4 s por enemigo, el
+  // +15 % de crítico del Dardo contra ralentizados pide otra ralentización: Sello de Contención (la hermana de CTRL,
+  // ralentiza dentro) le gana a Sello Ofensivo en UNI y el Parpadeo Disruptor sube la rotación UNI un 21 % (Orbe
+  // Veloz pasa de −2 a +4 %; Sello Firme, de +135 a +45 %). Medido aparte: con el Orbe solo (M4) no cambia nada
+  { key: 'F1:a_sello_i', medido: -0.138, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga a_sello_i (Sello Ofensivo, UNI): gana a su hermana por -14% del aporte en uni (≥ 8 %)' },
+  { key: 'F2b:m_parpadeo_ii', medido: 0.211, objetivo: 0.2, dueño: 'KA-maga', regla: 'F2 maga m_parpadeo_ii (Parpadeo Disruptor): sube la rotación UNI +21% sobre la Mejora (≤ +20 %)' },
   { key: 'F3:rayo', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga rayo (Rayo Largo): la Mejora da +0% del aporte en area (+5–15 %)' },
   { key: 'F3:m_u_desgarro', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga m_u_desgarro (Desgarro Estable): la Mejora da +0% del aporte en uni (+5–15 %)' },
   // S-maga (revisión): el Desgarro canalizado ya es un haz ancho que atraviesa a todos (M-12) y, con la build
   // Rayo sin Cadena, la manada vive más: en ÁREA×5 aporta 184/s frente a 177 de Brecha (su variante de ÁREA;
   // con Cadena, 164 frente a 186). Quiebre tampoco gana UNI (91/s frente a 124). Brecha necesita su número: KA-maga
   { key: 'F8:m_u_desgarro', medido: null, objetivo: null, dueño: 'KA-maga', regla: 'F8 maga m_u_desgarro: ninguna variante supera a la Mejora sola en su escenario' },
-  { key: 'F9:ult:m_u_desgarro:mejora', medido: 0.061, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro:mejora: la definitiva aporta 6% de UNI (12–22 %)' },
-  { key: 'F9:ult:m_u_desgarro_i', medido: 0.021, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro_i: la definitiva aporta 2% de UNI (12–22 %)' },
-  { key: 'F9:ult:m_u_desgarro_ii', medido: 0.042, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro_ii: la definitiva aporta 4% de UNI (12–22 %)' },
+  { key: 'F9:ult:m_u_desgarro:mejora', medido: 0.06, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro:mejora: la definitiva aporta 6% de UNI (12–22 %)' },
+  { key: 'F9:ult:m_u_desgarro_i', medido: 0.022, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro_i: la definitiva aporta 2% de UNI (12–22 %)' },
+  { key: 'F9:ult:m_u_desgarro_ii', medido: 0.032, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'F9 maga m_u_desgarro_ii: la definitiva aporta 3% de UNI (12–22 %)' },
   { key: 'F1:a_disparo_i', medido: -0.186, objetivo: 0.08, dueño: 'KA-arquera', regla: 'F1 arquera a_disparo_i (Disparo Disperso, AREA): gana a su hermana por -19% del aporte en area (≥ 8 %)' },
   // S-arquera (A7): con Punto Débil rehecho (la build por defecto de la Francotiradora, donde se mide el
   // básico), Flecha de Cicuta queda a −0,6 % de Mano Rápida en UNI y Disparo Disperso, que en un grupo no

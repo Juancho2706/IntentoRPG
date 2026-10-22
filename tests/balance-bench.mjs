@@ -137,11 +137,11 @@ export const PENDING_E4B = [
   { key: '1A:maga:50:ttkE', medido: 3.942, objetivo: [4.5, 10.5], dueño: 'KA-maga', regla: 'maga Nv50: TTK élite 3.94s fuera de 4.5,10.5' },
   { key: '1A:maga:50:ttd', medido: 5.831, objetivo: [6, 13], dueño: 'KA-maga', regla: 'maga Nv50: TTD manada 5.83s fuera de 6,13' },
   { key: '1A:maga:50:ult', medido: 0.061, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'maga Nv50: la definitiva m_u_supernova aporta 6% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:berserker:50:min:ttdp', medido: 0.27, objetivo: 0.9, dueño: 'KA-guerrero', regla: 'berserker Nv50: TTDP ×0.27 de la media (< ×0.9)' },
+  { key: 'ROL:berserker:50:min:ttdp', medido: 0.221, objetivo: 0.9, dueño: 'KA-guerrero', regla: 'berserker Nv50: TTDP ×0.22 de la media (< ×0.9)' },
   { key: 'ROL:berserker:50:best:uni', medido: 0.687, objetivo: 1.1, dueño: 'KA-guerrero', regla: 'berserker Nv50: UNI no es la mejor de su clase por ×1.1 (3193.1 frente a 4649.4)' },
   { key: '1A:arquera:25:maxHit', medido: 0.283, objetivo: 0.25, dueño: 'KA-arquera', regla: 'arquera Nv25: un golpe óptimo (a_u_celeste) quita 28% de la vida del jefe' },
   { key: 'ROL:berserker:50:ult', medido: 0, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'berserker Nv50: la definitiva g_u_furia aporta 0% del daño UNI (sin ella baja eso) (objetivo 12–22 %)' },
-  { key: 'ROL:cruzado:50:min:ttdp', medido: 0.445, objetivo: 1.3, dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTDP ×0.45 de la media (< ×1.3)' },
+  { key: 'ROL:cruzado:50:min:ttdp', medido: 0.365, objetivo: 1.3, dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTDP ×0.36 de la media (< ×1.3)' },
   { key: 'ROL:cruzado:50:apoyoDps', medido: 0.08, objetivo: 0.25, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO 8% del DPS de un aliado (< 25%)' },
   { key: 'ROL:cruzado:50:best:apoyo', medido: 0.302, objetivo: 1.1, dueño: 'KT-guerrero', regla: 'cruzado Nv50: APOYO no es la mejor de su clase por ×1.1 (0.08 frente a 0.27)' },
   { key: 'ROL:cruzado:50:ttkB', medido: 19.75, objetivo: [36, 108], dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTK jefe 19.7s fuera de 36,108' },
@@ -150,45 +150,55 @@ export const PENDING_E4B = [
   // E4b-bugs (B2): con las quemaduras haciendo sus tics al ritmo (js/timers.js), la manada del ÁREA×5
   // muere escalonada y la Bola y el Meteoro dan a menos enemigos por lanzamiento (9054 → 7507)
   { key: 'ROL:piromante:50:best:area', medido: 1.067, objetivo: 1.1, dueño: 'KT-maga', regla: 'piromante Nv50: AREA no es la mejor de su clase por ×1.1 (7506.8 frente a 7036.3)' },
-  { key: 'ROL:crionte:50:min:uni', medido: 0.639, objetivo: 0.85, dueño: 'KA-maga', regla: 'crionte Nv50: UNI ×0.64 de la media (< ×0.85)' },
-  // S-maga: TODO el control de la Arcanista es Escarcha Arcana (c20: tus críticos ralentizan un 30 % 2 s; sin
-  // c20, 0 %) y el Orbe nuevo lo multiplica con sus descargas (8 golpes/s): 0,19 sin el Orbe en la barra, 0,63
-  // con él (0,24 antes de S-maga), lo mismo que la Crionte. PENDIENTE DE DECISIÓN DEL JEFE: limitar c20 (solo
-  // golpes de Hielo, o un enfriamiento por enemigo) o aceptarlo. Dueño KT-maga (c20 es del árbol de clase)
-  { key: 'ROL:crionte:50:best:ctl', medido: 1.001, objetivo: 1.1, dueño: 'KT-maga', regla: 'crionte Nv50: CTL no es la mejor de su clase por ×1.1 (0.63 frente a 0.63)' },
+  { key: 'ROL:crionte:50:min:uni', medido: 0.543, objetivo: 0.85, dueño: 'KA-maga', regla: 'crionte Nv50: UNI ×0.54 de la media (< ×0.85)' },
+  // DEC (M1, decisión del dueño): Escarcha Arcana (c20) ralentiza como mucho 1 vez cada 4 s por enemigo. El
+  // control de la Arcanista baja de 0,63 a 0,36 y sale ROL:crionte:50:best:ctl (la Crionte, 0,63: ×1,73); salen
+  // también G9:piromante:70 y 100:cataclismo:ctl (Combustión Perpetua sacaba su control de c20). De rebote, con
+  // menos enemigos ralentizados, el +15 % de crítico del Dardo pesa menos: la Arcanista Nv50 pasa de 2172 a
+  // 1946 de UNI (−10 %) y de 4105 a 3884 de ÁREA×5 (−5 %); entradas de abajo refrescadas. Revisión: con Escarcha
+  // Tenaz (c21, +2 s) la ralentización duraba 4 s, lo mismo que la espera, y la build Orbe (la que lleva c21) volvía
+  // a tenerla siempre: control 0,95 → 0,83 a Nv70 y 0,94 → 0,80 a Nv100, como la Crionte (Era Glacial 0,72 y 0,69;
+  // Fractura 0,83). Ahora c21 alarga también la espera (4 s de cada 6): 0,68 y 0,69. A Nv50 nadie lleva c21
   { key: 'ROL:crionte:50:ult', medido: 0.119, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'crionte Nv50: la definitiva m_u_tormenta aporta 12% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:arcanista:50:min:uni', medido: 1.037, objetivo: 1.15, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI ×1.04 de la media (< ×1.15)' },
-  { key: 'ROL:arcanista:50:best:uni', medido: 0.724, objetivo: 1.1, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI no es la mejor de su clase por ×1.1 (2171.6 frente a 2997.7)' },
-  { key: 'ROL:arcanista:50:ult', medido: 0.042, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'arcanista Nv50: la definitiva m_u_desgarro aporta 4% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:francotiradora:50:min:uni', medido: 0.765, objetivo: 1.15, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI ×0.77 de la media (< ×1.15)' },
-  { key: 'ROL:francotiradora:50:min:area', medido: 0.426, objetivo: 0.7, dueño: 'KA-arquera', regla: 'francotiradora Nv50: AREA ×0.43 de la media (< ×0.7)' },
+  { key: 'ROL:arcanista:50:min:uni', medido: 0.79, objetivo: 1.15, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI ×0.79 de la media (< ×1.15)' },
+  { key: 'ROL:arcanista:50:best:uni', medido: 0.649, objetivo: 1.1, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI no es la mejor de su clase por ×1.1 (1945.7 frente a 2997.7)' },
+  { key: 'ROL:arcanista:50:ult', medido: 0.032, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'arcanista Nv50: la definitiva m_u_desgarro aporta 3% del daño UNI (objetivo 12–22 %)' },
+  { key: 'ROL:francotiradora:50:min:uni', medido: 0.646, objetivo: 1.15, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI ×0.65 de la media (< ×1.15)' },
+  { key: 'ROL:francotiradora:50:min:area', medido: 0.378, objetivo: 0.7, dueño: 'KA-arquera', regla: 'francotiradora Nv50: AREA ×0.38 de la media (< ×0.7)' },
   { key: 'ROL:francotiradora:50:min:ttdp', medido: 0.227, objetivo: 0.85, dueño: 'KA-arquera', regla: 'francotiradora Nv50: TTDP ×0.23 de la media (< ×0.85)' },
   // S-arquera (sensación): la Andanada acierta a un blanco (A1: la central y su gemela), el Disparo
   // Disperso pega como un básico (A-x1) y la Carrera no bloquea (A2): la Tiradora pasa de 1102 a 1841 de
   // UNI y supera a la Francotiradora (1590, con Punto Débil rehecho en A7); su definitiva pesa menos
   // (10 %). Salen ROL:tiradora:50:min:uni, :ttkN y :ttkE; con el cepo cerrado detonable (A3),
   // ROL:montaraz:50:ttkE; con Tiro Celestial al 12 % de la Francotiradora, ROL:francotiradora:50:ult y
-  // 1A:arquera:50:ult. Calibración del papel UNI (propuesta en el informe de S-arquera): E4b
-  { key: 'ROL:francotiradora:50:best:uni', medido: 0.864, objetivo: 1.1, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI no es la mejor de su clase por ×1.1 (1589.9 frente a 1840.6)' },
-  { key: 'ROL:montaraz:50:min:area', medido: 0.599, objetivo: 0.9, dueño: 'KA-arquera', regla: 'montaraz Nv50: AREA ×0.60 de la media (< ×0.9)' },
-  { key: 'ROL:tiradora:50:min:area', medido: 0.555, objetivo: 1.2, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA ×0.55 de la media (< ×1.2)' },
+  // 1A:arquera:50:ult. Calibración del papel UNI (propuesta en el informe de S-arquera): E4b. Tiradora frente a
+  // Francotiradora (A5 de «Decisiones de sensación»): subir el tensado de la Francotiradora, en la calibración
+  { key: 'ROL:francotiradora:50:best:uni', medido: 0.864, objetivo: 1.1, dueño: 'KA-arquera', nota: 'decisión del dueño: E4b', regla: 'francotiradora Nv50: UNI no es la mejor de su clase por ×1.1 (1589.9 frente a 1840.6)' },
+  { key: 'ROL:montaraz:50:min:area', medido: 0.532, objetivo: 0.9, dueño: 'KA-arquera', regla: 'montaraz Nv50: AREA ×0.53 de la media (< ×0.9)' },
+  { key: 'ROL:tiradora:50:min:area', medido: 0.493, objetivo: 1.2, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA ×0.49 de la media (< ×1.2)' },
   { key: 'ROL:tiradora:50:best:area', medido: 0.927, objetivo: 1.1, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA no es la mejor de su clase por ×1.1 (2689.7 frente a 2902.3)' },
   { key: 'ROL:tiradora:50:ult', medido: 0.102, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'tiradora Nv50: la definitiva a_u_diluvio aporta 10% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:spread:50', medido: 3.571, objetivo: 2, dueño: 'E4b', regla: 'Nv50: jefe más lento ×3.57 el más rápido (> ×2)' },
+  { key: 'ROL:spread:50', medido: 4.422, objetivo: 2, dueño: 'E4b', regla: 'Nv50: jefe más lento ×4.42 el más rápido (> ×2)' },
   { key: 'G9:piromante:70:brasa:area', medido: 0.461, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 piromante: Incendio no gana ÁREA×5 (×0.46 de Combustión Perpetua)' },
-  { key: 'G9:piromante:70:cataclismo:ctl', medido: 0.996, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 piromante: Lluvia de Fuego no gana CONTROL (×1.00 de Combustión Perpetua)' },
-  { key: 'G9:piromante:70:hibrido:hibrida', medido: 0.306, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 piromante: la híbrida Brasa Ardiente queda a ×0.31 de la mejor en UNI (≥ ×0.85)' },
-  { key: 'G9:crionte:70:tormenta:area', medido: 0.362, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: Invierno Eterno no gana ÁREA×5 (×0.36 de Cero Absoluto)' },
+  { key: 'G9:piromante:70:hibrido:hibrida', medido: 0.317, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 piromante: la híbrida Brasa Ardiente queda a ×0.32 de la mejor en UNI (≥ ×0.85)' },
+  { key: 'G9:crionte:70:tormenta:area', medido: 0.363, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: Invierno Eterno no gana ÁREA×5 (×0.36 de Cero Absoluto)' },
   { key: 'G9:crionte:70:glaciar:ctl', medido: 0.732, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: Era Glacial no gana CONTROL (×0.73 de Invierno Eterno)' },
-  { key: 'G9:crionte:70:hibcrio:hibrida', medido: 0.581, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: la híbrida Escarcha Quebradiza queda a ×0.58 de la mejor en ÁREA×5 (≥ ×0.85)' },
-  { key: 'G9:arcanista:70:hibarca:hibrida', medido: 0.371, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: la híbrida Rayo Orbital queda a ×0.37 de la mejor en UNI (≥ ×0.85)' },
+  { key: 'G9:crionte:70:hibcrio:hibrida', medido: 0.601, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: la híbrida Escarcha Quebradiza queda a ×0.60 de la mejor en ÁREA×5 (≥ ×0.85)' },
+  { key: 'G9:arcanista:70:hibarca:hibrida', medido: 0.389, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: la híbrida Rayo Orbital queda a ×0.39 de la mejor en UNI (≥ ×0.85)' },
   // S-maga (M-11): sin el Haz de un solo objetivo, las builds Rayo y Grieta Eterna lanzan un Rayo que
   // atraviesa y le ganan el ÁREA×5 a Constelación (la de Grieta, con Rayo en Cadena y el Desgarro ancho:
   // 13 483 frente a 8363 a Nv70). La build Rayo ya no lleva Cadena (revisión: era la variante de ÁREA en una
-  // build de UNI) y deja de ser la mejor en ÁREA. Constelación necesita sus talentos (a19/a23/a26): KT-maga
-  { key: 'G9:arcanista:70:orbe:area', medido: 0.62, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: Constelación no gana ÁREA×5 (×0.62 de Grieta Eterna)' },
+  // build de UNI) y deja de ser la mejor en ÁREA. Constelación necesita sus talentos (a19/a23/a26): KT-maga.
+  // DEC (M4): el Orbe en órbita se absorbe al acabarla y da su Carga; solo, no mueve el ÁREA×5 de Constelación
+  // (llega 8 s tarde). Con M1 y la espera que alarga c21, 8363 → 8882 a Nv70 y 11 215 → 12 048 a Nv100 (×0,68 de
+  // Rayo Orbital): con la manada menos ralentizada, llega antes y más junta a las descargas
+  { key: 'G9:arcanista:70:orbe:area', medido: 0.659, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: Constelación no gana ÁREA×5 (×0.66 de Grieta Eterna)' },
   { key: 'G9:berserker:70:danza:ttdp', medido: 0.614, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: Danza Carmesí no gana TTD+ (×0.61 de Estampida Sin Fin)' },
   { key: 'G9:berserker:70:hibrido:hibrida', medido: 0.762, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: la híbrida Sangre y Acero queda a ×0.76 de la mejor en UNI (≥ ×0.9)' },
+  // DEC (G4, decisión del dueño): Montaña Viva aturde entero, pero como mucho 1 vez cada 3 s por enemigo. No cambian
+  // estas G9 ni ROL:guardian:50:ttkB (a Nv50 la build aún no tiene d26): el TTD+ de Sismo sigue en el tope (1800 s) y
+  // sin NINGÚN aturdimiento de Montaña Viva daría 1029 s a Nv70 y 1800 a Nv100; Vanguardia, sin d26, también llega
+  // a 1800. El aguante del Guardián en TTD+ no sale de esa cadena: E4b
   { key: 'G9:guardian:70:guardia:ttdp', medido: 0.024, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: Guardia Total no gana TTD+ (×0.02 de Montaña Viva)' },
   { key: 'G9:guardian:70:hibguard:hibrida', medido: 0.012, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: la híbrida Roca y Escudo queda a ×0.01 de la mejor en TTD+ (≥ ×0.9)' },
   { key: 'G9:cruzado:70:tribunal:area', medido: 0.643, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 cruzado: Tribunal no gana ÁREA×5 (×0.64 de Martillo Celestial)' },
@@ -202,6 +212,10 @@ export const PENDING_E4B = [
   { key: 'G9:francotiradora:70:puntodebil:uni', medido: 0.939, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: Disparo Imposible no gana UNI (×0.94 de Atalaya Eterna)' },
   { key: 'G9:francotiradora:70:pulso:min:area', medido: 0.697, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: la híbrida Pulso de Hierro queda a ×0.70 de la mejor en ÁREA×5 (≥ ×0.8)' },
   { key: 'G9:francotiradora:70:pulso:min:mixto', medido: 0.814, objetivo: 0.9, dueño: 'KT-arquera', regla: 'G9 Nv70 francotiradora: la híbrida Pulso de Hierro queda a ×0.81 de la mejor en mixto (≥ ×0.9)' },
+  // Ojo (revisión de DEC): Tierra Arrasada reparte sus campos con un ángulo que sale del contador GLOBAL de campos
+  // (powers-arquera.js, m_tierra_arrasada: `hit.trap.uid % 7`), así que su ÁREA×5 cambia con lo que el banco simuló
+  // antes aunque no se toque la Arquera (Nv70: 0,78 sola, 0,92 si se repite, 0,845 en el banco; Nv100: 0,76–0,87).
+  // Arreglo (un contador por héroe, no el global): KT-arquera
   { key: 'G9:montaraz:70:campo:area', medido: 0.845, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.85 de Bosque Vivo)' },
   { key: 'G9:montaraz:70:caceria:uni', medido: 0.815, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Gran Cacería no gana UNI (×0.81 de Espinas de Caza)' },
   { key: 'G9:montaraz:70:zarzal:ctl', medido: 0.948, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: Bosque Vivo no gana CONTROL (×0.95 de Espinas de Caza)' },
@@ -211,13 +225,12 @@ export const PENDING_E4B = [
   // a Nv100); salen sus :noBest:mixto (Nv70 y Nv100) y la CONTROL de Bosque Vivo a Nv100
   { key: 'G9:montaraz:70:espinas:min:area', medido: 0.733, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv70 montaraz: la híbrida Espinas de Caza queda a ×0.73 de la mejor en ÁREA×5 (≥ ×0.8)' },
   { key: 'G9:piromante:100:brasa:area', medido: 0.603, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 piromante: Incendio no gana ÁREA×5 (×0.60 de Combustión Perpetua)' },
-  { key: 'G9:piromante:100:cataclismo:ctl', medido: 1, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 piromante: Lluvia de Fuego no gana CONTROL (×1.00 de Combustión Perpetua)' },
   { key: 'G9:piromante:100:hibrido:hibrida', medido: 0.343, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 piromante: la híbrida Brasa Ardiente queda a ×0.34 de la mejor en UNI (≥ ×0.85)' },
   { key: 'G9:crionte:100:tormenta:area', medido: 0.318, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: Invierno Eterno no gana ÁREA×5 (×0.32 de Cero Absoluto)' },
   { key: 'G9:crionte:100:glaciar:ctl', medido: 0.702, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: Era Glacial no gana CONTROL (×0.70 de Invierno Eterno)' },
   { key: 'G9:crionte:100:hibcrio:hibrida', medido: 0.623, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: la híbrida Escarcha Quebradiza queda a ×0.62 de la mejor en ÁREA×5 (≥ ×0.85)' },
-  { key: 'G9:arcanista:100:hibarca:hibrida', medido: 0.5, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: la híbrida Rayo Orbital queda a ×0.50 de la mejor en UNI (≥ ×0.85)' },
-  { key: 'G9:arcanista:100:orbe:area', medido: 0.639, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: Constelación no gana ÁREA×5 (×0.64 de Grieta Eterna)' },
+  { key: 'G9:arcanista:100:hibarca:hibrida', medido: 0.489, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: la híbrida Rayo Orbital queda a ×0.49 de la mejor en UNI (≥ ×0.85)' },
+  { key: 'G9:arcanista:100:orbe:area', medido: 0.677, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: Constelación no gana ÁREA×5 (×0.68 de Rayo Orbital)' },
   { key: 'G9:berserker:100:danza:ttdp', medido: 0.465, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: Danza Carmesí no gana TTD+ (×0.47 de Estampida Sin Fin)' },
   { key: 'G9:berserker:100:hibrido:hibrida', medido: 0.761, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: la híbrida Sangre y Acero queda a ×0.76 de la mejor en UNI (≥ ×0.9)' },
   { key: 'G9:guardian:100:hibguard:hibrida', medido: 0.283, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: la híbrida Roca y Escudo queda a ×0.28 de la mejor en TTD+ (≥ ×0.9)' },
@@ -232,25 +245,26 @@ export const PENDING_E4B = [
   // tiros de más mueven el azar del combate) y su mixto pasa a ×0,99 de Disparo Imposible. Por lo
   // mismo, Pulso de Hierro (`G9:francotiradora:100:pulso:min:mixto`, ×0,89) pasa a ×0,91 y sale
   { key: 'G18:berserker', medido: 0.129, objetivo: 0.05, dueño: 'KT-guerrero', regla: 'G18 berserker: Titán +3.8 % frente a Gladiador +16.6 % (diferencia 12.9 puntos > 5)' },
-  { key: 'G18:piromante', medido: 0.11, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 piromante: Invocadora +22.1 % frente a Cronomante +11.1 % (diferencia 11.0 puntos > 5)' },
-  { key: 'G18:crionte', medido: 0.105, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 crionte: Escriba Rúnica +28.7 % frente a Invocadora +18.1 % (diferencia 10.5 puntos > 5)' },
+  { key: 'G18:piromante', medido: 0.112, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 piromante: Invocadora +22.1 % frente a Cronomante +10.9 % (diferencia 11.2 puntos > 5)' },
+  { key: 'G18:crionte', medido: 0.094, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 crionte: Escriba Rúnica +27.6 % frente a Invocadora +18.2 % (diferencia 9.4 puntos > 5)' },
   // S-maga (revisión: la build Rayo con el Rayo base, sin Cadena): su Rayo en línea pierde un 17 % de ÁREA×5 de
   // Nv70 a Nv80 contra los mismos enemigos (con Cadena ganaba un 11 %; ningún nodo del Cronomante solo lo
   // explica: la manada muere antes y llega desalineada). Con Cadena se cumplía (Cronomante +17 %, Escriba +20 %). KT-maga
-  { key: 'G18:arcanista', medido: 0.127, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +9.3 % frente a Escriba Rúnica +21.9 % (diferencia 12.7 puntos > 5)' },
+  { key: 'G18:arcanista', medido: 0.089, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +15.1 % frente a Escriba Rúnica +24.0 % (diferencia 8.9 puntos > 5)' },
   // S-guerrero (sensación, hallazgos recomendados; ronda 2). Sin la trampa del Remolino (antes ×0,58 con él), el Berserker
   // rinde lo que su rotación: el criterio (a) (con el Remolino ≥ ×0,9 en UNI a Nv50) deja su TTK de jefe en ~32 s (sin
   // Remolino, ~30 s) y la media de Nv50 en 44,8 s (tras fusionar las 3 clases vuelve a la banda). A Nv10 el giro aún pesa
   // ×1,29 (sin Rajar ni Salto, el kit sin él es Tajo y Hendidura). La Carga de Escudo a 8 m/s (G10) le quita al Guardián
   // el segundo de avance de las cargas cortas (más Terremotos: jefe en 30,9 s). G9/G18: dueño KT-guerrero
-  { key: '1A:guerrero:10:ttkE', medido: 4.069, objetivo: [4.5, 10.5], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK élite 4.07s fuera de 4.5,10.5' },
-  { key: '1A:guerrero:10:ttkB', medido: 31.183, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK jefe 31.2s fuera de 35,100' },
+  // Remolino a Nv10 (G3 de «Decisiones de sensación»): el dueño lo deja para la calibración de después de los ítems
+  { key: '1A:guerrero:10:ttkE', medido: 4.069, objetivo: [4.5, 10.5], dueño: 'KA-guerrero', nota: 'decisión del dueño: E4b', regla: 'guerrero Nv10: TTK élite 4.07s fuera de 4.5,10.5' },
+  { key: '1A:guerrero:10:ttkB', medido: 31.183, objetivo: [35, 100], dueño: 'KA-guerrero', nota: 'decisión del dueño: E4b', regla: 'guerrero Nv10: TTK jefe 31.2s fuera de 35,100' },
   { key: '1A:guerrero:50:ttkB', medido: 31.683, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv50: TTK jefe 31.7s fuera de 35,100' },
   // Fusión de la sensación de las 3 clases (S-maga + S-guerrero + S-arquera): con Guerrero y Arquera más fuertes sube la
   // media de Nv50. La Tiradora (×0,74 en UNI) y la Arcanista (×0,748 en ÁREA, al filo) quedan bajo su suelo de papel;
   // la media de TTK de jefe de Nv50 vuelve a la banda (sale 1A:media:50:ttkB). Calibración entre clases: E4b
-  { key: 'ROL:tiradora:50:min:uni', medido: 0.74, objetivo: 0.85, dueño: 'E4b', regla: 'tiradora Nv50: UNI ×0.74 de la media (< ×0.85)' },
-  { key: 'ROL:arcanista:50:min:area', medido: 0.748, objetivo: 0.75, dueño: 'E4b', regla: 'arcanista Nv50: AREA ×0.75 de la media (< ×0.75)' },
+  { key: 'ROL:tiradora:50:min:uni', medido: 0.747, objetivo: 0.85, dueño: 'E4b', regla: 'tiradora Nv50: UNI ×0.75 de la media (< ×0.85)' },
+  { key: 'ROL:arcanista:50:min:area', medido: 0.711, objetivo: 0.75, dueño: 'E4b', regla: 'arcanista Nv50: AREA ×0.71 de la media (< ×0.75)' },
   { key: 'ROL:berserker:50:ttkB', medido: 31.683, objetivo: [36, 108], dueño: 'KA-guerrero', regla: 'berserker Nv50: TTK jefe 31.7s fuera de 36,108' },
   { key: 'ROL:guardian:50:ttkB', medido: 30.925, objetivo: [36, 130], dueño: 'KA-guerrero', regla: 'guardian Nv50: TTK jefe 30.9s fuera de 36,130' },
   { key: 'ROL:cruzado:50:ttkE', medido: 3.458, objetivo: [3.6, 12.6], dueño: 'KA-guerrero', regla: 'cruzado Nv50: TTK élite 3.46s fuera de 3.6,12.6' },
@@ -262,7 +276,7 @@ export const PENDING_E4B = [
   // que la saeta atraviese (needsForm), así que deja Tiro Pesado por el Disparo Apuntado base; con eso
   // es la mejor en mixto a Nv100 por un 2 % (una híbrida no debe ganar). Calibración de la híbrida: E4b
   { key: 'G9:francotiradora:100:pulso:noBest:mixto', medido: 1.025, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 francotiradora: la híbrida Pulso de Hierro es la mejor en mixto (×1.02)' },
-  { key: 'G9:montaraz:100:campo:area', medido: 0.821, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.82 de Bosque Vivo)' },
+  { key: 'G9:montaraz:100:campo:area', medido: 0.871, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Tierra Arrasada no gana ÁREA×5 (×0.87 de Bosque Vivo)' },
   { key: 'G9:montaraz:100:caceria:uni', medido: 0.893, objetivo: 1, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: Gran Cacería no gana UNI (×0.89 de Espinas de Caza)' },
   { key: 'G9:montaraz:100:espinas:noBest:uni', medido: 1.103, objetivo: "< 1", dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza es la mejor en UNI (×1.10)' },
   { key: 'G9:montaraz:100:espinas:min:area', medido: 0.741, objetivo: 0.8, dueño: 'KT-arquera', regla: 'G9 Nv100 montaraz: la híbrida Espinas de Caza queda a ×0.74 de la mejor en ÁREA×5 (≥ ×0.8)' },

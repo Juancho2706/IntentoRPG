@@ -21,7 +21,8 @@
 //   G09     réplicas del Terremoto que se ven y sacuden a la mitad
 //   G10     Carga de Escudo a 8 m/s (mín. 0,3 s), +15 % por arrastrado (hasta +60 %), anillo y estela
 //   G13     Embestida en 0,2 s con estela continua e impacto
-//   F2      Montaña Viva: las réplicas aturden sin rendimientos decrecientes
+//   F2      Montaña Viva: las réplicas aturden sin rendimientos decrecientes, como mucho 1 vez cada 3 s
+//           por enemigo (decisión del dueño G4: no encadena)
 //   F3      Estampida Sin Fin: la cadena que abre el Salto recargado deja Vulnerable 3 s
 import assert from 'node:assert/strict';
 import { makeHarness } from './helpers/power-harness.mjs';
@@ -29,6 +30,7 @@ import { resolveSkill } from '../js/skill-resolve.js';
 import { SKILL_FX_PRESETS } from '../js/fx-skills.js';
 import { enemyStatuses } from '../js/hud-model.js';
 import { worldMarksPlan } from '../js/world-marks.js';
+import { powerState } from '../js/powers.js';
 // las APIs nuevas por espacio de nombres: sin ellas (código de antes) falla su apartado, no la carga
 import * as PG from '../js/powers-guerrero.js';
 import * as UG from '../js/ui-gauges-guerrero.js';
@@ -545,16 +547,40 @@ section('G13 · Embestida: 7 m en 0,2 s (no al instante), estela por el camino e
 });
 
 // ------------------------------------------------ F2 · Montaña Viva
-section('F2 · Montaña Viva: las réplicas aturden 0,5 s enteros aunque se repitan (sin rendimientos decrecientes)', () => {
+section('F2 · Montaña Viva: las réplicas aturden 0,5 s enteros (sin rendimientos decrecientes), 1 vez cada 3 s por enemigo', () => {
   const h = hero(70, 'guardian', { talents: { specRanks: { d26: 1 } } });
-  const e = foe(h, 3);
+  const e = foe(h, 3), e2 = foe(h, 3, 1);
   const cc = [];
-  const ac = e.applyCC.bind(e);
-  e.applyCC = (kind, dur, o = {}) => { cc.push({ kind, dur, noDR: !!o.noDR, t: h.p.simT }); return ac(kind, dur, o); };
+  for (const x of [e, e2]) {
+    const ac = x.applyCC.bind(x);
+    x.applyCC = (kind, dur, o = {}) => { if (kind === 'stun') cc.push({ e: x, dur, noDR: !!o.noDR, t: h.p.simT }); return ac(kind, dur, o); };
+  }
+  // las réplicas del Terremoto que golpean a `e` (las que pueden aturdir)
+  const reps = [];
+  const oph = h.g.onPlayerHit.bind(h.g);
+  h.g.onPlayerHit = (x, hit) => { if (x === e && hit?.skill === 'terremoto' && hit.repeat) reps.push(h.p.simT); return oph(x, hit); };
   h.aim(3, 0); h.setSlot('rmb', 'terremoto');
-  for (let i = 0; i < 3; i++) { h.p.plantNow(); h.p.mp = h.p.stats.maxMP; h.cast('rmb'); h.stand(1.6); }
-  const st = cc.filter(c => c.kind === 'stun');
-  ok(st.length >= 2 && st.every(c => c.noDR && c.dur === 0.5), `réplicas: aturden 0,5 s sin rendimientos (${JSON.stringify(st)})`);
+  // 6 Terremotos plantados (uno cada 1,6 s): Montaña Viva sale en el 3.º y en el 6.º (4,8 s después)
+  for (let i = 0; i < 6; i++) { h.p.plantNow(); h.p.mp = h.p.stats.maxMP; h.cast('rmb'); h.stand(1.6); }
+  const st = cc.filter(c => c.e === e), st2 = cc.filter(c => c.e === e2);
+  ok(st.length === 2 && cc.every(c => c.noDR && c.dur === 0.5), `réplicas: aturden 0,5 s enteros, sin rendimientos (${JSON.stringify(st.map(c => c.t.toFixed(2)))})`);
+  // en cada Montaña Viva le dan 2 o más réplicas en menos de 3 s: sin el enfriamiento, las encadenaba
+  const first = st[0]?.t ?? -1;
+  ok(reps.filter(t => t >= first - 1e-9 && t < first + 3).length >= 2, `con 2 réplicas o más en 3 s (${reps.map(t => t.toFixed(2))}), un solo aturdimiento`);
+  ok(st[1].t - st[0].t >= 3 - 1e-9, `1 vez cada 3 s por enemigo (${(st[1].t - st[0].t).toFixed(2)} s entre uno y otro)`);
+  ok(st2.length === 2 && Math.abs(st2[0].t - st[0].t) < 0.05, 'el enfriamiento es por enemigo: el de al lado también queda aturdido');
+  // el límite de los 3 s, con la ventana de las réplicas abierta a mano: otra réplica al mismo enemigo a
+  // los 2,9 s no lo aturde; a los 3 s, sí
+  const hb = hero(70, 'guardian', { talents: { specRanks: { d26: 1 } } });
+  const x = foe(hb, 3), xs = [];
+  const ax = x.applyCC.bind(x);
+  x.applyCC = (kind, dur, o = {}) => { if (kind === 'stun') xs.push(hb.p.simT); return ax(kind, dur, o); };
+  powerState(hb.p, 'g_d_montana_viva').stunUntil = 1e9;
+  const rep = () => hb.g.onPlayerHit(x, { skill: 'terremoto', repeat: true, dealt: 1, raw: 1, crit: false, tags: new Set(), source: 'hit', pos: { x: x.pos.x, z: x.pos.z } });
+  rep(); hb.tick(2.9); rep();
+  eq(xs.length, 1, `una réplica a los 2,9 s no aturde (${xs.map(t => t.toFixed(2))})`);
+  hb.tick(0.1); rep();
+  ok(xs.length === 2 && near(xs[1] - xs[0], 3, 1e-6), `a los 3 s, sí (${xs.map(t => t.toFixed(2))})`);
 });
 
 // ------------------------------------------------ F3 · Estampida Sin Fin
