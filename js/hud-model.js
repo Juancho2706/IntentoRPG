@@ -1050,7 +1050,8 @@ export function specSnapshot(p) {
   const cls = p?.cls || CLASSES[p?.classId];
   const grants = (cls?.skills || []).filter(s => s.kind === 'talent' && isKnown(p, s)).map(s => s.id);
   return { classId: p?.classId, level: p?.level || 1, spec: specIdOf(p), grants, hotbar: { ...(p?.hotbar || {}) },
-    skillForge: { ...(p?.skillForge || {}) }, skills: cls?.skills || [], forgeReco: p?.cls?.forgeReco || null };
+    skillForge: { ...(p?.skillForge || {}) }, skills: cls?.skills || [], forgeReco: p?.cls?.forgeReco || null,
+    build: { ...(p?.talents?.build || {}) } };
 }
 // la tira «qué cambia» al cambiar de especialización: insignia vieja → nueva (ranura 3),
 // activas de talento que entran (+) y salen (−), variantes recomendadas (★), mecánica y barra.
@@ -1063,7 +1064,8 @@ export function specSwapSummary(prev, next) {
   const trees = talentTreesFor(b.classId);
   const brief = id => { const s = by.get(id); return s ? { id, name: s.name, emoji: s.icon || '✦', art: skillArtPath(s, trees) } : null; };
   const insigniaOf = spec => list.find(s => s.spec === spec && s.cat === 'spec')?.id || null;
-  const reco = Object.entries(b.forgeReco?.[b.spec] || (b.spec ? forgeRecoFor(b.classId, b.spec) : {}))
+  // ★: la forja de la build aplicada en esa especialización (talents.build) o la de por defecto, como recoFor
+  const reco = Object.entries(b.forgeReco?.[b.spec] || (b.spec ? forgeRecoFor(b.classId, b.spec, b.build?.[b.spec]) : {}))
     .filter(([id, v]) => by.has(id) && v).map(([id, v]) => ({ ...brief(id), variant: v }));
   const card = b.spec ? specCard(b.classId, b.spec) : null;
   return {

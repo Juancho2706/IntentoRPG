@@ -4,7 +4,8 @@
 //      lo llama antes de vaciar g.projectiles
 //   B  «Recomendado» guarda la build aplicada por especialización (talents.build), se conserva al
 //      normalizar y al guardar, y el libro recomienda SU forja (hud-model.recoFor); sin ella, la de
-//      por defecto
+//      por defecto. Al volver a esa especialización se aplica su forja y la tira de cambio la enseña;
+//      reiniciar su árbol, cargar una configuración o importar un código la olvidan
 //   D  VERB_DOC documenta detonate.self (con MARK_SELF_AGE) y el targetR de fanSpread
 //   M  el estado genérico «marca» del marco del objetivo con las marcas reales de las tres clases
 //      (Juicio, Punto Débil, Marca del Tiempo y Marca del Halcón)
@@ -81,6 +82,45 @@ section('B · «Recomendado» guarda su build y el libro recomienda su forja (Ar
   // otra especialización guarda la suya sin pisar la anterior
   ok(h.g.applyTalentBuild('brasa').ok, 'Recomendado de la Piromante');
   eq(p.talents.build, { arcanista: 'grieta', piromante: 'brasa' }, 'una build por especialización');
+});
+section('B · volver a una especialización con build: la forja que se aplica y la tira de cambio son las de esa build', () => {
+  const h = makeHarness({ classId: 'maga', level: 40, spec: 'arcanista' });
+  Object.assign(h.g, talentMethods);
+  const p = h.p;
+  ok(h.g.applyTalentBuild('grieta').ok, 'Recomendado de Grieta Eterna');
+  ok(h.g.chooseSpec('piromante').ok, 'a la Piromante');
+  delete p.skillForge.m_u_desgarro;           // nunca elegido: recibe la recomendada al volver
+  const prev = HM.specSnapshot(p);
+  ok(h.g.chooseSpec('arcanista').ok, 'de vuelta a la Arcanista');
+  eq(p.skillForge.m_u_desgarro, null, 'al cambiar se aplica la forja de Grieta Eterna (Desgarro canalizado), no Quiebre');
+  eq(HM.recoFor(p, 'arcanista').m_u_desgarro, null, 'la misma que recomienda el libro');
+  const reco = sw => sw.reco.map(x => `${x.id}:${x.variant}`);
+  ok(!reco(HM.specSwapSummary(prev, p)).includes('m_u_desgarro:ii'), `la tira de cambio no propone Quiebre (${reco(HM.specSwapSummary(prev, p))})`);
+  ok(reco(HM.specSwapSummary(prev, { ...HM.specSnapshot(p), build: {} })).includes('m_u_desgarro:ii'), 'sin build guardada, la tira propone la ★ de la de por defecto');
+});
+section('B · reiniciar el árbol de la especialización, cargar una configuración o importar un código olvidan su build', () => {
+  const h = makeHarness({ classId: 'maga', level: 40, spec: 'arcanista' });
+  Object.assign(h.g, talentMethods);
+  const p = h.p;
+  ok(h.g.saveTalentLoadout('mía').ok, 'configuración guardada');
+  const code = h.g.exportTalentCode();
+  const cases = [
+    ['reinicio del árbol de la especialización', () => h.g.resetTalentTree('spec')],
+    ['reinicio de todo', () => h.g.resetTalentTree('all')],
+    ['configuración guardada', () => h.g.applyTalentLoadout(0)],
+    ['código de build', () => h.g.importTalentCode(code)],
+  ];
+  for (const [what, fn] of cases) {
+    ok(h.g.applyTalentBuild('brasa').ok && h.g.applyTalentBuild('grieta').ok, `${what}: dos Recomendados`);
+    eq(p.talents.build, { piromante: 'brasa', arcanista: 'grieta' }, `${what}: con build`);
+    ok(fn().ok, what);
+    eq(p.talents.build, { piromante: 'brasa' }, `${what}: olvida la de la Arcanista (no la de otra especialización)`);
+    eq(HM.recoFor(p, 'arcanista'), forgeRecoFor('maga', 'arcanista'), `${what}: el libro vuelve a la de por defecto`);
+  }
+  // reiniciar solo el de clase o editar un nodo la conserva
+  ok(h.g.applyTalentBuild('grieta').ok, 'Recomendado otra vez');
+  ok(h.g.resetTalentTree('cls').ok, 'reinicio del árbol de clase');
+  eq(p.talents.build?.arcanista, 'grieta', 'el reinicio del árbol de clase no la olvida');
 });
 section('B · normalizeTalents conserva solo builds válidas de su especialización', () => {
   const t = normalizeTalents({ v: 2, spec: 'arcanista', build: { arcanista: 'brasa', crionte: 'no_existe', piromante: 'brasa', zz: 'grieta' } }, 'maga');
