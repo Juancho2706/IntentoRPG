@@ -251,3 +251,104 @@ Fusionada en `paso2-impl` (W2d-A: canal de lanzamiento y perfil; W2d-B: entidade
   la trampa (`data.burst.coef`) va crudo y lo escala una vez `field-entities` con `data.rank` (o `data.rankMul`).
 - Trampa genérica: `data.hitDot` se aplica al saltar en lugar del golpe directo (renueva, no suma); con `burst`, quien
   la pisa no recibe además el golpe directo; ⑤ sin daño con `hit.trap` y `source 'field:trampa'`.
+
+## 10. Sensación de las habilidades (S0 y las tres clases; E5, 2026-10-22)
+
+Fusionada en `paso2-impl` (S0 y la Maga en `638206a`, el Guerrero en `663d2e7`, la Arquera en `a8995d7`). Lo prueban
+`test-sensacion-motor` (S0) y `test-sensacion-maga`, `-guerrero` y `-arquera`. Qué hace cada habilidad, con sus
+números: `MEMORIA.md`, «Paso 2f/2g», puntos 12 a 15.
+
+### 10.1 Claves de la definición (S0)
+
+Están en `SKILL_KEYS` y las valida `validateSkillDef`; las documentan `VERB_DOC.channel` y `VERB_DOC.feel`.
+
+| Clave | Tipo | Qué hace |
+|---|---|---|
+| `tickNow: true` | `channel` | 1.er tic al pulsar. Los `ticks` se reparten en `channelT` (intervalo = `channelT / (ticks − 1)`) y el último cae al acabar. Exige `ticks ≥ 2`, salvo `endless`. Con velocidad de habilidades ≠ 1, los tics se redondean (`round(dur / intervalo) + 1`) |
+| `drainCost: true` | `channel` | El `cost` resuelto no se cobra al empezar: se cobra `cost / ticks` en cada tic (`endless`: `cost` por cada `channelT` s). Para empezar basta pagar un tic; sin recurso, fin `'drain'` |
+| `rampPerTic`, `rampMax` (%, van juntas) | `channel` | El tic n pega `coef × (1 + min(rampMax, rampPerTic · (n − 1)) / 100)` (`combat-math.channelRampPct(tickN, perTic, max)`). Multiplica el coef del tic; no va al saco aditivo. Los mods de talento `rampPerTic` y `rampMax` suman. El haz se ensancha ×2 al tope |
+| `nonBlocking: true` | `channel` | Sin `castLock`: el básico y las otras ranuras quedan libres. Otro canal lo termina; su ranura no lo relanza |
+| `beam: false \| { width, core, color, coreColor, intensity, line }` | `channel` | Haz vivo de la mano al objetivo pegajoso (ancho 0,55 y núcleo 0,16 por defecto); `line: true` lo lleva al final de la línea hacia la mira. Va por defecto en el canal de un objetivo (sin radio, sin `autoShot` y sin tic propio) |
+| `beam: true \| { width, core, color, coreColor, intensity, dur }` | `proj` | Haz vivo hasta el final de su línea si atraviesa (si no, hasta la mira); ancho, brillo y duración crecen con la carga (ancho 0,3 y núcleo 0,09 por defecto) |
+| `heavy: ms \| { ms, minFrac }` | definición o `steps[i]` | Congelado propio por golpe (1–250 ms), una vez por instante; no en repeticiones ni réplicas; respeta reduceMotion. `minFrac`: solo con la carga ≥ esa fracción |
+| `shake` | cualquier `at` | Vale en área `at:'self'`, cono, línea, cuerpo a cuerpo y avance al llegar; × (0,6 + 0,4 · fracción) si la habilidad se carga (`vfx.chargedShake(base, frac)`) |
+| `fx.repeatSfx` | réplicas (`repeat`) | Cada réplica emite `fx.aura` y `fx.extra`, sacude × 0,5 y suena `fx.repeatSfx` o `'thud'` |
+
+### 10.2 Canal en curso (S0)
+
+- `g.startChannel(ctx, done, opts)`: opciones nuevas `tickNow`, `drainCost` (número: coste total), `ramp { perTic, max }`,
+  `nonBlocking` y `beam` (`true` | objeto). Cierra un canal anterior en vez de dejarlo huérfano.
+- `inst` trae `rampPct`, `rampMul` (un `onTick` propio multiplica su coef por `inst.rampMul`), `beam` (el asa),
+  `beamBase`, `nonBlocking` y `tickNow`.
+- `g.channelInfo()` añade `rampPct`, `nonBlocking` y `beam` (el asa: `g.channelInfo().beam.setWidth(…)`).
+- **Soltar o cortar antes del 1.er tic** (soltar, esquiva, golpe fuerte, control) cuenta como no lanzado: devuelve coste
+  y enfriamiento, no dispara ③ `afterCast`, `CastInfo.aborted = true` y ⑭ `end = { kind: 'channel', casts: 0, ticks: 0, … }`.
+  Todo `end` de canal trae `ticks`.
+
+### 10.3 Haz vivo (S0)
+
+- `g.spawnLiveBeam(opts)` → asa `{ update({ from, to }), setWidth(w, core?), setIntensity(k), setColor(c, coreColor?),
+  pulse(k = 1), end(fade = 0,14), dispose(), alive, from, to, width, core, intensity }`.
+- `opts`: `from` y `to` (Vector3, `{ x, y, z }` o función que se lee cada fotograma), `color` (0xb996ff), `coreColor`
+  (0xffffff), `width` (0,5), `core` (0,15), `intensity` (1), `scroll` (6), `sparks` (true), `sparkEvery` (0,1) y `dur`
+  (se apaga solo). Valores por defecto en `vfx.LIVE_BEAM_DEFAULTS`.
+- `vfx.createLiveBeam(g, opts)` es la versión pura: sin DOM, el asa funciona sin malla. `g.tickLiveBeams(dt)` lo llama
+  `tickSkillVerbs`; `resetCastState` los limpia. `handPos(p)` (export de `game-skills.js`) da la mano, a 1,2 m.
+- `spawnBeam` sigue para los avisos de enemigos.
+
+### 10.4 Barra, forja y rango (S0)
+
+- `p.hotbarManual = { ranura: id }`: lo anota `assignHotbar`, se guarda (`PLAYER_SAVE_FIELDS`) y se valida al cargar.
+- `skill-resolve.specBarUpgrade(p, ids?)` → `[{ slot, id, from }]`, `specBarSwapText(p, swap, tecla = 'T')` y
+  `BAR_SLOT_NAME`. Lo llaman `Player.onSkillsLearned` y `applySpecBar`. `save-schema.SPEC_BAR_NOTICE =
+  'barra-especializacion'`: el aviso de la pasada que recibe al cargar un v5 sin `hotbarManual`.
+- **Forja por build:** `builds[key].forge = { skillId: 'i' | 'ii' | null }` (`null` = sin variante).
+  `talents.forgeRecoFor(classId, specId, buildKey?)` pone la de la build encima de la de la especialización (sin clave, la
+  `defaultBuild`); `game-talents.applyForgeReco(p, spec, { buildKey, force })`. Lo usan `chooseSpec` (solo lo nunca
+  forjado, D3), `applyTalentBuild` («Recomendado» fija lo que declara la build), el banco (`bench-core`) y el libro
+  (`hud-model.recoFor`, `recoPlan`, `specSwapSummary`).
+- **`needsForm`** en un nodo o una opción: `{ skillId: cond | [cond] }` (todas a la vez), con `cond` ∈ `channel`,
+  `pierce`, `charge`, `proj`, `area`, `detonate`, `chain`, `recast`, `trap`, `'type:x'`, `'tag:x'` o `'!cond'`.
+  `skill-defs`: `FORM_NEEDS`, `formNeedValid`, `formNeedMet`, `formNeedText`. `talents.formVoids(p, skillId, def)` →
+  `[{ id, name, conds, text }]`; `hud-model.voidsText(what, voids)`; `forgeView` da `vars[i].voids`/`voidText` y
+  `voids`/`voidText` de la forma actual. `g.chooseForge` avisa y devuelve `{ …, voids }`. `test78` valida la clave.
+- `skill-resolve.rankReq(sk)` = `spec ? min(req, TALENT_RULES.specAt) : req`. Lo usan `skillRank` y `hud-model.forgeView`
+  (rango y `nextRankLv` del libro).
+- Campo de nodo `needs` (D1, nivel de aprendizaje): `docs/paso2-implementacion.md` §3.1.
+
+### 10.5 Control, golpe y sonido (S0)
+
+- `Enemy.applyCC(kind, dur, { …, noDR: true })`: stun, freeze, knock o root sin SUMAR resistencia al control (la que ya
+  hay lo sigue acortando).
+- `vfx.hitStopMs('basicCrit')` = 40 ms (crítico del básico); `vfx.chargedShake(base, frac)`; tono `'thud'` en `sfx.js`.
+
+### 10.6 Claves y APIs de las clases
+
+| Clave o API | Dónde | Qué es |
+|---|---|---|
+| `dashSpeed` (m/s) | `dash` (`skill-defs`, `game-skills`) | La duración sale de la distancia; `dashT` pasa a ser el mínimo (Carga de Escudo a 8 m/s) |
+| `dragPct { per, max }` | `dash` | +`per` % por arrastrado vivo al llegar, hasta `max`, al saco aditivo |
+| Avances (motor) | `game-skills.js` | Anillo de llegada del color de la habilidad (`ctx.color` o `fx.color`) y estela cada 0,3 m, sin azar. Vale para las 3 clases |
+| `mark.detonate.self` + `MARK_SELF_AGE` (0,5 s) | `game-skills.js` (`applyMark` guarda `at`; `markDetonation`) | La misma habilidad detona su marca solo con `self` y si la marca tiene ≥ 0,5 s: los martillos de un mismo lanzamiento no se detonan entre sí. Sin `self`, como antes |
+| `markStatus(m)` | `hud-model.js` | Estado genérico «marca» en `enemyStatuses` (etiqueta = nombre ×usos; `icon` = arte de la habilidad que la puso). Sustituye a `STATUS.juicio`; `ui.js` pinta `x.icon` si viene |
+| Tono `'gold'`, parpadeo y n.º de rombos | `world-marks.js` | Tiras sobre la barra de vida (sello del Juicio) |
+| `foeGen { per, max }` | `g_remolino` (`params`) | Cada giro devuelve `per` de Furia por enemigo golpeado más allá del primero, hasta `max` |
+| `pulse { n, every, pct }` | `g_u_cataclismo` (`params`) | Columna que arde: `n` golpes cada `every` s al `pct` % del impacto. No es el `pulse` de la Ciudadela |
+| `ownDetonate` | `mech-guerrero.js` | +1 de Fervor seguro al detonar la marca propia del Juicio |
+| `whoosh`, `zap`, `hum`, `absorb` | `sfx.js` | Giro del Remolino; descarga del Orbe; zumbido del Haz y del Desgarro; recogida del Orbe |
+| `fanW` (m) y `spreadMin` (rad) | `proj` con `count` y básico de arma | Semiapertura = `atan(fanW / dist)`, entre `spreadMin` y `spread` |
+| `fanSpread(def, dist, spread, targetR)` | `skill-defs.js` | Con `targetR` (blanco solo: `Player.basicAttack` pasa 0,55 × su escala si no hay otro a 2 m), `fanW` se estrecha a 0,8 × `targetR` |
+| `perTarget` en el básico | `entities.js` (`basicAttack`) | Hasta N proyectiles del mismo disparo al mismo enemigo (también en la salpicadura) |
+| `trap.hold` (s) | `trap` | El cepo que atrapa queda cerrado (`f.closed`), pegado al atrapado y detonable; si nadie lo detona, se gasta al acabar |
+| `trap.boss { slowPct, stagger }` | `trap` | A un jefe no lo atrapa: lo muerde una vez (`trapBossBite`) y cada `TRAP_BOSS_EVERY` (0,5 s) lo ralentiza y le suma `stagger` de Quebranto por s hasta que lo detonan |
+| `trap.skin`, `defineTrapSkin(id, def)`, `TRAP_SKINS` | `field-entities.js` | Aspecto de la trampa (`snap`, `burst`, `render` por `skinCall`); `'cepo'` lo registra `powers-arquera.js` |
+| `f.closed` fuera de `maxPerSkill` | `field-entities.spawnField` | Un cepo cerrado ya saltó: no cuenta en el tope por habilidad |
+| `TWIN_DELAY` (0,05 s) | `skills-arquera.js` (`a_andanada`) | Gemela de la flecha central de la Andanada, por la misma línea |
+| `tenseFeel` | `powers-arquera.js` (Cuerda Tensa) | Sensación de los tensados: `tenseChargeFx` (brillo, anillo y chispas), `tenseBasic` (saeta del básico tensado) y un trazador por proyectil |
+| `orbe_arcano`, kind `'magaOrb'`, `sweepOrbs`, `onWorldReset()` | `powers-maga.js` | Orbe propio dentro de `g.projectiles` (avanza con `update(dt)`); `sweepOrbs` apaga los que quedaron atrás al cambiar de zona |
+| `desgarro_canal`, `riftDecal` | `powers-maga.js` | Desgarro canalizado y su fisura en el suelo |
+| `g.skillProfile(p, id)` | `game-skills.js` (C1) | Perfil completo de una habilidad de la clase de `p` (`resolveSkillId`); `null` si no existe, es de otra clase o no hay héroe |
+
+Quedan pedidas (cola abierta, `MEMORIA.md` §5): `onWorldReset()` desde `Game.loadWorld`, `recoFor` con la build
+aplicada, `needsForm` «uno u otro», `noFlightLock` y una entidad viva genérica (`g.spawnEntity`), y `detonate.self` en
+`VERB_DOC.mark`.
