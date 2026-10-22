@@ -34,6 +34,10 @@
 //   '@utility' '@insignia' '@ultimate', '@tag:<tag>' y '@melee' '@charge' '@recast' '@combo'
 //   '@stance' (tags FORJADOS), '@windup', '@holyZone'.
 //
+// NIVEL DE APRENDIZAJE (T0): un nodo u opción que solo toca habilidades que el héroe aún no conoce
+//   no se toma (learnAt/learnFail/openChoice; gateFail, validRanks, canAddRank, fillByOrder y
+//   buildRanks lo respetan con el nivel). Comprobación de los datos: tests/test-talentos-nivel.mjs.
+//
 // ESTADO GUARDADO (§3.2): p.talents = { v:2, spec, cls, sp:{specId:{…}}, choice,
 //   hero:{ specId:{ tree, nodes:{treeId:{…}}, choice:{treeId:{…}} } }, loadouts:{ specId:[…] } }
 //   Los nodos gratis (clave de especialización y de héroe) NO se guardan.
@@ -121,6 +125,137 @@ export function treeGrants(nodes) {
   return out;
 }
 export function nodeById(tree, id) { return tree?.nodes?.find(n => n.id === id) || null; }
+
+// ------------------------------------------------------------ habilidades que toca un nodo (T0)
+// Selectores '@…' de `touch` → grupo de la clase (etiqueta «Toca todo tu Fuego»). Espejo inverso
+// de SEL_BANDERA del conversor (tools/convert-v2/lib/transformar.mjs): bandera → selector.
+const FLAG_SEL = { fire: '@fire', frost: '@frost', arcane: '@arcane', holy: '@holy', sagrado: '@holy', nature: '@nature',
+  physical: '@physical', movilidad: '@movement', golpes: '@all' };
+const TOUCH_CAT = { '@basic': 'basic', '@spender': 'spender', '@movement': 'movement', '@defense': 'defense', '@utility': 'utility', '@insignia': 'spec', '@ultimate': 'ultimate' };
+const touchCatalog = classId => (CLASSES[classId]?.skills || []).filter(s => s.kind !== 'passive');
+function expandTouch(classId, key) {
+  const t = TALENT_TREES[classId];
+  const cat = touchCatalog(classId);
+  if (key[0] !== '@') return { ids: [key] };
+  const flag = Object.keys(t?.groups || {}).find(g => FLAG_SEL[g] === key);
+  if (flag) return { ids: [...(t.groups[flag].ids || [])], label: t.groups[flag].label };
+  if (key === '@all') return { ids: cat.map(s => s.id) };
+  if (TOUCH_CAT[key]) return { ids: cat.filter(s => s.cat === TOUCH_CAT[key]).map(s => s.id) };
+  const el = key.slice(1) === 'phys' ? 'physical' : key.slice(1);
+  return { ids: cat.filter(s => (s.elem === 'phys' ? 'physical' : s.elem) === el).map(s => s.id) };
+}
+// habilidades que toca un nodo (touch del nodo + de sus opciones + activas que concede).
+// k: solo esa opción. → { ids (del catálogo de la clase), label? }: «Habilidades que toca», «Tu kit»,
+// la iluminación por habilidad y el nivel de aprendizaje
+export function nodeTouches(classId, node, k = null) {
+  const keys = [...(node?.touch || [])];
+  for (const o of node?.opts || []) {
+    if (k && o.k !== k) continue;
+    keys.push(...(o.touch || []));
+    if (o.fx?.grant) keys.push(o.fx.grant);
+  }
+  if (node?.fx?.grant) keys.push(node.fx.grant);
+  const ids = new Set();
+  let label = null;
+  for (const key of keys) {
+    const x = expandTouch(classId, key);
+    if (x.label && !label) label = x.label;
+    for (const id of x.ids) ids.add(id);
+  }
+  const known = new Set(touchCatalog(classId).map(s => s.id));
+  return { ids: [...ids].filter(id => known.has(id)), label };
+}
+
+// ------------------------------------------------------------ nivel de aprendizaje (T0)
+// Regla del dueño: un nodo (o una opción A/B) que SOLO toca habilidades que el héroe aún no conoce no
+// se puede tomar. learnAt = el nivel más bajo en que conoce alguna de las que toca o concede (isKnown
+// de skill-resolve, en niveles): la del kit base a su `req`; la de una especialización a su `req`
+// (como pronto al elegir especialización) y solo con ESA; la activa de talento a su `req` (el nodo
+// que la concede es la otra condición). Sin habilidades concretas (genéricos, recurso, mecánica) y
+// los nodos clave gratis: sin learnAt. Una elección se toma si alguna opción ya sirve.
+// Solo árboles de clase y de especialización (el Paragon abre al Nv71). El de clase se calcula con
+// «cualquier especialización»: test-talentos-nivel exige que no dependa de cuál.
+export function skillLearnLevel(classId, skillId, spec = '*') {
+  const sk = touchCatalog(classId).find(s => s.id === skillId);
+  if (!sk) return null;
+  const req = Math.max(1, sk.req || 1);
+  if (sk.kind === 'talent' || !sk.spec) return req;
+  if (spec !== '*' && spec !== sk.spec) return Infinity;
+  return Math.max(req, TALENT_RULES.specAt);
+}
+// { at, skill, name } de la habilidad que antes se aprende de una lista (null: ninguna del catálogo)
+function learnOfIds(classId, ids, spec) {
+  let best = null;
+  for (const id of ids) {
+    const at = skillLearnLevel(classId, id, spec);
+    if (at == null || (best && best.at <= at)) continue;
+    best = { at, skill: id, name: touchCatalog(classId).find(s => s.id === id)?.name || id };
+  }
+  return best;
+}
+// { node: learn | null, opts: { A: learn | null, … } } de un nodo (learn = { at, skill, name })
+export function learnOfNode(classId, node, spec = '*') {
+  if (!node || node.free) return { node: null, opts: {} };
+  if (node.t !== 'c') return { node: learnOfIds(classId, nodeTouches(classId, node).ids, spec), opts: {} };
+  const opts = {};
+  let best = null, free = false;
+  for (const o of node.opts || []) {
+    const l = learnOfIds(classId, nodeTouches(classId, node, o.k).ids, spec);
+    opts[o.k] = l;
+    if (!l) free = true;
+    else if (!best || l.at < best.at) best = l;
+  }
+  return { node: free ? null : best, opts };
+}
+// índice nodo → learn de los árboles de clase y de especialización (se arma al primer uso; un
+// nodo que no está en TALENT_TREES —árbol héroe, árboles de prueba— no tiene learnAt)
+let LEARN = null;
+function learnIndex() {
+  if (LEARN) return LEARN;
+  LEARN = new WeakMap();
+  for (const [classId, t] of Object.entries(TALENT_TREES)) {
+    for (const n of t?.cls?.nodes || []) LEARN.set(n, learnOfNode(classId, n, '*'));
+    for (const s of t?.specs || []) for (const n of s.nodes || []) LEARN.set(n, learnOfNode(classId, n, s.id));
+  }
+  return LEARN;
+}
+// learn del nodo (k: de esa opción). null = no depende de ninguna habilidad
+export function nodeLearn(node, k = null) {
+  const e = node && typeof node === 'object' ? learnIndex().get(node) : null;
+  if (!e) return null;
+  return k == null ? e.node : (e.opts[k] ?? null);
+}
+export function learnAt(node, k = null) { return nodeLearn(node, k)?.at ?? null; }
+// motivo por el que el nivel aún no deja tomar el nodo (o esa opción), o null. Sin nivel no se mira
+export function learnFail(node, level, k = null) {
+  if (!Number.isFinite(level)) return null;
+  const l = nodeLearn(node, k);
+  if (!l || level >= l.at) return null;
+  if (l.at === Infinity) return `${l.name} no es de esta especialización`;
+  return `Se abre al aprender ${l.name} (Nv${l.at})`;
+}
+// opción de una elección que vale al nivel: la pedida (o la A) si ya sirve; si no, la primera que
+// sirva; null si ninguna
+export function openChoice(node, k, level) {
+  if (node?.t !== 'c') return null;
+  const opts = node.opts || [];
+  const want = opts.find(o => o.k === k) || opts[0];
+  if (want && !learnFail(node, level, want.k)) return want.k;
+  return opts.find(o => !learnFail(node, level, o.k))?.k || null;
+}
+// elecciones de los nodos CON RANGO que el nivel no deja: pasan a la otra opción si sirve.
+// → { choice (copia), switched: [ids] }. Las de nodos sin rango se quedan (solo son preferencia)
+export function fixChoices(nodes, ranks, choice, level) {
+  const out = { ...(choice || {}) };
+  const switched = [];
+  for (const n of nodes || []) {
+    if (n.t !== 'c' || !((ranks?.[n.id] | 0) > 0)) continue;
+    const want = out[n.id] || n.opts?.[0]?.k;
+    const k = openChoice(n, want, level);
+    if (k && k !== want) { out[n.id] = k; switched.push(n.id); }
+  }
+  return { choice: out, switched };
+}
 
 // árbol del jugador con sus puertas: which 'cls' | 'spec' | 'hero'
 export function treeOf(p, which) {
@@ -218,7 +353,8 @@ export function paragonPointsLeft(p) {
   const used = Object.values(p?.paragon?.nodes || {}).filter(Boolean).length;
   return paragonPointsEarned(p) - used;
 }
-// motivo por el que una puerta bloquea el nodo (o null)
+// motivo por el que una puerta bloquea el nodo (o null). Con `level`, también el nivel de
+// aprendizaje (learnFail): un nodo que solo toca habilidades que aún no conoces no se toma
 export function gateFail(tree, ranks, node, level) {
   for (const g of tree?.gates || []) {
     if (node.r < g.row) continue;
@@ -226,7 +362,7 @@ export function gateFail(tree, ranks, node, level) {
     if (have < g.need) return `Gasta ${g.need} puntos en las filas de arriba (llevas ${have})`;
     if (g.level && (level || 1) < g.level) return `Requiere nivel ${g.level}`;
   }
-  return null;
+  return learnFail(node, level);
 }
 export function reqFail(tree, ranks, node) {
   if (!node.req || !node.req.length) return null;
@@ -242,12 +378,14 @@ export function validRanks(tree, ranks, level) {
     return r <= n.max && !gateFail(tree, ranks, n, level) && !reqFail(tree, ranks, n);
   });
 }
-export function canAddRank(p, which, nodeId) {
+// k: opción de una elección (sin k basta con que alguna ya sirva)
+export function canAddRank(p, which, nodeId, k = null) {
   const tree = treeOf(p, which); if (!tree) return false;
   const node = nodeById(tree, nodeId); if (!node || node.free) return false;
   const ranks = ranksOf(p, which);
   if ((ranks[nodeId] | 0) >= node.max) return false;
   if (talentPointsLeft(p, which) <= 0) return false;
+  if (k != null && (node.t !== 'c' || !node.opts.some(o => o.k === k) || learnFail(node, p.level, k))) return false;
   return !gateFail(tree, ranks, node, p.level) && !reqFail(tree, ranks, node);
 }
 export function canRemoveRank(p, which, nodeId) {
@@ -524,7 +662,8 @@ export function buildRanks(p, build, { level } = {}) {
   out.cls = fillByOrder(t.cls.nodes, CLASS_GATES, b.clsOrder, earnedAt('cls', L), L);
   const s = findSpec(classId, b.sp);
   if (s) out.sp[s.id] = L >= TALENT_RULES.specAt ? fillByOrder(s.nodes, SPEC_GATES, b.specOrder, earnedAt('spec', L), L) : {};
-  out.choice = { ...b.clsCh, ...b.specCh };
+  // una elección que el nivel aún no deja (T0) pasa a la otra opción
+  out.choice = fixChoices([...t.cls.nodes, ...(s?.nodes || [])], { ...out.cls, ...(s ? out.sp[s.id] : {}) }, { ...b.clsCh, ...b.specCh }, L).choice;
   const h = s && heroTreesFor(classId, s.id).find(x => x.id === b.hero);
   if (h) {
     const ranks = {};
@@ -581,10 +720,44 @@ function cleanChoices(raw, nodes) {
   return o;
 }
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+// recorte FINO (T0) de unos rangos al nivel: quita los nodos que no valen (puertas, requisitos,
+// nivel de aprendizaje), de abajo arriba, hasta que el resto vale; luego, si pasan del
+// presupuesto, rangos sueltos desde el de más abajo. Lo quitado vuelve a quedar libre.
+// Las condiciones solo mejoran con más rangos: el resultado es el mayor subconjunto válido.
+// → { ranks (copia), changed }
+export function trimRanks(nodes, gates, ranks, budget, level) {
+  const tree = { nodes, gates };
+  const out = {};
+  let changed = false;
+  for (const n of nodes || []) {
+    const r = ranks?.[n.id] | 0;
+    if (r > 0 && !n.free) { out[n.id] = Math.min(r, n.max); if (out[n.id] !== r) changed = true; }
+  }
+  // de abajo arriba (y de derecha a izquierda dentro de la fila)
+  const order = (nodes || []).filter(n => !n.free).sort((a, b) => b.r - a.r || b.c - a.c);
+  const dropInvalid = () => {
+    for (;;) {
+      const bad = order.find(n => (out[n.id] | 0) > 0 && (gateFail(tree, out, n, level) || reqFail(tree, out, n)));
+      if (!bad) return;
+      delete out[bad.id];
+      changed = true;
+    }
+  };
+  dropInvalid();
+  let spent = spentIn(tree, out);
+  for (const n of order) {
+    if (spent <= budget) break;
+    while (spent > budget && (out[n.id] | 0) > 0) { if (--out[n.id] <= 0) delete out[n.id]; spent--; changed = true; }
+  }
+  dropInvalid();
+  return { ranks: out, changed };
+}
 // raw: estado guardado. v 1 (formato de 2c.0) → v2 VACÍO: la migración MIGRATIONS[4] lo rehace.
 // Sin `v` se lee como v2 (objetos armados a mano: arnés y tests).
-// level: si viene, valida cada árbol (puertas, requisitos y presupuesto al nivel); un árbol
-// ilegal se VACÍA entero y queda anotado (talentsTrimmed → aviso 'talentos-recortados').
+// level: si viene, valida cada árbol al nivel (puertas, requisitos, nivel de aprendizaje y
+// presupuesto) con el recorte FINO (trimRanks: solo se quita lo que no vale y sus puntos quedan
+// libres); una elección con rango que el nivel aún no deja pasa a la otra opción si sirve. Los
+// árboles tocados quedan anotados (talentsTrimmed → aviso 'talentos-recortados').
 export function normalizeTalents(raw, classId, level) {
   const out = { v: 2, spec: null, cls: {}, sp: {}, choice: {}, hero: {}, loadouts: {} };
   const t = TALENT_TREES[classId];
@@ -621,17 +794,21 @@ export function normalizeTalents(raw, classId, level) {
     }
     // validación por árbol al nivel dado
     if (Number.isFinite(level)) {
-      const check = (key, nodes, gates, ranks, budget) => {
-        const tree = { nodes, gates };
-        if (!validRanks(tree, ranks, level) || spentIn(tree, ranks) > budget) { trimmed.push(key); return {}; }
-        return ranks;
+      const check = (key, nodes, gates, ranks, budget, choices = true) => {
+        // elecciones: la que el nivel aún no deja pasa a la otra si sirve (si no, el recorte quita el
+        // nodo). Las del Paragon van aparte y no tienen nivel de aprendizaje
+        const fc = choices ? fixChoices(nodes, ranks, out.choice, level) : { choice: out.choice, switched: [] };
+        out.choice = fc.choice;
+        const r = trimRanks(nodes, gates, ranks, budget, level);
+        if (r.changed || fc.switched.length) trimmed.push(key);
+        return r.ranks;
       };
       out.cls = check('cls', t.cls.nodes, CLASS_GATES, out.cls, earnedAt('cls', level));
       for (const s of t.specs || []) out.sp[s.id] = check(`sp.${s.id}`, s.nodes, SPEC_GATES, out.sp[s.id], earnedAt('spec', level));
       for (const [sid, st] of Object.entries(out.hero))
         for (const h of heroTreesFor(classId, sid))
           if (st.nodes[h.id]) {
-            const r = check(`hero.${sid}.${h.id}`, h.nodes, HERO_GATES, st.nodes[h.id], earnedAt('hero', level));
+            const r = check(`hero.${sid}.${h.id}`, h.nodes, HERO_GATES, st.nodes[h.id], earnedAt('hero', level), false);
             if (Object.keys(r).length) st.nodes[h.id] = r; else delete st.nodes[h.id];
           }
     }

@@ -479,14 +479,15 @@ console.log('aggregateTalents: selectores §3.8, elemento forjado, finales con r
   assert.equal(T.normalizeTalents(null, 'maga').v, 2);
   // sin `v` se lee como v2 (objetos armados a mano)
   assert.deepEqual(T.normalizeTalents({ spec: 'crionte', cls: { c1: 1 } }, 'maga').cls, { c1: 1 });
-  // con nivel: un árbol ilegal o que no cabe se vacía ENTERO y se anota
+  // con nivel: recorte FINO (T0): solo se quita lo que no vale (y lo que pasa del presupuesto, de
+  // abajo arriba); el árbol tocado se anota
   const ok = T.normalizeTalents({ v: 2, spec: 'piromante', cls: { c1: 2, c4: 1 }, sp: { piromante: { s1: 1 } } }, 'maga', 50);
   assert.deepEqual(T.talentsTrimmed(ok), []);
   assert.deepEqual(ok.cls, { c1: 2, c4: 1 });
   const bad = T.normalizeTalents({ v: 2, spec: 'piromante', cls: { c4: 1, c2: 1 }, sp: { piromante: { s1: 3, s4: 2, s2: 3 }, crionte: { i1: 1 } },
     hero: { piromante: { tree: 'invoca', nodes: { invoca: { f1: 1 } } } } }, 'maga', 12);
-  assert.deepEqual(bad.cls, {}, 'c4 sin c1 al máximo: la clase se vacía');
-  assert.deepEqual(bad.sp.piromante, {}, '8 puntos a Nv12 (2 ganados): la especialización se vacía');
+  assert.deepEqual(bad.cls, { c2: 1 }, 'c4 sin c1 al máximo se quita; c2 se queda');
+  assert.deepEqual(bad.sp.piromante, { s1: 2 }, '8 puntos a Nv12 (2 ganados): se quitan de abajo arriba (s4, s2 y un rango de s1)');
   assert.deepEqual(bad.sp.crionte, { i1: 1 }, 'las demás especializaciones se validan aparte');
   assert.deepEqual(bad.hero.piromante.nodes, {}, 'nodos de héroe sin puntos de héroe a Nv12');
   assert.deepEqual(T.talentsTrimmed(bad).sort(), ['cls', 'hero.piromante.invoca', 'sp.piromante']);
