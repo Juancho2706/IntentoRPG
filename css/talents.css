@@ -264,6 +264,10 @@
   background: #211b28; border: 1px solid #5a3a26; color: #f2d6be; font: 600 12.5px Inter, sans-serif; cursor: help; }
 .tp-gchip i { width: 23px; height: 23px; border-radius: 50%; background: #0d0b10 center / cover no-repeat; flex: none; }
 .tp-gchip b { color: var(--gold2); font-weight: 700; }
+/* mini barra de la mecánica (demo en bucle, 520×72 a ×0,72 sin la fila de etiqueta): el hover lo lleva el chip */
+.tp-card .tp-cgz { position: relative; height: 41px; margin-top: -4px; cursor: help; }
+.tp-card .tp-cgz .gz-host { position: absolute; left: 0; top: 0; transform: translateY(-11.5px) scale(0.72); transform-origin: 0 0; pointer-events: none; }
+.tp-card .tp-cgz .gz-lbl { visibility: hidden; }
 .tp-card .tp-cfoot { margin-top: auto; }
 .tp-card .tp-cfoot .tp-hbtn { width: 100%; justify-content: center; height: 40px; }
 

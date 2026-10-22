@@ -421,6 +421,10 @@ body.shot #tip{transition:none}
 .scard .kit .nm{margin-top:5px;font:600 12px/1.15 Inter;color:var(--ink);height:28px}
 .scard .kit .kc{display:block;color:var(--dim);font-size:11px}
 .scard .sgain{display:flex;flex-wrap:wrap;gap:6px}
+.scard{grid-template-rows:196px 1fr}
+.scard .cgz{position:relative;height:41px;margin-top:-4px}
+.scard .cgz > div{position:absolute;left:0;top:0;transform:translateY(-11.5px) scale(.72);transform-origin:0 0;pointer-events:none}
+.scard .cgz .gz-lbl{visibility:hidden}
 .scard .sfoot{margin-top:auto}
 .scard .sfoot .hbtn{width:100%;justify-content:center}
 .scard .sfoot .hbtn.cur{border-color:var(--gold);color:var(--gold2)}
@@ -1614,7 +1618,10 @@ const t3granted = id => (TV.cls || []).some(n => (n.opts || []).some(o => o.act 
 
 // ---------------------------------------------------------------- vista
 function openTV2() { hideTip(); S.view = 'talents'; $('#P').style.display = 'none'; $('#toast').hidden = true; $('#TV2').style.display = ''; renderTV2(); }
-function closeTV2() { try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null; $('#TV2').style.display = 'none'; }
+function dropCgz() { for (const g of T2V.cgz || []) { try { g.destroy(); } catch {} } T2V.cgz = []; }
+// mini barra en demo (sin textos) en cada tarjeta del selector
+function mountCgz(el) { dropCgz(); if (!TPX?.createGauge) return; for (const h of el.querySelectorAll('[data-cgz]')) { const g = M_SPECS[h.dataset.cgz]?.gauge; if (!g) continue; const d = document.createElement('div'); h.appendChild(d); try { T2V.cgz.push(TPX.createGauge(d, { mode:'demo', id: g })); } catch (e) { console.warn('gauge', e); } } }
+function closeTV2() { dropCgz(); try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null; $('#TV2').style.display = 'none'; }
 const artOf = w => w === 'spec' ? `${A}specs/${MSPEC}.webp` : w === 'hero' ? `${A}${heroTreeOf().art}` : `${A}${V2C().clsArt}`;
 function colHead(w) {
   const sp = curSpec(), ht = heroTreeOf();
@@ -1626,7 +1633,7 @@ function colHead(w) {
 }
 function renderTV2() {
   const el = $('#TV2'), sp = curSpec();
-  try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null;
+  try { T2V.gz?.destroy?.(); } catch {} T2V.gz = null; dropCgz();
   if (!isV2()) return renderTV2Pending(el); // la clase aún no tiene data/talents-v2-<clase>.js
   const opts = Object.entries(BUILDS_V2).filter(([k, b]) => b.sp === MSPEC).map(([k, b]) => `<option value="${k}"${T2V.loadout === k ? ' selected' : ''}>${b.arch} · ${b.n}</option>`).join('') +
     T2V.saved.map((s, i) => `<option value="saved:${i}"${T2V.loadout === 'saved:' + i ? ' selected' : ''}>★ ${s.n}</option>`).join('') +
@@ -1654,6 +1661,7 @@ function renderTV2() {
   el.innerHTML = head + body + foot + '<div class="t3pop" id="t3pop" hidden></div>';
   fitHead(el); // antes de dibujar los árboles: el ancho de las columnas depende de la cabecera
   if (sp && !T2V.chooser) { drawTree3('cls'); drawTree3('spec'); drawHero(); if (T2V.hl) t3hl(T2V.hl); }
+  if (!sp || T2V.chooser) mountCgz(el);
   wireTV3(el); probeArt(el);
 }
 // nombres largos (p. ej. «Arquera Tiradora Veloz»): si la cabecera no cabe en el panel, título más pequeño (si cabe, no cambia nada)
@@ -1809,7 +1817,7 @@ function chooserHTML() {
     return `<article class="scard${m.sketch ? ' sk' : ''}${S.lvl >= 10 && id === MSPEC ? ' cur' : ''}">${m.sketch ? '<span class="sketch">ESBOZO</span>' : ''}<div class="sart" style="background-image:url('${A}specs/${id}.webp')"><img class="semb" src="${A}emblems/${id}.webp" alt=""></div>` +
       `<div class="sbody"><div class="srole">${m.role.toUpperCase()}</div><h3>${m.name}</h3><div class="sline">${m.line}</div>` +
       `<div class="kits">${kit.map(sk => `<div class="kit" data-id="${sk.id}">${ico(sk)}<div class="nm">${sk.n}</div></div>`).join('')}</div>` +
-      `<div class="sgain"><span class="gchip"><i style="background-image:url('${A}${m.mechIco}')"></i>Mecánica: <b>${m.mech}</b></span></div>` +
+      `<div class="sgain"><span class="gchip"><i style="background-image:url('${A}${m.mechIco}')"></i>Mecánica: <b>${m.mech}</b></span></div>` + (m.gauge ? `<div class="cgz" data-cgz="${id}"></div>` : '') +
       `<div class="sgain"><span class="gchip">Pasiva: <b>${m.innate}</b></span></div>` +
       `<div class="sfoot">${S.lvl < 10 ? `<button class="hbtn" disabled>${LOCK.replace('<svg', '<svg width="14" height="14"')} Disponible al nivel 10</button>` : id === MSPEC ? '<button class="hbtn" disabled>✓ Tu especialización</button>' : `<button class="hbtn pick" data-spec="${id}">Elegir ${m.name}</button>`}</div></div></article>`; }).join('')}</div>`;
 }

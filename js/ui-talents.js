@@ -34,7 +34,7 @@
 import { createTalentOps } from './talents-ops.js';
 import * as Talents from './talents.js';
 import { gaugeDefs, gaugeTuning } from './spec-mechanics.js';
-import { gaugeViewFor, demoNodes } from './ui-gauges.js';
+import { gaugeViewFor, demoNodes, createGaugeHud } from './ui-gauges.js';
 import { talentsView, viewDiff, nodeTooltip, skillTooltip, gateTooltip, reasonText, panelScale, nodeTouches,
   TALENT_PANEL, matchBuild, loadoutOptions, loadoutsView, LOADOUTS_MAX, ROLE_TEXT } from './talents-view.js';
 
@@ -190,6 +190,7 @@ export function createTalentPanel(host, opts = {}) {
     // gestor de configuraciones: renombrando (edit) o confirmando el borrado (del) de la i-ésima
     lo: { open: false, edit: null, del: null, name: '', ren: '', err: '', msg: '', sig: '', at: null },
     hl: null, checkT: 0, fxTimers: new Set(),
+    cgz: [],                                  // mini barras en demo de las tarjetas del selector
   };
 
   // ---------- escala y coordenadas (sin leer el layout: ventana y geometría del modelo) ----------
@@ -428,11 +429,26 @@ export function createTalentPanel(host, opts = {}) {
       <span class="tp-keys">Clic +1 · Clic der. −1 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Alt</kbd> detalle</span>`;
     probe(R.foot);
   }
+  // la mecánica en pequeño: la demo en bucle de su barra, sin textos (el detalle va en el tooltip del chip)
+  function dropCardGauges() {
+    for (const g of S.cgz) { try { g.destroy(); } catch { /* */ } }
+    S.cgz = [];
+  }
+  function mountCardGauges(v) {
+    for (const slot of R.choose.querySelectorAll('[data-cgz]')) {
+      const c = (v.chooser || []).find(x => x.id === slot.dataset.cgz);
+      if (!c?.mechanic) continue;
+      const host = doc.createElement('div');
+      slot.appendChild(host);
+      try { S.cgz.push(createGaugeHud(host, { mode: 'demo', id: c.mechanic })); } catch (e) { try { console.warn('[ui-talents] mecánica', e); } catch { /* */ } }
+    }
+  }
   function buildChooser(v) {
     const p = getPlayer();
     const sig = JSON.stringify([v.chooser, v.level]);
     if (sig === S.chooserSig) return;
     S.chooserSig = sig;
+    dropCardGauges();
     R.choose.innerHTML = (v.chooser || []).map(c => {
       const M = mechInfo({ mechanic: c.mechanic });
       const info = SPEC_INFO[c.id] || {};
@@ -444,11 +460,13 @@ export function createTalentPanel(host, opts = {}) {
         <div class="tp-cbody"><div class="tp-crole">${esc(c.role)}</div><h3>${esc(c.name)}</h3><div class="tp-cline">${esc(c.line)}</div>
           ${c.kit.length && c.kitFrom === 'touch' ? '<div class="tp-cklab">Mejora</div>' : ''}
           ${c.kit.length ? `<div class="tp-ckit">${c.kit.map(k => `<div class="tp-ck" data-ck="${esc(k.id)}" data-spec="${esc(c.id)}" data-from="${esc(c.kitFrom)}"><i ${artAttr(k.icon, k.id)}></i><span>${esc(k.name)}</span></div>`).join('')}</div>` : ''}
-          ${M ? `<span class="tp-gchip" data-mech="${esc(c.id)}"><i style="background-image:url('${esc(src(info.gaugeIcon || c.emblem))}')"></i>Mecánica: <b>${esc(M.name)}</b></span>` : ''}
+          ${M ? `<span class="tp-gchip" data-mech="${esc(c.id)}"><i style="background-image:url('${esc(src(info.gaugeIcon || c.emblem))}')"></i>Mecánica: <b>${esc(M.name)}</b></span>
+          <div class="tp-cgz" data-cgz="${esc(c.id)}" data-mech="${esc(c.id)}"></div>` : ''}
           ${c.innate ? `<span class="tp-gchip" data-innate="${esc(c.id)}">Pasiva: <b>${esc(c.innate)}</b></span>` : ''}
           <div class="tp-cfoot">${btn}</div></div></article>`;
     }).join('');
     void p;
+    mountCardGauges(v);
     probe(R.choose);
   }
 
@@ -460,14 +478,14 @@ export function createTalentPanel(host, opts = {}) {
     if (!S.open) return;
     const p = getPlayer();
     if (p !== S.player) { S.player = p; S.undo = []; for (const w of ['cls', 'spec', 'hero']) S.built[w] = null; S.v = null; closeLo(); }
-    if (!p) { R.title.textContent = 'Talentos'; R.sub.textContent = 'Sin personaje'; R.body.dataset.view = 'choose'; R.choose.innerHTML = ''; return; }
+    if (!p) { R.title.textContent = 'Talentos'; R.sub.textContent = 'Sin personaje'; R.body.dataset.view = 'choose'; dropCardGauges(); S.chooserSig = ''; R.choose.innerHTML = ''; return; }
     const v = talentsView(p, { chooser: S.chooser });
     if (!v) return;
     patchHead(v);
     R.body.dataset.view = v.view;
     if (v.view === 'choose') buildChooser(v);
     else {
-      S.chooserSig = '';
+      if (S.chooserSig) { S.chooserSig = ''; dropCardGauges(); }
       for (const w of ['cls', 'spec', 'hero']) {
         const tv = v.trees[w];
         const B = S.built[w];
@@ -1105,7 +1123,7 @@ export function createTalentPanel(host, opts = {}) {
     for (const card of root.querySelectorAll('.tp-card')) {
       if (!shown(card)) continue;
       const C = box(card);
-      const parts = [...card.querySelectorAll('.tp-crole, h3, .tp-cline, .tp-cklab, .tp-ck, .tp-gchip, .tp-cfoot .tp-hbtn')].filter(shown).map(el => ({ el, r: box(el), n: name(el) }));
+      const parts = [...card.querySelectorAll('.tp-crole, h3, .tp-cline, .tp-cklab, .tp-ck, .tp-gchip, .tp-cgz, .tp-cfoot .tp-hbtn')].filter(shown).map(el => ({ el, r: box(el), n: name(el) }));
       for (const it of parts) if (it.r.l < C.l - 1 || it.r.r > C.r + 1 || it.r.b > C.b + 1) clipped.push(`${card.dataset.spec}: ${it.n}`);
       pairs(parts, `tarjeta ${card.dataset.spec}`);
     }
@@ -1152,6 +1170,7 @@ export function createTalentPanel(host, opts = {}) {
       root.classList.add('hidden');
       root.removeAttribute('data-open');
       hideTip(); closeChoice(); closeCode(); closeLo();
+      dropCardGauges(); S.chooserSig = '';     // al reabrir se vuelven a montar (sus relojes no corren cerrado)
       for (const t of S.fxTimers) win.clearTimeout(t);
       S.fxTimers.clear();
       win.clearTimeout(S.checkT);
