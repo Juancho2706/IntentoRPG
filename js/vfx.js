@@ -69,11 +69,12 @@ void main() {
   float d = abs(vUv.y - 0.5) * 2.0;
   float n = noise(vec2(vUv.x * 1.6 - uTime * uScroll * 0.3, vUv.y * 3.0)) * 0.6
           + noise(vec2(vUv.x * 4.0 - uTime * uScroll * 0.55, vUv.y * 7.0 + 3.0)) * 0.4;
-  float halo = pow(1.0 - d, 2.2) * (0.45 + 0.75 * n);
-  float core = 1.0 - smoothstep(uCoreFrac * 0.35, uCoreFrac, d);
+  // halo ancho y suave que el ruido hace «vivo»; núcleo nítido casi blanco
+  float halo = pow(max(0.0, 1.0 - d), 1.4) * (0.55 + 0.9 * n);
+  float core = 1.0 - smoothstep(uCoreFrac * 0.5, uCoreFrac, d);
   float ends = smoothstep(0.0, 0.2, vUv.x) * (1.0 - smoothstep(uLen - 0.2, uLen, vUv.x));
-  vec3 col = uColor * halo + uCoreColor * core * (0.8 + 0.4 * n);
-  float a = clamp(halo * 0.8 + core, 0.0, 1.0) * uAlpha * ends;
+  vec3 col = uColor * halo * 1.3 + uCoreColor * core * (0.85 + 0.3 * n);
+  float a = clamp(halo * 0.85 + core, 0.0, 1.0) * uAlpha * ends;
   gl_FragColor = vec4(col * uIntensity, a * min(1.0, uIntensity));
 }`;
 

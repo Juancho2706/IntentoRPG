@@ -1031,7 +1031,7 @@ export const skillMethods = {
       };
       const to = () => (!bo.line && inst.target?.alive ? v3(inst.target.pos.x, inst.target.pos.z, 1.0) : lineEnd());
       inst.beam = this.spawnLiveBeam({ from: () => handPos(p), to, color: bo.color ?? ctx.color ?? 0xcc88ff, coreColor: bo.coreColor,
-        width: bo.width ?? 0.45, core: bo.core ?? 0.14, intensity: bo.intensity ?? 1 });
+        width: bo.width ?? 0.55, core: bo.core ?? 0.16, intensity: bo.intensity ?? 1 });
       inst.beamBase = { width: inst.beam.width, core: inst.beam.core };
     }
     // el siguiente tic, al instante fijo t0 + k·interval (k = hechos, +1 sin tickNow; un fotograma

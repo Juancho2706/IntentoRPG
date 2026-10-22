@@ -107,6 +107,16 @@ section('T1 · lo que pusiste a mano no se toca (p.hotbarManual) y el Rayo va a 
   // mover la habilidad a otra ranura le quita la marca a la vieja
   h.g.assignHotbar('k2', 'bola_fuego');
   ok(!h.p.hotbarManual.rmb && h.p.hotbarManual.k2 === 'bola_fuego', 'la marca viaja con la habilidad');
+  // un guardado v5 de ANTES de S0 (sin hotbarManual): al cargar, la barra de la especialización entra
+  // una vez, con su aviso de carga; con hotbarManual (guardado nuevo), no se toca
+  const old = hero('maga', 20, { spec: 'arcanista' });
+  old.p.hotbar.rmb = 'bola_fuego'; old.p.hotbar.k2 = 'm_barrera';
+  const sv = JSON.parse(JSON.stringify(serializePlayer(old.p)));
+  const fresh = new Player(old.g, 'maga', sv);
+  ok(fresh.hotbar.rmb === 'bola_fuego' && !fresh.notices.includes('barra-especializacion'), 'guardado nuevo: la barra se respeta');
+  delete sv.hotbarManual;
+  const pre = new Player(old.g, 'maga', sv);
+  ok(pre.hotbar.rmb === 'rayo' && pre.hotbar.k2 === 'a_sello' && pre.notices.includes('barra-especializacion'), `guardado de antes: Rayo y Sello al cargar, con aviso (${JSON.stringify(pre.hotbar)})`);
 });
 section('T1 · al elegir especialización con el kit ya aprendido, también (y con aviso)', () => {
   const run = manual => {
