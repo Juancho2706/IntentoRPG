@@ -139,6 +139,7 @@ export const REASON_TEXT = Object.freeze({
   unknown: { text: 'No se pudo hacer', detail: true },
   level: { text: `Las especializaciones se abren al nivel ${R.specAt}`, detail: true },
   full: { text: `Ya tienes ${LOADOUTS_MAX}: borra una configuración para guardar otra` },
+  learn: { text: 'Aún no conoces la habilidad que mejora', detail: true },
 });
 // texto de una respuesta fallida de ops (null si salió bien)
 export function reasonText(r) {
@@ -186,43 +187,11 @@ function skillLine(sk) {
   return (d.split(/(?<=[.;])\s/)[0] || '').slice(0, 120);
 }
 
-// Selectores '@…' de `touch` → grupo de la clase (etiqueta «Toca todo tu Fuego»). Espejo inverso
-// de SEL_BANDERA del conversor (tools/convert-v2/lib/transformar.mjs): bandera → selector.
-const FLAG_SEL = { fire: '@fire', frost: '@frost', arcane: '@arcane', holy: '@holy', sagrado: '@holy', nature: '@nature',
-  physical: '@physical', movilidad: '@movement', golpes: '@all' };
-const SEL_CAT = { '@basic': 'basic', '@spender': 'spender', '@movement': 'movement', '@defense': 'defense', '@utility': 'utility', '@insignia': 'spec', '@ultimate': 'ultimate' };
-function expandTouch(classId, key) {
-  const t = Talents.talentTreesFor(classId);
-  const cat = skillCatalog(classId);
-  if (key[0] !== '@') return { ids: [key] };
-  const flag = Object.keys(t?.groups || {}).find(g => FLAG_SEL[g] === key);
-  if (flag) return { ids: [...(t.groups[flag].ids || [])], label: t.groups[flag].label };
-  if (key === '@all') return { ids: cat.map(s => s.id) };
-  if (SEL_CAT[key]) return { ids: cat.filter(s => s.cat === SEL_CAT[key]).map(s => s.id) };
-  const el = key.slice(1) === 'phys' ? 'physical' : key.slice(1);
-  return { ids: cat.filter(s => (s.elem === 'phys' ? 'physical' : s.elem) === el).map(s => s.id) };
-}
 // habilidades que toca un nodo (touch del nodo + de sus opciones + activas que concede).
 // k: solo esa opción. → { ids (del catálogo de la clase), label? } — para «Habilidades que toca»,
-// «Tu kit» y la iluminación por habilidad. U2 puede reutilizarla para talentLinks/nodeSkills.
-export function nodeTouches(classId, node, k = null) {
-  const keys = [...(node?.touch || [])];
-  for (const o of node?.opts || []) {
-    if (k && o.k !== k) continue;
-    keys.push(...(o.touch || []));
-    if (o.fx?.grant) keys.push(o.fx.grant);
-  }
-  if (node?.fx?.grant) keys.push(node.fx.grant);
-  const ids = new Set();
-  let label = null;
-  for (const key of keys) {
-    const x = expandTouch(classId, key);
-    if (x.label && !label) label = x.label;
-    for (const id of x.ids) ids.add(id);
-  }
-  const known = new Set(skillCatalog(classId).map(s => s.id));
-  return { ids: [...ids].filter(id => known.has(id)), label };
-}
+// «Tu kit» y la iluminación por habilidad. Vive en talents.js (de ahí sale también el nivel de
+// aprendizaje, T0); aquí se reexporta para el panel y los tests.
+export function nodeTouches(classId, node, k = null) { return Talents.nodeTouches(classId, node, k); }
 
 // ------------------------------------------------------------ estados
 // estado de ops.nodeState → el del contrato (§3.12): locked | avail | partial | max | paused
@@ -253,6 +222,9 @@ function nodeView(p, which, tree, node, L, ownerId, treeHasRoom) {
     icon, iconA: null, iconB: null, flipB: false, hasAct: false, actChosen: false,
     rankText: node.free ? '' : `${st.rank}/${node.max}`, pips: node.t === 'x' ? node.max : 0,
     room: treeHasRoom,
+    // nivel de aprendizaje (T0): a partir de qué nivel sirve; `learn` = motivo si aún no (el nodo va
+    // en gris como uno tras una puerta); `optLock` = motivo de cada opción de una elección (o null)
+    learnAt: Talents.learnAt(node), learn: st.learn || null, optLock: st.optLock || null,
   };
   if (node.t === 'c') {
     const [a, b] = node.opts || [];
@@ -529,7 +501,7 @@ export function viewDiff(a, b) {
   if (JSON.stringify(a?.hero) !== JSON.stringify(b?.hero)) out.hero = true;
   return out;
 }
-const nodeSig = n => `${n.state}|${n.rank}|${n.choice || ''}|${n.inner}|${n.icon}|${n.canAdd ? 1 : 0}|${n.room ? 1 : 0}`;
+const nodeSig = n => `${n.state}|${n.rank}|${n.choice || ''}|${n.inner}|${n.icon}|${n.canAdd ? 1 : 0}|${n.room ? 1 : 0}|${n.learn || ''}|${JSON.stringify(n.optLock || null)}`;
 
 // ------------------------------------------------------------ tooltips (datos)
 // tooltip de un nodo: título, tipo, una frase (o las dos opciones), «cuál conviene», habilidades
@@ -554,7 +526,9 @@ export function nodeTooltip(p, which, id, { alt = false } = {}) {
   };
   if (node.t === 'c') {
     const ch = r > 0 ? (st.choice || node.opts[0].k) : null;
-    out.opts = node.opts.map(o => ({ k: o.k, name: o.name, desc: o.desc || '', role: ROLE_TEXT[o.role] || '', act: !!o.fx?.grant, on: ch === o.k }));
+    // lock: motivo si tu nivel aún no deja esa opción (T0)
+    out.opts = node.opts.map(o => ({ k: o.k, name: o.name, desc: o.desc || '', role: ROLE_TEXT[o.role] || '', act: !!o.fx?.grant, on: ch === o.k,
+      lock: st.optLock?.[o.k] || null }));
   } else {
     const d = rr => Talents.nodeDesc(node, rr);
     out.now = (r > 0 ? 'Ahora: ' : '') + d(Math.max(1, r));
@@ -571,7 +545,11 @@ export function nodeTooltip(p, which, id, { alt = false } = {}) {
   else if (st.maxed) { out.status = st.removeBlock || 'Al máximo · clic derecho para quitar'; out.statusKind = 'g'; }
   else if (st.gate || st.req) { out.status = st.gate || st.req; out.statusKind = 'lk'; }
   else if (left <= 0) { out.status = `Sin puntos libres de ${TREE_WORD[which]}`; out.statusKind = 'lk'; }
-  else if (node.t === 'c' && r <= 0) { out.status = 'Elige A o B encima del nodo (clic en el icono: la última o la A)'; out.statusKind = 'ok'; }
+  else if (node.t === 'c' && r <= 0) {
+    const open = node.opts.filter(o => !st.optLock?.[o.k]).map(o => o.k);
+    out.status = open.length < node.opts.length ? `Elige ${open.join(' o ')} encima del nodo (la otra aún no)` : 'Elige A o B encima del nodo (clic en el icono: la última o la A)';
+    out.statusKind = 'ok';
+  }
   else { out.status = r > 0 ? 'Clic: +1 rango · clic derecho: −1' : 'Disponible: clic para aprender'; out.statusKind = 'ok'; }
   if (alt) {
     const fxs = node.t === 'c' ? node.opts.map(o => `${o.k}: ${fxSummary(o.fx)}`) : [fxSummary(node.fx)];

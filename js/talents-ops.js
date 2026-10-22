@@ -14,10 +14,11 @@
 //   ops.addRank(p, 'spec', 's1')   // → { ok:true, rank } | { ok:false, reason:'gate', text:'…' }
 //
 // Respuestas: { ok, reason?, text?, … }. `reason` es un código del conjunto CERRADO
-// TALENT_REASONS (los de §3.4 más cinco que el plan no nombraba: 'free' nodo gratis, 'empty' sin
-// rangos que quitar, 'unknown' id o configuración desconocida, 'level' nivel insuficiente y
-// 'full' sin hueco de configuración; test70 vigila que no aparezca otro). `text` es el texto
-// para el jugador (la UI puede usar el suyo, traduciendo por código).
+// TALENT_REASONS (los de §3.4 más seis que el plan no nombraba: 'free' nodo gratis, 'empty' sin
+// rangos que quitar, 'unknown' id o configuración desconocida, 'level' nivel insuficiente,
+// 'full' sin hueco de configuración y 'learn' (T0) nodo u opción que solo toca habilidades que
+// aún no conoces; test70 vigila que no aparezca otro). `text` es el texto para el jugador (la UI
+// puede usar el suyo, traduciendo por código).
 // Ninguna operación llama a recompute() ni guarda: lo hace quien la invoca.
 //
 // CÓDIGO DE BUILD (§3.10):
@@ -31,7 +32,7 @@ export const CODE_VERSION_OLD = 'IRPG1';
 export const LOADOUTS_MAX = 10;
 export const LOADOUT_NAME_MAX = 24;
 export const TALENT_REASONS = Object.freeze(['combat', 'points', 'gate', 'req', 'max', 'hero-closed', 'no-spec', 'choice',
-  'code-version', 'code-class', 'code-check', 'code-illegal', 'free', 'empty', 'unknown', 'level', 'full']);
+  'code-version', 'code-class', 'code-check', 'code-illegal', 'free', 'empty', 'unknown', 'level', 'full', 'learn']);
 
 const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
 const NAMES = { guerrero: 'Guerrero', maga: 'Maga', arquera: 'Arquera' };
@@ -59,6 +60,9 @@ export function createTalentOps(T) {
   };
   const bump = (p) => { p.talentsRev = (p.talentsRev | 0) + 1; };
   const nodeName = (tree, id) => T.nodeById(tree, id)?.name || id;
+  // nivel de aprendizaje (T0): motivo si el nivel aún no deja el nodo (o la opción k); opción que vale
+  const lockOf = (node, level, k = null) => T.learnFail?.(node, level, k) || null;
+  const pickOpen = (node, k, level) => (T.openChoice ? T.openChoice(node, k, level) : (k || node.opts?.[0]?.k || null));
 
   // árbol, nodo y rangos de un ámbito (con su motivo si no se puede usar)
   function scope(p, which) {
@@ -81,7 +85,11 @@ export function createTalentOps(T) {
     const open = !isHero || T.heroOpen(p);
     // en el Paragon cerrado los nodos guardados siguen ahí (pausa), pero la clave no cuenta
     const r = node.free ? (open ? 1 : 0) : (ranks[node.id] | 0);
+    // `gate` incluye el nivel de aprendizaje (T0); `learn` es solo ese motivo y `optLock` el de cada
+    // opción de una elección (null = ya sirve)
     const gate = node.free ? null : T.gateFail(tree, ranks, node, p.level | 0);
+    const learn = node.free ? null : lockOf(node, p.level | 0);
+    const optLock = node.t === 'c' ? Object.fromEntries((node.opts || []).map(o => [o.k, lockOf(node, p.level | 0, o.k)])) : null;
     const req = node.free ? null : T.reqFail(tree, ranks, node);
     const left = T.talentPointsLeft(p, which);
     const maxed = r >= node.max;
@@ -102,7 +110,7 @@ export function createTalentOps(T) {
       const names = broken.length > 2 ? `${broken[0].name}, ${broken[1].name} y ${broken.length - 2} más` : broken.map(n => n.name).join(' y ');
       removeBlock = broken.length ? `No puedes quitarlo: ${names} depende${broken.length > 1 ? 'n' : ''} de él` : 'No puedes quitar este rango';
     }
-    return { rank: r, max: node.max, state, gate, req, open: reachable, maxed, canAdd, canRemove, removeBlock, left,
+    return { rank: r, max: node.max, state, gate, req, learn, optLock, open: reachable, maxed, canAdd, canRemove, removeBlock, left,
       choice: node.t === 'c' ? (T.choicesOf(p, which)[node.id] || null) : null, paused: state === 'paused' };
   }
 
@@ -130,19 +138,27 @@ export function createTalentOps(T) {
     if (k != null && (node.t !== 'c' || !node.opts.some(o => o.k === k))) return fail('choice', 'Opción no válida');
     if (which === 'hero' && !T.heroOpen(p)) return fail('hero-closed', 'Gasta tus 31 puntos de especialización para abrir el Paragon');
     const cur = ranks[id] | 0;
+    const L = p.level | 0;
+    // una opción que solo toca habilidades que aún no conoces no se elige (T0)
+    const optLock = k != null ? lockOf(node, L, k) : null;
     if (cur >= node.max) {
       // una elección ya comprada: pulsar la otra mitad cambia la opción
-      if (node.t === 'c' && k && choice[id] !== k) { choice[id] = k; bump(p); return { ok: true, rank: cur, changed: true }; }
+      if (node.t === 'c' && k && choice[id] !== k) {
+        if (optLock) return fail('learn', optLock);
+        choice[id] = k; bump(p); return { ok: true, rank: cur, changed: true };
+      }
       return fail('max', 'Ya está al máximo');
     }
-    const gate = T.gateFail(tree, ranks, node, p.level | 0);
-    if (gate) return fail('gate', gate);
+    const gate = T.gateFail(tree, ranks, node, L);
+    if (gate) return gate === lockOf(node, L) ? fail('learn', gate) : fail('gate', gate);
+    if (optLock) return fail('learn', optLock);
     const req = T.reqFail(tree, ranks, node);
     if (req) return fail('req', req);
     if (T.talentPointsLeft(p, which) <= 0) return fail('points', `No te quedan puntos de ${TREE_NAME[which]}`);
     const before = heroFlags(p);
     ranks[id] = cur + 1;
-    if (node.t === 'c') choice[id] = k || choice[id] || node.opts?.[0]?.k || 'A';
+    // sin k: la última elegida o la A; si el nivel aún no la deja, la otra
+    if (node.t === 'c') choice[id] = k || pickOpen(node, choice[id] || node.opts?.[0]?.k, L) || node.opts?.[0]?.k || 'A';
     bump(p);
     return { ok: true, rank: ranks[id], ...heroDelta(p, before) };
   }
@@ -170,10 +186,13 @@ export function createTalentOps(T) {
     const node = T.nodeById(sc.tree, id);
     if (!node || node.t !== 'c') return fail('choice', 'No es un nodo de elección');
     if (!node.opts.some(o => o.k === k)) return fail('choice', 'Opción desconocida');
+    const lock = lockOf(node, p.level | 0, k);
+    if (lock) return fail('learn', lock);
     sc.choice[id] = k;
     bump(p);
     return { ok: true };
   }
+  // pasa a la siguiente opción que el nivel ya deja (si no hay otra, el motivo de la siguiente)
   function toggleChoice(p, which, id) {
     const sc = scope(p, which);
     if (sc.err) return sc.err;
@@ -181,7 +200,12 @@ export function createTalentOps(T) {
     if (!node || node.t !== 'c') return fail('choice', 'No es un nodo de elección');
     const cur = sc.choice[id] || node.opts[0].k;
     const i = node.opts.findIndex(o => o.k === cur);
-    return setChoice(p, which, id, node.opts[(i + 1) % node.opts.length].k);
+    const n = node.opts.length;
+    for (let d = 1; d < n; d++) {
+      const o = node.opts[(i + d) % n];
+      if (!lockOf(node, p.level | 0, o.k)) return setChoice(p, which, id, o.k);
+    }
+    return setChoice(p, which, id, node.opts[(i + 1) % n].k);
   }
   // ¿en qué ámbito está un nodo? (clase, especialización o héroe activo)
   function whichOf(p, id) {
@@ -204,6 +228,14 @@ export function createTalentOps(T) {
   }
 
   function clearChoices(p, tree) { for (const n of tree.nodes) if (n.t === 'c') delete p.talents.choice[n.id]; }
+  // elecciones con rango que el nivel aún no deja → la otra opción (T0). true si cambió alguna
+  function fixLevelChoices(p, nodes, ranks, level) {
+    if (!T.fixChoices) return false;
+    const r = T.fixChoices(nodes, ranks, p.talents.choice, level);
+    if (!r.switched.length) return false;
+    for (const id of r.switched) p.talents.choice[id] = r.choice[id];
+    return true;
+  }
   function resetTree(p, which) {
     const sc = scope(p, which);
     if (sc.err) return sc.err;
@@ -316,7 +348,9 @@ export function createTalentOps(T) {
     p.talents.cls = c.ranks;
     p.talents.sp[spec] = s.ranks;
     for (const [id, k] of Object.entries(l.choice || {})) if (T.nodeById(clsTree, id) || T.nodeById(specTree, id)) p.talents.choice[id] = k;
-    let trimmed = c.trimmed || s.trimmed;
+    // una elección que el nivel aún no deja pasa a la otra opción (T0)
+    const fc = fixLevelChoices(p, [...clsTree.nodes, ...specTree.nodes], { ...c.ranks, ...s.ranks }, L);
+    let trimmed = c.trimmed || s.trimmed || fc;
     if (l.hero && T.heroTreesFor(p.classId, spec).some(h => h.id === l.hero.tree)) {
       const ht = T.findHero(p.classId, l.hero.tree);
       const st = p.talents.hero[spec] ||= { tree: ht.id, nodes: {}, choice: {} };
@@ -509,6 +543,8 @@ export function createTalentOps(T) {
       }
     }
     Object.assign(p.talents.choice, d.choice);
+    // una elección del código que tu nivel aún no deja pasa a la otra opción (T0): cuenta como recorte
+    if (fixLevelChoices(p, [...t.cls.nodes, ...(spec?.nodes || [])], { ...cls, ...(spec ? sp : {}) }, L)) trimmed = true;
     bump(p);
     return { ok: true, specId: d.specId, changedSpec: !!d.specId, trimmed, ...heroDelta(p, before) };
   }

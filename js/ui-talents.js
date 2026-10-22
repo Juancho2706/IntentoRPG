@@ -259,7 +259,7 @@ export function createTalentPanel(host, opts = {}) {
   // ============================================================ construcción del DOM
   function nodeLabel(n) {
     const st = { locked: 'bloqueado', avail: 'disponible', partial: 'con rango', max: 'al máximo', paused: 'en pausa' }[n.state] || '';
-    return `${n.name}${n.free ? '' : `, rango ${n.rank} de ${n.max}`}${st ? `, ${st}` : ''}`;
+    return `${n.name}${n.free ? '' : `, rango ${n.rank} de ${n.max}`}${st ? `, ${st}` : ''}${n.learn ? ` (${n.learn})` : ''}`;
   }
   function nodeHTML(n) {
     const phc = n.t === 'c' ? ROLE_COLOR.UNI : TAG_COLOR[n.tag] || '';
@@ -748,7 +748,7 @@ export function createTalentPanel(host, opts = {}) {
       const t = m.t;
       let body;
       if (t.opts) {
-        body = t.opts.map(o => `<div class="opt${o.on ? ' on' : ''}${m.hovK === o.k ? ' hov' : ''}">${o.k} · <i class="shp ${o.act ? 'sq' : 'ci'}"></i>${esc(o.name)}${o.act ? ' <span class="actb">HABILIDAD</span>' : ''} <span class="rl">${esc(o.role)}</span>${o.on ? ' <b class="ok">✓</b>' : ''}<small>${esc(o.desc)}</small></div>`).join('')
+        body = t.opts.map(o => `<div class="opt${o.on ? ' on' : ''}${m.hovK === o.k ? ' hov' : ''}${o.lock ? ' is-lock' : ''}">${o.k} · <i class="shp ${o.act ? 'sq' : 'ci'}"></i>${esc(o.name)}${o.act ? ' <span class="actb">HABILIDAD</span>' : ''} <span class="rl">${esc(o.role)}</span>${o.on ? ' <b class="ok">✓</b>' : ''}<small>${esc(o.desc)}</small>${o.lock ? `<small class="olk">${LOCK_SVG}${esc(o.lock)}</small>` : ''}</div>`).join('')
           + (t.win ? `<div class="win">${esc(t.win)}</div>` : '');
       } else body = `<div class="tl">${esc(t.now)}</div>${t.next ? `<div class="tnx">→ ${esc(t.next)}</div>` : ''}`;
       return `<div class="th"><div class="ti ${t.shape === 'hex' ? 'hex' : 'ci'}" ${artAttr(t.icon, t.id)}></div><div><div class="tn1t">${esc(t.name)}</div>
@@ -808,10 +808,13 @@ export function createTalentPanel(host, opts = {}) {
     const p = getPlayer();
     const t = S.built[w].tv;
     const tt = nodeTooltip(p, w, n.id);
+    // una opción que tu nivel aún no deja (T0) va en gris con candado y su motivo (title y tooltip);
+    // el clic llega a ops, que la rechaza con ese motivo
     R.pop.innerHTML = (tt?.opts || []).map((o, i) => {
       const icon = i === 0 ? n.iconA : n.iconB;
       const flip = i === 1 && n.flipB;
-      return `<button class="tn-choice${o.act ? ' act' : ''}${o.on ? ' on' : ''}${n.rank <= 0 && n.state !== 'avail' ? ' dis' : ''}" type="button" data-k="${esc(o.k)}" aria-label="${esc(`${o.k}: ${o.name}`)}"><i class="${flip ? 'is-flip' : ''}" ${artAttr(icon, n.id, ROLE_COLOR.UNI)}></i><b>${esc(o.k)}</b><span>${esc(o.name)}</span></button>`;
+      const dis = o.lock || (n.rank <= 0 && n.state !== 'avail');
+      return `<button class="tn-choice${o.act ? ' act' : ''}${o.on ? ' on' : ''}${dis ? ' dis' : ''}${o.lock ? ' is-lock' : ''}" type="button" data-k="${esc(o.k)}" aria-label="${esc(`${o.k}: ${o.name}${o.lock ? ` (${o.lock})` : ''}`)}"${o.lock ? ` title="${esc(o.lock)}"` : ''}><i class="${flip ? 'is-flip' : ''}" ${artAttr(icon, n.id, ROLE_COLOR.UNI)}></i><b>${esc(o.k)}</b>${o.lock ? `<em class="tn-lk">${LOCK_SVG}</em>` : ''}<span>${esc(o.name)}</span></button>`;
     }).join('');
     R.pop.hidden = false;
     R.pop.dataset.which = w;
