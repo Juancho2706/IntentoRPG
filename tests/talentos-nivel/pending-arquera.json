@@ -1,0 +1,17 @@
+{
+  "nota": "Deudas de DATOS del nivel de aprendizaje (tests/test-talentos-nivel.mjs). La suite pasa solo si esta lista coincide EXACTAMENTE con lo que falla. Reordenar nodos las vacía.",
+  "pendientes": [
+    {
+      "regla": "eleccion",
+      "arbol": "tiradora",
+      "nivel": 10,
+      "motivo": "solo 1 nodo tomable: v2 Vendaval Largo · por aprender: v1 Astiles Ligeros (Flecha Múltiple, Nv14), v3 Aire Fresco (Carrera del Viento, Nv12)"
+    },
+    {
+      "regla": "eleccion",
+      "arbol": "tiradora",
+      "nivel": 11,
+      "motivo": "solo 1 nodo tomable: v2 Vendaval Largo · por aprender: v1 Astiles Ligeros (Flecha Múltiple, Nv14), v3 Aire Fresco (Carrera del Viento, Nv12)"
+    }
+  ]
+}
