@@ -9,7 +9,7 @@ import { aggregateTalents, normalizeTalents, talentsTrimmed, TALENTS_TRIMMED_NOT
 import { gainXP as progressionGainXP } from './progression.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
-import { migrateSave, serializePlayer, SPEC_BAR_NOTICE, SAVE_VERSION } from './save-schema.js';
+import { migrateSave, serializePlayer, SPEC_BAR_NOTICE } from './save-schema.js';
 import { MAX_MATERIALS, PROGRESS_MATERIAL_KINDS, materialStackKey, materialSlotsUsed, canAddMaterial } from './materials.js';
 import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
@@ -511,9 +511,9 @@ export class Player {
 
     // guardado versionado (js/save-schema.js): migra v0→…→SAVE_VERSION sobre una
     // copia y luego vuelca los campos. saveVersion no vive en el héroe.
-    // guardado v5 de antes de S0 (sin hotbarManual): la barra de la especialización se pone al cargar (abajo).
-    // Los de versiones viejas no: su migración ya eligió los equivalentes de lo que tenías
-    const preS0Bar = !!saved && typeof saved === 'object' && saved.saveVersion === SAVE_VERSION && !('hotbarManual' in saved);
+    // guardado de antes de S0 (sin hotbarManual), venga de la versión que venga: la barra de la
+    // especialización se pone al cargar (abajo), una vez, como si acabaras de aprender su kit
+    const preS0Bar = !!saved && typeof saved === 'object' && !('hotbarManual' in saved);
     if (saved) {
       saved = migrateSave(saved);
       Object.assign(this, saved, { game: this.game, cls: this.cls });
@@ -674,8 +674,9 @@ export class Player {
     const hm = this.hotbarManual && typeof this.hotbarManual === 'object' ? this.hotbarManual : {};
     this.hotbarManual = {};
     for (const [s, id] of Object.entries(hm)) if (typeof id === 'string' && this.hotbar[s] === id) this.hotbarManual[s] = id;
-    // guardado v5 de antes de S0: una pasada de la barra de la especialización, como si acabaras de
-    // aprender su kit (el Rayo que nunca llegó a 🖱️Der), con su aviso de carga
+    // guardado de antes de S0 (también un v4 o anterior recién migrado): una pasada de la barra de la
+    // especialización, como si acabaras de aprender su kit (el Rayo que nunca llegó a 🖱️Der), con su
+    // aviso de carga (una sola vez)
     if (preS0Bar && specBarUpgrade(this).length && !this.notices.includes(SPEC_BAR_NOTICE)) this.notices.push(SPEC_BAR_NOTICE);
     this.hp = this.stats.maxHP;
     // recurso inicial (resources.js): la Furia arranca vacía; Maná/Energía llenos

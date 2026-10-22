@@ -546,8 +546,9 @@ console.log('En el arnés: kit base, Berserker, Guardián, Cruzado y activas de 
       { lmb: 'g_tajo', rmb: 'terremoto', k1: 'g_carga_escudo', k2: 'g_piel', k3: 'g_guardia', k4: 'g_u_ciudadela' }, { g_tajo: 'ii' }],
     ['cruzado', { lmb: 'g_tajo', rmb: 'g_martillo', k1: 'g_salto', k2: 'g_provocacion', k3: 'g_t_devocion', k4: 'g_u_furia' },
       { lmb: 'g_tajo', rmb: 'g_martillo', k1: 'g_sendero', k2: 'g_piel', k3: 'g_juicio', k4: 'g_u_cataclismo' }, {}],
-    ['berserker', { rmb: 'g_martillo', k3: 'g_t_veredicto' }, { lmb: 'g_tajo', rmb: 'g_hendidura', k1: null, k2: null, k3: 'g_remolino', k4: null }, {}],
-    ['cruzado', { rmb: 'terremoto', k2: 'g_t_justicia', k4: 'g_u_estandarte' }, { lmb: 'g_tajo', rmb: 'g_hendidura', k1: null, k2: 'g_piel', k3: null, k4: 'g_u_cataclismo' }, {}],
+    // las ranuras que v4 dejó vacías reciben la de SPEC_BAR, como un héroe nuevo (X1, decisión del dueño)
+    ['berserker', { rmb: 'g_martillo', k3: 'g_t_veredicto' }, { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'g_salto', k2: 'g_piel', k3: 'g_remolino', k4: 'g_u_furia' }, {}],
+    ['cruzado', { rmb: 'terremoto', k2: 'g_t_justicia', k4: 'g_u_estandarte' }, { lmb: 'g_tajo', rmb: 'g_hendidura', k1: 'g_sendero', k2: 'g_piel', k3: 'g_juicio', k4: 'g_u_cataclismo' }, {}],
   ];
   for (const [spec, bar, want, forge] of BAR_CASES) {
     const d = migrate(spec, bar);

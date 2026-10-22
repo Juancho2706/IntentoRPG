@@ -11,9 +11,9 @@
 //    puntos ni ramas, talentos v2 con la especialización, barra válida, idempotente, carga
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CLASSES, SUPPORTS } from '../js/data.js';
+import { CLASSES, SUPPORTS, SPEC_BAR } from '../js/data.js';
 import { migrateSave, SAVE_VERSION, MIGRATIONS, REMOVED_SKILLS_V3, LOAD_NOTICES, PLAYER_SAVE_FIELDS, V4_INSIGNIA,
-  V4_WEAPON_BASIC, V4_SPECS, V4_SKILLS, V4_BRANCHES, V4_SUPPORTS } from '../js/save-schema.js';
+  V4_WEAPON_BASIC, V4_SPECS, V4_SKILLS, V4_BRANCHES, V4_SUPPORTS, SPEC_BAR_NOTICE } from '../js/save-schema.js';
 import { talentPointsLeft, aggregateTalents } from '../js/talents.js';
 import { skillSlots, supportFits } from '../js/skill-defs.js';
 import { fitsSlot, isKnown } from '../js/skill-resolve.js';
@@ -191,8 +191,15 @@ for (const [cid, f] of Object.entries(FIX)) {
   // el héroe carga y guarda lo mismo dos veces
   const hero = new Player(mk(), cid, json(v2));
   assert.equal(hero.talents.spec, f.mastery, 'la especialización llega al héroe');
-  // la principal de 🖱️Der es la que dejó la migración (Torbellino → Hendidura en 2g; las otras dos se quedan)
-  assert.equal(hero.hotbar.rmb, cid === 'guerrero' ? 'g_hendidura' : f.sp1, `${cid}: principal migrada`);
+  // la principal de 🖱️Der que deja la migración (Torbellino → Hendidura en 2g; las otras dos se quedan)
+  // y, al cargar un guardado sin hotbarManual, la del kit de la especialización si SPEC_BAR la pone ahí
+  // (S0: el Rajar del Berserker sustituye a la Hendidura, con aviso)
+  const migratedRmb = cid === 'guerrero' ? 'g_hendidura' : f.sp1;
+  assert.equal(migrateSave(v2).hotbar.rmb, migratedRmb, `${cid}: principal migrada`);
+  const kitRmb = CLASSES[cid].skills.find(s => s.id === SPEC_BAR[f.mastery]?.bar?.rmb && s.spec === f.mastery && hero.knows(s.id))?.id || null;
+  assert.equal(hero.hotbar.rmb, kitRmb || migratedRmb, `${cid}: principal al cargar`);
+  assert.equal(hero.notices.includes(SPEC_BAR_NOTICE), !!kitRmb && kitRmb !== migratedRmb, `${cid}: aviso de la barra de la especialización`);
+  if (cid === 'guerrero') assert.equal(hero.hotbar.rmb, 'g_rajar', 'el Berserker carga con el Rajar en 🖱️Der');
   assert.ok(hero.skills[hero.hotbar.rmb] > 0 && hero.skills[weapon] > 0, 'habilidades conocidas por nivel');
   const s1 = json(hero.toSaveData());
   assert.deepEqual(json(new Player(mk(), cid, json(s1)).toSaveData()), s1, `${cid}: recargar dos veces da el mismo guardado`);
