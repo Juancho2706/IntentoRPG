@@ -321,9 +321,12 @@ export const fieldMethods = {
     this.sfx?.('trap');
     this._spendTrap(f, opts.consume);
   },
-  // gasta la trampa o, con data.consume / `consume` false, la rearma (armT de nuevo)
+  // gasta la trampa o, con data.consume / `consume` false, la rearma (armT de nuevo). f.rearmOnce: un
+  // poder pide que la que salta ahora se rearme UNA vez (Gran Cacería: la que pisa la Presa)
   _spendTrap(f, consume) {
-    if (f.data?.consume === false || consume === false) { f.sprung = false; f.armAt = (f.age || 0) + Math.max(0, f.data?.armT || 0); return; }
+    const once = !!f.rearmOnce;
+    f.rearmOnce = false;
+    if (once || f.data?.consume === false || consume === false) { f.sprung = false; f.armAt = (f.age || 0) + Math.max(0, f.data?.armT || 0); return; }
     f.sprung = true;
     this._expireField(f);
   },

@@ -1687,11 +1687,13 @@ section('Francotiradora: Disparo Apuntado (Perforación y Punto Débil)', () => 
     eq(n({ f22: 2 }, PERFECT), 2, 'f22 r2: 2 saetas paralelas');
     eq(n({ f22: 2 }, HALF), 0, 'f22: sin perfecto, ninguna');
   }
-  // f25 Línea Mortal: a carga completa, 30 m de alcance y la línea estalla (5 + 5·rango %)
+  // f25 Línea Mortal: a carga completa, 30 m de alcance y la línea estalla (5 + 5·rango %). La carga
+  // completa llega con la ventana dorada (E4b-bugs): el soltado perfecto también vale
   {
     const go = (nodes, sec) => { const h = fra(nodes), e = h.enemy({ hp: 1e7, pos: [25, 0, 0] }), l = spy(e); aimed(h, e, sec, 1.5); return [by(l, 'a_t_apuntado').length, by(l, 'f_linea_mortal').length]; };
     same(go({ f25: 1 }, 1.6), [1, 1], 'f25: a carga completa llega a 25 m y estalla');
-    same(go({ f25: 1 }, PERFECT), [0, 0], 'f25: sin carga completa, 16 m');
+    same(go({ f25: 1 }, PERFECT), [1, 1], 'f25: el soltado perfecto (en la ventana dorada) es a carga completa');
+    same(go({ f25: 1 }, HALF), [0, 0], 'f25: antes de la ventana dorada, 16 m');
     same(go({}, 1.6), [0, 0], 'sin f25: 16 m');
   }
 });

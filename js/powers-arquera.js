@@ -1776,6 +1776,12 @@ function francotiradoraPowers() {
   const T = tune().fra;
   // onSkillEnd de una suelta de Disparo Apuntado que disparó (perfecta si `perfect`)
   const aimedRelease = (sk, end, perfect = false) => sk?.id === 'a_t_apuntado' && end?.kind === 'charge' && end.casts > 0 && (!perfect || end.perfect);
+  // «a carga completa» de Línea Mortal (f25): el arco tensado del todo, que llega con la ventana
+  // dorada si se abre antes del máximo (Disparo Apuntado 1,15 de 1,5 s; Tiro Pesado 2,15 de 2,5;
+  // Tensado Rápido 1,0 de 1,3) y, sin ventana, con el máximo. Así un soltado perfecto también es a
+  // carga completa, como dice la rotación del diseño («a carga completa en la ventana dorada»);
+  // antes pedía el máximo, siempre después de la ventana, y la build no lo alcanzaba nunca (E4b-bugs)
+  const fullAt = ch => { const a = ch?.perfect?.[0]; return a > ch.min && a < ch.max ? a : ch.max; };
   // mira y perfil del último Disparo Apuntado (al empezar a tensar; la suelta sale hacia ahí)
   const aimOf = (p) => powerState(p, 'arq_apuntado');
   return {
@@ -2100,18 +2106,21 @@ function francotiradoraPowers() {
         cast.instant = true;
       },
     },
-    // f25 Línea Mortal (final): a carga completa, Disparo Apuntado llega a 30 m y su línea estalla (5 + 5·rango %)
+    // f25 Línea Mortal (final): a carga completa (fullAt: desde la ventana dorada), Disparo Apuntado
+    // llega a 30 m y su línea estalla (5 + 5·rango %)
     f_linea_mortal: {
       name: 'Línea Mortal', desc: 'A carga completa, Disparo Apuntado es un haz de 30 m que estalla en toda su línea.',
+      state: () => ({ fullFrac: 1 }),
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_t_apuntado' || !cast.prof?.charge) return;
         const prof = ownProf(p, cast), ch = prof.charge, def = prof.def || cast.sk;
-        const d = def.range || 16, R = prof.range || d;
-        // escala de alcance por tramos: el de siempre hasta el final, 30 m a carga completa (rangeMul = v / def.range)
-        prof.charge = { ...ch, scale: { ...(ch.scale || {}), range: [[ch.min, d], [ch.max - 1e-3, d], [ch.max, T.mortal.range * d / R]] } };
+        const d = def.range || 16, R = prof.range || d, F = fullAt(ch);
+        // escala de alcance por tramos: el de siempre hasta la carga completa y 30 m desde ahí (rangeMul = v / def.range)
+        prof.charge = { ...ch, scale: { ...(ch.scale || {}), range: [[ch.min, d], [F - 1e-3, d], [F, T.mortal.range * d / R]] } };
+        powerState(p, 'f_linea_mortal').fullFrac = ch.max > ch.min ? (F - ch.min) / (ch.max - ch.min) : 1;
       },
       onSkillEnd(g, p, sk, end) {
-        if (!aimedRelease(sk, end) || !(end.frac >= 1 - 1e-9)) return;
+        if (!aimedRelease(sk, end) || !(end.frac >= powerState(p, 'f_linea_mortal').fullFrac - 1e-9)) return;
         const st = aimOf(p), from = { x: p.pos.x, z: p.pos.z }, dir = aimDir(p, st.aim);
         const coef = (T.mortal.base + T.mortal.perRank * powerRank(p, 'f_linea_mortal')) / 100;
         g.timers?.schedule?.(0.3, () => {
@@ -2535,22 +2544,33 @@ function montarazPowers() {
       },
     },
     // m26 Gran Cacería (final): si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor y se
-    // rearman a mitad de daño (una vez cada 12/9/6 s; esas no cuentan para Presa Atrapada ni para el ápice 4)
+    // rearman a mitad de daño (una vez cada 12/9/6 s; esas no cuentan para Presa Atrapada ni para el ápice 4).
+    // «Todas» incluye la que pisa (E4b-bugs): no se gasta (f.rearmOnce) y salta con las demás. Antes
+    // pedía otra trampa armada a la vez y, con los cepos a los pies de la Presa, nunca la había. La que
+    // pisa se mueve y se marca DESPUÉS de resolver su pisada (temporizador 0): esa pisada aún es entera
+    // y cuenta para Presa Atrapada y el ápice
     m_gran_caceria: {
       name: 'Gran Cacería', desc: 'Si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor.',
       state: () => ({}),
       onHit(g, p, e, hit) {
         if (!isSpring(hit) || !e?.prey || !e.alive) return;
-        const traps = ownTraps(g, p).filter(f => f.uid !== hit.trap.uid);
+        const traps = ownTraps(g, p);
+        const stepped = traps.find(f => f.uid === hit.trap.uid) || null;
         if (!traps.length) return;
         const icd = T.caceria.icd[Math.max(1, powerRank(p, 'm_gran_caceria')) - 1] ?? T.caceria.icd[0];
         if (!takeCd(powerState(p, 'm_gran_caceria'), 'cd', icd, p)) return;
-        traps.forEach((f, i) => {
+        const jump = (f, i) => {
+          if (f.dead) return;
           const a = i * 2 * Math.PI / traps.length;
           f.pos.x = e.pos.x + Math.sin(a) * T.caceria.ring;
           f.pos.z = e.pos.z + Math.cos(a) * T.caceria.ring;
           f.armAt = (f.age || 0) + Math.max(0, f.data.armT ?? 0.5);
           if (!f.data.greatHunt) { f.data.greatHunt = true; scaleTrap(f, T.caceria.mul); }
+        };
+        traps.forEach((f, i) => {
+          if (f !== stepped) { jump(f, i); return; }
+          f.rearmOnce = true;
+          if (g.timers) g.timers.schedule(0, () => jump(f, i)); else jump(f, i);
         });
         g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 1), '¡Gran Cacería!', 'txt-crit');
       },

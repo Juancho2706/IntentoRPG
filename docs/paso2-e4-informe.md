@@ -7,21 +7,21 @@
 
 ## 0. Resumen
 
-1. **Los bancos.** `node tests/balance-bench.mjs` y `node tests/forge-bench.mjs` afirman con la semilla 1. Salen verdes solo si lo que falla coincide **exactamente** con `PENDING_E4B` (98 reglas) y `PENDING_FORGE` (97). Si algo nuevo se rompe o algo pendiente se arregla, fallan, y hay que actualizar la lista. Cada entrada lleva la regla, el valor medido, el objetivo y el dueño. Tiempos del modo rápido: 22–47 s y 20–44 s (según la carga de la PC). Un arnés de mutaciones comprobó que cada familia de reglas puede fallar: detecta las 39 mutaciones del banco de balance y las 18 de la forja (§1.4). `balance-regression.mjs` vigila el ritmo 1A de las tres clases.
+1. **Los bancos.** `node tests/balance-bench.mjs` y `node tests/forge-bench.mjs` afirman con la semilla 1. Salen verdes solo si lo que falla coincide **exactamente** con `PENDING_E4B` (98 reglas; **92** tras E4b-bugs, punto 5) y `PENDING_FORGE` (97; **96** tras E4b-bugs). Si algo nuevo se rompe o algo pendiente se arregla, fallan, y hay que actualizar la lista. Cada entrada lleva la regla, el valor medido, el objetivo y el dueño. Tiempos del modo rápido: 22–47 s y 20–44 s (según la carga de la PC). Un arnés de mutaciones comprobó que cada familia de reglas puede fallar: detecta las 39 mutaciones del banco de balance y las 18 de la forja (§1.4). `balance-regression.mjs` vigila el ritmo 1A de las tres clases.
 2. **Lo estructural** (va antes que afinar números):
    - **Tres especializaciones fijan la media M:** el Cruzado (UNI ×1,95), el Piromante (UNI ×1,49 y ÁREA×5 ×1,71) y el Guardián (UNI ×1,32, ÁREA×5 ×1,79 y TTD+ en el tope de 180 s). Con ellas tan arriba, las reglas «×M» de las otras seis no se cumplen subiendo una sola habilidad. A Nv70 la distancia crece: el Piromante llega a ×2,23 y ×2,32.
    - **El Guerrero está invertido.** El Berserker, la especialización de daño, es la que menos pega de su clase (UNI ×0,97, frente a ×1,32 del Guardián y ×1,95 del Cruzado).
    - **La Arcanista y las tres especializaciones de la Arquera** están por debajo de la media en todo (UNI ×0,57–0,79; ÁREA×5 ×0,34–0,63).
-   - **Forja recomendada que hace menos que la Mejora sola.** Pasa en dos especializaciones, en su propio escenario:
+   - **Forja recomendada que hace menos que la Mejora sola.** Pasa en dos especializaciones, en su propio escenario (E4b-bugs: no es un fallo, pendiente de E4b; punto 5):
      - Arcanista con Haz Concentrado (`rayo_ii`): UNI 1123 frente a 1624 de la Mejora.
      - Tiradora con Abanico Abierto (`flecha_multiple_i`): UNI 1098 frente a 2287, y ÁREA×5 1883 frente a 1974.
      - La otra variante de la Flecha Múltiple, Haz Cerrado, da 3295 y 3233: gana en todo.
-   - **Finales que el banco no ve o que restan:**
-     - Danza Carmesí resta: la build Danza pasa de 975 a 2350 de UNI sin ella.
-     - Montaña Viva baja el aguante de Sismo: TTD+ 28 s con ella, 344 s sin ella.
-     - Línea Mortal no se activa nunca con la forja recomendada. Tiro Pesado pone la ventana perfecta antes de la carga completa.
-     - Vaivén Eterno y Gran Cacería no cambian nada (0 %).
-     - Estampida Sin Fin baja un 2 %. Tierra Santa mueve ±1 %.
+   - **Finales que el banco no ve o que restan** (E4b-bugs, punto 5: qué se arregló y qué queda):
+     - Danza Carmesí resta: la build Danza pasa de 975 a 2350 de UNI sin ella. → **arreglado el fallo del motor** (los DoT reaplicados no hacían tics): 1277 frente a 2387; lo que queda es número (E4b).
+     - Montaña Viva baja el aguante de Sismo: TTD+ 28 s con ella, 344 s sin ella. → **no es un fallo de código**: rendimientos decrecientes del control y TTD+ en el equilibrio de la cubeta (a Nv100, al revés: 1800 frente a 111).
+     - Línea Mortal no se activa nunca con la forja recomendada. Tiro Pesado pone la ventana perfecta antes de la carga completa. → **arreglado**: la carga completa llega con la ventana dorada.
+     - Vaivén Eterno y Gran Cacería no cambian nada (0 %). → Vaivén: **límite del banco, arreglado** (el banco gastaba el Vendaval solo en la Múltiple); Gran Cacería: **arreglado** (la trampa que pisa la Presa también se rearma).
+     - Estampida Sin Fin baja un 2 %. Tierra Santa mueve ±1 %. → Estampida: **no es un fallo** (con la semilla 1 suma +1 % y +6 %); Tierra Santa: **límite del banco, arreglado** (APOYO con los aliados a tu lado y siempre heridos).
    - **Marca del Tiempo.** Es el nodo clave del Cronomante y llega gratis al abrir el Paragon. Da el 18–47 % del daño de sus builds: un +30 % plano casi permanente.
    - **Definitivas fuera del 12–22 %:**
      - Furia Inmortal: 0 %. La Furia no limita al Berserker.
@@ -34,12 +34,33 @@
    - G9: 27 a Nv70 y 22 a Nv100.
    - G18: 3. Berserker (15,9 puntos) y Tiradora (12,8) fallan en las 5 semillas. Arcanista (7,7 en la mediana), Guardián y Crionte, en 3 de 5; Piromante, en 2; Francotiradora y Cruzado, en 1. El G18 tiene ruido de semilla de hasta 13 puntos.
    - F1–F9: 97 (matriz completa).
-   - Con la semilla 1, que es la que afirma el modo rápido, son 98 reglas del banco de balance (9 de ellas de las filas 1A de clase) y 97 de la forja.
+   - Con la semilla 1, que es la que afirma el modo rápido, son 98 reglas del banco de balance (9 de ellas de las filas 1A de clase) y 97 de la forja. Tras E4b-bugs: 92 y 96 (punto 5).
 4. **Cambios del banco en esta entrega** (§1.3):
    - `areaLevelForHero` estirada 0,1 por nivel desde el 70: Nv80 → 48 y Nv100 → 50 (antes 52 y 63); el ilvl no cambia.
    - El TTD de la matriz de rol se mide antes de simular: el Guardián daba 26 s por la postura que quedaba puesta, y son 10 s.
    - F2 mide los escenarios que faltan cuando una variante gana en todo.
    - Los dos arreglos que pedía el plan: `drCapOf` en TTD+ y el básico de la Arquera contado por `p.basicAt` con los dos botones.
+5. **E4b-bugs (B2, 2026-10-21): los efectos rotos.** Cifras con la semilla 1, «antes → después» del arreglo; con/sin = la build con el nodo y sin él. Prueba de regresión de cada arreglo: `tests/test-e4b-bugs.mjs` (falla sin él).
+   - **Danza Carmesí (b25): arreglado el fallo del motor; lo demás, a E4b.** Causa: `js/timers.js` reprogramaba el siguiente tic de un DoT un intervalo entero cada vez que se reaplicaba. El Sangrado del Remolino (4 golpes por segundo, tics de 0,5 s) no hacía ni un tic durante el giro: se acumulaba, la Sed no subía (ni Sed Saciada ni Sangre Hirviente) y al soltar Estallido Rojo se quedaba el 65 %. Con 20 s de giro, todo eso pesaba más. Lo mismo dejaba sin tics los Sangrados que Reabrir reinicia y cualquier DoT reaplicado más deprisa que su intervalo. Ahora el refresco y la sustitución conservan el ritmo de los tics. UNI de la build Danza a Nv70: con b25 975 → **1277**, sin b25 2199 → 2387 (Nv100: 1231 → **1579**, sin b25 2446 → 2419). Lo que queda: Danza Carmesí hace lo que dice (el giro dura 20 s) y el banco sigue la rotación del diseño («no lo sueltas»), pero el Remolino con Ciclón pega por segundo menos de la mitad que la rotación con Rajar. Es calibración (el Remolino o lo que suma la Danza): E4b.
+   - **Montaña Viva (d26): no es un fallo de código; pendiente de E4b y de una decisión.** Hace lo que dice: el 3.er Terremoto plantado se repite al 100 % y sus réplicas aturden 0,5 s. Pero cada aturdimiento suma +0,35 de resistencia (rendimientos decrecientes por aplicación, decae 0,12/s) y esos aturdimientos cortos gastan la resistencia de Arrollador (la Carga de 1,5 s de la forja recomendada): la Carga pasa de 49 aplicaciones enteras (73,5 s de aturdimiento en 25 s) a 35 (25,2 s). CONTROL duro 40 % → 21 % (Nv70 y Nv100). El TTD+ lo amplifica porque Sismo está en el equilibrio de la cubeta (recibe 6,1 %/s y se cura 6 %/s sin Montaña; 8,4 %/s con ella): 344 s → 28 s a Nv70, pero **1800 frente a 111 a Nv100** (al revés). Probado en memoria: cobrar la resistencia por el tiempo de aturdimiento que se añade (como mucho 1 s) deja el CONTROL en 39 % frente a 40 %, pero el TTD+ de Nv70 sigue en 21 s; no se aplicó (cambia el control de todo el juego).
+   - **Línea Mortal (f25): arreglado.** «A carga completa» es ahora el arco tensado del todo, que llega con la ventana dorada si esta se abre antes del máximo (Tiro Pesado 2,15 de 2,5 s; Disparo Apuntado 1,15 de 1,5 s; Tensado Rápido 1,0 de 1,3 s). Así el soltado perfecto también es a carga completa, como dice la rotación del diseño («a carga completa en la ventana dorada»). Antes se activaba 0 veces; ahora es el 0,4–1,0 % del daño (UNI y ÁREA×5, Nv70 y Nv100). Build Línea Mortal, Nv70: UNI 2016 → 2108 (sin f25 1887); Nv100: UNI 2528 → 2710 (sin f25 2268). El haz es débil (20 % a rango 3): eso es E4b.
+   - **Vaivén Eterno (v26): límite del banco, arreglado.** En el Vendaval el banco solo pulsaba la Múltiple (`GAUGE_SPEND`), así que Andanada nunca salía en el Vendaval y el final no podía activarse. Con Vaivén Eterno, el banco pulsa ahora Andanada en el Vendaval (rotación del diseño, Arquera §8.3). Vaivenes por pelea: 0 → 8 (Nv70) y 3 → 12 (Nv100); Andanadas 8 → 24 y 14 → 32. UNI con/sin v26: 1273/1265 (Nv70) y 1817/1405 (Nv100). El final funciona, pero con Andanada Repulsora (la forja recomendada; el diseño la pensaba con Andanada Cerrada) Andanada no rinde más que la Múltiple en el Vendaval: E4b.
+   - **Gran Cacería (m26): arreglado.** «Todas tus trampas» incluye la que pisa la Presa: ya no se gasta, salta junto a ella y se rearma a mitad de daño (`f.rearmOnce` en `js/field-entities.js`). Antes pedía otra trampa armada a la vez y, con los cepos a los pies de la Presa, nunca la había. Grandes Cacerías por pelea: 0 → 8. Build Gran Cacería, UNI: 1949 → 2109 (Nv70, sin m26 1825) y 2562 → 2588 (Nv100, sin m26 2143).
+   - **Estampida Sin Fin (b27): no es un fallo.** Con la semilla 1 suma (ÁREA×5 +1 % a Nv70 y +6 % a Nv100; UNI +5 % y +12 %), antes y después de E4b-bugs. Se activa 1–2 veces en 30 s porque comparte con Asalto Total (c30) el tope de 2 recargas seguidas recortadas, como dice su texto. El −2 % de §3 es de otra semilla o nivel: E4b.
+   - **Tierra Santa (z27): límite del banco, arreglado.** Hace lo que dice: sus zonas duran mientras estás dentro y curan al más herido de dentro. En APOYO los dos aliados fantasma estaban a 1,9 m detrás del héroe, fuera de las zonas, y recibían solo un 2 %/s: todas las builds del Cruzado curaban todo lo que perdían (cura saturada: 2,45 con z27 y 2,44 %/s sin ella). Ahora pelean a tu lado, en el camino hacia el objetivo (0,8; ±0,3), y están siempre heridos (como mucho a media vida). Con z27 7,82 frente a 7,44 %/s sin ella; Tribunal 6,75 (Nv70). Tierra Santa gana APOYO a Nv70 y Nv100 (7,80 frente a 7,75).
+   - **Forja recomendada por debajo de la Mejora (Haz Concentrado, Abanico Abierto): no son fallos; pendientes de E4b.**
+     - **Haz Concentrado** (`rayo_ii`): hace lo que dice. Canaliza 1,5 s en 3 pulsos; el +80 % va al saco aditivo, como todo «+X %». Conserva la Mejora (18 m) y las Cargas valen en cada pulso (se gastan al acabar). Pierde porque los 1,5 s de canal se comen los Dardos que dan las Cargas: UNI 1135 frente a 1679 de la Mejora sola (Nv50). Además, el banco lanza el Rayo con las Cargas que haya: si espera a 4 Cargas, el Haz da 1967 y la Mejora 2473 [medido]. Sigue por debajo.
+     - **Abanico Abierto** (`flecha_multiple_i`): hace lo que dice (7 flechas en 90°, 38 % cada una; +2 flechas por talentos). Pero la manada del banco cabe en ±20°: contra el jefe dan 3,6 flechas por lanzamiento (5,9 con la Mejora sola) y en ÁREA×5, 3,2 (3,3). UNI 1098 frente a 2264, y ÁREA×5 1830 frente a 2054 (Nv50).
+   - **Reglas que cambian con E4b-bugs** (semilla 1):
+     - **Salen de `PENDING_E4B` (7):**
+       - por APOYO: `G9:cruzado:70:santa:apoyo` y `G9:cruzado:100:santa:apoyo`;
+       - por los DoT: `ROL:montaraz:50:ult`, `G9:montaraz:70:espinas:min:area`, `G9:tiradora:100:plumas:area`, `G9:tiradora:100:cruzado:noBest:area` y `G9:tiradora:100:cruzado:noBest:mixto`.
+     - **Entra (1):** `ROL:piromante:50:best:area` (×1,067 frente a ×1,1). Con las quemaduras haciendo sus tics, la manada del ÁREA×5 muere escalonada y la Bola y el Meteoro dan a menos enemigos por lanzamiento (Piromante ÁREA×5 9054 → 7507; 72 → 60 muertes).
+     - **Salen de `PENDING_FORGE` (5):**
+       - por APOYO: `F1:g_sendero_i` y `F8:g_sendero` (Escolta de Luz escuda a los aliados que el sendero atraviesa);
+       - por los DoT: `F3:g_rajar`, `F1:p_llamarada_i` y `F9:ult:a_u_zarzas_i`.
+     - **Entran (4), por los DoT:** `F1:g_hendidura_ii` (−14 %), `F3:g_hendidura` (+18 %), `F1:embestida_i` (−11 %) y `F3:meteoro` (−31 %).
+     - Cada atribución se comprobó pasando los bancos con el `js/timers.js` de antes.
 
 ## 1. El banco 2g
 
@@ -64,7 +85,7 @@
   - **ÁREA×5:** 5 comunes con vida de campeón que llegan caminando desde 8 m y se reponen.
   - **CONTROL:** 5 comunes inmortales. Mide control duro, duro + inmovilizar y lento ≥ 30 %.
   - **TTD+:** tiempo hasta perder el 50 % contra 3 élites y 4 comunes. En G9 se extrapola hasta ×10 del tope; «∞» = sin pérdida neta.
-  - **APOYO:** 2 aliados fantasma detrás del héroe.
+  - **APOYO:** 2 aliados fantasma detrás del héroe. E4b-bugs: a su lado, en el camino hacia el objetivo, y siempre heridos (§0, punto 5; §8.4).
 - **G9** usa las 12 builds de cada clase a Nv70 y Nv100. **G18** compara el mismo héroe a Nv80 (los 10 nodos del árbol héroe) y a Nv70 (solo el nodo clave, gratis) contra los enemigos del Nv80.
 
 ### 1.2 Reglas afirmadas
@@ -300,22 +321,22 @@ M (media de las 9): UNI 4665 · ÁREA×5 13.134 · TTD+ 13,5 s.
   - Rayo Orbital (híbrida) se queda en ×0,56–0,61 de UNI.
   - La Marca del Tiempo da a las dos builds Cronomante un 18–47 % del daño.
 - **Berserker.**
-  - Danza Carmesí resta: sin el final (b25), la build Danza pasa de 975 a 2.350 de UNI [medido]. La furia por segundo y su tope no influyen.
+  - Danza Carmesí resta: sin el final (b25), la build Danza pasa de 975 a 2.350 de UNI [medido]. La furia por segundo y su tope no influyen. **E4b-bugs:** arreglado el fallo de los DoT (el Sangrado del giro no hacía tics): 1277 frente a 2387; el resto es calibración (§0, punto 5).
   - Danza pierde TTD+ contra Estampida (×0,59 y ×0,36), y Sangre y Acero queda a ×0,59.
 - **Guardián.** Cabeza de Puente no pierde vida (TTD+ «∞») a Nv70, y Guardia Total se queda en 41 s.
-  - Montaña Viva baja el TTD+ de Sismo de 344 a 28 s [medido].
+  - Montaña Viva baja el TTD+ de Sismo de 344 a 28 s [medido]. **E4b-bugs:** no es un fallo de código. Sus aturdimientos cortos gastan la resistencia al control de Arrollador (CONTROL duro 40 % → 21 %), y el TTD+ de Sismo está en el equilibrio de la cubeta: a Nv100 sale al revés, 1800 frente a 111 (§0, punto 5).
   - A Nv100, Sismo y Cabeza de Puente llegan al «∞».
 - **Cruzado.**
   - Tribunal pierde el ÁREA×5 contra Luz y Martillo (×0,65–0,71). Subir el % del Tribunal baja su área, porque el ÁREA×5 se satura de golpes [medido].
-  - Tierra Santa pierde APOYO por un 6 %: sus zonas no alcanzan a los aliados fantasma (§8).
+  - Tierra Santa pierde APOYO por un 6 %: sus zonas no alcanzan a los aliados fantasma (§8). **E4b-bugs:** límite del banco, arreglado. Además la cura estaba saturada; ahora Tierra Santa gana APOYO (7,82 frente a 6,75 de Tribunal, Nv70).
 - **Tiradora.**
-  - Vaivén Eterno no aporta nada: 43 s de Vendaval y 8 Andanadas, y el mismo daño que sin él.
+  - Vaivén Eterno no aporta nada: 43 s de Vendaval y 8 Andanadas, y el mismo daño que sin él. **E4b-bugs:** el banco no pulsaba Andanada en el Vendaval (arreglado). Ahora hay 8 vaivenes a Nv70 y 12 a Nv100; la UNI casi no cambia (1273 frente a 1265 a Nv70): E4b.
   - A Nv100, con la semilla 1, la híbrida Viento Cruzado es la mejor en todo por un 0–3 %, y la Arquera lo prohíbe (§17.3). En la mediana empata (×0,99).
 - **Francotiradora.**
-  - Línea Mortal no se activa nunca. Con Tiro Pesado la ventana perfecta es [2,15; 2,35] s y la carga máxima 2,5 s, así que la build suelta como mucho al 94 % de la carga.
+  - Línea Mortal no se activa nunca. Con Tiro Pesado la ventana perfecta es [2,15; 2,35] s y la carga máxima 2,5 s, así que la build suelta como mucho al 94 % de la carga. **E4b-bugs:** arreglado: la carga completa llega con la ventana dorada. El haz da el 0,4–1,0 % del daño; es débil (E4b).
   - Con el umbral al 85 %, la build solo gana un 4 % de UNI [medido], porque el haz es débil (20 %).
 - **Montaraz.**
-  - Gran Cacería no hace nada: nunca hay 2 trampas propias a la vez (el máximo es 1).
+  - Gran Cacería no hace nada: nunca hay 2 trampas propias a la vez (el máximo es 1). **E4b-bugs:** arreglado: la trampa que pisa la Presa también salta y se rearma. Hay 8 Grandes Cacerías por pelea y la UNI sube un 8 % a Nv70.
   - La híbrida Espinas de Caza es la mejor en UNI (×1,22–1,35) y en mixto, lo que la Arquera prohíbe.
   - Tierra Arrasada pierde el ÁREA×5 contra Bosque Vivo.
 
@@ -474,10 +495,10 @@ M (media de las 9): UNI 4665 · ÁREA×5 13.134 · TTD+ 13,5 s.
 | G7 | `ROL:cruzado:50:apoyoDps` 8 % → ≥ 25 %; `best:apoyo` 0,31 → ≥ 1,1 | la build por defecto (Veredicto) no lleva apoyo. El APOYO de 2e lo da Tierra Santa (2,46 %/s de cura en G9) o Sentencia, y F4 lo prohíbe en una variante de daño. Medir el rol con Santuario o cambiar la regla | — | [decisión] · KT-guerrero |
 | G8 | `ROL:berserker:50:min:ttdp` ×0,30 → ≥ 0,9; `ROL:cruzado:50:min:ttdp` ×0,41 → ≥ 1,3 | ver §8.3. La M del TTD+ está inflada por el tope del Guardián: sin él, ×0,57 y ×0,77 | — | [decisión] · E4b |
 | G9 | `1A:guerrero:5:ttkB` jefe 26,4 s → 30–90 (semilla 1) | `js/skills-guerrero.js` · `g_hendidura` · `coef` ×0,80 | a Nv5 la Hendidura da el 63 % del UNI → jefe ~30 s | [estimado] · KA-guerrero |
-| G10 | `G9:berserker:{70,100}:danza:ttdp` ×0,59/×0,36; `hibrido:hibrida` ×0,59/×0,60 → ≥ 0,90 | `js/talents-guerrero.js` · b25 Danza Carmesí: el final resta (Danza pasa de 975 a 2.350 de UNI sin él). La furia por segundo y su tope no influyen. Hay que ver qué cambia en la rotación antes de tocar números | — | [sin número] · KT-guerrero |
-| G11 | `G9:guardian:70:guardia:ttdp` ×0,02; `hibguard:hibrida` ×0,01/×0,07 | Cabeza de Puente y Sismo llegan al «∞» por la vida al golpear (§8.3). Aparte, d26 Montaña Viva baja el TTD+ de Sismo de 344 a 28 s [medido]: revisarla | — | [decisión] · KT-guerrero |
+| G10 | `G9:berserker:{70,100}:danza:ttdp` ×0,59/×0,36; `hibrido:hibrida` ×0,59/×0,60 → ≥ 0,90 | `js/talents-guerrero.js` · b25 Danza Carmesí: el final resta (Danza pasa de 975 a 2.350 de UNI sin él). La furia por segundo y su tope no influyen. Hay que ver qué cambia en la rotación antes de tocar números. **E4b-bugs (hecho):** el fallo era del motor (`js/timers.js`: el Sangrado del giro no hacía tics); Danza 975 → 1277 frente a 2387 sin b25 (Nv70). Lo que queda es calibración: el giro pega por segundo menos de la mitad que la rotación con Rajar | — | [sin número] · KT-guerrero |
+| G11 | `G9:guardian:70:guardia:ttdp` ×0,02; `hibguard:hibrida` ×0,01/×0,07 | Cabeza de Puente y Sismo llegan al «∞» por la vida al golpear (§8.3). Aparte, d26 Montaña Viva baja el TTD+ de Sismo de 344 a 28 s [medido]: revisarla. **E4b-bugs (revisada):** no es un fallo de código. Sus aturdimientos de 0,5 s gastan la resistencia de Arrollador (CONTROL duro 40 → 21 %), y a Nv100 el TTD+ sale al revés (1800 frente a 111). Opción medida: cobrar la resistencia por el tiempo añadido (CONTROL 39 %; cambia todo el control) | — | [decisión] · KT-guerrero |
 | G12 | `G9:cruzado:{70,100}:tribunal:area` ×0,70/×0,69 | subir el % del Tribunal (z25) baja su área: el ÁREA×5 se satura de golpes | — | [sin número] · KT-guerrero |
-| G13 | `G9:cruzado:{70,100}:santa:apoyo` ×0,93/×0,94 | las zonas de Tierra Santa no cubren a los aliados del banco; triplicar la cura da +1 % (§8.4) | — | [límite] · B1/E4b |
+| G13 | ~~`G9:cruzado:{70,100}:santa:apoyo` ×0,93/×0,94~~ **E4b-bugs (hecho): se cumple** | las zonas de Tierra Santa no cubren a los aliados del banco; triplicar la cura da +1 % (§8.4). Arreglado en el banco: aliados a tu lado y siempre heridos (cura sin saturar) | — | [límite] · B1/E4b |
 | G14 | `G9:cruzado:{70,100}:hibcruz:hibrida` ×0,81/×0,75 → ≥ 0,90 | `js/powers-guerrero.js` · `celestial.pct[2]` 60 → 30 | híbrida ×0,896 (Nv70) y ×0,835 (Nv100); falta poco a Nv70, junto con G1 | [medido] parcial · KT-guerrero |
 | G15 | `G18:berserker` 15,9 puntos → ≤ 5 | sin número único: el Titán t10 (`@spender dmg` 12 → 45) deja 10,9; la Gloria (`pct` 4 → 1), 12,5 | — | [sin número] · KT-guerrero |
 | G16 | `G18:guardian` 4,2 en la mediana (6,4 con la semilla 1) | ninguna: ruido de semilla | — | — |
@@ -516,7 +537,7 @@ M (media de las 9): UNI 4665 · ÁREA×5 13.134 · TTD+ 13,5 s.
 | M3 | `1A:maga:50:ttd` 5,83 s → ≥ 6 (semilla 1) | `js/data.js` · `CLASSES.maga.hpPerLevel` 6 → 7 | +49 de vida a Nv50 (1.504 → 1.553, +3,3 %) → TTD ~6,0 s | [estimado] · E4b |
 | M4 | `ROL:crionte:50:min:uni` ×0,70 → ≥ 0,85 | sin número único: `k_lanza` `coef` ×1,6 da UNI ×0,83, pero la élite muere en 3,44 s (< 3,6) | — | [sin número] · KA-maga |
 | M5 | `ROL:crionte:50:ult` 11,9 % → 12–22 %; forja `m_u_tormenta` F9 Mejora e I | `js/skills-maga.js` · `m_u_tormenta` · `coef` 0,9 → 0,945 | 12,4 % | [medido] · KA-maga |
-| M6 | `ROL:arcanista:50:min:uni` ×0,59 → ≥ 1,15; `best:uni` 0,40 → ≥ 1,1; forja F1 `rayo_ii` −22 % | `js/skills-maga.js` · `rayo_ii` (la forja recomendada, una trampa: hoy hace menos que la Mejora sola) · `set.coef` 0,8 → 1,7 | UNI ≈ ×1,0 de M (1,6 → ×0,95; 2,0 → ×1,12; 2,4 → ×1,28). Pasado ~1,7 la variante rompería F2b (+20 % sobre la Mejora). La distancia que queda, sin número | [medido] · KA-maga |
+| M6 | `ROL:arcanista:50:min:uni` ×0,59 → ≥ 1,15; `best:uni` 0,40 → ≥ 1,1; forja F1 `rayo_ii` −22 % | `js/skills-maga.js` · `rayo_ii` (la forja recomendada, una trampa: hoy hace menos que la Mejora sola) · `set.coef` 0,8 → 1,7 | UNI ≈ ×1,0 de M (1,6 → ×0,95; 2,0 → ×1,12; 2,4 → ×1,28). Pasado ~1,7 la variante rompería F2b (+20 % sobre la Mejora). La distancia que queda, sin número. **E4b-bugs:** `rayo_ii` no es un fallo: hace lo que dice, conserva la Mejora y las Cargas valen en cada pulso; pierde porque el canal se come los Dardos. Si el banco espera a 4 Cargas: Haz 1967, Mejora 2473 [medido] | [medido] · KA-maga |
 | M7 | `ROL:arcanista:50:min:area` ×0,34 → ≥ 0,75 | sin número único: `a_orbe` `coef` ×3 da ×0,47; con M6, el máximo medido fue ×0,52 | — | [sin número] · KA-maga |
 | M8 | `ROL:arcanista:50:ult` 6 % → 12–22 %; forja `m_u_desgarro` F9 ×3 | `js/skills-maga.js` · `m_u_desgarro` · `cd` 50 → 22,5 | 14,6 % (a 30: 11 %). Subir el coeficiente de `m_u_desgarro_ii` a 25,2 da > 12 %, pero el golpe máximo llega al 35,7 % | [medido] · KA-maga |
 | M9 | `G9:piromante:{70,100}:brasa:area` ×0,47/×0,62; `hibrido:hibrida` ×0,30/×0,31 → ≥ 0,85 | la Ignición mide su apertura (~10 s, §8.1). M1 la baja un 23 %; la duración de Combustión y la extensión de la Perpetua no la mueven (§3). Lo que la sostiene es Pirotecnia (s12), Combustión (s23) y Perpetua (s26) juntas | — | [sin número] · KT-maga |
@@ -556,7 +577,7 @@ M (media de las 9): UNI 4665 · ÁREA×5 13.134 · TTD+ 13,5 s.
 
 | # | Regla (medido → objetivo) | Propuesta | Efecto | Etiqueta · dueño |
 |---|---|---|---|---|
-| A1 | `ROL:tiradora:50:min:area` ×0,42 → ≥ 1,2; `best:area` 0,65 → ≥ 1,1; `min:uni` ×0,57 → ≥ 0,85; `ttkN` 2,87 s → ≤ 1,8; `ttkE` 26 s → ≤ 12,6 | `js/skills-arquera.js` · `flecha_multiple_i` (Abanico Abierto, la forja recomendada, una trampa: hace menos que la Mejora sola, y Haz Cerrado da 3.295 y 3.233) · `set.coef` 0,38 → 0,95 | mejor de su clase en ÁREA×5 ✓ y UNI ≥ ×0,85 ✓. ÁREA×5 se queda en ×0,57 (falla) y la definitiva baja al 10,5 % (falla). Común y élite, sin medir | [medido] parcial · KA-arquera |
+| A1 | `ROL:tiradora:50:min:area` ×0,42 → ≥ 1,2; `best:area` 0,65 → ≥ 1,1; `min:uni` ×0,57 → ≥ 0,85; `ttkN` 2,87 s → ≤ 1,8; `ttkE` 26 s → ≤ 12,6 | `js/skills-arquera.js` · `flecha_multiple_i` (Abanico Abierto, la forja recomendada, una trampa: hace menos que la Mejora sola, y Haz Cerrado da 3.295 y 3.233) · `set.coef` 0,38 → 0,95 | mejor de su clase en ÁREA×5 ✓ y UNI ≥ ×0,85 ✓. ÁREA×5 se queda en ×0,57 (falla) y la definitiva baja al 10,5 % (falla). Común y élite, sin medir. **E4b-bugs:** `flecha_multiple_i` no es un fallo: el abanico de 90° deja fuera flechas, porque la manada del banco cabe en ±20° (3,6 flechas por lanzamiento contra el jefe, frente a 5,9 con la Mejora sola) | [medido] parcial · KA-arquera |
 | A2 | F2b `flecha_multiple_ii` +44 % | `flecha_multiple_ii` `set.coef` 0,55 → 0,38 | — | [estimado] · KA-arquera |
 | A3 | `ROL:francotiradora:50:min:uni` ×0,79 → ≥ 1,15 | sin número único: la carga de `a_t_apuntado_ii` ×1,6 da ×0,89, y `a_disparo_ii` ×1,6 da ×0,87. Con la M más baja (G1, G2, M1) la distancia se acorta | — | [sin número] · KA-arquera |
 | A4 | `ROL:francotiradora:50:min:area` ×0,43 → ≥ 0,7 | — | — | [sin número] · KA-arquera |
@@ -567,11 +588,11 @@ M (media de las 9): UNI 4665 · ÁREA×5 13.134 · TTD+ 13,5 s.
 | A9 | `ROL:montaraz:50:min:area` ×0,63 → ≥ 0,9 | sin número único: el Detonante ×2 llega a ×0,67 | — | [sin número] · KA-arquera |
 | A10 | `ROL:montaraz:50:ult` 22,1 % → ≤ 22 %; forja F9 `a_u_zarzas_i` 22,1 % | `js/skills-arquera.js` · `a_u_zarzas` · `coef` 1 → 0,97 | 21,5 % | [medido] · KA-arquera |
 | A11 | `ROL:spread:50` jefe más lento ×3,40 del más rápido → ≤ 2 | el Montaraz y la Tiradora tardan 93 s; con G1 el más rápido pasa a 38 s y hacen falta ≤ 76 s | — | [sin número único] · E4b |
-| A12 | `G9:tiradora:{70,100}:vaiven:uni` ×0,53/×0,71 | `js/talents-arquera.js` · v26 Vaivén Eterno no cambia el daño: 43 s de Vendaval y 8 Andanadas, lo mismo que sin el final. Revisar su condición | — | [sin número] · KT-arquera |
+| A12 | `G9:tiradora:{70,100}:vaiven:uni` ×0,53/×0,71 | `js/talents-arquera.js` · v26 Vaivén Eterno no cambia el daño: 43 s de Vendaval y 8 Andanadas, lo mismo que sin el final. Revisar su condición. **E4b-bugs (hecho):** la condición está bien; era el banco, que en el Vendaval solo pulsaba la Múltiple. Ahora hay 8 vaivenes (Nv70) y 12 (Nv100); UNI con/sin v26: 1273/1265 y 1817/1405. Con Andanada Repulsora no rinde más que la Múltiple | — | [sin número] · KT-arquera |
 | A13 | `G9:tiradora:70:cruzado:min:uni` ×0,77 → ≥ 0,80, `min:mixto` ×0,85 → ≥ 0,90; a Nv100 `cruzado:noBest:*` 1,00–1,03 y `plumas:area` ×0,95 (semilla 1) | dependen de A12; en la mediana de Nv100, la híbrida empata | — | [sin número] · KT-arquera |
-| A14 | `G9:francotiradora:{70,100}:perforacion:area` ×0,57/×0,75; `pulso:min:area` ×0,56 → ≥ 0,8; `pulso:min:mixto` ×0,75/×0,89 → ≥ 0,9 | f25 Línea Mortal no se activa nunca: con Tiro Pesado la ventana perfecta es [2,15; 2,35] s, la carga máxima es 2,5 s y la build suelta como mucho al 94 %. Con el umbral al 85 %, solo +4 % de UNI (el haz da el 20 %) | — | [sin número] · KT-arquera |
+| A14 | `G9:francotiradora:{70,100}:perforacion:area` ×0,57/×0,75; `pulso:min:area` ×0,56 → ≥ 0,8; `pulso:min:mixto` ×0,75/×0,89 → ≥ 0,9 | f25 Línea Mortal no se activa nunca: con Tiro Pesado la ventana perfecta es [2,15; 2,35] s, la carga máxima es 2,5 s y la build suelta como mucho al 94 %. Con el umbral al 85 %, solo +4 % de UNI (el haz da el 20 %). **E4b-bugs (hecho):** la carga completa llega con la ventana dorada (`fullAt`, `js/powers-arquera.js`); el haz es el 0,4–1,0 % del daño. UNI Nv70 2016 → 2108; ÁREA×5 sin cambio claro (ruido de la manada) | — | [sin número] · KT-arquera |
 | A15 | `G9:francotiradora:70:puntodebil:uni` 0,99 (semilla 1) | ninguna: en la mediana pasa | — | ruido |
-| A16 | `G9:montaraz:{70,100}:caceria:uni` ×0,74/×0,82; `espinas:noBest:uni` ×1,35/×1,22; `espinas:noBest:mixto` ×1,06–1,10; `espinas:min:area` 0,79 (semilla 1) | m26 Gran Cacería pide 2 trampas propias a la vez y en el banco nunca hay más de 1. Revisar la condición o la recarga de las trampas | — | [sin número] · KT-arquera |
+| A16 | `G9:montaraz:{70,100}:caceria:uni` ×0,74/×0,82; `espinas:noBest:uni` ×1,35/×1,22; `espinas:noBest:mixto` ×1,06–1,10; `espinas:min:area` 0,79 (semilla 1) | m26 Gran Cacería pide 2 trampas propias a la vez y en el banco nunca hay más de 1. Revisar la condición o la recarga de las trampas. **E4b-bugs (hecho):** «todas tus trampas» incluye la que pisa la Presa, que salta y se rearma a mitad de daño. Hay 8 Grandes Cacerías por pelea; UNI Nv70 1949 → 2109 (sin m26 1825). `espinas:min:area` ya se cumple (por los DoT) | — | [sin número] · KT-arquera |
 | A17 | `G9:montaraz:{70,100}:campo:area` ×0,72/×0,64 | m25 Tierra Arrasada pierde contra Bosque Vivo, que se lleva el área con sus zarzas | — | [sin número] · KT-arquera |
 | A18 | `G9:montaraz:70:zarzal:ctl` ×0,94 | métrica saturada. Con duro + inmovilizar, Bosque Vivo también pierde (51 % frente a 64 %) | — | [decisión] · E4b |
 | A19 | `G18:tiradora` 12,8 puntos | sin número único: ni el movimiento del viento ni el daño de la punta bajan de 9 puntos | — | [sin número] · KT-arquera |
@@ -661,6 +682,11 @@ M (media de las 9): UNI 4665 · ÁREA×5 13.134 · TTD+ 13,5 s.
 - El banco pone 2 aliados fantasma quietos en (−1, ±1,6), detrás del héroe.
 - Las zonas que no los cubren (Tierra Santa) y los efectos que piden que un aliado se mueva (Sendero) no se ven.
 - Cambiar su posición cambia el veredicto de Tierra Santa y de F8 `g_sendero`. **[decisión]**
+- **E4b-bugs (B2), aplicado** (`APOYO_ALLIES`, `APOYO_KEEP` en `tests/helpers/bench-core.mjs`):
+  - Los aliados pelean a tu lado, en el camino hacia el objetivo: (0,8; ±0,3). Ahí caen el sendero, los suelos sagrados y el Cataclismo.
+  - Están siempre heridos (como mucho a media vida), así que la cura efectiva no se satura. Con 2 %/s de daño y la vida llena, todas las builds del Cruzado curaban todo lo que perdían: 2,45–2,67 %/s, y Tierra Santa ±0,01.
+  - Efecto en los bancos: Tierra Santa gana APOYO a Nv70 y Nv100. Escolta de Luz (`g_sendero_i`) escuda a los aliados que el sendero atraviesa, así que F1 y F8 de `g_sendero` se cumplen.
+  - La puntuación APOYO de la forja (DPS de un aliado + 0,1 × cura) sube en todas las clases, porque la cura ya no se satura.
 
 ### 8.5 Otros límites
 

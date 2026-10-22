@@ -65,13 +65,18 @@ const WIN_EPS = 0.005;
 // regla (clave estable), lo medido, el objetivo y el dueño (KA-<clase>: catálogo y forja)
 export const PENDING_FORGE = [
   { key: 'F3:g_tajo', medido: 0.211, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_tajo (Filo Ancho): la Mejora da +21% del aporte en area (+5–15 %)' },
+  // E4b-bugs (B2): aparecen con los DoT al ritmo (js/timers.js: reaplicar ya no aplaza los tics);
+  // los Sangrados y las quemaduras hacen sus tics durante la pelea y mueven estos aportes
+  { key: 'F1:g_hendidura_ii', medido: -0.14, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_hendidura_ii (Grieta, AREA): gana a su hermana por -14% del aporte en area (≥ 8 %)' },
+  { key: 'F3:g_hendidura', medido: 0.18, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_hendidura (Arco Amplio): la Mejora da +18% del aporte en area (+5–15 %)' },
+  { key: 'F1:embestida_i', medido: -0.11, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero embestida_i (Carnero, CTRL): gana a su hermana por -11% del aporte en ctl (≥ 8 %)' },
+  { key: 'F3:meteoro', medido: -0.31, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga meteoro (Puntería Ígnea): la Mejora da -31% del aporte en area (+5–15 %)' },
   { key: 'F8:embestida', medido: null, objetivo: null, dueño: 'KA-guerrero', regla: 'F8 guerrero embestida: ninguna variante supera a la Mejora sola en su escenario' },
   { key: 'F3:g_piel', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_piel (Acero Templado): la Mejora da +0% del aporte en ttdp (+5–15 %)' },
   { key: 'F2b:g_lanza_ii', medido: 0.549, objetivo: 0.2, dueño: 'KA-guerrero', regla: 'F2 guerrero g_lanza_ii (Jabalinas): sube la rotación UNI +55% sobre la Mejora (≤ +20 %)' },
   { key: 'F3:g_lanza', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_lanza (Punta de Arpón): la Mejora da +0% del aporte en uni (+5–15 %)' },
   { key: 'F3:g_remolino', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_remolino (Giro Firme): la Mejora da +0% del aporte en area (+5–15 %)' },
   { key: 'F1:g_rajar_ii', medido: -0.277, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_rajar_ii (Molino, AREA): gana a su hermana por -28% del aporte en area (≥ 8 %)' },
-  { key: 'F3:g_rajar', medido: -0.047, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_rajar (Filo Encadenado): la Mejora da -5% del aporte en uni (+5–15 %)' },
   { key: 'F1:g_u_furia_i', medido: -0.367, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_u_furia_i (Sed Voraz, AGU): gana a su hermana por -37% del aporte en ttdp (≥ 8 %)' },
   { key: 'F1:g_u_furia_ii', medido: null, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_u_furia_ii (Frenesí, UNI): no aporta nada en uni (≥ 8 %)' },
   { key: 'F8:g_u_furia', medido: null, objetivo: null, dueño: 'KA-guerrero', regla: 'F8 guerrero g_u_furia: ninguna variante supera a la Mejora sola en su escenario' },
@@ -90,8 +95,6 @@ export const PENDING_FORGE = [
   { key: 'F1:g_juicio_i', medido: -1.173, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_juicio_i (Sentencia, UNI): gana a su hermana por -117% del aporte en uni (≥ 8 %)' },
   { key: 'F4:g_juicio_i', medido: 0.29, objetivo: 0.02, dueño: 'KA-guerrero', regla: 'F4 guerrero g_juicio_i (Sentencia): da +29% del DPS de un aliado al grupo (variante de daño; ≤ 2 puntos)' },
   { key: 'F3:g_juicio', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_juicio (Juicio Amplio): la Mejora da +0% del aporte en uni (+5–15 %)' },
-  { key: 'F1:g_sendero_i', medido: null, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_sendero_i (Escolta de Luz, APO): no aporta nada en apoyo (≥ 8 %)' },
-  { key: 'F8:g_sendero', medido: null, objetivo: null, dueño: 'KA-guerrero', regla: 'F8 guerrero g_sendero: ninguna variante supera a la Mejora sola en su escenario' },
   { key: 'F1:g_martillo_i', medido: 0.072, objetivo: 0.08, dueño: 'KA-guerrero', regla: 'F1 guerrero g_martillo_i (Martillo Arrojado, UNI): gana a su hermana por 7% del aporte en uni (≥ 8 %)' },
   { key: 'F3:g_u_cataclismo', medido: 0.009, objetivo: [0.05, 0.15], dueño: 'KA-guerrero', regla: 'F3 guerrero g_u_cataclismo (Columna Ancha): la Mejora da +1% del aporte en area (+5–15 %)' },
   { key: 'F9:ult:g_u_cataclismo:mejora', medido: 0.03, objetivo: [0.12, 0.22], dueño: 'KA-guerrero', regla: 'F9 guerrero g_u_cataclismo:mejora: la definitiva aporta 3% de UNI (12–22 %)' },
@@ -103,7 +106,6 @@ export const PENDING_FORGE = [
   { key: 'F3:bola_fuego', medido: 0.329, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga bola_fuego (Núcleo Inestable): la Mejora da +33% del aporte en area (+5–15 %)' },
   { key: 'F3:m_barrera', medido: 0, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga m_barrera (Burbuja Estable): la Mejora da +0% del aporte en ttdp (+5–15 %)' },
   { key: 'F3:nova_hielo', medido: -0.022, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga nova_hielo (Escarcha Profunda): la Mejora da -2% del aporte en ctl (+5–15 %)' },
-  { key: 'F1:p_llamarada_i', medido: 0.005, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga p_llamarada_i (Lanza de Llamas, UNI): gana a su hermana por 0% del aporte en uni (≥ 8 %)' },
   { key: 'F3:p_llamarada', medido: 0.158, objetivo: [0.05, 0.15], dueño: 'KA-maga', regla: 'F3 maga p_llamarada (Llama Ancha): la Mejora da +16% del aporte en area (+5–15 %)' },
   { key: 'F1:meteoro_ii', medido: -2.322, objetivo: 0.08, dueño: 'KA-maga', regla: 'F1 maga meteoro_ii (Meteoro Ancestral, UNI): gana a su hermana por -232% del aporte en uni (≥ 8 %)' },
   { key: 'F2b:meteoro_i', medido: 0.503, objetivo: 0.2, dueño: 'KA-maga', regla: 'F2 maga meteoro_i (Lluvia de Meteoritos): sube la rotación UNI +50% sobre la Mejora (≤ +20 %)' },
@@ -160,7 +162,6 @@ export const PENDING_FORGE = [
   { key: 'F3:a_t_cepo', medido: 0.191, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_t_cepo (Muelles Firmes): la Mejora da +19% del aporte en ctl (+5–15 %)' },
   { key: 'F3:a_m_detonante', medido: 0.312, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_m_detonante (Pólvora Fina): la Mejora da +31% del aporte en area (+5–15 %)' },
   { key: 'F3:a_u_zarzas', medido: 0.369, objetivo: [0.05, 0.15], dueño: 'KA-arquera', regla: 'F3 arquera a_u_zarzas (Espinas Duraderas): la Mejora da +37% del aporte en ctl (+5–15 %)' },
-  { key: 'F9:ult:a_u_zarzas_i', medido: 0.221, objetivo: [0.12, 0.22], dueño: 'KA-arquera', regla: 'F9 arquera a_u_zarzas_i: la definitiva aporta 22% de UNI (12–22 %)' },
 ];
 
 // ---------------- límites del banco (explícitos) ----------------

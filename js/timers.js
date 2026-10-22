@@ -23,6 +23,12 @@ export class TickScheduler {
     return id;
   }
 
+  // segundos que le faltan a la tarea `id` (null si ya no está programada)
+  dueIn(id) {
+    const t = this.tasks.find(x => x.id === id);
+    return t ? Math.max(0, t.at - this.now) : null;
+  }
+
   cancel(id) {
     const i = this.tasks.findIndex(t => t.id === id);
     if (i >= 0) { this.tasks.splice(i, 1); return true; }
@@ -61,6 +67,11 @@ export class TickScheduler {
 // entregado es el mismo que con el apilado anterior → sin cambio de balance; solo
 // se acota el número de temporizadores vivos). El ajuste fino de cómo apilan los
 // DoT queda para el paso de fórmulas (combat-math).
+// El refresco (y la sustitución) NO reinicia el ritmo de los tics: el siguiente llega
+// cuando tocaba (E4b-bugs). Antes cada reaplicación lo empujaba un intervalo entero, así
+// que un DoT reaplicado más deprisa que su intervalo no hacía ni un tic mientras se
+// reaplicaba: el Sangrado del Remolino (4 golpes/s, tics de 0,5 s) se acumulaba durante
+// todo el giro, sin Sed, y Reabrir dejaba sin tics los Sangrados que reiniciaba.
 // Se detiene solo al morir el objetivo (o al limpiar el planificador).
 //   opts: { total, ticks, interval, source = 'dot', replace = false }
 //   replace (Paso 2c.2): SUSTITUYE a la instancia previa sin integrar lo pendiente
@@ -76,9 +87,14 @@ export function applyDoTInstance(sched, enemy, opts) {
   const source = opts.source || 'dot';
   const dots = enemy._dots || (enemy._dots = {});
   const prev = dots[source];
-  // pendiente de la instancia previa (si sigue viva) → se integra en la nueva
-  let pending = 0;
-  if (prev && prev.left > 0) { if (!opts.replace) pending = prev.per * prev.left; sched.cancel(prev.timer); }
+  // pendiente de la instancia previa (si sigue viva) → se integra en la nueva; su
+  // siguiente tic marca el ritmo de la nueva
+  let pending = 0, due = null;
+  if (prev && prev.left > 0) {
+    if (!opts.replace) pending = prev.per * prev.left;
+    due = sched.dueIn ? sched.dueIn(prev.timer) : null;
+    sched.cancel(prev.timer);
+  }
   const per = Math.max(1, Math.round((Math.max(1, Math.round(total / ticks)) * ticks + pending) / ticks));
   const inst = { source, per, left: ticks, ticks, total: per * ticks, interval, timer: 0 };
   dots[source] = inst;
@@ -96,7 +112,7 @@ export function applyDoTInstance(sched, enemy, opts) {
       if (enemy.alive && inst.left <= 0) { try { enemy.game?.onDotEnd?.(enemy, inst); } catch (err) { console.error('[dot] onDotEnd', err); } }
     }
   };
-  inst.timer = sched.schedule(interval, step);
+  inst.timer = sched.schedule(due != null ? Math.min(interval, due) : interval, step);
   return inst;
 }
 
