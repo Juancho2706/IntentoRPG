@@ -46,7 +46,7 @@ const EXPECTED = {
   rayo: ['spender', 14, 'arcanista', 'arcane'], m_u_desgarro: ['ultimate', 15, 'arcanista', 'arcane'],
   m_t_bloque: ['defense', 21, null, 'frost', 'talent'], m_t_inversion: ['defense', 27, null, 'arcane', 'talent'],
   m_t_contrahechizo: ['utility', 31, null, 'arcane', 'talent'], m_h_detener: ['utility', 72, null, 'arcane', 'talent'],
-  m_h_palabra: ['utility', 72, null, 'arcane', 'talent'], m_h_constructo: ['defense', 74, null, 'arcane', 'talent'],
+  m_h_palabra: ['utility', 72, null, 'arcane', 'talent'], m_h_constructo: ['defense', 73, null, 'arcane', 'talent'],
 };
 const RETIRED = ['m_ascua', 'm_toque', 'm_armadura', 'm_onda', 'm_t_barrera', 'm_t_parpadeo', 'p_combustion', 'p_muro_fuego',
   'k_ventisca', 'k_aliento', 'a_misiles', 'a_evocacion'];

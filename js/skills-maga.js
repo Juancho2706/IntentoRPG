@@ -135,7 +135,7 @@ export const MAGA_SKILLS = [
     line: 'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.',
     desc: 'Escribes al instante 3 runas a 1,8 m de ti: forman un Sello donde estás. Enfriamiento 40 s.' },
   { id: 'm_h_constructo', art: 'skills256/m_h_constructo.webp', name: 'Llamar Constructo', icon: '🗿', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'summon', 'taunt', 'arcane'], elem: 'arcane',
-    behavior: 'm_h_constructo', req: 74, cd: 45, dur: 10, radius: 8, range: 6, hpPct: 50, color: 0x9f8cff,
+    behavior: 'm_h_constructo', req: 73, cd: 45, dur: 10, radius: 8, range: 6, hpPct: 50, color: 0x9f8cff,
     line: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.',
     desc: 'Un Constructo de maná aparece hacia la mira (hasta 6 m) durante 10 s y obliga a los enemigos a 8 m de él a atacarlo; aguanta la mitad de tu vida máxima. Enfriamiento 45 s.' },
 ];

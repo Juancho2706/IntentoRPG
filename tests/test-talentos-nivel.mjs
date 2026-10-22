@@ -13,6 +13,7 @@
 //     los 57 guardados v4 reales cargan sin recorte
 //  f) escenario de reorden: una elección con una opción de más nivel sube a la primera fila (ops,
 //     flotante, guardado, build y código eligen la opción que ya sirve)
+//  g) Paragon: la activa que concede un nodo héroe se aprende al nivel en que ese nodo se compra
 // Lo que HOY falla por los DATOS de una clase (b, c, d y la regla de 0) va a
 // tests/talentos-nivel/pending-<clase>.json y la suite sale verde solo si coincide EXACTAMENTE.
 // Las clases los vacían al reordenar. `--escribir` reescribe esos archivos con lo que falla ahora
@@ -449,6 +450,30 @@ console.log(`d) ${builds} builds legales nivel a nivel (10–100) ✓`);
   }
   assert.ok(f > 0, 'escenario con alguna clase');
   console.log(`f) escenario de reorden (${f} clases): opción bloqueada en ops, flotante, guardado, build y código ✓`);
+}
+
+// ------------------------------------------------ g) Paragon: la activa de un nodo héroe se aprende al
+// nivel en que ese nodo se compra (un punto por nivel desde el Nv71: la cadena de requisitos más corta).
+// Antes, Llamar Constructo (f8A, fila 3: Nv73) pedía el Nv74 y se compraba un nivel antes de servir
+{
+  let g = 0;
+  for (const classId of CLASS_IDS) {
+    for (const tree of T.TALENT_TREES[classId].hero) {
+      const by = new Map(tree.nodes.map(n => [n.id, n]));
+      const cost = n => (n.free ? 0 : 1 + Math.min(...(n.req || []).map(id => cost(by.get(id)))));
+      for (const n of tree.nodes) for (const o of n.opts || []) {
+        if (!o.fx?.grant) continue;
+        const pts = cost(n);
+        let L = R.heroAt;
+        while (T.earnedAt('hero', L) < pts) L++;
+        const sk = CLASSES[classId].skills.find(s => s.id === o.fx.grant);
+        assert.equal(sk?.req, L, `${classId}/${tree.id}/${n.id}${o.k}: ${sk?.name || o.fx.grant} se compra al Nv${L} (fila ${n.r}) y pide el Nv${sk?.req}`);
+        g++;
+      }
+    }
+  }
+  assert.equal(g, 9, 'una activa por árbol héroe (3 por clase)');
+  console.log(`g) Paragon: las ${g} activas de los árboles héroe se aprenden al nivel en que se compra su nodo ✓`);
 }
 
 // ------------------------------------------------ pendientes de datos por clase

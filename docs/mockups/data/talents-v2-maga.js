@@ -43,7 +43,7 @@ const CATALOG = [
   { id:'m_t_contrahechizo', n:'Contrahechizo', cat:'utility', req:31, talent:true, grantBy:'c22', elem:'arcane', cd:18, icon:'talents/maga-clase-c5.webp', s:'Corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s.' },
   { id:'m_h_detener', n:'Detener el Tiempo', cat:'utility', req:72, talent:true, grantBy:'t4', hero:true, elem:'arcane', cd:75, icon:'talents/maga-arcanista-s9.webp', s:'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.' },
   { id:'m_h_palabra', n:'Palabra de Poder', cat:'utility', req:72, talent:true, grantBy:'e4', hero:true, elem:'arcane', cd:40, icon:'talents/maga-arcanista-s9.webp', s:'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.' },
-  { id:'m_h_constructo', n:'Llamar Constructo', cat:'defense', req:74, talent:true, grantBy:'f8', hero:true, elem:'arcane', cd:45, icon:'talents/maga-clase-c15.webp', s:'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.' },
+  { id:'m_h_constructo', n:'Llamar Constructo', cat:'defense', req:73, talent:true, grantBy:'f8', hero:true, elem:'arcane', cd:45, icon:'talents/maga-clase-c15.webp', s:'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.' },
   // — KIT DEL PIROMANTE (solo con la especialización; Nv10–15) —
   { id:'p_llamarada', n:'Llamarada', cat:'spec', req:10, spec:'piromante', elem:'fire', coef:1.5, cost:25, cd:8, icon:'talents/maga-piromante-s0.webp', s:'Cono de fuego de 7 m; hace estallar las quemaduras (60 % de lo que les queda).',
     M:{ n:'Llama Ancha', s:'Cono 70 → 90°.', k:'★set{angle:90}' },
@@ -258,7 +258,7 @@ const TALENTS_V2 = {
       { id:'t4', n:'Detener o Retroceder', t:'c', tag:'mec', r:2, c:0, max:1, req:['t1','t2'], icon:I('arcanista-s9'), opts:[
         { k:'A', n:'Detener el Tiempo', d:'Habilidad (ranura 2): paras el tiempo 3 s a 8 m; las Marcas guardan el doble. Se recarga en 75 s', role:'CTRL', act:'m_h_detener' },
         { k:'B', n:'Retroceso', d:'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s', role:'AGU' } ], win:'A, para controlar grupos y preparar un golpe enorme (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
-      { id:'t5', n:'Segundos Robados', t:'p', tag:'num', r:2, c:1, max:1, req:['t2'], d:()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch:['m_u_supernova'], icon:I('arcanista-s3') },
+      { id:'t5', n:'Segundos Robados', t:'p', tag:'num', r:2, c:1, max:1, req:['t2'], d:()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch:['@ultimate'], icon:I('arcanista-s3') },
       { id:'t6', n:'Paradoja', t:'p', tag:'mec', r:2, c:2, max:1, req:['t2','t3'], d:()=>'Si el enemigo marcado muere antes de tiempo, la Marca pasa al más cercano con lo que llevaba', icon:I('arcanista-s7') },
       { id:'t7', n:'Bucle', t:'p', tag:'mec', r:3, c:0, max:1, req:['t4','t5'], d:()=>'Cada 4.ª Marca que termina se repite una segunda vez', icon:I('arcanista-x1') },
       { id:'t8', n:'Presagio o Memoria', t:'c', tag:'mec', r:3, c:1, max:1, req:['t5'], icon:I('arcanista-s12'), opts:[
@@ -273,7 +273,7 @@ const TALENTS_V2 = {
       { id:'f1', n:'Vínculo', t:'p', tag:'num', r:1, c:0, max:1, req:['f0'], d:()=>'El Familiar tiene +50 % de vida y cada disparo te da 2 de maná', icon:I('clase-c6') },
       { id:'f2', n:'Uno o Muchos', t:'c', tag:'mec', r:1, c:1, max:1, req:['f0'], icon:I('arcanista-s5'), opts:[
         { k:'A', n:'Gran Constructo', d:'Un solo Familiar, +80 % de daño; cada 5.º disparo aturde 0,5 s', role:'UNI' }, { k:'B', n:'Enjambre', d:'Tres Familiares pequeños; cada uno hace el 40 %', role:'AREA' } ], win:'A, contra jefes. B, contra grupos (tres blancos a la vez)' },
-      { id:'f3', n:'Imitación', t:'p', tag:'mec', r:1, c:2, max:1, req:['f0'], d:()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch:['m_u_supernova'], icon:I('arcanista-s16') },
+      { id:'f3', n:'Imitación', t:'p', tag:'mec', r:1, c:2, max:1, req:['f0'], d:()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch:['@ultimate'], icon:I('arcanista-s16') },
       { id:'f4', n:'Guardián o Cazador', t:'c', tag:'mec', r:2, c:0, max:1, req:['f1','f2'], icon:I('arcanista-s8'), opts:[
         { k:'A', n:'Guardián', d:'El Familiar se interpone: recibe el 15 % del daño que te hacen', role:'AGU' }, { k:'B', n:'Cazador', d:'El Familiar persigue al enemigo con más vida; ese enemigo recibe +10 % de daño', role:'UNI' } ], win:'A, para sobrevivir. B, contra jefes' },
       { id:'f5', n:'Sobrecarga', t:'p', tag:'num', r:2, c:1, max:1, req:['f2'], d:()=>'Cada habilidad principal tuya acelera los disparos del Familiar un 30 % durante 3 s', icon:I('clase-c14') },
