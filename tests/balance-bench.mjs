@@ -168,8 +168,9 @@ export const PENDING_E4B = [
   // UNI y supera a la Francotiradora (1590, con Punto Débil rehecho en A7); su definitiva pesa menos
   // (10 %). Salen ROL:tiradora:50:min:uni, :ttkN y :ttkE; con el cepo cerrado detonable (A3),
   // ROL:montaraz:50:ttkE; con Tiro Celestial al 12 % de la Francotiradora, ROL:francotiradora:50:ult y
-  // 1A:arquera:50:ult. Calibración del papel UNI (propuesta en el informe de S-arquera): E4b
-  { key: 'ROL:francotiradora:50:best:uni', medido: 0.864, objetivo: 1.1, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI no es la mejor de su clase por ×1.1 (1589.9 frente a 1840.6)' },
+  // 1A:arquera:50:ult. Calibración del papel UNI (propuesta en el informe de S-arquera): E4b. Tiradora frente a
+  // Francotiradora (A5 de «Decisiones de sensación»): subir el tensado de la Francotiradora, en la calibración
+  { key: 'ROL:francotiradora:50:best:uni', medido: 0.864, objetivo: 1.1, dueño: 'KA-arquera', nota: 'decisión del dueño: E4b', regla: 'francotiradora Nv50: UNI no es la mejor de su clase por ×1.1 (1589.9 frente a 1840.6)' },
   { key: 'ROL:montaraz:50:min:area', medido: 0.532, objetivo: 0.9, dueño: 'KA-arquera', regla: 'montaraz Nv50: AREA ×0.53 de la media (< ×0.9)' },
   { key: 'ROL:tiradora:50:min:area', medido: 0.493, objetivo: 1.2, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA ×0.49 de la media (< ×1.2)' },
   { key: 'ROL:tiradora:50:best:area', medido: 0.927, objetivo: 1.1, dueño: 'KA-arquera', regla: 'tiradora Nv50: AREA no es la mejor de su clase por ×1.1 (2689.7 frente a 2902.3)' },
@@ -247,8 +248,9 @@ export const PENDING_E4B = [
   // Remolino, ~30 s) y la media de Nv50 en 44,8 s (tras fusionar las 3 clases vuelve a la banda). A Nv10 el giro aún pesa
   // ×1,29 (sin Rajar ni Salto, el kit sin él es Tajo y Hendidura). La Carga de Escudo a 8 m/s (G10) le quita al Guardián
   // el segundo de avance de las cargas cortas (más Terremotos: jefe en 30,9 s). G9/G18: dueño KT-guerrero
-  { key: '1A:guerrero:10:ttkE', medido: 4.069, objetivo: [4.5, 10.5], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK élite 4.07s fuera de 4.5,10.5' },
-  { key: '1A:guerrero:10:ttkB', medido: 31.183, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv10: TTK jefe 31.2s fuera de 35,100' },
+  // Remolino a Nv10 (G3 de «Decisiones de sensación»): el dueño lo deja para la calibración de después de los ítems
+  { key: '1A:guerrero:10:ttkE', medido: 4.069, objetivo: [4.5, 10.5], dueño: 'KA-guerrero', nota: 'decisión del dueño: E4b', regla: 'guerrero Nv10: TTK élite 4.07s fuera de 4.5,10.5' },
+  { key: '1A:guerrero:10:ttkB', medido: 31.183, objetivo: [35, 100], dueño: 'KA-guerrero', nota: 'decisión del dueño: E4b', regla: 'guerrero Nv10: TTK jefe 31.2s fuera de 35,100' },
   { key: '1A:guerrero:50:ttkB', medido: 31.683, objetivo: [35, 100], dueño: 'KA-guerrero', regla: 'guerrero Nv50: TTK jefe 31.7s fuera de 35,100' },
   // Fusión de la sensación de las 3 clases (S-maga + S-guerrero + S-arquera): con Guerrero y Arquera más fuertes sube la
   // media de Nv50. La Tiradora (×0,74 en UNI) y la Arcanista (×0,748 en ÁREA, al filo) quedan bajo su suelo de papel;
