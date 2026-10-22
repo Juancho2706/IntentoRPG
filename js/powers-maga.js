@@ -1487,24 +1487,26 @@ export function magaPowers() {
     },
     // c20 Escarcha Arcana: tus críticos ralentizan un 30 % 2 s; el Dardo tiene +15 % de crítico
     // contra ralentizados. Decisión del dueño (M1): la ralentización entra como mucho 1 vez cada 4 s
-    // POR ENEMIGO; si no, las descargas del Orbe (8 golpes/s) la dejaban puesta siempre
+    // POR ENEMIGO; si no, las descargas del Orbe (8 golpes/s) la dejaban puesta siempre. Lo que Escarcha
+    // Tenaz (c21) alarga la ralentización, lo alarga también la espera (4 s de 6): si no, volvía a quedar
+    // puesta siempre. st.at = enemigo → instante desde el que puede volver
     m_escarcha_arcana: {
       name: 'Escarcha Arcana', desc: 'Tus críticos ralentizan un 30 % 2 s (1 vez cada 4 s por enemigo); contra ralentizados, el Dardo Arcano tiene +15 % de crítico.',
       state: () => ({ at: new WeakMap() }),
       onHit(g, p, e, hit) {
         if (!hit?.crit || hit.proc || hit.dot || !e?.alive) return;
         const st = powerState(p, 'm_escarcha_arcana');
-        const t0 = st.at.get(e);
-        if (t0 != null && now(p) - t0 < T.escArcIcd - 1e-9) return;
-        st.at.set(e, now(p));
-        e.applyCC?.('slow', slowDur(p, T.escArcT), { pct: T.escArcSlowPct, src: p });
+        if (now(p) < (st.at.get(e) ?? -Infinity) - 1e-9) return;
+        const dur = slowDur(p, T.escArcT);
+        st.at.set(e, now(p) + T.escArcIcd + dur - T.escArcT);
+        e.applyCC?.('slow', dur, { pct: T.escArcSlowPct, src: p });
       },
       condCrit(p, e, hit) { return hit?.skill === 'm_dardo' && e && ((e.slowT || 0) > 0 || (e.frozenT || 0) > 0) ? T.escArcCrit : 0; },
     },
     // c21 Escarcha Tenaz: tus ralentizaciones duran 2 s más (las del perfil aquí; las de los
     // poderes de la Maga, con slowDur). Antes que Nova Cortante: suma sobre la ralentización base
     m_escarcha_tenaz: {
-      name: 'Escarcha Tenaz', desc: 'Todas tus ralentizaciones duran 2 s más.',
+      name: 'Escarcha Tenaz', desc: 'Todas tus ralentizaciones duran 2 s más (la de Escarcha Arcana, 1 vez cada 6 s por enemigo).',
       priority: 1,
       modifyResolve(p, sk, prof) { if (prof.slow > 0) prof.slow += T.tenazS; },
     },

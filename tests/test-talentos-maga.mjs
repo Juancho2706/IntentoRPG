@@ -422,9 +422,30 @@ const DATA_CHECKS = PASSED.length;
   const e2 = h.enemy({ hp: 1e6, pos: [3, 0, 1] });
   h.hit(e2, { skill: 'bola_fuego', dealt: 10, crit: true });
   ok(e2.slowT > 0, 'c20: el enfriamiento es por enemigo (otro sí se ralentiza)');
-  h.tick(1.6);
+  h.tick(1.4);
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(!(e.slowT > 0), 'c20: a los 3,9 s, todavía no');
+  h.tick(0.1);
   h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
   ok(e.slowT > 0 && e.slowPct === 30, 'c20: a los 4 s, otro crítico lo vuelve a ralentizar');
+}
+// c20 + c21 (revisión de M1): Escarcha Tenaz alarga la ralentización a 4 s y la espera lo mismo
+// (1 vez cada 6 s por enemigo): si no, con 4 s de espera, quedaba puesta siempre
+{
+  const h = cls({ c20: 1, c21: 1 });
+  const e = h.enemy({ hp: 1e6, pos: [3, 0, 0] });
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(e.slowT >= 4 - 1e-6, `c20 + c21: la ralentización dura 4 s (${e.slowT})`);
+  h.tick(4.1);
+  ok(!(e.slowT > 0), 'c20 + c21: acaba a los 4 s');
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(!(e.slowT > 0), 'c20 + c21: un crítico justo al acabar no la vuelve a poner');
+  h.tick(1.8);
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(!(e.slowT > 0), 'c20 + c21: a los 5,9 s, todavía no');
+  h.tick(0.1);
+  h.hit(e, { skill: 'bola_fuego', dealt: 10, crit: true });
+  ok(e.slowT >= 4 - 1e-6, 'c20 + c21: a los 6 s, sí (4 s ralentizado de cada 6)');
 }
 // c23 Ritmo Arcano: crítico del Dardo → −0,5 × rango s a Parpadeo y a la Barrera (solo esas dos)
 {
