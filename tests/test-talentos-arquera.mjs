@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { makeHarness } from './helpers/power-harness.mjs';
-import { TALENT_TREES, CORE_TV_KEYS } from '../js/talents.js';
+import { TALENT_TREES, CORE_TV_KEYS, TALENT_RULES, LEVEL_MAX, buildsFor, buildRanks, earnedAt, learnAt } from '../js/talents.js';
+import { levelTrees, buyLevel } from './helpers/talent-level.mjs';
 import { ARQUERA_TV_KEYS } from '../js/talents-arquera.js';
 import { POWER_HOOKS, powerState, definePower } from '../js/powers.js';
 import { arqueraPowers } from '../js/powers-arquera.js';
@@ -3058,6 +3059,45 @@ section('G19: números por nodo (clase, héroe y especializaciones)', () => {
   const missing = ALL.filter(key => !named(key));
   same(missing, [], `nodos u opciones sin una comprobación de su efecto: ${missing.join(', ')}`);
   console.log(`  ✓ ${ALL.length} nodos u opciones (clase, especializaciones y héroe) con efecto comprobado: ${missing.length} sin efecto`);
+}
+
+// ============================================================ nivel de aprendizaje (T-arquera)
+// Regla del dueño: lo que se compra en una fila ya sirve a ese nivel. Tras el reorden, ningún nodo ni
+// opción de la clase o de las especializaciones se compra (fila, padres y puertas) antes de conocer lo
+// que toca, y las 12 builds suben sin quitar rangos ya dados, legales y gastándolo todo (Nv10–100).
+// Va después de la cobertura: estos mensajes nombran ids, pero no prueban efectos
+{
+  // efecto real más tardío que su learnAt: v6 se dispara al soltar Carrera del Viento (Nv12; toca
+  // también la Andanada, Nv10) y f6 solo vale en Rodilla en Tierra (Nv12; toca también Disparo Apuntado)
+  const REAL_AT = { v6: 12, f6: 12 };
+  let nodes = 0;
+  for (const tree of levelTrees('arquera')) {
+    for (const n of tree.nodes) {
+      if (n.free) continue;
+      const buy = buyLevel(tree, n);
+      const need = Math.max(learnAt(n) ?? 0, REAL_AT[n.id] ?? 0, ...(n.opts || []).map(o => learnAt(n, o.k) ?? 0));
+      assert.ok(buy >= need, `${tree.key}/${n.id} ${n.name}: se compra al Nv${buy} y sirve desde el Nv${need}`);
+      nodes++; checks++;
+    }
+  }
+  // Espino Venenoso (m13) sube a la fila 1: al Nv12 ya da +30 % al veneno de la Trampa de Cepo (Nv10)
+  const cepo = specRanks => resolveSkill(makeHarness({ classId: 'arquera', level: 12, seed: 11, spec: 'montaraz', talents: { specRanks } }).p, SK('a_t_cepo')).hitDot.coef;
+  assert.ok(Math.abs(cepo({ m13: 2 }) / cepo({}) - 1.3) < 1e-6, 'm13 r2 al Nv12: el veneno del cepo +30 %');
+  checks++;
+  let builds = 0;
+  for (const { key, build } of buildsFor('arquera')) {
+    let prev = null;
+    for (let L = TALENT_RULES.specAt; L <= LEVEL_MAX; L++) {
+      const r = buildRanks({ classId: 'arquera', level: L, talents: { v: 2, spec: build.sp } }, build, { level: L });
+      const cur = { ...r.cls, ...r.sp[build.sp] };
+      const spent = Object.values(cur).reduce((a, b) => a + b, 0);
+      assert.equal(spent, earnedAt('cls', L) + earnedAt('spec', L), `build «${key}» Nv${L}: gasta todo`);
+      if (prev) for (const [id, v] of Object.entries(prev)) assert.ok((cur[id] | 0) >= v, `build «${key}» Nv${L}: ${id} baja de ${v} a ${cur[id] | 0}`);
+      prev = cur;
+    }
+    builds++; checks++;
+  }
+  console.log(`  ✓ nivel de aprendizaje: ${nodes} nodos se compran cuando ya sirven; ${builds} builds monótonas (Nv10–100)`);
 }
 
 console.log(`✅ TALENTOS DE LA ARQUERA (clase, especializaciones y héroe) OK · ${checks} comprobaciones`);

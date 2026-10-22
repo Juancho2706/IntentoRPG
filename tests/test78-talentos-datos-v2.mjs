@@ -54,6 +54,11 @@ export const G16_REORDER = {
   // T-maga: en la Arcanista, Torrente Arcano y Sello Viviente suben (Orbe del Nv10, Sello del Nv12) y
   // Flujo Constante y Grieta Abierta (solo el Desgarro, Nv15) bajan
   maga: { a13: 3, a3: 13, a17: 7, a7: 17 },
+  // T-arquera: en la Tiradora suben Puntas Templadas (disparo triple, Nv10) y Pies Ligeros, y Astiles
+  // Ligeros (Múltiple, Nv14) y Aire Fresco (Carrera, Nv12) bajan; Mano Llena (Múltiple) pasa a la fila 2,
+  // que se compra al Nv14. En el Montaraz sube Espino Venenoso (veneno del cepo, Nv10) y Semillas de
+  // Zarza (Detonante, Nv14) pasa a la fila 2; Raíz Rápida y Raíces Profundas (Cerco, Nv15) bajan a la 4
+  arquera: { v4: 1, v11: 4, v1: 11, v20: 3, v3: 20, m13: 3, m3: 13, m14: 7, m7: 14 },
 };
 const JARGON = /\bUNI\b|ÁREA×5|\bTTD\b|stagger|\bprocs?\b|astadora/i;
 const FX_KEYS = new Set(['stats', 'elem', 'skillLv', 'mod', 'tv', 'power', 'grant']);
