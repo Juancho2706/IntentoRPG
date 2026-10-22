@@ -26,7 +26,8 @@
 //       unstoppable / slowImmune, allyDr / projMissPct, resPerSec
 //     Paso 2 (§3.6): claves de VERBO (charge, recast, seq, steps, stance, wall, trap,
 //       mark, detonate, follow, pull/knock/drag, charges, repeat, trail, pulse…; ver
-//       VERB_DOC abajo y docs/paso2-claves-w2.md) }
+//       VERB_DOC abajo y docs/paso2-claves-w2.md)
+//     X1 (E5): rankText { trozo: fuente } — los números del texto que crecen con el rango (TEXTOS AL RANGO) }
 // ============================================================
 
 // ---------- categorías, ranuras y tags ----------
@@ -229,6 +230,62 @@ export function skillVerbs(def) {
 }
 
 // ------------------------------------------------------------
+// TEXTOS AL RANGO (E5, decisión del dueño 2026-10-21)
+// ------------------------------------------------------------
+// Los buffs, escudos y curas crecen con el rango como el daño (combat-math.rankBuff, en el perfil:
+// prof.buffMul, que también lleva los talentos) y los textos enseñan el valor REAL a tu rango. Las
+// líneas se escriben con los números de rango 1 (son las del mockup) y `rankText` dice qué trozo es
+// cada uno y de dónde sale su valor (en la habilidad o en una pieza de la forja):
+//   rankText: { '<trozo literal de line/desc>': '<fuente>' }
+//   fuente: 'buff.<stat>' (el buff redondeado, como lo aplica el juego) · '<clave>' o '<clave>.<sub>'
+//           numérica de la definición × buffMul (shieldPct, shieldManaPct, hpPct, allyDr, heal.pct,
+//           trail.heal, shieldGain.0…; buff.minHpPct, un suelo de vida, es lo único del buff que no crece)
+//           · '*' (el número del trozo × buffMul: la cifra vive en un comportamiento) · 'rank' (el
+//           número × rankBuff del rango, sin talentos: una cláusula de otra especialización)
+// Lo aplica skill-resolve.rankedText (libro, forja, tooltips, panel de talentos y aviso del buff).
+export const RANK_TEXT_SRC = /^(?:buff\.\w+|\w+(?:\.\w+)?|\*|rank)$/;
+const RANK_NUM = /\d+(?:,\d+)?/;
+// número para un texto: entero desde 10; por debajo, con un decimal si lo tiene (coma decimal)
+export function fmtRankNum(v) {
+  const a = Math.abs(Number(v) || 0);
+  return String(a >= 10 ? Math.round(a) : Math.round(a * 10) / 10).replace('.', ',');
+}
+// número de rango 1 que cita un trozo ('−40 %' → 40; '1,5 s' → 1,5) o null
+export function rankTextNum(lit) {
+  const m = RANK_NUM.exec(String(lit || ''));
+  return m ? parseFloat(m[0].replace(',', '.')) : null;
+}
+const escRx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// sustituye en `text` cada trozo de `map` por el mismo trozo con su número cambiado por
+// valueOf(fuente, número) (null o no finito = el trozo se queda). Una sola pasada, los trozos más
+// largos primero: un número ya cambiado no se vuelve a tocar. El signo del trozo (+, −) se conserva
+export function rankTextApply(text, map, valueOf) {
+  const s = String(text ?? '');
+  if (!s || !map || typeof map !== 'object') return s;
+  const keys = Object.keys(map).filter(k => k && s.includes(k)).sort((a, b) => b.length - a.length);
+  if (!keys.length) return s;
+  return s.replace(new RegExp(keys.map(escRx).join('|'), 'g'), lit => {
+    const m = RANK_NUM.exec(lit);
+    const v = m ? valueOf(map[lit], parseFloat(m[0].replace(',', '.'))) : null;
+    if (v == null || !Number.isFinite(v)) return lit;
+    return lit.slice(0, m.index) + fmtRankNum(v) + lit.slice(m.index + m[0].length);
+  });
+}
+// errores de un rankText (habilidad o pieza de forja): objeto plano, trozos con número que estén en
+// alguno de los `texts` y fuentes del vocabulario
+export function validateRankText(map, texts, tag) {
+  const err = [];
+  if (map == null) return err;
+  if (!isPlain(map)) return [`${tag}: rankText debe ser un objeto { trozo: fuente }`];
+  for (const [lit, src] of Object.entries(map)) {
+    if (rankTextNum(lit) == null) err.push(`${tag}: rankText «${lit}» no cita ningún número`);
+    if (!texts.some(t => typeof t === 'string' && t.includes(lit))) err.push(`${tag}: rankText «${lit}» no está en su texto`);
+    if (typeof src !== 'string' || !RANK_TEXT_SRC.test(src)) err.push(`${tag}: rankText «${lit}» con fuente inválida ${JSON.stringify(src)}`);
+  }
+  return err;
+}
+
+// ------------------------------------------------------------
 // Vocabulario de VERBOS (§3.6) — lo valida validateSkillDef
 // ------------------------------------------------------------
 // claves de la definición que estos tipos/verbos entienden (documentación viva; la
@@ -249,13 +306,17 @@ export const VERB_DOC = Object.freeze({
   seq: 'seq{every,extra{count,spread,coef,pierce}}',
   stance: 'type:"stance" · stance{modes[{id,name,stats,moveMul,chargeSpeed,keepGauge,color}],dur,swapCd,swapGcd,endOnDodge,recastEnds}',
   planted: 'needPlanted · plant:true (dash/salto)',
-  mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct}}',
+  mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct,self}}'
+    + ' · detonate.self: la misma habilidad que la puso la detona en un lanzamiento POSTERIOR, si la marca lleva al menos'
+    + ' MARK_SELF_AGE s (game-skills.js, 0,5 s; applyMark guarda `at`); sin self, la que la puso nunca la detona (Juicio en cadena)',
   trap: 'trap{armT,maxArmed,radius,root,burst{radius,coef},consume,lure{radius,eliteRadius,boss,speedMul},hold (s: se cierra sobre quien lo pisa y queda detonable; a un jefe no lo atrapa),boss{slowPct,stagger (por s)},skin (aspecto: field-entities.TRAP_SKINS)}',
-  detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance',
+  detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance'
+    + ' · (la marca que se detona sola con la misma habilidad es mark.detonate.self + MARK_SELF_AGE: ver `mark`)',
   wall: 'type:"wall" · wall{len,width,blocks:true|"all",contain}',
   follow: 'follow:"owner"|"aim"',
   displace: 'pull: m | {dist,to:"self"|"center"|"trap",radius (atracción por tic de un canal),boss:false (no atrae a los jefes: tic del canal y golpe)} · knock: m · drag:true · dragWidth (solo si la definición arrastra) · dashT',
-  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor · fanW + spreadMin (abanico que se cierra con la distancia a la mira: fanSpread)',
+  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor · fanW + spreadMin (abanico que se cierra con la distancia a la mira: fanSpread)'
+    + ' · fanSpread(def, dist, spread, targetR): targetR = radio de impacto del blanco apuntado (Player.basicAttack: 0,55 × su escala, con el blanco solo); estrecha fanW a 0,8 × targetR para que las flechas de los lados también le den',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
 export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'blockPower', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);
@@ -302,6 +363,8 @@ export const SKILL_KEYS = new Set([
   'dashSpeed', 'dragPct',
   // S-arquera: abanico que se cierra con la distancia a la mira (fanSpread)
   'fanW', 'spreadMin',
+  // X1 (E5): qué números del texto crecen con el rango (TEXTOS AL RANGO, arriba)
+  'rankText',
 ]);
 const HOLD_VALUES = new Set([true, false, 'toggle']);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -421,6 +484,7 @@ export function validateSkillDef(def, { behaviors = null, v2 = false, warnings =
   if (def.cat === 'basic' && (def.cost || 0) > 0) err.push(`${id}: un básico no cuesta recurso`);
   if (def.cat === 'ultimate' && (def.cost || 0) > 0) err.push(`${id}: una definitiva no cuesta recurso (solo enfriamiento)`);
   if (def.windup != null && !(def.windup >= 0 && def.windup <= 1.2)) err.push(`${id}: windup fuera de rango`);
+  err.push(...validateRankText(def.rankText, [def.line, def.desc, ...Object.values(def.innate || {})], id));
   validateVerbs(def, id, err);
   if (v2) {
     for (const [k, to] of Object.entries(RETIRED_KEYS)) if (def[k] !== undefined) err.push(`${id}: clave retirada ${k} → ${to}`);
@@ -661,6 +725,7 @@ export function validateForge(entry, sk, { powers = null, behaviors = null } = {
     if (piece.elem && !ELEMS.includes(piece.elem)) errors.push(`${tag}: elem inválido ${piece.elem}`);
     for (const t of piece.tags?.add || []) if (!TAGS.has(t)) errors.push(`${tag}: tag fuera del vocabulario ${t}`);
     for (const op of ['add', 'mul']) for (const [p, v] of Object.entries(piece[op] || {})) if (!isNum(v)) errors.push(`${tag}: ${op}.${p} debe ser un número`);
+    errors.push(...validateRankText(piece.rankText, [piece.line], tag));
   };
   if (entry.mejora) {
     const m = entry.mejora, tag = `${id}·Mejora`;

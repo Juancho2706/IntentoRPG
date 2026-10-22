@@ -11,7 +11,10 @@
 //  5) barra: destinos por id/ranura/especialización/'*', to:null (también por ranura), objeto sin
 //     clave aplicable = inválido, fitsSlot (destino que no cabe ni se repite), sin duplicados,
 //     conocidas (activas de talento y kit de otra especialización fuera), SPEC_BAR → FALLBACK,
-//     lmb nunca vacía, ranuras vacías siguen vacías
+//     lmb nunca vacía; una ranura que llega VACÍA de v4 recibe la de SPEC_BAR (o FALLBACK) como un
+//     héroe nuevo, después de las elegidas (no les quita su habilidad); la vaciada con to: null y,
+//     en una segunda pasada, cualquier vacía siguen vacías; la ranura que conserva la elección v4
+//     va a hotbarManual (la pasada S0 al cargar no la cambia)
 //  6) soportes reencajados sobre la definición forjada; lo demás vuelve a knownSupports
 //  7) avisos (ids) con su texto en LOAD_NOTICES
 //  8) idempotencia (dos pasadas = una) y cadena v0 → v5 y v3 → v5
@@ -309,9 +312,32 @@ const isValidBar = (d, what) => {
 };
 {
   const bar = (hotbar, o = {}) => { const d = mig(v4({ hotbar, ...o })); isValidBar(d, JSON.stringify(hotbar)); return d.hotbar; };
-  // id directo; vacía sigue vacía; lo que vale se queda
+  // id directo; lo que vale se queda; las ranuras que v4 dejó VACÍAS reciben la de SPEC_BAR, como un
+  // héroe nuevo (la k1 elegida no se cambia por la de SPEC_BAR)
   assert.deepEqual(bar({ lmb: 'm_toque', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: null, k3: null, k4: null }),
-    { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: null, k3: null, k4: null });
+    { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'm_barrera', k3: 'fx_piromante_k3', k4: 'm_u_supernova' });
+  // lo que conserva la elección v4 cuenta como puesto a mano (hotbarManual: la pasada S0 al cargar no
+  // lo cambia); lo autorrellenado y lo que cae a la reserva, no; una segunda pasada no lo toca
+  {
+    const d = mig(v4({ hotbar: { lmb: 'm_toque', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'zzz_vieja' } }));
+    assert.deepEqual([d.hotbar.k2, d.hotbar.k3], ['m_barrera', 'fx_piromante_k3']);
+    assert.deepEqual(d.hotbarManual, { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo' }, 'elegidas en v4 → hotbarManual');
+    assert.deepEqual(S.migrateV4toV5(json(d), CTX).hotbarManual, d.hotbarManual, 'segunda pasada: hotbarManual igual');
+  }
+  // se rellenan DESPUÉS de las elegidas: la gastadora que el jugador puso en k2 no se la lleva la rmb
+  // vacía (que recibe la de FALLBACK_BAR) y nunca se repite una habilidad
+  assert.deepEqual(bar({ lmb: 'm_dardo', rmb: null, k1: null, k2: 'fx_piromante_k2' }),
+    { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_estela_ignea', k2: 'fx_piromante_k2', k3: 'fx_piromante_k3', k4: 'm_u_supernova' });
+  // la de SPEC_BAR que aún no se conoce → FALLBACK_BAR; ninguna conocida → vacía (Nv11: fx_piromante_k2
+  // y m_estela_ignea piden Nv12; las definitivas, Nv15)
+  assert.deepEqual(bar({ lmb: 'm_dardo' }, { level: 11 }),
+    { lmb: 'm_dardo', rmb: 'bola_fuego', k1: 'm_parpadeo', k2: 'm_barrera', k3: 'fx_piromante_k3', k4: null });
+  // una segunda pasada (sin campos v4) no rellena: la vacía sigue vacía (idempotente)
+  {
+    const once = mig(v4({ hotbar: { lmb: 'm_dardo', rmb: 'bola_fuego' } }));
+    assert.equal(once.hotbar.k2, 'm_barrera');
+    assert.equal(S.migrateV4toV5({ ...json(once), hotbar: { ...once.hotbar, k2: null } }, CTX).hotbar.k2, null, 'segunda pasada: la vacía sigue vacía');
+  }
   // un id v4 que sigue en el catálogo pero es del kit de OTRA especialización → SPEC_BAR
   assert.equal(bar({ lmb: 'm_dardo', k1: 'm_paso_escarcha' }).k1, 'm_estela_ignea', 'kit de la Crionte en una Piromante → SPEC_BAR');
   // to: null vacía la ranura (sin reserva)
@@ -362,7 +388,7 @@ const isValidBar = (d, what) => {
   const none = mig(v4({ hotbar: { lmb: 'zzz', rmb: null } }), { specBar: {}, fallbackBar: {} });
   assert.equal(none.hotbar.lmb, 'm_dardo');
   const noBar = mig(v4({ hotbar: undefined }));
-  assert.equal(noBar.hotbar.lmb, 'm_dardo'); assert.equal(noBar.hotbar.rmb, null);
+  assert.equal(noBar.hotbar.lmb, 'm_dardo'); assert.equal(noBar.hotbar.rmb, 'fx_piromante_k2', 'sin barra v4: la de SPEC_BAR');
 }
 // legacyTarget: precedencia ranura → especialización → '*', null explícito y lo inválido
 {

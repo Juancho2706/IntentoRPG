@@ -106,7 +106,8 @@ export const talentMethods = {
     if (!p) return;
     const spec = p.talents?.spec || null;
     const specChanged = spec !== specBefore;
-    if (specChanged) { resetGauges(p); if (spec) applyForgeReco(p, spec); }
+    // la forja recomendada de la build que aplicaste en esa especialización (talents.build) o la de por defecto
+    if (specChanged) { resetGauges(p); if (spec) applyForgeReco(p, spec, { buildKey: p.talents?.build?.[spec] }); }
     p.recompute();
     const hb = p.hotbar || (p.hotbar = {});
     // 1) fuera las activas de talento que ya no se conocen (nodo retirado, otra especialización…)

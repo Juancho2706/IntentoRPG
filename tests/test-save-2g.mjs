@@ -18,7 +18,8 @@
 //     rangos que ya no valen, recuperan los puntos y avisan 'talentos-recortados'; las
 //     especializaciones que no se reordenaron y los Nv ≥ 70 (con árbol héroe) no pierden nada
 //  7) pestaña vieja (riesgo 20): un v5 que el código v4 vuelve a guardar se migra otra vez sin
-//     romperse; vuelve la forja recomendada y queda registrado lo que se pierde
+//     romperse; vuelve la forja recomendada, las ranuras que v4 vació se rellenan como en un héroe
+//     nuevo (insignia en la 3, definitiva en la 4) y queda registrado lo que se pierde
 //  8) respaldo `.bak-v4` (main.js, sin DOM: el método se evalúa aparte; texto crudo, no re-serializado)
 //     y avisos en pantalla
 //  9) cadena v3 → v5 con los saves reales del Paso 2b
@@ -73,19 +74,39 @@ assert.equal(S.SAVE_VERSION, 5);
 assert.equal(Object.keys(REAL).length, 57, 'los 57 saves v4 de E0.2');
 
 // barra esperada (§3.11 paso 5): el destino de la tabla legada si el héroe CARGADO lo conoce, cabe en
-// la ranura y no se repite; si no, SPEC_BAR de su especialización y luego FALLBACK_BAR. Una ranura
-// vacía (o vaciada con to: null) sigue vacía, salvo lmb
+// la ranura y no se repite; si no, SPEC_BAR de su especialización y luego FALLBACK_BAR. Una ranura que
+// v4 dejó vacía recibe DESPUÉS de las elegidas (sin quitarles nada) la de SPEC_BAR o FALLBACK_BAR, como
+// un héroe nuevo; la vaciada con to: null sigue vacía; lmb nunca. La ranura que conserva la elección v4
+// (su destino de la tabla) va a hotbarManual. Y al cargar un guardado sin hotbarManual (S0), el kit de la
+// especialización entra en su ranura de SPEC_BAR si está libre o la ocupa una del kit base que no es de
+// hotbarManual. → la barra, con `manual` (lo elegido en v4), `swapped` (ranuras que cambió esa pasada) y
+// `kept` (elegidas que la pasada habría cambiado sin la marca), no enumerables
 function expectedBar(v4bar, p) {
   const legacy = S.LEGACY_TABLES[p.classId];
   const spec = p.talents.spec;
   const out = {};
   const ok = (id, slot) => { const sk = skillOf(p.classId, id); return !!sk && SR.fitsSlot(sk, slot) && p.knows(id) && !Object.values(out).includes(id); };
+  const reco = slot => [spec && SPEC_BAR[spec].bar[slot], FALLBACK_BAR[p.classId][slot]];
+  const fill = [], manual = {};
   for (const slot of SLOTS) {
     const old = v4bar?.[slot] || null;
     const to = old ? S.legacyTarget(legacy.bar[old], slot, spec, old) : null;
-    if (slot !== 'lmb' && (!old || to === null)) { out[slot] = null; continue; }
-    out[slot] = [to, spec && SPEC_BAR[spec].bar[slot], FALLBACK_BAR[p.classId][slot]].find(id => id && ok(id, slot)) || null;
+    if (slot !== 'lmb' && !old) { out[slot] = null; fill.push(slot); continue; }
+    if (slot !== 'lmb' && to === null) { out[slot] = null; continue; }
+    out[slot] = [to, ...reco(slot)].find(id => id && ok(id, slot)) || null;
+    if (out[slot] && out[slot] === to) manual[slot] = to;
   }
+  for (const slot of fill) out[slot] = reco(slot).find(id => id && ok(id, slot)) || null;
+  let swapped = 0, kept = 0;
+  for (const slot of spec ? SLOTS : []) {
+    const id = SPEC_BAR[spec].bar[slot], sk = skillOf(p.classId, id);
+    if (!sk || sk.spec !== spec || !p.knows(id) || !SR.fitsSlot(sk, slot) || Object.values(out).includes(id)) continue;
+    const cur = skillOf(p.classId, out[slot]);
+    if (out[slot] && (!cur || cur.spec || cur.kind === 'talent')) continue;
+    if (manual[slot]) { kept++; continue; }
+    out[slot] = id; swapped++;
+  }
+  for (const [k, value] of Object.entries({ manual, swapped, kept })) Object.defineProperty(out, k, { value, enumerable: false });
   return out;
 }
 // invariantes de la barra de un héroe cargado: cada habilidad existe, cabe, se conoce, tiene perfil
@@ -104,7 +125,7 @@ function checkBar(p, what) {
 }
 
 // ------------------------------------------------ 1) los 57 saves v4 reales
-let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, recoBeaten = 0;
+let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, recoBeaten = 0, keptSaves = 0, emptyFilled = 0;
 {
   for (const [name, s] of Object.entries(REAL)) {
     const cid = s.classId;
@@ -121,14 +142,20 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
       if (Object.keys(p.talents.choice).length) withChoices++;
     } else assert.deepEqual([p.talents.cls, p.talents.choice], [{}, {}], `${name}: sin especialización, sin talentos`);
     assert.deepEqual(T.talentsTrimmed(p.talents), [], `${name}: el Recomendado carga sin recorte`);
-    // barra esperada y, por especialización: básico, insignia (3) y definitiva (4) de SPEC_BAR
-    assert.deepEqual(p.hotbar, expectedBar(s.hotbar, p), `${name}: barra esperada`);
+    // barra esperada y, por especialización: básico, insignia (3) y definitiva (4) de SPEC_BAR (también
+    // si v4 las dejó vacías: las recibe como un héroe nuevo)
+    const bar = expectedBar(s.hotbar, p);
+    assert.deepEqual(p.hotbar, bar, `${name}: barra esperada`);
     checkBar(p, name);
+    // lo elegido en v4 queda como puesto a mano: la pasada S0 al cargar no lo cambia
+    assert.deepEqual(p.hotbarManual, bar.manual, `${name}: hotbarManual = lo elegido en v4`);
+    if (bar.kept) keptSaves++;
     if (spec) {
       const want = SPEC_BAR[spec].bar;
       assert.equal(p.hotbar.lmb, want.lmb, `${name}: el básico v4 → el de la clase`);
-      if (s.hotbar.k3) assert.equal(p.hotbar.k3, want.k3, `${name}: la insignia v4 (${s.hotbar.k3}) → la de ${spec}`);
-      if (s.hotbar.k4 && p.knows(want.k4)) assert.equal(p.hotbar.k4, want.k4, `${name}: la definitiva v4 (${s.hotbar.k4}) → la de ${spec}`);
+      if (L >= 10) assert.equal(p.hotbar.k3, want.k3, `${name}: la insignia v4 (${s.hotbar.k3 || 'vacía'}) → la de ${spec}`);
+      if (p.knows(want.k4)) assert.equal(p.hotbar.k4, want.k4, `${name}: la definitiva v4 (${s.hotbar.k4 || 'vacía'}) → la de ${spec}`);
+      if (!s.hotbar.k3 || !s.hotbar.k4) emptyFilled++;
     }
     // forja: solo habilidades forjables del catálogo 2g, con variantes que existen (ya en lo que deja la
     // migración: Player limpiaría después un id retirado)
@@ -181,8 +208,9 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
     assert.deepEqual(p.paragon, { nodes: {}, glyphs: {} }, `${name}: tablero vacío y sin glifos sueltos`);
     for (const gl of glyphs) assert.deepEqual(p.materials.find(m => m.uid === gl.uid), gl, `${name}: glifo ${gl.uid} en la bolsa`);
     assert.equal(p.materials.length, (s.materials || []).length + glyphs.length, `${name}: bolsa = materiales + glifos`);
-    // avisos: 'paso2' y, con especialización, el de la clase (Recomendado aplicado)
-    assert.deepEqual(p.notices, ['paso2', ...(spec ? [`paso2-${cid}`] : [])], `${name}: avisos`);
+    // avisos: 'paso2' y, con especialización, el de la clase (Recomendado aplicado); si la pasada S0
+    // cambió la barra al cargar, el de la barra de la especialización (una vez)
+    assert.deepEqual(p.notices, ['paso2', ...(spec ? [`paso2-${cid}`] : []), ...(bar.swapped ? [S.SPEC_BAR_NOTICE] : [])], `${name}: avisos`);
     for (const n of p.notices) assert.ok(S.LOAD_NOTICES[n]?.length > 20, `${name}: texto del aviso ${n}`);
     // fuera los campos v4
     const out = saved(p);
@@ -193,6 +221,9 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
   assert.ok(ownBranch >= 10, `forja desde la 3.ª rama en ${ownBranch} habilidades`);
   assert.ok(withChoices >= 50, `elecciones A/B del Recomendado en ${withChoices} saves`);
   assert.ok(recoIn >= 100 && recoBeaten >= 5, `forja recomendada: ${recoIn} variantes llegan y ${recoBeaten} pierden ante lo elegido en v4`);
+  // los dos caminos de la barra con datos reales: insignia o definitiva vacías en v4 que se rellenan y
+  // ranuras del kit base elegidas en v4 que la pasada S0 al cargar respeta (sin la marca las cambiaría)
+  assert.ok(emptyFilled >= 1 && keptSaves >= 20, `barra: ${emptyFilled} saves con la 3 o la 4 vacías rellenadas y ${keptSaves} con lo elegido a salvo de la pasada S0`);
   // casos a mano (las tablas legadas están congeladas desde E2); el resto, la recomendada (D3)
   assert.deepEqual(load(REAL['maga-40-piromante']).skillForge, { ...FORGE_RECO.piromante, m_dardo: 'i' }, 'Ascua en lmb → Dardo I (Saeta Ígnea)');
   assert.deepEqual(load(REAL['guerrero-18-guardian']).skillForge, { ...FORGE_RECO.guardian, g_tajo: 'i', terremoto: 'ii', g_hendidura: 'ii', g_u_cataclismo: 'i' },
@@ -244,7 +275,7 @@ let resocketed = 0, returned = 0, ownBranch = 0, withChoices = 0, recoIn = 0, re
     dropped += no.length; extra += yes.length - want.length; forgedOnly += only ? 1 : 0;
   }
   assert.ok(dropped >= 57 && extra >= 20 && forgedOnly >= 5, `soportes sembrados: ${dropped} que no encajan, ${extra} de más y ${forgedOnly} que solo encajan en la variante`);
-  console.log(`✓ 57 saves v4 reales: Recomendado entero sin recorte (${withChoices} con elecciones A/B), barra esperada, forja (${recoIn} variantes recomendadas, ${recoBeaten} vencidas por lo elegido), soportes (${resocketed} reengarzados, ${returned} devueltos), glifos y avisos`);
+  console.log(`✓ 57 saves v4 reales: Recomendado entero sin recorte (${withChoices} con elecciones A/B), barra esperada (${emptyFilled} con la 3 o la 4 rellenadas, ${keptSaves} con lo elegido a salvo de la pasada S0), forja (${recoIn} variantes recomendadas, ${recoBeaten} vencidas por lo elegido), soportes (${resocketed} reengarzados, ${returned} devueltos), glifos y avisos`);
   console.log(`✓ soportes sembrados: fuera ${dropped} que no encajan y ${extra} de más; se quedan ${forgedOnly} que solo encajan en la variante forjada; todos en knownSupports`);
 }
 
@@ -474,11 +505,12 @@ function staleV4(v5, shape = 'cut') {
   const o = { ...json(v5), saveVersion: 4, skillPoints: 0, skillBranches: {}, skillMods: {},
     talents: { v: 1, spec: t.spec, cls, sp, choice: { ...t.choice } }, paragon: { ...json(v5.paragon), points: 0 } };
   delete o.skillForge;
+  delete o.hotbarManual;              // campo de S0: el código v4 no lo guarda
   for (const k of SLOTS) if (o.hotbar[k] && !V4_ROWS[o.classId][o.hotbar[k]]?.includes(k)) o.hotbar[k] = null;
   return o;
 }
 {
-  let lostForge = 0, lostSlots = 0;
+  let lostForge = 0, lostSlots = 0, refilled = 0;
   for (const cid of CLASS_IDS) for (const spec of specsOf(cid)) {
     const first = load(REAL[`${cid}-60-${spec}`]);
     const v5 = saved(first);
@@ -502,19 +534,25 @@ function staleV4(v5, shape = 'cut') {
       assert.deepEqual(saved(load(saved(p))), saved(p), `${what}: estable tras re-migrar`);
       if (prev) assert.deepEqual(saved(p), prev, `${what}: igual con las dos formas de talentos v1`);
       prev = saved(p);
+      // las ranuras que v4 vació (habilidades 2g que no conocía) se rellenan como en un héroe nuevo
+      // (test80 §5): la insignia vuelve a la 3 y la definitiva a la 4
+      const want = SPEC_BAR[spec].bar;
+      assert.equal(p.hotbar.k3, want.k3, `${what}: la insignia vuelve a la 3`);
+      assert.equal(p.hotbar.k4, want.k4, `${what}: la definitiva vuelve a la 4`);
+      assert.deepEqual(p.hotbar, expectedBar(stale.hotbar, p), `${what}: barra esperada al re-migrar`);
       if (shape !== 'cut') continue;
       // REGISTRO DE LA PÉRDIDA (riesgo 20; qué hacer con ella lo decide el dueño): las variantes
-      // elegidas que no son la recomendada y las ranuras que v4 vació, que siguen vacías por la
-      // regla «una ranura vacía sigue vacía» (test80 §5)
+      // elegidas que no son la recomendada y lo que la barra no recupera (lo que v4 vació y no viene
+      // de SPEC_BAR)
       lostForge += Object.keys(first.skillForge).filter(id => first.skillForge[id] !== p.skillForge[id]).length;
       for (const k of SLOTS) if (k !== 'lmb' && first.hotbar[k] && !stale.hotbar[k]) {
-        assert.equal(p.hotbar[k], null, `${what}: ${k} (${first.hotbar[k]}), vaciada por v4, sigue vacía`);
-        lostSlots++;
+        refilled++;
+        if (p.hotbar[k] !== first.hotbar[k]) lostSlots++;
       }
     }
   }
-  assert.ok(lostSlots > 0 && lostForge > 0, 'la pérdida queda medida');
-  console.log(`✓ pestaña vieja: un v5 que el código v4 vuelve a guardar se migra otra vez, válido, estable y con la forja recomendada; pierde ${lostForge} variantes elegidas y ${lostSlots} ranuras que v4 no conocía (riesgo 20)`);
+  assert.ok(refilled > 0 && lostForge > 0, 'la pérdida queda medida');
+  console.log(`✓ pestaña vieja: un v5 que el código v4 vuelve a guardar se migra otra vez, válido, estable y con la forja recomendada; pierde ${lostForge} variantes elegidas; de ${refilled} ranuras que v4 vació, ${refilled - lostSlots} vuelven a su habilidad (insignia y definitiva) y ${lostSlots} reciben otra (riesgo 20)`);
 }
 
 // ------------------------------------------------ 8) respaldo .bak-v4 y avisos en pantalla (main.js)
@@ -582,7 +620,7 @@ console.log('✓ respaldo .bak-v4: copia única del texto crudo, no se pisa, sin
 
 // ------------------------------------------------ 9) cadena v3 → v5 (saves reales del Paso 2b)
 {
-  let n = 0;
+  let n = 0, v3Swapped = 0;
   for (const [name, s3] of Object.entries(V3)) {
     if (!s3 || typeof s3 !== 'object' || s3.saveVersion !== 3) continue;
     const p = load(s3);
@@ -593,11 +631,14 @@ console.log('✓ respaldo .bak-v4: copia única del texto crudo, no se pisa, sin
     checkBar(p, name);
     // MIGRATIONS[3] puso la insignia v4 en la 3; MIGRATIONS[4] la cambia por la de 2g
     if (spec) assert.equal(p.hotbar.k3, SPEC_BAR[spec].bar.k3, `${name}: insignia de ${spec} en la 3`);
-    assert.deepEqual(p.notices, [...(spec ? ['talentos'] : []), 'paso2', ...(spec ? [`paso2-${p.classId}`] : [])], `${name}: avisos`);
+    // la pasada S0 al cargar (un v3 no trae hotbarManual) avisa si cambió la barra que dejó la migración
+    const swapped = SLOTS.some(k => (S.migrateSave(s3).hotbar[k] || null) !== (p.hotbar[k] || null));
+    if (swapped) v3Swapped++;
+    assert.deepEqual(p.notices, [...(spec ? ['talentos'] : []), 'paso2', ...(spec ? [`paso2-${p.classId}`] : []), ...(swapped ? [S.SPEC_BAR_NOTICE] : [])], `${name}: avisos`);
     assert.deepEqual(saved(load(saved(p))), saved(p), `${name}: estable`);
     n++;
   }
-  assert.ok(n >= 6, `saves v3: ${n}`);
+  assert.ok(n >= 6, `saves v3: ${n} (${v3Swapped} con la pasada S0 de la barra)`);
 }
 console.log('✓ cadena v3 → v5: maestría → especialización, insignia 2g en la 3, avisos y estable');
 

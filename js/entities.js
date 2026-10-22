@@ -9,7 +9,7 @@ import { aggregateTalents, normalizeTalents, talentsTrimmed, TALENTS_TRIMMED_NOT
 import { gainXP as progressionGainXP } from './progression.js';
 import { glyphValue } from './items.js';
 import { SETS } from './items.js';
-import { migrateSave, serializePlayer, SPEC_BAR_NOTICE, SAVE_VERSION } from './save-schema.js';
+import { migrateSave, serializePlayer, SPEC_BAR_NOTICE } from './save-schema.js';
 import { MAX_MATERIALS, PROGRESS_MATERIAL_KINDS, materialStackKey, materialSlotsUsed, canAddMaterial } from './materials.js';
 import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critChance, hitDamage,
   multiplierProduct, mitigate, sustainRefill, sustainTake, hazardDamage, weaknessMult, sumWeakness,
@@ -20,7 +20,7 @@ import { CAPS, CRIT_MULT, VULN_PCT, mainStatMult, attackTime, moveSpeed, critCha
   THREAT_SWITCH, TAUNT_THREAT_BONUS, threatFromDamage, chargeCoefAt } from './combat-math.js';
 // Paso 2b.0: resolvedor único, registro de poderes y recursos con identidad
 import { resolveSkill, knownRankMap, knownSkills, isKnown, fitsSlot, BIG_HIT_INTERRUPT, forgeState, forgedDef,
-  specBarUpgrade, specBarSwapText } from './skill-resolve.js';
+  specBarUpgrade, specBarSwapText, rankedText } from './skill-resolve.js';
 import { firePower, buildHookIndex, SKILL_BEHAVIORS } from './powers.js';
 import { CORE_TV_POWER, usesCoreTv } from './powers-common.js';
 import { dotsOf } from './timers.js';
@@ -91,7 +91,7 @@ export function applyHitEffects(g, p, e, prof, avgHit, opts = {}) {
     if (prof.knock > 0) e.displace?.(from, prof.knock, { toward: false, src: p });
   }
   if (e.alive && prof.mark && g?.applyMark) markOnce(g, p, e, prof);
-  // provocar a los golpeados (clave `taunt`, s): Carga de Escudo, Golpe de Escudo
+  // provocar a los golpeados (clave `taunt`, s): Carga de Escudo
   if (e.alive && prof.taunt > 0) e.applyCC?.('taunt', prof.taunt, { src: p });
 }
 
@@ -511,9 +511,9 @@ export class Player {
 
     // guardado versionado (js/save-schema.js): migra v0→…→SAVE_VERSION sobre una
     // copia y luego vuelca los campos. saveVersion no vive en el héroe.
-    // guardado v5 de antes de S0 (sin hotbarManual): la barra de la especialización se pone al cargar (abajo).
-    // Los de versiones viejas no: su migración ya eligió los equivalentes de lo que tenías
-    const preS0Bar = !!saved && typeof saved === 'object' && saved.saveVersion === SAVE_VERSION && !('hotbarManual' in saved);
+    // guardado de antes de S0 (sin hotbarManual), venga de la versión que venga: la barra de la
+    // especialización se pone al cargar (abajo), una vez, como si acabaras de aprender su kit
+    const preS0Bar = !!saved && typeof saved === 'object' && !('hotbarManual' in saved);
     if (saved) {
       saved = migrateSave(saved);
       Object.assign(this, saved, { game: this.game, cls: this.cls });
@@ -640,7 +640,7 @@ export class Player {
     this.castLock = 0;          // bloqueo de lanzamiento (windup / canalización)
     this.actionLockT = 0;       // bloqueo de ACCIÓN para el básico tras una principal (Paso 2b.2)
     this.shields = [];          // escudos [{ amt, t, src }] (se consumen tras mitigar)
-    this.invulnT = 0;           // inmunidad (Muro Inquebrantable…)
+    this.invulnT = 0;           // inmunidad (Bloque de Hielo, Fénix…)
     this.unstoppableT = 0;      // imparable: inmune a control e interrupciones
     this.slowImmuneT = 0;       // inmune a ralentizaciones (Agilidad, Piel de Hierro, Furia Inmortal)
     this.invisT = 0;            // invisible (Camuflaje): los enemigos pierden el objetivo (Paso 2c.2)
@@ -674,8 +674,9 @@ export class Player {
     const hm = this.hotbarManual && typeof this.hotbarManual === 'object' ? this.hotbarManual : {};
     this.hotbarManual = {};
     for (const [s, id] of Object.entries(hm)) if (typeof id === 'string' && this.hotbar[s] === id) this.hotbarManual[s] = id;
-    // guardado v5 de antes de S0: una pasada de la barra de la especialización, como si acabaras de
-    // aprender su kit (el Rayo que nunca llegó a 🖱️Der), con su aviso de carga
+    // guardado de antes de S0 (también un v4 o anterior recién migrado): una pasada de la barra de la
+    // especialización, como si acabaras de aprender su kit (el Rayo que nunca llegó a 🖱️Der), con su
+    // aviso de carga (una sola vez). Lo que eligió un v4 ya llega en hotbarManual (migrateV4toV5)
     if (preS0Bar && specBarUpgrade(this).length && !this.notices.includes(SPEC_BAR_NOTICE)) this.notices.push(SPEC_BAR_NOTICE);
     this.hp = this.stats.maxHP;
     // recurso inicial (resources.js): la Furia arranca vacía; Maná/Energía llenos
@@ -979,7 +980,7 @@ export class Player {
 
   // vida/recurso al golpear (una vez por impacto: AoE, proyectil, golpe). La vida
   // al golpear (lph) ENTRA en la cubeta de sustento (§6.1, cambio intencional).
-  // Los poderes "por golpe" (Sobrecarga Arcana…) van por ⑤ onHit (registro).
+  // Los poderes "por golpe" (Cero Absoluto, los de la forja y los talentos…) van por ⑤ onHit (registro).
   onDealHit() {
     this.sinceCombat = 0;
     touchCombat(this);
@@ -1100,7 +1101,7 @@ export class Player {
     void src;
     return this.hp - before;
   }
-  // RESTAURACIÓN: fija la vida a un valor (Muro Inquebrantable, Fénix…); no escala
+  // RESTAURACIÓN: fija la vida a un valor (Negación de la Muerte, Fénix…); no escala
   setHp(v, src = 'restore') {
     this.hp = Math.max(0, Math.min(this.stats.maxHP, v));
     void src;
@@ -1175,9 +1176,11 @@ export class Player {
   // Guardamos `dur` (total) además de `t` (restante) para poder calcular progreso.
   addBuff(id, stats, dur, meta = {}) {
     this.buffs = this.buffs.filter(b => b.id !== id);
+    // X1 (E5): el aviso del buff de una habilidad tuya (su `desc` del catálogo) lleva los números a tu rango
+    const sk = meta.desc ? this.cls?.skills?.find(s => s.id === id && s.desc === meta.desc) : null;
     this.buffs.push({
       id, stats, t: dur, dur,
-      name: meta.name, icon: meta.icon, desc: meta.desc,
+      name: meta.name, icon: meta.icon, desc: sk ? rankedText(this, sk, meta.desc) : meta.desc,
     });
     this.recompute();
   }
@@ -1348,7 +1351,7 @@ export class Player {
     this.game.sfx('hurt');
     this.game.tip('pocion', 'Si tu vida baja, bebe una poción: tecla Q o el botón 🧪');
     if (this.hp <= 0) {
-      // onLethal: un poder puede salvarte (Muro Inquebrantable…); gana el primero por prioridad
+      // onLethal: un poder puede salvarte (Negación de la Muerte, Fénix…); gana el primero por prioridad
       if (this.hookIndex?.onLethal && firePower('onLethal', this, g, this, info)) {
         if (this.hp <= 0) this.hp = 1;
         return;
@@ -1607,7 +1610,7 @@ export class Player {
 
   // Ataque básico de arma = GENERADOR (§2) y una habilidad más (cat:'basic'): su
   // coeficiente, ramas, soportes y poderes salen de resolveSkill. El recurso se
-  // gana SOLO al acertar (Tajo/Embate: +extra por objetivo adicional).
+  // gana SOLO al acertar (Tajo: +extra por objetivo adicional).
   // ⑨ passiveTick de las activas conocidas (Inversión del Tiempo graba su historial)
   _passiveTick(g, dt) {
     for (const b of this.passiveBehaviors || []) {
@@ -1659,7 +1662,7 @@ export class Player {
     const seq = def?.seq && g.seqAdvance ? g.seqAdvance(this, wb) : null;
     const ch = opts.charge || null;
     // ⑦ Paso 2c.2: el básico de ARMA también pasa por onCast (CastInfo.weapon = true):
-    // Ráfaga Infinita cuenta sus disparos y un onCast puede forzar el crítico
+    // Compás cuenta los básicos, Triple Clavado su disparo triple y un onCast puede forzar el crítico
     // (cast.forceCrit: Camuflaje) o cancelarlo (false)
     const cast = { sk: wb, prof, slot: 'lmb', target: target?.pos || null, enemy: target?.def ? target : null, weapon: true,
       seqNth: !!seq?.nth, seqIdx: seq?.idx || 0, charge: ch ? { t: ch.t, frac: ch.frac } : null, perfect: !!ch?.perfect };
@@ -1898,7 +1901,7 @@ export class Enemy {
   get pos() { return this.group.position; }
 
   // Aturdimiento con RENDIMIENTOS DECRECIENTES (evita el bloqueo permanente con
-  // Bola de Fuego/Mandoble + "Conmocionar"):
+  // aturdimientos encadenados de varias habilidades; applyCC con { noDR } se lo salta a propósito):
   //  - cada aturdimiento que se aplica suma resistencia (stunDR, 0..1) que decae
   //    sola con el tiempo (~0.12/s); la duración efectiva es dur × (1 − stunDR);
   //  - con stunDR ≥ 0.9 el enemigo es INMUNE hasta que la resistencia baje;
@@ -2284,8 +2287,8 @@ export class Enemy {
     this.aggroed = true; // ser golpeado despierta al enemigo al instante
     const raw = amount;
     amount *= weaknessMult(this.vulnT > 0 ? VULN_PCT : 0, sumWeakness(this.debuffs));
-    // multiplicadores [×] del héroe (Furia, Sed de Batalla, Tiro Mortal, Cacería y
-    // los nodos clave de talento): solo los MAX_MULT_ACTIVE mayores activos. No
+    // multiplicadores [×] del héroe (Furia, Sed de Batalla y los nodos clave de
+    // talento): solo los MAX_MULT_ACTIVE mayores activos. No
     // aplican a los "procs" para que no se realimenten. (El daño al enemigo siempre
     // procede del jugador: la mascota no daña y los enemigos no se golpean entre sí.)
     const pl = this.game.player;

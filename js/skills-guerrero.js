@@ -42,6 +42,7 @@ export const GUERRERO_SKILLS = [
   // innate.mod del Guardián (talents-guerrero.js; pendientes-guerrero.md §3, opción a)
   { id: 'g_piel', name: 'Piel de Hierro', icon: '🛡️', art: 'skills256/g_piel.webp', cat: 'defense', slots: ['k2'], tags: ['defense', 'buff', 'physical'], elem: 'physical',
     type: 'buff', req: 6, cd: 20, dur: 8, buff: { dr: 40 }, slowImmune: true, cdOnEnd: true, innate: { guardian: 'Guardián: 12 s y −50 %' },
+    rankText: { '40 %': 'buff.dr', '−50 %': 'rank' },
     line: 'Durante 8 s recibes un 40 % menos de daño y no te pueden ralentizar. Su recarga empieza al acabar.',
     desc: 'Tu piel se vuelve de acero 8 s: recibes un 40 % menos de daño y no te pueden ralentizar. La recarga (20 s) empieza al acabar. Con el Guardián, 12 s y −50 %.' },
   // principal a distancia: atraviesa
@@ -86,6 +87,7 @@ export const GUERRERO_SKILLS = [
   // ventana de riesgo: vida mínima del 1 % y principales gratis; al acabar te curas
   { id: 'g_u_furia', name: 'Furia Inmortal', icon: '😤', art: 'skills256/g_u_furia.webp', cat: 'ultimate', spec: 'berserker', slots: ['k4'], tags: ['ultimate', 'buff', 'physical'], elem: 'physical',
     type: 'buff', req: 15, cd: 60, cdFloor: 0.7, dur: 10, buff: { spenderCostPct: -100, minHpPct: 1, endHealPct: 20 }, unstoppable: true, slowImmune: true,
+    rankText: { 'te curas un 20 %': 'buff.endHealPct' },
     line: '10 s imparable: tu vida no baja del 1 % y tus principales no cuestan Furia. Al acabar, te curas un 20 %.',
     desc: 'Definitiva: 10 s imparable. Tu vida no baja del 1 % y tus habilidades principales no cuestan Furia. Al acabar, te curas un 20 % de la vida. Recarga 60 s (nunca baja de 42 s).' },
 
@@ -115,7 +117,7 @@ export const GUERRERO_SKILLS = [
     desc: 'Te preparas 0,4 s y golpeas el suelo: 220 % del arma a todo lo que hay a 5 m. Si estás plantado (1 s sin moverte), suelta 2 réplicas al 50 %. Cuesta 30 de Furia.' },
   // te CLAVAS: no te mueves; −40 % a ti y a tus aliados a 6 m; provocas a 10 m cada segundo
   { id: 'g_u_ciudadela', name: 'Ciudadela', icon: '🏰', art: 'skills256/g_u_ciudadela.webp', cat: 'ultimate', spec: 'guardian', slots: ['k4'], tags: ['ultimate', 'aura', 'buff', 'ally', 'taunt', 'physical'], elem: 'physical',
-    behavior: 'g_u_ciudadela', req: 15, cd: 90, cdFloor: 0.7, dur: 8, radius: 6, buff: { dr: 40 }, moveMul: 0, plant: true,
+    behavior: 'g_u_ciudadela', req: 15, cd: 90, cdFloor: 0.7, dur: 8, radius: 6, buff: { dr: 40 }, moveMul: 0, plant: true, rankText: { '40 %': 'buff.dr' },
     pulse: { every: 1, radius: 10, taunt: 1.5 },
     line: 'Clavas el escudo 8 s y no te mueves: tú y tus aliados a 6 m reciben −40 %; los enemigos a 10 m te atacan a ti.',
     desc: 'Definitiva: te clavas 8 s y no te mueves. Tú y tus aliados a 6 m reciben un 40 % menos de daño y los enemigos a 10 m te atacan a ti. Recarga 90 s (nunca baja de 63 s).' },
@@ -135,7 +137,7 @@ export const GUERRERO_SKILLS = [
   // destello rápido que deja un SENDERO sagrado (daña y cura a tus aliados)
   { id: 'g_sendero', name: 'Sendero de Luz', icon: '✨', art: 'skills256/g_sendero.webp', cat: 'movement', spec: 'cruzado', slots: ['k1'], tags: ['movement', 'zone', 'holy'], elem: 'holy',
     type: 'blink', req: 12, coef: 1.0, cd: 10, range: 8,
-    trail: { field: 'zona', dur: 4, width: 1.5, coef: 0.3, heal: 2 },
+    trail: { field: 'zona', dur: 4, width: 1.5, coef: 0.3, heal: 2 }, rankText: { 'un 2 %': 'trail.heal' },
     line: 'Destello de 8 m: dejas 4 s un sendero sagrado que no se suma: daña un 30 % y cura a tus aliados un 2 % por segundo.',
     desc: 'Destello rápido de 8 m: dejas un sendero sagrado 4 s que hace un 30 % del arma por segundo a los enemigos y cura a tus aliados un 2 % de la vida por segundo. Recarga 10 s.' },
   // CARGAR Y SOLTAR: 140 → 380 % a 3–5 m; la ventana perfecta (0,9–1,15 s) da +25 % y 1 de Fervor
@@ -163,15 +165,16 @@ export const GUERRERO_SKILLS = [
   // de clase: c11A (Nv21), c17A (Nv27) y c22A (Nv31). Sus comportamientos (g_t_aliento,
   // g_t_intervencion) viven en js/powers-guerrero.js (KT)
   { id: 'g_t_aliento', name: 'Segundo Aliento', icon: '❤️‍🩹', art: 'skills256/g_t_aliento.webp', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'heal', 'physical'], elem: 'physical',
-    behavior: 'g_t_aliento', req: 21, cd: 30, color: 0xff5a4a,
+    behavior: 'g_t_aliento', req: 21, cd: 30, color: 0xff5a4a, rankText: { 'un 1 %': '*', 'un 33 %': '*' },
     line: 'Gastas toda tu Furia y te curas un 1 % de la vida por cada 3 de Furia (100 de Furia: un 33 %).',
     desc: 'Gastas toda tu Furia y te curas un 1 % de la vida por cada 3 de Furia gastada (100 de Furia: un 33 %). Recarga 30 s.' },
   { id: 'grito_guerra', name: 'Grito de Guerra', icon: '📢', art: 'skills256/grito_guerra.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'shout', 'buff', 'ally', 'physical'], elem: 'physical',
-    type: 'buff', req: 27, cd: 20, dur: 8, buff: { dmgPct: 10 }, allyRadius: 15, gen: 30,
+    type: 'buff', req: 27, cd: 20, dur: 8, buff: { dmgPct: 10 }, allyRadius: 15, gen: 30, rankText: { '+10 %': 'buff.dmgPct' },
     line: 'Ganas 30 de Furia y tu grupo a 15 m hace +10 % de daño durante 8 s.',
     desc: 'Rugido de batalla: ganas 30 de Furia al instante y tu grupo a 15 m hace +10 % de daño durante 8 s. Sin coste; recarga 20 s.' },
   { id: 'g_t_intervencion', name: 'Intervención', icon: '🤝', art: 'skills256/g_t_intervencion.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'ally', 'shield', 'physical'], elem: 'physical',
     type: 'leap', behavior: 'g_t_intervencion', req: 31, cd: 20, range: 8, airT: 0.4, lockT: 0.4, shieldPct: 15, dur: 6, color: 0x88bbff,
+    rankText: { '15 %': 'shieldPct' },
     line: 'Saltas junto a un aliado (o 8 m hacia la mira) y los dos ganan un escudo del 15 % de tu vida durante 6 s.',
     desc: 'Saltas junto a un aliado (o 8 m hacia la mira) y los dos ganan un escudo del 15 % de tu vida máxima durante 6 s. Recarga 20 s.' },
   // de los árboles héroe (fila 2 del Paragon, Nv72): Titán t4A, Gladiador l4A y Caudillo u4A.
@@ -187,7 +190,7 @@ export const GUERRERO_SKILLS = [
     line: 'Encierras a tu Rival contigo en un círculo de 6 m durante 8 s: no puede salir y le haces +20 %.',
     desc: 'Encierras a tu Rival (el enemigo en la mira) contigo en un círculo de 6 m durante 8 s: no puede salir y recibe un 20 % más de daño. Recarga 40 s.' },
   { id: 'g_h_estandarte', name: 'Estandarte de Guerra', icon: '🚩', art: 'skills256/g_u_estandarte.webp', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'aura', 'buff', 'ally', 'physical'], elem: 'physical',
-    type: 'aura', at: 'target', req: 72, cd: 30, range: 15, radius: 8, dur: 12, buff: { dmgPct: 8, dr: 8 },
+    type: 'aura', at: 'target', req: 72, cd: 30, range: 15, radius: 8, dur: 12, buff: { dmgPct: 8, dr: 8 }, rankText: { '+8 %': 'buff.dmgPct', 'un 8 %': 'buff.dr' },
     line: 'Clavas al instante un Pendón en la mira (a 15 m), aparte del que clavas solo cada 15 s.',
     desc: 'Clavas al instante un Pendón en la mira (a 15 m), aparte del que clavas solo cada 15 s: durante 12 s, tú y tus aliados a 8 m hacen +8 % de daño y reciben un 8 % menos. Recarga 30 s.' },
 ];
@@ -434,7 +437,7 @@ export const GUERRERO_SKILL_FORGE = {
     ],
   },
   g_piel: {
-    mejora: { id: 'g_piel_m', name: 'Acero Templado', icon: 'forge/mejora', line: 'Al activarla te curas el 8 % de la vida.', power: 'v_temple' },
+    mejora: { id: 'g_piel_m', name: 'Acero Templado', icon: 'forge/mejora', line: 'Al activarla te curas el 8 % de la vida.', power: 'v_temple', rankText: { 'el 8 %': '*' } },
     vars: [
       { id: 'g_piel_i', name: 'Espinas', role: 'AREA', icon: F('g_piel_i'), line: 'Mientras dura, devuelves el 40 % del daño cuerpo a cuerpo que recibes.',
         power: 'v_espinas' },
@@ -497,7 +500,7 @@ export const GUERRERO_SKILL_FORGE = {
         set: { 'buff.endHealPct': 0 }, power: 'v_sed_voraz' },
       // quita la inmortalidad (§10)
       { id: 'g_u_furia_ii', name: 'Frenesí', role: 'UNI', icon: F('g_u_furia_ii'), line: '+40 % de velocidad de ataque, pero tu vida sí puede bajar del 1 %.',
-        set: { 'buff.minHpPct': 0 }, add: { 'buff.aspdPct': 40 } },
+        set: { 'buff.minHpPct': 0 }, add: { 'buff.aspdPct': 40 }, rankText: { '+40 %': 'buff.aspdPct' } },
     ],
   },
 
@@ -539,7 +542,7 @@ export const GUERRERO_SKILL_FORGE = {
     vars: [
       // deja de estar plantada: caminas al 50 % y el aura va contigo (§10)
       { id: 'g_u_ciudadela_i', name: 'Ciudadela Andante', role: 'MOV', icon: F('g_u_ciudadela_i'), line: 'Te mueves al 50 % y te sigue; la reducción baja de −40 % a −25 %.',
-        set: { moveMul: 0.5, plant: false, follow: 'owner', 'buff.dr': 25 } },
+        set: { moveMul: 0.5, plant: false, follow: 'owner', 'buff.dr': 25 }, rankText: { '−40 %': '*', '−25 %': 'buff.dr' } },
       { id: 'g_u_ciudadela_ii', name: 'Empalizada', role: 'AREA', icon: F('g_u_ciudadela_ii'), line: 'Quien te golpea recibe el 60 % de tu arma (una vez por segundo).',
         power: 'v_empalizada' },
     ],
@@ -560,7 +563,7 @@ export const GUERRERO_SKILL_FORGE = {
     mejora: { id: 'g_sendero_m', name: 'Huella de Luz', icon: 'forge/mejora', line: 'El sendero dura 6 s (antes 4 s).', add: { 'trail.dur': 2 } },
     vars: [
       { id: 'g_sendero_i', name: 'Escolta de Luz', role: 'APO', icon: F('g_sendero_i'), line: 'Al atravesar a un aliado, escudo del 12 % de tu vida 6 s (cada 6 s).',
-        power: 'v_escolta_luz' },
+        power: 'v_escolta_luz', rankText: { 'del 12 %': '*' } },
       { id: 'g_sendero_ii', name: 'Destello Doble', role: 'MOV', icon: F('g_sendero_ii'), line: '2 cargas (10 s cada una); el sendero dura 2 s.',
         set: { charges: 2, 'trail.dur': 2 } },
     ],
@@ -586,7 +589,8 @@ export const GUERRERO_SKILL_FORGE = {
         set: { radius: 2, color: 0xfff6d8 }, mod: { dmg: 80, stagger: 40 } },
       // cura y escudo a los aliados a 8 m del impacto (heal/shield del motor)
       { id: 'g_u_cataclismo_ii', name: 'Amanecer', role: 'APO', icon: F('g_u_cataclismo_ii'), line: '−40 % de daño; cura un 30 % y da un escudo del 10 % a aliados a 8 m.',
-        set: { heal: { pct: 30, radius: 8 }, shield: { pct: 10, radius: 8 } }, mod: { dmg: -40 }, tags: { add: ['heal'] } },
+        set: { heal: { pct: 30, radius: 8 }, shield: { pct: 10, radius: 8 } }, mod: { dmg: -40 }, tags: { add: ['heal'] },
+        rankText: { 'cura un 30 %': 'heal.pct', 'del 10 %': 'shield.pct' } },
     ],
   },
 };

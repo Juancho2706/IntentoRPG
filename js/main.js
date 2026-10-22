@@ -23,7 +23,7 @@ import { talentMethods } from './game-talents.js';
 import { LOAD_NOTICES } from './save-schema.js';
 import { eraMethods } from './game-eras.js';
 // Paso 2b.0: canal de lanzamiento de habilidades, entidades de suelo y registro de poderes
-import { skillMethods, killStatus } from './game-skills.js';
+import { skillMethods, killStatus, worldResetProjectiles } from './game-skills.js';
 import { fieldMethods } from './field-entities.js';
 import { firePower } from './powers.js';
 import { Music } from './music.js';
@@ -428,6 +428,8 @@ class Game {
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose());
       });
     }
+    // los proyectiles con vida propia (Orbe Arcano) se apagan ANTES de vaciar la lista y los grupos
+    worldResetProjectiles(this.projectiles);
     for (const e of this.enemies) { this.entityGroup.remove(e.group); e.dispose?.(); } // libera GPU
     // limpia por completo loot y efectos (a prueba de mallas huérfanas que
     // quedaban como objetos estáticos al cambiar de mundo)

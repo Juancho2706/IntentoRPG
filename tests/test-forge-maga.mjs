@@ -382,11 +382,14 @@ console.log('Forja recomendada: ids del catálogo y ninguna apaga el Calor, la E
     return { h, list };
   };
   assert.ok(nova(10).list[0].slowPct === 30 && nova(11).list[0].slowPct === 40, 'Escarcha Profunda: 30 → 40 %');
-  // I · Corazón de Hielo: escudo del 3 % de la vida por golpeado, tope 15 %
+  // I · Corazón de Hielo: escudo del 3 % de la vida por golpeado, tope 15 % (los dos × la potencia de
+  // buffs de la Nova a su rango: buffMul, X1)
   const three = nova(30, { nova_hielo: 'i' }, 3), seven = nova(30, { nova_hielo: 'i' }, 7), none = nova(30, { nova_hielo: null }, 3);
   const pct = h => h.p.shieldTotal() / h.p.stats.maxHP * 100;
-  assert.ok(Math.abs(pct(three.h) - 9) < 0.5, `3 golpeados: 9 % (${pct(three.h).toFixed(1)})`);
-  assert.ok(Math.abs(pct(seven.h) - 15) < 0.5, `7 golpeados: tope 15 % (${pct(seven.h).toFixed(1)})`);
+  const bm = three.h.g.skillProfile(three.h.p, 'nova_hielo').buffMul;
+  assert.ok(bm > 1.1, `Nv30: la Nova crece con el rango (buffMul ${bm})`);
+  assert.ok(Math.abs(pct(three.h) - 9 * bm) < 0.5, `3 golpeados: 9 % × ${bm} (${pct(three.h).toFixed(1)})`);
+  assert.ok(Math.abs(pct(seven.h) - 15 * bm) < 0.5, `7 golpeados: tope 15 % × ${bm} (${pct(seven.h).toFixed(1)})`);
   assert.equal(none.h.p.shieldTotal(), 0, 'sin variante, sin escudo');
   // II · Nova Fracturante: +40 % a los que YA estaban ralentizados o congelados
   const fr = nova(30, { nova_hielo: 'ii' });

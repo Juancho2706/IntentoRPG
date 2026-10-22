@@ -116,7 +116,28 @@ assert.equal(HM.enemyStatuses({ gauges: { escarcha: { v: 3 } } })[0].label, 'Esc
 assert.equal(HM.playerStatusIcon({ id: 'slow', name: 'Ralentizado' }), 'assets/ui/st_ralentizado.webp');
 assert.equal(HM.playerStatusIcon({ id: 'shield', name: 'Escudo' }), 'assets/ui/st_escudo.webp');
 assert.equal(HM.playerStatusIcon({ id: 'xp_boost', name: 'Bendición de Experiencia' }), null);
-console.log('Estados: Quebrantado, Escarcha/Aterido, control, Provocado, Debilidad y DoT con su icono st_* ✓');
+// MARCAS de las tres clases (estado genérico «marca», X1): las de e.marks con el nombre y el arte de la
+// habilidad que la puso (Juicio del Guerrero, Punto Débil de la Arquera) y las que guarda un poder en
+// e.uiMarks con los suyos (Marca del Tiempo de la Maga, Marca del Halcón); con t ≤ 0 no salen
+{
+  const skillById = id => Object.values(CLASSES).flatMap(c => c.skills).find(s => s.id === id);
+  const chip = (skill, t, uses = 1) => ({ id: 'marca', label: `${skillById(skill).name}${uses > 1 ? ` ×${uses}` : ''}`, t, icon: `assets/${HM.skillArtPath(skillById(skill))}` });
+  assert.deepEqual(HM.enemyStatuses({ marks: { juicio: { id: 'juicio', t: 5, uses: 2, skill: 'g_juicio' } } }), [chip('g_juicio', 5, 2)], 'Juicio ×2');
+  const pd = HM.enemyStatuses({ marks: { a_punto_debil: { id: 'a_punto_debil', t: 6, uses: 1, skill: 'a_f_rastreador' } } });
+  assert.deepEqual(pd, [chip('a_f_rastreador', 6)], 'Punto Débil de la Arquera');
+  let left = 3, hawk = 2;
+  const e = { marks: { a_punto_debil: { id: 'a_punto_debil', t: 6, skill: 'a_f_rastreador' }, viejo: { id: 'viejo', t: 0, skill: 'g_juicio' } }, uiMarks: {
+    m_marca_tiempo: { id: 'm_marca_tiempo', name: 'Marca del Tiempo', art: 'talents/maga-clase-c12.webp', get t() { return left; } },
+    y_halcon: { id: 'y_halcon', name: 'Marca del Halcón', art: 'talents/arquera-clase-c4.webp', get t() { return hawk; } } } };
+  assert.deepEqual(HM.enemyStatuses(e), [chip('a_f_rastreador', 6),
+    { id: 'marca', label: 'Marca del Tiempo', t: 3, icon: 'assets/talents/maga-clase-c12.webp' },
+    { id: 'marca', label: 'Marca del Halcón', t: 2, icon: 'assets/talents/arquera-clase-c4.webp' }], 'las de e.marks y las de un poder, cada una con su chip');
+  left = 0; hawk = -1;
+  assert.deepEqual(HM.enemyStatuses(e).map(s => s.label), [chip('a_f_rastreador', 6).label], 'una marca de poder acabada (t ≤ 0) no sale');
+  for (const s of [...pd, chip('g_juicio', 5)]) assert.ok(has(s.icon), `existe el arte de la marca ${s.icon}`);
+  for (const a of ['assets/talents/maga-clase-c12.webp', 'assets/talents/arquera-clase-c4.webp']) assert.ok(has(a), `existe ${a}`);
+}
+console.log('Estados: Quebrantado, Escarcha/Aterido, control, Provocado, Debilidad, DoT con su icono st_* y las marcas de las tres clases ✓');
 
 // ---------- 6. indicador de especialización y stagger ----------
 const gb = HM.gaugeBar({ id: 'calor', name: 'Calor', value: 72, max: 100, color: '#ff8a3d', state: 'building' }, 'Piromante');

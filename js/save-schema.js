@@ -285,21 +285,29 @@ export function migrateV4toV5(d, over = {}) {
   // 5) barra: cada ranura por legacy.bar; el destino debe caber en la ranura (fitsSlot), no
   //    repetirse (gana la primera ranura) y conocerse con los talentos nuevos (las activas de
   //    talento salen salvo que el Recomendado las conceda; el kit, solo de su especialización).
-  //    Si no vale: SPEC_BAR de la especialización y después FALLBACK_BAR. Una ranura vacía (o
-  //    vaciada con to: null) sigue vacía —así una segunda pasada da lo mismo—, salvo lmb, que
-  //    nunca queda vacía.
-  const hero = { classId, level: L, talents, skillForge: forge, cls, forged: {} };
+  //    Si no vale: SPEC_BAR de la especialización y después FALLBACK_BAR. Una ranura que llega
+  //    VACÍA de v4 recibe, como un héroe nuevo, la de SPEC_BAR (o FALLBACK_BAR) si se puede usar;
+  //    se rellena al final para no quitarle su habilidad a una ranura elegida por el jugador. La
+  //    vaciada a propósito (to: null) sigue vacía, y en una segunda pasada (sin campos v4) una
+  //    vacía también: así dos pasadas dan lo mismo. lmb nunca queda vacía. La ranura que conserva
+  //    la elección v4 (su destino de legacy.bar) va a hotbarManual: lo que el jugador puso no se toca.
+  const hero ={ classId, level: L, talents, skillForge: forge, cls, forged: {} };
   hero.talentAgg = aggregateTalents(hero);
   const known = sk => SR.isKnown(hero, sk) && (!sk.spec || (sk.spec === spec && L >= specAt));
   const hb = {};
   const usable = (id, slot) => { const sk = skillOf(id); return !!sk && SR.fitsSlot(sk, slot) && known(sk) && !Object.values(hb).includes(id); };
+  const reco = slot => [spec ? ctx.specBar?.[spec]?.bar?.[slot] : null, ctx.fallbackBar?.[classId]?.[slot]];
+  const fill = [];
   for (const slot of BAR_SLOTS) {
     const old = oldBar[slot];
     const mapped = !old ? null : fromV4 ? legacyTarget(legacy.bar?.[old], slot, spec, old) : old;
+    if (slot !== 'lmb' && !old && fromV4) { hb[slot] = null; fill.push(slot); continue; }
     if (slot !== 'lmb' && (!old || mapped === null)) { hb[slot] = null; continue; }
-    const cands = [mapped, spec ? ctx.specBar?.[spec]?.bar?.[slot] : null, ctx.fallbackBar?.[classId]?.[slot]];
-    hb[slot] = cands.find(id => id && usable(id, slot)) || null;
+    hb[slot] = [mapped, ...reco(slot)].find(id => id && usable(id, slot)) || null;
+    // la eligió el jugador en v4: cuenta como puesta a mano (la pasada S0 al cargar no la cambia)
+    if (fromV4 && hb[slot] && hb[slot] === mapped) (d.hotbarManual ||= {})[slot] = mapped;
   }
+  for (const slot of fill) hb[slot] = reco(slot).find(id => id && usable(id, slot)) || null;
   if (!hb.lmb) hb.lmb = (cls?.skills || []).find(s => s.cat === 'basic' && usable(s.id, 'lmb'))?.id || null;
   d.hotbar = hb;
   // 6) soportes: se reencajan sobre la definición FORJADA; lo que no encaja o es de una

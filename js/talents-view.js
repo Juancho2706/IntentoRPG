@@ -24,7 +24,7 @@
 import * as Talents from './talents.js';
 import { createTalentOps, TALENT_REASONS, LOADOUTS_MAX, LOADOUT_NAME_MAX } from './talents-ops.js';
 import { CLASSES } from './data.js';
-import { knownSkills } from './skill-resolve.js';
+import { knownSkills, rankedText } from './skill-resolve.js';
 import { CAT_LABELS, skillSlots } from './skill-defs.js';
 import { talentArtPath } from './talent-art.js';
 
@@ -598,7 +598,8 @@ export function skillTooltip(p, skillId, { spec = null } = {}) {
   const origin = sk.kind === 'talent' ? 'Habilidad de talento' : own ? own.name : 'Kit base';
   const slots = skillSlots(sk).map(s => SLOT_LABEL[s]).filter(Boolean).join(' o ');
   return { id: sk.id, name: sk.name, icon: skillIconPath(p.classId, sk), talent: sk.kind === 'talent',
-    kind: `${origin} · ${CAT_LABELS[sk.cat] || sk.cat}${slots ? ` · ${slots}` : ''}`, line: skillLine(sk),
+    // X1 (E5): con los números de buff, escudo y cura a tu rango (el que tendría si aún no la tienes)
+    kind: `${origin} · ${CAT_LABELS[sk.cat] || sk.cat}${slots ? ` · ${slots}` : ''}`, line: rankedText(p, sk, skillLine(sk)),
     links: nodesTouchingSkill(p, skillId, { spec }) };
 }
 // tooltip de una puerta

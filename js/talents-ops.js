@@ -236,12 +236,21 @@ export function createTalentOps(T) {
     for (const id of r.switched) p.talents.choice[id] = r.choice[id];
     return true;
   }
+  // la build aplicada con «Recomendado» (talents.build[spec]) deja de valer si el árbol de la
+  // especialización se rehace por otra vía (reinicio, configuración guardada, código): el libro vuelve a
+  // recomendar la forja de la build por defecto. Editar nodos sueltos la conserva
+  function forgetBuild(p, spec) {
+    const b = p.talents.build;
+    if (!spec || !b || typeof b !== 'object' || !Object.hasOwn(b, spec)) return;
+    delete b[spec];
+    if (!Object.keys(b).length) delete p.talents.build;
+  }
   function resetTree(p, which) {
     const sc = scope(p, which);
     if (sc.err) return sc.err;
     const before = heroFlags(p);
     if (which === 'cls') { p.talents.cls = {}; clearChoices(p, sc.tree); }
-    else if (which === 'spec') { p.talents.sp[p.talents.spec] = {}; clearChoices(p, sc.tree); }
+    else if (which === 'spec') { p.talents.sp[p.talents.spec] = {}; clearChoices(p, sc.tree); forgetBuild(p, p.talents.spec); }
     else {
       const st = p.talents.hero[p.talents.spec];
       if (st) { st.nodes[sc.tree.hero.id] = {}; st.choice[sc.tree.hero.id] = {}; }
@@ -297,6 +306,9 @@ export function createTalentOps(T) {
       st.nodes[r.hero.tree] = r.hero.nodes[r.hero.tree] || {};
       st.choice[r.hero.tree] = r.hero.choice[r.hero.tree] || {};
     }
+    // la build aplicada por especialización (talents.build): el libro recomienda SU forja (hud-model.recoFor)
+    const prev = p.talents.build && typeof p.talents.build === 'object' && !Array.isArray(p.talents.build) ? p.talents.build : {};
+    p.talents.build = { ...prev, [b.sp]: k };
     bump(p);
     return { ok: true, key: k, spec: b.sp, ...heroDelta(p, before) };
   }
@@ -347,6 +359,7 @@ export function createTalentOps(T) {
     clearChoices(p, clsTree); clearChoices(p, specTree);
     p.talents.cls = c.ranks;
     p.talents.sp[spec] = s.ranks;
+    forgetBuild(p, spec);
     for (const [id, k] of Object.entries(l.choice || {})) if (T.nodeById(clsTree, id) || T.nodeById(specTree, id)) p.talents.choice[id] = k;
     // una elección que el nivel aún no deja pasa a la otra opción (T0)
     const fc = fixLevelChoices(p, [...clsTree.nodes, ...specTree.nodes], { ...c.ranks, ...s.ranks }, L);
@@ -534,6 +547,7 @@ export function createTalentOps(T) {
     if (spec) {
       p.talents.spec = spec.id;
       p.talents.sp[spec.id] = sp;
+      forgetBuild(p, spec.id);
       if (heroDef) {
         const st = p.talents.hero[spec.id] ||= { tree: heroDef.id, nodes: {}, choice: {} };
         st.nodes ||= {}; st.choice ||= {};

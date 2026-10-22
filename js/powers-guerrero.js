@@ -44,7 +44,7 @@
 import * as THREE from 'three';
 import { dealProcDamage, powerState, hasPower, POWER_HOOKS } from './powers.js';
 import { gainGauge, gaugeValue, gaugeMax, gaugeState, gaugeTuning, setGauge } from './spec-mechanics.js';
-import { dotProfile, damageReduction, takenMult, chargeRelease, rankCoef, rankBuff, blockReduction, DOT_PROFILES, CAPS } from './combat-math.js';
+import { dotProfile, damageReduction, takenMult, chargeRelease, blockReduction, DOT_PROFILES } from './combat-math.js';
 import { spendResource, drainResource } from './resources.js';
 import { wasExecuted } from './powers-common.js';
 import { insideField } from './field-entities.js';
@@ -237,28 +237,9 @@ const now = p => p?.simT || 0;
 // rango del nodo que concede el poder (finales y ápice): el mismo dato que talents.powerRank,
 // leído del agregado de talentos que deja recompute (mínimo 1: el poder solo existe con el nodo)
 const rankOf = (p, powerId) => Math.max(1, p?.talentAgg?.powerRank?.[powerId] | 0);
-// perfil de una habilidad de la clase: el del núcleo (g.skillProfile, cola W2) o el de la caché de
-// resolveSkill; si no está (recompute la vacía), uno básico del catálogo forjado con el rango del
-// héroe y los mods de talento (sin soportes)
-function profOf(g, p, id) {
-  if (typeof g?.skillProfile === 'function') return g.skillProfile(p, id);
-  if (p?.resolved?.[id]) return p.resolved[id];
-  const sk = skillOf(p, id);
-  if (!sk) return null;
-  const def = p.forged?.[id]?.def || sk;
-  const rank = p.skills?.[id] || 1;
-  const m = p.talentAgg?.mods?.[id] || {};
-  const cdr = Math.max(-100, Math.min(CAPS.cdr, (p.stats?.cdr || 0) + (m.cdr || 0)));
-  const buffMul = rankBuff(rank) * Math.max(0, 1 + (m.buff || 0) / 100);
-  const buff = {};
-  for (const [k, v] of Object.entries(def.buff || {})) buff[k] = Math.round(v * buffMul);
-  return {
-    id, def, cat: def.cat, coef: (def.coef || 0) * rankCoef(rank), addPct: (def.addPct || 0) + (m.dmg || 0),
-    range: (def.range || 0) * Math.max(0.2, 1 + (m.range || 0) / 100), tags: new Set([...(def.tags || []), def.cat, def.elem].filter(Boolean)),
-    cd: Math.max(0, (def.cd || 0) * (1 - cdr / 100)), buffMul, buff, gen: (def.gen || 0) + (m.gen || 0),
-    dur: Math.max(0, (def.dur || 0) * Math.max(0.1, 1 + (m.dur || 0) / 100) + (m.durS || 0)),
-  };
-}
+// perfil de una habilidad de la clase: el del núcleo (g.skillProfile = resolveSkill, cola W2; los
+// poderes no importan skill-resolve). null si el héroe no la tiene en su catálogo
+const profOf = (g, p, id) => g.skillProfile(p, id);
 // quita un buff YA (sin esperar a que caduque) y recalcula; true si estaba
 function dropBuff(p, id) {
   const n = p?.buffs?.length || 0;
@@ -278,6 +259,9 @@ function auraBuff(a, id, stats, dur, meta) {
   if (up) a.recompute?.();
 }
 const isSpenderCast = cast => (cast?.sk?.cat || cast?.prof?.cat) === 'spender';
+// serie de repeticiones del lanzamiento ORIGINAL `cast` (g.castEcho, docs/paso2-claves-w2.md §9):
+// todas sus copias comparten el tope echoCap del motor
+const echoSeries = cast => cast._echoSeries || (cast._echoSeries = { seq: -1, n: 0 });
 const isMoveCast = cast => (cast?.sk?.cat || cast?.prof?.cat) === 'movement';
 const tagsHave = (hit, t) => !!(hit?.tags && (hit.tags instanceof Set ? hit.tags.has(t) : Array.isArray(hit.tags) && hit.tags.includes(t)));
 const direct = hit => !!hit && !hit.proc && !hit.dot;
@@ -688,7 +672,7 @@ function freeFury(g, p, dur) {
   if (!sk || buffOf(p, 'g_u_furia')) return false;
   const def = defOf(p, sk.id);
   const stats = { ...(profOf(g, p, sk.id)?.buff || def.buff || {}) };
-  for (const k of ['minHpPct', 'endHealPct']) if (def.buff?.[k] != null) stats[k] = def.buff[k];
+  if (def.buff?.minHpPct != null) stats.minHpPct = def.buff.minHpPct;      // la cura al acabar sí crece con el rango
   p.addBuff('g_u_furia', stats, dur, { name: def.name, icon: def.icon, desc: def.desc });
   if (def.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, dur);
   if (def.slowImmune) p.grantSlowImmune?.(dur);
@@ -1299,8 +1283,9 @@ export function guerreroPowers() {
       },
     },
     // c29 Señor de la Guerra (final, rango r): cada 100 de Furia PAGADA, tu siguiente principal
-    // sale dos veces; la copia (repetición del núcleo: gratis, no activa otros efectos) al
-    // (20 + 20·r) %; con cargar y soltar, con la misma carga
+    // sale dos veces; la copia (g.castEcho: gratis, no activa otros efectos) al (20 + 20·r) %, en la
+    // serie del original y hacia donde apuntaba (no a la mira de ese momento); con cargar y soltar,
+    // con la misma carga
     g_senor_guerra: {
       name: 'Señor de la Guerra', desc: 'Cada 100 de Furia gastada, tu siguiente principal sale dos veces.',
       state: () => ({ spent: 0, ready: false }),
@@ -1316,8 +1301,9 @@ export function guerreroPowers() {
             const full = chargeRelease(ch, ch.max, { def: cast.sk }).coefMul;
             if (full > 0) mul *= chargeRelease(ch, cast.charge.t, { def: cast.sk }).coefMul / full;
           }
-          const slot = cast.slot, id = cast.sk.id;
-          g.timers?.schedule(T.senorGuerra.delay, () => { if (p.alive && p.hotbar?.[slot] === id) g.castSkillSlot(slot, mul); });
+          const id = cast.sk.id, series = echoSeries(cast);
+          const at = cast.target ? { x: cast.target.x, z: cast.target.z } : null;
+          g.timers?.schedule(T.senorGuerra.delay, () => { if (p.alive) g.castEcho?.(p, id, { mult: mul, at, series }); });
         }
         const paid = furyPaid(cast);
         if (!(paid > 0) || st.ready) return;

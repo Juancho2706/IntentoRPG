@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { CLASSES, SUPPORTS } from '../js/data.js';
 import { validateSkillDef, defaultSlots, CAT_SLOTS, GCD_CATS } from '../js/skill-defs.js';
 import { resolveSkill, rankBase, skillRank, isKnown, knownRankMap, supportFits, supportSockets, validSupports,
-  SUPPORT_MOD, fitsSlot, cooldownWithMassacre, GCD, TALENT_SKILL_REQ } from '../js/skill-resolve.js';
+  SUPPORT_MOD, fitsSlot, cooldownWithMassacre, GCD } from '../js/skill-resolve.js';
 import { SKILL_BEHAVIORS } from '../js/powers.js';
 import { Player } from '../js/entities.js';
 import { skillMethods } from '../js/game-skills.js';
@@ -48,7 +48,6 @@ assert.equal(rankBase(1, 1), 1);
 assert.equal(rankBase(8, 1), 1); assert.equal(rankBase(9, 1), 2);
 assert.equal(rankBase(33, 1), 5); assert.equal(rankBase(50, 2), 5, 'tope 5 de base');
 assert.equal(rankBase(1, 9), 1, 'nunca por debajo de 1');
-assert.equal(TALENT_SKILL_REQ, 10);
 const p = new Player(mk(), 'guerrero');
 assert.deepEqual(Object.keys(p.skills).sort(), ['g_tajo'], 'Nv1: solo el básico A (B en Nv3, C en Nv8)');
 assert.ok(!isKnown(p, sk('guerrero', 'g_hendidura')));

@@ -533,15 +533,37 @@ check('c28', () => {
 // c29 Señor de la Guerra: cada 100 de Furia pagada, la siguiente principal sale dos veces
 check('c29', () => {
   const h = cls({ c29: 2 });
-  h.enemy({ hp: 1e6, pos: [1.5, 0, 0] });
-  const echoes = [];
-  const real = h.g.castSkillSlot.bind(h.g);
-  h.g.castSkillSlot = (slot, mult = 0) => { if (mult > 0) echoes.push(mult); return real(slot, mult); };
+  h.p.combatRng = () => 0.999;                       // golpe constante y sin críticos
+  const e = h.enemy({ hp: 1e6, pos: [1.5, 0, 0] });
+  // la copia va por g.castEcho (repetición del motor), nunca por castSkillSlot
+  const echoes = [], slotEchoes = [];
+  const realEcho = h.g.castEcho.bind(h.g), realSlot = h.g.castSkillSlot.bind(h.g);
+  h.g.castEcho = (p, id, o = {}) => { echoes.push({ id, ...o }); return realEcho(p, id, o); };
+  h.g.castSkillSlot = (slot, mult = 0) => { if (mult > 0) slotEchoes.push(mult); return realSlot(slot, mult); };
   for (let i = 0; i < 4; i++) cast(h, 'rmb', 'g_hendidura', { aim: [1.5, 0], mp: 100, sec: 0.5 });
   assert.ok(buff(h.p, 'g_senor_guerra') && echoes.length === 0, 'c29: 108 de Furia pagada: lista');
-  cast(h, 'rmb', 'g_hendidura', { aim: [1.5, 0], mp: 100, sec: 0.6 });
-  assert.deepEqual(echoes, [0.6], 'c29 r2: la copia sale al 60 %');
+  // golpes directos al enemigo del lanzamiento con el buff
+  const hits = [];
+  const td = e.takeDamage.bind(e);
+  e.takeDamage = (a, c, o = {}) => { const d = td(a, c, o); if (!o.dot && !o.proc) hits.push(d); return d; };
+  h.p.mp = 100;
+  assert.ok(h.cast('rmb'), 'c29: la principal sale');
+  h.aim(-6, 0);                                      // la mira se va al otro lado antes de la copia
+  h.step(0.8);
+  assert.equal(echoes.length, 1, 'c29: una sola copia');
+  // T.senorGuerra: (20 + 20·r) % — el texto del nodo a r2 dice 60 %
+  assert.match(TT.cls.nodes.find(n => n.id === 'c29').d(2), /al 60 %/);
+  assert.ok(approx(echoes[0].mult, 0.6), `c29 r2: la copia sale al 60 % (${echoes[0].mult})`);
+  assert.equal(echoes[0].id, 'g_hendidura');
+  assert.deepEqual(echoes[0].at, { x: 1.5, z: 0 }, 'c29: hacia donde apuntaba el original, no a la mira de ahora');
+  assert.equal(echoes[0].series?.n, 1, 'c29: en la serie del original (cuenta para su tope de repeticiones)');
+  assert.deepEqual(slotEchoes, [], 'c29: sin castSkillSlot');
+  assert.equal(hits.length, 2, `c29: el enemigo recibe el original y la copia (${hits.length})`);
+  assert.ok(approx(hits[1] / hits[0], 0.6, 0.02), `c29: la copia pega el 60 % del original (${(hits[1] / hits[0]).toFixed(3)})`);
   assert.ok(!buff(h.p, 'g_senor_guerra'), 'c29: se gasta');
+  // y no vuelve a salir con la siguiente
+  h.p.mp = 100; h.aim(1.5, 0); h.cast('rmb'); h.step(0.8);
+  assert.equal(echoes.length, 1, 'c29: gastado, la siguiente sale una vez');
 });
 // c30 Asalto Total: tras tu movilidad, la principal gratis y +15·r %; si mata, media recarga
 check('c30', () => {

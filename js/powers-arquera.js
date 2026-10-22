@@ -58,6 +58,7 @@ import { spendResource } from './resources.js';
 import { rankCoef, chargeFullAt } from './combat-math.js';
 import { cotoAddPrey, cotoPreys } from './mech-arquera.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
+import { talentArtPath } from './talent-art.js';
 
 // ------------------------------------------------------------
 // constantes (un solo sitio; reflejan el texto de cada nodo)
@@ -467,6 +468,8 @@ function skyTarget(g, p) {
   if (e) seen.add(e);
   return e;
 }
+// arte del chip de la marca en el marco del objetivo: el del nodo y0, el mismo del panel de talentos
+const HAWK_MARK_ART = talentArtPath('arquera', 'h3', 'y0') || 'talents/arquera-clase-c4.webp';
 // el marcado recibe +10 % de tus flechas 6 s (Ojo Compartido: 12 s y varios a la vez);
 // Presa Señalada: cuenta como tu Presa (Montaraz) o como tu Punto Débil (Francotiradora: weakLeft)
 function hawkMark(p, e) {
@@ -475,6 +478,9 @@ function hawkMark(p, e) {
   if (!(tv.hawkShared > 0)) for (const o of [...st.marks.keys()]) if (o !== e) hawkUnmark(p, o);
   st.marks.set(e, now(p) + (tv.hawkShared > 0 ? tv.hawkShared : tune().hawk.mark));
   if (tv.hawkPrey > 0 && p.talentAgg?.mechanic === 'coto') e.prey = true;
+  // el marco del objetivo la enseña (hud-model: e.uiMarks) mientras siga en el estado del halcón
+  (e.uiMarks ||= {}).y_halcon = { id: 'y_halcon', name: 'Marca del Halcón', art: HAWK_MARK_ART,
+    get t() { const u = powerState(p, 'y_halcon').marks?.get(e); return u != null ? u - now(p) : 0; } };
 }
 function hawkUnmark(p, e) {
   const st = powerState(p, 'y_halcon');

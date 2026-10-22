@@ -27,7 +27,7 @@ import { bookView, forgeView, talentLinks, supportOptions, supportsAfter, recoPl
   SLOT_ORDER, SLOT_LABEL, ROLE_INFO, ROLE_ROW, VERB_LABEL, catLabel, resIcon, specCard, skillArtPath, hyphenEs } from './hud-model.js';
 import { createGaugeHud, gaugeViewFor } from './ui-gauges.js';
 import { gaugeTuning } from './spec-mechanics.js';
-import { fitsSlot } from './skill-resolve.js';
+import { fitsSlot, rankedText } from './skill-resolve.js';
 import { SLOT_UNLOCK } from './skill-defs.js';
 import { talentTreesFor, TALENT_RULES } from './talents.js';
 import { mergeBindings, buildCodeMap, keyLabel } from './bindings.js';
@@ -454,7 +454,7 @@ export function createSkillBook(root, opts = {}) {
     const lv = Math.max(sk.req || 1, SPEC_AT);
     const why = (p?.level || 1) < SPEC_AT ? `Se aprende al nivel ${lv} si eliges ${esc(c?.name)} (nivel ${SPEC_AT})`
       : specIdNow() ? `Cambia a ${esc(c?.name)} en Talentos (${K('talents')}) para usarla` : `Elige ${esc(c?.name)} en Talentos (${K('talents')}) para usarla`;
-    return `<div class="tn">${esc(sk.name)}</div><div class="tk">Kit de ${esc(c?.name || '')} · ${esc(catLabel(sk.cat))}</div><div class="tl">${esc(sk.line || sk.desc || '')}</div><div class="st lk">${why}</div>`;
+    return `<div class="tn">${esc(sk.name)}</div><div class="tk">Kit de ${esc(c?.name || '')} · ${esc(catLabel(sk.cat))}</div><div class="tl">${esc(rankedText(p, sk, sk.line || sk.desc || ''))}</div><div class="st lk">${why}</div>`;
   }
 
   const specIdNow = () => S.view?.spec?.id || null;
