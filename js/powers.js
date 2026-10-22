@@ -33,8 +33,9 @@
  *   instante). `echo` > 0 = repetición: no consume cargas ni relanzamientos ni avanza estado. */
 /** @typedef {{ hits:number, dealt:number, killed:number }} CastResult */
 /** @typedef {{ kind:'recast'|'channel'|'charge'|'stance'|'combo', reason:string, casts:number,
- *   hits:number, released:boolean, frac:number, perfect:boolean }} SkillEnd
- *   ⑭ fin de una cadena de relanzar, un canal, una carga, una postura o un combo. reason:
+ *   hits:number, released:boolean, frac:number, perfect:boolean, full?:boolean }} SkillEnd
+ *   ⑭ fin de una cadena de relanzar, un canal, una carga, una postura o un combo. `full` (la
+ *   suelta de una carga): a carga completa, desde la ventana dorada (combat-math chargeFullAt). reason:
  *   recast: max|timeout|miss · channel: release|done|dodge|interrupt|drain|cc|cancel ·
  *   charge: release|auto|dodge|interrupt|cc|cancel|panel · stance: end|recast|dodge|death|spec ·
  *   combo: done|timeout */

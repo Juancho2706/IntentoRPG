@@ -55,7 +55,7 @@ import { gainGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics
 import { projFanOffset } from './skill-defs.js';
 import { enemiesInField, fieldArmed, insideField } from './field-entities.js';
 import { spendResource } from './resources.js';
-import { rankCoef } from './combat-math.js';
+import { rankCoef, chargeFullAt } from './combat-math.js';
 import { cotoAddPrey, cotoPreys } from './mech-arquera.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
 
@@ -1776,6 +1776,12 @@ function francotiradoraPowers() {
   const T = tune().fra;
   // onSkillEnd de una suelta de Disparo Apuntado que disparó (perfecta si `perfect`)
   const aimedRelease = (sk, end, perfect = false) => sk?.id === 'a_t_apuntado' && end?.kind === 'charge' && end.casts > 0 && (!perfect || end.perfect);
+  // «a carga completa» (Salva de Vigía, Línea Mortal y Tres Saetas en el motor): el arco tensado del
+  // todo, que llega con la ventana dorada si se abre antes del máximo (combat-math chargeFullAt:
+  // Disparo Apuntado 1,15 de 1,5 s; Tiro Pesado 2,15 de 2,5; Tensado Rápido 1,0 de 1,3; Tiro
+  // Celestial 0,5 de 0,8) y, sin ventana, con el máximo. Así un soltado perfecto también es a carga
+  // completa, como dice la rotación del diseño («a carga completa en la ventana dorada»). La suelta
+  // lo trae en `end.full` (⑭). Antes pedían el máximo, siempre después de la ventana (E4b-bugs)
   // mira y perfil del último Disparo Apuntado (al empezar a tensar; la suelta sale hacia ahí)
   const aimOf = (p) => powerState(p, 'arq_apuntado');
   return {
@@ -1927,11 +1933,12 @@ function francotiradoraPowers() {
       },
     },
     // f10A Salva de Vigía: de rodillas, cada soltado a carga completa (Disparo Apuntado o un haz; el
-    // básico tensado no, §19.1 hallazgo 4) dispara 2 saetas más al 25 %
+    // básico tensado no, §19.1 hallazgo 4) dispara 2 saetas más al 25 %. «A carga completa» = end.full,
+    // desde la ventana dorada: el soltado perfecto también (E4b-bugs; antes, solo al máximo)
     f_salva: {
       name: 'Salva de Vigía', desc: 'En Rodilla en Tierra, cada soltado a carga completa dispara 2 saetas más.',
       onSkillEnd(g, p, sk, end) {
-        if (!isCharged(sk?.id) || end?.kind !== 'charge' || !(end.casts > 0) || !(end.frac >= 1 - 1e-9) || !kneeling(p)) return;
+        if (!isCharged(sk?.id) || end?.kind !== 'charge' || !(end.casts > 0) || !end.full || !kneeling(p)) return;
         const foes = foesNear(g, p.pos, T.salva.range);
         for (let i = 0; i < T.salva.n && foes.length; i++)
           shootArrow(g, p, { from: p.pos, to: nth(foes, i).pos, coef: T.salva.coef, skill: 'f_salva', speed: 26, range: T.salva.range + 2 });
@@ -2100,18 +2107,19 @@ function francotiradoraPowers() {
         cast.instant = true;
       },
     },
-    // f25 Línea Mortal (final): a carga completa, Disparo Apuntado llega a 30 m y su línea estalla (5 + 5·rango %)
+    // f25 Línea Mortal (final): a carga completa (desde la ventana dorada, chargeFullAt), Disparo
+    // Apuntado llega a 30 m y su línea estalla (5 + 5·rango %)
     f_linea_mortal: {
       name: 'Línea Mortal', desc: 'A carga completa, Disparo Apuntado es un haz de 30 m que estalla en toda su línea.',
       onCast(g, p, cast) {
         if (cast?.sk?.id !== 'a_t_apuntado' || !cast.prof?.charge) return;
         const prof = ownProf(p, cast), ch = prof.charge, def = prof.def || cast.sk;
-        const d = def.range || 16, R = prof.range || d;
-        // escala de alcance por tramos: el de siempre hasta el final, 30 m a carga completa (rangeMul = v / def.range)
-        prof.charge = { ...ch, scale: { ...(ch.scale || {}), range: [[ch.min, d], [ch.max - 1e-3, d], [ch.max, T.mortal.range * d / R]] } };
+        const d = def.range || 16, R = prof.range || d, F = chargeFullAt(ch);
+        // escala de alcance por tramos: el de siempre hasta la carga completa y 30 m desde ahí (rangeMul = v / def.range)
+        prof.charge = { ...ch, scale: { ...(ch.scale || {}), range: [[ch.min, d], [F - 1e-3, d], [F, T.mortal.range * d / R]] } };
       },
       onSkillEnd(g, p, sk, end) {
-        if (!aimedRelease(sk, end) || !(end.frac >= 1 - 1e-9)) return;
+        if (!aimedRelease(sk, end) || !end.full) return;
         const st = aimOf(p), from = { x: p.pos.x, z: p.pos.z }, dir = aimDir(p, st.aim);
         const coef = (T.mortal.base + T.mortal.perRank * powerRank(p, 'f_linea_mortal')) / 100;
         g.timers?.schedule?.(0.3, () => {
@@ -2535,22 +2543,33 @@ function montarazPowers() {
       },
     },
     // m26 Gran Cacería (final): si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor y se
-    // rearman a mitad de daño (una vez cada 12/9/6 s; esas no cuentan para Presa Atrapada ni para el ápice 4)
+    // rearman a mitad de daño (una vez cada 12/9/6 s; esas no cuentan para Presa Atrapada ni para el ápice 4).
+    // «Todas» incluye la que pisa (E4b-bugs): no se gasta (f.rearmOnce) y salta con las demás. Antes
+    // pedía otra trampa armada a la vez y, con los cepos a los pies de la Presa, nunca la había. La que
+    // pisa se mueve y se marca DESPUÉS de resolver su pisada (temporizador 0): esa pisada aún es entera
+    // y cuenta para Presa Atrapada y el ápice
     m_gran_caceria: {
       name: 'Gran Cacería', desc: 'Si tu Presa pisa una trampa, todas tus trampas saltan a su alrededor.',
       state: () => ({}),
       onHit(g, p, e, hit) {
         if (!isSpring(hit) || !e?.prey || !e.alive) return;
-        const traps = ownTraps(g, p).filter(f => f.uid !== hit.trap.uid);
+        const traps = ownTraps(g, p);
+        const stepped = traps.find(f => f.uid === hit.trap.uid) || null;
         if (!traps.length) return;
         const icd = T.caceria.icd[Math.max(1, powerRank(p, 'm_gran_caceria')) - 1] ?? T.caceria.icd[0];
         if (!takeCd(powerState(p, 'm_gran_caceria'), 'cd', icd, p)) return;
-        traps.forEach((f, i) => {
+        const jump = (f, i) => {
+          if (f.dead) return;
           const a = i * 2 * Math.PI / traps.length;
           f.pos.x = e.pos.x + Math.sin(a) * T.caceria.ring;
           f.pos.z = e.pos.z + Math.cos(a) * T.caceria.ring;
           f.armAt = (f.age || 0) + Math.max(0, f.data.armT ?? 0.5);
           if (!f.data.greatHunt) { f.data.greatHunt = true; scaleTrap(f, T.caceria.mul); }
+        };
+        traps.forEach((f, i) => {
+          if (f !== stepped) { jump(f, i); return; }
+          f.rearmOnce = true;
+          if (g.timers) g.timers.schedule(0, () => jump(f, i)); else jump(f, i);
         });
         g.ui?.spawnText?.(e.pos.clone().setY((e.def?.scale || 1) + 1), '¡Gran Cacería!', 'txt-crit');
       },

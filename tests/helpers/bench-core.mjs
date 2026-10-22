@@ -368,7 +368,10 @@ export const GAUGE_SPEND = {
   crionte: (p, g, e) => (e?.frozenT > 0 ? slotOf(p, 'k_lanza') : null),
   arcanista: p => (gaugeValue(p, 'cargas') >= 4 ? slotOf(p, 'rayo') : null),
   francotiradora: p => ((p.buffs || []).some(b => b.id === 'f_calma' && b.t > 0) ? slotOf(p, 'a_t_apuntado') : null),
-  tiradora: p => (gaugeState(p, 'impulso')?.galeT > 0 ? slotOf(p, 'flecha_multiple') : null),
+  // en el Vendaval, Flecha Múltiple; con Vaivén Eterno (v26), Andanada, que vuelve sin recarga al
+  // cerrar su ventana (rotación de la build Vaivén Eterno, Arquera §8.3; E4b-bugs: antes el banco
+  // gastaba el Vendaval solo en la Múltiple y el final no se activaba nunca)
+  tiradora: p => (gaugeState(p, 'impulso')?.galeT > 0 ? ((p.talentAgg?.ranks?.v26 | 0) > 0 && slotOf(p, 'a_t_andanada')) || slotOf(p, 'flecha_multiple') : null),
 };
 // nodos que premian CAMBIAR de postura (Guardia: Cambio d8, Guardia Viva d22, Guardia Total d25)
 const STANCE_SWAP_NODES = { g_guardia: ['d8', 'd22', 'd25'] };
@@ -750,17 +753,24 @@ function ghostAlly(g, x, z, maxHP) {
   return a;
 }
 // APOYO (2e): UNI con 2 aliados en g.party → DPS extra que les dan tus buffs y la Debilidad del jefe
-// (en «DPS de un aliado») y curación + escudos efectivos (% de su vida por segundo)
-export function apoyoSim(p, ref, { hp = 1e12, allyHp = 1000, dur = APOYO_T } = {}) {
+// (en «DPS de un aliado») y curación + escudos efectivos (% de su vida por segundo).
+// E4b-bugs (Tierra Santa): los aliados pelean a tu lado, en el camino hacia el objetivo, donde caen
+// tus zonas (el sendero, los suelos sagrados, el Cataclismo); antes, a 1,9 m detrás, ninguna zona
+// los tocaba. Y están siempre heridos (como mucho a media vida) para que la cura efectiva no se
+// sature: con 2 %/s de daño, todas las builds del Cruzado curaban todo lo que perdían y la cura de
+// Tierra Santa no se veía (2,45 %/s con ella y 2,44 sin ella)
+export const APOYO_ALLIES = [[0.8, 0.3], [0.8, -0.3]], APOYO_KEEP = 0.5, APOYO_HURT = 0.02;
+export function apoyoSim(p, ref, { hp = 1e12, allyHp = 1000, dur = APOYO_T, allyAt = APOYO_ALLIES, keep = APOYO_KEEP } = {}) {
   const g = p.game;
-  const allies = [ghostAlly(g, -1.0, 1.6, allyHp), ghostAlly(g, -1.0, -1.6, allyHp)];
+  const allies = allyAt.map(([x, z]) => ghostAlly(g, x, z, allyHp));
+  for (const a of allies) a.hp = Math.min(a.hp, keep * allyHp);
   g.party = allies;
   let extra = 0, frames = 0, acc = 0;
   const r = simulateUni(p, ref, dur, { hp, scenario: 'apoyo', onFrame: e => {
-    for (const a of allies) { a.tick(DT); extra += a.dmgMult(e) - 1; }
+    for (const a of allies) { a.tick(DT); extra += a.dmgMult(e) - 1; a.hp = Math.min(a.hp, keep * a.stats.maxHP); }
     frames++;
     acc += DT;
-    if (acc >= 0.5) { acc -= 0.5; for (const a of allies) a.hurt(0.02 * a.stats.maxHP * 0.5, e); }
+    if (acc >= 0.5) { acc -= 0.5; for (const a of allies) a.hurt(APOYO_HURT * a.stats.maxHP * 0.5, e); }
   } });
   g.party = [];
   const healed = allies.reduce((s, a) => s + a.healed + a.absorbed, 0);
@@ -776,6 +786,19 @@ export function ultKind(p) {
   if (!d) return null;
   if ((d.coef || 0) > 0) return 'dmg';
   return Object.keys(d.buff || {}).some(k => OFF_BUFF.includes(k)) ? 'buff' : 'def';
+}
+
+// ABLACIÓN JUSTA de un nodo de especialización (sondas y pruebas de E4b): mientras corre `fn`, el
+// nodo conserva sus rangos pero no hace nada (fx vacío). Ponerle los rangos a 0 deja la
+// especialización por debajo de sus 31 puntos y CIERRA el Paragon (heroOpen) a Nv70+: el «sin»
+// pierde también el árbol héroe (a Nv70, el nodo clave; a Nv100, el árbol entero) y la diferencia
+// mide eso (E4b-bugs, revisión: Montaña Viva a Nv100 daba un TTD+ de 1800 frente a 111 por eso)
+export function withoutNode(classId, spec, id, fn) {
+  const n = (talentTreesFor(classId)?.specs?.find(s => s.id === spec)?.nodes || []).find(x => x.id === id);
+  if (!n) throw new Error(`banco: el nodo ${id} no existe en ${classId}/${spec}`);
+  const fx = n.fx;
+  n.fx = {};
+  try { return fn(); } finally { n.fx = fx; }
 }
 
 // utilidades de informe
