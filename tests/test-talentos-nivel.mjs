@@ -2,6 +2,7 @@
 // habilidades que el héroe aún no conoce NO se toma; queda bloqueado con su motivo)
 //  0) learnAt sale del catálogo: la primera habilidad que conoces de las que toca o concede el nodo
 //     (por opción en una elección); el árbol de clase no depende de la especialización
+//  0b) `needs` manda sobre touch: elige entre lo que el nodo toca y cambia su nivel (si no, sobra)
 //  a) ningún nodo ni opción se toma por debajo de su learnAt: canAddRank y addRank reales con el
 //     camino más barato hasta el nodo, gateFail/validRanks con el camino completo, el barrido de (b),
 //     la vista (nodo en gris, motivo y opción con candado)
@@ -48,8 +49,11 @@ const knownAt = (classId, id, spec) => {
   if (spec !== '*' && spec !== sk.spec) return Infinity;
   return Math.max(sk.req || 1, R.specAt);
 };
+// `needs` (de la opción o del nodo) manda sobre lo que toca
+const needsOf = (node, k) => (k ? node.opts.find(o => o.k === k)?.needs : null) || node.needs || null;
+const learnIds = (classId, node, k) => needsOf(node, k) || T.nodeTouches(classId, node, k).ids;
 const expectAt = (classId, node, k, spec) => {
-  const ats = T.nodeTouches(classId, node, k).ids.map(id => knownAt(classId, id, spec)).filter(v => v != null);
+  const ats = learnIds(classId, node, k).map(id => knownAt(classId, id, spec)).filter(v => v != null);
   return ats.length ? Math.min(...ats) : null;
 };
 let nLearn = 0;
@@ -66,8 +70,7 @@ for (const classId of CLASS_IDS) {
       const l = T.nodeLearn(n);
       if (l) {
         assert.equal(l.name, skillName(classId, l.skill), `${classId}/${n.id}: nombre de la habilidad`);
-        assert.ok(T.nodeTouches(classId, n).ids.includes(l.skill), `${classId}/${n.id}: la habilidad sale de lo que toca`);
-        nLearn++;
+        assert.ok(T.nodeTouches(classId, n).ids.includes(l.skill), `${classId}/${n.id}: la habilidad sale de lo que toca`);        nLearn++;
       }
       // el árbol de clase no puede depender de la especialización (cambiarla no rompe la clase)
       if (tree.which === 'cls') {
@@ -84,6 +87,49 @@ assert.ok(nLearn > 50, `hay nodos con nivel de aprendizaje (${nLearn})`);
 assert.equal(T.learnFail(T.TALENT_TREES.maga.cls.nodes[0], undefined), null, 'sin nivel no se mira');
 assert.ok(TALENT_REASONS.includes('learn'), 'motivo propio en ops');
 console.log(`0) learnAt de ${nLearn} nodos = la primera habilidad que conoces de las que tocan ✓`);
+
+// ------------------------------------------------ 0b) `needs`: la habilidad que de verdad dispara el efecto
+// manda sobre touch. Cada needs elige entre lo que el nodo toca y CAMBIA el nivel (si no, sobra). Los
+// casos de D1 (touch daba un nivel falso) quedan con la habilidad que los dispara
+const NEEDS_EXPECT = {
+  guerrero: { d12: 'terremoto', d5: 'terremoto', z5: 'g_martillo' },
+  arquera: { v6: 'a_v_carrera', f6: 'a_f_rodilla' },
+};
+let nNeeds = 0;
+for (const classId of CLASS_IDS) {
+  for (const tree of levelTrees(classId)) {
+    const spec = tree.spec || '*';
+    for (const n of tree.nodes) {
+      for (const k of [null, ...(n.opts || []).map(o => o.k)]) {
+        const needs = k ? n.opts.find(o => o.k === k).needs : n.needs;
+        if (needs == null) continue;
+        const at = `${classId}/${n.id}${k || ''}`;
+        assert.ok(Array.isArray(needs) && needs.length > 0, `${at}: needs es una lista de habilidades`);
+        const touches = T.nodeTouches(classId, n, k).ids;
+        for (const id of needs) assert.ok(touches.includes(id), `${at}: needs «${id}» no está entre lo que toca (${touches})`);
+        const byTouch = Math.min(...touches.map(id => knownAt(classId, id, spec)).filter(v => v != null));
+        assert.notEqual(expectAt(classId, n, k, spec), byTouch, `${at}: needs no cambia el nivel (Nv${byTouch}): sobra`);
+        nNeeds++;
+      }
+    }
+  }
+}
+for (const [classId, want] of Object.entries(NEEDS_EXPECT)) {
+  for (const [id, skill] of Object.entries(want)) {
+    const n = levelTrees(classId).flatMap(t => t.nodes).find(x => x.id === id);
+    assert.equal(T.nodeLearn(n)?.skill, skill, `${classId}/${id}: se abre con ${skillName(classId, skill)}`);
+  }
+}
+// semántica en el motor (nodos sintéticos): needs manda sobre touch, el de la opción sobre el del nodo
+const synP = { id: 'zz1', t: 'p', touch: ['g_tajo', 'terremoto'] };
+assert.equal(T.learnOfNode('guerrero', synP, 'guardian').node.skill, 'g_tajo', 'sin needs: la primera que conoces');
+assert.equal(T.learnOfNode('guerrero', { ...synP, needs: ['terremoto'] }, 'guardian').node.at, 14, 'con needs: el Terremoto (Nv14)');
+assert.equal(T.learnOfNode('guerrero', { ...synP, needs: ['g_martillo'] }, 'guardian').node.at, Infinity, 'needs de otra especialización: nunca');
+const synC = T.learnOfNode('guerrero', { id: 'zz2', t: 'c', touch: ['g_tajo', 'terremoto'], needs: ['terremoto'],
+  opts: [{ k: 'A' }, { k: 'B', needs: ['g_tajo'] }] }, 'guardian');
+assert.deepEqual([synC.opts.A.skill, synC.opts.B.skill, synC.node.at], ['terremoto', 'g_tajo', 1], 'la opción sin needs usa el del nodo; la elección vale con la que ya sirve');
+assert.ok(nNeeds >= 20, `nodos con needs (${nNeeds})`);
+console.log(`0b) needs en ${nNeeds} nodos u opciones: elige entre lo que tocan y cambia su nivel ✓`);
 
 // ------------------------------------------------ a) nunca por debajo de su learnAt
 let realCases = 0, pathCases = 0, optCases = 0, viewCases = 0;

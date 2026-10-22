@@ -65,10 +65,11 @@ const FX_KEYS = new Set(['stats', 'elem', 'skillLv', 'mod', 'tv', 'power', 'gran
 const { ELEMS, CATS } = SD;
 const ELEM_KEYS = new Set([...ELEMS, 'phys']);
 // claves de un nodo (§3.1) y de una opción de elección
-const NODE_KEYS = new Set(['id', 'name', 't', 'tag', 'r', 'c', 'max', 'req', 'free', 'fx', 'opts', 'd', 'win', 'touch', 'icon', 'arch', 'final', 'hyb', 'todo']);
+// `needs` (D1): las habilidades que de verdad disparan el efecto, para el nivel de aprendizaje (js/talents.js)
+const NODE_KEYS = new Set(['id', 'name', 't', 'tag', 'r', 'c', 'max', 'req', 'free', 'fx', 'opts', 'd', 'win', 'touch', 'needs', 'icon', 'arch', 'final', 'hyb', 'todo']);
 // `todo` (la nota `impl` del esqueleto de E1.5) también va en cada opción: aviso, como en el nodo.
 // `touch` e `icon` por opción son del contrato del mockup (README-talents-v2: lo que ilumina cada opción)
-const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx', 'todo', 'touch', 'icon']);
+const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx', 'todo', 'touch', 'needs', 'icon']);
 // stats que SUMA recompute: el saco `item` de Player.recompute (js/entities.js) y los atributos.
 // addStats descarta en silencio cualquier otra clave: un nodo con una errata no haría nada
 const ENTITIES_SRC = readFileSync(new URL('../js/entities.js', import.meta.url), 'utf8');
@@ -248,9 +249,17 @@ export function checkClassData(cid, data, ctx) {
       if (t.length > RULES.textoMax) err('textos', `${where}: ${t.length} caracteres (máx. ${RULES.textoMax}) «${t}»`);
       if (JARGON.test(t)) err('jerga', `${where}: «${t.match(JARGON)[0]}» en «${t}»`);
     };
+    // needs (nivel de aprendizaje): habilidades del catálogo; el Paragon no tiene nivel de aprendizaje
+    const needs = (v, where) => {
+      if (v === undefined) return;
+      if (!isCls && !isSpec) err('needs', `${where}: needs en un árbol héroe (el Paragon no tiene nivel de aprendizaje)`);
+      if (!Array.isArray(v) || !v.length) return err('needs', `${where}: needs debe ser una lista de habilidades`);
+      for (const id of v) if (!ctx.skillOf(id)) err('needs', `${where}: needs «${id}» no es una habilidad del catálogo`);
+    };
     for (const n of nodes) {
       const where = `${w}/${n.id}`;
       for (const k of Object.keys(n)) if (!NODE_KEYS.has(k)) err('nodo', `${where}: clave de nodo desconocida «${k}»`);
+      needs(n.needs, where);
       if ('todo' in n) warn('todo', `${where}: aún tiene «todo» (${String(n.todo).slice(0, 60)})`);
       if (typeof n.name !== 'string' || !n.name) err('textos', `${where}: sin nombre`); else if (JARGON.test(n.name)) err('jerga', `${where}: nombre «${n.name}»`);
       const fxs = [];
@@ -259,6 +268,7 @@ export function checkClassData(cid, data, ctx) {
         if (typeof n.win !== 'string' || !n.win.trim()) err('win', `${where}: falta win («cuál conviene»)`); else if (JARGON.test(n.win)) err('jerga', `${where}: win «${n.win}»`);
         for (const o of n.opts) {
           for (const k of Object.keys(o)) if (!OPT_KEYS.has(k)) err('nodo', `${where}${o.k}: clave de opción desconocida «${k}»`);
+          needs(o.needs, `${where}${o.k}`);
           if ('todo' in o) warn('todo', `${where}${o.k}: aún tiene «todo» (${String(o.todo).slice(0, 60)})`);
           text(`${where}${o.k}`, o.desc);
           if (JARGON.test(o.name || '')) err('jerga', `${where}${o.k}: nombre «${o.name}»`);
@@ -580,6 +590,9 @@ expectFail('lista de mod con más valores que rangos', d => { node(spec0(d).node
 expectFail('lista de stats con menos valores que rangos', d => { node(spec0(d).nodes, 's1').fx = { stats: { hp: [10, 20] } }; }, 'rango');
 expectFail('clave de nodo desconocida', d => { node(d.cls.nodes, 'c1').tuch = ['@all']; }, 'nodo');
 expectFail('clave de opción desconocida', d => { node(d.cls.nodes, 'c6').opts[0].dsc = 'Más daño'; }, 'nodo');
+expectFail('needs con una habilidad que no existe', d => { node(spec0(d).nodes, 's12').needs = ['fx_no_existe']; }, 'needs');
+expectFail('needs de una opción vacío', d => { node(d.cls.nodes, 'c6').opts[1].needs = []; }, 'needs');
+expectFail('needs en un árbol héroe', d => { node(d.hero[0].nodes, 't1').needs = [FIX.FIXTURE_KITS.piromante[0]]; }, 'needs');
 // la errata combinada del revisor: tres efectos vacíos en silencio → errores de cada tipo
 {
   const d = clone(FIX.FIXTURE_TREES.maga);
