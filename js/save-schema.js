@@ -488,7 +488,7 @@ export const LOAD_NOTICES = {
   'paso2-maga': MAGA_LEGACY.notice || CLASS_NOTICE('de la Maga'),
   'paso2-guerrero': GUERRERO_LEGACY.notice || CLASS_NOTICE('del Guerrero'),
   'paso2-arquera': ARQUERA_LEGACY.notice || CLASS_NOTICE('de la Arquera'),
-  [TALENTS_TRIMMED_NOTICE]: '🌿 Parte de tus talentos no cabía en tu nivel y se reinició: revisa tus árboles (N)',
+  [TALENTS_TRIMMED_NOTICE]: '🌿 Algunos talentos ya no cabían (por tu nivel o porque los árboles se reordenaron): quitamos solo esos y te devolvimos los puntos. Revisa tus árboles (N)',
   // la migración dejó glifos fuera de la bolsa llena (paragon.loose; economy.looseGlyphs)
   'glifos-sueltos': '🔷 Tu bolsa de materiales estaba llena: algunos glifos te esperan en el tablero de glifos (P). Haz hueco y recógelos',
 };

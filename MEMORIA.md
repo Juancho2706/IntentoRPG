@@ -524,6 +524,28 @@ Lo que YA existe (no reimplementar):
     - **Banco**: Vaivén Eterno pulsa Andanada en el Vendaval (`GAUGE_SPEND`). APOYO con los aliados a tu lado (0,8; ±0,3) y siempre heridos (`APOYO_ALLIES`, `APOYO_KEEP`: la cura no se satura). Abanico Abierto en `BENCH_LIMITS` (la manada de ÁREA×5 llega en columna). **Ablación justa**: `withoutNode(clase, spec, nodo, fn)`. Poner los rangos de un nodo a 0 cierra el Paragon a Nv70+ y el «sin» pierde también el árbol héroe.
     - No eran efectos rotos y quedan para E4b: Montaña Viva (sus réplicas gastan la resistencia al control de Arrollador; Sismo está en el equilibrio de la cubeta del TTD+), Estampida Sin Fin (resta un 1–3 % en ÁREA×5: cada Salto de más desplaza Rajar), Haz Concentrado y Tres Saetas (débiles; hacen lo que dicen).
     - Pendientes: `PENDING_E4B` 92 y `PENDING_FORGE` 95.
+11. **Talentos por nivel (2026-10-22, hecho; regla y reorden aprobados por el dueño tras jugar la Arcanista)**:
+    - **Motor (T0):**
+      - `learnAt` por nodo y por opción: el nivel más bajo en que el héroe conoce una habilidad que el nodo toca o concede. Los genéricos y el nodo clave no tienen.
+      - `gateFail`, `canAddRank`, `fillByOrder` y `buildRanks` lo respetan con el nivel del héroe. Motivo en el panel: «Se abre al aprender X (NvN)», en gris; en el popup A/B, la opción bloqueada va con candado.
+      - `normalizeTalents` recorta FINO: quita solo los rangos inválidos, de abajo arriba, y devuelve los puntos. Aviso `talentos-recortados` con texto nuevo.
+      - Suite `tests/test-talentos-nivel.mjs`:
+        - nada se toma antes de su learnAt;
+        - sin puntos muertos en Nv1–100;
+        - al menos 2 nodos tomables por árbol en Nv10–25;
+        - todas las builds gastan todos sus puntos.
+        - Lo pendiente va a `tests/talentos-nivel/pending-<clase>.json`; hoy están vacíos.
+      - Auditoría: `tools/audit-talentos-nivel.mjs` (nivel de compra real: fila, padre al máximo y puertas).
+    - **Reorden** (solo cambian r/c/req y el orden de las builds; ids, textos y números iguales):
+      - Arcanista: a3↔a13 y a7↔a17; las builds Rayo e híbrida compran a2 antes que a1.
+      - Guerrero: permutación G16 igual en sus 3 especializaciones. El 4 y el 16 (mecánica) suben a la fila 1; el 2 (+daño a la principal) baja a la 4.
+      - Tiradora: v4→1, v11→2, v1→4, v20↔v3.
+      - Montaraz: m13↔m3 y m14↔m7.
+      - Se declaran en `test78` con `G16_REORDER` (por nodo) y `GRID_REORDER` (por número), y en `tools/convert-v2/divergencias.json`. El mockup `docs/mockups/data/talents-v2-*.js` sigue con la rejilla vieja.
+    - Efecto en el jugador: los códigos IRPG2 exportados antes no valen (`treeSignature` cambia por clase); los guardados se recortan fino con aviso.
+    - Pendiente:
+      - un campo `needs` para que learnAt use la habilidad que de verdad dispara el efecto (d12/d5/z5/v6/f6 toman hoy la de menor nivel);
+      - el `touch` de t5/f3 del Paragon de la Maga (solo Supernova).
 
 Falta: E5 (cierre: migraciones finales, limpieza, humo full y publicación); la calibración fina va después del rework de ítems (punto 19 del plan).
 

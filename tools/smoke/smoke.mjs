@@ -413,7 +413,9 @@ async function openPanel(page, which) {
   return !!ok;
 }
 async function uiCheck(page) {
-  const u = await page.waitFor(() => window.__uicheck && window.__uicheck.panel ? window.__uicheck : null, null, { timeout: 2500 });
+  // el panel mide 450 ms después de su último repintado y, con SwiftShader (1–3 fps), el repintado tras
+  // cambiar la resolución puede tardar más de 1 s: con 2,5 s fallaba al azar (también antes del reorden de talentos)
+  const u = await page.waitFor(() => window.__uicheck && window.__uicheck.panel ? window.__uicheck : null, null, { timeout: 6000 });
   check(u, 'sin window.__uicheck tras abrir el panel (¿?talentscheck=1 / ?skillscheck=1 y check()?)');
   return { panel: u.panel, overlaps: u.overlaps || [], offscreen: u.offscreen || [] };
 }
