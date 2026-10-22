@@ -194,3 +194,7 @@
 /* quieta más de 2 s: pierde (las plumas parpadean) */
 .gz-impulso.im-losing .im-spin { animation: gz-impulso-spin 3s linear infinite paused, gz-impulso-lose .5s steps(2) infinite; }
 @keyframes gz-impulso-lose { 50% { opacity: .55; } }
+
+/* plain (HUD de juego): de la presa queda el medallón con su vida; la caja se ciñe a él */
+.gz-coto.gz-plain .ct-pinfo { display: none; }
+.gz-coto.gz-plain .ct-prey { flex: 0 0 auto; padding: 0 3px; }

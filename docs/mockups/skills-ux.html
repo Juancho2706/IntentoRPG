@@ -424,7 +424,11 @@ body.shot #tip{transition:none}
 .scard{grid-template-rows:196px 1fr}
 .scard .cgz{position:relative;height:41px;margin-top:-4px}
 .scard .cgz > div{position:absolute;left:0;top:0;transform:translateY(-11.5px) scale(.72);transform-origin:0 0;pointer-events:none}
-.scard .cgz .gz-lbl{visibility:hidden}
+.scard .cgz .gz-lbl,.scard .cgz :is(.gz-num,.gz-hint,.brz-x2,.ac-info,.bs-dr,.fv-txt,.cz-txt,.im-txt,.im-stop){visibility:hidden}
+/* solo la forma (como el HUD de juego): sin la píldora del objetivo de Escarcha ni la ficha de la presa del Coto */
+.scard .cgz .fr-tag{background:none;border-color:transparent;box-shadow:none;padding:0}
+.scard .cgz .fr-tag:not([data-boss="1"]),.scard .cgz .fr-nm,.scard .cgz .fr-cnt-t,.scard .cgz .ct-pinfo{display:none}
+.scard .cgz .ct-prey{flex:0 0 auto;padding:0 3px}
 .scard .sfoot{margin-top:auto}
 .scard .sfoot .hbtn{width:100%;justify-content:center}
 .scard .sfoot .hbtn.cur{border-color:var(--gold);color:var(--gold2)}

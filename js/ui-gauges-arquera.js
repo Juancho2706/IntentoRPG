@@ -112,7 +112,7 @@ const concentracion = {
       br.push(b);
     }
     const wire = ctx.h('div', 'cz-wire', '<i class="cz-wl"></i><i class="cz-wr"></i><b class="cz-tick"></b>');
-    const txt = ctx.h('div', 'cz-txt', '<b class="cz-crit"></b><span class="cz-line"><span class="cz-hint"></span><span class="cz-mv">MOVIÉNDOTE</span><span class="cz-kn">DE RODILLAS</span></span>');
+    const txt = ctx.h('div', 'cz-txt gz-tx', '<b class="cz-crit"></b><span class="cz-line"><span class="cz-hint"></span><span class="cz-mv">MOVIÉNDOTE</span><span class="cz-kn">DE RODILLAS</span></span>');
     const eye = ctx.h('span', 'cz-eye', '<i class="cz-eyef"></i>');
     const eyeArt = ctx.art('gz_conc_fijado', { cls: 'cz-eye-art', alt: 'Calma Absoluta' });
     if (eyeArt) eye.appendChild(eyeArt);
@@ -202,7 +202,7 @@ const coto = {
       slots.push(s);
     }
     const prey = ctx.h('div', 'ct-prey', '<span class="ct-med"><i class="ct-hp"></i><i class="ct-medf">♞</i></span>' +
-      '<span class="ct-pinfo"><b class="ct-pn"></b><span class="ct-pl"><span class="ct-info"></span><em class="ct-tag">ATRAPADA</em><em class="ct-bt">¡BATIDA!</em></span></span>');
+      '<span class="ct-pinfo gz-tx"><b class="ct-pn"></b><span class="ct-pl"><span class="ct-info"></span><em class="ct-tag">ATRAPADA</em><em class="ct-bt">¡BATIDA!</em></span></span>');
     const med = prey.querySelector('.ct-med');
     const art = ctx.art('gz_coto_presa', { cls: 'ct-med-art', alt: 'Presa' });
     if (art) med.appendChild(art);
@@ -294,8 +294,8 @@ const impulso = {
     const rArt = ctx.art('gz_impulso_rosa', { cls: 'im-rose-art' });
     if (rArt) spin.appendChild(rArt);
     rose.appendChild(spin);
-    const txt = ctx.h('div', 'im-txt', '<b></b><span></span>');
-    const stop = ctx.h('span', 'im-stop', '¡MUÉVETE!');
+    const txt = ctx.h('div', 'im-txt gz-tx', '<b></b><span></span>');
+    const stop = ctx.h('span', 'im-stop gz-tx', '¡MUÉVETE!');
     body.append(rose, txt, stop);
     return { fe, svgFe: [...spin.querySelectorAll('.im-svg .fe')], b: txt.querySelector('b'), s: txt.querySelector('span'), stop };
   },

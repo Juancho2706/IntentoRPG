@@ -168,3 +168,8 @@
 .gz-cargas .ac-txt b { color: #fff; }
 .gz-cargas .ac-res { display: none; font: 700 10.5px/16px Inter, sans-serif; letter-spacing: .6px; color: #0d0b10; background: #cfbaff; border-radius: 4px; padding: 0 5px; }
 .gz-cargas .ac-info[data-res="1"] .ac-res { display: inline-block; }
+
+/* plain (HUD de juego): sin la píldora del objetivo; del jefe queda solo la corona */
+.gz-escarcha.gz-plain .fr-tag { background: none; border-color: transparent; box-shadow: none; padding: 0; }
+.gz-escarcha.gz-plain .fr-tag:not([data-boss="1"]) { display: none; }
+.gz-escarcha.gz-plain .fr-nm, .gz-escarcha.gz-plain .fr-cnt-t { display: none; }

@@ -440,7 +440,7 @@ export function createTalentPanel(host, opts = {}) {
       if (!c?.mechanic) continue;
       const host = doc.createElement('div');
       slot.appendChild(host);
-      try { S.cgz.push(createGaugeHud(host, { mode: 'demo', id: c.mechanic })); } catch (e) { try { console.warn('[ui-talents] mecánica', e); } catch { /* */ } }
+      try { S.cgz.push(createGaugeHud(host, { mode: 'demo', id: c.mechanic, plain: true })); } catch (e) { try { console.warn('[ui-talents] mecánica', e); } catch { /* */ } }
     }
   }
   function buildChooser(v) {

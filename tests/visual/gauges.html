@@ -103,7 +103,7 @@ function fakeView(id, st) { return demoFrameByTag(gaugeViewFor(id).demo, st, bas
 const widgets = [];
 const readyLog = [];
 function mount(host, id, st, opts = {}) {
-  const w = createGaugeHud(host, { mode: st === 'demo' ? 'demo' : 'live', id, art, onReady: ids => readyLog.push(ids.join(',')), ...opts });
+  const w = createGaugeHud(host, { mode: st === 'demo' ? 'demo' : 'live', id, art, plain: Q.get('plain') === '1', onReady: ids => readyLog.push(ids.join(',')), ...opts });
   if (st !== 'demo') w.update(fakeView(id, st).view);
   widgets.push({ w, id, st, host });
   return w;

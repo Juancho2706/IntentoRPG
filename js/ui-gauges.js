@@ -22,7 +22,9 @@
 //   genericGaugeView(id) → def      el renderizador de reserva (con su demo sintética)
 //   gaugeViewFor(id) → def          el registrado o el genérico
 //   createGaugeHud(host, { getView, mode = 'live', id, onEvent, onReady, onFrame, sfx, soundOn,
-//                          specName, styles = true, art = true, oocAfter = 5 })
+//                          specName, styles = true, art = true, oocAfter = 5, plain = false })
+//     plain: solo la forma (sin nombre, números ni textos .gz-tx/.gz-hint): el HUD de juego y las
+//     tarjetas del selector; el detalle queda en el tooltip y en los menús de Habilidades y Talentos
 //     → { el, update(view?), play(id), seek(t), seekNode(nodeId), setMode(m), setAltHeld(b),
 //         showTip(), hideTip(), view(), destroy() }
 //   Puros (tests / arnés): demoFrameAt(frames, T, base), demoFrameByTag(frames, tag, base),
@@ -360,7 +362,7 @@ function defaultNow(v) {
 export function createGaugeHud(host, opts = {}) {
   if (!host) throw new Error('createGaugeHud: falta el contenedor');
   const { getView = null, onEvent = null, onReady = null, onFrame = null, sfx = null, soundOn = null,
-    styles = true, art = true, oocAfter = 5 } = opts;
+    styles = true, art = true, oocAfter = 5, plain = false } = opts;
   let mode = opts.mode === 'demo' ? 'demo' : 'live';
   let demoId = opts.id || null;
   const doc = host.ownerDocument;
@@ -369,6 +371,7 @@ export function createGaugeHud(host, opts = {}) {
 
   host.innerHTML = '';
   host.classList.add('gz-host', 'hidden');
+  if (plain) host.classList.add('gz-plain');
   setAttr(host, 'role', 'meter');
   setAttr(host, 'aria-valuemin', '0');
   const root = doc.createElement('div');
@@ -419,7 +422,7 @@ export function createGaugeHud(host, opts = {}) {
   function mountRenderer(id) {
     let def = broken.has(id) ? genericGaugeView(id) : gaugeViewFor(id);
     R.body.innerHTML = '';
-    root.className = `gz gz-${id}${def.generic ? ' gz-generic' : ''}`;
+    root.className = `gz gz-${id}${def.generic ? ' gz-generic' : ''}${plain ? ' gz-plain' : ''}`;
     MEMO.delete(R.body);
     let ctx = makeCtx(id, def), inst = null;
     try { inst = def.mount(R.body, ctx); } catch (e) {
@@ -427,7 +430,7 @@ export function createGaugeHud(host, opts = {}) {
       broken.add(id);
       def = genericGaugeView(id);
       R.body.innerHTML = '';
-      root.className = `gz gz-${id} gz-generic`;
+      root.className = `gz gz-${id} gz-generic${plain ? ' gz-plain' : ''}`;
       ctx = makeCtx(id, def);
       inst = def.mount(R.body, ctx);
     }

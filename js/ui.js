@@ -889,7 +889,7 @@ export class UI {
       const host = $('spec-gauge');
       if (!host) return;
       // sfx/onReady: opciones del núcleo de ui-gauges (E0); una versión anterior las ignora
-      this.gaugeHud = createGaugeHud(host, { getView: () => null, sfx: (n) => this.game.sfx?.(n), onReady: (ids) => this._markReady(ids) });
+      this.gaugeHud = createGaugeHud(host, { plain: true, getView: () => null, sfx: (n) => this.game.sfx?.(n), onReady: (ids) => this._markReady(ids) });
       try { this.gaugeHud.setAltHeld?.(!!this.altHeld); } catch { /* sin soporte de Alt */ }
     }
     let view = null;
@@ -1107,7 +1107,7 @@ export class UI {
     if (pr.classList.contains('off')) { pr.classList.remove('off'); pr.innerHTML = '<kbd>F</kbd> Recoger · <span class="rar" style="color:#ffd24a">Báculo Glacial</span> (Raro)'; }
     const sg = $('spec-gauge');
     if (!sg.childElementCount || sg.classList.contains('hidden')) {
-      if (!this.gaugeHud) this.gaugeHud = createGaugeHud(sg, { getView: () => null });
+      if (!this.gaugeHud) this.gaugeHud = createGaugeHud(sg, { plain: true, getView: () => null });
       this.gaugeHud.update({ id: 'escarcha', name: 'Escarcha', value: 3, max: 5, color: '#74cdf2', state: 'building', specName: 'Crionte' });
     }
     // barra: 6 ranuras de muestra si aún no hay héroe

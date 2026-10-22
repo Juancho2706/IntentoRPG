@@ -29,6 +29,8 @@
 .gz-ring::after { content: ''; width: 26px; height: 26px; border-radius: 50%; background: #0d0b10; }
 .gz.has-t .gz-ring { opacity: 1; }
 .gz-hint { font: 600 12px/1.2 Inter, system-ui, sans-serif; color: #d9cfc0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* plain (HUD de juego, tarjetas del selector): solo la forma; nombre, números y textos ocultos sin mover nada */
+.gz-plain .gz-lbl, .gz-plain .gz-num, .gz-plain .gz-hint, .gz-plain .gz-tx { visibility: hidden; }
 
 /* estados (data-state: idle · building · full · active · decay · prey) */
 .gz[data-state="idle"] .gz-body { opacity: .55; }

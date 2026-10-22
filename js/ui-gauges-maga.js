@@ -93,7 +93,7 @@ const calor = {
     const colArt = ctx.art('gz_calor_llama_blanca', { cls: 'brz-col-art' });
     if (colArt) col.appendChild(colArt);
     const side = ctx.h('div', 'brz-side');
-    side.innerHTML = '<span class="brz-ign"><i class="brz-ign-css">✹</i></span><span class="brz-x2"></span>';
+    side.innerHTML = '<span class="brz-ign"><i class="brz-ign-css">✹</i></span><span class="brz-x2 gz-tx"></span>';
     const ign = ctx.art('gz_calor_ignicion', { cls: 'brz-ign-art' });
     if (ign) side.firstChild.appendChild(ign);
     body.appendChild(brz);
@@ -166,7 +166,7 @@ export function escarchaModel(v, T = gaugeTuning()) {
 const escarcha = {
   mount(body, ctx) {
     const max = ctx.T.escarcha.max;
-    const tag = ctx.h('span', 'fr-tag', '<span class="fr-crown"><i class="fr-crown-css">♛</i></span><span class="fr-nm"></span>');
+    const tag = ctx.h('span', 'fr-tag', '<span class="fr-crown"><i class="fr-crown-css">♛</i></span><span class="fr-nm gz-tx"></span>');
     const crown = ctx.art('gz_escarcha_aterido', { cls: 'fr-crown-art' });
     if (crown) tag.firstChild.appendChild(crown);
     const hexes = ctx.h('div', 'fr-hexes');
@@ -180,7 +180,7 @@ const escarcha = {
       const gem = ctx.art('gz_escarcha_cristal', { cls: 'fr-gem-art' });
       if (gem) h.querySelector('.fr-gem').appendChild(gem);
     }
-    const cnt = ctx.h('span', 'fr-cnt', '<span class="fr-ice"><i class="fr-ice-css">❄</i></span><span class="fr-cnt-t"></span>');
+    const cnt = ctx.h('span', 'fr-cnt', '<span class="fr-ice"><i class="fr-ice-css">❄</i></span><span class="fr-cnt-t gz-tx"></span>');
     const ice = ctx.art('gz_escarcha_congelado', { cls: 'fr-ice-art' });
     if (ice) cnt.firstChild.appendChild(ice);
     body.appendChild(tag); body.appendChild(hexes); body.appendChild(cnt);
@@ -293,7 +293,7 @@ const cargas = {
     }
     const coreArt = ctx.art('gz_cargas_nucleo', { cls: 'ac-core-art' });
     if (coreArt) ac.querySelector('.ac-core').appendChild(coreArt);
-    const info = ctx.h('div', 'ac-info', '<span class="ac-txt"></span><span class="ac-res">RESONANCIA</span>');
+    const info = ctx.h('div', 'ac-info gz-tx', '<span class="ac-txt"></span><span class="ac-res">RESONANCIA</span>');
     body.appendChild(ac); body.appendChild(info);
     return { ac, arc: ac.querySelector('.ac-arc'), core: ac.querySelector('.ac-core'), runes: [...ac.querySelectorAll('.ac-rune')],
       ghosts: ac.querySelector('.ac-ghosts'), info, txt: info.querySelector('.ac-txt'), burst: 0 };

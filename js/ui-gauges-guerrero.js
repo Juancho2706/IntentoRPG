@@ -220,7 +220,7 @@ const BASTION = {
     const side = ctx.h('div', 'bs-side');
     const muro = ctx.art('gz_bastion_muro', { cls: 'bs-muro' });
     if (muro) side.appendChild(muro);
-    const txt = ctx.h('span', 'bs-dr');
+    const txt = ctx.h('span', 'bs-dr gz-tx');
     side.appendChild(txt);
     body.appendChild(row);
     body.appendChild(side);
@@ -356,7 +356,7 @@ const FERVOR = {
       if (im) fv.appendChild(im);
     }
     const side = ctx.h('div', 'fv-side');
-    side.innerHTML = '<span class="fv-hm"></span><span class="fv-txt"><b></b><small></small></span>';
+    side.innerHTML = '<span class="fv-hm"></span><span class="fv-txt gz-tx"><b></b><small></small></span>';
     body.appendChild(fv);
     body.appendChild(side);
     return { jws, hm: side.querySelector('.fv-hm'), t1: side.querySelector('.fv-txt b'), t2: side.querySelector('.fv-txt small'), beads: [], nBeads: -1 };
