@@ -4,19 +4,19 @@
     {
       "cls": "maga",
       "rel": "docs/mockups/data/talents-v2-maga.js",
-      "hash": "7801561901ba",
+      "hash": "6633f28942ac",
       "estado": "aprobado"
     },
     {
       "cls": "guerrero",
       "rel": "docs/mockups/data/talents-v2-guerrero.js",
-      "hash": "b0f282184d7d",
+      "hash": "4284d0c054bb",
       "estado": "diseño"
     },
     {
       "cls": "arquera",
       "rel": "docs/mockups/data/talents-v2-arquera.js",
-      "hash": "76ae75357a1e",
+      "hash": "4baea1802bc5",
       "estado": "diseño"
     }
   ],

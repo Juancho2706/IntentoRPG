@@ -1,7 +1,7 @@
 // ============================================================
 // CATÁLOGO 2g de la clase Maga — BORRADOR para KA (no lo carga el juego)
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-maga.js (sha1 7801561901ba, estado «aprobado»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-maga.js (sha1 6633f28942ac, estado «aprobado»).
 // Formato: docs/paso2-implementacion.md §3.5 (forja de 2f §2.3). Ids, cat, req, spec, elem, nombres, líneas y papeles
 // exactos (los compara tests/test-v2-paridad.mjs cuando <CLASE>_CATALOG_V = 2). Los efectos se escriben a mano desde
 // el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existía, su definición en el juego v1.
@@ -50,7 +50,7 @@ export const MAGA_SKILLS = [
   { id: 'm_t_contrahechizo', name: 'Contrahechizo', icon: '🚫', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'interrupt', 'arcane'], elem: 'arcane', req: 31, cd: 18, behavior: 'm_t_contrahechizo', range: 12, silence: 3, stagger: 20, color: 13404415, grantBy: 'c22', line: 'Corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s.', desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.', art: 'talents/maga-clase-c5.webp', todo: 'existe en el juego: revisar texto y números contra la línea 2g' },
   { id: 'm_h_detener', name: 'Detener el Tiempo', icon: '✦', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'arcane'], elem: 'arcane', req: 72, cd: 75, grantBy: 't4', hero: true, line: 'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.', desc: 'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.', art: 'talents/maga-arcanista-s9.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
   { id: 'm_h_palabra', name: 'Palabra de Poder', icon: '✦', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'arcane'], elem: 'arcane', req: 72, cd: 40, grantBy: 'e4', hero: true, line: 'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.', desc: 'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.', art: 'talents/maga-arcanista-s9.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
-  { id: 'm_h_constructo', name: 'Llamar Constructo', icon: '✦', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', req: 74, cd: 45, grantBy: 'f8', hero: true, line: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.', desc: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.', art: 'talents/maga-clase-c15.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
+  { id: 'm_h_constructo', name: 'Llamar Constructo', icon: '✦', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', req: 73, cd: 45, grantBy: 'f8', hero: true, line: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.', desc: 'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.', art: 'talents/maga-clase-c15.webp', todo: 'NUEVA: tipo genérico o comportamiento (KA1)' },
 ];
 
 // Forja: ids estables <id>_i / <id>_ii; papeles UNI · AREA · CTRL · AGU · APO · MOV; Mejora a Nv req+3, variantes a req+6

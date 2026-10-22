@@ -1,7 +1,7 @@
 // ============================================================
 // ÁRBOLES HÉROE (Paragon) de la clase Arquera — esqueleto v2
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-arquera.js (sha1 76ae75357a1e, estado «diseño»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-arquera.js (sha1 4baea1802bc5, estado «diseño»).
 // Formato: docs/paso2-implementacion.md §3.1 y D5 (lo importa SOLO js/talents-arquera.js, campo `hero`).
 // Estructura y textos exactos (tests/test-v2-paridad.mjs); `fx: {}` + `todo` = `impl` del mockup (E2: KT).
 export const ARQUERA_HERO = [

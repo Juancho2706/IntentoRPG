@@ -43,7 +43,7 @@ const CATALOG = [
   { id:'m_t_contrahechizo', n:'Contrahechizo', cat:'utility', req:31, talent:true, grantBy:'c22', elem:'arcane', cd:18, icon:'talents/maga-clase-c5.webp', s:'Corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s.' },
   { id:'m_h_detener', n:'Detener el Tiempo', cat:'utility', req:72, talent:true, grantBy:'t4', hero:true, elem:'arcane', cd:75, icon:'talents/maga-arcanista-s9.webp', s:'Paras el tiempo 3 s a 8 m: los enemigos quedan quietos.' },
   { id:'m_h_palabra', n:'Palabra de Poder', cat:'utility', req:72, talent:true, grantBy:'e4', hero:true, elem:'arcane', cd:40, icon:'talents/maga-arcanista-s9.webp', s:'Escribes al instante 3 runas a tu alrededor: formas un Sello donde estás.' },
-  { id:'m_h_constructo', n:'Llamar Constructo', cat:'defense', req:74, talent:true, grantBy:'f8', hero:true, elem:'arcane', cd:45, icon:'talents/maga-clase-c15.webp', s:'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.' },
+  { id:'m_h_constructo', n:'Llamar Constructo', cat:'defense', req:73, talent:true, grantBy:'f8', hero:true, elem:'arcane', cd:45, icon:'talents/maga-clase-c15.webp', s:'Un Constructo aparece 10 s y los enemigos a 8 m lo atacan a él.' },
   // — KIT DEL PIROMANTE (solo con la especialización; Nv10–15) —
   { id:'p_llamarada', n:'Llamarada', cat:'spec', req:10, spec:'piromante', elem:'fire', coef:1.5, cost:25, cd:8, icon:'talents/maga-piromante-s0.webp', s:'Cono de fuego de 7 m; hace estallar las quemaduras (60 % de lo que les queda).',
     M:{ n:'Llama Ancha', s:'Cono 70 → 90°.', k:'★set{angle:90}' },
@@ -258,7 +258,7 @@ const TALENTS_V2 = {
       { id:'t4', n:'Detener o Retroceder', t:'c', tag:'mec', r:2, c:0, max:1, req:['t1','t2'], icon:I('arcanista-s9'), opts:[
         { k:'A', n:'Detener el Tiempo', d:'Habilidad (ranura 2): paras el tiempo 3 s a 8 m; las Marcas guardan el doble. Se recarga en 75 s', role:'CTRL', act:'m_h_detener' },
         { k:'B', n:'Retroceso', d:'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s', role:'AGU' } ], win:'A, para controlar grupos y preparar un golpe enorme (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
-      { id:'t5', n:'Segundos Robados', t:'p', tag:'num', r:2, c:1, max:1, req:['t2'], d:()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch:['m_u_supernova'], icon:I('arcanista-s3') },
+      { id:'t5', n:'Segundos Robados', t:'p', tag:'num', r:2, c:1, max:1, req:['t2'], d:()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch:['@ultimate'], icon:I('arcanista-s3') },
       { id:'t6', n:'Paradoja', t:'p', tag:'mec', r:2, c:2, max:1, req:['t2','t3'], d:()=>'Si el enemigo marcado muere antes de tiempo, la Marca pasa al más cercano con lo que llevaba', icon:I('arcanista-s7') },
       { id:'t7', n:'Bucle', t:'p', tag:'mec', r:3, c:0, max:1, req:['t4','t5'], d:()=>'Cada 4.ª Marca que termina se repite una segunda vez', icon:I('arcanista-x1') },
       { id:'t8', n:'Presagio o Memoria', t:'c', tag:'mec', r:3, c:1, max:1, req:['t5'], icon:I('arcanista-s12'), opts:[
@@ -273,7 +273,7 @@ const TALENTS_V2 = {
       { id:'f1', n:'Vínculo', t:'p', tag:'num', r:1, c:0, max:1, req:['f0'], d:()=>'El Familiar tiene +50 % de vida y cada disparo te da 2 de maná', icon:I('clase-c6') },
       { id:'f2', n:'Uno o Muchos', t:'c', tag:'mec', r:1, c:1, max:1, req:['f0'], icon:I('arcanista-s5'), opts:[
         { k:'A', n:'Gran Constructo', d:'Un solo Familiar, +80 % de daño; cada 5.º disparo aturde 0,5 s', role:'UNI' }, { k:'B', n:'Enjambre', d:'Tres Familiares pequeños; cada uno hace el 40 %', role:'AREA' } ], win:'A, contra jefes. B, contra grupos (tres blancos a la vez)' },
-      { id:'f3', n:'Imitación', t:'p', tag:'mec', r:1, c:2, max:1, req:['f0'], d:()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch:['m_u_supernova'], icon:I('arcanista-s16') },
+      { id:'f3', n:'Imitación', t:'p', tag:'mec', r:1, c:2, max:1, req:['f0'], d:()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch:['@ultimate'], icon:I('arcanista-s16') },
       { id:'f4', n:'Guardián o Cazador', t:'c', tag:'mec', r:2, c:0, max:1, req:['f1','f2'], icon:I('arcanista-s8'), opts:[
         { k:'A', n:'Guardián', d:'El Familiar se interpone: recibe el 15 % del daño que te hacen', role:'AGU' }, { k:'B', n:'Cazador', d:'El Familiar persigue al enemigo con más vida; ese enemigo recibe +10 % de daño', role:'UNI' } ], win:'A, para sobrevivir. B, contra jefes' },
       { id:'f5', n:'Sobrecarga', t:'p', tag:'num', r:2, c:1, max:1, req:['f2'], d:()=>'Cada habilidad principal tuya acelera los disparos del Familiar un 30 % durante 3 s', icon:I('clase-c14') },
@@ -364,11 +364,11 @@ const ARCANISTA_TREE = [
   { id:'a0', n:'Cargas Arcanas', t:'k', tag:'mec', r:0, c:3, max:1, free:true, d:()=>'El Dardo te da 1 Carga por impacto (máx. 4; duran 6 s). El Rayo las gasta: +35 % de daño y 5 de maná por Carga', arcane:true, icon:I('arcanista-s0'), impl:'mecánica cargas · existe' },
   { id:'a1', n:'Memoria Arcana', t:'p', tag:'num', r:1, c:1, max:3, req:['a0'], d:r=>`Las Cargas duran ${6+2*r} s (antes 6 s)`, arch:'rayo', icon:I('arcanista-s1'), impl:'tuning cargas.loseAfter · tv' },
   { id:'a2', n:'Mente Brillante', t:'p', tag:'num', r:1, c:3, max:3, req:['a0'], d:r=>`+${5*r} % de crítico con 2 o más Cargas`, arch:'orbe', icon:I('arcanista-s2'), impl:'tv.chargeCrit · NUEVO (clave)' },
-  { id:'a3', n:'Flujo Constante', t:'p', tag:'num', r:1, c:5, max:3, req:['a0'], d:r=>`El Desgarro Arcano se recarga en ${50-5*r} s (antes 50 s)`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s3'), impl:'mod m_u_desgarro cdr · claves' },
+  { id:'a3', n:'Flujo Constante', t:'p', tag:'num', r:4, c:4, max:3, req:['a9','a10'], d:r=>`El Desgarro Arcano se recarga en ${50-5*r} s (antes 50 s)`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s3'), impl:'mod m_u_desgarro cdr · claves' },
   { id:'a4', n:'Potencia Acumulada', t:'p', tag:'num', r:2, c:0, max:2, req:['a1'], d:r=>`Cada Carga da +${35+5*r} % al Rayo (antes +35 %)`, touch:['rayo'], arch:'rayo', icon:I('arcanista-s4'), impl:'tuning cargas.dmgPerCharge · tv' },
   { id:'a5', n:'Rebote Cargado', t:'p', tag:'mec', r:2, c:2, max:1, req:['a1','a2'], d:()=>'Cada enemigo que toca el Orbe Arcano te da 1 Carga', touch:['a_orbe'], hyb:'Rayo + Orbe', icon:I('arcanista-s5'), impl:'power a_rebote_cargado · NUEVO (onHit)' },
-  { id:'a6', n:'Sello Cargado', t:'p', tag:'mec', r:2, c:4, max:1, req:['a2','a3'], d:()=>'Dentro de tu Sello del Archimago, el Orbe y el Desgarro te dan 1 Carga por golpe', touch:['a_sello','a_orbe','m_u_desgarro'], hyb:'Orbe + Grieta', icon:I('arcanista-s9'), impl:'power a_sello_cargado · NUEVO' },
-  { id:'a7', n:'Grieta Abierta', t:'p', tag:'mec', r:2, c:6, max:2, req:['a3'], d:r=>`Al terminar el Desgarro, la grieta queda ${1+r} s y daña un 40 % por segundo`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s7'), impl:'campo a_grieta · NUEVO' },
+  { id:'a6', n:'Sello Cargado', t:'p', tag:'mec', r:2, c:4, max:1, req:['a2','a13'], d:()=>'Dentro de tu Sello del Archimago, el Orbe y el Desgarro te dan 1 Carga por golpe', touch:['a_sello','a_orbe','m_u_desgarro'], hyb:'Orbe + Grieta', icon:I('arcanista-s9'), impl:'power a_sello_cargado · NUEVO' },
+  { id:'a7', n:'Grieta Abierta', t:'p', tag:'mec', r:5, c:5, max:2, req:['a3','a14'], d:r=>`Al terminar el Desgarro, la grieta queda ${1+r} s y daña un 40 % por segundo`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s7'), impl:'campo a_grieta · NUEVO' },
   { id:'a8', n:'Rayo: Doble o Recargado', t:'c', tag:'mec', r:3, c:1, max:1, req:['a4','a5'], touch:['rayo'], arch:'rayo', icon:I('arcanista-s6'), opts:[
     { k:'A', n:'Rayo Doble', d:'Un Rayo con 4 Cargas se lanza dos veces; la copia hace el 50 %', role:'UNI', impl:'power a_rayo_doble · NUEVO (echo del canal)' },
     { k:'B', n:'Rayo Recargado', d:'Cada enemigo que atraviesa el Rayo te devuelve 1 Carga (hasta 2)', role:'AREA', impl:'power a_rayo_recargado · NUEVO (afterCast)' } ],
@@ -377,24 +377,24 @@ const ARCANISTA_TREE = [
     { k:'A', n:'Orbe Cargado', d:'El Orbe hace +20 % por cada Carga que tienes, sin gastarlas', role:'UNI', impl:'power a_orbe_cargado · NUEVO (condAdd)' },
     { k:'B', n:'Orbe Atrayente', d:'El Orbe arrastra hacia su camino a los enemigos a 3 m', role:'AREA', impl:'power a_orbe_atrae · NUEVO (pull)' } ],
     win:'A, contra jefes. B, contra grupos: los junta para el Rayo. Decide qué Orbe juegas' },
-  { id:'a10', n:'Desgarro: Fijo o Voraz', t:'c', tag:'mec', r:3, c:5, max:1, req:['a6','a7'], touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s14'), opts:[
+  { id:'a10', n:'Desgarro: Fijo o Voraz', t:'c', tag:'mec', r:3, c:5, max:1, req:['a6','a17'], touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s14'), opts:[
     { k:'A', n:'Desgarro Fijo', d:'Si no te mueves, el Desgarro hace +8 % cada medio segundo (hasta +48 %)', role:'UNI', impl:'power a_desgarro_fijo · NUEVO' },
     { k:'B', n:'Desgarro Voraz', d:'Cada enemigo que toca el Desgarro te da 3 de maná, y ganas 1 Carga por segundo', role:'AREA', impl:'power a_desgarro_voraz · NUEVO' } ],
     win:'A, contra jefes quietos. B, contra grupos: sostiene tu maná. Decide qué Grieta juegas' },
   { id:'a11', n:'Precisión Arcana', t:'p', tag:'num', r:4, c:0, max:2, req:['a8'], d:r=>`El Rayo tiene +${10*r} % de crítico`, touch:['rayo'], arch:'rayo', icon:I('arcanista-s11'), impl:'mod rayo crit · claves' },
   { id:'a12', n:'Inercia', t:'p', tag:'mec', r:4, c:2, max:2, req:['a8','a9'], d:r=>`Cada rebote del Orbe recarga ${n1(0.5*r)} s del Rayo`, touch:['a_orbe','rayo'], arch:'orbe', icon:I('arcanista-s12'), impl:'power a_inercia · NUEVO' },
-  { id:'a13', n:'Torrente Arcano', t:'p', tag:'num', r:4, c:4, max:2, req:['a9','a10'], d:r=>`El Desgarro Arcano y el Orbe hacen +${15*r} % de daño`, touch:['m_u_desgarro','a_orbe'], arch:'grieta', icon:I('arcanista-s13'), impl:'mod dmg · claves' },
+  { id:'a13', n:'Torrente Arcano', t:'p', tag:'num', r:1, c:5, max:2, req:['a0'], d:r=>`El Desgarro Arcano y el Orbe hacen +${15*r} % de daño`, touch:['m_u_desgarro','a_orbe'], arch:'grieta', icon:I('arcanista-s13'), impl:'mod dmg · claves' },
   { id:'a14', n:'Maná Inagotable', t:'p', tag:'mec', r:4, c:6, max:1, req:['a10'], d:()=>'Mientras canalizas el Desgarro no gastas maná y recuperas un 2 % por segundo', touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s3'), impl:'power a_mana_inagotable · NUEVO' },
   { id:'a15', n:'Desplazamiento o Velo', t:'c', tag:'mec', r:5, c:1, max:1, req:['a11','a12'], icon:I('arcanista-s8'), opts:[
     { k:'A', n:'Desplazamiento', d:'Un golpe de más del 20 % de tu vida te teletransporta 5 m y no te hace daño. Una vez cada 30 s', role:'AGU', impl:'power a_desplazamiento · NUEVO (onDamaged)' },
     { k:'B', n:'Velo Arcano', d:'Con 3 o más Cargas, recibes un 12 % menos de daño', role:'AGU', impl:'tv.drCharges · NUEVO' } ],
     win:'A, contra golpes grandes de jefe. B, siempre activo contra grupos' },
-  { id:'a16', n:'Resonancia', t:'p', tag:'mec', r:5, c:3, max:2, req:['a12','a13'], d:r=>`Con 4 Cargas, no se pierden y tienes +${6*r} % de crítico`, hyb:'Los tres estilos (por las Cargas)', icon:I('arcanista-s16'), impl:'power a_resonance · existe (rangos)' },
-  { id:'a17', n:'Sello Viviente', t:'p', tag:'mec', r:5, c:5, max:2, req:['a13','a14'], d:r=>`El Sello del Archimago dura ${8+2*r} s (antes 8 s) y te sigue`, touch:['a_sello'], arch:'grieta', icon:I('arcanista-s9'), impl:'mod a_sello durS + power a_sello_sigue' },
+  { id:'a16', n:'Resonancia', t:'p', tag:'mec', r:5, c:3, max:2, req:['a3','a12'], d:r=>`Con 4 Cargas, no se pierden y tienes +${6*r} % de crítico`, hyb:'Los tres estilos (por las Cargas)', icon:I('arcanista-s16'), impl:'power a_resonance · existe (rangos)' },
+  { id:'a17', n:'Sello Viviente', t:'p', tag:'mec', r:2, c:6, max:2, req:['a13'], d:r=>`El Sello del Archimago dura ${8+2*r} s (antes 8 s) y te sigue`, touch:['a_sello'], arch:'grieta', icon:I('arcanista-s9'), impl:'mod a_sello durS + power a_sello_sigue' },
   { id:'a18', n:'Carga Final', t:'p', tag:'mec', r:6, c:0, max:2, req:['a15'], d:r=>`Un Rayo con 4 Cargas te devuelve ${r} Carga${r > 1 ? 's' : ''}`, touch:['rayo'], arch:'rayo', icon:I('arcanista-s6'), impl:'power a_carga_final · NUEVO (afterCast)' },
   { id:'a19', n:'Satélite', t:'p', tag:'mec', r:6, c:2, max:2, req:['a15','a16'], d:r=>`Cada 3.er Orbe deja un orbe pequeño girando a tu alrededor 6 s (${20*r} % por golpe)`, touch:['a_orbe'], arch:'orbe', icon:I('arcanista-s5'), impl:'power a_satelite · NUEVO' },
-  { id:'a20', n:'Agudeza', t:'p', tag:'num', r:6, c:4, max:2, req:['a16','a17'], d:r=>`Con 3 o más Cargas, lanzas un ${7*r} % más rápido`, arcane:true, icon:I('arcanista-s2'), impl:'tv.aspdCharges · NUEVO' },
-  { id:'a21', n:'Doble Grieta', t:'p', tag:'mec', r:6, c:6, max:1, req:['a17'], d:()=>'Si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %', touch:['rayo','m_u_desgarro'], arch:'grieta', icon:I('arcanista-s14'), impl:'power a_doble_grieta · NUEVO' },
+  { id:'a20', n:'Agudeza', t:'p', tag:'num', r:6, c:4, max:2, req:['a7','a16'], d:r=>`Con 3 o más Cargas, lanzas un ${7*r} % más rápido`, arcane:true, icon:I('arcanista-s2'), impl:'tv.aspdCharges · NUEVO' },
+  { id:'a21', n:'Doble Grieta', t:'p', tag:'mec', r:6, c:6, max:1, req:['a7'], d:()=>'Si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %', touch:['rayo','m_u_desgarro'], arch:'grieta', icon:I('arcanista-s14'), impl:'power a_doble_grieta · NUEVO' },
   { id:'a22', n:'Cargas Desbordadas', t:'p', tag:'mec', r:7, c:0, max:3, req:['a18'], d:r=>`Puedes guardar hasta ${4+r} Cargas (antes 4); las que pasan de 4 dan el doble al Rayo`, touch:['rayo'], arch:'rayo', icon:I('arcanista-x1'), impl:'tuning cargas.max + condAdd' },
   { id:'a23', n:'Orbe Múltiple', t:'p', tag:'mec', r:7, c:3, max:3, req:['a19'], d:r=>`Cada 3.er Orbe sale con ${r} orbe${r > 1 ? 's' : ''} más pequeño${r > 1 ? 's' : ''} (40 % cada uno)`, touch:['a_orbe'], arch:'orbe', icon:I('arcanista-s4'), impl:'power a_orbe_multiple · NUEVO (echo)' },
   { id:'a24', n:'Fuente de Maná', t:'p', tag:'mec', r:7, c:6, max:3, req:['a21'], d:r=>`Mientras canalizas, cada segundo te da 1 Carga y +${5*r} % de daño (hasta 3 veces)`, touch:['m_u_desgarro'], arch:'grieta', icon:I('arcanista-s13'), impl:'power a_fuente · NUEVO' },
@@ -425,7 +425,8 @@ const ESCRIBA_NODES = [
 ];
 
 // especializaciones: árbol por id y builds del Crionte y del Arcanista. Las tres comparten rejilla (mismas filas,
-// columnas, rangos, requisitos y puertas), así que una build legal en un árbol lo es en los otros con sus ids.
+// columnas, rangos, requisitos y puertas), así que una build legal en un árbol lo es en los otros con sus ids;
+// salvo la Arcanista, recolocada por nivel (a3↔a13, a7↔a17: `rejilla` del registro), con sus órdenes propios.
 // En cada build: .sp = especialización · .spec = rangos del árbol de especialización · .cls/.clsOrder = clase.
 TALENTS_V2.specs = { piromante: TALENTS_V2.spec, crionte: CRIONTE_TREE, arcanista: ARCANISTA_TREE };
 { const esc = TALENTS_V2.hero.find(h => h.id === 'escriba'); esc.nodes = ESCRIBA_NODES; delete esc.sketch;
@@ -445,6 +446,11 @@ for (const k of ['brasa', 'cataclismo', 'ignicion', 'hibrido']) BUILDS_V2[k].sp 
     grieta:   mk('arcanista', 'cataclismo', 'a', 'Grieta Eterna', 'Grieta', { a9:'A', a10:'A' }, 'brasa', 'crono', { t2:'A', t4:'A', t8:'A' }, ['t2','t3','t6','t5','t9','t8','t11','t12','t4','t1']),
     hibarca:  mk('arcanista', 'hibrido', 'a', 'Rayo Orbital', 'Híbrido Rayo-Orbe', { a8:'A', a9:'B', a15:'B' }, 'hibrido', 'escriba', { e2:'A', e4:'B', e8:'A' }, ['e2','e1','e3','e5','e8','e4','e7','e10','e12','e11']),
   });
+  // T-maga (reorden por nivel): la Arcanista compra en el orden de su árbol recolocado (`rejilla` del registro).
+  // Rayo e híbrida toman Mente Brillante (a2) antes que a1; «a2_» = sus rangos de más tarde
+  P.rayo.spec = { a2:1, a1:3, a4:2, a5:1, a8:1, a11:2, a15:1, a18:2, a22:3, a25:3, a28:4, a2_:2, a9:1, a12:2, a16:2, a3:1 };
+  P.grieta.spec = { a13:2, a17:2, a6:1, a10:1, a3:3, a14:1, a7:2, a21:1, a24:3, a27:3, a28:4, a2:3, a9:1, a16:2, a20:2 };
+  P.hibarca.spec = { a2:3, a1:3, a4:2, a5:1, a8:1, a9:1, a11:2, a12:2, a15:1, a16:2, a18:2, a19:2, a22:3, a23:3, a3:1, a20:2 };
 }
 const SPEC_DEFAULT_BUILD = { piromante:'brasa', crionte:'glaciar', arcanista:'rayo' };
 const SPEC_HERO = { piromante:['crono', 'invoca'], crionte:['invoca', 'escriba'], arcanista:['crono', 'escriba'] };
@@ -478,6 +484,10 @@ window.TALENTS_V2_CLASSES.maga = {
     arcane: { label: 'Toca todo tu Arcano', ids: ['m_dardo', 'rayo', 'a_orbe', 'a_sello', 'm_u_desgarro'] },
   },
   tree: { cls: TALENTS_V2.cls, spec: TALENTS_V2.specs, hero: TALENTS_V2.hero },
+  // reorden por nivel (T-maga, aprobado por el dueño): en la Arcanista suben Torrente Arcano (a13, Orbe del Nv10) y
+  // Sello Viviente (a17, Sello del Nv12) y bajan Flujo Constante (a3) y Grieta Abierta (a7), que solo tocan el
+  // Desgarro (Nv15). Número → [fila, columna] (TV2.reordenar)
+  rejilla: { arcanista: { 3:[4,4], 13:[1,5], 7:[5,5], 17:[2,6] } },
   specHero: SPEC_HERO, builds: BUILDS_V2, defaultBuild: SPEC_DEFAULT_BUILD,
   // nodos que usan las demos de captura (&demo=spend|choice|hover|hoveract|rclick|pick|undo|hl|gate|specswap)
   demo: { spend:'s16', choice:'s9', hover:'s9', hoveract:'t4', rclick:'s9', pick:'s8', undo:'s23', hl:'meteoro', swapTo:'crionte',

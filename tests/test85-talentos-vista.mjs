@@ -262,6 +262,20 @@ console.log(`Motivos: ${TALENT_REASONS.length} códigos con texto (puerta y cód
   assert.ok(tc.ids.includes('bola_fuego') && tc.ids.every(id => p.cls.skills.some(s => s.id === id)), 'ids del catálogo');
   const holy = [...Talents.talentTreesFor('guerrero').cls.nodes, ...Talents.talentTreesFor('guerrero').specs.flatMap(s => s.nodes)].find(n => (n.touch || []).includes('@holy'));
   assert.equal(nodeTouches('guerrero', holy).label, 'Toca todo tu daño sagrado');
+  // con especialización, el tooltip solo enseña TUS habilidades: «tu definitiva» del Paragon de la Maga
+  // (t5 y f3, '@ultimate') es la de la especialización activa, y la clase no lista los kits ajenos
+  const touchIds = (classId, spec, which, id, treeId = null) => {
+    const hx = hero(classId, spec, 100);
+    Object.assign(hx.g, talentMethods);
+    if (treeId && Talents.treeOf(hx.p, 'hero')?.hero?.id !== treeId) assert.ok(hx.g.chooseHeroTree(treeId).ok, `${spec}: Paragon ${treeId}`);
+    return nodeTooltip(hx.p, which, id).touches.map(t => t.id);
+  };
+  assert.deepEqual(touchIds('maga', 'piromante', 'hero', 't5', 'crono'), ['m_u_supernova'], 'Segundos Robados con el Piromante: Supernova');
+  assert.deepEqual(touchIds('maga', 'arcanista', 'hero', 't5', 'crono'), ['m_u_desgarro'], 'con la Arcanista: Desgarro Arcano');
+  assert.deepEqual(touchIds('maga', 'crionte', 'hero', 'f3', 'invoca'), ['m_u_tormenta'], 'Imitación con el Crionte: Tormenta Glacial');
+  const golpes = touchIds('guerrero', 'berserker', 'cls', 'c2');
+  assert.ok(golpes.includes('g_remolino') && golpes.includes('g_tajo') && !golpes.includes('terremoto'), `la clase con el Berserker: sin el kit del Guardián (${golpes})`);
+  assert.equal(nodeTouches('maga', Talents.talentTreesFor('maga').hero[0].nodes.find(n => n.id === 't5')).ids.length, 3, 'sin especialización, las tres definitivas');
   // al revés: los talentos que tocan una habilidad (Tu kit)
   const links = nodesTouchingSkill(p, 'bola_fuego');
   assert.ok(links.some(x => x.id === 'c6' && x.which === 'cls'), 'Bola de Fuego: c6 la toca');

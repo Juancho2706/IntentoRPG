@@ -49,6 +49,7 @@ export function claseMockupDesdeJuego({ C, talents, cat }) {
     sup: C.sup, mech: C.mech, innate: C.innate, groups: talents.groups || C.groups,
     tree: { cls: (talents.cls?.nodes || []).map(nodoMockup), spec: Object.fromEntries((talents.specs || []).map(s => [s.id, (s.nodes || []).map(nodoMockup)])),
       hero: (talents.hero || []).map(h => ({ id: h.id, n: h.name, specs: h.specs, art: h.art, line: h.line, key: h.key, nodes: (h.nodes || []).map(nodoMockup) })) },
+    rejilla: C.rejilla,   // reorden por nivel de la clase (TV2.rejillaDe): el juego lo comparte con el mockup
     builds: JSON.parse(JSON.stringify(talents.builds || {})), defaultBuild: talents.defaultBuild, demo: C.demo,
   };
 }

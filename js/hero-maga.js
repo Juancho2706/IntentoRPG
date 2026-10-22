@@ -7,6 +7,7 @@
 // E2 · KT-maga, trabajo 1: cada nodo clave lleva el poder de su mecánica (m_marca_tiempo, m_familiar,
 // m_runas; js/powers-maga.js), los finales el suyo y el resto una clave tv que ese poder lee
 // (MAGA_TV_KEYS en talents-maga.js). Las opciones A de t4/e4/f8 esperan su `grant` (KA1).
+// D1: t5 y f3 tocan '@ultimate' («tu definitiva»): el panel enseña la de la especialización activa.
 export const MAGA_HERO = [
   { id: 'crono', name: 'Cronomante', specs: ['piromante', 'arcanista'], art: 'ui256/menu_viajes.webp', line: 'Marcas del Tiempo: el daño que haces vuelve a golpear', key: 'Tu primer golpe marca al enemigo 4 s; al acabar, la marca repite el 30 % del daño que le hiciste', prefix: 't', nodes: [
     { id: 't0', name: 'Marca del Tiempo', t: 'k', tag: 'mec', r: 0, c: 1, max: 1, free: true, d: ()=>'Tu primer golpe marca al enemigo 4 s. Al acabar, la Marca repite el 30 % del daño que le hiciste en ese tiempo', icon: 'talents/maga-clase-c12.webp', fx: { power: 'm_marca_tiempo' } },
@@ -22,7 +23,7 @@ export const MAGA_HERO = [
         { k: 'B', name: 'Retroceso', desc: 'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s', role: 'AGU', fx: { power: 'm_retroceso' } },
       ],
       win: 'A, para controlar grupos y preparar un golpe enorme (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
-    { id: 't5', name: 'Segundos Robados', t: 'p', tag: 'num', r: 2, c: 1, max: 1, req: ['t2'], d: ()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch: ['m_u_supernova'], icon: 'talents/maga-arcanista-s3.webp', fx: { tv: { chronoUltCdr: 1 } } },
+    { id: 't5', name: 'Segundos Robados', t: 'p', tag: 'num', r: 2, c: 1, max: 1, req: ['t2'], d: ()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch: ['@ultimate'], icon: 'talents/maga-arcanista-s3.webp', fx: { tv: { chronoUltCdr: 1 } } },
     { id: 't6', name: 'Paradoja', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['t2', 't3'], d: ()=>'Si el enemigo marcado muere antes de tiempo, la Marca pasa al más cercano con lo que llevaba', icon: 'talents/maga-arcanista-s7.webp', fx: { tv: { chronoParadox: 1 } } },
     { id: 't7', name: 'Bucle', t: 'p', tag: 'mec', r: 3, c: 0, max: 1, req: ['t4', 't5'], d: ()=>'Cada 4.ª Marca que termina se repite una segunda vez', icon: 'talents/maga-arcanista-x1.webp', fx: { tv: { chronoLoop: 4 } } },
     { id: 't8', name: 'Presagio o Memoria', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['t5'], icon: 'talents/maga-arcanista-s12.webp', opts: [
@@ -43,7 +44,7 @@ export const MAGA_HERO = [
         { k: 'B', name: 'Enjambre', desc: 'Tres Familiares pequeños; cada uno hace el 40 %', role: 'AREA', fx: { tv: { famSwarm: 3 } } },
       ],
       win: 'A, contra jefes. B, contra grupos (tres blancos a la vez)' },
-    { id: 'f3', name: 'Imitación', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['f0'], d: ()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch: ['m_u_supernova'], icon: 'talents/maga-arcanista-s16.webp', fx: { tv: { famUltCopy: 25 } } },
+    { id: 'f3', name: 'Imitación', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['f0'], d: ()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch: ['@ultimate'], icon: 'talents/maga-arcanista-s16.webp', fx: { tv: { famUltCopy: 25 } } },
     { id: 'f4', name: 'Guardián o Cazador', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['f1', 'f2'], icon: 'talents/maga-arcanista-s8.webp', opts: [
         { k: 'A', name: 'Guardián', desc: 'El Familiar se interpone: recibe el 15 % del daño que te hacen', role: 'AGU', fx: { tv: { famGuard: 15 } } },
         { k: 'B', name: 'Cazador', desc: 'El Familiar persigue al enemigo con más vida; ese enemigo recibe +10 % de daño', role: 'UNI', fx: { tv: { famHunt: 10 } } },

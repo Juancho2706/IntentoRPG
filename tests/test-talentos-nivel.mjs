@@ -2,6 +2,7 @@
 // habilidades que el héroe aún no conoce NO se toma; queda bloqueado con su motivo)
 //  0) learnAt sale del catálogo: la primera habilidad que conoces de las que toca o concede el nodo
 //     (por opción en una elección); el árbol de clase no depende de la especialización
+//  0b) `needs` manda sobre touch: elige entre lo que el nodo toca y cambia su nivel (si no, sobra)
 //  a) ningún nodo ni opción se toma por debajo de su learnAt: canAddRank y addRank reales con el
 //     camino más barato hasta el nodo, gateFail/validRanks con el camino completo, el barrido de (b),
 //     la vista (nodo en gris, motivo y opción con candado)
@@ -12,6 +13,7 @@
 //     los 57 guardados v4 reales cargan sin recorte
 //  f) escenario de reorden: una elección con una opción de más nivel sube a la primera fila (ops,
 //     flotante, guardado, build y código eligen la opción que ya sirve)
+//  g) Paragon: la activa que concede un nodo héroe se aprende al nivel en que ese nodo se compra
 // Lo que HOY falla por los DATOS de una clase (b, c, d y la regla de 0) va a
 // tests/talentos-nivel/pending-<clase>.json y la suite sale verde solo si coincide EXACTAMENTE.
 // Las clases los vacían al reordenar. `--escribir` reescribe esos archivos con lo que falla ahora
@@ -48,8 +50,11 @@ const knownAt = (classId, id, spec) => {
   if (spec !== '*' && spec !== sk.spec) return Infinity;
   return Math.max(sk.req || 1, R.specAt);
 };
+// `needs` (de la opción o del nodo) manda sobre lo que toca
+const needsOf = (node, k) => (k ? node.opts.find(o => o.k === k)?.needs : null) || node.needs || null;
+const learnIds = (classId, node, k) => needsOf(node, k) || T.nodeTouches(classId, node, k).ids;
 const expectAt = (classId, node, k, spec) => {
-  const ats = T.nodeTouches(classId, node, k).ids.map(id => knownAt(classId, id, spec)).filter(v => v != null);
+  const ats = learnIds(classId, node, k).map(id => knownAt(classId, id, spec)).filter(v => v != null);
   return ats.length ? Math.min(...ats) : null;
 };
 let nLearn = 0;
@@ -84,6 +89,57 @@ assert.ok(nLearn > 50, `hay nodos con nivel de aprendizaje (${nLearn})`);
 assert.equal(T.learnFail(T.TALENT_TREES.maga.cls.nodes[0], undefined), null, 'sin nivel no se mira');
 assert.ok(TALENT_REASONS.includes('learn'), 'motivo propio en ops');
 console.log(`0) learnAt de ${nLearn} nodos = la primera habilidad que conoces de las que tocan ✓`);
+
+// ------------------------------------------------ 0b) `needs`: la habilidad que de verdad dispara el efecto
+// manda sobre touch. Cada needs elige entre lo que el nodo toca y CAMBIA el nivel (si no, sobra). Los
+// casos de D1 (touch daba un nivel falso) quedan con la habilidad que los dispara, TODOS fijados aquí:
+// quitar o añadir un needs (p. ej. al resincronizar desde el mockup, que no lo tiene) hace fallar
+const NEEDS_EXPECT = {
+  maga: { c19: 'm_barrera', c23: 'm_parpadeo', s17: 'm_u_supernova', s21: 'meteoro', s24: 'meteoro',
+    i10: 'm_u_tormenta', i17: 'm_paso_escarcha', a6: 'a_sello', a12: 'rayo', a21: 'm_u_desgarro' },
+  guerrero: { c19: 'g_piel', c23: 'embestida', b6: 'g_rajar', b17: 'g_u_furia', d5: 'terremoto', d6: 'terremoto',
+    d12: 'terremoto', z5: 'g_martillo' },
+  arquera: { c19: 'a_humo', c20: 'lluvia_flechas', v5: 'a_t_andanada', v6: 'a_v_carrera', v17: 'a_u_diluvio',
+    v21: 'a_u_diluvio', f6: 'a_f_rodilla', f14: 'a_u_celeste', f21: 'a_u_celeste', f24: 'a_f_rodilla', m22: 'a_m_detonante' },
+};
+let nNeeds = 0;
+const withNeeds = [];
+for (const classId of CLASS_IDS) {
+  for (const tree of levelTrees(classId)) {
+    const spec = tree.spec || '*';
+    for (const n of tree.nodes) {
+      for (const k of [null, ...(n.opts || []).map(o => o.k)]) {
+        const needs = k ? n.opts.find(o => o.k === k).needs : n.needs;
+        if (needs == null) continue;
+        const at = `${classId}/${n.id}${k || ''}`;
+        assert.ok(Array.isArray(needs) && needs.length > 0, `${at}: needs es una lista de habilidades`);
+        const touches = T.nodeTouches(classId, n, k).ids;
+        for (const id of needs) assert.ok(touches.includes(id), `${at}: needs «${id}» no está entre lo que toca (${touches})`);
+        const byTouch = Math.min(...touches.map(id => knownAt(classId, id, spec)).filter(v => v != null));
+        assert.notEqual(expectAt(classId, n, k, spec), byTouch, `${at}: needs no cambia el nivel (Nv${byTouch}): sobra`);
+        nNeeds++;
+        withNeeds.push(at);
+      }
+    }
+  }
+}
+for (const [classId, want] of Object.entries(NEEDS_EXPECT)) {
+  for (const [id, skill] of Object.entries(want)) {
+    const n = levelTrees(classId).flatMap(t => t.nodes).find(x => x.id === id);
+    assert.equal(T.nodeLearn(n)?.skill, skill, `${classId}/${id}: se abre con ${skillName(classId, skill)}`);
+  }
+}
+// semántica en el motor (nodos sintéticos): needs manda sobre touch, el de la opción sobre el del nodo
+const synP = { id: 'zz1', t: 'p', touch: ['g_tajo', 'terremoto'] };
+assert.equal(T.learnOfNode('guerrero', synP, 'guardian').node.skill, 'g_tajo', 'sin needs: la primera que conoces');
+assert.equal(T.learnOfNode('guerrero', { ...synP, needs: ['terremoto'] }, 'guardian').node.at, 14, 'con needs: el Terremoto (Nv14)');
+assert.equal(T.learnOfNode('guerrero', { ...synP, needs: ['g_martillo'] }, 'guardian').node.at, Infinity, 'needs de otra especialización: nunca');
+const synC = T.learnOfNode('guerrero', { id: 'zz2', t: 'c', touch: ['g_tajo', 'terremoto'], needs: ['terremoto'],
+  opts: [{ k: 'A' }, { k: 'B', needs: ['g_tajo'] }] }, 'guardian');
+assert.deepEqual([synC.opts.A.skill, synC.opts.B.skill, synC.node.at], ['terremoto', 'g_tajo', 1], 'la opción sin needs usa el del nodo; la elección vale con la que ya sirve');
+const wantNeeds = Object.entries(NEEDS_EXPECT).flatMap(([c, w]) => Object.keys(w).map(id => `${c}/${id}`));
+assert.deepEqual([...withNeeds].sort(), wantNeeds.sort(), 'los nodos con needs son exactamente los de NEEDS_EXPECT');
+console.log(`0b) needs en ${nNeeds} nodos u opciones: elige entre lo que tocan y cambia su nivel ✓`);
 
 // ------------------------------------------------ a) nunca por debajo de su learnAt
 let realCases = 0, pathCases = 0, optCases = 0, viewCases = 0;
@@ -403,6 +459,30 @@ console.log(`d) ${builds} builds legales nivel a nivel (10–100) ✓`);
   }
   assert.ok(f > 0, 'escenario con alguna clase');
   console.log(`f) escenario de reorden (${f} clases): opción bloqueada en ops, flotante, guardado, build y código ✓`);
+}
+
+// ------------------------------------------------ g) Paragon: la activa de un nodo héroe se aprende al
+// nivel en que ese nodo se compra (un punto por nivel desde el Nv71: la cadena de requisitos más corta).
+// Antes, Llamar Constructo (f8A, fila 3: Nv73) pedía el Nv74 y se compraba un nivel antes de servir
+{
+  let g = 0;
+  for (const classId of CLASS_IDS) {
+    for (const tree of T.TALENT_TREES[classId].hero) {
+      const by = new Map(tree.nodes.map(n => [n.id, n]));
+      const cost = n => (n.free ? 0 : 1 + Math.min(...(n.req || []).map(id => cost(by.get(id)))));
+      for (const n of tree.nodes) for (const o of n.opts || []) {
+        if (!o.fx?.grant) continue;
+        const pts = cost(n);
+        let L = R.heroAt;
+        while (T.earnedAt('hero', L) < pts) L++;
+        const sk = CLASSES[classId].skills.find(s => s.id === o.fx.grant);
+        assert.equal(sk?.req, L, `${classId}/${tree.id}/${n.id}${o.k}: ${sk?.name || o.fx.grant} se compra al Nv${L} (fila ${n.r}) y pide el Nv${sk?.req}`);
+        g++;
+      }
+    }
+  }
+  assert.equal(g, 9, 'una activa por árbol héroe (3 por clase)');
+  console.log(`g) Paragon: las ${g} activas de los árboles héroe se aprenden al nivel en que se compra su nodo ✓`);
 }
 
 // ------------------------------------------------ pendientes de datos por clase

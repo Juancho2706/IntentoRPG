@@ -10,9 +10,15 @@
 //  5) identificadores libres de d(r) e ids de poder repetidos entre clases (D28) sobre datos sintéticos
 //  6) el conversor sobre los datos reales: 0 claves SIN TRADUCCIÓN y 0 tv/stats sin decidir (claves-impl.md), con la
 //     foto del juego v1 (tools/convert-v2/juego-v1.json) y el juego vivo
+//  7) el validador del mockup (docs/mockups/data/validar-talentos.mjs) pasa en las tres clases: cada árbol contra la
+//     rejilla recolocada por su reorden por nivel (`rejilla`) y las builds punto a punto en su orden (specOrder)
 // Si cambian los datos del mockup de Guerrero o Arquera (D18), este test se pone en rojo en cuanto su clase esté en v2:
 // se sincroniza con `node tools/convert-v2/convert.mjs --draft <clase>` + diff, o se declara la divergencia.
+// `needs` (nivel de aprendizaje, D1) es SOLO del juego: el borrador no lo trae y aquí no se compara; al copiar desde el
+// borrador, conserva los del juego (tests/test-talentos-nivel.mjs fija la lista completa nodo a nodo).
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { CLASES, PREFIJO, cargarMockup } from '../tools/convert-v2/lib/cargar.mjs';
 import { juegoDeClase, juegoV1, fotoV1, vocabularioJuego } from '../tools/convert-v2/lib/juego.mjs';
 import { convertirClase, verificarN1 } from '../tools/convert-v2/lib/transformar.mjs';
@@ -154,6 +160,17 @@ assert.deepEqual(inf.dobleDeclaracion.map(c => c.id), ['m_y'], 'D28: un id decla
   assert.equal(claves.sin, 0, `claves SIN TRADUCCIÓN (tools/convert-v2/claves-w2.mjs o cola W2):\n${seccion('## 2. SIN TRADUCCIÓN')}`);
   assert.equal(claves.sinDecidir, 0, 'claves tv/stats sin decidir (núcleo, clase o cola W2)');
   log.push(`claves de impl/k: 0 SIN TRADUCCIÓN · ${claves.alias} alias · ${claves.cola} peticiones a la cola W2`);
+}
+
+// ---------- 7) el validador del mockup sobre sus propios datos (como `node … validar-talentos.mjs <clase>`)
+{
+  const validador = fileURLToPath(new URL('../docs/mockups/data/validar-talentos.mjs', import.meta.url));
+  for (const cls of CLASES) {
+    const r = spawnSync(process.execPath, [validador, cls, '--sin-avisos'], { encoding: 'utf8' });
+    const out = (r.stdout || '') + (r.stderr || '');
+    assert.equal(r.status, 0, `${cls}: el validador del mockup encuentra errores:\n${out.split('\n').filter(l => l.includes('✗')).join('\n') || out}`);
+  }
+  log.push('validador del mockup: las tres clases en regla (rejilla recolocada y builds punto a punto) ✓');
 }
 
 console.log(`test-v2-paridad ✓\n  · ${log.join('\n  · ')}`);

@@ -13,11 +13,14 @@
 //   hero:  [{ id, name, specs:[2 ids], key, line, nodes: [13] }]   (hero-<clase>.js)
 //   builds: { <clave>: { sp, n, arch, hero, heroNodes, heroCh, cls, clsCh, spec, specCh } }
 //   defaultBuild: { <specId>: <clave> }
-// NODO: { id, name, t, tag, r, c, max, req?, free?, fx?, opts?, d? }
+// NODO: { id, name, t, tag, r, c, max, req?, free?, fx?, opts?, d?, touch?, needs? }
 //   t   'p' pasiva · 'c' elección (opts A/B) · 'k' clave (gratis, rango 1) ·
 //       'f' final (1–3 rangos) · 'x' ápice (1–4 rangos)
 //   req basta UNO de esos nodos al máximo (el nodo clave gratis cuenta como comprado)
 //   d(r) texto del rango r; en una elección el texto va en opts[].desc
+//   touch habilidades que toca (ids o selectores '@…'; también por opción)
+//   needs ids de las habilidades que de verdad disparan el efecto (también por opción): mandan sobre
+//         touch para el nivel de aprendizaje. Basta UNA, como en touch: si hacen falta dos, la última
 //
 // EFECTOS (`fx`, también dentro de cada opción). Un número se multiplica por el rango;
 // una lista da el valor por rango [r1, r2…] (scaleFx).
@@ -36,7 +39,8 @@
 //
 // NIVEL DE APRENDIZAJE (T0): un nodo u opción que solo toca habilidades que el héroe aún no conoce
 //   no se toma (learnAt/learnFail/openChoice; gateFail, validRanks, canAddRank, fillByOrder y
-//   buildRanks lo respetan con el nivel). Comprobación de los datos: tests/test-talentos-nivel.mjs.
+//   buildRanks lo respetan con el nivel). Con `needs`, cuentan esas habilidades y no las de touch.
+//   Comprobación de los datos: tests/test-talentos-nivel.mjs.
 //
 // ESTADO GUARDADO (§3.2): p.talents = { v:2, spec, cls, sp:{specId:{…}}, choice,
 //   hero:{ specId:{ tree, nodes:{treeId:{…}}, choice:{treeId:{…}} } }, loadouts:{ specId:[…] } }
@@ -145,9 +149,10 @@ function expandTouch(classId, key) {
   return { ids: cat.filter(s => (s.elem === 'phys' ? 'physical' : s.elem) === el).map(s => s.id) };
 }
 // habilidades que toca un nodo (touch del nodo + de sus opciones + activas que concede).
-// k: solo esa opción. → { ids (del catálogo de la clase), label? }: «Habilidades que toca», «Tu kit»,
+// k: solo esa opción. spec: sin las habilidades de OTRA especialización (el '@ultimate' del Paragon
+// es tu definitiva). → { ids (del catálogo de la clase), label? }: «Habilidades que toca», «Tu kit»,
 // la iluminación por habilidad y el nivel de aprendizaje
-export function nodeTouches(classId, node, k = null) {
+export function nodeTouches(classId, node, k = null, spec = null) {
   const keys = [...(node?.touch || [])];
   for (const o of node?.opts || []) {
     if (k && o.k !== k) continue;
@@ -162,7 +167,7 @@ export function nodeTouches(classId, node, k = null) {
     if (x.label && !label) label = x.label;
     for (const id of x.ids) ids.add(id);
   }
-  const known = new Set(touchCatalog(classId).map(s => s.id));
+  const known = new Set(touchCatalog(classId).filter(s => !spec || !s.spec || s.spec === spec).map(s => s.id));
   return { ids: [...ids].filter(id => known.has(id)), label };
 }
 
@@ -173,6 +178,8 @@ export function nodeTouches(classId, node, k = null) {
 // (como pronto al elegir especialización) y solo con ESA; la activa de talento a su `req` (el nodo
 // que la concede es la otra condición). Sin habilidades concretas (genéricos, recurso, mecánica) y
 // los nodos clave gratis: sin learnAt. Una elección se toma si alguna opción ya sirve.
+// `needs` (de la opción o del nodo) manda sobre lo que toca: el efecto lo dispara una habilidad que
+// no es la primera que conoces (Tambor de Guerra toca la Piel, Nv6, pero lo dispara el Terremoto, Nv14).
 // Solo árboles de clase y de especialización (el Paragon abre al Nv71). El de clase se calcula con
 // «cualquier especialización»: test-talentos-nivel exige que no dependa de cuál.
 export function skillLearnLevel(classId, skillId, spec = '*') {
@@ -193,14 +200,19 @@ function learnOfIds(classId, ids, spec) {
   }
   return best;
 }
+// habilidades de las que depende el nivel de aprendizaje del nodo (k: de esa opción)
+export function learnIdsOf(classId, node, k = null) {
+  const o = k ? node?.opts?.find(x => x.k === k) : null;
+  return o?.needs || node?.needs || nodeTouches(classId, node, k).ids;
+}
 // { node: learn | null, opts: { A: learn | null, … } } de un nodo (learn = { at, skill, name })
 export function learnOfNode(classId, node, spec = '*') {
   if (!node || node.free) return { node: null, opts: {} };
-  if (node.t !== 'c') return { node: learnOfIds(classId, nodeTouches(classId, node).ids, spec), opts: {} };
+  if (node.t !== 'c') return { node: learnOfIds(classId, learnIdsOf(classId, node), spec), opts: {} };
   const opts = {};
   let best = null, free = false;
   for (const o of node.opts || []) {
-    const l = learnOfIds(classId, nodeTouches(classId, node, o.k).ids, spec);
+    const l = learnOfIds(classId, learnIdsOf(classId, node, o.k), spec);
     opts[o.k] = l;
     if (!l) free = true;
     else if (!best || l.at < best.at) best = l;

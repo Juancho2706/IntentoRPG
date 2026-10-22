@@ -1,6 +1,6 @@
 # Claves de `impl` y `k` fuera del vocabulario de verbos (§3.6)
 
-> Generado por `tools/convert-v2/convert.mjs` (E0.4; tabla de W2 volcada en E1.5). Fuentes: maga (`docs/mockups/data/talents-v2-maga.js`, sha1 7801561901ba, «aprobado») · guerrero (`docs/mockups/data/talents-v2-guerrero.js`, sha1 b0f282184d7d, «diseño») · arquera (`docs/mockups/data/talents-v2-arquera.js`, sha1 76ae75357a1e, «diseño»).
+> Generado por `tools/convert-v2/convert.mjs` (E0.4; tabla de W2 volcada en E1.5). Fuentes: maga (`docs/mockups/data/talents-v2-maga.js`, sha1 6633f28942ac, «aprobado») · guerrero (`docs/mockups/data/talents-v2-guerrero.js`, sha1 4284d0c054bb, «diseño») · arquera (`docs/mockups/data/talents-v2-arquera.js`, sha1 4baea1802bc5, «diseño»).
 > Las notas `impl`/`k` son texto libre: la lectura es heurística. Traducciones: tabla de alias de §3.6, tabla de W2 (`tools/convert-v2/claves-w2.mjs`,
 > de `docs/paso2-claves-w2.md`) y vocabulario del juego: el vivo (`skill-defs.js`: `SKILL_KEYS`, `RETIRED_KEYS`) y el de la foto v1
 > (`tools/convert-v2/juego-v1.json`, de antes de E1.5). «SIN TRADUCCIÓN» para al orquestador antes de E2.

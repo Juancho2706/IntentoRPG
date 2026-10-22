@@ -188,10 +188,10 @@ function skillLine(sk) {
 }
 
 // habilidades que toca un nodo (touch del nodo + de sus opciones + activas que concede).
-// k: solo esa opción. → { ids (del catálogo de la clase), label? } — para «Habilidades que toca»,
-// «Tu kit» y la iluminación por habilidad. Vive en talents.js (de ahí sale también el nivel de
-// aprendizaje, T0); aquí se reexporta para el panel y los tests.
-export function nodeTouches(classId, node, k = null) { return Talents.nodeTouches(classId, node, k); }
+// k: solo esa opción; spec: sin las de otra especialización. → { ids (del catálogo de la clase),
+// label? } — para «Habilidades que toca», «Tu kit» y la iluminación por habilidad. Vive en
+// talents.js (de ahí sale también el nivel de aprendizaje, T0); aquí se reexporta para el panel y los tests.
+export function nodeTouches(classId, node, k = null, spec = null) { return Talents.nodeTouches(classId, node, k, spec); }
 
 // ------------------------------------------------------------ estados
 // estado de ops.nodeState → el del contrato (§3.12): locked | avail | partial | max | paused
@@ -534,7 +534,8 @@ export function nodeTooltip(p, which, id, { alt = false } = {}) {
     out.now = (r > 0 ? 'Ahora: ' : '') + d(Math.max(1, r));
     if (r > 0 && r < node.max) { const nx = d(r + 1); if (nx !== d(r)) out.next = `Rango ${r + 1}: ${nx}`; }
   }
-  const tc = nodeTouches(p.classId, node);
+  // con especialización, solo las tuyas: «tu definitiva» del Paragon es la de ESA especialización
+  const tc = nodeTouches(p.classId, node, null, spec?.id || null);
   out.touchLabel = tc.label || 'Habilidades que toca';
   out.touches = tc.ids.map(sid => { const sk = findSkill(p.classId, sid); return { id: sid, name: sk?.name || sid, icon: skillIconPath(p.classId, sk) }; });
   // estado
