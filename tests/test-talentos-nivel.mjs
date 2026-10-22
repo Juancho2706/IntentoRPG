@@ -71,7 +71,8 @@ for (const classId of CLASS_IDS) {
       const l = T.nodeLearn(n);
       if (l) {
         assert.equal(l.name, skillName(classId, l.skill), `${classId}/${n.id}: nombre de la habilidad`);
-        assert.ok(T.nodeTouches(classId, n).ids.includes(l.skill), `${classId}/${n.id}: la habilidad sale de lo que toca`);        nLearn++;
+        assert.ok(T.nodeTouches(classId, n).ids.includes(l.skill), `${classId}/${n.id}: la habilidad sale de lo que toca`);
+        nLearn++;
       }
       // el árbol de clase no puede depender de la especialización (cambiarla no rompe la clase)
       if (tree.which === 'cls') {
@@ -91,12 +92,18 @@ console.log(`0) learnAt de ${nLearn} nodos = la primera habilidad que conoces de
 
 // ------------------------------------------------ 0b) `needs`: la habilidad que de verdad dispara el efecto
 // manda sobre touch. Cada needs elige entre lo que el nodo toca y CAMBIA el nivel (si no, sobra). Los
-// casos de D1 (touch daba un nivel falso) quedan con la habilidad que los dispara
+// casos de D1 (touch daba un nivel falso) quedan con la habilidad que los dispara, TODOS fijados aquí:
+// quitar o añadir un needs (p. ej. al resincronizar desde el mockup, que no lo tiene) hace fallar
 const NEEDS_EXPECT = {
-  guerrero: { d12: 'terremoto', d5: 'terremoto', z5: 'g_martillo' },
-  arquera: { v6: 'a_v_carrera', f6: 'a_f_rodilla' },
+  maga: { c19: 'm_barrera', c23: 'm_parpadeo', s17: 'm_u_supernova', s21: 'meteoro', s24: 'meteoro',
+    i10: 'm_u_tormenta', i17: 'm_paso_escarcha', a6: 'a_sello', a12: 'rayo', a21: 'm_u_desgarro' },
+  guerrero: { c19: 'g_piel', c23: 'embestida', b6: 'g_rajar', b17: 'g_u_furia', d5: 'terremoto', d6: 'terremoto',
+    d12: 'terremoto', z5: 'g_martillo' },
+  arquera: { c19: 'a_humo', c20: 'lluvia_flechas', v5: 'a_t_andanada', v6: 'a_v_carrera', v17: 'a_u_diluvio',
+    v21: 'a_u_diluvio', f6: 'a_f_rodilla', f14: 'a_u_celeste', f21: 'a_u_celeste', f24: 'a_f_rodilla', m22: 'a_m_detonante' },
 };
 let nNeeds = 0;
+const withNeeds = [];
 for (const classId of CLASS_IDS) {
   for (const tree of levelTrees(classId)) {
     const spec = tree.spec || '*';
@@ -111,6 +118,7 @@ for (const classId of CLASS_IDS) {
         const byTouch = Math.min(...touches.map(id => knownAt(classId, id, spec)).filter(v => v != null));
         assert.notEqual(expectAt(classId, n, k, spec), byTouch, `${at}: needs no cambia el nivel (Nv${byTouch}): sobra`);
         nNeeds++;
+        withNeeds.push(at);
       }
     }
   }
@@ -129,7 +137,8 @@ assert.equal(T.learnOfNode('guerrero', { ...synP, needs: ['g_martillo'] }, 'guar
 const synC = T.learnOfNode('guerrero', { id: 'zz2', t: 'c', touch: ['g_tajo', 'terremoto'], needs: ['terremoto'],
   opts: [{ k: 'A' }, { k: 'B', needs: ['g_tajo'] }] }, 'guardian');
 assert.deepEqual([synC.opts.A.skill, synC.opts.B.skill, synC.node.at], ['terremoto', 'g_tajo', 1], 'la opción sin needs usa el del nodo; la elección vale con la que ya sirve');
-assert.ok(nNeeds >= 20, `nodos con needs (${nNeeds})`);
+const wantNeeds = Object.entries(NEEDS_EXPECT).flatMap(([c, w]) => Object.keys(w).map(id => `${c}/${id}`));
+assert.deepEqual([...withNeeds].sort(), wantNeeds.sort(), 'los nodos con needs son exactamente los de NEEDS_EXPECT');
 console.log(`0b) needs en ${nNeeds} nodos u opciones: elige entre lo que tocan y cambia su nivel ✓`);
 
 // ------------------------------------------------ a) nunca por debajo de su learnAt

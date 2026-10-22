@@ -1608,6 +1608,9 @@ function touchesOf(n, k = null) {
   const ids = new Set([...(n.touch || [])]);
   for (const o of n.opts || []) if (!k || o.k === k) { for (const t of o.touch || []) ids.add(t); if (o.act) ids.add(o.act); }
   for (const [e, gd] of Object.entries(ELEM_GROUPS)) if (n[e]) (gd.ids || []).forEach(id => ids.add(id)); // «todo tu Fuego»… (groups de la clase)
+  // '@<cat>' («tu definitiva» del Paragon: '@ultimate'): las de esa categoría, solo de tu especialización
+  const sp = curSpec()?.id;
+  for (const t of [...ids]) if (t.startsWith('@') && !t.startsWith('@t:')) { ids.delete(t); skills().filter(s => '@' + s.cat === t && (!sp || !s.spec || s.spec === sp)).forEach(s => ids.add(s.id)); }
   return [...ids].filter(id => find(id));
 }
 function t2nodesFor(skillId) { // para el tooltip del libro: talentos que tocan la habilidad

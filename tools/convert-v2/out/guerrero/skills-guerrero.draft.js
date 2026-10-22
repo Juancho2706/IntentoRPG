@@ -1,7 +1,7 @@
 // ============================================================
 // CATÁLOGO 2g de la clase Guerrero — BORRADOR para KA (no lo carga el juego)
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-guerrero.js (sha1 b0f282184d7d, estado «diseño»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-guerrero.js (sha1 4284d0c054bb, estado «diseño»).
 // Formato: docs/paso2-implementacion.md §3.5 (forja de 2f §2.3). Ids, cat, req, spec, elem, nombres, líneas y papeles
 // exactos (los compara tests/test-v2-paridad.mjs cuando <CLASE>_CATALOG_V = 2). Los efectos se escriben a mano desde
 // el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existía, su definición en el juego v1.

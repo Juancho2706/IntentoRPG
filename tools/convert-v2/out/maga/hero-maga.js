@@ -1,7 +1,7 @@
 // ============================================================
 // ÁRBOLES HÉROE (Paragon) de la clase Maga — esqueleto v2
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-maga.js (sha1 7801561901ba, estado «aprobado»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-maga.js (sha1 6633f28942ac, estado «aprobado»).
 // Formato: docs/paso2-implementacion.md §3.1 y D5 (lo importa SOLO js/talents-maga.js, campo `hero`).
 // Estructura y textos exactos (tests/test-v2-paridad.mjs); `fx: {}` + `todo` = `impl` del mockup (E2: KT).
 export const MAGA_HERO = [
@@ -19,7 +19,7 @@ export const MAGA_HERO = [
         { k: 'B', name: 'Retroceso', desc: 'Al bajar del 40 % de vida, vuelves a la vida que tenías hace 3 s. Una vez cada 90 s', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, para controlar grupos y preparar un golpe enorme (ocupa la ranura 2). B, para sobrevivir sin ocupar ranura' },
-    { id: 't5', name: 'Segundos Robados', t: 'p', tag: 'num', r: 2, c: 1, max: 1, req: ['t2'], d: ()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch: ['m_u_supernova'], icon: 'talents/maga-arcanista-s3.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+    { id: 't5', name: 'Segundos Robados', t: 'p', tag: 'num', r: 2, c: 1, max: 1, req: ['t2'], d: ()=>'Cada Marca que termina recarga 1 s de tu definitiva', touch: ['@ultimate'], icon: 'talents/maga-arcanista-s3.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 't6', name: 'Paradoja', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['t2', 't3'], d: ()=>'Si el enemigo marcado muere antes de tiempo, la Marca pasa al más cercano con lo que llevaba', icon: 'talents/maga-arcanista-s7.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 't7', name: 'Bucle', t: 'p', tag: 'mec', r: 3, c: 0, max: 1, req: ['t4', 't5'], d: ()=>'Cada 4.ª Marca que termina se repite una segunda vez', icon: 'talents/maga-arcanista-x1.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 't8', name: 'Presagio o Memoria', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['t5'], icon: 'talents/maga-arcanista-s12.webp', opts: [
@@ -40,7 +40,7 @@ export const MAGA_HERO = [
         { k: 'B', name: 'Enjambre', desc: 'Tres Familiares pequeños; cada uno hace el 40 %', role: 'AREA', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
       ],
       win: 'A, contra jefes. B, contra grupos (tres blancos a la vez)' },
-    { id: 'f3', name: 'Imitación', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['f0'], d: ()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch: ['m_u_supernova'], icon: 'talents/maga-arcanista-s16.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
+    { id: 'f3', name: 'Imitación', t: 'p', tag: 'mec', r: 1, c: 2, max: 1, req: ['f0'], d: ()=>'Cuando usas tu definitiva, el Familiar lanza una copia al 25 %', touch: ['@ultimate'], icon: 'talents/maga-arcanista-s16.webp', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
     { id: 'f4', name: 'Guardián o Cazador', t: 'c', tag: 'mec', r: 2, c: 0, max: 1, req: ['f1', 'f2'], icon: 'talents/maga-arcanista-s8.webp', opts: [
         { k: 'A', name: 'Guardián', desc: 'El Familiar se interpone: recibe el 15 % del daño que te hacen', role: 'AGU', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },
         { k: 'B', name: 'Cazador', desc: 'El Familiar persigue al enemigo con más vida; ese enemigo recibe +10 % de daño', role: 'UNI', fx: {}, todo: 'sin impl: escribir el efecto desde el texto' },

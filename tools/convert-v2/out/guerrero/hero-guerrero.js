@@ -1,7 +1,7 @@
 // ============================================================
 // ÁRBOLES HÉROE (Paragon) de la clase Guerrero — esqueleto v2
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-guerrero.js (sha1 b0f282184d7d, estado «diseño»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-guerrero.js (sha1 4284d0c054bb, estado «diseño»).
 // Formato: docs/paso2-implementacion.md §3.1 y D5 (lo importa SOLO js/talents-guerrero.js, campo `hero`).
 // Estructura y textos exactos (tests/test-v2-paridad.mjs); `fx: {}` + `todo` = `impl` del mockup (E2: KT).
 export const GUERRERO_HERO = [

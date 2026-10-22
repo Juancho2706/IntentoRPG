@@ -189,7 +189,8 @@ tree: {
 | `opts` | 2 opciones | elecciones | `{ k:'A'\|'B', n, d, role, act?, touch?, icon?, impl? }`. `role`: `UNI` (contra jefes), `AREA` (contra grupos), `CTRL` (control), `AGU` (supervivencia) |
 | `act` | id del catálogo | — | La opción concede esa habilidad (solo en la **opción A**, ranura 2; máx. 3 en clase y 1 por árbol héroe). En el catálogo lleva `talent:true, grantBy:'<id del nodo>'` |
 | `win` | texto | elecciones | **«Cuál conviene»** en palabras: «A, contra jefes… B, contra grupos…» |
-| `touch` | ids | no | Habilidades que toca (iluminación en el libro y en «Tu kit») |
+| `touch` | ids | no | Habilidades que toca (iluminación en el libro y en «Tu kit»). `'@<cat>'` = las de esa categoría de tu especialización (`'@ultimate'`: «tu definitiva», Paragon de la Maga) |
+| `needs` | ids | **solo en el juego** | NO va en el mockup: lo lleva `js/talents-<clase>.js` (D1). De lo que toca, la habilidad que de verdad dispara el efecto (manda sobre `touch` para el nivel de aprendizaje). El conversor no lo genera y la paridad no lo compara: al resincronizar con `convert.mjs --draft`, **conserva los `needs` del juego** (`tests/test-talentos-nivel.mjs` fija la lista completa y falla si se pierde uno) |
 | `<flag>: true` | — | no | Toca todo un grupo de `groups` (Maga: `fire`, `frost`, `arcane`) |
 | `hyb` | texto | híbridos | «Brasa + Ignición» (contorno discontinuo y línea del tooltip) |
 | `final` | texto | finales | Rama del final («Defensa», «Brasa»…) |

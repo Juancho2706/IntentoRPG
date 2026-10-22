@@ -1,7 +1,7 @@
 // ============================================================
 // CATÁLOGO 2g de la clase Arquera — BORRADOR para KA (no lo carga el juego)
 // ============================================================
-// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-arquera.js (sha1 76ae75357a1e, estado «diseño»).
+// Generado por tools/convert-v2/convert.mjs (--draft) desde docs/mockups/data/talents-v2-arquera.js (sha1 4baea1802bc5, estado «diseño»).
 // Formato: docs/paso2-implementacion.md §3.5 (forja de 2f §2.3). Ids, cat, req, spec, elem, nombres, líneas y papeles
 // exactos (los compara tests/test-v2-paridad.mjs cuando <CLASE>_CATALOG_V = 2). Los efectos se escriben a mano desde
 // el `k` del mockup (en comentario) y el documento de la clase. Encima de cada habilidad que ya existía, su definición en el juego v1.

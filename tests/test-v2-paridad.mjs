@@ -14,6 +14,8 @@
 //     rejilla recolocada por su reorden por nivel (`rejilla`) y las builds punto a punto en su orden (specOrder)
 // Si cambian los datos del mockup de Guerrero o Arquera (D18), este test se pone en rojo en cuanto su clase esté en v2:
 // se sincroniza con `node tools/convert-v2/convert.mjs --draft <clase>` + diff, o se declara la divergencia.
+// `needs` (nivel de aprendizaje, D1) es SOLO del juego: el borrador no lo trae y aquí no se compara; al copiar desde el
+// borrador, conserva los del juego (tests/test-talentos-nivel.mjs fija la lista completa nodo a nodo).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
