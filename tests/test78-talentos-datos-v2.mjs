@@ -90,8 +90,9 @@ const isFn = v => typeof v === 'function';
 // máximo y su tipo; sus requisitos son los de la casilla que ocupa (las aristas no cambian)
 export const GRID_REORDER = {
   // T-guerrero: 4 y 16 suben a la fila 1 (Nv10); 3 y 12 a la fila 2 y 2 y 6 a la 4 (Nv14 y
-  // Rajar/Terremoto/Martillo); 5 al pie del 1; 20 y 13 cambian para que cada build llegue a sus nodos
-  guerrero: { spec: { 4: [1, 3], 16: [1, 5], 5: [2, 0], 12: [2, 2], 3: [2, 4], 2: [4, 2], 6: [4, 4], 20: [5, 3], 13: [6, 4] } },
+  // Rajar/Terremoto/Martillo); 12 al pie del 1 (el 5 se queda: es el paso al 8 y al 9, así ninguna
+  // build necesita el 12 para seguir); 20 y 13 cambian para que cada build llegue a sus nodos
+  guerrero: { spec: { 4: [1, 3], 16: [1, 5], 12: [2, 0], 3: [2, 4], 2: [4, 2], 6: [4, 4], 20: [5, 3], 13: [6, 4] } },
 };
 // rejilla recolocada → { G, bad }: bad = errores del propio reorden (casilla repetida o de otro tipo)
 export function reorderGrid(G, perm) {

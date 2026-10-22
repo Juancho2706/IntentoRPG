@@ -2,8 +2,9 @@
 // TALENTOS v2 de la clase Guerrero — esqueleto (clase 30 + especialización 3×29 + héroe 3×13)
 // ============================================================
 // Generado por tools/convert-v2/convert.mjs (--write talents, E1.5) desde docs/mockups/data/talents-v2-guerrero.js (sha1 b0f282184d7d, estado «diseño»).
-// Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup
-// (los compara tests/test-v2-paridad.mjs: una divergencia deliberada va en tools/convert-v2/divergencias.json).
+// Formato: docs/paso2-implementacion.md §3.1. Estructura, textos, builds y defaultBuild EXACTOS al mockup, salvo
+// el reorden por nivel de abajo (los compara tests/test-v2-paridad.mjs: cada divergencia deliberada va en
+// tools/convert-v2/divergencias.json; el mockup y su TV2.REJILLA siguen con la colocación vieja).
 // El `fx` de cada nodo es el `impl` del mockup (E2, KT): ningún nodo conserva `todo` (test78 lo hace error). Importa
 // SOLO hero y talent-text.
 // E2 (KT-guerrero): árbol de clase, las tres especializaciones y los árboles héroe con su `fx` (poderes en
@@ -13,8 +14,10 @@
 // T-guerrero (reorden por nivel, aprobado por el dueño; levanta D18 solo para casillas, requisitos y
 // orden de builds): las tres especializaciones mueven los mismos números (G16). La fila 1 lleva lo que
 // ya tienes al Nv10 (4 y 16 suben); las entradas de Nv12–14 bajan a filas que se compran con la
-// habilidad aprendida (3 y 12 a la fila 2; 2 y 6 a la 4; 5 a la 2, bajo el 1) y 20 y 13 se cambian
-// de casilla para que cada build siga llegando a sus nodos. Divergencias en tools/convert-v2/divergencias.json
+// habilidad aprendida (3 a la fila 2; 12 a la 2, bajo el 1; 2 y 6 a la 4) y 20 y 13 se cambian de
+// casilla para que cada build siga llegando a sus nodos. El 5 (un rango) es el paso al 8 y al 9: ninguna
+// build necesita el 12 para llegar a otro nodo y cada una lo compra donde diga su orden (Montaña Viva, tras
+// el 2: su Tambor de Guerra con el Terremoto dispara el TTD+). Casilla de cada número: GRID_REORDER de test78
 import { GUERRERO_HERO } from './hero-guerrero.js';
 import { n1 } from './talent-text.js';
 
@@ -140,15 +143,15 @@ export const GUERRERO_TALENTS = {
         { id: 'b2', name: 'Instinto Asesino', t: 'p', tag: 'num', r: 4, c: 2, max: 3, req: ['b8', 'b9'], d: r=>`Rajar tiene +${5*r} % de probabilidad de crítico`, touch: ['g_rajar'], arch: 'verdugo', icon: 'talents/guerrero-berserker-s5.webp', fx: { mod: { g_rajar: { crit: 5 } } } },
         { id: 'b3', name: 'Zancada', t: 'p', tag: 'num', r: 2, c: 4, max: 3, req: ['b4', 'b16'], d: r=>`El Salto Devastador se recarga en ${n1(12-1.5*r)} s (antes 12 s)`, touch: ['g_salto'], arch: 'estampida', icon: 'talents/guerrero-clase-c11.webp', fx: { mod: { g_salto: { cdr: 12.5 } } } },
         { id: 'b4', name: 'Sangre Espesa', t: 'p', tag: 'num', r: 1, c: 3, max: 2, req: ['b0'], d: r=>`Tus Sangrados hacen +${15*r} % de daño`, touch: ['g_tajo', 'g_remolino', 'g_rajar', 'g_salto'], arch: 'hemorragia', icon: 'ui/st_sangrado.webp', fx: { tv: { bleedPct: 15 } } },
-        { id: 'b5', name: 'Reabrir', t: 'p', tag: 'mec', r: 2, c: 0, max: 1, req: ['b1'], d: ()=>'Cada golpe de Rajar a un enemigo que sangra reinicia su Sangrado y te da 3 de Sed', touch: ['g_rajar'], arch: 'hemorragia+verdugo', hyb: 'Hemorragia + Verdugo', icon: 'talents/guerrero-berserker-s14.webp', fx: { power: 'g_b_reabrir' } },
+        { id: 'b5', name: 'Reabrir', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['b1', 'b4'], d: ()=>'Cada golpe de Rajar a un enemigo que sangra reinicia su Sangrado y te da 3 de Sed', touch: ['g_rajar'], arch: 'hemorragia+verdugo', hyb: 'Hemorragia + Verdugo', icon: 'talents/guerrero-berserker-s14.webp', fx: { power: 'g_b_reabrir' } },
         { id: 'b6', name: 'Caída Brutal', t: 'p', tag: 'mec', r: 4, c: 4, max: 1, req: ['b9', 'b10'], d: ()=>'Al caer de un Salto Devastador, tu siguiente Rajar empieza por el 3.er golpe', touch: ['g_salto', 'g_rajar'], arch: 'verdugo+estampida', hyb: 'Verdugo + Estampida', icon: 'talents/guerrero-berserker-s10.webp', fx: { power: 'g_b_caida_brutal' } },
         { id: 'b7', name: 'Suelo Roto', t: 'p', tag: 'mec', r: 2, c: 6, max: 2, req: ['b16'], d: r=>`Al caer, el Salto Devastador ralentiza un ${25*r} % durante 2 s a los que golpea`, touch: ['g_salto'], arch: 'estampida', icon: 'skills256/terremoto.webp', fx: { mod: { g_salto: { slow: [2, 2], slowPct: 25 } } } },
-        { id: 'b8', name: 'Contagio o Desangrar', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['b5', 'b12'], touch: ['g_remolino', 'g_tajo'], arch: 'hemorragia', icon: 'talents/guerrero-berserker-s6.webp', opts: [
+        { id: 'b8', name: 'Contagio o Desangrar', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['b12', 'b5'], touch: ['g_remolino', 'g_tajo'], arch: 'hemorragia', icon: 'talents/guerrero-berserker-s6.webp', opts: [
             { k: 'A', name: 'Contagio', desc: 'Cuando muere un enemigo que sangra, su Sangrado pasa a 2 enemigos a 3 m', role: 'AREA', fx: { power: 'g_b_contagio' } },
             { k: 'B', name: 'Desangrar', desc: 'Puedes poner hasta 3 Sangrados a la vez en el mismo enemigo', role: 'UNI', fx: { power: 'g_b_desangrar' } },
           ],
           win: 'A, contra grupos: cada muerte desangra a los siguientes. B, contra jefes: hasta ×2,4 de daño de Sangrado. Decide qué Hemorragia juegas' },
-        { id: 'b9', name: 'Rajar: Onda o Certero', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['b12', 'b3'], touch: ['g_rajar'], arch: 'verdugo', icon: 'talents/guerrero-berserker-s7.webp', opts: [
+        { id: 'b9', name: 'Rajar: Onda o Certero', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['b5', 'b3'], touch: ['g_rajar'], arch: 'verdugo', icon: 'talents/guerrero-berserker-s7.webp', opts: [
             { k: 'A', name: 'Onda de Choque', desc: 'El 3.er golpe de Rajar suelta una onda que hace el 60 % a todos a 4 m', role: 'AREA', fx: { power: 'g_b_onda_choque' } },
             { k: 'B', name: 'Remate Certero', desc: 'El 3.er golpe de Rajar es crítico seguro y a los jefes les llena 15 de Quebranto', role: 'UNI', fx: { power: 'g_b_remate_certero' } },
           ],
@@ -159,7 +162,7 @@ export const GUERRERO_TALENTS = {
           ],
           win: 'A, contra grupos: saltas de manada en manada. B, contra jefes: tres caídas cada vez más fuertes sobre el mismo. Decide qué Estampida juegas' },
         { id: 'b11', name: 'Festín de Sangre', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['b8'], d: r=>`Matar a un enemigo que sangra te cura un ${2*r} % de vida y te da ${4*r} de Furia`, arch: 'hemorragia', icon: 'talents/guerrero-berserker-s8.webp', fx: { tv: { bleedKillHeal: 2, bleedKillMana: 4 } } },
-        { id: 'b12', name: 'Ritmo de Matanza', t: 'p', tag: 'mec', r: 2, c: 2, max: 2, req: ['b1', 'b4'], d: r=>`Cada crítico de Rajar acorta ${n1(0.5*r)} s tus recargas, salvo la definitiva y Piel de Hierro (una vez cada 1,5 s)`, touch: ['g_rajar'], arch: 'verdugo', icon: 'talents/guerrero-berserker-s12.webp', fx: { power: 'g_b_ritmo_matanza' } },
+        { id: 'b12', name: 'Ritmo de Matanza', t: 'p', tag: 'mec', r: 2, c: 0, max: 2, req: ['b1'], d: r=>`Cada crítico de Rajar acorta ${n1(0.5*r)} s tus recargas, salvo la definitiva y Piel de Hierro (una vez cada 1,5 s)`, touch: ['g_rajar'], arch: 'verdugo', icon: 'talents/guerrero-berserker-s12.webp', fx: { power: 'g_b_ritmo_matanza' } },
         { id: 'b13', name: 'Peso Muerto', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['b20', 'b17'], d: r=>`El Salto Devastador hace +${20*r} % de daño`, touch: ['g_salto'], arch: 'estampida', icon: 'talents/guerrero-berserker-s1.webp', fx: { mod: { g_salto: { dmg: 20 } } } },
         { id: 'b14', name: 'Impacto Aturdidor', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['b10'], d: ()=>'Quien sobrevive a la caída del Salto queda aturdido 0,5 s (cada enemigo, una vez cada 4 s); a los jefes, 15 de Quebranto', touch: ['g_salto'], arch: 'estampida', icon: 'talents/guerrero-berserker-s17.webp', fx: { power: 'g_b_impacto' } },
         { id: 'b15', name: 'Negación o Umbral', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['b11', 'b2'], touch: ['g_u_furia'], icon: 'talents/guerrero-berserker-s13.webp', opts: [
@@ -211,15 +214,15 @@ export const GUERRERO_TALENTS = {
         { id: 'd2', name: 'Puño Telúrico', t: 'p', tag: 'num', r: 4, c: 2, max: 3, req: ['d8', 'd9'], d: r=>`El Terremoto hace +${10*r} % de daño`, touch: ['terremoto'], arch: 'sismo', icon: 'talents/guerrero-guardian-s7.webp', fx: { mod: { terremoto: { dmg: 10 } } } },
         { id: 'd3', name: 'Paso Pesado', t: 'p', tag: 'num', r: 2, c: 4, max: 3, req: ['d4', 'd16'], d: r=>`La Carga de Escudo se recarga en ${10-r} s (antes 10 s)`, touch: ['g_carga_escudo'], arch: 'vanguardia', icon: 'talents/guerrero-guardian-s13.webp', fx: { mod: { g_carga_escudo: { cdr: 10 } } } },
         { id: 'd4', name: 'Contragolpe', t: 'p', tag: 'mec', r: 1, c: 3, max: 2, req: ['d0'], d: r=>`Al bloquear, devuelves un golpe de escudo del ${40*r} % (una vez por segundo)`, arch: 'guardia', icon: 'talents/guerrero-guardian-s3.webp', fx: { power: 'g_d_contragolpe' } },
-        { id: 'd5', name: 'Echar Raíces', t: 'p', tag: 'mec', r: 2, c: 0, max: 1, req: ['d1'], d: ()=>'En Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más)', touch: ['terremoto', 'g_guardia'], arch: 'guardia+sismo', hyb: 'Guardia + Sismo', icon: 'talents/guerrero-guardian-s17.webp', fx: { power: 'g_d_raices' } },
+        { id: 'd5', name: 'Echar Raíces', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['d1', 'd4'], d: ()=>'En Muralla, cada Terremoto te da 1 carga de Bastión (2 si golpea a 3 o más)', touch: ['terremoto', 'g_guardia'], arch: 'guardia+sismo', hyb: 'Guardia + Sismo', icon: 'talents/guerrero-guardian-s17.webp', fx: { power: 'g_d_raices' } },
         { id: 'd6', name: 'Pisotón', t: 'p', tag: 'mec', r: 4, c: 4, max: 1, req: ['d9', 'd10'], d: ()=>'Tras la Carga de Escudo, tu siguiente Terremoto no se prepara y cuenta como plantado (sin el bonus de Asalto Total)', touch: ['g_carga_escudo', 'terremoto'], arch: 'sismo+vanguardia', hyb: 'Sismo + Vanguardia', icon: 'talents/guerrero-guardian-s10.webp', fx: { power: 'g_d_pisoton' } },
         { id: 'd7', name: 'Mirada Desafiante', t: 'p', tag: 'num', r: 2, c: 6, max: 2, req: ['d16'], d: r=>`Los que provoca la Carga de Escudo te atacan ${3+r} s (antes 3 s)`, touch: ['g_carga_escudo'], arch: 'vanguardia', icon: 'talents/guerrero-guardian-s4.webp', fx: { power: 'g_d_mirada' } },
-        { id: 'd8', name: 'Cambio: Barrido o Certero', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['d5', 'd12'], touch: ['g_guardia'], arch: 'guardia', icon: 'talents/guerrero-guardian-s6.webp', opts: [
+        { id: 'd8', name: 'Cambio: Barrido o Certero', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['d12', 'd5'], touch: ['g_guardia'], arch: 'guardia', icon: 'talents/guerrero-guardian-s6.webp', opts: [
             { k: 'A', name: 'Barrido de Escudo', desc: 'Al cambiar de postura, golpeas con el escudo a todos a 4 m (120 %) y los provocas 2 s (una vez cada 3 s)', role: 'AREA', fx: { power: 'g_d_barrido' } },
             { k: 'B', name: 'Cambio Certero', desc: 'Al cambiar de postura, tu siguiente golpe es crítico seguro; contra un jefe Quebrantado, además hace +30 %', role: 'UNI', fx: { power: 'g_d_cambio_certero' } },
           ],
           win: 'A, contra grupos: cada cambio es un golpe en área que además provoca. B, contra jefes: un crítico en cada cambio, más fuerte con el jefe Quebrantado. Decide qué Guardia juegas' },
-        { id: 'd9', name: 'Terremoto: Réplicas o Epicentro', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['d12', 'd3'], touch: ['terremoto'], arch: 'sismo', icon: 'skills256/terremoto.webp', opts: [
+        { id: 'd9', name: 'Terremoto: Réplicas o Epicentro', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['d5', 'd3'], touch: ['terremoto'], arch: 'sismo', icon: 'skills256/terremoto.webp', opts: [
             { k: 'A', name: 'Réplicas', desc: 'Plantado, el Terremoto suelta 4 réplicas (antes 2) que se abren hasta 8 m', role: 'AREA', fx: { mod: { terremoto: { repeatAdd: 2 } }, power: 'g_d_replicas' } },
             { k: 'B', name: 'Epicentro', desc: 'Plantado, el Terremoto hace +50 % en el centro (2 m) y a los jefes les llena 20 de Quebranto', role: 'UNI', fx: { power: 'g_d_epicentro' } },
           ],
@@ -230,7 +233,7 @@ export const GUERRERO_TALENTS = {
           ],
           win: 'A, contra grupos: juntas a la manada para el Terremoto. B, contra jefes: la carga se vuelve un golpe que les rompe la guardia. Decide qué Vanguardia juegas' },
         { id: 'd11', name: 'Corpulencia', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['d8'], d: r=>`+${8*r} % de vida máxima`, arch: 'guardia', icon: 'talents/guerrero-guardian-s11.webp', fx: { stats: { hpPct: 8 } } },
-        { id: 'd12', name: 'Tambor de Guerra', t: 'p', tag: 'mec', r: 2, c: 2, max: 2, req: ['d1', 'd4'], d: r=>`Cada enemigo que golpea el Terremoto acorta ${n1(0.5*r)} s la recarga de Piel de Hierro (hasta ${r} s por Terremoto)`, touch: ['terremoto', 'g_piel'], arch: 'sismo', icon: 'talents/guerrero-guardian-s15.webp', fx: { power: 'g_d_tambor' } },
+        { id: 'd12', name: 'Tambor de Guerra', t: 'p', tag: 'mec', r: 2, c: 0, max: 2, req: ['d1'], d: r=>`Cada enemigo que golpea el Terremoto acorta ${n1(0.5*r)} s la recarga de Piel de Hierro (hasta ${r} s por Terremoto)`, touch: ['terremoto', 'g_piel'], arch: 'sismo', icon: 'talents/guerrero-guardian-s15.webp', fx: { power: 'g_d_tambor' } },
         { id: 'd13', name: 'Escudo por Delante', t: 'p', tag: 'mec', r: 6, c: 4, max: 2, req: ['d20', 'd17'], d: r=>`Al llegar con la Carga de Escudo, bloqueas seguro los ${2*r} golpes siguientes (durante 4 s)`, touch: ['g_carga_escudo'], arch: 'vanguardia', icon: 'talents/guerrero-guardian-s1.webp', fx: { power: 'g_d_escudo_delante' } },
         { id: 'd14', name: 'Guardia Rota', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['d10'], d: ()=>'Los que arrastra la Carga de Escudo quedan Vulnerables 3 s: reciben más daño de todo tu grupo', touch: ['g_carga_escudo'], arch: 'vanguardia', icon: 'ui/st_debilidad.webp', fx: { power: 'g_d_guardia_rota' } },
         { id: 'd15', name: 'Última Línea o Roca', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['d11', 'd2'], touch: ['g_u_ciudadela'], icon: 'talents/guerrero-guardian-s2.webp', opts: [
@@ -277,15 +280,15 @@ export const GUERRERO_TALENTS = {
         { id: 'z2', name: 'Devoción', t: 'p', tag: 'num', r: 4, c: 2, max: 3, req: ['z8', 'z9'], d: r=>`El Martillo de Guerra hace +${10*r} % de daño`, touch: ['g_martillo'], arch: 'veredicto', icon: 'talents/guerrero-cruzado-s7.webp', fx: { mod: { g_martillo: { dmg: 10 } } } },
         { id: 'z3', name: 'Ligereza', t: 'p', tag: 'num', r: 2, c: 4, max: 3, req: ['z4', 'z16'], d: r=>`El Sendero de Luz se recarga en ${10-r} s (antes 10 s)`, touch: ['g_sendero'], arch: 'santuario', icon: 'talents/guerrero-cruzado-s17.webp', fx: { mod: { g_sendero: { cdr: 10 } } } },
         { id: 'z4', name: 'Marca Indeleble', t: 'p', tag: 'num', r: 1, c: 3, max: 2, req: ['z0'], d: r=>`Las marcas de Juicio duran ${8+4*r} s (antes 8 s)`, touch: ['g_juicio'], arch: 'sentencia', icon: 'talents/guerrero-cruzado-s1.webp', fx: { power: 'g_z_marca_indeleble' } },
-        { id: 'z5', name: 'Sello del Martillo', t: 'p', tag: 'mec', r: 2, c: 0, max: 1, req: ['z1'], d: ()=>'Soltar el Martillo de Guerra en la ventana perfecta marca con Juicio a todos los que golpea', touch: ['g_martillo', 'g_juicio'], arch: 'sentencia+veredicto', hyb: 'Sentencia + Veredicto', icon: 'talents/guerrero-cruzado-x2.webp', fx: { power: 'g_z_sello_martillo' } },
+        { id: 'z5', name: 'Sello del Martillo', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['z1', 'z4'], d: ()=>'Soltar el Martillo de Guerra en la ventana perfecta marca con Juicio a todos los que golpea', touch: ['g_martillo', 'g_juicio'], arch: 'sentencia+veredicto', hyb: 'Sentencia + Veredicto', icon: 'talents/guerrero-cruzado-x2.webp', fx: { power: 'g_z_sello_martillo' } },
         { id: 'z6', name: 'Golpe Consagrado', t: 'p', tag: 'mec', r: 4, c: 4, max: 1, req: ['z9', 'z10'], d: ()=>'Soltar en la ventana perfecta consagra 4 s el suelo donde cae el Martillo (40 % por segundo; 2 a la vez, no se suman)', touch: ['g_martillo'], arch: 'veredicto+santuario', hyb: 'Veredicto + Santuario', icon: 'talents/guerrero-cruzado-s11.webp', fx: { power: 'g_z_golpe_consagrado' } },
         { id: 'z7', name: 'Sendero Bendito', t: 'p', tag: 'mec', r: 2, c: 6, max: 2, req: ['z16'], d: r=>`En tu sendero, tus aliados se curan un ${n1(2+0.5*r)} % por segundo (antes 2 %; no se suma) y van un ${10*r} % más rápido`, touch: ['g_sendero'], arch: 'santuario', icon: 'talents/guerrero-cruzado-s3.webp', fx: { power: 'g_z_sendero_veloz' } },
-        { id: 'z8', name: 'Juicio: Estallido o Condena', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['z5', 'z12'], touch: ['g_juicio'], arch: 'sentencia', icon: 'talents/guerrero-cruzado-s9.webp', opts: [
+        { id: 'z8', name: 'Juicio: Estallido o Condena', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['z12', 'z5'], touch: ['g_juicio'], arch: 'sentencia', icon: 'talents/guerrero-cruzado-s9.webp', opts: [
             { k: 'A', name: 'Estallido de Luz', desc: 'Detonar una marca hace estallar el 50 % del golpe a todos a 3 m (cada enemigo, un estallido por lanzamiento)', role: 'AREA', fx: { power: 'g_z_estallido_luz' } },
             { k: 'B', name: 'Condena', desc: 'Las marcas en élites y jefes duran el doble y, al detonarlas, les llenas 15 de Quebranto', role: 'UNI', fx: { power: 'g_z_condena' } },
           ],
           win: 'A, contra grupos: cada detonación alcanza a la manada. B, contra jefes: la marca aguanta y cada detonación les rompe la guardia. Decide qué Sentencia juegas' },
-        { id: 'z9', name: 'Veredicto: Generoso o Pesado', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['z12', 'z3'], touch: ['g_martillo'], arch: 'veredicto', icon: 'skills256/g_martillo.webp', opts: [
+        { id: 'z9', name: 'Veredicto: Generoso o Pesado', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['z5', 'z3'], touch: ['g_martillo'], arch: 'veredicto', icon: 'skills256/g_martillo.webp', opts: [
             { k: 'A', name: 'Veredicto Generoso', desc: 'El Veredicto golpea a 8 m (antes 5 m) y además cura un 3 % a tus otros aliados a 8 m', role: 'AREA', fx: { power: 'g_z_veredicto_generoso' } },
             { k: 'B', name: 'Veredicto Pesado', desc: 'El Veredicto hace +80 % al objetivo principal y a los jefes les llena 25 de Quebranto', role: 'UNI', fx: { power: 'g_z_veredicto_pesado' } },
           ],
@@ -296,7 +299,7 @@ export const GUERRERO_TALENTS = {
           ],
           win: 'A, contra grupos: el sendero quema y frena a la manada. B, en grupo o contra jefes que pegan fuerte: proteges al más herido. Decide qué Santuario juegas' },
         { id: 'z11', name: 'Juicio Presto', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['z8'], d: r=>`Juicio se recarga en ${8-r} s (antes 8 s)`, touch: ['g_juicio'], arch: 'sentencia', icon: 'talents/guerrero-cruzado-s5.webp', fx: { mod: { g_juicio: { cdr: 12.5 } } } },
-        { id: 'z12', name: 'Liturgia', t: 'p', tag: 'mec', r: 2, c: 2, max: 2, req: ['z1', 'z4'], d: r=>`Cada suelta perfecta acorta ${n1(0.5*r)} s tus recargas, salvo la definitiva y Piel de Hierro (como mucho cada 2 s)`, touch: ['g_martillo'], arch: 'veredicto', icon: 'talents/guerrero-cruzado-s12.webp', fx: { power: 'g_z_liturgia' } },
+        { id: 'z12', name: 'Liturgia', t: 'p', tag: 'mec', r: 2, c: 0, max: 2, req: ['z1'], d: r=>`Cada suelta perfecta acorta ${n1(0.5*r)} s tus recargas, salvo la definitiva y Piel de Hierro (como mucho cada 2 s)`, touch: ['g_martillo'], arch: 'veredicto', icon: 'talents/guerrero-cruzado-s12.webp', fx: { power: 'g_z_liturgia' } },
         { id: 'z13', name: 'Tierra Bendita', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['z20', 'z17'], d: r=>`Tus zonas sagradas son un ${15*r} % más grandes y duran ${r} s más`, touch: ['g_sendero', 'g_u_cataclismo'], arch: 'santuario', icon: 'talents/guerrero-cruzado-s15.webp', fx: { power: 'g_z_tierra_bendita' } },
         { id: 'z14', name: 'Altar de Campaña', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['z10'], d: ()=>'Al llegar con el Sendero de Luz, levantas un altar 6 s: tus aliados a 4 m hacen +10 % de daño (no se suma)', touch: ['g_sendero'], arch: 'santuario', icon: 'talents/guerrero-cruzado-s15.webp', fx: { power: 'g_z_altar' } },
         { id: 'z15', name: 'Milagro o Luz Protectora', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['z11', 'z2'], touch: ['g_martillo'], icon: 'talents/guerrero-cruzado-s13.webp', opts: [
@@ -331,7 +334,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['t2', 't3', 't6', 't5', 't9', 't8', 't11', 't12', 't4', 't1'],
       cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c1: 2, c5: 1, c9: 1, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c27: 3, c30: 3, c8: 2, c4: 2 },
       clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c14: 'A', c16: 'A', c17: 'B' },
-      spec: { b3: 3, b7: 2, b6: 1, b10: 1, b13: 2, b14: 1, b17: 2, b21: 1, b24: 3, b27: 3, b28: 4, b2: 3, b9: 1, b16: 2, b20: 2 },
+      spec: { b16: 2, b3: 3, b7: 2, b6: 1, b10: 1, b13: 2, b14: 1, b17: 2, b21: 1, b24: 3, b27: 3, b28: 4, b2: 3, b9: 1, b20: 2 },
       specCh: { b9: 'A', b10: 'A' },
     },
     hibrido: {
@@ -355,7 +358,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['l2', 'l3', 'l6', 'l5', 'l9', 'l8', 'l11', 'l12', 'l4', 'l1'],
       cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c9: 1, c16: 1, c18: 2, c13: 2, c6: 1, c10: 1, c25: 3, c28: 3, c3: 2, c7: 1, c14: 1 },
       clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c11: 'B', c14: 'B', c15: 'A', c16: 'A', c22: 'B' },
-      spec: { b1: 3, b4: 2, b5: 1, b8: 1, b11: 2, b15: 1, b18: 2, b22: 3, b25: 3, b28: 4, b2: 3, b9: 1, b12: 2, b16: 2, b3: 1 },
+      spec: { b1: 3, b4: 2, b5: 1, b8: 1, b16: 1, b11: 2, b15: 1, b18: 2, b22: 3, b25: 3, b28: 4, b2: 3, b9: 1, b12: 2, b16_: 1, b3: 1 },
       specCh: { b8: 'A', b9: 'A', b15: 'B' },
     },
     gracia: {
@@ -379,7 +382,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['u2', 'u1', 'u4', 'u5', 'u8', 'u3', 'u7', 'u10', 'u12', 'u11'],
       cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c9: 1, c16: 1, c18: 2, c13: 2, c6: 1, c10: 1, c25: 3, c28: 3, c3: 2, c7: 1, c14: 1 },
       clsCh: { c5: 'B', c6: 'B', c9: 'A', c10: 'A', c11: 'A', c14: 'B', c15: 'A', c16: 'B', c22: 'B' },
-      spec: { d1: 3, d4: 2, d5: 1, d8: 1, d11: 2, d15: 1, d18: 2, d22: 3, d25: 3, d28: 4, d2: 3, d9: 1, d12: 2, d16: 2, d3: 1 },
+      spec: { d1: 3, d4: 2, d5: 1, d8: 1, d16: 1, d11: 2, d15: 1, d18: 2, d22: 3, d25: 3, d28: 4, d2: 3, d9: 1, d12: 2, d16_: 1, d3: 1 },
       specCh: { d8: 'A', d9: 'A', d15: 'B' },
     },
     sismo: {
@@ -391,7 +394,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['t2', 't1', 't4', 't5', 't7', 't8', 't10', 't9', 't11', 't12'],
       cls: { c1: 2, c2: 2, c5: 1, c6: 1, c9: 1, c12: 2, c13: 2, c16: 1, c19: 1, c23: 2, c10: 1, c17: 1, c20: 1, c4: 1, c8: 2, c15: 1, c3: 2, c26: 3, c29: 3, c24: 2, c4_: 2 },
       clsCh: { c5: 'A', c6: 'A', c9: 'A', c10: 'B', c15: 'A', c16: 'B', c17: 'B' },
-      spec: { d1: 3, d2: 3, d5: 1, d9: 1, d12: 2, d16: 2, d19: 2, d23: 3, d26: 3, d28: 4, d4: 1, d8: 1, d15: 1, d3: 3, d6: 1 },
+      spec: { d1: 3, d2: 3, d5: 1, d9: 1, d16: 2, d4: 1, d12: 2, d19: 2, d23: 3, d26: 3, d28: 4, d8: 1, d15: 1, d3: 3, d6: 1 },
       specCh: { d8: 'B', d9: 'B', d15: 'A' },
     },
     vanguardia: {
@@ -403,7 +406,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['t2', 't3', 't6', 't5', 't9', 't8', 't11', 't12', 't4', 't1'],
       cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c1: 2, c5: 1, c9: 1, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c27: 3, c30: 3, c8: 2, c4: 2 },
       clsCh: { c5: 'B', c6: 'B', c9: 'A', c10: 'A', c14: 'A', c16: 'B', c17: 'B' },
-      spec: { d3: 3, d7: 2, d6: 1, d10: 1, d13: 2, d14: 1, d17: 2, d21: 1, d24: 3, d27: 3, d28: 4, d2: 3, d9: 1, d16: 2, d20: 2 },
+      spec: { d16: 2, d3: 3, d7: 2, d6: 1, d10: 1, d13: 2, d14: 1, d17: 2, d21: 1, d24: 3, d27: 3, d28: 4, d2: 3, d9: 1, d20: 2 },
       specCh: { d9: 'A', d10: 'A' },
     },
     hibguard: {
@@ -427,7 +430,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['u2', 'u3', 'u6', 'u5', 'u9', 'u8', 'u11', 'u12', 'u4', 'u1'],
       cls: { c1: 2, c4: 3, c5: 1, c8: 2, c11: 1, c15: 1, c19: 1, c22: 1, c2: 2, c12: 2, c9: 1, c16: 1, c18: 2, c13: 2, c6: 1, c10: 1, c25: 3, c28: 3, c3: 2, c7: 1, c14: 1 },
       clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c11: 'B', c14: 'B', c15: 'A', c16: 'B', c22: 'B' },
-      spec: { z1: 3, z4: 2, z5: 1, z8: 1, z11: 2, z15: 1, z18: 2, z22: 3, z25: 3, z28: 4, z2: 3, z9: 1, z12: 2, z16: 2, z3: 1 },
+      spec: { z1: 3, z4: 2, z5: 1, z8: 1, z16: 1, z11: 2, z15: 1, z18: 2, z22: 3, z25: 3, z28: 4, z2: 3, z9: 1, z12: 2, z16_: 1, z3: 1 },
       specCh: { z8: 'A', z9: 'A', z15: 'A' },
     },
     celestial: {
@@ -451,7 +454,7 @@ export const GUERRERO_TALENTS = {
       heroNodes: ['u2', 'u1', 'u4', 'u5', 'u7', 'u8', 'u10', 'u9', 'u11', 'u12'],
       cls: { c2: 2, c3: 2, c6: 1, c7: 1, c10: 1, c14: 1, c17: 1, c20: 1, c24: 2, c1: 2, c5: 1, c9: 1, c12: 2, c13: 2, c16: 1, c21: 1, c23: 2, c27: 3, c30: 3, c8: 2, c4: 2 },
       clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c14: 'B', c16: 'B', c17: 'A' },
-      spec: { z3: 3, z7: 2, z6: 1, z10: 1, z13: 2, z14: 1, z17: 2, z21: 1, z24: 3, z27: 3, z28: 4, z2: 3, z9: 1, z16: 2, z20: 2 },
+      spec: { z16: 2, z3: 3, z7: 2, z6: 1, z10: 1, z13: 2, z14: 1, z17: 2, z21: 1, z24: 3, z27: 3, z28: 4, z2: 3, z9: 1, z20: 2 },
       specCh: { z9: 'A', z10: 'B' },
     },
     hibcruz: {
