@@ -121,6 +121,7 @@ import { rankBuff, rankCoef, channelRampPct } from './combat-math.js';
 import { gainGauge, spendGauge, setGauge, gaugeValue, gaugeState, gaugeTuning } from './spec-mechanics.js';
 import { drainResource, spendResource } from './resources.js';
 import { magaStorm } from './skills-maga.js';
+import { talentArtPath } from './talent-art.js';
 
 // ------------------------------------------------------------
 // CONSTANTES (perezosas: nada se evalúa al cargar el módulo). Los números que enseña la barra
@@ -1027,12 +1028,14 @@ function bastionWatch(g, p, tick) {
 // estado en powerState(p, 'm_marca_tiempo'): marks = Map(enemigo → { until, stored, ext }),
 // ends (Marcas acabadas: Bucle), stopUntil/stopOn (Señora del Tiempo), detener (m_h_detener)
 function cronoState(p) { return powerState(p, 'm_marca_tiempo'); }
+// arte del chip de la Marca en el marco del objetivo: el del nodo t0, el mismo del panel de talentos
+const CRONO_MARK_ART = talentArtPath('maga', 'crono', 't0') || 'talents/maga-clase-c12.webp';
 function putMark(g, p, e, st, stored = 0, until = null) {
   if (!e?.alive || st.marks.has(e)) return null;
   const m = { until: until ?? now(p) + magaTuning().marcaT + (tvOf(p).chronoDur || 0), stored, ext: 0 };
   st.marks.set(e, m);
   // el marco del objetivo la enseña (hud-model: e.uiMarks); se va sola cuando la Marca deja el estado
-  (e.uiMarks ||= {}).m_marca_tiempo = { id: 'm_marca_tiempo', name: 'Marca del Tiempo', art: 'talents/maga-clase-c12.webp',
+  (e.uiMarks ||= {}).m_marca_tiempo = { id: 'm_marca_tiempo', name: 'Marca del Tiempo', art: CRONO_MARK_ART,
     get t() { return st.marks.get(e) === m ? Math.max(m.until, st.stopUntil || 0) - now(p) : 0; } };
   ring(g, e.pos, 0.8, 0xe8c87a);
   return m;

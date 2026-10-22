@@ -11,7 +11,7 @@
 //      (Juicio, Punto Débil, Marca del Tiempo y Marca del Halcón)
 // Cada apartado falla sin su arreglo (uno roto no tapa a los demás; al final, exit 1 si alguno falla).
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { makeHarness } from './helpers/power-harness.mjs';
 import { talentMethods } from '../js/game-talents.js';
 import { worldResetProjectiles, MARK_SELF_AGE } from '../js/game-skills.js';
@@ -20,6 +20,7 @@ import { Player } from '../js/entities.js';
 import { normalizeTalents, forgeRecoFor } from '../js/talents.js';
 import { FORGE_RECO, CLASSES } from '../js/data.js';
 import { VERB_DOC } from '../js/skill-defs.js';
+import { talentArtPath } from '../js/talent-art.js';
 import * as HM from '../js/hud-model.js';
 
 const MAIN = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
@@ -182,7 +183,10 @@ section('M · Maga: la Marca del Tiempo (Cronomante) sale en el marco y se va al
   ok(marks(e).length === 0, 'sin marca antes del golpe');
   h.hit(e, { skill: 'm_dardo', dealt: 100, tags: ['basic', 'proj', 'arcane'], elem: 'arcane' });
   const m = marks(e);
-  ok(m.length === 1 && m[0].label === 'Marca del Tiempo' && m[0].icon === 'assets/talents/maga-clase-c12.webp', `chip de la Marca del Tiempo (${JSON.stringify(m)})`);
+  // con el arte propio del nodo t0 del Cronomante (el del panel de talentos), no el icono de respaldo
+  const art = talentArtPath('maga', 'crono', 't0');
+  ok(art && existsSync(new URL(`../assets/${art}`, import.meta.url)), `arte del nodo t0 (${art})`);
+  ok(m.length === 1 && m[0].label === 'Marca del Tiempo' && m[0].icon === `assets/${art}`, `chip de la Marca del Tiempo (${JSON.stringify(m)})`);
   ok(m[0].t > 3 && m[0].t <= 4 + 1e-6, `con lo que le queda (${m[0].t})`);
   h.tick(2);
   ok(marks(e)[0]?.t > 1 && marks(e)[0].t < 2.2, `baja con el tiempo (${marks(e)[0]?.t})`);
@@ -195,7 +199,9 @@ section('M · Arquera (Halconera): la Marca del Halcón sale en el marco', () =>
   ok(marks(e).length === 0, 'sin marca antes del picado');
   h.tick(7);
   const m = marks(e);
-  ok(m.length === 1 && m[0].label === 'Marca del Halcón' && m[0].icon === 'assets/talents/arquera-clase-c4.webp' && m[0].t > 0, `chip de la Marca del Halcón (${JSON.stringify(m)})`);
+  const art = talentArtPath('arquera', 'h3', 'y0');
+  ok(art && existsSync(new URL(`../assets/${art}`, import.meta.url)), `arte del nodo y0 (${art})`);
+  ok(m.length === 1 && m[0].label === 'Marca del Halcón' && m[0].icon === `assets/${art}` && m[0].t > 0, `chip de la Marca del Halcón (${JSON.stringify(m)})`);
 });
 
 console.log(`\n${checks} comprobaciones`);
