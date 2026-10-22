@@ -349,6 +349,8 @@ Están en `SKILL_KEYS` y las valida `validateSkillDef`; las documentan `VERB_DOC
 | `desgarro_canal`, `riftDecal` | `powers-maga.js` | Desgarro canalizado y su fisura en el suelo |
 | `g.skillProfile(p, id)` | `game-skills.js` (C1) | Perfil completo de una habilidad de la clase de `p` (`resolveSkillId`); `null` si no existe, es de otra clase o no hay héroe |
 
-Quedan pedidas (cola abierta, `MEMORIA.md` §5): `onWorldReset()` desde `Game.loadWorld`, `recoFor` con la build
-aplicada, `needsForm` «uno u otro», `noFlightLock` y una entidad viva genérica (`g.spawnEntity`), y `detonate.self` en
-`VERB_DOC.mark`.
+Cierre X1 (E5): `worldResetProjectiles(list)` (`game-skills.js`) avisa `onWorldReset()` desde `Game.loadWorld`;
+`p.talents.build[spec]` guarda la build del «Recomendado» y la usan `recoFor`, `applyForgeReco` y `specSwapSummary`;
+`VERB_DOC` documenta `detonate.self` (`MARK_SELF_AGE` = 0,5 s); `rankText`/`rankedText` (textos al rango);
+`e.uiMarks` (marcas visuales que guarda un poder). Quedan pedidas (cola abierta, `MEMORIA.md` §5): `needsForm`
+«uno u otro», `noFlightLock` y una entidad viva genérica (`g.spawnEntity`).
