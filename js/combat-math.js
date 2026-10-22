@@ -525,8 +525,16 @@ export function volatileDamage(avgHit) { return Math.max(1, Math.round((avgHit |
 
 // ---------- referencia: nivel de área esperado para un nivel de héroe ----------
 // (lo usa el banco de balance) — nv1-20: un poco por debajo del nivel (zonas
-// 3/8/13/18 para nv 1/6/11/16); nv>20: medio piso por nivel Paragon.
+// 3/8/13/18 para nv 1/6/11/16); nv21-70: medio piso por nivel.
+// Paso 2 (E4, B1): del 71 al 100 el héroe solo suma el árbol héroe, el tablero de glifos y 4
+// puntos de clase (el equipo ya está en ILVL_MAX): el DPS típico de las builds por defecto
+// crece ×1,27 de media del 70 al 100 (≈ 3 niveles de área de vida enemiga). La curva se
+// estira lo justo para medir: 0,1 por nivel desde el 70 (Nv80 → 48, Nv100 → 50; con el
+// 0,55 de antes eran 52 y 63, y un jefe de Nv100 duraba ×4). El ilvl no cambia.
+export const AREA_LEVEL_LATE = Object.freeze({ from: 70, perLevel: 0.1 });
 export function areaLevelForHero(level) {
   const L = Math.max(1, level | 0);
-  return L <= 20 ? Math.max(1, L - 1) : Math.round(19 + (L - 20) * 0.55);
+  if (L <= 20) return Math.max(1, L - 1);
+  const mid = Math.round(19 + (Math.min(L, AREA_LEVEL_LATE.from) - 20) * 0.55);
+  return L <= AREA_LEVEL_LATE.from ? mid : Math.round(mid + (L - AREA_LEVEL_LATE.from) * AREA_LEVEL_LATE.perLevel);
 }
