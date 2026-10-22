@@ -158,10 +158,6 @@ export const ARQUERA_SKILLS = [
     desc: 'Tu halcón ataca a tu blanco durante 6 s (40 % del arma cada 0,5 s): lo deja ciego (pega un 30 % menos) y a un jefe le llena 30 de Quebranto. Si muere, busca al enemigo más cercano. Se recarga en 30 s.' },
 ];
 
-// @deprecated catálogo v1: las ramas 3 × 3 desaparecen con la forja (2f). data.js aún lo
-// importa (y no lo usa): queda vacío hasta que W2 retire la importación.
-export const ARQUERA_SKILL_MODS = {};
-
 // ------------------------------------------------------------
 // utilidades de los comportamientos (solo métodos de Game / primitivas)
 // ------------------------------------------------------------

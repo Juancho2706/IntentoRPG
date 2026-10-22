@@ -11,7 +11,7 @@
 //
 // talentRefs(classId) → { powers:Set, grants:Set, behaviors:Set } referenciados por los
 // árboles (nodos y opciones de elección) y por las activas de talento de la clase (D29: en el
-// catálogo con kind 'talent'; en datos v1, también en TALENTS.skills).
+// catálogo con kind 'talent').
 // missingFor(classId) → lo que AÚN falta registrar:
 //   powers    ids de `power` sin entrada en POWER_HOOKS
 //   behaviors `behavior` de activas de talento sin defineSkillBehavior con cast (si la
@@ -24,14 +24,12 @@ import { CLASSES, specKitOf } from '../../js/data.js';
 import { skillCastable } from '../../js/game-skills.js';
 import { GENERIC_TYPES } from '../../js/skill-defs.js';
 
-/** @deprecated D23: nodos clave con `mult` de los árboles v1 (2c.0). Los árboles v2 no tienen
- *  nodos clave con efecto propio; se conserva para los test-powers-<clase> hasta E2. */
-export const KEY_NODE_MULTS = ['furia', 'm_berserk', 'm_deadeye', 'm_hunt'];
+/** Los únicos poderes con `mult` que un nodo de talento puede llevar (el resto declara tv o stats). */
+export const KEY_NODE_MULTS = ['furia', 'm_berserk'];
 
 const talentSkills = classId => {
-  const t = TALENT_TREES[classId];
   const byId = new Map();
-  for (const sk of [...(t?.skills || []), ...(CLASSES[classId]?.skills || []).filter(s => s.kind === 'talent')]) byId.set(sk.id, sk);
+  for (const sk of (CLASSES[classId]?.skills || []).filter(s => s.kind === 'talent')) byId.set(sk.id, sk);
   return [...byId.values()];
 };
 

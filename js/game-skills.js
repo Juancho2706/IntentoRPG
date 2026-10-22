@@ -1214,10 +1214,13 @@ export const skillMethods = {
     this.save?.();
     return { ok: true, unsocketed: out };
   },
-  /** @deprecated Paso 2 (D23): las ramas ya no existen (forja: chooseForge). No hace nada. */
-  chooseSkillMod(skillId, branchId, optId) {
-    void skillId; void branchId; void optId;
-    return false;
+
+  // Perfil resuelto (resolveSkill, cacheado en p.resolved) de una habilidad de la clase de `p`
+  // por id; null si no la tiene. Público para los poderes: no pueden importar skill-resolve
+  // (ciclo de módulos), así que lo piden al juego.
+  skillProfile(p, id) {
+    const sk = (p?.cls?.skills || []).find(s => s.id === id);
+    return sk ? resolveSkill(p, sk) : null;
   },
 
   // ¿Hay una principal PEDIDA (🖱️Der mantenido) y lista para salir? Entonces el

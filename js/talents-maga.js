@@ -46,18 +46,6 @@ export const MAGA_TV_KEYS = [
 // D29: las 6 activas de talento de la clase (los nodos las conceden con `grant`); su definición vive en el catálogo.
 export const MAGA_TALENT_SKILLS = ['m_t_bloque', 'm_t_inversion', 'm_t_contrahechizo', 'm_h_detener', 'm_h_palabra', 'm_h_constructo'];
 
-/** @deprecated D29 (puente de E1.5 hasta KA1): definición de las activas de talento que YA existen en el juego,
- *  mientras MAGA_CATALOG_V = 1 (data.js las fusiona en CLASSES como antes). Con el catálogo 2g
- *  (MAGA_CATALOG_V = 2) viven en skills-maga.js y data.js deja de leer esta lista; se borra en E5 (C1). */
-export const MAGA_TALENT_SKILL_DEFS = [
-  // juego v1: { id: 'm_t_bloque', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost', behavior: 'm_t_bloque', req: 10, cd: 90, dur: 4, color: 10478591, desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s.' }
-  { id: 'm_t_bloque', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost', req: 21, cd: 90, behavior: 'm_t_bloque', dur: 4, color: 10478591, grantBy: 'c11', line: 'Te encierras en hielo 4 s: no recibes daño, pero no te mueves.', desc: 'Te encierras en hielo: eres inmune durante 4 s, pero no puedes moverte ni atacar (esquiva para romperlo antes). Enfriamiento 90 s.', art: 'talents/maga-clase-c12.webp' },
-  // juego v1: { id: 'm_t_inversion', name: 'Inversión del Tiempo', icon: '⏳', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', behavior: 'm_t_inversion', req: 10, cd: 60, rewind: 5, color: 14140159, desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo se graba desde que conoces esta activa). Enfriamiento 60 s.' }
-  { id: 'm_t_inversion', name: 'Inversión del Tiempo', icon: '⏳', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'arcane'], elem: 'arcane', req: 27, cd: 60, behavior: 'm_t_inversion', rewind: 5, color: 14140159, grantBy: 'c17', line: 'Vuelves a la vida y al lugar que tenías hace 5 s.', desc: 'Vuelves a la vida y a la posición que tenías hace 5 s (el hilo del tiempo se graba desde que conoces esta activa). Enfriamiento 60 s.', art: 'talents/maga-clase-c12.webp' },
-  // juego v1: { id: 'm_t_contrahechizo', name: 'Contrahechizo', icon: '🚫', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'interrupt', 'arcane'], elem: 'arcane', behavior: 'm_t_contrahechizo', req: 10, cd: 18, range: 12, silence: 3, stagger: 20, color: 13404415, desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.' }
-  { id: 'm_t_contrahechizo', name: 'Contrahechizo', icon: '🚫', kind: 'talent', cat: 'utility', slots: ['k2'], tags: ['utility', 'interrupt', 'arcane'], elem: 'arcane', req: 31, cd: 18, behavior: 'm_t_contrahechizo', range: 12, silence: 3, stagger: 20, color: 13404415, grantBy: 'c22', line: 'Corta el hechizo de un enemigo a 12 m y lo deja mudo 3 s.', desc: 'Interrumpes al lanzador enemigo a 12 m y lo silencias 3 s; a los jefes les sumas 20 de stagger. Enfriamiento 18 s.', art: 'talents/maga-clase-c5.webp' },
-];
-
 export const MAGA_TALENTS = {
   v: 2,
   cls: { name: 'Maga', emblem: 'ui/res_mana.webp', art: 'specs/arcanista.webp', nodes: [
@@ -495,5 +483,4 @@ export const MAGA_TALENTS = {
     frost: { label: 'Toca todo tu Hielo', ids: ['m_dardo', 'nova_hielo', 'k_prision', 'm_paso_escarcha', 'k_lanza', 'm_u_tormenta'] },
     arcane: { label: 'Toca todo tu Arcano', ids: ['m_dardo', 'rayo', 'a_orbe', 'a_sello', 'm_u_desgarro'] },
   },
-  skills: MAGA_TALENT_SKILL_DEFS,   // puente D29 (ver arriba)
 };

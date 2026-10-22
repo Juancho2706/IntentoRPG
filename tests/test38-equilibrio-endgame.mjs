@@ -3,7 +3,7 @@
 // como rutina, jefe legendario 100%, glifos inflados).
 import { Player } from '../js/entities.js';
 import { generateItem, rollDrops, GLYPH_TYPES } from '../js/items.js';
-import { scaleEnemy, ENEMIES, bossForFloor, PARAGON_BOARD } from '../js/data.js';
+import { scaleEnemy, ENEMIES, bossForFloor, PARAGON_BOARDS } from '../js/data.js';
 import { paragonPathCost } from '../js/paragon-board.js';
 import { earnedAt } from '../js/talents.js';
 import { buildDungeon } from '../js/world.js';
@@ -84,29 +84,30 @@ if (l10.bossLegPct > 65) { console.log('❌ el jefe garantiza legendario casi si
 //    legendario + el camino a otra casilla cualquiera, con glifos r10 de su familia en los
 //    zócalos que toque) acota el poder.
 console.log('== Power budget ==');
+const BOARD_G = PARAGON_BOARDS.guerrero;
 const BUDGET = earnedAt('board', 100);
 if (BUDGET !== 16) { console.log(`❌ el tablero da ${BUDGET} puntos al Nv100 (deben ser 16)`); fail = true; }
-const legIds = PARAGON_BOARD.filter(n => n.type === 'legendary').map(n => n.id);
-for (const a of legIds) for (const b of legIds) if (a < b && paragonPathCost(PARAGON_BOARD, [a, b]) <= BUDGET) { console.log(`❌ ${a} y ${b} caben juntos`); fail = true; }
+const legIds = BOARD_G.filter(n => n.type === 'legendary').map(n => n.id);
+for (const a of legIds) for (const b of legIds) if (a < b && paragonPathCost(BOARD_G, [a, b]) <= BUDGET) { console.log(`❌ ${a} y ${b} caben juntos`); fail = true; }
 // caminos de cada brazo desde el Inicio (orden de compra), por BFS sobre el árbol
-const startN = PARAGON_BOARD.find(n => n.type === 'start');
+const startN = BOARD_G.find(n => n.type === 'start');
 const prevOf = new Map([[startN.id, null]]);
-for (const q = [startN]; q.length;) { const n = q.shift(); for (const o of PARAGON_BOARD) if (!prevOf.has(o.id) && Math.abs(o.x - n.x) + Math.abs(o.y - n.y) === 1) { prevOf.set(o.id, n.id); q.push(o); } }
+for (const q = [startN]; q.length;) { const n = q.shift(); for (const o of BOARD_G) if (!prevOf.has(o.id) && Math.abs(o.x - n.x) + Math.abs(o.y - n.y) === 1) { prevOf.set(o.id, n.id); q.push(o); } }
 const pathTo = id => { const out = []; for (let c = id; c && c !== startN.id; c = prevOf.get(c)) out.unshift(c); return out; };
-const sockets = PARAGON_BOARD.filter(n => n.type === 'socket').map(n => n.id);
+const sockets = BOARD_G.filter(n => n.type === 'socket').map(n => n.id);
 // (con semilla: con Math.random el equipo variaba y el ratio rozaba los topes)
 const p = buildHero(20, 1);
 const idx = () => { const s = p.stats; const dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + s.crit / 100 * 0.8) / s.atkTime; return dps * s.maxHP * (1 + s.arm / 100); };
 const base = idx();
 let best = { ratio: 0 }, tried = 0;
-for (const leg of legIds) for (const x of PARAGON_BOARD) {
+for (const leg of legIds) for (const x of BOARD_G) {
   const nodes = new Set([...pathTo(leg), ...pathTo(x.id)]);
   if (nodes.size !== BUDGET) continue;
-  if (paragonPathCost(PARAGON_BOARD, [...nodes]) !== BUDGET) { console.log(`❌ asignación no conexa ${[...nodes]}`); fail = true; continue; }
+  if (paragonPathCost(BOARD_G, [...nodes]) !== BUDGET) { console.log(`❌ asignación no conexa ${[...nodes]}`); fail = true; continue; }
   tried++;
   p.paragon = { nodes: Object.fromEntries([...nodes].map(id => [id, true])), glyphs: {} };
   for (const s of sockets.filter(s => nodes.has(s))) {
-    const sockFam = PARAGON_BOARD.find(n => n.id === pathTo(s)[0]).cat;
+    const sockFam = BOARD_G.find(n => n.id === pathTo(s)[0]).cat;
     const gt = GLYPH_TYPES.find(g => g.fam === sockFam) || GLYPH_TYPES[0];
     p.paragon.glyphs[s] = { stat: gt.stat, per: gt.per, adj: gt.adj, fam: gt.fam, famAdj: gt.famAdj, rank: 10, baseName: 'g' };
   }

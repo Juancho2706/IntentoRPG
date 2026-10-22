@@ -31,7 +31,7 @@ export const GUERRERO_LEGACY = {
     // básicos v4 → Tajo con la variante que más se le parece
     g_mandoble: { to: 'g_tajo', forge: 'i' },                 // golpe pesado → Desgarro
     g_embate: { to: 'g_tajo', forge: 'ii' },                  // barrido → Siega
-    // gastadoras v4 que pasan al kit: fuera de su especialización, Hendidura
+    // principales v4 (cat. spender) que pasan al kit: fuera de su especialización, Hendidura
     torbellino: { to: 'g_hendidura' },
     g_martillo: { to: { cruzado: 'g_martillo', '*': 'g_hendidura' } },
     terremoto: { to: { guardian: 'terremoto', '*': 'g_hendidura' } },

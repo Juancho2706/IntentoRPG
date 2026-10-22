@@ -80,11 +80,12 @@ for (const id of RETIRED) {
   assert.ok(!OWN[id] && !POWER_HOOKS[id] && !SKILL_BEHAVIORS[id], `${id}: retirado`);
   assert.ok(!new RegExp(`'${id}'`).test(SRC), `${id}: ya no lo cita powers-guerrero.js`);
 }
-// m_aegis (Muro Inquebrantable) y m_judgment también salen (§11.3): ningún nodo los lleva. Siguen
-// registrados en js/powers-common.js (no es de KT) hasta que la cola W2 los quite
+// m_aegis (Muro Inquebrantable) y m_judgment también salen (§11.3): ningún nodo los lleva y ya no
+// están en js/powers-common.js (E5)
 for (const id of ['m_aegis', 'm_judgment']) {
   assert.ok(!refs.powers.has(id), `${id}: ningún nodo del Guerrero lo lleva`);
   assert.ok(!new RegExp(`'${id}'`).test(SRC), `${id}: no lo cita powers-guerrero.js`);
+  assert.ok(!POWER_HOOKS[id], `${id}: ya no está registrado`);
 }
 console.log(`(e) ${RETIRED.length} poderes v1 retirados (y m_aegis, m_judgment sin nodo) ✓`);
 

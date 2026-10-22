@@ -57,7 +57,7 @@
     const p = { classId, level, strongholdsCleared: level >= 30 ? ['a', 'b'] : [], records: { bossKills: level >= 30 ? 6 : 0 },
       talents: Talents.normalizeTalents(null, classId), recompute() {} };
     const ops = panel.ops;
-    if (specId && specId !== 'none' && level >= Talents.TALENT_START_LEVEL) ops.chooseSpec(p, specId);
+    if (specId && specId !== 'none' && level >= Talents.TALENT_RULES.specAt) ops.chooseSpec(p, specId);
     if (build === 'preset') ops.applyPresetAll(p);
     return p;
   }

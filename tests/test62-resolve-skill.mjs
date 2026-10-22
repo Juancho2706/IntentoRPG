@@ -12,6 +12,7 @@ import { resolveSkill, rankBase, skillRank, isKnown, knownRankMap, supportFits, 
   SUPPORT_MOD, fitsSlot, cooldownWithMassacre, GCD, TALENT_SKILL_REQ } from '../js/skill-resolve.js';
 import { SKILL_BEHAVIORS } from '../js/powers.js';
 import { Player } from '../js/entities.js';
+import { skillMethods } from '../js/game-skills.js';
 import { CAPS } from '../js/combat-math.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
@@ -181,4 +182,23 @@ c.skillForge = { bola_fuego: 'i' };
 assert.equal(resolveSkill(c, bf), p1, 'sin recompute sigue cacheado');
 c.recompute();
 assert.equal(resolveSkill(c, bf).addPct, 45, 'recompute invalida p.resolved (cambio de forja)');
+console.log('Caché de p.resolved invalidada por recompute ✓');
+
+// ------------------------------------------------ 6) g.skillProfile(p, id): el perfil, público para los poderes
+{
+  const gm = { ...skillMethods };               // el mixin de Game (los poderes lo piden como g.skillProfile)
+  const h = new Player(mk(), 'guerrero'); h.level = 20; h.recompute();
+  const tbs = sk('guerrero', 'g_hendidura');
+  const viaG = gm.skillProfile(h, 'g_hendidura');
+  assert.equal(viaG, resolveSkill(h, tbs), 'el mismo perfil (y la misma caché) que resolveSkill');
+  assert.equal(viaG.rank, rankBase(20, 2), 'con el rango del héroe');
+  assert.equal(viaG.addPct, 0, 'sin soportes');
+  h.supports = { g_hendidura: ['amplify'] }; h.recompute();
+  assert.equal(gm.skillProfile(h, 'g_hendidura').addPct, 30, 'sigue a recompute: Amplificado suma +30');
+  assert.equal(gm.skillProfile(h, 'bola_fuego'), null, 'una habilidad de otra clase: null');
+  assert.equal(gm.skillProfile(h, 'no_existe'), null);
+  assert.equal(gm.skillProfile(null, 'g_hendidura'), null, 'sin héroe: null');
+}
+console.log('g.skillProfile(p, id): perfil público para los poderes ✓');
+
 console.log('\n✅ RESOLVEDOR DE HABILIDADES (resolveSkill) OK');

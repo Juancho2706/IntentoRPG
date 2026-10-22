@@ -2,7 +2,7 @@
 // (Nv81+, 16 al Nv100), conectividad, stats por nodo, legendarios sin poder y reinicio gratis
 // fuera de combate (los glifos se quedan en su zócalo)
 import assert from 'node:assert/strict';
-import { PARAGON_BOARD, PARAGON_BOARDS, PARAGON_BOARD_SIZE, paragonBoardFor, paragonPathCost,
+import { PARAGON_BOARDS, PARAGON_BOARD_SIZE, paragonBoardFor, paragonPathCost,
   PARAGON_SOCKET_STEP, PARAGON_LEGENDARY_STEP } from '../js/paragon-board.js';
 import { earnedAt, PARAGON_OPEN_LEVEL, paragonPointsEarned, paragonPointsLeft } from '../js/talents.js';
 import { Player } from '../js/entities.js';
@@ -45,8 +45,9 @@ for (const [cid, board] of Object.entries(PARAGON_BOARDS)) {
     assert.ok(paragonPathCost(board, [legs[i], legs[j]]) > earnedAt('board', 100), `${cid}: ${legs[i]} + ${legs[j]} no caben`);
   assert.ok(PARAGON_LEGENDARY_STEP <= earnedAt('board', 100));
 }
-assert.equal(PARAGON_BOARD, PARAGON_BOARDS.guerrero, 'alias @deprecated (D23)');
+assert.equal(paragonBoardFor('clase_inexistente'), PARAGON_BOARDS.guerrero, 'clase desconocida: el tablero del guerrero');
 assert.equal(paragonBoardFor('maga'), PARAGON_BOARDS.maga);
+const BOARD_G = PARAGON_BOARDS.guerrero;   // los casos de abajo usan el tablero del guerrero
 console.log('Tablero: molinete 9×9 de 45 casillas, árbol, legendario a 9 pasos, nunca dos con 16 puntos ✓');
 
 // ------------------------------------------------ 2) puntos derivados del nivel
@@ -85,10 +86,10 @@ console.log('Puntos derivados: 0 hasta el Nv80, 1 al Nv81, 16 al Nv100 ✓');
 // ------------------------------------------------ 3) conectividad y stats
 p.level = 100;
 p.paragon = { nodes: {}, glyphs: {} }; p.recompute();
-const start = PARAGON_BOARD.find(n => n.type === 'start');
-const adj = PARAGON_BOARD.find(n => n.type !== 'start' && dist(n, start) === 1);
+const start = BOARD_G.find(n => n.type === 'start');
+const adj = BOARD_G.find(n => n.type !== 'start' && dist(n, start) === 1);
 assert.ok(g.paragonNodeReachable(adj.id), 'contiguo al Inicio: accesible');
-const far = PARAGON_BOARD.find(n => dist(n, start) >= 3);
+const far = BOARD_G.find(n => dist(n, start) >= 3);
 assert.ok(!g.paragonNodeReachable(far.id), 'lejano: no');
 assert.equal(g.allocateParagonNode(far.id), false);
 assert.equal(g.allocateParagonNode('start'), false);
@@ -102,7 +103,7 @@ console.log(`Conectividad y stats: maxHP ${hp0}→${p.stats.maxHP}; 15 puntos li
 
 // ------------------------------------------------ 4) legendario: estadísticas, sin poder
 const sus = ['4_6', '4_7', '4_8', '3_8', '2_8', '1_8', '0_8', '0_7'];
-const leg = PARAGON_BOARD.find(n => n.id === '0_7');
+const leg = BOARD_G.find(n => n.id === '0_7');
 assert.equal(leg.type, 'legendary');
 const powers0 = new Set(p.powers), lph0 = p.stats.lph || 0, hpL = p.stats.maxHP;
 for (const id of sus) assert.equal(g.allocateParagonNode(id), true, id);
@@ -111,8 +112,8 @@ assert.ok(p.stats.maxHP >= hpL + leg.stats.hp, 'el legendario suma su vida');
 assert.equal((p.stats.lph || 0) - lph0, leg.stats.lph, 'y su vida al golpear');
 assert.deepEqual(new Set(p.powers), powers0, 'el tablero no concede poderes');
 // otro legendario no cabe: 7 puntos y está a 9 pasos
-const other = PARAGON_BOARD.find(n => n.type === 'legendary' && n.id !== '0_7');
-assert.ok(paragonPathCost(PARAGON_BOARD, [other.id]) > paragonPointsLeft(p));
+const other = BOARD_G.find(n => n.type === 'legendary' && n.id !== '0_7');
+assert.ok(paragonPathCost(BOARD_G, [other.id]) > paragonPointsLeft(p));
 console.log(`Legendario «${leg.name}»: ${leg.desc}; sin poder ✓`);
 
 // ------------------------------------------------ 5) reinicio gratis fuera de combate

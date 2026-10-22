@@ -617,8 +617,9 @@ const v3 = (x, z) => new THREE.Vector3(x, 0, z);
   for (const board of Object.values(PARAGON_BOARDS)) for (const n of board) if (n.power) used.add(n.power);
   for (const e of ERA_MUTATORS) if (e.power) used.add(e.power);
   assert.deepEqual(RETIRAR.filter(id => used.has(id)), [], 'ningún nodo, legendario, tablero ni era los usa');
+  assert.deepEqual(RETIRAR.filter(id => POWER_HOOKS[id]), [], 'y ya no están en el registro (powers-common.js, E5)');
   assert.ok(used.has('m_berserk') && POWER_HOOKS.m_shatter, 'm_berserk (b0) y m_shatter se quedan');
-  console.log(`Poderes v1 (${RETIRAR.join(', ')}): sin contenido que los use (se retiran cuando W-pruebas suelte test67/test60) ✓`);
+  console.log(`Poderes v1 (${RETIRAR.join(', ')}): sin contenido que los use y fuera del registro ✓`);
 }
 
 console.log('\n✅ COLA W2d-B (básico de arma, clearCC, miedo, Quebranto, topes, innate.mod, trampas, Punto Débil, APIs) OK');

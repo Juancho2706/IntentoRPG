@@ -1,6 +1,6 @@
 // Fase 4 / Paso 2g — tablero de glifos temático por clase + glifos de familia
 import assert from 'node:assert/strict';
-import { PARAGON_BOARDS, PARAGON_BOARD, paragonBoardFor, PARAGON_CATS, PG_CFG } from '../js/data.js';
+import { PARAGON_BOARDS, paragonBoardFor, PARAGON_CATS, PG_CFG } from '../js/data.js';
 import { makeGlyph, glyphValue } from '../js/items.js';
 import { Player } from '../js/entities.js';
 import { economyMethods } from '../js/economy.js';
@@ -8,11 +8,11 @@ import { buildDungeon } from '../js/world.js';
 
 globalThis.performance = globalThis.performance || { now: () => Date.now() };
 
-// --- 1) un tablero por clase; alias por defecto = guerrero (D23) ---
+// --- 1) un tablero por clase; una clase desconocida cae al del guerrero ---
 for (const c of ['guerrero', 'maga', 'arquera']) assert.ok(Array.isArray(PARAGON_BOARDS[c]), c);
-assert.equal(paragonBoardFor('guerrero'), PARAGON_BOARD);
-assert.equal(paragonBoardFor('clase_inexistente'), PARAGON_BOARD);
-console.log('Tableros por clase + alias por defecto ✓');
+assert.equal(paragonBoardFor('guerrero'), PARAGON_BOARDS.guerrero);
+assert.equal(paragonBoardFor('clase_inexistente'), PARAGON_BOARDS.guerrero);
+console.log('Tableros por clase + respaldo al del guerrero ✓');
 
 // --- 2) geometría idéntica (mismos ids, tipos y familias): saves y glifos estables ---
 const shape = b => b.map(n => `${n.id}:${n.type}:${n.cat}`).sort().join(',');

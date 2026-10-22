@@ -65,9 +65,6 @@ export const TALENT_RULES = Object.freeze({
 });
 const CLS_LATE = TALENT_RULES.clsLate;
 
-/** @deprecated D23: usa TALENT_RULES.specAt. Se borra en E5 (C1). */
-export const TALENT_START_LEVEL = TALENT_RULES.specAt;
-
 // puntos ganados de cada sistema al nivel L (copia literal de talents-v2-comun.js)
 export function earnedAt(w, L) {
   if (w === 'spec') return L < 10 ? 0 : Math.min(31, Math.floor((Math.min(L, 70) - 10) / 2) + 1);
@@ -815,39 +812,4 @@ export function normalizeTalents(raw, classId, level) {
   }
   Object.defineProperty(out, '_trimmed', { value: trimmed, enumerable: false });
   return out;
-}
-
-// ------------------------------------------------------------ envoltorios del banco (E4 los borra)
-/** @deprecated D23: el banco usa la defaultBuild. Lista [[id, rango acumulado, elección?], …]. */
-export function presetList(p, which) {
-  const key = defaultBuildKey(p?.classId, p?.talents?.spec);
-  const b = key && normBuild(TALENT_TREES[p.classId].builds[key]);
-  if (!b) return [];
-  const ch = { ...b.clsCh, ...b.specCh };
-  return (which === 'cls' ? b.clsOrder : b.specOrder).map(([id, n]) => (ch[id] ? [id, n, ch[id]] : [id, n]));
-}
-/** @deprecated D23: rangos de la defaultBuild de la especialización del jugador. */
-export function presetRanks(p, which) {
-  const key = defaultBuildKey(p?.classId, p?.talents?.spec);
-  if (!key) return null;
-  const r = buildRanks(p, TALENT_TREES[p.classId].builds[key]);
-  return which === 'cls' ? r.cls : (r.sp[p.talents.spec] || {});
-}
-
-// ------------------------------------------------------------ retirados (D23, se borran en E5)
-/** @deprecated D23: las insignias son habilidades del catálogo (D7). Devuelve null. */
-export function specInsignia() { return null; }
-/** @deprecated D23: los puntos de talento llegan hasta LEVEL_MAX (v1: 50). */
-export const TALENT_CAP_LEVEL = LEVEL_MAX;
-/** @deprecated D11: sin hazañas; siempre 0. */
-export function featCount() { return 0; }
-/** @deprecated D23: el elemento es el del catálogo (sk.elem) o el forjado (aggregateTalents elemOf). */
-export const SKILL_ELEM = Object.freeze({});
-/** @deprecated D23: nombres de elemento (la UI tiene los suyos). */
-export const ELEM_NAME = Object.freeze({ fire: 'Fuego', frost: 'Escarcha', arcane: 'Arcano', phys: 'Físico', physical: 'Físico', holy: 'Sagrado', nature: 'Naturaleza' });
-/** @deprecated D23: elemento base del catálogo. */
-export function skillElem(sk) { return sk?.elem || null; }
-/** @deprecated D23: rango base de una activa de talento (v1); las de v2 usan el rango por nivel. */
-export function talentSkillBase(level) {
-  return Math.max(1, Math.min(6, 1 + Math.floor(Math.max(0, (level || 1) - TALENT_RULES.specAt) / 8)));
 }

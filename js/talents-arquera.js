@@ -29,10 +29,6 @@ export const ARQUERA_TV_KEYS = [
   'galeT', 'tripleDmg', 'tripleWide', 'farTense', 'tenseRange', 'trapBurstPct', 'thornPoison', 'batidaDur', 'batidaPreyStagger',
 ];
 
-/** @deprecated D29: puente de E1.5 (las activas de talento cuando el catálogo era v1). Con el catálogo 2g
- *  (ARQUERA_CATALOG_V = 2) viven en skills-arquera.js y data.js no lee esta lista: queda vacía y se borra en E5 (C1). */
-export const ARQUERA_TALENT_SKILL_DEFS = [];
-
 export const ARQUERA_TALENTS = {
   v: 2,
   cls: { name: 'Arquera', emblem: 'ui/res_energia.webp', art: 'specs/tiradora.webp', nodes: [
@@ -469,5 +465,4 @@ export const ARQUERA_TALENTS = {
   groups: {
     flechas: { label: 'Toca todas tus flechas', ids: ['a_disparo', 'flecha_perforante', 'lluvia_flechas', 'a_t_andanada', 'a_v_carrera', 'flecha_multiple', 'a_u_diluvio', 'a_t_apuntado', 'a_f_rastreador', 'a_u_celeste', 'a_m_detonante'] },
   },
-  skills: ARQUERA_TALENT_SKILL_DEFS,   // puente D29 vacío (ver arriba)
 };

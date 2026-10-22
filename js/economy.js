@@ -463,16 +463,11 @@ export const economyMethods = {
   },
   
   // Cambiar talentos, forja o tablero es GRATIS fuera de combate (tras 5 s sin dar ni
-  // recibir daño, o en un campamento). Paso 2g: sin respecSkills (la forja no tiene puntos
-  // que reembolsar; las habilidades se aprenden solas por nivel).
+  // recibir daño, o en un campamento). Paso 2g: las habilidades no se reinician (la forja no
+  // tiene puntos que reembolsar; se aprenden solas por nivel).
   canRespecFree() {
     const p = this.player;
     return !!p && (this.inSafeCamp || (p.sinceCombat ?? 99) >= 5);
-  },
-  /** @deprecated D23: la forja es gratis y no tiene puntos (U3 quita el botón en E3; C1 lo borra en E5). */
-  respecSkills() {
-    this.ui?.message?.('📖 La forja es gratis: cambia las variantes en el libro (T)', 3000);
-    return false;
   },
 
   // ---------- tablero de glifos (Nv81+, 16 puntos derivados del nivel; §3.9) ----------

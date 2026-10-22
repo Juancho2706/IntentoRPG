@@ -84,7 +84,8 @@ for (const s of CLASSES.arquera.skills.filter(x => x.kind === 'talent')) ok(SKIL
     ok(!OWN[id], `${id}: retirado de powers-arquera.js`);
     ok(!refs.has(id), `${id}: ningún nodo lo usa`);
   }
-  // m_deadeye y m_hunt siguen definidos en powers-common.js (núcleo congelado): sin nodo de la Arquera
+  // m_deadeye y m_hunt también salieron de powers-common.js (E5)
+  ok(!POWER_HOOKS.m_deadeye && !POWER_HOOKS.m_hunt, 'm_deadeye y m_hunt ya no están registrados');
   ok(!['t_galechain', 'f_weakspot', 'm_thornweb'].some(id => SRC.includes(`'${id}'`)), 'sin ids viejos en el código');
 }
 
