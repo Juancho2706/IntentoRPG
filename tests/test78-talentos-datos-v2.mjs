@@ -29,7 +29,7 @@ import * as T from '../js/talents.js';
 import * as SD from '../js/skill-defs.js';
 import { POWER_HOOKS } from '../js/powers.js';
 import { CRIT_CDR_TV_KEYS, usesCoreTv, commonPowers } from '../js/powers-common.js';
-import { CLASSES, SPEC_BAR, specKitOf } from '../js/data.js';
+import { CLASSES, SPEC_BAR, specKitOf, SKILL_FORGE } from '../js/data.js';
 import * as TM from '../js/talents-maga.js';
 import * as TG from '../js/talents-guerrero.js';
 import * as TA from '../js/talents-arquera.js';
@@ -63,10 +63,11 @@ const { ELEMS, CATS } = SD;
 const ELEM_KEYS = new Set([...ELEMS, 'phys']);
 // claves de un nodo (§3.1) y de una opción de elección
 // `needs` (D1): las habilidades que de verdad disparan el efecto, para el nivel de aprendizaje (js/talents.js)
-const NODE_KEYS = new Set(['id', 'name', 't', 'tag', 'r', 'c', 'max', 'req', 'free', 'fx', 'opts', 'd', 'win', 'touch', 'needs', 'icon', 'arch', 'final', 'hyb', 'todo']);
+// needsForm (S0, T5): la forma de habilidad que el nodo necesita (skill-defs.FORM_NEEDS; el libro avisa si la forja la incumple)
+const NODE_KEYS = new Set(['id', 'name', 't', 'tag', 'r', 'c', 'max', 'req', 'free', 'fx', 'opts', 'd', 'win', 'touch', 'needs', 'icon', 'arch', 'final', 'hyb', 'todo', 'needsForm']);
 // `todo` (la nota `impl` del esqueleto de E1.5) también va en cada opción: aviso, como en el nodo.
 // `touch` e `icon` por opción son del contrato del mockup (README-talents-v2: lo que ilumina cada opción)
-const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx', 'todo', 'touch', 'needs', 'icon']);
+const OPT_KEYS = new Set(['k', 'name', 'desc', 'role', 'fx', 'todo', 'touch', 'needs', 'icon', 'needsForm']);
 // stats que SUMA recompute: el saco `item` de Player.recompute (js/entities.js) y los atributos.
 // addStats descarta en silencio cualquier otra clave: un nodo con una errata no haría nada
 const ENTITIES_SRC = readFileSync(new URL('../js/entities.js', import.meta.url), 'utf8');
@@ -213,6 +214,20 @@ export function checkClassData(cid, data, ctx) {
   for (const h of heroes) if (!Array.isArray(h.specs) || h.specs.length !== 2 || new Set(h.specs).size !== 2 || h.specs.some(x => !specs.some(s => s.id === x)))
     err('héroe', `${h.id}: specs = 2 especializaciones distintas de la clase`);
   for (const s of specs) { const k = heroes.filter(h => (h.specs || []).includes(s.id)).length; if (k !== 2) err('héroe', `${s.id} está en ${k} árboles héroe (deben ser 2)`); }
+  // dependencias de forma (S0, T5): needsForm = { habilidad del catálogo: condición | [condiciones] } del vocabulario
+  const needsForm = (nf, at) => {
+    if (nf == null) return;
+    if (!nf || typeof nf !== 'object' || Array.isArray(nf)) { err('needsForm', `${at}: needsForm = { habilidad: condición | [condiciones] }`); return; }
+    for (const [id, c] of Object.entries(nf)) {
+      if (!ctx.skillOf(id)) err('needsForm', `${at}: needsForm.${id} no es una habilidad del catálogo`);
+      const cs = [].concat(c);
+      if (!cs.length || cs.some(x => !SD.formNeedValid(x))) err('needsForm', `${at}: needsForm.${id} = ${JSON.stringify(c)} (vocabulario: ${Object.keys(SD.FORM_NEEDS).join(', ')}, type:…, tag:…, !…)`);
+    }
+  };
+  for (const [w, nodes] of trees) for (const n of nodes) {
+    needsForm(n.needsForm, `${w}/${n.id}`);
+    for (const o of n.opts || []) needsForm(o.needsForm, `${w}/${n.id}${o.k}`);
+  }
   // textos (G7), elecciones, grants (G2), fx, poderes, tv
   const kitIds = new Set(specs.flatMap(s => ctx.kitOf(s.id) || []));
   const powerAt = new Map();
@@ -326,6 +341,15 @@ export function checkClassData(cid, data, ctx) {
     let hybrids = 0;
     for (const [key, raw] of bs) {
       const b = T.normBuild(raw);
+      // forja de la build (S0, T5): { habilidad con forja: 'i' | 'ii' | null }
+      if (raw.forge != null) {
+        if (!raw.forge || typeof raw.forge !== 'object' || Array.isArray(raw.forge)) err('builds', `${key}: forge = { habilidad: 'i' | 'ii' | null }`);
+        else for (const [id, v] of Object.entries(raw.forge)) {
+          if (!ctx.skillOf(id)) err('builds', `${key}: forge.${id} no es una habilidad del catálogo`);
+          else if (ctx.forgeOf && !ctx.forgeOf(id)) err('builds', `${key}: forge.${id} no tiene forja`);
+          if (v !== null && v !== 'i' && v !== 'ii') err('builds', `${key}: forge.${id} = ${JSON.stringify(v)} ('i', 'ii' o null)`);
+        }
+      }
       for (const [id] of [...b.clsOrder, ...b.specOrder]) if (!seen.has(id)) err('builds', `${key}: id desconocido «${id}»`);
       const cls = T.fillByOrder(data.cls.nodes, T.CLASS_GATES, b.clsOrder, T.earnedAt('cls', 100));
       const sp = T.fillByOrder(s.nodes, T.SPEC_GATES, b.specOrder, T.earnedAt('spec', 100));
@@ -391,6 +415,7 @@ for (const [cid, data] of Object.entries(T.TALENT_TREES)) {
   const ctx = { prefix: POWER_PREFIX[cid], common: COMMON_POWER_IDS, isRegistered: id => !!POWER_HOOKS[id], powerClass: realPowers,
     tvKeys: new Set([...T.CORE_TV_KEYS, ...(mod[`${PREFIX[cid]}_TV_KEYS`] || [])]), kitOf: spec => specKitOf(cid, spec),
     skillOf: id => CLASSES[cid].skills.find(s => s.id === id) || null, specBar: spec => SPEC_BAR?.[spec]?.bar || null,
+    forgeOf: id => SKILL_FORGE[id] || null,
     g17: G17_EXCEPTION[cid] || null, g16: G16_STRICT.has(cid), warnings: [], strict: STRICT[cid], reorder: REJILLA_CLASE[cid] };
   const errs = checkClassData(cid, data, ctx);
   assert.deepEqual(errs, [], `${cid}: datos v2 con errores:\n${errs.join('\n')}`);
@@ -531,6 +556,11 @@ expectFail('la clase nombra el kit (G1)', d => { node(d.cls.nodes, 'c7').touch =
 expectFail('una opción de la clase nombra el kit (G1)', d => { node(d.cls.nodes, 'c6').opts[1].touch = ['fx_crionte_k2']; }, 'G1');
 expectFail('build ilegal punto a punto (G8)', d => { const b = d.builds.brasa; delete b.cls.c1; }, 'builds');
 expectFail('elección de build inválida', d => { d.builds.rayo.specCh.a8 = 'C'; }, 'builds');
+// S0 (T5): forja de la build y dependencias de forma de los nodos
+expectFail('forja de build con variante inválida', d => { d.builds.rayo.forge = { [FIX.FIXTURE_KITS.arcanista[0]]: 'iii' }; }, 'builds');
+expectFail('forja de build de una habilidad que no existe', d => { d.builds.rayo.forge = { no_existe: 'i' }; }, 'builds');
+expectFail('needsForm con condición fuera del vocabulario', d => { node(d.cls.nodes, 'c2').needsForm = { [FIX.FIXTURE_KITS.arcanista[0]]: 'canaliza' }; }, 'needsForm');
+expectFail('needsForm de una habilidad que no existe', d => { node(d.cls.nodes, 'c6').opts[0].needsForm = { no_existe: 'channel' }; }, 'needsForm');
 expectFail('tres builds en una especialización', d => { delete d.builds.hibcrio; }, 'builds');
 expectFail('sin build híbrida', d => { delete d.builds.hibarca; d.builds.hibarca = clone(d.builds.rayo); }, 'builds');
 expectFail('defaultBuild de otra especialización', d => { d.defaultBuild.crionte = 'brasa'; }, 'builds');

@@ -281,8 +281,8 @@ export const MAGA_TALENTS = {
         // 4 y 5. Se cambian de casilla de dos en dos: las aristas del árbol quedan como estaban
         { id: 'a13', name: 'Torrente Arcano', t: 'p', tag: 'num', r: 1, c: 5, max: 2, req: ['a0'], d: r=>`El Desgarro Arcano y el Orbe hacen +${15*r} % de daño`, touch: ['m_u_desgarro', 'a_orbe'], arch: 'grieta', icon: 'talents/maga-arcanista-s13.webp', fx: { mod: { m_u_desgarro: { dmg: 15 }, a_orbe: { dmg: 15 } } } },
         { id: 'a4', name: 'Potencia Acumulada', t: 'p', tag: 'num', r: 2, c: 0, max: 2, req: ['a1'], d: r=>`Cada Carga da +${35+5*r} % al Rayo (antes +35 %)`, touch: ['rayo'], arch: 'rayo', icon: 'talents/maga-arcanista-s4.webp', fx: { tv: { chargeDmg: 5 } } },
-        { id: 'a5', name: 'Rebote Cargado', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['a1', 'a2'], d: ()=>'Cada enemigo que toca el Orbe Arcano te da 1 Carga', touch: ['a_orbe'], hyb: 'Rayo + Orbe', icon: 'talents/maga-arcanista-s5.webp', fx: { power: 'a_rebote_cargado' } },
-        { id: 'a6', name: 'Sello Cargado', t: 'p', tag: 'mec', r: 2, c: 4, max: 1, req: ['a2', 'a13'], d: ()=>'Dentro de tu Sello del Archimago, el Orbe y el Desgarro te dan 1 Carga por golpe', touch: ['a_sello', 'a_orbe', 'm_u_desgarro'], needs: ['a_sello'], hyb: 'Orbe + Grieta', icon: 'talents/maga-arcanista-s9.webp', fx: { power: 'a_sello_cargado' } },
+        { id: 'a5', name: 'Rebote Cargado', t: 'p', tag: 'mec', r: 2, c: 2, max: 1, req: ['a1', 'a2'], d: ()=>'Cada enemigo que alcanzan las descargas del Orbe Arcano te da 1 Carga (una vez por orbe)', touch: ['a_orbe'], hyb: 'Rayo + Orbe', icon: 'talents/maga-arcanista-s5.webp', fx: { power: 'a_rebote_cargado' } },
+        { id: 'a6', name: 'Sello Cargado', t: 'p', tag: 'mec', r: 2, c: 4, max: 1, req: ['a2', 'a13'], d: ()=>'Dentro de tu Sello del Archimago, el Orbe y el Desgarro te dan 1 Carga al golpear (como mucho 1 cada 0,5 s)', touch: ['a_sello', 'a_orbe', 'm_u_desgarro'], needs: ['a_sello'], hyb: 'Orbe + Grieta', icon: 'talents/maga-arcanista-s9.webp', fx: { power: 'a_sello_cargado' } },
         { id: 'a17', name: 'Sello Viviente', t: 'p', tag: 'mec', r: 2, c: 6, max: 2, req: ['a13'], d: r=>`El Sello del Archimago dura ${8+2*r} s (antes 8 s) y te sigue`, touch: ['a_sello'], arch: 'grieta', icon: 'talents/maga-arcanista-s9.webp', fx: { mod: { a_sello: { durS: 2 } }, power: 'a_sello_sigue' } },
         { id: 'a8', name: 'Rayo: Doble o Recargado', t: 'c', tag: 'mec', r: 3, c: 1, max: 1, req: ['a4', 'a5'], touch: ['rayo'], arch: 'rayo', icon: 'talents/maga-arcanista-s6.webp', opts: [
             { k: 'A', name: 'Rayo Doble', desc: 'Un Rayo con 4 Cargas se lanza dos veces; la copia hace el 50 %', role: 'UNI', fx: { power: 'a_rayo_doble' } },
@@ -291,35 +291,35 @@ export const MAGA_TALENTS = {
           win: 'A, contra jefes: el golpe grande sale dos veces. B, contra grupos en fila. Decide qué Rayo juegas' },
         { id: 'a9', name: 'Orbe: Cargado o Atrayente', t: 'c', tag: 'mec', r: 3, c: 3, max: 1, req: ['a5', 'a6'], touch: ['a_orbe'], arch: 'orbe', icon: 'talents/maga-arcanista-s4.webp', opts: [
             { k: 'A', name: 'Orbe Cargado', desc: 'El Orbe hace +20 % por cada Carga que tienes, sin gastarlas', role: 'UNI', fx: { power: 'a_orbe_cargado' } },
-            { k: 'B', name: 'Orbe Atrayente', desc: 'El Orbe arrastra hacia su camino a los enemigos a 3 m', role: 'AREA', fx: { power: 'a_orbe_atrae' } },
+            { k: 'B', name: 'Orbe Atrayente', desc: 'Al detenerse, el Orbe atrae hacia sí a los enemigos a 4 m', role: 'AREA', fx: { power: 'a_orbe_atrae' } },
           ],
           win: 'A, contra jefes. B, contra grupos: los junta para el Rayo. Decide qué Orbe juegas' },
-        { id: 'a10', name: 'Desgarro: Fijo o Voraz', t: 'c', tag: 'mec', r: 3, c: 5, max: 1, req: ['a6', 'a17'], touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s14.webp', opts: [
+        { id: 'a10', name: 'Desgarro: Fijo o Voraz', t: 'c', tag: 'mec', r: 3, c: 5, max: 1, req: ['a6', 'a17'], touch: ['m_u_desgarro'], needsForm: { m_u_desgarro: 'channel' }, arch: 'grieta', icon: 'talents/maga-arcanista-s14.webp', opts: [
             { k: 'A', name: 'Desgarro Fijo', desc: 'Si no te mueves, el Desgarro hace +8 % cada medio segundo (hasta +48 %)', role: 'UNI', fx: { power: 'a_desgarro_fijo' } },
-            { k: 'B', name: 'Desgarro Voraz', desc: 'Cada enemigo que toca el Desgarro te da 3 de maná, y ganas 1 Carga por segundo', role: 'AREA', fx: { power: 'a_desgarro_voraz' } },
+            { k: 'B', name: 'Desgarro Voraz', desc: 'Cada golpe del Desgarro te da 1,5 de maná por enemigo (hasta 3), y ganas 1 Carga por segundo', role: 'AREA', fx: { power: 'a_desgarro_voraz' } },
           ],
           win: 'A, contra jefes quietos. B, contra grupos: sostiene tu maná. Decide qué Grieta juegas' },
         { id: 'a11', name: 'Precisión Arcana', t: 'p', tag: 'num', r: 4, c: 0, max: 2, req: ['a8'], d: r=>`El Rayo tiene +${10*r} % de crítico`, touch: ['rayo'], arch: 'rayo', icon: 'talents/maga-arcanista-s11.webp', fx: { mod: { rayo: { crit: 10 } } } },
-        { id: 'a12', name: 'Inercia', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['a8', 'a9'], d: r=>`Cada rebote del Orbe recarga ${n1(0.5*r)} s del Rayo`, touch: ['a_orbe', 'rayo'], needs: ['rayo'], arch: 'orbe', icon: 'talents/maga-arcanista-s12.webp', fx: { power: 'a_inercia' } },
+        { id: 'a12', name: 'Inercia', t: 'p', tag: 'mec', r: 4, c: 2, max: 2, req: ['a8', 'a9'], d: r=>`Cada descarga del Orbe que golpea recarga ${n1(0.1*r)} s del Rayo (hasta ${r} s por orbe)`, touch: ['a_orbe', 'rayo'], needs: ['rayo'], arch: 'orbe', icon: 'talents/maga-arcanista-s12.webp', fx: { power: 'a_inercia' } },
         { id: 'a3', name: 'Flujo Constante', t: 'p', tag: 'num', r: 4, c: 4, max: 3, req: ['a9', 'a10'], d: r=>`El Desgarro Arcano se recarga en ${50-5*r} s (antes 50 s)`, touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s3.webp', fx: { mod: { m_u_desgarro: { cdr: 10 } } } },
-        { id: 'a14', name: 'Maná Inagotable', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['a10'], d: ()=>'Mientras canalizas el Desgarro recuperas un 2 % de maná por segundo', touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s3.webp', fx: { power: 'a_mana_inagotable' } },
+        { id: 'a14', name: 'Maná Inagotable', t: 'p', tag: 'mec', r: 4, c: 6, max: 1, req: ['a10'], d: ()=>'Mientras canalizas el Desgarro recuperas un 2 % de maná por segundo', touch: ['m_u_desgarro'], needsForm: { m_u_desgarro: 'channel' }, arch: 'grieta', icon: 'talents/maga-arcanista-s3.webp', fx: { power: 'a_mana_inagotable' } },
         { id: 'a15', name: 'Desplazamiento o Velo', t: 'c', tag: 'mec', r: 5, c: 1, max: 1, req: ['a11', 'a12'], icon: 'talents/maga-arcanista-s8.webp', opts: [
             { k: 'A', name: 'Desplazamiento', desc: 'Un golpe de más del 20 % de tu vida te teletransporta 5 m y no te hace daño. Una vez cada 30 s', role: 'AGU', fx: { power: 'a_desplazamiento' } },
             { k: 'B', name: 'Velo Arcano', desc: 'Con 3 o más Cargas, recibes un 12 % menos de daño', role: 'AGU', fx: { tv: { drCharges: 12 } } },
           ],
           win: 'A, contra golpes grandes de jefe. B, siempre activo contra grupos' },
         { id: 'a16', name: 'Resonancia', t: 'p', tag: 'mec', r: 5, c: 3, max: 2, req: ['a12', 'a3'], d: r=>`Con 4 Cargas, no se pierden y tienes +${6*r} % de crítico`, hyb: 'Los tres estilos (por las Cargas)', icon: 'talents/maga-arcanista-s16.webp', fx: { power: 'a_resonance' } },
-        { id: 'a7', name: 'Grieta Abierta', t: 'p', tag: 'mec', r: 5, c: 5, max: 2, req: ['a3', 'a14'], d: r=>`Al terminar el Desgarro, la grieta queda ${1+r} s y daña un 40 % por segundo`, touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s7.webp', fx: { power: 'a_grieta' } },
+        { id: 'a7', name: 'Grieta Abierta', t: 'p', tag: 'mec', r: 5, c: 5, max: 2, req: ['a3', 'a14'], d: r=>`Al terminar el Desgarro, la grieta queda ${1+r} s y daña un 40 % por segundo`, touch: ['m_u_desgarro'], needsForm: { m_u_desgarro: 'channel' }, arch: 'grieta', icon: 'talents/maga-arcanista-s7.webp', fx: { power: 'a_grieta' } },
         { id: 'a18', name: 'Carga Final', t: 'p', tag: 'mec', r: 6, c: 0, max: 2, req: ['a15'], d: r=>`Un Rayo con 4 Cargas te devuelve ${r} Carga${r > 1 ? 's' : ''}`, touch: ['rayo'], arch: 'rayo', icon: 'talents/maga-arcanista-s6.webp', fx: { power: 'a_carga_final' } },
-        { id: 'a19', name: 'Satélite', t: 'p', tag: 'mec', r: 6, c: 2, max: 2, req: ['a15', 'a16'], d: r=>`Cada 3.er Orbe deja un orbe pequeño girando a tu alrededor 6 s (${20*r} % por golpe)`, touch: ['a_orbe'], arch: 'orbe', icon: 'talents/maga-arcanista-s5.webp', fx: { power: 'a_satelite' } },
+        { id: 'a19', name: 'Satélite', t: 'p', tag: 'mec', r: 6, c: 2, max: 2, req: ['a15', 'a16'], d: r=>`Cada 3.er Orbe, al volver, no se absorbe (ni su Carga): gira a tu alrededor 8 s y golpea a quien toca (${20*r} % por golpe)`, touch: ['a_orbe'], arch: 'orbe', icon: 'talents/maga-arcanista-s5.webp', fx: { power: 'a_satelite' } },
         { id: 'a20', name: 'Agudeza', t: 'p', tag: 'num', r: 6, c: 4, max: 2, req: ['a16', 'a7'], d: r=>`Con 3 o más Cargas, lanzas un ${7*r} % más rápido`, touch: ['@arcane'], icon: 'talents/maga-arcanista-s2.webp', fx: { tv: { aspdCharges: 7 } } },
-        { id: 'a21', name: 'Doble Grieta', t: 'p', tag: 'mec', r: 6, c: 6, max: 1, req: ['a7'], d: ()=>'Si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %', touch: ['rayo', 'm_u_desgarro'], needs: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s14.webp', fx: { power: 'a_doble_grieta' } },
+        { id: 'a21', name: 'Doble Grieta', t: 'p', tag: 'mec', r: 6, c: 6, max: 1, req: ['a7'], d: ()=>'Si lanzas el Rayo durante el Desgarro, se abre una segunda grieta al 50 %', touch: ['rayo', 'm_u_desgarro'], needs: ['m_u_desgarro'], needsForm: { m_u_desgarro: 'channel', rayo: '!channel' }, arch: 'grieta', icon: 'talents/maga-arcanista-s14.webp', fx: { power: 'a_doble_grieta' } },
         { id: 'a22', name: 'Cargas Desbordadas', t: 'p', tag: 'mec', r: 7, c: 0, max: 3, req: ['a18'], d: r=>`Puedes guardar hasta ${4+r} Cargas (antes 4); las que pasan de 4 dan el doble al Rayo`, touch: ['rayo'], arch: 'rayo', icon: 'talents/maga-arcanista-x1.webp', fx: { power: 'a_desbordadas' } },
-        { id: 'a23', name: 'Orbe Múltiple', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['a19'], d: r=>`Cada 3.er Orbe sale con ${r} orbe${r > 1 ? 's' : ''} más pequeño${r > 1 ? 's' : ''} (40 % cada uno)`, touch: ['a_orbe'], arch: 'orbe', icon: 'talents/maga-arcanista-s4.webp', fx: { power: 'a_orbe_multiple' } },
-        { id: 'a24', name: 'Fuente de Maná', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['a21'], d: r=>`Mientras canalizas, cada segundo te da 1 Carga y +${5*r} % de daño (hasta 3 veces)`, touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s13.webp', fx: { power: 'a_fuente' } },
+        { id: 'a23', name: 'Orbe Múltiple', t: 'p', tag: 'mec', r: 7, c: 3, max: 3, req: ['a19'], d: r=>`Cada 3.er Orbe sale con ${r} orbe${r > 1 ? 's' : ''} más pequeño${r > 1 ? 's' : ''} (40 % cada uno; descargan a 2,5 m)`, touch: ['a_orbe'], arch: 'orbe', icon: 'talents/maga-arcanista-s4.webp', fx: { power: 'a_orbe_multiple' } },
+        { id: 'a24', name: 'Fuente de Maná', t: 'p', tag: 'mec', r: 7, c: 6, max: 3, req: ['a21'], d: r=>`Mientras canalizas (el Desgarro o el Haz Concentrado), cada segundo te da 1 Carga y +${5*r} % de daño (hasta 3 veces)`, touch: ['m_u_desgarro'], arch: 'grieta', icon: 'talents/maga-arcanista-s13.webp', fx: { power: 'a_fuente' } },
         { id: 'a25', name: 'Tormenta de Cargas', t: 'f', tag: 'mec', r: 8, c: 0, max: 3, req: ['a22'], d: r=>`Al gastar 4 o más Cargas, el Rayo se lanza 3 veces en 1,5 s (100/50/50 %)${r > 1 ? `. Rayo +${15*(r-1)} %` : ''}`, touch: ['rayo'], arch: 'rayo', final: 'Rayo', icon: 'talents/maga-arcanista-x1.webp', fx: { power: 'a_tormenta_cargas', mod: { rayo: { dmg: [0, 15, 30] } } } },
-        { id: 'a26', name: 'Constelación', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['a23'], d: r=>`Tus Orbes no desaparecen: se quedan 8 s girando a tu alrededor (hasta 3) y disparan al más cercano${r > 1 ? `. Orbe +${15*(r-1)} %` : ''}`, touch: ['a_orbe'], arch: 'orbe', final: 'Orbe', icon: 'talents/maga-arcanista-x2.webp', fx: { power: 'a_constelacion', mod: { a_orbe: { dmg: [0, 15, 30] } } } },
-        { id: 'a27', name: 'Grieta Eterna', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['a24'], d: r=>`El Desgarro dura mientras tengas maná (gasta un 3 % por segundo)${r > 1 ? `. Desgarro +${15*(r-1)} %` : ''}`, touch: ['m_u_desgarro'], arch: 'grieta', final: 'Grieta', icon: 'talents/maga-arcanista-x3.webp', fx: { power: 'a_grieta_eterna', mod: { m_u_desgarro: { dmg: [0, 15, 30] } } } },
+        { id: 'a26', name: 'Constelación', t: 'f', tag: 'mec', r: 8, c: 3, max: 3, req: ['a23'], d: r=>`Al volver, tus Orbes no se absorben (sin Carga): orbitan 8 s (hasta 3) y disparan al más cercano (40 %/s)${r > 1 ? `. Orbe +${15*(r-1)} %` : ''}`, touch: ['a_orbe'], arch: 'orbe', final: 'Orbe', icon: 'talents/maga-arcanista-x2.webp', fx: { power: 'a_constelacion', mod: { a_orbe: { dmg: [0, 15, 30] } } } },
+        { id: 'a27', name: 'Grieta Eterna', t: 'f', tag: 'mec', r: 8, c: 6, max: 3, req: ['a24'], d: r=>`El Desgarro dura mientras tengas maná (gasta un 3 % por segundo)${r > 1 ? `. Desgarro +${15*(r-1)} %` : ''}`, touch: ['m_u_desgarro'], needsForm: { m_u_desgarro: 'channel' }, arch: 'grieta', final: 'Grieta', icon: 'talents/maga-arcanista-x3.webp', fx: { power: 'a_grieta_eterna', mod: { m_u_desgarro: { dmg: [0, 15, 30] } } } },
         { id: 'a28', name: 'Singularidad', t: 'x', tag: 'mec', r: 9, c: 3, max: 4, req: ['a25', 'a26', 'a27'], d: r=>['1) Un Rayo con 4 Cargas abre una grieta 3 s en el objetivo (50 % por segundo).', '2) Matar a un élite te da 4 Cargas.', '3) Las Cargas ya no se pierden.', '4) Cada 20 Cargas gastadas, el Desgarro se lanza solo 2 s, gratis.'].slice(0, r).join(' '), touch: ['@arcane'], icon: 'talents/maga-arcanista-x3.webp', fx: { power: 'a_singularidad', tv: { chargeKeep: [0, 0, 1, 1] } } },
       ],
     },
@@ -436,6 +436,11 @@ export const MAGA_TALENTS = {
       // otros dos, donde estaban. Desde el Nv24 la build es la de siempre
       spec: { a2: 1, a1: 3, a4: 2, a5: 1, a8: 1, a11: 2, a15: 1, a18: 2, a22: 3, a25: 3, a28: 4, a2_: 2, a9: 1, a12: 2, a16: 2, a3: 1 },
       specCh: { a8: 'A', a9: 'A', a15: 'B' },
+      // S-maga (M-11, T5): forja de la build encima de la de la especialización. El Rayo base en vez del
+      // Haz Concentrado (Tormenta de Cargas repite el Rayo: con el canal sin fin no lo hacía) y no Rayo en
+      // Cadena, la variante de ÁREA (en UNI rinde igual y solo le sumaba área); el Quiebre se queda.
+      // Banco Nv50: UNI 2172 · ÁREA×5 4105
+      forge: { rayo: null },
     },
     orbe: {
       sp: 'arcanista',
@@ -448,6 +453,9 @@ export const MAGA_TALENTS = {
       clsCh: { c5: 'B', c6: 'B', c9: 'B', c10: 'A', c14: 'A', c16: 'B', c17: 'B' },
       spec: { a2: 3, a5: 1, a9: 1, a12: 2, a16: 2, a19: 2, a23: 3, a26: 3, a28: 4, a1: 3, a4: 1, a8: 1, a15: 1, a3: 3, a6: 1 },
       specCh: { a8: 'B', a9: 'B', a15: 'A' },
+      // S-maga (M-11): el Orbe base (el Atrayente lo para y junta a la manada), Rayo en Cadena y el
+      // Desgarro canalizado. Banco Nv50: UNI 1949 · ÁREA×5 4399 (con la de la especialización, 1599 · 1837)
+      forge: { a_orbe: null, rayo: 'i', m_u_desgarro: null },
     },
     grieta: {
       sp: 'arcanista',
@@ -461,6 +469,10 @@ export const MAGA_TALENTS = {
       // T-maga: la misma build en el orden del árbol reordenado (a13 y a17 arriba; a3 y a7 abajo)
       spec: { a13: 2, a17: 2, a6: 1, a10: 1, a3: 3, a14: 1, a7: 2, a21: 1, a24: 3, a27: 3, a28: 4, a2: 3, a9: 1, a16: 2, a20: 2 },
       specCh: { a9: 'A', a10: 'A' },
+      // S-maga (M-11): Grieta Eterna canaliza el Desgarro (sin Quiebre: a7, a10, a14, a21 y a27 piden el
+      // canal) y lanza el Rayo de un golpe (Doble Grieta no sale con el Haz). Banco Nv50: UNI 1940 ·
+      // ÁREA×5 3380 (con la de la especialización, 1729 · 1713)
+      forge: { rayo: 'i', m_u_desgarro: null },
     },
     hibarca: {
       sp: 'arcanista',
@@ -475,6 +487,9 @@ export const MAGA_TALENTS = {
       // Rayo (Nv14). Potencia Acumulada sigue llegando al Nv22
       spec: { a2: 3, a1: 3, a4: 2, a5: 1, a8: 1, a9: 1, a11: 2, a12: 2, a15: 1, a16: 2, a18: 2, a19: 2, a22: 3, a23: 3, a3: 1, a20: 2 },
       specCh: { a8: 'A', a9: 'B', a15: 'B' },
+      // S-maga (M-11): Rayo en Cadena (los Orbes y el Rayo con Inercia) y el Desgarro canalizado.
+      // Banco Nv50: UNI 2058 · ÁREA×5 5272 (con Quiebre, 2069 · 4180)
+      forge: { rayo: 'i', m_u_desgarro: null },
     },
   },
   defaultBuild: { piromante: 'brasa', crionte: 'glaciar', arcanista: 'rayo' },

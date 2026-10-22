@@ -323,13 +323,13 @@ const cargas = {
     return {
       text: `Dardo Arcano suma <b>Cargas Arcanas</b> (máx. ${A.max}). <b>Rayo</b> las gasta todas: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga.`,
       cols: [
-        ['Generar', `Dardo Arcano y Desgarro Arcano +${A.perDart} por golpe · Sello del Archimago +1 cada ${fmtN(A.sealEvery)} s`],
-        ['Descargar', `Rayo las gasta todas: hasta +${A.dmgPerCharge * A.max} % de daño y +${A.manaPerCharge * A.max} de maná`],
+        ['Generar', `Dardo Arcano +${A.perDart} por impacto · Desgarro Arcano +${A.perRiftTic} por golpe del haz · Orbe Arcano +${A.perOrb} al recogerlo (no si se queda en órbita) · Sello del Archimago +1 cada ${fmtN(A.sealEvery)} s`],
+        ['Descargar', `Rayo las gasta todas: hasta +${A.dmgPerCharge * A.max} % de daño y +${A.manaPerCharge * A.max} de maná · Haz Concentrado, en su 1.er tic, y el bono dura todo el canal`],
         ['Pérdida', `Todas a los ${fmtN(A.loseAfter)} s sin ganar (salvo Resonancia)`],
       ],
       tip: [
         `<b>Qué es:</b> hasta ${A.max} runas que orbitan tu núcleo arcano y potencian el próximo <b>Rayo</b>.`,
-        `<b>Gana:</b> +${A.perDart} por impacto de Dardo Arcano o golpe del Desgarro; dentro de tu Sello, +1 cada ${fmtN(A.sealEvery)} s. <b>Descarga:</b> Rayo las gasta todas: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga.`,
+        `<b>Gana:</b> +${A.perDart} por impacto de Dardo Arcano, +${A.perRiftTic} por golpe del haz del Desgarro (aunque atraviese a varios) y +${A.perOrb} al recoger tu Orbe (no si se queda en órbita: Satélite, Constelación); dentro de tu Sello, +1 cada ${fmtN(A.sealEvery)} s. <b>Descarga:</b> Rayo las gasta todas: +${A.dmgPerCharge} % de daño y +${A.manaPerCharge} de maná por Carga. Con <b>Haz Concentrado</b> las gasta todas su 1.er tic (aunque lo sueltes enseguida) y su bono dura todo el canal.`,
         `<b>Pierde:</b> todas a los ${fmtN(A.loseAfter)} s sin ganar (el arco avisa); con Resonancia y ${A.max} Cargas no se pierden y tienes +${A.resonanceCrit} % de crítico por rango.`,
       ],
     };
@@ -404,7 +404,7 @@ function cargasDemo(T) {
       cap: 'Sin Cargas Arcanas.', tag: 'idle', nodes: [] },
     { t: 1, value: 1, state: 'building', decayIn: la, fire: 'gain', ready: ['rayo'], x: X(1), cap: `Dardo Arcano: +${A.perDart} Carga por impacto (una runa se enciende).`, nodes: ['a0'] },
     { t: 2, value: 2, decayIn: la, fire: 'gain', x: X(2), tag: 'building' },
-    { t: 2.8, value: 3, decayIn: la, fire: 'gain', x: X(3), cap: 'Rebote Cargado: cada enemigo que toca el Orbe te da 1 Carga.', nodes: ['a5'] },
+    { t: 2.8, value: 3, decayIn: la, fire: 'gain', x: X(3), cap: 'Rebote Cargado: cada enemigo que alcanzan las descargas del Orbe te da 1 Carga.', nodes: ['a5'] },
     { t: tFull, value: A.max, state: 'full', decayIn: la, fire: 'full', ease: 1, x: X(A.max),
       cap: `${A.max} Cargas: tu próximo Rayo hace +${A.dmgPerCharge * A.max} % de daño y devuelve ${A.manaPerCharge * A.max} de maná.`, nodes: ['a0'], tag: 'full' },
     { t: tWarn, decayIn: WARN_S, ease: 1, cap: `Se pierden todas ${fmtN(la)} s después de la última ganancia (más con Memoria Arcana): el arco avisa.`, nodes: ['a1'], tag: 'decay' },

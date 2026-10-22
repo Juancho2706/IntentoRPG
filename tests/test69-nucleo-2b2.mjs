@@ -191,9 +191,11 @@ addSkill('guerrero', { id: 't_embate', name: 'Embate v1', cat: 'basic', tags: ['
   assert.equal(ticks, 5, 'el tick del comportamiento sustituye al golpe por defecto');
   assert.equal(ended, 1, 'y su end se llama al terminar');
   assert.equal(lost(e), 0, 'sin golpe por defecto');
-  // Desgarro Arcano: canalización GENÉRICA con unstoppable (sin comportamiento propio)
+  // Desgarro Arcano: canalización del motor con unstoppable. S-maga (M-12): su tic es un comportamiento
+  // sin cast (desgarro_canal: el haz ancho que atraviesa a todos), como el canal propio de arriba
   const d = SK('maga', 'm_u_desgarro');
-  assert.ok(d.type === 'channel' && d.unstoppable && !d.behavior, 'Desgarro = channel genérico');
+  assert.ok(d.type === 'channel' && d.unstoppable && d.behavior === 'desgarro_canal' && !SKILL_BEHAVIORS.desgarro_canal?.cast && SKILL_BEHAVIORS.desgarro_canal?.tick,
+    'Desgarro = channel con tic propio (sin cast)');
   // startChannel como API pública
   const h2 = makeHarness({ classId: 'maga', level: 10 });
   let n = 0;

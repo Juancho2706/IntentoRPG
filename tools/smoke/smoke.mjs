@@ -275,9 +275,12 @@ async function chordStep(page, cls, info) {
         return !!p.cls.skills.find(s => s.id === id)?.charge;
       });
       if (rmbCharges) {
+        // con recurso para la principal (S0: desde que la barra de la especialización pone el Martillo en
+        // 🖱️Der, la Furia del Guerrero —que empieza a 0— decide si la carga puede empezar; aquí se mide el acorde)
+        const res = await page.evaluate(() => { const p = window.__game.player; p.mp = p.stats.maxMP; return { id: p.hotbar.rmb, mp: p.mp }; });
         const seen = await page.evaluate('window.__smokeLib.step(30, 1/60, true)');
         carga = seen.some(v => v.charging);
-        check(carga, 'con 🖱️Izq y 🖱️Der mantenidos, la carga de la ranura DER no empezó');
+        check(carga, 'con 🖱️Izq y 🖱️Der mantenidos, la carga de la ranura DER no empezó', res);
       }
     }
     await mouse(page, 'mouseReleased', pt.x, pt.y, 'right', 1);

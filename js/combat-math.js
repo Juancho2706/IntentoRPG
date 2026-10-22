@@ -338,6 +338,17 @@ export function chargeRelease(ch, u, { def = null, forcePerfect = false, perfect
   };
 }
 
+// ---------- RAMPA DE UN CANAL (S0: sensación de las habilidades) ----------
+// % que suma la rampa en el tic n.º `tickN` (1 = el primero, sin rampa): perTic × (n − 1), con tope
+// `max`. Como la escala de una carga (chargeRelease.coefMul), multiplica el coef del TIC (la potencia
+// propia de la habilidad), no va al saco aditivo: un canal que se mantiene crece de verdad aunque
+// lleves mucho +%. Referencia: Incinerar de D4 (+50 % por segundo canalizado, tope +100 %).
+export function channelRampPct(tickN, perTic, max) {
+  const per = Math.max(0, perTic || 0), cap = Math.max(0, max || 0);
+  if (!(per > 0) || !(cap > 0)) return 0;
+  return Math.min(cap, per * Math.max(0, (tickN || 1) - 1));
+}
+
 // ---------- DESPLAZAR (Paso 2, §3.6) ----------
 // Rendimientos decrecientes propios de atraer/empujar: +add por aplicación, decaen decay/s,
 // inmune con ≥ 0,9 (como el control duro, pero más suaves: un giro que atrae cada tic).

@@ -18,9 +18,9 @@
 // vínculos con los talentos (talentLinks, nodeSkills, specSwapSummary, levelUpNews). Los
 // pintan js/ui-skills.js (tecla T) y js/ui-verbs.js (cada frame); tests/test86 los cubre.
 import { GCD_CATS, CAT_LABELS, CATS, SLOT_UNLOCK, skillVerbs, forgeDef, forgeVar, supportFits, supportSockets, RANK_MAX } from './skill-defs.js';
-import { isKnown, forgeState, forgedDef, resolveSkill, fitsSlot, rankBase } from './skill-resolve.js';
+import { isKnown, forgeState, forgedDef, resolveSkill, fitsSlot, rankBase, rankReq } from './skill-resolve.js';
 import { SUPPORTS, FORGE_RECO, CLASSES } from './data.js';
-import { talentTreesFor, findSpec, activeHeroTree, heroOpen, pointKindAt, TALENT_RULES } from './talents.js';
+import { talentTreesFor, findSpec, activeHeroTree, heroOpen, pointKindAt, TALENT_RULES, forgeRecoFor, formVoids } from './talents.js';
 import { rankCoef, chargeRelease } from './combat-math.js';
 import { gaugeDefs } from './spec-mechanics.js';
 import { talentArtPath } from './talent-art.js';
@@ -703,10 +703,13 @@ export function specCard(classId, specId) {
     color: SPEC_COLOR[s.id] || '#e8c06a' };
 }
 // variantes recomendadas de una especialización (D6: FORGE_RECO; un arnés puede traer las suyas
-// en p.cls.forgeReco) → { skillId: 'i' | 'ii' } | null
+// en p.cls.forgeReco). S0 (T5): con la `forge` de su build por defecto encima (talents.forgeRecoFor;
+// null = «sin variante») → { skillId: 'i' | 'ii' | null } | null
 export function recoFor(p, specId) {
   if (!specId) return null;
-  return p?.cls?.forgeReco?.[specId] || FORGE_RECO[specId] || null;
+  if (p?.cls?.forgeReco?.[specId]) return p.cls.forgeReco[specId];
+  const r = p?.classId ? forgeRecoFor(p.classId, specId) : (FORGE_RECO[specId] || null);
+  return r && Object.keys(r).length ? r : (FORGE_RECO[specId] || null);
 }
 // kit de una especialización en el catálogo del jugador
 export function specKit(p, specId) {
@@ -873,8 +876,9 @@ export function forgeView(p, sk, { combat = false } = {}) {
   const specId = specIdOf(p);
   const recoKey = recoFor(p, specId)?.[sk.id] || null;
   const specName = specId ? (findSpec(p.classId, specId)?.name || '') : '';
-  // rango y daño (número FINAL del perfil; el del siguiente rango, en verde, 2f §3.4)
-  const baseRank = rankBase(L, sk.req);
+  // rango y daño (número FINAL del perfil; el del siguiente rango, en verde, 2f §3.4). S0 (T6): el kit
+  // de una especialización cuenta el rango desde que se abre la especialización (rankReq)
+  const baseRank = rankBase(L, rankReq(sk));
   const rank = known ? prof.rank : baseRank;
   const add = 1 + (prof?.addPct || 0) / 100;
   const dmg = (sk.coef || 0) > 0 ? Math.round((prof ? prof.coef : (sk.coef || 0) * rankCoef(rank)) * add * 100) : 0;
@@ -892,13 +896,18 @@ export function forgeView(p, sk, { combat = false } = {}) {
     const withV = forgeDef(sk, entry, { mejora: fst.mejora, variant: key });
     const diff = tagDiff(withMejora, withV);
     const role = ROLE_INFO[v.role] ? v.role : 'UNI';
+    // S0 (T5): nodos comprados que esta variante dejaría sin efecto (needsForm de los nodos)
+    const voids = known ? formVoids(p, sk.id, withV) : [];
     return {
       key, num: i ? 'II' : 'I', id: v.id, name: v.name, line: v.line || '', role, roleLabel: ROLE_INFO[role].label, roleColor: ROLE_INFO[role].color,
       icon: v.icon || null, level: lvVar, state: !open ? 'bloqueada' : fst.chosen === key ? 'elegida' : 'abierta',
       reco: recoKey === key, recoSpec: recoKey === key ? specName : '', tagsAdd: diff.add, tagsDel: diff.del,
       elem: withV.elem !== withMejora.elem ? { from: withMejora.elem, to: withV.elem } : null, detail: forgePieceDetail(v),
+      voids, voidText: voidsText(v.name, voids),
     };
   });
+  // y la forma ACTUAL (con la variante elegida o sin ninguna): el aviso de la tarjeta de la habilidad
+  const voidsNow = known ? formVoids(p, sk.id, def) : [];
   vars.forEach((v, i) => { v.sisterRole = vars[1 - i]?.role || null; });
   const sockets = supportSockets(def);
   const cur = p.supports?.[sk.id];
@@ -913,14 +922,20 @@ export function forgeView(p, sk, { combat = false } = {}) {
     learnAt: sk.spec ? Math.max(sk.req || 1, TALENT_RULES.specAt) : (sk.req || 1),     // nivel en que se aprende
     talent: sk.kind === 'talent', hero: !!sk.hero, spec: sk.spec ? specCard(p.classId, sk.spec) : null,
     innate: specId && sk.innate?.[specId] ? sk.innate[specId] : '', elem: def.elem || null, elemLabel: ELEM_LABEL[def.elem] || '',
-    rank, rankMax: RANK_MAX, nextRankLv: baseRank < RANK_MAX ? (sk.req || 1) + 8 * baseRank : null,
+    rank, rankMax: RANK_MAX, nextRankLv: baseRank < RANK_MAX ? rankReq(sk) + 8 * baseRank : null,
     dmg, dmgNext, cost: prof ? prof.cost : (sk.cost || 0), cd: prof ? Math.round(prof.cd * 10) / 10 : (sk.cd || 0),
     gen: sk.cat === 'basic' ? (prof?.gen ?? sk.gen ?? 0) : (prof?.gen || 0), coef: prof ? prof.coef : (sk.coef || 0),
     verbs: skillVerbs(def), tags: (def.tags || []).filter(t => TAG_LABEL[t] && !CATS.includes(t)).map(t => TAG_LABEL[t]),
     entry: !!entry, mejora, vars, chosen: fst.chosen, variant: fst.variant,
     pending: vars.length > 0 && vars.every(v => v.state !== 'bloqueada') && fst.chosen === undefined,
     combat: !!combat, sockets, supports,
+    voids: voidsNow, voidText: voidsText(fst.variant ? (vars.find(x => x.key === fst.variant)?.name || sk.name) : `${sk.name} sin variante`, voidsNow),
   };
+}
+// «⚠ Quiebre no se canaliza: Grieta Eterna, Desgarro Fijo no hacen nada» ('' sin nodos afectados)
+export function voidsText(what, voids) {
+  if (!voids?.length) return '';
+  return `⚠ ${what} ${voids[0].text}: ${voids.map(x => x.name).join(', ')} no ${voids.length > 1 ? 'hacen' : 'hace'} nada`;
 }
 // cambios de «Recomendado» del libro (2f §3.8.4): las variantes recomendadas de tu
 // especialización que están abiertas y no son la elegida → [{ id, v }]
@@ -930,6 +945,8 @@ export function recoPlan(p) {
     const sk = skillOf(p, id);
     if (!sk || !isKnown(p, sk)) continue;
     const fst = forgeState(p, sk);
+    // null (S0, la forja de una build: «sin variante»): quita la elegida
+    if (v === null) { if (fst.entry && (fst.chosen === 'i' || fst.chosen === 'ii')) out.push({ id, v: null }); continue; }
     if (!fst.entry || (p.level || 1) < fst.levels.vars || !forgeVar(fst.entry, v)) continue;
     if (fst.chosen !== v) out.push({ id, v });
   }
@@ -1027,8 +1044,8 @@ export function specSwapSummary(prev, next) {
   const trees = talentTreesFor(b.classId);
   const brief = id => { const s = by.get(id); return s ? { id, name: s.name, emoji: s.icon || '✦', art: skillArtPath(s, trees) } : null; };
   const insigniaOf = spec => list.find(s => s.spec === spec && s.cat === 'spec')?.id || null;
-  const reco = Object.entries(b.forgeReco?.[b.spec] || FORGE_RECO[b.spec] || {})
-    .filter(([id]) => by.has(id)).map(([id, v]) => ({ ...brief(id), variant: v }));
+  const reco = Object.entries(b.forgeReco?.[b.spec] || (b.spec ? forgeRecoFor(b.classId, b.spec) : {}))
+    .filter(([id, v]) => by.has(id) && v).map(([id, v]) => ({ ...brief(id), variant: v }));
   const card = b.spec ? specCard(b.classId, b.spec) : null;
   return {
     spec: card, from: a.spec ? specCard(a.classId, a.spec) : null,

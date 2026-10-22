@@ -35,7 +35,9 @@ export function gaugeTuning(H) {
     escarcha: { max: 5, perHit: 1, nova: 2, freezeT: 1.0, numbT: 4, decayEvery: 2,
       bossStagger: STAGGER_CC.freeze, numbMovePct: 30, numbAspdPct: 15,
       critLayers: 3 },                              // i2 Filo Helado: más crítico desde estas capas
-    cargas: { max: 4, perDart: 1, dmgPerCharge: 35, manaPerCharge: 5, loseAfter: 6,
+    // perRiftTic: el Desgarro da 1 por golpe del haz (aunque atraviese a varios) · perOrb: el Orbe
+    // Arcano al recogerlo (S-maga)
+    cargas: { max: 4, perDart: 1, perRiftTic: 1, perOrb: 1, dmgPerCharge: 35, manaPerCharge: 5, loseAfter: 6,
       sealEvery: 2,                                 // Sello del Archimago: 1 Carga cada 2 s dentro
       resonanceCrit: 6 },                           // a16 Resonancia (por rango)
   };
@@ -144,29 +146,37 @@ export function baseGauges(T, H) {
       },
     },
     // Arcanista: 1 Carga por impacto DIRECTO del Dardo y por golpe del Desgarro (HitInfo.source
-    // 'hit': ni los saltos de una cadena, 'chain', ni la salpicadura de la Saeta Ígnea, 'splash'), y
-    // 1 cada 2 s dentro de tu Sello. El Rayo las gasta TODAS: +(35 + tv.chargeDmg) % por Carga (las
-    // que pasan de 4, el doble: Cargas Desbordadas) y 5 de maná por Carga; anota cuántas (st.spent:
-    // Rayo Doble, Carga Final…).
+    // 'hit': ni los saltos de una cadena, 'chain', ni la salpicadura de la Saeta Ígnea, 'splash'; el
+    // haz ancho del Desgarro da UNA por golpe aunque atraviese a varios: una vez por instante), 1 al
+    // recoger el Orbe Arcano (lo da su comportamiento, js/powers-maga.js) y 1 cada 2 s dentro de tu
+    // Sello. El Rayo las gasta TODAS: +(35 + tv.chargeDmg) % por Carga (las que pasan de 4, el doble:
+    // Cargas Desbordadas) y 5 de maná por Carga; anota cuántas (st.spent: Rayo Doble, Carga Final…).
+    // Con Haz Concentrado (el Rayo canalizado) las gasta el 1.er tic (v_haz_concentrado, js/powers-maga.js:
+    // st.beamN) y su bono vale todo el canal; soltar antes del 1.er tic no gasta nada.
     // Máximo 4 (+1 por rango de Cargas Desbordadas). Se pierden todas 6 s (+2 por rango de Memoria
     // Arcana) después de la última ganancia, salvo con Resonancia y 4 o con Singularidad 3. Con 2 o
     // más: Mente Brillante (crítico); con 3 o más: Velo Arcano (menos daño) y Agudeza (buff a_agudeza).
     cargas: {
       name: 'Cargas Arcanas', color: '#b996ff', max: T.cargas.max, integer: true,
-      state: () => ({ keep: false, spent: 0, echoN: null, seal: 0 }),
+      state: () => ({ keep: false, spent: 0, echoN: null, beamN: null, riftAt: -9, seal: 0 }),
       hold: st => !!st.keep,
-      onHit(g, p, e, hit) {
+      onHit(g, p, e, hit, st) {
         if (hit?.proc || hit?.dot || (hit?.source || 'hit') !== 'hit') return;
-        if (hit.skill === 'm_dardo' || hit.skill === 'm_u_desgarro') gainGauge(p, 'cargas', T.cargas.perDart);
+        if (hit.skill === 'm_dardo') gainGauge(p, 'cargas', T.cargas.perDart);
+        else if (hit.skill === 'm_u_desgarro' && now(p) - st.riftAt > 1e-6) { st.riftAt = now(p); gainGauge(p, 'cargas', T.cargas.perRiftTic); }
       },
-      // las repeticiones del Rayo (Rayo Doble, Tormenta de Cargas) usan las Cargas del original (echoN)
+      // las repeticiones del Rayo (Rayo Doble, Tormenta de Cargas) usan las Cargas del original (echoN);
+      // el Haz Concentrado, las que gastó en su 1.er tic (beamN) mientras dura su canal
       condAdd(p, e, hit, st) {
         if (hit?.skill !== 'rayo') return 0;
-        const n = st.echoN ?? Math.floor(st.v);
+        const beam = st.beamN != null && p.game?.channelInfo?.()?.id === 'rayo' ? st.beamN : null;
+        const n = st.echoN ?? beam ?? Math.floor(st.v);
         return (T.cargas.dmgPerCharge + (p.tv?.chargeDmg || 0)) * (Math.min(n, 4) + 2 * Math.max(0, n - 4));
       },
       afterCast(g, p, cast, res, st) {
         if (cast?.sk?.id !== 'rayo') return;
+        // Haz Concentrado: ya las gastó en el 1.er tic; aquí solo queda anotado cuántas (Rayo Doble…)
+        if (cast.sk.type === 'channel') { st.spent = st.beamN || 0; st.beamN = null; return; }
         const n = Math.floor(st.v);
         st.spent = 0;
         if (n < 1 || !spendGauge(p, 'cargas', st.v)) return;

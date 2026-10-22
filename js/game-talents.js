@@ -11,13 +11,16 @@
 //     especialización, su barra de SPEC_BAR en las ranuras del kit anterior, vacías o con
 //     habilidades que ya no se conocen, y su forja recomendada en las habilidades nunca
 //     forjadas, D3), avisos de apertura y pausa del Paragon y guardado.
+//   · S0: la forja recomendada es la de la BUILD (builds[key].forge) encima de la de la especialización
+//     (applyForgeReco; «Recomendado» fija lo que su build declara) y la barra de la especialización
+//     sustituye lo del kit base que no pusiste a mano (skill-resolve.specBarUpgrade), con aviso.
 // Respuestas { ok, reason?, text?, … } (reason = código; text = texto para el jugador).
 // Se inyecta en Game.prototype con Object.assign (test43 vigila los nombres).
 import * as Talents from './talents.js';
 import { createTalentOps } from './talents-ops.js';
-import { fitsSlot, isKnown } from './skill-resolve.js';
+import { fitsSlot, isKnown, specBarUpgrade, specBarSwapText } from './skill-resolve.js';
 import { resetGauges } from './spec-mechanics.js';
-import { SPEC_BAR, FORGE_RECO } from './data.js';
+import { SPEC_BAR } from './data.js';
 
 // operaciones puras compartidas con el panel (js/ui-talents.js las crea igual)
 export const TALENT_OPS = createTalentOps(Talents);
@@ -26,15 +29,28 @@ const COMBAT_TEXT = '⚔️ Solo fuera de combate (5 s sin daño) o en un campam
 
 const skillOf = (p, id) => (id && p.cls?.skills?.find(s => s.id === id)) || null;
 
-// forja recomendada de la especialización en las habilidades NUNCA elegidas (D3)
-function applyForgeReco(p, spec) {
-  const reco = FORGE_RECO?.[spec];
-  if (!reco) return;
+// forja recomendada (D3) en las habilidades NUNCA elegidas: la de la build (S0, T5: builds[key].forge;
+// sin key, la defaultBuild) encima de la de la especialización (Talents.forgeRecoFor). force: las
+// habilidades que la BUILD declara se fijan aunque ya estuvieran elegidas («Recomendado» de esa build:
+// Grieta Eterna vuelve a canalizar el Desgarro aunque la especialización recomiende Quiebre)
+export function applyForgeReco(p, spec, { buildKey = undefined, force = false } = {}) {
+  if (!p || !spec) return [];
+  const reco = Talents.forgeRecoFor(p.classId, spec, buildKey);
+  const key = buildKey === undefined ? Talents.defaultBuildKey(p.classId, spec) : buildKey;
+  const own = (key && Talents.talentTreesFor(p.classId)?.builds?.[key]?.forge) || {};
   p.skillForge ||= {};
-  for (const [id, v] of Object.entries(reco)) if (p.skillForge[id] === undefined) p.skillForge[id] = v;
+  const changed = [];
+  for (const [id, v] of Object.entries(reco)) {
+    if (p.skillForge[id] !== undefined && !(force && id in own)) continue;
+    if (p.skillForge[id] !== v) changed.push(id);
+    p.skillForge[id] = v;
+  }
+  return changed;
 }
 // barra de la especialización (D6): solo se tocan las ranuras vacías, con una habilidad
-// del kit de la especialización anterior o con una que ya no se conoce (riesgo 10)
+// del kit de la especialización anterior o con una que ya no se conoce (riesgo 10). S0 (T1): después,
+// las habilidades de su kit que ya conoces entran en su ranura aunque la ocupe una del kit base que no
+// pusiste a mano (specBarUpgrade). → las sustituciones [{ slot, id, from }]
 function applySpecBar(p, prevSpec, spec) {
   const hb = p.hotbar || (p.hotbar = {});
   const want = SPEC_BAR?.[spec]?.bar || {};
@@ -48,6 +64,7 @@ function applySpecBar(p, prevSpec, spec) {
     if (sk && isKnown(p, sk) && fitsSlot(sk, slot) && !Object.values(hb).includes(id)) hb[slot] = id;
     else if (stale) hb[slot] = null;
   }
+  return specBarUpgrade(p).filter(s => s.from);
 }
 
 export const talentMethods = {
@@ -97,8 +114,11 @@ export const talentMethods = {
       const sk = skillOf(p, id);
       if (sk && sk.kind === 'talent' && !isKnown(p, sk)) hb[slot] = null;
     }
-    // 2) barra de la especialización nueva
-    if (specChanged && spec) applySpecBar(p, specBefore, spec);
+    // 2) barra de la especialización nueva (con aviso de lo que sustituye: S0, T1)
+    if (specChanged && spec) {
+      const key = this.ui?.actionKey?.('skills', 'T') || 'T';
+      for (const sw of applySpecBar(p, specBefore, spec)) this.ui?.message?.(specBarSwapText(p, sw, key), 5000);
+    }
     // 3) las activas recién concedidas van a la ranura 2 si está libre (D7: solo caben ahí)
     const fresh = [...(p.talentAgg?.grants || [])].filter(id => !grantsBefore.has(id));
     for (const id of fresh) {
@@ -138,9 +158,15 @@ export const talentMethods = {
   // nodo de elección ya comprado: alterna entre sus opciones
   toggleTalentChoice(which, nodeId) { return this._talentMutate(q => TALENT_OPS.toggleChoice(q, which, nodeId)); },
 
-  // Recomendado: la build `key` (o la defaultBuild de la especialización activa)
+  // Recomendado: la build `key` (o la defaultBuild de la especialización activa). S0 (T5): con su
+  // forja: lo que la build declara en `forge` se fija; el resto de la recomendada, solo en lo nunca
+  // forjado (D3)
   applyTalentBuild(key = null) {
-    return this._talentMutate(q => TALENT_OPS.applyBuild(q, key), '🌿 Recomendado aplicado');
+    return this._talentMutate(q => {
+      const r = TALENT_OPS.applyBuild(q, key);
+      if (r?.ok) r.forged = applyForgeReco(q, r.spec, { buildKey: r.key, force: true });
+      return r;
+    }, '🌿 Recomendado aplicado');
   },
   // alias del panel de 2d (aplica la build entera)
   applyTalentPreset() { return this.applyTalentBuild(); },

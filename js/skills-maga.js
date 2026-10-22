@@ -14,7 +14,11 @@
 // Comportamientos propios (MAGA_SKILL_BEHAVIORS) solo donde no basta un tipo genérico; cada uno
 // declara en `params` las claves propias que lee y lee la definición FORJADA (cast.sk / prof.def).
 // Las activas que ya existían (Bloque de Hielo, Inversión del Tiempo, Contrahechizo) usan el
-// comportamiento de su mismo id en js/powers-maga.js (KT-maga: coordinación por ids).
+// comportamiento de su mismo id en js/powers-maga.js (KT-maga: coordinación por ids). S-maga: también
+// viven allí orbe_arcano (el Orbe, con malla THREE y Cargas), desgarro_canal (el haz ancho del
+// Desgarro) y v_haz_concentrado (el tic del Haz sin fin), porque leen y gastan el indicador.
+// Forja recomendada: MAGA_FORGE_RECO es la de cada especialización; cada build de la Arcanista
+// declara la suya encima (builds[key].forge en talents-maga.js, M-11/T5).
 // Solo importa datos puros: skill-defs.js y sus propios VFX (spec-mechanics y powers lo importan).
 // FORJA (KA2, 2f §2 y A.7): MAGA_SKILL_FORGE (Mejora + 2 variantes de las 17 habilidades con
 // forja), MAGA_FORGE_RECO y el comportamiento de forja v_parpadeo_onda; los poderes `v_*` de
@@ -90,10 +94,14 @@ export const MAGA_SKILLS = [
     desc: 'Definitiva: una ventisca te sigue durante 8 s y golpea cada 0,5 s a los enemigos a 4 m (90 % por golpe, 1440 % en total); cada golpe pone 1 capa de Escarcha. Enfriamiento 50 s.' },
 
   // ---------------- KIT DEL ARCANISTA ----------------
+  // Orbe Arcano (S-maga, auditoría M-01): no choca con nadie; DESCARGA a su alrededor mientras viaja,
+  // se detiene al final y vuelve a ti. coef = cada descarga; back.coef = el golpe al cruzar de vuelta.
+  // El comportamiento (orbe_arcano) vive en js/powers-maga.js: da la Carga al recogerlo
   { id: 'a_orbe', name: 'Orbe Arcano', icon: '🔵', cat: 'spec', spec: 'arcanista', slots: ['k3'], tags: ['spec', 'proj', 'arcane'], elem: 'arcane',
-    type: 'proj', behavior: 'orbe_arcano', req: 10, coef: 1.6, cost: 20, cd: 8, speed: 6, range: 14, size: 0.34, pierce: true, bounces: 2, color: 0xb388ff,
-    line: 'Lanzas un orbe lento que atraviesa y rebota 2 veces entre enemigos.',
-    desc: 'Un orbe arcano lento que atraviesa a los enemigos (160 % por impacto) y, al acabar su recorrido, rebota 2 veces hacia el enemigo más cercano. Cuesta 20 de Maná; enfriamiento 8 s.' },
+    type: 'proj', behavior: 'orbe_arcano', req: 10, coef: 0.45, cost: 20, cd: 8, speed: 6, range: 12, minRange: 5, size: 0.34,
+    zap: { every: 0.25, n: 2, radius: 3.5 }, park: 2, back: { speed: 10, coef: 0.8, radius: 0.9, max: 3 }, color: 0xb388ff,
+    line: 'Un orbe viaja hacia la mira descargando rayos a 2 enemigos cercanos; se detiene 2 s y vuelve a ti.',
+    desc: 'Un orbe arcano viaja despacio hacia la mira (de 5 a 12 m; se para en los muros) sin chocar con nadie: cada 0,25 s descarga un rayo a 2 enemigos a 3,5 m, repartidos entre todos los que tiene cerca (45 % cada uno). Al final se detiene 2 s girando y descargando; después vuelve a ti, golpea al pasar (80 %) y al recogerlo te da 1 Carga Arcana. Cuesta 20 de Maná; enfriamiento 8 s.' },
   // Sello del Archimago: aura en el suelo que abarata tus hechizos mientras estás dentro (stat
   // costPct: todas las habilidades con coste, cola W2d). La Carga cada 2 s la da el indicador de
   // Cargas (mech-maga.js) al dueño dentro de su Sello
@@ -101,15 +109,21 @@ export const MAGA_SKILLS = [
     type: 'aura', at: 'self', req: 12, cd: 20, radius: 4, dur: 8, buff: { costPct: -30 }, color: 0xe0b0ff,
     line: 'Círculo de 4 m durante 8 s: dentro, tus hechizos cuestan un 30 % menos y ganas 1 Carga cada 2 s.',
     desc: 'Dibujas un círculo de 4 m a tus pies durante 8 s: mientras estás dentro, tus hechizos con coste cuestan un 30 % menos y ganas 1 Carga Arcana cada 2 s. Enfriamiento 20 s.' },
+  // violeta (el de las Cargas, #b996ff): el Rayo es arcano, no eléctrico (M-08)
   { id: 'rayo', name: 'Rayo', icon: '⚡', cat: 'spender', spec: 'arcanista', slots: ['rmb', 'k2'], tags: ['spender', 'line', 'arcane'], elem: 'arcane',
-    type: 'line', req: 14, coef: 2.4, cost: 22, cd: 2, range: 15, width: 1.2, lockT: 0.3, color: 0xffee66,
+    type: 'line', req: 14, coef: 2.4, cost: 22, cd: 2, range: 15, width: 1.2, lockT: 0.3, color: 0xb996ff,
     line: 'Rayo de 15 m que atraviesa en línea y gasta tus Cargas: +35 % de daño y 5 de maná por Carga.',
     desc: 'Un rayo arcano de 15 m que golpea a todos en línea (240 %). Gasta todas tus Cargas Arcanas: +35 % de daño y 5 de Maná por Carga. Cuesta 22 de Maná; enfriamiento 2 s.' },
-  // canalizado y plantado (moveMul 0): la Mejora de la forja deja moverse despacio
+  // canalizado y plantado (moveMul 0): la Mejora de la forja deja moverse despacio. S-maga (M-12): un haz
+  // ANCHO hacia la mira que atraviesa a todos (desgarro_canal, js/powers-maga.js), un golpe cada 0,25 s
+  // con una rampa de +10 % por golpe hasta +100 % (Incinerar de D4). Sin tickNow: el 1.er golpe llega a los
+  // 0,25 s y soltar antes devuelve los 50 s de enfriamiento (el motor). El halo del haz vivo mide lo que
+  // golpea (2,5 m) y es el núcleo el que crece ×2 al tope; la grieta del suelo marca la franja
   { id: 'm_u_desgarro', name: 'Desgarro Arcano', icon: '🌌', cat: 'ultimate', spec: 'arcanista', slots: ['k4'], tags: ['ultimate', 'channel', 'arcane'], elem: 'arcane',
-    type: 'channel', unstoppable: true, moveMul: 0, req: 15, coef: 1.2, channelT: 3, ticks: 6, cd: 50, range: 10, color: 0xd28cff,
-    line: 'Canalizas 3 s un rayo gigante; te da 1 Carga cada medio segundo.',
-    desc: 'Definitiva: mantén la tecla para canalizar 3 s un rayo arcano gigante contra un objetivo (120 % cada 0,5 s) sin moverte; cada golpe te da 1 Carga Arcana. Eres imparable mientras dura. Enfriamiento 50 s.' },
+    type: 'channel', behavior: 'desgarro_canal', unstoppable: true, moveMul: 0, req: 15, coef: 0.65, channelT: 3, ticks: 12,
+    rampPerTic: 10, rampMax: 100, cd: 50, range: 10, width: 2.5, beam: { width: 2.5, core: 0.4, color: 0xa86cf5, coreColor: 0xead6ff, line: true }, color: 0xd28cff,
+    line: 'Canalizas 3 s un haz gigante de 2,5 m que atraviesa a todos y crece hasta +100 %; te da Cargas.',
+    desc: 'Definitiva: mantén la tecla para canalizar 3 s un rayo arcano gigante de 10 m y 2,5 m de ancho hacia la mira: cada 0,25 s golpea a todos los que atraviesa (65 %, +10 % por golpe hasta +100 %) y cada golpe te da 1 Carga Arcana. No te mueves y eres imparable mientras dura. Si lo sueltas antes del primer golpe, no gasta el enfriamiento. Enfriamiento 50 s.' },
 
   // ---------------- ACTIVAS DE TALENTO (ranura 2; las concede su nodo) ----------------
   { id: 'm_t_bloque', art: 'skills256/m_t_bloque.webp', name: 'Bloque de Hielo', icon: '🧊', kind: 'talent', cat: 'defense', slots: ['k2'], tags: ['defense', 'frost'], elem: 'frost',
@@ -269,38 +283,6 @@ function ownProjectile(g, ctx, { from, to, peek = null, onHit = null, castHits =
       if (e) { ctx.zoneCenter = ground(e.pos); ctx.zoneRad = 1.5; onHit?.(e, dealt, seen.get(e)); }
     },
   });
-}
-// segmento del Orbe (g.fireProjectile del núcleo): atraviesa y, al acabar su recorrido, rebota
-// al enemigo vivo más cercano (o vuelve si no hay ninguno); `left` = rebotes que quedan.
-// `lane` (Orbe Grande): el orbe es más grande y choca con los enemigos hasta `lane` m más a cada
-// lado de su recorrido (dos carriles paralelos que comparten los impactos: uno por enemigo)
-function orbSegment(g, ctx, from, toward, left, done, castHits = null, lane = 0) {
-  const { p, prof, sk } = ctx;
-  const speed = prof.speed || 6, range = prof.range || 14;
-  const d = aimDir({ pos: from, group: p.group }, toward);
-  const hits = lane > 0 ? (castHits || new Set()) : castHits;
-  g.fireProjectile(ctx, { from, to: toward, speed, range, pierce: true, castHits: hits });
-  for (const s of lane > 0 ? [-1, 1] : []) {
-    const shift = v => { const o = v.clone(); o.x -= d.z * lane * s; o.z += d.x * lane * s; return o; };
-    g.fireProjectile(ctx, { from: shift(from), to: shift(toward), speed, range, pierce: true, castHits: hits, size: 0.02 });
-  }
-  const end = from.clone(); end.x += d.x * range; end.z += d.z * range; end.y = 0;
-  const stop = g.clampWalkable ? g.clampWalkable(from, end, range) : end;
-  g.timers.schedule(range / Math.max(1, speed), () => {
-    if (left <= 0 || !p.alive || g.player !== p) { done(); return; }
-    let tgt = null, bd = Infinity;
-    for (const e of g.enemies || []) { if (!e.alive) continue; const q = dist2(e.pos, stop); if (q < bd) { bd = q; tgt = e; } }
-    const back = tgt && bd > 0.25 ? ground(tgt.pos) : (() => { const v = stop.clone(); v.x -= d.x * range; v.z -= d.z * range; return v; })();
-    g.spawnRing?.(stop, 0.9, ctx.color ?? sk.color);
-    orbSegment(g, ctx, stop, back, left - 1, done, null, lane);
-  });
-}
-// carril extra del Orbe forjado: «+30 % de tamaño» (Orbe Grande, size ×1,3) agranda en la misma
-// proporción el radio de choque de un proyectil (0,55 m a escala 1, Projectile.update)
-const PROJ_HIT_R = 0.55;
-function orbLane(sk) {
-  const base = MAGA_SKILLS.find(s => s.id === 'a_orbe')?.size || sk.size || 0;
-  return base > 0 ? Math.max(0, (sk.size || base) / base - 1) * PROJ_HIT_R : 0;
 }
 // segmento del Muro: centro, eje y extremos (perpendicular a la mira, como el tipo genérico wall)
 function wallLine(p, center, len) {
@@ -581,31 +563,8 @@ export const MAGA_SKILL_BEHAVIORS = {
     },
   },
 
-  // Orbe Arcano: `count` orbes (abanico con `spread`) lentos que atraviesan y rebotan `bounces`
-  // veces. Varios orbes (Orbe Gemelo o soporte): un impacto por enemigo en el primer tramo (los
-  // rebotes, libres). Orbe Grande: más tamaño = roza más ancho (orbLane)
-  orbe_arcano: {
-    params: ['bounces'],
-    cast(g, p, prof, cast) {
-      const { ctx, sk } = cast;
-      p.faceToward?.(cast.target);
-      p.swing = 1;
-      const n = Math.max(1, (prof.count || 1) + (prof.proj || 0));
-      const base = Math.atan2(cast.target.x - p.pos.x, cast.target.z - p.pos.z);
-      const from = ground(p.pos);
-      const castHits = n > 1 ? new Set() : null;
-      const lane = orbLane(sk);
-      let pending = n, finished = false;
-      const done = () => { if (--pending <= 0 && !finished) { finished = true; cast.done(ctx.res); } };
-      for (let i = 0; i < n; i++) {
-        const a = base + projFanOffset(i, n, prof.spread);
-        const to = from.clone(); to.x += Math.sin(a) * 5; to.z += Math.cos(a) * 5;
-        orbSegment(g, ctx, from, to, Math.max(0, Math.floor(sk.bounces ?? 2)), done, castHits, lane);
-      }
-      fxAt(g, fxOf(cast)?.aura, p.pos, 1.0);
-      return undefined;   // diferido: termina con el último rebote
-    },
-  },
+  // (el Orbe Arcano, orbe_arcano, vive en js/powers-maga.js: su malla necesita THREE y al recogerlo
+  // da una Carga Arcana; S-maga, auditoría M-01)
 
   // ---- FORJA (≤ 3 comportamientos nuevos por clase, 2f §7.2): solo el Parpadeo Disruptor ----
   // Parpadeo Disruptor (variante II del Parpadeo, absorbe a la Onda Repulsora): te teletransporta
@@ -879,13 +838,17 @@ export const MAGA_SKILL_FORGE = {
     ],
   },
   // ---------------- Arcanista ----------------
+  // S-maga (M-01): las tres piezas sobre el Orbe que descarga (orbe_arcano, js/powers-maga.js)
   a_orbe: {
-    mejora: { name: 'Orbe Grande', icon: 'forge/mejora', line: '+30 % de tamaño.', mul: { size: 1.3 } },
+    mejora: { name: 'Orbe Grande', icon: 'forge/mejora', line: 'Descarga a 4,5 m (antes 3,5 m) y es un 30 % más grande.',
+      set: { 'zap.radius': 4.5 }, mul: { size: 1.3 } },
     vars: [
-      { id: 'a_orbe_i', name: 'Orbe Veloz', role: 'UNI', icon: 'forge/v_a_orbe_i', line: 'El doble de rápido; +40 % de daño y sin rebotes.',
-        mul: { speed: 2 }, set: { bounces: 0 }, mod: { dmg: 40 } },
-      { id: 'a_orbe_ii', name: 'Orbe Gemelo', role: 'AREA', icon: 'forge/v_a_orbe_ii', line: 'Lanzas 2 orbes en V; 60 % cada uno.',
-        set: { count: 2, spread: 0.22 }, mod: { dmg: -40 } },
+      // no se detiene: llega y vuelve al instante, y también descarga de vuelta
+      { id: 'a_orbe_i', name: 'Orbe Veloz', role: 'UNI', icon: 'forge/v_a_orbe_i', line: 'Doble de rápido, sin pararse: descarga a 1 cada 0,15 s (+100 %).',
+        mul: { speed: 2 }, set: { park: 0, 'zap.every': 0.15, 'zap.n': 1, 'back.speed': 12, 'back.zap': true }, mod: { dmg: 100 } },
+      // dos orbes que giran uno alrededor del otro (0,8 m) por la misma línea; cada descarga, a otro enemigo
+      { id: 'a_orbe_ii', name: 'Orbe Gemelo', role: 'AREA', icon: 'forge/v_a_orbe_ii', line: '2 orbes giran juntos a enemigos distintos (60 % del Orbe cada uno).',
+        set: { twin: 0.8 }, mod: { dmg: -40 } },
     ],
   },
   a_sello: {
@@ -904,20 +867,27 @@ export const MAGA_SKILL_FORGE = {
     vars: [
       { id: 'rayo_i', name: 'Rayo en Cadena', role: 'AREA', icon: 'forge/v_rayo_i', line: 'Salta a 3 enemigos cercanos (70 % cada salto).',
         set: { chain: 3, chainPct: 70 } },
-      // 3 pulsos de 80 % en 1,5 s (+80 %): el 432 % del golpe va al primero que toca
-      { id: 'rayo_ii', name: 'Haz Concentrado', role: 'UNI', icon: 'forge/v_rayo_ii', line: 'Lo canalizas 1,5 s: +80 % al primero que toca.',
-        set: { type: 'channel', channelT: 1.5, ticks: 3, coef: 0.8 }, mod: { dmg: 80 } },
+      // S-maga (M-06/M-07/M-08): canal SIN FIN mantenido (Incinerar de D4: rampa con tope; Desintegrar de
+      // Last Epoch: maná por segundo). El 1.er tic al pulsar (un clic ya pega) y el coste se drena (12/s);
+      // un tic cada 0,2 s y +10 % por tic hasta +100 %. Gasta TODAS las Cargas en el 1.er tic y su bono dura
+      // todo el canal (v_haz_concentrado, js/powers-maga.js). Haz vivo violeta saturado (en aditivo, el lavanda de
+      // las Cargas se veía blanco) con núcleo lila: más ancho con las Cargas (brillo con tope ×1,3), ×2 al tope.
+      // Lo de las Cargas (todas en el 1.er tic, bono todo el canal) lo cuenta la barra (ui-gauges-maga, explain)
+      { id: 'rayo_ii', name: 'Haz Concentrado', role: 'UNI', icon: 'forge/v_rayo_ii', line: 'Haz sin fin (30 % cada 0,2 s, +10 % por tic hasta +100 %); 12 maná/s.',
+        behavior: 'v_haz_concentrado',
+        set: { type: 'channel', endless: true, channelT: 1, ticks: 5, tickNow: true, drainCost: true, cost: 12, cd: 1, lockT: 0, coef: 0.3,
+          rampPerTic: 10, rampMax: 100, beam: { width: 0.36, core: 0.11, color: 0x8a5cf0, coreColor: 0xe2d4ff } } },
     ],
   },
   m_u_desgarro: {
     mejora: { name: 'Desgarro Estable', icon: 'forge/mejora', line: 'Puedes moverte despacio mientras lo canalizas.', set: { moveMul: 0.4 } },
     vars: [
-      // grieta = zona genérica (coef = daño por segundo a todos dentro)
-      { id: 'm_u_desgarro_i', name: 'Brecha', role: 'AREA', icon: 'forge/v_m_u_desgarro_i', line: 'Abre una grieta en el suelo 5 s que daña a todos a 3 m.',
-        set: { type: 'zone', at: 'target', dur: 5, radius: 3 } },
+      // grieta = zona genérica (coef = daño por segundo a todos dentro); sin las claves del canal
+      { id: 'm_u_desgarro_i', name: 'Brecha', role: 'AREA', icon: 'forge/v_m_u_desgarro_i', line: 'Abre una grieta en el suelo 5 s: 120 % por segundo a todos a 3 m.',
+        set: { type: 'zone', at: 'target', dur: 5, radius: 3, coef: 1.2, rampPerTic: null, rampMax: null, beam: null } },
       // un golpe tras 0,5 s de preparación sobre el enemigo de la mira
       { id: 'm_u_desgarro_ii', name: 'Quiebre', role: 'UNI', icon: 'forge/v_m_u_desgarro_ii', line: 'Un solo pulso de 900 % al final; no se canaliza.',
-        set: { type: 'area', at: 'enemy', radius: 1.2, windup: 0.5, coef: 9 } },
+        set: { type: 'area', at: 'enemy', radius: 1.2, windup: 0.5, coef: 9, rampPerTic: null, rampMax: null, beam: null } },
     ],
   },
 };

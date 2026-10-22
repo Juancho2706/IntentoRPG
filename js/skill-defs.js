@@ -223,7 +223,14 @@ export function skillVerbs(def) {
 // tabla completa con sus traducciones del mockup está en docs/paso2-claves-w2.md)
 export const VERB_DOC = Object.freeze({
   windup: 'Preparación (s) · moveMul durante ella (1 = como hoy, 0 = quieto)',
-  channel: 'channelT, ticks, hold: true|false|"toggle", moveMul, autoShot{every,coef,target,range}, drainPerSec, endless',
+  channel: 'channelT, ticks, hold: true|false|"toggle", moveMul, autoShot{every,coef,target,range}, drainPerSec, endless'
+    + ' · S0: tickNow (1.er tic al empezar, t = 0; los `ticks` repartidos en channelT, el último al acabar)'
+    + ' · drainCost (el coste NO se cobra al empezar: se drena por tic, cost/ticks; endless: cost por cada channelT s)'
+    + ' · rampPerTic + rampMax (% que suma cada tic al coef del tic, desde el 2.º, con tope)'
+    + ' · nonBlocking (el canal no bloquea el básico ni las demás ranuras: castLock 0)'
+    + ' · beam: false | { width, core, color, coreColor, intensity, line } (haz vivo de la mano al objetivo; line: al final de la línea)'
+    + ' · soltar (o cortar) antes del 1.er tic devuelve coste y enfriamiento y no dispara ③ afterCast',
+  feel: 'shake (sacudida; se aplica en cualquier `at`, también cono, línea y self; con carga × (0,6 + 0,4·fracción)) · heavy: ms | { ms, minFrac } (congelado propio por golpe; en la definición o en un paso de combo; minFrac: solo con la carga ≥ esa fracción)',
   charge: 'charge{min (declarado > 0: soltar antes no dispara, cancela sin coste; sin declarar o 0, un toque dispara al mínimo),max,perfect:[a,b],perfectPct,perfectCrit,scale{coef,radius,range,rangeAdd (m que suma el tensado al básico de arma; mismo formato que coef)},moveMul,autoRelease,instant,repeat,perfectGauge,full{count,spread,coefMul},markMin (en la unidad de min/max/perfect; por debajo, la suelta no gasta marcas firstCharged)}',
   recast: 'recast{n (usos totales),win,cond:null|"hit",perfectLast,cdFrom:"first"|"end",free,gap}',
   combo: 'type:"combo" · steps[{type,coef,radius,angle,range,width,at,windup,dot,moveMul}] · comboWin',
@@ -276,6 +283,8 @@ export const SKILL_KEYS = new Set([
   'cdOnEnd', 'cdFloor',
   // cola W2d: daño por segundo de la Estela en % del arma
   'zonePct',
+  // S0 (sensación): canal con tic inmediato, coste por drenaje, rampa y sin bloqueo; golpe pesado
+  'tickNow', 'drainCost', 'rampPerTic', 'rampMax', 'nonBlocking', 'heavy',
 ]);
 const HOLD_VALUES = new Set([true, false, 'toggle']);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -287,6 +296,25 @@ function validateVerbs(def, id, err) {
   if (def.type === 'channel' && def.hold != null && !HOLD_VALUES.has(def.hold)) err.push(`${id}: hold debe ser true, false o "toggle"`);
   if (def.autoShot && !(def.autoShot.every > 0)) err.push(`${id}: autoShot.every > 0`);
   if (def.drainPerSec != null && !(def.drainPerSec >= 0)) err.push(`${id}: drainPerSec ≥ 0`);
+  // S0: claves del canal y del golpe pesado
+  for (const k of ['tickNow', 'drainCost', 'nonBlocking']) if (def[k] != null && typeof def[k] !== 'boolean') err.push(`${id}: ${k} es true o false`);
+  if ((def.tickNow || def.drainCost || def.nonBlocking || def.rampPerTic != null || def.rampMax != null) && def.type !== 'channel')
+    err.push(`${id}: tickNow, drainCost, rampPerTic, rampMax y nonBlocking son de un canal (type "channel")`);
+  if (def.tickNow && !(Math.round(def.ticks || 0) >= 2) && !def.endless) err.push(`${id}: tickNow necesita ticks ≥ 2 (el 1.º al empezar, el último al acabar)`);
+  if (def.rampPerTic != null && !(isNum(def.rampPerTic) && def.rampPerTic > 0)) err.push(`${id}: rampPerTic > 0 (% por tic)`);
+  if (def.rampMax != null && !(isNum(def.rampMax) && def.rampMax > 0)) err.push(`${id}: rampMax > 0 (% de tope)`);
+  if ((def.rampPerTic != null) !== (def.rampMax != null)) err.push(`${id}: rampPerTic y rampMax van juntas`);
+  const hv = def.heavy;
+  if (hv != null && !(isNum(hv) ? hv > 0 && hv <= 250 : isPlain(hv) && hv.ms > 0 && hv.ms <= 250 && (hv.minFrac == null || (hv.minFrac >= 0 && hv.minFrac <= 1))))
+    err.push(`${id}: heavy = ms (1–250) o { ms, minFrac ∈ [0, 1] }`);
+  if (def.shake != null && !(isNum(def.shake) && def.shake >= 0 && def.shake <= 2)) err.push(`${id}: shake en [0, 2]`);
+  const bm = def.beam;
+  if (bm != null && typeof bm !== 'boolean' && !(isPlain(bm) && ['width', 'core', 'intensity', 'dur'].every(k => bm[k] == null || (isNum(bm[k]) && bm[k] >= 0))))
+    err.push(`${id}: beam = true | false | { width, core, color, coreColor, intensity, dur, line }`);
+  for (const [i, s] of (Array.isArray(def.steps) ? def.steps : []).entries()) {
+    const sh = s?.heavy;
+    if (sh != null && !(isNum(sh) ? sh > 0 && sh <= 250 : isPlain(sh) && sh.ms > 0 && sh.ms <= 250)) err.push(`${id}: steps.${i}.heavy = ms (1–250) o { ms, minFrac }`);
+  }
   const c = def.charge;
   if (c) {
     if (!isPlain(c)) err.push(`${id}: charge debe ser un objeto`);
@@ -389,6 +417,50 @@ export function validateSkillDef(def, { behaviors = null, v2 = false, warnings =
   }
   if (Array.isArray(warnings)) warnings.push(...warn);
   return err;
+}
+
+// ---------- dependencias de FORMA de un nodo de talento (S0, T5) ----------
+// Un nodo (o una opción A/B) que solo funciona con una forma concreta de una habilidad lo declara:
+//   needsForm: { <skillId>: '<cond>' | ['<cond>', …] }   (todas las condiciones a la vez)
+// y el libro avisa cuando la forja elegida (Mejora + variante) la incumple: «Quiebre no se canaliza:
+// Grieta Eterna… no hacen nada». Condiciones sobre la definición FORJADA: channel · pierce · charge ·
+// proj · area · detonate · chain · recast · trap · 'type:<tipo>' · 'tag:<tag>'; '!<cond>' la niega.
+export const FORM_NEEDS = Object.freeze({
+  channel: { test: d => d.type === 'channel', yes: 'se canaliza', no: 'no se canaliza' },
+  pierce: { test: d => !!d.pierce, yes: 'atraviesa', no: 'no atraviesa' },
+  charge: { test: d => !!d.charge, yes: 'se carga', no: 'no se carga' },
+  proj: { test: d => d.type === 'proj' || (d.tags || []).includes('proj'), yes: 'es un proyectil', no: 'no es un proyectil' },
+  area: { test: d => (d.tags || []).includes('area') || ['area', 'zone', 'cone'].includes(d.type), yes: 'es de área', no: 'no es de área' },
+  detonate: { test: d => !!(d.detonate || d.mark?.detonate), yes: 'detona', no: 'no detona' },
+  chain: { test: d => (d.chain || 0) > 0, yes: 'encadena', no: 'no encadena' },
+  recast: { test: d => !!d.recast, yes: 'se relanza', no: 'no se relanza' },
+  trap: { test: d => d.type === 'trap' || !!d.trap, yes: 'es una trampa', no: 'no es una trampa' },
+});
+// ¿la condición es del vocabulario? ('!x', 'type:x', 'tag:x' y las de FORM_NEEDS)
+export function formNeedValid(cond) {
+  if (typeof cond !== 'string' || !cond) return false;
+  const c = cond[0] === '!' ? cond.slice(1) : cond;
+  return !!FORM_NEEDS[c] || /^type:\w+$/.test(c) || /^tag:\w+$/.test(c);
+}
+// ¿cumple la definición (forjada) la condición? Desconocida = no se exige (true)
+export function formNeedMet(def, cond) {
+  if (!def || !formNeedValid(cond)) return true;
+  const neg = cond[0] === '!';
+  const c = neg ? cond.slice(1) : cond;
+  let ok;
+  if (c.startsWith('type:')) ok = def.type === c.slice(5);
+  else if (c.startsWith('tag:')) ok = (def.tags || []).includes(c.slice(4));
+  else ok = FORM_NEEDS[c].test(def);
+  return neg ? !ok : ok;
+}
+// texto de lo que le falta a la forma: «no se canaliza», «atraviesa»…
+export function formNeedText(cond) {
+  if (!formNeedValid(cond)) return '';
+  const neg = cond[0] === '!';
+  const c = neg ? cond.slice(1) : cond;
+  const f = FORM_NEEDS[c];
+  if (f) return neg ? f.yes : f.no;
+  return c.startsWith('type:') ? `${neg ? 'es' : 'no es'} de tipo ${c.slice(5)}` : `${neg ? 'tiene' : 'no tiene'} «${c.slice(4)}»`;
 }
 
 // ---------- soportes por tags (§4.3) ----------

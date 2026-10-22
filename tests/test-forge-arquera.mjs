@@ -238,7 +238,9 @@ console.log('A2/F7: 51 definiciones forjadas válidas (v2, sin avisos); ninguna 
 console.log('A9 y D28: 5 poderes v_* registrados, usados y sin choques entre clases ✓');
 
 // ------------------------------------------------ 4) en el arnés (canal REAL)
-const WEAPON = { kind: 'item', slot: 'weapon', name: 'Arco de prueba', dmg: [100, 100], affixes: {}, quality: 0 };
+// 1000 de arma (S0): las razones de daño se miden con enteros redondeados y, con el rango del kit desde el Nv10
+// (rankReq), 100 dejaba errores de redondeo del 1–2 % en los golpes de ~60
+const WEAPON = { kind: 'item', slot: 'weapon', name: 'Arco de prueba', dmg: [1000, 1000], affixes: {}, quality: 0 };
 // heroína con un arco fijo y sin críticos (golpe medio constante): los daños se comparan
 function hero(level, { spec = null, forge = {} } = {}) {
   const h = makeHarness({ classId: 'arquera', level, spec });

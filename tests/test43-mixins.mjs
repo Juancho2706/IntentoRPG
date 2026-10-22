@@ -115,6 +115,8 @@ const SKILLS_EXPECTED = [
   '_skillEnd', 'cancelHeld',
   // cola W2d (parte A): APIs públicas del canal de lanzamiento
   'castEcho', 'startCooldown', 'channelInfo', 'extendMark', 'startPulses',
+  // S0 (sensación): haz vivo de los canales y de las clases
+  'spawnLiveBeam', 'tickLiveBeams',
 ];
 const skKeys = Object.keys(skillMethods);
 for (const m of SKILLS_EXPECTED) if (typeof skillMethods[m] !== 'function') throw new Error('falta método de skills o no es función: ' + m);

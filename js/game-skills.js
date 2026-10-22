@@ -34,6 +34,13 @@
 //   origin), g.startCooldown, g.channelInfo, g.extendMark; tics de canal a instantes fijos;
 //   principal instantánea sobre el canal de una definitiva imparable; detonar al final del
 //   vuelo; encadenado que nace en el origen y lleva la habilidad; velocidad de habilidades.
+// S0 (sensación de las habilidades, auditoría de las 3 clases): canal con tickNow, drainCost, rampa
+//   (rampPerTic/rampMax), nonBlocking y soltar antes del 1.er tic = como no lanzado (devuelve coste y
+//   enfriamiento, sin ③ afterCast; ⑭ con casts 0 y ticks 0); HAZ VIVO (g.spawnLiveBeam, por defecto en
+//   el canal de un objetivo y en el `beam` de un proyectil, hasta el final de la línea si atraviesa);
+//   `heavy` (congelado propio por golpe) y sacudida declarada en cualquier `at`, con la carga
+//   × (0,6 + 0,4·fracción); réplicas que se ven, se oyen y sacuden; ranuras puestas a mano
+//   (p.hotbarManual) y aviso de la forja que deja nodos sin efecto (needsForm).
 import * as THREE from 'three';
 import { resolveSkill, resolveSkillId, isKnown, fitsSlot, GCD, cooldownWithMassacre, forgeState, forgedDef, validSupports } from './skill-resolve.js';
 import { projFanOffset, forgeVar, VERB_DEFAULTS, supportFits } from './skill-defs.js';
@@ -41,11 +48,13 @@ import { FIELD_DEFS } from './field-entities.js';
 import { firePower, dealProcDamage as powerProcDamage, SKILL_BEHAVIORS } from './powers.js';
 import { applyHitEffects, weaponBasicOf } from './entities.js';
 import { canAfford, spendResource, gainResource, drainResource } from './resources.js';
-import { COLDBLOOD_CRIT, threatFromHeal, chargeRelease, rankCoef } from './combat-math.js';
+import { COLDBLOOD_CRIT, threatFromHeal, chargeRelease, rankCoef, channelRampPct } from './combat-math.js';
 import { applyDoTInstance, dotsOf, dotRemaining, consumeDoTs, replaceDoTInstance, dotKindOf } from './timers.js';
 import { SUPPORTS } from './data.js';
 import { SKILL_FX_PRESETS, skillFxFor } from './fx-skills.js';
 import { gainGauge } from './spec-mechanics.js';
+import { createLiveBeam, chargedShake } from './vfx.js';
+import { formVoids } from './talents.js';
 
 const SLOT_ACTION = { k1: 'skill1', k2: 'skill2', k3: 'skill3', k4: 'skill4' };
 // tipos que NO salen sobre el canal de una definitiva (Doble Grieta): moverían o cortarían el canal
@@ -102,6 +111,37 @@ function aimDir(p, target, from = null) {
   if (dir.lengthSq() < 1e-6) dir.set(Math.sin(p.group.rotation.y), 0, Math.cos(p.group.rotation.y));
   return dir.normalize();
 }
+// ---- sensación (S0) ----
+// la MANO del héroe, de donde sale un haz: a la altura del pecho y un poco por delante
+export function handPos(p) {
+  const r = p?.group?.rotation?.y || 0;
+  return v3(p.pos.x + Math.sin(r) * 0.4, p.pos.z + Math.cos(r) * 0.4, 1.2);
+}
+// fracción de la carga del lanzamiento (null si no se cargó)
+const chargeFracOf = ctx => (ctx.cast?.charge ? ctx.cast.charge.frac : null);
+// SACUDIDA de un golpe (G08/G09): `base` (la de la definición o la del tipo) × (0,6 + 0,4·fracción) si
+// se cargó, × mul (réplicas al 50 %). Respeta reduceMotion (y el ajuste de sacudida de addShake)
+function feelShake(g, ctx, base, mul = 1) {
+  if (!(base > 0) || g.settings?.reduceMotion) return 0;
+  const amp = chargedShake(base, chargeFracOf(ctx)) * mul;
+  if (amp > 0) g.addShake?.(amp);
+  return amp;
+}
+// GOLPE PESADO (G08): `heavy` de la definición o del paso de combo = congelado propio (ms) al impactar;
+// { ms, minFrac }: solo con la carga ≥ minFrac. Una vez por instante (un área que golpea a diez no
+// congela diez veces); ni repeticiones ni réplicas. Respeta reduceMotion
+function feelHeavy(g, ctx) {
+  const hv = ctx.sk?.heavy;
+  if (!hv || ctx.isEcho || ctx._inRepeat || g.settings?.reduceMotion) return 0;
+  const ms = typeof hv === 'number' ? hv : hv.ms;
+  if (!(ms > 0)) return 0;
+  if (typeof hv === 'object' && hv.minFrac > 0 && (chargeFracOf(ctx) ?? 1) < hv.minFrac - 1e-9) return 0;
+  const now = ctx.p.simT || 0;
+  if (ctx._heavyAt === now) return 0;
+  ctx._heavyAt = now;
+  g.hitStop?.(ms);
+  return ms;
+}
 
 // ------------------------------------------------------------
 // TIPOS GENÉRICOS: (g, ctx, done) → CastResult | undefined (si es diferido, llaman
@@ -126,6 +166,7 @@ const GENERIC = {
     g.spawnRing?.(e.pos, 0.8, 0xffbb44);
     g.emitFx(fxp(ctx.fx?.impact), e.pos.clone().setY(1.0));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), e.pos.clone().setY(0.1));
+    feelShake(g, ctx, ctx.sk.shake || 0);
     ctx.zoneCenter = e.pos.clone().setY(0); ctx.zoneRad = 1.5;
     return ctx.res;
   },
@@ -158,7 +199,8 @@ const GENERIC = {
         if (fx?.extra) g.emitFx(fxp(fx.extra), c.clone().setY(atTarget ? 0.1 : 0.5));
         ctx.zoneCenter = c; ctx.zoneRad = rad;
       }
-      if (atTarget) g.addShake?.(sk.shake || 0.25);
+      // S0 (G09): a la mira, la de siempre (0,25 si no declara); centrada en ti, solo si la declara
+      feelShake(g, ctx, atTarget ? (sk.shake || 0.25) : (sk.shake || 0));
       return done(ctx.res);
     };
     if (prof.impactDelay > 0) {
@@ -198,6 +240,7 @@ const GENERIC = {
     g.spawnRing?.(front, (prof.radius || 3) * 0.6, ctx.color || 0xffaa55);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), front.clone().setY(1.0));
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
+    feelShake(g, ctx, ctx.sk.shake || 0);
     return ctx.res;
   },
 
@@ -222,6 +265,7 @@ const GENERIC = {
     ctx.zoneCenter = mid; ctx.zoneRad = Math.max(1.5, (prof.width || 2));
     g.spawnBeam?.(o, o.clone().addScaledVector(dir, len), ctx.color || 0xd8c49a, 0.25);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), mid.clone().setY(0.3));
+    feelShake(g, ctx, sk.shake || 0);
     return ctx.res;
   },
 
@@ -280,7 +324,20 @@ const GENERIC = {
       }
     }
     void count;
-    if (sk.beam) g.spawnBeam?.(muzzle, ctx.target.clone().setY(1.0), ctx.color || 0xffee66);
+    // haz de la saeta (`beam`, S0 T3): VIVO y a lo largo de la línea que atraviesa (hasta el alcance o
+    // la pared) si perfora; si no, hasta la mira. Ancho, brillo y duración crecen con la carga.
+    // beam = true | { width, core, color, coreColor, intensity, dur }
+    if (sk.beam) {
+      const bo = typeof sk.beam === 'object' ? sk.beam : {};
+      const frac = ctx.cast?.charge ? ctx.cast.charge.frac : 1;
+      const end = prof.pierce
+        ? g.clampWalkable(from0, from0.clone().add(v3(Math.sin(baseAngle) * range, Math.cos(baseAngle) * range)), range).setY(1.0)
+        : ctx.target.clone().setY(1.0);
+      const beam = g.spawnLiveBeam?.({ from: muzzle.clone(), to: end, color: bo.color ?? ctx.color ?? 0xffee66, coreColor: bo.coreColor,
+        width: (bo.width ?? 0.3) * (0.6 + 0.8 * frac), core: (bo.core ?? 0.09) * (0.7 + 0.6 * frac),
+        intensity: (bo.intensity ?? 1) * (0.7 + 0.5 * frac), dur: bo.dur ?? 0.25 + 0.3 * frac });
+      beam?.pulse?.(1);
+    }
     ctx.lifestealDone = true; // el robo de los proyectiles va por impacto
     g.timers.schedule(flight, finish);
     return undefined; // diferido: termina al impactar (o al agotar el alcance)
@@ -302,7 +359,7 @@ const GENERIC = {
         ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
         g._arrive(ctx, from);
         if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(0.7));
-        g.addShake?.(sk.shake || 0.35);
+        feelShake(g, ctx, sk.shake || 0.35);
         done(ctx.res);
       },
     };
@@ -341,6 +398,7 @@ const GENERIC = {
       p.swing = 1;
       g._arrive(ctx, from);
       if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(0.7));
+      feelShake(g, ctx, sk.shake || 0);
     };
     const dragW = prof.dragWidth || 0;
     // un paso del avance: mueve al héroe y a los arrastrados
@@ -503,6 +561,8 @@ const GENERIC = {
   // SUSTITUYE al golpe por defecto: type:'channel' + behavior conviven.
   // Paso 2: con autoShot, el tic solo dispara (Carrera del Viento) · pull por tic (Ciclón: con
   // pull.radius, a otro radio que el del daño) · slowImmune mientras dura (Giro Firme)
+  // S0: tickNow, drainCost, rampa (rampPerTic/rampMax: el tic pega coef × inst.rampMul), nonBlocking y
+  // el HAZ VIVO por defecto en el canal de un objetivo (beam:false lo apaga; beam {…} lo ajusta)
   channel(g, ctx, done) {
     const { p, prof, sk } = ctx;
     const beh = sk.behavior ? SKILL_BEHAVIORS[sk.behavior] : null;
@@ -510,20 +570,23 @@ const GENERIC = {
     const auto = sk.autoShot || null;
     const defaultTick = (inst, interval) => {
       if (auto) return;
-      if (prof.radius > 0) { g.dealArea(sk.at === 'self' || !sk.at ? p.pos.clone() : ctx.target.clone(), prof.radius, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() }); return; }
+      const coef = ctx.coef * (inst.rampMul || 1);
+      if (prof.radius > 0) { g.dealArea(sk.at === 'self' || !sk.at ? p.pos.clone() : ctx.target.clone(), prof.radius, coef, { ...ctx.areaOpts, from: p.pos.clone() }); return; }
       const range = Math.max(2, prof.range || 8);
       let e = inst.target;
       if (!e || !e.alive || e.pos.distanceTo(p.pos) > range + 1) e = inst.target = g.nearestEnemy(range, ctx.target) || g.nearestEnemy(range) || null;
       if (!e) return;
       p.faceToward(e.pos);
       const cb = prof.critBonus + (prof.coldblood && e.slowT > 0 ? COLDBLOOD_CRIT : 0);
-      const { dmg, crit } = p.rollDamage(ctx.coef, cb, prof.addPct, e, ctx.hitInfo);
+      const { dmg, crit } = p.rollDamage(coef, cb, prof.addPct, e, ctx.hitInfo);
       ctx.hit(e, e.takeDamage(dmg, crit, ctx.dmgOpts) || 0);
       p.onDealHit();
-      g.spawnBeam?.(p.pos, e.pos, ctx.color || 0xcc88ff, interval);
+      if (!inst.beam) g.spawnBeam?.(p.pos, e.pos, ctx.color || 0xcc88ff, interval);
       if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), e.pos.clone().setY(1.0));
       if (ctx.fx?.tickSfx) g.sfx?.(ctx.fx.tickSfx);
     };
+    // haz vivo: canal de un objetivo (sin radio ni autoShot ni tic propio) o el que declara `beam`
+    const wantsBeam = sk.beam !== false && !auto && (sk.beam ? true : !(prof.radius > 0) && !beh?.tick);
     return g.startChannel(ctx, done, {
       dur: sk.channelT || prof.dur || 2,
       ticks: sk.ticks,
@@ -534,6 +597,11 @@ const GENERIC = {
       autoShot: auto,
       drainPerSec: sk.drainPerSec || 0,
       moveMul: prof.moveMul,
+      tickNow: prof.tickNow,
+      drainCost: prof.drainCost ? prof.cost : 0,
+      ramp: prof.ramp,
+      nonBlocking: prof.nonBlocking,
+      beam: wantsBeam ? (typeof sk.beam === 'object' ? sk.beam : true) : null,
       onTick: beh?.tick ? (inst, interval) => beh.tick(g, p, inst, interval) : defaultTick,
       onEnd: beh?.end ? (inst, end) => beh.end(g, p, inst, end) : null,
     });
@@ -643,6 +711,8 @@ function castSkillCore(p, sk, key, { echoMult = 0, series = null, at = null, ori
   }
   // canal enganchado (toggle): la 2.ª pulsación de su ranura lo suelta
   if (!isEcho && this._channel?.toggle && this._channel.ctx.key === key) { this._endChannel(this._channel, true, 'release'); return false; }
+  // canal SIN bloqueo (S0, nonBlocking: Carrera del Viento): su propia ranura no lo relanza encima
+  if (!isEcho && this._channel?.nonBlocking && this._channel.ctx.key === key) return false;
   // tras una suelta AUTOMÁTICA hay que soltar el botón antes de volver a cargar
   if (!isEcho && this._needsRelease?.[key]) return false;
   // repeticiones: como mucho echoCap por lanzamiento original (una repetición no genera otra);
@@ -673,7 +743,8 @@ function castSkillCore(p, sk, key, { echoMult = 0, series = null, at = null, ori
   const overUlt = !isEcho && overUltChannel.call(this, prof, def, key);
   if (!isEcho) {
     const locked = ((p.castLock > 0 && !overUlt) || this._windup) && !yieldBasic;
-    if ((locked && !stanceSwapFree) || p.leap || p.dashMove || (this._channel && !overUlt)) return false;   // bloqueo en curso
+    // un canal nonBlocking (S0) no bloquea el básico ni las demás ranuras
+    if ((locked && !stanceSwapFree) || p.leap || p.dashMove || (this._channel && !this._channel.nonBlocking && !overUlt)) return false;   // bloqueo en curso
     if (isBasic) {
       if (p.atkCd > 0) return false;
       // bloqueo de ACCIÓN compartido: mientras una principal prepara, bloquea o
@@ -688,7 +759,9 @@ function castSkillCore(p, sk, key, { echoMult = 0, series = null, at = null, ori
     if (!isBasic && p.basicAt != null && p.basicAt === p.simT) return false;
     if (prof.gcd && p.gcdT > 0 && !stanceSwapFree && !rcState) return false;          // GCD 0,2 s
     const free = (rcState && prof.recast.free) || stanceEnding;
-    if (!free && !canAfford(p, prof.cost)) {
+    // coste por drenaje (S0, drainCost): para empezar basta con pagar el primer tic
+    const need = prof.drainCost ? prof.cost / Math.max(1, Math.round(def.ticks || 1)) : prof.cost;
+    if (!free && !canAfford(p, need)) {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       if (!this._noResAt || now - this._noResAt > 700) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); this._noResAt = now; }
       return false;
@@ -902,7 +975,17 @@ export const skillMethods = {
   // Canalización por tics del planificador (API pública para comportamientos).
   // opts = { dur, ticks, interval?, unstoppable, slowImmune, hold = true | false | 'toggle', endless,
   //          moveMul, autoShot {every, coef, target:'nearest'|'maxHp', range}, drainPerSec,
-  //          speed (× del tic; por defecto ctx.prof.skillSpeed), onTick(inst, interval), onEnd(inst, end) }.
+  //          speed (× del tic; por defecto ctx.prof.skillSpeed), onTick(inst, interval), onEnd(inst, end),
+  //          S0: tickNow (1.er tic al empezar, t = 0; los `ticks` reparten dur y el último cae al acabar),
+  //          drainCost (coste TOTAL que se cobra por tic: total/ticks; endless: total por cada dur s; sin
+  //          recurso para el tic, termina con 'drain'), ramp { perTic, max } (inst.rampPct y inst.rampMul =
+  //          1 + rampa/100 en cada tic: el genérico multiplica su coef; un onTick propio lo lee),
+  //          nonBlocking (no pone castLock: el básico y las demás ranuras siguen libres; otro canal lo
+  //          termina), beam (true | { width, core, color, coreColor, intensity, line }: haz VIVO de la mano
+  //          al objetivo pegajoso —inst.target— o, sin él o con line, al final de la línea hacia la mira;
+  //          late en cada tic, se ensancha ×2 al tope de la rampa y se apaga al acabar: inst.beam) }.
+  // Soltar o cortar ANTES del primer tic es como no lanzarlo: devuelve el coste y el enfriamiento, ⑭ va
+  // con casts 0 y ticks 0 y no hay ③ afterCast (no gasta Cargas ni lo que dependa de lanzar).
   // Soltar la tecla (salvo hold:false: Remolino Sangriento gira solo; 'toggle': la 2.ª
   // pulsación), la esquiva o un golpe > 10 % de la vida (si es `int` y no eres imparable)
   // la cortan. endless: dura hasta soltar, quedarte sin recurso o que la corten.
@@ -911,32 +994,67 @@ export const skillMethods = {
   // Termina llamando a done(ctx.res) y a ⑭ onSkillEnd(kind 'channel').
   startChannel(ctx, done, opts = {}) {
     const p = ctx.p;
+    // solo hay un canal: uno sin bloqueo en curso termina si empieza otro (antes quedaba huérfano)
+    if (this._channel) this._endChannel(this._channel, true, 'cancel');
     const dur = opts.dur || 2;
     const ticks0 = Math.max(1, Math.round(opts.ticks || dur / 0.33));
     const speed = Math.max(0.1, opts.speed ?? ctx.prof?.skillSpeed ?? 1);
-    const interval = (opts.interval || dur / ticks0) / speed;
-    const ticks = speed === 1 ? ticks0 : Math.max(1, Math.round(dur / interval));
+    const tickNow = !!opts.tickNow;
+    // con tickNow el 1.º sale al empezar y el último al acabar: los tics reparten dur en ticks − 1 tramos
+    const span = tickNow && !opts.endless && ticks0 > 1 ? ticks0 - 1 : ticks0;
+    const interval = (opts.interval || dur / span) / speed;
+    const ticks = speed === 1 ? ticks0 : Math.max(1, Math.round(dur / interval) + (tickNow ? 1 : 0));
     const toggle = opts.hold === 'toggle' || (opts.hold !== false && this.settings?.holdMode === 'toggle');
     const t0 = this.timers.now || 0;
     const inst = { ctx, left: ticks, timer: 0, done, target: ctx.enemy || null, unstoppable: !!opts.unstoppable, onEnd: opts.onEnd || null,
       hold: opts.hold !== false && !toggle, toggle, endless: !!opts.endless, interval, autoAcc: 0, endReason: null, released: false, tickN: 0,
-      t0, slowImmune: !!opts.slowImmune };
+      t0, slowImmune: !!opts.slowImmune, tickNow, nonBlocking: !!opts.nonBlocking, ramp: opts.ramp?.perTic > 0 ? opts.ramp : null,
+      rampPct: 0, rampMul: 1, drainCost: opts.drainCost > 0 ? opts.drainCost : 0, beam: null };
     this._channel = inst;
-    p.castLock = opts.endless ? 1e9 : ticks * interval + 0.05;
-    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, opts.endless ? 1e9 : ticks * interval + 0.1);
+    // el último tic: a ticks·interval (o a (ticks − 1)·interval con tickNow)
+    const lastAt = (tickNow ? ticks - 1 : ticks) * interval;
+    if (!inst.nonBlocking) p.castLock = opts.endless ? 1e9 : lastAt + 0.05;
+    if (inst.unstoppable) p.unstoppableT = Math.max(p.unstoppableT || 0, opts.endless ? 1e9 : lastAt + 0.1);
     if (inst.slowImmune) p.grantSlowImmune?.(interval + 0.1);
     if (opts.moveMul != null && opts.moveMul !== 1) p.setMoveMul('channel', opts.moveMul);
     const auto = opts.autoShot || null;
-    // el siguiente tic, al instante fijo t0 + (hechos + 1)·interval (un fotograma largo los pone al día)
-    const schedNext = () => { inst.timer = this.timers.schedule(Math.max(0, inst.t0 + (inst.tickN + 1) * interval - this.timers.now - 1e-9), step); };
+    // coste por drenaje: lo que cuesta cada tic (S0)
+    const costPerTic = inst.drainCost > 0 ? (inst.endless ? inst.drainCost * interval / dur : inst.drainCost / ticks) : 0;
+    // haz vivo (S0, T3): de la mano al objetivo pegajoso o al final de la línea hacia la mira
+    if (opts.beam) {
+      const bo = opts.beam === true ? {} : opts.beam;
+      const range = Math.max(2, ctx.prof?.range || 8);
+      const lineEnd = () => {
+        const o = p.pos.clone().setY(0);
+        const end = this.clampWalkable(o, o.clone().addScaledVector(aimDir(p, this.input?.mouseWorld || ctx.target), range), range);
+        return v3(end.x, end.z, 1.0);
+      };
+      const to = () => (!bo.line && inst.target?.alive ? v3(inst.target.pos.x, inst.target.pos.z, 1.0) : lineEnd());
+      inst.beam = this.spawnLiveBeam({ from: () => handPos(p), to, color: bo.color ?? ctx.color ?? 0xcc88ff, coreColor: bo.coreColor,
+        width: bo.width ?? 0.55, core: bo.core ?? 0.16, intensity: bo.intensity ?? 1 });
+      inst.beamBase = { width: inst.beam.width, core: inst.beam.core };
+    }
+    // el siguiente tic, al instante fijo t0 + k·interval (k = hechos, +1 sin tickNow; un fotograma
+    // largo los pone al día)
+    const schedNext = () => { inst.timer = this.timers.schedule(Math.max(0, inst.t0 + (inst.tickN + (tickNow ? 0 : 1)) * interval - this.timers.now - 1e-9), step); };
     const step = () => {
       if (this._channel !== inst) return;
       if (!p.alive) { this._endChannel(inst, true, 'cancel'); return; }
       if (inst.hold && !this.slotHeld(ctx.key)) { this._endChannel(inst, true, 'release'); return; }
-      if (opts.drainPerSec > 0 && !drainResource(p, opts.drainPerSec, interval)) { this._endChannel(inst, true, 'drain'); return; }
+      // el drenaje paga el tramo ANTERIOR al tic (el de t = 0 con tickNow no tiene tramo)
+      if (opts.drainPerSec > 0 && !(tickNow && inst.tickN === 0) && !drainResource(p, opts.drainPerSec, interval)) { this._endChannel(inst, true, 'drain'); return; }
+      if (costPerTic > 0 && !spendResource(p, costPerTic)) { this._endChannel(inst, true, 'drain'); return; }
       inst.tickN++;
+      // rampa (combat-math.channelRampPct): el haz se ensancha ×2 al tope
+      if (inst.ramp) {
+        inst.rampPct = channelRampPct(inst.tickN, inst.ramp.perTic, inst.ramp.max);
+        inst.rampMul = 1 + inst.rampPct / 100;
+        const k = inst.ramp.max > 0 ? inst.rampPct / inst.ramp.max : 0;
+        if (inst.beam && inst.beamBase) inst.beam.setWidth(inst.beamBase.width * (1 + k), inst.beamBase.core * (1 + 0.5 * k));
+      }
       if (inst.slowImmune) p.grantSlowImmune?.(interval + 0.1);
       try { opts.onTick?.(inst, interval); } catch (err) { console.warn(`[canalización ${ctx.sk?.id}]`, err); }
+      inst.beam?.pulse?.(1);
       // pull por tic (Ciclón): atrae a los enemigos del radio de atracción (pull.radius o el del
       // daño) hacia ti; pull.boss:false deja a los jefes
       const pr = ctx.prof;
@@ -953,7 +1071,7 @@ export const skillMethods = {
       if (inst.endless || inst.left > 0) schedNext();
       else this._endChannel(inst, false, 'done');
     };
-    schedNext();
+    if (tickNow) step(); else schedNext();
     return undefined; // diferido: termina con el último tic
   },
   // disparo automático de un canal (autoShot): al más cercano o al de más vida en `range`
@@ -977,10 +1095,13 @@ export const skillMethods = {
     const inst = this._channel;
     if (!inst) return null;
     const t = Math.max(0, (this.timers?.now || 0) - (inst.t0 || 0));
-    const dur = inst.endless ? Infinity : (inst.tickN + Math.max(0, inst.left)) * inst.interval;
+    const span = inst.tickN + Math.max(0, inst.left) - (inst.tickNow ? 1 : 0);
+    const dur = inst.endless ? Infinity : Math.max(0, span) * inst.interval;
+    // S0: rampPct (% de la rampa en el último tic), nonBlocking y beam (el asa del haz vivo: setWidth…)
     return { id: inst.ctx.cast?.sk?.id || inst.ctx.sk?.id || null, key: inst.ctx.key || null, t, dur,
       left: inst.endless ? Infinity : Math.max(0, dur - t), ticks: inst.tickN, interval: inst.interval,
-      toggle: !!inst.toggle, hold: !!inst.hold, endless: !!inst.endless, unstoppable: !!inst.unstoppable, p: inst.ctx.p };
+      toggle: !!inst.toggle, hold: !!inst.hold, endless: !!inst.endless, unstoppable: !!inst.unstoppable, p: inst.ctx.p,
+      rampPct: inst.rampPct || 0, nonBlocking: !!inst.nonBlocking, beam: inst.beam || null };
   },
   // alarga la canalización en curso `s` segundos (Danza Carmesí, Tierra Santa)
   extendChannel(p, s) {
@@ -988,7 +1109,7 @@ export const skillMethods = {
     if (!inst || inst.ctx.p !== (p || this.player) || !(s > 0)) return false;
     if (!inst.endless) inst.left += Math.max(1, Math.round(s / inst.interval));
     const pl = inst.ctx.p;
-    pl.castLock = Math.max(pl.castLock || 0, (inst.endless ? 1e9 : inst.left * inst.interval + 0.05));
+    if (!inst.nonBlocking) pl.castLock = Math.max(pl.castLock || 0, (inst.endless ? 1e9 : inst.left * inst.interval + 0.05));
     if (inst.unstoppable) pl.unstoppableT = Math.max(pl.unstoppableT || 0, inst.left * inst.interval + 0.1);
     return true;
   },
@@ -1164,9 +1285,12 @@ export const skillMethods = {
       const sk = p.cls.skills.find(s => s.id === id);
       if (!sk || !fitsSlot(sk, slot)) { this.ui?.message?.(`${sk?.name || 'Esa habilidad'} no va en esa ranura`); return false; }
       if (!isKnown(p, sk)) { this.ui?.message?.(sk.spec ? `${sk.name}: solo con su especialización` : `${sk.name}: se aprende al nivel ${sk.req}`); return false; }
-      for (const s of Object.keys(p.hotbar)) if (p.hotbar[s] === id) p.hotbar[s] = null;
+      for (const s of Object.keys(p.hotbar)) if (p.hotbar[s] === id) { p.hotbar[s] = null; if (p.hotbarManual) delete p.hotbarManual[s]; }
     } else if (slot === 'lmb') id = weaponBasicOf(p.cls)?.id || null;
     p.hotbar[slot] = id;
+    // S0 (T1): la pusiste TÚ: la barra de la especialización no la sustituye (p.hotbarManual, se guarda)
+    p.hotbarManual = p.hotbarManual || {};
+    if (id) p.hotbarManual[slot] = id; else delete p.hotbarManual[slot];
     this.ui?.refreshHotbar?.();
     this.save?.();
     return true;
@@ -1208,11 +1332,18 @@ export const skillMethods = {
       this.ui?.message?.(`🔧 ${out.length} soporte${out.length > 1 ? 's' : ''} desengarzado${out.length > 1 ? 's' : ''}: no encaja${out.length > 1 ? 'n' : ''} con la forma nueva`, 3000);
     }
     void validSupports;
+    // S0 (T5): ¿la forma nueva deja sin efecto nodos comprados? (needsForm de los nodos)
+    const voids = formVoids(p, skillId, forgedDef(p, sk));
+    if (voids.length) {
+      const what = v ? (forgeVar(st.entry, v)?.name || sk.name) : `${sk.name} sin variante`;
+      const names = voids.map(x => x.name).join(', ');
+      this.ui?.message?.(`⚠ ${what} ${voids[0].text}: ${names} no ${voids.length > 1 ? 'hacen' : 'hace'} nada`, 4500);
+    }
     this.sfx?.('uiclick');
     this.ui?.refreshSkillsView?.();
     this.ui?.refreshHotbar?.();
     this.save?.();
-    return { ok: true, unsocketed: out };
+    return { ok: true, unsocketed: out, voids };
   },
 
   // Perfil resuelto (resolveSkill, cacheado en p.resolved) de una habilidad de la clase de `p`
@@ -1232,9 +1363,9 @@ export const skillMethods = {
     const id = p.hotbar?.rmb;
     const sk = id ? p.cls.skills.find(s => s.id === id) : null;
     if (!sk || sk.cat === 'basic' || !isKnown(p, sk)) return false;
-    if (!this._skillReady(p, sk) || p.gcdT > 0 || p.castLock > 0 || p.leap || this._channel || this._charging) return false;
+    if (!this._skillReady(p, sk) || p.gcdT > 0 || p.castLock > 0 || p.leap || (this._channel && !this._channel.nonBlocking) || this._charging) return false;
     const prof = resolveSkill(p, sk);
-    if (!canAfford(p, prof.cost)) return false;
+    if (!canAfford(p, prof.drainCost ? prof.cost / Math.max(1, Math.round(prof.def?.ticks || 1)) : prof.cost)) return false;
     if (prof.type === 'melee') {
       const e = this.nearestEnemy(Math.max(2.2, prof.range || 2.2) + 0.6);
       if (!e) return false;
@@ -1420,6 +1551,8 @@ export const skillMethods = {
       const pr = ctx.prof.pull > 0 && (this._channel?.ctx === ctx || (ctx.prof.pullBoss === false && isBossEnemy(e))) ? { ...ctx.prof, pull: 0 } : ctx.prof;
       applyHitEffects(this, p, e, pr, ctx.avgHit, { from });
       if (e && !e.alive) ctx.res.killed++;
+      // golpe pesado (S0, G08: `heavy` de la definición o del paso)
+      if (e && (dealt || 0) > 0) feelHeavy(this, ctx);
     };
     ctx.areaOpts = { addPct, critBonus: stepProf.critBonus, coldblood: prof.coldblood, color, hitInfo, onHit: ctx.hit, hitExtra };
     return ctx;
@@ -1436,10 +1569,13 @@ export const skillMethods = {
       if (isBasic) { p.atkCd = Math.max(0.05, p.stats.atkTime * (base.cadence || 1) - (ctx.windup || 0)); p.basicAt = p.simT; }
       else {
         const free = rc && base.recast?.free;
-        if (!free && !spendResource(p, base.cost)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
+        // coste por drenaje (S0, drainCost): no se cobra al empezar, lo cobra el canal por tic
+        const upfront = free || base.drainCost ? 0 : base.cost;
+        if (upfront > 0 && !spendResource(p, upfront)) { this.ui?.message?.(`${p.cls.resource?.name || 'Recurso'} insuficiente`); return false; }
+        ctx._paid = upfront;
         if (base.gen && !rc) gainResource(p, base.gen);   // def.gen (Grito de Guerra) + forja/talentos
         // enfriamiento: no en un relanzamiento (ni en el 1.º con cdFrom 'end': al cerrar la cadena)
-        if (!rc && !(base.recast && base.recast.cdFrom === 'end')) this._startCooldown(p, sk.id, base);
+        if (!rc && !(base.recast && base.recast.cdFrom === 'end')) { this._startCooldown(p, sk.id, base); ctx._cdStarted = true; }
       }
       if (base.lockT > 0) p.castLock = Math.max(p.castLock || 0, base.lockT);
       if (base.recast && base.recast.cond !== 'hit') this._recastCommit(p, sk, base, ctx);
@@ -1487,6 +1623,9 @@ export const skillMethods = {
   // tras el impacto: robo de vida, Masacre, Estela, recurso del básico, verbos de llegada
   // (réplicas, onda, curas/escudos, cebos) y ⑦ afterCast
   _finishCast(ctx, res) {
+    // canal soltado o cortado antes de su 1.er tic (S0): como no lanzado (_endChannel ya devolvió
+    // coste y enfriamiento): ni recurso, ni verbos de llegada, ni ③ afterCast
+    if (ctx.aborted) return;
     const { p, sk, prof, isEcho, isBasic } = ctx;
     const base = ctx.baseProf || prof;
     const def = base.def || sk;
@@ -1523,8 +1662,16 @@ export const skillMethods = {
       for (let i = 1; i <= rp.n; i++) {
         this.timers.schedule((rp.every || 0.5) * i, () => {
           if (!p.alive) return;
-          this.dealArea(c, rad, ctx.coef * (rp.coef ?? 0.5), { ...ctx.areaOpts, from: c, hitExtra: { ...ctx.hitExtra, repeat: i, echo: true } });
+          ctx._inRepeat = true;
+          try { this.dealArea(c, rad, ctx.coef * (rp.coef ?? 0.5), { ...ctx.areaOpts, from: c, hitExtra: { ...ctx.hitExtra, repeat: i, echo: true } }); }
+          finally { ctx._inRepeat = false; }
           this.spawnRing?.(c, rad, ctx.color || 0xd8c49a);
+          // S0 (G09): cada réplica se ve, se oye y sacude: aura y extra de la habilidad, la mitad de su
+          // sacudida (si la declara) y un golpe grave (fx.repeatSfx o 'thud')
+          if (ctx.fx?.aura) this.emitFx(fxp(ctx.fx.aura), c.clone().setY(0.3));
+          if (ctx.fx?.extra) this.emitFx(fxp(ctx.fx.extra), c.clone().setY(0.1));
+          feelShake(this, ctx, ctx.sk?.shake || 0, 0.5);
+          this.sfx?.(ctx.fx?.repeatSfx || 'thud');
         });
       }
     }
@@ -2100,6 +2247,7 @@ export const skillMethods = {
   tickSkillVerbs(dt) {
     const p = this.player;
     if (!p) return;
+    this.tickLiveBeams(dt);
     const now = p.simT || 0;
     // carga en curso: avanza con el dt de simulación (el hit-stop la congela igual)
     const c = this._charging;
@@ -2177,7 +2325,7 @@ export const skillMethods = {
       p?.clearMoveMul?.('windup');
       any = true;
     }
-    if (this._channel) { this._endChannel(this._channel, true, reason === 'dodge' ? 'dodge' : reason); any = true; }
+    if (this._channel && !(reason === 'principal' && this._channel.nonBlocking)) { this._endChannel(this._channel, true, reason === 'dodge' ? 'dodge' : reason); any = true; }
     if (this._charging) { this._endCharge(reason === 'dodge' ? 'dodge' : reason); any = true; }
     if (reason === 'dodge' && p) {
       for (const [id, st] of Object.entries(p.skState || {})) {
@@ -2218,7 +2366,8 @@ export const skillMethods = {
     this._channel = null;
     if (inst.timer) this.timers.cancel(inst.timer);
     const p = this.player;
-    if (p) { p.castLock = 0; if (inst.unstoppable) p.unstoppableT = 0; p.clearMoveMul?.('channel'); }
+    if (p) { if (!inst.nonBlocking) p.castLock = 0; if (inst.unstoppable) p.unstoppableT = 0; p.clearMoveMul?.('channel'); }
+    inst.beam?.end?.();
     inst.endReason = reason || (canceled ? 'cancel' : 'done');
     inst.released = inst.endReason === 'release';
     // sin recurso (drain) hay que soltar antes de volver a canalizar, como tras una suelta automática
@@ -2226,7 +2375,18 @@ export const skillMethods = {
     inst.canceled = !!canceled;
     const cast = inst.ctx.cast;
     if (cast) { cast.endReason = inst.endReason; cast.released = inst.released; }
-    const end = { kind: 'channel', reason: inst.endReason, casts: 1, hits: inst.ctx.res?.hits || 0, released: inst.released, frac: 0, perfect: false };
+    // soltar o cortar ANTES del primer tic (S0, T2): como no lanzado. Devuelve el coste cobrado al
+    // empezar y el enfriamiento; ⑭ con casts 0 y _finishCast sin ③ afterCast (no gasta Cargas)
+    const aborted = !(inst.tickN > 0);
+    if (aborted && p) {
+      const c = inst.ctx;
+      if (c._paid > 0) gainResource(p, c._paid, { raw: true, silent: true });
+      if (c._cdStarted) this.reduceCooldown(p, c.sk?.id, Infinity);
+      c.aborted = true;
+    }
+    if (cast && aborted) cast.aborted = true;
+    const end = { kind: 'channel', reason: inst.endReason, casts: aborted ? 0 : 1, hits: inst.ctx.res?.hits || 0, released: inst.released, frac: 0, perfect: false,
+      ticks: inst.tickN || 0 };
     try {
       if (inst.onEnd) inst.onEnd(inst, end);
       else { const b = inst.ctx.sk?.behavior; if (b) SKILL_BEHAVIORS[b]?.end?.(this, p, inst, end); }
@@ -2235,11 +2395,29 @@ export const skillMethods = {
     if (esk && p?.hookIndex?.onSkillEnd) firePower('onSkillEnd', p, this, p, esk, end);
     inst.done?.(inst.ctx.res);
   },
+  // ---------------- HAZ VIVO (S0, T3; js/vfx.js createLiveBeam) ----------------
+  // g.spawnLiveBeam(opts) → asa { update({from, to}), setWidth(w, core?), setIntensity(k), setColor(c,
+  // core?), pulse(k), end(fade?), alive, from, to, width, core, intensity }. opts: from / to (Vector3,
+  // {x,y,z} o función que se lee cada fotograma), color, coreColor, width, core, intensity, scroll,
+  // sparks, sparkEvery, dur (se apaga solo). Lo avanza tickLiveBeams (desde tickSkillVerbs, cada
+  // fotograma); sin DOM no dibuja pero el asa funciona igual. resetCastState los quita todos
+  spawnLiveBeam(opts = {}) {
+    const h = createLiveBeam(this, opts);
+    (this._liveBeams || (this._liveBeams = [])).push(h);
+    return h;
+  },
+  tickLiveBeams(dt) {
+    const list = this._liveBeams;
+    if (!list?.length) return;
+    for (let i = list.length - 1; i >= 0; i--) if (!list[i].step(dt)) list.splice(i, 1);
+  },
   // limpia windup/canalización/carga/salto/avance y el estado de los verbos (cambio de
   // mundo, muerte)
   resetCastState() {
     this._windup = null;
     this._channel = null;
+    for (const b of this._liveBeams || []) b.dispose?.();
+    this._liveBeams = [];
     const c = this._charging;
     if (c) noteChargeEnd(this, c.key, c.id, 'reset', false, c.frac);
     this._charging = null;

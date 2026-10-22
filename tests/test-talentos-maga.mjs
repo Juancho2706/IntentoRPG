@@ -21,6 +21,7 @@ import { CLASSES } from '../js/data.js';
 import { gaugeValue, gaugeTuning } from '../js/spec-mechanics.js';
 import { missingFor } from './helpers/talent-coverage.mjs';
 import { magaStorm } from '../js/skills-maga.js';
+import { magaOrbs } from '../js/powers-maga.js';
 import { learnAt, buildsFor, buildRanks, normalizeTalents, talentsTrimmed, skillLearnLevel, TALENT_RULES } from '../js/talents.js';
 import { levelTrees, buyLevel } from './helpers/talent-level.mjs';
 
@@ -2052,43 +2053,57 @@ const RAYO = { skill: 'rayo', elem: 'arcane' };
   eq(prof(h, 'm_u_desgarro').addPct - prof(b, 'm_u_desgarro').addPct, 30, 'a13 r2: Desgarro +30 %');
   eq(prof(h, 'a_orbe').addPct - prof(b, 'a_orbe').addPct, 30, 'a13 r2: Orbe +30 %');
 }
-// a5 Rebote Cargado: cada enemigo que toca el Orbe da 1 Carga (una vez por enemigo y Orbe)
+// a5 Rebote Cargado: cada enemigo que alcanzan las descargas del Orbe da 1 Carga (una vez por enemigo y
+// orbe). S-maga: el Orbe descarga a su alrededor y, al recogerlo, da 1 Carga más (la mecánica)
 {
   const h = sp('arcanista', { a5: 1 });
   h.enemy({ hp: 1e9, pos: [3, 0, 0] }); h.enemy({ hp: 1e9, pos: [6, 0, 0] });
   h.aim(6, 0);
   cast(h, 'k3', 'a_orbe', 1.3);
-  eq(charges(h), 2, 'a5: 2 enemigos tocados → 2 Cargas');
-  h.step(2);
-  eq(charges(h), 2, 'a5: el rebote vuelve a tocarlos, pero cada enemigo cuenta una vez');
+  eq(charges(h), 2, 'a5: 2 enemigos alcanzados por las descargas → 2 Cargas');
+  h.step(1.5);
+  const orb = magaOrbs(h.p)[0];
+  ok(orb?.state === 'quieto' && orb.zapHits > 4, `a5: quieto, sigue descargando sobre los dos (${orb?.zapHits} descargas)`);
+  eq(charges(h), 2, 'a5: cada enemigo cuenta una vez por orbe');
+  h.step(1.5);
+  eq(charges(h), 3, 'a5: y al recoger el Orbe, la Carga de la mecánica');
   const b = sp('arcanista'); b.enemy({ hp: 1e9, pos: [3, 0, 0] }); b.aim(6, 0); cast(b, 'k3', 'a_orbe', 1.3);
-  eq(charges(b), 0, 'sin a5 el Orbe no da Cargas');
+  eq(charges(b), 0, 'sin a5 las descargas del Orbe no dan Cargas');
 }
-// a6 Sello Cargado: dentro de tu Sello, el Orbe y el Desgarro dan 1 Carga por golpe
+// a6 Sello Cargado: dentro de tu Sello, el Orbe y el Desgarro dan 1 Carga al golpear, como mucho 1
+// cada 0,5 s (S-maga: el Orbe descarga cada 0,25 s y el Desgarro golpea cada 0,25 s)
 {
   const h = sp('arcanista', { a6: 1 }), e = h.enemy({ hp: 1e9 });
   h.hit(e, { skill: 'a_orbe', elem: 'arcane' });
   eq(charges(h), 0, 'a6: fuera del Sello, nada');
   cast(h, 'k2', 'a_sello', 0.05);
   h.hit(e, { skill: 'a_orbe', elem: 'arcane' });
-  eq(charges(h), 1, 'a6: dentro, el Orbe da 1 Carga por golpe');
+  eq(charges(h), 1, 'a6: dentro, el Orbe da 1 Carga al golpear');
   h.hit(e, { skill: 'm_u_desgarro', elem: 'arcane' });
-  eq(charges(h), 3, 'a6: y el Desgarro una más (2 por golpe)');
+  eq(charges(h), 2, 'a6: el Desgarro en el mismo instante, solo la de la mecánica (como mucho 1 cada 0,5 s)');
+  h.tick(0.4); h.hit(e, { skill: 'a_orbe', elem: 'arcane' });
+  eq(charges(h), 2, 'a6: a los 0,4 s, aún no');
+  h.tick(0.1); h.hit(e, { skill: 'm_u_desgarro', elem: 'arcane' });
+  eq(charges(h), 4, 'a6: a los 0,5 s, el Desgarro da 2 (la mecánica y a6)');
 }
-// a7 Grieta Abierta: al terminar el Desgarro, la grieta queda 1 + rango s (40 %/s)
+// a7 Grieta Abierta: al terminar el Desgarro, la grieta queda 1 + rango s (40 %/s) donde estaba la del
+// haz (S-maga: en el haz, donde apuntas; ni en el enemigo golpeado el último ni al final de los 10 m)
 {
   const h = sp('arcanista', { a7: 2 }), e = h.enemy({ hp: 1e9, pos: [5, 0, 0] });
-  h.aim(5, 0);
+  h.aim(5, 0.8);
   cast(h, 'k4', 'm_u_desgarro', 3.2);
   const f = h.g.fields.find(x => x.kind === 'a_grieta');
-  ok(f && f.dur === 3 && Math.abs(f.pos.x - e.pos.x) < 0.6 && Math.abs(f.data.dps - h.p.avgHit(0.4, prof(h, 'm_u_desgarro').addPct)) <= 1, 'a7 r2: grieta de 3 s al 40 %/s donde golpeaba');
+  const ax = 5, az = 0.8;   // la mira (a 5 m, dentro del haz de 10 m)
+  ok(f && f.dur === 3 && Math.hypot(f.pos.x - ax, f.pos.z - az) < 0.05 && Math.abs(f.data.dps - h.p.avgHit(0.4, prof(h, 'm_u_desgarro').addPct)) <= 1, `a7 r2: grieta de 3 s al 40 %/s donde apuntaba el haz (${f?.pos.x.toFixed(2)}, ${f?.pos.z.toFixed(2)})`);
+  e.pos.set(5, 0, 0);
   const log = spy(h); h.tick(1.05);
   ok(log.some(x => x.e === e && x.source === 'field:a_grieta' && x.dot), 'a7: la grieta daña');
 }
-// Rayo con Haz Concentrado (rayo_ii, la forja recomendada del Arcanista: un canal de 1,5 s, 3 tics):
-// sus repeticiones (a8A, a25) no son otro canal (g.castEcho no repite canales y un canal es de la
-// heroína) sino un haz propio con los mismos tics, que no te ata y lleva las Cargas del original
-function hazRun(ranks, choice = {}) {
+// Rayo con Haz Concentrado (rayo_ii; S-maga: un canal SIN FIN con el 1.er tic al pulsar, uno cada 0,2 s,
+// que gasta las Cargas en su 1.er tic): sus repeticiones (a8A, a25) no son otro canal (g.castEcho no repite
+// canales y un canal es de la heroína) sino un haz propio con los tics de un segundo de canal (5), que no te
+// ata y lleva las Cargas del original
+function hazRun(ranks, choice = {}, hold = 1.0) {
   const h = sp('arcanista', ranks, choice);
   h.p.skillForge = { rayo: 'ii' }; h.p.recompute(); h.p.mp = h.p.stats.maxMP;
   h.p.stats.critRaw = -1000;
@@ -2096,10 +2111,11 @@ function hazRun(ranks, choice = {}) {
   const log = spy(h);
   h.gauge('cargas', 4); h.aim(4, 0);
   h.setHeld('rmb', true);                           // el canal es mantenido: sin el botón, se suelta
-  cast(h, 'rmb', 'rayo', 1.6);                      // 3 tics (0,5 · 1 · 1,5 s) con 4 Cargas; al acabar, las gasta
-  h.setHeld('rmb', false);
+  cast(h, 'rmb', 'rayo', hold);                     // 6 tics (0 · 0,2 · … · 1 s) con las 4 Cargas del 1.er tic
+  const spentAt0 = charges(h);
+  h.release('rmb');
   const own = from(log, 'rayo', e).filter(x => !x.echo);
-  return { h, e, log, own };
+  return { h, e, log, own, spentAt0 };
 }
 // a8A Rayo Doble (con 4 Cargas, se repite al 50 % con las mismas Cargas) · a8B Rayo Recargado (1 Carga por enemigo, hasta 2)
 {
@@ -2119,18 +2135,18 @@ function hazRun(ranks, choice = {}) {
   for (const x of [3, 4, 5]) r.enemy({ hp: 1e9, pos: [x, 0, 0] });
   r.gauge('cargas', 4); r.aim(5, 0); cast(r, 'rmb', 'rayo', 0.05);
   eq(charges(r), 2, 'a8B: atraviesa a 3 → te devuelve 2 (tras gastarlas)');
-  // con Haz Concentrado: la copia sale a los 0,25 s del final del canal (1,75 s) y no te ata: a los
-  // 1,9 s no canalizas ni estás bloqueada, vuelves a lanzar el Rayo y la copia no lo corta
+  // con Haz Concentrado: la copia sale a los 0,25 s de soltar el canal (1,25 s) y no te ata: a los
+  // 1,3 s no canalizas ni estás bloqueada, vuelves a lanzar el Rayo y la copia no lo corta
   const z = hazRun({ a8: 1 }, { a8: 'A' });
-  ok(z.own.length === 3 && charges(z.h) === 0, `Haz Concentrado: 3 tics con las 4 Cargas y las gasta al acabar (${z.own.length})`);
+  ok(z.own.length === 6 && z.spentAt0 === 0, `Haz Concentrado: 6 tics en 1 s con las 4 Cargas, gastadas en el 1.er tic (${z.own.length}, ${z.spentAt0})`);
   z.h.step(0.3);
   ok(!z.h.g.channelInfo() && !(z.h.p.castLock > 0), 'a8A con Haz Concentrado: la copia no es otro canal (no te ata)');
   z.h.p.cds.rayo = 0; z.h.p.gcdT = 0; z.h.p.actionLockT = 0;
   ok(z.h.press('rmb') && z.h.g.channelInfo()?.id === 'rayo', 'a8A con Haz Concentrado: vuelves a canalizar el Rayo mientras la copia golpea');
   z.h.step(1.6);
   const copy = from(z.log, 'rayo', z.e).filter(x => x.echo), mine = from(z.log, 'rayo', z.e).filter(x => !x.echo);
-  ok(copy.length === 3 && copy.every(x => Math.abs(x.raw / z.own[0].raw - 0.5) <= 0.01), `a8A con Haz Concentrado: la copia da 3 tics al 50 % con las 4 Cargas (${copy.map(x => x.raw)} / ${z.own[0].raw})`);
-  eq(mine.length, 6, 'a8A con Haz Concentrado: tu segundo canal da sus 3 tics (la copia no lo corta ni lo sustituye)');
+  ok(copy.length === 5 && copy.every(x => Math.abs(x.raw / z.own[0].raw - 0.5) <= 0.01), `a8A con Haz Concentrado: la copia da 5 tics al 50 % con las 4 Cargas (${copy.map(x => x.raw)} / ${z.own[0].raw})`);
+  eq(mine.length, 6 + 9, 'a8A con Haz Concentrado: tu segundo canal da sus 9 tics en 1,6 s (la copia no lo corta ni lo sustituye)');
 }
 // a9A Orbe Cargado (+20 % por Carga) · a9B Orbe Atrayente (arrastra a su camino a los de 3 m)
 {
@@ -2138,11 +2154,19 @@ function hazRun(ranks, choice = {}) {
   h.gauge('cargas', 3);
   eq(firePower('condAdd', h.p, h.p, e, { skill: 'a_orbe' }), 60, 'a9A: +60 % con 3 Cargas');
   eq(charges(h), 3, 'a9A: sin gastarlas');
+  // a9B (S-maga): al detenerse el Orbe (a 8 m), un vórtice atrae hacia él a los de 4 m (los deja a 1 m);
+  // al pasar no arrastra a nadie, ni al lejano
   const a = sp('arcanista', { a9: 1 }, { a9: 'B' });
-  const side = a.enemy({ hp: 1e9, pos: [4, 0, 2.2] }), far = a.enemy({ hp: 1e9, pos: [4, 0, 6] });
+  const path = a.enemy({ hp: 1e9, pos: [4, 0, 3.2] }), side = a.enemy({ hp: 1e9, pos: [8, 0, 3.5] }), far = a.enemy({ hp: 1e9, pos: [8, 0, 7] });
   a.aim(8, 0);
   cast(a, 'k3', 'a_orbe', 1.2);
-  ok(Math.abs(side.pos.z) < 1.5 && far.pos.z === 6, `a9B: arrastra al de 3 m hacia su camino (${side.pos.z.toFixed(2)}), no al lejano`);
+  ok(Math.abs(side.pos.z - 3.5) < 0.6 && Math.abs(path.pos.z - 3.2) < 0.6, `a9B: mientras viaja, no arrastra (${path.pos.z.toFixed(2)}, ${side.pos.z.toFixed(2)})`);
+  a.step(0.4);
+  const d = Math.hypot(side.pos.x - 8, side.pos.z);
+  ok(d < 1.5 && Math.abs(far.pos.z - 7) < 0.6, `a9B: al detenerse atrae al de 3,5 m hasta su lado (${d.toFixed(2)} m), no al de 7 m`);
+  const b9 = sp('arcanista'), bs = b9.enemy({ hp: 1e9, pos: [8, 0, 3.5] });
+  b9.aim(8, 0); cast(b9, 'k3', 'a_orbe', 1.6);
+  ok(Math.hypot(bs.pos.x - 8, bs.pos.z) > 2.5, 'sin a9B el Orbe no atrae');
 }
 // a10A Desgarro Fijo (+8 % cada medio segundo quieta, hasta +48 %) · a10B Desgarro Voraz (3 de maná por golpe y 1 Carga por segundo)
 {
@@ -2168,15 +2192,22 @@ function hazRun(ranks, choice = {}) {
   cast(v2, 'k4', 'm_u_desgarro', 2.95); cast(b2, 'k4', 'm_u_desgarro', 2.95);
   eq(charges(v2) - charges(b2), 2, 'a10B: y 1 Carga por segundo de canal');
 }
-// a12 Inercia: cada rebote del Orbe recarga 0,5 × rango s del Rayo
+// a12 Inercia (S-maga): cada descarga del Orbe que golpea recarga 0,1 × rango s del Rayo, hasta rango s por orbe
 {
   const h = sp('arcanista', { a12: 2 });
   h.enemy({ hp: 1e9, pos: [3, 0, 0] });
   h.aim(3, 0);
   cast(h, 'k3', 'a_orbe', 0.05);
-  h.p.cds.rayo = 10;
-  h.step(14 / 6 * 2 + 0.2);
-  near(h.p.cds.rayo, 10 - (14 / 6 * 2 + 0.2) - 2, 0.1, 'a12 r2: 2 rebotes → −2 s al Rayo');
+  const orb = magaOrbs(h.p)[0];
+  h.p.cds.rayo = 30;
+  h.step(0.55);                                     // 2 descargas (0,25 y 0,5 s)
+  near(30 - h.p.cds.rayo, 0.55 + 2 * 0.2, 0.06, `a12 r2: 2 descargas → −0,4 s al Rayo (${(30 - h.p.cds.rayo - 0.55).toFixed(2)})`);
+  h.step(3);
+  ok(orb.zapHits > 10, `a12: el orbe descarga más de 10 veces (${orb.zapHits})`);
+  near(30 - h.p.cds.rayo, 3.55 + 2, 0.06, 'a12 r2: como mucho 2 s por orbe');
+  const b = sp('arcanista'); b.enemy({ hp: 1e9, pos: [3, 0, 0] }); b.aim(3, 0); cast(b, 'k3', 'a_orbe', 0.05);
+  b.p.cds.rayo = 30; b.step(0.55);
+  near(30 - b.p.cds.rayo, 0.55, 0.02, 'sin a12 las descargas no recargan el Rayo');
 }
 // a14 Maná Inagotable: canalizando el Desgarro, +2 % de maná por segundo
 {
@@ -2244,21 +2275,34 @@ function hazRun(ranks, choice = {}) {
   h.gauge('cargas', 4); h.p.cds.rayo = 0; cast(h, 'rmb', 'rayo', 0.05);
   eq(charges(h), 2, 'a18 r2: con 4, te devuelve 2');
 }
-// a19 Satélite: cada 3.er Orbe deja un orbe pequeño girando 6 s (20 % por rango y golpe)
+// a19 Satélite (S-maga, M-01: propuesta del dueño): cada 3.er Orbe LANZADO (⑦ onCast marca cast.orbit), al
+// VOLVER (③ afterCast) no se absorbe y se queda girando 8 s (20 % por rango y golpe). Sin un orbe que haya
+// vuelto (orbited: lo pone orbEnd), nada. El recorrido real (sin Carga) lo prueba test-sensacion-maga O11
 {
   const h = sp('arcanista', { a19: 2 });
   const foe = h.enemy({ hp: 1e9, pos: [1.8, 0, 0] });
   const log = spy(h);
-  for (let i = 0; i < 2; i++) firePower('onCast', h.p, h.g, h.p, { sk: { id: 'a_orbe' } });
+  const orbCast = (back = true) => { const c = { sk: { id: 'a_orbe' } }; firePower('onCast', h.p, h.g, h.p, c); c.orbs = [{ orbited: back && !!c.orbit }]; return c; };
+  for (let i = 0; i < 2; i++) { const c = orbCast(); ok(!c.orbit?.satelite, `a19: el Orbe ${i + 1} no se queda`); firePower('afterCast', h.p, h.g, h.p, c, {}); }
   h.tick(2);
-  eq(procs(log, 'power:a_satelite').length, 0, 'a19: con 2 Orbes, nada');
-  firePower('onCast', h.p, h.g, h.p, { sk: { id: 'a_orbe' } });
+  eq(procs(log, 'power:a_satelite').length, 0, 'a19: con 2 Orbes de vuelta, nada');
+  const lost = orbCast(false);
+  ok(lost.orbit?.satelite, 'a19: el 3.er Orbe lanzado se marca para quedarse en órbita');
+  firePower('afterCast', h.p, h.g, h.p, lost, {});
+  h.tick(1);
+  eq(procs(log, 'power:a_satelite').length, 0, 'a19: si ese Orbe no volvió (cambio de zona), no hay satélite');
+  orbCast(); orbCast();
+  const c3 = orbCast();
+  firePower('afterCast', h.p, h.g, h.p, c3, {});
   h.tick(3);
   const hits = procs(log, 'power:a_satelite');
   ok(hits.length >= 2 && hits.every(x => x.e === foe) && Math.abs(hits[0].dealt - h.p.avgHit(0.4, 0)) <= 2, `a19 r2: el satélite golpea al 40 % (${hits.length})`);
-  h.tick(4);
+  h.tick(3);
+  const n1 = procs(log, 'power:a_satelite').length; h.tick(1.7);   // da una vuelta cada 1,5 s
+  ok(procs(log, 'power:a_satelite').length > n1, 'a19: entre los 6 y los 7,7 s sigue golpeando (dura 8 s)');
+  h.tick(0.6);
   const n = procs(log, 'power:a_satelite').length; h.tick(2);
-  eq(procs(log, 'power:a_satelite').length, n, 'a19: dura 6 s');
+  eq(procs(log, 'power:a_satelite').length, n, 'a19: dura 8 s');
 }
 // a20 Agudeza: con 3 o más Cargas, lanzas un 7 % más rápido por rango
 {
@@ -2296,11 +2340,12 @@ function hazRun(ranks, choice = {}) {
   ok(r.rift && Math.hypot(r.rift.pos.x - r.at0.x, r.rift.pos.z - r.at0.z) < 0.05, 'a21: la segunda grieta se abre sobre el enemigo de la mira');
   near(r.rift?.dur, r.ch.left, 1e-6, 'a21: dura lo que le queda al canal');
   const dp = prof(r.h, 'm_u_desgarro');
-  ok(dp.rank === 5 && dp.coef > 1.2 * 1.3 && dp.addPct === 30, `a21: a Nv70 el Desgarro está en rango 5 (${dp.coef} por golpe, +${dp.addPct} %)`);
-  near(r.rift?.data.dps, r.h.p.avgHit(dp.coef / r.ch.interval * 0.5, dp.addPct), 2, 'a21: al 50 % del Desgarro (su golpe con rango cada 0,5 s)');
-  const lo = run({ a21: 1 }, 20), dl = prof(lo.h, 'm_u_desgarro');
-  ok(dl.rank === 1 && dl.coef === 1.2, 'a21: a Nv20 el Desgarro está en rango 1 (1,2 por golpe)');
-  near(lo.rift?.data.dps, lo.h.p.avgHit(1.2 / 0.5 * 0.5, dl.addPct), 2, 'a21 a Nv20: al 50 % del Desgarro (1,2 cada 0,5 s)');
+  ok(dp.rank === 5 && Math.abs(dp.coef - 0.65 * 1.4) < 1e-9 && dp.addPct === 30, `a21: a Nv70 el Desgarro está en rango 5 (${dp.coef} por golpe, +${dp.addPct} %)`);
+  near(r.rift?.data.dps, r.h.p.avgHit(dp.coef / r.ch.interval * 0.5, dp.addPct), 2, 'a21: al 50 % del Desgarro (su golpe con rango cada 0,25 s)');
+  // S0 (T6): el kit de la especialización cuenta el rango desde el Nv10, así que el rango 1 es hasta el 17
+  const lo = run({ a21: 1 }, 17), dl = prof(lo.h, 'm_u_desgarro');
+  ok(dl.rank === 1 && dl.coef === 0.65, 'a21: a Nv17 el Desgarro está en rango 1 (0,65 por golpe)');
+  near(lo.rift?.data.dps, lo.h.p.avgHit(0.65 / 0.25 * 0.5, dl.addPct), 2, 'a21 a Nv17: al 50 % del Desgarro (0,65 cada 0,25 s)');
   const n = run({});
   ok(n.fired && !n.rift, 'sin a21, el Rayo sale durante el Desgarro pero no abre grieta');
 }
@@ -2323,6 +2368,10 @@ function hazRun(ranks, choice = {}) {
   // en abanico: a la misma distancia que la mira (4 m), uno a cada lado (±0,35 rad)
   const ang = ech.map(x => Math.atan2(x.at.x - h.p.pos.x, x.at.z - h.p.pos.z) - Math.atan2(4 - h.p.pos.x, -h.p.pos.z));
   ok(ech.every(x => Math.abs(Math.hypot(x.at.x - h.p.pos.x, x.at.z - h.p.pos.z) - 4) < 1e-6) && Math.abs(Math.abs(ang[0]) - 0.35) < 1e-6 && Math.abs(ang[0] + ang[1]) < 1e-6, `a23: los orbes extra salen en abanico, uno a cada lado (${ang.map(a => a.toFixed(2))} rad)`);
+  // S-maga: son PEQUEÑOS (descargan a 2,5 m y la malla al 60 %); el tuyo, normal (4,5 m con Orbe Grande)
+  const live = magaOrbs(h.p), small = live.filter(o => o.small), big = live.filter(o => !o.small);
+  ok(small.length === 2 && small.every(o => o.P.radius === 2.5 && Math.abs(o.scale / big[big.length - 1].scale - 0.6) < 1e-9) && big[big.length - 1].P.radius === 4.5,
+    `a23: los orbes extra descargan a 2,5 m (${small.map(o => o.P.radius)}; el tuyo ${big.at(-1)?.P.radius})`);
 }
 // a24 Fuente de Maná: canalizando, cada segundo 1 Carga y +5 % por rango (hasta 3 veces)
 {
@@ -2352,7 +2401,7 @@ function hazRun(ranks, choice = {}) {
   ok(!z.h.g.channelInfo() && !(z.h.p.castLock > 0), 'a25 con Haz Concentrado: las copias no son otro canal');
   z.h.step(2.2);
   const copy = from(z.log, 'rayo', z.e).filter(x => x.echo);
-  ok(copy.length === 6 && copy.every(x => Math.abs(x.raw / z.own[0].raw - 0.5) <= 0.01), `a25 con Haz Concentrado: 2 copias × 3 tics al 50 % con las 4 Cargas (${copy.length})`);
+  ok(copy.length === 10 && copy.every(x => Math.abs(x.raw / z.own[0].raw - 0.5) <= 0.01), `a25 con Haz Concentrado: 2 copias × 5 tics al 50 % con las 4 Cargas (${copy.length})`);
 }
 // a26 Constelación (final): tus Orbes se quedan 8 s girando (hasta 3) y disparan al más cercano (40 %)
 {
@@ -2360,7 +2409,12 @@ function hazRun(ranks, choice = {}) {
   eq(prof(h, 'a_orbe').addPct - prof(b, 'a_orbe').addPct, 15, 'a26 r2: Orbe +15 %');
   const e = h.enemy({ hp: 1e9, pos: [5, 0, 0] });
   const log = spy(h);
-  for (let i = 0; i < 4; i++) firePower('afterCast', h.p, h.g, h.p, { sk: { id: 'a_orbe' } }, {});
+  // S-maga (M-01): ⑦ marca el lanzamiento y ③ pone en órbita los orbes que volvieron (orbited)
+  const orbCast = back => { const c = { sk: { id: 'a_orbe' } }; firePower('onCast', h.p, h.g, h.p, c); c.orbs = [{ orbited: back && !!c.orbit?.constelacion }]; firePower('afterCast', h.p, h.g, h.p, c, {}); };
+  orbCast(false);
+  h.tick(1.05);
+  eq(procs(log, 'power:a_constelacion').length, 0, 'a26: un Orbe que no volvió no se queda');
+  for (let i = 0; i < 4; i++) orbCast(true);
   h.tick(1.05);
   const shots = procs(log, 'power:a_constelacion');
   ok(shots.length === 3 && shots.every(x => x.e === e) && Math.abs(shots[0].dealt - h.p.avgHit(0.4, prof(h, 'a_orbe').addPct)) <= 2, 'a26: hasta 3 orbes; cada uno dispara al 40 % por segundo');
@@ -2379,15 +2433,15 @@ function hazRun(ranks, choice = {}) {
   ok(h.g._channel && !b.g._channel, 'a27: a los 5 s sigue canalizando (sin él, acaba a los 3 s)');
   h.p.mp = 0; h.step(1.5);
   ok(!h.g._channel, 'a27: sin maná, se acaba');
-  // la prórroga empieza con dos golpes o menos por delante: a 1,85 s (le quedan 1,15 s, 3 golpes) el
-  // canal aún dura 3 s; a 2,1 s (pasó por 1 s: 2 golpes) ya dura uno más
+  // la prórroga empieza con dos golpes o menos por delante (S-maga: un golpe cada 0,25 s): a 2,3 s (le
+  // quedan 0,7 s, 3 golpes) el canal aún dura 3 s; a 2,6 s (pasó por 0,5 s: 2 golpes) ya dura uno más
   const u = sp('arcanista', { a27: 1 });
   u.enemy({ hp: 1e12, pos: [4, 0, 0] }); u.aim(4, 0);
-  cast(u, 'k4', 'm_u_desgarro', 1.85);
+  cast(u, 'k4', 'm_u_desgarro', 2.3);
   const c1 = u.g.channelInfo();
-  u.step(0.25);
+  u.step(0.3);
   const c2 = u.g.channelInfo();
-  ok(c1 && Math.abs(c1.dur - 3) < 1e-6 && c2 && Math.abs(c2.dur - 3.5) < 1e-6, `a27: alarga un golpe cuando le quedan dos o menos (${c1?.dur} → ${c2?.dur} s)`);
+  ok(c1 && Math.abs(c1.dur - 3) < 1e-6 && c2 && Math.abs(c2.dur - 3.25) < 1e-6, `a27: alarga un golpe cuando le quedan dos o menos (${c1?.dur} → ${c2?.dur} s)`);
   u.g.cancelCast('dodge');
   // con Maná Inagotable el 3 % se sigue gastando: a14 solo devuelve su 2 %/s (doc 2g §12)
   const f = sp('arcanista', { a27: 1, a14: 1 }), m = sp('arcanista', { a14: 1 });
@@ -2420,16 +2474,17 @@ function hazRun(ranks, choice = {}) {
   eq(charges(h3), 4, 'a28.2: +4 Cargas por élite');
   h3.tick(20);
   eq(charges(h3), 4, 'a28.3: las Cargas ya no se pierden');
-  // 4) cada 20 Cargas gastadas, un Desgarro propio de 2 s (golpes reales)
+  // 4) cada 20 Cargas gastadas, un Desgarro propio de 2 s (S-maga: 8 golpes reales del haz ancho, cada 0,25 s,
+  // con la rampa del canal: +10 % por golpe)
   const h4 = sp('arcanista', { a28: 4 }), t = h4.enemy({ hp: 1e12, pos: [4, 0, 0] });
   h4.aim(4, 0);
   const log = spy(h4);
   for (let i = 0; i < 5; i++) { h4.gauge('cargas', 4); h4.p.cds.rayo = 0; cast(h4, 'rmb', 'rayo', 0.1); }
   h4.step(2.2);
   const beams = from(log, 'm_u_desgarro', t).filter(x => !x.proc && !x.dot);
-  eq(beams.length, 4, 'a28.4: 20 Cargas gastadas → 4 golpes de Desgarro en 2 s');
-  // cada golpe, el del canal CON RANGO (Nv70: rango 5); con Quiebre (no canaliza: un pulso de 900 %),
-  // el del catálogo con su rango (1,2 × 1,4), no el del pulso
+  eq(beams.length, 8, 'a28.4: 20 Cargas gastadas → 8 golpes de Desgarro en 2 s');
+  // cada golpe, el del canal CON RANGO (Nv70: rango 5) y su rampa; con Quiebre (no canaliza: un pulso de
+  // 900 %), el del catálogo con su rango (0,65 × 1,4), no el del pulso
   // cached: con el perfil en la caché de resolveSkill (como en partida, donde la barra lo resuelve)
   const strike = (forge = null, cached = false) => {
     const x = sp('arcanista', { a28: 4 }), e = x.enemy({ hp: 1e12, pos: [4, 0, 0] });
@@ -2440,12 +2495,13 @@ function hazRun(ranks, choice = {}) {
     x.step(2.2);
     const got = from(lx, 'm_u_desgarro', e).filter(y => !y.proc && !y.dot);
     const dp = prof(x, 'm_u_desgarro');
-    const want = x.p.rollDamage(1.2 * 1.4, 0, dp.addPct, e, { skill: 'm_u_desgarro', tags: new Set(['arcane']), elem: 'arcane' }).dmg;
+    const want = got.map((_, i) => x.p.rollDamage(0.65 * 1.4 * (1 + 0.1 * i), 0, dp.addPct, e, { skill: 'm_u_desgarro', tags: new Set(['arcane']), elem: 'arcane' }).dmg);
     return { got, dp, want };
   };
   const base = strike(), qb = strike('ii', true);
-  ok(base.dp.coef === 1.2 * 1.4 && base.got.length === 4 && base.got.every(y => Math.abs(y.raw - base.want) <= 1), `a28.4: cada golpe, el del Desgarro con rango (${base.got.map(y => y.raw)} ≈ ${base.want})`);
-  ok(qb.dp.coef > 9 && qb.got.length === 4 && qb.got.every(y => Math.abs(y.raw - qb.want) <= 1), `a28.4 con Quiebre: el golpe del canal (1,2 × rango), no el del pulso (${qb.got.map(y => y.raw)} ≈ ${qb.want})`);
+  const same = r => r.got.length === 8 && r.got.every((y, i) => Math.abs(y.raw - r.want[i]) <= 1);
+  ok(Math.abs(base.dp.coef - 0.65 * 1.4) < 1e-9 && same(base), `a28.4: cada golpe, el del Desgarro con rango y rampa (${base.got.map(y => y.raw)} ≈ ${base.want})`);
+  ok(qb.dp.coef > 9 && same(qb), `a28.4 con Quiebre: el golpe del canal (0,65 × rango), no el del pulso (${qb.got.map(y => y.raw)} ≈ ${qb.want})`);
 }
 console.log('✓ Arcanista: cada nodo con su efecto (Cargas, Rayo, Orbe, Desgarro y finales por rango)');
 

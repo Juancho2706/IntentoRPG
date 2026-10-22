@@ -45,8 +45,8 @@
 // ESTADO GUARDADO (§3.2): p.talents = { v:2, spec, cls, sp:{specId:{…}}, choice,
 //   hero:{ specId:{ tree, nodes:{treeId:{…}}, choice:{treeId:{…}} } }, loadouts:{ specId:[…] } }
 //   Los nodos gratis (clave de especialización y de héroe) NO se guardan.
-import { CLASSES, specKitOf } from './data.js';
-import { mergeMods, NUCLEO_TV_KEYS } from './skill-defs.js';
+import { CLASSES, specKitOf, FORGE_RECO } from './data.js';
+import { mergeMods, NUCLEO_TV_KEYS, formNeedMet, formNeedText } from './skill-defs.js';
 import { MAGA_TALENTS } from './talents-maga.js';
 import { GUERRERO_TALENTS } from './talents-guerrero.js';
 import { ARQUERA_TALENTS } from './talents-arquera.js';
@@ -595,6 +595,44 @@ export function aggregateTalents(p, opts = {}) {
 export function talentRank(p, nodeId) {
   const agg = p?.talentAgg?.ranks ? p.talentAgg : aggregateTalents(p);
   return agg.ranks?.[nodeId] | 0;
+}
+// ------------------------------------------------------------ dependencias de forma (S0, T5)
+// Nodos ACTIVOS (rango efectivo > 0) cuyo `needsForm` (el de la opción elegida o, si no trae, el del
+// nodo; vocabulario en skill-defs.FORM_NEEDS) pide a `skillId` una forma que `def` (la definición
+// forjada que se comprueba: la actual o la de una variante) no tiene. Lo usan el libro (aviso en la
+// variante) y la forja (aviso al elegirla). → [{ id, name, conds, text }] (text: «no se canaliza»)
+export function formVoids(p, skillId, def) {
+  const t = TALENT_TREES[p?.classId];
+  if (!t || !def || !skillId) return [];
+  const agg = p?.talentAgg?.ranks ? p.talentAgg : aggregateTalents(p);
+  const T = p.talents || {};
+  const s = activeSpec(p);
+  const h = s && agg.heroOpen ? activeHeroTree(p) : null;
+  const groups = [[t.cls?.nodes, T.choice], [s?.nodes, T.choice], [h?.nodes, T.hero?.[s?.id]?.choice?.[h?.id]]];
+  const out = [];
+  for (const [nodes, choice] of groups) {
+    for (const n of nodes || []) {
+      if (!((agg.ranks?.[n.id] | 0) > 0)) continue;
+      const opt = n.t === 'c' ? (n.opts || []).find(o => o.k === (choice?.[n.id] || 'A')) : null;
+      const need = (opt?.needsForm || n.needsForm)?.[skillId];
+      if (!need) continue;
+      const failed = [].concat(need).filter(c => !formNeedMet(def, c));
+      if (failed.length) out.push({ id: n.id, name: opt?.name || n.name, conds: failed, text: failed.map(formNeedText).filter(Boolean).join(' y ') });
+    }
+  }
+  return out;
+}
+// ------------------------------------------------------------ forja recomendada (S0, T5)
+// La de una BUILD (builds[key].forge = { skillId: 'i' | 'ii' | null }) encima de la de su
+// especialización (<CLASE>_FORGE_RECO): cada habilidad que la build declara manda (null = sin
+// variante: «Grieta Eterna canaliza el Desgarro»); las demás, la de la especialización. Sin build,
+// la defaultBuild de la especialización. → { skillId: v } (copia)
+export function forgeRecoFor(classId, specId, buildKey = undefined) {
+  if (!specId) return {};
+  const key = buildKey === undefined ? defaultBuildKey(classId, specId) : buildKey;
+  const b = key ? TALENT_TREES[classId]?.builds?.[key] : null;
+  const fromBuild = b && b.sp === specId && b.forge && typeof b.forge === 'object' ? b.forge : {};
+  return { ...(FORGE_RECO?.[specId] || {}), ...fromBuild };
 }
 // rango del nodo que concede un poder (los finales y el ápice escalan con él)
 export function powerRank(p, powerId) {

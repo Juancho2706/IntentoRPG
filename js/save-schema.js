@@ -42,6 +42,9 @@ export const PLAYER_SAVE_FIELDS = [
   // Paso 2g (v5): fuera skillPoints, skillBranches y skillMods; entra skillForge (D3).
   'statPoints',
   'skillSystemV', 'hotbar', 'skillForge',
+  // S0 (T1): ranuras que el jugador colocó a mano (la barra de la especialización no las toca). Campo
+  // nuevo sin cambio de formato: un guardado sin él carga con {} (ninguna puesta a mano)
+  'hotbarManual',
   'gold', 'potions', 'inventory', 'materials', 'equipment',
   'lastFloor', 'hp', 'mp',
   'waypoints', 'records', 'cube',
@@ -485,6 +488,8 @@ export const MIGRATIONS = {
 
 // texto de cada aviso de carga (Player.notices; lo muestra Game al entrar)
 const CLASS_NOTICE = de => `🌿 Los talentos ${de} se rehicieron hasta el nivel 100. Te aplicamos el Recomendado; revísalo con N`;
+// S0 (T1): al cargar un guardado de antes de hotbarManual, la barra de la especialización entró sola
+export const SPEC_BAR_NOTICE = 'barra-especializacion';
 export const LOAD_NOTICES = {
   talentos: '🌿 Tu héroe se actualizó al sistema de talentos: tu maestría es ahora tu especialización. La reespecialización es gratis: revisa tu árbol (N).',
   paso2: '📖 Las ramas ahora son variantes: elige gratis en el libro (T)',
@@ -494,6 +499,7 @@ export const LOAD_NOTICES = {
   [TALENTS_TRIMMED_NOTICE]: '🌿 Algunos talentos ya no cabían (por tu nivel o porque los árboles se reordenaron): quitamos solo esos y te devolvimos los puntos. Revisa tus árboles (N)',
   // la migración dejó glifos fuera de la bolsa llena (paragon.loose; economy.looseGlyphs)
   'glifos-sueltos': '🔷 Tu bolsa de materiales estaba llena: algunos glifos te esperan en el tablero de glifos (P). Haz hueco y recógelos',
+  [SPEC_BAR_NOTICE]: '⚡ Tu barra lleva ahora las habilidades de tu especialización donde estaban las del kit base. Cámbialas en el libro (T)',
 };
 
 // Lleva un save (de cualquier versión conocida) a SAVE_VERSION. No muta la

@@ -237,6 +237,60 @@ export const MAGA_FX_PRESETS = {
     size: { start: [1.2, 1.4], end: 0.0 },
     color: { start: '#ffffff', end: '#b388ff' }, alpha: { start: 1, end: 0 },
   },
+  // S-maga (M-04): estela corta a la ida, larga a la vuelta, chispa de cada descarga y destello al
+  // recogerlo con las motas de la Barrera (manaBubbleMotes, hacia dentro). El núcleo, el halo y las runas
+  // que giran son la malla del orbe (js/powers-maga.js)
+  arcaneOrbTrail: {
+    name: 'Orbe Arcano estela', texture: 'glow', blending: 'additive',
+    count: 2, burst: true, lifetime: [0.18, 0.3],
+    shape: 'sphere', shapeRadius: 0.16, speed: [0.05, 0.3], gravity: 0, drag: 0.8,
+    size: { start: [0.35, 0.5], end: 0.0 },
+    color: { start: '#f2e8ff', end: '#8a5cf0' }, alpha: { start: 0.7, end: 0 },
+  },
+  arcaneOrbBackTrail: {
+    name: 'Orbe Arcano estela de vuelta', texture: 'glow', blending: 'additive',
+    count: 3, burst: true, lifetime: [0.4, 0.6],
+    shape: 'sphere', shapeRadius: 0.18, speed: [0.05, 0.2], gravity: 0, drag: 1.0,
+    size: { start: [0.4, 0.6], end: 0.0 },
+    color: { start: '#ffffff', end: '#b388ff' }, alpha: { start: 0.75, end: 0 },
+  },
+  arcaneOrbZap: {
+    name: 'Orbe Arcano descarga', texture: 'spark', blending: 'additive',
+    count: 8, burst: true, lifetime: [0.1, 0.25],
+    shape: 'sphere', shapeRadius: 0.12, speed: [2, 5], gravity: 0, drag: 1.2,
+    size: { start: [0.1, 0.22], end: 0.0 },
+    color: { start: '#ffffff', end: '#b388ff' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Rayo y Haz Concentrado en violeta (M-08): destello en la mano, chispas y golpe de cada tic ----
+  arcBoltFlash: {
+    name: 'Rayo arcano destello', texture: 'glow', blending: 'additive',
+    count: 1, burst: true, lifetime: [0.1, 0.16],
+    shape: 'point', shapeRadius: 0.01, speed: [0, 0], gravity: 0, drag: 0,
+    size: { start: [1.6, 2.0], end: 0.0 },
+    color: { start: '#ffffff', end: '#c9a8ff' }, alpha: { start: 1, end: 0 },
+  },
+  arcBoltSpark: {
+    name: 'Rayo arcano impacto', texture: 'spark', blending: 'additive',
+    count: 50, burst: true, lifetime: [0.12, 0.4],
+    shape: 'cone', shapeRadius: 0.1, coneAngle: 70, speed: [8, 16], gravity: 0, drag: 0.8,
+    size: { start: [0.16, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#a070ff' }, alpha: { start: 1, end: 0 },
+  },
+  arcBeamHit: {
+    name: 'Haz arcano golpe', texture: 'spark', blending: 'additive',
+    count: 10, burst: true, lifetime: [0.1, 0.28],
+    shape: 'sphere', shapeRadius: 0.15, speed: [2.5, 6], gravity: 0, drag: 1.0,
+    size: { start: [0.14, 0.3], end: 0.0 },
+    color: { start: '#ffffff', end: '#b996ff' }, alpha: { start: 1, end: 0 },
+  },
+  // ---- Desgarro Arcano canalizado (M-12): golpe en cada enemigo que atraviesa ----
+  riftLineHit: {
+    name: 'Desgarro Arcano golpe', texture: 'spark', blending: 'additive',
+    count: 14, burst: true, lifetime: [0.15, 0.35],
+    shape: 'sphere', shapeRadius: 0.25, speed: [3, 7], gravity: 0, drag: 0.9,
+    size: { start: [0.2, 0.4], end: 0.0 },
+    color: { start: '#ffffff', end: '#c070ff' }, alpha: { start: 1, end: 0 },
+  },
   sealRune: {
     name: 'Sello del Archimago runa', texture: 'disc', blending: 'additive',
     count: 1, burst: true, lifetime: [0.6, 0.7],
@@ -331,6 +385,8 @@ export const MAGA_FORGE_FX = {
   k_prision_ii:       { aura: 'iceDomeShards' },                                        // a lo largo del muro
   m_paso_escarcha_ii: { extra: 'iceCell' },                                             // v_prision_fugaz
   m_u_tormenta_ii:    { aura: 'hailStone', extra: 'iceLanceShatter' },
+  // Haz Concentrado: el golpe de cada tic (v_haz_concentrado lo emite en el objetivo)
+  rayo_ii:            { impact: 'arcBeamHit' },
 };
 
 export const MAGA_FX = {
@@ -351,10 +407,14 @@ export const MAGA_FX = {
   k_lanza:         { trail: 'iceLanceTrail', impact: 'iceLanceHit', extra: 'iceLanceShatter', color: 0xaeeaff, sfx: 'ice' },
   m_u_tormenta:    { aura: 'glacialStorm', extra: 'glacialStormMist', color: 0xbfe9ff, sfx: 'ice' },
   // Arcanista
-  a_orbe:          { aura: 'arcaneOrbCast', impact: 'riftImpact', color: 0xb388ff, sfx: 'bolt' },
+  // Orbe (M-04): trail = estela de ida · extra = estela de vuelta · impact = chispa de cada descarga ·
+  // aura = lanzamiento · zapSfx por descarga, humSfx (zumbido) mientras vive, absorbSfx al recogerlo
+  a_orbe:          { aura: 'arcaneOrbCast', trail: 'arcaneOrbTrail', extra: 'arcaneOrbBackTrail', impact: 'arcaneOrbZap', absorb: 'manaBubbleMotes',
+    color: 0xb388ff, sfx: 'bolt', zapSfx: 'zap', humSfx: 'hum', absorbSfx: 'absorb' },
   a_sello:         { aura: 'sealRune', extra: 'manaBubbleMotes', impact: 'sealBlast', color: 0xe0b0ff, sfx: 'portal' },
-  rayo:            { aura: 'boltFlash', impact: 'boltSpark', color: 0xffee66, sfx: 'bolt' },
-  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftImpact', color: 0xd28cff, sfx: 'bolt', tickSfx: 'bolt' },
+  // Rayo en violeta (M-08); tickSfx: el zumbido continuo del Haz Concentrado (un tono por tic, 5 por segundo)
+  rayo:            { aura: 'arcBoltFlash', impact: 'arcBoltSpark', color: 0xb996ff, sfx: 'bolt', tickSfx: 'hum' },
+  m_u_desgarro:    { aura: 'riftCharge', impact: 'riftLineHit', extra: 'riftImpact', color: 0xd28cff, sfx: 'bolt', tickSfx: 'hum' },
   // activas de talento (ranura 2)
   m_t_bloque:        { aura: 'iceBlock', color: 0x9fe3ff, sfx: 'ice' },
   m_t_inversion:     { aura: 'rewindSpiral', impact: 'blinkFlash', color: 0xd7c2ff, sfx: 'portal' },

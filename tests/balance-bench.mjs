@@ -154,12 +154,16 @@ export const PENDING_E4B = [
   // E4b-bugs (B2): con las quemaduras haciendo sus tics al ritmo (js/timers.js), la manada del ÁREA×5
   // muere escalonada y la Bola y el Meteoro dan a menos enemigos por lanzamiento (9054 → 7507)
   { key: 'ROL:piromante:50:best:area', medido: 1.067, objetivo: 1.1, dueño: 'KT-maga', regla: 'piromante Nv50: AREA no es la mejor de su clase por ×1.1 (7506.8 frente a 7036.3)' },
-  { key: 'ROL:crionte:50:min:uni', medido: 0.676, objetivo: 0.85, dueño: 'KA-maga', regla: 'crionte Nv50: UNI ×0.68 de la media (< ×0.85)' },
+  { key: 'ROL:crionte:50:min:uni', medido: 0.639, objetivo: 0.85, dueño: 'KA-maga', regla: 'crionte Nv50: UNI ×0.64 de la media (< ×0.85)' },
+  // S-maga: TODO el control de la Arcanista es Escarcha Arcana (c20: tus críticos ralentizan un 30 % 2 s; sin
+  // c20, 0 %) y el Orbe nuevo lo multiplica con sus descargas (8 golpes/s): 0,19 sin el Orbe en la barra, 0,63
+  // con él (0,24 antes de S-maga), lo mismo que la Crionte. PENDIENTE DE DECISIÓN DEL JEFE: limitar c20 (solo
+  // golpes de Hielo, o un enfriamiento por enemigo) o aceptarlo. Dueño KT-maga (c20 es del árbol de clase)
+  { key: 'ROL:crionte:50:best:ctl', medido: 1.001, objetivo: 1.1, dueño: 'KT-maga', regla: 'crionte Nv50: CTL no es la mejor de su clase por ×1.1 (0.63 frente a 0.63)' },
   { key: 'ROL:crionte:50:ult', medido: 0.119, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'crionte Nv50: la definitiva m_u_tormenta aporta 12% del daño UNI (objetivo 12–22 %)' },
-  { key: 'ROL:arcanista:50:min:uni', medido: 0.573, objetivo: 1.15, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI ×0.57 de la media (< ×1.15)' },
-  { key: 'ROL:arcanista:50:min:area', medido: 0.326, objetivo: 0.75, dueño: 'KA-maga', regla: 'arcanista Nv50: AREA ×0.33 de la media (< ×0.75)' },
-  { key: 'ROL:arcanista:50:best:uni', medido: 0.379, objetivo: 1.1, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI no es la mejor de su clase por ×1.1 (1134.7 frente a 2997.7)' },
-  { key: 'ROL:arcanista:50:ult', medido: 0.057, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'arcanista Nv50: la definitiva m_u_desgarro aporta 6% del daño UNI (objetivo 12–22 %)' },
+  { key: 'ROL:arcanista:50:min:uni', medido: 1.037, objetivo: 1.15, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI ×1.04 de la media (< ×1.15)' },
+  { key: 'ROL:arcanista:50:best:uni', medido: 0.724, objetivo: 1.1, dueño: 'KA-maga', regla: 'arcanista Nv50: UNI no es la mejor de su clase por ×1.1 (2171.6 frente a 2997.7)' },
+  { key: 'ROL:arcanista:50:ult', medido: 0.042, objetivo: [0.12, 0.22], dueño: 'KA-maga', regla: 'arcanista Nv50: la definitiva m_u_desgarro aporta 4% del daño UNI (objetivo 12–22 %)' },
   { key: 'ROL:francotiradora:50:min:uni', medido: 0.768, objetivo: 1.15, dueño: 'KA-arquera', regla: 'francotiradora Nv50: UNI ×0.77 de la media (< ×1.15)' },
   { key: 'ROL:francotiradora:50:min:area', medido: 0.448, objetivo: 0.7, dueño: 'KA-arquera', regla: 'francotiradora Nv50: AREA ×0.45 de la media (< ×0.7)' },
   { key: 'ROL:francotiradora:50:min:ttdp', medido: 0.277, objetivo: 0.85, dueño: 'KA-arquera', regla: 'francotiradora Nv50: TTDP ×0.28 de la media (< ×0.85)' },
@@ -178,8 +182,12 @@ export const PENDING_E4B = [
   { key: 'G9:crionte:70:tormenta:area', medido: 0.362, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: Invierno Eterno no gana ÁREA×5 (×0.36 de Cero Absoluto)' },
   { key: 'G9:crionte:70:glaciar:ctl', medido: 0.732, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: Era Glacial no gana CONTROL (×0.73 de Invierno Eterno)' },
   { key: 'G9:crionte:70:hibcrio:hibrida', medido: 0.581, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 crionte: la híbrida Escarcha Quebradiza queda a ×0.58 de la mejor en ÁREA×5 (≥ ×0.85)' },
-  { key: 'G9:arcanista:70:rayo:uni', medido: 0.853, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: Tormenta de Cargas no gana UNI (×0.85 de Grieta Eterna)' },
-  { key: 'G9:arcanista:70:hibarca:hibrida', medido: 0.631, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: la híbrida Rayo Orbital queda a ×0.63 de la mejor en UNI (≥ ×0.85)' },
+  { key: 'G9:arcanista:70:hibarca:hibrida', medido: 0.371, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: la híbrida Rayo Orbital queda a ×0.37 de la mejor en UNI (≥ ×0.85)' },
+  // S-maga (M-11): sin el Haz de un solo objetivo, las builds Rayo y Grieta Eterna lanzan un Rayo que
+  // atraviesa y le ganan el ÁREA×5 a Constelación (la de Grieta, con Rayo en Cadena y el Desgarro ancho:
+  // 13 483 frente a 8363 a Nv70). La build Rayo ya no lleva Cadena (revisión: era la variante de ÁREA en una
+  // build de UNI) y deja de ser la mejor en ÁREA. Constelación necesita sus talentos (a19/a23/a26): KT-maga
+  { key: 'G9:arcanista:70:orbe:area', medido: 0.62, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv70 arcanista: Constelación no gana ÁREA×5 (×0.62 de Grieta Eterna)' },
   { key: 'G9:berserker:70:danza:ttdp', medido: 0.589, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: Danza Carmesí no gana TTD+ (×0.59 de Estampida Sin Fin)' },
   { key: 'G9:berserker:70:hibrido:hibrida', medido: 0.557, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv70 berserker: la híbrida Sangre y Acero queda a ×0.56 de la mejor en UNI (≥ ×0.9)' },
   { key: 'G9:guardian:70:guardia:ttdp', medido: 0.024, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv70 guardian: Guardia Total no gana TTD+ (×0.02 de Cabeza de Puente)' },
@@ -204,7 +212,8 @@ export const PENDING_E4B = [
   { key: 'G9:crionte:100:tormenta:area', medido: 0.318, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: Invierno Eterno no gana ÁREA×5 (×0.32 de Cero Absoluto)' },
   { key: 'G9:crionte:100:glaciar:ctl', medido: 0.702, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: Era Glacial no gana CONTROL (×0.70 de Invierno Eterno)' },
   { key: 'G9:crionte:100:hibcrio:hibrida', medido: 0.623, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 crionte: la híbrida Escarcha Quebradiza queda a ×0.62 de la mejor en ÁREA×5 (≥ ×0.85)' },
-  { key: 'G9:arcanista:100:hibarca:hibrida', medido: 0.56, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: la híbrida Rayo Orbital queda a ×0.56 de la mejor en UNI (≥ ×0.85)' },
+  { key: 'G9:arcanista:100:hibarca:hibrida', medido: 0.5, objetivo: 0.85, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: la híbrida Rayo Orbital queda a ×0.50 de la mejor en UNI (≥ ×0.85)' },
+  { key: 'G9:arcanista:100:orbe:area', medido: 0.639, objetivo: 1, dueño: 'KT-maga', regla: 'G9 Nv100 arcanista: Constelación no gana ÁREA×5 (×0.64 de Grieta Eterna)' },
   { key: 'G9:berserker:100:danza:ttdp', medido: 0.361, objetivo: 1, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: Danza Carmesí no gana TTD+ (×0.36 de Estampida Sin Fin)' },
   { key: 'G9:berserker:100:hibrido:hibrida', medido: 0.63, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 berserker: la híbrida Sangre y Acero queda a ×0.63 de la mejor en UNI (≥ ×0.9)' },
   { key: 'G9:guardian:100:hibguard:hibrida', medido: 0.067, objetivo: 0.9, dueño: 'KT-guerrero', regla: 'G9 Nv100 guardian: la híbrida Roca y Escudo queda a ×0.07 de la mejor en TTD+ (≥ ×0.9)' },
@@ -227,7 +236,10 @@ export const PENDING_E4B = [
   { key: 'G18:guardian', medido: 0.064, objetivo: 0.05, dueño: 'KT-guerrero', regla: 'G18 guardian: Caudillo +1.2 % frente a Titán +7.5 % (diferencia 6.4 puntos > 5)' },
   { key: 'G18:piromante', medido: 0.11, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 piromante: Invocadora +22.1 % frente a Cronomante +11.1 % (diferencia 11.0 puntos > 5)' },
   { key: 'G18:crionte', medido: 0.105, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 crionte: Escriba Rúnica +28.7 % frente a Invocadora +18.1 % (diferencia 10.5 puntos > 5)' },
-  { key: 'G18:arcanista', medido: 0.077, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +19.5 % frente a Escriba Rúnica +27.2 % (diferencia 7.7 puntos > 5)' },
+  // S-maga (revisión: la build Rayo con el Rayo base, sin Cadena): su Rayo en línea pierde un 17 % de ÁREA×5 de
+  // Nv70 a Nv80 contra los mismos enemigos (con Cadena ganaba un 11 %; ningún nodo del Cronomante solo lo
+  // explica: la manada muere antes y llega desalineada). Con Cadena se cumplía (Cronomante +17 %, Escriba +20 %). KT-maga
+  { key: 'G18:arcanista', medido: 0.127, objetivo: 0.05, dueño: 'KT-maga', regla: 'G18 arcanista: Cronomante +9.3 % frente a Escriba Rúnica +21.9 % (diferencia 12.7 puntos > 5)' },
   { key: 'G18:tiradora', medido: 0.131, objetivo: 0.05, dueño: 'KT-arquera', regla: 'G18 tiradora: Carcaj Encantado +10.6 % frente a Errante del Viento +23.7 % (diferencia 13.1 puntos > 5)' },
 ];
 

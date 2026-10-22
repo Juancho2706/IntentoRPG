@@ -18,11 +18,11 @@
 // (Player.recompute lo invalida). Lo usan el canal de lanzamiento (js/game-skills.js),
 // Player.basicAttack, el banco de balance y la UI.
 import { CAPS, rankCoef, rankBuff } from './combat-math.js';
-import { CLASSES, SUPPORTS, SKILL_FORGE } from './data.js';
+import { CLASSES, SUPPORTS, SKILL_FORGE, SPEC_BAR } from './data.js';
 import { CAT_SLOTS, SLOT_KEYS, GCD_CATS, RANK_MAX, TAGS, supportFits, supportSockets, skillSlots, mergeMods, defaultSlots,
   forgeDef, forgeMods, forgeLevels, forgeVar, VERB_DEFAULTS } from './skill-defs.js';
 import { firePower, SKILL_BEHAVIORS } from './powers.js';
-import { talentTreesFor, activeSpec, activeHeroTree, nodeFx, scaleFx } from './talents.js';
+import { talentTreesFor, activeSpec, activeHeroTree, nodeFx, scaleFx, TALENT_RULES } from './talents.js';
 
 export { CAT_SLOTS, SLOT_KEYS, TAGS, RANK_MAX, supportFits, supportSockets, skillSlots, defaultSlots };
 
@@ -59,12 +59,18 @@ const DOT_PRIORITY = ['poison', 'bleed', 'burn'];
 export function rankBase(level, req) {
   return Math.max(1, Math.min(RANK_MAX, 1 + Math.floor(((level || 1) - (req || 1)) / 8)));
 }
-// Paso 2: las activas de talento también usan el `req` de su catálogo
-function skillReq(sk) { return sk.req || 1; }
-// rango = base(nivel, req) + talentos.skillLv[id] + stats.skillLv[id] (equipo, Paso 4)
+// nivel desde el que CUENTA el rango (S0, M-10): el `req` del catálogo (también en las activas de
+// talento) y, en el kit de una especialización (`spec`), desde que se abre la especialización
+// (TALENT_RULES.specAt): lo nuevo no pega menos que el kit base que sustituye (con req 14–15 iba dos
+// rangos por detrás de la Bola de Fuego entre el Nv14 y el 37)
+export function rankReq(sk) {
+  const req = sk?.req || 1;
+  return sk?.spec ? Math.min(req, TALENT_RULES.specAt) : req;
+}
+// rango = base(nivel, rankReq) + talentos.skillLv[id] + stats.skillLv[id] (equipo, Paso 4)
 export function skillRank(p, sk) {
   if (!p || !sk) return 0;
-  const base = rankBase(p.level, skillReq(sk));
+  const base = rankBase(p.level, rankReq(sk));
   const tal = p.talentAgg?.skillLv?.[sk.id] || 0;
   const eq = p.stats?.skillLv?.[sk.id] || 0;
   return base + tal + eq;
@@ -395,6 +401,11 @@ function computeProfile(p, sk) {
     comboWin: Math.max(0.2, (def.comboWin ?? VERB_DEFAULTS.comboWin) + (mods.comboWin || 0)),
     charges: Math.max(1, Math.floor((def.charges || 1) + (mods.charges || 0))),
     repeat, trail, mark,
+    // canal (S0): 1.er tic al empezar, coste por drenaje, sin bloqueo y rampa por tic (% al coef
+    // del tic, combat-math.channelRampPct; los mods rampPerTic/rampMax suman puntos)
+    tickNow: !!def.tickNow, drainCost: !!def.drainCost, nonBlocking: !!def.nonBlocking,
+    ramp: def.rampPerTic > 0 && def.rampMax > 0
+      ? { perTic: def.rampPerTic + (mods.rampPerTic || 0), max: def.rampMax + (mods.rampMax || 0) } : null,
     keepPlanted: !!(def.keepPlanted || mods.keepPlanted),
     // poderes que reaccionan al golpe de esta habilidad (los rellenan modifyResolve)
     onHitPowers: [],
@@ -417,6 +428,52 @@ export function cooldownWithMassacre(prof) {
 // ¿puede ir esta habilidad en esta ranura? (assignHotbar, migración, UI)
 export function fitsSlot(sk, slot) {
   return !!sk && SLOT_KEYS.includes(slot) && skillSlots(sk).includes(slot);
+}
+
+// ---------- barra de la especialización (S0, T1 · M-05) ----------
+// Al aprender una habilidad del kit de la especialización ACTIVA (o al elegirla), la habilidad entra
+// en SU ranura de <CLASE>_SPEC_BAR si esa ranura está vacía o tiene una del KIT BASE que el jugador
+// no colocó a mano (p.hotbarManual[ranura] === id: la puso él con assignHotbar). Lo que el jugador
+// eligió no se toca; la sustituida vuelve al libro. ids: solo esas habilidades (las recién
+// aprendidas; null = todas las del kit). → [{ slot, id, from }] (from: la que sale o null)
+export function specBarUpgrade(p, ids = null) {
+  const spec = activeSpecId(p);
+  const want = spec ? SPEC_BAR?.[spec]?.bar : null;
+  if (!p || !want) return [];
+  const hb = p.hotbar || (p.hotbar = {});
+  const skills = p.cls?.skills || CLASSES[p.classId]?.skills || [];
+  const byId = id => (id && skills.find(s => s.id === id)) || null;
+  const manual = p.hotbarManual || {};
+  const out = [];
+  for (const slot of SLOT_KEYS) {
+    const id = want[slot];
+    const sk = byId(id);
+    if (!sk || sk.spec !== spec || (ids && !ids.has(id)) || !isKnown(p, sk) || !fitsSlot(sk, slot)) continue;
+    if (Object.values(hb).includes(id)) continue;
+    const cur = hb[slot] || null;
+    const curSk = byId(cur);
+    // ranura libre, o con una del kit base (ni de especialización ni activa de talento) puesta sola
+    const auto = !cur || (curSk && !curSk.spec && curSk.kind !== 'talent' && manual[slot] !== cur);
+    if (!auto) continue;
+    hb[slot] = id;
+    if (manual[slot]) delete manual[slot];
+    out.push({ slot, id, from: cur });
+  }
+  return out;
+}
+// aviso de una sustitución de la barra: «⚡ Rayo reemplaza a Bola de Fuego en 🖱️Der (cámbialo en
+// el libro, T)»; si la ranura estaba libre, «⚡ Rayo va a 🖱️Der (…)». key = tecla del libro de
+// habilidades (la del jugador: ui.actionKey('skills', 'T'))
+export const BAR_SLOT_NAME = Object.freeze({ lmb: '🖱️Izq', rmb: '🖱️Der', k1: 'la ranura 1', k2: 'la ranura 2', k3: 'la ranura 3', k4: 'la ranura 4' });
+export function specBarSwapText(p, swap, key = 'T') {
+  const skills = p?.cls?.skills || CLASSES[p?.classId]?.skills || [];
+  const sk = skills.find(s => s.id === swap?.id);
+  const old = swap?.from ? skills.find(s => s.id === swap.from) : null;
+  if (!sk) return '';
+  const where = BAR_SLOT_NAME[swap.slot] || swap.slot;
+  const head = `${sk.icon ? `${sk.icon} ` : ''}${sk.name}`;
+  const tail = `(cámbialo en el libro, ${key || 'T'})`;
+  return old ? `${head} reemplaza a ${old.name} en ${where} ${tail}` : `${head} va a ${where} ${tail}`;
 }
 
 // texto corto de lo que hace el perfil (UI/tooltips): número FINAL, no el base

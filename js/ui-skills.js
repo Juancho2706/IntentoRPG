@@ -282,6 +282,8 @@ export function createSkillBook(root, opts = {}) {
       const pill = v.state === 'bloqueada' ? `<span class="sb-lockpill">${LOCK}Nv ${v.level}</span>` : v.state === 'elegida' ? '<span class="sb-sealb">ELEGIDA</span>' : '';
       html += `<div class="sb-var ${st}${fv.combat ? ' combat' : ''}" data-var="${v.key}" data-state="${v.state}" style="left:${TREE.vx}px;top:${v.key === 'i' ? 25 : 75}%" tabindex="0" role="button" aria-label="Variante ${v.num}: ${esc(v.name)} · ${esc(v.roleLabel)}">` +
         `<span class="num">${v.num}</span>${pill}${v.reco ? `<span class="sb-recochip">★ ${esc(v.recoSpec)}</span>` : ''}` +
+        // S0 (T5): la variante deja sin efecto nodos que compraste (needsForm)
+        (v.voids?.length ? `<span class="sb-voidchip" title="${esc(v.voidText)}">⚠ ${v.voids.length} talento${v.voids.length > 1 ? 's' : ''} sin efecto</span>` : '') +
         `${varIco(fv, v)}<div class="sb-vtx"><div class="vn">${esc(v.name)}</div><div class="vs${v.line.length > LONG_VAR ? ' long' : ''}">${esc(v.line)}</div>${roleChip(v.role)}</div></div>`;
     }
     html += '</div>';
@@ -381,6 +383,7 @@ export function createSkillBook(root, opts = {}) {
     return `<div class="th">${icoHTML(fv.art, fv.id, fv.emoji, 'sb-ico md')}<div><div class="tn">${esc(fv.name)}</div><div class="tk">${kind}</div></div></div>` +
       `<div class="tl">${esc(fv.line)}</div>${fv.innate ? `<div class="tnx">${esc(fv.innate)}</div>` : ''}${verbs}${rows(tr)}` +
       (fv.nextRankLv && fv.known ? `<div class="tk">Rango ${fv.rank + 1} al nivel ${fv.nextRankLv}</div>` : '') + st +
+      (fv.voidText ? `<div class="st warn">${esc(fv.voidText)}</div>` : '') +
       (S.alt ? `<div class="tg">${fv.tags.map(t => `<i>${esc(t)}</i>`).join('')}</div><div class="adv"><b>Detalle (Alt):</b> daño = arma × ${fmt2(fv.coef)} × (1 + Σ aditivos) × atributo × crítico</div>` : '') +
       linksHTML(id) + '<div class="tf"><span>Clic: forja</span><span>Arrastra a la barra</span><span><kbd>Alt</kbd> detalle</span></div>';
   }
@@ -405,6 +408,7 @@ export function createSkillBook(root, opts = {}) {
     return `<div class="th">${varIco(fv, v, 'sm')}<div><div class="tn">${esc(v.name)}</div><div class="tk">Variante ${v.num} de ${esc(fv.name)}</div></div></div>` +
       `<div class="tl">${esc(v.line)}</div>${tags.length ? `<div class="tg">${tags.join('')}</div>` : ''}<div class="cmp">${row}</div>` +
       (v.reco ? `<div class="st g">★ Recomendada para ${esc(v.recoSpec)}</div>` : '') + st +
+      (v.voidText ? `<div class="st warn">${esc(v.voidText)}</div>` : '') +
       (S.alt && v.detail ? `<div class="adv"><b>Detalle (Alt):</b> ${esc(v.detail)}</div>` : '') + linksHTML(fv.id);
   }
   function tipSlot(slot) {
