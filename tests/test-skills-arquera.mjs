@@ -681,7 +681,7 @@ assert.deepEqual(warnings, [], 'ningún comportamiento lanzó errores: ' + warni
     hotbar: { lmb: null, rmb: null, k1: null, k2: null, k3: null, k4: null, ...hotbar },
     talents: { v: 1, spec, cls: {}, sp: {}, choice: {} }, paragon: { points: 0, nodes: {}, glyphs: {} }, materials: [], supports: {}, knownSupports: [], ...o,
   });
-  const mig = d => S.migrateV4toV5(d);
+  const mig = d => S.migrateV4toV5(d, { forgeReco: {} });   // solo la tabla legada (la ★ de D3: test-save-2g)
   assert.equal(S.LEGACY_TABLES.arquera.insignia.montaraz, S.V4_INSIGNIA.arquera.montaraz, 'insignia v4');
   // Montaraz: Disperso → Disparo Rápido I; Red de Caza → variante II del cepo (la 2 cae al humo)
   const m = mig(v4('montaraz', 30, { lmb: 'a_disperso', rmb: 'flecha_multiple', k1: 'agilidad', k2: 'a_red', k3: 'a_t_cepo', k4: 'a_u_zarzas' }));

@@ -22,7 +22,7 @@
 //   cambiar el formato (mascota/collar, talentos, hotbar, skills inexistentes).
 // El alijo (`intentorpg_stash`, array de objetos compartido) y las claves de
 // hueco (`intentorpg_save_slot{0..2}`) no cambian de formato.
-import { CLASSES, SUPPORTS, SPEC_BAR, FALLBACK_BAR, xpForLevel } from './data.js';
+import { CLASSES, SUPPORTS, SPEC_BAR, FALLBACK_BAR, FORGE_RECO, xpForLevel } from './data.js';
 import { rescaleItemToCurrent } from './items.js';
 import { supportFits, supportSockets } from './skill-defs.js';
 import * as SR from './skill-resolve.js';
@@ -176,7 +176,7 @@ export const LEGACY_TABLES = { maga: MAGA_LEGACY, guerrero: GUERRERO_LEGACY, arq
 // contexto de la migración (los tests inyectan tablas y barras de prueba). forgedDef(hero, sk)
 // = definición forjada (la de skill-resolve cuando exista; sin ella, la base)
 export function migrationCtx(over = {}) {
-  return { legacy: LEGACY_TABLES, specBar: SPEC_BAR, fallbackBar: FALLBACK_BAR, canAddMaterial,
+  return { legacy: LEGACY_TABLES, specBar: SPEC_BAR, fallbackBar: FALLBACK_BAR, forgeReco: FORGE_RECO, canAddMaterial,
     forgedDef: typeof SR.forgedDef === 'function' ? SR.forgedDef : null, ...over };
 }
 const BAR_SLOTS = ['lmb', 'rmb', 'k1', 'k2', 'k3', 'k4'];
@@ -260,6 +260,9 @@ export function migrateV4toV5(d, over = {}) {
     sources.sort((a, b) => a.rank - b.rank || b.mods - a.mods);
     const fixed = new Set();
     for (const s of sources) { if (fixed.has(s.target)) continue; fixed.add(s.target); forge[s.target] = s.variant; }
+    // forja recomendada de la especialización (D3) en las habilidades nunca elegidas (undefined;
+    // null = decidido sin variante), como al elegirla en el juego. Solo desde v4: idempotente
+    for (const [id, v] of Object.entries(ctx.forgeReco?.[spec] || {})) if (forge[id] === undefined) forge[id] = v;
   }
   d.skillForge = forge;
   delete d.skillMods; delete d.skillBranches; delete d.skillPoints;
