@@ -475,6 +475,9 @@ function hawkMark(p, e) {
   if (!(tv.hawkShared > 0)) for (const o of [...st.marks.keys()]) if (o !== e) hawkUnmark(p, o);
   st.marks.set(e, now(p) + (tv.hawkShared > 0 ? tv.hawkShared : tune().hawk.mark));
   if (tv.hawkPrey > 0 && p.talentAgg?.mechanic === 'coto') e.prey = true;
+  // el marco del objetivo la enseña (hud-model: e.uiMarks) mientras siga en el estado del halcón
+  (e.uiMarks ||= {}).y_halcon = { id: 'y_halcon', name: 'Marca del Halcón', art: 'talents/arquera-clase-c4.webp',
+    get t() { const u = powerState(p, 'y_halcon').marks?.get(e); return u != null ? u - now(p) : 0; } };
 }
 function hawkUnmark(p, e) {
   const st = powerState(p, 'y_halcon');

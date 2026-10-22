@@ -297,6 +297,9 @@ export function createTalentOps(T) {
       st.nodes[r.hero.tree] = r.hero.nodes[r.hero.tree] || {};
       st.choice[r.hero.tree] = r.hero.choice[r.hero.tree] || {};
     }
+    // la build aplicada por especialización (talents.build): el libro recomienda SU forja (hud-model.recoFor)
+    const prev = p.talents.build && typeof p.talents.build === 'object' && !Array.isArray(p.talents.build) ? p.talents.build : {};
+    p.talents.build = { ...prev, [b.sp]: k };
     bump(p);
     return { ok: true, key: k, spec: b.sp, ...heroDelta(p, before) };
   }

@@ -249,13 +249,17 @@ export const VERB_DOC = Object.freeze({
   seq: 'seq{every,extra{count,spread,coef,pierce}}',
   stance: 'type:"stance" · stance{modes[{id,name,stats,moveMul,chargeSpeed,keepGauge,color}],dur,swapCd,swapGcd,endOnDodge,recastEnds}',
   planted: 'needPlanted · plant:true (dash/salto)',
-  mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct}}',
+  mark: 'mark{id,dur,uses,firstCharged,weakPct,count,radius,detonate{by,pct,self}}'
+    + ' · detonate.self: la misma habilidad que la puso la detona en un lanzamiento POSTERIOR, si la marca lleva al menos'
+    + ' MARK_SELF_AGE s (game-skills.js, 0,5 s; applyMark guarda `at`); sin self, la que la puso nunca la detona (Juicio en cadena)',
   trap: 'trap{armT,maxArmed,radius,root,burst{radius,coef},consume,lure{radius,eliteRadius,boss,speedMul},hold (s: se cierra sobre quien lo pisa y queda detonable; a un jefe no lo atrapa),boss{slowPct,stagger (por s)},skin (aspecto: field-entities.TRAP_SKINS)}',
-  detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance',
+  detonate: 'detonate{radius,coef (× rankCoef),chain,perTarget,consume} · un proyectil detona al impactar y al final de su alcance'
+    + ' · (la marca que se detona sola con la misma habilidad es mark.detonate.self + MARK_SELF_AGE: ver `mark`)',
   wall: 'type:"wall" · wall{len,width,blocks:true|"all",contain}',
   follow: 'follow:"owner"|"aim"',
   displace: 'pull: m | {dist,to:"self"|"center"|"trap",radius (atracción por tic de un canal),boss:false (no atrae a los jefes: tic del canal y golpe)} · knock: m · drag:true · dragWidth (solo si la definición arrastra) · dashT',
-  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor · fanW + spreadMin (abanico que se cierra con la distancia a la mira: fanSpread)',
+  other: 'charges · killReset · shieldGain:[pct,máx] · buff.minHpPct / buff.endHealPct · taunt · repeat{n,every,coef,needPlanted} · trail{field,dur,width,coef,heal} · at:"ownField"+fieldKind (+fallbackRange) · pulse{every,radius,taunt,coef} · wave{range,coef,width} (no repite a los del impacto) · zonePct (Estela: % del arma por segundo) · heal{pct,radius} · shield{pct,radius,dur} · lure{radius,dur,…} · perTarget · chainPct · impacts+scatter · cdOnEnd · cdFloor · fanW + spreadMin (abanico que se cierra con la distancia a la mira: fanSpread)'
+    + ' · fanSpread(def, dist, spread, targetR): targetR = radio de impacto del blanco apuntado (Player.basicAttack: 0,55 × su escala, con el blanco solo); estrecha fanW a 0,8 × targetR para que las flechas de los lados también le den',
 });
 // stats que una postura (o un buff con estado) aplica SIN recompute (§3.6: rendimiento)
 export const STANCE_STATS = new Set(['dmgPct', 'dr', 'block', 'blockPower', 'crit', 'critDmg', 'projMissPct', 'dmgTakenPct', 'spdPct']);

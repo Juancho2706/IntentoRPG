@@ -694,6 +694,18 @@ export function killStatus(e) {
     slowed: (e?.slowT || 0) > 0, rooted: (e?.rootT || 0) > 0, prey: !!e?.prey,
     weakened: (e?.weaknessPct?.() || 0) > 0 || (e?.vulnT || 0) > 0 };
 }
+// cambio de mundo (Game.loadWorld, antes de vaciar g.projectiles): avisa a cada proyectil con
+// onWorldReset (el Orbe Arcano se apaga en el acto y su lanzamiento termina); el fallo de uno no
+// deja sin aviso a los demás. → cuántos se avisaron
+export function worldResetProjectiles(list) {
+  let n = 0;
+  for (const pr of list || []) {
+    if (typeof pr?.onWorldReset !== 'function') continue;
+    n++;
+    try { pr.onWorldReset(); } catch (err) { try { console.warn('[proyectil] onWorldReset', err); } catch { /* sin consola */ } }
+  }
+  return n;
+}
 // ¿tiene con qué lanzarse? (comportamiento registrado con cast o tipo genérico). Las
 // activas de talento cuyo comportamiento aún no existe (2c.1) no se lanzan ni cobran.
 export function skillCastable(sk) {

@@ -163,8 +163,11 @@ export function enemyStatuses(e) {
   else if (e.slowT > 0) add('ralentizado', 'Ralentizado', e.slowT);
   if (e.tauntT > 0) add('provocado', 'Provocado', e.tauntT);
   // MARCAS (§3.6; S-guerrero G06): estado genérico «marca», uno por marca viva, con el nombre y el arte de
-  // la habilidad que la puso (`icon`: ruta propia, no hay st_* de marca) y sus usos («×2» con Tribunal)
-  for (const m of Object.values(e.marks || {})) if (m?.t > 0) out.push(markStatus(m));
+  // la habilidad que la puso (`icon`: ruta propia, no hay st_* de marca) y sus usos («×2» con Tribunal).
+  // Las de las tres clases: e.marks (Juicio, Punto Débil…) y e.uiMarks, las que guarda un PODER en su
+  // estado (Marca del Tiempo, marca del Halcón): solo se enseñan (ni se detonan ni cuentan como marca);
+  // { id, name, art, t } con t (getter) = s que le quedan
+  for (const m of [...Object.values(e.marks || {}), ...Object.values(e.uiMarks || {})]) if (m?.t > 0) out.push(markStatus(m));
   const weak = Object.keys(e.debuffs || {}).length > 0;
   if (e.vulnT > 0) add('debilidad', 'Vulnerable', e.vulnT);
   else if (weak) add('debilidad', 'Debilidad');
@@ -174,11 +177,12 @@ export function enemyStatuses(e) {
   if (dots.some(k => k.includes('poison'))) add('veneno');
   return out;
 }
-// estado de una marca: { id: 'marca', label, t, icon } (icon: el arte de su habilidad, relativo a la raíz)
+// estado de una marca: { id: 'marca', label, t, icon } (icon: el arte de su habilidad, relativo a la raíz;
+// una marca de poder trae su `name` y su `art`)
 export function markStatus(m) {
   const sk = m?.skill ? Object.values(CLASSES).flatMap(c => c.skills).find(s => s.id === m.skill) : null;
-  const name = sk?.name || (m?.id ? m.id[0].toUpperCase() + m.id.slice(1) : 'Marca');
-  const art = sk ? skillArtPath(sk) : null;
+  const name = m?.name || sk?.name || (m?.id ? m.id[0].toUpperCase() + m.id.slice(1) : 'Marca');
+  const art = m?.art || (sk ? skillArtPath(sk) : null);
   return { id: 'marca', label: (m?.uses | 0) > 1 ? `${name} ×${m.uses | 0}` : name, ...(m?.t > 0 ? { t: m.t } : {}), icon: art ? `assets/${art}` : null };
 }
 // icono de estado de un buff/debuff del jugador (fila de buffs) o null
@@ -713,12 +717,13 @@ export function specCard(classId, specId) {
     color: SPEC_COLOR[s.id] || '#e8c06a' };
 }
 // variantes recomendadas de una especialización (D6: FORGE_RECO; un arnés puede traer las suyas
-// en p.cls.forgeReco). S0 (T5): con la `forge` de su build por defecto encima (talents.forgeRecoFor;
-// null = «sin variante») → { skillId: 'i' | 'ii' | null } | null
+// en p.cls.forgeReco). S0 (T5): con la `forge` de su build encima (talents.forgeRecoFor; null = «sin
+// variante»): la que aplicaste con «Recomendado» (p.talents.build[spec], X1) o, sin ninguna, la de
+// por defecto → { skillId: 'i' | 'ii' | null } | null
 export function recoFor(p, specId) {
   if (!specId) return null;
   if (p?.cls?.forgeReco?.[specId]) return p.cls.forgeReco[specId];
-  const r = p?.classId ? forgeRecoFor(p.classId, specId) : (FORGE_RECO[specId] || null);
+  const r = p?.classId ? forgeRecoFor(p.classId, specId, p.talents?.build?.[specId]) : (FORGE_RECO[specId] || null);
   return r && Object.keys(r).length ? r : (FORGE_RECO[specId] || null);
 }
 // kit de una especialización en el catálogo del jugador

@@ -31,6 +31,7 @@ import { forgeView } from '../js/hud-model.js';
 import { FORGE_RECO, CLASSES } from '../js/data.js';
 import * as CM from '../js/combat-math.js';
 import { powerState } from '../js/powers.js';
+import { worldResetProjectiles } from '../js/game-skills.js';
 
 const magaOrbs = p => (PM.magaOrbs ? PM.magaOrbs(p) : []);
 const fails = [];
@@ -233,12 +234,12 @@ section('O9 · cambio de zona (loadWorld vacía los proyectiles): el Orbe se apa
   const b = zone();
   eq(magaOrbs(b.h.p).length, 0, 'magaOrbs (los poderes) tampoco lo ve');
   ok(!b.o.alive && b.done() === 1, 'y también lo apaga');
-  // con el aviso que se pide al motor (loadWorld → pr.onWorldReset() antes de vaciar), en el acto
+  // con el aviso del motor (Game.loadWorld → worldResetProjectiles antes de vaciar, X1), en el acto
   const c = hero(30);
   c.aim(8, 0); c.setSlot('k3', 'a_orbe'); c.cast('k3');
   const oc = magaOrbs(c.p)[0];
   c.step(0.3);
-  for (const pr of c.g.projectiles) pr.onWorldReset?.();
+  eq(worldResetProjectiles(c.g.projectiles), 1, 'worldResetProjectiles avisa al Orbe');
   ok(!oc.alive && !oc.caught && c.gaugeValue('cargas') === 0, 'onWorldReset lo apaga en el acto, sin Carga');
 });
 section('O10 · Satélite (a19) y Constelación (a26): el Orbe que vuelve no se absorbe (sin Carga) y se queda 8 s en órbita', () => {

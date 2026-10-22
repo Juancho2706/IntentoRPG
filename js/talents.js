@@ -43,7 +43,8 @@
 //   Comprobación de los datos: tests/test-talentos-nivel.mjs.
 //
 // ESTADO GUARDADO (§3.2): p.talents = { v:2, spec, cls, sp:{specId:{…}}, choice,
-//   hero:{ specId:{ tree, nodes:{treeId:{…}}, choice:{treeId:{…}} } }, loadouts:{ specId:[…] } }
+//   hero:{ specId:{ tree, nodes:{treeId:{…}}, choice:{treeId:{…}} } }, loadouts:{ specId:[…] },
+//   build?:{ specId: buildKey } } (la última build aplicada con «Recomendado»; sin ella, la defaultBuild)
 //   Los nodos gratis (clave de especialización y de héroe) NO se guardan.
 import { CLASSES, specKitOf, FORGE_RECO } from './data.js';
 import { mergeMods, NUCLEO_TV_KEYS, formNeedMet, formNeedText } from './skill-defs.js';
@@ -838,6 +839,14 @@ export function normalizeTalents(raw, classId, level) {
         sp: isObj(l.sp) ? { ...l.sp } : {}, hero: isObj(l.hero) ? JSON.parse(JSON.stringify(l.hero)) : null,
       }));
       if (ok.length) out.loadouts[s.id] = ok;
+    }
+    // build aplicada con «Recomendado» por especialización (X1: la forja recomendada del libro es la
+    // suya); solo builds que existen y son de esa especialización. Sin ninguna, no hay campo
+    if (isObj(raw.build)) {
+      const builds = t.builds || {};
+      const b = {};
+      for (const s of t.specs || []) { const k = raw.build[s.id]; if (typeof k === 'string' && builds[k]?.sp === s.id) b[s.id] = k; }
+      if (Object.keys(b).length) out.build = b;
     }
     // validación por árbol al nivel dado
     if (Number.isFinite(level)) {

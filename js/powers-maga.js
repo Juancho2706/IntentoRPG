@@ -1031,6 +1031,9 @@ function putMark(g, p, e, st, stored = 0, until = null) {
   if (!e?.alive || st.marks.has(e)) return null;
   const m = { until: until ?? now(p) + magaTuning().marcaT + (tvOf(p).chronoDur || 0), stored, ext: 0 };
   st.marks.set(e, m);
+  // el marco del objetivo la enseña (hud-model: e.uiMarks); se va sola cuando la Marca deja el estado
+  (e.uiMarks ||= {}).m_marca_tiempo = { id: 'm_marca_tiempo', name: 'Marca del Tiempo', art: 'talents/maga-clase-c12.webp',
+    get t() { return st.marks.get(e) === m ? Math.max(m.until, st.stopUntil || 0) - now(p) : 0; } };
   ring(g, e.pos, 0.8, 0xe8c87a);
   return m;
 }
