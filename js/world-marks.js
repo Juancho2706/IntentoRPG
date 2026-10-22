@@ -7,6 +7,8 @@
 //       pequeños JUSTO ENCIMA de la barra de vida, solo en élites, jefes, la Presa y el enemigo
 //       bajo el cursor (lo decide el renderizador; R1: 60 enemigos no llevan 60 tiras).
 //       Congelado → los 5 en blanco hielo; jefe Aterido → cristales pálidos + aro.
+//       S-guerrero (G06): `tone: 'gold'` = sello dorado de `max` rombos centrados (las marcas de Juicio
+//       del Cruzado: un rombo por uso que le queda) y `blink: true` lo hace parpadear (caduca).
 //   ground(e, p) → { asset, blend, color, radius, t, tMax, k, expiring, trapped, spin, opacity } | null
 //       Coto de Caza (Montaraz): el anillo de zarzas (assets/gauges/gz_coto_marca_suelo.webp, fondo
 //       negro → mezcla ADITIVA) bajo la Presa, girando; parpadea al caducar y late si está atrapada.
@@ -62,7 +64,7 @@ export function worldMarksPlan(game, max = OVERHEAD_MAX) {
       if (!e || e.alive === false || !near(e)) continue;
       let m = null;
       try { m = W.overhead(e, p); } catch { m = null; }
-      if (m) list.push({ e, n: m.n | 0, max: m.max || STRIP_N, numb: !!m.numb, frozen: !!m.frozen });
+      if (m) list.push({ e, n: m.n | 0, max: m.max || STRIP_N, numb: !!m.numb, frozen: !!m.frozen, tone: m.tone || null, blink: !!m.blink });
     }
     if (list.length > max && p.pos) {
       const hover = game.ui?.hoverEnemy;
@@ -138,7 +140,7 @@ export function verbMarksPlan(game, max = THREAD_MAX) {
 // ------------------------------------------------------------
 // el pintor (pool de Three.js)
 // ------------------------------------------------------------
-const COL = { off: 0x21485a, lit: 0x74cdf2, frozen: 0xeefcff, numb: 0xbfe9ff, rim: 0x0b1a22 };
+const COL = { off: 0x21485a, lit: 0x74cdf2, frozen: 0xeefcff, numb: 0xbfe9ff, rim: 0x0b1a22, gold: 0xffd36b, goldOff: 0x4a3a12, goldRim: 0x2a1804 };
 const VCOL = { planted: 0xd8b46a, thread: 0xe9c46a, hunt: 0xffd27a };
 const HUNT_DUR = 0.6;
 
@@ -159,14 +161,16 @@ export class WorldMarks {
       quad,
       ring: new THREE.RingGeometry(0.42, 0.5, 24),
       m: { off: mat(COL.off, { opacity: 0.85 }), lit: mat(COL.lit), frozen: mat(COL.frozen), numb: mat(COL.numb),
-        rim: mat(COL.rim, { opacity: 0.9 }), halo: mat(COL.numb, { opacity: 0.85, blending: THREE.AdditiveBlending }) },
+        rim: mat(COL.rim, { opacity: 0.9 }), halo: mat(COL.numb, { opacity: 0.85, blending: THREE.AdditiveBlending }),
+        // tono dorado (S-guerrero, G06: sello de Juicio del Cruzado)
+        gold: mat(COL.gold), goldOff: mat(COL.goldOff, { opacity: 0.85 }), goldRim: mat(COL.goldRim, { opacity: 0.95 }) },
     };
     // tiras de Escarcha: 5 rombos (con su ribete) + aro de Aterido
     this.strips = [];
     for (let i = 0; i < this.max; i++) {
       const g = new THREE.Group();
       g.visible = false;
-      const gems = [];
+      const gems = [], rims = [];
       for (let k = 0; k < STRIP_N; k++) {
         const x = (k - (STRIP_N - 1) / 2) * GAP;
         const rim = new THREE.Mesh(quad, this.res.m.rim);
@@ -175,14 +179,14 @@ export class WorldMarks {
         gem.position.set(x, 0, 0.001); gem.rotation.z = Math.PI / 4; gem.scale.setScalar(DIAMOND);
         rim.renderOrder = 1000; gem.renderOrder = 1001;
         g.add(rim, gem);
-        gems.push(gem);
+        gems.push(gem); rims.push(rim);
       }
       const halo = new THREE.Mesh(this.res.ring, this.res.m.halo);
       halo.position.set(-((STRIP_N - 1) / 2) * GAP - 0.24, 0, 0.002);
       halo.scale.setScalar(0.26); halo.renderOrder = 1001; halo.visible = false;
       g.add(halo);
       this.group.add(g);
-      this.strips.push({ g, gems, halo, e: null, sig: '' });
+      this.strips.push({ g, gems, rims, halo, e: null, sig: '', blink: false });
     }
     // anillo de zarzas bajo la Presa
     this.groundMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false,
@@ -235,19 +239,29 @@ export class WorldMarks {
     this.plan = plan;
     const want = new Map(plan.overhead.map(o => [o.e, o]));
     // libera las tiras cuyo enemigo ya no está en el plan
-    for (const s of this.strips) if (s.e && !want.has(s.e)) { s.e = null; s.sig = ''; s.g.visible = false; }
+    for (const s of this.strips) if (s.e && !want.has(s.e)) { s.e = null; s.sig = ''; s.blink = false; s.g.visible = false; }
     // asigna las que faltan (mismo enemigo → misma tira)
     for (const o of plan.overhead) {
       let s = this.strips.find(x => x.e === o.e);
       if (!s) { s = this.strips.find(x => !x.e); if (!s) continue; s.e = o.e; }
-      const sig = `${o.n}|${o.numb ? 1 : 0}|${o.frozen ? 1 : 0}`;
+      s.blink = !!o.blink;
+      const sig = `${o.n}|${o.max}|${o.tone || ''}|${o.numb ? 1 : 0}|${o.frozen ? 1 : 0}`;
       if (s.sig === sig) continue;
       s.sig = sig;
       const M = this.res.m;
+      // tono dorado (sello de Juicio, S-guerrero G06): solo `max` rombos (los usos que le quedan),
+      // centrados, algo mayores y con su ribete propio
+      const gold = o.tone === 'gold';
+      const shown = gold ? Math.max(1, Math.min(STRIP_N, o.max | 0)) : STRIP_N;
       for (let k = 0; k < s.gems.length; k++) {
+        const gem = s.gems[k], rim = s.rims[k];
+        gem.visible = rim.visible = k < shown;
+        gem.position.x = rim.position.x = (k - (shown - 1) / 2) * GAP;
+        gem.scale.setScalar(DIAMOND * (gold ? 1.4 : 1)); rim.scale.setScalar(DIAMOND * 1.35 * (gold ? 1.4 : 1));
+        if (rim.material !== (gold ? M.goldRim : M.rim)) rim.material = gold ? M.goldRim : M.rim;
         const lit = o.frozen || k < o.n;
-        const m = !lit ? M.off : o.frozen ? M.frozen : o.numb ? M.numb : M.lit;
-        if (s.gems[k].material !== m) s.gems[k].material = m;
+        const m = gold ? (lit ? M.gold : M.goldOff) : !lit ? M.off : o.frozen ? M.frozen : o.numb ? M.numb : M.lit;
+        if (gem.material !== m) gem.material = m;
       }
       s.halo.visible = o.numb;
     }
@@ -325,7 +339,8 @@ export class WorldMarks {
       if (!e) continue;
       const bar = e.group?.userData?.bar;
       const show = !!(e.alive !== false && bar && bar.visible !== false && e.group);
-      s.g.visible = show;
+      // el sello que caduca parpadea (blink: los últimos 2 s de la marca)
+      s.g.visible = show && (!s.blink || Math.sin(this.time * 10) > -0.35);
       if (!show) continue;
       // borde superior de la barra (su alto es 0,1 en el grupo del enemigo, escalado por él)
       const G = e.group, sy = G.scale?.y || 1;
@@ -347,7 +362,7 @@ export class WorldMarks {
   }
 
   clear() {
-    for (const s of this.strips) { s.e = null; s.sig = ''; s.g.visible = false; }
+    for (const s of this.strips) { s.e = null; s.sig = ''; s.blink = false; s.g.visible = false; }
     this.ground = null;
     this.groundMesh.visible = false;
     const V = this.verb;

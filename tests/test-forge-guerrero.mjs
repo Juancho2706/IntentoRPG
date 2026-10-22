@@ -77,16 +77,18 @@ const ROLES = {
       if (lines.get(ruta) !== s[mk].s) changed.push(ruta);
     }
   }
-  assert.equal(changed.length, 12, `12 líneas del mockup pasaban de 70 (plan, A1): ${changed.length}`);
+  // 12 pasaban de 70 (plan, A1) y 1 cambia de efecto (S-guerrero, G10: la Mejora de la Carga de Escudo)
+  assert.equal(changed.length, 13, `13 líneas de la forja difieren del mockup: ${changed.length}`);
   assert.deepEqual(div.map(d => d.ruta).sort(), changed.sort(), 'divergencias.json declara exactamente las líneas acortadas');
   for (const d of div) {
     assert.equal(d.aprobada, false, `${d.ruta}: pendiente del visto bueno del dueño`);
+    if (d.motivo.startsWith('S-guerrero')) continue;          // cambia el efecto, no acorta
     const orig = C.catalog.find(s => d.ruta.startsWith(`forja.${s.id}.`));
     const mk = d.ruta.includes('.mejora.') ? 'M' : d.ruta.endsWith('.ii.line') ? 'B' : 'A';
     assert.ok(orig[mk].s.length > 70 && d.motivo.includes(orig[mk].s), `${d.ruta}: el motivo cita la línea original (> 70)`);
   }
 }
-console.log('A1: 17 habilidades con Mejora + 2 variantes, papeles de §4/§7, líneas ≤ 70 (12 acortadas y declaradas) ✓');
+console.log('A1: 17 habilidades con Mejora + 2 variantes, papeles de §4/§7, líneas ≤ 70 (12 acortadas y 1 cambiada, declaradas) ✓');
 
 // ------------------------------------------------ 2) A2/F7: definiciones forjadas válidas y sin no-ops
 // firma de lo que el motor lee: el perfil de resolveSkill y la definición forjada (sin la etiqueta
@@ -253,17 +255,17 @@ let h, e, e2, e3;
   g.hh.tick(1.5);
   assert.equal(g.hh.g.fieldsOf(g.hh.p, { kind: 'estela', skill: 'g_hendidura' }).length, 0, 'Grieta: dura 2 s');
 }
-{ // Embestida · Mejora (Carga Fiera): alcance 7 → 9 m y +4 de Furia si golpea
-  const run = L => { const hh = hero(L); hh.p.mp = 0; const a = foe(hh, 9.5); hh.aim(12, 0); hh.setSlot('k1', 'embestida'); hh.cast('k1'); return { x: hh.p.pos.x, hit: a.t.n, mp: hh.p.mp }; };
+{ // Embestida · Mejora (Carga Fiera): alcance 7 → 9 m y +4 de Furia si golpea (llega en 0,2 s: S-guerrero, G13)
+  const run = L => { const hh = hero(L); hh.p.mp = 0; const a = foe(hh, 9.5); hh.aim(12, 0); hh.setSlot('k1', 'embestida'); hh.cast('k1'); hh.step(0.25); return { x: hh.p.pos.x, hit: a.t.n, mp: hh.p.mp }; };
   const b = run(6), m = run(7);
   assert.ok(approx(b.x, 7, 0.05) && approx(m.x, 9, 0.05), `Carga Fiera: 7 → 9 m (${b.x.toFixed(2)} → ${m.x.toFixed(2)})`);
   assert.ok(b.hit === 0 && m.hit === 1 && m.mp === 16, `Carga Fiera: golpea al llegar y da 12 + 4 de Furia (${m.mp})`);
 }
 { // Embestida · I (Carnero): arrastras a los que encuentras y los aturdes 0,5 s
-  const run = forge => { const hh = hero(10, { forge }); const a = foe(hh, 4, 0.5); hh.aim(12, 0); hh.setSlot('k1', 'embestida'); hh.cast('k1'); return a; };
+  const run = forge => { const hh = hero(10, { forge }); const a = foe(hh, 4, 0.5); hh.aim(12, 0); hh.setSlot('k1', 'embestida'); hh.cast('k1'); hh.step(0.25); return a; };
   const m = run({}), c = run({ embestida: 'i' });
   assert.ok(approx(m.pos.x, 4) && !(m.stunT > 0), 'sin Carnero: ni arrastra ni aturde');
-  assert.ok(c.pos.x > 9 && approx(c.stunT, 0.5, 0.05), `Carnero: arrastra (x=${c.pos.x.toFixed(2)}) y aturde 0,5 s`);
+  assert.ok(c.pos.x > 9 && c.stunT > 0.4 && c.stunT <= 0.5 + 1e-9, `Carnero: arrastra (x=${c.pos.x.toFixed(2)}) y aturde 0,5 s (${c.stunT?.toFixed(2)} al poco de llegar)`);
 }
 { // Embestida · II (Doble Carga): 2 cargas
   const run = forge => { const hh = hero(10, { forge }); hh.aim(12, 0); hh.setSlot('k1', 'embestida'); const r = [hh.cast('k1')]; hh.step(0.3); r.push(hh.cast('k1')); hh.step(0.3); r.push(hh.cast('k1')); return { r, hh }; };
@@ -349,15 +351,16 @@ let h, e, e2, e3;
   const run = forge => { const hh = hero(16, { spec: 'berserker', forge }); const near = foe(hh, 1.6), far = foe(hh, 4.5); hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(0.8); return { near, far }; };
   const m = run({}), c = run({ g_remolino: 'ii' });
   assert.ok(approx(m.far.pos.x, 4.5) && c.far.pos.x < 3.6, `Ciclón: atrae a 5 m (4,5 → ${c.far.pos.x.toFixed(2)})`);
-  // un giro (el primer tic del canal: 3 s / 12) = 1 m, fuera y dentro del radio del daño (2,9 m): el
-  // golpe del giro no vuelve a atraer al que alcanza (serían 2 m). Al que golpea, el giro ya lo
-  // mueve un poco sin la variante: se mide la diferencia entre los dos casos
-  // Luego, tres giros (0,8 s): un tirón de 1 m por giro, también cuando ya entra en el radio del daño
+  // un giro (el primer tic del canal: al pulsar, tickNow) = 1 m, fuera y dentro del radio del daño
+  // (2,9 m): el golpe del giro no vuelve a atraer al que alcanza (serían 2 m). Al que golpea, el giro
+  // ya lo mueve un poco sin la variante: se mide la diferencia entre los dos casos
+  // Luego, tres giros (0 s, 0,25 s y 0,5 s): un tirón de 1 m por giro, también cuando ya entra en el
+  // radio del daño
   const spin = forge => {
     const hh = hero(16, { spec: 'berserker', forge }); const out = foe(hh, 4.5), inR = foe(hh, 0, -2.5);
     const pulls = [], disp = out.displace.bind(out);
     out.displace = (from, d, o) => { pulls.push(d); return disp(from, d, o); };
-    hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(0.31);
+    hh.setSlot('k3', 'g_remolino'); hh.press('k3'); hh.stand(0.1);
     const one = { out: out.pos.x, outN: out.t.n, inR: inR.pos.z, inN: inR.t.n };
     hh.stand(0.5);
     return { one, pulls };
@@ -501,19 +504,20 @@ function rajar(forge, spots) {
   assert.ok(approx(o.wall.near, 0.9) && o.wall.far === 1 && !o.wall.slow, 'Guardia Opresiva: en Muralla, −10 % de daño a 5 m');
   assert.ok(o.ram.slow === 20 && !o.ram.far && o.ram.mul === 1, 'Guardia Opresiva: en Ariete, frenados un 20 % (y ya sin debilitar)');
 }
-{ // Carga de Escudo · Mejora (Avance Largo): 10 m en el mismo tiempo
-  const run = L => { const hh = hero(L, { spec: 'guardian' }); hh.aim(14, 0); hh.setSlot('k1', 'g_carga_escudo'); hh.cast('k1'); hh.step(1.1); return hh.p.pos.x; };
-  assert.ok(approx(run(14), 8, 0.1) && approx(run(15), 10, 0.1), 'Avance Largo: 8 → 10 m en 1 s');
+{ // Carga de Escudo · Mejora (Avance Largo): 10 m a la misma velocidad (8 m/s: S-guerrero, G10)
+  const run = (L, sec) => { const hh = hero(L, { spec: 'guardian' }); hh.aim(14, 0); hh.setSlot('k1', 'g_carga_escudo'); hh.cast('k1'); hh.step(sec); return hh.p.pos.x; };
+  assert.ok(approx(run(14, 1.4), 8, 0.1) && approx(run(15, 1.4), 10, 0.1), 'Avance Largo: 8 → 10 m');
+  assert.ok(approx(run(15, 1.0), 8, 0.2), 'Avance Largo: a 8 m/s (en 1 s, 8 m de los 10)');
 }
 { // Carga de Escudo · I (Arrollador): al llegar derribas 1 s a los arrastrados (jefes: 20 de Quebranto)
   const run = forge => {
     const hh = hero(18, { spec: 'guardian', forge }); const a = foe(hh, 3, 0.5), boss = foe(hh, 10.6, 0, { boss: true });
-    hh.aim(14, 0); hh.setSlot('k1', 'g_carga_escudo'); hh.cast('k1'); hh.step(1.1);
+    hh.aim(14, 0); hh.setSlot('k1', 'g_carga_escudo'); hh.cast('k1'); hh.step(1.35);
     return { a, boss };
   };
   const m = run({}), r = run({ g_carga_escudo: 'i' });
   assert.ok(m.a.pos.x > 9 && !(m.a.stunT > 0), 'sin la variante: arrastra sin derribar');
-  // llega a ~0,92 s: a los 1,1 s le quedan ~0,8 s del derribo de 1 s
+  // 10 m (con la Mejora) a 8 m/s: llega a ~1,25 s; a los 1,35 s le quedan ~0,9 s del derribo de 1 s
   assert.ok(r.a.pos.x > 9 && r.a.stunT > 0.75 && r.a.stunT <= 1, `Arrollador: derriba 1 s a los arrastrados (${r.a.stunT.toFixed(2)})`);
   assert.ok(!(r.boss.stunT > 0) && approx(r.boss.stagger - m.boss.stagger, 20, 0.01), `Arrollador: al jefe, 20 de Quebranto y nada más (${(r.boss.stagger - m.boss.stagger).toFixed(2)})`);
 }

@@ -30,13 +30,13 @@ export const GUERRERO_SKILLS = [
     desc: 'Cortas al objetivo (100 % del arma) y a los enemigos pegados a él, a 2 m o menos (50 %). Ganas 10 de Furia, +2 por cada enemigo extra (máx. 16).' },
   // principal cuerpo a cuerpo con preparación (la esquiva la cancela sin coste)
   { id: 'g_hendidura', name: 'Hendidura', icon: '🪓', art: 'skills256/g_hendidura.webp', cat: 'spender', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'cone', 'physical'], elem: 'physical',
-    type: 'cone', req: 2, coef: 2.9, cost: 27, radius: 4.5, angle: 120, windup: 0.25,
+    type: 'cone', req: 2, coef: 2.9, cost: 27, radius: 4.5, angle: 120, windup: 0.25, heavy: 70, shake: 0.3,
     line: 'Golpe frontal pesado en un cono de 120° y 4,5 m. Se prepara 0,25 s: la esquiva lo cancela sin gastar Furia.',
     desc: 'Tajo frontal pesado: 290 % del arma a todo lo que haya en un cono de 120° y 4,5 m. Se prepara 0,25 s y la esquiva lo cancela sin gastar Furia. Cuesta 27 de Furia.' },
   { id: 'embestida', name: 'Embestida', icon: '💨', art: 'skills256/embestida.webp', cat: 'movement', slots: ['k1'], tags: ['movement', 'melee', 'area', 'physical'], elem: 'physical',
-    type: 'dash', req: 4, coef: 1.2, cd: 8, range: 7, radius: 1.9, lockT: 0.25, genOnHit: 12,
-    line: 'Embistes 7 m hacia la mira y golpeas al llegar (120 % a 1,9 m). Si golpeas, ganas 12 de Furia.',
-    desc: 'Embistes hasta 7 m hacia la mira: al llegar haces 120 % del arma a todos en 1,9 m y, si golpeas a alguno, ganas 12 de Furia. Recarga 8 s.' },
+    type: 'dash', req: 4, coef: 1.2, cd: 8, range: 7, radius: 1.9, lockT: 0.25, genOnHit: 12, dashT: 0.2, shake: 0.25, heavy: 40,
+    line: 'Embistes 7 m hacia la mira en 0,2 s y golpeas al llegar (120 % a 1,9 m). Si golpeas, ganas 12 de Furia.',
+    desc: 'Embistes hasta 7 m hacia la mira en 0,2 s: al llegar haces 120 % del arma a todos en 1,9 m y, si golpeas a alguno, ganas 12 de Furia. Recarga 8 s.' },
   // la recarga empieza al ACABAR (cdOnEnd, rejuicio §20); el Guardián la lleva a 12 s y −50 % (su
   // pasiva, §11.1). `innate` = el texto del chip por especialización (mockup); el efecto es el
   // innate.mod del Guardián (talents-guerrero.js; pendientes-guerrero.md §3, opción a)
@@ -51,16 +51,20 @@ export const GUERRERO_SKILLS = [
     desc: 'Arrojas una lanza que atraviesa a todos los enemigos en 11 m: 190 % del arma a cada uno. Tu respuesta a voladores y lanzadores. Cuesta 20 de Furia.' },
 
   // ———————————————— KIT DEL BERSERKER (Nv10–15) ————————————————
-  // canalizar EN MARCHA (moveMul 1 por defecto): giras mientras mantienes; cada golpe desangra
+  // canalizar EN MARCHA (moveMul 1 por defecto): giras mientras mantienes; cada golpe desangra.
+  // S-guerrero (G01, G02): el 1.er giro sale al pulsar (tickNow), cada giro pega más que el anterior
+  // (rampa: +3,75 % por giro = +15 % por segundo, hasta +45 % a los 3 s, como el Warpath de Last Epoch)
+  // y el tic es propio (behavior): el héroe gira, el anillo del radio real rota y cada golpe salpica
   { id: 'g_remolino', name: 'Remolino Sangriento', icon: '🌪️', art: 'skills256/torbellino.webp', cat: 'spec', spec: 'berserker', slots: ['k3'],
     tags: ['spec', 'melee', 'area', 'channel', 'dot', 'physical'], elem: 'physical',
-    type: 'channel', at: 'self', req: 10, coef: 0.45, cost: 30, cd: 6, channelT: 3, ticks: 12, radius: 2.9, hold: true,
+    type: 'channel', behavior: 'g_remolino', at: 'self', req: 10, coef: 1.5, cost: 30, cd: 6, channelT: 3, ticks: 13, tickNow: true,
+    rampPerTic: 3.75, rampMax: 45, radius: 3.8, hold: true,
     hitDot: { kind: 'bleed', coef: 0.08, dur: 3 },
-    line: 'Mantén para girar hasta 3 s sin dejar de moverte: golpeas a 2,9 m 4 veces por segundo (45 %) y desangras.',
-    desc: 'Mantén para girar hasta 3 s sin dejar de moverte: golpeas a todo lo que hay a 2,9 m 4 veces por segundo (45 % del arma) y lo desangras. Soltar corta el giro. Cuesta 30 de Furia; recarga 6 s.' },
+    line: 'Mantén para girar hasta 3 s en marcha: golpeas a 3,8 m 4 veces por segundo (150 %, +15 % cada segundo) y desangras.',
+    desc: 'Mantén para girar hasta 3 s en marcha (el 1.er giro sale al pulsar): golpeas a todo a 3,8 m 4 veces por segundo (150 % del arma), +15 % por segundo girando (hasta +45 %), y desangras. Cuesta 30 de Furia; recarga 6 s.' },
   // RELANZAR si golpea: hasta 3 saltos, 2 s entre uno y otro (la ventana se renueva con cada acierto)
   { id: 'g_salto', name: 'Salto Devastador', icon: '🦶', art: 'skills256/g_salto.webp', cat: 'movement', spec: 'berserker', slots: ['k1'], tags: ['movement', 'area', 'physical'], elem: 'physical',
-    type: 'leap', req: 12, coef: 1.5, cd: 12, radius: 3, range: 8, airT: 0.45, shake: 0.4,
+    type: 'leap', req: 12, coef: 1.5, cd: 12, radius: 3, range: 8, airT: 0.45, shake: 0.4, heavy: 70,
     recast: { n: 3, win: 2, cond: 'hit' },
     line: 'Saltas hasta 8 m y golpeas al caer (150 % a 3 m). Si golpeas, puedes volver a saltar en 2 s (hasta 3 saltos).',
     desc: 'Saltas hasta 8 m al punto elegido (intocable en el aire) y al caer haces 150 % del arma en 3 m. Si golpeas, puedes volver a saltar en 2 s, hasta 3 saltos. Recarga 12 s desde el primero.' },
@@ -70,7 +74,7 @@ export const GUERRERO_SKILLS = [
     steps: [
       { type: 'cone', coef: 1, angle: 100, radius: 2.5 },                                   // tajo
       { type: 'cone', coef: 1, angle: 140, radius: 2.5 },                                   // revés
-      { type: 'area', at: 'target', coef: 3.2 / 1.4, radius: 2, windup: 0.3, dot: 'bleed' }, // descendente: 320 %
+      { type: 'area', at: 'target', coef: 3.2 / 1.4, radius: 2, windup: 0.3, dot: 'bleed', heavy: 80, shake: 0.45 }, // descendente: 320 %
     ],
     line: 'Combo de 3: tajo, revés y un golpe descendente (320 %) que se prepara 0,3 s y desangra. Si paras 2,5 s, vuelve al 1.º.',
     desc: 'Combo de 3 golpes: tajo y revés (140 % del arma) y un golpe descendente (320 %) que se prepara 0,3 s y desangra. Si paras 2,5 s, vuelve al primero. Cuesta 15 de Furia por golpe.' },
@@ -90,14 +94,17 @@ export const GUERRERO_SKILLS = [
     ], swapCd: 3, swapGcd: 0 },
     line: 'Alternas dos posturas: Muralla (−15 % de daño recibido y +10 % de bloqueo) y Ariete (+15 % de daño). Cambiar: 3 s.',
     desc: 'Dos posturas que se alternan: Muralla (recibes un 15 % menos de daño y +10 % de bloqueo) y Ariete (+15 % de daño). Cambiar no gasta el tiempo global y se recarga en 3 s.' },
-  // avance LENTO e imparable que arrastra; al llegar provoca 3 s a los que golpea
+  // avance LENTO e imparable que arrastra; al llegar provoca 3 s a los que golpea. S-guerrero (G10): a
+  // velocidad fija (8 m/s, como poco 0,3 s: a 2 m no te ata 1 s) y el golpe de llegada crece con lo que
+  // arrastras (+15 % por enemigo, hasta +60 %), con peso (congelado 60 ms y sacudida 0,3)
   { id: 'g_carga_escudo', name: 'Carga de Escudo', icon: '🐂', art: 'skills256/g_carga_escudo.webp', cat: 'movement', spec: 'guardian', slots: ['k1'], tags: ['movement', 'melee', 'taunt', 'physical'], elem: 'physical',
-    type: 'dash', req: 12, coef: 1.3, cd: 10, range: 8, radius: 2.5, dashT: 1, unstoppable: true, drag: true, taunt: 3,
-    line: 'Avanzas 8 m despacio e imparable (1 s): arrastras a los que encuentras y, al llegar, te atacan a ti 3 s.',
-    desc: 'Avance lento e imparable: 8 m en 1 s con el escudo por delante. Arrastras a los que encuentras y, al llegar, golpeas en 2,5 m (130 % del arma) y te atacan a ti 3 s. Recarga 10 s.' },
+    type: 'dash', req: 12, coef: 1.3, cd: 10, range: 8, radius: 2.5, dashT: 0.3, dashSpeed: 8, unstoppable: true, drag: true, taunt: 3,
+    dragPct: { per: 15, max: 60 }, shake: 0.3, heavy: 60,
+    line: 'Avanzas hasta 8 m imparable (8 m/s) arrastrando enemigos; al llegar golpeas (+15 % por cada uno) y te atacan 3 s.',
+    desc: 'Avance imparable con el escudo por delante: hasta 8 m a 8 m/s. Arrastras a los que encuentras y, al llegar, golpeas en 2,5 m (130 % del arma, +15 % por arrastrado, hasta +60 %) y te atacan a ti 3 s. Recarga 10 s.' },
   // preparación y RÉPLICAS si estás plantado (1 s sin caminar)
   { id: 'terremoto', name: 'Terremoto', icon: '💥', art: 'skills256/terremoto.webp', cat: 'spender', spec: 'guardian', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'area', 'physical'], elem: 'physical',
-    type: 'area', at: 'self', req: 14, coef: 2.2, cost: 30, radius: 5, windup: 0.4, shake: 0.5,
+    type: 'area', at: 'self', req: 14, coef: 2.2, cost: 30, radius: 5, windup: 0.4, shake: 0.5, heavy: 80,
     repeat: { n: 2, every: 0.5, coef: 0.5, needPlanted: true },
     line: 'Te preparas 0,4 s y golpeas el suelo: 220 % a 5 m. Plantado (1 s sin moverte), suelta 2 réplicas al 50 %.',
     desc: 'Te preparas 0,4 s y golpeas el suelo: 220 % del arma a todo lo que hay a 5 m. Si estás plantado (1 s sin moverte), suelta 2 réplicas al 50 %. Cuesta 30 de Furia.' },
@@ -109,12 +116,15 @@ export const GUERRERO_SKILLS = [
     desc: 'Definitiva: te clavas 8 s y no te mueves. Tú y tus aliados a 6 m reciben un 40 % menos de daño y los enemigos a 10 m te atacan a ti. Recarga 90 s (nunca baja de 63 s).' },
 
   // ———————————————— KIT DEL CRUZADO (Nv10–15) ————————————————
-  // MARCA que detona tu siguiente principal (+100 % a ese enemigo); se prepara 0,3 s
+  // MARCA que detona tu siguiente principal o tu definitiva (+150 % a ese enemigo); sale al instante
   { id: 'g_juicio', name: 'Juicio', icon: '⚖️', art: 'talents/guerrero-cruzado-s16.webp', cat: 'spec', spec: 'cruzado', slots: ['k3'], tags: ['spec', 'proj', 'mark', 'holy'], elem: 'holy',
-    type: 'proj', req: 10, coef: 1.2, splash: 1.2, radius: 3, cost: 20, cd: 8, range: 12, speed: 20, size: 0.3, windup: 0.3,
-    mark: { id: 'juicio', dur: 8, detonate: { by: '@spender', pct: 100 } },
-    line: 'Te preparas 0,3 s y lanzas un martillo de luz (120 % a 3 m) que marca 8 s. Tu siguiente principal lo detona: +100 %.',
-    desc: 'Te preparas 0,3 s y lanzas un martillo de luz a 12 m: 120 % del arma a todos en 3 m y los marca 8 s. Tu siguiente habilidad principal detona la marca: +100 % a ese enemigo. Cuesta 20 de Furia; recarga 8 s.' },
+    type: 'proj', req: 10, coef: 2, splash: 2, radius: 3, cost: 0, cd: 8, range: 12, speed: 45, size: 0.3, windup: 0,
+    // S-guerrero (G07): la marca vale por sí sola (+150 % al detonarla, también con el Cataclismo), el
+    // Juicio que golpea da 1 de Fervor (mech-guerrero.js) y sale al instante, sin coste y rápido: lanzarlo
+    // ya no cuesta un Martillo (banco, 3 semillas: quitarlo de la barra del Cruzado pierde un 5–14 % de UNI a Nv40–70)
+    mark: { id: 'juicio', dur: 8, detonate: { by: ['@spender', '@ultimate'], pct: 150 } },
+    line: 'Lanzas un martillo de luz (200 % a 3 m; +1 de Fervor) que marca 8 s. Tu principal o definitiva lo detona: +150 %.',
+    desc: 'Lanzas al instante un martillo de luz a 12 m: 200 % del arma a todos en 3 m, +1 de Fervor y los marca 8 s. Tu siguiente principal o tu definitiva detona la marca: +150 % a ese enemigo. Sin coste; recarga 8 s.' },
   // destello rápido que deja un SENDERO sagrado (daña y cura a tus aliados)
   { id: 'g_sendero', name: 'Sendero de Luz', icon: '✨', art: 'skills256/g_sendero.webp', cat: 'movement', spec: 'cruzado', slots: ['k1'], tags: ['movement', 'zone', 'holy'], elem: 'holy',
     type: 'blink', req: 12, coef: 1.0, cd: 10, range: 8,
@@ -123,17 +133,17 @@ export const GUERRERO_SKILLS = [
     desc: 'Destello rápido de 8 m: dejas un sendero sagrado 4 s que hace un 30 % del arma por segundo a los enemigos y cura a tus aliados un 2 % de la vida por segundo. Recarga 10 s.' },
   // CARGAR Y SOLTAR: 140 → 380 % a 3–5 m; la ventana perfecta (0,9–1,15 s) da +25 % y 1 de Fervor
   { id: 'g_martillo', name: 'Martillo de Guerra', icon: '🔨', art: 'skills256/g_martillo.webp', cat: 'spender', spec: 'cruzado', slots: ['rmb', 'k2'], tags: ['spender', 'melee', 'area', 'holy'], elem: 'holy',
-    type: 'area', at: 'target', req: 14, coef: 1.4, cost: 25, radius: 3, range: 2.5, shake: 0.35,
+    type: 'area', at: 'target', req: 14, coef: 1.4, cost: 25, radius: 3, range: 2.5, shake: 0.4, heavy: { ms: 80, minFrac: 0.7 },
     charge: { max: 1.2, perfect: [0.9, 1.15], perfectPct: 25, scale: { coef: [1.4, 3.8], radius: [3, 5] }, moveMul: 0.5, perfectGauge: { fervor: 1 } },
     line: 'Mantén para cargar (hasta 1,2 s) y suelta: 140 → 380 % a 3–5 m. Ventana perfecta (destello): +25 % y 1 de Fervor.',
     desc: 'Mantén para cargar (hasta 1,2 s; caminas al 50 %) y suelta: de 140 a 380 % del arma en 3–5 m. Soltar en la ventana perfecta (0,9–1,15 s, con destello) da +25 % y 1 de Fervor. La esquiva cancela la carga sin coste. Cuesta 25 de Furia.' },
-  // CARGAR Y SOLTAR la definitiva: 500 → 1200 % en la mira y consagra el suelo 6 s
+  // CARGAR Y SOLTAR la definitiva: 300 → 700 % en la mira, la columna arde 1,2 s y consagra el suelo 6 s
   { id: 'g_u_cataclismo', name: 'Cataclismo', icon: '☄️', art: 'skills256/g_u_cataclismo.webp', cat: 'ultimate', spec: 'cruzado', slots: ['k4'], tags: ['ultimate', 'area', 'zone', 'holy'], elem: 'holy',
-    behavior: 'g_u_cataclismo', type: 'area', at: 'target', req: 15, coef: 5, cd: 60, cdFloor: 0.7, radius: 6, range: 12, impactDelay: 0.3, shake: 0.6,
-    charge: { max: 2, perfect: [1.7, 1.95], scale: { coef: [5, 12] }, perfectGauge: { fervor: 3 } },
-    floor: { dur: 6, coef: 0.4 },
-    line: 'Mantén hasta 2 s y suelta: la luz cae en la mira (500 → 1200 % a 6 m) y consagra el suelo 6 s.',
-    desc: 'Definitiva: mantén hasta 2 s y suelta. La luz cae en la mira (de 500 a 1200 % del arma en 6 m) y consagra el suelo 6 s (40 % por segundo). Ventana perfecta: +3 de Fervor. Recarga 60 s (nunca baja de 42 s).' },
+    behavior: 'g_u_cataclismo', type: 'area', at: 'target', req: 15, coef: 3, cd: 60, cdFloor: 0.7, radius: 6, range: 12, impactDelay: 0.3, shake: 0.8, heavy: 120,
+    charge: { max: 2, perfect: [1.7, 1.95], scale: { coef: [3, 7] }, perfectGauge: { fervor: 3 } },
+    floor: { dur: 6, coef: 0.4 }, pulse: { n: 4, every: 0.3, pct: 70 },
+    line: 'Mantén hasta 2 s: la luz cae en la mira (300 → 700 % a 6 m) y arde 1,2 s; detona las marcas y gasta el Fervor.',
+    desc: 'Definitiva: mantén hasta 2 s y suelta. La luz cae en la mira (300 → 700 % a 6 m) y arde 1,2 s (4 golpes al 70 %); detona las marcas, gasta tu Fervor (+25 % por punto) y consagra el suelo 6 s (40 %/s). Perfecta: +3 de Fervor. Recarga 60 s.' },
 
   // ———————————————— ACTIVAS DE TALENTO (kind 'talent', solo ranura 2; D29) ————————————————
   // de clase: c11A (Nv21), c17A (Nv27) y c22A (Nv31). Sus comportamientos (g_t_aliento,
@@ -183,14 +193,56 @@ export const GUERRERO_SKILL_MODS = {};
 
 // emite un campo de FX (string = nombre de preset, objeto = preset) si existe
 const emit = (g, preset, pos) => { if (preset) g.emitFx?.(preset, pos); };
+const isBossE = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
+// gotas de sangre como mucho en estos golpeados por giro (un giro entre 20 no salpica 20 veces)
+const GIRO_DROPS = 4;
 
 export const GUERRERO_SKILL_BEHAVIORS = {
+  // Remolino Sangriento (S-guerrero, G02): el TIC del canal genérico (type 'channel' + este tick). Hace lo
+  // del tic por defecto —área a tus pies con el coef × la rampa (inst.rampMul) y la atracción del Ciclón
+  // (pull del perfil: el genérico no atrae si hay comportamiento)— y además se ve y se oye en cada giro:
+  // fx.aura en el héroe (le sigue), gotas (fx.extra) sobre los golpeados, fx.tickSfx («whoosh») y el
+  // campo 'g_giro' (powers-guerrero.js) que hace girar al héroe con el brazo extendido y rota el anillo
+  // del radio real mientras dure el canal (también lo que alarga Danza Carmesí)
+  g_remolino: {
+    tick(g, p, inst) {
+      const ctx = inst.ctx, prof = ctx.prof;
+      const rad = prof.radius || 2.9;
+      const at = p.pos.clone().setY(0);
+      const struck = [];
+      g.dealArea(at, rad, ctx.coef * (inst.rampMul || 1), { ...ctx.areaOpts, from: at,
+        onHit: (e, dealt, from) => { ctx.hit(e, dealt, from); if (struck.length < GIRO_DROPS) struck.push(e); } });
+      // Ciclón: cada giro atrae a los del radio de atracción (pull.radius), no a los jefes
+      const pullR = prof.pullRadius || rad;
+      if (prof.pull > 0) {
+        for (const e of g.enemies || []) {
+          if (!e.alive || (prof.pullBoss === false && isBossE(e))) continue;
+          if (e.pos.distanceTo(p.pos) <= pullR + 0.5) e.displace?.(p.pos, prof.pull, { toward: true, src: p });
+        }
+      }
+      const fx = ctx.fx || {};
+      emit(g, fx.aura, p.pos.clone().setY(1.0));
+      for (const e of struck) emit(g, fx.extra, e.pos.clone().setY(0.9));
+      if (fx.tickSfx) g.sfx?.(fx.tickSfx);
+      // el giro del héroe y el anillo que rota: uno por canal (se va al acabar: end)
+      if (!inst.giro || inst.giro.dead) {
+        inst.giro = g.spawnField?.('g_giro', { pos: p.pos, radius: rad, dur: 60, owner: null,
+          data: { p, inst, colors: fx.ringColors || [ctx.color || 0xcc2222] } }) || null;
+      }
+    },
+    end(g, p, inst) {
+      if (inst?.giro && !inst.giro.dead) g.expireField?.(inst.giro);
+    },
+  },
   // Cataclismo: la luz cae en la mira AL SOLTAR (no donde apuntabas al empezar a cargar),
   // impactDelay s después (coef y radio ya escalados por la carga), y CONSAGRA el suelo
   // (`floor`: zona sagrada de `dur` s que hace `coef` × arma por segundo; una a la vez). El
-  // tipo `area` no deja zona propia.
+  // tipo `area` no deja zona propia. S-guerrero (G05): una columna de luz baja hasta el impacto, el
+  // anillo de choque tiene el radio real, la sacudida crece con la carga y el suelo brilla mientras
+  // dure la zona (campos g_cata_columna y g_suelo_sagrado de js/powers-guerrero.js). El centro
+  // queda en cast.at: ahí cae el Martillo Celestial (z26) de una suelta perfecta
   g_u_cataclismo: {
-    params: ['floor'],
+    params: ['floor', 'pulse'],
     cast(g, p, prof, cast) {
       const { ctx } = cast;
       const def = cast.sk;
@@ -198,21 +250,37 @@ export const GUERRERO_SKILL_BEHAVIORS = {
       const aim = !ctx.isEcho && typeof g.skillTarget === 'function' ? g.skillTarget(p, base).target : cast.target;
       const center = aim.clone().setY(0);
       const rad = ctx.prof.radius || def.radius || 6;
+      const color = ctx.color || 0xffe7a0, delay = base.impactDelay || 0.3;
       p.faceToward(center);
-      g.spawnRing?.(center, rad, ctx.color || 0xffe7a0);                       // telegrafía
+      if (ctx.cast) ctx.cast.at = center;
+      g.spawnRing?.(center, rad, color);                                         // telegrafía
       emit(g, ctx.fx?.trail, center.clone().setY(4.5));
-      g.timers.schedule(base.impactDelay || 0.3, () => {
+      const burnT = (def.pulse?.n || 0) * (def.pulse?.every || 0);
+      g.spawnField?.('g_cata_columna', { pos: center, radius: rad, dur: delay + burnT + 0.4, owner: null, data: { delay, burnT, color } });
+      g.timers.schedule(delay, () => {
         if (p.alive) {
           g.dealArea(center, rad, ctx.coef, { ...ctx.areaOpts, from: center });
           emit(g, ctx.fx?.impact, center.clone().setY(0.3));
           emit(g, ctx.fx?.aura, center.clone().setY(0.3));
-          g.addShake?.(def.shake || 0.5);
+          g.spawnRing?.(center, rad, 0xffd36b);                                  // anillo de choque
+          // la columna sigue ardiendo (`pulse`: n golpes cada `every` s al pct % del impacto): reparte el
+          // daño sin subir el golpe máximo; sin efectos al golpear (ni congelado ni otro Quebranto)
+          const pu = def.pulse;
+          for (let k = 1; pu?.n > 0 && k <= pu.n; k++) {
+            g.timers.schedule(k * (pu.every || 0.3), () => {
+              if (!p.alive) return;
+              g.dealArea(center, rad, ctx.coef * (pu.pct || 0) / 100, { ...ctx.areaOpts, onHit: null, from: center });
+              emit(g, ctx.fx?.aura, center.clone().setY(0.3));
+            });
+          }
+          if (!g.settings?.reduceMotion) g.addShake?.((def.shake || 0.5) * (0.6 + 0.4 * (cast.charge?.frac ?? 1)) * (ctx.isEcho ? 0.5 : 1));
           const fl = def.floor;
           if (fl?.dur > 0) {
             // daño de la zona: coef por segundo con el rango y el saco aditivo del perfil (sin la carga)
             const rk = (def.coef || 0) > 0 ? base.coef / def.coef : 1;
-            g.spawnField?.('zona', { pos: center, radius: rad, dur: fl.dur, owner: p, maxPerSkill: 1,
-              data: { dps: fl.coef > 0 ? p.avgHit(fl.coef * rk, base.addPct) : 0, color: ctx.color || 0xffe7a0, skill: def.id, tags: base.tags } });
+            const zone = g.spawnField?.('zona', { pos: center, radius: rad, dur: fl.dur, owner: p, maxPerSkill: 1,
+              data: { dps: fl.coef > 0 ? p.avgHit(fl.coef * rk, base.addPct) : 0, color, skill: def.id, tags: base.tags } });
+            if (zone) g.spawnField?.('g_suelo_sagrado', { pos: center, radius: rad, dur: 60, owner: null, data: { zone, color } });
             emit(g, ctx.fx?.extra, center.clone().setY(0.2));
           }
         }
@@ -431,14 +499,14 @@ export const GUERRERO_SKILL_FORGE = {
     ],
   },
   g_carga_escudo: {
-    mejora: { id: 'g_carga_escudo_m', name: 'Avance Largo', icon: 'forge/mejora', line: 'Avanzas 10 m (antes 8 m) en el mismo tiempo.', add: { range: 2 } },
+    mejora: { id: 'g_carga_escudo_m', name: 'Avance Largo', icon: 'forge/mejora', line: 'Avanzas hasta 10 m (antes 8 m).', add: { range: 2 } },
     vars: [
       // derribar = aturdir 1 s; a los jefes no: solo los 20 de Quebranto (bossStun 0)
       { id: 'g_carga_escudo_i', name: 'Arrollador', role: 'CTRL', icon: F('g_carga_escudo_i'), line: 'Al llegar derribas 1 s a los arrastrados (jefes: 20 de Quebranto).',
         set: { bossStun: 0 }, mod: { stun: 1, stagger: 20 }, tags: { add: ['cc'] } },
       // renuncia a la Vanguardia: ni arrastra ni provoca (§10)
       { id: 'g_carga_escudo_ii', name: 'Carga Veloz', role: 'MOV', icon: F('g_carga_escudo_ii'), line: 'Rápida: 12 m en 0,3 s, sin arrastrar ni provocar.',
-        set: { range: 12, dashT: 0.3, drag: false, taunt: 0 }, tags: { remove: ['taunt'] } },
+        set: { range: 12, dashT: 0.3, dashSpeed: 40, drag: false, taunt: 0 }, tags: { remove: ['taunt'] } },
     ],
   },
   terremoto: {

@@ -285,6 +285,9 @@ export const SKILL_KEYS = new Set([
   'zonePct',
   // S0 (sensación): canal con tic inmediato, coste por drenaje, rampa y sin bloqueo; golpe pesado
   'tickNow', 'drainCost', 'rampPerTic', 'rampMax', 'nonBlocking', 'heavy',
+  // S-guerrero (G10): avance a velocidad fija (m/s; dashT = la duración mínima) y golpe de llegada que
+  // crece con los arrastrados ({ per, max }: +per % por arrastrado, hasta +max %)
+  'dashSpeed', 'dragPct',
 ]);
 const HOLD_VALUES = new Set([true, false, 'toggle']);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -301,6 +304,8 @@ function validateVerbs(def, id, err) {
   if ((def.tickNow || def.drainCost || def.nonBlocking || def.rampPerTic != null || def.rampMax != null) && def.type !== 'channel')
     err.push(`${id}: tickNow, drainCost, rampPerTic, rampMax y nonBlocking son de un canal (type "channel")`);
   if (def.tickNow && !(Math.round(def.ticks || 0) >= 2) && !def.endless) err.push(`${id}: tickNow necesita ticks ≥ 2 (el 1.º al empezar, el último al acabar)`);
+  if (def.dashSpeed != null && !(isNum(def.dashSpeed) && def.dashSpeed > 0)) err.push(`${id}: dashSpeed > 0 (m/s)`);
+  if (def.dragPct != null && !(isPlain(def.dragPct) && def.dragPct.per > 0 && def.dragPct.max >= def.dragPct.per)) err.push(`${id}: dragPct = { per > 0, max ≥ per }`);
   if (def.rampPerTic != null && !(isNum(def.rampPerTic) && def.rampPerTic > 0)) err.push(`${id}: rampPerTic > 0 (% por tic)`);
   if (def.rampMax != null && !(isNum(def.rampMax) && def.rampMax > 0)) err.push(`${id}: rampMax > 0 (% de tope)`);
   if ((def.rampPerTic != null) !== (def.rampMax != null)) err.push(`${id}: rampPerTic y rampMax van juntas`);

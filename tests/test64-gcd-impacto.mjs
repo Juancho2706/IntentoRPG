@@ -197,6 +197,7 @@ const fury = h => { h.p.mp = h.p.stats.maxMP; };
   h.tick(0.5); h.p.cds = {};
   h.p.pos.set(0, 0, 0); h.aim(5, 0); h.setSlot('k1', 'embestida');
   assert.equal(h.cast('k1'), true);
+  h.step(0.25);                                    // S-guerrero (G13): la Embestida recorre su distancia en 0,2 s
   assert.ok(h.p.pos.x > 4.5, 'la embestida desplaza');
   // blink
   h.tick(0.5); h.p.pos.set(0, 0, 0); h.aim(3, 4); h.setSlot('k1', 't_blink');

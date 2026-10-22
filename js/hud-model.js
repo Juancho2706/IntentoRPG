@@ -142,6 +142,8 @@ export const STATUS = Object.freeze({
   sangrado: { icon: 'st_sangrado', label: 'Sangrado' },
   veneno: { icon: 'st_veneno', label: 'Veneno' },
   escudo: { icon: 'st_escudo', label: 'Escudo' },
+  // marca de Juicio del Cruzado (S-guerrero, G06): el icono de Debilidad (es una marca que lo expone)
+  juicio: { icon: 'st_debilidad', label: 'Juicio' },
 });
 export function statusIcon(id) { return uiIcon(STATUS[id]?.icon); }
 
@@ -159,6 +161,9 @@ export function enemyStatuses(e) {
   if (e.rootT > 0) add('ralentizado', 'Inmovilizado', e.rootT);
   else if (e.slowT > 0) add('ralentizado', 'Ralentizado', e.slowT);
   if (e.tauntT > 0) add('provocado', 'Provocado', e.tauntT);
+  // marca de Juicio (S-guerrero, G06): también en el marco del objetivo, con sus usos (Tribunal)
+  const jm = e.marks?.juicio;
+  if (jm?.t > 0) add('juicio', (jm.uses | 0) > 1 ? `Juicio ×${jm.uses | 0}` : 'Juicio', jm.t);
   const weak = Object.keys(e.debuffs || {}).length > 0;
   if (e.vulnT > 0) add('debilidad', 'Vulnerable', e.vulnT);
   else if (weak) add('debilidad', 'Debilidad');

@@ -36,6 +36,8 @@ export const SFX_TONES = Object.freeze({
   chain:   [{ f: 500, d: 0.06, type: 'sawtooth', v: 0.07, slide: 300 }, { f: 700, d: 0.06, type: 'sawtooth', v: 0.06, t: 0.06, slide: 300 }],
   // S0: golpe grave de las réplicas (Terremoto): el plantado se oye
   thud:    [{ f: 95, d: 0.2, type: 'sine', v: 0.16, slide: -45 }, { f: 60, d: 0.14, type: 'triangle', v: 0.1, t: 0.03 }],
+  // S-guerrero (G02): el «whoosh» de cada giro del Remolino (suave: suena 4 veces por segundo)
+  whoosh:  [{ f: 340, d: 0.13, type: 'triangle', v: 0.05, slide: -190 }, { f: 170, d: 0.1, type: 'sawtooth', v: 0.025, t: 0.03, slide: -70 }],
   // Paso 2 (D26): tonos de los VERBOS; los emite la simulación (game-skills.js) en el
   // instante del borde. Cortos y distintos entre sí para leerse sin mirar.
   verb_win:     [{ f: 1480, d: 0.06, type: 'triangle', v: 0.1 }, { f: 2220, d: 0.09, type: 'sine', v: 0.06, t: 0.01 }],          // «clang» al entrar en la ventana

@@ -423,7 +423,19 @@ const FERVOR = {
     z28: `Aureola: matar a un élite llena el Fervor y el Veredicto cura un ${TT.fervor.verdict.apexHealPct} %.`,
   },
   sounds: { full: 'holy', spent: 'holy' },
+  world: {
+    // S-guerrero (G06): SELLO de Juicio sobre la barra de vida de cada enemigo con una marca tuya: un
+    // rombo dorado por uso que le queda (Tribunal: 2 o 3) que parpadea los últimos 2 s. Puro: lee e.marks
+    overhead(e, p) {
+      const m = e && e.alive !== false ? e.marks?.juicio : null;
+      if (!m || !(m.t > 0) || (p && m.by && m.by !== p)) return null;
+      const n = Math.max(1, m.uses | 0);
+      return { n, max: n, tone: 'gold', blink: m.t <= JUICIO_BLINK_T };
+    },
+  },
 };
+// el sello de Juicio parpadea cuando a la marca le quedan estos segundos
+export const JUICIO_BLINK_T = 2;
 
 export const GUERRERO_GAUGE_VIEWS = { sed: SED, bastion: BASTION, fervor: FERVOR };
 // modelos puros (tests y arnés)
