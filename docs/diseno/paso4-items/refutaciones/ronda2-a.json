@@ -1,0 +1,188 @@
+{
+ "veredicto": "Aprobable con cambios, pero todavía no pases a E1. La v3 resolvió bien la ronda 1. Comprobé contra el código (`paso2-impl` 4095ab6) la tabla de AL (`areaLevelForHero`: 1/9/19/25/30/36/40/47/50), G, `LEECH_CAP_PER_SEC` 0,06, `@spec` frente a `@insignia`, que `gaugeStat` se lee de `p.powerStats` y los nombres y números de las variantes que usan los 36 aspectos: todo coincide. Recalculé además el tooltip de §0 (+9, 46,6 %, 12,7 %, 7,5 %, 65–97) y sale exacto. Aun así quedan 5 problemas altos, y ninguno obliga a rehacer la arquitectura:\n(1) La compensación de vida P4-D22 contradice O6 e IT1. Además, un término lineal en `hpPerLevel` no puede quedar a ±10 % en el Nv50 y en el Nv70 a la vez.\n(2) Con `ILVL_MAX` 47, el arma típica del Nv70 sube un 56 %, y no hay ninguna puerta de TTK o TTD que lo controle. E4 solo puede «rebasar» `PENDING_E4B`, así que el corrimiento se esconde hasta E4b.\n(3) O5 e IT3 («ninguna línea topada») ignoran las fuentes por habilidad: soportes Certero, Sangre Fría, Raudo y Eficiente, mods de talento y `condCritPct`.\n(4) El rol de apoyo y el de control no tienen eje ni en las líneas ni en el ⚡, y el cooperativo por roles está en el roadmap.\n(5) Los contratos con el Paso 6 v4 no casan: sincronización, nube sin reino, ladder F2/F3 y uids.\nTambién hay problemas medios:\n- La persecución se seca en el final del juego: la ★ nunca cae y el legendario queda como piñata de Polvo.\n- Varios aspectos duplican talentos del Paso 2 y se apilan sin presupuesto (Cargas, Andanada, Coto, Orbe).\n- La paridad se mide por clase y no por especialización.\n- Glifos y el término «engarce» chocan con otros significados.\n- La tabla de economía tiene cuentas incoherentes.\n\nSon cambios de reglas, pruebas y tablas que conviene cerrar en E0.1.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "P4-D22, §10 «Vida absoluta», O6/IT1, `entities.js` `recompute` (maxHP)",
+   "problema": "La compensación de vida rompe la cuota que fija el propio diseño, y por su forma no puede funcionar. Hoy el típico del Nv70 tiene ≈ 1 700 de vida y el equipo pone ≈ 1 000; en la v3 baja a 810–930. Para devolver el Aguante a ±10 %, `HP_P4_COMP` tiene que darle al héroe DESNUDO ≈ 700–800 de vida. Entonces la cuota de vida efectiva del equipo (O6: 40–50 % en el típico del Nv70) cae a ≈ 25–35 % [D], e IT1 falla por diseño. Además `maxHP` usa `(level−1)·hpPerLevel`, que es lineal: del Nv50 al 70 crece ×1,41. La vida que quita el equipo sigue G y crece ≈ ×2,0 entre AL36 y AL47. Si ajustas el Nv70, el Nv50 queda ≈ +17 % por encima (fuera del ±10 %); si ajustas el Nv50, el 70 se queda corto.",
+   "arreglo": "Decide en E0.1 cuál de las dos manda.\n(a) **Recomendada:** compensa por el lado del enemigo. Baja `ENEMY_CURVE.dmgBase` (la palanca que §10 ya deja para E4b) o usa un factor temporal sobre `enemyDmgScale` hasta E4b. Así la vida efectiva relativa vuelve y O6 no se toca.\n(b) Si la vida va al héroe, dale forma G: `hpComp = k·G(areaLevelForHero(L))`. Y redefine la cuota de IT1 contra un «desnudo sin compensación» declarado; si no, las dos reglas se pelean.\nAñade a `test97` y a IT1 los dos niveles (50 y 70) con la compensación activa.",
+   "fuente": "Código: `js/entities.js` (maxHP = baseHP + vit·hpPerVit + item.hp + (L−1)·hpPerLevel), `js/combat-math.js` G(AL) = 1,065^(AL−1). Diseño: §1 O6, §10, P4-D22. Modelo propio [D]."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "P4-D2, §10 tabla del arma, §12 E4 («solo constantes de ítems», «rebase de PENDING_E4B»)",
+   "problema": "`ILVL_MAX` 40 → 47 es el mayor cambio de balance del paso: el arma del típico del Nv70 y el Nv100 sube un 56 % y la del óptimo un 33 % (tabla del propio §10). El arma multiplica TODO golpe, y la vida enemiga en AL47 no cambia. El Paso 2 calibró las bandas del banco con il 40: `mean ttkN/ttkE/ttkB/ttd`, `spec` y G9 en el Nv70 y el 100. El diseño no estima el ΔDPS ni el ΔTTK totales (solo el arma y las cuotas), y ninguna regla IT frena la caída del TTK. Como E4 solo toca constantes de ítems y «rebasa» `PENDING_E4B`, un TTK de jefe un ~35 % más corto en el Nv70 quedaría «rebasado» y no corregido. También es inexacto que «G^7 = ×1,55 es la mitad del crecimiento de la vida enemiga»: la vida enemiga crece G^(7·1,38) = ×1,83, así que el arma cubre ≈ 72 % en escala logarítmica, no la mitad.",
+   "arreglo": "Añade la regla IT8, «paridad con el banco previo»: TTK de normales, élites y jefe, y TTD de manada, del perfil típico en el Nv20, 50, 70 y 100, a ±10 % de la línea base de `paso2-impl` antes del Paso 4. Si falla, que B1 pueda tocar `ENEMY_CURVE` (hpExp/hpBase) en E4 (ya es dueño de `combat-math.js` en la matriz §12.2), o escalonar el aumento con `GEAR_K` por tramo. Pon en §10 una tabla de ΔDPS y ΔAguante totales por perfil y nivel frente a hoy, no solo del arma. Corrige la frase de «la mitad».",
+   "fuente": "`tests/balance-bench.mjs:64-78` (bandas mean/cls/spec), `:118` G9_LEVELS = [70, 100]; `tests/helpers/bench-core.mjs:182` `CM.itemLevel(al)`; `js/combat-math.js:85-93` (ENEMY_CURVE hpExp 1,38), `:138` ILVL_MAX = 40; diseño §10."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "O5, IT3, §4.4 «Topes por clase», §4.12 (fuentes que compiten)",
+   "problema": "«0 líneas muertas con el óptimo» e IT3 solo cuentan el stat del héroe. Pero el tope de crítico (60) y el de enfriamiento (50) se aplican por golpe y por habilidad, DESPUÉS de los bonus del perfil:\n- **Certero:** +25 de crítico. La Arquera óptima queda en 50,5 + 25 = 75,5 y topa en 60, así que el crítico de los anillos vale 0 en esas habilidades.\n- **Sangre Fría:** lleva el crítico al tope (`COLDBLOOD_CRIT` = 100) contra ralentizados. El Crionte, con Escarcha, ralentiza siempre y nunca necesita crítico.\n- **Raudo:** −30 de enfriamiento + 26,3 del equipo = 56 (> 50) aun sin talentos.\n- **Eficiente:** −35 % de coste, que se apila con el % Coste del equipo.\n- Los talentos con `mods.crit` (Ojo de Halcón) y `condCritPct` (`burningCrit`).\n§4.12 ni siquiera nombra los soportes, y el banco óptimo pone Amplificado y Sobrecarga en todas las habilidades.",
+   "arreglo": "(1) Cambia IT3 a «por habilidad, ponderado por su parte del DPS»: crítico efectivo = `critRaw + prof.critBonus (+ Sangre Fría si aplica)`, y enfriamiento = `cdrTotal(stat, mods, sups)`. Falla si una línea aporta < 50 % de su valor en las habilidades que suman el 50 % del DPS de la build recomendada.\n(2) Que `valuation.js` use el perfil resuelto (`resolveSkill`) para que el veredicto marque «≈ 0 ⊘» cuando la línea topa en esa build.\n(3) Añade los soportes a §4.12 con su interacción, o recorta Certero a algo como +15 y deja que Sangre Fría sume +40 en vez de llevar al tope.",
+   "fuente": "`js/data.js:512-528` (SUPPORTS: coldblood, focused, swift, efficient), `js/combat-math.js:176-177` (SUPPORT_CRIT, COLDBLOOD_CRIT), `js/game-skills.js:162, 235, 592, 1242` (critBonus por golpe), `js/talents-arquera.js:67` (Ojo de Halcón), `tests/helpers/bench-core.mjs` (óptimo con amplify y overcharge)."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.4 (17 líneas), §6 (⚡ y veredicto), P4-D17 (w por rol), §8",
+   "problema": "El rol de apoyo (Cruzado, `best: 'apoyo'` en el banco) y el de control no tienen eje en los ítems. Ninguna de las 17 líneas sube la curación ni los escudos, aunque el código ya tiene el stat `healPct` con tope `CAPS.heal` = 50. Y el ⚡ y el veredicto solo miden Daño × Aguante, mientras el banco mide `apoyoHeal` y `apoyoDps`. Con w = 0,5, el ⚡ de un apoyo aconseja equiparse como un DPS. Choca con lo que pidió el dueño (cada especialización excelente en su rol) y con el cooperativo, donde el apoyo y el tanque son la razón de jugar en grupo. El control (Quebranto, duración de los controles) también queda en «?».",
+   "arreglo": "(a) Añade la línea «% Curación y escudos» (`healPct`, categoría ✚) en el amuleto, la mano izquierda y el pecho. Para no crear líneas muertas, sale en el pool solo si la especialización tiene habilidades `heal|shield|ally`: el botín inteligente se resuelve al tirar, igual que «tu elemento».\n(b) Añade un tercer eje a `valuation.js`: Apoyo = curación y escudos a aliados por segundo (+ Debilidad aplicada). Pesos por rol: support D 0,3 · A 0,3 · S 0,4; control con «Quebranto/s» como eje. IT4 debe incluir pares que solo difieran en `healPct`.\n(c) Que el aspecto «Sendero Bendito» y similares declaren su Δ en ese eje, no «?».",
+   "fuente": "`js/combat-math.js:53` (CAPS.heal 50) y `healScaled`; `js/entities.js` (`healPct` en `item`); `tests/balance-bench.mjs:82` (cruzado best: 'apoyo', abs apoyoHeal); memoria del dueño «roadmap-reworks-2026» (balance por rol)."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.2 «Perfil de sincronización» y `test-sync`, §8 (reinos, ladder, regalo), §9.2, frente a `../diseno-mp/paso6-multijugador-diseno.md` v4",
+   "problema": "Los contratos con el Paso 6 no casan en cuatro puntos:\n(i) El Paso 6 §2.5 dice «solo baja, nunca sube: quien tiene nivel de sobra ve la zona como es (y la arrasa)» y no tiene opción de sincronizar. Además `syncProfile` solo topa los ítems, no los talentos, el rango de habilidad, el tablero ni el nivel, así que `test-sync` («un óptimo Nv100 sincronizado a ◆20 rinde ≤ 1,15× un típico») es imposible de cumplir.\n(ii) El esquema de la nube del Paso 6 es `stash(user_id, data, rev)`: sin reino y sin tabla de cuenta para el Códice, las marcas de agua, el Polvo y las Chispas.\n(iii) En el Paso 6, la ladder F3 usa una «build fija para todos» (los ítems no cuentan) y la F2 es «de honor», con el cliente como autoridad. «La semilla la guarda el servidor» y «el reino de la escalera en el servidor» solo existen en F4, y nadie los tiene asignados.\n(iv) El Paso 6 pasa los regalos por `syncItemUids` (reasigna uids). Eso rompe el «el receptor descarta un `uid` que ya tiene» del uid global.",
+   "arreglo": "Mete en E0.1 una tabla de contratos firmada por los dos diseños:\n(i) Saca `syncProfile` y `test-sync` del Paso 4 y pásalos al Paso 6 como «sincronización completa» opcional (talentos con puntos topados por nivel, rango ≤ base del nivel, tablero apagado, ítems con `syncProfile`), o borra la meta de 1,15×.\n(ii) Esquema de nube: `account(user_id, realm, rev, data)` y `stash(user_id, realm, tab, rev, data)`.\n(iii) Define el reino de temporada de F2 como local de honor (`intentorpg_account:season-<id>`), con la semilla del objeto en el cliente; lo del servidor queda para F4.\n(iv) El uid no se reescribe nunca: si choca, el receptor guarda `from: uid` y genera uno local; la deduplicación usa `from`.",
+   "fuente": "`paso6-multijugador-diseno.md` §2.3 (`syncItemUids`), §2.5 («la arrasa: aceptado»), §4 (esquema `stash(user_id, data, rev)`), §9 (F2 de honor, F3 con build fija, F4 en el servidor)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.11 Ritmo del botín, §4.4 (★), O1",
+   "problema": "La ★ (paso 6) ya no cae en el botín: solo sale del remate de la mejora. La investigación propia (`arpg.md` §7.4) decía «★ solo llega por drop de Tormento alto o por el remate», y D4 Lord of Hatred deja caer afijos mayores incluso en comunes, mágicos y raros de Tormento. Tampoco está definida la distribución de pasos al caer, ni por Tormento. Además, el Códice de cuenta, el aspecto elegido por 25 de Polvo y el grabado al mejor rango convierten al legendario en «piñata de Polvo» en ≈ 10 h. Un raro recién caído vale el 41 % del techo y el crafteo pone el 59 % restante, así que en el final del juego casi nada de lo que cae sube el ⚡. Es la crítica a D4 en 2026: se perdió el «dopamine kick» del botín.",
+   "arreglo": "- Probabilidad de ★ por línea al caer: 0 en T0–T3, 1 % en T4 y 5 % en T10 (perilla de E4), con sonido y haz propios.\n- Distribución de pasos por Tormento: T0 uniforme 1–5; T10 inclinada a 4–5.\n- Una prueba en `loot-bench`: «▲ al héroe óptimo por hora» > 0 en el techo, con un objetivo de ≈ 1–2 por hora en T8+.\n- Que el legendario caído pueda traer su aspecto con rango > el del Códice (r5 + 1 «sobre el tope», solo en el objeto). Así guardarlo vale la pena.",
+   "fuente": "`investigacion/arpg.md` §2.1 y §7.4; Blizzard, *Lord of Hatred* (abr-2026): https://news.blizzard.com/en-us/article/24267729/prepare-for-the-reckoning-lord-of-hatred-draws-near; Mein-MMO sobre el análisis de wudijo del PTR de la T15: https://mein-mmo.de/en/diablo-4-has-undone-in-just-one-season-what-players-particularly-loved-about-lord-of-hatred,1583031/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.6 tabla de 36 aspectos (Cargas Vivas, Tercera Andanada, Cuarto Cepo, Orbe Gemelo) y Mítico «Ojo del Archimago»",
+   "problema": "Varios aspectos repiten nodos de talento del Paso 2, se apilan con ellos sin presupuesto y no tienen regla de apilado:\n- **Cargas Vivas** (+1 Carga máxima desde r4) se suma a «Cargas Desbordadas» (a22: hasta +3) y las Cargas por encima de 4 valen el doble para el Rayo (`mech-maga.js:174`). Son hasta 8 Cargas con 4 dobles. El diseño dice «el máximo real es 4», pero no lo es.\n- **Tercera Andanada** duplica «Ida y Vuelta» (v9B: la tercera al 70 %, mejor que el 40 → 60 % del aspecto). Con el nodo tomado, el aspecto muere o da una 4.ª.\n- **Cuarto Cepo** (`gaugeMax:coto`) se apila con «Coto Cerrado».\n- **Orbe Gemelo** se cruza con «Orbe Múltiple» (a23) y «Constelación» (a26).\nAdemás, el Orbe y el Rayo están en rework aprobado por el dueño (feedback del 21–22 de octubre; decisión M4: orbes que orbitan y se absorben). Los aspectos de la Arcanista y su Mítico se diseñaron sobre un comportamiento que va a cambiar.",
+   "arreglo": "- Regla F11: un aspecto no repite el efecto de un nodo; si toca la misma clave, declara el apilado (máx., suma con tope o «no se apila») y su Δ con el nodo tomado.\n- `test-aspects-<clase>` cruza el `touch` y el `fx` de los talentos con `needs` y `core/steps/scale` de los aspectos, y mide el Δ con y sin el nodo.\n- Tope de `gaugeMax:<id>` en `spec-mechanics` (p. ej. Cargas ≤ 6).\n- Congela los números de la Arcanista solo después de fusionar el trabajo del Orbe y el Rayo.",
+   "fuente": "`js/talents-maga.js:317` (a22 Cargas Desbordadas), `:318` (a23 Orbe Múltiple), `:321` (a26 Constelación); `js/powers-maga.js:2689` (`gaugeMax:cargas`); `js/mech-maga.js:40, 174`; `js/talents-arquera.js:146` y `js/powers-arquera.js:1499-1501` (Ida y Vuelta); `js/spec-mechanics.js:25` (Coto Cerrado); memoria «feedback-arcanista-preview-oct21»."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.4 paridad (`calc-r1d.mjs`), IT6, línea «% Daño de tu elemento»",
+   "problema": "La paridad se mide por clase (3), no por especialización (9), y con un supuesto uniforme («básico 30 %, con enfriamiento 40 %, limitado por recurso 20 %»).\n- **«% Daño de tu elemento»** vale muy distinto según la especialización. En el Montaraz (`elem: 'nature'`) no toca su gastadora (Flecha Detonante, física), ni el básico, ni el Salto. En las especializaciones físicas (Berserker, Guardián, Tiradora, Francotiradora) equivale a «% Daño».\n- **% Vel. de ataque** solo acelera el básico, y la parte del básico va de casi 0 (Francotiradora, que carga) a mucha.\n- Antes del Nv10 no hay especialización, así que la línea de elemento y `@insignia` quedan muertas o sin definir.\nIT6 «en las 3 clases» no detecta nada de esto.",
+   "arreglo": "- IT6 por especialización (9), con la build recomendada de cada una, en el Nv50 y el Nv70.\n- Define `elemPct` antes de la especialización (el elemento por defecto de la clase o «≡ % Daño») y los elementos múltiples (Montaraz: naturaleza + físico, por habilidad forjada con `@<elem>`, que ya usa `elemOf`).\n- Si una especialización queda fuera de ±20 %, que la línea no le salga en el pool (botín inteligente al tirar).",
+   "fuente": "`js/talents-arquera.js:252` (Montaraz elem 'nature'); `js/skills-arquera.js:126, 134, 141, 147` (Cepo y Zarzas naturaleza; Acecho y Detonante físicos); `js/talents.js:443-475` (selectores por elemento forjado); diseño §4.4 y §15 (supuestos del modelo)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.4 tabla de paridad, IT6",
+   "problema": "Faltan líneas en la medida de paridad. La tabla no da valor en u a Vel. de movimiento, Esquiva, Bloqueo ni «+1 a tu <categoría>». En el amuleto, «+1 a tu Definitiva o Movilidad» vale +10 % de una habilidad de enfriamiento largo o de una de movilidad (≈ 0 de daño): es candidata a línea muerta (rompe O5). Además, la escala de las % (`0,4 + 0,6·il/52`: 44 % del tope en il 1) frente a la de los planos (G: 5,5 % del tope en il 1) hace que, al subir de nivel, la % de reducción de daño, el crítico y el % Daño valgan ×2–4 más que la Vida y la Armadura en comparación con el Nv70. IT6 solo mira el Nv50 y el Nv70.",
+   "arreglo": "- Dales u a ➜ y ✦ con `VAL_K` y mételas en IT6.\n- Pasa «+1 a tu categoría» a implícito fijo del arma o la mano izquierda (fuera del techo), o quita @ultimate y @movement del amuleto.\n- Añade el Nv20 y el Nv35 a IT6, o usa para las % una escala que siga el crecimiento del saco del héroe.",
+   "fuente": "Diseño §4.4 (fórmulas de escala y tabla de paridad); `js/combat-math.js:467` (`rankCoef` +10 % por rango)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "P4-D21 (crítico solo en anillos), §4.4",
+   "problema": "Poner todo el crítico del equipo en una sola ranura la convierte en un impuesto: los dos anillos pasan a ser «crítico + daño crítico + …» en cualquier build. Se pierde la decisión en 2 de 10 ranuras, y re-tirar un anillo casi siempre apunta a la misma línea. D4 reparte el crítico entre guantes y anillos. Aquí el motivo era el tope, pero el tope también se resuelve sin quitarle la decisión a la ranura.",
+   "arreglo": "Pasa el crítico a **implícito del anillo** (fuera del techo, ×peso: ≈ 8,4 por anillo con el ★ y el rango 5; mismo total de 16,9). Así la cuenta de topes de §4.4 queda idéntica y las 3 líneas al azar del anillo vuelven a ser elección (% Daño, daño crítico, Vida, Vida al golpear, más una de recurso o ritmo). Alternativa: la opción (b) de P4-D21 con IT3 por habilidad.",
+   "fuente": "Fextralife, *Diablo 4 Attack* (crítico en guantes y anillos) [S]: https://diablo4.wiki.fextralife.com/Attack; diseño §4.4 (topes por clase)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.5 «◇ engarce», §4.8 (soportes «materiales en pila»), §7.5",
+   "problema": "Choque de nombres: «engarce» ya es, en el libro de habilidades, el hueco de SOPORTE de cada habilidad (`ui-skills.js`: «Engarces», «Engarce 1», «En combate no puedes cambiar engarces»). El diseño cuidó «Herrería» frente a «forja» (R11), pero no este caso. Además, §4.8 trata los soportes como «materiales en pila», cuando son desbloqueos: `knownSupports`, y al recoger uno repetido no sirve para nada.",
+   "arreglo": "- Renombra uno de los dos: el del objeto como «Engaste» o «Hueco de gema», o el de la habilidad como «Ranura de soporte».\n- Define el soporte repetido: se convierte en 3 de Esencia o 2 de Polvo al recogerlo.\n- Saca los soportes de «materiales» en §4.8 y §7.1.",
+   "fuente": "`js/ui-skills.js:296-300, 425, 506, 511, 525`; `js/items.js:437, 546` (soporte con 1,5 % × (1+mf)); `js/main.js:1428-1431` (`knownSupports`)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.3 glifos de rareza, §6 veredicto, §7.2 celda, mockup",
+   "problema": "Hay glifos con dos o tres significados en la misma celda o el mismo tooltip, justo con un dueño que quiere leer por la forma:\n- ▲ = rareza Rara (§4.3) y ▲ = «mejora a tu héroe» (§6 y §7.2: el ▲ verde de la esquina).\n- ★ = afijo mayor (§4.4) y ★ = favorito (§7.2; en el mockup, `st fav` ★).\n- ✦ = Legendario, el Polvo (mockup: «Polvo ✦ ≈ 165/h»), la variante potenciada del libro (§4.6 regla 3) y la categoría «✦ Habilidad».\nEn total hay más de 20 símbolos que aprender.",
+   "arreglo": "Un glifo por significado y una tabla canónica en `item-defs.js` con prueba de unicidad (`test101` falla si se repite un glifo). Por ejemplo:\n- Favorito = candado o corazón.\n- Raro = rombo hueco, y deja ▲ solo para el veredicto.\n- Polvo con su icono `mat_*` en vez de ✦.\n- La variante potenciada, con el icono del aspecto.\nRecorta la leyenda a las 3 superposiciones de la celda y a lo que sale en Alt.",
+   "fuente": "Diseño §4.3, §4.4, §4.6, §6, §7.2; `mockup/index.html:872` (favorito ★) y la vista Ritmo («Polvo ✦»); memorias del dueño «feedback-hud-barras-sin-numeros» y «feedback-ux-habilidades-y-fx»."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.13 economía y metas en horas",
+   "problema": "Las cuentas de la economía no cuadran entre sí:\n(a) **Chispas:** el jefe de grieta en T8+ da 5 % × 8,5 grietas/h = 0,43/h, más que el Pináculo (0,29/h). En T8+ el Mítico sale en ≈ 5,6 h, no en ≈ 13 h; la tabla usa T0 para el botín y T8+ para las fuentes.\n(b) **Gemas:** caen ≈ 68/h, de grado 3–4 desde AL40 y de 4–5 en T6+. Las 10 gemas Perfectas salen en ≈ 2 h, pero el diseño las pone en el «techo de 40–60 h».\n(c) **Esencia:** ≈ 1 300/h cubren todas las mejoras (≈ 1 000) en menos de 1 h.\n(d) La «build completa» cuenta «6 aspectos de tu barra», pero una build usa 10 (uno por ranura).\n(e) En T10 el botín cae con rango 5 (⌊T/2⌋): la marca de agua y el sumidero de Esencia desaparecen en el final del juego, y no está dicho si ese r5 trae el remate ★.\n(f) Alijo: «2 + hasta 8» pestañas en §7.1 frente a «8 × 50» en §9.1.",
+   "arreglo": "- Tabla de economía en T0, T4 y T8+.\n- Metas con los 10 aspectos.\n- Botín de Tormento con rango ≤ 2 (o sin remate), y que el rango pre-hecho no mueva la marca de agua.\n- Gemas: o se quitan del techo, o se sube el combinar a 3 → 1 con coste en Esencia por grado.\n- IT7 en T0 y en T8.\n- Una sola cifra de pestañas.",
+   "fuente": "Diseño §4.2, §4.7, §4.9, §4.13, §7.1, §9.1; `js/combat-math.js:133` (`quality: ⌊t/2⌋`)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.9 «Re-tirar una línea», tabla «Techo de una pieza en u»",
+   "problema": "No queda claro si la re-tirada puede ofrecer la MISMA línea con otro paso. Si las 2 opciones excluyen la línea actual (como el encantamiento de D4), el paso «+ re-tirada a paso 5» del techo es imposible para la línea que quieres conservar (por ejemplo, crítico al paso 3), y el único camino al paso 5 es el botín. Si no la excluyen, el pool de 5 líneas con 2 ya fijas deja 2–3 candidatas y hay que decir qué pasa.",
+   "arreglo": "Separa dos acciones:\n- **Re-tirar** (otra línea del pool, como hoy).\n- **Pulir** (misma línea, nuevo paso de 1 a 5, por Esencia, con semilla y coste creciente; nunca toca la ★).\nSi no quieres otra acción, deja que una de las 2 opciones sea siempre la misma línea con un paso nuevo.",
+   "fuente": "Diseño §4.4 (tabla de u) y §4.9; D4 Lord of Hatred, Cubo Horádrico (re-tirada enfocada frente a caótica, mejora de afijo): https://d4guides.gg/en/guides/horadric-cube-all-prisms-affix-pools-explained"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§6 regla del veredicto (↔ con pérdida > 3 % en un eje), §0 ejemplo",
+   "problema": "El umbral absoluto del 3 % convierte en ↔ muchas mejoras claras. El ejemplo del propio §0 (Δ⚡ +14,8 %, Daño +31,5 %, Aguante −6,3 %) sale ↔ en un DPS. Como la celda solo enseña ▲, el jugador no ve como mejora un arma un 15 % mejor. Es ruido y contradice «una sola verdad de mejor» (O7).",
+   "arreglo": "↔ solo si la pérdida en un eje es mayor que ⅓ de g, o si el eje que baja es el principal del rol (Aguante para el tanque, Apoyo para el apoyo). Así se mantiene «▲ ⇒ Δ⚡ ≥ T» y el ↔ queda para los casos de verdad dudosos. Añade el ejemplo de §0 a la tabla de casos límite de `test95`.",
+   "fuente": "Diseño §0, §6, O7."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.7 Míticos (1 por especialización)",
+   "problema": "Un Mítico por especialización, con un poder «que define la build», es un BiS forzado: todos los Piromantes del final del juego llevan el mismo. Es la queja de 2026 contra D4: tras «Mythic 3.0» (T14), las builds comparten 5–6 piezas clave y hay menos libertad. Lo que sí gustó (la T13: Mítico con tiradas al máximo y fijas) coincide con tu diseño, así que el fallo está en la cantidad, no en la forma.",
+   "arreglo": "2 Míticos por especialización, uno por eje (UNI o ÁREA, alineados con las variantes), o 3 por clase con afinidad de especialización. La vía de 4 Chispas te deja elegir cuál. Esto sube R7 (contenido) en 9 piezas: mételas en la ola posterior que ya prevé R7.",
+   "fuente": "Mein-MMO (análisis de wudijo del PTR de la T15, «builds share 5–6 key items»): https://mein-mmo.de/en/diablo-4-has-undone-in-just-one-season-what-players-particularly-loved-about-lord-of-hatred,1583031/; Icy Veins, crafteo de Míticos en la T15: https://www.icy-veins.com/d4/news/mythic-unique-crafting-changes-coming-to-diablo-4-season-15/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§8 «Regalo» (transferencia en dos fases, vuelta a los 30 s)",
+   "problema": "La transferencia en dos fases con vuelta por tiempo puede duplicar: si el acuse del receptor se pierde, o llega a los 30,1 s, el objeto vuelve al emisor y el receptor ya lo tiene. Es el problema de los dos generales: sin coordinador no hay acuerdo garantizado sobre un canal que pierde mensajes. Además, «solo lo que cayó en esa partida» no se puede comprobar, porque el receptor se fía de `origen`.",
+   "arreglo": "- No liberes nada por tiempo. El objeto queda «en tránsito» en el emisor y «pendiente» en el receptor hasta un mensaje de confirmación; si se corta, se resuelve por uid en el próximo contacto (cola de salida persistente).\n- **Prueba de botín:** como el botín es determinista (`killLootRng(semilla, heroId, netId)`), añade al formato `o: { run, netId, idx }`. Así el receptor regenera el objeto y comprueba que coincide; solo se regalan objetos sin modificar.\n- Si se acepta el riesgo porque el cooperativo es entre amigos, dilo explícitamente y marca lo regalado como ligado.",
+   "fuente": "Wikipedia, *Two Generals' Problem*: https://en.wikipedia.org/wiki/Two_Generals%27_Problem; `paso6-multijugador-diseno.md` §2.3 (botín por semilla, no viaja)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§8 y §9 (almacén de cuenta en `localStorage`)",
+   "problema": "El almacén de cuenta pasa a guardar el valor de 40–60 h (Códice, marcas de agua, Polvo, Chispas, alijo), pero sigue en almacenamiento «best-effort»: el navegador puede borrarlo si le falta espacio, y Safari aplica el tope de 7 días al almacenamiento escribible por script en sitios no instalados. El diseño no pide `navigator.storage.persist()`, ni hace copia de la cuenta, ni detecta el borrado. Con la nube recién en F2, una pérdida es total.",
+   "arreglo": "- Pide `navigator.storage.persist()` en la primera escritura del Códice, dentro de un gesto del jugador; consulta `persisted()`.\n- Copia exportable de la cuenta (`IRPGA1`), con aviso cada N horas de juego.\n- Al cargar, `rev` y sello de tiempo: si el almacén de cuenta falta pero hay héroes, avisa y ofrece importar la copia.",
+   "fuente": "web.dev, *Persistent storage* (Chrome 55, Firefox 57, Safari 15.2): https://web.dev/articles/persistent-storage; WebKit, *Full Third-Party Cookie Blocking and More* (tope de 7 días): https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§8 «Varias pestañas»",
+   "problema": "El contrato mezcla dos patrones. Un cerrojo por escritura con `rev` deja el cerrojo libre entre escrituras, así que `ifAvailable` no detecta una segunda pestaña. Un cerrojo de líder retenido toda la vida de la pestaña sí la detecta, pero entonces la página no entra en la caché de atrás y adelante (motivo «lock»). No se dice cuál se usa.",
+   "arreglo": "Especifica las dos cosas:\n- **Líder:** `navigator.locks.request('irpg-cuenta:<reino>', { ifAvailable: true }, () => new Promise(() => {}))`. Si no lo obtienes, solo lectura.\n- **Escrituras del líder:** compara `rev` dentro de un cerrojo corto `irpg-cuenta-w:<reino>`.\nAcepta que no entra en la caché de atrás y adelante, y pon una prueba con un cerrojo falso.",
+   "fuente": "MDN, `NotRestoredReasonDetails.reason` (motivo «lock»): https://developer.mozilla.org/en-US/docs/Web/API/NotRestoredReasonDetails/reason"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.4 clave nueva `resRatePct`",
+   "problema": "`resRatePct` duplica dos claves que ya existen: `regenPct` (regeneración de Maná y Energía) y `resGainPct` (TODO lo generado, `resources.js:95`; no «solo la Furia», como dice el diseño). Una tercera clave abre dudas de apilado y de topes.",
+   "arreglo": "Que la línea del equipo sume a `regenPct` y a `resGainPct` (con el tope de ≤ 40 % del equipo sobre esa suma) en vez de crear una clave nueva. Corrige la frase sobre `resGainPct`.",
+   "fuente": "`js/resources.js:47-51, 92-95`."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.1 Mano izquierda del Guerrero",
+   "problema": "La única base de mano izquierda del Guerrero es el escudo (implícito: 10 % de bloqueo y armadura ×1,3). Al Berserker (DPS) y al Cruzado (apoyo) les sirve poco, mientras el Foco de la Maga y el Carcaj de la Arquera dan implícitos ofensivos. La ranura con peso 0,75 vale distinto según la especialización.",
+   "arreglo": "Añade una base ofensiva para el Guerrero (por ejemplo «Hacha de mano»: +6 % de vel. de ataque, o +8 % de Furia generada). El escudo sigue siendo la base del Guardián (su bloqueo innato exige escudo).",
+   "fuente": "`js/items.js:27-29` (bases de mano izquierda), `js/entities.js:43-45` y `:873` (bloqueo innato solo con escudo)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§15 Fuentes, P4-D18, P4-D12, P4-D19",
+   "problema": "Hay datos desactualizados o sin fuente:\n- Last Epoch apagó el comercio por la duplicación de oro en la primavera de 2024 (parche 1.1.x, comunicado del 2-abr-2024), no en 2025.\n- La T15 de D4 empezó el 15-sep-2026, no en octubre. Y la vía del Joyero da un Mítico AL AZAR de la ranura elegida, así que «tres vías deterministas» exagera.\n- «D4 sacó el hallazgo mágico en la T4» no tiene fuente.\n- Falta citar a favor la reacción a «Mythic 3.0» (T14), que respalda tu Mítico de tiradas fijas.",
+   "arreglo": "- Corrige las fechas y los textos.\n- Marca [sin fuente] el dato del hallazgo mágico o justifícalo solo con el problema del código (MF dentro del ⚡).\n- Añade Mein-MMO e Icy Veins de la T14 y la T15 como precedente.",
+   "fuente": "Devtrackers de EHG: https://devtrackers.gg/last-epoch/p/d9f0d6d5-regarding-the-recent-gold-exploit; Mein-MMO (2-abr-2024): https://mein-mmo.de/en/last-epoch-players-exploited-loopholes-to-gain-advantages-now-the-developers-are-intervening,1110730/; Kami-labs, T15: https://kami-labs.fr/en/diablo-4/diablo-4-mythiques-fabrication-deterministe-saison-15/; Icy Veins, T15: https://www.icy-veins.com/d4/news/mythic-unique-crafting-changes-coming-to-diablo-4-season-15/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "Mockup (`mockup/index.html`, vista Ritmo y cabecera)",
+   "problema": "- El mockup enseña ⚡ 5 930 en un Berserker Nv72 con ◆ medio 43,9, pero §6 dice «≈ 1 800 en el Nv70» para el típico. El dueño verá dos escalas distintas.\n- En la única captura, la etiqueta «40–60 h» se pisa con la marca de 40 h («4040–60 h») y «≈ 1 300/h» se parte en «≈ 1 / 300/h». Se corrigió sin volver a capturar.\n- El modelo del mockup (`evalHero`) es una simplificación propia, distinta de `calc-r1*.mjs`.",
+   "arreglo": "Alinea el modelo del mockup con `calc-r1d.mjs` (las mismas referencias D₁ y A₁) o pon en §6 los números del mockup. Saca 1 captura por turno de la vista Ritmo tras el arreglo (dentro del cupo de 2).",
+   "fuente": "`mockup/index.html:740-800` (`evalHero`, `reference`, `powerOf`); `preview/captura-v3-ritmo.png`; diseño §6."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.7 Únicos, §8 Hardcore, IT4, §4.13 cooperativo",
+   "problema": "Cuatro huecos menores:\n(a) 10 Únicos a ≈ 2,5/h se coleccionan en pocas horas: poca persecución con nombre.\n(b) No hay regla para el equipo y los aportes al Códice de un héroe Hardcore muerto, ni para cómo se une el Polvo o las Chispas de temporada al reino local.\n(c) IT4 incluye pares con Δ casi nulo, donde el ruido de la simulación invierte el signo.\n(d) Las metas en horas están medidas en solitario, pero en grupo, con `partyLootMult = 1` y vida < ×n, el botín por hora y jugador sube.",
+   "arreglo": "(a) 2 Únicos por especialización (18) más las reliquias.\n(b) Héroe HC muerto: su equipo se pierde y el Códice HC se queda; al cerrar la temporada, el Polvo y las Chispas se suman y el Códice se une por mejor rango.\n(c) IT4 excluye |Δ| < 2 % o usa semillas pareadas.\n(d) Declara las metas «en solitario» y mide el factor de grupo en el E10 del Paso 6.",
+   "fuente": "Diseño §4.7, §4.13, §8, IT4; `paso6-multijugador-diseno.md` §2.3–§2.4."
+  }
+ ],
+ "faltantes": [
+  "Una tabla de ΔDPS, ΔAguante y ΔTTK TOTALES por perfil (desnudo, típico, óptimo) y nivel (20, 50, 70 y 100) frente al banco actual, y la regla IT8 que la ate. Hoy solo está el arma.",
+  "Una decisión explícita de qué manda cuando IT1 (cuota del equipo) y la compensación de vida o IT8 chocan, y qué constante puede tocar B1 en E4 (`ENEMY_CURVE` sí o no).",
+  "El eje de Apoyo (curación y escudos a aliados) y la medida del control en `valuation.js`, con una línea `healPct` que solo salga a quien cura.",
+  "IT3 y la valoración por habilidad, con soportes y mods de talento, para detectar líneas topadas en una build concreta.",
+  "La probabilidad de ★ al caer, la distribución de pasos por Tormento y si el botín de Tormento con rango hecho trae remate.",
+  "Una regla y una prueba de apilado aspecto ↔ talento (F11) y topes de `gaugeMax:<id>`.",
+  "Una tabla de contratos con el Paso 6 v4: alcance de la sincronización, esquema de nube con `realm` y tabla de cuenta, reino de temporada en F2 (de honor y local), uids que no se reescriben, y que el CRC `cat` del saludo incluya bases, pools, aspectos, Únicos y constantes de ítems.",
+  "Una «prueba de botín» en el formato compacto (`o: { run, netId, idx }`) para verificar regalos regenerando el objeto con `killLootRng`.",
+  "Persistencia del almacenamiento (`navigator.storage.persist`), copia exportable de la cuenta y detección de borrado.",
+  "Versión de catálogo por objeto (`cv`) y qué hace `validateItem` cuando una línea sale de un pool en una versión futura: hoy lo rechazaría y el objeto se perdería en una importación o un regalo.",
+  "Dejar reservado en el formato y en el almacén de cuenta un campo para el Talismán que se repensará tras E4b, así no hará falta una migración v7. D4 Lord of Hatred volvió a fundir charms y conjuntos en un solo slot de Talismán.",
+  "Qué pasa con los soportes repetidos y con el choque del nombre «engarce».",
+  "Metas de ritmo por Tormento (T0, T4 y T8+) y en grupo."
+ ]
+}

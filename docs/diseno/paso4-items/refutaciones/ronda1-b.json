@@ -1,0 +1,184 @@
+{
+ "veredicto": "APROBABLE CON CAMBIOS, PERO NO PASES A E1 TODAVÍA. La arquitectura es sólida y está al día con las referencias de 2026: 3 ejes por pieza, la rareza decide solo líneas y aspecto, los aspectos usan el vocabulario fx de los talentos, Códice y marca de agua de cuenta, re-tirada dirigida y valoración única (D4 LoH/S14, pistas de WoW Midnight, techo fijo de GW2). Tienes que corregir antes de los contratos de E0/E1 seis fallos de números o contratos que tumban promesas centrales del propio documento. (1) El «Principal adaptable» no es simétrico: la Destreza da crítico y armadura, y la Energía da maná y regeneración. Eso rompe O5 («0 líneas muertas»), IT3 (topes) y el recurso de la Maga. (2) La tabla de topes ignora esa vía: la Arquera óptima pasa del 60 % de crítico solo con el equipo. (3) El 1,35 del arma está mal razonado: no da +8 % y −10 %, sino −20 % al típico y −33 % al óptimo. (4) El ⚡ normalizado al «héroe desnudo de tu nivel» no sube al subir de nivel ni con talentos, y la regla del ▲ no garantiza que el ⚡ suba (test95 fallaría). (5) No hay modelo de coste por stat: el «techo» no tiene unidad, el Principal vale unas 2 líneas de % Daño y la Amatista domina. (6) No hay economía: faltan fuentes, sumideros y tiempos objetivo en horas. Además hay huecos de contenido y contrato: aspectos sin cobertura en las ranuras defensivas, ejemplos que rompen su propio presupuesto, el selector @spec equivocado, claves de indicador que recompute ignora, la receta de Mítico imposible y una sincronización a medias. Hecha la ronda 2 sobre estos puntos, el diseño queda listo para el dueño.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "§0 punto 4, P4-D5, §4.4 (Principal), §5; código: entities.js:917-920 y 935, resources.js:8-12 y 39-51, data.js:82/93/104 (mainStat)",
+   "problema": "El «Principal adaptable» no vale lo mismo en cada clase. La línea se resuelve en a.fue, a.des o a.ene, y esos atributos tienen efectos secundarios distintos. Destreza (Arquera): +0,15 % de crítico y +0,3 de armadura por punto. Energía (Maga): +2 de maná máximo y +2 % de regeneración por punto. Fuerza (Guerrero): nada más. Con el equipo óptimo (≈159 de Principal en 5 ranuras con ★), la Maga regenera ×(1+0,02·(79+159)) ≈ ×5,8, frente a ×2,6 sin equipo. Eso recrea el «recurso casi infinito» que el comentario de combat-math.js (REGEN_PER_ENE) dice haber arreglado, y deja muertas sus líneas % Coste y % Recurso. La Arquera recibe +24 de crítico gratis (ver el problema siguiente). Es justo lo que WoW quitó en Warlords of Draenor por la misma razón.",
+   "arreglo": "Opción mínima (recomendada para el Paso 4): el Principal del equipo va a un acumulador propio, `mainGear`, que solo entra en mainStatMult y no se suma a a.des ni a a.ene. Opción completa (WoD): quitar el crítico y la armadura de la Destreza y la regeneración de la Energía, compensando con crítico base para la Arquera y regeneración base para la Maga. Añadir una prueba: el mismo objeto da el mismo Δ de mainMult en las 3 clases, y ningún otro stat cambia.",
+   "fuente": "Notas de WoD (alfa y beta 2014): «Agility and Intellect also provide Critical chance… whereas Strength does not. In order to achieve better balance, we've removed the Critical Strike chance increase from Agility and Intellect». https://www.wowhead.com/news/warlords-of-draenor-beta-patch-notes-august-27-and-class-blue-tweets-242843 · código citado"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.4 «Comprobación de topes», §0 punto 5, IT3, O5",
+   "problema": "La tabla de topes solo suma las líneas de % Crítico y deja fuera tres cosas. (a) El crítico de la Destreza: el equipo óptimo da 25×1,5×4,25 ≈ 159 de Principal, que son +23,9 de crítico en la Arquera. (b) El crítico base de la clase y el de los atributos: con el reparto del banco (bench-core.mjs:179, 60 % al principal), la Arquera tiene Des 77, o sea 5+11,6 = 16,6. (c) Talentos y tablero. Solo con el equipo, la Arquera llega a 23,9+29,9 = 53,8 de crítico (90 % del tope de 60, cuando la regla IT3 promete ≤ 60 %). En una build real pasa de 70: las líneas de crítico quedan muertas en la Arquera, lo contrario de O5. La vida al golpear tampoco está en la tabla: se aplica una vez por impacto (entities.js:989-993) y entra en una cubeta topada al 6 % de la vida por segundo. Con 1–2 líneas se satura y se ofrece en 5 ranuras.",
+   "arreglo": "Rehacer la comprobación por clase y con la build típica: crítico base + atributos + talentos + tablero + equipo, con un margen (crítico total ≤ 55 con el perfil óptimo). Añadir la vida al golpear frente a LEECH_CAP_PER_SEC × vida máxima × impactos por segundo. Si no se cumple, aplicar rendimientos decrecientes suaves por encima de ~40 % (modelo de WoW: sin penalización hasta el 30 % y peldaños después) en vez de un tope duro que deja líneas muertas. Y sacar «Vida al golpear» de 2 de sus 5 pools.",
+   "fuente": "Icy Veins, prioridad de stats 12.0.5 (mar-2026): sin penalización 0–30 %, luego peldaños; «not hard caps». https://www.icy-veins.com/wow/demonology-warlock-pve-dps-stat-priority · entities.js:920, combat-math.js:74"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.1 (implícito del arma «medio = 3·G(NO)·1,35»), §10 «Impacto esperado», mockup weaponAvg",
+   "problema": "El 1,35 no compensa la retirada de statMult. Hoy el arma ya tiene ese 1,35 dentro: lo = 3·G·statMult·(0,85–1,15) y hi = lo·(1,5–1,9) (items.js:210-213), y el combate usa la media (lo+hi)/2 ≈ 1,35·lo (entities.js:914-916). Hoy la media es 3·G·1,25·1,35 = 5,06·G para un raro y 3·G·1,5·1,35 = 6,08·G para un legendario; la nueva es 3·G·1,35 = 4,05·G. A NO 45 da 64,7 de media frente a 80,9 del raro y 97,0 del legendario: el típico pierde un 20 % y el óptimo un 33 % del arma. El documento dice +8 % y −10 %. El impacto de §10 está mal, y E4 arrancaría con una diferencia de 25 puntos sin saberlo. §10 tampoco estima el Aguante: con las bases de §4.4, la vida y la armadura del equipo típico ya dan ≈ 60 % de la vida efectiva, por encima de la banda O6 de 40–50 %.",
+   "arreglo": "Si «medio» es la media, GEAR_K ≈ 1,69 conserva al raro, y ≈ 1,85 queda «entre el raro y el legendario» como pretende el texto. La otra salida es definir 1,35 como el mínimo (lo) y conservar hi = lo×1,5–1,9. Rehacer §10 con la fórmula del código e incluir el Aguante (vida, armadura frente a K = 60·G(AL) y reducción de daño) en Nv50, 70 y 100.",
+   "fuente": "items.js:210-213; entities.js:914-916; mockup index.html (weaponAvg, GEAR_K = 1.35); cálculo propio: 3·G(45) = 47,9"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§6 (⚡ Poder y veredicto), P4-D17, test95 («▲ ⇒ ⚡ sube»), mockup verdict()",
+   "problema": "Hay dos fallos. (a) La regla del ▲ («un eje sube ≥ 1 % y el otro no baja más de 1 %») no implica que el ⚡ suba: con +1 % de Daño y −1 % de Aguante, √(1,01·0,99) = 0,99995, así que el ⚡ baja. Pasa lo contrario con el tooltip de §0 (+8,4 % / −1,2 %): sale ↔, pero el ⚡ sube un 3,5 %. Lo prometido en test95 es falso. (b) Con ⚡ = 100·√(D/D₀·A/A₀), donde ₀ es el héroe desnudo de tu nivel, el nivel y los talentos se cancelan (están en el numerador y el denominador). Al subir de nivel con el mismo equipo, el arma blanca de referencia mejora y el ⚡ baja. El ⚡ deja de reforzar «el número sube», que era su razón de ser (comentario de entities.js:961-962). El peso 50/50 de Daño y Aguante también aconseja mal al Guardián frente al Berserker.",
+   "arreglo": "(a) ▲ ⇔ (1+dD)·(1+dA) ≥ 1+umbral, con los dos deltas a la vista. ↔ solo si el ⚡ sube y un eje baja más de un 3 %. Una sola regla para la celda, el tooltip y el ⚡. (b) Referencia fija por clase (héroe desnudo Nv1, o una constante) para que el ⚡ crezca con el nivel, los talentos y el equipo. Para el progreso del equipo, mostrar en el muñeco el «◆ medio» del equipo, que es el número que WoW usa por el «visceral attachment». Exponente por rol: ⚡ = D^w·A^(1−w), con w = 0,6 para DPS y 0,45 para el Guardián.",
+   "fuente": "Hazzikostas (13-sep-2026): «People have a visceral attachment to a certain item level number» https://butwhytho.net/2026/09/world-of-warcraft-midnight-interview-2/ · mockup index.html (función verdict, T = 0.01) · entities.js:961-971"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "Principio 2 («presupuesto como techo»), §0 punto 5, §4.4 (columna «Base»), §4.5 (gemas)",
+   "problema": "El «techo» no tiene unidad. Cada línea trae una base a peso 1 (25 de Principal, 12 % de Daño, 6 % de Crítico, 223 de Vida…), pero nada demuestra que valgan lo mismo, y «lo que cae llena ~65–80 % del techo» no se puede calcular. Con los números del código, el Principal es un multiplicador aparte, mientras el % Daño se diluye en el saco aditivo (Σ ≈ 2,0–2,5 con forja y soportes). En un Guerrero Nv70 típico, una línea de Principal (+23) vale ≈ +9 % de DPS, frente a ≈ +4–5 % del % Daño y ≈ +4 % del % Crítico: unas 2 veces más. Consecuencias: el Principal es obligatorio en las 5 ranuras, la Amatista se lleva el ◇ en todas las piezas donde cabe (elegir gema deja de ser una decisión) y el % Daño queda como «línea de relleno». WoW pone precio a cada stat (StatMod: Stamina 2/3, armadura 1/14), y los procs se cuentan como «aumento × tiempo activo».",
+   "arreglo": "Definir la unidad de presupuesto con el modelo único (§6): el Δ⚡ marginal de cada línea con el perfil típico, por clase, en Nv50 y Nv70. Fijar cada base para que una línea al paso 3, en su ranura mediana, quede a ±20 % de la mediana de su categoría en las 3 clases. Añadir la regla IT6 del banco con esa paridad. Expresar el techo como Σ unidades = peso × B(NO), y medir el «65–80 %» en esas unidades.",
+   "fuente": "WoW Stat budget (marcada como desactualizada, pero el principio vale): «Stamina has a StatMod of 2/3»; «Stat cooldowns and procs count as the increase multiplied by expected uptime» https://warcraft.wiki.gg/wiki/Stat_budget · combat-math.js:214-219 (hitDamage)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.9, §4.10, §4.11, §1 (objetivos O1–O8), §10 (loot-bench)",
+   "problema": "No hay modelo económico ni tiempos. Hay costes (mejorar 0→5: 120 de Esencia y ≈ 12 600 de oro por pieza a NO 47; re-tirada de 1500·1,5ⁿ, que llega a ≈ 17 000; remate a 5000; grabar a r5: 50 de Polvo, o sea 10 legendarios desguazados), pero faltan los ingresos. No se dice el oro por hora, el tamaño de los montones de Esencia, el Polvo de las 2 cartas del cofre ni el precio de la apuesta («pagas oro»). Sin eso no se puede comprobar la regla de inversión ni el «≤ 5 legendarios por aspecto»: comprar a r1 (25) + grabarlo (10) son 35 de Polvo = 7 legendarios, y el Polvo compite con el grabado a r5. Tampoco se puede descartar que la apuesta (18 % de legendario) acabe siendo la mejor fuente de legendarios. El loot-bench solo mide legendarios, aspectos y Esencia. Ningún objetivo está en horas, que es como un MMO controla la cinta de correr. WoW Midnight frena la mejora con Dawncrests y un tope semanal.",
+   "arreglo": "Añadir un §4.13 «Economía» con una tabla de fuentes y sumideros por hora (oro, Esencia, Polvo, gemas por grado) medidos por el loot-bench. Fijar objetivos en horas: build funcional (todas las ranuras con aspecto r1), build completa (los aspectos de la barra a r5), techo (★ + Mítico). Precio de la apuesta atado a la tasa de legendarios (nunca más legendarios por hora que matando). Que la regla IT de ritmo afirme esas bandas.",
+   "fuente": "Blizzard Watch, Midnight T1: 20 Dawncrests por rango y tope semanal de 100 https://blizzardwatch.com/2026/03/02/upgrade-gear-midnight-no-valorstones-required (citado [V] en arpg.md §2.8)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.4 (escalas), P4-D4 («+1 rango ≈ +1 ilvl»), §4.9 (Mejorar)",
+   "problema": "La mejora solo «sube el número» de verdad en los planos. Con pctScale = 0,4+0,6·NO/52, +1 NO da +1,3 % en una línea de %, +1,9 % en el Principal y +6,5 % en los planos y el arma. Mejorar de r0 a r5 a NO 47 sube +37 % los planos y solo +6,1 % las líneas de %. De il40 a il47 da +55 % frente a +9 %. Los anillos y el amuleto (casi todo %) apenas mejoran con la Herrería: unos 0,2–0,4 % de DPS por los mismos 120 de Esencia y 12 600 de oro. Eso queda muy por debajo del 10–15 % que Hazzikostas da como umbral para que se sienta, y rompe la regla de inversión en la joyería.",
+   "arreglo": "Que el rango multiplique igual a todas las líneas y al implícito: valor = base × escala_tipo(ilvl) × 1,065^rango (el ◆ sigue siendo ilvl + rango). Alternativa: escalas con la misma pendiente logarítmica en la banda NO 40–52, p. ej. % = máx(0,4; 1,03^(NO−52)), dejando los valores a NO 52 como están para no tocar la tabla de topes. Si no se cambia, el coste de mejorar debe ir en proporción al valor de la ranura.",
+   "fuente": "Hazzikostas (13-sep-2026): «at least like a 10 to 15 percent increase in power for an item to feel like it's making a difference» https://butwhytho.net/2026/09/world-of-warcraft-midnight-interview-2/ · cálculo propio con las fórmulas de §4.4"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.6 (tabla «Categoría → ranuras» y los 36 ejemplos)",
+   "problema": "Muchas ranuras se quedan sin aspectos. Las categorías copian las de D4 pero sin su categoría «Utilidad» (casco, pecho, botas, guantes y amuleto), y el catálogo por especialización casi no tiene defensivos ni de movilidad. Berserker, Cruzado, Piromante, Crionte y Tiradora tienen 0 aspectos defensivos de especialización. Para ellos, casco, pecho y cinturón solo admiten el defensivo de su clase (1) y un universal; el segundo igual sale «duplicado». Las botas, en 7 de 9 especializaciones, solo admiten «del Viento». En la práctica, 3–4 ranuras quedan «raro para siempre», y «el legendario es lo normal en el final del juego» (§4.3) no se cumple. Por el otro lado, anillos y amuleto se los disputan ofensivos y de mecánica.",
+   "arreglo": "Añadir una matriz de cobertura aspecto × ranura × especialización con la regla «≥ 1 aspecto útil por categoría y especialización», comprobada en test-aspects-<clase>. Crear la categoría Utilidad (casco, pecho, guantes, botas, amuleto) como en D4, o abrir Mecánica a casco y pecho. Subir a 2 los defensivos de clase.",
+   "fuente": "Mobalytics, categorías de aspectos de D4: Offensive (armas, guantes, anillos, amuleto), Defensive (casco, pecho, pantalones, escudo, amuleto), Utility (casco, pecho, botas, guantes, amuleto), Mobility (botas, amuleto), Resource (anillos) https://mobalytics.gg/blog/diablo-4/all-diablo-4-legendary-aspects/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.6 regla 4 frente a la tabla de 36 ejemplos; «Rango 1–5: core no cambia y scale interpola»",
+   "problema": "Varios ejemplos se saltan su propio presupuesto (≤ +15–25 % de la habilidad al rango 5). Racimo Voraz pasa las brasas de 3×40 % = 120 % a 5×55 % = 275 %: unos +70 % a la Bola de Fuego en área (coef 2,2 y explosión, skills-maga.js:37-38, 732). Cadena Larga da +67 % de saltos, Sol Errante +50 % de estallidos y Tercera Andanada +50 %. Además, casi todo el valor está en el `core` (cuentas fijas), así que el aspecto a r1 comprado con Polvo ya da casi todo el efecto. La persecución del rango que §4.10 da por viva («los rangos altos siguen saliendo del botín») se queda vacía, y el «r1 ≈ 70 %» de la tabla es falso.",
+   "arreglo": "Anotar en cada ejemplo el Δ estimado sobre la habilidad y normalizar: p. ej., Racimo con 4 brasas al 45 %, Cadena con 4 saltos, Sol Errante con 5. Regla de forma: `core` ≤ 40 % del valor del aspecto. Las cuentas discretas se abren por umbral (+1 en r1, +2 en r4), y el resto escala con el número. Que F10 y test-aspects midan el Δ con el arnés.",
+   "fuente": "skills-maga.js:37-38 y 727-733 (Bola de Fuego, Racimo: «3 brasas (40 % c/u)»); §4.6 regla 4 del propio documento"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§6 (Daño = Σ coef × impactos ÷ máx(enfriamiento, GCD); Aguante = vida / mitigación)",
+   "problema": "El modelo único no ve 5 de las 17 líneas. El Daño no tiene en cuenta el recurso, así que % Coste y % Recurso valen 0 y se sobrevalora a las gastadoras limitadas por recurso. El Aguante no incluye el sustento (vida al golpear), la esquiva ni la velocidad de movimiento. Como «Mejor para mí», el filtro «solo ▲», el ▲ de la celda y el banco salen de este modelo, esas líneas nunca darán ▲ y el jugador aprenderá a ignorarlas: líneas muertas de hecho, aunque O5 diga que no hay. El «?» solo cubre los aspectos con power/tv. El mockup lo tapa con pesos inventados (lph/600, 0,2·(coste+recurso)).",
+   "arreglo": "Daño: lanzamientos por segundo = mín(1/enfriamiento, 1/GCD, (generación + regeneración)/coste) por habilidad de la barra. Aguante: (vida + sustento por segundo × ventana de 5 s, con la cubeta topada) / mitigación, y la esquiva como reducción esperada por su tiempo activo. Las líneas de movilidad, con «?» o con un peso fijo declarado. IT4 debe incluir pares que solo difieran en esas líneas.",
+   "fuente": "WoW Stat budget: «procs count as the increase multiplied by expected uptime» https://warcraft.wiki.gg/wiki/Stat_budget · mockup index.html (evalHero) · resources.js:39-69"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.2 (sincronización de contenido), §8 (fila Sincronización)",
+   "problema": "La sincronización solo topa el NO. El ◇, el ★ (×1,5), el rango del aspecto (hasta +15–25 % de una habilidad), los +rango y el poder del Mítico siguen enteros. Un Nv100 sincronizado en una zona baja del cooperativo sigue trivializándola, justo lo que M6 quería evitar. FFXIV, que el documento cita, también desactiva la materia (el engarce) durante la sincronización.",
+   "arreglo": "En la sincronización por zona: ★ → paso 5; ◇ inactivo o con su grado topado a f(zona); rango de aspecto ≤ 1–3 según el nivel de la zona; +rango desactivado; poder mítico activo pero con sus líneas al NO de la zona. Que lo pruebe un test de sincronización.",
+   "fuente": "FFXIV Materia: con la sincronización, el equipo se escala hacia abajo y su engarce se desactiva https://ffxiv.consolegameswiki.com/wiki/Materia (citado [V] en arpg.md §2.8)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§7.1, §8 (Confianza: escalera en un reino aparte), §9.2 punto 4 (`intentorpg_account` v1)",
+   "problema": "El almacén de cuenta (Códice, marcas de agua, Polvo, fichas, alijo) no tiene clave de reino. «Ningún objeto local entra nunca en la escalera», pero si el Códice y la marca de agua son de la cuenta, lo hecho en local (o trucado en localStorage) entra en la escalera por el grabado (aspecto a r5 en cualquier raro) y por el ⅓ de la marca. El modelo D2 Open/Closed separa el personaje entero, y D4 reinicia el Códice en cada reino de temporada.",
+   "arreglo": "`intentorpg_account` con particiones por reino: { local: {...}, ladder:<temporada>: {...} }. Códice, marcas, Polvo, Esencia, gemas y fichas por reino, y la escalera empieza vacía. El formato v1 ya debe nacer con esa clave, aunque solo exista «local».",
+   "fuente": "Icy Veins, Códice de D4: «On seasonal realms, this resets at the beginning of each new Season» https://www.icy-veins.com/d4/guides/legendary-aspects-codex-of-power-guide/ · Realm FAQ de D2 (citado [S] en §15)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.7 (Míticos: «3 Fragmentos de Pináculo + 1 Único de esa especialización») frente al catálogo de Únicos («2 por clase»)",
+   "problema": "La receta determinista del Mítico pide un Único de la especialización, pero solo hay 2 Únicos por clase para 3 especializaciones (Égida para Guardián/Cruzado, Corona del Fénix para Piromante, Cuerda de la Garza para Francotiradora). Al menos 3 especializaciones no pueden fabricar su Mítico. Tampoco se dice si el Mítico se puede mejorar ni si admite ★ (con sus líneas «al paso 5», un legendario con remate ★ lo supera en esa línea), ni cuántos se pueden llevar a la vez.",
+   "arreglo": "Catálogo de ≥ 1 Único por especialización (9 + 4 reliquias = 13) o receta «1 Único de tu clase». Regla del Mítico: se mejora como cualquier pieza, su línea libre puede llevar el remate ★ y solo 1 Mítico equipado (como el límite de D4 S14 a los fabricados).",
+   "fuente": "D4 S14 (30-jun-2026): Míticos fabricados de forma determinista; «only one crafted Mythic can be equipped at a time» [S] https://www.digitalcitizen.life/diablo-4-season-14-brings-mythic-unique-overhaul-new-seasonal-events-and-solo-self-found-mode/ · DiabloBytes (23-jun-2026) https://www.diablobytes.com/diablo-iv/news/2026-06-23-after-upsetting-everyone-by-threatening-to-ruin-diablo/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.2 («Tormento: el botín cae con rango ⌊T/2⌋»), §4.8 («★ = remate o drop de Tormento alto»), §4.9 (re-tirada)",
+   "problema": "Faltan reglas que mueven el ritmo. (a) En T10 todo cae a r5: el «Mejorar» de la Herrería y la marca de agua quedan muertos en el contenido final, y no se dice si esas piezas traen el remate ★ ni con qué probabilidad cae ★ en el Tormento alto, ni si puede haber varias por pieza. (b) La re-tirada no dice si las 2 opciones vuelven a tirar el paso. Con el precio topado en n = 6 (≈ 17 000 de oro), la re-tirada es ilimitada a precio fijo, y si tira el paso llevas toda línea al paso 5 por oro: la objeción I10 sigue abierta. (c) No hay distribución del rango 1–5 de los aspectos que caen, y de ella depende toda la persecución del Códice.",
+   "arreglo": "(a) Rango de drop ⌊T/3⌋ (T10 = r3), o el botín de Tormento con r5 y el remate pendiente de hacer en la Herrería; probabilidad de ★ por T en una tabla. (b) La re-tirada cambia el stat y conserva el paso (o pone suelo en el paso viejo −1); tope de 10 re-tiradas por pieza o precio que siga creciendo. (c) Tabla de rangos de drop, p. ej. r1 40 / r2 30 / r3 18 / r4 9 / r5 3 %, desplazada por el Tormento, medida en el loot-bench.",
+   "fuente": "combat-math.js:124-135 (tormentMods.quality = ⌊T/2⌋); maxroll, remate de LoH re-tirable con coste (citado [V] en arpg.md §9)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.4 (`elemPct` → `spec.elem`), O5",
+   "problema": "«% Daño de tu elemento» no es simétrico y está muerto antes del Nv10. Berserker, Guardián, Tiradora y Francotiradora tienen el elemento 'physical' (talents-guerrero.js:120 y 186; talents-arquera.js:115 y 186): para ellas, la línea cubre casi todo el kit, básico incluido, con una base de 16 frente a 12 de % Daño, así que es estrictamente mejor. En Piromante, Crionte o Arcanista solo cubre las habilidades de su elemento. Sin especialización (Nv < 10, TALENT_RULES.specAt = 10), la línea no hace nada: es una línea muerta en la nivelación y en los alts del alijo.",
+   "arreglo": "Resolverla como «% Daño de tu especialización» (kit @spec + habilidades del elemento de la especialización), con una base calibrada por la cobertura medida. Antes del Nv10 o sin especialización, que cuente como % Daño. Comprobar la paridad con IT6.",
+   "fuente": "talents-guerrero.js:120/186/257, talents-maga.js:132/198/264, talents-arquera.js:115/186/252, talents.js:64"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.4 (línea «+1 a tu <categoría>», selector `@spec`), §4.1 («+1 a tu Principal (gastadora)»), mockup línea 457",
+   "problema": "(a) Contrato roto: en talents.js:466, `@spec` se expande a TODO el kit de la especialización (3–5 habilidades), no a la categoría Insignia. La categoría es `@insignia` (CAT_ALIAS, talents.js:445-446). «+1 a tu Insignia» con `@spec` daría +1 a todo el kit. (b) Choque de nombres: en el juego, CAT_LABELS.spender = 'Principal' (skill-defs.js:36-38), y el documento llama «Principal» también al atributo. El mockup pinta «+1 a tu Principal» al lado de la línea de atributo. Con poco texto, la ambigüedad confunde.",
+   "arreglo": "Usar `@insignia` (y `@spender`, `@ultimate`, `@movement`). En el diseño, la Herrería, el filtro y Alt, llamar «Atributo» a la línea de atributo (el tooltip ya lo muestra resuelto: «+16 Fuerza») y dejar «Principal» solo para la categoría de habilidad.",
+   "fuente": "js/talents.js:445-466; js/skill-defs.js:36-38; mockup index.html:457"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.6 (Sed Insaciable `gaugeMax:sed`, Cargas Vivas `gaugeMax:cargas`, Viento a Favor `gaugeGain:impulso`) y la anatomía de defineAspect (agregado con `stats`)",
+   "problema": "Si las claves de indicador van en `stats` del agregado de aspectos, recompute las descarta en silencio: addStats solo suma claves que existen en `a` o en `item` (entities.js:783-786), y gaugeStat() solo lee p.powerStats y los buffs (spec-mechanics.js:196-200). Todos los usos actuales van por el `stats()` de un poder (powers-maga.js:2689, powers-arquera.js:1775). Además, «+20 % de Sed máxima» no encaja: gaugeMax es un valor absoluto.",
+   "arreglo": "Contrato en §4.6: las claves `gaugeMax:/gaugeGain:/gaugeLoss:` de un aspecto van siempre por un `definePower` con `stats(p)` (prefijo `x<g|m|a>_`) y con valor absoluto. Que test-aspects compruebe que gaugeMax cambia de verdad con el aspecto puesto.",
+   "fuente": "js/entities.js:783-786; js/spec-mechanics.js:195-208; js/powers-maga.js:2689"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "P4-D1 («el peso de las 2 ranuras retiradas se reparte en el techo, B × 1,23»), §4.4, mockup LINES",
+   "problema": "El ×1,23 no está aplicado en ningún sitio: las bases de §4.4 y del mockup (hp b = 9 → 223 a NO 52) son sin él. Si E4 lo aplica, la tabla de topes falla: crítico 36,8 (> 35), enfriamiento 36,2 (> 30), movimiento 26,8 (> 25). El mockup multiplica también la armadura implícita por GEAR_K, y §4.1 dice «Armadura ×1».",
+   "arreglo": "Decidir si las bases ya incluyen el reparto. Si no, quitar la frase de P4-D1 o recalcular la tabla de topes con ×1,23. Alinear la armadura implícita entre el documento y el mockup.",
+   "fuente": "mockup index.html:440-457 (LINES), 647 (armorImpl × GEAR_K); cálculo propio"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.1 («Los pesos de la armadura son los de WoW verificados (1,00 / 0,75 / 0,5625)»)",
+   "problema": "La página citada da esos SlotMod para el VALOR de armadura de cada ranura, está marcada como desactualizada y «accuracy disputed», y no da pesos de stats para el cuello, los anillos ni las armas. Aplicarlos al presupuesto de líneas es una extrapolación, no un dato verificado. En la teoría clásica de WoW, el cuello va con los anillos (0,5625), no con los abalorios (0,70).",
+   "arreglo": "Marcarlo como [S]/propuesta, y que los pesos salgan del modelo de coste (problema del techo sin unidad), no de WoW.",
+   "fuente": "https://warcraft.wiki.gg/wiki/Stat_budget (tabla «Slot modifiers» de la armadura; aviso de página desactualizada)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.2 (NO efectivo en solitario: mín(ilvl, ilvlDeTuNivel + 2) + rango)",
+   "problema": "Como el rango «cuenta siempre», un alt del alijo lleva NO +7 sobre lo que le cae (G^7 = ×1,55 en el arma y los planos) en todos los niveles: la nivelación de los alts se vuelve trivial y el botín de nivelación muere. Es el riesgo de «twink» que la marca de agua ya resuelve de otra forma.",
+   "arreglo": "NO efectivo en solitario = mín(ilvl + rango, NOdeTuNivel + 3), o que el rango solo cuente a partir del Nv70. El ⅓ de la marca de agua ya hace barato volver a mejorar.",
+   "fuente": "cálculo propio con G = 1,065; FFXIV (sincronización completa, arriba)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§9.1 («Unos 120 bytes por objeto»), M9",
+   "problema": "El ejemplo del propio documento, serializado en JSON, ocupa 224 bytes, no 120. Las cuentas siguen cabiendo (400 objetos ≈ 90 KB), pero el número es falso y el formato no lleva versión de catálogo: para repetir una carrera de escalera con el catálogo de su época, la reproducción necesita saber contra qué tablas se generó.",
+   "arreglo": "Corregir a ~220–250 B (o empaquetar en arrays posicionales si importa). Añadir `cv` (versión de catálogo) y `sv` al objeto compacto.",
+   "fuente": "cálculo propio: JSON.stringify del ejemplo de §9.1 = 224 caracteres"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.2 (marca de agua por ranura), §6 (anillos)",
+   "problema": "No se define la marca de agua de las ranuras dobles (anillo ×2): ¿una sola marca «anillo», o una por ranura? En WoW, el descuento lo fija el héroe con el ilvl más alto «in that gear slot», y las ranuras dobles necesitan su propia regla.",
+   "arreglo": "Una marca «anillo» igual al NO más bajo de los dos mejores anillos alcanzados (para que un solo anillo alto no abarate los dos), y documentarlo.",
+   "fuente": "Soporte de Blizzard, descuento de la Banda Guerrera https://us.support.blizzard.com/en/article/336964"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "Todo el documento («NO», «◆ NO», filtro «NO ≥ el mío − 5»)",
+   "problema": "En español, «NO» se lee como la negación. En los chips, el filtro y Alt («NO ≥ el mío − 5», «sin NO») se presta a confusión, y el dueño pide poco texto y que se entienda de un vistazo.",
+   "arreglo": "En la UI, solo el glifo ◆ con el número; en Alt, «Nivel 45». En el documento y el código se puede seguir usando `no`/«NdO».",
+   "fuente": "criterio de legibilidad (ux.md §7)"
+  }
+ ],
+ "faltantes": [
+  "Modelo de coste por stat (unidad de presupuesto) derivado del ⚡ marginal por clase en Nv50 y Nv70, más la regla IT6 del banco: una línea al paso 3 en ±20 % de la mediana de su categoría en las 3 clases. Sin esto, el «techo» y la elección de gema no tienen sentido.",
+  "Desacoplar el Principal del equipo de los efectos secundarios de los atributos (Destreza → crítico y armadura, Energía → maná y regeneración) o retirarlos, como WoW en WoD, y rehacer la tabla de topes por clase con la build típica completa (base + atributos + talentos + tablero + equipo).",
+  "§4.13 Economía: fuentes y sumideros por hora (oro, Esencia, Polvo, gemas por grado), precio de la apuesta, Polvo del cofre, tamaño de los montones de Esencia, y objetivos en horas: build funcional, aspectos de la barra a r5, techo con ★ y Mítico. Que el loot-bench mida también oro y Polvo.",
+  "Distribución del rango de los aspectos al caer (por Tormento) y probabilidad de ★ en los drops, con el efecto de ⌊T/2⌋ sobre Mejorar y el remate.",
+  "Matriz de cobertura aspecto × ranura × especialización, con la categoría Utilidad al estilo de D4 y la regla «≥ 1 aspecto útil por categoría y especialización».",
+  "Δ estimado de cada aspecto de ejemplo frente a la regla 4, y la regla de forma core ≤ 40 % del valor, con cuentas discretas que se abren por rango.",
+  "Algunos aspectos solo de botín (no grabables) o ligados a Únicos, para que los legendarios sigan interesando cuando el Códice esté completo; D4 los mantiene.",
+  "Particionar el almacén de cuenta por reino (local / escalera / temporada) desde la v1 del formato.",
+  "Regla completa de sincronización: ★, ◇, rango de aspecto, +rango y poder mítico, no solo el NO.",
+  "Un número visible de progreso del equipo (◆ medio del equipo, como el ilvl medio de WoW) separado del ⚡, y un ⚡ con referencia fija que crezca con el nivel y los talentos.",
+  "Valoración con recurso, sustento y esquiva en el modelo único, y pares de prueba en IT4 que solo difieran en esas líneas.",
+  "Reglas del Mítico: mejora, ★ en su línea libre, límite de 1 equipado y receta que exista para las 9 especializaciones (≥ 1 Único por especialización).",
+  "Contrato de las claves de indicador de los aspectos (gaugeMax/gaugeGain/gaugeLoss solo por definePower con stats()) y del selector @insignia.",
+  "Rendimientos decrecientes suaves (sin penalización hasta ~30–40 %, peldaños después) como red de seguridad frente a los topes duros que dejan líneas muertas.",
+  "Versión de catálogo (`cv`) en el formato compacto, para reproducir carreras de escalera y migraciones futuras.",
+  "Estimación del Aguante (vida efectiva) en el «Impacto esperado» de §10 y de su cuota frente a O6; con las bases actuales, el equipo típico ya da ≈ 60 %."
+ ]
+}

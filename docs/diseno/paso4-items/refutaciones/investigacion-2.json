@@ -1,0 +1,177 @@
+{
+ "veredicto": "APROBADA CON CAMBIOS IMPORTANTES. Los tres informes son amplios y en general están bien citados: verifiqué contra fuentes oficiales o de Maxroll D4 T4 y LoH, PoE2 0.5, LE T5 y el botín personal de D4, y la mayoría de los datos del código se sostienen (bugs de Avaricia, comparador que recorta vida, gemas sin tope, el 32 escrito a mano, SAVE_VERSION 5). Aun así hay tres fallos de fondo que cambiarían el diseño:\n(1) La economía real del legendario está mal medida. Ningún informe ve la escalera del cubo: 27 blancos o 3 raros de una misma ranura se convierten en 1 legendario pagando solo oro. A eso se suman el legendario garantizado de cada grieta y el 37,5 % del jefe. La tasa efectiva es unas 12 veces la de caída, y «los blancos no sirven para nada» es falso.\n(2) Validar el ladder repitiendo la semilla no se puede con el bucle actual: dt variable, Math.random en la IA enemiga y un stream de botín secuencial. Además, el campo `origen` en localStorage se puede falsificar.\n(3) La propuesta copia unas 9 capas de D4 (reforjar, templar, Calidad con remate, sello, Códice con rangos, talismán, cubo, runas y gemas) para un dueño que pide poco texto. Falta un MVP.\nAdemás hay datos de D4 desactualizados: los únicos salieron con afijos aleatorios en LoH y la T14 pasó a 2 fijos; la Calidad llega a 25 y SÍ sube los afijos; el «5.º afijo» no tiene fuente. Y ux.md trae un error de código: dice que no hay etiquetas en el suelo, y ya existen (main.js:2088). Nota de método: a mitad de esta ronda se agotó el cupo de WebSearch de la sesión. El resto lo verifiqué con WebFetch directo a URL concretas y leyendo el código. Lo que no pude comprobar va marcado como conocimiento previo.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §1 (fila «Rareza al caer»: «0,12 legendarios por cada 100 muertes») y §3.9; actual.md §0.5, §1.1, §4.2 («Los blancos no sirven ni de base») y §9 R1. Código: js/economy.js:251-254 y 336-358; js/main.js:1284-1285; js/items.js:557-559",
+   "problema": "La escasez de legendarios se calcula solo con lo que cae al matar, y eso no es el ritmo real.\n- El cubo sube de rareza en cadena pagando solo oro: 3 normales → mágico (104 de oro con il40), 3 mágicos → raro (390), 3 raros → legendario (2080). Si los 3 comparten ranura, el resultado sale de esa ranura, así que hay legendarios dirigidos.\n- A máxima profundidad, con la mezcla real de caídas (61/33,5/4,9/0,67), la cadena da ≈1 legendario cada ~70 comunes, unas 12 veces la tasa de caída (≈1 cada ~860). Cuesta ≈60 de oro por común frente a ≈93 de ingreso.\n- Encima, cada grieta completada garantiza un legendario y el jefe da un 37,5 % en el piso 21.\n- La conclusión de actual.md («el 61 % son blancos inútiles») es falsa: los blancos son la materia prima del legendario.\n- tests/loot-regression.mjs solo mide caídas por piso, así que no detectaría nada de esto.",
+   "arreglo": "1. Antes de fijar rarezas, medir la tasa EFECTIVA de cada fuente: caída, cubo, grietas, jefes, apuesta y tienda.\n2. En el rework, quitar la subida de rareza en cadena desde blancos. La receta raro → legendario debe pedir un material escaso además del oro, como el Cubo de D4 LoH (1 raro + 1 Polvo Primordial Puro + 10 Polvo Primordial en bruto).\n3. Añadir a loot-regression un caso con «cubo óptimo» que falle si los legendarios por hora superan el objetivo.",
+   "fuente": "https://maxroll.gg/d4/resources/horadric-cube (actualizada el 14-oct-2026: «Upgrade to Legendary: 1 Rare item, 1 Pure Primordial Dust, 10 Raw Primordial Dust»), más el código citado."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §6 M3 y M4 y §7.10 («el ladder valida carreras por semilla», `origen: {reino, partida}`). Código: js/main.js:1545 y 1574 (dt = getDelta, hit-stop ×0,02) y :1231-1233 (stream 'loot' consumido en el orden de las muertes); js/entities.js:2616-2695 y 2982 (Math.random en la IA de deambular, el temporizador de pensar y la probabilidad de ataque a distancia); js/game-zone-life.js:47-86 y 159",
+   "problema": "Repetir la semilla para validar el ladder exige una simulación determinista, y hoy no lo es:\n- El paso de tiempo es variable.\n- La IA enemiga, los respawns y el tipo de goblin usan Math.random.\n- El botín sale de un stream secuencial que depende del orden de las muertes.\n- Las funciones Math (pow, sin…) pueden dar resultados distintos según el motor JS, porque la especificación solo pide una aproximación.\n\nAdemás, `origen` es un campo más de localStorage: cualquiera lo edita, así que no prueba nada.",
+   "arreglo": "1. **Ladder:** personajes y botín en un servidor autoritativo. El servidor tira el botín y el cliente nunca exporta objetos al ladder. Cabe en el plan gratuito de Cloudflare Workers: Durable Objects con SQLite, 100 000 peticiones al día.\n2. **`origen`:** solo vale si lo firma el servidor (HMAC).\n3. **Cooperativo entre amigos:** RNG por contador, con clave (semillaMundo, uidEnemigo, idJugador), en vez de un stream secuencial. Así cada cliente tira su botín personal igual sin depender del orden.\n4. Si algún día se quiere repetición, primero un paso de simulación fijo y la grabación de entradas.",
+   "fuente": "https://developers.rune.ai/blog/making-js-deterministic-for-fun-and-glory/ (25-jul-2024): una diferencia de 0,001 diverge y ellos redondean Math.* con fround. https://bugs.webkit.org/show_bug.cgi?id=150403: Chrome y Safari dan valores distintos en Math.pow. https://developers.cloudflare.com/changelog/2025-04-07-durable-objects-free-tier/. Salmon et al., «Parallel Random Numbers: As Easy as 1, 2, 3», SC11 (2011), sobre RNG por contador."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §4 R6 y §7 puntos 5–7 (Reforjar + Templar + Calidad con remate + Sello + Códice con rango + Talismán + Cubo + runas y palabras rúnicas + gemas)",
+   "problema": "La v1 importa casi toda la pila de crafteo de D4 (unas 9 capas) a un proyecto de un solo dueño, sin comercio, que pide «visual y poco texto».\n- D4 llegó ahí en 2 años de temporadas, y en la T11 tuvo que quitar capas: fuera la durabilidad del templado y la obra maestra se redujo a Calidad.\n- PoE2 0.5 recortó el determinismo en la cima.\n- Cada capa es interfaz, textos, guardado, migración, banco y tests. No hay criterio de qué entra en el Paso 4.",
+   "arreglo": "1. Fijar un MVP de 3 capas:\n   - Reforjar dirigido, con bloqueo.\n   - Calidad con remate.\n   - Códice con rango.\n2. El filtro de botín va aparte.\n3. Templado, Sello y Talismán pasan al backlog. Cada uno entra solo si el banco de botín muestra un hueco de progresión que esa capa cubra.\n4. Las palabras rúnicas quedan como única capa «D2».",
+   "fuente": "https://www.icy-veins.com/d4/news/huge-diablo-4-vendor-crafting-changes-in-season-11/ (vía buscador). https://news.blizzard.com/en-gb/article/24077223/galvanize-your-legend-in-season-4-loot-reborn (durabilidad del templado). https://kami-labs.fr/en/path-of-exile-2/poe2-patch-0-5-return-of-the-ancients-notes-complet-en/ (Recombinador desactivado; monedas Mayores y Perfectas más raras). Preferencia del dueño."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §4 R6.3, §6 M2 y §7.6 («Calidad 0–10 sobre la base, no los afijos»; «traspaso del 100 % hasta el 5»). Código: js/items.js:22 (ARMOR_SLOTS sin anillos ni amuleto) y js/combat-math.js:133 (Tormento: calidad = ⌊T/2⌋, hasta 5)",
+   "problema": "Hay tres fallos en la propuesta de Calidad:\n- **Se apoya en un dato desactualizado:** en el D4 actual (LoH) la Calidad tiene 25 rangos de +1 % sobre daño base, armadura, resistencia **y todos los afijos**. El remate da +50 % a un afijo al azar y esa posición se puede re-tirar.\n- **Deja la joyería sin uso:** anillos y amuleto no tienen base, así que la Calidad no les daría nada en 3 de las 12 ranuras.\n- **Choca con el Tormento:** el Tormento ya regala calidad 5 en T10, así que la mitad de la escala sale gratis y el traspaso del 100 % hasta el 5 sobra.",
+   "arreglo": "1. Que la Calidad escale base y afijos, como hoy hace `q` en `recompute`, o definir una base para la joyería.\n2. Decidir UNA de estas dos opciones:\n   - el Tormento deja de regalar Calidad y pasa a dar probabilidad de ★ o de «Ancestral»;\n   - se elimina el traspaso.\n3. Fijar el máximo de Calidad con el banco, no copiando el 10.",
+   "fuente": "https://maxroll.gg/d4/resources/masterworking-guide (actualizada el 23-may-2026, «Updated for Lord of Hatred»: Rank 25, +1 % por rango a Base Damage, Armor, Resistance y todos los afijos; remate +50 % a un afijo al azar), más el código."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §0.1, §2.1 (Lord of Hatred), tabla §3.4 («D4 LoH: 4 + 5.º afijo potente; únicos con menos afijos y fijos») y la fila T11 «Calidad 20–25»",
+   "problema": "El estado de D4 está desactualizado o sin fuente en tres puntos:\n- **«5.º afijo en LoH»:** no aparece en el anuncio oficial. Lo más probable es que sea el resultado «Bonus Transfiguration Affix» (~35 %) del Cubo, no una propiedad de lo que cae.\n- **«Únicos con menos afijos y fijos»:** es lo que se anunció antes del lanzamiento. En la T13 los únicos salieron con afijos aleatorios, hubo muchas quejas y la T14 puso «All Unique items now have 2 guaranteed affixes».\n- **Calidad máxima:** hoy es 25, no 20.\n\nAdemás, el informe no cubre la T14 ni la T15, cuando las T14 y T15 aportan justo la lección que necesita R1.",
+   "arreglo": "1. Corregir la tabla §3.4: el 5.º afijo es un resultado del Cubo y la Calidad máxima es 25.\n2. Citar la T14 como evidencia a favor de «Único con 2 fijos + 1–2 aleatorios», y explicar POR QUÉ: los únicos aleatorios se sintieron «dependientes del azar» y llenaban el alijo.\n3. Revalidar el párrafo «Estado a octubre de 2026».",
+   "fuente": "https://news.blizzard.com/en-us/article/24267729/prepare-for-the-reckoning-lord-of-hatred-draws-near (sin 5.º afijo; «Uniques will have fewer affixes which are inherently fixed»). https://opencritic.com/news/33708/diablo-4-season-14-is-making-a-huge-change-to-uniques (GameRant, 26-jun-2026). https://www.icy-veins.com/d4/news/frustration-grows-with-diablo-4s-random-affixes-on-unique-items/ (vía buscador). https://maxroll.gg/d4/resources/horadric-cube"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §4 R2 y §7.3 («Defensivo: resistencias, por fin con fuente»). Código: js/entities.js:757; js/combat-math.js:486-491",
+   "problema": "Las resistencias tendrían fuente en el equipo, pero casi ningún enemigo hace daño elemental: según actual.md §5, solo los peligros de fuego. Un afijo de resistencia sería justo el «afijo trampa» que la investigación quiere eliminar.",
+   "arreglo": "Elegir una de dos opciones:\n- añadir daño elemental enemigo en el mismo paso (afijos de élite, tipos de jefe) y calibrarlo en E4b;\n- no ofrecer resistencias hasta que haya daño elemental.\n\nMientras tanto, el comparador las marca como «?» (efecto no medido).",
+   "fuente": "actual.md §5 («Defensa elemental dormida»), verificado en el código."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §4 R7 y §6 E3 («Botín inteligente: ~85 % de armas y manos izquierdas de tu clase»). Código: js/items.js:189-192; js/main.js:1235 (`cls: p.classId`)",
+   "problema": "La propuesta empeora lo que ya hay:\n- **Armas y manos izquierdas:** hoy ya salen al 100 % de tu clase, así que bajarlas al 85 % sería un retroceso.\n- **Lo que falta de verdad:**\n  - el botín inteligente en los AFIJOS: atributo principal y +rango solo de habilidades que conoces;\n  - en los conjuntos, porque `generateSetItem` no recibe la clase.\n- **El 85 % de D3:** sale de una wiki comunitaria («el 15 % para otra clase»), no de Blizzard.",
+   "arreglo": "1. Mantener el 100 % en armas y manos izquierdas.\n2. Aplicar el botín inteligente a afijos y conjuntos (85–90 %).\n3. Dejar el 10–15 % restante a propósito para los otros héroes del alijo compartido, y decirlo en el diseño.",
+   "fuente": "https://di.diablowiki.net/Loot_2.0 (vía buscador: el 15 % sale con stats de otra clase), más el código."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §4 R1 y R5 (raro 3–4 afijos + aspecto grabado como camino principal). Código: js/items.js:212-215 (`statMult` de la rareza en el daño de arma y la armadura) y js/game-endgame.js:127-129 (`imprintAspect` cambia la rareza sin tocar los stats)",
+   "problema": "Hoy la rareza multiplica el PODER BASE: ×1,25 el raro y ×1,5 el legendario en el daño de arma.\n- Con el modelo «raro con buenos afijos + aspecto grabado», un arma grabada nunca alcanza a una legendaria caída.\n- Grabar un blanco lo convierte en «legendario» con 0 afijos y el ×1,0.\n- La tirada de base es muy ancha: ×1,56 entre el peor y el mejor raro del mismo ilvl, y el arma es 1 WD de todo el daño.",
+   "arreglo": "1. Poder base solo por ilvl (y por «Ancestral» si se adopta). La rareza decide cuántas líneas, no multiplicadores.\n2. Estrechar la tirada de base, como hizo Loot 2.0 con los «rangos más estrechos».\n3. Grabar no cambia la base; cambia el nombre o color y añade el aspecto.",
+   "fuente": "https://maxroll.gg/d4/resources/loot-filter (Ancestral = 900 de poder, independiente de la rareza). https://fullcleared.com/news/diablo-iii-patch-2-0-1-coming-couple-weeks/ (rangos estrechos, ya citada). Código."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §3.5 y §4 R1 («Normal = base para runas y templado»). Código: js/items.js:24-40 (el tipo de base es cosmético) y js/entities.js:43-45 (escudo detectado por emoji o nombre)",
+   "problema": "«Blanco = base de crafteo» no significa nada si las bases no se diferencian. Hoy una Daga y un Hacha de Guerra tiran igual: sin velocidad, sin implícito, sin bloqueo. La innata del Guardián depende de reconocer el escudo por texto.",
+   "arreglo": "Tabla de bases con `type` y un implícito por familia:\n- arma: velocidad y rango de daño;\n- escudo: bloqueo;\n- foco y carcaj: recurso o proyectil.\n\nCon eso hay bases «superiores» que vale la pena recoger en blanco, y el escudo se detecta por `type`.",
+   "fuente": "https://maxroll.gg/poe2/resources/path-of-exile-2-crafting-overview (el pool depende de la base, ya citada en arpg.md), más el código."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §4 R2 y §7.3 («Atributo principal inteligente + Vitalidad»). Código: js/data.js:82, 93 y 104; js/entities.js:920 y 935; js/resources.js:41 y 50",
+   "problema": "Unificar el afijo en «Atributo principal» amplifica una asimetría que ya existe:\n- **Guerrero (Fuerza):** solo da daño.\n- **Maga (Energía):** da daño, maná máximo y regeneración.\n- **Arquera (Destreza):** da daño, +0,15 de crítico por punto y +0,3 de armadura por punto.\n\nEl mismo afijo valdría distinto por clase, y el banco ya tropezó con la valoración de atributos (MEMORIA.md:350).",
+   "arreglo": "1. Antes de unificar el afijo, normalizar los secundarios: quitar crítico y armadura a la Destreza, o dar un secundario equivalente a cada principal.\n2. Medir el valor por punto en cada clase con el banco.",
+   "fuente": "Código citado y MEMORIA.md:350."
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §4 R5 (unos 55 aspectos) y §2.1 (gemas de arma como multiplicadores, D4 3.0.1). Código: js/combat-math.js:71 (MAX_MULT_ACTIVE = 3) y :221-247",
+   "problema": "El saco [×] solo cuenta los 3 multiplicadores mayores activos. Si los aspectos o las gemas de arma registran [×], el 4.º se descarta en silencio y el jugador pierde poder sin enterarse. D4 LoH tuvo el mismo problema de escalado y lo resolvió haciendo que los multiplicadores se sumen entre sí.",
+   "arreglo": "1. Regla de diseño:\n   - los aspectos nunca usan [×]: van por mecánica o al saco aditivo;\n   - el [×] queda para el mítico y los nodos clave.\n2. Si hay más de 3 [×] activos, mostrarlo en el comparador y en la ficha.\n3. Que un test cuente los [×] posibles por especialización con el equipo de máximo nivel.",
+   "fuente": "https://news.blizzard.com/en-us/article/24267729/prepare-for-the-reckoning-lord-of-hatred-draws-near («Damage Multipliers have been reworked to stack additively with themselves»), más el código."
+  },
+  {
+   "gravedad": "media",
+   "donde": "ux.md §0.6, §1 (fila «Recogida»: «sin etiquetas de nombre en el suelo») y §3.7. Contradice a actual.md §1.7",
+   "problema": "Error de código: las etiquetas en el suelo YA existen.\n- `syncWorldLabels` (js/main.js:2088-2103) pinta nombre, glifo de rareza e icono para lo que pasa el filtro, con clic para recoger.\n- MEMORIA.md:424 dice que se resolvieron en el Paso 2d.2.\n- ux.md se apoya en INFORME_EXPANSION_2026.md:91, que está desactualizado.\n\nLa propuesta presupuesta como nuevo algo que solo hay que extender.",
+   "arreglo": "Rehacer §1 y §3.7. El trabajo es extender lo que hay:\n- filtro por regla en vez de solo por rareza;\n- Alt para ver todas las etiquetas, incluidas las ocultas;\n- tope de etiquetas visibles y apilado anti-solape.\n\nMarcar INFORME_EXPANSION_2026 como fuente no fiable para el estado actual.",
+   "fuente": "js/main.js:2088-2103; MEMORIA.md:424."
+  },
+  {
+   "gravedad": "media",
+   "donde": "ux.md §0.5, §4 (tabla de teclas: Shift = comparar, Espacio = basura, F = favorito) y §5 R2-1. Código: js/bindings.js:18-20",
+   "problema": "Las teclas propuestas ya tienen función en combate:\n- Espacio = acción principal.\n- Shift = esquiva.\n- F = recoger.\n\nEn el cooperativo sin pausa hay dos salidas y las dos son malas:\n- si el panel captura las teclas, no puedes esquivar con el inventario abierto, que es justo el riesgo de R2-1;\n- si no las captura, se disparan las dos acciones a la vez.",
+   "arreglo": "1. Shift para comparar solo mientras el cursor está sobre un objeto y sin consumir la esquiva.\n2. Basura y favorito en teclas que no se usan en combate (p. ej., X y Z con el cursor sobre un objeto) o en el clic central.\n3. Una tabla de prioridad por contexto, comprobada en `bindings.js`.",
+   "fuente": "js/bindings.js:8-34."
+  },
+  {
+   "gravedad": "media",
+   "donde": "ux.md §0.3, §3.2 y §4 («la simulación, única fuente del ▲»); actual.md bug 3.2. Código: js/ui.js:2585-2601 y js/entities.js:972-975",
+   "problema": "Hacer de `_previewEquip` la única fuente del ▲ multiplica dos defectos:\n- **Recorta vida y recurso:** `recompute` deja `hp` y `mp` en el máximo nuevo y nadie los restaura.\n- **Coste:** son 2 `recompute` por objeto, con 40 celdas por repintado.\n\nAdemás, `recompute` vuelve a montar poderes e índices de ganchos: es un efecto lateral en mitad de la partida, peor en el cooperativo sin pausa.",
+   "arreglo": "1. Una función pura `statsWith(player, overrides)` que no toque `hp`, `mp`, `powers`, `gauges` ni estado.\n2. Caché por (uid, firma de build), invalidada al equipar o cambiar talentos.\n3. Arreglar el bug 3.2 antes del Paso 4.",
+   "fuente": "Código citado."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §5 E8 y §7.3 («los +rangos de habilidad son la palanca más rota», tope +2 y ≤ +1 por pieza en 3 ranuras). Código: js/combat-math.js:465-467; docs/paso2-diseno.md:274",
+   "problema": "Se importa el riesgo de PoE2 sin medirlo en este motor.\n- Aquí +1 rango = +10 % lineal de coeficiente: pasar de rango 7 a 9 es ×1,125 en UNA habilidad.\n- Un % de daño del mismo presupuesto rinde parecido sobre todas las habilidades.\n- Con las restricciones propuestas, el afijo podría quedar en «trampa».",
+   "arreglo": "1. Medir con el banco el valor de +1 rango por habilidad y especialización.\n2. Tasar el afijo dentro del presupuesto de la ranura.\n3. Solo tirarlo para habilidades que conoces (botín inteligente).",
+   "fuente": "https://kami-labs.fr/en/path-of-exile-2/poe2-patch-0-5-return-of-the-ancients-notes-complet-en/ (contexto de PoE2: dos manos de +7 a +5, carcaj de +2 a +1), más el código."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §4 R6.1 y §7.6 (Reforjar: «eliges qué afijo cambiar, 2 opciones»)",
+   "problema": "Falta la restricción clave del encantamiento de D4: una vez reforjado un afijo, solo ese se puede volver a tirar en ese objeto. Sin ella, y sin comercio, cada pieza acaba siendo perfecta a base de oro y se pierde la persecución.",
+   "arreglo": "1. Un solo afijo reforjable por objeto, marcado con un candado visual.\n2. Coste creciente con tope.\n3. Nunca puede crear un ★.",
+   "fuente": "[conocimiento previo, verificar] La regla de bloqueo del encantamiento de D4 existe desde el lanzamiento. https://news.blizzard.com/en-gb/article/24077223/galvanize-your-legend-in-season-4-loot-reborn («You cannot Enchant an affix into a Greater Affix»)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §2.4 («Generación clásica» de D2: reparto 3/4/5/6 por ilvl; «la base coincide con el juego original»)",
+   "problema": "La tabla de afijos por ilvl (con 6 afijos al 100 % desde el ilvl 85) es de Project Diablo 2, un mod, y no del juego base. La propia página dice que lista los cambios de PD2 respecto al original.",
+   "arreglo": "Citarla como PD2, o sustituirla por Arreat Summit. No usarla como precedente de D2.",
+   "fuente": "https://wiki.projectdiablo2.com/wiki/Item_Affixes («lists changes made to item affixes in PD2 relative to the vanilla game»)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §2.4 y §3.2 (D2R 3.0 «tooltip con ilvl y rango de tier»); ux.md §2 (D2R pilas de 99, [V]) y §0.1 (Diablo V «vuelve a la rejilla con objetos de varias casillas», [V])",
+   "problema": "Hay fuentes no oficiales usadas como verificadas:\n- **diablobytes.com:** sitio de fans, sin respaldo en las notas oficiales de Blizzard. Su propia página de la 3.0 dice que la sintaxis del filtro «la está documentando la comunidad» y no da tamaños de pila.\n- **Diablo V:** la pantalla de inventario de la BlizzCon se presentó como «no es el diseño final».",
+   "arreglo": "1. Bajar esos datos a [S].\n2. No usarlos como argumento decisivo: ni para la barrita o tier en el tooltip, ni para la pregunta 1×1 frente a tamaños.\n3. Buscar las notas oficiales en news.blizzard.com.",
+   "fuente": "https://www.diablobytes.com/d2-resurrected/news/patch-notes-3-0/. https://www.playnews.gg/es/anuncios/diablo-v-anunciado-en-la-blizzcon-2026-lo-que-sabemos-con-una-fecha-lejana (vía buscador: la pantalla «no es diseño final»)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §2.3 y §3.10 (facciones de Last Epoch, regalar en grupo, Resonancias)",
+   "problema": "Esas reglas vienen de un post de desarrolladores de febrero de 2023, anterior al 1.0, pero se presentan como estado de 2025–2026. La T5 (1-oct-2026) trae «mejoras importantes a las facciones de objetos».",
+   "arreglo": "Fechar la fuente y revalidar con las notas de la T5 antes de copiar el modelo de regalo.",
+   "fuente": "https://forum.lastepoch.com/t/trade-development-update-introducing-merchants-guild-and-circle-of-fortune-factions/51994 (21-feb-2023). https://gameluster.com/last-epoch-season-5/ (vía buscador)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §4 R1–R3 y §7 (1 prefijo + 1 sufijo de PoE2, 6 categorías de D4, tiers T1–T5, ★ y pips); ux.md §5 R1-3",
+   "problema": "Se mezclan dos taxonomías (prefijo/sufijo y categorías) y dos convenciones de tier opuestas: en PoE el T1 es el mejor y en Last Epoch el T7 es el mejor. Para un dueño que pide poco texto, prefijo/sufijo no aporta nada.",
+   "arreglo": "1. Una sola taxonomía: categoría con glifo de color.\n2. Pips sin número por defecto. Con Alt, «nivel n de 5», donde más es mejor.\n3. Sin prefijo/sufijo.",
+   "fuente": "https://www.pathofexile.com/forum/view-thread/2075735 (GGG reconoce que su numeración confunde, citada en ux.md)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §5 E1 y §7.1 («≤ 6 líneas, contando templado y sello»); ux.md §4 (el mockup del tooltip tiene 9 líneas). Código: js/items.js:579-583",
+   "problema": "El presupuesto de líneas no define qué cuenta como línea:\n- engarces: hasta 3 en arma y pecho;\n- gemas, runa y palabra rúnica;\n- Calidad y remate;\n- base o implícito.\n\nEl mockup de ux.md ya pasa de 6.",
+   "arreglo": "1. Definir «línea» con precisión.\n2. Decidir si las gemas siguen siendo líneas o pasan a un efecto por arma.\n3. Que un test cuente las líneas de un objeto con el máximo de capas.",
+   "fuente": "Código citado."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "actual.md §4.7 y §9 (25 charms ≈ +700 de vida o ≈ +170 de atributos); actual.md §0.2 («42 claves») frente a §1.8 («38 claves»)",
+   "problema": "Las cifras no salen del código:\n- **Charms al azar:** 25 charms de il40 dan ≈ +255 de vida y ≈ +60 por atributo (1,4 afijos de un pool de 8, escala ×6,85).\n- **Charms elegidos:** si te quedas solo con los de vida, ≈ +1450.\n- **Claves de `recompute`:** son 37 claves de equipo + 4 atributos = 41.\n\nLa conclusión (los charms necesitan tope) se mantiene, pero el número no es reproducible.",
+   "arreglo": "Recalcular con una fórmula explícita: el escenario al azar y el escenario elegido. Unificar el conteo de claves.",
+   "fuente": "js/items.js:416-431 y js/entities.js:755-780."
+  }
+ ],
+ "faltantes": [
+  "**Banco de botín** (`tests/loot-bench.mjs`): simular N horas por especialización con todas las fuentes (caída, cubo, grietas, jefes, apuesta, tienda) y fijar objetivos con números: legendarios por hora, tiempo hasta el primer aspecto de tu especialización, cada cuánto llega una mejora por ranura, tiempo hasta completar el Códice y hasta el mejor equipo posible. Hoy loot-regression.mjs solo mide caídas por piso.",
+  "**Reescribir el banco de equipo:** el plan para `gearProfile`, `itemValue` y `GEAR_KEYS` (tests/helpers/bench-core.mjs) con el nuevo vocabulario, y un «óptimo» que salga del banco de botín y no de poderes fijados a mano (furia, volatil, multidisparo).",
+  "**Migración de los objetos actuales:** los 641 del fixture más el alijo sin versión. Precedente: D4 LoH convirtió los objetos viejos en «+100 a todos los atributos» y los marcó Legacy (https://news.blizzard.com/en-us/article/24267729/prepare-for-the-reckoning-lord-of-hatred-draws-near). Decidir entre convertir (mapear los 16 afijos a id y tier según su percentil) o «reliquia antigua» que no se mejora. Añadir un aviso en LOAD_NOTICES.",
+  "**Tiradas normalizadas en el guardado:** guardar (id, tier, percentil) y no valores absolutos, más una versión de generador `gv`. Así se puede rebalancear sin migrar y sincronizar el nivel en el cooperativo (arpg M6), recalculando el valor con min(ilvl, nivel de la sesión).",
+  "**Requisito de nivel para equipar** (f(ilvl)): con el alijo compartido un héroe de Nv1 lleva il40. Afecta a la progresión, al cooperativo y al ladder.",
+  "**Ligado por crafteo:** D4 no deja comerciar los objetos con obra maestra, encantados ni míticos (https://maxroll.gg/d4/resources/multiplayer, 26-jun-2026). Aplicarlo a los regalos en grupo: lo crafteado queda ligado y solo se regala lo que cayó tal cual.",
+  "**Botín personal determinista:** RNG por contador con clave (semilla, uidEnemigo, idJugador), y escalado del botín por tamaño de grupo (cantidad por jugador adicional), definido ANTES de calibrar.",
+  "**Gemas por grado discreto** (p. ej., 5 grados) en vez de ilvl continuo: apilan (hoy la clave de pila incluye el ilvl, js/materials.js:20) y cierran el bug 3.3 de raíz. Decidir también su papel frente al modelo de D4 3.0.1 (gema de arma = multiplicador por elemento) sin pasar el tope de [×]. Hace falta además una receta de desengarce o un aviso antes de destruirlas.",
+  "**Farmeo con objetivo y protección contra la mala suerte:** tablas de únicos por jefe (D4), botín exclusivo de un monstruo concreto (Grim Dawn) y Profecías o Rituales (Last Epoch T5), más un contador de piedad para el mítico del Pináculo. La v1 los menciona como patrón pero no los incorpora.",
+  "**Economía de materiales y sumideros con números:** qué da el desguace según la rareza, y el coste de cada capa en materiales, no solo en oro. Hoy el oro sobra: la calidad 5 cuesta lo que dan unos 77 comunes, y en D4 el remate cuesta millones más Obducita.",
+  "**Afijos de mecánica de especialización** (`gaugeMax:<id>`, `gaugeGain:<id>`) y `skillLv` en objetos: `addStats` descarta en silencio las claves desconocidas (js/entities.js:782-786). Hace falta un canal propio, p. ej. agregar el equipo como `talentExtra` o el vocabulario `fx` de los talentos.",
+  "**Hallazgo mágico y oro como afijo:** decidir explícitamente si salen del pool, como en D4 T4, y pasan a Tormento, pactos o el collar de la mascota.",
+  "**MVP de aspectos:** unos 55 aspectos (9 especializaciones × 4–6 + 10 genéricos) es una escala parecida a la de los talentos del Paso 2, cada uno con definePower, VFX, test y cobertura en el banco. Empezar con 2 por especialización + 6 genéricos y crecer según el banco.",
+  "**Temporadas y ladder:** qué pasa con los objetos al terminar la temporada (pasan al reino eterno, como en D2R) y si habrá objetos o palabras rúnicas solo de temporada.",
+  "**Identificación:** recomendación de experto: revelación animada al recoger, sin el clic gratuito que hoy no aporta ninguna decisión. Es mejor que mantener la fricción o quitarla sin más.",
+  "**Copiar objeto con Ctrl+C solo para exportar** (texto o código para el chat). Nunca se importa como objeto: sería una vía de falsificación en el cooperativo y en el ladder."
+ ]
+}

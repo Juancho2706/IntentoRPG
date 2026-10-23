@@ -1,0 +1,168 @@
+{
+ "veredicto": "APROBABLE CON CORRECCIONES OBLIGATORIAS antes de E0 y E7. Las elecciones de infraestructura se sostienen y las verifiqué de nuevo en las fuentes primarias (octubre de 2026): Vercel solo para lo estático, Worker + DO de Cloudflare para la señalización, TURN de Cloudflare, Supabase recién en F2 y nada de servidor de juego en F1. En el plan gratis de DO confirmé 100.000 peticiones al día, 13.000 GB-s al día, la proporción 20:1 de WebSocket, que la hibernación no cobra duración y que solo existen DO con SQLite. Confirmé también que no hay DO en Sudamérica (la pista sam nace en el este de Norteamérica), los 1.000 GB de TURN compartidos con la SFU, la MTU de 1.191 y el RTO mínimo de 400 ms de dcSCTP, y el cambio de GRANT de Supabase del 30-oct-2026. El diseño falla en la operación real. (1) Las credenciales TURN con TTL de 2 h CORTAN la sesión por relé al vencer (FAQ de Cloudflare), y el diseño no prevé renovarlas. (2) La comprobación de versión por la VERSION de sw.js no funciona con el service worker actual: skipWaiting + clients.claim + stale-while-revalidate. El diseño describe al revés lo que hace hoy el SW, y es la falla más probable entre amigos. (3) Falta validar el contenido de los mensajes, no solo los bytes: un NaN en AID o en un regalo corrompe y persiste el guardado de OTRO jugador, y un DOT con intervalo 0 congela al anfitrión. (4) El límite de intentos por IP dentro del DO de cada sala no frena la enumeración, porque cada código va a un DO distinto. (5) La CSP propuesta tiene un bypass conocido (todo cdn.jsdelivr.net), rompe las fuentes de Google y los estilos en línea, y choca con el respaldo de Trystero. (6) El DO pierde la memoria al hibernar y al redesplegar, y el diseño no persiste ni la sala ni los rejoinToken. (7) En F2: el ping cada 3 días no alcanza según la documentación de Supabase; el cliente escribe el jsonb directo sin topes de tamaño (un usuario llena los 500 MB); los «héroes de temporada» se editan por REST igual que los abiertos; el plan gratis no da backups descargables; y faltan la vinculación manual, el conflicto de identidad al cambiar de PC y la ley chilena 21.719. Ninguno obliga a cambiar el modelo B. Todos tienen arreglo barato si entran al diseño ahora: E0/R2 debe probar sesiones más largas que el TTL y un redespliegue a mitad de sesión, y E4 debe sumar la validación semántica y Trusted Types.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "§3.8 (credenciales TURN «TTL 2 h, revocadas al cerrar»), §10 R6, E0/R2 («una sala forzada por relé juega sin cortes»)",
+   "problema": "En Cloudflare, cuando vence la credencial TURN «Cloudflare Realtime will immediately stop billing… After a short delay, the connection will be disconnected». Toda sesión por relé de más de 2 h (lo normal en un ARPG) se corta en seco. El diseño habla de «renovación» solo en tecnologia.md y sin mecanismo. Además, el navegador no cambia la credencial de una asignación viva: hace falta un reinicio de ICE. La prueba R2 no lo detectaría si dura menos que el TTL.",
+   "arreglo": "(a) El DO emite las credenciales con customIdentifier = id de sala/héroe y un TTL de 3–4 h (máx. permitido: 48 h). (b) Al 80 % del TTL, el cliente pide credenciales nuevas al Worker y hace pc.setConfiguration({iceServers: nuevas}) + pc.restartIce(). La oferta y la respuesta viajan por el canal r (negociación perfecta sobre el DataChannel): no hace falta el DO para el SDP. (c) R2 se corre con TTL = 5 min para obligar la renovación al menos 3 veces sin cortar u/r. (d) En el lobby, el relé se muestra como estado, no como error.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/faq/ (expiración, 48 h, Refresh autenticado); https://developers.cloudflare.com/realtime/turn/generate-credentials/ (ttl, revocación sin efecto documentado sobre las asignaciones)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§3.4 hello.sw, §3.7 («el service worker no recarga solo… avisa al terminar»), sw.js:260-276 y fetch",
+   "problema": "Verifiqué en el código que el SW hace skipWaiting() + clients.claim(), borra las cachés viejas al activarse y sirve lo propio con stale-while-revalidate. No hay ninguna recarga automática: el diseño describe al revés el comportamiento de hoy. Riesgos reales: (1) la página no conoce la VERSION de sw.js, y el SW que la controla puede ser más NUEVO que el JS que corre (claim), así que hello.sw no identifica el código que se ejecuta; (2) tras un despliegue, la primera carga sirve el JS viejo desde la caché, de modo que «Actualiza la página» puede repetirse en bucle; (3) si los módulos de red o Trystero se cargan con import() perezoso, una página vieja recibe módulos NUEVOS del SW recién activado y mezcla versiones dentro de la misma página. Con un sw.js que sube de versión en cada cambio (v118), lo normal será que dos amigos tengan versiones distintas.",
+   "arreglo": "Crear js/version.js con export const BUILD (y PROTO), subido junto con sw.js VERSION, y una prueba que verifique que coinciden. hello lleva BUILD, PROTO y el CRC de los catálogos calculado en tiempo de ejecución. El botón «Actualizar» hace reg.update(), espera a que el SW nuevo esté activo (controllerchange) y recién entonces location.reload(). Durante una sesión, nada de import() de módulos propios sin versión en la URL: o se cargan al inicio, o con ?v=BUILD. El Worker acepta PROTO actual y N-1 y puede devolver «versión mínima» como interruptor de apagado.",
+   "fuente": "Código: D:\\Proyectos\\IntentoRPG\\sw.js (install → skipWaiting, activate → caches.delete + clients.claim, fetch SWR); https://web.dev/articles/service-worker-lifecycle"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§5.3 «Mensajes malformados» y §8 net-protocolo (fuzz solo de bytes); urgentes AID/FIELD/DOT/THR/CC; regalos (§2.3)",
+   "problema": "El decodificador comprueba límites de bytes, pero nadie valida la SEMÁNTICA de los f32 y u8. Con un cliente con errores (no hace falta que sea tramposo): AID{cura: NaN} llega a healSkill del receptor, deja hp = NaN y el guardado con debounce lo persiste en el localStorage de OTRO jugador (héroe arruinado). DOT{intervalo: 0} programa tics de 0 en el planificador del anfitrión: bucle o congelamiento de toda la sala. THR{n: Infinity} deja la amenaza fija para siempre. Un regalo con valores de afijo fuera de rango (o 1e308) entra al alijo del receptor. tecnologia.md §7.1 tenía validateItem() contra los rangos de afijos, y el diseño lo perdió (§5.2).",
+   "arreglo": "En js/net/protocol.js, una tabla de esquema por campo: Number.isFinite, rango [mín, máx], enteros donde corresponde, intervalo ≥ 1 ds, ms ≤ tope del tipo de control, cantidad ≤ cota del lanzador. Si un campo no pasa, se descarta el mensaje y suma una falta al par. En el receptor: guardas finite() en heal/shield/addBuff, y save-schema rechaza escribir NaN o Infinity (si aparece, aborta el guardado y deja aviso). sanitizeItem rehace el objeto desde el catálogo Y recorta cada valor al rango de su afijo y su ilvl. El fuzz de net-protocolo suma casos semánticos (NaN, ±Infinity, −0, 0 en divisores, máximos de u16).",
+   "fuente": "Código: js/entities.js:524 y el guardado con debounce de §3.7; tecnologia.md §7.1 punto 2 (validateItem); IEEE 754 / ECMA-262: NaN se propaga en Math.min/max"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§5.3 «Adivinar códigos de sala» y §3.8 flujo de la sala («el DO limita intentos por IP»)",
+   "problema": "Hay un DO por código, así que cada intento con un código al azar va a un DO DISTINTO (idFromName lo crea al primer acceso). El contador por IP dentro del DO de la sala nunca ve la enumeración. Cada intento gasta además 1 petición de Worker y 1 de DO de las 100.000 diarias: un bot sencillo agota la cuota del día (error 1027) y tumba la señalización de todos. Tampoco hay control de Origin ni Turnstile, así que cualquier sitio o script puede usar el Worker para armar salas y llevarse credenciales TURN.",
+   "arreglo": "Limitar en el Worker, ANTES de tocar el DO: binding de Rate Limiting por IP o, si el plan gratis no lo trae, un DO limitador repartido por hash de IP. Turnstile (gratis) al crear sala y al unirse. Comprobar el Origin de la subida a WebSocket. El DO de un código que no existe responde «no existe» sin escribir nada en storage. Dentro del DO de la sala: límite de solicitudes de unión por IP (contra el acoso al anfitrión), «cerrar sala» y la tarjeta de solicitud pintada con textContent (son datos de un desconocido ANTES de aceptarlo).",
+   "fuente": "https://developers.cloudflare.com/durable-objects/platform/pricing/ (100.000/día; al pasarse «further operations… will fail»); https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/ ; https://developers.cloudflare.com/workers/platform/limits/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8 y §5.3 (abuso de TURN: «tope de 300 al día, se dejan de emitir a ~800 GB»), R6",
+   "problema": "Un tope por cantidad de credenciales no limita los GB. Cloudflare permite unos 50–100 Mbps por asignación, o sea ≈ 45 GB/h con una sola credencial: con 2 h de TTL bastan unas 11 credenciales para gastar los 1.000 GB del mes. Dejar de emitir a los 800 GB no corta las credenciales ya emitidas, y la revocación no tiene efecto documentado sobre una asignación viva. tecnologia.md marcó la API de consumo como [sin verificar], pero existe.",
+   "arreglo": "Emitir con customIdentifier = sala. Un Cron del Worker cada 5–15 min consulta en GraphQL callsTurnUsageAdaptiveGroups (egressBytes por customIdentifier/username; aparece a los 30 s) y revoca lo que pase de unos 0,5 GB/h (el juego gasta ~85 MB/h por invitado) o deja de emitir a partir de cierto total mensual. Con TTL corto (P1), lo que se cuela vence pronto. Configurar alertas de facturación en la cuenta y anotar en E0 si TURN exige tarjeta y qué pasa al superar 1.000 GB sin tarjeta [sin verificar].",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/faq/ (límites por asignación, 30 s en la analítica); https://developers.cloudflare.com/realtime/turn/analytics/ (callsTurnUsageAdaptiveGroups); https://developers.cloudflare.com/realtime/sfu/pricing/ (1.000 GB compartidos con la SFU)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8 («con los canales abiertos, el DO hiberna y solo despierta para reconectar»), §3.7 (60 s de gracia, rejoinToken), R2/R10",
+   "problema": "Al hibernar, «In-memory state is reset». setTimeout/setInterval impiden hibernar (y una gracia de 60 s hecha con setTimeout cobra duración todo ese tiempo). Un despliegue o una actualización del runtime cierra los WebSocket. El diseño no dice dónde viven el código de sala, el anfitrión, los aceptados, los rejoinToken ni las credenciales emitidas, ni que el anfitrión deba reconectar su WebSocket solo. Tras un redespliegue a mitad de partida, la reconexión de un invitado o la renovación de TURN fallarían en silencio.",
+   "arreglo": "Guardar el estado de la sala en la SQLite del DO (o en serializeAttachment, ≤ 16 KB por conexión). Usar acceptWebSocket (API de hibernación) y Alarms en vez de setTimeout. El cliente del anfitrión usa partysocket o una reconexión con backoff, y vuelve a identificarse con un token de anfitrión. Al terminar la sala, deleteAll() desde una alarma. R2 suma: «redesplegar el Worker a mitad de sesión → un invitado cae y vuelve con rejoinToken».",
+   "fuente": "https://developers.cloudflare.com/durable-objects/best-practices/websockets/ ; https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§5.3 y §6 #9 (CSP en vercel.json); index.html:15-29",
+   "problema": "(1) script-src con https://cdn.jsdelivr.net entero es un bypass conocido: jsDelivr sirve cualquier repo de GitHub (/gh/…) o paquete de npm, y una inyección HTML con <iframe srcdoc> hereda la CSP y carga un script del atacante en tu origen (localStorage y, en F2, la sesión de Supabase). (2) No hay style-src ni font-src: index.html carga Google Fonts y la UI usa style= en línea a través de innerHTML, así que una CSP estricta rompe la interfaz. (3) connect-src «a Cloudflare y Supabase» bloquea el respaldo de Trystero (relés de Nostr por wss). (4) Faltan frame-ancestors, worker-src (para H2) e img-src data:/blob:. (5) El import map trae d3@7/+esm sin versión fija y sin uso en js/.",
+   "arreglo": "script-src 'self' https://cdn.jsdelivr.net/npm/three@0.160.0/ + hash del import map (o mejor, servir three.js desde el propio repo), sacar d3 y mover el registro del SW a main.js (sin script en línea). style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' wss://<worker> https://<worker> https://<ref>.supabase.co wss://<ref>.supabase.co; frame-ancestors 'none'; worker-src 'self'. Un endpoint de report-to en el Worker. Además, Trusted Types (Baseline desde feb-2026: Chrome, Firefox 148, Safari 26) con require-trusted-types-for 'script' primero en report-only: localiza los 119 innerHTML de ui.js sin auditarlos a mano.",
+   "fuente": "https://www.mintlify.com/digininja/DVWA/vulnerabilities/csp-bypass (bypass con jsDelivr); https://web.dev/blog/baseline-digest-feb-2026 ; https://www.uriports.com/blog/csp-trusted-types/ ; código: index.html:15-17, 27-29"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§5.3 contaminación del prototipo («reviver que descarta __proto__… o copiar solo campos de la lista blanca»), entities.js:524",
+   "problema": "El «o» deja abierta una salida insuficiente. Un reviver que solo quita __proto__/constructor/prototype NO impide que el guardado traiga claves con nombre de método (recompute, takeDamage, update, sustain): Object.assign(this, saved) las crea como propiedades propias y tapan el método del prototipo. Resultado: TypeError en el anfitrión al reconstruir al invitado, y se cae la sala de todos. Lo mismo vale para importSave (main.js:337-349, verificado: escribe en localStorage lo que le pegues, solo con un JSON.parse).",
+   "arreglo": "Solo lista blanca. sanitizeSave construye un objeto nuevo copiando únicamente PLAYER_SAVE_FIELDS, con un esquema de tipos por campo (número finito con rango, string con largo máximo, arreglo con largo máximo, objetos rehechos desde el catálogo). Nunca Object.assign del JSON recibido. Prueba: claves recompute/takeDamage/__proto__/constructor y 10.000 objetos en el alijo.",
+   "fuente": "Código: js/entities.js:524, js/main.js:337-349; MDN Object.assign (usa [[Set]], incluido el setter de __proto__)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.2 T2/T3 y §3.9 (≈ 4 KB/s de subida por invitado, ≈ 15 KB/s de bajada)",
+   "problema": "«Repetir los urgentes en CADA paquete hasta su acuse» con envío inmediato de hasta 60 paquetes/s significa que cada urgente viaja unas (RTT + 50 ms) × 60/s veces: ~12 copias con 150 ms. En un ARPG, un área contra 20–30 enemigos varias veces por segundo produce ráfagas de HIT de 10 B cada uno. Las copias desplazan a los registros de estado dentro de los 1.100 B y multiplican el ancho de banda y la cuenta de TURN (que cobra también la sobrecarga de TURN, DTLS y SCTP de cada paquete). El presupuesto no contempla ni el agrupamiento ni el peor caso de áreas.",
+   "arreglo": "Política de Gaffer: reenviar un urgente solo si no salió en los últimos ~100 ms y, tras N = 3 copias, pasarlo a r. Agrupar los golpes por lanzamiento: HITS{lanzamiento, banderas, elemento, [netId u16, fracción u16]×k}. Tope de bytes de urgentes por paquete (p. ej. 40 %). R3 suma el escenario «Remolino contra 30 enemigos, 4 jugadores» y mide KB/s y GB/h reales por relé.",
+   "fuente": "https://gafferongames.com/post/reliable_ordered_messages/ (reenvío por tiempo, no en cada paquete); https://developers.cloudflare.com/realtime/turn/faq/ (se factura todo el tráfico, incluida la sobrecarga de TURN)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4 («Cron Trigger del Worker… cada 3 días para que no se pause»), §14 #2",
+   "problema": "La documentación oficial no habla de «7 días sin ninguna petición». Dice que se pausa lo que no recibe «sufficient user database activity over the past week», y que suele bastar con «a few user requests to the database each day». Un ping cada 3 días puede no alcanzar, y el ladder quedaría caído hasta que el dueño lo restaure a mano.",
+   "arreglo": "Cron diario (o cada 6 h) con una consulta REAL a una tabla por PostgREST (no un health check), con alerta si falla (correo del Worker o un log). Documentar que el respaldo es que el dueño restaure desde el panel (ventana de 1 año según la doc) y, si el ladder despega, valorar Pro.",
+   "fuente": "https://supabase.com/docs/guides/platform/free-project-pausing"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4 esquema heroes/stash con RLS por auth.uid(); §9 F2 «Héroes de temporada separados»",
+   "problema": "Con RLS por dueño, el cliente escribe el jsonb directo por la API REST. (1) No hay topes: un solo usuario puede insertar filas sin límite o jsonb de decenas de MB y llenar los 500 MB del plan gratis, lo que deja la nube caída para todos. (2) En F2, los héroes de «temporada» se editan con el mismo JWT por REST, igual que los abiertos: la separación no protege nada si el cliente puede hacer UPDATE en kind='temporada'. Además, §4 dice que viven en el servidor (F3/F4) y §9 los pone en F2. (3) Las entradas del ladder de honor no pueden insertarse directo.",
+   "arreglo": "Restricciones: unique (user_id, slot), check (slot between 0 and 2), check (pg_column_size(save) < 65536) y lo mismo para stash. Una política RLS que niegue INSERT/UPDATE a kind='temporada' desde authenticated: solo una función SECURITY DEFINER o una Edge Function (que también valida el token de semilla de un solo uso y las marcas de tiempo del servidor) toca la temporada y el ladder. GRANT de solo SELECT en la tabla del ladder. Aclarar en el diseño que en F2 la temporada es «de honor».",
+   "fuente": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically (GRANT explícitos); https://supabase.com/pricing (500 MB)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4 identidad (anónimo → linkIdentity con Google), F2 «Cambio de PC recupera el héroe»",
+   "problema": "Faltan piezas que la propia documentación exige: (1) linkIdentity «requires you to enable manual linking». (2) En el cambio de PC, la segunda máquina entra anónima y la cuenta de Google YA existe, así que vincularla falla. Supabase dice que esos conflictos se resuelven a mano: entrar a la cuenta existente y fusionar o elegir los datos. El diseño no tiene ese flujo, y es justo el criterio de salida de F2. (3) El anónimo tiene un límite de 30 por hora por IP y se recomienda CAPTCHA o Turnstile. (4) Los anónimos no se borran solos. (5) supabase-js guarda la sesión en localStorage: cualquier XSS roba el token de refresco (otra razón para P7/P8).",
+   "arreglo": "Flujo explícito: «Entrar con Google» en la máquina nueva = signInWithOAuth (no link). Si había héroes locales o anónimos, mostrar las dos tarjetas que el diseño ya propone y fusionar por slot. Activar la vinculación manual y Turnstile en Auth. Cron SQL que borre anónimos sin vincular de más de 30 días. Probar el criterio de salida de F2 con dos navegadores limpios.",
+   "fuente": "https://supabase.com/docs/guides/auth/auth-anonymous"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8 «Respaldo de señalización: Trystero (Nostr)» y «Respaldo de TURN: Metered»",
+   "problema": "El respaldo se salta lo que el diseño pone como seguridad base. Sin el DO no hay aprobación del anfitrión (hay que rehacerla dentro de la app), ni credenciales TURN emitidas por el servidor: Metered exige una API key, que en el cliente queda expuesta y cualquiera puede gastar los 20 GB. Además obliga a abrir connect-src a relés públicos de Nostr que cambian, y un respaldo que nunca se usa queda sin probar y se pudre. A cambio protege de un evento raro (caída de Workers).",
+   "arreglo": "Sacar Trystero y Metered de F1 (anotarlos como plan C documentado). Si se mantienen: aprobación del anfitrión dentro de la app antes de cualquier dato, sin TURN en el respaldo (solo directa), relés fijos y listados en la CSP, y una prueba E2E mensual del respaldo.",
+   "fuente": "https://www.metered.ca/tools/openrelay/ (20 GB, cuenta y API key en el frontend); https://github.com/dmotz/trystero"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.2 «Presupuesto de SCTP (dcSCTP de Chrome…)» [V], R3",
+   "problema": "El presupuesto es solo de Chrome. Firefox usa usrsctp (con otros valores; en el árbol de Firefox ya hay DataChannelDcSctp.cpp, sin que se sepa qué está activo). Chrome además reemplaza valores de dcsctp_options.h: max_send_buffer_size = ilimitado (tecnologia.md dice 2 MB), max_retransmissions = nullopt, backoff máximo de 3 s, e intercalado detrás del field trial WebRTC-DataChannelMessageInterleaving. Encima, TURN por TCP/TLS (redes cerradas) anula lo «no fiable» del canal u.",
+   "arreglo": "R3 con matriz Chrome↔Chrome, Chrome↔Firefox y Firefox↔Firefox, directo y por relé UDP y TLS-443; medir la latencia de un urgente perdido y el bufferedAmount. Corregir el dato de 2 MB en tecnologia.md. El control de cola (T5) es la única defensa real, porque el búfer de Chrome no tiene tope.",
+   "fuente": "https://webrtc.googlesource.com/src/+/refs/heads/main/media/sctp/dcsctp_transport.cc ; https://searchfox.org/firefox-main/source/netwerk/sctp/datachannel/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.3 «RTT y reloj · PING · 1 Hz · r»",
+   "problema": "Medir el RTT por el canal fiable y ordenado mezcla la latencia de red con el bloqueo de cabeza de línea y los 400 ms de RTO de SCTP: con pérdida, el indicador del HUD y el ajuste del búfer de interpolación (100–150 ms) leen picos falsos.",
+   "arreglo": "RTT de red con getStats(): currentRoundTripTime del par de candidatos seleccionado (sirve también para el panel de depuración y para saber si es host, srflx o relay). Reloj y offset con marcas de tiempo en la cabecera de u (tick + eco), no en r.",
+   "fuente": "https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidatePairStats/currentRoundTripTime"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§2.1 enlace «…/?sala=K7QM3XRD»",
+   "problema": "El SW actual guarda en caché cada GET propio con su query (caches.match/put por URL completa): cada enlace de sala suma una copia de index.html en la caché y la navegación offline no coincide. El código queda además en los logs de Vercel y en el Referer.",
+   "arreglo": "Usar #sala=K7QM3XRD (el fragmento no viaja al servidor ni forma parte de la clave de caché) y leerlo con location.hash. Si se mantiene la query, que el SW use ignoreSearch en las navegaciones.",
+   "fuente": "Código: sw.js (fetch: caches.match(e.request) y put por request); https://developer.mozilla.org/en-US/docs/Web/API/Cache/match (ignoreSearch)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§6 #4 heroId con crypto.randomUUID(); §8 pruebas en dos PCs",
+   "problema": "crypto.randomUUID solo existe en un contexto seguro. Probar entre dos PCs de la LAN con npm start (http://192.168.x.x:8080) deja heroId undefined y la migración a v6 falla.",
+   "arreglo": "Respaldo con crypto.getRandomValues (disponible sin contexto seguro) para armar un UUID v4, o probar siempre por https (Vercel preview) o localhost. Una prueba unitaria del respaldo.",
+   "fuente": "https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID (Secure context)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.7 guardado con debounce de 3 s; §2.3 regalos",
+   "problema": "Con debounce, quien regala un objeto y cierra la pestaña o se cae antes de 3 s lo conserva en su guardado, mientras el receptor ya lo tiene: duplicación. Entre amigos tiene poco impacto, pero contamina el origen de los objetos y, con la nube de F2, viaja entre máquinas.",
+   "arreglo": "Guardado inmediato en ambos lados al regalar (el que da guarda ANTES de mandar; el que recibe guarda al aceptar) y un giftId idempotente (el receptor descarta duplicados).",
+   "fuente": "Diseño §3.7 (la lista de guardados inmediatos no incluye «regalar»)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.4 welcome/travel (torment, floor, rift, pact) y KILL",
+   "problema": "El invitado tira su botín en local con los parámetros que le manda el anfitrión. Un anfitrión manipulado (o con errores) puede mandar un Tormento fuera de rango, NaN, o KILL de netIds que nunca existieron o repetidos: botín ilimitado o una excepción en items.js. El diseño solo se defiende del invitado.",
+   "arreglo": "El invitado recorta los parámetros del mundo a los rangos del catálogo, acepta KILL solo de netIds con SPAWN previo y una sola vez, y limita los KILL por segundo. Los objetos van marcados con origen: {reino: abierto, partida} (ya previsto) para que nunca crucen al ladder.",
+   "fuente": "Diseño §2.3 (killLootRng en cada cliente), §3.4"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 tabla (marcas [V]); §16",
+   "problema": "Hay marcas [V] mal puestas o incompletas: «solo suma ~1 s al armar la sala» es una deducción; los «1.000 GB gratis» de TURN están escritos de forma ambigua en la página de TURN («free… when used together with the Realtime SFU», otherwise US$0,05/GB), aunque la de precios dice que los 1.000 GB se comparten; no está verificado si TURN pide tarjeta ni qué pasa al pasar el tope sin tarjeta; y el efecto de revocar una credencial sobre una asignación viva no está documentado.",
+   "arreglo": "Marcar como [D]/[S] lo que corresponda y llevar las tres incógnitas (tarjeta, sobreuso, revocación en vivo) a la lista de verificación de E0/R2, con medición en el panel de Cloudflare.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/ ; https://developers.cloudflare.com/realtime/sfu/pricing/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 privacidad; §4 cuentas (F2)",
+   "problema": "Desde F1 se tratan datos personales (IPs en el DO para limitar intentos y en Workers Logs; desde F2, correos de Google). La Ley 21.719 de Chile entra en vigor el 1-dic-2026 (hay un proyecto en trámite para postergarla a 2027), y el diseño no menciona aviso de privacidad, retención ni borrado de cuenta. Publicar la pantalla de consentimiento OAuth de Google también pide página de inicio y política de privacidad [S].",
+   "arreglo": "Aviso de privacidad corto (qué se guarda: IP con hash para limitar, 3 días de logs; correo y héroes en F2). No guardar IPs en claro (hash con sal rotativa). Botón «Borrar mi cuenta» (Edge Function con service_role). Revisar el estado del boletín 18.623-07 antes de F2.",
+   "fuente": "https://www.diarioconstitucional.cl/2026/06/12/la-ley-21-719-entra-en-vigor-el-1-de-diciembre-y-expone-vacios-en-regulacion-de-pequenas-empresas/ ; https://developers.cloudflare.com/workers/observability/logs/workers-logs/ (retención de 3 días)"
+  }
+ ],
+ "faltantes": [
+  "Versiones y despliegues: constante BUILD/PROTO dentro del JS (no la VERSION de sw.js), flujo «Actualizar» que espera al SW nuevo, el Worker acepta el protocolo actual y el N-1, y un interruptor de apagado («versión mínima») servido por el Worker. Regla de no desplegar el Worker con salas activas, o probar el redespliegue en R2.",
+  "Observabilidad mínima: telemetría opcional por el Worker (tipo de candidato host/srflx/relay, RTT, motivo de desconexión, duración de la sesión, GB de TURN por sala) con Workers Logs (gratis: 200.000 eventos al día, 3 días de retención, muestreo con head_sampling_rate) para medir de verdad R7 (CGNAT en LatAm) y R9. Sin esto, E10 calibra a ciegas.",
+  "Topes de costo y manual de operación: Cron que lee callsTurnUsageAdaptiveGroups, revoca por sala y apaga la emisión por umbral; alertas de facturación; qué ve el jugador si se agotan las 100.000 peticiones diarias (error 1027) o el cupo de TURN.",
+  "Defensas del Worker: rate limit por IP en el Worker (no en el DO de la sala), Turnstile al crear y al unirse, control de Origin, tamaño y ritmo máximos de los mensajes de señalización (el SDP pesa unos 10 KB), máximo de salas por IP.",
+  "Diseño del estado del DO: esquema de su SQLite (sala, anfitrión, aceptados, rejoinToken con vencimiento, credenciales emitidas con customIdentifier), Alarms en vez de setTimeout, deleteAll al cerrar y reconexión automática del WebSocket del anfitrión.",
+  "Renovación de TURN sin cortar: setConfiguration + restartIce negociados por el canal r antes de que venza el TTL, con prueba en R2 (TTL de 5 min).",
+  "Validación semántica de todos los campos de red (finitos, rangos, divisores ≥ 1) en ambos sentidos (invitado→anfitrión y anfitrión→invitado), y que save-schema se niegue a guardar NaN o Infinity.",
+  "Trusted Types en report-only como red de seguridad para los 119 innerHTML de ui.js (Baseline desde febrero de 2026).",
+  "F2 en la base de datos: restricciones de tamaño y de slots, escrituras de temporada y del ladder solo por RPC o Edge Function, GRANT de solo lectura en el ladder, y backups propios (el plan gratis no deja descargar backups: supabase db dump programado, p. ej. con GitHub Actions gratis, más un historial de las últimas N revisiones por héroe).",
+  "F2 en cuentas: activar la vinculación manual, el flujo de conflicto de identidad al entrar con Google en otra PC, CAPTCHA o Turnstile para el anónimo, limpieza de anónimos, borrado de cuenta y aviso de privacidad (Ley 21.719).",
+  "Sincronización al cerrar (F2): pagehide con fetch keepalive (el cuerpo tiene un tope de 64 KiB; sendBeacon no permite las cabeceras Authorization/apikey de Supabase), así que el alijo grande se sube antes, con debounce, no al cerrar.",
+  "Pruebas del Worker sin cargar la PC: la lógica de la sala como módulo puro probado con node y un storage falso dentro de npm test; wrangler dev o Miniflare solo en E0 y por turno.",
+  "Secretos: TURN_KEY_ID, la clave de la API de TURN y el token de la GraphQL como wrangler secret; nada en wrangler.toml ni en el repo (el código es público). Declarar new_sqlite_classes en las migraciones (el plan gratis solo admite DO con SQLite).",
+  "Matriz de navegadores del transporte (Chrome↔Firefox, directo, relé UDP, relé TLS-443) dentro de R3, porque Firefox no usa la misma pila SCTP que Chrome."
+ ]
+}

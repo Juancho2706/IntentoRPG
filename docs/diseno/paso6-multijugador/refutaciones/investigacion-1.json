@@ -1,0 +1,159 @@
+{
+ "veredicto": "Los dos informes sirven como base, pero todavía no se pueden aprobar. El rechazo al lockstep, el esquema de autoridad con instantáneas, WebRTC en estrella, Supabase solo para la señalización, el TURN de Cloudflare y la latencia del Durable Object (DO) desde Chile están bien fundados. Confirmé en la documentación oficial que un DO pedido para Sudamérica nace en el este de EE. UU. y que where.durableobjects.live muestra una petición desde Santiago (SCL) que creó su DO en Miami (MIA). También confirmé los límites de Supabase Realtime, el conteo de Broadcast (1 envío + 1 por cada receptor), los 2 s de CPU de las Edge Functions, los 300 s de Vercel Hobby, que los WebSockets de Vercel son GA desde el 20-oct-2026, el cambio de GRANT del 30-oct-2026 y los 2 OCPU y 12 GB de Oracle.\n\nHay cinco fallas graves:\n1. **Los informes recomiendan modelos de autoridad opuestos.** Tecnología propone que el anfitrión simule todo (A) y Código propone autoridad repartida (B). La promesa de que «F3 reutiliza la simulación de F1» solo vale con A.\n2. **Se asume que un DO tiene 30 s de CPU.** En el plan gratis tiene el mismo límite por invocación que un Worker, es decir 10 ms.\n3. **No hay defensa contra el abuso que se convierte en factura.** El TURN y el plan de pago de los DO no tienen tope de gasto.\n4. **Hay riesgo de XSS.** Las cadenas que llegan de otros jugadores (`heroName`, nombres de ítems) se pintarían con `innerHTML`, y con cuentas en la nube eso permite robar la sesión.\n5. **El esquema `heroes` deja que el dueño edite `kind`.** Con eso puede convertir un héroe abierto y trucado en uno de temporada.\n\nHay errores medios: el reloj de workerd se congela durante el cómputo, un despliegue reinicia todos los DO, el SMTP integrado de Supabase no sirve para vincular cuentas, la regla de la pestaña oculta tiene datos nuevos (Chrome 133 exime los DataChannel abiertos) y se agrava con el modelo B, la versión de protocolo atada a `sw.js` es demasiado estricta, hay que decidir entre 30 y 60 Hz, la cola de envío de los canales no fiables no está controlada y las reglas de conflicto de la nube se contradicen. Corregido todo esto, el plan F0–F3 se mantiene.\n\nLímite de método: a mitad de la ronda se agotó el presupuesto de búsquedas web de la sesión. Desde entonces verifiqué solo con lecturas directas de las páginas oficiales. Quedan **[sin verificar]**: el umbral de PoE (poewiki bloquea con Anubis), la fecha de vigencia de la Ley 21.719 de Chile y si Chrome estrangula los temporizadores de un Dedicated Worker.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §0.1, §10 (F3 «la misma simulación de F1 corre en un DO»), §7.3-B; codigo.md §0.4, §4 (modelo B recomendado), §5 Fase 3",
+   "problema": "Los dos informes recomiendan modelos de autoridad opuestos y ninguno lo dice. Tecnología propone que el anfitrión simule todo con predicción (A). Código propone autoridad repartida: cada cliente simula su héroe y el anfitrión, el mundo (B). La tesis de Tecnología de que el ladder del DO reutiliza la simulación de F1 solo vale con A; con B, la F3 implica escribir un segundo netcode. Además, el F0 de Tecnología no cuenta lo que Código sí encontró: el estado de lanzamiento vive en Game (`_channel` 28 usos, `_charging` 22, `_windup` 15, `_needsRelease` 15…, ≈130 sitios) y hay 13 guardas `g.player !== p`. Sin mover eso a cada héroe, ni el anfitrión-A ni un DO pueden simular 4 héroes.",
+   "arreglo": "Decidir de forma explícita antes del diseño, porque el roadmap del dueño incluye el ladder. Si el ladder verificable está en el horizonte, elegir A con un `SimGame` sin DOM que sea el MISMO artefacto en tres lugares: la pestaña o el Worker del anfitrión, el DO y Node para las pruebas. Mover a `p.cast` el estado de lanzamiento (≈130 sitios) y quitar las 13 guardas en F0. Elegir B solo si se acepta por escrito que el ladder será «de honor» o que F3 reescribe la red. En ambos casos, las capas de protocolo (comandos, eventos e instantáneas) y de transporte deben servir sin cambios para P2P y para DO.",
+   "fuente": "Código: js/game-skills.js (`_channel`/`_charging`/`_windup`), js/powers-maga.js y js/skills-maga.js (guardas `g.player !== p`), según la tabla §3.2 de codigo.md; https://developers.cloudflare.com/durable-objects/platform/limits/"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §7.2 punto 4 («Cabría en un DO (30 s por evento)»), §6.1 y R2; codigo.md §4 modelo D",
+   "problema": "Según la documentación, los DO tienen «the same per invocation CPU limits» que los Workers, y en el plan gratis un Worker tiene «10 ms» por petición. Los 30 s (configurables hasta 5 min) son del plan de pago. Por eso la re-simulación de 1,8–5,4 s no cabe en un DO gratis, y un bucle con `setInterval` a 0,3–0,5 ms por tick corre el riesgo de que lo corten si el presupuesto no se repone entre mensajes. El cálculo de «4,6–28 salas-hora gratis al día» da por hecho una CPU que el plan gratis quizá no ofrece.",
+   "arreglo": "Presupuestar la F3 en Workers Paid (US$5 al mes) desde el primer día y tratar el plan gratis solo como entorno de desarrollo. El prototipo R2 tiene que medir con `wrangler dev`/workerd local, porque en producción no se puede cronometrar la CPU con `performance.now()` (ver el problema del reloj). Corregir §7.2: la re-simulación «cabría en un DO de pago».",
+   "fuente": "https://developers.cloudflare.com/durable-objects/platform/limits/ («same per invocation CPU limits» que Workers; footnote: «Each incoming HTTP request or WebSocket message resets the remaining available CPU time to 30 seconds»); https://developers.cloudflare.com/workers/platform/limits/ (Free: «10 ms»)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §5.2 (`api/turn` de 20 líneas, `ttl` 86400), §6.1 y §10.1 F3 (DO de pago); codigo.md no lo trata",
+   "problema": "No hay ningún control contra el abuso que termina en una factura. Si `api/turn` emite credenciales a cualquiera, cualquier persona agota los 1.000 GB gratis y desde ahí cada GB cuesta US$0,05 a la tarjeta del dueño. Un TTL de 24 h permite reutilizar credenciales filtradas. El plan de pago de los DO no tiene un tope de gasto documentado, y en el gratis, al agotar las 100.000 peticiones diarias, «further operations … fail»: cualquiera puede tumbar las salas abriendo WebSockets.",
+   "arreglo": "(1) Emitir credenciales TURN solo contra un JWT de Supabase verificado (sirve el anónimo), con Turnstile al crear la sala y un límite por usuario y por IP. (2) Poner el TTL en la duración esperada de la sesión (2–4 h), refrescar con `setConfiguration()` y llamar a `…/credentials/$USERNAME/revoke` al expulsar a alguien. (3) En la F3, autenticar el upgrade del WebSocket en el Worker antes de `idFromName().get()` y limitar las salas por cuenta. (4) Activar las notificaciones de uso y facturación de Cloudflare.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/generate-credentials/ («generate short-lived credentials for each TURN user», revoke); https://developers.cloudflare.com/realtime/sfu/pricing/ (US$0,05/GB tras 1.000 GB); https://developers.cloudflare.com/durable-objects/platform/pricing/ («Exceeding a limit causes further operations of that type to fail»)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "codigo.md §5 Fase 1 (`RemoteHero` construido desde el guardado para «mostrar su equipo»; saludo con `serializePlayer`); tecnologia.md §7.1; js/ui.js (119 usos de `innerHTML`; tooltip en ui.js:2670 con `${item.name}`); js/save-schema.js:56 (`heroName`, `tint`)",
+   "problema": "En el co-op, el guardado de cada invitado (editable a mano) viaja al anfitrión y a los demás, y la UI pinta nombres de ítems y del héroe con `innerHTML`. Un amigo con un `item.name` o un `heroName` que contenga HTML ejecuta código en el origen de la víctima. Desde la F2, supabase-js guarda la sesión en `localStorage`, así que esa inyección puede robar la cuenta o borrar los guardados en la nube. Ninguno de los dos informes lo menciona.",
+   "arreglo": "Al recibir un héroe o un ítem por la red, reconstruirlo desde ids de catálogo con `validateItem` y descartar cualquier texto que traiga. Validar `heroName` con una lista blanca (letras, números y espacios, de 3 a 16 caracteres). Pintar todo lo remoto con `textContent`, como ya hace `syslog`. Añadir una CSP en `index.html` (`script-src 'self' cdn.jsdelivr.net`). Poner un tamaño máximo por mensaje en el anfitrión.",
+   "fuente": "Código: js/ui.js:2670, js/ui.js:1000-1004 (`syslog` usa `textContent`), js/save-schema.js:39-58"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §9 (esquema `heroes(... kind text check (kind in ('abierto','temporada')) ...)` con RLS por `auth.uid()`)",
+   "problema": "Si la política RLS deja que el dueño haga UPDATE sobre su fila, también puede cambiar `kind` de 'abierto' a 'temporada' o meter un `save` trucado en una fila de temporada. Eso rompe la separación abierto/cerrado (al estilo de D2) que el propio informe exige. Tampoco se acota el tamaño de `save`: un usuario malicioso puede llenar los 500 MB de Postgres.",
+   "arreglo": "Usar una tabla separada `season_heroes` sin GRANT de escritura para `authenticated`, de modo que solo escriban el DO o una Edge Function con la clave secreta. Otra opción: `REVOKE UPDATE (kind)` más un trigger que prohíba cambiar `kind`. Aprovechar el cambio del 30-oct-2026 para escribir solo los GRANT mínimos. Añadir `check (pg_column_size(save) < 262144)`. Que el ladder acepte inserciones únicamente desde el servidor.",
+   "fuente": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically (GRANT explícito desde el 30-oct-2026); https://supabase.com/docs/guides/auth/auth-anonymous (políticas restrictivas, se combinan con OR)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §8 y R1; codigo.md §7.6 y §8",
+   "problema": "El riesgo de la pestaña oculta está mal calibrado. Lo nuevo es que Chrome 133 congela las pestañas ocultas que consumen CPU cuando está activo el Ahorro de energía, pero exime a «an RTCPeerConnection with an 'open' RTCDataChannel», así que el anfitrión no se congela. Firefox no estrangula una pestaña con `AudioContext`, y Chrome solo exime de la limitación a la que «made noises in the past 30 seconds». En cambio, `requestAnimationFrame` se detiene siempre. Con el modelo B el problema alcanza a TODOS los clientes: un invitado que minimiza deja su héroe congelado, que no procesa el daño recibido (queda invulnerable) pero sigue atrayendo la amenaza de los enemigos.",
+   "arreglo": "Cuando `document.hidden` sea verdadero, usar un bucle de respaldo con `setTimeout` y acumulador. Con un DataChannel abierto corre al menos a 1 Hz y no se congela; con la música sonando corre casi a tiempo real. Dejar el Worker como mejora, porque además exige sacar THREE del estado. Si se elige B, agregar un timeout de propiedad: sin latido del dueño durante 1–2 s, el anfitrión marca al héroe como ausente (no seleccionable, sin amenaza). Probar en Chrome, Firefox y Safari.",
+   "fuente": "https://developer.chrome.com/blog/freezing-on-energy-saver; https://developer.chrome.com/blog/timer-throttling-in-chrome-88; https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout («Firefox does not throttle inactive tabs if the tab contains an AudioContext»)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §8 (invitado «quieto e invulnerable … 60 s de gracia»)",
+   "problema": "El guardado ya tiene el campo `hardcore`. Con 60 s de invulnerabilidad al desconectarse, en hardcore basta con desconectar para no morir. Al revés, tampoco está definido qué pasa con un héroe hardcore si se cae el anfitrión. Ninguno de los informes trata hardcore en multijugador.",
+   "arreglo": "Definir reglas propias para hardcore: el héroe ausente sale del mundo al instante (sin gracia) o sigue siendo vulnerable. Registrar las desconexiones en combate. Las salas hardcore solo admiten héroes hardcore.",
+   "fuente": "js/save-schema.js:52 (`hardcore`)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §8 (salas DO, «partysocket se reconecta solo y la sala reenvía un snapshot completo»), §10.1 F3",
+   "problema": "Cada despliegue reinicia todos los DO y corta todos los WebSockets, y el estado en memoria se pierde con el reinicio o el desalojo. El estado de la simulación tiene cierres (`casting.run`, `_dots` en el planificador, según codigo.md §3.1), así que no se puede guardar un checkpoint: partysocket reconecta a una sala vacía y el intento de ladder se pierde. Además, los objetos de una misma clase pueden compartir memoria global, así que los contadores de módulo (`enemyUid` entities.js:1843, `fieldUid`/`lureSeq` field-entities.js:79-80, `itemUid` items.js:108) se mezclan entre salas del mismo isolate.",
+   "arreglo": "Desplegar solo en ventanas fuera de la temporada activa, o fijar la versión de la simulación por temporada. Hacer intentos de ladder cortos y que se puedan reintentar si el servidor los corta, y avisar «servidor actualizándose». Pasar los contadores a cada mundo (0.8 de codigo.md) es obligatorio antes de la F3, no opcional. Si algún día se quiere checkpoint, los efectos con retardo tienen que ser datos y no cierres.",
+   "fuente": "https://developers.cloudflare.com/durable-objects/best-practices/websockets/ («Code updates disconnect all WebSockets… restarts every Durable Object»); https://developers.cloudflare.com/durable-objects/reference/in-memory-state/ («Instances of the same class may share global memory»)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md R2 y §6.1; js/game-skills.js:66 (`wallNow` con `performance.now()`); js/main.js:495 y :1302",
+   "problema": "En los Workers y los DO desplegados, `Date.now()` y `performance.now()` «only advance or increment after I/O»: el reloj se congela mientras corre código de CPU. La simulación que lea el reloj de pared, como la suelta de la carga con `wallNow`, se comporta distinto en el DO que en el navegador. Además, R2 («revisar las métricas de CPU») no se puede medir desde dentro del DO.",
+   "arreglo": "En F0, prohibir el reloj de pared dentro de la simulación: el tiempo es ticks × DT, y la carga se mide en ticks o en el instante que trae el comando. Añadir una prueba que falle si un módulo de `js/sim/*` usa `performance.now` o `Date.now`. Medir la CPU con workerd local.",
+   "fuente": "https://developers.cloudflare.com/workers/runtime-apis/performance/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §9 (anónimo y después `linkIdentity` o `updateUser({ email })`) y criterio de salida de F2 («cambia de PC y recupera su héroe»)",
+   "problema": "(1) El SMTP integrado de Supabase «will refuse to deliver messages to addresses that are not part of the project's team» y envía 2 mensajes por hora, así que vincular por correo no funciona sin un SMTP propio. (2) Un anónimo «can't access their account if they sign out, clear browsing data, or use another device». (3) `linkIdentity` exige activar el manual linking. (4) Los anónimos no se borran solos. (5) El tope de 30 anónimos por hora por IP choca con el CGNAT. Además, las claves `anon` y `service_role` se deprecan a fines de 2026.",
+   "arreglo": "Usar OAuth (Google y Discord) como vía principal para la cuenta permanente, con el manual linking activado. Configurar un SMTP propio solo si se quiere correo. Activar Turnstile y subir el tope por IP. Programar un job SQL que borre los anónimos de más de 30 días sin héroes. Usar las claves `sb_publishable_…`/`sb_secret_…`. El criterio de F2 tiene que exigir una cuenta vinculada.",
+   "fuente": "https://supabase.com/docs/guides/auth/auth-smtp; https://supabase.com/docs/guides/auth/rate-limits; https://supabase.com/docs/guides/auth/auth-anonymous; https://supabase.com/docs/guides/api/api-keys"
+  },
+  {
+   "gravedad": "media",
+   "donde": "codigo.md §5 `js/net/session.js` (saludo con `VERSION` de `sw.js`) y §8 «Código distinto»; tecnologia.md no versiona el protocolo de la F3",
+   "problema": "`VERSION` de `sw.js` sube con cada cambio de assets (CLAUDE.md, regla 2), incluso por CSS o arte. Usarla para el saludo expulsa a los amigos por cambios cosméticos. Al revés, el service worker puede dejar a un cliente días en una versión vieja. Frente a un DO, nada impide que un cliente desactualizado juegue el ladder.",
+   "arreglo": "Usar en el saludo `NET_PROTOCOL` más un hash de los catálogos y de los módulos de simulación. Crear un flujo de actualización forzada en el lobby (`registration.update()`, `skipWaiting` y recarga). En la F3, fijar la versión de la simulación por temporada y rechazar a quien no coincida.",
+   "fuente": "CLAUDE.md (convención 2); codigo.md §5"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §2.3 (30 Hz fijo) frente a codigo.md 0.1 (`DT = 1/60`); tools/smoke/baseline.json usa 1/60",
+   "problema": "Los informes no coinciden en el paso fijo. A 30 Hz, la ventana de carga perfecta (0,20–0,30 s; skills-arquera.js:93,116 y skills-guerrero.js:146,159) queda en saltos de 33 ms, entre el 11 y el 16 % de la ventana. Los costos del DO están calculados con un número de ticks distinto al que usaría el cliente.",
+   "arreglo": "Usar 60 Hz en todas partes: cuesta unos 0,07 ms por tick según la línea base, y el humo ya lo mide así. Enviar las instantáneas a 20 Hz. Recalcular la CPU del DO (×2) y la duración, que no cambia.",
+   "fuente": "codigo.md §7.1 (baseline 0,064–0,077 ms por tick); tecnologia.md §2.3"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §2.3 y §3; codigo.md §5 (`st` con `{ordered:false, maxRetransmits:0}`)",
+   "problema": "`maxRetransmits:0` no vacía la cola del emisor. Con congestión, `bufferedAmount` crece y las instantáneas viejas salen tarde aunque no se retransmitan. Ninguno de los informes controla esa cola. Además, una instantánea más grande que la carga útil de un paquete (unos 1,2 KB, criterio de ingeniería sin fuente) se fragmenta, y en modo no fiable basta perder un fragmento para perder el mensaje entero. La instantánea completa de unión y las de referencia para el delta superan con facilidad ese tamaño.",
+   "arreglo": "Antes de cada envío, si `bufferedAmount` supera un umbral, no encolar y mandar solo la última instantánea. Evaluar `maxPacketLifeTime` de unos 100 ms en lugar de `maxRetransmits:0`, porque limita el tiempo en que el navegador puede seguir intentando enviar. Mantener cada instantánea en 1 KB o menos, partiéndola por área de interés. La completa (unión o reconexión) va por el canal fiable.",
+   "fuente": "https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel/bufferedAmount; https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel/maxPacketLifeTime"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §9 («dos tarjetas» con `rev`) frente a codigo.md §9 («el más reciente gana»)",
+   "problema": "Las reglas de conflicto se contradicen. Con «el más reciente gana», un PC viejo que autoguarda al abrir pisa horas de progreso, porque depende del reloj de cada dispositivo.",
+   "arreglo": "Quedarse con el `rev` optimista de Tecnología. Que el `rev` lo incremente un trigger en el servidor, no el cliente; que la actualización compare `rev` y verifique que afectó una fila. Nunca resolver por fecha del dispositivo. Mantener la copia `.bak-nube`.",
+   "fuente": "Los dos informes"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §3 («Solo un suscriptor puede responder al publicador, así que como relé de 4 jugadores es incómodo»)",
+   "problema": "La razón para descartar la SFU de Cloudflare es débil. `canReply` limita las respuestas a un suscriptor por cada canal publicado, pero el patrón natural es que cada jugador publique su propio canal: el anfitrión publica instantáneas y cada invitado publica sus entradas. Así no hace falta `canReply`, se esquiva el NAT al 100 % y comparte los mismos 1.000 GB gratis.",
+   "arreglo": "Dejarla documentada como plan B prototipable para cuando el NAT falle mucho. Requiere un Worker con el secreto de la app para crear las sesiones.",
+   "fuente": "https://developers.cloudflare.com/realtime/sfu/datachannels/; https://developers.cloudflare.com/realtime/sfu/pricing/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §0.7, §4.2, §4.3 y §12 («PoE pasa a lockstep a partir de ~150 ms») frente a codigo.md §2 («pasa a predictivo a partir de ≈ 150 ms»)",
+   "problema": "Las dos afirmaciones son opuestas. La guía conocida de GGG es lockstep con ping bajo y predictivo con ping alto, que coincide con Código. Tecnología usa la cifra invertida para concluir que entre 92 y 136 ms el juego es cómodo. Además, la cita de Last Epoch («hasta 200 de ping») es de un blog de 2021, anterior al lanzamiento.",
+   "arreglo": "Corregir el texto de Tecnología y no apoyar la jugabilidad del DO en esa cifra. Sostenerla con la predicción propia y con la prueba de F1 (latencia simulada de 150 ms).",
+   "fuente": "https://poewiki.net/wiki/Desync (bloqueada por Anubis en esta ronda: [sin verificar]); https://forum.lastepoch.com/t/multiplayer-progress-update-july-2021/42239"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §6 (Oracle como plan B en Santiago)",
+   "problema": "Faltan tres condiciones: los recursos Always Free solo existen en la región de origen («You must create the Always Free compute instances in your home region»), así que hay que elegir Santiago al crear la cuenta; los errores de «out of host capacity» son habituales; y un servidor de juego ocioso casi toda la semana cumple los tres criterios de recuperación (p95 de CPU, red y memoria por debajo del 20 %).",
+   "arreglo": "Elegir sa-santiago-1 como región de origen en el alta. Contar con que Oracle recupere la instancia (o pasar la cuenta a Pay as You Go sin salir de Always Free, [sin verificar] si eso la evita). Mantenerlo como plan B, no como dependencia.",
+   "fuente": "https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §6 (Vercel, `api/turn`) y §6.1",
+   "problema": "Las funciones de Vercel corren por defecto en `iad1` (Washington), así que cada pedido de credenciales desde Chile suma ~136 ms más el arranque en frío. Las cuotas diarias de Cloudflare se reinician a las 00:00 UTC, que en Chile son las 21:00 en horario de verano: en plena hora punta.",
+   "arreglo": "Configurar la región `gru1` para `api/turn`. Poner alertas de cuota y no depender del plan gratis para salas con tick.",
+   "fuente": "https://vercel.com/docs/functions/limitations («Runs in a single region by default (iad1)»); https://developers.cloudflare.com/durable-objects/platform/pricing/ (límites diarios con reinicio a las 00:00 UTC)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md R9 y §9; codigo.md §2",
+   "problema": "R9 queda confirmado: GitHub desactiva los workflows programados de un repo público tras 60 días sin actividad, así que un cron para mantener vivo Supabase no es confiable. Además, `combatRng` sin asignar no solo afecta a `powers-maga.js:258` (lo que vio Código): `mech-guerrero.js:231` también usa 0,5 por defecto, y el Fervor por probabilidad sale siempre o nunca según la cifra.",
+   "arreglo": "No depender del cron: aceptar la pausa y mostrar «nube no disponible» con el juego local intacto, o pasar a Pro al tener comunidad. Incluir `mech-guerrero.js:231` en el arreglo 0.5 de Código (sembrar `combatRng`).",
+   "fuente": "https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows; js/mech-guerrero.js:231"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §1 (286 referencias; main 49, game-skills 44; ~217 trascendentes) frente a codigo.md §3.2 y §2 (main 53, game-skills 43; ≈206)",
+   "problema": "Los conteos no coinciden entre informes y no se pueden reproducir. Mi `grep -oE \"(this|g|game)\\.player\\b\"` da main 56, ui 49, economy 45, game-skills 48, input 14. Las llamadas trascendentes son 333 en todo `js/`. No cambia ninguna conclusión, pero el plan va a usar estas cifras para estimar el trabajo.",
+   "arreglo": "Fijar en el diseño un solo comando de medición por métrica y su resultado, con la rama y el commit.",
+   "fuente": "grep sobre D:\\Proyectos\\IntentoRPG\\js @ 4095ab6"
+  }
+ ],
+ "faltantes": [
+  "Control de la sala: aprobar a quien entra con el código, expulsar, bloquear y limitar el tamaño y la frecuencia de los mensajes por cada par. Un par malicioso puede inundar al anfitrión con mensajes de 256 KB.",
+  "Interruptor remoto y versión mínima: un JSON (en Vercel o en una fila de Supabase) que se lee al abrir el lobby, para apagar el multijugador o el ladder ante una vulnerabilidad sin depender de que el service worker se actualice.",
+  "Reglas de intercambio: solo entre héroes abiertos y nunca con héroes de temporada. Prever la duplicación de objetos por rollback del guardado local (dar un objeto y recargar sin guardar).",
+  "Ladder con build fija (opción B): choca con el roadmap del dueño (ítems → calibración → multijugador y ladder), porque deja los ítems fuera del ladder. Es una decisión del dueño y hay que plantearla así.",
+  "Privacidad: aviso de privacidad, borrado de cuenta (una Edge Function con la clave secreta) y retención de registros e IP (TURN, métricas). Revisar la Ley 21.719 de Chile, cuya vigencia sería el 1-dic-2026 [sin verificar por el límite de búsquedas].",
+  "Respaldo de la nube: en el plan gratis hay que asumir que no hay copias automáticas útiles [sin verificar]. Programar un `pg_dump` periódico de `heroes`/`stash` y documentar cómo restaurarlo.",
+  "Observabilidad mínima por sesión, muestreada: tipo de candidato ICE (host, srflx o relay), RTT, pérdida, correcciones de predicción, motivo de desconexión y versión. Sin esto no se puede comprobar el criterio de salida de F1 (menos del 1 % de correcciones).",
+  "Matriz de navegadores con pruebas manuales en Chrome/Edge, Firefox y Safari de macOS: canal no fiable, TURN por TLS en el 443, pestaña oculta 10 min con DataChannel abierto, con música y sin música.",
+  "Experiencia con la nube caída (proyecto pausado o cuota agotada): mensajes claros en el lobby, juego en solitario y guardado local intactos, y co-op con la señalización de respaldo.",
+  "Límites de Supabase Realtime que nadie contó: Presence admite 20 mensajes/s en el plan gratis (importa si el lobby usa Presence) y el 30-oct-2026 cambian los GRANT. Las migraciones SQL del repo tienen que incluir los GRANT y las políticas RLS de `realtime.messages`, y desactivar «Allow public access» si se usan canales privados (eso rompe la estrategia de Supabase de Trystero, que usa canales públicos).",
+  "Si el anfitrión corre la simulación en un Worker y usa SharedArrayBuffer, hace falta COOP/COEP. Con el importmap apuntando a jsdelivr hay que verificar que CORS/CORP lo permite, o usar `postMessage` con transferibles.",
+  "Despliegue del servidor de la F3: wrangler empaqueta con esbuild. Hay que documentar que la regla «sin build step» vale solo para el cliente y que la simulación compartida debe importarse igual desde el navegador, Node y workerd (rutas relativas, sin `window`)."
+ ]
+}

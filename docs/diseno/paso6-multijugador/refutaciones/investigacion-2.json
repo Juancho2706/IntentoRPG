@@ -1,0 +1,166 @@
+{
+ "veredicto": "APROBADO CON CORRECCIONES OBLIGATORIAS antes de pasar al diseño. Lo esencial está bien: descartar el lockstep en el co-op, usar autoridad con instantáneas e interpolación, WebRTC en estrella con un canal fiable y otro no fiable, y TURN de Cloudflare. Leí en las fuentes primarias casi todas las cifras de precios y límites, y coinciden: Supabase Realtime (100 msg/s, 2 M al mes, se cuenta 1 por el envío + 1 por cada receptor); Durable Objects (100.000 peticiones y 13.000 GB-s al día, WebSocket entrante 20:1, 128 MB facturados); TURN (1.000 GB al mes compartidos con la SFU, US$0,05/GB); la pista `sam`, que hace nacer el DO en el este de Norteamérica; GRANT obligatorio el 30-oct-2026; WebSocket de Vercel GA el 20-oct-2026; WebTransport en Safari 26.4; y el issue bounce#8. Quedaron sin verificar los 300 s de Vercel Hobby, el 10–25 % que necesita TURN y la versión de Trystero.\n\nHay 4 bloqueantes:\n1. Los dos informes recomiendan modelos de autoridad distintos. tecnologia.md propone un anfitrión que simula los 4 héroes y supone que el ladder reutiliza «la misma simulación» en un DO. codigo.md propone autoridad repartida. Con autoridad repartida, esa reutilización no existe.\n2. El anfitrión oculto está subestimado. En Windows, Chrome trata como oculta una ventana tapada por otra (un alt-tab basta), y las mitigaciones propuestas dejan el mundo al 5–7 % de velocidad.\n3. «Reconstruir el mapa por semilla» es falso en el pueblo y el refugio: árboles y cristales con `Math.random` cambian la rejilla de colisión.\n4. Nadie fijó el presupuesto de SCTP: MTU de 1191 B, retransmisión mínima de 400 ms, sin intercalado.\n\nTambién hay una contradicción entre los informes sobre el modo Auto de PoE y huecos de seguridad (XSS con datos de otros jugadores, endpoint de TURN abierto).\n\nNota de método: el presupuesto de búsquedas web de la sesión se agotó en mi segunda búsqueda. Todo lo demás lo verifiqué leyendo páginas oficiales y código fuente (WebFetch) y el repo. poewiki bloquea bots, así que el umbral de PoE sigue [sin verificar].",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §0.1, §2.4, §6.1, §10–10.1 (F0 y F3) frente a codigo.md §0.4, §4 y §5",
+   "problema": "Los dos informes recomiendan modelos opuestos. tecnologia.md propone una autoridad única: el anfitrión simula los 4 héroes y el invitado solo predice su movimiento. Además dice que F3 corre «la misma simulación de F1» en un DO. codigo.md propone autoridad repartida (B): cada cliente es dueño de su héroe y el anfitrión, del mundo; el modelo A queda para el ladder. Si la v1 es B, la reutilización para F3 no existe. Un DO autoritativo necesita el modelo A completo, que exige: mover el estado de lanzamiento de `Game` al héroe (`_channel` 28, `_charging` 22, `_windup` 15, `_needsRelease` 15…, unos 130 sitios); pasar `input` al héroe; quitar las 13 guardas `g.player !== p`; y una simulación sin DOM. El F0 de tecnologia.md no incluye ese traslado del estado de lanzamiento, así que el costo de F0 y de F3 está subestimado.",
+   "arreglo": "Decidir por escrito y en un solo documento. Recomiendo B para la v1: menos refactor, las habilidades propias con 0 ms y aguanta las trampas entre amigos. Meter igual en F0 el estado de lanzamiento por héroe (`p.cast`), como deuda que hay que pagar antes del ladder. Costear F3 como «modelo A + simulación sin DOM + predicción de habilidades», no como reutilización. Unificar la tabla de fases y los criterios de salida.",
+   "fuente": "js/game-skills.js (estado `_channel/_charging/_windup` en Game; codigo.md §3.1), js/main.js:1576-1708; https://gabrielgambetta.com/client-server-game-architecture.html"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §8 y §11 R1; codigo.md §7.6 y paso 0.1 (acumulador con un máximo de 4 pasos)",
+   "problema": "El riesgo del anfitrión oculto está mal dimensionado:\n(a) En Windows, Chrome trata como oculta una ventana tapada por otra ventana nativa, como Discord o un juego a pantalla completa, y también la pantalla bloqueada: «rendering stops, and js is throttled». Basta un alt-tab; no hace falta cambiar de pestaña.\n(b) Con un DataChannel abierto, los temporizadores quedan a 1 por segundo. Con el acumulador de codigo.md (como máximo 4 pasos de 1/60) el mundo correría al 6,7 % de velocidad; con el `Math.min(0.05, dt)` de hoy (main.js:1545), al 5 %. La mitigación (a) de codigo.md (setTimeout al ocultarse) solo funciona con audio audible.\n(c) Ninguno de los dos vio que RTCDataChannel es transferible a un Worker: Chrome 130, Firefox 144 y Safari 15. La red del anfitrión puede ir directo a un Dedicated Worker; solo `RTCPeerConnection` se crea en el hilo principal.\n(d) Falta un dato a favor: el congelamiento por Ahorro de energía (Chrome 133) exime a las páginas con un RTCDataChannel abierto.",
+   "arreglo": "Tratar R1 como bloqueante de F1 y probar con un prototipo, en este orden:\n1) Simulación del anfitrión en un Worker, con los DataChannels transferidos.\n2) Plan B barato en el hilo principal: avanzar la simulación cuando llega cada `onmessage` de los invitados (los eventos de red no dependen de temporizadores), con un acumulador por `performance.now()` y un tope de pasos alto (~30) solo para el anfitrión.\n3) Si nada sirve, pausa cooperativa con el aviso «el anfitrión está ausente».\nMedir en Chrome, Firefox y Safari con la ventana tapada, minimizada, la pestaña oculta y la pantalla bloqueada.",
+   "fuente": "https://chromium.googlesource.com/chromium/src/+/HEAD/docs/windows_native_window_occlusion_tracking.md ; https://developer.chrome.com/blog/timer-throttling-in-chrome-88 ; https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/RTCDataChannel.json (transferable: chrome 130, firefox 144, safari 15) ; https://developer.chrome.com/blog/freezing-on-energy-saver ; js/main.js:212, 1545"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "codigo.md §1 (fila «Mundo reproducible por semilla»), §5 session.js («el mapa se reconstruye por semilla»), §8; tecnologia.md no lo trata",
+   "problema": "`buildTown()` y `buildRefuge()` colocan árboles y cristales con `ri()`, que es `Math.random` (world.js:6), y bloquean esas celdas con `grid.cells[z][x] = 0` (world.js:778-783 y 1284-1288). `loadWorld` los construye sin semilla (main.js:472-473). Por eso la rejilla de colisión del pueblo y del refugio es distinta en cada máquina. En B, cada dueño mueve su héroe contra su propia rejilla: un héroe remoto atraviesa árboles o se traba. En A, la predicción del movimiento se corrige todo el tiempo. Además, zones.js:217 decide la colocación con `Math.hypot`, que ECMA-262 deja como aproximada por la implementación, así que entre Chrome y Firefox no hay garantía de que un empate en un umbral se resuelva igual. test58 solo lo prueba en Node.",
+   "arreglo": "En F0, pasar el pueblo y el refugio a `mulberry32(seed)`, como ya hacen la mazmorra y la zona. En el saludo, el anfitrión manda la semilla y un CRC32 de la rejilla; si no coincide, manda la rejilla como bitset (120×120 = 1,8 KB) por el canal fiable. Ampliar test58 al pueblo y al refugio, comparando el hash de la rejilla con una constante.",
+   "fuente": "js/world.js:6, 778-783, 1252-1288; js/main.js:472-475; js/zones.js:217; https://esdiscuss.org/topic/es6-accuracy-of-special-functions"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "tecnologia.md §2.3, §3 (fila «Tamaño de mensaje») y §4.1; codigo.md §5 (transport.js) y §7.4",
+   "problema": "Ninguno de los dos fija un presupuesto por mensaje ni el control de cola. dcSCTP, la pila de Chrome, usa por defecto una MTU de 1191 B, `rto_min` de 400 ms, `rto_initial` de 500 ms, ACK diferido de 200 ms y no intercala mensajes (RFC 8260 desactivado). Eso implica:\n(a) Una instantánea de más de ~1150 B se fragmenta, y con `maxRetransmits:0` perder un fragmento pierde la instantánea entera, así que la pérdida efectiva se multiplica. Las cifras de 0,5–0,75 KB son el promedio; un jefe con 4 héroes, invocaciones y proyectiles puede pasarse.\n(b) En el canal fiable, un paquete perdido puede tardar 400 ms o más en reenviarse, y con él los eventos de daño recibido, muerte y botín.\n(c) Un mensaje grande, como el guardado de 11 KB al unirse o la instantánea completa al reconectar, sale de corrido y retrasa al otro canal.\n(d) Si se envía más de lo que deja la ventana de congestión, las instantáneas se encolan en `bufferedAmount` y suman latencia.",
+   "arreglo": "- Tope duro de ~1100 B por mensaje no fiable; si se pasa, partirlo por grupos de entidades con secuencia propia.\n- Trocear en la app todo lo que pase de ~16 KB.\n- Un tercer canal con `ordered:false, maxPacketLifeTime:~250` para eventos urgentes que admiten redundancia (golpe recibido, lanzamiento remoto), o redundancia más acuse como en las entradas.\n- Descartar la instantánea en vez de encolarla si `bufferedAmount` supera ~2 instantáneas.\n- Diagnóstico con chrome://webrtc-internals.",
+   "fuente": "https://webrtc.googlesource.com/src/+/refs/heads/main/net/dcsctp/public/dcsctp_options.h ; https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel (bufferedAmount, bufferedAmountLowThreshold)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §0.7 («PoE pasa a lockstep a partir de ~150 ms») y tabla §4.2; codigo.md §2 («pasa a predictivo a partir de ≈150 ms»)",
+   "problema": "Los informes dicen lo contrario sobre el modo Auto de PoE, y los dos citan un resumen de poewiki que nadie pudo leer (tiene protección anti-bots). El lockstep de PoE, que espera la confirmación del servidor, es el modo pensado para latencia baja. Si es así, el argumento de §0.7 está invertido. Además, «PoE2 solo tiene lockstep» lo afirma un jugador en el hilo 3887145, sin respuesta de GGG, y otros dicen que hay un ajuste predictivo en el config. No sirve como prueba.",
+   "arreglo": "Corregir §0.7 y §4.2 y marcarlos [sin verificar] hasta tener la nota oficial de GGG. Apoyar la jugabilidad a 92–136 ms en Last Epoch («up to 200 ping») y en el prototipo, no en PoE ni en PoE2.",
+   "fuente": "https://www.pathofexile.com/forum/view-thread/3887145 (leído: solo jugadores, de dic-2025 a sep-2026, sin respuesta de staff); poewiki.net/wiki/Desync (bloqueado)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §8 («Salas DO (F3): el estado vive en el servidor… la sala reenvía un snapshot completo») y §7.3 B",
+   "problema": "Los Durable Objects se reinician con cada despliegue, con las actualizaciones del runtime de Cloudflare y por decisiones de ubicación. Al reiniciarse se cortan los WebSocket, vuelve a correr el constructor y se pierde la memoria. Una grieta autoritativa de 10 minutos en curso se pierde; no hay instantánea que reenviar. Además, si pasan más de 30 s de CPU entre mensajes entrantes, aumenta el riesgo de desalojo.",
+   "arreglo": "- Guardar un checkpoint en la SQLite del DO cada N segundos, o semilla + tick + entradas para volver a simular.\n- Regla del ladder: un intento cortado por mantenimiento no consume intento.\n- No desplegar durante el cierre de una temporada.\n- Medir en el prototipo R2 el límite de CPU del plan gratis: la doc dice que los DO siguen el límite por invocación del plan de Workers, que en el gratis es de 10 ms.",
+   "fuente": "https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/ ; https://developers.cloudflare.com/durable-objects/platform/limits/ ; https://developers.cloudflare.com/workers/platform/limits/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §7.3 opción B y §12 («en solitario la latencia pesa menos»)",
+   "problema": "La grieta de desafío autoritativa corre en un DO que, desde Chile, nace en el este de Norteamérica (Cloudflare lo confirma para la pista `sam`). El jugador iría solo, en el modo más competitivo, con 92–136 ms de retardo en cada habilidad. Nadie costeó predecir las habilidades, y las ventanas de carga perfecta son de 0,20–0,30 s. Es una sensación peor que la del juego normal, justo en el ladder.",
+   "arreglo": "Evaluar una verificación en sombra:\n- El cliente juega en local con 0 ms y envía las entradas en vivo al DO.\n- El DO corre la misma simulación con matemática determinista y su resultado es el oficial; si diverge, el intento se anula.\n- Exige determinismo solo en la simulación del ladder (ver el problema de detmath).\nSi no, medir el retardo en un prototipo antes de comprometer la opción B.",
+   "fuente": "https://developers.cloudflare.com/durable-objects/reference/data-location/ ; js/skills-arquera.js:93,116 y js/skills-guerrero.js:146,159 (ventanas de carga, citadas en codigo.md §8)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §2.3 (30 Hz) frente a codigo.md 0.1 (1/60, «riesgo bajo»)",
+   "problema": "Los informes fijan pasos distintos.\n- A 30 Hz, las ventanas de carga perfecta se cuantizan a 33 ms (±15 %), cambia la sensación y el banco deja de ser comparable (el humo mide con dt de 1/60).\n- Con cualquier paso fijo, un monitor de 144 Hz tiene tirones si el render no interpola. Interpolar no es trivial: la posición ES la malla (`get pos() { return this.group.position; }` en entities.js:744, 1906 y 3278). Hay que separar la posición de simulación de la de render en Player, Enemy y Pet; no es «riesgo bajo».",
+   "arreglo": "- Simulación a 60 Hz: cuesta ~0,07 ms por tick según la línea base del humo.\n- Instantáneas a 20 Hz.\n- En F0, añadir `simPos`/`prevPos` separados de `group.position`, con interpolación alfa en `present()`.\n- En solitario se puede mantener el dt variable hasta terminar ese refactor.",
+   "fuente": "https://gafferongames.com/post/fix_your_timestep/ ; js/entities.js:744, 1906, 3278; tools/smoke/baseline.json (citado en codigo.md §7)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §0.1 y §7.2(1) («Basta un solo Math.sin olvidado para romperlo»); codigo.md §2",
+   "problema": "Presentan el determinismo como casi imposible, pero el issue que citan muestra lo contrario. El arreglo fueron 32 llamadas a sin/cos/atan cambiadas por núcleos fdlibm hechos solo con operaciones exactas, a 1,10× el costo, y los hashes coincidieron entre V8 11.3 y 14.9. Solo se probó entre versiones de V8, nunca SpiderMonkey ni JavaScriptCore. El «olvido» se previene con una prueba de lint. La conclusión para el co-op sigue en pie, por unirse a mitad, esperar al más lento y reconectar. Pero el rechazo a la re-simulación del ladder debe apoyarse en los TAS, los bots y la progresión editable del héroe, no en una imposibilidad técnica.",
+   "arreglo": "- Reescribir §7.2 con las razones en el orden correcto.\n- Dejar «detmath + lint» como opción costeada: una prueba que prohíba `Math.sin|cos|tan|atan2|exp|pow|hypot|log` y los métodos trigonométricos de THREE (`applyAxisAngle`, `setFromAxisAngle`) en los módulos de simulación del ladder, como `test67` prohíbe `powers.has(`.\n- Probarlo también en Firefox y Safari.",
+   "fuente": "https://codeberg.org/perplexdotgg/bounce/issues/8 (leído: Node 20.19/V8 11.3 frente a Chrome 149/V8 14.9; 32 sitios; 1,10×; solo V8)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §0.3, §5.1 y §10.1 F1; codigo.md §5 (señalización por Trystero con relés públicos)",
+   "problema": "Si la señalización vive en Supabase gratis, el co-op se cae cuando el proyecto se pausa tras 7 días sin uso, y la restauración es manual. Los canales privados con RLS que recomienda tecnologia.md exigen usuarios autenticados, o sea Supabase Auth ya en F1, antes de F2. La opción Worker + DO con hibernación, que el propio informe lista, no se pausa, cuesta US$0 a este volumen y es la misma pieza que emitirá las credenciales TURN y alojará F3. Nostr, MQTT y BitTorrent no tienen SLA.",
+   "arreglo": "- Señalización principal: un Worker + un DO por sala con WebSocket Hibernation y código de sala de alta entropía.\n- Respaldo: Trystero/Nostr con la opción `password`, que cifra el SDP con AES-GCM. Trystero expone las `RTCPeerConnection` (`getPeers`), así que se puede añadir el canal no fiable con `negotiated:true` y un id fijo, sin renegociar.\n- Supabase queda solo para cuentas y nube (F2): su pausa ya no tumba el juego.",
+   "fuente": "https://supabase.com/pricing ; https://developers.cloudflare.com/durable-objects/best-practices/websockets/ ; https://github.com/dmotz/trystero (password, getPeers, turnConfig)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "tecnologia.md §5.2 («ttl 86400», «función de 20 líneas»)",
+   "problema": "El endpoint de credenciales es público: repo público y PWA. Cualquiera puede pedir credenciales y gastar los 1.000 GB, que se comparten con la SFU. 86400 es solo el ejemplo de la doc: Cloudflare dice que el TTL debe cubrir la sesión esperada y no habla de abuso.",
+   "arreglo": "- Emitir credenciales solo para una sala viva: las pide el DO de señalización al crearla.\n- TTL igual a la sesión prevista (3–4 h), con renovación.\n- Revocarlas al cerrar la sala (la API responde 204).\n- Límite por IP, y Turnstile si hay abuso.\n- Vigilar el consumo en el panel de Cloudflare.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/generate-credentials/ ; https://developers.cloudflare.com/realtime/sfu/pricing/ (1.000 GB compartidos SFU+TURN, US$0,05/GB)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "codigo.md §5 (flujo «Daño recibido»); tecnologia.md §2.4 (no hay compensación de lag)",
+   "problema": "En B, el anfitrión ve al héroe del invitado medio RTT más el búfer en el pasado y resuelve el cuerpo a cuerpo contra esa posición: el invitado recibe golpes después de haberse alejado en su pantalla. A la vez, proyectiles y áreas se comprueban del lado de la víctima, lo que es incoherente. En A, el invitado ataca a enemigos interpolados ~100 ms en el pasado y nadie costeó la compensación de lag (rebobinar). Las habilidades apuntadas fallarían contra lo que el jugador vio.",
+   "arreglo": "- En B, el evento de golpe cuerpo a cuerpo lleva el tick y la posición del atacante. El dueño lo acepta si su héroe estaba al alcance más una tolerancia de ~1 m en ese tick. Es favorecer a la víctima, como ya se hace con los proyectiles.\n- En A, un historial de posiciones de 200–300 ms en el anfitrión para rebobinar al tick que vio el invitado.",
+   "fuente": "https://www.gabrielgambetta.com/lag-compensation.html"
+  },
+  {
+   "gravedad": "media",
+   "donde": "Ningún informe; afecta a session.js, remote-hero.js y ui.js (marcos de grupo, chat, inspeccionar, registro de botín)",
+   "problema": "Los datos que llegan de otros jugadores se pintarían con `innerHTML`. `heroName` es texto libre que se guarda (save-schema.js:39-58), y los nombres de objetos se interpolan en `innerHTML` (ui.js tiene 119 usos, por ejemplo ui.js:861) sin función de escape. Un par malicioso o un guardado editado puede inyectar HTML o JS en el navegador de los demás. En F2 eso permitiría robar el token de sesión de Supabase, que vive en localStorage. Además, un JSON de héroe con `__proto__`, tipos raros o un tamaño enorme puede corromper el `Player` que arma el anfitrión, o el guardado local del invitado si recibe objetos.",
+   "arreglo": "- Un validador de esquema para todo lo que entra por la red: tipos, longitudes, ids de catálogo y tamaño máximo del mensaje. Se aplica antes de construir `Player` u objetos.\n- Los textos de otros jugadores, con `textContent` o un escape central.\n- Nunca escribir en el guardado local un objeto recibido sin validar.",
+   "fuente": "js/save-schema.js:39-58 (heroName); js/ui.js:861; grep: 119 innerHTML en ui.js, sin helper de escape"
+  },
+  {
+   "gravedad": "media",
+   "donde": "codigo.md §5 (replica.js y flujo «Golpe propio»)",
+   "problema": "En B, el dueño calcula el daño contra su réplica: resistencias, armadura, élite, pacto, tormento y escalado de grupo. Si la réplica no tiene exactamente los modificadores que aplicó `buffByPact` en el anfitrión, el daño y los umbrales de ejecución salen mal. El informe solo replica posición, vida y banderas.",
+   "arreglo": "- Un evento fiable `spawn{netId, defId, floor, mods de pacto/tormento/élite/grupo, maxHP}` con todo lo que sale de `buffByPact`.\n- Un evento `rescale` cuando cambia el tamaño del grupo (paso 0.12).\n- En las instantáneas, solo lo dinámico.",
+   "fuente": "js/main.js:998-1012 (buffByPact, vigilado por test56); codigo.md §5"
+  },
+  {
+   "gravedad": "media",
+   "donde": "codigo.md §3.2 («el viaje lo decide el anfitrión»); tecnologia.md no lo trata",
+   "problema": "Con un anfitrión en navegador hay un solo mundo simulado. En D2, D3 y D4 un jugador puede volver al pueblo a vender mientras los demás siguen. Si todo viaje lo decide el anfitrión, cada visita a la tienda arrastra a todo el grupo.",
+   "arreglo": "Decidirlo en el diseño:\n(a) Portal personal: el invitado carga el pueblo en local (sin combate) y vuelve por el portal con el flujo de reconexión, que trae una instantánea completa. En B sale casi gratis.\n(b) Viaje en grupo con votación.\nLo recomendable es (a).",
+   "fuente": "codigo.md §3.2; js/main.js:422-475 (loadWorld local)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §7.1.2",
+   "problema": "Presenta `validateItem()` «contra los rangos de afijos de items.js» como algo que ya existe, y no existe. En js/ solo hay validadores de habilidades, forja y barras. Además los rangos de afijos van a cambiar con el rework de ítems.",
+   "arreglo": "Marcarlo como «a crear» y asignarlo al frente de itemización: un validador declarativo junto al catálogo de afijos, reutilizable para el intercambio, la nube y el co-op.",
+   "fuente": "grep `validateItem|function validate` en js/ (solo skill-defs.js:276/374/460/711 y ui-gauges.js:90/114)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §2.3 («delta contra el último confirmado»)",
+   "problema": "No dice cómo se confirma una instantánea en un canal no fiable, ni cómo se asegura que un alta o una baja de entidad no se pierda.",
+   "arreglo": "- Cada paquete de entradas del invitado lleva el número de la última instantánea recibida.\n- El anfitrión hace el delta contra ese acuse, o manda una completa si es viejo.\n- Altas y bajas de entidades, con su `netId`, por el canal fiable.",
+   "fuente": "https://gafferongames.com/post/snapshot_interpolation/ (y la serie de Gaffer sobre compresión de instantáneas)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §2.3, §5.1 y §6.1; codigo.md §4 (fila D)",
+   "problema": "Las tasas no coinciden. §2.3 dice que las entradas se muestrean a 30 Hz y salen en paquetes de 2 (15/s). §5.1 cuenta 30 mensajes/s por invitado. §6.1 calcula con 30 Hz y 10 Hz. codigo.md usa 20 msg/s. Los costos de DO y Supabase cambian del orden de 3× según cuál se tome.",
+   "arreglo": "Fijar una sola tasa, por ejemplo 20 paquetes/s con 3 entradas redundantes, y rehacer con ella las cuentas de DO, Supabase y TURN.",
+   "fuente": "los propios informes"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "codigo.md §2 (solo cita powers-maga.js:258)",
+   "problema": "Hay otro caso del mismo bug: mech-guerrero.js:231 usa `combatRng ? … : 0.5`. Como `combatRng` no se asigna en producción, una probabilidad `fervorChance` menor del 50 % nunca dispara y una mayor siempre dispara. Hoy está latente, porque ningún nodo v2 la da.",
+   "arreglo": "El paso 0.5 de codigo.md (sembrar `p.combatRng` en `loadWorld`) lo arregla. Añadir una prueba que falle si una tirada de producción cae en el 0,5 fijo.",
+   "fuente": "js/mech-guerrero.js:229-231; grep `combatRng\\s*=`: solo en tests/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "codigo.md §8 (fila «Trampas»)",
+   "problema": "La cota de plausibilidad usa «los stats publicados del héroe», que publica el mismo cliente, así que puede mentir.",
+   "arreglo": "El anfitrión recalcula los stats con `recompute()` sobre el equipo recibido y validado, como propone tecnologia.md §7.1.1.",
+   "fuente": "CLAUDE.md (recompute es la única fuente de stats); tecnologia.md §7.1"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "tecnologia.md §6 (Vercel, «300 s en Hobby»), §5.1 (Trystero 0.25.x), §5.2 (10–25 % por TURN) y §9 (anónimo: 30 por hora por IP)",
+   "problema": "Hay cifras sin fuente primaria. El changelog de Vercel no menciona los 300 s; la versión de Trystero no aparece en su README; el 10–25 % sale de una sola medición de 2017. Además, el tope de 30 registros anónimos por hora y por IP choca con el CGNAT, frecuente en LatAm.",
+   "arreglo": "Marcarlas [sin verificar]. Ninguna cambia una decisión. Medir el porcentaje de relé con la telemetría del lobby (R6). Si se usa el registro anónimo, pedir un aumento del límite o usar Turnstile.",
+   "fuente": "https://vercel.com/changelog/websocket-support-is-now-generally-available (leído: fecha 20-oct-2026, sin límites de Hobby); https://github.com/dmotz/trystero"
+  }
+ ],
+ "faltantes": [
+  "Firefox y Safari (macOS) con la pestaña oculta, la ventana tapada o minimizada: no se investigó. El juego es de PC, pero no solo para Chrome. Y con temporizadores de Worker en las tres marcas: nadie lo confirmó con una fuente primaria.",
+  "Un simulador de red dentro de `Transport` (latencia, jitter, pérdida, reordenamiento y duplicados), usable en Node y en el navegador. El throttling de DevTools no parece afectar a WebRTC [sin verificar]. Opcional: node-datachannel o werift para pruebas de integración WebRTC sin navegador.",
+  "Sincronización de reloj y numeración de ticks y entradas: obligatoria en A, y en B para los eventos con tick (golpe cuerpo a cuerpo validado por la víctima, carga perfecta).",
+  "El peor caso de mensajes, no solo el promedio: un jefe con 4 héroes lanzando definitivas, invocaciones, campos de suelo y FX remotos. Ver si cabe en 1100 B por instantánea y cuántos KB/s suman los eventos.",
+  "El contenido exacto y el tamaño troceado de la instantánea completa para unirse o reconectar: enemigos con stats, cofres abiertos, campos de suelo, telegrafiados, DoT activos, marcas, Escarcha por enemigo, objetos en el suelo.",
+  "El flujo de versión distinta en una PWA cacheada: desde el lobby, `registration.update()`, luego `skipWaiting` y recarga, con un mensaje visual claro, no un rechazo mudo.",
+  "Muerte, resurrección y desconexión en B: el dueño del héroe es el que se fue, así que el anfitrión debe congelar y luego quitar su marioneta. Falta definir qué pasa con sus DoT, sus campos y su amenaza.",
+  "Telemetría mínima del lobby: tipo de candidato (host, srflx o relay), RTT, pérdida y correcciones por minuto. El criterio de salida de F1, «menos del 1 % de correcciones visibles», hoy no tiene definición medible.",
+  "Un aviso de privacidad: con P2P cada par ve la IP del otro, y en F2 Supabase guarda datos de cuenta. Con desconocidos, `iceTransportPolicy:'relay'` y su costo en TURN.",
+  "Evaluar librerías de netcode JS de 2026 antes de escribirlo todo: serializadores e interpolación (nengi.js, el esquema de Colyseus), geckos.io y NetplayJS como referencia.",
+  "La prioridad visual de los telegrafiados enemigos sobre los efectos aliados y el presupuesto de partículas por fuente: codigo.md lo menciona, pero no entra en ningún criterio de salida.",
+  "Reconciliar las dos listas de F0 en una sola, ordenada por dependencia: paso fijo de 60 Hz con posición de render separada; hit-stop y pausa solo de presentación; semillas de combate e IA; pueblo y refugio con semilla; `heroId` y `netId`; `takeDamage({by})`; aggro al héroe más cercano; daño enemigo a todos los héroes; `resolveKill`/`grantKill`; guardado con debounce; `p.cast` por héroe; validador de esquema de red."
+ ]
+}

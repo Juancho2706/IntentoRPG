@@ -1,0 +1,637 @@
+<title>Cooperativo de IntentoRPG</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: una columna de lectura (≤ 1000 px) con bandas; brasa = tu héroe y lo recomendado, escarcha = el anfitrión y el mundo */
+:root {
+  --bg: #edf0f2;
+  --surface: #fbfcfc;
+  --surface-2: #e2e7eb;
+  --ink: #18212a;
+  --muted: #56636f;
+  --line: #c3ccd4;
+  --ember: #b8430e;
+  --ember-soft: #f8e1d3;
+  --frost: #1d5e98;
+  --frost-soft: #d9e8f5;
+  --moss: #2c7a4b;
+  --f-display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --f-body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1419; --surface: #161d24; --surface-2: #1e2731; --ink: #e4e9ee; --muted: #98a6b3;
+    --line: #2d3a46; --ember: #ff8d52; --ember-soft: #3b2216; --frost: #7ab6ec; --frost-soft: #15293b; --moss: #6cc690;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1419; --surface: #161d24; --surface-2: #1e2731; --ink: #e4e9ee; --muted: #98a6b3;
+  --line: #2d3a46; --ember: #ff8d52; --ember-soft: #3b2216; --frost: #7ab6ec; --frost-soft: #15293b; --moss: #6cc690;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 17px/1.55 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; gap: 56px; }
+.wrap > * { min-width: 0; }
+section { display: grid; gap: 18px; min-width: 0; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.05; }
+h2 { font-size: clamp(1.35rem, 3.4vw, 1.8rem); }
+h3 { font-size: 1.02rem; line-height: 1.25; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow { font: 500 .78rem/1.2 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.lead { font-size: 1.15rem; color: var(--muted); }
+.mono { font-family: var(--f-mono); font-size: .86em; }
+a { color: var(--frost); }
+:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+/* cabecera */
+.hero { display: grid; gap: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: .95rem; }
+.fact b { font-family: var(--f-mono); font-weight: 500; color: var(--ember); }
+.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .95rem; }
+
+/* regla de oro */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.side { padding: 18px 20px; border-radius: var(--r); display: grid; gap: 10px; align-content: start; min-width: 0; }
+.side.you { background: var(--ember-soft); border: 1px solid var(--ember); }
+.side.host { background: var(--frost-soft); border: 1px solid var(--frost); }
+.side h3 { font-size: 1.15rem; }
+.side.you h3 { color: var(--ember); }
+.side.host h3 { color: var(--frost); }
+.side ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.goldrule { font-size: 1.08rem; max-width: 70ch; }
+
+/* figuras */
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { color: var(--muted); font-size: .95rem; max-width: 70ch; }
+.dg { width: 100%; height: auto; display: block; }
+.dg-tall { display: none; max-width: 420px; margin: 0 auto; }
+@media (max-width: 720px) { .dg-wide { display: none; } .dg-tall { display: block; } }
+.dg text { fill: var(--ink); font-family: var(--f-body); font-size: 13px; }
+.dg .tb { font-weight: 700; font-size: 14px; }
+.dg .tt { font-family: var(--f-display); font-weight: 700; font-size: 17px; }
+.dg .ts { fill: var(--muted); font-size: 12px; }
+.dg .tm { fill: var(--muted); font-family: var(--f-mono); font-size: 11px; }
+.dg .te { fill: var(--ember); }
+.dg .tf { fill: var(--frost); }
+.dg .b-plain { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+.dg .b-host { fill: var(--frost-soft); stroke: var(--frost); stroke-width: 1.6; }
+.dg .b-you { fill: var(--ember-soft); stroke: var(--ember); stroke-width: 1.4; }
+.dg .b-later { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.dg .e-data { stroke: var(--frost); stroke-width: 3; fill: none; }
+.dg .e-claim { stroke: var(--ember); stroke-width: 2.2; fill: none; }
+.dg .e-sig { stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 5; fill: none; }
+.dg .life { stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 3 5; }
+.dg .ah-f { fill: var(--frost); }
+.dg .ah-e { fill: var(--ember); }
+.dg .ah-m { fill: var(--muted); }
+.dg .grid-l { stroke: var(--line); stroke-width: 1; }
+.dg .ln { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.dg .ln-c { stroke: var(--muted); }
+.dg .ln-e { stroke: var(--frost); }
+.dg .ln-b { stroke: var(--ember); }
+.dg .ln-n { stroke: var(--line); stroke-dasharray: 6 5; stroke-width: 2; }
+.dg .dot-c { fill: var(--muted); } .dg .dot-e { fill: var(--frost); } .dg .dot-b { fill: var(--ember); }
+
+/* flujos cortos */
+.flows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.flow { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .95rem; }
+.chip { padding: 2px 9px; border-radius: 6px; background: var(--surface-2); white-space: nowrap; }
+.chip.e { background: var(--ember-soft); color: var(--ember); }
+.chip.f { background: var(--frost-soft); color: var(--frost); }
+.arrow { color: var(--muted); font-family: var(--f-mono); }
+.flow p { font-size: .93rem; color: var(--muted); }
+
+/* fracción */
+.frac { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 18px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; }
+.bars { display: grid; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 7.5em 1fr 6.5em; gap: 10px; align-items: center; font-size: .95rem; }
+.track { height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.fill { height: 100%; width: 62%; background: var(--ember); }
+.fill.host { background: var(--frost); }
+.num { font-family: var(--f-mono); font-size: .82rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* grupo */
+.trio { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 14px; }
+.dg.chart text { font-size: 14px; }
+.dg.chart .tm { font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card p, .card li { font-size: .95rem; }
+.card ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .85rem; color: var(--muted); }
+.sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+
+/* prototipos */
+.protos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.proto { border-left: 3px solid var(--frost); background: var(--surface); border-radius: 0 var(--r) var(--r) 0; padding: 14px 16px; display: grid; gap: 6px; min-width: 0; }
+.proto .k { font: 500 .78rem var(--f-mono); color: var(--frost); letter-spacing: .08em; }
+.proto p { font-size: .93rem; }
+.proto .pass { color: var(--moss); font-size: .9rem; }
+
+/* etapas */
+.stages { display: grid; gap: 6px; }
+.phase { font: 500 .78rem/1.2 var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-top: 12px; }
+.st { display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr); gap: 12px; align-items: center; }
+.st-name { font-size: .95rem; line-height: 1.25; }
+.st-name small { display: block; color: var(--muted); font-size: .8rem; }
+.st-track { position: relative; height: 22px; background: linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / 25% 100%, var(--surface-2); border-radius: 4px; }
+.st-bar { position: absolute; left: 0; top: 4px; bottom: 4px; border-radius: 3px; background: var(--frost); }
+.st-bar.f1 { background: var(--ember); }
+.st-bar.later { background: var(--muted); }
+.st-val.in { color: var(--surface); }
+.st-val { position: absolute; top: 50%; transform: translateY(-50%); font: 500 .76rem var(--f-mono); color: var(--ink); padding-left: 6px; white-space: nowrap; }
+.axis { display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr); gap: 12px; }
+.axis-t { display: flex; justify-content: space-between; font: 500 .72rem var(--f-mono); color: var(--muted); }
+.note { font-size: .92rem; color: var(--muted); }
+
+/* decisiones */
+.decs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.dec .id { font: 500 .74rem var(--f-mono); color: var(--muted); letter-spacing: .08em; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt { font-size: .86rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.opt.rec { border-color: var(--ember); background: var(--ember-soft); color: var(--ember); font-weight: 700; }
+.opt.rec::before { content: "\2713\00a0"; }
+.dec p { font-size: .9rem; color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-top: 16px; color: var(--muted); font-size: .9rem; display: grid; gap: 6px; }
+
+@media (max-width: 820px) {
+  .split, .trio, .protos, .flows, .decs, .frac { grid-template-columns: 1fr; }
+  .st, .axis { grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .opt.rec { transition: background .2s; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">IntentoRPG · Paso 6 · diseño v5.2 · decisiones aprobadas</div>
+  <h1>Hogueras encendidas</h1>
+  <p class="lead">Cooperativo de 2 a 4 amigos, en el navegador, sin servidor de juego. Tus habilidades se sienten igual que en solitario.</p>
+  <div class="facts" aria-label="Cifras clave">
+    <span class="fact"><b>0 ms</b> en tus habilidades</span>
+    <span class="fact"><b>20 Hz</b> el mundo</span>
+    <span class="fact"><b>≤ 1.100 B</b> por paquete</span>
+    <span class="fact"><b>US$0</b> al mes</span>
+  </div>
+  <nav class="toc" aria-label="Secciones">
+    <a href="#regla">La regla</a><a href="#arquitectura">Arquitectura</a><a href="#golpe">Un golpe</a><a href="#grupo">En grupo</a><a href="#etapas">Etapas</a><a href="#decisiones">Decisiones</a>
+  </nav>
+</header>
+
+<section id="regla">
+  <h2>Quién manda en qué</h2>
+  <p class="goldrule">Lo que le pasa a tu héroe lo resuelve tu cliente. Lo que le pasa al mundo lo resuelve el anfitrión.</p>
+  <div class="split">
+    <div class="side you">
+      <h3>Tu cliente</h3>
+      <ul>
+        <li>Mueve y lanza tu héroe al instante, carga perfecta incluida</li>
+        <li>Calcula tu parte de cada golpe y la reclama</li>
+        <li>Simula tus quemaduras, sangrados y campos</li>
+        <li>Lo que aplicas cuenta ya: congelas y el crítico sale al instante</li>
+        <li>Resuelve el daño que recibes: esquiva, bloqueo, escudos</li>
+        <li>Aplica curas y auras de los aliados, validando cada número</li>
+        <li>Tira tu propio botín</li>
+      </ul>
+    </div>
+    <div class="side host">
+      <h3>El anfitrión</h3>
+      <ul>
+        <li>Simula enemigos, IA y apariciones</li>
+        <li>Pone la Debilidad del objetivo y decide cada muerte</li>
+        <li>Mueve a los enemigos: tirones, empujes, tus muros y cebos</li>
+        <li>Guarda amenaza, control y stagger</li>
+        <li>Cofres, santuarios, grietas y viajes</li>
+        <li>Decide quién gana XP y botín: cerca y presente</li>
+        <li>También juega con su héroe, como uno más</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="arquitectura">
+  <h2>Arquitectura</h2>
+  <figure>
+    <svg class="dg dg-wide" viewBox="0 0 960 470" role="img" aria-label="Estrella WebRTC: tres invitados conectados directo al anfitrión con dos canales; Cloudflare solo arma la sala y entrega credenciales TURN; Vercel sirve el juego; Supabase llega en F2.">
+      <defs>
+        <marker id="awf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-f" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="awm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-m" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+      <!-- servicios -->
+      <rect class="b-plain" x="24" y="24" width="230" height="64" rx="8"/>
+      <text class="tb" x="139" y="50" text-anchor="middle">Vercel</text>
+      <text class="ts" x="139" y="70" text-anchor="middle">el juego estático (HTML + JS)</text>
+      <rect class="b-plain" x="365" y="24" width="230" height="64" rx="8"/>
+      <text class="tb" x="480" y="50" text-anchor="middle">Cloudflare Worker + DO</text>
+      <text class="ts" x="480" y="70" text-anchor="middle">sala · señalización · TURN</text>
+      <rect class="b-later" x="706" y="24" width="230" height="64" rx="8"/>
+      <text class="tb" x="821" y="50" text-anchor="middle">Supabase · F2</text>
+      <text class="ts" x="821" y="70" text-anchor="middle">cuentas · nube · ladder</text>
+      <!-- señalización -->
+      <line class="e-sig" x1="480" y1="88" x2="480" y2="194" marker-end="url(#awm)"/>
+      <text class="ts" x="490" y="136">oferta · respuesta · ICE</text>
+      <text class="ts" x="490" y="153">credenciales TURN</text>
+      <line class="e-sig" x1="395" y1="88" x2="182" y2="204" marker-end="url(#awm)"/>
+      <line class="e-sig" x1="565" y1="88" x2="778" y2="204" marker-end="url(#awm)"/>
+      <text class="ts" x="306" y="122" text-anchor="end">solo al armar la sala</text>
+      <line class="e-sig" x1="139" y1="88" x2="139" y2="204" marker-end="url(#awm)"/>
+      <text class="ts" x="131" y="150" text-anchor="end">descarga</text>
+      <line class="e-sig" x1="821" y1="88" x2="821" y2="204" marker-end="url(#awm)"/>
+      <text class="ts" x="829" y="150">F2: sesión</text>
+      <!-- anfitrión -->
+      <rect class="b-host" x="345" y="196" width="270" height="104" rx="10"/>
+      <text class="tt tf" x="480" y="226" text-anchor="middle">Anfitrión</text>
+      <text class="tb" x="480" y="248" text-anchor="middle">manda en el mundo</text>
+      <text class="ts" x="480" y="268" text-anchor="middle">enemigos · IA · muertes · cofres</text>
+      <text class="ts" x="480" y="286" text-anchor="middle">y en su propio héroe</text>
+      <!-- invitados -->
+      <rect class="b-you" x="24" y="206" width="200" height="84" rx="10"/>
+      <text class="tb te" x="124" y="238" text-anchor="middle">Ana · invitada</text>
+      <text class="ts" x="124" y="260" text-anchor="middle">manda en su héroe</text>
+      <rect class="b-you" x="736" y="206" width="200" height="84" rx="10"/>
+      <text class="tb te" x="836" y="238" text-anchor="middle">Beto · invitado</text>
+      <text class="ts" x="836" y="260" text-anchor="middle">manda en su héroe</text>
+      <rect class="b-you" x="380" y="382" width="200" height="72" rx="10"/>
+      <text class="tb te" x="480" y="412" text-anchor="middle">Caro · invitada</text>
+      <text class="ts" x="480" y="432" text-anchor="middle">manda en su héroe</text>
+      <!-- juego P2P -->
+      <line class="e-data" x1="228" y1="248" x2="341" y2="248" marker-start="url(#awf)" marker-end="url(#awf)"/>
+      <text class="tm" x="284" y="238" text-anchor="middle">u · 20 Hz</text>
+      <text class="tm" x="284" y="270" text-anchor="middle">r · fiable</text>
+      <line class="e-data" x1="619" y1="248" x2="732" y2="248" marker-start="url(#awf)" marker-end="url(#awf)"/>
+      <text class="tm" x="676" y="238" text-anchor="middle">u · 20 Hz</text>
+      <text class="tm" x="676" y="270" text-anchor="middle">r · fiable</text>
+      <line class="e-data" x1="480" y1="304" x2="480" y2="378" marker-start="url(#awf)" marker-end="url(#awf)"/>
+      <text class="tm" x="470" y="346" text-anchor="end">u + r</text>
+      <!-- TURN -->
+      <rect class="b-later" x="706" y="386" width="230" height="64" rx="8"/>
+      <text class="tb" x="821" y="412" text-anchor="middle">TURN de Cloudflare</text>
+      <text class="ts" x="821" y="432" text-anchor="middle">1.000 GB al mes gratis</text>
+      <polyline class="e-sig" points="584,418 704,418"/>
+      <polyline class="e-sig" points="821,386 821,326 600,326 600,304" marker-end="url(#awm)"/>
+      <text class="ts" x="712" y="318" text-anchor="middle">si no hay vía directa</text>
+    </svg>
+
+    <svg class="dg dg-tall" viewBox="0 0 372 600" role="img" aria-label="Estrella WebRTC en vertical: el anfitrión arriba, tres invitados abajo con dos canales; Cloudflare arma la sala; TURN si no hay vía directa.">
+      <defs>
+        <marker id="awf2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-f" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="awm2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-m" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+      <rect class="b-plain" x="6" y="8" width="170" height="52" rx="8"/>
+      <text class="tb" x="91" y="30" text-anchor="middle">Vercel</text>
+      <text class="ts" x="91" y="48" text-anchor="middle">el juego estático</text>
+      <rect class="b-later" x="196" y="8" width="170" height="52" rx="8"/>
+      <text class="tb" x="281" y="30" text-anchor="middle">Supabase · F2</text>
+      <text class="ts" x="281" y="48" text-anchor="middle">cuentas · nube</text>
+      <rect class="b-plain" x="110" y="84" width="256" height="56" rx="8"/>
+      <text class="tb" x="238" y="108" text-anchor="middle">Cloudflare Worker + DO</text>
+      <text class="ts" x="238" y="127" text-anchor="middle">sala · señalización · TURN</text>
+      <line class="e-sig" x1="60" y1="60" x2="60" y2="198" marker-end="url(#awm2)"/>
+      <text class="ts" x="68" y="182">descarga</text>
+      <line class="e-sig" x1="238" y1="140" x2="238" y2="198" marker-end="url(#awm2)"/>
+      <text class="ts" x="246" y="174">al armar la sala</text>
+      <rect class="b-host" x="36" y="200" width="300" height="92" rx="10"/>
+      <text class="tt tf" x="186" y="228" text-anchor="middle">Anfitrión</text>
+      <text class="tb" x="186" y="250" text-anchor="middle">manda en el mundo</text>
+      <text class="ts" x="186" y="270" text-anchor="middle">enemigos · IA · muertes · cofres</text>
+      <line class="e-data" x1="66" y1="296" x2="66" y2="374" marker-start="url(#awf2)" marker-end="url(#awf2)"/>
+      <line class="e-data" x1="186" y1="296" x2="186" y2="374" marker-start="url(#awf2)" marker-end="url(#awf2)"/>
+      <line class="e-data" x1="306" y1="296" x2="306" y2="374" marker-start="url(#awf2)" marker-end="url(#awf2)"/>
+      <text class="tm" x="126" y="332" text-anchor="middle">u · 20 Hz</text>
+      <text class="tm" x="246" y="332" text-anchor="middle">r · fiable</text>
+      <rect class="b-you" x="12" y="378" width="108" height="64" rx="10"/>
+      <text class="tb te" x="66" y="404" text-anchor="middle">Ana</text>
+      <text class="ts" x="66" y="424" text-anchor="middle">su héroe</text>
+      <rect class="b-you" x="132" y="378" width="108" height="64" rx="10"/>
+      <text class="tb te" x="186" y="404" text-anchor="middle">Beto</text>
+      <text class="ts" x="186" y="424" text-anchor="middle">su héroe</text>
+      <rect class="b-you" x="252" y="378" width="108" height="64" rx="10"/>
+      <text class="tb te" x="306" y="404" text-anchor="middle">Caro</text>
+      <text class="ts" x="306" y="424" text-anchor="middle">su héroe</text>
+      <line class="e-sig" x1="306" y1="442" x2="306" y2="514"/>
+      <text class="ts" x="298" y="484" text-anchor="end">si no hay vía directa</text>
+      <rect class="b-later" x="140" y="516" width="220" height="60" rx="8"/>
+      <text class="tb" x="250" y="540" text-anchor="middle">TURN de Cloudflare</text>
+      <text class="ts" x="250" y="560" text-anchor="middle">1.000 GB al mes gratis</text>
+    </svg>
+    <figcaption>Línea gruesa: el juego, directo entre navegadores (WebRTC). Punteada: solo para armar la sala o como respaldo. <span class="mono">u</span> lleva el estado y lo urgente sin reintentos; <span class="mono">r</span> lleva lo que no puede perderse (unión, chat, viajes). Los invitados se hablan a través del anfitrión.</figcaption>
+  </figure>
+</section>
+
+<section id="golpe">
+  <h2>Cómo viaja un golpe</h2>
+  <figure>
+    <svg class="dg dg-wide" viewBox="0 0 960 400" role="img" aria-label="Ana pega y ve el número y la muerte prevista al instante; su parte del golpe llega al anfitrión en unos 45 ms, que la multiplica por la Debilidad del objetivo y decide la muerte; Ana la confirma y tira su botín a los 90 ms; Beto, en su línea de tiempo adaptativa, ve el golpe de Ana a los 160 ms y la muerte a los 205 ms, en orden.">
+      <defs>
+        <marker id="awe3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-e" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="awf3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-f" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+      <line class="life" x1="170" y1="56" x2="170" y2="392"/>
+      <line class="life" x1="480" y1="56" x2="480" y2="392"/>
+      <line class="life" x1="790" y1="56" x2="790" y2="392"/>
+      <rect class="b-you" x="90" y="12" width="160" height="40" rx="8"/>
+      <text class="tb te" x="170" y="37" text-anchor="middle">Ana</text>
+      <rect class="b-host" x="400" y="12" width="160" height="40" rx="8"/>
+      <text class="tb tf" x="480" y="37" text-anchor="middle">Anfitrión</text>
+      <rect class="b-you" x="710" y="12" width="160" height="40" rx="8"/>
+      <text class="tb te" x="790" y="37" text-anchor="middle">Beto</text>
+
+      <rect class="b-plain" x="30" y="72" width="280" height="50" rx="8"/>
+      <text class="tb" x="170" y="94" text-anchor="middle">Pega: número, barra y muerte prevista</text>
+      <text class="tm" x="170" y="112" text-anchor="middle">0 ms</text>
+
+      <line class="e-claim" x1="174" y1="140" x2="474" y2="164" marker-end="url(#awe3)"/>
+      <text class="tm" x="330" y="137" text-anchor="middle">HIT { enemigo 312 · tu parte 0,10 }</text>
+
+      <rect class="b-plain" x="330" y="168" width="300" height="50" rx="8"/>
+      <text class="tb" x="480" y="190" text-anchor="middle">× Debilidad 1,2 = 0,12 → 0: muere</text>
+      <text class="tm" x="480" y="208" text-anchor="middle">≈ 45 ms</text>
+
+      <line class="e-data" x1="476" y1="226" x2="178" y2="258" marker-end="url(#awf3)"/>
+      <text class="tm" x="324" y="232" text-anchor="middle">KILL</text>
+      <line class="e-data" x1="484" y1="226" x2="782" y2="258" marker-end="url(#awf3)"/>
+      <text class="tm" x="604" y="231">lanzamiento de Ana + KILL</text>
+
+      <rect class="b-you" x="30" y="266" width="280" height="50" rx="8"/>
+      <text class="tb" x="170" y="288" text-anchor="middle">Confirmada: tira su botín</text>
+      <text class="tm" x="170" y="306" text-anchor="middle">≈ 90 ms · semilla · héroe · enemigo</text>
+      <rect class="b-plain" x="650" y="266" width="280" height="50" rx="8"/>
+      <text class="tb" x="790" y="288" text-anchor="middle">Ve el golpe de Ana</text>
+      <text class="tm" x="790" y="306" text-anchor="middle">≈ 160 ms · su línea cubre los dos saltos</text>
+
+      <rect class="b-you" x="650" y="332" width="280" height="50" rx="8"/>
+      <text class="tb" x="790" y="354" text-anchor="middle">Después, la muerte y su botín</text>
+      <text class="tm" x="790" y="372" text-anchor="middle">≈ 205 ms · en orden</text>
+      <rect x="50" y="336" width="240" height="42" rx="6" style="fill:var(--bg)"/>
+      <text class="ts" x="170" y="352" text-anchor="middle">El botín nunca viaja por la red:</text>
+      <text class="ts" x="170" y="370" text-anchor="middle">cada uno tira el suyo con la semilla</text>
+    </svg>
+
+    <svg class="dg dg-tall" viewBox="0 0 360 410" role="img" aria-label="Golpe en vertical: Ana pega y ve la muerte prevista a 0 ms; el anfitrión aplica la Debilidad y decide la muerte a unos 45 ms; Ana la confirma con su botín a 90 ms; Beto ve el golpe a 160 ms y la muerte a 205 ms.">
+      <defs>
+        <marker id="awe4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-e" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="awf4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-f" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+      <line class="life" x1="62" y1="44" x2="62" y2="404"/>
+      <line class="life" x1="180" y1="44" x2="180" y2="404"/>
+      <line class="life" x1="298" y1="44" x2="298" y2="404"/>
+      <rect class="b-you" x="10" y="6" width="104" height="34" rx="8"/>
+      <text class="tb te" x="62" y="28" text-anchor="middle">Ana</text>
+      <rect class="b-host" x="128" y="6" width="104" height="34" rx="8"/>
+      <text class="tb tf" x="180" y="28" text-anchor="middle">Anfitrión</text>
+      <rect class="b-you" x="246" y="6" width="104" height="34" rx="8"/>
+      <text class="tb te" x="298" y="28" text-anchor="middle">Beto</text>
+
+      <rect class="b-plain" x="6" y="56" width="112" height="60" rx="8"/>
+      <text class="tb" x="62" y="76" text-anchor="middle">Pega</text>
+      <text class="ts" x="62" y="92" text-anchor="middle">muerte prevista</text>
+      <text class="tm" x="62" y="108" text-anchor="middle">0 ms</text>
+      <line class="e-claim" x1="66" y1="120" x2="174" y2="144" marker-end="url(#awe4)"/>
+      <text class="tm" x="134" y="124" text-anchor="middle">HIT 0,10</text>
+
+      <rect class="b-plain" x="124" y="148" width="112" height="60" rx="8"/>
+      <text class="tb" x="180" y="168" text-anchor="middle">× Debilidad</text>
+      <text class="ts" x="180" y="184" text-anchor="middle">decide la muerte</text>
+      <text class="tm" x="180" y="200" text-anchor="middle">≈ 45 ms</text>
+      <line class="e-data" x1="176" y1="214" x2="68" y2="240" marker-end="url(#awf4)"/>
+      <line class="e-data" x1="184" y1="214" x2="292" y2="240" marker-end="url(#awf4)"/>
+      <text class="tm" x="100" y="216" text-anchor="middle">KILL</text>
+      <text class="tm" x="260" y="216" text-anchor="middle">KILL</text>
+
+      <rect class="b-you" x="6" y="246" width="112" height="60" rx="8"/>
+      <text class="tb" x="62" y="266" text-anchor="middle">Confirma</text>
+      <text class="ts" x="62" y="282" text-anchor="middle">tira su botín</text>
+      <text class="tm" x="62" y="298" text-anchor="middle">≈ 90 ms</text>
+      <rect class="b-plain" x="242" y="246" width="112" height="60" rx="8"/>
+      <text class="tb" x="298" y="266" text-anchor="middle">Ve el golpe</text>
+      <text class="ts" x="298" y="282" text-anchor="middle">de Ana</text>
+      <text class="tm" x="298" y="298" text-anchor="middle">≈ 160 ms</text>
+
+      <rect class="b-you" x="242" y="322" width="112" height="60" rx="8"/>
+      <text class="tb" x="298" y="342" text-anchor="middle">La muerte</text>
+      <text class="ts" x="298" y="358" text-anchor="middle">y su botín</text>
+      <text class="tm" x="298" y="374" text-anchor="middle">≈ 205 ms</text>
+    </svg>
+    <figcaption>Ejemplo con 90 ms de ida y vuelta para los dos invitados (Santiago–Miami). Ana nunca espera a la red: ve su golpe y la muerte prevista al instante, y su botín sale cuando el anfitrión la confirma. Beto lo ve todo en una sola línea de tiempo, ≈ 160 ms en el pasado (lo justo para que Ana, que le llega por el anfitrión, no salte): primero el golpe, después la muerte. La barra de Ana es la del anfitrión menos sus golpes aún en vuelo, así que nunca rebota. Lo urgente se repite cada ~50 ms hasta su acuse: una pérdida cuesta unos 50 ms y no 400.</figcaption>
+  </figure>
+
+  <div class="flows">
+    <div class="flow">
+      <h3>Un enemigo te ataca</h3>
+      <div class="chain"><span class="chip f">Anfitrión</span><span class="arrow">→</span><span class="chip">aviso con su posición</span><span class="arrow">→</span><span class="chip e">tú lo resuelves</span></div>
+      <p>Lo ves prepararse y se resuelve en tu presente. Carrera o Parpadeo lo esquivan.</p>
+    </div>
+    <div class="flow">
+      <h3>Tu golpe, en dos partes</h3>
+      <div class="chain"><span class="chip e">tu parte</span><span class="arrow">×</span><span class="chip f">Debilidad</span><span class="arrow">→</span><span class="chip">vida</span></div>
+      <p>Tú pones arma, crítico y multiplicadores. El anfitrión pone la Debilidad que dejó el apoyo.</p>
+    </div>
+    <div class="flow">
+      <h3>Muros, cebos y tirones</h3>
+      <div class="chain"><span class="chip e">tu muro</span><span class="arrow">→</span><span class="chip f">copia en el anfitrión</span><span class="arrow">→</span><span class="chip">chocan</span></div>
+      <p>Lo que mueve enemigos lo aplica quien mueve el mundo.</p>
+    </div>
+    <div class="flow">
+      <h3>Tus quemaduras y sangrados</h3>
+      <div class="chain"><span class="chip e">tu cliente</span><span class="arrow">→</span><span class="chip">tics</span><span class="arrow">→</span><span class="chip f">anfitrión</span></div>
+      <p>Los simulas tú: detonar, consumir o reemplazar funciona igual que en solitario.</p>
+    </div>
+    <div class="flow">
+      <h3>Te curan o te protegen</h3>
+      <div class="chain"><span class="chip e">Guardián</span><span class="arrow">→</span><span class="chip f">vía anfitrión</span><span class="arrow">→</span><span class="chip e">tú la aplicas</span></div>
+      <p>Curas, escudos, auras y el Vínculo se aplican en tu cliente, que revisa cada número.</p>
+    </div>
+    <div class="flow">
+      <h3>Congelas y disparas</h3>
+      <div class="chain"><span class="chip e">tu control</span><span class="arrow">→</span><span class="chip">tu vista del enemigo</span><span class="arrow">→</span><span class="chip e">crítico ya</span></div>
+      <p>Lo que tú aplicas cuenta al instante en tu cliente; el anfitrión lo confirma después.</p>
+    </div>
+    <div class="flow">
+      <h3>Debilidades que se renuevan</h3>
+      <div class="chain"><span class="chip e">tu Presa</span><span class="arrow">→</span><span class="chip">estado 20 Hz</span><span class="arrow">→</span><span class="chip f">anfitrión</span></div>
+      <p>Lo continuo viaja como estado que se renueva, no como un mensaje por fotograma.</p>
+    </div>
+    <div class="flow">
+      <h3>Una flecha, un héroe</h3>
+      <div class="chain"><span class="chip f">proyectil</span><span class="arrow">→</span><span class="chip e">golpea al tanque</span><span class="arrow">→</span><span class="chip">se borra para todos</span></div>
+      <p>El tanque sigue cubriendo a la maga, como en solitario.</p>
+    </div>
+    <div class="flow">
+      <h3>Lo que nunca viaja</h3>
+      <div class="chain"><span class="chip">botín</span><span class="chip">terreno</span><span class="chip">números de daño</span><span class="chip">barras de mecánica</span></div>
+      <p>Se calculan en cada máquina con semillas.</p>
+    </div>
+  </div>
+
+  <div class="frac">
+    <div style="display:grid;gap:8px;min-width:0">
+      <h3>Cada uno ve al enemigo a su nivel</h3>
+      <p class="note">La vida viaja como fracción. Ana (Nv 20) acompaña a Beto (Nv 60): para ella el esqueleto tiene menos vida y pega menos, y los dos aportan. El grupo más grande solo cambia la vida máxima de cada vista; la fracción no se toca. La amenaza también se cuenta en fracciones, así un tanque de menor nivel sigue reteniendo.</p>
+    </div>
+    <div class="bars" aria-label="El mismo enemigo al 62 por ciento de vida visto por tres clientes">
+      <div class="bar-row"><span>Anfitrión</span><div class="track"><div class="fill host"></div></div><span class="num">0,62</span></div>
+      <div class="bar-row"><span>Ana · Nv 20</span><div class="track"><div class="fill"></div></div><span class="num">2.540 / 4.100</span></div>
+      <div class="bar-row"><span>Beto · Nv 60</span><div class="track"><div class="fill"></div></div><span class="num">57.000 / 92.000</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="grupo">
+  <h2>Cómo se juega en grupo</h2>
+  <div class="trio">
+    <div class="card">
+      <h3>Solo la vida escala</h3>
+      <svg class="dg chart" viewBox="0 0 420 230" role="img" aria-label="Multiplicador de vida enemiga según jugadores: común llega a 2,5 con 4, élite a 3,1, jefe a 3,4; la referencia por jugador sería 4.">
+        <line class="grid-l" x1="50" y1="180" x2="330" y2="180"/>
+        <line class="grid-l" x1="50" y1="126.7" x2="330" y2="126.7"/>
+        <line class="grid-l" x1="50" y1="73.3" x2="330" y2="73.3"/>
+        <line class="grid-l" x1="50" y1="20" x2="330" y2="20"/>
+        <text class="tm" x="42" y="184" text-anchor="end">×1</text>
+        <text class="tm" x="42" y="131" text-anchor="end">×2</text>
+        <text class="tm" x="42" y="77" text-anchor="end">×3</text>
+        <text class="tm" x="42" y="24" text-anchor="end">×4</text>
+        <text class="tm" x="50" y="200" text-anchor="middle">1</text>
+        <text class="tm" x="143.3" y="200" text-anchor="middle">2</text>
+        <text class="tm" x="236.7" y="200" text-anchor="middle">3</text>
+        <text class="tm" x="330" y="200" text-anchor="middle">4</text>
+        <text class="ts" x="190" y="222" text-anchor="middle">jugadores en el mundo</text>
+        <polyline class="ln ln-n" points="50,180 143.3,126.7 236.7,73.3 330,20"/>
+        <polyline class="ln ln-c" points="50,180 143.3,153.3 236.7,126.7 330,100"/>
+        <polyline class="ln ln-e" points="50,180 143.3,142.7 236.7,105.3 330,68"/>
+        <polyline class="ln ln-b" points="50,180 143.3,137.3 236.7,94.7 330,52"/>
+        <circle class="dot-c" cx="330" cy="100" r="3.5"/>
+        <circle class="dot-e" cx="330" cy="68" r="3.5"/>
+        <circle class="dot-b" cx="330" cy="52" r="3.5"/>
+        <text class="ts" x="340" y="24">×n</text>
+        <text class="ts" x="340" y="51">jefe 3,4</text>
+        <text class="ts" x="340" y="75">élite 3,1</text>
+        <text class="ts" x="340" y="104">común 2,5</text>
+      </svg>
+      <p>El daño enemigo no sube: una maga frágil no muere de un golpe al entrar. Valores iniciales; se calibran con el banco «GRUPO».</p>
+    </div>
+    <div class="card">
+      <h3>Revivir</h3>
+      <ul>
+        <li>Caes: queda tu lápida</li>
+        <li>Un aliado mantiene <b>F</b> 3 s; el segundo golpe lo corta</li>
+        <li>Vuelves como fantasma invulnerable hasta moverte</li>
+        <li>O vuelves solo al punto de control: 0 · 5 · 10 · 15 s</li>
+        <li>Hardcore: sin revivir, salas aparte</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Botín y mundo</h3>
+      <ul>
+        <li>Botín personal: nadie ve ni pelea el tuyo</li>
+        <li>Ganas XP y botín si estabas cerca y presente</li>
+        <li>Regalos solo al grupo, 2 h, arrastrando al retrato</li>
+        <li>El anfitrión lleva: su mundo espera 5 s al grupo</li>
+        <li>Puedes irte de excursión solo y volver al grupo</li>
+        <li>Tienda, alijo y forja: siempre los tuyos</li>
+        <li>Señales con <b>G</b> y chat corto</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="riesgos">
+  <h2>Tres pruebas antes de empezar</h2>
+  <div class="protos">
+    <div class="proto">
+      <span class="k">R1 · PESTAÑA DEL ANFITRIÓN</span>
+      <p>Tapada, la ventana se frena; oculta mucho rato, Edge y el Ahorro de memoria de Chrome pueden dormirla. Un metrónomo en un Worker la mueve, y el sonido del juego la mantiene despierta.</p>
+      <span class="pass">Pasa si: con 1 invitado, ≥ 0,98 s simulados por segundo y huecos ≤ 60 ms; viva tras 60 min oculta en Chrome y en Edge, en sus cuatro formas (tapada, minimizada, pestaña oculta y pantalla bloqueada). R1b, medio día: el canal pasado a un Worker.</span>
+    </div>
+    <div class="proto">
+      <span class="k">R2 · SALA Y TURN</span>
+      <p>Worker + Durable Object arman la sala con códigos firmados y guardan su estado aunque se reinicien. El TURN se renueva solo.</p>
+      <span class="pass">Pasa si: por relé, con credenciales de 5 min, juega 20 min sin cortes; se reúne tras un reinicio y un despliegue</span>
+    </div>
+    <div class="proto">
+      <span class="k">R3 · PAQUETES</span>
+      <p>Instantáneas de 0,7 a 1,1 KB con 2 % y 5 % de pérdida, a 150 y 200 ms, Chrome con Firefox. Si la red se congestiona, baja sola a 15 Hz.</p>
+      <span class="pass">Pasa si: p99 ≤ 100 ms de demora extra y 0 reclamaciones perdidas</span>
+    </div>
+  </div>
+</section>
+
+<section id="etapas">
+  <h2>Etapas</h2>
+  <p class="note">Barras en días-trabajador (Opus implementa, Sonnet lo mecánico, un workflow a la vez).</p>
+  <div class="stages">
+    <div class="axis"><span></span><div class="axis-t"><span>0</span><span>5</span><span>10</span><span>15</span><span>20 d-t</span></div></div>
+
+    <div class="phase">Antes · sin tocar el juego</div>
+    <div class="st"><div class="st-name">E0 · Prototipos R1–R3<small>pestaña · sala y TURN · paquetes</small></div><div class="st-track"><div class="st-bar" style="width:32.5%"></div><span class="st-val" style="left:32.5%">6,5</span></div></div>
+
+    <div class="phase">F0 · Cimientos sin red</div>
+    <div class="st"><div class="st-name">E1 · Bucle y tiempo<small>simStep · present · advanceTo</small></div><div class="st-track"><div class="st-bar" style="width:12.5%"></div><span class="st-val" style="left:12.5%">2–3</span></div></div>
+    <div class="st"><div class="st-name">E2 · Azar, ids, guardado v6<small>streams · heroId · netId</small></div><div class="st-track"><div class="st-bar" style="width:10%"></div><span class="st-val" style="left:10%">2</span></div></div>
+    <div class="st"><div class="st-name">E3 · Varios héroes<small>fracción · dos partes · escrituras por API</small></div><div class="st-track"><div class="st-bar" style="width:32.5%"></div><span class="st-val" style="left:32.5%">6–7</span></div></div>
+    <div class="st"><div class="st-name">E4 · Seguridad, mapa, versión<small>sanitize · CSP real · build.js · SW</small></div><div class="st-track"><div class="st-bar" style="width:17.5%"></div><span class="st-val" style="left:17.5%">3,5</span></div></div>
+    <div class="st"><div class="st-name">E5 · Bus de presentación<small>efectos por eventos</small></div><div class="st-track"><div class="st-bar" style="width:15%"></div><span class="st-val" style="left:15%">3</span></div></div>
+
+    <div class="phase">F1 · Cooperativo P2P</div>
+    <div class="st"><div class="st-name">E6 · Red pura + simulación<small>dos vistas · arriendos · reloj · viaje y pausa</small></div><div class="st-track"><div class="st-bar f1" style="width:72.5%"></div><span class="st-val" style="left:72.5%">13,5–14,5</span></div></div>
+    <div class="st"><div class="st-name">E7 · Transporte y servidor<small>WebRTC · DO con SQLite · cuotas</small></div><div class="st-track"><div class="st-bar f1" style="width:35%"></div><span class="st-val" style="left:35%">7</span></div></div>
+    <div class="st"><div class="st-name">E8 · Interfaz de grupo<small>hogueras · marcos · señales</small></div><div class="st-track"><div class="st-bar f1" style="width:35%"></div><span class="st-val" style="left:35%">7</span></div></div>
+    <div class="st"><div class="st-name">E9 · Paso 2 en grupo<small>Vínculo · campos-sombra · banco GRUPO</small></div><div class="st-track"><div class="st-bar f1" style="width:47.5%"></div><span class="st-val" style="left:47.5%">8,5–9,5</span></div></div>
+    <div class="st"><div class="st-name">E10 · Prueba con amigos<small>1 semana de calendario</small></div><div class="st-track"><span class="st-val" style="left:0">calibración en vivo</span></div></div>
+
+    <div class="phase">Después</div>
+    <div class="st"><div class="st-name">F2 · Cuentas, nube, ladder de honor<small>Supabase · copias en R2</small></div><div class="st-track"><div class="st-bar later" style="width:60%"></div><span class="st-val" style="left:60%">11–13</span></div></div>
+    <div class="st"><div class="st-name">F3 · Ladder verificado<small>determinismo · verificación en sombra</small></div><div class="st-track"><div class="st-bar later" style="width:87.5%"></div><span class="st-val in" style="left:0">15–20</span></div></div>
+  </div>
+  <p class="note">F4 opcional: anfitrión único, cooperativo con desconocidos y ladder de grupo, si la comunidad lo pide.</p>
+</section>
+
+<section id="decisiones">
+  <h2>Decisiones</h2>
+  <p class="note">✅ Todas aprobadas por el dueño el 22-oct (la marcada en cada una). Queda una pregunta abierta: el respaldo de la señalización en F1 (D3 aprobada frente a D22, §14 #13); mientras tanto rige D3. El documento completo trae el porqué de cada una.</p>
+  <div class="decs">
+    <div class="dec"><span class="id">D1 · MODELO DE RED</span><div class="opts"><span class="opt">Anfitrión único</span><span class="opt rec">Autoridad repartida</span><span class="opt">Lockstep</span></div><p>Tus habilidades a 0 ms sin reescribir el canal del Paso 2.</p></div>
+    <div class="dec"><span class="id">D2 · TRANSPORTE</span><div class="opts"><span class="opt rec">Estrella WebRTC, 2 canales</span><span class="opt">3 canales</span><span class="opt">Relé por servidor</span></div><p>Un paquete por tick lleva estado y urgentes.</p></div>
+    <div class="dec"><span class="id">D3 · SEÑALIZACIÓN</span><div class="opts"><span class="opt rec">Worker + DO</span><span class="opt">Trystero / Nostr</span><span class="opt">Supabase Realtime</span></div><p>US$0; la sala guarda su estado aunque el servidor se reinicie. Trystero queda de respaldo.</p></div>
+    <div class="dec"><span class="id">D4 · BOTÍN</span><div class="opts"><span class="opt rec">Personal + regalos</span><span class="opt">Libre para todos</span><span class="opt">Por turnos</span></div><p>Sin carreras, sin peleas y no viaja por la red.</p></div>
+    <div class="dec"><span class="id">D5 · ESCALADO</span><div class="opts"><span class="opt rec">Solo vida, por rango</span><span class="opt">Vida y daño</span><span class="opt">Más enemigos</span></div><p>Como Last Epoch: nadie muere de un golpe al entrar.</p></div>
+    <div class="dec"><span class="id">D6 · NIVELES DISTINTOS</span><div class="opts"><span class="opt">Nivel del mundo</span><span class="opt rec">Cada uno a su nivel (solo hacia abajo)</span><span class="opt">Sincronía FFXIV</span></div><p>Un Nv 20 juega con un Nv 60 y los dos aportan.</p></div>
+    <div class="dec"><span class="id">D7 · REVIVIR</span><div class="opts"><span class="opt rec">Lápida + 3 s</span><span class="opt">Solo punto de control</span><span class="opt">Sin canal</span></div><p>La regla de D4, con espera creciente al volver solo.</p></div>
+    <div class="dec"><span class="id">D8 · MUNDOS</span><div class="opts"><span class="opt">Siempre juntos</span><span class="opt rec">Mundo de grupo + excursión</span><span class="opt">Cada uno su mundo</span></div><p>Salir solo es el juego de hoy; volver es la unión tardía.</p></div>
+    <div class="dec"><span class="id">D9 · PASO DE SIMULACIÓN</span><div class="opts"><span class="opt rec">Semifijo ≤ 1/60</span><span class="opt">Fijo 60 Hz ya</span><span class="opt">Variable</span></div><p>Misma sensación; el fijo llega con el ladder (F3).</p></div>
+    <div class="dec"><span class="id">D10 · ANFITRIÓN OCULTO</span><div class="opts"><span class="opt rec">Bombeo + metrónomo + pausa</span><span class="opt">Mundo en un Worker ya</span><span class="opt">Exigir ventana visible</span></div><p>Funciona con un solo invitado; el sonido del juego evita que la pestaña se duerma.</p></div>
+    <div class="dec"><span class="id">D11 · CUENTAS Y NUBE</span><div class="opts"><span class="opt rec">Supabase</span><span class="opt">Firebase</span><span class="opt">D1 + OAuth propio</span></div><p>Solo en F2; un cron evita la pausa de 7 días.</p></div>
+    <div class="dec"><span class="id">D12 · LADDER</span><div class="opts"><span class="opt rec">Honor → verificado en sombra</span><span class="opt">Servidor autoritativo</span><span class="opt">Sin ladder</span></div><p>Juegas a 0 ms y el servidor re-simula tus entradas.</p></div>
+    <div class="dec"><span class="id">D13 · COMUNICACIÓN</span><div class="opts"><span class="opt rec">Señales + chat corto</span><span class="opt">Solo señales</span><span class="opt">Chat libre + voz</span></div><p>Visual primero; el chat va en el registro de abajo.</p></div>
+    <div class="dec"><span class="id">D14 · MARCAS POR ENEMIGO</span><div class="opts"><span class="opt rec">Por dueño</span><span class="opt">Compartidas</span></div><p>Tu Escarcha y tu Presa son tuyas; Vulnerable es de todos.</p></div>
+    <div class="dec"><span class="id">D15 · HIT-STOP</span><div class="opts"><span class="opt rec">Solo visual siempre</span><span class="opt">Solo visual en grupo</span></div><p>El crítico de uno no congela a cuatro.</p></div>
+    <div class="dec"><span class="id">D16 · TORMENTO</span><div class="opts"><span class="opt rec">El del anfitrión</span><span class="opt">Cada uno el suyo</span></div><p>Escalarlo por jugador abriría un atajo de botín.</p></div>
+    <div class="dec"><span class="id">D17 · GOLPE ENEMIGO</span><div class="opts"><span class="opt">Instantáneo, como hoy</span><span class="opt rec">150 ms + un poco más con latencia</span><span class="opt">250 ms esquivable</span></div><p>Lo ves venir, y mientras te ataca el enemigo está donde de verdad está. Caminar no lo esquiva; Carrera y Parpadeo sí. Pruébalo en solitario.</p></div>
+    <div class="dec"><span class="id">D18 · TUS DoT EN GRUPO</span><div class="opts"><span class="opt rec">Los simulas tú</span><span class="opt">Los simula el anfitrión</span></div><p>Detonar, consumir y reemplazar funcionan igual que en solitario, sin mensajes nuevos.</p></div>
+    <div class="dec"><span class="id">D19 · PROYECTILES ENEMIGOS</span><div class="opts"><span class="opt rec">Se gastan en el primero</span><span class="opt">Atraviesan aliados</span></div><p>Como en solitario: el tanque cubre a la maga y nadie recibe la misma flecha dos veces.</p></div>
+  </div>
+</section>
+
+<footer>
+  <span>Diseño v5.2 · 23 de octubre de 2026 · dos rondas de refutación externa (netcode y backend). Las 15 objeciones de gravedad alta que no habían llegado ya están atendidas; el experto que las escribió las verificó y la v5.2 corrige las 4 que marcó insuficientes. Siguen sin atender 172 de gravedad media o baja (lista en <span class="mono">refutaciones/no-vistas.md</span>). Base: informes de tecnología y de código del Paso 6, frente de ítems, D4, PoE2 y Last Epoch.</span>
+  <span>Documento completo: <span class="mono">paso6-multijugador-diseno.md</span></span>
+</footer>
+
+</div>

@@ -1,0 +1,218 @@
+{
+ "veredicto": "Lo apruebo con correcciones obligatorias antes de E6 (red pura). Las decisiones de fondo son correctas para un cooperativo de 2 a 4 amigos en navegador y no las discuto: modelo B (tu cliente manda en tu héroe, el anfitrión en el mundo), estrella WebRTC, urgentes con redundancia dentro del canal no fiable, Worker + DO + TURN de Cloudflare, el anfitrión oculto como bloqueante y sin lockstep. Además verifiqué varias cifras que el diseño marca como [V] y están bien:\n- dcSCTP: MTU de 1.191 B, `rto_min` de 400 ms, sin intercalado. El RTO real es `max(400, SRTT + 4·RTTVAR)`, con un piso de RTTVAR de 220/8 ms (`retransmission_timeout.cc`).\n- Cloudflare: los 1.000 GB al mes se comparten entre la SFU y TURN, y solo se cobra la salida.\n- Chrome: WebRTC exime de la limitación intensiva de temporizadores, pero no del ritmo de 1 por segundo.\n- El «pueblo» real es la zona de la Cripta (`game-world-flow.js:79`).\n\nEl problema está en otra parte. El protocolo se escribió para un Paso 2 más simple que el que hay en el código. Así como está, invitados y anfitrión van a calcular distinto:\n- **Modificadores del objetivo:** Debilidad es un saco numérico y el debilitamiento saliente un producto. El protocolo solo los manda como banderas.\n- **Campos del héroe que mueven enemigos:** los muros, los encierros y los cebos de 3 clases no tienen representación ni dueño.\n- **Desplazamientos:** el tirón, el empuje y el Vórtice no tienen mensaje.\n- **API de DoT:** consumir, reemplazar y el gancho ⑬ no tienen mensaje.\n- **Estado del enemigo:** faltan estados que leen los talentos y la interfaz (inmovilizado, Aterido, Quebrantado y stagger, lanzamiento interrumpible, DoT por tipo).\n\nAdemás, la temporalidad no está definida. El cuerpo a cuerpo enemigo hoy es instantáneo, así que «esquivar con lo que ves» no existe, y la víctima compararía el alcance contra una réplica atrasada. Faltan también la época del mundo en el paquete y la validación de números no finitos en quien recibe (un NaN puede corromper el guardado). Nada de esto cambia la arquitectura, pero todo se escribe ahora en el formato de mensajes y en F0 #5 y #6, no en la calibración.\n\nEl mockup exagera «0 ms en todo lo tuyo»: tus muertes, tu botín y tus efectos «al matar» esperan 1 RTT. Y mezcla dos líneas de tiempo en «≈ 190 ms».",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "§3.3, §3.4 (HIT, registro de entidad con banderas «vulnerable» y «debilitado»), §7 fila «Apoyo»; código combat-math.js:249-259 (weaknessMult/sumWeakness), entities.js:2294 (Enemy.takeDamage aplica Debilidad), entities.js:2196-2205 (outDmgMul)",
+   "problema": "En el modelo B quien calcula la fracción del golpe es el atacante. Pero los modificadores del lado del objetivo son numéricos y viven en el anfitrión: la Debilidad es un saco que suma los % de cada apoyo con tope, Vulnerable suma +20 y el debilitamiento saliente (`weakenOutgoing`) es un producto de entradas. El registro de entidad solo trae dos banderas, así que el cliente no conoce el valor. Resultado: un invitado reclama sin la Debilidad que puso el apoyo, el rol de apoyo no rinde con invitados, y la barra predicha diverge de la autoritativa. Al revés pasa lo mismo: la víctima calcula el daño enemigo sin el debilitamiento que le puso un aliado.",
+   "arreglo": "Partir el daño en dos factores:\n- **Del atacante (lo calcula el cliente):** HIT viaja como fracción «antes del objetivo».\n- **Del objetivo (lo aplica el anfitrión):** `weaknessMult(vuln, Σdebuffs)` y lo demás, con su estado al momento de recibir el golpe.\n- **Para predecir:** el registro de élites y jefes, o un mensaje ENEMYMOD cuando cambie, lleva `u8 debilidad%` y `u8 multSaliente%`.\n- **ATK** lleva el multiplicador saliente que el anfitrión calculó al iniciar el ataque.\n- **Prueba:** un caso en `net-paso2` donde el apoyo debilita, el invitado pega y la vida converge.",
+   "fuente": "Código del repo (líneas citadas); Gambetta, «Client-Server Game Architecture» (el estado del objetivo lo resuelve la autoridad): https://www.gabrielgambetta.com/client-server-game-architecture.html"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§7 filas «Auras y campos» y «Campos dañinos del héroe»; §3.4 FIELD (15 B: tipo, x, z, radio, ms, dueño, valor); código field-entities.js:383-430 (lureStep, _pickLure, constrainMove), 646-672 (muro/senuelo); skills-maga.js:234, 375-377, 810 (muros con `blocks`); skills-arquera.js:129, 784-787 (`lure`, `contain`); skills-guerrero.js:188, 380 (Desafío con `contain`)",
+   "problema": "Hay campos de héroe que no dañan sino que cambian el movimiento de la IA enemiga: los muros de la Maga (`blocks`), los encierros de la Arquera y del Guerrero (`contain`) y los cebos y señuelos de la Arquera (`lure`, que atraen a los enemigos a 5 Hz). En el modelo B solo el anfitrión mueve enemigos. El diseño deja los campos «al dueño contra sus réplicas», pero el dueño no puede mover nada del mundo. Encima, FIELD no puede describir un muro: es una línea con extremos y ancho, no un radio. Tres especializaciones pierden su mecánica de control en grupo.",
+   "arreglo": "Clasificar los campos en dos tipos:\n- **Sobre héroes** (auras, `allyDr`): los resuelve el cliente de quien los recibe, como ya dice el diseño.\n- **Sobre el mundo** (`blocks`, `contain`, `lure`, `emisor` que dispara): el anfitrión crea un **campo-sombra** y corre `constrainMove` y `lureStep` con él.\n\nCambios concretos:\n- FIELD v2 con forma (círculo o línea: `x1,z1,x2,z2,ancho`), máscara de banderas (bloquea, encierra, atrae) y los parámetros del cebo.\n- El daño de esos campos lo sigue reclamando su dueño.\n- Pruebas en `net-paso2`: muro de la Maga, cebo y encierro de la Arquera, y Desafío del Guerrero, con 150 ms de latencia.",
+   "fuente": "Código del repo (líneas citadas)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§3.4 urgentes (no hay mensaje de desplazamiento; `CC` lleva solo tipo, ms y %); código entities.js:88-96 (perfil pull/knock → `e.displace`), 2249-2280 (`displace` con DISPLACE_DR y conversión a Quebranto en jefes), 2331-2342 (empuje físico en CADA golpe no letal), enemy-abilities.js:252-266 (Vórtice: el enemigo arrastra al héroe)",
+   "problema": "Los desplazamientos son una primitiva de rol del Paso 2 (tirones, empujones y arrastres; contra un jefe se convierten en stagger) y el protocolo no los puede expresar. Además, `Enemy.takeDamage` empuja al enemigo entre 0,12 y 0,34 m con cada golpe. Si el invitado lo predice sobre su réplica, la instantánea lo devuelve: tirones visibles en cada golpe. Del lado del héroe pasa lo mismo: el afijo Vórtice tira de ti hacia el enemigo, pero ATK no trae la posición del enemigo, así que la víctima no puede aplicarlo.",
+   "arreglo": "- **Urgente nuevo** `DISP {u16 netId, u16 x, u16 z (origen), u8 dist (dm), u8 hacia/desde}`. Lo aplica el anfitrión con sus rendimientos decrecientes y la conversión a Quebranto en jefes.\n- **Empuje por golpe:** lo calcula el anfitrión con el HIT más la última posición reportada del atacante. El cliente no mueve réplicas; solo hace la reacción visual (`lunge`).\n- **ATK:** sumarle `u16 x · u16 z` del enemigo al iniciar el ataque. Con eso la víctima resuelve el Vórtice y el alcance.",
+   "fuente": "Código del repo (líneas citadas)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§3.5 «Ataques enemigos contra ti» y §3.3 ATK (`u16 preparación`); mockup «Un enemigo te ataca: esquivas o bloqueas con lo que ves»; código entities.js:2931-2952 (el cuerpo a cuerpo es instantáneo: `player.takeDamage` sin preparación) y 2944-2947 (solo `slam` se telegrafía, 0,65 s)",
+   "problema": "Hay dos problemas de tiempo:\n- **El ataque básico enemigo no tiene preparación.** El ATK llega con preparación 0 y se resuelve al llegar. Como la víctima mide el alcance contra una réplica que va 100 ms + ½RTT atrás, un enemigo que te persigue se ve a 0,5–1 m de su posición real. O los invitados esquivan gratis (el anfitrión recibe más golpes que ellos) o reciben golpes «a distancia».\n- **Estado y eventos van en dos líneas de tiempo sin regla.** La animación de preparación llega por la instantánea (atrasada) y el ATK llega al instante, así que el golpe cae antes de que termine la animación. Para un observador, el KILL urgente se ve antes que el golpe interpolado de Ana: el «≈ 190 ms» del mockup supone una regla que el documento no fija.",
+   "arreglo": "Fijar una regla de tiempo por tipo de mensaje, por escrito:\n1. **Lo que te afecta a ti** (ATK, PROJ, telegrafiados) se resuelve en tu presente.\n   - ATK lleva la posición del enemigo y su `t0`.\n   - El alcance se compara contra esa posición, con tolerancia `alcance + v·½RTT`.\n   - La animación del atacante la dispara el ATK, no la instantánea.\n   - Telegrafiados: tiempo restante = retardo − edad estimada, con un mínimo de reacción de unos 250 ms (a favor del que se defiende).\n2. **Lo que solo observas** (CAST, KILL y FX de otros) se programa en la línea de interpolación: tick de origen + retardo de interpolación.\n3. **Opcional:** añadir una preparación corta (unos 150 ms) al cuerpo a cuerpo enemigo, que además mejora la lectura en solitario. Decisión de diseño de combate.",
+   "fuente": "Gambetta, «Lag Compensation» (ves a los demás en el pasado y a ti en el presente): https://www.gabrielgambetta.com/lag-compensation.html ; Valve, Source Multiplayer Networking (interpolación de 100 ms y compensación): https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking ; código del repo"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§3.4 cabecera del paquete `u` (sin época del mundo); §6 #4 «ids de red por mundo (`g.nextNetId()`)»; §3.2 T2 (reenvío por `r` a los 300 ms); código main.js:444-450 (`loadWorld` vacía los enemigos)",
+   "problema": "Los ids de red se reinician en cada mundo, el canal `u` llega desordenado y los urgentes se reenvían por `r` a los 300 ms. Tras un viaje o una vuelta de excursión, siguen llegando HIT, KILL y DOT del mundo anterior que coinciden en `netId` con enemigos del mundo nuevo y se aplican a otro enemigo. Además, nada dice que un ATK que llega tarde por `r` (tras un corte de Wi-Fi de 2 s) deba descartarse: hoy causaría una ráfaga de daño viejo y una muerte injusta.",
+   "arreglo": "- **Época:** `u8 época del mundo` en la cabecera de `u` y en cada mensaje de `r` que dependa del mundo; descartar lo que no coincida.\n- **Ids:** no reutilizar `netId` dentro de una época.\n- **Caducidad por tipo** según el tick del anfitrión estimado: ATK y PROJ caducan pasada su preparación más un margen; HIT y DOT se aceptan hasta unos 2 s; KILL, SPAWN y GONE nunca caducan.\n- **Pruebas en `net-sim`:** viaje con paquetes en vuelo, y corte de 2 s seguido de vuelta.",
+   "fuente": "Gaffer, «Reliable Ordered Messages» (ids con ventana y comparación cíclica): https://gafferongames.com/post/reliable_ordered_messages/ ; código del repo"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§5.2 (las medidas son solo del anfitrión), §5.3 «Mensajes malformados», §7 «Ganchos ⑫» (AID con redirección); campos `f32` en HIT, DOT, THR, AID y FIELD; guardado con `JSON.stringify`",
+   "problema": "La validación vive solo en el anfitrión, pero AID y FIELD los aplica quien los recibe. Un `f32` puede llegar como NaN, ±Infinity o negativo, por un error o a propósito:\n- Una cura NaN deja `hp = NaN`. El guardado lo escribe como `null` (JSON) y el héroe queda roto en `localStorage`.\n- Una `AID{redirección}` enorme mata al protector, y en una sala Hardcore esa muerte es permanente.\n- Una fracción de HIT negativa cura al enemigo.\n\nEl «decodificador con comprobación de límites» solo cubre bytes y largos, no valores.",
+   "arreglo": "Validación en cada receptor, en el módulo puro `protocol.js`:\n- `Number.isFinite` en todo `f32`.\n- Fracciones acotadas a [0, 1].\n- Topes por tipo, relativos a los stats del emisor que el receptor ya tiene en su `RemoteHero`. Por ejemplo, la redirección ≤ el daño recibido × el % del Vínculo, por evento y por segundo.\n- Ritmo máximo por emisor y por tipo.\n- `save()` se niega a escribir un héroe con campos no finitos y conserva el guardado anterior.\n- En Hardcore: aviso de confianza al crear la sala.\n- Fuzz en `net-protocolo` con NaN, ±Inf y −0.",
+   "fuente": "Diseño §5.2, §5.3 y §7; ECMA-262 (`JSON.stringify` serializa NaN e Infinity como `null`): https://tc39.es/ecma262/#sec-serializejsonproperty"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.5 «Muerte de un enemigo: solo con KILL; mientras, a 0 queda tambaleando»; mockup «0 ms en todo lo tuyo» y «Ve morir al enemigo ≈ 90 ms»",
+   "problema": "Para un invitado, cada enemigo que mata vive 1 RTT más como «zombi» con 0 de vida (150–250 ms a 90–175 ms de RTT). En ese tiempo sigue atrayendo el objetivo automático, los rebotes de cadena, los proyectiles que atraviesan y las áreas, así que en manadas densas el invitado pierde daño efectivo. El banco GRUPO no lo mide porque no simula latencia. Además, los efectos «al matar» (`killHeal`, `manaOnKill`, curas por quemadura o sangrado) llegan tarde: las builds que se sostienen matando se sienten peor como invitado. El «0 ms en todo lo tuyo» es falso.",
+   "arreglo": "- **Muerte predicha visual:** si tu propia predicción deja al enemigo en ≤ 0 y no hay reclamaciones ajenas sin confirmar, la réplica pasa a «muerta prevista». Se excluye de objetivos, rebotes y áreas, y arranca la disolución.\n- Botín y XP siguen esperando el KILL.\n- Los efectos «al matar» del tipo recurso o cura pueden predecirse, con una corrección si el KILL no llega.\n- En el modelo B el anfitrión aplica sin recalcular, así que la predicción casi nunca falla. Solo falla por concurrencia o por escudos del enemigo.\n- **Medir:** p95 de confirmación de muerte y cuántas muertes predichas se revierten en `net-sim`.\n- **Mockup:** cambiar a «0 ms en tus habilidades».",
+   "fuente": "GGG, «Client-server Action Synchronisation» (modo predictivo frente a lockstep): https://www.pathofexile.com/forum/view-thread/889669 ; poewiki, Networking mode: https://www.poewiki.net/wiki/Desync ; Gambetta, predicción y reconciliación: https://www.gabrielgambetta.com/client-side-prediction-server-reconciliation.html"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§2.5 (cada uno ve al enemigo a su nivel) junto con §3.4 THR (`f32 n` absoluto) y §7 «Amenaza»; código entities.js:2316-2318 (`threatFromDamage(dealt, threatMult)` con daño absoluto)",
+   "problema": "La amenaza se suma en unidades absolutas de daño. Pero con la escala por espectador, Beto (Nv 60) le hace 11.000 de daño al mismo enemigo al que Ana (Nv 20) le hace 500 con la misma fracción. Beto genera unas 22 veces más amenaza por el mismo aporte, y un tanque de menor nivel nunca retiene a los enemigos. Lo mismo pasa con la amenaza de las curas (`threatFromHeal`), que se mide con las vidas absolutas de héroes de distinto nivel.",
+   "arreglo": "- La amenaza la calcula el anfitrión en unidades de **fracción de vida del enemigo** (× `threatMult` del héroe), a partir de la fracción del HIT. Así no viaja `n` absoluto.\n- Las provocaciones siguen como `forceTarget`.\n- Amenaza por curas: normalizada por la vida máxima del curado.\n- **Prueba:** tanque Nv 30 y daño Nv 60 → el tanque retiene.",
+   "fuente": "Código del repo (líneas citadas)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.4 registro de entidad (`u16 banderas`: aturdido, congelado, ralentizado, vulnerable, debilitado, provocado, inmune, afijo, fuera de interés); código entities.js:1858 (`rootT`), 1871 (`numbT`), 2088-2110 (stagger y Quebrantado), 2152-2170 (`beginCast` interrumpible); lecturas desde código del héroe: `frozenT` 12, `slowT` 6, `numbT` 5, `vulnT` 4, `rootT` 4, `staggerBrokenT` 3, `aggroed` 3, `debuffs` 3",
+   "problema": "La réplica no puede responder lo que preguntan los talentos y la interfaz:\n- **Inmovilizado** (`rootedWeak`, `drVsSlowed`).\n- **Aterido.**\n- **Quebrantado y valor de stagger:** el marco del jefe muestra la barra de stagger.\n- **DoT por tipo:** `burningCrit`, curas por quemadura o sangrado, `hasDoT`.\n- **Lanzamiento interrumpible:** id y progreso. Interrumpir es una primitiva de rol; sin la barra de lanzamiento, el invitado no sabe cuándo cortar.\n- **En combate** (`aggroed`).\n\nCon 16 bits no alcanza.",
+   "arreglo": "- Banderas a `u32`: más inmovilizado, Aterido, Quebrantado, en combate y una máscara de DoT (quemadura, sangrado, veneno).\n- Registro extendido solo para élites y jefes: `u8 stagger`, `u8 castId`, `u8 castProg`.\n- **Prueba de contrato:** recorre los campos de enemigo que leen `powers-*.js`, `skills-*.js` y `game-skills.js` (hay un recuento con grep) y exige que `replica.js` los exponga desde los datos replicados.",
+   "fuente": "Código del repo (recuento con grep de `e.<campo>` en el código del héroe)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§7 «DoT: los tics corren en el anfitrión; ⑬ vuelve al dueño como evento» (no hay tipo de mensaje); código powers-guerrero.js:1748-1774, 1905-1999 (`dotRemaining`, `consumeDoT`, `hasDoT` de sangrado), skills-maga.js:340 (consume quemadura), mech-guerrero.js:87, powers-maga.js:420, 2109, 3090 (`replaceDoT`), game-skills.js:1174-1178",
+   "problema": "Los DoT corren en el planificador del anfitrión, pero hay habilidades del Guerrero (Sangría y Desangrar) y de la Maga que leen lo que queda, lo consumen (detonan) o lo reemplazan. En el modelo B el cliente no tiene ese estado ni un mensaje para pedirlo, y el ⑬ `onDotEnd` no tiene tipo de urgente. Tampoco se decide si `hasDoT(e, 'bleed')` cuenta el sangrado de otro jugador.",
+   "arreglo": "- **Espejo local de los DoT propios** (lo aplicado menos lo transcurrido), para `dotRemaining` y `hasDoT` propios sin red.\n- **Urgente** `DOTX {netId, tipo, acción: consumir | reemplazar}`. El anfitrión responde con `DOTR {fracción consumida}` y la reclama como HIT del dueño.\n- **Urgente** `DOTEND {netId, fuente}` para el gancho ⑬.\n- **Decisión:** los DoT ajenos no cuentan para tus talentos, salvo Vulnerable y Debilidad, en línea con D14.",
+   "fuente": "Código del repo (líneas citadas)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.2 T3 («envío inmediato si entra un urgente, tope de 60 paquetes/s») y §3.9 (≈ 15 KB/s, tope 22 KB/s); codigo.md §7.6 H1 («las instantáneas salen al final de cada bombeo»)",
+   "problema": "No dice si los paquetes inmediatos llevan los registros de estado. Si los llevan, a 60 paquetes/s son unos 48 KB/s por invitado y la subida del anfitrión con 3 invitados pasa de unos 0,5 a unos 1,2 Mbps, justo lo que §3.9 quería evitar. Por otro lado, con H1 cada mensaje de cada invitado bombea el mundo, y si cada bombeo emite instantáneas son 60 por segundo y por invitado. El presupuesto tampoco cuenta la sobrecarga por paquete (IP, UDP, DTLS con GCM y SCTP ≈ 70–95 B) multiplicada por los paquetes extra de T3.",
+   "arreglo": "- Los paquetes inmediatos llevan solo cabecera, acuses y urgentes.\n- Las instantáneas salen con su propio reloj a 20 Hz (15 Hz en «subida baja»), desacoplado del bombeo.\n- Agregar los golpes del mismo tick sobre el mismo enemigo en un solo HIT.\n- Recalcular §3.9 con sobrecarga × paquetes/s reales.\n- Medir en R3 los KB/s de subida del anfitrión con 3 invitados haciendo daño de área.",
+   "fuente": "Diseño §3.2 y §3.9; codigo.md §7.6; dcsctp_options.h: https://webrtc.googlesource.com/src/+/refs/heads/main/net/dcsctp/public/dcsctp_options.h"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.2 T2 (reenvío por `r` a los 300 ms fijos) y §3.4 (`u16 id` de urgente)",
+   "problema": "El reenvío por `r` a 300 ms fijos falla con latencia alta. Con RTT de 175–210 ms (Ciudad de México, Madrid), más jitter, más hasta 50 ms de espera del paquete que trae el acuse, casi todo urgente pasa los 300 ms y se duplica por `r`. Eso llena el canal fiable y lo bloquea por cabeza de línea. Si un invitado usa Firefox, su SCTP es usrsctp, que no ajusta el RTO (el mínimo recomendado por la RFC 9260 es 1 s, frente a 400 ms en Chrome) [a medir]: el canal fiable de ese emisor se recupera mucho más lento. Por último, no se dice que el receptor deduplique entre `u` y `r` ni cómo se comparan ids que dan la vuelta.",
+   "arreglo": "- Tiempo de reenvío adaptativo = `max(300, SRTT + 4·RTTVAR + 1 intervalo de envío del otro)`.\n- Deduplicación por id de urgente con ventana y comparación cíclica, común a los dos canales.\n- Caducidad por tipo (ver el problema de la época).\n- R3 con Chrome↔Firefox en las dos direcciones y RTT de 200 ms.",
+   "fuente": "retransmission_timeout.cc (RTO = SRTT + 4·RTTVAR, con piso de RTTVAR de 220/8 ms y mínimo de 400): https://webrtc.googlesource.com/src/+/refs/heads/main/net/dcsctp/tx/retransmission_timeout.cc ; RFC 9260 §16 (RTO.Min 1 s): https://www.rfc-editor.org/rfc/rfc9260 ; Firefox DataChannelUsrsctp.cpp (no fija RTO): https://searchfox.org/firefox-main/source/netwerk/sctp/datachannel/DataChannelUsrsctp.cpp"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.3 fila «RTT y reloj: PING 1 Hz por `r`»",
+   "problema": "Medir el RTT por el canal fiable y ordenado lo falsea. Un ping perdido espera al menos 400 ms (RTO) y uno que queda detrás de un mensaje grande hereda su bloqueo. Con ese RTT se ajustan la interpolación, el reenvío adaptativo, las barras de latencia y los avisos de «con retraso».",
+   "arreglo": "- RTT a partir de los acuses del canal `u`: guardar la hora de envío por `seq` y medir al recibir el `ack`, con un filtro EWMA.\n- Contraste con `getStats()` (`RTCIceCandidatePairStats.currentRoundTripTime`).\n- Reloj del anfitrión estimado con el mínimo de una ventana de muestras.\n- El `ping` fiable queda solo como latido.",
+   "fuente": "MDN, RTCIceCandidatePairStats.currentRoundTripTime: https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidatePairStats/currentRoundTripTime ; Gaffer, Reliable Ordered Messages: https://gafferongames.com/post/reliable_ordered_messages/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8 (credenciales TURN con TTL de 2 h, revocadas al cerrar) y §3.7 (reconexión con `restartIce()`); criterio de E10 (sesión de 1 hora)",
+   "problema": "La doc de Cloudflare no dice qué pasa con una asignación activa cuando la credencial vence o se revoca. Pide un TTL «mayor que el tiempo que esperas que usen TURN» y renovar con `RTCPeerConnection.setConfiguration()`. Según el borrador de la API REST de TURN, la asignación ya hecha sobrevive al vencimiento, pero toda asignación nueva falla, y eso incluye el ICE restart. Una sesión por relé de más de 2 h no puede reconectarse si no se renovaron las credenciales. La prueba de 1 h de E10 no lo detecta.",
+   "arreglo": "- TTL = vida máxima de la sala (por ejemplo, 12 h), con el tope diario y la revocación al expulsar o cerrar.\n- O bien: renovar a mitad del TTL desde el DO y hacer `pc.setConfiguration({iceServers})` antes de cada `restartIce()`.\n- **Prueba en E10:** sesión de 2,5 h con relé forzado, con un corte de red y un ICE restart pasado el TTL.",
+   "fuente": "Cloudflare, Generate credentials: https://developers.cloudflare.com/realtime/turn/generate-credentials/ ; draft-uberti-rtcweb-turn-rest-00: https://datatracker.ietf.org/doc/html/draft-uberti-rtcweb-turn-rest-00"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.6 H3 «pausa cooperativa: el mundo se congela (enemigos quietos, nadie recibe daño)»",
+   "problema": "En el modelo B cada héroe es autoritativo en su cliente. Si solo se congela el mundo del anfitrión, los invitados siguen corriendo su héroe: sus DoT recibidos, sus canalizaciones, su recurso y los charcos enemigos que su cliente resuelve. Un invitado puede morir, gastar enfriamientos o seguir reclamando golpes a un mundo detenido durante la pausa.",
+   "arreglo": "- Estado `pause {tick, motivo}` replicado por `r` y además como bandera en la cabecera de `u`.\n- Al recibirlo, cada cliente (anfitrión incluido) deja de llamar a `simStep` de su héroe y bloquea la entrada. Solo corre `present`.\n- Reanudación sincronizada por tick.\n- Prueba en `net-sim`: el anfitrión se oculta con un DoT activo sobre un invitado.",
+   "fuente": "Diseño §3.6 y §7 (DoT sobre el héroe resueltos en local)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.5 «Lo que la IA del anfitrión mira de un invitado» y §5.2 (cota de plausibilidad calculada con el héroe reconstruido en el saludo)",
+   "problema": "El anfitrión reconstruye al invitado una sola vez, en el `hello`. Si el invitado sube de nivel, se equipa un objeto recogido o regalado, cambia talentos o recibe un bufo de santuario, sus golpes legítimos superan la cota vieja y se rechazan en silencio: el daño se pierde sin aviso. `level` viaja, pero el equipo no. Y el `RemoteHero` que ven los demás tampoco se actualiza en lo visual.",
+   "arreglo": "- Mensaje `equip` o `hero-delta` por `r`, compacto (ids de catálogo saneados), al cambiar equipo, talentos o nivel. El anfitrión recalcula con `recompute()`.\n- Entre amigos, la cota en modo «registrar y marcar», no «descartar», salvo excesos de más de 3×.\n- Agregar al saneado una comprobación de alcance: distancia entre el héroe reportado y el enemigo (con 500 ms de historial) ≤ alcance máximo + margen.",
+   "fuente": "Diseño §5.2; Valve, Source Multiplayer Networking (historial de posiciones para validar): https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§5.3 CSP: `script-src 'self' https://cdn.jsdelivr.net`",
+   "problema": "Permitir el dominio entero de jsDelivr anula la CSP como defensa contra XSS. jsDelivr sirve cualquier paquete de npm y cualquier archivo de GitHub, y hay paquetes publicados justamente para saltarse CSPs que lo permiten. Si sobrevive un `innerHTML` de los 119, se carga cualquier script desde ese dominio.",
+   "arreglo": "- Vendorizar `three@0.160` (y Trystero si se usa) en `/vendor/`, copiando los `.js`. No exige paso de compilación y además mejora el PWA sin conexión.\n- CSP: `script-src 'self' 'sha256-<importmap>'`, más `object-src 'none'` y `base-uri 'self'`.\n- Si queda algún CDN: ruta exacta con versión más SRI.\n- Probar primero en `report-only`, como ya propone el diseño.",
+   "fuente": "Paquete csp-bypass (prueba de concepto sobre CDNs): https://www.npmjs.com/package/csp-bypass ; Google, «CSP Is Dead, Long Live CSP!» (inseguridad de las listas por dominio): https://research.google/pubs/csp-is-dead-long-live-csp-on-the-insecurity-of-whitelists-and-the-future-of-content-security-policy/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§8 «Navegador, una PC: `?net=local`: dos pestañas por BroadcastChannel»",
+   "problema": "Dos pestañas de la misma ventana nunca están visibles a la vez: la de fondo tiene rAF detenido, así que la prueba siempre ejercita «anfitrión oculto» o «invitado ausente». Dos ventanas que se tapan caen en la oclusión de Windows. Y dos juegos Three.js a la vez son una prueba pesada en la PC del dueño, que exige turno.",
+   "arreglo": "- Dos ventanas lado a lado, sin solaparse, siempre lanzadas con `node tools/turno.mjs`.\n- Mejor aún: una pestaña real más un invitado headless en Node (el arnés `makeHarness` con `LoopbackNet` hablando por WebSocket local), que no dibuja.\n- Para condiciones reales en Windows: clumsy (retardo, pérdida, desorden y cortes) en lugar de solo `?lag=`.",
+   "fuente": "Chrome, timer throttling (rAF espera a que la página se vea): https://developer.chrome.com/blog/timer-throttling-in-chrome-88 ; Chromium, oclusión en Windows: https://chromium.googlesource.com/chromium/src/+/HEAD/docs/windows_native_window_occlusion_tracking.md ; clumsy: https://github.com/jagt/clumsy ; CLAUDE.md (pruebas pesadas por turno)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.4 registro de entidad y de héroe: `u16 x · u16 z (1/256 m; la zona mide 120 m)`; código world.js:263-288 (`Grid`: `ox = −w/2`, coordenadas centradas)",
+   "problema": "Las coordenadas del mundo son negativas (−60 a +60 m en una zona). Escritas con `setUint16`, sin desplazamiento, las negativas dan la vuelta.",
+   "arreglo": "Usar `i16` (±128 m a 1/256 m) o codificar `x − grid.ox`. Documentar el rango y probar la ida y vuelta en `net-protocolo` con esquinas negativas.",
+   "fuente": "Código del repo (world.js:263-288, zones.js:24)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.4 PROJ (`u8 dirección`, `u16 velocidad o radio`, `u16 retardo`)",
+   "problema": "Una dirección en 256 pasos tiene 1,4° de resolución: a 20 m son unos 0,5 m de error lateral, suficiente para que un proyectil «te pase» distinto que en el anfitrión. Además PROJ no lleva duración, así que no puede representar charcos ni anillos persistentes (el Encarcelador dura 1,4 s, la lava, etc.).",
+   "arreglo": "Mandar el punto de destino (`u16 x · u16 z`) en vez de la dirección, más `u16 duración`. Que la víctima use el tiempo restante = retardo − edad.",
+   "fuente": "Código del repo (enemy-abilities.js:231-245; entities.js:2937-2942 apunta a `player.pos`)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.4 registro de héroe (sin marca de tiempo del emisor ni bandera de teletransporte)",
+   "problema": "El anfitrión retransmite el héroe de un invitado con la hora de llegada, así que el jitter de la ida invitado→anfitrión se ve en los demás. Parpadeo y las cargas largas se interpolan como un deslizamiento.",
+   "arreglo": "Agregar `u16 ms` del emisor por registro de héroe y un `u8 movEpoch` (o bandera «snap») que se incrementa al teletransportarse, para cortar la interpolación.",
+   "fuente": "Gambetta, Entity Interpolation: https://www.gabrielgambetta.com/entity-interpolation.html"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§5.3 «ritmo máximo por par (120 mensajes/s) y expulsión»",
+   "problema": "No define si «mensaje» es un paquete o un urgente. Una build de área legítima produce más de 120 HIT por segundo (20 enemigos × 6 golpes) y sería expulsada.",
+   "arreglo": "Límite por paquetes (≤ 70/s, compatible con T3) y por reclamaciones por enemigo y segundo. Expulsión solo tras varios segundos seguidos de exceso.",
+   "fuente": "Diseño §3.2 T3 y §5.3"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 Worker + DO (hibernación) y reconexión",
+   "problema": "Hay tres detalles operativos sin tratar:\n- Un despliegue del Worker cierra todos los WebSockets de las salas activas.\n- El navegador no puede mandar pings de protocolo, así que hace falta un latido de la aplicación, y si ese latido despierta al DO se pierde la hibernación.\n- La memoria del DO se borra al hibernar o al ser desalojado.",
+   "arreglo": "- Latido de texto `\"ping\"` desde el cliente cada unos 30 s, respondido con `setWebSocketAutoResponse('ping','pong')` sin despertar al DO.\n- Reconexión automática del cliente (`partysocket`).\n- Estado de la sala en la SQLite del DO o en `serializeAttachment` (≤ 16 KB).\n- Clase de DO SQLite: el plan Free solo admite SQLite (desde jun-2026 con el campo declarativo `exports`).\n- Prueba: desplegar a mitad de una sesión y reconectar un invitado.",
+   "fuente": "Cloudflare, WebSockets best practices («Code updates disconnect all WebSockets»; ping/pong automático; adjuntos de 16 KB): https://developers.cloudflare.com/durable-objects/best-practices/websockets/ ; DO State API (`setWebSocketAutoResponse`): https://developers.cloudflare.com/durable-objects/api/state/ ; notas de versión de DO: https://developers.cloudflare.com/durable-objects/release-notes/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.5 «Tu golpe: barra predicha; la instantánea del anfitrión pisa la barra cuando llega el acuse»",
+   "problema": "Está escrito de forma vaga. Si la barra toma el valor interpolado (100 ms atrás) o una instantánea generada antes de que el anfitrión procesara tu HIT, la vida rebota hacia arriba en cada golpe.",
+   "arreglo": "Vida mostrada = la vida autoritativa más reciente (no la interpolada) − Σ de tus reclamaciones aún no procesadas. «Procesada» se sabe porque el `ack` de la cabecera cubre el `seq` del paquete que llevaba el HIT.",
+   "fuente": "Gambetta, predicción y reconciliación: https://www.gabrielgambetta.com/client-side-prediction-server-reconciliation.html"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.4 KILL (`u16 netId · u8 slot del golpe final · u8 banderas`)",
+   "problema": "Si el golpe final fue un DoT o un campo, el cliente que mató no tiene la habilidad ni el estado del enemigo al morir (`killStatus`: quemado, sangrando). Los ganchos ⑥ `onKill` con condición por habilidad o estado no pueden evaluarse.",
+   "arreglo": "KILL con `u8 habilidad` y `u8 máscara de estado al morir` (los bits de DoT y control).",
+   "fuente": "Código del repo (main.js:1224 `killStatus(enemy)`; entities.js:2309 `_lastSkill/_lastTags`)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§2.1 «Trystero de respaldo»; §3.2 (ids 100/101 «no chocan con Trystero»)",
+   "problema": "Confirmado: Trystero crea un solo canal en banda (`createDataChannel('data')`, id 0 o 1), así que 100 y 101 negociados no chocan. Pero Trystero hoy es un monorepo en TypeScript con paquetes separados (`packages/nostr` y otros) y su última versión es 0.26.0, del 4-oct-2026. El diseño no fija versión ni ruta ESM.",
+   "arreglo": "Fijar `trystero@0.26.0` y la ruta exacta del paquete nostr, vendorizado (ver el problema de la CSP). Probar en R2 que `getPeers()` sigue devolviendo la `RTCPeerConnection` en esa versión.",
+   "fuente": "github.com/dmotz/trystero, packages/core/src/peer.ts y release 0.26.0: https://github.com/dmotz/trystero"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.6 anfitrión oculto (R1)",
+   "problema": "R1 no mide el descarte por Memory Saver ni el congelamiento de una pestaña oculta mucho tiempo. La doc de Chrome no dice si una pestaña con DataChannel queda exenta del descarte. Y el criterio «≥ 55 ticks/s» no mide la regularidad de los envíos: con H1, los envíos salen a ráfagas, al ritmo de los mensajes que llegan.",
+   "arreglo": "- Añadir a R1: 30 min oculta con Memory Saver activo, más la comprobación de `document.wasDiscarded` y `freeze`.\n- p95 del intervalo entre instantáneas ≤ 70 ms.\n- Si hay descarte: sugerir «mantener siempre activo» para el sitio, o mantener audio.",
+   "fuente": "Chrome, Memory and Energy Saver: https://developer.chrome.com/blog/memory-and-energy-saver-mode ; Chrome, freezing on Energy Saver: https://developer.chrome.com/blog/freezing-on-energy-saver"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "Mockup, sección «Cómo viaja un golpe» y franja de datos de la cabecera",
+   "problema": "El mockup dice «0 ms en todo lo tuyo» y «Beto ve golpe y muerte ≈ 190 ms (100 de interpolación)». Lo primero es falso: las muertes, el botín y los efectos al matar esperan 1 RTT. Lo segundo depende de una regla de tiempo que el documento no fija, porque el KILL urgente se aplica al llegar.",
+   "arreglo": "- Cambiar a «0 ms en tus habilidades» y mostrar «tu muerte confirmada ≈ 1 RTT».\n- Rehacer el diagrama con la regla de §3.5 corregida: lo que ves de otros, en la línea de interpolación.",
+   "fuente": "Diseño §3.5; mockup (pagina/index.html)"
+  }
+ ],
+ "faltantes": [
+  "Mensajes que faltan en §3.4:\n- `DISP` (desplazamiento).\n- `DOTX`, `DOTR` y `DOTEND` (consumir o reemplazar DoT y el gancho ⑬).\n- `ENEMYMOD` o un registro extendido de élites y jefes (debilidad %, multiplicador saliente, stagger, lanzamiento interrumpible, máscara de DoT).\n- `FIELD` v2 con forma y banderas de mundo.\n- `equip` o `hero-delta`.\n- `party {n, tick}` para que todos cambien `partyHpMult` en el mismo tick.\n- `pause {tick}`.",
+  "Regla de tiempo escrita por tipo de mensaje: qué se resuelve en el presente de la víctima y qué se programa en la línea de interpolación del observador, con la tolerancia de alcance y el mínimo de reacción.",
+  "Época del mundo en la cabecera de `u` y en los mensajes de `r` que dependan del mundo; caducidad por tipo de urgente; deduplicación entre `u` y `r` con comparación cíclica de ids.",
+  "Orden por emisor en los mensajes de par a par que tienen pareja (FIELD inicio y fin, AID guarda y consumida, CC y su fin): un `seq` por emisor o una versión por entidad, porque el canal `u` llega desordenado.",
+  "Interés también para los urgentes: no mandar CAST, FIELD ni FX de un aliado que está a 80 m (35 m más un margen), para no gastar el presupuesto de 1.100 B.",
+  "Agregación de golpes por enemigo y por tick antes de armar el paquete, más el presupuesto real con la sobrecarga por paquete (IP, UDP, DTLS, SCTP ≈ 70–95 B) y los paquetes inmediatos de T3.",
+  "Métricas de `?netdebug` y de E10:\n- p95 de confirmación de muerte.\n- % de muertes predichas que se revierten.\n- % de reclamaciones rechazadas por la cota.\n- Duplicados reenviados por `r`.\n- Tipo de candidato (host, srflx, relay).\n- KB/s reales de subida del anfitrión.",
+  "Pruebas que faltan:\n- Chrome↔Firefox en las dos direcciones (SCTP distinto).\n- Sesión de 2,5 h por relé con un ICE restart pasado el TTL.\n- Despliegue del Worker a mitad de sesión.\n- Pérdida en ráfagas (Gilbert–Elliott) y cortes de 1–2 s, no solo 5 % uniforme.\n- Subida limitada a 0,5 Mbps en el anfitrión.",
+  "Prueba de contrato de la réplica: todo campo de enemigo que lea el código del héroe (`frozenT`, `slowT`, `numbT`, `vulnT`, `rootT`, `staggerBrokenT`, `aggroed`, `debuffs`, `marks`, `prey`, `_lure`) tiene que existir en `replica.js` alimentado por datos replicados.",
+  "Política de actualización del service worker para el «Actualiza la página» del saludo: `registration.update()`, `skipWaiting` y recarga, y aviso a todos los de la sala.",
+  "Comportamiento del invitado al volver de una pestaña oculta: su héroe no debe «ponerse al día» con 1 s de subpasos (solo el anfitrión hace eso). Hay que descartar el tiempo oculto.",
+  "Juego en LAN (hermanos en la misma casa): los candidatos mDNS de Chrome y routers sin hairpinning pueden obligar a usar relé. Medir en el lobby y documentarlo.",
+  "Safari como anfitrión: declararlo no soportado hasta probarlo, porque WebKit limita mucho las ventanas tapadas u ocultas. Como invitado, a medir en E10.",
+  "Decisión explícita: ¿los DoT, marcas y estados ajenos cuentan para tus talentos (`hasDoT`, `burningCrit`, `killStatus`)? Hoy D14 solo cubre las marcas y la Escarcha.",
+  "La sección de refutaciones (§13 y §14) la hizo el mismo autor tomando distintos roles. Esta revisión es la primera externa de netcode; conviene una segunda ronda externa sobre el protocolo v2 una vez incorporados estos cambios."
+ ]
+}

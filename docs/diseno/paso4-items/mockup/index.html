@@ -1,0 +1,1583 @@
+<title>Botín y Herrería</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Mesa de cuero del juego con marcos dorados: equipo · mochila · tooltip en tres columnas que se apilan en móvil.
+   Tema oscuro deliberado (mundo del juego): un solo juego de tokens. */
+:root {
+  --leather: #15111a;
+  --leather-2: #1c1721;
+  --leather-3: #261f2b;
+  --leather-4: #322839;
+  --line: #3b3142;
+  --line-gold: #5a4a28;
+  --ink: #efe6d2;
+  --ink-dim: #c2b59a;
+  --ink-faint: #998d78;
+  --gold: #e8c06a;
+  --gold-2: #f6dd9c;
+  --ok: #86d873;
+  --bad: #f09079;
+  --unk: #a9c8ff;
+  --focus: #9fd8ff;
+  --r-c: #e8e6e0;
+  --r-m: #7f98ff;
+  --r-r: #ffd24a;
+  --r-l: #ff8c2e;
+  --r-u: #c8a26a;
+  --r-x: #c58cff;
+  --cat-atk: #f0a35e;
+  --cat-def: #8fb8e8;
+  --cat-sus: #8fd6a3;
+  --cat-mov: #d9c46a;
+  --cat-skl: #d9a3ff;
+  --f-display: 'Cinzel', Georgia, 'Times New Roman', serif;
+  --f-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --cell: clamp(30px, 4.4vw, 50px);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--leather); }
+body {
+  background: var(--leather);
+  background-image: radial-gradient(ellipse at 50% -10%, #2a2030 0%, transparent 60%);
+  color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--leather); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+img { max-width: 100%; }
+.app { max-width: 1380px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 48px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 700; color: var(--gold); text-wrap: balance; margin: 0; letter-spacing: .02em; }
+h1 { font-size: 1.55rem; }
+h2 { font-size: 1.05rem; }
+h3 { font-size: .92rem; color: var(--gold-2); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-faint); }
+.dim { color: var(--ink-dim); }
+
+/* ——— cabecera ——— */
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: 14px 22px; align-items: center; }
+.brand p { margin: 2px 0 0; color: var(--ink-faint); font-size: .8rem; }
+.heroes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.hero-btn { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--leather-2); color: var(--ink-dim); }
+.hero-btn img { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-gold); }
+.hero-btn b { display: block; font-family: var(--f-display); font-size: .86rem; color: var(--ink); line-height: 1.1; }
+.hero-btn span { font-size: .74rem; }
+.hero-btn[aria-checked="true"] { border-color: var(--gold); background: var(--leather-3); box-shadow: 0 0 0 1px var(--gold) inset; color: var(--ink); }
+.power { text-align: right; position: relative; }
+.power .pw { font-family: var(--f-display); font-size: 1.6rem; color: var(--gold-2); }
+.power .pw svg { width: 18px; height: 18px; vertical-align: -2px; }
+.power .sub { font-size: .78rem; color: var(--ink-dim); }
+.float { position: absolute; right: 0; top: -6px; font-family: var(--f-display); color: var(--ok); font-size: 1rem; opacity: 0; pointer-events: none; }
+.float.go { animation: rise 1.6s ease-out; }
+@keyframes rise { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px); } }
+.purse { grid-column: 1 / -1; display: flex; gap: 18px; flex-wrap: wrap; font-size: .82rem; color: var(--ink-dim); align-items: center; }
+.purse .cur { display: inline-flex; align-items: center; gap: 6px; }
+.purse img { width: 22px; height: 22px; border-radius: 4px; }
+.dust { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; background: radial-gradient(circle, #6b3fa8, #2a1640); color: #e7d1ff; font-size: .7rem; border: 1px solid #8b62c9; }
+
+/* ——— pestañas ——— */
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; gap: 4px; margin: 14px 0 16px; padding: 6px; background: var(--leather-2); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.tab { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 6px; border: 0; background: transparent; color: var(--ink-dim); white-space: nowrap; font-family: var(--f-display); font-weight: 600; font-size: .88rem; }
+.tab img { width: 22px; height: 22px; border-radius: 4px; }
+.tab[aria-selected="true"] { background: var(--leather-4); color: var(--gold-2); box-shadow: inset 0 -2px 0 var(--gold); }
+
+.panel { background: var(--leather-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.panel-head .muted { font-size: .78rem; }
+.cols { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(300px, 360px); gap: 14px; align-items: start; }
+.cols-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .cols { grid-template-columns: minmax(240px, 290px) minmax(0, 1fr); } .cols .col-tip { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .cols, .cols-2 { grid-template-columns: minmax(0, 1fr); } .top { grid-template-columns: 1fr; } .power { text-align: left; } .heroes { justify-content: flex-start; } }
+
+/* ——— muñeco de equipo (D2) ——— */
+.doll { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-areas: ". helm amulet" "weapon chest offhand" "gloves belt boots" "ring . ring2"; gap: 8px; justify-items: center; }
+.slot { width: 100%; max-width: 76px; aspect-ratio: 1; position: relative; border: 11px solid transparent; border-image: url("assets/ui_ranura.webp") 92 fill / 11px; background: transparent; padding: 0; display: grid; place-items: center; }
+.slot .ph { width: 70%; opacity: .22; filter: grayscale(1); }
+.slot .it { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 3px; }
+.slot .lbl { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: .62rem; color: var(--ink-faint); white-space: nowrap; }
+.doll .slot { margin-bottom: 14px; }
+.mats { margin-top: 6px; display: grid; gap: 4px; }
+.mat { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; font-size: .8rem; color: var(--ink-dim); padding: 3px 6px; border-radius: 5px; background: var(--leather); }
+.mat img { width: 24px; height: 24px; border-radius: 4px; }
+.mat b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.gemdot { width: 14px; height: 14px; transform: rotate(45deg); border-radius: 2px; display: inline-block; border: 1px solid rgba(255,255,255,.35); margin: 0 5px; }
+
+/* ——— rejillas y celdas ——— */
+.grid { display: grid; gap: 3px; grid-template-columns: repeat(10, minmax(0, 1fr)); max-width: calc(10 * var(--cell) + 27px); }
+.cell { aspect-ratio: 1; position: relative; border-radius: 4px; border: 1px solid #2d2533; background: #0e0b11; padding: 0; min-width: 0; }
+.cell.empty { background: repeating-linear-gradient(135deg, #100d13 0 4px, #0d0a10 4px 8px); }
+.cell .ico, .slot .ico { width: 86%; height: 86%; object-fit: cover; border-radius: 3px; }
+:where(.cell.has, .slot .it, .drop) { --rc: var(--r-c); }
+.cell.has, .slot .it { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 70%, transparent), inset 0 0 14px color-mix(in srgb, var(--rc) 32%, transparent); background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rc) 22%, #0e0b11) 0%, #0e0b11 75%); }
+.cell.sel, .slot.sel .it { box-shadow: inset 0 0 0 2px var(--gold-2), 0 0 10px rgba(246, 221, 156, .35); }
+.cell .gl { position: absolute; right: 2px; bottom: 2px; width: 30%; height: 30%; }
+.cell .st { position: absolute; left: 2px; top: 1px; font-size: .62rem; line-height: 1; font-weight: 700; }
+.cell .st.new { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-2); top: 4px; left: 4px; box-shadow: 0 0 6px var(--gold); }
+.cell .st.fav { color: var(--gold); }
+.cell .st.junk { color: var(--bad); }
+.cell .up { position: absolute; right: 1px; top: 1px; width: 34%; height: 34%; }
+.cell .up svg { width: 100%; height: 100%; display: block; }
+.cell .up.pot { width: 38%; height: 38%; }
+.slot.asp::before { content: ""; position: absolute; left: -6px; top: -6px; width: 8px; height: 8px; transform: rotate(45deg); background: var(--r-l); border: 1px solid #0e0b11; z-index: 1; }
+.potrow { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: .82rem; margin: 0 0 4px; padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, var(--ok) 8%, transparent); }
+.potrow svg { width: 14px; height: 14px; }
+.potrow .pc { color: var(--ink-dim); font-size: .76rem; }
+.potrow img { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
+.afin { display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: start; margin-top: 10px; }
+.die { width: 64px; height: 64px; border-radius: 12px; border: 2px solid var(--gold); background: linear-gradient(#3a2e22, #1c1510); display: grid; place-items: center; font-family: var(--f-display); font-size: 2rem; color: var(--gold-2); box-shadow: inset 0 0 10px rgba(0,0,0,.6); }
+.die.rolled { animation: dieroll .5s ease-out; }
+@keyframes dieroll { 0% { transform: rotate(-25deg) scale(.8); } 60% { transform: rotate(8deg) scale(1.08); } 100% { transform: none; } }
+.cell .emb { position: absolute; right: 1px; top: 1px; display: flex; gap: 1px; }
+.cell .emb img { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--ok); }
+.cell.faded { opacity: .28; }
+.cell.junked .ico { filter: grayscale(.8) brightness(.7); }
+.r-c { --rc: var(--r-c); } .r-m { --rc: var(--r-m); } .r-r { --rc: var(--r-r); } .r-l { --rc: var(--r-l); } .r-u { --rc: var(--r-u); } .r-x { --rc: var(--r-x); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: .74rem; color: var(--ink-faint); }
+kbd { font-family: var(--f-body); font-size: .7rem; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--leather-3); color: var(--ink-dim); }
+.btn { border: 1px solid var(--line-gold); background: linear-gradient(#3a2e22, #241c15); color: var(--gold-2); padding: 7px 14px; border-radius: 6px; font-family: var(--f-display); font-weight: 600; font-size: .84rem; }
+.btn:hover { border-color: var(--gold); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--ink-dim); font-family: var(--f-body); font-weight: 500; }
+.btn.on { border-color: var(--gold); color: var(--gold-2); background: var(--leather-4); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ——— tooltip ——— */
+.tipbar { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.tips { display: grid; gap: 10px; }
+.tip { border: 10px solid transparent; border-image: url("assets/ui_tooltip.webp") 26 / 10px; background: linear-gradient(#17121b, #110d14) padding-box; padding: 8px 10px; min-width: 0; }
+.tip .t1 { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; }
+.tip .t1 svg.g { width: 20px; height: 20px; }
+.tip .nm { font-family: var(--f-display); font-weight: 700; font-size: 1.04rem; line-height: 1.15; }
+.tip .rw { font-size: .72rem; color: var(--ink-faint); font-family: var(--f-body); font-weight: 500; }
+.nob { display: inline-flex; align-items: center; gap: 4px; font-family: var(--f-display); font-weight: 700; color: var(--gold-2); font-size: 1.02rem; }
+.nob svg { width: 22px; height: 22px; }
+.nob .eff { color: var(--ink-faint); font-size: .82rem; }
+.verdict { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 4px; font-weight: 600; font-size: .9rem; }
+.v-up { color: var(--ok); } .v-down { color: var(--bad); } .v-eq { color: var(--ink-dim); } .v-unk { color: var(--unk); }
+.cant { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-dim); font-weight: 500; }
+.cant img { width: 18px; height: 18px; border-radius: 50%; }
+.base { display: flex; justify-content: space-between; gap: 10px; color: var(--ink-dim); font-size: .86rem; border-top: 1px solid #2d2533; border-bottom: 1px solid #2d2533; padding: 4px 0; margin: 4px 0; }
+.lines { display: grid; gap: 3px; }
+.ln { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 7px; align-items: center; font-size: .9rem; }
+.ln .cat { width: 14px; height: 14px; }
+.ln.gem .cat { transform: rotate(45deg); width: 10px; height: 10px; border-radius: 2px; margin-left: 2px; border: 1px solid rgba(255,255,255,.4); }
+.ln.empty { color: var(--ink-faint); }
+.ln .fixed { font-size: .66rem; color: var(--r-u); border: 1px solid color-mix(in srgb, var(--r-u) 60%, transparent); border-radius: 3px; padding: 0 4px; margin-left: 6px; }
+.steps { display: inline-flex; gap: 2px; align-items: center; }
+.steps i { width: 9px; height: 7px; border-radius: 1px; background: #3a3140; display: block; }
+.steps i.f { background: var(--ink-dim); }
+.steps.star i.f { background: var(--gold); }
+.steps .s { color: var(--gold); font-size: .8rem; margin-left: 2px; font-style: normal; }
+.alt { font-size: .74rem; color: var(--ink-faint); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.asp { margin-top: 6px; padding: 6px 8px; border-radius: 5px; background: color-mix(in srgb, var(--r-l) 10%, transparent); border: 1px solid color-mix(in srgb, var(--r-l) 35%, transparent); font-size: .88rem; display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: center; }
+.asp img { width: 30px; height: 30px; border-radius: 4px; }
+.asp.off { opacity: .55; filter: grayscale(.6); }
+.asp .req { display: block; font-size: .74rem; color: var(--ink-dim); margin-top: 2px; }
+.asp.uq { background: color-mix(in srgb, var(--r-u) 10%, transparent); border-color: color-mix(in srgb, var(--r-u) 40%, transparent); }
+.asp.my { background: color-mix(in srgb, var(--r-x) 10%, transparent); border-color: color-mix(in srgb, var(--r-x) 40%, transparent); }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.tag { font-size: .72rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim); }
+.tag.codex { color: #e3ccff; border-color: #7c56b5; }
+.tag.cmp { color: var(--ink-faint); }
+.tip-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.best { margin-top: 8px; display: grid; gap: 4px; font-size: .82rem; }
+.best div { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; }
+.best img { width: 20px; height: 20px; border-radius: 50%; }
+.cmp-label { font-size: .72rem; color: var(--ink-faint); margin: 0 0 2px 2px; text-transform: uppercase; letter-spacing: .08em; }
+
+/* ——— alijo ——— */
+.stash-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.stab { border: 1px solid var(--line); border-bottom: 2px solid var(--sc, var(--line)); background: var(--leather); color: var(--ink-dim); border-radius: 6px 6px 0 0; padding: 5px 12px; font-size: .82rem; }
+.stab[aria-selected="true"] { background: var(--leather-4); color: var(--ink); }
+.stab.add { color: var(--ink-faint); border-style: dashed; }
+.search { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.search input { flex: 1 1 160px; min-width: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--leather); }
+.chip { border: 1px solid var(--line); background: var(--leather); color: var(--ink-dim); border-radius: 999px; padding: 3px 10px; font-size: .78rem; }
+.chip[aria-pressed="true"], .chip[aria-checked="true"] { border-color: var(--gold); color: var(--gold-2); background: var(--leather-4); }
+
+/* ——— herrería ——— */
+.picker { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.picker .cell { width: 42px; }
+.subtabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+.ranks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0 6px; position: relative; }
+.rk { height: 30px; border-radius: 5px; border: 1px solid var(--line); background: var(--leather); display: grid; place-items: center; font-size: .78rem; color: var(--ink-faint); position: relative; }
+.rk.done { background: linear-gradient(#5a4520, #3a2c14); border-color: var(--gold); color: var(--gold-2); }
+.rk.cheap::after { content: "⅓"; position: absolute; top: -8px; right: -4px; font-size: .68rem; background: var(--leather-3); color: var(--ok); border: 1px solid var(--ok); border-radius: 999px; padding: 0 4px; }
+.mark { position: absolute; top: -6px; bottom: -6px; width: 3px; background: var(--ok); border-radius: 2px; box-shadow: 0 0 6px var(--ok); }
+.cost { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: .86rem; color: var(--ink-dim); margin: 8px 0 12px; }
+.cost s { color: var(--ink-faint); }
+.cost img { width: 20px; height: 20px; border-radius: 4px; vertical-align: -5px; }
+.opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .opts { grid-template-columns: minmax(0, 1fr); } }
+.opt { border: 1px solid var(--line); background: var(--leather); border-radius: 7px; padding: 10px; text-align: left; display: grid; gap: 4px; }
+.opt.cur { border-style: dashed; }
+.opt .d { font-size: .8rem; }
+.opt:hover { border-color: var(--gold); }
+.linepick { display: grid; gap: 4px; }
+.linepick button { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--leather); border-radius: 6px; padding: 6px 8px; }
+.linepick button[aria-pressed="true"] { border-color: var(--gold); }
+.linepick button[disabled] { opacity: .45; cursor: not-allowed; }
+.gems { display: grid; grid-template-columns: 90px repeat(5, minmax(0, 1fr)); gap: 4px; align-items: center; font-size: .78rem; }
+.gems .gh { color: var(--ink-faint); text-align: center; font-size: .68rem; }
+.gems .gn { display: flex; align-items: center; gap: 6px; color: var(--ink-dim); }
+.gbtn { border: 1px solid var(--line); background: var(--leather); border-radius: 5px; padding: 4px 0; font-variant-numeric: tabular-nums; }
+.gbtn[disabled] { opacity: .3; cursor: not-allowed; }
+.gbtn.cur { border-color: var(--gold); color: var(--gold-2); }
+.capnote { font-size: .78rem; color: var(--ink-dim); margin-top: 8px; }
+.aspgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.acard { border: 1px solid var(--line); background: var(--leather); border-radius: 7px; padding: 8px; display: grid; grid-template-columns: 34px 1fr; gap: 8px; text-align: left; font-size: .8rem; align-items: start; }
+.acard img { width: 34px; height: 34px; border-radius: 5px; }
+.acard b { font-family: var(--f-display); font-size: .82rem; color: var(--ink); display: block; }
+.acard .rk2 { color: var(--gold-2); font-size: .72rem; }
+.acard.unk { opacity: .55; }
+.acard .rkrow { display: block; margin-top: 5px; }
+.rkup { font: inherit; font-size: .72rem; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--gold-2); background: transparent; color: var(--gold-2); cursor: pointer; }
+.rkup:disabled { opacity: .45; cursor: default; }
+.acard.mythic { border-color: var(--r-x); }
+.acard.mythic > .dust { font-size: 26px; color: var(--r-x); text-align: center; }
+.acard.unk img { filter: grayscale(1) brightness(.35); }
+.acard.unk b { color: var(--ink-faint); }
+.acard[aria-pressed="true"] { border-color: var(--r-l); box-shadow: 0 0 0 1px var(--r-l) inset; }
+.salv { display: grid; gap: 4px; }
+.salv div { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; font-size: .84rem; }
+.salv .mini { width: 26px; height: 26px; border-radius: 4px; display: grid; place-items: center; }
+.salv .mini img { width: 22px; height: 22px; }
+
+/* ——— aspectos ——— */
+.demo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .demo { grid-template-columns: minmax(0, 1fr); } }
+.dcard { border: 1px solid var(--line); border-radius: 8px; background: var(--leather); padding: 10px; min-width: 0; }
+.dcard.on { border-color: color-mix(in srgb, var(--r-l) 60%, transparent); }
+.dcard canvas { width: 100%; height: auto; aspect-ratio: 16 / 9; display: block; border-radius: 6px; background: #0b090d; }
+.dcard .cap { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin: 6px 0 2px; flex-wrap: wrap; }
+.dcard .cap b { font-family: var(--f-display); }
+.skillhead { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; margin-bottom: 12px; }
+.skillhead img { width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--line-gold); }
+.varsw { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0 12px; font-size: .82rem; }
+.varbtn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--leather); color: var(--ink-dim); }
+.varbtn img { width: 24px; height: 24px; border-radius: 50%; }
+.varbtn[aria-pressed="true"] { border-color: var(--gold); color: var(--gold-2); }
+.varbtn .spark { color: var(--r-l); }
+.chest { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .chest { grid-template-columns: minmax(0, 1fr); } }
+.ccard { border: 1px solid var(--line); border-radius: 8px; background: var(--leather); padding: 4px; text-align: left; display: grid; gap: 6px; min-width: 0; }
+.ccard:hover { border-color: var(--r-l); }
+.ccard.chosen { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset, 0 0 18px rgba(232, 192, 106, .25); }
+.ccard.gone { opacity: .4; }
+.ccard .tip { border-width: 8px; }
+.ccard .foot { font-size: .78rem; color: var(--ink-dim); padding: 0 8px 6px; }
+
+/* ——— filtro ——— */
+.stage { position: relative; aspect-ratio: 16 / 8; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background:
+  radial-gradient(ellipse at 50% 55%, #2b2a22 0%, #191712 55%, #0f0d0b 100%); }
+.stage::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(30deg, rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(150deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 46px 27px; }
+.drop { position: absolute; transform: translate(-50%, -100%); display: grid; justify-items: center; gap: 2px; }
+.drop .pill { font-size: clamp(.58rem, 1.4vw, .76rem); padding: 1px 7px; border-radius: 4px; background: rgba(10, 8, 12, .86); border: 1px solid color-mix(in srgb, var(--rc) 70%, transparent); color: var(--rc); white-space: nowrap; display: inline-flex; gap: 4px; align-items: center; }
+.drop .pill svg { width: 10px; height: 10px; }
+.drop .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 10px var(--rc); }
+.drop.beam .pip { box-shadow: 0 0 14px 4px var(--rc); }
+.drop.beam::after { content: ""; position: absolute; bottom: 4px; width: 2px; height: 70px; background: linear-gradient(transparent, var(--rc)); opacity: .55; left: 50%; transform: translateX(-50%); pointer-events: none; z-index: -1; }
+.drop.hid { opacity: 0; }
+.drop.ghost { opacity: .4; }
+.drop.ghost .pill { text-decoration: line-through; }
+.rules { display: grid; gap: 6px; }
+.rule { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--leather); font-size: .84rem; }
+.rule input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--gold); }
+.rule .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.rule .acts span { font-size: .72rem; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; color: var(--ink-dim); }
+.code { display: flex; gap: 6px; margin-top: 10px; }
+.code input { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--leather); font-family: ui-monospace, Consolas, monospace; font-size: .76rem; color: var(--ink-dim); }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--leather-4); border: 1px solid var(--line-gold); border-radius: 8px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 8px 30px rgba(0,0,0,.5); z-index: 20; max-width: calc(100% - 32px); font-size: .88rem; }
+.note { font-size: .78rem; color: var(--ink-faint); margin-top: 10px; }
+/* ——— Ritmo */
+.track { position: relative; height: 54px; margin: 18px 4px 30px; border-bottom: 2px solid var(--line); }
+.track .seg { position: absolute; bottom: -7px; height: 12px; border-radius: 6px; min-width: 10px; }
+.track .seg b { position: absolute; bottom: 16px; left: 0; white-space: nowrap; font-family: var(--f-display); font-size: .8rem; color: var(--ink); }
+.track .seg span { position: absolute; top: 15px; left: 0; white-space: nowrap; font-size: .72rem; color: var(--ink-faint); }
+.track .tick { position: absolute; bottom: -24px; font-size: .68rem; color: var(--ink-faint); transform: translateX(-50%); }
+.flows { display: grid; gap: 10px; }
+.flow { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; align-items: center; font-size: .8rem; }
+.flow .lab { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; color: var(--ink); }
+.flow .lab .num { flex-basis: 100%; font-size: .72rem; }
+.flow .lab img { width: 18px; height: 18px; }
+.bar2 { display: flex; height: 16px; border-radius: 4px; overflow: hidden; background: var(--leather-3); }
+.bar2 i { display: block; height: 100%; }
+.sinks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.sinks span { font-size: .7rem; padding: 1px 6px; border-radius: 9px; background: var(--leather-3); color: var(--ink-dim); }
+.caprow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 54px; gap: 8px; align-items: center; font-size: .8rem; margin: 6px 0; }
+.capbar { position: relative; height: 14px; background: var(--leather-3); border-radius: 4px; overflow: hidden; }
+.capbar i { position: absolute; top: 0; bottom: 0; left: 0; }
+.capbar em { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--bad); }
+.capbar u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--gold-2); text-decoration: none; }
+.vs { display: grid; grid-template-columns: 140px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-size: .8rem; margin: 6px 0; }
+@media (max-width: 560px) { .flow { grid-template-columns: minmax(0, 1fr); } .caprow, .vs { grid-template-columns: 80px minmax(0, 1fr) 44px; } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .74rem; color: var(--ink-faint); margin-top: 8px; }
+.legend span { display: inline-flex; gap: 5px; align-items: center; }
+.legend svg { width: 13px; height: 13px; }
+.sec { margin-top: 14px; }
+@media (prefers-reduced-motion: reduce) { .float.go, .die.rolled { animation: none; opacity: 1; } * { transition: none !important; } }
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Botín y Herrería</h1>
+      <p>Mockup del Paso 4 (v4) · objetos de ejemplo · valores con las fórmulas del diseño v4</p>
+    </div>
+    <div class="heroes" role="radiogroup" aria-label="Héroe activo" id="heroes"></div>
+    <div class="power" aria-live="polite">
+      <div class="pw num" id="pw"></div>
+      <div class="sub num" id="pwsub"></div>
+      <div class="float" id="pwfloat"></div>
+    </div>
+    <div class="purse" id="purse"></div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Vistas" id="tabs"></nav>
+
+  <!-- MOCHILA -->
+  <section class="view" id="v-mochila" role="tabpanel" aria-labelledby="t-mochila">
+    <div class="cols">
+      <div class="panel col-eq">
+        <div class="panel-head"><h2>Equipo</h2><span class="muted">10 ranuras · <span style="color:var(--r-l)">◆</span> 6 con aspecto</span></div>
+        <div class="doll" id="doll"></div>
+        <div class="panel-head sec"><h3>Materiales</h3><span class="muted">pilas, sin ilvl</span></div>
+        <div class="mats" id="mats"></div>
+      </div>
+      <div class="panel col-bag">
+        <div class="panel-head"><h2>Mochila <span class="muted num" id="bagcount"></span></h2>
+          <div class="row"><button class="chip" id="sortbest" aria-pressed="false">Mejor para mí</button><button class="chip" id="sortnew" aria-pressed="false">Nuevos</button></div></div>
+        <div class="grid" id="bag" role="group" aria-label="Mochila de 40 casillas"></div>
+        <div class="keys"><span><kbd>Clic der.</kbd> equipar</span><span><kbd>Espacio</kbd> basura</span><span><kbd>F</kbd> favorito</span><span><kbd>Alt</kbd> detalle</span><span><kbd>Shift</kbd> comparar</span></div>
+        <div class="row sec"><button class="btn" id="lotebtn"></button><span class="muted" id="lotesum"></span></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="col-tip">
+        <div class="tipbar"><button class="btn ghost" id="altbtn" aria-pressed="false">Detalle · Alt</button><button class="btn ghost" id="shiftbtn" aria-pressed="false">Comparar · Shift</button></div>
+        <div class="tips" id="tipzone"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ALIJO -->
+  <section class="view" id="v-alijo" role="tabpanel" aria-labelledby="t-alijo" hidden>
+    <div class="cols-2">
+      <div class="panel">
+        <div class="panel-head"><h2>Alijo de la cuenta</h2><span class="muted">compartido por los 3 héroes · pestañas de 50</span></div>
+        <div class="stash-tabs" role="tablist" aria-label="Pestañas del alijo" id="stabs"></div>
+        <div class="search"><input id="sq" type="search" placeholder="Buscar: anillo, crítico, Molino…" aria-label="Buscar en el alijo"><span id="chips" class="row"></span></div>
+        <div class="grid" id="stash" role="group" aria-label="Pestaña del alijo"></div>
+        <p class="note">El emblema de la esquina dice a qué héroe tuyo mejora el objeto. Lo que no coincide con la búsqueda se oscurece y no cambia de sitio.</p>
+      </div>
+      <div class="col-tip">
+        <div class="tipbar"><button class="btn ghost" id="altbtn2" aria-pressed="false">Detalle · Alt</button></div>
+        <div class="tips" id="tipzone2"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HERRERÍA -->
+  <section class="view" id="v-herreria" role="tabpanel" aria-labelledby="t-herreria" hidden>
+    <div class="cols-2">
+      <div class="panel">
+        <div class="panel-head"><h2>Herrería</h2><span class="muted">una mesa · todo se paga con oro</span></div>
+        <div class="picker" id="picker" aria-label="Elige un objeto"></div>
+        <div class="subtabs" role="tablist" aria-label="Acciones de la Herrería" id="ftabs"></div>
+        <div id="fpanel"></div>
+      </div>
+      <div class="col-tip"><div class="tips" id="tipzone3"></div></div>
+    </div>
+  </section>
+
+  <!-- ASPECTOS -->
+  <section class="view" id="v-aspectos" role="tabpanel" aria-labelledby="t-aspectos" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Un aspecto que cambia una habilidad</h2><span class="muted" id="demohint"></span></div>
+      <div id="demohead"></div>
+      <div class="demo" id="demo"></div>
+    </div>
+    <div class="panel sec">
+      <div class="panel-head"><h2>Cofre del jefe de grieta</h2><span class="muted">elige 1 de 3 · las otras dos se vuelven Polvo</span></div>
+      <div class="chest" id="chest"></div>
+    </div>
+    <div class="panel sec">
+      <div class="panel-head"><h2>Códice de la cuenta</h2><span class="muted" id="codexsum"></span></div>
+      <div class="aspgrid" id="codex"></div>
+    </div>
+  </section>
+
+  <!-- RITMO -->
+  <section class="view" id="v-ritmo" role="tabpanel" aria-labelledby="t-ritmo" hidden>
+    <div class="cols-2">
+      <div class="panel">
+        <div class="panel-head"><h2>Tres metas desde el Nv70</h2><span class="muted">horas de juego · objetivos que mide el banco</span></div>
+        <div class="track" id="track" aria-label="Metas en horas"></div>
+        <div class="panel-head sec"><h3>De dónde sale y adónde va (por hora)</h3><span class="muted">grieta 10 · T0 · ≈ 8,5 por hora</span></div>
+        <div class="flows" id="flows"></div>
+        <div class="panel-head sec"><h3>Afinar una pieza: el sumidero que crece</h3><span class="muted">horas de oro por línea llevada al paso 5</span></div>
+        <div id="afincurve"></div>
+        <p class="note">Cada moneda tiene un dueño: el oro, la Herrería y la apuesta; el Polvo, el Códice; las Chispas, el Mítico. Las gemas son material.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Topes con el óptimo</h2><span class="muted">Nv100 · todas las fuentes</span></div>
+        <div id="caps"></div>
+        <div class="panel-head sec"><h3>La apuesta no gana a matar</h3><span class="muted">bases por ranura y hora</span></div>
+        <div id="gamble"></div>
+        <p class="note">Objetos Raro+ de una ranura por hora. Precio de la apuesta = 2 × oro por hora ÷ objetos Raro+ por ranura y hora matando (≈ 28 000 en el Nv70).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILTRO -->
+  <section class="view" id="v-filtro" role="tabpanel" aria-labelledby="t-filtro" hidden>
+    <div class="cols-2">
+      <div class="panel">
+        <div class="panel-head"><h2>Botín en el suelo</h2><div class="row"><button class="btn ghost" id="altground" aria-pressed="false">Ver todo · Alt</button></div></div>
+        <div class="row" id="presets" role="radiogroup" aria-label="Preajustes del filtro" style="margin-bottom:10px"></div>
+        <div class="stage" id="stage" aria-label="Vista del suelo con las etiquetas del botín"></div>
+        <p class="note" id="stagenote"></p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Reglas</h2><span class="muted">de arriba abajo · hasta 25</span></div>
+        <div class="rules" id="rules"></div>
+        <div class="code"><input id="fcode" readonly aria-label="Código del filtro"><button class="btn" id="copycode">Copiar</button></div>
+        <p class="note">Lo oculto sigue cayendo: con Alt lo ves y lo recoges. Oro y materiales se recogen solos.</p>
+      </div>
+    </div>
+  </section>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</div>
+
+<script>
+'use strict';
+// ============================================================ fórmulas del diseño v4 (§4.2, §4.4)
+// valor de una línea = TOPE × s(◆)/s(52) × peso × f(paso): depende SOLO del ◆ (= ilvl efectivo + rango)
+const G = n => Math.pow(1.065, n - 1);
+const P = n => Math.pow(1.035, n - 52);                     // curva de las líneas % y del Principal
+const STEP = [0, 0.70, 0.775, 0.85, 0.925, 1.0, 1.5];
+const GEAR_K = 1.69, GEAR_K_ARM = 1.25, K_HP = 5.5;
+const ILVL_MAX = 47, NO_MAX = 52;
+const ROLE_W = { dps: 0.6, control: 0.55, support: 0.5, tank: 0.45 };
+function areaLevel(L) { if (L <= 20) return Math.max(1, L - 1); const mid = Math.round(19 + (Math.min(L, 70) - 20) * 0.55); return L <= 70 ? mid : Math.round(mid + (L - 70) * 0.1); }
+const ilvlTop = lvl => Math.min(ILVL_MAX, areaLevel(lvl));
+const f1 = v => (Math.round(v * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: v < 10 ? 1 : 0, maximumFractionDigits: 1 });
+const f2 = v => (Math.round(v * 100) / 100).toLocaleString('es-CL', { maximumFractionDigits: 2 });
+const fint = v => Math.round(v).toLocaleString('es-CL');
+const pct = v => (v >= 0 ? '+' : '−') + f1(Math.abs(v * 100)) + ' %';
+
+// asp = ranura con aspecto (6); las armaduras (casco, pecho, cinturón, botas) son de stats y Únicos
+const SLOTS = {
+  weapon: { name: 'Arma', icon: 'eq_arma', w: 0.75, asp: true },
+  offhand: { name: 'Mano izquierda', icon: 'eq_mano_izq', w: 0.75, asp: true, hp: 0.7 },
+  helm: { name: 'Casco', icon: 'eq_casco', w: 1, arm: 1, hp: 1 },
+  chest: { name: 'Pecho', icon: 'eq_pecho', w: 1, arm: 1.5, hp: 1.5 },
+  gloves: { name: 'Guantes', icon: 'eq_guantes', w: 0.75, arm: 0.7, hp: 0.7, asp: true },
+  belt: { name: 'Cinturón', icon: 'eq_cinturon', w: 0.75, arm: 0.7, hp: 0.7 },
+  boots: { name: 'Botas', icon: 'eq_botas', w: 0.75, arm: 1, hp: 1 },
+  amulet: { name: 'Amuleto', icon: 'eq_amuleto', w: 0.70, asp: true },
+  ring: { name: 'Anillo', icon: 'eq_anillo', w: 0.5625, asp: true },
+};
+const EQ_KEYS = ['helm', 'amulet', 'weapon', 'chest', 'offhand', 'gloves', 'belt', 'boots', 'ring', 'ring2'];
+const slotOf = k => k === 'ring2' ? 'ring' : k;
+// pools v4 (§4.1): sin Principal en las armaduras; crítico solo en anillos; «% daño de tus ‹cat›» en vez de «% elemento»
+const POOL = {
+  weapon: ['main', 'dmg', 'cat', 'cdmg', 'aspd', 'lph', 'rank'],
+  gloves: ['main', 'dmg', 'cat', 'cdmg', 'aspd'],
+  amulet: ['dmg', 'cat', 'cdmg', 'hp', 'rank'],
+  ring: ['dmg', 'cat', 'crit', 'cdmg', 'hp', 'lph'],
+  helm: ['hp', 'arm', 'cdr', 'res', 'dodge'],
+  chest: ['hp', 'arm', 'dr', 'res', 'lph'],
+  belt: ['hp', 'arm', 'dr', 'res'],
+  boots: ['hp', 'arm', 'dodge', 'res'],
+};
+const poolOf = it => it.s !== 'offhand' ? POOL[it.s] : it.shield ? ['dr', 'cdr', 'lph', 'arm', 'block'] : ['dr', 'cdr', 'lph', 'res', 'cat'];
+const CAT_SLOTS = { weapon: ['Ofens.', 'Mecán.'], offhand: ['Defens.', 'Util.', 'Mecán.'], gloves: ['Ofens.', 'Util.', 'Movil.'], amulet: ['Ofens.', 'Defens.', 'Util.', 'Movil.', 'Mecán.'], ring: ['Ofens.', 'Defens.', 'Mecán.'], helm: [], chest: [], belt: [], boots: [] };
+const SEL = { basic: 'tus básicos', spender: 'tus gastadoras', insignia: 'tu Insignia', ultimate: 'tu Definitiva', movement: 'tu Movilidad' };
+// top = valor TOPE (◆52, paso 5, peso 1) · cat: atk ⚔, def 🛡, sus ✚, skl ✦
+const LINES = {
+  main: { top: 10, sc: 'pct', cat: 'atk', t: (v, h) => `+${fint(v)} ${h.main}` },
+  dmg: { top: 12, sc: 'pct', cat: 'atk', t: v => `+${f1(v)} % daño` },
+  cat: { top: 26, sc: 'pct', cat: 'atk', t: (v, h, s, sel) => `+${f1(v)} % daño de ${SEL[sel] || SEL.spender}` },
+  crit: { top: 5.5, sc: 'pct', cat: 'atk', t: v => `+${f1(v)} % crítico` },
+  cdmg: { top: 45, sc: 'pct', cat: 'atk', t: v => `+${f1(v)} % daño crítico` },
+  aspd: { top: 18, sc: 'pct', cat: 'atk', t: v => `+${f1(v)} % vel. de ataque` },
+  hp: { top: 120, sc: 'flat', cat: 'def', t: v => `+${fint(v)} vida` },
+  arm: { top: 115, sc: 'flat', cat: 'def', t: v => `+${fint(v)} armadura` },
+  dr: { top: 5.5, sc: 'pct', cat: 'def', t: v => `+${f1(v)} % reducción de daño` },
+  block: { top: 7.5, sc: 'pct', cat: 'def', t: v => `+${f1(v)} % bloqueo` },
+  dodge: { top: 0.6, sc: 'pct', cat: 'def', t: v => `−${f2(v)} s de recarga de esquiva` },
+  lph: { top: 15, sc: 'flat', cat: 'sus', t: v => `+${fint(v)} vida al golpear` },
+  cdr: { top: 9.5, sc: 'pct', cat: 'sus', t: v => `+${f1(v)} % enfriamiento` },
+  res: { top: 28, sc: 'pct', cat: 'sus', t: (v, h) => `+${f1(v)} % de ${h.res}` },
+  rank: { fixed: true, cat: 'skl', t: (v, h, s, sel) => `+1 a ${SEL[sel] || SEL.spender}` },
+};
+const LINE_NAMES = { main: 'Principal', dmg: '% Daño', cat: '% Daño de tus ‹cat›', crit: '% Crítico', cdmg: '% Daño crítico', aspd: '% Vel. de ataque', hp: 'Vida', arm: 'Armadura', dr: '% Reducción de daño', block: 'Bloqueo', dodge: 'Esquiva', lph: 'Vida al golpear', cdr: '% Enfriamiento', res: '% Recurso', rank: '+1 rango' };
+const GEMS = {
+  rubi: { n: 'Rubí', line: 'hp', col: '#e0465a' },
+  diamante: { n: 'Diamante', line: 'arm', col: '#d8e8f5' },
+  amatista: { n: 'Amatista', line: 'main', col: '#a46bff' },
+  esmeralda: { n: 'Esmeralda', line: 'cdmg', col: '#3fc27a' },
+  zafiro: { n: 'Zafiro', line: 'cdr', col: '#3f7cf0' },
+  topacio: { n: 'Topacio', line: 'dmg', col: '#f2b437' },
+};
+const GRADES = ['', 'Astillada', 'Tosca', 'Tallada', 'Pulida', 'Perfecta'];
+const RAR = {
+  C: { n: 'Común', cls: 'r-c', col: 'var(--r-c)' }, M: { n: 'Mágico', cls: 'r-m', col: 'var(--r-m)' },
+  R: { n: 'Raro', cls: 'r-r', col: 'var(--r-r)' }, L: { n: 'Legendario', cls: 'r-l', col: 'var(--r-l)' },
+  U: { n: 'Único', cls: 'r-u', col: 'var(--r-u)' }, X: { n: 'Mítico', cls: 'r-x', col: 'var(--r-x)' },
+};
+const RAR_ORDER = { C: 0, M: 1, R: 2, L: 3, U: 4, X: 5 };
+
+// ============================================================ héroes (datos de ejemplo)
+const HEROES = {
+  // mainBase/hpBase/critBase = sin equipo (atributos del nivel, talentos); ref = desnudo Nv1 (referencia fija del ⚡)
+  // share = parte del DPS de cada categoría en su barra (la usan «% daño de tus ‹cat›» y «+1 a ‹cat›»; el banco la mide)
+  guerrero: { cls: 'guerrero', name: 'Guerrero', spec: 'berserker', specName: 'Berserker', role: 'dps', lvl: 72, main: 'Fuerza', res: 'Furia', resIcon: 'res_furia', mainBase: 75, hpBase: 600, critBase: 11.5, emblem: 'spec_berserker',
+    ref: { mainBase: 18, hpBase: 109, critBase: 6.5 }, share: { basic: 0.30, spender: 0.45, insignia: 0.20, ultimate: 0.05 }, variants: { g_rajar: 'ii', g_remolino: 'ii', g_u_furia: 'i' } },
+  maga: { cls: 'maga', name: 'Maga', spec: 'piromante', specName: 'Piromante', role: 'dps', lvl: 64, main: 'Energía', res: 'Maná', resIcon: 'res_mana', mainBase: 79, hpBase: 620, critBase: 11.5, emblem: 'spec_piromante',
+    ref: { mainBase: 22, hpBase: 100, critBase: 6.5 }, share: { basic: 0.20, spender: 0.50, insignia: 0.20, ultimate: 0.10 }, variants: { bola_fuego: 'ii', meteoro: 'i', m_u_supernova: 'i' } },
+  arquera: { cls: 'arquera', name: 'Arquera', spec: 'montaraz', specName: 'Montaraz', role: 'control', lvl: 52, main: 'Destreza', res: 'Energía', resIcon: 'res_energia', mainBase: 77, hpBase: 570, critBase: 21.5, emblem: 'spec_montaraz',
+    ref: { mainBase: 20, hpBase: 107, critBase: 8 }, share: { basic: 0.35, spender: 0.30, insignia: 0.30, ultimate: 0.05 }, variants: { a_t_cepo: 'ii', a_m_detonante: 'i', a_disparo: 'ii' } },
+};
+const HERO_IDS = ['guerrero', 'maga', 'arquera'];
+const SPEC_NAMES = { berserker: 'Berserker', guardian: 'Guardián', cruzado: 'Cruzado', piromante: 'Piromante', crionte: 'Crionte', arcanista: 'Arcanista', tiradora: 'Tiradora', francotiradora: 'Francotiradora', montaraz: 'Montaraz' };
+const CLS_OF_SPEC = { berserker: 'guerrero', guardian: 'guerrero', cruzado: 'guerrero', piromante: 'maga', crionte: 'maga', arcanista: 'maga', tiradora: 'arquera', francotiradora: 'arquera', montaraz: 'arquera' };
+const CLS_NAME = { guerrero: 'Guerrero', maga: 'Maga', arquera: 'Arquera' };
+const CLS_EMB = { guerrero: 'spec_berserker', maga: 'spec_piromante', arquera: 'spec_montaraz' };
+
+// ============================================================ aspectos (§4.6)
+// v(r) interpola de rango 1 (≈ 50 % del valor) a rango 5; d/a = aporte al Daño/Aguante en r5; dl = Δ declarado (§4.6)
+const lerp = (a, b, r) => a + (b - a) * (r - 1) / 4;
+const ASPECTS = {
+  // ——— Berserker (Sed)
+  molino_huesos: { n: 'Molino de Huesos', cls: 'guerrero', spec: 'berserker', cat: 'Ofens.', needs: { skill: 'g_rajar', v: 'ii', vn: 'Molino', sk: 'Rajar' }, img: 'v_g_rajar_ii', t: r => `Molino: el 3.er giro deja un sangrado del ${fint(lerp(30, 50, r))} % en 3 s`, d: 0.09, dl: '+10 → +17 % de Rajar' },
+  furia_sin_freno: { n: 'Furia sin Freno', cls: 'guerrero', spec: 'berserker', cat: 'Ofens.', needs: { skill: 'g_u_furia', v: 'ii', vn: 'Frenesí', sk: 'Furia Inmortal' }, img: 'spec_berserker', t: r => `Durante Frenesí, cada golpe de Rajar alarga la definitiva ${f1(lerp(0.2, 0.4, r))} s (hasta +4 s)`, d: 0.06, dl: '+8 → +14 % de la definitiva' },
+  torbellino_rojo: { n: 'Torbellino Rojo', cls: 'guerrero', spec: 'berserker', cat: 'Mecán.', needs: { skill: 'g_remolino', sk: 'Remolino Sangriento' }, img: 'spec_berserker', t: r => `Golpear a 3 o más con un giro da +1 de Sed ${r >= 4 ? '(cada giro)' : '(cada 2 giros)'}`, d: 0.05, unk: true, dl: '+4 → +8 % DPS' },
+  sed_insaciable: { n: 'Sed Insaciable', cls: 'guerrero', spec: 'berserker', cat: 'Mecán.', needs: { gauge: 'Sed' }, img: 'spec_berserker', t: r => `+${fint(lerp(10, 20, r))} % de Sed máxima; matar con la Sed llena cura el ${fint(lerp(3, 5, r))} %`, d: 0.04, unk: true, dl: '+3 → +6 % DPS · ?' },
+  // ——— Guardián (Bastión)
+  martinete: { n: 'Martinete', cls: 'guerrero', spec: 'guardian', cat: 'Ofens.', needs: { skill: 'terremoto', v: 'i', vn: 'Martinete', sk: 'Terremoto' }, img: 'spec_guardian', t: r => `+${fint(lerp(3, 5, r))} de Quebranto y una grieta de 2 s al ${fint(lerp(15, 25, r))} %/s`, dl: '+15 → +25 % de Quebranto' },
+  muro_viviente: { n: 'Muro Viviente', cls: 'guerrero', spec: 'guardian', cat: 'Defens.', needs: { skill: 'g_u_ciudadela', v: 'i', vn: 'Ciudadela Andante', sk: 'Ciudadela' }, img: 'spec_guardian', t: r => `La reducción baja a −${fint(lerp(28, 32, r))} % (antes −25 %)`, a: 0.05, dl: '+4 → +9 % de Aguante' },
+  espinas_hierro: { n: 'Espinas de Hierro', cls: 'guerrero', spec: 'guardian', cat: 'Defens.', needs: { skill: 'g_guardia', sk: 'Cambio de Guardia' }, img: 'spec_guardian', t: r => `En Muralla devuelves el ${fint(lerp(15, 25, r))} % del daño cuerpo a cuerpo`, unk: true, dl: '?' },
+  bastion_firme: { n: 'Bastión Firme', cls: 'guerrero', spec: 'guardian', cat: 'Mecán.', needs: { gauge: 'Bastión' }, img: 'spec_guardian', t: r => `Bloquear da +1 de Bastión ${r >= 4 ? '(cada bloqueo)' : '(1 de cada 2 bloqueos)'}`, a: 0.06, dl: '+5 → +10 % de Aguante' },
+  // ——— Cruzado (Fervor)
+  martillo_justo: { n: 'Martillo Justo', cls: 'guerrero', spec: 'cruzado', cat: 'Util.', needs: { skill: 'g_martillo', sk: 'Martillo de Guerra' }, img: 'spec_cruzado', t: r => `La ventana perfecta es un ${fint(lerp(15, 30, r))} % más ancha`, d: 0.04, dl: '+3 → +6 % del Martillo' },
+  onda_doble: { n: 'Onda Doble', cls: 'guerrero', spec: 'cruzado', cat: 'Ofens.', needs: { skill: 'g_martillo', v: 'ii', vn: 'Onda Sagrada', sk: 'Martillo' }, img: 'spec_cruzado', t: r => `Tras una suelta perfecta, la onda se repite al ${fint(lerp(30, 50, r))} %`, d: 0.07, dl: '+7 → +12 % del Martillo' },
+  sentencia_firme: { n: 'Sentencia Firme', cls: 'guerrero', spec: 'cruzado', cat: 'Mecán.', needs: { skill: 'g_juicio', v: 'i', vn: 'Sentencia', sk: 'Juicio' }, img: 'spec_cruzado', t: r => `La marca dura ${fint(lerp(15, 18, r))} s y detonarla da 1 de Fervor`, unk: true, dl: '+4 → +8 % · ?' },
+  sendero_bendito: { n: 'Sendero Bendito', cls: 'guerrero', spec: 'cruzado', cat: 'Movil.', needs: { skill: 'g_sendero', sk: 'Sendero de Luz' }, img: 'spec_cruzado', t: r => `El sendero dura ${f1(lerp(1, 2, r))} s más y cura un ${f1(lerp(2.5, 3, r))} %/s`, unk: true, dl: '? (grupo)' },
+  // ——— Guerrero (clase)
+  tajo_desgarrador: { n: 'Tajo Desgarrador', cls: 'guerrero', spec: null, cat: 'Ofens.', needs: { skill: 'g_tajo', v: 'i', vn: 'Desgarro', sk: 'Tajo' }, img: 'st_sangrado', t: r => `El sangrado de Desgarro sube al ${fint(lerp(70, 80, r))} % (antes 60)`, d: 0.04, dl: '+5 → +10 % del básico' },
+  piel_viva: { n: 'Piel Viva', cls: 'guerrero', spec: null, cat: 'Defens.', needs: { skill: 'g_piel', sk: 'Piel de Hierro' }, img: 'spec_guardian', t: r => `Piel de Hierro dura ${f1(lerp(1, 2, r))} s más`, a: 0.04, dl: '+3 → +6 % de Aguante' },
+  coraza_furia: { n: 'Coraza de Furia', cls: 'guerrero', spec: null, cat: 'Defens.', needs: {}, img: 'res_furia', t: r => `Con 50 o más de Furia recibes −${f1(lerp(3, 6, r))} % de daño`, a: 0.04, dl: '+3 → +6 % de Aguante' },
+  zancada_firme: { n: 'Zancada Firme', cls: 'guerrero', spec: null, cat: 'Util.', needs: {}, img: 'spec_berserker', t: r => `Tu habilidad de Movilidad recarga un ${fint(lerp(15, 25, r))} % antes y al terminar no te pueden ralentizar en 1 s`, unk: true, dl: '?' },
+  // ——— Piromante (Calor)
+  racimo_voraz: { n: 'Racimo Voraz', cls: 'maga', spec: 'piromante', cat: 'Ofens.', needs: { skill: 'bola_fuego', v: 'ii', vn: 'Racimo', sk: 'Bola de Fuego' }, img: 'v_bola_fuego_ii', t: r => `Racimo suelta ${r >= 4 ? 5 : 4} brasas (antes 3) al ${fint(lerp(40, 44, r))} % cada una`, d: 0.08, dl: '+6 → +15 % de la Bola' },
+  meteoro_certero: { n: 'Meteoro Certero', cls: 'maga', spec: 'piromante', cat: 'Ofens.', needs: { skill: 'meteoro', sk: 'Meteoro' }, img: 'spec_piromante', t: r => `Cae ${f1(lerp(0.2, 0.3, r))} s antes y deja el suelo ardiendo 2 s al ${fint(lerp(10, 20, r))} %/s`, d: 0.05, dl: '+5 → +10 % del Meteoro' },
+  sol_errante: { n: 'Sol Errante', cls: 'maga', spec: 'piromante', cat: 'Ofens.', needs: { skill: 'm_u_supernova', v: 'i', vn: 'Sol Errante', sk: 'Supernova' }, img: 'spec_piromante', t: r => `La estrella estalla una 5.ª vez al ${fint(lerp(60, 100, r))} % de un estallido`, d: 0.04, dl: '+15 → +25 % de la definitiva' },
+  horno: { n: 'Horno', cls: 'maga', spec: 'piromante', cat: 'Mecán.', major: true, needs: { gauge: 'Calor' }, img: 'spec_piromante', t: r => `Con el Calor al máximo, tus golpes de Fuego hacen ×${f2(lerp(1.05, 1.10, r))}`, d: 0.05, unk: true, dl: '+3 → +7 % DPS' },
+  // ——— Crionte (Escarcha)
+  ventisca_viva: { n: 'Ventisca Viva', cls: 'maga', spec: 'crionte', cat: 'Ofens.', needs: { skill: 'm_u_tormenta', v: 'i', vn: 'Ventisca Anclada', sk: 'Tormenta Glacial' }, img: 'spec_crionte', t: r => `La ventisca crece ${f1(lerp(1, 2, r))} m y quien sigue dentro 3 s se congela ${f1(lerp(0.5, 1, r))} s`, unk: true, dl: '+8 → +15 % de la definitiva · ?' },
+  abanico_helado: { n: 'Abanico Helado', cls: 'maga', spec: 'crionte', cat: 'Ofens.', needs: { skill: 'k_lanza', v: 'ii', vn: 'Abanico Gélido', sk: 'Lanza de Hielo' }, img: 'spec_crionte', t: r => `4 lanzas (antes 3 al 50 %) al ${fint(lerp(42, 45, r))} % cada una`, dl: '+12 → +20 % de la Lanza' },
+  prision_afilada: { n: 'Prisión Afilada', cls: 'maga', spec: 'crionte', cat: 'Mecán.', needs: { skill: 'k_prision', sk: 'Prisión de Hielo' }, img: 'spec_crionte', t: r => `Al romperse deja ${r >= 4 ? '2 capas' : '1 capa'} de Escarcha`, unk: true, dl: '?' },
+  invierno_eterno: { n: 'Invierno Eterno', cls: 'maga', spec: 'crionte', cat: 'Mecán.', needs: { gauge: 'Escarcha' }, img: 'spec_crionte', t: r => `Los congelados por la Escarcha siguen ${f1(lerp(0.5, 1, r))} s más`, unk: true, dl: '?' },
+  // ——— Arcanista (Cargas)
+  orbe_gemelo: { n: 'Orbe Gemelo', cls: 'maga', spec: 'arcanista', cat: 'Ofens.', needs: { skill: 'a_orbe', v: 'ii', vn: 'Orbe Gemelo', sk: 'Orbe Arcano' }, img: 'spec_arcanista', t: r => `3 orbes (antes 2 al 60 %) al ${fint(lerp(42, 46, r))} % cada uno`, dl: '+5 → +15 % del Orbe' },
+  cadena_larga: { n: 'Cadena Larga', cls: 'maga', spec: 'arcanista', cat: 'Ofens.', needs: { skill: 'rayo', v: 'i', vn: 'Rayo en Cadena', sk: 'Rayo' }, img: 'spec_arcanista', t: r => `Un 4.º salto al ${fint(lerp(35, 60, r))} %`, dl: '+11 → +19 % del Rayo' },
+  sello_amplio: { n: 'Sello Amplio', cls: 'maga', spec: 'arcanista', cat: 'Defens.', needs: { skill: 'a_sello', sk: 'Sello del Archimago' }, img: 'spec_arcanista', t: r => `El sello mide ${f1(lerp(1, 2, r))} m más y dura ${f1(lerp(1.5, 3, r))} s más`, a: 0.04, dl: '+3 → +6 % de Aguante' },
+  cargas_vivas: { n: 'Cargas Vivas', cls: 'maga', spec: 'arcanista', cat: 'Mecán.', needs: { gauge: 'Cargas' }, img: 'spec_arcanista', t: r => `Las Cargas duran ${fint(lerp(1, 3, r))} s más${r >= 4 ? '; +1 Carga máxima' : ''}`, unk: true, dl: '+4 → +12 % del Rayo' },
+  // ——— Maga (clase)
+  dardo_gemelo: { n: 'Dardo Gemelo', cls: 'maga', spec: null, cat: 'Ofens.', needs: { skill: 'm_dardo', sk: 'Dardo Arcano' }, img: 'spec_arcanista', t: r => `El Dardo Arcano lanza un 2.º dardo al ${fint(lerp(30, 50, r))} %`, d: 0.04, dl: '+8 → +14 % del básico' },
+  piel_ceniza: { n: 'Piel de Ceniza', cls: 'maga', spec: null, cat: 'Defens.', needs: {}, img: 'spec_piromante', t: r => `Un golpe de más del 10 % de tu vida te da un escudo del ${fint(lerp(5, 8, r))} % (cada 10 s)`, a: 0.05, dl: '+3 → +6 % de Aguante' },
+  mana_templado: { n: 'Maná Templado', cls: 'maga', spec: null, cat: 'Defens.', needs: {}, img: 'res_mana', t: r => `Con el Maná por encima del 50 %, recibes −${f1(lerp(3, 6, r))} % de daño`, a: 0.04, dl: '+3 → +6 % de Aguante' },
+  paso_arcano: { n: 'Paso Arcano', cls: 'maga', spec: null, cat: 'Util.', needs: {}, img: 'spec_arcanista', t: r => `Tu habilidad de Movilidad recarga un ${fint(lerp(15, 25, r))} % antes y te deja ${f1(lerp(1, 2, r))} s de +20 % de Maná regenerado`, unk: true, dl: '?' },
+  // ——— Montaraz (Coto)
+  cuarto_cepo: { n: 'Cuarto Cepo', cls: 'arquera', spec: 'montaraz', cat: 'Mecán.', needs: { skill: 'a_t_cepo', sk: 'Trampa de Cepo' }, img: 'a_t_cepo', t: r => `Las trampas se rearman un ${fint(lerp(10, 20, r))} % antes${r >= 4 ? '; una 4.ª armada' : ''}`, d: 0.06, dl: '+8 → +18 % de las trampas' },
+  cadena_polvora: { n: 'Cadena de Pólvora', cls: 'arquera', spec: 'montaraz', cat: 'Ofens.', needs: { skill: 'a_m_detonante', v: 'i', vn: 'Detonación en Cadena', sk: 'Flecha Detonante' }, img: 'spec_montaraz', t: r => `La cadena alcanza a ${f1(lerp(7, 8, r))} m (antes 6)`, d: 0.05, dl: '+6 → +12 % en ÁREA' },
+  red_pesada: { n: 'Red Pesada', cls: 'arquera', spec: 'montaraz', cat: 'Defens.', needs: { skill: 'a_t_cepo', v: 'ii', vn: 'Red de Caza', sk: 'Trampa de Cepo' }, img: 'v_a_t_cepo_ii', t: r => `La red inmoviliza ${f1(lerp(3, 3.5, r))} s (antes 2,5); a un jefe le llena ${fint(lerp(8, 15, r))} de Quebranto`, a: 0.04, unk: true, dl: '?' },
+  rastro_presa: { n: 'Rastro de Presa', cls: 'arquera', spec: 'montaraz', cat: 'Mecán.', needs: { gauge: 'Coto' }, img: 'spec_montaraz', t: r => `Si una trampa atrapa a la Presa, se rearma sola (1 cada ${fint(lerp(15, 10, r))} s)`, unk: true, dl: '+4 → +8 %' },
+  // ——— Tiradora (Impulso)
+  tercera_andanada: { n: 'Tercera Andanada', cls: 'arquera', spec: 'tiradora', cat: 'Ofens.', needs: { skill: 'a_t_andanada', sk: 'Andanada' }, img: 'spec_tiradora', t: r => `Una 3.ª andanada al ${fint(lerp(40, 60, r))} % del daño`, dl: '+13 → +20 % de la Andanada' },
+  abanico_abierto: { n: 'Abanico Abierto', cls: 'arquera', spec: 'tiradora', cat: 'Ofens.', needs: { skill: 'flecha_multiple', v: 'i', vn: 'Abanico Abierto', sk: 'Flecha Múltiple' }, img: 'spec_tiradora', t: r => `8 flechas (antes 7) al ${fint(lerp(38, 41, r))} % cada una`, dl: '+14 → +23 % en ÁREA' },
+  carrera_certera: { n: 'Carrera Certera', cls: 'arquera', spec: 'tiradora', cat: 'Movil.', needs: { skill: 'a_v_carrera', v: 'i', vn: 'Carrera Certera', sk: 'Carrera del Viento' }, img: 'spec_tiradora', t: r => `Disparas cada ${f2(lerp(0.54, 0.50, r))} s (antes 0,6)`, dl: '+11 → +20 % en la carrera' },
+  viento_favor: { n: 'Viento a Favor', cls: 'arquera', spec: 'tiradora', cat: 'Mecán.', needs: { gauge: 'Impulso' }, img: 'spec_tiradora', t: r => `Moverte llena el Impulso un ${fint(lerp(15, 25, r))} % más rápido`, dl: '+3 → +6 % DPS' },
+  // ——— Francotiradora (Concentración)
+  pulso_sereno: { n: 'Pulso Sereno', cls: 'arquera', spec: 'francotiradora', cat: 'Util.', needs: { skill: 'a_t_apuntado', sk: 'Disparo Apuntado' }, img: 'spec_francotiradora', t: r => `La ventana perfecta es un ${fint(lerp(15, 30, r))} % más ancha`, dl: '+3 → +6 %' },
+  tiro_pesado: { n: 'Tiro Pesado', cls: 'arquera', spec: 'francotiradora', cat: 'Ofens.', needs: { skill: 'a_t_apuntado', v: 'ii', vn: 'Tiro Pesado', sk: 'Disparo Apuntado' }, img: 'spec_francotiradora', t: r => `Tensas hasta 3 s: hasta ${fint(lerp(330, 360, r))} % (antes 300)`, dl: '+10 → +20 % del tiro' },
+  haz_unico: { n: 'Haz Único', cls: 'arquera', spec: 'francotiradora', cat: 'Ofens.', needs: { skill: 'a_u_celeste', v: 'ii', vn: 'Haz Único', sk: 'Tiro Celestial' }, img: 'spec_francotiradora', t: r => `Una suelta perfecta devuelve el ${fint(lerp(25, 50, r))} % del enfriamiento`, dl: '+8 → +15 %' },
+  mirada_quieta: { n: 'Mirada Quieta', cls: 'arquera', spec: 'francotiradora', cat: 'Defens.', needs: { gauge: 'Concentración' }, img: 'spec_francotiradora', t: r => `De rodillas, los golpes quitan un ${fint(lerp(50, 100, r))} % menos de Concentración`, unk: true, dl: '?' },
+  // ——— Arquera (clase)
+  cicuta_profunda: { n: 'Cicuta Profunda', cls: 'arquera', spec: null, cat: 'Ofens.', needs: { skill: 'a_disparo', v: 'ii', vn: 'Flecha de Cicuta', sk: 'Disparo Rápido' }, img: 'spec_montaraz', t: r => `El veneno de la Cicuta hace +${fint(lerp(10, 18, r))} %`, d: 0.04, dl: '+5 → +9 % del básico' },
+  humo_denso: { n: 'Humo Denso', cls: 'arquera', spec: null, cat: 'Defens.', needs: { skill: 'a_humo', sk: 'Bomba de Humo' }, img: 'spec_tiradora', t: r => `La Bomba de Humo dura ${f1(lerp(1, 2, r))} s más`, a: 0.04, dl: '+3 → +6 % de Aguante' },
+  cuero_curtido: { n: 'Cuero Curtido', cls: 'arquera', spec: null, cat: 'Defens.', needs: {}, img: 'res_energia', t: r => `Moviéndote, recibes −${f1(lerp(3, 6, r))} % de daño`, a: 0.04, dl: '+3 → +6 % de Aguante' },
+  paso_ligero: { n: 'Paso Ligero', cls: 'arquera', spec: null, cat: 'Util.', needs: {}, img: 'spec_tiradora', t: r => `Tu habilidad de Movilidad recarga un ${fint(lerp(15, 25, r))} % antes y tu siguiente disparo hace +${fint(lerp(10, 20, r))} %`, unk: true, dl: '?' },
+  // ——— universales
+  furia: { n: 'de la Furia', cls: null, spec: null, cat: 'Ofens.', major: true, needs: {}, img: 'st_sangrado', t: r => `Con la vida por encima del 80 %, haces ×${f2(lerp(1.08, 1.15, r))}`, d: 0.06, unk: true, dl: '+4 → +8 % DPS' },
+  volatil: { n: 'Volátil', cls: null, spec: null, cat: 'Ofens.', needs: {}, img: 'bola_fuego', t: r => `Los enemigos explotan al morir con el ${fint(lerp(30, 50, r))} % de tu golpe medio`, d: 0.04, unk: true, dl: '+3 → +6 % en ÁREA' },
+  festin: { n: 'del Festín', cls: null, spec: null, cat: 'Defens.', needs: {}, img: 'spec_berserker', t: r => `Matar te cura el ${fint(lerp(3, 5, r))} % de la vida`, a: 0.03, unk: true, dl: '?' },
+  viento: { n: 'del Viento', cls: null, spec: null, cat: 'Movil.', needs: {}, img: 'spec_tiradora', t: r => `Tu esquiva se recarga ${f1(lerp(0.6, 1.0, r))} s antes`, a: 0.02, dl: '+1 → +3 % de Aguante' },
+  reloj: { n: 'del Reloj', cls: null, spec: null, cat: 'Util.', needs: {}, img: 'menu_codice', t: r => `Tus habilidades de Defensa y Utilidad recargan un ${fint(lerp(10, 15, r))} % antes`, a: 0.02, unk: true, dl: '?' },
+};
+
+// ============================================================ objetos de ejemplo
+let UID = 1;
+function mk(o) { return Object.assign({ uid: UID++, k: 0, g: null, a: null, fixed: 0, seed: 1000 + UID * 7919, rr: 0, af: 0, sm: 0, x: null }, o); }
+// L: [línea, paso (6 = ★), selector] · las armaduras (casco, pecho, cinturón, botas) ya no llevan aspecto
+const ITEMS = [
+  // ——— Guerrero (Berserker, Nv72) · equipado
+  mk({ n: 'Hacha Mellada', base: 'Hacha de Guerra', s: 'weapon', cls: 'guerrero', r: 'R', il: 43, L: [['main', 3], ['dmg', 4], ['lph', 2]], g: ['topacio', 2], loc: 'eq:guerrero', eqs: 'weapon' }),
+  mk({ n: 'Escudo Remachado', base: 'Escudo de Hierro', s: 'offhand', cls: 'guerrero', shield: true, r: 'L', il: 44, L: [['dr', 3], ['cdr', 2], ['block', 3]], a: ['piel_viva', 2], loc: 'eq:guerrero', eqs: 'offhand' }),
+  mk({ n: 'Yelmo de Cuernos', base: 'Yelmo', s: 'helm', r: 'R', il: 45, k: 2, L: [['hp', 4], ['arm', 3], ['cdr', 2]], g: ['rubi', 3], loc: 'eq:guerrero', eqs: 'helm' }),
+  mk({ n: 'Coraza del Juramento', base: 'Coraza', s: 'chest', r: 'R', il: 46, k: 1, L: [['hp', 3], ['dr', 2], ['arm', 5]], g: ['diamante', 2], loc: 'eq:guerrero', eqs: 'chest' }),
+  mk({ n: 'Manoplas Dentadas', base: 'Manoplas', s: 'gloves', r: 'R', il: 44, k: 5, L: [['dmg', 3], ['aspd', 6], ['cdmg', 3]], g: ['esmeralda', 4], loc: 'eq:guerrero', eqs: 'gloves' }),
+  mk({ n: 'Faja de Cuero', base: 'Faja', s: 'belt', r: 'M', il: 41, L: [['hp', 3], ['res', 2]], loc: 'eq:guerrero', eqs: 'belt' }),
+  mk({ n: 'Grebas del Paso', base: 'Grebas', s: 'boots', r: 'R', il: 43, L: [['hp', 2], ['dodge', 3], ['arm', 4]], g: ['rubi', 1], loc: 'eq:guerrero', eqs: 'boots' }),
+  mk({ n: 'Colgante del Remolino', base: 'Colgante', s: 'amulet', r: 'L', il: 47, L: [['dmg', 3], ['cdmg', 2], ['rank', 0, 'insignia']], a: ['torbellino_rojo', 4], loc: 'eq:guerrero', eqs: 'amulet' }),
+  mk({ n: 'Anillo de Plata', base: 'Anillo de Plata', s: 'ring', r: 'R', il: 45, L: [['crit', 3], ['cdmg', 3], ['dmg', 2]], g: ['rubi', 2], loc: 'eq:guerrero', eqs: 'ring' }),
+  mk({ n: 'Anillo de Cobre', base: 'Anillo de Cobre', s: 'ring', r: 'M', il: 40, L: [['dmg', 2], ['lph', 3]], loc: 'eq:guerrero', eqs: 'ring2' }),
+  // ——— Guerrero · mochila
+  mk({ n: 'Hoja del Ocaso', base: 'Espada Larga', s: 'weapon', cls: 'guerrero', r: 'L', il: 42, k: 3, L: [['main', 5], ['cdmg', 6], ['aspd', 3]], g: ['topacio', 4], a: ['molino_huesos', 3], loc: 'bag:guerrero', isNew: true, origin: 'Grieta 12 · jefe' }),
+  mk({ n: 'Guantes de Ónice', base: 'Manoplas', s: 'gloves', r: 'R', il: 47, L: [['main', 5], ['dmg', 5], ['aspd', 5]], loc: 'bag:guerrero', isNew: true, origin: 'Grieta 12 · élite' }),
+  mk({ n: 'Anillo de Hueso', base: 'Anillo de Oro', s: 'ring', r: 'R', il: 47, L: [['crit', 5], ['cdmg', 4], ['dmg', 3]], g: ['rubi', 3], loc: 'bag:guerrero', isNew: true }),
+  mk({ n: 'Égida del Faro', base: 'Escudo de Torre', s: 'offhand', cls: 'guerrero', shield: true, r: 'U', il: 44, L: [['block', 4], ['dr', 3], ['cdr', 3]], fixed: 2, u: 'Al bloquear, tu siguiente Terremoto o Juicio hace +30 %.', loc: 'bag:guerrero' }),
+  mk({ n: 'Yelmo del Lobo Gris', base: 'Casco de Hierro', s: 'helm', r: 'R', il: 47, L: [['hp', 5], ['arm', 4], ['res', 3]], loc: 'bag:guerrero' }),
+  mk({ n: 'Anillo del Verdugo', base: 'Anillo de Oro', s: 'ring', r: 'L', il: 46, L: [['cdmg', 4], ['crit', 4], ['hp', 2]], a: ['furia', 2], loc: 'bag:guerrero' }),
+  mk({ n: 'Cinturón Tachonado', base: 'Cinturón Tachonado', s: 'belt', r: 'R', il: 46, L: [['hp', 4], ['dr', 3], ['arm', 2]], loc: 'bag:guerrero' }),
+  mk({ n: 'Escudo Ensangrentado', base: 'Escudo de Hierro', s: 'offhand', cls: 'guerrero', shield: true, r: 'L', il: 45, L: [['dr', 4], ['arm', 3], ['cdr', 2]], a: ['espinas_hierro', 3], loc: 'bag:guerrero', isNew: true }),
+  mk({ n: 'Cuerda de la Garza', base: 'Arco Largo', s: 'weapon', cls: 'arquera', r: 'U', il: 39, L: [['cdmg', 4], ['dmg', 3], ['aspd', 3]], fixed: 2, u: 'Las sueltas perfectas lanzan una flecha fantasma al 40 %.', loc: 'bag:guerrero' }),
+  mk({ n: 'Amuleto de Brasas', base: 'Talismán', s: 'amulet', r: 'L', il: 44, L: [['cat', 4, 'spender'], ['cdmg', 3], ['hp', 2]], a: ['horno', 2], loc: 'bag:guerrero' }),
+  mk({ n: 'Botas de Lino', base: 'Sandalias', s: 'boots', r: 'M', il: 38, L: [['res', 3], ['hp', 2]], loc: 'bag:guerrero', junk: true }),
+  mk({ n: 'Guantes de Tela', base: 'Guantes de Tela', s: 'gloves', r: 'M', il: 30, L: [['aspd', 2], ['dmg', 1]], loc: 'bag:guerrero', junk: true }),
+  mk({ n: 'Anillo Opaco', base: 'Anillo de Cobre', s: 'ring', r: 'M', il: 33, L: [['hp', 1], ['lph', 2]], loc: 'bag:guerrero', junk: true }),
+  // ——— Maga (Piromante, Nv64; tope ilvl 43 + 2) · equipada
+  mk({ n: 'Vara de Ascuas', base: 'Vara Arcana', s: 'weapon', cls: 'maga', r: 'R', il: 44, k: 1, L: [['main', 4], ['cat', 4, 'spender'], ['cdmg', 2]], g: ['topacio', 3], loc: 'eq:maga', eqs: 'weapon' }),
+  mk({ n: 'Foco Rúnico', base: 'Foco Rúnico', s: 'offhand', cls: 'maga', r: 'L', il: 42, L: [['cdr', 3], ['res', 2], ['dr', 2]], a: ['piel_ceniza', 3], loc: 'eq:maga', eqs: 'offhand' }),
+  mk({ n: 'Capucha del Erudito', base: 'Capucha', s: 'helm', r: 'R', il: 45, L: [['hp', 3], ['cdr', 3], ['res', 2]], g: ['rubi', 2], loc: 'eq:maga', eqs: 'helm' }),
+  mk({ n: 'Túnica de Ceniza', base: 'Túnica', s: 'chest', r: 'R', il: 45, k: 2, L: [['hp', 4], ['arm', 3], ['dr', 2]], g: ['diamante', 2], loc: 'eq:maga', eqs: 'chest' }),
+  mk({ n: 'Guantes de Seda', base: 'Guantes de Tela', s: 'gloves', r: 'R', il: 43, L: [['cat', 3, 'spender'], ['dmg', 3], ['aspd', 2]], loc: 'eq:maga', eqs: 'gloves' }),
+  mk({ n: 'Cordón Arcano', base: 'Faja', s: 'belt', r: 'M', il: 41, L: [['res', 3], ['hp', 2]], loc: 'eq:maga', eqs: 'belt' }),
+  mk({ n: 'Sandalias Veloces', base: 'Sandalias', s: 'boots', r: 'R', il: 44, L: [['dodge', 4], ['hp', 3], ['res', 3]], loc: 'eq:maga', eqs: 'boots' }),
+  mk({ n: 'Colgante del Fénix', base: 'Colgante', s: 'amulet', r: 'L', il: 45, L: [['cat', 4, 'spender'], ['hp', 3], ['cdmg', 2]], a: ['horno', 3], loc: 'eq:maga', eqs: 'amulet' }),
+  mk({ n: 'Sello de Ascuas', base: 'Anillo de Plata', s: 'ring', r: 'R', il: 45, L: [['dmg', 4], ['crit', 3], ['lph', 3]], g: ['rubi', 2], loc: 'eq:maga', eqs: 'ring' }),
+  mk({ n: 'Anillo de Cobre', base: 'Anillo de Cobre', s: 'ring', r: 'M', il: 40, L: [['crit', 2], ['hp', 2]], loc: 'eq:maga', eqs: 'ring2' }),
+  // ——— Maga · mochila
+  mk({ n: 'Bastón del Racimo', base: 'Bastón', s: 'weapon', cls: 'maga', r: 'L', il: 45, L: [['main', 4], ['cat', 5, 'spender'], ['cdmg', 3]], a: ['racimo_voraz', 3], loc: 'bag:maga', isNew: true, origin: 'Grieta 9 · cofre' }),
+  mk({ n: 'Corona del Fénix', base: 'Capucha', s: 'helm', r: 'U', il: 45, L: [['hp', 4], ['cdr', 4], ['res', 3]], fixed: 2, u: 'Una vez cada 90 s, un golpe mortal te deja con 1 de vida y te llena el Calor.', loc: 'bag:maga' }),
+  mk({ n: 'Anillo Gélido', base: 'Anillo de Plata', s: 'ring', r: 'L', il: 44, L: [['crit', 3], ['cdmg', 4], ['hp', 3]], a: ['invierno_eterno', 2], loc: 'bag:maga' }),
+  mk({ n: 'Faja Bordada', base: 'Cinturón de Cuero', s: 'belt', r: 'R', il: 45, L: [['hp', 5], ['res', 4], ['dr', 2]], loc: 'bag:maga', isNew: true }),
+  mk({ n: 'Ojo del Archimago', base: 'Globo de Poder', s: 'offhand', cls: 'maga', r: 'X', il: 47, L: [['cdr', 5], ['cat', 5, 'insignia'], ['res', 5]], fixed: 2, u: 'Con 3 Cargas, el Rayo en Cadena salta también entre tus Orbes.', uspec: 'arcanista', loc: 'bag:maga' }),
+  mk({ n: 'Grebas Pesadas', base: 'Grebas', s: 'boots', r: 'R', il: 45, L: [['arm', 4], ['hp', 4], ['dodge', 2]], loc: 'bag:maga' }),
+  mk({ n: 'Guantes Raídos', base: 'Guantes de Tela', s: 'gloves', r: 'M', il: 33, L: [['cdmg', 1], ['dmg', 2]], loc: 'bag:maga', junk: true }),
+  // ——— Arquera (Montaraz, Nv52; tope ilvl 37 + 2) · equipada
+  mk({ n: 'Arco de Caza', base: 'Arco de Caza', s: 'weapon', cls: 'arquera', r: 'R', il: 38, L: [['main', 4], ['cdmg', 3], ['aspd', 3]], g: ['topacio', 3], loc: 'eq:arquera', eqs: 'weapon' }),
+  mk({ n: 'Carcaj de Cuero', base: 'Carcaj de Cuero', s: 'offhand', cls: 'arquera', r: 'M', il: 36, L: [['cdr', 3], ['cat', 2, 'basic']], loc: 'eq:arquera', eqs: 'offhand' }),
+  mk({ n: 'Capucha de Acecho', base: 'Capucha', s: 'helm', r: 'R', il: 37, L: [['hp', 3], ['arm', 3], ['res', 3]], loc: 'eq:arquera', eqs: 'helm' }),
+  mk({ n: 'Armadura de Cuero', base: 'Armadura de Cuero', s: 'chest', r: 'R', il: 38, k: 1, L: [['hp', 4], ['dr', 2], ['lph', 3]], g: ['rubi', 2], loc: 'eq:arquera', eqs: 'chest' }),
+  mk({ n: 'Guantes de Arquero', base: 'Guantes de Cuero', s: 'gloves', r: 'L', il: 37, L: [['cdmg', 4], ['aspd', 3], ['main', 2]], a: ['cicuta_profunda', 2], loc: 'eq:arquera', eqs: 'gloves' }),
+  mk({ n: 'Cinturón de Trampero', base: 'Cinturón de Cuero', s: 'belt', r: 'M', il: 35, L: [['hp', 3], ['res', 2]], loc: 'eq:arquera', eqs: 'belt' }),
+  mk({ n: 'Botas de Cuero', base: 'Botas de Cuero', s: 'boots', r: 'R', il: 37, L: [['dodge', 3], ['hp', 3], ['arm', 2]], loc: 'eq:arquera', eqs: 'boots' }),
+  mk({ n: 'Amuleto del Coto', base: 'Amuleto', s: 'amulet', r: 'L', il: 39, L: [['dmg', 3], ['cdmg', 3], ['rank', 0, 'insignia']], a: ['cuarto_cepo', 3], loc: 'eq:arquera', eqs: 'amulet' }),
+  mk({ n: 'Anillo de Espino', base: 'Anillo de Plata', s: 'ring', r: 'R', il: 38, L: [['crit', 3], ['dmg', 3], ['hp', 3]], loc: 'eq:arquera', eqs: 'ring' }),
+  mk({ n: 'Anillo de Cobre', base: 'Anillo de Cobre', s: 'ring', r: 'M', il: 34, L: [['hp', 2], ['lph', 2]], loc: 'eq:arquera', eqs: 'ring2' }),
+  // ——— Arquera · mochila
+  mk({ n: 'Carcaj de Red', base: 'Carcaj de Cuero', s: 'offhand', cls: 'arquera', r: 'L', il: 39, L: [['dr', 4], ['cdr', 3], ['res', 3]], a: ['red_pesada', 4], loc: 'bag:arquera', isNew: true }),
+  mk({ n: 'Arco del Cazador Viejo', base: 'Arco Largo', s: 'weapon', cls: 'arquera', r: 'L', il: 39, L: [['main', 5], ['cdmg', 4], ['cat', 3, 'spender']], a: ['cadena_polvora', 3], loc: 'bag:arquera' }),
+  mk({ n: 'Anillo del Halcón', base: 'Anillo de Oro', s: 'ring', r: 'R', il: 39, L: [['crit', 5], ['cdmg', 4], ['dmg', 4]], loc: 'bag:arquera' }),
+  mk({ n: 'Amuleto del Viento', base: 'Amuleto', s: 'amulet', r: 'L', il: 39, L: [['dmg', 4], ['hp', 3], ['cdmg', 3]], a: ['viento', 3], loc: 'bag:arquera' }),
+  mk({ n: 'Escudo de Torre', base: 'Escudo de Torre', s: 'offhand', cls: 'guerrero', shield: true, r: 'R', il: 47, L: [['block', 4], ['arm', 5], ['dr', 3]], loc: 'bag:arquera' }),
+  mk({ n: 'Guantes Viejos', base: 'Guantes de Cuero', s: 'gloves', r: 'M', il: 28, L: [['dmg', 2], ['aspd', 1]], loc: 'bag:arquera', junk: true }),
+  // ——— Alijo de la cuenta · pestaña Equipo
+  mk({ n: 'Martillo del Alba', base: 'Maza', s: 'weapon', cls: 'guerrero', r: 'L', il: 47, L: [['main', 4], ['cat', 4, 'spender'], ['cdmg', 3]], a: ['onda_doble', 4], loc: 'stash:0' }),
+  mk({ n: 'Bastón Gélido', base: 'Bastón', s: 'weapon', cls: 'maga', r: 'L', il: 46, L: [['main', 4], ['cat', 4, 'spender'], ['cdmg', 3]], a: ['abanico_helado', 3], loc: 'stash:0' }),
+  mk({ n: 'Arco Largo de Fresno', base: 'Arco Largo', s: 'weapon', cls: 'arquera', r: 'R', il: 47, L: [['main', 5], ['aspd', 4], ['cdmg', 4]], g: ['topacio', 3], loc: 'stash:0' }),
+  mk({ n: 'Coraza de Placas', base: 'Coraza', s: 'chest', r: 'R', il: 47, L: [['hp', 5], ['dr', 4], ['arm', 4]], g: ['rubi', 4], loc: 'stash:0' }),
+  mk({ n: 'Yelmo Antiguo', base: 'Yelmo', s: 'helm', r: 'R', il: 44, L: [['hp', 4], ['cdr', 4], ['res', 3]], loc: 'stash:0' }),
+  mk({ n: 'Anillo del Erudito', base: 'Anillo de Oro', s: 'ring', r: 'R', il: 46, L: [['crit', 4], ['lph', 5], ['dmg', 4]], loc: 'stash:0' }),
+  mk({ n: 'Botas de Grieta', base: 'Grebas', s: 'boots', r: 'R', il: 47, L: [['dodge', 5], ['hp', 4], ['res', 4]], loc: 'stash:0' }),
+  mk({ n: 'Faja del Viajero', base: 'Faja', s: 'belt', r: 'M', il: 42, L: [['hp', 3], ['arm', 3]], loc: 'stash:0' }),
+  mk({ n: 'Guanteletes de Ónice', base: 'Manoplas', s: 'gloves', r: 'R', il: 46, L: [['aspd', 4], ['cdmg', 5], ['dmg', 3]], g: ['topacio', 3], loc: 'stash:0' }),
+  mk({ n: 'Colgante Sereno', base: 'Colgante', s: 'amulet', r: 'R', il: 45, L: [['hp', 5], ['cdmg', 3], ['cat', 3, 'insignia']], loc: 'stash:0' }),
+  // ——— pestaña Legendarios
+  mk({ n: 'Égida del Bastión', base: 'Escudo de Torre', s: 'offhand', cls: 'guerrero', shield: true, r: 'L', il: 47, L: [['dr', 5], ['arm', 5], ['block', 4]], a: ['muro_viviente', 4], loc: 'stash:1' }),
+  mk({ n: 'Anillo de la Andanada', base: 'Anillo de Plata', s: 'ring', r: 'L', il: 45, L: [['cdmg', 4], ['crit', 3], ['dmg', 3]], a: ['tercera_andanada', 2], loc: 'stash:1' }),
+  mk({ n: 'Corazón del Señor del Abismo', base: 'Reliquia', s: 'amulet', r: 'U', il: 46, L: [['dmg', 4], ['cat', 3, 'spender'], ['cdmg', 3]], fixed: 2, u: 'Los enemigos explotan al morir con el 50 % de tu golpe medio (no encadena).', loc: 'stash:1' }),
+  mk({ n: 'Guantes del Orbe', base: 'Guantes de Tela', s: 'gloves', r: 'L', il: 44, L: [['main', 4], ['cat', 3, 'spender'], ['cdmg', 3]], a: ['orbe_gemelo', 3], loc: 'stash:1' }),
+  // ——— pestaña Importado
+  mk({ n: 'Hacha Importada', base: 'Hacha de Guerra', s: 'weapon', cls: 'guerrero', r: 'R', il: 40, L: [['main', 3], ['dmg', 3], ['cdmg', 2]], loc: 'stash:2', origin: 'Importado · no entra en la escalera' }),
+];
+// el ★ de las Manoplas viene de su remate (r5)
+ITEMS.find(i => i.n === 'Manoplas Dentadas').star = { i: 1, prev: 4 };
+const byUid = uid => ITEMS.find(i => i.uid === uid);
+
+// ============================================================ estado
+const S = {
+  hero: 'guerrero', view: 'mochila', sel: null, sel2: null, alt: false, shift: false, sortBest: false, sortNew: false,
+  stashTab: 0, sq: '', chips: new Set(), forgeItem: null, ftab: 'mejorar', rerollLine: null, afLine: null, lastDie: null, codexPick: null,
+  gold: 412300, dust: 37, sparks: 2, preset: 'util', groundAlt: false,
+  rules: [true, true, true, false], codex: {}, chest: null,
+  mats: { rubi: [0, 4, 3, 2, 1, 0], diamante: [0, 2, 2, 1, 0, 0], amatista: [0, 3, 1, 1, 1, 0], esmeralda: [0, 2, 2, 2, 1, 1], zafiro: [0, 1, 2, 0, 0, 0], topacio: [0, 3, 2, 1, 0, 1] },
+};
+const DUST_CAP = 1000;
+// Códice de la cuenta: mejor rango conocido de cada aspecto
+for (const [id, r] of Object.entries({ molino_huesos: 3, torbellino_rojo: 4, piel_viva: 2, martillo_justo: 4, espinas_hierro: 2, muro_viviente: 4, racimo_voraz: 4, horno: 3, piel_ceniza: 3, abanico_helado: 3, invierno_eterno: 2, orbe_gemelo: 3, cuarto_cepo: 3, red_pesada: 4, cicuta_profunda: 2, cadena_polvora: 3, tercera_andanada: 2, viento: 3, furia: 2, festin: 1, sed_insaciable: 2, meteoro_certero: 1, coraza_furia: 2, mana_templado: 1, cuero_curtido: 2, reloj: 1 })) S.codex[id] = r;
+
+// ============================================================ cálculo de una pieza (v4)
+const heroCap = h => ilvlTop(h.lvl) + 2;
+const effIl = (it, h) => Math.min(it.il, heroCap(h));
+const NO = it => it.il + it.k;
+const NOeff = (it, h) => effIl(it, h) + it.k;
+const scaleRel = (sc, n) => sc === 'flat' ? G(n) / G(NO_MAX) : P(n);
+// valor = TOPE × s(◆)/s(52) × peso × f(paso): dos piezas con el mismo ◆, las mismas líneas y los mismos pasos valen lo mismo
+function lineVal(id, n, step, slot) { const d = LINES[id]; if (d.fixed) return 1; return d.top * scaleRel(d.sc, n) * SLOTS[slot].w * STEP[step]; }
+function lineCap(id, n, slot) { const d = LINES[id]; if (d.fixed) return 1; return d.top * scaleRel(d.sc, n) * SLOTS[slot].w * 1.5; }
+function weaponAvg(n) { return 3 * G(n) * GEAR_K; }
+function armorImpl(it, n) { const m = (SLOTS[it.s].arm || 0) + (it.s === 'offhand' && it.shield ? 1.3 : 0); return 2 * G(n) * m * GEAR_K_ARM; }
+function hpImpl(it, n) { return K_HP * G(n) * (SLOTS[it.s].hp || 0); }
+function gemFits(gemId, it) { return poolOf(it).includes(GEMS[gemId].line); }
+const keyOf = l => (l[0] === 'cat' || l[0] === 'rank') ? l[0] + ':' + (l[2] || 'spender') : l[0];
+// stats de una pieza para un héroe (◆ efectivo, tope por línea, implícitos de armadura y vida)
+function itemStats(it, h) {
+  const n = h ? NOeff(it, h) : NO(it), st = {};
+  for (const l of it.L) { const k = keyOf(l); st[k] = (st[k] || 0) + lineVal(l[0], n, l[0] === 'rank' ? 5 : l[1], it.s); }
+  if (it._starExp) { // proyección a r5: el remate ★ cae en una línea al azar → su valor medio
+    const ls = it.L.filter(l => l[0] !== 'rank');
+    for (const l of ls) st[keyOf(l)] += (lineVal(l[0], n, 6, it.s) - lineVal(l[0], n, l[1], it.s)) / ls.length;
+  }
+  let gemLost = 0;
+  if (it.g) {
+    const ln = GEMS[it.g[0]].line, add = lineVal(ln, n, it.g[1], it.s), cap = lineCap(ln, n, it.s);
+    const before = st[ln] || 0, after = Math.min(Math.max(before, cap), before + add);
+    gemLost = before + add - after; st[ln] = after;
+  }
+  if (it.s === 'weapon') st.wpn = weaponAvg(n);
+  st.armI = armorImpl(it, n); st.hpI = hpImpl(it, n);
+  if (it.s === 'boots') st.spd = 10;                     // implícito de las botas (no escala: no es poder)
+  st._gemLost = gemLost;
+  return st;
+}
+
+// ============================================================ modelo único de valoración (simplificado para el mockup, §6)
+function equipOf(hid) { const eq = {}; for (const it of ITEMS) if (it.loc === 'eq:' + hid) eq[it.eqs] = it; return eq; }
+function aspectActive(a, h) {
+  if (!a) return { on: false };
+  const A = ASPECTS[a[0]]; if (!A) return { on: false };
+  if (A.cls && A.cls !== h.cls) return { on: false, why: 'cls' };
+  if (A.spec && A.spec !== h.spec) return { on: false, why: 'spec' };
+  if (A.needs.v && h.variants[A.needs.skill] !== A.needs.v) return { on: false, why: 'var' };
+  return { on: true };
+}
+// Daño: arma × saco (% daño + % de tus ‹cat› × su parte) × Principal × crítico × ritmo × rango × aspectos
+// Aguante: (vida + implícita + sustento topado × 5 s) / mitigación × movilidad × esquiva × aspectos
+function evalHero(h, eq, lvl = h.lvl) {
+  const t = { main: 0, dmg: 0, crit: 0, cdmg: 0, aspd: 0, hp: 0, arm: 0, dr: 0, block: 0, dodge: 0, lph: 0, cdr: 0, res: 0, spd: 0, wpn: weaponAvg(ilvlTop(lvl)) * 0.3, armI: 0, hpI: 0 };
+  const cat = {}, rank = {};
+  let dA = 1, aA = 1, unk = false, majors = 0, mythics = 0;
+  const seenAsp = new Set();
+  for (const k of EQ_KEYS) {
+    const it = eq[k]; if (!it) continue;
+    if (it.r === 'X' && mythics++ >= 1) continue;          // solo un Mítico activo
+    const st = itemStats(it, h);
+    for (const [s, v] of Object.entries(st)) {
+      if (s.startsWith('cat:')) cat[s.slice(4)] = (cat[s.slice(4)] || 0) + v;
+      else if (s.startsWith('rank:')) rank[s.slice(5)] = 1;  // tope por selector: +1 (sin tope global)
+      else if (s in t) t[s] = s === 'wpn' ? v : t[s] + v;
+    }
+    if (it.a && !seenAsp.has(it.a[0])) {
+      const act = aspectActive(it.a, h); const A = ASPECTS[it.a[0]];
+      if (act.on) { seenAsp.add(it.a[0]); const f = lerp(0.5, 1, it.a[1]); if (A.major) { if (majors++ >= 1) continue; } dA *= 1 + (A.d || 0) * f; aA *= 1 + (A.a || 0) * f; if (A.unk) unk = true; }
+    }
+    if (it.u) unk = true;
+  }
+  const sh = h.share || {};
+  const catAdd = Object.entries(cat).reduce((a, [s, v]) => a + v * (sh[s] || 0), 0);
+  const rankMult = 1 + Object.keys(rank).reduce((a, s) => a + 0.10 * (sh[s] || 0), 0);
+  const K = 60 * G(areaLevel(lvl));
+  const crit = Math.min(60, h.critBase + t.crit);                       // el crítico del equipo vive solo en los anillos
+  const sigma = 60 + t.dmg + catAdd;
+  const critMult = (1 - crit / 100) + (crit / 100) * 1.5 * (1 + (sigma + t.cdmg) / 100) / (1 + sigma / 100);
+  const D = t.wpn * (1 + sigma / 100) * (1 + (h.mainBase + t.main) / 100) * critMult
+    * (1 + 0.30 * Math.min(100, t.aspd) / 100) * (1 + 0.40 * (1 / (1 - Math.min(50, t.cdr) / 100) - 1))
+    * (1 + 0.20 * t.res / 100) * rankMult * dA;
+  const HP = h.hpBase + t.hp + t.hpI;
+  const armRed = Math.min(0.75, (t.arm + t.armI) / (t.arm + t.armI + K));
+  const shieldBlock = eq.offhand && eq.offhand.shield ? 10 : 0;
+  const mit = (1 - armRed) * (1 - Math.min(50, t.dr) / 100) * (1 - 0.5 * Math.min(40, t.block + shieldBlock) / 100);
+  const sus = Math.min(0.06 * HP, t.lph * 2);                           // cubeta de sustento, 2 impactos/s
+  const dodgeCd = Math.max(0.6, 3 - t.dodge);
+  const A = (HP + 5 * sus) / mit * (1 + 0.25 * t.spd / 100) * (1 + 0.5 / dodgeCd - 0.5 / 3) * aA;
+  return { D, A, unk, t, crit, HP };
+}
+// referencia FIJA del ⚡: el héroe desnudo de su clase en el Nv1 (no cambia con el nivel)
+const REF = {};
+function reference(h) {
+  if (REF[h.cls]) return REF[h.cls];
+  const naked = { ...h, mainBase: h.ref.mainBase, hpBase: h.ref.hpBase, critBase: h.ref.critBase };
+  return (REF[h.cls] = evalHero(naked, {}, 1));
+}
+const wOf = h => ROLE_W[h.role] || 0.6;
+function powerOf(hid) {
+  const h = HEROES[hid], e = evalHero(h, equipOf(hid)), b = reference(h), w = wOf(h);
+  return { pw: Math.round(100 * Math.pow(e.D / b.D, w) * Math.pow(e.A / b.A, 1 - w)), D: e.D, A: e.A, crit: e.crit, HP: e.HP };
+}
+// ◆ medio del equipo (el número que sube con cada pieza)
+function avgNO(hid) { const eq = Object.values(equipOf(hid)); return eq.length ? eq.reduce((a, it) => a + NO(it), 0) / eq.length : 0; }
+function canUse(it, h) { return !it.cls || it.cls === h.cls; }
+// UNA sola regla: g = (1+dD)^w (1+dA)^(1−w) − 1 (= Δ⚡), con T = p95 del error del modelo (de partida 2 %)
+// ▲▲ g ≥ 10 % · ▲ g ≥ T y (peor eje ≥ −3 % o g ≥ 2·|peor eje|) · ↔ el resto con g ≥ T · ≈ |g| < T · ▼ g ≤ −T
+const VT = 0.02, VLOSS = 0.03, VBIG = 0.10;
+const isUp = v => v === 'up' || v === 'up2';
+function verdictOf(dD, dA, w) {
+  const g = Math.pow(1 + dD, w) * Math.pow(1 + dA, 1 - w) - 1, worst = Math.min(dD, dA);
+  const v = g <= -VT ? 'down' : g < VT ? 'same' : (worst >= -VLOSS || g >= 2 * -worst) ? (g >= VBIG ? 'up2' : 'up') : 'mixed';
+  return { g, v };
+}
+const SLOT_COST = { weapon: 1.5, helm: 1, chest: 1, offhand: 0.75, gloves: 0.75, belt: 0.75, boots: 0.75, amulet: 0.75, ring: 0.6 };
+const upCost = (it, r) => Math.round(400 * (r + 1) * (1 + (it.il + r + 1) / 20) * (SLOT_COST[it.s] || 1) / 10) * 10;
+const aspVal = (a, h) => { const A = ASPECTS[a[0]], f = lerp(0.5, 1, a[1]), w = wOf(h); return Math.pow(1 + (A.d || 0) * f, w) * Math.pow(1 + (A.a || 0) * f, 1 - w) - 1 + (A.unk ? 0.001 : 0); };
+// veredicto «a potencial»: el candidato al rango de lo que reemplaza (y ★ media si llega a r5), con tu gema movida
+// y con el mejor aspecto entre el suyo y el que puedes grabar de tu Códice
+function potentialOf(it, hid, rep) {
+  const h = HEROES[hid];
+  const tk = Math.max(it.k, rep ? rep.k : 0);
+  const p = { ...it, k: tk, L: it.L.map(l => l.slice()) };
+  const steps = []; let cost = 0;
+  for (let r = it.k; r < tk; r++) cost += upCost(it, r);
+  if (tk > it.k) steps.push(`mejorar a ◆${effIl(it, h) + tk}`);
+  if (tk === 5 && it.k < 5 && !it.L.some(l => l[1] === 6)) p._starExp = true;
+  if (rep && rep.g && gemFits(rep.g[0], it)) {
+    const n = NOeff(p, h), gv = g => g ? lineVal(GEMS[g[0]].line, n, g[1], it.s) : 0;
+    if (!it.g || gv(rep.g) > gv(it.g)) { p.g = rep.g; steps.push(`mover tu ${GEMS[rep.g[0]].n}`); }
+  }
+  // el aspecto que llevas en esa ranura no se pierde: lo vuelves a grabar desde tu Códice (si es mejor que el suyo)
+  if (SLOTS[it.s].asp && (it.r === 'R' || it.r === 'L') && rep && rep.a && S.codex[rep.a[0]] && aspectActive(rep.a, h).on) {
+    const mine = [rep.a[0], S.codex[rep.a[0]]], own = it.a && aspectActive(it.a, h).on ? it.a : null;
+    if (!own || aspVal(mine, h) > aspVal(own, h) + 1e-9) { p.a = mine; p.r = 'L'; cost += 1500 * mine[1]; steps.push(`regrabar tu ${ASPECTS[mine[0]].n}`); }
+  }
+  return { item: p, cost, steps };
+}
+function verdict(it, hid) {
+  const h = HEROES[hid];
+  if (!canUse(it, h)) return { cannot: true };
+  if (it.loc === 'eq:' + hid) return { equipped: true };
+  const eq = equipOf(hid), base = evalHero(h, eq), w = wOf(h);
+  const keys = it.s === 'ring' ? ['ring', 'ring2'] : [it.s];
+  let best = null;
+  for (const k of keys) {
+    const r = evalHero(h, { ...eq, [k]: it });
+    const dD = r.D / base.D - 1, dA = r.A / base.A - 1, { g, v } = verdictOf(dD, dA, w);
+    const po = potentialOf(it, hid, eq[k]), rp = evalHero(h, { ...eq, [k]: po.item });
+    const pD = rp.D / base.D - 1, pA = rp.A / base.A - 1, pv = verdictOf(pD, pA, w);
+    const c = { k, dD, dA, g, v, pot: { dD: pD, dA: pA, g: pv.g, v: pv.v, cost: po.cost, steps: po.steps }, unk: !!(it.u || (it.a && aspectActive(it.a, h).on && ASPECTS[it.a[0]].unk)) };
+    if (!best || Math.max(c.g, c.pot.g) > Math.max(best.g, best.pot.g)) best = c;
+  }
+  best.replaces = eq[best.k] || null;
+  if (it.r === 'X') { const other = Object.values(eq).find(x => x.r === 'X' && x !== best.replaces); if (other) best.mythicClash = other; }
+  best.anyUp = isUp(best.v) || isUp(best.pot.v);
+  return best;
+}
+
+// ============================================================ dibujo: glifos, iconos, celdas
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function glyph(r, cls = 'g') {
+  const c = RAR[r].col;
+  const p = {
+    C: `<circle cx="10" cy="10" r="6.5" fill="none" stroke="${c}" stroke-width="2"/>`,
+    M: `<rect x="4" y="4" width="12" height="12" rx="1.5" fill="${c}"/>`,
+    R: `<path d="M10 2.5 L18 17 H2 Z" fill="${c}"/>`,
+    L: `<path d="M10 1 L12.6 7.4 L19 10 L12.6 12.6 L10 19 L7.4 12.6 L1 10 L7.4 7.4 Z" fill="${c}"/>`,
+    U: `<path d="M10 1.5 L17.4 5.8 V14.2 L10 18.5 L2.6 14.2 V5.8 Z" fill="${c}"/>`,
+    X: `<path d="M10 0.5 L11.8 6 L17 3 L14 8.2 L19.5 10 L14 11.8 L17 17 L11.8 14 L10 19.5 L8.2 14 L3 17 L6 11.8 L0.5 10 L6 8.2 L3 3 L8.2 6 Z" fill="${c}"/>`,
+  }[r];
+  return `<svg class="${cls}" viewBox="0 0 20 20" aria-hidden="true">${p}</svg>`;
+}
+const CAT_COL = { atk: 'var(--cat-atk)', def: 'var(--cat-def)', sus: 'var(--cat-sus)', mov: 'var(--cat-mov)', skl: 'var(--cat-skl)' };
+function catIcon(cat) {
+  const c = CAT_COL[cat];
+  const p = {
+    atk: `<path d="M3 13 L11 5 L13 3 L13 5 L11 7 L3 15 Z M2 12 L6 16 M4 16 L2 14" stroke="${c}" stroke-width="1.6" fill="${c}"/>`,
+    def: `<path d="M8 1.5 L14 4 V8.5 C14 12 11.3 14.3 8 15.5 C4.7 14.3 2 12 2 8.5 V4 Z" fill="${c}"/>`,
+    sus: `<path d="M8 2 C8 2 13 7.5 13 10.5 A5 5 0 0 1 3 10.5 C3 7.5 8 2 8 2 Z" fill="${c}"/>`,
+    mov: `<path d="M2 8 H11 M8 4 L12.5 8 L8 12" stroke="${c}" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    skl: `<path d="M8 1 L9.8 6.2 L15 8 L9.8 9.8 L8 15 L6.2 9.8 L1 8 L6.2 6.2 Z" fill="${c}"/>`,
+  }[cat];
+  return `<svg class="cat" viewBox="0 0 16 16" aria-hidden="true">${p}</svg>`;
+}
+const BOLT = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 1 L3 9 H7.5 L6.5 15 L13 7 H8.5 Z" fill="var(--gold)"/></svg>`;
+const UP = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 L14.5 12 H1.5 Z" fill="var(--ok)" stroke="#0e0b11" stroke-width="1"/></svg>`;
+const UP2 = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0.5 L14 7.5 H2 Z M8 7 L14 14.5 H2 Z" fill="var(--ok)" stroke="#0e0b11" stroke-width="1"/></svg>`;
+// martillo: «▲ tras mejorar» (veredicto a potencial)
+const HAMMER = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7.2 6.6 L14.6 13.4 L12.9 15.2 L5.5 8.3 Z" fill="#c8a26a" stroke="#0e0b11" stroke-width="1"/><path d="M1.2 5.2 L6.2 0.6 L10.6 4.8 L5.6 9.4 Z" fill="var(--ok)" stroke="#0e0b11" stroke-width="1"/></svg>`;
+const VGLYPH = { up2: ['▲▲', 'v-up', 'mejora mucho'], up: ['▲', 'v-up', 'mejora'], mixed: ['↔', 'v-eq', 'sube tu ⚡ pero pierdes en un eje: decides tú'], same: ['≈', 'v-eq', 'casi igual'], down: ['▼', 'v-down', 'empeora'] };
+function steps(step) {
+  if (step === 6) return `<span class="steps star" aria-label="afijo mayor">${'<i class="f"></i>'.repeat(5)}<em class="s">★</em></span>`;
+  return `<span class="steps" aria-label="paso ${step} de 5">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= step ? 'f' : ''}"></i>`).join('')}</span>`;
+}
+function noBadge(it, h) {
+  const n = NO(it), ne = h ? NOeff(it, h) : n, frac = it.k / 5;
+  const r = 8, C = 2 * Math.PI * r;
+  const ring = `<svg viewBox="0 0 22 22" aria-hidden="true"><path d="M11 1.5 L20.5 11 L11 20.5 L1.5 11 Z" fill="#2a2030" stroke="var(--gold)" stroke-width="1.2"/><circle cx="11" cy="11" r="${r - 2.5}" fill="none" stroke="#4a3d55" stroke-width="2"/><circle cx="11" cy="11" r="${r - 2.5}" fill="none" stroke="var(--gold-2)" stroke-width="2" stroke-dasharray="${(C * (r - 2.5) / r * frac).toFixed(2)} 99" transform="rotate(-90 11 11)"/></svg>`;
+  return `<span class="nob num" title="Nivel de objeto ${n} (${it.il} + ${it.k} mejoras)">${ring}${ne < n ? `<span class="eff">${n}</span>⇣${ne}` : n}</span>`;
+}
+function cornerFor(it, hid) {
+  const v = verdict(it, hid);
+  if (v.v === 'up2') return `<span class="up">${UP2}</span>`;
+  if (v.v === 'up') return `<span class="up">${UP}</span>`;
+  if (v.pot && isUp(v.pot.v)) return `<span class="up pot" title="▲ tras mejorar">${HAMMER}</span>`;
+  return '';
+}
+function cellHTML(it, hid, opts = {}) {
+  if (!it) return '';
+  let corner = '';
+  if (opts.emblems) {
+    const ups = HERO_IDS.filter(x => verdict(it, x).anyUp);
+    if (ups.length) corner = `<span class="emb">${ups.map(x => `<img src="assets/${HEROES[x].emblem}.webp" alt="mejora a ${HEROES[x].name}">`).join('')}</span>`;
+  } else if (hid) {
+    const v = verdict(it, hid);
+    if (!v.cannot && !v.equipped) corner = cornerFor(it, hid);
+    else if (v.cannot) { const ups = HERO_IDS.filter(x => verdict(it, x).anyUp); if (ups.length) corner = `<span class="emb">${ups.map(x => `<img src="assets/${HEROES[x].emblem}.webp" alt="mejora a ${HEROES[x].name}">`).join('')}</span>`; }
+  }
+  const st = it.isNew ? '<span class="st new" aria-label="nuevo"></span>' : it.fav ? '<span class="st fav" aria-label="favorito">★</span>' : it.junk ? '<span class="st junk" aria-label="basura">✕</span>' : '';
+  return `<img class="ico" src="assets/${SLOTS[it.s].icon}.webp" alt="">${st}${corner}${glyph(it.r, 'gl')}`;
+}
+function baseText(it, st) {
+  const hp = st.hpI > 0.5 ? ` · ${fint(st.hpI)} vida` : '';
+  if (it.s === 'weapon') return `${fint(st.wpn * 0.8)}–${fint(st.wpn * 1.2)} de daño`;
+  if (it.s === 'offhand') return it.shield ? `${fint(st.armI)} armadura${hp} · 10 % bloqueo` : `${fint(st.hpI)} vida · ${it.cls === 'maga' ? '+8 % de Maná' : '+6 % vel. de ataque'}`;
+  if (st.armI > 0) return `${fint(st.armI)} armadura${hp}${it.s === 'boots' ? ' · +10 % vel. mov.' : ''}`;
+  return SLOTS[it.s].name;
+}
+
+// ============================================================ tooltip (≤ 9 filas; Alt = detalle)
+function tooltipHTML(it, hid, { compare = false, chest = false } = {}) {
+  const h = HEROES[hid], R = RAR[it.r];
+  const n = NOeff(it, h), st = itemStats(it, h);
+  const v = compare ? null : verdict(it, hid);
+  const alt = S.alt;
+  let out = `<div class="tip" data-tip="${it.uid}">`;
+  out += `<div class="t1">${glyph(it.r)}<div><div class="nm" style="color:${R.col}">${esc(it.n)}</div>`;
+  if (alt) out += `<div class="rw">${R.n} · ${SLOTS[it.s].name}${it.cls ? ' · ' + CLS_NAME[it.cls] : ''} · ◆ ${NO(it)} = ilvl ${it.il} + ${it.k} mejoras${n < NO(it) ? ` · a tu nivel rinde como ${n}` : ''}</div>`;
+  out += `</div>${noBadge(it, h)}</div>`;
+  if (v) {
+    if (v.cannot) {
+      const who = HEROES[HERO_IDS.find(x => HEROES[x].cls === it.cls)];
+      out += `<div class="verdict"><span class="cant"><img src="assets/${who.emblem}.webp" alt="">Solo ${who.name}</span></div>`;
+    } else if (v.equipped) out += `<div class="verdict"><span class="v-eq">Equipado</span></div>`;
+    else {
+      const arrow = d => d >= 0.01 ? '▲' : d <= -0.01 ? '▼' : '≈';
+      const cls = d => d >= 0.01 ? 'v-up' : d <= -0.01 ? 'v-down' : 'v-eq';
+      const vg = VGLYPH[v.v];
+      out += `<div class="verdict num"><span class="${vg[1]}" title="${vg[2]}" aria-label="${vg[2]}">${vg[0]}</span><span class="${cls(v.dD)}">${arrow(v.dD)} Daño ${pct(v.dD)}</span><span class="${cls(v.dA)}">${arrow(v.dA)} Aguante ${pct(v.dA)}</span>${alt ? `<span class="muted">⚡ ${pct(v.g)}</span>` : ''}${v.unk ? '<span class="v-unk" title="Tiene efectos que el modelo no mide">?</span>' : ''}</div>`;
+      if (!isUp(v.v) && isUp(v.pot.v)) out += `<div class="potrow num">${HAMMER}<span class="v-up">${VGLYPH[v.pot.v][0]} tras mejorar</span><span class="muted">Daño ${pct(v.pot.dD)} · Aguante ${pct(v.pot.dA)}</span><span class="pc">${v.pot.steps.join(' · ')}${v.pot.cost ? ` · <img src="assets/mat_oro.webp" alt="">${fint(v.pot.cost)}` : ''}</span></div>`;
+      if (v.mythicClash) out += `<div class="potrow"><span class="v-down">Solo un Mítico activo: reemplaza a ${esc(v.mythicClash.n)}</span></div>`;
+    }
+  }
+  out += `<div class="base"><span>${esc(it.base)} · ${baseText(it, st)}</span>${alt && it.origin ? `<span class="muted">${esc(it.origin)}</span>` : ''}</div><div class="lines">`;
+  it.L.forEach((l, i) => {
+    const [id, step, sel] = l, D = LINES[id], val = lineVal(id, n, id === 'rank' ? 5 : step, it.s);
+    const fixed = i < it.fixed ? '<span class="fixed">fija</span>' : '';
+    const lock = it.x !== null && it.x === i ? ' <span class="muted" title="línea re-tirada">↻</span>' : '';
+    let altTxt = '';
+    if (alt && !D.fixed) altTxt = `<span class="alt">[${D.t(lineVal(id, n, 1, it.s), h, it.s, sel).replace(/^[+−]/, '').split(' ')[0]}–${D.t(lineVal(id, n, 5, it.s), h, it.s, sel).replace(/^[+−]/, '').split(' ')[0]}] [+]${id === 'main' ? ' · se adapta a tu clase' : ''}</span>`;
+    out += `<div class="ln">${catIcon(D.cat)}<span>${D.t(val, h, it.s, sel)}${fixed}${lock}${altTxt}</span>${D.fixed ? '' : steps(step)}</div>`;
+  });
+  if (it.g) {
+    const gm = GEMS[it.g[0]], D = LINES[gm.line], val = lineVal(gm.line, n, it.g[1], it.s);
+    out += `<div class="ln gem"><span class="cat" style="background:${gm.col}"></span><span>${gm.n} · ${D.t(val, h, it.s)}${alt ? `<span class="alt">${GRADES[it.g[1]]}${st._gemLost > 0.05 ? ' · tope de la pieza' : ''}</span>` : ''}</span>${steps(it.g[1])}</div>`;
+  } else out += `<div class="ln gem empty"><span class="cat" style="border-style:dashed;background:transparent"></span><span>engarce libre</span><span></span></div>`;
+  out += `</div>`;
+  if (it.a) {
+    const A = ASPECTS[it.a[0]], act = aspectActive(it.a, h);
+    let req = '';
+    if (!act.on) req = act.why === 'var' ? `Pide: ${A.needs.vn} (${A.needs.sk})` : act.why === 'spec' ? `Otra especialización: ${SPEC_NAMES[A.spec]}` : `Otra clase: ${CLS_NAME[A.cls]}`;
+    else if (alt) req = `${A.cat}${A.major ? ' · mayor [×]' : ''} · rango ${it.a[1]} (tu Códice: ${S.codex[it.a[0]] || 0})${A.dl ? ' · Δ ' + A.dl : ''}`;
+    out += `<div class="asp${act.on ? '' : ' off'}"><img src="assets/${A.img}.webp" alt=""><div>${A.t(it.a[1])} <span class="muted">· r${it.a[1]}</span>${req ? `<span class="req">${req}</span>` : ''}</div></div>`;
+  }
+  if (it.u) {
+    const off = it.uspec && it.uspec !== h.spec;
+    out += `<div class="asp ${it.r === 'X' ? 'my' : 'uq'}${off ? ' off' : ''}"><img src="assets/${it.uspec ? 'spec_' + it.uspec : (it.cls ? CLS_EMB[it.cls] : 'menu_codice')}.webp" alt=""><div>${esc(it.u)}${off ? `<span class="req">Otra especialización: ${SPEC_NAMES[it.uspec]}</span>` : it.r === 'X' && alt ? '<span class="req">Línea libre: se cambia gratis fuera de combate · solo un Mítico activo</span>' : ''}</div></div>`;
+  }
+  const tags = [];
+  if (it.a && (S.codex[it.a[0]] || 0) < it.a[1]) tags.push(`<span class="tag codex">✦ ${S.codex[it.a[0]] ? 'mejora tu Códice' : 'nuevo para tu Códice'}</span>`);
+  if (!SLOTS[it.s].asp && alt) tags.push(`<span class="tag cmp">armadura: sin aspecto</span>`);
+  if (v && v.replaces && !compare && it.s === 'ring') tags.push(`<span class="tag cmp">frente a ${esc(v.replaces.n)}</span>`);
+  if (tags.length) out += `<div class="tags">${tags.join('')}</div>`;
+  if (!compare && !chest && it.loc && it.loc.startsWith('bag:') && canUse(it, h)) out += `<div class="tip-actions"><button class="btn" data-act="equip" data-uid="${it.uid}">Equipar</button><button class="btn ghost" data-act="junk" data-uid="${it.uid}">${it.junk ? 'Quitar basura' : 'Basura'}</button><button class="btn ghost" data-act="fav" data-uid="${it.uid}">${it.fav ? 'Quitar favorito' : 'Favorito'}</button></div>`;
+  out += `</div>`;
+  return out;
+}
+function bestForHTML(it) {
+  return `<div class="best">${HERO_IDS.map(x => {
+    const H = HEROES[x], v = verdict(it, x);
+    const txt = v.cannot ? '<span class="muted">no puede usarlo</span>' : v.equipped ? '<span class="muted">lo lleva puesto</span>' :
+      `<span class="${isUp(v.v) ? 'v-up' : v.v === 'down' ? 'v-down' : 'v-eq'} num">${VGLYPH[v.v][0]} ${pct(v.dD)} · ${pct(v.dA)}${!isUp(v.v) && isUp(v.pot.v) ? ` <span class="v-up">· ⚒ ${VGLYPH[v.pot.v][0]}</span>` : ''}${v.unk ? ' ?' : ''}</span>`;
+    const ne = canUse(it, H) && NOeff(it, H) < NO(it) ? ` <span class="muted">◆⇣${NOeff(it, H)}</span>` : '';
+    return `<div><img src="assets/${H.emblem}.webp" alt=""><span>${H.name} · Nv ${H.lvl}${ne}</span>${txt}</div>`;
+  }).join('')}</div>`;
+}
+
+// ============================================================ render
+const $ = (s, r = document) => r.querySelector(s);
+const VIEWS = [['mochila', 'Mochila', 'menu_inventario'], ['alijo', 'Alijo', 'menu_alijo'], ['herreria', 'Herrería', 'menu_cubo'], ['aspectos', 'Aspectos', 'menu_codice'], ['ritmo', 'Ritmo', 'mat_oro'], ['filtro', 'Filtro', 'menu_tienda']];
+function renderHeader() {
+  $('#heroes').innerHTML = HERO_IDS.map(x => { const H = HEROES[x]; return `<button class="hero-btn" role="radio" aria-checked="${S.hero === x}" data-hero="${x}"><img src="assets/${H.emblem}.webp" alt=""><span><b>${H.name}</b>${H.specName} · Nv ${H.lvl}</span></button>`; }).join('');
+  const p = powerOf(S.hero);
+  $("#pw").innerHTML = `${BOLT} ${fint(p.pw)}`;
+  $('#pwsub').textContent = `◆ medio ${f1(avgNO(S.hero))} · Daño ${fint(p.D)} · Aguante ${fint(p.A)} · vida ${fint(p.HP)} · crítico ${f1(p.crit)} %`;
+  $('#purse').innerHTML = `<span class="cur"><img src="assets/mat_oro.webp" alt="">Oro <b class="num">${fint(S.gold)}</b></span><span class="cur"><span class="dust" aria-hidden="true">✧</span>Polvo de aspecto <b class="num">${fint(S.dust)}</b><span class="muted num">/ ${fint(DUST_CAP)}</span></span><span class="cur"><span class="dust" style="color:var(--r-x)" aria-hidden="true">✸</span>Chispas <b class="num">${S.sparks}</b></span><span class="cur muted">Recurso: <img src="assets/${HEROES[S.hero].resIcon}.webp" alt="">${HEROES[S.hero].res}</span>`;
+  $('#tabs').innerHTML = VIEWS.map(([id, n, ic]) => `<button class="tab" role="tab" id="t-${id}" aria-selected="${S.view === id}" aria-controls="v-${id}" data-view="${id}"><img src="assets/${ic}.webp" alt="">${n}</button>`).join('');
+}
+let lastPw = null;
+function bumpPower() {
+  const p = powerOf(S.hero).pw;
+  if (lastPw && lastPw.hero === S.hero && p !== lastPw.pw) {
+    const el = $('#pwfloat'); el.textContent = (p > lastPw.pw ? '+' : '−') + Math.abs(p - lastPw.pw) + ' ⚡'; el.style.color = p > lastPw.pw ? 'var(--ok)' : 'var(--bad)';
+    el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  }
+  lastPw = { hero: S.hero, pw: p };
+}
+function renderDoll() {
+  const eq = equipOf(S.hero);
+  $('#doll').innerHTML = EQ_KEYS.map(k => {
+    const it = eq[k], s = SLOTS[slotOf(k)];
+    return `<button class="slot${it && S.sel === it.uid ? ' sel' : ''}${s.asp ? ' asp' : ''}" style="grid-area:${k}" data-uid="${it ? it.uid : ''}" aria-label="${s.name}${it ? ': ' + esc(it.n) : ' vacío'}">${it ? `<span class="it ${RAR[it.r].cls}"><img class="ico" src="assets/${s.icon}.webp" alt=""></span>` : `<img class="ph" src="assets/${s.icon}.webp" alt="">`}<span class="lbl">${s.name}</span></button>`;
+  }).join('');
+  const m = S.mats;
+  const gemRow = id => `<div class="mat"><span class="gemdot" style="background:${GEMS[id].col}"></span><span>${GEMS[id].n} <span class="muted">${m[id].slice(1).map((c, i) => c ? `${GRADES[i + 1][0]}×${c}` : '').filter(Boolean).join(' ')}</span></span><b>${m[id].reduce((a, b) => a + b, 0)}</b></div>`;
+  $('#mats').innerHTML = `<div class="mat"><span class="dust" aria-hidden="true">✧</span><span>Polvo de aspecto</span><b>${S.dust}</b></div>${['rubi', 'esmeralda', 'topacio'].map(gemRow).join('')}<div class="mat"><img src="assets/mat_glifo.webp" alt=""><span>Glifos <span class="muted">· uno de cada tipo</span></span><b>4</b></div><div class="mat"><img src="assets/mat_fragmento.webp" alt=""><span>Fragmentos de Pináculo</span><b>2</b></div>`;
+}
+const vScore = v => (v && !v.cannot && !v.equipped) ? Math.max(v.g, v.pot ? v.pot.g : -9) : -9;
+function bagItems() {
+  let list = ITEMS.filter(i => i.loc === 'bag:' + S.hero);
+  if (S.sortBest) list = list.slice().sort((a, b) => vScore(verdict(b, S.hero)) - vScore(verdict(a, S.hero)));
+  else if (S.sortNew) list = list.slice().sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+  return list;
+}
+function renderBag() {
+  const list = bagItems();
+  $('#bagcount').textContent = `${list.length}/40`;
+  let html = '';
+  for (let i = 0; i < 40; i++) {
+    const it = list[i];
+    html += it ? `<button class="cell has ${RAR[it.r].cls}${S.sel === it.uid ? ' sel' : ''}${it.junk ? ' junked' : ''}" data-uid="${it.uid}" data-idx="${i}" tabindex="${(S.sel === it.uid || (!S.sel && i === 0)) ? 0 : -1}" aria-label="${esc(it.n)}, ${RAR[it.r].n}">${cellHTML(it, S.hero)}</button>` : `<span class="cell empty" data-idx="${i}" aria-hidden="true"></span>`;
+  }
+  $('#bag').innerHTML = html;
+  const junk = list.filter(i => i.junk);
+  $('#lotebtn').textContent = `Desguazar marcados (${junk.length})`;
+  $('#lotebtn').disabled = !junk.length;
+  $('#lotesum').textContent = junk.length ? `→ ${fint(junk.reduce((a, i) => a + SALV[i.r].o, 0))} de oro` : '';
+  const sm = s => s.replace('<svg', '<svg style="width:13px;height:13px"');
+  $('#legend').innerHTML = ['C', 'M', 'R', 'L', 'U', 'X'].map(r => `<span>${glyph(r)}${RAR[r].n}</span>`).join('') + `<span>${sm(UP)}mejora</span><span>${sm(UP2)}mejora mucho</span><span>${sm(HAMMER)}tras mejorar</span><span><span class="gemdot" style="width:9px;height:9px;background:var(--gold-2);border-radius:50%;transform:none;margin:0"></span>nuevo</span>`;
+}
+function renderTip(zone, uid) {
+  const it = byUid(uid);
+  if (!it) { zone.innerHTML = `<div class="tip"><p class="muted" style="margin:0">Pasa el ratón o elige un objeto.</p></div>`; return; }
+  let html = '';
+  if (S.shift && it.loc && !it.loc.startsWith('eq:') && canUse(it, HEROES[S.hero])) {
+    html += tooltipHTML(it, S.hero);
+    const v = verdict(it, S.hero), eq = equipOf(S.hero);
+    const others = it.s === 'ring' ? [eq.ring, eq.ring2] : [eq[it.s]];
+    for (const o of others.filter(Boolean)) html += `<div><div class="cmp-label">Equipado${o === v.replaces ? ' · se reemplaza' : ''}</div>${tooltipHTML(o, S.hero, { compare: true })}</div>`;
+  } else html = tooltipHTML(it, S.hero);
+  if (zone.id === 'tipzone2') html += `<div class="tip">${bestForHTML(it)}</div>`;
+  zone.innerHTML = html;
+}
+function renderMochila() { renderDoll(); renderBag(); renderTip($('#tipzone'), S.hover || S.sel); }
+
+// ——— alijo
+const STABS = [['Equipo', '#7f98ff'], ['Legendarios', '#ff8c2e'], ['Importado', '#998d78']];
+const CHIPS = [['arma', 'Arma', it => it.s === 'weapon'], ['joya', 'Joyería', it => it.s === 'ring' || it.s === 'amulet'], ['leg', 'Legendario+', it => RAR_ORDER[it.r] >= 3], ['up', '▲ Mejora (también tras mejorar)', it => HERO_IDS.some(x => verdict(it, x).anyUp)], ['codex', 'Nuevo para el Códice', it => it.a && (S.codex[it.a[0]] || 0) < it.a[1]]];
+function stashMatch(it) {
+  for (const [id, , f] of CHIPS) if (S.chips.has(id) && !f(it)) return false;
+  if (S.sq) { const q = S.sq.toLowerCase(); const txt = [it.n, it.base, SLOTS[it.s].name, ...it.L.map(([l]) => LINE_NAMES[l]), it.a ? ASPECTS[it.a[0]].n + ' ' + (ASPECTS[it.a[0]].needs.vn || '') : ''].join(' ').toLowerCase(); if (!txt.includes(q)) return false; }
+  return true;
+}
+function renderAlijo() {
+  $('#stabs').innerHTML = STABS.map(([n, c], i) => `<button class="stab" role="tab" style="--sc:${c}" aria-selected="${S.stashTab === i}" data-stab="${i}">${n} <span class="muted num">${ITEMS.filter(x => x.loc === 'stash:' + i).length}/50</span></button>`).join('') + `<button class="stab add" title="Nueva pestaña: 25.000 de oro">+ pestaña</button>`;
+  $('#chips').innerHTML = CHIPS.map(([id, n]) => `<button class="chip" aria-pressed="${S.chips.has(id)}" data-chip="${id}">${n}</button>`).join('');
+  const list = ITEMS.filter(x => x.loc === 'stash:' + S.stashTab);
+  let html = '';
+  for (let i = 0; i < 50; i++) {
+    const it = list[i];
+    html += it ? `<button class="cell has ${RAR[it.r].cls}${S.sel2 === it.uid ? ' sel' : ''}${stashMatch(it) ? '' : ' faded'}" data-uid2="${it.uid}" data-idx="${i}" tabindex="${(S.sel2 === it.uid || (!S.sel2 && i === 0)) ? 0 : -1}" aria-label="${esc(it.n)}">${cellHTML(it, null, { emblems: true })}</button>` : `<span class="cell empty" aria-hidden="true"></span>`;
+  }
+  $('#stash').innerHTML = html;
+  if (!S.sel2 && list[0]) S.sel2 = list[0].uid;
+  renderTip($('#tipzone2'), S.hover2 || S.sel2);
+}
+
+// ——— herrería (una sola moneda: oro; el Polvo es del Códice)
+const SALV = { C: { o: 60, d: 0 }, M: { o: 150, d: 0 }, R: { o: 400, d: 0 }, L: { o: 800, d: 5 }, U: { o: 1200, d: 10 }, X: { o: 2000, d: 20 } };
+const FTABS = [['mejorar', 'Mejorar'], ['retirar', 'Re-tirar'], ['afinar', 'Afinar'], ['engarzar', 'Engarzar'], ['grabar', 'Grabar aspecto'], ['desguazar', 'Desguazar']];
+function hashN(a, b) { let h = 2166136261 ^ a; h = Math.imul(h ^ b, 16777619); h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15; return (h >>> 0); }
+function forgeCandidates() { return ITEMS.filter(i => i.loc === 'eq:' + S.hero || i.loc === 'bag:' + S.hero).filter(i => canUse(i, HEROES[S.hero])); }
+const rerollCost = it => Math.round(3000 * Math.pow(1.5, Math.min(6, it.rr)) / 10) * 10;
+const afinarCost = it => Math.round(3500 * Math.pow(1.3, it.af) * (SLOT_COST[it.s] || 1) / 10) * 10;
+const starCost = it => Math.round(10000 * Math.pow(1.5, it.sm) / 10) * 10;
+function rerollOptions(it, idx) {
+  const used = new Set(it.L.map(l => l[0]));
+  let pool = poolOf(it).filter(l => !used.has(l) && (l !== 'rank' || NO(it) >= 36));
+  const out = [], sels = it.s === 'amulet' ? ['insignia', 'ultimate', 'movement'] : ['basic', 'spender', 'insignia'];
+  for (let k = 0; out.length < 2 && k < 24 && pool.length; k++) {
+    const hv = hashN(it.seed, it.rr * 31 + k + idx * 7);
+    const l = pool[hv % pool.length]; if (out.some(o => o[0] === l)) continue;
+    out.push([l, l === 'rank' ? 0 : 2 + (hashN(hv, 3) % 3), l === 'cat' ? sels[hv % sels.length] : l === 'rank' ? (it.s === 'weapon' ? 'spender' : sels[hv % sels.length]) : undefined]);
+  }
+  if (out.length < 2) out.push([it.L[idx][0], 2 + (hashN(it.seed, it.rr + 99) % 3), it.L[idx][2]]);   // pool corto: la misma línea con otro paso
+  return out;
+}
+function renderForge() {
+  const cands = forgeCandidates();
+  if (!S.forgeItem || !cands.some(c => c.uid === S.forgeItem)) S.forgeItem = (cands.find(c => c.n === 'Guantes de Ónice') || cands.find(c => c.r === 'R' && c.loc.startsWith('eq:')) || cands[0]).uid;
+  const it = byUid(S.forgeItem), h = HEROES[S.hero], n = NOeff(it, h);
+  $('#picker').innerHTML = cands.map(c => `<button class="cell has ${RAR[c.r].cls}${c.uid === it.uid ? ' sel' : ''}" data-fitem="${c.uid}" aria-label="${esc(c.n)}" title="${esc(c.n)}">${cellHTML(c, null)}</button>`).join('');
+  $('#ftabs').innerHTML = FTABS.map(([id, nm]) => `<button class="btn ${S.ftab === id ? 'on' : 'ghost'}" role="tab" aria-selected="${S.ftab === id}" data-ftab="${id}">${nm}</button>`).join('');
+  const lineBtns = (attr, sel, lockFn) => `<div class="linepick">${it.L.map(([id, step, s], i) => { const locked = lockFn(i, id, step); return `<button aria-pressed="${sel === i}" data-${attr}="${i}" ${locked ? 'disabled' : ''}>${catIcon(LINES[id].cat)}<span>${LINES[id].t(lineVal(id, n, id === 'rank' ? 5 : step, it.s), h, it.s, s)}${locked ? ` <span class="muted">· ${locked}</span>` : ''}</span>${LINES[id].fixed ? '' : steps(step)}</button>`; }).join('')}</div>`;
+  const gold = c => `<span><img src="assets/mat_oro.webp" alt=""> <b>${fint(c)}</b> oro</span>`;
+  let html = '';
+  if (S.ftab === 'mejorar') {
+    html += `<h3>${esc(it.n)} · ◆ ${NO(it)}</h3><div class="ranks" aria-label="Rangos de mejora">`;
+    for (let r = 1; r <= 5; r++) html += `<div class="rk${r <= it.k ? ' done' : ''}">◆ ${it.il + r}</div>`;
+    html += `</div><p class="note" style="margin-top:4px">Cada rango es +1 ◆: las líneas % y el Principal ×1,035 y lo plano (arma, armadura, vida) ×1,065. Sin marcas de agua: el precio es el mismo para todos.</p>`;
+    if (it.k < 5) html += `<div class="cost">${gold(upCost(it, it.k))}</div><button class="btn" data-act="upgrade">Mejorar a ◆ ${NO(it) + 1}</button>${it.k === 4 ? '<p class="note">El rango 5 trae el remate: ★ en una línea al azar.</p>' : ''}`;
+    else html += `<div class="cost">Rango máximo. ${it.L.some(l => l[1] === 6) ? 'El remate ★ ya está puesto.' : ''} ${gold(starCost(it))} <span class="muted">· cada movimiento en esta pieza cuesta ×1,5</span></div><button class="btn" data-act="restar">Mover la ★ a otra línea</button>`;
+  } else if (S.ftab === 'retirar') {
+    html += `<h3>Cambia una línea por otra</h3>` + lineBtns('rline', S.rerollLine, (i, id, step) => (it.x !== null && it.x !== i) ? 'bloqueada' : step === 6 ? '★' : i < it.fixed ? 'fija' : '');
+    if (it.x !== null) html += `<p class="note">Ya re-tiraste la línea ${it.x + 1}: solo esa se puede volver a tirar.</p>`;
+    if (S.rerollLine !== null && !(it.x !== null && it.x !== S.rerollLine)) {
+      const idx = S.rerollLine, opts = rerollOptions(it, idx);
+      html += `<div class="cost">${gold(rerollCost(it))}<span class="muted">tirada ${it.rr + 1} · resultado fijado por la semilla de la pieza · las nuevas salen al paso 2–4 (súbelo con Afinar)</span></div><div class="opts">`;
+      const cur = it.L[idx];
+      [cur, ...opts].forEach((o, j) => {
+        const test = { ...it, L: it.L.map((l, k) => k === idx ? o : l) };
+        const v = j === 0 ? null : deltaIf(it, test);
+        html += `<button class="opt${j === 0 ? ' cur' : ''}" data-ropt="${j}" data-l="${o[0]}" data-s="${o[1]}" data-sel="${o[2] || ''}">${catIcon(LINES[o[0]].cat)} <span>${LINES[o[0]].t(lineVal(o[0], n, o[0] === 'rank' ? 5 : o[1], it.s), h, it.s, o[2])}</span>${LINES[o[0]].fixed ? '' : steps(o[1])}<span class="d num">${j === 0 ? '<span class="muted">te quedas con la tuya</span>' : `<span class="${v.dD >= 0 ? 'v-up' : 'v-down'}">${pct(v.dD)} daño</span> · <span class="${v.dA >= 0 ? 'v-up' : 'v-down'}">${pct(v.dA)} aguante</span>`}</span></button>`;
+      });
+      html += `</div>`;
+    }
+  } else if (S.ftab === 'afinar') {
+    html += `<h3>Sube el paso de una línea</h3>` + lineBtns('aline', S.afLine, (i, id, step) => id === 'rank' ? 'fija' : step === 6 ? '★' : step === 5 ? 'al máximo' : '');
+    if (S.afLine !== null && it.L[S.afLine] && it.L[S.afLine][1] < 5 && it.L[S.afLine][0] !== 'rank') {
+      const [id, step] = it.L[S.afLine];
+      html += `<div class="afin"><div class="die${S.lastDie ? ' rolled' : ''}" aria-live="polite">${S.lastDie ? S.lastDie.face : '?'}</div><div><div class="cost">${gold(afinarCost(it))}<span class="muted">tirada ${it.af + 1} en esta pieza</span></div><button class="btn" data-act="afinar">Tirar el dado (1–5)</button><p class="note">Te quedas con el mayor: el paso nunca baja. De media, 5 tiradas llevan una línea al 5. Cada tirada en la pieza encarece la siguiente un 30 %: la 3.ª línea cuesta ~14 veces la 1.ª.</p></div></div>`;
+      if (S.lastDie && S.lastDie.uid === it.uid) html += `<p class="capnote">${S.lastDie.face > S.lastDie.prev ? `Sale ${S.lastDie.face}: la línea sube del paso ${S.lastDie.prev} al ${S.lastDie.face}.` : `Sale ${S.lastDie.face}: no supera tu ${S.lastDie.prev}. La línea queda igual.`}</p>`;
+    } else html += `<p class="note">Elige una línea que no esté al paso 5 ni tenga ★.</p>`;
+  } else if (S.ftab === 'engarzar') {
+    html += `<h3>Engarce ◇ de ${esc(it.n)}</h3><p class="note" style="margin-top:2px">La gema es la cuarta línea. Solo encajan las de su ranura. Quitarla es gratis.</p><div class="gems"><span></span>${GRADES.slice(1).map(g => `<span class="gh">${g}</span>`).join('')}`;
+    for (const [gid, gm] of Object.entries(GEMS)) {
+      const fits = gemFits(gid, it);
+      html += `<span class="gn"><span class="gemdot" style="background:${gm.col}"></span>${gm.n}</span>`;
+      for (let g = 1; g <= 5; g++) {
+        const cnt = S.mats[gid][g], cur = it.g && it.g[0] === gid && it.g[1] === g;
+        html += `<button class="gbtn${cur ? ' cur' : ''}" data-gem="${gid}" data-grade="${g}" ${!fits || (!cnt && !cur) ? 'disabled' : ''} title="${fits ? `${gm.n} ${GRADES[g]}: ${LINES[gm.line].t(lineVal(gm.line, n, g, it.s), h, it.s)}` : `No encaja en ${SLOTS[it.s].name.toLowerCase()}`}">${cur ? '◆' : cnt}</button>`;
+      }
+    }
+    html += `</div>`;
+    const st = itemStats(it, h);
+    if (it.g) html += `<div class="row sec"><button class="btn ghost" data-act="ungem">Quitar ${GEMS[it.g[0]].n} (vuelve a la bolsa)</button></div>`;
+    if (st._gemLost > 0.05) html += `<p class="capnote">≈ 0 ⊘ Parte del ${GEMS[it.g[0]].n} se pierde: esa línea ya está cerca de su tope en esta pieza.</p>`;
+  } else if (S.ftab === 'grabar') {
+    if (!SLOTS[it.s].asp) html += `<p class="note">Las armaduras (casco, pecho, cinturón y botas) no llevan aspecto: se persiguen por su ◆, sus pasos, la ★, la gema y los Únicos. Elige un arma, una mano izquierda, unos guantes, un amuleto o un anillo.</p>`;
+    else {
+      const catOk = CAT_SLOTS[it.s];
+      if (it.r !== 'R' && it.r !== 'L') html += `<p class="note">Grabar funciona sobre un <b style="color:var(--r-r)">Raro</b> (pasa a Legendario) o sobre un <b style="color:var(--r-l)">Legendario</b> (reemplaza su aspecto).</p>`;
+      const list = Object.entries(ASPECTS).filter(([id, A]) => (!A.cls || A.cls === h.cls) && catOk.includes(A.cat));
+      html += `<h3>Códice · aspectos para ${SLOTS[it.s].name.toLowerCase()} <span class="muted">(${catOk.join(', ')})</span></h3><div class="aspgrid sec">${list.map(([id, A]) => { const r = S.codex[id] || 0; const on = aspectActive([id, 1], h).on; return `<button class="acard${r ? '' : ' unk'}" aria-pressed="${S.codexPick === id}" data-cpick="${id}" ${r ? '' : 'disabled'}><img src="assets/${A.img}.webp" alt=""><span><b>${A.n}</b>${r ? `${A.t(r)} <span class="rk2">r${r}</span>${on ? '' : ' <span class="muted">· no activo en tu build</span>'}` : `<span class="muted">sin descubrir · 25 de Polvo (rango 1)</span>`}</span></button>`; }).join('')}</div>`;
+      if (S.codexPick && (it.r === 'R' || it.r === 'L')) { const r = S.codex[S.codexPick]; html += `<div class="cost sec">${gold(1500 * r)}</div><button class="btn" data-act="imprint">Grabar ${ASPECTS[S.codexPick].n} (r${r})</button>`; }
+    }
+  } else if (S.ftab === 'desguazar') {
+    const junk = ITEMS.filter(i => i.loc === 'bag:' + S.hero && i.junk);
+    html += `<h3>Lote marcado como basura</h3>`;
+    if (!junk.length) html += `<p class="note">No hay nada marcado. En la mochila, <kbd>Espacio</kbd> marca la basura.</p>`;
+    else {
+      html += `<div class="salv sec">${junk.map(i => `<div><span class="mini cell has ${RAR[i.r].cls}"><img src="assets/${SLOTS[i.s].icon}.webp" alt=""></span><span>${esc(i.n)}${i.g ? ` <span class="muted">· ${GEMS[i.g[0]].n} vuelve a la bolsa</span>` : ''}</span><b class="num">+${fint(SALV[i.r].o)}</b></div>`).join('')}</div>`;
+      const o = junk.reduce((a, i) => a + SALV[i.r].o, 0);
+      html += `<div class="cost sec">${junk.length} objetos → ${gold(o)}</div><button class="btn" data-act="salvage">Desguazar ${junk.length}</button><p class="note">Vender y desguazar dan lo mismo. Los Legendarios nunca entran en un lote si no los marcas tú: al desguazarlos, su aspecto va al Códice y dan Polvo.</p>`;
+    }
+  }
+  $('#fpanel').innerHTML = html;
+  renderTip($('#tipzone3'), it.uid);
+}
+function deltaIf(orig, test) {
+  const h = HEROES[S.hero], eq = equipOf(S.hero);
+  const k = orig.loc === 'eq:' + S.hero ? orig.eqs : (orig.s === 'ring' ? 'ring' : orig.s);
+  const withOrig = { ...eq, [k]: orig }, withTest = { ...eq, [k]: test };
+  const a = evalHero(h, withOrig), b = evalHero(h, withTest);
+  return { dD: b.D / a.D - 1, dA: b.A / a.A - 1 };
+}
+
+// ——— aspectos: demo, cofre y Códice
+const DEMOS = {
+  guerrero: { skill: 'Rajar', art: 'g_rajar', vars: [['i', 'Estocada Final', 'v_g_rajar_i'], ['ii', 'Molino', 'v_g_rajar_ii']], skillId: 'g_rajar', asp: 'molino_huesos', rank: 3,
+    off: 'Tres giros de 2,5 m alrededor tuyo', on: 'El 3.er giro deja un sangrado del 40 % en 3 s' },
+  maga: { skill: 'Bola de Fuego', art: 'bola_fuego', vars: [['i', 'Pirodardo', 'v_bola_fuego_i'], ['ii', 'Racimo', 'v_bola_fuego_ii']], skillId: 'bola_fuego', asp: 'racimo_voraz', rank: 3,
+    off: 'Al explotar suelta 3 brasas al 40 %', on: 'Suelta 4 brasas al 42 % cada una (5 desde r4)' },
+  arquera: { skill: 'Trampa de Cepo', art: 'a_t_cepo', vars: [['i', 'Mina de Espinas', 'v_a_t_cepo_i'], ['ii', 'Red de Caza', 'v_a_t_cepo_ii']], skillId: 'a_t_cepo', asp: 'red_pesada', rank: 4,
+    off: 'La red inmoviliza 2,5 s', on: 'Inmoviliza 3,4 s y a un jefe le llena 13 de Quebranto' },
+};
+function renderAspectos() {
+  const h = HEROES[S.hero], D = DEMOS[S.hero], A = ASPECTS[D.asp];
+  const cur = h.variants[D.skillId], need = A.needs.v, on = cur === need;
+  $('#demohint').textContent = on ? 'la variante de tu forja coincide: el aspecto está activo' : 'tu forja no tiene la variante: el aspecto queda atenuado';
+  $('#demohead').innerHTML = `<div class="skillhead"><img src="assets/${D.art}.webp" alt=""><div><h3>${D.skill} · Aspecto ${A.n} <span class="muted">r${D.rank}</span></h3><div class="varsw">Tu forja:${D.vars.map(([k, n, img]) => `<button class="varbtn" aria-pressed="${cur === k}" data-var="${k}"><img src="assets/${img}.webp" alt="">${n}${k === need ? ' <span class="spark" title="tu equipo la potencia">✦</span>' : ''}</button>`).join('')}</div></div></div>`;
+  $('#demo').innerHTML = `<div class="dcard"><canvas id="cv0" width="480" height="270" aria-label="Sin aspecto"></canvas><div class="cap"><b>Sin aspecto</b><span class="muted">${D.off}</span></div></div><div class="dcard ${on ? 'on' : ''}"><canvas id="cv1" width="480" height="270" aria-label="Con el aspecto"></canvas><div class="cap"><b style="color:${on ? 'var(--r-l)' : 'var(--ink-faint)'}">Con ${A.n}</b><span class="${on ? 'dim' : 'muted'}">${on ? D.on : `Pide: ${A.needs.vn}`}</span></div></div>`;
+  startDemo(on);
+  renderChest(); renderCodex();
+}
+function chestItems() {
+  const h = HEROES[S.hero];
+  const pools = { guerrero: [['Hoja Sangrienta', 'weapon', 'furia_sin_freno', [['main', 4], ['aspd', 4], ['cdmg', 3]]], ['Escudo del Martinete', 'offhand', 'espinas_hierro', [['dr', 5], ['arm', 4], ['cdr', 3]]], ['Anillo Sediento', 'ring', 'sed_insaciable', [['crit', 4], ['cdmg', 4], ['dmg', 3]]]],
+    maga: [['Vara del Sol Errante', 'weapon', 'sol_errante', [['main', 5], ['cat', 4, 'spender'], ['cdmg', 3]]], ['Anillo Ardiente', 'ring', 'meteoro_certero', [['dmg', 4], ['crit', 4], ['hp', 3]]], ['Foco de Cargas', 'offhand', 'cargas_vivas', [['cdr', 4], ['cat', 4, 'insignia'], ['res', 3]]]],
+    arquera: [['Arco del Coto', 'weapon', 'cadena_polvora', [['main', 5], ['cdmg', 4], ['aspd', 3]]], ['Amuleto de la Presa', 'amulet', 'rastro_presa', [['dmg', 4], ['cat', 3, 'insignia'], ['cdmg', 4]]], ['Anillo del Abanico', 'ring', 'abanico_abierto', [['crit', 4], ['dmg', 4], ['hp', 3]]]] }[S.hero];
+  return pools.map(([n, s, a, L], i) => ({ uid: 9000 + i, n, base: SLOTS[s].name, s, cls: (s === 'weapon' || s === 'offhand') ? h.cls : undefined, shield: s === 'offhand' && h.cls === 'guerrero', r: 'L', il: ilvlTop(h.lvl), k: 0, L, g: null, a: [a, 3], fixed: 0, x: null, rr: 0, af: 0, sm: 0, loc: 'chest' }));
+}
+function renderChest() {
+  const items = chestItems();
+  $('#chest').innerHTML = items.map((it, i) => `<button class="ccard${S.chest === null ? '' : S.chest === i ? ' chosen' : ' gone'}" data-chest="${i}" ${S.chest !== null ? 'disabled' : ''}>${tooltipHTML(it, S.hero, { chest: true })}<span class="foot">${S.chest === null ? 'Clic para elegir' : S.chest === i ? 'Elegido: va a tu mochila' : '→ 5 de Polvo'}</span></button>`).join('');
+}
+function renderCodex() {
+  const h = HEROES[S.hero];
+  const list = Object.entries(ASPECTS).filter(([, A]) => A.cls === h.cls || !A.cls);
+  const known = list.filter(([id]) => S.codex[id]).length;
+  $('#codexsum').textContent = `${h.name}: ${known} de ${list.length} · comprar a r1: 25 ✧ · subir de r a r+1: 25·r ✧ · tope de Polvo ${fint(DUST_CAP)}`;
+  $('#codex').innerHTML = list.map(([id, A]) => {
+    const r = S.codex[id] || 0, who = `<span class="muted">${A.spec ? SPEC_NAMES[A.spec] : A.cls ? 'Clase' : 'Universal'} · ${A.cat}</span>`;
+    if (!r) return `<button class="acard unk" data-buy="${id}"><img src="assets/${A.img}.webp" alt=""><span><b>${A.n}</b>${who}<br><span class="muted">Comprar: 25 ✧</span></span></button>`;
+    const up = r < 5 ? `<button class="rkup" data-rankup="${id}" title="Subir a rango ${r + 1}">▲ r${r + 1} · ${25 * r} ✧</button>` : '<span class="rk2">máximo</span>';
+    return `<div class="acard"><img src="assets/${A.img}.webp" alt=""><span><b>${A.n}</b>${who}<br>${A.t(r)} <span class="rk2">r${r}</span><span class="rkrow">${up}</span></span></div>`;
+  }).join('') + `<div class="acard mythic"><span class="dust" aria-hidden="true">✸</span><span><b>Mítico de tu especialización</b><span class="muted">4 Chispas (tienes ${S.sparks}) · solo uno activo a la vez</span><br><button class="rkup" data-act="mythic" ${S.sparks < 4 ? 'disabled' : ''}>Elegir Mítico</button></span></div>`;
+}
+// animaciones de la demo (canvas); con movimiento reducido, un fotograma fijo
+let demoRAF = null;
+function startDemo(on) {
+  cancelAnimationFrame(demoRAF);
+  const cvs = [$('#cv0'), $('#cv1')]; if (!cvs[0]) return;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const t0 = performance.now();
+  const frame = now => {
+    const t = reduce ? 0.62 : ((now - t0) / 2600) % 1;
+    cvs.forEach((cv, i) => drawDemo(cv.getContext('2d'), cv.width, cv.height, t, i === 1 && on));
+    if (!reduce) demoRAF = requestAnimationFrame(frame);
+  };
+  demoRAF = requestAnimationFrame(frame);
+}
+function dot(c, x, y, r, col, a = 1) { c.globalAlpha = a; c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.globalAlpha = 1; }
+function drawDemo(c, W, H, t, withAsp) {
+  c.clearRect(0, 0, W, H);
+  const g = c.createRadialGradient(W / 2, H * 0.55, 10, W / 2, H * 0.55, W * 0.6); g.addColorStop(0, '#26231c'); g.addColorStop(1, '#0d0b0a'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.56;
+  if (S.hero === 'maga') {
+    dot(c, 60, cy, 9, '#9fc3ff');
+    const n = withAsp ? 4 : 3, pctTxt = withAsp ? '42 %' : '40 %';
+    if (t < 0.35) { const x = 60 + (cx - 60) * (t / 0.35); dot(c, x, cy, 9, '#ff8c2e'); dot(c, x - 12, cy, 6, '#ff8c2e', 0.35); }
+    else {
+      const e = (t - 0.35) / 0.65;
+      if (e < 0.25) dot(c, cx, cy, 20 + 60 * e, '#ff8c2e', 0.6 * (1 - e * 4));
+      for (let i = 0; i < n; i++) {
+        const ang = -Math.PI / 2 + i * 2 * Math.PI / n, dist = 30 + 70 * Math.min(1, e * 1.6);
+        const x = cx + Math.cos(ang) * dist, y = cy + Math.sin(ang) * dist * 0.62;
+        if (e < 0.7) { dot(c, x, y, 6, '#ffb347'); dot(c, x, y, 11, '#ff6a1a', 0.25); }
+        else { const p = (e - 0.7) / 0.3; dot(c, x, y, 8 + 26 * p, '#ff6a1a', 0.55 * (1 - p)); }
+      }
+      if (e > 0.7) { c.fillStyle = '#f6dd9c'; c.font = '600 15px Inter, system-ui, sans-serif'; c.textAlign = 'center'; c.fillText(`${n} brasas · ${pctTxt}`, cx, H - 18); }
+    }
+    for (const [ex, ey] of [[cx + 70, cy - 30], [cx - 80, cy + 20], [cx + 30, cy + 46], [cx - 20, cy - 52], [cx + 110, cy + 18]]) dot(c, ex, ey, 7, '#b84a4a');
+  } else if (S.hero === 'guerrero') {
+    const enemies = [0, 1, 2, 3, 4, 5].map(i => [cx + Math.cos(i * 1.05 + 0.3) * 72, cy + Math.sin(i * 1.05 + 0.3) * 44]);
+    const step = Math.min(2, Math.floor(t / 0.24));
+    const local = (t % 0.24) / 0.24;
+    for (const [ex, ey] of enemies) dot(c, ex, ey, 7, '#b84a4a');
+    if (t < 0.72) {
+      c.strokeStyle = 'rgba(232, 192, 106, .9)'; c.lineWidth = 6; c.beginPath();
+      const a0 = local * Math.PI * 2; c.ellipse(cx, cy, 82, 52, 0, a0, a0 + Math.PI * 1.2); c.stroke();
+      c.fillStyle = '#f6dd9c'; c.font = '600 15px Inter, system-ui, sans-serif'; c.textAlign = 'center'; c.fillText(`giro ${step + 1}`, cx, H - 18);
+    } else if (withAsp) {
+      const p = (t - 0.72) / 0.28;
+      for (const [ex, ey] of enemies) { for (let k = 0; k < 3; k++) dot(c, ex + (k - 1) * 5, ey + 10 + ((p * 30 + k * 9) % 22), 2.4, '#e0303a', 0.9); dot(c, ex, ey, 11, '#e0303a', 0.25); }
+      c.fillStyle = '#ff8c2e'; c.font = '600 15px Inter, system-ui, sans-serif'; c.textAlign = 'center'; c.fillText('sangrado 43 % · 3 s', cx, H - 18);
+    } else { c.fillStyle = '#c2b59a'; c.font = '500 14px Inter, system-ui, sans-serif'; c.textAlign = 'center'; c.fillText('fin del combo', cx, H - 18); }
+    dot(c, cx, cy, 11, '#e8c06a');
+  } else {
+    const hold = withAsp ? 3.4 : 2.5, maxS = 4;
+    c.strokeStyle = '#b6e07a'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.ellipse(cx, cy, 60, 36, 0, 0, 7); c.stroke(); c.setLineDash([]);
+    const trig = 0.22, hT = trig + hold / maxS * 0.7;
+    const en = [[-1, -0.3], [-0.6, 0.5], [0.4, -0.6], [0.8, 0.2], [0, 0.7]];
+    for (const [dx, dy] of en) {
+      let k = t < trig ? 1 - t / trig : 0;
+      if (t > hT) k = (t - hT) * 2.4;
+      dot(c, cx + dx * (40 + 110 * k), cy + dy * (26 + 60 * k), 7, '#b84a4a');
+    }
+    if (t >= trig && t < hT) { c.strokeStyle = 'rgba(182, 224, 122, .8)'; c.lineWidth = 1.5; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(cx - 70, cy + i * 9); c.lineTo(cx + 70, cy + i * 9); c.stroke(); c.beginPath(); c.moveTo(cx + i * 18, cy - 40); c.lineTo(cx + i * 18, cy + 40); c.stroke(); } }
+    // barra de tiempo
+    const bx = 40, bw = W - 80, by = H - 34;
+    c.fillStyle = '#2a2430'; c.fillRect(bx, by, bw, 8);
+    c.fillStyle = withAsp ? '#ff8c2e' : '#b6e07a'; c.fillRect(bx, by, bw * hold / maxS, 8);
+    c.fillStyle = '#f6dd9c'; c.fillRect(bx + bw * Math.min(1, t), by - 3, 2, 14);
+    c.fillStyle = '#efe6d2'; c.font = '600 13px Inter, system-ui, sans-serif'; c.textAlign = 'left'; c.fillText(`inmoviliza ${f1(hold)} s`, bx, by - 8);
+    if (withAsp) { c.textAlign = 'right'; c.fillStyle = '#ff8c2e'; c.fillText('jefe: +15 Quebranto', bx + bw, by - 8); }
+  }
+}
+
+// ——— filtro de botín («Útil para mí» usa el veredicto a potencial: no tira las bases buenas)
+const DROPS = [
+  { n: 'Hoja Sangrienta', r: 'L', x: 30, y: 40, s: 'weapon', up: true, codex: true, my: true },
+  { n: 'Anillo de Hueso', r: 'R', x: 62, y: 30, s: 'ring', up: true, my: true },
+  { n: 'Guantes de Ónice', r: 'R', x: 47, y: 64, s: 'gloves', pot: true, my: true },
+  { n: 'Botas Gastadas', r: 'M', x: 20, y: 70, s: 'boots', low: true },
+  { n: 'Guantes de Tela', r: 'M', x: 36, y: 84, s: 'gloves', low: true },
+  { n: 'Faja de Cuero', r: 'M', x: 75, y: 62, s: 'belt', my: true },
+  { n: 'Corona del Fénix', r: 'U', x: 82, y: 38, s: 'helm', otherUp: true },
+  { n: 'Yelmo Abollado', r: 'R', x: 56, y: 50, s: 'helm', my: true },
+  { n: 'Colgante Opaco', r: 'M', x: 12, y: 42, s: 'amulet', low: true },
+  { n: 'Arco de Fresno', r: 'R', x: 38, y: 22, s: 'weapon', otherUp: true },
+  { n: 'Anillo Mayor ★', r: 'R', x: 88, y: 80, s: 'ring', star: true, my: true },
+  { n: 'Oro ×412', r: 'C', x: 62, y: 88, mat: true },
+  { n: 'Escudo del Bastión', r: 'L', x: 8, y: 88, s: 'offhand', codex: true },
+];
+const PRESETS = [['todo', 'Todo'], ['util', 'Útil para mí'], ['solo', 'Solo ▲'], ['raro', 'Raro+'], ['leg', 'Legendario+']];
+const RULES = [
+  { t: 'Legendario+ nuevo para el Códice', acts: ['color violeta', 'sonido', 'icono en el mapa'], f: d => RAR_ORDER[d.r] >= 3 && d.codex, show: true },
+  { t: '▲ para algún héroe tuyo (también ⚒ tras mejorar)', acts: ['mostrar', 'autorrecoger'], f: d => d.up || d.pot || d.otherUp, show: true },
+  { t: 'Mágico con ◆ por debajo del tuyo − 5', acts: ['ocultar'], f: d => d.r === 'M' && d.low, show: false },
+  { t: 'Anillos y amuletos con ★', acts: ['resaltar', 'sonido'], f: d => d.star, show: true },
+];
+function dropVisible(d) {
+  if (d.mat) return true;
+  for (let i = 0; i < RULES.length; i++) if (S.rules[i] && RULES[i].f(d)) return RULES[i].show;
+  const r = RAR_ORDER[d.r];
+  switch (S.preset) {
+    case 'todo': return true;
+    case 'util': return r >= 1 && !d.low && (d.my || d.up || d.pot || d.otherUp || r >= 3);
+    case 'solo': return !!(d.up || d.pot || d.otherUp);
+    case 'raro': return r >= 2;
+    case 'leg': return r >= 3;
+  }
+  return true;
+}
+function renderFiltro() {
+  $('#presets').innerHTML = PRESETS.map(([id, n]) => `<button class="chip" role="radio" aria-checked="${S.preset === id}" data-preset="${id}">${n}</button>`).join('');
+  let shown = 0;
+  $('#stage').innerHTML = DROPS.map(d => {
+    const vis = dropVisible(d); if (vis) shown++;
+    const cls = vis ? (RAR_ORDER[d.r] >= 3 ? ' beam' : '') : S.groundAlt ? ' ghost' : ' hid';
+    const mark = d.up ? ` ${UP.replace('<svg', '<svg style="width:10px;height:10px"')}` : d.pot ? ` ${HAMMER.replace('<svg', '<svg style="width:10px;height:10px"')}` : d.otherUp ? ' ·' : '';
+    const codexMark = d.codex && S.rules[0] ? ' ✦' : '';
+    return `<div class="drop ${RAR[d.r].cls}${cls}" style="left:${d.x}%;top:${d.y}%"><span class="pill">${d.mat ? '<img src="assets/mat_oro.webp" alt="" style="width:12px;height:12px">' : glyph(d.r, '')}${esc(d.n)}${codexMark}${mark}</span><span class="pip"></span></div>`;
+  }).join('');
+  $('#stagenote').textContent = `${shown} de ${DROPS.length} etiquetas a la vista${S.groundAlt ? ' · con Alt ves también las ocultas, tachadas' : ''}.`;
+  $('#rules').innerHTML = RULES.map((r, i) => `<label class="rule"><input type="checkbox" id="rule${i}" data-rule="${i}" ${S.rules[i] ? 'checked' : ''}><span><b>${i + 1}.</b> ${r.t}<span class="acts">${r.acts.map(a => `<span>${a}</span>`).join('')}</span></span></label>`).join('');
+  const code = 'IRPGF1-' + btoa(JSON.stringify({ p: S.preset, r: S.rules.map(Number) })).replace(/=+$/, '');
+  $('#fcode').value = code;
+  $('#altground').setAttribute('aria-pressed', S.groundAlt);
+}
+
+// ——— ritmo (§4.13) y topes (§4.4) · números de calc-r2-econ.mjs
+const METAS = [
+  { n: 'Funcional', a: 2, b: 4, col: 'var(--r-r)', d: '6 ranuras de aspecto con uno útil · arma y 2 piezas a r5 · gemas Talladas' },
+  { n: 'Completa', a: 12, b: 20, col: 'var(--r-l)', d: '6 aspectos a r5 · todo a r5 · gemas Perfectas' },
+  { n: 'Techo', a: 40, b: 60, col: 'var(--r-x)', d: 'Afinar: las líneas al paso 5 · ★ donde quieres · Mítico' },
+];
+const FLOWS = [
+  { n: 'Oro', ic: 'mat_oro', per: '≈ 130 000', parts: [[70, 'var(--gold)', 'afinar'], [8, 'var(--r-r)', 'mejorar'], [7, 'var(--r-l)', 're-tirar, ★ y grabar'], [15, 'var(--ink-faint)', 'apuesta y alijo']], sinks: ['mejorar todo ≈ 177 000 (1,4 h)', 'afinar 3 500 · 1,3ᵐ', 'mover ★ 10 000 · 1,5ᵏ', 're-tirar 3 000 · 1,5ⁿ', 'apuesta ≈ 28 000'] },
+  { n: 'Polvo ✧', ic: null, per: '≈ 165', parts: [[50, 'var(--r-l)', 'legendarios'], [50, 'var(--gold-2)', 'cofre y Únicos']], sinks: ['aspecto r1: 25', 'subir r → r+1: 25·r', 'tope 1 000'] },
+  { n: 'Gemas', ic: null, per: '≈ 34', parts: [[50, 'var(--r-m)', 'Tosca'], [50, 'var(--r-r)', 'Tallada']], sinks: ['1 cada 2 élites', 'Perfecta = 9 Talladas', 'combinar 500 · grado'] },
+  { n: 'Chispas ✸', ic: null, per: '≈ 0,3', parts: [[100, 'var(--r-x)', 'Pináculo']], sinks: ['Mítico elegido: 4', 'solo uno activo'] },
+];
+// afinar UNA pieza (factor 1): cuánto oro cuesta llevar cada línea al paso 5 (5 tiradas de media por línea)
+const AFIN = [['1.ª línea', 31600], ['2.ª línea', 117000], ['3.ª línea', 437000]];
+// crítico con el óptimo del Nv100: base + Des del nivel + talentos + tablero | equipo (solo anillos) | total v3
+const CAPV = [['Guerrero', 15.5, 9.3, 32.4], ['Maga', 17.5, 9.3, 34.4], ['Arquera', 33.6, 9.3, 50.5]];
+function renderRitmo() {
+  const H = 60, x = h => (h / H * 100).toFixed(2) + '%';
+  $('#track').innerHTML = METAS.map((m, i) => `<div class="seg" style="left:${x(m.a)};width:${x(m.b - m.a)};background:${m.col}" title="${m.d}"><b style="${i === METAS.length - 1 ? 'left:auto;right:0' : ''}">${m.n} · ${m.a}–${m.b} h</b></div>`).join('')
+    + [0, 10, 20, 30, 40, 50, 60].map(h => `<span class="tick" style="left:${x(h)};${h === 0 ? 'transform:none' : h === 60 ? 'transform:translateX(-100%)' : ''}">${h} h</span>`).join('');
+  $('#flows').innerHTML = FLOWS.map(fl => `<div class="flow"><div class="lab">${fl.ic ? `<img src="assets/${fl.ic}.webp" alt="">` : ''}<b>${fl.n}</b><span class="muted num">${fl.per}/h</span></div><div><div class="bar2" role="img" aria-label="${fl.parts.map(p => p[2] + ' ' + p[0] + ' %').join(', ')}">${fl.parts.map(p => `<i style="width:${p[0]}%;background:${p[1]}" title="${p[2]} · ${p[0]} %"></i>`).join('')}</div><div class="sinks">${fl.sinks.map(t => `<span>${t}</span>`).join('')}</div></div></div>`).join('');
+  const amax = AFIN[2][1];
+  $('#afincurve').innerHTML = AFIN.map(([n, v]) => `<div class="vs"><span>${n}</span><div class="bar2"><i style="width:${(v / amax * 100).toFixed(1)}%;background:var(--gold)"></i></div><b class="num">${f1(v / 130000)} h</b></div>`).join('');
+  const cx = v => (v / 60 * 100).toFixed(1) + '%';
+  $('#caps').innerHTML = '<div class="muted" style="font-size:.74rem">% de crítico · raya dorada: objetivo 55 · raya roja: tope 60</div>' + CAPV.map(([n, base, gear, old]) => `<div class="caprow"><span>${n}</span><div class="capbar" role="img" aria-label="${n}: ${f1(base + gear)} de 60"><i style="width:${cx(Math.min(60, old))};background:var(--leather-4)"></i><i style="width:${cx(base)};background:var(--ink-faint)"></i><i style="left:${cx(base)};width:${cx(gear)};background:var(--cat-atk)"></i><u style="left:${cx(55)}"></u><em style="left:calc(100% - 2px)"></em></div><b class="num">${f1(base + gear)}</b></div>`).join('')
+    + '<div class="muted" style="font-size:.74rem;margin-top:4px">gris: sin equipo · naranja: anillos · oscuro: lo que llegaba en la v3</div>';
+  $('#gamble').innerHTML = [['Matando 1 h', 9.3, 'var(--r-l)'], ['Todo el oro de 1 h en apuestas', 4.7, 'var(--gold)']].map(([n, v, c]) => `<div class="vs"><span>${n}</span><div class="bar2"><i style="width:${(v / 9.3 * 100).toFixed(0)}%;background:${c}"></i></div><b class="num">${f1(v)}</b></div>`).join('');
+}
+
+// ============================================================ acciones
+let toastTimer = null;
+function toast(html, ms = 3200) { const t = $('#toast'); t.innerHTML = html; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
+function equip(uid) {
+  const it = byUid(uid), h = HEROES[S.hero];
+  if (!it || !canUse(it, h)) return;
+  const v = verdict(it, S.hero), eq = equipOf(S.hero);
+  const k = it.s === 'ring' ? v.k : it.s, old = eq[k];
+  if (it.r === 'X') { const other = Object.entries(eq).find(([kk, x]) => x.r === 'X' && kk !== k); if (other) { other[1].loc = 'bag:' + S.hero; delete other[1].eqs; toast(`Solo un Mítico activo: ${esc(other[1].n)} vuelve a la mochila.`); } }
+  if (old) { old.loc = 'bag:' + S.hero; delete old.eqs; }
+  it.loc = 'eq:' + S.hero; it.eqs = k; it.isNew = false;
+  S.sel = it.uid; S.hover = null; renderAll(); bumpPower();
+}
+const addDust = d => { const before = S.dust; S.dust = Math.min(DUST_CAP, S.dust + d); return d - (S.dust - before); };
+let pendingUndo = null;
+function salvage() {
+  const junk = ITEMS.filter(i => i.loc === 'bag:' + S.hero && i.junk);
+  if (!junk.length) return;
+  const o = junk.reduce((a, i) => a + SALV[i.r].o, 0), d = junk.reduce((a, i) => a + SALV[i.r].d, 0);
+  const saved = junk.map(i => [i, i.loc]);
+  for (const i of junk) { i.loc = 'gone'; if (i.g) S.mats[i.g[0]][i.g[1]]++; }
+  S.gold += o; const lost = addDust(d), dGot = d - lost;
+  renderAll();
+  if (pendingUndo) clearInterval(pendingUndo.iv);
+  let left = 10;
+  const draw = () => toast(`<span>${junk.length} objetos → +${fint(o)} de oro${dGot ? ` y +${dGot} de Polvo` : ''}</span><button class="btn" data-act="undo">Deshacer (${left} s)</button>`, 1100);
+  draw();
+  pendingUndo = {
+    undo() { for (const [i, l] of saved) { i.loc = l; if (i.g) S.mats[i.g[0]][i.g[1]]--; } S.gold -= o; S.dust -= dGot; },
+    iv: setInterval(() => { left--; if (left <= 0) { clearInterval(pendingUndo.iv); pendingUndo = null; $('#toast').hidden = true; return; } draw(); }, 1000),
+  };
+}
+function renderAll() {
+  renderHeader();
+  for (const [id] of VIEWS) $('#v-' + id).hidden = S.view !== id;
+  if (S.view === 'mochila') renderMochila();
+  if (S.view === 'alijo') renderAlijo();
+  if (S.view === 'herreria') renderForge();
+  if (S.view === 'aspectos') renderAspectos(); else cancelAnimationFrame(demoRAF);
+  if (S.view === 'filtro') renderFiltro();
+  if (S.view === 'ritmo') renderRitmo();
+  $('#altbtn').setAttribute('aria-pressed', S.alt); $('#altbtn2').setAttribute('aria-pressed', S.alt); $('#shiftbtn').setAttribute('aria-pressed', S.shift);
+  $('#sortbest').setAttribute('aria-pressed', S.sortBest); $('#sortnew').setAttribute('aria-pressed', S.sortNew);
+}
+const pay = c => { if (S.gold < c) { toast(`Te faltan ${fint(c - S.gold)} de oro.`); return false; } S.gold -= c; return true; };
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('button, [data-uid]'); if (!b) return;
+  const d = b.dataset;
+  if (d.hero) { S.hero = d.hero; S.sel = null; S.hover = null; S.forgeItem = null; S.rerollLine = null; S.afLine = null; S.lastDie = null; S.codexPick = null; S.chest = null; renderAll(); lastPw = { hero: S.hero, pw: powerOf(S.hero).pw }; const hb = document.querySelector(`[data-hero="${d.hero}"]`); if (hb) hb.focus(); return; }
+  if (d.view) { S.view = d.view; try { history.replaceState(null, '', '#' + d.view); } catch (e) {} renderAll(); const tb = $('#t-' + d.view); if (tb) tb.focus(); return; }
+  if (d.uid && !d.act) { S.sel = +d.uid; S.hover = null; renderMochila(); return; }
+  if (d.uid2) { S.sel2 = +d.uid2; S.hover2 = null; renderAlijo(); return; }
+  if (d.act === 'equip') return equip(+d.uid);
+  if (d.act === 'junk') { const it = byUid(+d.uid); it.junk = !it.junk; renderMochila(); return; }
+  if (d.act === 'fav') { const it = byUid(+d.uid); it.fav = !it.fav; if (it.fav) it.junk = false; renderMochila(); return; }
+  if (d.stab) { S.stashTab = +d.stab; S.sel2 = null; renderAlijo(); return; }
+  if (d.chip) { S.chips.has(d.chip) ? S.chips.delete(d.chip) : S.chips.add(d.chip); renderAlijo(); return; }
+  if (d.fitem) { S.forgeItem = +d.fitem; S.rerollLine = null; S.afLine = null; S.lastDie = null; S.codexPick = null; renderForge(); return; }
+  if (d.ftab) { S.ftab = d.ftab; S.rerollLine = null; S.afLine = null; S.lastDie = null; renderForge(); return; }
+  if (d.act === 'upgrade') {
+    const it = byUid(S.forgeItem); if (!pay(upCost(it, it.k))) return;
+    it.k++;
+    if (it.k === 5 && !it.L.some(l => l[1] === 6)) { const opts = it.L.map((l, i) => i).filter(i => it.L[i][0] !== 'rank'); const i = opts[hashN(it.seed, 77) % opts.length]; it.star = { i, prev: it.L[i][1] }; it.L[i] = [it.L[i][0], 6, it.L[i][2]]; toast(`Remate: ★ en «${LINE_NAMES[it.L[i][0]]}»`); }
+    renderAll(); bumpPower(); return;
+  }
+  if (d.act === 'restar') {
+    const it = byUid(S.forgeItem); if (!pay(starCost(it))) return;
+    const cur = it.L.findIndex(l => l[1] === 6), opts = it.L.map((l, i) => i).filter(i => i !== cur && it.L[i][0] !== 'rank');
+    it.sm++; const ni = opts[hashN(it.seed, 100 + it.sm) % opts.length];
+    if (cur >= 0) it.L[cur] = [it.L[cur][0], it.star && it.star.i === cur ? it.star.prev : 5, it.L[cur][2]]; it.star = { i: ni, prev: it.L[ni][1] }; it.L[ni] = [it.L[ni][0], 6, it.L[ni][2]];
+    toast(`La ★ pasó a «${LINE_NAMES[it.L[ni][0]]}»`); renderAll(); bumpPower(); return;
+  }
+  if (d.rline !== undefined) { S.rerollLine = +d.rline; renderForge(); return; }
+  if (d.ropt !== undefined) {
+    const it = byUid(S.forgeItem), j = +d.ropt;
+    if (!pay(rerollCost(it))) return;
+    it.rr++; it.x = S.rerollLine;
+    if (j > 0) it.L[S.rerollLine] = [d.l, +d.s, d.sel || undefined];
+    toast(j > 0 ? `Nueva línea: ${LINE_NAMES[d.l]}` : 'Te quedaste con tu línea');
+    renderAll(); bumpPower(); return;
+  }
+  if (d.aline !== undefined) { S.afLine = +d.aline; S.lastDie = null; renderForge(); return; }
+  if (d.act === 'afinar') {
+    const it = byUid(S.forgeItem), l = it.L[S.afLine]; if (!l || l[1] >= 5) return;
+    if (!pay(afinarCost(it))) return;
+    const face = 1 + (hashN(it.seed, 500 + it.af) % 5); it.af++;
+    const prev = l[1]; if (face > prev) it.L[S.afLine] = [l[0], face, l[2]];
+    S.lastDie = { uid: it.uid, face, prev };
+    renderAll(); bumpPower(); return;
+  }
+  if (d.gem) {
+    const it = byUid(S.forgeItem), gid = d.gem, gr = +d.grade;
+    if (it.g && it.g[0] === gid && it.g[1] === gr) return;
+    if (it.g) S.mats[it.g[0]][it.g[1]]++;
+    S.mats[gid][gr]--; it.g = [gid, gr]; renderAll(); bumpPower(); return;
+  }
+  if (d.act === 'ungem') { const it = byUid(S.forgeItem); S.mats[it.g[0]][it.g[1]]++; it.g = null; renderAll(); bumpPower(); return; }
+  if (d.cpick) { S.codexPick = d.cpick; renderForge(); return; }
+  if (d.act === 'imprint') {
+    const it = byUid(S.forgeItem), r = S.codex[S.codexPick];
+    if (!pay(1500 * r)) return;
+    it.r = 'L'; it.a = [S.codexPick, r];
+    toast(`${esc(it.n)} ahora es Legendario con ${ASPECTS[S.codexPick].n}`); S.codexPick = null; renderAll(); bumpPower(); return;
+  }
+  if (d.act === 'salvage') { salvage(); return; }
+  if (d.act === 'undo') { if (pendingUndo) { clearInterval(pendingUndo.iv); pendingUndo.undo(); pendingUndo = null; } $('#toast').hidden = true; renderAll(); return; }
+  if (d.var) { HEROES[S.hero].variants[DEMOS[S.hero].skillId] = d.var; renderAspectos(); renderHeader(); return; }
+  if (d.chest !== undefined) { S.chest = +d.chest; const lost = addDust(10); renderChest(); renderHeader(); toast(lost ? 'Elegido. Tu Polvo está en el tope: las otras dos cartas te dieron oro.' : 'Elegido. Las otras dos cartas te dieron 10 de Polvo.'); if (lost) S.gold += 800; return; }
+  if (d.buy) { if (S.dust < 25) { toast('Necesitas 25 de Polvo.'); return; } S.dust -= 25; S.codex[d.buy] = 1; renderAspectos(); renderHeader(); toast(`${ASPECTS[d.buy].n} entra en tu Códice a rango 1.`); return; }
+  if (d.rankup) { const r = S.codex[d.rankup] || 0, c = 25 * r; if (r < 1 || r >= 5) return; if (S.dust < c) { toast(`Necesitas ${c} de Polvo.`); return; } S.dust -= c; S.codex[d.rankup] = r + 1; renderAspectos(); renderHeader(); toast(`${ASPECTS[d.rankup].n} sube a rango ${r + 1} en tu Códice.`); return; }
+  if (d.act === 'mythic') { if (S.sparks < 4) { toast('Necesitas 4 Chispas.'); return; } S.sparks -= 4; renderAll(); toast('Elegiste el Mítico de tu especialización: llega a tu mochila. Solo uno puede estar activo.'); return; }
+  if (d.preset) { S.preset = d.preset; renderFiltro(); return; }
+  if (b.id === 'altbtn' || b.id === 'altbtn2') { S.alt = !S.alt; renderAll(); return; }
+  if (b.id === 'shiftbtn') { S.shift = !S.shift; renderAll(); return; }
+  if (b.id === 'sortbest') { S.sortBest = !S.sortBest; S.sortNew = false; renderMochila(); renderAll(); return; }
+  if (b.id === 'sortnew') { S.sortNew = !S.sortNew; S.sortBest = false; renderAll(); return; }
+  if (b.id === 'lotebtn') { salvage(); return; }
+  if (b.id === 'altground') { S.groundAlt = !S.groundAlt; renderFiltro(); return; }
+  if (b.id === 'copycode') {
+    const inp = $('#fcode');
+    const ok = () => toast('Código copiado.');
+    try { navigator.clipboard.writeText(inp.value).then(ok, () => { inp.select(); toast('Selecciona y copia el código con Ctrl+C.'); }); } catch (e) { inp.select(); toast('Selecciona y copia el código con Ctrl+C.'); }
+    return;
+  }
+});
+document.addEventListener('change', ev => { const r = ev.target.dataset && ev.target.dataset.rule; if (r !== undefined) { S.rules[+r] = ev.target.checked; renderFiltro(); } });
+document.addEventListener('input', ev => { if (ev.target.id === 'sq') { S.sq = ev.target.value.trim(); renderAlijo(); } });
+// hover → tooltip (desktop)
+document.addEventListener('pointerover', ev => {
+  const c = ev.target.closest('[data-uid], [data-uid2]'); if (!c) return;
+  if (c.dataset.uid && c.dataset.uid !== '' && S.view === 'mochila') { const u = +c.dataset.uid; if (S.hover !== u) { S.hover = u; renderTip($('#tipzone'), u); } }
+  if (c.dataset.uid2 && S.view === 'alijo') { const u = +c.dataset.uid2; if (S.hover2 !== u) { S.hover2 = u; renderTip($('#tipzone2'), u); } }
+});
+document.addEventListener('pointerout', ev => {
+  const c = ev.target.closest('#bag, #doll, #stash'); if (!c || (ev.relatedTarget && c.contains(ev.relatedTarget))) return;
+  if (S.view === 'mochila' && S.hover) { S.hover = null; renderTip($('#tipzone'), S.sel); }
+  if (S.view === 'alijo' && S.hover2) { S.hover2 = null; renderTip($('#tipzone2'), S.sel2); }
+});
+// clic derecho = acción principal (equipar)
+document.addEventListener('contextmenu', ev => { const c = ev.target.closest('#bag [data-uid]'); if (!c) return; ev.preventDefault(); equip(+c.dataset.uid); });
+// teclado: Alt (detalle), Shift (comparar), Espacio (basura), F (favorito), flechas en la rejilla
+document.addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT') return;
+  if (ev.key === 'Alt') { ev.preventDefault(); if (!S.alt) { S.alt = true; renderAll(); } return; }
+  if (ev.key === 'Shift') { if (!S.shift) { S.shift = true; renderAll(); } return; }
+  const cell = document.activeElement && document.activeElement.closest('#bag .cell, #stash .cell');
+  const target = S.view === 'mochila' ? byUid(S.hover || S.sel) : null;
+  if ((ev.key === ' ' || ev.key === 'f' || ev.key === 'F') && target && target.loc && target.loc.startsWith('bag:')) {
+    ev.preventDefault();
+    if (ev.key === ' ') target.junk = !target.junk; else { target.fav = !target.fav; if (target.fav) target.junk = false; }
+    renderMochila(); return;
+  }
+  if (cell && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(ev.key)) {
+    ev.preventDefault();
+    const grid = cell.parentElement, cells = [...grid.children], i = cells.indexOf(cell);
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -10, ArrowDown: 10 }[ev.key];
+    let j = ev.key === 'Home' ? 0 : ev.key === 'End' ? cells.length - 1 : i + step;
+    while (j >= 0 && j < cells.length && cells[j].tagName !== 'BUTTON') j += (step || 1) > 0 ? 1 : -1;
+    const nx = cells[j]; if (nx && nx.tagName === 'BUTTON') { cell.tabIndex = -1; nx.tabIndex = 0; nx.focus(); if (grid.id === 'bag') { S.hover = +nx.dataset.uid; renderTip($('#tipzone'), S.hover); } else { S.hover2 = +nx.dataset.uid2; renderTip($('#tipzone2'), S.hover2); } }
+  }
+});
+document.addEventListener('keyup', ev => {
+  if (ev.key === 'Alt') { ev.preventDefault(); S.alt = false; renderAll(); }
+  if (ev.key === 'Shift') { S.shift = false; renderAll(); }
+});
+window.addEventListener('blur', () => { if (S.alt || S.shift) { S.alt = false; S.shift = false; renderAll(); } });
+
+// arranque: vista del enlace (#mochila, #alijo, #herreria, #aspectos, #ritmo, #filtro)
+(function boot() {
+  const h = (location.hash || '').slice(1);
+  if (VIEWS.some(v => v[0] === h)) S.view = h;
+  S.sel = ITEMS.find(i => i.n === 'Hoja del Ocaso').uid;
+  renderAll();
+  lastPw = { hero: S.hero, pw: powerOf(S.hero).pw };
+})();
+</script>

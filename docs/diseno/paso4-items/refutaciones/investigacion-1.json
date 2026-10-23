@@ -1,0 +1,201 @@
+{
+ "veredicto": "APROBABLE CON CAMBIOS MAYORES. La investigación de ARPG es amplia y casi siempre cita fuentes. Comprobé en el código la auditoría de actual.md: Avaricia suma el hallazgo mágico dos veces (items.js:254 + powers-common.js:107), el hover recorta vida y recurso (ui.js:2585-2601 → entities.js:972-975), la Furia no tiene tope (resources.js:43), el AL vale 40 en Nv58 y 50 en Nv100, y los pesos de itemPower son los que dice el informe. Verifiqué también varias afirmaciones de los informes y son correctas: en FFXIV cada pieza trae una subestadística ya al tope y el valor se pone en rojo al pasarse; en Lost Ark el traspaso cuesta «a small fee of silver… so no progress is lost»; la T5 de Last Epoch empezó el 1-oct-2026; los pesos de ranura de WoW que arpg.md citó «de memoria» son casi correctos.\n\nDesde la itemización de MMO, la v1 tiene seis fallos de fondo:\n1. Suma capas en vez de fundirlas. Una pieza tendría unos 10 ejes de progreso, justo el «every piece of gear starts to look like a spreadsheet» que Hazzikostas da como señal de que toca simplificar.\n2. Propone que lo que se añade «reparte» el presupuesto. Ningún MMO lo hace: el presupuesto funciona como techo y lo que se añade va fuera o hasta el techo.\n3. Usa mal a WoW: sus rendimientos decrecientes son suaves e invisibles, no «topes visibles». También confunde el botín inteligente de D3 con el atributo principal que se adapta según la especialización en WoW.\n4. Ignora Guild Wars 2, que el encargo pedía: combinaciones de stats con nombre, techo fijo, cambio de stats gratis y «no gear treadmill».\n5. No fija qué parte del poder total viene del equipo, ni la protección contra mala suerte, ni el nivel requerido, ni el progreso a nivel de cuenta para el alijo compartido.\n6. Tiene datos de D4 desactualizados (el remate de LoH) y un 5.º afijo sin fuente. Además los informes se contradicen entre sí: pips de tier frente a barrita de tirada, y 6 líneas por objeto frente a un tooltip de ≤ 9 líneas.\n\nLímite: el cupo de WebSearch compartido se agotó a mitad de mi revisión (200 llamadas). Lo que va marcado «vía buscador» no lo pude abrir con WebFetch.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §7 (v1, puntos 2–7) y ux.md §4 (tooltip)",
+   "problema": "La v1 apila ejes de progreso en cada pieza: ilvl, rareza, tier T1–T5, tirada dentro del tier, Mayor ★, Calidad 0–10 con remate, templado, sello, aspecto con rango, engarces con gemas o runas y set de Talismán. Son unos 10 ejes que el jugador medio debe evaluar en cada drop y rehacer en cada pieza nueva (×12 ranuras ×3 héroes). Es lo contrario de «poco texto, visual». Blizzard quitó la reforja y redujo encantamientos y gemas porque «there is too much modification needed to be done every time you get a new piece of gear». Hazzikostas (sep-2026) da como señal de alarma el momento en que «every piece of gear starts to look like a spreadsheet».",
+   "arreglo": "Tope de 3 ejes visibles por pieza: (1) un número de poder del objeto, que es el ilvl más los rangos de mejora (al estilo de las pistas de WoW: subir de rango sube el número); (2) la rareza, que fija cuántas líneas trae y si tiene aspecto; (3) una sola capa de crafteo dirigido. La Calidad se funde dentro del número de poder. Hay que quedarse con tier o con tirada dentro del tier, no con ambos (D4 2.5.0 «ranges have been narrowed»). El sello y el Talismán pasan a una fase posterior a la calibración E4b. Regla escrita: la inversión que no se transfiere al cambiar de pieza debe ser barata frente a la frecuencia de drops.",
+   "fuente": "https://butwhytho.net/2026/09/world-of-warcraft-midnight-interview-2/ ; https://www.engadget.com/2013-11-09-blizzcon-2013-huge-changes-coming-to-itemization.html ; https://news.blizzard.com/en-us/article/24244466/diablo-iv-patch-notes (2.5.0)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §5 E1 y §7.1 («Lo que se añade reparte el presupuesto; no lo suma»)",
+   "problema": "Si templar o sellar baja el valor de las demás líneas, el jugador lo vive como una pérdida y deja de craftear. Ningún MMO lo hace así. En WoW los bonos de set y de engarce quedan fuera del presupuesto, y las terciarias «do not count towards the item budget». En FFXIV el presupuesto es un TECHO por ranura, ilvl y subestadística: el engarce rellena hasta el techo y el valor se pone en rojo cuando lo superas.",
+   "arreglo": "Definir el presupuesto como techo duro por ranura × ilvl, tanto por stat como en total. Lo que cae llena ~70–85 % del techo, y el crafteo SUMA hasta llegar al techo, nunca resta. El comparador muestra el «hueco hasta el techo» como señal de potencial (visual, sin números).",
+   "fuente": "https://warcraft.wiki.gg/wiki/Stat_budget ; https://ffxiv.consolegameswiki.com/wiki/Materia ; https://www.engadget.com/2013-11-09-blizzcon-2013-huge-changes-coming-to-itemization.html"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §6 M1 y §7.1; actual.md §1.9",
+   "problema": "Falta la primera decisión de cualquier presupuesto de stats: qué parte del poder (DPS y vida efectiva) aporta el equipo frente a talentos, tablero y glifos, bendiciones, mutador de Era y collar en cada hito. Las bendiciones crecen sin tope (blessingValue = base + per·tier; con 30 de grieta, b_crit da +34 % de crítico) y compiten con los afijos de crítico (3–6 %). Sin ese objetivo, ni el presupuesto por ranura ni E4b tienen contra qué calibrarse.",
+   "arreglo": "Tabla objetivo «% del poder que viene del equipo» para Nv20/50/70/100 y T1/T5/T10 (propuesta de partida: 40–50 % al final del juego), medida en balance-bench con un perfil sin equipo frente a otro con equipo. Poner tope a las bendiciones o pasarlas al saco aditivo con techo. El presupuesto por ranura se deriva de esa cuota.",
+   "fuente": "js/data.js:583-597 ; actual.md §1.9 ; https://warcraft.wiki.gg/wiki/Stat_budget (concepto de presupuesto por ilvl)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "arpg.md §1 (afijos), R2 y v1.3 («atributo principal inteligente, como D3»)",
+   "problema": "Mezcla dos modelos distintos. D3 tira, al caer el objeto, el atributo de TU clase. WoW (desde WoD) pone en la armadura un principal que se adapta a la especialización de quien la lleva. Con el alijo compartido entre 3 héroes y los regalos en el cooperativo, el modelo D3 vuelve a crear afijos muertos en cuanto el objeto cambia de manos.",
+   "arreglo": "Un afijo «Atributo principal» que recompute resuelve según la clase de quien lo lleva (fue, des o ene → principal), más Vitalidad aparte; la joyería sin principal, como en WoW. Así sobran los 4 atributos del pool y se arregla el sesgo de itemValue del banco.",
+   "fuente": "https://www.engadget.com/2013-11-09-blizzcon-2013-huge-changes-coming-to-itemization.html («Armor's primary stat changes with the wearer's spec») ; MEMORIA.md:350"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §0.7, §2.8 y §3.2 (WoW como ejemplo de «topes visibles»)",
+   "problema": "Los rendimientos decrecientes de WoW son suaves y no aparecen en el tooltip. Según AskMrRobot su efecto es «very small… unless you are stacking a single stat», los simuladores ya los tienen en cuenta, y el 126 % es lo máximo que puede dar el equipo, no un tope que haya que gestionar. Lo único «en rojo» es de FFXIV y solo aparece en la ventana de engarce. Además, WoD quitó los topes de golpe y pericia porque «acted to remove a penalty, instead of making you stronger». Pintar en rojo los CAPS en el comparador empuja al jugador a microgestionar.",
+   "arreglo": "Diseñar los pools y techos por ranura para que el equipo solo no llegue a los CAPS (crítico 60, enfriamiento 50…). Si se pasa, que el exceso de stats de equipo entre en una banda suave (por ejemplo, el 50 % del exceso cuenta) en lugar de perderse entero. El comparador lo enseña con la simulación (delta real), no con una alarma roja.",
+   "fuente": "https://www.icy-veins.com/demonology-warlock-wow-pve-dps-statistics-priority-reforging (vía buscador) ; https://forums.askmrrobot.com/t/midnight-season-2-tank-optimizer-updates/18075 (vía buscador) ; https://blizzardwatch.com/2020/08/21/shadowlands-secondary-stats-scale/ ; https://www.engadget.com/2013-11-09-blizzcon-2013-huge-changes-coming-to-itemization.html"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R2 y v1.3 («Resistencias con fuente»)",
+   "problema": "Meter resistencias en el pool crea afijos muertos: casi ningún enemigo hace daño elemental (actual.md §5, «Defensa elemental dormida»). Una resistencia solo quita una penalización, la misma lección que golpe y pericia. WoW quitó las resistencias del juego en el parche 5.0.4 porque eran «highly situational».",
+   "arreglo": "Sin resistencias en el pool hasta que exista daño elemental enemigo con peso medido en el banco. Cuando entren, una sola línea «Resistencia a todo» o un implícito por ranura (como la armadura), nunca 4 líneas separadas.",
+   "fuente": "https://warcraft.wiki.gg/wiki/Resistance ; actual.md §5 ; js/combat-math.js:486-491"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R2 (categoría Recurso) y actual.md 3.6",
+   "problema": "Los afijos de recurso «planos no escalados» valen distinto en cada clase: Furia con pozo de 100 (pero con el bug de sumar el bonus sin tope), Energía 60 + máx. 20, y Maná que escala con Energía y nivel. Resultado: afijos trampa según la clase.",
+   "arreglo": "Solo afijos de recurso en %, con las claves que ya existen (costPct, resGainPct), que valen igual para las 3 clases. Nunca «+recurso máximo». Arreglar resourceMax para que la Furia no crezca con mp, como dice el propio diseño de CAPS.",
+   "fuente": "js/resources.js:39-44 ; js/combat-math.js:53-57 ; actual.md §3.6"
+  },
+  {
+   "gravedad": "media",
+   "donde": "ux.md §3.2 y actual.md §3.11 (solo ven 2 fuentes de valoración)",
+   "problema": "Hay TRES fuentes de «poder» que se contradicen: itemPower (ui.js:2548, pesos fijos; mf 0,4), _charDPS (simulación de la hoja) y st.power (entities.js:964-971), que suma mf×0,1 y maxMP×0,03 y lanza un «+N ⚡ Poder» flotante (ui.js:670-672). Ese ⚡ Poder premia equiparse hallazgo mágico o «Maná» (que en el Guerrero es Furia) e ignora resistencias, reducción de daño, rangos y multiplicadores. En los MMO, el número de poder (ilvl medio, item power) es LA señal legible del progreso y tiene que coincidir con el veredicto.",
+   "arreglo": "Un solo modelo de valoración (simulación con el perfil resuelto de habilidades) que alimente el veredicto, el ▲ de la celda, el orden «mejor para mí» y el ⚡ Poder. El hallazgo mágico y el oro quedan fuera del poder.",
+   "fuente": "js/entities.js:962-971 ; js/ui.js:670-672, 2548-2560, 2899"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §7 (falta en la v1); actual.md §1.3 y §4.13 lo detecta, pero nadie lo arregla",
+   "problema": "No hay nivel requerido. Con el alijo compartido, los regalos en el cooperativo y un ladder futuro, un héroe Nv1 puede llevar ilvl 40 y saltarse la curva. WoW y FFXIV tienen nivel requerido, y FFXIV sincroniza el equipo con topes por ranura.",
+   "arreglo": "ilvl efectivo = mín(ilvl, ilvlMáx(nivel del héroe) + k). El objeto se escala hacia abajo en lugar de bloquearse. El mismo mecanismo resuelve el cooperativo con niveles distintos (M6) y el ladder.",
+   "fuente": "actual.md §1.3 ; https://ffxiv.consolegameswiki.com/wiki/Level_sync (citado en arpg.md) ; js/economy.js:158-173"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R5, E3 y v1.5 (aspectos por especialización)",
+   "problema": "La persecución de aspectos no tiene protección contra la mala suerte. Con ~1 legendario cada ~860 comunes (actual §1.1), un 85 % de sesgo a la clase, un 50 % a la especialización y ~5 aspectos por especialización, un aspecto concreto sale en ≈ 8,5 % de los legendarios. Eso son ~12 legendarios, unas 10 000 muertes de comunes. Los MMO acotan esa varianza: la Gran Cámara deja elegir 1 de hasta 9 objetos, hay fichas canjeables, y Blizzard añade protección contra la mala suerte en algunos drops.",
+   "arreglo": "Al extraer o desguazar un legendario cae «polvo de aspecto». Con polvo compras en el Códice un aspecto ELEGIDO de tu clase a rango 1, y los rangos altos siguen saliendo solo del botín. Además, el cofre del jefe de grieta deja «elegir 1 de 3».",
+   "fuente": "https://warcraft.wiki.gg/wiki/Great_Vault ; https://warcraft.wiki.gg/wiki/Personal_loot (sección de protección contra la mala suerte) ; cálculo propio con actual.md §1.1"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R6 y M2 (traspaso de Calidad al estilo Lost Ark)",
+   "problema": "Traspasar la Calidad de una pieza a otra obliga a gastar la pieza vieja y no sirve para 3 héroes con alijo compartido ni para 9 especializaciones. WoW resuelve el mismo problema con un descuento por «marca de agua»: la pieza de más ilvl en cada ranura, en cualquier personaje de la cuenta (Warband), abarata las mejoras de esa ranura en todos los personajes.",
+   "arreglo": "Marca de agua de Calidad por ranura y por cuenta. Subir una pieza nueva hasta la Calidad más alta que ya alcanzaste en esa ranura cuesta 1/3, o es gratis hasta el rango 5. No se consume nada.",
+   "fuente": "https://us.support.blizzard.com/en/article/336964 (vía buscador) ; https://www.playlostark.com/en-gb/news/articles/lost-ark-academy-progression (verificado)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §6 M1 (tabla de pesos por ranura) y §2.8",
+   "problema": "Los pesos 100/85/70/60 son inventados, y se justifican con WoW, cuyos valores reales son 1,00 / 0,75 / 0,5625 en armadura y ~0,55 en joyería (0,70 en abalorios), con las armas de dos manos a ×1,3 de las de una mano. Además, en IntentoRPG el daño del arma ya multiplica todas las habilidades (arma × coef): si se le da al arma el 100 % del presupuesto de afijos, se cuenta dos veces.",
+   "arreglo": "Sacar los pesos de la cuota de poder del equipo (ver el problema de la cuota) y separar el daño del arma, implícito según el ilvl, del presupuesto de afijos del arma. Marcar la cita de WoW de §2.8 como verificada con ese matiz.",
+   "fuente": "https://warcraft.wiki.gg/wiki/Stat_budget ; https://wow.allakhazam.com/wiki/Itemization_Formulas_(WoW) (vía buscador) ; js/combat-math.js:10"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R3 (pips ●●●●○ = tier) frente a ux.md §3.3 y §4 (barrita ▰▰▰▱▱ = tirada dentro del rango)",
+   "problema": "Los informes se contradicen: proponen dos indicadores de 5 segmentos con significados distintos en la misma línea del tooltip. El jugador no sabrá cuál es cuál.",
+   "arreglo": "Un único indicador por línea: la calidad global de la línea, es decir, dónde cae entre el mínimo del T1 y el máximo del T5 para ese ilvl. El desglose (tier, rango, [+] o [×]) solo con Alt. Si la tirada se cuantiza en pasos discretos (problema del formato compacto), el indicador coincide con los pasos.",
+   "fuente": "arpg.md §4 R3 ; ux.md §3.3, §4 ; https://www.pathofexile.com/forum/view-thread/2075735 (confusión con el tier global)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md v1.1 (≤ 6 líneas + aspecto) frente a ux.md §4 (tooltip ≤ 9 líneas)",
+   "problema": "Los presupuestos no cuadran. La maqueta de ux ya usa 10 líneas con solo 3 afijos. Con 6 líneas de afijo, aspecto, engarces, set y estado de intercambio, el tooltip compacto pasa de 13 líneas.",
+   "arreglo": "Como máximo 4 líneas de afijo (3 al azar y 1 de crafteo) más el aspecto. Los engarces van como iconos en la línea de la base, y el set y el detalle, en Alt. Fijar ese mismo número en los dos informes.",
+   "fuente": "arpg.md §7.1 ; ux.md §4"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md v1.2 y actual.md §4.3 (rareza como multiplicador)",
+   "problema": "Ningún informe decide si se mantiene statMult (1,0 / 1,1 / 1,25 / 1,5 sobre el arma y los afijos). Si la rareza da más líneas, más valor por línea y además un aspecto, el legendario domina siempre y el raro solo sirve de relleno. En WoW la calidad sí escala el presupuesto (épico = 1,25× superior en armadura), pero ahí la rareza no añade líneas.",
+   "arreglo": "Elegir un solo eje: o la rareza solo fija el número de líneas y el aspecto (valor por línea según ilvl y tier, al estilo D4), o se mantiene un multiplicador y entonces el raro lleva 1 línea más que el legendario.",
+   "fuente": "js/items.js:7-13, 205-225 ; https://warcraft.wiki.gg/wiki/Stat_budget"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R9 y v1.11 (Opción A, ILVL_MAX 50, frente a B)",
+   "problema": "La opción A se plantea solo como algo de calibración y falta el criterio de MMO. (a) Un objeto tiene que dar al menos 10–15 % más de poder para que se note («we need at least like a 10 to 15 percent increase in power», Hazzikostas); con G = 1,065 por ilvl, eso son ~2 ilvl. (b) La curva de área se aplanó a propósito desde el Nv70 (AL 47 en el 70 y 50 en el 100; combat-math.js:552-565) porque el ilvl está topado: la opción A solo añade +7 ilvl entre el Nv58 y el 70 y +3 (≈ +21 % en valores planos) entre el 70 y el 100. (c) GW2 mantiene un techo fijo con progresión horizontal («no gear treadmill»; ascendido = solo +12,5 % sobre exótico).",
+   "arreglo": "Elegir B con «pistas de mejora» que sigan subiendo el número de poder visible, y usar el umbral del 10–15 % para el tamaño de cada salto: un tier, o rangos de Calidad agrupados de 2 o 3. El ladder estacional ya reinicia la cinta de equipo cada temporada.",
+   "fuente": "https://butwhytho.net/2026/09/world-of-warcraft-midnight-interview-2/ ; https://metabattle.com/wiki/Guide:How_to_Gear_a_Character ; js/combat-math.js:548-565"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §6 M5 y v1.10; ux.md §3.12 (botín personal como si fuera consenso)",
+   "problema": "WoW volvió al botín de grupo como modo por defecto en las bandas, y en su botín personal solo se puede intercambiar lo que «not an Item level upgrade for yourself». Ningún informe fija cuánto botín recibe cada jugador en grupo: si cada uno se lleva una tirada completa por muerte y el grupo mata N veces más rápido, el botín por hora y por jugador se multiplica por ~N.",
+   "arreglo": "Mantener el botín personal en el cooperativo de 2–4 (como D3 y D4). En ladder, regla contra el embudo: «se puede regalar si no es mejora para ti y el otro estaba presente, hasta 2 h». Fijar en E4b el factor de botín por tamaño de grupo (WoW: número de objetos «based on group size»).",
+   "fuente": "https://warcraft.wiki.gg/wiki/Personal_loot ; https://blizzardwatch.com/2022/09/29/dragonflight-group-loot/ (vía buscador)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md §6 M4 y M7 (el ladder valida «repitiendo la semilla»; formato compacto)",
+   "problema": "La semilla sola no reproduce una carrera: el orden en que se consume el stream depende de las muertes y de las entradas del jugador (actual.md §9 lo reconoce). Además G() usa Math.pow, y la precisión de Math «es implementation-dependent… different browsers can give a different result». Dos clientes pueden redondear distinto un afijo que cae justo en la frontera de .5.",
+   "arreglo": "El formato compacto guarda valores ya cuantizados ([id de afijo, tier, paso entero]) y nunca derivados en coma flotante. La generación usa una tabla de G precalculada con enteros. El ladder valida por registro de entradas o con autoridad de servidor, no solo por semilla.",
+   "fuente": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math ; js/combat-math.js:80 ; js/items.js:205-225"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R5 y v1.5 (45 + 10 aspectos que modifican variantes)",
+   "problema": "No está definida la frontera entre talentos (que en el Paso 2 ya modifican variantes y forja) y aspectos. Lord of Hatred TRASLADÓ pasivas del árbol a los aspectos, no las duplicó. Unos 55 aspectos más únicos y míticos por especialización son mucho contenido para un solo dueño, y cada uno exige cobertura en el banco y en test65a.",
+   "arreglo": "Regla escrita: el talento elige un comportamiento; el aspecto potencia o da rango a un comportamiento ya elegido, o es la alternativa del mismo nodo; prohibido que un aspecto repita un nodo. Empezar con 2–3 por especialización y 6–8 genéricos (≈ 25–30) y ampliar después de calibrar.",
+   "fuente": "https://news.blizzard.com/en-us/article/24267729/prepare-for-the-reckoning-lord-of-hatred-draws-near ; docs/paso2f-habilidades-ux.md:824-826"
+  },
+  {
+   "gravedad": "media",
+   "donde": "arpg.md R2 (pool por ranura pero no por clase)",
+   "problema": "Filtrar por ranura no impide que una línea sea inútil para quien la lleva: maná para el Guerrero, reducción de enfriamiento en una build sin enfriamientos, espinas en la Maga o la Arquera a distancia. En WoW los secundarios rinden para todas las especializaciones con pesos parecidos («no stat is so bad that it should be completely avoided»).",
+   "arreglo": "Regla de diseño comprobada en el banco: ninguna línea del pool vale menos del 50 % de la mejor línea para ninguna de las 9 especializaciones que pueden recibirla. El botín inteligente filtra líneas, no solo bases.",
+   "fuente": "js/items.js:43-61 ; MEMORIA.md:350 ; https://forums.askmrrobot.com/t/custom-stat-weights/16963 (vía buscador)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §2.1, §3.4 y R6 (datos de D4)",
+   "problema": "Hay datos de D4 desactualizados o sin fuente. (a) «El remate convierte un afijo en Mayor» y «Calidad 20 o 25, por confirmar»: en LoH (Maxroll, 23-may-2026) son 25 rangos de +1 % a daño base, armadura, resistencias Y afijos, y el remate da +50 % a un afijo al azar, re-tirable sin límite (10 M de oro). actual.md ya tenía esa fuente, así que los informes se contradicen. (b) El «5.º afijo potente en LoH» no tiene fuente: la nota oficial de LoH no lo menciona y la 2.5.0 confirma 4 afijos en legendarios. (c) No recoge que la 2.5.0 «narrowed» los rangos.",
+   "arreglo": "Corregir la tabla §3.4 y el §2.1: legendario D4 = 4 afijos (2.5.0), LoH = templado, remate de +50 % re-tirable y Cubo. Quitar el 5.º afijo o citarlo. Usar el estrechamiento de rangos como argumento para tiers sin tirada interna.",
+   "fuente": "https://maxroll.gg/d4/resources/masterworking-guide ; https://news.blizzard.com/en-us/article/24244466/diablo-iv-patch-notes ; https://news.blizzard.com/en-us/article/24267729/prepare-for-the-reckoning-lord-of-hatred-draws-near"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md E4 y v1.7 (sets → Talismán, solo bonos aditivos)",
+   "problema": "Quitarle al set todo lo que no sea un bono aditivo (+X % de daño) le quita identidad. En los MMO, los sets de tier de WoW son el principal portador de identidad de especialización (2/4 piezas que cambian la mecánica) y su bono va fuera del presupuesto de stats. Lo de Storm Shepherd fue un problema de magnitud, no de forma.",
+   "arreglo": "Si hay sets: un bono de 2 piezas aditivo y un bono de 3 o 4 piezas que modifica el indicador de la especialización (gaugeGain:<id>, gaugeMax:<id>), con las piezas del set pagando ~10–15 % de su presupuesto (como Grim Dawn).",
+   "fuente": "https://warcraft.wiki.gg/wiki/Stat_budget (sets fuera del presupuesto) ; https://www.grimdawn.com/guide/items/the-hunt-for-loot ; js/spec-mechanics.js:195-208"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md R2 (velocidad de movimiento y hallazgo mágico dentro del presupuesto)",
+   "problema": "Las utilidades compiten con el daño y la vida y se vuelven afijos trampa. WoW las sacó como «terciarias» (velocidad, robo de vida, evasión), que «do not count towards the item budget».",
+   "arreglo": "Velocidad de movimiento, hallazgo mágico y oro como línea terciaria fuera del presupuesto: rara, pequeña y nunca en lugar de una línea de combate.",
+   "fuente": "https://www.engadget.com/2013-11-09-blizzcon-2013-huge-changes-coming-to-itemization.html"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "actual.md §9 ronda 1 («la inflación de oro solo importa con comercio o ladder»)",
+   "problema": "Desde los MMO, también importa en solitario: si sobra oro, el oro deja de marcar el ritmo del crafteo. Hoy llevar una pieza a Calidad 5 cuesta lo que dan ~77 comunes; D4 pide 7,25–11,25 M de oro más materiales por pieza.",
+   "arreglo": "Modelo de fuentes y sumideros con un objetivo de «horas de juego para llevar una pieza al máximo», más un material de crafteo ligado a la dificultad (Tormento), no solo oro.",
+   "fuente": "https://maxroll.gg/d4/resources/masterworking-guide ; actual.md §1.6"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md R4 y v1.7 («amuletos» para los charms)",
+   "problema": "Choque de nombres: «amuletos» de mochila frente a la ranura «Amuleto». Para un dueño que quiere poco texto, el mismo nombre para dos cosas confunde.",
+   "arreglo": "Llamar «dijes» o «abalorios» a los charms en todo el diseño.",
+   "fuente": "js/items.js:16-20, 413-431"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "arpg.md §2.7, §2.8 y R7 (citas [memoria] usadas como parámetros)",
+   "problema": "El 85 % del botín inteligente de D3 y los pesos de WoW se usan como valores de diseño sin verificar. Los pesos de WoW los comprobé y son casi correctos; el 85 % sigue sin fuente.",
+   "arreglo": "Presentar el 85 % como parámetro propio que se calibra en el banco, no como evidencia.",
+   "fuente": "https://warcraft.wiki.gg/wiki/Stat_budget"
+  }
+ ],
+ "faltantes": [
+  "Guild Wars 2, que el encargo pedía, no aparece en ningún informe. Tres patrones encajan: (1) combinaciones de stats con nombre (Berserker = Potencia/Precisión/Ferocidad), donde un nombre y un icono dicen 3 stats, ideal para «poco texto»; (2) un techo de poder fijo con progresión horizontal («In Guild Wars 2 there is no gear treadmill»; ascendido = +12,5 % sobre exótico); (3) el legendario como comodidad (cambio de stats gratis), no como más poder. Propuesta: que los raros tiren un «perfil con nombre» filtrado por clase más 1 línea al azar, y que el mítico permita cambiar de perfil gratis. Fuente: https://metabattle.com/wiki/Guide:How_to_Gear_a_Character",
+  "Cuota objetivo de poder del equipo frente a talentos, tablero, bendiciones (sin tope), Era y collar en cada hito. Es el paso previo a cualquier presupuesto por ranura y a E4b.",
+  "Ritmo objetivo de mejoras por fase (mejoras por hora en la subida de nivel, al final del juego y para el objeto que se persigue) y el umbral de «mejora que se nota» del 10–15 % (Hazzikostas), que debería fijar el tamaño de tiers y rangos.",
+  "Protección contra la mala suerte o un camino determinista para aspectos y únicos: polvo de aspecto canjeable, «elige 1 de 3» en el jefe, como la Gran Cámara de WoW.",
+  "Nivel requerido o ilvl efectivo topado por el nivel del héroe, para el alijo compartido, el cooperativo con niveles distintos y el ladder.",
+  "Progreso de mejora a nivel de cuenta (marca de agua por ranura, como el descuento Warband de WoW) para 3 héroes con alijo compartido.",
+  "Coste en equipo de cambiar de especialización (9 especializaciones): conjuntos de equipo guardados, aspectos intercambiables gratis desde el Códice en el pueblo y únicos por clase antes que por especialización.",
+  "Qué stats escalan con el ilvl en el sistema nuevo de tiers: hoy los % no escalan y los planos siguen G. Si los tiers suben los %, el saco aditivo crece y desplaza la calibración.",
+  "Factor de botín por tamaño de grupo en el cooperativo, y regla contra el embudo en los regalos del ladder («no es mejora para ti», presente, 2 h).",
+  "Modelo de fuentes y sumideros de oro y materiales, con horas objetivo para llevar una pieza al máximo.",
+  "Formato canónico con valores enteros cuantizados (sin coma flotante derivada) para que dos navegadores o un validador generen y comprueben exactamente el mismo objeto.",
+  "Apariencia o transmog separada de los stats para cuando haya cooperativo (los demás te ven). Baja prioridad mientras los iconos sean emoji y haya un solo modelo de héroe."
+ ]
+}

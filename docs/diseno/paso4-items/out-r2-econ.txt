@@ -1,0 +1,10 @@
+Mejorar r0→r5 (◆47→52), factor 1: 20.900 · arma 31.350 · las 10 piezas 176.605 = 1.4 h de oro
+Afinar 3 líneas al paso 5 (15 tiradas) en una pieza de factor 1: 585.502 · las 10 piezas: 4.947.493 = 38.1 h de oro
+   2 líneas por pieza (10 tiradas): 1.260.472 = 9.7 h
+★ en la línea elegida: movimientos esperados 1.3 · coste esperado por pieza 15.417 · 10 piezas 154.167
+Oro hasta el techo (mejorar todo + afinar 3 líneas + ★ + 2 re-tiradas + grabar 6 r5): 5.398.264 = 41.5 h de oro
+Apuesta: Raro+ por ranura y hora matando 9.3 → precio 27.957 (joyería ×1,25 = 34.946) · todo el oro de 1 h = 4.7 objetos
+   legendarios: matando 3.7 por ranura de aspecto y hora · apostando (27 %) 1.3
+Polvo: 6 aspectos a r5 = 1650 = 10 h (sin contar los que caen con rango alto)
+Gemas: grado-3 equivalentes por tipo y hora 3.8 → 4 Perfectas de un tipo (36) 9.5 h · 3 de otro (27) 7.1 h
+Chispas: 4 → 13.3 h por Mítico

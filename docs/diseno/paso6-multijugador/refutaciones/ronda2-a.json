@@ -1,0 +1,164 @@
+{
+ "veredicto": "APROBADO CON CORRECCIONES. Hay 2 problemas de gravedad alta que conviene cerrar antes de E0/R2 y 8 de gravedad media antes de E7 y F2.\n\nLas decisiones de infraestructura se sostienen: Worker + Durable Object por sala, TURN de Cloudflare, Vercel solo para lo estático, Supabase recién en F2 y verificador del ladder en un DO. Comprobé en las fuentes primarias, a octubre de 2026, las cifras que lo justifican:\n- DO gratis: 100.000 peticiones al día y 13.000 GB-s al día. Los mensajes WebSocket entrantes cuentan 20:1. No se cobra duración mientras hiberna. Los pings y las autorrespuestas no se cobran. Al pasar el límite, las operaciones fallan hasta las 00:00 UTC.\n- La pista `sam` hace nacer el DO en el este de Norteamérica.\n- TURN: 1.000 GB al mes compartidos con la SFU y después US$0,05/GB. Solo se cobra lo que sale del TURN hacia el cliente.\n- Supabase Free: 50.000 MAU, 500 MB, 2 proyectos activos y pausa tras 1 semana sin actividad. Los GRANT explícitos se aplican a todos los proyectos desde el 30-oct-2026.\n\nEl diseño falla en la operación y en los detalles de seguridad, no en las decisiones de fondo:\n- **TTL de TURN.** El TTL de 2 h, sin la renovación que traía tecnologia.md, corta las sesiones por relé. Cloudflare desconecta la conexión poco después de que expira la credencial. Eso afecta a cerca del 44 % de los grupos de 4.\n- **Estado de la sala.** No se dice dónde vive el estado de la sala cuando el DO hiberna o se reinicia. Rompería justo la reconexión, que es lo único para lo que se mantiene el DO.\n- **Límite por IP.** El límite por IP dentro del DO de cada sala no frena la adivinanza de códigos. Además, la cuota diaria gratis es un vector de denegación de servicio.\n- **Versión en el saludo.** El saludo usa `VERSION` de sw.js, que la página no conoce. Además, el service worker sirve código viejo con stale-while-revalidate.\n- **CSP.** La CSP propuesta apunta a los `onclick` (que son propiedades y la CSP los permite) y no ve los 4 `onerror=\"…\"` en línea, las fuentes de Google ni los 40 `style=\"…\"`.\n- **F2.** La seguridad de F2 (RLS por dueño, `rev` puesto por el cliente, ladder sin RPC) deja editar todo con curl. Tampoco hay copias de seguridad en Supabase Free.\n\nNo repetí la parte de netcode de la ronda 1. Solo añado el reloj por `PING`, que cae en el canal fiable.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "§3.8, tabla «Relé para NAT difícil» (TTL 2 h, revocadas al cerrar); §5.3 «Abuso de TURN»; §1.1 (meta de 1 hora); E0 R2 y E10",
+   "problema": "Cloudflare dice que, al expirar la credencial, «after a short delay, the connection will be disconnected». Las asignaciones no tienen duración máxima, pero cada Refresh tiene que autenticarse con una credencial válida, y el TTL máximo es de 48 h. El diseño fija 2 h y se perdió la «renovación por el mismo DO» que sí estaba en tecnologia.md §5.2. Con un 17,7 % de pares que necesitan relé, un grupo de 4 (3 enlaces) tiene alrededor de 44 % de probabilidad de tener al menos un enlace por relé (1 − 0,823³). Casi la mitad de los grupos completos se cortaría a las 2 h. La prueba de aceptación de 1 hora (§1.1, E10) no lo detecta.",
+   "arreglo": "1) TTL de 24 h (≤ 48 h) con revocación al cerrar la sala o expulsar a alguien: la protección es la revocación, no el TTL corto. Poner `customIdentifier` = id de sala al generar la credencial.\n2) Renovación a T−30 min: el DO emite credenciales nuevas, el cliente llama `pc.setConfiguration({iceServers})` + `restartIce()` y la oferta y la respuesta viajan por el canal `r`, sin depender del DO. Marcarlo [M].\n3) Criterio de salida de R2: una sesión forzada por relé, con TTL de 5 min, dura 20 min sin cortes.\n4) E10: una sesión real de más de 2 h con un enlace por relé.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/faq/ (expiración de 48 h como máximo, Refresh con credencial válida, «after a short delay, the connection will be disconnected»); https://developers.cloudflare.com/realtime/turn/generate-credentials/ («can be refreshed during a WebRTC session using setConfiguration()», endpoint de revocación); https://openvidu.io/blog/2026/06/09/turn-key-considerations/ (17,7 %)"
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§3.8, flujo de la sala («con los canales abiertos, el DO hiberna y solo despierta para reconectar»); §3.7 (`rejoinToken`, 60 s de gracia); criterio de E0 R2",
+   "problema": "Con la API de hibernación, el objeto sale de memoria tras 70–140 s sin actividad y, al despertar, vuelve a correr el constructor. Todo lo que esté en variables se pierde: miembros, quién es el anfitrión, aceptados, `rejoinToken` y usuarios TURN emitidos (hacen falta para revocar). Además, cada despliegue o actualización del runtime cierra TODOS los WebSocket. Justo el caso para el que se mantiene el DO (reconectar a los 30 s o tras minutos) es el que falla con una implementación ingenua. El criterio de R2 («sala armada por DO con TURN») no lo prueba.",
+   "arreglo": "Especificarlo en §3.8:\n(a) El estado de la sala vive en la SQLite del DO: miembros, `hostToken` y `rejoinToken` guardados con hash, usuarios TURN emitidos y si la sala está creada o cerrada. Cada socket guarda su slot y su rol con `serializeAttachment` (≤ 16 KB).\n(b) Latido de aplicación cada 30 s con `setWebSocketAutoResponse('ping','pong')`: no despierta al objeto ni se cobra, y evita que NAT o proxies corten el WS inactivo.\n(c) El cliente reconecta el WS solo, con espera creciente, y reanuda con su token (partysocket ya lo hace).\n(d) Una alarma de limpieza hace `deleteAll()` al cerrar la sala o a las 24 h.\n(e) R2 tiene que pasar dos casos: volver a unirse tras 3 min de inactividad (objeto desalojado) y volver a unirse tras un `wrangler deploy` en mitad de la sesión.",
+   "fuente": "https://developers.cloudflare.com/durable-objects/best-practices/websockets/ (constructor que se vuelve a ejecutar al despertar, adjuntos de 16 KB); https://developers.cloudflare.com/durable-objects/platform/pricing/ (las autorrespuestas y los pings no se cobran); https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/ (los WebSocket se cierran al reiniciar)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8 («el DO limita intentos por IP»); §5.3 «Adivinar códigos de sala»; R6",
+   "problema": "Cada código adivinado es `idFromName(código)`, es decir, un DO distinto. Un límite guardado dentro del DO de una sala nunca ve los intentos contra las demás. Cada intento gasta 1 petición del Worker y 1 del DO, y crea el objeto. En el plan gratis, pasadas las 100.000 peticiones al día «further operations ... fail with an error» hasta las 00:00 UTC, que son las 21:00 en Chile en horario de verano, en plena hora de juego. Un script a ~1,2 peticiones/s tumba la señalización de todos por un día. Además, Cloudflare desaconseja limitar por IP porque hay IP compartidas, y en LatAm abunda el CGNAT (el mismo R7 lo cita).",
+   "arreglo": "1) **Código con etiqueta:** 24 bits de id de sala + 16 bits de HMAC truncado con un secreto del Worker. Siguen siendo 8 caracteres Crockford. El Worker descarta, sin tocar ningún DO, los códigos que no emitió (99,998 % de los intentos al azar).\n2) **Límite en el Worker:** binding de Rate Limiting (GA, sin DO, períodos de 10/60 s) por IP **y** por código, con umbrales generosos por el CGNAT (p. ej. 20 uniones/min por IP).\n3) **Turnstile invisible** al «Encender hoguera».\n4) **Por sala:** máximo de 3 solicitudes pendientes y botón «cerrar la hoguera».\n5) **Interruptor de emergencia:** una variable del Worker que muestra «multijugador en mantenimiento».\n6) Documentar que el respaldo con Trystero no tiene TURN, así que ≈ 18 % de los pares no conectan, salvo que se usen las credenciales de Metered.",
+   "fuente": "https://developers.cloudflare.com/durable-objects/platform/pricing/ (fallo al pasar el límite gratis, reinicio a las 00:00 UTC); https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/ (contadores por ubicación, desaconseja la IP como clave); https://developers.cloudflare.com/changelog/2025-09-19-ratelimit-workers-ga/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8, tabla TURN («tope de 300 al día, se dejan de emitir a ~800 GB»); R6; F3 («US$5 al mes al crecer»)",
+   "problema": "Un DO por sala no puede contar credenciales globales, y el diseño no dice de dónde sale el consumo mensual. Cloudflare no ofrece techo de gasto: el excedente se cobra a US$0,05/GB. Cuando el dueño ponga tarjeta (plan de US$5 en F3), el excedente de TURN se cobrará sin aviso. La documentación no dice qué pasa en una cuenta sin medio de pago [sin verificar].",
+   "arreglo": "1) Un Cron Trigger cada hora consulta en GraphQL `callsTurnUsageAdaptiveGroups` (`sum.egressBytes` del mes, filtrable por `customIdentifier` = sala) y lo guarda en un DO único «cuota».\n2) El DO de la sala consulta «cuota» antes de pedir credenciales: contador diario y corte a 800 GB.\n3) Token de Analytics de solo lectura, guardado como secreto aparte.\n4) Alerta de facturación en el panel antes de poner la tarjeta.\n5) Los Cron Triggers gratis son 5 por cuenta: anotar cuáles se usan (Supabase despierto, TURN, respaldo).",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/analytics/ (`callsTurnUsageAdaptiveGroups`, `egressBytes`, filtro por `customIdentifier`); https://developers.cloudflare.com/realtime/sfu/pricing/ (1.000 GB compartidos); https://developers.cloudflare.com/realtime/turn/faq/ (sin techo; solo los planes enterprise tienen precio fijo)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.4 `hello.sw` («VERSION de sw.js»); §3.7 «Saludo» y «el service worker no recarga solo»; sw.js:346 (`skipWaiting`), 354 (`clients.claim`), 390-405 (stale-while-revalidate)",
+   "problema": "(a) La página no conoce `VERSION`: solo existe en sw.js (el grep no la encuentra en ningún `js/*.js`). Preguntarle al SW da la versión del SW, no la del código que corre.\n(b) sw.js sirve los recursos propios con stale-while-revalidate: la primera carga tras un despliegue trae el código viejo y la recarga siguiente el nuevo. Un módulo que no estaba en caché llega nuevo, así que puede haber mezcla.\n(c) `VERSION` sube en casi cada commit (v118). Dos amigos quedarán desfasados a menudo, y el saludo fallaría por un cambio cosmético (un CSS).\n(d) «El SW no recarga solo» ya es así hoy: la regla no ataca el riesgo real.",
+   "arreglo": "1) Agregar `js/build.js` con `BUILD`; una prueba exige que coincida con `VERSION` de sw.js. Sirve para mostrar la versión.\n2) La compatibilidad se decide con `proto` + `cat` + `simHash` (hash de las fuentes de simulación, generado por la prueba), no con el número de despliegue.\n3) Antes de «Encender hoguera» o «Unirse», `fetch('version.json', {cache: 'no-store'})`. Si hay versión nueva, se recarga ANTES de entrar al lobby. Si aun así no coinciden, recarga el que tiene la versión vieja, no siempre el invitado.\n4) El Worker de señalización versiona su propio protocolo y acepta N−1, porque la caché sigue sirviendo clientes viejos.",
+   "fuente": "Código: sw.js:4 (`VERSION = 'v118'`), 346, 354, 390-405; index.html:493-494; grep de VERSION en js/ (sin resultados) [V]. Deducción [D]."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§5.3 «Sin CSP»; F0 #9 / E4",
+   "problema": "(a) «Quitar los 4 onclick= en línea de ui.js» es un error: los `onclick` de ui.js son asignaciones de propiedad (líneas 548-649, 1507-1518) y la CSP los permite. Lo que la CSP bloquea son 4 atributos `onerror=\"…\"` dentro de plantillas (ui.js:805, 947, 1352, 1357), que reemplazan los iconos que faltan. El de la línea 805 además mete `${v.icon}` dentro de un string de JS.\n(b) Las fuentes de Google (index.html:15-17) necesitan `style-src` y `font-src`.\n(c) Hay 40 atributos `style=\"…\"` en plantillas de ui*.js, que exigen `style-src 'unsafe-inline'`.\n(d) El registro del SW en línea (index.html:492-495) también necesita su hash.\n(e) Si `vercel.json` aplica la CSP a /sw.js, el SW precachea three.js desde jsdelivr con `fetch`/`cache.add`. Sin `connect-src https://cdn.jsdelivr.net`, el modo sin conexión se rompe en silencio por los `catch(() => {})`.\n(f) Faltan Turnstile, Supabase en https:// y wss://, y el Worker.",
+   "arreglo": "CSP de partida:\n`default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com 'sha256-<importmap>' 'sha256-<registroSW>'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net wss://<worker>.workers.dev https://<ref>.supabase.co wss://<ref>.supabase.co; worker-src 'self'; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`\n\nAdemás:\n- Cambiar los 4 `onerror=` por un único listener delegado: `addEventListener('error', …, true)` en el contenedor.\n- Una prueba estática que prohíba `on[a-z]+=\"` en js/.\n- `d3@7` no se importa en ningún js/: quitarlo del import map o fijar la versión exacta.\n- Agregar `integrity` al import map (Chrome 127+ y Safari 18; Firefox sin confirmar, pero no rompe): protege la sesión de Supabase si el CDN se ve comprometido.",
+   "fuente": "Código: ui.js:805, 947, 1352, 1357; index.html:15-17, 25-30, 492-495; 40 `style=\"` en ui*.js [V]. https://shopify.engineering/shipping-support-for-module-script-integrity-in-chrome-safari ; MDN CSP (script-src y los manejadores en línea, `'unsafe-hashes'`)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4 (esquema `heroes`/`stash`, conflictos, «Abierto frente a temporada»); §9 F2",
+   "problema": "Con RLS solo por `auth.uid()`, cualquier jugador hace PATCH de su fila con curl y su JWT: puede cambiar `kind`, `rev` y el `save` de un héroe de temporada. El `rev` lo pone el cliente, así que el control de conflictos es de buena fe. F2 promete héroes de temporada «separados» que en realidad son tan editables como los abiertos. Además, las claves `anon`/`service_role` se retiran a fines de 2026.",
+   "arreglo": "- **GRANT mínimo por columna:** nada a `anon`; a `authenticated`, `select`, `insert (hero_id, slot, kind, save, save_version)` y `update (save, save_version, slot)`.\n- **Trigger `before update`:** fija `rev = old.rev + 1` y `updated_at = now()`, y prohíbe cambiar `kind` o `user_id`.\n- **Escritura condicional:** `update … where id = $1 and rev = $2 returning rev` (0 filas = conflicto).\n- **Política de actualización:** `using (user_id = auth.uid() and kind = 'abierto')`; los héroes de temporada se escriben solo por RPC.\n- Decir en §9 que, en F2, la temporada también es «de honor».\n- **Claves nuevas:** `sb_publishable_…` en el cliente y `sb_secret_…` solo en el Worker.",
+   "fuente": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically (el GRANT se aplica a todos el 30-oct-2026); https://supabase.com/docs/guides/api/api-keys (anon y service_role se retiran a fines de 2026)"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§9 F2 («El servidor emite la semilla de un uso y mide el tiempo con su reloj»); F3 (verificador en un DO)",
+   "problema": "En Supabase no hay otro «servidor» que Postgres o las Edge Functions. Si la tabla del ladder tiene RLS de inserción por dueño, cualquiera inserta un tiempo. Tampoco se dice cómo sabe el DO del verificador (F3) quién es el usuario.",
+   "arreglo": "- Tablas `ladder_seeds` y `ladder_runs` sin GRANT de escritura para `authenticated`.\n- Dos funciones `security definer` con `grant execute`:\n  - `start_run()`: devuelve la semilla y guarda `issued_at = now()`.\n  - `submit_run(id, …)`: calcula `elapsed = now() − issued_at`, se usa una sola vez y aplica topes.\n- En F3, el Worker verifica el JWT de Supabase con JWKS (`/auth/v1/.well-known/jwks.json`, claves asimétricas), sin compartir el secreto JWT.\n- El ladder exige cuenta permanente, no anónima.",
+   "fuente": "https://supabase.com/docs/guides/api/api-keys ; https://supabase.com/docs/guides/auth/auth-anonymous (el claim `is_anonymous` en RLS) [D]"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8 (fila de Supabase); §4",
+   "problema": "El plan Free no incluye copias automáticas ni recuperación a un punto en el tiempo. Si la nube pasa a ser la copia principal (cambio de PC), un error de migración o un proyecto perdido borra héroes sin vuelta atrás.",
+   "arreglo": "1) Un cron semanal del Worker exporta `heroes` y `stash` a R2, de a páginas y con la clave secreta. R2 da 10 GB gratis y la salida no se cobra. Se conservan 4 semanas.\n2) La caché local nunca se borra al sincronizar.\n3) Prueba de restauración en E11.",
+   "fuente": "https://supabase.com/pricing (Free: copias automáticas y PITR «Not included»); https://developers.cloudflare.com/r2/pricing/"
+  },
+  {
+   "gravedad": "media",
+   "donde": "§3.8; §8 (`?netdebug=1`); R7, R9; E10",
+   "problema": "Medir `host/srflx/relay` «en el lobby» deja el dato en la PC de cada jugador. Sin datos agregados no se sabe el % real de relé en LatAm, cuántas salas fallan en ICE, cuánto tarda en armarse una sala ni cómo van las cuotas. R7 y el presupuesto de TURN quedan sin datos.",
+   "arreglo": "1) Al cerrar cada sesión, el cliente manda al DO un resumen anónimo: tipo de candidato por enlace, RTT p50/p95, pérdida, motivo del fin y versión. Es un mensaje por sesión.\n2) El DO lo escribe en Workers Logs (gratis: 200.000 eventos al día, 3 días de retención) y suma un contador diario en el DO «cuota».\n3) Una página de estado mínima para el dueño.\n4) Una línea en el aviso de privacidad.",
+   "fuente": "https://developers.cloudflare.com/workers/observability/logs/workers-logs/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4 (`signInAnonymously`, `linkIdentity` con Google)",
+   "problema": "Faltan cuatro cosas:\n- El límite por defecto es de 30 por hora por IP (choca con el CGNAT).\n- Supabase recomienda «strongly» un CAPTCHA o Turnstile.\n- No hay limpieza automática de anónimos, que crecen hacia los 500 MB.\n- `linkIdentity` exige activar «manual linking». El caso «esa cuenta de Google ya está vinculada a otro usuario» (el jugador se vinculó en otra PC) lo tiene que resolver la app.",
+   "arreglo": "1) Llamar a `signInAnonymously` solo cuando el jugador activa la nube o el ladder, no al abrir el juego.\n2) Turnstile en ese momento.\n3) Activar manual linking.\n4) Flujo «ya tienes cuenta»: iniciar sesión en la existente y mostrar las dos tarjetas de §4.\n5) SQL mensual que borre los anónimos de más de 30 días sin héroes.",
+   "fuente": "https://supabase.com/docs/guides/auth/auth-anonymous ; https://supabase.com/docs/guides/auth/auth-identity-linking"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4, migración («sincroniza cada 30 s y en pagehide»)",
+   "problema": "En `pagehide` solo sobreviven `fetch(…, {keepalive: true})`, con un cuerpo de hasta 64 KiB en vuelo, o `sendBeacon`. `sendBeacon` no deja poner las cabeceras `Authorization`/`apikey` que exige PostgREST. El alijo puede pasar de 64 KiB.",
+   "arreglo": "1) `fetch` con keepalive solo para el héroe activo y si pesa ≤ 60 KiB (comprimido con `CompressionStream` si hace falta).\n2) El alijo se sube en la sincronización de 30 s y al cerrar el panel del alijo.\n3) Una marca «pendiente de subir» en localStorage, que se resuelve en el siguiente inicio.",
+   "fuente": "https://developer.mozilla.org/en-US/docs/Web/API/RequestInit («The body size for keepalive requests is limited to 64 kibibytes»)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.3 (RTT y reloj por `PING` en `r`); §3.4 (tick estimado); §3.5.1",
+   "problema": "El canal `r` es fiable y ordenado. Un paquete perdido bloquea a los que siguen hasta la retransmisión (RTO mínimo de 400 ms en dcSCTP), y los trozos de 16 KB también lo retrasan. Esas muestras inflan el RTT y desplazan el tick estimado, que decide las edades y las caducidades de §3.5.1.",
+   "arreglo": "1) PING/PONG en `u`, con secuencia y marcas de tiempo.\n2) Estimar el RTT y el desfase con el mínimo de una ventana de 8–16 muestras (filtro tipo NTP).\n3) Descartar las muestras por encima del p90.",
+   "fuente": "dcsctp_options.h (`rto_min` = 400 ms), citado en tecnologia.md §3.2 [V]; deducción [D]"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 (Worker, Supabase); regla de trabajo «push solo a preview»",
+   "problema": "El dueño publica en preview. Un amigo en producción y otro en preview usarían el mismo Worker y las mismas salas con versiones distintas. Supabase necesita las URL de redirección de los dominios de preview, y la CSP cambia por entorno. Tampoco se comprueba el `Origin` del WebSocket, así que otra web puede gastar tu cuota desde el navegador de sus visitantes.",
+   "arreglo": "1) `env` (prod o preview) en el código de sala y en el saludo; el Worker no mezcla entornos.\n2) Al abrir el WS, comprobar `Origin` contra una lista: dominio de producción, patrón de previews del proyecto en vercel.app y localhost:8080. No frena scripts, pero sí el uso desde otras webs.\n3) URL de redirección con comodín en Supabase.",
+   "fuente": "Deducción [D]; https://supabase.com/docs/guides/auth (URL de redirección con comodines)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 (flujo); §3.7 (reconexión)",
+   "problema": "Si el WS del anfitrión se cae y vuelve, el diseño no dice cómo prueba ante el DO que es el anfitrión. Con solo el código, cualquiera que lo tenga podría reclamar el rol y aceptar, rechazar o expulsar.",
+   "arreglo": "1) Al crear la sala, el DO entrega un `hostToken` de 128 bits y guarda su hash en SQLite.\n2) Aceptar, rechazar, expulsar y cerrar solo se admiten desde el socket marcado como anfitrión (`serializeAttachment`).\n3) Cada invitado recibe un `rejoinToken` de un solo uso, que se renueva en cada reconexión.",
+   "fuente": "Deducción [D]"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 (credenciales TURN)",
+   "problema": "`generate-ice-servers` también devuelve URLs en el puerto 53, que los navegadores bloquean y terminan por tiempo de espera. Además, hay que conservar TURN por TLS en el 443 para las redes que solo dejan salir por ese puerto (~0,5 % de las sesiones).",
+   "arreglo": "1) Filtrar en el DO las URLs `:53` antes de entregarlas.\n2) Conservar 3478/udp, 443/udp y 443 por TLS.\n3) En R2, probar con UDP bloqueado.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/generate-credentials/ («The alternate port 53 is known to be blocked by web browsers»); https://developers.cloudflare.com/realtime/turn/ (puertos); openvidu (~0,5 % solo por TURN-TLS)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8 («≈ 9.300 horas-invitado por relé, a ~30 KB/s»); R7",
+   "problema": "Cloudflare cobra solo lo que sale del TURN hacia el cliente dueño de la asignación; lo que va al otro par no se cobra. Si el invitado va por relé, se paga más o menos su bajada (18–24 KB/s), no la suma de las dos direcciones. La cifra por invitado es conservadora, pero faltan dos cosas: el caso «Ocultar mi IP» del anfitrión (sus 3 enlaces por relé) y que un grupo de 4 tiene ~44 % de probabilidad de usar al menos un relé.",
+   "arreglo": "Tabla de presupuesto con 3 casos (invitado por relé, anfitrión con IP oculta, ambos por relé) y alertas al 50 % y al 80 %. Con estas cuentas sigue cabiendo en los 1.000 GB.",
+   "fuente": "https://developers.cloudflare.com/realtime/turn/faq/ (se cobra lo enviado del servidor al cliente; la pata hacia el par no se cobra)"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§9 F3 («El reloj del servidor detecta la cámara lenta»); tecnologia.md §7.3",
+   "problema": "Un corte de Wi-Fi de 3 s hace que los ticks lleguen «más lentos que el reloj real» y anularía un intento honesto. Pero si se tolera la recuperación sin límite, se puede jugar en cámara lenta dentro del margen.",
+   "arreglo": "1) Regla explícita: `ticksRecibidos(t) ≥ 60·(t − t0) − holgura`, con una holgura acumulada de hasta 3 s por intento.\n2) El tiempo oficial lo da el reloj del servidor.\n3) Un corte de más de 10 s pausa el intento y lo marca para revisión.",
+   "fuente": "Deducción [D]"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§9 F2 («grabación para revisar a mano»)",
+   "problema": "Grabar instantáneas a 20 Hz durante 12 minutos son ~10–15 MB por intento. Con eso, el 1 GB de Supabase Storage y sus 5 GB de salida al mes se acaban en pocas decenas de intentos.",
+   "arreglo": "1) Grabar a 2 Hz las posiciones y los eventos (~1 MB por intento).\n2) Guardar solo el top N de cada categoría.\n3) Guardarlas en R2 (10 GB gratis, salida sin cobro).",
+   "fuente": "https://supabase.com/pricing (1 GB de Storage, 5 GB de salida); https://developers.cloudflare.com/r2/pricing/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§3.8, tabla («Verificador del ladder: DO (el mismo Worker)»)",
+   "problema": "Un despliegue reinicia todos los DO del mismo script. Arreglar la señalización cortaría intentos del ladder y viceversa, y la regla «no desplegar al cierre de temporada» bloquearía también la señalización.",
+   "arreglo": "Dos Workers, `signal` y `verify`, con despliegues independientes. Las cuotas siguen siendo por cuenta.",
+   "fuente": "https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/"
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4 (cuentas F2)",
+   "problema": "Con cuentas se guardan datos personales (el correo de Google en `auth.users`) de jugadores de Chile, Argentina y Perú. La Ley 21.719 entra en vigor el 1-dic-2026 (hay un proyecto para aplazarla a 2027). El diseño no tiene aviso de privacidad, borrado de cuenta ni exportación.",
+   "arreglo": "1) Aviso de privacidad corto: qué se guarda y dónde (`sa-east-1`).\n2) Botón «Borrar mi cuenta»: una Edge Function o una RPC con la clave secreta que borre al usuario y sus filas.\n3) No copiar el correo a tablas propias.\n4) Tener la URL de la política lista: Google la pide para publicar la app OAuth.",
+   "fuente": "https://www.diarioconstitucional.cl/2026/06/12/la-ley-21-719-entra-en-vigor-el-1-de-diciembre-y-expone-vacios-en-regulacion-de-pequenas-empresas/ ; https://www.garrigues.com/es_ES/noticia/evolucion-regulacion-datos-personales-chile-modernizacion-marco-normativo-nueva"
+  }
+ ],
+ "faltantes": [
+  "Tabla de presupuesto de cuotas por recurso, con alertas al 50 % y al 80 %: peticiones del Worker y del DO al día, GB-s, GB de TURN al mes, base de datos, salida y MAU de Supabase, eventos de Workers Logs y los 5 Cron Triggers gratis. Debe anotar que todo se reinicia a las 00:00 UTC (21:00 en Chile en verano).",
+  "Manual de operación:\n- Secretos con `wrangler secret put`: clave de TURN, token de Analytics, clave secreta de Supabase y HMAC de los códigos.\n- Rotación de esos secretos.\n- Quién despliega el Worker y cómo, ya que no hay CI.\n- Interruptor de emergencia y mensaje «multijugador en mantenimiento».",
+  "Criterios de salida de R2 ampliados:\n- TTL corto con renovación en mitad de la sesión.\n- DO desalojado y redespliegue durante una sesión, y luego volver a unirse.\n- Fuerza bruta de códigos sin agotar la cuota.\n- UDP bloqueado (solo TURN-TLS en el 443).\n- Anfitrión con `iceTransportPolicy: 'relay'` y 3 invitados.",
+  "Versionado: protocolo de señalización y de juego compatibles con N−1, una «versión mínima» que publica el Worker, y `version.json` sin caché antes de entrar al lobby.",
+  "Modo degradado documentado: qué ve el jugador cuando se agota la cuota diaria o cae el Worker (Trystero sin TURN, es decir, ≈ 18 % de los pares sin conexión), y cuándo vuelve el servicio.",
+  "Decisión explícita sobre el medio de pago en Cloudflare: sin tarjeta hasta F3; con tarjeta, alerta de facturación. No hay techo de gasto en TURN.",
+  "Limpieza: alarma del DO de sala con `deleteAll()`, borrado periódico de usuarios anónimos de Supabase y retención de las grabaciones del ladder.",
+  "Respaldo de la nube a R2 con una prueba de restauración, y el flujo «esa cuenta de Google ya está vinculada» con prueba propia en E11.",
+  "Telemetría agregada anónima: relé, fallos de ICE, tiempo de armado y RTT, con su línea en el aviso de privacidad.",
+  "Separar entornos (prod y preview) en las salas, la CSP, el `Origin` permitido y las URL de redirección de Supabase."
+ ]
+}

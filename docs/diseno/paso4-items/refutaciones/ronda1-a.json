@@ -1,0 +1,201 @@
+{
+ "veredicto": "La dirección es correcta, pero el diseño todavía no está listo para implementarse. Tiene 8 problemas de gravedad alta, varios de ellos contradicciones con sus propias reglas o con el código actual. La base es sólida: rareza sin multiplicador (como D4 Loot Reborn), Principal adaptable y pistas de mejora (como WoW), un Códice de cuenta, la Esencia que cae suelta y la sincronización por NO.\n\nEstos puntos fallan hoy:\n1. **Grabar cuesta 50 de Polvo al rango 5** (unos 10 legendarios por pieza). Eso rompe la regla de inversión del propio documento.\n2. **Más de la mitad de los aspectos de ejemplo se pasan del presupuesto** de +15–25 % que fija la regla 4 (Racimo ≈ +70 %, Sol Errante y Andanada +50 %).\n3. **«Principal» no vale igual en las 3 clases.** La Destreza da crítico y armadura, y la Energía da recurso, así que la tabla de topes de crítico es falsa para la Arquera.\n4. **Principal domina el saco de daño**, porque es un multiplicador aparte: la Amatista queda como la única gema sensata.\n5. **«% Daño de tu elemento» queda medio muerto** en el Montaraz y el Cruzado, y es estrictamente mejor que «% Daño» en 4 especializaciones.\n6. **La valoración única no mide 5–6 de las 17 líneas**, y el «?» no mira el aspecto que pierdes. El propio mockup marca ▲ +7,3 % a un arma que te quita Molino r3.\n7. **La migración v5→v6 no dice** qué 3 líneas sobreviven de 5–7, qué pasa con las que quedan fuera del pool de la ranura, ni cómo se quita `statMult` al calcular el paso.\n8. **Faltan aspectos para 10 ranuras.** Hay 4 por especialización (3 usables a la vez en el Berserker y el Crionte), y 5 de las 9 especializaciones no tienen ninguno defensivo. Casco, pecho y cinturón quedan sin aspecto con sentido.\n\nAntes de cerrar los contratos de E1 hay que corregir estos 8 puntos, sumar las reglas de banco IT0 (TTD absoluto) e IT6 (paridad de líneas) y decidir los puntos medios: la ★ con cola de persecución, grabar sobre un Legendario, la receta del Mítico, la sincronización que apague el ◇ y los aspectos, la armería y la apuesta acotada.\n\nRecomiendo una segunda ronda de refutación sobre la v3 con un experto en multijugador, centrada en el regalo, el desguace de lo regalado, la sincronización y las semillas.",
+ "problemas": [
+  {
+   "gravedad": "alta",
+   "donde": "§4.9 «Grabar aspecto» (Polvo 10·rango) frente a §2 regla 3, §4.9 «Regla de inversión aplicada» y §4.6 «Códice de cuenta»",
+   "problema": "Grabar un aspecto al rango 5 cuesta 50 de Polvo. Desguazar un legendario da 5, así que son unos 10 legendarios por pieza, unos 100 para las 10 ranuras, y se vuelve a pagar cada vez que cambias la base por una con mejor NO o mejores líneas. Esto contradice la regla 3 («lo que se pierde al cambiar de pieza sale barato; lo caro vive en la cuenta») y la frase de §4.9 «lo único que se pierde al cambiar de pieza son las re-tiradas». El Códice deja de ser un progreso de cuenta reutilizable y se vuelve un impuesto por pieza.",
+   "arreglo": "Que grabar cueste solo oro (escalado por NO), más algo de Esencia, sin Polvo. El aspecto del Códice nunca se consume y se graba siempre a tu mejor rango. El Polvo queda para comprar aspectos que te faltan (25 → rango 1) y, si se quiere un sumidero, para subir un rango del Códice (p. ej. 1→2: 30 de Polvo). Corregir §4.9 y §7.5 y recalcular «un aspecto concreto ≤ 5 legendarios».",
+   "fuente": "Maxroll, guía del Ocultista actualizada para la T14 (26-jun-2026): el Ocultista graba «in exchange for some coin» y «each time you imprint it will always be the highest roll you have found» (https://maxroll.gg/d4/resources/occultist-enchanting-legendary-aspects). Lost Ark: traspaso «so no progress is lost» por «a small fee of silver» (arpg.md §2.8 [V])."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.6, regla 4 (≤ +15–25 % de la habilidad) frente a la tabla de 36 ejemplos",
+   "problema": "Varios ejemplos multiplican esa cifra según los números reales del catálogo:\n- Racimo Voraz: de 3 brasas al 40 % a 5 al 55 % (`skills-maga.js:732`). Son +155 puntos de coeficiente, ≈ +70 % de la habilidad con la explosión al 100 %.\n- Sol Errante: de 4 a 6 estallidos (380 % repartido, `skills-maga.js:796`): +50 %.\n- Tercera Andanada: `recast.n` de 2 a 3 (`skills-arquera.js:63`): +50 % por enfriamiento.\n- Cadena Larga: de 3 a 5 saltos al 70 % (`skills-maga.js:868`): ≈ +45 % en grupo.\n- Abanico Helado: de 3×50 % a 5×40 % (`skills-maga.js:827`): +33 %.\n- Cuarto Cepo: de 3 a 4 trampas: +33 %.\nAdemás el `core` (el conteo) no escala con el rango, así que un rango 1 ya trae casi todo el valor. El riesgo R3 (paridad de variantes F1) queda sin mitigar.",
+   "arreglo": "Recortar los ejemplos al presupuesto, por ejemplo: Racimo con 4 brasas al 45 %; Sol Errante con 5 estallidos; la 3.ª Andanada al 50 %; Cadena Larga +1 salto. Que el rango escale lo grueso y el `core` sea pequeño. Separar dos presupuestos, «un objetivo» y «manada», porque lo que sube conteos solo vale en grupo. Exigir F10 por aspecto (no solo por variante) como criterio de aceptación de E2.",
+   "fuente": "Código del repositorio (`skills-maga.js:732, 796, 827, 868`; `skills-arquera.js:60-63, 683`) y la regla 4 del propio documento."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.4 (Principal y «Comprobación de topes»), P4-D5, P4-D15, §5 (tabla de stats)",
+   "problema": "«Principal» no vale lo mismo en las 3 clases:\n- La Destreza da 0,15 % de crítico y 0,3 de armadura por punto a cualquiera (`entities.js:920, 935`).\n- La Energía sube el recurso máximo y la regeneración (`resources.js`, `REGEN_PER_ENE`).\n- La Fuerza no da nada extra.\nCon ~70–100 de Principal del equipo, la Arquera suma +10–15 % de crítico que la tabla de topes no cuenta. La cuenta queda así: 5 base + ~17 de su Destreza base (20 + 95 puntos) + ~20–30 de las líneas + 10–15 del Principal + Ojo del Halcón +6 y nodos de crítico del tablero (`paragon-board.js:42`) + talentos. Pasa de 60 antes de las bendiciones. Contradice «fuera el crítico muerto» (P4-D15) y el ✔ de la tabla. La tabla también ignora las fuentes ajenas al equipo en enfriamiento (Raudo +30, Masacre +25, `b_cdr` L10 15, tablero) y en velocidad de ataque (`b_aspd` L10 26).",
+   "arreglo": "En el Paso 4, que los atributos del equipo solo den el multiplicador de daño: una clave `mainGear` que suma a `mainMult` y no a `a.des`/`a.ene`. Otra opción es quitar los efectos secundarios de Destreza y Energía y moverlos a claves propias. Rehacer la tabla de topes con TODAS las fuentes del perfil típico y del óptimo del Nv100 (talentos, tablero, bendición L10, soportes, implícitos como el carcaj +6 %). Añadir a IT3 una variante «total ≤ tope» por clase, no solo «equipo ≤ 60 %».",
+   "fuente": "Código: `js/entities.js:917-935`, `js/combat-math.js:161-168`, `js/paragon-board.js:24-49`, `js/data.js:583-597`, `js/combat-math.js:173-200`."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.4 (bases de las líneas), §4.5 (gemas), P4-D5",
+   "problema": "Principal vive en su propio multiplicador (`mainStatMult` = 1 + 0,01·p, `combat-math.js:161`; `hitDamage`), mientras «% Daño» va al saco aditivo (~2,4 al final según el propio §10). Con ~113 de atributo base (18–22 + 5×19 puntos, `progression.js:17`), las líneas valen muy distinto:\n- +25 de Principal ≈ +14 % de daño.\n- +12 % de Daño ≈ +5 %.\n- +6 % de crítico ≈ +4 %.\n- +1 rango (de 5 a 6 es +10 % de coeficiente de UNA habilidad, `combat-math.js:465`) ≈ +2–3 %.\nResultado: la Amatista es la única gema sensata en 5 ranuras, y la línea Principal decide cada pieza. Es la sopa de stats al revés: una sola línea manda. El objetivo O5 «sin sopa» queda en el aire.",
+   "arreglo": "Opción recomendada (WoW): Principal como implícito fijo por NO y peso de ranura en arma, mano izquierda, casco, pecho y guantes. Sale del pool al azar y se quita la Amatista; una gema de Daño crítico o de % Daño de especialización ocupa su lugar. Alternativa: recalibrar las bases para que haya paridad. En los dos casos, nueva regla IT6 del banco: con el perfil típico de cada especialización, el ΔDPS de cada línea ofensiva al paso 5 queda entre 0,67× y 1,5× de la media de su categoría.",
+   "fuente": "Blizzard (Ghostcrawler), «Primary vs. Secondary Stats»: «we nearly always give them a set amount of Stamina and a set amount of Strength, Agility, or Intellect» (https://worldofwarcraft.blizzard.com/en-us/news/1550772). Warlords of Draenor: las piezas de armadura siempre llevan Aguante y Armadura y el principal cambia con la especialización (https://warcraft.wiki.gg/wiki/Wodclass)."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.4 «% Daño de tu elemento» (`elemPct` → `spec.elem`), O5 «0 líneas muertas»",
+   "problema": "El elemento de la especialización no coincide con su kit:\n- Montaraz es «naturaleza» (`talents-arquera.js:252`), pero su gastadora (Flecha Detonante), su movilidad y el básico son físicos. Solo Cepo y Zarzas son de naturaleza (`skills-arquera.js:126-147`).\n- Cruzado es «sagrado», pero el básico y el kit base de clase son físicos.\n- En Berserker, Guardián, Tiradora y Francotiradora (físico) la línea aplica a casi todo, y con base 16 % es estrictamente mejor que «% Daño» (12 %).\nLa misma línea vale desde casi 0 hasta «mejor que % Daño» según la especialización. Además cambia al cambiar de especialización o de elemento forjado, y el alijo la valora distinto para cada héroe.",
+   "arreglo": "Resolver la línea por el kit de la especialización más el básico: «% daño de tus habilidades de especialización», con el selector `@spec`/`kitOf` que ya usan los talentos. Si no, quitar la línea y subir «% Daño». Si se mantiene por elemento, igualar su base con «% Daño» y exigir en test92 que cubra ≥ 70 % del DPS del perfil típico de cada especialización.",
+   "fuente": "Código: `js/talents-*.js` (elem por especialización: physical ×4, holy, nature, fire, frost, arcane) y `js/skills-arquera.js:126-147`, `js/skills-guerrero.js:127-157`."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§6 (valoración única), §7.2 (▲ de la celda), §7.6 (filtro «Solo ▲»), mockup (Alijo: Martillo del Alba)",
+   "problema": "La valoración no ve todas las líneas. El Daño (Σ coef × impactos ÷ máx(enfriamiento, GCD)) y el Aguante (vida/mitigación) no miden:\n- % Coste y % Recurso (no hay restricción de recurso).\n- Vida al golpear y Esquiva.\n- Velocidad de movimiento.\n- Velocidad de ataque en especializaciones de gastadora: solo acelera el básico (`game-skills.js:1594, 2160`) y el GCD es fijo (`:785, 855`).\nEsas piezas salen ▼/↔, y «Mejor para mí» y «Solo ▲» las entierran. Además el «?» solo mira el objeto nuevo. En el mockup, el Martillo del Alba sale ▲ +7,3 % con el chip «Mejora», aunque te quita Molino r3 activo y trae un aspecto inactivo de Cruzado.",
+   "arreglo": "(1) Rotación con restricción de recurso: la cadencia de la gastadora queda limitada por generación ÷ coste, y así % Coste, % Recurso y la velocidad del básico entran solos. (2) Pesos declarados y visibles con Alt para movilidad, esquiva y sustento, o un tercer eje «Ritmo». (3) «?» también cuando el objeto que SALE tiene un aspecto o poder activo que el modelo no mide; si el aspecto saliente está activo, el ▲ de la celda no se muestra sin Shift. (4) Tabla de valor por aspecto generada por el banco (con y sin el aspecto, por especialización y escenario), que `valuation.js` lee como dato. IT4 debe incluir pares que difieran solo en esas líneas.",
+   "fuente": "Código: `js/game-skills.js:785, 855, 1594, 2160`; `js/combat-math.js:518-523`. Mockup: `preview/captura-1-escritorio-mochila.png`."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§9.2 (migración v5 → v6, paso 2) y O8",
+   "problema": "Faltan tres reglas:\n(a) Hoy un legendario trae 4–5 afijos más 1–2 secundarios y un raro 3–4 más 1 (`items.js:11, 236-245`). El formato nuevo admite 3 líneas, y no se dice cuáles sobreviven.\n(b) Los afijos viejos salen en cualquier ranura (crítico en el casco, velocidad de movimiento en el pecho), pero los pools nuevos son por ranura. Solo se re-tiran maná, hallazgo mágico, maná al golpear y espinas, así que el resto rompe los pools y los topes de §4.4 o se pierde en silencio.\n(c) El paso se calcula sobre «el rango viejo de su ilvl» sin quitar `statMult` (×1,1–1,5, aplicado al afijo guardado) ni la ★ (×1,5). Casi todos los legendarios saldrían al paso 5.\nResultado: el objetivo O8 (sin perder objetos de valor) y el ⚡ ±25 % no son comprobables.",
+   "arreglo": "Antes del paso, normalizar v ÷ (statMult de la rareza × 1,5 si es ★). La calidad no hace falta, porque hoy se aplica en `recompute` y no se guarda. Conservar las líneas que estén en el pool de la ranura, ordenadas por paso (empate por `hash(uid)`). Re-tirar las de fuera del pool con el mismo paso y la semilla del objeto. Las líneas sobrantes dan Esencia. test97 debe afirmar «0 líneas fuera de pool», «≤ 3 líneas» y una distribución de pasos plausible (no todo a 5).",
+   "fuente": "Código: `js/items.js:7-13, 210-245`; `js/entities.js:797-801`."
+  },
+  {
+   "gravedad": "alta",
+   "donde": "§4.6 (36 de especialización, 6 de clase, 5 universales; categoría → ranuras), O2",
+   "problema": "Faltan aspectos para 10 ranuras. Hay 4 por especialización, y en el Berserker (Molino y Estocada, las dos sobre Rajar) y el Crionte (Lanza Pesada y Abanico Gélido, las dos sobre Lanza de Hielo) dos se excluyen: la build usa 3. Aspectos defensivos de especialización:\n- Ninguno: Berserker, Cruzado, Piromante, Crionte y Tiradora.\n- Uno: Arcanista, Francotiradora y Montaraz.\n- Dos: Guardián.\nDe clase hay 1 defensivo por clase. Casco, pecho, cinturón y mano izquierda se llenan con 1–2 universales que no se apilan, así que el legendario en esas ranuras no significa nada. La identidad de build la ponen los mismos 5 universales para todos.",
+   "arreglo": "Subir a ≥ 6 aspectos por especialización, con ≥ 1 defensivo y ≥ 1 de movilidad cada una, y a ≥ 3 defensivos por clase. La alternativa es bajar las ranuras con aspecto a 6–7 y darle al resto implícito, únicos o solo líneas. Reformular O2 como «≥ 6 aspectos usables a la vez por build, con ≥ 2 defensivos», y comprobarlo en `test-aspects-<clase>`. Si no cabe en E2, partir el contenido en olas sin bloquear el resto.",
+   "fuente": "Tabla de §4.6 del documento y código (`js/skills-guerrero.js:490-492`; `js/skills-maga.js:825-827`). Lord of Hatred: «más de 200 aspectos rehechos para tener más impacto» (arpg.md §2.1 [V], https://news.blizzard.com/en-us/article/24267729)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.7 (Míticos: «3 Fragmentos + 1 Único de esa especialización») frente al catálogo de Únicos (2 por clase)",
+   "problema": "Los Únicos son 2 por clase, no por especialización. La propia Égida del Faro mezcla Terremoto (Guardián) y Juicio (Cruzado). La receta determinista del Mítico no se puede cumplir tal como está escrita.",
+   "arreglo": "Cambiar la receta a «1 Único de tu clase» o hacer 1 Único por especialización (9 + 4 reliquias). Fijarlo en el contrato de E2.",
+   "fuente": "El propio documento, §4.7."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.6 «Grabar» y §4.9 (solo sobre Raro)",
+   "problema": "Solo se puede grabar sobre un Raro. Un Legendario con líneas perfectas y un aspecto inútil (lo normal con 47 aspectos) no se puede aprovechar: hay que esperar un Raro con las mismas líneas. Es fricción que D4 no tiene.",
+   "arreglo": "Permitir grabar también sobre un Legendario: el aspecto nuevo sobrescribe al viejo y el viejo va al Códice si mejora el rango. Prohibido sobre Únicos y Míticos, como ya dice el documento.",
+   "fuente": "D4: «Assigning an Aspect or Codex of Power to a Legendary will automatically overwrite the current Aspect» (https://gameranx.com/features/id/467878/article/diablo-4-how-aspects-codex-of-power-works-occultist-explained/; https://www.pushsquare.com/guides/diablo-4-aspect-imprinting-explained-and-how-to-unlock-the-occultist)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.2 (remate ★), §4.8 («★ = remate o drop de Tormento alto»), §4.11, §7.6 (regla «tiene ★»)",
+   "problema": "La ★ es ambigua y no deja una persecución de cola larga:\n- §4.2 la da solo el remate (en una línea al azar, re-tirable sin límite por 5000 de oro: en la práctica eliges, solo agrega clics).\n- §4.8 dice que también cae en Tormento alto.\n- El Tormento ya trae rango ⌊T/2⌋: en T10 todo cae en rango 5, sin decir si con ★ o si se pierde el remate.\n- No hay tope de ★ por pieza.\nAl llenar el Códice al rango 5, el Legendario solo sirve para Polvo, y no hay «premio gordo» al caer.",
+   "arreglo": "Una ★ que cae con probabilidad por línea según el Tormento (p. ej. 1 % en T4 y 4 % en T10), con tope de 2 ★ por pieza. El remate solo pone ★ si queda una línea sin ella, y moverla es una elección (sin azar) con coste creciente. Las piezas que caen en rango 5 conservan el derecho al remate. Filtro y celda con el número de ★. Medir en loot-bench los legendarios con 1 y 2 ★ por hora en T10.",
+   "fuente": "Lord of Hatred: los objetos de Tormento aptos para Ancestral pueden «even contain Greater Affixes», y el filtro distingue «1-4 Greater Affixes» (arpg.md §2.1 [V], https://news.blizzard.com/en-us/article/24267729). Maxroll, remate re-tirable por 10 M de oro (https://maxroll.gg/d4/resources/masterworking-guide)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.10 (apuesta: 80/18/2) y §4.9 (Polvo)",
+   "problema": "Con 18 % de Legendario por apuesta y 5 de Polvo por legendario desguazado, el oro se convierte en aspectos elegidos. Sin precio ni tope, el mercader puede superar al botín como fuente de aspectos y vaciar la protección contra la mala suerte y el cofre del jefe.",
+   "arreglo": "Fijar en loot-bench que la apuesta aporte ≤ 20–25 % de los legendarios por hora con el oro que da una grieta. Coste creciente por apuesta dentro de la sesión, o un contador semanal de apuestas a precio base. Dar el coste de partida por ranura en el documento.",
+   "fuente": "Last Epoch: una fuente nueva de objetos «llevaría a un aumento drástico del poder del jugador» (arpg.md §2.3 [V], https://forum.lastepoch.com/t/trade-development-update-introducing-merchants-guild-and-circle-of-fortune-factions/51994)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.2 (sincronización de contenido) y §8 (fila «Sincronización»)",
+   "problema": "La sincronización solo topa el NO. Los aspectos al rango 5, la ★, el ◇ y los Míticos siguen enteros, y al final del juego son lo que más pesa: un Nv100 sincronizado sigue rompiendo una zona baja en el cooperativo.",
+   "arreglo": "En sincronización: ◇ desactivado, ★ → paso 5, rango del aspecto ≤ f(nivel de la zona) (p. ej. 1 + ⌊AL/12⌋) y el Mítico rinde como Único. Así lo indica el tooltip con el «⇣».",
+   "fuente": "FFXIV: «any gear that exceeds the duty's maximum Item Level will deactivate all materia melded to it» (https://ffxiv.consolegameswiki.com/wiki/Materia)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§10 (reglas IT1 e IT2) y §12 E4",
+   "problema": "El perfil «desnudo» escala con el mismo NO, así que la cuota de IT1 no ve el ×1,55 de subir `ILVL_MAX` a 47. IT2 es G^7 por construcción, una tautología. E4 puede quedar «en banda» con el Nv70 bastante más fuerte que la línea calibrada hoy (TTD contra manada de 6–10 s), y E4b hereda un desajuste grande.",
+   "arreglo": "Nueva regla IT0 en E4: TTD contra manada y jefe en Nv20, 50, 70 y 100 (T0 y T10) dentro de ±15 % de la línea base actual. Si el cambio es deliberado, que se documente como movimiento de la curva enemiga. IT1 queda como regla de reparto, no de poder absoluto.",
+   "fuente": "Código: `js/combat-math.js:79-94, 556-562`; el propio §10 («gana ×1,55 de arma… que el banco de hoy no ve»)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§6 (Daño: «Σ coef × impactos»)",
+   "problema": "No se define el escenario: ¿cuántos objetivos? Los aspectos y líneas de conteo (brasas, saltos, flechas, trampas) valen casi 0 contra un jefe y mucho contra una manada. Sin escenario, el veredicto y la regla F10 dan números arbitrarios.",
+   "arreglo": "Daño = media ponderada de «jefe» (1 objetivo) y «manada de 5», con pesos por defecto 40/60. Con Alt se ven los dos números. La tabla de valor por aspecto del banco usa los mismos escenarios.",
+   "fuente": "Coherencia interna del documento (§4.6, regla 4; §6; §10, F10)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.1 (pool del arma: «Principal… +1 a tu Principal (gastadora)»), §4.4, §4.5 (Amatista: Principal)",
+   "problema": "Hay dos «Principal» en la misma pieza. La categoría de habilidad gastadora se llama «Principal» (`skill-defs.js:35-38`, decisión G15 del dueño), y la línea de atributo también. El arma ofrece las dos, y la Herrería y la ventana de gemas dirán «Amatista: Principal». Va contra el «poco texto» y la legibilidad.",
+   "arreglo": "La línea de atributo se muestra siempre resuelta (Fuerza, Destreza o Energía), y en las ventanas genéricas (Herrería, gemas, filtro) se llama «Atributo». La línea de rango lleva el icono de la categoría: «+1 [icono] Principal».",
+   "fuente": "Código: `js/skill-defs.js:35-38`."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§4.4 («% Vel. de ataque» en 4 pools) y §5 («cadencia del básico»)",
+   "problema": "La velocidad de ataque solo acelera el básico y su carga (`game-skills.js:1594, 2160`). Las habilidades tienen un GCD fijo de 0,2 s (`:785, 855`) y su velocidad es `skillSpeedPct`. En especializaciones de gastadora o de carga (Piromante, Crionte, Francotiradora…) la línea queda media muerta, y está en el arma, los guantes y los 2 anillos.",
+   "arreglo": "Que la velocidad de ataque acelere también el windup y el canal de todas las habilidades, como en D4. Si no, renombrarla «Vel. del básico» y que la valoración lo diga. Cubrirla en IT6 (paridad).",
+   "fuente": "Código: `js/game-skills.js:785, 855, 1594, 2155-2163`."
+  },
+  {
+   "gravedad": "media",
+   "donde": "§7.1 (Materiales: héroe, pilas de 99, incluye Esencia y Polvo), §12 W3 (Polvo en la cuenta), §13 X2 («contadores»)",
+   "problema": "Hay tres definiciones distintas para la Esencia y el Polvo: ¿son objetos en pila del héroe o contadores de cuenta? Además, con costes de 8–40 de Esencia por rango y ingresos de miles, una pila de 99 se llena enseguida.",
+   "arreglo": "Esencia y Polvo como contadores sin tope (como el oro). Polvo de cuenta, igual que el Códice. Decidir de forma explícita si la Esencia es del héroe o de la cuenta (recomiendo la cuenta, por la regla 3). Las pilas de 99 quedan solo para gemas, glifos y llaves.",
+   "fuente": "El propio documento: §7.1, §12 (W3) y §13 (X2)."
+  },
+  {
+   "gravedad": "media",
+   "donde": "Todo el diseño (no aparece): cambio de especialización con 10 piezas",
+   "problema": "No hay conjuntos de equipo. Con 3 especializaciones por clase, talentos con presets y aspectos atados a una especialización, cambiar de especialización obliga a recambiar hasta 10 piezas a mano desde la mochila y el alijo.",
+   "arreglo": "Armería: presets de equipo (referencias por `uid`) ligados a los presets de talentos y a la barra. Se cambian gratis en el pueblo o fuera de combate. Avisar si una pieza del preset ya no está.",
+   "fuente": "D4, Armería de la T7 (parche 2.1): 5 loadouts por personaje con equipo, habilidades, Paragon y glifos, cambio gratis (https://www.icy-veins.com/d4/news/season-7-deep-dive-the-armory-feature-witchcraft-occult-gems-new-runes-and-more/; https://icy-veins.com/d4/news/armory-guide)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§9.1 («unos 120 bytes por objeto»)",
+   "problema": "El ejemplo del propio documento ocupa ~230 caracteres, no ~120. Sigue cabiendo (400 objetos ≈ 92 K caracteres), pero la cifra es la mitad de la real y `o: {realm, run}` se repite en cada objeto.",
+   "arreglo": "Corregir la cifra y codificar el origen como un entero o una cadena corta (p. ej. `o: 0` = local). Medir en test94 el tamaño medio con el fixture de 641 piezas.",
+   "fuente": "Conteo del ejemplo de §9.1."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "P4-D12 («D4 lo sacó en la T4»)",
+   "problema": "La justificación no tiene fuente y es inexacta: en D4 el hallazgo mágico no era un afijo de equipo (era un afijo de sigilo de Pesadilla). El precedente que sí existe es D3 Loot 2.0.",
+   "arreglo": "Citar D3 Loot 2.0: se quitó el hallazgo mágico al azar de los objetos y su efecto sobre los legendarios bajó al 10 %. La decisión se mantiene.",
+   "fuente": "Diablo Wiki, Magic find: «random Magic Find bonuses were removed as a possible attribute for new item drops» (https://di.diablowiki.net/Magic_find). Game8 sobre el hallazgo mágico en D4 como afijo de sigilo (https://game8.co/games/Diablo-4/archives/411052)."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.12 (solo se escala la Era) frente a las bendiciones y el tablero",
+   "problema": "Las bendiciones y el tablero siguen con valores planos sin escalar: `b_hp` 150, `b_arm` 75 y `b_lph` 12 en L10 (`data.js:583-597`); tablero +60 de vida y +30 de armadura (`paragon-board.js:24-49`). Frente a líneas de 163–223 de vida en NO 47–52, quedan irrelevantes.",
+   "arreglo": "Escalar los valores planos de bendiciones y tablero con G(AL), igual que la Era, y revisarlos en IT1.",
+   "fuente": "Código: `js/data.js:583-597`, `js/paragon-board.js:24-49`."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§4.9 (re-tirada `hash(seed,'reroll',n)`) y §4.10 (apuesta `hash(cuenta,'apuesta',n)`)",
+   "problema": "Con semillas deterministas se puede «mirar y elegir». La re-tirada no incluye la línea en el hash: tiras una línea, ves las 2 opciones, recargas y re-tiras otra con ese conocimiento. En la apuesta, la rareza de la tirada n no depende de la ranura: ves que la siguiente es Única, recargas y eliges tu mejor ranura.",
+   "arreglo": "Incluir la línea y la ranura en el hash, y guardar justo después de la acción.",
+   "fuente": "El propio §4.9 y §4.10."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§15 (verificación del mockup «a 1440 y 400 px») y `preview/captura-2-movil-aspectos.png`",
+   "problema": "Se verificó y capturó a 400 px, el ancho de un celular, aunque el juego es solo para PC (regla del dueño y CLAUDE.md). El esfuerzo no sirve y la captura confunde.",
+   "arreglo": "Verificar a 1366 y 1920 px, como pide E3, y quitar la captura «móvil» del paquete para el dueño.",
+   "fuente": "CLAUDE.md («solo PC… nada de… ajustes para móvil») y memoria `plataforma-solo-pc`."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§1 O1 y §4.11 («1 legendario cada ~140 comunes»)",
+   "problema": "«Comunes» se lee como objetos comunes, no como monstruos comunes.",
+   "arreglo": "Escribir «cada ~140 monstruos comunes».",
+   "fuente": "El propio documento."
+  },
+  {
+   "gravedad": "baja",
+   "donde": "§12 E2 y §12.1 (~1 día para el contenido)",
+   "problema": "El plan es optimista: 47 aspectos, 10 Únicos y 9 Míticos con poderes, textos al rango y pruebas con `makeHarness` en ~1 día de E2. Además, los Míticos «definen la build» y necesitan su propio balance.",
+   "arreglo": "Sacar los Míticos a una ola posterior ya desde el plan, no solo como mitigación del riesgo R7, y dar a E2 unos 2 días con un juicio intermedio.",
+   "fuente": "El propio §11 R7 y la historia del Paso 2 (`MEMORIA.md`)."
+  }
+ ],
+ "faltantes": [
+  "Probabilidad de cada paso (1–5) de una línea según el NO y el Tormento, y con qué paso salen las 2 opciones de la re-tirada.",
+  "Rango con el que cae un aspecto (1–5) según el Tormento, y cuánto se tarda en completar el Códice de una especialización al rango 5 (medido en loot-bench).",
+  "Qué pasa con el reparto de atributos (5 puntos por nivel hasta el 20, `progression.js:17`) cuando el equipo da «Principal» adaptable. ¿Se mantienen los 4 atributos? Además, la Vitalidad no convierte igual en las 3 clases (`hpPerVit` 4 / 3 / 3,5), así que el «×4» de la migración solo es exacto en el Guerrero.",
+  "Sesgo de las bases de clase (armas y manos izquierdas). Hoy es del 100 % para tu clase (`items.js:188-192`), pero el alijo enseña emblemas de otros héroes. Hay que fijar el porcentaje para otras clases.",
+  "Cifras de partida que faltan: tamaño del montón de Esencia, Polvo por carta del cofre (el mockup usa 5), precio de las pestañas del alijo, coste de la apuesta por ranura e ingresos de oro por grieta.",
+  "Tabla de jefes de zona → aspecto que desbloquean.",
+  "Regla de desguace de lo regalado: ¿da Polvo y entra en el Códice? Si sí, un grupo puede llenar el Códice de otro jugador. Recomiendo que solo dé Esencia.",
+  "Presupuesto de poder de los Únicos y los Míticos: el documento limita los aspectos pero no los poderes propios.",
+  "Peso del ⚡ por rol: el Guardián valora el Aguante más que el Daño. Con la media geométrica fija, los tanques ven ↔ en sus mejoras reales.",
+  "Reglas nuevas del banco: IT0 (TTD absoluto contra la línea base) e IT6 (paridad de líneas por especialización), más F10 por aspecto en dos escenarios (jefe y manada).",
+  "Armería: presets de equipo ligados a los presets de talentos.",
+  "Un máximo de ★ por pieza y la interacción entre el rango que trae el Tormento y el remate."
+ ]
+}
