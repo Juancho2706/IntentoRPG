@@ -2391,7 +2391,7 @@ export class Enemy {
   // animación procedural barata: caminar (según movimiento del frame previo),
   // respiración en reposo, coletazo y "lunge" al atacar. Solo transforms.
   animate(dt) {
-    if (this.glb) return this.game.glbEnemies.update(this, dt);     // clips del modelo riggeado
+    if (this.glb && this.game.glbEnemies.update(this, dt)) return;  // clips del modelo riggeado (false = falló: sigue el procedural)
     const a = this.group.userData.anim;
     if (!a) return;
     const t = performance.now() / 1000;
@@ -2499,6 +2499,7 @@ export class Enemy {
       if (fg) { fg.scale.x = Math.max(0.001, this.hp / this.maxHP); fg.position.x = -0.43 * (1 - fg.scale.x); }
     }
     if (!this.alive) {
+      if (this.glb) return this.game.glbEnemies.death(this, dt);   // modelo riggeado: su clip de muerte
       // animación de muerte: "pop" breve, desplome de lado y hundimiento
       this.fade += dt;
       if (this._deathRoll == null) this._deathRoll = (Math.random() < 0.5 ? -1 : 1);

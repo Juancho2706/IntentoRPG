@@ -1,7 +1,7 @@
 // ============================================================
 // Service worker: app instalable y jugable sin conexión
 // ============================================================
-const VERSION = 'v122';
+const VERSION = 'v123';
 const CACHE = 'intentorpg-' + VERSION;
 
 const ASSETS = [
@@ -30,6 +30,7 @@ const ASSETS = [
   './js/postfx.js',
   './js/particles.js',
   './js/fx-mesh.js',
+  './js/enemy-glb.js',
   './js/fx-skills.js',
   './js/fx-enemies.js',
   './js/rng.js',
@@ -304,7 +305,7 @@ const UI_ASSETS = [
   './assets/skills/torbellino.webp',
 ];
 const ART_CACHE = 'intentorpg-art-v1';
-const ART_RE = /\/assets\/(talents|specs|emblems|ui256|skills256|vfx|talents2g|forge)\//;
+const ART_RE = /\/assets\/(talents|specs|emblems|ui256|skills256|vfx|talents2g|forge|models)\//;
 
 // Addons de post-procesado (post-fx: bloom + viñeta + grading). Se precachean
 // aparte y de forma NO atómica: si alguno falla, el post-procesado se degrada

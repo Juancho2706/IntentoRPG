@@ -33,6 +33,7 @@ import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
 import { ParticleSystem, PRESETS } from './particles.js';
 import { MeshFx } from './fx-mesh.js';
+import { GlbEnemies } from './enemy-glb.js';
 // color del aura por indicador de especialización (los de mech-<clase>.js)
 const GAUGE_FX_COLOR = { sed: 0xe8634a, bastion: 0x7fb0e8, fervor: 0xecc760, calor: 0xff8a3d, escarcha: 0x74cdf2, cargas: 0xb996ff, concentracion: 0xead86e, coto: 0x86d47a, impulso: 0x66d7c7 };
 import { WorldMarks } from './world-marks.js';
@@ -185,6 +186,9 @@ class Game {
     // efectos de MALLA con shader (ondas, tajos, calcomanías, columnas, haces, telegrafías): fx-mesh.js
     try { this.meshFx = new MeshFx(this.scene, { quality: this.deviceTier >= 2 ? 0 : 1 }); }
     catch { this.meshFx = null; }
+    // enemigos con modelo riggeado (.glb): demonio y gólem; gama baja o ?glb=0 → procedurales
+    try { this.glbEnemies = new GlbEnemies({ enabled: this.deviceTier < 2 && !/[?&]glb=0(&|$)/.test(location.search) }); }
+    catch { this.glbEnemies = null; }
     // marcas de mundo de la mecánica (Paso 2d.2 E2): capas de Escarcha sobre la barra de vida
     // y anillo de la Presa del Montaraz. Pool fijo en su propio grupo de la escena.
     try { this.worldMarks = new WorldMarks(this.scene); }
