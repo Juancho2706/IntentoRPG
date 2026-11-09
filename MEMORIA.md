@@ -150,6 +150,7 @@
 
 ### FPS en PC — culpables del pipeline (2026‑06‑15)
 - ✅ **Enemigos no proyectan sombra de sol**: ya tienen sombra de contacto (blob); con 60+ enemigos su pase de sombras era carísimo. Solo héroe + mundo proyectan la sombra del sol (`enemyShadows=false` siempre en `applyQuality`).
+- ✅ **Los enemigos avisan antes de pegar** (2026-11-09, sw v121): el golpe cuerpo a cuerpo normal ya no hace daño al instante. `Enemy.update` abre una preparación (`swingT`/`swingDur`, `meleeWindup(def, cadencia)` = `def.windup` o 0,35 s —0,5 s jefes—, tope media cadencia); el enemigo queda plantado y encarando, se recoge (arremetida negativa en `animate`) y al terminar pega SOLO si el objetivo sigue a `range + MELEE_REACH` (0,6) con visión. Apartarse lo esquiva (el ataque se gasta); aturdir o asustar lo corta. No cambia: disparos, `slam` (ya telegrafiado) ni habilidades de jefe. Test: `test92-aviso-golpe`. Motivo: sin aviso ninguna animación de ataque se lee (decisión delegada por el dueño).
 - ✅ **OutlinePass solo sobre notables**: contornear los 60+ enemigos cada frame (OutlinePass hace varios pases sobre su lista) era el mayor coste. Ahora solo **héroe + jefes/élites/campeones/goblin/uber/guardián**. Si los FPS siguen flojos, el siguiente sospechoso es **GTAO** (el AO de contacto), que puede apagarse en Opciones.
 
 ### Rendimiento / calidad (YA EXISTE)

@@ -37,6 +37,8 @@ const decoy = (x, z) => ({ pos: new THREE.Vector3(x, 0, z), alive: true, hits: 0
   e.aggroed = true; e.atkCd = 0; e.def.range = 2.5;
   const hp0 = p.hp;
   e.update(0.05);
+  assert.equal(d.hits, 0, 'el enemigo avisa: en la preparación todavía no hay daño');
+  for (let i = 0; i < 9; i++) e.update(0.05);          // la preparación dura 0,35 s
   assert.equal(d.hits, 1, 'el golpe va al señuelo');
   assert.equal(p.hp, hp0, 'y no al jugador');
   // termina la provocación: decide la amenaza con histéresis (cuerpo a cuerpo 110 %)

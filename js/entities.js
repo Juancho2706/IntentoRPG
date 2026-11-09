@@ -1842,6 +1842,13 @@ export class Player {
 // ------------------------------------------------------------
 let enemyUid = 1;
 
+// Preparación del golpe cuerpo a cuerpo enemigo (s): `def.windup` o 0,35 s (0,5 s los jefes), nunca más de
+// la mitad de su cadencia. MELEE_REACH = margen de alcance al caer el golpe (un paso atrás no basta).
+export const MELEE_REACH = 0.6;
+export function meleeWindup(def, cadence) {
+  return Math.min(def.windup ?? (def.boss ? 0.5 : 0.35), (cadence || def.atkTime || 1) * 0.5);
+}
+
 export class Enemy {
   constructor(game, def, pos) {
     this.game = game;
@@ -1875,9 +1882,14 @@ export class Enemy {
     this.flashT = 0;
     this.fade = 0;
     this.lunge = 0;             // empuje de animación al atacar
+    this.swingT = 0;            // preparación del golpe cuerpo a cuerpo en curso (s); el daño cae al terminar
+    this.swingDur = 0;
     this.baseEmissive = def.glow || 0x000000; // campeones y élites brillan
     this.burnTick = 0;
     this.group = makeEnemyModel(def);
+    // modelo riggeado (.glb) si su forma lo tiene y el juego lo ofrece (enemy-glb.js; headless = no existe)
+    this._procChildren = this.group.children.filter(c => c !== this.group.userData.bar);   // la barra de vida no se oculta
+    game?.glbEnemies?.attach(this);
     this.group.position.copy(pos);
     this.spawnPos = pos.clone();   // punto de aparición: al que regresa si te pierde / entras a zona segura
     this.group.userData.enemy = this;
@@ -2211,8 +2223,9 @@ export class Enemy {
   dispose() {
     if (this._disposed) return;
     this._disposed = true;
+    this.game?.glbEnemies?.release(this);
     this.group?.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
+      if (o.geometry && !o.userData.sharedGeo) o.geometry.dispose();
       if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose());
     });
   }
@@ -2378,6 +2391,7 @@ export class Enemy {
   // animación procedural barata: caminar (según movimiento del frame previo),
   // respiración en reposo, coletazo y "lunge" al atacar. Solo transforms.
   animate(dt) {
+    if (this.glb) return this.game.glbEnemies.update(this, dt);     // clips del modelo riggeado
     const a = this.group.userData.anim;
     if (!a) return;
     const t = performance.now() / 1000;
@@ -2389,7 +2403,8 @@ export class Enemy {
     this.lunge = Math.max(0, (this.lunge || 0) - dt * 4);
     this.hitT = Math.max(0, (this.hitT || 0) - dt * 6);
     const sw = Math.sin(this.walkT);
-    const lunge = this.lunge;
+    // preparación del golpe: se recoge hacia atrás (arremetida negativa) hasta soltarlo
+    const lunge = this.lunge - (this.swingT > 0 ? 0.55 * (1 - this.swingT / (this.swingDur || 1)) : 0);
     const hit = this.hitT;     // squash de impacto (0 → ~0.28)
 
     if (a.slime) {
@@ -2505,7 +2520,7 @@ export class Enemy {
       this._flashState = flashing;
       this.group.traverse(o => {
         if (o.isMesh && o.material && o.material.emissive)
-          o.material.emissive.setHex(flashing ? 0xffffff : this.baseEmissive);
+          o.material.emissive.setHex(flashing ? 0xffffff : (o.material.userData.baseEmissive ?? this.baseEmissive));
       });
     }
 
@@ -2516,7 +2531,7 @@ export class Enemy {
     if (!pl || this.group.position.distanceToSquared(pl.pos) < 30 * 30) this.animate(dt);
 
     // MIEDO (applyCC 'fear'): huye de su origen sin atacar ni lanzar (aturdido, ni eso). Manda sobre el cebo
-    if (this.fearT > 0) { if (!(this.stunT > 0)) this._fleeStep(dt); return false; }
+    if (this.fearT > 0) { this.swingT = 0; if (!(this.stunT > 0)) this._fleeStep(dt); return false; }
     // CEBO (§3.6): un cebo armado lo atrae en lugar de moverse y decidir; los temporizadores
     // de arriba (Vulnerable, control, marcas, destello) siguen corriendo y un lanzamiento en
     // curso termina antes
@@ -2529,7 +2544,7 @@ export class Enemy {
     // mientras dura (se queda donde está; si te ve al acabar, vuelve a enzarzarse)
     if (player === pl && pl.invisT > 0) { this.aggroed = false; this.threatTarget = null; return false; }
     // ATURDIDO: ni se mueve ni ataca (la animación/flash siguen)
-    if (this.stunT > 0) return false;
+    if (this.stunT > 0) { this.swingT = 0; return false; }      // el control corta el golpe que estaba preparando
     // LANZANDO (habilidad interrumpible, enemy-abilities.js): quieto hasta terminar
     if (this.casting) { if (player.pos) this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z); this.tickCast(dt); return false; }
 
@@ -2929,11 +2944,25 @@ export class Enemy {
       }
 
       const range = this.def.range;
+      // golpe cuerpo a cuerpo en preparación: plantado y encarando; al terminar pega SOLO si sigues a su alcance
+      if (this.swingT > 0) {
+        this.swingT -= dt;
+        this.group.rotation.y = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+        if (this.swingT <= 0) {
+          this.swingT = 0; this.lunge = 1;
+          if (d <= range + MELEE_REACH && this.hasLOS) {
+            player.takeDamage(this.def.dmg, this.def.level || 1, { melee: true, source: this });
+            if (player.alive) g.enemyMeleeFx?.(player.pos);
+          }
+        }
+        return false;
+      }
       if (d <= range && this.hasLOS) {
         if (this.atkCd <= 0) {
           this.atkCd = this.def.atkTime * (this.rallyT > 0 ? 0.8 : 1);
-          this.lunge = 1;   // arremetida visual al atacar
-          if (this.def.rangedAttack && d > 2.2) {
+          const ranged = this.def.rangedAttack && d > 2.2;
+          if (ranged || this.def.slam) this.lunge = 1;   // arremetida visual al atacar
+          if (ranged) {
             g.spawnProjectile({
               from: this.pos.clone().setY(1.1), to: player.pos.clone().setY(1.0),
               speed: this.def.projSpeed || 8, range: range + 3,
@@ -2946,9 +2975,8 @@ export class Enemy {
             g.spawnTelegraph(player.pos.clone(), 1.6, 0.65, Math.round(this.def.dmg * 1.5), this.def.level || 1,
               { onDone: (at) => g.enemySlamFx?.(at), source: this });
           } else {
-            player.takeDamage(this.def.dmg, this.def.level || 1, { melee: true, source: this });
-            // chispa breve en el punto de golpe (impacto cuerpo a cuerpo)
-            if (player.alive) g.enemyMeleeFx?.(player.pos);
+            // el enemigo AVISA: se recoge (preparación) y el daño cae al final; apartarse a tiempo lo esquiva
+            this.swingDur = this.swingT = meleeWindup(this.def, this.atkCd);
           }
         }
       } else {
