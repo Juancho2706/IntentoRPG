@@ -20,6 +20,8 @@ import { worldFlowMethods } from './game-world-flow.js';
 import { zoneLifeMethods } from './game-zone-life.js';
 // Paso 2c.0: talentos y especialización (sustituye a game-mastery.js)
 import { talentMethods } from './game-talents.js';
+import { LEVEL_MAX, TALENT_TREES } from './talents.js';
+import { ILVL_MAX as ILVL_TOP } from './combat-math.js';
 import { LOAD_NOTICES } from './save-schema.js';
 import { eraMethods } from './game-eras.js';
 // Paso 2b.0: canal de lanzamiento de habilidades, entidades de suelo y registro de poderes
@@ -381,6 +383,7 @@ class Game {
     this.state = 'play';
     this.loadWorld({ type: 'zone', biome: 'Cripta' }); // hogar: campamento contiguo a la Cripta (seamless)
     this.ensureEra();        // inicializa la temporada local de la semana actual
+    if (!saved && opts.testMax) this.boostTestHero();
     this.ui.refreshHotbar();
     this.ui.updateHUD();
     this.ui.message(`${this.player.cls.icon} ¡Bienvenido, ${this.player.heroName}! Sal del campamento para explorar las Tierras de la Cripta.`, 5000);
@@ -393,6 +396,34 @@ class Game {
     this.tip('mover', (this.settings.controlScheme || 'wasd') === 'click'
       ? 'Haz clic en el suelo para moverte y clic en un enemigo para atacarlo'
       : 'Muévete con WASD y apunta con el ratón: clic izquierdo y derecho lanzan tus habilidades');
+  }
+
+  // Héroe de prueba (casilla de la pantalla de inicio): nivel máximo, atributos repartidos, primera
+  // especialización con su build «Recomendado» y equipo legendario en todas las ranuras. Es un héroe
+  // normal (se guarda en su hueco); la especialización se cambia en Talentos (N) → «Recomendado».
+  boostTestHero() {
+    const p = this.player;
+    const known = new Set(Object.keys(p.skills || {}));
+    p.level = LEVEL_MAX; p.xp = 0;
+    p.statPoints = 0;
+    const main = Object.entries(p.cls.base).sort((a, b) => b[1] - a[1])[0][0];
+    p.attributes[main] += 5 * 19;                       // los 95 puntos (Nv2–20) al atributo principal
+    for (const slot of Object.keys(p.equipment)) {
+      const it = generateItem(ILVL_TOP, 'legendario', slot === 'ring2' ? 'ring' : slot, null, p.classId);
+      if (it) { it.unidentified = false; p.equipment[slot] = it; }
+    }
+    p.gold = Math.max(p.gold || 0, 500000);
+    p.recompute();
+    p.onSkillsLearned?.(known);
+    const quiet = this._talentQuiet; this._talentQuiet = true;
+    try {
+      const spec = TALENT_TREES[p.classId]?.specs?.[0]?.id;
+      if (spec) { this.chooseSpec(spec); this.applyTalentBuild(); }
+    } finally { this._talentQuiet = quiet; }
+    p.recompute();
+    p.hp = p.stats.maxHP; p.mp = p.cls.resource?.start === 0 ? 0 : p.stats.maxMP;
+    this.save();
+    this.ui.message('🧪 Héroe de prueba: nivel ' + LEVEL_MAX + '. Cambia de especialización en Talentos (N) y pulsa «Recomendado».', 9000);
   }
 
   save() {

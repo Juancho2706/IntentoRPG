@@ -607,6 +607,11 @@ export class UI {
     hc.className = 'hc-toggle';
     hc.innerHTML = `<input type="checkbox" id="hc-check"> ${icon('skull')} Modo Hardcore — la muerte es permanente`;
     cont.appendChild(hc);
+    // héroe de prueba: nace al nivel máximo, con especialización, talentos recomendados y equipo (para ver efectos)
+    const tm = document.createElement('label');
+    tm.className = 'hc-toggle test-toggle';
+    tm.innerHTML = `<input type="checkbox" id="test-check"> 🧪 Héroe de prueba — nivel máximo, talentos y equipo puestos (para ver todos los efectos)`;
+    cont.appendChild(tm);
 
     // personalización del héroe: nombre y color de armadura
     const custom = document.createElement('div');
@@ -650,6 +655,7 @@ export class UI {
         el.classList.add('hidden');
         onPick(selectedSlot, cls.id, {
           hardcore: document.getElementById('hc-check')?.checked,
+          testMax: document.getElementById('test-check')?.checked,
           name: (document.getElementById('hero-name')?.value || '').trim(),
           tint: selTint,
         });
