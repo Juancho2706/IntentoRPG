@@ -31,6 +31,8 @@ import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
 import { ParticleSystem, PRESETS } from './particles.js';
 import { MeshFx } from './fx-mesh.js';
+// color del aura por indicador de especialización (los de mech-<clase>.js)
+const GAUGE_FX_COLOR = { sed: 0xe8634a, bastion: 0x7fb0e8, fervor: 0xecc760, calor: 0xff8a3d, escarcha: 0x74cdf2, cargas: 0xb996ff, concentracion: 0xead86e, coto: 0x86d47a, impulso: 0x66d7c7 };
 import { WorldMarks } from './world-marks.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, deathWave, bossDeathBurst, bossDeathStars, bossDeathFlash, bossDeathWave } from './fx-enemies.js';
@@ -1045,6 +1047,26 @@ class Game {
     this.fxGroup.add(pr.mesh);
   }
 
+  // Aura de la especialización: reacciona a su indicador (⑩ fireGauge). Al llenarse, estallido a los pies
+  // del héroe (o sobre el enemigo si el indicador es por enemigo); al gastarse, onda hacia fuera.
+  // Discreto y con tope de frecuencia: el torso del héroe queda libre.
+  gaugeFx(p, id, ev, e) {
+    const M = this.meshFx; if (!M || (ev !== 'full' && ev !== 'spent')) return;
+    const col = GAUGE_FX_COLOR[id]; if (!col) return;
+    const now = performance.now();
+    if (now - (this._gaugeFxAt || 0) < 350) return;
+    this._gaugeFxAt = now;
+    const at = (e && e.pos) || p.pos;
+    if (ev === 'full') {
+      M.pillar(at, 0.5, 2.4, col, { dur: 0.5, gain: 0.75 });
+      M.ring(at, 1.5, col, { soft: true, dur: 0.5 });
+      M.decal(at, 1.25, id === 'cargas' || id === 'escarcha' ? 'fx_runa_arcana' : 'fx_anillo_sagrado', col, { mono: true, dur: 1.1, spin: 1.6, dark: 0.12, gain: 0.9, minor: true });
+    } else {
+      M.ring(at, 2.2, col, { dur: 0.42, gain: 0.8 });
+      M.flash(at, 2.0, col, { gain: 0.5 });
+    }
+  }
+
   // onda de choque: el frente termina EXACTO en `radius` (fx-mesh). opts → MeshFx.ring ({ soft, gain, dur… })
   spawnRing(pos, radius, color, opts) {
     if (this.meshFx) { this.meshFx.ring(pos, radius, color, opts); return; }
@@ -1205,11 +1227,22 @@ class Game {
         this.emitFx(bossDeathWave(col), enemy.pos.clone().setY(0.1));
         this.emitFx(deathSmoke(col, 1.8), dpos);
         this.spawnRing(enemy.pos, 3.4, col);
+        // jefe: columna que se lo lleva, segunda onda ancha y suelo agrietado (fx-mesh)
+        this.meshFx?.pillar(enemy.pos, 1.3, 5.5, col, { dur: 0.95, gain: 1.2 });
+        this.meshFx?.ring(enemy.pos, 5.5, col, { delay: 0.12, dur: 0.85, soft: true });
+        this.meshFx?.flash(enemy.pos, 6, col, { dur: 0.3, gain: 1.1 });
+        this.meshFx?.decal(enemy.pos, 3.2, 'fx_grieta_suelo', 0xffffff, { dur: 2.4, dark: 0.6, grow: true });
       } else {
         const s = enemy.def.rank ? 1.5 : (enemy.def.scale || 1);
         this.emitFx(deathBurst(col, s), dpos);
         this.emitFx(deathSmoke(col, s), dpos);
         if (enemy.def.rank) this.emitFx(deathWave(col, s), enemy.pos.clone().setY(0.1)); // élites: onda de choque
+        // fx-mesh: fogonazo en el suelo (comunes) y onda + marca (élites)
+        this.meshFx?.flash(enemy.pos, 1.2 * s, col, { gain: 0.45 });
+        if (enemy.def.rank && this.meshFx) {
+          this.meshFx.ring(enemy.pos, 2.0 * s, col);
+          this.meshFx.decal(enemy.pos, 1.5 * s, 'fx_salpicadura', col, { mono: true, dur: 1.4, dark: 0.4, grow: true, minor: true });
+        }
       }
     }
 

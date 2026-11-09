@@ -22,7 +22,7 @@ export const ELEM_COLOR = Object.freeze({
   fire: 0xff7a2a, physical: 0xe8d2a8, frost: 0x8fd8ff, arcane: 0xb48cff, holy: 0xffe28a, nature: 0x8fe06a,
 });
 
-const PRELOAD = ['fx_grieta_suelo', 'fx_esquirla_hielo', 'fx_runa_arcana', 'fx_anillo_sagrado', 'fx_hojas'];
+const PRELOAD = ['fx_grieta_suelo', 'fx_esquirla_hielo', 'fx_runa_arcana', 'fx_anillo_sagrado', 'fx_hojas', 'fx_salpicadura'];
 
 // ---------------------------------------------------------------- ruido en teja (una vez)
 function makeNoise(size = 128) {

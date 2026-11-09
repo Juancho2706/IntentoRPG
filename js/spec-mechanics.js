@@ -228,6 +228,7 @@ function bumpSeq(p, id, ev) { if (p && SEQ_EVENTS.includes(ev)) gaugeSeq(p, id)[
 // ⑩ punto de despacho de los indicadores: onGauge(g, p, id, ev, n, e)
 function fireGauge(p, id, ev, n, e) {
   bumpSeq(p, id, ev);
+  p?.game?.gaugeFx?.(p, id, ev, e || null);   // aura de la especialización (cosmético; sin GL no existe)
   if (p?.hookIndex?.onGauge) firePower('onGauge', p, p.game, p, id, ev, n, e || null);
 }
 

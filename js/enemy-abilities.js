@@ -74,6 +74,9 @@ export const enemyAbilities = {
     // vórtice oscuro: anillo que succiona + núcleo arcano en el centro
     this.emitFx(ENEMY_FX.summon, boss.pos.clone().setY(0.8));
     this.emitFx(ENEMY_FX.summonCore, boss.pos.clone().setY(0.9));
+    // círculo de invocación + columna (fx-mesh)
+    this.meshFx?.decal(boss.pos, 2.8, 'fx_runa_arcana', 0xffffff, { dur: 1.5, spin: 2.2, dark: 0.3 });
+    this.meshFx?.pillar(boss.pos, 0.9, 3.6, 0x8844ff, { dur: 0.7 });
     this.ui.message(`👹 ¡${boss.def.name} invoca a sus esbirros!`);
     this.sfx('eshoot');
   },
@@ -86,6 +89,7 @@ export const enemyAbilities = {
         // onda de esquirlas de hielo + bruma fría al estallar
         this.emitFx(ENEMY_FX.frostNova, at.clone().setY(0.6));
         this.emitFx(ENEMY_FX.frostNovaMist, at.clone().setY(0.5));
+        this.meshFx?.areaImpact(at, 3.8, 'frost', 0x8fd8ff, 2);
       },
     });
     this.sfx('eshoot');
@@ -96,13 +100,16 @@ export const enemyAbilities = {
     this.spawnTelegraph(pos.clone(), 1.6, 0.6, 0, 1, {
       onDone: (at) => {
         const mesh = new THREE.Mesh(new THREE.CircleGeometry(1.5, 20),
-          new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.55 }));
+          new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: this.meshFx ? 0.28 : 0.55 }));
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.copy(at).setY(0.06);
         this.fxGroup.add(mesh);
         this.firePools.push({ mesh, t: 0, dur: 4.5, radius: 1.6, tick: 0.4, fire: true });
         // estallido inicial de ignición
         this.emitFx(ENEMY_FX.firePoolIgnite, at.clone().setY(0.2));
+        // grietas ardientes que duran lo que el charco + llamarada de ignición
+        this.meshFx?.decal(at, 1.9, 'fx_grieta_suelo', 0xffffff, { dur: 4.6, dark: 0.55, grow: true, gain: 1.2 });
+        this.meshFx?.pillar(at, 0.9, 2.2, 0xff6a22, { dur: 0.5 });
       },
     });
     this.sfx('eshoot');
@@ -128,6 +135,7 @@ export const enemyAbilities = {
         // hilos y polvo verdoso de la telaraña al cerrarse
         this.emitFx(ENEMY_FX.web, at.clone().setY(0.3));
         this.emitFx(ENEMY_FX.webDust, at.clone().setY(0.3));
+        this.meshFx?.decal(at, 2.3, 'fx_salpicadura', 0xbfe6d0, { mono: true, dur: 2.5, dark: 0.3, grow: true });
       },
     });
     this.sfx('eshoot');
@@ -291,6 +299,7 @@ export const enemyAbilities = {
   // Embestidor: polvo al impactar contra el jugador durante el dash.
   enemyChargeImpact(pos) {
     this.emitFx(ENEMY_FX.chargeImpact, (pos.clone?.() ?? pos).setY?.(0.3) ?? pos);
+    this.meshFx?.areaImpact(pos, 1.6, 'physical', 0xd8c8a8, 1);
   },
 
   // Golpe pesado (slam): onda de polvo + esquirlas en el punto de impacto.
@@ -299,6 +308,7 @@ export const enemyAbilities = {
     if (at.setY) at.setY(0.2);
     this.emitFx(ENEMY_FX.slam, at);
     this.emitFx(ENEMY_FX.slamSpark, at);
+    this.meshFx?.areaImpact(at, 2.2, 'physical', 0xe0c9a0, 1);
   },
 
   // Aura de escarcha: niebla fría pulsante + esquirlas ascendentes (pulso ~0.6s,
@@ -308,6 +318,7 @@ export const enemyAbilities = {
     if (at.setY) at.setY(0.4);
     this.emitFx(ENEMY_FX.frostAura, at);
     this.emitFx(ENEMY_FX.frostMotes, at);
+    this.meshFx?.ring(at, 2.2, 0x8fd8ff, { soft: true, dur: 0.6 });
   },
 
   // Aura de exaltación (rally): destellos ascendentes sobre un aliado animado.
@@ -315,6 +326,7 @@ export const enemyAbilities = {
     const at = (pos.clone?.() ?? pos);
     if (at.setY) at.setY(0.5);
     this.emitFx(ENEMY_FX.rallyAura, at);
+    this.meshFx?.pillar(at, 0.45, 2.2, 0xffd060, { dur: 0.5, gain: 0.7 });
   },
 
   // Teletransporte de brujo: implosión en el origen, aparición en el destino.
@@ -323,6 +335,9 @@ export const enemyAbilities = {
     const b = (toPos.clone?.() ?? toPos); if (b.setY) b.setY(0.8);
     this.emitFx(ENEMY_FX.blinkOut, a);
     this.emitFx(ENEMY_FX.blinkIn, b);
+    this.meshFx?.pillar(a, 0.45, 2.2, 0xaa55ff, { dur: 0.3, gain: 0.8 });
+    this.meshFx?.pillar(b, 0.55, 2.6, 0xaa55ff, { dur: 0.45 });
+    this.meshFx?.ring(b, 1.2, 0xaa55ff, { soft: true });
   },
 
   // Ataque cuerpo a cuerpo del enemigo: chispa breve en el punto de golpe.
