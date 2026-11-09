@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>fx-mesh · arnés visual</title>
+<style>html,body{margin:0;background:#0b0907;overflow:hidden}canvas{display:block}#measure{position:fixed;left:6px;bottom:4px;color:#9a8;font:11px monospace;margin:0}</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+</head><body>
+<!-- Arnés del kit de efectos de malla (js/fx-mesh.js) con la cámara iso del juego.
+     ?t=0.25 (instante de la vida de cada efecto, 0..1 aprox. en segundos/0.4) · ?live=1 (en bucle)
+     node tools/turno.mjs node tests/visual/chrome.mjs "http://127.0.0.1:PUERTO/tests/visual/fxmesh.html?t=0.12" --shot=out.png --size=1600,900 --wait=2500 -->
+<script type="module">
+import * as THREE from 'three';
+import { MeshFx } from '../../js/fx-mesh.js';
+import { ParticleSystem, PRESETS } from '../../js/particles.js';
+
+const Q = new URLSearchParams(location.search);
+const T = Number(Q.get('t') ?? 0.12);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight); renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b0907);
+const F = 17, asp = innerWidth / innerHeight;
+const cam = new THREE.OrthographicCamera(-F * asp / 2, F * asp / 2, F / 2, -F / 2, 0.1, 100);
+cam.position.set(11, 13, 11); cam.lookAt(0, 0, 0);
+scene.add(new THREE.HemisphereLight(0xc8ccdd, 0x6a6458, 3.2));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x3a342e, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+// «héroes» de referencia (1,8 m) para la escala
+const dummy = (x, z) => { const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x777066 })); m.position.set(x, 0.9, z); scene.add(m); };
+
+const mfx = new MeshFx(scene, { assetBase: '../../assets/vfx/' });
+const psys = new ParticleSystem(scene, { poolSize: 2000 });
+psys.setView(35.5 * (renderer.domElement.height / 1080));
+const P = (x, z) => new THREE.Vector3(x, 0, z);
+function fire() {
+  // fila 1: primitivas
+  mfx.ring(P(-9, -5), 2.5, 0xffaa55); dummy(-9, -5);
+  mfx.slash(P(-4, -5), 0.6, 2.6, 0xffe0b0, { arc: 115 }); dummy(-4, -5);
+  mfx.meleeArc(P(1, -5), -0.8, 3.2, 'fire', null, { arc: 90, double: true, y: 0.85 }); dummy(1, -5);
+  mfx.pillar(P(5, -5), 0.6, 2.8, 0x99aaff);
+  mfx.buffBurst(P(9, -5), 'holy', null, 1.5); dummy(9, -5);
+  // fila 2: impacto de área por elemento
+  ['fire', 'frost', 'arcane', 'holy', 'nature', 'physical'].forEach((e, i) => mfx.areaImpact(P(-10 + i * 4.2, 0.5), 1.8, e, null, i === 0 ? 2 : 1));
+  // fila 3: haces, telegrafía, partículas
+  mfx.beam(new THREE.Vector3(-11, 1, 6), new THREE.Vector3(-5, 1, 5), 0x66ddff, 0.2);
+  mfx.beam(new THREE.Vector3(-11, 1, 8), new THREE.Vector3(-4, 1, 8.5), 0xff5533, 1.0);
+  const tg = mfx.telegraph(P(0, 6.5), 2.4); tg.set(0.62);
+  const tg2 = mfx.telegraph(P(5.5, 6.5), 1.4); tg2.set(0.95);
+  psys.emit(PRESETS.fireImpact, new THREE.Vector3(9.5, 0.6, 6));
+}
+const errs = [];
+const oe = console.error; console.error = (...a) => { errs.push(a.join(' ').slice(0, 400)); oe(...a); };
+function step(dt) { mfx.update(dt); psys.update(dt); renderer.render(scene, cam); }
+setTimeout(() => {
+  fire();
+  if (Q.get('live')) {
+    let last = performance.now(), acc = 0;
+    renderer.setAnimationLoop(() => { const n = performance.now(), dt = Math.min(0.05, (n - last) / 1000); last = n; acc += dt; if (acc > 1.6) { acc = 0; mfx.clear(); fire(); } step(dt); });
+  } else {
+    for (let i = 0; i < Math.round(T / 0.02); i++) { mfx.update(0.02); psys.update(0.02); }
+    renderer.render(scene, cam);
+    const pre = document.createElement('pre'); pre.id = 'measure';
+    pre.textContent = JSON.stringify({ t: T, vivos: mfx.liveCount, particulas: psys.aliveCount, programas: renderer.info.programs.length, errores: errs });
+    document.body.appendChild(pre);
+  }
+}, 900);
+</script>
+</body></html>

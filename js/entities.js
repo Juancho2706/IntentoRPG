@@ -3123,6 +3123,9 @@ export class Projectile {
     const at = this.mesh.position.clone();
     if (g.psys) g.psys.emit(this.impactPreset, at);
     else g.spawnBurst?.(at, this.color, this.crit ? 6 : 4);
+    // fx-mesh: fogonazo en el suelo bajo el impacto y onda corta (los del héroe; los enemigos, más tenue)
+    g.meshFx?.flash(at, this.friendly ? 1.3 : 0.9, this.color, { gain: this.friendly ? 0.7 : 0.45 });
+    if (this.friendly && !this.crit) g.meshFx?.ring(at, 0.7, this.color, { soft: true, dur: 0.28 });
     if (this.crit) g.spawnRing?.(at, 0.8, this.color); // anillo extra solo en crítico
   }
 

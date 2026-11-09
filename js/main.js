@@ -30,6 +30,7 @@ import { Music } from './music.js';
 import { smoothNoise, hitStopMs } from './vfx.js';
 import { PostFX, AmbientParticles, BlobShadows } from './postfx.js';
 import { ParticleSystem, PRESETS } from './particles.js';
+import { MeshFx } from './fx-mesh.js';
 import { WorldMarks } from './world-marks.js';
 import { SKILL_FX, SKILL_FX_PRESETS } from './fx-skills.js';
 import { FX as ENEMY_FX, hexNum, deathBurst, deathSmoke, deathWave, bossDeathBurst, bossDeathStars, bossDeathFlash, bossDeathWave } from './fx-enemies.js';
@@ -177,6 +178,9 @@ class Game {
     const psysPool = Math.round(2000 * (this.deviceTier >= 2 ? 0.5 : 1));
     try { this.psys = new ParticleSystem(this.scene, { poolSize: psysPool }); }
     catch { this.psys = null; }
+    // efectos de MALLA con shader (ondas, tajos, calcomanías, columnas, haces, telegrafías): fx-mesh.js
+    try { this.meshFx = new MeshFx(this.scene, { quality: this.deviceTier >= 2 ? 0 : 1 }); }
+    catch { this.meshFx = null; }
     // marcas de mundo de la mecánica (Paso 2d.2 E2): capas de Escarcha sobre la barra de vida
     // y anillo de la Presa del Montaraz. Pool fijo en su propio grupo de la escena.
     try { this.worldMarks = new WorldMarks(this.scene); }
@@ -449,6 +453,7 @@ class Game {
     this.clearFields();   // entidades de suelo (Estela, zonas, trampas) del mundo anterior
     this.resetCastState(); // windup/canalización/salto pendientes
     this.psys?.clear();   // limpia partículas de gameplay del mundo anterior
+    this.meshFx?.clear();
     this.worldMarks?.clear(); // marcas de mecánica de los enemigos del mundo anterior
     this.timers.clear();  // DoT/Eco/impactos pendientes del mundo anterior
 
@@ -896,10 +901,12 @@ class Game {
       new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
     outer.rotation.x = inner.rotation.x = closing.rotation.x = -Math.PI / 2;
     inner.scale.setScalar(0.01);
-    group.add(inner, outer, closing);
     group.position.copy(pos).setY(0.08);
+    // con fx-mesh la telegrafía es UN plano con shader (borde + contorno oscuro + frente de llenado)
+    const tele = this.meshFx?.telegraph(pos, radius) || null;
+    if (!tele) group.add(inner, outer, closing);
     this.fxGroup.add(group);
-    this.telegraphs.push({ group, inner, outer, closing, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone, source: opts.source || null, ping: 0 });
+    this.telegraphs.push({ group, inner, outer, closing, tele, t: 0, dur, radius, dmg, attackerLevel, slow: opts.slow, onDone: opts.onDone, source: opts.source || null, ping: 0 });
     this.tip('esquiva', '¡Círculo rojo = peligro! Apártate o esquiva (💨 / Shift) antes de que se llene');
   }
 
@@ -910,6 +917,7 @@ class Game {
       const tg = this.telegraphs[i];
       tg.t += dt;
       const prog = Math.max(0, Math.min(1, tg.t / tg.dur));
+      if (tg.tele) tg.tele.set(prog);
       tg.inner.scale.setScalar(Math.max(0.01, prog));
       // ámbar → rojo según se acerca el impacto (lerp por canal R/G)
       const g = Math.round(0xcc * (1 - prog));
@@ -924,7 +932,7 @@ class Game {
       }
       // "ping" de radar periódico hacia fuera: marca la zona de peligro
       tg.ping += dt;
-      if (!reduce && tg.ping >= 0.34) { tg.ping = 0; this.spawnRing(tg.group.position, tg.radius, 0xff5533); }
+      if (!reduce && !tg.tele && tg.ping >= 0.34) { tg.ping = 0; this.spawnRing(tg.group.position, tg.radius, 0xff5533); }
       if (tg.t < tg.dur) continue;
       // impacto
       if (tg.dmg && p.alive && p.pos.distanceTo(tg.group.position) <= tg.radius + 0.3) {
@@ -932,6 +940,12 @@ class Game {
         if (tg.slow && p.alive && p.applySlow(2.5)) this.ui.message('❄️ ¡Estás congelado!', 1500);
       }
       this.spawnRing(tg.group.position, tg.radius, 0xff5533);
+      if (tg.tele) {
+        tg.tele.end();
+        this.meshFx.flash(tg.group.position, tg.radius * 1.2, 0xff5533, { gain: 0.9 });
+        this.meshFx.decal(tg.group.position, tg.radius * 0.8, 'fx_grieta_suelo', 0xffffff, { dur: 1.0, dark: 0.5, grow: true, minor: true });
+        for (const c of [tg.inner, tg.outer, tg.closing]) { c.geometry.dispose(); c.material.dispose(); }
+      }
       this.addShake(0.12, 0.15);
       if (tg.onDone) tg.onDone(tg.group.position.clone());
       this.fxGroup.remove(tg.group);
@@ -1031,7 +1045,9 @@ class Game {
     this.fxGroup.add(pr.mesh);
   }
 
-  spawnRing(pos, radius, color) {
+  // onda de choque: el frente termina EXACTO en `radius` (fx-mesh). opts → MeshFx.ring ({ soft, gain, dur… })
+  spawnRing(pos, radius, color, opts) {
+    if (this.meshFx) { this.meshFx.ring(pos, radius, color, opts); return; }
     const mesh = new THREE.Mesh(
       new THREE.RingGeometry(radius * 0.82, radius, 40),
       // additive + sin depthWrite: brilla y se funde con el bloom (look de onda de energía)
@@ -1051,6 +1067,11 @@ class Game {
     const a = (from.clone?.() ?? from); const b = (to.clone?.() ?? to);
     a.y = 1.0; b.y = 1.0;
     const len = Math.max(0.3, a.distanceTo(b));
+    if (this.meshFx) {
+      this.meshFx.beam(a, b, color, dur);
+      if (dur < 0.5) { this.meshFx.flash(b, 0.9, color, { gain: 0.6 }); this._beamSparks(a, b, color); }
+      return;
+    }
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(0.09, 0.09, len),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
@@ -1059,7 +1080,11 @@ class Game {
     mesh.lookAt(b);
     this.fxGroup.add(mesh);
     this.fx.push({ mesh, t: 0, dur, beam: true });
-    // chispas a lo largo del trazo
+    this._beamSparks(a, b, color);
+  }
+
+  // chispas a lo largo del trazo de un rayo
+  _beamSparks(a, b, color) {
     if (this.psys) {
       const spark = { texture: 'spark', blending: 'additive', count: 3, burst: true, lifetime: [0.12, 0.28], shape: 'point', speed: [1, 3.5], gravity: -1, drag: 2, size: { start: [0.1, 0.18], end: 0 }, color: { start: '#ffffcc', end: '#' + (((color >>> 0) & 0xffffff).toString(16).padStart(6, '0')) }, alpha: { start: 0.9, end: 0 } };
       for (let i = 1; i <= 5; i++) this.emitFx(spark, a.clone().lerp(b, i / 6));
@@ -1786,7 +1811,10 @@ class Game {
     this.particles?.update(realDt, this.camera.position);
     // partículas de gameplay (impactos/habilidades/enemigos) — realDt para que
     // sigan fluyendo durante el hit-stop
+    // tamaño de partícula estable en pantalla: 35,5 px por unidad a 1080 de alto (lo que se veía en el centro)
+    this.psys?.setView(35.5 * (this.renderer.domElement.height / 1080) * (17 / (this.frustum || 17)));
     this.psys?.update(realDt);
+    if (this.meshFx) { this.meshFx.reduceMotion = !!this.settings.reduceMotion; this.meshFx.update(realDt); }
 
     // UI: textos y etiquetas siguen al mundo (cada frame), pero el HUD y el
     // minimapa se refrescan a 10Hz — menos trabajo de DOM, mismo aspecto

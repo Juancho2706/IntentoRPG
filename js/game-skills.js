@@ -99,6 +99,11 @@ function srcPos(ctx) {
 }
 // jefe (jefe de zona, über o de mundo): pull.boss:false no lo atrae
 const isBossEnemy = e => !!(e?.def?.boss || e?.def?.uber || e?.def?.worldBoss);
+// efectos de malla (fx-mesh.js): sin GL (tests, banco) no hay g.meshFx y todo esto es no-op
+const mfxOf = g => g.meshFx || null;
+// peso visual por ranura: básico 0 · habilidad 1 · definitiva 2 (la atención que pide = su importancia)
+const fxPower = ctx => (ctx.isBasic ? 0 : (ctx.sk?.cat === 'ultimate' || ctx.baseProf?.tags?.has?.('ultimate')) ? 2 : 1);
+const yawOf = dir => Math.atan2(dir.x, dir.z);
 // centro de una habilidad de área/zona según `at`: 'self' (de donde sale) · 'enemy' (sobre el
 // enemigo de la mira, o la mira si no hay) · 'target' / por defecto (la mira, acotada al alcance)
 function castCenter(ctx) {
@@ -165,7 +170,9 @@ const GENERIC = {
     if (prof.chain && e.alive) g.spawnChainBounce(e, Math.round(ctx.avgHit), prof.chain, [], 0xffbb44, prof.chainPct, ctx);
     p.onDealHit();
     if (crit && prof.windup > 0) g.hitStop?.('heavy');   // golpe pesado (Mandoble)
-    g.spawnRing?.(e.pos, 0.8, 0xffbb44);
+    g.spawnRing?.(e.pos, 0.8, ctx.color || 0xffbb44, { soft: true });
+    mfxOf(g)?.meleeArc(p.pos, p.group.rotation.y, range + 0.4, prof.elem, ctx.color,
+      { arc: 115, flip: (p._slashFlip = !p._slashFlip), gain: ctx.isBasic ? 0.8 : 1.1, double: fxPower(ctx) >= 2 });
     g.emitFx(fxp(ctx.fx?.impact), e.pos.clone().setY(1.0));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), e.pos.clone().setY(0.1));
     feelShake(g, ctx, ctx.sk.shake || 0);
@@ -190,11 +197,12 @@ const GENERIC = {
       const a = base + i * Math.PI * 2 / n;
       centers.push(center.clone().add(v3(Math.sin(a) * scatter * 0.6, Math.cos(a) * scatter * 0.6)));
     }
-    for (const c of centers) g.spawnRing?.(c, rad, ctx.color || 0xff6633);
+    for (const c of centers) g.spawnRing?.(c, rad, ctx.color || 0xff6633, { soft: true, dur: 0.5 });
     const impact = () => {
       for (const c0 of centers) {
         const c = atTarget ? c0 : (ctx.followSelf ? p.pos.clone() : c0);
         g.dealArea(c, rad, ctx.coef, { ...ctx.areaOpts, from: c });
+        mfxOf(g)?.areaImpact(c, rad, ctx.prof.elem, ctx.color, fxPower(ctx));
         const y = fx?.auraY ?? 1.0;
         if (fx?.impact) g.emitFx(fxp(fx.impact), c.clone().setY(0.3));
         if (fx?.aura) g.emitFx(fxp(fx.aura), c.clone().setY(atTarget ? 0.3 : y));
@@ -239,7 +247,8 @@ const GENERIC = {
     if (list.length) p.onDealHit();
     const front = o.clone().addScaledVector(dir, (prof.radius || 3) * 0.6);
     ctx.zoneCenter = front; ctx.zoneRad = (prof.radius || 3) * 0.6;
-    g.spawnRing?.(front, (prof.radius || 3) * 0.6, ctx.color || 0xffaa55);
+    if (mfxOf(g)) mfxOf(g).meleeArc(o, yawOf(dir), prof.radius || 3, prof.elem, ctx.color, { arc: prof.angle || 90, y: 0.85, gain: 1.15, dur: 0.34, double: fxPower(ctx) >= 1 });
+    else g.spawnRing?.(front, (prof.radius || 3) * 0.6, ctx.color || 0xffaa55);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), front.clone().setY(1.0));
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
     feelShake(g, ctx, ctx.sk.shake || 0);
@@ -356,7 +365,8 @@ const GENERIC = {
       from: p.pos.clone(), to, t: 0, dur: (sk.airT || prof.impactDelay || 0.45) / (prof.skillSpeed || 1), plant: !!sk.plant,
       onLand: () => {
         const rad = prof.radius || 3;
-        g.spawnRing?.(p.pos, rad, ctx.color || 0xffcc66);
+        if (mfxOf(g)) mfxOf(g).areaImpact(p.pos, rad, prof.elem, ctx.color, Math.max(1, fxPower(ctx)));
+        else g.spawnRing?.(p.pos, rad, ctx.color || 0xffcc66);
         if (ctx.coef > 0) g.dealArea(p.pos.clone(), rad, ctx.coef, { ...ctx.areaOpts, from: p.pos.clone() });
         ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = rad;
         g._arrive(ctx, from);
@@ -395,7 +405,8 @@ const GENERIC = {
       }
       // S-guerrero (G10): anillo del color de la habilidad y golpe que crece con los arrastrados
       // (dragPct { per, max }: +per % por arrastrado vivo, hasta +max %, al saco aditivo)
-      g.spawnRing?.(p.pos, rad, ctx.color || ctx.fx?.color || 0xffcc66);
+      if (mfxOf(g)) mfxOf(g).areaImpact(p.pos, rad, prof.elem, ctx.color || ctx.fx?.color, Math.max(1, fxPower(ctx)));
+      else g.spawnRing?.(p.pos, rad, ctx.color || ctx.fx?.color || 0xffcc66);
       const dp = sk.dragPct;
       const dragAdd = dp ? Math.min(dp.max || 0, (dp.per || 0) * [...dragged].filter(e => e.alive).length) : 0;
       ctx.dragAdd = dragAdd;
@@ -465,9 +476,12 @@ const GENERIC = {
     const { p, prof, sk } = ctx;
     const from = p.pos.clone();
     const to = ctx.fieldDest ? ctx.fieldDest.clone() : g.clampWalkable(p.pos, ctx.target, ctx.destRange || prof.range || sk.range || 8);
-    g.spawnRing?.(p.pos, 1.0, ctx.color || 0x99aaff);
+    g.spawnRing?.(p.pos, 1.0, ctx.color || 0x99aaff, { soft: true });
+    mfxOf(g)?.pillar(from, 0.5, 2.4, ctx.color || 0x99aaff, { dur: 0.32, gain: 0.8 });
     p.pos.x = to.x; p.pos.z = to.z;
     g.spawnRing?.(p.pos, 1.2, ctx.color || 0x99aaff);
+    mfxOf(g)?.pillar(p.pos, 0.6, 2.8, ctx.color || 0x99aaff, { dur: 0.45 });
+    mfxOf(g)?.flash(p.pos, 1.8, ctx.color || 0x99aaff);
     if (ctx.fx?.impact) g.emitFx(fxp(ctx.fx.impact), p.pos.clone().setY(1.0));
     ctx.zoneCenter = p.pos.clone(); ctx.zoneRad = 2;
     g._arrive(ctx, from);
@@ -478,7 +492,8 @@ const GENERIC = {
     const { p, prof, sk } = ctx;
     const amt = (sk.shieldPct || 20) / 100 * p.stats.maxHP * prof.buffMul;
     g.shield(amt, { target: sk.tags?.includes('ally') ? 'all' : 'self', dur: prof.dur || 6, src: sk.id });
-    g.spawnRing?.(p.pos, 1.4, ctx.color || 0x88ccff);
+    if (mfxOf(g)) mfxOf(g).buffBurst(p.pos, prof.elem, ctx.color || 0x88ccff, 1.5);
+    else g.spawnRing?.(p.pos, 1.4, ctx.color || 0x88ccff);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
     return ctx.res;
   },
@@ -634,7 +649,8 @@ const GENERIC = {
       if (prof.unstoppable) a.unstoppableT = Math.max(a.unstoppableT || 0, prof.dur);
     }
     if (sk.pulse) g._startPulses(ctx, () => p.pos, () => !!p.buffs?.some(b => b.id === sk.id && b.t > 0));
-    g.spawnRing?.(p.pos, 1.4, ctx.color || 0x66ddff);
+    if (mfxOf(g)) mfxOf(g).buffBurst(p.pos, prof.elem, ctx.color || 0x66ddff, fxPower(ctx) >= 2 ? 2.2 : 1.4);
+    else g.spawnRing?.(p.pos, 1.4, ctx.color || 0x66ddff);
     if (ctx.fx?.aura) g.emitFx(fxp(ctx.fx.aura), p.pos.clone().setY(1.0));
     if (ctx.fx?.extra) g.emitFx(fxp(ctx.fx.extra), p.pos.clone().setY(0.2));
     return ctx.res;

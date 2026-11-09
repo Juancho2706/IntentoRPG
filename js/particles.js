@@ -418,6 +418,8 @@ export class ParticleSystem {
     this.alphaE = new Float32Array(N);
     this.crS = new Float32Array(N); this.cgS = new Float32Array(N); this.cbS = new Float32Array(N);
     this.crE = new Float32Array(N); this.cgE = new Float32Array(N); this.cbE = new Float32Array(N);
+    this.rot = new Float32Array(N);      // giro actual (rad)
+    this.spin = new Float32Array(N);     // giro por segundo (rad/s)
     this.texIdx = new Uint8Array(N);     // qué grupo (por textura+blending) lo dibuja
     this.alive = 0;
     this.cursor = 0;
@@ -436,6 +438,7 @@ export class ParticleSystem {
         geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3).setUsage(THREE.DynamicDrawUsage));
         geo.setAttribute('psize', new THREE.BufferAttribute(new Float32Array(N), 1).setUsage(THREE.DynamicDrawUsage));
         geo.setAttribute('palpha', new THREE.BufferAttribute(new Float32Array(N), 1).setUsage(THREE.DynamicDrawUsage));
+        geo.setAttribute('prt', new THREE.BufferAttribute(new Float32Array(N * 2), 2).setUsage(THREE.DynamicDrawUsage)); // (giro, edad 0..1)
         geo.setDrawRange(0, 0);
         const mat = makePointsMaterial(makeParticleTexture(kind), blend === 'additive');
         const pts = new THREE.Points(geo, mat);
@@ -446,6 +449,16 @@ export class ParticleSystem {
       }
     }
     this._groupIndex = (kind, blend) => TEX_KINDS.indexOf(kind) * 2 + (blend === 'additive' ? 0 : 1);
+  }
+
+  // Píxeles por unidad de tamaño de partícula. Con cámara ORTOGRÁFICA el tamaño no debe depender de la
+  // profundidad (antes: ×0,66 arriba y ×2 abajo de la pantalla) ni quedarse fijo al cambiar la resolución.
+  // 0 = fórmula antigua (perspectiva). Lo fija main.js por fotograma.
+  setView(pxPerUnit) {
+    const v = pxPerUnit > 0 ? pxPerUnit : 0;
+    if (v === this._px) return;
+    this._px = v;
+    for (const g of this._groups) g.mat.uniforms.uPx.value = v;
   }
 
   // Lanza un preset en una posición (THREE.Vector3 o {x,y,z} o [x,y,z]).
@@ -532,6 +545,10 @@ export class ParticleSystem {
     const cs = hexToRgb(p.color.start), ce = hexToRgb(p.color.end);
     this.crS[idx] = cs.r; this.cgS[idx] = cs.g; this.cbS[idx] = cs.b;
     this.crE[idx] = ce.r; this.cgE[idx] = ce.g; this.cbE[idx] = ce.b;
+    // giro: los presets con `spin` nacen con ángulo al azar y sentido al azar (antes se ignoraba)
+    const sp = p.spin * Math.PI / 180;
+    this.rot[idx] = p.rotation * Math.PI / 180 + (sp ? Math.random() * 6.2832 : 0);
+    this.spin[idx] = sp ? sp * (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.8) : 0;
     this.texIdx[idx] = this._groupIndex(p.texture, p.blending);
   }
 
@@ -577,6 +594,7 @@ export class ParticleSystem {
       col: g.geo.attributes.color.array,
       sz: g.geo.attributes.psize.array,
       al: g.geo.attributes.palpha.array,
+      rt: g.geo.attributes.prt.array,
     }));
 
     let alive = 0;
@@ -611,6 +629,8 @@ export class ParticleSystem {
       buf.col[o * 3] = r; buf.col[o * 3 + 1] = g; buf.col[o * 3 + 2] = b;
       buf.sz[o] = sz;
       buf.al[o] = al;
+      if (this.spin[i]) this.rot[i] += this.spin[i] * dt;
+      buf.rt[o * 2] = this.rot[i]; buf.rt[o * 2 + 1] = t;
       counts[gi]++;
       alive++;
     }
@@ -624,6 +644,7 @@ export class ParticleSystem {
       g.geo.attributes.color.needsUpdate = true;
       g.geo.attributes.psize.needsUpdate = true;
       g.geo.attributes.palpha.needsUpdate = true;
+      g.geo.attributes.prt.needsUpdate = true;
     }
   }
 
@@ -655,20 +676,25 @@ function makePointsMaterial(texture, additive) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTex: { value: texture },
-      uScale: { value: 720.0 }, // factor de tamaño en pantalla
+      uScale: { value: 720.0 }, // factor de tamaño en pantalla (perspectiva)
+      uPx: { value: 0.0 },      // px por unidad (ortográfica); 0 = usa uScale / profundidad
     },
     vertexShader: /* glsl */`
       attribute float psize;
       attribute float palpha;
       attribute vec3 color;
+      attribute vec2 prt;
       varying float vAlpha;
       varying vec3 vCol;
+      varying vec2 vRt;
       uniform float uScale;
+      uniform float uPx;
       void main() {
+        vRt = prt;
         vAlpha = palpha;
         vCol = color;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = psize * uScale / max(0.001, -mv.z);
+        gl_PointSize = uPx > 0.0 ? psize * uPx : psize * uScale / max(0.001, -mv.z);
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -676,9 +702,16 @@ function makePointsMaterial(texture, additive) {
       uniform sampler2D uTex;
       varying float vAlpha;
       varying vec3 vCol;
+      varying vec2 vRt;
       void main() {
-        vec4 tex = texture2D(uTex, gl_PointCoord);
-        gl_FragColor = vec4(vCol * tex.rgb, tex.a * vAlpha);
+        vec2 pc = gl_PointCoord - 0.5;
+        if (vRt.x != 0.0) { float c = cos(vRt.x), s = sin(vRt.x); pc = vec2(c * pc.x - s * pc.y, s * pc.x + c * pc.y); }
+        vec4 tex = texture2D(uTex, clamp(pc + 0.5, 0.0, 1.0));
+        // disipación por EROSIÓN: al envejecer se come primero lo tenue (el borde) y queda el núcleo,
+        // en vez de apagarse todo por igual
+        float thr = vRt.y * vRt.y * 0.5;
+        float er = smoothstep(thr - 0.04, thr + 0.18, tex.a);
+        gl_FragColor = vec4(vCol * tex.rgb, tex.a * vAlpha * er);
         if (gl_FragColor.a < 0.01) discard;
       }
     `,
