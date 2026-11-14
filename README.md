@@ -1,146 +1,207 @@
 # ⚔️ IntentoRPG
 
-ARPG isométrico 3D estilo **Diablo 2**, hecho con [Three.js](https://threejs.org/). Sin build, sin dependencias instaladas: HTML + módulos ES + Three.js desde CDN. Funciona en escritorio y **móvil** (joystick táctil y botones de acción).
+ARPG isométrico 3D estilo **Diablo**, hecho con [Three.js](https://threejs.org/) y JavaScript sin frameworks. No tiene paso de build: es HTML + módulos ES, con Three.js 0.160 cargado desde CDN. Se juega en **PC, con ratón y teclado**, es una PWA instalable y guarda la partida en el navegador. Todo el texto del juego está en español.
 
-## 🎮 Cómo jugar la demo
+## 🎮 Cómo jugar
 
-Necesitas servir los archivos por HTTP (los módulos ES no funcionan abriendo el archivo directamente):
+Los módulos ES no funcionan abriendo `index.html` como archivo: hay que servir la carpeta por HTTP.
 
 ```bash
 # opción 1 (Node)
-npx http-server -p 8080
+npm start                      # npx http-server -p 8080
 
 # opción 2 (Python)
 python3 -m http.server 8080
 ```
 
-Abre `http://localhost:8080` en el navegador. En móvil, abre la IP de tu PC en la misma red, o publica el repo con **GitHub Pages** (Settings → Pages → rama → raíz) y juega desde cualquier dispositivo.
+Abre `http://localhost:8080` en un navegador de escritorio. Para jugar no hace falta `npm install` (solo para las pruebas). La primera carga necesita conexión, porque Three.js viene de jsDelivr.
 
-## ✨ Características
-
-- **3 clases** con **ataque básico propio**: Guerrero (tajo amplio que golpea a varios), Maga (proyectil arcano a distancia) y Arquera (flecha de largo alcance)
-- **Atributos RPG**: Fuerza, Destreza, Vitalidad y Energía (+5 puntos por nivel)
-- **Árbol de habilidades**: 6 habilidades por clase en 3 tiers (activas, buffs y pasivas), +1 punto por nivel
-- **Sinergias** estilo Diablo 2: invertir puntos en una habilidad potencia a otras de su rama
-- **Soportes de habilidad 2.0** (estilo gemas de PoE): se aprenden del botín y se engarzan **hasta 2 por habilidad**, con efectos y contrapartidas (Amplificado, Multiproyectil, Perforante, Expansivo, Gélido, **Encadenado**, **Concentrado** +daño/−área, **Eco** que repite la habilidad, **Veneno/Sangrado** con daño por tiempo, **Sangre Fría** crítico contra congelados, **Sobrecarga**)
-- **Biomas por profundidad**: Cripta (1-5), Cavernas de Hielo (6-10) e Infierno (11+), con paleta, decoración y enemigos propios (Yeti, Diablillo)
-- **Pueblo** con curandero, mercader (tienda de pociones) y portal a la mazmorra
-- **Mundo abierto (4 regiones)**: zonas abiertas (Cripta, Cavernas de Hielo, Infierno, Abismo Estelar; 120×120, terreno orgánico) desbloqueadas por nivel y viajables desde cualquier waypoint; el pueblo conecta con la Cripta por puertas que se cruzan caminando. Cada zona tiene entradas a mazmorras instanciadas escaladas a su bioma, **respawn gradual**, **jefe de mundo** con gran botín y **obeliscos de evento**; tap en el minimapa abre el **mapa descubierto** (niebla de guerra)
-- **Mundo persistente por sesión** (estilo Diablo 2): cada región se genera una vez al empezar la partida y conserva su trazado y lo que llevas explorado hasta que recargas la página (nueva sesión)
-- **Jefe de mundo con territorio**: ronda solo su zona de aparición; si lo alejas demasiado de su guarida, deja de perseguirte y vuelve a su sitio regenerándose
-- **Minimapa orientado a la cámara**: girado para que el norte de tu cámara isométrica sea arriba en el minimapa
-- **Mapa en vivo**: el mapa completo no detiene el juego — puedes seguir moviéndote y combatir mientras lo miras, y los enemigos descubiertos se mueven en tiempo real
-- **Héroe personalizable**: ponle nombre y elige el color de su armadura al crear el personaje
-- **Vida en el mundo abierto**: **Goblins del Tesoro** que huyen y sueltan un gran botín si los cazas antes de que escapen; **santuarios de campo** (incluido el de la Avaricia, que invoca un goblin); **tesoros custodiados** por élites; y **Contratos de zona** (estilo susurros) con objetivos seguidos en vivo (cazar enemigos/élites, saquear cofres, abatir al jefe o al goblin) que premian con oro, un legendario y una Llave de Grieta al completarlos
-- **Goblins del Tesoro con mecánica de captura** (3 tipos): el Veloz se detiene a burlarse, el Cargado va lento soltando oro, el de Portal se teletransporta pero queda aturdido — todos alcanzables como melee o a distancia
-- **Mecánicas de enemigos**: lanzadores con abanico de proyectiles, **CC telegrafiado** (telaraña/escarcha que ralentiza), auras de escarcha y de exaltación de aliados; los cobardes huyen a ráfagas y se cansan (ya no escapan eternamente)
-- **Iconos de buff/efectos activos** en el HUD con cuenta atrás visual; tócalos para ver qué hacen y cuánto duran
-- **Calidad de vida**: toca/clica fuera de un menú para cerrarlo, y compara objetos (▲▼) al tocarlos o pasar el ratón también en el inventario y el equipo
-- **Mazmorras procedurales infinitas** con dificultad creciente, cofres, antorchas y un **jefe por piso**
-- **Encuentros con guion**: manadas con líder campeón/élite cuyos esbirros heredan su rasgo, salas-emboscada con oleadas, tesoros custodiados y curva de densidad con respiros y picos; los brujos se teletransportan y las ratas huyen malheridas
-- **Música ambiental generativa** por bioma (WebAudio, sin assets) con fanfarria al matar jefes
-- **Jefes con mecánicas por bioma**: el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego
-- **Cubo de transmutación** (sumidero de oro): 3 objetos de la misma rareza → 1 superior pagando oro (escala con la rareza); 3 legendarios → reforjar uno nuevo (muy caro); si los 3 comparten ranura, el resultado es de esa ranura; recetas de gemas gratis
-- **Monstruos con rareza** estilo Diablo 2: Campeones (azules) y Élites (dorados) con auras visibles y modificadores con mecánica (Ardiente, Explosivo, Espinoso, **Encarcelador**, **Vórtice**, **Escudado**, **Cadenas**…)
-- **Arquetipos de enemigos** con telegrafía y contrajuego: **Nigromante** (invoca esbirros), **Acólito Sanador**, **Portaestandarte** (escudo a aliados), **Sembrador de Esporas** (se divide al morir), **Embestidor** (carga en línea con aviso) y **Francotirador del Vacío** (disparo cargado de largo alcance)
-- **Game-feel / efectos de impacto**: *hit-stop* escalado con la fuerza del golpe, destello blanco en los enemigos golpeados, sacudida de cámara basada en "trauma" y estallidos al impactar los proyectiles
-- **Partículas por habilidad y enemigo**: motor propio de partículas (`js/particles.js`) con efectos temáticos por elemento para las habilidades de las 3 clases (fuego/hielo/rayo/físico/arcano/viento) y para las mecánicas y muertes de los enemigos; los proyectiles dejan estela. Hay un **editor de partículas** independiente en `/particulasmaker.html` para diseñar y exportar presets
-- **Modelos de enemigos con animación**: siluetas con cabeza, brazos, piernas y cola; animación procedural de caminar (oscilación de piernas/brazos), respiración en reposo y arremetida al atacar; los limos saltan y aplastan, los cofres mímicos castañean
-- **Post-procesado (estética)**: oclusión ambiental de contacto (GTAO), antialias SMAA, **contorno estilizado** en héroe y enemigos, bloom selectivo, tone mapping ACES y viñeta con **gradación de color por bioma**; **iluminación basada en imagen (IBL)** para realce de materiales, **sombras suaves + sombra de contacto** bajo cada entidad, y **suelo con textura/normal + decals** por bioma. Todo desactivable y con calidad adaptativa
-- **Interfaz con iconos vectoriales**: set de iconos SVG coherente (en vez de emojis) para el HUD, acciones, paneles, atributos y rarezas, con paneles ornamentados y transiciones
-- **Partículas ambientales** (polvo, nieve, brasas, vacío) y antorchas que titilan
-- **Brújula de objetivos**: cuando aparece un **Goblin del Tesoro** o un **Jefe de Mundo** fuera de pantalla, una flecha discreta en el borde te señala dónde está (se desvanece al tenerlo a la vista)
-- **Feedback de momentos**: destellos al subir de nivel y al caer un legendario/mítico, cooldowns radiales y coste de maná en las habilidades, y números de daño que no saturan
-- **Build a la vista**: barra de navegación Personaje ↔ Habilidades ↔ Paragon/Glifos, con avisos de puntos sin gastar y glifos sin engarzar; el inventario se abre también con **B**
-- **Esquiva** con invulnerabilidad breve (Shift / botón 💨) y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo
-- **Santuarios** en las mazmorras: bendiciones de XP, furia, vida y oro… y alguno maldito
-- **Loot estilo Diablo**: rarezas Normal / Mágico / Raro / Legendario con afijos aleatorios, con tasas equilibradas (los legendarios son un acontecimiento, no rutina)
-- **Conjuntos (sets)**: 3 sets verdes de 3 piezas (Senda del Lobo, Legado del Hechicero, Paso del Cazador) con bonus por llevar 2 y 3 piezas equipadas
-- **Mercader con stock rotativo**: la mercancía cambia cada 5 minutos (con temporizador) y mejora con tu nivel
-- **Apuesta del mercader**: compra objetos sin identificar — mínimo mágico, con suerte legendario
-- **Waypoints**: cada 5 pisos hay un waypoint que desbloquea viaje rápido desde el pueblo (y entre pisos)
-- **Cofres mímico**: algunos cofres muerden... y sueltan mejor botín
-- **Misiones**: el Capitán de la Guardia del pueblo ofrece misiones (matar monstruos/élites/jefes, abrir cofres) con oro, XP y objetos raros de recompensa
-- **Desafío Diario**: portal dorado con una mazmorra de semilla fija — el mismo trazado para todos cada día, con botín legendario al derrotar a su jefe (una vez al día)
-- **Modo Hardcore** opcional al crear personaje: la muerte es permanente y borra el guardado
-- **Compañero de utilidad**: adóptalo y mejóralo con el **Domador de Bestias** (NPC del pueblo). No combate: recoge botín, atrae tesoros (imán) y otorga un aura de utilidad según su collar (oro/hallazgo mágico/velocidad). Tres modelos (lobo 🐺, halcón 🦅, familiar arcano ✨) y mejoras por oro (radio de recolección, imán, materiales, agilidad)
-- **Crónica de partida**: monstruos, jefes, mímicos, legendarios, misiones, diarias, oro, muertes, piso máximo y tiempo jugado
-- **Inventario estilo Diablo IV**: en escritorio, equipo y mochila en **dos columnas a la vez** (sin scroll); 32 casillas + **12 ranuras de equipo** en silueta anatómica; **armas y off-hands acordes a tu clase** (escudo para el Guerrero, orbe/foco para la Maga, carcaj para la Arquera). Se abre con `I` o `B`
-- **Bolsa de materiales** aparte (pestaña propia): gemas, runas, llaves de grieta, fragmentos y glifos no ocupan espacio en la mochila
-- **Arrastrar y soltar**: mueve objetos entre mochila, equipo, cubo y alijo; arrastra una pieza a su ranura para equiparla o una gema/runa sobre un objeto con engarce para incrustarla (Pointer Events: funciona en ratón y táctil)
-- **Stats secundarios** estilo Diablo 3/4: Vida al golpear, Maná al golpear, Reducción de enfriamiento (tope 50%) y Espinas
-- **Gemas y engarces**: 6 gemas (Rubí, Zafiro, Amatista, Esmeralda, Topacio, Diamante) que se engarzan en objetos con ranura
-- **Runas y palabras rúnicas**: 6 runas que, engarzadas en el orden correcto, forman palabras con bonus especiales (Filo, Bastión, Zancada, Tormenta, Coloso)
-- **Libro de recetas** (📖 junto al cubo): todas las recetas del cubo y la tabla de palabras rúnicas
-- **Abrir engarce** (receta cara): 1 objeto + 2 gemas → +1 hueco, hasta el tope de cada pieza
-- **Encantadora** en el pueblo: reforja un afijo de un objeto por oro (precio creciente)
-- **Re-spec**: redistribuye atributos y habilidades pagando oro
-- **Maestrías de clase** (estilo Last Epoch + aspectos de Diablo 4): a partir del **nivel 12** eliges **1 de 3 ramas** por clase (p. ej. Guerrero → Berserker/Guardián/Cruzado) y ganas 1 punto de maestría cada 2 niveles. Cada rama tiene 6 nodos (menores de stats, notables y un **capstone** que define la build, p. ej. *Sed de Batalla*: +40% daño con vida baja; *Muro Inquebrantable*: sobrevives a un golpe letal; *Cero Absoluto*: astilla enemigos ralentizados). Reespecializable por oro. Pestaña **Maestría** en la barra de build
-- **Tablero de Paragon** (estilo Diablo 4): tras el nivel 20, cada nivel da un punto que se gasta en un **tablero de nodos conectados** (9×9) — nodos menores, mágicos, raros y **legendarios (★) que otorgan poderes únicos**; solo activas nodos que conecten con otros ya activos, y puedes reespecializar por oro
-- **Glifos del tablero**: nodos de **engarce (◇)** donde colocas **glifos** (caen en grietas y del Pináculo); su poder escala con el **rango del glifo** y con los **nodos activos adyacentes** al engarce (sinergia de colocación), y suben de rango al completar grietas
-- **Poderes legendarios únicos** y **reliquias de jefe**: legendarios que cambian cómo juegas (Festín, Volátil, Vendaval, Viento, Furia, Avaricia); los jefes sueltan reliquias temáticas
-- **Tormento (dificultad seleccionable)**: en la **Estatua del Mundo** del pueblo eliges el nivel de Tormento (hasta 10), que sube la dificultad y el botín (rareza y cantidad); se desbloquea empujando grietas y descendiendo en las mazmorras
-- **Códice de Aspectos**: extrae el poder único de un legendario al Códice y **grábalo en otra pieza** por oro (estilo Diablo 4) — define tu build sin depender del azar
-- **Bendiciones permanentes** (estilo Last Epoch): cada grieta completada (corrupción) te ofrece elegir 1 de 3 bendiciones; equipas una por categoría (Ofensiva, Defensiva, Celeridad, Fortuna) y su poder escala con el nivel de grieta — un objetivo de empuje infinito que mejora tu personaje para siempre
-- **Jefe Pináculo (uber)**: los jefes de mundo y las grietas sueltan **Fragmentos de Pináculo**; reúne 3 y ofréndalos en la Estatua del Mundo para invocar al **Heraldo del Vacío**, el reto final, que suelta un objeto **MÍTICO** — un legendario con **doble poder único**
-- **Identificación**: legendarios, conjuntos y reliquias caen "sin identificar" — el momento de revelarlos
-- **Hallazgo mágico**: afijo, nodo Paragon y santuario que aumentan la rareza y cantidad del botín
-- **Pactos de piso**: un altar opcional ofrece más peligro a cambio de más recompensa (botín/MF/XP)
-- **Amuletos de mochila (charms)**: dan stats mientras estén en la bolsa, a coste de espacio
-- **Colección y bestiario**: registro de conjuntos, poderes legendarios y enemigos derrotados
-- **Acto 2 — Abismo Estelar (pisos 16+)**: bioma del vacío con Espectros, Caballeros del Abismo, el jefe Corazón del Vacío y el **Refugio del Abismo**, un segundo pueblo que se desbloquea al llegar
-- **Alijo compartido** en el pueblo: 24 casillas comunes a todos tus personajes (sobrevive al Hardcore)
-- **Tabla del Desafío Diario**: tus últimas 14 runs con clase, piso y tiempo, en el panel de personaje
-- **Pociones** de vida y maná, oro, barra de experiencia, orbes de vida/maná, minimapa
-- **3 huecos de personaje** con guardado automático local, y **exportar/importar partida** por código (copia de seguridad o cambio de dispositivo)
-- Los enemigos tienen **línea de visión real**: no te detectan a través de los muros
-- **PWA instalable**: añádelo a la pantalla de inicio del móvil y juega incluso sin conexión
-- **Calidad adaptativa**: si los FPS bajan, reduce resolución y sombras automáticamente (desactivable en Opciones)
-- **Filtro de loot**: en Opciones, oculta el botín por debajo de la rareza que elijas (limpia la pantalla en niveles altos)
-- **Mejora de objeto (masterworking)** y **afijos superiores ★**: sube la calidad de una pieza en rangos por oro (+% a sus stats) y caza afijos 1.5× más fuertes
-- **Grietas (endgame)**: los jefes profundos sueltan Llaves de Grieta; ábrelas para mazmorras con varios modificadores y botín aumentado, y al completarlas sube tu nivel de grieta y obtienes una llave superior (empuje infinito)
-- **Tooltips al pasar el ratón** (escritorio): ver stats y comparación ▲▼ de cualquier objeto sin abrir la ficha
-- **Accesibilidad**: movimiento reducido, texto grande y modo daltónico (colores de rareza seguros); la rareza se marca también con glifo (✦◆★❖), no solo por color
-- **UI/UX renovada**: paneles de NPCs (mercader con secciones y temporizador, misiones con progreso, alijo con contador, pactos riesgo/recompensa), inventario (EQUIPO/CUBO/MOCHILA claros, ranuras con icono guía, indicadores táctiles) y hoja de personaje (atributos en tarjetas, stats derivadas agrupadas en ofensivas/defensivas/utilidad) rediseñados para móvil
-- Efectos de sonido sintetizados con WebAudio, números de daño flotantes, críticos
+En la pantalla de inicio eliges clase, nombre y color de armadura, y si el héroe es **Hardcore** (la muerte borra su hueco de guardado). La casilla **Héroe de prueba** crea un héroe al nivel 100, con equipo legendario y la primera especialización ya montada, para probar el final del juego sin subir de nivel.
 
 ## 🕹️ Controles
 
-| Acción | Escritorio | Móvil |
-|---|---|---|
-| Mover | Clic en el suelo o WASD | Joystick (mitad izquierda; el tap no mueve) |
-| Atacar / Interactuar | Clic en el enemigo o `Espacio` | Botón de acción ⚔️ |
-| Esquivar | `Shift` | Botón 💨 |
-| Habilidades | `1` – `4` | Botones de habilidad |
-| Poción vida / maná | `Q` / `E` | Botones 🧪 / 🔷 |
-| Inventario / Habilidades / Personaje | `I` / `T` / `C` | Botones del menú |
-| Recoger objeto | Etiqueta o tecla `F` | Etiqueta o botón 🖐️ |
+| Acción | Por defecto |
+|---|---|
+| Mover | `W` `A` `S` `D` o las flechas |
+| Apuntar | Ratón |
+| Habilidad básica · principal | Clic izquierdo · clic derecho |
+| Resto de la barra | `1` movilidad · `2` defensa, utilidad u otra principal · `3` insignia de la especialización · `4` definitiva |
+| Acción (interactuar o atacar) | `Espacio` |
+| Esquivar | `Mayús` |
+| Poción de vida · de recurso | `Q` · `E` |
+| Recoger botín | `F` |
+| Mapa | `M` o `Tab` |
+| Inventario · Habilidades · Personaje · Talentos | `I` o `B` · `T` · `C` · `N` |
+| Tablero de glifos · Misiones · Colección · Guía de sistemas | `P` · `J` · `K` · `H` |
+| Modo limpio del HUD | `Z` |
+| Cerrar panel / Opciones | `Esc` |
+| Ampliar la información en pantalla | `Alt` mantenido |
 
-El botón de acción es contextual: junto a un portal, NPC, cofre, waypoint o alijo cambia de icono y sirve para interactuar (los portales no se activan al pisarlos). Si no hay nada que usar, ataca al enemigo más cercano — **puedes atacar mientras te mueves** con el joystick. El oro, las pociones, las gemas y las runas se recogen automáticamente al pasar por encima — y tu compañero va a buscarlos por ti (según sus mejoras). En Opciones ⚙️ hay brillo, sonido, música, vibración, sacudida de cámara y copia de seguridad de la partida.
+En **Opciones → Controles** se puede:
+
+- Cambiar el esquema a **Clic para mover** (estilo Diablo II: el clic izquierdo mueve y ataca, el derecho lanza la principal).
+- Reasignar cualquier tecla.
+- Elegir si las habilidades de cargar y canalizar se **mantienen** pulsadas o se **alternan**.
+
+Con un panel abierto la partida se pausa.
+
+## 🧙 Clases, especializaciones y talentos
+
+Hay tres clases. Cada una tiene su recurso, y cada especialización añade un **indicador de mecánica** propio en el HUD.
+
+| Clase | Recurso | Especializaciones (indicador) |
+|---|---|---|
+| **Guerrero** | **Furia**: se gana golpeando y recibiendo daño, y se pierde fuera de combate | Berserker (Sed) · Guardián (Bastión) · Cruzado (Fervor) |
+| **Maga** | **Maná**: reserva amplia que se regenera | Piromante (Calor) · Crionte (Escarcha) · Arcanista (Cargas) |
+| **Arquera** | **Energía**: reserva pequeña que se regenera rápido | Tiradora Veloz (Impulso) · Francotiradora (Concentración) · Montaraz (Coto) |
+
+Qué mide cada indicador:
+
+- **Sed** (Berserker): se llena al perder vida y al desangrar enemigos; llena, da Sed Saciada.
+- **Bastión** (Guardián): cargas por bloquear o plantarte, que reducen el daño recibido.
+- **Fervor** (Cruzado): tres soles; con los tres, el siguiente martillo sale como Veredicto.
+- **Calor** (Piromante): sube con cada golpe de fuego hasta la Ignición Total.
+- **Escarcha** (Crionte): capas por enemigo, hasta congelarlo (a los jefes los deja Ateridos).
+- **Cargas** (Arcanista): se acumulan y las gasta el Rayo.
+- **Impulso** (Tiradora Veloz): sube acertando en movimiento hasta el Vendaval.
+- **Concentración** (Francotiradora): sube quieta y baja al moverte, hasta la Calma Absoluta.
+- **Coto** (Montaraz): cuenta tus trampas armadas y marca una Presa.
+
+### Progresión (niveles 1 a 100)
+
+Cada nivel da un punto de un solo sistema:
+
+- **Niveles 2 a 20, atributos:** +5 puntos por nivel para Fuerza, Destreza, Vitalidad y Energía. Redistribuirlos cuesta oro.
+- **Nivel 10, especialización:** eliges una de las tres de tu clase. Cambiarla es gratis fuera de combate y cada una conserva sus talentos.
+- **Niveles 10 a 70, talentos:** se alternan los puntos del **árbol de especialización** (31) y del **árbol de clase** (34; los cuatro últimos llegan en los niveles 85, 90, 95 y 100).
+- **Niveles 71 a 80, árbol héroe:** 10 puntos; exige haber gastado antes los 31 de especialización. Hay tres por clase, cada uno compartido por dos especializaciones:
+  - Guerrero: Titán, Gladiador, Caudillo.
+  - Maga: Cronomante, Invocadora, Escriba Rúnica.
+  - Arquera: Errante del Viento, Carcaj Encantado, Halconera.
+- **Niveles 81 a 100, tablero de glifos:** 16 puntos en un tablero de 9×9 propio de cada clase, con cuatro brazos (ofensiva, utilidad, sustento y defensa), zócalos de glifo y nodos legendarios. El poder de un glifo crece con su rango y con los nodos vecinos de su familia.
+
+Talentos, forja y tablero se cambian **gratis fuera de combate** (5 s sin recibir daño, o en un campamento). El panel de talentos (`N`) tiene un botón **Recomendado** que monta una build completa (talentos, barra y forja), guarda configuraciones y exporta o importa un **código de build** para compartir.
+
+## ⚔️ Habilidades y combate
+
+- **Las habilidades se aprenden solas** al subir de nivel y suben de rango (hasta 5) con el nivel. No hay puntos de habilidad.
+- **Barra de 6 ranuras**, una por categoría: básica, principal, movilidad, defensa o utilidad, insignia y definitiva. Se abren en los niveles 1, 2, 4, 6, 10 y 15; entre el 10 y el 15 entra el kit de tu especialización.
+- **Forja** (libro de habilidades, `T`): cada habilidad tiene una mejora y dos variantes que cambian cómo se juega; eliges una.
+- **Verbos:** además de pulsar y lanzar, hay habilidades de cargar y soltar, relanzar, combo, secuencia, postura, marcar, trampa, detonar y canalizar, cada una con su aviso en la barra y junto al cursor.
+- **Soportes:** 12 gemas de soporte que caen del botín y se engarzan en las habilidades (un hueco en la básica y la definitiva, dos en el resto): Amplificado, Multiproyectil, Perforante, Encadenado, Eco…
+- **Esquiva** con invulnerabilidad breve, y **ataques telegrafiados**: los golpes pesados y las mecánicas de jefe avisan con un círculo rojo.
+- **Los enemigos avisan antes de pegar:** preparan el golpe cuerpo a cuerpo y, si te apartas a tiempo, fallan.
+- **Quebranto:** a los jefes el control no los aturde; llena una barra que, al completarse, los deja Quebrantados (aturdidos y vulnerables) unos segundos.
+- **Control con rendimientos decrecientes:** aturdir, congelar o empujar al mismo enemigo una y otra vez dura cada vez menos.
+- **Sensación de golpe:** *hit-stop* según la fuerza del impacto, destello en el enemigo golpeado, sacudida de cámara y números de daño por elemento.
+
+## 🌍 Mundo
+
+- **Mundo abierto de cuatro zonas** encadenadas que se cruzan caminando: Cripta (nivel 1), Cavernas de Hielo (6), Infierno (11) y Abismo Estelar (16).
+- **La Cripta es el hogar:** su campamento reúne curandero, mercader, encantadora, capitán de la guardia, domador de bestias, alijo, la Estatua del Mundo y el portal del Desafío Diario.
+- **Bastiones** en las Cavernas de Hielo y el Infierno: al derrotar a su guardián se convierten en un campamento más.
+- **Vida en cada zona:** entradas a mazmorras, reaparición gradual de enemigos, un **jefe de mundo** que defiende su territorio, obeliscos de evento, santuarios, tesoros custodiados, **Goblins del Tesoro** (tres tipos, cada uno con su forma de escapar) y **contratos de zona** con objetivos seguidos en vivo.
+- **Mundo persistente por sesión:** cada zona se genera una vez por partida y conserva su trazado y lo explorado hasta que recargas la página.
+- **Mazmorras procedurales infinitas** con dificultad creciente y cuatro biomas por profundidad: Cripta (pisos 1 a 5), Cavernas de Hielo (6 a 10), Infierno (11 a 15) y Abismo Estelar (16 en adelante). Tienen un jefe por piso, cofres (algunos son mímicos), santuarios, altares de pacto (más peligro a cambio de más recompensa) y un waypoint cada 5 pisos.
+- **Refugio del Abismo:** un segundo pueblo que se desbloquea en el piso 16.
+- **Encuentros con guion:** manadas con líder, salas-emboscada y tesoros custodiados.
+- **Misiones** del Capitán de la Guardia y **Desafío Diario**: una mazmorra con la misma semilla para todos cada día, con tabla de tus últimas 14 partidas.
+- **Eras:** cada semana cambia un mutador local (más daño, más experiencia, más hallazgo mágico…) y hay objetivos semanales con recompensa.
+- **Minimapa** orientado a la cámara, **mapa** con niebla de guerra y **brújula** que señala al goblin o al jefe de mundo cuando están fuera de pantalla.
+
+## 👹 Enemigos
+
+- **Rarezas:** campeones y élites con auras visibles y modificadores con mecánica (Ardiente, Explosivo, Espinoso, Encarcelador, Vórtice, Escudado, Cadenas).
+- **Arquetipos con contrajuego:** Nigromante (invoca esbirros), Acólito Sanador, Portaestandarte (escuda a sus aliados), Sembrador de Esporas (se divide al morir), Embestidor (carga en línea con aviso) y Francotirador del Vacío (disparo cargado de largo alcance).
+- **Mecánicas:** lanzadores con abanico de proyectiles, telarañas y escarcha que ralentizan, auras que exaltan a los aliados y cobardes que huyen.
+- **Jefes con mecánicas por bioma:** el Señor del Abismo invoca esbirros, el Rey Gélido congela con novas de hielo y el Avatar del Infierno deja charcos de fuego.
+- **Línea de visión real:** no te detectan a través de los muros.
+
+## 💎 Botín, objetos y crafteo
+
+- **Rarezas:** Normal, Mágico, Raro, Legendario, Conjunto y Mítico, con afijos aleatorios y **afijos superiores ★** más fuertes. La rareza se marca con color y con glifo (✦◆★❖).
+- **Identificación:** legendarios, conjuntos y reliquias caen sin identificar.
+- **Poderes legendarios únicos** (Festín, Volátil, Vendaval, Viento, Furia, Avaricia) y **reliquias de jefe**.
+- **Conjuntos:** tres sets de tres piezas (Senda del Lobo, Legado del Hechicero, Paso del Cazador) con bonus por llevar 2 y 3.
+- **Inventario:** 32 casillas de mochila y 12 ranuras de equipo, con off-hand propio de cada clase (escudo, orbe o carcaj). Se arrastra y suelta entre mochila, equipo, cubo y alijo, y cada objeto se compara (▲▼) con el que llevas puesto.
+- **Bolsa de materiales** aparte: gemas, runas, llaves de grieta, fragmentos y glifos no ocupan mochila.
+- **Gemas y runas:** 6 gemas y 6 runas que se engarzan en objetos con hueco; las runas en el orden correcto forman **palabras rúnicas** (Filo, Bastión, Zancada, Tormenta, Coloso).
+- **Cubo de transmutación:** tres objetos de la misma rareza dan uno superior pagando oro, y tres legendarios se reforjan en uno nuevo. Incluye un libro de recetas.
+- **Encantadora:** reforja un afijo de un objeto por oro.
+- **Mejora de objeto:** sube la calidad de una pieza por rangos, pagando oro.
+- **Códice de Aspectos:** extrae el poder único de un legendario y grábalo en otra pieza.
+- **Mercader** con mercancía que rota cada 5 minutos y **apuesta** de objetos sin identificar.
+- **Amuletos de mochila (charms):** dan stats mientras estén en la bolsa, a cambio de espacio.
+- **Stats secundarios:** vida y maná al golpear, reducción de enfriamiento (tope del 50 %), espinas y hallazgo mágico.
+- **Filtro de botín:** oculta lo que quede por debajo de la rareza que elijas.
+- **Alijo compartido:** 24 casillas comunes a todos tus personajes.
+- **Compañero de utilidad** (lobo, halcón o familiar arcano): no combate; recoge botín y da un aura según su collar. Se adopta y mejora con el Domador de Bestias.
+
+## 🏆 Endgame
+
+- **Grietas:** los jefes profundos sueltan llaves; cada grieta trae varios modificadores y más botín, y completarla sube tu nivel de grieta.
+- **Tormento:** dificultad seleccionable hasta el nivel 10 en la Estatua del Mundo; sube el reto y el botín.
+- **Bendiciones permanentes:** ocho, en cuatro categorías (ofensiva, defensiva, celeridad y fortuna).
+- **Jefe Pináculo:** reúne tres Fragmentos de Pináculo para invocar al Heraldo del Vacío, que suelta objetos Míticos.
+- **Colección y bestiario**, y una **crónica** de la partida en la ficha del personaje.
+
+## 🖥️ Interfaz, gráficos y sonido
+
+- **HUD de PC** escalable (del 70 % al 150 %): barra de 6 ranuras con enfriamientos, indicador de la especialización, marco del objetivo con su barra de Quebranto, beneficios y perjuicios con cuenta atrás, registro de botín y micromenú. `Z` lo deja en modo limpio.
+- **Guía de sistemas** (`H`) dentro del juego.
+- **Post-procesado:** oclusión ambiental (GTAO), antialias SMAA, bloom, tone mapping ACES, viñeta con gradación de color por bioma, iluminación basada en imagen y sombras de contacto. El contorno estilizado marca al héroe y a los enemigos notables.
+- **Calidad adaptativa** y preajustes de vídeo: si los FPS bajan, se reducen resolución y sombras.
+- **Efectos:** motor de partículas propio y un kit de efectos de malla con shader (ondas, tajos, marcas en el suelo, haces, telegrafías). Hay un editor de partículas aparte en `/particulasmaker.html`.
+- **Modelos:** los enemigos son procedurales y animados; el demonio usa ya un modelo 3D riggeado (`.glb`) con animaciones propias.
+- **Sonido:** efectos sintetizados con WebAudio y música ambiental generativa por bioma, sin archivos de audio.
+- **Accesibilidad:** movimiento reducido, texto grande y modo daltónico.
+
+## 💾 Guardado
+
+- **Tres huecos de personaje** con guardado automático en `localStorage`.
+- **Formato versionado:** una partida guardada con una versión anterior se migra al cargarla.
+- **Exportar e importar** la partida con un código, como copia de seguridad o para cambiar de equipo.
+- **PWA:** instalable, y jugable sin conexión una vez cargada.
 
 ## 📁 Estructura
 
 ```
-index.html      — HUD, paneles y arranque
-css/style.css   — estilos responsive
-js/data.js      — clases, habilidades, enemigos y constantes
-js/items.js     — generación de loot, rarezas, afijos, gemas y runas
-js/world.js     — pueblos, refugio y mazmorras procedurales
-js/entities.js  — jugador, enemigos, mascota y proyectiles
-js/ui.js        — HUD, inventario, árbol de habilidades, minimapa
-js/economy.js   — tienda, cubo, encantadora, re-spec y paragon
-js/input.js     — ratón, teclado y joystick táctil
-js/sfx.js       — sintetizador de efectos (WebAudio)
-js/main.js      — bucle del juego, mundo y combate
-sw.js           — service worker (PWA offline)
-tests/          — suites de simulación + regresión de balance
+index.html            HUD, paneles y arranque (importmap de Three.js)
+css/                  estilos: base, libro de habilidades, talentos, verbos y barras de mecánica
+js/main.js            clase Game: render, cámara, bucle, mundo y combate
+js/game-*.js          sistemas de Game por archivo (habilidades, talentos, endgame, eras, mundo)
+js/entities.js        jugador, enemigos, proyectiles y mascota
+js/combat-math.js     todas las fórmulas de combate
+js/data.js, items.js  catálogos (clases, enemigos, zonas) y botín
+js/skills-<clase>.js  habilidades de cada clase   (talents-, powers-, mech-: talentos, poderes, mecánica)
+js/world.js, zones.js mazmorras, pueblos y mundo abierto
+js/ui*.js             interfaz; hud-model.js y talents-view.js calculan, ui*.js pinta
+js/save-schema.js     guardado versionado y migraciones
+sw.js                 service worker (PWA sin conexión)
+assets/               iconos, marcos, arte y modelos .glb
+tests/                suites de simulación sin navegador y regresiones de balance
+tools/                humo en Chrome, turno de pruebas y conversor de talentos
+docs/                 diseño, contratos y maquetas
 ```
 
 ## 🧪 Pruebas
 
 ```bash
-npm install
-npm test
+npm install                   # trae three, la única dependencia (de desarrollo)
+npm test                      # todas las suites de tests/
+node tests/<suite>.mjs        # una sola suite
+npm run smoke                 # arranca el juego real en Chrome sin ventana (pide Chrome y Node 22 o superior)
 ```
 
-Incluye una **regresión de balance**: simula la progresión (héroe con equipo acorde a cada piso vs enemigos escalados) y falla si el tiempo de matar, los golpes que aguantas o el ritmo de subida salen de los rangos de diseño. También una **regresión de equilibrio del endgame** que verifica el TTK por nivel de Tormento, que los conjuntos y el legendario de jefe no se vuelvan rutina con Hallazgo Mágico, y que el poder del Paragon+glifos no eclipse al equipo.
+Las suites simulan el juego sin navegador (sin DOM ni WebGL). Incluyen **regresiones de balance**: simulan la progresión del héroe contra enemigos escalados y fallan si el tiempo de matar, el aguante o el ritmo de subida se salen de los rangos de diseño, y lo mismo para el equilibrio del endgame y las tasas de botín.
+
+## 📚 Documentación
+
+- [`CLAUDE.md`](CLAUDE.md): guía de trabajo del repo (comandos, convenciones, arquitectura y patrones).
+- [`MEMORIA.md`](MEMORIA.md): inventario detallado de lo que ya existe.
+- [`INFORME_EXPANSION_2026.md`](INFORME_EXPANSION_2026.md): hoja de ruta de producto.
+- [`docs/`](docs/): diseño y contratos de cada paso, y las maquetas aprobadas de la interfaz.
+
+## 🤝 Contribuir
+
+El trabajo va en una rama y llega a `main` por un pull request; nunca se empuja a `main` directamente. Antes de commitear, `npm test` tiene que quedar en verde.

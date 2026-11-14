@@ -6,7 +6,7 @@ reimplementar algo hecho. La hoja de ruta de producto está en
 `INFORME_EXPANSION_2026.md`.
 
 - `MEMORIA.md` pesa ~190 KB: no la leas entera, búscala con `rg` (§3 lo que existe, §5 backlog, §6 gotchas, §7 y §8 guías de trabajo por clase).
-- `README.md` describe una versión anterior (móvil y táctil, maestrías, árbol de habilidades con puntos): ante la duda mandan el código y `MEMORIA.md`.
+- Varias entradas de `MEMORIA.md` §3 fechadas en junio de 2026 describen sistemas ya sustituidos (maestrías, joystick táctil, Paragon desde el nivel 20): si una entrada choca con el código, manda el código.
 - Diseño y contratos: `docs/paso2-implementacion.md` (contratos del Paso 2), `docs/mockups/*.html` (maquetas aprobadas que la UI porta) y `docs/diseno/` (pasos 4, objetos, y 6, multijugador).
 
 ## Qué es
