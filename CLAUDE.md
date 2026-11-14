@@ -30,8 +30,8 @@ ARPG isométrico estilo Diablo 2/4 en **JavaScript vanilla + Three.js 0.160**,
 1. **`npm test` en verde** siempre antes de commitear.
 2. **Bump `sw.js` `VERSION`** en cada cambio de assets desplegable; añade nuevos `js/*.js` a `ASSETS` en `sw.js`.
 3. **Git author:** `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita "Unverified").
-4. **Push a AMBAS ramas:** `claude/isometric-rpg-game-xmer7p` y `main` (p. ej. `git push origin claude/isometric-rpg-game-xmer7p:main`).
-5. **NO crear PRs** salvo petición explícita.
+4. **Nunca se empuja a `main`**, ni directo ni con `<rama>:main`. El trabajo va en una rama (`git switch -c <tipo>/<tema>`), se sube nombrándola (`git push origin <rama>`) y llega a `main` solo por un PR.
+5. **Un PR por feature, contra `main`.** Abre el PR, pasa el enlace y para: lo revisa y lo fusiona una persona, no el agente.
 6. **Actualiza `MEMORIA.md`** cuando añadas/cambies un sistema; márcalo ✅ y mueve el backlog.
 7. No toques archivos que esté escribiendo un agente en background (p. ej. informes).
 8. Para features grandes y aisladas se pueden lanzar agentes Opus en worktrees; ojo con archivos compartidos (`main.js`, `ui.js`).
