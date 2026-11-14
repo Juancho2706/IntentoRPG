@@ -16,7 +16,7 @@
 - **`npm test` debe quedar en verde** siempre antes de commitear.
 - **Bump de `sw.js` `VERSION`** en cada cambio desplegable de assets (actual: **v116**). Añadir nuevos `js/*.js` a `ASSETS` en `sw.js`.
 - **Git author**: `git config user.email noreply@anthropic.com && user.name Claude` antes de commitear (evita commits "Unverified").
-- **Push a AMBAS ramas**: `claude/isometric-rpg-game-xmer7p` y `main` (fast‑forward `origin <branch>:main`).
+- **Nunca se empuja a `main`**: el trabajo va en una rama y llega a `main` solo por un PR que fusiona una persona (`CLAUDE.md`, convenciones 4 y 5).
 - **No tocar archivos que esté escribiendo un agente en background** (p. ej. informes).
 - Investigar "info junio 2026" antes de features grandes; se permiten workflows con agentes Opus en worktrees para tareas grandes e **aisladas** (cuidado con archivos compartidos: `main.js`, `ui.js`).
 - **Guardado solo local** por ahora (DB en la nube = futuro).
